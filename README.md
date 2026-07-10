@@ -64,6 +64,12 @@ go build ./...
 
 # 运行 CLI 聊天
 go run ./example/cli-chat/
+
+# 运行 TUI 交互模式
+go run ./cmd/mady/ tui
+
+# 运行 ACP 协议服务器（编辑器集成）
+go run ./cmd/mady/ acp
 ```
 
 ### 作为库使用
@@ -358,6 +364,24 @@ p := chatcompat.New(chatcompat.Config{
 
 所有 Provider 均支持流式响应（SSE）、工具调用、结构化输出和多模态。
 
+### 智能路由 Provider
+
+`provider/smartrouter` 根据任务类型自动选择最优模型，支持多优先级策略。
+
+```go
+// TaskType 分类: coding / reasoning / legal / patent / creative / analysis / general
+router := smartrouter.New(smartrouter.Config{
+    Priority: smartrouter.PriorityQuality,    // quality | cost | balanced | latency
+    Profiles: []smartrouter.ModelProfile{
+        {Model: "deepseek-chat", TaskType: "coding",   Tier: 1, CostPer1K: 0.001},
+        {Model: "glm-5.2",      TaskType: "reasoning", Tier: 1, CostPer1K: 0.002},
+    },
+})
+
+p := smartrouter.NewProvider(chatcompat.New(chatcompat.Config{...}), router)
+agent := agentcore.New(agentcore.Config{Provider: p})
+```
+
 ### 结构化输出
 
 `agentcore.Config` 通过 `ResponseFormat` 支持结构化输出。所有 Provider 使用相同的高层请求结构。
@@ -422,6 +446,94 @@ msg := agentcore.Message{
 - `chatcompat`：将图片块作为 `image_url` 多部分内容发送（OpenAI 兼容格式）
 
 Provider 响应通过 `ProviderResponse.Blocks` 保留块结构输出（含流式聚合），Agent 将助手块持久化到 `Message.Blocks` 中。
+
+## 心理引擎
+
+`psychological/` 是一个基于心理学的对话分析引擎，通过 7 阶段管道分析用户情绪和认知状态。
+
+| 阶段 | 模型 | 功能 |
+|------|------|------|
+| 1 | **VAD** | 三维情绪空间（Valence/Arousal/Dominance） |
+| 2 | **OCC** | 14 种情绪分类评价公式 |
+| 3 | **EMA** | 四维认知评价 + 应对模式检测 |
+| 4 | **Beck CBT** | 13 种认知扭曲检测（全有/全无、灾难化等） |
+| 5 | **SDT** | 自我决定理论跨轮次需求追踪 |
+| 6 | **对话策略匹配** | 9 种策略（共情/重述/苏格拉底式提问等） |
+| 7 | **管道编排** | 7 阶段顺序执行 + 短路优化 |
+
+```go
+ext := psychological.NewExtension(psychological.ExtensionConfig{
+    AppraisalThreshold: 0.6,
+    LLMVerifyDistortions: true,    // LLM 验证认知扭曲
+})
+agent := agentcore.New(agentcore.Config{Extensions: []agentcore.Extension{ext}})
+```
+
+纯 Go 标准库实现，零外部依赖。
+
+## 三级护栏系统
+
+`guardrails/` 提供三级安全护栏，通过 LifecycleHook 在 AfterModelCall 阶段注入。
+
+| 级别 | 内容屏蔽 | 免责声明 | 审批门 |
+|------|----------|----------|--------|
+| **Light** | 通用风险关键词 | — | — |
+| **Standard** | 专业风险关键词 | 领域免责声明 | — |
+| **Strict** | 法律/专利关键词 | 法律免责声明 | 敏感结论需审批 |
+
+```go
+hook := guardrails.New(guardrails.Config{
+    Level:          guardrails.LevelStrict,
+    Domains:        []string{"patent", "legal"},
+    ShowDisclaimer: true,
+})
+agent := agentcore.New(agentcore.Config{Lifecycle: agentcore.LifecycleChain{hook}})
+```
+
+## 知识管理与检索
+
+`knowledge/` 管理多种来源的领域知识，支持 Wiki/Obsidian、专利和法律文档。
+
+```go
+import "github.com/xujian519/mady/knowledge"
+
+store := knowledge.NewStore()
+store.LoadWiki(ctx, "./wiki")
+store.LoadPatent(ctx, "./patents")
+docs := store.Search("专利创造性", knowledge.SearchOptions{TopK: 5})
+```
+
+**知识图谱** (`knowledge/graph/`) — 实体关系图谱，支持构建、查询、缓存和增量更新：
+
+```go
+builder := graph.NewBuilder(store)
+builder.AddEntity("CN109690000A", "发明专利", map[string]any{"priority": "2023-01-15"})
+builder.AddRelation("CN109690000A", "引证", "CN108000000A")
+builder.Build(ctx)
+```
+
+**检索引擎** (`retrieval/`) — 支持段落/章节分块、关键词搜索（TF-IDF 打分）、BM25 重排序（含位置偏差）、向量嵌入接口。
+
+## 推理引擎
+
+`domains/reasoning/` 提供四种法律/专利领域结构化推理原语：
+
+- **FactBlackboard** — 共享事实内存，所有推理链的中心数据源
+- **Syllogism** — 三段论引擎（大前提 → 小前提 → 结论），每条结论可溯源
+- **ReasoningWalker** — 知识图谱多跳遍历，沿实体关系链推理
+- **RuleAssertion** — 规则断言校验器，自动验证引用完整性
+
+```go
+bb := reasoning.NewFactBlackboard()
+bb.AddFact("claim-1", "一种化合物，其特征在于结构式 A")
+bb.AddRef("claim-1", reasoning.ArticleRef{Article: "专利法第22条"})
+
+result := reasoning.Syllogism{
+    Major: "专利法第22条规定新颖性是指不属于现有技术",
+    Minor: "该技术方案已在期刊X中公开",
+}.Evaluate()
+// → 结论: 不满足新颖性要求（可溯源至 FactRef + ArticleRef）
+```
 
 ## A2A 协议（Agent-to-Agent）
 
@@ -548,22 +660,21 @@ srv := server.New(agentcore.Config{
 
 ## TUI（终端 UI）
 
-全分层终端 UI，Elm 风格架构，差异渲染。
+全分层终端 UI，Elm 风格架构，差异渲染。**8 层架构**，编号越底层级越基础：
 
 ```
-tui/
-├── core/              基础层：Component 接口、rune 工具、模糊匹配
-├── terminal/          终端 I/O、按键解析（Kitty 协议）、termios（macOS/Linux）
-├── theme/             ANSI 样式、语义调色板、JSON 热重载
-├── component/         UI 组件：Editor、Markdown、Input、SelectList、Loader、Box 等
-├── chat/              聊天应用，带可滚动对话记录
-├── stdio/             过程式 stdout/stdin 工具（Spinner、Renderer、ProgressBar）
-├── agentadapter/      Agentcore → Chat 事件桥接
-└── tui.go             TUI 引擎：事件循环、覆盖层系统、差异渲染器
+Layer 7: agentadapter/   Agentcore → Chat 事件桥接
+Layer 6: stdio/          过程式 stdout/stdin 工具（Spinner、Renderer、ProgressBar）
+Layer 5: chat/           聊天应用，带可滚动对话记录
+Layer 4: component/      UI 组件：Editor、Markdown、Input、SelectList、Loader、Box 等
+Layer 3: tui.go          TUI 引擎：事件循环、覆盖层系统、差异渲染器
+Layer 2: theme/          ANSI 样式、语义调色板、JSON 热重载
+Layer 1: terminal/       终端 I/O、按键解析（Kitty 协议）、termios（macOS/Linux）
+Layer 0: core/           基础层：Component 接口、rune 工具、模糊匹配
 ```
 
 核心设计原则：
-- **层隔离**：上层导入下层，反之不行
+- **层隔离**：上层导入下层，反之不行（L0 → L1 → L2 → L3 → L4 → L5 → L6 → L7）
 - **Agent 解耦的 Chat**：`tui/chat` 使用自有事件类型和 `Subscriber` 接口——不直接依赖 `agentcore`
 - **双渲染模式**：TUI 引擎（差异渲染，Elm 架构）+ stdio 层（过程式 `\r` 覆写）
 
@@ -593,6 +704,16 @@ func (e *MyExtension) Tools() []*agentcore.Tool {
 agent := agentcore.New(agentcore.Config{
     Extensions: []agentcore.Extension{&MyExtension{}},
 })
+```
+
+项目内置的 Extension 实现：
+
+| 扩展 | 模块 | 功能 |
+|------|------|------|
+| 工具集 | `tools/` | 40+ 内置工具（文件/Shell/搜索/浏览器/代码执行/Git） |
+| MCP 桥接 | `mcp/` | 将外部 MCP 服务器桥接为 Tool |
+| 心理引擎 | `psychological/` | 7 阶段心理分析管道 |
+| A2A 远程 Handoff | `a2a/` | 将远程 A2A Agent 注册为 Handoff 目标 |
 ```
 
 ## 许可证

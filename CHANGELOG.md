@@ -31,4 +31,31 @@
 - **示例应用**：cli-chat（TUI 聊天）、tui-demo、a2a-client/server、wiki-import、provider-compat
 - **GitHub Actions CI**：go vet + build + test
 
+## [0.2.0] - 2026-07-11
+
+### Added
+
+- **心理引擎 (psychological/)**: 7-stage pipeline with VAD emotional space, OCC emotional model, EMA cognitive appraisal, Beck cognitive distortion detection, SDT self-determination theory tracking. LLM-based distortion verification mode. Persistent SDT state per session.
+- **智能路由 Provider (provider/smartrouter/)**: Task-type classification (coding/reasoning/legal/patent/creative/analysis/general), priority-based profile ranking (quality/cost/balanced/latency), ModelProfile registry.
+- **知识管理 (knowledge/)**: Wiki/Patent/Legal document loaders, multi-source loader pipeline, KnowledgeStore with domain-organized collections, retrieval hook integration with guardrails.
+- **知识图谱 (knowledge/graph/)**: Graph store with adapter, builder, query engine, incremental updates, cache layer, retrieval enhancer integration.
+- **推理引擎 (domains/reasoning/)**: FactBlackboard shared memory, categorical Syllogism engine (major premise → minor premise → conclusion), multi-hop ReasoningWalker, RuleAssertion validator with reference tracing.
+- **三级护栏系统 (guardrails/)**: Light/Standard/Strict guardrail levels, domain-specific disclaimers, keyword-based content safety checks, approval gating for critical conclusions.
+- **检索引擎 (retrieval/)**: Paragraph/section chunker, keyword searcher with TF-IDF scoring, BM25-inspired reranker with position bias, vector embedding support, domain-specific retrieval base.
+- **领域工作流 (workflows/)**: Legal and patent domain workflow steps with human-approval gates.
+- **MCP 客户端 (mcp/)**: stdio transport, HTTP/SSE transport, tool hot-refresh, capability discovery.
+- **HTTP/SSE 服务器 (server/)**: `/api/chat` endpoint, thread CRUD, skill management, state snapshots, AG-UI event streaming.
+- **示例应用**: cli-chat, a2a-server, a2a-client, acp-server, tui-demo/2/3, wiki-import, provider-compat (9 examples)
+- **统一入口 (cmd/mady/)**: `mady tui` and `mady acp` subcommands
+
+### Changed
+
+- **Provider 层**: Simplified to `provider/chatcompat/` (OpenAI Chat Completions compatible) and `provider/smartrouter/` (intelligent routing). Removed standalone per-provider packages.
+- **TUI**: 8-layer Elm architecture (up from 7), with explicit layer numbering (0-7) documented in LAYERS.md.
+
+### Removed
+
+- **Runnable interface**: Removed from agentcore; replaced by direct agent execution model.
+
+[0.2.0]: https://github.com/xujian519/mady/releases/tag/v0.2.0
 [0.1.0]: https://github.com/xujian519/mady/releases/tag/v0.1.0

@@ -15,20 +15,6 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
   canvas { display: block; }
-  .legend {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(22,27,34,0.95);
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 12px 16px;
-    color: #8b949e;
-    font-size: 12px;
-  }
-  .legend span { display: block; margin: 4px 0; }
-  .legend .solid { color: #58a6ff; }
-  .legend .dashed { color: #f0883e; }
 </style>
 </head>
 <body>
@@ -38,7 +24,7 @@ const canvas = document.getElementById('arch');
 const ctx = canvas.getContext('2d');
 
 const W = Math.min(window.innerWidth, 1600);
-const H = Math.min(window.innerHeight, 1100);
+const H = Math.min(window.innerHeight, 1200);
 canvas.width = W;
 canvas.height = H;
 
@@ -75,7 +61,8 @@ const C = {
   pinkBg:   'rgba(247,120,186,0.12)',
 };
 
-// Helper functions
+// ---- Helper functions ----
+
 function roundRect(x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -98,17 +85,15 @@ function drawBox(x, y, w, h, color, title, subtitle, fontSize) {
   ctx.fill();
   ctx.stroke();
 
-  // Title
   ctx.fillStyle = C.textBold;
-  ctx.font = `bold ${fontSize || 13}px -apple-system, BlinkMacSystemFont, sans-serif`;
+  ctx.font = 'bold ' + (fontSize || 13) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(title, x + w/2, y + 22);
 
-  // Subtitle
   if (subtitle) {
     ctx.fillStyle = C.textDim;
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText(subtitle, x + w/2, y + 38);
+    ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText(subtitle, x + w/2, y + 36);
   }
 }
 
@@ -138,25 +123,24 @@ function drawArrow(x1, y1, x2, y2, color, dashed) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Arrowhead
   const angle = Math.atan2(y2 - y1, x2 - x1);
   const len = 6;
   ctx.fillStyle = color || C.border;
   ctx.beginPath();
   ctx.moveTo(x2, y2);
-  ctx.lineTo(
-    x2 - len * Math.cos(angle - 0.5),
-    y2 - len * Math.sin(angle - 0.5)
-  );
-  ctx.lineTo(
-    x2 - len * Math.cos(angle + 0.5),
-    y2 - len * Math.sin(angle + 0.5)
-  );
+  ctx.lineTo(x2 - len * Math.cos(angle - 0.5), y2 - len * Math.sin(angle - 0.5));
+  ctx.lineTo(x2 - len * Math.cos(angle + 0.5), y2 - len * Math.sin(angle + 0.5));
   ctx.closePath();
   ctx.fill();
 }
 
-// Clear
+function colorByName(name) {
+  const m = { blue: C.blue, green: C.green, orange: C.orange, purple: C.purple,
+              red: C.red, cyan: C.cyan, pink: C.pink };
+  return m[name] || C.textDim;
+}
+
+// ---- Clear ----
 ctx.fillStyle = C.bg;
 ctx.fillRect(0, 0, W, H);
 
@@ -168,52 +152,48 @@ ctx.fillText('Mady（中观智能体）架构总览', W/2, 38);
 
 ctx.fillStyle = C.textDim;
 ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.fillText('github.com/xujian519/mady  ·  Go 1.25  ·  312 files  ·  ~92K lines', W/2, 60);
+ctx.fillText('github.com/xujian519/mady  ·  Go 1.25  ·  419 files  ·  ~108K lines', W/2, 60);
 
-// ---- LAYOUT DIMENSIONS ----
-const M = 20; // margin
-const G = 14; // gap
+// ---- Data-driven layer definitions ----
 
-// External layer
-const extY = 80, extH = 110, extW = 130;
-// Core layer
-const coreY = 240, coreH = 240, coreW = 460;
-// Provider & Tool layers
-const provY = 260, provH = 80, provW = 120;
-const toolY = 370, toolH = 80, toolW = 120;
-// Infrastructure
-const infraY = 530, infraH = 100, infraW = 130;
-// TUI
-const tuiX = 60, tuiY = 290, tuiW = 110, tuiH = 200;
-// Data flow
-const dataY = 530;
+const GAP = 14;         // horizontal gap between boxes
+const VGAP = 14;        // vertical gap between small boxes inside a row
+const ROW_GAP = 40;     // vertical gap between layers
+const coreW = 440;
+const coreX = (W - coreW) / 2;
 
-// ---- EXTERNAL LAYER ----
-const extStartX = (W - (5 * extW + 4 * G)) / 2;
-const extLabels = [
-  { t: 'A2A', s: 'Agent-to-Agent', c: C.cyan },
-  { t: 'A2UI', s: 'Agent-to-UI', c: C.pink },
-  { t: 'Server', s: 'HTTP/SSE API', c: C.green },
-  { t: 'AGUI', s: 'Agent GUI Events', c: C.purple },
-  { t: 'MCP', s: 'Model Context Protocol', c: C.orange },
+// Helper: center a row of boxes and return the start X
+function centerRow(count, boxW, gap) {
+  const total = count * boxW + (count - 1) * gap;
+  return (W - total) / 2;
+}
+
+// ---- 1. EXTERNAL LAYER ----
+const extY = 80, extH = 105, extW = 125;
+const extItems = [
+  { t: 'A2A', s: 'Agent-to-Agent', c: 'cyan' },
+  { t: 'A2UI', s: 'Agent-to-UI', c: 'pink' },
+  { t: 'Server', s: 'HTTP/SSE API', c: 'green' },
+  { t: 'AGUI', s: 'Agent GUI Events', c: 'purple' },
+  { t: 'MCP', s: 'Model Context Protocol', c: 'orange' },
+  { t: 'ACP', s: 'Agent Comm Protocol', c: 'purple' },
 ];
+const extStartX = centerRow(extItems.length, extW, GAP);
 
 ctx.fillStyle = C.textDim;
 ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
 ctx.textAlign = 'left';
 ctx.fillText('外部接口层', extStartX, extY - 8);
 
-extLabels.forEach((l, i) => {
-  const x = extStartX + i * (extW + G);
-  drawBox(x, extY, extW, extH, l.c, l.t, l.s, 13);
+extItems.forEach(function(item, i) {
+  const x = extStartX + i * (extW + GAP);
+  drawBox(x, extY, extW, extH, colorByName(item.c), item.t, item.s, 13);
 });
 
-// ACP below A2A
-drawBox(extStartX + 0 * (extW + G), extY + extH + 10, extW, 50, C.purple, 'ACP', 'Agent Comm Protocol', 12);
+// ---- 2. CORE ENGINE LAYER ----
+const coreY = 220, coreH = 220;
 
-// ---- CORE LAYER ----
-const coreX = (W - coreW) / 2;
-
+// Draw core box outline
 ctx.fillStyle = C.blue;
 ctx.strokeStyle = C.blue;
 ctx.lineWidth = 2;
@@ -226,149 +206,210 @@ ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, sans-serif';
 ctx.textAlign = 'left';
 ctx.fillText('核心引擎层  agentcore', coreX, coreY - 12);
 
-drawBox(coreX, coreY, coreW, coreH, C.blue, 'agentcore', 'Agent · Config · Provider · Tool · EventBus · Lifecycle · State · Stream · ContextEngine', 13);
+drawBox(coreX, coreY, coreW, coreH, C.blue, 'agentcore',
+  'Agent · Config · Provider · Tool · EventBus · Lifecycle · State · Stream · Message', 13);
 
-// Core sub-components inside
-const subY = coreY + 55, subH = 28, subGap = 8;
-const subs = [
-  { t: 'Agent', c: C.blue, w: 55 },
-  { t: 'Config', c: C.blue, w: 60 },
-  { t: 'Provider', c: C.blue, w: 68 },
-  { t: 'Tool', c: C.blue, w: 42 },
-  { t: 'EventBus', c: C.blue, w: 70 },
-  { t: 'Lifecycle', c: C.blue, w: 68 },
-  { t: 'State', c: C.blue, w: 48 },
-  { t: 'Stream', c: C.blue, w: 56 },
+// Core sub-component rows
+const subY = coreY + 55, subH = 26;
+const coreRows = [
+  [
+    { t: 'Agent', w: 52 }, { t: 'Config', w: 58 }, { t: 'Provider', w: 66 },
+    { t: 'Tool', w: 40 }, { t: 'EventBus', w: 66 }, { t: 'Lifecycle', w: 66 },
+    { t: 'State', w: 46 }, { t: 'Stream', w: 54 }, { t: 'Message', w: 64 },
+  ],
+  [
+    { t: 'ContextEngine', w: 110 }, { t: 'Executor', w: 64 }, { t: 'Extension', w: 72 },
+    { t: 'Handoff', w: 64 }, { t: 'Compaction', w: 84 }, { t: 'Orchestrate', w: 82 },
+    { t: 'ReasoningRouter', w: 110 }, { t: 'Blocks', w: 52 },
+  ],
+  [
+    { t: 'Store', w: 46 }, { t: 'Tracer', w: 54 }, { t: 'Checkpoint', w: 82 },
+    { t: 'Middleware', w: 78 }, { t: 'Skill/SkillExt', w: 92 }, { t: 'Schema', w: 54 },
+    { t: 'Retry', w: 44 }, { t: 'Steering', w: 62 }, { t: 'Budget', w: 54 }, { t: 'Token', w: 50 },
+  ],
 ];
 
-const totalSubWidth = subs.reduce((s, sb) => s + sb.w, 0) + (subs.length - 1) * subGap;
-let subX = coreX + (coreW - totalSubWidth) / 2;
-
-// First row
-subs.forEach(s => {
-  drawSmallBox(subX, subY, s.w, subH, s.c, s.t);
-  subX += s.w + subGap;
+// Row 1 & 2 colored blue, Row 3 (interfaces) in dim
+coreRows.forEach(function(row, ri) {
+  const totalW = row.reduce(function(s, sb) { return s + sb.w; }, 0) + (row.length - 1) * (VGAP - 2);
+  var rowX = coreX + (coreW - totalW) / 2;
+  var c = ri === 2 ? C.textDim : C.blue;
+  row.forEach(function(sb) {
+    drawSmallBox(rowX, subY + ri * (subH + 6), sb.w, subH, c, sb.t);
+    rowX += sb.w + VGAP - 2;
+  });
 });
 
-// Second row
-const subs2 = [
-  { t: 'ContextEngine', c: C.blue, w: 120 },
-  { t: 'Executor', c: C.blue, w: 66 },
-  { t: 'Extension', c: C.blue, w: 74 },
-  { t: 'Handoff', c: C.blue, w: 66 },
-  { t: 'Runnable', c: C.textDim, w: 70 },
+// ---- SIDE PANELS ----
+
+// Provider layer (right of core)
+const provY = 235, provH = 75, provW = 145;
+const provItems = [
+  { t: 'chatcompat', s: 'OpenAI Compat (DeepSeek/GLM/Kimi/Qwen)', c: 'green' },
+  { t: 'smartrouter', s: '智能路由 (Task + Priority)', c: 'cyan' },
 ];
-const totalSub2 = subs2.reduce((s, sb) => s + sb.w, 0) + (subs2.length - 1) * subGap;
-subX = coreX + (coreW - totalSub2) / 2;
-subs2.forEach(s => {
-  drawSmallBox(subX, subY + subH + 6, s.w, subH, s.c, s.t + (s.c === C.textDim ? ' (已删除)' : ''));
-  subX += s.w + subGap;
-});
-
-// Third row - key interfaces
-const ifaces = ['Store', 'Tracer', 'CheckpointSaver', 'Middleware', 'SkillProvider'];
-const totalIfW = ifaces.reduce((s, t) => s + t.length * 7.5 + 16, 0) + (ifaces.length - 1) * subGap;
-subX = coreX + (coreW - totalIfW) / 2;
-ifaces.forEach(t => {
-  const tw = t.length * 7.5 + 16;
-  drawSmallBox(subX, subY + 2*(subH + 6), tw, subH - 4, C.textDim, t);
-  subX += tw + subGap;
-});
-
-// ---- PROVIDER LAYER ----
-const provCount = 7;
-const provTotalW = provCount * provW + (provCount - 1) * 8;
-const provStartX = coreX + coreW + 30;
+const provStartX = coreX + coreW + 28;
 
 ctx.fillStyle = C.textDim;
 ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
 ctx.textAlign = 'left';
 ctx.fillText('Provider 层', provStartX, provY - 8);
 
-const providers = ['chatcompat', 'anthropic', 'gemini', 'bedrock', 'vertex', 'copilot', 'mistral'];
-providers.forEach((p, i) => {
-  const py = provY + Math.floor(i / 4) * (provH + 10);
-  const px = provStartX + (i % 4) * (provW + 8);
-  drawBox(px, py, provW - 8, provH, C.green, p, '', 11);
+provItems.forEach(function(p, i) {
+  drawBox(provStartX, provY + i * (provH + 8), provW, provH, colorByName(p.c), p.t, p.s, 11);
 });
 
-// Provider → Core arrows
-drawArrow(provStartX, provY + provH/2, coreX + coreW, coreY + 60, C.green, false);
-
-// ---- TOOLS LAYER ----
-const toolCount = 8;
-const toolTotalW = toolCount * toolW + (toolCount - 1) * 6;
-const toolStartX = coreX + coreW + 30;
+// Tools layer (right of core, below provider)
+const toolY = 330, toolH = 75, toolW = 112;
+const toolItems = [
+  { t: 'browser', c: 'orange' }, { t: 'bash', c: 'orange' },
+  { t: 'read/edit', c: 'orange' }, { t: 'write/delete', c: 'orange' },
+  { t: 'grep/find', c: 'orange' }, { t: 'web_search', c: 'orange' },
+  { t: 'web_fetch', c: 'orange' }, { t: 'execute_code', c: 'orange' },
+  { t: 'git', c: 'orange' }, { t: 'mcp_bridge', c: 'orange' },
+];
+const toolStartX = coreX + coreW + 28;
 
 ctx.fillStyle = C.textDim;
 ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
 ctx.textAlign = 'left';
 ctx.fillText('内置工具层  tools/', toolStartX, toolY - 8);
 
-const tools = ['browser', 'bash', 'read/edit', 'grep/find', 'web_search', 'web_fetch', 'vision', 'execute_code'];
-tools.forEach((t, i) => {
-  const ty = toolY + Math.floor(i / 4) * (toolH + 10);
-  const tx = toolStartX + (i % 4) * (toolW + 6);
-  drawBox(tx, ty, toolW - 6, toolH, C.orange, t, '', 11);
+const toolsPerRow = 5;
+toolItems.forEach(function(t, i) {
+  const tx = toolStartX + (i % toolsPerRow) * (toolW + 5);
+  const ty = toolY + Math.floor(i / toolsPerRow) * (toolH + 8);
+  drawBox(tx, ty, toolW, toolH, colorByName(t.c), t.t, '', 11);
 });
 
-// Tools → Core arrows
-drawArrow(toolStartX, toolY + toolH/2, coreX + coreW, coreY + coreH - 40, C.orange, false);
+// TUI (left of core)
+const tuiX = 40, tuiY = 240, tuiW = 112, tuiH = 310;
 
-// ---- INFRASTRUCTURE LAYER ----
-const infraLabels = [
-  { t: 'graph/', s: 'DAG + Pregel', c: C.purple },
-  { t: 'session/', s: 'JSONL Tree', c: C.cyan },
-  { t: 'workflow/', s: 'Pipeline/Router', c: C.purple },
-  { t: 'skill/', s: 'SKILL.md', c: C.pink },
-  { t: 'prompt/', s: 'Templates', c: C.cyan },
-  { t: 'store/', s: 'SnapshotStore', c: C.cyan },
-  { t: 'filequeue/', s: 'Mutex Queue', c: C.textDim },
-  { t: 'fuzzy/', s: 'Fuzzy Match', c: C.textDim },
+ctx.fillStyle = C.textDim;
+ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('终端 UI', tuiX, tuiY - 8);
+
+drawBox(tuiX, tuiY, tuiW, tuiH, C.pink, 'tui/', '8-layer Elm Style', 12);
+
+const tuiLayers = [
+  { t: 'agentadapter (7)', s: 'Agent→Chat 桥接' },
+  { t: 'stdio (6)', s: '过程式 stdout/stdin' },
+  { t: 'chat (5)', s: '聊天应用层' },
+  { t: 'component (4)', s: 'UI 组件库' },
+  { t: 'tui/engine (3)', s: '事件循环+差异渲染' },
+  { t: 'theme (2)', s: '语义调色板' },
+  { t: 'terminal (1)', s: 'Terminal I/O (Kitty)' },
+  { t: 'core (0)', s: 'Component 接口' },
 ];
+tuiLayers.forEach(function(l, i) {
+  drawSmallBox(tuiX + 8, tuiY + 52 + i * 20, tuiW - 16, 17, C.pink, l.t);
+});
 
-const infraTotalW = infraLabels.length * infraW + (infraLabels.length - 1) * 8;
-const infraStartX = (W - infraTotalW) / 2;
+// ---- 3. DOMAIN EXTENSION LAYER (NEW) ----
+const domY = 485, domH = 90, domW = 132;
+const domItems = [
+  { t: 'psychological/', s: '心理引擎 (VAD/OCC/EMA/SDT/CBT)', c: 'cyan' },
+  { t: 'domains/', s: '领域配置 + 推理引擎', c: 'blue' },
+  { t: 'guardrails/', s: '三级护栏 (Light/Std/Strict)', c: 'red' },
+  { t: 'knowledge/', s: '知识图谱 + 文档加载器', c: 'green' },
+  { t: 'retrieval/', s: '关键词/BM25/向量嵌入', c: 'cyan' },
+  { t: 'workflows/', s: 'Legal/Patent 领域工作流', c: 'purple' },
+];
+const domStartX = centerRow(domItems.length, domW, GAP);
+
+ctx.fillStyle = C.textDim;
+ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('领域扩展层', domStartX, domY - 8);
+
+domItems.forEach(function(item, i) {
+  const x = domStartX + i * (domW + GAP);
+  drawBox(x, domY, domW, domH, colorByName(item.c), item.t, item.s, 11);
+});
+
+// ---- 4. INFRASTRUCTURE LAYER ----
+const infraY = 615, infraH = 95, infraW = 118;
+const infraItems = [
+  { t: 'graph/', s: 'DAG + Pregel', c: 'purple' },
+  { t: 'session/', s: 'JSONL Tree', c: 'cyan' },
+  { t: 'workflow/', s: 'Pipeline/Router', c: 'purple' },
+  { t: 'skill/', s: 'SKILL.md 热重载', c: 'pink' },
+  { t: 'prompt/', s: 'Templates', c: 'cyan' },
+  { t: 'store/', s: 'SnapshotStore', c: 'cyan' },
+  { t: 'mcp/', s: 'stdio + HTTP/SSE', c: 'orange' },
+  { t: 'knowledge/graph', s: '图谱存储/查询/增量', c: 'green' },
+  { t: 'filequeue/', s: 'Mutex Queue', c: 'textDim' },
+  { t: 'fuzzy/', s: 'Fuzzy Match', c: 'textDim' },
+];
+const infraStartX = centerRow(infraItems.length, infraW, 8);
 
 ctx.fillStyle = C.textDim;
 ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
 ctx.textAlign = 'left';
 ctx.fillText('基础设施层', infraStartX, infraY - 8);
 
-infraLabels.forEach((l, i) => {
+infraItems.forEach(function(item, i) {
   const x = infraStartX + i * (infraW + 8);
-  drawBox(x, infraY, infraW, infraH, l.c, l.t, l.s, 12);
+  drawBox(x, infraY, infraW, infraH, colorByName(item.c), item.t, item.s, 11);
 });
 
-// Core → Infra arrows
-infraLabels.forEach((_, i) => {
-  const x = infraStartX + i * (infraW + 8) + infraW/2;
-  drawArrow(coreX + coreW/2 + (i - 3.5) * 55, coreY + coreH, x, infraY, C.border, true);
-});
+// ---- 5. APPLICATION ENTRY LAYER (NEW) ----
+const appY = 748, appH = 75, appW = 150;
+const appItems = [
+  { t: 'cmd/mady', s: 'mady tui | mady acp', c: 'blue' },
+  { t: 'server/', s: 'HTTP/SSE API Server', c: 'green' },
+  { t: 'example/', s: '9 个示例应用', c: 'purple' },
+];
+const appStartX = centerRow(appItems.length, appW, GAP);
 
-// ---- TUI ----
 ctx.fillStyle = C.textDim;
 ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
 ctx.textAlign = 'left';
-ctx.fillText('终端 UI', tuiX, tuiY - 8);
+ctx.fillText('应用入口', appStartX, appY - 8);
 
-drawBox(tuiX, tuiY, tuiW, tuiH, C.pink, 'tui/', '7-layer Elm Style', 12);
-
-// TUI layers inside
-const tuiLayers = ['stdio', 'chat', 'component', 'core', 'terminal', 'theme', 'agentadapter'];
-tuiLayers.forEach((l, i) => {
-  drawSmallBox(tuiX + 8, tuiY + 55 + i * 22, tuiW - 16, 18, C.pink, l);
+appItems.forEach(function(item, i) {
+  const x = appStartX + i * (appW + GAP);
+  drawBox(x, appY, appW, appH, colorByName(item.c), item.t, item.s, 12);
 });
 
-// TUI → Core
-drawArrow(tuiX + tuiW, tuiY + tuiH/2, coreX, coreY + 60, C.pink, true);
+// ---- ARROWS ----
+
+// Provider → Core (solid green)
+drawArrow(provStartX + provW/2, provY + provH/2, coreX + coreW, coreY + 70, C.green, false);
+// Provider (smartrouter) → Core (dashed conditional)
+drawArrow(provStartX + provW/2, provY + provH + 8 + provH/2, coreX + coreW, coreY + 100, C.cyan, true);
+
+// Tools → Core (solid orange)
+drawArrow(toolStartX + toolW/2, toolY + toolH/2, coreX + coreW, coreY + coreH - 50, C.orange, false);
+
+// Core → Domain Extension (dashed)
+drawArrow(coreX + coreW/2, coreY + coreH + 6, coreX + coreW/2, domY, C.border, true);
+
+// Domain Extension → Infrastructure (dashed)
+infraItems.forEach(function(item, i) {
+  const x = infraStartX + i * (infraW + 8) + infraW/2;
+  drawArrow(coreX + coreW/2 + (i - 4.5) * 45, domY + domH + 6, x, infraY, C.border, true);
+});
+
+// Infrastructure → App Entry (dashed)
+appItems.forEach(function(item, i) {
+  const x = appStartX + i * (appW + GAP) + appW/2;
+  drawArrow(coreX + coreW/2 + (i - 1) * 90, infraY + infraH + 6, x, appY, C.textDim, true);
+});
+
+// TUI ↔ Core (dashed pink)
+drawArrow(tuiX + tuiW, tuiY + tuiH/2, coreX, coreY + 80, C.pink, true);
+
+// Domain Extension → Core (dashed, feedback)
+drawArrow(domStartX + domW/2, domY + domH, domStartX + domW/2, domY + domH + 8, C.border, false);
 
 // ---- LEGEND ----
-const legX = W - 260, legY = extY;
+const legX = W - 265, legY = 80;
 ctx.fillStyle = C.surface;
 ctx.strokeStyle = C.border;
 ctx.lineWidth = 1;
-roundRect(legX - 10, legY - 5, 250, 140, 6);
+roundRect(legX - 10, legY - 5, 250, 155, 6);
 ctx.fill();
 ctx.stroke();
 
@@ -384,10 +425,11 @@ const legendItems = [
   { c: C.purple, t: 'Extension 扩展点 (SOP 接口探测)' },
   { c: C.cyan, t: '存储/持久化组件' },
   { c: C.pink, t: 'UI / 用户交互' },
+  { c: C.red, t: '领域扩展层: 领域特定模块' },
 ];
 
-legendItems.forEach((item, i) => {
-  const y = legY + 40 + i * 18;
+legendItems.forEach(function(item, i) {
+  const y = legY + 40 + i * 17;
   ctx.fillStyle = item.c;
   ctx.fillRect(legX + 5, y - 3, 12, 3);
   ctx.fillStyle = C.textDim;

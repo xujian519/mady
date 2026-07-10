@@ -72,14 +72,15 @@ mady/
 ├── skills/           # 内置技能定义
 ├── store/            # 快照存储
 ├── tools/            # 内置工具扩展（独立子模块）
-├── tui/              # 终端 UI（7 层架构）
-│   ├── core/         #   基础层
-│   ├── terminal/     #   终端 I/O
-│   ├── theme/        #   主题系统
-│   ├── component/    #   UI 组件
-│   ├── chat/         #   聊天应用
-│   ├── stdio/        #   过程式 I/O
-│   └── agentadapter/ #   Agent 适配器
+├── tui/              # 终端 UI（8 层 Elm 架构）
+│   ├── core/         #   基础层 (Layer 0)
+│   ├── terminal/     #   终端 I/O (Layer 1)
+│   ├── theme/        #   主题系统 (Layer 2)
+│   ├── tui.go        #   引擎层 (Layer 3)
+│   ├── component/    #   UI 组件 (Layer 4)
+│   ├── chat/         #   聊天应用 (Layer 5)
+│   ├── stdio/        #   过程式 I/O (Layer 6)
+│   └── agentadapter/ #   Agent 适配器 (Layer 7)
 ├── workflow/         # 工作流原语
 ├── workflows/        # 领域工作流
 ├── example/          # 示例应用
@@ -90,14 +91,22 @@ mady/
 
 ```
 外部接口层：  A2A | A2UI | Server | AGUI | MCP | ACP
-                  \       |       |       |     /
+                        |
                    核心引擎层：agentcore
-                   /    |    \      \
-               提供者层   工具层   扩展层
-                   \       |
-                   基础设施层：graph/ session/ skill/ prompt/ store/
+                 /      |       \         \
+        提供者层(2)   工具层(10+)   扩展层    领域扩展层
+        chatcompat    tools/      Extension  psychological/
+        smartrouter               接口       domains/
+                                            guardrails/
+                                            knowledge/
+                                            retrieval/
+                                            workflows/
+                 \      |       /         /
+         基础设施层：graph/ session/ skill/ prompt/ store/ mcp/ knowledge/graph
                                    |
-                   领域层：domains/ (chat | patent | legal)
+                    TUI 层：8-layer Elm 架构
+                                   |
+                    应用入口：cmd/mady  server/  example/
 ```
 
 ## 编码规范
