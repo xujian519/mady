@@ -1,9 +1,10 @@
 // Command mady is the unified entry point for the Mady agent framework.
 //
-// It exposes two subcommands:
+// It exposes three subcommands:
 //
-//	mady tui  — interactive terminal chat (default)
-//	mady acp  — run as an ACP (Agent Client Protocol) server for editors like Zed
+//	mady tui   — interactive terminal chat (default)
+//	mady serve — HTTP/SSE API server with multi-domain routing
+//	mady acp   — run as an ACP (Agent Client Protocol) server for editors like Zed
 //
 // All configuration is via environment variables (see package agentconfig):
 //
@@ -16,18 +17,24 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/xujian519/mady/acp"
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/loader"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/retrieval"
+	"github.com/xujian519/mady/server"
+	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/tui"
 	"github.com/xujian519/mady/tui/agentadapter"
 	"github.com/xujian519/mady/tui/chat"
@@ -76,6 +83,8 @@ func main() {
 	switch os.Args[1] {
 	case "tui":
 		runTui(ctx)
+	case "serve":
+		runServer(ctx)
 	case "acp":
 		runAcp(ctx)
 	case "-h", "--help", "help":
@@ -96,6 +105,7 @@ Usage:
 
 Commands:
   tui   Launch the interactive terminal chat (default).
+	  serve Run as an HTTP/SSE API server with multi-domain routing.
   acp   Run as an ACP server (stdio JSON-RPC) for editors like Zed.
   help  Show this help message.
 
@@ -302,6 +312,91 @@ func runAcp(ctx context.Context) {
 	if err != nil && err != context.Canceled {
 		fmt.Fprintf(os.Stderr, "mady acp: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+// runServer launches the HTTP/SSE API server with multi-domain routing.
+func runServer(ctx context.Context) {
+	fs := flag.NewFlagSet("mady serve", flag.ExitOnError)
+	addr := fs.String("addr", ":8080", "listen address")
+	if err := fs.Parse(os.Args[2:]); err != nil {
+		log.Fatalf("flag: %v", err)
+	}
+
+	provider := agentconfig.BuildProvider()
+	model := agentconfig.DefaultModel()
+	wikiStore, wikiHook := loadWikiStore()
+
+	base := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:      "mady-router",
+			Model:     model,
+			Provider:  provider,
+			Streaming: true,
+		},
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns:          25,
+			ExecutionMode:     agentcore.ModeSerial,
+			ValidateArguments: true,
+		},
+		CompactionConfig: agentcore.CompactionConfig{
+			ContextWindow:    128000,
+			ReserveTokens:    32000,
+			KeepRecentTokens: 4000,
+		},
+		RetryConfig: &agentcore.RetryConfig{
+			MaxRetries:  3,
+			BaseDelayMs: 1000,
+			MaxDelayMs:  15000,
+		},
+	}
+
+	// Use multi-domain Router configuration (chat + assistant + patent + legal).
+	cfg := domains.RouterConfig(base)
+
+	// Attach wiki retrieval hook if available.
+	if wikiHook != nil {
+		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, wikiHook)
+	}
+
+	// Session persistence via JSONL file store.
+	sessionDir := os.Getenv("SESSION_DIR")
+	if sessionDir == "" {
+		sessionDir = "./sessions"
+	}
+	fileStore, err := session.NewFileStore(sessionDir)
+	if err != nil {
+		log.Printf("session: %v (continuing without persistence)", err)
+	} else {
+		cfg.Store = session.NewAgentStore(fileStore, "./workspace")
+	}
+
+	// Checkpoint for durable snapshots per thread.
+	cfg.Checkpoint = &agentcore.CheckpointSettings{
+		Saver:    agentcore.NewMemoryCheckpointSaver(),
+		ThreadID: "default",
+	}
+
+	srv := server.New(cfg)
+	log.Printf("Mady server starting on %s (multi-domain routing enabled)", *addr)
+	if wikiStore != nil {
+		st := wikiStore.Stats()
+		log.Printf("wiki: %d docs, %d chunks", st.TotalDocs, st.TotalChunks)
+	}
+
+	// Graceful shutdown on context cancellation.
+	go func() {
+		<-ctx.Done()
+		log.Println("shutting down server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("shutdown: %v", err)
+		}
+	}()
+
+	if err := srv.ListenAndServe(*addr); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("server: %v", err)
 	}
 }
 

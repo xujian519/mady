@@ -10,9 +10,10 @@ import (
 
 // Domain names used for intent classification and routing.
 const (
-	DomainChat   = "chat"
-	DomainPatent = "patent"
-	DomainLegal  = "legal"
+	DomainChat      = "chat"
+	DomainAssistant = "assistant"
+	DomainPatent    = "patent"
+	DomainLegal     = "legal"
 )
 
 // ClassifyIntent analyzes user input and returns the target domain name.
@@ -49,6 +50,21 @@ func ClassifyIntent(input string) string {
 		}
 	}
 
+	// Assistant-related keywords (task execution, code, file ops)
+	// Note: "分析" is intentionally excluded to avoid conflict with patent/legal.
+	assistantKeywords := []string{
+		"查一下", "帮我搜", "搜索", "检索", "查找",
+		"起草", "生成", "写一个", "创建", "整理", "导出", "统计",
+		"写代码", "实现一个", "调试", "优化", "重构",
+		"代码", "编程", "python", "javascript", "go语言",
+		"bash", "shell", "命令行", "脚本",
+	}
+	for _, kw := range assistantKeywords {
+		if strings.Contains(lower, kw) {
+			return DomainAssistant
+		}
+	}
+
 	return DomainChat
 }
 
@@ -68,7 +84,8 @@ func RouterConfigWithClassifier(base agentcore.Config, classifier IntentClassifi
 		"你是 Mady（中观智能体）的调度路由 Agent。",
 		"你的职责是分析用户意图，将请求路由到对应的领域专家：",
 		"",
-		"- chat-assistant: 通用聊天、日常问答、信息查询、代码生成、文件操作",
+		"- chat-agent: 日常聊天与情感陪伴。处理问候、闲聊、情绪支持等纯对话场景。",
+		"- assistant-agent: 通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。",
 		"- patent-agent: 专利检索、权利要求分析、新颖性比对、专利申请文书",
 		"- legal-advisor: 法条检索、判例检索、法律分析、法律文书",
 		"",
@@ -79,9 +96,15 @@ func RouterConfigWithClassifier(base agentcore.Config, classifier IntentClassifi
 	base.Handoffs = []agentcore.HandoffConfig{
 		{
 			Name:        DomainChat,
-			Description: "通用聊天与智能助理。处理日常对话、信息查询、内容生成。",
+			Description: "日常聊天与情感陪伴。处理问候、闲聊、情绪支持等纯对话场景。",
 			Mode:        agentcore.HandoffDelegate,
 			AgentConfig: ChatAgentConfig(base),
+		},
+		{
+			Name:        DomainAssistant,
+			Description: "通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。",
+			Mode:        agentcore.HandoffDelegate,
+			AgentConfig: AssistantAgentConfig(base),
 		},
 		{
 			Name:        DomainPatent,
@@ -102,12 +125,12 @@ func RouterConfigWithClassifier(base agentcore.Config, classifier IntentClassifi
 
 // RouterStep returns a workflow.Router that classifies intent and routes
 // to the appropriate domain sub-graph (as a Step).
-func RouterStep(chatStep, patentStep, legalStep workflow.Step) workflow.Step {
-	return RouterStepWithClassifier(chatStep, patentStep, legalStep, nil)
+func RouterStep(chatStep, assistantStep, patentStep, legalStep workflow.Step) workflow.Step {
+	return RouterStepWithClassifier(chatStep, assistantStep, patentStep, legalStep, nil)
 }
 
 // RouterStepWithClassifier returns a workflow.Router with an optional classifier.
-func RouterStepWithClassifier(chatStep, patentStep, legalStep workflow.Step, classifier IntentClassifier) workflow.Step {
+func RouterStepWithClassifier(chatStep, assistantStep, patentStep, legalStep workflow.Step, classifier IntentClassifier) workflow.Step {
 	if classifier == nil {
 		classifier = &KeywordClassifier{}
 	}
@@ -118,6 +141,8 @@ func RouterStepWithClassifier(chatStep, patentStep, legalStep workflow.Step, cla
 				domain = DomainChat // fall back to chat on error
 			}
 			switch domain {
+			case DomainAssistant:
+				return DomainAssistant
 			case DomainPatent:
 				return DomainPatent
 			case DomainLegal:
@@ -127,23 +152,15 @@ func RouterStepWithClassifier(chatStep, patentStep, legalStep workflow.Step, cla
 			}
 		},
 		Steps: map[string]workflow.Step{
-			DomainChat:   chatStep,
-			DomainPatent: patentStep,
-			DomainLegal:  legalStep,
+			DomainChat:      chatStep,
+			DomainAssistant: assistantStep,
+			DomainPatent:    patentStep,
+			DomainLegal:     legalStep,
 		},
 	}
 }
 
-// appendLifecycle composes lifecycle hooks safely.
+// appendLifecycle composes lifecycle hooks safely (delegates to agentcore.AppendLifecycle).
 func appendLifecycle(existing, next agentcore.LifecycleHook) agentcore.LifecycleHook {
-	if next == nil {
-		return existing
-	}
-	if existing == nil {
-		return next
-	}
-	if chain, ok := existing.(agentcore.LifecycleChain); ok {
-		return append(chain, next)
-	}
-	return agentcore.LifecycleChain{existing, next}
+	return agentcore.AppendLifecycle(existing, next)
 }

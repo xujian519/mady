@@ -13,6 +13,9 @@ const (
 
 	// DisclaimerGeneric — generic professional disclaimer.
 	DisclaimerGeneric = "本回复由 AI 辅助生成，仅供参考，不构成专业建议。如有疑问，请咨询相关领域的专业人士。"
+
+	// DisclaimerAssistant — assistant domain disclaimer for task execution outputs.
+	DisclaimerAssistant = "本结果由 AI 辅助生成，请在使用前进行人工审核。涉及专业领域（专利、法律）的判断请咨询对应专业人士。"
 )
 
 // DisclaimerFor returns the appropriate disclaimer for a domain string.
@@ -22,6 +25,8 @@ func DisclaimerFor(domain string) string {
 		return DisclaimerPatent
 	case "legal":
 		return DisclaimerLegal
+	case "assistant":
+		return DisclaimerAssistant
 	default:
 		return DisclaimerGeneric
 	}
@@ -41,6 +46,11 @@ func RiskKeywordsFor(domain string) []string {
 			"应判决", "应裁定", "构成犯罪", "不构成犯罪",
 			"胜诉", "败诉", "法律意见", "诉讼策略",
 		}
+	case "assistant":
+		return []string{
+			"生成法律文书", "自动提交", "发送给专利局",
+			"正式申请", "官方提交",
+		}
 	default:
 		return nil
 	}
@@ -53,6 +63,8 @@ func ApprovalKeywordsFor(domain string) []string {
 		return []string{"专利结论", "侵权判断", "有效性结论", "最终建议"}
 	case "legal":
 		return []string{"法律意见", "诉讼策略", "判决预测", "最终建议"}
+	case "assistant":
+		return []string{"正式提交", "发送给官方", "最终版本确认"}
 	default:
 		return nil
 	}

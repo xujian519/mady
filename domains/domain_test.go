@@ -16,14 +16,15 @@ func TestRouterConfig(t *testing.T) {
 	if cfg.Name != "mady-router" {
 		t.Errorf("name = %q, want %q", cfg.Name, "mady-router")
 	}
-	if len(cfg.Handoffs) != 3 {
-		t.Fatalf("handoffs = %d, want 3", len(cfg.Handoffs))
+	if len(cfg.Handoffs) != 4 {
+		t.Fatalf("handoffs = %d, want 4", len(cfg.Handoffs))
 	}
 
 	expectedDomains := map[string]bool{
-		DomainChat:   false,
-		DomainPatent: false,
-		DomainLegal:  false,
+		DomainChat:      false,
+		DomainAssistant: false,
+		DomainPatent:    false,
+		DomainLegal:     false,
 	}
 	for _, h := range cfg.Handoffs {
 		expectedDomains[h.Name] = true
@@ -47,17 +48,18 @@ func TestRouterConfigWithClassifier_NilUsesKeyword(t *testing.T) {
 	if cfg.Name != "mady-router" {
 		t.Errorf("name = %q, want %q", cfg.Name, "mady-router")
 	}
-	if len(cfg.Handoffs) != 3 {
-		t.Fatalf("handoffs = %d, want 3", len(cfg.Handoffs))
+	if len(cfg.Handoffs) != 4 {
+		t.Fatalf("handoffs = %d, want 4", len(cfg.Handoffs))
 	}
 }
 
 func TestRouterStep(t *testing.T) {
 	chatStep := &stubStep{name: "chat"}
+	assistantStep := &stubStep{name: "assistant"}
 	patentStep := &stubStep{name: "patent"}
 	legalStep := &stubStep{name: "legal"}
 
-	step := RouterStep(chatStep, patentStep, legalStep)
+	step := RouterStep(chatStep, assistantStep, patentStep, legalStep)
 
 	if step == nil {
 		t.Fatal("step is nil")
@@ -68,17 +70,18 @@ func TestRouterStep(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *workflow.Router, got %T", step)
 	}
-	if len(router.Steps) != 3 {
-		t.Fatalf("router steps = %d, want 3", len(router.Steps))
+	if len(router.Steps) != 4 {
+		t.Fatalf("router steps = %d, want 4", len(router.Steps))
 	}
 }
 
 func TestRouterStepWithClassifier_NilUsesKeyword(t *testing.T) {
 	chatStep := &stubStep{name: "chat"}
+	assistantStep := &stubStep{name: "assistant"}
 	patentStep := &stubStep{name: "patent"}
 	legalStep := &stubStep{name: "legal"}
 
-	step := RouterStepWithClassifier(chatStep, patentStep, legalStep, nil)
+	step := RouterStepWithClassifier(chatStep, assistantStep, patentStep, legalStep, nil)
 	_, ok := step.(*workflow.Router)
 	if !ok {
 		t.Fatalf("expected *workflow.Router, got %T", step)

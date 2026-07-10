@@ -20,6 +20,21 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// Tool name constants for use with DisableTools.
+// Using these constants instead of raw strings ensures compile-time
+// safety — renaming a tool will cause a compile error if any DisableTools
+// list still references the old name.
+const (
+	ToolBash        = "bash"
+	ToolGitStatus   = "git_status"
+	ToolGitDiff     = "git_diff"
+	ToolGitLog      = "git_log"
+	ToolBrowser     = "browser"
+	ToolExecuteCode = "execute_code"
+	ToolComputerUse = "computer_use"
+	ToolProcess     = "process"
+)
+
 // ExtensionConfig configures the built-in tools extension.
 type ExtensionConfig struct {
 	// WorkingDir is the base directory for all relative paths. Defaults to the
@@ -86,6 +101,12 @@ type ExtensionConfig struct {
 	// ComputerUse enables the computer_use tool (macOS desktop control). macOS only.
 	ComputerUse bool
 
+	// DisableTools is a list of tool names to exclude from registration.
+	// Use this to limit the tool set for specific agent roles (e.g., disable
+	// bash/git/browser for a retrieval-only assistant). An empty list means
+	// all tools are enabled (backward compatible).
+	DisableTools []string
+
 	// MaxBytes is the default output byte limit shared across all tools (default: 50KB).
 	MaxBytes int64
 
@@ -131,53 +152,66 @@ func (e *Extension) Dispose() error { return nil }
 func (e *Extension) Tools() []*agentcore.Tool { return e.tools }
 
 // BuildTools constructs the full set of built-in tools from the given config.
+// Tools listed in cfg.DisableTools are excluded from the result.
 // This is useful when you want the tools but not the extension lifecycle.
 func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	cfg.setDefaults()
-	tools := []*agentcore.Tool{
-		NewReadTool(cfg.WorkingDir, cfg.Read),
-		NewEditTool(cfg.WorkingDir, cfg.Edit),
-		NewLsTool(cfg.WorkingDir, cfg.Ls),
-		NewGrepTool(cfg.WorkingDir, cfg.Grep),
-		NewFindTool(cfg.WorkingDir, cfg.Find),
-		NewBashTool(cfg.WorkingDir, cfg.Bash),
-		NewWriteFileTool(cfg.WorkingDir, cfg.WriteFile),
-		NewPatchTool(cfg.WorkingDir, cfg.Patch),
-		NewProcessTool(cfg.WorkingDir, cfg.Process),
-		NewVisionTool(cfg.WorkingDir, cfg.Vision),
-		NewViewTool(cfg.WorkingDir, cfg.View),
-		NewGlobTool(cfg.WorkingDir, cfg.Glob),
-		NewDeleteTool(cfg.WorkingDir, cfg.Delete),
-		NewMoveTool(cfg.WorkingDir, cfg.Move),
-		NewGitStatusTool(cfg.WorkingDir, cfg.Git),
-		NewGitDiffTool(cfg.WorkingDir, cfg.Git),
-		NewGitLogTool(cfg.WorkingDir, cfg.Git),
+	disabled := disabledSet(cfg.DisableTools)
+
+	var tools []*agentcore.Tool
+
+	addTool := func(t *agentcore.Tool) {
+		if t != nil && !disabled[t.Name] {
+			tools = append(tools, t)
+		}
 	}
 
-	tools = append(tools,
-		NewWebSearchTool(cfg.WebSearch),
-		NewWebFetchTool(cfg.WebFetch),
-	)
+	addTool(NewReadTool(cfg.WorkingDir, cfg.Read))
+	addTool(NewEditTool(cfg.WorkingDir, cfg.Edit))
+	addTool(NewLsTool(cfg.WorkingDir, cfg.Ls))
+	addTool(NewGrepTool(cfg.WorkingDir, cfg.Grep))
+	addTool(NewFindTool(cfg.WorkingDir, cfg.Find))
+	addTool(NewBashTool(cfg.WorkingDir, cfg.Bash))
+	addTool(NewWriteFileTool(cfg.WorkingDir, cfg.WriteFile))
+	addTool(NewPatchTool(cfg.WorkingDir, cfg.Patch))
+	addTool(NewProcessTool(cfg.WorkingDir, cfg.Process))
+	addTool(NewVisionTool(cfg.WorkingDir, cfg.Vision))
+	addTool(NewViewTool(cfg.WorkingDir, cfg.View))
+	addTool(NewGlobTool(cfg.WorkingDir, cfg.Glob))
+	addTool(NewDeleteTool(cfg.WorkingDir, cfg.Delete))
+	addTool(NewMoveTool(cfg.WorkingDir, cfg.Move))
+	addTool(NewGitStatusTool(cfg.WorkingDir, cfg.Git))
+	addTool(NewGitDiffTool(cfg.WorkingDir, cfg.Git))
+	addTool(NewGitLogTool(cfg.WorkingDir, cfg.Git))
+
+	addTool(NewWebSearchTool(cfg.WebSearch))
+	addTool(NewWebFetchTool(cfg.WebFetch))
 
 	if cfg.Browser != nil {
-		tools = append(tools,
-			NewBrowserTool(cfg.Browser),
-		)
+		addTool(NewBrowserTool(cfg.Browser))
 	}
 
 	if cfg.ExecuteCode != nil {
-		tools = append(tools,
-			NewExecuteCodeTool(cfg.ExecuteCode),
-		)
+		addTool(NewExecuteCodeTool(cfg.ExecuteCode))
 	}
 
 	if cfg.ComputerUse {
-		tools = append(tools,
-			NewComputerUseTool(nil),
-		)
+		addTool(NewComputerUseTool(nil))
 	}
 
 	return tools
+}
+
+// disabledSet converts a disable list to a set for O(1) lookup.
+func disabledSet(names []string) map[string]bool {
+	if len(names) == 0 {
+		return nil
+	}
+	m := make(map[string]bool, len(names))
+	for _, n := range names {
+		m[n] = true
+	}
+	return m
 }
 
 // ToolResult is the standard result type for all built-in tools.

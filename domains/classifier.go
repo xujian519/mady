@@ -29,8 +29,8 @@ var classificationSchema = map[string]any{
 	"properties": map[string]any{
 		"domain": map[string]any{
 			"type":        "string",
-			"enum":        []string{"chat", "patent", "legal"},
-			"description": "分类的目标领域: chat(通用聊天), patent(专利代理), legal(法律咨询)",
+			"enum":        []string{"chat", "assistant", "patent", "legal"},
+			"description": "分类的目标领域: chat(日常聊天), assistant(通用助理/任务执行), patent(专利代理), legal(法律咨询)",
 		},
 		"confidence": map[string]any{
 			"type":        "number",
@@ -117,14 +117,16 @@ func (c *LLMClassifier) classifyWithLLM(ctx context.Context, input string) (stri
 		"你是一个意图分类器。分析用户输入，将其归类到最匹配的领域。",
 		"",
 		"领域说明：",
-		"- chat: 通用聊天、日常问答、代码生成、信息查询、文件操作等非专业领域请求",
+		"- chat: 日常聊天、情感陪伴、闲聊、问候等纯对话场景，不涉及具体任务执行",
+		"- assistant: 需要工具执行的通用任务，包括代码生成、文件操作、网页搜索、数据分析等技术性任务",
 		"- patent: 专利检索、权利要求分析、新颖性比对、专利申请文书、现有技术检索等专利代理相关任务",
 		"- legal: 法条检索、判例检索、法律分析、法律文书、合同审查、诉讼策略等法律相关任务",
 		"",
 		"分类规则：",
 		"- 涉及专利、发明、权利要求、现有技术等关键词归为 patent",
 		"- 涉及法律、法条、判例、诉讼、合同等关键词归为 legal",
-		"- 无法明确分类的日常对话、技术问答、编程等归为 chat",
+		"- 涉及代码编写、文件操作、网页搜索、数据分析等技术任务归为 assistant",
+		"- 纯聊天、问候、情感交流等非任务型对话归为 chat",
 		"- 如果用户输入同时涉及多个领域，选择最核心的领域",
 	}, " ")
 
@@ -163,7 +165,7 @@ func (c *LLMClassifier) classifyWithLLM(ctx context.Context, input string) (stri
 
 	// Validate domain.
 	switch result.Domain {
-	case DomainChat, DomainPatent, DomainLegal:
+	case DomainChat, DomainAssistant, DomainPatent, DomainLegal:
 	default:
 		return "", 0, fmt.Errorf("llm classify: unknown domain %q", result.Domain)
 	}

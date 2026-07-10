@@ -197,16 +197,21 @@ func (s *Server) aguiHandler() http.Handler {
 }
 
 func (s *Server) ListenAndServe(addr string) error {
+	s.mu.Lock()
 	s.srv = &http.Server{Addr: addr, Handler: s.Handler()}
+	s.mu.Unlock()
 	return s.srv.ListenAndServe()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.Close()
-	if s.srv == nil {
+	s.mu.RLock()
+	httpSrv := s.srv
+	s.mu.RUnlock()
+	if httpSrv == nil {
 		return nil
 	}
-	return s.srv.Shutdown(ctx)
+	return httpSrv.Shutdown(ctx)
 }
 
 // --- request / response types ---

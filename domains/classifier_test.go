@@ -44,10 +44,13 @@ func TestKeywordClassifier_Classify(t *testing.T) {
 		{"合同纠纷怎么处理", DomainLegal},
 		{"刑法第264条", DomainLegal},
 		{"今天天气怎么样", DomainChat},
-		{"帮我写个Python脚本", DomainChat},
 		{"你好", DomainChat},
 		{"什么是AI", DomainChat},
-		{"帮我分析这个文件", DomainChat},
+		{"最近压力有点大", DomainChat},
+		// Assistant keywords
+		{"帮我写个Python脚本", DomainAssistant},
+		{"搜索一下最新AI论文", DomainAssistant},
+		{"帮我写代码实现排序算法", DomainAssistant},
 	}
 
 	for _, tt := range tests {
@@ -70,14 +73,17 @@ func TestKeywordClassifier_Classify(t *testing.T) {
 	if domain != DomainPatent {
 		t.Errorf("patent keyword classified as %q", domain)
 	}
+	if DomainChat != "chat" {
+		t.Errorf("DomainChat = %q, want %q", DomainChat, "chat")
+	}
+	if DomainAssistant != "assistant" {
+		t.Errorf("DomainAssistant = %q, want %q", DomainAssistant, "assistant")
+	}
 	if DomainPatent != "patent" {
 		t.Errorf("DomainPatent = %q, want %q", DomainPatent, "patent")
 	}
 	if DomainLegal != "legal" {
 		t.Errorf("DomainLegal = %q, want %q", DomainLegal, "legal")
-	}
-	if DomainChat != "chat" {
-		t.Errorf("DomainChat = %q, want %q", DomainChat, "chat")
 	}
 }
 

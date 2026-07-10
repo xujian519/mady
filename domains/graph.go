@@ -23,20 +23,20 @@ func (s *funcStep) Run(ctx context.Context, input string) (string, error) {
 //	             ┌──────────┐
 //	             │  router  │ (classify intent)
 //	             └────┬─────┘
-//	      ┌───────────┼───────────┐
-//	      ▼           ▼           ▼
-//	┌─────────┐ ┌─────────┐ ┌─────────┐
-//	│  chat   │ │ patent  │ │  legal  │
-//	└─────────┘ └─────────┘ └─────────┘
+//	      ┌───────────┼───────────┬───────────┐
+//	      ▼           ▼           ▼           ▼
+//	┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
+//	│  chat   │ │assistant│ │ patent  │ │  legal  │
+//	└─────────┘ └─────────┘ └─────────┘ └─────────┘
 //
 // The router uses conditional edges to auto-route to the correct domain.
-func BuildDomainGraph(chatStep, patentStep, legalStep agentcore.Step) (*graph.CompiledGraph, error) {
-	return BuildDomainGraphWithClassifier(chatStep, patentStep, legalStep, nil)
+func BuildDomainGraph(chatStep, assistantStep, patentStep, legalStep agentcore.Step) (*graph.CompiledGraph, error) {
+	return BuildDomainGraphWithClassifier(chatStep, assistantStep, patentStep, legalStep, nil)
 }
 
 // BuildDomainGraphWithClassifier constructs the top-level domain routing DAG
 // with an optional IntentClassifier. If classifier is nil, KeywordClassifier is used.
-func BuildDomainGraphWithClassifier(chatStep, patentStep, legalStep agentcore.Step, classifier IntentClassifier) (*graph.CompiledGraph, error) {
+func BuildDomainGraphWithClassifier(chatStep, assistantStep, patentStep, legalStep agentcore.Step, classifier IntentClassifier) (*graph.CompiledGraph, error) {
 	if classifier == nil {
 		classifier = &KeywordClassifier{}
 	}
@@ -47,6 +47,7 @@ func BuildDomainGraphWithClassifier(chatStep, patentStep, legalStep agentcore.St
 		return input, nil
 	}})
 	g.AddNode(DomainChat, chatStep)
+	g.AddNode(DomainAssistant, assistantStep)
 	g.AddNode(DomainPatent, patentStep)
 	g.AddNode(DomainLegal, legalStep)
 
@@ -57,7 +58,7 @@ func BuildDomainGraphWithClassifier(chatStep, patentStep, legalStep agentcore.St
 			return DomainChat
 		}
 		return domain
-	}, []string{DomainChat, DomainPatent, DomainLegal})
+	}, []string{DomainChat, DomainAssistant, DomainPatent, DomainLegal})
 
 	return g.Compile(graph.CompileOptions{EntryNode: "router"})
 }

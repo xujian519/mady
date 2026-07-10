@@ -114,7 +114,11 @@ func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...
 	return nil
 }
 
-func appendLifecycleHook(existing, next LifecycleHook) LifecycleHook {
+// AppendLifecycle safely composes two LifecycleHooks into a chain.
+// If both are nil, returns nil. If one is nil, returns the other.
+// If the existing hook is already a LifecycleChain, the next hook is
+// appended to it; otherwise, a new LifecycleChain is created.
+func AppendLifecycle(existing, next LifecycleHook) LifecycleHook {
 	if next == nil {
 		return existing
 	}
@@ -125,6 +129,10 @@ func appendLifecycleHook(existing, next LifecycleHook) LifecycleHook {
 		return append(chain, next)
 	}
 	return LifecycleChain{existing, next}
+}
+
+func appendLifecycleHook(existing, next LifecycleHook) LifecycleHook {
+	return AppendLifecycle(existing, next)
 }
 
 // Dispose tears down all registered extensions in reverse order.
