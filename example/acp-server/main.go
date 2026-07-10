@@ -22,8 +22,8 @@ import (
 
 // commitHash / buildTime are injected via -ldflags at release build time.
 var (
-	commitHash = "unknown"
-	buildTime  = "unknown"
+	commitHash = "unknown" //nolint:unused // ldflags
+	buildTime  = "unknown" //nolint:unused // ldflags
 )
 
 func main() {
@@ -32,7 +32,8 @@ func main() {
 
 	if err := run(ctx); err != nil && err != context.Canceled {
 		fmt.Fprintf(os.Stderr, "mady-acp-server: %v\n", err)
-		os.Exit(1)
+		stop()
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: stop() manually called above
 	}
 }
 

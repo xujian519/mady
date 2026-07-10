@@ -150,9 +150,9 @@ func TaskToolFromConfigs(name string, configs []Config) *Tool {
 			cfg.Name = name
 		}
 		options[i] = TaskOption{
-			Name: name,
+			Name:        name,
 			Description: fmt.Sprintf("Delegate to the %q sub-agent", name),
-			Tool: AgentAsTool(cfg),
+			Tool:        AgentAsTool(cfg),
 		}
 	}
 	return TaskTool(name, options)

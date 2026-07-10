@@ -25,13 +25,13 @@ package core
 type Attrs uint8
 
 const (
-	AttrBold          Attrs = 1 << iota
-	AttrDim                // 2 / faint
-	AttrItalic             // 3
-	AttrUnderline          // 4
-	AttrReverse            // 7
-	AttrHidden             // 8 (concealed)
-	AttrStrike             // 9
+	AttrBold      Attrs = 1 << iota
+	AttrDim             // 2 / faint
+	AttrItalic          // 3
+	AttrUnderline       // 4
+	AttrReverse         // 7
+	AttrHidden          // 8 (concealed)
+	AttrStrike          // 9
 )
 
 // Color is a 24-bit RGB color packed into uint32. The high byte is a tag:
@@ -44,10 +44,10 @@ const (
 type Color uint32
 
 const (
-	ColorDefault      Color = 0xFF000000
-	colorPaletteTag   Color = 0x01000000
-	colorRGBMask      Color = 0x00FFFFFF
-	paletteIndexMask  Color = 0x000000FF
+	ColorDefault     Color = 0xFF000000
+	colorPaletteTag  Color = 0x01000000
+	colorRGBMask     Color = 0x00FFFFFF
+	paletteIndexMask Color = 0x000000FF
 )
 
 // RGB constructs a truecolor Color from r/g/b in [0,255].

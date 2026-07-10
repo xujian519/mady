@@ -40,7 +40,7 @@ type TableTheme struct {
 type Table struct {
 	mu      sync.RWMutex
 	columns []Column
-	items   []interface{}
+	items   []any
 	sel     int
 	scroll  int
 	theme   TableTheme
@@ -62,7 +62,7 @@ func (t *Table) SetColumns(cols []Column) {
 	t.mu.Unlock()
 }
 
-func (t *Table) SetItems(items []interface{}) {
+func (t *Table) SetItems(items []any) {
 	t.mu.Lock()
 	t.items = items
 	t.sel = 0
@@ -77,7 +77,7 @@ func (t *Table) SetTheme(th TableTheme) {
 }
 
 func (t *Table) OnSelect(fn func(int)) { t.mu.Lock(); t.onSelect = fn; t.mu.Unlock() }
-func (t *Table) OnCancel(fn func())     { t.mu.Lock(); t.onCancel = fn; t.mu.Unlock() }
+func (t *Table) OnCancel(fn func())    { t.mu.Lock(); t.onCancel = fn; t.mu.Unlock() }
 
 func (t *Table) Selected() int {
 	t.mu.RLock()
@@ -220,7 +220,6 @@ func (t *Table) ColWidths(total int64) []int64 {
 			rest = col.MaxWidth
 		}
 		widths[restIdx] = rest
-		used += rest
 	} else if used < total {
 		// Distribute rounding remainder to the last column.
 		for i := len(widths) - 1; i >= 0; i-- {
@@ -252,7 +251,7 @@ func (t *Table) RenderRow(rowIdx int, total int64) string {
 	var b strings.Builder
 	for ci, col := range t.columns {
 		content := col.Render(rowIdx, widths[ci])
-		vw := int64(core.VisibleWidth(content))
+		vw := core.VisibleWidth(content)
 		if vw > widths[ci] {
 			content = core.TruncateToWidth(content, widths[ci], "…")
 		} else if vw < widths[ci] {
@@ -275,7 +274,7 @@ func (t *Table) RowWidth(total int64) int64 {
 }
 
 // Item returns the item at the given index (nil if out of range).
-func (t *Table) Item(idx int) interface{} {
+func (t *Table) Item(idx int) any {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if idx < 0 || idx >= len(t.items) {
@@ -285,10 +284,10 @@ func (t *Table) Item(idx int) interface{} {
 }
 
 // Items returns all items.
-func (t *Table) Items() []interface{} {
+func (t *Table) Items() []any {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	out := make([]interface{}, len(t.items))
+	out := make([]any, len(t.items))
 	copy(out, t.items)
 	return out
 }

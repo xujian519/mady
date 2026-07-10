@@ -71,12 +71,12 @@ type PromptMessage struct {
 }
 
 type PromptContent struct {
-	Type        string           `json:"type"`
-	Text        string           `json:"text,omitempty"`
-	Data        string           `json:"data,omitempty"`
-	MIMEType    string           `json:"mimeType,omitempty"`
+	Type        string            `json:"type"`
+	Text        string            `json:"text,omitempty"`
+	Data        string            `json:"data,omitempty"`
+	MIMEType    string            `json:"mimeType,omitempty"`
 	Resource    *EmbeddedResource `json:"resource,omitempty"`
-	Annotations *Annotations     `json:"annotations,omitempty"`
+	Annotations *Annotations      `json:"annotations,omitempty"`
 }
 
 type resourceListResult struct {
@@ -130,15 +130,15 @@ type discoveryState struct {
 
 	cfg DiscoveryConfig
 
-	resources              []Resource
-	resourcesLoaded        bool
-	resourceTemplates      []ResourceTemplate
+	resources               []Resource
+	resourcesLoaded         bool
+	resourceTemplates       []ResourceTemplate
 	resourceTemplatesLoaded bool
-	prompts                []Prompt
-	promptsLoaded          bool
-	resourceContents       map[string]*ReadResourceResult
-	promptResults          map[string]*PromptResult
-	subscribedResources    map[string]struct{}
+	prompts                 []Prompt
+	promptsLoaded           bool
+	resourceContents        map[string]*ReadResourceResult
+	promptResults           map[string]*PromptResult
+	subscribedResources     map[string]struct{}
 }
 
 func NewDiscoveryExtension(client DiscoveryClient, cfg DiscoveryToolConfig) (*DiscoveryExtension, error) {
@@ -164,8 +164,8 @@ func NewDiscoveryExtension(client DiscoveryClient, cfg DiscoveryToolConfig) (*Di
 
 func (e *DiscoveryExtension) Name() string                                           { return e.name }
 func (e *DiscoveryExtension) Init(ctx context.Context, agent *agentcore.Agent) error { return nil }
-func (e *DiscoveryExtension) Dispose() error                                          { return nil }
-func (e *DiscoveryExtension) Tools() []*agentcore.Tool                                { return e.tools }
+func (e *DiscoveryExtension) Dispose() error                                         { return nil }
+func (e *DiscoveryExtension) Tools() []*agentcore.Tool                               { return e.tools }
 
 func (c *Client) ListResources(ctx context.Context) ([]Resource, error) {
 	return listResources(ctx, c.discovery, c.invokeDiscovery)

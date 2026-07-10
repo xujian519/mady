@@ -109,11 +109,11 @@ func TestFilterStatutes(t *testing.T) {
 
 func TestDetectTechnicalField(t *testing.T) {
 	cases := map[string]string{
-		"侵犯专利权":      "专利",
-		"注册商标侵权":     "商标",
-		"著作权被侵犯":     "著作权",
-		"商业秘密泄露":     "反不正当竞争",
-		"普通合同违约":     "",
+		"侵犯专利权":  "专利",
+		"注册商标侵权": "商标",
+		"著作权被侵犯": "著作权",
+		"商业秘密泄露": "反不正当竞争",
+		"普通合同违约": "",
 	}
 	for facts, want := range cases {
 		if got := detectTechnicalField(facts); got != want {

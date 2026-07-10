@@ -150,9 +150,11 @@ func (s *Server) limitedBody(w http.ResponseWriter, r *http.Request) io.Reader {
 	return http.MaxBytesReader(w, r.Body, limit)
 }
 
-func (s *Server) On(t agentcore.EventType, h agentcore.EventHandler) func() { return s.eventBus.On(t, h) }
-func (s *Server) OnAll(h agentcore.EventHandler) func()                     { return s.eventBus.OnAll(h) }
-func (s *Server) EmitEvent(e agentcore.Event)                        { s.eventBus.Emit(e) }
+func (s *Server) On(t agentcore.EventType, h agentcore.EventHandler) func() {
+	return s.eventBus.On(t, h)
+}
+func (s *Server) OnAll(h agentcore.EventHandler) func() { return s.eventBus.OnAll(h) }
+func (s *Server) EmitEvent(e agentcore.Event)           { s.eventBus.Emit(e) }
 func (s *Server) Close() {
 	s.eventBus.Close()
 	s.agentPool.Range(func(key, value any) bool {
@@ -345,7 +347,7 @@ func (s *Server) handleStreamChat(w http.ResponseWriter, r *http.Request, req Ch
 	if saveErr != nil && runErr == nil {
 		runErr = saveErr
 	}
-	unregister()        // detach BEFORE releasing — see comment above
+	unregister() // detach BEFORE releasing — see comment above
 	s.releaseAgent(agent, req.ThreadID)
 
 	done := StreamDoneEvent{
@@ -828,18 +830,6 @@ func (s *Server) saveAgentState(ctx context.Context, agent *agentcore.Agent, thr
 		return nil
 	}
 	return agent.SaveState(ctx, threadID)
-}
-
-func mergeThinkingConfig(base, override *agentcore.ThinkingConfig) *agentcore.ThinkingConfig {
-	if override == nil {
-		if base == nil {
-			return nil
-		}
-		cp := *base
-		return &cp
-	}
-	cp := *override
-	return &cp
 }
 
 func requestCallConfig(req ChatRequest) *agentcore.CallConfig {

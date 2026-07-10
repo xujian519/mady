@@ -330,7 +330,7 @@ func runCompaction(ctx context.Context, provider Provider, model string, state *
 
 	var sb strings.Builder
 	for _, msg := range turnsToSummarize {
-		sb.WriteString(fmt.Sprintf("[%s]: %s\n", msg.Role, MessageStringForSummary(msg)))
+		fmt.Fprintf(&sb, "[%s]: %s\n", msg.Role, MessageStringForSummary(msg))
 	}
 
 	sysPrompt := compactionSystemPrompt
@@ -450,8 +450,7 @@ func runCompaction(ctx context.Context, provider Provider, model string, state *
 	if systemMsg != nil {
 		compressed = append(compressed, *systemMsg)
 	}
-	compressed = append(compressed, summaryMsg)
-	compressed = append(compressed, Message{
+	compressed = append(compressed, summaryMsg, Message{
 		Role:    RoleAssistant,
 		Content: "Understood, I have the context from the previous conversation. How can I help?",
 		Type:    MessageTypeCompactionSummary,
@@ -486,16 +485,17 @@ func sanitizeToolPairs(msgs []Message) []Message {
 	var result []Message
 
 	for _, msg := range msgs {
-		if msg.Role == RoleAssistant && len(msg.ToolCalls) > 0 {
+		switch {
+		case msg.Role == RoleAssistant && len(msg.ToolCalls) > 0:
 			for _, tc := range msg.ToolCalls {
 				toolCallIDs[tc.ID] = true
 			}
 			result = append(result, msg)
-		} else if msg.Role == RoleTool {
+		case msg.Role == RoleTool:
 			if toolCallIDs[msg.ToolCallID] {
 				result = append(result, msg)
 			}
-		} else {
+		default:
 			result = append(result, msg)
 		}
 	}

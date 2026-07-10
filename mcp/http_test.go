@@ -928,7 +928,7 @@ func TestHTTPClient_StreamingResponseIgnoresDuplicateUnmatchedEvents(t *testing.
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("data: {\"jsonrpc\":\"2.0\",\"id\":\"other\",\"result\":{\"tools\":[{\"name\":\"ignore\",\"inputSchema\":{\"type\":\"object\"}}]}}\n\n"))
-			_, _ = w.Write([]byte(fmt.Sprintf("data: {\"jsonrpc\":\"2.0\",\"id\":%q,\"result\":{\"tools\":[{\"name\":\"echo\",\"inputSchema\":{\"type\":\"object\"}}]}}\n\n", req["id"])))
+			_, _ = fmt.Fprintf(w, "data: {\"jsonrpc\":\"2.0\",\"id\":%q,\"result\":{\"tools\":[{\"name\":\"echo\",\"inputSchema\":{\"type\":\"object\"}}]}}\n\n", req["id"])
 		default:
 			t.Fatalf("unexpected method %q", method)
 		}

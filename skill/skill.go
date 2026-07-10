@@ -10,13 +10,13 @@ import (
 
 // Skill is one parsed SKILL.md package discovered from disk.
 type Skill struct {
-	Name                   string
-	Description            string
-	FilePath               string
-	BaseDir                string
-	Body                   string
-	License                string
-	Compatibility          string
+	Name          string
+	Description   string
+	FilePath      string
+	BaseDir       string
+	Body          string
+	License       string
+	Compatibility string
 	// AllowedTools restricts which tools this skill may use. Currently enforced
 	// only by the PTC sandbox (tools/execute_code_ptc.go). Agent-level tool
 	// filtering based on this field is not yet implemented.

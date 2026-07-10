@@ -14,7 +14,7 @@ import (
 // card-index.json integration.
 type WikiLoader struct {
 	Store    *knowledge.Store
-	WikiPath string    // root path of the Obsidian wiki
+	WikiPath string // root path of the Obsidian wiki
 	Filter   *WikiFilter
 	Idx      *CardIndex // loaded from card-index.json (may be nil)
 }
@@ -37,14 +37,14 @@ func NewWikiLoader(store *knowledge.Store, wikiPath string) *WikiLoader {
 
 // WikiImportStats holds statistics from a wiki import operation.
 type WikiImportStats struct {
-	TotalScanned  int             // total .md files scanned
-	Imported      int             // successfully imported
-	SkippedFilter int             // excluded by filter rules
-	SkippedShort  int             // excluded for too-short content
-	SkippedError  int             // excluded due to read/parse error
-	ByType        map[string]int  // imported count per DocType
-	ByDomain      map[string]int  // imported count per domain
-	Errors        []string        // non-fatal error messages (first few)
+	TotalScanned  int            // total .md files scanned
+	Imported      int            // successfully imported
+	SkippedFilter int            // excluded by filter rules
+	SkippedShort  int            // excluded for too-short content
+	SkippedError  int            // excluded due to read/parse error
+	ByType        map[string]int // imported count per DocType
+	ByDomain      map[string]int // imported count per domain
+	Errors        []string       // non-fatal error messages (first few)
 }
 
 // ImportWiki scans the wiki directory tree and imports all qualifying documents.
@@ -90,7 +90,7 @@ func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ stri
 			if len(stats.Errors) < 10 {
 				stats.Errors = append(stats.Errors, fmt.Sprintf("walk %s: %v", path, err))
 			}
-			return nil // continue walking
+			return nil
 		}
 		if info.IsDir() {
 			return nil
@@ -192,9 +192,9 @@ func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ stri
 		// Update searchable flag and metadata.
 		if doc, ok := l.Store.GetDocument(docID); ok {
 			doc.Searchable = searchable
-				if doc.Metadata == nil {
-					doc.Metadata = make(map[string]string)
-				}
+			if doc.Metadata == nil {
+				doc.Metadata = make(map[string]string)
+			}
 			for k, v := range metadata {
 				doc.Metadata[k] = v
 			}

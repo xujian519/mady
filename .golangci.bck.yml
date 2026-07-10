@@ -1,0 +1,96 @@
+run:
+  timeout: 5m
+  go: "1.25"
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck        # 检查未处理的错误
+    - govet           # go vet
+    - staticcheck     # 综合静态检查
+    - ineffassign     # 无效赋值
+    - unused          # 未使用的代码
+    - gofmt           # 格式检查
+    - goimports       # 导入分组检查
+    - gosimple        # 简化建议
+    - typecheck       # 类型检查
+    - misspell        # 拼写错误
+    - gocritic        # 代码审查建议
+    - revive          # golint 替代，风格检查
+    - unconvert       # 不必要的类型转换
+    - prealloc        # slice 预分配建议
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment  # 字段对齐影响可读性，不强制
+  staticcheck:
+    checks: ["all"]
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+    disabled-checks:
+      - hugeParam       # 大参数按值传递，视情况而定
+      - rangeValCopy    # range 值拷贝，视情况而定
+  revive:
+    severity: warning
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-naming
+      - name: error-strings
+      - name: error-return
+      - name: errorf
+      - name: exported
+        arguments: ["disableStutteringCheck"]
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: unreachable-code
+      - name: var-declaration
+      - name: var-naming
+  prealloc:
+    simple: true
+    for-loops: false
+  misspell:
+    locale: US
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-use-default: true
+  exclude-rules:
+    # 测试文件放宽部分检查
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        - gocritic
+        - revive
+    # example 目录是示例代码，放宽命名检查
+    - path: example/
+      linters:
+        - revive
+    # main 放宽部分
+    - path: cmd/
+      linters:
+        - revive
+    # 允许 fmt.Print 系列在根 main 使用
+    - path: cmd/mady/main.go
+      linters:
+        - forbidigo
+
+output:
+  formats:
+    - format: colored-line-number
+  sort-results: true

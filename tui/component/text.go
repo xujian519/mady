@@ -11,7 +11,7 @@ import (
 // ---------------------------------------------------------------------------
 
 // Text displays multi-line text, word-wrapped to the viewport width.
-// Optional BgFn lets callers apply a background colour (e.g. chalk.bgGray).
+// Optional BgFn lets callers apply a background color (e.g. chalk.bgGray).
 type Text struct {
 	mu sync.RWMutex
 

@@ -167,4 +167,3 @@ func TestMessageClone_DeepCopyMetadata(t *testing.T) {
 		t.Fatal("Clone() shallow-copied Metadata string value")
 	}
 }
-

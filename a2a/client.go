@@ -437,7 +437,7 @@ func isRetryableError(err error) bool {
 	}
 	var netErr net.Error
 	if errors.As(err, &netErr) {
-		return netErr.Timeout() || netErr.Temporary()
+		return netErr.Timeout()
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return false
@@ -496,11 +496,11 @@ type TaskStream struct {
 	cancel   context.Context
 	err      error
 	mu       sync.Mutex
-	lastID    string
-	client    *Client
-	taskID    string
-	maxRetry  int
-	retryNum  int
+	lastID   string
+	client   *Client
+	taskID   string
+	maxRetry int
+	retryNum int
 }
 
 // Recv returns the next task update event. Returns nil, false when done.

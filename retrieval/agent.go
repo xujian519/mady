@@ -175,9 +175,9 @@ func (h *RetrievalHook) buildContextBlock(results []ScoredChunk) string {
 			chunkText = chunkText[:h.config.MaxChars-totalChars] + "..."
 		}
 
-		b.WriteString(fmt.Sprintf("\n--- 参考片段 %d (相关度: %.2f) ---\n", i+1, r.Score))
+		fmt.Fprintf(&b, "\n--- 参考片段 %d (相关度: %.2f) ---\n", i+1, r.Score)
 		if h.config.DomainHint != "" {
-			b.WriteString(fmt.Sprintf("[来源: %s/%s]\n", h.config.DomainHint, r.Chunk.DocID))
+			fmt.Fprintf(&b, "[来源: %s/%s]\n", h.config.DomainHint, r.DocID)
 		}
 		b.WriteString(chunkText)
 		b.WriteString("\n")

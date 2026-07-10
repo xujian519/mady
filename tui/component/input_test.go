@@ -18,7 +18,7 @@ func TestInputInsertAndSubmit(t *testing.T) {
 		t.Fatalf("want hello, got %q", got)
 	}
 	lines := in.Render(40)
-	if !strings.Contains(lines[0], core.CURSOR_MARKER) {
+	if !strings.Contains(lines[0], core.CursorMarker) {
 		t.Fatalf("expected cursor marker in render")
 	}
 	in.Update(core.KeyMsg{Data: "\r"})

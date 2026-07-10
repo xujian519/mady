@@ -233,7 +233,7 @@ func TestParseLineSGR(t *testing.T) {
 }
 
 func TestParseLineCursorMarker(t *testing.T) {
-	row := ParseLine("ab" + CURSOR_MARKER + "cd")
+	row := ParseLine("ab" + CursorMarker + "cd")
 	if row.CursorCol != 2 {
 		t.Fatalf("cursor col = %d, want 2", row.CursorCol)
 	}
@@ -462,7 +462,7 @@ func TestTruncateRowWideCharSplit(t *testing.T) {
 
 func TestTruncateRowCursorColClamped(t *testing.T) {
 	// Cursor at col 5; truncate to 3 → cursor clamped to 2.
-	row := ParseLine("ab" + CURSOR_MARKER + "cd")
+	row := ParseLine("ab" + CursorMarker + "cd")
 	row = TruncateRow(row, 3)
 	if row.CursorCol != 2 {
 		t.Fatalf("cursor col = %d, want 2 (clamped)", row.CursorCol)

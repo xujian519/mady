@@ -89,13 +89,13 @@ func buildAppraisalFrame(signals TextSignals) AppraisalFrame {
 	}
 
 	return AppraisalFrame{
-		Desirability:       clamp(signals.Sentiment, -1, 1),
-		Likelihood:         clamp(1-signals.Uncertainty, 0, 1),
-		Praiseworthiness:   clamp(signals.Sentiment, -1, 1),
-		Deservingness:      deservingness,
-		Appealingness:      clamp(signals.Sentiment, -1, 1),
-		Unexpectedness:     clamp(signals.SurpriseLevel, 0, 1),
-		CausalAttribution:  clamp(signals.BlameDirection, -1, 1),
-		Controllability:    clamp(signals.PerceivedControl, 0, 1),
+		Desirability:      clamp(signals.Sentiment, -1, 1),
+		Likelihood:        clamp(1-signals.Uncertainty, 0, 1),
+		Praiseworthiness:  clamp(signals.Sentiment, -1, 1),
+		Deservingness:     deservingness,
+		Appealingness:     clamp(signals.Sentiment, -1, 1),
+		Unexpectedness:    clamp(signals.SurpriseLevel, 0, 1),
+		CausalAttribution: clamp(signals.BlameDirection, -1, 1),
+		Controllability:   clamp(signals.PerceivedControl, 0, 1),
 	}
 }

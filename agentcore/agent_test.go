@@ -108,7 +108,7 @@ func TestTransfer_InheritsParentToolsAndExtensions(t *testing.T) {
 			Model:    "stub",
 			Provider: transferProvider,
 		},
-		Tools: []*Tool{parentTool},
+		Tools:     []*Tool{parentTool},
 		Lifecycle: LifecycleChain{parentLifecycle},
 		Handoffs: []HandoffConfig{
 			{
@@ -241,7 +241,7 @@ func TestRateLimitHook_ExceedsLimit(t *testing.T) {
 			Model:    "stub",
 			Provider: provider,
 		},
-		Tools: []*Tool{dummyTool},
+		Tools:     []*Tool{dummyTool},
 		Lifecycle: LifecycleChain{hook},
 		ExecutionConfig: ExecutionConfig{
 			MaxTurns: 10,
@@ -357,7 +357,7 @@ func TestAgentRun_Streaming_ContextCancellation(t *testing.T) {
 	select {
 	case err := <-errCh:
 		if err != nil {
-			t.Fatalf("expected nil (clean stop) from cancelled context, got: %v", err)
+			t.Fatalf("expected nil (clean stop) from canceled context, got: %v", err)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("agent.Run did not exit after context cancellation — streaming goroutine is stuck")

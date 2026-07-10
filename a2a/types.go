@@ -13,17 +13,17 @@ import (
 // AgentCard is a self-describing manifest for an agent, published at
 // /.well-known/agent.json.
 type AgentCard struct {
-	Name               string              `json:"name"`
-	Description        string              `json:"description,omitempty"`
-	URL                string              `json:"url"`
-	Version            string              `json:"version,omitempty"`
-	DocumentationURL   string              `json:"documentationUrl,omitempty"`
-	Provider           *AgentProvider      `json:"provider,omitempty"`
-	Capabilities       AgentCapabilities   `json:"capabilities"`
+	Name               string               `json:"name"`
+	Description        string               `json:"description,omitempty"`
+	URL                string               `json:"url"`
+	Version            string               `json:"version,omitempty"`
+	DocumentationURL   string               `json:"documentationUrl,omitempty"`
+	Provider           *AgentProvider       `json:"provider,omitempty"`
+	Capabilities       AgentCapabilities    `json:"capabilities"`
 	Authentication     *AgentAuthentication `json:"authentication,omitempty"`
-	DefaultInputModes  []string            `json:"defaultInputModes,omitempty"`
-	DefaultOutputModes []string            `json:"defaultOutputModes,omitempty"`
-	Skills             []AgentSkill        `json:"skills,omitempty"`
+	DefaultInputModes  []string             `json:"defaultInputModes,omitempty"`
+	DefaultOutputModes []string             `json:"defaultOutputModes,omitempty"`
+	Skills             []AgentSkill         `json:"skills,omitempty"`
 }
 
 // AgentProvider describes the organization or individual providing the agent.

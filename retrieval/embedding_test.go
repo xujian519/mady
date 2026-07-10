@@ -8,8 +8,8 @@ import (
 
 // mockEmbedder implements Embedder for testing without API calls.
 type mockEmbedder struct {
-	dims   int
-	embed  func(text string) []float32
+	dims  int
+	embed func(text string) []float32
 }
 
 func (m *mockEmbedder) Embed(_ context.Context, texts []string) ([][]float32, error) {

@@ -38,11 +38,11 @@ func DefaultWikiFilter() *WikiFilter {
 			"Concept-Index.md",
 		},
 		ExcludePatterns: []string{
-			"-分拆目录",          // "专利法-2020-拆分-01-分拆目录.md"
-			"-拆分-01-分拆目录",  // alternate pattern
+			"-分拆目录",       // "专利法-2020-拆分-01-分拆目录.md"
+			"-拆分-01-分拆目录", // alternate pattern
 		},
-		MinContentChars:       500,
-		IncludeNonSearchable:  false,
+		MinContentChars:      500,
+		IncludeNonSearchable: false,
 	}
 }
 

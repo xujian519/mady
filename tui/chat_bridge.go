@@ -29,7 +29,7 @@ func NewChatApp(cfg chat.ChatAppConfig) *chat.ChatApp {
 	app := NewTUI(term, opts)
 	host := &tuiAppHost{TUI: app}
 	cfg.Host = host
-	// Wire the TUI's lifecycle context so OnSubmit submissions are cancelled
+	// Wire the TUI's lifecycle context so OnSubmit submissions are canceled
 	// when the TUI stops (instead of receiving an un-cancellable
 	// context.Background()).
 	if cfg.Context == nil {

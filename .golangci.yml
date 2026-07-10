@@ -1,0 +1,108 @@
+version: "2"
+run:
+  go: "1.25"
+output:
+  formats:
+    text:
+      path: stdout
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gocritic
+    - govet
+    - ineffassign
+    - misspell
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+  settings:
+    errcheck:
+      # check-type-assertions/check-blank 过于严格（Go 惯用法 v,_:=x.(T) 和 _=fn() 会大量误报），关闭
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+    gocritic:
+      disabled-checks:
+        - hugeParam
+        - rangeValCopy
+      enabled-tags:
+        - diagnostic
+        - performance
+    govet:
+      disable:
+        - fieldalignment
+        - shadow        # 实验性检查，Go 官方默认关闭，产生大量噪音
+        - unusedwrite    # 测试代码中写入 mock 字段是正常的，大量误报
+      enable-all: true
+    misspell:
+      locale: US
+    revive:
+      severity: warning
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-naming
+        - name: error-strings
+        - name: error-return
+        - name: errorf
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unreachable-code
+        - name: var-declaration
+        - name: var-naming
+    staticcheck:
+      checks:
+        - all
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+          - gocritic
+          - gosec
+          - revive
+        path: _test\.go
+      - linters:
+          - revive
+        path: example/
+      - linters:
+          - revive
+        path: cmd/
+      - linters:
+          - forbidigo
+        path: cmd/mady/main.go
+      # 允许忽略确定性图构建、不可恢复的 I/O 写入和资源清理的错误
+      - linters:
+          - errcheck
+        source: '\.(writeJSON|AddNode|AddEdge|AddConditionalEdge|WriteString|SetReadDeadline|SetWriteDeadline|WriteControl|SetLabel|Dispose|Register|Stop)\(|\.term\.Write\(|Process\.Kill\(|syscall\.Flock\(|^\s*fs\.Parse\(|json\.NewEncoder\([^)]*\)\.Encode\('
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

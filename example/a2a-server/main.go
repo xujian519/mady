@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/a2a"
+	"github.com/xujian519/mady/agentcore"
 )
 
 // stubProvider is a minimal provider for demonstration purposes.

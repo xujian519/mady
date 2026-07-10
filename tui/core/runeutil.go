@@ -7,7 +7,7 @@ import "unicode"
 //
 // These are general-purpose rune/cell-width helpers that don't belong to any
 // specific component. Layer 0 — no internal dependencies beyond width.go and
-// component.go (for CURSOR_MARKER).
+// component.go (for CursorMarker).
 // ---------------------------------------------------------------------------
 
 // CellWidthOfRunes returns the visible column width of runes[start:end].
@@ -73,11 +73,11 @@ func AdjustHorizontalScroll(scroll, cursorCol, avail int64) int64 {
 	return scroll
 }
 
-// InsertMarker inserts CURSOR_MARKER at the visible column col in rendered.
+// InsertMarker inserts CursorMarker at the visible column col in rendered.
 func InsertMarker(rendered string, col int64) string {
 	before := SliceByColumn(rendered, 0, col)
 	after := SliceByColumn(rendered, col, VisibleWidth(rendered))
-	return before + CURSOR_MARKER + after
+	return before + CursorMarker + after
 }
 
 // ---------------------------------------------------------------------------

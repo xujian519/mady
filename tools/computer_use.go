@@ -196,6 +196,7 @@ func checkBlockedKeyCombo(keys string) error {
 // --- Approval system ---
 
 type approvalLevel int
+
 const (
 	approvalNone approvalLevel = iota
 	approvalOnce
@@ -203,9 +204,9 @@ const (
 )
 
 var (
-	approvalMode   approvalLevel
-	approvalSeen   map[string]bool
-	approvalMu     sync.Mutex
+	approvalMode approvalLevel
+	approvalSeen map[string]bool
+	approvalMu   sync.Mutex
 )
 
 func initApprovalMode() {
@@ -511,20 +512,20 @@ func NewComputerUseTool(cfg *ComputerUseToolConfig) *agentcore.Tool {
 					"type":        "integer",
 					"description": "capture(mode=ax) 输出的 AX 元素索引（用于 cua-driver 的 click/set_value）",
 				},
-			"capture_mode": map[string]any{
-				"type":        "string",
-				"enum":        []string{"vision", "ax", "som"},
-				"description": "'vision'（仅截屏，默认）、'ax'（截屏 + AX 无障碍树及元素 ID，仅 cua-driver）、'som'（截屏 + 编号元素叠加层，仅 cua-driver）",
-			},
-			"raise_window": map[string]any{
-				"type":        "boolean",
-				"description": "是否将窗口提升到前台（用于 action=focus_app，默认 false）",
-			},
-			"capture_after": map[string]any{
-				"type":        "boolean",
-				"description": "在操作后执行截屏并将结果包含在返回内容中",
-			},
-			"required": []any{"action"},
+				"capture_mode": map[string]any{
+					"type":        "string",
+					"enum":        []string{"vision", "ax", "som"},
+					"description": "'vision'（仅截屏，默认）、'ax'（截屏 + AX 无障碍树及元素 ID，仅 cua-driver）、'som'（截屏 + 编号元素叠加层，仅 cua-driver）",
+				},
+				"raise_window": map[string]any{
+					"type":        "boolean",
+					"description": "是否将窗口提升到前台（用于 action=focus_app，默认 false）",
+				},
+				"capture_after": map[string]any{
+					"type":        "boolean",
+					"description": "在操作后执行截屏并将结果包含在返回内容中",
+				},
+				"required": []any{"action"},
 			},
 		},
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
@@ -534,22 +535,22 @@ func NewComputerUseTool(cfg *ComputerUseToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("computer_use is only supported on macOS, Windows, and Linux")
 			}
 
-		var input struct {
-			Action          string    `json:"action"`
-			Coordinate      []int     `json:"coordinate"`
-			FromCoordinate  []int     `json:"from_coordinate"`
-			ToCoordinate    []int     `json:"to_coordinate"`
-			Text            string    `json:"text"`
-			Keys            string    `json:"keys"`
-			Direction       string    `json:"direction"`
-			Amount          int       `json:"amount"`
-			Seconds         float64   `json:"seconds"`
-			App             string    `json:"app"`
-			Element         int       `json:"element"`
-			CaptureMode     string    `json:"capture_mode"`
-			RaiseWindow     bool      `json:"raise_window"`
-			CaptureAfter    bool      `json:"capture_after"`
-		}
+			var input struct {
+				Action         string  `json:"action"`
+				Coordinate     []int   `json:"coordinate"`
+				FromCoordinate []int   `json:"from_coordinate"`
+				ToCoordinate   []int   `json:"to_coordinate"`
+				Text           string  `json:"text"`
+				Keys           string  `json:"keys"`
+				Direction      string  `json:"direction"`
+				Amount         int     `json:"amount"`
+				Seconds        float64 `json:"seconds"`
+				App            string  `json:"app"`
+				Element        int     `json:"element"`
+				CaptureMode    string  `json:"capture_mode"`
+				RaiseWindow    bool    `json:"raise_window"`
+				CaptureAfter   bool    `json:"capture_after"`
+			}
 			if err := json.Unmarshal(args, &input); err != nil {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
@@ -898,7 +899,7 @@ func cuaDriverCapture(ctx context.Context, appName, mode string) (any, error) {
 		return nil, err
 	}
 
-	raw, err := client.callTool(ctx, "list_windows", map[string]interface{}{
+	raw, err := client.callTool(ctx, "list_windows", map[string]any{
 		"on_screen_only": true,
 	})
 	if err != nil {
@@ -942,7 +943,7 @@ func cuaDriverCapture(ctx context.Context, appName, mode string) (any, error) {
 		if mode == "som" && runtime.GOOS != "darwin" {
 			return nil, fmt.Errorf("SOM mode is only supported on macOS with cua-driver. Use mode=vision or mode=ax on other platforms")
 		}
-		raw, err := client.callTool(ctx, "get_window_state", map[string]interface{}{
+		raw, err := client.callTool(ctx, "get_window_state", map[string]any{
 			"pid":       target.PID,
 			"window_id": target.WindowID,
 		})
@@ -1010,7 +1011,7 @@ func cuaDriverCapture(ctx context.Context, appName, mode string) (any, error) {
 		return result(output, details)
 	}
 
-	raw, err = client.callTool(ctx, "screenshot", map[string]interface{}{
+	raw, err = client.callTool(ctx, "screenshot", map[string]any{
 		"window_id": target.WindowID,
 		"format":    "jpeg",
 		"quality":   85,
@@ -1054,15 +1055,15 @@ type somElement struct {
 
 var somColors = []color.RGBA{
 	{255, 50, 50, 200},   // red
-	{50, 150, 255, 200},   // blue
-	{50, 200, 50, 200},    // green
-	{255, 200, 0, 200},    // yellow
-	{200, 50, 200, 200},   // purple
-	{255, 100, 0, 200},    // orange
-	{0, 200, 200, 200},    // cyan
-	{200, 100, 50, 200},   // brown
-	{100, 200, 100, 200},  // light green
-	{200, 150, 200, 200},  // pink
+	{50, 150, 255, 200},  // blue
+	{50, 200, 50, 200},   // green
+	{255, 200, 0, 200},   // yellow
+	{200, 50, 200, 200},  // purple
+	{255, 100, 0, 200},   // orange
+	{0, 200, 200, 200},   // cyan
+	{200, 100, 50, 200},  // brown
+	{100, 200, 100, 200}, // light green
+	{200, 150, 200, 200}, // pink
 }
 
 func renderSOMOverlay(jpegBase64, axTree string) (string, []somElement, error) {
@@ -1279,7 +1280,7 @@ func cuaDriverClick(ctx context.Context, action string, x, y, element int) (stri
 	default:
 		toolName = "click"
 	}
-	args := map[string]interface{}{}
+	args := map[string]any{}
 	if element > 0 {
 		args["element"] = element
 	} else {
@@ -1302,7 +1303,7 @@ func cuaDriverType(ctx context.Context, text string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, err := client.callTool(ctx, "type_text_chars", map[string]interface{}{
+	if _, err := client.callTool(ctx, "type_text_chars", map[string]any{
 		"text": text,
 	}); err != nil {
 		return "", fmt.Errorf("type_text_chars: %w", err)
@@ -1330,12 +1331,12 @@ func cuaDriverKey(ctx context.Context, keys string) (string, error) {
 	}
 
 	if len(modifiers) > 0 {
-		_, err = client.callTool(ctx, "hotkey", map[string]interface{}{
+		_, err = client.callTool(ctx, "hotkey", map[string]any{
 			"keys":      key,
 			"modifiers": modifiers,
 		})
 	} else {
-		_, err = client.callTool(ctx, "press_key", map[string]interface{}{
+		_, err = client.callTool(ctx, "press_key", map[string]any{
 			"key": key,
 		})
 	}
@@ -1350,7 +1351,7 @@ func cuaDriverScroll(ctx context.Context, direction string, amount int) (string,
 	if err != nil {
 		return "", err
 	}
-	if _, err := client.callTool(ctx, "scroll", map[string]interface{}{
+	if _, err := client.callTool(ctx, "scroll", map[string]any{
 		"direction": direction,
 		"amount":    amount,
 	}); err != nil {
@@ -1364,7 +1365,7 @@ func cuaDriverSetValue(ctx context.Context, element int, value string) (string, 
 	if err != nil {
 		return "", err
 	}
-	args := map[string]interface{}{"value": value}
+	args := map[string]any{"value": value}
 	if element > 0 {
 		args["element"] = element
 	}
@@ -1401,7 +1402,7 @@ func cuaDriverFocusApp(ctx context.Context, app string, raiseWindow bool) (strin
 	if err != nil {
 		return "", err
 	}
-	raw, err := client.callTool(ctx, "list_windows", map[string]interface{}{
+	raw, err := client.callTool(ctx, "list_windows", map[string]any{
 		"on_screen_only": true,
 	})
 	if err != nil {
@@ -1441,9 +1442,9 @@ func fallbackCapture(ctx context.Context, backend cuBackend, appName, mode strin
 		return result(
 			fmt.Sprintf("Screenshot captured (%d bytes). AX tree not available without cua-driver.", len(data)),
 			map[string]any{
-				"size_bytes":          len(data),
+				"size_bytes":           len(data),
 				"screenshot_available": true,
-				"frontmost_app":       info,
+				"frontmost_app":        info,
 			},
 		)
 	}
@@ -2346,11 +2347,11 @@ func waylandGetWindowBounds(app string) (string, error) {
 		out, err := exec.Command("hyprctl", "clients", "-j").Output()
 		if err == nil {
 			var clients []struct {
-				Title       string `json:"title"`
+				Title        string `json:"title"`
 				InitialTitle string `json:"initialTitle"`
-				Class       string `json:"class"`
-				At          []int  `json:"at"`
-				Size        []int  `json:"size"`
+				Class        string `json:"class"`
+				At           []int  `json:"at"`
+				Size         []int  `json:"size"`
 			}
 			if json.Unmarshal(out, &clients) == nil {
 				appLower := strings.ToLower(app)
@@ -2416,10 +2417,10 @@ func waylandFocusApp(app string, raiseWindow bool) (string, error) {
 		out, err := exec.Command("hyprctl", "clients", "-j").Output()
 		if err == nil {
 			var clients []struct {
-				Title       string `json:"title"`
+				Title        string `json:"title"`
 				InitialTitle string `json:"initialTitle"`
-				Class       string `json:"class"`
-				Address     string `json:"address"`
+				Class        string `json:"class"`
+				Address      string `json:"address"`
 			}
 			if json.Unmarshal(out, &clients) == nil {
 				for _, c := range clients {

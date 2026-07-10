@@ -23,8 +23,8 @@ func TestCompat_AgentCardSchema(t *testing.T) {
 		URL:         "http://localhost:8080",
 		Version:     "1.0.0",
 		Capabilities: AgentCapabilities{
-			Streaming:           true,
-			PushNotifications:   true,
+			Streaming:              true,
+			PushNotifications:      true,
 			StateTransitionHistory: true,
 		},
 		Authentication: &AgentAuthentication{

@@ -99,7 +99,7 @@ func TestLoadAgentThreadStoreError(t *testing.T) {
 	cfg := Config{}
 	cfg.Model = "m"
 	opts := LoadAgentOptions{
-		ThreadID: "tid",
+		ThreadID:          "tid",
 		ThreadCfgProvider: &mockThreadStore{err: errors.New("store error")},
 	}
 	_, err := LoadAgent(context.Background(), cfg, opts)

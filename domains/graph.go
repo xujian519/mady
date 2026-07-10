@@ -20,14 +20,14 @@ func (s *funcStep) Run(ctx context.Context, input string) (string, error) {
 // BuildDomainGraph constructs the top-level domain routing DAG.
 // The graph structure:
 //
-//	                 ┌──────────┐
-//	                 │  router  │ (classify intent)
-//	                 └────┬─────┘
-//	          ┌───────────┼───────────┐
-//	          ▼           ▼           ▼
-//	    ┌─────────┐ ┌─────────┐ ┌─────────┐
-//	    │  chat   │ │ patent  │ │  legal  │
-//	    └─────────┘ └─────────┘ └─────────┘
+//	             ┌──────────┐
+//	             │  router  │ (classify intent)
+//	             └────┬─────┘
+//	      ┌───────────┼───────────┐
+//	      ▼           ▼           ▼
+//	┌─────────┐ ┌─────────┐ ┌─────────┐
+//	│  chat   │ │ patent  │ │  legal  │
+//	└─────────┘ └─────────┘ └─────────┘
 //
 // The router uses conditional edges to auto-route to the correct domain.
 func BuildDomainGraph(chatStep, patentStep, legalStep agentcore.Step) (*graph.CompiledGraph, error) {

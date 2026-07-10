@@ -1,6 +1,7 @@
 package guardrails
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -72,7 +73,7 @@ func TestGuardrail_BlockedPhrases(t *testing.T) {
 					Content: tt.content,
 				},
 			}
-			gr.AfterModelCall(nil, nil, mcc)
+			gr.AfterModelCall(context.TODO(), nil, mcc)
 			if tt.wantErr && mcc.Err == nil {
 				t.Error("expected error but got nil")
 			}
@@ -118,12 +119,12 @@ func TestGuardrail_DisclaimerInjection(t *testing.T) {
 			shouldInject: false,
 		},
 		{
-			name:             "disclaimer not duplicated when content already has it",
-			level:            LevelStandard,
-			disclaimer:       "免责声明文本",
-			riskKeywords:     []string{"侵权"},
-			content:          "侵权分析内容\n---\n不构成正式法律意见",
-			shouldInject:     false, // "不构成正式" prevents re-injection
+			name:         "disclaimer not duplicated when content already has it",
+			level:        LevelStandard,
+			disclaimer:   "免责声明文本",
+			riskKeywords: []string{"侵权"},
+			content:      "侵权分析内容\n---\n不构成正式法律意见",
+			shouldInject: false, // "不构成正式" prevents re-injection
 		},
 		{
 			name:         "LevelStrict injects on keyword",
@@ -147,7 +148,7 @@ func TestGuardrail_DisclaimerInjection(t *testing.T) {
 					Content: tt.content,
 				},
 			}
-			gr.AfterModelCall(nil, nil, mcc)
+			gr.AfterModelCall(context.TODO(), nil, mcc)
 
 			hasDisclaimer := strings.Contains(mcc.Response.Content, tt.disclaimer)
 			if tt.shouldInject && !hasDisclaimer {
@@ -174,7 +175,7 @@ func TestGuardrail_ApprovalKeywords(t *testing.T) {
 				Content: "专利结论：该发明具有新颖性。",
 			},
 		}
-		gr.AfterModelCall(nil, nil, mcc)
+		gr.AfterModelCall(context.TODO(), nil, mcc)
 
 		if !mcc.Response.SuppressPersist {
 			t.Error("expected SuppressPersist to be set at LevelStrict with approval keyword")
@@ -191,7 +192,7 @@ func TestGuardrail_ApprovalKeywords(t *testing.T) {
 				Content: "专利结论：该发明具有新颖性。",
 			},
 		}
-		gr.AfterModelCall(nil, nil, mcc)
+		gr.AfterModelCall(context.TODO(), nil, mcc)
 
 		if mcc.Response.SuppressPersist {
 			t.Error("LevelStandard should not set SuppressPersist")
@@ -205,7 +206,7 @@ func TestGuardrail_NilResponseIsSafe(t *testing.T) {
 		RiskKeywords: []string{"风险"},
 	}}
 	// Should not panic with nil response.
-	gr.AfterModelCall(nil, nil, &agentcore.ModelCallContext{
+	gr.AfterModelCall(context.TODO(), nil, &agentcore.ModelCallContext{
 		Response: nil,
 		Err:      nil,
 	})
@@ -223,7 +224,7 @@ func TestGuardrail_ErrorResponseIsSkipped(t *testing.T) {
 		Err: agentcore.NewNodeError("provider error", nil, "test", "test"),
 	}
 	original := mcc.Response.Content
-	gr.AfterModelCall(nil, nil, mcc)
+	gr.AfterModelCall(context.TODO(), nil, mcc)
 	// Should skip on error.
 	if mcc.Response.Content != original {
 		t.Errorf("content was modified on error")

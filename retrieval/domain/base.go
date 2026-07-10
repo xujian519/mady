@@ -125,7 +125,7 @@ func (dr *DomainReranker) Rerank(results []retrieval.ScoredChunk) []retrieval.Sc
 		dr.Boost = 1.5
 	}
 	for i := range results {
-		if val, ok := results[i].Chunk.Metadata[dr.MetadataKey]; ok {
+		if val, ok := results[i].Metadata[dr.MetadataKey]; ok {
 			for _, pref := range dr.PreferredValues {
 				if val == pref {
 					results[i].Score *= dr.Boost

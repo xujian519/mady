@@ -131,8 +131,8 @@ func TestSkillExtension_ToolFiltering(t *testing.T) {
 		ext := &skillExtension{
 			skills: []skill.Skill{
 				{
-					Name:        "chat-assistant",
-					Description: "Chat",
+					Name:         "chat-assistant",
+					Description:  "Chat",
 					AllowedTools: nil, // no restrictions
 				},
 			},

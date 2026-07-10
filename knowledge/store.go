@@ -15,9 +15,9 @@ import (
 // for Agent integration.
 type Store struct {
 	mu       sync.RWMutex
-	docs     map[string]*Document    // docID → Document
+	docs     map[string]*Document         // docID → Document
 	chunks   map[string][]retrieval.Chunk // docID → chunks
-	byDomain map[string][]string     // domain → []docID
+	byDomain map[string][]string          // domain → []docID
 
 	chunkOpts retrieval.ChunkOptions
 }
@@ -63,12 +63,12 @@ func (s *Store) AddDocument(domain, docID, title, content, source string) error 
 	defer s.mu.Unlock()
 
 	doc := &Document{
-		ID:      docID,
+		ID:         docID,
 		Searchable: true, // default: searchable unless explicitly marked otherwise
-		Title:   title,
-		Domain:  domain,
-		Content: content,
-		Source:  source,
+		Title:      title,
+		Domain:     domain,
+		Content:    content,
+		Source:     source,
 	}
 	s.docs[docID] = doc
 
@@ -175,9 +175,9 @@ func (s *Store) Stats() StoreStats {
 	defer s.mu.RUnlock()
 
 	stats := StoreStats{
-		TotalDocs:  len(s.docs),
+		TotalDocs:   len(s.docs),
 		TotalChunks: 0,
-		ByDomain:   make(map[string]int),
+		ByDomain:    make(map[string]int),
 	}
 	for _, chunks := range s.chunks {
 		stats.TotalChunks += len(chunks)
@@ -198,9 +198,9 @@ type StoreStats struct {
 // String formats stats for display.
 func (s StoreStats) String() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("文档: %d, 分块: %d", s.TotalDocs, s.TotalChunks))
+	fmt.Fprintf(&b, "文档: %d, 分块: %d", s.TotalDocs, s.TotalChunks)
 	for domain, count := range s.ByDomain {
-		b.WriteString(fmt.Sprintf("\n  %s: %d 篇", domain, count))
+		fmt.Fprintf(&b, "\n  %s: %d 篇", domain, count)
 	}
 	return b.String()
 }

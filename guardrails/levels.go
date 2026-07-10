@@ -73,7 +73,7 @@ func WithBlockedPhrases(p []string) Option { return func(c *Config) { c.BlockedP
 // New creates a guardrail LifecycleHook with the given options.
 func New(opts ...Option) agentcore.LifecycleHook {
 	cfg := Config{
-		Level:         LevelLight,
+		Level:          LevelLight,
 		BlockedPhrases: []string{"恶意代码", "攻击方法", "非法入侵"},
 	}
 	for _, opt := range opts {

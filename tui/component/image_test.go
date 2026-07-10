@@ -13,7 +13,7 @@ import (
 	"github.com/xujian519/mady/tui/core"
 )
 
-// makeTestImage returns a 4x4 RGBA image with 4 coloured quadrants.
+// makeTestImage returns a 4x4 RGBA image with 4 colored quadrants.
 func makeTestImage() image.Image {
 	img := image.NewNRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {

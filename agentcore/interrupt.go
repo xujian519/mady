@@ -30,8 +30,8 @@ type interruptError struct {
 	data   map[string]any
 }
 
-func (e *interruptError) Error() string  { return "interrupt: " + e.reason }
-func (e *interruptError) Unwrap() error   { return ErrInterrupt }
+func (e *interruptError) Error() string { return "interrupt: " + e.reason }
+func (e *interruptError) Unwrap() error { return ErrInterrupt }
 
 // InterruptMessage extracts the human-readable reason from an interrupt error.
 // Returns the error text if the error is not an interrupt.

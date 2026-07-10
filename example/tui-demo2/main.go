@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xujian519/mady/tui"
+	"github.com/xujian519/mady/tui/component"
 	core "github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/terminal"
 	"github.com/xujian519/mady/tui/theme"
-	"github.com/xujian519/mady/tui/component"
-	"github.com/xujian519/mady/tui"
 )
 
 // ---------------------------------------------------------------------------
@@ -26,9 +26,9 @@ import (
 // ---------------------------------------------------------------------------
 
 type chatHistory struct {
-	mu       sync.RWMutex
-	entries  []core.Component
-	app      *tui.TUI
+	mu      sync.RWMutex
+	entries []core.Component
+	app     *tui.TUI
 }
 
 func newChatHistory(app *tui.TUI) *chatHistory {

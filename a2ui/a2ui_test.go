@@ -775,7 +775,7 @@ func TestBindingA2AErrorPaths(t *testing.T) {
 	}
 
 	// DataPartToEnvelope with unmarshalable data (channel in data).
-	_, ok, err = DataPartToEnvelope(a2a.Part{
+	_, _, err = DataPartToEnvelope(a2a.Part{
 		Type: a2a.PartTypeData,
 		Data: &a2a.DataPart{MIMEType: MIMEType, Data: map[string]any{"ch": make(chan int)}},
 	})
@@ -1083,8 +1083,8 @@ func TestApplyUpdateEdgeCases(t *testing.T) {
 
 	// applyTokens: error propagated from recursive call when descending into map.
 	_, err = ApplyUpdate(map[string]any{"a": []any{}}, "/a/0/x", "val", true)
-	if err != nil {
-		// This should fail because a[0] doesn't exist.
+	if err == nil {
+		t.Fatal("expected error when descending into non-existent array index")
 	}
 
 	// Scalar where container is expected (replace with map).

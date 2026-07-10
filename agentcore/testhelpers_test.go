@@ -168,28 +168,11 @@ func interruptTool(reason string) *Tool {
 	}
 }
 
-// hangingTool blocks forever (until context cancel).
-var hangingTool = &Tool{
-	Name:        "hanging_tool",
-	Description: "Tool that blocks forever",
-	Parameters: map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"input": map[string]any{"type": "string"},
-		},
-		"required": []any{"input"},
-	},
-	Func: func(ctx context.Context, _ json.RawMessage) (any, error) {
-		<-ctx.Done()
-		return "", ctx.Err()
-	},
-}
-
 // slowTool simulates a long-running tool by blocking on a channel.
 func slowTool(done <-chan struct{}) *Tool {
 	return &Tool{
 		Name:        "slow_tool",
-		Description: "Tool that blocks until signalled",
+		Description: "Tool that blocks until signaled",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -243,25 +226,10 @@ func assertInterrupted(t testing.TB, a *Agent, reasonPrefix string) {
 	ir := a.Interrupted()
 	if ir == nil {
 		t.Fatal("expected agent to be interrupted, got nil")
+		return
 	}
 	if !strings.Contains(ir.Reason, reasonPrefix) {
 		t.Fatalf("interrupt reason = %q, want prefix %q", ir.Reason, reasonPrefix)
-	}
-}
-
-// assertNodeErrorPath fails if err is not a *NodeError with the given path prefix.
-func assertNodeErrorPath(t testing.TB, err error, pathPrefix string) {
-	t.Helper()
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	ne, ok := err.(*NodeError)
-	if !ok {
-		t.Fatalf("error type = %T, want *NodeError", err)
-	}
-	pathStr := strings.Join(ne.Path, " → ")
-	if !strings.Contains(pathStr, pathPrefix) {
-		t.Fatalf("node error path = %q, want prefix %q", pathStr, pathPrefix)
 	}
 }
 
@@ -280,8 +248,8 @@ func lastUserContent(msgs []Message) string {
 func stubAgentConfig(name string, tools []*Tool) Config {
 	return Config{
 		ModelConfig: ModelConfig{
-			Name:  name,
-			Model: "stub",
+			Name:     name,
+			Model:    "stub",
 			Provider: &echoProvider{},
 		},
 		ExecutionConfig: ExecutionConfig{

@@ -35,9 +35,9 @@ type CheckpointSettings struct {
 // To prevent unbounded memory growth, set MaxCheckpointsPerThread to limit how many
 // checkpoints are retained per thread (oldest are evicted). Zero means unlimited.
 type MemoryCheckpointSaver struct {
-	mu                     sync.Mutex
-	nextSeq                int64
-	byThread               map[string][]memoryCP
+	mu                      sync.Mutex
+	nextSeq                 int64
+	byThread                map[string][]memoryCP
 	MaxCheckpointsPerThread int
 }
 

@@ -86,7 +86,7 @@ func (r *Renderer) flushLine() {
 		} else {
 			r.inCodeBlock = true
 			r.codeLang = strings.TrimPrefix(trimmed, "```")
-			label := trimmed
+			var label string
 			if r.codeLang != "" {
 				label = pal.CodeBlock.Render("```") + pal.Dim.Render(r.codeLang)
 			} else {

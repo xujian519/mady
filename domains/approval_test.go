@@ -7,39 +7,39 @@ import (
 
 func TestApprovalGate_KeywordTrigger(t *testing.T) {
 	tests := []struct {
-		name      string
-		content   string
-		keywords  []string
+		name          string
+		content       string
+		keywords      []string
 		shouldTrigger bool
 	}{
 		{
-			name:      "triggers on patent keyword",
-			content:   "根据分析，专利结论为具有新颖性。",
-			keywords:  []string{"专利结论", "侵权判断"},
+			name:          "triggers on patent keyword",
+			content:       "根据分析，专利结论为具有新颖性。",
+			keywords:      []string{"专利结论", "侵权判断"},
 			shouldTrigger: true,
 		},
 		{
-			name:      "triggers on legal keyword",
-			content:   "我们的法律意见是建议和解。",
-			keywords:  []string{"法律意见", "诉讼策略"},
+			name:          "triggers on legal keyword",
+			content:       "我们的法律意见是建议和解。",
+			keywords:      []string{"法律意见", "诉讼策略"},
 			shouldTrigger: true,
 		},
 		{
-			name:      "does not trigger without keyword",
-			content:   "这是一份专利检索结果摘要。",
-			keywords:  []string{"专利结论", "侵权判断"},
+			name:          "does not trigger without keyword",
+			content:       "这是一份专利检索结果摘要。",
+			keywords:      []string{"专利结论", "侵权判断"},
 			shouldTrigger: false,
 		},
 		{
-			name:      "empty content does not trigger",
-			content:   "",
-			keywords:  []string{"风险", "建议"},
+			name:          "empty content does not trigger",
+			content:       "",
+			keywords:      []string{"风险", "建议"},
 			shouldTrigger: false,
 		},
 		{
-			name:      "nil keywords uses defaults so triggers",
-			content:   "风险评估结论：低风险",
-			keywords:  nil,
+			name:          "nil keywords uses defaults so triggers",
+			content:       "风险评估结论：低风险",
+			keywords:      nil,
 			shouldTrigger: true, // DefaultApprovalConfig includes "风险评估"
 		},
 	}

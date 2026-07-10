@@ -17,7 +17,7 @@ import (
 // thousands of nodes for patent/legal workloads.
 type GraphStore struct {
 	mu    sync.RWMutex
-	nodes map[string]*GraphNode // id → node
+	nodes map[string]*GraphNode  // id → node
 	adj   map[string][]GraphEdge // id → outgoing edges
 	radj  map[string][]GraphEdge // id → incoming edges (reverse index)
 }

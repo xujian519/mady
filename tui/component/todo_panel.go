@@ -20,44 +20,42 @@ type TodoItem struct {
 
 // TodoPanel is a visual TODO list panel.
 type TodoPanel struct {
-	mu            sync.RWMutex
-	items         []TodoItem
-	selected      int
-	dataProvider  func() []TodoItem
-	theme         TodoPanelTheme
-	width         int64
-	height        int64
-	km            *terminal.KeybindingsManager
-	onToggle      func(TodoItem)
-	onInvalidate  func()
+	mu           sync.RWMutex
+	items        []TodoItem
+	selected     int
+	dataProvider func() []TodoItem
+	theme        TodoPanelTheme
+	km           *terminal.KeybindingsManager
+	onToggle     func(TodoItem)
+	onInvalidate func()
 }
 
 // TodoPanelTheme customizes the panel appearance.
 type TodoPanelTheme struct {
-	Title         string
-	HeaderStyle   theme.Style
-	ItemStyle     theme.Style
-	SelectedStyle theme.Style
-	PendingStyle  theme.Style
+	Title           string
+	HeaderStyle     theme.Style
+	ItemStyle       theme.Style
+	SelectedStyle   theme.Style
+	PendingStyle    theme.Style
 	InProgressStyle theme.Style
-	CompletedStyle theme.Style
-	CancelledStyle theme.Style
-	DimStyle      theme.Style
+	CompletedStyle  theme.Style
+	CancelledStyle  theme.Style
+	DimStyle        theme.Style
 }
 
 // DefaultTodoPanelTheme returns the default theme.
 func DefaultTodoPanelTheme() TodoPanelTheme {
 	pal := theme.CurrentPalette()
 	return TodoPanelTheme{
-		Title:         "TODO (↑↓ navigate, Space/Enter toggle, Esc close)",
-		HeaderStyle:   pal.Accent,
-		ItemStyle:     pal.Assistant,
-		SelectedStyle: pal.SelectHighlight,
-		PendingStyle:  pal.Assistant,
+		Title:           "TODO (↑↓ navigate, Space/Enter toggle, Esc close)",
+		HeaderStyle:     pal.Accent,
+		ItemStyle:       pal.Assistant,
+		SelectedStyle:   pal.SelectHighlight,
+		PendingStyle:    pal.Assistant,
 		InProgressStyle: pal.Accent,
-		CompletedStyle: pal.Success,
-		CancelledStyle: pal.Dim,
-		DimStyle:      pal.Dim,
+		CompletedStyle:  pal.Success,
+		CancelledStyle:  pal.Dim,
+		DimStyle:        pal.Dim,
 	}
 }
 
@@ -151,8 +149,7 @@ func (t *TodoPanel) invalidate() {
 // 携带的是屏幕绝对坐标、未做 overlay 偏移转换，无法在组件内可靠地映射
 // 回条目，所以这里只走键盘交互（与 SessionSelector / SkillCenter 一致）。
 func (t *TodoPanel) Update(msg core.Msg) core.Cmd {
-	switch m := msg.(type) {
-	case core.KeyMsg:
+	if m, ok := msg.(core.KeyMsg); ok {
 		t.processKeys(m.Data)
 	}
 	return nil
@@ -242,19 +239,17 @@ func (t *TodoPanel) Render(width int64) []string {
 	var lines []string
 
 	// Title
-	lines = append(lines, t.theme.HeaderStyle.Render(t.theme.Title))
-	lines = append(lines, t.theme.DimStyle.Render(strings.Repeat("─", int(width))))
+	lines = append(lines, t.theme.HeaderStyle.Render(t.theme.Title), t.theme.DimStyle.Render(strings.Repeat("─", int(width))))
 
 	// Summary
-	pending, inProgress, completed, cancelled := t.countStatuses()
-	summary := fmt.Sprintf("Pending: %d | In Progress: %d | Completed: %d | Cancelled: %d",
-		pending, inProgress, completed, cancelled)
-	lines = append(lines, t.theme.DimStyle.Render(summary))
-	lines = append(lines, "")
+	pending, inProgress, completed, canceled := t.countStatuses()
+	summary := fmt.Sprintf("Pending: %d | In Progress: %d | Completed: %d | Canceled: %d",
+		pending, inProgress, completed, canceled)
+	lines = append(lines, t.theme.DimStyle.Render(summary), "")
 
 	// Available content width after prefix/subfix.
-	const prefixW = 2 // "▸ " / "  " before each line
-	iconW := int64(2) // icon + trailing space
+	const prefixW = 2             // "▸ " / "  " before each line
+	iconW := int64(2)             // icon + trailing space
 	spareW := prefixW + iconW + 3 // "▸ ○ …" roughly
 
 	for idx, item := range t.items {
@@ -311,7 +306,7 @@ func (t *TodoPanel) statusIcon(status string) string {
 		return "◐"
 	case "completed":
 		return "●"
-	case "cancelled":
+	case "canceled":
 		return "✗"
 	default:
 		return "○"
@@ -326,14 +321,14 @@ func (t *TodoPanel) statusStyle(status string) theme.Style {
 		return t.theme.InProgressStyle
 	case "completed":
 		return t.theme.CompletedStyle
-	case "cancelled":
+	case "canceled":
 		return t.theme.CancelledStyle
 	default:
 		return t.theme.ItemStyle
 	}
 }
 
-func (t *TodoPanel) countStatuses() (pending, inProgress, completed, cancelled int) {
+func (t *TodoPanel) countStatuses() (pending, inProgress, completed, canceled int) {
 	for _, item := range t.items {
 		switch item.Status {
 		case "pending":
@@ -342,8 +337,8 @@ func (t *TodoPanel) countStatuses() (pending, inProgress, completed, cancelled i
 			inProgress++
 		case "completed":
 			completed++
-		case "cancelled":
-			cancelled++
+		case "canceled":
+			canceled++
 		}
 	}
 	return

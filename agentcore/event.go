@@ -73,7 +73,7 @@ type AgentErrorEvent struct {
 
 type AgentInterruptEvent struct {
 	baseEvent
-	AgentName string          `json:"agent_name,omitempty"`
+	AgentName string           `json:"agent_name,omitempty"`
 	Reason    *InterruptReason `json:"reason,omitempty"`
 }
 

@@ -108,7 +108,7 @@ func colorDistance(r1, g1, b1, r2, g2, b2 int64) float64 {
 
 func findClosestGrayIndex(gray int64) int64 {
 	var minIdx int64
-	var minDist float64 = 1e18
+	var minDist = 1e18
 	for i := int64(0); i < int64(len(grayRamp)); i++ {
 		gv := grayRamp[i]
 		d := colorDistance(gray, gray, gray, gv, gv, gv)
@@ -128,13 +128,13 @@ func RGBTo256(r, g, b int64) int64 {
 	cubeR := cubeValues[rIdx]
 	cubeG := cubeValues[gIdx]
 	cubeB := cubeValues[bIdx]
-	cubeIndex := int64(16 + 36*rIdx + 6*gIdx + bIdx)
+	cubeIndex := 16 + 36*rIdx + 6*gIdx + bIdx
 	cubeDist := colorDistance(r, g, b, cubeR, cubeG, cubeB)
 
 	gray := int64(0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b))
 	grayIdx := findClosestGrayIndex(gray)
 	grayValue := grayRamp[grayIdx]
-	grayIndex := int64(232 + grayIdx)
+	grayIndex := 232 + grayIdx
 	grayDist := colorDistance(r, g, b, grayValue, grayValue, grayValue)
 
 	maxC := r

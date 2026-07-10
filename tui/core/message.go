@@ -49,9 +49,9 @@ func (QuitMsg) MsgMarker() {}
 // receives this instead of silently losing the Cmd's output, so the
 // application can surface the failure (log it, show an error banner, etc.).
 type PanicMsg struct {
-	Err      interface{} // the recover() value
-	Stack    string      // captured stack trace
-	CmdIndex int         // meaningful only when emitted from a Batch/Sequence
+	Err      any    // the recover() value
+	Stack    string // captured stack trace
+	CmdIndex int    // meaningful only when emitted from a Batch/Sequence
 }
 
 func (PanicMsg) MsgMarker() {}
@@ -137,7 +137,7 @@ func Tick(d time.Duration, fn func(time.Time) Msg) Cmd {
 	}
 }
 
-// WithContext wraps cmd so that its result is discarded if ctx is cancelled
+// WithContext wraps cmd so that its result is discarded if ctx is canceled
 // before the Cmd completes. The Cmd itself runs in a goroutine; cancellation
 // during a long-running Cmd cannot be forced by the framework (Go has no
 // goroutine kill), so the Cmd SHOULD select on ctx.Done() itself for prompt

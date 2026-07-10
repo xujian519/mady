@@ -76,14 +76,14 @@ var OCCEmotionVAD = map[OCCEmotion]VADVector{
 
 // AppraisalFrame 将用户表达量化为 8 个评价维度
 type AppraisalFrame struct {
-	Desirability       float64 // 期望值: ΔU = U(goal_state) - U(current_state), -1 ~ 1
-	Likelihood         float64 // 可能性: P(event | evidence), 0 ~ 1
-	Praiseworthiness   float64 // 赞扬性: 他人行为符合社会规范的程度, -1 ~ 1
-	Deservingness      float64 // 应得性: 该受表扬/责备的程度, 0 ~ 1
-	Appealingness      float64 // 吸引力: 对象物本身的吸引力, -1 ~ 1
-	Unexpectedness     float64 // 出乎意料程度: 0 ~ 1
-	CausalAttribution  float64 // 因果归因: -1=自己, 0=环境, 1=他人
-	Controllability    float64 // 可控性: 0 ~ 1
+	Desirability      float64 // 期望值: ΔU = U(goal_state) - U(current_state), -1 ~ 1
+	Likelihood        float64 // 可能性: P(event | evidence), 0 ~ 1
+	Praiseworthiness  float64 // 赞扬性: 他人行为符合社会规范的程度, -1 ~ 1
+	Deservingness     float64 // 应得性: 该受表扬/责备的程度, 0 ~ 1
+	Appealingness     float64 // 吸引力: 对象物本身的吸引力, -1 ~ 1
+	Unexpectedness    float64 // 出乎意料程度: 0 ~ 1
+	CausalAttribution float64 // 因果归因: -1=自己, 0=环境, 1=他人
+	Controllability   float64 // 可控性: 0 ~ 1
 }
 
 // OCCEmotionFormula 情绪强度计算公式
@@ -110,11 +110,11 @@ const (
 
 // EMAAssessment 四维认知评价结果
 type EMAAssessment struct {
-	GoalRelevance    float64   // 目标相关性 (0~1)
-	GoalCongruence   float64   // 目标一致性 (-1~1: 不一致→一致)
-	CopingPotential  float64   // 应对能力 (0~1)
-	Agency           float64   // 因果归因 (-1~1: 其他人→自己)
-	FutureExpectancy float64   // 未来预期 (-1~1: 悲观→乐观)
+	GoalRelevance    float64    // 目标相关性 (0~1)
+	GoalCongruence   float64    // 目标一致性 (-1~1: 不一致→一致)
+	CopingPotential  float64    // 应对能力 (0~1)
+	Agency           float64    // 因果归因 (-1~1: 其他人→自己)
+	FutureExpectancy float64    // 未来预期 (-1~1: 悲观→乐观)
 	CopingMode       CopingMode // 应对策略倾向
 }
 
@@ -126,19 +126,19 @@ type EMAAssessment struct {
 type CognitiveDistortion string
 
 const (
-	DistAllOrNothing        CognitiveDistortion = "all_or_nothing"         // 非黑即白
-	DistCatastrophizing     CognitiveDistortion = "catastrophizing"        // 灾难化
-	DistOvergeneralization  CognitiveDistortion = "overgeneralization"     // 过度泛化
-	DistMentalFiltering     CognitiveDistortion = "mental_filtering"       // 心理过滤
-	DistDiscountingPositive CognitiveDistortion = "discounting_positive"    // 贬低正面
+	DistAllOrNothing         CognitiveDistortion = "all_or_nothing"         // 非黑即白
+	DistCatastrophizing      CognitiveDistortion = "catastrophizing"        // 灾难化
+	DistOvergeneralization   CognitiveDistortion = "overgeneralization"     // 过度泛化
+	DistMentalFiltering      CognitiveDistortion = "mental_filtering"       // 心理过滤
+	DistDiscountingPositive  CognitiveDistortion = "discounting_positive"   // 贬低正面
 	DistJumpingToConclusions CognitiveDistortion = "jumping_to_conclusions" // 妄下结论
-	DistMindReading         CognitiveDistortion = "mind_reading"            // 读心术
-	DistFortuneTelling      CognitiveDistortion = "fortune_telling"         // 算命式预测
-	DistMagnifying          CognitiveDistortion = "magnifying"              // 夸大化
-	DistEmotionalReasoning  CognitiveDistortion = "emotional_reasoning"     // 情绪推理
-	DistShouldStatements    CognitiveDistortion = "should_statements"       // 应该陈述
-	DistLabeling            CognitiveDistortion = "labeling"                // 贴标签
-	DistPersonalization     CognitiveDistortion = "personalization"         // 过度自责
+	DistMindReading          CognitiveDistortion = "mind_reading"           // 读心术
+	DistFortuneTelling       CognitiveDistortion = "fortune_telling"        // 算命式预测
+	DistMagnifying           CognitiveDistortion = "magnifying"             // 夸大化
+	DistEmotionalReasoning   CognitiveDistortion = "emotional_reasoning"    // 情绪推理
+	DistShouldStatements     CognitiveDistortion = "should_statements"      // 应该陈述
+	DistLabeling             CognitiveDistortion = "labeling"               // 贴标签
+	DistPersonalization      CognitiveDistortion = "personalization"        // 过度自责
 )
 
 // DistortionDetection 认知扭曲检测结果
@@ -177,15 +177,15 @@ type SDTWeights struct {
 type DialogueStrategy string
 
 const (
-	StrategyValidation            DialogueStrategy = "validation"             // 共情验证 — Rogers
-	StrategyReframing             DialogueStrategy = "reframing"              // 认知重构 — Beck
-	StrategyEmpowerment           DialogueStrategy = "empowerment"            // 赋能引导 — Bandura
-	StrategyLightHumor            DialogueStrategy = "light_humor"            // 轻幽默
-	StrategyAccompany             DialogueStrategy = "accompany"              // 信息型陪伴
-	StrategyNormalizing           DialogueStrategy = "normalizing"            // 正常化 — 社会比较
-	StrategyRedirectAction        DialogueStrategy = "redirect_action"        // 行动引导 — Flow Theory
+	StrategyValidation             DialogueStrategy = "validation"              // 共情验证 — Rogers
+	StrategyReframing              DialogueStrategy = "reframing"               // 认知重构 — Beck
+	StrategyEmpowerment            DialogueStrategy = "empowerment"             // 赋能引导 — Bandura
+	StrategyLightHumor             DialogueStrategy = "light_humor"             // 轻幽默
+	StrategyAccompany              DialogueStrategy = "accompany"               // 信息型陪伴
+	StrategyNormalizing            DialogueStrategy = "normalizing"             // 正常化 — 社会比较
+	StrategyRedirectAction         DialogueStrategy = "redirect_action"         // 行动引导 — Flow Theory
 	StrategyCognitiveRestructuring DialogueStrategy = "cognitive_restructuring" // 认知重建 — CBT
-	StrategySocraticQuestioning   DialogueStrategy = "socratic_questioning"   // 苏格拉底式提问 — CBT
+	StrategySocraticQuestioning    DialogueStrategy = "socratic_questioning"    // 苏格拉底式提问 — CBT
 )
 
 // StrategyMatch 策略匹配结果
@@ -203,12 +203,12 @@ type StrategyMatch struct {
 
 // DialogueUnderstanding 语义理解阶段输出
 type DialogueUnderstanding struct {
-	VAD                VADVector                // 三维情绪坐标
-	DominantEmotion    OCCEmotion               // 主导情绪
-	EmotionIntensities map[OCCEmotion]float64   // 所有情绪强度
-	Distortions        DistortionDetection       // 认知扭曲检测
-	SDT                SDTState                 // SDT 需求状态
-	Appraisal          EMAAssessment            // EMA 认知评价
+	VAD                VADVector              // 三维情绪坐标
+	DominantEmotion    OCCEmotion             // 主导情绪
+	EmotionIntensities map[OCCEmotion]float64 // 所有情绪强度
+	Distortions        DistortionDetection    // 认知扭曲检测
+	SDT                SDTState               // SDT 需求状态
+	Appraisal          EMAAssessment          // EMA 认知评价
 }
 
 // PipelineMetadata 管道元数据

@@ -37,7 +37,7 @@ type Updatable interface {
 // Focusable marks a component that can hold a visible hardware cursor
 // (needed for IME candidate-window positioning with CJK input methods).
 //
-// A focusable component should emit CURSOR_MARKER at the cursor cell when
+// A focusable component should emit CursorMarker at the cursor cell when
 // SetFocused(true) has been called on it. The TUI container will strip the
 // marker from output and position the real hardware cursor at its location.
 type Focusable interface {
@@ -45,10 +45,10 @@ type Focusable interface {
 	IsFocused() bool
 }
 
-// CURSOR_MARKER is a zero-width APC (Application Program Command) escape
-// sequence terminals ignore but the TUI recognises. Place it in rendered
+// CursorMarker is a zero-width APC (Application Program Command) escape
+// sequence terminals ignore but the TUI recognizes. Place it in rendered
 // output at the desired cursor column.
-const CURSOR_MARKER = "\x1b_pi:c\x07"
+const CursorMarker = "\x1b_pi:c\x07"
 
 // WantsKeyRelease is an optional marker interface. Components that want
 // Kitty key-release events must implement it and return true; otherwise

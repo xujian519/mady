@@ -26,11 +26,11 @@ type FactBlackboard struct {
 func NewFactBlackboard(caseID string, caseType CaseType, technicalField string) *FactBlackboard {
 	ts := nowISO()
 	return &FactBlackboard{
-		CaseID:          caseID,
-		CaseType:        caseType,
-		TechnicalField:  technicalField,
-		CreatedAt:       ts,
-		UpdatedAt:       ts,
+		CaseID:           caseID,
+		CaseType:         caseType,
+		TechnicalField:   technicalField,
+		CreatedAt:        ts,
+		UpdatedAt:        ts,
 		articleJudgments: make(map[string]ArticleJudgment),
 	}
 }
@@ -154,17 +154,17 @@ func (b *FactBlackboard) SetPlan(p ExecutionPlan) {
 // The unexported slices/maps are projected explicitly because encoding/json
 // cannot see them.
 type factBlackboardJSON struct {
-	CaseID          string                      `json:"case_id"`
-	CaseType        CaseType                    `json:"case_type"`
-	TechnicalField  string                      `json:"technical_field"`
-	CreatedAt       string                      `json:"created_at"`
-	UpdatedAt       string                      `json:"updated_at"`
-	Locked          bool                        `json:"locked"`
-	Facts           []FactEntry                 `json:"facts"`
-	ReasoningChains []ReasoningChain            `json:"reasoning_chains"`
-	RuleConstraints []RuleConstraint            `json:"rule_constraints"`
+	CaseID           string                     `json:"case_id"`
+	CaseType         CaseType                   `json:"case_type"`
+	TechnicalField   string                     `json:"technical_field"`
+	CreatedAt        string                     `json:"created_at"`
+	UpdatedAt        string                     `json:"updated_at"`
+	Locked           bool                       `json:"locked"`
+	Facts            []FactEntry                `json:"facts"`
+	ReasoningChains  []ReasoningChain           `json:"reasoning_chains"`
+	RuleConstraints  []RuleConstraint           `json:"rule_constraints"`
 	ArticleJudgments map[string]ArticleJudgment `json:"article_judgments"`
-	Plan            *ExecutionPlan              `json:"plan"`
+	Plan             *ExecutionPlan             `json:"plan"`
 }
 
 // MarshalJSON implements json.Marshaler.

@@ -76,7 +76,7 @@ type ChatAppConfig struct {
 
 	// Context is the cancellation root passed to OnSubmit. When nil,
 	// context.Background() is used. Callers should wire the TUI's lifecycle
-	// context here so in-flight submissions are cancelled on Stop.
+	// context here so in-flight submissions are canceled on Stop.
 	Context context.Context
 
 	OnSubmit     func(ctx context.Context, input string)
@@ -306,20 +306,6 @@ func (a *ChatApp) Stop() error { return a.host.Stop() }
 
 func (a *ChatApp) Done() <-chan struct{} { return a.host.Done() }
 
-func (a *ChatApp) snapshot() chatModel {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	tools := make(map[string]time.Time, len(a.model.ActiveTools))
-	for k, v := range a.model.ActiveTools {
-		tools[k] = v
-	}
-	return chatModel{
-		StreamID:    a.model.StreamID,
-		ActiveTools: tools,
-		Running:     a.model.Running,
-	}
-}
-
 func (a *ChatApp) isRunning() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -481,7 +467,7 @@ func (a *ChatApp) onEditorSubmit(value string) {
 	// PrintUser / PushInputHistory / SetValue operate on history and editor
 	// components, which own their own internal locks — they do not touch
 	// ChatApp.model, so holding ChatApp.mu here is unnecessary and would
-	// serialise with the event loop for no benefit.
+	// serialize with the event loop for no benefit.
 	a.PrintUser(trimmed)
 	a.editor.PushInputHistory(trimmed)
 	a.editor.SetValue("")
@@ -581,8 +567,7 @@ func (a *ChatApp) onToolEnd(e ChatEvent) {
 				switch {
 				case (tc.ToolName == "write_file" || tc.ToolName == "write") && fileContent != "":
 					// Write tool: show content preview.
-					parts = append(parts, fmt.Sprintf("⌨  Wrote %d lines to %s", added, filePath))
-					parts = append(parts, formatContentPreview(fileContent, added))
+					parts = append(parts, fmt.Sprintf("⌨  Wrote %d lines to %s", added, filePath), formatContentPreview(fileContent, added))
 				default:
 					summary := fmt.Sprintf("✏️ %s", filePath)
 					if added > 0 || removed > 0 {
@@ -597,9 +582,7 @@ func (a *ChatApp) onToolEnd(e ChatEvent) {
 				}
 			}
 			if diffText != "" {
-				parts = append(parts, "```diff")
-				parts = append(parts, diffText)
-				parts = append(parts, "```")
+				parts = append(parts, "```diff", diffText, "```")
 			}
 			if len(parts) > 0 {
 				a.history.Append(ChatMessage{
@@ -690,7 +673,7 @@ func formatContentPreview(content string, totalLines int64) string {
 		}
 	}
 	if int64(len(lines)) > previewLines {
-		b.WriteString(fmt.Sprintf("\n  ... +%d lines", int64(len(lines))-previewLines))
+		fmt.Fprintf(&b, "\n  ... +%d lines", int64(len(lines))-previewLines)
 	}
 	return b.String()
 }
@@ -1081,8 +1064,7 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 		l.statusBar.Update(msg)
 	}
 	if l.ac != nil && l.ac.Active() {
-		switch msg.(type) {
-		case core.KeyMsg:
+		if _, ok := msg.(core.KeyMsg); ok {
 			l.ac.Update(msg)
 		}
 	}

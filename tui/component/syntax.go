@@ -19,7 +19,7 @@ import (
 //     Markdown renderer (for fenced code blocks).
 //
 // Non-goals: spec-compliant parsing. The tokenizer is deliberately greedy and
-// forgiving; it recognises the most common lexical categories (keywords,
+// forgiving; it recognizes the most common lexical categories (keywords,
 // types, strings, numbers, comments, function names, operators) and paints
 // them with ANSI styles.
 // ---------------------------------------------------------------------------
@@ -493,7 +493,7 @@ func tokenize(source string, spec *LangSpec) [][]Token {
 				if (ch == 'x' || ch == 'X' || ch == 'o' || ch == 'O' || ch == 'b' || ch == 'B' ||
 					ch == 'e' || ch == 'E' || ch == '_' || ch == '+' || ch == '-') && end > i {
 					// Only allow +/- directly after e/E.
-					if (ch == '+' || ch == '-') && !(r[end-1] == 'e' || r[end-1] == 'E') {
+					if (ch == '+' || ch == '-') && (r[end-1] != 'e' && r[end-1] != 'E') {
 						break
 					}
 					end++
@@ -580,7 +580,7 @@ func matchStringStart(r []rune, i int64, delims []string) (int64, bool) {
 }
 
 // consumeEscapedString returns the index just past the closing delimiter,
-// honouring backslash escapes and stopping at end-of-line if not terminated.
+// honoring backslash escapes and stopping at end-of-line if not terminated.
 func consumeEscapedString(r []rune, start int64, delim string) int64 {
 	n := int64(len(r))
 	i := start

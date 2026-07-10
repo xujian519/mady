@@ -14,8 +14,8 @@ type RetrievedDoc struct {
 // RAGEvaluation holds standard information-retrieval metrics for a single
 // retrieval query against a set of known-relevant document IDs.
 type RAGEvaluation struct {
-	Query       string
-	K           int
+	Query        string
+	K            int
 	PrecisionAtK float64
 	RecallAtK    float64
 	MRR          float64 // Mean Reciprocal Rank
@@ -75,13 +75,13 @@ func EvaluateRAG(retrieved []RetrievedDoc, relevantIDs []string, k int) RAGEvalu
 
 // RAGBatchResult aggregates RAG metrics across multiple queries.
 type RAGBatchResult struct {
-	Queries        int
-	MeanPrecision  float64
-	MeanRecall     float64
-	MeanMRR        float64
-	MeanNDCG       float64
-	HitRate        float64 // fraction of queries with at least one hit in top-K
-	PerQuery       []RAGEvaluation
+	Queries       int
+	MeanPrecision float64
+	MeanRecall    float64
+	MeanMRR       float64
+	MeanNDCG      float64
+	HitRate       float64 // fraction of queries with at least one hit in top-K
+	PerQuery      []RAGEvaluation
 }
 
 // EvaluateRAGBatch evaluates retrieval quality across multiple queries.

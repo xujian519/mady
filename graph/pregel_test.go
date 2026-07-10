@@ -91,7 +91,7 @@ func TestPregelState_GetMessages(t *testing.T) {
 
 func TestPregelState_Clone_TypedMapsAndSlices(t *testing.T) {
 	original := PregelState{
-		"strMap":  map[string]string{"a": "1", "b": "2"},
+		"strMap":   map[string]string{"a": "1", "b": "2"},
 		"strSlice": []string{"x", "y", "z"},
 		"intSlice": []int{1, 2, 3},
 	}

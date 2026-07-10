@@ -87,7 +87,7 @@ func TestLengthScore(t *testing.T) {
 			t.Errorf("LengthScore(len=%d)=%.3f outside [%.3f,%.3f]", len([]rune(p)), got, wantMin, wantMax)
 		}
 	}
-	check("短", 0, 0.15)            // very short
+	check("短", 0, 0.15)                    // very short
 	check(repeatRune('A', 100), 0.95, 1.0) // ideal
 	check(repeatRune('A', 50), 0.4, 0.6)   // mid ramp
 	check(repeatRune('A', 400), 0, 0.1)    // well over max → near 0

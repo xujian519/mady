@@ -79,7 +79,7 @@ func (i *Input) SetTextFn(fn func(string) string) { i.mu.Lock(); i.textFn = fn; 
 // SetPlaceholder sets a dim placeholder rendered when value is empty.
 func (i *Input) SetPlaceholder(s string) { i.mu.Lock(); i.placeText = s; i.mu.Unlock() }
 
-// SetPlaceholderFn customises placeholder styling.
+// SetPlaceholderFn customizes placeholder styling.
 func (i *Input) SetPlaceholderFn(fn func(string) string) {
 	i.mu.Lock()
 	i.placeFn = fn

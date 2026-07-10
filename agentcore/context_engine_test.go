@@ -24,11 +24,10 @@ func TestNewEngineRegistry(t *testing.T) {
 		t.Fatalf("default = %q", r.Default())
 	}
 	names := r.List()
-		names = r.List()
-		if len(names) != 3 {
-			t.Fatalf("expected 3 engines, got %d: %v", len(names), names)
-		}
+	if len(names) != 3 {
+		t.Fatalf("expected 3 engines, got %d: %v", len(names), names)
 	}
+}
 
 func TestEngineRegistryRegister(t *testing.T) {
 	r := NewEngineRegistry()
@@ -150,9 +149,9 @@ func TestCompressorEngineCheckFeasibility(t *testing.T) {
 
 	// With compression model and adequate context
 	engine2 := NewCompressorEngine(ContextEngineConfig{
-		CompressionModel: "gpt-4o-mini",
+		CompressionModel:    "gpt-4o-mini",
 		CompressionProvider: &stubProvider{},
-		ContextWindow: 100000,
+		ContextWindow:       100000,
 	})
 	if warn := engine2.CheckFeasibility(100000); warn != "" {
 		t.Fatalf("unexpected warning: %s", warn)
@@ -160,9 +159,9 @@ func TestCompressorEngineCheckFeasibility(t *testing.T) {
 
 	// Compression model too small
 	engine3 := NewCompressorEngine(ContextEngineConfig{
-		CompressionModel: "gpt-4o-mini",
+		CompressionModel:    "gpt-4o-mini",
 		CompressionProvider: &stubProvider{},
-		ContextWindow: 10000,
+		ContextWindow:       10000,
 	})
 	if warn := engine3.CheckFeasibility(100000); warn == "" {
 		t.Fatal("expected warning for small compression context")

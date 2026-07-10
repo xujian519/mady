@@ -111,7 +111,6 @@ func (ps *PregelStep) Run(ctx context.Context, input string) (string, error) {
 
 var _ agentcore.Step = (*PregelStep)(nil)
 
-
 type PregelNode func(ctx context.Context, state PregelState) (PregelState, error)
 
 type PregelEdgeRouter func(ctx context.Context, state PregelState) []string

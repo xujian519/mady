@@ -8,11 +8,11 @@ import (
 type Status string
 
 const (
-	StatusIdle         Status = "idle"
-	StatusRunning      Status = "running"
-	StatusFinished     Status = "finished"
-	StatusError        Status = "error"
-	StatusInterrupted  Status = "interrupted"
+	StatusIdle        Status = "idle"
+	StatusRunning     Status = "running"
+	StatusFinished    Status = "finished"
+	StatusError       Status = "error"
+	StatusInterrupted Status = "interrupted"
 )
 
 // AgentState holds the mutable conversation state across turns.

@@ -22,11 +22,11 @@ import (
 // CitableItem is a domain-agnostic document fragment eligible for citation.
 type CitableItem struct {
 	Title           string
-	Heading         string // section/heading within the document ("" if none)
-	Source          string // source database label (e.g., "law", "case", "patent")
-	DocType         string // document type label (e.g., "法条", "案例", "专利")
-	Domain          string // domain hint (e.g., "patent", "legal")
-	AuthorityWeight float64 // 0-1 authority weight; higher = more authoritative
+	Heading         string            // section/heading within the document ("" if none)
+	Source          string            // source database label (e.g., "law", "case", "patent")
+	DocType         string            // document type label (e.g., "法条", "案例", "专利")
+	Domain          string            // domain hint (e.g., "patent", "legal")
+	AuthorityWeight float64           // 0-1 authority weight; higher = more authoritative
 	Metadata        map[string]string // extra tags (e.g., caseNumber, ipc, article)
 }
 

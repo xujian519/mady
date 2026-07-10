@@ -10,8 +10,8 @@
 //   - Conservative (default): take the stricter verdict (max severity).
 //   - RuleAuthoritative:      the rule verdict wins; LLM is advisory only.
 //   - LLMAuthoritative:       the LLM verdict wins, except that a rule-blocked
-//                             result is a hard constraint that cannot be
-//                             overridden.
+//     result is a hard constraint that cannot be
+//     overridden.
 //
 // Conflict severity ranking (loose → strict):
 //
@@ -63,9 +63,9 @@ func DefaultMergePolicy() MergePolicy {
 // TrackConflict records a disagreement between the two tracks and how it was
 // resolved. Detected is false when both tracks agree.
 type TrackConflict struct {
-	Detected    bool
-	RuleVerdict Verdict
-	LLMVerdict  Verdict
+	Detected     bool
+	RuleVerdict  Verdict
+	LLMVerdict   Verdict
 	FinalVerdict Verdict
 	// Resolution is a human-readable explanation of how the conflict was
 	// settled (empty when no conflict).

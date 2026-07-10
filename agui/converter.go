@@ -9,14 +9,13 @@ import (
 )
 
 type Converter struct {
-	threadID      string
-	runID         string
-	parentRunID   string
-	msgSeq        atomic.Int64
-	toolSeq       atomic.Int64
-	thinkingSeq   atomic.Int64
-	activeMsgID   atomic.Value
-	activeMsgRole atomic.Value
+	threadID         string
+	runID            string
+	parentRunID      string
+	msgSeq           atomic.Int64
+	thinkingSeq      atomic.Int64
+	activeMsgID      atomic.Value
+	activeMsgRole    atomic.Value
 	activeThinkingID atomic.Value
 }
 
@@ -45,10 +44,6 @@ func NewConverterWithParent(threadID, runID, parentRunID string) *Converter {
 
 func (c *Converter) nextMsgID() string {
 	return fmt.Sprintf("msg_%d", c.msgSeq.Add(1))
-}
-
-func (c *Converter) nextToolCallID() string {
-	return fmt.Sprintf("tc_%d", c.toolSeq.Add(1))
 }
 
 func (c *Converter) nextThinkingID() string {
@@ -564,7 +559,7 @@ func CapabilitiesFromConfig(cfg agentcore.Config) AgentCapabilities {
 		},
 		Tools: &ToolsCapabilities{
 			Supported:      len(cfg.Tools) > 0,
-			ParallelCalls:  cfg.ExecutionConfig.Concurrency > 1,
+			ParallelCalls:  cfg.Concurrency > 1,
 			ClientProvided: false,
 		},
 		State: &StateCapabilities{
@@ -578,7 +573,7 @@ func CapabilitiesFromConfig(cfg agentcore.Config) AgentCapabilities {
 			Handoffs:   len(cfg.Handoffs) > 0,
 		},
 		Execution: &ExecutionCapabilities{
-			MaxIterations: cfg.ExecutionConfig.MaxTurns,
+			MaxIterations: cfg.MaxTurns,
 		},
 		HumanInTheLoop: &HumanInTheLoopCapabilities{
 			Supported:  true,

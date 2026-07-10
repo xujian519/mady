@@ -16,7 +16,7 @@ type SDTSignals struct {
 // SDTTracker 跨对话轮次追踪用户心理需求满足度
 //
 // 参考: Deterding & Guckelsberger "Advancing Self-Determination Theory
-// via computational modelling" (Motivation and Emotion, 2026, 50:80-99)
+// via computational modeling" (Motivation and Emotion, 2026, 50:80-99)
 //
 // 核心公式:
 //
@@ -46,9 +46,9 @@ func NewSDTTracker(config *SDTTrackerConfig) *SDTTracker {
 }
 
 // computeMotivation 综合动机: motivation = w_a·A + w_c·C + w_r·R
-func (t *SDTTracker) computeMotivation(A, C, R float64) float64 {
+func (t *SDTTracker) computeMotivation(a, c, r float64) float64 {
 	w := t.config.Weights
-	return clamp(w.Autonomy*A+w.Competence*C+w.Relatedness*R, 0, 1)
+	return clamp(w.Autonomy*a+w.Competence*c+w.Relatedness*r, 0, 1)
 }
 
 // updateCompetence 胜任感动态更新 — Deterding 2026 Eq.(1)
@@ -58,11 +58,11 @@ func (t *SDTTracker) computeMotivation(A, C, R float64) float64 {
 // 其中 D 是感知难度 (0=easy, 1=hard)
 // 当难度与胜任感匹配 (差距小) 时，变化小
 // 当难度略高于胜任感 (适度挑战) 时，增长最大
-func (t *SDTTracker) updateCompetence(C, difficulty float64) float64 {
+func (t *SDTTracker) updateCompetence(c, difficulty float64) float64 {
 	alpha, beta := t.config.CompetenceAlpha, t.config.CompetenceBeta
-	gap := difficulty - C
+	gap := difficulty - c
 	challengeFactor := 1 - math.Exp(-beta*gap*gap)
-	return clamp(C+alpha*gap*challengeFactor, 0, 1)
+	return clamp(c+alpha*gap*challengeFactor, 0, 1)
 }
 
 // UpdateFromSignals 应用信号更新 SDT 状态（每轮对话调用）

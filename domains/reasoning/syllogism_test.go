@@ -125,9 +125,6 @@ func TestAssertChain_FailsAt(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error on second chain")
 	}
-	if chains[0].Validated {
-		// first chain still validated before failure
-	}
 }
 
 func TestSyllogism_SerializationRoundTrip(t *testing.T) {

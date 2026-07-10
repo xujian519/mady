@@ -30,7 +30,7 @@ type FuzzyMatch struct {
 //   - consecutive runs
 //   - word-boundary or CamelCase starts
 //
-// Scoring penalises:
+// Scoring penalizes:
 //   - longer distances between matched characters
 func FuzzyMatchOne(query, candidate string) FuzzyMatch {
 	if query == "" {
@@ -40,7 +40,7 @@ func FuzzyMatchOne(query, candidate string) FuzzyMatch {
 	c := []rune(candidate)
 	qi := 0
 	var indexes []int64
-	var score int64 = 0
+	var score int64
 	lastMatch := int64(-1)
 
 	for i := 0; i < len(c) && qi < len(q); i++ {
@@ -57,7 +57,7 @@ func FuzzyMatchOne(query, candidate string) FuzzyMatch {
 			if i == 0 || isBoundary(c, i) {
 				s += 10
 			}
-			// penalise gap since last match
+			// penalize gap since last match
 			if lastMatch >= 0 {
 				gap := int64(i) - lastMatch - 1
 				if gap > 0 {

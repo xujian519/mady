@@ -9,9 +9,9 @@
 // Verified compatible vendors (Chinese models):
 //
 //   - DeepSeek          — https://api.deepseek.com/v1
-//                        (deepseek-reasoner: set DisableSystemPrompt)
+//     (deepseek-reasoner: set DisableSystemPrompt)
 //   - Zhipu GLM         — https://open.bigmodel.cn/api/coding/paas/v4
-//                        (编程套餐需使用专属端点)
+//     (编程套餐需使用专属端点)
 //   - Moonshot (Kimi)   — https://api.moonshot.cn/v1
 //   - Tongyi Qianwen    — https://dashscope.aliyuncs.com/compatible-mode/v1
 //   - OpenAI            — https://api.openai.com/v1 (generic fallback)

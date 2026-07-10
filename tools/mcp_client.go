@@ -23,10 +23,10 @@ type mcpClient struct {
 }
 
 type mcpRequest struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      int64       `json:"id"`
-	Method  string      `json:"method"`
-	Params  interface{} `json:"params,omitempty"`
+	JSONRPC string `json:"jsonrpc"`
+	ID      int64  `json:"id"`
+	Method  string `json:"method"`
+	Params  any    `json:"params,omitempty"`
 }
 
 type mcpResponse struct {
@@ -75,9 +75,9 @@ func newMCPClient(ctx context.Context, binary string, arg ...string) (*mcpClient
 }
 
 func (c *mcpClient) initialize(ctx context.Context) error {
-	_, err := c.call(ctx, "initialize", map[string]interface{}{
+	_, err := c.call(ctx, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
-		"capabilities":    map[string]interface{}{},
+		"capabilities":    map[string]any{},
 		"clientInfo": map[string]string{
 			"name":    "mady",
 			"version": "1.0",
@@ -86,8 +86,8 @@ func (c *mcpClient) initialize(ctx context.Context) error {
 	return err
 }
 
-func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]interface{}) (json.RawMessage, error) {
-	raw, err := c.call(ctx, "tools/call", map[string]interface{}{
+func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]any) (json.RawMessage, error) {
+	raw, err := c.call(ctx, "tools/call", map[string]any{
 		"name":      name,
 		"arguments": args,
 	})
@@ -97,7 +97,7 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]i
 	return raw, nil
 }
 
-func (c *mcpClient) call(ctx context.Context, method string, params interface{}) (json.RawMessage, error) {
+func (c *mcpClient) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()

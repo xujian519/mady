@@ -108,8 +108,8 @@ func TestWalker_CollectAll_ProducesConstraints(t *testing.T) {
 	}
 	w := NewReasoningWalker(store, &mockLLM{resp: "方向1\n方向2"})
 	res, err := w.CollectAll(context.Background(), CollectAllInput{
-		Facts:     []string{"专利撰写"},
-		CaseType:  CaseDrafting,
+		Facts:    []string{"专利撰写"},
+		CaseType: CaseDrafting,
 	})
 	if err != nil {
 		t.Fatalf("unexpected: %v", err)

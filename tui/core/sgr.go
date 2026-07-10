@@ -215,8 +215,8 @@ func applyExtended(nums []int, i int, c *Color) int {
 // RenderSGR returns the SGR escape sequence that transitions from `from` to
 // `to`. Returns "" if no transition is needed (the styles are equal).
 //
-// The optimisation strategy is conservative: if any colour channel changes,
-// we re-emit the full colour spec (cheap and correct). Attribute changes
+// The optimisation strategy is conservative: if any color channel changes,
+// we re-emit the full color spec (cheap and correct). Attribute changes
 // emit only the affected bits (on or off).
 func RenderSGR(from, to Style) string {
 	if from.Equal(to) {
@@ -239,7 +239,7 @@ func RenderSGR(from, to Style) string {
 	// Reset all then re-emit if reset is implied. We avoid a full reset
 	// unless the target has default everything but the source had non-default
 	// on some channel — simpler to be conservative: if attrs go from non-empty
-	// to empty, or colour goes from set to default, do a full reset + rebuild.
+	// to empty, or color goes from set to default, do a full reset + rebuild.
 	if needsReset(from, to) {
 		b.WriteString("0")
 		first = false

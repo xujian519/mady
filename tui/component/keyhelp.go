@@ -223,8 +223,7 @@ func (h *KeyHelp) renderLocked(width int64) []string {
 	var out []string
 	pal := theme.CurrentPalette()
 	if h.title != "" {
-		out = append(out, pal.User.Render(h.title))
-		out = append(out, pal.Dim.Render(strings.Repeat("─", int(width))))
+		out = append(out, pal.User.Render(h.title), pal.Dim.Render(strings.Repeat("─", int(width))))
 	}
 	lastGroup := ""
 	for _, r := range rows {

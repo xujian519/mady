@@ -180,10 +180,6 @@ func (e *HTTPExtension) SnapshotEvents() []agentcore.Event {
 	}}
 }
 
-func (c *HTTPClient) initialize(ctx context.Context) error {
-	return c.initializeSession(ctx)
-}
-
 func (c *HTTPClient) initializeSession(ctx context.Context) error {
 	params := map[string]any{
 		"protocolVersion": protocolVersion,
@@ -373,38 +369,6 @@ func (c *HTTPClient) callOnce(ctx context.Context, method string, params any, ou
 		}
 	}
 	return resp.Header, nil
-}
-
-func (c *HTTPClient) notify(ctx context.Context, method string, params any) error {
-	err := c.notifyOnce(ctx, method, params)
-	if err == nil || !errors.Is(err, errSessionExpired) || isInitializeMethod(method) {
-		return err
-	}
-	staleSession := expiredSessionID(err)
-	c.emitReconnectEvent(ReconnectPhaseStarted, ReconnectReasonSessionExpired, 1, staleSession, "", "", nil)
-	if err := c.reinitializeSession(ctx, expiredSessionID(err)); err != nil {
-		c.emitReconnectEvent(ReconnectPhaseFailed, ReconnectReasonSessionExpired, 1, staleSession, "", "", err)
-		return err
-	}
-	sessionID, _ := c.sessionState()
-	c.emitReconnectEvent(ReconnectPhaseSucceeded, ReconnectReasonSessionExpired, 1, staleSession, sessionID, "", nil)
-	return c.notifyOnce(ctx, method, params)
-}
-
-func (c *HTTPClient) notifyOnce(ctx context.Context, method string, params any) error {
-	msg := map[string]any{
-		"jsonrpc": "2.0",
-		"method":  method,
-	}
-	if params != nil {
-		msg["params"] = params
-	}
-	resp, err := c.doJSONRPC(ctx, msg, false)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return nil
 }
 
 func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool) (*http.Response, error) {

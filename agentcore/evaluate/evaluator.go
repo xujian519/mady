@@ -15,10 +15,10 @@ type TestCase struct {
 
 // CaseResult holds the scored output for one TestCase.
 type CaseResult struct {
-	CaseID    string
-	Passed    bool
-	Scores    map[string]float64 // metric name → score
-	Average   float64             // mean of all metric scores
+	CaseID     string
+	Passed     bool
+	Scores     map[string]float64 // metric name → score
+	Average    float64            // mean of all metric scores
 	Prediction string             // the actual output that was scored
 }
 
@@ -82,10 +82,10 @@ func (e *Evaluator) Evaluate(prediction, reference string, requiredCitations []s
 		avg = sum / float64(len(e.metrics))
 	}
 	return CaseResult{
-		Scores:      scores,
-		Average:     avg,
-		Passed:      avg >= e.threshold,
-		Prediction:  prediction,
+		Scores:     scores,
+		Average:    avg,
+		Passed:     avg >= e.threshold,
+		Prediction: prediction,
 	}
 }
 
@@ -102,10 +102,10 @@ func (e *Evaluator) EvaluateBatch(ctx context.Context, cases []TestCase, run Run
 		prediction, err := run(ctx, tc.Input)
 		if err != nil {
 			report.Results = append(report.Results, CaseResult{
-				CaseID:   tc.ID,
-				Passed:   false,
-				Scores:   map[string]float64{},
-				Average:  0,
+				CaseID:  tc.ID,
+				Passed:  false,
+				Scores:  map[string]float64{},
+				Average: 0,
 			})
 			report.TotalCases++
 			continue

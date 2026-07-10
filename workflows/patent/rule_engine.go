@@ -71,12 +71,12 @@ type CheckRule struct {
 	Domain      string // applicable domain filter ("" = all domains)
 
 	// Check parameters — meaning depends on CheckType.
-	RequiredElements  []string   // CheckNovelty / CheckInfringement: all must match
-	StepElements      [][]string // CheckInventiveness: 3 steps, any match per step
-	RequiredAspects   []string   // CheckDisclosure: all must match
-	Dimensions        []string   // CheckClaimAnalysis: dimensions to verify
-	SingleComparison  bool       // CheckNovelty: enforce single-comparison principle
-	FixSuggestion     string
+	RequiredElements []string   // CheckNovelty / CheckInfringement: all must match
+	StepElements     [][]string // CheckInventiveness: 3 steps, any match per step
+	RequiredAspects  []string   // CheckDisclosure: all must match
+	Dimensions       []string   // CheckClaimAnalysis: dimensions to verify
+	SingleComparison bool       // CheckNovelty: enforce single-comparison principle
+	FixSuggestion    string
 }
 
 // RuleCheckResult is the outcome of evaluating one rule against a text.
@@ -263,15 +263,15 @@ func checkClaimAnalysis(text string, rule CheckRule) (bool, string) {
 
 // synonymMap expands a keyword to its synonyms for more robust matching.
 var synonymMap = map[string][]string{
-	"新颖性":   {"新创性", "未公开", "不属于现有技术", "未被披露"},
-	"创造性":   {"非显而易见", "发明高度", "创造性步骤", "inventive step"},
-	"对比文件":  {"现有技术", "在先技术", "引用文件", "文献", "reference"},
-	"权利要求":  {"权项", "claims", "保护范围"},
-	"说明书":   {"specification", "申请文件"},
-	"充分公开":  {"公开充分", "能够实现", "enablement"},
-	"三步法":   {"最接近的现有技术", "区别技术特征", "技术启示"},
-	"单独对比":  {"单独对比原则", "一一对比"},
-	"公知常识":  {"惯用技术手段", "常规设计", "common knowledge"},
+	"新颖性":  {"新创性", "未公开", "不属于现有技术", "未被披露"},
+	"创造性":  {"非显而易见", "发明高度", "创造性步骤", "inventive step"},
+	"对比文件": {"现有技术", "在先技术", "引用文件", "文献", "reference"},
+	"权利要求": {"权项", "claims", "保护范围"},
+	"说明书":  {"specification", "申请文件"},
+	"充分公开": {"公开充分", "能够实现", "enablement"},
+	"三步法":  {"最接近的现有技术", "区别技术特征", "技术启示"},
+	"单独对比": {"单独对比原则", "一一对比"},
+	"公知常识": {"惯用技术手段", "常规设计", "common knowledge"},
 }
 
 // negationPatterns detect negated mentions within a context window.
@@ -366,13 +366,13 @@ func matchKeywordsAny(text string, keywords []string) bool {
 func DefaultPatentRules() []CheckRule {
 	return []CheckRule{
 		{
-			ID:          "NOVELTY-SINGLE-COMPARISON",
-			Name:        "新颖性单独对比原则",
-			Description: "新颖性分析必须采用单独对比原则，不得结合多份对比文件",
-			Level:       LevelMust,
-			Severity:    SeverityCritical,
-			Message:     "新颖性分析未遵循单独对比原则",
-			CheckType:   CheckNovelty,
+			ID:               "NOVELTY-SINGLE-COMPARISON",
+			Name:             "新颖性单独对比原则",
+			Description:      "新颖性分析必须采用单独对比原则，不得结合多份对比文件",
+			Level:            LevelMust,
+			Severity:         SeverityCritical,
+			Message:          "新颖性分析未遵循单独对比原则",
+			CheckType:        CheckNovelty,
 			RequiredElements: []string{"新颖性", "对比文件"},
 			SingleComparison: true,
 			FixSuggestion:    "对每项权利要求与一份对比文件进行单独对比，明确相同或实质相同的技术方案",
@@ -393,49 +393,49 @@ func DefaultPatentRules() []CheckRule {
 			FixSuggestion: "明确最接近现有技术，提炼区别技术特征，论证是否存在技术启示",
 		},
 		{
-			ID:          "DISCLOSURE-SUFFICIENCY",
-			Name:        "充分公开审查",
-			Description: "说明书应充分公开发明，使本领域技术人员能够实现",
-			Level:       LevelShould,
-			Severity:    SeverityMajor,
-			Message:     "充分公开分析不完整",
-			CheckType:   CheckDisclosure,
+			ID:              "DISCLOSURE-SUFFICIENCY",
+			Name:            "充分公开审查",
+			Description:     "说明书应充分公开发明，使本领域技术人员能够实现",
+			Level:           LevelShould,
+			Severity:        SeverityMajor,
+			Message:         "充分公开分析不完整",
+			CheckType:       CheckDisclosure,
 			RequiredAspects: []string{"充分公开", "能够实现"},
 			Domain:          "patent_disclosure",
 			FixSuggestion:   "确认说明书是否提供足够的技术细节使本领域技术人员能够实现该发明",
 		},
 		{
-			ID:          "CLAIM-CLARITY-SUPPORT",
-			Name:        "权利要求清楚性与支持",
-			Description: "权利要求应当清楚、得到说明书支持",
-			Level:       LevelShould,
-			Severity:    SeverityMajor,
-			Message:     "权利要求分析缺少必要维度",
-			CheckType:   CheckClaimAnalysis,
-			Dimensions:  []string{"clarity", "support"},
-			Domain:      "patent_claims",
+			ID:            "CLAIM-CLARITY-SUPPORT",
+			Name:          "权利要求清楚性与支持",
+			Description:   "权利要求应当清楚、得到说明书支持",
+			Level:         LevelShould,
+			Severity:      SeverityMajor,
+			Message:       "权利要求分析缺少必要维度",
+			CheckType:     CheckClaimAnalysis,
+			Dimensions:    []string{"clarity", "support"},
+			Domain:        "patent_claims",
 			FixSuggestion: "检查权利要求是否清楚简明、是否得到说明书支持",
 		},
 		{
-			ID:          "CLAIM-ESSENTIAL-FEATURES",
-			Name:        "必要技术特征完整性",
-			Description: "独立权利要求应包含解决技术问题的必要技术特征",
-			Level:       LevelQuality,
-			Severity:    SeverityMinor,
-			Message:     "权利要求可能缺少必要技术特征",
-			CheckType:   CheckClaimAnalysis,
-			Dimensions:  []string{"essential_features", "consistency"},
-			Domain:      "patent_claims",
+			ID:            "CLAIM-ESSENTIAL-FEATURES",
+			Name:          "必要技术特征完整性",
+			Description:   "独立权利要求应包含解决技术问题的必要技术特征",
+			Level:         LevelQuality,
+			Severity:      SeverityMinor,
+			Message:       "权利要求可能缺少必要技术特征",
+			CheckType:     CheckClaimAnalysis,
+			Dimensions:    []string{"essential_features", "consistency"},
+			Domain:        "patent_claims",
 			FixSuggestion: "核对独立权利要求是否包含全部必要技术特征",
 		},
 		{
-			ID:              "INFRINGEMENT-FULL-COVERAGE",
-			Name:            "侵权全面覆盖",
-			Description:     "侵权分析应进行全面技术特征比对",
-			Level:           LevelQuality,
-			Severity:        SeverityMinor,
-			Message:         "侵权分析缺少全面覆盖分析",
-			CheckType:       CheckInfringement,
+			ID:               "INFRINGEMENT-FULL-COVERAGE",
+			Name:             "侵权全面覆盖",
+			Description:      "侵权分析应进行全面技术特征比对",
+			Level:            LevelQuality,
+			Severity:         SeverityMinor,
+			Message:          "侵权分析缺少全面覆盖分析",
+			CheckType:        CheckInfringement,
 			RequiredElements: []string{"权利要求", "技术特征"},
 			Domain:           "patent_infringement",
 			FixSuggestion:    "逐一比对被控技术方案与权利要求的全部技术特征",

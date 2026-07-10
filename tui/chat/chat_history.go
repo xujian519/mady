@@ -18,7 +18,7 @@ import (
 // updates), a body rendered as Markdown, and metadata. Append/Update are
 // thread-safe and invalidate the render cache.
 //
-// Viewport behaviour:
+// Viewport behavior:
 //   - The caller sets MaxRows (typically recomputed on resize by ChatLayout).
 //   - FollowTail=true (default) auto-scrolls to the bottom on every Append.
 //   - The user can scroll manually with PgUp/PgDn/↑↓ when focused.
@@ -38,14 +38,14 @@ const (
 
 // ChatMessage is one item in the chat transcript.
 type ChatMessage struct {
-	ID       string        // optional — non-empty enables in-place updates.
-	Role     ChatRole      // governs default styling & prefix.
-	Text     string        // raw source (markdown for assistant, plain for others).
-	Pending  bool          // the message is still streaming; a cursor may be shown.
-	Meta     string        // e.g. tool name, duration.
-	At       time.Time     // emission time (for display).
-	Duration time.Duration // optional — displayed after Meta.
-	Collapsed bool         // when true, tool output shows summary; click to expand.
+	ID        string        // optional — non-empty enables in-place updates.
+	Role      ChatRole      // governs default styling & prefix.
+	Text      string        // raw source (markdown for assistant, plain for others).
+	Pending   bool          // the message is still streaming; a cursor may be shown.
+	Meta      string        // e.g. tool name, duration.
+	At        time.Time     // emission time (for display).
+	Duration  time.Duration // optional — displayed after Meta.
+	Collapsed bool          // when true, tool output shows summary; click to expand.
 
 	// Thinking blocks (structured content).
 	ThinkingSegments []ThinkingSegment
@@ -132,11 +132,11 @@ type ChatHistory struct {
 	reasoningRenderer ReasoningRenderer
 
 	// render cache keyed on width + invalidation counter.
-	cachedWidth    int64
-	cachedAll      []string
+	cachedWidth     int64
+	cachedAll       []string
 	cachedMsgRanges []msgRange
-	dirty          bool
-	expandedGroups map[int]bool // group message indices that are expanded
+	dirty           bool
+	expandedGroups  map[int]bool // group message indices that are expanded
 
 	// optional invalidate callback (usually TUI.RequestRender).
 	onInvalidate func()
@@ -154,7 +154,7 @@ type ChatHistory struct {
 	// gesture (press-motion-release) is suppressed. This prevents accidental text
 	// selection when the user switches from two-finger scroll to single-finger
 	// slide on a trackpad.
-	lastWheelAt    time.Time
+	lastWheelAt     time.Time
 	suppressGesture bool
 }
 
@@ -163,10 +163,10 @@ type ChatHistory struct {
 // SetReasoningRenderer to enable it.
 func NewChatHistory() *ChatHistory {
 	return &ChatHistory{
-		theme:            DefaultChatHistoryTheme(),
-		follow:           true,
-		dirty:            true,
-		expandedGroups:   make(map[int]bool),
+		theme:             DefaultChatHistoryTheme(),
+		follow:            true,
+		dirty:             true,
+		expandedGroups:    make(map[int]bool),
 		reasoningRenderer: HiddenReasoningRenderer{},
 	}
 }
@@ -612,7 +612,6 @@ func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 		}
 		if h.tryToggleThinkingAtLineLocked(absLine) {
 			h.dirty = true
-			needInvalidate = true
 			h.mu.Unlock()
 			h.invalidate()
 			return
@@ -841,37 +840,6 @@ func (h *ChatHistory) invalidate() {
 	}
 }
 
-func (h *ChatHistory) messageAtViewportRow(row int64) *ChatMessage {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.messageAtViewportRowLocked(row)
-}
-
-func (h *ChatHistory) messageAtViewportRowLocked(row int64) *ChatMessage {
-	total := int64(len(h.cachedAll))
-	if total == 0 || h.maxRows <= 0 || row < 0 {
-		return nil
-	}
-	end := total - h.offset
-	start := end - h.maxRows
-	if start < 0 {
-		start = 0
-	}
-	idx := start + row
-	if idx >= total {
-		return nil
-	}
-	for _, r := range h.cachedMsgRanges {
-		if int64(r.startLine) <= idx && idx < int64(r.endLine) {
-			if r.msgIndex < len(h.messages) {
-				msg := h.messages[r.msgIndex]
-				return &msg
-			}
-		}
-	}
-	return nil
-}
-
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
@@ -925,13 +893,14 @@ func (h *ChatHistory) getSelectedTextLocked() string {
 	for i := topLine; i <= botLine && i < total; i++ {
 		line := h.cachedAll[i]
 		var part string
-		if i == topLine && i == botLine {
+		switch {
+		case topLine == botLine:
 			part = core.SliceByColumn(line, topCol, botCol)
-		} else if i == topLine {
+		case i == topLine:
 			part = core.SliceByColumn(line, topCol, core.VisibleWidth(line))
-		} else if i == botLine {
+		case i == botLine:
 			part = core.SliceByColumn(line, 0, botCol)
-		} else {
+		default:
 			part = line
 		}
 		result = append(result, core.StripAnsi(part))
@@ -1022,15 +991,14 @@ func (h *ChatHistory) renderAll(width int64) []string {
 		}
 
 		if i > 0 {
-			// Add spacing. Use a subtle separator between user/assistant turns.
 			prev := h.messages[i-1]
-			if (prev.Role == RoleUser && m.Role == RoleAssistant) ||
-				(prev.Role == RoleAssistant && m.Role == RoleUser) {
+			switch {
+			case (prev.Role == RoleUser && m.Role == RoleAssistant) ||
+				(prev.Role == RoleAssistant && m.Role == RoleUser):
 				sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
 				out = append(out, "", sep, "")
-			} else if prev.Role == RoleTool || m.Role == RoleTool {
-				// Tools are compact — no extra blank line.
-			} else {
+			case prev.Role == RoleTool || m.Role == RoleTool:
+			default:
 				out = append(out, "", "")
 			}
 		}
@@ -1115,7 +1083,7 @@ func (h *ChatHistory) applySelectionHighlightLocked(lines []string, width int64)
 		fromCol := int64(0)
 		toCol := lineWidth
 		switch {
-		case i == topLine && i == botLine:
+		case topLine == botLine:
 			fromCol = topCol
 			toCol = botCol
 		case i == topLine:
@@ -1202,7 +1170,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		var allLines []string
 
 		// Render thinking segments first — delegated to the injected
-		// ReasoningRenderer. The default implementation honours the
+		// ReasoningRenderer. The default implementation honors the
 		// legacy Show/Mode policy; custom renderers can draw reasoning
 		// anywhere (sidebar, overlay, etc.).
 		if h.reasoningRenderer != nil {

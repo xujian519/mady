@@ -737,7 +737,7 @@ func TestResumeEntryInInput(t *testing.T) {
 		RunID:    "run-2",
 		Resume: []ResumeEntry{
 			{InterruptID: "int-1", Status: "resolved", Payload: map[string]any{"approved": true}},
-			{InterruptID: "int-2", Status: "cancelled"},
+			{InterruptID: "int-2", Status: "canceled"},
 		},
 	}
 	data, err := json.Marshal(input)
@@ -757,7 +757,7 @@ func TestResumeEntryInInput(t *testing.T) {
 	if parsed.Resume[0].Status != "resolved" {
 		t.Errorf("expected 'resolved', got %s", parsed.Resume[0].Status)
 	}
-	if parsed.Resume[1].Status != "cancelled" {
+	if parsed.Resume[1].Status != "canceled" {
 		t.Errorf("expected 'cancelled', got %s", parsed.Resume[1].Status)
 	}
 }

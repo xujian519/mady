@@ -29,7 +29,7 @@ type SemanticTheme struct {
 
 	MdHeading         string `json:"mdHeading"`
 	MdLink            string `json:"mdLink"`
-	MdLinkUrl         string `json:"mdLinkUrl"`
+	MdLinkURL         string `json:"mdLinkUrl"`
 	MdCode            string `json:"mdCode"`
 	MdCodeBlock       string `json:"mdCodeBlock"`
 	MdCodeBlockBorder string `json:"mdCodeBlockBorder"`
@@ -81,7 +81,7 @@ func DefaultSemanticDark() *SemanticTheme {
 
 		MdHeading:         "#d4a843",
 		MdLink:            "#61afef",
-		MdLinkUrl:         "#a0a0b0",
+		MdLinkURL:         "#a0a0b0",
 		MdCode:            "#98c379",
 		MdCodeBlock:       "#98c379",
 		MdCodeBlockBorder: "#606070",
@@ -134,7 +134,7 @@ func DefaultSemanticLight() *SemanticTheme {
 
 		MdHeading:         "#b8860b",
 		MdLink:            "#1565c0",
-		MdLinkUrl:         "#9e9e9e",
+		MdLinkURL:         "#9e9e9e",
 		MdCode:            "#00695c",
 		MdCodeBlock:       "#2e7d32",
 		MdCodeBlockBorder: "#bdbdbd",

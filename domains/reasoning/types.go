@@ -45,11 +45,11 @@ const (
 
 // RuleConstraint is a rule pulled from statutes/guidelines that a plan must satisfy.
 type RuleConstraint struct {
-	ArticleID        string       `json:"article_id"`
-	ArticleName      string       `json:"article_name"`
-	Requirement      Requirement  `json:"requirement"`
-	Description      string       `json:"description"`
-	ApplicableStages []string     `json:"applicable_stages,omitempty"`
+	ArticleID        string      `json:"article_id"`
+	ArticleName      string      `json:"article_name"`
+	Requirement      Requirement `json:"requirement"`
+	Description      string      `json:"description"`
+	ApplicableStages []string    `json:"applicable_stages,omitempty"`
 }
 
 // ReasoningChainNode is one hop in a multi-hop reasoning chain.

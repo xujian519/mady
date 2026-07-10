@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/gorilla/websocket"
+	"github.com/xujian519/mady/agentcore"
 )
 
 // ---------------------------------------------------------------------------
@@ -40,9 +40,9 @@ func newMockHandler() *mockHandler {
 			URL:         "http://localhost:8080",
 			Version:     "1.0.0",
 			Capabilities: AgentCapabilities{
-			Streaming:         true,
-			PushNotifications: true,
-		},
+				Streaming:         true,
+				PushNotifications: true,
+			},
 			Skills: []AgentSkill{
 				{ID: "greet", Name: "Greeting", Description: "Say hello"},
 			},
@@ -590,8 +590,8 @@ func TestIntegration_ClientServer(t *testing.T) {
 
 	// Send task
 	task, err := client.SendTask(context.Background(), SendTaskRequest{
-		ID:      "integration-task",
-		Message: Message{Role: string(RoleUser), Parts: []Part{NewTextPart("Test message")}},
+		ID:       "integration-task",
+		Message:  Message{Role: string(RoleUser), Parts: []Part{NewTextPart("Test message")}},
 		Metadata: map[string]any{"source": "integration_test"},
 	})
 	if err != nil {
@@ -1385,7 +1385,7 @@ func TestDefaultAgentHandler_InputRequiredState(t *testing.T) {
 			URL:  "http://localhost:8080",
 			Capabilities: AgentCapabilities{
 				Streaming:              true,
-				PushNotifications:     true,
+				PushNotifications:      true,
 				StateTransitionHistory: true,
 			},
 		},
@@ -1417,7 +1417,7 @@ func TestDefaultAgentHandler_InputRequiredThenContinue(t *testing.T) {
 			URL:  "http://localhost:8080",
 			Capabilities: AgentCapabilities{
 				Streaming:              true,
-				PushNotifications:     true,
+				PushNotifications:      true,
 				StateTransitionHistory: true,
 			},
 		},
@@ -1495,9 +1495,9 @@ func TestDefaultAgentHandler_AppendToTerminalTaskFails(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 type streamingMockHandler struct {
-	card    AgentCard
-	tasks   map[string]*Task
-	mu      sync.Mutex
+	card  AgentCard
+	tasks map[string]*Task
+	mu    sync.Mutex
 }
 
 func newStreamingMockHandler() *streamingMockHandler {
@@ -1506,7 +1506,7 @@ func newStreamingMockHandler() *streamingMockHandler {
 			Name: "test-agent",
 			URL:  "http://localhost:8080",
 			Capabilities: AgentCapabilities{
-				Streaming:          true,
+				Streaming:         true,
 				PushNotifications: true,
 			},
 		},
@@ -1727,9 +1727,9 @@ func TestServer_SendTaskSubscribe_InputRequiredClosesStream(t *testing.T) {
 }
 
 type inputRequiredHandler struct {
-	card    AgentCard
-	tasks   map[string]*Task
-	mu      sync.Mutex
+	card  AgentCard
+	tasks map[string]*Task
+	mu    sync.Mutex
 }
 
 func (h *inputRequiredHandler) Card() AgentCard { return h.card }

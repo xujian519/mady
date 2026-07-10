@@ -54,7 +54,7 @@ func DefaultApprovalConfig() ApprovalConfig {
 			"法律意见", "诉讼策略", "判决预测",
 			"风险评估", "最终建议",
 		},
-		TimeoutMsg:   "此步骤需要人工审核确认。请检查以下内容后回复'确认'继续，或提供修改意见。",
+		TimeoutMsg:    "此步骤需要人工审核确认。请检查以下内容后回复'确认'继续，或提供修改意见。",
 		SkipIfNoTools: false,
 	}
 }

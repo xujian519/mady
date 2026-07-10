@@ -140,7 +140,7 @@ func applyColorKey(t *SemanticTheme, key, col string) {
 	case "mdLink":
 		t.MdLink = col
 	case "mdLinkUrl":
-		t.MdLinkUrl = col
+		t.MdLinkURL = col
 	case "mdCode":
 		t.MdCode = col
 	case "mdCodeBlock":

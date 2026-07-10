@@ -56,8 +56,8 @@ func TestToKV(t *testing.T) {
 		if string(kv.Key) != c.attr.Key {
 			t.Fatalf("key mismatch: %s vs %s", kv.Key, c.attr.Key)
 		}
-	// just ensure no panic and a valid type is produced.
-	_ = kv.Value.String()
+		// just ensure no panic and a valid type is produced.
+		_ = kv.Value.String()
 	}
 }
 

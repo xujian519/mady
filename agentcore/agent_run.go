@@ -355,47 +355,47 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 				continue
 			}
 
-		earlyExit, err := a.executeToolCalls(ctx, resp.ToolCalls)
-		if err != nil {
-			if IsInterrupt(err) {
-				a.state.SetStatus(StatusInterrupted)
-				a.state.SetInterruptReason(a.interrupted)
-				a.emit(&AgentInterruptEvent{
-					baseEvent: newBase(EventAgentInterrupt),
-					AgentName: a.config.Name,
-					Reason:    a.interrupted,
-				})
-				return "", nil
-			}
-			ne := NewNodeError("tool execution persist failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn))
-			a.state.SetStatus(StatusError)
-			a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-			return "", ne
-		}
-
-		// Early-exit: a tool returned a terminating result; its content is
-		// the final answer and no further LLM turn runs.
-		if earlyExit != "" {
-			finalOutput = earlyExit
-			a.state.SetStatus(StatusFinished)
-			a.emit(&TurnEndEvent{
-				baseEvent: newBase(EventTurnEnd),
-				Turn:      turn,
-				Usage:     resp.Usage,
-			})
-			if lc := a.lifecycle(); lc != nil {
-				arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
-				lc.AfterTurn(ctx, arc, TurnInfo{HadToolCalls: true})
-			}
-			if err := a.checkpointTurnEnd(ctx, turn); err != nil {
+			earlyExit, err := a.executeToolCalls(ctx, resp.ToolCalls)
+			if err != nil {
+				if IsInterrupt(err) {
+					a.state.SetStatus(StatusInterrupted)
+					a.state.SetInterruptReason(a.interrupted)
+					a.emit(&AgentInterruptEvent{
+						baseEvent: newBase(EventAgentInterrupt),
+						AgentName: a.config.Name,
+						Reason:    a.interrupted,
+					})
+					return "", nil
+				}
+				ne := NewNodeError("tool execution persist failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn))
 				a.state.SetStatus(StatusError)
-				a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
-				return "", err
+				a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
+				return "", ne
 			}
-			break
-		}
 
-		// Context cancellation during tool execution — exit cleanly.
+			// Early-exit: a tool returned a terminating result; its content is
+			// the final answer and no further LLM turn runs.
+			if earlyExit != "" {
+				finalOutput = earlyExit
+				a.state.SetStatus(StatusFinished)
+				a.emit(&TurnEndEvent{
+					baseEvent: newBase(EventTurnEnd),
+					Turn:      turn,
+					Usage:     resp.Usage,
+				})
+				if lc := a.lifecycle(); lc != nil {
+					arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+					lc.AfterTurn(ctx, arc, TurnInfo{HadToolCalls: true})
+				}
+				if err := a.checkpointTurnEnd(ctx, turn); err != nil {
+					a.state.SetStatus(StatusError)
+					a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+					return "", err
+				}
+				break
+			}
+
+			// Context cancellation during tool execution — exit cleanly.
 			if errors.Is(ctx.Err(), context.Canceled) {
 				a.state.SetStatus(StatusFinished)
 				a.emit(&AgentEndEvent{
@@ -638,14 +638,15 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 
 		content := r.Result
 		if r.Err != nil {
-			if errors.Is(r.Err, context.Canceled) {
+			switch {
+			case errors.Is(r.Err, context.Canceled):
 				content = "工具执行被中断"
-			} else if IsInterrupt(r.Err) {
+			case IsInterrupt(r.Err):
 				content = r.Result
 				if content == "" {
 					content = r.Err.Error()
 				}
-			} else {
+			default:
 				content = fmt.Sprintf("错误: %s", r.Err.Error())
 			}
 		}

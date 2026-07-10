@@ -27,10 +27,6 @@ func TestFileStore_MaxLocksPruning(t *testing.T) {
 	if lock == nil {
 		t.Fatal("sessionLock returned nil after pruning")
 	}
-
-	// Verify that the lock is functional.
-	lock.Lock()
-	lock.Unlock()
 }
 
 func TestFileStore_DefaultNoMaxLocks(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 
 // cacheEntry holds a cached value with an expiration timestamp.
 type cacheEntry struct {
-	value     interface{}
+	value     any
 	expiresAt time.Time
 }
 

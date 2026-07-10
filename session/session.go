@@ -124,7 +124,7 @@ type Manager struct {
 	persist  bool
 	flushed  bool
 
-	labelsById map[string]string
+	labelsByID map[string]string
 	index      map[string]*Entry
 
 	mu        sync.RWMutex
@@ -137,7 +137,7 @@ func newManager(header Header, filePath string, persist bool) *Manager {
 		header:     header,
 		filePath:   filePath,
 		persist:    persist,
-		labelsById: make(map[string]string),
+		labelsByID: make(map[string]string),
 		index:      make(map[string]*Entry),
 	}
 }
@@ -191,9 +191,9 @@ func (m *Manager) Append(_ context.Context, entry Entry) error {
 		var ld LabelData
 		if err := json.Unmarshal(entry.Data, &ld); err == nil {
 			if ld.Label == "" {
-				delete(m.labelsById, ld.TargetID)
+				delete(m.labelsByID, ld.TargetID)
 			} else {
-				m.labelsById[ld.TargetID] = ld.Label
+				m.labelsByID[ld.TargetID] = ld.Label
 			}
 		}
 	}
@@ -265,7 +265,7 @@ func (m *Manager) Branch(branchFromID string) error {
 func (m *Manager) GetLabel(entryID string) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.labelsById[entryID]
+	return m.labelsByID[entryID]
 }
 
 // MessagesOnPath extracts Messages along the root→leaf path.
@@ -394,7 +394,7 @@ func (m *Manager) CreateBranchedSession(ctx context.Context, store *FileStore) (
 
 	m.mu.RLock()
 	for _, entry := range path {
-		if label, ok := m.labelsById[entry.ID]; ok {
+		if label, ok := m.labelsByID[entry.ID]; ok {
 			_ = newMgr.SetLabel(ctx, entry.ID, label)
 		}
 	}
@@ -780,9 +780,9 @@ func (s *FileStore) Open(_ context.Context, sessionID string) (*Manager, error) 
 			var ld LabelData
 			if json.Unmarshal(e.Data, &ld) == nil {
 				if ld.Label == "" {
-					delete(mgr.labelsById, ld.TargetID)
+					delete(mgr.labelsByID, ld.TargetID)
 				} else {
-					mgr.labelsById[ld.TargetID] = ld.Label
+					mgr.labelsByID[ld.TargetID] = ld.Label
 				}
 			}
 		}

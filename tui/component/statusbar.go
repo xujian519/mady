@@ -16,14 +16,13 @@ type StatusBarSection struct {
 }
 
 type StatusBar struct {
-	mu      sync.RWMutex
+	mu       sync.RWMutex
 	sections []StatusBarSection
 	elapsed  time.Duration
 	running  bool
 	start    time.Time
 	mode     string
 	agent    string
-	width    int64
 }
 
 func NewStatusBar() *StatusBar {
@@ -117,8 +116,7 @@ func (s *StatusBar) Render(width int64) []string {
 func (s *StatusBar) Invalidate() {}
 
 func (s *StatusBar) Update(msg core.Msg) core.Cmd {
-	switch msg.(type) {
-	case core.WindowSizeMsg:
+	if _, ok := msg.(core.WindowSizeMsg); ok {
 		s.Invalidate()
 	}
 	return nil

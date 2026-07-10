@@ -14,12 +14,12 @@ import (
 
 // RateLimiter implements a per-IP token bucket rate limiter.
 type RateLimiter struct {
-	mu        sync.RWMutex
-	buckets   map[string]*bucket
-	rate      float64   // tokens per second
-	capacity  int       // bucket capacity
+	mu              sync.RWMutex
+	buckets         map[string]*bucket
+	rate            float64 // tokens per second
+	capacity        int     // bucket capacity
 	cleanupInterval time.Duration
-	stop      chan struct{}
+	stop            chan struct{}
 }
 
 type bucket struct {

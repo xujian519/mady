@@ -27,9 +27,9 @@ func TestDomainDocument_Fields(t *testing.T) {
 
 func TestDomainQuery_Filters(t *testing.T) {
 	q := DomainQuery{
-		Text:     "深度学习图像识别",
-		Keywords: []string{"深度学习", "图像识别", "CNN"},
-		Filters:  map[string]string{"ipc": "G06F17/30", "applicant": "华为"},
+		Text:       "深度学习图像识别",
+		Keywords:   []string{"深度学习", "图像识别", "CNN"},
+		Filters:    map[string]string{"ipc": "G06F17/30", "applicant": "华为"},
 		MaxResults: 20,
 	}
 	if q.MaxResults != 20 {
@@ -53,18 +53,18 @@ func TestDomainReranker_BoostsMatchingMetadata(t *testing.T) {
 	results := []retrieval.ScoredChunk{
 		{
 			Chunk: retrieval.Chunk{
-				ID:      "c1",
-				DocID:   "d1",
-				Content: "匹配IPC的区块",
+				ID:       "c1",
+				DocID:    "d1",
+				Content:  "匹配IPC的区块",
 				Metadata: map[string]string{"ipc": "G06F17/30"},
 			},
 			Score: 0.5,
 		},
 		{
 			Chunk: retrieval.Chunk{
-				ID:      "c2",
-				DocID:   "d2",
-				Content: "不匹配的区块",
+				ID:       "c2",
+				DocID:    "d2",
+				Content:  "不匹配的区块",
 				Metadata: map[string]string{"ipc": "A61K31/00"},
 			},
 			Score: 0.5,

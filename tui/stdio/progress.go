@@ -37,7 +37,7 @@ func NewProgressBar(total, width int64) *ProgressBar {
 	}
 }
 
-func (p *ProgressBar) SetLabel(label string) { p.mu.Lock(); p.label = label; p.mu.Unlock() }
+func (p *ProgressBar) SetLabel(label string)  { p.mu.Lock(); p.label = label; p.mu.Unlock() }
 func (p *ProgressBar) SetStyle(s theme.Style) { p.mu.Lock(); p.style = s; p.mu.Unlock() }
 func (p *ProgressBar) SetWriter(w io.Writer)  { p.mu.Lock(); p.writer = w; p.mu.Unlock() }
 

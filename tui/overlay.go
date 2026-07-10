@@ -16,7 +16,7 @@ var (
 // Overlay — a floating panel mounted on top of the root view.
 //
 // Positioning supports:
-//   - Anchor points (corners / centre / cardinal mid-points) — OverlayAnchor*.
+//   - Anchor points (corners / center / cardinal mid-points) — OverlayAnchor*.
 //   - Percentage offsets — the overlay is placed at (pctX, pctY) of the
 //     viewport minus the overlay's own size × anchor ratio.
 //   - Absolute rows/cols via Row/Col.
@@ -96,7 +96,7 @@ type Overlay struct {
 	DimBackground bool
 }
 
-// NewCenteredOverlay is a convenience constructor for a centred panel
+// NewCenteredOverlay is a convenience constructor for a centered panel
 // whose size is a percentage of the viewport.
 func NewCenteredOverlay(c core.Component, widthPct, heightPct int64) *Overlay {
 	return &Overlay{
@@ -293,7 +293,6 @@ func dimBackgroundRows(base []core.Row, cols, rows, oRow, oCol, oW, oH int64) []
 	}
 	return base
 }
-
 
 // applyDimToRow adds the dim attribute and a dark glass background to cells
 // in the column range [start, end) of row. If row is Raw it is left as-is

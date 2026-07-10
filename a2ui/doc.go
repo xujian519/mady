@@ -20,7 +20,6 @@
 //   - JSONL stream encoding/decoding.
 //   - Server-side builder helpers for constructing UIs ergonomically.
 //   - Transport bindings for A2A and AG-UI, both already supported by mady.
-//
 package a2ui
 
 // Version is the A2UI protocol version implemented by this package. Every

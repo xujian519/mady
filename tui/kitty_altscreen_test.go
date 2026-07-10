@@ -44,12 +44,12 @@ func (r *recordingTerminal) Write(p []byte) (int, error) {
 
 func (r *recordingTerminal) Size() (int64, int64) { return 80, 24 }
 
-func (r *recordingTerminal) HideCursor()      {}
-func (r *recordingTerminal) ShowCursor()       {}
-func (r *recordingTerminal) ClearLine()       {}
-func (r *recordingTerminal) ClearFromCursor() {}
-func (r *recordingTerminal) ClearScreen()     {}
-func (r *recordingTerminal) MoveBy(int64)     {}
+func (r *recordingTerminal) HideCursor()         {}
+func (r *recordingTerminal) ShowCursor()         {}
+func (r *recordingTerminal) ClearLine()          {}
+func (r *recordingTerminal) ClearFromCursor()    {}
+func (r *recordingTerminal) ClearScreen()        {}
+func (r *recordingTerminal) MoveBy(int64)        {}
 func (r *recordingTerminal) MoveTo(int64, int64) {}
 func (r *recordingTerminal) PushKittyKeyboard() {
 	r.mu.Lock()

@@ -57,8 +57,8 @@ func TestKeywordSearcher(t *testing.T) {
 	if len(results) == 0 {
 		t.Fatal("expected results for patent search")
 	}
-	if results[0].Chunk.ID != "c0" {
-		t.Errorf("expected c0 as top result, got %s", results[0].Chunk.ID)
+	if results[0].ID != "c0" {
+		t.Errorf("expected c0 as top result, got %s", results[0].ID)
 	}
 
 	// Test trademark search (should find trademark chunk, not patent).
@@ -66,8 +66,8 @@ func TestKeywordSearcher(t *testing.T) {
 	if len(results2) == 0 {
 		t.Fatal("expected results for trademark search")
 	}
-	if results2[0].Chunk.ID != "c2" {
-		t.Errorf("expected c2 as top result, got %s", results2[0].Chunk.ID)
+	if results2[0].ID != "c2" {
+		t.Errorf("expected c2 as top result, got %s", results2[0].ID)
 	}
 
 	// Test empty query.
@@ -90,8 +90,8 @@ func TestPositionReranker(t *testing.T) {
 	// c0 (pos 0, score 0.8) with position boost should outrank c5 (pos 5, score 0.9).
 	// c0 boosted: 0.8 * (1.0 + 0.3 * 1.0) = 0.8 * 1.3 = 1.04
 	// c5 boosted: 0.9 * (1.0 + 0.3 * 0.5) = 0.9 * 1.15 = 1.035
-	if reranked[0].Chunk.ID != "c0" {
-		t.Errorf("expected c0 (boosted by position) to be top result, got %s", reranked[0].Chunk.ID)
+	if reranked[0].ID != "c0" {
+		t.Errorf("expected c0 (boosted by position) to be top result, got %s", reranked[0].ID)
 	}
 }
 

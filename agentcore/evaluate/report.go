@@ -15,14 +15,14 @@ func FormatReport(report *BatchReport) string {
 
 	// Summary.
 	b.WriteString("## 概要\n\n")
-	b.WriteString(fmt.Sprintf("- 测试用例数: %d\n", report.TotalCases))
-	b.WriteString(fmt.Sprintf("- 通过数: %d\n", report.PassedCases))
-	b.WriteString(fmt.Sprintf("- 通过率: %.1f%%\n", report.PassRate*100))
+	fmt.Fprintf(&b, "- 测试用例数: %d\n", report.TotalCases)
+	fmt.Fprintf(&b, "- 通过数: %d\n", report.PassedCases)
+	fmt.Fprintf(&b, "- 通过率: %.1f%%\n", report.PassRate*100)
 	b.WriteString("\n### 聚合指标\n\n")
 	b.WriteString("| 指标 | 平均分 |\n")
 	b.WriteString("|------|--------|\n")
 	for name, score := range report.AggregateScores {
-		b.WriteString(fmt.Sprintf("| %s | %.3f |\n", name, score))
+		fmt.Fprintf(&b, "| %s | %.3f |\n", name, score)
 	}
 
 	// Per-case details.
@@ -31,7 +31,7 @@ func FormatReport(report *BatchReport) string {
 		b.WriteString("| 用例 | 平均分 | 状态 |")
 		metricNames := sortedMetricNames(report.Results)
 		for _, name := range metricNames {
-			b.WriteString(fmt.Sprintf(" %s |", name))
+			fmt.Fprintf(&b, " %s |", name)
 		}
 		b.WriteString("\n|")
 		for i := 0; i < 2+len(metricNames); i++ {
@@ -43,9 +43,9 @@ func FormatReport(report *BatchReport) string {
 			if !r.Passed {
 				status = "❌"
 			}
-			b.WriteString(fmt.Sprintf("| %s | %.3f | %s |", r.CaseID, r.Average, status))
+			fmt.Fprintf(&b, "| %s | %.3f | %s |", r.CaseID, r.Average, status)
 			for _, name := range metricNames {
-				b.WriteString(fmt.Sprintf(" %.3f |", r.Scores[name]))
+				fmt.Fprintf(&b, " %.3f |", r.Scores[name])
 			}
 			b.WriteString("\n")
 		}
@@ -61,12 +61,12 @@ func FormatRAGReport(result *RAGBatchResult) string {
 	}
 	var b strings.Builder
 	b.WriteString("# RAG 检索评估报告\n\n")
-	b.WriteString(fmt.Sprintf("- 查询数: %d\n", result.Queries))
-	b.WriteString(fmt.Sprintf("- 平均 Precision@K: %.3f\n", result.MeanPrecision))
-	b.WriteString(fmt.Sprintf("- 平均 Recall@K: %.3f\n", result.MeanRecall))
-	b.WriteString(fmt.Sprintf("- 平均 MRR: %.3f\n", result.MeanMRR))
-	b.WriteString(fmt.Sprintf("- 平均 NDCG: %.3f\n", result.MeanNDCG))
-	b.WriteString(fmt.Sprintf("- Hit Rate@K: %.1f%%\n", result.HitRate*100))
+	fmt.Fprintf(&b, "- 查询数: %d\n", result.Queries)
+	fmt.Fprintf(&b, "- 平均 Precision@K: %.3f\n", result.MeanPrecision)
+	fmt.Fprintf(&b, "- 平均 Recall@K: %.3f\n", result.MeanRecall)
+	fmt.Fprintf(&b, "- 平均 MRR: %.3f\n", result.MeanMRR)
+	fmt.Fprintf(&b, "- 平均 NDCG: %.3f\n", result.MeanNDCG)
+	fmt.Fprintf(&b, "- Hit Rate@K: %.1f%%\n", result.HitRate*100)
 
 	if len(result.PerQuery) > 0 {
 		b.WriteString("\n## 逐查询结果\n\n")
@@ -77,8 +77,8 @@ func FormatRAGReport(result *RAGBatchResult) string {
 			if !ev.HitAtK {
 				hit = "❌"
 			}
-			b.WriteString(fmt.Sprintf("| %d | %.3f | %.3f | %.3f | %.3f | %s |\n",
-				i+1, ev.PrecisionAtK, ev.RecallAtK, ev.MRR, ev.NDCG, hit))
+			fmt.Fprintf(&b, "| %d | %.3f | %.3f | %.3f | %.3f | %s |\n",
+				i+1, ev.PrecisionAtK, ev.RecallAtK, ev.MRR, ev.NDCG, hit)
 		}
 	}
 

@@ -14,14 +14,14 @@ func TestParseKnowledgeDocument(t *testing.T) {
 		Content: "本发明涉及一种通信装置",
 		Source:  "case",
 		Metadata: map[string]string{
-			"type":         "case",
-			"level":        "一般案例",
-			"law_refs":     "专利法第22条第3款,专利法第26条第3款",
-			"cross_refs":   "相关wiki1",
-			"ipc_codes":    "G06F,H04L",
-			"case_number":  "(2020)京73行初1234",
-			"court":        "北京知识产权法院",
-			"priority":     "P2",
+			"type":        "case",
+			"level":       "一般案例",
+			"law_refs":    "专利法第22条第3款,专利法第26条第3款",
+			"cross_refs":  "相关wiki1",
+			"ipc_codes":   "G06F,H04L",
+			"case_number": "(2020)京73行初1234",
+			"court":       "北京知识产权法院",
+			"priority":    "P2",
 		},
 	}
 	parsed := ParseKnowledgeDocument(doc)
@@ -323,9 +323,6 @@ func TestReasoningStoreAdapter_SearchNodes(t *testing.T) {
 	}
 	if len(nodes) != 2 {
 		t.Errorf("SearchNodes count = %d, want 2", len(nodes))
-	}
-	if nodes[0].ID != "case001" && nodes[1].ID != "law1" {
-		// both should match keyword 专利
 	}
 
 	// Filter by node type

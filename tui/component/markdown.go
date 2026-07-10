@@ -125,8 +125,7 @@ func (m *Markdown) Invalidate() {
 }
 
 func (m *Markdown) Update(msg core.Msg) core.Cmd {
-	switch msg.(type) {
-	case core.WindowSizeMsg:
+	if _, ok := msg.(core.WindowSizeMsg); ok {
 		m.Invalidate()
 	}
 	return nil
@@ -488,7 +487,7 @@ func defaultMarkdownTheme() MarkdownTheme {
 		CodeFenceFn:   apitheme.SemStyle(sem.MdCodeBlockBorder, mode).Render,
 		QuoteFn:       apitheme.SemStyle(sem.MdQuote, mode).Render,
 		LinkLabelFn:   apitheme.SemStyle(sem.MdLink, mode).Underline().Render,
-		LinkURLFn:     apitheme.SemStyle(sem.MdLinkUrl, mode).Render,
+		LinkURLFn:     apitheme.SemStyle(sem.MdLinkURL, mode).Render,
 		HRFn:          apitheme.SemStyle(sem.MdHr, mode).Render,
 		ListBulletFn:  apitheme.SemStyle(sem.MdListBullet, mode).Render,
 		TableBorderFn: apitheme.SemStyle(sem.MdCodeBlockBorder, mode).Render,

@@ -12,13 +12,13 @@ import (
 
 // Checkpoint captures the complete execution state at a specific point.
 type Checkpoint struct {
-	ID        string           `json:"id"`
-	GraphID   string           `json:"graph_id,omitempty"`
-	NodeName  string           `json:"node_name"`
-	StepIndex int64            `json:"step_index"`
-	State     json.RawMessage  `json:"state"`
-	Metadata  map[string]any   `json:"metadata,omitempty"`
-	CreatedAt time.Time        `json:"created_at"`
+	ID        string          `json:"id"`
+	GraphID   string          `json:"graph_id,omitempty"`
+	NodeName  string          `json:"node_name"`
+	StepIndex int64           `json:"step_index"`
+	State     json.RawMessage `json:"state"`
+	Metadata  map[string]any  `json:"metadata,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
 }
 
 // CheckpointStore persists and retrieves checkpoints.

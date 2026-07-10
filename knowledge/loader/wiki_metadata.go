@@ -19,14 +19,14 @@ type WikiMetadata struct {
 
 // wikiMetadataPatterns holds regex patterns for metadata extraction.
 var (
-	reSource     = regexp.MustCompile(`>\s*\*\*来源[：:]\s*\*\*\s*(.+)`)
-	reLawRefs    = regexp.MustCompile(`>\s*\*\*(?:核心法条|对应法条|法律依据)[：:]\s*\*\*\s*(.+)`)
-	reWikiLink   = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
-	reTags       = regexp.MustCompile(`>\s*\*\*标签[：:]\s*\*\*\s*(.+)`)
-	reH1         = regexp.MustCompile(`^#\s+(.+)`)
-	reSummary    = regexp.MustCompile(`##\s*(?:核心要点|核心审查标准|核心概述)\s*\n([\s\S]*?)(?:\n##|\z)`)
-	reTechField  = regexp.MustCompile(`>\s*\*\*技术领域[：:]\s*\*\*\s*(.+)`)
-	reGuideSect  = regexp.MustCompile(`>\s*\*\*来源[：:]\s*\*\*\s*《专利审查指南》(.+)`)
+	reSource    = regexp.MustCompile(`>\s*\*\*来源[：:]\s*\*\*\s*(.+)`)
+	reLawRefs   = regexp.MustCompile(`>\s*\*\*(?:核心法条|对应法条|法律依据)[：:]\s*\*\*\s*(.+)`)
+	reWikiLink  = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
+	reTags      = regexp.MustCompile(`>\s*\*\*标签[：:]\s*\*\*\s*(.+)`)
+	reH1        = regexp.MustCompile(`^#\s+(.+)`)
+	reSummary   = regexp.MustCompile(`##\s*(?:核心要点|核心审查标准|核心概述)\s*\n([\s\S]*?)(?:\n##|\z)`)
+	reTechField = regexp.MustCompile(`>\s*\*\*技术领域[：:]\s*\*\*\s*(.+)`)
+	reGuideSect = regexp.MustCompile(`>\s*\*\*来源[：:]\s*\*\*\s*《专利审查指南》(.+)`)
 )
 
 // ExtractMetadata parses metadata from wiki document content and file path.
@@ -55,8 +55,8 @@ func ExtractMetadata(content, filePath string) *WikiMetadata {
 	for _, match := range allLinks {
 		link := strings.TrimSpace(match[1])
 		// Skip image/embed links.
-		if strings.Contains(link, "|") {
-			link = link[:strings.Index(link, "|")]
+		if idx := strings.Index(link, "|"); idx >= 0 {
+			link = link[:idx]
 		}
 		if !seen[link] {
 			seen[link] = true

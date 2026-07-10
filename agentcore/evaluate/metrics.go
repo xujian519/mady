@@ -20,7 +20,7 @@ type MetricFunc struct {
 	Run        func(prediction, reference string) float64
 }
 
-func (m MetricFunc) Name() string      { return m.MetricName }
+func (m MetricFunc) Name() string                { return m.MetricName }
 func (m MetricFunc) Compute(p, r string) float64 { return m.Run(p, r) }
 
 // ============================================================================
@@ -163,9 +163,9 @@ func (m CitationCompleteness) Compute(prediction, _ string) float64 {
 // band. This discourages both terse non-answers and rambling outputs. The score
 // is triangular: 1 inside [Min, Ideal], linearly decaying toward 0 outside.
 type LengthScore struct {
-	Min    int // minimum acceptable length (runes)
-	Ideal  int // length at which the score is 1.0
-	Max    int // maximum acceptable length (runes)
+	Min   int // minimum acceptable length (runes)
+	Ideal int // length at which the score is 1.0
+	Max   int // maximum acceptable length (runes)
 }
 
 // DefaultLengthScore returns a LengthScore tuned for paragraph-length answers.

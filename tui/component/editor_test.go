@@ -167,8 +167,8 @@ func TestEditorClearSelectionResetsMouseDrag(t *testing.T) {
 }
 
 func containsMarker(s string) bool {
-	for i := 0; i+len(core.CURSOR_MARKER) <= len(s); i++ {
-		if s[i:i+len(core.CURSOR_MARKER)] == core.CURSOR_MARKER {
+	for i := 0; i+len(core.CursorMarker) <= len(s); i++ {
+		if s[i:i+len(core.CursorMarker)] == core.CursorMarker {
 			return true
 		}
 	}

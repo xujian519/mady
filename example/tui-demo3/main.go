@@ -21,11 +21,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xujian519/mady/tui"
+	"github.com/xujian519/mady/tui/chat"
+	"github.com/xujian519/mady/tui/component"
 	core "github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/terminal"
-	"github.com/xujian519/mady/tui/component"
-	"github.com/xujian519/mady/tui/chat"
-	"github.com/xujian519/mady/tui"
 )
 
 func main() {

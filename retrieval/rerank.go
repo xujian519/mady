@@ -69,7 +69,7 @@ func (dr *DeduplicatingReranker) Rerank(results []ScoredChunk) []ScoredChunk {
 	seen := make(map[string]bool)
 	var filtered []ScoredChunk
 	for _, r := range results {
-		key := r.Chunk.Content
+		key := r.Content
 		if len(key) > 100 {
 			key = key[:100] // use first 100 chars as signature
 		}
@@ -118,11 +118,11 @@ type LegalReranker struct {
 // DefaultLegalHierarchy returns the standard Chinese legal source hierarchy.
 func DefaultLegalHierarchy() map[string]int {
 	return map[string]int{
-		"宪法":      100,
-		"法律":       90,
-		"行政法规":   80,
-		"司法解释":   70,
-		"部门规章":   60,
+		"宪法":    100,
+		"法律":    90,
+		"行政法规":  80,
+		"司法解释":  70,
+		"部门规章":  60,
 		"地方性法规": 50,
 		"指导性案例": 40,
 	}
@@ -160,14 +160,14 @@ func (lr *LegalReranker) Rerank(results []ScoredChunk) []ScoredChunk {
 	// Find the baseline rank (lowest among results).
 	baselineRank := 1000
 	for _, r := range results {
-		source := r.Chunk.Metadata[key]
+		source := r.Metadata[key]
 		if rank, ok := hierarchy[source]; ok && rank < baselineRank {
 			baselineRank = rank
 		}
 	}
 
 	for i := range results {
-		source := results[i].Chunk.Metadata[key]
+		source := results[i].Metadata[key]
 		if rank, ok := hierarchy[source]; ok {
 			rankDiff := float64(rank-baselineRank) / 100.0
 			if rankDiff > 0 {

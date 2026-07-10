@@ -78,19 +78,16 @@ func (s *Server) wsPingLoop(wc *wsConn) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			wc.mu.Lock()
-			if wc.closed {
-				wc.mu.Unlock()
-				return
-			}
-			err := wc.conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second))
+	for range ticker.C {
+		wc.mu.Lock()
+		if wc.closed {
 			wc.mu.Unlock()
-			if err != nil {
-				return
-			}
+			return
+		}
+		err := wc.conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second))
+		wc.mu.Unlock()
+		if err != nil {
+			return
 		}
 	}
 }
@@ -478,17 +475,17 @@ func (c *WSClient) WithMaxRetries(n int) *WSClient {
 }
 
 type WSConnection struct {
-	conn      *websocket.Conn
-	mu        sync.Mutex
-	closed    bool
-	ch        chan *TaskUpdateEvent
-	err       error
-	ctx       context.Context
-	cancel    context.CancelFunc
+	conn   *websocket.Conn
+	mu     sync.Mutex
+	closed bool
+	ch     chan *TaskUpdateEvent
+	err    error
+	ctx    context.Context
+	cancel context.CancelFunc
 
-	client    *WSClient
-	maxRetry  int
-	retryNum  int
+	client   *WSClient
+	maxRetry int
+	retryNum int
 }
 
 func (c *WSClient) Connect(ctx context.Context) (*WSConnection, error) {
@@ -515,12 +512,12 @@ func (c *WSClient) Connect(ctx context.Context) (*WSConnection, error) {
 
 	ctx2, cancel := context.WithCancel(ctx)
 	wsc := &WSConnection{
-		conn:      conn,
-		ch:        make(chan *TaskUpdateEvent, 16),
-		ctx:       ctx2,
-		cancel:    cancel,
-		client:    c,
-		maxRetry:  c.maxRetries,
+		conn:     conn,
+		ch:       make(chan *TaskUpdateEvent, 16),
+		ctx:      ctx2,
+		cancel:   cancel,
+		client:   c,
+		maxRetry: c.maxRetries,
 	}
 
 	go wsc.readLoop()

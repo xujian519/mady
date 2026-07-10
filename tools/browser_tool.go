@@ -14,24 +14,24 @@ import (
 
 // browserToolInput is the parsed argument structure for browser tool calls.
 type browserToolInput struct {
-	Action     string                 `json:"action"`
-	URL        string                 `json:"url"`
-	Ref        string                 `json:"ref"`
-	Text       string                 `json:"text"`
-	Direction  string                 `json:"direction"`
-	Key        string                 `json:"key"`
-	FullPage   bool                   `json:"full_page"`
-	Full       bool                   `json:"full"`
-	Mode       string                 `json:"mode"`
-	Expression string                 `json:"expression"`
-	FrameID    string                 `json:"frame_id"`
-	DialogID   string                 `json:"dialog_id"`
-	Accept     bool                   `json:"accept"`
-	PromptText string                 `json:"prompt_text"`
-	Question   string                 `json:"question"`
-	Annotate   bool                   `json:"annotate"`
-	CDPMethod  string                 `json:"cdp_method"`
-	CDPParams  map[string]interface{} `json:"cdp_params"`
+	Action     string         `json:"action"`
+	URL        string         `json:"url"`
+	Ref        string         `json:"ref"`
+	Text       string         `json:"text"`
+	Direction  string         `json:"direction"`
+	Key        string         `json:"key"`
+	FullPage   bool           `json:"full_page"`
+	Full       bool           `json:"full"`
+	Mode       string         `json:"mode"`
+	Expression string         `json:"expression"`
+	FrameID    string         `json:"frame_id"`
+	DialogID   string         `json:"dialog_id"`
+	Accept     bool           `json:"accept"`
+	PromptText string         `json:"prompt_text"`
+	Question   string         `json:"question"`
+	Annotate   bool           `json:"annotate"`
+	CDPMethod  string         `json:"cdp_method"`
+	CDPParams  map[string]any `json:"cdp_params"`
 }
 
 // browserActionHandler is a function that implements a single browser action.
@@ -582,7 +582,7 @@ func handleScroll(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 	timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 	defer cancel()
 
-	var res interface{}
+	var res any
 	if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(script, &res)); err != nil {
 		return nil, fmt.Errorf("scroll failed: %w", err)
 	}
@@ -996,7 +996,7 @@ func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserTo
 	})
 }
 
-func cdpParamsToJSON(params map[string]interface{}) string {
+func cdpParamsToJSON(params map[string]any) string {
 	if params == nil {
 		return "{}"
 	}

@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xujian519/mady/tui"
 	core "github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/terminal"
-	"github.com/xujian519/mady/tui"
 )
 
 // ---------------------------------------------------------------------------
@@ -135,7 +135,7 @@ func (m *miniInput) Render(width int64) []string {
 	prompt := "> "
 	display := prompt + val
 	if focused {
-		display += core.CURSOR_MARKER
+		display += core.CursorMarker
 	}
 	display = core.PadToWidth(display, width)
 

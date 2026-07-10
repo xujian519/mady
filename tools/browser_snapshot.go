@@ -607,7 +607,7 @@ func generateAriaSnapshot(ctx context.Context) (string, error) {
 		show := INTERACTIVE_ROLES[roleName]
 		if !show {
 			for _, child := range childMap[n.NodeID] {
-				walk(child, depth + 1)
+				walk(child, depth+1)
 			}
 			return
 		}
@@ -641,4 +641,3 @@ func extractAXValue(v *accessibility.Value) string {
 	raw := strings.Trim(v.Value.String(), "\"")
 	return raw
 }
-

@@ -76,8 +76,8 @@ func TestNoDistortion(t *testing.T) {
 
 func TestHasSevereDistortionMultiple(t *testing.T) {
 	d := DistortionDetection{
-		Distortions:      []CognitiveDistortion{DistCatastrophizing, DistLabeling, DistPersonalization},
-		BeliefIntensity:  0.8,
+		Distortions:     []CognitiveDistortion{DistCatastrophizing, DistLabeling, DistPersonalization},
+		BeliefIntensity: 0.8,
 	}
 	if !hasSevereDistortion(d) {
 		t.Errorf("expected severe distortion (multiple)")
@@ -86,8 +86,8 @@ func TestHasSevereDistortionMultiple(t *testing.T) {
 
 func TestHasSevereDistortionHighIntensity(t *testing.T) {
 	d := DistortionDetection{
-		Distortions:      []CognitiveDistortion{DistShouldStatements},
-		BeliefIntensity:  0.9,
+		Distortions:     []CognitiveDistortion{DistShouldStatements},
+		BeliefIntensity: 0.9,
 	}
 	if !hasSevereDistortion(d) {
 		t.Errorf("expected severe distortion (high intensity)")
@@ -96,8 +96,8 @@ func TestHasSevereDistortionHighIntensity(t *testing.T) {
 
 func TestHasSevereDistortionKeyType(t *testing.T) {
 	d := DistortionDetection{
-		Distortions:      []CognitiveDistortion{DistCatastrophizing},
-		BeliefIntensity:  0.3,
+		Distortions:     []CognitiveDistortion{DistCatastrophizing},
+		BeliefIntensity: 0.3,
 	}
 	if !hasSevereDistortion(d) {
 		t.Errorf("expected severe distortion (catastrophizing)")

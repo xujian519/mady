@@ -1,7 +1,7 @@
 // Package agentconfig assembles the agent provider/model/thinking configuration
-// from environment variables. It centralises the wiring shared across all
+// from environment variables. It centralizes the wiring shared across all
 // entry points (cli-chat, acp-server, the unified mady command) so every binary
-// honours the same PROVIDER / API_KEY / BASE_URL / THINKING_* conventions.
+// honors the same PROVIDER / API_KEY / BASE_URL / THINKING_* conventions.
 //
 // Supported providers (all via the OpenAI Chat Completions compatible protocol):
 //
@@ -24,7 +24,7 @@ import (
 
 // BuildProvider reads PROVIDER / API_KEY / BASE_URL from the environment and
 // returns a chatcompat provider wired to the correct backend. Provider-specific
-// fallback keys (DEEPSEEK_API_KEY, ZHIPU_API_KEY, KIMI_API_KEY) are honoured.
+// fallback keys (DEEPSEEK_API_KEY, ZHIPU_API_KEY, KIMI_API_KEY) are honored.
 // It calls log.Fatal when no API key is configured.
 func BuildProvider() agentcore.Provider {
 	providerType := util.EnvOrDefault("PROVIDER", "deepseek")
@@ -87,7 +87,7 @@ func DefaultModel() string {
 
 // ThinkingFromEnv reads the THINKING_INCLUDE_THOUGHTS / THINKING_DISPLAY /
 // THINKING_EFFORT / THINKING_BUDGET variables and returns a ThinkingConfig.
-// Returns nil when none are set, leaving thinking behaviour at the provider default.
+// Returns nil when none are set, leaving thinking behavior at the provider default.
 func ThinkingFromEnv() *agentcore.ThinkingConfig {
 	includeRaw := strings.TrimSpace(os.Getenv("THINKING_INCLUDE_THOUGHTS"))
 	displayRaw := strings.TrimSpace(os.Getenv("THINKING_DISPLAY"))

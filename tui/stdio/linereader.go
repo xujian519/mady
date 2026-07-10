@@ -153,7 +153,7 @@ func Confirm(prompt string) bool {
 }
 
 // PromptSelect displays a numbered list of options and returns the selected
-// index (or -1 if the selection is invalid or cancelled). Renamed from the
+// index (or -1 if the selection is invalid or canceled). Renamed from the
 // former `Select` to avoid collision with the SelectList component.
 func PromptSelect(prompt string, options []string) int64 {
 	p := theme.CurrentPalette()

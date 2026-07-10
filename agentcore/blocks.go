@@ -236,19 +236,19 @@ func MergeContentBlocks(dst []ContentBlock, src ...ContentBlock) []ContentBlock 
 // StructuredCompactionSummary is the JSON shape requested when
 // Config.StructuredCompaction is enabled (mirrors Hermes' 13-field format).
 type StructuredCompactionSummary struct {
-	ActiveTask         string `json:"active_task"`
-	Goal               string `json:"goal"`
-	ConstraintsPrefs   string `json:"constraints_preferences"`
-	CompletedActions   string `json:"completed_actions"`
-	ActiveState        string `json:"active_state"`
-	InProgress         string `json:"in_progress"`
-	Blocked            string `json:"blocked"`
-	KeyDecisions       string `json:"key_decisions"`
-	ResolvedQuestions  string `json:"resolved_questions"`
-	PendingUserAsks    string `json:"pending_user_asks"`
-	RelevantFiles      string `json:"relevant_files"`
-	RemainingWork      string `json:"remaining_work"`
-	CriticalContext    string `json:"critical_context"`
+	ActiveTask        string `json:"active_task"`
+	Goal              string `json:"goal"`
+	ConstraintsPrefs  string `json:"constraints_preferences"`
+	CompletedActions  string `json:"completed_actions"`
+	ActiveState       string `json:"active_state"`
+	InProgress        string `json:"in_progress"`
+	Blocked           string `json:"blocked"`
+	KeyDecisions      string `json:"key_decisions"`
+	ResolvedQuestions string `json:"resolved_questions"`
+	PendingUserAsks   string `json:"pending_user_asks"`
+	RelevantFiles     string `json:"relevant_files"`
+	RemainingWork     string `json:"remaining_work"`
+	CriticalContext   string `json:"critical_context"`
 }
 
 // ToReadableSummary renders the structured fields as a markdown block for the

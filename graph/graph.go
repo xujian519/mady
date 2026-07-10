@@ -339,29 +339,6 @@ func (cg *CompiledGraph) getNode(name string) Step {
 	return nil
 }
 
-// executeConditionalChain runs a node and follows any conditional edges it has,
-// supporting chained conditional routing (a → b → c).
-func (cg *CompiledGraph) executeConditionalChain(ctx context.Context, name string, input string, outputs map[string]string) (string, error) {
-	step := cg.getNode(name)
-	if step == nil {
-		return "", agentcore.NewNodeError("conditional edge target not found", nil, "graph", name)
-	}
-	out, err := step.Run(ctx, input)
-	if err != nil {
-		return "", agentcore.WrapNodeError(err, "graph:"+name)
-	}
-	// Follow chained conditional edges from this target.
-	if router, ok := cg.CondEdges[name]; ok {
-		target := router.route(ctx, out)
-		for _, t := range router.targets {
-			if t == target {
-				return cg.executeConditionalChain(ctx, target, out, outputs)
-			}
-		}
-	}
-	return out, nil
-}
-
 // FindTerminalOutput finds the output of terminal nodes (nodes with no outgoing edges).
 func FindTerminalOutput(nodes map[string]Step, edges map[string][]string, outputs map[string]string) string {
 	terminal := make(map[string]bool)

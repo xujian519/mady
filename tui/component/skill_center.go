@@ -29,7 +29,6 @@ type SkillCenter struct {
 	selected     int
 	filter       string
 	theme        SkillCenterTheme
-	width        int64
 	height       int64
 	km           *terminal.KeybindingsManager
 	onSelect     func(SkillItem)
@@ -66,10 +65,10 @@ func DefaultSkillCenterTheme() SkillCenterTheme {
 // NewSkillCenter creates a new skill center panel.
 func NewSkillCenter() *SkillCenter {
 	km := terminal.NewKeybindingsManager(map[string]terminal.KeybindingDef{
-		"skill.up":      {DefaultKeys: []string{"up", "ctrl+p"}},
-		"skill.down":    {DefaultKeys: []string{"down", "ctrl+n"}},
-		"skill.select":  {DefaultKeys: []string{"enter"}},
-		"skill.close":   {DefaultKeys: []string{"esc"}},
+		"skill.up":     {DefaultKeys: []string{"up", "ctrl+p"}},
+		"skill.down":   {DefaultKeys: []string{"down", "ctrl+n"}},
+		"skill.select": {DefaultKeys: []string{"enter"}},
+		"skill.close":  {DefaultKeys: []string{"esc"}},
 	})
 	return &SkillCenter{
 		theme: DefaultSkillCenterTheme(),
@@ -113,8 +112,7 @@ func (s *SkillCenter) applyFilterLocked() {
 
 // Update processes messages.
 func (s *SkillCenter) Update(msg core.Msg) core.Cmd {
-	switch m := msg.(type) {
-	case core.KeyMsg:
+	if m, ok := msg.(core.KeyMsg); ok {
 		s.processKeys(m.Data)
 	}
 	return nil
@@ -178,15 +176,6 @@ func (s *SkillCenter) SetOnInvalidate(fn func()) {
 	s.mu.Unlock()
 }
 
-func (s *SkillCenter) invalidate() {
-	s.mu.RLock()
-	fn := s.onInvalidate
-	s.mu.RUnlock()
-	if fn != nil {
-		fn()
-	}
-}
-
 // Invalidate is a no-op.
 func (s *SkillCenter) Invalidate() {}
 
@@ -202,8 +191,7 @@ func (s *SkillCenter) Render(width int64) []string {
 	var lines []string
 
 	// Title
-	lines = append(lines, s.theme.HeaderStyle.Render(s.theme.Title))
-	lines = append(lines, s.theme.DimStyle.Render(strings.Repeat("─", int(width))))
+	lines = append(lines, s.theme.HeaderStyle.Render(s.theme.Title), s.theme.DimStyle.Render(strings.Repeat("─", int(width))))
 
 	// Filter indicator
 	if s.filter != "" {
@@ -214,8 +202,7 @@ func (s *SkillCenter) Render(width int64) []string {
 	active, stale, archived := s.countStates()
 	summary := fmt.Sprintf("Active: %d | Stale: %d | Archived: %d | Total: %d",
 		active, stale, archived, len(s.items))
-	lines = append(lines, s.theme.DimStyle.Render(summary))
-	lines = append(lines, "")
+	lines = append(lines, s.theme.DimStyle.Render(summary), "")
 
 	// Items
 	maxVisible := int(s.height) - 7
@@ -265,8 +252,8 @@ func (s *SkillCenter) formatSkillItem(item SkillItem, width int64) string {
 	}
 
 	name := item.Name
-	if width > 0 && int64(core.VisibleWidth(stateIcon+name+pinned+uses)) > width-2 {
-		name = core.TruncateToWidth(name, width-int64(core.VisibleWidth(stateIcon+pinned+uses))-4, "…")
+	if width > 0 && core.VisibleWidth(stateIcon+name+pinned+uses) > width-2 {
+		name = core.TruncateToWidth(name, width-core.VisibleWidth(stateIcon+pinned+uses)-4, "…")
 	}
 
 	return stateIcon + " " + stateStyle.Render(name) + s.theme.DimStyle.Render(pinned+uses)

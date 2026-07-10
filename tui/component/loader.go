@@ -57,7 +57,7 @@ func (l *Loader) SetStyle(s core.SpinnerStyle) {
 	l.mu.Unlock()
 }
 
-// SetTheme customises how the spinner and message are coloured.
+// SetTheme customizes how the spinner and message are colored.
 func (l *Loader) SetTheme(t LoaderTheme) {
 	l.mu.Lock()
 	l.theme = t
@@ -172,8 +172,7 @@ func (l *Loader) Render(width int64) []string {
 }
 
 func (l *Loader) Update(msg core.Msg) core.Cmd {
-	switch msg.(type) {
-	case core.WindowSizeMsg:
+	if _, ok := msg.(core.WindowSizeMsg); ok {
 		l.Invalidate()
 	}
 	return nil
@@ -187,7 +186,7 @@ func (l *Loader) Invalidate() {}
 // ---------------------------------------------------------------------------
 
 // CancellableLoader wraps Loader and surfaces an AbortSignal-like context
-// that is cancelled when the user presses Escape while the loader has focus.
+// that is canceled when the user presses Escape while the loader has focus.
 type CancellableLoader struct {
 	*Loader
 
@@ -210,7 +209,7 @@ func NewCancellableLoader(onRequestRender func(), message string) *CancellableLo
 	}
 }
 
-// Context returns a context that is cancelled when the user aborts.
+// Context returns a context that is canceled when the user aborts.
 func (c *CancellableLoader) Context() context.Context { return c.ctx }
 
 // Aborted reports whether Escape was pressed.
@@ -258,4 +257,4 @@ func (c *CancellableLoader) SetFocused(bool) {}
 // IsFocused always returns true when the loader is running, so the TUI
 // delivers input here even without an explicit focus push. In practice
 // callers should use app.Focus(loader) / app.Unfocus(loader) explicitly.
-func (c *CancellableLoader) IsFocused() bool { return c.Loader.IsRunning() }
+func (c *CancellableLoader) IsFocused() bool { return c.IsRunning() }

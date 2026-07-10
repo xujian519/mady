@@ -96,11 +96,11 @@ type ParsedDoc struct {
 // metadata map. All fields are optional; the builder uses what is present.
 type ParsedMetadata struct {
 	Title         string   `json:"title,omitempty"`
-	Level         string   `json:"level,omitempty"`          // e.g. 法律/行政法规/司法解释
+	Level         string   `json:"level,omitempty"` // e.g. 法律/行政法规/司法解释
 	Module        string   `json:"module,omitempty"`
-	Priority      string   `json:"priority,omitempty"`       // e.g. "P1".."P5"
-	LawRefs       []string `json:"law_refs,omitempty"`       // cited law article IDs
-	CrossRefs     []string `json:"cross_refs,omitempty"`     // wiki cross-references
+	Priority      string   `json:"priority,omitempty"`   // e.g. "P1".."P5"
+	LawRefs       []string `json:"law_refs,omitempty"`   // cited law article IDs
+	CrossRefs     []string `json:"cross_refs,omitempty"` // wiki cross-references
 	IPCCodes      []string `json:"ipc_codes,omitempty"`
 	CaseNumber    string   `json:"case_number,omitempty"`
 	Court         string   `json:"court,omitempty"`
@@ -118,45 +118,45 @@ type GraphBuildResult struct {
 // docTypeToNode maps document type strings (from metadata "type") to
 // canonical node types.
 var docTypeToNode = map[string]string{
-	"concept":         NodeConcept,
-	"law_article":     NodeLawArticle,
-	"guideline_rule":  NodeGuidelineRule,
-	"case":            NodeCase,
-	"judgment":        NodeJudgment,
-	"card":            NodeWikiCard,
-	"personal_note":   NodePersonalNote,
-	"book_reference":  NodeBookReference,
-	"agent_config":    NodeConcept,
-	"rule":            NodeRule,
-	"domain_guide":    NodeDomainGuide,
-	"ipc":             NodeIPC,
+	"concept":        NodeConcept,
+	"law_article":    NodeLawArticle,
+	"guideline_rule": NodeGuidelineRule,
+	"case":           NodeCase,
+	"judgment":       NodeJudgment,
+	"card":           NodeWikiCard,
+	"personal_note":  NodePersonalNote,
+	"book_reference": NodeBookReference,
+	"agent_config":   NodeConcept,
+	"rule":           NodeRule,
+	"domain_guide":   NodeDomainGuide,
+	"ipc":            NodeIPC,
 }
 
 // authorityWeights maps a legal authority level to a 0–1 weight.
 var authorityWeights = map[string]float64{
-	"法律":     1.0,
-	"行政法规": 0.9,
-	"司法解释": 0.85,
-	"部门规章": 0.8,
-	"审查指南": 0.8,
+	"法律":    1.0,
+	"行政法规":  0.9,
+	"司法解释":  0.85,
+	"部门规章":  0.8,
+	"审查指南":  0.8,
 	"指导性案例": 0.75,
-	"一般案例": 0.7,
-	"学术观点": 0.5,
-	"个人笔记": 0.4,
+	"一般案例":  0.7,
+	"学术观点":  0.5,
+	"个人笔记":  0.4,
 }
 
 // levelMap maps a legal authority level to a hierarchy depth (lower = higher
 // authority).
 var levelMap = map[string]int{
-	"法律":     0,
-	"行政法规": 1,
-	"司法解释": 2,
-	"部门规章": 3,
-	"审查指南": 3,
+	"法律":    0,
+	"行政法规":  1,
+	"司法解释":  2,
+	"部门规章":  3,
+	"审查指南":  3,
 	"指导性案例": 4,
-	"一般案例": 5,
-	"学术观点": 6,
-	"个人笔记": 7,
+	"一般案例":  5,
+	"学术观点":  6,
+	"个人笔记":  7,
 }
 
 // mapDocType resolves a document type string to a canonical node type,

@@ -16,7 +16,7 @@ type RunOptions struct {
 	Provider agentcore.Provider
 	// Model is the default model id advertised to the client.
 	Model string
-	// Thinking configures reasoning behaviour; nil leaves the provider default.
+	// Thinking configures reasoning behavior; nil leaves the provider default.
 	Thinking *agentcore.ThinkingConfig
 	// AgentInfo identifies the agent in the ACP initialize handshake.
 	AgentInfo AgentInfo

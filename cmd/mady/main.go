@@ -55,11 +55,12 @@ func loadWikiStore() (*knowledge.Store, agentcore.LifecycleHook) {
 	}
 	fmt.Fprintf(os.Stderr, "wiki: imported %d docs, %d chunks\n",
 		stats.Imported, store.Stats().TotalChunks)
-	return store, store.RetrievalHook("patent", retrieval.RetrievalConfig{
+	hook := store.RetrievalHook("patent", retrieval.RetrievalConfig{
 		TopK:     5,
 		MaxChars: 4000,
 		Prefix:   "以下是知识库中检索到的相关专利法律信息，请参考使用：\n",
 	})
+	return store, hook
 }
 
 func main() {
@@ -68,7 +69,8 @@ func main() {
 
 	if len(os.Args) < 2 {
 		printUsage()
-		os.Exit(0)
+		stop()
+		os.Exit(0) //nolint:gocritic // exitAfterDefer: stop() manually called above; defer is a panic safety-net
 	}
 
 	switch os.Args[1] {
@@ -81,6 +83,7 @@ func main() {
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n", os.Args[1])
 		printUsage()
+		stop()
 		os.Exit(2)
 	}
 }
@@ -275,7 +278,9 @@ func runTui(ctx context.Context) {
 		st := wikiStore.Stats()
 		app.PrintSystem(fmt.Sprintf("wiki 知识库: %d 文档, %d 分块 (RAG: patent)", st.TotalDocs, st.TotalChunks))
 	}
-	app.Start()
+	if err := app.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
+	}
 	<-app.Done()
 }
 

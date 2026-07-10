@@ -169,7 +169,7 @@ type TUI struct {
 	// send is impossible once stopped=true is published.
 	stopped atomic.Bool
 
-	// ctx is cancelled when the TUI stops. It is the cancellation root for
+	// ctx is canceled when the TUI stops. It is the cancellation root for
 	// Tick/Every/WithContext Cmds issued via the TUI's helper methods, so
 	// background timers and long-running Cmds terminate promptly on Stop.
 	ctx    context.Context
@@ -294,7 +294,7 @@ func (t *TUI) Start() error {
 //   - The stdin buffer's flushLoop goroutine is always cleaned up (it starts
 //     at NewStdinBuffer time, so a never-started TUI would otherwise leak it).
 //   - Done() is always closed so callers waiting on it don't block forever.
-//   - The lifecycle context is always cancelled so Tick/Every/WithContext
+//   - The lifecycle context is always canceled so Tick/Every/WithContext
 //     goroutines terminate.
 //
 // Stop is idempotent — subsequent calls are no-ops that return nil.
@@ -358,7 +358,7 @@ func (t *TUI) Stop() error {
 	}
 
 	// Signal completion last. Callers blocked on Done() see a fully torn-down
-	// TUI (terminal restored, context cancelled, stdin closed).
+	// TUI (terminal restored, context canceled, stdin closed).
 	close(t.doneCh)
 	return stopErr
 }
@@ -369,7 +369,7 @@ func (t *TUI) Quit() { _ = t.Stop() }
 // Done returns a channel closed when the TUI has exited.
 func (t *TUI) Done() <-chan struct{} { return t.doneCh }
 
-// Context returns a context cancelled when the TUI stops. Use it to derive
+// Context returns a context canceled when the TUI stops. Use it to derive
 // cancellation contexts for long-running operations triggered from Cmds.
 // The context is created at NewTUI time (not Start), so Tick/Every/WithContext
 // are always bound to the TUI's lifecycle — even if called before Start or if
@@ -379,7 +379,7 @@ func (t *TUI) Context() context.Context {
 }
 
 // Tick schedules fn to fire once after d, delivering its Msg to the event
-// loop. The timer runs on the TUI's lifecycle context, so it is cancelled
+// loop. The timer runs on the TUI's lifecycle context, so it is canceled
 // when the TUI stops (no goroutine leak). Unlike core.Tick (which is a Cmd
 // constructor), this method starts the timer immediately and is the
 // preferred way to schedule one-shot delays from application code.
@@ -616,7 +616,7 @@ func (t *TUI) processMsg(msg core.Msg) {
 				t.SendMsg(result)
 			}
 			if len(rest) > 0 {
-				t.SendMsg(core.SequenceMessage(rest))
+				t.SendMsg(rest)
 			}
 		}()
 		return

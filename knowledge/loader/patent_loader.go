@@ -12,12 +12,12 @@ import (
 
 // PatentClaims holds structured patent claims data extracted from a document.
 type PatentClaims struct {
-	Title      string   // patent title
-	DocID      string   // unique document identifier (e.g. application number)
-	IPC        string   // IPC classification (e.g. "G06F17/30")
-	Claims     string   // full claims text
-	Applicant  string   // patent applicant name
-	FilingDate string   // filing date (YYYY-MM-DD)
+	Title      string // patent title
+	DocID      string // unique document identifier (e.g. application number)
+	IPC        string // IPC classification (e.g. "G06F17/30")
+	Claims     string // full claims text
+	Applicant  string // patent applicant name
+	FilingDate string // filing date (YYYY-MM-DD)
 }
 
 // LoadPatentClaims reads patent claims from an io.Reader and loads them

@@ -8,14 +8,14 @@ import (
 
 // ModelConfig groups LLM model selection and generation parameters.
 type ModelConfig struct {
-	Name           string         // optional: identifies this agent in events and handoff logs
-	Model          string         // model identifier (e.g. "gpt-4o-mini")
-	Provider       Provider       // LLM provider implementation
-	Temperature    float64        // sampling temperature; 0 = deterministic
-	MaxTokens      int64          // max tokens in response; 0 = provider default
+	Name           string          // optional: identifies this agent in events and handoff logs
+	Model          string          // model identifier (e.g. "gpt-4o-mini")
+	Provider       Provider        // LLM provider implementation
+	Temperature    float64         // sampling temperature; 0 = deterministic
+	MaxTokens      int64           // max tokens in response; 0 = provider default
 	ResponseFormat *ResponseFormat // optional: force JSON mode etc.
 	Thinking       *ThinkingConfig // optional: extended thinking / reasoning
-	Streaming      bool           // enable streaming responses
+	Streaming      bool            // enable streaming responses
 }
 
 // SkillConfig groups skill loading, selection, and API control.
@@ -36,10 +36,10 @@ type SkillConfig struct {
 
 // ExecutionConfig groups execution mode, concurrency, middleware, and hooks.
 type ExecutionConfig struct {
-	ExecutionMode      ExecutionMode
-	Concurrency        int64
-	MaxTurns           int64
-	Middleware         []Middleware
+	ExecutionMode ExecutionMode
+	Concurrency   int64
+	MaxTurns      int64
+	Middleware    []Middleware
 	// Deprecated: use Middleware instead. These are auto-adapted to Middleware
 	// in New() for backward compatibility.
 	GlobalBefore       []BeforeHook
@@ -55,19 +55,19 @@ type ExecutionConfig struct {
 // CompactionConfig is user-facing agent configuration while ContextEngineConfig
 // is the engine-level equivalent. The mapping happens in Agent.New().
 type CompactionConfig struct {
-	ContextWindow         int64    // model context window size in tokens (e.g. 128000); 0 = no compaction
-	ReserveTokens         int64    // tokens reserved for response generation; default = ContextWindow/4
-	KeepRecentTokens      int64    // min recent tokens preserved during compaction; default = 2000
-	StructuredCompaction  bool     // emit JSON summaries instead of free-form paragraphs
-	ProtectFirstN         int      // number of non-system head messages to preserve verbatim; default = 3
-	CompressionThreshold  float64  // compress when usage exceeds this fraction of contextWindow; default = 0.75
-	AutoCompactTokenLimit int64    // absolute token threshold (overrides CompressionThreshold when > 0); default = 0
-	AntiThrashEnabled     bool     // skip compaction if recent savings < 10%; default = true
-	CompressionModel      string   // optional: separate model for summarization (cheaper/faster)
-	CompressionProvider   Provider // optional: provider for compression model
-	CompressionBaseURL    string   // optional: base URL for compression model
-	CompressionAPIKey     string   // optional: API key for compression model
-	Engine                string   // context engine name; default = "compressor"
+	ContextWindow         int64         // model context window size in tokens (e.g. 128000); 0 = no compaction
+	ReserveTokens         int64         // tokens reserved for response generation; default = ContextWindow/4
+	KeepRecentTokens      int64         // min recent tokens preserved during compaction; default = 2000
+	StructuredCompaction  bool          // emit JSON summaries instead of free-form paragraphs
+	ProtectFirstN         int           // number of non-system head messages to preserve verbatim; default = 3
+	CompressionThreshold  float64       // compress when usage exceeds this fraction of contextWindow; default = 0.75
+	AutoCompactTokenLimit int64         // absolute token threshold (overrides CompressionThreshold when > 0); default = 0
+	AntiThrashEnabled     bool          // skip compaction if recent savings < 10%; default = true
+	CompressionModel      string        // optional: separate model for summarization (cheaper/faster)
+	CompressionProvider   Provider      // optional: provider for compression model
+	CompressionBaseURL    string        // optional: base URL for compression model
+	CompressionAPIKey     string        // optional: API key for compression model
+	Engine                string        // context engine name; default = "compressor"
 	CustomEngine          ContextEngine // pre-built custom engine (overrides Engine name)
 }
 

@@ -72,7 +72,7 @@ func TestEstimateToolDefinitionsTokens(t *testing.T) {
 		{
 			Name:        "get_weather",
 			Description: "Get weather for a city",
-			Parameters: map[string]any{"type": "object"},
+			Parameters:  map[string]any{"type": "object"},
 		},
 	}
 	tokens = EstimateToolDefinitionsTokens(defs)

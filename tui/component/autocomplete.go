@@ -127,7 +127,7 @@ func (p *FilePathProvider) Complete(token string) []core.Suggestion {
 // Autocomplete is a Focusable component that wraps a SelectList.
 //
 // It is typically mounted inside an Overlay positioned above/below the host
-// input. The host calls Update() on every change and Hide() when cancelling.
+// input. The host calls Update() on every change and Hide() when canceling.
 type Autocomplete struct {
 	mu        sync.RWMutex
 	list      *SelectList

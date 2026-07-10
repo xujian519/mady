@@ -11,12 +11,12 @@ import (
 
 // Config 心理引擎配置
 type Config struct {
-	SDTConfig              *SDTTrackerConfig    // SDT 追踪器配置
-	StoreDir                string               // 持久化目录
-	SessionID               string               // 会话标识符，用于隔离不同会话的 SDT 状态（默认 "default"）
-	EnableLLM               bool                 // 是否启用 LLM 二次验证
+	SDTConfig               *SDTTrackerConfig     // SDT 追踪器配置
+	StoreDir                string                // 持久化目录
+	SessionID               string                // 会话标识符，用于隔离不同会话的 SDT 状态（默认 "default"）
+	EnableLLM               bool                  // 是否启用 LLM 二次验证
 	LLMVerifier             DistortionLLMVerifier // LLM 验证器
-	SkipDistortionDetection bool                 // 跳过认知扭曲检测
+	SkipDistortionDetection bool                  // 跳过认知扭曲检测
 }
 
 // DefaultConfig 返回默认配置

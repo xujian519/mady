@@ -216,8 +216,8 @@ var allStrategies = []strategyCondition{
 
 // incompatiblePairs 不可同时使用的策略组合
 var incompatiblePairs = map[DialogueStrategy][]DialogueStrategy{
-	StrategyValidation:            {StrategyRedirectAction, StrategyCognitiveRestructuring},
-	StrategyRedirectAction:        {StrategyValidation, StrategySocraticQuestioning},
+	StrategyValidation:             {StrategyRedirectAction, StrategyCognitiveRestructuring},
+	StrategyRedirectAction:         {StrategyValidation, StrategySocraticQuestioning},
 	StrategyCognitiveRestructuring: {StrategyLightHumor},
 }
 

@@ -22,9 +22,9 @@ type CardEntry struct {
 
 // CardIndex is the top-level structure of card-index.json.
 type CardIndex struct {
-	TotalCards   int         `json:"total_cards"`
-	LastUpdated  string      `json:"last_updated"`
-	Cards        []CardEntry `json:"cards"`
+	TotalCards   int                 `json:"total_cards"`
+	LastUpdated  string              `json:"last_updated"`
+	Cards        []CardEntry         `json:"cards"`
 	ConceptIndex map[string][]string `json:"concept_index,omitempty"`
 	DomainIndex  map[string][]string `json:"domain_index,omitempty"`
 }

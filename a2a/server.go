@@ -17,8 +17,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/xujian519/mady/agentcore"
 	"slices"
+
+	"github.com/xujian519/mady/agentcore"
 )
 
 type contextKey string
@@ -72,10 +73,10 @@ type StreamingHandler interface {
 
 // ---------------------------------------------------------------------------
 type taskSubState struct {
-	mu        sync.RWMutex
-	subs      []chan *TaskUpdateEvent
-	history   []historyEntry
-	nextSeq   int
+	mu      sync.RWMutex
+	subs    []chan *TaskUpdateEvent
+	history []historyEntry
+	nextSeq int
 }
 
 type historyEntry struct {
@@ -106,9 +107,9 @@ type Server struct {
 	maxHistoryLen int
 	maxTotalHist  int
 
-	maxRequestBody  int64
-	taskTimeout     time.Duration
-	requestTimeout  time.Duration
+	maxRequestBody int64
+	taskTimeout    time.Duration
+	requestTimeout time.Duration
 }
 
 // CORSConfig configures cross-origin resource sharing.
@@ -182,9 +183,9 @@ func NewServer(handler AgentHandler, opts ...ServerOption) *Server {
 		maxHistoryLen:  64,
 		maxTotalHist:   10000,
 		logger:         slog.Default(),
-		maxRequestBody:  defaultMaxRequestBody,
-		taskTimeout:     defaultTaskTimeout,
-		requestTimeout:  30 * time.Second,
+		maxRequestBody: defaultMaxRequestBody,
+		taskTimeout:    defaultTaskTimeout,
+		requestTimeout: 30 * time.Second,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -1024,7 +1025,7 @@ func httptestNewRecorder() *recordingResponseWriter {
 	return &recordingResponseWriter{Body: new(bytes.Buffer)}
 }
 
-func (r *recordingResponseWriter) Header() http.Header        { return http.Header{} }
+func (r *recordingResponseWriter) Header() http.Header         { return http.Header{} }
 func (r *recordingResponseWriter) Write(b []byte) (int, error) { return r.Body.Write(b) }
 func (r *recordingResponseWriter) WriteHeader(code int)        { r.code = code }
 
@@ -1129,8 +1130,8 @@ type DefaultAgentHandler struct {
 	publisher     TaskUpdatePublisher
 	inputRequired func(output string) bool
 
-	execSem    chan struct{}
-	cancelMu   sync.Mutex
+	execSem     chan struct{}
+	cancelMu    sync.Mutex
 	cancelFuncs map[string]context.CancelFunc
 }
 

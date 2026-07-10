@@ -50,9 +50,9 @@ type LlmClient interface {
 
 // ReasoningWalkInput configures a single walk() run.
 type ReasoningWalkInput struct {
-	Facts    []string
-	CaseType CaseType
-	MaxDepth int // default 4
+	Facts     []string
+	CaseType  CaseType
+	MaxDepth  int // default 4
 	MaxChains int // default 5
 }
 
@@ -66,9 +66,9 @@ type ReasoningWalkResult struct {
 
 // CollectAllInput configures a collectAll() run.
 type CollectAllInput struct {
-	Facts           []string
-	CaseType        CaseType
-	TechnicalField  string
+	Facts          []string
+	CaseType       CaseType
+	TechnicalField string
 }
 
 // CollectAllResult is the outcome of collectAll().

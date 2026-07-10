@@ -29,10 +29,10 @@ const (
 
 // Key legal keywords for statute identification.
 var legalKeywords = map[string][]string{
-	"专利法":    {"专利", "权利要求", "发明", "实用新型", "外观设计", "新颖性", "创造性", "侵权"},
-	"民法典":    {"合同", "违约", "侵权责任", "不当得利", "无因管理", "人格权"},
-	"商标法":    {"商标", "驰名商标", "商标侵权", "商标异议", "注册商标"},
-	"著作权法":  {"著作权", "版权", "作品", "表演", "录音录像", "广播"},
+	"专利法":     {"专利", "权利要求", "发明", "实用新型", "外观设计", "新颖性", "创造性", "侵权"},
+	"民法典":     {"合同", "违约", "侵权责任", "不当得利", "无因管理", "人格权"},
+	"商标法":     {"商标", "驰名商标", "商标侵权", "商标异议", "注册商标"},
+	"著作权法":    {"著作权", "版权", "作品", "表演", "录音录像", "广播"},
 	"反不正当竞争法": {"商业秘密", "不正当竞争", "混淆", "虚假宣传", "商业诋毁"},
 }
 
@@ -125,7 +125,7 @@ func compareNode(ctx context.Context, state graph.PregelState) (graph.PregelStat
 	comparison.WriteString("### 适用法律\n\n")
 	if len(statutes) > 0 {
 		for _, s := range statutes {
-			comparison.WriteString(fmt.Sprintf("- %s\n", s))
+			fmt.Fprintf(&comparison, "- %s\n", s)
 		}
 	} else {
 		comparison.WriteString("需进一步检索确定适用法律。\n")
@@ -141,14 +141,14 @@ func compareNode(ctx context.Context, state graph.PregelState) (graph.PregelStat
 	comparison.WriteString("\n### 类似判例参考\n\n")
 	if len(cases) > 0 {
 		for _, c := range cases {
-			comparison.WriteString(fmt.Sprintf("- %s\n", c))
+			fmt.Fprintf(&comparison, "- %s\n", c)
 		}
 	}
 
 	return graph.PregelState{
-		StateComparison: comparison.String(),
-		StateCaseFacts:  facts,
-		StateStatutes:   statutes,
+		StateComparison:   comparison.String(),
+		StateCaseFacts:    facts,
+		StateStatutes:     statutes,
 		StateSimilarCases: cases,
 	}, nil
 }
@@ -169,7 +169,7 @@ func concludeNode(ctx context.Context, state graph.PregelState) (graph.PregelSta
 	if len(statutes) > 0 {
 		report.WriteString("### 法律适用建议\n\n")
 		for _, s := range statutes {
-			report.WriteString(fmt.Sprintf("- 根据%s相关规定，建议进一步检索具体法条和司法解释\n", s))
+			fmt.Fprintf(&report, "- 根据%s相关规定，建议进一步检索具体法条和司法解释\n", s)
 		}
 	}
 
@@ -327,7 +327,7 @@ func (rc *reasoningContext) compareNode(ctx context.Context, state graph.PregelS
 		comparison.WriteString("需进一步检索确定适用法律。\n")
 	} else {
 		for _, s := range applicable {
-			comparison.WriteString(fmt.Sprintf("- %s\n", s))
+			fmt.Fprintf(&comparison, "- %s\n", s)
 		}
 	}
 
@@ -339,7 +339,7 @@ func (rc *reasoningContext) compareNode(ctx context.Context, state graph.PregelS
 	comparison.WriteString(excerpt)
 	comparison.WriteString("\n\n### 类似判例参考\n\n")
 	for _, c := range cases {
-		comparison.WriteString(fmt.Sprintf("- %s\n", c))
+		fmt.Fprintf(&comparison, "- %s\n", c)
 	}
 
 	// Build auditable syllogisms (大前提→小前提→结论) for every applicable law.
@@ -354,7 +354,7 @@ func (rc *reasoningContext) compareNode(ctx context.Context, state graph.PregelS
 		if err != nil {
 			// If validation fails (e.g. statute not on the blackboard), record
 			// the gap instead of aborting the whole analysis.
-			chainsMarkdown.WriteString(fmt.Sprintf("- ⚠️ %s：三段论校验未通过 — %v\n", law, err))
+			fmt.Fprintf(&chainsMarkdown, "- ⚠️ %s：三段论校验未通过 — %v\n", law, err)
 			continue
 		}
 		// Record the validated chain on the blackboard as a ReasoningChain.
@@ -364,11 +364,11 @@ func (rc *reasoningContext) compareNode(ctx context.Context, state graph.PregelS
 			LegalBasis: reasoning.LegalBasis{LawArticle: s.ArticleRef},
 			Confidence: s.Confidence,
 		})
-		chainsMarkdown.WriteString(fmt.Sprintf("### %d. %s\n", i+1, law))
-		chainsMarkdown.WriteString(fmt.Sprintf("- 大前提（法条）：%s\n", s.MajorPremise.Content))
-		chainsMarkdown.WriteString(fmt.Sprintf("- 小前提（案件事实）：%s\n", s.MinorPremise.Content))
-		chainsMarkdown.WriteString(fmt.Sprintf("- 结论：%s\n", s.Conclusion))
-		chainsMarkdown.WriteString(fmt.Sprintf("- 置信度：%.2f  ✓ 已校验\n\n", s.Confidence))
+		fmt.Fprintf(&chainsMarkdown, "### %d. %s\n", i+1, law)
+		fmt.Fprintf(&chainsMarkdown, "- 大前提（法条）：%s\n", s.MajorPremise.Content)
+		fmt.Fprintf(&chainsMarkdown, "- 小前提（案件事实）：%s\n", s.MinorPremise.Content)
+		fmt.Fprintf(&chainsMarkdown, "- 结论：%s\n", s.Conclusion)
+		fmt.Fprintf(&chainsMarkdown, "- 置信度：%.2f  ✓ 已校验\n\n", s.Confidence)
 	}
 	chainsStr := chainsMarkdown.String()
 	comparison.WriteString("\n\n" + chainsStr)
@@ -401,16 +401,16 @@ func (rc *reasoningContext) concludeNode(ctx context.Context, state graph.Pregel
 	if len(applicable) > 0 {
 		report.WriteString("### 法律适用建议\n\n")
 		for _, s := range applicable {
-			report.WriteString(fmt.Sprintf("- 根据%s相关规定，建议进一步检索具体法条和司法解释\n", s))
+			fmt.Fprintf(&report, "- 根据%s相关规定，建议进一步检索具体法条和司法解释\n", s)
 		}
 	}
 
 	// Audit summary: how many syllogisms validated on the blackboard.
 	validated := rc.bb.ReasoningChains()
 	if len(validated) > 0 {
-		report.WriteString(fmt.Sprintf("\n### 推理审计\n\n- 已校验三段论链：%d 条\n", len(validated)))
+		fmt.Fprintf(&report, "\n### 推理审计\n\n- 已校验三段论链：%d 条\n", len(validated))
 		for _, c := range validated {
-			report.WriteString(fmt.Sprintf("  - %s（法条：%s，置信度 %.2f）\n", c.ID, c.LegalBasis.LawArticle, c.Confidence))
+			fmt.Fprintf(&report, "  - %s（法条：%s，置信度 %.2f）\n", c.ID, c.LegalBasis.LawArticle, c.Confidence)
 		}
 	}
 

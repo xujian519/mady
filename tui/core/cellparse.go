@@ -14,7 +14,7 @@ import (
 //     other CSI sequences are zero-width and silently dropped (they position
 //     the cursor or set modes, which the cell model doesn't represent — the
 //     renderer owns cursor positioning).
-//   - OSC / APC / DCS / PM string sequences: zero-width. CURSOR_MARKER is
+//   - OSC / APC / DCS / PM string sequences: zero-width. CursorMarker is
 //     detected specifically and recorded as CursorCol; other APCs (Kitty
 //     graphics, OSC titles, etc.) cause the line to fall back to Raw form
 //     so they pass through verbatim.
@@ -36,25 +36,25 @@ import (
 // ParseLine parses a rendered string into a Row.
 //
 // Returns a Raw Row when the line contains escapes the cell model cannot
-// represent (Kitty graphics APC, OSC titles, etc.). CURSOR_MARKER is the
+// represent (Kitty graphics APC, OSC titles, etc.). CursorMarker is the
 // only inline APC that does NOT trigger Raw fallback — it is extracted into
 // CursorCol and stripped from the cell content.
 func ParseLine(s string) Row {
 	// First pass: scan for any escape that forces Raw fallback. If found,
-	// return a Raw row but still extract CURSOR_MARKER for cursor placement.
+	// return a Raw row but still extract CursorMarker for cursor placement.
 	if hasUnrepresentableEscape(s) {
 		raw := s
 		cursorCol := -1
-		if idx := strings.Index(s, CURSOR_MARKER); idx >= 0 {
+		if idx := strings.Index(s, CursorMarker); idx >= 0 {
 			cursorCol = int(VisibleWidth(s[:idx]))
-			raw = strings.Replace(s, CURSOR_MARKER, "", 1)
+			raw = strings.Replace(s, CursorMarker, "", 1)
 		}
 		return Row{Raw: raw, CursorCol: cursorCol}
 	}
 
 	// Cell-parseable. Walk the string maintaining the running style.
 	var cells []Cell
-	var cursorCol int = -1
+	var cursorCol = -1
 	style := DefaultStyle
 
 	i := 0
@@ -62,26 +62,18 @@ func ParseLine(s string) Row {
 		c := s[i]
 		if c == 0x1B {
 			adv := SkipAnsiSeq(s, i)
-			if adv == 0 {
-				// Lone ESC with no continuation — treat as a literal byte.
-				adv = 1
-			} else {
-				// Is this CURSOR_MARKER specifically? It's an APC of the
-				// form "\x1b_pi:c\x07". Detect by prefix match.
-				if adv == len(CURSOR_MARKER) && s[i:i+adv] == CURSOR_MARKER {
+			if adv > 0 {
+				if adv == len(CursorMarker) && s[i:i+adv] == CursorMarker {
 					if cursorCol < 0 {
 						cursorCol = int(visibleWidthOfCells(cells))
 					}
 					i += adv
 					continue
 				}
-				// Is this an SGR (CSI ... m)?
 				if isSGRSequence(s, i, adv) {
 					params := s[i+2 : i+adv-1]
 					style = ParseSGR(params, style)
 				}
-				// All other escapes (CSI non-SGR, OSC, APC, etc.) are
-				// zero-width and have no cell representation.
 				i += adv
 				continue
 			}
@@ -103,13 +95,10 @@ func ParseLine(s string) Row {
 			}
 			cells[idx].Combining = append(cells[idx].Combining, r)
 		case rw == 2:
-			cells = append(cells, Cell{
-				Rune:  r,
-				Width: 2,
-				Style: style,
-			})
-			// Continuation placeholder.
-			cells = append(cells, Cell{Width: 0, Style: style})
+			cells = append(cells,
+				Cell{Rune: r, Width: 2, Style: style},
+				Cell{Width: 0, Style: style},
+			)
 		default: // rw == 1
 			cells = append(cells, Cell{
 				Rune:  r,
@@ -123,7 +112,7 @@ func ParseLine(s string) Row {
 }
 
 // hasUnrepresentableEscape reports whether s contains an escape sequence
-// the cell model can't represent. CURSOR_MARKER is the only allowed inline
+// the cell model can't represent. CursorMarker is the only allowed inline
 // APC; any other OSC/APC/DCS/PM triggers Raw fallback.
 func hasUnrepresentableEscape(s string) bool {
 	i := 0
@@ -149,8 +138,8 @@ func hasUnrepresentableEscape(s string) bool {
 					return true
 				}
 			case ']', '_', 'P', '^':
-				// OSC / APC / DCS / PM. CURSOR_MARKER is the only allowed one.
-				if s[i:i+adv] != CURSOR_MARKER {
+				// OSC / APC / DCS / PM. CursorMarker is the only allowed one.
+				if s[i:i+adv] != CursorMarker {
 					return true
 				}
 			default:
@@ -176,7 +165,7 @@ func isSGRSequence(s string, i, adv int) bool {
 }
 
 // visibleWidthOfCells sums the Width fields of the cells (continuations
-// contribute 0). Used to compute the column of an inline CURSOR_MARKER.
+// contribute 0). Used to compute the column of an inline CursorMarker.
 func visibleWidthOfCells(cells []Cell) int64 {
 	var w int64
 	for _, c := range cells {
@@ -197,7 +186,7 @@ func PadRow(row Row, width int64, style Style) Row {
 	if w >= width {
 		return row
 	}
-	padded := make([]Cell, len(row.Cells), int(len(row.Cells)+int(width-w)))
+	padded := make([]Cell, len(row.Cells), len(row.Cells)+int(width-w))
 	copy(padded, row.Cells)
 	for int64(len(padded)) < width {
 		padded = append(padded, Cell{Rune: ' ', Width: 1, Style: style})

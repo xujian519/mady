@@ -93,11 +93,11 @@ func TestStopWithoutStartClosesDoneAndCancelsCtx(t *testing.T) {
 		t.Fatal("Done() not closed after Stop on never-started TUI")
 	}
 
-	// Context must be cancelled.
+	// Context must be canceled.
 	select {
 	case <-ctx.Done():
 	default:
-		t.Fatal("Context not cancelled after Stop on never-started TUI")
+		t.Fatal("Context not canceled after Stop on never-started TUI")
 	}
 }
 
@@ -169,23 +169,23 @@ func TestTickBoundToLifecycleBeforeStart(t *testing.T) {
 		return nil
 	})
 
-	// Stop immediately; the pending Tick must be cancelled, not leak.
+	// Stop immediately; the pending Tick must be canceled, not leak.
 	if err := tui.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
 
-	// Context cancelled ⇒ Tick goroutine should have exited. Give it a
+	// Context canceled ⇒ Tick goroutine should have exited. Give it a
 	// moment to observe the cancellation, then assert it never fires.
 	select {
 	case <-ctx.Done():
 	case <-time.After(100 * time.Millisecond):
-		t.Fatal("context not cancelled after Stop")
+		t.Fatal("context not canceled after Stop")
 	}
 	select {
 	case <-fired:
 		t.Fatal("Tick fired after Stop — lifecycle binding failed")
 	case <-time.After(100 * time.Millisecond):
-		// expected — Tick was cancelled, never fired
+		// expected — Tick was canceled, never fired
 	}
 }
 
@@ -207,18 +207,23 @@ func (f *failingTerminal) Start(func([]byte), func()) error {
 	f.started = true
 	return nil
 }
-func (f *failingTerminal) Stop() error                 { f.mu.Lock(); f.started = false; f.mu.Unlock(); return f.stopErr }
-func (f *failingTerminal) Write([]byte) (int, error)   { return 0, nil }
-func (f *failingTerminal) Size() (int64, int64)        { return 80, 24 }
-func (f *failingTerminal) HideCursor()                 {}
-func (f *failingTerminal) ShowCursor()                 {}
-func (f *failingTerminal) ClearLine()                  {}
-func (f *failingTerminal) ClearFromCursor()            {}
-func (f *failingTerminal) ClearScreen()                {}
-func (f *failingTerminal) MoveBy(int64)                {}
-func (f *failingTerminal) MoveTo(int64, int64)         {}
-func (f *failingTerminal) PushKittyKeyboard()          {}
-func (f *failingTerminal) PopKittyKeyboard()           {}
+func (f *failingTerminal) Stop() error {
+	f.mu.Lock()
+	f.started = false
+	f.mu.Unlock()
+	return f.stopErr
+}
+func (f *failingTerminal) Write([]byte) (int, error) { return 0, nil }
+func (f *failingTerminal) Size() (int64, int64)      { return 80, 24 }
+func (f *failingTerminal) HideCursor()               {}
+func (f *failingTerminal) ShowCursor()               {}
+func (f *failingTerminal) ClearLine()                {}
+func (f *failingTerminal) ClearFromCursor()          {}
+func (f *failingTerminal) ClearScreen()              {}
+func (f *failingTerminal) MoveBy(int64)              {}
+func (f *failingTerminal) MoveTo(int64, int64)       {}
+func (f *failingTerminal) PushKittyKeyboard()        {}
+func (f *failingTerminal) PopKittyKeyboard()         {}
 
 // TestStopReturnsTerminalStopError verifies #2: Stop surfaces the error
 // from the underlying terminal's Stop, rather than silently swallowing it.
@@ -237,7 +242,7 @@ func TestStopReturnsTerminalStopError(t *testing.T) {
 }
 
 // TestStartFailureCleansUpLifecycle verifies #3: when term.Start fails, the
-// TUI fully tears down lifecycle signals (doneCh closed, ctx cancelled,
+// TUI fully tears down lifecycle signals (doneCh closed, ctx canceled,
 // stopped flag set) on its own — without relying on the caller to defer
 // Stop. The returned error is the term.Start error.
 func TestStartFailureCleansUpLifecycle(t *testing.T) {
@@ -263,7 +268,7 @@ func TestStartFailureCleansUpLifecycle(t *testing.T) {
 	select {
 	case <-ctx.Done():
 	default:
-		t.Error("Context not cancelled after Start failure")
+		t.Error("Context not canceled after Start failure")
 	}
 
 	// A subsequent Stop must be a no-op (idempotent), not panic.

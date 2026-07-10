@@ -21,7 +21,7 @@ import (
 //   - It buffers partial escape sequences until complete.
 //   - It splits batched input into logical "events" (keys / paste blobs)
 //     so consumers can process them one at a time.
-//   - It recognises bracketed-paste markers ESC[200~ ... ESC[201~ and emits
+//   - It recognizes bracketed-paste markers ESC[200~ ... ESC[201~ and emits
 //     the inner content as a single Paste event.
 //
 // Usage:
@@ -32,7 +32,7 @@ import (
 //   sb.Feed(chunkFromTerminal)
 // ---------------------------------------------------------------------------
 
-// StdinBufferOptions configures optional behaviour.
+// StdinBufferOptions configures optional behavior.
 type StdinBufferOptions struct {
 	// MaxPasteBytes caps the in-memory paste buffer. Excess bytes are
 	// truncated silently. 0 means 16 MiB (sane default).

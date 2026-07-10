@@ -127,21 +127,21 @@ func New(cfg Config) *Agent {
 			engineName = engineReg.Default()
 		}
 		engineCfg := ContextEngineConfig{
-			Model:               cfg.Model,
-			BaseURL:             "",
-			APIKey:              "",
-			Provider:            cfg.Provider,
-			ContextWindow:       cfg.ContextWindow,
-			ReserveTokens:       cfg.ReserveTokens,
-			KeepRecentTokens:    cfg.KeepRecentTokens,
-			ProtectFirstN:       cfg.ProtectFirstN,
+			Model:                cfg.Model,
+			BaseURL:              "",
+			APIKey:               "",
+			Provider:             cfg.Provider,
+			ContextWindow:        cfg.ContextWindow,
+			ReserveTokens:        cfg.ReserveTokens,
+			KeepRecentTokens:     cfg.KeepRecentTokens,
+			ProtectFirstN:        cfg.ProtectFirstN,
 			CompressionThreshold: cfg.CompressionThreshold,
-			AutoCompactLimit:    cfg.AutoCompactTokenLimit,
+			AutoCompactLimit:     cfg.AutoCompactTokenLimit,
 			StructuredCompaction: cfg.StructuredCompaction,
-			CompressionModel:    cfg.CompressionModel,
-			CompressionProvider: cfg.CompressionProvider,
-			CompressionBaseURL:  cfg.CompressionBaseURL,
-			CompressionAPIKey:   cfg.CompressionAPIKey,
+			CompressionModel:     cfg.CompressionModel,
+			CompressionProvider:  cfg.CompressionProvider,
+			CompressionBaseURL:   cfg.CompressionBaseURL,
+			CompressionAPIKey:    cfg.CompressionAPIKey,
 		}
 		var err error
 		ctxEngine, err = engineReg.Create(engineName, engineCfg)
@@ -178,11 +178,11 @@ func New(cfg Config) *Agent {
 	execCfg := ExecutorConfig{
 		Mode:               cfg.ExecutionMode,
 		Concurrency:        cfg.Concurrency,
-		Middleware:          cfg.Middleware,
-		Before:              cfg.GlobalBefore,
-		After:               cfg.GlobalAfter,
-		ValidateArguments:   cfg.ValidateArguments,
-		UnknownToolHandler:  unknownHandler,
+		Middleware:         cfg.Middleware,
+		Before:             cfg.GlobalBefore,
+		After:              cfg.GlobalAfter,
+		ValidateArguments:  cfg.ValidateArguments,
+		UnknownToolHandler: unknownHandler,
 	}
 	a.executor = NewExecutor(reg, execCfg)
 
@@ -193,7 +193,7 @@ func New(cfg Config) *Agent {
 
 func (a *Agent) On(t EventType, h EventHandler) func() { return a.eventBus.On(t, h) }
 func (a *Agent) OnAll(h EventHandler) func()           { return a.eventBus.OnAll(h) }
-func (a *Agent) EmitEvent(e Event)              { a.eventBus.Emit(e) }
+func (a *Agent) EmitEvent(e Event)                     { a.eventBus.Emit(e) }
 func (a *Agent) EmitExtensionSnapshots() {
 	for _, e := range a.extensions.SnapshotEvents() {
 		a.eventBus.Emit(e)
@@ -275,9 +275,9 @@ func (a *Agent) systemPrompt() string {
 
 // --- tool hot-reload ---
 
-func (a *Agent) RegisterTools(tools ...*Tool)    { a.registry.Register(tools...) }
-func (a *Agent) UnregisterTools(names ...string) { a.registry.Unregister(names...) }
-func (a *Agent) ToolNames() []string             { return a.registry.Names() }
+func (a *Agent) RegisterTools(tools ...*Tool)      { a.registry.Register(tools...) }
+func (a *Agent) UnregisterTools(names ...string)   { a.registry.Unregister(names...) }
+func (a *Agent) ToolNames() []string               { return a.registry.Names() }
 func (a *Agent) GetTool(name string) (*Tool, bool) { return a.registry.Get(name) }
 
 // InvokeTool runs a single named tool through the exact same hook pipeline

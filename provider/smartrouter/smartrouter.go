@@ -139,13 +139,13 @@ func (h *RouteHistory) Stats() map[TaskType]map[string]int {
 // SmartRouter is an [agentcore.Provider] that routes requests to the best
 // backend model based on task classification and routing priority.
 type SmartRouter struct {
-	profiles      []ModelProfile
-	classifier    TaskClassifier
-	priority      Priority
-	history       *RouteHistory
+	profiles       []ModelProfile
+	classifier     TaskClassifier
+	priority       Priority
+	history        *RouteHistory
 	enableFallback bool
 
-	mu      sync.Mutex // guards lastDecision for observers
+	mu           sync.Mutex // guards lastDecision for observers
 	lastDecision *RouteDecision
 }
 
@@ -195,14 +195,15 @@ func (s *SmartRouter) Route(req *agentcore.ProviderRequest) RouteDecision {
 	candidates := s.filterByTask(taskType)
 	ranked := s.rank(candidates)
 	var reason string
-	if len(ranked) == 0 {
+	switch {
+	case len(ranked) == 0:
 		reason = "no matching profile; using first available"
 		if len(s.profiles) > 0 {
 			ranked = s.profiles[:1]
 		}
-	} else if len(ranked) == 1 {
+	case len(ranked) == 1:
 		reason = "single matching profile"
-	} else {
+	default:
 		reason = "ranked by " + string(s.priority)
 	}
 	dec := RouteDecision{

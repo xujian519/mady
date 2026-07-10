@@ -69,7 +69,7 @@ func BuildTree(entries []Entry, labels map[string]string) []*TreeNode {
 func (m *Manager) GetTree() []*TreeNode {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return BuildTree(m.entries, m.labelsById)
+	return BuildTree(m.entries, m.labelsByID)
 }
 
 // BranchPoints returns all entries that have more than one child (fork points).

@@ -77,12 +77,8 @@ func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...
 			agent.RegisterTools(tp.Tools()...)
 		}
 		if hp, ok := ext.(HookProvider); ok {
-			for _, h := range hp.BeforeHooks() {
-				agent.config.GlobalBefore = append(agent.config.GlobalBefore, h)
-			}
-			for _, h := range hp.AfterHooks() {
-				agent.config.GlobalAfter = append(agent.config.GlobalAfter, h)
-			}
+			agent.config.GlobalBefore = append(agent.config.GlobalBefore, hp.BeforeHooks()...)
+			agent.config.GlobalAfter = append(agent.config.GlobalAfter, hp.AfterHooks()...)
 		}
 		if mp, ok := ext.(MiddlewareProvider); ok {
 			agent.config.Middleware = append(agent.config.Middleware, mp.Middleware()...)

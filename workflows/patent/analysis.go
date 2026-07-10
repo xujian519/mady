@@ -143,14 +143,14 @@ func analyzeNode(ctx context.Context, state graph.PregelState) (graph.PregelStat
 	} else {
 		comparison.WriteString("### 识别到的技术特征\n\n")
 		for i, f := range features {
-			comparison.WriteString(fmt.Sprintf("%d. %s\n", i+1, f))
+			fmt.Fprintf(&comparison, "%d. %s\n", i+1, f)
 		}
 	}
 
 	comparison.WriteString("\n### 现有技术参考\n\n")
 	if len(priorArt) > 0 {
 		for _, art := range priorArt {
-			comparison.WriteString(fmt.Sprintf("- %s\n", art))
+			fmt.Fprintf(&comparison, "- %s\n", art)
 		}
 	} else {
 		comparison.WriteString("未检索到相关现有技术。\n")

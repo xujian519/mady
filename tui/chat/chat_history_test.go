@@ -82,13 +82,13 @@ func TestSelectionHighlightKeepsVisibleWidthStable(t *testing.T) {
 	h.selStart = selectionPos{line: 0, col: 1}
 
 	origLine := "\x1b[38;5;245m▌\x1b[0m assistant: hello world"
-	origWidth := int64(core.VisibleWidth(origLine))
+	origWidth := core.VisibleWidth(origLine)
 
 	for endCol := int64(1); endCol <= origWidth; endCol++ {
 		h.selEnd = selectionPos{line: 0, col: endCol}
 		lines := []string{origLine}
 		h.applySelectionHighlightLocked(lines, 120)
-		gotWidth := int64(core.VisibleWidth(lines[0]))
+		gotWidth := core.VisibleWidth(lines[0])
 		if gotWidth != origWidth {
 			t.Fatalf("visible width changed at endCol=%d: got=%d want=%d", endCol, gotWidth, origWidth)
 		}
@@ -102,13 +102,13 @@ func TestSelectionHighlightWidthStableOnCJKAndEmoji(t *testing.T) {
 	h.selStart = selectionPos{line: 0, col: 0}
 
 	line := "中🙂文 abc"
-	origWidth := int64(core.VisibleWidth(line))
+	origWidth := core.VisibleWidth(line)
 
 	for endCol := int64(0); endCol <= origWidth; endCol++ {
 		h.selEnd = selectionPos{line: 0, col: endCol}
 		lines := []string{line}
 		h.applySelectionHighlightLocked(lines, 120)
-		gotWidth := int64(core.VisibleWidth(lines[0]))
+		gotWidth := core.VisibleWidth(lines[0])
 		if gotWidth != origWidth {
 			t.Fatalf("cjk/emoji width changed at endCol=%d: got=%d want=%d", endCol, gotWidth, origWidth)
 		}
@@ -122,14 +122,14 @@ func TestSelectionHighlightWidthStableWhenBoundaryMovesBackAndForth(t *testing.T
 	h.selStart = selectionPos{line: 0, col: 0}
 
 	line := "\x1b[38;5;245m彩色\x1b[0m mixed 中🙂 text"
-	origWidth := int64(core.VisibleWidth(line))
+	origWidth := core.VisibleWidth(line)
 
 	sequence := []int64{0, 2, 5, 9, 6, 3, 8, 1, origWidth, 0, 4, 7, 2}
 	for _, endCol := range sequence {
 		h.selEnd = selectionPos{line: 0, col: endCol}
 		lines := []string{line}
 		h.applySelectionHighlightLocked(lines, 120)
-		gotWidth := int64(core.VisibleWidth(lines[0]))
+		gotWidth := core.VisibleWidth(lines[0])
 		if gotWidth != origWidth {
 			t.Fatalf("boundary move changed width at endCol=%d: got=%d want=%d", endCol, gotWidth, origWidth)
 		}

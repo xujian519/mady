@@ -17,7 +17,7 @@ import (
 // recordingComponent captures every Msg its Update receives into a slice.
 // Returning a Cmd from Update is supported via the nextCmd field.
 type recordingComponent struct {
-	mu      sync.Mutex
+	mu       sync.Mutex
 	received []core.Msg
 	nextCmd  core.Cmd
 }
@@ -248,7 +248,7 @@ func TestEventLoopSurvivesManyConcurrentCmds(t *testing.T) {
 // --- WithContext cancellation test ----------------------------------------
 
 // TestWithContextDiscardsResultOnCancel verifies that WithContext drops the
-// Cmd's result Msg when the context is cancelled while the Cmd is still
+// Cmd's result Msg when the context is canceled while the Cmd is still
 // running. The old implementation only checked ctx before running the Cmd,
 // so a slow Cmd's result would leak through even after cancellation.
 func TestWithContextDiscardsResultOnCancel(t *testing.T) {
@@ -278,13 +278,13 @@ func TestWithContextDiscardsResultOnCancel(t *testing.T) {
 
 	for _, m := range comp.msgs() {
 		if mm, ok := m.(markerMsg); ok && mm.id == 99 {
-			t.Fatalf("cancelled Cmd's result leaked through: %v", m)
+			t.Fatalf("canceled Cmd's result leaked through: %v", m)
 		}
 	}
 }
 
 // TestWithContextDeliversResultWhenNotCancelled verifies the happy path: if
-// ctx is not cancelled, the Cmd's result is delivered (unwrapped from
+// ctx is not canceled, the Cmd's result is delivered (unwrapped from
 // CtxMessage by processMsg) to the focused component's Update.
 func TestWithContextDeliversResultWhenNotCancelled(t *testing.T) {
 	comp := &recordingComponent{}
@@ -402,7 +402,7 @@ func TestTUITickFiresOnce(t *testing.T) {
 
 // --- TUI.Context cancellation on Stop test --------------------------------
 
-// TestContextCancelledOnStop verifies that the TUI's context is cancelled
+// TestContextCancelledOnStop verifies that the TUI's context is canceled
 // when Stop is called, which is what lets Tick/Every/WithContext goroutines
 // exit promptly instead of leaking.
 func TestContextCancelledOnStop(t *testing.T) {
@@ -421,7 +421,7 @@ func TestContextCancelledOnStop(t *testing.T) {
 	case <-ctx.Done():
 		// expected
 	default:
-		t.Fatal("ctx not cancelled after Stop")
+		t.Fatal("ctx not canceled after Stop")
 	}
 }
 

@@ -25,9 +25,9 @@ import (
 //   - Kitty graphics protocol (native pixel rendering) — best quality.
 //   - iTerm2 inline image protocol — native rendering on iTerm2/WezTerm.
 //   - Unicode half-block fallback (▀) — works on every modern truecolor tty.
-//   - ASCII fallback — monochrome weighted characters (no colour).
+//   - ASCII fallback — monochrome weighted characters (no color).
 //
-// resampling is a simple nearest-neighbour implementation.
+// resampling is a simple nearest-neighbor implementation.
 // ---------------------------------------------------------------------------
 
 // ImageProtocol selects the rendering strategy.
@@ -415,7 +415,7 @@ func nrgbaAt(img image.Image, x, y int) color.NRGBA {
 	}
 }
 
-// resizeNearest performs nearest-neighbour resampling into an *image.NRGBA.
+// resizeNearest performs nearest-neighbor resampling into an *image.NRGBA.
 func resizeNearest(src image.Image, w, h int) *image.NRGBA {
 	bounds := src.Bounds()
 	srcW := bounds.Dx()

@@ -65,7 +65,7 @@ try {
   Object.defineProperty(screen, 'colorDepth', { get: () => 24 });
   Object.defineProperty(screen, 'pixelDepth', { get: () => 24 });
 } catch(e) {}
-`;
+`
 
 func init() {
 	abEnabled := os.Getenv("AGENT_BROWSER_ENABLED") == "true" || os.Getenv("AGENT_BROWSER_PATH") != ""
@@ -784,7 +784,7 @@ func NewBrowserScrollTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				if input.Direction == "up" {
 					script = "window.scrollBy(0, -500);"
 				}
-				var res interface{}
+				var res any
 				if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(script, &res)); err != nil {
 					cancel()
 					return nil, fmt.Errorf("scroll failed: %w", err)
@@ -799,7 +799,7 @@ func NewBrowserScrollTool(cfg *BrowserToolConfig) *agentcore.Tool {
 					script = "window.scrollBy(0, -500);"
 				}
 
-				var res interface{}
+				var res any
 				if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(script, &res)); err != nil {
 					cancel()
 					return nil, fmt.Errorf("scroll failed: %w", err)

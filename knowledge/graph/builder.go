@@ -18,9 +18,9 @@ import (
 //   - Wiki cross-references become RELATED_TO edges.
 type GraphBuilder struct {
 	store           *GraphStore
-	ensuredLawNodes map[string]bool // dedup set for auto-created LawArticle nodes
+	ensuredLawNodes map[string]bool     // dedup set for auto-created LawArticle nodes
 	lawRefIndex     map[string][]string // lawRef → []docID (for SIMILAR_TO detection)
-	wikiNameIndex   map[string]string // wiki filename → docID
+	wikiNameIndex   map[string]string   // wiki filename → docID
 
 	nodeCount int
 	edgeCount int

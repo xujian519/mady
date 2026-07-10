@@ -13,8 +13,8 @@ type PathNode struct {
 
 // PathResult holds the outcome of a path search between two nodes.
 type PathResult struct {
-	Found       bool       `json:"found"`
-	Paths       [][]string `json:"paths"`
+	Found       bool         `json:"found"`
+	Paths       [][]string   `json:"paths"`
 	PathDetails [][]PathNode `json:"path_details"`
 }
 

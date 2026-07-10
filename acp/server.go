@@ -450,12 +450,11 @@ func (s *Server) handleLoadSession(req *JSONRPCRequest) {
 
 	state := s.sessionMgr.UpdateCWD(params.SessionID, params.CWD)
 	if state == nil {
-		restored, err := s.sessionMgr.RestoreSession(params.SessionID)
+		_, err := s.sessionMgr.RestoreSession(params.SessionID)
 		if err != nil {
 			s.writeError(req.ID, -32002, "Session not found", params.SessionID)
 			return
 		}
-		state = restored
 		state = s.sessionMgr.UpdateCWD(params.SessionID, params.CWD)
 	}
 
@@ -478,7 +477,7 @@ func (s *Server) handleResumeSession(req *JSONRPCRequest) {
 
 	state := s.sessionMgr.UpdateCWD(params.SessionID, params.CWD)
 	if state == nil {
-		restored, err := s.sessionMgr.RestoreSession(params.SessionID)
+		_, err := s.sessionMgr.RestoreSession(params.SessionID)
 		if err != nil {
 			s.logger.Warn("resume session not found, creating new", "session_id", params.SessionID)
 			state, err = s.sessionMgr.CreateSession(params.CWD, "")
@@ -487,7 +486,6 @@ func (s *Server) handleResumeSession(req *JSONRPCRequest) {
 				return
 			}
 		} else {
-			state = restored
 			state = s.sessionMgr.UpdateCWD(params.SessionID, params.CWD)
 		}
 	}
@@ -579,7 +577,7 @@ func (s *Server) handlePrompt(ctx context.Context, req *JSONRPCRequest) {
 				RawInput:   rawInput,
 			}, DefaultPermissionOptions())
 			if err != nil || outcome == nil || outcome.Outcome != "selected" {
-				return false // error/cancelled → deny (these are dangerous-tool gates)
+				return false // error/canceled → deny (these are dangerous-tool gates)
 			}
 			return strings.HasPrefix(outcome.OptionID, "allow")
 		})
@@ -591,7 +589,7 @@ func (s *Server) handlePrompt(ctx context.Context, req *JSONRPCRequest) {
 	}
 
 	if state.IsRunning() {
-		s.logger.Warn("session already running, cancelling previous", "session_id", params.SessionID)
+		s.logger.Warn("session already running, canceling previous", "session_id", params.SessionID)
 		state.Cancel()
 		s.sessionMgr.SetIdle(params.SessionID)
 	}
@@ -633,11 +631,11 @@ func (s *Server) handlePrompt(ctx context.Context, req *JSONRPCRequest) {
 
 		if result != "" {
 			s.sendNotification(params.SessionID, "session/update", SessionNotification{
-					SessionID: params.SessionID,
-					Update: SessionUpdate{
-						SessionUpdate: "agent_message_chunk",
-						Content:       TextContentBlock{Type: "text", Text: result},
-					},
+				SessionID: params.SessionID,
+				Update: SessionUpdate{
+					SessionUpdate: "agent_message_chunk",
+					Content:       TextContentBlock{Type: "text", Text: result},
+				},
 			})
 		}
 
@@ -659,7 +657,7 @@ func (s *Server) handleCancel(req *JSONRPCRequest) {
 	state := s.sessionMgr.GetSession(params.SessionID)
 	if state != nil {
 		state.Cancel()
-		s.logger.Info("ACP session cancelled", "session_id", params.SessionID)
+		s.logger.Info("ACP session canceled", "session_id", params.SessionID)
 	}
 
 	s.writeResponse(req.ID, nil)

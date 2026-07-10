@@ -339,73 +339,73 @@ func EnsureHomeDir(homeDir string) (string, error) {
 // bound to the previous prompt's notify channel.
 func RegisterEventListeners(sessionID string, core *agentcore.Agent, notify func(method string, params any)) (unregister func()) {
 	unsubs := make([]func(), 0, 3)
-	unsubs = append(unsubs, core.On(agentcore.EventToolCallStart, func(e agentcore.Event) {
-		ev, ok := e.(*agentcore.ToolCallStartEvent)
-		if !ok {
-			return
-		}
-		kind := ToolKind(ev.ToolCall.Name)
-		args := parseToolArgs(ev.ToolCall.Arguments)
-		title := BuildToolTitle(ev.ToolCall.Name, args)
-		notify("session/update", SessionNotification{
-			SessionID: sessionID,
-			Update: SessionUpdate{
-				SessionUpdate: "tool_call",
-				ToolCallID:    ev.ToolCall.ID,
-				Title:         title,
-				Kind:          kind,
-				Status:        "in_progress",
-				RawInput:      args,
-			},
-		})
-	}))
-
-	unsubs = append(unsubs, core.On(agentcore.EventToolCallEnd, func(e agentcore.Event) {
-		ev, ok := e.(*agentcore.ToolCallEndEvent)
-		if !ok {
-			return
-		}
-		kind := ToolKind(ev.ToolName)
-		status := "completed"
-		if ev.Err != nil {
-			status = "error"
-		}
-		notify("session/update", SessionNotification{
-			SessionID: sessionID,
-			Update: SessionUpdate{
-				SessionUpdate: "tool_call_update",
-				ToolCallID:    ev.ToolCallID,
-				Title:         ev.ToolName,
-				Kind:          kind,
-				Status:        status,
-				RawOutput:     ev.Result,
-			},
-		})
-	}))
-
-	unsubs = append(unsubs, core.On(agentcore.EventMessageDelta, func(e agentcore.Event) {
-		ev, ok := e.(*agentcore.MessageDeltaEvent)
-		if !ok {
-			return
-		}
-		if ev.Kind == "thinking" {
+	unsubs = append(unsubs,
+		core.On(agentcore.EventToolCallStart, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.ToolCallStartEvent)
+			if !ok {
+				return
+			}
+			kind := ToolKind(ev.ToolCall.Name)
+			args := parseToolArgs(ev.ToolCall.Arguments)
+			title := BuildToolTitle(ev.ToolCall.Name, args)
 			notify("session/update", SessionNotification{
 				SessionID: sessionID,
 				Update: SessionUpdate{
-					SessionUpdate: "agent_thought_chunk",
-					Content:       TextContentBlock{Type: "text", Text: ev.Delta},
+					SessionUpdate: "tool_call",
+					ToolCallID:    ev.ToolCall.ID,
+					Title:         title,
+					Kind:          kind,
+					Status:        "in_progress",
+					RawInput:      args,
 				},
 			})
-		} else {
+		}),
+		core.On(agentcore.EventToolCallEnd, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.ToolCallEndEvent)
+			if !ok {
+				return
+			}
+			kind := ToolKind(ev.ToolName)
+			status := "completed"
+			if ev.Err != nil {
+				status = "error"
+			}
 			notify("session/update", SessionNotification{
 				SessionID: sessionID,
 				Update: SessionUpdate{
-					SessionUpdate: "agent_message_chunk",
-					Content:       TextContentBlock{Type: "text", Text: ev.Delta},
+					SessionUpdate: "tool_call_update",
+					ToolCallID:    ev.ToolCallID,
+					Title:         ev.ToolName,
+					Kind:          kind,
+					Status:        status,
+					RawOutput:     ev.Result,
 				},
 			})
-		}
-	}))
+		}),
+		core.On(agentcore.EventMessageDelta, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.MessageDeltaEvent)
+			if !ok {
+				return
+			}
+			if ev.Kind == "thinking" {
+				notify("session/update", SessionNotification{
+					SessionID: sessionID,
+					Update: SessionUpdate{
+						SessionUpdate: "agent_thought_chunk",
+						Content:       TextContentBlock{Type: "text", Text: ev.Delta},
+					},
+				})
+			} else {
+				notify("session/update", SessionNotification{
+					SessionID: sessionID,
+					Update: SessionUpdate{
+						SessionUpdate: "agent_message_chunk",
+						Content:       TextContentBlock{Type: "text", Text: ev.Delta},
+					},
+				})
+			}
+		}),
+	)
 
 	return func() {
 		for _, u := range unsubs {
@@ -427,32 +427,32 @@ func parseToolArgs(raw string) map[string]any {
 
 func ToolKind(name string) string {
 	kinds := map[string]string{
-		"read_file":         "read",
-		"write_file":        "edit",
-		"patch":             "edit",
-		"search_files":      "search",
-		"terminal":          "execute",
-		"process":           "execute",
-		"execute_code":      "execute",
-		"todo":              "other",
-		"skill_view":        "read",
-		"skills_list":       "read",
-		"skill_manage":      "edit",
-		"web_search":        "fetch",
-		"web_extract":       "fetch",
-		"browser_navigate":  "fetch",
-		"browser_click":     "execute",
-		"browser_type":      "execute",
-		"browser_snapshot":  "read",
-		"browser_vision":    "read",
-		"browser_scroll":    "execute",
-		"browser_press":     "execute",
-		"browser_back":      "execute",
+		"read_file":          "read",
+		"write_file":         "edit",
+		"patch":              "edit",
+		"search_files":       "search",
+		"terminal":           "execute",
+		"process":            "execute",
+		"execute_code":       "execute",
+		"todo":               "other",
+		"skill_view":         "read",
+		"skills_list":        "read",
+		"skill_manage":       "edit",
+		"web_search":         "fetch",
+		"web_extract":        "fetch",
+		"browser_navigate":   "fetch",
+		"browser_click":      "execute",
+		"browser_type":       "execute",
+		"browser_snapshot":   "read",
+		"browser_vision":     "read",
+		"browser_scroll":     "execute",
+		"browser_press":      "execute",
+		"browser_back":       "execute",
 		"browser_get_images": "read",
-		"delegate_task":     "execute",
-		"vision_analyze":    "read",
-		"image_generate":    "execute",
-		"_thinking":         "think",
+		"delegate_task":      "execute",
+		"vision_analyze":     "read",
+		"image_generate":     "execute",
+		"_thinking":          "think",
 	}
 	if k, ok := kinds[name]; ok {
 		return k

@@ -31,7 +31,7 @@ func (HiddenReasoningRenderer) RenderThinking(_ ChatMessage, _ int64) []string {
 //
 //   - Show=false: emit nothing.
 //   - Mode="full": always expand every segment.
-//   - Mode="truncated": respect per-segment Collapsed flag (legacy behaviour
+//   - Mode="truncated": respect per-segment Collapsed flag (legacy behavior
 //     kept "truncated" semantically equivalent to non-"full" for now).
 //   - Mode="collapsed" (or any other value): respect per-segment Collapsed flag.
 type DefaultReasoningRenderer struct {

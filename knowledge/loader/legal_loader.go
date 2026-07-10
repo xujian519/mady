@@ -50,13 +50,13 @@ func LoadLegalStatute(store *knowledge.Store, info LegalStatute, r io.Reader) er
 // LegalHierarchy defines the precedence of legal sources in Chinese law.
 // Higher values indicate higher authority.
 var LegalHierarchy = map[string]int{
-	"宪法":         100,
-	"法律":         90,
-	"行政法规":    80,
-	"司法解释":    70,
-	"部门规章":    60,
-	"地方性法规":  50,
-	"指导性案例":  40,
+	"宪法":    100,
+	"法律":    90,
+	"行政法规":  80,
+	"司法解释":  70,
+	"部门规章":  60,
+	"地方性法规": 50,
+	"指导性案例": 40,
 }
 
 // SourceRank returns the hierarchy rank of a legal source. Higher is more

@@ -11,7 +11,7 @@ const chunkedEngineName = "chunked"
 // ChunkedContextEngine wraps a base ContextEngine with document protection.
 // It distinguishes between two types of messages in the conversation:
 //
-//   - Conversation messages: normal LLM dialogue, tool calls, results.
+//   - Conversation messages: normal LLM dialog, tool calls, results.
 //     These CAN be compacted by the base engine when token limits are hit.
 //   - Protected document chunks: long documents (patent claims, statutes,
 //     case law, etc.) injected as system messages with a special marker.

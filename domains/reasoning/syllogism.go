@@ -7,9 +7,9 @@ import (
 
 // Premise is one premise of a categorical syllogism.
 type Premise struct {
-	Label   string `json:"label"`   // human-readable label
-	Source  string `json:"source"`  // statute | case_fact | precedent | guideline
-	RefID   string `json:"ref_id"`  // references a blackboard fact/article ID
+	Label   string `json:"label"`  // human-readable label
+	Source  string `json:"source"` // statute | case_fact | precedent | guideline
+	RefID   string `json:"ref_id"` // references a blackboard fact/article ID
 	Content string `json:"content"`
 }
 

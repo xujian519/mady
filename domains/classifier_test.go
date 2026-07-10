@@ -30,8 +30,8 @@ func TestKeywordClassifier_Classify(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		input    string
-		want     string
+		input string
+		want  string
 	}{
 		{"帮我检索一下这个专利号", DomainPatent},
 		{"权利要求分析", DomainPatent},

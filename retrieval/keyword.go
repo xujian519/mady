@@ -137,7 +137,7 @@ func (ks *KeywordSearcher) scoreChunk(terms []string, chunk Chunk) (float64, []s
 // English terms are lowercased and split by whitespace.
 func extractTerms(query string) []string {
 	// Remove common punctuation that isn't part of search terms.
-	re := regexp.MustCompile(`[，。！？、；：""'（）《》\[\]【】\s]+`)
+	re := regexp.MustCompile(`[，。！？、；："“”'（）《》\[\]【】\s]+`)
 	parts := re.Split(query, -1)
 
 	seen := make(map[string]bool)

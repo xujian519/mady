@@ -186,8 +186,8 @@ func TestServerStreamChatEmitsMCPEvents(t *testing.T) {
 
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:      "stub",
-			Provider:   &serverMCPToolProvider{},
+			Model:    "stub",
+			Provider: &serverMCPToolProvider{},
 		},
 		Extensions: []agentcore.Extension{ext},
 	})
@@ -255,12 +255,12 @@ func TestServerStreamChatEmitsSkillLoadedEvent(t *testing.T) {
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills: []skill.Skill{{
-			Name:        "planner",
-			Description: "Plans work",
-			FilePath:    "/skills/planner/SKILL.md",
-			BaseDir:     "/skills/planner",
-			Body:        "Plan carefully.",
-		}},
+				Name:        "planner",
+				Description: "Plans work",
+				FilePath:    "/skills/planner/SKILL.md",
+				BaseDir:     "/skills/planner",
+				Body:        "Plan carefully.",
+			}},
 		},
 	})
 
@@ -289,8 +289,8 @@ func TestServerStreamChatStructuredEventsDecode(t *testing.T) {
 
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:      "stub",
-			Provider:   &serverMCPToolProvider{},
+			Model:    "stub",
+			Provider: &serverMCPToolProvider{},
 		},
 		Extensions: []agentcore.Extension{ext},
 	})
@@ -617,8 +617,8 @@ func TestServerStreamChatEmitsHTTPMCPReconnectEvents(t *testing.T) {
 
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:      "stub",
-			Provider:   &serverMCPToolProvider{},
+			Model:    "stub",
+			Provider: &serverMCPToolProvider{},
 		},
 		Extensions: []agentcore.Extension{ext},
 	})
@@ -745,8 +745,8 @@ func TestServerStreamChatEmitsHTTPMCPTransportErrorEvents(t *testing.T) {
 	}
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:      "stub",
-			Provider:   provider,
+			Model:    "stub",
+			Provider: provider,
 		},
 		Extensions: []agentcore.Extension{ext},
 	})
@@ -850,7 +850,7 @@ func TestServerChatThreadPersistsConversationState(t *testing.T) {
 			Model:    "stub",
 			Provider: historyProvider{},
 		},
-		Store:    store,
+		Store: store,
 	})
 
 	first := postChat(t, srv.Handler(), ChatRequest{Message: "hello", ThreadID: "thread-1"})
@@ -874,7 +874,7 @@ func TestServerChatWithoutThreadRemainsStateless(t *testing.T) {
 			Model:    "stub",
 			Provider: historyProvider{},
 		},
-		Store:    store,
+		Store: store,
 	})
 
 	first := postChat(t, srv.Handler(), ChatRequest{Message: "hello"})
@@ -896,7 +896,7 @@ func TestServerChatThreadOverridesCheckpointThreadID(t *testing.T) {
 			Model:    "stub",
 			Provider: historyProvider{},
 		},
-		Store:    store,
+		Store: store,
 		Checkpoint: &agentcore.CheckpointSettings{
 			Saver:    checkpoints,
 			ThreadID: "default-thread",
@@ -922,10 +922,10 @@ func TestServerChatUsesDefaultThinkingConfig(t *testing.T) {
 			Model:    "stub",
 			Provider: provider,
 			Thinking: &agentcore.ThinkingConfig{
-			Display: agentcore.ThinkingDisplaySummarized,
-			Effort:  agentcore.ThinkingEffortMedium,
-			Budget:  1024,
-		},
+				Display: agentcore.ThinkingDisplaySummarized,
+				Effort:  agentcore.ThinkingEffortMedium,
+				Budget:  1024,
+			},
 		},
 	})
 
@@ -954,10 +954,10 @@ func TestServerChatRequestThinkingOverridesDefault(t *testing.T) {
 			Model:    "stub",
 			Provider: provider,
 			Thinking: &agentcore.ThinkingConfig{
-			Display: agentcore.ThinkingDisplaySummarized,
-			Effort:  agentcore.ThinkingEffortHigh,
-			Budget:  4096,
-		},
+				Display: agentcore.ThinkingDisplaySummarized,
+				Effort:  agentcore.ThinkingEffortHigh,
+				Budget:  4096,
+			},
 		},
 	})
 
@@ -997,11 +997,11 @@ func TestServerThreadThinkingEndpointsAndChatInheritance(t *testing.T) {
 			Model:    "stub",
 			Provider: provider,
 			Thinking: &agentcore.ThinkingConfig{
-			Display: agentcore.ThinkingDisplayOmitted,
-			Effort:  agentcore.ThinkingEffortLow,
+				Display: agentcore.ThinkingDisplayOmitted,
+				Effort:  agentcore.ThinkingEffortLow,
+			},
 		},
-		},
-		Store:    threadStore,
+		Store: threadStore,
 	})
 
 	thread := postChat(t, srv.Handler(), ChatRequest{Message: "hello"})
@@ -1065,23 +1065,23 @@ func TestServerThreadConfigEndpointsAndRequestOverride(t *testing.T) {
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills: []skill.Skill{
-			{
-				Name:        "thread-skill",
-				Description: "Thread selected skill",
-				FilePath:    "/skills/thread/SKILL.md",
-				BaseDir:     "/skills/thread",
-				Body:        "Thread skill body",
-			},
-			{
-				Name:        "request-skill",
-				Description: "Request selected skill",
-				FilePath:    "/skills/request/SKILL.md",
-				BaseDir:     "/skills/request",
-				Body:        "Request skill body",
+				{
+					Name:        "thread-skill",
+					Description: "Thread selected skill",
+					FilePath:    "/skills/thread/SKILL.md",
+					BaseDir:     "/skills/thread",
+					Body:        "Thread skill body",
+				},
+				{
+					Name:        "request-skill",
+					Description: "Request selected skill",
+					FilePath:    "/skills/request/SKILL.md",
+					BaseDir:     "/skills/request",
+					Body:        "Request skill body",
+				},
 			},
 		},
-		},
-		Store:    threadStore,
+		Store: threadStore,
 	})
 
 	thread := postChat(t, srv.Handler(), ChatRequest{Message: "hello"})
@@ -1165,29 +1165,29 @@ func TestServerSkillRegistryEndpoints(t *testing.T) {
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills: []skill.Skill{
-			{
-				Name:        "planner",
-				Description: "Plans work",
-				FilePath:    "/skills/planner/SKILL.md",
-				BaseDir:     "/skills/planner",
-				Body:        "secret body should not be exposed",
-				Metadata: map[string]string{
-					"category": "planning",
+				{
+					Name:        "planner",
+					Description: "Plans work",
+					FilePath:    "/skills/planner/SKILL.md",
+					BaseDir:     "/skills/planner",
+					Body:        "secret body should not be exposed",
+					Metadata: map[string]string{
+						"category": "planning",
+					},
+				},
+				{
+					Name:                   "debugger",
+					Description:            "Debugs failures",
+					FilePath:               "/skills/debugger/SKILL.md",
+					BaseDir:                "/skills/debugger",
+					DisableModelInvocation: true,
 				},
 			},
-			{
-				Name:                   "debugger",
-				Description:            "Debugs failures",
-				FilePath:               "/skills/debugger/SKILL.md",
-				BaseDir:                "/skills/debugger",
-				DisableModelInvocation: true,
-			},
-		},
 			SelectedSkills: []string{"planner"},
 			SkillDiagnostics: []skill.Diagnostic{
-			{Path: "/skills/debugger/SKILL.md", Message: "name does not match parent directory"},
-			{Path: "/skills/planner/SKILL.md", Message: "description exceeds 1024 characters (1100)"},
-		},
+				{Path: "/skills/debugger/SKILL.md", Message: "name does not match parent directory"},
+				{Path: "/skills/planner/SKILL.md", Message: "description exceeds 1024 characters (1100)"},
+			},
 		},
 	})
 
@@ -1242,12 +1242,12 @@ func TestServerSkillStatusReflectsThreadOverride(t *testing.T) {
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills: []skill.Skill{
-			{Name: "planner", Description: "Plans work", FilePath: "/skills/planner/SKILL.md", BaseDir: "/skills/planner"},
-			{Name: "debugger", Description: "Debugs failures", FilePath: "/skills/debugger/SKILL.md", BaseDir: "/skills/debugger"},
-		},
+				{Name: "planner", Description: "Plans work", FilePath: "/skills/planner/SKILL.md", BaseDir: "/skills/planner"},
+				{Name: "debugger", Description: "Debugs failures", FilePath: "/skills/debugger/SKILL.md", BaseDir: "/skills/debugger"},
+			},
 			SelectedSkills: []string{"planner"},
 		},
-		Store:    threadStore,
+		Store: threadStore,
 	})
 
 	thread := postChat(t, srv.Handler(), ChatRequest{Message: "hello"})
@@ -1287,8 +1287,8 @@ Planner body`)
 	}
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:            "stub",
-			Provider:         historyProvider{},
+			Model:    "stub",
+			Provider: historyProvider{},
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills:  initialSkills,
@@ -1361,8 +1361,8 @@ Debugger body`)
 	}
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:            "stub",
-			Provider:         historyProvider{},
+			Model:    "stub",
+			Provider: historyProvider{},
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills:  initialSkills,
@@ -1422,8 +1422,8 @@ Missing description`)
 	}
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:            "stub",
-			Provider:         historyProvider{},
+			Model:    "stub",
+			Provider: historyProvider{},
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills:  initialSkills,
@@ -1465,8 +1465,8 @@ Planner body`)
 	}
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:            "stub",
-			Provider:         historyProvider{},
+			Model:    "stub",
+			Provider: historyProvider{},
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills:  initialSkills,
@@ -1528,8 +1528,8 @@ Planner body`)
 	}
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:            "stub",
-			Provider:         historyProvider{},
+			Model:    "stub",
+			Provider: historyProvider{},
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills:  initialSkills,
@@ -1608,8 +1608,8 @@ Planner body`)
 
 	disabled := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:                   "stub",
-			Provider:                historyProvider{},
+			Model:    "stub",
+			Provider: historyProvider{},
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills:         loadedSkills,
@@ -1634,8 +1634,8 @@ Planner body`)
 
 	protected := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Model:             "stub",
-			Provider:          historyProvider{},
+			Model:    "stub",
+			Provider: historyProvider{},
 		},
 		SkillConfig: agentcore.SkillConfig{
 			AvailableSkills:   loadedSkills,
@@ -1677,7 +1677,7 @@ func TestServerThreadEndpointsWithSessionStore(t *testing.T) {
 			Model:    "stub",
 			Provider: historyProvider{},
 		},
-		Store:    threadStore,
+		Store: threadStore,
 	})
 
 	postChat(t, srv.Handler(), ChatRequest{Message: "hello", ThreadID: "thread-a"})
@@ -1777,7 +1777,7 @@ func TestServerChatAutoCreatesThreadForSessionStore(t *testing.T) {
 			Model:    "stub",
 			Provider: historyProvider{},
 		},
-		Store:    threadStore,
+		Store: threadStore,
 	})
 
 	first := postChat(t, srv.Handler(), ChatRequest{Message: "hello"})
@@ -1808,7 +1808,7 @@ func TestServerCreateThreadEndpoint(t *testing.T) {
 			Model:    "stub",
 			Provider: historyProvider{},
 		},
-		Store:    threadStore,
+		Store: threadStore,
 	})
 
 	var threadResp session.ThreadSnapshot
@@ -1836,7 +1836,7 @@ func TestServerThreadEndpointsRequireThreadCapableStore(t *testing.T) {
 			Model:    "stub",
 			Provider: historyProvider{},
 		},
-		Store:    newMemoryStore(),
+		Store: newMemoryStore(),
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/threads", nil)

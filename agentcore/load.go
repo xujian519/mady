@@ -13,8 +13,8 @@ type ThreadConfigProvider interface {
 }
 
 type LoadAgentOptions struct {
-	ThreadID string
-	CallCfg  *CallConfig
+	ThreadID          string
+	CallCfg           *CallConfig
 	ThreadCfgProvider ThreadConfigProvider
 }
 

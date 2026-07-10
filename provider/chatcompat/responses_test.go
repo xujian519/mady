@@ -291,9 +291,9 @@ func TestResponsesAPI_Stream_TextDelta(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = w.Write([]byte(
-			"event: response.created\ndata: {\"id\":\"resp_s1\",\"type\":\"response.created\"}\n\n"+
-				"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"Hel\"}\n\n"+
-				"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"lo\"}\n\n"+
+			"event: response.created\ndata: {\"id\":\"resp_s1\",\"type\":\"response.created\"}\n\n" +
+				"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"Hel\"}\n\n" +
+				"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"lo\"}\n\n" +
 				"event: response.completed\ndata: {\"type\":\"response.completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}\n\n",
 		))
 	}))
@@ -337,10 +337,10 @@ func TestResponsesAPI_Stream_FunctionCall(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = w.Write([]byte(
-			"event: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\",\"id\":\"fc_1\",\"call_id\":\"call_xyz\",\"name\":\"search\",\"status\":\"in_progress\"}}\n\n"+
-				"event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"delta\":\"{\\\"q\\\":\"}\n\n"+
-				"event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"delta\":\"\\\"test\\\"}\"}\n\n"+
-				"event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"id\":\"fc_1\",\"call_id\":\"call_xyz\",\"name\":\"search\",\"arguments\":\"{\\\"q\\\":\\\"test\\\"}\",\"status\":\"completed\"}}\n\n"+
+			"event: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\",\"id\":\"fc_1\",\"call_id\":\"call_xyz\",\"name\":\"search\",\"status\":\"in_progress\"}}\n\n" +
+				"event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"delta\":\"{\\\"q\\\":\"}\n\n" +
+				"event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"delta\":\"\\\"test\\\"}\"}\n\n" +
+				"event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"id\":\"fc_1\",\"call_id\":\"call_xyz\",\"name\":\"search\",\"arguments\":\"{\\\"q\\\":\\\"test\\\"}\",\"status\":\"completed\"}}\n\n" +
 				"event: response.completed\ndata: {\"type\":\"response.completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}\n\n",
 		))
 	}))

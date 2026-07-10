@@ -60,12 +60,12 @@ type Client struct {
 	hooksMu           sync.RWMutex
 	notificationHooks []func(context.Context, string, json.RawMessage) error
 
-	reconnectMu     sync.Mutex
+	reconnectMu      sync.Mutex
 	reconnectBackoff time.Duration
 }
 
 const (
-	maxReconnectBackoff = 30 * time.Second
+	maxReconnectBackoff   = 30 * time.Second
 	initialReconnectDelay = 500 * time.Millisecond
 )
 
@@ -343,13 +343,6 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) qualifyToolName(name string) string {
-	if c.cfg.ToolPrefix == "" {
-		return name
-	}
-	return c.cfg.ToolPrefix + name
-}
-
 func (c *Client) call(ctx context.Context, method string, params any, out any) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -621,7 +614,7 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	c.stderr = stderr
 	c.readErr = nil
 	c.errBuf.Reset()
-	// Reset pending map — old requests are cancelled
+	// Reset pending map — old requests are canceled
 	for id, ch := range c.pending {
 		delete(c.pending, id)
 		close(ch)

@@ -27,7 +27,7 @@ func NewStreamReader[T any](bufSize int64) *StreamReader[T] {
 	}
 }
 
-// Send pushes a value into the stream. Returns false if the stream is closed or the consumer cancelled.
+// Send pushes a value into the stream. Returns false if the stream is closed or the consumer canceled.
 func (s *StreamReader[T]) Send(val T) bool {
 	select {
 	case s.ch <- val:

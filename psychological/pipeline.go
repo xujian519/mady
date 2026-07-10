@@ -13,9 +13,9 @@ type DistortionLLMVerifier interface {
 
 // PipelineConfig 管道运行配置
 type PipelineConfig struct {
-	SDTTracker              *SDTTracker             // SDT 追踪器（nil 则新建）
-	LLMVerifier             DistortionLLMVerifier   // 可选 LLM 验证器
-	SkipDistortionDetection bool                    // 跳过认知扭曲检测
+	SDTTracker              *SDTTracker           // SDT 追踪器（nil 则新建）
+	LLMVerifier             DistortionLLMVerifier // 可选 LLM 验证器
+	SkipDistortionDetection bool                  // 跳过认知扭曲检测
 }
 
 // ExecuteFullPipeline 执行完整的 7 阶段心理分析管道
@@ -166,10 +166,12 @@ func BuildContextBlock(result NuoChatResult) string {
 	}
 
 	// 策略指引
-	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf("【对话策略】%s (置信度=%.2f)", result.Strategy.Primary, result.Strategy.Confidence))
-	lines = append(lines, result.Strategy.StrategyPrompt)
-	lines = append(lines, fmt.Sprintf("选择理由: %s", result.Strategy.Rationale))
+	lines = append(lines,
+		"",
+		fmt.Sprintf("【对话策略】%s (置信度=%.2f)", result.Strategy.Primary, result.Strategy.Confidence),
+		result.Strategy.StrategyPrompt,
+		fmt.Sprintf("选择理由: %s", result.Strategy.Rationale),
+	)
 
 	return strings.Join(lines, "\n")
 }

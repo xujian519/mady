@@ -42,8 +42,7 @@ type SessionSelector struct {
 	renameBuf  string
 	renameItem *SessionItem
 
-	focusMode  bool
-	deleteMode bool
+	focusMode bool
 }
 
 // SessionSelectorTheme customizes the selector appearance.
@@ -159,7 +158,7 @@ func (s *SessionSelector) SetOnSelect(fn func(SessionItem)) {
 	s.mu.Unlock()
 }
 
-// SetOnCancel sets the callback when selection is cancelled.
+// SetOnCancel sets the callback when selection is canceled.
 func (s *SessionSelector) SetOnCancel(fn func()) {
 	s.mu.Lock()
 	s.onCancel = fn
@@ -204,7 +203,7 @@ func (s *SessionSelector) applyFilterLocked() {
 		}
 	}
 	// Sync table items.
-	iface := make([]interface{}, len(s.filtered))
+	iface := make([]any, len(s.filtered))
 	for i, it := range s.filtered {
 		iface[i] = it
 	}
@@ -212,7 +211,7 @@ func (s *SessionSelector) applyFilterLocked() {
 }
 
 // HandleEsc intercepts ESC for inline modes (search, rename).
-// Returns true if ESC was consumed (mode cancelled), false if no mode active.
+// Returns true if ESC was consumed (mode canceled), false if no mode active.
 func (s *SessionSelector) HandleEsc() bool {
 	s.mu.Lock()
 	if s.focusMode {
@@ -238,8 +237,7 @@ func (s *SessionSelector) Invalidate() {}
 
 // Update processes messages.
 func (s *SessionSelector) Update(msg core.Msg) core.Cmd {
-	switch m := msg.(type) {
-	case core.KeyMsg:
+	if m, ok := msg.(core.KeyMsg); ok {
 		s.processKeys(m.Data)
 	}
 	return nil
@@ -412,8 +410,7 @@ func (s *SessionSelector) Render(width int64) []string {
 
 	// Title
 	title := core.PadToWidth(s.theme.Title, width)
-	lines = append(lines, s.theme.HeaderStyle.Render(title))
-	lines = append(lines, s.theme.DimStyle.Render(strings.Repeat("─", int(width))))
+	lines = append(lines, s.theme.HeaderStyle.Render(title), s.theme.DimStyle.Render(strings.Repeat("─", int(width))))
 
 	// Search bar
 	if s.focusMode {
@@ -470,31 +467,33 @@ func (s *SessionSelector) Render(width int64) []string {
 		item := s.filtered[i]
 		row := s.table.RenderRow(i, tableWidth)
 		var prefix string
-		if i == s.table.Selected() {
+		switch {
+		case i == s.table.Selected():
 			prefix = "▸ "
-		} else if item.IsCurrent {
+		case item.IsCurrent:
 			prefix = "● "
-		} else {
+		default:
 			prefix = "  "
 		}
 		// Left-align the table at the panel indent and pad to the full width so
 		// every row fills the overlay edge-to-edge (consistent with title/footer).
 		full := prefix + row
-		if int64(core.VisibleWidth(full)) > width {
+		if core.VisibleWidth(full) > width {
 			full = core.TruncateToWidth(full, width, "…")
 		} else {
 			full = core.PadToWidth(full, width)
 		}
-		if i == s.table.Selected() {
+		switch {
+		case i == s.table.Selected():
 			lines = append(lines, s.theme.SelectedStyle.Render(full))
-		} else if item.IsCurrent {
+		case item.IsCurrent:
 			lines = append(lines, s.theme.CurrentStyle.Render(full))
-		} else {
+		default:
 			lines = append(lines, s.theme.ItemStyle.Render(full))
 		}
 		if item.Preview != "" {
 			pl := item.Preview
-			plw := int64(core.VisibleWidth(pl))
+			plw := core.VisibleWidth(pl)
 			if plw > tableWidth {
 				pl = core.TruncateToWidth(pl, tableWidth, "…")
 			}

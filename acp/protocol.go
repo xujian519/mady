@@ -303,7 +303,7 @@ type RequestPermissionResult struct {
 	Outcome PermissionOutcome `json:"outcome"`
 }
 
-// PermissionOutcome.Outcome is "selected" or "cancelled".
+// PermissionOutcome.Outcome is "selected" or "canceled".
 type PermissionOutcome struct {
 	Outcome  string `json:"outcome"`
 	OptionID string `json:"optionId,omitempty"`

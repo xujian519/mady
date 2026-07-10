@@ -292,15 +292,6 @@ func (e *Editor) ClearSelection() {
 	e.mu.Unlock()
 }
 
-// clearMouseSelection discards any active mouse-drag text selection. Exposed
-// for callers outside the lock (e.g. explicit resets); mutating operations
-// use clearMouseSelectionLocked directly since they already hold e.mu.
-func (e *Editor) clearMouseSelection() {
-	e.mu.Lock()
-	e.clearMouseSelectionLocked()
-	e.mu.Unlock()
-}
-
 // clearMouseSelectionLocked resets mouse-drag selection state. Must be
 // called with e.mu already held.
 func (e *Editor) clearMouseSelectionLocked() {
@@ -1298,13 +1289,14 @@ func (e *Editor) historyPrev() bool {
 	if len(e.inputHistory) == 0 {
 		return false
 	}
-	if e.inputHistoryIndex < 0 {
+	switch {
+	case e.inputHistoryIndex < 0:
 		// First time entering history mode — save current draft.
 		e.inputHistoryDraft = e.valueLocked()
 		e.inputHistoryIndex = int64(len(e.inputHistory) - 1)
-	} else if e.inputHistoryIndex > 0 {
+	case e.inputHistoryIndex > 0:
 		e.inputHistoryIndex--
-	} else {
+	default:
 		// Already at oldest entry; stay there.
 		return true
 	}

@@ -470,7 +470,7 @@ func TestDiscoveryExtension_BuildsDiscoveryTools(t *testing.T) {
 		t.Fatalf("tools len = %d", len(tools))
 	}
 
-	var seen map[string]*agentcore.Tool = map[string]*agentcore.Tool{}
+	var seen = map[string]*agentcore.Tool{}
 	for _, tool := range tools {
 		seen[tool.Name] = tool
 	}

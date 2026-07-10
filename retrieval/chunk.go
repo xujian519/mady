@@ -5,19 +5,19 @@ import "strings"
 // Chunk represents a segment of a larger document, with positional metadata
 // for citation and context reconstruction.
 type Chunk struct {
-	ID       string // unique chunk identifier
-	DocID    string // parent document identifier
-	Content  string // chunk text content
-	Position int    // chunk index within document (0-based)
-	StartLine int   // starting line number in source document
-	EndLine   int    // ending line number in source document
-	Metadata map[string]string // domain-specific tags (e.g., "section", "claim")
+	ID        string            // unique chunk identifier
+	DocID     string            // parent document identifier
+	Content   string            // chunk text content
+	Position  int               // chunk index within document (0-based)
+	StartLine int               // starting line number in source document
+	EndLine   int               // ending line number in source document
+	Metadata  map[string]string // domain-specific tags (e.g., "section", "claim")
 }
 
 // ChunkOptions configures document splitting behavior.
 type ChunkOptions struct {
-	MaxChars    int  // maximum characters per chunk (default: 2000)
-	OverlapChars int // character overlap between adjacent chunks (default: 200)
+	MaxChars       int  // maximum characters per chunk (default: 2000)
+	OverlapChars   int  // character overlap between adjacent chunks (default: 200)
 	SplitBySection bool // prefer splitting at section/heading boundaries
 }
 

@@ -23,7 +23,7 @@ func (e ValidationError) Error() string {
 // ToClientError converts the validation error into the ClientError wire form
 // that a client sends back to the server.
 func (e ValidationError) ToClientError() ClientError {
-	return ClientError{Code: e.Code, SurfaceID: e.SurfaceID, Path: e.Path, Message: e.Message}
+	return ClientError(e)
 }
 
 func validationErr(surfaceID, path, format string, args ...any) ValidationError {
