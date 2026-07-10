@@ -312,13 +312,21 @@ func handleSpawn(cfg *ProcessToolConfig, cwd string, input ProcessToolInput) (an
 		return resultErrf("failed to spawn process: %w", err)
 	}
 
+	// Lock to read status safely — the background goroutine in Spawn
+	// may have already updated it for a fast-exiting process.
+	entry.mu.Lock()
+	status := entry.Status
+	pid := entry.PID
+	startTime := entry.StartTime
+	entry.mu.Unlock()
+
 	return result(
-		fmt.Sprintf("Spawned process %s (PID %d): %s", entry.ID, entry.PID, input.Command),
+		fmt.Sprintf("Spawned process %s (PID %d): %s", entry.ID, pid, input.Command),
 		ProcessToolDetails{
 			ProcessID: entry.ID,
-			Status:    entry.Status,
-			PID:       entry.PID,
-			StartTime: entry.StartTime.Format(time.RFC3339),
+			Status:    status,
+			PID:       pid,
+			StartTime: startTime.Format(time.RFC3339),
 		},
 	)
 }
