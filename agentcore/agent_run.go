@@ -180,9 +180,28 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 
 			a.emit(&TurnStartEvent{baseEvent: newBase(EventTurnStart), Turn: turn})
 
-			// Build request: TransformContext → ConvertToLLM
+			// Build request: ContextBuilder → TransformContext → ConvertToLLM
 			msgs := a.state.Messages()
-			if tc := a.transformContext(); tc != nil {
+			if cb := a.contextBuilder(); cb != nil {
+				// ContextBuilder handles full context assembly
+				// Note: when ContextBuilder is active, TransformContext is bypassed.
+				// Extensions using TransformContextProvider (skill, psychological) won't fire.
+				if tc := a.transformContext(); tc != nil {
+					// Extensions registered TransformContextProviders will be bypassed.
+					_ = tc
+				}
+				buildInput := BuildInput{
+					Messages:      msgs,
+					ToolDefs:      a.registry.Definitions(),
+					SystemPrompt:  a.systemPrompt(),
+					ContextWindow: a.config.ContextWindow,
+					ReserveTokens: applyDefaultReserveTokens(a.config.ContextWindow, a.config.ReserveTokens),
+					LayerConfigs:  a.config.LayerConfigs,
+				}
+				output := cb.Build(ctx, buildInput)
+				msgs = output.Messages
+			} else if tc := a.transformContext(); tc != nil {
+				// Legacy transform path
 				msgs = tc(ctx, msgs)
 			}
 			converter := a.config.ConvertToLLM
@@ -219,7 +238,18 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 				if IsContextOverflowError(err) && a.config.ContextWindow > 0 {
 					if compErr := a.ForceCompact(ctx); compErr == nil {
 						msgs = a.state.Messages()
-						if tc := a.transformContext(); tc != nil {
+						if cb := a.contextBuilder(); cb != nil {
+							buildInput := BuildInput{
+								Messages:      msgs,
+								ToolDefs:      a.registry.Definitions(),
+								SystemPrompt:  a.systemPrompt(),
+								ContextWindow: a.config.ContextWindow,
+								ReserveTokens: applyDefaultReserveTokens(a.config.ContextWindow, a.config.ReserveTokens),
+								LayerConfigs:  a.config.LayerConfigs,
+							}
+							output := cb.Build(ctx, buildInput)
+							msgs = output.Messages
+						} else if tc := a.transformContext(); tc != nil {
 							msgs = tc(ctx, msgs)
 						}
 						msgs = converter(msgs)
@@ -680,4 +710,18 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 		return "", ErrInterrupt
 	}
 	return "", nil
+}
+
+// applyDefaultReserveTokens returns ReserveTokens or defaults to ContextWindow/4.
+func applyDefaultReserveTokens(contextWindow, reserveTokens int64) int64 {
+	if reserveTokens > 0 {
+		return reserveTokens
+	}
+	if contextWindow > 0 {
+		default_ := contextWindow / 4
+		if default_ > 0 {
+			return default_
+		}
+	}
+	return 0
 }

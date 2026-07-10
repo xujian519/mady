@@ -296,6 +296,22 @@ func WithCustomContextEngine(engine ContextEngine) ConfigOption {
 	return func(c *Config) { c.CustomEngine = engine }
 }
 
+// WithContextBuilder sets the ContextBuilder for unified context assembly.
+// When set, Build() replaces TransformContext as the primary context assembly point.
+func WithContextBuilder(builder ContextBuilder) ConfigOption {
+	return func(c *Config) { c.ContextBuilder = builder }
+}
+
+// WithLayerConfig configures a single context layer for the ContextBuilder.
+func WithLayerConfig(layer ContextLayer, cfg LayerConfig) ConfigOption {
+	return func(c *Config) {
+		if c.LayerConfigs == nil {
+			c.LayerConfigs = make(map[ContextLayer]LayerConfig)
+		}
+		c.LayerConfigs[layer] = cfg
+	}
+}
+
 // --- Top-level options ---
 
 // WithSystemPrompt sets the system prompt.

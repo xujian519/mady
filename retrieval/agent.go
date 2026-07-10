@@ -24,10 +24,11 @@ import (
 type RetrievalHook struct {
 	agentcore.BaseLifecycleHook
 
-	searcher Searcher
-	reranker Reranker
-	chunks   []Chunk
-	config   RetrievalConfig
+	searcher  Searcher
+	reranker  Reranker
+	chunks    []Chunk
+	config    RetrievalConfig
+	turnCount int64 // 内部轮次计数（用于 first_n 策略）
 }
 
 // RetrievalConfig controls how retrieved chunks are injected into context.
@@ -51,14 +52,45 @@ type RetrievalConfig struct {
 	// Prefix is prepended to the injected context block. Use this to
 	// instruct the LLM on how to use the retrieved information.
 	Prefix string
+
+	// TriggerPolicy controls when retrieval is triggered.
+	// "always" (default): retrieve every turn.
+	// "smart": retrieve only when complexity is Medium or High.
+	// "first_n": retrieve only for the first N turns.
+	TriggerPolicy TriggerPolicy `json:"trigger_policy,omitempty"`
+
+	// FirstNTurns is used when TriggerPolicy is "first_n".
+	// Retrieval fires only for the first N turns.
+	FirstNTurns int `json:"first_n_turns,omitempty"`
+
+	// ComplexityClassifier is required when TriggerPolicy is "smart".
+	// Reuses agentcore.ComplexityClassifier from ReasoningRouter.
+	ComplexityClassifier ComplexityClassifier `json:"-"`
+}
+
+// TriggerPolicy controls when knowledge retrieval fires.
+type TriggerPolicy string
+
+const (
+	TriggerAlways   TriggerPolicy = "always"    // 每轮都检索（默认）
+	TriggerSmart    TriggerPolicy = "smart"     // 按复杂度门控（复用 ReasoningRouter）
+	TriggerFirstN   TriggerPolicy = "first_n"   // 仅前 N 轮
+	TriggerOnDemand TriggerPolicy = "on_demand" // 仅通过工具触发
+)
+
+// ComplexityClassifier wraps agentcore.ComplexityClassifier to avoid a hard import.
+type ComplexityClassifier interface {
+	Classify(input string, messages []agentcore.Message) agentcore.Complexity
 }
 
 // DefaultRetrievalConfig returns sensible defaults.
 func DefaultRetrievalConfig() RetrievalConfig {
 	return RetrievalConfig{
-		TopK:     5,
-		MaxChars: 3000,
-		Prefix:   "以下是检索到的相关参考信息，请在回答时参考：\n",
+		TopK:          5,
+		MaxChars:      3000,
+		Prefix:        "以下是检索到的相关参考信息，请在回答时参考：\n",
+		TriggerPolicy: TriggerAlways,
+		FirstNTurns:   3,
 	}
 }
 
@@ -81,6 +113,16 @@ func NewRetrievalHook(chunks []Chunk, config RetrievalConfig) *RetrievalHook {
 		searcher = hs
 	} else {
 		searcher = NewKeywordSearcher()
+	}
+
+	// Auto-inject DefaultClassifier when TriggerSmart is used without one.
+	if config.TriggerPolicy == TriggerSmart && config.ComplexityClassifier == nil {
+		config.ComplexityClassifier = agentcore.NewDefaultClassifier()
+	}
+
+	// Default FirstNTurns when using TriggerFirstN without explicit value.
+	if config.TriggerPolicy == TriggerFirstN && config.FirstNTurns <= 0 {
+		config.FirstNTurns = 3
 	}
 
 	return &RetrievalHook{
@@ -110,12 +152,19 @@ func (h *RetrievalHook) UpdateChunks(chunks []Chunk) {
 }
 
 // BeforeModelCall implements LifecycleHook.BeforeModelCall.
-// It searches the chunk index using the latest user message as query and
-// injects relevant chunks into the system prompt via TransformContext.
+// It checks the trigger policy, then searches the chunk index using the
+// latest user message as query and injects relevant chunks into context.
 func (h *RetrievalHook) BeforeModelCall(_ context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) error {
 	if len(h.chunks) == 0 || mcc == nil || mcc.Request == nil {
 		return nil
 	}
+
+	// Check trigger policy.
+	if !h.shouldTrigger(arc) {
+		return nil
+	}
+
+	h.turnCount++
 
 	// Use the last user message as the search query.
 	query := lastUserMessage(arc.Messages)
@@ -142,6 +191,33 @@ func (h *RetrievalHook) BeforeModelCall(_ context.Context, arc *agentcore.AgentR
 	// Inject into system messages.
 	h.injectContext(mcc.Request, contextBlock)
 	return nil
+}
+
+// shouldTrigger checks if retrieval should fire this turn.
+func (h *RetrievalHook) shouldTrigger(arc *agentcore.AgentRunContext) bool {
+	switch h.config.TriggerPolicy {
+	case TriggerSmart:
+		return h.shouldTriggerSmart(arc)
+	case TriggerFirstN:
+		return h.turnCount < int64(h.config.FirstNTurns)
+	case TriggerOnDemand:
+		return false // only via tool
+	default: // TriggerAlways
+		return true
+	}
+}
+
+// shouldTriggerSmart uses ComplexityClassifier to decide if retrieval is needed.
+func (h *RetrievalHook) shouldTriggerSmart(arc *agentcore.AgentRunContext) bool {
+	if h.config.ComplexityClassifier == nil {
+		return true // fallback to always
+	}
+	query := lastUserMessage(arc.Messages)
+	if query == "" {
+		return false
+	}
+	c := h.config.ComplexityClassifier.Classify(query, arc.Messages)
+	return c >= agentcore.ComplexityMedium
 }
 
 // lastUserMessage extracts the content of the last user message.

@@ -51,6 +51,14 @@ type Config struct {
 	// TransformContext is called before ConvertToLLM to filter/modify/inject messages.
 	TransformContext func(ctx context.Context, msgs []Message) []Message
 
+	// ContextBuilder replaces TransformContext as the primary context assembly mechanism.
+	// When set, Build() is called instead of TransformContext.
+	// If nil, the legacy TransformContext → ConvertToLLM path is used (backward compatible).
+	ContextBuilder ContextBuilder `json:"-"`
+
+	// LayerConfigs provides per-layer configuration for ContextBuilder.
+	LayerConfigs map[ContextLayer]LayerConfig `json:"layer_configs,omitempty"`
+
 	// ConvertToLLM converts internal message types to standard LLM messages.
 	// If nil, DefaultConvertToLLM is used which strips custom types.
 	ConvertToLLM ConvertToLLMFunc
@@ -264,6 +272,14 @@ func (a *Agent) transformContext() func(ctx context.Context, msgs []Message) []M
 	fn := a.config.TransformContext
 	a.configMu.RUnlock()
 	return fn
+}
+
+// contextBuilder returns the ContextBuilder (or nil if not configured).
+func (a *Agent) contextBuilder() ContextBuilder {
+	a.configMu.RLock()
+	cb := a.config.ContextBuilder
+	a.configMu.RUnlock()
+	return cb
 }
 
 func (a *Agent) systemPrompt() string {
