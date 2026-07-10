@@ -62,3 +62,5 @@ coverage.xml
 # --- Code intelligence indexes (rebuildable) ---
 .codegraph/
 .cursor/
+/mady
+/mady-acp

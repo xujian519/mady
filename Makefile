@@ -9,8 +9,8 @@ LDFLAGS ?= -ldflags "-s -w -X main.commitHash=$(COMMIT_HASH) -X main.buildTime=$
 
 .PHONY: all build test test-race test-short coverage vet lint fmt clean \
         install-hooks install-lint \
-        build-cli-chat build-wiki-import \
-        run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client \
+        build-cli-chat build-wiki-import build-acp-server build-mady \
+        run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client run-mady run-acp-server \
         help
 
 # Default target
@@ -28,6 +28,12 @@ build-cli-chat:
 
 build-wiki-import:
 	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINDIR)/wiki-import ./example/wiki-import/
+
+build-acp-server:
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINDIR)/mady-acp ./example/acp-server/
+
+build-mady:
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINDIR)/mady ./cmd/mady/
 
 # --- Test ---
 test:
@@ -102,6 +108,12 @@ run-a2a-client:
 run-tui-demo:
 	$(GO) run ./example/tui-demo/
 
+run-mady:
+	$(GO) run ./cmd/mady/ tui
+
+run-acp-server:
+	$(GO) run ./example/acp-server/
+
 # --- Help ---
 help:
 	@echo "Mady Makefile"
@@ -112,6 +124,8 @@ help:
 	@echo "  build-release      Build with version info (commit hash + build time)"
 	@echo "  build-cli-chat     Build cli-chat binary"
 	@echo "  build-wiki-import  Build wiki-import binary"
+	@echo "  build-acp-server   Build ACP server binary"
+	@echo "  build-mady         Build unified mady binary (tui/acp)"
 	@echo ""
 	@echo "Test:"
 	@echo "  test               Run all tests"
@@ -130,6 +144,8 @@ help:
 	@echo "  run-server         Run A2A server example"
 	@echo "  run-a2a-client     Run A2A client example"
 	@echo "  run-tui-demo       Run TUI demo"
+	@echo "  run-mady           Run unified mady (tui mode)"
+	@echo "  run-acp-server     Run ACP server example"
 	@echo ""
 	@echo "Setup:"
 	@echo "  install-lint       Install golangci-lint"
