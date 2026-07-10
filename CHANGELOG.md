@@ -3,6 +3,32 @@
 本文件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，
 版本号遵循 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0] - 2026-07-11 — 内部预览版
+
+### Added
+
+- **Manifest 注册表**：JSON 格式的 Agent 声明式注册，替代纯硬编码 RouterConfig
+- **UserIntent v2**：LLM 驱动的意图摘要（Provider 不可用时回退 v1），5 分钟缓存
+- **AgentPool**：案件专属 Agent 生命周期管理，惰性创建 / 30 分钟空闲超时 / 并发安全
+- **ProjectRegistry 入口集成**：`runServer` / `runTui` 自动初始化 ProjectRegistry
+- **RouterConfigWithRegistry**：动态注册 `project-{projectID}` Handoff 目标
+- **Disclosure API**：`POST /v1/disclosure/analyze` 异步交底书分析 + SSE 实时进度
+- **analyze_disclosure 工具**：Patent Agent 可直接触发的 10 节点 Pregel 分析流水线
+- **analyze_patent_novelty 工具**：封装专利新颖性分析 Pregel 图（含规则引擎）
+- **compare_legal_cases 工具**：封装法律案例比较 Pregel 图（含三段论推理）
+- **错误类型体系**：RetryableError / FatalError / HandoffError / GuardrailError
+- **措辞规范**：`docs/tone-style-guide.md`，禁用绝对化表述，约束向用户输出
+- **e2e 测试套件**：5 条核心链路 + 4 个护栏场景 + Session 连续性
+- **性能基准**：Agent 创建 / Pregel 编译执行 / Handoff 序列化延迟
+
+### Changed
+
+- `ExtractHandoffContext` 增加 LLM 摘要调用（Provider 不可用时回落 v1）
+- `runTui` 支持多域路由模式（`MADY_SINGLE_AGENT=1` 回退单 Agent）
+- `RouterConfigFromManifests` 支持动态 SystemPrompt 生成
+- 护栏文案：`必须附带` → `附以下声明`（措辞更轻柔）
+- 专利分析输出：`权利要求应确保` → `建议由代理人核实`（避免绝对化）
+
 ## [0.1.0] - 2026-07-10
 
 ### Added

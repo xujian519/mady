@@ -76,3 +76,132 @@ func DynamicUnknownToolHandler(registry interface{ Names() []string }) UnknownTo
 		), nil
 	}
 }
+
+// ──────────────────────────────────────────────
+// 错误类型分类体系
+//
+// 各模块可通过类型断言判断错误类别，
+// 以便在入口层实现差异化重试/降级策略。
+// ──────────────────────────────────────────────
+
+// RetryableError 表示可重试的临时性错误（如 Provider 超时、网络抖动）。
+type RetryableError struct {
+	Op      string
+	Details string
+	Err     error
+}
+
+func (e *RetryableError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s 临时失败: %s (%v)", e.Op, e.Details, e.Err)
+	}
+	return fmt.Sprintf("%s 临时失败: %s", e.Op, e.Details)
+}
+
+func (e *RetryableError) Unwrap() error { return e.Err }
+
+// NewRetryableError 创建一个可重试错误。
+func NewRetryableError(op, details string, err error) error {
+	return &RetryableError{Op: op, Details: details, Err: err}
+}
+
+// FatalError 表示不可恢复的致命错误（如配置错误、Provider 不可用）。
+type FatalError struct {
+	Op      string
+	Details string
+	Err     error
+}
+
+func (e *FatalError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s 致命错误: %s (%v)", e.Op, e.Details, e.Err)
+	}
+	return fmt.Sprintf("%s 致命错误: %s", e.Op, e.Details)
+}
+
+func (e *FatalError) Unwrap() error { return e.Err }
+
+// NewFatalError 创建一个致命错误。
+func NewFatalError(op, details string, err error) error {
+	return &FatalError{Op: op, Details: details, Err: err}
+}
+
+// HandoffError 表示 Handoff 过程中的错误。
+type HandoffError struct {
+	Op         string
+	TargetName string
+	Details    string
+	Err        error
+}
+
+func (e *HandoffError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("handoff %s -> %s: %s (%v)", e.Op, e.TargetName, e.Details, e.Err)
+	}
+	return fmt.Sprintf("handoff %s -> %s: %s", e.Op, e.TargetName, e.Details)
+}
+
+func (e *HandoffError) Unwrap() error { return e.Err }
+
+// NewHandoffError 创建一个 Handoff 错误。
+func NewHandoffError(op, targetName, details string, err error) error {
+	return &HandoffError{Op: op, TargetName: targetName, Details: details, Err: err}
+}
+
+// GuardrailError 表示护栏拦截错误。
+type GuardrailError struct {
+	LevelStr string // 护栏等级描述（"light"/"standard"/"strict"）
+	Reason   string // 拦截原因
+	Details  string
+	Err      error
+}
+
+func (e *GuardrailError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("guardrail [%s] %s: %s (%v)", e.LevelStr, e.Reason, e.Details, e.Err)
+	}
+	return fmt.Sprintf("guardrail [%s] %s: %s", e.LevelStr, e.Reason, e.Details)
+}
+
+func (e *GuardrailError) Unwrap() error { return e.Err }
+
+// NewGuardrailError 创建一个护栏错误。
+func NewGuardrailError(levelStr, reason, details string, err error) error {
+	return &GuardrailError{LevelStr: levelStr, Reason: reason, Details: details, Err: err}
+}
+
+// IsRetryable 判断错误是否可重试。
+func IsRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*RetryableError)
+	return ok
+}
+
+// IsFatal 判断错误是否致命。
+func IsFatal(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*FatalError)
+	return ok
+}
+
+// IsHandoffError 判断是否 Handoff 错误。
+func IsHandoffError(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*HandoffError)
+	return ok
+}
+
+// IsGuardrailError 判断是否护栏错误。
+func IsGuardrailError(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(*GuardrailError)
+	return ok
+}

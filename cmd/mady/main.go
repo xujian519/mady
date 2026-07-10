@@ -23,6 +23,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -46,6 +47,12 @@ import (
 const defaultSystemPrompt = "你是 Mady 智能助手，一个能力完备的通用 AI 代理。" +
 	"你可以调用工具、检索知识、多步推理。请用简洁清晰的中文回答用户。"
 
+// defaultManifestDir is the default directory for Agent Manifest files.
+const defaultManifestDir = "./manifests"
+
+// defaultWorkspaceDir is the default workspace directory.
+const defaultWorkspaceDir = "./workspace"
+
 // loadWikiStore initializes the knowledge store from a wiki directory.
 // It returns the store and a retrieval hook, or nil if WIKI_PATH is not set.
 func loadWikiStore() (*knowledge.Store, agentcore.LifecycleHook) {
@@ -68,6 +75,98 @@ func loadWikiStore() (*knowledge.Store, agentcore.LifecycleHook) {
 		Prefix:   "以下是知识库中检索到的相关专利法律信息，请参考使用：\n",
 	})
 	return store, hook
+}
+
+// frameworkContext 封装入口之间共享的初始化资源。
+type frameworkContext struct {
+	BaseConfig      agentcore.Config
+	ProjectRegistry *domains.ProjectRegistry
+	WikiHook        agentcore.LifecycleHook
+	WikiStore       *knowledge.Store
+	Manifests       []agentcore.AgentManifest
+	ManifestErrs    []agentcore.ManifestLoadError
+}
+
+// setupFrameworkContext 执行三个入口共享的初始化逻辑：
+//   - Provider 构建
+//   - Manifest 扫描（可选的 MANIFEST_DIR 环境变量）
+//   - Wiki 知识库加载（可选的 WIKI_PATH 环境变量）
+//   - ProjectRegistry 初始化
+func setupFrameworkContext() *frameworkContext {
+	fc := &frameworkContext{}
+
+	provider := agentconfig.BuildProvider()
+	model := agentconfig.DefaultModel()
+
+	fc.BaseConfig = agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:      "mady-router",
+			Model:     model,
+			Provider:  provider,
+			Streaming: true,
+		},
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns:          25,
+			ExecutionMode:     agentcore.ModeSerial,
+			ValidateArguments: true,
+		},
+		CompactionConfig: agentcore.CompactionConfig{
+			ContextWindow:    128000,
+			ReserveTokens:    32000,
+			KeepRecentTokens: 4000,
+		},
+		RetryConfig: &agentcore.RetryConfig{
+			MaxRetries:  3,
+			BaseDelayMs: 1000,
+			MaxDelayMs:  15000,
+		},
+	}
+
+	// Wiki 知识库
+	fc.WikiStore, fc.WikiHook = loadWikiStore()
+
+	// Manifest 加载
+	manifestDir := os.Getenv("MANIFEST_DIR")
+	if manifestDir == "" {
+		manifestDir = defaultManifestDir
+	}
+	manifests, errs, err := agentcore.ScanManifests(manifestDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "manifest: %v（使用默认无 Manifest 模式）\n", err)
+	} else {
+		fc.Manifests = manifests
+		fc.ManifestErrs = errs
+		if len(manifests) > 0 {
+			fmt.Fprintf(os.Stderr, "manifest: 已加载 %d 个 Agent\n", len(manifests))
+			for _, m := range manifests {
+				fmt.Fprintf(os.Stderr, "  - %s (%s)\n", m.Name, m.Domain)
+			}
+		}
+		if len(errs) > 0 {
+			for _, e := range errs {
+				fmt.Fprintf(os.Stderr, "manifest: [警告] %s: %s\n", e.Path, e.Error)
+			}
+		}
+	}
+
+	// ProjectRegistry
+	workspaceDir := os.Getenv("WORKSPACE_DIR")
+	if workspaceDir == "" {
+		workspaceDir = defaultWorkspaceDir
+	}
+	projectDir := workspaceDir + "/projects"
+	fc.ProjectRegistry = domains.NewProjectRegistryOrEmpty(projectDir)
+
+	return fc
+}
+
+// buildRouterConfig 根据可用的 Manifest 构建 Router Agent 配置。
+// 有 Manifest 时使用声明式注册，没有时回退到硬编码 RouterConfig。
+func buildRouterConfig(base agentcore.Config, manifests []agentcore.AgentManifest) agentcore.Config {
+	if len(manifests) > 0 {
+		return domains.RouterConfigFromManifests(base, manifests)
+	}
+	return domains.RouterConfig(base)
 }
 
 func main() {
@@ -120,16 +219,36 @@ Examples:
 }
 
 // runTui launches the interactive terminal chat.
+// 默认使用 Router 多域路由（当 MANIFEST_DIR 有 Manifest 时）。
+// 设置 MADY_SINGLE_AGENT=1 强制使用传统单 Agent 模式。
 func runTui(ctx context.Context) {
 	fs := flag.NewFlagSet("mady tui", flag.ExitOnError)
 	_ = fs.Parse(os.Args[2:])
 
+	fc := setupFrameworkContext()
+
 	provider := agentconfig.BuildProvider()
 	model := agentconfig.DefaultModel()
 	currentThinking := agentconfig.ThinkingFromEnv()
-	wikiStore, wikiHook := loadWikiStore()
+
+	// 多域模式单 Agent 模式切换。
+	// 当有 Manifest 且未强制设置 MADY_SINGLE_AGENT=1 时使用多域 Router 模式。
+	useMultiDomain := len(fc.Manifests) > 0 && os.Getenv("MADY_SINGLE_AGENT") != "1"
+
+	// runMu 防止快速输入时多个 goroutine 并发调用 Agent.Run。
+	var runMu sync.Mutex
 
 	buildCfg := func() agentcore.Config {
+		if useMultiDomain {
+			cfg := buildRouterConfig(fc.BaseConfig, fc.Manifests)
+			// 将 /thinking 命令修改的推理配置注入多域模式
+			cfg.Thinking = cloneThinkingConfig(currentThinking)
+			if fc.WikiHook != nil {
+				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
+			}
+			return cfg
+		}
+
 		return agentcore.Config{
 			ModelConfig: agentcore.ModelConfig{
 				Name:      "mady",
@@ -154,7 +273,7 @@ func runTui(ctx context.Context) {
 				BaseDelayMs: 1000,
 				MaxDelayMs:  15000,
 			},
-			Lifecycle: wikiHook,
+			Lifecycle: fc.WikiHook,
 		}
 	}
 
@@ -179,6 +298,12 @@ func runTui(ctx context.Context) {
 		{InsertText: "/theme dark", Label: "/theme dark", Description: "深色主题"},
 		{InsertText: "/theme light", Label: "/theme light", Description: "浅色主题"},
 		{InsertText: "/quit", Label: "/quit", Description: "退出"},
+	}
+
+	if useMultiDomain {
+		slashSuggestions = append(slashSuggestions,
+			core.Suggestion{InsertText: "/mode", Label: "/mode", Description: "显示当前 Agent 模式"},
+		)
 	}
 
 	var app *chat.ChatApp
@@ -240,6 +365,13 @@ func runTui(ctx context.Context) {
 				}
 			}
 
+			// /mode command in multi-domain mode.
+			if trimmed == "/mode" && useMultiDomain {
+				agentName := currentAgent.Config().Name
+				app.PrintSystem(fmt.Sprintf("当前 Agent: %s（多域路由模式）", agentName))
+				return
+			}
+
 			switch trimmed {
 			case "/help":
 				app.ToggleKeyHelp()
@@ -277,15 +409,21 @@ func runTui(ctx context.Context) {
 			}
 
 			go func() {
+				runMu.Lock()
+				defer runMu.Unlock()
 				_, _ = currentAgent.Run(ctx, trimmed)
 			}()
 		},
 	})
 	agentadapter.BindAgent(app, currentAgent)
 
-	app.PrintSystem("Mady 中观智能体已启动。输入消息开始对话，输入 / 查看命令。Ctrl+C 退出。")
-	if wikiStore != nil {
-		st := wikiStore.Stats()
+	modeInfo := "单 Agent 模式"
+	if useMultiDomain {
+		modeInfo = "多域路由模式"
+	}
+	app.PrintSystem(fmt.Sprintf("Mady 中观智能体已启动（%s）。输入消息开始对话，输入 / 查看命令。Ctrl+C 退出。", modeInfo))
+	if fc.WikiStore != nil {
+		st := fc.WikiStore.Stats()
 		app.PrintSystem(fmt.Sprintf("wiki 知识库: %d 文档, %d 分块 (RAG: patent)", st.TotalDocs, st.TotalChunks))
 	}
 	if err := app.Start(); err != nil {
@@ -323,40 +461,14 @@ func runServer(ctx context.Context) {
 		log.Fatalf("flag: %v", err)
 	}
 
-	provider := agentconfig.BuildProvider()
-	model := agentconfig.DefaultModel()
-	wikiStore, wikiHook := loadWikiStore()
+	fc := setupFrameworkContext()
 
-	base := agentcore.Config{
-		ModelConfig: agentcore.ModelConfig{
-			Name:      "mady-router",
-			Model:     model,
-			Provider:  provider,
-			Streaming: true,
-		},
-		ExecutionConfig: agentcore.ExecutionConfig{
-			MaxTurns:          25,
-			ExecutionMode:     agentcore.ModeSerial,
-			ValidateArguments: true,
-		},
-		CompactionConfig: agentcore.CompactionConfig{
-			ContextWindow:    128000,
-			ReserveTokens:    32000,
-			KeepRecentTokens: 4000,
-		},
-		RetryConfig: &agentcore.RetryConfig{
-			MaxRetries:  3,
-			BaseDelayMs: 1000,
-			MaxDelayMs:  15000,
-		},
-	}
-
-	// Use multi-domain Router configuration (chat + assistant + patent + legal).
-	cfg := domains.RouterConfig(base)
+	// Build Router config from manifests (or use hardcoded fallback).
+	cfg := buildRouterConfig(fc.BaseConfig, fc.Manifests)
 
 	// Attach wiki retrieval hook if available.
-	if wikiHook != nil {
-		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, wikiHook)
+	if fc.WikiHook != nil {
+		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
 	}
 
 	// Session persistence via JSONL file store.
@@ -379,8 +491,8 @@ func runServer(ctx context.Context) {
 
 	srv := server.New(cfg)
 	log.Printf("Mady server starting on %s (multi-domain routing enabled)", *addr)
-	if wikiStore != nil {
-		st := wikiStore.Stats()
+	if fc.WikiStore != nil {
+		st := fc.WikiStore.Stats()
 		log.Printf("wiki: %d docs, %d chunks", st.TotalDocs, st.TotalChunks)
 	}
 

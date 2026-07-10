@@ -184,7 +184,7 @@ func concludeNode(ctx context.Context, state graph.PregelState) (graph.PregelSta
 	report.WriteString("基于现有技术的初步检索和分析：\n")
 	report.WriteString("- 建议进行更全面的专利检索以确认新颖性\n")
 	report.WriteString("- 根据审查指南的规定，进一步评估创造性\n")
-	report.WriteString("- 权利要求应确保得到说明书的支持\n")
+	report.WriteString("- 权利要求宜得到说明书的充分支持，建议由代理人核实\n")
 
 	return graph.PregelState{
 		StateConclusion: report.String(),

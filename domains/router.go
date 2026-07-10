@@ -2,6 +2,7 @@ package domains
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
@@ -168,7 +169,124 @@ func RouterStepWithClassifier(chatStep, assistantStep, patentStep, legalStep wor
 	}
 }
 
+// domainFactoryMap 将领域名称映射到对应的 Agent 工厂函数。
+// RouterConfigFromManifests 使用此映射将声明式 Manifest 转换
+// 为可执行的 HandoffConfig。
+var domainFactoryMap = map[string]func(agentcore.Config) agentcore.Config{
+	DomainChat:      ChatAgentConfig,
+	DomainAssistant: AssistantAgentConfig,
+	DomainPatent:    PatentAgentConfig,
+	DomainLegal:     LegalAgentConfig,
+}
+
+// RouterConfigFromManifests 从 AgentManifest 列表构建 Router Agent 配置。
+// 它扫描 manifests，将每个 manifest 映射到对应的领域工厂函数，
+// 生成 HandoffConfig 条目，替换 RouterConfig 中的硬编码条目。
+//
+// 不在 factoryMap 中的 domain 会被自动跳过（不做 fallback 到默认 RouterConfig），
+// 因为入口已在 ScanManifests 阶段验证过 domain 有效性。
+// manifests 为空时返回默认的 RouterConfig。
+func RouterConfigFromManifests(base agentcore.Config, manifests []agentcore.AgentManifest) agentcore.Config {
+	if len(manifests) == 0 {
+		return RouterConfig(base)
+	}
+
+	base.Name = "mady-router"
+
+	base.SystemPrompt = buildRouterSystemPrompt(manifests)
+
+	var handoffs []agentcore.HandoffConfig
+	for _, m := range manifests {
+		factory, ok := domainFactoryMap[m.Domain]
+		if !ok {
+			continue
+		}
+		handoffs = append(handoffs, agentcore.HandoffConfig{
+			Name:           m.Name,
+			Description:    m.Description,
+			Mode:           agentcore.HandoffDelegate,
+			AgentConfig:    factory(base),
+			AllowedSources: []string{"*"},
+			FallbackMsg:    fmt.Sprintf("%s 功能暂时不可用，请稍后再试。", m.Description),
+		})
+	}
+
+	base.Handoffs = handoffs
+	return base
+}
+
+// buildRouterSystemPrompt 基于 manifest 列表动态构建 Router 的 System Prompt。
+func buildRouterSystemPrompt(manifests []agentcore.AgentManifest) string {
+	var b strings.Builder
+	b.WriteString("你是 Mady（中观智能体）的调度路由 Agent。\n")
+	b.WriteString("你的职责是分析用户意图，将请求路由到对应的领域专家：\n")
+	b.WriteString("\n")
+
+	for _, m := range manifests {
+		name := m.Name
+		desc := m.Description
+		fmt.Fprintf(&b, "- %s: %s\n", name, desc)
+	}
+
+	b.WriteString("\n")
+	b.WriteString("识别到专业领域问题时，使用 transfer_to_<domain> 工具将任务委派给对应专家。\n")
+	b.WriteString("一般对话和无法明确分类的请求，自己直接回答即可。\n")
+	return b.String()
+}
+
 // appendLifecycle composes lifecycle hooks safely (delegates to agentcore.AppendLifecycle).
 func appendLifecycle(existing, next agentcore.LifecycleHook) agentcore.LifecycleHook {
 	return agentcore.AppendLifecycle(existing, next)
+}
+
+// ──────────────────────────────────────────────
+// ProjectRegistry 感知路由
+// ──────────────────────────────────────────────
+
+// RouterConfigWithRegistry 在 RouterConfig 基础上追加 ProjectRegistry 中的
+// 案件专属 Handoff 目标。每个案件注册为 project-{projectID} 的 Handoff，
+// 使 Router 可以将涉及特定案件的请求委派给案件感知 Agent。
+//
+// 返回的配置包含三部分：
+//  1. 标准领域 Agent（chat/assistant/patent/legal）— 来自 RouterConfig
+//  2. 动态案件 Agent（project-{projectID}）— 来自 ProjectRegistry
+//  3. 可选的 AgentPool — 用于缓存案件 Agent 实例
+func RouterConfigWithRegistry(base agentcore.Config, registry *ProjectRegistry, classifier IntentClassifier) (agentcore.Config, *AgentPool) {
+	cfg := RouterConfigWithClassifier(base, classifier)
+
+	pool := NewAgentPool(base)
+
+	projects := registry.List()
+	for _, rec := range projects {
+		if rec.Status != "active" {
+			continue
+		}
+		if rec.ProjectID == "" {
+			continue
+		}
+		projectID := rec.ProjectID
+		alias := rec.Alias
+		if alias == "" {
+			alias = projectID
+		}
+		description := fmt.Sprintf("案件 %s — 处理 %s 相关的文件、期限和检索", alias, rec.Domain)
+
+		projectCfg := BuildProjectAgent(rec, base)
+
+		cfg.Handoffs = append(cfg.Handoffs, agentcore.HandoffConfig{
+			Name:           "project-" + projectID,
+			Description:    description,
+			Mode:           agentcore.HandoffDelegate,
+			AgentConfig:    projectCfg,
+			AllowedSources: []string{"mady-router"},
+			FallbackMsg:    fmt.Sprintf("案件 %s 的 Agent 暂时不可用，请稍后重试。", alias),
+		})
+	}
+
+	return cfg, pool
+}
+
+// ProjectHandoffName 返回规范化的案件 Handoff 目标名称。
+func ProjectHandoffName(projectID string) string {
+	return "project-" + projectID
 }

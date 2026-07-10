@@ -25,7 +25,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		"4. 执行 — 进行专利检索、分析权利要求、生成文书",
 		"5. 检查 — 验证检索完整性、分析准确性",
 		"",
-		"免责声明：所有涉及专利性判断的输出必须附带：",
+		"涉及专利性判断的输出附以下声明：",
 		"「本分析由 AI 辅助生成，不构成正式法律意见。」",
 		"",
 		"输出格式：完成任务后，用以下 JSON 格式返回结果（便于 Chat Agent 解释给用户）：",
@@ -125,7 +125,7 @@ func buildProjectSystemPrompt(rec ProjectRecord) string {
 	b.WriteString("5. 检查 — 验证检索完整性、分析准确性\n")
 	b.WriteString("\n")
 
-	b.WriteString("免责声明：所有涉及专业判断的输出必须附带：\n")
+	b.WriteString("涉及专业判断的输出附以下声明：\n")
 	b.WriteString("「本分析由 AI 辅助生成，不构成正式专业意见。」\n")
 	b.WriteString("\n")
 

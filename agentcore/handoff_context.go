@@ -1,9 +1,12 @@
 package agentcore
 
 import (
+	"context"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // HandoffContext 是交接时传递给目标 Agent 的结构化上下文，
@@ -29,8 +32,8 @@ var (
 // ExtractHandoffContext 从 Agent 当前状态中抽取交接上下文。
 //
 // recentN 控制携带的最近消息条数，0 表示使用默认值 6。
-// UserIntent 当前使用最后一条用户消息作为摘要（v1 规则占位），
-// 后续可按需升级为 LLM 摘要（接口无需变更）。
+// 当 Agent 配置了 Provider 时，UserIntent 使用 LLM 摘要（v2）；
+// 若 Provider 不可用或 LLM 调用失败，自动回退到最后一条用户消息（v1）。
 func (a *Agent) ExtractHandoffContext(toAgent string, recentN int) HandoffContext {
 	msgs := a.state.Messages()
 	if recentN <= 0 {
@@ -39,15 +42,132 @@ func (a *Agent) ExtractHandoffContext(toAgent string, recentN int) HandoffContex
 
 	fullText := joinMessageText(msgs)
 
+	// 传递 fullText 避免 summarizeUserIntent 重复拼接消息
+	intent := a.summarizeUserIntent(fullText, msgs)
+
 	return HandoffContext{
 		FromAgent:         a.config.Name,
 		ToAgent:           toAgent,
-		UserIntent:        lastUserMessage(msgs),
+		UserIntent:        intent,
 		ExtractedEntities: extractEntities(fullText),
 		RecentMessages:    lastN(msgs, recentN),
 		Timestamp:         time.Now(),
 	}
 }
+
+// --- UserIntent 摘要 (v2: LLM 驱动) ---
+
+const (
+	userIntentSystemPrompt     = "用一句话概括用户的核心意图，不超过20个字。直接输出摘要，不要前缀。"
+	intentCacheTTL             = 5 * time.Minute
+	intentCacheMaxRunes        = 500  // 缓存键截断长度（符文安全）
+	intentInputMaxRunes        = 2000 // LLM 输入截断长度（符文安全）
+	intentCacheCleanupInterval = 10 * time.Minute
+)
+
+type intentCacheEntry struct {
+	intent    string
+	expiresAt time.Time
+}
+
+var (
+	intentCacheMu sync.Mutex
+	intentCache   = make(map[string]intentCacheEntry)
+
+	// intentCacheCleanupStarted 确保清理 goroutine 只启动一次。
+	intentCacheCleanupStarted sync.Once
+)
+
+// startIntentCacheCleanup 启动后台清理 goroutine（仅执行一次）。
+func startIntentCacheCleanup() {
+	intentCacheCleanupStarted.Do(func() {
+		go func() {
+			ticker := time.NewTicker(intentCacheCleanupInterval)
+			defer ticker.Stop()
+			for range ticker.C {
+				intentCacheMu.Lock()
+				now := time.Now()
+				for k, v := range intentCache {
+					if now.After(v.expiresAt) {
+						delete(intentCache, k)
+					}
+				}
+				intentCacheMu.Unlock()
+			}
+		}()
+	})
+}
+
+// summarizeUserIntent 使用 Agent 的 Provider 生成用户意图摘要。
+// 先查缓存，缓存未命中时调用 LLM，再写缓存。
+// provider 不可用或 LLM 失败时回退到 lastUserMessage。
+// fullText 是已拼接的消息文本，复用避免重复 joinMessageText。
+func (a *Agent) summarizeUserIntent(fullText string, msgs []Message) string {
+	// v1 fallback: 最后一条用户消息
+	lastMsg := lastUserMessage(msgs)
+	v1Fallback := func() string { return lastMsg }
+
+	// Provider 不可用时直接回退
+	if a == nil || a.config.ModelConfig.Provider == nil {
+		return v1Fallback()
+	}
+
+	// 确保后台清理 goroutine 已启动
+	startIntentCacheCleanup()
+
+	// 用拼接后的全文做缓存键（符文安全截断以避免缓存膨胀）
+	cacheKey := truncateString(fullText, intentCacheMaxRunes)
+
+	// 查缓存
+	intentCacheMu.Lock()
+	if entry, ok := intentCache[cacheKey]; ok && time.Now().Before(entry.expiresAt) {
+		intentCacheMu.Unlock()
+		return entry.intent
+	}
+	intentCacheMu.Unlock()
+
+	// 调用 LLM（使用 context.Background() 加超时，LLM 摘要不绑定请求生命周期，
+	// 因为即使在请求取消后，填充缓存的摘要值仍对后续请求有用）
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := a.config.ModelConfig.Provider.Complete(ctx, &ProviderRequest{
+		Model: a.config.ModelConfig.Model,
+		Messages: []Message{
+			{Role: RoleSystem, Content: userIntentSystemPrompt},
+			{Role: RoleUser, Content: truncateString(fullText, intentInputMaxRunes)},
+		},
+		MaxTokens: 50,
+	})
+
+	if err != nil || resp == nil || strings.TrimSpace(resp.Content) == "" {
+		return v1Fallback()
+	}
+
+	intent := strings.TrimSpace(resp.Content)
+
+	// 写缓存
+	intentCacheMu.Lock()
+	intentCache[cacheKey] = intentCacheEntry{
+		intent:    intent,
+		expiresAt: time.Now().Add(intentCacheTTL),
+	}
+	intentCacheMu.Unlock()
+
+	return intent
+}
+
+// truncateString 符文安全地截断字符串到指定长度（超出部分替换为 "…"）。
+func truncateString(s string, maxLen int) string {
+	if utf8.RuneCountInString(s) <= maxLen {
+		return s
+	}
+	// 逐符文截断，避免破坏多字节 UTF-8 序列
+	runes := []rune(s)
+	return string(runes[:maxLen]) + "…"
+}
+
+// --- 实体抽取 ---
 
 // extractEntities 使用正则从消息文本中抽取结构化实体。
 func extractEntities(text string) map[string]string {
@@ -71,6 +191,8 @@ func extractEntities(text string) map[string]string {
 	}
 	return entities
 }
+
+// --- 消息工具函数 ---
 
 // lastUserMessage 返回最后一条 RoleUser 消息的内容。
 func lastUserMessage(msgs []Message) string {

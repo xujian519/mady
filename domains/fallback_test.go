@@ -12,8 +12,9 @@ import (
 
 // subAgentErrorProvider 模拟子 Agent 失败场景：
 // - call 0 → Router 收到 handoff 工具调用
-// - call 1 → 子 Agent 调用 LLM 时失败
-// - call 2+ → Router 继续运行，返回兜底内容
+// - call 1 → summarizeUserIntent（ExtractHandoffContext 中的 LLM 摘要）→ 返回空（触 v1 回退）
+// - call 2 → 子 Agent 调用 LLM 时失败
+// - call 3+ → Router 继续运行，返回兜底内容
 type subAgentErrorProvider struct {
 	called    atomic.Int64
 	tool      string
@@ -31,6 +32,9 @@ func (p *subAgentErrorProvider) Complete(_ context.Context, _ *agentcore.Provide
 			},
 		}, nil
 	case 1:
+		// summarizeUserIntent（LLM 摘要提取）→ 返回空内容，触发 v1 回退到 lastUserMessage
+		return &agentcore.ProviderResponse{}, nil
+	case 2:
 		// 模拟子 Agent 的 LLM 调用失败
 		return nil, fmt.Errorf("%s", p.errMsg)
 	default:
@@ -49,6 +53,12 @@ func (p *subAgentErrorProvider) Stream(_ context.Context, _ *agentcore.ProviderR
 
 func TestFallback_DelegateErrorReturnsHandoffResult(t *testing.T) {
 	// 使用 subAgentErrorProvider：Router handoff → 子 Agent 失败 → Router 收到兜底
+	//
+	// 调用序列（含 ExtractHandoffContext 中的 UserIntent LLM 摘要调用）：
+	//   call 0: Router 首次 LLM 调用 → 返回 handoff 工具调用
+	//   call 1: summarizeUserIntent（提取上下文时调用）→ 返回错误（回退 v1）
+	//   call 2: 子 Agent 的 LLM 调用 → 返回错误（模拟失败）
+	//   call 3+: Router 继续 → 返回 finalText
 	provider := &subAgentErrorProvider{
 		tool:      DomainAssistant,
 		errMsg:    "web_search timeout",
@@ -95,7 +105,11 @@ func TestFallback_DelegateErrorReturnsHandoffResult(t *testing.T) {
 		t.Error("output should not contain raw error message")
 	}
 
-	// 兜底输出中 HandoffOutput 应为空（子 Agent 执行失败时 output 为空字符串）
+	// 验证输出不为空
+	if output == "" {
+		t.Error("agent output should not be empty")
+	}
+
 	t.Logf("HandoffEndEvent.Output: %q", handoffOutput)
 	t.Logf("Agent.Run output: %q", output)
 }

@@ -85,10 +85,25 @@ v0 使用关键词分类 + LLMClassifier 回退的「分层级联」策略：
 | `domains/classifier_test.go` | 修改 | 添加 assistant 关键词测试 |
 | `domains/doc.go` | 修改 | 更新架构图 |
 
-## 后续迭代
+## 后续迭代（v0.2 已完成项）
+
+以下为本文档撰写时的计划，已在 v0.3.0 中落地：
+
+1. ✅ **Manifest 注册表**（`agentcore/manifest.go`）— JSON 声明式 Agent 注册，替代纯硬编码
+2. ✅ **UserIntent v2** — `summarizeUserIntent()` LLM 摘要，5 分钟缓存，Provider 不可用时回退 v1
+3. ✅ **案件感知 Agent** — `BuildProjectAgent(rec, base)` + `AgentPool` 生命周期管理
+4. ✅ **ProjectRegistry** 入口集成 — `runServer` / `runTui` 自动初始化
+5. ✅ **动态 Handoff** — `RouterConfigWithRegistry()` 自动注册 `project-{projectID}` 案件目标
+6. ✅ **Disclosure 管线** — 10 节点 Pregel 图 + 异步 API + Agent Tool 封装
+7. ✅ **专利/法律工作流 Tool 封装** — `analyze_patent_novelty` / `compare_legal_cases`
+8. ✅ **错误类型体系** — RetryableError / FatalError / HandoffError / GuardrailError
+9. ✅ **措辞规范** — `docs/tone-style-guide.md`，禁用绝对化表述
+
+## 下季度候选
 
 1. 关键词分类升级为 LLM 分类（如果误判率上升）
-2. 接入真实 patent-agent 图节点（替换 placeholder）
-3. 添加 DomainTrademark 领域
-4. Checkpoint 暂停点：在 assistant 涉及"生成文档草稿"时加人工确认
-5. 评估是否打开 `EnableLLM` 二次验证认知扭曲检测
+2. 向量召回上线（当前仅结构化过滤）
+3. 心理引擎 LLMVerifyDistortions 评估
+4. 添加 DomainTrademark 领域
+5. Checkpoint 暂停点：在 assistant 涉及"生成文档草稿"时加人工确认
+6. Manifest 文件监听热加载（fsnotify）

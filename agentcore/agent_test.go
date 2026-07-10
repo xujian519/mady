@@ -97,8 +97,9 @@ func TestTransfer_InheritsParentToolsAndExtensions(t *testing.T) {
 
 	transferProvider := &transferTestProvider{
 		responses: []string{
-			`I'll transfer to child`,
-			`final answer from child`,
+			`I'll transfer to child`,  // call 0: parent triggers handoff
+			``,                        // call 1: summarizeUserIntent → 空内容触发 v1 回退
+			`final answer from child`, // call 2: child's response
 		},
 	}
 
@@ -141,7 +142,8 @@ func TestTransfer_InheritsParentToolsAndExtensions(t *testing.T) {
 	}
 
 	// Verify the child agent received the parent's tool via inheritance.
-	childReq := transferProvider.requests[1]
+	// Index: 0=parent, 1=summarizeUserIntent, 2=child
+	childReq := transferProvider.requests[2]
 	found := false
 	for _, tool := range childReq.Tools {
 		if tool.Name == "parent_tool" {

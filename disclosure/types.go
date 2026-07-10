@@ -9,7 +9,27 @@
 //   - 报告生成 + 人工复核
 package disclosure
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/xujian519/mady/graph"
+)
+
+// ExtractReportFromState 从 PregelState 中提取分析报告。
+// 供 server 包和工具层复用，避免重复代码。
+func ExtractReportFromState(state graph.PregelState) *AnalysisReport {
+	if report, ok := state[StateKeyReport].(*AnalysisReport); ok {
+		return report
+	}
+	if raw, ok := state[StateKeyReport].(string); ok && raw != "" {
+		var report AnalysisReport
+		if err := json.Unmarshal([]byte(raw), &report); err == nil {
+			return &report
+		}
+	}
+	return nil
+}
 
 // DocSection 枚举中文专利交底书的 9 个标准段落。
 type DocSection string

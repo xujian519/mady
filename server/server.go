@@ -28,9 +28,10 @@ type Server struct {
 	cors     CORSConfig
 	srv      *http.Server
 
-	agentPool sync.Map // threadID -> *agentcore.Agent; cached agents for reuse
-	poolMu    sync.Mutex
-	poolLimit int
+	agentPool  sync.Map // threadID -> *agentcore.Agent; cached agents for reuse
+	poolMu     sync.Mutex
+	poolLimit  int
+	disclosure *disclosureTaskManager // Disclosure 异步任务管理器
 
 	maxRequestBodyBytes int64
 }
@@ -164,6 +165,9 @@ func (s *Server) Close() {
 		s.agentPool.Delete(key)
 		return true
 	})
+	if s.disclosure != nil {
+		s.disclosure.close()
+	}
 }
 
 // Handler returns an http.Handler wired with all routes.
@@ -176,6 +180,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/skills/events", s.handleSkillEvents)
 	mux.HandleFunc("GET /api/skills/status", s.handleSkillStatus)
 	mux.HandleFunc("POST /api/skills/reload", s.handleReloadSkills)
+	mux.HandleFunc("POST /v1/disclosure/analyze", s.handleDisclosureAnalyze)
+	mux.HandleFunc("GET /v1/disclosure/analyze/{task_id}", s.handleDisclosureStatus)
+	mux.HandleFunc("GET /v1/disclosure/analyze/{task_id}/stream", s.handleDisclosureStream)
 	mux.HandleFunc("POST /api/threads", s.handleCreateThread)
 	mux.HandleFunc("GET /api/threads", s.handleListThreads)
 	mux.HandleFunc("GET /api/threads/{key}", s.handleGetThread)
