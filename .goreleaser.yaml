@@ -1,0 +1,65 @@
+version: 2
+
+project_name: mady
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cli-chat
+    main: ./example/cli-chat/main.go
+    binary: cli-chat
+    ldflags:
+      - -s -w -X main.commitHash={{.ShortCommit}} -X main.buildTime={{.Timestamp}}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+
+  - id: wiki-import
+    main: ./example/wiki-import/main.go
+    binary: wiki-import
+    ldflags:
+      - -s -w -X main.commitHash={{.ShortCommit}} -X main.buildTime={{.Timestamp}}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  github:
+    owner: xujian519
+    name: mady
+  draft: false

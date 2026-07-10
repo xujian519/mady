@@ -1,0 +1,85 @@
+name: Bug Report
+description: 报告 bug 以帮助我们改进
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你花时间报告 bug！请填写以下信息以帮助定位问题。
+
+  - type: input
+    id: go-version
+    attributes:
+      label: Go 版本
+      description: 运行 `go version` 查看
+      placeholder: "go version go1.25.0 darwin/arm64"
+    validations:
+      required: true
+
+  - type: input
+    id: mady-version
+    attributes:
+      label: Mady 版本
+      description: 你使用的 Mady 版本或 commit hash
+      placeholder: "v0.1.0 或 commit abc1234"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug 描述
+      description: 清晰简洁地描述 bug 是什么
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 复现此 bug 的详细步骤
+      placeholder: |
+        1. 克隆仓库
+        2. 运行 `go run ./example/cli-chat/`
+        3. 输入 '...'
+        4. 看到错误
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 你期望发生什么
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 实际发生了什么（错误信息、日志等）
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 附加信息
+      description: 任何其他有助于诊断的信息（环境变量、配置等）
+    validations:
+      required: false

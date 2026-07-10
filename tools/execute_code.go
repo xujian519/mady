@@ -1,0 +1,263 @@
+package tools
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/xujian519/mady/agentcore"
+)
+
+var ansiEscapeRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+var blockedEnvPrefixes = []string{
+	"KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "AUTH",
+}
+
+var safeEnvPrefixes = []string{
+	"PATH", "HOME", "USER", "LANG", "LC_", "TERM", "TMPDIR", "TMP", "TEMP",
+	"SHELL", "LOGNAME", "XDG_", "PYTHON", "VIRTUAL_ENV", "CONDA",
+}
+
+func scrubEnv() []string {
+	var cleaned []string
+outer:
+	for _, e := range os.Environ() {
+		name, _, _ := strings.Cut(e, "=")
+		upper := strings.ToUpper(name)
+
+		for _, block := range blockedEnvPrefixes {
+			if strings.Contains(upper, block) {
+				continue outer
+			}
+		}
+
+		safe := false
+		for _, prefix := range safeEnvPrefixes {
+			if strings.HasPrefix(upper, prefix) {
+				safe = true
+				break
+			}
+		}
+		if safe {
+			cleaned = append(cleaned, e)
+		}
+	}
+	return cleaned
+}
+
+type ExecuteCodeToolConfig struct {
+	// PythonCommand is the python interpreter path. Default: "python3".
+	PythonCommand string
+	// CommandTimeout is the max execution time per call. Default: 120s.
+	CommandTimeout time.Duration
+	// MaxOutputBytes is the max stdout bytes. Default: 50KB.
+	MaxOutputBytes int64
+
+	// ToolResolver, when set, enables Programmatic Tool Calling (PTC): the
+	// executed script can call back into other agent tools via RPC without
+	// their responses ever entering the LLM's context -- only the script's
+	// own stdout does. Nil (default) disables PTC entirely; existing callers
+	// that don't set this get identical behavior to before PTC existed.
+	//
+	// The invoker is expected to run the tool through the same hook
+	// pipeline as normal model-issued tool calls (e.g.
+	// agentcore.Agent.InvokeTool), so audit logging, guardrails, etc. still
+	// apply to PTC calls.
+	ToolInvoker func(ctx context.Context, name string, args json.RawMessage) (string, error)
+
+	// AllowedTools restricts which tool names a script may call via PTC.
+	// Ignored if ToolInvoker is nil. Empty means a conservative read-only
+	// default set (see defaultPTCAllowedTools).
+	AllowedTools []string
+
+	// MaxToolCalls caps the number of PTC calls per script execution.
+	// Default: 50. Ignored if ToolInvoker is nil.
+	MaxToolCalls int
+}
+
+func resolvePython(pythonCommand string) (string, error) {
+	if pythonCommand != "" {
+		if _, err := exec.LookPath(pythonCommand); err == nil {
+			return pythonCommand, nil
+		}
+	}
+	for _, name := range []string{"python3", "python"} {
+		if _, err := exec.LookPath(name); err == nil {
+			return name, nil
+		}
+	}
+	return "", fmt.Errorf("no Python interpreter found (tried python3, python)")
+}
+
+func NewExecuteCodeTool(cfg *ExecuteCodeToolConfig) *agentcore.Tool {
+	if cfg == nil {
+		cfg = &ExecuteCodeToolConfig{}
+	}
+	if cfg.CommandTimeout <= 0 {
+		cfg.CommandTimeout = 120 * time.Second
+	}
+	if cfg.MaxOutputBytes <= 0 {
+		cfg.MaxOutputBytes = 50 * 1024
+	}
+
+	return &agentcore.Tool{
+		Name: "execute_code",
+		Description: "在子进程中执行 Python 代码并返回输出。" +
+			"代码运行在干净环境中（API 密钥和机密信息已被清除）。" +
+			"适用于数据处理、分析、计算、内容生成，" +
+			"或任何受益于编程逻辑的任务。" +
+			fmt.Sprintf("超时：%s。输出限制：%s。", cfg.CommandTimeout, FormatSize(cfg.MaxOutputBytes)) +
+			ptcDescriptionSuffix(cfg),
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"code": map[string]any{
+					"type":        "string",
+					"description": "要执行的 Python 代码。使用 print() 输出结果到标准输出。",
+				},
+				"timeout": map[string]any{
+					"type":        "integer",
+					"description": fmt.Sprintf("超时时间（秒），默认：%d，最大：300", int(cfg.CommandTimeout.Seconds())),
+				},
+			},
+			"required": []any{"code"},
+		},
+		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+			var input struct {
+				Code    string `json:"code"`
+				Timeout int    `json:"timeout"`
+			}
+			if err := json.Unmarshal(args, &input); err != nil {
+				return nil, fmt.Errorf("invalid arguments: %w", err)
+			}
+			if input.Code == "" {
+				return nil, fmt.Errorf("code is required")
+			}
+
+			python, err := resolvePython(cfg.PythonCommand)
+			if err != nil {
+				return nil, err
+			}
+
+			timeout := cfg.CommandTimeout
+			if input.Timeout > 0 {
+				timeout = time.Duration(input.Timeout) * time.Second
+				if timeout > 300*time.Second {
+					timeout = 300 * time.Second
+				}
+			}
+
+			execCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+
+			tmpDir, err := os.MkdirTemp("", "mady-exec-*")
+			if err != nil {
+				return nil, fmt.Errorf("failed to create temp dir: %w", err)
+			}
+			defer os.RemoveAll(tmpDir)
+
+			scriptPath := filepath.Join(tmpDir, "script.py")
+			if err := os.WriteFile(scriptPath, []byte(input.Code), 0644); err != nil {
+				return nil, fmt.Errorf("failed to write script: %w", err)
+			}
+
+			// Programmatic Tool Calling (PTC): start an RPC server the script can
+			// reach via the mady_tools.py stub, so it can call a whitelisted
+			// subset of agent tools without those responses entering the LLM's
+			// context.
+			var ptc *ptcServer
+			if cfg.ToolInvoker != nil {
+				var ptcErr error
+				ptc, ptcErr = newPTCServer(cfg.AllowedTools, cfg.ToolInvoker, cfg.MaxToolCalls)
+				if ptcErr != nil {
+					return nil, ptcErr
+				}
+				defer ptc.Close()
+				go ptc.Serve(execCtx)
+
+				stubPath := filepath.Join(tmpDir, "mady_tools.py")
+				stub := generatePTCStub(ptc.allowedToolNames())
+				if err := os.WriteFile(stubPath, []byte(stub), 0644); err != nil {
+					return nil, fmt.Errorf("failed to write PTC stub: %w", err)
+				}
+			}
+
+			cmd := exec.CommandContext(execCtx, python, scriptPath)
+			cmd.Dir = tmpDir
+			applySubprocessIsolation(cmd) // prevent /dev/tty access
+
+			cleanEnv := scrubEnv()
+			cleanEnv = append(cleanEnv,
+				"PYTHONDONTWRITEBYTECODE=1",
+				"PYTHONIOENCODING=utf-8",
+				"PYTHONUNBUFFERED=1",
+			)
+			if ptc != nil {
+				cleanEnv = append(cleanEnv,
+					fmt.Sprintf("MADY_TOOLS_PORT=%d", ptc.port),
+					"MADY_TOOLS_TOKEN="+ptc.token,
+				)
+			}
+			cmd.Env = cleanEnv
+
+			var stdout, stderr bytes.Buffer
+			cmd.Stdin = nil // prevent subprocess from consuming TUI stdin
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+
+			start := time.Now()
+			runErr := cmd.Run()
+			duration := time.Since(start)
+
+			result := map[string]any{
+				"duration_seconds": duration.Seconds(),
+				"language":         "python",
+				"python":           python,
+			}
+
+			if runErr != nil {
+				if execCtx.Err() != nil {
+					result["status"] = "timeout"
+					result["error"] = fmt.Sprintf("execution timed out after %s", timeout)
+				} else {
+					result["status"] = "error"
+					result["error"] = runErr.Error()
+				}
+			} else {
+				result["status"] = "success"
+			}
+
+			stdoutStr := stdout.String()
+			stderrStr := stderr.String()
+
+			// Strip ANSI escape sequences to prevent terminal corruption.
+			stdoutStr = ansiEscapeRe.ReplaceAllString(stdoutStr, "")
+			stderrStr = ansiEscapeRe.ReplaceAllString(stderrStr, "")
+
+			if int64(len(stdoutStr)) > cfg.MaxOutputBytes {
+				keep := int(cfg.MaxOutputBytes) / 2
+				stdoutStr = stdoutStr[:keep] +
+					fmt.Sprintf("\n\n... [output truncated at %d bytes] ...\n\n", cfg.MaxOutputBytes) +
+					stdoutStr[len(stdoutStr)-keep:]
+			}
+
+			result["output"] = stdoutStr
+			if stderrStr != "" {
+				if int64(len(stderrStr)) > 10*1024 {
+					stderrStr = stderrStr[:10*1024] + fmt.Sprintf("\n... [stderr truncated at 10KB] ...")
+				}
+				result["stderr"] = stderrStr
+			}
+
+			return result, nil
+		},
+	}
+}

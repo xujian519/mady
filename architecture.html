@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mady 中观智能体 — 架构图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  canvas { display: block; }
+  .legend {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(22,27,34,0.95);
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: #8b949e;
+    font-size: 12px;
+  }
+  .legend span { display: block; margin: 4px 0; }
+  .legend .solid { color: #58a6ff; }
+  .legend .dashed { color: #f0883e; }
+</style>
+</head>
+<body>
+<canvas id="arch"></canvas>
+<script>
+const canvas = document.getElementById('arch');
+const ctx = canvas.getContext('2d');
+
+const W = Math.min(window.innerWidth, 1600);
+const H = Math.min(window.innerHeight, 1100);
+canvas.width = W;
+canvas.height = H;
+
+// Scale factor for retina
+const dpr = window.devicePixelRatio || 1;
+canvas.width = W * dpr;
+canvas.height = H * dpr;
+canvas.style.width = W + 'px';
+canvas.style.height = H + 'px';
+ctx.scale(dpr, dpr);
+
+// Colors - GitHub dark theme inspired
+const C = {
+  bg:       '#0d1117',
+  surface:  '#161b22',
+  border:   '#30363d',
+  borderH:  '#58a6ff',
+  text:     '#c9d1d9',
+  textDim:  '#8b949e',
+  textBold: '#f0f6fc',
+  blue:     '#58a6ff',
+  blueBg:   'rgba(56,139,253,0.12)',
+  green:    '#3fb950',
+  greenBg:  'rgba(63,185,80,0.12)',
+  orange:   '#d2991d',
+  orangeBg: 'rgba(210,153,29,0.12)',
+  purple:   '#a371f7',
+  purpleBg: 'rgba(163,113,247,0.12)',
+  red:      '#f85149',
+  redBg:    'rgba(248,81,73,0.12)',
+  cyan:     '#39d2c0',
+  cyanBg:   'rgba(57,210,192,0.12)',
+  pink:     '#f778ba',
+  pinkBg:   'rgba(247,120,186,0.12)',
+};
+
+// Helper functions
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawBox(x, y, w, h, color, title, subtitle, fontSize) {
+  ctx.fillStyle = C.surface;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  roundRect(x, y, w, h, 6);
+  ctx.fill();
+  ctx.stroke();
+
+  // Title
+  ctx.fillStyle = C.textBold;
+  ctx.font = `bold ${fontSize || 13}px -apple-system, BlinkMacSystemFont, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(title, x + w/2, y + 22);
+
+  // Subtitle
+  if (subtitle) {
+    ctx.fillStyle = C.textDim;
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText(subtitle, x + w/2, y + 38);
+  }
+}
+
+function drawSmallBox(x, y, w, h, color, text) {
+  ctx.fillStyle = C.bg;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  roundRect(x, y, w, h, 4);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = C.text;
+  ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + w/2, y + h/2);
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawArrow(x1, y1, x2, y2, color, dashed) {
+  ctx.strokeStyle = color || C.border;
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash(dashed ? [4, 3] : []);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Arrowhead
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const len = 6;
+  ctx.fillStyle = color || C.border;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(
+    x2 - len * Math.cos(angle - 0.5),
+    y2 - len * Math.sin(angle - 0.5)
+  );
+  ctx.lineTo(
+    x2 - len * Math.cos(angle + 0.5),
+    y2 - len * Math.sin(angle + 0.5)
+  );
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Clear
+ctx.fillStyle = C.bg;
+ctx.fillRect(0, 0, W, H);
+
+// ---- TITLE ----
+ctx.fillStyle = C.textBold;
+ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'center';
+ctx.fillText('Mady（中观智能体）架构总览', W/2, 38);
+
+ctx.fillStyle = C.textDim;
+ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.fillText('github.com/xujian519/mady  ·  Go 1.25  ·  312 files  ·  ~92K lines', W/2, 60);
+
+// ---- LAYOUT DIMENSIONS ----
+const M = 20; // margin
+const G = 14; // gap
+
+// External layer
+const extY = 80, extH = 110, extW = 130;
+// Core layer
+const coreY = 240, coreH = 240, coreW = 460;
+// Provider & Tool layers
+const provY = 260, provH = 80, provW = 120;
+const toolY = 370, toolH = 80, toolW = 120;
+// Infrastructure
+const infraY = 530, infraH = 100, infraW = 130;
+// TUI
+const tuiX = 60, tuiY = 290, tuiW = 110, tuiH = 200;
+// Data flow
+const dataY = 530;
+
+// ---- EXTERNAL LAYER ----
+const extStartX = (W - (5 * extW + 4 * G)) / 2;
+const extLabels = [
+  { t: 'A2A', s: 'Agent-to-Agent', c: C.cyan },
+  { t: 'A2UI', s: 'Agent-to-UI', c: C.pink },
+  { t: 'Server', s: 'HTTP/SSE API', c: C.green },
+  { t: 'AGUI', s: 'Agent GUI Events', c: C.purple },
+  { t: 'MCP', s: 'Model Context Protocol', c: C.orange },
+];
+
+ctx.fillStyle = C.textDim;
+ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('外部接口层', extStartX, extY - 8);
+
+extLabels.forEach((l, i) => {
+  const x = extStartX + i * (extW + G);
+  drawBox(x, extY, extW, extH, l.c, l.t, l.s, 13);
+});
+
+// ACP below A2A
+drawBox(extStartX + 0 * (extW + G), extY + extH + 10, extW, 50, C.purple, 'ACP', 'Agent Comm Protocol', 12);
+
+// ---- CORE LAYER ----
+const coreX = (W - coreW) / 2;
+
+ctx.fillStyle = C.blue;
+ctx.strokeStyle = C.blue;
+ctx.lineWidth = 2;
+ctx.setLineDash([]);
+roundRect(coreX - 6, coreY - 6, coreW + 12, coreH + 12, 10);
+ctx.stroke();
+
+ctx.fillStyle = C.textDim;
+ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('核心引擎层  agentcore', coreX, coreY - 12);
+
+drawBox(coreX, coreY, coreW, coreH, C.blue, 'agentcore', 'Agent · Config · Provider · Tool · EventBus · Lifecycle · State · Stream · ContextEngine', 13);
+
+// Core sub-components inside
+const subY = coreY + 55, subH = 28, subGap = 8;
+const subs = [
+  { t: 'Agent', c: C.blue, w: 55 },
+  { t: 'Config', c: C.blue, w: 60 },
+  { t: 'Provider', c: C.blue, w: 68 },
+  { t: 'Tool', c: C.blue, w: 42 },
+  { t: 'EventBus', c: C.blue, w: 70 },
+  { t: 'Lifecycle', c: C.blue, w: 68 },
+  { t: 'State', c: C.blue, w: 48 },
+  { t: 'Stream', c: C.blue, w: 56 },
+];
+
+const totalSubWidth = subs.reduce((s, sb) => s + sb.w, 0) + (subs.length - 1) * subGap;
+let subX = coreX + (coreW - totalSubWidth) / 2;
+
+// First row
+subs.forEach(s => {
+  drawSmallBox(subX, subY, s.w, subH, s.c, s.t);
+  subX += s.w + subGap;
+});
+
+// Second row
+const subs2 = [
+  { t: 'ContextEngine', c: C.blue, w: 120 },
+  { t: 'Executor', c: C.blue, w: 66 },
+  { t: 'Extension', c: C.blue, w: 74 },
+  { t: 'Handoff', c: C.blue, w: 66 },
+  { t: 'Runnable', c: C.textDim, w: 70 },
+];
+const totalSub2 = subs2.reduce((s, sb) => s + sb.w, 0) + (subs2.length - 1) * subGap;
+subX = coreX + (coreW - totalSub2) / 2;
+subs2.forEach(s => {
+  drawSmallBox(subX, subY + subH + 6, s.w, subH, s.c, s.t + (s.c === C.textDim ? ' (已删除)' : ''));
+  subX += s.w + subGap;
+});
+
+// Third row - key interfaces
+const ifaces = ['Store', 'Tracer', 'CheckpointSaver', 'Middleware', 'SkillProvider'];
+const totalIfW = ifaces.reduce((s, t) => s + t.length * 7.5 + 16, 0) + (ifaces.length - 1) * subGap;
+subX = coreX + (coreW - totalIfW) / 2;
+ifaces.forEach(t => {
+  const tw = t.length * 7.5 + 16;
+  drawSmallBox(subX, subY + 2*(subH + 6), tw, subH - 4, C.textDim, t);
+  subX += tw + subGap;
+});
+
+// ---- PROVIDER LAYER ----
+const provCount = 7;
+const provTotalW = provCount * provW + (provCount - 1) * 8;
+const provStartX = coreX + coreW + 30;
+
+ctx.fillStyle = C.textDim;
+ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('Provider 层', provStartX, provY - 8);
+
+const providers = ['chatcompat', 'anthropic', 'gemini', 'bedrock', 'vertex', 'copilot', 'mistral'];
+providers.forEach((p, i) => {
+  const py = provY + Math.floor(i / 4) * (provH + 10);
+  const px = provStartX + (i % 4) * (provW + 8);
+  drawBox(px, py, provW - 8, provH, C.green, p, '', 11);
+});
+
+// Provider → Core arrows
+drawArrow(provStartX, provY + provH/2, coreX + coreW, coreY + 60, C.green, false);
+
+// ---- TOOLS LAYER ----
+const toolCount = 8;
+const toolTotalW = toolCount * toolW + (toolCount - 1) * 6;
+const toolStartX = coreX + coreW + 30;
+
+ctx.fillStyle = C.textDim;
+ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('内置工具层  tools/', toolStartX, toolY - 8);
+
+const tools = ['browser', 'bash', 'read/edit', 'grep/find', 'web_search', 'web_fetch', 'vision', 'execute_code'];
+tools.forEach((t, i) => {
+  const ty = toolY + Math.floor(i / 4) * (toolH + 10);
+  const tx = toolStartX + (i % 4) * (toolW + 6);
+  drawBox(tx, ty, toolW - 6, toolH, C.orange, t, '', 11);
+});
+
+// Tools → Core arrows
+drawArrow(toolStartX, toolY + toolH/2, coreX + coreW, coreY + coreH - 40, C.orange, false);
+
+// ---- INFRASTRUCTURE LAYER ----
+const infraLabels = [
+  { t: 'graph/', s: 'DAG + Pregel', c: C.purple },
+  { t: 'session/', s: 'JSONL Tree', c: C.cyan },
+  { t: 'workflow/', s: 'Pipeline/Router', c: C.purple },
+  { t: 'skill/', s: 'SKILL.md', c: C.pink },
+  { t: 'prompt/', s: 'Templates', c: C.cyan },
+  { t: 'store/', s: 'SnapshotStore', c: C.cyan },
+  { t: 'filequeue/', s: 'Mutex Queue', c: C.textDim },
+  { t: 'fuzzy/', s: 'Fuzzy Match', c: C.textDim },
+];
+
+const infraTotalW = infraLabels.length * infraW + (infraLabels.length - 1) * 8;
+const infraStartX = (W - infraTotalW) / 2;
+
+ctx.fillStyle = C.textDim;
+ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('基础设施层', infraStartX, infraY - 8);
+
+infraLabels.forEach((l, i) => {
+  const x = infraStartX + i * (infraW + 8);
+  drawBox(x, infraY, infraW, infraH, l.c, l.t, l.s, 12);
+});
+
+// Core → Infra arrows
+infraLabels.forEach((_, i) => {
+  const x = infraStartX + i * (infraW + 8) + infraW/2;
+  drawArrow(coreX + coreW/2 + (i - 3.5) * 55, coreY + coreH, x, infraY, C.border, true);
+});
+
+// ---- TUI ----
+ctx.fillStyle = C.textDim;
+ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('终端 UI', tuiX, tuiY - 8);
+
+drawBox(tuiX, tuiY, tuiW, tuiH, C.pink, 'tui/', '7-layer Elm Style', 12);
+
+// TUI layers inside
+const tuiLayers = ['stdio', 'chat', 'component', 'core', 'terminal', 'theme', 'agentadapter'];
+tuiLayers.forEach((l, i) => {
+  drawSmallBox(tuiX + 8, tuiY + 55 + i * 22, tuiW - 16, 18, C.pink, l);
+});
+
+// TUI → Core
+drawArrow(tuiX + tuiW, tuiY + tuiH/2, coreX, coreY + 60, C.pink, true);
+
+// ---- LEGEND ----
+const legX = W - 260, legY = extY;
+ctx.fillStyle = C.surface;
+ctx.strokeStyle = C.border;
+ctx.lineWidth = 1;
+roundRect(legX - 10, legY - 5, 250, 140, 6);
+ctx.fill();
+ctx.stroke();
+
+ctx.fillStyle = C.textBold;
+ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'left';
+ctx.fillText('图例', legX + 5, legY + 15);
+
+const legendItems = [
+  { c: C.blue, t: '实线: 直接依赖/调用' },
+  { c: C.orange, t: '虚线: 数据流/事件流' },
+  { c: C.green, t: 'Provider 实现 agentcore.Provider' },
+  { c: C.purple, t: 'Extension 扩展点 (SOP 接口探测)' },
+  { c: C.cyan, t: '存储/持久化组件' },
+  { c: C.pink, t: 'UI / 用户交互' },
+];
+
+legendItems.forEach((item, i) => {
+  const y = legY + 40 + i * 18;
+  ctx.fillStyle = item.c;
+  ctx.fillRect(legX + 5, y - 3, 12, 3);
+  ctx.fillStyle = C.textDim;
+  ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.fillText(item.t, legX + 24, y + 2);
+});
+
+// ---- BOTTOM NOTE ----
+ctx.fillStyle = C.textDim;
+ctx.font = 'italic 11px -apple-system, BlinkMacSystemFont, sans-serif';
+ctx.textAlign = 'center';
+ctx.fillText('"离二边，行中道" — 不落有无，不执生灭，恰到好处的抽象，克制的工程实践', W/2, H - 15);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+# --- Binaries & executables ---
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+cli-chat
+wiki-import
+build/
+dist/
+
+# --- Go specific ---
+*.test
+*.out
+*.test.exe
+*.test-cover
+vendor/
+*.coverprofile
+
+# --- IDE & editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.orig
+*.bak
+.workbuddy
+
+# --- OS ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- Environment / Config ---
+.env
+.env.local
+.env.*.local
+
+# --- Runtime data ---
+*.session-memory
+*.session-memory-shm
+*.session-memory-wal
+*.session-memory.db
+
+# --- Coverage output ---
+coverage.out
+coverage.html
+coverage.xml
+
+# --- Temp files ---
+/tmp/
+*.log
+
+# --- CI / tool local settings ---
+.claude/settings.local.json

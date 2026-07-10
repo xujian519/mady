@@ -1,0 +1,363 @@
+openapi: "3.0.3"
+info:
+  title: Mady API
+  description: |
+    Mady（中观智能体）是一个面向专利/法律/IP 专业人士的智能 Agent 平台。
+
+    ## 认证
+    技能管理端点（`/api/skills/*`）支持可选的 Bearer Token 认证。
+    配置 `SkillAPIAuthToken` 后，需要在请求头中携带 `Authorization: Bearer <token>`。
+
+    ## 流式响应
+    `/api/chat` 支持两种模式：
+    - `stream: false`（默认）— 返回 JSON
+    - `stream: true` — 返回 SSE（Server-Sent Events）流
+  version: "0.1.0"
+  contact:
+    name: Mady Authors
+    url: https://github.com/xujian519/mady
+
+servers:
+  - url: http://localhost:8080
+    description: 本地开发服务器
+
+tags:
+  - name: Chat
+    description: 聊天与 Agent 交互
+  - name: Threads
+    description: 会话线程管理
+  - name: Skills
+    description: 技能管理
+  - name: States
+    description: 状态快照
+  - name: AG-UI
+    description: Agent GUI 事件流
+
+paths:
+  # ---- Chat ----
+  /api/chat:
+    post:
+      tags: [Chat]
+      summary: 发送消息并获取 Agent 响应
+      description: |
+        主聊天端点。支持同步（JSON）和流式（SSE）两种模式。
+        可携带 `thread_id` 实现多轮对话上下文保持。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  description: 用户消息内容
+                thread_id:
+                  type: string
+                  description: 会话线程 ID（可选，用于保持上下文）
+                stream:
+                  type: boolean
+                  default: false
+                  description: 是否使用 SSE 流式返回
+                model:
+                  type: string
+                  description: 覆盖默认模型
+                response_format:
+                  type: object
+                  description: 结构化输出格式配置
+                thinking:
+                  type: object
+                  description: 推理过程配置
+                    properties:
+                      display:
+                        type: string
+                        enum: [collapsed, expanded, summarized, omitted]
+                      effort:
+                        type: string
+                        enum: [none, low, medium, high]
+                      budget:
+                        type: integer
+                        description: 推理 Token 预算
+                skills:
+                  type: array
+                  items:
+                    type: string
+                  description: 启用的技能列表
+      responses:
+        "200":
+          description: 同步响应（stream=false 时）
+          content:
+            application/json:
+              schema:
+                type: object
+        "200 (SSE)":
+          description: 流式响应（stream=true 时）
+
+  # ---- Skills ----
+  /api/skills:
+    get:
+      tags: [Skills]
+      summary: 列出已注册技能
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 技能列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Skill"
+
+  /api/skills/diagnostics:
+    get:
+      tags: [Skills]
+      summary: 获取技能加载诊断信息
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 诊断报告
+
+  /api/skills/events:
+    get:
+      tags: [Skills]
+      summary: SSE 流式获取技能事件
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: SSE 事件流
+
+  /api/skills/status:
+    get:
+      tags: [Skills]
+      summary: 获取技能注册表状态
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 技能状态信息
+
+  /api/skills/reload:
+    post:
+      tags: [Skills]
+      summary: 热重载技能（从磁盘重新扫描 SKILL.md）
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 重载完成
+        "401":
+          description: 未认证
+
+  # ---- Threads ----
+  /api/threads:
+    post:
+      tags: [Threads]
+      summary: 创建新线程
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: 线程已创建
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thread"
+    get:
+      tags: [Threads]
+      summary: 列出所有线程
+      responses:
+        "200":
+          description: 线程列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Thread"
+
+  /api/threads/{key}:
+    get:
+      tags: [Threads]
+      summary: 获取线程详情
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 线程详情（含消息记录）
+    delete:
+      tags: [Threads]
+      summary: 删除线程
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: 已删除
+
+  /api/threads/{key}/branch:
+    post:
+      tags: [Threads]
+      summary: 从当前叶子或指定节点创建分支
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: 新分支线程
+
+  /api/threads/{key}/config:
+    get:
+      tags: [Threads]
+      summary: 获取线程级调用配置
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 线程配置
+    put:
+      tags: [Threads]
+      summary: 设置或清除线程级调用配置
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 配置已更新
+
+  /api/threads/{key}/thinking:
+    get:
+      tags: [Threads]
+      summary: 获取线程级推理配置
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 推理配置
+    put:
+      tags: [Threads]
+      summary: 设置或清除线程级推理配置
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 配置已更新
+
+  # ---- States ----
+  /api/states:
+    get:
+      tags: [States]
+      summary: 列出持久化状态键
+      responses:
+        "200":
+          description: 状态键列表
+
+  /api/states/{key}:
+    get:
+      tags: [States]
+      summary: 获取状态快照
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 状态快照数据
+    delete:
+      tags: [States]
+      summary: 删除状态快照
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: 已删除
+
+  # ---- AG-UI ----
+  /agui/{path}:
+    get:
+      tags: [AG-UI]
+      summary: Agent GUI 事件流处理器
+      description: 将 Agent 执行过程通过 SSE 流式传输到 Web UI。
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: SSE 事件流
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: 用于技能管理 API 的可选认证
+
+  schemas:
+    Skill:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 技能名称
+        description:
+          type: string
+          description: 技能描述
+        domain:
+          type: string
+          description: 所属领域
+
+    Thread:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 线程唯一标识
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        message_count:
+          type: integer

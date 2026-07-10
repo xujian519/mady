@@ -1,0 +1,64 @@
+name: Feature Request
+description: 提出新功能或改进建议
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你提出功能建议！请描述你的想法。
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 动机
+      description: 这个功能解决什么问题？描述你的使用场景
+      placeholder: |
+        作为 [角色]，我想要 [功能]，以便 [目标]。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提议方案
+      description: 描述你期望的解决方案
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案
+      description: 你考虑过的其他方案或变通方法
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      description: 这个功能涉及哪个模块？
+      multiple: true
+      options:
+        - agentcore (核心引擎)
+        - tools (内置工具)
+        - tui (终端 UI)
+        - server (HTTP 服务)
+        - a2a / a2ui / acp / agui (协议)
+        - domains (领域 Agent)
+        - knowledge / retrieval (知识检索)
+        - psychological (心理引擎)
+        - workflow / graph (工作流/图)
+        - documentation (文档)
+        - CI/CD
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 附加信息
+      description: 任何其他相关上下文
+    validations:
+      required: false

@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  GO_VERSION: "1.25"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: golangci-lint (root)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64
+          working-directory: .
+
+      - name: golangci-lint (tools)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64
+          working-directory: tools
+
+  mod-tidy:
+    runs-on: ubuntu-latest
+    name: mod-tidy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: go mod tidy (root)
+        run: |
+          go mod tidy -diff
+          if [ $? -ne 0 ]; then
+            echo "::error::go.mod is not tidy. Run 'go mod tidy' locally."
+            exit 1
+          fi
+
+      - name: go mod tidy (tools)
+        working-directory: tools
+        run: |
+          go mod tidy -diff
+          if [ $? -ne 0 ]; then
+            echo "::error::tools/go.mod is not tidy. Run 'go mod tidy' in tools/ locally."
+            exit 1
+          fi
+
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        module:
+          - path: "."
+            name: root
+          - path: "tools"
+            name: tools
+    name: test (${{ matrix.module.name }}, ${{ matrix.os }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+
+      - name: go vet
+        working-directory: ${{ matrix.module.path }}
+        run: go vet ./...
+
+      - name: go build
+        working-directory: ${{ matrix.module.path }}
+        run: go build ./...
+
+      - name: go test
+        working-directory: ${{ matrix.module.path }}
+        run: go test -count=1 -coverprofile=coverage.out ./...
+
+      - name: go test (race)
+        working-directory: ${{ matrix.module.path }}
+        run: go test -race -count=1 -short ./...
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.module.name == 'root'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.out
+          flags: unittests
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
