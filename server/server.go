@@ -197,8 +197,9 @@ func (s *Server) aguiHandler() http.Handler {
 }
 
 func (s *Server) ListenAndServe(addr string) error {
+	handler := s.Handler()
 	s.mu.Lock()
-	s.srv = &http.Server{Addr: addr, Handler: s.Handler()}
+	s.srv = &http.Server{Addr: addr, Handler: handler}
 	s.mu.Unlock()
 	return s.srv.ListenAndServe()
 }
