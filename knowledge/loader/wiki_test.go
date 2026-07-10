@@ -170,7 +170,10 @@ func TestCardIndex_LoadAndLookup(t *testing.T) {
 }
 
 func TestCardIndex_QualityCards(t *testing.T) {
-	idx, _ := LoadCardIndex(testWikiPath)
+	idx, err := LoadCardIndex(testWikiPath)
+	if err != nil {
+		t.Fatalf("LoadCardIndex: %v", err)
+	}
 	high := idx.QualityCards(0.9)
 	if len(high) != 1 {
 		t.Errorf("QualityCards(0.9) = %d, want 1", len(high))

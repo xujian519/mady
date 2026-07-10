@@ -22,13 +22,13 @@ jobs:
       - name: golangci-lint (root)
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64
+          version: v2.12.2
           working-directory: .
 
       - name: golangci-lint (tools)
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64
+          version: v2.12.2
           working-directory: tools
 
   mod-tidy:

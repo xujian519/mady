@@ -84,7 +84,7 @@ clean:
 # --- Tools Installation ---
 install-lint:
 	@echo "Installing golangci-lint..."
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v1.64.8
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v2.12.2
 
 install-hooks:
 	@if command -v pre-commit >/dev/null 2>&1; then \
