@@ -139,9 +139,10 @@ func wellKnownPaths() []string {
 			for _, e := range entries {
 				if e.IsDir() && strings.HasPrefix(e.Name(), "chromium-") {
 					chromeBin := filepath.Join(playwrightDir, e.Name(), "chrome-linux", "chrome")
-					if runtime.GOOS == "darwin" {
+					switch runtime.GOOS {
+					case "darwin":
 						chromeBin = filepath.Join(playwrightDir, e.Name(), "chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium")
-					} else if runtime.GOOS == "windows" {
+					case "windows":
 						chromeBin = filepath.Join(playwrightDir, e.Name(), "chrome-win", "chrome.exe")
 					}
 					if _, err := os.Stat(chromeBin); err == nil {

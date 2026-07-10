@@ -391,7 +391,7 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 
 			if session.recorder != nil && !session.recorder.IsRecording() {
 				if session.ctx != nil {
-					session.recorder.StartRecording(ctx, session.sessionID, session.ctx)
+					session.recorder.StartRecording(ctx, session.ctx, session.sessionID)
 				}
 			}
 
@@ -1091,9 +1091,10 @@ func NewBrowserEvaluateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			var evalResult string
 			var err error
 
-			if session.supervisor != nil && input.FrameID != "" {
+			switch {
+			case session.supervisor != nil && input.FrameID != "":
 				evalResult, err = session.supervisor.EvaluateJS(input.Expression, input.FrameID)
-			} else if session.backendType == BackendLightpanda || session.backendType == BackendLocal || session.backendType == BackendCDP || session.backendType == BackendBrowserbase || session.backendType == BackendBrowserUse || session.backendType == BackendFirecrawl {
+			case session.backendType == BackendLightpanda || session.backendType == BackendLocal || session.backendType == BackendCDP || session.backendType == BackendBrowserbase || session.backendType == BackendBrowserUse || session.backendType == BackendFirecrawl:
 				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 				var result string
 				if err := chromedp.Run(timeoutCtx, chromedp.EvaluateAsDevTools(input.Expression, &result)); err != nil {
@@ -1102,7 +1103,7 @@ func NewBrowserEvaluateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				}
 				cancel()
 				evalResult = result
-			} else {
+			default:
 				err = fmt.Errorf("JS evaluation not supported for backend %s", session.backendType)
 			}
 

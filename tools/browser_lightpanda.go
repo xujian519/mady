@@ -15,7 +15,6 @@ import (
 type LightpandaManager struct {
 	mu          sync.Mutex
 	binaryPath  string
-	args        []string
 	processes   map[string]*LightpandaProcess
 	cdpBasePort int
 	nextPort    int

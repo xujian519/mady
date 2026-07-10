@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
@@ -180,8 +179,7 @@ func RunChromeFallbackCommand(ctx context.Context, command string, args map[stri
 		opts = append(opts, chromedp.Flag("user-agent", ua))
 	}
 	if proxyURL := os.Getenv("BROWSER_PROXY_URL"); proxyURL != "" {
-		opts = append(opts, chromedp.Flag("proxy-server", proxyURL))
-		opts = append(opts, chromedp.Flag("proxy-bypass-list", "localhost;127.0.0.1;[::1]"))
+		opts = append(opts, chromedp.Flag("proxy-server", proxyURL), chromedp.Flag("proxy-bypass-list", "localhost;127.0.0.1;[::1]"))
 	}
 
 	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
@@ -234,26 +232,6 @@ func RunChromeFallbackCommand(ctx context.Context, command string, args map[stri
 	return result, nil
 }
 
-func findChromeExecutable() (string, error) {
-	paths := []string{
-		"google-chrome",
-		"google-chrome-stable",
-		"chromium",
-		"chromium-browser",
-		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-		"/usr/bin/google-chrome",
-		"/usr/bin/chromium-browser",
-	}
-
-	for _, p := range paths {
-		if path, err := exec.LookPath(p); err == nil {
-			return path, nil
-		}
-	}
-
-	return "", fmt.Errorf("chrome/chromium not found in PATH")
-}
-
 func ValidatePostRedirectURL(finalURL string, originalURL string, allowPrivate bool, autoLocal bool) error {
 	if finalURL == "" {
 		return nil
@@ -272,10 +250,9 @@ func ValidatePostRedirectURL(finalURL string, originalURL string, allowPrivate b
 
 func getHostname(rawURL string) string {
 	if strings.HasPrefix(rawURL, "http://") || strings.HasPrefix(rawURL, "https://") {
-		if u, err := regexp.Compile(`https?://([^/]+)`); err == nil {
-			if matches := u.FindStringSubmatch(rawURL); len(matches) > 1 {
-				return matches[1]
-			}
+		u := regexp.MustCompile(`https?://([^/]+)`)
+		if matches := u.FindStringSubmatch(rawURL); len(matches) > 1 {
+			return matches[1]
 		}
 	}
 	return rawURL

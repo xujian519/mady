@@ -262,7 +262,7 @@ func (bm *BrowserManager) CreateSession(ctx context.Context, sessionID string, t
 	if bm.config.AutoLocalForPrivate && bm.cloudProvider != nil && targetURL != "" {
 		if IsPrivateURL(targetURL) {
 			backend = BackendLocal
-			sessionID = sessionID + "::local"
+			sessionID += "::local"
 		}
 	}
 	if existing, ok := bm.sessions[sessionID]; ok {
@@ -569,8 +569,7 @@ func (bm *BrowserManager) createLocalSession(ctx context.Context, session *Brows
 	opts = append(opts, chromedp.Flag("accept-lang", acceptLang))
 
 	if proxyURL := bm.config.ProxyURL; proxyURL != "" {
-		opts = append(opts, chromedp.Flag("proxy-server", proxyURL))
-		opts = append(opts, chromedp.Flag("proxy-bypass-list", "localhost;127.0.0.1;[::1]"))
+		opts = append(opts, chromedp.Flag("proxy-server", proxyURL), chromedp.Flag("proxy-bypass-list", "localhost;127.0.0.1;[::1]"))
 	}
 
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)

@@ -59,13 +59,7 @@ func detectCUABackend() cuBackend {
 			cuBackendCache = cuBackendPowerShell
 		case "linux":
 			if isWayland() {
-				if _, err := exec.LookPath("ydotool"); err == nil {
-					cuBackendCache = cuBackendYDoTool
-				} else {
-					cuBackendCache = cuBackendYDoTool
-				}
-			} else if _, err := exec.LookPath("xdotool"); err == nil {
-				cuBackendCache = cuBackendXDoTool
+				cuBackendCache = cuBackendYDoTool
 			} else {
 				cuBackendCache = cuBackendXDoTool
 			}
@@ -93,15 +87,6 @@ func getCuaDriverClient(ctx context.Context) (*mcpClient, error) {
 	}
 	cuaDriverClient = client
 	return client, nil
-}
-
-func closeCuaDriver() {
-	cuaDriverClientMu.Lock()
-	defer cuaDriverClientMu.Unlock()
-	if cuaDriverClient != nil {
-		cuaDriverClient.Close()
-		cuaDriverClient = nil
-	}
 }
 
 // --- Dangerous operation blocking ---
@@ -1175,7 +1160,7 @@ func parseAXElements(axTree string) []somElement {
 	re := regexp.MustCompile(`ax_id[=:](\d+)`)
 	posRe := regexp.MustCompile(`(?:pos|position)\s*[=:]\s*\(?\s*(\d+)\s*,?\s*(\d+)`)
 	sizeRe := regexp.MustCompile(`size\s*[=:]\s*\(?\s*(\d+)\s*,?\s*(\d+)`)
-	labelRe := regexp.MustCompile(`[""]([^""]{1,40})[""]`)
+	labelRe := regexp.MustCompile(`"([^"]{1,40})"`)
 
 	lines := strings.Split(axTree, "\n")
 	for _, line := range lines {
@@ -1600,16 +1585,14 @@ func osaKeyImpl(keys string) (string, error) {
 	}
 
 	var script string
-	if len(modifiers) > 0 {
-		modStr := strings.Join(modifiers, ", ")
-		tmpl := `tell app "System Events" to keystroke "%s" using {%s}`
-		if isNamedKey {
-			tmpl = `tell app "System Events" to keystroke %s using {%s}`
-		}
-		script = fmt.Sprintf(tmpl, key, modStr)
-	} else if isNamedKey {
+	switch {
+	case len(modifiers) > 0 && isNamedKey:
+		script = fmt.Sprintf(`tell app "System Events" to keystroke %s using {%s}`, key, strings.Join(modifiers, ", "))
+	case len(modifiers) > 0:
+		script = fmt.Sprintf(`tell app "System Events" to keystroke "%s" using {%s}`, key, strings.Join(modifiers, ", "))
+	case isNamedKey:
 		script = fmt.Sprintf(`tell app "System Events" to keystroke %s`, key)
-	} else {
+	default:
 		script = fmt.Sprintf(`tell app "System Events" to keystroke "%s"`, key)
 	}
 	if _, err := osaExec(script); err != nil {
@@ -1900,8 +1883,6 @@ var winVK = map[string]byte{
 func winClick(action string, x, y int) (string, error) {
 	var downFlag, upFlag string
 	switch action {
-	case "double_click":
-		downFlag, upFlag = "0x0002", "0x0004"
 	case "right_click":
 		downFlag, upFlag = "0x0008", "0x0010"
 	case "middle_click":
@@ -1978,8 +1959,6 @@ func winKey(keys string) (string, error) {
 		default:
 			if vk, ok := winVK[lower]; ok {
 				key = string(rune(vk))
-			} else if len(p) == 1 {
-				key = p
 			} else {
 				key = p
 			}
@@ -2250,8 +2229,6 @@ func xdoKey(keys string) (string, error) {
 		default:
 			if mapped, ok := xdoKeyMap[lower]; ok {
 				key = mapped
-			} else if len(p) == 1 {
-				key = p
 			} else {
 				key = p
 			}
@@ -2528,11 +2505,13 @@ func ydoKey(keys string) (string, error) {
 			}
 		}
 	}
-	allKeys := append(mods, key)
-	for _, k := range allKeys {
-		if _, err := ydoExec("key", k); err != nil {
+	for _, m := range mods {
+		if _, err := ydoExec("key", m); err != nil {
 			return "", fmt.Errorf("key: %w", err)
 		}
+	}
+	if _, err := ydoExec("key", key); err != nil {
+		return "", fmt.Errorf("key: %w", err)
 	}
 	for i := len(mods) - 1; i >= 0; i-- {
 		if _, err := ydoExec("key", mods[i]); err != nil {
@@ -2545,7 +2524,7 @@ func ydoKey(keys string) (string, error) {
 // --- Window bounds helper (crop screenshot to app window) ---
 
 func cropImageToBounds(data []byte, x, y, w, h int) ([]byte, error) {
-	img, format, err := image.Decode(bytes.NewReader(data))
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return data, nil
 	}
@@ -2557,14 +2536,8 @@ func cropImageToBounds(data []byte, x, y, w, h int) ([]byte, error) {
 	dst := image.NewRGBA(r)
 	draw.Draw(dst, dst.Bounds(), img, r.Min, draw.Src)
 	var buf bytes.Buffer
-	if format == "jpeg" {
-		if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 85}); err != nil {
-			return data, nil
-		}
-	} else {
-		if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 85}); err != nil {
-			return data, nil
-		}
+	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 85}); err != nil {
+		return data, nil
 	}
 	return buf.Bytes(), nil
 }

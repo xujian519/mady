@@ -26,6 +26,7 @@ linters:
       disabled-checks:
         - hugeParam
         - rangeValCopy
+        - sprintfQuotedString  # tools/ 子模块大量 AppleScript 用 "%s"，%q 的 Go 转义不兼容
       enabled-tags:
         - diagnostic
         - performance
@@ -82,13 +83,23 @@ linters:
       - linters:
           - revive
         path: cmd/
+      # tools/ 子模块：browser_providers 包名带下划线是外部 API 约束
+      - linters:
+          - staticcheck
+        path: tools/browser_providers/
+        text: ST1003
       - linters:
           - forbidigo
         path: cmd/mady/main.go
       # 允许忽略确定性图构建、不可恢复的 I/O 写入和资源清理的错误
       - linters:
           - errcheck
-        source: '\.(writeJSON|AddNode|AddEdge|AddConditionalEdge|WriteString|SetReadDeadline|SetWriteDeadline|WriteControl|SetLabel|Dispose|Register|Stop)\(|\.term\.Write\(|Process\.Kill\(|syscall\.Flock\(|^\s*fs\.Parse\(|json\.NewEncoder\([^)]*\)\.Encode\('
+        source: '\.(writeJSON|AddNode|AddEdge|AddConditionalEdge|WriteString|SetReadDeadline|SetWriteDeadline|WriteControl|SetLabel|Dispose|Register|Stop)\(|\.term\.Write\(|Process\.Kill\(|syscall\.(Flock|Kill)\(|^\s*fs\.Parse\(|json\.NewEncoder\([^)]*\)\.Encode\('
+      # tools/ 子模块：浏览器自动化、进程管理中的不可恢复操作
+      - linters:
+          - errcheck
+        path: tools/
+        source: '(?:\.(?:Run|StartRecording|StopRecording|CloseSession|CloseTab|ReapOrphans|Signal|StopScreencast|Do|runABCommand|HandleDialog|SetDeadline|Wait|WalkDir)\(|fmt\.(?:Sscanf|Scanln)\(|os\.(?:WriteFile|MkdirAll)\(|session\.(?:recorder|cloudProvider|camofoxClient)\.|tempFile\.Write\(|conn\.Write\(|\b(?:osaKeyImpl|winKey|xdoKey)\()'
     paths:
       - third_party$
       - builtin$

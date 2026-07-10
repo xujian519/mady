@@ -264,13 +264,14 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 				details.FullOutputPath = tempFilePath
 				startLine := truncation.TotalLines - truncation.OutputLines + 1
 				endLine := truncation.TotalLines
-				if truncation.LastLinePartial {
+				switch {
+				case truncation.LastLinePartial:
 					resultText += fmt.Sprintf("\n\n[Showing last %s of line %d. Full output: %s]",
 						FormatSize(int64(truncation.OutputBytes)), endLine, tempFilePath)
-				} else if truncation.TruncatedBy == "lines" {
+				case truncation.TruncatedBy == "lines":
 					resultText += fmt.Sprintf("\n\n[Showing lines %d-%d of %d. Full output: %s]",
 						startLine, endLine, truncation.TotalLines, tempFilePath)
-				} else {
+				default:
 					resultText += fmt.Sprintf("\n\n[Showing lines %d-%d of %d (%s limit). Full output: %s]",
 						startLine, endLine, truncation.TotalLines, FormatSize(cfg.MaxBytes), tempFilePath)
 				}

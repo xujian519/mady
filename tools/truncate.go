@@ -163,7 +163,6 @@ func TruncateTail(content string, opts TruncationOptions) TruncationResult {
 				// Edge case: last line alone exceeds maxBytes.
 				truncated := truncateStringToBytesFromEnd(line, maxBytes)
 				out = append(out, truncated)
-				outBytes = len([]byte(truncated))
 				lastLinePartial = true
 			}
 			break

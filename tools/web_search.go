@@ -407,8 +407,7 @@ func coerceCountToInt(raw json.RawMessage) json.RawMessage {
 		return raw // not valid JSON, let the caller handle it
 	}
 	if v, ok := m["count"]; ok {
-		switch s := v.(type) {
-		case string:
+		if s, ok := v.(string); ok {
 			if n, err := strconv.Atoi(s); err == nil {
 				m["count"] = n
 			}

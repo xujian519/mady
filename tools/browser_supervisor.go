@@ -309,9 +309,7 @@ func (s *CDPSupervisor) EvaluateJS(expression string, targetFrameID string) (str
 	}
 
 	var result string
-	var err error
-
-	err = chromedp.Run(ctx,
+	err := chromedp.Run(ctx,
 		chromedp.EvaluateAsDevTools(expression, &result),
 	)
 
@@ -468,9 +466,9 @@ func formatDialogs(dialogs map[string]*DialogInfo) string {
 	var sb strings.Builder
 	sb.WriteString("## Pending Dialogs\n")
 	for id, d := range dialogs {
-		sb.WriteString(fmt.Sprintf("- [%s] %s: \"%s\"", id, d.Type, d.Message))
+		fmt.Fprintf(&sb, "- [%s] %s: \"%s\"", id, d.Type, d.Message)
 		if d.Default != "" {
-			sb.WriteString(fmt.Sprintf(" (default: %s)", d.Default))
+			fmt.Fprintf(&sb, " (default: %s)", d.Default)
 		}
 		sb.WriteString("\n")
 	}
@@ -485,9 +483,9 @@ func formatFrameTree(frames []*FrameInfo, truncated bool) string {
 	var sb strings.Builder
 	sb.WriteString("## Frame Tree\n")
 	for _, f := range frames {
-		sb.WriteString(fmt.Sprintf("- Frame %s: %s", f.ID, f.URL))
+		fmt.Fprintf(&sb, "- Frame %s: %s", f.ID, f.URL)
 		if f.Name != "" {
-			sb.WriteString(fmt.Sprintf(" (%s)", f.Name))
+			fmt.Fprintf(&sb, " (%s)", f.Name)
 		}
 		sb.WriteString("\n")
 	}

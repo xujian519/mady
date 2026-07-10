@@ -384,167 +384,6 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-type jsNode struct {
-	Role     string   `json:"role"`
-	Name     string   `json:"name"`
-	Value    string   `json:"value"`
-	Ref      string   `json:"ref"`
-	Children []jsNode `json:"children"`
-}
-
-func buildAccessibilityTreeFromJS(ctx context.Context) (*AccessibilityNode, error) {
-	jsTreeScript := `
-(function() {
-	const interactiveRoles = new Set([
-		'link', 'button', 'textbox', 'combobox', 'listbox',
-		'checkbox', 'radio', 'slider', 'spinbutton', 'searchbox',
-		'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab',
-		'treeitem', 'option', 'switch', 'img', 'image'
-	]);
-
-	let refCounter = 0;
-
-	function getNodeRole(el) {
-		const role = el.getAttribute('role');
-		if (role) return role;
-		const tag = el.tagName.toLowerCase();
-		const type = (el.getAttribute('type') || '').toLowerCase();
-		switch (tag) {
-			case 'a': return 'link';
-			case 'button': return 'button';
-			case 'input':
-				if (['text','email','password','search','tel','url'].includes(type)) return 'textbox';
-				if (type === 'checkbox') return 'checkbox';
-				if (type === 'radio') return 'radio';
-				if (type === 'submit' || type === 'reset') return 'button';
-				return 'textbox';
-			case 'select': return 'combobox';
-			case 'textarea': return 'textbox';
-			case 'img': return 'img';
-			case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6': return 'heading';
-			case 'p': return 'paragraph';
-			case 'ul': case 'ol': return 'list';
-			case 'li': return 'listitem';
-			case 'table': return 'table';
-			case 'tr': return 'row';
-			case 'td': case 'th': return 'cell';
-			case 'nav': return 'navigation';
-			case 'main': return 'main';
-			case 'header': return 'banner';
-			case 'footer': return 'contentinfo';
-			case 'article': return 'article';
-			case 'section': return 'region';
-			case 'form': return 'form';
-			default: return '';
-		}
-	}
-
-	function getNodeName(el) {
-		const ariaLabel = el.getAttribute('aria-label');
-		if (ariaLabel) return ariaLabel;
-		const alt = el.getAttribute('alt');
-		if (alt) return alt;
-		const title = el.getAttribute('title');
-		if (title) return title;
-		const placeholder = el.getAttribute('placeholder');
-		if (placeholder) return placeholder;
-		const name = el.getAttribute('name');
-		if (name) return name;
-		if (el.tagName.toLowerCase() === 'a') {
-			return el.textContent.trim().substring(0, 80);
-		}
-		return '';
-	}
-
-	function getNodeValue(el) {
-		if (el.tagName.toLowerCase() === 'input' || el.tagName.toLowerCase() === 'textarea') {
-			return el.value || '';
-		}
-		return el.getAttribute('value') || '';
-	}
-
-	function buildTree(el) {
-		if (!el) return null;
-
-		const role = getNodeRole(el);
-		if (!role || role === 'none' || role === 'presentation') {
-			const children = [];
-			for (const child of el.children) {
-				const tree = buildTree(child);
-				if (tree) children.push(tree);
-			}
-			return children.length > 0 ? { role: 'group', name: '', value: '', ref: '', children } : null;
-		}
-
-		refCounter++;
-		const node = {
-			role: role,
-			name: getNodeName(el),
-			value: getNodeValue(el),
-			ref: '@e' + refCounter,
-			children: []
-		};
-
-		for (const child of el.children) {
-			const tree = buildTree(child);
-			if (tree) node.children.push(tree);
-		}
-
-		return node;
-	}
-
-	const root = {
-		role: 'document',
-		name: document.title || '',
-		value: '',
-		ref: '@e0',
-		children: []
-	};
-
-	const body = document.body;
-	if (body) {
-		for (const child of body.children) {
-			const tree = buildTree(child);
-			if (tree) root.children.push(tree);
-		}
-	}
-
-	return JSON.stringify(root);
-})();
-`
-
-	var jsonStr string
-	if err := chromedp.Run(ctx, chromedp.Evaluate(jsTreeScript, &jsonStr)); err != nil {
-		return nil, fmt.Errorf("failed to build accessibility tree: %w", err)
-	}
-
-	var jsTree jsNode
-	if err := json.Unmarshal([]byte(jsonStr), &jsTree); err != nil {
-		return nil, fmt.Errorf("failed to parse accessibility tree: %w", err)
-	}
-
-	return convertJSTree(&jsTree), nil
-}
-
-func convertJSTree(js *jsNode) *AccessibilityNode {
-	if js == nil {
-		return nil
-	}
-
-	node := &AccessibilityNode{
-		Role:  js.Role,
-		Name:  js.Name,
-		Value: js.Value,
-		Ref:   js.Ref,
-	}
-
-	for _, child := range js.Children {
-		node.Children = append(node.Children, convertJSTree(&child))
-	}
-
-	return node
-}
-
 func generateAriaSnapshot(ctx context.Context) (string, error) {
 	nodes, err := accessibility.GetFullAXTree().Do(ctx)
 	if err != nil {
@@ -564,7 +403,7 @@ func generateAriaSnapshot(ctx context.Context) (string, error) {
 
 	var lines []string
 	refCounter := 0
-	INTERACTIVE_ROLES := map[string]bool{
+	interactiveRoles := map[string]bool{
 		"button": true, "link": true, "textbox": true, "combobox": true,
 		"listbox": true, "checkbox": true, "radio": true, "slider": true,
 		"spinbutton": true, "searchbox": true, "menuitem": true, "tab": true,
@@ -604,7 +443,7 @@ func generateAriaSnapshot(ctx context.Context) (string, error) {
 		refCounter++
 		ref := "@e" + strconv.Itoa(refCounter)
 
-		show := INTERACTIVE_ROLES[roleName]
+		show := interactiveRoles[roleName]
 		if !show {
 			for _, child := range childMap[n.NodeID] {
 				walk(child, depth+1)

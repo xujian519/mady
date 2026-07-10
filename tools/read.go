@@ -91,7 +91,7 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 					return resultErrf("cannot read directory: %s", input.Path)
 				}
 				var sb strings.Builder
-				sb.WriteString(fmt.Sprintf("Directory listing for %s:\n", input.Path))
+				fmt.Fprintf(&sb, "Directory listing for %s:\n", input.Path)
 				for _, entry := range entries {
 					name := entry.Name()
 					if entry.IsDir() {
@@ -102,7 +102,7 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 					if info != nil && !entry.IsDir() {
 						size = fmt.Sprintf("  (%s)", FormatSize(info.Size()))
 					}
-					sb.WriteString(fmt.Sprintf("  %s%s\n", name, size))
+					fmt.Fprintf(&sb, "  %s%s\n", name, size)
 				}
 				return result(sb.String(), nil)
 			}

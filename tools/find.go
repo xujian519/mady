@@ -192,7 +192,7 @@ func formatFindResults(results []string, searchPath string, limit int, cfg *Find
 			continue
 		}
 		hadTrailingSlash := strings.HasSuffix(line, "/") || strings.HasSuffix(line, string(filepath.Separator))
-		relPath := line
+		var relPath string
 		if strings.HasPrefix(line, searchPath) {
 			relPath = line[len(searchPath)+1:]
 		} else {

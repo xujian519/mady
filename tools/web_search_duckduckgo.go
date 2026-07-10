@@ -92,7 +92,7 @@ func extractDuckDuckGoResult(s *goquery.Selection, results *[]SearchResult) {
 	// Fallback: try title/link element
 	if !exists || href == "" {
 		link = s.Find(".result__title a, .result__url, .result__a")
-		href, exists = link.Attr("href")
+		href, _ = link.Attr("href")
 	}
 
 	// Skip tracking/pixel URLs

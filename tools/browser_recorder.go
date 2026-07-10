@@ -31,7 +31,7 @@ func NewCDPRecorder(outputDir string) *CDPRecorder {
 	}
 }
 
-func (r *CDPRecorder) StartRecording(ctx context.Context, sessionID string, browserCtx context.Context) error {
+func (r *CDPRecorder) StartRecording(ctx context.Context, browserCtx context.Context, sessionID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -72,8 +72,7 @@ func (r *CDPRecorder) captureFrames(ctx context.Context) {
 			return
 		}
 
-		switch e := ev.(type) {
-		case *page.EventScreencastFrame:
+		if e, ok := ev.(*page.EventScreencastFrame); ok {
 			r.mu.Lock()
 			if !r.isRecording {
 				r.mu.Unlock()

@@ -171,8 +171,8 @@ func findClosestMatch(content, target string) string {
 	var matches []string
 	for i, line := range contentLines {
 		if strings.Contains(line, firstLine) {
-			contextStart := max(0, i-1)
-			contextEnd := min(len(contentLines), i+len(targetLines)+1)
+			contextStart := maxInt(0, i-1)
+			contextEnd := minInt(len(contentLines), i+len(targetLines)+1)
 			context := strings.Join(contentLines[contextStart:contextEnd], "\n")
 			matches = append(matches, fmt.Sprintf("Did you mean around line %d?\n```\n%s\n```", i+1, context))
 			if len(matches) >= 3 {
@@ -188,14 +188,14 @@ func findClosestMatch(content, target string) string {
 	return "Try reading the file first to verify the exact text."
 }
 
-func max(a, b int) int {
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
 	return b
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

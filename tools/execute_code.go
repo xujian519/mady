@@ -252,7 +252,7 @@ func NewExecuteCodeTool(cfg *ExecuteCodeToolConfig) *agentcore.Tool {
 			result["output"] = stdoutStr
 			if stderrStr != "" {
 				if int64(len(stderrStr)) > 10*1024 {
-					stderrStr = stderrStr[:10*1024] + fmt.Sprintf("\n... [stderr truncated at 10KB] ...")
+					stderrStr = stderrStr[:10*1024] + "\n... [stderr truncated at 10KB] ..."
 				}
 				result["stderr"] = stderrStr
 			}

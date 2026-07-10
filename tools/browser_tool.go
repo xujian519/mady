@@ -200,17 +200,6 @@ func normalizeRef(ref string) string {
 	return ref
 }
 
-// isChromedpBackend returns true when the browser backend uses chromedp (local,
-// CDP, or any cloud provider that exposes a CDP endpoint).
-func isChromedpBackend(bt BrowserBackendType) bool {
-	switch bt {
-	case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendLightpanda, BackendAgentBrowser:
-		return true
-	default:
-		return false
-	}
-}
-
 // getXPathFromRef looks up an XPath for the given ref in the session's ref
 // mapper. If not found it falls back to the JavaScript ref map stored in the
 // page.
@@ -385,7 +374,7 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	}
 
 	if session.recorder != nil && !session.recorder.IsRecording() && session.ctx != nil {
-		session.recorder.StartRecording(ctx, session.sessionID, session.ctx)
+		session.recorder.StartRecording(ctx, session.ctx, session.sessionID)
 	}
 
 	var extraInfo string
@@ -971,7 +960,7 @@ func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserTo
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Found %d images on the page:\n\n", len(images)))
+	fmt.Fprintf(&sb, "Found %d images on the page:\n\n", len(images))
 	for _, img := range images {
 		src, _ := img["src"].(string)
 		alt, _ := img["alt"].(string)
@@ -979,27 +968,19 @@ func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserTo
 		h, _ := img["height"].(float64)
 		displayed, _ := img["displayed"].(bool)
 
-		sb.WriteString(fmt.Sprintf("  [%d] ", int(img["index"].(float64))))
+		fmt.Fprintf(&sb, "  [%d] ", int(img["index"].(float64)))
 		if !displayed {
 			sb.WriteString("(hidden) ")
 		}
-		sb.WriteString(fmt.Sprintf("%dx%d", int(w), int(h)))
+		fmt.Fprintf(&sb, "%dx%d", int(w), int(h))
 		if alt != "" {
-			sb.WriteString(fmt.Sprintf(" alt=%q", alt))
+			fmt.Fprintf(&sb, " alt=%q", alt)
 		}
-		sb.WriteString(fmt.Sprintf("\n       src: %s\n", src))
+		fmt.Fprintf(&sb, "\n       src: %s\n", src)
 	}
 
 	return result(sb.String(), map[string]any{
 		"count":  len(images),
 		"images": images,
 	})
-}
-
-func cdpParamsToJSON(params map[string]any) string {
-	if params == nil {
-		return "{}"
-	}
-	b, _ := json.Marshal(params)
-	return string(b)
 }

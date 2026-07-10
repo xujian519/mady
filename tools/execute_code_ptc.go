@@ -93,7 +93,7 @@ func newPTCServer(allowedTools []string, invoke func(ctx context.Context, name s
 	}, nil
 }
 
-// Serve accepts connections until ctx is cancelled (which closes the
+// Serve accepts connections until ctx is canceled (which closes the
 // listener) or the listener is closed some other way. Intended to run in
 // its own goroutine; returns once Accept starts failing.
 func (s *ptcServer) Serve(ctx context.Context) {

@@ -175,7 +175,7 @@ func NewGitLogTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 			}
 
 			gitArgs := []string{"log"}
-			if input.Oneline || input.Oneline == false && maxCount <= 20 {
+			if input.Oneline || !input.Oneline && maxCount <= 20 {
 				gitArgs = append(gitArgs, "--oneline")
 			}
 			gitArgs = append(gitArgs, fmt.Sprintf("-%d", maxCount))

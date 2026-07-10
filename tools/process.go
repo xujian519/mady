@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -211,9 +209,6 @@ type ProcessToolConfig struct {
 }
 
 func (c *ProcessToolConfig) defaults() {
-	if c.Operations == nil {
-		// Will be set later when registry is available.
-	}
 	if c.MaxBytes <= 0 {
 		c.MaxBytes = 50 * 1024
 	}
@@ -414,15 +409,4 @@ func handleKill(cfg *ProcessToolConfig, input ProcessToolInput) (any, error) {
 
 func handleList(cfg *ProcessToolConfig) (any, error) {
 	return resultErrf("list not fully implemented: need registry access")
-}
-
-// Helper to parse process ID for PID extraction.
-func parsePIDFromID(id string) int {
-	parts := strings.Split(id, "-")
-	if len(parts) >= 3 {
-		if pid, err := strconv.Atoi(parts[2]); err == nil {
-			return pid
-		}
-	}
-	return 0
 }

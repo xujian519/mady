@@ -254,12 +254,13 @@ func generateDiff(oldContent, newContent string) (string, *int) {
 	var firstChanged *int
 
 	for oldIdx < len(oldLines) || newIdx < len(newLines) {
-		if oldIdx < len(oldLines) && newIdx < len(newLines) && oldLines[oldIdx] == newLines[newIdx] {
+		switch {
+		case oldIdx < len(oldLines) && newIdx < len(newLines) && oldLines[oldIdx] == newLines[newIdx]:
 			lineNum := fmt.Sprintf("%*d", width, newIdx+1)
 			output = append(output, fmt.Sprintf(" %s %s", lineNum, oldLines[oldIdx]))
 			oldIdx++
 			newIdx++
-		} else if newIdx < len(newLines) && (oldIdx >= len(oldLines) || !lineInOld(oldLines[oldIdx:], newLines[newIdx])) {
+		case newIdx < len(newLines) && (oldIdx >= len(oldLines) || !lineInOld(oldLines[oldIdx:], newLines[newIdx])):
 			lineNum := fmt.Sprintf("%*d", width, newIdx+1)
 			output = append(output, fmt.Sprintf("+%s %s", lineNum, newLines[newIdx]))
 			if firstChanged == nil {
@@ -267,7 +268,7 @@ func generateDiff(oldContent, newContent string) (string, *int) {
 				firstChanged = &v
 			}
 			newIdx++
-		} else if oldIdx < len(oldLines) {
+		case oldIdx < len(oldLines):
 			lineNum := fmt.Sprintf("%*d", width, oldIdx+1)
 			output = append(output, fmt.Sprintf("-%s %s", lineNum, oldLines[oldIdx]))
 			if firstChanged == nil {
@@ -295,7 +296,6 @@ func lineInOld(oldLines []string, line string) bool {
 type editMatcher struct {
 	content, old, new string
 	replaceAll        bool
-	isMatch           bool
 	matchedStr        string
 }
 
@@ -322,10 +322,6 @@ func (m *editMatcher) find() bool {
 		}
 	}
 	return false
-}
-
-func (m *editMatcher) isUnique() bool {
-	return strings.Count(m.content, m.old) <= 1
 }
 
 func (m *editMatcher) simple() bool {
@@ -436,22 +432,6 @@ func (m *editMatcher) multiOccurrence() bool {
 	return false
 }
 
-func findChangeIndex(orig, changed string) int {
-	if len(orig) == 0 || len(changed) == 0 {
-		return -1
-	}
-	minLen := len(orig)
-	if len(changed) < minLen {
-		minLen = len(changed)
-	}
-	for i := 0; i < minLen; i++ {
-		if orig[i] != changed[i] {
-			return i
-		}
-	}
-	return -1
-}
-
 func matchByLines(content, find string, transform func(string) string, out *string) bool {
 	cl := strings.Split(content, "\n")
 	fl := strings.Split(find, "\n")
@@ -505,11 +485,12 @@ func stripCommonInd(s string) string {
 	}
 	var result []string
 	for _, l := range lines {
-		if strings.TrimSpace(l) == "" {
+		switch {
+		case strings.TrimSpace(l) == "":
 			result = append(result, l)
-		} else if len(l) >= minIndent {
+		case len(l) >= minIndent:
 			result = append(result, l[minIndent:])
-		} else {
+		default:
 			result = append(result, l)
 		}
 	}
