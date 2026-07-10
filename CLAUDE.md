@@ -99,6 +99,34 @@ mady/
 - **Conventional Commits**：提交信息格式 `类型: 描述`（feat/fix/docs/test/refactor/chore）
 - **中文文档**：文档和注释使用中文，代码和标识符使用英文
 
+## Handoff 交接机制
+
+Router Agent（`mady-router`）通过 `HandoffDelegate` 模式将任务委派给领域 Agent：
+
+```
+Router (mady-router)
+  ├── transfer_to_chat       → Chat Agent      (日常聊天)
+  ├── transfer_to_assistant  → Assistant Agent (任务执行)
+  ├── transfer_to_patent     → Patent Agent    (专利分析)
+  └── transfer_to_legal      → Legal Agent     (法律分析)
+```
+
+**核心组件：**
+
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| HandoffConfig | `agentcore/handoff.go` | 交接目标配置（名称/模式/来源白名单/兜底文案） |
+| HandoffContext | `agentcore/handoff_context.go` | 交接时抽取的结构化上下文（意图/实体/最近消息） |
+| HandoffResult | `agentcore/handoff_result.go` | 子 Agent 返回的结构化结果（Action/Result/Success） |
+| SafeHandoff | `agentcore/handoff.go` | 基于 AllowedSources 白名单的运行时交接校验 |
+
+**交接流程：**
+1. Router 分类用户意图 → 调用 `transfer_to_<domain>` 工具
+2. `createHandoffTool` 先校验 `AllowedSources` 白名单
+3. `executeDelegate` 构建 `HandoffContext`（含实体抽取），传给子 Agent
+4. 子 Agent 处理后返回 `HandoffResult` JSON（或纯文本回退）
+5. 失败时返回含 `FallbackMsg` 的 `HandoffResult`，不暴露裸错误
+
 ## 测试约定
 
 - 模块级测试：`go test ./<module>/...`

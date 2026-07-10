@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,14 @@ type HandoffConfig struct {
 	Description string // shown to the LLM so it can decide when to hand off
 	Mode        HandoffMode
 	AgentConfig Config
+
+	// AllowedSources 限制哪些 Agent 可以交接到此目标。
+	// 为空或包含 "*" 时表示不限制。仅在 createHandoffTool 的 Func 中运行时校验。
+	AllowedSources []string
+
+	// FallbackMsg 是交接失败或校验不通过时展示给用户的兜底文案。
+	// 为空时使用默认文案。
+	FallbackMsg string
 }
 
 // PendingHandoff is set on state when a transfer-mode handoff tool is called.
@@ -65,6 +74,15 @@ func (a *Agent) createHandoffTool(h HandoffConfig) *Tool {
 				return nil, err
 			}
 
+			// 白名单校验：确保来源 Agent 在目标的允许列表中。
+			if !a.isHandoffAllowed(h) {
+				fallback := h.FallbackMsg
+				if fallback == "" {
+					fallback = fmt.Sprintf("该功能（%s）暂不可用，请稍后重试。", h.Name)
+				}
+				return NewFailureResult("交接被拦截", fallback), nil
+			}
+
 			switch h.Mode {
 			case HandoffDelegate:
 				return a.executeDelegate(ctx, h, p.Message)
@@ -85,19 +103,31 @@ func (a *Agent) createHandoffTool(h HandoffConfig) *Tool {
 // executeDelegate creates a sub-agent, runs it, and returns its output as a tool result.
 func (a *Agent) executeDelegate(ctx context.Context, h HandoffConfig, input string) (any, error) {
 	start := time.Now()
+
+	// 构建结构化交接上下文，减少 token 消耗并提升交接质量。
+	hc := a.ExtractHandoffContext(h.Name, 6)
+	hcJSON, marshalErr := json.Marshal(hc)
+	if marshalErr != nil {
+		hcJSON = []byte("{}")
+	}
+
 	a.emit(&HandoffStartEvent{
 		baseEvent:   newBase(EventHandoffStart),
 		SourceAgent: a.config.Name,
 		TargetAgent: h.Name,
 		Mode:        string(HandoffDelegate),
-		Context:     input,
+		Context:     string(hcJSON),
 	})
+
+	// 将原始用户消息和结构化 HandoffContext 合并传给子 Agent。
+	// 子 Agent 的 System Prompt 可据此解析上下文。
+	enrichedInput := fmt.Sprintf("【交接上下文】\n%s\n\n【用户消息】\n%s", string(hcJSON), input)
 
 	sub := New(h.AgentConfig)
 	sub.SetEventBus(a.eventBus) // forward events to parent
 	defer sub.Close()
 
-	output, err := sub.Run(ctx, input)
+	output, err := sub.Run(ctx, enrichedInput)
 
 	a.emit(&HandoffEndEvent{
 		baseEvent:   newBase(EventHandoffEnd),
@@ -108,21 +138,41 @@ func (a *Agent) executeDelegate(ctx context.Context, h HandoffConfig, input stri
 	})
 
 	if err != nil {
-		return nil, WrapNodeError(err, "delegate:"+h.Name)
+		// 返回 HandoffResult 而不是裸错误，让调用方 Agent 能做优雅降级。
+		fallback := h.FallbackMsg
+		if fallback == "" {
+			fallback = "这个任务处理遇到点问题，要不换个方式再说一遍，或稍后再试？"
+		}
+		return NewFailureResult("执行失败", fallback), nil
 	}
-	return map[string]string{"result": output}, nil
+
+	// 尝试将输出解析为 HandoffResult，支持结构化和纯文本两种模式。
+	if hr, ok := ParseHandoffResult(output); ok {
+		hr.RawOutput = output
+		return hr, nil
+	}
+	// 回退：纯文本输出包装为 HandoffResult
+	return NewHandoffResult("执行完成", output), nil
 }
 
 // handleTransfer creates a target agent, inherits the conversation and runtime
 // state from the source agent, and transfers control.
 func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (string, error) {
 	start := time.Now()
+
+	// 构建结构化交接上下文
+	hc := a.ExtractHandoffContext(handoff.TargetName, 6)
+	hcJSON, marshalErr := json.Marshal(hc)
+	if marshalErr != nil {
+		hcJSON = []byte("{}")
+	}
+
 	a.emit(&HandoffStartEvent{
 		baseEvent:   newBase(EventHandoffStart),
 		SourceAgent: a.config.Name,
 		TargetAgent: handoff.TargetName,
 		Mode:        string(HandoffTransfer),
-		Context:     handoff.Context,
+		Context:     string(hcJSON),
 	})
 
 	target := New(handoff.TargetConfig)
@@ -172,38 +222,68 @@ func (a *Agent) inheritRuntime(target *Agent) {
 		target.registry.Register(t)
 	}
 
+	// Snapshot source config under read lock to avoid data race with concurrent
+	// config writes (ApplyCallConfig, SetThinkingConfig, etc.).
+	a.configMu.RLock()
+	srcMiddleware := a.config.Middleware
+	srcGlobalBefore := a.config.GlobalBefore
+	srcGlobalAfter := a.config.GlobalAfter
+	srcLifecycle := a.config.Lifecycle
+	srcTransformCtx := a.config.TransformContext
+	srcExtensions := a.config.Extensions
+	a.configMu.RUnlock()
+
 	// Re-register source extensions on target.
-	if len(a.config.Extensions) > 0 {
-		_ = target.extensions.Register(context.Background(), target, a.config.Extensions...)
+	if len(srcExtensions) > 0 {
+		if err := target.extensions.Register(context.Background(), target, srcExtensions...); err != nil {
+			fmt.Printf("inheritRuntime: extensions.Register failed for %q: %v\n", a.config.Name, err)
+		}
 	}
 
 	// Merge config-level runtime state.
 	target.configMu.Lock()
 	defer target.configMu.Unlock()
 
-	if len(a.config.Middleware) > 0 {
-		target.config.Middleware = append(target.config.Middleware, a.config.Middleware...)
+	if len(srcMiddleware) > 0 {
+		target.config.Middleware = append(target.config.Middleware, srcMiddleware...)
 	}
-	if len(a.config.GlobalBefore) > 0 {
-		target.config.GlobalBefore = append(target.config.GlobalBefore, a.config.GlobalBefore...)
+	if len(srcGlobalBefore) > 0 {
+		target.config.GlobalBefore = append(target.config.GlobalBefore, srcGlobalBefore...)
 	}
-	if len(a.config.GlobalAfter) > 0 {
-		target.config.GlobalAfter = append(target.config.GlobalAfter, a.config.GlobalAfter...)
+	if len(srcGlobalAfter) > 0 {
+		target.config.GlobalAfter = append(target.config.GlobalAfter, srcGlobalAfter...)
 	}
-	if a.config.Lifecycle != nil {
-		target.config.Lifecycle = appendLifecycleHook(target.config.Lifecycle, a.config.Lifecycle)
+	if srcLifecycle != nil {
+		target.config.Lifecycle = appendLifecycleHook(target.config.Lifecycle, srcLifecycle)
 	}
-	if a.config.TransformContext != nil {
+	if srcTransformCtx != nil {
 		prev := target.config.TransformContext
+		// Copy the function pointer, not the source Agent pointer, to avoid
+		// retaining the source Agent after it is closed/GC'd.
+		fn := srcTransformCtx
 		target.config.TransformContext = func(ctx context.Context, msgs []Message) []Message {
 			if prev != nil {
 				msgs = prev(ctx, msgs)
 			}
-			return a.config.TransformContext(ctx, msgs)
+			return fn(ctx, msgs)
 		}
 	}
 }
 
 func isHandoffTool(name string) bool {
-	return len(name) > 13 && name[:13] == "transfer_to_"
+	return strings.HasPrefix(name, "transfer_to_")
+}
+
+// isHandoffAllowed 校验来源 Agent 是否在目标的 AllowedSources 白名单中。
+// 如果 AllowedSources 为空或包含 "*"，则放行所有来源。
+func (a *Agent) isHandoffAllowed(h HandoffConfig) bool {
+	if len(h.AllowedSources) == 0 {
+		return true
+	}
+	for _, src := range h.AllowedSources {
+		if src == "*" || src == a.config.Name {
+			return true
+		}
+	}
+	return false
 }

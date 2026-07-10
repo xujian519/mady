@@ -39,7 +39,7 @@ func ChatAgentConfig(base agentcore.Config) agentcore.Config {
 		"- 不提供法律建议（应由 legal-advisor 处理）",
 		"- 不提供专利分析（应由 patent-agent 处理）",
 		"- 不确定的专业问题建议用户咨询相关专业人士",
-	}, " ")
+	}, "\n")
 
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		guardrails.New(

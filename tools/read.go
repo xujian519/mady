@@ -29,6 +29,7 @@ type ReadToolConfig struct {
 	Operations ReadOperations
 	MaxBytes   int64
 	MaxLines   int64
+	Sandbox    WorkingDirSandbox
 }
 
 func (c *ReadToolConfig) defaults() {
@@ -61,6 +62,7 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 		cfg = &ReadToolConfig{}
 	}
 	cfg.defaults()
+	cfg.Sandbox.WorkingDir = cwd
 
 	return &agentcore.Tool{
 		Name:        "read",
@@ -80,7 +82,10 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 				return resultErrf("invalid arguments: %w", err)
 			}
 
-			resolved := resolveReadPath(input.Path, cwd)
+			resolved, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("%v", err)
+			}
 			info, err := cfg.Operations.Stat(resolved)
 			if err != nil {
 				return resultErrf("file not found: %s", input.Path)

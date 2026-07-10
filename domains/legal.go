@@ -25,7 +25,13 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 		"",
 		"免责声明：所有涉及法律判断的输出必须附带：",
 		"「本分析由 AI 辅助生成，不构成正式法律意见。」",
-	}, " ")
+		"",
+		"输出格式：完成任务后，用以下 JSON 格式返回结果（便于 Chat Agent 解释给用户）：",
+		`{"action":"做了什么","result":"结果摘要","success":true}`,
+		"- action: 你做了什么操作",
+		"- result: 结果的简洁摘要",
+		"- success: 是否成功完成",
+	}, "\n")
 
 	// Chunked context engine for long legal documents.
 	cfg.Engine = "chunked"

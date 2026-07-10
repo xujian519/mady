@@ -362,3 +362,228 @@ func TestGuardrailBlockedPhrase(t *testing.T) {
 	}
 }
 
+// ──────────────────────────────────────────────
+// 4. HandoffContext 上下文抽取与传递测试
+// ──────────────────────────────────────────────
+
+func TestHandoffContextExtractionAndPropagation(t *testing.T) {
+	provider := &handoffProvider{tool: DomainPatent, content: "patent analysis done"}
+
+	base := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:     "ctx-test",
+			Model:    "stub",
+			Provider: provider,
+		},
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns: 10,
+		},
+	}
+
+	cfg := RouterConfig(base)
+	agent := agentcore.New(cfg)
+	defer agent.Close()
+
+	// 捕获 HandoffStartEvent 以验证 HandoffContext 被正确构建
+	var handoffCtxJSON string
+	agent.On(agentcore.EventHandoffStart, func(e agentcore.Event) {
+		if he, ok := e.(*agentcore.HandoffStartEvent); ok {
+			handoffCtxJSON = he.Context
+		}
+	})
+
+	// 使用含专利号的输入触发 Agent 运行
+	_, err := agent.Run(context.Background(), "分析专利 CN109690000A 的新颖性")
+	if err != nil {
+		t.Fatalf("Router run error: %v", err)
+	}
+
+	// 验证 HandoffContext JSON 非空且包含关键信息
+	if handoffCtxJSON == "" {
+		t.Fatal("expected HandoffStartEvent.Context to be non-empty JSON")
+	}
+
+	// 验证包含了专利号实体
+	if !strings.Contains(handoffCtxJSON, "CN109690000A") {
+		t.Errorf("expected HandoffContext to contain patent_no CN109690000A, got: %s", handoffCtxJSON)
+	}
+
+	// 验证包含了 FromAgent/ToAgent 字段
+	if !strings.Contains(handoffCtxJSON, `"from_agent"`) {
+		t.Error("expected HandoffContext to contain from_agent field")
+	}
+	if !strings.Contains(handoffCtxJSON, `"to_agent"`) {
+		t.Error("expected HandoffContext to contain to_agent field")
+	}
+	if !strings.Contains(handoffCtxJSON, `"user_intent"`) {
+		t.Error("expected HandoffContext to contain user_intent field")
+	}
+}
+
+// ──────────────────────────────────────────────
+// 5. SafeHandoff 白名单校验测试
+// ──────────────────────────────────────────────
+
+func TestSafeHandoff_AllowedSource(t *testing.T) {
+	// RouterConfig 中的 assistant-agent 只允许来自 "mady-router" 的交接。
+	// Router Agent 自身是 "mady-router"，所以交接应该通过。
+	provider := &handoffProvider{tool: DomainAssistant, content: "assistant result"}
+
+	base := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:     "whitelist-test",
+			Model:    "stub",
+			Provider: provider,
+		},
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns: 10,
+		},
+	}
+
+	cfg := RouterConfig(base)
+	agent := agentcore.New(cfg)
+	defer agent.Close()
+
+	_, err := agent.Run(context.Background(), "帮我查一下今天的新闻")
+	if err != nil {
+		t.Fatalf("whitelisted handoff should succeed: %v", err)
+	}
+}
+
+func TestSafeHandoff_BlockedSource(t *testing.T) {
+	// 创建一个 handoff 配置，将 AllowedSources 设为空列表外的一个值。
+	// 用于验证 isHandoffAllowed 在来源不匹配时返回 false。
+	h := agentcore.HandoffConfig{
+		Name:           "blocked-target",
+		AllowedSources: []string{"specific-agent"},
+	}
+
+	// 使用 trapProvider：如果子 Agent 被调用（表示阻断失败），返回明显错误文案。
+	provider := &trapProvider{tool: "blocked-target", content: "should NOT reach here - handoff was not blocked"}
+	base := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:     "mady-router",
+			Model:    "stub",
+			Provider: provider,
+		},
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns: 10,
+		},
+	}
+	base.Handoffs = []agentcore.HandoffConfig{h}
+
+	agent := agentcore.New(base)
+	defer agent.Close()
+
+	// 监听 handoff_start 事件——阻断成功时不会 emit，反之则 emit
+	var handoffStarted bool
+	agent.On(agentcore.EventHandoffStart, func(e agentcore.Event) {
+		handoffStarted = true
+	})
+
+	// 执行 agent — handoff 工具应该被校验拦截，不报错但返回失败结果
+	output, err := agent.Run(context.Background(), "测试被拦截的交接")
+	if err != nil {
+		t.Fatalf("agent run should not error, got: %v", err)
+	}
+
+	// 阻断成功时不应有 HandoffStartEvent
+	if handoffStarted {
+		t.Error("handoff should be blocked but HandoffStartEvent was emitted")
+	}
+
+	// 输出应该包含兜底文案而非子 Agent 的输出
+	if strings.Contains(output, "should NOT reach here") {
+		t.Error("handoff was not blocked: sub-agent was invoked")
+	}
+	if output == "" {
+		t.Fatal("expected fallback message in output")
+	}
+}
+
+// trapProvider 如被调用 second time（表示子 Agent 被启动），返回明显错误内容。
+type trapProvider struct {
+	called  atomic.Int64
+	tool    string
+	content string
+}
+
+func (p *trapProvider) Complete(_ context.Context, _ *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+	call := p.called.Add(1) - 1
+	if call == 0 {
+		return &agentcore.ProviderResponse{
+			ToolCalls: []agentcore.ToolCall{
+				{ID: "call_handoff", Name: "transfer_to_" + p.tool, Arguments: `{"message":"test"}`},
+			},
+		}, nil
+	}
+	// second+ call — Router 读到 HandoffResult 后继续，返回兜底文案
+	return &agentcore.ProviderResponse{Content: "handoff blocked as expected"}, nil
+}
+
+func (p *trapProvider) Stream(_ context.Context, _ *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
+	return nil, fmt.Errorf("streaming not implemented")
+}
+
+func TestSafeHandoff_StarAllowsAll(t *testing.T) {
+	// AllowedSources: ["*"] 应该放行所有来源
+	h := agentcore.HandoffConfig{
+		Name:           "open-target",
+		AllowedSources: []string{"*"},
+	}
+
+	provider := &handoffProvider{tool: "open-target", content: "allowed"}
+	base := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:     "any-agent",
+			Model:    "stub",
+			Provider: provider,
+		},
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns: 3,
+		},
+	}
+	base.Handoffs = []agentcore.HandoffConfig{h}
+
+	agent := agentcore.New(base)
+	defer agent.Close()
+
+	output, err := agent.Run(context.Background(), "测试通配符")
+	if err != nil {
+		t.Fatalf("wildcard should allow all: %v", err)
+	}
+	if output != "allowed" {
+		t.Fatalf("expected 'allowed', got %q", output)
+	}
+}
+
+func TestSafeHandoff_EmptyAllowedSourcesAllowsAll(t *testing.T) {
+	// AllowedSources 为空（nil/empty）应放行所有来源（向后兼容）
+	h := agentcore.HandoffConfig{
+		Name: "default-target",
+	}
+
+	provider := &handoffProvider{tool: "default-target", content: "default allowed"}
+	base := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:     "random-agent",
+			Model:    "stub",
+			Provider: provider,
+		},
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns: 3,
+		},
+	}
+	base.Handoffs = []agentcore.HandoffConfig{h}
+
+	agent := agentcore.New(base)
+	defer agent.Close()
+
+	output, err := agent.Run(context.Background(), "测试空白名单")
+	if err != nil {
+		t.Fatalf("empty AllowedSources should allow all: %v", err)
+	}
+	if output != "default allowed" {
+		t.Fatalf("expected 'default allowed', got %q", output)
+	}
+}

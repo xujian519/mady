@@ -35,11 +35,17 @@ func AssistantAgentConfig(base agentcore.Config) agentcore.Config {
 		"",
 		"使用工具前，先简要说明你要做什么，执行完给出结构化结果。",
 		"",
+		"输出格式：完成任务后，用以下 JSON 格式返回结果（便于 Chat Agent 解释给用户）：",
+		`{"action":"做了什么","result":"结果摘要","success":true}`,
+		"- action: 你做了什么操作",
+		"- result: 结果的简洁摘要",
+		"- success: 是否成功完成",
+		"",
 		"边界：",
 		"- 不提供法律建议（应由 legal-advisor 处理）",
 		"- 不提供专利分析（应由 patent-agent 处理）",
 		"- 不确定的专业问题建议用户咨询相关专业人士",
-	}, " ")
+	}, "\n")
 
 	// Guardrail: LevelStandard with assistant disclaimer.
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,

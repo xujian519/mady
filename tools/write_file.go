@@ -42,6 +42,7 @@ func (d DefaultWriteFileOperations) MkdirAll(path string, perm os.FileMode) erro
 type WriteFileToolConfig struct {
 	Operations WriteFileOperations
 	MaxBytes   int64
+	Sandbox    WorkingDirSandbox
 }
 
 func (c *WriteFileToolConfig) defaults() {
@@ -72,6 +73,7 @@ func NewWriteFileTool(cwd string, cfg *WriteFileToolConfig) *agentcore.Tool {
 		cfg = &WriteFileToolConfig{}
 	}
 	cfg.defaults()
+	cfg.Sandbox.WorkingDir = cwd
 
 	return &agentcore.Tool{
 		Name: "write_file",
@@ -102,7 +104,10 @@ func NewWriteFileTool(cwd string, cfg *WriteFileToolConfig) *agentcore.Tool {
 				return resultErrf("path is required")
 			}
 
-			resolved := resolvePath(input.Path, cwd)
+			resolved, sandboxErr := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if sandboxErr != nil {
+				return resultErrf("%v", sandboxErr)
+			}
 
 			// Check content size.
 			contentBytes := []byte(input.Content)

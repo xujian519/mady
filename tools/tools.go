@@ -100,6 +100,18 @@ type ExtensionConfig struct {
 	// ComputerUse enables the computer_use tool (macOS desktop control). macOS only.
 	ComputerUse bool
 
+	// SandboxEnabled enforces the WorkingDir boundary for file tools when true.
+	// When enabled, read/write/edit/etc. tools reject paths that escape the
+	// WorkingDir subtree. Default is true for new tools.Extension instances.
+	// Propagated to individual tool configs in BuildTools.
+	SandboxEnabled bool
+
+	// EnabledTools is a positive allowlist of tool names to include.
+	// When non-empty, only tools in this list are registered (overrides
+	// DisableTools). Use this for fine-grained per-project tool sets
+	// where only a known subset should be available.
+	EnabledTools []string
+
 	// DisableTools is a list of tool names to exclude from registration.
 	// Use this to limit the tool set for specific agent roles (e.g., disable
 	// bash/git/browser for a retrieval-only assistant). An empty list means
@@ -156,11 +168,22 @@ func (e *Extension) Tools() []*agentcore.Tool { return e.tools }
 func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	cfg.setDefaults()
 	disabled := disabledSet(cfg.DisableTools)
+	enabled := enabledSet(cfg.EnabledTools)
+	useAllowList := len(cfg.EnabledTools) > 0
 
 	var tools []*agentcore.Tool
 
 	addTool := func(t *agentcore.Tool) {
-		if t != nil && !disabled[t.Name] {
+		if t == nil {
+			return
+		}
+		if useAllowList {
+			if enabled[t.Name] {
+				tools = append(tools, t)
+			}
+			return
+		}
+		if !disabled[t.Name] {
 			tools = append(tools, t)
 		}
 	}
@@ -203,6 +226,17 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 
 // disabledSet converts a disable list to a set for O(1) lookup.
 func disabledSet(names []string) map[string]bool {
+	if len(names) == 0 {
+		return nil
+	}
+	m := make(map[string]bool, len(names))
+	for _, n := range names {
+		m[n] = true
+	}
+	return m
+}
+
+func enabledSet(names []string) map[string]bool {
 	if len(names) == 0 {
 		return nil
 	}

@@ -91,32 +91,40 @@ func RouterConfigWithClassifier(base agentcore.Config, classifier IntentClassifi
 		"",
 		"识别到专业领域问题时，使用 transfer_to_<domain> 工具将任务委派给对应专家。",
 		"一般对话和无法明确分类的请求，自己直接回答即可。",
-	}, " ")
+	}, "\n")
 
 	base.Handoffs = []agentcore.HandoffConfig{
 		{
-			Name:        DomainChat,
-			Description: "日常聊天与情感陪伴。处理问候、闲聊、情绪支持等纯对话场景。",
-			Mode:        agentcore.HandoffDelegate,
-			AgentConfig: ChatAgentConfig(base),
+			Name:           DomainChat,
+			Description:    "日常聊天与情感陪伴。处理问候、闲聊、情绪支持等纯对话场景。",
+			Mode:           agentcore.HandoffDelegate,
+			AgentConfig:    ChatAgentConfig(base),
+			AllowedSources: []string{"*"}, // 任何 Agent 都可以交回给 Chat
+			FallbackMsg:    "聊天模块暂时不可用，请稍后再试。",
 		},
 		{
-			Name:        DomainAssistant,
-			Description: "通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。",
-			Mode:        agentcore.HandoffDelegate,
-			AgentConfig: AssistantAgentConfig(base),
+			Name:           DomainAssistant,
+			Description:    "通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。",
+			Mode:           agentcore.HandoffDelegate,
+			AgentConfig:    AssistantAgentConfig(base),
+			AllowedSources: []string{"mady-router"}, // 仅 Router 可发起交接
+			FallbackMsg:    "这个任务处理遇到点问题，要不你换个方式再说一遍，或稍后再试？",
 		},
 		{
-			Name:        DomainPatent,
-			Description: "专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对。",
-			Mode:        agentcore.HandoffDelegate,
-			AgentConfig: PatentAgentConfig(base),
+			Name:           DomainPatent,
+			Description:    "专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对。",
+			Mode:           agentcore.HandoffDelegate,
+			AgentConfig:    PatentAgentConfig(base),
+			AllowedSources: []string{"mady-router"}, // 仅 Router 可发起交接
+			FallbackMsg:    "专利分析功能暂时不可用，建议稍后重试或联系专业代理人。",
 		},
 		{
-			Name:        DomainLegal,
-			Description: "法律咨询与研究。处理法条检索、判例检索、法律分析。",
-			Mode:        agentcore.HandoffDelegate,
-			AgentConfig: LegalAgentConfig(base),
+			Name:           DomainLegal,
+			Description:    "法律咨询与研究。处理法条检索、判例检索、法律分析。",
+			Mode:           agentcore.HandoffDelegate,
+			AgentConfig:    LegalAgentConfig(base),
+			AllowedSources: []string{"mady-router"}, // 仅 Router 可发起交接
+			FallbackMsg:    "法律分析功能暂时不可用，建议稍后重试或咨询专业律师。",
 		},
 	}
 

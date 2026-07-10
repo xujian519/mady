@@ -32,6 +32,7 @@ func (d DefaultEditOperations) Access(path string) error {
 // EditToolConfig configures the edit tool.
 type EditToolConfig struct {
 	Operations EditOperations
+	Sandbox    WorkingDirSandbox
 }
 
 func (c *EditToolConfig) defaults() {
@@ -65,6 +66,7 @@ func NewEditTool(cwd string, cfg *EditToolConfig) *agentcore.Tool {
 		cfg = &EditToolConfig{}
 	}
 	cfg.defaults()
+	cfg.Sandbox.WorkingDir = cwd
 
 	return &agentcore.Tool{
 		Name: "edit",
@@ -100,7 +102,10 @@ func NewEditTool(cwd string, cfg *EditToolConfig) *agentcore.Tool {
 				return resultErrf("edits must contain at least one replacement")
 			}
 
-			resolved := resolveReadPath(input.Path, cwd)
+			resolved, sandboxErr := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if sandboxErr != nil {
+				return resultErrf("%v", sandboxErr)
+			}
 			if err := cfg.Operations.Access(resolved); err != nil {
 				return resultErrf("file not found: %s", input.Path)
 			}
