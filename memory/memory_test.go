@@ -424,7 +424,7 @@ func TestManager_Search(t *testing.T) {
 	}
 
 	// SearchAllLayers
-	results, err = mgr.SearchAllLayers(ctx, "Go", 5)
+	_, err = mgr.SearchAllLayers(ctx, "Go", 5)
 	if err != nil {
 		t.Fatalf("SearchAllLayers failed: %v", err)
 	}

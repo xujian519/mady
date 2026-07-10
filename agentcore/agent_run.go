@@ -718,9 +718,9 @@ func applyDefaultReserveTokens(contextWindow, reserveTokens int64) int64 {
 		return reserveTokens
 	}
 	if contextWindow > 0 {
-		default_ := contextWindow / 4
-		if default_ > 0 {
-			return default_
+		def := contextWindow / 4
+		if def > 0 {
+			return def
 		}
 	}
 	return 0

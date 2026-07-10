@@ -84,7 +84,7 @@ func TestExtension_ProvideWithStore(t *testing.T) {
 	}
 
 	// May or may not have results depending on chunk matching
-	if msgs != nil && len(msgs) > 0 {
+	if len(msgs) > 0 {
 		if msgs[0].Role != agentcore.RoleSystem {
 			t.Fatal("expected RoleSystem message")
 		}

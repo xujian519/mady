@@ -254,11 +254,9 @@ func tokenizeEval(text string) []string {
 	for _, r := range text {
 		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || unicode.Is(unicode.Han, r) {
 			buf.WriteRune(r)
-		} else {
-			if buf.Len() > 0 {
-				tokens = append(tokens, buf.String())
-				buf.Reset()
-			}
+		} else if buf.Len() > 0 {
+			tokens = append(tokens, buf.String())
+			buf.Reset()
 		}
 	}
 	if buf.Len() > 0 {

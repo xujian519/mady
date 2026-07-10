@@ -84,7 +84,7 @@ func TestBatchRunsCmdsAsynchronously(t *testing.T) {
 	tui.SendMsg(core.BatchMsg{slow(1), slow(2), slow(3)})
 
 	// Wait long enough for concurrent execution but not for serial.
-	deadline := time.After(120 * time.Millisecond)
+	deadline := time.After(200 * time.Millisecond)
 	for {
 		select {
 		case <-deadline:

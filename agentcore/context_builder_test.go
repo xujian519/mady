@@ -379,8 +379,8 @@ func TestDefaultContextBuilderConfig(t *testing.T) {
 func TestDefaultManagerConfig(t *testing.T) {
 	// 确保代理包的默认配置也正确
 	// 这仅验证已有的 ConfigOption 签名兼容性
-	var _ ConfigOption = WithContextBuilder(nil)
-	var _ ConfigOption = WithLayerConfig("", LayerConfig{})
+	_ = WithContextBuilder(nil)
+	_ = WithLayerConfig("", LayerConfig{})
 }
 
 // ---------------------------------------------------------------------------

@@ -208,7 +208,7 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 
 	// 异步提取记忆（不阻塞主流程）
 	go func() {
-		defer func() { recover() }() // 防止 goroutine panic 导致进程崩溃
+		defer func() { _ = recover() }() // 防止 goroutine panic 导致进程崩溃
 		extractCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_, _ = h.ext.manager.RememberFromTurn(extractCtx, userMsg, respContent, h.ext.scope)

@@ -121,14 +121,15 @@ func tokenize(text string) []string {
 	}
 
 	for _, r := range strings.ToLower(text) {
-		if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
-			unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r) {
+		switch {
+		case unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
+			unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r):
 			// CJK 字符：每个字独立作为 token
 			flush()
 			tokens = append(tokens, string(r))
-		} else if unicode.IsLetter(r) || unicode.IsDigit(r) {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
 			buf.WriteRune(r)
-		} else {
+		default:
 			flush()
 		}
 	}
