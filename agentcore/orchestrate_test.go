@@ -2,6 +2,8 @@ package agentcore
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 )
@@ -80,5 +82,57 @@ func TestRunSequentialAgents(t *testing.T) {
 	want := "echo:echo:start"
 	if out != want {
 		t.Fatalf("got %q want %q", out, want)
+	}
+}
+
+func TestDepthFromContext(t *testing.T) {
+	ctx := context.Background()
+	if d := DepthFromContext(ctx); d != 0 {
+		t.Fatalf("default depth=%d want 0", d)
+	}
+	if d := DepthFromContext(WithDepth(ctx, 3)); d != 3 {
+		t.Fatalf("depth=%d want 3", d)
+	}
+}
+
+func TestRunSequentialAgentsWithDepth_Exceeds(t *testing.T) {
+	cfg := func(name string) Config {
+		return Config{
+			ModelConfig:     ModelConfig{Name: name, Model: "stub", Provider: seqStubProvider{}},
+			ExecutionConfig: ExecutionConfig{MaxTurns: 5},
+		}
+	}
+	agents := []*Agent{New(cfg("a1")), New(cfg("a2")), New(cfg("a3"))}
+	_, err := RunSequentialAgentsWithDepth(context.Background(), agents, "x", 2)
+	if err == nil {
+		t.Fatal("expected depth-exceeded error, got nil")
+	}
+	if !errors.Is(err, ErrDepthExceeded) {
+		t.Fatalf("err=%v, want ErrDepthExceeded", err)
+	}
+}
+
+func TestTaskToolWithDepth_Exceeds(t *testing.T) {
+	leaf := &Tool{
+		Name:       "leaf",
+		Parameters: simpleStringParams(),
+		Func: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return "leaf-ok", nil
+		},
+	}
+	tt := TaskToolWithDepth("delegate", []TaskOption{
+		{Name: "leaf", Description: "leaf", Tool: leaf},
+	}, 1)
+
+	ctx := context.Background()
+	if _, err := tt.Func(ctx, json.RawMessage(`{"agent":"leaf","task":"x"}`)); err != nil {
+		t.Fatalf("depth-0 delegation should succeed: %v", err)
+	}
+	_, err := tt.Func(WithDepth(ctx, 1), json.RawMessage(`{"agent":"leaf","task":"x"}`))
+	if err == nil {
+		t.Fatal("expected depth-exceeded error at depth 1, got nil")
+	}
+	if !errors.Is(err, ErrDepthExceeded) {
+		t.Fatalf("err=%v, want ErrDepthExceeded", err)
 	}
 }

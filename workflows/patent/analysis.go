@@ -27,6 +27,8 @@ const (
 	StateComparison  = "comparison"   // feature-by-feature comparison results
 	StateConclusion  = "conclusion"   // final novelty/creativity assessment
 	StateOutput      = "output"       // final output text
+	StateRuleCheck   = "rule_check"   // rule engine check report (Markdown)
+	StateRuleVerdict = "rule_verdict" // aggregate Verdict from rule check
 )
 
 // parseNode extracts technical features from the invention description.
@@ -214,4 +216,101 @@ func BuildNoveltyGraph() (*graph.CompiledPregelGraph, error) {
 	g.AddEdge("conclude", graph.PregelEnd)
 
 	return g.Compile("parse", 10) // max 10 supersteps
+}
+
+// ruleCheckNode runs the deterministic rule engine against the analysis output
+// and writes a Markdown check report plus the aggregate verdict to state.
+// This node sits between "analyze" and "conclude" in BuildNoveltyGraphWithRules.
+func ruleCheckNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+	comparison := state.GetString(StateComparison)
+	features, _ := state[StateFeatures].([]string)
+	priorArt, _ := state[StatePriorArt].([]string)
+
+	// Combine all analysis text for rule checking.
+	var checkText strings.Builder
+	checkText.WriteString(comparison)
+	for _, f := range features {
+		checkText.WriteString("\n")
+		checkText.WriteString(f)
+	}
+	for _, art := range priorArt {
+		checkText.WriteString("\n")
+		checkText.WriteString(art)
+	}
+
+	engine := NewRuleEngine()
+	engine.RegisterRules(DefaultPatentRules())
+
+	results := engine.Evaluate(engine.Rules(), checkText.String(), "patent_novelty")
+	verdict := Aggregate(results)
+
+	return graph.PregelState{
+		StateRuleCheck:   FormatRuleResults(results, verdict),
+		StateRuleVerdict: string(verdict),
+		StateComparison:  comparison,
+		StateFeatures:    features,
+		StatePriorArt:    priorArt,
+	}, nil
+}
+
+// concludeWithRulesNode is an enhanced conclude node that incorporates the
+// rule engine report into the final assessment.
+func concludeWithRulesNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+	base, err := concludeNode(ctx, state)
+	if err != nil {
+		return nil, err
+	}
+
+	ruleCheck := state.GetString(StateRuleCheck)
+	ruleVerdict := state.GetString(StateRuleVerdict)
+
+	var report strings.Builder
+	report.WriteString(base.GetString(StateConclusion))
+	report.WriteString("\n\n")
+	report.WriteString(ruleCheck)
+
+	// If rules blocked, prepend a prominent warning.
+	if ruleVerdict == string(VerdictBlocked) {
+		warning := "> ⛔ **规则引擎检查未通过**：分析存在严重缺陷，结论不宜直接采用。\n\n"
+		report.Reset()
+		report.WriteString(warning)
+		report.WriteString(base.GetString(StateConclusion))
+		report.WriteString("\n\n")
+		report.WriteString(ruleCheck)
+	}
+
+	final := report.String()
+	return graph.PregelState{
+		StateConclusion:  final,
+		StateOutput:      final,
+		StateRuleCheck:   ruleCheck,
+		StateRuleVerdict: ruleVerdict,
+	}, nil
+}
+
+// BuildNoveltyGraphWithRules constructs a Pregel graph for patent novelty
+// analysis with the deterministic rule engine check inserted between analyze
+// and conclude:
+//
+//	parse → search → analyze → rule_check → conclude_with_rules → __end__
+//
+// The rule_check node evaluates the analysis against DefaultPatentRules and
+// produces a verdict (pass / needs_revision / blocked). The enhanced conclude
+// node embeds the check report and flags blocked analyses.
+func BuildNoveltyGraphWithRules() (*graph.CompiledPregelGraph, error) {
+	g := graph.NewPregelGraph()
+
+	g.AddNode("parse", parseNode)
+	g.AddNode("search", searchNode)
+	g.AddNode("analyze", analyzeNode)
+	g.AddNode("rule_check", ruleCheckNode)
+	g.AddNode("conclude", concludeWithRulesNode)
+
+	g.AddEdge("parse", "search")
+	g.AddEdge("search", "analyze")
+	g.AddEdge("analyze", "rule_check")
+	g.AddEdge("rule_check", "conclude")
+	g.AddEdge("conclude", graph.PregelEnd)
+
+	return g.Compile("parse", 10)
 }

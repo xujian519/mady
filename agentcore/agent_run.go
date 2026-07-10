@@ -355,24 +355,47 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 				continue
 			}
 
-			if err := a.executeToolCalls(ctx, resp.ToolCalls); err != nil {
-				if IsInterrupt(err) {
-					a.state.SetStatus(StatusInterrupted)
-					a.state.SetInterruptReason(a.interrupted)
-					a.emit(&AgentInterruptEvent{
-						baseEvent: newBase(EventAgentInterrupt),
-						AgentName: a.config.Name,
-						Reason:    a.interrupted,
-					})
-					return "", nil
-				}
-				ne := NewNodeError("tool execution persist failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn))
-				a.state.SetStatus(StatusError)
-				a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-				return "", ne
+		earlyExit, err := a.executeToolCalls(ctx, resp.ToolCalls)
+		if err != nil {
+			if IsInterrupt(err) {
+				a.state.SetStatus(StatusInterrupted)
+				a.state.SetInterruptReason(a.interrupted)
+				a.emit(&AgentInterruptEvent{
+					baseEvent: newBase(EventAgentInterrupt),
+					AgentName: a.config.Name,
+					Reason:    a.interrupted,
+				})
+				return "", nil
 			}
+			ne := NewNodeError("tool execution persist failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn))
+			a.state.SetStatus(StatusError)
+			a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
+			return "", ne
+		}
 
-			// Context cancellation during tool execution — exit cleanly.
+		// Early-exit: a tool returned a terminating result; its content is
+		// the final answer and no further LLM turn runs.
+		if earlyExit != "" {
+			finalOutput = earlyExit
+			a.state.SetStatus(StatusFinished)
+			a.emit(&TurnEndEvent{
+				baseEvent: newBase(EventTurnEnd),
+				Turn:      turn,
+				Usage:     resp.Usage,
+			})
+			if lc := a.lifecycle(); lc != nil {
+				arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+				lc.AfterTurn(ctx, arc, TurnInfo{HadToolCalls: true})
+			}
+			if err := a.checkpointTurnEnd(ctx, turn); err != nil {
+				a.state.SetStatus(StatusError)
+				a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+				return "", err
+			}
+			break
+		}
+
+		// Context cancellation during tool execution — exit cleanly.
 			if errors.Is(ctx.Err(), context.Canceled) {
 				a.state.SetStatus(StatusFinished)
 				a.emit(&AgentEndEvent{
@@ -539,10 +562,10 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 					ToolCallID: tc.ID,
 					Name:       tc.Name,
 				}); perr != nil {
-					return perr
+					return "", perr
 				}
 			}
-			return nil
+			return "", nil
 		}
 	}
 
@@ -594,6 +617,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 
 	// Persist all completed tool results first (even in parallel mode where
 	// one tool may interrupt while others completed successfully).
+	var earlyExit string
 	var interrupt *InterruptReason
 	for i, tc := range calls {
 		r := results[i]
@@ -601,6 +625,15 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 		// Skip unexecuted tools (serial mode stopped early after interrupt).
 		if r.ToolCallID == "" && r.ToolName == "" && r.Result == "" && r.Err == nil {
 			continue
+		}
+
+		// Early-exit: a tool requested loop termination; its result is the
+		// final answer. First terminating tool wins.
+		if r.Terminate && earlyExit == "" {
+			earlyExit = r.Result
+			if earlyExit == "" {
+				earlyExit = r.EffectiveResult()
+			}
 		}
 
 		content := r.Result
@@ -622,7 +655,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 			ToolCallID: tc.ID,
 			Name:       tc.Name,
 		}); err != nil {
-			return err
+			return "", err
 		}
 
 		if IsInterrupt(r.Err) && interrupt == nil {
@@ -634,13 +667,16 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 			}
 		}
 	}
+	if earlyExit != "" {
+		return earlyExit, nil
+	}
 	if interrupt != nil {
 		a.interrupted = interrupt
 		a.state.SetInterruptReason(interrupt)
 		if err := a.appendCheckpoint(ctx); err != nil {
-			return err
+			return "", err
 		}
-		return ErrInterrupt
+		return "", ErrInterrupt
 	}
-	return nil
+	return "", nil
 }

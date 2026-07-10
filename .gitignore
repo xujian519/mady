@@ -58,3 +58,7 @@ coverage.xml
 
 # --- CI / tool local settings ---
 .claude/settings.local.json
+
+# --- Code intelligence indexes (rebuildable) ---
+.codegraph/
+.cursor/

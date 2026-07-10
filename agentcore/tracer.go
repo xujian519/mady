@@ -28,6 +28,10 @@ type Tracer interface {
 	Start(ctx context.Context, name string, attrs ...SpanAttribute) (context.Context, Span)
 }
 
+// NoopTracer returns a Tracer that creates no-op spans, discarding all span
+// data. This is the default when Config.Tracer is unset.
+func NoopTracer() Tracer { return noopTracer{} }
+
 // noopTracer is the default when no tracer is configured.
 type noopTracer struct{}
 type noopSpan struct{}
