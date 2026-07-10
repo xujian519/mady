@@ -20,10 +20,9 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
-// Tool name constants for use with DisableTools.
-// Using these constants instead of raw strings ensures compile-time
-// safety — renaming a tool will cause a compile error if any DisableTools
-// list still references the old name.
+// 工具名常量，用于 DisableTools 配置。
+// 使用常量而非裸字符串可在工具重命名时获得编译期安全——
+// 若工具构造函数内 Name 字段变更而常量未更新，引用的地方会编译报错。
 const (
 	ToolBash        = "bash"
 	ToolGitStatus   = "git_status"

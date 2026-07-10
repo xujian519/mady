@@ -114,10 +114,10 @@ func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...
 	return nil
 }
 
-// AppendLifecycle safely composes two LifecycleHooks into a chain.
-// If both are nil, returns nil. If one is nil, returns the other.
-// If the existing hook is already a LifecycleChain, the next hook is
-// appended to it; otherwise, a new LifecycleChain is created.
+// AppendLifecycle 安全地将两个 LifecycleHook 组合成链。
+// 若两者均为 nil 则返回 nil；任一为 nil 则返回另一个；
+// 若 existing 已是 LifecycleChain 则将 next 追加到链尾，
+// 否则新建 LifecycleChain 包装两者。
 func AppendLifecycle(existing, next LifecycleHook) LifecycleHook {
 	if next == nil {
 		return existing

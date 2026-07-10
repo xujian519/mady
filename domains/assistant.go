@@ -9,20 +9,17 @@ import (
 	"github.com/xujian519/mady/tools"
 )
 
-// AssistantAgentConfig builds the assistant domain Agent configuration.
-// The assistant agent is equipped with tools (web_search, web_fetch, read,
-// write_file, etc.) for task execution such as code generation, file
-// operations, data analysis, and web search.
-//
-// It uses LevelStandard guardrails and HandoffDelegate back to chat for
-// non-task conversations. Patent/legal handoffs are reserved for future use.
+// AssistantAgentConfig 构建助理领域 Agent 配置。
+// 助理 Agent 配备工具集（web_search、web_fetch、read、write_file 等），
+// 用于代码生成、文件操作、数据分析、网页搜索等任务执行。
+// 使用 LevelStandard 护栏，跨域路由由 RouterConfig 统一管理。
 func AssistantAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg := base
 	cfg.Name = "assistant-agent"
 
-	// 助理场景默认 20 轮（工具链式调用需要更多轮次）。
-	// 仅当值为 0（未设置）时赋默认值；调用方显式传入的较小值不会被覆盖。
-	if cfg.MaxTurns == 0 {
+	// 助理场景需要足够轮次完成工具链式调用。
+	// Agent 内部默认值为 20，此处确保不会因意外传入过低值而截断工具工作流。
+	if cfg.MaxTurns == 0 || cfg.MaxTurns < 20 {
 		cfg.MaxTurns = 20
 	}
 
