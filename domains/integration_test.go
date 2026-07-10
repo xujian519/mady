@@ -28,7 +28,7 @@ func (p *handoffProvider) Complete(_ context.Context, _ *agentcore.ProviderReque
 	if call == 0 {
 		return &agentcore.ProviderResponse{
 			ToolCalls: []agentcore.ToolCall{
-				{ID: "call_handoff", Name: "transfer_to_" + p.tool, Arguments: `{"input":"test"}`},
+				{ID: "call_handoff", Name: "transfer_to_" + p.tool, Arguments: `{"message":"test input"}`},
 			},
 		}, nil
 	}
