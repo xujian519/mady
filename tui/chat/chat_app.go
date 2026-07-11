@@ -440,16 +440,10 @@ func (o *overlayHandle) OverlayHeightPct() int          { return o.heightPct }
 
 func (a *ChatApp) onEditorSubmit(value string) {
 	a.mu.Lock()
-	if a.ac != nil && a.ac.Active() {
-		// Autocomplete is active — let chatLayout forward the key to it.
-		// Don't submit or forward here to avoid double-processing.
-		a.mu.Unlock()
-		return
-	}
-	// Hide autocomplete under the same lock that checked Active() — without
-	// this, the unlock window between the check and Hide() could let the ac
-	// state drift (the previous code re-locked and re-checked a.ac != nil,
-	// racing with concurrent activation).
+	// 当 autocomplete 激活时，先隐藏它然后正常提交。
+	// 之前直接 return 会阻止 Enter 提交，而 chat_layout.Update 把 Enter
+	// 转发给 autocomplete 的 SelectList，后者会 apply 当前选中项（带上 trigger
+	// 前缀），导致用户输入被篡改（例如 /help → //help），斜杠命令失效。
 	if a.ac != nil {
 		a.ac.Hide()
 	}
