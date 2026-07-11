@@ -83,6 +83,10 @@ mady/
 │   └── agentadapter/ #   Agent 适配器 (Layer 7)
 ├── workflow/         # 工作流原语
 ├── workflows/        # 领域工作流
+├── disclosure/       # 技术交底书分析管线（10 节点 Pregel）
+├── memory/           # 长期记忆系统 + 策略学习型记忆编译器
+├── filequeue/        # 文件队列基础设施
+├── fuzzy/            # 模糊搜索
 ├── example/          # 示例应用
 └── docs/             # 文档
 ```
@@ -94,15 +98,18 @@ mady/
                         |
                    核心引擎层：agentcore
                  /      |       \         \
-        提供者层(2)   工具层(10+)   扩展层    领域扩展层
-        chatcompat    tools/      Extension  psychological/
-        smartrouter               接口       domains/
-                                            guardrails/
-                                            knowledge/
-                                            retrieval/
-                                            workflows/
-                 \      |       /         /
-         基础设施层：graph/ session/ skill/ prompt/ store/ mcp/ knowledge/graph
+         提供者层(2)   工具层(35)    扩展层    领域扩展层
+         chatcompat    tools/      Extension  psychological/
+         smartrouter               接口       domains/
+                                             guardrails/
+                                             knowledge/
+                                             retrieval/
+                                             workflows/
+                                             disclosure/
+                                             memory/
+                  \      |       /         /
+          基础设施层：graph/ session/ skill/ prompt/ store/ mcp/ knowledge/graph
+                          disclosure/ memory/ filequeue/ fuzzy/
                                    |
                     TUI 层：8-layer Elm 架构
                                    |

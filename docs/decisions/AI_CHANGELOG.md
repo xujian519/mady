@@ -12,6 +12,22 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-11: 文档全面同步实际开发进度
+
+- **变更**:
+  1. **CLAUDE.md**: 代码统计（419→517 文件，283→352 非测试，136→165 测试，~108K→~126K 行）；目录结构新增 disclosure/memory/agentcore 子包/guardrails/guardian/；架构概要扩展层 10+→35+；新增 Invisible Handoff + IntegratedChatConfig 描述
+  2. **CHANGELOG.md**: 版本顺序修正（0.3.0→0.2.0→0.1.0）；补充 0.3.0 缺失特性（Embed Manifest、MADY_HOME、Invisible Handoff、Reasonix 9 包、四级压缩、Permission/Guardian/PlanMode/Evidence/FileCheckpoint/MemoryCompiler/Tracing/Evaluate）；添加 [0.3.0] 链接
+  3. **README.md**: 发展路线更新（下季度项中已实现的标记为当前）；架构图补充 memory/；manifest 说明改为 embed + ~/.mady/manifests/；扩展表格新增 8 个 opt-in 扩展包（Evidence/FileCheckpoint/Permission/PlanMode/Guardian/Evaluate/Tracing/Memory）；工具数 40+→35
+  4. **SECURITY.md**: 护栏描述修正为实际行为（关键词屏蔽+免责声明+审批门，非"仅免责声明"）；新增 Guardian AI 熔断器 + Permission 权限门控描述；新增安全敏感路径表（12 条路径）；版本表 0.1.x→0.x.x
+  5. **docs/chat-assistant-architecture.md**: 后续迭代补充 Invisible Handoff / Embed Manifest / Reasonix 包；下季度候选项更新
+  6. **docs/manifest-guide.md**: 文件位置改为 embed + $MADY_HOME/manifests/；启动方式更新
+  7. **docs/adr/0001**: TUI 7 层→8 层；基础设施层补充 disclosure/memory/filequeue/fuzzy
+  8. **CONTRIBUTING.md**: 目录结构新增 disclosure/memory/filequeue/fuzzy；架构图工具层 10+→35，基础设施层补充新模块
+- **原因**: 文档全面滞后于代码实际进度（代码已 517 文件/~126K 行，文档仍记 419 文件/~108K 行；v0.3.0 新增的 12 项特性在多份文档中缺失或描述不足）
+- **影响范围**: CLAUDE.md, CHANGELOG.md, README.md, SECURITY.md, docs/chat-assistant-architecture.md, docs/manifest-guide.md, docs/adr/0001-use-layered-architecture.md, CONTRIBUTING.md
+- **风险等级**: 低（纯文档变更，不涉及代码逻辑）
+- **审查要求**: L1
+
 ## 2026-07-11: Chat Agent 与意图识别模块深度融合（Invisible Handoff + IntegratedChatConfig）
 
 - **变更**:
@@ -45,25 +61,6 @@
 - **原因**: 修复"从非项目根目录启动 `mady tui` 静默降级为裸 LLM 对话"的根因——manifest 扫描依赖相对路径 `./manifests`，目录不存在时 `ScanManifests` 返回 nil 导致 `useMultiDomain=false`，全部领域 agent 能力丢失
 - **影响范围**: pkg/util, agentcore(manifest_loader/agent/embedded_manifests), cmd/mady, domains/assistant, Makefile, .env.example, AGENTS.md
 - **风险等级**: 中（触及安全敏感路径 `agentcore/manifest_loader.go` 的 Manifest 校验规则，但未改校验逻辑，仅重构加载入口 + 加 embed；`domains/assistant.go` WorkingDir 透传影响工具沙箱边界）
-- **审查要求**: L3（manifest 加载路径 + 工具沙箱 WorkingDir 属安全边界，需人工审阅）
-
-## 2025-06-11: 初始化代码质量全面审查报告
-
-- **变更**: 完成 Mady 项目首次全面代码质量审查，覆盖 484 个文件的 6 大维度
-- **原因**: 系统性识别性能瓶颈、安全漏洞、架构合规性问题，支撑智能体高效调用
-- **审查结果**: 审查报告已输出至 `docs/decisions/REVIEW_REPORT_2025-06-11.md`
-- **风险等级**: 中（大量安全/性能问题需修复）
-- **审查要求**: L2
-
-## 2026-07-11: 修复三个 CRITICAL 并发安全问题
-
-- **变更**:
-  1. `domains/agent_pool.go` GetOrCreate 消除 defer+手动 Unlock 混合模式导致的 double-unlock panic，改为显式 Lock/Unlock + 锁外批量 Close
-  2. `domains/reasoning/fact_blackboard.go` 为 FactBlackboard 添加 sync.RWMutex 保护所有字段，写方法检查 Locked 并 panic，MarshalJSON/UnmarshalJSON 加锁
-  3. `domains/project.go` 提取 StatusActive/StatusArchived/StatusUnreachable 常量替换硬编码字符串
-- **原因**: 消除运行时 panic 风险和并发数据竞争
-- **影响范围**: domains/agent_pool.go, domains/reasoning/fact_blackboard.go, domains/project.go
-- **风险等级**: 中（涉及安全敏感路径 agent_pool 和并发同步）
 - **审查要求**: L3
 
 ## 2026-07-11: 引入 Reasonix 高价值特性 — Phase 0-2 实施
@@ -84,6 +81,19 @@
 - **风险等级**: 中（新功能均为 opt-in，不影响现有代码路径）
 - **审查要求**: L3
 
+## 2026-07-11: 修复三个 CRITICAL 并发安全问题
+
+- **变更**:
+  1. `domains/agent_pool.go` GetOrCreate 消除 defer+手动 Unlock 混合模式导致的 double-unlock panic，改为显式 Lock/Unlock + 锁外批量 Close
+  2. `domains/reasoning/fact_blackboard.go` 为 FactBlackboard 添加 sync.RWMutex 保护所有字段，写方法检查 Locked 并 panic，MarshalJSON/UnmarshalJSON 加锁
+  3. `domains/project.go` 提取 StatusActive/StatusArchived/StatusUnreachable 常量替换硬编码字符串
+- **原因**: 消除运行时 panic 风险和并发数据竞争
+- **影响范围**: domains/agent_pool.go, domains/reasoning/fact_blackboard.go, domains/project.go
+- **风险等级**: 中（涉及安全敏感路径 agent_pool 和并发同步）
+- **审查要求**: L3
+
+## 2026-07-11: 全面代码质量审查修复 — 16 CRITICAL + 45 MAJOR + lint清零
+
 - **变更**:
   1. **CRITICAL 安全修复**: tools/ delete.go/move.go/patch.go 改用 resolvePathSandboxed 堵住沙箱绕过；tools.go BuildTools 传播 Sandbox 配置；bash.go 添加 Setpgid 进程组隔离 + 临时文件延迟清理 + Write 错误检查
   2. **CRITICAL 并发/泄漏修复**: agentcore/stream.go Map/Merge 添加 out.Done() 监听取消 goroutine 泄漏；session/session.go 锁缓存改 LRU 淘汰替代全量清空；knowledge/store.go ReindexVectors 锁外批量 Embed；server/server.go handleSkillEvents defer unregister；tui/tui.go PanicMsg 处理 + terminal.go readLoop 错误日志 + 写错误记录
@@ -99,3 +109,11 @@
 - **验证**: go build ✅ | go vet ✅ | go test -race ✅ 全部通过 | golangci-lint 0 issues
 - **风险等级**: 中（涉及安全敏感路径 tools/path 沙箱 + handoff + guardrails）
 - **审查要求**: L3
+
+## 2025-06-11: 初始化代码质量全面审查报告
+
+- **变更**: 完成 Mady 项目首次全面代码质量审查，覆盖 484 个文件的 6 大维度
+- **原因**: 系统性识别性能瓶颈、安全漏洞、架构合规性问题，支撑智能体高效调用
+- **审查结果**: 审查报告已输出至 `docs/decisions/REVIEW_REPORT_2025-06-11.md`
+- **风险等级**: 中（大量安全/性能问题需修复）
+- **审查要求**: L2

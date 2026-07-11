@@ -98,12 +98,15 @@ v0 使用关键词分类 + LLMClassifier 回退的「分层级联」策略：
 7. ✅ **专利/法律工作流 Tool 封装** — `analyze_patent_novelty` / `compare_legal_cases`
 8. ✅ **错误类型体系** — RetryableError / FatalError / HandoffError / GuardrailError
 9. ✅ **措辞规范** — `docs/tone-style-guide.md`，禁用绝对化表述
+10. ✅ **Invisible Handoff**（v0.3.0）— Chat Agent 作为统一对话界面（`IntegratedChatConfig`），根据意图自动无缝委派给专业 Agent，用户无需感知路由切换
+11. ✅ **Embed Manifest**（v0.3.0）— 4 个领域 JSON 通过 `go:embed` 编进二进制，`MadyHome()` 统一路径解析，任意目录开箱即用
+12. ✅ **Reasonix 扩展包**（v0.3.0）— Evidence Ledger / File Checkpoint / Permission / PlanMode / Guardian AI / Evaluate / Tracing / Memory Compiler / 四级渐进式压缩
 
 ## 下季度候选
 
-1. 关键词分类升级为 LLM 分类（如果误判率上升）
-2. 向量召回上线（当前仅结构化过滤）
-3. 心理引擎 LLMVerifyDistortions 评估
+1. 向量召回上线（当前仅结构化过滤）
+2. 记忆编译器策略学习增强
+3. 评估框架与 CI 集成
 4. 添加 DomainTrademark 领域
 5. Checkpoint 暂停点：在 assistant 涉及"生成文档草稿"时加人工确认
 6. Manifest 文件监听热加载（fsnotify）

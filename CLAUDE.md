@@ -9,7 +9,7 @@
 
 - **Go 1.25+**：多模块项目（go.work 包含根模块 + `./tools` 子模块）
 - 核心依赖极少（仅 `gorilla/websocket` 一个直接依赖）
-- 419 个 Go 源文件（283 非测试 + 136 测试），~108K 行代码
+- 517 个 Go 源文件（352 非测试 + 165 测试），~126K 行代码
 
 ## 构建与测试
 
@@ -28,19 +28,30 @@ cd tools && go test ./...
 
 ```
 mady/
-├── agentcore/        # 核心 Agent 运行时（50 源 + 27 测试）
+├── agentcore/        # 核心 Agent 运行时（88 源 + 27 测试）
+│   ├── evidence/     #   工具调用证据账本（Receipt/Ledger）
+│   ├── filecheckpoint/ # 文件级快照与回退
+│   ├── permission/   #   细粒度权限门控（Allow/Ask/Deny）
+│   ├── planmode/     #   计划模式工具门控
+│   ├── evaluate/     #   评估框架（RAGAS 风格）
+│   ├── tracing/      #   OpenTelemetry 追踪
+│   └── manifests/    #   内置领域 manifest JSON（go:embed）
 ├── a2a/              # Google Agent-to-Agent 协议
 ├── a2ui/             # Agent-to-UI 声明式协议 v0.9.1
 ├── acp/              # Agent 通信协议（JSON-RPC）
 ├── agui/             # Agent GUI 事件协议（SSE）
+├── disclosure/       # 技术交底书分析管线（10 节点 Pregel）
 ├── domains/          # 领域 Agent 配置 + 推理引擎
 │   └── reasoning/    #   事实黑板、三段论、多跳遍历
 ├── graph/            # 图引擎（DAG + Pregel）
 ├── guardrails/       # 三级护栏系统
+│   └── guardian/     #   AI 安全审查子 Agent（熔断器）
 ├── knowledge/        # 知识管理（知识图谱 + 文档加载器）
 │   ├── graph/        #   图谱存储/查询/缓存/增量
 │   └── loader/       #   Wiki/Patent/Legal 加载器
 ├── mcp/              # MCP 客户端（stdio + HTTP/SSE）
+├── memory/           # 长期记忆系统（三层模型）
+│   └── compiler/     #   策略学习型记忆编译器
 ├── psychological/    # 心理引擎（VAD/OCC/EMA/SDT/CBT）
 ├── provider/         # LLM 接入层
 │   ├── chatcompat/   #   OpenAI Chat Completions 兼容
@@ -51,7 +62,7 @@ mady/
 ├── skill/            # SKILL.md 解析器
 ├── skills/           # 内置技能定义
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块）
+├── tools/            # 内置工具扩展（独立子模块，35+ 工具）
 ├── tui/              # 终端 UI（8 层 Elm 架构）
 │   ├── core/         #   Layer 0: Component 接口
 │   ├── terminal/     #   Layer 1: 终端 I/O
@@ -63,15 +74,15 @@ mady/
 │   └── agentadapter/ #   Layer 7: Agent 适配器
 ├── workflow/         # 工作流原语（Pipeline/Parallel/Router）
 ├── workflows/        # 领域工作流（legal/patent）
-├── cmd/mady/         # 统一入口（mady tui | mady acp）
-├── example/          # 示例应用（9 个）
+├── cmd/mady/         # 统一入口（mady tui | mady serve | mady acp）
+├── example/          # 示例应用（7 个）
 ├── docs/             # 文档（ADRs、OpenAPI 规范）
 ├── filequeue/        # 文件队列
 ├── fuzzy/            # 模糊匹配
 ├── prompt/           # 提示词模板
 ├── protocol/         # JSON-RPC 协议原语
 ├── components/       # 共享组件（已废弃，将迁移）
-└── pkg/              # 通用工具
+└── pkg/              # 通用工具（路径解析等）
 ```
 
 ## 架构概要
@@ -83,9 +94,10 @@ mady/
                         |
                    核心引擎层：agentcore
                  /      |       \         \
-        提供者层   工具层(10+)   扩展层    领域扩展层
+        提供者层   工具层(35+)   扩展层    领域扩展层
                  \      |       /         /
          基础设施层：graph/ session/ skill/ prompt/ store/ mcp/
+                     disclosure/ memory/ filequeue/ fuzzy/
                                    |
                     TUI 层：8-layer Elm 架构
                                    |
@@ -118,11 +130,15 @@ Router (mady-router)
   └── transfer_to_legal      → Legal Agent     (法律分析)
 ```
 
+**Invisible Handoff（v0.3.0 新增）：** `IntegratedChatConfig` 将 Chat Agent 作为统一对话界面，
+内部通过 Invisible Handoff 无缝委派专业任务——不向用户显示 `transfer_to_*` 工具调用和交接公告。
+入口 `cmd/mady/main.go` 默认使用集成模式（`MADY_ROUTER_MODE=1` 回退传统 Router，`MADY_SINGLE_AGENT=1` 回退单 Agent）。
+
 **核心组件：**
 
 | 组件 | 文件 | 说明 |
 |------|------|------|
-| HandoffConfig | `agentcore/handoff.go` | 交接目标配置（名称/模式/来源白名单/兜底文案） |
+| HandoffConfig | `agentcore/handoff.go` | 交接目标配置（名称/模式/来源白名单/兜底文案/Invisible 标志） |
 | HandoffContext | `agentcore/handoff_context.go` | 交接时抽取的结构化上下文（意图/实体/最近消息） |
 | HandoffResult | `agentcore/handoff_result.go` | 子 Agent 返回的结构化结果（Action/Result/Success） |
 | SafeHandoff | `agentcore/handoff.go` | 基于 AllowedSources 白名单的运行时交接校验 |

@@ -20,6 +20,20 @@
 - **措辞规范**：`docs/tone-style-guide.md`，禁用绝对化表述，约束向用户输出
 - **e2e 测试套件**：5 条核心链路 + 4 个护栏场景 + Session 连续性
 - **性能基准**：Agent 创建 / Pregel 编译执行 / Handoff 序列化延迟
+- **Embed Manifest**：4 个领域 JSON（chat/assistant/patent/legal）通过 `go:embed` 编进二进制，任意目录开箱即用
+- **MADY_HOME**：`util.MadyHome()` 统一路径解析（`$MADY_HOME` > `~/.mady`），workspace/sessions/manifests 均落在其下
+- **Invisible Handoff**：Chat Agent 作为统一对话界面（IntegratedChatConfig），根据意图自动无缝委派给专业 Agent
+- **Reasonix 扩展包（9 个 opt-in）**：
+  - `agentcore/evidence/` — 工具调用证据账本（Receipt/Ledger）
+  - `agentcore/filecheckpoint/` — 文件级快照与回退
+  - `agentcore/permission/` — 细粒度权限门控（Allow/Ask/Deny）
+  - `agentcore/planmode/` — 计划模式工具门控（/plan）
+  - `agentcore/evaluate/` — 评估框架（RAGAS 风格）
+  - `agentcore/tracing/` — OpenTelemetry 追踪
+  - `guardrails/guardian/` — AI 安全审查子 Agent（熔断器）
+  - `memory/` + `memory/compiler/` — 长期记忆系统 + 策略学习型记忆编译器
+  - 四级渐进式上下文压缩（notice → snip → prune → force-fold）
+- **环境变量**：新增 `MADY_HOME`、`MADY_ROUTER_MODE`
 
 ### Changed
 
@@ -28,6 +42,32 @@
 - `RouterConfigFromManifests` 支持动态 SystemPrompt 生成
 - 护栏文案：`必须附带` → `附以下声明`（措辞更轻柔）
 - 专利分析输出：`权利要求应确保` → `建议由代理人核实`（避免绝对化）
+
+## [0.2.0] - 2026-07-11
+
+### Added
+
+- **心理引擎 (psychological/)**: 7-stage pipeline with VAD emotional space, OCC emotional model, EMA cognitive appraisal, Beck cognitive distortion detection, SDT self-determination theory tracking. LLM-based distortion verification mode. Persistent SDT state per session.
+- **智能路由 Provider (provider/smartrouter/)**: Task-type classification (coding/reasoning/legal/patent/creative/analysis/general), priority-based profile ranking (quality/cost/balanced/latency), ModelProfile registry.
+- **知识管理 (knowledge/)**: Wiki/Patent/Legal document loaders, multi-source loader pipeline, KnowledgeStore with domain-organized collections, retrieval hook integration with guardrails.
+- **知识图谱 (knowledge/graph/)**: Graph store with adapter, builder, query engine, incremental updates, cache layer, retrieval enhancer integration.
+- **推理引擎 (domains/reasoning/)**: FactBlackboard shared memory, categorical Syllogism engine (major premise → minor premise → conclusion), multi-hop ReasoningWalker, RuleAssertion validator with reference tracing.
+- **三级护栏系统 (guardrails/)**: Light/Standard/Strict guardrail levels, domain-specific disclaimers, keyword-based content safety checks, approval gating for critical conclusions.
+- **检索引擎 (retrieval/)**: Paragraph/section chunker, keyword searcher with TF-IDF scoring, BM25-inspired reranker with position bias, vector embedding support, domain-specific retrieval base.
+- **领域工作流 (workflows/)**: Legal and patent domain workflow steps with human-approval gates.
+- **MCP 客户端 (mcp/)**: stdio transport, HTTP/SSE transport, tool hot-refresh, capability discovery.
+- **HTTP/SSE 服务器 (server/)**: `/api/chat` endpoint, thread CRUD, skill management, state snapshots, AG-UI event streaming.
+- **示例应用**: cli-chat, a2a-server, a2a-client, acp-server, tui-demo/2/3, wiki-import, provider-compat (9 examples)
+- **统一入口 (cmd/mady/)**: `mady tui` and `mady acp` subcommands
+
+### Changed
+
+- **Provider 层**: Simplified to `provider/chatcompat/` (OpenAI Chat Completions compatible) and `provider/smartrouter/` (intelligent routing). Removed standalone per-provider packages.
+- **TUI**: 8-layer Elm architecture (up from 7), with explicit layer numbering (0-7) documented in LAYERS.md.
+
+### Removed
+
+- **Runnable interface**: Removed from agentcore; replaced by direct agent execution model.
 
 ## [0.1.0] - 2026-07-10
 
@@ -57,31 +97,6 @@
 - **示例应用**：cli-chat（TUI 聊天）、tui-demo、a2a-client/server、wiki-import、provider-compat
 - **GitHub Actions CI**：go vet + build + test
 
-## [0.2.0] - 2026-07-11
-
-### Added
-
-- **心理引擎 (psychological/)**: 7-stage pipeline with VAD emotional space, OCC emotional model, EMA cognitive appraisal, Beck cognitive distortion detection, SDT self-determination theory tracking. LLM-based distortion verification mode. Persistent SDT state per session.
-- **智能路由 Provider (provider/smartrouter/)**: Task-type classification (coding/reasoning/legal/patent/creative/analysis/general), priority-based profile ranking (quality/cost/balanced/latency), ModelProfile registry.
-- **知识管理 (knowledge/)**: Wiki/Patent/Legal document loaders, multi-source loader pipeline, KnowledgeStore with domain-organized collections, retrieval hook integration with guardrails.
-- **知识图谱 (knowledge/graph/)**: Graph store with adapter, builder, query engine, incremental updates, cache layer, retrieval enhancer integration.
-- **推理引擎 (domains/reasoning/)**: FactBlackboard shared memory, categorical Syllogism engine (major premise → minor premise → conclusion), multi-hop ReasoningWalker, RuleAssertion validator with reference tracing.
-- **三级护栏系统 (guardrails/)**: Light/Standard/Strict guardrail levels, domain-specific disclaimers, keyword-based content safety checks, approval gating for critical conclusions.
-- **检索引擎 (retrieval/)**: Paragraph/section chunker, keyword searcher with TF-IDF scoring, BM25-inspired reranker with position bias, vector embedding support, domain-specific retrieval base.
-- **领域工作流 (workflows/)**: Legal and patent domain workflow steps with human-approval gates.
-- **MCP 客户端 (mcp/)**: stdio transport, HTTP/SSE transport, tool hot-refresh, capability discovery.
-- **HTTP/SSE 服务器 (server/)**: `/api/chat` endpoint, thread CRUD, skill management, state snapshots, AG-UI event streaming.
-- **示例应用**: cli-chat, a2a-server, a2a-client, acp-server, tui-demo/2/3, wiki-import, provider-compat (9 examples)
-- **统一入口 (cmd/mady/)**: `mady tui` and `mady acp` subcommands
-
-### Changed
-
-- **Provider 层**: Simplified to `provider/chatcompat/` (OpenAI Chat Completions compatible) and `provider/smartrouter/` (intelligent routing). Removed standalone per-provider packages.
-- **TUI**: 8-layer Elm architecture (up from 7), with explicit layer numbering (0-7) documented in LAYERS.md.
-
-### Removed
-
-- **Runnable interface**: Removed from agentcore; replaced by direct agent execution model.
-
+[0.3.0]: https://github.com/xujian519/mady/releases/tag/v0.3.0
 [0.2.0]: https://github.com/xujian519/mady/releases/tag/v0.2.0
 [0.1.0]: https://github.com/xujian519/mady/releases/tag/v0.1.0
