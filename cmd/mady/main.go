@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ import (
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/loader"
 	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
@@ -44,14 +46,11 @@ import (
 	"github.com/xujian519/mady/tui/theme"
 )
 
+// defaultSystemPrompt 仅在多域 manifest 全部加载失败时的最终兜底。
+// 正常情况下 mady 通过 go:embed 内置的 4 个领域 manifest 进入多域路由模式，
+// 不会用到这个提示词。
 const defaultSystemPrompt = "你是 Mady 智能助手，一个能力完备的通用 AI 代理。" +
 	"你可以调用工具、检索知识、多步推理。请用简洁清晰的中文回答用户。"
-
-// defaultManifestDir is the default directory for Agent Manifest files.
-const defaultManifestDir = "./manifests"
-
-// defaultWorkspaceDir is the default workspace directory.
-const defaultWorkspaceDir = "./workspace"
 
 // loadWikiStore initializes the knowledge store from a wiki directory.
 // It returns the store and a retrieval hook, or nil if WIKI_PATH is not set.
@@ -84,12 +83,18 @@ type frameworkContext struct {
 	WikiHook        agentcore.LifecycleHook
 	WikiStore       *knowledge.Store
 	Manifests       []agentcore.AgentManifest
-	ManifestErrs    []agentcore.ManifestLoadError
+	// MadyHome 是应用数据根目录（~/.mady），所有可写子资源从此派生。
+	MadyHome string
+	// WorkspaceDir 是解析后的 workspace 绝对路径（~/.mady/workspace 或 $WORKSPACE_DIR）。
+	WorkspaceDir string
+	// ManifestDir 是外部 manifest 覆盖目录（~/.mady/manifests 或 $MANIFEST_DIR），可为 ""。
+	ManifestDir string
 }
 
 // setupFrameworkContext 执行三个入口共享的初始化逻辑：
 //   - Provider 构建
-//   - Manifest 扫描（可选的 MANIFEST_DIR 环境变量）
+//   - MadyHome 解析（~/.mady，任意 cwd 可用）
+//   - Manifest 加载（go:embed 内置 + MADY_HOME/manifests 外部覆盖）
 //   - Wiki 知识库加载（可选的 WIKI_PATH 环境变量）
 //   - ProjectRegistry 初始化
 func setupFrameworkContext() *frameworkContext {
@@ -97,6 +102,16 @@ func setupFrameworkContext() *frameworkContext {
 
 	provider := agentconfig.BuildProvider()
 	model := agentconfig.DefaultModel()
+
+	// 解析应用数据根目录（~/.mady），确保任意 cwd 下资源定位一致。
+	madyHome, err := util.MadyHome()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mady: 初始化数据目录失败: %v（将使用 cwd 相对路径）\n", err)
+		madyHome = "" // 降级：后续 env / cwd 回退
+	} else {
+		fmt.Fprintf(os.Stderr, "mady: 数据目录 %s\n", madyHome)
+	}
+	fc.MadyHome = madyHome
 
 	fc.BaseConfig = agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
@@ -125,37 +140,63 @@ func setupFrameworkContext() *frameworkContext {
 	// Wiki 知识库
 	fc.WikiStore, fc.WikiHook = loadWikiStore()
 
-	// Manifest 加载
+	// Manifest 加载：go:embed 内置 + 外部覆盖。
+	// 优先级：$MANIFEST_DIR > ~/.mady/manifests > 仅内置。
+	// 内置 4 个 manifest 始终可用（embed 进二进制），外部目录可选。
 	manifestDir := os.Getenv("MANIFEST_DIR")
-	if manifestDir == "" {
-		manifestDir = defaultManifestDir
+	if manifestDir == "" && madyHome != "" {
+		manifestDir = filepath.Join(madyHome, "manifests")
 	}
-	manifests, errs, err := agentcore.ScanManifests(manifestDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "manifest: %v（使用默认无 Manifest 模式）\n", err)
-	} else {
-		fc.Manifests = manifests
-		fc.ManifestErrs = errs
-		if len(manifests) > 0 {
-			fmt.Fprintf(os.Stderr, "manifest: 已加载 %d 个 Agent\n", len(manifests))
-			for _, m := range manifests {
-				fmt.Fprintf(os.Stderr, "  - %s (%s)\n", m.Name, m.Domain)
-			}
+	fc.ManifestDir = manifestDir
+	mergeRes := agentcore.LoadManifests(manifestDir)
+	fc.Manifests = mergeRes.Manifests
+
+	// 醒目加载日志：区分内置 / 外部 / 覆盖 / 新增
+	if mergeRes.EmbeddedCount > 0 {
+		fmt.Fprintf(os.Stderr, "manifest: 已加载 %d 个内置 Agent（embed）\n", mergeRes.EmbeddedCount)
+	}
+	if mergeRes.ExternalCount > 0 {
+		fmt.Fprintf(os.Stderr, "manifest: 从 %s 加载 %d 个外部 Agent", manifestDir, mergeRes.ExternalCount)
+		if len(mergeRes.Overridden) > 0 {
+			fmt.Fprintf(os.Stderr, "，覆盖 %d 个（%s）", len(mergeRes.Overridden), strings.Join(mergeRes.Overridden, ", "))
 		}
-		if len(errs) > 0 {
-			for _, e := range errs {
-				fmt.Fprintf(os.Stderr, "manifest: [警告] %s: %s\n", e.Path, e.Error)
-			}
+		if len(mergeRes.Added) > 0 {
+			fmt.Fprintf(os.Stderr, "，新增 %d 个（%s）", len(mergeRes.Added), strings.Join(mergeRes.Added, ", "))
 		}
+		fmt.Fprintln(os.Stderr)
+	}
+	for _, m := range fc.Manifests {
+		fmt.Fprintf(os.Stderr, "  - %s (%s)\n", m.Name, m.Domain)
+	}
+	for _, e := range mergeRes.Errors {
+		fmt.Fprintf(os.Stderr, "manifest: [警告] %s: %s\n", e.Path, e.Error)
+	}
+	if len(fc.Manifests) == 0 {
+		fmt.Fprintf(os.Stderr, "manifest: 未加载任何 manifest（内置 embed 异常？）→ 将回退到单 Agent 模式\n")
 	}
 
-	// ProjectRegistry
+	// Workspace：$WORKSPACE_DIR > ~/.mady/workspace。
 	workspaceDir := os.Getenv("WORKSPACE_DIR")
 	if workspaceDir == "" {
-		workspaceDir = defaultWorkspaceDir
+		if madyHome != "" {
+			workspaceDir = filepath.Join(madyHome, "workspace")
+		} else {
+			workspaceDir = "./workspace" // 降级兜底
+		}
 	}
-	projectDir := workspaceDir + "/projects"
+	// 确保 workspace 及 projects 子目录存在。
+	// ProjectRegistry.Register 写入 registry.json 时依赖父目录已创建
+	// （NewProjectRegistryOrEmpty 只 load 不 mkdir）。
+	if err := util.EnsureDir(filepath.Join(workspaceDir, "projects")); err != nil {
+		fmt.Fprintf(os.Stderr, "mady: 创建 workspace 目录失败: %v\n", err)
+	}
+	fc.WorkspaceDir = workspaceDir
+	projectDir := filepath.Join(workspaceDir, "projects")
 	fc.ProjectRegistry = domains.NewProjectRegistryOrEmpty(projectDir)
+
+	// 注入 WorkspaceDir 到 BaseConfig，供领域工厂函数（如 AssistantAgentConfig）
+	// 读取，避免工具沙箱硬编码 cwd 相对路径。
+	fc.BaseConfig.WorkspaceDir = workspaceDir
 
 	return fc
 }
@@ -570,15 +611,22 @@ func runServer(ctx context.Context) {
 	}
 
 	// Session persistence via JSONL file store.
+	// 优先级：$SESSION_DIR > ~/.mady/sessions。
 	sessionDir := os.Getenv("SESSION_DIR")
 	if sessionDir == "" {
-		sessionDir = "./sessions"
+		if fc.MadyHome != "" {
+			sessionDir = filepath.Join(fc.MadyHome, "sessions")
+		} else {
+			sessionDir = "./sessions" // 降级兜底
+		}
 	}
 	fileStore, err := session.NewFileStore(sessionDir)
 	if err != nil {
 		log.Printf("session: %v (continuing without persistence)", err)
 	} else {
-		cfg.Store = session.NewAgentStore(fileStore, "./workspace")
+		// 修复：使用 fc.WorkspaceDir 而非硬编码 "./workspace"，
+		// 确保与 ProjectRegistry、AgentStore 共用同一 workspace。
+		cfg.Store = session.NewAgentStore(fileStore, fc.WorkspaceDir)
 	}
 
 	// Checkpoint for durable snapshots per thread.

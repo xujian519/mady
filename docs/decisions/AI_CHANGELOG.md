@@ -12,6 +12,21 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-11: 让 mady 在任意工作目录开箱即用（embed manifest + MADY_HOME 统一路径层）
+
+- **变更**:
+  1. `pkg/util/paths.go`（新增）：统一路径解析层 `MadyHome()` / `EnsureDir()` / `ResolveDataDir()`，优先级 `$MADY_HOME` > `~/.mady`
+  2. `agentcore/embedded_manifests.go`（新增）+ `agentcore/manifests/*.json`（从仓库根 `manifests/` 迁入）：4 个领域 manifest 通过 `go:embed` 编进二进制，任意目录可用
+  3. `agentcore/manifest_loader.go`：重构出 `ScanManifestsFromFS(fs.FS)`，新增 `LoadManifests(userDir)` 实现「内置 embed + 外部目录覆盖/新增」合并语义
+  4. `cmd/mady/main.go`：`setupFrameworkContext()` 统一走 `util.MadyHome()`，消除 5 处 cwd 相对路径依赖（manifest/workspace/session/AgentStore cwd）；修掉 `main.go:581` 硬编码 `./workspace` 绕过 `WORKSPACE_DIR` 的隐蔽 bug
+  5. `agentcore/agent.go` Config 新增 `WorkspaceDir` 字段；`domains/assistant.go` 读取 `base.WorkspaceDir` 替代硬编码 `./workspace`，经 Router 工厂链透传
+  6. `Makefile` 新增 `install` target（默认 `PREFIX=~/.local`）
+  7. 文档同步：`.env.example` 清理死变量（`KNOWLEDGE_DIR`/`SKILL_DIR`单数）、新增 `MADY_HOME` 说明；`AGENTS.md` 补「资源定位」gotcha
+- **原因**: 修复"从非项目根目录启动 `mady tui` 静默降级为裸 LLM 对话"的根因——manifest 扫描依赖相对路径 `./manifests`，目录不存在时 `ScanManifests` 返回 nil 导致 `useMultiDomain=false`，全部领域 agent 能力丢失
+- **影响范围**: pkg/util, agentcore(manifest_loader/agent/embedded_manifests), cmd/mady, domains/assistant, Makefile, .env.example, AGENTS.md
+- **风险等级**: 中（触及安全敏感路径 `agentcore/manifest_loader.go` 的 Manifest 校验规则，但未改校验逻辑，仅重构加载入口 + 加 embed；`domains/assistant.go` WorkingDir 透传影响工具沙箱边界）
+- **审查要求**: L3（manifest 加载路径 + 工具沙箱 WorkingDir 属安全边界，需人工审阅）
+
 ## 2025-06-11: 初始化代码质量全面审查报告
 
 - **变更**: 完成 Mady 项目首次全面代码质量审查，覆盖 484 个文件的 6 大维度

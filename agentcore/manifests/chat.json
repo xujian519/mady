@@ -1,0 +1,6 @@
+{
+  "name": "chat-agent",
+  "domain": "chat",
+  "description": "日常聊天与情感陪伴。处理问候、闲聊、情绪支持等纯对话场景。",
+  "guardrail_level": "light"
+}

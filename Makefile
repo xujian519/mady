@@ -3,12 +3,15 @@ GO ?= go
 GOFLAGS ?=
 GOPATH ?= $(shell $(GO) env GOPATH)
 BINDIR ?= ./build
+# install target 的安装前缀。默认 ~/.local（匹配 ~/.local/bin 常见 PATH 布局）。
+# 覆盖示例：make install PREFIX=/usr/local
+PREFIX ?= $(HOME)/.local
 COMMIT_HASH ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS ?= -ldflags "-s -w -X main.commitHash=$(COMMIT_HASH) -X main.buildTime=$(BUILD_TIME)"
 
 .PHONY: all build test test-race test-short coverage vet lint fmt clean \
-        install-hooks install-lint \
+        install install-hooks install-lint \
         build-cli-chat build-wiki-import build-acp-server build-mady \
         run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client run-mady run-acp-server \
         help
@@ -82,6 +85,16 @@ clean:
 	rm -rf $(BINDIR) coverage.out coverage.html
 
 # --- Tools Installation ---
+
+# install 把 mady 二进制安装到 $(PREFIX)/bin，使其在任意目录可用。
+# manifest 已通过 go:embed 内置，无需额外拷贝资源文件。
+# 默认安装到 ~/.local/bin（通常已在 PATH）；如需系统级安装用 PREFIX=/usr/local。
+install: build-mady
+	@mkdir -p $(PREFIX)/bin
+	cp $(BINDIR)/mady $(PREFIX)/bin/mady
+	@echo "已安装 mady 到 $(PREFIX)/bin/mady"
+	@echo "请确认该目录在 PATH 上（echo $$PATH | grep -q $(PREFIX)/bin && echo OK || echo '提示: $(PREFIX)/bin 不在 PATH 上')"
+
 install-lint:
 	@echo "Installing golangci-lint..."
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v2.12.2
@@ -148,6 +161,7 @@ help:
 	@echo "  run-acp-server     Run ACP server example"
 	@echo ""
 	@echo "Setup:"
+	@echo "  install            Install mady to $(PREFIX)/bin (use PREFIX=/usr/local for system-wide)"
 	@echo "  install-lint       Install golangci-lint"
 	@echo "  install-hooks      Install pre-commit git hooks"
 	@echo ""

@@ -1,0 +1,7 @@
+{
+  "name": "assistant-agent",
+  "domain": "assistant",
+  "description": "通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。",
+  "guardrail_level": "standard",
+  "tools": ["web_search", "web_fetch", "read", "write_file", "edit", "grep", "find", "glob", "ls"]
+}

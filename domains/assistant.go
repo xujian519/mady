@@ -60,8 +60,10 @@ func AssistantAgentConfig(base agentcore.Config) agentcore.Config {
 	// Tools extension — core capability of assistant agent.
 	// Disable tools not relevant to patent/lawyer workflows (bash, git,
 	// browser, code execution, etc.) to keep the tool surface minimal.
+	// WorkingDir 从 base.WorkspaceDir 透传，避免硬编码 "./workspace" 导致
+	// 非项目目录启动时工具沙箱错位（见 cmd/mady 的 workspace 解析）。
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
-		WorkingDir: "./workspace",
+		WorkingDir: base.WorkspaceDir,
 		WebSearch:  &tools.WebSearchToolConfig{},
 		WebFetch:   &tools.WebFetchToolConfig{},
 		MaxBytes:   100 * 1024,
