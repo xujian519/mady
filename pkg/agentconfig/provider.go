@@ -5,7 +5,7 @@
 //
 // Supported providers (all via the OpenAI Chat Completions compatible protocol):
 //
-//	PROVIDER=deepseek → DeepSeek (deepseek-chat / deepseek-reasoner)
+//	PROVIDER=deepseek → DeepSeek (deepseek-v4-flash / deepseek-v4-pro)
 //	PROVIDER=zhipu    → Zhipu GLM (glm-5.2)
 //	PROVIDER=kimi     → Kimi (kimi-k2-0905-preview)
 //	PROVIDER=generic  → any OpenAI-compatible endpoint (set OPENAI_BASE_URL + MODEL)
@@ -75,7 +75,7 @@ func BuildProvider() agentcore.Provider {
 func DefaultModel() string {
 	switch util.EnvOrDefault("PROVIDER", "deepseek") {
 	case "deepseek":
-		return "deepseek-chat"
+		return "deepseek-v4-flash"
 	case "zhipu":
 		return "glm-5.2"
 	case "kimi":
