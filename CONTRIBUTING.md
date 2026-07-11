@@ -171,6 +171,86 @@ chore: 更新 Go 依赖版本
 - 文档是否同步更新
 - 是否破坏了现有 API
 
+## 规约驱动开发 (Spec-Driven Development)
+
+本项目遵循两阶变更流程：
+
+### 小型变更（Bug 修复、单函数调整）
+
+口头描述或 Issue 描述 + Diff 审查即可，不走完整四步。
+
+### 新功能 / 架构调整
+
+在 `docs/specs/{feature-name}/` 下创建四个独立文档：
+
+1. **01-proposal.md** — 背景、目标、成功标准（人写或人机共写，人必须过一遍）
+2. **02-spec.md** — 输入输出、数据模型、接口定义、验证规则（AI 可初稿，人审）
+3. **03-design.md** — 技术选型、架构图、关键算法、安全考量
+4. **04-tasks.md** — 拆解为可执行的具体步骤，每步标注涉及文件范围
+
+关键约定：
+- 需求不明确时，AI 必须在 spec 中标记 `[NEEDS CLARIFICATION: ...]`，不自行假设
+- 每份 Spec 必须有 **Human Owner** 字段，AI 参与撰写不改变人类最终负责
+- 四步文档全部完成、人工 Sign-off 后再进入代码实现
+
+## AI 变更日志
+
+`docs/decisions/AI_CHANGELOG.md` 记录 AI 协助开发过程中的关键决策。
+每个 AI 参与的功能变更必须在对应版本下追加记录，格式如下：
+
+```
+## YYYY-MM-DD feature-slug
+- Decision: [做了什么设计决策]
+- Reason: [为什么这么选择，而非其他方案]
+- Risk: [已知风险或局限性]
+- Human Owner: [负责人姓名]
+- Spec: docs/specs/[feature]/ (如适用)
+```
+
+此文件不是可选项 —— 每次 AI 参与的功能变更都必须更新。
+
+## AI 提交规范
+
+AI 参与的提交除遵循 Conventional Commits 外，还需附加 Co-authored-by 标记：
+
+```
+feat: 添加专利新颖性分析引擎
+
+Co-authored-by: Claude <noreply@anthropic.com>
+```
+
+## 代码审查分级
+
+不是所有改动都需要同等审查强度：
+
+| 层级 | 适用场景 | 审查要求 |
+|------|----------|----------|
+| L1 | 纯格式/文档/测试补充 | 常规 review，可 AI 自审 + 一人 approve |
+| L2 | Bug 修复、单函数调整 | 至少一位非提交者的人工 review |
+| L3 | 新功能、架构变更 | 强制人工 review，对照关联 Spec 做规范审查 |
+| L4 | 触碰安全红线 | 强制人工 review，至少两人 approve，AI 不能作为唯一 approver |
+
+安全红线包括：
+- 密钥与凭证：禁止硬编码；禁止把真实 API Key 写进测试/示例代码
+- 案件数据：禁止使用未脱敏的真实案件文件、当事人信息
+- 沙箱边界：任何改动到 `tools/path.go`（resolvePathSandboxed）或 `domains/patent.go`（BuildProjectAgent）的代码，必须人工复核
+- 护栏等级：任何降低 `guardrails.Level` 的改动必须在 PR 描述中说明理由
+- Handoff 白名单：`AllowedSources` 的变更必须对照 Manifest 设计文档核实
+- 免责声明与措辞：涉及护栏文案、报告结论措辞的改动，对照 `docs/tone-style-guide.md` 禁用词表
+
+## 本地检查
+
+提交前建议运行：
+
+```bash
+# 使用 pre-commit（已配置 .pre-commit-config.yaml）
+pre-commit run --all-files
+
+# 检查是否涉及安全敏感路径（需先 git add 暂存变更）
+git add .
+./scripts/check-sensitive-paths.sh
+```
+
 ## 获取帮助
 
 - 在 GitHub Issues 中提问

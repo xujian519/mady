@@ -1,5 +1,7 @@
 # Mady（中观智能体）
 
+> AI 协作规范见 [AGENTS.md](AGENTS.md) — 跨工具 AI 编码助手标准指令
+
 面向专利代理人、专利律师、知识产权从业者、法律专业人士的智能 Agent 平台。
 用 Go 实现的 **中观风格智能体框架** —— 克制、中庸、去繁就简。
 
@@ -147,3 +149,30 @@ Router (mady-router)
 | 添加新领域 | `domains/` 下创建配置 → 实现 System Prompt → `domains/router.go` 注册 → `skills/` 添加 SKILL.md |
 | 添加新技能 | `skills/<domain>/` 下创建 `SKILL.md` → YAML frontmatter → 使用说明 |
 | 运行入口程序 | `go run ./cmd/mady/ tui`（或 `acp`） |
+
+## 人机协助开发规范
+
+本项目遵循 [AGENTS.md](AGENTS.md) 定义的人机协助开发规范。AI 参与开发时请注意：
+
+1. **AGENTS.md** — 跨平台 AI 指令标准，非 Claude 的 AI 助手读取此文件
+2. **AI_CHANGELOG.md** — 每次 AI 参与的功能变更须在 `docs/decisions/AI_CHANGELOG.md` 记录决策
+3. **敏感路径** — 编辑 `agentcore/handoff.go`、`guardrails/levels.go`、`tools/bash.go` 等
+   涉及安全红线的文件后，`scripts/check-sensitive-paths.sh` 和 CI 将自动标记
+4. **Spec-Driven** — 新功能按 proposal → spec → design → tasks 四阶段文档进行（详见 `docs/specs/`）
+5. **PR 检查** — 在 PR 模板中勾选 AI 参与级别和涉红线变更
+6. **Code Review 分级** — 按 L1-L4 四级审查要求（详见 `CONTRIBUTING.md`）
+
+### 敏感路径快速参考
+
+| 路径 | 安全边界 |
+|------|---------|
+| `agentcore/handoff.go` | 交接白名单校验 (isHandoffAllowed) |
+| `guardrails/levels.go` | 护栏等级枚举 (Light/Standard/Strict) |
+| `domains/router.go` | 路由白名单 AllowedSources |
+| `domains/patent.go` | BuildProjectAgent 动态 WorkingDir |
+| `domains/approval.go` | ApprovalGate 生命周期钩子 |
+| `tools/path.go` | 文件系统沙箱隔离 |
+| `tools/tools.go` | 工具能力门控 (ExtensionConfig) |
+| `agentcore/manifest.go` | Manifest 校验规则 |
+| `domains/project.go` | ValidateProjectPath 路径校验 |
+| `tools/bash.go` | Bash 工具 (非沙箱模式) |

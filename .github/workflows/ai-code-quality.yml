@@ -1,0 +1,72 @@
+name: AI Code Quality Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  ai-quality-check:
+    runs-on: ubuntu-latest
+    name: AI Code Quality Gate
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: 检测 AI 参与标记
+        id: ai-detect
+        run: |
+          # 检查 PR 中的 commit 是否包含 AI 协助标记
+          COMMITS=$(git log --format=%B "origin/${{ github.base_ref }}..HEAD" 2>/dev/null || echo "")
+          if echo "$COMMITS" | grep -qi "co-authored-by.*\(claude\|ai\|copilot\|codex\|gemini\)"; then
+            echo "ai_involved=true" >> $GITHUB_OUTPUT
+            echo "检测到 AI 协助参与"
+          else
+            echo "ai_involved=false" >> $GITHUB_OUTPUT
+            echo "未检测到 AI 协助标记，跳过质量门禁"
+          fi
+
+      - name: 检测敏感路径变更
+        id: sensitive-check
+        if: steps.ai-detect.outputs.ai_involved == 'true'
+        run: |
+          chmod +x ./scripts/check-sensitive-paths.sh
+          # 脚本在检测到 AI + 敏感路径时会 exit 1
+          if ./scripts/check-sensitive-paths.sh --ci-base "origin/${{ github.base_ref }}"; then
+            echo "sensitive_hit=false" >> $GITHUB_OUTPUT
+          else
+            echo "sensitive_hit=true" >> $GITHUB_OUTPUT
+            # 不在此处 exit — 让后续步骤决定如何处理
+          fi
+
+      - name: 强制人工审查（AI + 敏感路径）
+        if: steps.ai-detect.outputs.ai_involved == 'true' && steps.sensitive-check.outputs.sensitive_hit == 'true'
+        run: |
+          echo "::error::此 PR 由 AI 协助且涉及安全敏感路径，必须经人类审查后方可合并。"
+          echo "::error::请在 PR 描述中勾选 '涉红线变更'，并确保至少一位维护者 approve。"
+          exit 1
+
+      - name: AI 参与提示
+        if: steps.ai-detect.outputs.ai_involved == 'true' && steps.sensitive-check.outputs.sensitive_hit != 'true'
+        run: |
+          echo "::notice::此 PR 有 AI 参与标记，请确保在 PR 模板中说明了 AI 参与级别。"
+
+      - name: 运行 Lint（AI 参与时加严）
+        if: steps.ai-detect.outputs.ai_involved == 'true'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: .
+
+      - name: 安装 Go（AI 参与时加严）
+        if: steps.ai-detect.outputs.ai_involved == 'true'
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+
+      - name: 运行测试（AI 参与时加严）
+        if: steps.ai-detect.outputs.ai_involved == 'true'
+        run: go test -count=1 -race ./...
