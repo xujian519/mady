@@ -682,7 +682,7 @@ func (s *Server) handleGetThreadThinking(w http.ResponseWriter, r *http.Request)
 	}
 	writeJSON(w, http.StatusOK, ThreadThinkingResponse{
 		ThreadID: key,
-		Thinking: cloneThinkingConfig(thinking),
+		Thinking: agentcore.CloneThinkingConfig(thinking),
 	})
 }
 
@@ -704,7 +704,7 @@ func (s *Server) handlePutThreadThinking(w http.ResponseWriter, r *http.Request)
 	}
 	writeJSON(w, http.StatusOK, ThreadThinkingResponse{
 		ThreadID: thread.Info.ID,
-		Thinking: cloneThinkingConfig(thread.Thinking),
+		Thinking: agentcore.CloneThinkingConfig(thread.Thinking),
 	})
 }
 
@@ -856,14 +856,6 @@ func requestCallConfig(req ChatRequest) *agentcore.CallConfig {
 		Thinking:       agentcore.CloneThinkingConfig(req.Thinking),
 		Skills:         agentcore.CloneStringSlice(req.Skills),
 	}
-}
-
-func cloneThinkingConfig(cfg *agentcore.ThinkingConfig) *agentcore.ThinkingConfig {
-	if cfg == nil {
-		return nil
-	}
-	cp := *cfg
-	return &cp
 }
 
 func (s *Server) skillSummaries() []SkillSummary {

@@ -98,8 +98,6 @@ func setupFrameworkContext() *frameworkContext {
 	provider := agentconfig.BuildProvider()
 	model := agentconfig.DefaultModel()
 
-
-
 	fc.BaseConfig = agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Name:      "mady-router",
@@ -237,6 +235,11 @@ func runTui(ctx context.Context) {
 	planMode := false
 	planModel := "deepseek-v4-pro"
 	normalModel := model
+	// providerName is the provider identifier used in status bar display.
+	providerName := os.Getenv("PROVIDER")
+	if providerName == "" {
+		providerName = "deepseek"
+	}
 
 	currentThinking := agentconfig.ThinkingFromEnv()
 
@@ -246,8 +249,9 @@ func runTui(ctx context.Context) {
 
 	// runMu 防止快速输入时多个 goroutine 并发调用 Agent.Run。
 	var runMu sync.Mutex
-		// runCancel 用于中断正在执行的 Agent 运行。
-		var runCancel context.CancelFunc
+	// runCancel 用于中断正在执行的 Agent 运行。
+	var runCancel context.CancelFunc
+	var cancelMu sync.Mutex
 
 	buildCfg := func() agentcore.Config {
 		if useMultiDomain {
@@ -308,7 +312,6 @@ func runTui(ctx context.Context) {
 		}
 	}
 
-
 	currentAgent := agentcore.New(buildCfg())
 	defer currentAgent.Close()
 
@@ -330,8 +333,8 @@ func runTui(ctx context.Context) {
 		{InsertText: "/theme dark", Label: "/theme dark", Description: "深色主题"},
 		{InsertText: "/theme light", Label: "/theme light", Description: "浅色主题"},
 		{InsertText: "/copy", Label: "/copy", Description: "复制最后一条回复"},
-			{InsertText: "/plan", Label: "/plan", Description: "切换计划模式（高质量推理）"},
-			{InsertText: "/quit", Label: "/quit", Description: "退出"},
+		{InsertText: "/plan", Label: "/plan", Description: "切换计划模式（高质量推理）"},
+		{InsertText: "/quit", Label: "/quit", Description: "退出"},
 	}
 
 	if useMultiDomain {
@@ -342,27 +345,31 @@ func runTui(ctx context.Context) {
 
 	var app *chat.ChatApp
 	app = tui.NewChatApp(chat.ChatAppConfig{
-			Title:     fmt.Sprintf("mady · model=%s", model),
-			ShowTurns: true,
-			AltScreen: true,
-			MouseMode: "auto",
-			Context:   ctx,
-			OnInterrupt: func() {
-				if runCancel != nil {
-					runCancel()
-					runCancel = nil
-				}
-			},
-			OnQuit: func() {
+		Title:     fmt.Sprintf("mady · model=%s", model),
+		ShowTurns: true,
+		AltScreen: true,
+		MouseMode: "auto",
+		Context:   ctx,
+		OnInterrupt: func() {
+			cancelMu.Lock()
+			if runCancel != nil {
+				runCancel()
+				runCancel = nil
+			}
+			cancelMu.Unlock()
+		},
+		OnQuit: func() {
+			if app != nil {
 				_ = app.Stop()
+			}
+		},
+		Providers: []core.AutocompleteProvider{
+			&component.StaticProvider{
+				TriggerStr:  "/",
+				Suggestions: slashSuggestions,
 			},
-			Providers: []core.AutocompleteProvider{
-				&component.StaticProvider{
-					TriggerStr:  "/",
-					Suggestions: slashSuggestions,
-				},
-			},
-			OnSubmit: func(ctx context.Context, input string) {
+		},
+		OnSubmit: func(ctx context.Context, input string) {
 			trimmed := strings.TrimSpace(input)
 			if trimmed == "" {
 				return
@@ -380,6 +387,7 @@ func runTui(ctx context.Context) {
 					return
 				}
 				currentThinking = next
+				runMu.Lock()
 				prev := currentAgent
 				currentAgent = agentcore.New(buildCfg())
 				prev.Close()
@@ -446,8 +454,8 @@ func runTui(ctx context.Context) {
 								app.PrintError(err)
 							} else {
 								truncated := text
-								if len([]rune(truncated)) > 60 {
-									truncated = string([]rune(truncated)[:57]) + "..."
+								if core.VisibleWidth(truncated) > 60 {
+									truncated = core.TruncateToWidth(truncated, 57, "...")
 								}
 								app.PrintSystem("📋 已复制: " + truncated)
 							}
@@ -460,17 +468,19 @@ func runTui(ctx context.Context) {
 
 			case "/plan":
 				planMode = !planMode
-				if planMode {
-					app.UpdateStatusBar("deepseek", planModel, "🧠 计划")
-					app.PrintSystem("🧠 计划模式已启用 · 模型: " + planModel + " · 推理强度: max")
-				} else {
-					app.UpdateStatusBar("deepseek", normalModel, "")
-					app.PrintSystem("⚡ 已切回普通模式 · 模型: " + normalModel)
-				}
+				runMu.Lock()
 				prev := currentAgent
 				currentAgent = agentcore.New(buildCfg())
 				prev.Close()
+				runMu.Unlock()
 				agentadapter.BindAgent(app, currentAgent)
+				if planMode {
+					app.UpdateStatusBar(providerName, planModel, "🧠 计划")
+					app.PrintSystem("🧠 计划模式已启用 · 模型: " + planModel + " · 推理强度: max")
+				} else {
+					app.UpdateStatusBar(providerName, normalModel, "")
+					app.PrintSystem("⚡ 已切回普通模式 · 模型: " + normalModel)
+				}
 				return
 
 			case "/quit", "exit":
@@ -488,14 +498,18 @@ func runTui(ctx context.Context) {
 				return
 			}
 
-				go func() {
-					runMu.Lock()
-					defer runMu.Unlock()
-					runCtx, cancel := context.WithCancel(ctx)
-					runCancel = cancel
-					_, _ = currentAgent.Run(runCtx, trimmed)
-					runCancel = nil
-				}()
+			go func(agent *agentcore.Agent, input string) {
+				runMu.Lock()
+				defer runMu.Unlock()
+				runCtx, cancel := context.WithCancel(ctx)
+				cancelMu.Lock()
+				runCancel = cancel
+				cancelMu.Unlock()
+				_, _ = agent.Run(runCtx, input)
+				cancelMu.Lock()
+				runCancel = nil
+				cancelMu.Unlock()
+			}(currentAgent, trimmed)
 		},
 	})
 	agentadapter.BindAgent(app, currentAgent)
@@ -640,10 +654,10 @@ func formatThinkingConfig(cfg *agentcore.ThinkingConfig) string {
 func parseThinkingCommand(input string, current *agentcore.ThinkingConfig) (*agentcore.ThinkingConfig, bool, error) {
 	fields := strings.Fields(strings.TrimSpace(input))
 	if len(fields) <= 1 {
-		return cloneThinkingConfig(current), false, nil
+		return agentcore.CloneThinkingConfig(current), false, nil
 	}
 
-	next := cloneThinkingConfig(current)
+	next := agentcore.CloneThinkingConfig(current)
 	if next == nil {
 		next = &agentcore.ThinkingConfig{}
 	}

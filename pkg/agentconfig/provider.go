@@ -67,6 +67,7 @@ func BuildProvider() agentcore.Provider {
 			}
 		}
 
+	default:
 		// Generic OpenAI-compatible provider.
 		if baseURL == "" {
 			baseURL = os.Getenv("OPENAI_BASE_URL")

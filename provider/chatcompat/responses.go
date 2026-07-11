@@ -432,6 +432,9 @@ func (p *Provider) buildResponsesRequest(req *agentcore.ProviderRequest, msgs []
 		m := req.MaxTokens
 		rr.MaxOutputTokens = &m
 	}
+	if req.Thinking != nil && req.Thinking.Effort != agentcore.ThinkingEffortDefault {
+		rr.Reasoning = &responsesReasoning{Effort: string(req.Thinking.Effort)}
+	}
 
 	store := false
 	rr.Store = &store
