@@ -85,6 +85,12 @@ type ChatAppConfig struct {
 	OnImagePaste func() // called when an image paste is detected (clipboard image, empty text)
 
 	Host AppHost
+
+	// SuppressHandoffToolDisplay when true suppresses transfer_to_* tool calls
+	// from appearing in the chat history. Used in integrated mode where handoffs
+	// are invisible to the user. In Router mode this should be false so users
+	// can see the routing process.
+	SuppressHandoffToolDisplay bool
 }
 
 type chatModel struct {
@@ -503,6 +509,10 @@ func (a *ChatApp) onToolStart(e ChatEvent) {
 	if !ok {
 		return
 	}
+	// 集成模式下跳过 transfer_to_* 工具调用，不在 UI 中显示
+	if a.cfg.SuppressHandoffToolDisplay && strings.HasPrefix(tc.ToolCall.Name, "transfer_to_") {
+		return
+	}
 	a.mu.Lock()
 	a.model.ActiveTools[tc.ToolCall.ID] = time.Now()
 	a.finalizeStreamLocked()
@@ -518,6 +528,10 @@ func (a *ChatApp) onToolStart(e ChatEvent) {
 func (a *ChatApp) onToolEnd(e ChatEvent) {
 	tc, ok := e.(ToolCallEndChatEvent)
 	if !ok {
+		return
+	}
+	// 集成模式下跳过 transfer_to_* 工具调用
+	if a.cfg.SuppressHandoffToolDisplay && strings.HasPrefix(tc.ToolName, "transfer_to_") {
 		return
 	}
 	a.mu.Lock()
@@ -677,6 +691,9 @@ func (a *ChatApp) onHandoffStart(e ChatEvent) {
 	if !ok {
 		return
 	}
+	if h.Invisible {
+		return // 不可见交接：不在 UI 中显示
+	}
 	a.mu.Lock()
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
@@ -690,6 +707,13 @@ func (a *ChatApp) onHandoffStart(e ChatEvent) {
 func (a *ChatApp) onHandoffEnd(e ChatEvent) {
 	h, ok := e.(HandoffEndChatEvent)
 	if !ok {
+		return
+	}
+	if h.Invisible {
+		// 不可见交接：只清理流状态，不显示结束公告
+		a.mu.Lock()
+		a.finalizeStreamLocked()
+		a.mu.Unlock()
 		return
 	}
 	if h.Err != nil {

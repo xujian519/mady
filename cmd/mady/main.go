@@ -260,8 +260,13 @@ Examples:
 }
 
 // runTui launches the interactive terminal chat.
-// 默认使用 Router 多域路由（当 MANIFEST_DIR 有 Manifest 时）。
-// 设置 MADY_SINGLE_AGENT=1 强制使用传统单 Agent 模式。
+//
+// 模式优先级（从高到低）：
+//
+//	MADY_SINGLE_AGENT=1 → 单 Agent 模式（纯 LLM 对话，无路由）
+//	MADY_ROUTER_MODE=1  → Router 多域路由模式（传统交接可见）
+//	默认（有 Manifest）  → 集成模式（Chat Agent 统一入口，内部 Invisible Handoff）
+//	默认（无 Manifest）  → 单 Agent 模式（降级）
 func runTui(ctx context.Context) {
 	fs := flag.NewFlagSet("mady tui", flag.ExitOnError)
 	_ = fs.Parse(os.Args[2:])
@@ -284,9 +289,17 @@ func runTui(ctx context.Context) {
 
 	currentThinking := agentconfig.ThinkingFromEnv()
 
-	// 多域模式单 Agent 模式切换。
-	// 当有 Manifest 且未强制设置 MADY_SINGLE_AGENT=1 时使用多域 Router 模式。
-	useMultiDomain := len(fc.Manifests) > 0 && os.Getenv("MADY_SINGLE_AGENT") != "1"
+	// 运行模式切换（优先级由高到低）：
+	//   MADY_SINGLE_AGENT=1 → 单 Agent 模式（纯 LLM 对话，无路由）
+	//   MADY_ROUTER_MODE=1  → Router 模式（传统多域路由，交接可见）
+	//   默认（有 Manifest）  → 集成模式（Chat Agent 内部路由，交接不可见）
+	//   默认（无 Manifest）  → 单 Agent 模式（降级）
+	useSingleAgent := os.Getenv("MADY_SINGLE_AGENT") == "1"
+	useRouterMode := os.Getenv("MADY_ROUTER_MODE") == "1"
+	useMultiDomain := !useSingleAgent && len(fc.Manifests) > 0
+
+	// 集成模式：Chat Agent 内置路由（默认且推荐）
+	useIntegratedMode := useMultiDomain && !useRouterMode
 
 	// runMu 防止快速输入时多个 goroutine 并发调用 Agent.Run。
 	var runMu sync.Mutex
@@ -295,9 +308,35 @@ func runTui(ctx context.Context) {
 	var cancelMu sync.Mutex
 
 	buildCfg := func() agentcore.Config {
-		if useMultiDomain {
+		switch {
+		case useIntegratedMode:
+			// 集成模式：Chat Agent 内置路由，交接不可见
+			base := fc.BaseConfig
+			base.Name = "chat-agent"
+			base.ModelConfig = agentcore.ModelConfig{
+				Name:      "mady",
+				Model:     model,
+				Provider:  provider,
+				Thinking:  cloneThinkingConfig(currentThinking),
+				Streaming: true,
+			}
+			if planMode {
+				base.Model = planModel
+				if base.Thinking == nil {
+					base.Thinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
+				} else {
+					base.Thinking.Effort = agentcore.ThinkingEffortMax
+				}
+			}
+			cfg := domains.IntegratedChatConfig(base)
+			if fc.WikiHook != nil {
+				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
+			}
+			return cfg
+
+		case useMultiDomain:
+			// Router 模式：传统多域路由，交接可见
 			cfg := buildRouterConfig(fc.BaseConfig, fc.Manifests)
-			// 将 /thinking 命令修改的推理配置注入多域模式
 			cfg.Thinking = cloneThinkingConfig(currentThinking)
 			if planMode {
 				cfg.Model = planModel
@@ -311,45 +350,46 @@ func runTui(ctx context.Context) {
 				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
 			}
 			return cfg
-		}
 
-		// 单 Agent 模式：根据 planMode 选择模型和推理配置。
-		effectiveModel := model
-		effectiveThinking := cloneThinkingConfig(currentThinking)
-		if planMode {
-			effectiveModel = planModel
-			if effectiveThinking == nil {
-				effectiveThinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
-			} else {
-				effectiveThinking.Effort = agentcore.ThinkingEffortMax
+		default:
+			// 单 Agent 模式：根据 planMode 选择模型和推理配置。
+			effectiveModel := model
+			effectiveThinking := cloneThinkingConfig(currentThinking)
+			if planMode {
+				effectiveModel = planModel
+				if effectiveThinking == nil {
+					effectiveThinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
+				} else {
+					effectiveThinking.Effort = agentcore.ThinkingEffortMax
+				}
 			}
-		}
 
-		return agentcore.Config{
-			ModelConfig: agentcore.ModelConfig{
-				Name:      "mady",
-				Model:     effectiveModel,
-				Provider:  provider,
-				Thinking:  effectiveThinking,
-				Streaming: true,
-			},
-			SystemPrompt: defaultSystemPrompt,
-			ExecutionConfig: agentcore.ExecutionConfig{
-				MaxTurns:          25,
-				ExecutionMode:     agentcore.ModeSerial,
-				ValidateArguments: true,
-			},
-			CompactionConfig: agentcore.CompactionConfig{
-				ContextWindow:    128000,
-				ReserveTokens:    32000,
-				KeepRecentTokens: 4000,
-			},
-			RetryConfig: &agentcore.RetryConfig{
-				MaxRetries:  3,
-				BaseDelayMs: 1000,
-				MaxDelayMs:  15000,
-			},
-			Lifecycle: fc.WikiHook,
+			return agentcore.Config{
+				ModelConfig: agentcore.ModelConfig{
+					Name:      "mady",
+					Model:     effectiveModel,
+					Provider:  provider,
+					Thinking:  effectiveThinking,
+					Streaming: true,
+				},
+				SystemPrompt: defaultSystemPrompt,
+				ExecutionConfig: agentcore.ExecutionConfig{
+					MaxTurns:          25,
+					ExecutionMode:     agentcore.ModeSerial,
+					ValidateArguments: true,
+				},
+				CompactionConfig: agentcore.CompactionConfig{
+					ContextWindow:    128000,
+					ReserveTokens:    32000,
+					KeepRecentTokens: 4000,
+				},
+				RetryConfig: &agentcore.RetryConfig{
+					MaxRetries:  3,
+					BaseDelayMs: 1000,
+					MaxDelayMs:  15000,
+				},
+				Lifecycle: fc.WikiHook,
+			}
 		}
 	}
 
@@ -386,11 +426,12 @@ func runTui(ctx context.Context) {
 
 	var app *chat.ChatApp
 	app = tui.NewChatApp(chat.ChatAppConfig{
-		Title:     fmt.Sprintf("mady · model=%s", model),
-		ShowTurns: true,
-		AltScreen: true,
-		MouseMode: "auto",
-		Context:   ctx,
+		Title:                      fmt.Sprintf("mady · model=%s", model),
+		ShowTurns:                  true,
+		SuppressHandoffToolDisplay: useIntegratedMode,
+		AltScreen:                  true,
+		MouseMode:                  "auto",
+		Context:                    ctx,
 		OnInterrupt: func() {
 			cancelMu.Lock()
 			if runCancel != nil {

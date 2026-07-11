@@ -36,6 +36,12 @@ type HandoffConfig struct {
 	// FallbackMsg 是交接失败或校验不通过时展示给用户的兜底文案。
 	// 为空时使用默认文案。
 	FallbackMsg string
+
+	// Invisible 为 true 时，交接过程在 UI 中不可见：
+	//   - 子 Agent 的事件不会转发到事件总线
+	//   - HandoffStartEvent/HandoffEndEvent 标记为不可见，供 UI 层静默处理
+	// 用户看不到"切换 Agent"的痕迹，适合 Chat Agent 内部路由场景。
+	Invisible bool
 }
 
 // PendingHandoff is set on state when a transfer-mode handoff tool is called.
@@ -43,6 +49,7 @@ type PendingHandoff struct {
 	TargetName   string
 	TargetConfig Config
 	Context      string
+	Invisible    bool
 }
 
 // registerHandoffs creates a synthetic tool for each configured handoff target.
@@ -92,6 +99,7 @@ func (a *Agent) createHandoffTool(h HandoffConfig) *Tool {
 					TargetName:   h.Name,
 					TargetConfig: h.AgentConfig,
 					Context:      p.Message,
+					Invisible:    h.Invisible,
 				})
 				return map[string]string{"status": "transferring to " + h.Name}, nil
 			default:
@@ -118,6 +126,7 @@ func (a *Agent) executeDelegate(ctx context.Context, h HandoffConfig, input stri
 		TargetAgent: h.Name,
 		Mode:        string(HandoffDelegate),
 		Context:     string(hcJSON),
+		Invisible:   h.Invisible,
 	})
 
 	// 将原始用户消息和结构化 HandoffContext 合并传给子 Agent。
@@ -125,7 +134,9 @@ func (a *Agent) executeDelegate(ctx context.Context, h HandoffConfig, input stri
 	enrichedInput := fmt.Sprintf("【交接上下文】\n%s\n\n【用户消息】\n%s", string(hcJSON), input)
 
 	sub := New(h.AgentConfig)
-	sub.SetEventBus(a.eventBus) // forward events to parent
+	if !h.Invisible {
+		sub.SetEventBus(a.eventBus) // 可见交接才转发子 Agent 事件
+	}
 	defer sub.Close()
 
 	output, err := sub.Run(ctx, enrichedInput)
@@ -136,6 +147,7 @@ func (a *Agent) executeDelegate(ctx context.Context, h HandoffConfig, input stri
 		Output:      output,
 		Duration:    time.Since(start),
 		Err:         err,
+		Invisible:   h.Invisible,
 	})
 
 	if err != nil {
@@ -174,10 +186,13 @@ func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (st
 		TargetAgent: handoff.TargetName,
 		Mode:        string(HandoffTransfer),
 		Context:     string(hcJSON),
+		Invisible:   handoff.Invisible,
 	})
 
 	target := New(handoff.TargetConfig)
-	target.SetEventBus(a.eventBus) // forward events
+	if !handoff.Invisible {
+		target.SetEventBus(a.eventBus)
+	}
 	defer target.Close()
 
 	// Inherit runtime state from the source agent.
@@ -206,6 +221,7 @@ func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (st
 		Output:      output,
 		Duration:    time.Since(start),
 		Err:         err,
+		Invisible:   handoff.Invisible,
 	})
 
 	a.state.SetStatus(StatusFinished)

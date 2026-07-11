@@ -12,6 +12,26 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-11: Chat Agent 与意图识别模块深度融合（Invisible Handoff + IntegratedChatConfig）
+
+- **变更**:
+  1. `agentcore/handoff.go`：`HandoffConfig` 新增 `Invisible bool` 字段；`executeDelegate` 中 `Invisible=true` 时不再将子 Agent 事件总线转发到父 Agent
+  2. `agentcore/event.go`：`HandoffStartEvent` / `HandoffEndEvent` 新增 `Invisible bool` 字段
+  3. `domains/router.go`：提取 `ProfessionalHandoffConfigs()` 共享函数；`AllowedSources` 白名单增加 `"chat-agent"`
+  4. `domains/chat.go`：新增 `IntegratedChatConfig(base)` 工厂函数，注册 `ProfessionalHandoffConfigs` 为 Invisible Handoff，SystemPrompt 融合路由指令与对话能力；`ChatAgentConfig` 保持纯聊天向后兼容
+  5. `tui/chat/events.go`：`HandoffStartChatEvent` / `HandoffEndChatEvent` 新增 `Invisible bool` 字段
+  6. `tui/agentadapter/adapter.go`：透传 `Invisible` 标志
+  7. `tui/chat/chat_app.go`：`onToolStart`/`onToolEnd` 跳过 `transfer_to_*` 工具显示；`onHandoffStart`/`onHandoffEnd` 跳过 `Invisible` 交接公告
+  8. `cmd/mady/main.go`：新增 `useIntegratedMode`（`MADY_ROUTER_MODE=1` 回退到传统 Router 模式，`MADY_SINGLE_AGENT=1` 回退到单 Agent 模式）；集成模式使用 `IntegratedChatConfig` 作为默认 Agent
+
+- **原因**: Chat Agent 功能单一且意图识别交接过程在 TUI 中可见（`transfer_to_*` 工具调用 + handoff 系统消息 + 子 Agent 实时输出流），影响用户体验。深度融合后 Chat Agent 成为统一对话界面，内部通过 Invisible Handoff 无缝委派专业任务。
+
+- **影响范围**: agentcore/handoff.go, agentcore/event.go, domains/router.go, domains/chat.go, tui/chat/events.go, tui/agentadapter/adapter.go, tui/chat/chat_app.go, cmd/mady/main.go
+
+- **风险等级**: 中（触及 `agentcore/handoff.go` 的安全敏感路径 — HandoffConfig 结构体和 executeDelegate 事件总线逻辑，但 AllowedSources 白名单校验不变，仅新增 Invisible 控制字段）
+
+- **审查要求**: L3（handoff 白名单扩展 + 入口模式切换逻辑需审阅）
+
 ## 2026-07-11: 让 mady 在任意工作目录开箱即用（embed manifest + MADY_HOME 统一路径层）
 
 - **变更**:

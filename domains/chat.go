@@ -57,3 +57,51 @@ func ChatAgentConfig(base agentcore.Config) agentcore.Config {
 
 	return cfg
 }
+
+// IntegratedChatConfig 构建融合了意图识别与路由能力的统一 Chat Agent。
+//
+// 这是方案 A 的核心：Chat Agent 作为用户唯一面对的统一界面，
+// 内部通过 Invisible Handoff 无缝委派专业任务到对应的领域 Agent，
+// 用户不感知切换过程。
+//
+// 与 ChatAgentConfig 的区别：
+// - SystemPrompt 包含路由指令
+// - 注册了 transfer_to_assistant/patent/legal 工具（Invisible Handoff）
+// - 内部调用 ChatAgentConfig 获取基础配置后覆盖 SystemPrompt 和 Handoffs
+func IntegratedChatConfig(base agentcore.Config) agentcore.Config {
+	cfg := ChatAgentConfig(base)
+
+	// 使用融合路由能力的 SystemPrompt 替代纯聊天提示词
+	cfg.SystemPrompt = strings.Join([]string{
+		"你是 Mady（中观智能体）的统一智能助手 —— 用户的所有对话都经过你。",
+		"用简体中文回复，语气自然友好，像同事而不是客服。",
+		"你的职责包括日常对话和专业任务路由两方面：",
+		"",
+		"【日常对话】",
+		"- 日常对话和情感交流",
+		"- 倾听和陪伴",
+		"- 简单的信息查询",
+		"",
+		"【专业任务路由】",
+		"当用户提出专业领域问题，使用 transfer_to_* 工具将任务委派给领域专家处理。",
+		"委派完成后，直接向用户呈现最终结果，不需要解释「切换」过程：",
+		"- transfer_to_assistant → 通用智能助理（代码生成、文件操作、网页搜索、数据分析等工具密集型任务）",
+		"- transfer_to_patent → 专利代理与知识产权分析（专利检索、权利要求分析、新颖性比对）",
+		"- transfer_to_legal → 法律咨询与研究（法条检索、判例检索、法律分析）",
+		"",
+		"路由规则：",
+		"- 日常聊天、问候、情感交流、简单问题 → 直接回答即可",
+		"- 需要工具执行的任务（搜索、代码、文件操作） → transfer_to_assistant",
+		"- 专利相关问题 → transfer_to_patent",
+		"- 法律相关问题 → transfer_to_legal",
+		"- 不确定分类时，先用日常对话方式回应再引导",
+	}, "\n")
+
+	// 注册专业领域 Handoff（Assistant/Patent/Legal），标记为不可见
+	cfg.Handoffs = ProfessionalHandoffConfigs(base)
+	for i := range cfg.Handoffs {
+		cfg.Handoffs[i].Invisible = true
+	}
+
+	return cfg
+}

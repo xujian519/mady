@@ -99,6 +99,7 @@ type HandoffStartChatEvent struct {
 	TargetAgent string
 	Mode        string
 	Context     string
+	Invisible   bool
 }
 
 func (HandoffStartChatEvent) ChatEventKind() ChatEventType { return ChatEventHandoffStart }
@@ -108,6 +109,7 @@ type HandoffEndChatEvent struct {
 	Output      string
 	Duration    time.Duration
 	Err         error
+	Invisible   bool
 }
 
 func (HandoffEndChatEvent) ChatEventKind() ChatEventType { return ChatEventHandoffEnd }

@@ -157,6 +157,7 @@ type HandoffStartEvent struct {
 	TargetAgent string `json:"target_agent"`
 	Mode        string `json:"mode"`
 	Context     string `json:"context"`
+	Invisible   bool   `json:"invisible,omitempty"`
 }
 
 type HandoffEndEvent struct {
@@ -165,6 +166,7 @@ type HandoffEndEvent struct {
 	Output      string        `json:"output"`
 	Duration    time.Duration `json:"duration"`
 	Err         error         `json:"error,omitempty"`
+	Invisible   bool          `json:"invisible"`
 }
 
 type CompactionStartEvent struct {

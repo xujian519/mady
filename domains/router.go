@@ -76,6 +76,41 @@ func RouterConfig(base agentcore.Config) agentcore.Config {
 	return RouterConfigWithClassifier(base, nil)
 }
 
+// ProfessionalHandoffConfigs 返回非聊天领域的 HandoffConfig 列表，
+// 供 Router 和 Chat Agent 共享使用。不包含 chat 自身（避免自递归）。
+//
+// AllowedSources 包含 "mady-router"（Router Agent 委派）和 "chat-agent"
+// （集成模式下 Chat Agent 内部委派），两者都是受信任的调度入口。
+// 扩展此白名单需要安全审阅。不包含 "*" 通配符，防止未授权 Agent 触发专业领域委派。
+func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig {
+	return []agentcore.HandoffConfig{
+		{
+			Name:           DomainAssistant,
+			Description:    "通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。",
+			Mode:           agentcore.HandoffDelegate,
+			AgentConfig:    AssistantAgentConfig(base),
+			AllowedSources: []string{"mady-router", "chat-agent"}, // Router 和 Chat Agent 均可委派
+			FallbackMsg:    "这个任务处理遇到点问题，要不你换个方式再说一遍，或稍后再试？",
+		},
+		{
+			Name:           DomainPatent,
+			Description:    "专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对。",
+			Mode:           agentcore.HandoffDelegate,
+			AgentConfig:    PatentAgentConfig(base),
+			AllowedSources: []string{"mady-router", "chat-agent"},
+			FallbackMsg:    "专利分析功能暂时不可用，建议稍后重试或联系专业代理人。",
+		},
+		{
+			Name:           DomainLegal,
+			Description:    "法律咨询与研究。处理法条检索、判例检索、法律分析。",
+			Mode:           agentcore.HandoffDelegate,
+			AgentConfig:    LegalAgentConfig(base),
+			AllowedSources: []string{"mady-router", "chat-agent"},
+			FallbackMsg:    "法律分析功能暂时不可用，建议稍后重试或咨询专业律师。",
+		},
+	}
+}
+
 // RouterConfigWithClassifier builds the Router Agent configuration with an
 // optional IntentClassifier. If classifier is nil, KeywordClassifier is used.
 func RouterConfigWithClassifier(base agentcore.Config, classifier IntentClassifier) agentcore.Config {
@@ -94,41 +129,19 @@ func RouterConfigWithClassifier(base agentcore.Config, classifier IntentClassifi
 		"一般对话和无法明确分类的请求，自己直接回答即可。",
 	}, "\n")
 
-	base.Handoffs = []agentcore.HandoffConfig{
-		{
-			Name:           DomainChat,
-			Description:    "日常聊天与情感陪伴。处理问候、闲聊、情绪支持等纯对话场景。",
-			Mode:           agentcore.HandoffDelegate,
-			AgentConfig:    ChatAgentConfig(base),
-			AllowedSources: []string{"*"}, // 任何 Agent 都可以交回给 Chat
-			FallbackMsg:    "聊天模块暂时不可用，请稍后再试。",
-		},
-		{
-			Name:           DomainAssistant,
-			Description:    "通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。",
-			Mode:           agentcore.HandoffDelegate,
-			AgentConfig:    AssistantAgentConfig(base),
-			AllowedSources: []string{"mady-router"}, // 仅 Router 可发起交接
-			FallbackMsg:    "这个任务处理遇到点问题，要不你换个方式再说一遍，或稍后再试？",
-		},
-		{
-			Name:           DomainPatent,
-			Description:    "专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对。",
-			Mode:           agentcore.HandoffDelegate,
-			AgentConfig:    PatentAgentConfig(base),
-			AllowedSources: []string{"mady-router"}, // 仅 Router 可发起交接
-			FallbackMsg:    "专利分析功能暂时不可用，建议稍后重试或联系专业代理人。",
-		},
-		{
-			Name:           DomainLegal,
-			Description:    "法律咨询与研究。处理法条检索、判例检索、法律分析。",
-			Mode:           agentcore.HandoffDelegate,
-			AgentConfig:    LegalAgentConfig(base),
-			AllowedSources: []string{"mady-router"}, // 仅 Router 可发起交接
-			FallbackMsg:    "法律分析功能暂时不可用，建议稍后重试或咨询专业律师。",
-		},
+	// 专业领域 Handoff（Assistant/Patent/Legal）从共享函数获取
+	profHandoffs := ProfessionalHandoffConfigs(base)
+	// Chat Handoff 仅 Router 需要（Chat Agent 自身不需要 transfer_to_chat）
+	chatHandoff := agentcore.HandoffConfig{
+		Name:           DomainChat,
+		Description:    "日常聊天与情感陪伴。处理问候、闲聊、情绪支持等纯对话场景。",
+		Mode:           agentcore.HandoffDelegate,
+		AgentConfig:    ChatAgentConfig(base),
+		AllowedSources: []string{"*"}, // 任何 Agent 都可以交回给 Chat
+		FallbackMsg:    "聊天模块暂时不可用，请稍后再试。",
 	}
 
+	base.Handoffs = append([]agentcore.HandoffConfig{chatHandoff}, profHandoffs...)
 	return base
 }
 

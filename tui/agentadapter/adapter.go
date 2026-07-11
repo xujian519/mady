@@ -94,6 +94,7 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 			handler(chat.HandoffStartChatEvent{
 				SourceAgent: ev.SourceAgent, TargetAgent: ev.TargetAgent,
 				Mode: ev.Mode, Context: ev.Context,
+				Invisible: ev.Invisible,
 			})
 		})
 	case chat.ChatEventHandoffEnd:
@@ -105,6 +106,7 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 			handler(chat.HandoffEndChatEvent{
 				TargetAgent: ev.TargetAgent, Output: ev.Output,
 				Duration: ev.Duration, Err: ev.Err,
+				Invisible: ev.Invisible,
 			})
 		})
 	case chat.ChatEventCompactionStart:
