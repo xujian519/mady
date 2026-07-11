@@ -10,12 +10,24 @@ repos:
       - id: check-yaml
         args: [--allow-multiple-documents]
 
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
+  - repo: local
     hooks:
       - id: go-fmt
-      - id: go-vet
+        name: go fmt
+        entry: gofmt -l -w
+        language: system
+        files: \.go$
       - id: go-imports
+        name: go imports
+        entry: /Users/xujian/go/bin/goimports -l -w
+        language: system
+        files: \.go$
+      - id: go-vet
+        name: go vet
+        entry: bash -ec 'go vet ./...'
+        language: system
+        files: \.go$
+        pass_filenames: false
 
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v9.22.0
