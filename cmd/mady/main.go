@@ -98,6 +98,8 @@ func setupFrameworkContext() *frameworkContext {
 	provider := agentconfig.BuildProvider()
 	model := agentconfig.DefaultModel()
 
+
+
 	fc.BaseConfig = agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Name:      "mady-router",
@@ -229,6 +231,13 @@ func runTui(ctx context.Context) {
 
 	provider := agentconfig.BuildProvider()
 	model := agentconfig.DefaultModel()
+
+	// planMode 切换高质量推理模式（/plan）。
+	// planMode = true 时使用 planModel（deepseek-v4-pro）+ 最大推理强度。
+	planMode := false
+	planModel := "deepseek-v4-pro"
+	normalModel := model
+
 	currentThinking := agentconfig.ThinkingFromEnv()
 
 	// 多域模式单 Agent 模式切换。
@@ -245,18 +254,38 @@ func runTui(ctx context.Context) {
 			cfg := buildRouterConfig(fc.BaseConfig, fc.Manifests)
 			// 将 /thinking 命令修改的推理配置注入多域模式
 			cfg.Thinking = cloneThinkingConfig(currentThinking)
+			if planMode {
+				cfg.Model = planModel
+				if cfg.Thinking == nil {
+					cfg.Thinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
+				} else {
+					cfg.Thinking.Effort = agentcore.ThinkingEffortMax
+				}
+			}
 			if fc.WikiHook != nil {
 				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
 			}
 			return cfg
 		}
 
+		// 单 Agent 模式：根据 planMode 选择模型和推理配置。
+		effectiveModel := model
+		effectiveThinking := cloneThinkingConfig(currentThinking)
+		if planMode {
+			effectiveModel = planModel
+			if effectiveThinking == nil {
+				effectiveThinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
+			} else {
+				effectiveThinking.Effort = agentcore.ThinkingEffortMax
+			}
+		}
+
 		return agentcore.Config{
 			ModelConfig: agentcore.ModelConfig{
 				Name:      "mady",
-				Model:     model,
+				Model:     effectiveModel,
 				Provider:  provider,
-				Thinking:  cloneThinkingConfig(currentThinking),
+				Thinking:  effectiveThinking,
 				Streaming: true,
 			},
 			SystemPrompt: defaultSystemPrompt,
@@ -279,6 +308,7 @@ func runTui(ctx context.Context) {
 		}
 	}
 
+
 	currentAgent := agentcore.New(buildCfg())
 	defer currentAgent.Close()
 
@@ -300,6 +330,7 @@ func runTui(ctx context.Context) {
 		{InsertText: "/theme dark", Label: "/theme dark", Description: "深色主题"},
 		{InsertText: "/theme light", Label: "/theme light", Description: "浅色主题"},
 		{InsertText: "/copy", Label: "/copy", Description: "复制最后一条回复"},
+			{InsertText: "/plan", Label: "/plan", Description: "切换计划模式（高质量推理）"},
 			{InsertText: "/quit", Label: "/quit", Description: "退出"},
 	}
 
@@ -425,6 +456,21 @@ func runTui(ctx context.Context) {
 					}
 				}
 				app.PrintSystem("没有可复制的助手回复")
+				return
+
+			case "/plan":
+				planMode = !planMode
+				if planMode {
+					app.UpdateStatusBar("deepseek", planModel, "🧠 计划")
+					app.PrintSystem("🧠 计划模式已启用 · 模型: " + planModel + " · 推理强度: max")
+				} else {
+					app.UpdateStatusBar("deepseek", normalModel, "")
+					app.PrintSystem("⚡ 已切回普通模式 · 模型: " + normalModel)
+				}
+				prev := currentAgent
+				currentAgent = agentcore.New(buildCfg())
+				prev.Close()
+				agentadapter.BindAgent(app, currentAgent)
 				return
 
 			case "/quit", "exit":
