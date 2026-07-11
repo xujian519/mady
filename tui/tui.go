@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"strings"
 	"sync"
@@ -625,6 +626,12 @@ func (t *TUI) processMsg(msg core.Msg) {
 			t.processMsg(m.Inner())
 		}
 		return
+	case core.PanicMsg:
+		slog.Default().Error("cmd panic recovered",
+			"err", m.Err,
+			"cmdIndex", m.CmdIndex,
+			"stack", m.Stack,
+		)
 	case core.QuitMsg:
 		t.Stop()
 		return
@@ -856,7 +863,9 @@ func (t *TUI) renderFrame() {
 		buf.WriteString("\x1b[?2026l")
 	}
 
-	_, _ = t.term.Write(buf.Bytes())
+	if _, err := t.term.Write(buf.Bytes()); err != nil {
+		slog.Default().Debug("terminal write failed", "error", err)
+	}
 
 	t.mu.Lock()
 	t.prevFrame = rows

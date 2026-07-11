@@ -58,11 +58,10 @@ func (a *Agent) ExtractHandoffContext(toAgent string, recentN int) HandoffContex
 // --- UserIntent 摘要 (v2: LLM 驱动) ---
 
 const (
-	userIntentSystemPrompt     = "用一句话概括用户的核心意图，不超过20个字。直接输出摘要，不要前缀。"
-	intentCacheTTL             = 5 * time.Minute
-	intentCacheMaxRunes        = 500  // 缓存键截断长度（符文安全）
-	intentInputMaxRunes        = 2000 // LLM 输入截断长度（符文安全）
-	intentCacheCleanupInterval = 10 * time.Minute
+	userIntentSystemPrompt = "用一句话概括用户的核心意图，不超过20个字。直接输出摘要，不要前缀。"
+	intentCacheTTL         = 5 * time.Minute
+	intentCacheMaxRunes    = 500  // 缓存键截断长度（符文安全）
+	intentInputMaxRunes    = 2000 // LLM 输入截断长度（符文安全）
 )
 
 type intentCacheEntry struct {
@@ -73,30 +72,7 @@ type intentCacheEntry struct {
 var (
 	intentCacheMu sync.Mutex
 	intentCache   = make(map[string]intentCacheEntry)
-
-	// intentCacheCleanupStarted 确保清理 goroutine 只启动一次。
-	intentCacheCleanupStarted sync.Once
 )
-
-// startIntentCacheCleanup 启动后台清理 goroutine（仅执行一次）。
-func startIntentCacheCleanup() {
-	intentCacheCleanupStarted.Do(func() {
-		go func() {
-			ticker := time.NewTicker(intentCacheCleanupInterval)
-			defer ticker.Stop()
-			for range ticker.C {
-				intentCacheMu.Lock()
-				now := time.Now()
-				for k, v := range intentCache {
-					if now.After(v.expiresAt) {
-						delete(intentCache, k)
-					}
-				}
-				intentCacheMu.Unlock()
-			}
-		}()
-	})
-}
 
 // summarizeUserIntent 使用 Agent 的 Provider 生成用户意图摘要。
 // 先查缓存，缓存未命中时调用 LLM，再写缓存。
@@ -104,23 +80,25 @@ func startIntentCacheCleanup() {
 // fullText 是已拼接的消息文本，复用避免重复 joinMessageText。
 func (a *Agent) summarizeUserIntent(fullText string, msgs []Message) string {
 	// v1 fallback: 最后一条用户消息
-	lastMsg := lastUserMessage(msgs)
+	lastMsg := LastUserMessage(msgs)
 	v1Fallback := func() string { return lastMsg }
 
 	// Provider 不可用时直接回退
-	if a == nil || a.config.ModelConfig.Provider == nil {
+	if a == nil || a.config.Provider == nil {
 		return v1Fallback()
 	}
-
-	// 确保后台清理 goroutine 已启动
-	startIntentCacheCleanup()
 
 	// 用拼接后的全文做缓存键（符文安全截断以避免缓存膨胀）
 	cacheKey := truncateString(fullText, intentCacheMaxRunes)
 
-	// 查缓存
 	intentCacheMu.Lock()
-	if entry, ok := intentCache[cacheKey]; ok && time.Now().Before(entry.expiresAt) {
+	now := time.Now()
+	for k, v := range intentCache {
+		if now.After(v.expiresAt) {
+			delete(intentCache, k)
+		}
+	}
+	if entry, ok := intentCache[cacheKey]; ok && now.Before(entry.expiresAt) {
 		intentCacheMu.Unlock()
 		return entry.intent
 	}
@@ -131,8 +109,8 @@ func (a *Agent) summarizeUserIntent(fullText string, msgs []Message) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	resp, err := a.config.ModelConfig.Provider.Complete(ctx, &ProviderRequest{
-		Model: a.config.ModelConfig.Model,
+	resp, err := a.config.Provider.Complete(ctx, &ProviderRequest{
+		Model: a.config.Model,
 		Messages: []Message{
 			{Role: RoleSystem, Content: userIntentSystemPrompt},
 			{Role: RoleUser, Content: truncateString(fullText, intentInputMaxRunes)},
@@ -193,16 +171,6 @@ func extractEntities(text string) map[string]string {
 }
 
 // --- 消息工具函数 ---
-
-// lastUserMessage 返回最后一条 RoleUser 消息的内容。
-func lastUserMessage(msgs []Message) string {
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == RoleUser {
-			return msgs[i].Content
-		}
-	}
-	return ""
-}
 
 // lastN 返回最近 n 条消息。
 func lastN(msgs []Message, n int) []Message {

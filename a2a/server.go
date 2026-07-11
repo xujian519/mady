@@ -993,6 +993,7 @@ func (s *Server) PublishTaskUpdate(taskID string, ev *TaskUpdateEvent) {
 		select {
 		case ch <- ev:
 		default:
+			slog.Default().Warn("a2a: subscriber channel full, event dropped", "task_id", taskID)
 		}
 	}
 }

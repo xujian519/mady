@@ -4,7 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/xujian519/mady/a2a"
@@ -20,7 +22,8 @@ func main() {
 	)
 	flag.Parse()
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	var opts []a2a.ClientOption
 	if *apiKey != "" {
@@ -36,7 +39,8 @@ func main() {
 	fmt.Println("=== Discovering Agent ===")
 	card, err := client.GetAgentCard(ctx)
 	if err != nil {
-		log.Fatalf("Failed to get agent card: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to get agent card: %v\n", err)
+		return
 	}
 
 	printAgentCard(card)
@@ -47,11 +51,13 @@ func main() {
 
 	if *stream {
 		if err := sendStreaming(ctx, client, taskID, *message); err != nil {
-			log.Fatalf("Streaming failed: %v", err)
+			fmt.Fprintf(os.Stderr, "Streaming failed: %v\n", err)
+			return
 		}
 	} else {
 		if err := sendSync(ctx, client, taskID, *message); err != nil {
-			log.Fatalf("Send failed: %v", err)
+			fmt.Fprintf(os.Stderr, "Send failed: %v\n", err)
+			return
 		}
 	}
 }

@@ -216,16 +216,13 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 		return fmt.Errorf("knowledge: embedder is nil")
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Collect chunks that need embedding.
 	type chunkRef struct {
 		docID   string
 		chunkID string
 		content string
 	}
 	var pending []chunkRef
+	s.mu.Lock()
 	for docID, chunks := range s.chunks {
 		doc := s.docs[docID]
 		if doc != nil && !doc.Searchable {
@@ -233,7 +230,7 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 		}
 		for i := range chunks {
 			if _, hasEmbedding := chunks[i].Metadata["embedding"]; hasEmbedding {
-				continue // already indexed
+				continue
 			}
 			pending = append(pending, chunkRef{
 				docID:   docID,
@@ -242,13 +239,17 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 			})
 		}
 	}
+	s.mu.Unlock()
 
 	if len(pending) == 0 {
 		return nil
 	}
 
-	// Batch embed (API supports up to ~2048 texts per call, but we batch
-	// conservatively at 100 to avoid timeouts on slow connections).
+	type batchResult struct {
+		refs []chunkRef
+		vecs [][]float32
+	}
+
 	batchSize := 100
 	for i := 0; i < len(pending); i += batchSize {
 		end := i + batchSize
@@ -266,11 +267,13 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 			return fmt.Errorf("knowledge: embed batch %d-%d: %w", i, end, err)
 		}
 
-		for j, vec := range vectors {
-			// Find the chunk and store embedding.
-			chunks := s.chunks[batch[j].docID]
+		result := batchResult{refs: batch, vecs: vectors}
+
+		s.mu.Lock()
+		for j, vec := range result.vecs {
+			chunks := s.chunks[result.refs[j].docID]
 			for k := range chunks {
-				if chunks[k].ID == batch[j].chunkID {
+				if chunks[k].ID == result.refs[j].chunkID {
 					if chunks[k].Metadata == nil {
 						chunks[k].Metadata = make(map[string]string)
 					}
@@ -279,6 +282,7 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 				}
 			}
 		}
+		s.mu.Unlock()
 	}
 
 	return nil

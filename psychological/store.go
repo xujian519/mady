@@ -50,10 +50,14 @@ func (s *Store) LoadSDTState(sessionID string) (*storedData, error) {
 // SaveSDTState 持久化 SDT 状态
 func (s *Store) SaveSDTState(sessionID string, state SDTState, roundCount int) error {
 	data := storedData{SDTState: state, RoundCount: roundCount}
-	f, err := os.Create(filepath.Join(s.dir, sessionID+".json"))
+	encoded, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	return json.NewEncoder(f).Encode(data)
+	path := filepath.Join(s.dir, sessionID+".json")
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, encoded, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }

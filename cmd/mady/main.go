@@ -458,7 +458,8 @@ func runServer(ctx context.Context) {
 	fs := flag.NewFlagSet("mady serve", flag.ExitOnError)
 	addr := fs.String("addr", ":8080", "listen address")
 	if err := fs.Parse(os.Args[2:]); err != nil {
-		log.Fatalf("flag: %v", err)
+		fmt.Fprintf(os.Stderr, "flag: %v\n", err)
+		return
 	}
 
 	fc := setupFrameworkContext()
@@ -508,7 +509,8 @@ func runServer(ctx context.Context) {
 	}()
 
 	if err := srv.ListenAndServe(*addr); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("server: %v", err)
+		fmt.Fprintf(os.Stderr, "server: %v\n", err)
+		return
 	}
 }
 

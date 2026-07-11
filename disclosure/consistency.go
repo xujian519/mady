@@ -186,14 +186,16 @@ func consistencyRouter(ctx context.Context, state graph.PregelState) []string {
 		return []string{"generate_keywords"}
 	}
 
-	retryRaw, _ := state[StateKeyRetryCount]
-	retry, _ := retryRaw.(int)
+	retry, _ := state[StateKeyRetryCount].(int)
 
 	if retry < maxConsistencyRetries {
 		state[StateKeyRetryCount] = retry + 1
 
-		// 清除旧的 ExtractionResult（重试时 merge_extractions 会重建）
+		// 清除旧的提取结果（重试时 merge_extractions 会重建）
 		delete(state, StateKeyExtraction)
+		delete(state, StateKeyExtractProblem)
+		delete(state, StateKeyExtractFeatures)
+		delete(state, StateKeyExtractEffects)
 
 		// 设置 retry feedback 供提取 Agent 读取
 		state[StateKeyRetryFeedback] = result.Feedback

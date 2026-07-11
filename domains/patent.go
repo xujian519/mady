@@ -113,8 +113,8 @@ func buildProjectSystemPrompt(rec ProjectRecord) string {
 		b.WriteString(rec.Alias)
 	}
 	b.WriteString("\n\n")
-	b.WriteString(fmt.Sprintf("案件目录：%s\n", rec.RootPath))
-	b.WriteString(fmt.Sprintf("领域：%s\n", rec.Domain))
+	fmt.Fprintf(&b, "案件目录：%s\n", rec.RootPath)
+	fmt.Fprintf(&b, "领域：%s\n", rec.Domain)
 	b.WriteString("\n")
 
 	b.WriteString("五步工作法：\n")

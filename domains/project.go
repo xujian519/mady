@@ -46,6 +46,10 @@ type Deadline struct {
 const (
 	registryFileName = "registry.json"
 	metaFileName     = "meta.json"
+
+	StatusActive      = "active"
+	StatusArchived    = "archived"
+	StatusUnreachable = "unreachable"
 )
 
 // ProjectRegistry 管理案件注册表和元数据。
@@ -82,9 +86,7 @@ func NewProjectRegistryOrEmpty(baseDir string) *ProjectRegistry {
 		baseDir: baseDir,
 		records: make(map[string]ProjectRecord),
 	}
-	if err := r.load(); err != nil {
-		// 文件存在但损坏时，不覆盖已有文件——留待用户修复。
-	}
+	_ = r.load()
 	return r
 }
 
@@ -111,7 +113,7 @@ func (r *ProjectRegistry) Register(rec ProjectRecord) error {
 		rec.RegisteredAt = time.Now()
 	}
 	rec.LastAccessed = time.Now()
-	rec.Status = "active"
+	rec.Status = StatusActive
 
 	r.records[rec.ProjectID] = rec
 	r.dirty = true
@@ -163,21 +165,39 @@ func (r *ProjectRegistry) Touch(projectID string) {
 
 // RefreshStatus 检查所有案件的 RootPath 可用性，更新 Status。
 func (r *ProjectRegistry) RefreshStatus() {
+	// Collect paths under lock, validate outside lock (I/O), then update under lock.
+	r.mu.Lock()
+	type pathCheck struct {
+		id      string
+		rootDir string
+	}
+	checks := make([]pathCheck, 0, len(r.records))
+	for id, rec := range r.records {
+		checks = append(checks, pathCheck{id: id, rootDir: rec.RootPath})
+	}
+	r.mu.Unlock()
+
+	type statusUpdate struct {
+		id     string
+		status string
+	}
+	var updates []statusUpdate
+	for _, c := range checks {
+		if err := ValidateProjectPath(c.rootDir); err != nil {
+			updates = append(updates, statusUpdate{id: c.id, status: StatusUnreachable})
+		} else {
+			updates = append(updates, statusUpdate{id: c.id, status: StatusActive})
+		}
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for id, rec := range r.records {
-		if err := ValidateProjectPath(rec.RootPath); err != nil {
-			if rec.Status != "unreachable" {
-				rec.Status = "unreachable"
-				r.records[id] = rec
-				r.dirty = true
-			}
-		} else {
-			if rec.Status != "active" {
-				rec.Status = "active"
-				r.records[id] = rec
-				r.dirty = true
-			}
+	for _, u := range updates {
+		rec := r.records[u.id]
+		if rec.Status != u.status {
+			rec.Status = u.status
+			r.records[u.id] = rec
+			r.dirty = true
 		}
 	}
 	if r.dirty {

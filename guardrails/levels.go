@@ -105,16 +105,19 @@ func (g *guardrail) AfterModelCall(_ context.Context, _ *agentcore.AgentRunConte
 
 	// Step 2: Risk keywords — append disclaimer (Standard, Strict).
 	if g.config.Level >= LevelStandard && len(g.config.RiskKeywords) > 0 {
-		if g.hasRiskKeyword(content) && !strings.Contains(content, "不构成正式") {
-			disclaimer := g.config.Disclaimer
-			if disclaimer == "" {
-				disclaimer = "⚠️ 本回复由 AI 生成，仅供参考，不构成专业建议。"
-			}
+		disclaimer := g.config.Disclaimer
+		if disclaimer == "" {
+			disclaimer = "⚠️ 本回复由 AI 生成，仅供参考，不构成专业建议。"
+		}
+		if g.hasRiskKeyword(content) && !strings.Contains(content, disclaimer) {
 			mcc.Response.Content = content + "\n\n---\n" + disclaimer
 		}
 	}
 
-	// Step 3: Approval keywords — pause for human review (Strict only).
+	// Step 3: Approval keywords — suppress persistence before human review (Strict only).
+	// This complements domains.ApprovalGate: the gate pauses execution and prompts
+	// the human operator, while SuppressPersist ensures the un-reviewed output is
+	// not written to the session store until approval is granted.
 	if g.config.Level >= LevelStrict && len(g.config.ApprovalKeywords) > 0 {
 		if g.hasApprovalKeyword(content) {
 			mcc.Response.SuppressPersist = true

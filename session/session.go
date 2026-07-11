@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 const CurrentVersion int64 = 4
@@ -127,6 +128,8 @@ type Manager struct {
 	labelsByID map[string]string
 	index      map[string]*Entry
 
+	hasAssistant bool
+
 	mu        sync.RWMutex
 	idMu      sync.Mutex
 	idCounter int64
@@ -186,6 +189,13 @@ func (m *Manager) Append(_ context.Context, entry Entry) error {
 	m.entries = append(m.entries, entry)
 	m.index[entry.ID] = &m.entries[len(m.entries)-1]
 	m.leafID = entry.ID
+
+	if !m.hasAssistant && entry.Type == EntryMessage {
+		var msg agentcore.Message
+		if json.Unmarshal(entry.Data, &msg) == nil && msg.Role == agentcore.RoleAssistant {
+			m.hasAssistant = true
+		}
+	}
 
 	if entry.Type == EntryLabel {
 		var ld LabelData
@@ -445,17 +455,7 @@ func (m *Manager) persistEntry(entry Entry) error {
 		return nil
 	}
 
-	hasAssistant := false
-	for _, e := range m.entries {
-		if e.Type == EntryMessage {
-			var msg agentcore.Message
-			if json.Unmarshal(e.Data, &msg) == nil && msg.Role == agentcore.RoleAssistant {
-				hasAssistant = true
-				break
-			}
-		}
-	}
-	if !hasAssistant {
+	if !m.hasAssistant {
 		m.flushed = false
 		return nil
 	}
@@ -589,14 +589,15 @@ func migrateV3ToV4(entries []Entry) {
 // ---------------------------------------------------------------------------
 
 type FileStore struct {
-	dir     string
-	locks   map[string]*sync.RWMutex
-	locksMu sync.Mutex
+	dir       string
+	locks     map[string]*sync.RWMutex
+	locksMu   sync.Mutex
+	lockOrder []string
 
 	// maxLocks caps the per-session lock cache. When the cache exceeds this
-	// limit the entire map is swapped for a fresh one under the global mutex.
-	// This prevents unbounded memory growth from long-running processes that
-	// create many sessions over time. The default (0) means unlimited.
+	// limit the oldest entries are evicted (LRU). This prevents unbounded
+	// memory growth from long-running processes that create many sessions
+	// over time. The default (0) means unlimited.
 	maxLocks int
 }
 
@@ -628,42 +629,48 @@ func (s *FileStore) sessionLock(id string) *sync.RWMutex {
 	s.locksMu.Lock()
 	defer s.locksMu.Unlock()
 	if l, ok := s.locks[id]; ok {
+		s.touchLock(id)
 		return l
 	}
 
-	// Prune the lock cache when it exceeds the configured limit.
-	// Old locks that are no longer in active use are safe to discard
-	// because any concurrent holder still has a reference to their *sync.RWMutex.
 	if s.maxLocks > 0 && len(s.locks) >= s.maxLocks {
-		s.locks = make(map[string]*sync.RWMutex, s.maxLocks)
+		evictCount := len(s.locks) / 10
+		if evictCount < 1 {
+			evictCount = 1
+		}
+		if evictCount > len(s.lockOrder) {
+			evictCount = len(s.lockOrder)
+		}
+		for i := 0; i < evictCount; i++ {
+			delete(s.locks, s.lockOrder[i])
+		}
+		s.lockOrder = s.lockOrder[evictCount:]
 	}
 
 	l := &sync.RWMutex{}
 	s.locks[id] = l
+	s.lockOrder = append(s.lockOrder, id)
 	return l
+}
+
+func (s *FileStore) touchLock(id string) {
+	for i, k := range s.lockOrder {
+		if k == id {
+			s.lockOrder = append(s.lockOrder[:i], s.lockOrder[i+1:]...)
+			s.lockOrder = append(s.lockOrder, id)
+			return
+		}
+	}
 }
 
 func (s *FileStore) path(sessionID string) string {
 	return filepath.Join(s.dir, sessionID+".jsonl")
 }
 
-// validateSessionID rejects session IDs that could escape the store
-// directory (path separators, ".", "..", or empty strings). IDs must resolve
-// to a single path segment so that s.path never writes/reads outside s.dir.
-func validateSessionID(id string) error {
-	if id == "" {
-		return fmt.Errorf("session id must not be empty")
-	}
-	if id == "." || id == ".." || id != filepath.Base(id) {
-		return fmt.Errorf("invalid session id %q: must be a single path segment", id)
-	}
-	return nil
-}
-
 func (s *FileStore) Create(_ context.Context, opts CreateOptions) (*Manager, error) {
 	if opts.ID == "" {
 		opts.ID = generateID()
-	} else if err := validateSessionID(opts.ID); err != nil {
+	} else if err := util.ValidateKey(opts.ID); err != nil {
 		return nil, err
 	}
 
@@ -696,7 +703,7 @@ func (s *FileStore) Create(_ context.Context, opts CreateOptions) (*Manager, err
 }
 
 func (s *FileStore) Open(_ context.Context, sessionID string) (*Manager, error) {
-	if err := validateSessionID(sessionID); err != nil {
+	if err := util.ValidateKey(sessionID); err != nil {
 		return nil, err
 	}
 	lock := s.sessionLock(sessionID)
@@ -786,6 +793,12 @@ func (s *FileStore) Open(_ context.Context, sessionID string) (*Manager, error) 
 				}
 			}
 		}
+		if !mgr.hasAssistant && e.Type == EntryMessage {
+			var msg agentcore.Message
+			if json.Unmarshal(e.Data, &msg) == nil && msg.Role == agentcore.RoleAssistant {
+				mgr.hasAssistant = true
+			}
+		}
 	}
 
 	if len(entries) > 0 {
@@ -825,7 +838,7 @@ func (s *FileStore) List(_ context.Context) ([]Info, error) {
 }
 
 func (s *FileStore) Delete(_ context.Context, sessionID string) error {
-	if err := validateSessionID(sessionID); err != nil {
+	if err := util.ValidateKey(sessionID); err != nil {
 		return err
 	}
 	lock := s.sessionLock(sessionID)
@@ -853,7 +866,7 @@ func (s *FileStore) lockCleanup(sessionID string) {
 }
 
 func (s *FileStore) Has(_ context.Context, sessionID string) (bool, error) {
-	if err := validateSessionID(sessionID); err != nil {
+	if err := util.ValidateKey(sessionID); err != nil {
 		return false, err
 	}
 	_, err := os.Stat(s.path(sessionID))
@@ -867,6 +880,10 @@ func (s *FileStore) Has(_ context.Context, sessionID string) (bool, error) {
 }
 
 func (s *FileStore) readInfo(sessionID string) Info {
+	lock := s.sessionLock(sessionID)
+	lock.RLock()
+	defer lock.RUnlock()
+
 	info := Info{ID: sessionID}
 
 	f, err := os.Open(s.path(sessionID))

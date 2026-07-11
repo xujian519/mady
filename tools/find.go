@@ -145,8 +145,16 @@ func runFd(ctx context.Context, fdPath, searchPath, pattern string, limit int, c
 
 	// Collect .gitignore files.
 	gitignoreFiles := []string{}
+	const maxGitignoreDepth = 5
 	filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			rel, _ := filepath.Rel(searchPath, path)
+			if rel != "." && strings.Count(filepath.ToSlash(rel), "/") >= maxGitignoreDepth {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if filepath.Base(path) == ".gitignore" {

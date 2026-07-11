@@ -1,7 +1,9 @@
 package util
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -38,4 +40,14 @@ func EnvOrDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func ValidateKey(key string) error {
+	if key == "" {
+		return fmt.Errorf("key must not be empty")
+	}
+	if key == "." || key == ".." || key != filepath.Base(key) {
+		return fmt.Errorf("invalid key %q: must be a single path segment", key)
+	}
+	return nil
 }

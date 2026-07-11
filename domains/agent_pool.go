@@ -83,7 +83,6 @@ func (p *AgentPool) Close() {
 // 返回的 Agent 由 AgentPool 持有生命周期，调用方不需、也不应调用 Close。
 // Agent 可被后续同案件的 Handoff 安全复用。
 func (p *AgentPool) GetOrCreate(rec ProjectRecord) (*agentcore.Agent, error) {
-	// 已存在且未超时
 	p.mu.RLock()
 	if entry, ok := p.agents[rec.ProjectID]; ok {
 		entry.LastUsed = time.Now()
@@ -93,27 +92,25 @@ func (p *AgentPool) GetOrCreate(rec ProjectRecord) (*agentcore.Agent, error) {
 	}
 	p.mu.RUnlock()
 
-	// 创建新 Agent
 	cfg := BuildProjectAgent(rec, p.base)
 	agent := agentcore.New(cfg)
 
+	var toClose []*agentcore.Agent
+
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
-	// 竞态检查：其他 goroutine 可能已先创建
 	if existing, ok := p.agents[rec.ProjectID]; ok {
-		// 在锁内收集待关闭 agent，在锁外执行关闭
-		dup := agent
-		p.mu.Unlock()
-		dup.Close()
-		p.mu.Lock()
-
+		toClose = append(toClose, agent)
 		existing.LastUsed = time.Now()
 		atomic.AddInt64(&existing.HitCount, 1)
-		return existing.Agent, nil
+		result := existing.Agent
+		p.mu.Unlock()
+		for _, a := range toClose {
+			a.Close()
+		}
+		return result, nil
 	}
 
-	// 超出上限时驱逐最旧的条目，保持池大小可控
 	if len(p.agents) >= maxCachedProjects {
 		var oldestID string
 		var oldestTime time.Time
@@ -125,11 +122,8 @@ func (p *AgentPool) GetOrCreate(rec ProjectRecord) (*agentcore.Agent, error) {
 		}
 		if oldestID != "" {
 			if entry, ok := p.agents[oldestID]; ok {
-				old := entry.Agent
+				toClose = append(toClose, entry.Agent)
 				delete(p.agents, oldestID)
-				p.mu.Unlock()
-				old.Close()
-				p.mu.Lock()
 			}
 		}
 	}
@@ -140,6 +134,11 @@ func (p *AgentPool) GetOrCreate(rec ProjectRecord) (*agentcore.Agent, error) {
 		CreatedAt: time.Now(),
 	}
 	p.agents[rec.ProjectID] = entry
+	p.mu.Unlock()
+
+	for _, a := range toClose {
+		a.Close()
+	}
 	return agent, nil
 }
 

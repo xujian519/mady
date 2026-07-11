@@ -31,6 +31,8 @@ func (d DefaultMoveOperations) MkdirAll(path string, perm os.FileMode) error {
 // MoveToolConfig configures the move tool.
 type MoveToolConfig struct {
 	Operations MoveOperations
+	// Sandbox enforces the WorkingDir boundary when Enabled.
+	Sandbox WorkingDirSandbox
 }
 
 func (c *MoveToolConfig) defaults() {
@@ -83,11 +85,17 @@ func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool {
 				return resultErrf("dest is required")
 			}
 
-			sourcePath := resolvePath(input.Source, cwd)
-			destPath := resolvePath(input.Dest, cwd)
+			sourcePath, err := resolvePathSandboxed(input.Source, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("source: %v", err)
+			}
+			destPath, err := resolvePathSandboxed(input.Dest, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("dest: %v", err)
+			}
 
 			// Verify source exists.
-			_, err := cfg.Operations.Stat(sourcePath)
+			_, err = cfg.Operations.Stat(sourcePath)
 			if err != nil {
 				if os.IsNotExist(err) {
 					return resultErrf("source not found: %s", input.Source)

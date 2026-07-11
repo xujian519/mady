@@ -420,7 +420,7 @@ func TestDisclosureAnalysisGraph_FullFlow(t *testing.T) {
 	}
 
 	// 验证输出
-	output := graph.PregelState(final).GetString(StateKeyOutput)
+	output := final.GetString(StateKeyOutput)
 	if output == "" {
 		t.Error("expected output string")
 	}

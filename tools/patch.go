@@ -29,6 +29,8 @@ func (d DefaultPatchOperations) Stat(path string) (os.FileInfo, error) { return 
 // PatchToolConfig configures the patch tool.
 type PatchToolConfig struct {
 	Operations PatchOperations
+	// Sandbox enforces the WorkingDir boundary when Enabled.
+	Sandbox WorkingDirSandbox
 }
 
 func (c *PatchToolConfig) defaults() {
@@ -94,7 +96,10 @@ func NewPatchTool(cwd string, cfg *PatchToolConfig) *agentcore.Tool {
 				return resultErrf("old_string is required")
 			}
 
-			resolved := resolveReadPath(input.Path, cwd)
+			resolved, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("%v", err)
+			}
 
 			// Check file exists.
 			if _, err := cfg.Operations.Stat(resolved); err != nil {

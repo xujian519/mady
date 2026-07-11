@@ -107,6 +107,17 @@ func deepCopyAny(v any) any {
 	}
 }
 
+// LastUserMessage returns the content of the last message with RoleUser,
+// or "" if there is no user message.
+func LastUserMessage(msgs []Message) string {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == RoleUser {
+			return msgs[i].Content
+		}
+	}
+	return ""
+}
+
 // ConvertToLLMFunc transforms internal messages into the format expected by the provider.
 // It should filter out UI-only messages, convert custom types to standard roles, etc.
 type ConvertToLLMFunc func(msgs []Message) []Message

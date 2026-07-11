@@ -167,7 +167,7 @@ func (h *RetrievalHook) BeforeModelCall(_ context.Context, arc *agentcore.AgentR
 	h.turnCount++
 
 	// Use the last user message as the search query.
-	query := lastUserMessage(arc.Messages)
+	query := agentcore.LastUserMessage(arc.Messages)
 	if query == "" {
 		return nil
 	}
@@ -212,22 +212,12 @@ func (h *RetrievalHook) shouldTriggerSmart(arc *agentcore.AgentRunContext) bool 
 	if h.config.ComplexityClassifier == nil {
 		return true // fallback to always
 	}
-	query := lastUserMessage(arc.Messages)
+	query := agentcore.LastUserMessage(arc.Messages)
 	if query == "" {
 		return false
 	}
 	c := h.config.ComplexityClassifier.Classify(query, arc.Messages)
 	return c >= agentcore.ComplexityMedium
-}
-
-// lastUserMessage extracts the content of the last user message.
-func lastUserMessage(msgs []agentcore.Message) string {
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == agentcore.RoleUser {
-			return msgs[i].Content
-		}
-	}
-	return ""
 }
 
 // buildContextBlock formats retrieved chunks into a single context string.

@@ -511,12 +511,13 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 	writeSSE("skills_snapshot", skillSnapshotEventPayload(s.snapshotConfig()))
 
 	ch := make(chan agentcore.Event, 8)
-	s.On(agentcore.EventSkillsReloaded, func(e agentcore.Event) {
+	unregister := s.On(agentcore.EventSkillsReloaded, func(e agentcore.Event) {
 		select {
 		case ch <- e:
 		default:
 		}
 	})
+	defer unregister()
 
 	fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
@@ -1165,7 +1166,7 @@ func withCORS(next http.Handler, cfg CORSConfig) http.Handler {
 
 // SSEKeepAlive sends periodic comment lines to prevent proxy/browser timeouts.
 // Call this in a goroutine and cancel the context when the stream ends.
-func SSEKeepAlive(ctx context.Context, w http.ResponseWriter, interval time.Duration) {
+func SSEKeepAlive(ctx context.Context, w http.ResponseWriter, mu sync.Locker, interval time.Duration) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		return
@@ -1177,8 +1178,10 @@ func SSEKeepAlive(ctx context.Context, w http.ResponseWriter, interval time.Dura
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			fmt.Fprintf(w, ": keepalive\n\n")
+			mu.Lock()
+			_, _ = fmt.Fprintf(w, ": keepalive\n\n")
 			flusher.Flush()
+			mu.Unlock()
 		}
 	}
 }

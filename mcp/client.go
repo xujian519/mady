@@ -344,6 +344,10 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) call(ctx context.Context, method string, params any, out any) error {
+	return c.callWithRetry(ctx, method, params, out, 3)
+}
+
+func (c *Client) callWithRetry(ctx context.Context, method string, params any, out any, retriesLeft int) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -376,9 +380,8 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 		msg["params"] = params
 	}
 	if err := c.writeMessage(msg); err != nil {
-		// Connection may be dead — attempt reconnection
-		if errors.Is(err, errClientClosed) && c.tryReconnect(ctx) {
-			return c.call(ctx, method, params, out)
+		if errors.Is(err, errClientClosed) && retriesLeft > 0 && c.tryReconnect(ctx) {
+			return c.callWithRetry(ctx, method, params, out, retriesLeft-1)
 		}
 		return err
 	}
@@ -387,8 +390,8 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 	case resp, ok := <-ch:
 		if !ok {
 			err := c.connectionError()
-			if c.tryReconnect(ctx) {
-				return c.call(ctx, method, params, out)
+			if retriesLeft > 0 && c.tryReconnect(ctx) {
+				return c.callWithRetry(ctx, method, params, out, retriesLeft-1)
 			}
 			return err
 		}
@@ -406,8 +409,8 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 		return ctx.Err()
 	case <-c.closeCh:
 		err := c.connectionError()
-		if c.tryReconnect(ctx) {
-			return c.call(ctx, method, params, out)
+		if retriesLeft > 0 && c.tryReconnect(ctx) {
+			return c.callWithRetry(ctx, method, params, out, retriesLeft-1)
 		}
 		return err
 	}

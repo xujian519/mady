@@ -165,9 +165,12 @@ func runRipgrep(ctx context.Context, rgPath, searchPath string, input GrepToolIn
 	}
 	scanner := bufio.NewScanner(stdout)
 	matchCount := 0
+	waitDone := false
 	for scanner.Scan() {
 		if matchCount >= limit {
 			cmd.Process.Kill()
+			cmd.Wait()
+			waitDone = true
 			break
 		}
 		var event map[string]any
@@ -192,7 +195,9 @@ func runRipgrep(ctx context.Context, rgPath, searchPath string, input GrepToolIn
 		}
 	}
 
-	cmd.Wait()
+	if !waitDone {
+		cmd.Wait()
+	}
 
 	if len(matches) == 0 {
 		return result("No matches found", nil)

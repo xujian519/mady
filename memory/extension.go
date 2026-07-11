@@ -105,7 +105,7 @@ func (e *MemoryExtension) Provide(ctx context.Context, input agentcore.BuildInpu
 	if !e.cfg.Enabled || e.manager == nil {
 		return nil, nil
 	}
-	query := lastUserMessage(input.Messages)
+	query := agentcore.LastUserMessage(input.Messages)
 	if query == "" {
 		return nil, nil
 	}
@@ -136,7 +136,7 @@ func (e *MemoryExtension) TransformContext(ctx context.Context, msgs []agentcore
 	}
 
 	// 找到最后一条用户消息作为查询
-	query := lastUserMessage(msgs)
+	query := agentcore.LastUserMessage(msgs)
 	if query == "" {
 		return msgs
 	}
@@ -197,7 +197,7 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 	}
 
 	// 找最后一条用户消息和助手响应
-	userMsg := lastUserMessage(arc.Messages)
+	userMsg := agentcore.LastUserMessage(arc.Messages)
 	respContent := ""
 	if mcc.Response != nil {
 		respContent = mcc.Response.Content
@@ -229,16 +229,6 @@ func (e *MemoryExtension) Tools() []*agentcore.Tool {
 // ---------------------------------------------------------------------------
 // 内部辅助函数
 // ---------------------------------------------------------------------------
-
-// lastUserMessage 从消息列表中提取最后一条用户消息的内容。
-func lastUserMessage(msgs []agentcore.Message) string {
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == agentcore.RoleUser {
-			return msgs[i].Content
-		}
-	}
-	return ""
-}
 
 // injectAfterLastSystem 将消息插入到最后一条 system 消息之后。
 func injectAfterLastSystem(msgs []agentcore.Message, inject agentcore.Message) []agentcore.Message {

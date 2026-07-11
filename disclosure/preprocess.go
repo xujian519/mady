@@ -152,9 +152,7 @@ func joinLines(lines []string) string {
 func generateDocID() string {
 	// 使用 atomic 计数器 + 时间戳确保唯一性（避免秒级碰撞）
 	counter := docIDCounter.Add(1)
-	return "doc_" + time.Now().Format("20060102_150405") + "_" +
-		strings.TrimLeft(time.Now().Format(".000000000"), ".")[:6] +
-		"_" + strings.ReplaceAll(
-		strings.TrimLeft(fmt.Sprintf("%d", counter%10000), "0"), "", "") +
-		fmt.Sprintf("%d", counter%10000)
+	now := time.Now()
+	return "doc_" + now.Format("20060102_150405") +
+		fmt.Sprintf("_%06d_%04d", now.Nanosecond()/1000, counter%10000)
 }

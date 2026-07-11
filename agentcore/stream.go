@@ -138,6 +138,17 @@ func Map[I, O any](src *StreamReader[I], fn func(I) (O, error)) *StreamReader[O]
 	out := NewStreamReader[O](int64(cap(src.ch)))
 	go func() {
 		defer out.Close()
+		// Propagate consumer cancellation: if out is canceled, cancel src
+		// so we unblock from src.Recv().
+		stopWatcher := make(chan struct{})
+		defer close(stopWatcher)
+		go func() {
+			select {
+			case <-out.Done():
+				src.Cancel()
+			case <-stopWatcher:
+			}
+		}()
 		for {
 			val, ok := src.Recv()
 			if !ok {
@@ -181,6 +192,18 @@ func CollectString(s *StreamReader[string]) (string, error) {
 func Merge[T any](readers ...*StreamReader[T]) *StreamReader[T] {
 	out := NewStreamReader[T](int64(len(readers)))
 	var wg sync.WaitGroup
+	// Propagate consumer cancellation: if out is canceled, cancel all srcs
+	// so reader goroutines unblock from src.Recv().
+	stopWatcher := make(chan struct{})
+	go func() {
+		select {
+		case <-out.Done():
+			for _, r := range readers {
+				r.Cancel()
+			}
+		case <-stopWatcher:
+		}
+	}()
 	for _, r := range readers {
 		wg.Add(1)
 		go func(src *StreamReader[T]) {
@@ -204,6 +227,7 @@ func Merge[T any](readers ...*StreamReader[T]) *StreamReader[T] {
 	}
 	go func() {
 		wg.Wait()
+		close(stopWatcher)
 		out.Close()
 	}()
 	return out

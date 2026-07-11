@@ -123,8 +123,8 @@ func TestGuardrail_DisclaimerInjection(t *testing.T) {
 			level:        LevelStandard,
 			disclaimer:   "免责声明文本",
 			riskKeywords: []string{"侵权"},
-			content:      "侵权分析内容\n---\n不构成正式法律意见",
-			shouldInject: false, // "不构成正式" prevents re-injection
+			content:      "侵权分析内容\n\n---\n免责声明文本",
+			shouldInject: false,
 		},
 		{
 			name:         "LevelStrict injects on keyword",
@@ -150,11 +150,11 @@ func TestGuardrail_DisclaimerInjection(t *testing.T) {
 			}
 			gr.AfterModelCall(context.TODO(), nil, mcc)
 
-			hasDisclaimer := strings.Contains(mcc.Response.Content, tt.disclaimer)
-			if tt.shouldInject && !hasDisclaimer {
+			injected := mcc.Response.Content != tt.content
+			if tt.shouldInject && !injected {
 				t.Errorf("disclaimer not injected. content: %s", mcc.Response.Content)
 			}
-			if !tt.shouldInject && hasDisclaimer {
+			if !tt.shouldInject && injected {
 				t.Errorf("disclaimer unexpectedly injected. content: %s", mcc.Response.Content)
 			}
 			if tt.shouldNotContain != "" && strings.Contains(mcc.Response.Content, tt.shouldNotContain) {

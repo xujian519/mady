@@ -66,6 +66,16 @@ func (r *ProcessRegistry) List() []string {
 	return ids
 }
 
+func (r *ProcessRegistry) ListAll() []*ProcessEntry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	entries := make([]*ProcessEntry, 0, len(r.processes))
+	for _, entry := range r.processes {
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
 // Cleanup removes completed processes older than maxAge.
 func (r *ProcessRegistry) Cleanup(maxAge time.Duration) int {
 	r.mu.Lock()
@@ -99,6 +109,9 @@ type DefaultProcessOperations struct {
 
 // NewDefaultProcessOperations creates default process operations.
 func NewDefaultProcessOperations(registry *ProcessRegistry) *DefaultProcessOperations {
+	if registry == nil {
+		registry = NewProcessRegistry()
+	}
 	return &DefaultProcessOperations{
 		registry: registry,
 	}
@@ -204,6 +217,7 @@ func (b *outputBuffer) Bytes() []byte {
 // ProcessToolConfig configures the process tool.
 type ProcessToolConfig struct {
 	Operations ProcessOperations
+	Registry   *ProcessRegistry
 	MaxBytes   int64
 	MaxLines   int64
 }
@@ -336,11 +350,16 @@ func handleStatus(cfg *ProcessToolConfig, input ProcessToolInput) (any, error) {
 		return resultErrf("process_id is required for status")
 	}
 
-	status, exitCode, output := cfg.Operations.Poll(&ProcessEntry{ID: input.ProcessID})
+	if cfg.Registry == nil {
+		return resultErrf("process registry not configured")
+	}
 
-	// Get full entry for metadata.
-	// Note: In real implementation, we'd need access to the registry.
-	// For now, return what we have.
+	entry, ok := cfg.Registry.Get(input.ProcessID)
+	if !ok {
+		return resultErrf("process not found: %s", input.ProcessID)
+	}
+
+	status, exitCode, output := cfg.Operations.Poll(entry)
 	outputText := string(output)
 	truncation := TruncateTail(outputText, TruncationOptions{
 		MaxLines: int(cfg.MaxLines),
@@ -368,15 +387,23 @@ func handleWait(cfg *ProcessToolConfig, input ProcessToolInput) (any, error) {
 		return resultErrf("process_id is required for wait")
 	}
 
-	// Poll until completion or timeout.
-	timeout := 300 // default 5 minutes
+	if cfg.Registry == nil {
+		return resultErrf("process registry not configured")
+	}
+
+	entry, ok := cfg.Registry.Get(input.ProcessID)
+	if !ok {
+		return resultErrf("process not found: %s", input.ProcessID)
+	}
+
+	timeout := 300
 	if input.Timeout != nil && *input.Timeout > 0 {
 		timeout = *input.Timeout
 	}
 
 	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
 	for time.Now().Before(deadline) {
-		status, exitCode, output := cfg.Operations.Poll(&ProcessEntry{ID: input.ProcessID})
+		status, exitCode, output := cfg.Operations.Poll(entry)
 		if status != "running" {
 			outputText := string(output)
 			truncation := TruncateTail(outputText, TruncationOptions{
@@ -410,11 +437,58 @@ func handleKill(cfg *ProcessToolConfig, input ProcessToolInput) (any, error) {
 		return resultErrf("process_id is required for kill")
 	}
 
-	// We need to find the PID. In a real implementation, we'd look up in registry.
-	// For now, parse process_id to extract PID if it was stored there.
-	return resultErrf("kill not fully implemented: need registry lookup for PID")
+	if cfg.Registry == nil {
+		return resultErrf("process registry not configured")
+	}
+
+	entry, ok := cfg.Registry.Get(input.ProcessID)
+	if !ok {
+		return resultErrf("process not found: %s", input.ProcessID)
+	}
+
+	entry.mu.Lock()
+	pid := entry.PID
+	status := entry.Status
+	entry.mu.Unlock()
+
+	if status != "running" {
+		return result(fmt.Sprintf("Process %s is not running (status: %s)", input.ProcessID, status),
+			ProcessToolDetails{ProcessID: entry.ID, Status: status, PID: pid})
+	}
+
+	if err := cfg.Operations.Kill(pid); err != nil {
+		return resultErrf("failed to kill process %s: %w", input.ProcessID, err)
+	}
+
+	entry.mu.Lock()
+	entry.Status = "killed"
+	now := time.Now()
+	entry.EndTime = &now
+	entry.mu.Unlock()
+
+	return result(fmt.Sprintf("Killed process %s (PID %d)", input.ProcessID, pid),
+		ProcessToolDetails{ProcessID: entry.ID, Status: "killed", PID: pid})
 }
 
 func handleList(cfg *ProcessToolConfig) (any, error) {
-	return resultErrf("list not fully implemented: need registry access")
+	if cfg.Registry == nil {
+		return resultErrf("process registry not configured")
+	}
+
+	entries := cfg.Registry.ListAll()
+	if len(entries) == 0 {
+		return result("No processes tracked", nil)
+	}
+
+	output := fmt.Sprintf("Tracked processes (%d):", len(entries))
+	for _, entry := range entries {
+		entry.mu.Lock()
+		status := entry.Status
+		pid := entry.PID
+		cmd := entry.Command
+		entry.mu.Unlock()
+		output += fmt.Sprintf("\n  %s  PID=%d  status=%s  cmd=%s", entry.ID, pid, status, cmd)
+	}
+
+	return result(output, nil)
 }

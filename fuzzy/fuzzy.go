@@ -45,6 +45,10 @@ func normalizeChars(s string) string {
 }
 
 // Find attempts to locate search within content using exact then normalized matching.
+// The returned start and end are byte offsets into the original content string,
+// suitable for content[start:end] slicing. When the match is found via
+// normalized comparison the offsets are mapped back from the normalized form
+// to the original string's byte positions.
 func Find(content, search string) (start int64, end int64, found bool) {
 	if idx := strings.Index(content, search); idx >= 0 {
 		return int64(idx), int64(idx + len(search)), true
@@ -81,6 +85,11 @@ func Replace(content, oldText, newText string) (string, bool) {
 	return content[:start] + newText + content[end:], true
 }
 
+// mapNormalizedOffset converts a byte offset in the normalized string back to
+// the corresponding byte offset in the original string. Because normalization
+// may remove characters (e.g. '\r') or change byte lengths (e.g. folding a
+// multi-byte punctuation rune to an ASCII byte), the mapping is performed at
+// the rune level. The returned value is a byte offset into original.
 func mapNormalizedOffset(original, normalized string, normOffset int) int {
 	oi := 0
 	ni := 0

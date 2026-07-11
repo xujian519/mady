@@ -72,10 +72,7 @@ func AssistantAgentConfig(base agentcore.Config) agentcore.Config {
 			tools.ToolProcess,
 		},
 	})
-	cfg.Extensions = append(cfg.Extensions, toolExt)
-
-	// 心理引擎 — 轻量模式，不做认知扭曲诊断
-	cfg.Extensions = append(cfg.Extensions, psychological.NewExtension(AssistantPsychConfig()))
+	cfg.Extensions = append(cfg.Extensions, toolExt, psychological.NewExtension(AssistantPsychConfig()))
 
 	// 注意：跨域路由由 Router Agent 通过 RouterConfig 统一管理，
 	// AssistantAgentConfig 仅定义助理 Agent 自身行为，不处理跨域 Handoff。

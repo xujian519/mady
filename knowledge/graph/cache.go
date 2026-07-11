@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"strconv"
 	"sync"
 	"time"
 )
@@ -134,7 +135,7 @@ func (c *GraphCache) Stats() (details, searches, paths int) {
 
 // searchKey builds a deterministic cache key for a search query.
 func searchKey(keyword, nodeType string, limit int) string {
-	return nodeType + "|" + keyword + "|" + itoaCache(limit)
+	return nodeType + "|" + keyword + "|" + strconv.Itoa(limit)
 }
 
 // evictIfNeeded removes expired entries when a category exceeds maxSize.
@@ -155,23 +156,4 @@ func (c *GraphCache) evictIfNeeded(m map[string]*cacheEntry) {
 			break
 		}
 	}
-}
-
-func itoaCache(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var digits []byte
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	if neg {
-		digits = append([]byte{'-'}, digits...)
-	}
-	return string(digits)
 }

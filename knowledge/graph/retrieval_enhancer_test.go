@@ -94,17 +94,3 @@ func TestTopAuthorities(t *testing.T) {
 		t.Errorf("expected law3 second, got %s", top[1].ID)
 	}
 }
-
-func TestFloatToStr(t *testing.T) {
-	cases := map[float64]string{
-		1.0:  "1.00",
-		0.85: "0.85",
-		0.5:  "0.50",
-		0.0:  "0.00",
-	}
-	for f, want := range cases {
-		if got := floatToStr(f); got != want {
-			t.Errorf("floatToStr(%v) = %s, want %s", f, got, want)
-		}
-	}
-}

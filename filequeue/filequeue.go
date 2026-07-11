@@ -10,7 +10,7 @@ import (
 // FileMutationQueue can remove it from its map once nobody is using it
 // anymore, instead of retaining an entry forever for every path ever seen.
 type fileLock struct {
-	mu   sync.Mutex
+	mu   sync.RWMutex
 	refs int
 }
 
@@ -55,6 +55,32 @@ func (fmq *FileMutationQueue) WithFile(path string, fn func() error) error {
 	return err
 }
 
+func (fmq *FileMutationQueue) WithFileRLock(path string, fn func() error) error {
+	key := resolveKey(path)
+
+	fmq.mu.Lock()
+	l, ok := fmq.queues[key]
+	if !ok {
+		l = &fileLock{}
+		fmq.queues[key] = l
+	}
+	l.refs++
+	fmq.mu.Unlock()
+
+	l.mu.RLock()
+	err := fn()
+	l.mu.RUnlock()
+
+	fmq.mu.Lock()
+	l.refs--
+	if l.refs == 0 {
+		delete(fmq.queues, key)
+	}
+	fmq.mu.Unlock()
+
+	return err
+}
+
 // WithFileResult is a generic version of WithFile that returns a value.
 func WithFileResult[T any](fmq *FileMutationQueue, path string, fn func() (T, error)) (T, error) {
 	var result T
@@ -83,9 +109,13 @@ func resolveKey(path string) string {
 
 // ReadFileSafe reads a file through the mutation queue.
 func (fmq *FileMutationQueue) ReadFileSafe(path string) ([]byte, error) {
-	return WithFileResult(fmq, path, func() ([]byte, error) {
-		return os.ReadFile(path)
+	var result []byte
+	err := fmq.WithFileRLock(path, func() error {
+		var fnErr error
+		result, fnErr = os.ReadFile(path)
+		return fnErr
 	})
+	return result, err
 }
 
 // WriteFileSafe writes a file through the mutation queue.

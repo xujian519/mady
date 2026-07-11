@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
@@ -70,6 +71,7 @@ type ProcessTerminal struct {
 	onResize      func()
 	stopRead      chan struct{}
 	readDone      chan struct{}
+	readErr       error
 	resizeSig     chan os.Signal
 	resizeDone    chan struct{}
 	signalStopped bool
@@ -324,6 +326,8 @@ func (t *ProcessTerminal) readLoop() {
 			if err == syscall.EINTR || err == syscall.EAGAIN {
 				continue
 			}
+			t.readErr = err
+			slog.Default().Error("terminal read loop exiting", "error", err)
 			return
 		}
 	}

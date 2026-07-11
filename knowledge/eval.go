@@ -70,7 +70,7 @@ func (h *EvalHook) AfterModelCall(_ context.Context, arc *agentcore.AgentRunCont
 		return
 	}
 
-	question := extractQuestion(arc.Messages)
+	question := agentcore.LastUserMessage(arc.Messages)
 	answer := mcc.Response.Content
 	if question == "" || answer == "" {
 		return
@@ -232,16 +232,6 @@ func extractContextText(msgs []agentcore.Message) string {
 				strings.Contains(m.Content, "检索") {
 				return m.Content
 			}
-		}
-	}
-	return ""
-}
-
-// extractQuestion 从消息列表中提取最后一个用户消息。（与 memory/extension.go lastUserMessage 重复）
-func extractQuestion(msgs []agentcore.Message) string {
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == agentcore.RoleUser {
-			return msgs[i].Content
 		}
 	}
 	return ""

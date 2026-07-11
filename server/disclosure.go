@@ -226,7 +226,7 @@ func (s *Server) handleDisclosureAnalyze(w http.ResponseWriter, r *http.Request)
 	}
 
 	cfg := s.snapshotConfig()
-	provider := cfg.ModelConfig.Provider
+	provider := cfg.Provider
 	if provider == nil {
 		writeJSON(w, http.StatusInternalServerError, DisclosureAnalyzeResponse{Status: "failed"})
 		return
@@ -285,9 +285,16 @@ func (s *Server) handleDisclosureStream(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// 立即发送连接确认，避免客户端首 500ms 无响应
-	_, _ = fmt.Fprintf(w, ": connected\n\n")
-	flusher.Flush()
+	var writeMu sync.Mutex
+
+	writeSSE := func(format string, args ...any) {
+		writeMu.Lock()
+		fmt.Fprintf(w, format, args...)
+		flusher.Flush()
+		writeMu.Unlock()
+	}
+
+	writeSSE(": connected\n\n")
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -309,8 +316,7 @@ func (s *Server) handleDisclosureStream(w http.ResponseWriter, r *http.Request) 
 			task.mu.RUnlock()
 
 			payload, _ := json.Marshal(resp)
-			_, _ = fmt.Fprintf(w, "event: done\ndata: %s\n\n", payload)
-			flusher.Flush()
+			writeSSE("event: done\ndata: %s\n\n", payload)
 			return
 		case <-ticker.C:
 			task.mu.RLock()
@@ -322,8 +328,7 @@ func (s *Server) handleDisclosureStream(w http.ResponseWriter, r *http.Request) 
 			task.mu.RUnlock()
 
 			payload, _ := json.Marshal(resp)
-			_, _ = fmt.Fprintf(w, "event: progress\ndata: %s\n\n", payload)
-			flusher.Flush()
+			writeSSE("event: progress\ndata: %s\n\n", payload)
 		}
 	}
 }

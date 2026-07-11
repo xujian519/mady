@@ -90,9 +90,9 @@ func TestLastUserMessage(t *testing.T) {
 		{Role: RoleUser, Content: "第二个问题"},
 	}
 
-	got := lastUserMessage(msgs)
+	got := LastUserMessage(msgs)
 	if got != "第二个问题" {
-		t.Fatalf("lastUserMessage = %q, want %q", got, "第二个问题")
+		t.Fatalf("LastUserMessage = %q, want %q", got, "第二个问题")
 	}
 }
 
@@ -102,14 +102,14 @@ func TestLastUserMessage_NoUser(t *testing.T) {
 		{Role: RoleAssistant, Content: "你好"},
 	}
 
-	got := lastUserMessage(msgs)
+	got := LastUserMessage(msgs)
 	if got != "" {
 		t.Fatalf("expected empty string, got %q", got)
 	}
 }
 
 func TestLastUserMessage_Empty(t *testing.T) {
-	got := lastUserMessage(nil)
+	got := LastUserMessage(nil)
 	if got != "" {
 		t.Fatalf("expected empty string for nil, got %q", got)
 	}

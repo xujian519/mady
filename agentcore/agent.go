@@ -154,7 +154,7 @@ func New(cfg Config) *Agent {
 		var err error
 		ctxEngine, err = engineReg.Create(engineName, engineCfg)
 		if err != nil {
-			ctxEngine = engineReg.factories[engineReg.Default()](engineCfg)
+			ctxEngine, _ = engineReg.Create(engineReg.Default(), engineCfg)
 		}
 	}
 

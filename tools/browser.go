@@ -203,7 +203,11 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				navTimeout := navigationTimeout(cfg.CommandTimeout)
 				timeoutCtx, cancel := context.WithTimeout(session.ctx, navTimeout)
 
-				// 1. Fire navigation via CDP Page.navigate (does not wait for load)
+				chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
+					_, _ = page.AddScriptToEvaluateOnNewDocument(stealthJavaScript).Do(ctx)
+					return nil
+				}))
+
 				if err := chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
 					_, _, _, _, err := page.Navigate(parsedURL.String()).Do(ctx)
 					return err
@@ -296,7 +300,11 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				navTimeout := navigationTimeout(cfg.CommandTimeout)
 				timeoutCtx, cancel := context.WithTimeout(session.ctx, navTimeout)
 
-				// 1. Fire navigation via CDP Page.navigate (does not wait for load)
+				chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
+					_, _ = page.AddScriptToEvaluateOnNewDocument(stealthJavaScript).Do(ctx)
+					return nil
+				}))
+
 				if err := chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
 					_, _, _, _, err := page.Navigate(parsedURL.String()).Do(ctx)
 					return err

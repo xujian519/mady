@@ -4,7 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/xujian519/mady/a2a"
 	"github.com/xujian519/mady/agentcore"
@@ -43,6 +47,7 @@ func main() {
 
 	// Create a simple agent
 	agent := agentcore.New(cfg)
+	defer agent.Close()
 
 	// Define agent card
 	card := a2a.AgentCard{
@@ -77,7 +82,20 @@ func main() {
 	log.Printf("A2A server starting on :%s", port)
 	log.Printf("Agent Card: http://localhost:%s/.well-known/agent.json", port)
 
-	if err := server.ListenAndServe(":" + port); err != nil {
-		log.Fatalf("Server error: %v", err)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		<-ctx.Done()
+		log.Println("shutting down server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("shutdown: %v", err)
+		}
+	}()
+
+	if err := server.ListenAndServe(":" + port); err != nil && err != http.ErrServerClosed {
+		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 	}
 }

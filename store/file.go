@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // SnapshotStore implements agentcore.Store by writing JSON files to a local directory.
@@ -23,21 +24,25 @@ func NewSnapshotStore(dir string) (*SnapshotStore, error) {
 }
 
 func (fs *SnapshotStore) Save(_ context.Context, key string, snap agentcore.StateSnapshot) error {
-	if err := validateKey(key); err != nil {
+	if err := util.ValidateKey(key); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
-	if err := os.WriteFile(fs.path(key), data, 0o644); err != nil {
+	tmp := fs.path(key) + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return fmt.Errorf("write snapshot: %w", err)
+	}
+	if err := os.Rename(tmp, fs.path(key)); err != nil {
+		return fmt.Errorf("rename snapshot: %w", err)
 	}
 	return nil
 }
 
 func (fs *SnapshotStore) Load(_ context.Context, key string) (agentcore.StateSnapshot, error) {
-	if err := validateKey(key); err != nil {
+	if err := util.ValidateKey(key); err != nil {
 		return agentcore.StateSnapshot{}, err
 	}
 	data, err := os.ReadFile(fs.path(key))
@@ -52,7 +57,7 @@ func (fs *SnapshotStore) Load(_ context.Context, key string) (agentcore.StateSna
 }
 
 func (fs *SnapshotStore) Delete(_ context.Context, key string) error {
-	if err := validateKey(key); err != nil {
+	if err := util.ValidateKey(key); err != nil {
 		return err
 	}
 	if err := os.Remove(fs.path(key)); err != nil && !os.IsNotExist(err) {
@@ -77,7 +82,7 @@ func (fs *SnapshotStore) List(_ context.Context) ([]string, error) {
 }
 
 func (fs *SnapshotStore) Has(_ context.Context, key string) (bool, error) {
-	if err := validateKey(key); err != nil {
+	if err := util.ValidateKey(key); err != nil {
 		return false, err
 	}
 	_, err := os.Stat(fs.path(key))
@@ -92,17 +97,4 @@ func (fs *SnapshotStore) Has(_ context.Context, key string) (bool, error) {
 
 func (fs *SnapshotStore) path(key string) string {
 	return filepath.Join(fs.dir, key+".json")
-}
-
-// validateKey rejects keys that could escape the store directory (path
-// separators, ".", "..", or empty strings). Keys must resolve to a single
-// path segment so that fs.path never writes/reads outside fs.dir.
-func validateKey(key string) error {
-	if key == "" {
-		return fmt.Errorf("store key must not be empty")
-	}
-	if key == "." || key == ".." || key != filepath.Base(key) {
-		return fmt.Errorf("invalid store key %q: must be a single path segment", key)
-	}
-	return nil
 }

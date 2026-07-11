@@ -147,16 +147,11 @@ func (e *ChunkedContextEngine) isProtected(msg Message) bool {
 
 // compressUnprotected performs compaction on the unprotected messages only.
 func (e *ChunkedContextEngine) compressUnprotected(ctx context.Context, msgs []Message, focusTopic string) ([]Message, int64, error) {
-	// Create a temporary state with only the unprotected messages.
-	tmpState := NewState()
-	tmpState.ReplaceMessages(msgs)
-
 	compressed, cut, err := e.base.Compress(ctx, msgs, focusTopic)
 	if err != nil {
 		return msgs, 0, fmt.Errorf("chunked compaction: %w", err)
 	}
 
-	_ = tmpState
 	return compressed, cut, nil
 }
 

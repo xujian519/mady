@@ -31,6 +31,9 @@ func (d DefaultBashOperations) Exec(command string, cwd string, env map[string]s
 
 	cmd := exec.Command(shell, "-c", command)
 	cmd.Dir = cwd
+	// Setpgid creates a new process group so killProcessTree(-pgid) only
+	// affects this command's children, preventing PID-reuse collateral damage.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if env != nil {
 		cmd.Env = os.Environ()
 		for k, v := range env {
@@ -211,12 +214,20 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 					if tempFile != nil {
 						tempFilePath = tempFile.Name()
 						for _, c := range chunks {
-							tempFile.Write(c)
+							if _, werr := tempFile.Write(c); werr != nil {
+								tempFile.Close()
+								tempFile = nil
+								tempFilePath = ""
+								break
+							}
 						}
 					}
 				}
 				if tempFile != nil {
-					tempFile.Write(data)
+					if _, werr := tempFile.Write(data); werr != nil {
+						tempFile.Close()
+						tempFile = nil
+					}
 				}
 
 				// Keep rolling buffer of recent output.
@@ -235,6 +246,14 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 
 			if tempFile != nil {
 				tempFile.Close()
+			}
+
+			// Schedule delayed cleanup of temp file (agent may reference it).
+			if tempFilePath != "" {
+				go func(path string) {
+					time.Sleep(10 * time.Minute)
+					os.Remove(path)
+				}(tempFilePath)
 			}
 
 			// Combine rolling buffer.

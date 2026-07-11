@@ -1,12 +1,14 @@
 package reasoning
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sync"
+)
 
-// FactBlackboard is the shared memory where specialized engines and the LLM
-// engine both read and write during a legal/patent reasoning run.
-//
-// Discovery phase writes facts; step 2 writes reasoning chains / rule
-// constraints; step 3 writes article judgments; step 4 writes the plan.
+// FactBlackboard is the shared memory structure for legal reasoning.
+// It stores facts, reasoning chains, rule constraints, article judgments,
+// and an execution plan. All methods are goroutine-safe.
+// Once Locked, any attempt to mutate the blackboard panics.
 type FactBlackboard struct {
 	CaseID         string   `json:"case_id"`
 	CaseType       CaseType `json:"case_type"`
@@ -15,6 +17,7 @@ type FactBlackboard struct {
 	UpdatedAt      string   `json:"updated_at"`
 	Locked         bool     `json:"locked"`
 
+	mu               sync.RWMutex
 	facts            []FactEntry
 	reasoningChains  []ReasoningChain
 	ruleConstraints  []RuleConstraint
@@ -22,7 +25,7 @@ type FactBlackboard struct {
 	plan             *ExecutionPlan
 }
 
-// NewFactBlackboard creates an empty blackboard for a case.
+// NewFactBlackboard creates an empty blackboard for the given case.
 func NewFactBlackboard(caseID string, caseType CaseType, technicalField string) *FactBlackboard {
 	ts := nowISO()
 	return &FactBlackboard{
@@ -35,19 +38,33 @@ func NewFactBlackboard(caseID string, caseType CaseType, technicalField string) 
 	}
 }
 
-// touch bumps the updated timestamp.
 func (b *FactBlackboard) touch() { b.UpdatedAt = nowISO() }
 
-// Lock freezes the blackboard against further mutation.
-func (b *FactBlackboard) Lock() { b.Locked = true; b.touch() }
+func (b *FactBlackboard) checkNotLocked() {
+	if b.Locked {
+		panic("factBlackboard: attempt to mutate a locked blackboard")
+	}
+}
 
-// --- facts ---
+// Lock freezes the blackboard. After locking, any mutating method panics.
+func (b *FactBlackboard) Lock() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.Locked = true
+	b.touch()
+}
 
-// Facts returns all fact entries (including discarded ones).
-func (b *FactBlackboard) Facts() []FactEntry { return b.facts }
+// Facts returns a shallow copy of all fact entries.
+func (b *FactBlackboard) Facts() []FactEntry {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.facts
+}
 
 // ActiveFacts returns only non-discarded fact entries.
 func (b *FactBlackboard) ActiveFacts() []FactEntry {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	out := b.facts[:0:0]
 	for _, f := range b.facts {
 		if !f.IsDiscarded() {
@@ -57,14 +74,19 @@ func (b *FactBlackboard) ActiveFacts() []FactEntry {
 	return out
 }
 
-// AddFact appends a fact to the blackboard.
+// AddFact appends a fact entry. Panics if the blackboard is locked.
 func (b *FactBlackboard) AddFact(f FactEntry) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
 	b.facts = append(b.facts, f)
 	b.touch()
 }
 
-// GetFact looks up a fact by ID (ok=false if absent).
+// GetFact looks up a fact by ID.
 func (b *FactBlackboard) GetFact(id string) (FactEntry, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	for i := range b.facts {
 		if b.facts[i].ID == id {
 			return b.facts[i], true
@@ -73,8 +95,11 @@ func (b *FactBlackboard) GetFact(id string) (FactEntry, bool) {
 	return FactEntry{}, false
 }
 
-// DiscardFact soft-discards a fact by ID (used for backtracking).
+// DiscardFact marks a fact as discarded by setting DiscardedAt. Panics if locked.
 func (b *FactBlackboard) DiscardFact(id string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
 	for i := range b.facts {
 		if b.facts[i].ID == id && b.facts[i].DiscardedAt == "" {
 			b.facts[i].DiscardedAt = nowISO()
@@ -84,75 +109,96 @@ func (b *FactBlackboard) DiscardFact(id string) {
 	}
 }
 
-// --- reasoning chains ---
+// ReasoningChains returns all stored reasoning chains.
+func (b *FactBlackboard) ReasoningChains() []ReasoningChain {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.reasoningChains
+}
 
-// ReasoningChains returns the accumulated reasoning chains.
-func (b *FactBlackboard) ReasoningChains() []ReasoningChain { return b.reasoningChains }
-
-// AddReasoningChain appends a reasoning chain.
+// AddReasoningChain appends a reasoning chain. Panics if locked.
 func (b *FactBlackboard) AddReasoningChain(c ReasoningChain) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
 	b.reasoningChains = append(b.reasoningChains, c)
 	b.touch()
 }
 
-// ClearReasoningChains drops all reasoning chains (e.g. before a re-walk).
+// ClearReasoningChains removes all reasoning chains. Panics if locked.
 func (b *FactBlackboard) ClearReasoningChains() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
 	b.reasoningChains = nil
 	b.touch()
 }
 
-// --- rule constraints ---
+// RuleConstraints returns all rule constraints.
+func (b *FactBlackboard) RuleConstraints() []RuleConstraint {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.ruleConstraints
+}
 
-// RuleConstraints returns the accumulated rule constraints.
-func (b *FactBlackboard) RuleConstraints() []RuleConstraint { return b.ruleConstraints }
-
-// AddRuleConstraint appends a rule constraint.
+// AddRuleConstraint appends a rule constraint. Panics if locked.
 func (b *FactBlackboard) AddRuleConstraint(c RuleConstraint) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
 	b.ruleConstraints = append(b.ruleConstraints, c)
 	b.touch()
 }
 
-// SetRuleConstraints replaces the whole rule-constraint set.
+// SetRuleConstraints replaces all rule constraints. Panics if locked.
 func (b *FactBlackboard) SetRuleConstraints(cs []RuleConstraint) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
 	b.ruleConstraints = cs
 	b.touch()
 }
 
-// --- article judgments ---
-
-// ArticleJudgments returns the map of article-ID → judgment.
+// ArticleJudgments returns the map of article judgments.
 func (b *FactBlackboard) ArticleJudgments() map[string]ArticleJudgment {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.articleJudgments
 }
 
-// SetArticleJudgment records or replaces the judgment for an article.
+// SetArticleJudgment sets or updates a judgment for the given article ID. Panics if locked.
 func (b *FactBlackboard) SetArticleJudgment(id string, j ArticleJudgment) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
 	b.articleJudgments[id] = j
 	b.touch()
 }
 
-// GetArticleJudgment looks up a judgment by article ID.
+// GetArticleJudgment retrieves a judgment by article ID.
 func (b *FactBlackboard) GetArticleJudgment(id string) (ArticleJudgment, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	j, ok := b.articleJudgments[id]
 	return j, ok
 }
 
-// --- plan ---
+// Plan returns the current execution plan, or nil if none has been set.
+func (b *FactBlackboard) Plan() *ExecutionPlan {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.plan
+}
 
-// Plan returns the execution plan, or nil if none has been set.
-func (b *FactBlackboard) Plan() *ExecutionPlan { return b.plan }
-
-// SetPlan records the execution plan on the blackboard.
+// SetPlan stores an execution plan. Panics if locked.
 func (b *FactBlackboard) SetPlan(p ExecutionPlan) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
 	b.plan = &p
 	b.touch()
 }
 
-// --- serialization ---
-
-// factBlackboardJSON is the serializable projection of FactBlackboard.
-// The unexported slices/maps are projected explicitly because encoding/json
-// cannot see them.
 type factBlackboardJSON struct {
 	CaseID           string                     `json:"case_id"`
 	CaseType         CaseType                   `json:"case_type"`
@@ -167,8 +213,9 @@ type factBlackboardJSON struct {
 	Plan             *ExecutionPlan             `json:"plan"`
 }
 
-// MarshalJSON implements json.Marshaler.
 func (b *FactBlackboard) MarshalJSON() ([]byte, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return json.Marshal(factBlackboardJSON{
 		CaseID:           b.CaseID,
 		CaseType:         b.CaseType,
@@ -184,12 +231,13 @@ func (b *FactBlackboard) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements json.Unmarshaler.
 func (b *FactBlackboard) UnmarshalJSON(data []byte) error {
 	var s factBlackboardJSON
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.CaseID = s.CaseID
 	b.CaseType = s.CaseType
 	b.TechnicalField = s.TechnicalField

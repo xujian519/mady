@@ -1,6 +1,9 @@
 package retrieval
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // Chunk represents a segment of a larger document, with positional metadata
 // for citation and context reconstruction.
@@ -137,17 +140,5 @@ func splitParagraphs(text string) []string {
 
 // chunkID generates a stable chunk identifier.
 func chunkID(docID string, idx int) string {
-	return docID + "#chunk-" + itoa(idx)
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
+	return docID + "#chunk-" + strconv.Itoa(idx)
 }

@@ -171,6 +171,36 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	enabled := enabledSet(cfg.EnabledTools)
 	useAllowList := len(cfg.EnabledTools) > 0
 
+	// Propagate sandbox configuration to all file tool configs.
+	sbx := WorkingDirSandbox{
+		Enabled:    cfg.SandboxEnabled,
+		WorkingDir: cfg.WorkingDir,
+	}
+	if cfg.Read == nil {
+		cfg.Read = &ReadToolConfig{}
+	}
+	cfg.Read.Sandbox = sbx
+	if cfg.Edit == nil {
+		cfg.Edit = &EditToolConfig{}
+	}
+	cfg.Edit.Sandbox = sbx
+	if cfg.WriteFile == nil {
+		cfg.WriteFile = &WriteFileToolConfig{}
+	}
+	cfg.WriteFile.Sandbox = sbx
+	if cfg.Patch == nil {
+		cfg.Patch = &PatchToolConfig{}
+	}
+	cfg.Patch.Sandbox = sbx
+	if cfg.Delete == nil {
+		cfg.Delete = &DeleteToolConfig{}
+	}
+	cfg.Delete.Sandbox = sbx
+	if cfg.Move == nil {
+		cfg.Move = &MoveToolConfig{}
+	}
+	cfg.Move.Sandbox = sbx
+
 	var tools []*agentcore.Tool
 
 	addTool := func(t *agentcore.Tool) {
@@ -196,6 +226,22 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(NewBashTool(cfg.WorkingDir, cfg.Bash))
 	addTool(NewWriteFileTool(cfg.WorkingDir, cfg.WriteFile))
 	addTool(NewPatchTool(cfg.WorkingDir, cfg.Patch))
+	// Ensure Process tool has a shared registry so handleStatus/handleWait/
+	// handleKill/handleList can look up spawned processes.
+	if cfg.Process == nil {
+		cfg.Process = &ProcessToolConfig{}
+	}
+	if cfg.Process.Operations == nil {
+		reg := NewProcessRegistry()
+		cfg.Process.Operations = NewDefaultProcessOperations(reg)
+	}
+	if cfg.Process.Registry == nil {
+		if dpo, ok := cfg.Process.Operations.(*DefaultProcessOperations); ok && dpo.registry != nil {
+			cfg.Process.Registry = dpo.registry
+		} else {
+			cfg.Process.Registry = NewProcessRegistry()
+		}
+	}
 	addTool(NewProcessTool(cfg.WorkingDir, cfg.Process))
 	addTool(NewVisionTool(cfg.WorkingDir, cfg.Vision))
 	addTool(NewViewTool(cfg.WorkingDir, cfg.View))

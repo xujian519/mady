@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -236,7 +237,7 @@ func (a *Agent) inheritRuntime(target *Agent) {
 	// Re-register source extensions on target.
 	if len(srcExtensions) > 0 {
 		if err := target.extensions.Register(context.Background(), target, srcExtensions...); err != nil {
-			fmt.Printf("inheritRuntime: extensions.Register failed for %q: %v\n", a.config.Name, err)
+			slog.Default().Warn("inheritRuntime: extensions.Register failed", "agent", a.config.Name, "error", err)
 		}
 	}
 

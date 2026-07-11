@@ -391,6 +391,7 @@ func runCompaction(ctx context.Context, provider Provider, model string, state *
 			compactionSummaryPrefix, err, nDropped, compactionSummaryEndMarker,
 		)
 		if compState != nil {
+			compState.previousSummary = ""
 			compState.lastSummaryError = err.Error()
 			compState.summaryFailureCooldown = time.Now().Add(time.Duration(summaryFailureCooldownSeconds) * time.Second)
 		}

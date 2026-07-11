@@ -52,6 +52,16 @@ func (s *AgentState) Messages() []Message {
 	return cp
 }
 
+// messagesNoClone returns the internal message slice WITHOUT deep-copying.
+// Callers MUST NOT modify the returned slice or any of its elements —
+// doing so will corrupt the agent's internal state. Reserved for hot paths
+// inside agentcore where the caller immediately copies or replaces the slice.
+func (s *AgentState) messagesNoClone() []Message {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.messages
+}
+
 func (s *AgentState) AddMessage(m Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

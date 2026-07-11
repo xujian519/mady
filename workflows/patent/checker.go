@@ -15,6 +15,7 @@ package patent
 
 import (
 	"context"
+	"strconv"
 	"strings"
 )
 
@@ -172,7 +173,7 @@ func (c *Checker) mergeVerdicts(
 		merged = append(merged, CheckIssue{
 			Severity:    SeverityMinor,
 			Description: reason,
-			RuleID:      "llm_" + itoaChecker(i),
+			RuleID:      "llm_" + strconv.Itoa(i),
 		})
 	}
 
@@ -218,11 +219,11 @@ func summarizeIssues(issues []CheckIssue) string {
 	}
 	var b strings.Builder
 	b.WriteString("发现 ")
-	b.WriteString(itoaChecker(critical))
+	b.WriteString(strconv.Itoa(critical))
 	b.WriteString(" 个严重, ")
-	b.WriteString(itoaChecker(major))
+	b.WriteString(strconv.Itoa(major))
 	b.WriteString(" 个主要, ")
-	b.WriteString(itoaChecker(minor))
+	b.WriteString(strconv.Itoa(minor))
 	b.WriteString(" 个次要问题")
 	return b.String()
 }
@@ -263,24 +264,4 @@ func FormatCheckerResult(r *CheckerResult) string {
 		b.WriteString(conflictSection)
 	}
 	return b.String()
-}
-
-// itoaChecker is a local int-to-string helper to avoid importing strconv.
-func itoaChecker(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	if neg {
-		return "-" + string(digits)
-	}
-	return string(digits)
 }

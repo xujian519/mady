@@ -577,6 +577,7 @@ func (c *WSConnection) readLoop() {
 					select {
 					case c.ch <- ev:
 					default:
+						slog.Default().Warn("a2a: ws subscriber channel full, event dropped", "id", ev.ID)
 					}
 				}
 			}
@@ -588,6 +589,7 @@ func (c *WSConnection) readLoop() {
 			select {
 			case c.ch <- &ev:
 			default:
+				slog.Default().Warn("a2a: ws subscriber channel full, event dropped", "id", ev.ID)
 			}
 		}
 	}
@@ -645,6 +647,12 @@ func (c *WSConnection) tryReconnect() bool {
 	c.conn = conn
 	c.mu.Unlock()
 
+	// RACE WINDOW: between c.conn assignment and oldConn.Close(),
+	// SendRequest may write to the new conn via c.mu while we
+	// configure deadlines/handlers below. This is safe because
+	// gorilla/websocket supports concurrent read+write, but the
+	// old conn's ReadMessage has already returned an error so its
+	// read loop will not touch it again.
 	oldConn.Close()
 
 	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -652,7 +660,6 @@ func (c *WSConnection) tryReconnect() bool {
 		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(10*time.Second))
 	})
-
 	return true
 }
 

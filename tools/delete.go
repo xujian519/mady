@@ -30,6 +30,8 @@ type DeleteToolConfig struct {
 	Operations DeleteOperations
 	// ProtectedPaths are paths that cannot be deleted (exact match or prefix).
 	ProtectedPaths []string
+	// Sandbox enforces the WorkingDir boundary when Enabled.
+	Sandbox WorkingDirSandbox
 }
 
 func (c *DeleteToolConfig) defaults() {
@@ -46,9 +48,15 @@ type DeleteToolInput struct {
 
 // isProtected checks if a path is protected from deletion.
 func isProtected(path string, protected []string) bool {
-	absPath, _ := filepath.Abs(path)
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return true
+	}
 	for _, p := range protected {
-		absP, _ := filepath.Abs(p)
+		absP, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
 		if absPath == absP || strings.HasPrefix(absPath, absP+string(filepath.Separator)) {
 			return true
 		}
@@ -91,7 +99,10 @@ func NewDeleteTool(cwd string, cfg *DeleteToolConfig) *agentcore.Tool {
 				return resultErrf("path is required")
 			}
 
-			resolved := resolvePath(input.Path, cwd)
+			resolved, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("%v", err)
+			}
 
 			// Check if protected.
 			if isProtected(resolved, cfg.ProtectedPaths) {

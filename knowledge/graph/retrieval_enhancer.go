@@ -12,7 +12,9 @@
 package graph
 
 import (
+	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/xujian519/mady/retrieval"
@@ -181,7 +183,7 @@ func (e *GraphEnhancer) formatEnhanced(seeds []retrieval.ScoredChunk, similar, c
 // formatGraphNodeRef renders a single graph node as a citation reference.
 func formatGraphNodeRef(idx int, n *GraphNode, label string) string {
 	var b strings.Builder
-	b.WriteString(intToStr(idx))
+	b.WriteString(strconv.Itoa(idx))
 	b.WriteString(". ")
 	b.WriteString(n.Name)
 	if n.Title != "" && n.Title != n.Name {
@@ -191,7 +193,7 @@ func formatGraphNodeRef(idx int, n *GraphNode, label string) string {
 	b.WriteString(" [")
 	b.WriteString(label)
 	b.WriteString(", 权威度: ")
-	b.WriteString(floatToStr(n.AuthorityWeight))
+	fmt.Fprintf(&b, "%.2f", n.AuthorityWeight)
 	b.WriteString("]\n")
 	return b.String()
 }
@@ -220,42 +222,4 @@ func TopAuthorities(store *GraphStore, nodeType string, n int) []*GraphNode {
 		nodes = nodes[:n]
 	}
 	return nodes
-}
-
-// intToStr is a local int→string helper.
-func intToStr(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	if neg {
-		return "-" + string(digits)
-	}
-	return string(digits)
-}
-
-// floatToStr formats a float64 to a short string (2 decimal places).
-func floatToStr(f float64) string {
-	whole := int(f)
-	frac := int((f - float64(whole)) * 100)
-	if frac < 0 {
-		frac = -frac
-	}
-	return intToStr(whole) + "." + pad2(frac)
-}
-
-func pad2(n int) string {
-	s := intToStr(n)
-	for len(s) < 2 {
-		s = "0" + s
-	}
-	return s
 }

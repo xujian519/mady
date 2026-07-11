@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -102,51 +103,58 @@ func (a *Agent) runStreaming(ctx context.Context, req *ProviderRequest) (*Provid
 			if !ok {
 				goto buildResponse
 			}
-			if delta.Content != "" {
-				content.WriteString(delta.Content)
-				kind := BlockKindText
-				for _, bl := range delta.Blocks {
-					if bl.Kind == BlockKindThinking {
-						kind = BlockKindThinking
-						break
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Default().Error("runStreaming panic recovered", "panic", r, "agent", a.config.Name)
 					}
+				}()
+				if delta.Content != "" {
+					content.WriteString(delta.Content)
+					kind := BlockKindText
+					for _, bl := range delta.Blocks {
+						if bl.Kind == BlockKindThinking {
+							kind = BlockKindThinking
+							break
+						}
+					}
+					a.emit(&MessageDeltaEvent{
+						baseEvent: newBase(EventMessageDelta),
+						Delta:     delta.Content,
+						Kind:      kind,
+					})
 				}
-				a.emit(&MessageDeltaEvent{
-					baseEvent: newBase(EventMessageDelta),
-					Delta:     delta.Content,
-					Kind:      kind,
-				})
-			}
-			if len(delta.Blocks) > 0 {
-				blocks = MergeContentBlocks(blocks, delta.Blocks...)
-			} else if delta.Content != "" {
-				blocks = MergeContentBlocks(blocks, ContentBlock{
-					Kind: BlockKindText,
-					Text: delta.Content,
-				})
-			}
+				if len(delta.Blocks) > 0 {
+					blocks = MergeContentBlocks(blocks, delta.Blocks...)
+				} else if delta.Content != "" {
+					blocks = MergeContentBlocks(blocks, ContentBlock{
+						Kind: BlockKindText,
+						Text: delta.Content,
+					})
+				}
 
-			for _, tcd := range delta.ToolCalls {
-				tc, ok := toolCallMap[tcd.Index]
-				if !ok {
-					tc = &ToolCall{}
-					toolCallMap[tcd.Index] = tc
+				for _, tcd := range delta.ToolCalls {
+					tc, ok := toolCallMap[tcd.Index]
+					if !ok {
+						tc = &ToolCall{}
+						toolCallMap[tcd.Index] = tc
+					}
+					if tcd.ID != "" {
+						tc.ID = tcd.ID
+					}
+					if tcd.Name != "" {
+						tc.Name = tcd.Name
+					}
+					tc.Arguments += tcd.Arguments
 				}
-				if tcd.ID != "" {
-					tc.ID = tcd.ID
-				}
-				if tcd.Name != "" {
-					tc.Name = tcd.Name
-				}
-				tc.Arguments += tcd.Arguments
-			}
 
-			if delta.Usage != nil {
-				usage = *delta.Usage
-			}
-			if delta.FinishReason != "" {
-				finishReason = delta.FinishReason
-			}
+				if delta.Usage != nil {
+					usage = *delta.Usage
+				}
+				if delta.FinishReason != "" {
+					finishReason = delta.FinishReason
+				}
+			}()
 		}
 	}
 

@@ -48,7 +48,11 @@ func NewSDTTracker(config *SDTTrackerConfig) *SDTTracker {
 // computeMotivation 综合动机: motivation = w_a·A + w_c·C + w_r·R
 func (t *SDTTracker) computeMotivation(a, c, r float64) float64 {
 	w := t.config.Weights
-	return clamp(w.Autonomy*a+w.Competence*c+w.Relatedness*r, 0, 1)
+	sum := w.Autonomy + w.Competence + w.Relatedness
+	if sum <= 0 {
+		return 0
+	}
+	return clamp((w.Autonomy*a+w.Competence*c+w.Relatedness*r)/sum, 0, 1)
 }
 
 // updateCompetence 胜任感动态更新 — Deterding 2026 Eq.(1)
