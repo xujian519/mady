@@ -898,35 +898,41 @@ func (l *chatLayout) Render(width int64) []string {
 func (l *chatLayout) Invalidate() {}
 
 func doCopy(l *chatLayout) {
-	// Copy editor selection first. The selection is intentionally left
-	// intact after copying — matching standard clipboard UX (browsers, VS
-	// Code, Terminal.app all keep the selection visible after Cmd+C) — so
-	// the user can see what was copied, copy it again, or extend the
-	// selection afterward. It's cleared by the usual triggers instead:
-	// typing, clicking elsewhere, starting a new drag, etc.
+	// Copy editor selection first.
 	if sel, ok := l.editor.(textSelectionComponent); ok {
 		if text := sel.GetSelectedText(); text != "" {
-			go func() {
-				if err := CopyToClipboard(text); err != nil {
-					l.app.PrintError(fmt.Errorf("clipboard: %w", err))
-				}
-			}()
+			doCopyToClipboard(l, text)
 			return
 		}
 	}
 	// Copy history selection
 	text := l.history.GetSelectedText()
 	if text != "" {
-		go func() {
-			if err := CopyToClipboard(text); err != nil {
-				l.app.PrintError(fmt.Errorf("clipboard: %w", err))
-			}
-		}()
+		doCopyToClipboard(l, text)
 		return
 	}
-	// No selection — do nothing. Cmd/Ctrl+C only copies explicitly selected
-	// content; falling back to the last assistant message would overwrite the
-	// clipboard with content the user never asked to copy.
+	// 无显式选区时，复制最后一条助手消息（最常用场景）。
+	msgs := l.history.Messages()
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == RoleAssistant && msgs[i].Text != "" {
+			doCopyToClipboard(l, msgs[i].Text)
+			return
+		}
+	}
+}
+
+func doCopyToClipboard(l *chatLayout, text string) {
+	go func() {
+		if err := CopyToClipboard(text); err != nil {
+			l.app.PrintError(fmt.Errorf("clipboard: %w", err))
+		} else {
+			truncated := text
+			if core.VisibleWidth(truncated) > 60 {
+				truncated = core.TruncateToWidth(truncated, 57, "...")
+			}
+			l.app.PrintSystem("📋 已复制: " + truncated)
+		}
+	}()
 }
 
 // hasSelection reports whether the editor or chat history currently has a

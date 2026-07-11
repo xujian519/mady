@@ -237,6 +237,8 @@ func runTui(ctx context.Context) {
 
 	// runMu 防止快速输入时多个 goroutine 并发调用 Agent.Run。
 	var runMu sync.Mutex
+		// runCancel 用于中断正在执行的 Agent 运行。
+		var runCancel context.CancelFunc
 
 	buildCfg := func() agentcore.Config {
 		if useMultiDomain {
@@ -297,7 +299,8 @@ func runTui(ctx context.Context) {
 		{InsertText: "/theme", Label: "/theme", Description: "切换主题"},
 		{InsertText: "/theme dark", Label: "/theme dark", Description: "深色主题"},
 		{InsertText: "/theme light", Label: "/theme light", Description: "浅色主题"},
-		{InsertText: "/quit", Label: "/quit", Description: "退出"},
+		{InsertText: "/copy", Label: "/copy", Description: "复制最后一条回复"},
+			{InsertText: "/quit", Label: "/quit", Description: "退出"},
 	}
 
 	if useMultiDomain {
@@ -308,17 +311,27 @@ func runTui(ctx context.Context) {
 
 	var app *chat.ChatApp
 	app = tui.NewChatApp(chat.ChatAppConfig{
-		Title:     fmt.Sprintf("mady · model=%s", model),
-		ShowTurns: true,
-		AltScreen: true,
-		MouseMode: "auto",
-		Providers: []core.AutocompleteProvider{
-			&component.StaticProvider{
-				TriggerStr:  "/",
-				Suggestions: slashSuggestions,
+			Title:     fmt.Sprintf("mady · model=%s", model),
+			ShowTurns: true,
+			AltScreen: true,
+			MouseMode: "auto",
+			Context:   ctx,
+			OnInterrupt: func() {
+				if runCancel != nil {
+					runCancel()
+					runCancel = nil
+				}
 			},
-		},
-		OnSubmit: func(ctx context.Context, input string) {
+			OnQuit: func() {
+				_ = app.Stop()
+			},
+			Providers: []core.AutocompleteProvider{
+				&component.StaticProvider{
+					TriggerStr:  "/",
+					Suggestions: slashSuggestions,
+				},
+			},
+			OnSubmit: func(ctx context.Context, input string) {
 			trimmed := strings.TrimSpace(input)
 			if trimmed == "" {
 				return
@@ -393,6 +406,27 @@ func runTui(ctx context.Context) {
 			case "/skill:":
 				app.PrintSystem("mady tui 简化版未加载技能，请使用 example/cli-chat 配合 SKILL_DIRS")
 				return
+			case "/copy":
+				msgs := app.History().Messages()
+				for i := len(msgs) - 1; i >= 0; i-- {
+					if msgs[i].Role == chat.RoleAssistant && msgs[i].Text != "" {
+						go func(text string) {
+							if err := chat.CopyToClipboard(text); err != nil {
+								app.PrintError(err)
+							} else {
+								truncated := text
+								if len([]rune(truncated)) > 60 {
+									truncated = string([]rune(truncated)[:57]) + "..."
+								}
+								app.PrintSystem("📋 已复制: " + truncated)
+							}
+						}(msgs[i].Text)
+						return
+					}
+				}
+				app.PrintSystem("没有可复制的助手回复")
+				return
+
 			case "/quit", "exit":
 				_ = app.Stop()
 				return
@@ -408,11 +442,14 @@ func runTui(ctx context.Context) {
 				return
 			}
 
-			go func() {
-				runMu.Lock()
-				defer runMu.Unlock()
-				_, _ = currentAgent.Run(ctx, trimmed)
-			}()
+				go func() {
+					runMu.Lock()
+					defer runMu.Unlock()
+					runCtx, cancel := context.WithCancel(ctx)
+					runCancel = cancel
+					_, _ = currentAgent.Run(runCtx, trimmed)
+					runCancel = nil
+				}()
 		},
 	})
 	agentadapter.BindAgent(app, currentAgent)
