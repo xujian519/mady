@@ -64,3 +64,4 @@ coverage.xml
 .cursor/
 /mady
 /mady-acp
+sessions/
