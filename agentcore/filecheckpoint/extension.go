@@ -1,0 +1,153 @@
+package filecheckpoint
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+
+	"github.com/xujian519/mady/agentcore"
+)
+
+// ExtensionName is the registration name for the file checkpoint extension.
+const ExtensionName = "file_checkpoint"
+
+// writerTools is the set of built-in tools that modify files and should be
+// snapshotted before execution.
+var writerTools = map[string]bool{
+	"edit":       true,
+	"write_file": true,
+	"patch":      true,
+	"delete":     true,
+	"move":       true,
+}
+
+// FileCheckpointExtension integrates file-level checkpointing into the agent
+// lifecycle. It snapshots files before writer tools modify them, enabling
+// one-click rewind to any previous turn.
+type FileCheckpointExtension struct {
+	store *Store
+}
+
+var (
+	_ agentcore.Extension         = (*FileCheckpointExtension)(nil)
+	_ agentcore.HookProvider      = (*FileCheckpointExtension)(nil)
+	_ agentcore.LifecycleProvider = (*FileCheckpointExtension)(nil)
+)
+
+// NewExtension creates a file checkpoint extension for the given workspace root.
+func NewExtension(root string) *FileCheckpointExtension {
+	return &FileCheckpointExtension{store: New(OSFileSystem{}, root)}
+}
+
+// NewExtensionWithFS creates a file checkpoint extension with a custom FileSystem
+// (for testing).
+func NewExtensionWithFS(fs FileSystem, root string) *FileCheckpointExtension {
+	return &FileCheckpointExtension{store: New(fs, root)}
+}
+
+// Store returns the underlying checkpoint store for direct access.
+func (e *FileCheckpointExtension) Store() *Store { return e.store }
+
+// Name implements agentcore.Extension.
+func (e *FileCheckpointExtension) Name() string { return ExtensionName }
+
+// Init implements agentcore.Extension.
+func (e *FileCheckpointExtension) Init(_ context.Context, _ *agentcore.Agent) error {
+	return nil
+}
+
+// Dispose implements agentcore.Extension.
+func (e *FileCheckpointExtension) Dispose() error { return nil }
+
+// BeforeHooks implements agentcore.HookProvider, injecting a snapshot hook
+// before every writer tool.
+func (e *FileCheckpointExtension) BeforeHooks() []agentcore.BeforeHook {
+	return []agentcore.BeforeHook{e.beforeWriteHook}
+}
+
+// AfterHooks implements agentcore.HookProvider (no-op for checkpointing).
+func (e *FileCheckpointExtension) AfterHooks() []agentcore.AfterHook {
+	return nil
+}
+
+// LifecycleHook implements agentcore.LifecycleProvider.
+func (e *FileCheckpointExtension) LifecycleHook() agentcore.LifecycleHook {
+	return &checkpointHook{ext: e}
+}
+
+func (e *FileCheckpointExtension) beforeWriteHook(_ context.Context, hc *agentcore.HookContext) error {
+	if hc == nil || !writerTools[hc.ToolName] {
+		return nil
+	}
+	paths := extractPathsFromArgs(hc.Arguments)
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if err := e.store.SnapshotFile(p); err != nil {
+			// Non-fatal: don't block the tool call if snapshot fails.
+			// The agent will receive the error as feedback if needed.
+			continue
+		}
+	}
+	return nil
+}
+
+type checkpointHook struct {
+	agentcore.BaseLifecycleHook
+	ext *FileCheckpointExtension
+}
+
+func (h *checkpointHook) BeforeTurn(_ context.Context, arc *agentcore.AgentRunContext) error {
+	if arc == nil {
+		return nil
+	}
+	h.ext.store.BeginTurn(arc.Turn, arc.Input, len(arc.Messages))
+	return nil
+}
+
+func (h *checkpointHook) AfterTurn(_ context.Context, _ *agentcore.AgentRunContext, _ agentcore.TurnInfo) {
+	h.ext.store.EndTurn()
+}
+
+// extractPathsFromArgs extracts file paths from the JSON arguments of writer
+// tools (edit, write_file, patch, delete, move).
+func extractPathsFromArgs(args json.RawMessage) []string {
+	if len(args) == 0 {
+		return nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(args, &fields); err != nil {
+		return nil
+	}
+	var paths []string
+	for _, key := range []string{"path", "file_path", "source_path", "destination_path"} {
+		raw, ok := fields[key]
+		if !ok {
+			continue
+		}
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				paths = append(paths, s)
+			}
+		}
+	}
+	for _, key := range []string{"paths", "file_paths"} {
+		raw, ok := fields[key]
+		if !ok {
+			continue
+		}
+		var vals []string
+		if err := json.Unmarshal(raw, &vals); err == nil {
+			for _, v := range vals {
+				v = strings.TrimSpace(v)
+				if v != "" {
+					paths = append(paths, v)
+				}
+			}
+		}
+	}
+	return paths
+}

@@ -63,3 +63,40 @@ func namesOf(defs []ToolDefinition) []string {
 	}
 	return names
 }
+
+func TestToolReadOnly_StaticField(t *testing.T) {
+	ro := &Tool{Name: "read", Func: noopFunc, ReadOnly: true}
+	rw := &Tool{Name: "write", Func: noopFunc}
+	if !ToolReadOnly(ro, nil) {
+		t.Error("expected read-only tool to report true")
+	}
+	if ToolReadOnly(rw, nil) {
+		t.Error("expected write tool to report false")
+	}
+}
+
+func TestToolReadOnly_DynamicCallback(t *testing.T) {
+	dyn := &Tool{
+		Name: "bash",
+		Func: noopFunc,
+		DynamicReadOnly: func(args json.RawMessage) bool {
+			var p struct {
+				Cmd string `json:"command"`
+			}
+			_ = json.Unmarshal(args, &p)
+			return p.Cmd == "ls"
+		},
+	}
+	if ToolReadOnly(dyn, json.RawMessage(`{"command":"rm -rf /"}`)) {
+		t.Error("expected non-readonly for destructive command")
+	}
+	if !ToolReadOnly(dyn, json.RawMessage(`{"command":"ls"}`)) {
+		t.Error("expected readonly for safe command")
+	}
+}
+
+func TestToolReadOnly_NilTool(t *testing.T) {
+	if ToolReadOnly(nil, nil) {
+		t.Error("expected false for nil tool")
+	}
+}

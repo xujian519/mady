@@ -23,6 +23,30 @@ type Tool struct {
 	// to merge runtime values (e.g. live config) into the schema.
 	// Shallow-merged on top of Parameters; useful for descriptions that depend on runtime state.
 	DynamicParameters func() map[string]any
+
+	// ReadOnly marks whether this tool has no side effects.
+	// true  = only reads information without modifying state (files, processes, network writes).
+	// false = may produce side effects (default; conservative for safety).
+	// Used by Permission, Guardian, and Plan Mode to gate execution.
+	ReadOnly bool
+
+	// DynamicReadOnly is an optional callback for tools whose read-only status
+	// depends on arguments at call time (e.g. bash with a read-only command).
+	// When non-nil, the result overrides the static ReadOnly field.
+	DynamicReadOnly func(args json.RawMessage) bool
+}
+
+// ToolReadOnly reports whether a tool is read-only for the given arguments.
+// If DynamicReadOnly is set, it is consulted; otherwise the static ReadOnly
+// field is used. A nil tool returns false.
+func ToolReadOnly(t *Tool, args json.RawMessage) bool {
+	if t == nil {
+		return false
+	}
+	if t.DynamicReadOnly != nil {
+		return t.DynamicReadOnly(args)
+	}
+	return t.ReadOnly
 }
 
 // Definition converts a Tool to its schema representation for the model.

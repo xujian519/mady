@@ -218,11 +218,19 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 		}
 	}
 
-	addTool(NewReadTool(cfg.WorkingDir, cfg.Read))
+	// readOnly marks a tool as side-effect-free before registration.
+	readOnly := func(t *agentcore.Tool) *agentcore.Tool {
+		if t != nil {
+			t.ReadOnly = true
+		}
+		return t
+	}
+
+	addTool(readOnly(NewReadTool(cfg.WorkingDir, cfg.Read)))
 	addTool(NewEditTool(cfg.WorkingDir, cfg.Edit))
-	addTool(NewLsTool(cfg.WorkingDir, cfg.Ls))
-	addTool(NewGrepTool(cfg.WorkingDir, cfg.Grep))
-	addTool(NewFindTool(cfg.WorkingDir, cfg.Find))
+	addTool(readOnly(NewLsTool(cfg.WorkingDir, cfg.Ls)))
+	addTool(readOnly(NewGrepTool(cfg.WorkingDir, cfg.Grep)))
+	addTool(readOnly(NewFindTool(cfg.WorkingDir, cfg.Find)))
 	addTool(NewBashTool(cfg.WorkingDir, cfg.Bash))
 	addTool(NewWriteFileTool(cfg.WorkingDir, cfg.WriteFile))
 	addTool(NewPatchTool(cfg.WorkingDir, cfg.Patch))
@@ -243,17 +251,17 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 		}
 	}
 	addTool(NewProcessTool(cfg.WorkingDir, cfg.Process))
-	addTool(NewVisionTool(cfg.WorkingDir, cfg.Vision))
-	addTool(NewViewTool(cfg.WorkingDir, cfg.View))
-	addTool(NewGlobTool(cfg.WorkingDir, cfg.Glob))
+	addTool(readOnly(NewVisionTool(cfg.WorkingDir, cfg.Vision)))
+	addTool(readOnly(NewViewTool(cfg.WorkingDir, cfg.View)))
+	addTool(readOnly(NewGlobTool(cfg.WorkingDir, cfg.Glob)))
 	addTool(NewDeleteTool(cfg.WorkingDir, cfg.Delete))
 	addTool(NewMoveTool(cfg.WorkingDir, cfg.Move))
-	addTool(NewGitStatusTool(cfg.WorkingDir, cfg.Git))
-	addTool(NewGitDiffTool(cfg.WorkingDir, cfg.Git))
-	addTool(NewGitLogTool(cfg.WorkingDir, cfg.Git))
+	addTool(readOnly(NewGitStatusTool(cfg.WorkingDir, cfg.Git)))
+	addTool(readOnly(NewGitDiffTool(cfg.WorkingDir, cfg.Git)))
+	addTool(readOnly(NewGitLogTool(cfg.WorkingDir, cfg.Git)))
 
-	addTool(NewWebSearchTool(cfg.WebSearch))
-	addTool(NewWebFetchTool(cfg.WebFetch))
+	addTool(readOnly(NewWebSearchTool(cfg.WebSearch)))
+	addTool(readOnly(NewWebFetchTool(cfg.WebFetch)))
 
 	if cfg.Browser != nil {
 		addTool(NewBrowserTool(cfg.Browser))

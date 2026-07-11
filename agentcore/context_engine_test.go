@@ -24,8 +24,8 @@ func TestNewEngineRegistry(t *testing.T) {
 		t.Fatalf("default = %q", r.Default())
 	}
 	names := r.List()
-	if len(names) != 3 {
-		t.Fatalf("expected 3 engines, got %d: %v", len(names), names)
+	if len(names) != 4 {
+		t.Fatalf("expected 4 engines, got %d: %v", len(names), names)
 	}
 }
 
@@ -34,8 +34,8 @@ func TestEngineRegistryRegister(t *testing.T) {
 	r.Register("custom", func(cfg ContextEngineConfig) ContextEngine {
 		return &CompressorEngine{}
 	})
-	if len(r.List()) != 4 {
-		t.Fatalf("expected 4 after register, got %d", len(r.List()))
+	if len(r.List()) != 5 {
+		t.Fatalf("expected 5 after register, got %d", len(r.List()))
 	}
 }
 func TestEngineRegistryCreate(t *testing.T) {

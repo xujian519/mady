@@ -102,6 +102,7 @@ func NewEngineRegistry() *EngineRegistry {
 	r.Register("compressor", NewCompressorEngine)
 	r.Register("truncate", NewTruncateEngine)
 	r.Register("chunked", NewChunkedEngine)
+	r.Register("tiered", NewTieredEngine)
 	return r
 }
 
