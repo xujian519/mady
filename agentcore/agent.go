@@ -37,6 +37,12 @@ type Config struct {
 	Tools        []*Tool
 	SystemPrompt string
 
+	// WorkspaceDir 是 Agent 工具沙箱的默认工作目录（绝对路径）。
+	// 领域工厂函数（如 AssistantAgentConfig）在构造文件工具时读取此字段，
+	// 避免硬编码相对路径导致非项目目录启动时沙箱错位。
+	// 空字符串时各工具回退到自身默认（通常为 cwd）。
+	WorkspaceDir string
+
 	Store Store // optional: enables SaveState / LoadState
 	// Checkpoint optional durable snapshots per thread (see CheckpointSettings).
 	Checkpoint *CheckpointSettings
