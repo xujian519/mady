@@ -17,14 +17,6 @@ type WorkingDirSandbox struct {
 	WorkingDir string
 }
 
-// defaultSandbox returns a sandbox with default settings (enabled).
-func defaultSandbox(workingDir string) WorkingDirSandbox {
-	return WorkingDirSandbox{
-		Enabled:    true,
-		WorkingDir: workingDir,
-	}
-}
-
 // SandboxDisabled returns a sandbox that allows all paths (backward compatible).
 func SandboxDisabled(workingDir string) WorkingDirSandbox {
 	return WorkingDirSandbox{
