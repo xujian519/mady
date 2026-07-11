@@ -12,6 +12,47 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-12: 阶段4 — YAML规则引擎 (domains/rules/)
+
+- **变更**:
+  1. **新增 `domains/rules/types.go`**: Go类型系统，覆盖4种YAML格式 — Rule/Check（规则文件）、ArticleFramework/ArticleStep（法条框架）、Orchestration/DiscoveryStage/ExecutionTemplate（事务编排）、ReflectionDomain（反思指示词）；Check使用自定义`UnmarshalYAML`两遍解码：已知字段填充结构体，未知字段保存在`Extra map[string]any`供消费者解释
+  2. **新增 `domains/rules/loader.go`**: `LoadFromDir(dir)` 从目录加载全部YAML文件，自动分类（顶层规则文件/articles/*/orchestrations/*/reflection-indicators.yaml），构建索引（rulesByDomain/rulesBySeverity/ruleIndex）
+  3. **新增 `domains/rules/engine.go`**: `Engine`查询引擎（AllRules/RuleByID/RulesByDomain/RulesBySeverity/Article/Orchestration/ReflectionIndicators/SearchRules/ToRuleConstraints）+ `RulesExtension`实现agentcore.Extension（ToolProvider+SystemPromptProvider+TransformContextProvider）；暴露3个工具：search_rules、get_article_framework、get_orchestration；ToRuleConstraints将规则转换为reasoning.RuleConstraint供推理框架使用
+  4. **新增 `domains/rules/engine_test.go`**: 10个测试覆盖全部功能（加载/Extra字段/域查询/严重度查询/ID查询/搜索/法条框架/编排/反思指示词/RuleConstraint转换）
+  5. **依赖**: 添加 `gopkg.in/yaml.v3` v3.0.1（已在go.sum中间接存在，现提升为直接依赖）
+- **原因**: XiaoNuo的规则数据（novelty/inventiveness/disclosure/claims/amendment/response 6个顶层规则文件 + 8个法条框架 + 2个事务编排 + 反思指示词）是专利法律推理的核心知识资产，需要在Mady中以Extension机制集成，供Agent通过工具查询规则、法条判断框架和事务编排方案
+- **影响范围**: go.mod, go.sum, domains/rules/types.go, domains/rules/loader.go, domains/rules/engine.go, domains/rules/engine_test.go
+- **风险等级**: 低（纯新增包，不修改任何现有文件）
+- **审查要求**: L2
+
+## 2026-07-12: 代码审查修复 — Context传播/错误处理/FTS5转义/LIKE转义
+
+- **变更**:
+  1. **Context传播** (`knowledge/extension.go`): `search`/`backendSearch`/`memorySearch` 方法签名增加 `context.Context` 参数；`handleSearch`/`Provide` 传递调用者ctx；`backendSearch` 中 `e.embedder.Embed` 从 `context.Background()` 改为 `ctx`，支持用户中断时取消嵌入API调用
+  2. **NewSQLiteStore错误处理** (`knowledge/sqlite/store.go`): 添加 `db.Ping()` 验证连通性；维度检测查询失败时返回error而非静默回退到dim=1024
+  3. **VectorSearch rows.Err()** (`knowledge/sqlite/store.go`): 内层 `rows.Next()` 循环后添加 `rows.Err()` 检查，避免DB错误导致静默返回部分结果
+  4. **FTS5引号转义** (`knowledge/sqlite/store.go`): `strconv.Quote(query)` 替换为 FTS5 兼容的双引号包裹+内部双引号加倍（`"` → `""`），避免反斜杠转义导致查询异常
+  5. **SearchLaws LIKE转义** (`knowledge/sqlite/store.go`): 转义 `%`→`\%`、`_`→`\_`、`\`→`\\`，添加 `ESCAPE '\'` 子句，确保关键词字面匹配
+  6. **backendSearch错误日志** (`knowledge/extension.go`): FTS/Vector/Embed 错误从静默吞没改为 `log.Printf` 记录，便于诊断持续性故障
+- **原因**: 代码审查发现6个问题（2中等+4低），涉及context传播缺失、错误静默吞没、SQL注入风险（非安全注入但语义错误）
+- **影响范围**: knowledge/extension.go, knowledge/sqlite/store.go
+- **风险等级**: 低（修复内部实现细节，不改变公开API）
+- **审查要求**: L2
+
+## 2026-07-12: 引入 XiaoNuo 知识系统数据资产 + SQLite 读取层 + RRF 混合检索
+
+- **变更**:
+  1. **数据资产引入**: 在 `~/.mady/knowledge/` 下创建符号链接，引入 XiaoNuo Agent 的知识数据（knowledge.db 6.5GB 含81K文档/144K分块/215K图谱节点/144K嵌入向量；laws-full.db 152MB 含9121条法律；patent_kg.db 207MB；ipc-classification/ 6.8MB；wiki/ 17MB；rules/ 76KB）
+  2. **SQLite 依赖**: 添加 `modernc.org/sqlite` v1.53.0（纯Go无CGO），更新 go.mod
+  3. **SQLite 读取层** (`knowledge/sqlite/store.go`, 419行): `SQLiteStore` 支持只读打开 knowledge.db/laws-full.db/patent_kg.db；`FTSSearch` 利用 FTS5 trigram + BM25 评分；`VectorSearch` 批量读取 BLOB float32 嵌入向量计算余弦相似度；`LoadGraph` 从 kg_nodes/kg_edges 批量加载到内存 GraphStore；`SearchLaws` LIKE 搜索法律库
+  4. **RRF 融合检索器** (`retrieval/hybrid.go`): `RRFFuser` 实现 Reciprocal Rank Fusion 算法（k=60），融合 FTS 和向量搜索结果，score-agnostic 只看排名位置
+  5. **Extension 集成 SQLite 后端** (`knowledge/extension.go`): 新增 `KnowledgeBackend` 接口（`FTSSearch`/`VectorSearch`）；`WithBackend()` setter 注入 SQLiteStore + Embedder；`search()` 方法优先走 SQLite 后端（FTS+Vector RRF 融合），降级到内存关键词搜索；`handleSearch`/`Provide` 统一调用 `search()` 分发
+  6. **测试**: `knowledge/sqlite/store_test.go`（FTS/Graph/Laws 3测试全过）；`retrieval/hybrid_test.go`（RRF 4测试全过）
+- **原因**: Mady 原有知识库仅2篇种子文档，无法支撑专利/法律专业领域智能体；XiaoNuo Agent 的数据模型（GraphNode/GraphEdge/节点类型/关系类型/权威度权重）与 Mady 完全对齐，嵌入向量格式兼容（BGE-M3 1024维 float32 LE），可直接复用
+- **影响范围**: go.mod, go.sum, knowledge/sqlite/store.go, knowledge/sqlite/store_test.go, retrieval/hybrid.go, retrieval/hybrid_test.go, knowledge/extension.go
+- **风险等级**: 低（新增文件+非破坏性修改，现有功能通过 WithBackend 可选注入，不影响默认行为）
+- **审查要求**: L2（新增 SQLite 依赖和数据访问层，需确认只读模式和路径安全）
+
 ## 2026-07-11: 文档全面同步实际开发进度
 
 - **变更**:

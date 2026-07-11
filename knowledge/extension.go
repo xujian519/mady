@@ -4,11 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/retrieval"
 )
+
+// KnowledgeBackend provides SQLite-backed knowledge retrieval. When set on
+// the extension, it takes priority over the in-memory Store. Implementations
+// are expected to be the SQLiteStore in knowledge/sqlite, but the interface
+// keeps the knowledge package free of import cycles.
+type KnowledgeBackend interface {
+	FTSSearch(query string, topK int) ([]retrieval.ScoredChunk, error)
+	VectorSearch(queryVec []float32, topK int) ([]retrieval.ScoredChunk, error)
+}
 
 const ExtensionName = "knowledge"
 
@@ -18,11 +28,22 @@ type GraphEnhancer interface {
 
 type KnowledgeExtension struct {
 	agentcore.BaseLifecycleHook
-	store  *Store
-	graph  GraphEnhancer
-	hook   *retrieval.RetrievalHook
-	domain string
-	cfg    KnowledgeExtConfig
+	store    *Store
+	backend  KnowledgeBackend
+	embedder retrieval.Embedder
+	graph    GraphEnhancer
+	hook     *retrieval.RetrievalHook
+	domain   string
+	cfg      KnowledgeExtConfig
+}
+
+// WithBackend injects a SQLite-backed knowledge retrieval backend and an
+// optional embedder for vector search. When set, the extension uses FTS +
+// vector RRF fusion instead of the in-memory keyword search.
+func (e *KnowledgeExtension) WithBackend(backend KnowledgeBackend, embedder retrieval.Embedder) *KnowledgeExtension {
+	e.backend = backend
+	e.embedder = embedder
+	return e
 }
 
 type KnowledgeExtConfig struct {
@@ -117,23 +138,74 @@ func (e *KnowledgeExtension) handleSearch(ctx context.Context, args json.RawMess
 		p.TopK = 5
 	}
 
-	var results []retrieval.ScoredChunk
-	if e.store != nil {
-		chunks := e.store.SearchableChunksForDomain(e.domain)
-		if len(chunks) == 0 {
-			chunks = e.store.AllChunks()
-		}
-		if len(chunks) > 0 {
-			searcher := retrieval.NewKeywordSearcher()
-			results = searcher.Search(p.Query, chunks, p.TopK)
-			reranker := retrieval.NewPositionReranker()
-			results = reranker.Rerank(results)
-		}
-	}
+	results := e.search(ctx, p.Query, p.TopK)
 	if len(results) == 0 {
 		return "未找到相关文档", nil
 	}
 	return formatToolResults(results), nil
+}
+
+// search dispatches to the SQLite backend (FTS + vector RRF fusion) when
+// available, falling back to the in-memory keyword search otherwise.
+func (e *KnowledgeExtension) search(ctx context.Context, query string, topK int) []retrieval.ScoredChunk {
+	if e.backend != nil {
+		return e.backendSearch(ctx, query, topK)
+	}
+	return e.memorySearch(query, topK)
+}
+
+// backendSearch performs FTS + vector RRF fusion via the SQLite backend.
+func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, topK int) []retrieval.ScoredChunk {
+	candidateK := topK * 2
+	if candidateK < 20 {
+		candidateK = 20
+	}
+
+	var lists [][]retrieval.ScoredChunk
+
+	if ftsResults, err := e.backend.FTSSearch(query, candidateK); err == nil && len(ftsResults) > 0 {
+		lists = append(lists, ftsResults)
+	} else if err != nil {
+		log.Printf("[knowledge] FTS search error: %v", err)
+	}
+
+	if e.embedder != nil {
+		vecs, err := e.embedder.Embed(ctx, []string{query})
+		if err == nil && len(vecs) > 0 && len(vecs[0]) > 0 {
+			if vecResults, vErr := e.backend.VectorSearch(vecs[0], candidateK); vErr == nil && len(vecResults) > 0 {
+				lists = append(lists, vecResults)
+			} else if vErr != nil {
+				log.Printf("[knowledge] vector search error: %v", vErr)
+			}
+		} else if err != nil {
+			log.Printf("[knowledge] embed error: %v", err)
+		}
+	}
+
+	if len(lists) == 0 {
+		return nil
+	}
+
+	fuser := retrieval.NewRRFFuser()
+	return fuser.Fuse(lists, topK)
+}
+
+// memorySearch uses the in-memory Store with keyword search + reranking.
+func (e *KnowledgeExtension) memorySearch(query string, topK int) []retrieval.ScoredChunk {
+	if e.store == nil {
+		return nil
+	}
+	chunks := e.store.SearchableChunksForDomain(e.domain)
+	if len(chunks) == 0 {
+		chunks = e.store.AllChunks()
+	}
+	if len(chunks) == 0 {
+		return nil
+	}
+	searcher := retrieval.NewKeywordSearcher()
+	results := searcher.Search(query, chunks, topK)
+	reranker := retrieval.NewPositionReranker()
+	return reranker.Rerank(results)
 }
 
 func formatToolResults(results []retrieval.ScoredChunk) string {
@@ -148,28 +220,22 @@ func formatToolResults(results []retrieval.ScoredChunk) string {
 
 func (e *KnowledgeExtension) Layer() agentcore.ContextLayer { return agentcore.LayerKnowledge }
 
-func (e *KnowledgeExtension) Provide(_ context.Context, input agentcore.BuildInput, _ agentcore.LayerConfig) ([]agentcore.Message, error) {
-	if !e.cfg.Enabled || e.store == nil {
+func (e *KnowledgeExtension) Provide(ctx context.Context, input agentcore.BuildInput, _ agentcore.LayerConfig) ([]agentcore.Message, error) {
+	if !e.cfg.Enabled {
+		return nil, nil
+	}
+	if e.store == nil && e.backend == nil {
 		return nil, nil
 	}
 	query := lastUserMsg(input.Messages)
 	if query == "" {
 		return nil, nil
 	}
-	chunks := e.store.SearchableChunksForDomain(e.domain)
-	if len(chunks) == 0 {
-		chunks = e.store.AllChunks()
-	}
-	if len(chunks) == 0 {
-		return nil, nil
-	}
-	searcher := retrieval.NewKeywordSearcher()
-	results := searcher.Search(query, chunks, 5)
+
+	results := e.search(ctx, query, 5)
 	if len(results) == 0 {
 		return nil, nil
 	}
-	reranker := retrieval.NewPositionReranker()
-	results = reranker.Rerank(results)
 
 	var b strings.Builder
 	b.WriteString("### 参考文档\n")
