@@ -6,8 +6,8 @@
 // Supported providers (all via the OpenAI Chat Completions compatible protocol):
 //
 //	PROVIDER=deepseek → DeepSeek (deepseek-v4-flash / deepseek-v4-pro)
-//	PROVIDER=zhipu    → Zhipu GLM (glm-5.2)
-//	PROVIDER=kimi     → Kimi (kimi-k2-0905-preview)
+//	PROVIDER=zhipu    → Zhipu GLM (glm-5.2 / glm-5v-turbo 多模态)
+//	PROVIDER=kimi     → Kimi Moonshot (kimi-k2.6 多模态 / kimi-k2.7-code)
 //	PROVIDER=generic  → any OpenAI-compatible endpoint (set OPENAI_BASE_URL + MODEL)
 package agentconfig
 
@@ -48,13 +48,25 @@ func BuildProvider() agentcore.Provider {
 			baseURL = "https://open.bigmodel.cn/api/coding/paas/v4"
 		}
 	case "kimi":
-		if apiKey == "" {
-			apiKey = os.Getenv("KIMI_API_KEY")
+		// Kimi Code coding 端点在 KIMI_CODE_API_KEY 和 KIMI_CODE_BASE_URL
+		// 中配置（coding 专属额度）。未配置时回退到 Moonshot 标准 API。
+		codeKey := os.Getenv("KIMI_CODE_API_KEY")
+		codeURL := os.Getenv("KIMI_CODE_BASE_URL")
+		if codeKey != "" {
+			apiKey = codeKey
+			if codeURL == "" {
+				codeURL = "https://api.kimi.com/coding/v1"
+			}
+			baseURL = codeURL
+		} else {
+			if apiKey == "" {
+				apiKey = os.Getenv("KIMI_API_KEY")
+			}
+			if baseURL == "" {
+				baseURL = "https://api.moonshot.cn/v1"
+			}
 		}
-		if baseURL == "" {
-			baseURL = "https://api.moonshot.cn/v1"
-		}
-	default:
+
 		// Generic OpenAI-compatible provider.
 		if baseURL == "" {
 			baseURL = os.Getenv("OPENAI_BASE_URL")
@@ -79,7 +91,7 @@ func DefaultModel() string {
 	case "zhipu":
 		return "glm-5.2"
 	case "kimi":
-		return "kimi-k2-0905-preview"
+		return "kimi-k2.6"
 	default:
 		return os.Getenv("MODEL")
 	}
