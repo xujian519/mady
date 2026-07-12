@@ -23,6 +23,12 @@ type FactBlackboard struct {
 	ruleConstraints  []RuleConstraint
 	articleJudgments map[string]ArticleJudgment
 	plan             *ExecutionPlan
+	// Stage ①-⑤ workflow fields.
+	rplan        *Plan          // Stage ③ Plan (replaces ExecutionPlan for new code)
+	checkReport  *CheckReport   // Stage ⑤ output
+	stageOutputs map[string]any // per-stage outputs, keyed by "stage1".."stage5"
+	workflowID   string         // current WorkflowManifest ID
+	currentStage int            // current stage (1-5)
 }
 
 // NewFactBlackboard creates an empty blackboard for the given case.
@@ -44,6 +50,14 @@ func (b *FactBlackboard) checkNotLocked() {
 	if b.Locked {
 		panic("factBlackboard: attempt to mutate a locked blackboard")
 	}
+}
+
+// IsLocked returns true if the blackboard has been locked. Prefer this over
+// reading the exported Locked field directly, which may race without the mutex.
+func (b *FactBlackboard) IsLocked() bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.Locked
 }
 
 // Lock freezes the blackboard. After locking, any mutating method panics.
@@ -191,11 +205,98 @@ func (b *FactBlackboard) Plan() *ExecutionPlan {
 }
 
 // SetPlan stores an execution plan. Panics if locked.
+//
+// Deprecated: Use SetPlanV2 for new code.
 func (b *FactBlackboard) SetPlan(p ExecutionPlan) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.checkNotLocked()
 	b.plan = &p
+	b.touch()
+}
+
+// PlanV2 returns the Stage ③ Plan, or nil if none has been set.
+func (b *FactBlackboard) PlanV2() *Plan {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.rplan
+}
+
+// SetPlanV2 stores a Stage ③ Plan. Panics if locked.
+func (b *FactBlackboard) SetPlanV2(p Plan) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
+	b.rplan = &p
+	b.touch()
+}
+
+// CheckReport returns the Stage ⑤ check report, or nil if not yet generated.
+func (b *FactBlackboard) CheckReport() *CheckReport {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.checkReport
+}
+
+// SetCheckReport stores the Stage ⑤ check report. Panics if locked.
+func (b *FactBlackboard) SetCheckReport(r CheckReport) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
+	b.checkReport = &r
+	b.touch()
+}
+
+// StageOutput returns the output stored for a given stage key (e.g. "stage1").
+// Returns nil and false if no output exists.
+func (b *FactBlackboard) StageOutput(phase string) (any, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	v, ok := b.stageOutputs[phase]
+	return v, ok
+}
+
+// SetStageOutput stores an output for a stage. Panics if locked.
+func (b *FactBlackboard) SetStageOutput(phase string, v any) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
+	if b.stageOutputs == nil {
+		b.stageOutputs = make(map[string]any)
+	}
+	b.stageOutputs[phase] = v
+	b.touch()
+}
+
+// WorkflowID returns the current WorkflowManifest ID.
+func (b *FactBlackboard) WorkflowID() string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.workflowID
+}
+
+// SetWorkflowID sets the WorkflowManifest ID. Panics if locked.
+func (b *FactBlackboard) SetWorkflowID(id string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
+	b.workflowID = id
+	b.touch()
+}
+
+// CurrentStage returns the currently executing stage number (1-5), 0 if not started.
+func (b *FactBlackboard) CurrentStage() int {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.currentStage
+}
+
+// SetCurrentStage advances the stage counter. Panics if locked.
+func (b *FactBlackboard) SetCurrentStage(s int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
+	b.currentStage = s
 	b.touch()
 }
 
@@ -211,6 +312,11 @@ type factBlackboardJSON struct {
 	RuleConstraints  []RuleConstraint           `json:"rule_constraints"`
 	ArticleJudgments map[string]ArticleJudgment `json:"article_judgments"`
 	Plan             *ExecutionPlan             `json:"plan"`
+	Rplan            *Plan                      `json:"rplan,omitempty"`
+	CheckReport      *CheckReport               `json:"check_report,omitempty"`
+	StageOutputs     map[string]any             `json:"stage_outputs,omitempty"`
+	WorkflowID       string                     `json:"workflow_id,omitempty"`
+	CurrentStage     int                        `json:"current_stage"`
 }
 
 func (b *FactBlackboard) MarshalJSON() ([]byte, error) {
@@ -228,6 +334,11 @@ func (b *FactBlackboard) MarshalJSON() ([]byte, error) {
 		RuleConstraints:  b.ruleConstraints,
 		ArticleJudgments: b.articleJudgments,
 		Plan:             b.plan,
+		Rplan:            b.rplan,
+		CheckReport:      b.checkReport,
+		StageOutputs:     b.stageOutputs,
+		WorkflowID:       b.workflowID,
+		CurrentStage:     b.currentStage,
 	})
 }
 
@@ -252,5 +363,10 @@ func (b *FactBlackboard) UnmarshalJSON(data []byte) error {
 		b.articleJudgments = make(map[string]ArticleJudgment)
 	}
 	b.plan = s.Plan
+	b.rplan = s.Rplan
+	b.checkReport = s.CheckReport
+	b.stageOutputs = s.StageOutputs
+	b.workflowID = s.WorkflowID
+	b.currentStage = s.CurrentStage
 	return nil
 }

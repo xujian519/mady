@@ -1,0 +1,65 @@
+workflow_manifest:
+  id: "patent_novelty_v1"
+  name: "专利新颖性分析"
+  case_type: "novelty_search"
+
+  stage1:
+    collectors:
+      - type: "user_input"
+        enabled: true
+        config:
+          max_facts: 10
+      - type: "documents"
+        enabled: true
+        config:
+          max_facts: 20
+          allowed_extensions: [".pdf", ".docx", ".txt"]
+      - type: "knowledge"
+        enabled: true
+        config:
+          domain: "patent"
+          top_k: 5
+
+  stage2:
+    manifest_id: "patent_novelty_rules_v1"
+    sources:
+      - source: "knowledge_graph"
+        query_template: "与{{.technical_field}}相关的新颖性法条"
+        max_per_source: 10
+        weight: 1.0
+      - source: "vector_db"
+        query_template: "{{.keywords}}"
+        max_per_source: 5
+        weight: 0.8
+    aggregation: "priority"
+    max_rules: 10
+
+  stage3:
+    plan_templates:
+      - intent: "chain"
+        template_ref: "novelty_chain"
+
+  stage4:
+    default_strategy: "chain"
+    max_steps: 30
+    steps:
+      - order: 1
+        description: "解析技术交底书，提取技术特征"
+        strategy: "chain"
+      - order: 2
+        description: "检索现有技术文献"
+        strategy: "react"
+        tool_name: "search_prior_art"
+      - order: 3
+        description: "逐项对比技术特征与现有技术"
+        strategy: "chain"
+      - order: 4
+        description: "生成新颖性分析结论"
+        strategy: "chain"
+
+  stage5:
+    syllogism_level: 1
+    llm_validate: false
+    require_all_facts_used: false
+    require_all_rules_used: true
+    max_retries: 2

@@ -20,15 +20,39 @@ const (
 	CaseGeneralLegal  CaseType = "general_legal"
 )
 
+// FactCollectorID identifies which collector produced a fact (Stage ①).
+type FactCollectorID string
+
+const (
+	CollectorUserInput FactCollectorID = "user_input" // 用户输入提取
+	CollectorDocuments FactCollectorID = "documents"  // 文档解析
+	CollectorKnowledge FactCollectorID = "knowledge"  // KG/知识库检索
+	CollectorDerived   FactCollectorID = "derived"    // LLM 推理衍生
+)
+
+// FactCategory groups facts for filtering (Stage ① → Stage ③).
+type FactCategory string
+
+const (
+	FactCategoryTechnical  FactCategory = "technical"  // 技术特征
+	FactCategoryLegal      FactCategory = "legal"      // 法律要件
+	FactCategoryProcedural FactCategory = "procedural" // 程序性事实
+	FactCategoryTemporal   FactCategory = "temporal"   // 期限/日期
+)
+
 // FactEntry is a single extracted fact on the blackboard.
 type FactEntry struct {
-	ID          string  `json:"id"`
-	Source      string  `json:"source"` // user_text | file | cnipa_query | manual
-	Content     string  `json:"content"`
-	FilePath    string  `json:"file_path,omitempty"`
-	Confidence  float64 `json:"confidence"`
-	ExtractedAt string  `json:"extracted_at"`
-	DiscardedAt string  `json:"discarded_at,omitempty"`
+	ID          string          `json:"id"`
+	Source      string          `json:"source"` // user_text | file | cnipa_query | manual
+	Content     string          `json:"content"`
+	FilePath    string          `json:"file_path,omitempty"`
+	Confidence  float64         `json:"confidence"`
+	ExtractedAt string          `json:"extracted_at"`
+	DiscardedAt string          `json:"discarded_at,omitempty"`
+	CollectorID FactCollectorID `json:"collector_id,omitempty"` // Stage ① 来源追溯
+	Category    FactCategory    `json:"category,omitempty"`     // 事实分类
+	Tags        []string        `json:"tags,omitempty"`         // 自由标签
+	ArtifactRef string          `json:"artifact_ref,omitempty"` // 关联文件引用
 }
 
 // IsDiscarded reports whether the fact has been soft-discarded (for backtracking).
@@ -115,12 +139,156 @@ type ExecutionPlanStep struct {
 }
 
 // ExecutionPlan is the action plan derived from the blackboard.
+//
+// Deprecated: Use Plan for new code. ExecutionPlan remains for backward
+// compatibility with existing workflows. FactBlackboard.SetPlan accepts
+// both types during the migration period.
 type ExecutionPlan struct {
 	Steps     []ExecutionPlanStep `json:"steps"`
 	Artifacts []string            `json:"artifacts"`
 }
 
-// nowISO returns the current UTC time in RFC3339 for timestamps.
-func nowISO() string {
+// RuleSource identifies which retrieval source produced a rule (Stage ②).
+type RuleSource string
+
+const (
+	RuleSourceKG     RuleSource = "knowledge_graph" // 知识图谱
+	RuleSourceVector RuleSource = "vector_db"       // 向量数据库
+	RuleSourceSkill  RuleSource = "skill_md"        // SKILL.md 规则文档
+)
+
+// RetrievedRule is the Stage ② output — a RuleConstraint enriched with
+// retrieval metadata (source, priority, authority score, confidence).
+type RetrievedRule struct {
+	Rule           RuleConstraint `json:"rule"`
+	Source         RuleSource     `json:"source"`
+	Priority       int            `json:"priority"`          // 1=high, 3=low
+	AuthorityScore float64        `json:"authority_score"`   // 0-1 权威度
+	Confidence     float64        `json:"confidence"`        // 0-1 检索置信度
+	Baggage        string         `json:"baggage,omitempty"` // 附带原始文本
+}
+
+// StrategyType defines how a PlanStep is executed (Stage ④).
+type StrategyType string
+
+const (
+	StrategyReact           StrategyType = "react"
+	StrategyChain           StrategyType = "chain"
+	StrategyMultiHypothesis StrategyType = "multi_hypothesis"
+)
+
+// PlanIntent describes the cognitive mode of a Plan (Stage ③).
+type PlanIntent string
+
+const (
+	PlanIntentSimple          PlanIntent = "simple"           // 单步，模板驱动
+	PlanIntentChain           PlanIntent = "chain"            // 多步链式，模板驱动
+	PlanIntentReAct           PlanIntent = "react"            // LLM ReAct
+	PlanIntentMultiHypothesis PlanIntent = "multi_hypothesis" // 正反方+Judge
+)
+
+// PlanHypothesis is a thesis/argument in a multi-hypothesis Plan (Stage ③ → ④).
+type PlanHypothesis struct {
+	ID         string   `json:"id"`
+	Label      string   `json:"label"`      // "专利权人主张" / "无效请求人主张"
+	Thesis     string   `json:"thesis"`     // 核心论点
+	UsedFacts  []string `json:"used_facts"` // 引用 Fact.ID 列表
+	UsedRules  []string `json:"used_rules"` // 引用 Rule.ID 列表
+	Confidence float64  `json:"confidence"`
+}
+
+// PlanStep is one action in a Plan — replaces ExecutionPlanStep for new code.
+type PlanStep struct {
+	Order          int            `json:"order"`
+	Description    string         `json:"description"`
+	Strategy       StrategyType   `json:"strategy"` // react | chain | multi_hypothesis
+	ToolName       string         `json:"tool_name,omitempty"`
+	ToolInput      map[string]any `json:"tool_input,omitempty"`
+	ExpectedOutput string         `json:"expected_output"`
+	DependsOn      []string       `json:"depends_on,omitempty"`     // 前置 StepID 列表
+	RequiredFacts  []string       `json:"required_facts,omitempty"` // Fact.ID 列表
+	RequiredRules  []string       `json:"required_rules,omitempty"` // Rule.ID 列表
+}
+
+// Plan is the Stage ③ output — a structured execution plan that carries
+// references back to the facts (Stage ①) and rules (Stage ②) it depends on.
+type Plan struct {
+	PlanID       string           `json:"plan_id"`
+	Intent       PlanIntent       `json:"intent"`
+	CaseType     CaseType         `json:"case_type"`
+	Steps        []PlanStep       `json:"steps"`
+	Hypotheses   []PlanHypothesis `json:"hypotheses,omitempty"`
+	UsedFacts    []string         `json:"used_facts"`              // Stage ① 回溯
+	UsedRules    []string         `json:"used_rules"`              // Stage ② 回溯
+	LLMReasoning string           `json:"llm_reasoning,omitempty"` // LLM 生成 Plan 时的 reasoning trace
+}
+
+// ValidationGap describes a reasoning gap between UsedFacts+UsedRules and the
+// conclusion. Produced by Stage ⑤.
+type ValidationGap struct {
+	Description string `json:"description"`
+	Severity    string `json:"severity"` // "hard" | "soft"
+	Suggestion  string `json:"suggestion,omitempty"`
+}
+
+// CheckReport is the Stage ⑤ output — validates that conclusions follow from
+// premises through the syllogism chain.
+type CheckReport struct {
+	PlanID         string          `json:"plan_id"`
+	Passed         bool            `json:"passed"`
+	Syllogisms     []Syllogism     `json:"syllogisms"`             // 三段论链
+	UsedFacts      []string        `json:"used_facts"`             // 实际用到的 Facts
+	UsedRules      []string        `json:"used_rules"`             // 实际用到的 Rules
+	UnusedFacts    []string        `json:"unused_facts,omitempty"` // 未使用的 Facts
+	UnusedRules    []string        `json:"unused_rules,omitempty"` // 未使用的 Rules
+	Gaps           []ValidationGap `json:"gaps,omitempty"`         // 逻辑缺口
+	Confidence     float64         `json:"confidence"`
+	LLMExplanation string          `json:"llm_explanation,omitempty"`
+}
+
+// CollectResult is the return value of a FactCollector (Stage ①).
+type CollectResult struct {
+	CollectorID FactCollectorID `json:"collector_id"`
+	FactCount   int             `json:"fact_count"`
+	Confidence  float64         `json:"confidence"`
+	Gaps        []string        `json:"gaps,omitempty"`
+	Artifacts   []string        `json:"artifacts,omitempty"`
+}
+
+// =============================================================================
+// Multi-Hypothesis types (Stage ④ multi_hypothesis strategy)
+// =============================================================================
+
+// HypothesisSpec defines one side of a debate.
+type HypothesisSpec struct {
+	ID    string `json:"id"`    // "pro" | "con"
+	Claim string `json:"claim"` // e.g. "该技术特征相对于对比文件是显而易见的"
+}
+
+// Argument is the output of an Advocate node — a structured case for one side.
+type Argument struct {
+	HypothesisID              string   `json:"hypothesis_id"`
+	Claim                     string   `json:"claim"`
+	SupportingFacts           []string `json:"supporting_facts"`           // FactID
+	SupportingRules           []string `json:"supporting_rules"`           // RuleID
+	Reasoning                 string   `json:"reasoning"`                  // 论证过程
+	AcknowledgedCounterpoints string   `json:"acknowledged_counterpoints"` // 主动承认的最强反对理由
+}
+
+// Verdict is the Judge's resolution of a multi-hypothesis debate.
+type Verdict struct {
+	Resolved          bool    `json:"resolved"`
+	WinningHypothesis string  `json:"winning_hypothesis,omitempty"` // empty when !Resolved
+	Confidence        float64 `json:"confidence"`
+	Rationale         string  `json:"rationale"`
+	DissentNotes      string  `json:"dissent_notes,omitempty"`     // 败方合理部分
+	UnresolvedReason  string  `json:"unresolved_reason,omitempty"` // 无法裁决的原因
+}
+
+// NowISO returns the current UTC time in RFC3339 for timestamps.
+func NowISO() string {
 	return time.Now().UTC().Format(time.RFC3339)
 }
+
+// nowISO is the internal alias for backward compatibility.
+func nowISO() string { return NowISO() }
