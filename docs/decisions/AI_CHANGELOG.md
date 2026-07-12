@@ -12,6 +12,18 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-12: XiaoNuo专利能力移植 — OA解析/反套话引擎/法律意图检测
+
+- **变更**:
+  1. **新增 `domains/rules/oa_parser.go`**: 审查意见解析器（从XiaoNuo legal-bus/src/rules/oa-parser.ts移植）。纯规则零LLM，3个提取函数：`DetectOaRejectionType`(7组关键词匹配novelty/inventiveness/clarity/support/disclosure/scope/formal)、`ExtractCitations`(正则提取CN/US/WO/EP/JP/KR专利文献号)、`ExtractAffectedClaims`(正则提取权利要求号+范围展开)；入口`ParseOfficeAction`+`FormatOaSummary`
+  2. **新增 `domains/rules/slop_engine.go`**: 反AI套话引擎（从XiaoNuo slop-engine.ts 452行完整移植）。三层架构：Layer1短语级(42条正则替换规则，7个分组filler/qualifier/meta/intimacy/subjectless/search/advisory)、Layer2结构级(6种缺陷检测empty_three_step/fake_comparison/binary_turn/reason_pile/passive_voice/oa_formula)、Layer3评分级(50分制5维directness/evidence/rhythm/practicality/concision+8项快检)；入口`AnalyzeSlop`+`FormatSlopAnalysis`
+  3. **新增 `domains/legal_intent.go`**: 法律意图细分检测器（从XiaoNuo LegalIntentDetector.ts 270行移植）。`@legal`显式触发+15组关键词→CaseType映射(复用reasoning.CaseType 12种)、专利语境门控(14个信号词)、子串去重(utf8.RuneCountInString)；入口`DetectLegalIntent`+`SelectRunMode`。独立函数，不修改现有ClassifyIntent路由
+  4. **修改 `domains/rules/engine.go`**: RulesExtension.Tools()新增2个ReadOnly工具：`parse_office_action`(审查意见解析)、`analyze_slop`(反套话分析)
+- **原因**: Mady基础框架完整但缺专利文书规则解析层。XiaoNuo的纯规则解析器从BCIP codex-patent-domain(Rust)移植，天然适合Go重写，零LLM开销
+- **影响范围**: domains/rules/oa_parser.go(新), domains/rules/oa_parser_test.go(新), domains/rules/slop_engine.go(新), domains/rules/slop_engine_test.go(新), domains/legal_intent.go(新), domains/legal_intent_test.go(新), domains/rules/engine.go(修改)
+- **风险等级**: 低（6个新文件+1个文件追加工具，不修改现有路由/classifier/安全路径）
+- **审查要求**: L2
+
 ## 2026-07-12: ACP 知识系统集成修复
 
 - **变更**:

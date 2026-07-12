@@ -279,6 +279,56 @@ func (e *RulesExtension) Tools() []*agentcore.Tool {
 				return e.handleOrchestration(args)
 			},
 		},
+		{
+			Name:        "parse_office_action",
+			Description: "解析审查意见通知书文本，提取驳回类型（新颖性/创造性/清楚/支持/充分公开/保护范围/形式）、引用的对比文献、受影响的权利要求编号。",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"text": map[string]any{
+						"type":        "string",
+						"description": "审查意见通知书的原文文本",
+					},
+				},
+				"required": []string{"text"},
+			},
+			ReadOnly: true,
+			Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+				var p struct {
+					Text string `json:"text"`
+				}
+				if err := json.Unmarshal(args, &p); err != nil {
+					return fmt.Sprintf("参数解析错误: %v", err), nil
+				}
+				oa := ParseOfficeAction(p.Text)
+				return FormatOaSummary(oa), nil
+			},
+		},
+		{
+			Name:        "analyze_slop",
+			Description: "反AI套话润色分析。三层检测：短语替换（填充词/空泛修饰/元叙述等）→结构缺陷（假三步法/假对比表/假转折等）→50分制评分+交付前快检。",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"text": map[string]any{
+						"type":        "string",
+						"description": "待分析的专利法律文书文本",
+					},
+				},
+				"required": []string{"text"},
+			},
+			ReadOnly: true,
+			Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+				var p struct {
+					Text string `json:"text"`
+				}
+				if err := json.Unmarshal(args, &p); err != nil {
+					return fmt.Sprintf("参数解析错误: %v", err), nil
+				}
+				a := AnalyzeSlop(p.Text)
+				return FormatSlopAnalysis(a), nil
+			},
+		},
 	}
 }
 
