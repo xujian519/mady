@@ -34,6 +34,15 @@
   - `memory/` + `memory/compiler/` — 长期记忆系统 + 策略学习型记忆编译器
   - 四级渐进式上下文压缩（notice → snip → prune → force-fold）
 - **环境变量**：新增 `MADY_HOME`、`MADY_ROUTER_MODE`
+- **SQLite 知识库读取层**（`knowledge/sqlite/`）：纯 Go 无 CGO（`modernc.org/sqlite`），只读接入 knowledge.db（FTS5 trigram + BM25）/ laws-full.db（法律全文搜索）/ patent_kg.db（专利图谱批量加载）
+- **RRF 混合检索**（`retrieval/hybrid.go`）：Reciprocal Rank Fusion 算法（k=60），融合 FTS 和向量搜索结果，score-agnostic 只看排名位置
+- **YAML 规则引擎**（`domains/rules/`）：4 种 YAML 格式（规则文件/法条框架/事务编排/反思指示词），RulesExtension 暴露 search_rules/get_article_framework/get_orchestration 工具
+- **OA 解析器**（`domains/rules/oa_parser.go`）：纯规则零 LLM，7组拒兔类型检测 + 多国专利号提取 + 权利要求范围展开
+- **反 AI 套话引擎**（`domains/rules/slop_engine.go`）：三层架构（42条短语替换 + 6种结构缺陷 + 50分制5维评分 + 8项快检）
+- **法律意图检测**（`domains/legal_intent.go`）：`@legal` 显式触发 + 15组关键词→CaseType 映射 + 专利语境门控
+- **五步工作法 + Multi-Hypothesis Judge**：发现事实 → 获取规则 → 规划 → 执行 → 检查 的完整推理框架
+- **pkg/agentconfig**：统一 Provider/Model/Thinking 配置层，所有入口共享同一环境变量约定
+- **tools/browser_providers**：浏览器自动化提供商抽象（Browserbase/Firecrawl/BrowserUse）
 
 ### Changed
 

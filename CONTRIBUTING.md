@@ -57,21 +57,23 @@ mady/
 ├── acp/              # Agent 通信协议（JSON-RPC）
 ├── agui/             # Agent GUI 事件协议（SSE）
 ├── domains/          # 领域 Agent 配置（Router/Chat/Patent/Legal）
+│   ├── reasoning/    #   事实黑板、三段论、多跳遍历
+│   └── rules/        #   YAML 规则引擎 + OA 解析 + 反套话引擎
 ├── graph/            # 图引擎（DAG + Pregel）
 ├── guardrails/       # 安全护栏
-├── knowledge/        # 知识库（文档加载器、分块器）
+├── knowledge/        # 知识库（文档加载器、图谱、SQLite 读取层）
 ├── mcp/              # MCP 客户端
 ├── prompt/           # 提示词管理
 ├── protocol/         # JSON-RPC 协议原语
 ├── provider/         # LLM 提供者实现
 ├── psychological/    # 心理引擎（VAD/OCC/EMA/SDT/CBT）
-├── retrieval/        # 检索基础设施
+├── retrieval/        # 检索基础设施（关键词/BM25/向量/RRF）
 ├── server/           # HTTP 服务器
 ├── session/          # 会话管理
 ├── skill/            # 技能加载器
 ├── skills/           # 内置技能定义
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块）
+├── tools/            # 内置工具扩展（独立子模块，35 工具）
 ├── tui/              # 终端 UI（8 层 Elm 架构）
 │   ├── core/         #   基础层 (Layer 0)
 │   ├── terminal/     #   终端 I/O (Layer 1)
@@ -87,6 +89,11 @@ mady/
 ├── memory/           # 长期记忆系统 + 策略学习型记忆编译器
 ├── filequeue/        # 文件队列基础设施
 ├── fuzzy/            # 模糊搜索
+├── benchmark/        # 性能基准测试
+├── integration/      # 端到端集成测试（5 条核心链路）
+├── pkg/
+│   ├── agentconfig/  #   统一 Provider/Model 配置层
+│   └── util/         #   路径解析等通用工具
 ├── example/          # 示例应用
 └── docs/             # 文档
 ```
@@ -109,7 +116,7 @@ mady/
                                              memory/
                   \      |       /         /
           基础设施层：graph/ session/ skill/ prompt/ store/ mcp/ knowledge/graph
-                          disclosure/ memory/ filequeue/ fuzzy/
+                          disclosure/ memory/ filequeue/ fuzzy/ benchmark/ integration/
                                    |
                     TUI 层：8-layer Elm 架构
                                    |

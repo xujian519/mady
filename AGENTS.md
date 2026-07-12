@@ -6,8 +6,9 @@
 ## 项目概览
 
 Mady（中观智能体）：Go 1.25 编写的 Agent 运行时框架，服务于专利/法律专业领域智能体。
-核心分层：agentcore（内核）→ 领域扩展层（psychological/guardrails/knowledge/retrieval/domains）
-→ 基础设施层（graph/workflow/session/store）→ 应用入口（TUI/Server/A2A）。
+核心分层：agentcore（内核）→ 领域扩展层（psychological/guardrails/knowledge/retrieval/domains/rules）
+→ 基础设施层（graph/workflow/session/store/memory/disclosure）→ 应用入口（TUI/Server/A2A/ACP）。
+552 个 Go 源文件（376 非测试 + 176 测试），~134K 行代码。
 
 ## 构建与测试
 

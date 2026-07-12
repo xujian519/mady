@@ -12,7 +12,23 @@
 - **审查要求**: L1-L4
 ```
 
-## 2026-07-12: XiaoNuo专利能力移植 — OA解析/反套话引擎/法律意图检测
+## 2026-07-12: 文档全面同步 — 552 文件/134K 行/新增 domains/rules + knowledge/sqlite + retrieval/domain
+
+- **变更**:
+  1. **CLAUDE.md**: 代码统计（517→552 文件，352→376 非测试，165→176 测试，~126K→~134K 行）；目录结构新增 domains/rules/、knowledge/sqlite/、retrieval/domain/、tools/browser_providers/、pkg/agentconfig/、benchmark/、integration/；agentcore 文件数修正（88+27→75+40，含子包拆分）；依赖列表更新（+modernc.org/sqlite +gopkg.in/yaml.v3）；架构图基础设施层补 knowledge/retrieval/benchmark/integration
+  2. **README.md**: 发展路线新增 SQLite 知识库 + RRF 混合检索、YAML 规则引擎 + OA 解析 + 反套话引擎、五步工作法；知识管理段落补充 SQLite 只读取层和 RRF；推理引擎段落补充 domains/rules（OA解析/反套话/法律意图）；扩展表格新增规则引擎行
+  3. **CHANGELOG.md**: [0.3.0] 新增 10 项 Added（SQLite 读取层、RRF 混合检索、YAML 规则引擎、OA 解析、反套话引擎、法律意图检测、五步工作法、pkg/agentconfig、browser_providers）
+  4. **CONTRIBUTING.md**: 目录结构新增 domains/rules、knowledge/sqlite、retrieval/domain、tools/browser_providers、benchmark、integration、pkg/agentconfig；架构图基础设施层补 benchmark/integration
+  5. **docs/knowledge.md**: 架构图补充 KnowledgeBackend + RRF Fuser；新增 SQLite 只读取层段落（3 个数据库表 + RRF 公式）
+  6. **docs/adr/0001**: 基础设施层补充 knowledge/retrieval/benchmark/integration；依赖说明补充 modernc.org/sqlite
+  7. **docs/chat-assistant-architecture.md**: 新增「v0.3.0 后续迭代（已完成）」10 项
+  8. **AGENTS.md**: 核心分层描述更新（+domains/rules +memory +disclosure +ACP）；新增文件数/行数统计
+- **原因**: 文档再次滞后于代码进度（代码已 552 文件/~134K 行，文档仍记 517 文件/~126K 行；v0.3.0 新增的 domains/rules + knowledge/sqlite + RRF 混合检索 + OA 解析 + 反套话引擎 + 五步工作法在多份文档中缺失）
+- **影响范围**: CLAUDE.md, README.md, CHANGELOG.md, CONTRIBUTING.md, AGENTS.md, docs/knowledge.md, docs/adr/0001, docs/chat-assistant-architecture.md, docs/decisions/AI_CHANGELOG.md
+- **风险等级**: 低（纯文档变更，不涉及代码逻辑）
+- **审查要求**: L1
+
+## 2026-07-12: XiaoNuno专利能力移植 — OA解析/反套话引擎/法律意图检测
 
 - **变更**:
   1. **新增 `domains/rules/oa_parser.go`**: 审查意见解析器（从XiaoNuo legal-bus/src/rules/oa-parser.ts移植）。纯规则零LLM，3个提取函数：`DetectOaRejectionType`(7组关键词匹配novelty/inventiveness/clarity/support/disclosure/scope/formal)、`ExtractCitations`(正则提取CN/US/WO/EP/JP/KR专利文献号)、`ExtractAffectedClaims`(正则提取权利要求号+范围展开)；入口`ParseOfficeAction`+`FormatOaSummary`

@@ -110,3 +110,18 @@ v0 使用关键词分类 + LLMClassifier 回退的「分层级联」策略：
 4. 添加 DomainTrademark 领域
 5. Checkpoint 暂停点：在 assistant 涉及"生成文档草稿"时加人工确认
 6. Manifest 文件监听热加载（fsnotify）
+
+## v0.3.0 后续迭代（已完成）
+
+以下为本文档撰写时计划的后续迭代，已落地：
+
+1. ✅ **Invisible Handoff**（v0.3.0）— Chat Agent 作为统一对话界面（`IntegratedChatConfig`），根据意图自动无缝委派给专业 Agent，用户无需感知路由切换
+2. ✅ **Embed Manifest**（v0.3.0）— 4 个领域 JSON 通过 `go:embed` 编进二进制，`MadyHome()` 统一路径解析，任意目录开箱即用
+3. ✅ **Reasonix 扩展包**（v0.3.0）— Evidence Ledger / File Checkpoint / Permission / PlanMode / Guardian AI / Evaluate / Tracing / Memory Compiler / 四级渐进式压缩
+4. ✅ **SQLite 知识读取层**（v0.3.0）— `knowledge/sqlite/` 纯 Go 无 CGO，FTS5 全文 + 向量余弦 + 法律全文搜索
+5. ✅ **RRF 混合检索**（v0.3.0）— `retrieval/hybrid.go` Reciprocal Rank Fusion，FTS + Vector 融合
+6. ✅ **YAML 规则引擎**（v0.3.0）— `domains/rules/` 4 种 YAML 格式 + RulesExtension 工具集成
+7. ✅ **OA 解析器**（v0.3.0）— `domains/rules/oa_parser.go` 纯规则零 LLM，7组拒兔类型 + 多国专利号提取
+8. ✅ **反 AI 套话引擎**（v0.3.0）— `domains/rules/slop_engine.go` 三层架构，42条短语替换 + 6种结构缺陷 + 50分制评分
+9. ✅ **法律意图检测**（v0.3.0）— `domains/legal_intent.go` `@legal` 触发 + 15组关键词→CaseType 映射
+10. ✅ **五步工作法 + Multi-Hypothesis Judge**（v0.3.0）— 完整推理框架落地
