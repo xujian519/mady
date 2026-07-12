@@ -31,6 +31,7 @@ import (
 	"github.com/xujian519/mady/acp"
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/loader"
 	"github.com/xujian519/mady/pkg/agentconfig"
@@ -273,6 +274,10 @@ func runTui(ctx context.Context) {
 
 	fc := setupFrameworkContext()
 
+	if err := theme.InitThemeFromEnv(); err != nil {
+		log.Printf("theme init: %v", err)
+	}
+
 	provider := agentconfig.BuildProvider()
 	model := agentconfig.DefaultModel()
 
@@ -307,7 +312,61 @@ func runTui(ctx context.Context) {
 	var runCancel context.CancelFunc
 	var cancelMu sync.Mutex
 
+	// 会话持久化：JSONL 文件存储，TUI 模式自动保存对话到磁盘。
+	// 优先级：$SESSION_DIR > $MADY_HOME/sessions > ~/.mady/sessions。
+	sessionDir := os.Getenv("SESSION_DIR")
+	if sessionDir == "" {
+		if fc.MadyHome != "" {
+			sessionDir = filepath.Join(fc.MadyHome, "sessions")
+		} else {
+			sessionDir = "./sessions"
+		}
+	}
+	var agentStore *session.AgentStore
+	fileStore, persistErr := session.NewFileStore(sessionDir)
+	if persistErr != nil {
+		log.Printf("session: %v (continuing without persistence)", persistErr)
+	} else {
+		agentStore = session.NewAgentStore(fileStore, fc.WorkspaceDir)
+	}
+	checkpointSaver := agentcore.NewMemoryCheckpointSaver()
+	currentThreadID := "default"
+
+	// 案件上下文：切换案件时更新，buildCfg 注入到 Agent 的 WorkspaceDir + SystemPrompt。
+	var currentProject *domains.ProjectRecord
+	var currentProjectMeta *domains.ProjectMeta
+
+	// 审核关卡：启用后在关键决策点（专利结论/法律意见/风险评估等）插入人工审核提示。
+	reviewMode := false
+
 	buildCfg := func() agentcore.Config {
+		applyPersistence := func(cfg agentcore.Config) agentcore.Config {
+			if agentStore != nil {
+				cfg.Store = agentStore
+			}
+			cfg.Checkpoint = &agentcore.CheckpointSettings{
+				Saver:    checkpointSaver,
+				ThreadID: currentThreadID,
+			}
+			if currentProject != nil {
+				cfg.WorkspaceDir = currentProject.RootPath
+				cfg.SystemPrompt += formatProjectContext(currentProject, currentProjectMeta)
+				// 注入五阶段法律推理工具，让 Agent 能调用深度可验证推理。
+				runner := reasoning.NewWorkflowRunner(
+					currentProject.ProjectID,
+					mapMatterTypeToCaseType(currentProjectMeta),
+					currentProject.Domain,
+					nil, // retriever: MVP 不接入知识库检索
+					nil, // llm: MVP 只用 L1 校验（引用存在性）
+				)
+				cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowTool(runner))
+			}
+			if reviewMode {
+				gate := domains.NewApprovalGate(domains.DefaultApprovalConfig())
+				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, gate)
+			}
+			return cfg
+		}
 		switch {
 		case useIntegratedMode:
 			// 集成模式：Chat Agent 内置路由，交接不可见
@@ -332,7 +391,7 @@ func runTui(ctx context.Context) {
 			if fc.WikiHook != nil {
 				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
 			}
-			return cfg
+			return applyPersistence(cfg)
 
 		case useMultiDomain:
 			// Router 模式：传统多域路由，交接可见
@@ -349,7 +408,7 @@ func runTui(ctx context.Context) {
 			if fc.WikiHook != nil {
 				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
 			}
-			return cfg
+			return applyPersistence(cfg)
 
 		default:
 			// 单 Agent 模式：根据 planMode 选择模型和推理配置。
@@ -364,7 +423,7 @@ func runTui(ctx context.Context) {
 				}
 			}
 
-			return agentcore.Config{
+			return applyPersistence(agentcore.Config{
 				ModelConfig: agentcore.ModelConfig{
 					Name:      "mady",
 					Model:     effectiveModel,
@@ -389,7 +448,7 @@ func runTui(ctx context.Context) {
 					MaxDelayMs:  15000,
 				},
 				Lifecycle: fc.WikiHook,
-			}
+			})
 		}
 	}
 
@@ -397,23 +456,30 @@ func runTui(ctx context.Context) {
 	defer currentAgent.Close()
 
 	currentThemeName := "dark"
+	if name := theme.CurrentPalette().Semantic.Name; strings.Contains(strings.ToLower(name), "light") {
+		currentThemeName = "light"
+	}
 
 	slashSuggestions := []core.Suggestion{
 		{InsertText: "/help", Label: "/help", Description: "显示快捷键"},
 		{InsertText: "/clear", Label: "/clear", Description: "开始新对话"},
 		{InsertText: "/new", Label: "/new", Description: "开始新对话"},
-		{InsertText: "/branch", Label: "/branch", Description: "分支当前线程（需 session 存储）"},
+		{InsertText: "/branch", Label: "/branch", Description: "从当前对话创建分支"},
 		{InsertText: "/thinking", Label: "/thinking", Description: "查看或修改推理模式"},
 		{InsertText: "/thinking summarized", Label: "/thinking summarized", Description: "显示推理摘要"},
 		{InsertText: "/thinking omitted", Label: "/thinking omitted", Description: "隐藏推理块"},
 		{InsertText: "/thinking effort medium", Label: "/thinking effort medium", Description: "设置推理强度"},
 		{InsertText: "/thinking budget -1", Label: "/thinking budget -1", Description: "动态推理预算"},
 		{InsertText: "/skill:", Label: "/skill:", Description: "显式调用技能"},
-		{InsertText: "/save", Label: "/save", Description: "保存当前会话"},
+		{InsertText: "/save", Label: "/save", Description: "显示会话保存信息"},
 		{InsertText: "/theme", Label: "/theme", Description: "切换主题"},
 		{InsertText: "/theme dark", Label: "/theme dark", Description: "深色主题"},
 		{InsertText: "/theme light", Label: "/theme light", Description: "浅色主题"},
 		{InsertText: "/copy", Label: "/copy", Description: "复制最后一条回复"},
+		{InsertText: "/export", Label: "/export", Description: "导出当前对话为 Markdown"},
+		{InsertText: "/case", Label: "/case", Description: "查看或切换案件"},
+		{InsertText: "/deadline", Label: "/deadline", Description: "显示当前案件期限"},
+		{InsertText: "/review", Label: "/review", Description: "切换审核关卡（关键内容人工确认）"},
 		{InsertText: "/plan", Label: "/plan", Description: "切换计划模式（高质量推理）"},
 		{InsertText: "/quit", Label: "/quit", Description: "退出"},
 	}
@@ -475,6 +541,11 @@ func runTui(ctx context.Context) {
 				prev.Close()
 				agentadapter.BindAgent(app, currentAgent)
 				app.PrintSystem("推理配置已更新: " + formatThinkingConfig(currentThinking))
+				mdl := normalModel
+				if planMode {
+					mdl = planModel
+				}
+				app.UpdateStatusBar(providerName, mdl, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
 				runMu.Unlock()
 				return
 			}
@@ -507,11 +578,111 @@ func runTui(ctx context.Context) {
 				return
 			}
 
+			// /case 命令族：案件上下文管理。
+			if trimmed == "/case" || strings.HasPrefix(trimmed, "/case ") {
+				args := strings.TrimSpace(strings.TrimPrefix(trimmed, "/case"))
+				switch {
+				case args == "" || args == "list":
+					records := fc.ProjectRegistry.List()
+					if len(records) == 0 {
+						app.PrintSystem("暂无已注册案件。使用 mady serve 或 ProjectRegistry API 注册案件。")
+						return
+					}
+					var sb strings.Builder
+					sb.WriteString(fmt.Sprintf("已注册案件（%d）：\n", len(records)))
+					for i, rec := range records {
+						marker := "  "
+						if currentProject != nil && rec.ProjectID == currentProject.ProjectID {
+							marker = "→ "
+						}
+						sb.WriteString(fmt.Sprintf("%s%d. %s（%s）[%s]\n", marker, i+1, rec.Alias, rec.ProjectID, rec.Domain))
+					}
+					if currentProject == nil {
+						sb.WriteString("\n使用 /case <ID或别名> 切换案件")
+					}
+					app.PrintSystem(sb.String())
+					return
+				case args == "info":
+					if currentProject == nil {
+						app.PrintSystem("当前未选择案件。使用 /case 查看可用案件。")
+						return
+					}
+					app.PrintSystem(formatProjectInfo(currentProject, currentProjectMeta))
+					return
+				case args == "off" || args == "clear":
+					if currentProject == nil {
+						app.PrintSystem("当前未选择案件")
+						return
+					}
+					oldName := currentProject.Alias
+					currentProject = nil
+					currentProjectMeta = nil
+					runMu.Lock()
+					prev := currentAgent
+					currentAgent = agentcore.New(buildCfg())
+					prev.Close()
+					agentadapter.BindAgent(app, currentAgent)
+					runMu.Unlock()
+					app.UpdateStatusBar(providerName, normalModel, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
+					app.PrintSystem(fmt.Sprintf("已清除案件上下文（%s）", oldName))
+					return
+				default:
+					records := fc.ProjectRegistry.List()
+					var matched *domains.ProjectRecord
+					for i := range records {
+						if strings.Contains(records[i].ProjectID, args) || strings.Contains(records[i].Alias, args) {
+							matched = &records[i]
+							break
+						}
+					}
+					if matched == nil {
+						app.PrintSystem(fmt.Sprintf("未找到匹配 '%s' 的案件。使用 /case 查看可用案件。", args))
+						return
+					}
+					currentProject = matched
+					currentProjectMeta = nil
+					if meta, err := fc.ProjectRegistry.LoadMeta(matched.ProjectID); err == nil {
+						currentProjectMeta = meta
+					}
+					runMu.Lock()
+					prev := currentAgent
+					currentAgent = agentcore.New(buildCfg())
+					prev.Close()
+					agentadapter.BindAgent(app, currentAgent)
+					runMu.Unlock()
+					app.UpdateStatusBar(providerName, normalModel, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
+					app.PrintSystem(fmt.Sprintf("已切换到案件: %s（%s）\n工作目录: %s\n⚖ 已启用五阶段法律推理工具（run_five_step_workflow）", matched.Alias, matched.ProjectID, matched.RootPath))
+					return
+				}
+			}
+
+			// /deadline 命令：显示当前案件期限。
+			if trimmed == "/deadline" {
+				if currentProjectMeta == nil || len(currentProjectMeta.Deadlines) == 0 {
+					app.PrintSystem("当前案件无期限信息。使用 /case 选择案件。")
+					return
+				}
+				var sb strings.Builder
+				sb.WriteString(fmt.Sprintf("案件 %s 的期限：\n", currentProject.Alias))
+				for _, d := range currentProjectMeta.Deadlines {
+					mark := "  "
+					if d.Reminded {
+						mark = "✓ "
+					}
+					sb.WriteString(fmt.Sprintf("%s%s: %s\n", mark, d.Type, d.DueDate))
+				}
+				app.PrintSystem(sb.String())
+				return
+			}
+
 			switch trimmed {
 			case "/help":
 				app.ToggleKeyHelp()
 				return
 			case "/clear", "/new":
+				if agentStore != nil {
+					currentThreadID = fmt.Sprintf("tui-%d", time.Now().UnixNano())
+				}
 				prev := currentAgent
 				currentAgent = agentcore.New(buildCfg())
 				prev.Close()
@@ -520,10 +691,53 @@ func runTui(ctx context.Context) {
 				app.PrintSystem("已开始新对话")
 				return
 			case "/branch":
-				app.PrintSystem("mady tui 简化版不支持分支，请使用 example/cli-chat 配合 SESSION_DIR")
+				if agentStore == nil {
+					app.PrintSystem("会话持久化未启用，无法分支")
+					return
+				}
+				snap, err := agentStore.GetThread(context.Background(), currentThreadID)
+				if err != nil || len(snap.Messages) == 0 {
+					app.PrintSystem("当前会话为空，无法分支")
+					return
+				}
+				var lastEntryID string
+				if len(snap.Transcript) > 0 {
+					lastEntryID = snap.Transcript[len(snap.Transcript)-1].EntryID
+				}
+				branched, err := agentStore.BranchThread(context.Background(), currentThreadID, lastEntryID)
+				if err != nil {
+					app.PrintError(fmt.Errorf("分支失败: %w", err))
+					return
+				}
+				oldID := currentThreadID
+				currentThreadID = branched.Info.ID
+				prev := currentAgent
+				currentAgent = agentcore.New(buildCfg())
+				prev.Close()
+				agentadapter.BindAgent(app, currentAgent)
+				app.History().Clear()
+				for _, msg := range branched.Messages {
+					switch msg.Role {
+					case agentcore.RoleUser:
+						app.History().Append(chat.ChatMessage{Role: chat.RoleUser, Text: msg.Content})
+					case agentcore.RoleAssistant:
+						app.History().Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: msg.Content})
+					}
+				}
+				app.PrintSystem(fmt.Sprintf("已从 %s 创建分支 → %s（%d 条消息）", oldID, currentThreadID, len(branched.Messages)))
 				return
 			case "/save":
-				app.PrintSystem("mady tui 为内存模式，会话不持久化")
+				if agentStore != nil {
+					threads, _ := agentStore.ListThreads(context.Background())
+					msg := fmt.Sprintf("✅ 会话已自动保存到 %s（当前线程: %s", sessionDir, currentThreadID)
+					if len(threads) > 0 {
+						msg += fmt.Sprintf("，共 %d 个线程", len(threads))
+					}
+					msg += "）"
+					app.PrintSystem(msg)
+				} else {
+					app.PrintSystem("⚠ 会话持久化未启用（session 目录创建失败）")
+				}
 				return
 			case "/skill:":
 				app.PrintSystem("mady tui 简化版未加载技能，请使用 example/cli-chat 配合 SKILL_DIRS")
@@ -549,6 +763,45 @@ func runTui(ctx context.Context) {
 				app.PrintSystem("没有可复制的助手回复")
 				return
 
+			case "/export":
+				msgs := app.History().Messages()
+				if len(msgs) == 0 {
+					app.PrintSystem("当前对话为空，无法导出")
+					return
+				}
+				exportPath := strings.TrimSpace(strings.TrimPrefix(trimmed, "/export"))
+				if exportPath == "" {
+					exportDir := "exports"
+					if fc.MadyHome != "" {
+						exportDir = filepath.Join(fc.MadyHome, "exports")
+					}
+					_ = os.MkdirAll(exportDir, 0o755)
+					exportPath = filepath.Join(exportDir, fmt.Sprintf("export-%s.md", time.Now().Format("20060102-150405")))
+				}
+				exportContent := formatExportMarkdown(msgs, currentThreadID, currentProject)
+				if err := os.WriteFile(exportPath, []byte(exportContent), 0o644); err != nil {
+					app.PrintError(fmt.Errorf("导出失败: %w", err))
+					return
+				}
+				app.PrintSystem(fmt.Sprintf("📄 已导出到 %s（%d 条消息）", exportPath, len(msgs)))
+				return
+
+			case "/review":
+				reviewMode = !reviewMode
+				runMu.Lock()
+				prev := currentAgent
+				currentAgent = agentcore.New(buildCfg())
+				prev.Close()
+				runMu.Unlock()
+				agentadapter.BindAgent(app, currentAgent)
+				app.UpdateStatusBar(providerName, normalModel, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
+				if reviewMode {
+					app.PrintSystem("⚖ 审核关卡已启用（专利结论/法律意见/风险评估等关键内容将插入人工审核提示）")
+				} else {
+					app.PrintSystem("⚖ 审核关卡已关闭")
+				}
+				return
+
 			case "/plan":
 				planMode = !planMode
 				runMu.Lock()
@@ -557,11 +810,14 @@ func runTui(ctx context.Context) {
 				prev.Close()
 				runMu.Unlock()
 				agentadapter.BindAgent(app, currentAgent)
+				mdl := normalModel
 				if planMode {
-					app.UpdateStatusBar(providerName, planModel, "🧠 计划")
+					mdl = planModel
+				}
+				app.UpdateStatusBar(providerName, mdl, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
+				if planMode {
 					app.PrintSystem("🧠 计划模式已启用 · 模型: " + planModel + " · 推理强度: max")
 				} else {
-					app.UpdateStatusBar(providerName, normalModel, "")
 					app.PrintSystem("⚡ 已切回普通模式 · 模型: " + normalModel)
 				}
 				return
@@ -591,6 +847,13 @@ func runTui(ctx context.Context) {
 				if _, err := agent.Run(runCtx, input); err != nil {
 					log.Printf("[mady] agent run failed: %v", err)
 				}
+				// 持久化：每轮对话后保存到磁盘。
+				// 用 context.Background() 而非 runCtx，确保即使被中断也能保存。
+				if agentStore != nil {
+					if err := agent.SaveState(context.Background(), currentThreadID); err != nil {
+						log.Printf("[mady] save state: %v", err)
+					}
+				}
 				cancelMu.Lock()
 				runCancel = nil
 				cancelMu.Unlock()
@@ -598,6 +861,8 @@ func runTui(ctx context.Context) {
 		},
 	})
 	agentadapter.BindAgent(app, currentAgent)
+
+	app.UpdateStatusBar(providerName, normalModel, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
 
 	modeInfo := "单 Agent 模式"
 	if useMultiDomain {
@@ -726,6 +991,141 @@ func compactThinkingConfig(cfg *agentcore.ThinkingConfig) *agentcore.ThinkingCon
 		return nil
 	}
 	return cfg
+}
+
+// statusBarModeLabel 生成状态栏的模式标签（中文友好）。
+func statusBarModeLabel(planMode, useMultiDomain bool, thinking *agentcore.ThinkingConfig) string {
+	if planMode {
+		return "🧠 计划"
+	}
+	label := "集成"
+	if useMultiDomain {
+		label = "多域路由"
+	}
+	if thinking != nil && thinking.IncludeThoughts {
+		if thinking.Effort != "" && thinking.Effort != agentcore.ThinkingEffortDefault {
+			label += " · 推理" + string(thinking.Effort)
+		} else {
+			label += " · 推理"
+		}
+	}
+	return label
+}
+
+func formatProjectContext(rec *domains.ProjectRecord, meta *domains.ProjectMeta) string {
+	s := "\n\n---\n## 当前案件上下文\n"
+	s += fmt.Sprintf("- 案件: %s（%s）\n", rec.Alias, rec.ProjectID)
+	s += fmt.Sprintf("- 领域: %s\n", rec.Domain)
+	if meta != nil {
+		if meta.MatterType != "" {
+			s += fmt.Sprintf("- 事项类型: %s\n", meta.MatterType)
+		}
+		if meta.ClientName != "" {
+			s += fmt.Sprintf("- 客户: %s\n", meta.ClientName)
+		}
+		if len(meta.Deadlines) > 0 {
+			s += "- 期限:\n"
+			for _, d := range meta.Deadlines {
+				s += fmt.Sprintf("  - %s: %s\n", d.Type, d.DueDate)
+			}
+		}
+	}
+	s += fmt.Sprintf("- 工作目录: %s\n", rec.RootPath)
+	return s
+}
+
+func formatProjectInfo(rec *domains.ProjectRecord, meta *domains.ProjectMeta) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("案件: %s\n", rec.Alias))
+	sb.WriteString(fmt.Sprintf("ID: %s\n", rec.ProjectID))
+	sb.WriteString(fmt.Sprintf("领域: %s\n", rec.Domain))
+	sb.WriteString(fmt.Sprintf("状态: %s\n", rec.Status))
+	sb.WriteString(fmt.Sprintf("工作目录: %s\n", rec.RootPath))
+	sb.WriteString(fmt.Sprintf("注册时间: %s\n", rec.RegisteredAt.Format("2006-01-02")))
+	if meta != nil {
+		if meta.MatterType != "" {
+			sb.WriteString(fmt.Sprintf("事项类型: %s\n", meta.MatterType))
+		}
+		if meta.ClientName != "" {
+			sb.WriteString(fmt.Sprintf("客户: %s\n", meta.ClientName))
+		}
+		if len(meta.Deadlines) > 0 {
+			sb.WriteString("期限:\n")
+			for _, d := range meta.Deadlines {
+				mark := ""
+				if d.Reminded {
+					mark = "✓ "
+				}
+				sb.WriteString(fmt.Sprintf("  %s%s: %s\n", mark, d.Type, d.DueDate))
+			}
+		}
+	}
+	return sb.String()
+}
+
+// mapMatterTypeToCaseType 将案件事项类型映射到 reasoning 工作流的 CaseType。
+func mapMatterTypeToCaseType(meta *domains.ProjectMeta) reasoning.CaseType {
+	if meta == nil || meta.MatterType == "" {
+		return reasoning.CaseGeneralLegal
+	}
+	m := strings.ToLower(meta.MatterType)
+	switch {
+	case strings.Contains(m, "无效"):
+		return reasoning.CaseInvalidation
+	case strings.Contains(m, "自由实施") || strings.Contains(m, "fto"):
+		return reasoning.CaseFTO
+	case strings.Contains(m, "新颖性"):
+		return reasoning.CaseNoveltySearch
+	case strings.Contains(m, "专利性") || strings.Contains(m, "创造性"):
+		return reasoning.CasePatentability
+	case strings.Contains(m, "侵权"):
+		return reasoning.CaseInfringement
+	case strings.Contains(m, "审查意见") || strings.Contains(m, "oa") || strings.Contains(m, "答复"):
+		return reasoning.CaseRejection
+	case strings.Contains(m, "复审"):
+		return reasoning.CaseReexamination
+	case strings.Contains(m, "撰写") || strings.Contains(m, "申请"):
+		return reasoning.CaseDrafting
+	default:
+		return reasoning.CaseGeneralLegal
+	}
+}
+
+func formatExportMarkdown(msgs []chat.ChatMessage, threadID string, project *domains.ProjectRecord) string {
+	var b strings.Builder
+	b.WriteString("# Mady 对话记录\n\n")
+	b.WriteString(fmt.Sprintf("**导出时间**: %s  \n", time.Now().Format("2006-01-02 15:04:05")))
+	b.WriteString(fmt.Sprintf("**会话ID**: %s  \n", threadID))
+	if project != nil {
+		b.WriteString(fmt.Sprintf("**案件**: %s (%s)  \n", project.Alias, project.ProjectID))
+	}
+	b.WriteString("\n---\n\n")
+	for _, msg := range msgs {
+		switch msg.Role {
+		case chat.RoleUser:
+			b.WriteString("## 👤 用户\n\n")
+		case chat.RoleAssistant:
+			b.WriteString("## 🤖 助手\n\n")
+		case chat.RoleSystem:
+			b.WriteString("## 💬 系统\n\n")
+		case chat.RoleTool:
+			label := "## 🔧 工具"
+			if msg.Meta != "" {
+				label += " (" + msg.Meta + ")"
+			}
+			b.WriteString(label + "\n\n")
+		case chat.RoleError:
+			b.WriteString("## ❌ 错误\n\n")
+		default:
+			continue
+		}
+		if msg.Text != "" {
+			b.WriteString(msg.Text)
+			b.WriteString("\n\n")
+		}
+		b.WriteString("---\n\n")
+	}
+	return b.String()
 }
 
 func formatThinkingConfig(cfg *agentcore.ThinkingConfig) string {

@@ -12,6 +12,62 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-13: TUI 案件上下文接入（/case + /deadline 命令族）
+
+- **变更**:
+  1. **`cmd/mady/main.go`**: 新增 `currentProject`/`currentProjectMeta` 变量；buildCfg 的 applyPersistence 扩展为注入案件 WorkspaceDir + SystemPrompt 上下文段；新增 /case 命令族（list/info/off/<关键词>切换），按 ProjectID 或 Alias 模糊匹配；新增 /deadline 命令显示当前案件期限；新增 formatProjectContext/formatProjectInfo 辅助函数；slashSuggestions 添加 /case 和 /deadline
+- **原因**: 评审文档阶段2核心——让 TUI 用户能选择/切换案件，Agent 运行时感知案件上下文（工作目录、领域、期限）。ProjectRegistry 已就绪，只需 TUI 层接入
+- **影响范围**: cmd/mady/main.go（1 个文件，约 130 行新增）
+- **风险等级**: 低（复用已测试的 ProjectRegistry API，不涉及安全敏感路径；WorkspaceDir 注入使用 RootPath 字段，已有 sandbox 保护）
+- **审查要求**: L1
+
+## 2026-07-13: TUI /export 对话导出
+
+- **变更**: **`cmd/mady/main.go`**: 新增 `/export` 命令（默认导出到 $MADY_HOME/exports/，支持自定义路径）；新增 `formatExportMarkdown` 辅助函数，将 ChatHistory 格式化为 Markdown（含案件信息、角色标签、时间戳）；slashSuggestions 新增 /export
+- **原因**: 律师需要导出对话记录作为工作文档，评审文档 3.3 建议
+- **影响范围**: cmd/mady/main.go
+- **风险等级**: 低（只读导出，不涉及安全敏感路径）
+- **审查要求**: L1
+
+## 2026-07-13: TUI /review 审核关卡 + /export 对话导出
+
+- **变更**:
+  1. **`cmd/mady/main.go`**: 新增 `reviewMode` 变量；applyPersistence 中当 reviewMode=true 时注入 `domains.NewApprovalGate(domains.DefaultApprovalConfig())` 到 LifecycleChain；新增 `/review` 命令切换审核关卡开关（重建 Agent + 更新状态栏）；slashSuggestions 新增 /review
+  2. **`cmd/mady/main.go`**: 新增 `/export` 命令（默认导出到 $MADY_HOME/exports/，支持自定义路径）；新增 `formatExportMarkdown` 辅助函数（Markdown 格式含案件信息+角色标签+时间戳）
+- **原因**: 评审文档 3.2（/review 审批）和 3.3（/export 导出）。ApprovalGate 是"提醒式"审批（通过 Agent.Steer 注入审批提示，非同步阻塞），适合作为 TUI 开关命令
+- **影响范围**: cmd/mady/main.go
+- **风险等级**: 低（ApprovalGate 是已有已测试的 LifecycleHook；/export 是只读文件写入）
+- **审查要求**: L1
+
+## 2026-07-13: TUI reasoning 五阶段推理工具接入（阶段3.1）
+
+- **变更**:
+  1. **`cmd/mady/main.go`**: 新增 `domains/reasoning` 包导入；applyPersistence 中当 currentProject 不为 nil 时，调用 `reasoning.NewWorkflowRunner()` 创建 FiveStepRunner 并通过 `reasoning.AsWorkflowTool()` 注入为 agentcore.Tool（retriever=nil/llm=nil 的 MVP 模式：有默认模板+L1校验，无知识库检索+L2/L3 LLM校验）；新增 `mapMatterTypeToCaseType()` 辅助函数（8种事项类型模糊匹配→CaseType 枚举）；/case 切换成功后提示推理工具已启用
+- **原因**: 评审文档 /sources 建议建立在虚构的 ExecutionResult 上，但 reasoning 包的 Plan/CheckReport/UsedFacts/UsedRules 真实存在。之前 FiveStepRunner 零生产 caller，完整五阶段编排未接入 Agent 运行时。此改动让 TUI Agent 能在案件上下文中调用深度可验证推理
+- **影响范围**: cmd/mady/main.go（1 个文件，约 35 行新增）
+- **关键复用**: `reasoning.AsWorkflowTool()`（handoff_integration.go:41，已有完整 Tool 适配器）+ `reasoning.NewWorkflowRunner()`（handoff_integration.go:91，已有预配置工厂）
+- **风险等级**: 低（复用已有适配器，不修改 reasoning 包源码；Tool 注入是 append 不是覆盖）
+- **审查要求**: L1
+
+## 2026-07-13: TUI 会话持久化（JSONL 自动保存 + 分支）
+
+- **变更**:
+  1. **`cmd/mady/main.go`**: buildCfg 前创建 FileStore + AgentStore + MemoryCheckpointSaver（优先级：$SESSION_DIR > $MADY_HOME/sessions > ./sessions）；buildCfg 闭包内新增 applyPersistence 辅助函数，每个模式分支（集成/路由/单Agent）统一注入 Store + Checkpoint；OnSubmit goroutine 中 Agent.Run 完成后自动调用 SaveState（用 context.Background() 确保中断后仍可保存）；/new 和 /clear 创建新 ThreadID（tui-{timestamp}）；/branch 实现真正的分支功能（BranchThread + UI 消息恢复）；/save 显示会话保存路径和线程数；slashSuggestions 中 /branch 和 /save 描述更新
+- **原因**: 评审文档 P1 阻断项——TUI 之前纯内存模式，重启丢失对话，/save /branch 均提示不支持。复用 serve 模式的 session.FileStore + AgentStore 持久化方案
+- **影响范围**: cmd/mady/main.go（1 个文件，约 80 行新增）
+- **风险等级**: 低（复用已测试的 session 包，不涉及安全敏感路径；CheckpointSaver 为内存态不持久化，Store 为磁盘 JSONL）
+- **审查要求**: L1
+
+## 2026-07-13: TUI 状态栏常驻 + Handoff 文案中文化
+
+- **变更**:
+  1. **`cmd/mady/main.go`**: 新增 `statusBarModeLabel()` 辅助函数，生成中文友好的状态栏模式标签（集成/多域路由/🧠 计划 + 推理级别）；初始化时设置状态栏（之前完全缺失）；/thinking 命令后更新状态栏（之前不更新）；/plan 命令统一使用 statusBarModeLabel
+  2. **`tui/chat/chat_app.go`**: UpdateStatusBar 格式从 `provider=X model=X mode=X` 简化为 `X/X · 模式标签`；onHandoffStart/onHandoffEnd 文案中文化（"handoff"→"已切换至"、"done"→"已完成"、"handoff failed"→"交接失败"）
+- **原因**: 评审文档建议 1.2（/thinking/mode 状态栏常驻）和 1.3（Handoff 显示简化）。状态栏之前初始化时为空，/thinking 不更新；Handoff 英文文案对律师不友好
+- **影响范围**: cmd/mady/main.go, tui/chat/chat_app.go
+- **风险等级**: 低（UI 文案+状态栏显示逻辑，不涉及安全敏感路径）
+- **审查要求**: L1
+
 ## 2026-07-12: 文档全面同步 — 552 文件/134K 行/新增 domains/rules + knowledge/sqlite + retrieval/domain
 
 - **变更**:

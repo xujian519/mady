@@ -285,7 +285,7 @@ func (a *ChatApp) UpdateStatusBar(provider, model, mode string) {
 	if a.statusBar == nil {
 		return
 	}
-	a.statusBar.SetMode(fmt.Sprintf("mady · provider=%s model=%s mode=%s", provider, model, mode))
+	a.statusBar.SetMode(fmt.Sprintf("mady · %s/%s · %s", provider, model, mode))
 }
 
 func (a *ChatApp) SetFooter(f core.Component) {
@@ -699,8 +699,7 @@ func (a *ChatApp) onHandoffStart(e ChatEvent) {
 	a.mu.Unlock()
 	a.history.Append(ChatMessage{
 		Role: RoleSystem,
-		Text: fmt.Sprintf("%s handoff %s %s %s (%s)",
-			theme.SymbolArrow, h.SourceAgent, theme.SymbolArrow, h.TargetAgent, h.Mode),
+		Text: fmt.Sprintf("%s 已切换至 %s", theme.SymbolArrow, h.TargetAgent),
 	})
 }
 
@@ -719,11 +718,11 @@ func (a *ChatApp) onHandoffEnd(e ChatEvent) {
 	if h.Err != nil {
 		a.history.Append(ChatMessage{
 			Role: RoleError,
-			Text: fmt.Sprintf("%s handoff failed: %s", h.TargetAgent, h.Err.Error()),
+			Text: fmt.Sprintf("%s 交接失败: %s", h.TargetAgent, h.Err.Error()),
 		})
 		return
 	}
-	meta := h.TargetAgent + " done"
+	meta := h.TargetAgent + " 已完成"
 	if a.cfg.ShowTimings {
 		meta += fmt.Sprintf(" (%s)", h.Duration.Round(time.Millisecond))
 	}
