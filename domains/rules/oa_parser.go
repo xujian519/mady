@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -94,17 +95,15 @@ func ExtractAffectedClaims(text string) []int {
 	claims := make(map[int]bool)
 
 	for _, m := range claimRe.FindAllStringSubmatch(text, -1) {
-		var n int
-		fmt.Sscanf(m[1], "%d", &n)
+		n, _ := strconv.Atoi(m[1])
 		if n > 0 {
 			claims[n] = true
 		}
 	}
 
 	for _, m := range claimRangeRe.FindAllStringSubmatch(text, -1) {
-		var start, end int
-		fmt.Sscanf(m[1], "%d", &start)
-		fmt.Sscanf(m[2], "%d", &end)
+		start, _ := strconv.Atoi(m[1])
+		end, _ := strconv.Atoi(m[2])
 		if start <= end {
 			for i := start; i <= end; i++ {
 				claims[i] = true

@@ -300,7 +300,7 @@ func scoreDocument(text string, changes []SlopChange, issues []StructureIssue) S
 		evidenceScore += 2
 	}
 	if len(strings.Split(text, "\n\n")) < 3 {
-		evidenceScore += 1
+		evidenceScore++
 	}
 
 	rhythmScore := scoreRhythm(len(issues))
@@ -444,16 +444,18 @@ func FormatSlopAnalysis(a SlopAnalysis) string {
 		passText = "✅ 通过"
 	}
 
-	lines = append(lines, "## 反套话润色报告\n")
-	lines = append(lines, fmt.Sprintf("**评分：%d/50 (%s)**", a.Score.Total, passText))
-	lines = append(lines, "")
-	lines = append(lines, "| 维度 | 得分 | 满分 |")
-	lines = append(lines, "|------|------|------|")
-	lines = append(lines, fmt.Sprintf("| 争点直陈 | %d | 10 |", a.Score.Directness))
-	lines = append(lines, fmt.Sprintf("| 证据密度 | %d | 10 |", a.Score.Evidence))
-	lines = append(lines, fmt.Sprintf("| 论证节奏 | %d | 10 |", a.Score.Rhythm))
-	lines = append(lines, fmt.Sprintf("| 实务可信 | %d | 10 |", a.Score.Practicality))
-	lines = append(lines, fmt.Sprintf("| 可删减性 | %d | 10 |", a.Score.Concision))
+	lines = append(lines,
+		"## 反套话润色报告\n",
+		fmt.Sprintf("**评分：%d/50 (%s)**", a.Score.Total, passText),
+		"",
+		"| 维度 | 得分 | 满分 |",
+		"|------|------|------|",
+		fmt.Sprintf("| 争点直陈 | %d | 10 |", a.Score.Directness),
+		fmt.Sprintf("| 证据密度 | %d | 10 |", a.Score.Evidence),
+		fmt.Sprintf("| 论证节奏 | %d | 10 |", a.Score.Rhythm),
+		fmt.Sprintf("| 实务可信 | %d | 10 |", a.Score.Practicality),
+		fmt.Sprintf("| 可删减性 | %d | 10 |", a.Score.Concision),
+	)
 
 	if len(a.Changes) > 0 {
 		lines = append(lines, "", "### 短语删除/替换", "")
@@ -470,8 +472,10 @@ func FormatSlopAnalysis(a SlopAnalysis) string {
 	if len(a.Issues) > 0 {
 		lines = append(lines, "### 结构缺陷", "")
 		for _, iss := range a.Issues {
-			lines = append(lines, fmt.Sprintf("- **L%d** [%s] %s", iss.Line, typeLabels[iss.Type], iss.Text))
-			lines = append(lines, fmt.Sprintf("  ↳ %s", iss.Suggestion))
+			lines = append(lines,
+				fmt.Sprintf("- **L%d** [%s] %s", iss.Line, typeLabels[iss.Type], iss.Text),
+				fmt.Sprintf("  ↳ %s", iss.Suggestion),
+			)
 		}
 		lines = append(lines, "")
 	}

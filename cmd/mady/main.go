@@ -581,35 +581,35 @@ func runTui(ctx context.Context) {
 			// /case 命令族：案件上下文管理。
 			if trimmed == "/case" || strings.HasPrefix(trimmed, "/case ") {
 				args := strings.TrimSpace(strings.TrimPrefix(trimmed, "/case"))
-				switch {
-				case args == "" || args == "list":
+				switch args {
+				case "", "list":
 					records := fc.ProjectRegistry.List()
 					if len(records) == 0 {
 						app.PrintSystem("暂无已注册案件。使用 mady serve 或 ProjectRegistry API 注册案件。")
 						return
 					}
 					var sb strings.Builder
-					sb.WriteString(fmt.Sprintf("已注册案件（%d）：\n", len(records)))
+					fmt.Fprintf(&sb, "已注册案件（%d）：\n", len(records))
 					for i, rec := range records {
 						marker := "  "
 						if currentProject != nil && rec.ProjectID == currentProject.ProjectID {
 							marker = "→ "
 						}
-						sb.WriteString(fmt.Sprintf("%s%d. %s（%s）[%s]\n", marker, i+1, rec.Alias, rec.ProjectID, rec.Domain))
+						fmt.Fprintf(&sb, "%s%d. %s（%s）[%s]\n", marker, i+1, rec.Alias, rec.ProjectID, rec.Domain)
 					}
 					if currentProject == nil {
 						sb.WriteString("\n使用 /case <ID或别名> 切换案件")
 					}
 					app.PrintSystem(sb.String())
 					return
-				case args == "info":
+				case "info":
 					if currentProject == nil {
 						app.PrintSystem("当前未选择案件。使用 /case 查看可用案件。")
 						return
 					}
 					app.PrintSystem(formatProjectInfo(currentProject, currentProjectMeta))
 					return
-				case args == "off" || args == "clear":
+				case "off", "clear":
 					if currentProject == nil {
 						app.PrintSystem("当前未选择案件")
 						return
@@ -663,13 +663,13 @@ func runTui(ctx context.Context) {
 					return
 				}
 				var sb strings.Builder
-				sb.WriteString(fmt.Sprintf("案件 %s 的期限：\n", currentProject.Alias))
+				fmt.Fprintf(&sb, "案件 %s 的期限：\n", currentProject.Alias)
 				for _, d := range currentProjectMeta.Deadlines {
 					mark := "  "
 					if d.Reminded {
 						mark = "✓ "
 					}
-					sb.WriteString(fmt.Sprintf("%s%s: %s\n", mark, d.Type, d.DueDate))
+					fmt.Fprintf(&sb, "%s%s: %s\n", mark, d.Type, d.DueDate)
 				}
 				app.PrintSystem(sb.String())
 				return
@@ -1036,18 +1036,18 @@ func formatProjectContext(rec *domains.ProjectRecord, meta *domains.ProjectMeta)
 
 func formatProjectInfo(rec *domains.ProjectRecord, meta *domains.ProjectMeta) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("案件: %s\n", rec.Alias))
-	sb.WriteString(fmt.Sprintf("ID: %s\n", rec.ProjectID))
-	sb.WriteString(fmt.Sprintf("领域: %s\n", rec.Domain))
-	sb.WriteString(fmt.Sprintf("状态: %s\n", rec.Status))
-	sb.WriteString(fmt.Sprintf("工作目录: %s\n", rec.RootPath))
-	sb.WriteString(fmt.Sprintf("注册时间: %s\n", rec.RegisteredAt.Format("2006-01-02")))
+	fmt.Fprintf(&sb, "案件: %s\n", rec.Alias)
+	fmt.Fprintf(&sb, "ID: %s\n", rec.ProjectID)
+	fmt.Fprintf(&sb, "领域: %s\n", rec.Domain)
+	fmt.Fprintf(&sb, "状态: %s\n", rec.Status)
+	fmt.Fprintf(&sb, "工作目录: %s\n", rec.RootPath)
+	fmt.Fprintf(&sb, "注册时间: %s\n", rec.RegisteredAt.Format("2006-01-02"))
 	if meta != nil {
 		if meta.MatterType != "" {
-			sb.WriteString(fmt.Sprintf("事项类型: %s\n", meta.MatterType))
+			fmt.Fprintf(&sb, "事项类型: %s\n", meta.MatterType)
 		}
 		if meta.ClientName != "" {
-			sb.WriteString(fmt.Sprintf("客户: %s\n", meta.ClientName))
+			fmt.Fprintf(&sb, "客户: %s\n", meta.ClientName)
 		}
 		if len(meta.Deadlines) > 0 {
 			sb.WriteString("期限:\n")
@@ -1056,7 +1056,7 @@ func formatProjectInfo(rec *domains.ProjectRecord, meta *domains.ProjectMeta) st
 				if d.Reminded {
 					mark = "✓ "
 				}
-				sb.WriteString(fmt.Sprintf("  %s%s: %s\n", mark, d.Type, d.DueDate))
+				fmt.Fprintf(&sb, "  %s%s: %s\n", mark, d.Type, d.DueDate)
 			}
 		}
 	}
@@ -1094,10 +1094,10 @@ func mapMatterTypeToCaseType(meta *domains.ProjectMeta) reasoning.CaseType {
 func formatExportMarkdown(msgs []chat.ChatMessage, threadID string, project *domains.ProjectRecord) string {
 	var b strings.Builder
 	b.WriteString("# Mady 对话记录\n\n")
-	b.WriteString(fmt.Sprintf("**导出时间**: %s  \n", time.Now().Format("2006-01-02 15:04:05")))
-	b.WriteString(fmt.Sprintf("**会话ID**: %s  \n", threadID))
+	fmt.Fprintf(&b, "**导出时间**: %s  \n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&b, "**会话ID**: %s  \n", threadID)
 	if project != nil {
-		b.WriteString(fmt.Sprintf("**案件**: %s (%s)  \n", project.Alias, project.ProjectID))
+		fmt.Fprintf(&b, "**案件**: %s (%s)  \n", project.Alias, project.ProjectID)
 	}
 	b.WriteString("\n---\n\n")
 	for _, msg := range msgs {
