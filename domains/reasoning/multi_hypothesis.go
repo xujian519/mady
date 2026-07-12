@@ -67,7 +67,7 @@ func BuildMultiHypothesisSubgraph(g *graph.PregelGraph, step PlanStep, bb *FactB
 	g.AddNode(aObserve, builder.BuildReActObserve(step, bb))
 	g.AddEdge(aThink, aAct)
 	g.AddEdge(aAct, aObserve)
-	g.SetConditionalEdge(aObserve, advocateRouter(mhAdvA, aObserve, aThink))
+	_ = g.SetConditionalEdge(aObserve, advocateRouter(mhAdvA, aObserve, aThink))
 
 	// === Advocate B (con) ===
 	bThink := fmt.Sprintf("mh_%d_adv_b_think", step.Order)
@@ -79,7 +79,7 @@ func BuildMultiHypothesisSubgraph(g *graph.PregelGraph, step PlanStep, bb *FactB
 	g.AddNode(bObserve, builder.BuildReActObserve(step, bb))
 	g.AddEdge(bThink, bAct)
 	g.AddEdge(bAct, bObserve)
-	g.SetConditionalEdge(bObserve, advocateRouter(mhAdvB, bObserve, bThink))
+	_ = g.SetConditionalEdge(bObserve, advocateRouter(mhAdvB, bObserve, bThink))
 
 	// === Merge ===
 	mergeName := fmt.Sprintf("mh_%d_merge", step.Order)
@@ -101,7 +101,7 @@ func BuildMultiHypothesisSubgraph(g *graph.PregelGraph, step PlanStep, bb *FactB
 	g.AddEdge(sylName, evidName)
 
 	// Conditional: if reject → rejection path; else → PregelEnd.
-	g.SetConditionalEdge(evidName, evidenceRouter(rejectName))
+	_ = g.SetConditionalEdge(evidName, evidenceRouter(rejectName))
 
 	return aThink, rejectName
 }

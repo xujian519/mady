@@ -172,7 +172,7 @@ func (c *PlanCompiler) buildReActStep(g *graph.PregelGraph, step PlanStep, bb *F
 
 	// Conditional edge: if has_next, loop back to think.
 	hasNextKey := observe + "_has_next"
-	g.SetConditionalEdge(observe, func(ctx context.Context, state graph.PregelState) []string {
+	_ = g.SetConditionalEdge(observe, func(ctx context.Context, state graph.PregelState) []string {
 		hn := state.GetString(hasNextKey)
 		if hn == "" {
 			hn = state.GetString("_noop_has_next") // fallback for test/noop builder

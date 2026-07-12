@@ -161,9 +161,10 @@ func (c *Compiler) Stats() Stats {
 		TotalTraces:     len(c.traces),
 	}
 	for _, t := range c.traces {
-		if t.Outcome == OutcomeSuccess {
+		switch t.Outcome {
+		case OutcomeSuccess:
 			s.SuccessTraces++
-		} else if t.Outcome == OutcomeFailure {
+		case OutcomeFailure:
 			s.FailureTraces++
 		}
 	}

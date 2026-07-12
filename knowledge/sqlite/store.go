@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
 	"github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/retrieval"
@@ -219,7 +219,6 @@ func (s *SQLiteStore) VectorSearch(queryVec []float32, topK int) ([]retrieval.Sc
 			for i := 0; i < s.dim; i++ {
 				dot += float64(queryVec[i]) * float64(vec[i])
 			}
-			// cosine = dot / (qNorm * norm)
 			cosine := dot / (qNorm * norm)
 
 			// Insert into top-K.

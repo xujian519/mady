@@ -127,15 +127,15 @@ func (s *Session) Review(
 func (s *Session) buildReviewPrompt(toolName string, args json.RawMessage, transcript string) string {
 	var sb strings.Builder
 	sb.WriteString("请评估以下工具调用是否安全：\n\n")
-	sb.WriteString(fmt.Sprintf("工具: %s\n", toolName))
+	fmt.Fprintf(&sb, "工具: %s\n", toolName)
 
 	if len(args) > 0 {
 		var pretty map[string]any
 		if err := json.Unmarshal(args, &pretty); err == nil {
 			formatted, _ := json.MarshalIndent(pretty, "", "  ")
-			sb.WriteString(fmt.Sprintf("参数: %s\n", string(formatted)))
+			fmt.Fprintf(&sb, "参数: %s\n", string(formatted))
 		} else {
-			sb.WriteString(fmt.Sprintf("参数: %s\n", string(args)))
+			fmt.Fprintf(&sb, "参数: %s\n", string(args))
 		}
 	}
 
@@ -145,7 +145,7 @@ func (s *Session) buildReviewPrompt(toolName string, args json.RawMessage, trans
 		if len(t) > maxLen {
 			t = t[:maxLen] + "\n[...已截断...]"
 		}
-		sb.WriteString(fmt.Sprintf("\n近期对话上下文:\n%s\n", t))
+		fmt.Fprintf(&sb, "\n近期对话上下文:\n%s\n", t)
 	}
 
 	sb.WriteString("\n请输出 JSON 评估结果。")

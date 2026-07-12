@@ -194,7 +194,7 @@ func (e *RulesExtension) SystemPromptSuffix() string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("## 专利法律规则引擎（已加载 %d 条规则）\n", len(rules)))
+	fmt.Fprintf(&b, "## 专利法律规则引擎（已加载 %d 条规则）\n", len(rules))
 	b.WriteString("可用规则域: ")
 	domains := make(map[string]bool)
 	for _, r := range rules {
@@ -338,28 +338,28 @@ func (e *RulesExtension) handleOrchestration(args json.RawMessage) (any, error) 
 func formatRules(rules []Rule) string {
 	var b strings.Builder
 	for _, r := range rules {
-		b.WriteString(fmt.Sprintf("### %s — %s\n", r.RuleID, r.Name))
-		b.WriteString(fmt.Sprintf("- 描述: %s\n", r.Description))
-		b.WriteString(fmt.Sprintf("- 法律依据: %s\n", r.LegalBasis))
-		b.WriteString(fmt.Sprintf("- 域: %s\n", r.Domain))
-		b.WriteString(fmt.Sprintf("- 严重度: %s | 动作: %s\n", r.Severity, r.Action))
-		b.WriteString(fmt.Sprintf("- 检查类型: %s\n", r.Check.Type))
+		fmt.Fprintf(&b, "### %s — %s\n", r.RuleID, r.Name)
+		fmt.Fprintf(&b, "- 描述: %s\n", r.Description)
+		fmt.Fprintf(&b, "- 法律依据: %s\n", r.LegalBasis)
+		fmt.Fprintf(&b, "- 域: %s\n", r.Domain)
+		fmt.Fprintf(&b, "- 严重度: %s | 动作: %s\n", r.Severity, r.Action)
+		fmt.Fprintf(&b, "- 检查类型: %s\n", r.Check.Type)
 		if len(r.Check.Principles) > 0 {
 			b.WriteString("- 原则:\n")
 			for _, p := range r.Check.Principles {
-				b.WriteString(fmt.Sprintf("  - %s\n", p))
+				fmt.Fprintf(&b, "  - %s\n", p)
 			}
 		}
 		if len(r.Check.Rules) > 0 {
 			b.WriteString("- 规则:\n")
 			for _, r2 := range r.Check.Rules {
-				b.WriteString(fmt.Sprintf("  - %s\n", r2))
+				fmt.Fprintf(&b, "  - %s\n", r2)
 			}
 		}
 		if len(r.Check.Assessment) > 0 {
 			b.WriteString("- 评估:\n")
 			for k, v := range r.Check.Assessment {
-				b.WriteString(fmt.Sprintf("  - %s → %s\n", k, v))
+				fmt.Fprintf(&b, "  - %s → %s\n", k, v)
 			}
 		}
 		b.WriteString("\n")
@@ -369,57 +369,57 @@ func formatRules(rules []Rule) string {
 
 func formatArticle(af *ArticleFramework) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("# %s — %s\n", af.ArticleID, af.Name))
-	b.WriteString(fmt.Sprintf("法律依据: %s\n", af.LawRef))
+	fmt.Fprintf(&b, "# %s — %s\n", af.ArticleID, af.Name)
+	fmt.Fprintf(&b, "法律依据: %s\n", af.LawRef)
 	if af.GuidelineRef != "" {
-		b.WriteString(fmt.Sprintf("审查指南: %s\n", af.GuidelineRef))
+		fmt.Fprintf(&b, "审查指南: %s\n", af.GuidelineRef)
 	}
 	b.WriteString("\n## 判断步骤\n")
 	for _, step := range af.Steps {
-		b.WriteString(fmt.Sprintf("### 步骤%d: %s\n", step.Order, step.Name))
-		b.WriteString(fmt.Sprintf("规则参考: %s\n", step.RuleRef))
-		b.WriteString(fmt.Sprintf("输入提示: %s\n", step.InputHint))
+		fmt.Fprintf(&b, "### 步骤%d: %s\n", step.Order, step.Name)
+		fmt.Fprintf(&b, "规则参考: %s\n", step.RuleRef)
+		fmt.Fprintf(&b, "输入提示: %s\n", step.InputHint)
 		if len(step.OutputSchema) > 0 {
 			b.WriteString("输出:\n")
 			for k, v := range step.OutputSchema {
-				b.WriteString(fmt.Sprintf("  - %s: %s\n", k, v))
+				fmt.Fprintf(&b, "  - %s: %s\n", k, v)
 			}
 		}
 		b.WriteString("\n")
 	}
 	b.WriteString("## 结论模式\n")
 	for k, v := range af.ConclusionSchema {
-		b.WriteString(fmt.Sprintf("- %s: %s\n", k, v))
+		fmt.Fprintf(&b, "- %s: %s\n", k, v)
 	}
 	return b.String()
 }
 
 func formatOrchestration(orch *Orchestration) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("# %s — %s\n", orch.ID, orch.Name))
-	b.WriteString(fmt.Sprintf("事务类型: %s\n", orch.CaseType))
-	b.WriteString(fmt.Sprintf("描述: %s\n\n", orch.Description))
+	fmt.Fprintf(&b, "# %s — %s\n", orch.ID, orch.Name)
+	fmt.Fprintf(&b, "事务类型: %s\n", orch.CaseType)
+	fmt.Fprintf(&b, "描述: %s\n\n", orch.Description)
 	b.WriteString("## 发现阶段\n")
 	for i, stage := range orch.DiscoveryStages {
-		b.WriteString(fmt.Sprintf("### %d. %s\n", i+1, stage.Name))
-		b.WriteString(fmt.Sprintf("目标: %s\n", stage.Goal))
+		fmt.Fprintf(&b, "### %d. %s\n", i+1, stage.Name)
+		fmt.Fprintf(&b, "目标: %s\n", stage.Goal)
 		if len(stage.Suggestions) > 0 {
 			b.WriteString("建议:\n")
 			for _, s := range stage.Suggestions {
-				b.WriteString(fmt.Sprintf("  - %s\n", s))
+				fmt.Fprintf(&b, "  - %s\n", s)
 			}
 		}
-		b.WriteString("\n")
+		fmt.Fprintf(&b, "\n")
 	}
-	b.WriteString("## 可用法条\n")
+	fmt.Fprintf(&b, "## 可用法条\n")
 	for _, aa := range orch.AvailableArticles {
-		b.WriteString(fmt.Sprintf("%d. %s — %s\n", aa.Priority, aa.ArticleID, aa.Description))
+		fmt.Fprintf(&b, "%d. %s — %s\n", aa.Priority, aa.ArticleID, aa.Description)
 	}
-	b.WriteString("\n## 执行模板\n")
-	b.WriteString(fmt.Sprintf("产出物: %s\n", orch.ExecutionTemplate.ArtifactType))
-	b.WriteString("章节:\n")
+	fmt.Fprintf(&b, "\n## 执行模板\n")
+	fmt.Fprintf(&b, "产出物: %s\n", orch.ExecutionTemplate.ArtifactType)
+	fmt.Fprintf(&b, "章节:\n")
 	for _, s := range orch.ExecutionTemplate.Sections {
-		b.WriteString(fmt.Sprintf("  - %s\n", s))
+		fmt.Fprintf(&b, "  - %s\n", s)
 	}
 	return b.String()
 }

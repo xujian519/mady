@@ -2,7 +2,6 @@ package evidence
 
 import (
 	"context"
-	"time"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -79,7 +78,7 @@ func (h *evidenceHook) AfterToolExecution(_ context.Context, _ *agentcore.AgentR
 		var dur int64
 		if i < len(tec.Results) {
 			success = tec.Results[i].Err == nil
-			dur = time.Duration(tec.Results[i].Duration).Milliseconds()
+			dur = tec.Results[i].Duration.Milliseconds()
 		}
 		r := ReceiptFromToolCall(tc.Name, []byte(tc.Arguments), success, dur)
 		h.ext.ledger.Record(r)

@@ -82,12 +82,12 @@ func TestDefaultStrategies(t *testing.T) {
 		t.Errorf("expected at least 5 default strategies, got %d", len(s))
 	}
 	// Verify each has required fields
-	for _, strat := range s {
-		if strat.ID == "" || strat.Description == "" {
-			t.Errorf("strategy missing required fields: %+v", strat)
+	for _, st := range s {
+		if st.ID == "" || st.Description == "" {
+			t.Errorf("strategy missing required fields: %+v", st)
 		}
-		if len(strat.Preconditions) == 0 {
-			t.Errorf("strategy %s has no preconditions", strat.ID)
+		if len(st.Preconditions) == 0 {
+			t.Errorf("strategy %s has no preconditions", st.ID)
 		}
 	}
 }
@@ -123,8 +123,8 @@ func TestCompiler_FinishTurn_Success(t *testing.T) {
 	}
 
 	// Get initial success count
-	strat, _ := c.StrategyByID(sid)
-	initialSuccess := strat.Successes
+	st, _ := c.StrategyByID(sid)
+	initialSuccess := st.Successes
 
 	// Record success
 	trace := NewTrace("t1", "审查意见答复", sid, 1)
@@ -132,9 +132,9 @@ func TestCompiler_FinishTurn_Success(t *testing.T) {
 	c.FinishTurn(trace)
 
 	// Verify stats updated
-	strat2, _ := c.StrategyByID(sid)
-	if strat2.Successes != initialSuccess+1 {
-		t.Errorf("successes=%d want %d", strat2.Successes, initialSuccess+1)
+	st2, _ := c.StrategyByID(sid)
+	if st2.Successes != initialSuccess+1 {
+		t.Errorf("successes=%d want %d", st2.Successes, initialSuccess+1)
 	}
 }
 
@@ -142,16 +142,16 @@ func TestCompiler_FinishTurn_Failure(t *testing.T) {
 	c := NewCompiler(Config{ExplorationRate: 0})
 
 	_, sid := c.StartTurn("审查意见")
-	strat, _ := c.StrategyByID(sid)
-	initialFailures := strat.Failures
+	st, _ := c.StrategyByID(sid)
+	initialFailures := st.Failures
 
 	trace := NewTrace("t1", "审查意见", sid, 1)
 	trace.Complete(OutcomeFailure, 5, 3)
 	c.FinishTurn(trace)
 
-	strat2, _ := c.StrategyByID(sid)
-	if strat2.Failures != initialFailures+1 {
-		t.Errorf("failures=%d want %d", strat2.Failures, initialFailures+1)
+	st2, _ := c.StrategyByID(sid)
+	if st2.Failures != initialFailures+1 {
+		t.Errorf("failures=%d want %d", st2.Failures, initialFailures+1)
 	}
 }
 
