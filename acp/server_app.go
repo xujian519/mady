@@ -28,6 +28,9 @@ type RunOptions struct {
 	SystemPrompt string
 	// MaxTurns caps the agent loop iterations per prompt (default 25).
 	MaxTurns int
+	// Lifecycle 注入知识检索等生命周期钩子（如 Wiki RAG）。
+	// 为 nil 时不注入任何钩子，保持裸 LLM 对话。
+	Lifecycle agentcore.LifecycleHook
 }
 
 // sessionModePrimary is the default (and only) mode advertised over ACP.
@@ -125,6 +128,7 @@ func buildAgentConfig(opts RunOptions, model string) agentcore.Config {
 			BaseDelayMs: 1000,
 			MaxDelayMs:  15000,
 		},
+		Lifecycle: opts.Lifecycle,
 	}
 }
 

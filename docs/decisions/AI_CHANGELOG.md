@@ -12,6 +12,16 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-12: ACP 知识系统集成修复
+
+- **变更**:
+  1. **`acp/server_app.go`**: `RunOptions` 新增 `Lifecycle agentcore.LifecycleHook` 字段；`buildAgentConfig` 将其注入 `agentcore.Config.Lifecycle`，使 ACP 创建/重建的 Agent 能携带知识检索等生命周期钩子
+  2. **`cmd/mady/main.go`**: `runAcp()` 改为调用 `setupFrameworkContext()`（与 `runTui`/`runServer` 对齐），将 `fc.WikiHook` 通过 `RunOptions.Lifecycle` 传入 ACP 服务器
+- **原因**: ACP 入口（`mady acp`）此前完全跳过了 `setupFrameworkContext()`，不加载 Wiki 知识库、不注入 RAG 检索钩子，导致 ACP 用户（如 Zed 编辑器）无法使用知识系统；TUI 和 Serve 已正确集成
+- **影响范围**: acp/server_app.go, cmd/mady/main.go
+- **风险等级**: 低（新增可选字段，nil 时不改变原有行为；已有测试全部通过）
+- **审查要求**: L2
+
 ## 2026-07-12: 阶段4 — YAML规则引擎 (domains/rules/)
 
 - **变更**:

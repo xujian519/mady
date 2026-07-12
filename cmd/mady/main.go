@@ -616,11 +616,13 @@ func runAcp(ctx context.Context) {
 	fs := flag.NewFlagSet("mady acp", flag.ExitOnError)
 	_ = fs.Parse(os.Args[2:])
 
-	provider := agentconfig.BuildProvider()
+	fc := setupFrameworkContext()
+
 	err := acp.RunServer(ctx, acp.RunOptions{
-		Provider: provider,
-		Model:    agentconfig.DefaultModel(),
-		Thinking: agentconfig.ThinkingFromEnv(),
+		Provider:  agentconfig.BuildProvider(),
+		Model:     agentconfig.DefaultModel(),
+		Thinking:  agentconfig.ThinkingFromEnv(),
+		Lifecycle: fc.WikiHook,
 		AgentInfo: acp.AgentInfo{
 			Name:    "mady",
 			Version: "0.1.0",
