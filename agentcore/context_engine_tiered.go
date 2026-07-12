@@ -78,9 +78,9 @@ func NewTieredEngine(cfg ContextEngineConfig) ContextEngine {
 
 func (e *TieredEngine) Name() string { return "tiered" }
 
-func (e *TieredEngine) OnSessionStart(_ context.Context, model string, contextLength int64) {
+func (e *TieredEngine) OnSessionStart(ctx context.Context, model string, contextLength int64) {
 	e.contextLength = contextLength
-	e.compressor.OnSessionStart(context.Background(), model, contextLength)
+	e.compressor.OnSessionStart(ctx, model, contextLength)
 }
 
 func (e *TieredEngine) OnSessionReset() {

@@ -434,11 +434,11 @@ func runTui(ctx context.Context) {
 		Context:                    ctx,
 		OnInterrupt: func() {
 			cancelMu.Lock()
+			defer cancelMu.Unlock()
 			if runCancel != nil {
 				runCancel()
 				runCancel = nil
 			}
-			cancelMu.Unlock()
 		},
 		OnQuit: func() {
 			if app != nil {
@@ -475,6 +475,7 @@ func runTui(ctx context.Context) {
 				prev.Close()
 				agentadapter.BindAgent(app, currentAgent)
 				app.PrintSystem("推理配置已更新: " + formatThinkingConfig(currentThinking))
+				runMu.Unlock()
 				return
 			}
 
@@ -587,7 +588,9 @@ func runTui(ctx context.Context) {
 				cancelMu.Lock()
 				runCancel = cancel
 				cancelMu.Unlock()
-				_, _ = agent.Run(runCtx, input)
+				if _, err := agent.Run(runCtx, input); err != nil {
+					log.Printf("[mady] agent run failed: %v", err)
+				}
 				cancelMu.Lock()
 				runCancel = nil
 				cancelMu.Unlock()

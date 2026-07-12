@@ -3,6 +3,7 @@ package agentcore
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"sync"
 )
 
@@ -160,7 +161,11 @@ func New(cfg Config) *Agent {
 		var err error
 		ctxEngine, err = engineReg.Create(engineName, engineCfg)
 		if err != nil {
-			ctxEngine, _ = engineReg.Create(engineReg.Default(), engineCfg)
+			log.Printf("[agentcore] context engine %q init failed: %v, falling back to default", engineName, err)
+			ctxEngine, err = engineReg.Create(engineReg.Default(), engineCfg)
+			if err != nil {
+				log.Printf("[agentcore] default context engine also failed: %v", err)
+			}
 		}
 	}
 
@@ -185,7 +190,9 @@ func New(cfg Config) *Agent {
 	}
 
 	if len(cfg.Extensions) > 0 {
-		_ = a.extensions.Register(context.Background(), a, cfg.Extensions...)
+		if err := a.extensions.Register(context.Background(), a, cfg.Extensions...); err != nil {
+			log.Printf("[agentcore] extension registration failed: %v", err)
+		}
 	}
 
 	// Build executor AFTER extension registration so HookProvider hooks are included.

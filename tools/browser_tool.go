@@ -968,7 +968,8 @@ func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserTo
 		h, _ := img["height"].(float64)
 		displayed, _ := img["displayed"].(bool)
 
-		fmt.Fprintf(&sb, "  [%d] ", int(img["index"].(float64)))
+		index, _ := img["index"].(float64)
+		fmt.Fprintf(&sb, "  [%d] ", int(index))
 		if !displayed {
 			sb.WriteString("(hidden) ")
 		}

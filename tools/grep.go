@@ -184,7 +184,11 @@ func runRipgrep(ctx context.Context, rgPath, searchPath string, input GrepToolIn
 		if !ok {
 			continue
 		}
-		pathText, _ := data["path"].(map[string]any)["text"].(string)
+		pathMap, ok := data["path"].(map[string]any)
+		if !ok {
+			continue
+		}
+		pathText, _ := pathMap["text"].(string)
 		lineNum, _ := data["line_number"].(float64)
 		if pathText != "" {
 			matches = append(matches, struct {

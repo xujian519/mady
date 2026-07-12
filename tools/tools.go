@@ -34,6 +34,12 @@ const (
 	ToolProcess     = "process"
 )
 
+// Shared default limits used across tool configurations.
+const (
+	DefaultMaxLines = 2000
+	DefaultMaxBytes = 50 * 1024 // 50KB
+)
+
 // ExtensionConfig configures the built-in tools extension.
 type ExtensionConfig struct {
 	// WorkingDir is the base directory for all relative paths. Defaults to the
@@ -127,10 +133,10 @@ type ExtensionConfig struct {
 
 func (c *ExtensionConfig) setDefaults() {
 	if c.MaxBytes <= 0 {
-		c.MaxBytes = 50 * 1024 // 50KB
+		c.MaxBytes = DefaultMaxBytes
 	}
 	if c.MaxLines <= 0 {
-		c.MaxLines = 2000
+		c.MaxLines = DefaultMaxLines
 	}
 }
 

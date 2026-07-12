@@ -298,10 +298,10 @@ func (c *WebFetchToolConfig) defaults() {
 		c.Operations = &DefaultWebFetchOperations{}
 	}
 	if c.MaxBytes <= 0 {
-		c.MaxBytes = 50 * 1024
+		c.MaxBytes = DefaultMaxBytes
 	}
 	if c.MaxLines <= 0 {
-		c.MaxLines = 2000
+		c.MaxLines = DefaultMaxLines
 	}
 }
 

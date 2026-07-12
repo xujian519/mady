@@ -3,6 +3,7 @@ package reasoning
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -72,9 +73,10 @@ func (p *Planner) lookupTemplate(caseType CaseType, intent PlanIntent) *Plan {
 	return &cp
 }
 
-// llmGenerate delegates Plan generation to the LLM (not yet implemented).
+// llmGenerate delegates Plan generation to the LLM (Phase 2: not yet wired to a real provider).
+// Until the LLM path is implemented, it returns a deterministic fallback plan with logging.
 func (p *Planner) llmGenerate(_ context.Context, bb *FactBlackboard, intent PlanIntent) (*Plan, error) {
-	// TODO(Phase 2): Implement LLM-driven Plan generation.
+	log.Printf("[planner] LLM plan generation not yet implemented, using fallback plan for case=%s intent=%s", bb.CaseID, intent)
 	return p.buildFallbackPlan(bb, intent), nil
 }
 

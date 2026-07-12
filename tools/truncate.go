@@ -43,11 +43,11 @@ func FormatSize(bytes int64) string {
 func TruncateHead(content string, opts TruncationOptions) TruncationResult {
 	maxLines := opts.MaxLines
 	if maxLines <= 0 {
-		maxLines = 2000
+		maxLines = DefaultMaxLines
 	}
 	maxBytes := opts.MaxBytes
 	if maxBytes <= 0 {
-		maxBytes = 50 * 1024
+		maxBytes = DefaultMaxBytes
 	}
 
 	totalBytes := len([]byte(content))
@@ -122,11 +122,11 @@ func TruncateHead(content string, opts TruncationOptions) TruncationResult {
 func TruncateTail(content string, opts TruncationOptions) TruncationResult {
 	maxLines := opts.MaxLines
 	if maxLines <= 0 {
-		maxLines = 2000
+		maxLines = DefaultMaxLines
 	}
 	maxBytes := opts.MaxBytes
 	if maxBytes <= 0 {
-		maxBytes = 50 * 1024
+		maxBytes = DefaultMaxBytes
 	}
 
 	totalBytes := len([]byte(content))

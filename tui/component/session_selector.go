@@ -84,7 +84,10 @@ func NewSessionSelector() *SessionSelector {
 	tbl := NewTable()
 	tbl.SetColumns([]Column{
 		{Weight: 3, Render: func(idx int, w int64) string {
-			item := tbl.Item(idx).(SessionItem)
+			item, ok := tbl.Item(idx).(SessionItem)
+			if !ok {
+				return ""
+			}
 			id := item.ID
 			if len(id) > 8 {
 				id = id[:8]
@@ -100,7 +103,10 @@ func NewSessionSelector() *SessionSelector {
 			return id + fork
 		}},
 		{Weight: 3, Render: func(idx int, w int64) string {
-			item := tbl.Item(idx).(SessionItem)
+			item, ok := tbl.Item(idx).(SessionItem)
+			if !ok {
+				return ""
+			}
 			ts := item.UpdatedAt
 			if ts == "" {
 				ts = item.CreatedAt
@@ -108,11 +114,17 @@ func NewSessionSelector() *SessionSelector {
 			return ts
 		}},
 		{Weight: 2, Render: func(idx int, w int64) string {
-			item := tbl.Item(idx).(SessionItem)
+			item, ok := tbl.Item(idx).(SessionItem)
+			if !ok {
+				return ""
+			}
 			return fmt.Sprintf("%d msgs", item.MsgCount)
 		}},
 		{Weight: 4, Render: func(idx int, w int64) string {
-			item := tbl.Item(idx).(SessionItem)
+			item, ok := tbl.Item(idx).(SessionItem)
+			if !ok {
+				return ""
+			}
 			name := item.Name
 			if name == "" {
 				name = item.ID

@@ -114,7 +114,7 @@ func (c *Converter) RunError(t time.Time, err error) RunErrorEvent {
 }
 
 func (c *Converter) CloseMessage(t time.Time) []any {
-	prevID := c.activeMsgID.Load().(string)
+	prevID, _ := c.activeMsgID.Load().(string)
 	if prevID == "" {
 		return nil
 	}
@@ -127,7 +127,7 @@ func (c *Converter) CloseMessage(t time.Time) []any {
 }
 
 func (c *Converter) CloseThinking(t time.Time) []any {
-	prevID := c.activeThinkingID.Load().(string)
+	prevID, _ := c.activeThinkingID.Load().(string)
 	if prevID == "" {
 		return nil
 	}
@@ -410,7 +410,7 @@ func (c *Converter) convertMessageDelta(t time.Time, delta string, kind agentcor
 	if tail := c.CloseThinking(t); tail != nil {
 		events = append(events, tail...)
 	}
-	prevID := c.activeMsgID.Load().(string)
+	prevID, _ := c.activeMsgID.Load().(string)
 	if prevID == "" {
 		msgID := c.nextMsgID()
 		c.activeMsgID.Store(msgID)
@@ -438,7 +438,7 @@ func (c *Converter) convertMessageDelta(t time.Time, delta string, kind agentcor
 }
 
 func (c *Converter) convertThinkingDelta(t time.Time, delta string) []any {
-	prevID := c.activeThinkingID.Load().(string)
+	prevID, _ := c.activeThinkingID.Load().(string)
 	if prevID == "" {
 		thinkingID := c.nextThinkingID()
 		msgID := c.nextMsgID()

@@ -37,10 +37,10 @@ func (c *ReadToolConfig) defaults() {
 		c.Operations = DefaultReadOperations{}
 	}
 	if c.MaxBytes <= 0 {
-		c.MaxBytes = 50 * 1024
+		c.MaxBytes = DefaultMaxBytes
 	}
 	if c.MaxLines <= 0 {
-		c.MaxLines = 2000
+		c.MaxLines = DefaultMaxLines
 	}
 }
 

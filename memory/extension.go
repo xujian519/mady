@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
-
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
@@ -208,10 +208,16 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 
 	// 异步提取记忆（不阻塞主流程）
 	go func() {
-		defer func() { _ = recover() }() // 防止 goroutine panic 导致进程崩溃
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[memory] panic in RememberFromTurn: %v", r)
+			}
+		}()
 		extractCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		_, _ = h.ext.manager.RememberFromTurn(extractCtx, userMsg, respContent, h.ext.scope)
+		if _, err := h.ext.manager.RememberFromTurn(extractCtx, userMsg, respContent, h.ext.scope); err != nil {
+			log.Printf("[memory] RememberFromTurn failed: %v", err)
+		}
 	}()
 }
 

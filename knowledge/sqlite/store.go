@@ -3,6 +3,7 @@ package sqlite
 import (
 	"database/sql"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -82,26 +83,23 @@ func (s *SQLiteStore) OpenPatentKGdb(path string) error {
 
 // Close closes all opened database connections.
 func (s *SQLiteStore) Close() error {
-	var errs []string
+	var errs []error
 	if s.db != nil {
 		if err := s.db.Close(); err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, fmt.Errorf("close db: %w", err))
 		}
 	}
 	if s.lawsDB != nil {
 		if err := s.lawsDB.Close(); err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, fmt.Errorf("close lawsDB: %w", err))
 		}
 	}
 	if s.kgDB != nil {
 		if err := s.kgDB.Close(); err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, fmt.Errorf("close kgDB: %w", err))
 		}
 	}
-	if len(errs) > 0 {
-		return fmt.Errorf("close errors: %s", strings.Join(errs, "; "))
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // FTSSearch performs full-text search against the docs_fts trigram index.

@@ -187,7 +187,7 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			if backend == BackendCamofox || (defaultBrowserManager.config.AutoLocalForPrivate && IsPrivateURL(parsedURL.String())) {
 				sessionTargetURL = input.URL
 			}
-			session, err := defaultBrowserManager.CreateSession(context.Background(), sessionID, sessionTargetURL)
+			session, err := defaultBrowserManager.CreateSession(ctx, sessionID, sessionTargetURL)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create browser session: %w", err)
 			}
@@ -286,7 +286,7 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				}
 
 				if NeedsLightpandaFallback(cfg.Engine, snapshot, 0, nil) {
-					fallbackResult, fallbackErr := RunChromeFallbackCommand(context.Background(), "navigate", map[string]any{"url": input.URL}, cfg.CommandTimeout)
+					fallbackResult, fallbackErr := RunChromeFallbackCommand(ctx, "navigate", map[string]any{"url": input.URL}, cfg.CommandTimeout)
 					if fallbackErr == nil {
 						snapshot, _ = fallbackResult["snapshot"].(string)
 						title, _ = fallbackResult["title"].(string)
@@ -460,7 +460,9 @@ func NewBrowserSnapshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				Full bool   `json:"full"`
 				Mode string `json:"mode"`
 			}
-			_ = json.Unmarshal(args, &input)
+			if err := json.Unmarshal(args, &input); err != nil {
+				return nil, fmt.Errorf("invalid arguments: %w", err)
+			}
 			if input.Mode == "" {
 				input.Mode = "default"
 			}
@@ -1004,7 +1006,9 @@ func NewBrowserScreenshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			var input struct {
 				FullPage bool `json:"full_page"`
 			}
-			_ = json.Unmarshal(args, &input)
+			if err := json.Unmarshal(args, &input); err != nil {
+				return nil, fmt.Errorf("invalid arguments: %w", err)
+			}
 
 			session, ok := defaultBrowserManager.GetActiveSession("default")
 			if !ok {

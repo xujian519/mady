@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -86,7 +87,9 @@ func NewProjectRegistryOrEmpty(baseDir string) *ProjectRegistry {
 		baseDir: baseDir,
 		records: make(map[string]ProjectRecord),
 	}
-	_ = r.load()
+	if err := r.load(); err != nil {
+		log.Printf("[project] registry load failed, starting empty: %v", err)
+	}
 	return r
 }
 
@@ -201,7 +204,9 @@ func (r *ProjectRegistry) RefreshStatus() {
 		}
 	}
 	if r.dirty {
-		_ = r.persistLocked()
+		if err := r.persistLocked(); err != nil {
+			log.Printf("[project] registry persist failed: %v", err)
+		}
 	}
 }
 

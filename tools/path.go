@@ -2,12 +2,16 @@ package tools
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"golang.org/x/text/unicode/norm"
 )
+
+var sandboxWarnOnce sync.Once
 
 // WorkingDirSandbox holds sandbox configuration for file tool path resolution.
 // When Enabled is true, resolvePathSandboxed enforces that all file operations
@@ -36,7 +40,11 @@ func resolvePathSandboxed(userPath, cwd string, sbx WorkingDirSandbox) (string, 
 	}
 
 	if !sbx.Enabled {
-		// 沙箱禁用时仍尝试 macOS NFD 标准化，保持向后兼容性。
+		sandboxWarnOnce.Do(func() {
+			if sbx.WorkingDir != "" {
+				log.Printf("[sandbox] WARNING: sandbox disabled, path boundary check skipped (workingDir=%q). This warning will not be repeated.", sbx.WorkingDir)
+			}
+		})
 		return resolveNFD(abs), nil
 	}
 
