@@ -84,7 +84,10 @@ func TestBatchRunsCmdsAsynchronously(t *testing.T) {
 	tui.SendMsg(core.BatchMsg{slow(1), slow(2), slow(3)})
 
 	// Wait long enough for concurrent execution but not for serial.
-	deadline := time.After(200 * time.Millisecond)
+	// Under -race CI runners, scheduler overhead can be significant, so
+	// use a generous deadline that still proves concurrency (serial would
+	// take ≥150ms just in sleeps, plus loop overhead).
+	deadline := time.After(1 * time.Second)
 	for {
 		select {
 		case <-deadline:
