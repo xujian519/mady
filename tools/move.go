@@ -93,19 +93,6 @@ func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool {
 			if err != nil {
 				return resultErrf("dest: %v", err)
 			}
-			// When sandbox is enabled, pin the source inode to detect
-			// symlink swaps between validation and the actual operation.
-			if cfg.Sandbox.Enabled {
-				pinF, pinErr := os.Open(sourcePath)
-				if pinErr != nil {
-					return resultErrf("path not found: %s", input.Source)
-				}
-				if err := verifyOpenedInode(pinF, sourcePath); err != nil {
-					pinF.Close()
-					return resultErrf("%v", err)
-				}
-				pinF.Close()
-			}
 
 			// Verify source exists.
 			_, err = cfg.Operations.Stat(sourcePath)
@@ -120,6 +107,27 @@ func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool {
 			parentDir := filepath.Dir(destPath)
 			if err := cfg.Operations.MkdirAll(parentDir, 0755); err != nil {
 				return resultErrf("failed to create destination parent directory: %w", err)
+			}
+
+			// When sandbox is enabled, pin both source and destination inodes
+			// to detect symlink swaps before the rename operation.
+			// Destination may not exist yet (new file) — skip pin in that case.
+			if cfg.Sandbox.Enabled {
+				pinSrc, pinErr := os.Open(sourcePath)
+				if pinErr == nil {
+					if err := verifyOpenedInode(pinSrc, sourcePath); err != nil {
+						pinSrc.Close()
+						return resultErrf("%v", err)
+					}
+					pinSrc.Close()
+				}
+				if pinDst, pinErr := os.Open(destPath); pinErr == nil {
+					if err := verifyOpenedInode(pinDst, destPath); err != nil {
+						pinDst.Close()
+						return resultErrf("%v", err)
+					}
+					pinDst.Close()
+				}
 			}
 
 			// Perform move.

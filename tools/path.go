@@ -184,6 +184,19 @@ func readFileSandboxed(path string, sbx WorkingDirSandbox) (string, error) {
 	return string(data), nil
 }
 
+// pinPath opens the path, verifies its inode hasn't been swapped since resolution,
+// and closes the FD. Returns nil on success, or an error describing the inode mismatch
+// or I/O failure. Used to detect TOCTOU symlink-swap attacks between path resolution
+// and the actual file operation.
+func pinPath(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("path not found: %s", path)
+	}
+	defer f.Close()
+	return verifyOpenedInode(f, path)
+}
+
 // verifyOpenedInode checks that the file or directory at the given path still
 // refers to the same inode as the already-open *os.File. This prevents TOCTOU
 // attacks where a path is swapped between opening and a subsequent path-based

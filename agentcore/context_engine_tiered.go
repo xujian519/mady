@@ -295,18 +295,13 @@ func (e *TieredEngine) IsToolResultProtected(msgs []Message, idx int) bool {
 	return idx >= tailStart
 }
 
-// deepCopyMessages creates a deep copy of a Message slice,
-// ensuring Metadata maps are independently copied.
+// deepCopyMessages creates a deep copy of a Message slice.
+// Uses Message.Clone() to ensure all reference-type fields
+// (Metadata, ToolCalls, Blocks, CacheControl) are independently copied.
 func deepCopyMessages(msgs []Message) []Message {
 	result := make([]Message, len(msgs))
 	for i, msg := range msgs {
-		result[i] = msg
-		if msg.Metadata != nil {
-			result[i].Metadata = make(map[string]any, len(msg.Metadata))
-			for k, v := range msg.Metadata {
-				result[i].Metadata[k] = v
-			}
-		}
+		result[i] = msg.Clone()
 	}
 	return result
 }

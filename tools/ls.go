@@ -95,15 +95,9 @@ func NewLsTool(cwd string, cfg *LsToolConfig) *agentcore.Tool {
 			// When sandbox is enabled, pin the resolved inode to detect
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
-				pinF, pinErr := os.Open(dirPath)
-				if pinErr != nil {
-					return resultErrf("path not found: %s", input.Path)
-				}
-				if err := verifyOpenedInode(pinF, dirPath); err != nil {
-					pinF.Close()
+				if err := pinPath(dirPath); err != nil {
 					return resultErrf("%v", err)
 				}
-				pinF.Close()
 			}
 
 			if !cfg.Operations.Exists(dirPath) {

@@ -127,15 +127,9 @@ func NewFindTool(cwd string, cfg *FindToolConfig) *agentcore.Tool {
 			// When sandbox is enabled, pin the resolved inode to detect
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
-				pinF, pinErr := os.Open(searchPath)
-				if pinErr != nil {
-					return resultErrf("path not found: %s", input.Path)
-				}
-				if err := verifyOpenedInode(pinF, searchPath); err != nil {
-					pinF.Close()
+				if err := pinPath(searchPath); err != nil {
 					return resultErrf("%v", err)
 				}
-				pinF.Close()
 			}
 			if !cfg.Operations.Exists(searchPath) {
 				return resultErrf("path not found: %s", input.Path)

@@ -108,15 +108,19 @@ func NewWriteFileTool(cwd string, cfg *WriteFileToolConfig) *agentcore.Tool {
 			if sandboxErr != nil {
 				return resultErrf("%v", sandboxErr)
 			}
-			// When sandbox is enabled, pin the parent directory's inode to detect
-			// symlink swaps between validation and the actual operation.
+			// When sandbox is enabled, pin the target inode (file if exists, else parent dir)
+			// to detect symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
-				parentDir := filepath.Dir(resolved)
-				pinF, pinErr := os.Open(parentDir)
+				// Pin the file itself if it already exists; otherwise pin parent directory.
+				pinTarget := resolved
+				if _, statErr := cfg.Operations.Stat(resolved); statErr != nil {
+					pinTarget = filepath.Dir(resolved)
+				}
+				pinF, pinErr := os.Open(pinTarget)
 				if pinErr != nil {
 					return resultErrf("path not found: %s", input.Path)
 				}
-				if err := verifyOpenedInode(pinF, parentDir); err != nil {
+				if err := verifyOpenedInode(pinF, pinTarget); err != nil {
 					pinF.Close()
 					return resultErrf("%v", err)
 				}

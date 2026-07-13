@@ -88,6 +88,8 @@ func (e *ChunkedContextEngine) Compress(ctx context.Context, msgs []Message, foc
 	// Reconstruct in original order: walk original messages by index.
 	// If msgs[i] was protected, place the next protected chunk at position i;
 	// otherwise place the next compressed conversation message.
+	// Surplus compressed messages (when compression expands) are appended
+	// after the loop; unprotected slots without counterparts are skipped.
 	result := make([]Message, 0, len(msgs))
 	compIdx := 0
 	protectedIdx := 0
@@ -99,8 +101,10 @@ func (e *ChunkedContextEngine) Compress(ctx context.Context, msgs []Message, foc
 			result = append(result, compressed[compIdx])
 			compIdx++
 		}
-		// If compression reduced message count, remaining slots are skipped
-		// (tool_call/tool_result pairs may be consolidated).
+	}
+	// Append any surplus compressed messages beyond unprotected slots.
+	for ; compIdx < len(compressed); compIdx++ {
+		result = append(result, compressed[compIdx])
 	}
 
 	e.rebuildProtection(result)

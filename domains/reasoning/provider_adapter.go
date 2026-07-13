@@ -53,6 +53,7 @@ func (c *providerLlmClient) Chat(ctx context.Context, messages []LlmMessage) (st
 // NewLlmClientFromProvider wraps an agentcore.Provider as an LlmClient.
 // The model parameter identifies which model the provider should use for
 // validation calls (typically the same model used by the main agent).
+// Returns nil if p is nil — callers should check the return value.
 //
 // Usage:
 //
@@ -60,5 +61,8 @@ func (c *providerLlmClient) Chat(ctx context.Context, messages []LlmMessage) (st
 //	llm := reasoning.NewLlmClientFromProvider(p, "deepseek-v4-pro")
 //	runner := reasoning.NewWorkflowRunner(..., llm)
 func NewLlmClientFromProvider(p agentcore.Provider, model string) LlmClient {
+	if p == nil {
+		return nil
+	}
 	return &providerLlmClient{provider: p, model: model}
 }

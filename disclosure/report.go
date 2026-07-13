@@ -252,6 +252,7 @@ func generateReportNode(provider agentcore.Provider) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		input := buildReportInput(state)
 		agent := agentcore.New(cfg)
+		defer agent.Close()
 		reportText, err := agent.Run(ctx, input)
 		if err != nil {
 			return state, fmt.Errorf("generate_report: %w", err)

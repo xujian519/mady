@@ -9,6 +9,10 @@ import (
 	"sync"
 )
 
+// maxFactsInPrompt limits facts serialized in the LLM prompt to prevent
+// context window overflow. With ~250 bytes per fact, 50 facts ≈ 12KB.
+const maxFactsInPrompt = 50
+
 // Planner generates a Plan (Stage ③) from facts and rules.
 //
 // Two generation paths:
@@ -55,6 +59,9 @@ func (p *Planner) GeneratePlan(ctx context.Context, bb *FactBlackboard, intent P
 	}
 
 	// Complex intent with LLM available — delegate to LLM.
+	// TODO(Phase 4): detectPlanIntent currently never returns ReAct/MultiHypothesis
+	// (see five_step_runner.go detectPlanIntent). Once updated, this branch becomes
+	// the LLM planning entry point. For now, always falls through to template/fallback.
 	if p.llm != nil && (intent == PlanIntentReAct || intent == PlanIntentMultiHypothesis) {
 		return p.llmGenerate(ctx, bb, intent)
 	}
@@ -114,12 +121,17 @@ func (p *Planner) buildLLMPrompt(bb *FactBlackboard, intent PlanIntent) string {
 	fmt.Fprintf(&sb, "技术领域: %s\n", bb.TechnicalField)
 	fmt.Fprintf(&sb, "分析意图: %s\n\n", intent)
 
-	// List active facts.
+	// List active facts (limit to top 50 by confidence to avoid context overflow).
 	facts := bb.ActiveFacts()
-	fmt.Fprintf(&sb, "已收集事实（共 %d 条）:\n", len(facts))
+	fmt.Fprintf(&sb, "已收集事实（共 %d 条，展示前 %d 条）:\n", len(facts), maxFactsInPrompt)
+	shown := 0
 	for _, f := range facts {
 		if !f.IsDiscarded() {
 			fmt.Fprintf(&sb, "- [%s] [%s] %s (置信度: %.0f%%)\n", f.ID, f.Category, truncate(f.Content, 200), f.Confidence*100)
+			shown++
+			if shown >= maxFactsInPrompt {
+				break
+			}
 		}
 	}
 	sb.WriteString("\n")
@@ -140,13 +152,13 @@ func (p *Planner) buildLLMPrompt(bb *FactBlackboard, intent PlanIntent) string {
     {
       "order": 1,
       "description": "步骤描述",
-      "strategy": "chain",          // chain | react | multi_hypothesis
+      "strategy": "chain",
       "expected_output": "预期产出描述"
     }
   ],
-  "hypotheses": [                   // 仅当 intent=multi_hypothesis 时
+  "hypotheses": [
     {
-      "id": "pro" | "con",
+      "id": "pro",
       "label": "主张方标签",
       "thesis": "核心论点"
     }
@@ -154,6 +166,8 @@ func (p *Planner) buildLLMPrompt(bb *FactBlackboard, intent PlanIntent) string {
   "llm_reasoning": "解释为什么选择这些步骤和分析策略"
 }
 `)
+	sb.WriteString("\nstrategy 可选值：chain（链式推理）、react（观察-思考-行动循环）、multi_hypothesis（正反方辩论+裁判）\n")
+	sb.WriteString("hypotheses 仅在 intent 为 multi_hypothesis 时需要提供。\n")
 	sb.WriteString("\n要求:\n")
 	sb.WriteString("1. steps 至少包含 3 个步骤：信息分析 → 深度推理 → 结论生成\n")
 	sb.WriteString("2. 对于创造性评估或无效分析，在步骤中适当使用 multi_hypothesis 策略进行正反方辩论\n")
@@ -166,17 +180,20 @@ func (p *Planner) buildLLMPrompt(bb *FactBlackboard, intent PlanIntent) string {
 }
 
 // parsePlanResponse attempts to parse an LLM response into a Plan.
-// It strips markdown code fences if present, then unmarshals JSON.
+// It locates the first '{' and last '}' in the response to extract JSON,
+// handling explanatory text before/after the JSON block.
 func (p *Planner) parsePlanResponse(resp string, bb *FactBlackboard, intent PlanIntent) (*Plan, error) {
-	// Strip markdown code fences if wrapped.
-	cleaned := strings.TrimSpace(resp)
-	cleaned = strings.TrimPrefix(cleaned, "```json")
-	cleaned = strings.TrimPrefix(cleaned, "```")
-	cleaned = strings.TrimSuffix(cleaned, "```")
-	cleaned = strings.TrimSpace(cleaned)
+	// Locate JSON object boundaries — robust against LLM wrapping output
+	// in explanatory text or markdown code fences.
+	start := strings.Index(resp, "{")
+	end := strings.LastIndex(resp, "}")
+	if start == -1 || end == -1 || end <= start {
+		return nil, fmt.Errorf("no JSON object found in response")
+	}
+	raw := resp[start : end+1]
 
 	var plan Plan
-	if err := json.Unmarshal([]byte(cleaned), &plan); err != nil {
+	if err := json.Unmarshal([]byte(raw), &plan); err != nil {
 		return nil, fmt.Errorf("unmarshal plan: %w", err)
 	}
 

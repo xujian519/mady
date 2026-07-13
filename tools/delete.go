@@ -106,15 +106,9 @@ func NewDeleteTool(cwd string, cfg *DeleteToolConfig) *agentcore.Tool {
 			// When sandbox is enabled, pin the resolved inode to detect
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
-				pinF, pinErr := os.Open(resolved)
-				if pinErr != nil {
-					return resultErrf("path not found: %s", input.Path)
-				}
-				if err := verifyOpenedInode(pinF, resolved); err != nil {
-					pinF.Close()
+				if err := pinPath(resolved); err != nil {
 					return resultErrf("%v", err)
 				}
-				pinF.Close()
 			}
 
 			// Check if protected.
