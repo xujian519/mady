@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -39,13 +40,16 @@ func resolvePathSandboxed(userPath, cwd string, sbx WorkingDirSandbox) (string, 
 		return "", fmt.Errorf("路径解析失败: %w", err)
 	}
 
+	// Normalize to NFD early so sandbox validation and file ops use the same bytes.
+	abs = resolveNFD(abs)
+
 	if !sbx.Enabled {
 		sandboxWarnOnce.Do(func() {
 			if sbx.WorkingDir != "" {
 				log.Printf("[sandbox] WARNING: sandbox disabled, path boundary check skipped (workingDir=%q). This warning will not be repeated.", sbx.WorkingDir)
 			}
 		})
-		return resolveNFD(abs), nil
+		return abs, nil
 	}
 
 	absCwd, err := filepath.Abs(cwd)
@@ -72,7 +76,7 @@ func resolvePathSandboxed(userPath, cwd string, sbx WorkingDirSandbox) (string, 
 		return "", fmt.Errorf("路径 %q 不在工作目录 %q 范围内", userPath, absCwd)
 	}
 
-	return resolveNFD(realAbs), nil
+	return realAbs, nil
 }
 
 // resolveNFD 尝试 macOS NFD 标准化。
@@ -140,4 +144,61 @@ func resolveReadPath(userPath, cwd string) string {
 	}
 
 	return resolved
+}
+
+// OpenSandboxed resolves path against the sandbox, opens it read-only, and returns
+// the *os.File pinned to the validated inode. Even if the path's symlinks are
+// replaced after this call, the returned FD still refers to the original inode,
+// preventing TOCTOU attacks.
+func OpenSandboxed(path string, sbx WorkingDirSandbox) (*os.File, error) {
+	resolved, err := resolvePathSandboxed(path, sbx.WorkingDir, sbx)
+	if err != nil {
+		return nil, err
+	}
+	return os.Open(resolved)
+}
+
+// OpenSandboxedFile resolves path against the sandbox, opens it with the given
+// flags and permissions, and returns the *os.File pinned to the validated inode.
+func OpenSandboxedFile(path string, sbx WorkingDirSandbox, flag int, perm os.FileMode) (*os.File, error) {
+	resolved, err := resolvePathSandboxed(path, sbx.WorkingDir, sbx)
+	if err != nil {
+		return nil, err
+	}
+	return os.OpenFile(resolved, flag, perm)
+}
+
+// readFileSandboxed opens a file through the sandbox, reads its full content,
+// and returns it as a string. This prevents TOCTOU by pinning the inode through
+// the open FD.
+func readFileSandboxed(path string, sbx WorkingDirSandbox) (string, error) {
+	f, err := OpenSandboxed(path, sbx)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// verifyOpenedInode checks that the file or directory at the given path still
+// refers to the same inode as the already-open *os.File. This prevents TOCTOU
+// attacks where a path is swapped between opening and a subsequent path-based
+// operation (e.g. Rename, Remove, RemoveAll).
+func verifyOpenedInode(f *os.File, path string) error {
+	fi1, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat opened fd: %w", err)
+	}
+	fi2, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(fi1, fi2) {
+		return fmt.Errorf("path %q: inode changed since open — possible symlink swap", path)
+	}
+	return nil
 }

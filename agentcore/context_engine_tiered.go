@@ -123,7 +123,7 @@ func (e *TieredEngine) Compress(ctx context.Context, msgs []Message, focusTopic 
 		newTokens := EstimateMessagesTokens(result)
 		saved := estimated - newTokens
 		if newTokens > int64(float64(e.contextLength)*e.pruneRatio) {
-			return e.forceFold(ctx, result, focusTopic, estimated)
+			return e.forceFold(ctx, result, focusTopic, newTokens)
 		}
 		e.updateSavings(saved, estimated)
 		return result, saved, nil
@@ -156,8 +156,7 @@ func (e *TieredEngine) forceFold(ctx context.Context, msgs []Message, focusTopic
 func (e *TieredEngine) snipToolResults(msgs []Message) []Message {
 	tailStart := e.findTailBoundary(msgs)
 
-	result := make([]Message, len(msgs))
-	copy(result, msgs)
+	result := deepCopyMessages(msgs)
 
 	for i := 0; i < tailStart && i < len(result); i++ {
 		if result[i].Role != RoleTool {
@@ -187,8 +186,7 @@ func (e *TieredEngine) snipToolResults(msgs []Message) []Message {
 func (e *TieredEngine) pruneToolResults(msgs []Message) []Message {
 	tailStart := e.findTailBoundary(msgs)
 
-	result := make([]Message, len(msgs))
-	copy(result, msgs)
+	result := deepCopyMessages(msgs)
 
 	for i := 0; i < tailStart && i < len(result); i++ {
 		if result[i].Role != RoleTool {
@@ -295,4 +293,20 @@ func PruneMessageContent(_ string) string {
 func (e *TieredEngine) IsToolResultProtected(msgs []Message, idx int) bool {
 	tailStart := e.findTailBoundary(msgs)
 	return idx >= tailStart
+}
+
+// deepCopyMessages creates a deep copy of a Message slice,
+// ensuring Metadata maps are independently copied.
+func deepCopyMessages(msgs []Message) []Message {
+	result := make([]Message, len(msgs))
+	for i, msg := range msgs {
+		result[i] = msg
+		if msg.Metadata != nil {
+			result[i].Metadata = make(map[string]any, len(msg.Metadata))
+			for k, v := range msg.Metadata {
+				result[i].Metadata[k] = v
+			}
+		}
+	}
+	return result
 }

@@ -91,7 +91,7 @@ func (a *Agent) Continue(ctx context.Context) (string, error) {
 // Interrupted returns the interrupt reason if the agent was interrupted,
 // or nil if it completed normally or hasn't run yet.
 func (a *Agent) Interrupted() *InterruptReason {
-	return a.interrupted
+	return a.interrupted.Load()
 }
 
 // Resume continues execution after an interrupt. The agent must have
@@ -103,7 +103,7 @@ func (a *Agent) Resume(ctx context.Context) (string, error) {
 	if ir == nil {
 		return "", fmt.Errorf("agent is not interrupted (status: %s)", a.state.Status())
 	}
-	a.interrupted = nil
+	a.interrupted.Store(nil)
 	a.state.ClearInterruptReason()
 	a.state.SetStatus(StatusRunning)
 	a.emit(&AgentStartEvent{
@@ -345,11 +345,11 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 			if err != nil {
 				if IsInterrupt(err) {
 					a.state.SetStatus(StatusInterrupted)
-					a.state.SetInterruptReason(a.interrupted)
+					a.state.SetInterruptReason(a.interrupted.Load())
 					a.emit(&AgentInterruptEvent{
 						baseEvent: newBase(EventAgentInterrupt),
 						AgentName: a.config.Name,
-						Reason:    a.interrupted,
+						Reason:    a.interrupted.Load(),
 					})
 					return "", nil
 				}
@@ -658,7 +658,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 		return earlyExit, nil
 	}
 	if interrupt != nil {
-		a.interrupted = interrupt
+		a.interrupted.Store(interrupt)
 		a.state.SetInterruptReason(interrupt)
 		if err := a.appendCheckpoint(ctx); err != nil {
 			return "", err

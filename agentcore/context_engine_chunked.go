@@ -74,29 +74,36 @@ func (e *ChunkedContextEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefi
 // unprotected conversation messages via the base engine, then reassembles
 // the message list with protected chunks in place.
 func (e *ChunkedContextEngine) Compress(ctx context.Context, msgs []Message, focusTopic string) ([]Message, int64, error) {
-	// Identify protected and unprotected messages.
 	protected, unprotected := e.splitMessages(msgs)
 
-	// If everything is protected, skip compaction entirely.
 	if len(unprotected) == 0 {
 		return msgs, 0, nil
 	}
 
-	// Compress only the unprotected conversation messages.
 	compressed, cut, err := e.compressUnprotected(ctx, unprotected, focusTopic)
 	if err != nil {
 		return msgs, 0, err
 	}
 
-	// Reassemble: protected messages first (document context),
-	// then compressed conversation.
-	result := make([]Message, 0, len(protected)+len(compressed))
-	result = append(result, protected...)
-	result = append(result, compressed...)
+	// Reconstruct in original order: walk original messages by index.
+	// If msgs[i] was protected, place the next protected chunk at position i;
+	// otherwise place the next compressed conversation message.
+	result := make([]Message, 0, len(msgs))
+	compIdx := 0
+	protectedIdx := 0
+	for i := range msgs {
+		if e.protectedIndices[i] {
+			result = append(result, protected[protectedIdx])
+			protectedIdx++
+		} else if compIdx < len(compressed) {
+			result = append(result, compressed[compIdx])
+			compIdx++
+		}
+		// If compression reduced message count, remaining slots are skipped
+		// (tool_call/tool_result pairs may be consolidated).
+	}
 
-	// Rebuild the protection index.
 	e.rebuildProtection(result)
-
 	return result, cut, nil
 }
 

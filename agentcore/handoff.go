@@ -46,10 +46,11 @@ type HandoffConfig struct {
 
 // PendingHandoff is set on state when a transfer-mode handoff tool is called.
 type PendingHandoff struct {
-	TargetName   string
-	TargetConfig Config
-	Context      string
-	Invisible    bool
+	TargetName     string
+	TargetConfig   Config
+	Context        string
+	Invisible      bool
+	AllowedSources []string
 }
 
 // registerHandoffs creates a synthetic tool for each configured handoff target.
@@ -96,10 +97,11 @@ func (a *Agent) createHandoffTool(h HandoffConfig) *Tool {
 				return a.executeDelegate(ctx, h, p.Message)
 			case HandoffTransfer:
 				a.state.SetPendingHandoff(&PendingHandoff{
-					TargetName:   h.Name,
-					TargetConfig: h.AgentConfig,
-					Context:      p.Message,
-					Invisible:    h.Invisible,
+					TargetName:     h.Name,
+					TargetConfig:   h.AgentConfig,
+					Context:        p.Message,
+					Invisible:      h.Invisible,
+					AllowedSources: h.AllowedSources,
 				})
 				return map[string]string{"status": "transferring to " + h.Name}, nil
 			default:
@@ -171,6 +173,14 @@ func (a *Agent) executeDelegate(ctx context.Context, h HandoffConfig, input stri
 // handleTransfer creates a target agent, inherits the conversation and runtime
 // state from the source agent, and transfers control.
 func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (string, error) {
+	// Belt-and-suspenders: re-check that the handoff is still allowed.
+	if !a.isHandoffAllowed(HandoffConfig{
+		Name:           handoff.TargetName,
+		AgentConfig:    handoff.TargetConfig,
+		AllowedSources: handoff.AllowedSources,
+	}) {
+		return "", fmt.Errorf("handoff to %s is not allowed (re-check)", handoff.TargetName)
+	}
 	start := time.Now()
 
 	// 构建结构化交接上下文
@@ -291,11 +301,14 @@ func isHandoffTool(name string) bool {
 	return strings.HasPrefix(name, "transfer_to_")
 }
 
-// isHandoffAllowed 校验来源 Agent 是否在目标的 AllowedSources 白名单中。
-// 如果 AllowedSources 为空或包含 "*"，则放行所有来源。
+// isHandoffAllowed checks whether the source agent is in the target's
+// AllowedSources whitelist.
+// - Empty AllowedSources → DENY (default-deny; no "*" means locked down).
+// - "*" in AllowedSources → allow any source.
+// - Otherwise, allow if a.config.Name matches an entry.
 func (a *Agent) isHandoffAllowed(h HandoffConfig) bool {
 	if len(h.AllowedSources) == 0 {
-		return true
+		return false
 	}
 	for _, src := range h.AllowedSources {
 		if src == "*" || src == a.config.Name {

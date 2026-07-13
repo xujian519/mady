@@ -2,6 +2,7 @@ package agentcore
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -139,14 +140,14 @@ func appendLifecycleHook(existing, next LifecycleHook) LifecycleHook {
 func (r *ExtensionRegistry) Dispose() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	var firstErr error
+	var errs []error
 	for i := len(r.extensions) - 1; i >= 0; i-- {
-		if err := r.extensions[i].Dispose(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := r.extensions[i].Dispose(); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	r.extensions = nil
-	return firstErr
+	return errors.Join(errs...)
 }
 
 // Names returns the names of all registered extensions.

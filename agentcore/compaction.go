@@ -214,14 +214,23 @@ func pruneOldToolResults(msgs []Message, protectTailCount int) ([]Message, int) 
 			seenToolResults[toolName] = append(seenToolResults[toolName], i)
 
 			if len(result[i].Content) > 2000 {
-				result[i].Content = result[i].Content[:2000] + "...[truncated]"
+				// Truncate to rune-safe boundary (not byte boundary).
+				contentRunes := []rune(result[i].Content)
+				if len(contentRunes) > 2000 {
+					contentRunes = contentRunes[:2000]
+				}
+				result[i].Content = string(contentRunes) + "...[truncated]"
 			}
 		}
 
 		if result[i].Role == RoleAssistant && len(result[i].ToolCalls) > 0 {
 			for j := range result[i].ToolCalls {
 				if len(result[i].ToolCalls[j].Arguments) > 1000 {
-					result[i].ToolCalls[j].Arguments = result[i].ToolCalls[j].Arguments[:1000] + "...[truncated]"
+					argsRunes := []rune(result[i].ToolCalls[j].Arguments)
+					if len(argsRunes) > 1000 {
+						argsRunes = argsRunes[:1000]
+					}
+					result[i].ToolCalls[j].Arguments = string(argsRunes) + "...[truncated]"
 				}
 			}
 		}

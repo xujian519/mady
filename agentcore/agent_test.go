@@ -126,6 +126,7 @@ func TestTransfer_InheritsParentToolsAndExtensions(t *testing.T) {
 						MaxTurns: 3,
 					},
 				},
+				AllowedSources: []string{"parent"},
 			},
 		},
 		ExecutionConfig: ExecutionConfig{

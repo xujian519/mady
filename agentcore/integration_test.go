@@ -71,6 +71,7 @@ func TestCancelDuringHandoff(t *testing.T) {
 					},
 					Tools: []*Tool{slowTool(childDone)},
 				},
+				AllowedSources: []string{"parent"},
 			},
 		},
 	})
@@ -238,10 +239,11 @@ func TestHandoffTransferThenFinish(t *testing.T) {
 		},
 		Handoffs: []HandoffConfig{
 			{
-				Name:        "child",
-				Description: "child agent",
-				Mode:        HandoffTransfer,
-				AgentConfig: childCfg,
+				Name:           "child",
+				Description:    "child agent",
+				Mode:           HandoffTransfer,
+				AgentConfig:    childCfg,
+				AllowedSources: []string{"parent"},
 			},
 		},
 	})

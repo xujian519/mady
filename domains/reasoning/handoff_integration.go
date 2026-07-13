@@ -89,7 +89,7 @@ func AsWorkflowTool(runner *FiveStepRunner) *agentcore.Tool {
 // consistency) and Level 3 (evidentiary sufficiency) validation. Without it,
 // only Level 1 (reference existence) checking is performed.
 func NewWorkflowRunner(caseID string, caseType CaseType, techField string, retriever *MultiSourceRetriever, llm LlmClient) *FiveStepRunner {
-	planner := NewPlanner(nil)
+	planner := NewPlanner(llm)
 	for _, v := range DefaultManifests() {
 		v := v
 		plan := v.Stage4.ToPlan(v.CaseType)

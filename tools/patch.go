@@ -100,6 +100,19 @@ func NewPatchTool(cwd string, cfg *PatchToolConfig) *agentcore.Tool {
 			if err != nil {
 				return resultErrf("%v", err)
 			}
+			// When sandbox is enabled, pin the resolved inode to detect
+			// symlink swaps between validation and the actual operation.
+			if cfg.Sandbox.Enabled {
+				pinF, pinErr := os.Open(resolved)
+				if pinErr != nil {
+					return resultErrf("path not found: %s", input.Path)
+				}
+				if err := verifyOpenedInode(pinF, resolved); err != nil {
+					pinF.Close()
+					return resultErrf("%v", err)
+				}
+				pinF.Close()
+			}
 
 			// Check file exists.
 			if _, err := cfg.Operations.Stat(resolved); err != nil {

@@ -15,6 +15,7 @@ package patent
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -92,6 +93,9 @@ func (c *Checker) SetMergePolicy(policy MergePolicy) {
 // Check runs the dual-track check. The rule track always runs; the LLM track
 // runs only when shouldTriggerLlm returns true.
 func (c *Checker) Check(ctx context.Context, input CheckerInput) (*CheckerResult, error) {
+	if c.ruleEngine == nil {
+		return nil, fmt.Errorf("checker: ruleEngine is nil — cannot evaluate")
+	}
 	rules := c.ruleEngine.Rules()
 	ruleResults := c.ruleEngine.Evaluate(rules, input.Text, input.Domain)
 	ruleVerdict := Aggregate(ruleResults)

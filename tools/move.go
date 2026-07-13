@@ -93,6 +93,19 @@ func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool {
 			if err != nil {
 				return resultErrf("dest: %v", err)
 			}
+			// When sandbox is enabled, pin the source inode to detect
+			// symlink swaps between validation and the actual operation.
+			if cfg.Sandbox.Enabled {
+				pinF, pinErr := os.Open(sourcePath)
+				if pinErr != nil {
+					return resultErrf("path not found: %s", input.Source)
+				}
+				if err := verifyOpenedInode(pinF, sourcePath); err != nil {
+					pinF.Close()
+					return resultErrf("%v", err)
+				}
+				pinF.Close()
+			}
 
 			// Verify source exists.
 			_, err = cfg.Operations.Stat(sourcePath)

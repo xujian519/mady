@@ -450,6 +450,9 @@ func debugStack() string {
 func (eb *EventBus) On(t EventType, h EventHandler) func() {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
+	if eb.closed {
+		return nil
+	}
 	id := eb.nextID.Add(1)
 	if eb.handlers[t] == nil {
 		eb.handlers[t] = make(map[uint64]EventHandler)
@@ -463,6 +466,9 @@ func (eb *EventBus) On(t EventType, h EventHandler) func() {
 func (eb *EventBus) OnAll(h EventHandler) func() {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
+	if eb.closed {
+		return nil
+	}
 	id := eb.nextID.Add(1)
 	eb.global[id] = h
 	return func() { eb.offAllID(id) }
@@ -533,7 +539,7 @@ func (eb *EventBus) Drain() {
 			return
 		default:
 			eb.mu.Unlock()
-			runtime.Gosched()
+			time.Sleep(time.Millisecond)
 		}
 	}
 }

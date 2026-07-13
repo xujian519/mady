@@ -32,8 +32,10 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/reasoning"
+	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/fileindex"
+	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/knowledge/loader"
 	"github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/pkg/agentconfig"
@@ -232,6 +234,9 @@ type frameworkContext struct {
 	WorkspaceDir string
 	// ManifestDir 是外部 manifest 覆盖目录（~/.mady/manifests 或 $MANIFEST_DIR），可为 ""。
 	ManifestDir string
+	// KnowledgeGraph 是实体-关系知识图谱，用于多跳推理遍历。
+	// 启动时为空，由 wiki 导入或其他数据管线填充。
+	KnowledgeGraph *kgwgraph.GraphStore
 }
 
 // setupFrameworkContext 执行三个入口共享的初始化逻辑：
@@ -348,7 +353,21 @@ func setupFrameworkContext() *frameworkContext {
 		fc.BaseConfig.ProjectDir = cwd
 	}
 
+	// 初始化知识图谱（空存储，由 wiki import 或数据管线填充）。
+	fc.KnowledgeGraph = kgwgraph.NewGraphStore()
+
 	return fc
+}
+
+// buildReasoningRetriever 从框架上下文中构造 MultiSourceRetriever。
+// 当知识图谱可用时创建完整适配链，否则返回 nil（Stage ② 跳过）。
+func buildReasoningRetriever(fc *frameworkContext) *reasoning.MultiSourceRetriever {
+	if fc.KnowledgeGraph == nil {
+		return nil
+	}
+	adapter := kgwgraph.NewReasoningStoreAdapter(fc.KnowledgeGraph)
+	walker := reasoning.NewReasoningWalker(adapter, nil)
+	return reasoning.NewMultiSourceRetriever(walker, nil, nil)
 }
 
 // buildRouterConfig 根据可用的 Manifest 构建 Router Agent 配置。
@@ -425,6 +444,15 @@ func runTui(ctx context.Context) {
 
 	if err := theme.InitThemeFromEnv(); err != nil {
 		log.Printf("theme init: %v", err)
+	}
+
+	// 加载规则引擎（专利法律规则 / OA 解析 / 反套话）。
+	// 目录不存在时静默失败，不阻塞启动。
+	ruleEngine, _ := rules.LoadEngineFromMadyHome()
+	var ruleExt agentcore.Extension
+	if ruleEngine != nil {
+		ruleExt = rules.NewExtension(ruleEngine)
+		log.Printf("rules: 已加载规则引擎（%d 条规则）", len(ruleEngine.AllRules()))
 	}
 
 	provider := agentconfig.BuildProvider()
@@ -506,12 +534,18 @@ func runTui(ctx context.Context) {
 				cfg.ProjectDir = currentProject.RootPath
 				cfg.SystemPrompt += formatProjectContext(currentProject, currentProjectMeta)
 				// 注入五阶段法律推理工具，让 Agent 能调用深度可验证推理。
+				// 从框架上下文中构建检索器和 LLM 客户端。
+				retriever := buildReasoningRetriever(fc)
+				var llmClient reasoning.LlmClient
+				if provider != nil {
+					llmClient = reasoning.NewLlmClientFromProvider(provider, model)
+				}
 				runner := reasoning.NewWorkflowRunner(
 					currentProject.ProjectID,
 					mapMatterTypeToCaseType(currentProjectMeta),
 					currentProject.Domain,
-					nil, // retriever: MVP 不接入知识库检索
-					nil, // llm: MVP 只用 L1 校验（引用存在性）
+					retriever,
+					llmClient,
 				)
 				cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowTool(runner))
 			}
@@ -548,6 +582,9 @@ func runTui(ctx context.Context) {
 			if fc.KnowledgeExt != nil {
 				cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
 			}
+			if ruleExt != nil {
+				cfg.Extensions = append(cfg.Extensions, ruleExt)
+			}
 			cfg.Extensions = append(cfg.Extensions, fileIndexExt)
 			return applyPersistence(cfg)
 
@@ -568,6 +605,9 @@ func runTui(ctx context.Context) {
 			}
 			if fc.KnowledgeExt != nil {
 				cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
+			}
+			if ruleExt != nil {
+				cfg.Extensions = append(cfg.Extensions, ruleExt)
 			}
 			return applyPersistence(cfg)
 
@@ -612,6 +652,9 @@ func runTui(ctx context.Context) {
 			}
 			if fc.KnowledgeExt != nil {
 				singleCfg.Extensions = append(singleCfg.Extensions, fc.KnowledgeExt)
+			}
+			if ruleExt != nil {
+				singleCfg.Extensions = append(singleCfg.Extensions, ruleExt)
 			}
 			return applyPersistence(singleCfg)
 		}

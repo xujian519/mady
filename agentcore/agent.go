@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
+	"sync/atomic"
 )
 
 const defaultMaxTurns = 20
@@ -109,7 +110,7 @@ type Agent struct {
 	extensions    *ExtensionRegistry
 	contextEngine ContextEngine
 	engineReg     *EngineRegistry
-	interrupted   *InterruptReason
+	interrupted   atomic.Pointer[InterruptReason]
 }
 
 func New(cfg Config) *Agent {

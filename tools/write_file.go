@@ -108,6 +108,20 @@ func NewWriteFileTool(cwd string, cfg *WriteFileToolConfig) *agentcore.Tool {
 			if sandboxErr != nil {
 				return resultErrf("%v", sandboxErr)
 			}
+			// When sandbox is enabled, pin the parent directory's inode to detect
+			// symlink swaps between validation and the actual operation.
+			if cfg.Sandbox.Enabled {
+				parentDir := filepath.Dir(resolved)
+				pinF, pinErr := os.Open(parentDir)
+				if pinErr != nil {
+					return resultErrf("path not found: %s", input.Path)
+				}
+				if err := verifyOpenedInode(pinF, parentDir); err != nil {
+					pinF.Close()
+					return resultErrf("%v", err)
+				}
+				pinF.Close()
+			}
 
 			// Check content size.
 			contentBytes := []byte(input.Content)

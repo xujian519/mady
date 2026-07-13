@@ -2,8 +2,10 @@ package reasoning
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 )
 
@@ -73,11 +75,126 @@ func (p *Planner) lookupTemplate(caseType CaseType, intent PlanIntent) *Plan {
 	return &cp
 }
 
-// llmGenerate delegates Plan generation to the LLM (Phase 2: not yet wired to a real provider).
-// Until the LLM path is implemented, it returns a deterministic fallback plan with logging.
-func (p *Planner) llmGenerate(_ context.Context, bb *FactBlackboard, intent PlanIntent) (*Plan, error) {
-	log.Printf("[planner] LLM plan generation not yet implemented, using fallback plan for case=%s intent=%s", bb.CaseID, intent)
-	return p.buildFallbackPlan(bb, intent), nil
+// llmGenerate calls the LLM to generate a Plan from the blackboard state.
+// The LLM is instructed to produce a structured JSON plan with steps,
+// hypotheses when applicable, and reasoning trace. On any error (LLM failure,
+// JSON parse failure), it falls back to buildFallbackPlan.
+func (p *Planner) llmGenerate(ctx context.Context, bb *FactBlackboard, intent PlanIntent) (*Plan, error) {
+	if p.llm == nil {
+		log.Printf("[planner] LLM client is nil, using fallback plan for case=%s intent=%s", bb.CaseID, intent)
+		return p.buildFallbackPlan(bb, intent), nil
+	}
+
+	prompt := p.buildLLMPrompt(bb, intent)
+	resp, err := p.llm.Chat(ctx, []LlmMessage{{Role: "user", Content: prompt}})
+	if err != nil {
+		log.Printf("[planner] LLM call failed: %v — using fallback plan", err)
+		return p.buildFallbackPlan(bb, intent), nil
+	}
+
+	plan, err := p.parsePlanResponse(resp, bb, intent)
+	if err != nil {
+		log.Printf("[planner] LLM response parse failed: %v — using fallback plan", err)
+		return p.buildFallbackPlan(bb, intent), nil
+	}
+
+	plan.UsedFacts = factIDs(bb.ActiveFacts())
+	plan.UsedRules = ruleIDsFromConstraints(bb.RuleConstraints())
+	bb.SetPlanV2(*plan)
+	return plan, nil
+}
+
+// buildLLMPrompt constructs the LLM prompt for plan generation.
+func (p *Planner) buildLLMPrompt(bb *FactBlackboard, intent PlanIntent) string {
+	var sb strings.Builder
+	sb.WriteString("你是一名资深专利分析专家。请根据以下案件信息和分析意图，生成一个结构化的执行计划。\n\n")
+
+	fmt.Fprintf(&sb, "案件类型: %s\n", bb.CaseType)
+	fmt.Fprintf(&sb, "案件ID: %s\n", bb.CaseID)
+	fmt.Fprintf(&sb, "技术领域: %s\n", bb.TechnicalField)
+	fmt.Fprintf(&sb, "分析意图: %s\n\n", intent)
+
+	// List active facts.
+	facts := bb.ActiveFacts()
+	fmt.Fprintf(&sb, "已收集事实（共 %d 条）:\n", len(facts))
+	for _, f := range facts {
+		if !f.IsDiscarded() {
+			fmt.Fprintf(&sb, "- [%s] [%s] %s (置信度: %.0f%%)\n", f.ID, f.Category, truncate(f.Content, 200), f.Confidence*100)
+		}
+	}
+	sb.WriteString("\n")
+
+	// List rule constraints.
+	constraints := bb.RuleConstraints()
+	fmt.Fprintf(&sb, "适用规则（共 %d 条）:\n", len(constraints))
+	for _, r := range constraints {
+		fmt.Fprintf(&sb, "- [%s] [%s] %s\n", r.ArticleID, r.Requirement, r.Description)
+	}
+	sb.WriteString("\n")
+
+	// Instruction for plan generation.
+	sb.WriteString("请生成一个执行计划，格式为 JSON，结构如下：\n")
+	sb.WriteString(`{
+  "plan_id": "plan_<case_id>_<intent>_<timestamp>",
+  "steps": [
+    {
+      "order": 1,
+      "description": "步骤描述",
+      "strategy": "chain",          // chain | react | multi_hypothesis
+      "expected_output": "预期产出描述"
+    }
+  ],
+  "hypotheses": [                   // 仅当 intent=multi_hypothesis 时
+    {
+      "id": "pro" | "con",
+      "label": "主张方标签",
+      "thesis": "核心论点"
+    }
+  ],
+  "llm_reasoning": "解释为什么选择这些步骤和分析策略"
+}
+`)
+	sb.WriteString("\n要求:\n")
+	sb.WriteString("1. steps 至少包含 3 个步骤：信息分析 → 深度推理 → 结论生成\n")
+	sb.WriteString("2. 对于创造性评估或无效分析，在步骤中适当使用 multi_hypothesis 策略进行正反方辩论\n")
+	sb.WriteString("3. strategy 可选值：chain（链式推理）, react（观察-思考-行动循环）, multi_hypothesis（正反方辩论+裁判）\n")
+	sb.WriteString("4. hypotheses 仅在意图为 multi_hypothesis 时需要提供\n")
+	sb.WriteString("5. 只返回 JSON，不要用 markdown 代码块包裹\n")
+	sb.WriteString("6. llm_reasoning 用中文简要说明你的规划思路\n")
+
+	return sb.String()
+}
+
+// parsePlanResponse attempts to parse an LLM response into a Plan.
+// It strips markdown code fences if present, then unmarshals JSON.
+func (p *Planner) parsePlanResponse(resp string, bb *FactBlackboard, intent PlanIntent) (*Plan, error) {
+	// Strip markdown code fences if wrapped.
+	cleaned := strings.TrimSpace(resp)
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
+
+	var plan Plan
+	if err := json.Unmarshal([]byte(cleaned), &plan); err != nil {
+		return nil, fmt.Errorf("unmarshal plan: %w", err)
+	}
+
+	// Fill in required fields.
+	plan.CaseType = bb.CaseType
+	plan.Intent = intent
+	if plan.PlanID == "" {
+		plan.PlanID = fmt.Sprintf("plan_%s_%s", bb.CaseID, intent)
+	}
+	if len(plan.Steps) == 0 {
+		return nil, fmt.Errorf("plan has no steps")
+	}
+	for i := range plan.Steps {
+		if plan.Steps[i].Order == 0 {
+			plan.Steps[i].Order = i + 1
+		}
+	}
+	return &plan, nil
 }
 
 // buildFallbackPlan creates a minimal single-step chain Plan.

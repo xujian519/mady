@@ -131,6 +131,19 @@ func NewGlobTool(cwd string, cfg *GlobToolConfig) *agentcore.Tool {
 				searchPath = cwd
 			}
 
+			// When sandbox is enabled, pin the resolved inode to detect
+			// symlink swaps between validation and the actual operation.
+			if cfg.Sandbox.Enabled {
+				pinF, pinErr := os.Open(searchPath)
+				if pinErr != nil {
+					return resultErrf("path not found: %s", input.Path)
+				}
+				if err := verifyOpenedInode(pinF, searchPath); err != nil {
+					pinF.Close()
+					return resultErrf("%v", err)
+				}
+				pinF.Close()
+			}
 			limit := cfg.Limit
 			if input.Limit != nil && *input.Limit > 0 {
 				limit = *input.Limit

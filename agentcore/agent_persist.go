@@ -112,7 +112,7 @@ func (a *Agent) RestoreLatestCheckpoint(ctx context.Context, threadID string) er
 		return err
 	}
 	a.state.Restore(snap)
-	a.interrupted = a.state.GetInterruptReason()
+	a.interrupted.Store(a.state.GetInterruptReason())
 	return nil
 }
 

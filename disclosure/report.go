@@ -70,20 +70,162 @@ func collectKeywordsFromExtraction(ext *ExtractionResult) []string {
 }
 
 // =============================================================================
-// check_novelty — 新颖性初判（Phase 1 stub）
+// check_novelty — 新颖性初判（基于技术特征分类与关键词匹配）
 // =============================================================================
 
-// noveltyStubNode 返回新颖性初判的 Pregel 节点（Phase 1 stub）。
-// Phase 2 将替换为 retrieval 模块集成 + domains/reasoning 推理引擎。
+// noveltyStubNode 返回新颖性初判的 Pregel 节点。
+// 基于已提取的技术特征、问题、效果进行结构化预评估。
+// Phase 2 将增强为 retrieval 模块集成 + domains/reasoning 推理引擎。
 func noveltyStubNode() graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-		result := &NoveltyResult{
-			Assessed:   false,
-			Conclusion: "未评估",
-			Notes:      "新颖性初判功能尚未启用。请参照检索关键词自行在专利数据库中检索评估。",
-		}
+		result := assessNoveltyFromState(state)
 		state[StateKeyNovelty] = result
 		return state, nil
+	}
+}
+
+// assessNoveltyFromState 基于 PregelState 中的提取结果和关键词进行新颖性预评估。
+func assessNoveltyFromState(state graph.PregelState) *NoveltyResult {
+	// Collect available data.
+	var features []TechFeature
+	var problems []string
+	var effects []string
+	var keywords []string
+
+	if raw, ok := state[StateKeyExtraction]; ok {
+		if ext, ok := raw.(*ExtractionResult); ok && ext != nil {
+			features = ext.Features
+			problems = ext.Problems
+			effects = ext.Effects
+		}
+	}
+	if raw, ok := state[StateKeySearchKeywords]; ok {
+		if kw, ok := raw.([]string); ok {
+			keywords = kw
+		}
+	}
+
+	// Build assessment.
+	var b strings.Builder
+	b.WriteString("## 新颖性预评估（自动分析）\n\n")
+
+	// Analyze features by category.
+	catCount := make(map[TechFeatureCategory]int)
+	highImportance := 0
+	for _, f := range features {
+		catCount[f.Category]++
+		if f.Importance == "high" {
+			highImportance++
+		}
+	}
+
+	if len(features) == 0 {
+		b.WriteString("未提取到可分析的技术特征。\n")
+		b.WriteString("建议：确认技术交底书内容完整性，或手动补充技术特征描述。\n")
+		return &NoveltyResult{
+			Assessed:   true,
+			Conclusion: "特征不足，无法评估",
+			Notes:      b.String(),
+		}
+	}
+
+	fmt.Fprintf(&b, "共识别 **%d** 个技术特征（其中重要特征 **%d** 个）：\n\n", len(features), highImportance)
+	for cat, count := range catCount {
+		label := string(cat)
+		switch cat {
+		case CatStructure:
+			label = "结构特征"
+		case CatMethod:
+			label = "方法/工艺特征"
+		case CatParameter:
+			label = "参数特征"
+		case CatMaterial:
+			label = "材料特征"
+		}
+		fmt.Fprintf(&b, "- %s：%d 项\n", label, count)
+	}
+	b.WriteString("\n")
+
+	// Feature-level breakdown.
+	if highImportance > 0 {
+		b.WriteString("**重要特征详情：**\n\n")
+		for _, f := range features {
+			if f.Importance != "high" {
+				continue
+			}
+			fmt.Fprintf(&b, "- %s（[%s] %s）", f.Description, f.Category, f.Function)
+			switch f.PriorArtStatus {
+			case "known":
+				b.WriteString(" — 可能为现有技术")
+			case "unknown":
+				b.WriteString(" — 需重点检索确认新颖性")
+			case "partial":
+				b.WriteString(" — 部分已知，需进一步对比")
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	// Problem-Effect chain analysis.
+	if len(problems) > 0 {
+		b.WriteString("**要解决的技术问题：**\n")
+		for _, p := range problems {
+			fmt.Fprintf(&b, "- %s\n", p)
+		}
+		b.WriteString("\n")
+	}
+	if len(effects) > 0 {
+		b.WriteString("**达到的技术效果：**\n")
+		for _, e := range effects {
+			fmt.Fprintf(&b, "- %s\n", e)
+		}
+		b.WriteString("\n")
+	}
+
+	// Search keyword guidance.
+	if len(keywords) > 0 {
+		b.WriteString("**检索关键词建议：**\n")
+		b.WriteString(strings.Join(keywords, "、"))
+		b.WriteString("\n\n")
+	}
+
+	// Overall assessment.
+	overall := len(features)
+	b.WriteString("**初步判断：**\n")
+	if overall == 0 {
+		b.WriteString("无法进行新颖性评估，缺少技术特征数据。\n")
+	} else if highImportance > 0 {
+		b.WriteString(fmt.Sprintf(
+			"交底书包含 %d 个重要技术特征，建议针对以下方面进行详细新颖性检索：\n", highImportance))
+		for _, f := range features {
+			if f.Importance == "high" {
+				fmt.Fprintf(&b, "- %s\n", f.Description)
+			}
+		}
+	} else {
+		b.WriteString("技术特征重要度均为中低，建议结合领域常规手段进行检索。\n")
+	}
+
+	b.WriteString("\n**注意：** 本评估为自动预分析，不构成正式新颖性判断。")
+	b.WriteString("正式评估需要结合对比文件进行逐一比对。")
+
+	// Determine conclusion.
+	conclusion := "需人工评估"
+	if overall == 0 {
+		conclusion = "特征不足"
+	} else if highImportance >= 3 {
+		conclusion = "待详细检索（重要特征较多）"
+	} else if highImportance > 0 {
+		conclusion = "需针对性检索"
+	} else {
+		conclusion = "可常规评估"
+	}
+
+	return &NoveltyResult{
+		Assessed:   true,
+		Conclusion: conclusion,
+		Notes:      b.String(),
 	}
 }
 

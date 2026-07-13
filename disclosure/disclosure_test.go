@@ -314,11 +314,14 @@ func TestNoveltyStubNode(t *testing.T) {
 	if !ok {
 		t.Fatal("expected *NoveltyResult in state")
 	}
-	if nr.Assessed {
-		t.Error("stub should not be assessed")
+	if !nr.Assessed {
+		t.Error("expected novelty to be assessed (even with empty state)")
 	}
-	if nr.Conclusion != "未评估" {
-		t.Errorf("unexpected conclusion: %s", nr.Conclusion)
+	if nr.Notes == "" {
+		t.Error("expected non-empty novelty notes")
+	}
+	if nr.Conclusion == "" {
+		t.Error("expected non-empty novelty conclusion")
 	}
 }
 
