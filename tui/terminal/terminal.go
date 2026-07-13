@@ -10,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // ---------------------------------------------------------------------------
@@ -156,6 +158,14 @@ func (t *ProcessTerminal) Start(onInput func(data []byte), onResize func()) erro
 	if err := setTermios(t.in.Fd(), &raw); err != nil {
 		t.mu.Unlock()
 		return fmt.Errorf("tui: set termios: %w", err)
+	}
+	// Ensure the fd is in blocking mode so the read loop can use the
+	// termios VTIME timeout and avoid a busy-spin on EAGAIN.  The Go
+	// runtime may open os.Stdin in non-blocking mode; restore blocking
+	// before the read loop starts so stdin reads behave like a normal tty.
+	if err := unix.SetNonblock(int(t.in.Fd()), false); err != nil {
+		t.mu.Unlock()
+		return fmt.Errorf("tui: set stdin blocking: %w", err)
 	}
 	t.savedState = &saved
 	t.savedValid = true

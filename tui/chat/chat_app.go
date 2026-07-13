@@ -470,6 +470,7 @@ func (a *ChatApp) onEditorSubmit(value string) {
 	// ChatApp.model, so holding ChatApp.mu here is unnecessary and would
 	// serialize with the event loop for no benefit.
 	a.PrintUser(trimmed)
+	a.host.RequestRender()
 	a.editor.PushInputHistory(trimmed)
 	a.editor.SetValue("")
 	if onSubmit != nil {

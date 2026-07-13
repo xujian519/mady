@@ -3,6 +3,7 @@ package benchmark
 import (
 	"context"
 
+	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/evaluate"
 )
 
@@ -23,11 +24,31 @@ func DefaultEvaluator() *evaluate.Evaluator {
 	)
 }
 
+// LiveEvaluator returns an Evaluator suited for live LLM evaluation of
+// long-form, subjective patent exam answers. It replaces the brittle
+// token-overlap metrics with an LLM rubric judge, while keeping
+// CitationCompleteness for required citations. The default pass threshold is
+// the package default (0.7); callers can use .WithThreshold() to adjust for
+// live evaluation.
+func LiveEvaluator(judge agentcore.Provider, model string) *evaluate.Evaluator {
+	return evaluate.NewEvaluator(
+		evaluate.CitationCompleteness{},
+		evaluate.LLMJudge{Judge: judge, Model: model},
+	)
+}
+
 // AllCases returns every registered benchmark case across all domains.
 // New datasets should append their cases here.
 func AllCases() []evaluate.TestCase {
+
 	var cases []evaluate.TestCase
 	cases = append(cases, PatentExamCases...)
+	cases = append(cases, PatentExamRealA2Cases...)
+	cases = append(cases, PatentExamRealA22Cases...)
+	cases = append(cases, PatentExamRealA26Cases...)
+	cases = append(cases, PatentExamRealA31Cases...)
+	cases = append(cases, PatentExamRealA33Cases...)
+	cases = append(cases, PatentExamRealR42Cases...)
 	return cases
 }
 

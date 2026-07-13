@@ -12,6 +12,83 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-13: 修复 TUI Escape/Ctrl+C 退出机制
+
+- **变更**:
+  1. 在 `tui/chat/chat_app.go` 的 `chatLayout.Update` 中为 Escape 键增加退出逻辑：自动补全未激活时按下 Escape → 退出
+  2. 在 `chatLayout.Update` 的 Ctrl+C 处理中增加退出分支：无选中文本且 Agent 未运行时按下 Ctrl+C → 退出
+  3. 保留原有行为：有选中文本时 Ctrl+C/Cmd+C 仍优先复制；Agent 运行时 Ctrl+C 仍优先中断
+- **原因**: 用户在上次修复后仍反馈 TUI 无法输入、Ctrl+C 无法退出。深入分析发现：原始终端模式下 ISIG 被清除，Ctrl+C 以 0x03 到达而非 SIGINT；`chatLayout.Update` 的 Ctrl+C 处理仅包含复制和中断分支，没有退出分支；Escape 键在自动补全未激活时被完全忽略；Editor.OnCancel 虽注册了退出回调但从未在任何代码路径被触发
+- **影响范围**: `tui/chat/chat_app.go`
+- **风险等级**: 中（TUI 退出行为变更，直接影响用户交互流程）
+- **审查要求**: L1
+- **验证**: `make all` ✅ | `go test -race ./tui/...` ✅ | 已重新编译并安装到 `/usr/local/bin/mady`
+
+## 2026-07-13: 引入 LLM Rubric Judge 与语义相似度指标，替换纯 token 重叠评估
+
+- **变更**:
+  1. 新增 `agentcore/evaluate/llm_judge.go`，实现 `LLMJudge` 和 `SemanticSimilarity` 两种指标：
+     - `LLMJudge` 使用 LLM 按 rubric 三个维度（conclusion / reasoning / citation）打分，输出结构化 JSON 并取平均，避免纯 token 重叠对长篇主观实务题的严苛误判
+     - `SemanticSimilarity` 使用 LLM 判断预测答案与参考答案在语义上是否等价，忽略表达方式和篇幅差异
+  2. 新增 `agentcore/evaluate/llm_judge_test.go`，覆盖 JSON rubric、markdown 代码块、百分比、分数等解析场景
+  3. 更新 `agentcore/evaluate/benchmark/suite.go`，新增 `LiveEvaluator(judge, model)` 函数，使用 `CitationCompleteness` + `LLMJudge` 作为 live evaluation 的默认指标组合；保留 `DefaultEvaluator()` 用于静态 GoldenPerfect CI 门控
+  5. 修复 review 反馈：修正 `truncateForJudge` 头部按字节截断导致中文文本 UTF-8 损坏的 bug；更新 `MaxTokens` 注释与默认值一致；用 `rand.New(rand.NewSource(seed))` 替换已弃用的 `rand.Seed`；`gofmt` 格式化
+- **原因**: 用户要求将纯 token 重叠指标（F1 / KeywordRecall / JudgeConsistency）改为基于 LLM 评判的 rubric 评分或语义相似度指标；原指标在长篇主观实务题上严重失真（F1 precision 低、KeywordRecall 受措辞差异影响、JudgeConsistency 二值门控过严），而 LLM 能从法律结论、推理过程和法条引用维度更准确地评估答案质量
+- **影响范围**: `agentcore/evaluate/llm_judge.go`（新）、`agentcore/evaluate/llm_judge_test.go`（新）、`agentcore/evaluate/benchmark/suite.go`、`agentcore/evaluate/benchmark/live_deepseek_test.go`
+- **风险等级**: 低（新增指标和 evaluator 可选使用；不影响 GoldenPerfect CI 门控；live test 仍受 `MADY_LIVE_EVAL=1` 控制）
+- **审查要求**: L1
+- **验证**: `make all` ✅ | `go test -race ./agentcore/evaluate/...` ✅ | `MADY_LIVE_EVAL=1 go test -v -timeout 30m -run TestLiveDeepSeekEval ./agentcore/evaluate/benchmark/...` ✅（随机 3 题，DeepSeek 2/3 通过，LLM judge 聚合平均 0.533，citation_completeness 1.000）
+
+
+
+## 2026-07-13: 引入 DeepSeek 真实模型评估测试
+
+- **变更**:
+  1. 新增 `agentcore/evaluate/benchmark/live_deepseek_test.go`，在 `DEEPSEEK_API_KEY` 环境变量存在时，可随机抽取 3 道真实专利考试真题调用 DeepSeek API 进行 live evaluation
+  2. 系统提示词采用项目五步工作法（① 收集事实 → ② 检索规则 → ③ 制定计划 → ④ 执行推理 → ⑤ 校验结论），引导模型按结构化流程作答
+  3. 新增 `PatentExamRealCases()` 辅助函数，聚合全部 31 道按法条归类的真实专利考试真题 case
+  4. 支持 `/tmp/mady_deepseek_eval.json` 缓存，中断后可重新运行继续完成剩余 case
+- **原因**: 用户要求用真实模型和本项目五步工作法验证黄金测试集；静态 `TestEvalSuite_GoldenPerfect` 只能验证 metrics 链和门控逻辑，live evaluation 才能检验真实 LLM 在长篇专利实务题上的表现
+- **影响范围**: `agentcore/evaluate/benchmark/live_deepseek_test.go`（新）
+- **风险等级**: 低（仅在显式运行 `-run TestLiveDeepSeekEval` 且 API key 存在时执行；正常 CI 中自动跳过，不影响现有门禁）
+- **审查要求**: L1
+- **验证**: `go test -v -timeout 30m -run TestLiveDeepSeekEval ./agentcore/evaluate/benchmark/...` ✅（随机 3 题，DeepSeek-V3 0/3 通过当前严格门控，平均得分 0.091 / 0.351 / 0.335，F1 与 keyword_recall 仍偏低，说明严格 token 重叠指标对长篇主观实务题非常严苛）
+
+## 2026-07-13: 黄金测试集扩展 — 2007-2019 年专代实务真题按专利法条款归类
+
+- **变更**:
+  1. 借鉴 XiaoNuo Agent 项目已整理的 31 个 2007-2019 年专利代理人资格考试《专利代理实务》真题 case，将其转化为 Mady `evaluate.TestCase` 格式，按专利法/实施细则核心条款归类为 6 组：
+     - `PatentExamRealA2Cases`：专利法第二条（保护客体）相关 3 case（2012、2018、含实用新型保护客体的题目）
+     - `PatentExamRealA22Cases`：专利法第二十二条（新颖性/创造性/实用性）相关 15 case
+     - `PatentExamRealA26Cases`：专利法第二十六条（充分公开/支持/清楚）相关 3 case
+     - `PatentExamRealA31Cases`：专利法第三十一条（单一性/合案/分案）相关 8 case
+     - `PatentExamRealA33Cases`：专利法第三十三条（修改不得超范围）相关 1 case
+     - `PatentExamRealR42Cases`：专利法实施细则第四十二条（分案申请程序）相关 1 case
+  2. 新增 `agentcore/evaluate/benchmark/patent_exam_real_a2.go`、`a22.go`、`a26.go`、`a31.go`、`a33.go`、`r42.go` 6 个文件，ID 统一为 `patent_exam_<年份>_<条款>_<序号>`，便于按法条筛选和统计
+  3. 删除旧的 `agentcore/evaluate/benchmark/patent_exam_real_2007.go`，2007 年 case 已按所属法条分散到上述 6 组中
+  4. 更新 `agentcore/evaluate/benchmark/suite.go` 的 `AllCases()`，注册上述 6 个新变量
+  5. 新增临时转换脚本 `convert_xiaonuo.py`（未入仓，位于 `/var/folders/.../exam_papers_text/`），用于将 XiaoNuo Agent JSON case 格式批量转为 Go 结构体，并自动校验 `RequiredCitations` 必须出现在 `Expected` 中
+- **原因**: 用户要求将全部可用年份真题加入黄金测试集，并按专利法条款归类；XiaoNuo Agent 项目已人工整理并审核 2007-2019 年共 31 个真题 case，直接复用可避免重复 OCR 和答案整理，快速提升 benchmark 覆盖度
+- **影响范围**: `agentcore/evaluate/benchmark/`（新增 6 文件、删除 1 文件、修改 suite.go）
+- **风险等级**: 低（仅测试数据集变更，不改变评估逻辑；已通过 GoldenPerfect 门控）
+- **审查要求**: L1
+- **验证**: `go test ./agentcore/evaluate/benchmark/...` ✅ | `go test -race ./agentcore/evaluate/benchmark/...` ✅ | `go vet ./agentcore/evaluate/benchmark/...` ✅ | `gofmt -w agentcore/evaluate/benchmark/` ✅
+
+## 2026-07-13: 引入 2007 年专代实务真题作为黄金测试集
+
+- **变更**:
+  1. 新增 `agentcore/evaluate/benchmark/patent_exam_real_2007.go`，从 2007 年全国专利代理人资格考试《专利代理实务》卷三真题及官方参考答案中抽取 4 道子任务，转换为 `evaluate.TestCase`：
+     - 无效实务题：修改后的独立权利要求 1（`patent_exam_2007_1b`）
+     - 无效实务题：无效期间专利文件修改的有关规定（`patent_exam_2007_1c`）
+     - 撰写实务题：发明专利申请的独立权利要求 1（`patent_exam_2007_2a`）
+     - 撰写实务题：独立权利要求合案申请理由（`patent_exam_2007_2b`）
+  2. 在 `agentcore/evaluate/benchmark/suite.go` 的 `AllCases()` 中注册 `PatentExamReal2007Cases`
+- **原因**: 现有 `PatentExamCases` 为模拟题，注释已注明待真题可用性确认后替换；2007 年真题及参考答案已本地可用，可作为权威、可复现的 Agent 评测基准
+- **影响范围**: `agentcore/evaluate/benchmark/patent_exam_real_2007.go`（新）、`agentcore/evaluate/benchmark/suite.go`
+- **风险等级**: 低（仅新增测试数据，不改变现有评估逻辑；已通过 `TestEvalSuite_GoldenPerfect` 等全部门控）
+- **审查要求**: L1
+- **验证**: `go test ./agentcore/evaluate/benchmark/...` ✅
+
 ## 2026-07-13: TUI 阶段 1-4 代码质量审查与修复
 
 - **变更**:

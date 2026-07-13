@@ -548,7 +548,15 @@ func runTui(ctx context.Context) {
 					llmClient,
 				)
 				cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowTool(runner))
+			} else if cfg.ProjectDir != "" {
+				// 无案件模式：告知 Agent 当前工作目录，使其知晓可以读取哪些文件。
+				// 工具沙箱已限制文件操作在此目录范围内。
+				cfg.SystemPrompt += fmt.Sprintf(
+					"\n\n【当前工作目录】\n你正在「%s」目录下工作。可以使用文件工具（read、ls、grep、find、write_file 等）读取和分析该目录中的文件。用户提到的相对路径默认基于此目录。",
+					cfg.ProjectDir,
+				)
 			}
+
 			if reviewMode {
 				gate := domains.NewApprovalGate(domains.DefaultApprovalConfig())
 				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, gate)
