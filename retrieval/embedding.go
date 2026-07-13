@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -144,6 +145,10 @@ func (e *APIEmbedder) Dimensions() int {
 	case "text-embedding-ada-002":
 		return 1536
 	default:
+		// BGE-M3 models output 1024-dimensional vectors.
+		if strings.Contains(strings.ToLower(e.Model), "bge-m3") {
+			return 1024
+		}
 		return 1536
 	}
 }

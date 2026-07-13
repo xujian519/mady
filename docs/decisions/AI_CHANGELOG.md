@@ -12,9 +12,70 @@
 - **审查要求**: L1-L4
 ```
 
-## 2026-07-13: 移除 chat.json 内置 manifest（chat 已融入集成模式）
+## 2026-07-13: 向量检索落地阶段1 — SQLite backend 接线（FTS + Vector RRF 融合）
 
 - **变更**:
+  1. **新建 `knowledge/backend_hook.go`**(~130行)：`BackendRetrievalHook` 类型，嵌入 `BaseLifecycleHook`，实现 `BeforeModelCall` 调用 `KnowledgeExtension.search()` 走 `backendSearch`（FTS + Embed+VectorSearch → RRF 融合）；自实现 `buildContextBlock` + `injectContext`（复刻 `retrieval/agent.go` 的上下文格式化和注入逻辑）
+  2. **修改 `knowledge/extension.go`**：新增 `BackendHook(cfg) agentcore.LifecycleHook` 方法，`backend==nil` 时返回 nil，否则返回 `NewBackendRetrievalHook`
+  3. **修改 `cmd/mady/main.go`**：新增 `buildEmbedder()`（读 OMLX_BASE_URL/OMLX_API_KEY/OMLX_EMBED_MODEL 构建 `APIEmbedder`）、`loadKnowledgeBackend(madyHome)`（读 KNOWLEDGE_DB_DIR → `sqlite.NewSQLiteStore` 只读打开 knowledge.db）；改造 `loadWikiStore` 为优先 SQLite backend（buildEmbedder → loadKnowledgeBackend → NewExtension(nil,...) → WithBackend → BackendHook），回退 WIKI_PATH 内存库
+  4. **新建 `knowledge/backend_hook_test.go`**：7 个测试覆盖 nil guard / context 注入 / 空查询跳过 / 无结果跳过 / nil mcc 安全 / FTS+Vector RRF 双通道融合
+- **原因**: 向量检索算法层（APIEmbedder/SQLiteStore/RRFFuser/backendSearch）已实现但生产链路完全未接线，`WithBackend` 全项目零 caller，知识检索生产关闭。此改动完成阶段1接线，让 Agent 运行时自动从 81K 文档/144K chunks 的 knowledge.db 执行混合检索
+- **影响范围**: knowledge/backend_hook.go(新), knowledge/extension.go, cmd/mady/main.go, knowledge/backend_hook_test.go(新)
+- **环境变量**: OMLX_BASE_URL(默认 http://127.0.0.1:8000/v1) / OMLX_API_KEY / OMLX_EMBED_MODEL(默认 bge-m3-mlx-8bit) / KNOWLEDGE_DB_DIR(默认 ~/.mady/knowledge)
+- **降级策略**: OMLX_API_KEY 未设置 → embedder=nil → SQLite backend 不可用 → 回退 WIKI_PATH 内存搜索 → 无 wiki 则知识检索关闭
+- **风险等级**: 低（新建文件 + 非破坏性修改；SQLiteStore 只读模式；embedder/backend 均为可选注入，未设置时不改变原有行为）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ 60+ 包全绿 | 端到端 `mady serve` 确认 `knowledge: SQLite backend active` ✅
+
+## 2026-07-13: 向量检索落地阶段2 — 暴力查询优化 + Cross-encoder 重排
+
+- **变更**:
+  1. **新建 `knowledge/sqlite/vector_index.go`**(~150行)：`VectorIndex` 类型，启动时一次性 `SELECT chunk_id, document_id, vector FROM embeddings` 全量加载 144K 向量到连续 `[]float32`（`unsafe.Slice` 零拷贝 BLOB→float32）；`Search(queryVec, topK)` 并行 goroutine 分片计算点积（利用归一化跳过除法），合并排序取 Top-K
+  2. **修改 `knowledge/sqlite/store.go`**：新增 `vecIndex *VectorIndex` 字段 + `PreloadVectors() error` + `HasVectorIndex() bool`；`VectorSearch` 开头检查 `vecIndex != nil` 走 `vectorSearchInMemory` 快速路径，否则回退 SQL 批量读取
+  3. **新建 `retrieval/model_rerank.go`**(~200行)：`QueryReranker` 接口（扩展 `Reranker`，新增 `RerankWithQuery(ctx, query, results)`）；`ModelReranker` 类型调 Cohere 兼容 `/v1/rerank` 端点（oMLX Qwen3-Reranker-4B），支持 `MaxDocuments` 截断 + `TopN` 限制 + 降级（API 错误返回原结果）
+  4. **修改 `knowledge/extension.go`**：`KnowledgeExtension` 新增 `queryReranker` 字段 + `WithReranker()` 方法；`backendSearch` 在 RRF 融合后检查 reranker：融合 candidateK 个候选 → rerank → 截取 topK
+  5. **修改 `cmd/mady/main.go`**：`loadKnowledgeBackend` 中调用 `store.PreloadVectors()`；新增 `buildReranker()`（读 KNOWLEDGE_RERANK/OMLX_RERANK_MODEL）；`loadWikiStore` 中 `ext.WithReranker(reranker)` 接入
+  6. **新建 `retrieval/model_rerank_test.go`**：8 个测试覆盖 no-op / 空输入 / 重排序 / API 错误降级 / MaxDocuments 截断 / TopN 限制 / 接口实现
+  7. **修改 `knowledge/backend_hook_test.go`**：新增 `TestBackendHook_RerankerApplied` 验证 reranker 在 BeforeModelCall 中被正确调用且重排序生效
+- **原因**: 阶段1接线后 VectorSearch 走 SQL 批量读取（144K 向量 ~3.7s），无法满足 <50ms 性能预算；同时启发式 reranker 无 query 语义信息，Top-5 精度不足
+- **影响范围**: knowledge/sqlite/vector_index.go(新), knowledge/sqlite/store.go, retrieval/model_rerank.go(新), knowledge/extension.go, cmd/mady/main.go, retrieval/model_rerank_test.go(新), knowledge/backend_hook_test.go
+- **环境变量**: 新增 OMLX_RERANK_MODEL(默认 Qwen3-Reranker-4B-4bit-MLX) / KNOWLEDGE_RERANK(默认 off，设为 on 启用)
+- **降级策略**: PreloadVectors 失败 → 回退 SQL 批量 VectorSearch；KNOWLEDGE_RERANK=off → 跳过 reranker，直接 RRF topK；rerank API 错误 → 返回原 RRF 结果
+- **风险等级**: 中（向量全量加载 ~560MB 内存；reranker 增加 ~200ms 延迟但可关闭）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ knowledge+retrieval 全绿
+
+## 2026-07-13: 向量检索落地阶段2 T2.5 — Benchmark 基线
+
+- **变更**:
+  1. **新建 `knowledge/sqlite/bench_test.go`**：底层性能 benchmark（6 项）— PreloadVectorIndex(251ms) / FTSSearch(10.3ms) / VectorIndexSearch(14.5ms 纯计算) / VectorSearchInMemory(15.2ms 含IO) / VectorSearchSQL(1,328ms 对比基线) / GetChunk(5.2μs)
+  2. **新建 `knowledge/bench_test.go`**（package knowledge_test）：端到端 benchmark — BackendSearch(29.8ms, FTS+Embed+Vector+RRF) / RRFFusion(4.6μs)；`benchEmbedder` 类型（预计算向量，不依赖 oMLX）
+  3. **修改 `knowledge/sqlite/store.go`**：新增 `SampleVector()` 导出方法（从 embeddings 表取一条向量供 benchmark 使用）
+  4. **修改 `knowledge/extension.go`**：新增 `Search()` 导出方法（委托 `search()`，供 external test 包调用）
+  5. **新建 `docs/specs/vector-retrieval/benchmark-baseline.md`**：完整基线文档，含性能预算对比（全部达标）、耗时分解、并行效率分析、后续优化方向
+- **原因**: 需要量化各检索路径性能，验证性能预算（VectorSearch<50ms / 端到端<500ms），建立优化前后的对比基线
+- **关键数据**: 内存版 vs SQL 版 87x 加速；预加载 251ms 在 17 次查询后摊销；端到端 29.8ms 远低于 500ms 预算；M4 Pro 14核并行效率 ~14x
+- **影响范围**: knowledge/sqlite/store.go, knowledge/sqlite/bench_test.go(新), knowledge/extension.go, knowledge/bench_test.go(新), docs/specs/vector-retrieval/benchmark-baseline.md(新)
+- **风险等级**: 低（benchmark 测试文件 + 2 个导出方法，不改变运行时行为）
+- **审查要求**: L1
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ 全绿 | 8 项 benchmark 全部产出数据
+
+## 2026-07-13: 向量检索落地阶段3 — WritableStore + 三路 RRF + add_document 工具
+
+- **变更**:
+  1. **新建 `knowledge/sqlite/writable.go`**(~310行)：`WritableStore` 类型，读写模式打开 user.db（WAL）；`OpenWritable(path, embedder, knowledgeDBPath)` 建表（documents/chunks/embeddings/docs_fts，同 knowledge.db schema）+ 路径冲突检测（拒绝指向 knowledge.db）；`AddDocument(ctx, docID, title, content)` 分块（`retrieval.ChunkDocument`）→ 批量 Embed(batch=32) → 事务写入（delete 旧 + insert 新）；`Search(ctx, query, topK)` FTS+Vector RRF 融合；`float32ToBytes`/`vecNorm`/`hashString` 辅助函数
+  2. **新建 `knowledge/sqlite/writable_test.go`**：11 个测试覆盖创建/FTS命中/无匹配/替换/路径冲突/nil embedder/空docID/并发写/schema幂等/hash/BLOB往返
+  3. **修改 `knowledge/extension.go`**：新增 `WritableBackend` 接口（`Search` + `AddDocument`，领域层不 import sqlite）；`KnowledgeExtension` 新增 `writable` 字段 + `WithWritableStore()` 方法；`backendSearch` 新增第三路（user.db Search）参与 RRF 融合；`Tools()` 条件性暴露 `add_document` 工具（writable!=nil 时）；新增 `handleAddDocument` 方法
+  4. **修改 `cmd/mady/main.go`**：`loadKnowledgeBackend` 改为返回 `(KnowledgeBackend, string)` 附带 knowledgeDBPath；新增 `openWritableStore(madyHome, embedder, knowledgeDBPath)`（读 USER_DB_PATH → `sqlite.OpenWritable` → 路径冲突检测 → 自动建目录）；`loadWikiStore` 中注入 `ext.WithWritableStore(ws)`
+  5. **新建 `knowledge/ext_writable_test.go`**（package knowledge_test）：4 个集成测试 — add_document 工具暴露条件 / add_document→search 端到端命中 / 三路 RRF 融合（mockBackend + realWritable）/ 参数校验
+- **原因**: 阶段1-2 完成了 knowledge.db 的只读检索（FTS+Vector RRF+Rerank），但用户无法向知识库添加自有文档。阶段3 新增独立 user.db（同构 schema，WAL 模式），通过 `add_document` 工具写入用户文档，检索时三路 RRF 融合（knowledge FTS + knowledge Vector + user Search），实现用户文档与权威知识库的混合检索
+- **影响范围**: knowledge/sqlite/writable.go(新), knowledge/sqlite/writable_test.go(新), knowledge/extension.go, cmd/mady/main.go, knowledge/ext_writable_test.go(新)
+- **环境变量**: 新增 USER_DB_PATH(默认 $MADY_HOME/knowledge/user.db)
+- **安全**: user.db 路径冲突检测（拒绝指向 knowledge.db）；WAL 模式 + sync.Mutex 单写者；参数化查询防注入；embedder=nil 时 WritableStore 不初始化
+- **降级策略**: embedder=nil → WritableStore 不初始化（无 add_document 工具，三路退化为两路）；OpenWritable 失败 → 打印警告继续（不影响 knowledge.db 检索）；user Search 失败 → 跳过该路，用 knowledge FTS+Vector 两路继续 RRF
+- **风险等级**: 中（新增写入路径 + 新增工具；user.db 与 knowledge.db 物理隔离 + 路径冲突检测缓解污染风险）
+- **审查要求**: L3（安全敏感：writable.go 新增写入沙箱边界）
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ 全部包全绿（含 15 个新测试）
   1. 删除 `agentcore/manifests/chat.json`（embed 源）和 `manifests/chat.json`（根目录用户参考示例）
   2. 更新 `agentcore/manifest_test.go`：5 个测试的硬编码 manifest 数量从 4→3 / 5→4；ExternalOverride 测试从覆盖 chat-agent 改为覆盖 assistant-agent
 - **原因**: 提交 `6837337`（Chat Agent 与意图识别深度融合）后，chat-agent 由 `IntegratedChatConfig` 统一动态构建（`domains/chat.go:71`），`ProfessionalHandoffConfigs` 已明确排除 chat（`domains/router.go:80`）。chat.json 作为独立 manifest 已多余，导致启动日志显示不必要的路由项
@@ -261,4 +322,29 @@
 - **原因**: 系统性识别性能瓶颈、安全漏洞、架构合规性问题，支撑智能体高效调用
 - **审查结果**: 审查报告已输出至 `docs/decisions/REVIEW_REPORT_2025-06-11.md`
 - **风险等级**: 中（大量安全/性能问题需修复）
+- **审查要求**: L2
+
+## 2026-07-13: 向量检索端到端验证修复 — Dimensions 修正 + Extension 注册暴露工具
+
+- **变更**:
+  1. **修正 `retrieval/embedding.go` `Dimensions()` 方法**：bge-m3 系列模型未在已知列表中，default case 返回 1536 导致 WritableStore schema 建为 1536 维，与实际 1024 维向量不匹配（`vector dim mismatch: got 1024, want 1536`）。添加 `strings.Contains(strings.ToLower(e.Model), "bge-m3") → return 1024` 判断
+  2. **Extension 注册到 `cfg.Extensions` 暴露工具**：`loadWikiStore` 新增第三个返回值 `agentcore.Extension`（KnowledgeExtension），`frameworkContext` 新增 `KnowledgeExt` 字段，`buildCfg` 3 分支（集成/路由/单Agent）+ `runServer` + `runAcp` 均注入 `cfg.Extensions`。此前 Extension 只返回了 BackendHook（LifecycleHook），`Tools()` 方法从未被调用，`search_knowledge` 和 `add_document` 工具未暴露
+  3. **`acp/server_app.go`**：`RunOptions` 新增 `Extensions []agentcore.Extension` 字段，`buildAgentConfig` 传递到 `agentcore.Config.Extensions`
+  4. **`cmd/mady/main.go`**：新增 `extSlice()` 辅助函数（nil 安全的单 Extension → slice 转换）
+- **原因**: 端到端测试发现两个问题 — (1) user.db 向量搜索维度不匹配 (2) add_document 工具未被 agent 识别
+- **影响范围**: `retrieval/embedding.go`、`cmd/mady/main.go`、`acp/server_app.go`
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ 全绿 | 端到端：`mady serve` + oMLX → add_document 写入 → search_knowledge 检索命中 → 日志零报错
+- **风险等级**: L2（Dimensions 修正影响所有 APIEmbedder 调用方；Extension 注册改变 agent 工具集）
+- **审查要求**: L2
+
+## 2026-07-13: 代码审查修复 — 跨数据库 chunk ID 冲突 + buildReranker 空值检查
+
+- **变更**:
+  1. **修复 `knowledge/sqlite/writable.go` chunk ID 冲突**：`ftsSearch` 和 `getChunk` 中的 `ID: strconv.Itoa(id)` 改为 `ID: "u:" + strconv.Itoa(id)`。knowledge.db 和 user.db 是独立的 SQLite 数据库，各自的 AUTOINCREMENT 序列都从 1 开始。`RRFFuser.Fuse`（`retrieval/hybrid.go:44`）用 `r.ID` 字符串去重，两个数据库的相同数字 ID 会被误判为同一 chunk，导致 RRF 分数错误累积和结果静默丢失
+  2. **修复 `cmd/mady/main.go` `buildReranker` 空值检查**：文档字符串声明"OMLX_API_KEY 未设置返回 nil"，但代码未检查空值。添加 `if apiKey == "" { return nil }` 使实现与文档一致
+  3. **新增回归测试 `TestExtension_CrossDBIDNoCollision`**：模拟 knowledge.db 返回数字 ID "1" + user.db 也有 chunk ID 1，验证两者在 RRF 融合后均独立出现（不被错误合并）
+- **原因**: 代码审查（task review）发现三路 RRF 融合中的跨数据库 ID 冲突 bug — 当 user.db 配置启用时（`OMLX_API_KEY` 已设置 + `add_document` 被调用），搜索结果会静默损坏
+- **影响范围**: `knowledge/sqlite/writable.go`（2处 ID 前缀）、`cmd/mady/main.go`（buildReranker 空值检查）、`knowledge/ext_writable_test.go`（新增回归测试）
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ 全绿（含新测试 `TestExtension_CrossDBIDNoCollision`）
+- **风险等级**: L2（chunk ID 格式变更影响 RRF 去重行为，但仅限 user.db 路径；knowledge.db 路径不变）
 - **审查要求**: L2

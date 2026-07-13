@@ -21,10 +21,11 @@ import (
 // by pre-built SQLite databases that share the same data model as Mady's
 // in-memory Store and GraphStore.
 type SQLiteStore struct {
-	db     *sql.DB // knowledge.db — documents, chunks, FTS, embeddings, KG
-	lawsDB *sql.DB // laws-full.db — 9 121 laws with full text
-	kgDB   *sql.DB // patent_kg.db — 116 K nodes / 484 K edges
-	dim    int     // embedding dimension (default 1024 for BGE-M3)
+	db       *sql.DB      // knowledge.db — documents, chunks, FTS, embeddings, KG
+	lawsDB   *sql.DB      // laws-full.db — 9 121 laws with full text
+	kgDB     *sql.DB      // patent_kg.db — 116 K nodes / 484 K edges
+	dim      int          // embedding dimension (default 1024 for BGE-M3)
+	vecIndex *VectorIndex // pre-loaded in-memory vector index (nil until PreloadVectors)
 }
 
 // NewSQLiteStore opens knowledge.db in read-only mode. The database is
@@ -55,6 +56,24 @@ func NewSQLiteStore(knowledgeDBPath string) (*SQLiteStore, error) {
 	}
 
 	return &SQLiteStore{db: db, dim: dim}, nil
+}
+
+// PreloadVectors loads all embeddings into memory for fast brute-force search.
+// This should be called once at startup. After preloading, VectorSearch
+// uses the in-memory index instead of per-query SQL batch reads.
+// For 144K BGE-M3 vectors (1024-dim) this uses ~562 MB of memory.
+func (s *SQLiteStore) PreloadVectors() error {
+	idx, err := s.PreloadVectorIndex()
+	if err != nil {
+		return err
+	}
+	s.vecIndex = idx
+	return nil
+}
+
+// HasVectorIndex returns true if the in-memory vector index is loaded.
+func (s *SQLiteStore) HasVectorIndex() bool {
+	return s.vecIndex != nil
 }
 
 // OpenLawsDB opens laws-full.db for law full-text search.
@@ -157,8 +176,9 @@ func (s *SQLiteStore) FTSSearch(query string, topK int) ([]retrieval.ScoredChunk
 }
 
 // VectorSearch performs brute-force cosine-similarity search against stored
-// BGE-M3 embeddings. It reads vectors in batches to bound memory usage and
-// maintains a top-K heap. With ~144 K vectors this completes in a few seconds.
+// BGE-M3 embeddings. If the in-memory vector index is loaded (via
+// PreloadVectors), it uses parallel in-memory computation (~50-200ms for
+// 144K vectors). Otherwise it falls back to SQL batch reads (seconds).
 func (s *SQLiteStore) VectorSearch(queryVec []float32, topK int) ([]retrieval.ScoredChunk, error) {
 	if topK <= 0 {
 		topK = 10
@@ -166,6 +186,13 @@ func (s *SQLiteStore) VectorSearch(queryVec []float32, topK int) ([]retrieval.Sc
 	if len(queryVec) != s.dim {
 		return nil, fmt.Errorf("vector dimension mismatch: got %d, want %d", len(queryVec), s.dim)
 	}
+
+	// Fast path: in-memory parallel search.
+	if s.vecIndex != nil {
+		return s.vectorSearchInMemory(queryVec, topK)
+	}
+
+	// Slow path: SQL batch reads (fallback).
 
 	// Pre-compute query norm.
 	qNorm := float64(0)
@@ -261,6 +288,29 @@ func (s *SQLiteStore) VectorSearch(queryVec []float32, topK int) ([]retrieval.Sc
 		results = append(results, retrieval.ScoredChunk{
 			Chunk:   *chunk,
 			Score:   c.score,
+			Matches: []string{},
+		})
+	}
+	return results, nil
+}
+
+// vectorSearchInMemory uses the pre-loaded in-memory vector index for
+// parallel brute-force search, then fetches chunk content for top results.
+func (s *SQLiteStore) vectorSearchInMemory(queryVec []float32, topK int) ([]retrieval.ScoredChunk, error) {
+	matches := s.vecIndex.Search(queryVec, topK)
+	if len(matches) == 0 {
+		return nil, nil
+	}
+
+	results := make([]retrieval.ScoredChunk, 0, len(matches))
+	for _, m := range matches {
+		chunk, err := s.getChunk(m.chunkID)
+		if err != nil || chunk == nil {
+			continue
+		}
+		results = append(results, retrieval.ScoredChunk{
+			Chunk:   *chunk,
+			Score:   float64(m.score),
 			Matches: []string{},
 		})
 	}
@@ -414,6 +464,18 @@ type LawRecord struct {
 	Subtitle string
 	Content  string
 	Category string
+}
+
+// SampleVector returns a single vector from the embeddings table.
+// Useful for benchmarks that need a realistic query vector without
+// depending on an external embedding service.
+func (s *SQLiteStore) SampleVector() []float32 {
+	var blob []byte
+	err := s.db.QueryRow("SELECT vector FROM embeddings LIMIT 1").Scan(&blob)
+	if err != nil || len(blob) == 0 {
+		return nil
+	}
+	return bytesToFloat32(blob)
 }
 
 // EmbeddingDim returns the detected embedding dimension.

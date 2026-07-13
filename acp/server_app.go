@@ -31,6 +31,8 @@ type RunOptions struct {
 	// Lifecycle 注入知识检索等生命周期钩子（如 Wiki RAG）。
 	// 为 nil 时不注入任何钩子，保持裸 LLM 对话。
 	Lifecycle agentcore.LifecycleHook
+	// Extensions 注入知识扩展等可选能力（如 search_knowledge / add_document 工具）。
+	Extensions []agentcore.Extension
 }
 
 // sessionModePrimary is the default (and only) mode advertised over ACP.
@@ -128,7 +130,8 @@ func buildAgentConfig(opts RunOptions, model string) agentcore.Config {
 			BaseDelayMs: 1000,
 			MaxDelayMs:  15000,
 		},
-		Lifecycle: opts.Lifecycle,
+		Lifecycle:  opts.Lifecycle,
+		Extensions: opts.Extensions,
 	}
 }
 

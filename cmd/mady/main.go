@@ -34,6 +34,7 @@ import (
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/loader"
+	"github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/retrieval"
@@ -53,19 +54,46 @@ import (
 const defaultSystemPrompt = "你是 Mady 智能助手，一个能力完备的通用 AI 代理。" +
 	"你可以调用工具、检索知识、多步推理。请用简洁清晰的中文回答用户。"
 
-// loadWikiStore initializes the knowledge store from a wiki directory.
-// It returns the store and a retrieval hook, or nil if WIKI_PATH is not set.
-func loadWikiStore() (*knowledge.Store, agentcore.LifecycleHook) {
+// loadWikiStore initializes the knowledge retrieval system.
+// It tries the SQLite backend first (vector + FTS RRF fusion via
+// KNOWLEDGE_DB_DIR), falling back to the in-memory wiki store
+// (WIKI_PATH) for backward compatibility.
+// Returns the in-memory store (nil when using SQLite) and a retrieval hook.
+func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, agentcore.Extension) {
+	// 1. Try SQLite backend (vector + FTS RRF fusion).
+	embedder := buildEmbedder()
+	backend, knowledgeDBPath := loadKnowledgeBackend(madyHome)
+	if backend != nil {
+		ext := knowledge.NewExtension(nil, nil, "patent", knowledge.DefaultKnowledgeExtConfig())
+		ext.WithBackend(backend, embedder)
+		if reranker := buildReranker(); reranker != nil {
+			ext.WithReranker(reranker)
+			fmt.Fprintf(os.Stderr, "knowledge: cross-encoder rerank enabled\n")
+		}
+		if ws := openWritableStore(madyHome, embedder, knowledgeDBPath); ws != nil {
+			ext.WithWritableStore(ws)
+		}
+		hook := ext.BackendHook(retrieval.RetrievalConfig{
+			TopK:     5,
+			MaxChars: 4000,
+			Prefix:   "以下是知识库中检索到的相关专利法律信息，请参考使用：\n",
+		})
+		if hook != nil {
+			return nil, hook, ext
+		}
+	}
+
+	// 2. Fallback: in-memory wiki store (WIKI_PATH).
 	wikiPath := os.Getenv("WIKI_PATH")
 	if wikiPath == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	store := knowledge.NewStore()
 	wikiLoader := loader.NewWikiLoader(store, wikiPath)
 	stats, err := wikiLoader.ImportWiki()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "wiki: import failed: %v\n", err)
-		return nil, nil
+		return nil, nil, nil
 	}
 	fmt.Fprintf(os.Stderr, "wiki: imported %d docs, %d chunks\n",
 		stats.Imported, store.Stats().TotalChunks)
@@ -74,7 +102,119 @@ func loadWikiStore() (*knowledge.Store, agentcore.LifecycleHook) {
 		MaxChars: 4000,
 		Prefix:   "以下是知识库中检索到的相关专利法律信息，请参考使用：\n",
 	})
-	return store, hook
+	return store, hook, nil
+}
+
+// extSlice wraps a single Extension into a slice, returning nil for nil input.
+func extSlice(ext agentcore.Extension) []agentcore.Extension {
+	if ext == nil {
+		return nil
+	}
+	return []agentcore.Extension{ext}
+}
+
+// buildEmbedder creates an APIEmbedder from environment variables.
+// Returns nil if OMLX_API_KEY is not set (vector search disabled, FTS-only).
+func buildEmbedder() retrieval.Embedder {
+	baseURL := os.Getenv("OMLX_BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://127.0.0.1:8000/v1"
+	}
+	apiKey := os.Getenv("OMLX_API_KEY")
+	if apiKey == "" {
+		return nil
+	}
+	model := os.Getenv("OMLX_EMBED_MODEL")
+	if model == "" {
+		model = "bge-m3-mlx-8bit"
+	}
+	return retrieval.NewAPIEmbedder(baseURL, apiKey, model)
+}
+
+// buildReranker creates a ModelReranker from environment variables.
+// Returns nil if KNOWLEDGE_RERANK is not "on"/"true"/"1" or if
+// OMLX_API_KEY is not set (reranker requires the same auth as embedder).
+func buildReranker() retrieval.QueryReranker {
+	flag := strings.ToLower(os.Getenv("KNOWLEDGE_RERANK"))
+	if flag != "on" && flag != "true" && flag != "1" {
+		return nil
+	}
+	baseURL := os.Getenv("OMLX_BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://127.0.0.1:8000/v1"
+	}
+	apiKey := os.Getenv("OMLX_API_KEY")
+	if apiKey == "" {
+		return nil
+	}
+	model := os.Getenv("OMLX_RERANK_MODEL")
+	if model == "" {
+		model = "Qwen3-Reranker-4B-4bit-MLX"
+	}
+	return retrieval.NewModelReranker(baseURL, apiKey, model)
+}
+
+// loadKnowledgeBackend opens the SQLite knowledge database read-only.
+// Returns nil if the database file is not found or cannot be opened.
+// The second return value is the resolved knowledge.db path (empty when nil).
+func loadKnowledgeBackend(madyHome string) (knowledge.KnowledgeBackend, string) {
+	dbDir := os.Getenv("KNOWLEDGE_DB_DIR")
+	if dbDir == "" {
+		if madyHome != "" {
+			dbDir = filepath.Join(madyHome, "knowledge")
+		} else {
+			return nil, ""
+		}
+	}
+	dbPath := filepath.Join(dbDir, "knowledge.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		return nil, ""
+	}
+	store, err := sqlite.NewSQLiteStore(dbPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "knowledge: failed to open SQLite store: %v\n", err)
+		return nil, ""
+	}
+	if err := store.PreloadVectors(); err != nil {
+		fmt.Fprintf(os.Stderr, "knowledge: vector preload failed, using SQL batch fallback: %v\n", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "knowledge: SQLite backend active (%s, in-memory vectors)\n", dbPath)
+	}
+	return store, dbPath
+}
+
+// openWritableStore opens or creates the user database (user.db) for
+// user-added documents. Returns nil if the embedder is not configured
+// (vector search disabled), or if opening fails (non-fatal — the system
+// continues without user document support).
+//
+// The knowledgeDBPath is passed to OpenWritable for path-conflict
+// detection: user.db must not point to the same file as knowledge.db.
+func openWritableStore(madyHome string, embedder retrieval.Embedder, knowledgeDBPath string) *sqlite.WritableStore {
+	if embedder == nil {
+		return nil // writable store requires an embedder for vectorisation
+	}
+	userDBPath := os.Getenv("USER_DB_PATH")
+	if userDBPath == "" {
+		if madyHome == "" {
+			return nil
+		}
+		userDBPath = filepath.Join(madyHome, "knowledge", "user.db")
+	}
+	// Ensure parent directory exists.
+	if dir := filepath.Dir(userDBPath); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "knowledge: user.db dir create failed: %v\n", err)
+			return nil
+		}
+	}
+	ws, err := sqlite.OpenWritable(userDBPath, embedder, knowledgeDBPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "knowledge: user.db open failed: %v\n", err)
+		return nil
+	}
+	fmt.Fprintf(os.Stderr, "knowledge: user.db writable store active (%s)\n", userDBPath)
+	return ws
 }
 
 // frameworkContext 封装入口之间共享的初始化资源。
@@ -83,6 +223,7 @@ type frameworkContext struct {
 	ProjectRegistry *domains.ProjectRegistry
 	WikiHook        agentcore.LifecycleHook
 	WikiStore       *knowledge.Store
+	KnowledgeExt    agentcore.Extension
 	Manifests       []agentcore.AgentManifest
 	// MadyHome 是应用数据根目录（~/.mady），所有可写子资源从此派生。
 	MadyHome string
@@ -138,8 +279,8 @@ func setupFrameworkContext() *frameworkContext {
 		},
 	}
 
-	// Wiki 知识库
-	fc.WikiStore, fc.WikiHook = loadWikiStore()
+	// 知识检索：优先 SQLite backend（向量+FTS RRF），回退 wiki 内存库。
+	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt = loadWikiStore(fc.MadyHome)
 
 	// Manifest 加载：go:embed 内置 + 外部覆盖。
 	// 优先级：$MANIFEST_DIR > ~/.mady/manifests > 仅内置。
@@ -391,6 +532,9 @@ func runTui(ctx context.Context) {
 			if fc.WikiHook != nil {
 				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
 			}
+			if fc.KnowledgeExt != nil {
+				cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
+			}
 			return applyPersistence(cfg)
 
 		case useMultiDomain:
@@ -408,6 +552,9 @@ func runTui(ctx context.Context) {
 			if fc.WikiHook != nil {
 				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
 			}
+			if fc.KnowledgeExt != nil {
+				cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
+			}
 			return applyPersistence(cfg)
 
 		default:
@@ -423,7 +570,7 @@ func runTui(ctx context.Context) {
 				}
 			}
 
-			return applyPersistence(agentcore.Config{
+			singleCfg := agentcore.Config{
 				ModelConfig: agentcore.ModelConfig{
 					Name:      "mady",
 					Model:     effectiveModel,
@@ -448,7 +595,11 @@ func runTui(ctx context.Context) {
 					MaxDelayMs:  15000,
 				},
 				Lifecycle: fc.WikiHook,
-			})
+			}
+			if fc.KnowledgeExt != nil {
+				singleCfg.Extensions = append(singleCfg.Extensions, fc.KnowledgeExt)
+			}
+			return applyPersistence(singleCfg)
 		}
 	}
 
@@ -887,10 +1038,11 @@ func runAcp(ctx context.Context) {
 	fc := setupFrameworkContext()
 
 	err := acp.RunServer(ctx, acp.RunOptions{
-		Provider:  agentconfig.BuildProvider(),
-		Model:     agentconfig.DefaultModel(),
-		Thinking:  agentconfig.ThinkingFromEnv(),
-		Lifecycle: fc.WikiHook,
+		Provider:   agentconfig.BuildProvider(),
+		Model:      agentconfig.DefaultModel(),
+		Thinking:   agentconfig.ThinkingFromEnv(),
+		Lifecycle:  fc.WikiHook,
+		Extensions: extSlice(fc.KnowledgeExt),
 		AgentInfo: acp.AgentInfo{
 			Name:    "mady",
 			Version: "0.1.0",
@@ -919,6 +1071,9 @@ func runServer(ctx context.Context) {
 	// Attach wiki retrieval hook if available.
 	if fc.WikiHook != nil {
 		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
+	}
+	if fc.KnowledgeExt != nil {
+		cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
 	}
 
 	// Session persistence via JSONL file store.

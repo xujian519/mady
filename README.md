@@ -74,7 +74,14 @@ mady acp      # ACP 协议服务器（编辑器集成）
 | `WORKSPACE_DIR` | `$MADY_HOME/workspace` | Workspace 根目录 |
 | `SESSION_DIR` | `$MADY_HOME/sessions` | 会话持久化目录（仅 serve） |
 | `MADY_SINGLE_AGENT` | 未设置 | 设为 `1` 强制 TUI 单 Agent 模式 |
-| `WIKI_PATH` | — | Wiki 知识库路径 |
+| `OMLX_BASE_URL` | `http://127.0.0.1:8000/v1` | 本地嵌入服务地址（OpenAI 兼容，oMLX） |
+| `OMLX_API_KEY` | — | 嵌入服务密钥（设置后启用 SQLite 向量检索） |
+| `OMLX_EMBED_MODEL` | `bge-m3-mlx-8bit` | 嵌入模型名称 |
+| `OMLX_RERANK_MODEL` | `Qwen3-Reranker-4B-4bit-MLX` | Cross-encoder 重排模型名称 |
+| `KNOWLEDGE_DB_DIR` | `$MADY_HOME/knowledge` | 知识库 SQLite 数据库目录（含 knowledge.db） |
+| `KNOWLEDGE_RERANK` | `off` | 设为 `on` 启用 cross-encoder 重排（需 OMLX_API_KEY） |
+| `USER_DB_PATH` | `$MADY_HOME/knowledge/user.db` | 用户可写库路径（add_document 工具写入，三路 RRF 融合） |
+| `WIKI_PATH` | — | Wiki 知识库路径（SQLite backend 不可用时的回退） |
 
 ### 作为库使用
 
@@ -445,6 +452,8 @@ GET/DELETE `/api/states/{key}`。
 ## 知识管理与检索
 
 `knowledge/` 管理多种来源的领域知识，支持 Wiki/Obsidian、专利和法律文档。知识图谱 (`knowledge/graph/`) 支持实体关系构建和查询。SQLite 读取层 (`knowledge/sqlite/`) 以只读方式接入 knowledge.db（FTS5 全文 + 向量余弦）、laws-full.db（法律全文搜索）、patent_kg.db（专利图谱）。检索引擎 (`retrieval/`) 支持关键词搜索（TF-IDF）、BM25 重排序、向量嵌入接口和 RRF（Reciprocal Rank Fusion）混合检索。
+
+设置 `OMLX_API_KEY` 后，`mady` 自动启用 SQLite 向量检索：从 `knowledge.db` 执行 FTS + 向量 RRF 融合检索，将结果注入 Agent 上下文。未设置时回退到 `WIKI_PATH` 内存关键词搜索。
 
 ## 推理引擎
 

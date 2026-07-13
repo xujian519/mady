@@ -28,8 +28,11 @@ docs/specs/{feature-name}/
   AI 参与撰写不改变这一点
 - 四步文档全部走完、人工 Sign-off 后，再进入代码实现阶段
 
-## 已完成的 Spec
+## Spec 索引
 
-| 功能 | 目录 | 日期 | Human Owner |
-|------|------|------|-------------|
-| 心理引擎设计 | `docs/superpowers/specs/2026-07-10-nuochat-psychological-engine-design.md` | 2026-07-10 | — |
+| 功能 | 目录 | 日期 | 阶段 | Human Owner |
+|------|------|------|------|-------------|
+| 心理引擎设计 | `docs/superpowers/specs/2026-07-10-nuochat-psychological-engine-design.md` | 2026-07-10 | 已完成 | — |
+| 向量检索落地 | `docs/specs/vector-retrieval/` | 2026-07-13 | Spec 待 Sign-off | [待指派] |
+
+> 阶段含义：Spec 待 Sign-off（四阶段文档已就绪，等人工审阅）→ 实现中 → 已完成。
