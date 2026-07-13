@@ -56,6 +56,9 @@ func resolvePathSandboxed(userPath, cwd string, sbx WorkingDirSandbox) (string, 
 	// 解析符号链接，防止 link_to_etc -> /etc 逃逸沙箱边界
 	realAbs, err := filepath.EvalSymlinks(abs)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("path not found: %s", userPath)
+		}
 		return "", fmt.Errorf("路径解析失败: %w", err)
 	}
 	realCwd, err := filepath.EvalSymlinks(absCwd)

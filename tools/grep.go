@@ -44,6 +44,7 @@ type GrepToolConfig struct {
 	MaxBytes      int64
 	MaxLineLength int
 	Limit         int
+	Sandbox       WorkingDirSandbox
 }
 
 func (c *GrepToolConfig) defaults() {
@@ -110,7 +111,10 @@ func NewGrepTool(cwd string, cfg *GrepToolConfig) *agentcore.Tool {
 				return resultErrf("invalid arguments: %w", err)
 			}
 
-			searchPath := resolveReadPath(input.Path, cwd)
+			searchPath, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("%w", err)
+			}
 			if searchPath == "" {
 				searchPath = cwd
 			}

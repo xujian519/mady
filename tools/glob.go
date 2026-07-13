@@ -73,6 +73,7 @@ func (d DefaultGlobOperations) Glob(pattern string, cwd string, limit int) ([]st
 type GlobToolConfig struct {
 	Operations GlobOperations
 	Limit      int
+	Sandbox    WorkingDirSandbox
 }
 
 func (c *GlobToolConfig) defaults() {
@@ -122,7 +123,10 @@ func NewGlobTool(cwd string, cfg *GlobToolConfig) *agentcore.Tool {
 				return resultErrf("pattern is required")
 			}
 
-			searchPath := resolveReadPath(input.Path, cwd)
+			searchPath, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("%w", err)
+			}
 			if searchPath == "" {
 				searchPath = cwd
 			}

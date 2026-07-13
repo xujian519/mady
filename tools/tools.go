@@ -108,8 +108,10 @@ type ExtensionConfig struct {
 
 	// SandboxEnabled enforces the WorkingDir boundary for file tools when true.
 	// When enabled, read/write/edit/etc. tools reject paths that escape the
-	// WorkingDir subtree. Default is true for new tools.Extension instances.
-	// Propagated to individual tool configs in BuildTools.
+	// WorkingDir subtree. Default is false (Go bool zero value); domain
+	// factory functions (AssistantAgentConfig, BuildProjectAgent, etc.) must
+	// explicitly set this to true. Propagated to individual tool configs in
+	// BuildTools.
 	SandboxEnabled bool
 
 	// EnabledTools is a positive allowlist of tool names to include.
@@ -206,6 +208,32 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 		cfg.Move = &MoveToolConfig{}
 	}
 	cfg.Move.Sandbox = sbx
+
+	// Inject sandbox into read-only tools and bash.
+	if cfg.Ls == nil {
+		cfg.Ls = &LsToolConfig{}
+	}
+	cfg.Ls.Sandbox = sbx
+	if cfg.Grep == nil {
+		cfg.Grep = &GrepToolConfig{}
+	}
+	cfg.Grep.Sandbox = sbx
+	if cfg.Find == nil {
+		cfg.Find = &FindToolConfig{}
+	}
+	cfg.Find.Sandbox = sbx
+	if cfg.Glob == nil {
+		cfg.Glob = &GlobToolConfig{}
+	}
+	cfg.Glob.Sandbox = sbx
+	if cfg.View == nil {
+		cfg.View = &ViewToolConfig{}
+	}
+	cfg.View.Sandbox = sbx
+	if cfg.Bash == nil {
+		cfg.Bash = &BashToolConfig{}
+	}
+	cfg.Bash.Sandbox = sbx
 
 	var tools []*agentcore.Tool
 

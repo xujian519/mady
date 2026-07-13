@@ -12,6 +12,19 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-13: Sandbox 全面修复与 Cwd 感知（ProjectDir 字段）
+
+- **变更**:
+  1. **Sandbox 默认值修复**：`ExtensionConfig.SandboxEnabled` 注释修正为"Default is false; domain factories must set true explicitly"（原注释声称默认 true 但 Go bool 零值=false，注释与代码矛盾）
+  2. **只读工具沙箱注入**：ls/grep/find/glob/view 的 ToolConfig 新增 `Sandbox WorkingDirSandbox` 字段，BuildTools 统一注入；Func 内改用 `resolvePathSandboxed` 替代 `resolveReadPath`，启用沙箱时拒绝逃逸路径
+  3. **Bash 工具沙箱字段**：BashToolConfig 新增 `Sandbox` 字段并经 BuildTools 注入（bash 本质无法做命令级沙箱，但配置一致性已保证）
+  4. **Cwd 感知**：`agentcore.Config` 新增 `ProjectDir string` 字段（语义：用户当前项目文件夹 = os.Getwd()），与 `WorkspaceDir`（应用数据目录 = ~/.mady/workspace）分离。`setupFrameworkContext` 获取 cwd 注入 `BaseConfig.ProjectDir`；`applyPersistence` 案件模式覆盖为 `RootPath`
+  5. **领域工厂适配**：`AssistantAgentConfig` WorkingDir 改用 `base.ProjectDir`（回退 WorkspaceDir），显式 `SandboxEnabled=true`；`PatentAgentConfig` 补充 tools extension（此前完全没有文件工具），WorkingDir 用 ProjectDir，`SandboxEnabled=true`；`BuildProjectAgent` 设置 `cfg.ProjectDir = rec.RootPath`
+- **原因**: (1) 默认 Agent 不感知 cwd，工具 WorkingDir 指向 ~/.mady/workspace 而非用户项目目录；(2) SandboxEnabled 默认 false 导致沙箱形同虚设，read/write/edit 只打 warning 就放行；(3) 只读工具（ls/grep/find/glob/view）完全无沙箱字段，绝对路径可绕过 cwd 限制；(4) PatentAgentConfig 没有文件工具
+- **影响范围**: agentcore/agent.go, tools/tools.go, tools/bash.go, tools/ls.go, tools/grep.go, tools/find.go, tools/glob.go, tools/view.go, domains/assistant.go, domains/patent.go, cmd/mady/main.go
+- **风险等级**: 中（涉及 tools/path.go 安全边界路径，但未修改 resolvePathSandboxed 本身；SandboxEnabled 从 false→true 改变了默认行为，可能影响未显式设置的调用方）
+- **审查要求**: L3
+
 ## 2026-07-13: 评估闭环与记忆自学习方案评审报告
 
 - **变更**: 新建决策文档 `docs/decisions/eval-memory-plan-review-2026-07-13.md`（276行），对《评估闭环模块》《记忆自学习模块》《整体阶段划分》三部分方案进行代码级评审。结论：理念合格，落地需大改。识别 4 处重大脱节（向量检索已完成、评估框架已存在、memory 缺持久化、Checkpoint 概念混淆），提炼 7 项真正有价值的缺失工作，给出修正后的 A→B→C→D 四阶段落地路线（含 A5/A6 持久化基础设施前置）

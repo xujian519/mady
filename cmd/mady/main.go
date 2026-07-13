@@ -340,6 +340,13 @@ func setupFrameworkContext() *frameworkContext {
 	// 读取，避免工具沙箱硬编码 cwd 相对路径。
 	fc.BaseConfig.WorkspaceDir = workspaceDir
 
+	// ProjectDir = 用户当前 cwd，作为工具沙箱边界。
+	// 领域工厂函数读取此字段设置工具 WorkingDir。
+	// 案件模式在 applyPersistence 中覆盖为 RootPath。
+	if cwd, err := os.Getwd(); err == nil {
+		fc.BaseConfig.ProjectDir = cwd
+	}
+
 	return fc
 }
 
@@ -491,6 +498,7 @@ func runTui(ctx context.Context) {
 			}
 			if currentProject != nil {
 				cfg.WorkspaceDir = currentProject.RootPath
+				cfg.ProjectDir = currentProject.RootPath
 				cfg.SystemPrompt += formatProjectContext(currentProject, currentProjectMeta)
 				// 注入五阶段法律推理工具，让 Agent 能调用深度可验证推理。
 				runner := reasoning.NewWorkflowRunner(

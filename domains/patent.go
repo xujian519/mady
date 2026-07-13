@@ -35,6 +35,25 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		"- success: 是否成功完成",
 	}, "\n")
 
+	// Tools extension — patent agent needs file tools for document analysis.
+	// WorkingDir 从 base.ProjectDir 透传（用户当前项目文件夹），
+	// 回退到 base.WorkspaceDir（~/.mady/workspace）。
+	workingDir := base.ProjectDir
+	if workingDir == "" {
+		workingDir = base.WorkspaceDir
+	}
+	toolExt := tools.NewExtension(tools.ExtensionConfig{
+		WorkingDir:     workingDir,
+		SandboxEnabled: true,
+		DisableTools: []string{
+			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
+			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolComputerUse,
+			tools.ToolProcess,
+		},
+		MaxBytes: 100 * 1024,
+	})
+	cfg.Extensions = append(cfg.Extensions, toolExt)
+
 	// Chunked context engine for long patent documents.
 	cfg.Engine = "chunked"
 
@@ -70,6 +89,7 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 
 	// 动态 System Prompt：注入案件上下文
 	cfg.SystemPrompt = buildProjectSystemPrompt(rec)
+	cfg.ProjectDir = rec.RootPath
 
 	// 动态 WorkingDir = 案件真实文件夹，沙箱约束在此边界内
 	toolExt := tools.NewExtension(tools.ExtensionConfig{

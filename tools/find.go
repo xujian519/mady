@@ -62,6 +62,7 @@ type FindToolConfig struct {
 	Operations FindOperations
 	MaxBytes   int64
 	Limit      int
+	Sandbox    WorkingDirSandbox
 }
 
 func (c *FindToolConfig) defaults() {
@@ -115,7 +116,10 @@ func NewFindTool(cwd string, cfg *FindToolConfig) *agentcore.Tool {
 				return resultErrf("invalid arguments: %w", err)
 			}
 
-			searchPath := resolveReadPath(input.Path, cwd)
+			searchPath, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("%w", err)
+			}
 			if searchPath == "" {
 				searchPath = cwd
 			}

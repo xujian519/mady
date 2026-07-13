@@ -31,6 +31,7 @@ type ViewToolConfig struct {
 	Operations ViewOperations
 	MaxDepth   int
 	MaxEntries int
+	Sandbox    WorkingDirSandbox
 }
 
 func (c *ViewToolConfig) defaults() {
@@ -75,7 +76,10 @@ func NewViewTool(cwd string, cfg *ViewToolConfig) *agentcore.Tool {
 				return resultErrf("invalid arguments: %w", err)
 			}
 
-			dirPath := resolveReadPath(input.Path, cwd)
+			dirPath, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("%w", err)
+			}
 			if dirPath == "" {
 				dirPath = cwd
 			}

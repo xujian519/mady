@@ -60,14 +60,20 @@ func AssistantAgentConfig(base agentcore.Config) agentcore.Config {
 	// Tools extension — core capability of assistant agent.
 	// Disable tools not relevant to patent/lawyer workflows (bash, git,
 	// browser, code execution, etc.) to keep the tool surface minimal.
-	// WorkingDir 从 base.WorkspaceDir 透传，避免硬编码 "./workspace" 导致
-	// 非项目目录启动时工具沙箱错位（见 cmd/mady 的 workspace 解析）。
+	// WorkingDir 从 base.ProjectDir 透传（用户当前项目文件夹），
+	// 回退到 base.WorkspaceDir（~/.mady/workspace）。
+	// SandboxEnabled=true 确保文件操作被限制在项目目录内。
+	workingDir := base.ProjectDir
+	if workingDir == "" {
+		workingDir = base.WorkspaceDir
+	}
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
-		WorkingDir: base.WorkspaceDir,
-		WebSearch:  &tools.WebSearchToolConfig{},
-		WebFetch:   &tools.WebFetchToolConfig{},
-		MaxBytes:   100 * 1024,
-		MaxLines:   5000,
+		WorkingDir:     workingDir,
+		SandboxEnabled: true,
+		WebSearch:      &tools.WebSearchToolConfig{},
+		WebFetch:       &tools.WebFetchToolConfig{},
+		MaxBytes:       100 * 1024,
+		MaxLines:       5000,
 		DisableTools: []string{
 			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
 			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolComputerUse,

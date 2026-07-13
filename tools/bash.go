@@ -143,6 +143,7 @@ type BashToolConfig struct {
 	Operations BashOperations
 	MaxBytes   int64
 	MaxLines   int64
+	Sandbox    WorkingDirSandbox
 }
 
 func (c *BashToolConfig) defaults() {

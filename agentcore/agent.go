@@ -38,11 +38,15 @@ type Config struct {
 	Tools        []*Tool
 	SystemPrompt string
 
-	// WorkspaceDir 是 Agent 工具沙箱的默认工作目录（绝对路径）。
+	// WorkspaceDir 是应用数据目录（~/.mady/workspace），供 AgentStore 等
+	// 基础设施使用。不作为工具沙箱边界。
+	WorkspaceDir string
+
+	// ProjectDir 是用户当前项目文件夹（os.Getwd()），作为工具沙箱边界。
 	// 领域工厂函数（如 AssistantAgentConfig）在构造文件工具时读取此字段，
 	// 避免硬编码相对路径导致非项目目录启动时沙箱错位。
-	// 空字符串时各工具回退到自身默认（通常为 cwd）。
-	WorkspaceDir string
+	// 案件模式下覆盖为 RootPath。空字符串时工具回退到 WorkspaceDir。
+	ProjectDir string
 
 	Store Store // optional: enables SaveState / LoadState
 	// Checkpoint optional durable snapshots per thread (see CheckpointSettings).

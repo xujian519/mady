@@ -35,6 +35,7 @@ type LsToolConfig struct {
 	Operations LsOperations
 	MaxBytes   int64
 	Limit      int
+	Sandbox    WorkingDirSandbox
 }
 
 func (c *LsToolConfig) defaults() {
@@ -84,7 +85,10 @@ func NewLsTool(cwd string, cfg *LsToolConfig) *agentcore.Tool {
 				return resultErrf("invalid arguments: %w", err)
 			}
 
-			dirPath := resolveReadPath(input.Path, cwd)
+			dirPath, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			if err != nil {
+				return resultErrf("%w", err)
+			}
 			if dirPath == "" {
 				dirPath = cwd
 			}
