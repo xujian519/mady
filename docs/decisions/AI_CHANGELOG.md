@@ -12,6 +12,16 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-13: 移除 chat.json 内置 manifest（chat 已融入集成模式）
+
+- **变更**:
+  1. 删除 `agentcore/manifests/chat.json`（embed 源）和 `manifests/chat.json`（根目录用户参考示例）
+  2. 更新 `agentcore/manifest_test.go`：5 个测试的硬编码 manifest 数量从 4→3 / 5→4；ExternalOverride 测试从覆盖 chat-agent 改为覆盖 assistant-agent
+- **原因**: 提交 `6837337`（Chat Agent 与意图识别深度融合）后，chat-agent 由 `IntegratedChatConfig` 统一动态构建（`domains/chat.go:71`），`ProfessionalHandoffConfigs` 已明确排除 chat（`domains/router.go:80`）。chat.json 作为独立 manifest 已多余，导致启动日志显示不必要的路由项
+- **影响范围**: agentcore/manifests/、manifests/、agentcore/manifest_test.go（不影响代码层面的 ChatAgentConfig/IntegratedChatConfig/DomainChat 常量/分类器枚举）
+- **风险等级**: 低（集成模式不依赖 chat manifest；Router 模式的 chatHandoff 在代码中硬编码，不依赖 manifest）
+- **审查要求**: L1
+
 ## 2026-07-13: TUI 案件上下文接入（/case + /deadline 命令族）
 
 - **变更**:

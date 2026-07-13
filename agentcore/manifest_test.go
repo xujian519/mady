@@ -256,13 +256,13 @@ func writeManifest(t *testing.T, dir, filename, content string) {
 // --- LoadManifests: embed + 外部覆盖合并 ---
 
 func TestLoadManifests_EmbeddedOnly(t *testing.T) {
-	// userDir 为空 → 仅返回内置 4 个
+	// userDir 为空 → 仅返回内置 3 个（chat 已融入集成模式，不再独立存在）
 	res := LoadManifests("")
-	if len(res.Manifests) < 4 {
-		t.Errorf("expected at least 4 embedded manifests, got %d", len(res.Manifests))
+	if len(res.Manifests) < 3 {
+		t.Errorf("expected at least 3 embedded manifests, got %d", len(res.Manifests))
 	}
-	if res.EmbeddedCount < 4 {
-		t.Errorf("EmbeddedCount=%d, want >=4", res.EmbeddedCount)
+	if res.EmbeddedCount < 3 {
+		t.Errorf("EmbeddedCount=%d, want >=3", res.EmbeddedCount)
 	}
 	if res.ExternalCount != 0 {
 		t.Errorf("ExternalCount=%d, want 0", res.ExternalCount)
@@ -270,9 +270,9 @@ func TestLoadManifests_EmbeddedOnly(t *testing.T) {
 	if len(res.Overridden) != 0 || len(res.Added) != 0 {
 		t.Errorf("Overridden/Added should be empty, got %v / %v", res.Overridden, res.Added)
 	}
-	// 验证内置的 4 个已知领域都在
+	// 验证内置的 3 个已知领域都在
 	names := manifestNames(res.Manifests)
-	for _, want := range []string{"chat-agent", "assistant-agent", "patent-agent", "legal-advisor"} {
+	for _, want := range []string{"assistant-agent", "patent-agent", "legal-advisor"} {
 		if _, ok := names[want]; !ok {
 			t.Errorf("missing embedded manifest %q in %v", want, res.Manifests)
 		}
@@ -281,28 +281,28 @@ func TestLoadManifests_EmbeddedOnly(t *testing.T) {
 
 func TestLoadManifests_ExternalOverride(t *testing.T) {
 	dir := t.TempDir()
-	// 覆盖内置 chat-agent（改 description）
-	writeManifest(t, dir, "chat.json", `{
-		"name": "chat-agent",
-		"domain": "chat",
+	// 覆盖内置 assistant-agent（改 description）
+	writeManifest(t, dir, "assistant.json", `{
+		"name": "assistant-agent",
+		"domain": "assistant",
 		"description": "外部覆盖版本"
 	}`)
 
 	res := LoadManifests(dir)
-	if len(res.Overridden) != 1 || res.Overridden[0] != "chat-agent" {
-		t.Errorf("Overridden=%v, want [chat-agent]", res.Overridden)
+	if len(res.Overridden) != 1 || res.Overridden[0] != "assistant-agent" {
+		t.Errorf("Overridden=%v, want [assistant-agent]", res.Overridden)
 	}
-	// 找到 chat-agent，确认是外部版本
+	// 找到 assistant-agent，确认是外部版本
 	for _, m := range res.Manifests {
-		if m.Name == "chat-agent" {
+		if m.Name == "assistant-agent" {
 			if m.Description != "外部覆盖版本" {
 				t.Errorf("override not applied: description=%q", m.Description)
 			}
 		}
 	}
-	// 总数应仍为 4（覆盖不增加）
-	if len(res.Manifests) != 4 {
-		t.Errorf("expected 4 manifests (override), got %d", len(res.Manifests))
+	// 总数应仍为 3（覆盖不增加）
+	if len(res.Manifests) != 3 {
+		t.Errorf("expected 3 manifests (override), got %d", len(res.Manifests))
 	}
 	if res.ExternalCount != 1 {
 		t.Errorf("ExternalCount=%d, want 1", res.ExternalCount)
@@ -322,17 +322,17 @@ func TestLoadManifests_ExternalAddNew(t *testing.T) {
 	if len(res.Added) != 1 || res.Added[0] != "finance-agent" {
 		t.Errorf("Added=%v, want [finance-agent]", res.Added)
 	}
-	// 总数应为 5（4 内置 + 1 新增）
-	if len(res.Manifests) != 5 {
-		t.Errorf("expected 5 manifests (4 embedded + 1 new), got %d", len(res.Manifests))
+	// 总数应为 4（3 内置 + 1 新增）
+	if len(res.Manifests) != 4 {
+		t.Errorf("expected 4 manifests (3 embedded + 1 new), got %d", len(res.Manifests))
 	}
 }
 
 func TestLoadManifests_NonExistentUserDir(t *testing.T) {
 	// userDir 不存在 → 静默回退到纯内置
 	res := LoadManifests("/nonexistent/path/xyz")
-	if len(res.Manifests) < 4 {
-		t.Errorf("expected >=4 embedded manifests, got %d", len(res.Manifests))
+	if len(res.Manifests) < 3 {
+		t.Errorf("expected >=3 embedded manifests, got %d", len(res.Manifests))
 	}
 	if res.ExternalCount != 0 {
 		t.Errorf("ExternalCount=%d, want 0", res.ExternalCount)
@@ -345,9 +345,9 @@ func TestLoadManifests_ExternalBrokenJSON(t *testing.T) {
 	writeManifest(t, dir, "broken.json", `{invalid json}`)
 
 	res := LoadManifests(dir)
-	// 内置 4 个应仍在
-	if len(res.Manifests) < 4 {
-		t.Errorf("embedded manifests lost: got %d, want >=4", len(res.Manifests))
+	// 内置 3 个应仍在
+	if len(res.Manifests) < 3 {
+		t.Errorf("embedded manifests lost: got %d, want >=3", len(res.Manifests))
 	}
 	// 应有至少 1 个非致命错误
 	if len(res.Errors) == 0 {
