@@ -99,7 +99,7 @@ func NewProcessTerminal() *ProcessTerminal {
 	return &ProcessTerminal{
 		in:         os.Stdin,
 		out:        os.Stdout,
-		kittyFlags: 1, // disambiguate escape codes
+		kittyFlags: 1 | 8, // disambiguate + report all keys (so Cmd/Ctrl modifiers can be distinguished)
 	}
 }
 
@@ -382,6 +382,10 @@ func TerminalSupportsKittyKeyboard() bool {
 	case os.Getenv("GHOSTTY_RESOURCES_DIR") != "":
 		return true
 	case os.Getenv("FOOT_VERSION") != "":
+		return true
+	case os.Getenv("ALACRITTY_WINDOW_ID") != "":
+		return true
+	case term == "alacritty":
 		return true
 	}
 	return false

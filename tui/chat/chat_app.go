@@ -1001,6 +1001,11 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 	if l.history != nil {
 		switch m := msg.(type) {
 		case core.MouseMsg:
+			// Right-click (Button 2) → copy selected text.
+			if m.Action == core.MouseRelease && m.Button == 2 {
+				doCopy(l)
+				return nil
+			}
 			adjusted := m
 			adjusted.Row -= int64(l.headerHeight)
 			if adjusted.Row >= 0 {

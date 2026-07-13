@@ -12,6 +12,17 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-13: TUI 复制功能修复 — Kitty flag 8 + 右键复制
+
+- **变更**:
+  1. **Kitty flag 8 开启**：`NewProcessTerminal()` 默认 `kittyFlags` 从 `1`（仅 disambiguate）改为 `1 | 8`（report all keys），使得 `Cmd+C` 作为 CSI u 序列 `\x1b[99;9u`（ModSuper）到达，可区分于 `Ctrl+C`（ModCtrl）；`main.go` TUI 入口同步显式设置 `KittyKeyboardFlags: 1 | 8`
+  2. **右键复制**：`chatLayout.Update()` 中 `MouseRelease + Button==2` 分支触发 `doCopy(l)`，复用现有选区/剪贴板基础设施
+  3. **Alacritty 支持**：`TerminalSupportsKittyKeyboard()` 新增 `ALACRITTY_WINDOW_ID` 和 `TERM=alacritty` 检测（Alacritty 0.13.0+ 支持 Kitty 协议）
+- **原因**: (1) 无法使用 ⌘+C 复制 — Kitty flag 1 不足以区分 Cmd 和 Ctrl 修饰键；(2) 鼠标右键无法复制 — SGR 鼠标已正确解码 Button 2，但 layout 层未响应
+- **影响范围**: `cmd/mady/main.go`、`tui/chat/chat_app.go`、`tui/terminal/terminal.go`
+- **风险等级**: 低（flag 8 对不支持 Kitty 协议的终端安全忽略；右键事件与左键互斥；21 项测试全部通过）
+- **审查要求**: L1
+
 ## 2026-07-13: Sandbox 全面修复与 Cwd 感知（ProjectDir 字段）
 
 - **变更**:

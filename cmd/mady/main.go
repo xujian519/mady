@@ -656,6 +656,7 @@ func runTui(ctx context.Context) {
 		SuppressHandoffToolDisplay: useIntegratedMode,
 		AltScreen:                  true,
 		MouseMode:                  "auto",
+		KittyKeyboardFlags:         1 | 8, // disambiguate + report all keys (for Cmd+C vs Ctrl+C)
 		Context:                    ctx,
 		OnInterrupt: func() {
 			cancelMu.Lock()
