@@ -75,16 +75,14 @@ func (j LLMJudge) Compute(prediction, reference string) float64 {
 		systemPrompt = DefaultLLMJudgePrompt
 	}
 
-	userPrompt := fmt.Sprintf(`%s
-
-参考答案：
+	userPrompt := fmt.Sprintf(`参考答案：
 %s
 
 预测答案：
 %s
 
-最终评分 JSON：`,
-		systemPrompt, truncateForJudge(reference), truncateForJudge(prediction))
+请评分：`,
+		truncateForJudge(reference), truncateForJudge(prediction))
 
 	timeout := j.Timeout
 	if timeout <= 0 {
@@ -235,7 +233,12 @@ func clampScore(v float64) float64 {
 }
 
 func normalizeScore(v float64) float64 {
-	if v > 1 && v <= 10 {
+	// Values in (1,2] are almost certainly minor overruns on a [0,1] scale
+	// (the default judge prompt) rather than [0,10] scores. Clamp to 1.
+	if v > 1 && v <= 2 {
+		return 1
+	}
+	if v > 2 && v <= 10 {
 		return v / 10
 	}
 	if v > 10 && v <= 100 {

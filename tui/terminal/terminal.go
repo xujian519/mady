@@ -164,6 +164,7 @@ func (t *ProcessTerminal) Start(onInput func(data []byte), onResize func()) erro
 	// runtime may open os.Stdin in non-blocking mode; restore blocking
 	// before the read loop starts so stdin reads behave like a normal tty.
 	if err := unix.SetNonblock(int(t.in.Fd()), false); err != nil {
+		_ = setTermios(t.in.Fd(), &saved) // restore termios
 		t.mu.Unlock()
 		return fmt.Errorf("tui: set stdin blocking: %w", err)
 	}
