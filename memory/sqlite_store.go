@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 )
 
 // SQLiteMemoryStore 是 MemoryStore 的 SQLite 持久化实现。
@@ -145,7 +145,7 @@ func (s *SQLiteMemoryStore) RememberBatch(ctx context.Context, entries []MemoryE
 	if err != nil {
 		return fmt.Errorf("memory/sqlite: begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	now := s.now()
 	stmt, err := tx.PrepareContext(ctx, `

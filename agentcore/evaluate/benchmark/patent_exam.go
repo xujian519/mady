@@ -7,7 +7,7 @@ package benchmark
 import "github.com/xujian519/mady/agentcore/evaluate"
 
 // PatentExamCases is the first-layer Golden Benchmark: structured mock
-// questions modelled on the patent agent qualification exam. Each case
+// questions modeled on the patent agent qualification exam. Each case
 // tests a distinct competency (novelty, inventive step, claim interpretation,
 // OA response, infringement). Answers are reference-quality, not necessarily
 // the only correct answer.

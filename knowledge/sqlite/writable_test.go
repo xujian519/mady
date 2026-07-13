@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -262,7 +263,7 @@ func TestWritableStore_HashString(t *testing.T) {
 }
 
 func TestFloat32ToBytesRoundTrip(t *testing.T) {
-	original := []float32{1.0, -2.5, 3.14, 0.0, -0.0}
+	original := []float32{1.0, -2.5, 3.14, 0.0, math.Float32frombits(0x80000000)}
 	blob := float32ToBytes(original)
 	if len(blob) != len(original)*4 {
 		t.Fatalf("blob length = %d, want %d", len(blob), len(original)*4)

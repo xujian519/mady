@@ -89,20 +89,23 @@ func CollectCalibrationSamples(
 			Score:      r.Average,
 		}
 
-		if !r.Passed {
+		switch {
+		case !r.Passed:
 			sample.Reason = "failed — potential false negative"
 			failed = append(failed, sample)
-		} else if r.Average >= threshold-0.1 && r.Average <= threshold+0.1 {
+		case r.Average >= threshold-0.1 && r.Average <= threshold+0.1:
 			sample.Reason = "borderline — near threshold"
 			borderline = append(borderline, sample)
-		} else {
+		default:
 			sample.Reason = "random sample — false positive check"
 			passing = append(passing, sample)
 		}
 	}
 
 	// All failed + all borderline + random sample of passing.
-	sampled := append(failed, borderline...)
+	sampled := make([]CalibrationSample, 0, len(failed)+len(borderline)+len(passing))
+	sampled = append(sampled, failed...)
+	sampled = append(sampled, borderline...)
 
 	if len(passing) > 0 && rate > 0 {
 		n := int(float64(len(passing)) * rate)

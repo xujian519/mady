@@ -46,21 +46,21 @@ func ExtractCaseSummary(cp *StageCheckpoint) CaseSummary {
 // a memory entry. The format is designed to be keyword-rich for retrieval.
 func (s CaseSummary) String() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("案件记忆 | 案件编号: %s", s.CaseID))
-	b.WriteString(fmt.Sprintf(" | 案件类型: %s", s.CaseType))
+	fmt.Fprintf(&b, "案件记忆 | 案件编号: %s", s.CaseID)
+	fmt.Fprintf(&b, " | 案件类型: %s", s.CaseType)
 	if s.TechnicalField != "" {
-		b.WriteString(fmt.Sprintf(" | 技术领域: %s", s.TechnicalField))
+		fmt.Fprintf(&b, " | 技术领域: %s", s.TechnicalField)
 	}
-	b.WriteString(fmt.Sprintf(" | 当前阶段: %d", s.CurrentStage))
-	b.WriteString(fmt.Sprintf(" | 已记录事实: %d条", s.FactCount))
+	fmt.Fprintf(&b, " | 当前阶段: %d", s.CurrentStage)
+	fmt.Fprintf(&b, " | 已记录事实: %d条", s.FactCount)
 	if s.WorkflowID != "" {
-		b.WriteString(fmt.Sprintf(" | 工作流: %s", s.WorkflowID))
+		fmt.Fprintf(&b, " | 工作流: %s", s.WorkflowID)
 	}
 	if s.CreatedAt != "" {
-		b.WriteString(fmt.Sprintf(" | 创建: %s", s.CreatedAt))
+		fmt.Fprintf(&b, " | 创建: %s", s.CreatedAt)
 	}
 	if s.UpdatedAt != "" {
-		b.WriteString(fmt.Sprintf(" | 更新: %s", s.UpdatedAt))
+		fmt.Fprintf(&b, " | 更新: %s", s.UpdatedAt)
 	}
 	return b.String()
 }

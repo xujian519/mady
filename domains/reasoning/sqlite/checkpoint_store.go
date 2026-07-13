@@ -8,7 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
 	"github.com/xujian519/mady/domains/reasoning"
 )

@@ -40,7 +40,7 @@ type WritableStore struct {
 	db       *sql.DB
 	dim      int
 	embedder retrieval.Embedder
-	mu       sync.Mutex // serialise writes
+	mu       sync.Mutex // serialize writes
 }
 
 // OpenWritable opens or creates the user database at the given path. If the
@@ -89,7 +89,7 @@ func OpenWritable(path string, embedder retrieval.Embedder, knowledgeDBPath stri
 }
 
 // initSchema creates tables if they do not exist. Idempotent — safe to call
-// on an already-initialised database.
+// on an already-initialized database.
 func (w *WritableStore) initSchema() error {
 	_, err := w.db.Exec(`
 		CREATE TABLE IF NOT EXISTS documents (
@@ -137,7 +137,7 @@ func (w *WritableStore) initSchema() error {
 // in a single transaction. If a document with the same docID already exists
 // it is replaced (delete + insert).
 //
-// The call is serialised by a mutex to ensure transaction integrity. Reads
+// The call is serialized by a mutex to ensure transaction integrity. Reads
 // from other goroutines are not blocked (WAL mode allows concurrent readers).
 func (w *WritableStore) AddDocument(ctx context.Context, docID, title, content string) error {
 	if docID == "" {
