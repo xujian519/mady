@@ -10,6 +10,7 @@ import (
 
 	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/core"
+	"github.com/xujian519/mady/tui/layout"
 	"github.com/xujian519/mady/tui/terminal"
 	"github.com/xujian519/mady/tui/theme"
 )
@@ -666,6 +667,114 @@ func extractToolDiff(toolName, resultJSON string) (path, diff string, added, rem
 	return path, diff, added, removed, content
 }
 
+// displayFileSearchResult parses and displays search_project_files results.
+func (a *ChatApp) displayFileSearchResult(resultJSON string) {
+	var raw struct {
+		Files []struct {
+			Path      string  `json:"path"`
+			Category  string  `json:"category"`
+			Relevance float64 `json:"relevance"`
+			Preview   string  `json:"preview"`
+		} `json:"files"`
+		Total   int    `json:"total"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(resultJSON), &raw); err != nil {
+		return
+	}
+	if len(raw.Files) == 0 {
+		if raw.Message != "" {
+			a.history.Append(ChatMessage{Role: RoleSystem, Text: raw.Message})
+		}
+		return
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "📁 案件文件搜索结果（共 %d 项）\n\n", len(raw.Files))
+	pal := theme.CurrentPalette()
+	for i, f := range raw.Files {
+		relPath := f.Path
+		cat := f.Category
+		if cat == "" {
+			cat = "?"
+		}
+		score := f.Relevance
+		scoreStr := fmt.Sprintf("%.0f%%", score*100)
+		preview := f.Preview
+		if core.VisibleWidth(preview) > 80 {
+			preview = core.TruncateToWidth(preview, 77, "...")
+		}
+		fmt.Fprintf(&sb, "%d. %s  [%s] (%s)\n", i+1, pal.Bold.Render(relPath), cat, pal.Dim.Render(scoreStr))
+		if preview != "" {
+			fmt.Fprintf(&sb, "   %s\n", pal.Dim.Render(preview))
+		}
+		sb.WriteString("\n")
+	}
+
+	collapsed := !a.isRunning()
+	a.history.Append(ChatMessage{
+		Role:      RoleAssistant,
+		Meta:      "file_search",
+		Text:      strings.TrimSpace(sb.String()),
+		Collapsed: collapsed,
+	})
+}
+
+// displayFileReadResult parses and displays read_project_file results.
+func (a *ChatApp) displayFileReadResult(resultJSON string) {
+	var raw struct {
+		Path       string            `json:"path"`
+		Category   string            `json:"category"`
+		Content    string            `json:"content"`
+		Confidence float64           `json:"confidence"`
+		CostNotice string            `json:"cost_notice"`
+		Error      string            `json:"error"`
+		Metadata   map[string]string `json:"metadata"`
+	}
+	if err := json.Unmarshal([]byte(resultJSON), &raw); err != nil {
+		return
+	}
+
+	if raw.Error != "" {
+		a.history.Append(ChatMessage{Role: RoleSystem, Text: "⚠ " + raw.Error})
+		return
+	}
+	pathLabel := raw.Path
+	if pathLabel == "" {
+		pathLabel = "（未知文件）"
+	}
+	if raw.Content == "" && raw.CostNotice != "" {
+		a.history.Append(ChatMessage{
+			Role: RoleSystem,
+			Text: "📄 " + pathLabel + " — " + raw.CostNotice,
+		})
+		return
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "📄 %s", raw.Path)
+
+	if raw.Confidence < 1.0 {
+		fmt.Fprintf(&sb, "  [置信度: %.0f%%]", raw.Confidence*100)
+	}
+	sb.WriteString("\n\n")
+
+	// Show a preview of the content (first 2000 chars).
+	content := raw.Content
+	if core.VisibleWidth(content) > 2000 {
+		content = core.TruncateToWidth(content, 1997, "...") + "\n\n[内容较长，已截断]"
+	}
+	sb.WriteString(content)
+
+	collapsed := !a.isRunning()
+	a.history.Append(ChatMessage{
+		Role:      RoleAssistant,
+		Meta:      "file_read",
+		Text:      strings.TrimSpace(sb.String()),
+		Collapsed: collapsed,
+	})
+}
+
 func formatContentPreview(content string, totalLines int64) string {
 	const previewLines = 6
 	lines := strings.Split(content, "\n")
@@ -828,6 +937,24 @@ type layoutHost interface {
 	TerminalSize() (cols, rows int64)
 }
 
+// editorFrame wraps the editor with a horizontal top/bottom border. It exists
+// so the editor border can participate in the declarative Flex layout.
+type editorFrame struct {
+	editor core.Component
+}
+
+func (f *editorFrame) Render(width int64) []string {
+	lines := f.editor.Render(width)
+	border := theme.CurrentPalette().Border.Render(strings.Repeat("─", int(width)))
+	out := make([]string, 0, len(lines)+2)
+	out = append(out, border)
+	out = append(out, lines...)
+	out = append(out, border)
+	return out
+}
+
+func (f *editorFrame) Invalidate() {}
+
 type chatLayout struct {
 	host         layoutHost
 	app          *ChatApp
@@ -862,60 +989,62 @@ func (l *chatLayout) Render(width int64) []string {
 	if rows <= 0 {
 		rows = 24
 	}
+	l.lastRows = rows
 
-	var out []string
-	var headerLines, loaderLines, editorLines, statusLines, footerLines, acLines []string
+	// Use a fixed terminal-size override for this render so Flex can compute
+	// the Fill allocation correctly even when the host reports a different size
+	// due to timing. The real terminal size is read from l.host in the first
+	// branch above; this wrapper just makes sure Flex sees a consistent height.
+	bounds := &fixedBounds{width: width, height: rows}
+
+	flex := layout.NewFlex(layout.DirectionVertical)
+	flex.Bounds = bounds
+
+	headerIndex := -1
+	editorFrameIndex := -1
 
 	if l.header != nil {
-		headerLines = l.header.Render(width)
+		headerIndex = len(flex.Children)
+		flex.AddChild(layout.Natural(l.header))
 	}
-	l.headerHeight = len(headerLines)
-	editorLines = l.editor.Render(width)
-	editorBorder := theme.CurrentPalette().Border.Render(strings.Repeat("─", int(width)))
-	editorLines = append(append([]string{editorBorder}, editorLines...), editorBorder)
-	if l.loader != nil && l.loader.IsRunning() {
-		loaderLines = l.loader.Render(width)
-	}
-	if l.footer != nil {
-		footerLines = l.footer.Render(width)
-	}
-	if l.statusBar != nil {
-		statusLines = l.statusBar.Render(width)
+	if l.history != nil {
+		flex.AddChild(layout.FillWeight(l.history, 1).WithAllocate(func(h int64) {
+			l.history.SetMaxRowsDirect(h)
+		}))
 	}
 	if l.ac != nil && l.ac.Active() {
-		acLines = l.ac.Render(width)
+		flex.AddChild(layout.Natural(l.ac))
+	}
+	if l.loader != nil && l.loader.IsRunning() {
+		flex.AddChild(layout.Natural(l.loader))
+	}
+	editorFrame := &editorFrame{editor: l.editor}
+	editorFrameIndex = len(flex.Children)
+	flex.AddChild(layout.Natural(editorFrame))
+	if l.footer != nil {
+		flex.AddChild(layout.Natural(l.footer))
+	}
+	if l.statusBar != nil {
+		flex.AddChild(layout.Natural(l.statusBar))
 	}
 
-	reserved := int64(len(headerLines) + len(editorLines) + len(loaderLines) + len(footerLines) + len(statusLines) + len(acLines))
-	remaining := rows - reserved
-	if remaining < 1 {
-		remaining = 1
-	}
+	out := flex.Render(width)
 
-	// Row order below is: header, history(remaining), ac, loader, editor(with
-	// top/bottom border), footer, statusBar. editorTop marks where the
-	// editor's top border row lands; the editor's own content starts one row
-	// after that.
-	l.editorTop = int64(len(headerLines)) + remaining + int64(len(acLines)) + int64(len(loaderLines))
-
-	var historyLines []string
-	if l.history != nil {
-		l.history.SetMaxRowsDirect(remaining)
-		historyLines = l.history.Render(width)
+	if headerIndex >= 0 {
+		l.headerHeight = int(flex.ChildRect(headerIndex).Height)
 	}
-
-	out = append(out, headerLines...)
-	out = append(out, historyLines...)
-	for int64(len(historyLines)) < remaining {
-		out = append(out, strings.Repeat(" ", int(width)))
-		historyLines = append(historyLines, " ")
+	if editorFrameIndex >= 0 {
+		l.editorTop = flex.ChildRect(editorFrameIndex).Row
 	}
-	out = append(out, acLines...)
-	out = append(out, loaderLines...)
-	out = append(out, editorLines...)
-	out = append(out, footerLines...)
-	out = append(out, statusLines...)
 	return out
+}
+
+type fixedBounds struct {
+	width, height int64
+}
+
+func (b *fixedBounds) TerminalSize() (cols, rows int64) {
+	return b.width, b.height
 }
 
 func (l *chatLayout) Invalidate() {}

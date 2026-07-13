@@ -337,3 +337,38 @@ func TestIsCopyShortcut(t *testing.T) {
 		})
 	}
 }
+
+func TestChatLayoutUsesFlex(t *testing.T) {
+	app, vt := newTestChatApp(t, ChatAppConfig{Title: "Demo"})
+	cols, rows := vt.Size()
+	layout := app.layout
+	out := layout.Render(cols)
+	if int64(len(out)) != rows {
+		t.Fatalf("rendered %d lines, want %d", len(out), rows)
+	}
+	if layout.headerHeight != 1 {
+		t.Fatalf("headerHeight=%d, want 1", layout.headerHeight)
+	}
+	if layout.editorTop <= int64(layout.headerHeight) {
+		t.Fatalf("editorTop=%d should be below header (height=%d)", layout.editorTop, layout.headerHeight)
+	}
+	if layout.editorTop >= rows-1 {
+		t.Fatalf("editorTop=%d leaves no room for editor", layout.editorTop)
+	}
+}
+
+func TestChatLayoutEditorTopAfterResize(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{Title: "Demo"})
+	vt2 := terminal.NewVirtualTerminal(80, 12)
+	host := &testAppHost{vt: vt2}
+	app.SetHost(host)
+	app.layout.host = host
+
+	out := app.layout.Render(80)
+	if int64(len(out)) != 12 {
+		t.Fatalf("rendered %d lines, want 12", len(out))
+	}
+	if app.layout.editorTop <= 1 || app.layout.editorTop >= 11 {
+		t.Fatalf("editorTop=%d out of range for 12-row terminal", app.layout.editorTop)
+	}
+}

@@ -834,14 +834,20 @@ func (t *TUI) renderFrame() {
 			}
 		}
 	} else {
-		// Differential repaint: emit only rows that changed at the cell level.
+		// Differential repaint: emit only the changed cell segments. This
+		// reduces terminal output bandwidth compared to rewriting whole rows.
 		buf.WriteString("\x1b[?25l")
-		diff := core.DiffRows(prev, rows)
+		diff := core.DiffFrame(prev, rows)
 		for _, d := range diff {
-			fmt.Fprintf(&buf, "\x1b[%d;1H", d.Row+1)
-			buf.WriteString("\x1b[2K")
-			buf.WriteString(core.SerializeRow(d.Content))
-			buf.WriteString("\x1b[0m")
+			for _, seg := range d.Segments {
+				fmt.Fprintf(&buf, "\x1b[%d;%dH", d.Row+1, seg.StartCol+1)
+				buf.WriteString(core.SerializeRowSegment(seg.Cells, seg.AfterStyle))
+			}
+			if d.ClearTail {
+				fmt.Fprintf(&buf, "\x1b[%d;%dH", d.Row+1, d.TailStart+1)
+				buf.WriteString("\x1b[0K")
+				buf.WriteString("\x1b[0m")
+			}
 		}
 		if len(rows) < len(prev) {
 			fmt.Fprintf(&buf, "\x1b[%d;1H", len(rows)+1)

@@ -57,6 +57,47 @@ func SerializeRow(row Row) string {
 	return b.String()
 }
 
+// SerializeRowSegment serializes a slice of cells starting at a specific
+// column. It resets the terminal style at the beginning (because the SGR
+// state after a cursor move is unknown), emits the cells, and then leaves
+// the terminal in afterStyle so that the unchanged suffix of the row is
+// rendered correctly.
+func SerializeRowSegment(cells []Cell, afterStyle Style) string {
+	if len(cells) == 0 {
+		if afterStyle.Equal(DefaultStyle) {
+			return ""
+		}
+		return RenderSGR(DefaultStyle, afterStyle)
+	}
+	var b strings.Builder
+	b.WriteString("\x1b[0m")
+	prev := DefaultStyle
+	for i := 0; i < len(cells); i++ {
+		c := cells[i]
+		if c.IsContinuation() {
+			continue
+		}
+		if !c.Style.Equal(prev) {
+			if sgr := RenderSGR(prev, c.Style); sgr != "" {
+				b.WriteString(sgr)
+			}
+			prev = c.Style
+		}
+		if c.Rune != 0 {
+			b.WriteRune(c.Rune)
+		}
+		for _, m := range c.Combining {
+			b.WriteRune(m)
+		}
+	}
+	if !afterStyle.Equal(prev) {
+		if sgr := RenderSGR(prev, afterStyle); sgr != "" {
+			b.WriteString(sgr)
+		}
+	}
+	return b.String()
+}
+
 // SerializeRows converts a slice of Rows to a single ANSI string with
 // "\r\n" between lines. Used for full-frame repaints.
 func SerializeRows(rows []Row) string {

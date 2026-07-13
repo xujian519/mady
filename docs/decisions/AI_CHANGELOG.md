@@ -12,6 +12,68 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-13: TUI 通用 Viewport 组件
+
+- **变更**:
+  1. 新增 `tui/component/viewport.go` 的 `Viewport` 组件：基于 `[]string` 内容缓冲提供可滚动视口，支持 `MaxRows` 可见高度、tail-follow 模式、向上/向下滚动、绝对偏移滚动、`^ N more lines` 指示器（可自定义渲染函数）和宽度补齐
+  2. Viewport 内部采用与 `ChatHistory` 一致的偏移语义：offset 为从底部向上滚动的行数，0 表示显示尾部；`ScrollBy` 正数向上、负数向下；`ScrollTo` 为绝对偏移；`FollowTail` 回到底部并重新启用自动跟随
+  3. 提供线程安全的 getter/setter（`SetContent`/`SetMaxRows`/`SetIndicator`/`SetIndicatorFn`），渲染时不持有锁，且 `Invalidate` 为无操作（不保留派生缓存）
+  4. 新增 `tui/component/viewport_test.go` 覆盖：无裁剪渲染、尾部裁剪、向上/向下滚动、偏移 clamp、`FollowTail`、指示器、动态调整 `MaxRows`、宽度补齐、自定义 indicator 函数、追加内容后自动跟随尾部
+- **原因**: 阶段 1-3 已分别完成 ChatHistory 增量缓存、声明式布局层和 cell 级 diff；阶段 4 提取一个通用的 `Viewport` 容器，使日志、列表、帮助文本等长内容场景无需重复实现滚动/裁剪逻辑，为未来替换 `ChatHistory` 内嵌视口或构建多面板布局做准备。考虑到 `ChatHistory` 已有自洽的缓存+视口逻辑和大量选区/鼠标坐标依赖，本次不直接替换，避免一次性改动过大
+- **影响范围**: `tui/component/viewport.go`（新）、`tui/component/viewport_test.go`（新）
+- **风险等级**: 低（新组件独立，不替换现有路径；已通过全量 `-race` 测试）
+- **审查要求**: L1
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./...` ✅（根模块与 `tools/` 子模块）| `golangci-lint` 未安装
+
+## 2026-07-13: TUI cell 级 diff
+
+- **变更**:
+  1. 新增 `tui/core` 的 cell 级 diff：在 `RowDiff` 行级 diff 之上增加 `Segment`/`RowCellDiff` 与 `DiffCells`/`DiffFrame`，将每行中第一个不同列到最后一个不同列识别为最小重写段，跨行宽度变化时自动追加尾部清除（`ClearTail` + `TailStart`）
+  2. 新增 `SerializeRowSegment`：在段起始处重置 SGR、按 cell 样式优化输出，并在段末将终端 SGR 状态过渡回未变更后缀的样式，避免样式泄漏到未重写区域
+  3. `tui/tui.go` 的差分渲染路径从“整行擦除+重写”改为“按段移动光标+重写+按需清除尾部”，CSI 2026 同步输出、光标管理和 DECAWM 控制保持不变
+  4. 宽字符边界保护：diff 段边界若落在 continuation cell，自动扩展到 primary cell，避免只重写宽字符右半
+  5. 新增 `tui/core/celldiff_test.go` 覆盖无变化、单 cell 变化、前缀/后缀变化、新行缩短、宽字符边界、raw 行回退等场景；新增 `tui/celldiff_integration_test.go` 通过 `VirtualTerminal` 验证 `TUI.renderFrame` 实际只输出变化段
+- **原因**: 阶段 1 ChatHistory 增量缓存减少组件层渲染，阶段 2 声明式布局减少布局计算，阶段 3 cell 级 diff 进一步降低终端输出带宽；对于流式 token、光标闪烁、spinner 等场景，行内大部分 cell 不变，重写整行浪费明显
+- **影响范围**: `tui/core/celldiff.go`、`tui/core/cellrender.go`、`tui/tui.go`、`tui/core/celldiff_test.go`（新）、`tui/celldiff_integration_test.go`（新）
+- **风险等级**: 中（渲染路径核心变更，SGR 状态管理与光标移动需严格正确；已通过 `VirtualTerminal` 集成测试和全量 `-race` 测试）
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./...` ✅（根模块与 `tools/` 子模块）| `golangci-lint` 未安装
+
+## 2026-07-13: TUI 声明式布局层（Flex）
+
+- **变更**:
+  1. 新增 `tui/layout` 包：`Flex` 容器、`Child` 配置、`Direction`/`SizePolicy` 枚举、辅助构造器（`Natural`/`Fixed`/`Fill`/`FillWeight`/`Percent`/`Min`/`Max`），以及 `BoundsProvider` 接口
+  2. 在 `tui/core` 中新增可选 `Sizer` 接口，让组件在不生成完整渲染输出的情况下声明自然高度，避免布局测量时重复渲染
+  3. `Flex` 支持 `DirectionVertical`（chatLayout 主场景）和 `DirectionHorizontal`（基础实现），支持 `SizeNatural`/`Fixed`/`Min`/`Max`/`Fill`/`Percent` 策略；`Fill` 子项可通过 `OnAllocate` 回调在分配空间后同步设置自身 `MaxRows`
+  4. 改造 `chatLayout.Render`：从手工计算 header/history/ac/loader/editor/footer/statusBar 行数改为 `layout.NewFlex(DirectionVertical)` 声明式组装；新增 `editorFrame` 包装组件统一处理 editor 上下边框；保留 `editorTop`/`headerHeight` 计算以兼容 `MouseMsg` 坐标转换
+  5. 新增 `tui/layout/flex_test.go` 与 `tui/chat/chat_app_test.go` 中 `TestChatLayoutUsesFlex`/`TestChatLayoutEditorTopAfterResize`，覆盖自然堆叠、Fill 分配、矩形查询、resize 后坐标更新
+- **原因**: 原 `chatLayout.Render` 手工累加各组件行数并计算剩余空间，逻辑硬编码、难以扩展；引入声明式布局层后可复用到 future Viewport/面板/弹窗等场景，并为后续 cell 级 diff 和 Viewport 抽象提供统一的布局语义
+- **影响范围**: `tui/layout/layout.go`（新）、`tui/layout/flex.go`（新）、`tui/layout/flex_test.go`（新）、`tui/core/component.go`、`tui/chat/chat_app.go`、`tui/chat/chat_app_test.go`
+- **风险等级**: 中（`chatLayout` 是 TUI 主渲染路径，mouse/选区/复制坐标依赖 `editorTop`；已添加测试验证，但水平方向为简化实现，未覆盖复杂场景）
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./...` ✅（根模块与 `tools/` 子模块）| `golangci-lint` 未安装
+
+## 2026-07-13: 修复 knowledge/fileindex/store.go 语法错误
+
+- **变更**: 补全 `store.go` 中缺失的 `import` 块闭合 `)` 与 `const` 块闭合 `)`，恢复该包可编译
+- **原因**: 该文件存在语法错误导致 `go build ./...` 失败，阻塞 TUI 阶段 2 验证；修复后不影响任何业务逻辑
+- **影响范围**: `knowledge/fileindex/store.go`
+- **风险等级**: 低（纯语法修复，无行为变更）
+- **审查要求**: L1
+- **验证**: `go build ./...` ✅ | `go test -race ./knowledge/fileindex` ✅
+
+## 2026-07-13: ChatHistory 增量渲染缓存
+
+- **变更**:
+  1. 在 `ChatHistory` 中引入按消息 ID 缓存的 `msgCache`（`map[string]cachedMessage`），缓存每个消息在固定宽度下渲染出的行；width 变化、主题变化、reasoning 渲染器变化或清空历史时整表失效
+  2. `Append` 只让新增消息未缓存，后续 `Render` 只渲染新消息；`PatchMessage`/`AppendDelta`/`Finalize` 仅失效对应消息缓存；`tryToggleThinkingAtLineLocked` 切换单个消息/思考段时只失效该消息缓存；工具组折叠/展开时清空整表（影响多消息）
+  3. 修正 `Append`/`AppendDelta` 自动生成消息 ID：原实现仅用 `time.Now().UnixNano()`，在紧密连续调用时可能产生重复 ID，导致缓存冲突；新增 `msgIDSeq` 单调序列号，ID 格式改为 `msg-{nanosec}-{seq}`
+  4. 新增 `renderCount` 测试计数器与 `TestChatHistoryIncrementalCache`/`TestChatHistoryCacheProducesIdenticalOutput` 两个测试，验证增量缓存只渲染变化消息且输出不变
+- **原因**: 原 `ChatHistory.Append` 直接将整个 `cachedAll` 标记为 dirty，长对话或流式输出时每帧都重新渲染所有历史消息，CPU 开销随消息数线性增长；增量缓存将常见操作（追加、流式 delta、单消息 patch）的渲染复杂度从 O(n) 降到 O(1)
+- **影响范围**: `tui/chat/chat_history.go`、`tui/chat/chat_history_test.go`
+- **风险等级**: 中（涉及消息缓存失效与消息 ID 生成变更；选择区、工具组折叠、reasoning 显示状态均已在失效路径中处理，但新增缓存状态可能引入遗漏失效场景）
+- **审查要求**: L2
+
 ## 2026-07-13: TUI 复制功能修复 — Kitty flag 8 + 右键复制
 
 - **变更**:

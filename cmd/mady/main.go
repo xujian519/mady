@@ -33,6 +33,7 @@ import (
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/knowledge"
+	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/knowledge/loader"
 	"github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/pkg/agentconfig"
@@ -483,6 +484,10 @@ func runTui(ctx context.Context) {
 	// 案件上下文：切换案件时更新，buildCfg 注入到 Agent 的 WorkspaceDir + SystemPrompt。
 	var currentProject *domains.ProjectRecord
 	var currentProjectMeta *domains.ProjectMeta
+	// 文件索引：案件切换时打开/刷新，buildCfg 注入 fileindex Extension。
+	var currentFileIndex *fileindex.FileIndex
+	var currentFileWatcher *fileindex.FileWatcher
+	fileIndexExt := fileindex.NewExtension(fileindex.ExtensionConfig{})
 
 	// 审核关卡：启用后在关键决策点（专利结论/法律意见/风险评估等）插入人工审核提示。
 	reviewMode := false
@@ -543,6 +548,7 @@ func runTui(ctx context.Context) {
 			if fc.KnowledgeExt != nil {
 				cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
 			}
+			cfg.Extensions = append(cfg.Extensions, fileIndexExt)
 			return applyPersistence(cfg)
 
 		case useMultiDomain:
@@ -776,6 +782,15 @@ func runTui(ctx context.Context) {
 					}
 					oldName := currentProject.Alias
 					currentProject = nil
+					if currentFileWatcher != nil {
+						currentFileWatcher.Stop()
+						currentFileWatcher = nil
+					}
+					if currentFileIndex != nil {
+						currentFileIndex.Close()
+						currentFileIndex = nil
+						fileIndexExt.SetFileIndex(nil)
+					}
 					currentProjectMeta = nil
 					runMu.Lock()
 					prev := currentAgent
@@ -801,6 +816,40 @@ func runTui(ctx context.Context) {
 					}
 					currentProject = matched
 					currentProjectMeta = nil
+
+					// Always close old resources before switching (independent of meta load).
+					if currentFileWatcher != nil {
+						currentFileWatcher.Stop()
+						currentFileWatcher = nil
+					}
+					if currentFileIndex != nil {
+						currentFileIndex.Close()
+						currentFileIndex = nil
+					}
+					fileIndexExt.SetFileIndex(nil)
+
+					// Determine database path with WorkspaceDir fallback.
+					wsDir := fc.WorkspaceDir
+					if wsDir == "" {
+						wsDir = filepath.Join(os.TempDir(), "mady-fileindex")
+					}
+					dbPath := filepath.Join(wsDir, "projects", matched.ProjectID, "fileindex.db")
+
+					// Open/refresh FileIndex for the selected project (independent of meta load).
+					if fi, err := fileindex.OpenFileIndex(matched.RootPath, dbPath); err == nil {
+						_ = fi.Refresh(context.Background())
+						currentFileIndex = fi
+						fileIndexExt.SetFileIndex(fi)
+						// Start file watcher for incremental updates.
+						wcfg := fileindex.FileWatcherConfig{}
+						currentFileWatcher = fileindex.NewFileWatcher(fi, wcfg)
+						if err := currentFileWatcher.Start(context.Background()); err != nil {
+							log.Printf("filewatcher: start: %v (continuing without)", err)
+							currentFileWatcher = nil
+						}
+					}
+
+					// Load meta if available (non-fatal on failure).
 					if meta, err := fc.ProjectRegistry.LoadMeta(matched.ProjectID); err == nil {
 						currentProjectMeta = meta
 					}

@@ -121,9 +121,16 @@ type selectionPos struct {
 	col  int64 // visible column within the line
 }
 
+// cachedMessage holds the rendered lines for a single message at a specific
+// width. It is invalidated when the message content or width changes.
+type cachedMessage struct {
+	lines []string
+}
+
 type ChatHistory struct {
 	mu       sync.Mutex
 	messages []ChatMessage
+	msgIDSeq int64 // monotonic sequence for auto-generated message IDs
 	theme    ChatHistoryTheme
 	maxRows  int64
 	offset   int64 // lines scrolled up from the bottom (0 = tail)
@@ -137,6 +144,11 @@ type ChatHistory struct {
 	cachedMsgRanges []msgRange
 	dirty           bool
 	expandedGroups  map[int]bool // group message indices that are expanded
+
+	// msgCache maps message ID to its rendered lines at the current width.
+	// It is cleared on width changes and on any global style change; single
+	// messages are invalidated on PatchMessage/AppendDelta.
+	msgCache map[string]cachedMessage
 
 	// optional invalidate callback (usually TUI.RequestRender).
 	onInvalidate func()
@@ -156,6 +168,10 @@ type ChatHistory struct {
 	// slide on a trackpad.
 	lastWheelAt     time.Time
 	suppressGesture bool
+
+	// renderCount tracks how many times renderMessage has been invoked. Used
+	// by tests to verify incremental caching behavior.
+	renderCount int
 }
 
 // NewChatHistory returns an empty history using the default theme.
@@ -167,6 +183,7 @@ func NewChatHistory() *ChatHistory {
 		follow:            true,
 		dirty:             true,
 		expandedGroups:    make(map[int]bool),
+		msgCache:          make(map[string]cachedMessage),
 		reasoningRenderer: HiddenReasoningRenderer{},
 	}
 }
@@ -176,6 +193,7 @@ func (h *ChatHistory) SetTheme(t ChatHistoryTheme) {
 	h.mu.Lock()
 	h.theme = t
 	h.dirty = true
+	h.clearMsgCacheLocked()
 	h.mu.Unlock()
 	h.invalidate()
 }
@@ -190,6 +208,7 @@ func (h *ChatHistory) SetReasoningRenderer(r ReasoningRenderer) {
 	}
 	h.reasoningRenderer = r
 	h.dirty = true
+	h.clearMsgCacheLocked()
 	h.mu.Unlock()
 	h.invalidate()
 }
@@ -258,6 +277,7 @@ func (h *ChatHistory) CollapseConsecutiveTools() {
 	}
 	delete(h.expandedGroups, runStart)
 	h.dirty = true
+	h.clearMsgCacheLocked()
 }
 
 // Append adds a new message, auto-scrolling to the bottom when follow-tail
@@ -265,7 +285,8 @@ func (h *ChatHistory) CollapseConsecutiveTools() {
 func (h *ChatHistory) Append(m ChatMessage) string {
 	h.mu.Lock()
 	if m.ID == "" {
-		m.ID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
+		h.msgIDSeq++
+		m.ID = fmt.Sprintf("msg-%d-%d", time.Now().UnixNano(), h.msgIDSeq)
 	}
 	if m.At.IsZero() {
 		m.At = time.Now()
@@ -294,6 +315,7 @@ func (h *ChatHistory) PatchMessage(id string, fn func(m *ChatMessage)) bool {
 	for i := range h.messages {
 		if h.messages[i].ID == id {
 			fn(&h.messages[i])
+			h.invalidateMessageLocked(id)
 			h.dirty = true
 			h.selActive = false
 			h.selDragging = false
@@ -343,6 +365,7 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 					h.messages[i].Text += delta
 				}
 				h.messages[i].Pending = true
+				h.invalidateMessageLocked(id)
 				h.dirty = true
 				h.selActive = false
 				h.selDragging = false
@@ -355,7 +378,8 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 			}
 		}
 	}
-	newID := fmt.Sprintf("msg-%d", time.Now().UnixNano())
+	newID := fmt.Sprintf("msg-%d-%d", time.Now().UnixNano(), h.msgIDSeq+1)
+	h.msgIDSeq++
 	msg := ChatMessage{
 		ID:      newID,
 		Role:    RoleAssistant,
@@ -390,10 +414,42 @@ func (h *ChatHistory) Clear() {
 	h.messages = nil
 	h.offset = 0
 	h.dirty = true
+	h.clearMsgCacheLocked()
+	h.renderCount = 0
 	h.selActive = false
 	h.selDragging = false
 	h.mu.Unlock()
 	h.invalidate()
+}
+
+// clearMsgCacheLocked drops all per-message render caches. Caller must hold mu.
+func (h *ChatHistory) clearMsgCacheLocked() {
+	h.msgCache = make(map[string]cachedMessage)
+}
+
+// invalidateMessageLocked drops the render cache for a single message. Caller
+// must hold mu.
+func (h *ChatHistory) invalidateMessageLocked(id string) {
+	delete(h.msgCache, id)
+}
+
+// renderMessageCached returns the rendered lines for a message, using a
+// per-message cache keyed on message ID. Caller must hold mu.
+func (h *ChatHistory) renderMessageCached(m ChatMessage, theme ChatHistoryTheme, width int64) []string {
+	if m.ID == "" {
+		return h.renderMessage(m, theme, width)
+	}
+	if cached, ok := h.msgCache[m.ID]; ok {
+		return cached.lines
+	}
+	lines := h.renderMessage(m, theme, width)
+	// Trim blank edges before caching so the stored version matches what
+	// renderAll callers need (trimBlankEdges is idempotent on already-trimmed).
+	trimmed := trimBlankEdges(lines)
+	cachedLines := make([]string, len(trimmed))
+	copy(cachedLines, trimmed)
+	h.msgCache[m.ID] = cachedMessage{lines: cachedLines}
+	return cachedLines
 }
 
 // Messages returns a snapshot of the transcript.
@@ -448,9 +504,13 @@ func (h *ChatHistory) Render(width int64) []string {
 	}
 	h.mu.Lock()
 	wasDirty := h.dirty
-	if h.dirty || h.cachedWidth != width {
-		h.cachedAll = h.renderAll(width)
+	if h.cachedWidth != width {
 		h.cachedWidth = width
+		h.clearMsgCacheLocked()
+		h.dirty = true
+	}
+	if h.dirty || h.cachedAll == nil {
+		h.cachedAll = h.renderAll(width)
 		h.dirty = false
 		// If content changed (was dirty), reset scroll if following tail.
 		if wasDirty && h.follow {
@@ -748,6 +808,7 @@ func (h *ChatHistory) expandToolGroup(msgRangeIdx int) {
 		}
 	}
 	h.dirty = true
+	h.clearMsgCacheLocked()
 }
 
 func (h *ChatHistory) tryToggleThinkingAtLineLocked(absLine int64) bool {
@@ -773,18 +834,22 @@ func (h *ChatHistory) tryToggleThinkingAtLineLocked(absLine int64) bool {
 	msg := &h.messages[msgIdx]
 	if msg.Role == RoleTool && msg.Collapsed {
 		msg.Collapsed = false
+		h.invalidateMessageLocked(msg.ID)
 		return true
 	}
 	if msg.Role == RoleTool && !msg.Collapsed {
 		msg.Collapsed = true
+		h.invalidateMessageLocked(msg.ID)
 		return true
 	}
 	if msg.Role == RoleAssistant && msg.Collapsed {
 		msg.Collapsed = false
+		h.invalidateMessageLocked(msg.ID)
 		return true
 	}
 	if msg.Role == RoleAssistant && !msg.Collapsed && msg.Meta == "diff" {
 		msg.Collapsed = true
+		h.invalidateMessageLocked(msg.ID)
 		return true
 	}
 	if msg.Role != RoleAssistant || len(msg.ThinkingSegments) == 0 {
@@ -806,6 +871,7 @@ func (h *ChatHistory) tryToggleThinkingAtLineLocked(absLine int64) bool {
 		// Header line (e.g., "◐ thinking")
 		if lineOffset == currentLine {
 			seg.Collapsed = !seg.Collapsed
+			h.invalidateMessageLocked(msg.ID)
 			return true
 		}
 		currentLine++
@@ -815,6 +881,7 @@ func (h *ChatHistory) tryToggleThinkingAtLineLocked(absLine int64) bool {
 			contentLines := int64(len(core.WrapAnsi(seg.Text, h.cachedWidth)))
 			if lineOffset > currentLine && lineOffset <= currentLine+contentLines {
 				seg.Collapsed = !seg.Collapsed
+				h.invalidateMessageLocked(msg.ID)
 				return true
 			}
 			currentLine += contentLines + 1 // +1 for separator
@@ -822,6 +889,7 @@ func (h *ChatHistory) tryToggleThinkingAtLineLocked(absLine int64) bool {
 			// Collapsed line (summary)
 			if lineOffset == currentLine {
 				seg.Collapsed = !seg.Collapsed
+				h.invalidateMessageLocked(msg.ID)
 				return true
 			}
 			currentLine++
@@ -967,7 +1035,7 @@ func (h *ChatHistory) renderAll(width int64) []string {
 					}
 					out = append(out, core.PadToWidth(bar+theme.DimStyle.Render(summary), width))
 					for j := i; j <= groupEnd; j++ {
-						out = append(out, h.renderMessage(h.messages[j], theme, width)...)
+						out = append(out, trimBlankEdges(h.renderMessageCached(h.messages[j], theme, width))...)
 					}
 					ranges = append(ranges, msgRange{
 						startLine: start, endLine: len(out), msgIndex: i,
@@ -1003,7 +1071,7 @@ func (h *ChatHistory) renderAll(width int64) []string {
 			}
 		}
 		start := len(out)
-		out = append(out, trimBlankEdges(h.renderMessage(m, theme, width))...)
+		out = append(out, trimBlankEdges(h.renderMessageCached(m, theme, width))...)
 		ranges = append(ranges, msgRange{startLine: start, endLine: len(out), msgIndex: i})
 	}
 	h.cachedMsgRanges = ranges
@@ -1145,6 +1213,7 @@ func trimBlankEdges(lines []string) []string {
 }
 
 func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width int64) []string {
+	h.renderCount++
 	switch m.Role {
 	case RoleUser:
 		bar := theme.UserStyle.Render("▌ ")

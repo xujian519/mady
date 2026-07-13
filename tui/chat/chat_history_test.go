@@ -246,3 +246,82 @@ func TestViewportRowToAbsoluteNoIndicatorWhenFollowingTail(t *testing.T) {
 		t.Fatalf("row 0 should map to content line %d; got %d", start, got)
 	}
 }
+
+// TestChatHistoryIncrementalCache verifies that ChatHistory only renders
+// messages that have changed, not the full transcript on every update.
+func TestChatHistoryIncrementalCache(t *testing.T) {
+	h := NewChatHistory()
+
+	// Append 5 messages and render once.
+	for i := 0; i < 5; i++ {
+		h.Append(ChatMessage{Role: RoleSystem, Text: "row"})
+	}
+	_ = h.Render(40)
+	if h.renderCount != 5 {
+		t.Fatalf("expected 5 render calls for initial render, got %d", h.renderCount)
+	}
+	if len(h.msgCache) != 5 {
+		t.Fatalf("expected 5 cached messages, got %d", len(h.msgCache))
+	}
+
+	// Render again without changes: no new render calls.
+	_ = h.Render(40)
+	if h.renderCount != 5 {
+		t.Fatalf("expected no new renders on unchanged history, got %d", h.renderCount)
+	}
+
+	// Append one more message: only the new message is rendered.
+	h.Append(ChatMessage{Role: RoleSystem, Text: "new"})
+	_ = h.Render(40)
+	if h.renderCount != 6 {
+		t.Fatalf("expected 1 new render call for appended message, got %d", h.renderCount)
+	}
+	if len(h.msgCache) != 6 {
+		t.Fatalf("expected 6 cached messages after append, got %d", len(h.msgCache))
+	}
+
+	// Patch an existing message: only that message is re-rendered.
+	firstID := h.messages[0].ID
+	h.PatchMessage(firstID, func(m *ChatMessage) { m.Text = "patched" })
+	_ = h.Render(40)
+	if h.renderCount != 7 {
+		t.Fatalf("expected 1 new render call for patched message, got %d", h.renderCount)
+	}
+
+	// Changing width clears the cache and re-renders everything.
+	prevCount := h.renderCount
+	_ = h.Render(80)
+	// With 6 cached messages, width change should re-render all 6.
+	if h.renderCount != prevCount+6 {
+		t.Fatalf("width change should re-render 6 messages (prev=%d got=%d)", prevCount, h.renderCount)
+	}
+}
+
+// TestChatHistoryCacheProducesIdenticalOutput verifies that the incremental
+// cache does not change the rendered output compared to a full re-render.
+func TestChatHistoryCacheProducesIdenticalOutput(t *testing.T) {
+	h := NewChatHistory()
+	h.Append(ChatMessage{Role: RoleUser, Text: "hello"})
+	h.Append(ChatMessage{Role: RoleAssistant, Text: "world"})
+
+	first := h.Render(40)
+	second := h.Render(40)
+	if len(first) != len(second) {
+		t.Fatalf("output length changed: first=%d second=%d", len(first), len(second))
+	}
+	for i := range first {
+		if first[i] != second[i] {
+			t.Fatalf("line %d differs:\nfirst:  %q\nsecond: %q", i, first[i], second[i])
+		}
+	}
+
+	// Append a message and confirm output still contains all prior content.
+	h.Append(ChatMessage{Role: RoleUser, Text: "next"})
+	third := h.Render(40)
+	joined := strings.Join(third, "\n")
+	for _, want := range []string{"hello", "world", "next"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing %q in output:\n%s", want, joined)
+		}
+	}
+}

@@ -23,6 +23,14 @@ type Component interface {
 	Invalidate()
 }
 
+// Sizer is an optional interface that lets a component declare its natural
+// height without producing a full render. Layout containers use it to avoid
+// double-rendering components during measurement.
+type Sizer interface {
+	// Measure returns the natural height of the component at the given width.
+	Measure(width int64) int64
+}
+
 // Updatable is the interface that components implement to participate in
 // the message-driven update cycle. All user interaction (keys, mouse,
 // paste, resize) and application events are delivered as Msg values
