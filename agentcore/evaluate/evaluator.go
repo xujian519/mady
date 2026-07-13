@@ -8,6 +8,7 @@ import (
 // reference answer, and any required citations that must appear in the output.
 type TestCase struct {
 	ID                string
+	Domain            string // patent | legal | general (用于按领域过滤 Benchmark)
 	Input             string
 	Expected          string
 	RequiredCitations []string

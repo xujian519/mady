@@ -1,8 +1,10 @@
 package domains
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestApprovalGate_KeywordTrigger(t *testing.T) {
@@ -159,5 +161,139 @@ func TestRequireApproval(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "人工审核") {
 		t.Errorf("error message missing '人工审核': %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// B1 — Structured Approval Record tests
+// ---------------------------------------------------------------------------
+
+func TestMemoryApprovalStore_SaveAndList(t *testing.T) {
+	store := NewMemoryApprovalStore()
+	ctx := context.Background()
+
+	r1 := ApprovalRecord{
+		ID:             "r1",
+		SessionID:      "sess-1",
+		CaseID:         "case-1",
+		Timestamp:      time.Now(),
+		TriggerKeyword: "专利结论",
+		OriginalOutput: "具有新颖性",
+		Decision:       DecisionAdopted,
+	}
+	r2 := ApprovalRecord{
+		ID:             "r2",
+		SessionID:      "sess-1",
+		CaseID:         "case-2",
+		Timestamp:      time.Now(),
+		TriggerKeyword: "法律意见",
+		OriginalOutput: "建议和解",
+		Decision:       DecisionModified,
+		ModifiedOutput: "建议和解并支付许可费",
+		Feedback:       "补充许可费条款",
+	}
+	r3 := ApprovalRecord{
+		ID:             "r3",
+		SessionID:      "sess-2",
+		CaseID:         "case-1",
+		Timestamp:      time.Now(),
+		TriggerKeyword: "风险评估",
+		OriginalOutput: "低风险",
+		Decision:       DecisionRejected,
+		Feedback:       "风险被低估",
+	}
+
+	for _, r := range []ApprovalRecord{r1, r2, r3} {
+		if err := store.Save(ctx, r); err != nil {
+			t.Fatalf("Save failed: %v", err)
+		}
+	}
+
+	got, err := store.List(ctx, "sess-1")
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 records for sess-1, got %d", len(got))
+	}
+
+	gotCase, err := store.ListByCase(ctx, "case-1")
+	if err != nil {
+		t.Fatalf("ListByCase failed: %v", err)
+	}
+	if len(gotCase) != 2 {
+		t.Fatalf("expected 2 records for case-1, got %d", len(gotCase))
+	}
+}
+
+func TestMemoryApprovalStore_Empty(t *testing.T) {
+	store := NewMemoryApprovalStore()
+	ctx := context.Background()
+
+	got, err := store.List(ctx, "nonexistent")
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected 0 records, got %d", len(got))
+	}
+}
+
+func TestApprovalGate_RecordDecision(t *testing.T) {
+	gate := NewApprovalGate(DefaultApprovalConfig())
+	store := NewMemoryApprovalStore()
+	WithApprovalStore(store)(gate)
+
+	ctx := context.Background()
+	original := "专利结论：该发明具备新颖性"
+
+	err := gate.RecordDecision(ctx, "sess-1", "case-1", "专利结论", original,
+		DecisionModified, "专利结论：该发明具备新颖性和创造性", "补充创造性分析")
+	if err != nil {
+		t.Fatalf("RecordDecision failed: %v", err)
+	}
+
+	records, err := store.List(ctx, "sess-1")
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	r := records[0]
+	if r.Decision != DecisionModified {
+		t.Errorf("expected modified, got %s", r.Decision)
+	}
+	if r.OriginalOutput != original {
+		t.Errorf("original output mismatch")
+	}
+	if r.ModifiedOutput == "" {
+		t.Error("modified output should not be empty")
+	}
+	if r.TriggerKeyword != "专利结论" {
+		t.Errorf("trigger keyword mismatch: %s", r.TriggerKeyword)
+	}
+}
+
+func TestApprovalGate_RecordDecision_NoStore(t *testing.T) {
+	gate := NewApprovalGate(DefaultApprovalConfig())
+	// No store attached — should be a silent no-op.
+	err := gate.RecordDecision(context.Background(), "s", "c", "kw", "out",
+		DecisionAdopted, "", "")
+	if err != nil {
+		t.Errorf("expected nil error without store, got %v", err)
+	}
+}
+
+func TestApprovalGate_WithApprovalStore(t *testing.T) {
+	gate := NewApprovalGate(DefaultApprovalConfig())
+	if gate.store != nil {
+		t.Error("store should be nil by default")
+	}
+
+	store := NewMemoryApprovalStore()
+	WithApprovalStore(store)(gate)
+	if gate.store == nil {
+		t.Error("store should be set after WithApprovalStore")
 	}
 }

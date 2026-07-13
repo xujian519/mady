@@ -14,6 +14,7 @@ LDFLAGS ?= -ldflags "-s -w -X main.commitHash=$(COMMIT_HASH) -X main.buildTime=$
         install install-hooks install-lint \
         build-cli-chat build-wiki-import build-acp-server build-mady \
         run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client run-mady run-acp-server \
+        eval eval-race \
         help
 
 # Default target
@@ -50,6 +51,16 @@ test-short:
 
 test-verbose:
 	$(GO) test $(GOFLAGS) -v -count=1 ./...
+
+# --- Eval Suite (CI Gate) ---
+# eval runs the Golden Benchmark CI gate: verifies metric chain integrity,
+# case formatting, and that perfect predictions pass while degraded ones fail.
+# Run this before merging Prompt/Rule/Skill changes.
+eval:
+	$(GO) test $(GOFLAGS) -v ./agentcore/evaluate/benchmark/...
+
+eval-race:
+	$(GO) test $(GOFLAGS) -race -v ./agentcore/evaluate/benchmark/...
 
 # --- Coverage ---
 coverage:
@@ -145,6 +156,10 @@ help:
 	@echo "  test-race          Run tests with race detector"
 	@echo "  test-short         Run tests in short mode"
 	@echo "  test-verbose       Run tests with verbose output"
+	@echo ""
+	@echo "Eval:"
+	@echo "  eval               Run Golden Benchmark CI gate (metric chain + case integrity)"
+	@echo "  eval-race          Same with race detector"
 	@echo ""
 	@echo "Quality:"
 	@echo "  vet                Run go vet"

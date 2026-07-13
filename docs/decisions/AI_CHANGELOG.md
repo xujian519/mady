@@ -12,6 +12,196 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-13: 评估闭环与记忆自学习方案评审报告
+
+- **变更**: 新建决策文档 `docs/decisions/eval-memory-plan-review-2026-07-13.md`（276行），对《评估闭环模块》《记忆自学习模块》《整体阶段划分》三部分方案进行代码级评审。结论：理念合格，落地需大改。识别 4 处重大脱节（向量检索已完成、评估框架已存在、memory 缺持久化、Checkpoint 概念混淆），提炼 7 项真正有价值的缺失工作，给出修正后的 A→B→C→D 四阶段落地路线（含 A5/A6 持久化基础设施前置）
+- **原因**: 方案基于过时项目快照，照原样执行将产生两套并行系统（EvalCase vs TestCase、LawyerPreference vs MemoryEntry），且遗漏 memory/StageCheckpoint 缺持久化的关键风险
+- **影响范围**: docs/decisions/eval-memory-plan-review-2026-07-13.md(新)；后续阶段 A-D 的实现将涉及 agentcore/evaluate、memory、domains/reasoning、domains/approval、guardrails、workflows/patent 等包
+- **风险等级**: 低（仅文档变更，无代码改动）
+- **审查要求**: L2
+
+## 2026-07-13: 阶段 A5 — MemoryStore SQLite 持久化后端
+
+- **变更**:
+  1. **新建 `memory/sqlite_store.go`**(~380行)：`SQLiteMemoryStore` 类型，实现 `MemoryStore` 接口，数据持久化到 SQLite（WAL 模式）。Schema 含 memories 表（15 列）+ 2 个索引（layer/scope）。检索策略与 `InMemoryStore` 一致：关键词匹配 + 复合评分（语义+新鲜度+重要性），复用 `keywordScore`/`recencyScore`/`estimateImportance` 等包级函数。Embedding 以 BLOB 存储（little-endian float32），供未来向量检索升级。Metadata 以 JSON 序列化。支持 `SQLiteOption` 函数式配置（`WithSQLiteScoringConfig`/`WithSQLiteClock`）
+  2. **新建 `memory/sqlite_store_test.go`**：15 个测试覆盖 Remember/Get/RememberBatch/Update/Forget/ForgetAll/Recall/RecallWithBudget/List/Prune/Stats/Persistence（关闭重开数据不丢失）/Concurrency（20 goroutine 并发写 + 10 并发读）/EmbeddingRoundTrip/空内容拒绝
+- **原因**: `InMemoryStore`（memory/store.go:14）是 Phase 1 纯内存实现，重启后数据丢失。方案 Tier 2 用户偏好需要跨重启持久化，Tier 1 案件记忆预热也依赖持久化后端。此改动为 B2/C2 的前置基础设施
+- **影响范围**: memory/sqlite_store.go(新), memory/sqlite_store_test.go(新)
+- **风险等级**: 低（新建文件，不修改任何现有代码；`MemoryStore` 接口和 `InMemoryStore` 保持不变；`Manager` 通过接口注入，无需改动）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ memory 包全绿（含 15 个新测试 + 原有测试）
+
+## 2026-07-13: 阶段 A6 — CheckpointStore SQLite 持久化后端
+
+- **变更**:
+  1. **新建 `domains/reasoning/sqlite/checkpoint_store.go`**(~150行)：`SQLiteCheckpointStore` 类型，实现 `reasoning.CheckpointStore` 接口（Save/Load/Delete）。Schema 含 stage_checkpoints 表（checkpoint_id PK + case_id/case_type/current_stage 索引列 + data JSON 列）+ case_id 索引。复用 `reasoning.MarshalCheckpoint`/`UnmarshalCheckpoint` 做 JSON 序列化。额外提供 `ListByCase` 方法按案件查询所有检查点。子包设计遵循依赖倒置：domain 层不导入 `database/sql`
+  2. **新建 `domains/reasoning/sqlite/checkpoint_store_test.go`**：6 个测试覆盖 Save+Load/LoadNotFound/Delete/SaveReplace（同 ID 覆盖）/ListByCase/Persistence（关闭重开数据不丢失）
+- **原因**: `MemoryCheckpointStore`（domains/reasoning/checkpoint.go:36）只有内存实现，重启后丢失。方案 Tier 1 案件记忆预热（B2）依赖 `ResumeFromCheckpoint` 从持久化 `CheckpointStore` 恢复。此改动为 B2 的前置基础设施
+- **影响范围**: domains/reasoning/sqlite/checkpoint_store.go(新), domains/reasoning/sqlite/checkpoint_store_test.go(新)
+- **风险等级**: 低（新建子包，不修改任何现有代码；`CheckpointStore` 接口和 `MemoryCheckpointStore` 保持不变）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ 6 个测试全绿
+
+## 2026-07-13: 阶段 A2 — Golden Benchmark 第一层（专利代理人考试模拟题）
+
+- **变更**:
+  1. **修改 `agentcore/evaluate/evaluator.go`**：`TestCase` 结构体新增 `Domain string` 字段，用于按领域（专利/法律/通用）筛选用例
+  2. **新建 `agentcore/evaluate/benchmark/patent_exam.go`**：10 道模拟专利代理人考试题，覆盖新颖性判断(001)、创造性分析(002)、权利要求保护范围(003)、OA答复(004)、等同侵权(005)、无效宣告(006)、可专利性客体(007)、先用权(008)、从属权利要求审查(009)、上位概念侵权(010)。每题含 ID/Domain/Input/Expected/RequiredCitations。提供 `CaseCount()` 和 `CasesByDomain(domain)` 辅助函数
+- **原因**: 评估闭环需要 Golden Benchmark 作为回归基准。方案第一层用考试真题，但版权风险高，先以 MVP 质量模拟题建仓（10 题），后续扩展至 50-100 题并经领域专家审核
+- **影响范围**: agentcore/evaluate/evaluator.go(修改), agentcore/evaluate/benchmark/patent_exam.go(新)
+- **风险等级**: 低（仅新增数据集 + 非破坏性字段扩展）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ evaluate 包全绿
+
+## 2026-07-13: 阶段 A3 — 评估指标设计（Judge 一致性 + 护栏漏报率 + 人工采纳率）
+
+- **变更**:
+  1. **新建 `agentcore/evaluate/judge_metrics.go`**：
+     - `JudgeConsistency` Metric：实现 `Metric` 接口，包装可选 `JudgeFunc`（Phase 3 启发式/Phase 4+ LLM 裁判）。无 JudgeFunc 时用 `keywordOverlap` 启发式（ExtractKeywords 提取关键词，≥60% 重叠判为一致）
+     - `GuardrailFalseNegativeRate` 聚合指标：跨用例统计 TotalHighRisk/FlaggedHighRisk，`Rate()` 返回漏报率，`Score()` 返回 1-Rate
+     - `AdoptionRate` 聚合指标：统计 Adopted/Modified/Rejected，`FullyAdopted()`/`Accepted()`/`RejectedRate()` 方法
+     - 后两者是跨用例聚合指标，不实现 `Metric` 接口（单用例评分）
+  2. **新建 `agentcore/evaluate/judge_metrics_test.go`**：TestJudgeConsistency_Heuristic（3 子测试：high_overlap/low_overlap/empty_reference）/ TestJudgeConsistency_CustomJudge / TestJudgeConsistency_Name / TestGuardrailFalseNegativeRate / TestAdoptionRate
+- **原因**: 现有 `Metric` 实现只有 ExactMatch/F1Score/KeywordRecall/CitationCompleteness/LengthScore，缺少方案要求的 Judge 一致性、护栏漏报率、人工采纳率三项关键指标
+- **影响范围**: agentcore/evaluate/judge_metrics.go(新), agentcore/evaluate/judge_metrics_test.go(新)
+- **风险等级**: 低（新建文件，不修改现有代码）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ evaluate 包全绿（含 5 个新测试）
+
+## 2026-07-13: 阶段 A4 — CI 化评估门禁
+
+- **变更**:
+  1. **新建 `agentcore/evaluate/benchmark/suite.go`**：提供 `DefaultEvaluator()`（F1Score + KeywordRecall + CitationCompleteness + JudgeConsistency 四指标，阈值 0.7）、`AllCases()`（聚合所有 benchmark 用例）、`CasesByDomain(domain)`（按领域过滤）、`RunSuite(ctx, runFunc)`（活跃评估入口）、`RunStatic(predictions)`（CI 静态评估入口）
+  2. **新建 `agentcore/evaluate/benchmark/suite_test.go`**：4 个 CI 门禁测试 — `TestEvalSuite_GoldenPerfect`（完美预测 PassRate=1.0，验证 Metric 链路完整性）、`TestEvalSuite_Degraded`（空预测 PassRate=0，负向控制）、`TestEvalSuite_CaseIntegrity`（用例格式校验：ID/Input/Expected/Domain 非空 + ID 唯一）、`TestEvalSuite_DefaultEvaluator`（Evaluator 配置校验）
+  3. **修改 `agentcore/evaluate/benchmark/patent_exam.go`**：删除 `CaseCount()` 和 `CasesByDomain()`，统一到 `suite.go` 中基于 `AllCases()` 的实现（未来新增领域自动包含）
+  4. **修改 `Makefile`**：新增 `eval` 和 `eval-race` target，运行 benchmark CI 门禁测试
+- **原因**: 评估闭环需要 CI 门禁。Prompt/Rule/Skill 变更时，`make eval` 验证 Metric 链路完整性、用例格式正确性、完美/降级预测的通过/失败行为。静态评估模式（`EvaluateStatic`）无需 LLM API，CI 友好
+- **影响范围**: agentcore/evaluate/benchmark/suite.go(新), suite_test.go(新), patent_exam.go(修改), Makefile(修改)
+- **风险等级**: 低（新建文件 + 非破坏性重构；`CaseCount`/`CasesByDomain` 语义不变，只是移到 suite.go 并改为基于 AllCases()）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ evaluate + benchmark 全绿 | `make eval` ✅
+
+## 2026-07-13: 阶段 B1 — ApprovalGate 结构化留痕机制
+
+- **变更**:
+  1. **修改 `domains/approval.go`**：
+     - 新增 `ApprovalDecision` 类型（`DecisionAdopted`/`DecisionModified`/`DecisionRejected`）
+     - 新增 `ApprovalRecord` 结构体（ID/SessionID/CaseID/Timestamp/TriggerKeyword/OriginalOutput/Decision/ModifiedOutput/Feedback），记录单次审批的完整信息
+     - 新增 `ApprovalStore` 接口（Save/List/ListByCase），供 TUI `/review` 和评估闭环消费
+     - 新增 `MemoryApprovalStore` 内存实现（sync.Mutex + slice）
+     - `ApprovalGate` 新增 `store ApprovalStore` 字段
+     - 新增 `WithApprovalStore(store)` 函数式配置选项
+     - 新增 `RecordDecision()` 方法 — 供 TUI /review handler 在用户做出决策后调用，自动创建并持久化 ApprovalRecord。无 store 时为静默 no-op
+  2. **修改 `domains/approval_test.go`**：新增 5 个测试 — `TestMemoryApprovalStore_SaveAndList`（多 session/case 交叉保存+查询）、`TestMemoryApprovalStore_Empty`（空查询）、`TestApprovalGate_RecordDecision`（完整决策记录+字段校验）、`TestApprovalGate_RecordDecision_NoStore`（无 store 时 no-op）、`TestApprovalGate_WithApprovalStore`（store 注入校验）
+- **原因**: ApprovalGate.AfterModelCall 仅注入 steering message，无结构化留痕。审批记录是 AdoptionRate 指标（A3）和第二层 Golden Benchmark 转化（C1）的数据来源，缺此则评估闭环和回归用例转化均无数据
+- **影响范围**: domains/approval.go(修改), domains/approval_test.go(修改)
+- **风险等级**: 低（非破坏性扩展；ApprovalGate 现有行为不变，store 为可选注入）
+- **审查要求**: L2（涉及 `domains/approval.go` 安全敏感路径，但仅新增不改已有逻辑）
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ domains 包全绿（含 5 个新测试 + 原有 7 个测试）
+
+## 2026-07-13: 阶段 B2 — Tier 1 案件记忆预热
+
+- **变更**:
+  1. **新建 `domains/reasoning/case_summary.go`**：`CaseSummary` 结构体（CaseID/CaseType/TechnicalField/CurrentStage/FactCount/WorkflowID/CreatedAt/UpdatedAt）+ `ExtractCaseSummary(cp *StageCheckpoint) CaseSummary` 函数（从 StageCheckpoint + FactBlackboard 提取关键信息）+ `String()` 方法（格式化为关键词密集的可读文本，便于记忆检索）
+  2. **新建 `domains/reasoning/case_summary_test.go`**：3 个测试 — `TestExtractCaseSummary_WithBlackboard`（含 blackboard 的完整提取+字段校验）、`TestExtractCaseSummary_NilBlackboard`（nil blackboard 降级处理）、`TestCaseSummary_String`（文本格式校验）
+  3. **新建 `memory/preheat.go`**：`PreheatCaseMemory(ctx, store, scope, caseID, summary)` 函数 — 将案件摘要作为高重要性 LongTerm 层 MemoryEntry 存入，metadata 含 `type=case_preheat` + `case_id`。memory 包不依赖 domains/reasoning（依赖倒置），由调用者负责生成 summary 字符串
+  4. **新建 `memory/preheat_test.go`**：3 个测试 — `TestPreheatCaseMemory`（存储+字段校验+metadata 校验）、`TestPreheatCaseMemory_EmptySummary`（空摘要拒绝）、`TestPreheatCaseMemory_Recallable`（存储后可通过 Recall 检索到）
+- **原因**: 案件恢复时 Agent 需要"记住"之前的案件上下文（CaseID/类型/技术领域/阶段/事实）。B2 从持久化的 StageCheckpoint 提取摘要并存入 MemoryStore，使 Agent 在新会话中能通过记忆检索恢复上下文。依赖 A5（SQLiteMemoryStore）和 A6（SQLiteCheckpointStore）作为前置基础设施
+- **影响范围**: domains/reasoning/case_summary.go(新), case_summary_test.go(新), memory/preheat.go(新), preheat_test.go(新)
+- **风险等级**: 低（新建文件，不修改任何现有代码；memory 包不新增对 domains 的依赖）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ reasoning + memory 包全绿（6 个新测试）
+
+## 2026-07-13: 阶段 B3 — LLM 裁判 Metric + 抽样人工校准
+
+- **变更**:
+  1. **新建 `agentcore/evaluate/llm_judge.go`**：
+     - `LLMJudgeCaller` 接口（`JudgeConsistency(prediction, reference) (bool, error)`）— 最小 LLM 调用抽象，不耦合 agentcore.Provider
+     - `NewLLMJudgeFunc(caller LLMJudgeCaller) JudgeFunc` — 包装为 JudgeConsistency 使用的 JudgeFunc，LLM 错误时保守降级为 disagree(false)
+     - `CalibrationSample` 结构体（CaseID/Prediction/Reference/Score/Reason）
+     - `CollectCalibrationSamples(report, predictions, cases, rate, threshold)` — 三优先级抽样：failed（全部）→ borderline（阈值±0.1 全部）→ passing（按 rate 随机）。结果按分数升序排列，优先低分
+  2. **新建 `agentcore/evaluate/llm_judge_test.go`**：8 个测试 — NewLLMJudgeFunc Agree/Disagree/Error、LLMJudgeConsistency+Caller、CollectCalibrationSamples FailedCase/Borderline/NilReport/ZeroRate
+- **原因**: A3 的 JudgeConsistency 只有启发式 keywordOverlap，Phase 4+ 需要 LLM 裁判能力。抽样人工校准用于持续校准 LLM 裁判的准确性（false negative/false positive 检测）。LLMJudgeCaller 接口解耦 evaluate 与 agentcore，由调用者适配 Provider
+- **影响范围**: agentcore/evaluate/llm_judge.go(新), llm_judge_test.go(新)
+- **风险等级**: 低（新建文件，不修改现有代码；LLM 错误时保守降级，不会产生误通过）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ evaluate 包全绿（8 个新测试 + 原有测试）
+
+## 2026-07-13: 阶段 C1 — Golden Benchmark 第二层回归用例转化
+
+- **变更**:
+  1. **新建 `domains/regression.go`**：`ApprovalToTestCase(record ApprovalRecord, domain string) evaluate.TestCase` — 将 DecisionModified 的审批记录转化为 TestCase（OriginalOutput→Input, ModifiedOutput→Expected）+ `ApprovalToRegressionCandidates(records, domain) []evaluate.TestCase` — 批量过滤+转化，跳过非 Modified 和空 ModifiedOutput 的记录
+  2. **新建 `domains/regression_test.go`**：3 个测试 — 单条转化+字段校验、批量过滤（5 条记录→2 条候选）、空输入
+- **原因**: B1 的 ApprovalGate 留痕中，DecisionModified 记录隐含人工质量标准。C1 半自动将这些记录转化为回归用例，构建 Golden Benchmark 第二层（脱敏真实案例）。人工仍需审核后才加入正式数据集
+- **影响范围**: domains/regression.go(新), domains/regression_test.go(新)
+- **风险等级**: 低（新建文件，不修改现有代码）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ domains 包全绿（3 个新测试）
+
+## 2026-07-13: 阶段 C2 — Tier 2 用户偏好持久化
+
+- **变更**:
+  1. **新建 `memory/preference.go`**：`UserPreference` 结构体（Key/Value/Category: style|citation|format|domain）+ `SaveUserPreference(ctx, store, scope, pref)` 存入 LayerUser 层（metadata 含 type=preference/category/key）+ `LoadUserPreferences(ctx, store, scope, category)` 按类别检索（空类别=全部）
+  2. **新建 `memory/preference_test.go`**：5 个测试 — Save 基本功能+空值拒绝+默认类别、Load 全部+按类别过滤
+- **原因**: Tier 2 用户偏好需要跨会话持久化。基于 A5 的 SQLiteMemoryStore + LayerUser 层，用户偏好（写作风格/引用格式/输出格式）在重启后保留。配合 MemoryScope.UserID 实现多用户隔离
+- **影响范围**: memory/preference.go(新), memory/preference_test.go(新)
+- **风险等级**: 低（新建文件，不修改现有代码；依赖 A5 的 SQLiteMemoryStore / InMemoryStore）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ memory 包全绿（5 个新测试）
+
+## 2026-07-13: 阶段 D1 — Tier 3 规则蒸馏候选框架
+
+- **变更**:
+  1. **新建 `memory/compiler/rule_bridge.go`**：
+     - `CandidateStatus` 类型（draft/reviewed/approved/rejected）
+     - `RuleCandidate` 结构体（StrategyID/Description/Guidance/SuccessRate/Samples/DraftRuleText/Status/HumanApproved/ShadowPassed/ReviewerNote/CreatedAt/ReviewedAt）— 从高成功率策略蒸馏出的候选规则
+     - `PromotionGateConfig` + `DefaultPromotionGateConfig()`（≥5 样本/≥80% 成功率/必须人工批准/必须影子评估）
+     - `RuleCandidateExtractor`（`ExtractFromCompiler(c *Compiler) []RuleCandidate`）— 遍历策略，按阈值筛选高成功率策略生成候选
+     - `RulePromotionGate`（`Evaluate(c RuleCandidate) PromotionResult`）— 检查所有晋升要求，返回 Ready + 未满足原因列表
+     - `MarkHumanApproval(approved, note)` / `MarkShadowResult(passed)` — 候选状态管理方法。**人工批准是唯一设置 HumanApproved 的途径，无法通过任何 extractor 或 gate 逻辑自动设置**
+  2. **新建 `memory/compiler/rule_bridge_test.go`**：11 个测试 — ExtractFromCompiler（筛选+默认阈值）/ EmptyCompiler / Extractor 默认值 / Gate Ready / Gate NotReady（4 项全不满足）/ Gate 部分满足 / MarkHumanApproval / MarkHumanRejection / MarkShadowResult / DefaultPromotionGateConfig
+- **原因**: Tier 3 规则蒸馏从 Compiler 的策略统计中提取高成功率策略，作为规则引擎候选规则。**技术预研点**：compiler 的 Strategy.Guidance 是提示策略文本，rule_engine 的 CheckRule 是结构化法律检查规则，两者无直接映射。D1 只建立候选提取+晋升门控框架，不实现 Guidance→CheckRule 的自动转换（需独立技术预研）。安全约束：Tier 3 永不全自动晋升，必须人工审核 + 影子评估
+- **影响范围**: memory/compiler/rule_bridge.go(新), rule_bridge_test.go(新)
+- **风险等级**: 低（新建文件，不修改任何现有代码；晋升门控强制人工批准，无自动晋升路径）
+- **审查要求**: L3（涉及 Tier 3 规则蒸馏安全边界，虽然代码本身是框架性质，但晋升门控逻辑需人工审阅确认安全性）
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ compiler 包全绿（11 个新测试 + 14 个原有测试）
+
+## 2026-07-13: 阶段 D2 — 人工审查队列 + 晋升前影子评估
+
+- **变更**:
+  1. **新建 `memory/compiler/review_queue.go`**：
+     - `ShadowEvalResult` 结构体（Passed/Score/Detail/RunAt）— 影子评估结果
+     - `ShadowEvalFunc` 类型 — 由外部注入的评估函数（避免 compiler → evaluate 循环依赖），调用者负责桥接到 `benchmark.RunStatic`
+     - `ReviewQueue` 结构体（sync.Mutex + 候选切片 + shadowFn）— 线程安全的审查队列
+     - `Enqueue`（仅接受 Draft 状态候选）/ `Dequeue`（FIFO）/ `Pending` / `List`（快照不消费）
+     - `RunShadowEval(c *RuleCandidate)` — 调用注入的 ShadowEvalFunc 并标记结果，未配置时返回错误
+     - `ReviewSession(c, approved, note)` — 一站式审查流程：影子评估 → 人工批准 → 晋升门控检查 → 返回 PromotionResult
+     - `DrainApproved()` — 批量取出已批准候选并从队列移除
+  2. **新建 `memory/compiler/review_queue_test.go`**：11 个测试 — EnqueueAndDequeue / SkipNonDraft / List / RunShadowEval 成功/错误/未配置 / ReviewSession 批准/拒绝/影子失败 / DrainApproved / EmptyDequeue
+- **原因**: D1 建立了候选提取和晋升门控框架，但缺少人工审查的流程编排。D2 提供审查队列（FIFO 管理待审候选）和影子评估机制（晋升前验证候选规则不会导致回归）。ShadowEvalFunc 通过依赖注入避免 compiler → evaluate 循环依赖
+- **影响范围**: memory/compiler/review_queue.go(新), review_queue_test.go(新)
+- **风险等级**: 低（新建文件，不修改任何现有代码；影子评估函数由外部注入，compiler 包无直接依赖 evaluate）
+- **审查要求**: L2
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ compiler 包全绿（11 个新测试 + 25 个已有测试）
+
+## 2026-07-13: 阶段 D3 — 规则晋升流程 + 审计日志
+
+- **变更**:
+  1. **新建 `memory/compiler/promoter.go`**：
+     - `RuleRegistrar` 回调类型 — 由外部实现，将已批准候选注册到目标规则系统（如 `workflows/patent.RuleEngine`）。**调用者负责 RuleCandidate → CheckRule 的转换**（D1 标记的技术预研点，Guidance 文本 → 结构化法律规则无自动映射）
+     - `PromotionLog` 结构体（CandidateID/StrategyID/SuccessRate/Samples/PromotedAt/Note）— 审计追踪
+     - `RulePromoter` 结构体 — 编排最终晋升流程：门控检查 → 注册器调用 → 审计日志记录
+     - `Promote(c)` — 单候选晋升，门控未通过或注册失败均返回错误
+     - `PromoteBatch(queue)` — 从 ReviewQueue 批量晋升，单个失败不阻塞后续，返回成功数 + 错误列表
+     - `Logs()` — 审计日志快照
+     - `PromoteFromCompiler(c, queue, minSamples, minSuccessRate)` — 便捷管线：提取候选 → 入队（供人工审查流程使用）
+  2. **新建 `memory/compiler/promoter_test.go`**：8 个测试 — Promote 成功/门控拒绝/注册器错误 / PromoteBatch 全成功/部分失败 / 默认值 / PromoteFromCompiler / PromotionLog 字段校验
+- **原因**: D2 的审查队列完成了候选审查+影子评估，D3 完成最后的晋升注册环节。晋升门控在注册前再检查一次（defense-in-depth），注册器通过回调注入避免 compiler → patent 包的跨层依赖。审计日志满足 Tier 3 安全约束的可追溯要求
+- **影响范围**: memory/compiler/promoter.go(新), promoter_test.go(新)
+- **风险等级**: 低（新建文件；晋升门控强制人工批准+影子评估，无自动晋升路径；注册器回调由外部实现）
+- **审查要求**: L3（涉及 Tier 3 规则晋升安全边界，晋升流程和审计日志需人工审阅）
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ 全量 68 个包全绿（compiler 包 43 个测试）
+
 ## 2026-07-13: 向量检索落地阶段1 — SQLite backend 接线（FTS + Vector RRF 融合）
 
 - **变更**:

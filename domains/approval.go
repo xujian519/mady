@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -29,6 +31,7 @@ import (
 type ApprovalGate struct {
 	agentcore.BaseLifecycleHook
 	config ApprovalConfig
+	store  ApprovalStore // optional; set via WithApprovalStore
 }
 
 // ApprovalConfig controls when and how the approval gate triggers.
@@ -141,4 +144,126 @@ func RequireApproval(reason string, data map[string]any) error {
 		fmt.Sprintf("需要人工审核: %s", reason),
 		data,
 	)
+}
+
+// ---------------------------------------------------------------------------
+// Structured Approval Records (B1 — ApprovalGate 留痕机制)
+// ---------------------------------------------------------------------------
+
+// ApprovalDecision records the human operator's verdict on a gated output.
+type ApprovalDecision string
+
+const (
+	// DecisionAdopted means the human accepted the AI output verbatim.
+	DecisionAdopted ApprovalDecision = "adopted"
+	// DecisionModified means the human accepted with edits.
+	DecisionModified ApprovalDecision = "modified"
+	// DecisionRejected means the human rejected the output entirely.
+	DecisionRejected ApprovalDecision = "rejected"
+)
+
+// ApprovalRecord captures a single approval-gate interaction: what the AI
+// generated, which keyword triggered the gate, and how the human responded.
+// These records feed the AdoptionRate metric (A3) and the second-layer
+// Golden Benchmark conversion pipeline (C1).
+type ApprovalRecord struct {
+	ID             string           // unique record ID
+	SessionID      string           // agent session that triggered the gate
+	CaseID         string           // optional case/project identifier
+	Timestamp      time.Time        // when the decision was made
+	TriggerKeyword string           // keyword that activated the gate
+	OriginalOutput string           // AI-generated content before review
+	Decision       ApprovalDecision // adopted / modified / rejected
+	ModifiedOutput string           // human-edited content (non-empty only when Decision == modified)
+	Feedback       string           // human's modification notes or rejection reason
+}
+
+// ApprovalStore persists ApprovalRecords. Implementations must be safe for
+// concurrent use. The domain layer defines the interface; concrete SQLite
+// backends live in a sub-package (e.g. domains/sqlite) to respect the
+// dependency-inversion rule.
+type ApprovalStore interface {
+	Save(ctx context.Context, record ApprovalRecord) error
+	List(ctx context.Context, sessionID string) ([]ApprovalRecord, error)
+	ListByCase(ctx context.Context, caseID string) ([]ApprovalRecord, error)
+}
+
+// MemoryApprovalStore is an in-memory ApprovalStore for testing and
+// single-session use. Data is lost on process exit.
+type MemoryApprovalStore struct {
+	mu      sync.Mutex
+	records []ApprovalRecord
+}
+
+// NewMemoryApprovalStore creates an empty MemoryApprovalStore.
+func NewMemoryApprovalStore() *MemoryApprovalStore {
+	return &MemoryApprovalStore{}
+}
+
+// Save appends a record.
+func (s *MemoryApprovalStore) Save(_ context.Context, record ApprovalRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.records = append(s.records, record)
+	return nil
+}
+
+// List returns all records for the given session, oldest first.
+func (s *MemoryApprovalStore) List(_ context.Context, sessionID string) ([]ApprovalRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []ApprovalRecord
+	for _, r := range s.records {
+		if r.SessionID == sessionID {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+// ListByCase returns all records for the given case ID, oldest first.
+func (s *MemoryApprovalStore) ListByCase(_ context.Context, caseID string) ([]ApprovalRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []ApprovalRecord
+	for _, r := range s.records {
+		if r.CaseID == caseID {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+// WithApprovalStore attaches an ApprovalStore to the gate so that
+// RecordDecision calls are persisted. Without a store, RecordDecision
+// is a no-op.
+func WithApprovalStore(store ApprovalStore) func(*ApprovalGate) {
+	return func(g *ApprovalGate) { g.store = store }
+}
+
+// RecordDecision creates and persists an ApprovalRecord. It should be
+// called by the TUI /review handler (or any human-in-the-loop entry point)
+// after the operator has decided on a gated output. If no store is
+// configured the call is silently ignored.
+func (g *ApprovalGate) RecordDecision(
+	ctx context.Context,
+	sessionID, caseID, triggerKeyword, originalOutput string,
+	decision ApprovalDecision,
+	modifiedOutput, feedback string,
+) error {
+	if g.store == nil {
+		return nil
+	}
+	record := ApprovalRecord{
+		ID:             fmt.Sprintf("appr_%d_%s", time.Now().UnixNano(), sessionID),
+		SessionID:      sessionID,
+		CaseID:         caseID,
+		Timestamp:      time.Now(),
+		TriggerKeyword: triggerKeyword,
+		OriginalOutput: originalOutput,
+		Decision:       decision,
+		ModifiedOutput: modifiedOutput,
+		Feedback:       feedback,
+	}
+	return g.store.Save(ctx, record)
 }
