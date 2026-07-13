@@ -839,6 +839,14 @@ func (t *TUI) renderFrame() {
 		buf.WriteString("\x1b[?25l")
 		diff := core.DiffFrame(prev, rows)
 		for _, d := range diff {
+			if d.RawContent != "" {
+				// Raw rows lack cell structure — fall back to a full-row
+				// rewrite. Reset style first because the SGR state after a
+				// cursor move is unknown.
+				fmt.Fprintf(&buf, "\x1b[%d;1H\x1b[0m", d.Row+1)
+				buf.WriteString(d.RawContent)
+				continue
+			}
 			for _, seg := range d.Segments {
 				fmt.Fprintf(&buf, "\x1b[%d;%dH", d.Row+1, seg.StartCol+1)
 				buf.WriteString(core.SerializeRowSegment(seg.Cells, seg.AfterStyle))

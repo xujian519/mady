@@ -297,6 +297,21 @@ func TestChatHistoryIncrementalCache(t *testing.T) {
 	}
 }
 
+// TestChatHistoryAppendDeltaGeneratesUniqueIDs verifies that streaming deltas
+// create distinct messages when no id is supplied, exercising the monotonic
+// msgIDSeq generator.
+func TestChatHistoryAppendDeltaGeneratesUniqueIDs(t *testing.T) {
+	h := NewChatHistory()
+	id1 := h.AppendDelta("", "first")
+	id2 := h.AppendDelta("", "second")
+	if id1 == "" || id2 == "" {
+		t.Fatalf("expected non-empty IDs, got %q and %q", id1, id2)
+	}
+	if id1 == id2 {
+		t.Fatalf("AppendDelta with empty id should generate unique IDs, got %q twice", id1)
+	}
+}
+
 // TestChatHistoryCacheProducesIdenticalOutput verifies that the incremental
 // cache does not change the rendered output compared to a full re-render.
 func TestChatHistoryCacheProducesIdenticalOutput(t *testing.T) {

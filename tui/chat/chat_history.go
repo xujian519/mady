@@ -378,8 +378,8 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 			}
 		}
 	}
-	newID := fmt.Sprintf("msg-%d-%d", time.Now().UnixNano(), h.msgIDSeq+1)
 	h.msgIDSeq++
+	newID := fmt.Sprintf("msg-%d-%d", time.Now().UnixNano(), h.msgIDSeq)
 	msg := ChatMessage{
 		ID:      newID,
 		Role:    RoleAssistant,

@@ -12,6 +12,19 @@
 - **审查要求**: L1-L4
 ```
 
+## 2026-07-13: TUI 阶段 1-4 代码质量审查与修复
+
+- **变更**:
+  1. 修复 `tui/tui.go` cell 级 diff 渲染路径对 Raw 行的遗漏：当 `RowCellDiff.RawContent` 非空时，原循环只处理 `Segments`，导致 Raw 行变化时终端收不到任何输出；现改为先 `[0m` 重置 SGR、再整行重写 Raw 内容
+  2. 修复 `tui/chat/chat_history.go` 中 `AppendDeltaWithKind` 新消息 ID 生成顺序：原代码先用 `h.msgIDSeq+1` 构造 ID 再递增，可能导致两个紧接调用在 `time.Now().UnixNano()` 相同时得到相同 ID；现改为先递增 `msgIDSeq` 再构造 ID，与 `Append` 保持一致
+  3. 新增 `tui/celldiff_integration_test.go` 中 `TestRenderFrameCellDiffRawRow`，验证 Raw 行变化时 `TUI.renderFrame` 会输出新内容
+  4. 新增 `tui/chat/chat_history_test.go` 中 `TestChatHistoryAppendDeltaGeneratesUniqueIDs`，验证连续 `AppendDelta("", ...)` 生成唯一 ID
+- **原因**: 阶段 1-4 已完整落地，进入整体 review 时发现两处可触发实际缺陷的断链（Raw 行 diff 不渲染、极端情况下新消息 ID 冲突），需在进入后续阶段前补齐
+- **影响范围**: `tui/tui.go`、`tui/chat/chat_history.go`、`tui/celldiff_integration_test.go`、`tui/chat/chat_history_test.go`
+- **风险等级**: 中（修复点均位于 TUI 核心路径，但已新增测试覆盖并跑通全量 `-race`）
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./...` ✅（根模块与 `tools/` 子模块）| `golangci-lint` 未安装
+
 ## 2026-07-13: TUI 通用 Viewport 组件
 
 - **变更**:
