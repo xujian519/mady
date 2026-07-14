@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -53,6 +55,12 @@ func LoadMCPConfig(path string) (*MCPConfigFile, error) {
 // Returns the list of successfully created extensions and any non-fatal
 // warnings (e.g. parse errors for optional config files).
 func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Extension, []error) {
+	// Fast path for ACP/Zed integration: the editor passes MCP servers via
+	// session/new params, and scanning local configs (especially .claude.json)
+	// can block startup on slow/hung servers.
+	if os.Getenv("MADY_SKIP_MCP_DISCOVERY") == "1" {
+		return nil, nil
+	}
 	var configPaths []string
 
 	// 1. $MCP_CONFIG — explicit override
@@ -75,10 +83,16 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 		configPaths = append(configPaths, filepath.Join(homeDir, ".claude.json"))
 	}
 
-	var extensions []agentcore.Extension
 	var warnings []error
 	seen := make(map[string]string) // server name -> config path
 
+	// Load all configs sequentially (fast, no external processes).
+	type serverEntry struct {
+		name string
+		path string
+		cfg  MCPServerConfig
+	}
+	var entries []serverEntry
 	for _, cfgPath := range configPaths {
 		if cfgPath == "" {
 			continue
@@ -103,27 +117,46 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 		if len(cfg.MCPServers) == 0 {
 			continue
 		}
-
 		for name, serverCfg := range cfg.MCPServers {
-			if prev, exists := seen[name]; exists {
-				warnings = append(warnings, fmt.Errorf(
-					"mcp: server %q from %s collides with %s; keeping the first one",
-					name, cfgPath, prev,
-				))
-				continue
-			}
-
-			ext, err := createExtension(ctx, name, serverCfg)
-			if err != nil {
-				warnings = append(warnings, fmt.Errorf("mcp: server %q (%s): %w", name, cfgPath, err))
-				continue
-			}
-			if ext != nil {
-				seen[name] = cfgPath
-				extensions = append(extensions, ext)
-			}
+			entries = append(entries, serverEntry{name: name, path: cfgPath, cfg: serverCfg})
 		}
 	}
+
+	if len(entries) == 0 {
+		return nil, warnings
+	}
+
+	// Create extensions in parallel with a bounded total discovery timeout.
+	// A single hung stdio server should not block mady startup for the rest.
+	discCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	var mu sync.Mutex
+	var extensions []agentcore.Extension
+	var wg sync.WaitGroup
+	for _, e := range entries {
+		wg.Add(1)
+		go func(e serverEntry) {
+			defer wg.Done()
+			ext, err := createExtension(discCtx, e.name, e.cfg)
+			mu.Lock()
+			if err != nil {
+				warnings = append(warnings, fmt.Errorf("mcp: server %q (%s): %w", e.name, e.path, err))
+			} else if ext != nil {
+				if prev, exists := seen[e.name]; exists {
+					warnings = append(warnings, fmt.Errorf(
+						"mcp: server %q from %s collides with %s; keeping the first one",
+						e.name, e.path, prev,
+					))
+				} else {
+					seen[e.name] = e.path
+					extensions = append(extensions, ext)
+				}
+			}
+			mu.Unlock()
+		}(e)
+	}
+	wg.Wait()
 
 	return extensions, warnings
 }
@@ -146,11 +179,14 @@ func createStdioExtension(ctx context.Context, name string, cfg MCPServerConfig)
 	for k, v := range cfg.Env {
 		env = append(env, k+"="+v)
 	}
+	// Guard against misbehaving stdio servers that never respond: default a
+	// request timeout so a single hung server cannot block mady startup.
 	return NewStdioExtension(ctx, StdioConfig{
-		Name:    name,
-		Command: cfg.Command,
-		Args:    cfg.Args,
-		Env:     env,
+		Name:           name,
+		Command:        cfg.Command,
+		Args:           cfg.Args,
+		Env:            env,
+		RequestTimeout: 15 * time.Second,
 	})
 }
 

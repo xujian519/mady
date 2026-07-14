@@ -1,5 +1,21 @@
 # AI 决策变更日志
 
+## 2026-07-14: 本地部署 mady 并接入 Zed ACP；修复 MCP 发现阻塞启动
+
+- **变更**:
+  1. 本地构建并部署 `mady` 到 `/usr/local/bin/mady`（同时保留 `/opt/homebrew/bin/mady` 副本），使其在任意 cwd 下可用
+  2. 新增 wrapper 脚本 `/opt/homebrew/bin/mady-acp-zed`：从 `~/.mady/env` 加载环境变量、检查 LLM API key、设置 `MADY_SKIP_MCP_DISCOVERY=1` 后启动 `mady acp`
+  3. 在 `~/.config/zed/settings.json` 的 `agent_servers` 中添加 `Mady` custom server，命令指向 wrapper 脚本
+  4. 修改 `mcp/config_discovery.go`：
+     - `DiscoverMCPExtensions` 支持 `MADY_SKIP_MCP_DISCOVERY=1` 完全跳过发现
+     - `DiscoverMCPExtensions` 改为并行创建 extension，并增加 10 秒总超时，避免单个 hung MCP server 阻塞 mady 启动
+     - `createStdioExtension` 默认设置 15 秒 `RequestTimeout`，避免无响应 stdio server 永久阻塞
+- **原因**: 用户要求在任何项目使用 `mady tui` 启动 TUI，并将 ACP 接入 Zed；实际测试发现本地 `~/.claude.json` 中的多个 MCP server 在串行初始化时无响应，导致 `mady tui` / `mady acp` 启动被挂起（甚至触发 OOM/SIGKILL）
+- **影响范围**: `mcp/config_discovery.go`、本地二进制 `/usr/local/bin/mady`、wrapper `/opt/homebrew/bin/mady-acp-zed`、Zed 配置 `~/.config/zed/settings.json`
+- **风险等级**: 中（修改 MCP 发现流程，影响 tui/serve/acp 的 MCP 加载行为）
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `cd tools && go build ./...` ✅ | `go test ./mcp/... -count=1` ✅ | `go test -count=1 ./...` ⚠️（仅 `tui/terminal` 的 `TestTerminalSupportsKittyKeyboard_Detection/apple_terminal` 因环境差异失败，与本次改动无关）| `mady --help` ✅ | `/opt/homebrew/bin/mady-acp-zed` 响应 ACP initialize ✅ | `mady tui` 在 `/tmp` 初始化成功 ✅
+
 ## 2026-07-14: 修复 CI 中 tui 集成测试因缺少 API key 失败
 
 - **变更**:
