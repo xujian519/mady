@@ -32,6 +32,7 @@ const (
 	ToolExecuteCode = "execute_code"
 	ToolComputerUse = "computer_use"
 	ToolProcess     = "process"
+	ToolVision      = "vision_analyze"
 )
 
 // Shared default limits used across tool configurations.
@@ -164,6 +165,19 @@ func NewExtension(cfg ExtensionConfig) *Extension {
 
 // Name returns the extension name.
 func (e *Extension) Name() string { return "builtin-tools" }
+
+// WithVision configures the vision_analyze tool to use the given provider and
+// model. 必须在 Init() 之前调用（即在 agentcore.New 之前），否则配置不生效。
+// 对 nil 接收者安全（no-op）。
+func (e *Extension) WithVision(provider agentcore.Provider, model string) {
+	if e == nil {
+		return
+	}
+	e.config.Vision = &VisionToolConfig{
+		Provider: provider,
+		Model:    model,
+	}
+}
 
 // Init initializes the extension and registers all tools with the agent.
 func (e *Extension) Init(_ context.Context, agent *agentcore.Agent) error {

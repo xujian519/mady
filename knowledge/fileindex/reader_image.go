@@ -29,9 +29,9 @@ func (fr *FileReader) readImage(path string, info os.FileInfo) *FileReadResult {
 		"may_contain_text": fmt.Sprintf("%t", mayContainText),
 	}
 
-	notice := "图片文件暂不支持内容提取。建议人工查看。"
+	notice := "图片文件暂不支持直接内容提取。你可以使用 vision_analyze 工具来分析图片中的文字和内容。"
 	if mayContainText {
-		notice = "此文件可能是扫描件或含文字的图片。当前版本不支持 OCR，建议人工查看或等待 OCR 支持。"
+		notice = "此文件可能是扫描件或含文字的图片。当前版本不支持 OCR，建议使用 vision_analyze 工具进行图片内容分析。"
 	}
 
 	return &FileReadResult{

@@ -45,6 +45,10 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir:     workingDir,
 		SandboxEnabled: true,
+		Vision: &tools.VisionToolConfig{
+			Provider: base.Provider,
+			Model:    base.Model,
+		},
 		DisableTools: []string{
 			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
 			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolComputerUse,
@@ -96,7 +100,11 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 		WorkingDir:     rec.RootPath,
 		EnabledTools:   []string{"read", "write_file", "edit", "grep", "find", "glob", "ls"},
 		SandboxEnabled: true,
-		MaxBytes:       100 * 1024,
+		Vision: &tools.VisionToolConfig{
+			Provider: base.Provider,
+			Model:    base.Model,
+		},
+		MaxBytes: 100 * 1024,
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)
 

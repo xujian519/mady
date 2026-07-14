@@ -70,10 +70,14 @@ func AssistantAgentConfig(base agentcore.Config) agentcore.Config {
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir:     workingDir,
 		SandboxEnabled: true,
-		WebSearch:      &tools.WebSearchToolConfig{},
-		WebFetch:       &tools.WebFetchToolConfig{},
-		MaxBytes:       100 * 1024,
-		MaxLines:       5000,
+		Vision: &tools.VisionToolConfig{
+			Provider: base.Provider,
+			Model:    base.Model,
+		},
+		WebSearch: &tools.WebSearchToolConfig{},
+		WebFetch:  &tools.WebFetchToolConfig{},
+		MaxBytes:  100 * 1024,
+		MaxLines:  5000,
 		DisableTools: []string{
 			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
 			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolComputerUse,

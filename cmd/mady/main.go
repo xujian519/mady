@@ -43,6 +43,7 @@ import (
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
+	"github.com/xujian519/mady/tools"
 	"github.com/xujian519/mady/tui"
 	"github.com/xujian519/mady/tui/agentadapter"
 	"github.com/xujian519/mady/tui/chat"
@@ -561,6 +562,14 @@ func runTui(ctx context.Context) {
 				gate := domains.NewApprovalGate(domains.DefaultApprovalConfig())
 				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, gate)
 			}
+
+			// 配置 vision_analyze 工具：使用实际 LLM provider 而非占位符。
+			for _, ext := range cfg.Extensions {
+				if te, ok := ext.(*tools.Extension); ok {
+					te.WithVision(provider, model)
+				}
+			}
+
 			return cfg
 		}
 		switch {
@@ -937,25 +946,39 @@ func runTui(ctx context.Context) {
 				return
 			}
 
-			// submitAgentInput 向当前 Agent 提交输入并等待执行（供 /approve /reject 复用）。
+			// submitAgentInput 向当前 Agent 提交输入（供 /approve /reject 复用）。
+			// 异步执行：Agent.Run 在独立 goroutine 中运行，避免阻塞 TUI 事件循环。
+			// 按值捕获 agent/store/threadID 以消除 TOCTOU 窗口——goroutine 创建后
+			// /clear /plan 等命令可能替换 currentAgent。
 			submitAgentInput := func(input string) {
-				runMu.Lock()
-				defer runMu.Unlock()
-				runCtx, cancel := context.WithCancel(ctx)
-				cancelMu.Lock()
-				runCancel = cancel
-				cancelMu.Unlock()
-				if _, err := currentAgent.Run(runCtx, input); err != nil {
-					log.Printf("[mady] agent run failed: %v", err)
-				}
-				if agentStore != nil {
-					if err := currentAgent.SaveState(context.Background(), currentThreadID); err != nil {
+				agent := currentAgent
+				store := agentStore
+				threadID := currentThreadID
+				go func() {
+					runMu.Lock()
+					defer runMu.Unlock()
+
+					runCtx, cancel := context.WithCancel(ctx)
+					cancelMu.Lock()
+					runCancel = cancel
+					cancelMu.Unlock()
+					defer func() {
+						cancelMu.Lock()
+						runCancel = nil
+						cancelMu.Unlock()
+					}()
+
+					if _, err := agent.Run(runCtx, input); err != nil {
+						log.Printf("[mady] agent run failed: %v", err)
+						return
+					}
+					if store == nil {
+						return
+					}
+					if err := agent.SaveState(context.Background(), threadID); err != nil {
 						log.Printf("[mady] save state: %v", err)
 					}
-				}
-				cancelMu.Lock()
-				runCancel = nil
-				cancelMu.Unlock()
+				}()
 			}
 
 			switch trimmed {
@@ -966,10 +989,12 @@ func runTui(ctx context.Context) {
 				if agentStore != nil {
 					currentThreadID = fmt.Sprintf("tui-%d", time.Now().UnixNano())
 				}
+				runMu.Lock()
 				prev := currentAgent
 				currentAgent = agentcore.New(buildCfg())
 				prev.Close()
 				agentadapter.BindAgent(app, currentAgent)
+				runMu.Unlock()
 				app.History().Clear()
 				app.PrintSystem("已开始新对话")
 				return
@@ -994,10 +1019,12 @@ func runTui(ctx context.Context) {
 				}
 				oldID := currentThreadID
 				currentThreadID = branched.Info.ID
+				runMu.Lock()
 				prev := currentAgent
 				currentAgent = agentcore.New(buildCfg())
 				prev.Close()
 				agentadapter.BindAgent(app, currentAgent)
+				runMu.Unlock()
 				app.History().Clear()
 				for _, msg := range branched.Messages {
 					switch msg.Role {
