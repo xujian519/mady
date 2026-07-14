@@ -172,3 +172,35 @@ func mustWriteSkill(t *testing.T, path string, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestLoad_DotAgentDirectoryNotSkipped(t *testing.T) {
+	// .agent directories should be scanned for SKILL.md files.
+	// Other dot-directories should still be skipped.
+	root := t.TempDir()
+
+	// .agent directory with SKILL.md — should be discovered
+	mustWriteSkill(t, filepath.Join(root, ".agent", "my-agent", "SKILL.md"), `---
+name: my-agent
+description: A skill inside .agent directory
+---
+Agent body`)
+
+	// .hidden directory with SKILL.md — should be skipped
+	mustWriteSkill(t, filepath.Join(root, ".hidden", "secret", "SKILL.md"), `---
+name: secret
+description: Should not be discovered
+---
+Secret body`)
+
+	skills, _, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, found := FindByName(skills, "my-agent"); !found {
+		t.Fatal("expected skill from .agent directory to be discovered")
+	}
+	if _, found := FindByName(skills, "secret"); found {
+		t.Fatal("skill from .hidden directory should NOT be discovered")
+	}
+}

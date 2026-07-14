@@ -236,7 +236,7 @@ func loadSkillsFromDir(root string) ([]Skill, []Diagnostic, error) {
 			if !entry.IsDir() {
 				continue
 			}
-			if strings.HasPrefix(entry.Name(), ".") {
+			if strings.HasPrefix(entry.Name(), ".") && entry.Name() != ".agent" {
 				continue
 			}
 			if err := walk(filepath.Join(dir, entry.Name())); err != nil {

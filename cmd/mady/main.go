@@ -38,11 +38,13 @@ import (
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/knowledge/loader"
 	"github.com/xujian519/mady/knowledge/sqlite"
+	"github.com/xujian519/mady/mcp"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
+	"github.com/xujian519/mady/skill"
 	"github.com/xujian519/mady/tools"
 	"github.com/xujian519/mady/tui"
 	"github.com/xujian519/mady/tui/agentadapter"
@@ -322,6 +324,59 @@ func setupFrameworkContext() *frameworkContext {
 	}
 	if len(fc.Manifests) == 0 {
 		fmt.Fprintf(os.Stderr, "manifest: 未加载任何 manifest（内置 embed 异常？）→ 将回退到单 Agent 模式\n")
+	}
+
+	// Skill 自动发现：扫描 $SKILL_DIR、$HOME/.agent、$PWD/.agent、~/.mady/skills。
+	// 优先级：$SKILL_DIR > $HOME/.agent > $PWD/.agent > ~/.mady/skills。
+	// 同名 skill 保留最先发现的。
+	var skillPaths []string
+	if sd := os.Getenv("SKILL_DIR"); sd != "" {
+		skillPaths = append(skillPaths, sd)
+	}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		skillPaths = append(skillPaths, filepath.Join(homeDir, ".agent"))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		skillPaths = append(skillPaths, filepath.Join(cwd, ".agent"))
+	}
+	if madyHome != "" {
+		skillPaths = append(skillPaths, filepath.Join(madyHome, "skills"))
+	}
+	loadedSkills, skillDiags, skillErr := skill.Load(skillPaths...)
+	if skillErr != nil {
+		fmt.Fprintf(os.Stderr, "skill: 加载失败: %v\n", skillErr)
+	} else {
+		fc.BaseConfig.SkillPaths = skillPaths
+		fc.BaseConfig.AvailableSkills = loadedSkills
+		fc.BaseConfig.SkillDiagnostics = skillDiags
+		if len(loadedSkills) > 0 {
+			var names []string
+			for _, s := range loadedSkills {
+				names = append(names, s.Name)
+			}
+			fmt.Fprintf(os.Stderr, "skill: 从 %d 个路径加载 %d 个 skill（%s）\n",
+				len(skillPaths), len(loadedSkills), strings.Join(names, ", "))
+		}
+		if len(skillDiags) > 0 {
+			for _, d := range skillDiags {
+				fmt.Fprintf(os.Stderr, "skill: [警告] %s: %s\n", d.Path, d.Message)
+			}
+		}
+	}
+
+	// MCP 自动发现：扫描 $MCP_CONFIG、~/.mady/mcp.json、$PWD/.mcp.json、~/.claude.json。
+	mcpExts, mcpWarnings := mcp.DiscoverMCPExtensions(context.Background(), madyHome)
+	for _, w := range mcpWarnings {
+		fmt.Fprintf(os.Stderr, "mcp: [警告] %v\n", w)
+	}
+	if len(mcpExts) > 0 {
+		var names []string
+		for _, ext := range mcpExts {
+			names = append(names, ext.Name())
+		}
+		fmt.Fprintf(os.Stderr, "mcp: 已加载 %d 个 MCP 服务器（%s）\n",
+			len(mcpExts), strings.Join(names, ", "))
+		fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, mcpExts...)
 	}
 
 	// Workspace：$WORKSPACE_DIR > ~/.mady/workspace。
