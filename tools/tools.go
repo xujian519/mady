@@ -100,6 +100,14 @@ type ExtensionConfig struct {
 	// WebFetch configures the web_fetch tool. If nil, default HTTP fetch is used.
 	WebFetch *WebFetchToolConfig
 
+	// ScholarSearch configures the scholar_search tool (学术论文检索).
+	// Uses Semantic Scholar API. Set SEMANTIC_SCHOLAR_API_KEY env var for higher rate limits.
+	ScholarSearch *ScholarSearchConfig
+
+	PatentTool *PatentToolConfig
+	// NuoPatentPath defaults to PATH-based resolution ("nuo-patent" or "npx nuo-patent").
+	// PatentTool configures patent lookup/download tools via nuo-patent CLI.
+
 	// ExecuteCode configures the execute_code tool. If nil, a default configuration is used.
 	ExecuteCode *ExecuteCodeToolConfig
 
@@ -296,6 +304,10 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 
 	addTool(readOnly(NewWebSearchTool(cfg.WebSearch)))
 	addTool(readOnly(NewWebFetchTool(cfg.WebFetch)))
+	addTool(readOnly(NewScholarSearchTool(cfg.ScholarSearch)))
+	addTool(readOnly(NewPatentScrapeTool(cfg.PatentTool)))
+	addTool(NewPatentDownloadTool(cfg.PatentTool))
+	addTool(NewPatentLegalStatusTool(cfg.PatentTool))
 
 	if cfg.Browser != nil {
 		addTool(NewBrowserTool(cfg.Browser))
