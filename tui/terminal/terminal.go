@@ -101,7 +101,7 @@ func NewProcessTerminal() *ProcessTerminal {
 	return &ProcessTerminal{
 		in:         os.Stdin,
 		out:        os.Stdout,
-		kittyFlags: 1 | 8, // disambiguate + report all keys (so Cmd/Ctrl modifiers can be distinguished)
+		kittyFlags: 1, // disambiguate escape codes (flag 8 breaks CJK IME; use MADY_KITTY_FLAGS=9 to opt in)
 	}
 }
 
