@@ -211,6 +211,16 @@ func (s *Server) ListenAndServe(addr string) error {
 	return s.srv.ListenAndServe()
 }
 
+// ListenAndServeTLS starts the server with TLS encryption.
+// For production deployments always use TLS or a TLS-terminating reverse proxy.
+func (s *Server) ListenAndServeTLS(addr, certFile, keyFile string) error {
+	handler := s.Handler()
+	s.mu.Lock()
+	s.srv = &http.Server{Addr: addr, Handler: handler}
+	s.mu.Unlock()
+	return s.srv.ListenAndServeTLS(certFile, keyFile)
+}
+
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.Close()
 	s.mu.RLock()
@@ -612,6 +622,11 @@ func (s *Server) handleGetThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteThread(w http.ResponseWriter, r *http.Request) {
+	// Delete is a destructive operation; require authorization.
+	if !s.authorizeThreadAccess(r) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
 	store := s.snapshotConfig().Store
 	if store == nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no store configured"})
@@ -815,6 +830,10 @@ func (s *Server) releaseAgent(agent *agentcore.Agent, threadID string) {
 		agent.Close()
 		return
 	}
+	// Serialize access per threadID to prevent use-after-free race.
+	// Two concurrent requests for the same threadID would otherwise race
+	// on LoadOrStore + Close + Store, where the first request's agent
+	// could be closed while still in use by the second.
 	s.poolMu.Lock()
 	count := 0
 	s.agentPool.Range(func(_, _ any) bool {
@@ -830,12 +849,12 @@ func (s *Server) releaseAgent(agent *agentcore.Agent, threadID string) {
 			return false
 		})
 	}
-	s.poolMu.Unlock()
-
-	if prev, loaded := s.agentPool.LoadOrStore(threadID, agent); loaded {
+	prev, loaded := s.agentPool.LoadOrStore(threadID, agent)
+	if loaded {
 		prev.(*agentcore.Agent).Close()
 		s.agentPool.Store(threadID, agent)
 	}
+	s.poolMu.Unlock()
 }
 
 func (s *Server) saveAgentState(ctx context.Context, agent *agentcore.Agent, threadID string) error {
@@ -930,6 +949,20 @@ func (s *Server) snapshotConfig() agentcore.Config {
 	cfg.AvailableSkills = cloneSkills(cfg.AvailableSkills)
 	cfg.SkillDiagnostics = cloneSkillDiagnostics(cfg.SkillDiagnostics)
 	return cfg
+}
+
+// authorizeThreadAccess checks authorization for destructive thread operations.
+// Delegates to the skill API auth token if configured, otherwise allows access
+// (local/single-user deployment mode).
+func (s *Server) authorizeThreadAccess(r *http.Request) bool {
+	cfg := s.snapshotConfig()
+	token := strings.TrimSpace(cfg.SkillAPIAuthToken)
+	if token == "" {
+		return true // no auth configured — local deployment
+	}
+	auth := strings.TrimSpace(r.Header.Get("Authorization"))
+	expected := "Bearer " + token
+	return subtle.ConstantTimeCompare([]byte(auth), []byte(expected)) == 1
 }
 
 func (s *Server) authorizeSkillAPI(w http.ResponseWriter, r *http.Request, reload bool) bool {
@@ -1114,8 +1147,10 @@ func skillSummaryEqual(a, b SkillSummary) bool {
 
 func withCORS(next http.Handler, cfg CORSConfig) http.Handler {
 	origins := cfg.AllowOrigins
+	// Default: no CORS headers (fail-closed). Callers must explicitly
+	// configure allowed origins for cross-origin deployments.
 	if len(origins) == 0 {
-		origins = []string{"*"}
+		return next
 	}
 	methods := cfg.AllowMethods
 	if len(methods) == 0 {

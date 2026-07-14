@@ -544,7 +544,7 @@ func (eb *EventBus) MustDeliverDropCount() uint64 {
 }
 
 // Subscribe returns a channel that receives raw events from the event bus.
-// The channel is closed when ctx is cancelled or the event bus is shut down.
+// The channel is closed when ctx is canceled or the event bus is shut down.
 // Use this for consumers that want direct channel-based delivery (e.g. SSE
 // writers) instead of callback-based handlers.
 func (eb *EventBus) Subscribe(ctx context.Context) <-chan Event {

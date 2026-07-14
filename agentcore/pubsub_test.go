@@ -110,7 +110,7 @@ func TestBrokerDropCount(t *testing.T) {
 
 	// Fill the buffer and trigger a drop.
 	b.Publish(1) // fills buffer
-	_ = <-sub    // drain it
+	<-sub        // drain it
 
 	// Now publish twice quickly to overflow.
 	// The subscriber's buffer is 1, so the second publish should drop.

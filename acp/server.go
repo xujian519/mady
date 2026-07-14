@@ -32,6 +32,9 @@ type Server struct {
 	// Capabilities advertised by the client in initialize (fs, terminal).
 	clientCaps   *ClientCapabilities
 	clientCapsMu sync.RWMutex
+
+	// allowedFSCaps is the set of FS capabilities the server accepts from clients.
+	allowedFSCaps map[string]bool
 }
 
 // acpResponse carries a routed client response to a waiting outbound request.
@@ -47,6 +50,10 @@ type ServerConfig struct {
 	Logger         *slog.Logger
 	Reader         io.Reader
 	Writer         io.Writer
+	// AllowedFSCapabilities is the set of filesystem capabilities the server
+	// will accept from clients. An empty map means no FS capabilities are allowed.
+	// Keys are capability names like "FS.ReadTextFile", "FS.WriteTextFile".
+	AllowedFSCapabilities map[string]bool
 }
 
 func NewServer(cfg ServerConfig) *Server {
@@ -64,14 +71,15 @@ func NewServer(cfg ServerConfig) *Server {
 	}
 
 	return &Server{
-		sessionMgr: cfg.SessionManager,
-		agentInfo:  cfg.AgentInfo,
-		authProv:   cfg.AuthProvider,
-		logger:     cfg.Logger,
-		reader:     bufio.NewReader(cfg.Reader),
-		rawReader:  cfg.Reader,
-		writer:     cfg.Writer,
-		pending:    make(map[string]chan acpResponse),
+		sessionMgr:    cfg.SessionManager,
+		agentInfo:     cfg.AgentInfo,
+		authProv:      cfg.AuthProvider,
+		allowedFSCaps: cfg.AllowedFSCapabilities,
+		logger:        cfg.Logger,
+		reader:        bufio.NewReader(cfg.Reader),
+		rawReader:     cfg.Reader,
+		writer:        cfg.Writer,
+		pending:       make(map[string]chan acpResponse),
 	}
 }
 
@@ -372,6 +380,12 @@ func (s *Server) handleInitialize(req *JSONRPCRequest) {
 	if params.ClientInfo != nil {
 		clientName = params.ClientInfo.Name
 	}
+	// Validate client capabilities against server-configured allowlist.
+	// Unrecognized or unapproved capabilities are rejected (fail-closed).
+	if err := s.validateClientCapabilities(params.ClientCapabilities); err != nil {
+		s.writeError(req.ID, -32602, "Client capabilities rejected", err.Error())
+		return
+	}
 	s.clientCapsMu.Lock()
 	s.clientCaps = params.ClientCapabilities
 	s.clientCapsMu.Unlock()
@@ -405,8 +419,18 @@ func (s *Server) handleAuthenticate(req *JSONRPCRequest) {
 		}
 	}
 
-	_ = params
-	s.writeResponse(req.ID, AuthenticateResult{})
+	// Delegate to the configured AuthProvider. If none is configured,
+	// authentication is rejected (fail-closed).
+	if s.authProv == nil {
+		s.writeError(req.ID, -32001, "Authentication not configured", "no auth provider")
+		return
+	}
+	result, err := s.authProv.Authenticate(context.Background(), params)
+	if err != nil {
+		s.writeError(req.ID, -32001, "Authentication failed", err.Error())
+		return
+	}
+	s.writeResponse(req.ID, result)
 }
 
 func (s *Server) handleNewSession(req *JSONRPCRequest) {
@@ -803,8 +827,33 @@ func extractPromptContent(blocks []json.RawMessage) string {
 	return strings.Join(parts, "\n")
 }
 
+// validateClientCapabilities checks that client-declared FS capabilities are in
+// the server-configured allowlist. If no allowlist is configured (nil map), all
+// FS capabilities are rejected (fail-closed). Terminal capability is always accepted.
+func (s *Server) validateClientCapabilities(caps *ClientCapabilities) error {
+	if caps == nil {
+		return nil // no capabilities declared, nothing to validate
+	}
+	if caps.FS != nil {
+		if s.allowedFSCaps == nil {
+			return fmt.Errorf("filesystem capabilities are not allowed on this server")
+		}
+		if caps.FS.ReadTextFile && !s.allowedFSCaps["FS.ReadTextFile"] {
+			return fmt.Errorf("ReadTextFile capability is not allowed")
+		}
+		if caps.FS.WriteTextFile && !s.allowedFSCaps["FS.WriteTextFile"] {
+			return fmt.Errorf("WriteTextFile capability is not allowed")
+		}
+	}
+	return nil
+}
+
 type noopAuthProvider struct{}
 
 func (n *noopAuthProvider) AuthMethods() []any {
 	return []any{}
+}
+
+func (n *noopAuthProvider) Authenticate(_ context.Context, _ AuthenticateParams) (*AuthenticateResult, error) {
+	return nil, fmt.Errorf("authentication not configured: no auth provider registered")
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -144,6 +145,27 @@ type BashToolConfig struct {
 	MaxBytes   int64
 	MaxLines   int64
 	Sandbox    WorkingDirSandbox
+
+	// DangerousPatterns is a list of regex patterns that the bash tool
+	// rejects before execution. Each pattern is matched against the full
+	// command string via regexp.MatchString.
+	//
+	// Default (when empty): blocks backtick and $() command substitution,
+	// which are the primary vectors for arbitrary nested command execution.
+	// Set to nil explicitly to disable all pattern checks (not recommended).
+	//
+	// This is a defense-in-depth measure. The primary security boundary is
+	// the Sandbox + DisableTools mechanism in ExtensionConfig.
+	DangerousPatterns []string
+}
+
+// DefaultDangerousPatterns returns the built-in set of patterns that block
+// the most common shell injection vectors.
+func DefaultDangerousPatterns() []string {
+	return []string{
+		"`[^`]*`",     // backtick command substitution: `cmd`
+		`\$\([^)]*\)`, // $() command substitution: $(cmd)
+	}
 }
 
 func (c *BashToolConfig) defaults() {
@@ -198,6 +220,19 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 
 			if input.Command == "" {
 				return resultErrf("command is required")
+			}
+
+			// Validate against dangerous patterns before execution.
+			// This is a defense-in-depth measure; the primary security
+			// boundary is the Sandbox + DisableTools mechanism.
+			patterns := cfg.DangerousPatterns
+			if patterns == nil {
+				patterns = DefaultDangerousPatterns()
+			}
+			for _, pat := range patterns {
+				if matched, _ := regexp.MatchString(pat, input.Command); matched {
+					return resultErrf("command rejected: contains dangerous pattern %q", pat)
+				}
 			}
 
 			var chunks [][]byte

@@ -96,7 +96,7 @@ func (b *Broker[T]) Shutdown() {
 }
 
 // Subscribe returns a channel that receives every published event.
-// The channel is closed when the context is cancelled or the broker is shut down.
+// The channel is closed when the context is canceled or the broker is shut down.
 func (b *Broker[T]) Subscribe(ctx context.Context) <-chan T {
 	b.mu.Lock()
 	defer b.mu.Unlock()

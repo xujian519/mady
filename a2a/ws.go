@@ -17,8 +17,12 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
+	// CheckOrigin defaults to same-origin only.
+	// Override via SetCheckOrigin for cross-origin deployments.
 	CheckOrigin: func(r *http.Request) bool {
-		return true
+		return r.Header.Get("Origin") == "" || r.Host == "" ||
+			strings.HasPrefix(r.Header.Get("Origin"), "http://"+r.Host) ||
+			strings.HasPrefix(r.Header.Get("Origin"), "https://"+r.Host)
 	},
 }
 

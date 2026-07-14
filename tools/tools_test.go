@@ -108,6 +108,39 @@ func TestBashTool(t *testing.T) {
 	}
 }
 
+func TestBashToolDangerousPatterns(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		command string
+		blocked bool
+	}{
+		{"echo hello", false},
+		{"ls -la", false},
+		{"echo `whoami`", true},        // backtick substitution
+		{"echo $(whoami)", true},       // $() substitution
+		{"cat /etc/passwd", false},     // no substitution, allowed
+		{"echo \"nested `id`\"", true}, // backtick inside quotes
+	}
+
+	cfg := &BashToolConfig{}
+	cfg.defaults()
+	tool := NewBashTool(tmpDir, cfg)
+
+	for _, tc := range tests {
+		t.Run(tc.command, func(t *testing.T) {
+			args, _ := json.Marshal(map[string]string{"command": tc.command})
+			_, err := tool.Func(context.Background(), args)
+			if tc.blocked && err == nil {
+				t.Errorf("expected command %q to be blocked, but it was allowed", tc.command)
+			}
+			if !tc.blocked && err != nil {
+				t.Errorf("expected command %q to be allowed, but got error: %v", tc.command, err)
+			}
+		})
+	}
+}
+
 func TestGrepTool(t *testing.T) {
 	tmpDir := t.TempDir()
 	os.WriteFile(filepath.Join(tmpDir, "a.go"), []byte("package main\nfunc main() {}\n"), 0644)

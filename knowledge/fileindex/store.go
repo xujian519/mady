@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -167,6 +168,9 @@ func (fi *FileIndex) Refresh(ctx context.Context) error {
 		existing[r.Path] = r
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("fileindex: rows iteration error: %w", err)
+	}
 
 	// Walk the directory.
 	var currentPaths []string
@@ -625,16 +629,18 @@ func classifyFile(path string) FileCategory {
 func extractPreview(path string, cat FileCategory) string {
 	switch cat {
 	case CategoryTextDoc, CategoryPdf, CategorySpreadsheet:
-		// For text-like, we read a small prefix; for PDF/spreadsheet we
-		// cannot extract meaningful text without a parser, so return the
-		// filename as a minimal signal.
-		data, err := os.ReadFile(path)
+		// Read only first 512 bytes to avoid loading large files into memory.
+		f, err := os.Open(path)
 		if err != nil {
 			return filepath.Base(path)
 		}
-		if len(data) > 512 {
-			data = data[:512]
+		defer f.Close()
+		var buf [512]byte
+		n, _ := io.ReadFull(f, buf[:])
+		if n == 0 {
+			return filepath.Base(path)
 		}
+		data := buf[:n]
 		// Check if it looks like a binary file (null bytes).
 		for _, b := range data {
 			if b == 0 {
@@ -647,14 +653,20 @@ func extractPreview(path string, cat FileCategory) string {
 	}
 }
 
-// quickChecksum returns a base64 string of the first 16 bytes of the file's
-// SHA256 hash, combined with its modification time for fast change detection.
+// quickChecksum returns a base64 string using a fast sampling approach:
+// first 4KB + mod time, avoiding full-file reads for large files.
 func quickChecksum(path string, info os.FileInfo) string {
-	data, err := os.ReadFile(path)
-	if err != nil || len(data) == 0 {
+	f, err := os.Open(path)
+	if err != nil {
 		return fmt.Sprintf("%d_%d", info.Size(), info.ModTime().UnixNano())
 	}
-	hash := sha256.Sum256(data)
+	defer f.Close()
+	var buf [4096]byte
+	n, _ := io.ReadFull(f, buf[:])
+	if n == 0 {
+		return fmt.Sprintf("%d_%d", info.Size(), info.ModTime().UnixNano())
+	}
+	hash := sha256.Sum256(buf[:n])
 	return base64.StdEncoding.EncodeToString(hash[:16])
 }
 

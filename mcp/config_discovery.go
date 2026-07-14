@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -81,6 +82,15 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 	for _, cfgPath := range configPaths {
 		if cfgPath == "" {
 			continue
+		}
+		// Skip $PWD/.mcp.json if not owned by current user (security:
+		// prevents command execution via malicious config in shared dirs).
+		if strings.HasSuffix(cfgPath, string(filepath.Separator)+".mcp.json") {
+			if !isOwnedByCurrentUser(cfgPath) {
+				warnings = append(warnings,
+					fmt.Errorf("mcp: skipping %s — not owned by current user (security)", cfgPath))
+				continue
+			}
 		}
 		cfg, err := LoadMCPConfig(cfgPath)
 		if err != nil {

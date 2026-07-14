@@ -219,7 +219,7 @@ func RouterConfigFromManifests(base agentcore.Config, manifests []agentcore.Agen
 			Description:    m.Description,
 			Mode:           agentcore.HandoffDelegate,
 			AgentConfig:    factory(base),
-			AllowedSources: []string{"*"},
+			AllowedSources: []string{"mady-router", "chat-agent"}, // 与 ProfessionalHandoffConfigs 对齐，不使用通配符
 			FallbackMsg:    fmt.Sprintf("%s 功能暂时不可用，请稍后再试。", m.Description),
 		})
 	}

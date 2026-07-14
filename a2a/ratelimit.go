@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -103,6 +104,14 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
 			ip = r.RemoteAddr
+		}
+		// Support X-Forwarded-For / X-Real-IP when behind a reverse proxy.
+		// Falls back to RemoteAddr if no proxy headers are present.
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			ip = strings.Split(fwd, ",")[0]
+			ip = strings.TrimSpace(ip)
+		} else if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+			ip = strings.TrimSpace(realIP)
 		}
 		if !rl.Allow(ip) {
 			w.Header().Set("Content-Type", "application/json")

@@ -19,6 +19,8 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
+const maxResponseBytes = 10 << 20 // 10MB — max MCP HTTP response body size
+
 const (
 	headerSessionID       = "Mcp-Session-Id"
 	headerProtocolVersion = "Mcp-Protocol-Version"
@@ -405,7 +407,7 @@ func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool
 	}
 	if expectResponse {
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			body, _ := io.ReadAll(resp.Body)
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 			resp.Body.Close()
 			return nil, fmt.Errorf("mcp http status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 		}
@@ -416,7 +418,7 @@ func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool
 		return nil, sessionExpiredError{sessionID: sessionID}
 	}
 	if resp.StatusCode != http.StatusAccepted && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		resp.Body.Close()
 		return nil, fmt.Errorf("mcp notify status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
@@ -657,12 +659,12 @@ func (c *HTTPClient) resumeSSE(ctx context.Context, lastEventID string) (*http.R
 		return nil, sessionExpiredError{sessionID: sessionID}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		resp.Body.Close()
 		return nil, fmt.Errorf("mcp resume status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if !strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		resp.Body.Close()
 		return nil, fmt.Errorf("mcp resume expected text/event-stream, got %q: %s", resp.Header.Get("Content-Type"), strings.TrimSpace(string(body)))
 	}
@@ -848,11 +850,11 @@ func (c *HTTPClient) listenServerStreamOnce(ctx context.Context, lastEventID str
 		return sseStreamState{}, errServerStreamUnsupported
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		return sseStreamState{}, fmt.Errorf("mcp server stream status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if !strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		return sseStreamState{}, fmt.Errorf("mcp server stream expected text/event-stream, got %q: %s", resp.Header.Get("Content-Type"), strings.TrimSpace(string(body)))
 	}
 

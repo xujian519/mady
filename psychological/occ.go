@@ -20,7 +20,7 @@ var occFormulaList = []OCCEmotionFormula{
 		}},
 	{EmoDisappointment, []float64{1.0, 0.3},
 		func(f AppraisalFrame) []float64 { return []float64{-f.Desirability, 1 - f.Likelihood} }},
-	{EmoRelief, []float64{1.0, 0.5},
+	{EmoRelief, []float64{0.5, 1.0}, // higher weight on Unexpectedness per OCC theory
 		func(f AppraisalFrame) []float64 { return []float64{f.Desirability, f.Unexpectedness} }},
 	{EmoFearConfirmed, []float64{1.0, 0.5},
 		func(f AppraisalFrame) []float64 { return []float64{-f.Desirability, 1 - f.Unexpectedness} }},

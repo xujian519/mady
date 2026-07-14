@@ -13,6 +13,9 @@ type AgentInfo struct {
 
 type AuthProvider interface {
 	AuthMethods() []any
+	// Authenticate validates the given credentials and returns a result.
+	// An error indicates authentication was rejected.
+	Authenticate(ctx context.Context, params AuthenticateParams) (*AuthenticateResult, error)
 }
 
 type AgentFactory interface {

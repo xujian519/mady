@@ -141,8 +141,8 @@ func TestRouterConfigFromManifests_HandoffConfig(t *testing.T) {
 	if h.Mode != agentcore.HandoffDelegate {
 		t.Errorf("expected HandoffDelegate mode, got %v", h.Mode)
 	}
-	if len(h.AllowedSources) != 1 || h.AllowedSources[0] != "*" {
-		t.Errorf("expected AllowedSources [\"*\"], got %v", h.AllowedSources)
+	if len(h.AllowedSources) != 2 || h.AllowedSources[0] != "mady-router" || h.AllowedSources[1] != "chat-agent" {
+		t.Errorf("expected AllowedSources [\"mady-router\", \"chat-agent\"], got %v", h.AllowedSources)
 	}
 	if h.FallbackMsg == "" {
 		t.Error("FallbackMsg should not be empty")

@@ -2,6 +2,8 @@ package acp
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -87,7 +89,11 @@ func (sm *SessionManager) CreateSession(cwd, sessionID string) (*sessionState, e
 	}
 
 	if sessionID == "" {
-		sessionID = fmt.Sprintf("%d", time.Now().UnixNano())
+		var b [8]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return nil, fmt.Errorf("session: generate id: %w", err)
+		}
+		sessionID = hex.EncodeToString(b[:])
 	}
 
 	model := sm.agentFactory.DefaultModel()
