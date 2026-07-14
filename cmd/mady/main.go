@@ -571,7 +571,9 @@ func runTui(ctx context.Context) {
 	// 文件索引：案件切换时打开/刷新，buildCfg 注入 fileindex Extension。
 	var currentFileIndex *fileindex.FileIndex
 	var currentFileWatcher *fileindex.FileWatcher
-	fileIndexExt := fileindex.NewExtension(fileindex.ExtensionConfig{})
+	fileIndexExt := fileindex.NewExtension(fileindex.ExtensionConfig{
+		FallbackDir: fc.BaseConfig.ProjectDir,
+	})
 
 	// 审核关卡：启用后在关键决策点（专利结论/法律意见/风险评估等）插入人工审核提示。
 	reviewMode := false
@@ -907,6 +909,7 @@ func runTui(ctx context.Context) {
 						currentFileIndex.Close()
 						currentFileIndex = nil
 						fileIndexExt.SetFileIndex(nil)
+						fileIndexExt.SetFallbackDir(fc.BaseConfig.ProjectDir)
 					}
 					currentProjectMeta = nil
 					runMu.Lock()

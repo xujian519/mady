@@ -1,5 +1,17 @@
 # AI 决策变更日志
 
+## 2026-07-15: search_project_files / read_project_file 工具支持无 /case 降级模式
+
+- **变更**:
+  1. `knowledge/fileindex/extension.go`：当 `FileIndex` 为 nil 时，`read_project_file` 降级为直接文件系统读取（使用 `FileReader`），`search_project_files` 降级为 `WalkDir` 文件名/路径子串搜索（`searchFallback`）。降级搜索跳过隐藏目录和 `node_modules`/`vendor`，按匹配质量（精确/前缀/包含/路径）分层评分和排序，支持 context 取消，传播 WalkDir 错误。在 `ExtensionConfig` 新增 `FallbackDir` 字段，`Extension` 新增 `SetFallbackDir`/`workingDir` 方法。
+  2. `knowledge/fileindex/extension_test.go`：新增 10 个 `searchFallback` 单元测试，覆盖匹配、无匹配、大小写、隐藏目录跳过、node_modules 跳过、maxResults 截断、评分排序、空目录、ctx 取消、目录缺失。
+  3. `cmd/mady/main.go`：`NewExtension` 传入 `FallbackDir: fc.BaseConfig.ProjectDir`；`/case off` 时调用 `SetFallbackDir` 重置。
+- **原因**: 用户反馈使用 `read_project_file` / `search_project_files` 前必须先执行 `/case`，流程繁琐。`FileReader.ReadProjectFile` 本身不依赖 `FileIndex`，完全可以独立工作。降级模式消除了这个不必要的障碍。
+- **影响范围**: `knowledge/fileindex/extension.go`、`knowledge/fileindex/extension_test.go`、`cmd/mady/main.go`
+- **风险等级**: 低（有 FileIndex 时行为完全不变；降级模式复用现有 `FileReader` + `FileReader.resolvePath` 沙箱）
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `go test ./knowledge/fileindex/... -count=1` ✅（28 测试全通过）
+
 ## 2026-07-14: 修复 MCP 发现超时后 Close() 阻塞导致 tui/acp 无法启动
 
 - **变更**:

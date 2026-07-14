@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/xujian519/mady/agentcore"
@@ -16,15 +18,19 @@ import (
 type Extension struct {
 	config ExtensionConfig
 
-	mu sync.Mutex
-	fi *FileIndex // may be nil; set via SetFileIndex
+	mu          sync.Mutex
+	fi          *FileIndex // may be nil; set via SetFileIndex
+	fallbackDir string     // runtime working dir when FileIndex is nil
 }
 
 // ExtensionConfig configures the fileindex extension.
 type ExtensionConfig struct {
 	// FileIndex is optional; set at runtime via SetFileIndex.
-	// When nil, the search tool returns an error asking the user to set a project.
+	// When nil, the extension falls back to FallbackDir for direct filesystem access.
 	FileIndex *FileIndex
+	// FallbackDir is used as the working directory when FileIndex is nil.
+	// Typically the initial CWD when Mady TUI starts.
+	FallbackDir string
 }
 
 // NewExtension creates a fileindex extension.
@@ -44,6 +50,25 @@ func (e *Extension) FileIndex() *FileIndex {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.fi
+}
+
+// SetFallbackDir updates the runtime fallback working directory.
+// Used when /case is cleared to reset the working directory to the initial CWD.
+func (e *Extension) SetFallbackDir(dir string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.fallbackDir = dir
+}
+
+// workingDir returns the effective working directory:
+// runtime fallbackDir first, then config FallbackDir.
+func (e *Extension) workingDir() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.fallbackDir != "" {
+		return e.fallbackDir
+	}
+	return e.config.FallbackDir
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +99,7 @@ func (e *Extension) Tools() []*agentcore.Tool {
 		},
 		{
 			Name:        "search_project_files",
-			Description: "在案件文件夹中搜索文件。返回按相关性排序的文件列表，包含路径、类型和预览文本。支持按文件名、路径和文件内容搜索。使用前请确保已通过 /case 切换到案件。",
+			Description: "在项目文件夹中搜索文件。已通过 /case 切换且索引可用时，支持文件名、路径和文件内容搜索（RRF 排序）；基础模式仅匹配文件名和路径。返回按相关性排序的文件列表。",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -126,27 +151,32 @@ func (e *Extension) handleSearch(ctx context.Context, args json.RawMessage) (any
 	}
 
 	fi := e.FileIndex()
-	if fi == nil {
-		return searchResult{Message: "未设置案件文件夹。请先使用 /case 命令切换到案件目录。"}, nil
+	if fi != nil {
+		// ---- Indexed mode (FileIndex available) ----
+		if err := fi.Refresh(ctx); err != nil {
+			return searchResult{
+				Message: fmt.Sprintf("扫描文件夹失败: %s", err.Error()),
+			}, nil
+		}
+
+		files, err := fi.Search(ctx, input.Query, input.MaxResults)
+		if err != nil {
+			return searchResult{Message: fmt.Sprintf("搜索失败: %s", err.Error())}, nil
+		}
+
+		if len(files) == 0 {
+			return searchResult{Message: "未找到匹配的文件。尝试使用不同的关键词，或在 /case 中确认案件目录已设置。"}, nil
+		}
+
+		return searchResult{Files: files, Total: len(files)}, nil
 	}
 
-	// Ensure the index is fresh.
-	if err := fi.Refresh(ctx); err != nil {
-		return searchResult{
-			Message: fmt.Sprintf("扫描文件夹失败: %s", err.Error()),
-		}, nil
+	// ---- Fallback mode: simple filename/path match via WalkDir ----
+	rootDir := e.workingDir()
+	if rootDir == "" {
+		return searchResult{Message: "未设置工作目录。请先使用 /case 命令切换到案件目录，或在案件文件夹下启动 Mady。"}, nil
 	}
-
-	files, err := fi.Search(ctx, input.Query, input.MaxResults)
-	if err != nil {
-		return searchResult{Message: fmt.Sprintf("搜索失败: %s", err.Error())}, nil
-	}
-
-	if len(files) == 0 {
-		return searchResult{Message: "未找到匹配的文件。尝试使用不同的关键词，或在 /case 中确认案件目录已设置。"}, nil
-	}
-
-	return searchResult{Files: files, Total: len(files)}, nil
+	return searchFallback(ctx, rootDir, input.Query, input.MaxResults), nil
 }
 
 type readInput struct {
@@ -163,17 +193,22 @@ func (e *Extension) handleReadFile(ctx context.Context, args json.RawMessage) (a
 	}
 
 	fi := e.FileIndex()
-	if fi == nil {
-		return map[string]string{"error": "未设置案件文件夹。请先使用 /case 命令切换到案件目录。"}, nil
+	var rootDir string
+	if fi != nil {
+		// Ensure the index is fresh (so the file record exists).
+		if err := fi.Refresh(ctx); err != nil {
+			return map[string]string{"error": fmt.Sprintf("刷新文件索引失败: %s", err.Error())}, nil
+		}
+		rootDir = fi.Dir()
+		if rootDir == "" {
+			return map[string]string{"error": "未设置工作目录。请先使用 /case 命令切换到案件目录，或在案件文件夹下启动 Mady。"}, nil
+		}
+	} else {
+		rootDir = e.workingDir()
+		if rootDir == "" {
+			return map[string]string{"error": "未设置工作目录。请先使用 /case 命令切换到案件目录，或在案件文件夹下启动 Mady。"}, nil
+		}
 	}
-
-	// Ensure the index is fresh (so the file record exists).
-	if err := fi.Refresh(ctx); err != nil {
-		return map[string]string{"error": fmt.Sprintf("刷新文件索引失败: %s", err.Error())}, nil
-	}
-
-	// Resolve path relative to the project directory.
-	rootDir := fi.Dir()
 	fullPath := input.Path
 	if !filepath.IsAbs(fullPath) {
 		fullPath = filepath.Join(rootDir, fullPath)
@@ -181,20 +216,14 @@ func (e *Extension) handleReadFile(ctx context.Context, args json.RawMessage) (a
 
 	// Verify the resolved path is within the root directory (sandbox).
 	rel, err := filepath.Rel(rootDir, fullPath)
-	if err != nil || (len(rel) >= 3 && rel[:3] == ".."+string(filepath.Separator)) || rel == ".." {
+	sep := string(filepath.Separator)
+	if err != nil || strings.HasPrefix(rel, ".."+sep) || rel == ".." {
 		return map[string]string{
 			"error": fmt.Sprintf("路径 %s 不在项目目录 %s 内", input.Path, rootDir),
 		}, nil
 	}
 
-	// Check file exists and is readable.
-	if _, err := os.Stat(fullPath); err != nil {
-		return map[string]string{
-			"error": fmt.Sprintf("文件不存在或无法读取: %s", input.Path),
-		}, nil
-	}
-
-	// Create a FileReader and read the file.
+	// Create a FileReader and read the file (FileReader does its own stat, no need to duplicate).
 	reader := NewFileReader(rootDir)
 	result, err := reader.ReadProjectFile(ctx, input.Path)
 	if err != nil {
@@ -202,6 +231,104 @@ func (e *Extension) handleReadFile(ctx context.Context, args json.RawMessage) (a
 	}
 
 	return result, nil
+}
+
+// searchFallback performs a simple filename/path keyword search when no FileIndex is available.
+// Walks the project directory and matches files whose relative path contains the query
+// (case-insensitive). Results are ranked by match quality and returned sorted by relevance.
+func searchFallback(ctx context.Context, rootDir, query string, maxResults int) searchResult {
+	var matches []FileCandidate
+	lowerQuery := strings.ToLower(query)
+
+	walkErr := filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip inaccessible entries
+		}
+		// Check for context cancellation periodically (every directory entry).
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if d.IsDir() {
+			base := d.Name()
+			// Skip hidden directories and common large dependency trees.
+			if base != "." && (strings.HasPrefix(base, ".") || base == "node_modules" || base == "vendor") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		relPath, err := filepath.Rel(rootDir, path)
+		if err != nil {
+			return nil
+		}
+
+		relLower := strings.ToLower(relPath)
+		if !strings.Contains(relLower, lowerQuery) {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+
+		cat := classifyFile(path)
+		preview := extractPreview(path, cat)
+
+		// Score by match quality: exact > prefix > contains in filename > path-only.
+		// Strip file extension for fair name comparison.
+		base := strings.ToLower(filepath.Base(relPath))
+		baseNoExt := strings.TrimSuffix(base, filepath.Ext(base))
+		var relevance float64
+		switch {
+		case base == lowerQuery || baseNoExt == lowerQuery:
+			relevance = 1.0
+		case strings.HasPrefix(base, lowerQuery) || strings.HasPrefix(baseNoExt, lowerQuery):
+			relevance = 0.8
+		case strings.Contains(base, lowerQuery) || strings.Contains(baseNoExt, lowerQuery):
+			relevance = 0.6
+		default:
+			relevance = 0.3 // only in directory path
+		}
+
+		matches = append(matches, FileCandidate{
+			Path:       relPath,
+			Category:   cat,
+			SizeBytes:  info.Size(),
+			ModifiedAt: info.ModTime(),
+			Relevance:  relevance,
+			Preview:    preview,
+		})
+
+		if len(matches) >= maxResults {
+			return filepath.SkipAll
+		}
+		return nil
+	})
+
+	if walkErr != nil && !os.IsNotExist(walkErr) {
+		return searchResult{
+			Message: fmt.Sprintf("搜索文件失败: %s", walkErr.Error()),
+		}
+	}
+
+	if len(matches) == 0 {
+		return searchResult{
+			Message: fmt.Sprintf("在 %s 中未找到匹配 '%s' 的文件。尝试使用不同的关键词。", rootDir, query),
+		}
+	}
+
+	// Sort by relevance descending, then by path for stable ordering.
+	sort.Slice(matches, func(i, j int) bool {
+		if matches[i].Relevance != matches[j].Relevance {
+			return matches[i].Relevance > matches[j].Relevance
+		}
+		return matches[i].Path < matches[j].Path
+	})
+
+	return searchResult{Files: matches, Total: len(matches)}
 }
 
 // compile-time check
