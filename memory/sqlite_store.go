@@ -210,7 +210,14 @@ func (s *SQLiteMemoryStore) RememberBatch(ctx context.Context, entries []MemoryE
 
 // Recall 按关键词检索记忆，返回按复合评分降序排列的结果。
 func (s *SQLiteMemoryStore) Recall(ctx context.Context, query string, filter MemoryFilter) ([]ScoredMemory, error) {
-	candidates, err := s.queryCandidates(ctx, filter)
+	// Use a generous limit to avoid loading the entire table.
+	// The final result is clipped to EffectiveTopK() after scoring,
+	// but we need more candidates to allow keywordScore to filter.
+	limit := filter.EffectiveTopK() * 10
+	if limit < 100 {
+		limit = 100
+	}
+	candidates, err := s.queryCandidates(ctx, filter, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -487,9 +494,10 @@ func scanEntry(sc scanner) (MemoryEntry, error) {
 	return entry, nil
 }
 
-func (s *SQLiteMemoryStore) queryCandidates(ctx context.Context, filter MemoryFilter) ([]MemoryEntry, error) {
+func (s *SQLiteMemoryStore) queryCandidates(ctx context.Context, filter MemoryFilter, limit int) ([]MemoryEntry, error) {
 	where, args := buildWhereClause(filter)
-	query := selectColumns + ` FROM memories ` + where
+	query := selectColumns + ` FROM memories ` + where + ` LIMIT ?`
+	args = append(args, limit)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -129,6 +130,7 @@ type Manager struct {
 	index      map[string]*Entry
 
 	hasAssistant bool
+	pathCache    atomic.Pointer[pathCache]
 
 	mu        sync.RWMutex
 	idMu      sync.Mutex
@@ -189,6 +191,7 @@ func (m *Manager) Append(_ context.Context, entry Entry) error {
 	m.entries = append(m.entries, entry)
 	m.index[entry.ID] = &m.entries[len(m.entries)-1]
 	m.leafID = entry.ID
+	m.invalidatePathCache()
 
 	if !m.hasAssistant && entry.Type == EntryMessage {
 		var msg agentcore.Message
@@ -413,18 +416,46 @@ func (m *Manager) CreateBranchedSession(ctx context.Context, store *FileStore) (
 	return newID, nil
 }
 
+// pathCache caches pre-built maps from entries to avoid rebuilding them
+// on every pathToLeaf call (which can be O(N) per access for large sessions).
+// Uses atomic.Pointer to allow safe concurrent reads without a write lock.
+type pathCache struct {
+	parentMap map[string]string
+	entryMap  map[string]Entry
+}
+
+// invalidatePathCache marks the cached maps as stale. Called after Append.
+func (m *Manager) invalidatePathCache() {
+	m.pathCache.Store(nil)
+}
+
+// buildPathCache constructs the parent and entry maps from the current
+// entries. Uses atomic load and compare-and-swap to avoid data races
+// under concurrent readers.
+func (m *Manager) buildPathCache() {
+	if pc := m.pathCache.Load(); pc != nil {
+		return
+	}
+	parentMap := make(map[string]string, len(m.entries))
+	entryMap := make(map[string]Entry, len(m.entries))
+	for _, e := range m.entries {
+		parentMap[e.ID] = e.ParentID
+		entryMap[e.ID] = e
+	}
+	m.pathCache.CompareAndSwap(nil, &pathCache{parentMap: parentMap, entryMap: entryMap})
+}
+
 // pathToLeaf returns the ordered list of entries from root to current leaf.
+// Uses a cached map to avoid rebuilding from scratch on every call.
 func (m *Manager) pathToLeaf() []Entry {
 	if m.leafID == "" {
 		return nil
 	}
 
-	parentMap := make(map[string]string)
-	entryMap := make(map[string]Entry)
-	for _, e := range m.entries {
-		parentMap[e.ID] = e.ParentID
-		entryMap[e.ID] = e
-	}
+	m.buildPathCache()
+	pc := m.pathCache.Load()
+	parentMap := pc.parentMap
+	entryMap := pc.entryMap
 
 	var chain []Entry
 	visited := make(map[string]bool)

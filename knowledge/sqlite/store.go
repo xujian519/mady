@@ -278,11 +278,17 @@ func (s *SQLiteStore) VectorSearch(queryVec []float32, topK int) ([]retrieval.Sc
 		offset += batchSize
 	}
 
-	// Fetch chunk content for the top results.
+	// Fetch chunk content for the top results with a single batch query,
+	// falling back to per-chunk fetch if the batch query fails.
+	chunkIDs := make([]int, len(top))
+	for i, c := range top {
+		chunkIDs[i] = c.chunkID
+	}
+	chunkMap := s.getChunksBatch(chunkIDs)
 	results := make([]retrieval.ScoredChunk, 0, len(top))
 	for _, c := range top {
-		chunk, err := s.getChunk(c.chunkID)
-		if err != nil || chunk == nil {
+		chunk, ok := chunkMap[c.chunkID]
+		if !ok || chunk == nil {
 			continue
 		}
 		results = append(results, retrieval.ScoredChunk{
@@ -302,10 +308,17 @@ func (s *SQLiteStore) vectorSearchInMemory(queryVec []float32, topK int) ([]retr
 		return nil, nil
 	}
 
+	// Fetch chunk content for the top results with a single batch query,
+	// falling back to per-chunk fetch if the batch query fails.
+	chunkIDs := make([]int, len(matches))
+	for i, m := range matches {
+		chunkIDs[i] = m.chunkID
+	}
+	chunkMap := s.getChunksBatch(chunkIDs)
 	results := make([]retrieval.ScoredChunk, 0, len(matches))
 	for _, m := range matches {
-		chunk, err := s.getChunk(m.chunkID)
-		if err != nil || chunk == nil {
+		chunk, ok := chunkMap[m.chunkID]
+		if !ok || chunk == nil {
 			continue
 		}
 		results = append(results, retrieval.ScoredChunk{
@@ -335,6 +348,82 @@ func (s *SQLiteStore) getChunk(chunkID int) (*retrieval.Chunk, error) {
 		Position: chunkIdx,
 		Metadata: map[string]string{"heading": heading},
 	}, nil
+}
+
+// getChunksBatch retrieves multiple chunks by their integer IDs in a single
+// SQL query. Returns a map from chunk ID to chunk, skipping any IDs that
+// don't exist (no error for missing chunks). If the batch query fails, it
+// falls back to fetching chunks individually — this preserves the
+// fault-tolerance of the old per-chunk code path.
+func (s *SQLiteStore) getChunksBatch(ids []int) map[int]*retrieval.Chunk {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// Try batch query first.
+	chunkMap, err := s.getChunksBatchImpl(ids)
+	if err == nil {
+		return chunkMap
+	}
+
+	// Fallback: batch failed (e.g. corrupt row), fetch individually.
+	// Silently skip individual errors to preserve the old behavior.
+	result := make(map[int]*retrieval.Chunk, len(ids))
+	for _, id := range ids {
+		chunk, err := s.getChunk(id)
+		if err != nil || chunk == nil {
+			continue
+		}
+		result[id] = chunk
+	}
+	return result
+}
+
+// getChunksBatchImpl performs the actual batch SQL query.
+func (s *SQLiteStore) getChunksBatchImpl(ids []int) (map[int]*retrieval.Chunk, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	// Build placeholders: WHERE id IN (?, ?, ...)
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(
+		"SELECT id, document_id, chunk_index, heading, content FROM chunks WHERE id IN (%s)",
+		strings.Join(placeholders, ","),
+	)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("getChunksBatch: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[int]*retrieval.Chunk, len(ids))
+	for rows.Next() {
+		var id int
+		var docID, heading, content string
+		var chunkIdx int
+		if err := rows.Scan(&id, &docID, &chunkIdx, &heading, &content); err != nil {
+			return nil, fmt.Errorf("getChunksBatch scan: %w", err)
+		}
+		result[id] = &retrieval.Chunk{
+			ID:       strconv.Itoa(id),
+			DocID:    docID,
+			Content:  content,
+			Position: chunkIdx,
+			Metadata: map[string]string{"heading": heading},
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("getChunksBatch rows: %w", err)
+	}
+	return result, nil
 }
 
 // LoadGraph loads all nodes and edges from kg_nodes/kg_edges into a new

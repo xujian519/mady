@@ -6,12 +6,28 @@ import (
 	"time"
 )
 
+const testEventBufSize = 64 // small buffer for fast tests
+
+// newTestEventBus creates an EventBus with a small internal buffer for testing.
+func newTestEventBus() *EventBus {
+	eb := &EventBus{
+		handlers: make(map[EventType]map[uint64]EventHandler),
+		global:   make(map[uint64]EventHandler),
+		broker:   NewBrokerWithOptions[Event](testEventBufSize),
+		done:     make(chan struct{}),
+	}
+	ready := make(chan struct{})
+	go eb.dispatch(ready)
+	<-ready
+	return eb
+}
+
 func TestEventBus_EmitNonBlocking(t *testing.T) {
-	eb := NewEventBus()
+	eb := newTestEventBus()
 	defer eb.Close()
 
 	// Fill the buffer to capacity
-	for i := 0; i < defaultEventBufSize; i++ {
+	for i := 0; i < testEventBufSize; i++ {
 		eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
 	}
 
@@ -31,7 +47,7 @@ func TestEventBus_EmitNonBlocking(t *testing.T) {
 }
 
 func TestEventBus_EmitAfterClose(t *testing.T) {
-	eb := NewEventBus()
+	eb := newTestEventBus()
 	eb.Close()
 
 	// Emit on a closed bus must not panic
@@ -39,7 +55,7 @@ func TestEventBus_EmitAfterClose(t *testing.T) {
 }
 
 func TestEventBus_DrainEventuallyCompletes(t *testing.T) {
-	eb := NewEventBus()
+	eb := newTestEventBus()
 	defer eb.Close()
 
 	var received atomic.Int32
@@ -60,10 +76,10 @@ func TestEventBus_DrainEventuallyCompletes(t *testing.T) {
 }
 
 func TestEventBus_DrainAfterClose_NoPanic(t *testing.T) {
-	eb := NewEventBus()
+	eb := newTestEventBus()
 
 	// Fill the buffer so Drain would need to wait
-	for i := 0; i < defaultEventBufSize; i++ {
+	for i := 0; i < testEventBufSize; i++ {
 		eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
 	}
 
@@ -91,7 +107,7 @@ func TestEventBus_DrainAfterClose_NoPanic(t *testing.T) {
 // the dispatch goroutine would exit, close(done), and silently drop every
 // future event — the event bus would be permanently dead.
 func TestEventBus_HandlerPanicDoesNotKillDispatch(t *testing.T) {
-	eb := NewEventBus()
+	eb := newTestEventBus()
 	defer eb.Close()
 
 	var got atomic.Int32
@@ -112,5 +128,41 @@ func TestEventBus_HandlerPanicDoesNotKillDispatch(t *testing.T) {
 	// Both events should have been delivered to the second handler.
 	if got := got.Load(); got != 2 {
 		t.Fatalf("second handler received %d events, want 2 (dispatch died on panic?)", got)
+	}
+}
+
+func TestEventBus_EmitMustDeliver(t *testing.T) {
+	eb := newTestEventBus()
+	defer eb.Close()
+
+	var received atomic.Int32
+	eb.On(EventAgentStart, func(e Event) {
+		received.Add(1)
+	})
+
+	eb.EmitMustDeliver(t.Context(), &AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+
+	if got := received.Load(); got != 1 {
+		t.Fatalf("received %d events, want 1", got)
+	}
+}
+
+func TestEventBus_Subscribe(t *testing.T) {
+	eb := NewEventBus()
+	defer eb.Close()
+
+	ctx := t.Context()
+	ch := eb.Subscribe(ctx)
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+
+	select {
+	case e := <-ch:
+		if e.EventKind() != EventAgentStart {
+			t.Fatalf("expected agent_start, got %s", e.EventKind())
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for event via Subscribe")
 	}
 }

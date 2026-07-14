@@ -530,28 +530,63 @@ func TextBlocks(text string) []agentcore.ContentBlock {
 	return []agentcore.ContentBlock{{Kind: agentcore.BlockKindText, Text: text}}
 }
 
-func (p *Provider) doHTTP(ctx context.Context, body any, extra map[string]any) (*http.Response, error) {
-	var data []byte
-	var err error
-
-	if len(extra) > 0 {
-		var base map[string]any
-		raw, merr := json.Marshal(body)
-		if merr != nil {
-			return nil, fmt.Errorf("marshal request: %w", merr)
-		}
-		if err := json.Unmarshal(raw, &base); err != nil {
-			return nil, fmt.Errorf("unmarshal request: %w", err)
-		}
-		for k, v := range extra {
-			base[k] = v
-		}
-		data, err = json.Marshal(base)
-	} else {
-		data, err = json.Marshal(body)
+// marshalWithExtra marshals body to JSON and merges extra fields without a full
+// unmarshal-remarshal round-trip. When extra is empty it delegates to json.Marshal
+// directly. When non-empty, it stitches the two JSON objects together by removing
+// the trailing '}' from body and inserting the extra key-value pairs.
+func marshalWithExtra(body any, extra map[string]any) ([]byte, error) {
+	// Guard against nil body (json.Marshal(nil) returns "null", not "{}").
+	if body == nil {
+		return nil, fmt.Errorf("marshal: body must not be nil")
 	}
+
+	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+	if len(extra) == 0 {
+		return raw, nil
+	}
+
+	// Marshal extra fields.
+	extraRaw, err := json.Marshal(extra)
+	if err != nil {
+		return nil, fmt.Errorf("marshal extra fields: %w", err)
+	}
+
+	// Both raw and extraRaw are valid JSON objects. Stitch them:
+	// raw:      {"model":"gpt-4","messages":[...]}
+	// extraRaw: {"stream":true}
+	// result:   {"model":"gpt-4","messages":[...],"stream":true}
+	//
+	// Find the last '}' in raw (ignoring trailing whitespace).
+	last := len(raw) - 1
+	for last >= 0 && raw[last] != '}' {
+		last--
+	}
+	if last < 0 || raw[0] != '{' {
+		return nil, fmt.Errorf("marshal: body did not encode to a JSON object")
+	}
+
+	// Remove leading '{' and trailing '}' from extraRaw. If extraRaw is
+	// just "{}" (empty object), skip stitching entirely and return raw.
+	if len(extraRaw) <= 2 {
+		return raw, nil
+	}
+	extraInner := extraRaw[1 : len(extraRaw)-1]
+
+	result := make([]byte, 0, last+len(extraInner)+3)
+	result = append(result, raw[:last]...)
+	result = append(result, ',')
+	result = append(result, extraInner...)
+	result = append(result, '}')
+	return result, nil
+}
+
+func (p *Provider) doHTTP(ctx context.Context, body any, extra map[string]any) (*http.Response, error) {
+	data, err := marshalWithExtra(body, extra)
+	if err != nil {
+		return nil, err
 	}
 
 	httpReq, err := http.NewRequestWithContext(
