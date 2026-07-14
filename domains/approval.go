@@ -176,6 +176,7 @@ type ApprovalRecord struct {
 	Decision       ApprovalDecision // adopted / modified / rejected
 	ModifiedOutput string           // human-edited content (non-empty only when Decision == modified)
 	Feedback       string           // human's modification notes or rejection reason
+	State          ApprovalState    // 审批状态机的当前状态（持久化后用于正确重建）
 }
 
 // ApprovalStore persists ApprovalRecords. Implementations must be safe for

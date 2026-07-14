@@ -11,9 +11,15 @@ import (
 	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
 	"github.com/xujian519/mady/domains/reasoning"
+	"github.com/xujian519/mady/store"
 )
 
-// SQLiteCheckpointStore persists StageCheckpoints to a SQLite database.
+var (
+	_ reasoning.CheckpointStore = (*SQLiteCheckpointStore)(nil)
+	_ store.CaseStore           = (*SQLiteCheckpointStore)(nil)
+	_ store.Closer              = (*SQLiteCheckpointStore)(nil)
+)
+
 // Each checkpoint is stored as a JSON blob with indexed metadata columns
 // for efficient case-level queries.
 type SQLiteCheckpointStore struct {
@@ -46,7 +52,7 @@ func NewCheckpointStore(dbPath string) (*SQLiteCheckpointStore, error) {
 }
 
 func (s *SQLiteCheckpointStore) initSchema() error {
-	_, err := s.db.Exec(`
+	_, err := s.db.ExecContext(context.Background(), `
 		CREATE TABLE IF NOT EXISTS stage_checkpoints (
 			checkpoint_id  TEXT PRIMARY KEY,
 			case_id        TEXT NOT NULL DEFAULT '',
@@ -70,7 +76,7 @@ func (s *SQLiteCheckpointStore) Save(ctx context.Context, cp *reasoning.StageChe
 
 	caseType := string(cp.CaseType)
 
-	_, err = s.db.ExecContext(ctx, `
+	_, err = s.db.ExecContext(context.Background(), `
 		INSERT OR REPLACE INTO stage_checkpoints (checkpoint_id, case_id, case_type, current_stage, data)
 		VALUES (?, ?, ?, ?, ?)
 	`,
@@ -144,6 +150,25 @@ func (s *SQLiteCheckpointStore) Close() error {
 		return s.db.Close()
 	}
 	return nil
+}
+
+// --- store.CaseStore 接口实现 ---
+
+// CaseID 返回 ""，该存储用于所有案件。
+func (s *SQLiteCheckpointStore) CaseID() string { return "" }
+
+// RunID 返回 ""，该存储不限定于单次运行。
+func (s *SQLiteCheckpointStore) RunID() string { return "" }
+
+// Version 返回当前 schema 版本（1）。
+func (s *SQLiteCheckpointStore) Version() int { return 1 }
+
+// Migrate 执行 schema 迁移。当前为版本 1（初始 schema）。
+func (s *SQLiteCheckpointStore) Migrate(ctx context.Context) (int, error) {
+	if err := s.initSchema(); err != nil {
+		return 0, fmt.Errorf("checkpoint migrate: %w", err)
+	}
+	return s.Version(), nil
 }
 
 // 编译时检查

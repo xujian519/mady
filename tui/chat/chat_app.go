@@ -669,113 +669,7 @@ func extractToolDiff(toolName, resultJSON string) (path, diff string, added, rem
 }
 
 // displayFileSearchResult parses and displays search_project_files results.
-func (a *ChatApp) displayFileSearchResult(resultJSON string) {
-	var raw struct {
-		Files []struct {
-			Path      string  `json:"path"`
-			Category  string  `json:"category"`
-			Relevance float64 `json:"relevance"`
-			Preview   string  `json:"preview"`
-		} `json:"files"`
-		Total   int    `json:"total"`
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal([]byte(resultJSON), &raw); err != nil {
-		return
-	}
-	if len(raw.Files) == 0 {
-		if raw.Message != "" {
-			a.history.Append(ChatMessage{Role: RoleSystem, Text: raw.Message})
-		}
-		return
-	}
-
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "📁 案件文件搜索结果（共 %d 项）\n\n", len(raw.Files))
-	pal := theme.CurrentPalette()
-	for i, f := range raw.Files {
-		relPath := f.Path
-		cat := f.Category
-		if cat == "" {
-			cat = "?"
-		}
-		score := f.Relevance
-		scoreStr := fmt.Sprintf("%.0f%%", score*100)
-		preview := f.Preview
-		if core.VisibleWidth(preview) > 80 {
-			preview = core.TruncateToWidth(preview, 77, "...")
-		}
-		fmt.Fprintf(&sb, "%d. %s  [%s] (%s)\n", i+1, pal.Bold.Render(relPath), cat, pal.Dim.Render(scoreStr))
-		if preview != "" {
-			fmt.Fprintf(&sb, "   %s\n", pal.Dim.Render(preview))
-		}
-		sb.WriteString("\n")
-	}
-
-	collapsed := !a.isRunning()
-	a.history.Append(ChatMessage{
-		Role:      RoleAssistant,
-		Meta:      "file_search",
-		Text:      strings.TrimSpace(sb.String()),
-		Collapsed: collapsed,
-	})
-}
-
 // displayFileReadResult parses and displays read_project_file results.
-func (a *ChatApp) displayFileReadResult(resultJSON string) {
-	var raw struct {
-		Path       string            `json:"path"`
-		Category   string            `json:"category"`
-		Content    string            `json:"content"`
-		Confidence float64           `json:"confidence"`
-		CostNotice string            `json:"cost_notice"`
-		Error      string            `json:"error"`
-		Metadata   map[string]string `json:"metadata"`
-	}
-	if err := json.Unmarshal([]byte(resultJSON), &raw); err != nil {
-		return
-	}
-
-	if raw.Error != "" {
-		a.history.Append(ChatMessage{Role: RoleSystem, Text: "⚠ " + raw.Error})
-		return
-	}
-	pathLabel := raw.Path
-	if pathLabel == "" {
-		pathLabel = "（未知文件）"
-	}
-	if raw.Content == "" && raw.CostNotice != "" {
-		a.history.Append(ChatMessage{
-			Role: RoleSystem,
-			Text: "📄 " + pathLabel + " — " + raw.CostNotice,
-		})
-		return
-	}
-
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "📄 %s", raw.Path)
-
-	if raw.Confidence < 1.0 {
-		fmt.Fprintf(&sb, "  [置信度: %.0f%%]", raw.Confidence*100)
-	}
-	sb.WriteString("\n\n")
-
-	// Show a preview of the content (first 2000 chars).
-	content := raw.Content
-	if core.VisibleWidth(content) > 2000 {
-		content = core.TruncateToWidth(content, 1997, "...") + "\n\n[内容较长，已截断]"
-	}
-	sb.WriteString(content)
-
-	collapsed := !a.isRunning()
-	a.history.Append(ChatMessage{
-		Role:      RoleAssistant,
-		Meta:      "file_read",
-		Text:      strings.TrimSpace(sb.String()),
-		Collapsed: collapsed,
-	})
-}
-
 func formatContentPreview(content string, totalLines int64) string {
 	const previewLines = 6
 	lines := strings.Split(content, "\n")
@@ -1002,7 +896,7 @@ func (l *chatLayout) Render(width int64) []string {
 	flex.Bounds = bounds
 
 	headerIndex := -1
-	editorFrameIndex := -1
+	var editorFrameIndex int
 
 	if l.header != nil {
 		headerIndex = len(flex.Children)

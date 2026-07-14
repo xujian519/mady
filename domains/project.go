@@ -23,6 +23,28 @@ type ProjectRecord struct {
 	RegisteredAt time.Time `json:"registered_at"`
 	LastAccessed time.Time `json:"last_accessed"`
 	Status       string    `json:"status"` // "active" | "archived" | "unreachable"
+
+	// --- 业务字段（v0.4 新增） ---
+
+	// CaseType 是案件类型枚举，如 "发明专利"、"实用新型"、"外观设计"、"商标"、"著作权"。
+	// 为空时表示未分类。
+	CaseType string `json:"case_type,omitempty"`
+
+	// FilingNumber 是官方申请号/注册号，如 "CN202410123456.7"。
+	FilingNumber string `json:"filing_number,omitempty"`
+
+	// ClientRef 是客户内部的案卷编号。
+	ClientRef string `json:"client_ref,omitempty"`
+
+	// Jurisdiction 是法域，如 "CN"、"US"、"EP"、"JP"。
+	Jurisdiction string `json:"jurisdiction,omitempty"`
+
+	// Confidentiality 是保密级别。
+	// "public" | "internal" | "confidential" | "strictly_confidential"
+	Confidentiality string `json:"confidentiality,omitempty"`
+
+	// DataRetentionDays 是数据保留天数。0 表示永久保留。
+	DataRetentionDays int `json:"data_retention_days,omitempty"`
 }
 
 // ProjectMeta 是案件元数据，存于 workspace 下，不写入用户物理文件夹。

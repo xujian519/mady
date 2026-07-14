@@ -696,6 +696,8 @@ func runTui(ctx context.Context) {
 		{InsertText: "/case", Label: "/case", Description: "查看或切换案件"},
 		{InsertText: "/deadline", Label: "/deadline", Description: "显示当前案件期限"},
 		{InsertText: "/review", Label: "/review", Description: "切换审核关卡（关键内容人工确认）"},
+		{InsertText: "/approve", Label: "/approve", Description: "确认AI输出，继续执行（审核模式下）"},
+		{InsertText: "/reject", Label: "/reject", Description: "拒绝AI输出，请求修改（审核模式下）"},
 		{InsertText: "/plan", Label: "/plan", Description: "切换计划模式（高质量推理）"},
 		{InsertText: "/quit", Label: "/quit", Description: "退出"},
 	}
@@ -935,6 +937,27 @@ func runTui(ctx context.Context) {
 				return
 			}
 
+			// submitAgentInput 向当前 Agent 提交输入并等待执行（供 /approve /reject 复用）。
+			submitAgentInput := func(input string) {
+				runMu.Lock()
+				defer runMu.Unlock()
+				runCtx, cancel := context.WithCancel(ctx)
+				cancelMu.Lock()
+				runCancel = cancel
+				cancelMu.Unlock()
+				if _, err := currentAgent.Run(runCtx, input); err != nil {
+					log.Printf("[mady] agent run failed: %v", err)
+				}
+				if agentStore != nil {
+					if err := currentAgent.SaveState(context.Background(), currentThreadID); err != nil {
+						log.Printf("[mady] save state: %v", err)
+					}
+				}
+				cancelMu.Lock()
+				runCancel = nil
+				cancelMu.Unlock()
+			}
+
 			switch trimmed {
 			case "/help":
 				app.ToggleKeyHelp()
@@ -1056,10 +1079,38 @@ func runTui(ctx context.Context) {
 				agentadapter.BindAgent(app, currentAgent)
 				app.UpdateStatusBar(providerName, normalModel, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
 				if reviewMode {
-					app.PrintSystem("⚖ 审核关卡已启用（专利结论/法律意见/风险评估等关键内容将插入人工审核提示）")
+					app.PrintSystem("⚖ 审核关卡已启用 — 专利结论/法律意见/风险评估将插入人工审核提示")
+					if currentProject != nil {
+						ct := currentProject.CaseType
+						if ct == "" {
+							ct = "未分类"
+						}
+						app.PrintSystem(fmt.Sprintf("📁 当前案件: %s (%s)", currentProject.Alias, currentProject.ProjectID))
+						app.PrintSystem(fmt.Sprintf("   📋 案件类型: %s", ct))
+					}
+					app.PrintSystem("   📌 触发关键词: 专利结论、侵权判断、法律意见、风险评估、最终建议")
+					app.PrintSystem("   💡 使用 /approve 确认 /reject 拒绝/取消")
 				} else {
 					app.PrintSystem("⚖ 审核关卡已关闭")
 				}
+				return
+
+			case "/approve":
+				if !reviewMode {
+					app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
+					return
+				}
+				app.PrintSystem("✅ 已确认 — Agent 将继续执行")
+				submitAgentInput("确认")
+				return
+
+			case "/reject":
+				if !reviewMode {
+					app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
+					return
+				}
+				app.PrintSystem("❌ 已拒绝 — Agent 将根据您的反馈调整")
+				submitAgentInput("拒绝，请根据审核意见修改后重新输出")
 				return
 
 			case "/plan":
@@ -1097,27 +1148,7 @@ func runTui(ctx context.Context) {
 				return
 			}
 
-			go func(agent *agentcore.Agent, input string) {
-				runMu.Lock()
-				defer runMu.Unlock()
-				runCtx, cancel := context.WithCancel(ctx)
-				cancelMu.Lock()
-				runCancel = cancel
-				cancelMu.Unlock()
-				if _, err := agent.Run(runCtx, input); err != nil {
-					log.Printf("[mady] agent run failed: %v", err)
-				}
-				// 持久化：每轮对话后保存到磁盘。
-				// 用 context.Background() 而非 runCtx，确保即使被中断也能保存。
-				if agentStore != nil {
-					if err := agent.SaveState(context.Background(), currentThreadID); err != nil {
-						log.Printf("[mady] save state: %v", err)
-					}
-				}
-				cancelMu.Lock()
-				runCancel = nil
-				cancelMu.Unlock()
-			}(currentAgent, trimmed)
+			submitAgentInput(trimmed)
 		},
 	})
 	agentadapter.BindAgent(app, currentAgent)

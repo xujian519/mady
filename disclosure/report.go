@@ -193,17 +193,18 @@ func assessNoveltyFromState(state graph.PregelState) *NoveltyResult {
 	// Overall assessment.
 	overall := len(features)
 	b.WriteString("**初步判断：**\n")
-	if overall == 0 {
+	switch {
+	case overall == 0:
 		b.WriteString("无法进行新颖性评估，缺少技术特征数据。\n")
-	} else if highImportance > 0 {
-		b.WriteString(fmt.Sprintf(
-			"交底书包含 %d 个重要技术特征，建议针对以下方面进行详细新颖性检索：\n", highImportance))
+	case highImportance > 0:
+		fmt.Fprintf(&b,
+			"交底书包含 %d 个重要技术特征，建议针对以下方面进行详细新颖性检索：\n", highImportance)
 		for _, f := range features {
 			if f.Importance == "high" {
 				fmt.Fprintf(&b, "- %s\n", f.Description)
 			}
 		}
-	} else {
+	default:
 		b.WriteString("技术特征重要度均为中低，建议结合领域常规手段进行检索。\n")
 	}
 
@@ -211,14 +212,15 @@ func assessNoveltyFromState(state graph.PregelState) *NoveltyResult {
 	b.WriteString("正式评估需要结合对比文件进行逐一比对。")
 
 	// Determine conclusion.
-	conclusion := "需人工评估"
-	if overall == 0 {
+	var conclusion string
+	switch {
+	case overall == 0:
 		conclusion = "特征不足"
-	} else if highImportance >= 3 {
+	case highImportance >= 3:
 		conclusion = "待详细检索（重要特征较多）"
-	} else if highImportance > 0 {
+	case highImportance > 0:
 		conclusion = "需针对性检索"
-	} else {
+	default:
 		conclusion = "可常规评估"
 	}
 

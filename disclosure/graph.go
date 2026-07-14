@@ -280,7 +280,7 @@ func BuildDisclosureAnalysisGraph(provider agentcore.Provider) (*graph.CompiledP
 	if err := pg.AddNode("generate_keywords", generateKeywordsNode()); err != nil {
 		return nil, err
 	}
-	if err := pg.AddNode("check_novelty", noveltyStubNode()); err != nil {
+	if err := pg.AddNode("check_novelty", noveltyNode(provider)); err != nil {
 		return nil, err
 	}
 	if err := pg.AddNode("generate_report", generateReportNode(provider)); err != nil {

@@ -31,6 +31,24 @@ jobs:
           version: v2.12.2
           working-directory: tools
 
+  eval:
+    runs-on: ubuntu-latest
+    name: eval-benchmark
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run Golden Benchmark
+        run: go test -count=1 -v ./agentcore/evaluate/benchmark/ -run 'TestEvalSuite_'
+        env:
+          MADY_LIVE_EVAL: ""
+
+      - name: Verify baseline report exists
+        run: test -f docs/evaluation-baseline-v0.3.md && echo "Baseline OK"
+
   mod-tidy:
     runs-on: ubuntu-latest
     name: mod-tidy

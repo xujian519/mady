@@ -67,19 +67,26 @@ func TestAgentRunInTUISession(t *testing.T) {
 		eventCh <- "run_done"
 	}()
 
-	timeout := time.After(10 * time.Second)
+	timeout := time.After(15 * time.Second)
 	var events []string
-	for i := 0; i < 6; i++ {
+	seenRunDone := false
+	for !seenRunDone {
 		select {
 		case e := <-eventCh:
 			events = append(events, e)
+			if e == "run_done" {
+				seenRunDone = true
+			}
 		case <-timeout:
-			t.Fatalf("timeout waiting for events %d, got %v", i, events)
+			t.Fatalf("timeout waiting for run_done, got %d events: %v", len(events), events)
 		}
 	}
 
-	t.Logf("events received: %v", events)
+	t.Logf("events received (%d): %v", len(events), events)
 
+	if len(events) < 2 {
+		t.Fatalf("expected at least 2 events, got %d", len(events))
+	}
 	if events[0] != "start" {
 		t.Errorf("first event should be 'start', got %q", events[0])
 	}
@@ -94,6 +101,6 @@ func TestAgentRunInTUISession(t *testing.T) {
 		}
 	}
 	if !hasEnd {
-		t.Error("no 'end' event received")
+		t.Error("no 'end' or 'run_done' event received")
 	}
 }

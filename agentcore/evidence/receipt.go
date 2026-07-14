@@ -16,6 +16,7 @@ type Receipt struct {
 	Read       bool            `json:"read,omitempty"`
 	Write      bool            `json:"write,omitempty"`
 	DurationMs int64           `json:"duration_ms,omitempty"`
+	Spans      []EvidenceSpan  `json:"spans,omitempty"` // 本次工具调用提取的证据跨度
 }
 
 // writerTools is the set of built-in tool names that modify files.

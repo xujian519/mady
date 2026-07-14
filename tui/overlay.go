@@ -424,7 +424,7 @@ func spliceOverlayRows(base []core.Row, content []core.Row, row, col, cols int64
 //     right half; the left half must yield).
 //   - If incoming width is 2 and base[colIdx+1] is a wide primary, that
 //     primary's continuation at colIdx+2 is replaced with a narrow space.
-func clearWideBoundary(row *core.Row, colIdx int64, incoming int8, cols int64) {
+func clearWideBoundary(row *core.Row, colIdx int64, incoming int8, _ int64) {
 	if row.IsRaw() || len(row.Cells) == 0 {
 		return
 	}

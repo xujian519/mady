@@ -48,7 +48,7 @@ func (fr *FileReader) readCSV(ctx context.Context, path string) (*FileReadResult
 	reader := bufio.NewReader(f)
 	bom, err := reader.Peek(3)
 	if err == nil && bom[0] == 0xEF && bom[1] == 0xBB && bom[2] == 0xBF {
-		reader.Discard(3) // skip UTF-8 BOM
+		_, _ = reader.Discard(3) // skip UTF-8 BOM
 	}
 
 	csvReader := csv.NewReader(reader)

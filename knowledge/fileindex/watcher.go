@@ -195,7 +195,7 @@ func (fw *FileWatcher) handleEvent(event fsnotify.Event) {
 	if event.Has(fsnotify.Create) {
 		if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
 			if fw.watcher != nil {
-				fw.addDirTree(fw.watcher, event.Name)
+				_ = fw.addDirTree(fw.watcher, event.Name)
 			}
 		}
 	}

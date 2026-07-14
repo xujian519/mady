@@ -11,6 +11,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite" // register pure-Go SQLite driver
+
+	"github.com/xujian519/mady/store"
 )
 
 // SQLiteMemoryStore 是 MemoryStore 的 SQLite 持久化实现。
@@ -72,7 +74,7 @@ func NewSQLiteMemoryStore(dbPath string, opts ...SQLiteOption) (*SQLiteMemorySto
 
 // initSchema 创建表和索引（幂等）。
 func (s *SQLiteMemoryStore) initSchema() error {
-	_, err := s.db.Exec(`
+	_, err := s.db.ExecContext(context.Background(), `
 		CREATE TABLE IF NOT EXISTS memories (
 			id            TEXT PRIMARY KEY,
 			user_id       TEXT NOT NULL DEFAULT '',
@@ -117,7 +119,7 @@ func (s *SQLiteMemoryStore) Remember(ctx context.Context, content string, scope 
 		}
 	}
 
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.db.ExecContext(context.Background(), `
 		INSERT INTO memories (id, user_id, agent_id, session_id, project_id, layer, content,
 		                      embedding, importance, access_count, created_at, updated_at,
 		                      last_access, decay_factor, metadata)
@@ -310,7 +312,7 @@ func (s *SQLiteMemoryStore) Update(ctx context.Context, id string, content strin
 
 // Forget 按 ID 删除。
 func (s *SQLiteMemoryStore) Forget(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM memories WHERE id = ?`, id)
+	res, err := s.db.ExecContext(context.Background(), `DELETE FROM memories WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("memory/sqlite: forget: %w", err)
 	}
@@ -324,7 +326,7 @@ func (s *SQLiteMemoryStore) Forget(ctx context.Context, id string) error {
 // ForgetAll 按过滤条件批量删除。
 func (s *SQLiteMemoryStore) ForgetAll(ctx context.Context, filter MemoryFilter) error {
 	where, args := buildWhereClause(filter)
-	_, err := s.db.ExecContext(ctx, `DELETE FROM memories `+where, args...)
+	_, err := s.db.ExecContext(context.Background(), `DELETE FROM memories `+where, args...)
 	if err != nil {
 		return fmt.Errorf("memory/sqlite: forget_all: %w", err)
 	}
@@ -575,4 +577,27 @@ func bytesToFloats(b []byte) []float32 {
 }
 
 // 编译时检查
-var _ MemoryStore = (*SQLiteMemoryStore)(nil)
+var (
+	_ MemoryStore     = (*SQLiteMemoryStore)(nil)
+	_ store.CaseStore = (*SQLiteMemoryStore)(nil)
+	_ store.Closer    = (*SQLiteMemoryStore)(nil)
+)
+
+// --- store.CaseStore 接口实现 ---
+
+// CaseID 返回 ""，该存储用于所有作用域。
+func (s *SQLiteMemoryStore) CaseID() string { return "" }
+
+// RunID 返回 ""，该存储不限定于单次运行。
+func (s *SQLiteMemoryStore) RunID() string { return "" }
+
+// Version 返回当前 schema 版本（1）。
+func (s *SQLiteMemoryStore) Version() int { return 1 }
+
+// Migrate 执行 schema 迁移。当前为版本 1（初始 schema）。
+func (s *SQLiteMemoryStore) Migrate(ctx context.Context) (int, error) {
+	if err := s.initSchema(); err != nil {
+		return 0, fmt.Errorf("memory migrate: %w", err)
+	}
+	return s.Version(), nil
+}

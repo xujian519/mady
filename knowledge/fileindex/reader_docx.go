@@ -92,33 +92,37 @@ func extractDocxBodyText(files []*zip.File) string {
 			if err != nil {
 				return ""
 			}
-			defer rc.Close()
 
 			data, err := io.ReadAll(rc)
+			rc.Close()
 			if err != nil {
 				return ""
 			}
-
-			var doc docxDocument
-			if err := xml.Unmarshal(data, &doc); err != nil {
-				return ""
-			}
-
-			var paragraphs []string
-			for _, p := range doc.Body.Paragraphs {
-				var line strings.Builder
-				for _, r := range p.Runs {
-					line.WriteString(r.Text)
-				}
-				text := strings.TrimSpace(line.String())
-				if text != "" {
-					paragraphs = append(paragraphs, text)
-				}
-			}
-			return strings.Join(paragraphs, "\n\n")
+			return parseDocxBody(data)
 		}
 	}
 	return ""
+}
+
+// parseDocxBody parses word/document.xml body content from raw bytes.
+func parseDocxBody(data []byte) string {
+	var doc docxDocument
+	if err := xml.Unmarshal(data, &doc); err != nil {
+		return ""
+	}
+
+	var paragraphs []string
+	for _, p := range doc.Body.Paragraphs {
+		var line strings.Builder
+		for _, r := range p.Runs {
+			line.WriteString(r.Text)
+		}
+		text := strings.TrimSpace(line.String())
+		if text != "" {
+			paragraphs = append(paragraphs, text)
+		}
+	}
+	return strings.Join(paragraphs, "\n\n")
 }
 
 // extractDocxHeaderFooterText reads header/footer XML files and returns text.
@@ -126,37 +130,43 @@ func extractDocxHeaderFooterText(files []*zip.File, prefix string) string {
 	var allText []string
 	for _, f := range files {
 		if strings.HasPrefix(f.Name, "word/"+prefix) && strings.HasSuffix(f.Name, ".xml") {
-			rc, err := f.Open()
-			if err != nil {
-				continue
-			}
-			defer rc.Close()
-
-			data, err := io.ReadAll(rc)
-			if err != nil {
-				continue
-			}
-
-			var doc docxDocument
-			if err := xml.Unmarshal(data, &doc); err != nil {
-				continue
-			}
-
-			var paragraphs []string
-			for _, p := range doc.Body.Paragraphs {
-				var line strings.Builder
-				for _, r := range p.Runs {
-					line.WriteString(r.Text)
-				}
-				text := strings.TrimSpace(line.String())
-				if text != "" {
-					paragraphs = append(paragraphs, text)
-				}
-			}
-			if len(paragraphs) > 0 {
-				allText = append(allText, strings.Join(paragraphs, "\n"))
+			text := readDocxXMLFile(f)
+			if text != "" {
+				allText = append(allText, text)
 			}
 		}
 	}
-	return strings.Join(allText, "\n")
+	return strings.Join(allText, "\n\n")
+}
+
+// readDocxXMLFile reads paragraph text from a single DOCX XML file.
+func readDocxXMLFile(f *zip.File) string {
+	rc, err := f.Open()
+	if err != nil {
+		return ""
+	}
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return ""
+	}
+
+	var doc docxDocument
+	if err := xml.Unmarshal(data, &doc); err != nil {
+		return ""
+	}
+
+	var paragraphs []string
+	for _, p := range doc.Body.Paragraphs {
+		var line strings.Builder
+		for _, r := range p.Runs {
+			line.WriteString(r.Text)
+		}
+		text := strings.TrimSpace(line.String())
+		if text != "" {
+			paragraphs = append(paragraphs, text)
+		}
+	}
+	return strings.Join(paragraphs, "\n\n")
 }
