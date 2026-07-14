@@ -225,6 +225,10 @@ func NewStdioClient(ctx context.Context, cfg StdioConfig) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mcp: stderr pipe: %w", err)
 	}
+	// Run the server in its own process group so that Close() can clean up
+	// grand-children spawned by wrapper commands like npx/npm exec.
+	setProcessGroup(cmd)
+
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("mcp: start server: %w", err)
 	}
@@ -324,21 +328,45 @@ func (c *Client) Close() error {
 	}
 	c.mu.Unlock()
 
+	// Close all stdio pipes first. This unblocks readLoop/captureStderr even
+	// when the child process spawned grand-children that keep the pipes open
+	// after the direct child exits, preventing cmd.Wait() from hanging forever.
 	if c.stdin != nil {
 		_ = c.stdin.Close()
 	}
-	done := make(chan error, 1)
+	if c.stdout != nil {
+		_ = c.stdout.Close()
+	}
+	if c.stderr != nil {
+		_ = c.stderr.Close()
+	}
+
+	waitDone := make(chan error, 1)
 	go func() {
-		done <- c.cmd.Wait()
+		waitDone <- c.cmd.Wait()
 	}()
 	select {
-	case err := <-done:
+	case err := <-waitDone:
+		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
+			return err
+		}
+		return nil
+	case <-time.After(2 * time.Second):
+	}
+
+	// Graceful wait timed out. Force-kill the whole process tree and wait
+	// briefly; if it still does not reap (e.g. grandchildren hold pipes),
+	// abandon rather than block callers indefinitely.
+	if c.cmd.Process != nil {
+		_ = killProcessTree(c.cmd.Process.Pid)
+	}
+	select {
+	case err := <-waitDone:
 		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
 			return err
 		}
 	case <-time.After(2 * time.Second):
-		_ = c.cmd.Process.Kill()
-		<-done
+		// Abandon the wait to avoid hanging forever.
 	}
 	return nil
 }

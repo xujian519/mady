@@ -156,7 +156,20 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 			mu.Unlock()
 		}(e)
 	}
-	wg.Wait()
+
+	// Wait for discovery workers, but never block startup longer than the
+	// discovery deadline. A misbehaving Close() in createExtension could
+	// otherwise keep wg.Wait() from returning.
+	waitDone := make(chan struct{})
+	go func() {
+		defer close(waitDone)
+		wg.Wait()
+	}()
+	select {
+	case <-waitDone:
+	case <-discCtx.Done():
+		warnings = append(warnings, fmt.Errorf("mcp: discovery timed out after %v; some servers may still be starting", 10*time.Second))
+	}
 
 	return extensions, warnings
 }

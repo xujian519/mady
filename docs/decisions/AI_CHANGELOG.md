@@ -1,5 +1,18 @@
 # AI 决策变更日志
 
+## 2026-07-14: 修复 MCP 发现超时后 Close() 阻塞导致 tui/acp 无法启动
+
+- **变更**:
+  1. `mcp/client.go`：`Close()` 关闭 stdout/stderr pipes 以唤醒 readLoop/captureStderr；强制 kill 后给 `cmd.Wait()` 增加 2 秒上限，避免 npx/npm exec 派生的孙子进程持有 pipes 时无限阻塞；使用进程组（`Setpgid` + `kill -pgid`）清理整个进程树。
+  2. `mcp/process_unix.go` / `mcp/process_windows.go`：新增平台特定的 `setProcessGroup` 与 `killProcessTree` 辅助函数。
+  3. `mcp/config_discovery.go`：`DiscoverMCPExtensions` 的 `wg.Wait()` 改为与 `discCtx.Done()` 竞争，超时后记录警告并返回，不再被单个 `Close()` 阻塞。
+  4. `cmd/mady/main.go`：`setupFrameworkContext` 接收 `ctx`，并传给 `DiscoverMCPExtensions`，使用户 Ctrl+C 可取消启动流程。
+- **原因**: 此前 10 秒总超时只能取消 `initialize` 调用，但超时后 `createExtension` 内部 `Close()` 在清理 npx/npm exec 派生的孙子进程时会因 `cmd.Wait()` 被持有 pipes 的孤儿进程阻塞而永不返回，导致 `wg.Wait()` 挂死，`setupFrameworkContext` 无法完成，TUI/ACP 启动卡住。
+- **影响范围**: `mcp/client.go`、`mcp/process_unix.go`、`mcp/process_windows.go`、`mcp/config_discovery.go`、`cmd/mady/main.go`
+- **风险等级**: 中（修改 MCP client 生命周期与进程清理逻辑）
+- **审查要求**: L2
+- **验证**: `go test -race ./mcp/...` ✅ | `go vet ./cmd/mady ./mcp` ✅ | `mady acp` 不再永久阻塞 ✅
+
 ## 2026-07-14: 本地部署 mady 并接入 Zed ACP；修复 MCP 发现阻塞启动
 
 - **变更**:

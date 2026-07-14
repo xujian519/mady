@@ -248,7 +248,7 @@ type frameworkContext struct {
 //   - Manifest 加载（go:embed 内置 + MADY_HOME/manifests 外部覆盖）
 //   - Wiki 知识库加载（可选的 WIKI_PATH 环境变量）
 //   - ProjectRegistry 初始化
-func setupFrameworkContext() *frameworkContext {
+func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	fc := &frameworkContext{}
 
 	provider := agentconfig.BuildProvider()
@@ -365,7 +365,7 @@ func setupFrameworkContext() *frameworkContext {
 	}
 
 	// MCP 自动发现：扫描 $MCP_CONFIG、~/.mady/mcp.json、$PWD/.mcp.json、~/.claude.json。
-	mcpExts, mcpWarnings := mcp.DiscoverMCPExtensions(context.Background(), madyHome)
+	mcpExts, mcpWarnings := mcp.DiscoverMCPExtensions(ctx, madyHome)
 	for _, w := range mcpWarnings {
 		fmt.Fprintf(os.Stderr, "mcp: [警告] %v\n", w)
 	}
@@ -496,7 +496,7 @@ func runTui(ctx context.Context) {
 	fs := flag.NewFlagSet("mady tui", flag.ExitOnError)
 	_ = fs.Parse(os.Args[2:])
 
-	fc := setupFrameworkContext()
+	fc := setupFrameworkContext(ctx)
 
 	if err := theme.InitThemeFromEnv(); err != nil {
 		log.Printf("theme init: %v", err)
@@ -1257,7 +1257,7 @@ func runAcp(ctx context.Context) {
 	fs := flag.NewFlagSet("mady acp", flag.ExitOnError)
 	_ = fs.Parse(os.Args[2:])
 
-	fc := setupFrameworkContext()
+	fc := setupFrameworkContext(ctx)
 
 	err := acp.RunServer(ctx, acp.RunOptions{
 		Provider:   agentconfig.BuildProvider(),
@@ -1285,7 +1285,7 @@ func runServer(ctx context.Context) {
 		return
 	}
 
-	fc := setupFrameworkContext()
+	fc := setupFrameworkContext(ctx)
 
 	// Build Router config from manifests (or use hardcoded fallback).
 	cfg := buildRouterConfig(fc.BaseConfig, fc.Manifests)
