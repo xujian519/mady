@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -9,7 +10,28 @@ import (
 	"github.com/xujian519/mady/pkg/agentconfig"
 )
 
+func hasAPIKey() bool {
+	keys := []string{
+		"API_KEY",
+		"DEEPSEEK_API_KEY",
+		"ZHIPU_API_KEY",
+		"KIMI_CODE_API_KEY",
+		"KIMI_API_KEY",
+		"OPENAI_API_KEY",
+	}
+	for _, k := range keys {
+		if os.Getenv(k) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func TestAgentRunInTUISession(t *testing.T) {
+	if !hasAPIKey() {
+		t.Skip("skipping integration test: no API key configured")
+	}
+
 	provider := agentconfig.BuildProvider()
 	model := agentconfig.DefaultModel()
 

@@ -1,5 +1,16 @@
 # AI 决策变更日志
 
+## 2026-07-14: 修复 CI 中 tui 集成测试因缺少 API key 失败
+
+- **变更**:
+  1. 在 `tui/agent_integration_test.go` 新增 `hasAPIKey()` 辅助函数，检测 `API_KEY`、`DEEPSEEK_API_KEY`、`ZHIPU_API_KEY`、`KIMI_CODE_API_KEY`、`KIMI_API_KEY`、`OPENAI_API_KEY` 等环境变量
+  2. 在 `TestAgentRunInTUISession` 开头增加无 API key 时 `t.Skip`，避免 CI 环境（无真实 LLM key）触发 `agentconfig.BuildProvider()` 的 `log.Fatal`
+- **原因**: GitHub Actions 最新一次 push CI（run 29336497361）在 `test (root, ubuntu-latest)` 的 `go test` 步骤失败，错误为 `API_KEY (or provider-specific env var) is required`；该测试是集成测试，不应在缺少外部凭证的 CI 环境中强制运行
+- **影响范围**: `tui/agent_integration_test.go`
+- **风险等级**: 低（仅调整测试跳过逻辑，未改动业务代码）
+- **审查要求**: L1
+- **验证**: `env -u ... go test ./tui -run TestAgentRunInTUISession` ✅（正确 SKIP）| `go test -race ./tui -count=1` ✅ | `go vet ./tui` ✅ | `gofmt -l` ✅
+
 ## 格式
 
 ```
