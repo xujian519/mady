@@ -1,9 +1,14 @@
 package evaluate
 
 import (
+	"regexp"
+	"strconv"
 	"strings"
 )
 
+// Metric scores a single prediction against a reference answer, returning a
+// value in [0,1] where 1 is best. Implementations must be deterministic for a
+// given (prediction, reference) pair so that results are reproducible.
 // Metric scores a single prediction against a reference answer, returning a
 // value in [0,1] where 1 is best. Implementations must be deterministic for a
 // given (prediction, reference) pair so that results are reproducible.
@@ -14,7 +19,13 @@ type Metric interface {
 	Compute(prediction, reference string) float64
 }
 
-// MetricFunc adapts a plain function into a Metric.
+// CitationAwareMetric is a Metric that can accept per-case required citations.
+type CitationAwareMetric interface {
+	Metric
+	// WithCitations returns a new metric instance that uses the given per-case
+	// required citations instead of any default set at construction time.
+	WithCitations(citations []string) Metric
+}
 type MetricFunc struct {
 	MetricName string
 	Run        func(prediction, reference string) float64
@@ -141,18 +152,147 @@ type CitationCompleteness struct {
 
 func (m CitationCompleteness) Name() string { return "citation_completeness" }
 
+// WithCitations returns a new CitationCompleteness using the per-case citations.
+func (m CitationCompleteness) WithCitations(citations []string) Metric {
+	m.Required = citations
+	return m
+}
+
 func (m CitationCompleteness) Compute(prediction, _ string) float64 {
 	if len(m.Required) == 0 {
 		return 1
 	}
-	lower := strings.ToLower(prediction)
+	lowerPred := strings.ToLower(prediction)
+	normPred := normalizeChineseNumerals(lowerPred)
+	predSet := extractLawCitations(normPred)
+
 	hit := 0
 	for _, c := range m.Required {
-		if strings.Contains(lower, strings.ToLower(c)) {
+		lowerC := strings.ToLower(c)
+		normC := normalizeChineseNumerals(lowerC)
+
+		matched := false
+		requiredSet := extractLawCitations(normC)
+		if len(requiredSet) > 0 {
+			matched = citationSetMatches(requiredSet, predSet)
+		}
+		if !matched {
+			matched = strings.Contains(lowerPred, lowerC) || strings.Contains(normPred, normC)
+		}
+		if matched {
 			hit++
 		}
 	}
 	return float64(hit) / float64(len(m.Required))
+}
+
+var citationPattern = regexp.MustCompile(`第(\d+)条(?:第(\d+)款)?(?:第(\d+)项)?(?:之一|之二|之三)?`)
+
+// extractLawCitations extracts normalized legal citations like "第22条第3款" from text.
+// It also supports item-level references (e.g., "第22条第3款第2项") and article suffixes
+// such as "第10条之一".
+func extractLawCitations(s string) map[string]bool {
+	set := make(map[string]bool)
+	for _, m := range citationPattern.FindAllStringSubmatch(s, -1) {
+		article := m[1]
+		paragraph := m[2]
+		item := m[3]
+		key := "第" + article + "条"
+		if paragraph != "" {
+			key += "第" + paragraph + "款"
+		}
+		if item != "" {
+			key += "第" + item + "项"
+		}
+		set[key] = true
+	}
+	return set
+}
+
+// citationSetMatches reports whether the required citation set is covered by the
+// prediction set. A required citation without "款" matches any pred citation
+// that shares the same article prefix (e.g., "第22条" matches "第22条第3款" or
+// "第22条第3款第2项"). A required citation with "款" but without "项" also matches
+// a more specific pred citation that shares the same article+paragraph prefix.
+func citationSetMatches(required, pred map[string]bool) bool {
+	for rc := range required {
+		if pred[rc] {
+			return true
+		}
+		// Article-only required matches any paragraph/item variant.
+		if !strings.Contains(rc, "款") {
+			for pc := range pred {
+				if strings.HasPrefix(pc, rc) {
+					return true
+				}
+			}
+			continue
+		}
+		// Article+paragraph required matches any item variant of the same paragraph.
+		if !strings.Contains(rc, "项") {
+			for pc := range pred {
+				if strings.HasPrefix(pc, rc) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+var (
+	cnDigits = map[rune]int{
+		'〇': 0, '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4,
+		'五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+	}
+	cnUnits = map[rune]int{
+		'十': 10, '百': 100, '千': 1000,
+	}
+	cnLawNumeralPattern = regexp.MustCompile(`第([〇零一二两三四五六七八九十百千]+)(条|款|项|章|节|点|部分)`)
+)
+
+// chineseToArabic converts a Chinese numeral string to an integer.
+// It handles numbers up to 9999 (e.g., "二十二" -> 22, "一百二十三" -> 123).
+func chineseToArabic(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	var result, current int
+	for _, r := range s {
+		if digit, ok := cnDigits[r]; ok {
+			current = digit
+		} else if unit, ok := cnUnits[r]; ok {
+			if current == 0 {
+				current = 1
+			}
+			result += current * unit
+			current = 0
+		} else {
+			return 0, false
+		}
+	}
+	result += current
+	return result, true
+}
+
+// normalizeChineseNumerals replaces Chinese numerals inside legal citation patterns
+// ("第X条/款/项...") with Arabic numerals. Unlike a global replacement, this only
+// touches numeral sequences that appear immediately after "第" and before a legal
+// unit word, preventing accidental conversion of ordinary Chinese text.
+// Example: "专利法第二十二条第三款" -> "专利法第22条第3款".
+func normalizeChineseNumerals(s string) string {
+	return cnLawNumeralPattern.ReplaceAllStringFunc(s, func(match string) string {
+		sub := cnLawNumeralPattern.FindStringSubmatch(match)
+		if sub == nil {
+			return match
+		}
+		numCn := sub[1]
+		rest := match[len("第")+len(numCn):]
+		if n, ok := chineseToArabic(numCn); ok {
+			return "第" + strconv.Itoa(n) + rest
+		}
+		return match
+	})
 }
 
 // ============================================================================

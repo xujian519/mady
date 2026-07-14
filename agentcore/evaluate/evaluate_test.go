@@ -163,6 +163,56 @@ func TestEvaluatorWithCitations(t *testing.T) {
 	}
 }
 
+func TestCitationCompletenessChineseNumerals(t *testing.T) {
+	m := CitationCompleteness{Required: []string{"专利法第22条第3款"}}
+	score := m.Compute("因此权利要求1不具备创造性，不符合专利法第二十二条第三款的规定。", "")
+	if !approxEqual(score, 1.0) {
+		t.Errorf("score = %.3f want 1.0", score)
+	}
+}
+
+func TestCitationCompletenessNoSubstringMismatch(t *testing.T) {
+	m := CitationCompleteness{Required: []string{"第2条"}}
+	score := m.Compute("不符合专利法第22条第3款的规定。", "")
+	if !approxEqual(score, 0.0) {
+		t.Errorf("score = %.3f want 0.0", score)
+	}
+}
+
+func TestCitationCompletenessParagraphGeneralization(t *testing.T) {
+	m := CitationCompleteness{Required: []string{"第22条"}}
+	score := m.Compute("不符合专利法第22条第3款的规定。", "")
+	if !approxEqual(score, 1.0) {
+		t.Errorf("score = %.3f want 1.0", score)
+	}
+}
+
+func TestCitationCompletenessItemReference(t *testing.T) {
+	m := CitationCompleteness{Required: []string{"专利法第22条第3款"}}
+	score := m.Compute("不符合专利法第二十二条第三款第二项的规定。", "")
+	if !approxEqual(score, 1.0) {
+		t.Errorf("score = %.3f want 1.0", score)
+	}
+}
+
+func TestCitationCompletenessSuffix(t *testing.T) {
+	m := CitationCompleteness{Required: []string{"专利法第10条"}}
+	score := m.Compute("符合专利法第十条之一的规定。", "")
+	if !approxEqual(score, 1.0) {
+		t.Errorf("score = %.3f want 1.0", score)
+	}
+}
+
+func TestCitationCompletenessContextProtection(t *testing.T) {
+	// Ordinary Chinese numerals without "第...条" should not be normalized and
+	// should not cause spurious matches for required legal citations.
+	m := CitationCompleteness{Required: []string{"第22条第3款"}}
+	score := m.Compute("三天内完成二十二项任务。", "")
+	if !approxEqual(score, 0.0) {
+		t.Errorf("score = %.3f want 0.0", score)
+	}
+}
+
 func TestFormatReport(t *testing.T) {
 	e := NewEvaluator(ExactMatch{}).WithThreshold(0.5)
 	cases := []TestCase{{ID: "t1", Expected: "a"}, {ID: "t2", Expected: "b"}}

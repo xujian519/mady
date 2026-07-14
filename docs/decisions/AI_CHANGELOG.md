@@ -12,7 +12,49 @@
 - **审查要求**: L1-L4
 ```
 
-## 2026-07-13: 修复 TUI Escape/Ctrl+C 退出机制
+## 2026-07-14: 修复 CitationCompleteness 中文数字与阿拉伯数字不匹配问题
+
+- **变更**:
+  1. 在 `agentcore/evaluate/metrics.go` 中重写 `CitationCompleteness.Compute`：新增中文数字转阿拉伯数字归一化、结构化法条引用提取（`第X条` / `第X条第Y款`）、概括匹配（`第X条` 可命中 `第X条第Y款`），并保留对非数字引用（如 `CN123`）的字符串匹配兼容
+  2. 在 `agentcore/evaluate/evaluate_test.go` 新增三个测试覆盖中文数字匹配、子串误匹配规避、款级概括匹配
+  3. 使用已有缓存重新运行 `TestLiveDeepSeekInvalidationEval`，验证修复效果：P2B 无效决定书基线通过率从 15.0%（6/40）提升至 32.5%（13/40），`citation_completeness` 从 0.287 提升至 0.775，`llm_judge` 从 0.381 微升至 0.408
+  4. 更新 `docs/evaluation-baseline-v0.6.md`，新增修复后基线与修复详情章节
+- **原因**: P2B 基线分析显示 `citation_completeness` 仅 0.287，主因是模型输出常用汉字数字（如「第二十二条第三款」），而 `RequiredCitations` 使用阿拉伯数字（如「第22条第3款」），导致字面匹配失败；同时简单子串匹配会把「第2条」误判为「第22条」的子串命中
+- **影响范围**: `agentcore/evaluate/metrics.go`、`agentcore/evaluate/evaluate_test.go`、`docs/evaluation-baseline-v0.6.md`
+- **风险等级**: 中（修改核心评估指标 `CitationCompleteness`，影响所有使用该指标的 benchmark 与 live eval 结果）
+- **审查要求**: L2
+- **验证**: `go test -v -run TestCitation ./agentcore/evaluate/...` ✅ | `go test -race ./agentcore/evaluate/...` ✅ | `go vet ./...` ✅ | `make eval` ✅ | `MADY_LIVE_EVAL=1 ... TestLiveDeepSeekInvalidationEval` ✅（40 题，13/40 通过，citation_completeness 0.775，llm_judge 0.408）
+
+## 2026-07-14: 执行 P2B — 构建真实无效决定书 Golden Set 第二层并建立 LiveEval 基线
+
+- **变更**:
+  1. 从本地数据 `/Users/xujian/Downloads/专利无效数据`（202601-202604 四个 zip，共 2009 件无效宣告请求审查决定书 docx）中，按发明/实用新型/外观设计 × 全部无效/部分无效/维持有效 的配额筛选出 40 件典型案例
+  2. 新建 `agentcore/evaluate/benchmark/invalidation_decisions.go`，将 40 件决定书转化为 `evaluate.TestCase` 格式（ID：`invalidation_decision_001` ~ `invalidation_decision_040`）
+  3. 更新 `agentcore/evaluate/benchmark/suite.go`，将 `InvalidationDecisionCases` 注册到 `AllCases()`
+  4. 新增 `TestLiveDeepSeekInvalidationEval`，使用 DeepSeek 对全部 40 道无效决定书案例进行实时评估
+  5. 保存 40 道模型输出缓存到 `docs/evaluation-baseline-invalidation-p2b.json`
+  6. 新建 `docs/evaluation-baseline-v0.6.md`，记录 P2B 基线：通过率 15.0%（6/40），`citation_completeness` 0.287，`llm_judge` 0.381
+- **原因**: 你指出脱敏案件难获取，建议改用真实专利复审/无效决定书作为第二层评估数据；本地 2009 件决定书提供了充足覆盖，需要结构化提取、接入 Golden Benchmark 并建立 LLM 基线
+- **影响范围**: `agentcore/evaluate/benchmark/invalidation_decisions.go`（新）、`agentcore/evaluate/benchmark/suite.go`、`agentcore/evaluate/benchmark/live_deepseek_test.go`、`docs/evaluation-baseline-invalidation-p2b.json`（新）、`docs/evaluation-baseline-v0.6.md`（新）
+- **风险等级**: 低（仅新增 benchmark 数据集与测试；未改变现有评估逻辑）
+- **审查要求**: L1
+- **验证**: `go build ./...` ✅ | `go test -race ./agentcore/evaluate/...` ✅ | `make eval` ✅ | `MADY_LIVE_EVAL=1 ... TestLiveDeepSeekInvalidationEval` ✅（40 题，DeepSeek 6/40 通过，citation_completeness 0.287，llm_judge 0.381）
+
+## 2026-07-14: 执行 P2A — Golden Set 第一层建设完成
+
+- **变更**:
+  1. 确认 `agentcore/evaluate/benchmark/` 已集成 31 道公开专利考试真题（A2/A22/A26/A31/A33/R42 六组），作为 Golden Set 第一层
+  2. 运行 `make eval` 验证静态评估门禁：`TestEvalSuite_GoldenPerfect` / `Degraded` / `CaseIntegrity` / `DefaultEvaluator` 全绿
+  3. 运行 `MADY_LIVE_EVAL=1 go test -v -timeout 30m -run TestLiveDeepSeekEval ./agentcore/evaluate/benchmark/...`，使用 DeepSeek 对随机 3 道真题建立 LLM 基线：通过率 66.7%（2/3），`citation_completeness` 1.0，`llm_judge` 平均 0.456
+  4. 更新 `docs/roadmap.md`：将 P2A 标记为完成，并记录关键数据
+  5. 新建 `docs/evaluation-baseline-v0.5.md`，记录 Golden Set 第一层构成与 LiveEval 基线
+- **原因**: 路线图要求 10-12 月首先完成 Golden Set 第一层；项目已集成 31 道真题，但缺少阶段确认、LiveEval 基线记录与文档更新
+- **影响范围**: `docs/roadmap.md`、`docs/evaluation-baseline-v0.5.md`（新），未修改代码
+- **风险等级**: 低（仅文档更新与验证；代码未变更）
+- **审查要求**: L1
+- **验证**: `make eval` ✅ | `go test -race ./agentcore/evaluate/benchmark/...` ✅ | `MADY_LIVE_EVAL=1 ... TestLiveDeepSeekEval` ✅
+
+
 
 - **变更**:
   1. 在 `tui/chat/chat_app.go` 的 `chatLayout.Update` 中为 Escape 键增加退出逻辑：自动补全未激活时按下 Escape → 退出
@@ -714,3 +756,37 @@
 - **验证**: go build ✅ | go vet ✅ | go test -race ✅ 全绿（含新测试 `TestExtension_CrossDBIDNoCollision`）
 - **风险等级**: L2（chunk ID 格式变更影响 RRF 去重行为，但仅限 user.db 路径；knowledge.db 路径不变）
 - **审查要求**: L2
+
+## 2026-07-14: 全面修复 P1/P2 Golden Benchmark 与 CitationCompleteness 代码质量问题
+
+- **变更**:
+  1. **重构 `CitationCompleteness` 法条匹配逻辑**（`agentcore/evaluate/metrics.go`）：
+     - 将 `normalizeChineseNumerals` 改为仅对 `第X条/款/项/章/节/点/部分` 结构中的中文数字归一化，避免误伤普通文本（如"三天"、"二十二项任务"）
+     - 扩展 `citationPattern` 支持 `第X条第Y款第Z项` 与 `第X条之一/二/三` 等复杂引用
+     - 新增 `citationSetMatches` 概括匹配：required `第X条` 可命中 pred `第X条第Y款`，required `第X条第Y款` 可命中 pred `第X条第Y款第Z项`
+     - 保留 `CitationAwareMetric` 接口与 `WithCitations` 机制，evaluator 中通过类型安全方式注入 per-case RequiredCitations，避免修改原始 metric 实例
+  2. **将 P2 无效决定书 benchmark 数据迁出到 JSON**（`agentcore/evaluate/benchmark/invalidation_decisions.go` + `invalidation_decisions.json`）：
+     - 原 `invalidation_decisions.go` 为 40 个硬编码 case 的 293 行文件，现改为通过 `go:embed invalidation_decisions.json` 加载
+     - 数据文件保持与 Go 结构完全一致的 JSON 格式，便于工具链生成与校验
+  3. **修复 P2 数据错误**（`invalidation_decisions.json`）：
+     - case `invalidation_decision_004`：结论与核心理由矛盾，已按原始 docx 更正为"部分无效"及合议组认定
+     - case `invalidation_decision_039`：`Expected` 从段落标题"3.3 关于独立权利要求9"替换为真实"三、决定"内容
+     - case `invalidation_decision_040`：补充缺失的专利号 `202020860338.5`
+  4. **合并 `live_deepseek_test.go` 重复代码**：
+     - 新增 `deepSeekTestEnv` 与 `newDeepSeekTestEnv` 统一读取环境变量、构造 provider
+     - 新增 `randomCases` 固定随机种子（`20241201`），保证专利考试真题抽样可复现
+     - 新增 `runLiveEval` 公共 helper：缓存加载、批量调用、input→prediction 映射、报告输出
+     - 将原 `TestLiveDeepSeekEval` 和 `TestLiveDeepSeekInvalidationEval` 简化为对公共 helper 的调用
+  5. **统一 `RequiredCitations` 法条格式**：40 个无效决定书法条全部规范为阿拉伯数字格式（如"专利法第22条第3款"），共 62 条引用，集中在创造性（22.3）、清楚（26.4）、说明书支持（26.3）、新颖性（22.2）、决定程序（46.1）、优先权（29.1）
+  6. **新增/更新测试**（`agentcore/evaluate/evaluate_test.go`）：
+     - `TestCitationCompletenessChineseNumerals`：中文数字与阿拉伯数字互配
+     - `TestCitationCompletenessNoSubstringMismatch`：防"第2条"误匹配"第22条第3款"
+     - `TestCitationCompletenessParagraphGeneralization`："第22条"匹配"第22条第3款"
+     - `TestCitationCompletenessItemReference`："第22条第3款"匹配"第22条第3款第2项"
+     - `TestCitationCompletenessSuffix`："第10条"匹配"第10条之一"
+     - `TestCitationCompletenessContextProtection`：普通中文数字（无"第...条"结构）不误归一化
+- **原因**: P2 无效决定书基线（15.0% 通过）远低于 P1（66.7%），审阅发现 `CitationCompleteness` 仅做简单 `strings.Contains` 无法匹配中文数字法条、存在子串误匹配，且 40 个 case 硬编码在单文件、数据有误、测试代码重复。修复后基线提升至 32.5% 通过（6/40 → 13/40），`citation_completeness` 从 0.287 提升至 0.775
+- **影响范围**: `agentcore/evaluate/metrics.go`, `agentcore/evaluate/evaluate_test.go`, `agentcore/evaluate/evaluator.go`, `agentcore/evaluate/benchmark/invalidation_decisions.go`, `agentcore/evaluate/benchmark/invalidation_decisions.json`（新增）, `agentcore/evaluate/benchmark/live_deepseek_test.go`
+- **风险等级**: 低（评估与测试代码，不影响生产运行时路径；仅修改数据/指标/测试结构）
+- **审查要求**: L2（涉及评估指标行为与 Golden Benchmark 数据质量，需审阅指标语义是否正确）
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./...` 全绿 ✅ | `make eval` ✅ | `golangci-lint` 未运行（网络超时无法安装 v2.12.2）

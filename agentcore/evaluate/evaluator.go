@@ -65,16 +65,10 @@ func (e *Evaluator) Evaluate(prediction, reference string, requiredCitations []s
 	scores := make(map[string]float64, len(e.metrics))
 	var sum float64
 	for _, m := range e.metrics {
-		var score float64
-		// CitationCompleteness needs the required citations from the test case.
-		if cc, ok := m.(CitationCompleteness); ok {
-			if len(requiredCitations) > 0 {
-				cc.Required = requiredCitations
-			}
-			score = cc.Compute(prediction, reference)
-		} else {
-			score = m.Compute(prediction, reference)
+		if cam, ok := m.(CitationAwareMetric); ok && len(requiredCitations) > 0 {
+			m = cam.WithCitations(requiredCitations)
 		}
+		score := m.Compute(prediction, reference)
 		scores[m.Name()] = score
 		sum += score
 	}

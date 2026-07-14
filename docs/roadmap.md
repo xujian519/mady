@@ -66,13 +66,27 @@
 
 max effort 审查（10 角度 × 10 并行）发现 15 项，全部修复。详见提交 `5a75779`。
 
-## 四、10-12 月展望
+## 四、10-12 月执行与展望
 
-| 阶段 | 时间 | 核心目标 |
-|------|------|---------|
-| P2A | 10 月 | 10-20 道公开专利考试真题 → Golden Set 第一层 |
-| P2B | 10-11 月 | 3-5 件代理人合作脱敏案件 → Golden Set 第二层 |
-| P3 | 11-12 月 | 盲测 10 个案件，人工采纳率/修改率/拒绝率测量 |
+### P2A：Golden Set 第一层 ✅（10 月，第 1-2 周）
+
+- **31 道公开专利考试真题**已按法条归类并集成到 `agentcore/evaluate/benchmark/`（A2/A22/A26/A31/A33/R42 六组）
+- **静态评估全绿**：`TestEvalSuite_GoldenPerfect` / `CaseIntegrity` / `DefaultEvaluator` 均通过，41 个 Golden Case 保持 PassRate=1.0
+- **LiveEval 基线**：使用 DeepSeek（`deepseek-chat`）对随机 3 道真题评估，通过率 66.7%（2/3），`citation_completeness` 1.0，`llm_judge` 平均 0.456；完整报告见 `docs/evaluation-baseline-v0.5.md`
+
+### P2B：Golden Set 第二层 ✅（10-11 月）
+
+- 你指出脱敏案件难获取，改为使用**真实专利复审/无效决定书**作为第二层数据
+- 从本地数据 `/Users/xujian/Downloads/专利无效数据`（202601-202604 四个 zip，共 2009 件无效宣告请求审查决定书 docx）中，按发明/实用新型/外观设计 × 全部无效/部分无效/维持有效 的配额筛选出 **40 件典型案例**
+- 转化为 `agentcore/evaluate/benchmark/invalidation_decisions.go`（40 个 `TestCase`），并注册到 `AllCases()`
+- **LiveEval 基线**：使用 DeepSeek（`deepseek-chat`）对全部 40 道无效决定书案例评估，通过率 **15.0%（6/40）**，`citation_completeness` 平均 **0.287**，`llm_judge` 平均 **0.381**；完整报告见 `docs/evaluation-baseline-v0.6.md`
+- 低分原因：① `RequiredCitations` 与模型输出的法条格式（阿拉伯数字 vs 汉字数字）不完全匹配；② 部分 `Expected` 提取偏短或偏程序性，导致 LLM 评判偏低
+
+### P3：专家盲测（11-12 月）
+
+**目标**：盲测 10 个案件，测量人工采纳率/修改率/拒绝率。
+
+待启动。
 
 ## 五、停止规则
 
