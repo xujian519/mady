@@ -7,9 +7,9 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
 	github.com/chromedp/chromedp v0.14.2
 	github.com/xujian519/mady v0.0.0
-	golang.org/x/image v0.25.0
+	golang.org/x/image v0.44.0
 	golang.org/x/net v0.35.0
-	golang.org/x/text v0.23.0
+	golang.org/x/text v0.40.0
 )
 
 require (
