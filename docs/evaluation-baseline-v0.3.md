@@ -1,10 +1,17 @@
-# Mady 评估基线报告 v0.3
+# Mady 评估基线报告 v0.4
 
-> 日期：2026-07-14 | 审阅基线：`a9fba93`
+> 日期：2026-07-14 | 代码基线：`5a75779`
+>
+> 上一版本：[v0.3](evaluation-baseline-v0.3.md)（基线：`a9fba93`）
 
-## 概述
+## 变更概要
 
-本项目首次正式评估基线测量。评估框架 `agentcore/evaluate/` 使用静态回放（`EvaluateStatic`）：预测 = 参考答案时，所有指标应为 1.0。
+v0.3 → v0.4 之间完成：
+- CI 修复（lint 清零、全量测试通过）
+- 证据底座（EvidenceSpan/Case/Approval 状态机）
+- 闭环集成（新颖性 LLM 节点/证据包裹生成）
+- 打磨（DOCX 导出/CI 评估门禁/TUI 审批）
+- 代码审查 15 项修复
 
 ## 基准集
 
@@ -30,27 +37,38 @@
 
 ## 基线分数
 
-| 测试 | 结果 |
-|------|:----:|
-| `TestEvalSuite_GoldenPerfect` | ✅ PASS（PassRate=1.0） |
-| `TestEvalSuite_Degraded` | ✅ PASS（空预测 PassRate=0） |
-| `TestEvalSuite_CaseIntegrity` | ✅ PASS（41 案例均完整） |
-| `TestEvalSuite_DefaultEvaluator` | ✅ PASS |
+| 测试 | v0.3 | v0.4 | 变化 |
+|------|:----:|:----:|:----:|
+| `TestEvalSuite_GoldenPerfect` | ✅ 1.0 | ✅ 1.0 | — |
+| `TestEvalSuite_Degraded` | ✅ 0.0 | ✅ 0.0 | — |
+| `TestEvalSuite_CaseIntegrity` | ✅ | ✅ | — |
+| `TestEvalSuite_DefaultEvaluator` | ✅ | ✅ | — |
 
-**结论：评估框架正常工作，41 个案例结构完整。** 当前基线作为后续所有变更的回归基准。
+**无回归。** 41 个基准案例在所有重构后保持 1.0 PassRate。
 
 ## CI 状态
 
-| 检查项 | 状态 |
-|--------|:----:|
-| `go mod tidy -diff` | ✅ 干净 |
-| `go vet ./...` | ✅ 干净 |
-| `go build ./...` | ✅ 干净 |
-| `go test ./...`（全量） | ✅ 58/58 包通过 |
-| `golangci-lint` | ⚠️ 无法运行（本地代理限制，需 CI 确认） |
+| 检查项 | v0.3 | v0.4 |
+|--------|:----:|:----:|
+| `go mod tidy -diff` | ✅ | ✅ |
+| `go vet ./...` | ✅ | ✅ |
+| `go build ./...` | ✅ | ✅ |
+| `go test ./...`（全量） | ✅ 58/58 | ✅ 60/60 |
+| `golangci-lint` | ⚠️ 无法运行 | ✅ **0 issues**（v2.12.2） |
+| 评估门禁（CI job） | — | ✅ `eval-benchmark` |
+
+## 新增测试
+
+| 模块 | 新增测试数 |
+|------|:--------:|
+| `agentcore/evidence/` | +15 |
+| `domains/` | +14 |
+| `domains/sqlite/` | +3 |
+| `disclosure/` | +10 |
+| **合计** | **~45** |
 
 ## 下一步
 
-- 在 CI 中增加基准回归门禁（`go test ./agentcore/evaluate/benchmark/ -run TestEvalSuite_...`）
-- 增加 live LLM 评估（`MADY_LIVE_EVAL=1`）
-- 逐步扩展案例至 50+ 覆盖更多法条场景
+- 公开专利考试真题填充 Golden Set 第一层（10-20 题）
+- `MADY_LIVE_EVAL=1` 启用 DeepSeek 实时评估
+- 扩展案例至 50+，覆盖更多法条（A2.2/A2.3/R22 等）
