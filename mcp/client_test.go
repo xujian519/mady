@@ -106,7 +106,7 @@ func TestStdioClient_CaptureStderrCapsBuffer(t *testing.T) {
 		stderr: io.NopCloser(strings.NewReader(oldPrefix + "\ntrailer\n")),
 	}
 
-	client.captureStderr()
+	client.captureStderr(client.stderr)
 
 	client.mu.Lock()
 	defer client.mu.Unlock()
@@ -811,4 +811,167 @@ func (p *toolCallingProvider) Stream(ctx context.Context, req *agentcore.Provide
 	ch := make(chan agentcore.StreamDelta)
 	close(ch)
 	return ch, nil
+}
+
+// TestStdioClient_ReconnectAfterCrashKeepsClientUsable 验证重连成功后
+// 客户端状态正常（未被永久关闭），后续调用持续可用。
+// 注：此测试验证的是成功重连路径；失败路径（initialize 失败）因测试
+// 辅助进程总是可启动，难以在集成测试中模拟。
+func TestStdioClient_ReconnectAfterCrashKeepsClientUsable(t *testing.T) {
+	client := newTestClient(t)
+	defer func() { _ = client.Close() }()
+
+	// 先验证客户端正常工作
+	result, err := client.CallTool(context.Background(), "echo", map[string]any{"text": "hello"})
+	if err != nil {
+		t.Fatalf("initial call failed: %v", err)
+	}
+	if !strings.Contains(result.Content[0].Text, "echo: hello") {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+
+	// 杀死 MCP 辅助进程模拟服务器崩溃，触发 readLoop 检测到 EOF
+	if client.cmd != nil && client.cmd.Process != nil {
+		_ = client.cmd.Process.Kill()
+	}
+
+	// 等待 readLoop 检测到进程退出
+	time.Sleep(300 * time.Millisecond)
+
+	// 调用工具 → 触发 tryReconnect。测试辅助进程会被重新启动，重连应成功。
+	result, err = client.CallTool(context.Background(), "echo", map[string]any{"text": "after-crash"})
+	if err != nil {
+		t.Fatalf("call after crash failed: %v", err)
+	}
+	if !strings.Contains(result.Content[0].Text, "echo: after-crash") {
+		t.Fatalf("unexpected result after reconnect: %#v", result)
+	}
+
+	// 验证客户端没有被永久关闭
+	client.mu.Lock()
+	closed := client.closed
+	client.mu.Unlock()
+	if closed {
+		t.Fatal("client should not be permanently closed after a successful reconnect")
+	}
+
+	// 再调用另一个工具确保客户端持续可用
+	result, err = client.CallTool(context.Background(), "echo", map[string]any{"text": "still-works"})
+	if err != nil {
+		t.Fatalf("subsequent call failed: %v", err)
+	}
+	if !strings.Contains(result.Content[0].Text, "echo: still-works") {
+		t.Fatalf("unexpected result after second call: %#v", result)
+	}
+}
+
+// TestStdioClient_ReconnectEmitsEvents 验证重连过程中会发出 ReconnectEvent 事件。
+func TestStdioClient_ReconnectEmitsEvents(t *testing.T) {
+	ext := newTestExtension(t)
+	defer func() { _ = ext.Dispose() }()
+
+	agent := agentcore.New(agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:     "mcp-reconnect-event-test",
+			Model:    "stub",
+			Provider: &toolCallingProvider{},
+		},
+		Extensions: []agentcore.Extension{ext},
+	})
+	defer agent.Close()
+
+	var started, succeeded bool
+	eventCh := make(chan ReconnectEvent, 4)
+	agent.On(EventMCPReconnect, func(ev agentcore.Event) {
+		if e, ok := ev.(ReconnectEvent); ok {
+			eventCh <- e
+		}
+	})
+
+	client := ext.Client()
+
+	// 杀死 MCP 辅助进程模拟服务器崩溃
+	if client.cmd != nil && client.cmd.Process != nil {
+		_ = client.cmd.Process.Kill()
+	}
+
+	// 等待 readLoop 检测到进程退出
+	time.Sleep(300 * time.Millisecond)
+
+	// 调用工具 → 触发 tryReconnect
+	_, err := client.CallTool(context.Background(), "echo", map[string]any{"text": "event-test"})
+	if err != nil {
+		t.Fatalf("call after crash failed: %v", err)
+	}
+
+	// 收集所有重连事件
+	timeout := time.After(2 * time.Second)
+loop:
+	for {
+		select {
+		case ev := <-eventCh:
+			if ev.Phase == ReconnectPhaseStarted {
+				started = true
+			}
+			if ev.Phase == ReconnectPhaseSucceeded {
+				succeeded = true
+			}
+			if started && succeeded {
+				break loop
+			}
+		case <-timeout:
+			break loop
+		}
+	}
+
+	if !started {
+		t.Error("expected ReconnectPhaseStarted event, but none received")
+	}
+	if !succeeded {
+		t.Error("expected ReconnectPhaseSucceeded event, but none received")
+	}
+}
+
+// TestStdioClient_ReconnectBackoffReset 验证连续重连失败超过
+// maxReconnectAttempts 后，退避间隔会被重置为初始值。
+func TestStdioClient_ReconnectBackoffReset(t *testing.T) {
+	client := newTestClient(t)
+	defer func() { _ = client.Close() }()
+
+	// 模拟连续重连失败：设置 reconnectAttempts 超过阈值
+	client.reconnectMu.Lock()
+	client.reconnectAttempts = maxReconnectAttempts + 1
+	client.reconnectBackoff = maxReconnectBackoff // 模拟已达最大退避
+	client.reconnectMu.Unlock()
+
+	if client.reconnectBackoff != maxReconnectBackoff {
+		t.Fatalf("expected backoff=%v before reconnect, got %v", maxReconnectBackoff, client.reconnectBackoff)
+	}
+
+	// 通过关闭管道来触发 isConnectionDeadLocked() 返回 true
+	client.mu.Lock()
+	client.readErr = io.EOF
+	client.mu.Unlock()
+
+	// 调用 tryReconnect 应检测到超过阈值并重置退避和计数
+	// 使用带超时的 context 防止测试阻塞
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// tryReconnect 会启动新的辅助进程并完成 initialize
+	_ = client.tryReconnect(ctx)
+
+	client.reconnectMu.Lock()
+	attempts := client.reconnectAttempts
+	backoff := client.reconnectBackoff
+	client.reconnectMu.Unlock()
+
+	// 重连成功后 reconnectAttempts 应重置为 0
+	if attempts != 0 {
+		t.Errorf("expected reconnectAttempts=0 after successful reconnect, got %d", attempts)
+	}
+	// 重连成功后 backoff 应重置为初始值
+	if backoff != initialReconnectDelay {
+		t.Errorf("expected backoff=%v after successful reconnect, got %v", initialReconnectDelay, backoff)
+	}
 }

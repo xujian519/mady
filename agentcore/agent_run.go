@@ -482,7 +482,27 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 }
 
 // toolCallSignature returns a stable string key for a set of tool calls,
-// used by the repetition detector to catch retry loops where the model
+// isToolPermanentlyUnavailable 检测工具错误是否表明底层服务已不可恢复。
+// 当前通过错误消息模式匹配来识别 MCP 客户端断开等致命错误。
+// 匹配的错误表示重试无意义，LLM 应停止调用该工具并寻找替代方案。
+func isToolPermanentlyUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	// MCP stdio 客户端已关闭（无法重连）
+	if strings.Contains(msg, "mcp client closed") {
+		return true
+	}
+	// MCP HTTP 客户端已关闭
+	if strings.Contains(msg, "MCP client is closed") {
+		return true
+	}
+	return false
+}
+
+// toolCallSignature builds a stable, ordered string key from a set of tool call
+// names. Used by the repetition detector to catch retry loops where the model
 // calls the same tools each turn but with varying text content.
 func toolCallSignature(calls []ToolCall) string {
 	names := make([]string, len(calls))
@@ -638,7 +658,11 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 					content = r.Err.Error()
 				}
 			default:
-				content = fmt.Sprintf("错误: %s", r.Err.Error())
+				if isToolPermanentlyUnavailable(r.Err) {
+					content = fmt.Sprintf("错误: %s\n\n此工具对应的底层服务当前不可用（连接已断开且无法恢复）。请不要再重试此工具，改用其他可用方式完成任务，或告知用户该服务暂时不可用。", r.Err.Error())
+				} else {
+					content = fmt.Sprintf("错误: %s", r.Err.Error())
+				}
 			}
 		}
 		if err := a.persistMessage(ctx, Message{

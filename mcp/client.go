@@ -60,13 +60,15 @@ type Client struct {
 	hooksMu           sync.RWMutex
 	notificationHooks []func(context.Context, string, json.RawMessage) error
 
-	reconnectMu      sync.Mutex
-	reconnectBackoff time.Duration
+	reconnectMu       sync.Mutex
+	reconnectBackoff  time.Duration
+	reconnectAttempts int // 连续重连失败累计次数
 }
 
 const (
 	maxReconnectBackoff   = 30 * time.Second
 	initialReconnectDelay = 500 * time.Millisecond
+	maxReconnectAttempts  = 10 // 连续重连失败超过此次数后重置退避
 )
 
 type rpcResponse struct {
@@ -245,7 +247,7 @@ func NewStdioClient(ctx context.Context, cfg StdioConfig) (*Client, error) {
 		capState:  newCapabilityState(),
 	}
 	go c.readLoop()
-	go c.captureStderr()
+	go c.captureStderr(stderr)
 	if err := c.initialize(ctx); err != nil {
 		_ = c.Close()
 		return nil, err
@@ -469,7 +471,9 @@ func (c *Client) writeMessage(msg any) error {
 		return errClientClosed
 	}
 	if _, err := c.stdin.Write(append(data, '\n')); err != nil {
-		return fmt.Errorf("mcp write request: %w", err)
+		// stdin 写失败意味着管道已断开（进程崩溃/退出），
+		// 包裹 errClientClosed 以便 callWithRetry 触发重连。
+		return fmt.Errorf("%w: %w", errClientClosed, err)
 	}
 	return nil
 }
@@ -545,8 +549,8 @@ func (c *Client) readLoop() {
 	}
 }
 
-func (c *Client) captureStderr() {
-	scanner := bufio.NewScanner(c.stderr)
+func (c *Client) captureStderr(r io.Reader) {
+	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 16*1024), 1024*1024)
 	for scanner.Scan() {
 		c.mu.Lock()
@@ -577,6 +581,22 @@ func (c *Client) connectionError() error {
 	return errClientClosed
 }
 
+// emitReconnectEvent 发出 ReconnectEvent 用于可观测性，与 HTTP 客户端对齐。
+func (c *Client) emitReconnectEvent(phase, reason string, attempt int, err error) {
+	evt := ReconnectEvent{
+		At:        time.Now(),
+		Extension: c.extensionName(),
+		Transport: "stdio",
+		Phase:     phase,
+		Reason:    reason,
+		Attempt:   attempt,
+	}
+	if err != nil {
+		evt.Error = err.Error()
+	}
+	c.emitRuntimeEvent(evt)
+}
+
 func (c *Client) tryReconnect(ctx context.Context) bool {
 	c.reconnectMu.Lock()
 	defer c.reconnectMu.Unlock()
@@ -593,6 +613,9 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	}
 	c.mu.Unlock()
 
+	c.reconnectAttempts++
+	c.emitReconnectEvent(ReconnectPhaseStarted, "connection_closed", c.reconnectAttempts, nil)
+
 	backoff := c.reconnectBackoff
 	if backoff == 0 {
 		backoff = initialReconnectDelay
@@ -600,6 +623,14 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	c.reconnectBackoff = backoff * 2
 	if c.reconnectBackoff > maxReconnectBackoff {
 		c.reconnectBackoff = maxReconnectBackoff
+	}
+
+	// 连续重连失败超过阈值后重置退避，防止长时间停留在最大间隔。
+	// 注意：reconnectAttempts 在本函数开头已递增（++），此处重置为 0 后，
+	// 下一次 tryReconnect 调用时将从 1 开始重新计数。
+	if c.reconnectAttempts > maxReconnectAttempts {
+		c.reconnectBackoff = initialReconnectDelay
+		c.reconnectAttempts = 0
 	}
 
 	timer := time.NewTimer(backoff)
@@ -621,17 +652,27 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
+		c.emitReconnectEvent(ReconnectPhaseFailed, "stdin_pipe", c.reconnectAttempts, err)
 		return false
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		_ = stdin.Close()
+		c.emitReconnectEvent(ReconnectPhaseFailed, "stdout_pipe", c.reconnectAttempts, err)
 		return false
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
+		c.emitReconnectEvent(ReconnectPhaseFailed, "stderr_pipe", c.reconnectAttempts, err)
 		return false
 	}
 	if err := cmd.Start(); err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
+		_ = stderr.Close()
+		c.emitReconnectEvent(ReconnectPhaseFailed, "cmd_start", c.reconnectAttempts, err)
 		return false
 	}
 
@@ -639,6 +680,7 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	c.mu.Lock()
 	oldStdin := c.stdin
 	oldStdout := c.stdout
+	oldStderr := c.stderr
 	c.cmd = cmd
 	c.stdin = stdin
 	c.stdout = stdout
@@ -659,18 +701,29 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	if oldStdout != nil {
 		_ = oldStdout.Close()
 	}
+	if oldStderr != nil {
+		_ = oldStderr.Close()
+	}
 
 	// Start new readers
 	go c.readLoop()
-	go c.captureStderr()
+	go c.captureStderr(stderr)
 
 	// Re-initialize MCP protocol
 	if err := c.initialize(ctx); err != nil {
-		_ = c.Close()
+		// 仅清理本次重连产生的子进程和管道，不永久关闭客户端。
+		// 保留连接死亡状态，后续调用仍可再次触发重连。
+		_ = stdin.Close()
+		_ = stdout.Close()
+		_ = stderr.Close()
+		go func() { _ = cmd.Wait() }() // 异步回收僵尸进程
+		c.emitReconnectEvent(ReconnectPhaseFailed, "initialize_failed", c.reconnectAttempts, err)
 		return false
 	}
 
 	c.reconnectBackoff = initialReconnectDelay
+	c.reconnectAttempts = 0
+	c.emitReconnectEvent(ReconnectPhaseSucceeded, "reconnect", 0, nil)
 	return true
 }
 
