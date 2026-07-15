@@ -13,6 +13,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/reasoning"
+	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/tools"
@@ -65,6 +66,10 @@ type tuiSession struct {
 	currentFileWatcher *fileindex.FileWatcher
 
 	reviewMode bool
+
+	// Approval gate state — persists human decisions (adopted/modified/rejected)
+	// to accumulate real AdoptionRate data for evaluation (see P3 roadmap).
+	approvalGate *domains.ApprovalGate
 
 	app              *chat.ChatApp
 	currentThemeName string
@@ -213,7 +218,18 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 
 	if s.reviewMode {
 		gate := domains.NewApprovalGate(domains.DefaultApprovalConfig())
+		// Wire up SQLite persistence so human decisions (adopted/modified/rejected)
+		// are recorded for AdoptionRate evaluation (roadmap P3). Falls back to
+		// in-memory store if the SQLite store cannot be opened.
+		if store, err := s.openApprovalStore(); err == nil {
+			gate = domains.NewApprovalGate(domains.DefaultApprovalConfig(), domains.WithApprovalStore(store))
+		} else {
+			gate = domains.NewApprovalGate(domains.DefaultApprovalConfig(), domains.WithApprovalStore(domains.NewMemoryApprovalStore()))
+		}
+		s.approvalGate = gate
 		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, gate)
+	} else {
+		s.approvalGate = nil
 	}
 
 	for _, ext := range cfg.Extensions {
@@ -324,6 +340,7 @@ func (s *tuiSession) handleSubmit(input string) {
 			s.app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
 			return
 		}
+		s.recordApprovalDecision(domains.DecisionAdopted, "", "")
 		s.app.PrintSystem("✅ 已确认 — Agent 将继续执行")
 		s.submitInput("确认")
 	case "/reject":
@@ -331,6 +348,7 @@ func (s *tuiSession) handleSubmit(input string) {
 			s.app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
 			return
 		}
+		s.recordApprovalDecision(domains.DecisionRejected, "", "用户拒绝，要求修改")
 		s.app.PrintSystem("❌ 已拒绝 — Agent 将根据您的反馈调整")
 		s.submitInput("拒绝，请根据审核意见修改后重新输出")
 	case "/plan":
@@ -658,5 +676,45 @@ func (s *tuiSession) handlePlanCommand() {
 		s.app.PrintSystem("🧠 计划模式已启用 · 模型: " + s.planModel + " · 推理强度: max")
 	} else {
 		s.app.PrintSystem("⚡ 已切回普通模式 · 模型: " + s.normalModel)
+	}
+}
+
+// openApprovalStore creates a SQLite-backed ApprovalStore in the workspace
+// directory. The store persists human approval decisions (adopted/modified/
+// rejected) so that real AdoptionRate data accumulates across sessions —
+// the foundation for P3 expert blind testing and Golden Benchmark regression.
+func (s *tuiSession) openApprovalStore() (domains.ApprovalStore, error) {
+	base := s.fc.WorkspaceDir
+	if base == "" {
+		base = filepath.Join(os.TempDir(), "mady")
+	}
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return nil, fmt.Errorf("approval store: mkdir %s: %w", base, err)
+	}
+	dbPath := filepath.Join(base, "approvals.db")
+	store, err := sqlitestore.NewApprovalStore(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("approval store: open %s: %w", dbPath, err)
+	}
+	return store, nil
+}
+
+// recordApprovalDecision persists the human operator's verdict on the last
+// gated Agent output. Called from /approve (adopted) and /reject (rejected).
+// For /approve followed by edits, the modified output can be passed via the
+// modifiedOutput parameter (used by a future /modify command).
+func (s *tuiSession) recordApprovalDecision(decision domains.ApprovalDecision, modifiedOutput, feedback string) {
+	if s.approvalGate == nil {
+		return
+	}
+	caseID := ""
+	if s.currentProject != nil {
+		caseID = s.currentProject.ProjectID
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	defer cancel()
+	// originalOutput="" lets the gate use its saved lastTriggeredOutput.
+	if err := s.approvalGate.RecordDecision(ctx, s.currentThreadID, caseID, "review", "", decision, modifiedOutput, feedback); err != nil {
+		log.Printf("approval: record decision: %v", err)
 	}
 }

@@ -32,6 +32,11 @@ type ApprovalGate struct {
 	agentcore.BaseLifecycleHook
 	config ApprovalConfig
 	store  ApprovalStore // optional; set via WithApprovalStore
+
+	// lastTriggeredOutput holds the most recent Agent output that triggered
+	// the approval gate. It is consumed (and cleared) by RecordDecision so
+	// that /approve or /reject records exactly the output the human reviewed.
+	lastTriggeredOutput string
 }
 
 // ApprovalConfig controls when and how the approval gate triggers.
@@ -62,15 +67,19 @@ func DefaultApprovalConfig() ApprovalConfig {
 	}
 }
 
-// NewApprovalGate creates an ApprovalGate with the given configuration.
-func NewApprovalGate(config ApprovalConfig) *ApprovalGate {
+// NewApprovalGate creates an ApprovalGate with the given configuration and opts.
+func NewApprovalGate(config ApprovalConfig, opts ...func(*ApprovalGate)) *ApprovalGate {
 	if len(config.RequireApprovalFor) == 0 {
 		config = DefaultApprovalConfig()
 	}
 	if config.TimeoutMsg == "" {
 		config.TimeoutMsg = "此步骤需要人工审核确认。请检查以下内容后回复'确认'继续，或提供修改意见。"
 	}
-	return &ApprovalGate{config: config}
+	g := &ApprovalGate{config: config}
+	for _, opt := range opts {
+		opt(g)
+	}
+	return g
 }
 
 // AfterModelCall implements LifecycleHook.AfterModelCall.
@@ -90,6 +99,10 @@ func (g *ApprovalGate) AfterModelCall(_ context.Context, arc *agentcore.AgentRun
 	if !g.needsApproval(mcc.Response.Content) {
 		return
 	}
+
+	// Save the triggered output so RecordDecision can persist it when the
+	// human operator issues /approve or /reject.
+	g.lastTriggeredOutput = mcc.Response.Content
 
 	// Interrupt and wait for human approval.
 	// The interrupted output is preserved, and the human can review it
@@ -255,6 +268,11 @@ func (g *ApprovalGate) RecordDecision(
 	if g.store == nil {
 		return nil
 	}
+	// Use the saved triggered output if the caller didn't provide one.
+	if originalOutput == "" {
+		originalOutput = g.lastTriggeredOutput
+	}
+	g.lastTriggeredOutput = "" // consume
 	record := ApprovalRecord{
 		ID:             fmt.Sprintf("appr_%d_%s", time.Now().UnixNano(), sessionID),
 		SessionID:      sessionID,
