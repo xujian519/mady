@@ -17,6 +17,20 @@
 - **审查要求**: L2（核心运行循环改动）
 - **未完成（后续批次）**: SemanticTheme 拆分为子结构体（41 字段）、ContextEngine 接口拆分（13 方法）、computer_use.go 按平台拆分
 
+## 2026-07-15: 修复 L2 五步工具 caseType 硬编码（实测效果有限，如实记录）
+
+- **变更**:
+  1. 新增 `caseTypeFromExamID(caseID)`：从 P2A case ID 的法条标记（a2/a22/a26/a31/a33/r42）推断推理 CaseType（→patentability/drafting/invalidation/general_legal），取代之前对所有题固定 `CaseNoveltySearch` 的做法。
+  2. 新增 `toolFactory` 类型和 `runAgentLiveEvalWithFactory`：支持按 case 动态构造工具集，使 L2 测试能为每道题构造 caseType 匹配的 `FiveStepRunner`。原 `runAgentLiveEval` 改为对 factory 的包装（传 nil），L1/L3 行为不变。
+  3. `TestLiveAgentWithWorkflowEval` 改用 factory 模式。
+- **实测结果（10 题）**：全部均值 0.622→0.623（+0.002），A22 题均值 0.633→0.656（+0.022），PassRate 维持 90%。**逻辑正确但整体效果有限**。
+- **根因（caseType 不是唯一瓶颈）**：(1) `DefaultManifests()` 只有 novelty_search/patentability 两个模板，A31→drafting 等映射因无 manifest 退化为单步 fallback；(2) `2018_a2_01`（保护客体）无论 novelty_search 还是 patentability 都 FAIL；(3) LLM-as-judge 方差大（同映射下个别题 ±0.20 波动）。
+- **保留修复的理由**：按法条推断 caseType 在逻辑上比一刀切更正确（A22 题微弱受益），且为未来补全 manifest 模板奠定路由基础。
+- **影响范围**: `agentcore/evaluate/benchmark/live_agent_test.go`、`docs/evaluation-baseline-v0.7.md`、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 低（仅评估测试代码，不改生产代码；L1/L3 行为不变）
+- **审查要求**: L2
+- **验证**: `go vet ./agentcore/evaluate/benchmark/...` ✅ | `TestAgentWiringSmoke` ✅ | L2 10 题重跑 ✅（均值 0.623）
+
 ## 2026-07-15: 产品能力评估 10 题实测——小样本结论修正 + 三层完整诊断
 
 - **变更**: 将 L1/L2/L3 三层从 3 题扩到 10 题（相同种子 20241201），获得稳健的产品能力基线。10 题数据**修正了 3 题小样本的多项结论**，已同步更新 `docs/evaluation-baseline-v0.7.md`。
