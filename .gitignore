@@ -1,4 +1,5 @@
 # --- Binaries & executables ---
+/bin/
 *.exe
 *.exe~
 *.dll

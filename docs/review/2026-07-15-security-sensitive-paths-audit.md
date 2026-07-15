@@ -61,7 +61,7 @@
 - 所有专业领域 `AllowedSources` 不使用 `"*"` 通配符
 - Chat 领域使用 `"*"` 合理（任何 Agent 都可交回聊天）
 - `RouterConfigFromManifests()` 与 `ProfessionalHandoffConfigs` 白名单对齐
-- `RouterConfigWithRegistry()` 中案件 Handoff 白名单仅为 `"mady-router"`（更严格）
+- `RouterConfigWithRegistry()` 中案件 Handoff 白名单为 `["mady-router", "chat-agent"]`，与专业领域白名单保持一致，不使用通配符
 
 **建议**：无。
 
@@ -171,4 +171,4 @@
 2. **TOCTOU 防护**：path.go 使用 inode 绑定防止路径检查后文件被替换
 3. **Belt-and-suspenders**：Transfer 模式在 createHandoffTool 和 handleTransfer 两处独立校验
 4. **Layered defense**：bash 工具同时有 Sandbox + DangerousPatterns + DisableTools 三层防护
-5. **最小权限原则**：案件 Agent 的 AllowedSources 仅限 mady-router，不开放给 chat-agent
+5. **白名单一致性**：所有专业领域与案件 Agent 的 AllowedSources 统一为 `["mady-router", "chat-agent"]`（无通配符）；仅 Chat Agent 使用 `"*"` 允许任意来源交回聊天
