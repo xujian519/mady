@@ -8,7 +8,7 @@ require (
 	github.com/chromedp/chromedp v0.14.2
 	github.com/xujian519/mady v0.0.0
 	golang.org/x/image v0.44.0
-	golang.org/x/net v0.35.0
+	golang.org/x/net v0.57.0
 	golang.org/x/text v0.40.0
 )
 
@@ -19,7 +19,7 @@ require (
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 )
 
 replace github.com/xujian519/mady => ../
