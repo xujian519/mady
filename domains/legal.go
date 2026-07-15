@@ -5,6 +5,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/guardrails"
+	"github.com/xujian519/mady/tools"
 )
 
 // LegalAgentConfig builds the legal domain Agent configuration.
@@ -18,10 +19,17 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 		"",
 		"五步工作法：",
 		"1. 发现事实 — 了解案件背景、当事人信息、法律诉求",
-		"2. 获取规则 — 检索相关法律法规、司法解释、指导性案例",
+		"2. 获取规则 — 使用 web_search / web_fetch 检索相关法律法规、司法解释、指导性案例；使用 read 工具读取案卷材料",
 		"3. 规划 — 确定法律分析框架和论证逻辑",
 		"4. 执行 — 进行法条匹配、判例比对、法律推理",
 		"5. 检查 — 验证法条引用准确性、判例相关性、论证完整性",
+		"",
+		"可用工具：",
+		"- web_search / web_fetch：检索法律法规、司法解释、裁判文书、学术文献",
+		"- read / grep / find / glob / ls：读取和分析案件文件、证据材料",
+		"- write_file / edit：生成法律文书、合同、分析报告",
+		"",
+		"使用工具前，先简要说明你要做什么，执行完给出结构化结果。",
 		"",
 		"免责声明：所有涉及法律判断的输出必须附带：",
 		"「本分析由 AI 辅助生成，不构成正式法律意见。」",
@@ -32,6 +40,32 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 		"- result: 结果的简洁摘要",
 		"- success: 是否成功完成",
 	}, "\n")
+
+	// Tools extension — legal agent needs file tools for document analysis
+	// and web search for legal research.
+	// WorkingDir 从 base.ProjectDir 透传（用户当前项目文件夹），
+	// 回退到 base.WorkspaceDir（~/.mady/workspace）。
+	workingDir := base.ProjectDir
+	if workingDir == "" {
+		workingDir = base.WorkspaceDir
+	}
+	toolExt := tools.NewExtension(tools.ExtensionConfig{
+		WorkingDir:     workingDir,
+		SandboxEnabled: true,
+		Vision: &tools.VisionToolConfig{
+			Provider: base.Provider,
+			Model:    base.Model,
+		},
+		WebSearch: &tools.WebSearchToolConfig{},
+		WebFetch:  &tools.WebFetchToolConfig{},
+		DisableTools: []string{
+			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
+			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolComputerUse,
+			tools.ToolProcess,
+		},
+		MaxBytes: 100 * 1024,
+	})
+	cfg.Extensions = append(cfg.Extensions, toolExt)
 
 	// Chunked context engine for long legal documents.
 	cfg.Engine = "chunked"

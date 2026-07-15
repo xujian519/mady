@@ -20,7 +20,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		"",
 		"五步工作法：",
 		"1. 发现事实 — 了解发明内容、技术领域、申请人需求",
-		"2. 获取规则 — 检索相关专利法规、审查指南、现有技术",
+		"2. 获取规则 — 使用 web_search / web_fetch 或 patent_lookup 检索相关专利法规、审查指南、现有技术",
 		"3. 规划 — 制定检索策略或申请方案",
 		"4. 执行 — 进行专利检索、分析权利要求、生成文书",
 		"5. 检查 — 验证检索完整性、分析准确性",
@@ -49,6 +49,8 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			Provider: base.Provider,
 			Model:    base.Model,
 		},
+		WebSearch: &tools.WebSearchToolConfig{},
+		WebFetch:  &tools.WebFetchToolConfig{},
 		DisableTools: []string{
 			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
 			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolComputerUse,
