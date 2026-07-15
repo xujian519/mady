@@ -481,10 +481,9 @@ func TestAgentWiringSmoke(t *testing.T) {
 		}
 		// Counting wrapper must invoke the underlying Func and increment.
 		before := counter.counts[readOnly[0].Name].Load()
-		if _, err := wrapped[0].Func(context.Background(), json.RawMessage(`{}`)); err == nil {
-			// Tools may error (no network) — that's fine; we only assert the
-			// counter incremented when Func was invoked.
-		}
+		// Tools may error (no network) — that's fine; we only assert the
+		// counter incremented when Func was invoked.
+		_, _ = wrapped[0].Func(context.Background(), json.RawMessage(`{}`))
 		after := counter.counts[readOnly[0].Name].Load()
 		if after != before+1 {
 			t.Fatalf("counter did not increment: before=%d after=%d", before, after)

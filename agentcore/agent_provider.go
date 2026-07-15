@@ -39,10 +39,10 @@ func (a *Agent) callProviderWithRetry(ctx context.Context, req *ProviderRequest)
 		})
 
 		timer := time.NewTimer(delay)
-		defer timer.Stop()
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
+			timer.Stop()
 			return nil, ctx.Err()
 		}
 

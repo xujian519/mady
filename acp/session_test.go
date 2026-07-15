@@ -74,8 +74,8 @@ func (a *stubAgentInstance) Run(_ context.Context, input string) (string, error)
 }
 
 func (a *stubAgentInstance) Core() *agentcore.Agent { return nil }
-func (a *stubAgentInstance) Model() string           { return a.model }
-func (a *stubAgentInstance) Mode() string            { return a.mode }
+func (a *stubAgentInstance) Model() string          { return a.model }
+func (a *stubAgentInstance) Mode() string           { return a.mode }
 
 type stubSessionStore struct {
 	mu    sync.Mutex
