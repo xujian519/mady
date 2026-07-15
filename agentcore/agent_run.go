@@ -149,20 +149,14 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 
 			// Context compaction
 			if err := a.maybeCompact(ctx); err != nil {
-				ne := NewNodeError("compaction failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn), "compaction")
-				a.state.SetStatus(StatusError)
-				a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-				return "", ne
+				return a.failLoop(fmt.Sprintf("turn:%d|compaction", turn), "compaction failed", err)
 			}
 
 			// Inject steering messages before LLM call
 			if steered := a.steering.Drain(); len(steered) > 0 {
 				for _, msg := range steered {
 					if err := a.persistMessage(ctx, msg); err != nil {
-						ne := NewNodeError("lifecycle persist steering failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn))
-						a.state.SetStatus(StatusError)
-						a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-						return "", ne
+						return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist steering failed", err)
 					}
 				}
 			}
@@ -170,10 +164,7 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 			if lc := a.lifecycle(); lc != nil {
 				arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
 				if err := lc.BeforeTurn(ctx, arc); err != nil {
-					ne := NewNodeError("lifecycle before_turn failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn))
-					a.state.SetStatus(StatusError)
-					a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-					return "", ne
+					return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle before_turn failed", err)
 				}
 			}
 
@@ -202,10 +193,7 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 				arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
 				mcc := &ModelCallContext{Request: req}
 				if lcErr := lc.BeforeModelCall(ctx, arc, mcc); lcErr != nil {
-					ne := NewNodeError("lifecycle before_model_call failed", lcErr, a.config.Name, fmt.Sprintf("turn:%d", turn))
-					a.state.SetStatus(StatusError)
-					a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-					return "", ne
+					return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle before_model_call failed", lcErr)
 				}
 			}
 
@@ -228,10 +216,7 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 						})
 						return "", nil
 					}
-					ne := NewNodeError("provider call failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn), "provider")
-					a.state.SetStatus(StatusError)
-					a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-					return "", ne
+					return a.failLoop(fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
 				}
 			}
 
@@ -248,20 +233,14 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 							Blocks:    resp.Blocks,
 							ToolCalls: resp.ToolCalls,
 						}); pErr != nil {
-							ne := NewNodeError("lifecycle persist assistant failed", pErr, a.config.Name, fmt.Sprintf("turn:%d", turn))
-							a.state.SetStatus(StatusError)
-							a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-							return "", ne
+							return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", pErr)
 						}
 					}
 					if err := a.persistMessage(ctx, Message{
 						Role:    RoleSystem,
 						Content: fmt.Sprintf("错误: %s", mcc.Err.Error()),
 					}); err != nil {
-						ne := NewNodeError("lifecycle persist guardrail error failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn))
-						a.state.SetStatus(StatusError)
-						a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-						return "", ne
+						return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist guardrail error failed", err)
 					}
 					continue
 				}
@@ -282,28 +261,14 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 					Blocks:    resp.Blocks,
 					ToolCalls: resp.ToolCalls,
 				}); err != nil {
-					ne := NewNodeError("lifecycle persist assistant failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn))
-					a.state.SetStatus(StatusError)
-					a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-					return "", ne
+					return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", err)
 				}
 			}
 
 			if len(resp.ToolCalls) == 0 {
 				finalOutput = resp.Content
 				a.state.SetStatus(StatusFinished)
-				a.emit(&TurnEndEvent{
-					baseEvent: newBase(EventTurnEnd),
-					Turn:      turn,
-					Usage:     resp.Usage,
-				})
-				if lc := a.lifecycle(); lc != nil {
-					arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
-					lc.AfterTurn(ctx, arc, TurnInfo{HadToolCalls: false})
-				}
-				if err := a.checkpointTurnEnd(ctx, turn); err != nil {
-					a.state.SetStatus(StatusError)
-					a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+				if err := a.endTurn(ctx, turn, resp.Usage, false); err != nil {
 					return "", err
 				}
 				break
@@ -323,24 +288,10 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 						ToolCallID: tc.ID,
 						Name:       tc.Name,
 					}); perr != nil {
-						ne := NewNodeError("truncation guard persist failed", perr, a.config.Name, fmt.Sprintf("turn:%d", turn))
-						a.state.SetStatus(StatusError)
-						a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-						return "", ne
+						return a.failLoop(fmt.Sprintf("turn:%d", turn), "truncation guard persist failed", perr)
 					}
 				}
-				a.emit(&TurnEndEvent{
-					baseEvent: newBase(EventTurnEnd),
-					Turn:      turn,
-					Usage:     resp.Usage,
-				})
-				if lc := a.lifecycle(); lc != nil {
-					arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
-					lc.AfterTurn(ctx, arc, TurnInfo{HadToolCalls: true})
-				}
-				if err := a.checkpointTurnEnd(ctx, turn); err != nil {
-					a.state.SetStatus(StatusError)
-					a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+				if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
 					return "", err
 				}
 				continue
@@ -358,10 +309,7 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 					})
 					return "", nil
 				}
-				ne := NewNodeError("tool execution persist failed", err, a.config.Name, fmt.Sprintf("turn:%d", turn))
-				a.state.SetStatus(StatusError)
-				a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
-				return "", ne
+				return a.failLoop(fmt.Sprintf("turn:%d", turn), "tool execution persist failed", err)
 			}
 
 			// Early-exit: a tool returned a terminating result; its content is
@@ -369,18 +317,7 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 			if earlyExit != "" {
 				finalOutput = earlyExit
 				a.state.SetStatus(StatusFinished)
-				a.emit(&TurnEndEvent{
-					baseEvent: newBase(EventTurnEnd),
-					Turn:      turn,
-					Usage:     resp.Usage,
-				})
-				if lc := a.lifecycle(); lc != nil {
-					arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
-					lc.AfterTurn(ctx, arc, TurnInfo{HadToolCalls: true})
-				}
-				if err := a.checkpointTurnEnd(ctx, turn); err != nil {
-					a.state.SetStatus(StatusError)
-					a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+				if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
 					return "", err
 				}
 				break
@@ -395,18 +332,7 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 				})
 				return "", nil
 			}
-			a.emit(&TurnEndEvent{
-				baseEvent: newBase(EventTurnEnd),
-				Turn:      turn,
-				Usage:     resp.Usage,
-			})
-			if lc := a.lifecycle(); lc != nil {
-				arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
-				lc.AfterTurn(ctx, arc, TurnInfo{HadToolCalls: true})
-			}
-			if err := a.checkpointTurnEnd(ctx, turn); err != nil {
-				a.state.SetStatus(StatusError)
-				a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+			if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
 				return "", err
 			}
 
@@ -479,6 +405,32 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 		Output:    finalOutput,
 	})
 	return finalOutput, nil
+}
+
+// failLoop is the standard error exit path from the run loop.
+// It wraps err in a NodeError, sets error status, emits an error event,
+// and returns ("", ne). ctxTag is typically fmt.Sprintf("turn:%d", turn).
+func (a *Agent) failLoop(ctxTag, description string, err error) (string, error) {
+	ne := NewNodeError(description, err, a.config.Name, ctxTag)
+	a.state.SetStatus(StatusError)
+	a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
+	return "", ne
+}
+
+// endTurn emits the TurnEndEvent, runs AfterTurn lifecycle, and checkpoints.
+// Returns an error if checkpointing fails (the caller should return it).
+func (a *Agent) endTurn(ctx context.Context, turn int64, usage TokenUsage, hadToolCalls bool) error {
+	a.emit(&TurnEndEvent{baseEvent: newBase(EventTurnEnd), Turn: turn, Usage: usage})
+	if lc := a.lifecycle(); lc != nil {
+		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+		lc.AfterTurn(ctx, arc, TurnInfo{HadToolCalls: hadToolCalls})
+	}
+	if err := a.checkpointTurnEnd(ctx, turn); err != nil {
+		a.state.SetStatus(StatusError)
+		a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+		return err
+	}
+	return nil
 }
 
 // toolCallSignature returns a stable string key for a set of tool calls,

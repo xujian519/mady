@@ -262,7 +262,31 @@ func findLatestContextSummary(msgs []Message, searchStart int64, searchEnd int64
 	return -1, ""
 }
 
-func runCompaction(ctx context.Context, provider Provider, model string, state *AgentState, keepRecentTokens int64, structured bool, protectFirstN int, focusTopic string, compState *compactionState, compressionModel string, compressionProvider Provider, compressionBaseURL string, compressionAPIKey string) (int64, error) {
+// CompactionParams bundles the parameters needed by runCompaction.
+// Provider and Model identify the LLM used for summarization;
+// CompressionProvider/Model override those for a dedicated compression model.
+type CompactionParams struct {
+	Provider            Provider
+	Model               string
+	State               *AgentState
+	KeepRecentTokens    int64
+	Structured          bool
+	ProtectFirstN       int
+	FocusTopic          string
+	CompState           *compactionState
+	CompressionModel    string
+	CompressionProvider Provider
+}
+
+func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
+	provider := p.Provider
+	model := p.Model
+	state := p.State
+	keepRecentTokens := p.KeepRecentTokens
+	structured := p.Structured
+	protectFirstN := p.ProtectFirstN
+	focusTopic := p.FocusTopic
+	compState := p.CompState
 	msgs := state.Messages()
 
 	nMessages := len(msgs)
@@ -365,11 +389,11 @@ func runCompaction(ctx context.Context, provider Provider, model string, state *
 
 	compProvider := provider
 	compModel := model
-	if compressionProvider != nil {
-		compProvider = compressionProvider
+	if p.CompressionProvider != nil {
+		compProvider = p.CompressionProvider
 	}
-	if compressionModel != "" {
-		compModel = compressionModel
+	if p.CompressionModel != "" {
+		compModel = p.CompressionModel
 	}
 
 	summaryReq := &ProviderRequest{

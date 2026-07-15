@@ -39,6 +39,13 @@ func LiveEvaluator(judge agentcore.Provider, model string) *evaluate.Evaluator {
 
 // AllCases returns every registered benchmark case across all domains.
 // New datasets should append their cases here.
+//
+// NOTE: AllCases still includes InvalidationDecisionCases (P2B) so that the
+// static GoldenPerfect CI gate keeps verifying structural integrity of all
+// registered data. For live evaluation use ValidCases instead — P2B is frozen
+// because its inputs are empty shells (claim/evidence/reason all blank for
+// 40/40 cases) with a degenerate conclusion distribution (34 invalidate-all /
+// 5 partial / 1 maintained). See docs/evaluation-baseline-v0.6.md.
 func AllCases() []evaluate.TestCase {
 
 	var cases []evaluate.TestCase
@@ -50,6 +57,24 @@ func AllCases() []evaluate.TestCase {
 	cases = append(cases, PatentExamRealA33Cases...)
 	cases = append(cases, PatentExamRealR42Cases...)
 	cases = append(cases, InvalidationDecisionCases...)
+	return cases
+}
+
+// ValidCases returns benchmark cases suitable for live evaluation: all
+// registered cases EXCEPT the frozen P2B invalidation-decision dataset.
+// Use this (not AllCases) when running live LLM evaluation so that empty-shell
+// cases do not produce misleading pass-rate signals. The static CI gate
+// (RunStatic) still uses AllCases to assert structural integrity of every
+// registered case.
+func ValidCases() []evaluate.TestCase {
+	var cases []evaluate.TestCase
+	cases = append(cases, PatentExamCases...)
+	cases = append(cases, PatentExamRealA2Cases...)
+	cases = append(cases, PatentExamRealA22Cases...)
+	cases = append(cases, PatentExamRealA26Cases...)
+	cases = append(cases, PatentExamRealA31Cases...)
+	cases = append(cases, PatentExamRealA33Cases...)
+	cases = append(cases, PatentExamRealR42Cases...)
 	return cases
 }
 

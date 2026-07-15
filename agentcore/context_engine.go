@@ -220,21 +220,18 @@ func (e *CompressorEngine) Compress(ctx context.Context, msgs []Message, focusTo
 	tmpState := NewState()
 	tmpState.ReplaceMessages(msgs)
 
-	cut, err := runCompaction(
-		ctx,
-		e.provider,
-		e.model,
-		tmpState,
-		e.keepRecentTokens,
-		e.structured,
-		e.protectFirstN,
-		focusTopic,
-		e.state,
-		e.compressionModel,
-		e.compressionProvider,
-		e.compressionBaseURL,
-		e.compressionAPIKey,
-	)
+	cut, err := runCompaction(ctx, CompactionParams{
+		Provider:            e.provider,
+		Model:               e.model,
+		State:               tmpState,
+		KeepRecentTokens:    e.keepRecentTokens,
+		Structured:          e.structured,
+		ProtectFirstN:       e.protectFirstN,
+		FocusTopic:          focusTopic,
+		CompState:           e.state,
+		CompressionModel:    e.compressionModel,
+		CompressionProvider: e.compressionProvider,
+	})
 	if err != nil {
 		return msgs, 0, err
 	}

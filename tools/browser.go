@@ -488,13 +488,12 @@ func NewBrowserSnapshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				input.Mode = "default"
 			}
 
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			var snapshot string
-			var err error
 
 			switch session.backendType {
 			case BackendCamofox:
@@ -569,13 +568,12 @@ func NewBrowserClickTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				ref = "@" + ref
 			}
 
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			var snapshot string
-			var err error
 
 			switch session.backendType {
 			case BackendCamofox:
@@ -684,13 +682,12 @@ func NewBrowserTypeTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				ref = "@" + ref
 			}
 
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			var resultMsg string
-			var err error
 
 			switch session.backendType {
 			case BackendCamofox:
@@ -798,13 +795,12 @@ func NewBrowserScrollTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("direction must be \"up\" or \"down\"")
 			}
 
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			var snapshot string
-			var err error
 
 			switch session.backendType {
 			case BackendCamofox:
@@ -869,14 +865,13 @@ func NewBrowserBackTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			"properties": map[string]any{},
 		},
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			var url, title string
 			var snapshot string
-			var err error
 
 			switch session.backendType {
 			case BackendCamofox:
@@ -959,13 +954,12 @@ func NewBrowserPressTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			var resultMsg string
-			var err error
 
 			switch session.backendType {
 			case BackendCamofox:
@@ -1031,13 +1025,12 @@ func NewBrowserScreenshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			var sizeBytes int
-			var err error
 
 			switch session.backendType {
 			case BackendCamofox:
@@ -1116,13 +1109,12 @@ func NewBrowserEvaluateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			var evalResult string
-			var err error
 
 			switch {
 			case session.supervisor != nil && input.FrameID != "":
@@ -1190,9 +1182,9 @@ func NewBrowserDialogTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			if session.supervisor == nil {
@@ -1231,9 +1223,9 @@ func NewBrowserConsoleTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			"properties": map[string]any{},
 		},
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			session.mu.Lock()
@@ -1278,13 +1270,12 @@ func NewBrowserVisionTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := DefaultBrowserManager().GetActiveSession("default")
-			if !ok {
-				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+			session, err := RequireActiveSession()
+			if err != nil {
+				return nil, err
 			}
 
 			var screenshotData []byte
-			var err error
 
 			switch session.backendType {
 			case BackendCamofox:

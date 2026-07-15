@@ -237,6 +237,23 @@ func (bm *BrowserManager) GetActiveSession(fallbackSessionID string) (*BrowserSe
 	return s, ok
 }
 
+// ErrNoActiveBrowserSession is returned when no browser session is active.
+var ErrNoActiveBrowserSession = fmt.Errorf("no active browser session. Call browser_navigate first")
+
+// RequireActiveSession returns the active browser session or an error if none exists.
+// It replaces the repeated DefaultBrowserManager().GetActiveSession("default") + error pattern.
+func RequireActiveSession() (*BrowserSession, error) {
+	bm := DefaultBrowserManager()
+	if bm == nil {
+		return nil, ErrNoActiveBrowserSession
+	}
+	session, ok := bm.GetActiveSession("default")
+	if !ok {
+		return nil, ErrNoActiveBrowserSession
+	}
+	return session, nil
+}
+
 func (bm *BrowserManager) SetActiveSession(sessionID string) {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()

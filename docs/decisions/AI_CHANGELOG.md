@@ -1,5 +1,88 @@
 # AI 决策变更日志
 
+## 2026-07-15: 代码异味审查与修复（P0+P1+P2 批次）
+
+- **变更**: 全项目代码异味审查后执行 7 项修复，覆盖参数爆炸、重复代码、超大函数、错误处理一致性。
+- **具体修复**:
+  1. **P0 `runCompaction` 参数爆炸**: 13 参数 → `CompactionParams` 结构体（`agentcore/compaction.go`），移除 2 个未使用参数（`compressionBaseURL/compressionAPIKey`）
+  2. **P0 浏览器会话检查重复**: 24 处相同 3 行模式 → `RequireActiveSession()` helper（`tools/browser_session.go`）
+  3. **P0 `runTui` 超大函数**: 771 行 / 138 分支 → 提取 `tuiSession` 结构体 + 15 个方法到 `cmd/mady/tui_session.go`（672 行），`runTui` 本体降至 ~130 行
+  4. **P0 `runLoop` 超大函数**: 提取 `failLoop()` + `endTurn()` helpers，消除 10 处重复错误模式 + 4 处重复 turn-end 模式
+  5. **P1 `computer_use.go` 工具定义**: 提取 `computerUseDescription()` + `computerUseSchema()` 从 `NewComputerUseTool` 中
+  6. **P2 `mcp/client.go` 错误包装**: 5 处裸 `return err` 加 `fmt.Errorf("mcp ...: %w", err)` 上下文
+  7. **P2 清理废弃 `components/` 包**: 删除已标注 Deprecated 且无引用的 RAG 接口包
+- **验证**: `go build ./...` + `go test ./...`（根模块 63 包）+ `cd tools && go build && go test`（2 包）全通过
+- **影响范围**: `agentcore/compaction.go`、`agentcore/agent_run.go`、`agentcore/context_engine.go`、`cmd/mady/main.go`、`cmd/mady/tui_session.go`（新增）、`tools/browser.go`、`tools/browser_tool.go`、`tools/browser_session.go`、`tools/computer_use.go`、`mcp/client.go`、`components/`（删除）
+- **风险等级**: 中（涉及 `agentcore/agent_run.go` 核心运行循环，但提取的 helpers 保持原有控制流不变）
+- **审查要求**: L2（核心运行循环改动）
+- **未完成（后续批次）**: SemanticTheme 拆分为子结构体（41 字段）、ContextEngine 接口拆分（13 方法）、computer_use.go 按平台拆分
+
+## 2026-07-15: 产品能力评估 10 题实测——小样本结论修正 + 三层完整诊断
+
+- **变更**: 将 L1/L2/L3 三层从 3 题扩到 10 题（相同种子 20241201），获得稳健的产品能力基线。10 题数据**修正了 3 题小样本的多项结论**，已同步更新 `docs/evaluation-baseline-v0.7.md`。
+- **10 题实测结果（llm_judge 均值）**：
+  - **L1 Agent 框架**：0.665（PassRate 100%）—— 从 3 题的 0.833 回归真实水平
+  - **L2 +五步推理**：0.622（PassRate 90%，FAIL `2018_a2_01`）—— **修正：3 题时 0.911 > L1 被判为「稳定增益」，10 题后 0.622 < L1 的 0.665，6/10 题下降**
+  - **L3 +检索工具**：0.658（PassRate 90%，FAIL `2007_a22_01`）—— **修正：3 题时 0.761 被判为「工具过载」，10 题后揭示是「双刃剑」**
+- **关键诊断**：
+  1. **三层均值接近但方差极大**：L1=0.665/L2=0.622/L3=0.658，均值中性掩盖了工具效果的题型强相关。同一工具在不同题上效果天差地别（L3 的 `2018_a2_01` +0.53 vs `2007_a22_01` −0.47）。
+  2. **五步工具 caseType 硬编码是 L2 根因**：`NewWorkflowRunner` 固定 `CaseNoveltySearch`，对非新颖性题（保护客体 A2）框架错配致崩（−0.20）。
+  3. **L3 检索工具双刃剑**：对信息不足的题大幅提升（`2018_a2_01` +0.33、`2007_a31_02` +0.27），对信息完备的题严重干扰（`2007_a22_01` −0.40）。可观测性显示 `web_search` 高频调用（14-16 次/题）、`patent_lookup` 部分触发（0-3 次）、`scholar_search` 始终 0 次。
+  4. **小样本陷阱实证**：3→10 题结论多次反转，验证了路线图停止规则「Golden Set 不能说明质量差异 → 不换模型/Prompt」的必要性。
+- **下一步优先级**：(1) 修复五步工具 caseType 硬编码；(2) 检索工具精准触发（移除始终 0 调用的 scholar_search）；(3) 扩到全量 31 题。
+- **原因**: 用户要求扩到 10 题验证稳定性。结果证实了扩样本的必要性——3 题的乐观结论被 10 题推翻，避免了在错误方向上优化。
+- **影响范围**: `docs/evaluation-baseline-v0.7.md`（三层 10 题数据 + 趋势修正 + 诊断 + 下一步）、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 低（仅文档更新，无代码改动）
+- **审查要求**: L1
+
+## 2026-07-15: 产品能力评估实测——L0→L1→L2 梯度验证 + L3 工具过载诊断
+
+- **变更**:
+  1. 从 `~/.zshrc` 加载 `DEEPSEEK_API_KEY`（仅注入环境变量，不落盘、不入仓），对 L0/L1/L2/L3 四层各跑 3 道 P2A 真题（固定种子 20241201，共享相同题目，通过率可横向对比），实测数据已填入 `docs/evaluation-baseline-v0.7.md`。
+  2. L3 测试修复：`TestLiveAgentWithPatentToolsEval` 的 `PatentToolConfig` 从空配置改为 `tools.PatentToolConfigDefaults()`，正确读取 `NUO_PATENT_PATH` 环境变量解析本地 nuo-patent 构建。
+- **实测结果（llm_judge 均值）**：
+  - **L0 裸 LLM**：0.533（PassRate 66.7%）
+  - **L1 Agent 框架（无工具）**：0.833（PassRate 100%）—— Agent 多轮生成较裸 LLM 单轮回复增益 +0.300
+  - **L2 +五步推理**：0.911（PassRate 100%）—— 结构化五步工具增益 +0.078
+  - **L3 +检索工具**：0.761（PassRate 100%）—— 反降，工具调用可观测性诊断出根因：Agent 对 patent_lookup/scholar_search 调用 0 次，BuildTools 装配的 14 个工具中 Agent 选择了 read/grep/ls 等通用文件工具，注意力被分散
+- **关键诊断**：
+  - L0→L1→L2 的递进在全部 3 题上一致（均值单调上升），初步证明 Mady 产品能力的可量化价值。
+  - L3 暴露两个问题：(a) `tools.BuildTools` 一次性装配 14 个工具导致工具过载；(b) P2A 考试真题题干已含全部信息，无法体现检索工具价值，需设计「需外部检索」的专属评估场景。
+  - 工具调用可观测性（countingTool）是定位 L3 问题的决定性手段——没有逐工具计数，0.761 只是模糊的「分数下降」信号。
+- **原因**: 用户要求用项目内 API key 跑出真实数据。实测首次量化了 Mady 产品能力相比裸 LLM 的增益，并验证了评估基础设施的有效性。
+- **影响范围**: `agentcore/evaluate/benchmark/live_agent_test.go`（L3 配置修复）、`docs/evaluation-baseline-v0.7.md`（实测数据填充）、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 低（仅测试配置修复与文档更新；API key 仅注入环境变量未落盘）
+- **审查要求**: L2
+- **验证**: L0/L1/L2/L3 四层 live eval 全部跑通 ✅ | `go vet ./agentcore/evaluate/benchmark/...` ✅
+
+## 2026-07-15: 建立产品能力评估三层对比基线（评估质量提升 阶段2-3）
+
+- **变更**:
+  1. **新建 `agentcore/evaluate/benchmark/live_agent_test.go`**：将 live evaluation 的 RunFunc 从「裸 `Provider.Complete`」升级为「完整 `agentcore.Agent` runtime」，首次让评估测出 Mady 产品能力而非模型裸能力。包含：
+     - `agentRunFunc`：每个 case 构造独立 Agent（避免跨 case 状态污染），MaxTurns=20，装配可选工具，通过 `agent.Run(ctx, input)` 返回最终答案文本。
+     - **三层对比测试**（共享 P2A 用例 + 固定种子 20241201，通过率可直接横向对比）：`TestLiveAgentBaselineEval`（Agent 无工具，校验框架无退化）、`TestLiveAgentWithWorkflowEval`（+`run_five_step_workflow` 五步推理工具，retriever nil 走优雅降级）、`TestLiveAgentWithPatentToolsEval`（+`patent_lookup`/`patent_legal`/`scholar_search` 检索工具，受 `MADY_EVAL_PATENT_TOOLS=1` 额外门控）。
+     - **工具调用可观测性**（阶段3）：`toolCallCounter` 通过 `atomic.Int64` 包装每个工具的 Func，记录每题工具调用次数，区分「工具未被调用」与「工具结果未被有效利用」两种失败模式。
+     - **离线装配链路 smoke test** `TestAgentWiringSmoke`（无 API key 门控，CI 可运行）：用 `stubProvider` 验证三层装配（Config 构造、workflow 工具注入、patent 工具装配、countingTool 计数）端到端可用。
+  2. **新建 `docs/evaluation-baseline-v0.7.md`**：记录三层产品能力评估方法论（L0 裸 LLM / L1 Agent 框架 / L2 +五步推理 / L3 +检索工具）、静态评估结果、待填实时数据表格、用户运行操作指南。
+- **原因**: v0.6 审阅发现 live eval 直接调裸 `Provider.Complete`，不装 Tools、不走 Agent runtime，32.5% 通过率测的是 DeepSeek 裸读题能力，与 Mady 核心价值（知识检索+五步推理+工具）完全脱节。优化 Prompt 提升的是模型能力而非产品能力。v0.7 让评估首次对齐产品价值，三层对比能定位增益来源或暴露集成断点。
+- **影响范围**: `agentcore/evaluate/benchmark/live_agent_test.go`（新）、`docs/evaluation-baseline-v0.7.md`（新）
+- **风险等级**: 低（仅新增测试文件与文档；不改生产代码；live test 受 `MADY_LIVE_EVAL=1` 门控，CI 自动跳过；离线 smoke test 用 stub provider 无网络调用）
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./agentcore/evaluate/...` ✅ | `make eval` ✅（GoldenPerfect 等全绿）| `TestAgentWiringSmoke` 三层装配链路 ✅
+
+## 2026-07-15: 冻结 P2B 空壳数据集，修正评估口径（评估质量提升 阶段1）
+
+- **变更**:
+  1. `agentcore/evaluate/benchmark/suite.go` 新增 `ValidCases()` 函数，返回排除冻结的 P2B（`InvalidationDecisionCases`）后的有效用例集；`AllCases()` 保持不变（仍含 P2B，供静态 CI 门禁 `RunStatic` 校验全部注册用例的结构完整性）。
+  2. `agentcore/evaluate/benchmark/live_deepseek_test.go` 的 `TestLiveDeepSeekInvalidationEval` 顶部增加 `P2B FROZEN` 注释，记录冻结原因（空壳输入 40/40、退化分布 34/5/1、评估口径为裸 LLM）；保留测试代码与缓存以备数据重建后复用。
+  3. `docs/evaluation-baseline-v0.6.md` 修正 P2B 结论分布（误记 16/14/10 → 实际 34/5/1），新增「⚠️ P2B 已冻结」说明章节，记录空壳输入与退化分布两个根本性缺陷及冻结处置。
+  4. `docs/roadmap.md` P2B 里程碑状态由 ✅ 改为 ✅→❄️ 冻结，追加冻结原因与下一阶段基准说明。
+- **原因**: 开发进度审阅中发现 P2B 的 40 条无效决定书 TestCase 的 Input「独立权利要求1/主要证据/请求理由」三个字段全部为空（40/40），实际结论分布严重失衡（全部无效 34 / 部分无效 5 / 维持有效 1，文档曾误记为 16/14/10）。在此数据集上优化 Prompt/模型得到的提升是虚假信号（换组数据即归零），且当前 live eval 直接调裸 `Provider.Complete` 不走 Agent runtime，32.5% 通过率测的是 DeepSeek 裸读空壳题目的猜测能力而非 Mady 产品能力。冻结 P2B 消除虚假信号，下一阶段以 P2A（31 道真题，数据质量良好）为唯一有效 live evaluation 基准。
+- **影响范围**: `agentcore/evaluate/benchmark/suite.go`、`agentcore/evaluate/benchmark/live_deepseek_test.go`（仅注释）、`docs/evaluation-baseline-v0.6.md`、`docs/roadmap.md`
+- **风险等级**: 低（`ValidCases()` 为新增函数不改变现有行为；`AllCases()` 与静态门禁保持不变；live test 仅加注释）
+- **审查要求**: L2
+- **验证**: `go build ./agentcore/evaluate/...` ✅ | `go vet ./agentcore/evaluate/...` ✅ | `go test -race ./agentcore/evaluate/...` ✅ | `make eval` ✅（GoldenPerfect/Degraded/CaseIntegrity/DefaultEvaluator 全绿）
+
 ## 2026-07-15: Go 规范开发文档制定 + 全仓库合规修复（4 批次）
 
 - **变更**:

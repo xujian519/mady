@@ -407,9 +407,9 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 
 // handleSnapshot returns a text-based accessibility tree of the current page.
 func handleSnapshot(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	mode := input.Mode
@@ -418,7 +418,6 @@ func handleSnapshot(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	}
 
 	var snapshot string
-	var err error
 
 	switch session.backendType {
 	case BackendCamofox:
@@ -467,9 +466,9 @@ func handleClick(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 
 	ref := normalizeRef(input.Ref)
 
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	if session.backendType == BackendCamofox {
@@ -518,9 +517,9 @@ func handleType(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 
 	ref := normalizeRef(input.Ref)
 
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	if session.backendType == BackendCamofox {
@@ -563,9 +562,9 @@ func handleScroll(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 		return nil, fmt.Errorf("direction must be \"up\" or \"down\"")
 	}
 
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	if session.backendType == BackendCamofox {
@@ -607,14 +606,13 @@ func handleScroll(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 
 // handleBack navigates back in browser history.
 func handleBack(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	var url, title string
 	var snapshot string
-	var err error
 
 	switch session.backendType {
 	case BackendCamofox:
@@ -676,9 +674,9 @@ func handlePress(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 		return nil, fmt.Errorf("key is required for press action")
 	}
 
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	if session.backendType == BackendCamofox {
@@ -709,13 +707,12 @@ func handlePress(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 
 // handleScreenshot captures a screenshot of the current page.
 func handleScreenshot(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	var sizeBytes int
-	var err error
 
 	switch session.backendType {
 	case BackendCamofox:
@@ -757,9 +754,9 @@ func handleEvaluate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 		return nil, fmt.Errorf("expression is required for evaluate action")
 	}
 
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	if session.backendType == BackendCamofox {
@@ -767,7 +764,6 @@ func handleEvaluate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	}
 
 	var evalResult string
-	var err error
 
 	if session.supervisor != nil && input.FrameID != "" {
 		evalResult, err = session.supervisor.EvaluateJS(input.Expression, input.FrameID)
@@ -799,9 +795,9 @@ func handleDialog(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 		return nil, fmt.Errorf("dialog_id is required for dialog action")
 	}
 
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	if session.supervisor == nil {
@@ -834,13 +830,12 @@ func handleVision(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 		return nil, fmt.Errorf("question is required for vision action")
 	}
 
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	var screenshotData []byte
-	var err error
 
 	switch session.backendType {
 	case BackendCamofox:
@@ -873,9 +868,9 @@ func handleVision(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 
 // handleConsole returns a notice that console messages are captured asynchronously.
 func handleConsole(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	session.mu.Lock()
@@ -891,9 +886,9 @@ func handleCdp(ctx context.Context, input browserToolInput, cfg *BrowserToolConf
 		return nil, fmt.Errorf("cdp_method is required for cdp action")
 	}
 
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	var params json.RawMessage
@@ -934,9 +929,9 @@ func handleCdp(ctx context.Context, input browserToolInput, cfg *BrowserToolConf
 
 // handleGetImages returns a list of images found on the current page.
 func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := DefaultBrowserManager().GetActiveSession("default")
-	if !ok {
-		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
+	session, err := RequireActiveSession()
+	if err != nil {
+		return nil, err
 	}
 
 	if session.backendType == BackendCamofox {

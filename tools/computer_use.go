@@ -426,6 +426,90 @@ type ComputerUseToolConfig struct {
 	DefaultClickWait int
 }
 
+func computerUseDescription() string {
+	return "控制本地桌面。跨平台支持：macOS（cua-driver/cliclick/osascript）、" +
+		"Windows（PowerShell）、Linux（xdotool X11 / ydotool+wtype+grim Wayland）。后端根据平台自动检测。" +
+		"cua-driver（仅 macOS）在后台运行，不会抢占焦点。" +
+		"安装：brew install cua-driver（macOS）或 apt install xdotool（Linux）或 apt install ydotool wtype grim（Linux Wayland）。" +
+		"操作：capture（截屏 + 可选 AX 树/SOM）、info、click/double_click/right_click/middle_click、" +
+		"drag、type、key（组合键如 cmd+s 或 ctrl+s）、scroll、set_value、" +
+		"wait、list_apps、focus_app。" +
+		"危险操作（清空废纸篓、注销、rm -rf、ctrl+alt+del 等）按平台阻止。" +
+		"破坏性操作通过 COMPUTER_USE_APPROVAL 环境变量提示批准（once/session/none）。"
+}
+
+func computerUseSchema() map[string]any {
+	actionEnum := []string{"capture", "info", "click", "double_click", "right_click", "middle_click", "drag", "type", "key", "scroll", "set_value", "wait", "list_apps", "focus_app"}
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"action": map[string]any{
+				"type":        "string",
+				"description": "要执行的操作",
+				"enum":        actionEnum,
+			},
+			"coordinate": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "integer"},
+				"description": "像素坐标 [x, y]，用于 click/double_click/right_click",
+			},
+			"from_coordinate": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "integer"},
+				"description": "拖拽操作的起始像素坐标 [x, y]",
+			},
+			"to_coordinate": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "integer"},
+				"description": "拖拽操作的结束像素坐标 [x, y]",
+			},
+			"text": map[string]any{
+				"type":        "string",
+				"description": "要输入的文本（用于 action=type）或要设置的值（用于 action=set_value，如下拉框/滑块）",
+			},
+			"keys": map[string]any{
+				"type":        "string",
+				"description": "按键组合（用于 action=key），例如 'cmd+s'、'return'、'up'、'pagedown'",
+			},
+			"direction": map[string]any{
+				"type":        "string",
+				"description": "滚动方向（用于 action=scroll）。向上/向下/向左/向右",
+				"enum":        []string{"up", "down", "left", "right"},
+			},
+			"amount": map[string]any{
+				"type":        "integer",
+				"description": "滚动量（刻度数，用于 action=scroll，默认 3，最大 50）",
+			},
+			"seconds": map[string]any{
+				"type":        "number",
+				"description": "等待的秒数（用于 action=wait，最大 30）",
+			},
+			"app": map[string]any{
+				"type":        "string",
+				"description": "应用名称。focus_app：设置目标。capture：截取应用窗口。",
+			},
+			"element": map[string]any{
+				"type":        "integer",
+				"description": "capture(mode=ax) 输出的 AX 元素索引（用于 cua-driver 的 click/set_value）",
+			},
+			"capture_mode": map[string]any{
+				"type":        "string",
+				"enum":        []string{"vision", "ax", "som"},
+				"description": "'vision'（仅截屏，默认）、'ax'（截屏 + AX 无障碍树及元素 ID，仅 cua-driver）、'som'（截屏 + 编号元素叠加层，仅 cua-driver）",
+			},
+			"raise_window": map[string]any{
+				"type":        "boolean",
+				"description": "是否将窗口提升到前台（用于 action=focus_app，默认 false）",
+			},
+			"capture_after": map[string]any{
+				"type":        "boolean",
+				"description": "在操作后执行截屏并将结果包含在返回内容中",
+			},
+			"required": []any{"action"},
+		},
+	}
+}
+
 func NewComputerUseTool(cfg *ComputerUseToolConfig) *agentcore.Tool {
 	if cfg == nil {
 		cfg = &ComputerUseToolConfig{}
@@ -436,87 +520,10 @@ func NewComputerUseTool(cfg *ComputerUseToolConfig) *agentcore.Tool {
 	}
 	initApprovalMode()
 
-	actionEnum := []string{"capture", "info", "click", "double_click", "right_click", "middle_click", "drag", "type", "key", "scroll", "set_value", "wait", "list_apps", "focus_app"}
-
 	return &agentcore.Tool{
-		Name: "computer_use",
-		Description: "控制本地桌面。跨平台支持：macOS（cua-driver/cliclick/osascript）、" +
-			"Windows（PowerShell）、Linux（xdotool X11 / ydotool+wtype+grim Wayland）。后端根据平台自动检测。" +
-			"cua-driver（仅 macOS）在后台运行，不会抢占焦点。" +
-			"安装：brew install cua-driver（macOS）或 apt install xdotool（Linux）或 apt install ydotool wtype grim（Linux Wayland）。" +
-			"操作：capture（截屏 + 可选 AX 树/SOM）、info、click/double_click/right_click/middle_click、" +
-			"drag、type、key（组合键如 cmd+s 或 ctrl+s）、scroll、set_value、" +
-			"wait、list_apps、focus_app。" +
-			"危险操作（清空废纸篓、注销、rm -rf、ctrl+alt+del 等）按平台阻止。" +
-			"破坏性操作通过 COMPUTER_USE_APPROVAL 环境变量提示批准（once/session/none）。",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"action": map[string]any{
-					"type":        "string",
-					"description": "要执行的操作",
-					"enum":        actionEnum,
-				},
-				"coordinate": map[string]any{
-					"type":        "array",
-					"items":       map[string]any{"type": "integer"},
-					"description": "像素坐标 [x, y]，用于 click/double_click/right_click",
-				},
-				"from_coordinate": map[string]any{
-					"type":        "array",
-					"items":       map[string]any{"type": "integer"},
-					"description": "拖拽操作的起始像素坐标 [x, y]",
-				},
-				"to_coordinate": map[string]any{
-					"type":        "array",
-					"items":       map[string]any{"type": "integer"},
-					"description": "拖拽操作的结束像素坐标 [x, y]",
-				},
-				"text": map[string]any{
-					"type":        "string",
-					"description": "要输入的文本（用于 action=type）或要设置的值（用于 action=set_value，如下拉框/滑块）",
-				},
-				"keys": map[string]any{
-					"type":        "string",
-					"description": "按键组合（用于 action=key），例如 'cmd+s'、'return'、'up'、'pagedown'",
-				},
-				"direction": map[string]any{
-					"type":        "string",
-					"description": "滚动方向（用于 action=scroll）。向上/向下/向左/向右",
-					"enum":        []string{"up", "down", "left", "right"},
-				},
-				"amount": map[string]any{
-					"type":        "integer",
-					"description": "滚动量（刻度数，用于 action=scroll，默认 3，最大 50）",
-				},
-				"seconds": map[string]any{
-					"type":        "number",
-					"description": "等待的秒数（用于 action=wait，最大 30）",
-				},
-				"app": map[string]any{
-					"type":        "string",
-					"description": "应用名称。focus_app：设置目标。capture：截取应用窗口。",
-				},
-				"element": map[string]any{
-					"type":        "integer",
-					"description": "capture(mode=ax) 输出的 AX 元素索引（用于 cua-driver 的 click/set_value）",
-				},
-				"capture_mode": map[string]any{
-					"type":        "string",
-					"enum":        []string{"vision", "ax", "som"},
-					"description": "'vision'（仅截屏，默认）、'ax'（截屏 + AX 无障碍树及元素 ID，仅 cua-driver）、'som'（截屏 + 编号元素叠加层，仅 cua-driver）",
-				},
-				"raise_window": map[string]any{
-					"type":        "boolean",
-					"description": "是否将窗口提升到前台（用于 action=focus_app，默认 false）",
-				},
-				"capture_after": map[string]any{
-					"type":        "boolean",
-					"description": "在操作后执行截屏并将结果包含在返回内容中",
-				},
-				"required": []any{"action"},
-			},
-		},
+		Name:        "computer_use",
+		Description: computerUseDescription(),
+		Parameters:  computerUseSchema(),
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
 			switch runtime.GOOS {
 			case "darwin", "windows", "linux":

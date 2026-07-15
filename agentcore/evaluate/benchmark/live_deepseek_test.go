@@ -163,6 +163,18 @@ const patentExamSystemPrompt = `你是一名资深的专利代理人和专利审
 
 // TestLiveDeepSeekInvalidationEval 使用 DeepSeek API 对全部 40 道无效决定书案例进行真实评分。
 // 中间结果缓存到 /tmp/mady_deepseek_invalidation_eval.json。
+//
+// P2B FROZEN (2026-07-15): 此数据集已冻结，仅保留测试代码与缓存以备数据重建后复用。
+// 冻结原因（经代码验证）：
+//  1. 空壳输入 — 40/40 条的「独立权利要求1」「主要证据」「请求理由」三个字段全部为空，
+//     模型仅凭专利号与类型瞎猜结论，无法进行有效推理。
+//  2. 退化分布 — 实际结论分布为 全部无效 34 / 部分无效 5 / 维持有效 1（文档曾误记为
+//     16/14/10），模型对每题都回答"全部无效"即可获得可观分数，数据集无法区分模型好坏。
+//  3. 评估口径 — runLiveEval 直接调裸 Provider.Complete，不走 Agent runtime，32.5% 的
+//     通过率测的是 DeepSeek 裸读空壳题目的能力，与 Mady 产品能力无关。
+//
+// 重建方向：回到本地 2009 件原始 docx 重新提取完整字段（权利要求/对比文件/请求理由/决定要点）
+// 并平衡结论分布后再解冻。详见 docs/evaluation-baseline-v0.6.md。
 func TestLiveDeepSeekInvalidationEval(t *testing.T) {
 	env := newDeepSeekTestEnv(t)
 	cachePath := filepath.Join(os.TempDir(), "mady_deepseek_invalidation_eval.json")

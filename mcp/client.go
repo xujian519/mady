@@ -280,11 +280,11 @@ func (c *Client) initialize(ctx context.Context) error {
 		Capabilities json.RawMessage `json:"capabilities"`
 	}
 	if err := c.call(ctx, "initialize", params, &result); err != nil {
-		return err
+		return fmt.Errorf("mcp initialize: %w", err)
 	}
 	caps, err := decodeCapabilities(result.Capabilities)
 	if err != nil {
-		return err
+		return fmt.Errorf("mcp decode capabilities: %w", err)
 	}
 	c.capState.set(ctx, caps)
 	return c.notify("notifications/initialized", nil)
@@ -431,7 +431,7 @@ func (c *Client) callWithRetry(ctx context.Context, method string, params any, o
 		if errors.Is(err, errClientClosed) && retriesLeft > 0 && c.tryReconnect(ctx) {
 			return c.callWithRetry(ctx, method, params, out, retriesLeft-1)
 		}
-		return err
+		return fmt.Errorf("mcp %s: write: %w", method, err)
 	}
 
 	select {
@@ -775,11 +775,11 @@ func (c *Client) stdoutContext() context.Context {
 func (c *Client) handleServerMessage(ctx context.Context, line string, methodRaw json.RawMessage, idRaw json.RawMessage) error {
 	var method string
 	if err := json.Unmarshal(methodRaw, &method); err != nil {
-		return err
+		return fmt.Errorf("mcp unmarshal method: %w", err)
 	}
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(line), &envelope); err != nil {
-		return err
+		return fmt.Errorf("mcp unmarshal envelope: %w", err)
 	}
 	params := envelope["params"]
 	if len(params) == 0 {
@@ -803,7 +803,7 @@ func (c *Client) handleServerMessage(ctx context.Context, line string, methodRaw
 	}
 	var reqID any
 	if err := json.Unmarshal(idRaw, &reqID); err != nil {
-		return err
+		return fmt.Errorf("mcp unmarshal request id: %w", err)
 	}
 	var result any
 	var handlerErr error

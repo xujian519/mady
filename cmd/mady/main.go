@@ -13,8 +13,7 @@
 //	BASE_URL   override the provider's default endpoint
 package main
 
-// TODO(refactor): 此文件超过 1654 行，建议按职责拆分为多个文件以提升可维护性。
-// 参考 docs/GO-DEVELOPMENT-STANDARDS.md 2.4 节。
+// TODO(refactor): 此文件约 900 行，建议进一步按子命令拆分（cmd_tui.go/cmd_serve.go/cmd_acp.go）。
 
 import (
 	"context"
@@ -27,7 +26,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -48,7 +46,6 @@ import (
 	"github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/skill"
-	"github.com/xujian519/mady/tools"
 	"github.com/xujian519/mady/tui"
 	"github.com/xujian519/mady/tui/agentadapter"
 	"github.com/xujian519/mady/tui/chat"
@@ -536,7 +533,7 @@ Examples:
 
 // runTui launches the interactive terminal chat.
 //
-// 模式优先级（从高到低）：
+// 运行模式切换（优先级由高到低）：
 //
 //	MADY_SINGLE_AGENT=1 → 单 Agent 模式（纯 LLM 对话，无路由）
 //	MADY_ROUTER_MODE=1  → Router 多域路由模式（传统交接可见）
@@ -555,8 +552,6 @@ func runTui(ctx context.Context) {
 		log.Printf("theme init: %v", err)
 	}
 
-	// 加载规则引擎（专利法律规则 / OA 解析 / 反套话）。
-	// 目录不存在时静默失败，不阻塞启动。
 	ruleEngine, _ := rules.LoadEngineFromMadyHome()
 	var ruleExt agentcore.Extension
 	if ruleEngine != nil {
@@ -571,39 +566,11 @@ func runTui(ctx context.Context) {
 	}
 	model := agentconfig.DefaultModel()
 
-	// planMode 切换高质量推理模式（/plan）。
-	// planMode = true 时使用 planModel + 最大推理强度。
-	planMode := false
-	planModel := agentconfig.DefaultPlanModel
-	normalModel := model
-	// providerName is the provider identifier used in status bar display.
-	providerName := os.Getenv("PROVIDER")
-	if providerName == "" {
-		providerName = "deepseek"
-	}
-
-	currentThinking := agentconfig.ThinkingFromEnv()
-
-	// 运行模式切换（优先级由高到低）：
-	//   MADY_SINGLE_AGENT=1 → 单 Agent 模式（纯 LLM 对话，无路由）
-	//   MADY_ROUTER_MODE=1  → Router 模式（传统多域路由，交接可见）
-	//   默认（有 Manifest）  → 集成模式（Chat Agent 内部路由，交接不可见）
-	//   默认（无 Manifest）  → 单 Agent 模式（降级）
 	useSingleAgent := os.Getenv("MADY_SINGLE_AGENT") == "1"
 	useRouterMode := os.Getenv("MADY_ROUTER_MODE") == "1"
 	useMultiDomain := !useSingleAgent && len(fc.Manifests) > 0
-
-	// 集成模式：Chat Agent 内置路由（默认且推荐）
 	useIntegratedMode := useMultiDomain && !useRouterMode
 
-	// runMu 防止快速输入时多个 goroutine 并发调用 Agent.Run。
-	var runMu sync.Mutex
-	// runCancel 用于中断正在执行的 Agent 运行。
-	var runCancel context.CancelFunc
-	var cancelMu sync.Mutex
-
-	// 会话持久化：JSONL 文件存储，TUI 模式自动保存对话到磁盘。
-	// 优先级：$SESSION_DIR > $MADY_HOME/sessions > ~/.mady/sessions。
 	sessionDir := os.Getenv("SESSION_DIR")
 	if sessionDir == "" {
 		if fc.MadyHome != "" {
@@ -619,187 +586,95 @@ func runTui(ctx context.Context) {
 	} else {
 		agentStore = session.NewAgentStore(fileStore, fc.WorkspaceDir)
 	}
-	checkpointSaver := agentcore.NewMemoryCheckpointSaver()
-	currentThreadID := "default"
 
-	// 案件上下文：切换案件时更新，buildCfg 注入到 Agent 的 WorkspaceDir + SystemPrompt。
-	var currentProject *domains.ProjectRecord
-	var currentProjectMeta *domains.ProjectMeta
-	// 文件索引：案件切换时打开/刷新，buildCfg 注入 fileindex Extension。
-	var currentFileIndex *fileindex.FileIndex
-	var currentFileWatcher *fileindex.FileWatcher
 	fileIndexExt := fileindex.NewExtension(fileindex.ExtensionConfig{
 		FallbackDir: fc.BaseConfig.ProjectDir,
 	})
 
-	// 审核关卡：启用后在关键决策点（专利结论/法律意见/风险评估等）插入人工审核提示。
-	reviewMode := false
-
-	buildCfg := func() agentcore.Config {
-		applyPersistence := func(cfg agentcore.Config) agentcore.Config {
-			if agentStore != nil {
-				cfg.Store = agentStore
-			}
-			cfg.Checkpoint = &agentcore.CheckpointSettings{
-				Saver:    checkpointSaver,
-				ThreadID: currentThreadID,
-			}
-			if currentProject != nil {
-				cfg.WorkspaceDir = currentProject.RootPath
-				cfg.ProjectDir = currentProject.RootPath
-				cfg.SystemPrompt += formatProjectContext(currentProject, currentProjectMeta)
-				// 注入五阶段法律推理工具，让 Agent 能调用深度可验证推理。
-				// 从框架上下文中构建检索器和 LLM 客户端。
-				retriever := buildReasoningRetriever(fc)
-				var llmClient reasoning.LlmClient
-				if provider != nil {
-					llmClient = reasoning.NewLlmClientFromProvider(provider, model)
-				}
-				runner := reasoning.NewWorkflowRunner(
-					currentProject.ProjectID,
-					mapMatterTypeToCaseType(currentProjectMeta),
-					currentProject.Domain,
-					retriever,
-					llmClient,
-				)
-				cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowTool(runner))
-			} else if cfg.ProjectDir != "" {
-				// 无案件模式：告知 Agent 当前工作目录，使其知晓可以读取哪些文件。
-				// 工具沙箱已限制文件操作在此目录范围内。
-				cfg.SystemPrompt += fmt.Sprintf(
-					"\n\n【当前工作目录】\n你正在「%s」目录下工作。可以使用文件工具（read、ls、grep、find、write_file 等）读取和分析该目录中的文件。用户提到的相对路径默认基于此目录。",
-					cfg.ProjectDir,
-				)
-			}
-
-			if reviewMode {
-				gate := domains.NewApprovalGate(domains.DefaultApprovalConfig())
-				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, gate)
-			}
-
-			// 配置 vision_analyze 工具：使用实际 LLM provider 而非占位符。
-			for _, ext := range cfg.Extensions {
-				if te, ok := ext.(*tools.Extension); ok {
-					te.WithVision(provider, model)
-				}
-			}
-
-			return cfg
-		}
-		switch {
-		case useIntegratedMode:
-			// 集成模式：Chat Agent 内置路由，交接不可见
-			base := fc.BaseConfig
-			base.Name = "chat-agent"
-			base.ModelConfig = agentcore.ModelConfig{
-				Name:      "mady",
-				Model:     model,
-				Provider:  provider,
-				Thinking:  cloneThinkingConfig(currentThinking),
-				Streaming: true,
-			}
-			if planMode {
-				base.Model = planModel
-				if base.Thinking == nil {
-					base.Thinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
-				} else {
-					base.Thinking.Effort = agentcore.ThinkingEffortMax
-				}
-			}
-			cfg := domains.IntegratedChatConfig(base)
-			if fc.WikiHook != nil {
-				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
-			}
-			if fc.KnowledgeExt != nil {
-				cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
-			}
-			if ruleExt != nil {
-				cfg.Extensions = append(cfg.Extensions, ruleExt)
-			}
-			cfg.Extensions = append(cfg.Extensions, fileIndexExt)
-			return applyPersistence(cfg)
-
-		case useMultiDomain:
-			// Router 模式：传统多域路由，交接可见
-			cfg := buildRouterConfig(fc.BaseConfig, fc.Manifests)
-			cfg.Thinking = cloneThinkingConfig(currentThinking)
-			if planMode {
-				cfg.Model = planModel
-				if cfg.Thinking == nil {
-					cfg.Thinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
-				} else {
-					cfg.Thinking.Effort = agentcore.ThinkingEffortMax
-				}
-			}
-			if fc.WikiHook != nil {
-				cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
-			}
-			if fc.KnowledgeExt != nil {
-				cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
-			}
-			if ruleExt != nil {
-				cfg.Extensions = append(cfg.Extensions, ruleExt)
-			}
-			return applyPersistence(cfg)
-
-		default:
-			// 单 Agent 模式：根据 planMode 选择模型和推理配置。
-			effectiveModel := model
-			effectiveThinking := cloneThinkingConfig(currentThinking)
-			if planMode {
-				effectiveModel = planModel
-				if effectiveThinking == nil {
-					effectiveThinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
-				} else {
-					effectiveThinking.Effort = agentcore.ThinkingEffortMax
-				}
-			}
-
-			singleCfg := agentcore.Config{
-				ModelConfig: agentcore.ModelConfig{
-					Name:      "mady",
-					Model:     effectiveModel,
-					Provider:  provider,
-					Thinking:  effectiveThinking,
-					Streaming: true,
-				},
-				SystemPrompt: defaultSystemPrompt,
-				ExecutionConfig: agentcore.ExecutionConfig{
-					MaxTurns:          25,
-					ExecutionMode:     agentcore.ModeSerial,
-					ValidateArguments: true,
-				},
-				CompactionConfig: agentcore.CompactionConfig{
-					ContextWindow:    128000,
-					ReserveTokens:    32000,
-					KeepRecentTokens: 4000,
-				},
-				RetryConfig: &agentcore.RetryConfig{
-					MaxRetries:  3,
-					BaseDelayMs: 1000,
-					MaxDelayMs:  15000,
-				},
-				Lifecycle: fc.WikiHook,
-			}
-			if fc.KnowledgeExt != nil {
-				singleCfg.Extensions = append(singleCfg.Extensions, fc.KnowledgeExt)
-			}
-			if ruleExt != nil {
-				singleCfg.Extensions = append(singleCfg.Extensions, ruleExt)
-			}
-			return applyPersistence(singleCfg)
-		}
+	s := &tuiSession{
+		ctx:               ctx,
+		fc:                fc,
+		provider:          provider,
+		model:             model,
+		providerName:      firstNonEmpty(os.Getenv("PROVIDER"), "deepseek"),
+		planModel:         agentconfig.DefaultPlanModel,
+		normalModel:       model,
+		currentThinking:   agentconfig.ThinkingFromEnv(),
+		useMultiDomain:    useMultiDomain,
+		useIntegratedMode: useIntegratedMode,
+		ruleExt:           ruleExt,
+		fileIndexExt:      fileIndexExt,
+		agentStore:        agentStore,
+		checkpointSaver:   agentcore.NewMemoryCheckpointSaver(),
+		currentThreadID:   "default",
+		sessionDir:        sessionDir,
 	}
 
-	currentAgent := agentcore.New(buildCfg())
-	defer currentAgent.Close()
+	s.currentAgent = agentcore.New(s.buildAgentConfig())
+	defer s.currentAgent.Close()
 
-	currentThemeName := "dark"
+	s.currentThemeName = "dark"
 	if name := theme.CurrentPalette().Semantic.Name; strings.Contains(strings.ToLower(name), "light") {
-		currentThemeName = "light"
+		s.currentThemeName = "light"
 	}
 
-	slashSuggestions := []core.Suggestion{
+	slashSuggestions := buildSlashSuggestions(useMultiDomain)
+
+	var app *chat.ChatApp
+	app = tui.NewChatApp(chat.ChatAppConfig{
+		Title:                      fmt.Sprintf("mady · model=%s", model),
+		ShowTurns:                  true,
+		SuppressHandoffToolDisplay: useIntegratedMode,
+		AltScreen:                  true,
+		MouseMode:                  "auto",
+		KittyKeyboardFlags:         1,
+		Context:                    ctx,
+		OnInterrupt: func() {
+			s.cancelMu.Lock()
+			defer s.cancelMu.Unlock()
+			if s.runCancel != nil {
+				s.runCancel()
+				s.runCancel = nil
+			}
+		},
+		OnQuit: func() {
+			if app != nil {
+				_ = app.Stop()
+			}
+		},
+		Providers: []core.AutocompleteProvider{
+			&component.StaticProvider{
+				TriggerStr:  "/",
+				Suggestions: slashSuggestions,
+			},
+		},
+		OnSubmit: func(_ context.Context, input string) {
+			s.handleSubmit(input)
+		},
+	})
+	s.app = app
+	agentadapter.BindAgent(app, s.currentAgent)
+
+	app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.planMode, useMultiDomain, s.currentThinking))
+
+	modeInfo := "单 Agent 模式"
+	if useMultiDomain {
+		modeInfo = "多域路由模式"
+	}
+	app.PrintSystem(fmt.Sprintf("Mady 中观智能体已启动（%s）。输入消息开始对话，输入 / 查看命令。Ctrl+C 退出。", modeInfo))
+	if fc.WikiStore != nil {
+		st := fc.WikiStore.Stats()
+		app.PrintSystem(fmt.Sprintf("wiki 知识库: %d 文档, %d 分块 (RAG: patent)", st.TotalDocs, st.TotalChunks))
+	}
+	if err := app.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
+	}
+	<-app.Done()
+}
+
+// buildSlashSuggestions returns the autocomplete suggestion list for the TUI slash menu.
+func buildSlashSuggestions(useMultiDomain bool) []core.Suggestion {
+	suggestions := []core.Suggestion{
 		{InsertText: "/help", Label: "/help", Description: "显示快捷键"},
 		{InsertText: "/clear", Label: "/clear", Description: "开始新对话"},
 		{InsertText: "/new", Label: "/new", Description: "开始新对话"},
@@ -824,495 +699,20 @@ func runTui(ctx context.Context) {
 		{InsertText: "/plan", Label: "/plan", Description: "切换计划模式（高质量推理）"},
 		{InsertText: "/quit", Label: "/quit", Description: "退出"},
 	}
-
 	if useMultiDomain {
-		slashSuggestions = append(slashSuggestions,
+		suggestions = append(suggestions,
 			core.Suggestion{InsertText: "/mode", Label: "/mode", Description: "显示当前 Agent 模式"},
 		)
 	}
-
-	var app *chat.ChatApp
-	app = tui.NewChatApp(chat.ChatAppConfig{
-		Title:                      fmt.Sprintf("mady · model=%s", model),
-		ShowTurns:                  true,
-		SuppressHandoffToolDisplay: useIntegratedMode,
-		AltScreen:                  true,
-		MouseMode:                  "auto",
-		KittyKeyboardFlags:         1, // disambiguate only; flag 8 via MADY_KITTY_FLAGS env var
-		Context:                    ctx,
-		OnInterrupt: func() {
-			cancelMu.Lock()
-			defer cancelMu.Unlock()
-			if runCancel != nil {
-				runCancel()
-				runCancel = nil
-			}
-		},
-		OnQuit: func() {
-			if app != nil {
-				_ = app.Stop()
-			}
-		},
-		Providers: []core.AutocompleteProvider{
-			&component.StaticProvider{
-				TriggerStr:  "/",
-				Suggestions: slashSuggestions,
-			},
-		},
-		OnSubmit: func(ctx context.Context, input string) {
-			trimmed := strings.TrimSpace(input)
-			if trimmed == "" {
-				return
-			}
-
-			// /thinking and its subcommands.
-			if strings.HasPrefix(trimmed, "/thinking") {
-				next, changed, err := parseThinkingCommand(trimmed, currentThinking)
-				if err != nil {
-					app.PrintError(err)
-					return
-				}
-				if !changed {
-					app.PrintSystem("推理配置: " + formatThinkingConfig(currentThinking))
-					return
-				}
-				currentThinking = next
-				runMu.Lock()
-				prev := currentAgent
-				currentAgent = agentcore.New(buildCfg())
-				prev.Close()
-				agentadapter.BindAgent(app, currentAgent)
-				app.PrintSystem("推理配置已更新: " + formatThinkingConfig(currentThinking))
-				mdl := normalModel
-				if planMode {
-					mdl = planModel
-				}
-				app.UpdateStatusBar(providerName, mdl, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
-				runMu.Unlock()
-				return
-			}
-
-			// /theme and its subcommands.
-			if strings.HasPrefix(trimmed, "/theme") {
-				switch trimmed {
-				case "/theme":
-					app.PrintSystem("当前主题: " + currentThemeName)
-					return
-				case "/theme dark":
-					theme.SetSemanticTheme(theme.DefaultSemanticDark(), theme.DetectColorMode())
-					app.History().SetTheme(chat.DefaultChatHistoryTheme())
-					currentThemeName = "dark"
-					app.PrintSystem("已切换深色主题")
-					return
-				case "/theme light":
-					theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
-					app.History().SetTheme(chat.DefaultChatHistoryTheme())
-					currentThemeName = "light"
-					app.PrintSystem("已切换浅色主题")
-					return
-				}
-			}
-
-			// /mode command in multi-domain mode.
-			if trimmed == "/mode" && useMultiDomain {
-				agentName := currentAgent.Config().Name
-				app.PrintSystem(fmt.Sprintf("当前 Agent: %s（多域路由模式）", agentName))
-				return
-			}
-
-			// /case 命令族：案件上下文管理。
-			if trimmed == "/case" || strings.HasPrefix(trimmed, "/case ") {
-				args := strings.TrimSpace(strings.TrimPrefix(trimmed, "/case"))
-				switch args {
-				case "", "list":
-					records := fc.ProjectRegistry.List()
-					if len(records) == 0 {
-						app.PrintSystem("暂无已注册案件。使用 mady serve 或 ProjectRegistry API 注册案件。")
-						return
-					}
-					var sb strings.Builder
-					fmt.Fprintf(&sb, "已注册案件（%d）：\n", len(records))
-					for i, rec := range records {
-						marker := "  "
-						if currentProject != nil && rec.ProjectID == currentProject.ProjectID {
-							marker = "→ "
-						}
-						fmt.Fprintf(&sb, "%s%d. %s（%s）[%s]\n", marker, i+1, rec.Alias, rec.ProjectID, rec.Domain)
-					}
-					if currentProject == nil {
-						sb.WriteString("\n使用 /case <ID或别名> 切换案件")
-					}
-					app.PrintSystem(sb.String())
-					return
-				case "info":
-					if currentProject == nil {
-						app.PrintSystem("当前未选择案件。使用 /case 查看可用案件。")
-						return
-					}
-					app.PrintSystem(formatProjectInfo(currentProject, currentProjectMeta))
-					return
-				case "off", "clear":
-					if currentProject == nil {
-						app.PrintSystem("当前未选择案件")
-						return
-					}
-					oldName := currentProject.Alias
-					currentProject = nil
-					if currentFileWatcher != nil {
-						currentFileWatcher.Stop()
-						currentFileWatcher = nil
-					}
-					if currentFileIndex != nil {
-						currentFileIndex.Close()
-						currentFileIndex = nil
-						fileIndexExt.SetFileIndex(nil)
-						fileIndexExt.SetFallbackDir(fc.BaseConfig.ProjectDir)
-					}
-					currentProjectMeta = nil
-					runMu.Lock()
-					prev := currentAgent
-					currentAgent = agentcore.New(buildCfg())
-					prev.Close()
-					agentadapter.BindAgent(app, currentAgent)
-					runMu.Unlock()
-					app.UpdateStatusBar(providerName, normalModel, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
-					app.PrintSystem(fmt.Sprintf("已清除案件上下文（%s）", oldName))
-					return
-				default:
-					records := fc.ProjectRegistry.List()
-					var matched *domains.ProjectRecord
-					for i := range records {
-						if strings.Contains(records[i].ProjectID, args) || strings.Contains(records[i].Alias, args) {
-							matched = &records[i]
-							break
-						}
-					}
-					if matched == nil {
-						app.PrintSystem(fmt.Sprintf("未找到匹配 '%s' 的案件。使用 /case 查看可用案件。", args))
-						return
-					}
-					currentProject = matched
-					currentProjectMeta = nil
-
-					// Always close old resources before switching (independent of meta load).
-					if currentFileWatcher != nil {
-						currentFileWatcher.Stop()
-						currentFileWatcher = nil
-					}
-					if currentFileIndex != nil {
-						currentFileIndex.Close()
-						currentFileIndex = nil
-					}
-					fileIndexExt.SetFileIndex(nil)
-
-					// Determine database path with WorkspaceDir fallback.
-					wsDir := fc.WorkspaceDir
-					if wsDir == "" {
-						wsDir = filepath.Join(os.TempDir(), "mady-fileindex")
-					}
-					dbPath := filepath.Join(wsDir, "projects", matched.ProjectID, "fileindex.db")
-
-					// Open/refresh FileIndex for the selected project (independent of meta load).
-					if fi, err := fileindex.OpenFileIndex(matched.RootPath, dbPath); err == nil {
-						_ = fi.Refresh(context.Background())
-						currentFileIndex = fi
-						fileIndexExt.SetFileIndex(fi)
-						// Start file watcher for incremental updates.
-						wcfg := fileindex.FileWatcherConfig{}
-						currentFileWatcher = fileindex.NewFileWatcher(fi, wcfg)
-						if err := currentFileWatcher.Start(context.Background()); err != nil {
-							log.Printf("filewatcher: start: %v (continuing without)", err)
-							currentFileWatcher = nil
-						}
-					}
-
-					// Load meta if available (non-fatal on failure).
-					if meta, err := fc.ProjectRegistry.LoadMeta(matched.ProjectID); err == nil {
-						currentProjectMeta = meta
-					}
-					runMu.Lock()
-					prev := currentAgent
-					currentAgent = agentcore.New(buildCfg())
-					prev.Close()
-					agentadapter.BindAgent(app, currentAgent)
-					runMu.Unlock()
-					app.UpdateStatusBar(providerName, normalModel, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
-					app.PrintSystem(fmt.Sprintf("已切换到案件: %s（%s）\n工作目录: %s\n⚖ 已启用五阶段法律推理工具（run_five_step_workflow）", matched.Alias, matched.ProjectID, matched.RootPath))
-					return
-				}
-			}
-
-			// /deadline 命令：显示当前案件期限。
-			if trimmed == "/deadline" {
-				if currentProjectMeta == nil || len(currentProjectMeta.Deadlines) == 0 {
-					app.PrintSystem("当前案件无期限信息。使用 /case 选择案件。")
-					return
-				}
-				var sb strings.Builder
-				fmt.Fprintf(&sb, "案件 %s 的期限：\n", currentProject.Alias)
-				for _, d := range currentProjectMeta.Deadlines {
-					mark := "  "
-					if d.Reminded {
-						mark = "✓ "
-					}
-					fmt.Fprintf(&sb, "%s%s: %s\n", mark, d.Type, d.DueDate)
-				}
-				app.PrintSystem(sb.String())
-				return
-			}
-
-			// submitAgentInput 向当前 Agent 提交输入（供 /approve /reject 复用）。
-			// 异步执行：Agent.Run 在独立 goroutine 中运行，避免阻塞 TUI 事件循环。
-			// 按值捕获 agent/store/threadID 以消除 TOCTOU 窗口——goroutine 创建后
-			// /clear /plan 等命令可能替换 currentAgent。
-			submitAgentInput := func(input string) {
-				agent := currentAgent
-				store := agentStore
-				threadID := currentThreadID
-				go func() {
-					runMu.Lock()
-					defer runMu.Unlock()
-
-					runCtx, cancel := context.WithCancel(ctx)
-					cancelMu.Lock()
-					runCancel = cancel
-					cancelMu.Unlock()
-					defer func() {
-						cancelMu.Lock()
-						runCancel = nil
-						cancelMu.Unlock()
-					}()
-
-					if _, err := agent.Run(runCtx, input); err != nil {
-						log.Printf("[mady] agent run failed: %v", err)
-						return
-					}
-					if store == nil {
-						return
-					}
-					if err := agent.SaveState(context.Background(), threadID); err != nil {
-						log.Printf("[mady] save state: %v", err)
-					}
-				}()
-			}
-
-			switch trimmed {
-			case "/help":
-				app.ToggleKeyHelp()
-				return
-			case "/clear", "/new":
-				if agentStore != nil {
-					currentThreadID = fmt.Sprintf("tui-%d", time.Now().UnixNano())
-				}
-				runMu.Lock()
-				prev := currentAgent
-				currentAgent = agentcore.New(buildCfg())
-				prev.Close()
-				agentadapter.BindAgent(app, currentAgent)
-				runMu.Unlock()
-				app.History().Clear()
-				app.PrintSystem("已开始新对话")
-				return
-			case "/branch":
-				if agentStore == nil {
-					app.PrintSystem("会话持久化未启用，无法分支")
-					return
-				}
-				snap, err := agentStore.GetThread(context.Background(), currentThreadID)
-				if err != nil || len(snap.Messages) == 0 {
-					app.PrintSystem("当前会话为空，无法分支")
-					return
-				}
-				var lastEntryID string
-				if len(snap.Transcript) > 0 {
-					lastEntryID = snap.Transcript[len(snap.Transcript)-1].EntryID
-				}
-				branched, err := agentStore.BranchThread(context.Background(), currentThreadID, lastEntryID)
-				if err != nil {
-					app.PrintError(fmt.Errorf("分支失败: %w", err))
-					return
-				}
-				oldID := currentThreadID
-				currentThreadID = branched.Info.ID
-				runMu.Lock()
-				prev := currentAgent
-				currentAgent = agentcore.New(buildCfg())
-				prev.Close()
-				agentadapter.BindAgent(app, currentAgent)
-				runMu.Unlock()
-				app.History().Clear()
-				for _, msg := range branched.Messages {
-					switch msg.Role {
-					case agentcore.RoleUser:
-						app.History().Append(chat.ChatMessage{Role: chat.RoleUser, Text: msg.Content})
-					case agentcore.RoleAssistant:
-						app.History().Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: msg.Content})
-					}
-				}
-				app.PrintSystem(fmt.Sprintf("已从 %s 创建分支 → %s（%d 条消息）", oldID, currentThreadID, len(branched.Messages)))
-				return
-			case "/save":
-				if agentStore != nil {
-					threads, _ := agentStore.ListThreads(context.Background())
-					msg := fmt.Sprintf("✅ 会话已自动保存到 %s（当前线程: %s", sessionDir, currentThreadID)
-					if len(threads) > 0 {
-						msg += fmt.Sprintf("，共 %d 个线程", len(threads))
-					}
-					msg += "）"
-					app.PrintSystem(msg)
-				} else {
-					app.PrintSystem("⚠ 会话持久化未启用（session 目录创建失败）")
-				}
-				return
-			case "/skill:":
-				app.PrintSystem("mady tui 简化版未加载技能，请使用 example/cli-chat 配合 SKILL_DIRS")
-				return
-			case "/copy":
-				msgs := app.History().Messages()
-				for i := len(msgs) - 1; i >= 0; i-- {
-					if msgs[i].Role == chat.RoleAssistant && msgs[i].Text != "" {
-						go func(text string) {
-							if err := chat.CopyToClipboard(text); err != nil {
-								app.PrintError(err)
-							} else {
-								truncated := text
-								if core.VisibleWidth(truncated) > 60 {
-									truncated = core.TruncateToWidth(truncated, 57, "...")
-								}
-								app.PrintSystem("📋 已复制: " + truncated)
-							}
-						}(msgs[i].Text)
-						return
-					}
-				}
-				app.PrintSystem("没有可复制的助手回复")
-				return
-
-			case "/export":
-				msgs := app.History().Messages()
-				if len(msgs) == 0 {
-					app.PrintSystem("当前对话为空，无法导出")
-					return
-				}
-				exportPath := strings.TrimSpace(strings.TrimPrefix(trimmed, "/export"))
-				if exportPath == "" {
-					exportDir := "exports"
-					if fc.MadyHome != "" {
-						exportDir = filepath.Join(fc.MadyHome, "exports")
-					}
-					_ = os.MkdirAll(exportDir, 0o755)
-					exportPath = filepath.Join(exportDir, fmt.Sprintf("export-%s.md", time.Now().Format("20060102-150405")))
-				}
-				exportContent := formatExportMarkdown(msgs, currentThreadID, currentProject)
-				if err := os.WriteFile(exportPath, []byte(exportContent), 0o644); err != nil {
-					app.PrintError(fmt.Errorf("导出失败: %w", err))
-					return
-				}
-				app.PrintSystem(fmt.Sprintf("📄 已导出到 %s（%d 条消息）", exportPath, len(msgs)))
-				return
-
-			case "/review":
-				reviewMode = !reviewMode
-				runMu.Lock()
-				prev := currentAgent
-				currentAgent = agentcore.New(buildCfg())
-				prev.Close()
-				runMu.Unlock()
-				agentadapter.BindAgent(app, currentAgent)
-				app.UpdateStatusBar(providerName, normalModel, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
-				if reviewMode {
-					app.PrintSystem("⚖ 审核关卡已启用 — 专利结论/法律意见/风险评估将插入人工审核提示")
-					if currentProject != nil {
-						ct := currentProject.CaseType
-						if ct == "" {
-							ct = "未分类"
-						}
-						app.PrintSystem(fmt.Sprintf("📁 当前案件: %s (%s)", currentProject.Alias, currentProject.ProjectID))
-						app.PrintSystem(fmt.Sprintf("   📋 案件类型: %s", ct))
-					}
-					app.PrintSystem("   📌 触发关键词: 专利结论、侵权判断、法律意见、风险评估、最终建议")
-					app.PrintSystem("   💡 使用 /approve 确认 /reject 拒绝/取消")
-				} else {
-					app.PrintSystem("⚖ 审核关卡已关闭")
-				}
-				return
-
-			case "/approve":
-				if !reviewMode {
-					app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
-					return
-				}
-				app.PrintSystem("✅ 已确认 — Agent 将继续执行")
-				submitAgentInput("确认")
-				return
-
-			case "/reject":
-				if !reviewMode {
-					app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
-					return
-				}
-				app.PrintSystem("❌ 已拒绝 — Agent 将根据您的反馈调整")
-				submitAgentInput("拒绝，请根据审核意见修改后重新输出")
-				return
-
-			case "/plan":
-				planMode = !planMode
-				runMu.Lock()
-				prev := currentAgent
-				currentAgent = agentcore.New(buildCfg())
-				prev.Close()
-				runMu.Unlock()
-				agentadapter.BindAgent(app, currentAgent)
-				mdl := normalModel
-				if planMode {
-					mdl = planModel
-				}
-				app.UpdateStatusBar(providerName, mdl, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
-				if planMode {
-					app.PrintSystem("🧠 计划模式已启用 · 模型: " + planModel + " · 推理强度: max")
-				} else {
-					app.PrintSystem("⚡ 已切回普通模式 · 模型: " + normalModel)
-				}
-				return
-
-			case "/quit", "exit":
-				_ = app.Stop()
-				return
-			}
-
-			if strings.HasPrefix(trimmed, "/skill:") {
-				app.PrintSystem("mady tui 简化版未加载技能，请使用 example/cli-chat 配合 SKILL_DIRS")
-				return
-			}
-
-			if strings.HasPrefix(trimmed, "/") {
-				app.PrintSystem(fmt.Sprintf("未知命令: %s（输入 / 查看可用命令）", trimmed))
-				return
-			}
-
-			submitAgentInput(trimmed)
-		},
-	})
-	agentadapter.BindAgent(app, currentAgent)
-
-	app.UpdateStatusBar(providerName, normalModel, statusBarModeLabel(planMode, useMultiDomain, currentThinking))
-
-	modeInfo := "单 Agent 模式"
-	if useMultiDomain {
-		modeInfo = "多域路由模式"
-	}
-	app.PrintSystem(fmt.Sprintf("Mady 中观智能体已启动（%s）。输入消息开始对话，输入 / 查看命令。Ctrl+C 退出。", modeInfo))
-	if fc.WikiStore != nil {
-		st := fc.WikiStore.Stats()
-		app.PrintSystem(fmt.Sprintf("wiki 知识库: %d 文档, %d 分块 (RAG: patent)", st.TotalDocs, st.TotalChunks))
-	}
-	if err := app.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
-	}
-	<-app.Done()
+	return suggestions
 }
 
-// runAcp launches the ACP server over stdio.
+func firstNonEmpty(s, fallback string) string {
+	if s != "" {
+		return s
+	}
+	return fallback
+}
 func runAcp(ctx context.Context) {
 	fs := flag.NewFlagSet("mady acp", flag.ExitOnError)
 	if err := fs.Parse(os.Args[2:]); err != nil {
