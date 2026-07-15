@@ -1,5 +1,16 @@
 # AI 决策变更日志
 
+## 2026-07-16: 接通 RecordDecision——HITL 数据采集链路
+
+- **变更**:
+  1. `domains/approval.go`：`ApprovalGate` 加 `lastTriggeredOutput` 字段，`AfterModelCall` 触发审批时保存 Agent 产出；`RecordDecision` 自动使用该字段作为 `originalOutput`（调用方可传空），记录后清空。
+  2. `cmd/mady/tui_session.go`：`tuiSession` 加 `approvalGate` 引用；`buildAgentConfig` 在 reviewMode 时创建带 `SQLiteApprovalStore`（`workspace/approvals.db`）的 gate 并保存引用；新增 `openApprovalStore`（SQLite，WAL 模式）和 `recordApprovalDecision`（调用 `gate.RecordDecision`）；`/approve` 记录 `DecisionAdopted`，`/reject` 记录 `DecisionRejected`。
+- **原因**: 之前 `RecordDecision`/`ApprovalStore`/`ApprovalRecordState` 是已设计但未接线的死代码。P2B 五层评估证明用 LLM 模拟 HITL 无法准确测量真实人机协作价值（L5=0.320 < L1=0.513，因为 LLM 修订破坏正确初稿）。需要接通生产环境的真实 HITL 数据采集，让用户每次 /approve /reject 都持久化到 SQLite，积累真实 AdoptionRate 数据，为 P3 专家盲测提供基础。
+- **影响范围**: `domains/approval.go`（ApprovalGate 加字段+改 RecordDecision）、`cmd/mady/tui_session.go`（gate 创建带 store + approve/reject 留痕 + openApprovalStore + recordApprovalDecision）
+- **风险等级**: 中（涉及 `domains/approval.go` 安全敏感路径，但仅新增字段和自动填充逻辑，不改 AfterModelCall 的审批触发行为）
+- **审查要求**: L3（安全敏感路径 `domains/approval.go`）
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./domains/...` ✅ | gofmt ✅
+
 ## 2026-07-16: P2B 五层评估完成——LLM 模拟 HITL 的方法论困境
 
 - **变更**: 新增 `mockHumanRevision`（LLM 模拟专家修订）和 `TestLiveAgentP2BHitlEval`（L5 HITL tier），跑出 P2B 五层完整对比。
