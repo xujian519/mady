@@ -54,39 +54,46 @@ func evalAgentCaseCount(t *testing.T) int {
 
 // caseTypeFromExamID infers the reasoning CaseType from a P2A exam case ID.
 // P2A IDs follow the pattern patent_exam_YYYY_aXX_NN where aXX encodes the
-// primary patent-law article under examination. Mapping the article to the
-// matching CaseType lets the five-step workflow tool use the correct reasoning
-// template instead of a one-size-fits-all novelty_search (the previous
-// behavior, which caused framework mismatch on non-novelty questions like
-// patent-eligible subject matter under Article 2).
+// primary patent-law article under examination.
 //
-// Only novelty_search and patentability have differentiated Stage 4 templates
-// in DefaultManifests(); other caseTypes degrade to a single-step fallback.
-// The mapping below reflects that reality: A22 (novelty/inventive step) maps
-// to patentability (which includes the multi-hypothesis inventive-step
-// analysis) or novelty_search; the rest map to the closest semantic match
-// even though they will currently fall back.
+// IMPORTANT LESSON (2026-07-15, learned empirically): the mapping must reflect
+// what the EXAM tests, not what the article's real-world workflow is. P2A exam
+// questions are analysis/judgment tasks ("analyze unity", "judge amendment
+// legality"), NOT full procedural tasks ("draft a complete claim set",
+// "file an invalidation request"). Mapping A31→drafting caused the 5-step
+// drafting manifest to make the agent write a full claim set instead of
+// analyzing unity — scores dropped sharply (e.g. 2019_a31_03: 0.93→0.40).
+//
+// Therefore ALL P2A articles map to patentability (whose template does
+// evidence-based analysis: parse → search → compare → multi-hypothesis
+// evaluate → conclude). The drafting/invalidation manifests remain available
+// for real-case scenarios (a user genuinely drafting claims or filing
+// invalidation) but are NOT used for exam questions.
 func caseTypeFromExamID(caseID string) reasoning.CaseType {
 	switch {
 	case containsArt(caseID, "a22"):
-		// Article 22 — novelty / inventive step / industrial applicability.
-		// patentability's template adds a multi_hypothesis inventive-step
-		// stage beyond plain novelty_search, matching the A22 exam focus.
+		// Article 22 — novelty / inventive step. patentability's template adds
+		// a multi_hypothesis inventive-step stage, matching the A22 exam focus.
 		return reasoning.CasePatentability
 	case containsArt(caseID, "a2"):
-		// Article 2 — patent-eligible subject matter (a patentability question).
+		// Article 2 — patent-eligible subject matter (an analysis question).
 		return reasoning.CasePatentability
 	case containsArt(caseID, "a26"):
 		// Article 26 — sufficiency of disclosure / support / clarity.
 		return reasoning.CasePatentability
 	case containsArt(caseID, "a31"), containsArt(caseID, "r42"):
-		// Article 31 / Rule 42 — unity / divisional applications (drafting).
-		return reasoning.CaseDrafting
+		// Article 31 / Rule 42 — unity / divisional. Exam tests unity ANALYSIS
+		// (do claims share a specific technical feature?), NOT full claim
+		// drafting. patentability's evidence-based analysis fits better than
+		// drafting's full-claim-writing flow.
+		return reasoning.CasePatentability
 	case containsArt(caseID, "a33"):
-		// Article 33 — amendments not beyond the scope (common in invalidation).
-		return reasoning.CaseInvalidation
+		// Article 33 — amendment scope. Exam tests whether an amendment exceeds
+		// the original scope (an analysis question), NOT the full invalidation
+		// procedure. patentability fits; invalidation is for real-case filing.
+		return reasoning.CasePatentability
 	default:
-		return reasoning.CaseGeneralLegal
+		return reasoning.CasePatentability
 	}
 }
 

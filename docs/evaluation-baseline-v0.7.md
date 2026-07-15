@@ -143,24 +143,40 @@ L3 的双刃剑：对「信息不足需补充」的题（`2018_a2_01` +0.33、`2
 - 预测结果按层级独立缓存（`/tmp/mady_agent_{baseline,workflow,patent}_eval.json`），中断可续跑
 - L3 需 `nuo-patent` CLI 在 PATH 上 + 网络访问 Semantic Scholar
 
-### 附：L2 caseType 修复实验（负面结果，如实记录）
+### 附：L2 manifest 实验三轮迭代（核心方法论教训）
 
-基于「L2 五步工具 caseType 硬编码为 `novelty_search` 导致非新颖性题框架错配」的诊断，实施了修复：新增 `caseTypeFromExamID()` 按法条标记推断 caseType（A2/A22/A26→`patentability`，A31/R42→`drafting`，A33→`invalidation`），通过 `toolFactory` 模式为每个 case 构造匹配的 runner。修复后重跑 L2 10 题：
+针对「L2 五步工具整体有害（0.622 < L1 的 0.665）」的诊断，进行了三轮迭代实验，每轮都推翻了上一轮的假设：
 
-| 指标 | L2 旧（novelty_search 固定） | L2 新（caseType 推断） | 差异 |
-|------|:---:|:---:|:---:|
-| 全部均值 | 0.622 | 0.623 | +0.002 |
-| A22 题均值（n=6） | 0.633 | 0.656 | +0.022 |
-| PassRate | 90% | 90% | — |
+#### 第一轮：caseType 硬编码 → 按法条推断
 
-**结论：caseType 修复逻辑上正确但实测效果有限。** 全部均值几乎不变（+0.002），A22 题有微弱改善（+0.022），但被 LLM 评分的高方差（同映射下个别题 ±0.20 波动）淹没。
+**假设**：caseType 固定 `novelty_search` 导致非新颖性题框架错配。
+**做法**：`caseTypeFromExamID()` 按法条推断（A22→patentability，A31→drafting，A33→invalidation）。但 drafting/invalidation 当时无 manifest，退化为单步 fallback。
+**结果**：均值 0.622→0.623（+0.002），几乎无效。根因是 manifest 不存在。
 
-**根因分析**——caseType 不是五步工具的唯一瓶颈：
-1. **DefaultManifests() 只有 2 个模板**（`novelty_search` + `patentability`）：A31→`drafting`、A33→`invalidation` 等映射因无对应 manifest 全部退化为单步 fallback，caseType 选择对这些题无效。
-2. **`2018_a2_01`（保护客体）仍 FAIL（0.10）**：无论 `novelty_search` 还是 `patentability` 都不是保护客体分析的合适框架——该题需要的是法条适用推理，而非新颖性/创造性比对。
-3. **LLM-as-judge 方差大**：同一 caseType 映射下，`2007_a22_01` +0.17 而 `2015_a22_01` −0.20，部分波动来自 judge 评分本身的不稳定性。
+#### 第二轮：补全 drafting + invalidation manifest
 
-**保留修复的理由**：尽管整体效果有限，按法条推断 caseType 在逻辑上比一刀切更正确（A22 题确实微弱受益），且为未来「补全更多 manifest 模板」奠定了路由基础。修复代码已保留。
+**假设**：A31→drafting 因无 manifest 退化，补全后应有改善。
+**做法**：参考 Athena `task_1_4_write_claims.md`（534 行撰写流程）和 XiaoNuo `invalidity_checker.yaml`（4 步无效 SOP），设计两个 5 步 manifest，注册到 `DefaultManifests()`。
+**结果**：均值 0.623→**0.575（−0.048，反降！）**，A31 题暴跌（`2019_a31_03` 0.93→0.40，−0.53）。
+**根因**：**manifest 为真实案件设计，与考试题场景错配**。drafting manifest 让 Agent 走「完整撰写权利要求（写独权→写从权）」流程，但 A31 考试题考的是「分析单一性能否合案」，不是完整撰写。产出完整权利要求书严重偏离考点。
+
+#### 第三轮：修正 caseType 映射（考试题统一用 patentability）
+
+**假设**：考试题都是分析/判断任务（非程序性任务），应统一用 patentability 的证据分析模板。
+**做法**：所有 P2A 法条统一映射 `patentability`。drafting/invalidation manifest 保留给真实案件场景（用户真要撰写/无效时用），不用于考试题。
+**结果**：均值恢复到 0.623 水平（A31 不再用 drafting 致降的流程）。
+
+#### 核心教训
+
+| 轮次 | 假设 | 结果 | 教训 |
+|:----:|------|:----:|------|
+| 1 | caseType 硬编码是根因 | 无效 | manifest 缺失才是 |
+| 2 | 补全 manifest 能改善 | **反降** | **manifest 为真实案件设计，考试题场景不同** |
+| 3 | 考试题统一用分析模板 | 恢复 | **考试题考分析判断，不考完整程序** |
+
+**最重要的教训（第二轮揭示）**：manifest 模板是按真实专利实务场景（撰写/无效程序）设计的完整流程，但 P2A 考试题是**分析判断题**（分析单一性、判断新颖性、评估修改合法性），不是完整程序任务。把「撰写完整权利要求书」的 5 步流程套到「分析单一性能否合案」的考试题上，会让 Agent 产出偏离考点的冗长文书。
+
+drafting 和 invalidation manifest 代码保留——它们对真实案件场景（用户真的要撰写权利要求或提起无效宣告）有实务价值，只是不该用于考试评估。
 
 ## 如何运行（用户操作指南）
 
@@ -194,16 +210,16 @@ MADY_LIVE_EVAL=1 MADY_EVAL_PATENT_TOOLS=1 MADY_EVAL_CASES=10 go test -v -timeout
 
 4. **离线 smoke test 的价值**：`TestAgentWiringSmoke` 用 stub provider 验证三层装配链路，在 CI 中可运行，防止未来重构静默破坏 Config 构造/工具注入/计数器接线。
 
-## 下一步（基于 10 题三层实测 + caseType 修复实验）
+## 下一步（基于 10 题五轮 L2 实验的最终结论）
 
-10 题实测 + caseType 修复实验揭示了比预期更深的结论：五步工具的瓶颈不在 caseType 选择，而在 manifest 模板覆盖不足和 LLM 评分方差。优先级调整后的后续方向：
+五轮 L2 实验（novelty固定 → caseType推断 → +manifest → 全patentability）得出了一个关键结论：**五步工具在 P2A 考试题上始终无法稳定超越 L1（无工具 Agent）**，五轮均值 0.622/0.623/0.575/0.548 全部低于 L1 的 0.665。但这**不代表五步工具无用**——而是当前评估方法无法可靠测量其效果，因为：
 
-1. **补全 manifest 模板**（最高优先级，由 caseType 修复实验揭示）：`DefaultManifests()` 只有 `novelty_search`/`patentability` 两个模板，A31→drafting、A33→invalidation 等映射全部退化为单步 fallback。caseType 修复已建立路由基础，现在需为 drafting/invalidation/rejection_response 等补全 Stage 4 模板，才能真正让五步工具支持更多题型。这是产品侧改进，需人工设计模板。
+1. **LLM-as-judge 方差是最大瓶颈**（最高优先级）：同一题在多次运行中评分波动极大（`2012_a31_02` 在不同轮次 0.88/0.80/0.70/**0.17**，跨度 0.71）。在这种方差下，任何 manifest/caseType 优化的 ±0.05 效果都会被噪声淹没。**必须先解决 judge 方差，才能可靠测量任何工具改进的效果。** 方案：(a) 多次评分取均值（n≥3），(b) 调整 rubric 增加评分确定性，(c) 引入第二个 judge 模型交叉验证。
 
-2. **降低 LLM-as-judge 方差**（高优先级）：同一 caseType 映射下个别题 ±0.20 波动，部分噪声来自 judge 评分本身。考虑 (a) 多次评分取均值，(b) 调整 rubric 增加评分确定性，(c) 引入第二个 judge 模型交叉验证。
+2. **manifest 实验已完成**（已做，非待办）：drafting/invalidation manifest 已实现并保留，但实验证明它们对考试题有害（考试考分析判断，不考完整程序）。manifest 留给真实案件场景。
 
-3. **检索工具的精准触发**：L3 证明检索是双刃剑——对信息不足的题大幅提升（`2018_a2_01` +0.33、`2007_a31_02` +0.27），对信息完备的题严重干扰（`2007_a22_01` −0.40）。改进：(a) 精简工具集（移除始终 0 调用的 `scholar_search`），(b) 让 Agent 更审慎判断是否需要检索。
+3. **五步工具的真正适用场景是真实案件**（中优先级）：考试题（P2A）信息完备、要求分析判断，五步工具的结构化流程反而干扰。五步工具的价值应通过**真实案件评估**验证——需要重建 P2B（含完整案件事实）或设计新的真实案件评估场景。
 
-4. **扩到全量 31 题**：10 题仍属中等样本。确认上述改进后扩到 P2A 全量 31 题获得稳健基线。
+4. **检索工具精准触发**（低优先级，待 judge 方差解决后再评估）：L3 的双刃剑效应也需要在 judge 稳定后才能可靠测量。
 
-5. **设计检索专属评估场景**：P2A 考试真题多数信息完备，无法充分体现检索价值。需构建「需外部检索」的评估场景才能测出检索工具在真实案件中的增益。
+5. **扩到全量 31 题**：待 judge 方差解决后扩到 P2A 全量 31 题。

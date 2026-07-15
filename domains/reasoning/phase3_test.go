@@ -123,6 +123,36 @@ func TestWorkflowManifestStore_DefaultManifests(t *testing.T) {
 	if !hasMultiHypo {
 		t.Error("patentability manifest should have multi_hypothesis step")
 	}
+
+	// Verify drafting manifest (claim drafting: A31 unity/divisional).
+	draft, ok := store.GetByCaseType(CaseDrafting)
+	if !ok {
+		t.Fatal("drafting manifest not found")
+	}
+	if len(draft.Stage4.Steps) != 5 {
+		t.Errorf("drafting steps: got %d, want 5", len(draft.Stage4.Steps))
+	}
+	// Step 4 (unity analysis) should use multi_hypothesis.
+	if draft.Stage4.Steps[3].Strategy != StrategyMultiHypothesis {
+		t.Errorf("drafting step 4 strategy: got %s, want %s", draft.Stage4.Steps[3].Strategy, StrategyMultiHypothesis)
+	}
+
+	// Verify invalidation manifest (invalidation: A33 amendment scope).
+	inval, ok := store.GetByCaseType(CaseInvalidation)
+	if !ok {
+		t.Fatal("invalidation manifest not found")
+	}
+	if len(inval.Stage4.Steps) != 5 {
+		t.Errorf("invalidation steps: got %d, want 5", len(inval.Stage4.Steps))
+	}
+	// Step 4 (per-ground assessment) should use multi_hypothesis.
+	if inval.Stage4.Steps[3].Strategy != StrategyMultiHypothesis {
+		t.Errorf("invalidation step 4 strategy: got %s, want %s", inval.Stage4.Steps[3].Strategy, StrategyMultiHypothesis)
+	}
+	// Invalidation should require all rules used (hard constraint from XiaoNuo).
+	if !inval.Stage5.RequireAllRulesUsed {
+		t.Error("invalidation Stage5 should require all rules used")
+	}
 }
 
 // TestFiveStepRunner_WithManifest verifies manifest-driven runner.

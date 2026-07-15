@@ -1,5 +1,19 @@
 # AI 决策变更日志
 
+## 2026-07-15: 补全 drafting/invalidation manifest + 五轮 L2 实验定论
+
+- **变更**:
+  1. `domains/reasoning/manifest.go` 新增 `defaultDraftingManifest()`（5 步权利要求撰写）和 `defaultInvalidationManifest()`（5 步无效宣告分析），注册到 `DefaultManifests()`。步骤设计参考 Athena `task_1_4_write_claims.md`（从属权利要求四类型/A-B-C 保护范围策略）和 XiaoNuo `invalidity_checker.yaml`（4 步 SOP + 证据组合 4 方案 + 逐条独立论证约束）。
+  2. `domains/reasoning/phase3_test.go` 补充 drafting/invalidation manifest 的断言（步骤数、multi_hypothesis 策略、RequireAllRulesUsed 约束）。
+  3. `agentcore/evaluate/benchmark/live_agent_test.go` `caseTypeFromExamID` 修正：所有 P2A 法条统一映射 `patentability`（分析模板），A31 不再映射 drafting。原因：实验证明考试题是分析判断题（非完整程序任务），drafting manifest 的完整撰写流程偏离考点。
+- **五轮 L2 实验最终结论**：五步工具在 P2A 考试题上始终无法稳定超越 L1（五轮均值 0.622/0.623/0.575/0.548 < L1 的 0.665）。但根因不是工具无用，而是 **LLM-as-judge 方差过大**（同一题跨轮次波动达 0.71），使任何 ±0.05 的工具改进效果无法被可靠测量。
+- **核心教训**：(1) manifest 为真实案件设计，不能直接用于考试题（考试考分析，不考完整程序）；(2) LLM-as-judge 方差是当前评估方法的最大瓶颈，必须先解决（多次评分取均值/调整 rubric/交叉验证）才能可靠测量任何工具改进。
+- **保留的代码**：drafting/invalidation manifest 保留——对真实案件场景（用户真的要撰写权利要求/提起无效宣告）有实务价值，只是不用于考试评估。
+- **影响范围**: `domains/reasoning/manifest.go`、`domains/reasoning/phase3_test.go`、`agentcore/evaluate/benchmark/live_agent_test.go`、`docs/evaluation-baseline-v0.7.md`、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 低（新增 manifest + 测试断言；caseType 映射修正；不改生产运行时逻辑）
+- **审查要求**: L2
+- **验证**: `go build ./domains/reasoning/...` ✅ | `go vet` ✅ | manifest 测试 ✅ | `TestAgentWiringSmoke` ✅ | L2 五轮 live eval ✅
+
 ## 2026-07-15: 代码异味审查与修复（P0+P1+P2 批次）
 
 - **变更**: 全项目代码异味审查后执行 7 项修复，覆盖参数爆炸、重复代码、超大函数、错误处理一致性。
