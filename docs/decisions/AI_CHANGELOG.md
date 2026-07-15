@@ -1,5 +1,19 @@
 # AI 决策变更日志
 
+## 2026-07-15: 重建 P2B 真实案件基准 + 首次真实案件三层评估
+
+- **变更**:
+  1. 从 `/Users/xujian/projects/宝宸知识库_Raw/无效复审决定`（31562 件 MD 格式真实无效决定书）提取 100 条含完整案件事实的 TestCase，替换之前 40 条空壳数据。提取脚本 `scripts/extract_invalidation_cases.py`，修正了旧版正则锚点错误（旧版用 `独立权利要求1：` 但真实文档用 `权利要求书如下：`）。
+  2. P2B 解冻：`suite.go ValidCases()` 重新加入 `InvalidationDecisionCases`，`live_deepseek_test.go` 更新冻结注释为 REBUILT。
+  3. 新增 P2B Agent 评估测试：`TestLiveAgentP2BBaselineEval`（L1 无工具）、`TestLiveAgentP2BWorkflowEval`（L2 + invalidation manifest）。`TestLiveDeepSeekInvalidationEval` 加 `MADY_EVAL_CASES` 支持限量。
+  4. 跑出 P2B 三层 10 题评估（稳定 judge），数据填入 `docs/evaluation-baseline-v0.7.md`。
+- **P2B 三层实测**：L0 judge 0.363 → L1 Agent 0.513（+0.150，Agent 框架在真实案件上有显著增益）→ L2 invalidation manifest 0.407（−0.107，manifest 步骤设计需改进，与 P2A 结论一致）。
+- **数据质量对比**：Input 平均 94→562 字符，权利要求非空 0%→70%，结论分布 34/5/1→42/33/25。
+- **影响范围**: `scripts/extract_invalidation_cases.py`（新）、`agentcore/evaluate/benchmark/invalidation_decisions.json`、`suite.go`、`live_deepseek_test.go`、`live_agent_test.go`、`docs/evaluation-baseline-v0.7.md`、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 低（数据重建 + 测试新增；不改生产运行时逻辑）
+- **审查要求**: L2
+- **验证**: `go build/vet/test` ✅ | `make eval` ✅ | P2B L0/L1/L2 live eval ✅
+
 ## 2026-07-15: 建立稳定可靠的产品能力评估基线（L1/L2/L3 三层 10 题）
 
 - **变更**: 在修复 judge 方差后，用稳定 judge（3-sample 中位数 + temperature 0.01）重跑 L1/L2/L3 三层各 10 题建立第一个可靠基线，更新 `docs/evaluation-baseline-v0.7.md` 的实时评估章节与关键发现。
