@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -524,10 +523,10 @@ func (bm *BrowserManager) createLocalSession(ctx context.Context, session *Brows
 	vpWidth := bm.config.ViewportWidth
 	vpHeight := bm.config.ViewportHeight
 	if vpWidth <= 0 {
-		vpWidth = 1200 + rand.Intn(201)
+		vpWidth = 1200 + cryptoIntn(201)
 	}
 	if vpHeight <= 0 {
-		vpHeight = 700 + rand.Intn(151)
+		vpHeight = 700 + cryptoIntn(151)
 	}
 
 	chrome, err := FindChrome()

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -80,7 +79,7 @@ func (d *DefaultWebFetchOperations) defaults() {
 		}
 	}
 	if d.UserAgent == "" {
-		d.UserAgent = defaultUserAgents[rand.Intn(len(defaultUserAgents))]
+		d.UserAgent = defaultUserAgents[cryptoIntn(len(defaultUserAgents))]
 	}
 	if d.MaxRetries <= 0 {
 		d.MaxRetries = 2

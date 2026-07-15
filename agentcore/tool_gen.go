@@ -48,7 +48,7 @@ func NewTypedTool[TArgs, TResults any](
 	aliases ...map[string]string,
 ) *Tool {
 	// Generate schemas from the TArgs struct.
-	declSchema := generateSchema[TArgs](false) // strict: required fields preserved
+	declSchema := generateSchema[TArgs](false)   // strict: required fields preserved
 	runtimeSchema := generateSchema[TArgs](true) // lenient: no required, extra props allowed
 
 	// Collect properties needing type coercion.
@@ -123,13 +123,13 @@ func NewTypedTool[TArgs, TResults any](
 
 // jsonSchema represents a minimal JSON Schema subset.
 type jsonSchema struct {
-	Type                 string                `json:"type,omitempty"`
-	Description          string                `json:"description,omitempty"`
+	Type                 string                 `json:"type,omitempty"`
+	Description          string                 `json:"description,omitempty"`
 	Properties           map[string]*jsonSchema `json:"properties,omitempty"`
-	Required             []string              `json:"required,omitempty"`
-	AdditionalProperties *jsonSchema           `json:"additionalProperties,omitempty"`
-	Items                *jsonSchema           `json:"items,omitempty"`
-	Enum                 []any                 `json:"enum,omitempty"`
+	Required             []string               `json:"required,omitempty"`
+	AdditionalProperties *jsonSchema            `json:"additionalProperties,omitempty"`
+	Items                *jsonSchema            `json:"items,omitempty"`
+	Enum                 []any                  `json:"enum,omitempty"`
 }
 
 // schemaCache avoids re-generating schemas for the same type.
@@ -144,7 +144,7 @@ func generateSchema[T any](lenient bool) *jsonSchema {
 
 // derefType returns the element type if t is a pointer, otherwise t itself.
 func derefType(t reflect.Type) reflect.Type {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		return t.Elem()
 	}
 	return t
@@ -204,7 +204,7 @@ func typeToSchema(t reflect.Type, lenient bool) *jsonSchema {
 	case reflect.Map:
 		valSchema := generateSchemaForType(t.Elem(), lenient)
 		return &jsonSchema{
-			Type: "object",
+			Type:                 "object",
 			AdditionalProperties: valSchema,
 		}
 	case reflect.Struct:

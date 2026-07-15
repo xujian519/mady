@@ -227,6 +227,24 @@ func TestValidateProjectPath(t *testing.T) {
 	if err := ValidateProjectPath(tmpFile); err == nil {
 		t.Error("expected error for file path")
 	}
+
+	// 符号链接指向目录应被解析并通过
+	linkDir := filepath.Join(tmpDir, "link_dir")
+	if err := os.Symlink(tmpDir, linkDir); err != nil {
+		t.Skipf("symlinks not supported on this platform: %v", err)
+	}
+	if err := ValidateProjectPath(linkDir); err != nil {
+		t.Errorf("ValidateProjectPath on symlink to dir: %v", err)
+	}
+
+	// 符号链接指向不存在路径应被拒绝
+	brokenLink := filepath.Join(tmpDir, "broken_link")
+	if err := os.Symlink(filepath.Join(tmpDir, "does_not_exist"), brokenLink); err != nil {
+		t.Skipf("symlinks not supported on this platform: %v", err)
+	}
+	if err := ValidateProjectPath(brokenLink); err == nil {
+		t.Error("expected error for broken symlink")
+	}
 }
 
 func TestNewProjectRegistryOrEmpty(t *testing.T) {

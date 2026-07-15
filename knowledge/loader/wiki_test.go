@@ -2,13 +2,14 @@ package loader
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/knowledge"
 )
 
-const testWikiPath = "/tmp/wiki_test"
+var testWikiPath string
 
 func TestWikiFilter_ShouldImport(t *testing.T) {
 	f := DefaultWikiFilter()
@@ -157,7 +158,7 @@ func TestCardIndex_LoadAndLookup(t *testing.T) {
 		t.Errorf("TotalCards = %d, want 1", idx.TotalCards)
 	}
 
-	card := idx.LookupCard("/tmp/wiki_test/Wiki/专利侵权/侵权判定/侵权判定-全面覆盖原则.md")
+	card := idx.LookupCard(filepath.Join(testWikiPath, "Wiki", "专利侵权", "侵权判定", "侵权判定-全面覆盖原则.md"))
 	if card == nil {
 		t.Fatal("card not found")
 	}

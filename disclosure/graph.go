@@ -191,7 +191,7 @@ func mergeEffectsFromState(ext *ExtractionResult, state graph.PregelState) {
 		// 将 effect 关联到对应的 PFE 三元组（索引访问，非值拷贝）
 		for i := range ext.PFETriples {
 			for _, fid := range e.From {
-				for j, tfid := range ext.PFETriples[i].FeatureIDs {
+				for _, tfid := range ext.PFETriples[i].FeatureIDs {
 					if fid == tfid {
 						// 已有 Effect 则不覆盖，追加描述
 						if ext.PFETriples[i].Effect == "" {
@@ -199,7 +199,6 @@ func mergeEffectsFromState(ext *ExtractionResult, state graph.PregelState) {
 						} else if ext.PFETriples[i].Effect != e.Text {
 							ext.PFETriples[i].Effect += "；" + e.Text
 						}
-						_ = j
 						// 找到匹配后继续检查此 fid 是否匹配其他 FeatureID
 					}
 				}

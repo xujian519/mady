@@ -363,11 +363,14 @@ func (c *Client) call(ctx context.Context, method string, params any) (*JSONRPCR
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := c.retryBackoff * time.Duration(1<<uint(attempt-1))
+			timer := time.NewTimer(backoff)
 			select {
-			case <-time.After(backoff):
+			case <-timer.C:
 			case <-ctx.Done():
+				timer.Stop()
 				return nil, ctx.Err()
 			}
+			timer.Stop()
 		}
 
 		rpcReq := JSONRPCRequest{JSONRPC: "2.0", ID: c.nextID(), Method: method}

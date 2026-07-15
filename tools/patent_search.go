@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
@@ -26,10 +27,16 @@ type PatentToolConfig struct {
 }
 
 // PatentToolConfigDefaults 返回默认配置。
+// NuoPatentPath 优先从 NUO_PATENT_PATH 环境变量读取，回退到可执行名 "nuo-patent"。
+// DownloadDir 默认位于系统临时目录下。
 func PatentToolConfigDefaults() *PatentToolConfig {
+	path := os.Getenv("NUO_PATENT_PATH")
+	if path == "" {
+		path = "nuo-patent"
+	}
 	return &PatentToolConfig{
-		NuoPatentPath: "node /Users/xujian/projects/nuo-patent/dist/cli.js",
-		DownloadDir:   "/tmp/mady-patents",
+		NuoPatentPath: path,
+		DownloadDir:   filepath.Join(os.TempDir(), "mady-patents"),
 		Timeout:       30,
 	}
 }
@@ -71,9 +78,14 @@ func NewPatentScrapeTool(cfg *PatentToolConfig) *agentcore.Tool {
 			var input struct {
 				PatentNumber string `json:"patent_number"`
 			}
-			_ = json.Unmarshal(args, &input)
+			if err := json.Unmarshal(args, &input); err != nil {
+				return nil, fmt.Errorf("invalid input: %w", err)
+			}
 
-			cmd, stdout, stderr, _ := runNuoPatent(ctx, cfg.NuoPatentPath, "scrape", input.PatentNumber, "--pretty")
+			cmd, stdout, stderr, err := runNuoPatent(ctx, cfg.NuoPatentPath, "scrape", input.PatentNumber, "--pretty")
+			if err != nil {
+				return nil, fmt.Errorf("prepare nuo-patent: %w", err)
+			}
 			if err := cmd.Run(); err != nil {
 				return map[string]any{
 					"patent_number": input.PatentNumber,
@@ -109,18 +121,25 @@ func NewPatentDownloadTool(cfg *PatentToolConfig) *agentcore.Tool {
 			var input struct {
 				PatentNumbers string `json:"patent_numbers"`
 			}
-			_ = json.Unmarshal(args, &input)
+			if err := json.Unmarshal(args, &input); err != nil {
+				return nil, fmt.Errorf("invalid input: %w", err)
+			}
 
 			numbers := strings.Fields(input.PatentNumbers)
 			if len(numbers) == 0 {
 				return nil, fmt.Errorf("至少需要一个专利号")
 			}
-			os.MkdirAll(cfg.DownloadDir, 0755)
+			if err := os.MkdirAll(cfg.DownloadDir, 0755); err != nil {
+				return nil, fmt.Errorf("create download dir: %w", err)
+			}
 
 			allArgs := []string{"download", "--output", cfg.DownloadDir, "--max-workers", "4"}
 			allArgs = append(allArgs, numbers...)
 
-			cmd, stdout, stderr, _ := runNuoPatent(ctx, cfg.NuoPatentPath, allArgs...)
+			cmd, stdout, stderr, err := runNuoPatent(ctx, cfg.NuoPatentPath, allArgs...)
+			if err != nil {
+				return nil, fmt.Errorf("prepare nuo-patent: %w", err)
+			}
 			if err := cmd.Run(); err != nil {
 				return nil, fmt.Errorf("专利下载失败: %w\n%s", err, stderr.String())
 			}
@@ -150,7 +169,9 @@ func NewPatentLegalStatusTool(cfg *PatentToolConfig) *agentcore.Tool {
 			var input struct {
 				PatentNumbers string `json:"patent_numbers"`
 			}
-			_ = json.Unmarshal(args, &input)
+			if err := json.Unmarshal(args, &input); err != nil {
+				return nil, fmt.Errorf("invalid input: %w", err)
+			}
 
 			numbers := strings.Fields(input.PatentNumbers)
 			if len(numbers) == 0 {
@@ -158,7 +179,10 @@ func NewPatentLegalStatusTool(cfg *PatentToolConfig) *agentcore.Tool {
 			}
 
 			allArgs := append([]string{"legal-status", "--max-concurrency", "4"}, numbers...)
-			cmd, stdout, stderr, _ := runNuoPatent(ctx, cfg.NuoPatentPath, allArgs...)
+			cmd, stdout, stderr, err := runNuoPatent(ctx, cfg.NuoPatentPath, allArgs...)
+			if err != nil {
+				return nil, fmt.Errorf("prepare nuo-patent: %w", err)
+			}
 			if err := cmd.Run(); err != nil {
 				return nil, fmt.Errorf("法律状态查询失败: %w\n%s", err, stderr.String())
 			}

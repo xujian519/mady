@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -282,16 +283,21 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	// 2. Wait for DOM to be interactive or URL to match.
 	readyCtx, readyCancel := context.WithTimeout(timeoutCtx, 30*time.Second)
 	var ready bool
+	var lastReadyErr error
 	for i := 0; i < 30; i++ {
 		var state string
-		_ = chromedp.Run(readyCtx, chromedp.Evaluate(`
+		if err := chromedp.Run(readyCtx, chromedp.Evaluate(`
 			(function() {
 				return JSON.stringify({
 					state: document.readyState,
 					url: window.location.href
 				});
 			})()
-		`, &state))
+		`, &state)); err != nil {
+			lastReadyErr = err
+			time.Sleep(1 * time.Second)
+			continue
+		}
 
 		var navResult struct {
 			State string `json:"state"`
@@ -312,6 +318,9 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	readyCancel()
 
 	if !ready {
+		if lastReadyErr != nil {
+			return nil, fmt.Errorf("navigation timed out: %w", lastReadyErr)
+		}
 		return nil, fmt.Errorf("navigation timed out: page did not become interactive")
 	}
 
@@ -320,13 +329,17 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 
 	// 4. Apply stealth JS to hide automation fingerprints.
 	stealthCtx, stealthCancel := context.WithTimeout(timeoutCtx, 3*time.Second)
-	_ = chromedp.Run(stealthCtx, chromedp.Evaluate(stealthJavaScript, nil))
+	if err := chromedp.Run(stealthCtx, chromedp.Evaluate(stealthJavaScript, nil)); err != nil {
+		log.Printf("browser: stealth js injection failed: %v", err)
+	}
 	stealthCancel()
 
 	// 5. Get title.
 	var title string
 	titleCtx, titleCancel := context.WithTimeout(timeoutCtx, 5*time.Second)
-	_ = chromedp.Run(titleCtx, chromedp.Title(&title))
+	if err := chromedp.Run(titleCtx, chromedp.Title(&title)); err != nil {
+		log.Printf("browser: get title failed: %v", err)
+	}
 	titleCancel()
 
 	// 6. Generate snapshot to update ref map.
@@ -614,10 +627,12 @@ func handleBack(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 			cancel()
 			return nil, fmt.Errorf("back navigation failed: %w", err)
 		}
-		_ = chromedp.Run(timeoutCtx,
+		if err := chromedp.Run(timeoutCtx,
 			chromedp.Location(&url),
 			chromedp.Title(&title),
-		)
+		); err != nil {
+			log.Printf("browser: get location/title failed: %v", err)
+		}
 		snapshot, err = generateSnapshot(session.ctx, false, session.refMapper)
 		cancel()
 	case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
@@ -627,10 +642,12 @@ func handleBack(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 		if err := chromedp.Run(timeoutCtx, chromedp.NavigateBack()); err != nil {
 			return nil, fmt.Errorf("back navigation failed: %w", err)
 		}
-		_ = chromedp.Run(timeoutCtx,
+		if err := chromedp.Run(timeoutCtx,
 			chromedp.Location(&url),
 			chromedp.Title(&title),
-		)
+		); err != nil {
+			log.Printf("browser: get location/title failed: %v", err)
+		}
 		snapshot, err = generateSnapshot(timeoutCtx, false, session.refMapper)
 	default:
 		err = fmt.Errorf("backend %s not supported for back", session.backendType)

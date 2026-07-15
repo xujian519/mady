@@ -115,6 +115,9 @@ type ExtensionConfig struct {
 	// ComputerUse enables the computer_use tool (macOS desktop control). macOS only.
 	ComputerUse bool
 
+	// ComputerUseConfig configures the computer_use tool. Nil uses sensible defaults.
+	ComputerUseConfig *ComputerUseToolConfig
+
 	// SandboxEnabled enforces the WorkingDir boundary for file tools when true.
 	// When enabled, read/write/edit/etc. tools reject paths that escape the
 	// WorkingDir subtree. Default is false (Go bool zero value); domain
@@ -335,7 +338,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	}
 
 	if cfg.ComputerUse {
-		addTool(NewComputerUseTool(nil))
+		addTool(NewComputerUseTool(cfg.ComputerUseConfig))
 	}
 
 	return tools

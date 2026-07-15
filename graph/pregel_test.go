@@ -1,6 +1,8 @@
 package graph
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
@@ -125,5 +127,30 @@ func TestPregelState_Clone_NilValue(t *testing.T) {
 	cloned := original.Clone()
 	if cloned["nil"] != nil {
 		t.Fatal("Clone() did not preserve nil value")
+	}
+}
+
+func TestCompiledPregelGraph_Run_NodePanicRecovered(t *testing.T) {
+	g := NewPregelGraph()
+	_ = g.AddNode("panic", func(ctx context.Context, state PregelState) (PregelState, error) {
+		panic("intentional node panic")
+	})
+	_ = g.AddNode("ok", func(ctx context.Context, state PregelState) (PregelState, error) {
+		state["ok"] = true
+		return state, nil
+	})
+	_ = g.AddEdge("panic", "ok")
+
+	cg, err := g.Compile("panic", 10)
+	if err != nil {
+		t.Fatalf("Compile failed: %v", err)
+	}
+
+	_, err = cg.Run(context.Background(), PregelState{"input": "test"})
+	if err == nil {
+		t.Fatal("expected error from panicking node, got nil")
+	}
+	if !strings.Contains(err.Error(), "intentional node panic") {
+		t.Fatalf("expected error to contain panic message, got %v", err)
 	}
 }

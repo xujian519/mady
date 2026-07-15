@@ -9,6 +9,7 @@ PREFIX ?= $(HOME)/.local
 COMMIT_HASH ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS ?= -ldflags "-s -w -X main.commitHash=$(COMMIT_HASH) -X main.buildTime=$(BUILD_TIME)"
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 .PHONY: all build test test-race test-short coverage vet lint fmt clean \
         install install-hooks install-lint \
@@ -53,8 +54,7 @@ test-verbose:
 	$(GO) test $(GOFLAGS) -v -count=1 ./...
 
 # --- Eval Suite (CI Gate) ---
-# eval runs the Golden Benchmark CI gate: verifies metric chain integrity,
-# case formatting, and that perfect predictions pass while degraded ones fail.
+# eval runs the benchmark test suite under agentcore/evaluate/benchmark.
 # Run this before merging Prompt/Rule/Skill changes.
 eval:
 	$(GO) test $(GOFLAGS) -v ./agentcore/evaluate/benchmark/...
@@ -108,7 +108,7 @@ install: build-mady
 
 install-lint:
 	@echo "Installing golangci-lint..."
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v2.12.2
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin $(GOLANGCI_LINT_VERSION)
 
 install-hooks:
 	@if command -v pre-commit >/dev/null 2>&1; then \

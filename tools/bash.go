@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -60,7 +61,8 @@ func (d DefaultBashOperations) Exec(command string, cwd string, env map[string]s
 	if timeoutSecs != nil && *timeoutSecs > 0 {
 		timer = time.AfterFunc(time.Duration(*timeoutSecs)*time.Second, func() {
 			if cmd.Process != nil {
-				killProcessTree(cmd.Process.Pid)
+				// Best-effort cleanup; the command may have already exited.
+				_ = killProcessTree(cmd.Process.Pid)
 			}
 		})
 	}
@@ -99,11 +101,23 @@ func (d DefaultBashOperations) Exec(command string, cwd string, env map[string]s
 	return 0, nil
 }
 
-func killProcessTree(pid int) {
-	// Try to kill the process group.
-	syscall.Kill(-pid, syscall.SIGKILL)
+func killProcessTree(pid int) error {
+	if pid <= 0 {
+		return fmt.Errorf("invalid pid %d", pid)
+	}
+	var errs []error
+	// Try to kill the process group first.
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+		errs = append(errs, fmt.Errorf("kill process group %d: %w", -pid, err))
+	}
 	// Fallback: kill the process itself.
-	syscall.Kill(pid, syscall.SIGKILL)
+	if err := syscall.Kill(pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+		errs = append(errs, fmt.Errorf("kill process %d: %w", pid, err))
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 func stripAnsi(text string) string {

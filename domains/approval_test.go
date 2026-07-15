@@ -297,3 +297,43 @@ func TestApprovalGate_WithApprovalStore(t *testing.T) {
 		t.Error("store should be set after WithApprovalStore")
 	}
 }
+
+func TestDecisionToState(t *testing.T) {
+	cases := []struct {
+		decision ApprovalDecision
+		want     ApprovalState
+	}{
+		{DecisionAdopted, StateApproved},
+		{DecisionModified, StateModified},
+		{DecisionRejected, StateRejected},
+		{"unknown", StateNone},
+	}
+	for _, tc := range cases {
+		got := decisionToState(tc.decision)
+		if got != tc.want {
+			t.Fatalf("decisionToState(%q) = %q, want %q", tc.decision, got, tc.want)
+		}
+	}
+}
+
+func TestApprovalGate_RecordDecision_SetsState(t *testing.T) {
+	store := NewMemoryApprovalStore()
+	gate := NewApprovalGate(DefaultApprovalConfig())
+	WithApprovalStore(store)(gate)
+
+	ctx := context.Background()
+	if err := gate.RecordDecision(ctx, "sess-1", "case-1", "keyword", "output", DecisionModified, "modified output", "fix typo"); err != nil {
+		t.Fatalf("RecordDecision: %v", err)
+	}
+
+	records, err := store.List(ctx, "sess-1")
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	if records[0].State != StateModified {
+		t.Fatalf("expected State=%q, got %q", StateModified, records[0].State)
+	}
+}

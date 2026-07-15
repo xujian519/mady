@@ -342,15 +342,15 @@ func (s *Server) handleRequest(ctx context.Context, req *JSONRPCRequest) {
 	case "initialize":
 		s.handleInitialize(req)
 	case "authenticate":
-		s.handleAuthenticate(req)
+		s.handleAuthenticate(ctx, req)
 	case "session/new":
-		s.handleNewSession(req)
+		s.handleNewSession(ctx, req)
 	case "session/load":
-		s.handleLoadSession(req)
+		s.handleLoadSession(ctx, req)
 	case "session/resume":
-		s.handleResumeSession(req)
+		s.handleResumeSession(ctx, req)
 	case "session/fork":
-		s.handleForkSession(req)
+		s.handleForkSession(ctx, req)
 	case "session/list":
 		s.handleListSessions(req)
 	case "session/prompt":
@@ -410,7 +410,7 @@ func (s *Server) handleInitialize(req *JSONRPCRequest) {
 	s.writeResponse(req.ID, result)
 }
 
-func (s *Server) handleAuthenticate(req *JSONRPCRequest) {
+func (s *Server) handleAuthenticate(ctx context.Context, req *JSONRPCRequest) {
 	var params AuthenticateParams
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -425,7 +425,7 @@ func (s *Server) handleAuthenticate(req *JSONRPCRequest) {
 		s.writeError(req.ID, -32001, "Authentication not configured", "no auth provider")
 		return
 	}
-	result, err := s.authProv.Authenticate(context.Background(), params)
+	result, err := s.authProv.Authenticate(ctx, params)
 	if err != nil {
 		s.writeError(req.ID, -32001, "Authentication failed", err.Error())
 		return
@@ -433,7 +433,7 @@ func (s *Server) handleAuthenticate(req *JSONRPCRequest) {
 	s.writeResponse(req.ID, result)
 }
 
-func (s *Server) handleNewSession(req *JSONRPCRequest) {
+func (s *Server) handleNewSession(ctx context.Context, req *JSONRPCRequest) {
 	var params NewSessionParams
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -447,7 +447,7 @@ func (s *Server) handleNewSession(req *JSONRPCRequest) {
 		cwd = "."
 	}
 
-	state, err := s.sessionMgr.CreateSession(cwd, "")
+	state, err := s.sessionMgr.CreateSession(ctx, cwd, "")
 	if err != nil {
 		s.logger.Error("create session failed", "err", err)
 		s.writeError(req.ID, -32603, "Internal error", err.Error())
@@ -463,7 +463,7 @@ func (s *Server) handleNewSession(req *JSONRPCRequest) {
 	s.writeResponse(req.ID, result)
 }
 
-func (s *Server) handleLoadSession(req *JSONRPCRequest) {
+func (s *Server) handleLoadSession(ctx context.Context, req *JSONRPCRequest) {
 	var params LoadSessionParams
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -474,7 +474,7 @@ func (s *Server) handleLoadSession(req *JSONRPCRequest) {
 
 	state := s.sessionMgr.UpdateCWD(params.SessionID, params.CWD)
 	if state == nil {
-		_, err := s.sessionMgr.RestoreSession(params.SessionID)
+		_, err := s.sessionMgr.RestoreSession(ctx, params.SessionID)
 		if err != nil {
 			s.writeError(req.ID, -32002, "Session not found", params.SessionID)
 			return
@@ -490,7 +490,7 @@ func (s *Server) handleLoadSession(req *JSONRPCRequest) {
 	s.writeResponse(req.ID, result)
 }
 
-func (s *Server) handleResumeSession(req *JSONRPCRequest) {
+func (s *Server) handleResumeSession(ctx context.Context, req *JSONRPCRequest) {
 	var params ResumeSessionParams
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -501,10 +501,10 @@ func (s *Server) handleResumeSession(req *JSONRPCRequest) {
 
 	state := s.sessionMgr.UpdateCWD(params.SessionID, params.CWD)
 	if state == nil {
-		_, err := s.sessionMgr.RestoreSession(params.SessionID)
+		_, err := s.sessionMgr.RestoreSession(ctx, params.SessionID)
 		if err != nil {
 			s.logger.Warn("resume session not found, creating new", "session_id", params.SessionID)
-			state, err = s.sessionMgr.CreateSession(params.CWD, "")
+			state, err = s.sessionMgr.CreateSession(ctx, params.CWD, "")
 			if err != nil {
 				s.writeError(req.ID, -32603, "Internal error", err.Error())
 				return
@@ -522,7 +522,7 @@ func (s *Server) handleResumeSession(req *JSONRPCRequest) {
 	s.writeResponse(req.ID, result)
 }
 
-func (s *Server) handleForkSession(req *JSONRPCRequest) {
+func (s *Server) handleForkSession(ctx context.Context, req *JSONRPCRequest) {
 	var params ForkSessionParams
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -536,7 +536,7 @@ func (s *Server) handleForkSession(req *JSONRPCRequest) {
 		cwd = "."
 	}
 
-	state, err := s.sessionMgr.ForkSession(params.SessionID, cwd)
+	state, err := s.sessionMgr.ForkSession(ctx, params.SessionID, cwd)
 	if err != nil {
 		s.logger.Error("fork session failed", "err", err)
 		s.writeError(req.ID, -32603, "Internal error", err.Error())

@@ -1,30 +1,32 @@
 package loader
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
 func TestMain(m *testing.M) {
-	setupTestData()
+	root, err := os.MkdirTemp("", "mady-wiki-test-*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create temp wiki dir: %v\n", err)
+		os.Exit(1)
+	}
+	testWikiPath = root
+	setupTestData(root)
 	code := m.Run()
+	os.RemoveAll(root)
 	os.Exit(code)
 }
 
-// setupTestData creates the test wiki data at /tmp/wiki_test if it does not
-// already exist. Tests in this package depend on this directory.
-func setupTestData() {
-	root := testWikiPath // "/tmp/wiki_test"
-
-	// Already set up — nothing to do.
-	if _, err := os.Stat(filepath.Join(root, "card-index.json")); err == nil {
-		return
-	}
-
+// setupTestData creates the test wiki data under root. Tests in this package
+// depend on the directory existing before they run.
+func setupTestData(root string) {
 	// card-index.json
 	ensureDir(root)
-	os.WriteFile(filepath.Join(root, "card-index.json"), []byte(`{
+	cardPath := filepath.Join(root, "Wiki", "专利侵权", "侵权判定", "侵权判定-全面覆盖原则.md")
+	os.WriteFile(filepath.Join(root, "card-index.json"), []byte(fmt.Sprintf(`{
   "total_cards": 1,
   "cards": [
     {
@@ -33,13 +35,13 @@ func setupTestData() {
       "concept": "全面覆盖原则",
       "quality": 0.92,
       "domain": "侵权判定",
-      "file_path": "/tmp/wiki_test/Wiki/专利侵权/侵权判定/侵权判定-全面覆盖原则.md",
+      "file_path": %q,
       "related_concepts": [],
       "generated_at": "2026-04-29T10:00:00Z",
       "version": 1
     }
   ]
-}`), 0644)
+}`, cardPath)), 0644)
 
 	// cards/test-card.md
 	ensureDir(filepath.Join(root, "cards"))

@@ -100,10 +100,21 @@ func (h *EvalHook) AfterModelCall(_ context.Context, arc *agentcore.AgentRunCont
 	}
 
 	if h.cfg.LogResults {
-		// 记录到事件总线（可被 GUI 或日志消费）
-		_ = result // 预留：将通过 arc.Agent.EmitEvent 发送
+		// 记录到事件总线（可被 GUI 或日志消费）。
+		if arc.Agent != nil {
+			arc.Agent.EmitEvent(evalResultEvent{at: time.Now(), result: result})
+		}
 	}
 }
+
+// evalResultEvent wraps an EvalResult as an agentcore.Event.
+type evalResultEvent struct {
+	at     time.Time
+	result EvalResult
+}
+
+func (e evalResultEvent) EventKind() agentcore.EventType { return agentcore.EventType("eval_result") }
+func (e evalResultEvent) EventTime() time.Time           { return e.at }
 
 // FaithlessnessWarning 返回忠实度警告（如果有）。
 func (r *EvalResult) FaithlessnessWarning() string {

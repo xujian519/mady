@@ -1,5 +1,48 @@
 # AI 决策变更日志
 
+## 2026-07-15: 修复 Medium/Low 技术债务 22 项（分 5 个 WP）
+
+- **变更**:
+  1. **WP7 性能与随机性**：`a2a/client.go`/`a2a/server.go` 重试循环将 `time.After` 替换为 `time.NewTimer` 避免泄漏；`tools/browser_session.go`/`tools/web_fetch.go` 浏览器指纹改用 `crypto/rand`（新增 `tools/rand.go` 的 `cryptoIntn`）；`agentcore/retry.go` 的 `applyFullJitter` 改用 `crypto/rand`。
+  2. **WP8 数据一致性与并发**：`agentcore/provider.go` 新增 `CallConfig.Equal` 与配套辅助函数；`session/agent_store.go` 移除 `reflect.DeepEqual`，改用 `Equal` 与逐字段比较；`domains/approval.go` 的 `MemoryApprovalStore` 将 `mu` 升级为 `sync.RWMutex` 并在 `List` 中使用 `RLock`；新增 `agentcore/provider_test.go`。
+  3. **WP9 代码质量与常量**：删除 `disclosure/graph.go` 未使用的 `j`；`workflows/legal/comparison.go` 将未使用的 `query` 嵌入占位 `cases` 字符串；`domains/reasoning/planner.go` 将 `maxFactsInPrompt` 常量改为基于 `contextWindow` 的动态 `factsInPromptLimit`；更新 `Makefile` 中 `eval` 目标的注释以准确反映其仅运行 benchmark。
+  4. **WP10 可移植性与安全**：`knowledge/loader/main_test.go`/`wiki_test.go` 将硬编码 `/tmp/wiki_test` 改为 `TestMain` 创建的临时目录；`Makefile` 将 `install-lint` 的 golangci-lint 版本提取为 `GOLANGCI_LINT_VERSION` 变量；`tools/tools.go` 新增 `ComputerUseConfig` 字段并传入 `NewComputerUseTool`；`domains/project.go` 的 `ValidateProjectPath` 增加 `filepath.EvalSymlinks` 解析并拒绝损坏符号链接，新增对应单元测试。
+  5. **WP11 可扩展性与生成代码**：`agentcore/manifest.go` 暴露 `RegisterValidDomain`/`RegisterValidGuardrailLevel` 并加锁保护 `validDomains`/`validGuardrailLevels`；`guardrails/levels.go` 暴露 `RegisterLevel`/`RegisteredLevel` 并在注册时同步到 agentcore 校验表；`domains/reasoning/planner.go` 更新 ReAct/MultiHypothesis 分支注释；`agentcore/evaluate/benchmark/invalidation_decisions.go` 将 `init()` 中的 `panic` 改为 `stderr` 日志记录，避免生成数据损坏时整个程序崩溃。
+- **原因**: 全仓库技术债务扫描后续阶段识别出 Medium/Low 风险点，涉及性能泄漏、密码学安全随机源、数据一致性、并发锁粒度、代码质量、可移植性、扩展性与生成代码健壮性。
+- **影响范围**: `a2a/client.go`/`server.go`、`tools/rand.go`/`browser_session.go`/`web_fetch.go`/`tools.go`、`agentcore/retry.go`/`provider.go`/`provider_test.go`/`manifest.go`、`session/agent_store.go`、`domains/approval.go`、`disclosure/graph.go`、`workflows/legal/comparison.go`、`domains/reasoning/planner.go`、`domains/project.go`/`project_test.go`、`knowledge/loader/main_test.go`/`wiki_test.go`、`Makefile`、`guardrails/levels.go`、`agentcore/evaluate/benchmark/invalidation_decisions.go`。
+- **风险等级**: 中（涉及安全敏感路径 `guardrails/levels.go`、`domains/project.go`、`agentcore/manifest.go`）
+- **审查要求**: L2+
+- **验证**: `go build ./...` ✅ | `cd tools && go build ./...` ✅ | `go test -race ./...` ✅ | `cd tools && go test -race ./...` ✅ | `go vet ./...` ✅
+
+## 2026-07-15: 技术债务修复质量审阅与回归修复
+
+- **变更**:
+  1. 恢复 `domains/approval_test.go` 中被误删的既有测试集（keyword trigger、SkipIfNoTools、message build/truncate、default config、RequireApproval、MemoryApprovalStore、RecordDecision 等），并保留新增 `State` 字段的测试。
+  2. 完善 `session/agent_store.go` 的 `messagesEqual`：在 Role/Content/ToolCalls 基础上补充比较 `ID`、`ToolCallID`、`Name`、`Type`、`InvocationID`、`CacheControl` 及 `Metadata`/`Blocks` 复杂字段，避免消息前缀判断遗漏差异。
+  3. 修复 `agentcore/provider.go` 的 `responseFormatEqual`：将 `JSONSchema` 指针相等比较改为结构体深度比较（含 `Schema` map），确保 `CallConfig.Equal` 能正确识别相同配置。
+  4. 修复 `knowledge/eval.go` 的 `evalResultEvent`：在通过 `EmitEvent` 发送时设置 `at: time.Now()`，避免事件时间为零值。
+  5. 安装 `golangci-lint` v2.12.2 并修复其报出的 4 个问题：`agentcore/tool_gen.go`/`tool_gen_test.go` gofmt 格式化；`agentcore/tool_gen.go` 将 `reflect.Ptr` 改为 `reflect.Pointer`；`knowledge/fileindex/extension_test.go` 将 `cancelled` 改为 `canceled`；`tools/bash.go` 去除 `killProcessTree` 的空错误分支。
+- **原因**: 对 WP1-WP11 全量修复进行质量审阅时发现回归/不完整点（测试覆盖丢失、相等性比较遗漏字段、事件时间未初始化），并在补装 lint 后发现既有代码的格式/拼写/静态分析问题，一并修复以达到提交标准。
+- **影响范围**: `domains/approval_test.go`、`session/agent_store.go`、`agentcore/provider.go`、`knowledge/eval.go`、`agentcore/tool_gen.go`/`tool_gen_test.go`、`knowledge/fileindex/extension_test.go`、`tools/bash.go`。
+- **风险等级**: 低
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `cd tools && go build ./...` ✅ | `go test -race ./...` ✅ | `cd tools && go test -race ./...` ✅ | `go vet ./...` ✅ | `make lint` ✅
+
+## 2026-07-15: 修复 Critical/High 技术债务 19 项（分 6 个 WP）
+
+- **变更**:
+  1. **WP1 并发崩溃安全**：`graph/pregel.go` 节点 goroutine 增加 panic recover；`mcp/client.go` readLoop 增加 panic recover 并记录 unmarshal 错误。
+  2. **WP2 进程安全与库 API**：`tools/bash.go` 加固 `killProcessTree`（校验 PID、处理错误、幂等）；`pkg/agentconfig/provider.go` 移除 `log.Fatal`，`BuildProvider` 改为返回 `(Provider, error)`，更新所有调用方（`cmd/mady/main.go`、`example/acp-server`、`tui/agent_integration_test.go`）。
+  3. **WP3 工具可移植性与网络错误**：`tools/patent_search.go` 默认路径改为 `NUO_PATENT_PATH`/`nuo-patent`，校验所有 `json.Unmarshal` 与 `MkdirAll` 错误；`a2a/ws.go` 所有 WebSocket 写操作检查错误并在失败时关闭连接；`tools/browser_tool.go` 关键 `chromedp.Run` 错误记录/传播；`tools/computer_use.go` 使用 `os.TempDir()` 替换 `/tmp`，移除未使用的 `raw`。
+  4. **WP4 领域层与 graph 解耦**：`domains/reasoning` 新增 `GraphBuilder` 接口与 `PregelNode/PregelState/PregelEdgeRouter` 类型别名；`BuildMultiHypothesisSubgraph`/`buildChainStep`/`buildReActStep` 全部传播图构建错误。
+  5. **WP5 上下文与资源泄漏**：`mcp/client.go` `Close()` 强制 kill 后仍给短超时等待并记录日志，重连失败时异步等待带超时；`acp/session.go` `CreateSession`/`RestoreSession`/`ForkSession`/`loadPersistedSessions` 增加 `ctx` 参数；`acp/server.go` 将请求 `ctx` 传入认证与会话 handler。
+  6. **WP6 CLI 默认值与数据一致性**：`cmd/mady/main.go` 显式检查 `fs.Parse` 错误，硬编码端点/模型集中到 `pkg/agentconfig` 常量；`domains/approval.go` `RecordDecision` 根据决策设置 `State`；`knowledge/eval.go` 实现 `LogResults` 事件发送；`session/session.go` 分支复制标签错误返回而非忽略。
+- **原因**: 全仓库技术债务扫描识别出 7 项 Critical 与 12 项 High 风险点，涉及并发崩溃、进程安全、库 API、领域层依赖倒置、上下文传播、CLI 默认值与数据一致性。
+- **影响范围**: `graph/pregel.go`/`pregel_test.go`、`mcp/client.go`、`tools/bash.go`/`bash_test.go`、`pkg/agentconfig/provider.go`/`defaults.go`/`provider_test.go`、`cmd/mady/main.go`、`example/acp-server/main.go`、`tui/agent_integration_test.go`、`tools/patent_search.go`、`a2a/ws.go`、`tools/browser_tool.go`、`tools/computer_use.go`、`domains/reasoning/graph.go`/`plan_compiler.go`/`multi_hypothesis.go`/`graph_test.go`、`acp/session.go`/`server.go`、`domains/approval.go`/`approval_test.go`、`knowledge/eval.go`、`session/session.go`。
+- **风险等级**: 高（跨多个核心模块，含 API 签名变更）
+- **审查要求**: L2+
+- **验证**: `go build ./...` ✅ | `cd tools && go build ./...` ✅ | `go test -race ./...` ✅ | `cd tools && go test -race ./...` ✅ | `go vet ./...` ✅
+
 ## 2026-07-15: search_project_files / read_project_file 工具支持无 /case 降级模式
 
 - **变更**:

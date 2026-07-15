@@ -32,7 +32,10 @@ func TestAgentRunInTUISession(t *testing.T) {
 		t.Skip("skipping integration test: no API key configured")
 	}
 
-	provider := agentconfig.BuildProvider()
+	provider, err := agentconfig.BuildProvider()
+	if err != nil {
+		t.Fatalf("build provider: %v", err)
+	}
 	model := agentconfig.DefaultModel()
 
 	cfg := agentcore.Config{

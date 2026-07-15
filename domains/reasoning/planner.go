@@ -9,9 +9,29 @@ import (
 	"sync"
 )
 
-// maxFactsInPrompt limits facts serialized in the LLM prompt to prevent
+// factsInPromptLimit limits facts serialized in the LLM prompt to prevent
 // context window overflow. With ~250 bytes per fact, 50 facts ≈ 12KB.
-const maxFactsInPrompt = 50
+// This is the default when no context window is configured.
+const defaultFactsInPrompt = 50
+
+// computeFactsInPromptLimit derives a fact limit from the configured context
+// window. It reserves 80% of the window for facts and assumes ~250 bytes per
+// fact, clamped to a sane [10, 200] range.
+func computeFactsInPromptLimit(contextWindow int64) int {
+	if contextWindow <= 0 {
+		return defaultFactsInPrompt
+	}
+	const bytesPerFact = 250
+	maxBytes := contextWindow / 5
+	n := int(maxBytes / bytesPerFact)
+	if n < 10 {
+		return 10
+	}
+	if n > 200 {
+		return 200
+	}
+	return n
+}
 
 // Planner generates a Plan (Stage ③) from facts and rules.
 //
@@ -21,9 +41,10 @@ const maxFactsInPrompt = 50
 //   - LLM path: for complex/ambiguous intents, calls the LLM to generate a
 //     Plan, optionally with multi-hypothesis branching.
 type Planner struct {
-	llm       LlmClient
-	templates map[string]Plan // key: "<CaseType>_<PlanIntent>"
-	mu        sync.RWMutex
+	llm           LlmClient
+	templates     map[string]Plan // key: "<CaseType>_<PlanIntent>"
+	contextWindow int64
+	mu            sync.RWMutex
 }
 
 // NewPlanner creates a Planner with an optional LLM client.
@@ -33,6 +54,20 @@ func NewPlanner(llm LlmClient) *Planner {
 		llm:       llm,
 		templates: make(map[string]Plan),
 	}
+}
+
+// SetContextWindow configures the model context window used to compute the
+// number of facts included in LLM prompts.
+func (p *Planner) SetContextWindow(ctxWindow int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.contextWindow = ctxWindow
+}
+
+func (p *Planner) factsInPromptLimit() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return computeFactsInPromptLimit(p.contextWindow)
 }
 
 // RegisterTemplate adds or replaces a Plan template.
@@ -59,9 +94,11 @@ func (p *Planner) GeneratePlan(ctx context.Context, bb *FactBlackboard, intent P
 	}
 
 	// Complex intent with LLM available — delegate to LLM.
-	// TODO(Phase 4): detectPlanIntent currently never returns ReAct/MultiHypothesis
-	// (see five_step_runner.go detectPlanIntent). Once updated, this branch becomes
-	// the LLM planning entry point. For now, always falls through to template/fallback.
+	// detectPlanIntent currently returns PlanIntentChain for patentability/
+	// invalidation cases to keep Phase 1 deterministic. ReAct/MultiHypothesis
+	// are only exercised when the caller explicitly requests them (e.g. tests
+	// or future runner promotion). This branch is the explicit LLM planning
+	// entry point for those advanced intents.
 	if p.llm != nil && (intent == PlanIntentReAct || intent == PlanIntentMultiHypothesis) {
 		return p.llmGenerate(ctx, bb, intent)
 	}
@@ -121,15 +158,16 @@ func (p *Planner) buildLLMPrompt(bb *FactBlackboard, intent PlanIntent) string {
 	fmt.Fprintf(&sb, "技术领域: %s\n", bb.TechnicalField)
 	fmt.Fprintf(&sb, "分析意图: %s\n\n", intent)
 
-	// List active facts (limit to top 50 by confidence to avoid context overflow).
+	limit := p.factsInPromptLimit()
+	// List active facts (limit to top N by confidence to avoid context overflow).
 	facts := bb.ActiveFacts()
-	fmt.Fprintf(&sb, "已收集事实（共 %d 条，展示前 %d 条）:\n", len(facts), maxFactsInPrompt)
+	fmt.Fprintf(&sb, "已收集事实（共 %d 条，展示前 %d 条）:\n", len(facts), limit)
 	shown := 0
 	for _, f := range facts {
 		if !f.IsDiscarded() {
 			fmt.Fprintf(&sb, "- [%s] [%s] %s (置信度: %.0f%%)\n", f.ID, f.Category, truncate(f.Content, 200), f.Confidence*100)
 			shown++
-			if shown >= maxFactsInPrompt {
+			if shown >= limit {
 				break
 			}
 		}

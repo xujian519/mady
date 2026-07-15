@@ -411,7 +411,10 @@ func (m *Manager) CreateBranchedSession(ctx context.Context, store *FileStore) (
 	m.mu.RLock()
 	for _, entry := range path {
 		if label, ok := m.labelsByID[entry.ID]; ok {
-			_ = newMgr.SetLabel(ctx, entry.ID, label)
+			if err := newMgr.SetLabel(ctx, entry.ID, label); err != nil {
+				m.mu.RUnlock()
+				return "", fmt.Errorf("copy label to branch: %w", err)
+			}
 		}
 	}
 	m.mu.RUnlock()

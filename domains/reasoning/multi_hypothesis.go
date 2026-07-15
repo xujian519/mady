@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-
-	"github.com/xujian519/mady/graph"
 )
 
 // =============================================================================
@@ -56,54 +54,96 @@ var authorityMap = map[Requirement]float64{
 //	                                                 │
 //	                                       ┌─ reject? ─→ mh_rejection
 //	                                       └─ accept  ─→ (next step)
-func BuildMultiHypothesisSubgraph(g *graph.PregelGraph, step PlanStep, bb *FactBlackboard, builder NodeBuilder) (string, string) {
+func BuildMultiHypothesisSubgraph(g GraphBuilder, step PlanStep, bb *FactBlackboard, builder NodeBuilder) (string, string, error) {
 	// === Advocate A (pro) ===
 	aThink := fmt.Sprintf("mh_%d_adv_a_think", step.Order)
 	aAct := fmt.Sprintf("mh_%d_adv_a_act", step.Order)
 	aObserve := fmt.Sprintf("mh_%d_adv_a_observe", step.Order)
 
-	g.AddNode(aThink, builder.BuildReActThink(step, bb))
-	g.AddNode(aAct, builder.BuildReActAct(step, bb))
-	g.AddNode(aObserve, builder.BuildReActObserve(step, bb))
-	g.AddEdge(aThink, aAct)
-	g.AddEdge(aAct, aObserve)
-	_ = g.SetConditionalEdge(aObserve, advocateRouter(mhAdvA, aObserve, aThink))
+	if err := g.AddNode(aThink, builder.BuildReActThink(step, bb)); err != nil {
+		return "", "", fmt.Errorf("add adv_a think: %w", err)
+	}
+	if err := g.AddNode(aAct, builder.BuildReActAct(step, bb)); err != nil {
+		return "", "", fmt.Errorf("add adv_a act: %w", err)
+	}
+	if err := g.AddNode(aObserve, builder.BuildReActObserve(step, bb)); err != nil {
+		return "", "", fmt.Errorf("add adv_a observe: %w", err)
+	}
+	if err := g.AddEdge(aThink, aAct); err != nil {
+		return "", "", fmt.Errorf("connect adv_a think→act: %w", err)
+	}
+	if err := g.AddEdge(aAct, aObserve); err != nil {
+		return "", "", fmt.Errorf("connect adv_a act→observe: %w", err)
+	}
+	if err := g.SetConditionalEdge(aObserve, advocateRouter(mhAdvA, aObserve, aThink)); err != nil {
+		return "", "", fmt.Errorf("set adv_a conditional edge: %w", err)
+	}
 
 	// === Advocate B (con) ===
 	bThink := fmt.Sprintf("mh_%d_adv_b_think", step.Order)
 	bAct := fmt.Sprintf("mh_%d_adv_b_act", step.Order)
 	bObserve := fmt.Sprintf("mh_%d_adv_b_observe", step.Order)
 
-	g.AddNode(bThink, builder.BuildReActThink(step, bb))
-	g.AddNode(bAct, builder.BuildReActAct(step, bb))
-	g.AddNode(bObserve, builder.BuildReActObserve(step, bb))
-	g.AddEdge(bThink, bAct)
-	g.AddEdge(bAct, bObserve)
-	_ = g.SetConditionalEdge(bObserve, advocateRouter(mhAdvB, bObserve, bThink))
+	if err := g.AddNode(bThink, builder.BuildReActThink(step, bb)); err != nil {
+		return "", "", fmt.Errorf("add adv_b think: %w", err)
+	}
+	if err := g.AddNode(bAct, builder.BuildReActAct(step, bb)); err != nil {
+		return "", "", fmt.Errorf("add adv_b act: %w", err)
+	}
+	if err := g.AddNode(bObserve, builder.BuildReActObserve(step, bb)); err != nil {
+		return "", "", fmt.Errorf("add adv_b observe: %w", err)
+	}
+	if err := g.AddEdge(bThink, bAct); err != nil {
+		return "", "", fmt.Errorf("connect adv_b think→act: %w", err)
+	}
+	if err := g.AddEdge(bAct, bObserve); err != nil {
+		return "", "", fmt.Errorf("connect adv_b act→observe: %w", err)
+	}
+	if err := g.SetConditionalEdge(bObserve, advocateRouter(mhAdvB, bObserve, bThink)); err != nil {
+		return "", "", fmt.Errorf("set adv_b conditional edge: %w", err)
+	}
 
 	// === Merge ===
 	mergeName := fmt.Sprintf("mh_%d_merge", step.Order)
-	g.AddNode(mergeName, mergeNode())
+	if err := g.AddNode(mergeName, mergeNode()); err != nil {
+		return "", "", fmt.Errorf("add merge node: %w", err)
+	}
 	// Both observers feed into merge.
-	g.AddEdge(aObserve, mergeName)
-	g.AddEdge(bObserve, mergeName)
+	if err := g.AddEdge(aObserve, mergeName); err != nil {
+		return "", "", fmt.Errorf("connect a_observe→merge: %w", err)
+	}
+	if err := g.AddEdge(bObserve, mergeName); err != nil {
+		return "", "", fmt.Errorf("connect b_observe→merge: %w", err)
+	}
 
 	// === Judges ===
 	sylName := fmt.Sprintf("mh_%d_syllogism_judge", step.Order)
 	evidName := fmt.Sprintf("mh_%d_evidence_judge", step.Order)
 	rejectName := fmt.Sprintf("mh_%d_rejection", step.Order)
 
-	g.AddNode(sylName, syllogismJudgeNode())
-	g.AddNode(evidName, evidenceJudgeNode())
-	g.AddNode(rejectName, rejectionNode())
+	if err := g.AddNode(sylName, syllogismJudgeNode()); err != nil {
+		return "", "", fmt.Errorf("add syllogism judge: %w", err)
+	}
+	if err := g.AddNode(evidName, evidenceJudgeNode()); err != nil {
+		return "", "", fmt.Errorf("add evidence judge: %w", err)
+	}
+	if err := g.AddNode(rejectName, rejectionNode()); err != nil {
+		return "", "", fmt.Errorf("add rejection node: %w", err)
+	}
 
-	g.AddEdge(mergeName, sylName)
-	g.AddEdge(sylName, evidName)
+	if err := g.AddEdge(mergeName, sylName); err != nil {
+		return "", "", fmt.Errorf("connect merge→syllogism: %w", err)
+	}
+	if err := g.AddEdge(sylName, evidName); err != nil {
+		return "", "", fmt.Errorf("connect syllogism→evidence: %w", err)
+	}
 
 	// Conditional: if reject → rejection path; else → PregelEnd.
-	_ = g.SetConditionalEdge(evidName, evidenceRouter(rejectName))
+	if err := g.SetConditionalEdge(evidName, evidenceRouter(rejectName)); err != nil {
+		return "", "", fmt.Errorf("set evidence conditional edge: %w", err)
+	}
 
-	return aThink, rejectName
+	return aThink, rejectName, nil
 }
 
 // =============================================================================
@@ -111,9 +151,9 @@ func BuildMultiHypothesisSubgraph(g *graph.PregelGraph, step PlanStep, bb *FactB
 // =============================================================================
 
 // advocateRouter creates a conditional edge for an advocate's ReAct loop.
-func advocateRouter(_ string, observeName, thinkName string) graph.PregelEdgeRouter {
+func advocateRouter(_ string, observeName, thinkName string) PregelEdgeRouter {
 	hasNextKey := observeName + "_has_next"
-	return func(ctx context.Context, state graph.PregelState) []string {
+	return func(ctx context.Context, state PregelState) []string {
 		hn := state.GetString(hasNextKey)
 		if hn == "" {
 			hn = state.GetString("_noop_has_next") // fallback for test/noop builder
@@ -126,9 +166,9 @@ func advocateRouter(_ string, observeName, thinkName string) graph.PregelEdgeRou
 }
 
 // mergeNode collects arguments from both advocates.
-func mergeNode() graph.PregelNode {
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-		out := graph.PregelState{}
+func mergeNode() PregelNode {
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
+		out := PregelState{}
 
 		// Extract Advocate A argument.
 		argA := extractArgument(state, mhAdvA)
@@ -143,12 +183,12 @@ func mergeNode() graph.PregelNode {
 }
 
 // syllogismJudgeNode filters logically invalid arguments.
-func syllogismJudgeNode() graph.PregelNode {
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+func syllogismJudgeNode() PregelNode {
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		argA, _ := state["arg_a"].(Argument)
 		argB, _ := state["arg_b"].(Argument)
 
-		out := graph.PregelState{
+		out := PregelState{
 			"arg_a": argA,
 			"arg_b": argB,
 		}
@@ -173,8 +213,8 @@ func syllogismJudgeNode() graph.PregelNode {
 }
 
 // evidenceJudgeNode compares surviving arguments by evidence weight.
-func evidenceJudgeNode() graph.PregelNode {
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+func evidenceJudgeNode() PregelNode {
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		argA, _ := state["arg_a"].(Argument)
 		argB, _ := state["arg_b"].(Argument)
 		validA, _ := state["adv_a_valid"].(bool)
@@ -235,7 +275,7 @@ func evidenceJudgeNode() graph.PregelNode {
 			}
 		}
 
-		return graph.PregelState{
+		return PregelState{
 			mhVerdict: verdict,
 			"score_a": scoreA,
 			"score_b": scoreB,
@@ -247,8 +287,8 @@ func evidenceJudgeNode() graph.PregelNode {
 
 // rejectionNode produces a human-escalation message for unresolved verdicts,
 // or passes through cleanly for resolved verdicts so the graph advances.
-func rejectionNode() graph.PregelNode {
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+func rejectionNode() PregelNode {
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		verdict, ok := state[mhVerdict].(Verdict)
 		if ok && verdict.Resolved {
 			// Resolved verdict — pass through, graph advances to next PlanStep.
@@ -266,7 +306,7 @@ func rejectionNode() graph.PregelNode {
 		}
 		msg += "请律师/代理人审查以上论证后做出专业判断。"
 
-		return graph.PregelState{
+		return PregelState{
 			"output":              msg,
 			mhVerdict:             verdict,
 			mhReject + "_message": msg,
@@ -279,8 +319,8 @@ func rejectionNode() graph.PregelNode {
 // for unresolved it produces a human-escalation message.
 // This ensures the multi_hypothesis subgraph terminates at rejectName, which
 // CompilePlanToGraph connects to the next PlanStep via its static edge chain.
-func evidenceRouter(rejectName string) graph.PregelEdgeRouter {
-	return func(ctx context.Context, state graph.PregelState) []string {
+func evidenceRouter(rejectName string) PregelEdgeRouter {
+	return func(ctx context.Context, state PregelState) []string {
 		return []string{rejectName} // both paths converge → CompilePlanToGraph wires to next step
 	}
 }
@@ -290,7 +330,7 @@ func evidenceRouter(rejectName string) graph.PregelEdgeRouter {
 // =============================================================================
 
 // extractArgument builds an Argument from state keys for a given advocate prefix.
-func extractArgument(state graph.PregelState, prefix string) Argument {
+func extractArgument(state PregelState, prefix string) Argument {
 	claim := state.GetString(prefix + "_claim")
 	reasoning := state.GetString(prefix + "_output")
 	counterpoints := state.GetString(prefix + "_counterpoints")
@@ -314,7 +354,7 @@ func extractArgument(state graph.PregelState, prefix string) Argument {
 }
 
 // stateGetStringSlice retrieves a []string from PregelState by type assertion.
-func stateGetStringSlice(state graph.PregelState, key string) []string {
+func stateGetStringSlice(state PregelState, key string) []string {
 	if v, ok := state[key]; ok {
 		if ss, ok := v.([]string); ok {
 			return ss

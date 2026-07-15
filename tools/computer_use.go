@@ -12,6 +12,7 @@ import (
 	"image/jpeg"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -1387,13 +1388,13 @@ func cuaDriverFocusApp(ctx context.Context, app string, raiseWindow bool) (strin
 	if err != nil {
 		return "", err
 	}
-	raw, err := client.callTool(ctx, "list_windows", map[string]any{
+	// list_windows is called to confirm cua-driver responsiveness; the window list
+	// is not used because cua-driver does not support raising/focusing windows.
+	if _, err := client.callTool(ctx, "list_windows", map[string]any{
 		"on_screen_only": true,
-	})
-	if err != nil {
+	}); err != nil {
 		return "", fmt.Errorf("list_windows: %w", err)
 	}
-	_ = raw
 	if raiseWindow {
 		// cua-driver can't raise windows; note this in response
 		return fmt.Sprintf("Targeting: %s via cua-driver (background, raise_window requested but cua-driver does not support raising windows)", app), nil
@@ -1404,7 +1405,7 @@ func cuaDriverFocusApp(ctx context.Context, app string, raiseWindow bool) (strin
 // --- Fallback implementations ---
 
 func fallbackCapture(ctx context.Context, backend cuBackend, appName, mode string) (any, error) {
-	screenshotPath := fmt.Sprintf("/tmp/mady_cu_%d.png", time.Now().UnixNano())
+	screenshotPath := filepath.Join(os.TempDir(), fmt.Sprintf("mady_cu_%d.png", time.Now().UnixNano()))
 	var args []string
 	if appName != "" {
 		bounds, err := getWindowBounds(appName)
@@ -2053,7 +2054,7 @@ if (%t) {
 // --- Linux xdotool implementations ---
 
 func xdoCapture(ctx context.Context, appName string) (any, error) {
-	screenshotPath := fmt.Sprintf("/tmp/mady_cu_%d.png", time.Now().UnixNano())
+	screenshotPath := filepath.Join(os.TempDir(), fmt.Sprintf("mady_cu_%d.png", time.Now().UnixNano()))
 	if err := scrotExec(screenshotPath); err != nil {
 		return nil, err
 	}

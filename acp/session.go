@@ -75,11 +75,11 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		persistPath:  filepath.Join(cfg.HomeDir, "acp_sessions.json"),
 		logger:       cfg.Logger,
 	}
-	sm.loadPersistedSessions()
+	sm.loadPersistedSessions(context.Background())
 	return sm
 }
 
-func (sm *SessionManager) CreateSession(cwd, sessionID string) (*sessionState, error) {
+func (sm *SessionManager) CreateSession(ctx context.Context, cwd, sessionID string) (*sessionState, error) {
 	if cwd == "" {
 		cwd = "."
 	}
@@ -99,7 +99,7 @@ func (sm *SessionManager) CreateSession(cwd, sessionID string) (*sessionState, e
 	model := sm.agentFactory.DefaultModel()
 	mode := sm.agentFactory.DefaultMode()
 
-	agent, err := sm.agentFactory.CreateAgent(context.Background(), sessionID, absCWD, model, mode)
+	agent, err := sm.agentFactory.CreateAgent(ctx, sessionID, absCWD, model, mode)
 	if err != nil {
 		return nil, fmt.Errorf("create agent: %w", err)
 	}
@@ -193,13 +193,13 @@ func (sm *SessionManager) SetIdle(sessionID string) {
 	state.mu.Unlock()
 }
 
-func (sm *SessionManager) ForkSession(sessionID, cwd string) (*sessionState, error) {
+func (sm *SessionManager) ForkSession(ctx context.Context, sessionID, cwd string) (*sessionState, error) {
 	original := sm.GetSession(sessionID)
 	if original == nil {
 		return nil, fmt.Errorf("session %s not found", sessionID)
 	}
 
-	state, err := sm.CreateSession(cwd, "")
+	state, err := sm.CreateSession(ctx, cwd, "")
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func (sm *SessionManager) ListSessions(cwd string) []SessionInfo {
 	return result
 }
 
-func (sm *SessionManager) RestoreSession(sessionID string) (*sessionState, error) {
+func (sm *SessionManager) RestoreSession(ctx context.Context, sessionID string) (*sessionState, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -240,7 +240,7 @@ func (sm *SessionManager) RestoreSession(sessionID string) (*sessionState, error
 		return nil, err
 	}
 
-	agent, err := sm.agentFactory.CreateAgent(context.Background(), meta.SessionID, meta.CWD, meta.Model, meta.Mode)
+	agent, err := sm.agentFactory.CreateAgent(ctx, meta.SessionID, meta.CWD, meta.Model, meta.Mode)
 	if err != nil {
 		return nil, fmt.Errorf("restore session %s: %w", sessionID, err)
 	}
@@ -283,14 +283,14 @@ func (sm *SessionManager) saveSessionMeta(state *sessionState) {
 	}
 }
 
-func (sm *SessionManager) loadPersistedSessions() {
+func (sm *SessionManager) loadPersistedSessions(ctx context.Context) {
 	metas := sm.sessionStore.ListSessions("")
 	loaded := 0
 	for _, meta := range metas {
 		if _, exists := sm.sessions[meta.SessionID]; exists {
 			continue
 		}
-		agent, err := sm.agentFactory.CreateAgent(context.Background(), meta.SessionID, meta.CWD, meta.Model, meta.Mode)
+		agent, err := sm.agentFactory.CreateAgent(ctx, meta.SessionID, meta.CWD, meta.Model, meta.Mode)
 		if err != nil {
 			sm.logger.Warn("failed to restore session", "session_id", meta.SessionID, "err", err)
 			continue

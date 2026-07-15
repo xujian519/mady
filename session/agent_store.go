@@ -75,7 +75,7 @@ func (s *AgentStore) Save(ctx context.Context, key string, snap agentcore.StateS
 	}
 	if threadCfgSet {
 		currentCfg, currentSet := latestThreadConfig(mgr)
-		if !currentSet || !reflect.DeepEqual(currentCfg, threadCfg) {
+		if !currentSet || !currentCfg.Equal(threadCfg) {
 			if err := appendThreadConfig(ctx, mgr, threadCfg); err != nil {
 				return err
 			}
@@ -422,11 +422,51 @@ func messagesHavePrefix(full, prefix []agentcore.Message) bool {
 		return false
 	}
 	for i := range prefix {
-		if !reflect.DeepEqual(full[i], prefix[i]) {
+		if !messagesEqual(full[i], prefix[i]) {
 			return false
 		}
 	}
 	return true
+}
+
+// messagesEqual compares two agentcore.Message values field by field.
+// reflect.DeepEqual is used only for the complex Metadata/Blocks fields.
+func messagesEqual(a, b agentcore.Message) bool {
+	if a.ID != b.ID ||
+		a.Role != b.Role ||
+		a.Content != b.Content ||
+		a.ToolCallID != b.ToolCallID ||
+		a.Name != b.Name ||
+		a.Type != b.Type ||
+		a.InvocationID != b.InvocationID {
+		return false
+	}
+	if len(a.ToolCalls) != len(b.ToolCalls) {
+		return false
+	}
+	for i := range a.ToolCalls {
+		at, bt := a.ToolCalls[i], b.ToolCalls[i]
+		if at.ID != bt.ID || at.Name != bt.Name || at.Arguments != bt.Arguments {
+			return false
+		}
+	}
+	if !cacheControlEqual(a.CacheControl, b.CacheControl) {
+		return false
+	}
+	if !reflect.DeepEqual(a.Metadata, b.Metadata) {
+		return false
+	}
+	if !reflect.DeepEqual(a.Blocks, b.Blocks) {
+		return false
+	}
+	return true
+}
+
+func cacheControlEqual(a, b *agentcore.CacheControlMarker) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Type == b.Type
 }
 
 func latestThreadConfig(mgr *Manager) (*agentcore.CallConfig, bool) {

@@ -124,11 +124,14 @@ func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 
 		var req JSONRPCRequest
 		if err := json.Unmarshal(message, &req); err != nil {
-			wc.writeJSON(JSONRPCResponse{
+			if werr := wc.writeJSON(JSONRPCResponse{
 				JSONRPC: "2.0",
 				ID:      nil,
 				Error:   &JSONRPCError{Code: JSONRPCParseError, Message: err.Error()},
-			})
+			}); werr != nil {
+				wc.close()
+				return
+			}
 			continue
 		}
 
@@ -143,34 +146,49 @@ func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 			s.handleWSQueryTasks(ctx, wc, req)
 		case "tasks/subscribe":
 			if !s.handler.Card().Capabilities.Streaming {
-				wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorUnsupportedOperation, Message: "streaming not supported"}})
+				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorUnsupportedOperation, Message: "streaming not supported"}}); err != nil {
+					wc.close()
+					return
+				}
 				continue
 			}
 			s.handleWSSubscribe(ctx, wc, req, cancel)
 		case "tasks/resubscribe":
 			if !s.handler.Card().Capabilities.Streaming {
-				wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorUnsupportedOperation, Message: "streaming not supported"}})
+				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorUnsupportedOperation, Message: "streaming not supported"}}); err != nil {
+					wc.close()
+					return
+				}
 				continue
 			}
 			s.handleWSResubscribe(ctx, wc, req, cancel)
 		case "tasks/pushNotification/set":
 			if !s.handler.Card().Capabilities.PushNotifications {
-				wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorPushNotSupported, Message: "push notifications not supported"}})
+				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorPushNotSupported, Message: "push notifications not supported"}}); err != nil {
+					wc.close()
+					return
+				}
 				continue
 			}
 			s.handleWSSetPushNotification(ctx, wc, req)
 		case "tasks/pushNotification/get":
 			if !s.handler.Card().Capabilities.PushNotifications {
-				wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorPushNotSupported, Message: "push notifications not supported"}})
+				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorPushNotSupported, Message: "push notifications not supported"}}); err != nil {
+					wc.close()
+					return
+				}
 				continue
 			}
 			s.handleWSGetPushNotification(ctx, wc, req)
 		default:
-			wc.writeJSON(JSONRPCResponse{
+			if err := wc.writeJSON(JSONRPCResponse{
 				JSONRPC: "2.0",
 				ID:      req.ID,
 				Error:   &JSONRPCError{Code: JSONRPCMethodNotFound, Message: "method not found: " + req.Method},
-			})
+			}); err != nil {
+				wc.close()
+				return
+			}
 		}
 	}
 }
@@ -178,7 +196,10 @@ func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 func (s *Server) handleWSSendTask(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
@@ -186,14 +207,20 @@ func (s *Server) handleWSSendTask(ctx context.Context, wc *wsConn, req JSONRPCRe
 	if len(card.DefaultInputModes) > 0 {
 		requestedModes := ExtractInputModes(params.Message)
 		if err := ValidateInputModes(requestedModes, card.DefaultInputModes); err != nil {
-			wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorContentTypeNotSupported, Message: err.Error()}})
+			if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorContentTypeNotSupported, Message: err.Error()}}); err != nil {
+				wc.close()
+				return
+			}
 			return
 		}
 	}
 
 	task, err := s.handler.SendTask(ctx, params)
 	if err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
@@ -201,93 +228,144 @@ func (s *Server) handleWSSendTask(ctx context.Context, wc *wsConn, req JSONRPCRe
 	if s.sessionMgr != nil && task.SessionID != "" {
 		s.sessionMgr.AddTask(task.SessionID, task.ID)
 	}
-	wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task})
+	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task}); err != nil {
+		wc.close()
+		return
+	}
 }
 
 func (s *Server) handleWSGetTask(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
 	var params GetTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
 	task, err := s.handler.GetTask(ctx, params)
 	if err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorTaskNotFound, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorTaskNotFound, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
-	wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task})
+	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task}); err != nil {
+		wc.close()
+		return
+	}
 }
 
 func (s *Server) handleWSCancelTask(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
 	var params CancelTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
 	task, err := s.handler.CancelTask(ctx, params)
 	if err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorTaskNotCancelable, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorTaskNotCancelable, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
 	s.recordTask(task)
-	wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task})
+	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task}); err != nil {
+		wc.close()
+		return
+	}
 }
 
 func (s *Server) handleWSQueryTasks(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
 	var params QueryTasksRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
 	result, err := s.handler.QueryTasks(ctx, params)
 	if err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
-	wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: result})
+	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: result}); err != nil {
+		wc.close()
+		return
+	}
 }
 
 func (s *Server) handleWSSetPushNotification(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
 	var params SetPushNotificationRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
 	if err := s.handler.SetPushNotification(ctx, params); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
-	wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: nil})
+	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: nil}); err != nil {
+		wc.close()
+		return
+	}
 }
 
 func (s *Server) handleWSGetPushNotification(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
 	var params GetTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
 	cfg, err := s.handler.GetPushNotification(ctx, params.ID)
 	if err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
-	wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: cfg})
+	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: cfg}); err != nil {
+		wc.close()
+		return
+	}
 }
 
 func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCRequest, cancel context.CancelFunc) {
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
@@ -295,7 +373,10 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 	if len(card.DefaultInputModes) > 0 {
 		requestedModes := ExtractInputModes(params.Message)
 		if err := ValidateInputModes(requestedModes, card.DefaultInputModes); err != nil {
-			wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorContentTypeNotSupported, Message: err.Error()}})
+			if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorContentTypeNotSupported, Message: err.Error()}}); err != nil {
+				wc.close()
+				return
+			}
 			return
 		}
 	}
@@ -328,7 +409,10 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 			return
 		case r := <-resultCh:
 			if r.err != nil {
-				wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: r.err.Error()}})
+				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: r.err.Error()}}); err != nil {
+					wc.close()
+					return
+				}
 				return
 			}
 			s.recordTask(r.task)
@@ -336,7 +420,10 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 				s.sessionMgr.AddTask(r.task.SessionID, r.task.ID)
 			}
 			final := isTerminalState(r.task.State) || r.task.State == TaskStateInputRequired
-			wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: r.task})
+			if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: r.task}); err != nil {
+				wc.close()
+				return
+			}
 			if final {
 				return
 			}
@@ -356,6 +443,7 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 				return
 			}
 			if err := wc.writeJSON(ev); err != nil {
+				wc.close()
 				return
 			}
 			if ev.Final {
@@ -370,12 +458,18 @@ func (s *Server) handleWSResubscribe(ctx context.Context, wc *wsConn, req JSONRP
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
 	if _, err := s.handler.GetTask(ctx, GetTaskRequest{ID: params.ID}); err != nil {
-		wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: fmt.Sprintf("task %q not found", params.ID)}})
+		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: fmt.Sprintf("task %q not found", params.ID)}}); err != nil {
+			wc.close()
+			return
+		}
 		return
 	}
 
@@ -432,6 +526,7 @@ func (s *Server) wsForwardEvents(ctx context.Context, wc *wsConn, ch chan *TaskU
 				return
 			}
 			if err := wc.writeJSON(ev); err != nil {
+				wc.close()
 				return
 			}
 			if ev.Final {
@@ -708,6 +803,7 @@ func (c *WSConnection) Close() error {
 		return nil
 	}
 	c.closed = true
+	// Best-effort close handshake; ignore errors because the peer may already be gone.
 	_ = c.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(5*time.Second))
 	return c.conn.Close()
 }

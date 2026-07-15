@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -209,7 +210,19 @@ func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (P
 			go func(nodeName string, nodeFn PregelNode) {
 				defer wg.Done()
 				snapshot := state.Clone()
-				out, err := nodeFn(ctx, snapshot)
+				out, err := func() (out PregelState, err error) {
+					defer func() {
+						if r := recover(); r != nil {
+							err = agentcore.NewNodeError(
+								fmt.Sprintf("node panicked: %v\n%s", r, debug.Stack()),
+								nil,
+								"pregel",
+								nodeName,
+							)
+						}
+					}()
+					return nodeFn(ctx, snapshot)
+				}()
 				mu.Lock()
 				results[nodeName] = out
 				errs[nodeName] = err

@@ -27,44 +27,44 @@ type PlanCompiler struct {
 // Implementations wire up the provider, tool registry, and blackboard.
 type NodeBuilder interface {
 	// BuildChainNode returns a PregelNode that runs a single chain step.
-	BuildChainNode(step PlanStep, bb *FactBlackboard) graph.PregelNode
+	BuildChainNode(step PlanStep, bb *FactBlackboard) PregelNode
 
 	// BuildReActThink returns the "think" node for a ReAct step.
-	BuildReActThink(step PlanStep, bb *FactBlackboard) graph.PregelNode
+	BuildReActThink(step PlanStep, bb *FactBlackboard) PregelNode
 
 	// BuildReActAct returns the "act" (tool-calling) node for a ReAct step.
-	BuildReActAct(step PlanStep, bb *FactBlackboard) graph.PregelNode
+	BuildReActAct(step PlanStep, bb *FactBlackboard) PregelNode
 
 	// BuildReActObserve returns the "observe" (process result) node.
-	BuildReActObserve(step PlanStep, bb *FactBlackboard) graph.PregelNode
+	BuildReActObserve(step PlanStep, bb *FactBlackboard) PregelNode
 }
 
 // noopNodeBuilder returns pass-through nodes for testing.
 type noopNodeBuilder struct{}
 
-func (noopNodeBuilder) BuildChainNode(step PlanStep, bb *FactBlackboard) graph.PregelNode {
+func (noopNodeBuilder) BuildChainNode(step PlanStep, bb *FactBlackboard) PregelNode {
 	nodeID := fmt.Sprintf("step_%d_%s", step.Order, step.Strategy)
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		state[nodeID+"_output"] = step.Description + " — 完成"
 		return state, nil
 	}
 }
 
-func (noopNodeBuilder) BuildReActThink(step PlanStep, bb *FactBlackboard) graph.PregelNode {
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+func (noopNodeBuilder) BuildReActThink(step PlanStep, bb *FactBlackboard) PregelNode {
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		state["_noop_has_next"] = "true" // first iteration: always proceed
 		return state, nil
 	}
 }
 
-func (noopNodeBuilder) BuildReActAct(step PlanStep, bb *FactBlackboard) graph.PregelNode {
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+func (noopNodeBuilder) BuildReActAct(step PlanStep, bb *FactBlackboard) PregelNode {
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		return state, nil
 	}
 }
 
-func (noopNodeBuilder) BuildReActObserve(step PlanStep, bb *FactBlackboard) graph.PregelNode {
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+func (noopNodeBuilder) BuildReActObserve(step PlanStep, bb *FactBlackboard) PregelNode {
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		state["_noop_has_next"] = "false" // generic key that all routers check as fallback
 		return state, nil
 	}
@@ -99,26 +99,38 @@ func (c *PlanCompiler) CompilePlanToGraph(plan *Plan, bb *FactBlackboard) (*grap
 
 		switch step.Strategy {
 		case StrategyChain:
-			name := c.buildChainStep(g, step, bb)
+			name, err := c.buildChainStep(g, step, bb)
+			if err != nil {
+				return nil, "", fmt.Errorf("plan compiler: chain step %d: %w", i, err)
+			}
 			if i == 0 {
 				entryName = name
 			}
 			terminal = name
 		case StrategyReact:
-			entry, term := c.buildReActStep(g, step, bb)
+			entry, term, err := c.buildReActStep(g, step, bb)
+			if err != nil {
+				return nil, "", fmt.Errorf("plan compiler: react step %d: %w", i, err)
+			}
 			if i == 0 {
 				entryName = entry
 			}
 			terminal = term
 		case StrategyMultiHypothesis:
-			entry, term := BuildMultiHypothesisSubgraph(g, step, bb, c.builder)
+			entry, term, err := BuildMultiHypothesisSubgraph(g, step, bb, c.builder)
+			if err != nil {
+				return nil, "", fmt.Errorf("plan compiler: multi_hypothesis step %d: %w", i, err)
+			}
 			if i == 0 {
 				entryName = entry
 			}
 			terminal = term
 		default:
 			// Fallback: treat unknown strategies as chain.
-			name := c.buildChainStep(g, step, bb)
+			name, err := c.buildChainStep(g, step, bb)
+			if err != nil {
+				return nil, "", fmt.Errorf("plan compiler: fallback chain step %d: %w", i, err)
+			}
 			if i == 0 {
 				entryName = name
 			}
@@ -145,34 +157,46 @@ func (c *PlanCompiler) CompilePlanToGraph(plan *Plan, bb *FactBlackboard) (*grap
 }
 
 // buildChainStep creates a single linear node for a chain-strategy step.
-func (c *PlanCompiler) buildChainStep(g *graph.PregelGraph, step PlanStep, bb *FactBlackboard) string {
+func (c *PlanCompiler) buildChainStep(g GraphBuilder, step PlanStep, bb *FactBlackboard) (string, error) {
 	name := fmt.Sprintf("chain_%d", step.Order)
-	g.AddNode(name, c.builder.BuildChainNode(step, bb))
-	return name
+	if err := g.AddNode(name, c.builder.BuildChainNode(step, bb)); err != nil {
+		return "", fmt.Errorf("add chain node: %w", err)
+	}
+	return name, nil
 }
 
 // buildReActStep creates a think → act → observe cycle for a ReAct step.
-// Returns (entryNodeName, terminalNodeName).
+// Returns (entryNodeName, terminalNodeName, error).
 //
 // The observe node has a conditional edge back to think, controlled by
 // the state key "<prefix>_has_next". When the observer signals "false",
 // the conditional router returns nil → the step advances to the next via
 // the static edges.
-func (c *PlanCompiler) buildReActStep(g *graph.PregelGraph, step PlanStep, bb *FactBlackboard) (string, string) {
+func (c *PlanCompiler) buildReActStep(g GraphBuilder, step PlanStep, bb *FactBlackboard) (string, string, error) {
 	think := fmt.Sprintf("react_%d_think", step.Order)
 	act := fmt.Sprintf("react_%d_act", step.Order)
 	observe := fmt.Sprintf("react_%d_observe", step.Order)
 
-	g.AddNode(think, c.builder.BuildReActThink(step, bb))
-	g.AddNode(act, c.builder.BuildReActAct(step, bb))
-	g.AddNode(observe, c.builder.BuildReActObserve(step, bb))
+	if err := g.AddNode(think, c.builder.BuildReActThink(step, bb)); err != nil {
+		return "", "", fmt.Errorf("add react think: %w", err)
+	}
+	if err := g.AddNode(act, c.builder.BuildReActAct(step, bb)); err != nil {
+		return "", "", fmt.Errorf("add react act: %w", err)
+	}
+	if err := g.AddNode(observe, c.builder.BuildReActObserve(step, bb)); err != nil {
+		return "", "", fmt.Errorf("add react observe: %w", err)
+	}
 
-	g.AddEdge(think, act)
-	g.AddEdge(act, observe)
+	if err := g.AddEdge(think, act); err != nil {
+		return "", "", fmt.Errorf("connect think→act: %w", err)
+	}
+	if err := g.AddEdge(act, observe); err != nil {
+		return "", "", fmt.Errorf("connect act→observe: %w", err)
+	}
 
 	// Conditional edge: if has_next, loop back to think.
 	hasNextKey := observe + "_has_next"
-	_ = g.SetConditionalEdge(observe, func(ctx context.Context, state graph.PregelState) []string {
+	if err := g.SetConditionalEdge(observe, func(ctx context.Context, state PregelState) []string {
 		hn := state.GetString(hasNextKey)
 		if hn == "" {
 			hn = state.GetString("_noop_has_next") // fallback for test/noop builder
@@ -181,7 +205,9 @@ func (c *PlanCompiler) buildReActStep(g *graph.PregelGraph, step PlanStep, bb *F
 			return []string{think}
 		}
 		return nil // no more iterations → rely on static edges to advance
-	})
+	}); err != nil {
+		return "", "", fmt.Errorf("set react conditional edge: %w", err)
+	}
 
-	return think, observe
+	return think, observe, nil
 }

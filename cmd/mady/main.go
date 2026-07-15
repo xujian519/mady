@@ -165,7 +165,7 @@ func extSlice(ext agentcore.Extension) []agentcore.Extension {
 func buildEmbedder() retrieval.Embedder {
 	baseURL := os.Getenv("OMLX_BASE_URL")
 	if baseURL == "" {
-		baseURL = "http://127.0.0.1:8000/v1"
+		baseURL = agentconfig.DefaultOMLXBaseURL
 	}
 	apiKey := os.Getenv("OMLX_API_KEY")
 	if apiKey == "" {
@@ -173,7 +173,7 @@ func buildEmbedder() retrieval.Embedder {
 	}
 	model := os.Getenv("OMLX_EMBED_MODEL")
 	if model == "" {
-		model = "bge-m3-mlx-8bit"
+		model = agentconfig.DefaultEmbedModel
 	}
 	return retrieval.NewAPIEmbedder(baseURL, apiKey, model)
 }
@@ -188,7 +188,7 @@ func buildReranker() retrieval.QueryReranker {
 	}
 	baseURL := os.Getenv("OMLX_BASE_URL")
 	if baseURL == "" {
-		baseURL = "http://127.0.0.1:8000/v1"
+		baseURL = agentconfig.DefaultOMLXBaseURL
 	}
 	apiKey := os.Getenv("OMLX_API_KEY")
 	if apiKey == "" {
@@ -196,7 +196,7 @@ func buildReranker() retrieval.QueryReranker {
 	}
 	model := os.Getenv("OMLX_RERANK_MODEL")
 	if model == "" {
-		model = "Qwen3-Reranker-4B-4bit-MLX"
+		model = agentconfig.DefaultRerankModel
 	}
 	return retrieval.NewModelReranker(baseURL, apiKey, model)
 }
@@ -272,6 +272,7 @@ type frameworkContext struct {
 	WikiStore       *knowledge.Store
 	KnowledgeExt    agentcore.Extension
 	Manifests       []agentcore.AgentManifest
+	Provider        agentcore.Provider
 	// MadyHome 是应用数据根目录（~/.mady），所有可写子资源从此派生。
 	MadyHome string
 	// WorkspaceDir 是解析后的 workspace 绝对路径（~/.mady/workspace 或 $WORKSPACE_DIR）。
@@ -292,7 +293,11 @@ type frameworkContext struct {
 func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	fc := &frameworkContext{}
 
-	provider := agentconfig.BuildProvider()
+	provider, err := agentconfig.BuildProvider()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mady: %v\n", err)
+		os.Exit(1)
+	}
 	model := agentconfig.DefaultModel()
 
 	// 解析应用数据根目录（~/.mady），确保任意 cwd 下资源定位一致。
@@ -304,6 +309,7 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		fmt.Fprintf(os.Stderr, "mady: 数据目录 %s\n", madyHome)
 	}
 	fc.MadyHome = madyHome
+	fc.Provider = provider
 
 	fc.BaseConfig = agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
@@ -535,7 +541,10 @@ Examples:
 //	默认（无 Manifest）  → 单 Agent 模式（降级）
 func runTui(ctx context.Context) {
 	fs := flag.NewFlagSet("mady tui", flag.ExitOnError)
-	_ = fs.Parse(os.Args[2:])
+	if err := fs.Parse(os.Args[2:]); err != nil {
+		fmt.Fprintf(os.Stderr, "mady tui: %v\n", err)
+		os.Exit(1)
+	}
 
 	fc := setupFrameworkContext(ctx)
 
@@ -552,13 +561,17 @@ func runTui(ctx context.Context) {
 		log.Printf("rules: 已加载规则引擎（%d 条规则）", len(ruleEngine.AllRules()))
 	}
 
-	provider := agentconfig.BuildProvider()
+	provider, err := agentconfig.BuildProvider()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mady tui: %v\n", err)
+		os.Exit(1)
+	}
 	model := agentconfig.DefaultModel()
 
 	// planMode 切换高质量推理模式（/plan）。
-	// planMode = true 时使用 planModel（deepseek-v4-pro）+ 最大推理强度。
+	// planMode = true 时使用 planModel + 最大推理强度。
 	planMode := false
-	planModel := "deepseek-v4-pro"
+	planModel := agentconfig.DefaultPlanModel
 	normalModel := model
 	// providerName is the provider identifier used in status bar display.
 	providerName := os.Getenv("PROVIDER")
@@ -1299,12 +1312,15 @@ func runTui(ctx context.Context) {
 // runAcp launches the ACP server over stdio.
 func runAcp(ctx context.Context) {
 	fs := flag.NewFlagSet("mady acp", flag.ExitOnError)
-	_ = fs.Parse(os.Args[2:])
+	if err := fs.Parse(os.Args[2:]); err != nil {
+		fmt.Fprintf(os.Stderr, "mady acp: %v\n", err)
+		os.Exit(1)
+	}
 
 	fc := setupFrameworkContext(ctx)
 
 	err := acp.RunServer(ctx, acp.RunOptions{
-		Provider:   agentconfig.BuildProvider(),
+		Provider:   fc.Provider,
 		Model:      agentconfig.DefaultModel(),
 		Thinking:   agentconfig.ThinkingFromEnv(),
 		Lifecycle:  fc.WikiHook,

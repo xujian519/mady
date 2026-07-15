@@ -75,14 +75,16 @@ func caseSearchNode(ctx context.Context, state graph.PregelState) (graph.PregelS
 	facts := state.GetString(StateCaseFacts)
 	statutes := state[StateStatutes]
 
-	// Simulate case search results.
-	cases := []string{
-		"类似判例检索结果",
-	}
-
 	// Extract key terms from facts for case similarity.
 	terms := extractKeyTerms(facts)
 	query := strings.Join(terms, " ")
+
+	// Placeholder case search results; query is surfaced for future integration
+	// with a real case database (e.g., knowledge.Store FTS).
+	cases := []string{
+		fmt.Sprintf("类似判例检索（查询：%s）", query),
+		"类似判例检索结果",
+	}
 
 	out := graph.PregelState{
 		StateCaseFacts:    facts,
@@ -91,7 +93,6 @@ func caseSearchNode(ctx context.Context, state graph.PregelState) (graph.PregelS
 	if statutes != nil {
 		out[StateStatutes] = statutes
 	}
-	_ = query // used in production for actual search
 
 	return out, nil
 }

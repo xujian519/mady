@@ -3,6 +3,7 @@ package agentcore
 import (
 	"fmt"
 	"regexp"
+	"sync"
 )
 
 // AgentManifest 是 Agent 的声明式描述文件结构。
@@ -38,17 +39,44 @@ type AgentManifest struct {
 
 var manifestNameRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-var validDomains = map[string]bool{
-	"chat":      true,
-	"assistant": true,
-	"patent":    true,
-	"legal":     true,
+var (
+	validDomainsMu sync.RWMutex
+	validDomains   = map[string]bool{
+		"chat":      true,
+		"assistant": true,
+		"patent":    true,
+		"legal":     true,
+	}
+
+	validGuardrailLevelsMu sync.RWMutex
+	validGuardrailLevels   = map[string]bool{
+		"light":    true,
+		"standard": true,
+		"strict":   true,
+	}
+)
+
+// RegisterValidDomain registers an additional valid manifest domain.
+// Empty names are ignored. This allows extension packages to add new
+// functional domains without modifying the core manifest definitions.
+func RegisterValidDomain(name string) {
+	if name == "" {
+		return
+	}
+	validDomainsMu.Lock()
+	defer validDomainsMu.Unlock()
+	validDomains[name] = true
 }
 
-var validGuardrailLevels = map[string]bool{
-	"light":    true,
-	"standard": true,
-	"strict":   true,
+// RegisterValidGuardrailLevel registers an additional valid guardrail level
+// name for manifest validation. Empty names are ignored.
+func RegisterValidGuardrailLevel(name string) {
+	if name == "" {
+		return
+	}
+	validGuardrailLevelsMu.Lock()
+	defer validGuardrailLevelsMu.Unlock()
+	validGuardrailLevels[name] = true
 }
 
 // ValidateManifest 校验 AgentManifest 的字段合法性。
@@ -63,13 +91,23 @@ func ValidateManifest(m AgentManifest) error {
 	if !manifestNameRE.MatchString(m.Name) {
 		return fmt.Errorf("manifest: name %q 必须匹配 [a-z0-9-]+ 模式", m.Name)
 	}
-	if !validDomains[m.Domain] {
+
+	validDomainsMu.RLock()
+	ok := validDomains[m.Domain]
+	validDomainsMu.RUnlock()
+	if !ok {
 		return fmt.Errorf("manifest: %q 的 domain %q 无效（有效值：chat/assistant/patent/legal）",
 			m.Name, m.Domain)
 	}
-	if m.GuardrailLevel != "" && !validGuardrailLevels[m.GuardrailLevel] {
-		return fmt.Errorf("manifest: %q 的 guardrail_level %q 无效（有效值：light/standard/strict）",
-			m.Name, m.GuardrailLevel)
+
+	if m.GuardrailLevel != "" {
+		validGuardrailLevelsMu.RLock()
+		ok := validGuardrailLevels[m.GuardrailLevel]
+		validGuardrailLevelsMu.RUnlock()
+		if !ok {
+			return fmt.Errorf("manifest: %q 的 guardrail_level %q 无效（有效值：light/standard/strict）",
+				m.Name, m.GuardrailLevel)
+		}
 	}
 	return nil
 }

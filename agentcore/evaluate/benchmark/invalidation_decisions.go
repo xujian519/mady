@@ -8,6 +8,8 @@ package benchmark
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
+	"os"
 
 	"github.com/xujian519/mady/agentcore/evaluate"
 )
@@ -23,6 +25,7 @@ var InvalidationDecisionCases []evaluate.TestCase
 
 func init() {
 	if err := json.Unmarshal(invalidationDecisionCasesJSON, &InvalidationDecisionCases); err != nil {
-		panic("failed to load invalidation decision benchmark cases: " + err.Error())
+		fmt.Fprintf(os.Stderr, "failed to load invalidation decision benchmark cases: %v\n", err)
+		InvalidationDecisionCases = nil
 	}
 }

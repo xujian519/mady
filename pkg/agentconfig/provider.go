@@ -12,7 +12,7 @@
 package agentconfig
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -25,8 +25,8 @@ import (
 // BuildProvider reads PROVIDER / API_KEY / BASE_URL from the environment and
 // returns a chatcompat provider wired to the correct backend. Provider-specific
 // fallback keys (DEEPSEEK_API_KEY, ZHIPU_API_KEY, KIMI_API_KEY) are honored.
-// It calls log.Fatal when no API key is configured.
-func BuildProvider() agentcore.Provider {
+// Returns an error when no API key is configured.
+func BuildProvider() (agentcore.Provider, error) {
 	providerType := util.EnvOrDefault("PROVIDER", "deepseek")
 
 	apiKey := os.Getenv("API_KEY")
@@ -75,12 +75,12 @@ func BuildProvider() agentcore.Provider {
 	}
 
 	if apiKey == "" {
-		log.Fatal("API_KEY (or provider-specific env var) is required")
+		return nil, fmt.Errorf("API_KEY (or provider-specific env var) is required")
 	}
 	return chatcompat.New(chatcompat.Config{
 		APIKey:  apiKey,
 		BaseURL: baseURL,
-	})
+	}), nil
 }
 
 // DefaultModel returns the conventional model id for the configured provider.

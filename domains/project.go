@@ -344,17 +344,22 @@ func (r *ProjectRegistry) persistLocked() error {
 // --- 路径校验（导出以供外部逻辑复用） ---
 
 // ValidateProjectPath 校验路径是否存在、是否可访问、是否为目录。
+// 同时解析符号链接，防止 link_to_dir -> /etc 这类路径绕过沙箱边界。
 func ValidateProjectPath(p string) error {
 	absPath, err := filepath.Abs(p)
 	if err != nil {
 		return fmt.Errorf("路径解析失败: %w", err)
 	}
-	info, err := os.Stat(absPath)
+	realPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return fmt.Errorf("路径解析失败: %w", err)
+	}
+	info, err := os.Stat(realPath)
 	if err != nil {
 		return fmt.Errorf("路径不可访问: %w", err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("必须是文件夹路径: %s", absPath)
+		return fmt.Errorf("必须是文件夹路径: %s", realPath)
 	}
 	return nil
 }

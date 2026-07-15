@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os/exec"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -358,9 +360,11 @@ func (c *Client) Close() error {
 
 	// Graceful wait timed out. Force-kill the whole process tree and wait
 	// briefly; if it still does not reap (e.g. grandchildren hold pipes),
-	// abandon rather than block callers indefinitely.
+	// log and abandon rather than block callers indefinitely.
 	if c.cmd.Process != nil {
-		_ = killProcessTree(c.cmd.Process.Pid)
+		if err := killProcessTree(c.cmd.Process.Pid); err != nil {
+			log.Printf("mcp client: kill process tree failed: %v", err)
+		}
 	}
 	select {
 	case err := <-waitDone:
@@ -368,7 +372,7 @@ func (c *Client) Close() error {
 			return err
 		}
 	case <-time.After(2 * time.Second):
-		// Abandon the wait to avoid hanging forever.
+		log.Printf("mcp client: cmd.Wait did not return after kill, goroutine may leak")
 	}
 	return nil
 }
@@ -479,6 +483,12 @@ func (c *Client) writeMessage(msg any) error {
 }
 
 func (c *Client) readLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			c.reportAsyncError("read_loop", "panic",
+				fmt.Errorf("readLoop panic: %v\n%s", r, debug.Stack()), true)
+		}
+	}()
 	scanner := bufio.NewScanner(c.stdout)
 	scanner.Buffer(make([]byte, 1024*1024), 10*1024*1024)
 	for scanner.Scan() {
@@ -488,6 +498,8 @@ func (c *Client) readLoop() {
 		}
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(line), &raw); err != nil {
+			c.reportAsyncError("read_loop", "unmarshal",
+				fmt.Errorf("unmarshal line: %w", err), false)
 			continue
 		}
 		methodRaw, hasMethod := raw["method"]
@@ -716,7 +728,16 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 		_ = stdin.Close()
 		_ = stdout.Close()
 		_ = stderr.Close()
-		go func() { _ = cmd.Wait() }() // 异步回收僵尸进程
+		// 异步回收子进程，避免 reconnect 阻塞，但给一个超时避免无限泄漏。
+		go func() {
+			done := make(chan error, 1)
+			go func() { done <- cmd.Wait() }()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				log.Printf("mcp client: cmd.Wait did not return after reconnect cleanup")
+			}
+		}()
 		c.emitReconnectEvent(ReconnectPhaseFailed, "initialize_failed", c.reconnectAttempts, err)
 		return false
 	}

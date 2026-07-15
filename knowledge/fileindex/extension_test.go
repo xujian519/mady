@@ -158,7 +158,7 @@ func TestSearchFallback_ContextCancellation(t *testing.T) {
 	// WalkDir should have been interrupted early, possibly returning no or partial results.
 	// We just verify it doesn't panic and the function returns.
 	if result.Files != nil {
-		t.Logf("got %d results with cancelled ctx", len(result.Files))
+		t.Logf("got %d results with canceled ctx", len(result.Files))
 	}
 	// searchFallback should have returned (with Message or Files), not hung.
 	_ = result

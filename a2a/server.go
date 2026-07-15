@@ -1611,11 +1611,14 @@ func (n *PushNotifier) Notify(ctx context.Context, cfg *PushNotificationConfig, 
 	for attempt := 0; attempt <= n.maxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := n.backoff * time.Duration(1<<uint(attempt-1))
+			timer := time.NewTimer(backoff)
 			select {
-			case <-time.After(backoff):
+			case <-timer.C:
 			case <-ctx.Done():
+				timer.Stop()
 				return ctx.Err()
 			}
+			timer.Stop()
 		}
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, bytes.NewReader(body))

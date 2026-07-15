@@ -3,6 +3,7 @@ package guardrails
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -25,6 +26,33 @@ const (
 	// incorrect output could have real-world consequences.
 	LevelStrict
 )
+
+var (
+	customLevelsMu sync.RWMutex
+	customLevels   = map[string]Level{}
+)
+
+// RegisterLevel registers a custom guardrail level name and associates it
+// with the given Level value. The name is also registered with agentcore
+// manifest validation so manifest files can reference it.
+// Empty names or duplicate registrations are ignored.
+func RegisterLevel(name string, level Level) {
+	if name == "" {
+		return
+	}
+	customLevelsMu.Lock()
+	defer customLevelsMu.Unlock()
+	customLevels[name] = level
+	agentcore.RegisterValidGuardrailLevel(name)
+}
+
+// RegisteredLevel returns the Level value registered for name, if any.
+func RegisteredLevel(name string) (Level, bool) {
+	customLevelsMu.RLock()
+	defer customLevelsMu.RUnlock()
+	level, ok := customLevels[name]
+	return level, ok
+}
 
 // Config configures a guardrail instance.
 type Config struct {

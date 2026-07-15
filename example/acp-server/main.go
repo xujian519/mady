@@ -38,7 +38,10 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	provider := agentconfig.BuildProvider()
+	provider, err := agentconfig.BuildProvider()
+	if err != nil {
+		return err
+	}
 	return acp.RunServer(ctx, acp.RunOptions{
 		Provider: provider,
 		Model:    agentconfig.DefaultModel(),

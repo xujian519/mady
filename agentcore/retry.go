@@ -1,7 +1,8 @@
 package agentcore
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"math/big"
 	"regexp"
 	"time"
 )
@@ -104,9 +105,16 @@ func retryDelay(attempt int64, cfg *RetryConfig) time.Duration {
 // "full jitter" strategy for exponential backoff: spreading retries out
 // randomly instead of having every caller wake up and retry at the exact
 // same instant. A non-positive delay is returned unchanged.
+// Uses crypto/rand to avoid predictable retry timing.
 func applyFullJitter(delay time.Duration) time.Duration {
 	if delay <= 0 {
 		return delay
 	}
-	return time.Duration(rand.Int63n(int64(delay) + 1))
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(delay)+1))
+	if err != nil {
+		// crypto/rand failure is extremely rare; fall back to half the delay
+		// to still provide some jitter while avoiding thundering herd.
+		return delay / 2
+	}
+	return time.Duration(n.Int64())
 }

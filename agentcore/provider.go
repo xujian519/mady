@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -25,6 +26,58 @@ type CallConfig struct {
 	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
 	Thinking       *ThinkingConfig `json:"thinking,omitempty"`
 	Skills         []string        `json:"skills,omitempty"`
+}
+
+// Equal reports whether c and other represent the same call configuration.
+// It compares all exported fields, including pointer contents and slices.
+func (c *CallConfig) Equal(other *CallConfig) bool {
+	if c == nil || other == nil {
+		return c == other
+	}
+	if c.Model != other.Model {
+		return false
+	}
+	if !responseFormatEqual(c.ResponseFormat, other.ResponseFormat) {
+		return false
+	}
+	if !thinkingConfigEqual(c.Thinking, other.Thinking) {
+		return false
+	}
+	if len(c.Skills) != len(other.Skills) {
+		return false
+	}
+	for i := range c.Skills {
+		if c.Skills[i] != other.Skills[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func responseFormatEqual(a, b *ResponseFormat) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.Type != b.Type {
+		return false
+	}
+	if (a.JSONSchema == nil) != (b.JSONSchema == nil) {
+		return false
+	}
+	if a.JSONSchema != nil && !reflect.DeepEqual(*a.JSONSchema, *b.JSONSchema) {
+		return false
+	}
+	return true
+}
+
+func thinkingConfigEqual(a, b *ThinkingConfig) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.IncludeThoughts == b.IncludeThoughts &&
+		a.Display == b.Display &&
+		a.Effort == b.Effort &&
+		a.Budget == b.Budget
 }
 
 type ThinkingDisplay string

@@ -19,7 +19,7 @@ type simpleResult struct {
 }
 
 type nestedArgs struct {
-	Query  string       `json:"query" jsonschema:"required"`
+	Query  string        `json:"query" jsonschema:"required"`
 	Config *searchConfig `json:"config,omitempty"`
 }
 
@@ -155,7 +155,7 @@ func TestNewTypedTool_NestedStruct(t *testing.T) {
 	raw, _ := json.Marshal(map[string]any{
 		"query": "test",
 		"config": map[string]any{
-			"max_results": "20",  // string coercion
+			"max_results": "20",        // string coercion
 			"sources":     `["a","b"]`, // JSON string coercion
 		},
 	})

@@ -192,7 +192,7 @@ type ApprovalStore interface {
 // MemoryApprovalStore is an in-memory ApprovalStore for testing and
 // single-session use. Data is lost on process exit.
 type MemoryApprovalStore struct {
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	records []ApprovalRecord
 }
 
@@ -211,8 +211,8 @@ func (s *MemoryApprovalStore) Save(_ context.Context, record ApprovalRecord) err
 
 // List returns all records for the given session, oldest first.
 func (s *MemoryApprovalStore) List(_ context.Context, sessionID string) ([]ApprovalRecord, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var out []ApprovalRecord
 	for _, r := range s.records {
 		if r.SessionID == sessionID {
@@ -265,6 +265,22 @@ func (g *ApprovalGate) RecordDecision(
 		Decision:       decision,
 		ModifiedOutput: modifiedOutput,
 		Feedback:       feedback,
+		State:          decisionToState(decision),
 	}
 	return g.store.Save(ctx, record)
+}
+
+// decisionToState maps a human approval decision to the corresponding state
+// machine state so that persisted records can be reconstructed correctly.
+func decisionToState(d ApprovalDecision) ApprovalState {
+	switch d {
+	case DecisionAdopted:
+		return StateApproved
+	case DecisionModified:
+		return StateModified
+	case DecisionRejected:
+		return StateRejected
+	default:
+		return StateNone
+	}
 }
