@@ -196,18 +196,25 @@ func (b *Broker[T]) Publish(event T) {
 //
 // Use this for terminal events (finish, tool result, error, cancel).
 func (b *Broker[T]) PublishMustDeliver(ctx context.Context, event T) {
+	// Snapshot subscribers under a brief read lock so per-subscriber timeout
+	// waits do not block Subscribe/Unsubscribe.
 	b.mu.RLock()
-	defer b.mu.RUnlock()
 
 	select {
 	case <-b.done:
+		b.mu.RUnlock()
 		return
 	default:
 	}
 
 	timeout := b.mustDeliverTimeout
-
+	subs := make([]chan T, 0, len(b.subs))
 	for sub := range b.subs {
+		subs = append(subs, sub)
+	}
+	b.mu.RUnlock()
+
+	for _, sub := range subs {
 		// Fast path: non-blocking send.
 		select {
 		case sub <- event:
@@ -225,6 +232,9 @@ func (b *Broker[T]) PublishMustDeliver(ctx context.Context, event T) {
 			slog.Error("agentcore: PublishMustDeliver timed out",
 				"timeout", timeout)
 		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-b.done:
 			timer.Stop()
 			return
 		}

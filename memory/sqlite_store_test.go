@@ -2,12 +2,43 @@ package memory
 
 import (
 	"context"
+	"math"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+// mockEmbedder 生成基于字符 hash 的确定性向量，相似文本产生相似向量。
+type mockEmbedder struct {
+	dims int
+}
+
+func (m *mockEmbedder) Embed(_ context.Context, texts []string) ([][]float32, error) {
+	result := make([][]float32, len(texts))
+	for i, text := range texts {
+		vec := make([]float32, m.dims)
+		for _, r := range text {
+			idx := int(r) % m.dims
+			vec[idx] += 1.0
+		}
+		var norm float64
+		for _, v := range vec {
+			norm += float64(v * v)
+		}
+		if norm > 0 {
+			inv := float32(1.0 / math.Sqrt(norm))
+			for j := range vec {
+				vec[j] *= inv
+			}
+		}
+		result[i] = vec
+	}
+	return result, nil
+}
+
+func (m *mockEmbedder) Dimensions() int { return m.dims }
 
 func sqliteTestStore(t *testing.T, opts ...SQLiteOption) *SQLiteMemoryStore {
 	t.Helper()
@@ -388,5 +419,88 @@ func TestSQLiteStore_EmbeddingRoundTrip(t *testing.T) {
 		if v != expected {
 			t.Fatalf("embedding[%d]: got %f, want %f", i, v, expected)
 		}
+	}
+}
+
+func TestSQLiteStore_RememberWithEmbedder(t *testing.T) {
+	emb := &mockEmbedder{dims: 64}
+	s := sqliteTestStore(t, WithSQLiteEmbedder(emb))
+	ctx := context.Background()
+
+	id, err := s.Remember(ctx, "用户偏好中文回答", testScope(), LayerUser, nil)
+	if err != nil {
+		t.Fatalf("Remember: %v", err)
+	}
+
+	entry, err := s.Get(ctx, id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(entry.Embedding) != 64 {
+		t.Fatalf("expected embedding of length 64, got %d", len(entry.Embedding))
+	}
+}
+
+func TestSQLiteStore_RememberBatchWithEmbedder(t *testing.T) {
+	emb := &mockEmbedder{dims: 32}
+	s := sqliteTestStore(t, WithSQLiteEmbedder(emb))
+	ctx := context.Background()
+
+	entries := []MemoryEntry{
+		{Scope: testScope(), Layer: LayerUser, Content: "记忆A"},
+		{Scope: testScope(), Layer: LayerSession, Content: "记忆B"},
+	}
+	if err := s.RememberBatch(ctx, entries); err != nil {
+		t.Fatalf("RememberBatch: %v", err)
+	}
+
+	for i := range entries {
+		entry, _ := s.Get(ctx, entries[i].ID)
+		if len(entry.Embedding) != 32 {
+			t.Fatalf("entry %d: expected embedding length 32, got %d", i, len(entry.Embedding))
+		}
+	}
+}
+
+func TestSQLiteStore_RecallWithEmbedder(t *testing.T) {
+	emb := &mockEmbedder{dims: 128}
+	s := sqliteTestStore(t, WithSQLiteEmbedder(emb))
+	ctx := context.Background()
+
+	scope := MemoryScope{UserID: "u1"}
+	s.Remember(ctx, "用户喜欢简洁的中文回答风格", scope, LayerUser, nil)
+	s.Remember(ctx, "代理人资格考试相关法规条文", scope, LayerLongTerm, nil)
+	s.Remember(ctx, "当前会话讨论了专利侵权分析", scope, LayerSession, nil)
+
+	results, err := s.Recall(ctx, "用户喜欢简洁的中文回答风格", MemoryFilter{UserID: "u1"})
+	if err != nil {
+		t.Fatalf("Recall: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected at least 1 result")
+	}
+
+	top := results[0]
+	if top.Semantic <= 0 {
+		t.Fatalf("semantic score should be > 0 with embedder, got %f", top.Semantic)
+	}
+	if top.Composite <= 0 {
+		t.Fatalf("composite score should be > 0, got %f", top.Composite)
+	}
+}
+
+func TestSQLiteStore_RecallNilEmbedderFallback(t *testing.T) {
+	s := sqliteTestStore(t)
+	ctx := context.Background()
+
+	scope := MemoryScope{UserID: "u1"}
+	s.Remember(ctx, "关键词匹配测试", scope, LayerUser, nil)
+
+	results, err := s.Recall(ctx, "关键词", MemoryFilter{UserID: "u1"})
+	if err != nil {
+		t.Fatalf("Recall: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected keyword fallback to return results")
 	}
 }

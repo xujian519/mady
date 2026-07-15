@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Embedder computes vector embeddings for text.
@@ -58,7 +59,14 @@ func NewAPIEmbedder(baseURL, apiKey, model string) *APIEmbedder {
 		BaseURL: baseURL,
 		APIKey:  apiKey,
 		Model:   model,
-		client:  &http.Client{},
+		client: &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 20,
+				IdleConnTimeout:     90 * time.Second,
+			},
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -157,27 +165,30 @@ func (e *APIEmbedder) Dimensions() int {
 
 // CosineSimilarity computes the cosine similarity between two vectors.
 // Returns a value in [-1, 1]. Both vectors must have the same length.
+// Uses float32 arithmetic internally for speed; the final result is
+// widened to float64 for scoring compatibility.
 func CosineSimilarity(a, b []float32) float64 {
 	if len(a) != len(b) {
 		return 0
 	}
-	var dot, normA, normB float64
+	var dot, normA, normB float32
 	for i := range a {
-		dot += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
+		dot += a[i] * b[i]
+		normA += a[i] * a[i]
+		normB += b[i] * b[i]
 	}
 	if normA == 0 || normB == 0 {
 		return 0
 	}
-	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
+	return float64(dot) / (math.Sqrt(float64(normA)) * math.Sqrt(float64(normB)))
 }
 
 // DotProduct computes the dot product of two equal-length vectors.
+// Uses float32 arithmetic for consistency with CosineSimilarity.
 func DotProduct(a, b []float32) float64 {
-	var sum float64
+	var sum float32
 	for i := range a {
-		sum += float64(a[i]) * float64(b[i])
+		sum += a[i] * b[i]
 	}
-	return sum
+	return float64(sum)
 }

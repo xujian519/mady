@@ -1,5 +1,30 @@
 # AI 决策变更日志
 
+## 2026-07-16: 性能优化 Phase 6 — P2 次要优化（nextMemoryID atomic + CosineSimilarity float32 + APIEmbedder 连接池）
+
+- **变更**:
+  1. `memory/store.go`：`nextMemoryID` 从 `idMu sync.Mutex` + `idCounter int64` 改为 `atomic.Int64.Add(1)`，消除全局锁
+  2. `retrieval/embedding.go`：`CosineSimilarity` 和 `DotProduct` 从 float64 逐元素转换改为 float32 原生运算，仅在最终 sqrt 时转 float64，减少 1024 维向量约 3072 次类型转换
+  3. `retrieval/embedding.go`：`NewAPIEmbedder` 从 `&http.Client{}` 改为配置 Transport（MaxIdleConns:100, MaxIdleConnsPerHost:20, IdleConnTimeout:90s, Timeout:30s），启用 HTTP keep-alive 连接复用
+- **跳过 6d (AgentRun sync.Pool)**: Run 方法中对象（AgentRunContext/ProviderRequest/messages）生命周期复杂，跨 lifecycle 钩子和 goroutine，不适合 sync.Pool
+- **影响范围**: `memory/store.go`、`retrieval/embedding.go`（2 个文件）
+- **风险等级**: 低
+- **审查要求**: L1
+- **验证**: `go build` ✅ | `go test -race ./memory/... ./retrieval/...` ✅ | `golangci-lint` ✅
+
+## 2026-07-16: 性能优化 Phase 5 — Memory 向量检索修复（P0-1/P0-2）
+
+- **变更**:
+  1. `memory/sqlite_store.go`：新增 `embedder retrieval.Embedder` 字段 + `WithSQLiteEmbedder()` Option。`Remember` 从硬编码 `NULL` 改为有 embedder 时自动生成 embedding 写入；`RememberBatch` 同步自动填充。`Recall` 从纯 `keywordScore` 改为：有 queryVec + entry embedding 时用 `retrieval.CosineSimilarity` 向量搜索，否则 fallback 到 keywordScore。
+  2. `memory/store.go`：InMemoryStore 同步改动——新增 `embedder` 字段 + `WithEmbedder()` Option。`Remember`/`RememberBatch`/`Recall` 同 SQLite 版本逻辑一致。
+  3. `memory/sqlite_store_test.go`：新增 `mockEmbedder`（字符 hash 向量）、4 个新测试覆盖 Remember/RememberBatch/Recall 向量路径 + nil embedder fallback。
+- **根因**: `Remember` SQL 中 embedding 列硬编码 `NULL`；schema 有 `embedding BLOB` 列但从未使用。`Recall` 退化为 keywordScore 暴力匹配，O(N×content_len) 重复 tokenize + 词频 map。
+- **向后兼容**: ✅ nil embedder → 现有 keywordScore 行为，零破坏
+- **影响范围**: `memory/sqlite_store.go`、`memory/store.go`、`memory/sqlite_store_test.go`（3 个文件）
+- **风险等级**: 低（纯代码层修复，Memory 系统尚未集成到生产入口，运行时无影响）
+- **审查要求**: L2
+- **验证**: `go build` ✅ | `go test -race ./memory/...` ✅（19/19 通过） | `golangci-lint` ✅
+
 ## 2026-07-16: P2B 四层评估定论——通用 prompt + 自主推理最优
 
 - **变更**: 新增 `ManifestToSystemPrompt`（manifest steps → 结构化 prompt）和 `TestLiveAgentP2BPromptAugmentedEval`（L4 增强 prompt 评估），跑出 P2B 四层完整对比。
@@ -12,6 +37,17 @@
 - **风险等级**: 低（新增函数和测试，不改现有逻辑）
 - **审查要求**: L2
 - **验证**: `go build/vet/test` ✅ | P2B L4 10 题 live eval ✅
+
+## 2026-07-16: 性能优化 Phase 3 — VectorIndex Search 最小堆优化
+
+- **变更**:
+  1. `knowledge/sqlite/vector_index.go`：新增 `minVectorHeap` 类型（`container/heap` 实现）。Search 方法中每个 worker 从 `make([]vectorMatch, n)` 全量分配+全排序改为 topK 大小最小堆，内存分配从 O(N/workers) 降到 O(K)。
+- **动机**: 每个 worker 分配整个 shard（144K/12≈12K entries）的 `[]vectorMatch` + `sort.Slice` 全排序，benchmark 显示 4.7MB/op alloc。
+- **收益**: alloc 4.7MB→26KB（降低 **99.4%**），速度 16.5ms→14.8ms（+10%）。
+- **影响范围**: `knowledge/sqlite/vector_index.go`（1 个文件）
+- **风险等级**: 低（搜索结果不变，只优化内存分配策略）
+- **审查要求**: L2
+- **验证**: `go build` ✅ | `go test -race ./knowledge/sqlite/...` ✅ | `golangci-lint` ✅ | benchmark alloc 4.7MB→26KB ✅
 
 ## 2026-07-16: 性能优化 Phase 2 — PubSub PublishMustDeliver 解锁
 

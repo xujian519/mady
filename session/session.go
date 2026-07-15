@@ -5,6 +5,7 @@ package session
 
 import (
 	"bufio"
+	"container/list"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -628,11 +629,17 @@ func migrateV3ToV4(entries []Entry) {
 // FileStore — one JSONL file per session
 // ---------------------------------------------------------------------------
 
+// lockEntry pairs a session ID with its RWMutex for the LRU list.
+type lockEntry struct {
+	id string
+	mu *sync.RWMutex
+}
+
 type FileStore struct {
-	dir       string
-	locks     map[string]*sync.RWMutex
-	locksMu   sync.Mutex
-	lockOrder []string
+	dir      string
+	locks    map[string]*list.Element // id → LRU list element
+	lockList *list.List               // LRU: Front=MRU, Back=LRU
+	locksMu  sync.Mutex
 
 	// maxLocks caps the per-session lock cache. When the cache exceeds this
 	// limit the oldest entries are evicted (LRU). This prevents unbounded
@@ -656,8 +663,9 @@ func NewFileStore(dir string, opts ...FileStoreOption) (*FileStore, error) {
 		return nil, fmt.Errorf("create session directory: %w", err)
 	}
 	fs := &FileStore{
-		dir:   dir,
-		locks: make(map[string]*sync.RWMutex),
+		dir:      dir,
+		locks:    make(map[string]*list.Element),
+		lockList: list.New(),
 	}
 	for _, opt := range opts {
 		opt(fs)
@@ -668,9 +676,10 @@ func NewFileStore(dir string, opts ...FileStoreOption) (*FileStore, error) {
 func (s *FileStore) sessionLock(id string) *sync.RWMutex {
 	s.locksMu.Lock()
 	defer s.locksMu.Unlock()
-	if l, ok := s.locks[id]; ok {
-		s.touchLock(id)
-		return l
+
+	if elem, ok := s.locks[id]; ok {
+		s.lockList.MoveToFront(elem) // O(1) LRU touch
+		return elem.Value.(*lockEntry).mu
 	}
 
 	if s.maxLocks > 0 && len(s.locks) >= s.maxLocks {
@@ -678,29 +687,19 @@ func (s *FileStore) sessionLock(id string) *sync.RWMutex {
 		if evictCount < 1 {
 			evictCount = 1
 		}
-		if evictCount > len(s.lockOrder) {
-			evictCount = len(s.lockOrder)
-		}
 		for i := 0; i < evictCount; i++ {
-			delete(s.locks, s.lockOrder[i])
-		}
-		s.lockOrder = s.lockOrder[evictCount:]
-	}
-
-	l := &sync.RWMutex{}
-	s.locks[id] = l
-	s.lockOrder = append(s.lockOrder, id)
-	return l
-}
-
-func (s *FileStore) touchLock(id string) {
-	for i, k := range s.lockOrder {
-		if k == id {
-			s.lockOrder = append(s.lockOrder[:i], s.lockOrder[i+1:]...)
-			s.lockOrder = append(s.lockOrder, id)
-			return
+			oldest := s.lockList.Back()
+			if oldest == nil {
+				break
+			}
+			entry := s.lockList.Remove(oldest).(*lockEntry)
+			delete(s.locks, entry.id)
 		}
 	}
+
+	entry := &lockEntry{id: id, mu: &sync.RWMutex{}}
+	s.locks[id] = s.lockList.PushFront(entry)
+	return entry.mu
 }
 
 func (s *FileStore) path(sessionID string) string {
@@ -901,7 +900,10 @@ func (s *FileStore) Delete(_ context.Context, sessionID string) error {
 // (e.g. during rewriteSession) and only the stale lock needs to be purged.
 func (s *FileStore) lockCleanup(sessionID string) {
 	s.locksMu.Lock()
-	delete(s.locks, sessionID)
+	if elem, ok := s.locks[sessionID]; ok {
+		s.lockList.Remove(elem)
+		delete(s.locks, sessionID)
+	}
 	s.locksMu.Unlock()
 }
 

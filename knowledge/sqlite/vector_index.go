@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"container/heap"
 	"fmt"
 	"runtime"
 	"sort"
@@ -27,6 +28,23 @@ type vectorMatch struct {
 	chunkID int
 	docID   string
 	score   float32
+}
+
+// minVectorHeap implements heap.Interface as a min-heap on score.
+// The root is always the lowest score, enabling O(log K) top-K selection
+// without allocating N entries.
+type minVectorHeap []vectorMatch
+
+func (h minVectorHeap) Len() int           { return len(h) }
+func (h minVectorHeap) Less(i, j int) bool { return h[i].score < h[j].score }
+func (h minVectorHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *minVectorHeap) Push(x any)        { *h = append(*h, x.(vectorMatch)) }
+func (h *minVectorHeap) Pop() any {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
 }
 
 // PreloadVectorIndex loads all embeddings from the database into memory.
@@ -88,6 +106,9 @@ func (s *SQLiteStore) PreloadVectorIndex() (*VectorIndex, error) {
 // The query vector is assumed to be normalized by the caller.
 //
 // Results are sorted by descending score.
+//
+// Each worker maintains a min-heap of size topK (instead of allocating the
+// entire shard), reducing per-query allocations from O(N/workers) to O(K).
 func (idx *VectorIndex) Search(queryVec []float32, topK int) []vectorMatch {
 	if topK <= 0 {
 		topK = 10
@@ -104,7 +125,6 @@ func (idx *VectorIndex) Search(queryVec []float32, topK int) []vectorMatch {
 		numWorkers = 1
 	}
 
-	// Each worker computes scores for its shard, then sorts and keeps top-K.
 	workerResults := make([][]vectorMatch, numWorkers)
 
 	var wg sync.WaitGroup
@@ -114,22 +134,32 @@ func (idx *VectorIndex) Search(queryVec []float32, topK int) []vectorMatch {
 		wg.Add(1)
 		go func(workerID, s, e int) {
 			defer wg.Done()
-			n := e - s
-			matches := make([]vectorMatch, n)
-			for i := 0; i < n; i++ {
-				vecStart := (s + i) * idx.dim
+
+			// Min-heap of size topK: keeps the highest-scoring matches
+			// without allocating the entire shard.
+			h := make(minVectorHeap, 0, topK+1)
+
+			for i := s; i < e; i++ {
+				vecStart := i * idx.dim
 				var dot float32
 				for d := 0; d < idx.dim; d++ {
 					dot += queryVec[d] * idx.vectors[vecStart+d]
 				}
-				matches[i] = vectorMatch{idx.chunkIDs[s+i], idx.docIDs[s+i], dot}
+
+				if h.Len() < topK {
+					heap.Push(&h, vectorMatch{idx.chunkIDs[i], idx.docIDs[i], dot})
+				} else if dot > h[0].score {
+					h[0] = vectorMatch{idx.chunkIDs[i], idx.docIDs[i], dot}
+					heap.Fix(&h, 0)
+				}
 			}
-			// Sort descending by score, keep only top-K from this shard.
-			sort.Slice(matches, func(a, b int) bool { return matches[a].score > matches[b].score })
-			if len(matches) > topK {
-				matches = matches[:topK]
+
+			// Extract sorted descending (heap.Pop gives ascending).
+			result := make([]vectorMatch, h.Len())
+			for i := len(result) - 1; i >= 0; i-- {
+				result[i] = heap.Pop(&h).(vectorMatch)
 			}
-			workerResults[workerID] = matches
+			workerResults[workerID] = result
 		}(w, start, end)
 	}
 	wg.Wait()

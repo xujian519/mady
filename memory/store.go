@@ -7,8 +7,11 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
+
+	"github.com/xujian519/mady/retrieval"
 )
 
 // InMemoryStore 是 MemoryStore 的纯内存实现。
@@ -22,6 +25,7 @@ type InMemoryStore struct {
 	scoring     ScoringConfig
 	tokenBudget TokenBudget
 	dimension   int // embedding 维度
+	embedder    retrieval.Embedder
 	now         func() time.Time
 }
 
@@ -48,6 +52,13 @@ func WithEmbeddingDimension(dim int) InMemoryOption {
 	return func(s *InMemoryStore) { s.dimension = dim }
 }
 
+// WithEmbedder 注入向量编码器，启用语义检索。
+// 当 embedder 非 nil 时，Remember/RememberBatch 自动生成 embedding，
+// Recall 使用向量相似度替代关键词匹配。
+func WithEmbedder(emb retrieval.Embedder) InMemoryOption {
+	return func(s *InMemoryStore) { s.embedder = emb }
+}
+
 // NewInMemoryStore 创建一个新的内存记忆存储。
 func NewInMemoryStore(opts ...InMemoryOption) *InMemoryStore {
 	s := &InMemoryStore{
@@ -72,14 +83,10 @@ func NewInMemoryStore(opts ...InMemoryOption) *InMemoryStore {
 
 // --- ID 生成 ---
 
-var idCounter int64
-var idMu sync.Mutex
+var idCounter atomic.Int64
 
 func nextMemoryID() string {
-	idMu.Lock()
-	idCounter++
-	n := idCounter
-	idMu.Unlock()
+	n := idCounter.Add(1)
 	return fmt.Sprintf("mem_%d_%d", time.Now().UnixMilli(), n)
 }
 
@@ -252,6 +259,12 @@ func (s *InMemoryStore) Remember(ctx context.Context, content string, scope Memo
 		Metadata:    metadata,
 	}
 
+	if s.embedder != nil {
+		if vecs, err := s.embedder.Embed(ctx, []string{content}); err == nil && len(vecs) > 0 {
+			entry.Embedding = vecs[0]
+		}
+	}
+
 	s.mu.Lock()
 	s.entries[id] = entry
 	s.byLayer[layer][id] = struct{}{}
@@ -287,6 +300,11 @@ func (s *InMemoryStore) RememberBatch(ctx context.Context, entries []MemoryEntry
 		if e.DecayFactor == 0 {
 			e.DecayFactor = 0.95
 		}
+		if len(e.Embedding) == 0 && s.embedder != nil {
+			if vecs, err := s.embedder.Embed(ctx, []string{e.Content}); err == nil && len(vecs) > 0 {
+				e.Embedding = vecs[0]
+			}
+		}
 		s.entries[e.ID] = &entries[i]
 		if e.Layer.IsValid() {
 			s.byLayer[e.Layer][e.ID] = struct{}{}
@@ -295,7 +313,8 @@ func (s *InMemoryStore) RememberBatch(ctx context.Context, entries []MemoryEntry
 	return nil
 }
 
-// Recall 按关键词检索记忆，返回按复合评分降序排列的结果。
+// Recall 按语义检索记忆，返回按复合评分降序排列的结果。
+// 当配置了 embedder 时使用向量相似度，否则退化为关键词匹配。
 func (s *InMemoryStore) Recall(ctx context.Context, query string, filter MemoryFilter) ([]ScoredMemory, error) {
 	s.mu.RLock()
 
@@ -307,11 +326,26 @@ func (s *InMemoryStore) Recall(ctx context.Context, query string, filter MemoryF
 
 	now := s.nowTime()
 
+	var queryVec []float32
+	if s.embedder != nil {
+		if vecs, err := s.embedder.Embed(ctx, []string{query}); err == nil && len(vecs) > 0 {
+			queryVec = vecs[0]
+		}
+	}
+
 	scored := make([]ScoredMemory, 0, len(candidates))
 	for _, entry := range candidates {
-		semantic := keywordScore(query, entry.Content)
+		var semantic float64
+		if queryVec != nil && len(entry.Embedding) > 0 {
+			semantic = retrieval.CosineSimilarity(queryVec, entry.Embedding)
+			if semantic < 0 {
+				semantic = 0
+			}
+		} else {
+			semantic = keywordScore(query, entry.Content)
+		}
 		if semantic < 0.25 {
-			continue // 语义过低则跳过
+			continue
 		}
 		composite := s.computeCompositeScore(semantic, entry.Importance, entry.LastAccess)
 		scored = append(scored, ScoredMemory{

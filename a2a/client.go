@@ -125,8 +125,10 @@ func (c *Client) GetAgentCard(ctx context.Context) (*AgentCard, error) {
 
 	var card AgentCard
 	if err := json.NewDecoder(resp.Body).Decode(&card); err != nil {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil, fmt.Errorf("decode agent card: %w", err)
 	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 	return &card, nil
 }
 
@@ -415,11 +417,14 @@ func (c *Client) call(ctx context.Context, method string, params any) (*JSONRPCR
 		}
 
 		var rpcResp JSONRPCResponse
-		if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
-			resp.Body.Close()
-			return nil, fmt.Errorf("decode response: %w", err)
-		}
+		decErr := json.NewDecoder(resp.Body).Decode(&rpcResp)
+		// Drain any remaining bytes so the connection can be reused
+		// (keep-alive). json.Decoder may stop after the JSON value.
+		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
+		if decErr != nil {
+			return nil, fmt.Errorf("decode response: %w", decErr)
+		}
 
 		if rpcResp.ID != nil {
 			if wantID, ok := reqID.(int64); ok {

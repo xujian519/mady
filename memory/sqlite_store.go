@@ -12,6 +12,7 @@ import (
 
 	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
+	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/store"
 )
 
@@ -22,9 +23,10 @@ import (
 // 检索策略与 InMemoryStore 保持一致：关键词匹配 + 复合评分（语义+新鲜度+重要性）。
 // Embedding 字段以 BLOB 形式存储，供未来向量检索升级使用。
 type SQLiteMemoryStore struct {
-	db      *sql.DB
-	scoring ScoringConfig
-	now     func() time.Time
+	db       *sql.DB
+	scoring  ScoringConfig
+	now      func() time.Time
+	embedder retrieval.Embedder
 }
 
 // SQLiteOption 是 SQLiteMemoryStore 的函数式配置选项。
@@ -38,6 +40,14 @@ func WithSQLiteScoringConfig(cfg ScoringConfig) SQLiteOption {
 // WithSQLiteClock 注入时间函数（测试用）。
 func WithSQLiteClock(clock func() time.Time) SQLiteOption {
 	return func(s *SQLiteMemoryStore) { s.now = clock }
+}
+
+// WithSQLiteEmbedder 注入向量编码器，启用语义检索。
+// 当 embedder 非 nil 时，Remember/RememberBatch 自动生成 embedding，
+// Recall 使用向量相似度替代关键词匹配。
+// 当 embedder 为 nil 时（默认），退化为纯关键词检索。
+func WithSQLiteEmbedder(emb retrieval.Embedder) SQLiteOption {
+	return func(s *SQLiteMemoryStore) { s.embedder = emb }
 }
 
 // NewSQLiteMemoryStore 打开或创建指定路径的 SQLite 记忆数据库。
@@ -119,14 +129,21 @@ func (s *SQLiteMemoryStore) Remember(ctx context.Context, content string, scope 
 		}
 	}
 
+	var embVal any
+	if s.embedder != nil {
+		if vecs, err := s.embedder.Embed(ctx, []string{content}); err == nil && len(vecs) > 0 {
+			embVal = floatsToBytes(vecs[0])
+		}
+	}
+
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO memories (id, user_id, agent_id, session_id, project_id, layer, content,
 		                      embedding, importance, access_count, created_at, updated_at,
 		                      last_access, decay_factor, metadata)
-		VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, 0, ?, ?, ?, 0.95, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 0.95, ?)
 	`,
 		id, scope.UserID, scope.AgentID, scope.SessionID, scope.ProjectID,
-		string(layer), content, estimateImportance(content),
+		string(layer), content, embVal, estimateImportance(content),
 		now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano),
 		now.Format(time.RFC3339Nano), metaJSON,
 	)
@@ -181,6 +198,11 @@ func (s *SQLiteMemoryStore) RememberBatch(ctx context.Context, entries []MemoryE
 		if e.Importance == 0 {
 			e.Importance = estimateImportance(e.Content)
 		}
+		if len(e.Embedding) == 0 && s.embedder != nil {
+			if vecs, err := s.embedder.Embed(ctx, []string{e.Content}); err == nil && len(vecs) > 0 {
+				e.Embedding = vecs[0]
+			}
+		}
 
 		metaJSON := "{}"
 		if e.Metadata != nil {
@@ -208,11 +230,9 @@ func (s *SQLiteMemoryStore) RememberBatch(ctx context.Context, entries []MemoryE
 	return tx.Commit()
 }
 
-// Recall 按关键词检索记忆，返回按复合评分降序排列的结果。
+// Recall 按语义检索记忆，返回按复合评分降序排列的结果。
+// 当配置了 embedder 时使用向量相似度，否则退化为关键词匹配。
 func (s *SQLiteMemoryStore) Recall(ctx context.Context, query string, filter MemoryFilter) ([]ScoredMemory, error) {
-	// Use a generous limit to avoid loading the entire table.
-	// The final result is clipped to EffectiveTopK() after scoring,
-	// but we need more candidates to allow keywordScore to filter.
 	limit := filter.EffectiveTopK() * 10
 	if limit < 100 {
 		limit = 100
@@ -227,9 +247,24 @@ func (s *SQLiteMemoryStore) Recall(ctx context.Context, query string, filter Mem
 
 	now := s.now()
 
+	var queryVec []float32
+	if s.embedder != nil {
+		if vecs, embErr := s.embedder.Embed(ctx, []string{query}); embErr == nil && len(vecs) > 0 {
+			queryVec = vecs[0]
+		}
+	}
+
 	scored := make([]ScoredMemory, 0, len(candidates))
 	for _, entry := range candidates {
-		semantic := keywordScore(query, entry.Content)
+		var semantic float64
+		if queryVec != nil && len(entry.Embedding) > 0 {
+			semantic = retrieval.CosineSimilarity(queryVec, entry.Embedding)
+			if semantic < 0 {
+				semantic = 0
+			}
+		} else {
+			semantic = keywordScore(query, entry.Content)
+		}
 		if semantic < 0.25 {
 			continue
 		}

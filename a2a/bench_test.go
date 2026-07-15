@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -314,18 +315,18 @@ func BenchmarkConcurrentTasks(b *testing.B) {
 	client := NewClient(ts.URL)
 	ctx := context.Background()
 
+	var taskSeq atomic.Int64
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
-		i := 0
 		for pb.Next() {
 			_, err := client.SendTask(ctx, SendTaskRequest{
-				ID:      fmt.Sprintf("concurrent-%d-%d", time.Now().UnixNano(), i),
+				ID:      fmt.Sprintf("concurrent-%d", taskSeq.Add(1)),
 				Message: Message{Role: string(RoleUser), Parts: []Part{NewTextPart("concurrent")}},
 			})
 			if err != nil {
 				b.Fatal(err)
 			}
-			i++
 		}
 	})
 }
