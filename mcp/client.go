@@ -1,5 +1,8 @@
 package mcp
 
+// TODO(refactor): 此文件超过 999 行，建议按职责拆分为多个文件以提升可维护性。
+// 参考 docs/GO-DEVELOPMENT-STANDARDS.md 2.4 节。
+
 import (
 	"bufio"
 	"bytes"
@@ -24,6 +27,7 @@ import (
 const protocolVersion = "2025-11-25"
 const stderrContextMaxBytes = 4 * 1024
 
+// StdioConfig 配置 MCP stdio 传输方式。
 type StdioConfig struct {
 	Name                string
 	Command             string
@@ -40,6 +44,7 @@ type StdioConfig struct {
 	Discovery           DiscoveryConfig
 }
 
+// Client 是 MCP 协议的客户端实现，支持 stdio 和 HTTP/SSE 传输。
 type Client struct {
 	cfg    StdioConfig
 	cmd    *exec.Cmd
@@ -86,6 +91,7 @@ type rpcError struct {
 	Data    any    `json:"data,omitempty"`
 }
 
+// Tool 表示 MCP 服务器提供的一个工具定义。
 type Tool struct {
 	Name         string         `json:"name"`
 	Title        string         `json:"title,omitempty"`
@@ -99,12 +105,14 @@ type toolListResult struct {
 	NextCursor string `json:"nextCursor,omitempty"`
 }
 
+// ToolResult 是工具调用的结果。
 type ToolResult struct {
 	Content           []ToolResultContent `json:"content,omitempty"`
 	StructuredContent any                 `json:"structuredContent,omitempty"`
 	IsError           bool                `json:"isError,omitempty"`
 }
 
+// ToolResultContent 是工具调用结果中的一段内容。
 type ToolResultContent struct {
 	Type     string            `json:"type"`
 	Text     string            `json:"text,omitempty"`
@@ -115,6 +123,7 @@ type ToolResultContent struct {
 	Resource *EmbeddedResource `json:"resource,omitempty"`
 }
 
+// EmbeddedResource 表示嵌入在工具结果中的资源。
 type EmbeddedResource struct {
 	URI      string `json:"uri"`
 	MIMEType string `json:"mimeType,omitempty"`
@@ -127,6 +136,7 @@ type toolBridge interface {
 	CallTool(ctx context.Context, name string, arguments map[string]any) (*ToolResult, error)
 }
 
+// StdioExtension 是 MCP stdio 扩展的抽象层，包装 Client 实例。
 type StdioExtension struct {
 	name              string
 	cfg               StdioConfig
@@ -349,13 +359,15 @@ func (c *Client) Close() error {
 	go func() {
 		waitDone <- c.cmd.Wait()
 	}()
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
 	select {
 	case err := <-waitDone:
 		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
 			return err
 		}
 		return nil
-	case <-time.After(2 * time.Second):
+	case <-timer.C:
 	}
 
 	// Graceful wait timed out. Force-kill the whole process tree and wait
@@ -366,12 +378,14 @@ func (c *Client) Close() error {
 			log.Printf("mcp client: kill process tree failed: %v", err)
 		}
 	}
+	killTimer := time.NewTimer(2 * time.Second)
+	defer killTimer.Stop()
 	select {
 	case err := <-waitDone:
 		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
 			return err
 		}
-	case <-time.After(2 * time.Second):
+	case <-killTimer.C:
 		log.Printf("mcp client: cmd.Wait did not return after kill, goroutine may leak")
 	}
 	return nil
@@ -588,7 +602,7 @@ func (c *Client) connectionError() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.readErr != nil && c.readErr != io.EOF {
-		return fmt.Errorf("mcp connection closed: %w", c.readErr)
+		return agentcore.NewRetryableError("mcp_connection", "connection closed", c.readErr)
 	}
 	return errClientClosed
 }
@@ -732,9 +746,11 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 		go func() {
 			done := make(chan error, 1)
 			go func() { done <- cmd.Wait() }()
+			timer := time.NewTimer(5 * time.Second)
+			defer timer.Stop()
 			select {
 			case <-done:
-			case <-time.After(5 * time.Second):
+			case <-timer.C:
 				log.Printf("mcp client: cmd.Wait did not return after reconnect cleanup")
 			}
 		}()
@@ -900,8 +916,10 @@ func formatToolResult(result *ToolResult) string {
 	}
 	text := strings.TrimSpace(formatToolContent(result.Content))
 	if text == "" && result.StructuredContent != nil {
-		data, _ := json.Marshal(result.StructuredContent)
-		text = string(data)
+		data, marshalErr := json.Marshal(result.StructuredContent)
+		if marshalErr == nil {
+			text = string(data)
+		}
 	}
 	if result.IsError {
 		text = strings.TrimSpace(text)

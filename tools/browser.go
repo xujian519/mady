@@ -1,5 +1,8 @@
 package tools
 
+// TODO(refactor): 此文件超过 1313 行，建议按职责拆分为多个文件以提升可维护性。
+// 参考 docs/GO-DEVELOPMENT-STANDARDS.md 2.4 节。
+
 import (
 	"context"
 	"encoding/json"
@@ -7,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chromedp/cdproto/page"
@@ -14,7 +18,22 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
-var defaultBrowserManager *BrowserManager
+var defaultBrowserMgr struct {
+	mu  sync.Mutex
+	mgr *BrowserManager
+}
+
+func DefaultBrowserManager() *BrowserManager {
+	defaultBrowserMgr.mu.Lock()
+	defer defaultBrowserMgr.mu.Unlock()
+	return defaultBrowserMgr.mgr
+}
+
+func SetDefaultBrowserManager(bm *BrowserManager) {
+	defaultBrowserMgr.mu.Lock()
+	defer defaultBrowserMgr.mu.Unlock()
+	defaultBrowserMgr.mgr = bm
+}
 
 var stealthJavaScript = `
 // Hide automation fingerprints
@@ -69,7 +88,7 @@ try {
 
 func init() {
 	abEnabled := os.Getenv("AGENT_BROWSER_ENABLED") == "true" || os.Getenv("AGENT_BROWSER_PATH") != ""
-	defaultBrowserManager = NewBrowserManager(&BrowserConfig{
+	bm := NewBrowserManager(&BrowserConfig{
 		Headless:            true,
 		AllowPrivate:        false,
 		CommandTimeout:      30 * time.Second,
@@ -77,6 +96,7 @@ func init() {
 		CamofoxURL:          "",
 		AgentBrowserEnabled: abEnabled,
 	})
+	SetDefaultBrowserManager(bm)
 
 	SetupSignalHandler()
 
@@ -134,7 +154,7 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 	}
 	cfg.defaults()
 
-	defaultBrowserManager = NewBrowserManager(&BrowserConfig{
+	bm := NewBrowserManager(&BrowserConfig{
 		Headless:            cfg.Headless,
 		AllowPrivate:        cfg.AllowPrivate,
 		CommandTimeout:      cfg.CommandTimeout,
@@ -155,6 +175,7 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 		ViewportHeight:      cfg.ViewportHeight,
 		AgentBrowserEnabled: cfg.AgentBrowserEnabled,
 	})
+	SetDefaultBrowserManager(bm)
 
 	return &agentcore.Tool{
 		Name:        "browser_navigate",
@@ -183,11 +204,11 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			}
 			sessionID := "default"
 			sessionTargetURL := ""
-			backend := DetectBackend(&defaultBrowserManager.config)
-			if backend == BackendCamofox || (defaultBrowserManager.config.AutoLocalForPrivate && IsPrivateURL(parsedURL.String())) {
+			backend := DetectBackend(&DefaultBrowserManager().config)
+			if backend == BackendCamofox || (DefaultBrowserManager().config.AutoLocalForPrivate && IsPrivateURL(parsedURL.String())) {
 				sessionTargetURL = input.URL
 			}
-			session, err := defaultBrowserManager.CreateSession(ctx, sessionID, sessionTargetURL)
+			session, err := DefaultBrowserManager().CreateSession(ctx, sessionID, sessionTargetURL)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create browser session: %w", err)
 			}
@@ -467,7 +488,7 @@ func NewBrowserSnapshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				input.Mode = "default"
 			}
 
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -548,7 +569,7 @@ func NewBrowserClickTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				ref = "@" + ref
 			}
 
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -663,7 +684,7 @@ func NewBrowserTypeTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				ref = "@" + ref
 			}
 
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -777,7 +798,7 @@ func NewBrowserScrollTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("direction must be \"up\" or \"down\"")
 			}
 
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -848,7 +869,7 @@ func NewBrowserBackTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			"properties": map[string]any{},
 		},
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -938,7 +959,7 @@ func NewBrowserPressTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -1010,7 +1031,7 @@ func NewBrowserScreenshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -1095,7 +1116,7 @@ func NewBrowserEvaluateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -1169,7 +1190,7 @@ func NewBrowserDialogTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -1210,7 +1231,7 @@ func NewBrowserConsoleTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			"properties": map[string]any{},
 		},
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}
@@ -1257,7 +1278,7 @@ func NewBrowserVisionTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			session, ok := defaultBrowserManager.GetActiveSession("default")
+			session, ok := DefaultBrowserManager().GetActiveSession("default")
 			if !ok {
 				return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 			}

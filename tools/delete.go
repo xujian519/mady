@@ -13,7 +13,7 @@ import (
 
 // DeleteOperations defines pluggable operations for the delete tool.
 type DeleteOperations interface {
-	Stat(path string) (os.FileInfo, error)
+	Stat(ctx context.Context, path string) (os.FileInfo, error)
 	Remove(path string) error
 	RemoveAll(path string) error
 }
@@ -21,7 +21,7 @@ type DeleteOperations interface {
 // DefaultDeleteOperations uses the local filesystem.
 type DefaultDeleteOperations struct{}
 
-func (d DefaultDeleteOperations) Stat(path string) (os.FileInfo, error) { return os.Stat(path) }
+func (d DefaultDeleteOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) { return os.Stat(path) }
 func (d DefaultDeleteOperations) Remove(path string) error              { return os.Remove(path) }
 func (d DefaultDeleteOperations) RemoveAll(path string) error           { return os.RemoveAll(path) }
 
@@ -118,7 +118,7 @@ func NewDeleteTool(cwd string, cfg *DeleteToolConfig) *agentcore.Tool {
 				}
 			}
 
-			info, err := cfg.Operations.Stat(resolved)
+			info, err := cfg.Operations.Stat(ctx, resolved)
 			if err != nil {
 				if os.IsNotExist(err) {
 					return resultErrf("path not found: %s", input.Path)

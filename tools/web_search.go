@@ -121,7 +121,10 @@ func searchTavily(client *http.Client, query string, count int, apiKey string) (
 		"search_depth":   envOrDefault("TAVILY_SEARCH_DEPTH", "basic"),
 		"include_answer": false,
 	}
-	data, _ := json.Marshal(body)
+	data, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshal tavily request: %w", err)
+	}
 	req, err := http.NewRequest(http.MethodPost, "https://api.tavily.com/search", strings.NewReader(string(data)))
 	if err != nil {
 		return nil, err
@@ -413,6 +416,9 @@ func coerceCountToInt(raw json.RawMessage) json.RawMessage {
 			}
 		}
 	}
-	result, _ := json.Marshal(m)
+	result, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
 	return result
 }

@@ -1,5 +1,8 @@
 package server
 
+// TODO(refactor): 此文件超过 1228 行，建议按职责拆分为多个文件以提升可维护性。
+// 参考 docs/GO-DEVELOPMENT-STANDARDS.md 2.4 节。
+
 import (
 	"context"
 	"crypto/subtle"
@@ -36,6 +39,7 @@ type Server struct {
 	maxRequestBodyBytes int64
 }
 
+// CORSConfig 配置 HTTP 跨域资源共享策略。
 type CORSConfig struct {
 	AllowOrigins     []string
 	AllowMethods     []string
@@ -54,28 +58,34 @@ type threadStore interface {
 	SetThreadThinking(ctx context.Context, key string, cfg *agentcore.ThinkingConfig) (*session.ThreadSnapshot, error)
 }
 
+// BranchThreadRequest 是创建分支会话的请求体。
 type BranchThreadRequest struct {
 	EntryID string `json:"entry_id,omitempty"`
 }
 
+// ThreadThinkingRequest 是查询思考链的请求体。
 type ThreadThinkingRequest struct {
 	Thinking *agentcore.ThinkingConfig `json:"thinking,omitempty"`
 }
 
+// ThreadThinkingResponse 是思考链的响应体。
 type ThreadThinkingResponse struct {
 	ThreadID string                    `json:"thread_id"`
 	Thinking *agentcore.ThinkingConfig `json:"thinking,omitempty"`
 }
 
+// ThreadConfigRequest 是更新会话配置的请求体。
 type ThreadConfigRequest struct {
 	Config *agentcore.CallConfig `json:"config,omitempty"`
 }
 
+// ThreadConfigResponse 是会话配置的响应体。
 type ThreadConfigResponse struct {
 	ThreadID string                `json:"thread_id"`
 	Config   *agentcore.CallConfig `json:"config,omitempty"`
 }
 
+// SkillSummary 是技能的概要信息。
 type SkillSummary struct {
 	Name                   string            `json:"name"`
 	Description            string            `json:"description"`
@@ -86,14 +96,17 @@ type SkillSummary struct {
 	SelectedByDefault      bool              `json:"selected_by_default,omitempty"`
 }
 
+// SkillsResponse 是技能列表的响应体。
 type SkillsResponse struct {
 	Skills []SkillSummary `json:"skills"`
 }
 
+// SkillDiagnosticsResponse 是技能诊断信息的响应体。
 type SkillDiagnosticsResponse struct {
 	Diagnostics []skill.Diagnostic `json:"diagnostics"`
 }
 
+// SkillRegistryStatusResponse 是技能注册表状态的响应体。
 type SkillRegistryStatusResponse struct {
 	Skills                  []SkillSummary     `json:"skills"`
 	ThreadID                string             `json:"thread_id,omitempty"`
@@ -234,6 +247,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // --- request / response types ---
 
+// ChatRequest 是聊天 API 的请求体。
 type ChatRequest struct {
 	Message        string                    `json:"message"`
 	Stream         bool                      `json:"stream"`
@@ -244,6 +258,7 @@ type ChatRequest struct {
 	Skills         []string                  `json:"skills,omitempty"`
 }
 
+// ChatResponse 是聊天 API 的响应体。
 type ChatResponse struct {
 	Output   string `json:"output"`
 	ThreadID string `json:"thread_id,omitempty"`
@@ -792,7 +807,9 @@ func (s *Server) handleDeleteState(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("[server] writeJSON failed: %v", err)
+	}
 }
 
 func (s *Server) loadAgent(ctx context.Context, threadID string, callCfg *agentcore.CallConfig) (*agentcore.Agent, error) {

@@ -497,7 +497,7 @@ func (s *InMemoryStore) Prune(ctx context.Context, layer MemoryLayer, threshold 
 }
 
 // Stats 返回统计信息。
-func (s *InMemoryStore) Stats() MemoryStats {
+func (s *InMemoryStore) Stats(ctx context.Context) MemoryStats {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

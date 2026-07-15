@@ -20,6 +20,7 @@ const (
 	streamSchemaChatDone            = "chat.done.v1"
 )
 
+// MCPStreamCapabilitiesEvent 是 SSE 流中 MCPStreamCapabilitiesEvent 类型的事件/负载结构。
 type MCPStreamCapabilitiesEvent struct {
 	Schema       string                 `json:"schema"`
 	Type         string                 `json:"type"`
@@ -30,6 +31,7 @@ type MCPStreamCapabilitiesEvent struct {
 	Capabilities mcp.ServerCapabilities `json:"capabilities"`
 }
 
+// MCPStreamToolsRefreshedEvent 是 SSE 流中 MCPStreamToolsRefreshedEvent 类型的事件/负载结构。
 type MCPStreamToolsRefreshedEvent struct {
 	Schema    string    `json:"schema"`
 	Type      string    `json:"type"`
@@ -41,6 +43,7 @@ type MCPStreamToolsRefreshedEvent struct {
 	NewTools  []string  `json:"new_tools"`
 }
 
+// MCPStreamTransportErrorEvent 是 SSE 流中 MCPStreamTransportErrorEvent 类型的事件/负载结构。
 type MCPStreamTransportErrorEvent struct {
 	Schema      string    `json:"schema"`
 	Type        string    `json:"type"`
@@ -57,6 +60,7 @@ type MCPStreamTransportErrorEvent struct {
 	Recoverable bool      `json:"recoverable,omitempty"`
 }
 
+// MCPStreamReconnectEvent 是 SSE 流中 MCPStreamReconnectEvent 类型的事件/负载结构。
 type MCPStreamReconnectEvent struct {
 	Schema         string    `json:"schema"`
 	Type           string    `json:"type"`
@@ -73,6 +77,7 @@ type MCPStreamReconnectEvent struct {
 	Error          string    `json:"error,omitempty"`
 }
 
+// MCPStreamRefreshEvent 是 SSE 流中 MCPStreamRefreshEvent 类型的事件/负载结构。
 type MCPStreamRefreshEvent struct {
 	Schema    string    `json:"schema"`
 	Type      string    `json:"type"`
@@ -87,6 +92,7 @@ type MCPStreamRefreshEvent struct {
 	InFlight  bool      `json:"in_flight,omitempty"`
 }
 
+// AgentStreamEvent 是 SSE 流中 AgentStreamEvent 类型的事件/负载结构。
 type AgentStreamEvent struct {
 	Schema    string    `json:"schema"`
 	Type      string    `json:"type"`
@@ -95,6 +101,7 @@ type AgentStreamEvent struct {
 	Payload   any       `json:"payload"`
 }
 
+// SkillsSnapshotStreamEvent 是 SSE 流中 SkillsSnapshotStreamEvent 类型的事件/负载结构。
 type SkillsSnapshotStreamEvent struct {
 	Schema    string                      `json:"schema"`
 	Type      string                      `json:"type"`
@@ -102,6 +109,7 @@ type SkillsSnapshotStreamEvent struct {
 	Payload   SkillRegistryStatusResponse `json:"payload"`
 }
 
+// StreamDoneEvent 是 SSE 流中 StreamDoneEvent 类型的事件/负载结构。
 type StreamDoneEvent struct {
 	Schema   string `json:"schema"`
 	Type     string `json:"type"`
@@ -110,20 +118,24 @@ type StreamDoneEvent struct {
 	Error    string `json:"error,omitempty"`
 }
 
+// AgentStartStreamPayload 是 SSE 流中 AgentStartStreamPayload 类型的事件/负载结构。
 type AgentStartStreamPayload struct {
 	AgentName string `json:"agent_name,omitempty"`
 	Input     string `json:"input,omitempty"`
 }
 
+// AgentEndStreamPayload 是 SSE 流中 AgentEndStreamPayload 类型的事件/负载结构。
 type AgentEndStreamPayload struct {
 	AgentName string `json:"agent_name,omitempty"`
 	Output    string `json:"output"`
 }
 
+// AgentErrorStreamPayload 是 SSE 流中 AgentErrorStreamPayload 类型的事件/负载结构。
 type AgentErrorStreamPayload struct {
 	Error string `json:"error,omitempty"`
 }
 
+// SkillLoadedStreamPayload 是 SSE 流中 SkillLoadedStreamPayload 类型的事件/负载结构。
 type SkillLoadedStreamPayload struct {
 	SkillName string `json:"skill_name"`
 	Path      string `json:"path,omitempty"`
@@ -131,6 +143,7 @@ type SkillLoadedStreamPayload struct {
 	Arguments string `json:"arguments,omitempty"`
 }
 
+// SkillsReloadedStreamPayload 是 SSE 流中 SkillsReloadedStreamPayload 类型的事件/负载结构。
 type SkillsReloadedStreamPayload struct {
 	SkillPaths         []string           `json:"skill_paths,omitempty"`
 	TotalSkills        int                `json:"total_skills"`
@@ -144,23 +157,28 @@ type SkillsReloadedStreamPayload struct {
 	RemovedDiagnostics []skill.Diagnostic `json:"removed_diagnostics,omitempty"`
 }
 
+// TurnStartStreamPayload 是 SSE 流中 TurnStartStreamPayload 类型的事件/负载结构。
 type TurnStartStreamPayload struct {
 	Turn int64 `json:"turn"`
 }
 
+// TurnEndStreamPayload 是 SSE 流中 TurnEndStreamPayload 类型的事件/负载结构。
 type TurnEndStreamPayload struct {
 	Turn  int64                `json:"turn"`
 	Usage agentcore.TokenUsage `json:"usage"`
 }
 
+// MessageDeltaStreamPayload 是 SSE 流中 MessageDeltaStreamPayload 类型的事件/负载结构。
 type MessageDeltaStreamPayload struct {
 	Delta string `json:"delta"`
 }
 
+// ToolCallStartStreamPayload 是 SSE 流中 ToolCallStartStreamPayload 类型的事件/负载结构。
 type ToolCallStartStreamPayload struct {
 	ToolCall agentcore.ToolCall `json:"tool_call"`
 }
 
+// ToolCallEndStreamPayload 是 SSE 流中 ToolCallEndStreamPayload 类型的事件/负载结构。
 type ToolCallEndStreamPayload struct {
 	ToolCallID string        `json:"tool_call_id"`
 	ToolName   string        `json:"tool_name"`
@@ -169,6 +187,7 @@ type ToolCallEndStreamPayload struct {
 	Duration   time.Duration `json:"duration"`
 }
 
+// HandoffStartStreamPayload 是 SSE 流中 HandoffStartStreamPayload 类型的事件/负载结构。
 type HandoffStartStreamPayload struct {
 	SourceAgent string `json:"source_agent"`
 	TargetAgent string `json:"target_agent"`
@@ -176,6 +195,7 @@ type HandoffStartStreamPayload struct {
 	Context     string `json:"context"`
 }
 
+// HandoffEndStreamPayload 是 SSE 流中 HandoffEndStreamPayload 类型的事件/负载结构。
 type HandoffEndStreamPayload struct {
 	TargetAgent string        `json:"target_agent"`
 	Output      string        `json:"output"`
@@ -183,11 +203,13 @@ type HandoffEndStreamPayload struct {
 	Error       string        `json:"error,omitempty"`
 }
 
+// CompactionStartStreamPayload 是 SSE 流中 CompactionStartStreamPayload 类型的事件/负载结构。
 type CompactionStartStreamPayload struct {
 	TokensBefore  int64 `json:"tokens_before"`
 	ContextWindow int64 `json:"context_window"`
 }
 
+// CompactionEndStreamPayload 是 SSE 流中 CompactionEndStreamPayload 类型的事件/负载结构。
 type CompactionEndStreamPayload struct {
 	TokensBefore int64         `json:"tokens_before"`
 	TokensAfter  int64         `json:"tokens_after"`
@@ -195,6 +217,7 @@ type CompactionEndStreamPayload struct {
 	Duration     time.Duration `json:"duration"`
 }
 
+// AutoRetryStreamPayload 是 SSE 流中 AutoRetryStreamPayload 类型的事件/负载结构。
 type AutoRetryStreamPayload struct {
 	Attempt    int64         `json:"attempt"`
 	MaxRetries int64         `json:"max_retries"`

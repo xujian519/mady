@@ -5,4 +5,4 @@
 // syllogistic reasoning, patent rule-engine checks, knowledge-graph-enhanced
 // retrieval, citation tracking, OpenTelemetry tracing, and evaluation —
 // compose correctly when used in realistic workflows.
-package integration
+package integration_test

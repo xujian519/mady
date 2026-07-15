@@ -276,7 +276,7 @@ func (f *ResponseFormat) PromptInstruction() string {
 		if f.JSONSchema == nil {
 			return "Return only valid JSON that matches the requested schema."
 		}
-		schemaJSON, _ := json.MarshalIndent(f.JSONSchema.Schema, "", "  ")
+		schemaJSON, jsonErr := json.MarshalIndent(f.JSONSchema.Schema, "", "  ")
 		var b strings.Builder
 		b.WriteString("Return only valid JSON that matches this schema exactly. ")
 		b.WriteString("Do not wrap it in markdown fences or add extra commentary.")
@@ -288,7 +288,7 @@ func (f *ResponseFormat) PromptInstruction() string {
 			b.WriteString("\nDescription: ")
 			b.WriteString(f.JSONSchema.Description)
 		}
-		if len(schemaJSON) > 0 {
+		if jsonErr == nil && len(schemaJSON) > 0 {
 			b.WriteString("\n\nJSON Schema:\n")
 			b.Write(schemaJSON)
 		}

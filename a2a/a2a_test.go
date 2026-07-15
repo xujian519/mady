@@ -939,7 +939,17 @@ func TestServer_TaskTTLCleanup(t *testing.T) {
 		t.Fatal("task history should exist immediately after creation")
 	}
 
-	time.Sleep(300 * time.Millisecond)
+	// Wait for TTL cleanup to purge the task.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		server.taskStatesMu.RLock()
+		_, exists = server.taskStates["ttl-task"]
+		server.taskStatesMu.RUnlock()
+		if !exists {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	server.taskStatesMu.RLock()
 	_, exists = server.taskStates["ttl-task"]

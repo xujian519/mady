@@ -1,5 +1,20 @@
 # AI 决策变更日志
 
+## 2026-07-15: Go 规范开发文档制定 + 全仓库合规修复（4 批次）
+
+- **变更**:
+  1. 产出 `docs/GO-DEVELOPMENT-STANDARDS.md`（13 章），整合 Go 业界最佳实践与 Mady 实际代码模式
+  2. 对照规范进行全仓库审阅，产出两份审计报告：`docs/review/2026-07-15-standards-review.md` + `docs/review/2026-07-15-security-sensitive-paths-audit.md`
+  3. **批次 1（P0）并发安全 + 错误忽略**：server/disclosure.go goroutine 加 recover；browser_session.go ticker 加 stopCh+recover；browser_lightpanda.go `%v`→`%w`；21 处 json.Marshal 错误检查；2 处 json.Encode 错误检查；conn.Write 错误检查；3 处全局状态改为注入方式（browser.go/browser_advanced.go/browser_supervisor.go）；agentcore/mcp 结构化错误推广（NewRetryableError/NewFatalError）
+  4. **批次 2（P0）零测试覆盖 + 签名**：protocol/jsonrpc 7 个测试用例；workflows/patent+legal 工具构造测试；domains/reasoning/collector 4 个 Collector + 工具函数测试；integration/ 包签名 `package integration`→`package integration_test`；5 处 time.Sleep(>100ms)→channel/sync 替换；4 个关键文件导出符号注释（agentcore/event.go 17 个、server/stream_events.go 23 个、server/server.go 12 个、mcp/client.go 7 个）
+  5. **批次 3（P1）并发 safety net + context**：10 个 goroutine 添加 panic recovery（mcp/discovery.go 6 个、mcp/tools_refresh.go、tui/theme/watch.go、a2a/server.go 2 个、acp/server.go）；tools/browser_advanced.go `os.Exit(0)`→`close(ShutdownCh)`；22 处 context.Background() 传播替换（memory/sqlite_store.go、domains/sqlite/approval_store.go、domains/reasoning/sqlite/checkpoint_store.go、tools/browser_session.go）；acp 测试套件 133 子测试 + 48.7% 覆盖率
+  6. **批次 4（P2）长期改进**：22 个模块 doc.go；13 个大文件添加 TODO(refactor) 注释；14 处 time.After→time.NewTimer；8 个接口方法添加 context.Context 参数（vision/git/patch/edit/ls/delete/grep/find/read）；`interface{}`→`any` 迁移；domains/router.go AllowedSources 白名单一致性修复；tools/bash.go 临时文件清理 goroutine 改进
+- **原因**: 对全仓库进行系统性 Go 规范审阅后的合规修复，覆盖所有 P0/P1/P2 发现项
+- **影响范围**: 69 个文件，+514/-151 行变更；6 个新测试文件；22 个新 doc.go
+- **风险等级**: 中（涉及安全敏感路径 guardrails/levels.go 等，审计确认无安全问题）
+- **审查要求**: L2+
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./...` ✅ | `go test -race ./tools/...` ✅
+
 ## 2026-07-15: 修复 Medium/Low 技术债务 22 项（分 5 个 WP）
 
 - **变更**:

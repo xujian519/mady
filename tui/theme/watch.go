@@ -2,7 +2,9 @@ package theme
 
 import (
 	"context"
+	"log"
 	"os"
+	"runtime/debug"
 	"time"
 )
 
@@ -17,6 +19,11 @@ func StartSemanticThemeWatcher(path string, poll time.Duration, onReload func())
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[theme] theme watcher goroutine panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		var lastMtime int64 = -1
 		t := time.NewTicker(poll)
 		defer t.Stop()

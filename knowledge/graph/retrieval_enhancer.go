@@ -85,7 +85,7 @@ var _ interface {
 // For each seed chunk, it resolves the corresponding graph node (by DocID),
 // then pulls in similar cases and shared-statute citation chains. Results are
 // deduplicated, filtered by authority, and formatted into a context block.
-func (e *GraphEnhancer) Enhance(seeds []retrieval.ScoredChunk) interface{} {
+func (e *GraphEnhancer) Enhance(seeds []retrieval.ScoredChunk) any {
 	result := EnhancementResult{Seeds: seeds}
 	if e.store == nil || e.store.NodeCount() == 0 || len(seeds) == 0 {
 		result.Context = e.formatSeedsOnly(seeds)

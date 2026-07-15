@@ -177,8 +177,12 @@ func (e *Executor) coreExecute(ctx context.Context, tc ToolCall) (string, error)
 			if str, ok := result.(string); ok {
 				resultStr = str
 			} else if result != nil {
-				data, _ := json.Marshal(result)
-				resultStr = string(data)
+				data, marshalErr := json.Marshal(result)
+				if marshalErr != nil {
+					resultStr = fmt.Sprintf("%v", result)
+				} else {
+					resultStr = string(data)
+				}
 			}
 			return resultStr, err
 		}

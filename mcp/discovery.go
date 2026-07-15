@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"runtime/debug"
 	"sync"
 
 	"github.com/xujian519/mady/agentcore"
@@ -620,6 +622,11 @@ func handleDiscoveryNotification(
 
 func (c *Client) refreshResourceAsync(uri string) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[mcp] discovery goroutine panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		result, err := readResource(context.Background(), c.discovery, c.invokeDiscovery, uri)
 		if err != nil {
 			c.discovery.onAsyncRefreshError(context.Background(), err)
@@ -631,6 +638,11 @@ func (c *Client) refreshResourceAsync(uri string) {
 
 func (c *Client) refreshResourcesListAsync() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[mcp] discovery goroutine panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		if _, err := listResources(context.Background(), c.discovery, c.invokeDiscovery); err != nil {
 			c.discovery.onAsyncRefreshError(context.Background(), err)
 			return
@@ -643,6 +655,11 @@ func (c *Client) refreshResourcesListAsync() {
 
 func (c *Client) refreshPromptsListAsync() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[mcp] discovery goroutine panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		if _, err := listPrompts(context.Background(), c.discovery, c.invokeDiscovery); err != nil {
 			c.discovery.onAsyncRefreshError(context.Background(), err)
 		}
@@ -651,6 +668,11 @@ func (c *Client) refreshPromptsListAsync() {
 
 func (c *HTTPClient) refreshResourceAsync(uri string) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[mcp] discovery goroutine panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		result, err := readResource(c.bgCtx, c.discovery, c.invokeDiscovery, uri)
 		if err != nil {
 			c.discovery.onAsyncRefreshError(c.bgCtx, err)
@@ -662,6 +684,11 @@ func (c *HTTPClient) refreshResourceAsync(uri string) {
 
 func (c *HTTPClient) refreshResourcesListAsync() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[mcp] discovery goroutine panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		if _, err := listResources(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
 			c.discovery.onAsyncRefreshError(c.bgCtx, err)
 			return
@@ -674,6 +701,11 @@ func (c *HTTPClient) refreshResourcesListAsync() {
 
 func (c *HTTPClient) refreshPromptsListAsync() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[mcp] discovery goroutine panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		if _, err := listPrompts(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
 			c.discovery.onAsyncRefreshError(c.bgCtx, err)
 		}

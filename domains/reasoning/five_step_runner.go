@@ -179,10 +179,13 @@ func (r *FiveStepRunner) formatResult(plan *Plan, report CheckReport) (string, e
 	}
 
 	sb.WriteString("\n### 原始状态数据\n\n```json\n")
-	raw, _ := json.MarshalIndent(map[string]any{
+	raw, err := json.MarshalIndent(map[string]any{
 		"plan":   plan,
 		"report": report,
 	}, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("marshal step runner state: %w", err)
+	}
 	sb.Write(raw)
 	sb.WriteString("\n```\n")
 

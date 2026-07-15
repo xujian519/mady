@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -147,7 +148,10 @@ func (s *Server) Run(ctx context.Context) error {
 // the response. Used for client-side methods like session/request_permission.
 func (s *Server) sendRequest(method string, params any, timeout time.Duration) (json.RawMessage, error) {
 	idStr := fmt.Sprintf("acp-out-%d", s.nextOutID.Add(1))
-	paramsBytes, _ := json.Marshal(params)
+	paramsBytes, marshalErr := json.Marshal(params)
+	if marshalErr != nil {
+		return nil, fmt.Errorf("marshal params: %w", marshalErr)
+	}
 	reqBytes, err := json.Marshal(JSONRPCRequest{JSONRPC: "2.0", ID: idStr, Method: method, Params: paramsBytes})
 	if err != nil {
 		return nil, err
@@ -170,8 +174,10 @@ func (s *Server) sendRequest(method string, params any, timeout time.Duration) (
 		return nil, werr
 	}
 
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	select {
-	case <-time.After(timeout):
+	case <-timer.C:
 		return nil, fmt.Errorf("client request %s timed out", method)
 	case r := <-ch:
 		return r.result, r.err
@@ -295,20 +301,32 @@ func (s *Server) writeResponse(id any, result any) {
 	}
 	resp.Result = resultBytes
 
-	data, _ := json.Marshal(resp)
+	data, marshalErr := json.Marshal(resp)
+	if marshalErr != nil {
+		s.logger.Error("acp: failed to marshal response", "err", marshalErr)
+		return
+	}
 	s.writerMu.Lock()
 	fmt.Fprintf(s.writer, "%s\n", data)
 	s.writerMu.Unlock()
 }
 
 func (s *Server) writeNotification(method string, params any) {
-	paramsBytes, _ := json.Marshal(params)
+	paramsBytes, marshalErr := json.Marshal(params)
+	if marshalErr != nil {
+		s.logger.Error("acp: failed to marshal notification params", "err", marshalErr)
+		return
+	}
 	notif := JSONRPCNotification{
 		JSONRPC: "2.0",
 		Method:  method,
 		Params:  paramsBytes,
 	}
-	data, _ := json.Marshal(notif)
+	data, marshalErr2 := json.Marshal(notif)
+	if marshalErr2 != nil {
+		s.logger.Error("acp: failed to marshal notification", "err", marshalErr2)
+		return
+	}
 	s.writerMu.Lock()
 	fmt.Fprintf(s.writer, "%s\n", data)
 	s.writerMu.Unlock()
@@ -324,7 +342,11 @@ func (s *Server) writeError(id any, code int, message string, data any) {
 			Data:    data,
 		},
 	}
-	respData, _ := json.Marshal(resp)
+	respData, marshalErr := json.Marshal(resp)
+	if marshalErr != nil {
+		s.logger.Error("acp: failed to marshal error response", "err", marshalErr)
+		return
+	}
 	s.writerMu.Lock()
 	fmt.Fprintf(s.writer, "%s\n", respData)
 	s.writerMu.Unlock()
@@ -643,6 +665,11 @@ func (s *Server) handlePrompt(ctx context.Context, req *JSONRPCRequest) {
 	})
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Default().Error("[acp] agent run goroutine panicked", "panic", r, "stack", string(debug.Stack()))
+			}
+		}()
 		defer unregisterEvents()
 		defer func() {
 			s.sessionMgr.SetIdle(params.SessionID)

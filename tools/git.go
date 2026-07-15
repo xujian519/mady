@@ -12,13 +12,13 @@ import (
 
 // GitOperations defines pluggable operations for git tools.
 type GitOperations interface {
-	Exec(args []string, cwd string) (string, int, error)
+	Exec(ctx context.Context, args []string, cwd string) (string, int, error)
 }
 
 // DefaultGitOperations executes git commands locally.
 type DefaultGitOperations struct{}
 
-func (d DefaultGitOperations) Exec(args []string, cwd string) (string, int, error) {
+func (d DefaultGitOperations) Exec(ctx context.Context, args []string, cwd string) (string, int, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = cwd
 	output, err := cmd.CombinedOutput()
@@ -62,7 +62,7 @@ func NewGitStatusTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 			"properties": map[string]any{},
 		},
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-			output, code, err := cfg.Operations.Exec([]string{"status", "--short", "--branch"}, cwd)
+			output, code, err := cfg.Operations.Exec(ctx, []string{"status", "--short", "--branch"}, cwd)
 			if err != nil {
 				return resultErrf("git status failed: %w", err)
 			}
@@ -121,7 +121,7 @@ func NewGitDiffTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 				gitArgs = append(gitArgs, "--", input.FilePath)
 			}
 
-			output, code, err := cfg.Operations.Exec(gitArgs, cwd)
+			output, code, err := cfg.Operations.Exec(ctx, gitArgs, cwd)
 			if err != nil {
 				return resultErrf("git diff failed: %w", err)
 			}
@@ -183,7 +183,7 @@ func NewGitLogTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 				gitArgs = append(gitArgs, "--", input.FilePath)
 			}
 
-			output, code, err := cfg.Operations.Exec(gitArgs, cwd)
+			output, code, err := cfg.Operations.Exec(ctx, gitArgs, cwd)
 			if err != nil {
 				return resultErrf("git log failed: %w", err)
 			}

@@ -665,7 +665,11 @@ func (c *WSConnection) readLoop() {
 				continue
 			}
 			if resp.Result != nil {
-				data, _ := json.Marshal(resp.Result)
+				data, marshalErr := json.Marshal(resp.Result)
+				if marshalErr != nil {
+					slog.Default().Warn("a2a: failed to marshal ws result", "err", marshalErr)
+					continue
+				}
 				var task Task
 				if err := json.Unmarshal(data, &task); err == nil && task.ID != "" {
 					ev := &TaskUpdateEvent{
@@ -709,8 +713,10 @@ func (c *WSConnection) tryReconnect() bool {
 	if backoff > 30*time.Second {
 		backoff = 30 * time.Second
 	}
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
 	select {
-	case <-time.After(backoff):
+	case <-timer.C:
 	case <-c.ctx.Done():
 		return false
 	}

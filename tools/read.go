@@ -14,15 +14,15 @@ import (
 
 // ReadOperations defines pluggable filesystem operations for the read tool.
 type ReadOperations interface {
-	ReadFile(path string) ([]byte, error)
-	Stat(path string) (os.FileInfo, error)
+	ReadFile(ctx context.Context, path string) ([]byte, error)
+	Stat(ctx context.Context, path string) (os.FileInfo, error)
 }
 
 // DefaultReadOperations uses the local filesystem.
 type DefaultReadOperations struct{}
 
-func (d DefaultReadOperations) ReadFile(path string) ([]byte, error)  { return os.ReadFile(path) }
-func (d DefaultReadOperations) Stat(path string) (os.FileInfo, error) { return os.Stat(path) }
+func (d DefaultReadOperations) ReadFile(ctx context.Context, path string) ([]byte, error)  { return os.ReadFile(path) }
+func (d DefaultReadOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) { return os.Stat(path) }
 
 // ReadToolConfig configures the read tool.
 type ReadToolConfig struct {
@@ -93,7 +93,7 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 					return resultErrf("%v", err)
 				}
 			}
-			info, err := cfg.Operations.Stat(resolved)
+			info, err := cfg.Operations.Stat(ctx, resolved)
 			if err != nil {
 				return resultErrf("file not found: %s", input.Path)
 			}
@@ -119,7 +119,7 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 				return result(sb.String(), nil)
 			}
 
-			data, err := cfg.Operations.ReadFile(resolved)
+			data, err := cfg.Operations.ReadFile(ctx, resolved)
 			if err != nil {
 				return resultErrf("failed to read file: %w", err)
 			}

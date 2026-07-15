@@ -16,21 +16,21 @@ import (
 
 // GrepOperations defines pluggable operations for the grep tool.
 type GrepOperations interface {
-	IsDirectory(path string) (bool, error)
-	ReadFile(path string) (string, error)
+	IsDirectory(ctx context.Context, path string) (bool, error)
+	ReadFile(ctx context.Context, path string) (string, error)
 }
 
 // DefaultGrepOperations uses the local filesystem.
 type DefaultGrepOperations struct{}
 
-func (d DefaultGrepOperations) IsDirectory(path string) (bool, error) {
+func (d DefaultGrepOperations) IsDirectory(ctx context.Context, path string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return false, err
 	}
 	return info.IsDir(), nil
 }
-func (d DefaultGrepOperations) ReadFile(path string) (string, error) {
+func (d DefaultGrepOperations) ReadFile(ctx context.Context, path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -126,7 +126,7 @@ func NewGrepTool(cwd string, cfg *GrepToolConfig) *agentcore.Tool {
 				}
 			}
 
-			isDir, err := cfg.Operations.IsDirectory(searchPath)
+			isDir, err := cfg.Operations.IsDirectory(ctx, searchPath)
 			if err != nil {
 				return resultErrf("path not found: %s", input.Path)
 			}
@@ -218,7 +218,7 @@ func runRipgrep(ctx context.Context, rgPath, searchPath string, input GrepToolIn
 		return result("No matches found", nil)
 	}
 
-	return formatGrepMatches(matches, searchPath, input, limit, isDir, cfg)
+	return formatGrepMatches(ctx, matches, searchPath, input, limit, isDir, cfg)
 }
 
 func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limit int, isDir bool, cfg *GrepToolConfig) (any, error) {
@@ -256,7 +256,7 @@ func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limi
 					return nil
 				}
 			}
-			content, err := cfg.Operations.ReadFile(path)
+			content, err := cfg.Operations.ReadFile(ctx, path)
 			if err != nil {
 				return nil
 			}
@@ -276,7 +276,7 @@ func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limi
 			return nil
 		})
 	} else {
-		content, err := cfg.Operations.ReadFile(searchPath)
+		content, err := cfg.Operations.ReadFile(ctx, searchPath)
 		if err != nil {
 			return resultErrf("failed to read file: %w", err)
 		}
@@ -299,10 +299,10 @@ func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limi
 		return result("No matches found", nil)
 	}
 
-	return formatGrepMatches(matches, searchPath, input, limit, isDir, cfg)
+	return formatGrepMatches(ctx, matches, searchPath, input, limit, isDir, cfg)
 }
 
-func formatGrepMatches(matches []struct {
+func formatGrepMatches(ctx context.Context, matches []struct {
 	filePath string
 	lineNum  int
 }, searchPath string, input GrepToolInput, limit int, isDir bool, cfg *GrepToolConfig) (any, error) {
@@ -310,7 +310,7 @@ func formatGrepMatches(matches []struct {
 	getLines := func(filePath string) []string {
 		lines, ok := fileCache[filePath]
 		if !ok {
-			content, err := cfg.Operations.ReadFile(filePath)
+			content, err := cfg.Operations.ReadFile(ctx, filePath)
 			if err != nil {
 				return nil
 			}

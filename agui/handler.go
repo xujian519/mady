@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -209,7 +210,13 @@ func (t threadConfigProvider) GetThreadConfig(ctx context.Context, threadID stri
 }
 
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, eventType string, data any) {
-	payload, _ := json.Marshal(data)
+	payload, marshalErr := json.Marshal(data)
+	if marshalErr != nil {
+		slog.Default().Warn("agui: writeSSE marshal failed", "err", marshalErr)
+		fmt.Fprintf(w, "event: %s\ndata: {}\n\n", eventType)
+		flusher.Flush()
+		return
+	}
 	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, payload)
 	flusher.Flush()
 }
@@ -217,7 +224,9 @@ func writeSSE(w http.ResponseWriter, flusher http.Flusher, eventType string, dat
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Default().Warn("agui: writeJSON failed", "err", err)
+	}
 }
 
 func extractEventType(ev any) string {

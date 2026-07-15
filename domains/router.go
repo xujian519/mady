@@ -291,7 +291,7 @@ func RouterConfigWithRegistry(base agentcore.Config, registry *ProjectRegistry, 
 			Description:    description,
 			Mode:           agentcore.HandoffDelegate,
 			AgentConfig:    projectCfg,
-			AllowedSources: []string{"mady-router"},
+			AllowedSources: []string{"mady-router", "chat-agent"},
 			FallbackMsg:    fmt.Sprintf("案件 %s 的 Agent 暂时不可用，请稍后重试。", alias),
 		})
 	}

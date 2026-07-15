@@ -15,6 +15,7 @@ import (
 	"github.com/xujian519/mady/skill"
 )
 
+// EventType 是 Agent 生命周期事件类型的字符串别名。
 type EventType string
 
 const (
@@ -54,29 +55,34 @@ func newBase(t EventType) baseEvent {
 	return baseEvent{Kind: t, At: time.Now()}
 }
 
+// AgentStartEvent 是 Agent 开始执行时触发的事件。
 type AgentStartEvent struct {
 	baseEvent
 	AgentName string `json:"agent_name,omitempty"`
 	Input     string `json:"input,omitempty"`
 }
 
+// AgentEndEvent 是 Agent 执行完成时触发的事件。
 type AgentEndEvent struct {
 	baseEvent
 	AgentName string `json:"agent_name,omitempty"`
 	Output    string `json:"output"`
 }
 
+// AgentErrorEvent 是 Agent 执行错误时触发的事件。
 type AgentErrorEvent struct {
 	baseEvent
 	Err error `json:"error"`
 }
 
+// AgentInterruptEvent 是 Agent 被中断时触发的事件。
 type AgentInterruptEvent struct {
 	baseEvent
 	AgentName string           `json:"agent_name,omitempty"`
 	Reason    *InterruptReason `json:"reason,omitempty"`
 }
 
+// SkillLoadedEvent 是技能加载完成时触发的事件。
 type SkillLoadedEvent struct {
 	baseEvent
 	SkillName string `json:"skill_name"`
@@ -85,6 +91,7 @@ type SkillLoadedEvent struct {
 	Arguments string `json:"arguments,omitempty"`
 }
 
+// SkillsReloadedEvent 是技能热重载完成时触发的事件。
 type SkillsReloadedEvent struct {
 	baseEvent
 	SkillPaths         []string           `json:"skill_paths,omitempty"`
@@ -120,28 +127,33 @@ func NewSkillsReloadedEvent(
 	}
 }
 
+// TurnStartEvent 是 Agent 内部循环开始一轮时触发的事件。
 type TurnStartEvent struct {
 	baseEvent
 	Turn int64 `json:"turn"`
 }
 
+// TurnEndEvent 是 Agent 内部循环结束一轮时触发的事件。
 type TurnEndEvent struct {
 	baseEvent
 	Turn  int64      `json:"turn"`
 	Usage TokenUsage `json:"usage"`
 }
 
+// MessageDeltaEvent 是 LLM 流式输出消息片段时触发的事件。
 type MessageDeltaEvent struct {
 	baseEvent
 	Delta string    `json:"delta"`
 	Kind  BlockKind `json:"kind,omitempty"`
 }
 
+// ToolCallStartEvent 是工具调用开始时触发的事件。
 type ToolCallStartEvent struct {
 	baseEvent
 	ToolCall ToolCall `json:"tool_call"`
 }
 
+// ToolCallEndEvent 是工具调用结束时触发的事件。
 type ToolCallEndEvent struct {
 	baseEvent
 	ToolCallID string        `json:"tool_call_id"`
@@ -151,6 +163,7 @@ type ToolCallEndEvent struct {
 	Duration   time.Duration `json:"duration"`
 }
 
+// HandoffStartEvent 是 Handoff 交接开始时触发的事件。
 type HandoffStartEvent struct {
 	baseEvent
 	SourceAgent string `json:"source_agent"`
@@ -160,6 +173,7 @@ type HandoffStartEvent struct {
 	Invisible   bool   `json:"invisible,omitempty"`
 }
 
+// HandoffEndEvent 是 Handoff 交接结束时触发的事件。
 type HandoffEndEvent struct {
 	baseEvent
 	TargetAgent string        `json:"target_agent"`
@@ -169,12 +183,14 @@ type HandoffEndEvent struct {
 	Invisible   bool          `json:"invisible"`
 }
 
+// CompactionStartEvent 是上下文压缩开始时触发的事件。
 type CompactionStartEvent struct {
 	baseEvent
 	TokensBefore  int64 `json:"tokens_before"`
 	ContextWindow int64 `json:"context_window"`
 }
 
+// CompactionEndEvent 是上下文压缩结束时触发的事件。
 type CompactionEndEvent struct {
 	baseEvent
 	TokensBefore int64         `json:"tokens_before"`
@@ -183,6 +199,7 @@ type CompactionEndEvent struct {
 	Duration     time.Duration `json:"duration"`
 }
 
+// AutoRetryEvent 是自动重试发生时触发的事件。
 type AutoRetryEvent struct {
 	baseEvent
 	Attempt    int64         `json:"attempt"`
@@ -585,9 +602,11 @@ func (eb *EventBus) Drain() {
 	// Wait for the drain sentinel to be processed, with a generous
 	// timeout to prevent hanging if the dispatch goroutine's channel
 	// is persistently full (PublishMustDeliver timeout).
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
 	select {
 	case <-ack:
-	case <-time.After(5 * time.Second):
+	case <-timer.C:
 	}
 }
 

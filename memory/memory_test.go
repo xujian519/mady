@@ -227,7 +227,7 @@ func TestInMemoryStore_RememberBatch(t *testing.T) {
 		t.Fatalf("RememberBatch failed: %v", err)
 	}
 
-	stats := s.Stats()
+	stats := s.Stats(context.Background())
 	if stats.TotalEntries != 2 {
 		t.Fatalf("expected 2 entries, got %d", stats.TotalEntries)
 	}
@@ -251,7 +251,7 @@ func TestInMemoryStore_ForgetAll(t *testing.T) {
 		t.Fatalf("ForgetAll failed: %v", err)
 	}
 
-	stats := s.Stats()
+	stats := s.Stats(context.Background())
 	if stats.TotalEntries != 1 {
 		t.Fatalf("expected 1 entry after forget, got %d", stats.TotalEntries)
 	}
@@ -298,7 +298,7 @@ func TestInMemoryStore_Stats(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 
-	stats := s.Stats()
+	stats := s.Stats(context.Background())
 	if stats.TotalEntries != 0 {
 		t.Fatalf("expected 0 entries, got %d", stats.TotalEntries)
 	}
@@ -307,7 +307,7 @@ func TestInMemoryStore_Stats(t *testing.T) {
 	s.Remember(ctx, "session", testScope(), LayerSession, nil)
 	s.Remember(ctx, "longterm", testScope(), LayerLongTerm, nil)
 
-	stats = s.Stats()
+	stats = s.Stats(context.Background())
 	if stats.UserCount != 1 || stats.SessionCount != 1 || stats.LongTermCnt != 1 {
 		t.Fatalf("stats mismatch: user=%d session=%d longterm=%d",
 			stats.UserCount, stats.SessionCount, stats.LongTermCnt)
@@ -366,7 +366,7 @@ func TestInMemoryStore_Concurrency(t *testing.T) {
 			}
 			s.Get(ctx, id)
 			s.Recall(ctx, "concurrent", MemoryFilter{UserID: "user", TopK: 10})
-			s.Stats()
+			s.Stats(context.Background())
 		}()
 	}
 	wg.Wait()
@@ -400,7 +400,7 @@ func TestManager_RememberFromTurn(t *testing.T) {
 	}
 
 	// 验证保存到了 Session 层
-	stats := s.Stats()
+	stats := s.Stats(context.Background())
 	if stats.SessionCount < 1 {
 		t.Fatalf("expected at least 1 session entry, got %d", stats.SessionCount)
 	}
@@ -598,7 +598,7 @@ func TestMemoryTools_HandleRemember(t *testing.T) {
 	}
 
 	// 验证已存入
-	stats := s.Stats()
+	stats := s.Stats(context.Background())
 	if stats.UserCount < 1 {
 		t.Fatalf("expected at least 1 user memory, got %d", stats.UserCount)
 	}

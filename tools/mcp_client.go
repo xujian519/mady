@@ -142,6 +142,8 @@ func (c *mcpClient) call(ctx context.Context, method string, params any) (json.R
 		}
 	}
 
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	select {
 	case resp := <-ch:
 		if resp.Error != nil {
@@ -153,7 +155,7 @@ func (c *mcpClient) call(ctx context.Context, method string, params any) (json.R
 		return *resp.Result, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-time.After(timeout):
+	case <-timer.C:
 		return nil, fmt.Errorf("MCP call timeout (%s): %s", timeout, method)
 	}
 }

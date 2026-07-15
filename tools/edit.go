@@ -12,7 +12,7 @@ import (
 
 // EditOperations defines pluggable filesystem operations for the edit tool.
 type EditOperations interface {
-	ReadFile(path string) ([]byte, error)
+	ReadFile(ctx context.Context, path string) ([]byte, error)
 	WriteFile(path string, content []byte) error
 	Access(path string) error
 }
@@ -20,7 +20,7 @@ type EditOperations interface {
 // DefaultEditOperations uses the local filesystem.
 type DefaultEditOperations struct{}
 
-func (d DefaultEditOperations) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+func (d DefaultEditOperations) ReadFile(ctx context.Context, path string) ([]byte, error) { return os.ReadFile(path) }
 func (d DefaultEditOperations) WriteFile(path string, content []byte) error {
 	return os.WriteFile(path, content, 0644)
 }
@@ -117,7 +117,7 @@ func NewEditTool(cwd string, cfg *EditToolConfig) *agentcore.Tool {
 				return resultErrf("file not found: %s", input.Path)
 			}
 
-			data, err := cfg.Operations.ReadFile(resolved)
+			data, err := cfg.Operations.ReadFile(ctx, resolved)
 			if err != nil {
 				return resultErrf("failed to read file: %w", err)
 			}

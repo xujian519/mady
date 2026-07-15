@@ -603,14 +603,19 @@ func (s *TaskStream) tryReconnect() bool {
 	if backoff > 30*time.Second {
 		backoff = 30 * time.Second
 	}
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
 	select {
-	case <-time.After(backoff):
+	case <-timer.C:
 	case <-s.cancel.Done():
 		return false
 	}
 
 	rpcReq := JSONRPCRequest{JSONRPC: "2.0", ID: s.client.nextID(), Method: "tasks/resubscribe"}
-	params, _ := json.Marshal(map[string]string{"id": s.taskID})
+	params, marshalErr := json.Marshal(map[string]string{"id": s.taskID})
+	if marshalErr != nil {
+		return false
+	}
 	rpcReq.Params = params
 
 	body, err := json.Marshal(rpcReq)

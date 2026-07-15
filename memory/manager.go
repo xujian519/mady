@@ -222,8 +222,8 @@ func (m *Manager) Prune(ctx context.Context, layer MemoryLayer, threshold float6
 }
 
 // Stats 返回统计信息。
-func (m *Manager) Stats() MemoryStats {
-	return m.store.Stats()
+func (m *Manager) Stats(ctx context.Context) MemoryStats {
+	return m.store.Stats(ctx)
 }
 
 // Close 关闭管理器并释放资源。

@@ -79,9 +79,6 @@ func TestProcessToolWait(t *testing.T) {
 		t.Fatal("expected non-empty content")
 	}
 
-	// Wait a bit for process to complete.
-	time.Sleep(500 * time.Millisecond)
-
 	// Parse process ID - it's between "process " and " (PID"
 	start := strings.Index(content, "proc-")
 	if start == -1 {
@@ -92,6 +89,18 @@ func TestProcessToolWait(t *testing.T) {
 		end = len(content) - start
 	}
 	procID := content[start : start+end]
+
+	// Wait for process to complete by polling registry status.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if entry, ok := registry.Get(procID); ok {
+			status, _, _ := ops.Poll(entry)
+			if status != "running" {
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// Check status.
 	statusArgs, _ := json.Marshal(map[string]string{
@@ -202,8 +211,14 @@ func TestProcessToolFileOutput(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Wait for command to complete.
-	time.Sleep(500 * time.Millisecond)
+	// Wait for output file to be created by polling.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(outputFile); err == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// Verify file was created.
 	data, err := os.ReadFile(outputFile)

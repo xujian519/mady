@@ -127,8 +127,10 @@ func RetryMiddleware(maxRetries int64, delay time.Duration) Middleware {
 				}
 				lastErr = err
 				if i < maxRetries {
+					timer := time.NewTimer(delay)
+					defer timer.Stop()
 					select {
-					case <-time.After(delay):
+					case <-timer.C:
 					case <-ctx.Done():
 						return "", ctx.Err()
 					}

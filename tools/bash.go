@@ -301,7 +301,9 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 			// Schedule delayed cleanup of temp file (agent may reference it).
 			if tempFilePath != "" {
 				go func(path string) {
-					time.Sleep(10 * time.Minute)
+					timer := time.NewTimer(10 * time.Minute)
+					defer timer.Stop()
+					<-timer.C
 					os.Remove(path)
 				}(tempFilePath)
 			}

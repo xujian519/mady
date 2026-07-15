@@ -83,21 +83,21 @@ func RegisterValidGuardrailLevel(name string) {
 // 返回 nil 表示校验通过。
 func ValidateManifest(m AgentManifest) error {
 	if m.Name == "" {
-		return fmt.Errorf("manifest: name 字段为必填")
+		return NewFatalError("manifest", "name 字段为必填", nil)
 	}
 	if len(m.Name) > 64 {
-		return fmt.Errorf("manifest: name %q 超过 64 字符上限", m.Name)
+		return NewFatalError("manifest", fmt.Sprintf("name %q 超过 64 字符上限", m.Name), nil)
 	}
 	if !manifestNameRE.MatchString(m.Name) {
-		return fmt.Errorf("manifest: name %q 必须匹配 [a-z0-9-]+ 模式", m.Name)
+		return NewFatalError("manifest", fmt.Sprintf("name %q 必须匹配 [a-z0-9-]+ 模式", m.Name), nil)
 	}
 
 	validDomainsMu.RLock()
 	ok := validDomains[m.Domain]
 	validDomainsMu.RUnlock()
 	if !ok {
-		return fmt.Errorf("manifest: %q 的 domain %q 无效（有效值：chat/assistant/patent/legal）",
-			m.Name, m.Domain)
+		return NewFatalError("manifest",
+			fmt.Sprintf("%q 的 domain %q 无效（有效值：chat/assistant/patent/legal）", m.Name, m.Domain), nil)
 	}
 
 	if m.GuardrailLevel != "" {
@@ -105,8 +105,8 @@ func ValidateManifest(m AgentManifest) error {
 		ok := validGuardrailLevels[m.GuardrailLevel]
 		validGuardrailLevelsMu.RUnlock()
 		if !ok {
-			return fmt.Errorf("manifest: %q 的 guardrail_level %q 无效（有效值：light/standard/strict）",
-				m.Name, m.GuardrailLevel)
+			return NewFatalError("manifest",
+				fmt.Sprintf("%q 的 guardrail_level %q 无效（有效值：light/standard/strict）", m.Name, m.GuardrailLevel), nil)
 		}
 	}
 	return nil

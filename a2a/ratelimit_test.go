@@ -25,9 +25,17 @@ func TestRateLimiter_Allow(t *testing.T) {
 		t.Fatal("expected deny after burst")
 	}
 
-	// Wait for token refill
-	time.Sleep(200 * time.Millisecond)
-	if !rl.Allow(ip) {
+	// Wait for token refill by polling.
+	var allowed bool
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if rl.Allow(ip) {
+			allowed = true
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !allowed {
 		t.Fatal("expected allow after refill")
 	}
 }

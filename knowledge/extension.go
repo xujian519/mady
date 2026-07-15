@@ -36,7 +36,7 @@ type WritableBackend interface {
 const ExtensionName = "knowledge"
 
 type GraphEnhancer interface {
-	Enhance(seeds []retrieval.ScoredChunk) interface{}
+	Enhance(seeds []retrieval.ScoredChunk) any
 }
 
 // GraphEnhancement is the result interface returned by GraphEnhancer.Enhance().

@@ -1,5 +1,8 @@
 package tools
 
+// TODO(refactor): 此文件超过 1005 行，建议按职责拆分为多个文件以提升可维护性。
+// 参考 docs/GO-DEVELOPMENT-STANDARDS.md 2.4 节。
+
 import (
 	"context"
 	"encoding/json"
@@ -63,10 +66,10 @@ func NewBrowserTool(cfg *BrowserToolConfig) *agentcore.Tool {
 	cfg.defaults()
 
 	// Close previous manager to avoid leaking browser sessions and goroutines.
-	if defaultBrowserManager != nil {
-		defaultBrowserManager.CloseAll()
+	if DefaultBrowserManager() != nil {
+		DefaultBrowserManager().CloseAll()
 	}
-	defaultBrowserManager = NewBrowserManager(&BrowserConfig{
+	bm := NewBrowserManager(&BrowserConfig{
 		Headless:            cfg.Headless,
 		AllowPrivate:        cfg.AllowPrivate,
 		CommandTimeout:      cfg.CommandTimeout,
@@ -87,6 +90,7 @@ func NewBrowserTool(cfg *BrowserToolConfig) *agentcore.Tool {
 		ViewportHeight:      cfg.ViewportHeight,
 		AgentBrowserEnabled: cfg.AgentBrowserEnabled,
 	})
+	SetDefaultBrowserManager(bm)
 
 	return &agentcore.Tool{
 		Name:        "browser",
@@ -240,12 +244,12 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 
 	sessionID := "default"
 	sessionTargetURL := ""
-	backend := DetectBackend(&defaultBrowserManager.config)
-	if backend == BackendCamofox || (defaultBrowserManager.config.AutoLocalForPrivate && IsPrivateURL(parsedURL.String())) {
+	backend := DetectBackend(&DefaultBrowserManager().config)
+	if backend == BackendCamofox || (DefaultBrowserManager().config.AutoLocalForPrivate && IsPrivateURL(parsedURL.String())) {
 		sessionTargetURL = input.URL
 	}
 
-	session, err := defaultBrowserManager.CreateSession(ctx, sessionID, sessionTargetURL)
+	session, err := DefaultBrowserManager().CreateSession(ctx, sessionID, sessionTargetURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create browser session: %w", err)
 	}
@@ -403,7 +407,7 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 
 // handleSnapshot returns a text-based accessibility tree of the current page.
 func handleSnapshot(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -463,7 +467,7 @@ func handleClick(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 
 	ref := normalizeRef(input.Ref)
 
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -514,7 +518,7 @@ func handleType(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 
 	ref := normalizeRef(input.Ref)
 
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -559,7 +563,7 @@ func handleScroll(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 		return nil, fmt.Errorf("direction must be \"up\" or \"down\"")
 	}
 
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -603,7 +607,7 @@ func handleScroll(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 
 // handleBack navigates back in browser history.
 func handleBack(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -672,7 +676,7 @@ func handlePress(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 		return nil, fmt.Errorf("key is required for press action")
 	}
 
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -705,7 +709,7 @@ func handlePress(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 
 // handleScreenshot captures a screenshot of the current page.
 func handleScreenshot(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -753,7 +757,7 @@ func handleEvaluate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 		return nil, fmt.Errorf("expression is required for evaluate action")
 	}
 
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -795,7 +799,7 @@ func handleDialog(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 		return nil, fmt.Errorf("dialog_id is required for dialog action")
 	}
 
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -830,7 +834,7 @@ func handleVision(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 		return nil, fmt.Errorf("question is required for vision action")
 	}
 
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -869,7 +873,7 @@ func handleVision(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 
 // handleConsole returns a notice that console messages are captured asynchronously.
 func handleConsole(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -887,7 +891,7 @@ func handleCdp(ctx context.Context, input browserToolInput, cfg *BrowserToolConf
 		return nil, fmt.Errorf("cdp_method is required for cdp action")
 	}
 
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}
@@ -930,7 +934,7 @@ func handleCdp(ctx context.Context, input browserToolInput, cfg *BrowserToolConf
 
 // handleGetImages returns a list of images found on the current page.
 func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
-	session, ok := defaultBrowserManager.GetActiveSession("default")
+	session, ok := DefaultBrowserManager().GetActiveSession("default")
 	if !ok {
 		return nil, fmt.Errorf("no active browser session. Call browser_navigate first")
 	}

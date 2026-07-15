@@ -1,5 +1,8 @@
 package a2a
 
+// TODO(refactor): 此文件超过 1725 行，建议按职责拆分为多个文件以提升可维护性。
+// 参考 docs/GO-DEVELOPMENT-STANDARDS.md 2.4 节。
+
 import (
 	"bytes"
 	"context"
@@ -11,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -224,6 +228,11 @@ func (s *Server) startCleanup() {
 	s.cleanupTicker = time.NewTicker(s.taskTTL / 2)
 	s.cleanupStop = make(chan struct{})
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Default().Error("[a2a] cleanup goroutine panicked", "panic", r, "stack", string(debug.Stack()))
+			}
+		}()
 		for {
 			select {
 			case <-s.cleanupTicker.C:
@@ -653,6 +662,12 @@ func (s *Server) handleSendTaskSubscribe(ctx context.Context, w http.ResponseWri
 	}
 	resultCh := make(chan taskResult, 1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Default().Error("[a2a] send task goroutine panicked", "panic", r, "stack", string(debug.Stack()))
+				resultCh <- taskResult{err: fmt.Errorf("panic: %v", r)}
+			}
+		}()
 		task, err := s.handler.SendTask(ctx, params)
 		resultCh <- taskResult{task, err}
 	}()

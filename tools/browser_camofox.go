@@ -383,7 +383,10 @@ func (c *CamofoxClient) GetVNCURL() string {
 func (c *CamofoxClient) doJSON(method string, path string, body map[string]any) (map[string]any, error) {
 	var reqBody io.Reader
 	if body != nil {
-		data, _ := json.Marshal(body)
+		data, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("marshal request body: %w", err)
+		}
 		reqBody = bytes.NewReader(data)
 	}
 

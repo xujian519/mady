@@ -12,19 +12,19 @@ import (
 
 // PatchOperations defines pluggable filesystem operations for the patch tool.
 type PatchOperations interface {
-	ReadFile(path string) ([]byte, error)
+	ReadFile(ctx context.Context, path string) ([]byte, error)
 	WriteFile(path string, content []byte) error
-	Stat(path string) (os.FileInfo, error)
+	Stat(ctx context.Context, path string) (os.FileInfo, error)
 }
 
 // DefaultPatchOperations uses the local filesystem.
 type DefaultPatchOperations struct{}
 
-func (d DefaultPatchOperations) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+func (d DefaultPatchOperations) ReadFile(ctx context.Context, path string) ([]byte, error) { return os.ReadFile(path) }
 func (d DefaultPatchOperations) WriteFile(path string, content []byte) error {
 	return os.WriteFile(path, content, 0644)
 }
-func (d DefaultPatchOperations) Stat(path string) (os.FileInfo, error) { return os.Stat(path) }
+func (d DefaultPatchOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) { return os.Stat(path) }
 
 // PatchToolConfig configures the patch tool.
 type PatchToolConfig struct {
@@ -109,12 +109,12 @@ func NewPatchTool(cwd string, cfg *PatchToolConfig) *agentcore.Tool {
 			}
 
 			// Check file exists.
-			if _, err := cfg.Operations.Stat(resolved); err != nil {
+			if _, err := cfg.Operations.Stat(ctx, resolved); err != nil {
 				return resultErrf("file not found: %s", input.Path)
 			}
 
 			// Read file.
-			data, err := cfg.Operations.ReadFile(resolved)
+			data, err := cfg.Operations.ReadFile(ctx, resolved)
 			if err != nil {
 				return resultErrf("failed to read file: %w", err)
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -132,7 +133,11 @@ func (s *Session) buildReviewPrompt(toolName string, args json.RawMessage, trans
 	if len(args) > 0 {
 		var pretty map[string]any
 		if err := json.Unmarshal(args, &pretty); err == nil {
-			formatted, _ := json.MarshalIndent(pretty, "", "  ")
+			formatted, jsonErr := json.MarshalIndent(pretty, "", "  ")
+			if jsonErr != nil {
+				slog.Default().Warn("guardian: failed to marshal args for review prompt", "err", jsonErr)
+				formatted = []byte(string(args))
+			}
 			fmt.Fprintf(&sb, "参数: %s\n", string(formatted))
 		} else {
 			fmt.Fprintf(&sb, "参数: %s\n", string(args))

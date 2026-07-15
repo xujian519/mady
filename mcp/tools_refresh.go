@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -118,6 +120,11 @@ func scheduleRefresh(
 	mu.Unlock()
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[mcp] tools refresh goroutine panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		for {
 			if ctx != nil && ctx.Err() != nil {
 				emitRefreshEvent(emit, extensionName, transport, RefreshPhaseSkipped, "closed", nil, false, false)

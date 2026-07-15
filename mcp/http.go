@@ -1,5 +1,8 @@
 package mcp
 
+// TODO(refactor): 此文件超过 1021 行，建议按职责拆分为多个文件以提升可维护性。
+// 参考 docs/GO-DEVELOPMENT-STANDARDS.md 2.4 节。
+
 import (
 	"bufio"
 	"bytes"
@@ -267,9 +270,11 @@ func (c *HTTPClient) Close() error {
 		}
 	}
 	c.stateMu.Unlock()
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
 	select {
 	case <-c.streamDone:
-	case <-time.After(2 * time.Second):
+	case <-timer.C:
 	}
 	sessionID, _ := c.sessionState()
 	if sessionID == "" {

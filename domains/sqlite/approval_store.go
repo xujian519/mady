@@ -41,15 +41,15 @@ func NewApprovalStore(dbPath string) (*SQLiteApprovalStore, error) {
 	}
 
 	s := &SQLiteApprovalStore{db: db}
-	if err := s.initSchema(); err != nil {
+	if err := s.initSchema(context.Background()); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("approval/sqlite: init schema: %w", err)
 	}
 	return s, nil
 }
 
-func (s *SQLiteApprovalStore) initSchema() error {
-	_, err := s.db.ExecContext(context.Background(), `
+func (s *SQLiteApprovalStore) initSchema(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS approval_records (
 			id              TEXT PRIMARY KEY,
 			session_id      TEXT NOT NULL DEFAULT '',
@@ -73,7 +73,7 @@ func (s *SQLiteApprovalStore) Save(ctx context.Context, record domains.ApprovalR
 		return fmt.Errorf("approval/sqlite: marshal: %w", err)
 	}
 
-	_, err = s.db.ExecContext(context.Background(), `
+	_, err = s.db.ExecContext(ctx, `
 		INSERT OR REPLACE INTO approval_records (id, session_id, case_id, trigger_keyword, decision, data)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`,
@@ -221,7 +221,7 @@ func (s *SQLiteApprovalStore) Version() int { return 1 }
 
 // Migrate runs schema migrations. Currently at version 1 (initial schema).
 func (s *SQLiteApprovalStore) Migrate(ctx context.Context) (int, error) {
-	if err := s.initSchema(); err != nil {
+	if err := s.initSchema(ctx); err != nil {
 		return 0, fmt.Errorf("approval migrate: %w", err)
 	}
 	return s.Version(), nil

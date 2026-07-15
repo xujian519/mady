@@ -44,15 +44,15 @@ func NewCheckpointStore(dbPath string) (*SQLiteCheckpointStore, error) {
 	}
 
 	s := &SQLiteCheckpointStore{db: db}
-	if err := s.initSchema(); err != nil {
+	if err := s.initSchema(context.Background()); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("reasoning/sqlite: init schema: %w", err)
 	}
 	return s, nil
 }
 
-func (s *SQLiteCheckpointStore) initSchema() error {
-	_, err := s.db.ExecContext(context.Background(), `
+func (s *SQLiteCheckpointStore) initSchema(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS stage_checkpoints (
 			checkpoint_id  TEXT PRIMARY KEY,
 			case_id        TEXT NOT NULL DEFAULT '',
@@ -76,7 +76,7 @@ func (s *SQLiteCheckpointStore) Save(ctx context.Context, cp *reasoning.StageChe
 
 	caseType := string(cp.CaseType)
 
-	_, err = s.db.ExecContext(context.Background(), `
+	_, err = s.db.ExecContext(ctx, `
 		INSERT OR REPLACE INTO stage_checkpoints (checkpoint_id, case_id, case_type, current_stage, data)
 		VALUES (?, ?, ?, ?, ?)
 	`,
@@ -165,7 +165,7 @@ func (s *SQLiteCheckpointStore) Version() int { return 1 }
 
 // Migrate 执行 schema 迁移。当前为版本 1（初始 schema）。
 func (s *SQLiteCheckpointStore) Migrate(ctx context.Context) (int, error) {
-	if err := s.initSchema(); err != nil {
+	if err := s.initSchema(ctx); err != nil {
 		return 0, fmt.Errorf("checkpoint migrate: %w", err)
 	}
 	return s.Version(), nil

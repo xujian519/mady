@@ -18,9 +18,9 @@ import (
 // VisionOperations defines pluggable operations for the vision tool.
 type VisionOperations interface {
 	// Analyze sends an image to a vision-capable LLM for analysis.
-	Analyze(imageData []byte, mimeType string, prompt string) (string, error)
+	Analyze(ctx context.Context, imageData []byte, mimeType string, prompt string) (string, error)
 	// Download fetches an image from a URL.
-	Download(url string) ([]byte, string, error)
+	Download(ctx context.Context, url string) ([]byte, string, error)
 }
 
 // DefaultVisionOperations uses an external vision API.
@@ -37,7 +37,7 @@ func (d DefaultVisionOperations) client() *http.Client {
 	return &http.Client{Timeout: 60 * time.Second}
 }
 
-func (d DefaultVisionOperations) Download(url string) ([]byte, string, error) {
+func (d DefaultVisionOperations) Download(ctx context.Context, url string) ([]byte, string, error) {
 	// Validate URL.
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return nil, "", fmt.Errorf("invalid URL: must start with http:// or https://")
@@ -69,7 +69,7 @@ func (d DefaultVisionOperations) Download(url string) ([]byte, string, error) {
 	return data, mimeType, nil
 }
 
-func (d DefaultVisionOperations) Analyze(imageData []byte, mimeType string, prompt string) (string, error) {
+func (d DefaultVisionOperations) Analyze(ctx context.Context, imageData []byte, mimeType string, prompt string) (string, error) {
 	// Placeholder: in production, this would call OpenAI, Anthropic, or other vision API.
 	// For now, return a descriptive placeholder.
 	return fmt.Sprintf(
@@ -157,7 +157,7 @@ type providerVisionOperations struct {
 	model    string
 }
 
-func (o *providerVisionOperations) Analyze(imageData []byte, mimeType, prompt string) (string, error) {
+func (o *providerVisionOperations) Analyze(ctx context.Context, imageData []byte, mimeType, prompt string) (string, error) {
 	if o.provider == nil {
 		return "", fmt.Errorf("vision provider not configured")
 	}
@@ -176,8 +176,8 @@ func (o *providerVisionOperations) Analyze(imageData []byte, mimeType, prompt st
 	return resp.Content, nil
 }
 
-func (o *providerVisionOperations) Download(url string) ([]byte, string, error) {
-	return DefaultVisionOperations{}.Download(url)
+func (o *providerVisionOperations) Download(ctx context.Context, url string) ([]byte, string, error) {
+	return DefaultVisionOperations{}.Download(ctx, url)
 }
 
 // VisionToolInput is the JSON arguments for the vision tool.
@@ -257,7 +257,7 @@ func NewVisionTool(cwd string, cfg *VisionToolConfig) *agentcore.Tool {
 			} else {
 				// Load from URL or file.
 				if strings.HasPrefix(input.Image, "http://") || strings.HasPrefix(input.Image, "https://") {
-					imageData, mimeType, err = cfg.Operations.Download(input.Image)
+					imageData, mimeType, err = cfg.Operations.Download(ctx, input.Image)
 					if err != nil {
 						return resultErrf("failed to download image: %w", err)
 					}
@@ -293,7 +293,7 @@ func NewVisionTool(cwd string, cfg *VisionToolConfig) *agentcore.Tool {
 			}
 
 			// Call vision API.
-			analysis, err := cfg.Operations.Analyze(imageData, mimeType, input.Prompt)
+			analysis, err := cfg.Operations.Analyze(ctx, imageData, mimeType, input.Prompt)
 			if err != nil {
 				return resultErrf("vision analysis failed: %w", err)
 			}

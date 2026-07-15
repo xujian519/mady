@@ -51,8 +51,8 @@ type mockReadOps struct {
 	statFunc     func(path string) (os.FileInfo, error)
 }
 
-func (m *mockReadOps) ReadFile(path string) ([]byte, error)  { return m.readFileFunc(path) }
-func (m *mockReadOps) Stat(path string) (os.FileInfo, error) { return m.statFunc(path) }
+func (m *mockReadOps) ReadFile(ctx context.Context, path string) ([]byte, error)  { return m.readFileFunc(path) }
+func (m *mockReadOps) Stat(ctx context.Context, path string) (os.FileInfo, error) { return m.statFunc(path) }
 
 type mockEditOps struct {
 	readFileFunc  func(path string) ([]byte, error)
@@ -60,7 +60,7 @@ type mockEditOps struct {
 	accessFunc    func(path string) error
 }
 
-func (m *mockEditOps) ReadFile(path string) ([]byte, error) { return m.readFileFunc(path) }
+func (m *mockEditOps) ReadFile(ctx context.Context, path string) ([]byte, error) { return m.readFileFunc(path) }
 func (m *mockEditOps) WriteFile(path string, content []byte) error {
 	return m.writeFileFunc(path, content)
 }
@@ -73,16 +73,16 @@ type mockLsOps struct {
 }
 
 func (m *mockLsOps) Exists(path string) bool                    { return m.existsFunc(path) }
-func (m *mockLsOps) Stat(path string) (os.FileInfo, error)      { return m.statFunc(path) }
-func (m *mockLsOps) ReadDir(path string) ([]os.DirEntry, error) { return m.readDirFunc(path) }
+func (m *mockLsOps) Stat(ctx context.Context, path string) (os.FileInfo, error)      { return m.statFunc(path) }
+func (m *mockLsOps) ReadDir(ctx context.Context, path string) ([]os.DirEntry, error) { return m.readDirFunc(path) }
 
 type mockGrepOps struct {
 	isDirectoryFunc func(path string) (bool, error)
 	readFileFunc    func(path string) (string, error)
 }
 
-func (m *mockGrepOps) IsDirectory(path string) (bool, error) { return m.isDirectoryFunc(path) }
-func (m *mockGrepOps) ReadFile(path string) (string, error)  { return m.readFileFunc(path) }
+func (m *mockGrepOps) IsDirectory(ctx context.Context, path string) (bool, error) { return m.isDirectoryFunc(path) }
+func (m *mockGrepOps) ReadFile(ctx context.Context, path string) (string, error)  { return m.readFileFunc(path) }
 
 type mockFindOps struct {
 	existsFunc func(path string) bool
@@ -90,7 +90,7 @@ type mockFindOps struct {
 }
 
 func (m *mockFindOps) Exists(path string) bool { return m.existsFunc(path) }
-func (m *mockFindOps) Glob(pattern string, cwd string, ignore []string, limit int) ([]string, error) {
+func (m *mockFindOps) Glob(ctx context.Context, pattern string, cwd string, ignore []string, limit int) ([]string, error) {
 	return m.globFunc(pattern, cwd, ignore, limit)
 }
 

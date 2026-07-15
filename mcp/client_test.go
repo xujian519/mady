@@ -836,7 +836,16 @@ func TestStdioClient_ReconnectAfterCrashKeepsClientUsable(t *testing.T) {
 	}
 
 	// 等待 readLoop 检测到进程退出
-	time.Sleep(300 * time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		client.mu.Lock()
+		readErr := client.readErr
+		client.mu.Unlock()
+		if readErr != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// 调用工具 → 触发 tryReconnect。测试辅助进程会被重新启动，重连应成功。
 	result, err = client.CallTool(context.Background(), "echo", map[string]any{"text": "after-crash"})
@@ -896,7 +905,16 @@ func TestStdioClient_ReconnectEmitsEvents(t *testing.T) {
 	}
 
 	// 等待 readLoop 检测到进程退出
-	time.Sleep(300 * time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		client.mu.Lock()
+		readErr := client.readErr
+		client.mu.Unlock()
+		if readErr != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// 调用工具 → 触发 tryReconnect
 	_, err := client.CallTool(context.Background(), "echo", map[string]any{"text": "event-test"})

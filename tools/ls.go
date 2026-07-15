@@ -14,8 +14,8 @@ import (
 // LsOperations defines pluggable filesystem operations for the ls tool.
 type LsOperations interface {
 	Exists(path string) bool
-	Stat(path string) (os.FileInfo, error)
-	ReadDir(path string) ([]os.DirEntry, error)
+	Stat(ctx context.Context, path string) (os.FileInfo, error)
+	ReadDir(ctx context.Context, path string) ([]os.DirEntry, error)
 }
 
 // DefaultLsOperations uses the local filesystem.
@@ -25,8 +25,8 @@ func (d DefaultLsOperations) Exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
-func (d DefaultLsOperations) Stat(path string) (os.FileInfo, error) { return os.Stat(path) }
-func (d DefaultLsOperations) ReadDir(path string) ([]os.DirEntry, error) {
+func (d DefaultLsOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) { return os.Stat(path) }
+func (d DefaultLsOperations) ReadDir(ctx context.Context, path string) ([]os.DirEntry, error) {
 	return os.ReadDir(path)
 }
 
@@ -104,7 +104,7 @@ func NewLsTool(cwd string, cfg *LsToolConfig) *agentcore.Tool {
 				return resultErrf("path not found: %s", input.Path)
 			}
 
-			info, err := cfg.Operations.Stat(dirPath)
+			info, err := cfg.Operations.Stat(ctx, dirPath)
 			if err != nil {
 				return resultErrf("cannot stat path: %w", err)
 			}
@@ -112,7 +112,7 @@ func NewLsTool(cwd string, cfg *LsToolConfig) *agentcore.Tool {
 				return resultErrf("not a directory: %s", input.Path)
 			}
 
-			entries, err := cfg.Operations.ReadDir(dirPath)
+			entries, err := cfg.Operations.ReadDir(ctx, dirPath)
 			if err != nil {
 				return resultErrf("cannot read directory: %w", err)
 			}

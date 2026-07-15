@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"regexp"
 	"strings"
@@ -105,7 +106,7 @@ func (s *ptcServer) Serve(ctx context.Context) {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			return
-		}
+	}
 		go s.handle(ctx, conn)
 	}
 }
@@ -157,7 +158,9 @@ func (s *ptcServer) reply(conn net.Conn, resp ptcResponse) {
 	if err != nil {
 		return
 	}
-	conn.Write(b)
+	if _, err := conn.Write(b); err != nil {
+		log.Printf("[ptc] write reply failed: %v", err)
+	}
 }
 
 func (s *ptcServer) Close() error {
@@ -199,7 +202,7 @@ func firstIdentifier(names []string) string {
 	for _, n := range names {
 		if ptcIdentifierRe.MatchString(n) {
 			return n
-		}
+	}
 	}
 	return "read"
 }
@@ -248,7 +251,7 @@ def call_tool(name, **kwargs):
 	for _, name := range allowedTools {
 		if !ptcIdentifierRe.MatchString(name) {
 			continue // not a valid Python identifier; still reachable via call_tool()
-		}
+	}
 		fmt.Fprintf(&b, "\ndef %s(**kwargs):\n    return _call(%q, **kwargs)\n", name, name)
 	}
 	return b.String()

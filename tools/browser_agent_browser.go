@@ -307,7 +307,10 @@ func (m *AgentBrowserManager) Console(taskID string, timeout time.Duration) (*Ag
 			data["errors"] = cd.Errors
 		}
 	}
-	dataBytes, _ := json.Marshal(data)
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("marshal console data: %w", err)
+	}
 	return &AgentBrowserResult{Success: true, Data: dataBytes}, nil
 }
 

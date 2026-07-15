@@ -56,7 +56,11 @@ func NewDisclosureTool(provider agentcore.Provider) *agentcore.Tool {
 					"分析完成但未能生成结构化报告。"), nil
 			}
 
-			reportJSON, _ := json.Marshal(report)
+			reportJSON, err := json.Marshal(report)
+			if err != nil {
+				return agentcore.NewFailureResult("结果序列化失败",
+					"分析完成但报告无法序列化。"), nil
+			}
 			return agentcore.NewHandoffResult("技术交底书分析完成", string(reportJSON)), nil
 		},
 	}

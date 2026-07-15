@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"log/slog"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -108,6 +110,21 @@ func (m *disclosureTaskManager) submitTask(provider agentcore.Provider, text str
 	ctx, cancel := context.WithTimeout(context.Background(), disclosureExecTimeout)
 	go func() {
 		defer cancel()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Default().Error("disclosure: task panicked",
+					"task_id", task.ID,
+					"panic", r,
+					"stack", string(debug.Stack()),
+				)
+				task.mu.Lock()
+				task.Status = "failed"
+				task.Err = fmt.Errorf("task panicked: %v", r)
+				task.DoneAt = time.Now()
+				task.mu.Unlock()
+				close(task.doneCh)
+			}
+		}()
 		m.executeTask(ctx, task, provider)
 	}()
 	return id

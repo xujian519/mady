@@ -15,7 +15,7 @@ import (
 // FindOperations defines pluggable operations for the find tool.
 type FindOperations interface {
 	Exists(path string) bool
-	Glob(pattern string, cwd string, ignore []string, limit int) ([]string, error)
+	Glob(ctx context.Context, pattern string, cwd string, ignore []string, limit int) ([]string, error)
 }
 
 // DefaultFindOperations uses the local filesystem.
@@ -25,7 +25,7 @@ func (d DefaultFindOperations) Exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
-func (d DefaultFindOperations) Glob(pattern string, cwd string, ignore []string, limit int) ([]string, error) {
+func (d DefaultFindOperations) Glob(ctx context.Context, pattern string, cwd string, ignore []string, limit int) ([]string, error) {
 	var results []string
 	err := filepath.WalkDir(cwd, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
@@ -146,7 +146,7 @@ func NewFindTool(cwd string, cfg *FindToolConfig) *agentcore.Tool {
 			}
 
 			// Fallback to filepath.Glob.
-			return runGlob(searchPath, input.Pattern, limit, cfg)
+			return runGlob(ctx, searchPath, input.Pattern, limit, cfg)
 		},
 	}
 }
@@ -184,15 +184,15 @@ func runFd(ctx context.Context, fdPath, searchPath, pattern string, limit int, c
 		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {
 			return resultErrf("fd error: %s", string(exitErr.Stderr))
 		}
-		return runGlob(searchPath, pattern, limit, cfg)
+		return runGlob(ctx, searchPath, pattern, limit, cfg)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	return formatFindResults(lines, searchPath, limit, cfg)
 }
 
-func runGlob(searchPath, pattern string, limit int, cfg *FindToolConfig) (any, error) {
-	results, err := cfg.Operations.Glob(pattern, searchPath, []string{"node_modules", ".git"}, limit)
+func runGlob(ctx context.Context, searchPath, pattern string, limit int, cfg *FindToolConfig) (any, error) {
+	results, err := cfg.Operations.Glob(ctx, pattern, searchPath, []string{"node_modules", ".git"}, limit)
 	if err != nil {
 		return resultErrf("search failed: %w", err)
 	}

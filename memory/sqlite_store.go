@@ -64,7 +64,7 @@ func NewSQLiteMemoryStore(dbPath string, opts ...SQLiteOption) (*SQLiteMemorySto
 		opt(s)
 	}
 
-	if err := s.initSchema(); err != nil {
+	if err := s.initSchema(context.Background()); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("memory/sqlite: init schema: %w", err)
 	}
@@ -73,8 +73,8 @@ func NewSQLiteMemoryStore(dbPath string, opts ...SQLiteOption) (*SQLiteMemorySto
 }
 
 // initSchema 创建表和索引（幂等）。
-func (s *SQLiteMemoryStore) initSchema() error {
-	_, err := s.db.ExecContext(context.Background(), `
+func (s *SQLiteMemoryStore) initSchema(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS memories (
 			id            TEXT PRIMARY KEY,
 			user_id       TEXT NOT NULL DEFAULT '',
@@ -119,7 +119,7 @@ func (s *SQLiteMemoryStore) Remember(ctx context.Context, content string, scope 
 		}
 	}
 
-	_, err := s.db.ExecContext(context.Background(), `
+	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO memories (id, user_id, agent_id, session_id, project_id, layer, content,
 		                      embedding, importance, access_count, created_at, updated_at,
 		                      last_access, decay_factor, metadata)
@@ -319,7 +319,7 @@ func (s *SQLiteMemoryStore) Update(ctx context.Context, id string, content strin
 
 // Forget 按 ID 删除。
 func (s *SQLiteMemoryStore) Forget(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(context.Background(), `DELETE FROM memories WHERE id = ?`, id)
+	res, err := s.db.ExecContext(ctx, `DELETE FROM memories WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("memory/sqlite: forget: %w", err)
 	}
@@ -333,7 +333,7 @@ func (s *SQLiteMemoryStore) Forget(ctx context.Context, id string) error {
 // ForgetAll 按过滤条件批量删除。
 func (s *SQLiteMemoryStore) ForgetAll(ctx context.Context, filter MemoryFilter) error {
 	where, args := buildWhereClause(filter)
-	_, err := s.db.ExecContext(context.Background(), `DELETE FROM memories `+where, args...)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM memories `+where, args...)
 	if err != nil {
 		return fmt.Errorf("memory/sqlite: forget_all: %w", err)
 	}
@@ -427,8 +427,7 @@ func (s *SQLiteMemoryStore) Prune(ctx context.Context, layer MemoryLayer, thresh
 }
 
 // Stats 返回统计信息。
-func (s *SQLiteMemoryStore) Stats() MemoryStats {
-	ctx := context.Background()
+func (s *SQLiteMemoryStore) Stats(ctx context.Context) MemoryStats {
 	var stats MemoryStats
 
 	row := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM memories`)
@@ -604,7 +603,7 @@ func (s *SQLiteMemoryStore) Version() int { return 1 }
 
 // Migrate 执行 schema 迁移。当前为版本 1（初始 schema）。
 func (s *SQLiteMemoryStore) Migrate(ctx context.Context) (int, error) {
-	if err := s.initSchema(); err != nil {
+	if err := s.initSchema(ctx); err != nil {
 		return 0, fmt.Errorf("memory migrate: %w", err)
 	}
 	return s.Version(), nil

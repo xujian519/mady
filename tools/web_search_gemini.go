@@ -26,7 +26,10 @@ func searchGeminiGrounding(client *http.Client, query string, count int, apiKey 
 			{"google_search": map[string]any{}},
 		},
 	}
-	payload, _ := json.Marshal(body)
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshal gemini request body: %w", err)
+	}
 
 	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(string(payload)))
 	if err != nil {

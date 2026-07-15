@@ -142,9 +142,11 @@ func (fw *FileWatcher) Stop() {
 		return
 	}
 	close(stopCh)
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
 	select {
 	case <-doneCh:
-	case <-time.After(2 * time.Second):
+	case <-timer.C:
 		// Timeout: don't block Stop indefinitely.
 	}
 }

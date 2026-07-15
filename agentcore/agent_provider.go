@@ -3,7 +3,6 @@ package agentcore
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -39,8 +38,10 @@ func (a *Agent) callProviderWithRetry(ctx context.Context, req *ProviderRequest)
 			Err:        err,
 		})
 
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
 		select {
-		case <-time.After(delay):
+		case <-timer.C:
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -61,7 +62,7 @@ func (a *Agent) callProviderWithRetry(ctx context.Context, req *ProviderRequest)
 
 func (a *Agent) callProvider(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error) {
 	if a.config.Provider == nil {
-		return nil, errors.New("agent: provider is nil")
+		return nil, NewFatalError("provider", "agent provider is nil", nil)
 	}
 	ctx, span := a.tracer().Start(ctx, "agent.llm",
 		Attr("model", req.Model),
@@ -79,6 +80,7 @@ func (a *Agent) callProvider(ctx context.Context, req *ProviderRequest) (*Provid
 	}
 	if err != nil {
 		span.RecordError(err)
+		err = NewRetryableError("provider_call", err.Error(), err)
 	}
 	return resp, err
 }
@@ -86,7 +88,7 @@ func (a *Agent) callProvider(ctx context.Context, req *ProviderRequest) (*Provid
 func (a *Agent) runStreaming(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error) {
 	ch, err := a.config.Provider.Stream(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, NewRetryableError("provider_stream", err.Error(), err)
 	}
 
 	var content strings.Builder

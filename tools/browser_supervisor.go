@@ -126,10 +126,12 @@ func (s *CDPSupervisor) runSupervisor() {
 			s.reconnectCount++
 			s.mu.Unlock()
 
+			timer := time.NewTimer(s.reconnectBackoff)
+			defer timer.Stop()
 			select {
 			case <-s.ctx.Done():
 				return
-			case <-time.After(s.reconnectBackoff):
+			case <-timer.C:
 				s.mu.Lock()
 				s.reconnectBackoff *= 2
 				if s.reconnectBackoff > 30*time.Second {
@@ -500,12 +502,16 @@ type SupervisorRegistry struct {
 	supervisors map[string]*CDPSupervisor
 }
 
-var globalSupervisorRegistry = &SupervisorRegistry{
+var defaultSupervisorRegistry = &SupervisorRegistry{
 	supervisors: make(map[string]*CDPSupervisor),
 }
 
+func SetSupervisorRegistry(r *SupervisorRegistry) {
+	defaultSupervisorRegistry = r
+}
+
 func GetSupervisorRegistry() *SupervisorRegistry {
-	return globalSupervisorRegistry
+	return defaultSupervisorRegistry
 }
 
 func (r *SupervisorRegistry) GetOrStart(taskID string, cdpURL string, dialogPolicy DialogPolicy, dialogTimeout time.Duration) (*CDPSupervisor, error) {

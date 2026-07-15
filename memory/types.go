@@ -249,7 +249,7 @@ type MemoryStore interface {
 	Prune(ctx context.Context, layer MemoryLayer, threshold float64) (int64, error)
 
 	// Stats 返回存储统计信息。
-	Stats() MemoryStats
+	Stats(ctx context.Context) MemoryStats
 
 	// Close 释放所有资源。
 	Close() error

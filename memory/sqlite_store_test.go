@@ -108,7 +108,7 @@ func TestSQLiteStore_RememberBatch(t *testing.T) {
 		}
 	}
 
-	stats := s.Stats()
+	stats := s.Stats(context.Background())
 	if stats.TotalEntries != 3 {
 		t.Fatalf("expected 3 entries, got %d", stats.TotalEntries)
 	}
@@ -148,7 +148,7 @@ func TestSQLiteStore_Forget(t *testing.T) {
 		t.Fatal("expected error after Forget")
 	}
 
-	if s.Stats().TotalEntries != 0 {
+	if s.Stats(context.Background()).TotalEntries != 0 {
 		t.Fatal("expected 0 entries after forget")
 	}
 }
@@ -169,7 +169,7 @@ func TestSQLiteStore_ForgetAll(t *testing.T) {
 		t.Fatalf("ForgetAll: %v", err)
 	}
 
-	stats := s.Stats()
+	stats := s.Stats(context.Background())
 	if stats.TotalEntries != 1 {
 		t.Fatalf("expected 1 entry, got %d", stats.TotalEntries)
 	}
@@ -273,8 +273,8 @@ func TestSQLiteStore_Prune(t *testing.T) {
 	if removed == 0 {
 		t.Fatal("expected at least 1 pruned entry")
 	}
-	if store.Stats().TotalEntries != 0 {
-		t.Fatalf("expected 0 entries after prune, got %d", store.Stats().TotalEntries)
+	if store.Stats(context.Background()).TotalEntries != 0 {
+		t.Fatalf("expected 0 entries after prune, got %d", store.Stats(context.Background()).TotalEntries)
 	}
 }
 
@@ -286,7 +286,7 @@ func TestSQLiteStore_Stats(t *testing.T) {
 	s.Remember(ctx, "session1 上下文", MemoryScope{UserID: "u1", SessionID: "s1"}, LayerSession, nil)
 	s.Remember(ctx, "长期事实", MemoryScope{UserID: "u1"}, LayerLongTerm, nil)
 
-	stats := s.Stats()
+	stats := s.Stats(context.Background())
 	if stats.TotalEntries != 3 {
 		t.Fatalf("TotalEntries: got %d", stats.TotalEntries)
 	}
@@ -328,8 +328,8 @@ func TestSQLiteStore_Persistence(t *testing.T) {
 		t.Fatalf("content after reopen: got %q", entry.Content)
 	}
 
-	if store2.Stats().TotalEntries != 1 {
-		t.Fatalf("expected 1 entry after reopen, got %d", store2.Stats().TotalEntries)
+	if store2.Stats(context.Background()).TotalEntries != 1 {
+		t.Fatalf("expected 1 entry after reopen, got %d", store2.Stats(context.Background()).TotalEntries)
 	}
 }
 
@@ -347,8 +347,8 @@ func TestSQLiteStore_Concurrency(t *testing.T) {
 	}
 	wg.Wait()
 
-	if s.Stats().TotalEntries != 20 {
-		t.Fatalf("expected 20 entries, got %d", s.Stats().TotalEntries)
+	if s.Stats(context.Background()).TotalEntries != 20 {
+		t.Fatalf("expected 20 entries, got %d", s.Stats(context.Background()).TotalEntries)
 	}
 
 	var wg2 sync.WaitGroup
