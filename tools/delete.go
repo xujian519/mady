@@ -21,9 +21,11 @@ type DeleteOperations interface {
 // DefaultDeleteOperations uses the local filesystem.
 type DefaultDeleteOperations struct{}
 
-func (d DefaultDeleteOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) { return os.Stat(path) }
-func (d DefaultDeleteOperations) Remove(path string) error              { return os.Remove(path) }
-func (d DefaultDeleteOperations) RemoveAll(path string) error           { return os.RemoveAll(path) }
+func (d DefaultDeleteOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	return os.Stat(path)
+}
+func (d DefaultDeleteOperations) Remove(path string) error    { return os.Remove(path) }
+func (d DefaultDeleteOperations) RemoveAll(path string) error { return os.RemoveAll(path) }
 
 // DeleteToolConfig configures the delete tool.
 type DeleteToolConfig struct {

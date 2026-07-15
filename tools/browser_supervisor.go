@@ -127,9 +127,9 @@ func (s *CDPSupervisor) runSupervisor() {
 			s.mu.Unlock()
 
 			timer := time.NewTimer(s.reconnectBackoff)
-			defer timer.Stop()
 			select {
 			case <-s.ctx.Done():
+				timer.Stop()
 				return
 			case <-timer.C:
 				s.mu.Lock()

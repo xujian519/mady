@@ -21,8 +21,12 @@ type ReadOperations interface {
 // DefaultReadOperations uses the local filesystem.
 type DefaultReadOperations struct{}
 
-func (d DefaultReadOperations) ReadFile(ctx context.Context, path string) ([]byte, error)  { return os.ReadFile(path) }
-func (d DefaultReadOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) { return os.Stat(path) }
+func (d DefaultReadOperations) ReadFile(ctx context.Context, path string) ([]byte, error) {
+	return os.ReadFile(path)
+}
+func (d DefaultReadOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	return os.Stat(path)
+}
 
 // ReadToolConfig configures the read tool.
 type ReadToolConfig struct {

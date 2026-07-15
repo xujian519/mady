@@ -25,7 +25,9 @@ func (d DefaultLsOperations) Exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
-func (d DefaultLsOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) { return os.Stat(path) }
+func (d DefaultLsOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	return os.Stat(path)
+}
 func (d DefaultLsOperations) ReadDir(ctx context.Context, path string) ([]os.DirEntry, error) {
 	return os.ReadDir(path)
 }

@@ -20,11 +20,15 @@ type PatchOperations interface {
 // DefaultPatchOperations uses the local filesystem.
 type DefaultPatchOperations struct{}
 
-func (d DefaultPatchOperations) ReadFile(ctx context.Context, path string) ([]byte, error) { return os.ReadFile(path) }
+func (d DefaultPatchOperations) ReadFile(ctx context.Context, path string) ([]byte, error) {
+	return os.ReadFile(path)
+}
 func (d DefaultPatchOperations) WriteFile(path string, content []byte) error {
 	return os.WriteFile(path, content, 0644)
 }
-func (d DefaultPatchOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) { return os.Stat(path) }
+func (d DefaultPatchOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	return os.Stat(path)
+}
 
 // PatchToolConfig configures the patch tool.
 type PatchToolConfig struct {

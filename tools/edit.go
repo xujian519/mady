@@ -20,7 +20,9 @@ type EditOperations interface {
 // DefaultEditOperations uses the local filesystem.
 type DefaultEditOperations struct{}
 
-func (d DefaultEditOperations) ReadFile(ctx context.Context, path string) ([]byte, error) { return os.ReadFile(path) }
+func (d DefaultEditOperations) ReadFile(ctx context.Context, path string) ([]byte, error) {
+	return os.ReadFile(path)
+}
 func (d DefaultEditOperations) WriteFile(path string, content []byte) error {
 	return os.WriteFile(path, content, 0644)
 }
