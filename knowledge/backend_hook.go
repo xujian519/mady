@@ -43,6 +43,8 @@ func NewBackendRetrievalHook(ext *KnowledgeExtension, cfg retrieval.RetrievalCon
 // BeforeModelCall implements LifecycleHook.BeforeModelCall.
 // It extracts the last user message, searches the backend knowledge store,
 // and injects relevant chunks into the model's context as a system message.
+// When a graph enhancer is configured, graph-enhanced context (similar
+// cases, citation chains) is appended after the chunk results.
 func (h *BackendRetrievalHook) BeforeModelCall(ctx context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) error {
 	if mcc == nil || mcc.Request == nil {
 		return nil
@@ -61,6 +63,11 @@ func (h *BackendRetrievalHook) BeforeModelCall(ctx context.Context, arc *agentco
 	contextBlock := h.buildContextBlock(results)
 	if contextBlock == "" {
 		return nil
+	}
+
+	// Append graph-enhanced context (similar cases, citation chains) if available.
+	if graphCtx := h.ext.GraphContext(); graphCtx != "" {
+		contextBlock += "\n\n" + graphCtx
 	}
 
 	h.injectContext(mcc.Request, contextBlock)

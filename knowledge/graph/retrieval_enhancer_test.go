@@ -14,7 +14,7 @@ func TestGraphEnhancer_EmptyStore(t *testing.T) {
 	seeds := []retrieval.ScoredChunk{
 		{Chunk: retrieval.Chunk{ID: "c1", DocID: "doc1", Content: "专利分析"}, Score: 0.9},
 	}
-	result := enhancer.Enhance(seeds)
+	result := enhancer.Enhance(seeds).(EnhancementResult)
 	if len(result.Similar) != 0 || len(result.CitationChain) != 0 {
 		t.Error("empty store should yield no expansion")
 	}
@@ -41,7 +41,7 @@ func TestGraphEnhancer_WithExpansion(t *testing.T) {
 	seeds := []retrieval.ScoredChunk{
 		{Chunk: retrieval.Chunk{ID: "c1", DocID: "doc1", Content: "专利创造性分析"}, Score: 0.9},
 	}
-	result := enhancer.Enhance(seeds)
+	result := enhancer.Enhance(seeds).(EnhancementResult)
 
 	if len(result.Similar) == 0 {
 		t.Error("expected similar nodes from SIMILAR_TO edge")
@@ -69,7 +69,7 @@ func TestGraphEnhancer_AuthorityFilter(t *testing.T) {
 	seeds := []retrieval.ScoredChunk{
 		{Chunk: retrieval.Chunk{ID: "c1", DocID: "doc1", Content: "内容"}, Score: 0.9},
 	}
-	result := enhancer.Enhance(seeds)
+	result := enhancer.Enhance(seeds).(EnhancementResult)
 	if len(result.Similar) != 0 {
 		t.Errorf("expected 0 similar after authority filter, got %d", len(result.Similar))
 	}

@@ -126,7 +126,7 @@ func TestPatentRulesGraphCitationE2E(t *testing.T) {
 	}
 
 	enhancer := kgraph.NewGraphEnhancer(gs, kgraph.DefaultEnhanceConfig())
-	enhanced := enhancer.Enhance(results)
+	enhanced := enhancer.Enhance(results).(kgraph.EnhancementResult)
 	if enhanced.Context == "" {
 		t.Error("enhanced context is empty")
 	}

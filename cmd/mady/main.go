@@ -79,6 +79,47 @@ func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 		if ws := openWritableStore(madyHome, embedder, knowledgeDBPath); ws != nil {
 			ext.WithWritableStore(ws)
 		}
+
+		// Wire laws-full.db + knowledge graph enhancer (same directory as knowledge.db).
+		if store, ok := backend.(*sqlite.SQLiteStore); ok {
+			dbDir := filepath.Dir(knowledgeDBPath)
+
+			// Open laws-full.db for law full-text search.
+			lawsPath := filepath.Join(dbDir, "laws-full.db")
+			if _, err := os.Stat(lawsPath); err == nil {
+				if err := store.OpenLawsDB(lawsPath); err != nil {
+					fmt.Fprintf(os.Stderr, "knowledge: laws-full.db open failed: %v\n", err)
+				} else {
+					// Wrap SearchLaws as knowledge.LawSearcher function type.
+					ext.WithLawSearcher(func(keyword string, topK int) ([]knowledge.LawRecord, error) {
+						sqliteResults, err := store.SearchLaws(keyword, topK)
+						if err != nil {
+							return nil, err
+						}
+						out := make([]knowledge.LawRecord, len(sqliteResults))
+						for i, r := range sqliteResults {
+							out[i] = knowledge.LawRecord{
+								ID: r.ID, Level: r.Level, Name: r.Name,
+								Subtitle: r.Subtitle, Content: r.Content, Category: r.Category,
+							}
+						}
+						return out, nil
+					})
+					fmt.Fprintf(os.Stderr, "knowledge: laws-full.db active (9121 laws)\n")
+				}
+			}
+
+			// Load knowledge graph and wire graph enhancer.
+			if gs, err := store.LoadGraph(); err != nil {
+				fmt.Fprintf(os.Stderr, "knowledge: graph load failed: %v\n", err)
+			} else if gs.NodeCount() > 0 {
+				enhancer := kgwgraph.NewGraphEnhancer(gs, kgwgraph.DefaultEnhanceConfig())
+				ext.WithGraph(enhancer)
+				fmt.Fprintf(os.Stderr, "knowledge: graph enhancer active (%d nodes, %d edges)\n",
+					gs.NodeCount(), gs.EdgeCount())
+			}
+		}
+
 		hook := ext.BackendHook(retrieval.RetrievalConfig{
 			TopK:     5,
 			MaxChars: 4000,

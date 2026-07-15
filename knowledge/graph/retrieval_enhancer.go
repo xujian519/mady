@@ -66,12 +66,26 @@ type EnhancementResult struct {
 	Context string
 }
 
+// GetContext returns the formatted enhancement context block, implementing
+// the knowledge.GraphEnhancement interface for type-safe consumption across
+// package boundaries without import cycles.
+func (r EnhancementResult) GetContext() string { return r.Context }
+
+// GetSeeds returns the original seed chunks.
+func (r EnhancementResult) GetSeeds() []retrieval.ScoredChunk { return r.Seeds }
+
+// Compile-time check: EnhancementResult satisfies GraphEnhancement.
+var _ interface {
+	GetContext() string
+	GetSeeds() []retrieval.ScoredChunk
+} = EnhancementResult{}
+
 // Enhance expands the seed chunks using graph relationships.
 //
 // For each seed chunk, it resolves the corresponding graph node (by DocID),
 // then pulls in similar cases and shared-statute citation chains. Results are
 // deduplicated, filtered by authority, and formatted into a context block.
-func (e *GraphEnhancer) Enhance(seeds []retrieval.ScoredChunk) EnhancementResult {
+func (e *GraphEnhancer) Enhance(seeds []retrieval.ScoredChunk) interface{} {
 	result := EnhancementResult{Seeds: seeds}
 	if e.store == nil || e.store.NodeCount() == 0 || len(seeds) == 0 {
 		result.Context = e.formatSeedsOnly(seeds)

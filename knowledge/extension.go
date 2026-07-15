@@ -39,6 +39,26 @@ type GraphEnhancer interface {
 	Enhance(seeds []retrieval.ScoredChunk) interface{}
 }
 
+// GraphEnhancement is the result interface returned by GraphEnhancer.Enhance().
+// It avoids import cycles between knowledge and knowledge/graph packages.
+type GraphEnhancement interface {
+	GetContext() string
+}
+
+// LawRecord represents a single law from the laws database.
+type LawRecord struct {
+	ID       string
+	Level    string // 法律/行政法规/司法解释/部门规章
+	Name     string
+	Subtitle string
+	Content  string
+	Category string
+}
+
+// LawSearcher is a function type for searching laws by keyword.
+// Implementations typically delegate to knowledge/sqlite.SQLiteStore.SearchLaws.
+type LawSearcher func(keyword string, topK int) ([]LawRecord, error)
+
 type KnowledgeExtension struct {
 	agentcore.BaseLifecycleHook
 	store         *Store
@@ -47,9 +67,14 @@ type KnowledgeExtension struct {
 	queryReranker retrieval.QueryReranker
 	writable      WritableBackend
 	graph         GraphEnhancer
+	lawSearcher   LawSearcher
 	hook          *retrieval.RetrievalHook
 	domain        string
 	cfg           KnowledgeExtConfig
+
+	// lastGraphCtx caches the most recent graph enhancement context so
+	// BackendRetrievalHook can inject it alongside chunk results.
+	lastGraphCtx string
 }
 
 // WithBackend injects a SQLite-backed knowledge retrieval backend and an
@@ -75,6 +100,21 @@ func (e *KnowledgeExtension) WithReranker(reranker retrieval.QueryReranker) *Kno
 // and knowledge Vector, and the add_document tool is exposed to the agent.
 func (e *KnowledgeExtension) WithWritableStore(w WritableBackend) *KnowledgeExtension {
 	e.writable = w
+	return e
+}
+
+// WithGraph injects a knowledge-graph enhancer. When set, backendSearch
+// calls Enhance() after RRF fusion to expand results with similar cases
+// and citation chains from the knowledge graph.
+func (e *KnowledgeExtension) WithGraph(g GraphEnhancer) *KnowledgeExtension {
+	e.graph = g
+	return e
+}
+
+// WithLawSearcher injects a law search function. When set, the search_laws
+// tool is exposed to the agent for full-text law retrieval.
+func (e *KnowledgeExtension) WithLawSearcher(fn LawSearcher) *KnowledgeExtension {
+	e.lawSearcher = fn
 	return e
 }
 
@@ -165,6 +205,23 @@ func (e *KnowledgeExtension) Tools() []*agentcore.Tool {
 			},
 		},
 	}
+	if e.lawSearcher != nil {
+		tools = append(tools, &agentcore.Tool{
+			Name:        "search_laws",
+			Description: "搜索法律法规数据库（9121部法律），按法律名称或条文内容关键词匹配，返回法律全文。适用于查找具体法律条文、核实法律依据。",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{"type": "string", "description": "法律法规名称或条文关键词"},
+					"top_k": map[string]any{"type": "integer", "default": 5},
+				},
+				"required": []string{"query"},
+			},
+			Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+				return e.handleSearchLaws(ctx, args)
+			},
+		})
+	}
 	if e.writable != nil {
 		tools = append(tools, &agentcore.Tool{
 			Name:        "add_document",
@@ -214,6 +271,60 @@ func (e *KnowledgeExtension) handleSearch(ctx context.Context, args json.RawMess
 // in-memory keyword search.
 func (e *KnowledgeExtension) Search(ctx context.Context, query string, topK int) []retrieval.ScoredChunk {
 	return e.search(ctx, query, topK)
+}
+
+// GraphContext returns the graph-enhanced context block from the most recent
+// search. Returns empty string when no graph enhancer is configured or the
+// last search produced no enhancement.
+func (e *KnowledgeExtension) GraphContext() string {
+	return e.lastGraphCtx
+}
+
+// handleSearchLaws processes the search_laws tool call. It delegates to
+// the configured LawSearcher function.
+func (e *KnowledgeExtension) handleSearchLaws(ctx context.Context, args json.RawMessage) (any, error) {
+	var p struct {
+		Query string `json:"query"`
+		TopK  int    `json:"top_k"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return fmt.Sprintf("参数解析错误: %v", err), nil
+	}
+	if p.Query == "" {
+		return "请提供搜索查询", nil
+	}
+	if p.TopK <= 0 {
+		p.TopK = 5
+	}
+	if e.lawSearcher == nil {
+		return "法律法规搜索功能未启用", nil
+	}
+
+	results, err := e.lawSearcher(p.Query, p.TopK)
+	if err != nil {
+		return fmt.Sprintf("搜索法律法规失败: %v", err), nil
+	}
+	if len(results) == 0 {
+		return fmt.Sprintf("未找到与 \"%s\" 相关的法律法规", p.Query), nil
+	}
+
+	var b strings.Builder
+	b.WriteString("法律法规搜索结果:\n")
+	for i, r := range results {
+		fmt.Fprintf(&b, "\n[%d] %s (%s)\n", i+1, r.Name, r.Level)
+		if r.Subtitle != "" {
+			fmt.Fprintf(&b, "    %s\n", r.Subtitle)
+		}
+		fmt.Fprintf(&b, "    分类: %s\n", r.Category)
+		// Truncate content to avoid overwhelming the model.
+		content := r.Content
+		if len(content) > 2000 {
+			content = content[:2000] + "..."
+		}
+		fmt.Fprintf(&b, "    %s\n", content)
+	}
+	fmt.Fprintf(&b, "\n共 %d 条结果", len(results))
+	return b.String(), nil
 }
 
 // handleAddDocument processes the add_document tool call. It delegates to
@@ -300,16 +411,31 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 
 	// If a cross-encoder reranker is configured, fuse more candidates
 	// then rerank down to topK for better precision.
+	var fused []retrieval.ScoredChunk
 	if e.queryReranker != nil {
-		fused := fuser.Fuse(lists, candidateK)
+		fused = fuser.Fuse(lists, candidateK)
 		reranked := e.queryReranker.RerankWithQuery(ctx, query, fused)
 		if len(reranked) > topK {
 			reranked = reranked[:topK]
 		}
-		return reranked
+		fused = reranked
+	} else {
+		fused = fuser.Fuse(lists, topK)
 	}
 
-	return fuser.Fuse(lists, topK)
+	// Graph-enhanced retrieval: expand results with similar cases and
+	// citation chains from the knowledge graph. The context is cached for
+	// BackendRetrievalHook to inject alongside chunk results.
+	if e.graph != nil && len(fused) > 0 {
+		result := e.graph.Enhance(fused)
+		if ge, ok := result.(GraphEnhancement); ok {
+			e.lastGraphCtx = ge.GetContext()
+		}
+	} else {
+		e.lastGraphCtx = ""
+	}
+
+	return fused
 }
 
 // memorySearch uses the in-memory Store with keyword search + reranking.
