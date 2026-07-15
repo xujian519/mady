@@ -1,5 +1,16 @@
 # AI 决策变更日志
 
+## 2026-07-16: P2B 五层评估完成——LLM 模拟 HITL 的方法论困境
+
+- **变更**: 新增 `mockHumanRevision`（LLM 模拟专家修订）和 `TestLiveAgentP2BHitlEval`（L5 HITL tier），跑出 P2B 五层完整对比。
+- **P2B 五层排序（llm_judge 均值）**：L1 通用 prompt（0.513）> L4 增强 prompt（0.410）> L0 裸 LLM（0.363）> L2 工具编排（0.334）≈ L5 模拟 HITL（0.320）
+- **L5 关键发现**：mockHumanRevision 对高分初稿有害（−0.73/−0.80），对低分初稿有益（+0.53），净效果为负（0.320 < L1 0.513）。根因：LLM 无法像真实专家一样判断「初稿已够好不需改」，对所有初稿都做修改引入不确定性。
+- **结论**：不能从 L5=0.320 得出"HITL 有害"——这是 LLM 模拟修订的局限。真实 HITL 的理论上限介于 L1（0.513）和完美修订之间。需真实专家盲测（P3）才能准确测量。
+- **影响范围**: `agentcore/evaluate/benchmark/live_agent_test.go`、`docs/evaluation-baseline-v0.7.md`、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 低（新增测试和文档，不改现有逻辑）
+- **审查要求**: L1
+- **验证**: `go vet` ✅ | P2B L5 10 题 live eval ✅
+
 ## 2026-07-16: 性能优化 Phase 6 — P2 次要优化（nextMemoryID atomic + CosineSimilarity float32 + APIEmbedder 连接池）
 
 - **变更**:
