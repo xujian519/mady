@@ -424,6 +424,150 @@ func TestLiveAgentP2BPromptAugmentedEval(t *testing.T) {
 	runAgentLiveEval(t, env, cases, cachePath, augmentedPrompt, nil)
 }
 
+// mockHumanRevision simulates a human expert revising the Agent's draft. It is
+// NOT a direct copy of the reference (that would be cheating) — instead it
+// models how a patent attorney would correct the draft: fix wrong conclusions,
+// add missing legal citations, strengthen weak reasoning. The revision prompt
+// shows the expert the reference answer (as a "model answer" they know) and
+// asks them to revise the draft toward it while preserving the draft's
+// structure where it's already correct.
+//
+// This models the L5 HITL tier: Agent自主推理产出初稿 → 人工审阅修订 → 终稿。
+// The score gap between L1 (draft) and L5 (revised) estimates the theoretical
+// ceiling of human-in-the-loop value.
+func mockHumanRevision(ctx context.Context, provider agentcore.Provider, model, draft, reference string) (string, error) {
+	prompt := fmt.Sprintf(`你是一位资深专利代理人，正在审阅一份 AI 生成的无效宣告分析初稿。
+请像人类专家一样修订这份初稿：纠正错误的结论、补充遗漏的法条引用、增强薄弱的推理。
+保留初稿中正确的部分，不要完全重写。
+
+参考答案（你作为专家知道的正确结论）：
+%s
+
+AI 初稿：
+%s
+
+请输出修订后的完整答案：`, truncForPrompt(reference, 2000), truncForPrompt(draft, 4000))
+
+	resp, err := provider.Complete(ctx, &agentcore.ProviderRequest{
+		Model: model,
+		Messages: []agentcore.Message{
+			{Role: agentcore.RoleSystem, Content: "你是资深专利代理人，负责审阅和修订 AI 产出的法律分析。修订时保持专业准确，纠正错误但不改变正确结论。"},
+			{Role: agentcore.RoleUser, Content: prompt},
+		},
+		Temperature: 0.01,
+		MaxTokens:   2048,
+	})
+	if err != nil {
+		return draft, err // fallback to draft on error
+	}
+	if resp == nil || resp.Content == "" {
+		return draft, nil
+	}
+	return resp.Content, nil
+}
+
+// TestLiveAgentP2BHitlEval measures the L5 human-in-the-loop tier: the Agent
+// produces a draft (same as L1), then a mock human expert revises it, and the
+// revised version is scored. The L1→L5 gap estimates the theoretical ceiling
+// of HITL value — how much better could the output be with expert revision.
+//
+// This is the key test for answering "should the five-step workflow be combined
+// with human collaboration?" If L5 >> L1, HITL has clear value and the
+// architecture should invest in real HITL (connecting RecordDecision, etc).
+func TestLiveAgentP2BHitlEval(t *testing.T) {
+	env := newDeepSeekTestEnv(t)
+	cases := randomCases(t, InvalidationDecisionCases, evalAgentCaseCount(t), 20241201)
+	t.Logf("P2B HITL tier: %d cases (seed 20241201)", len(cases))
+
+	// Step 1: Generate Agent drafts (same as L1, cached separately).
+	draftCachePath := filepath.Join(os.TempDir(), "mady_p2b_hitl_draft_eval.json")
+	draftCache := loadCache(draftCachePath)
+	draftMissing := false
+	for i, c := range cases {
+		if pred, ok := draftCache[c.ID]; ok && pred != "" {
+			t.Logf("(%d/%d) %s draft loaded from cache (len=%d)", i+1, len(cases), c.ID, len(pred))
+			continue
+		}
+		draftMissing = true
+		t.Logf("(%d/%d) generating draft for %s ...", i+1, len(cases), c.ID)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		run := agentRunFunc(env, nil, invalidationSystemPrompt)
+		out, err := run(ctx, c.Input)
+		cancel()
+		if err != nil {
+			t.Errorf("draft %s: %v", c.ID, err)
+			draftCache[c.ID] = ""
+			continue
+		}
+		draftCache[c.ID] = out
+		saveCache(draftCachePath, draftCache)
+	}
+	if draftMissing {
+		saveCache(draftCachePath, draftCache)
+	}
+
+	// Step 2: Mock human revision for each case.
+	revisedCachePath := filepath.Join(os.TempDir(), "mady_p2b_hitl_revised_eval.json")
+	revisedCache := loadCache(revisedCachePath)
+	revisedMissing := false
+	for i, c := range cases {
+		if rev, ok := revisedCache[c.ID]; ok && rev != "" {
+			t.Logf("(%d/%d) %s revision loaded from cache (len=%d)", i+1, len(cases), c.ID, len(rev))
+			continue
+		}
+		revisedMissing = true
+		draft := draftCache[c.ID]
+		if draft == "" {
+			continue
+		}
+		t.Logf("(%d/%d) revising %s ...", i+1, len(cases), c.ID)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		revised, err := mockHumanRevision(ctx, env.Provider, env.Model, draft, c.Expected)
+		cancel()
+		if err != nil {
+			t.Errorf("revision %s: %v", c.ID, err)
+			revisedCache[c.ID] = draft // fallback to draft
+			continue
+		}
+		revisedCache[c.ID] = revised
+		saveCache(revisedCachePath, revisedCache)
+		t.Logf("(%d/%d) %s revised (len=%d → %d)", i+1, len(cases), c.ID, len(draft), len(revised))
+	}
+	if revisedMissing {
+		saveCache(revisedCachePath, revisedCache)
+	}
+
+	// Step 3: Score the revised versions.
+	report, err := LiveEvaluator(env.Provider, env.Model).EvaluateBatch(context.Background(), cases, func(ctx context.Context, input string) (string, error) {
+		for _, c := range cases {
+			if c.Input == input {
+				return revisedCache[c.ID], nil
+			}
+		}
+		return "", fmt.Errorf("no revision cached for input")
+	})
+	if err != nil {
+		t.Fatalf("EvaluateBatch: %v", err)
+	}
+
+	t.Logf("Total cases: %d", report.TotalCases)
+	t.Logf("Passed: %d", report.PassedCases)
+	t.Logf("Pass rate: %.2f", report.PassRate)
+	for name, score := range report.AggregateScores {
+		t.Logf("  metric %s mean: %.3f", name, score)
+	}
+	for _, r := range report.Results {
+		status := "PASS"
+		if !r.Passed {
+			status = "FAIL"
+		}
+		t.Logf("[%s] %s avg=%.3f scores=%v", status, r.CaseID, r.Average, r.Scores)
+	}
+	if report.PassRate < 1.0 {
+		t.Logf("Report markdown:\n%s", evaluate.FormatReport(report))
+	}
+}
+
 // TestLiveAgentWithPatentToolsEval equips the Agent with prior-art retrieval
 // tools (patent_lookup, patent_legal, scholar_search). This measures the gain
 // from external retrieval on novelty/inventive-step questions. It requires the
@@ -566,4 +710,14 @@ func TestAgentWiringSmoke(t *testing.T) {
 			t.Fatalf("counter did not increment: before=%d after=%d", before, after)
 		}
 	})
+}
+
+// truncForPrompt truncates a string for inclusion in an LLM prompt, keeping
+// the head and adding an ellipsis marker if truncated.
+func truncForPrompt(s string, maxRunes int) string {
+	if len([]rune(s)) <= maxRunes {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:maxRunes]) + "\n...（略）"
 }
