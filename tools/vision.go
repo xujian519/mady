@@ -130,6 +130,9 @@ type VisionToolConfig struct {
 	// the tool creates a default implementation that calls this provider.
 	Provider agentcore.Provider
 	Model    string
+
+	// Sandbox enforces the WorkingDir boundary when Enabled.
+	Sandbox WorkingDirSandbox
 }
 
 func (c *VisionToolConfig) defaults() {
@@ -263,7 +266,10 @@ func NewVisionTool(cwd string, cfg *VisionToolConfig) *agentcore.Tool {
 					}
 				} else {
 					// Local file.
-					resolved := resolvePath(input.Image, cwd)
+					resolved, err := resolvePathSandboxed(input.Image, cwd, cfg.Sandbox)
+					if err != nil {
+						return resultErrf("%v", err)
+					}
 					imageData, err = os.ReadFile(resolved)
 					if err != nil {
 						return resultErrf("failed to read image file: %w", err)

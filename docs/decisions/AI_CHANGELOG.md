@@ -1,5 +1,18 @@
 # AI 决策变更日志
 
+## 2026-07-16: 全量质量审阅 v0.3.0 — 9 维度全覆盖（29 检查点通过，2 修复）
+
+- **变更**:
+  1. `docs/decisions/REVIEW_REPORT_2026-07-16.md`：新增全量审阅报告
+  2. `tools/vision.go` + `tools/tools.go`：VisionToolConfig 补全 Sandbox 字段传播 + resolvePath → resolvePathSandboxed（沙箱绕过修复）
+  3. `domains/approval.go`：NewApprovalGate 签名改为 variadic opts 以适配已有调用
+- **审阅范围**: 阶段 0（基线通过）→ 阶段 1（六大自动化扫描）→ 阶段 2（16 CRITICAL 历史回归全部修复）→ 阶段 3（安全红线/并发/v0.3.0 新模块/架构/措辞/测试）
+- **结果**: 29 检查点通过，2 个安全问题发现并修复。详细报告见 `docs/decisions/REVIEW_REPORT_2026-07-16.md`
+- **影响范围**: `tools/vision.go`, `tools/tools.go`, `domains/approval.go`（修改后验证通过）
+- **风险等级**: 低（修复沙箱安全边界 + 接口兼容性）
+- **审查要求**: L3（安全敏感路径 `tools/vision.go` 含沙箱）
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./tools/... ./domains/...` ✅ | `golangci-lint run` ✅
+
 ## 2026-07-16: 接通 RecordDecision——HITL 数据采集链路
 
 - **变更**:

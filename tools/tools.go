@@ -313,6 +313,10 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 		}
 	}
 	addTool(NewProcessTool(cfg.WorkingDir, cfg.Process))
+	if cfg.Vision == nil {
+		cfg.Vision = &VisionToolConfig{}
+	}
+	cfg.Vision.Sandbox = sbx
 	addTool(readOnly(NewVisionTool(cfg.WorkingDir, cfg.Vision)))
 	addTool(readOnly(NewViewTool(cfg.WorkingDir, cfg.View)))
 	addTool(readOnly(NewGlobTool(cfg.WorkingDir, cfg.Glob)))
