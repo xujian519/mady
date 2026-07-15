@@ -354,6 +354,46 @@ func TestLiveAgentWithWorkflowEval(t *testing.T) {
 	runAgentLiveEvalWithFactory(t, env, cases, cachePath, patentExamSystemPrompt, nil, factory)
 }
 
+// TestLiveAgentP2BBaselineEval runs the Agent framework (no tools) against
+// P2B real invalidation-decision cases. Unlike P2A exam questions, P2B cases
+// contain full case facts (claim 1 + evidence + invalidation grounds), making
+// this a real-case evaluation of the Agent's analytical capability.
+func TestLiveAgentP2BBaselineEval(t *testing.T) {
+	env := newDeepSeekTestEnv(t)
+	cases := randomCases(t, InvalidationDecisionCases, evalAgentCaseCount(t), 20241201)
+	t.Logf("P2B baseline tier: %d cases (seed 20241201)", len(cases))
+	cachePath := filepath.Join(os.TempDir(), "mady_p2b_agent_baseline_eval.json")
+	runAgentLiveEval(t, env, cases, cachePath, invalidationSystemPrompt, nil)
+}
+
+// TestLiveAgentP2BWorkflowEval equips the Agent with the run_five_step_workflow
+// tool (CaseInvalidation manifest) for P2B real invalidation cases. This is
+// the key test for validating the invalidation manifest's value — P2A exam
+// questions could not exercise it (they map to patentability), but P2B real
+// invalidation decisions are exactly the invalidation manifest's target scenario.
+func TestLiveAgentP2BWorkflowEval(t *testing.T) {
+	env := newDeepSeekTestEnv(t)
+	cases := randomCases(t, InvalidationDecisionCases, evalAgentCaseCount(t), 20241201)
+	t.Logf("P2B workflow tier: %d cases (seed 20241201)", len(cases))
+
+	llm := reasoning.NewLlmClientFromProvider(env.Provider, env.Model)
+
+	// All P2B cases are invalidation decisions → use CaseInvalidation manifest.
+	factory := func(caseID string) []*agentcore.Tool {
+		runner := reasoning.NewWorkflowRunner(
+			caseID,                     // caseID
+			reasoning.CaseInvalidation, // caseType: invalidation manifest (5 steps)
+			"",                         // techField
+			nil,                        // retriever: nil → skip Stage ②
+			llm,                        // llm for planner/checker
+		)
+		return []*agentcore.Tool{reasoning.AsWorkflowTool(runner)}
+	}
+
+	cachePath := filepath.Join(os.TempDir(), "mady_p2b_agent_workflow_eval.json")
+	runAgentLiveEvalWithFactory(t, env, cases, cachePath, invalidationSystemPrompt, nil, factory)
+}
+
 // TestLiveAgentWithPatentToolsEval equips the Agent with prior-art retrieval
 // tools (patent_lookup, patent_legal, scholar_search). This measures the gain
 // from external retrieval on novelty/inventive-step questions. It requires the

@@ -169,8 +169,13 @@ const patentExamSystemPrompt = `你是一名资深的专利代理人和专利审
 // 之前的冻结版本（40 条空壳）已被替换。重建脚本见 scripts/extract_invalidation_cases.py。
 func TestLiveDeepSeekInvalidationEval(t *testing.T) {
 	env := newDeepSeekTestEnv(t)
+	cases := InvalidationDecisionCases
+	// Allow limiting the number of P2B cases for faster iteration.
+	if n := evalAgentCaseCount(t); n < len(cases) {
+		cases = randomCases(t, cases, n, 20241201)
+	}
 	cachePath := filepath.Join(os.TempDir(), "mady_deepseek_invalidation_eval.json")
-	runLiveEval(t, env, InvalidationDecisionCases, cachePath, invalidationSystemPrompt)
+	runLiveEval(t, env, cases, cachePath, invalidationSystemPrompt)
 }
 
 // TestLiveDeepSeekEval 使用 DeepSeek API 对随机 3 道专利代理人考试真题进行真实评分。
