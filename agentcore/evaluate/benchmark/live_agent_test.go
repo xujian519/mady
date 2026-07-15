@@ -394,6 +394,36 @@ func TestLiveAgentP2BWorkflowEval(t *testing.T) {
 	runAgentLiveEvalWithFactory(t, env, cases, cachePath, invalidationSystemPrompt, nil, factory)
 }
 
+// TestLiveAgentP2BPromptAugmentedEval uses the invalidation manifest's specific
+// step descriptions as a structured system prompt (NOT as an external tool).
+//
+// Empirical finding: L2 (tool-call orchestration, 0.334) < L1 (generic prompt,
+// 0.513). This test checks whether manifest-guided prompt augmentation (L4)
+// outperforms L1's generic five-step prompt. The hypothesis: for LLM Agents,
+// precise prompt guidance > external step orchestration > generic prompt.
+func TestLiveAgentP2BPromptAugmentedEval(t *testing.T) {
+	env := newDeepSeekTestEnv(t)
+	cases := randomCases(t, InvalidationDecisionCases, evalAgentCaseCount(t), 20241201)
+	t.Logf("P2B prompt-augmented tier: %d cases (seed 20241201)", len(cases))
+
+	// Generate a structured prompt from the invalidation manifest's steps.
+	var manifest *reasoning.WorkflowManifest
+	for _, m := range reasoning.DefaultManifests() {
+		if m.CaseType == reasoning.CaseInvalidation {
+			manifest = m
+			break
+		}
+	}
+	if manifest == nil {
+		t.Fatal("invalidation manifest not found")
+	}
+	augmentedPrompt := reasoning.ManifestToSystemPrompt(manifest)
+	t.Logf("augmented prompt:\n%s", augmentedPrompt)
+
+	cachePath := filepath.Join(os.TempDir(), "mady_p2b_prompt_augmented_eval.json")
+	runAgentLiveEval(t, env, cases, cachePath, augmentedPrompt, nil)
+}
+
 // TestLiveAgentWithPatentToolsEval equips the Agent with prior-art retrieval
 // tools (patent_lookup, patent_legal, scholar_search). This measures the gain
 // from external retrieval on novelty/inventive-step questions. It requires the
