@@ -371,7 +371,7 @@ func TestFiveStepRunner_EndToEnd(t *testing.T) {
 	if !strings.Contains(result, "novelty_search") {
 		t.Error("result should contain case type")
 	}
-	if !strings.Contains(result, "各步骤产出") {
+	if !strings.Contains(result, "执行步骤") {
 		t.Error("result should contain steps section")
 	}
 

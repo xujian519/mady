@@ -107,12 +107,13 @@ func NewWorkflowRunner(caseID string, caseType CaseType, techField string, retri
 	}
 
 	return NewFiveStepRunner(FiveStepRunnerConfig{
-		Planner:   planner,
-		Checker:   NewEnhancedSyllogismChecker(llm, 2),
-		Retriever: retriever,
-		Manifest:  manifest,
-		CaseID:    caseID,
-		CaseType:  caseType,
-		TechField: techField,
+		Planner:     planner,
+		Checker:     NewEnhancedSyllogismChecker(llm, 2),
+		Retriever:   retriever,
+		Manifest:    manifest,
+		CaseID:      caseID,
+		CaseType:    caseType,
+		TechField:   techField,
+		NodeBuilder: NewLLMNodeBuilder(llm), // real LLM analysis (not noop)
 	})
 }

@@ -2,7 +2,6 @@ package reasoning
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -168,26 +167,30 @@ func (r *FiveStepRunner) formatResult(plan *Plan, report CheckReport) (string, e
 	sb.WriteString("## 五步工作法执行结果\n\n")
 	fmt.Fprintf(&sb, "**案件ID**: %s\n", r.bb.CaseID)
 	fmt.Fprintf(&sb, "**案件类型**: %s\n", r.bb.CaseType)
-	fmt.Fprintf(&sb, "**规划意图**: %s\n", plan.Intent)
-	fmt.Fprintf(&sb, "**执行步骤数**: %d\n", len(plan.Steps))
 	fmt.Fprintf(&sb, "**校验通过**: %v\n", report.Passed)
 	fmt.Fprintf(&sb, "**置信度**: %.0f%%\n\n", report.Confidence*100)
 
-	sb.WriteString("### 各步骤产出\n\n")
-	for _, step := range plan.Steps {
-		fmt.Fprintf(&sb, "- **步骤 %d** (%s): %s\n", step.Order, step.Strategy, step.Description)
+	// Output actual analysis content (from LLMNodeBuilder) if available.
+	// This is the substance that formatResult previously lacked — without it,
+	// the tool only output step names and JSON metadata, providing no value.
+	analysisAny, ok := r.bb.StageOutput("analysis")
+	analysis, _ := analysisAny.(string)
+	if ok && analysis != "" {
+		sb.WriteString("### 分析过程\n")
+		sb.WriteString(analysis)
+		sb.WriteString("\n\n")
+	} else {
+		// Fallback: list step descriptions (noop builder or no LLM).
+		sb.WriteString("### 执行步骤\n\n")
+		for _, step := range plan.Steps {
+			fmt.Fprintf(&sb, "- **步骤 %d** (%s): %s\n", step.Order, step.Strategy, step.Description)
+		}
+		sb.WriteString("\n")
 	}
 
-	sb.WriteString("\n### 原始状态数据\n\n```json\n")
-	raw, err := json.MarshalIndent(map[string]any{
-		"plan":   plan,
-		"report": report,
-	}, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("marshal step runner state: %w", err)
-	}
-	sb.Write(raw)
-	sb.WriteString("\n```\n")
+	sb.WriteString("### 校验报告\n")
+	fmt.Fprintf(&sb, "- 校验通过: %v\n", report.Passed)
+	fmt.Fprintf(&sb, "- 置信度: %.0f%%\n", report.Confidence*100)
 
 	return sb.String(), nil
 }
