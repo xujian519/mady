@@ -1,10 +1,13 @@
 package evaluate
 
 import (
+	"context"
 	"math"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/xujian519/mady/agentcore"
 )
 
 func approxEqualFloat(a, b float64) bool {
@@ -85,5 +88,77 @@ func TestTruncateForJudgeUTF8(t *testing.T) {
 	}
 	if !strings.Contains(truncated, "...[中间内容省略]...") {
 		t.Errorf("truncateForJudge should include an omission marker")
+	}
+}
+
+func TestMedian(t *testing.T) {
+	cases := []struct {
+		name   string
+		scores []float64
+		want   float64
+	}{
+		{"empty", []float64{}, 0},
+		{"single", []float64{0.5}, 0.5},
+		{"odd", []float64{0.3, 0.9, 0.5}, 0.5},                 // sorted: 0.3,0.5,0.9 → middle
+		{"even", []float64{0.1, 0.4, 0.6, 0.9}, 0.6},           // sorted → index len/2=2 → 0.6
+		{"outlier_robust", []float64{0.7, 0.7, 0.7, 0.0}, 0.7}, // one parse-failure 0.0 ignored
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := median(c.scores)
+			if !approxEqualFloat(got, c.want) {
+				// Recompute expected for even case: sorted [0.1,0.4,0.6,0.9], len/2=2, sorted[2]=0.6
+				t.Errorf("median(%v) = %v, want %v", c.scores, got, c.want)
+			}
+		})
+	}
+}
+
+// stubJudgeProvider returns a scripted sequence of responses to simulate
+// multi-sample judging without network calls.
+type stubJudgeProvider struct {
+	responses []string
+	calls     int
+}
+
+func (s *stubJudgeProvider) Complete(ctx context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+	resp := "0.5"
+	if s.calls < len(s.responses) {
+		resp = s.responses[s.calls]
+	}
+	s.calls++
+	return &agentcore.ProviderResponse{Content: resp}, nil
+}
+
+func (s *stubJudgeProvider) Stream(ctx context.Context, req *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
+	ch := make(chan agentcore.StreamDelta, 1)
+	ch <- agentcore.StreamDelta{Done: true}
+	close(ch)
+	return ch, nil
+}
+
+func TestLLMJudge_SamplesTakesMedian(t *testing.T) {
+	// Three samples: 0.8, 0.2, 0.6 → median 0.6 (robust to the 0.2 outlier).
+	p := &stubJudgeProvider{responses: []string{"0.8", "0.2", "0.6"}}
+	j := LLMJudge{Judge: p, Model: "stub", Samples: 3}
+	score := j.Compute("pred", "ref")
+	if !approxEqualFloat(score, 0.6) {
+		t.Errorf("3-sample median: got %v, want 0.6 (calls=%d)", score, p.calls)
+	}
+	if p.calls != 3 {
+		t.Errorf("expected 3 judge calls, got %d", p.calls)
+	}
+}
+
+func TestLLMJudge_SamplesDefaultSingleShot(t *testing.T) {
+	// Samples=0 defaults to 1 → single call.
+	p := &stubJudgeProvider{responses: []string{"0.7"}}
+	j := LLMJudge{Judge: p, Model: "stub"}
+	score := j.Compute("pred", "ref")
+	if !approxEqualFloat(score, 0.7) {
+		t.Errorf("single-shot: got %v, want 0.7", score)
+	}
+	if p.calls != 1 {
+		t.Errorf("expected 1 judge call, got %d", p.calls)
 	}
 }

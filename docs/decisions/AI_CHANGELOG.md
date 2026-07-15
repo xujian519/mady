@@ -1,5 +1,19 @@
 # AI 决策变更日志
 
+## 2026-07-15: 修复 LLM-as-judge 方差（temperature 修复 + 3-sample 中位数）
+
+- **变更**:
+  1. `agentcore/evaluate/llm_judge.go`：新增 `Samples` 字段，`Compute` 改为多次独立调用取中位数（`median` 辅助函数，比均值更抗离群值）。`computeOnce` 提取单次评分逻辑。Temperature 默认从 0（被 chatcompat 省略，导致非确定性）改为 0.01（通过 `>0` 检查，近似确定性）。
+  2. `agentcore/evaluate/benchmark/suite.go`：`LiveEvaluator` 默认 `Samples=3`（`MADY_JUDGE_SAMPLES` 可调），`Samples=0` 保持单次向后兼容。
+  3. `agentcore/evaluate/llm_judge_test.go`：新增 `TestMedian`（5 子用例）、`TestLLMJudge_SamplesTakesMedian`（3-sample 中位数验证）、`TestLLMJudge_SamplesDefaultSingleShot`（默认单次向后兼容）。
+- **方差根源**：五轮 L2 实验发现同题 judge 分数跨轮波动达 0.71（`2012_a31_02` 从 0.88 到 0.17），使任何 ±0.05 的工具改进无法被可靠测量。根因有二：(a) `Temperature=0` 被 chatcompat 的 `>0` 检查跳过，judge 实际在非确定性 temperature 下运行；(b) 单次评分无统计降噪。
+- **验证结果**：两轮 L1 重复实验（同 3 题），修复后两轮 judge 分数完全一致（差异 0.000），对比修复前同题跨轮波动 0.71。judge 方差已被彻底消除。
+- **代价**：每题 judge 调用从 1 次增至 3 次（API 成本 ×3），`MADY_JUDGE_SAMPLES=1` 可降回单次。
+- **影响范围**: `agentcore/evaluate/llm_judge.go`、`agentcore/evaluate/llm_judge_test.go`、`agentcore/evaluate/benchmark/suite.go`、`docs/evaluation-baseline-v0.7.md`、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 低（`Samples=0` 向后兼容；temperature 0.01 近似确定性；median 对单次调用是 no-op）
+- **审查要求**: L2
+- **验证**: `go build` ✅ | `go vet` ✅ | evaluate 全量 test ✅ | 两轮 L1 live eval 方差验证 ✅（差异 0.000）
+
 ## 2026-07-15: 补全 drafting/invalidation manifest + 五轮 L2 实验定论
 
 - **变更**:

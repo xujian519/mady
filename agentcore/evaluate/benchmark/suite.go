@@ -2,6 +2,8 @@ package benchmark
 
 import (
 	"context"
+	"os"
+	"strconv"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/evaluate"
@@ -30,10 +32,21 @@ func DefaultEvaluator() *evaluate.Evaluator {
 // CitationCompleteness for required citations. The default pass threshold is
 // the package default (0.7); callers can use .WithThreshold() to adjust for
 // live evaluation.
+//
+// The LLMJudge uses 3-sample median scoring by default (configurable via
+// MADY_JUDGE_SAMPLES env var) to suppress the high variance observed in
+// single-shot judging (empirically up to 0.71 spread across runs of the same
+// case). Set MADY_JUDGE_SAMPLES=1 to restore single-shot behavior.
 func LiveEvaluator(judge agentcore.Provider, model string) *evaluate.Evaluator {
+	samples := 3
+	if v := os.Getenv("MADY_JUDGE_SAMPLES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 1 {
+			samples = n
+		}
+	}
 	return evaluate.NewEvaluator(
 		evaluate.CitationCompleteness{},
-		evaluate.LLMJudge{Judge: judge, Model: model},
+		evaluate.LLMJudge{Judge: judge, Model: model, Samples: samples},
 	)
 }
 
