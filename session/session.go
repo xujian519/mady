@@ -106,6 +106,9 @@ type Store interface {
 	Delete(ctx context.Context, sessionID string) error
 }
 
+// Compile-time check: FileStore satisfies Store.
+var _ Store = (*FileStore)(nil)
+
 type CreateOptions struct {
 	ID            string
 	Cwd           string

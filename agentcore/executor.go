@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/xujian519/mady/agentcore/concurrency"
 )
 
 // ExecutionMode controls whether tool calls run serially or in parallel.
@@ -301,11 +303,11 @@ func (e *Executor) executeParallel(ctx context.Context, calls []ToolCall, state 
 	results := make([]ToolResult, len(calls))
 	var wg sync.WaitGroup
 
-	concurrency := e.config.Concurrency
-	if concurrency <= 0 {
-		concurrency = int64(len(calls))
+	maxConcurrent := int(e.config.Concurrency)
+	if maxConcurrent <= 0 {
+		maxConcurrent = len(calls)
 	}
-	sem := make(chan struct{}, concurrency)
+	pool := concurrency.NewPool(maxConcurrent)
 
 	for i, tc := range calls {
 		wg.Add(1)
@@ -316,8 +318,13 @@ func (e *Executor) executeParallel(ctx context.Context, calls []ToolCall, state 
 					results[idx] = ToolResult{ToolName: call.Name, Result: fmt.Sprintf("异常: %v", r)}
 				}
 			}()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+
+			// Context-aware acquire: respects ctx cancellation.
+			if err := pool.Acquire(ctx); err != nil {
+				results[idx] = ToolResult{ToolName: call.Name, Result: fmt.Sprintf("并发获取失败: %v", err)}
+				return
+			}
+			defer pool.Release()
 
 			if cb != nil && cb.OnStart != nil {
 				cb.OnStart(call)

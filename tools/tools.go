@@ -157,6 +157,9 @@ type Extension struct {
 	tools  []*agentcore.Tool
 }
 
+// Compile-time check: tools.Extension satisfies agentcore.Extension.
+var _ agentcore.Extension = (*Extension)(nil)
+
 // NewExtension creates a new built-in tools extension with the given configuration.
 func NewExtension(cfg ExtensionConfig) *Extension {
 	cfg.setDefaults()

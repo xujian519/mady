@@ -585,10 +585,11 @@ func CapabilitiesFromConfig(cfg agentcore.Config) AgentCapabilities {
 	if len(cfg.Tools) > 0 {
 		items := make([]ToolDef, 0, len(cfg.Tools))
 		for _, t := range cfg.Tools {
+			def := t.Definition()
 			items = append(items, ToolDef{
-				Name:        t.Name,
-				Description: t.Description,
-				Parameters:  t.Parameters,
+				Name:        def.Name,
+				Description: def.Description,
+				Parameters:  def.Parameters,
 			})
 		}
 		caps.Tools.Items = items

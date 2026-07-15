@@ -178,6 +178,13 @@ func RunServer(ctx context.Context, opts RunOptions) error {
 		SessionManager: sessionMgr,
 		AgentInfo:      opts.AgentInfo,
 		Logger:         opts.Logger,
+		// 允许 ACP 客户端（如 Zed）声明文件系统读写能力。
+		// 本地编辑器场景下 FS 能力本质安全，且 ACPFileSystem 通过编辑器路由文件操作
+		// 而非直接访问磁盘，已是安全增强。
+		AllowedFSCapabilities: map[string]bool{
+			"FS.ReadTextFile":  true,
+			"FS.WriteTextFile": true,
+		},
 	})
 
 	opts.Logger.Info("ACP server ready", "name", opts.AgentInfo.Name, "model", opts.Model)

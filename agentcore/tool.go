@@ -34,6 +34,12 @@ type Tool struct {
 	// depends on arguments at call time (e.g. bash with a read-only command).
 	// When non-nil, the result overrides the static ReadOnly field.
 	DynamicReadOnly func(args json.RawMessage) bool
+
+	// declarationParams stores the strict (LLM-facing) tool schema with
+	// required fields preserved. When non-nil, Definition() uses this
+	// instead of Parameters. Set automatically by NewTypedTool.
+	// Parameters remains the lenient runtime schema.
+	declarationParams map[string]any
 }
 
 // ToolReadOnly reports whether a tool is read-only for the given arguments.
@@ -50,25 +56,41 @@ func ToolReadOnly(t *Tool, args json.RawMessage) bool {
 }
 
 // Definition converts a Tool to its schema representation for the model.
+//
+// For typed tools (created via NewTypedTool), declarationParams carries the
+// strict schema with required fields — this is what the LLM sees so it knows
+// which arguments are mandatory. Parameters holds the lenient schema used
+// at runtime to tolerate extra/malformed fields.
+//
+// For legacy tools, Parameters serves both purposes.
+//
+// 注意：当 TypedTool 同时设置了 DynamicParameters 时，shallow merge 可能覆盖
+// declarationParams 中自动生成的 structural keys（如 "required"、"properties"）。
+// 建议 typed tool 优先使用静态 struct tags 而非 DynamicParameters。
 func (t *Tool) Definition() ToolDefinition {
-	params := t.Parameters
+	// Prefer the strict declaration schema for LLM-facing output.
+	base := t.Parameters
+	if t.declarationParams != nil {
+		base = t.declarationParams
+	}
+
 	if t.DynamicParameters != nil {
 		dyn := t.DynamicParameters()
 		if len(dyn) > 0 {
-			merged := make(map[string]any, len(params)+len(dyn))
-			for k, v := range params {
+			merged := make(map[string]any, len(base)+len(dyn))
+			for k, v := range base {
 				merged[k] = v
 			}
 			for k, v := range dyn {
 				merged[k] = v
 			}
-			params = merged
+			base = merged
 		}
 	}
 	return ToolDefinition{
 		Name:        t.Name,
 		Description: t.Description,
-		Parameters:  params,
+		Parameters:  base,
 	}
 }
 

@@ -341,6 +341,7 @@ func TestAgentRun_Streaming_ContextCancellation(t *testing.T) {
 	agent := New(Config{
 		ModelConfig: ModelConfig{
 			Name:      "test",
+			Model:     "stub",
 			Provider:  provider,
 			Streaming: true,
 		},

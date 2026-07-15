@@ -50,6 +50,7 @@ func (p *queueProvider) Stream(_ context.Context, _ *agentcore.ProviderRequest) 
 func roleConfig(name string, prov *queueProvider) AgentRoleConfig {
 	return AgentRoleConfig{
 		Name:     name,
+		Model:    "stub",
 		Provider: prov,
 		MaxTurns: 5,
 	}
@@ -283,10 +284,10 @@ func TestNewPER_Defaults(t *testing.T) {
 	)
 
 	p := NewPER(PERConfig{
-		Planner:   AgentRoleConfig{Provider: prov},
-		Executor:  AgentRoleConfig{Provider: prov},
-		Reflector: ReflectorConfig{Judge: AgentRoleConfig{Provider: prov}},
-		Reviewer:  AgentRoleConfig{Provider: prov},
+		Planner:   AgentRoleConfig{Model: "stub", Provider: prov},
+		Executor:  AgentRoleConfig{Model: "stub", Provider: prov},
+		Reflector: ReflectorConfig{Judge: AgentRoleConfig{Model: "stub", Provider: prov}},
+		Reviewer:  AgentRoleConfig{Model: "stub", Provider: prov},
 	})
 
 	if len(p.Steps) != 3 {
@@ -309,8 +310,8 @@ func TestNewReflectiveStep_Defaults(t *testing.T) {
 	)
 
 	step := NewReflectiveStep(
-		AgentRoleConfig{Provider: prov},
-		ReflectorConfig{Judge: AgentRoleConfig{Provider: prov}},
+		AgentRoleConfig{Model: "stub", Provider: prov},
+		ReflectorConfig{Judge: AgentRoleConfig{Model: "stub", Provider: prov}},
 	)
 
 	result, err := step.Run(context.Background(), "test")
@@ -330,10 +331,10 @@ func TestNewPER_NilProvider(t *testing.T) {
 	// Creating a config without providers should not panic,
 	// but Run will fail because the agent has no provider.
 	p := NewPER(PERConfig{
-		Planner:   AgentRoleConfig{Name: "p", Provider: nil, MaxTurns: 1},
-		Executor:  AgentRoleConfig{Name: "e", Provider: nil, MaxTurns: 1},
-		Reflector: ReflectorConfig{Judge: AgentRoleConfig{Name: "j", Provider: nil, MaxTurns: 1}, MaxRetries: 1},
-		Reviewer:  AgentRoleConfig{Name: "r", Provider: nil, MaxTurns: 1},
+		Planner:   AgentRoleConfig{Name: "p", Model: "stub", Provider: nil, MaxTurns: 1},
+		Executor:  AgentRoleConfig{Name: "e", Model: "stub", Provider: nil, MaxTurns: 1},
+		Reflector: ReflectorConfig{Judge: AgentRoleConfig{Name: "j", Model: "stub", Provider: nil, MaxTurns: 1}, MaxRetries: 1},
+		Reviewer:  AgentRoleConfig{Name: "r", Model: "stub", Provider: nil, MaxTurns: 1},
 	})
 
 	_, err := p.Run(context.Background(), "test")
@@ -352,10 +353,10 @@ func TestReflectiveStep_ExecutorError(t *testing.T) {
 
 	step := &reflectiveStep{
 		executorConfig: AgentRoleConfig{
-			Name: "executor", Provider: prov, MaxTurns: 1,
+			Name: "executor", Model: "stub", Provider: prov, MaxTurns: 1,
 		},
 		reflectorConfig: ReflectorConfig{
-			Judge:      AgentRoleConfig{Name: "judge", Provider: prov, MaxTurns: 1},
+			Judge:      AgentRoleConfig{Name: "judge", Model: "stub", Provider: prov, MaxTurns: 1},
 			MaxRetries: 1,
 		},
 	}

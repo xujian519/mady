@@ -14,6 +14,11 @@ import (
 // The Agent can be reused across multiple Run calls — conversation state is
 // preserved between calls and system prompt is only persisted once.
 func (a *Agent) Run(ctx context.Context, input string) (string, error) {
+	// Fail fast: refuse to run with an invalid configuration.
+	if a.configErr != nil {
+		return "", fmt.Errorf("agentcore: agent configuration is invalid: %w", a.configErr)
+	}
+
 	ctx, span := a.tracer().Start(ctx, "agent.run",
 		Attr("agent.name", a.config.Name),
 		Attr("agent.model", a.config.Model),

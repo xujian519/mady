@@ -19,6 +19,7 @@ import (
 // AgentRoleConfig configures one Agent role in the PER pipeline.
 type AgentRoleConfig struct {
 	Name         string
+	Model        string
 	Provider     agentcore.Provider
 	SystemPrompt string
 	Tools        []*agentcore.Tool
@@ -30,6 +31,7 @@ type AgentRoleConfig struct {
 func (arc AgentRoleConfig) ToConfig() agentcore.Config {
 	opts := []agentcore.ConfigOption{
 		agentcore.WithName(arc.Name),
+		agentcore.WithModel(arc.Model),
 		agentcore.WithProvider(arc.Provider),
 		agentcore.WithSystemPrompt(arc.SystemPrompt),
 		agentcore.WithTemperature(arc.Temperature),

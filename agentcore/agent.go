@@ -100,6 +100,7 @@ type Config struct {
 type Agent struct {
 	config        Config
 	configMu      sync.RWMutex
+	configErr     error // set by New() when Validate() fails; checked in Run()
 	state         *AgentState
 	registry      *Registry
 	executor      *Executor
@@ -116,6 +117,15 @@ type Agent struct {
 func New(cfg Config) *Agent {
 	if cfg.MaxTurns <= 0 {
 		cfg.MaxTurns = defaultMaxTurns
+	}
+
+	// Validate configuration early. The error is stored and checked at
+	// Run() time — this lets the Agent be constructed (callers don't need
+	// to change their New() signature) while still preventing an invalid
+	// Agent from executing.
+	configErr := cfg.Validate()
+	if configErr != nil {
+		log.Printf("[agentcore] WARNING: config validation failed: %v", configErr)
 	}
 
 	reg := NewRegistry()
@@ -176,6 +186,7 @@ func New(cfg Config) *Agent {
 
 	a := &Agent{
 		config:        cfg,
+		configErr:     configErr,
 		state:         NewState(),
 		registry:      reg,
 		eventBus:      NewEventBus(),
@@ -234,6 +245,11 @@ func (a *Agent) SetEventBus(bus *EventBus) {
 }
 
 // --- state access ---
+
+// ConfigError returns the validation error from config validation (if any).
+// Returns nil when the agent configuration is valid. This can be called after
+// New() to check configuration before calling Run().
+func (a *Agent) ConfigError() error { return a.configErr }
 
 func (a *Agent) Config() Config {
 	a.configMu.RLock()
