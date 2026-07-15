@@ -1,5 +1,43 @@
 # AI 决策变更日志
 
+## 2026-07-16: P2B 四层评估定论——通用 prompt + 自主推理最优
+
+- **变更**: 新增 `ManifestToSystemPrompt`（manifest steps → 结构化 prompt）和 `TestLiveAgentP2BPromptAugmentedEval`（L4 增强 prompt 评估），跑出 P2B 四层完整对比。
+- **P2B 四层排序（llm_judge 均值）**：L1 通用 prompt（0.513）> L4 增强 prompt（0.410）> L0 裸 LLM（0.363）> L2 工具编排（0.334）
+- **两个假设验证**：
+  - ✅ "prompt 引导 > 工具编排"：L4（0.410）> L2（0.334）
+  - ❌ "增强 prompt > 通用 prompt"：L4（0.410）< L1（0.513）
+- **深层结论**：对 LLM Agent，最简单的通用 prompt + 自主推理（L1）反而最好。过多的结构约束（工具编排 L2 或增强 prompt L4）都是干扰。manifest/metrics/orchestration 的价值应转向评估和审计，而非推理引导。
+- **影响范围**: `domains/reasoning/manifest_prompt.go`（新）、`agentcore/evaluate/benchmark/live_agent_test.go`、`docs/evaluation-baseline-v0.7.md`、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 低（新增函数和测试，不改现有逻辑）
+- **审查要求**: L2
+- **验证**: `go build/vet/test` ✅ | P2B L4 10 题 live eval ✅
+
+## 2026-07-16: 性能优化 Phase 2 — PubSub PublishMustDeliver 解锁
+
+- **变更**:
+  1. `agentcore/pubsub.go`：`PublishMustDeliver` 改为 snapshot subscribers 模式。先短暂持 RLock 拷贝 `[]chan T`，释放锁后再逐个发送。新增 `<-b.done` select case 在发送过程中优雅退出。
+- **动机**: 原 `PublishMustDeliver` 在 RLock 期间遍历所有 subscriber 发送，满 channel 最多阻塞 50ms/subscriber，N 个满 subscriber = N×50ms 总阻塞期间 RLock 不释放，阻塞 Subscribe/Unsubscribe。
+- **收益**: 消除 PublishMustDeliver 对 Subscribe/Unsubscribe 的锁阻塞。
+- **影响范围**: `agentcore/pubsub.go`（1 个文件）
+- **风险等级**: 低（snapshot 期间新增的 subscriber 不会收到这条消息，可接受）
+- **审查要求**: L2
+- **验证**: `go build` ✅ | `go test -race ./agentcore/...` ✅ | `golangci-lint` ✅
+
+## 2026-07-16: 性能优化 Phase 1 — Session Lock O(1) LRU 改造
+
+- **变更**:
+  1. `session/session.go`：FileStore 锁缓存从 `lockOrder []string`（O(N) LRU）改为 `container/list` 双向链表（O(1) LRU）。`touchLock` 方法删除，LRU touch 内联为 `lockList.MoveToFront(elem)`。`lockCleanup` 同步清理 list entry。
+  2. 新增 `lockEntry` 结构体（id + mu），`locks` 从 `map[string]*sync.RWMutex` 改为 `map[string]*list.Element`。
+  3. 新增 `container/list` import。
+- **动机**: `sessionLock` 是所有 session 操作的入口，全局 `locksMu` 串行化 + `touchLock` O(N) 线性扫描 `lockOrder` 切片（找到→删除→append），session 数增长后每次锁操作线性增长，成为并发瓶颈。
+- **收益**: LRU touch/evict 从 O(N)→O(1)，持锁时间大幅缩短，降低锁争用。
+- **影响范围**: `session/session.go`（1 个文件）
+- **风险等级**: 中（sessionLock 属安全敏感路径，影响所有 session 操作的并发安全）
+- **审查要求**: L3（sessionLock 是 session 生命周期核心）
+- **验证**: `go build` ✅ | `go test -race ./session/...` ✅ | `golangci-lint` ✅
+
+
 ## 2026-07-16: LLMNodeBuilder 修复 + P2B 五步工具评估定论
 
 - **变更**:
