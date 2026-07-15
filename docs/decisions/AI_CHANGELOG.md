@@ -1,5 +1,19 @@
 # AI 决策变更日志
 
+## 2026-07-16: LLMNodeBuilder 修复 + P2B 五步工具评估定论
+
+- **变更**:
+  1. `domains/reasoning/llm_node_builder.go`（新）：实现 `LLMNodeBuilder`，每个 PlanStep 真正调用 LLM 做分析，结果累积到 blackboard。修复了 `noopNodeBuilder`（唯一实现，只输出步骤名不调 LLM）导致五步工具是空框架的根因。
+  2. `domains/reasoning/five_step_runner.go`：`formatResult` 输出实际分析内容（`### 分析过程`），不再只输出步骤名+JSON 元数据。移除 JSON dump 降低噪声。
+  3. `domains/reasoning/handoff_integration.go`：`NewWorkflowRunner` 注入 `LLMNodeBuilder`（生产环境不再用 noop）。
+  4. 清除 macOS 真实缓存路径（`os.TempDir()`=`/var/folders/.../T/` 而非 `/tmp/`）后重跑 P2B L2 10 题。
+- **P2B L2 实测（LLMNodeBuilder，10题）**：llm_judge 均值 **0.334**，远低于 L1 的 0.513（−0.179）。6/10 题下降。
+- **核心架构发现**：外部编排的分步推理（PlanStep→Pregel→5次LLM调用）不如 Agent 内部自主多轮推理（agent.Run）。五步工具把分析拆成 5 个独立 LLM 调用，破坏了推理连贯性；L1 让 Agent 整体端到端推理更优。3 题时测到的 0.700 是小样本偏差。
+- **影响范围**: `domains/reasoning/llm_node_builder.go`（新）、`five_step_runner.go`、`handoff_integration.go`、`phase1_test.go`、`docs/evaluation-baseline-v0.7.md`、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 中（修改五步推理核心引擎，但 noop 仍可作为 fallback；phase1 测试已适配）
+- **审查要求**: L3（涉及推理引擎架构变更）
+- **验证**: `go build/vet/test` ✅ | reasoning 全量 test ✅ | P2B L2 3题+10题 live eval ✅
+
 ## 2026-07-15: 重建 P2B 真实案件基准 + 首次真实案件三层评估
 
 - **变更**:
