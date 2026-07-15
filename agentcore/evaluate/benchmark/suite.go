@@ -52,13 +52,6 @@ func LiveEvaluator(judge agentcore.Provider, model string) *evaluate.Evaluator {
 
 // AllCases returns every registered benchmark case across all domains.
 // New datasets should append their cases here.
-//
-// NOTE: AllCases still includes InvalidationDecisionCases (P2B) so that the
-// static GoldenPerfect CI gate keeps verifying structural integrity of all
-// registered data. For live evaluation use ValidCases instead — P2B is frozen
-// because its inputs are empty shells (claim/evidence/reason all blank for
-// 40/40 cases) with a degenerate conclusion distribution (34 invalidate-all /
-// 5 partial / 1 maintained). See docs/evaluation-baseline-v0.6.md.
 func AllCases() []evaluate.TestCase {
 
 	var cases []evaluate.TestCase
@@ -73,12 +66,14 @@ func AllCases() []evaluate.TestCase {
 	return cases
 }
 
-// ValidCases returns benchmark cases suitable for live evaluation: all
-// registered cases EXCEPT the frozen P2B invalidation-decision dataset.
-// Use this (not AllCases) when running live LLM evaluation so that empty-shell
-// cases do not produce misleading pass-rate signals. The static CI gate
-// (RunStatic) still uses AllCases to assert structural integrity of every
-// registered case.
+// ValidCases returns benchmark cases suitable for live evaluation.
+//
+// P2B (InvalidationDecisionCases) was frozen on 2026-07-15 due to empty-shell
+// inputs (claim/evidence/reason all blank for 40/40 cases). It has since been
+// REBUILT from the 宝宸知识库_Raw dataset (31562 real invalidation-decision MD
+// files) with correct field extraction: claim 1, evidence list, invalidation
+// grounds, and a balanced conclusion distribution (全部无效/维持有效/部分无效).
+// P2B is now RE-ENABLED for live evaluation. See scripts/extract_invalidation_cases.py.
 func ValidCases() []evaluate.TestCase {
 	var cases []evaluate.TestCase
 	cases = append(cases, PatentExamCases...)
@@ -88,6 +83,7 @@ func ValidCases() []evaluate.TestCase {
 	cases = append(cases, PatentExamRealA31Cases...)
 	cases = append(cases, PatentExamRealA33Cases...)
 	cases = append(cases, PatentExamRealR42Cases...)
+	cases = append(cases, InvalidationDecisionCases...)
 	return cases
 }
 
