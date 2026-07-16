@@ -13,23 +13,24 @@
 //	BASE_URL   override the provider's default endpoint
 package main
 
-// TODO(refactor): 此文件约 900 行，建议进一步按子命令拆分（cmd_tui.go/cmd_serve.go/cmd_acp.go）。
+// This file holds the main entry point, usage, and the shared framework
+// initialization (setupFrameworkContext + knowledge/manifest/skill/MCP loaders)
+// used by all three subcommands. Subcommand implementations live in siblings:
+//   - tui_session.go + tui_helpers.go + slash_suggestions.go — `mady tui`
+//   - server.go — `mady serve`
+//   - acp.go    — `mady acp`
 
 import (
 	"context"
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
-	"github.com/xujian519/mady/acp"
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/reasoning"
@@ -43,7 +44,6 @@ import (
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/retrieval"
-	"github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/skill"
 	"github.com/xujian519/mady/tui"
@@ -618,7 +618,10 @@ func runTui(ctx context.Context) {
 		s.currentThemeName = "light"
 	}
 
-	slashSuggestions := buildSlashSuggestions(useMultiDomain)
+	// Build the slash registry once; both handleSubmit and the autocomplete
+	// menu read from it (single source of truth, no dual switch).
+	s.slashReg = s.buildSlashRegistry()
+	slashSuggestions := s.slashReg.Suggestions(s)
 
 	var app *chat.ChatApp
 	app = tui.NewChatApp(chat.ChatAppConfig{
@@ -655,6 +658,17 @@ func runTui(ctx context.Context) {
 	s.app = app
 	agentadapter.BindAgent(app, s.currentAgent)
 
+	// Load user keymap overrides from ~/.mady/keymap.json (if present) into the
+	// app's keybinding manager so the editor and chat honor customized keys.
+	// Warnings (unknown tokens) are surfaced to the user but never fatal.
+	if fc.MadyHome != "" {
+		if warnings := loadKeymapOverrides(fc.MadyHome, app.Keybindings()); len(warnings) > 0 {
+			for _, w := range warnings {
+				log.Printf("keymap: %s", w)
+			}
+		}
+	}
+
 	app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.planMode, useMultiDomain, s.currentThinking))
 
 	modeInfo := "单 Agent 模式"
@@ -672,386 +686,9 @@ func runTui(ctx context.Context) {
 	<-app.Done()
 }
 
-// buildSlashSuggestions returns the autocomplete suggestion list for the TUI slash menu.
-func buildSlashSuggestions(useMultiDomain bool) []core.Suggestion {
-	suggestions := []core.Suggestion{
-		{InsertText: "/help", Label: "/help", Description: "显示快捷键"},
-		{InsertText: "/clear", Label: "/clear", Description: "开始新对话"},
-		{InsertText: "/new", Label: "/new", Description: "开始新对话"},
-		{InsertText: "/branch", Label: "/branch", Description: "从当前对话创建分支"},
-		{InsertText: "/thinking", Label: "/thinking", Description: "查看或修改推理模式"},
-		{InsertText: "/thinking summarized", Label: "/thinking summarized", Description: "显示推理摘要"},
-		{InsertText: "/thinking omitted", Label: "/thinking omitted", Description: "隐藏推理块"},
-		{InsertText: "/thinking effort medium", Label: "/thinking effort medium", Description: "设置推理强度"},
-		{InsertText: "/thinking budget -1", Label: "/thinking budget -1", Description: "动态推理预算"},
-		{InsertText: "/skill:", Label: "/skill:", Description: "显式调用技能"},
-		{InsertText: "/save", Label: "/save", Description: "显示会话保存信息"},
-		{InsertText: "/theme", Label: "/theme", Description: "切换主题"},
-		{InsertText: "/theme dark", Label: "/theme dark", Description: "深色主题"},
-		{InsertText: "/theme light", Label: "/theme light", Description: "浅色主题"},
-		{InsertText: "/copy", Label: "/copy", Description: "复制最后一条回复"},
-		{InsertText: "/export", Label: "/export", Description: "导出当前对话为 Markdown"},
-		{InsertText: "/case", Label: "/case", Description: "查看或切换案件"},
-		{InsertText: "/deadline", Label: "/deadline", Description: "显示当前案件期限"},
-		{InsertText: "/review", Label: "/review", Description: "切换审核关卡（关键内容人工确认）"},
-		{InsertText: "/approve", Label: "/approve", Description: "确认AI输出，继续执行（审核模式下）"},
-		{InsertText: "/reject", Label: "/reject", Description: "拒绝AI输出，请求修改（审核模式下）"},
-		{InsertText: "/plan", Label: "/plan", Description: "切换计划模式（高质量推理）"},
-		{InsertText: "/quit", Label: "/quit", Description: "退出"},
-	}
-	if useMultiDomain {
-		suggestions = append(suggestions,
-			core.Suggestion{InsertText: "/mode", Label: "/mode", Description: "显示当前 Agent 模式"},
-		)
-	}
-	return suggestions
-}
-
 func firstNonEmpty(s, fallback string) string {
 	if s != "" {
 		return s
 	}
 	return fallback
-}
-func runAcp(ctx context.Context) {
-	fs := flag.NewFlagSet("mady acp", flag.ExitOnError)
-	if err := fs.Parse(os.Args[2:]); err != nil {
-		fmt.Fprintf(os.Stderr, "mady acp: %v\n", err)
-		os.Exit(1)
-	}
-
-	fc := setupFrameworkContext(ctx)
-
-	err := acp.RunServer(ctx, acp.RunOptions{
-		Provider:   fc.Provider,
-		Model:      agentconfig.DefaultModel(),
-		Thinking:   agentconfig.ThinkingFromEnv(),
-		Lifecycle:  fc.WikiHook,
-		Extensions: extSlice(fc.KnowledgeExt),
-		AgentInfo: acp.AgentInfo{
-			Name:    "mady",
-			Version: "0.1.0",
-		},
-	})
-	if err != nil && err != context.Canceled {
-		fmt.Fprintf(os.Stderr, "mady acp: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-// runServer launches the HTTP/SSE API server with multi-domain routing.
-func runServer(ctx context.Context) {
-	fs := flag.NewFlagSet("mady serve", flag.ExitOnError)
-	addr := fs.String("addr", ":8080", "listen address")
-	if err := fs.Parse(os.Args[2:]); err != nil {
-		fmt.Fprintf(os.Stderr, "flag: %v\n", err)
-		return
-	}
-
-	fc := setupFrameworkContext(ctx)
-
-	// Build Router config from manifests (or use hardcoded fallback).
-	cfg := buildRouterConfig(fc.BaseConfig, fc.Manifests)
-
-	// Attach wiki retrieval hook if available.
-	if fc.WikiHook != nil {
-		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
-	}
-	if fc.KnowledgeExt != nil {
-		cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
-	}
-
-	// Session persistence via JSONL file store.
-	// 优先级：$SESSION_DIR > ~/.mady/sessions。
-	sessionDir := os.Getenv("SESSION_DIR")
-	if sessionDir == "" {
-		if fc.MadyHome != "" {
-			sessionDir = filepath.Join(fc.MadyHome, "sessions")
-		} else {
-			sessionDir = "./sessions" // 降级兜底
-		}
-	}
-	fileStore, err := session.NewFileStore(sessionDir)
-	if err != nil {
-		log.Printf("session: %v (continuing without persistence)", err)
-	} else {
-		// 修复：使用 fc.WorkspaceDir 而非硬编码 "./workspace"，
-		// 确保与 ProjectRegistry、AgentStore 共用同一 workspace。
-		cfg.Store = session.NewAgentStore(fileStore, fc.WorkspaceDir)
-	}
-
-	// Checkpoint for durable snapshots per thread.
-	cfg.Checkpoint = &agentcore.CheckpointSettings{
-		Saver:    agentcore.NewMemoryCheckpointSaver(),
-		ThreadID: "default",
-	}
-
-	srv := server.New(cfg)
-	log.Printf("Mady server starting on %s (multi-domain routing enabled)", *addr)
-	if fc.WikiStore != nil {
-		st := fc.WikiStore.Stats()
-		log.Printf("wiki: %d docs, %d chunks", st.TotalDocs, st.TotalChunks)
-	}
-
-	// Graceful shutdown on context cancellation.
-	go func() {
-		<-ctx.Done()
-		log.Println("shutting down server...")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			log.Printf("shutdown: %v", err)
-		}
-	}()
-
-	if err := srv.ListenAndServe(*addr); err != nil && err != http.ErrServerClosed {
-		fmt.Fprintf(os.Stderr, "server: %v\n", err)
-		return
-	}
-}
-
-// --- thinking config helpers (ported from example/cli-chat) ---
-
-func cloneThinkingConfig(cfg *agentcore.ThinkingConfig) *agentcore.ThinkingConfig {
-	if cfg == nil {
-		return nil
-	}
-	cp := *cfg
-	return &cp
-}
-
-func compactThinkingConfig(cfg *agentcore.ThinkingConfig) *agentcore.ThinkingConfig {
-	if cfg == nil {
-		return nil
-	}
-	if !cfg.IncludeThoughts &&
-		cfg.Display == agentcore.ThinkingDisplayDefault &&
-		cfg.Effort == agentcore.ThinkingEffortDefault &&
-		cfg.Budget == 0 {
-		return nil
-	}
-	return cfg
-}
-
-// statusBarModeLabel 生成状态栏的模式标签（中文友好）。
-func statusBarModeLabel(planMode, useMultiDomain bool, thinking *agentcore.ThinkingConfig) string {
-	if planMode {
-		return "🧠 计划"
-	}
-	label := "集成"
-	if useMultiDomain {
-		label = "多域路由"
-	}
-	if thinking != nil && thinking.IncludeThoughts {
-		if thinking.Effort != "" && thinking.Effort != agentcore.ThinkingEffortDefault {
-			label += " · 推理" + string(thinking.Effort)
-		} else {
-			label += " · 推理"
-		}
-	}
-	return label
-}
-
-func formatProjectContext(rec *domains.ProjectRecord, meta *domains.ProjectMeta) string {
-	s := "\n\n---\n## 当前案件上下文\n"
-	s += fmt.Sprintf("- 案件: %s（%s）\n", rec.Alias, rec.ProjectID)
-	s += fmt.Sprintf("- 领域: %s\n", rec.Domain)
-	if meta != nil {
-		if meta.MatterType != "" {
-			s += fmt.Sprintf("- 事项类型: %s\n", meta.MatterType)
-		}
-		if meta.ClientName != "" {
-			s += fmt.Sprintf("- 客户: %s\n", meta.ClientName)
-		}
-		if len(meta.Deadlines) > 0 {
-			s += "- 期限:\n"
-			for _, d := range meta.Deadlines {
-				s += fmt.Sprintf("  - %s: %s\n", d.Type, d.DueDate)
-			}
-		}
-	}
-	s += fmt.Sprintf("- 工作目录: %s\n", rec.RootPath)
-	return s
-}
-
-func formatProjectInfo(rec *domains.ProjectRecord, meta *domains.ProjectMeta) string {
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "案件: %s\n", rec.Alias)
-	fmt.Fprintf(&sb, "ID: %s\n", rec.ProjectID)
-	fmt.Fprintf(&sb, "领域: %s\n", rec.Domain)
-	fmt.Fprintf(&sb, "状态: %s\n", rec.Status)
-	fmt.Fprintf(&sb, "工作目录: %s\n", rec.RootPath)
-	fmt.Fprintf(&sb, "注册时间: %s\n", rec.RegisteredAt.Format("2006-01-02"))
-	if meta != nil {
-		if meta.MatterType != "" {
-			fmt.Fprintf(&sb, "事项类型: %s\n", meta.MatterType)
-		}
-		if meta.ClientName != "" {
-			fmt.Fprintf(&sb, "客户: %s\n", meta.ClientName)
-		}
-		if len(meta.Deadlines) > 0 {
-			sb.WriteString("期限:\n")
-			for _, d := range meta.Deadlines {
-				mark := ""
-				if d.Reminded {
-					mark = "✓ "
-				}
-				fmt.Fprintf(&sb, "  %s%s: %s\n", mark, d.Type, d.DueDate)
-			}
-		}
-	}
-	return sb.String()
-}
-
-// mapMatterTypeToCaseType 将案件事项类型映射到 reasoning 工作流的 CaseType。
-func mapMatterTypeToCaseType(meta *domains.ProjectMeta) reasoning.CaseType {
-	if meta == nil || meta.MatterType == "" {
-		return reasoning.CaseGeneralLegal
-	}
-	m := strings.ToLower(meta.MatterType)
-	switch {
-	case strings.Contains(m, "无效"):
-		return reasoning.CaseInvalidation
-	case strings.Contains(m, "自由实施") || strings.Contains(m, "fto"):
-		return reasoning.CaseFTO
-	case strings.Contains(m, "新颖性"):
-		return reasoning.CaseNoveltySearch
-	case strings.Contains(m, "专利性") || strings.Contains(m, "创造性"):
-		return reasoning.CasePatentability
-	case strings.Contains(m, "侵权"):
-		return reasoning.CaseInfringement
-	case strings.Contains(m, "审查意见") || strings.Contains(m, "oa") || strings.Contains(m, "答复"):
-		return reasoning.CaseRejection
-	case strings.Contains(m, "复审"):
-		return reasoning.CaseReexamination
-	case strings.Contains(m, "撰写") || strings.Contains(m, "申请"):
-		return reasoning.CaseDrafting
-	default:
-		return reasoning.CaseGeneralLegal
-	}
-}
-
-func formatExportMarkdown(msgs []chat.ChatMessage, threadID string, project *domains.ProjectRecord) string {
-	var b strings.Builder
-	b.WriteString("# Mady 对话记录\n\n")
-	fmt.Fprintf(&b, "**导出时间**: %s  \n", time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(&b, "**会话ID**: %s  \n", threadID)
-	if project != nil {
-		fmt.Fprintf(&b, "**案件**: %s (%s)  \n", project.Alias, project.ProjectID)
-	}
-	b.WriteString("\n---\n\n")
-	for _, msg := range msgs {
-		switch msg.Role {
-		case chat.RoleUser:
-			b.WriteString("## 👤 用户\n\n")
-		case chat.RoleAssistant:
-			b.WriteString("## 🤖 助手\n\n")
-		case chat.RoleSystem:
-			b.WriteString("## 💬 系统\n\n")
-		case chat.RoleTool:
-			label := "## 🔧 工具"
-			if msg.Meta != "" {
-				label += " (" + msg.Meta + ")"
-			}
-			b.WriteString(label + "\n\n")
-		case chat.RoleError:
-			b.WriteString("## ❌ 错误\n\n")
-		default:
-			continue
-		}
-		if msg.Text != "" {
-			b.WriteString(msg.Text)
-			b.WriteString("\n\n")
-		}
-		b.WriteString("---\n\n")
-	}
-	return b.String()
-}
-
-func formatThinkingConfig(cfg *agentcore.ThinkingConfig) string {
-	if cfg == nil {
-		return "default"
-	}
-	parts := []string{
-		"display=" + string(cfg.NormalizedDisplay()),
-	}
-	if cfg.Effort != "" {
-		parts = append(parts, "effort="+string(cfg.Effort))
-	}
-	if cfg.Budget != 0 {
-		parts = append(parts, fmt.Sprintf("budget=%d", cfg.Budget))
-	}
-	parts = append(parts, fmt.Sprintf("include_thoughts=%t", cfg.IncludeThoughts))
-	return strings.Join(parts, " ")
-}
-
-func parseThinkingCommand(input string, current *agentcore.ThinkingConfig) (*agentcore.ThinkingConfig, bool, error) {
-	fields := strings.Fields(strings.TrimSpace(input))
-	if len(fields) <= 1 {
-		return agentcore.CloneThinkingConfig(current), false, nil
-	}
-
-	next := agentcore.CloneThinkingConfig(current)
-	if next == nil {
-		next = &agentcore.ThinkingConfig{}
-	}
-
-	switch strings.ToLower(fields[1]) {
-	case "reset":
-		return nil, true, nil
-	case "on", "summarized":
-		next.IncludeThoughts = true
-		next.Display = agentcore.ThinkingDisplaySummarized
-		return compactThinkingConfig(next), true, nil
-	case "off", "omitted":
-		next.IncludeThoughts = false
-		next.Display = agentcore.ThinkingDisplayOmitted
-		return compactThinkingConfig(next), true, nil
-	case "effort":
-		if len(fields) < 3 {
-			return nil, false, fmt.Errorf("usage: /thinking effort <low|medium|high|max|default>")
-		}
-		switch strings.ToLower(fields[2]) {
-		case "default", "reset":
-			next.Effort = agentcore.ThinkingEffortDefault
-		case "low", "medium", "high", "max":
-			next.Effort = agentcore.ThinkingEffort(strings.ToLower(fields[2]))
-		default:
-			return nil, false, fmt.Errorf("invalid thinking effort %q", fields[2])
-		}
-		return compactThinkingConfig(next), true, nil
-	case "budget":
-		if len(fields) < 3 {
-			return nil, false, fmt.Errorf("usage: /thinking budget <n|default>")
-		}
-		if strings.EqualFold(fields[2], "default") || strings.EqualFold(fields[2], "reset") {
-			next.Budget = 0
-			return compactThinkingConfig(next), true, nil
-		}
-		v, err := strconv.ParseInt(fields[2], 10, 64)
-		if err != nil {
-			return nil, false, fmt.Errorf("invalid thinking budget %q", fields[2])
-		}
-		next.Budget = v
-		return compactThinkingConfig(next), true, nil
-	case "include":
-		if len(fields) < 3 {
-			return nil, false, fmt.Errorf("usage: /thinking include <true|false>")
-		}
-		v, err := strconv.ParseBool(fields[2])
-		if err != nil {
-			return nil, false, fmt.Errorf("invalid thinking include value %q", fields[2])
-		}
-		next.IncludeThoughts = v
-		if next.Display == agentcore.ThinkingDisplayDefault {
-			if v {
-				next.Display = agentcore.ThinkingDisplaySummarized
-			} else {
-				next.Display = agentcore.ThinkingDisplayOmitted
-			}
-		}
-		return compactThinkingConfig(next), true, nil
-	default:
-		return nil, false, fmt.Errorf("usage: /thinking [on|off|summarized|omitted|effort <...>|budget <...>|include <true|false>|reset]")
-	}
 }

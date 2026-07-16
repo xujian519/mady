@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -337,6 +338,137 @@ func TestChatHistoryCacheProducesIdenticalOutput(t *testing.T) {
 	for _, want := range []string{"hello", "world", "next"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in output:\n%s", want, joined)
+		}
+	}
+}
+
+// TestChatHistoryStreamingDeltaReusesBlockCache verifies that streaming deltas
+// to a Pending assistant message reuse the per-block cache rather than
+// re-rendering the whole message. The cache entry count for that message must
+// grow as blocks accumulate, but each delta must NOT reset it to zero — the
+// already-closed blocks are preserved across deltas.
+func TestChatHistoryStreamingDeltaReusesBlockCache(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "# Title\n\nFirst paragraph.")
+
+	// First render: builds the block cache for the Pending message.
+	_ = h.Render(60)
+	h.mu.Lock()
+	cm, ok := h.msgCache[id]
+	h.mu.Unlock()
+	if !ok || cm.blockCache == nil {
+		t.Fatalf("Pending assistant message should have a block cache, got ok=%v", ok)
+	}
+	firstEntries := cm.blockCache.Entries()
+
+	// Append more text to the trailing paragraph — the cache must NOT shrink
+	// (earlier blocks are reused); the entry count stays equal to block count.
+	h.AppendDelta(id, " More text.")
+	_ = h.Render(60)
+	h.mu.Lock()
+	cm, _ = h.msgCache[id]
+	h.mu.Unlock()
+	if cm.blockCache.Entries() < firstEntries {
+		t.Errorf("block cache shrank after delta: first=%d now=%d (earlier blocks should be reused)",
+			firstEntries, cm.blockCache.Entries())
+	}
+
+	// Add a new block — entry count must grow to cover it.
+	h.AppendDelta(id, "\n\n- new bullet")
+	_ = h.Render(60)
+	h.mu.Lock()
+	cm, _ = h.msgCache[id]
+	h.mu.Unlock()
+	if cm.blockCache.Entries() <= firstEntries {
+		t.Errorf("block cache did not grow after adding a block: first=%d now=%d",
+			firstEntries, cm.blockCache.Entries())
+	}
+}
+
+// TestChatHistoryStickToBottomHint verifies the "↓ N new — End to follow"
+// hint appears when the user scrolls up and new content arrives, and that
+// returning to the tail clears it.
+func TestChatHistoryStickToBottomHint(t *testing.T) {
+	h := NewChatHistory()
+	h.SetMaxRows(3)
+	// Fill enough to scroll.
+	for i := 0; i < 5; i++ {
+		h.Append(ChatMessage{Role: RoleSystem, Text: fmt.Sprintf("line %d", i)})
+	}
+	_ = h.Render(40)
+
+	// User scrolls up: follow becomes false, tailAnchorLen freezes at 5.
+	h.ScrollBy(2)
+	if h.follow {
+		t.Fatalf("ScrollBy should set follow=false")
+	}
+
+	// New content arrives while scrolled up.
+	h.Append(ChatMessage{Role: RoleSystem, Text: "new content"})
+	withNew := h.Render(40)
+	joined := strings.Join(withNew, "\n")
+	if !strings.Contains(joined, "↓") {
+		t.Errorf("expected '↓ N new' hint after new content while scrolled up, got:\n%s", joined)
+	}
+
+	// Return to tail: hint must clear.
+	h.FollowTail()
+	atTail := h.Render(40)
+	if strings.Contains(strings.Join(atTail, "\n"), "↓") {
+		t.Errorf("hint should clear after FollowTail, got:\n%s", strings.Join(atTail, "\n"))
+	}
+}
+
+// BenchmarkChatHistoryStreamAppend models the real streaming workload: many
+// small deltas appended to a single Pending assistant message, with a render
+// after each delta. This is the path P0-1 optimizes; the block cache should
+// keep it near-linear in the message length rather than quadratic.
+func BenchmarkChatHistoryStreamAppend(b *testing.B) {
+	const deltaCount = 200
+	for n := 0; n < b.N; n++ {
+		h := NewChatHistory()
+		id := ""
+		for i := 0; i < deltaCount; i++ {
+			if i%20 == 0 {
+				if id != "" {
+					id = h.AppendDelta(id, "\n\n")
+				}
+				id = h.AppendDelta(id, fmt.Sprintf("Paragraph %d with some words to render. ", i/20+1))
+			} else {
+				id = h.AppendDelta(id, "word ")
+			}
+			_ = h.Render(80)
+		}
+	}
+}
+
+// BenchmarkChatHistoryStreamAppendNoCache is the comparison baseline: it
+// renders the pending message with mdCache=nil on every delta, which is
+// exactly the pre-P0-1 code path (full NewMarkdown+Render per delta). The
+// delta loop matches BenchmarkChatHistoryStreamAppend so the two numbers are
+// directly comparable.
+func BenchmarkChatHistoryStreamAppendNoCache(b *testing.B) {
+	const deltaCount = 200
+	for n := 0; n < b.N; n++ {
+		h := NewChatHistory()
+		id := ""
+		for i := 0; i < deltaCount; i++ {
+			if i%20 == 0 {
+				if id != "" {
+					id = h.AppendDelta(id, "\n\n")
+				}
+				id = h.AppendDelta(id, fmt.Sprintf("Paragraph %d with some words to render. ", i/20+1))
+			} else {
+				id = h.AppendDelta(id, "word ")
+			}
+			// Render the pending message with no block cache: full re-parse
+			// and re-render every delta, as before P0-1.
+			h.mu.Lock()
+			if len(h.messages) > 0 {
+				msg := h.messages[len(h.messages)-1]
+				_ = h.renderMessage(msg, h.theme, 80, nil)
+			}
+			h.mu.Unlock()
 		}
 	}
 }

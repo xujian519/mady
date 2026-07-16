@@ -23,6 +23,17 @@ type StatusBar struct {
 	start    time.Time
 	mode     string
 	agent    string
+
+	// Token-usage metrics, surfaced next to the elapsed indicator when running.
+	// tokPerSec is computed by the caller (ChatApp) from turn start/end times;
+	// 0 means "not set / hide". prompt/completion are cumulative across turns.
+	usagePrompt     int64
+	usageCompletion int64
+	tokPerSec       int64
+
+	// Context-window occupancy: used / total tokens. total==0 means "hide".
+	ctxUsed  int64
+	ctxTotal int64
 }
 
 func NewStatusBar() *StatusBar {
@@ -44,6 +55,25 @@ func (s *StatusBar) SetAgent(agent string) {
 func (s *StatusBar) SetSections(sections []StatusBarSection) {
 	s.mu.Lock()
 	s.sections = sections
+	s.mu.Unlock()
+}
+
+// SetUsage records token-usage metrics for display next to the elapsed
+// indicator. tokPerSec==0 hides the rate. prompt/completion are shown
+// cumulatively when non-zero.
+func (s *StatusBar) SetUsage(prompt, completion, tokPerSec int64) {
+	s.mu.Lock()
+	s.usagePrompt = prompt
+	s.usageCompletion = completion
+	s.tokPerSec = tokPerSec
+	s.mu.Unlock()
+}
+
+// SetContext records the context-window occupancy. total==0 hides the bar.
+func (s *StatusBar) SetContext(used, total int64) {
+	s.mu.Lock()
+	s.ctxUsed = used
+	s.ctxTotal = total
 	s.mu.Unlock()
 }
 
@@ -78,8 +108,20 @@ func (s *StatusBar) Render(width int64) []string {
 	if s.running {
 		elapsed := time.Since(s.start)
 		left.WriteString(p.LoaderSpinner.Render(theme.SymbolThinking + " " + formatDuration(elapsed)))
+		// Streaming rate indicator, shown only while running and when a rate
+		// has been observed (tokPerSec > 0). Kept compact so narrow terminals
+		// are not crowded off the status bar.
+		if s.tokPerSec > 0 {
+			left.WriteString(" " + p.Accent.Render(fmt.Sprintf("⚡ %s", formatTokenRate(s.tokPerSec))))
+		}
 	} else if s.agent != "" {
 		left.WriteString(p.Dim.Render(theme.SymbolCheck + " " + s.agent))
+	}
+
+	// Context-window occupancy bar, prepended to the right cluster. A 10-cell
+	// inline bar colored by load (green < 70%, amber < 90%, red otherwise).
+	if s.ctxTotal > 0 && s.ctxUsed >= 0 {
+		right.WriteString(" " + renderContextBar(s.ctxUsed, s.ctxTotal, p))
 	}
 
 	for _, sec := range s.sections {
@@ -131,4 +173,44 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm%ds", m, s)
 	}
 	return fmt.Sprintf("%ds", s)
+}
+
+// formatTokenRate renders a tok/s value compactly: <1k as-is, >=1k as "1.2k".
+func formatTokenRate(tokPerSec int64) string {
+	if tokPerSec < 1000 {
+		return fmt.Sprintf("%d tok/s", tokPerSec)
+	}
+	return fmt.Sprintf("%.1fk tok/s", float64(tokPerSec)/1000)
+}
+
+// renderContextBar returns a 10-cell inline progress bar showing the
+// context-window occupancy, colored by load: green < 70%, amber < 90%,
+// red otherwise. Example output at 45%: "█████░░░░░ 45%".
+func renderContextBar(used, total int64, p *theme.Palette) string {
+	const cells = 10
+	if total <= 0 {
+		return ""
+	}
+	pct := int((used * 100) / total)
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	filled := (pct * cells) / 100
+	if filled > cells {
+		filled = cells
+	}
+	var style func(string) string
+	switch {
+	case pct >= 90:
+		style = p.Error.Render
+	case pct >= 70:
+		style = p.Accent.Render
+	default:
+		style = p.Success.Render
+	}
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", cells-filled)
+	return style(bar) + " " + fmt.Sprintf("%d%%", pct)
 }

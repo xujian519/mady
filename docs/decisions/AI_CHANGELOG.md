@@ -1,5 +1,73 @@
 # AI 决策变更日志
 
+## 2026-07-16: TUI 模块优化 Phase B/C/D — 批次 7-12 全部落地
+
+### Batch 7（P1-3）ToolCard 共享渲染组件
+- 新增 `tui/component/tool_card.go`：`RenderToolCard(cfg, theme, width)` 把 RoleTool 的 bar+title+status+collapsed-summary 渲染抽成可复用组件，diff 正文走 `NewMarkdown` 复用现有 ```diff 围栏着色
+- `tui/chat/chat_history_render.go` RoleTool 分支改走 `RenderToolCard`（事件流不变，仍两条消息），`ToolCardTheme` 从 ChatHistoryTheme 桥接样式保持视觉等价
+- 测试：`tool_card_test.go`（bar 颜色启发、collapsed 摘要截断、diff 正文追加）
+
+### Batch 8（P1-4）stick-to-bottom 提示 + StatusBar tok/s 指标
+- `tui/component/statusbar.go`：加 `SetUsage(prompt, completion, tokPerSec)` + `SetContext(used, total)`；Render 在 elapsed 后显示 `⚡ 1.2k tok/s`，右侧加 10 格上下文占用条（绿/橙/红 按负载）
+- `tui/chat/chat_history.go/.go`：加 `tailAnchorLen` 字段；用户上滑时冻结锚点，新内容到达显示 `↓ N new — End to follow`，FollowTail 回底部清除
+- `tui/chat/chat_app_tool.go` `onTurnEnd`：累加 `Usage`、按 turn 耗时算 tok/s 转发 StatusBar（修复原注释谎称"StatusBar 自己订阅"的断层）；`onAgentStart` 记 turn 起始时间
+- 测试：`TestChatHistoryStickToBottomHint`
+
+### Batch 9（P1-5）Slash 命令注册表（消除双源真相）
+- 新增 `cmd/mady/slash_registry.go`：`Registry` + `SlashCommand{Name/Aliases/Desc/Match/Available/Handler}`，Lookup 短路匹配（前缀命令优先），`Suggestions()` 统一生成补全
+- `handleSubmit` 从两段式 switch 改为 `slashReg.Lookup`；`buildSlashRegistry()` 注册全部 18 个命令（含 /mode 多域 gate、/approve /reject 审核 gate）
+- 删除冗余 `slash_suggestions.go`（被注册表的 Suggestions 取代，消除与 handleSubmit 的双源漂移）
+- 测试：`slash_registry_test.go`（精确/前缀/别名匹配、Available gate、Suggestions 可见性）
+
+### Batch 10（P2-7）接入 settings 组件（孤岛资产启用样板）
+- `tui/chat/chat_app.go`：加 public `OpenOverlay(content, OverlayOpts)` + `CloseOverlay(OverlayRef)`（复用 overlayHandle，锁外调 host 避免死锁）
+- 新增 `cmd/mady/settings_panel.go`：`openSettings()` 构造 SettingEntry（theme/plan/review/thinking），Box 包裹 + OpenOverlay 推送，OnChange 实时生效、OnSubmit 关闭
+- 注册 `/settings` 命令到 slash_registry
+
+### Batch 11（P2-6）显式状态机 + 整帧快照测试
+- 新增 `tui/chat/state.go`：`AppState`（idle/streaming/tool-running/awaiting-confirm/compacting）+ 纯函数 `Transition(state, event)` + `EventKindFor(ChatEvent)`，渐进式 FSM（当前作 spec+测试靶，未来可让 handler 委托）
+- 测试：`state_test.go`（22 条表驱动转移 + EventKind 映射 + String）、`chat_app_frame_test.go`（整帧结构断言：header/history/loader/editor border/statusBar 全在场，行数 ~24）
+
+### Batch 12（P2-8）键位配置文件化 keymap.json
+- `tui/terminal/keybindings.go`：加 `LoadUserBindingsJSON([]byte) (warnings, err)`，解析 `{"tui.editor.x": ["ctrl+a"]}`，校验 token 形状（空 name/未知修饰键告警但保留），空 payload 清除覆盖
+- `cmd/mady/tui_helpers.go`：`loadKeymapOverrides(madyHome, km)` 从 `~/.mady/keymap.json` 加载；`main.go` runTui 在 app 构造后应用到 `app.Keybindings()`
+- 测试：`keybindings_json_test.go`（有效应用/未知修饰键告警/空 token 跳过/畸形 JSON 报错/空清除）
+
+- **影响范围**: `tui/component/{statusbar,tool_card}.go`、`tui/chat/{chat_app,chat_history,chat_history_render,chat_app_tool,chat_app_stream,state}.go`、`tui/terminal/keybindings.go`、`cmd/mady/{slash_registry,settings_panel,tui_helpers,main,tui_session}.go`（+若干 _test.go）
+- **风险等级**: 中（P1-3/P1-4 改渲染与事件转发，P1-5 改命令分发，但均有测试覆盖；P2 批次为新增/渐进式，低风险）
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./tui/... ./cmd/...` ✅（全 11 子包）| tools 子模块 `go build` ✅ | gofmt ✅
+
+## 2026-07-16: TUI 模块优化 Phase B / P0-1 — 流式 Markdown 增量解析（11× 提速）
+
+- **问题**：流式 Pending 消息每个 token delta 都触发整段 `renderMarkdown(source, width)` 全量重解析（O(N)），长回复累积成 O(N²)。`chat_history.go:349` 的"连续相同 delta 去重"只挡重复 token，没挡增长型 token。
+- **方案**（ChatHistory 层 block 缓存，Markdown 保持纯函数）：
+  1. `tui/component/markdown.go`：从单遍 `renderMarkdown` 拆出 `parseBlocks(src) []Block`（切片器，保持完全相同的块边界判定）+ `renderBlock(b, width, theme) []string`（单块渲染）；`renderMarkdown` 变为两者组合（行为等价）
+  2. 新增 `BlockCache` + `RenderMarkdownIncremental(src, width, theme, cache)`：按 (blockRaw, blockKind, closed, width) 缓存每块的渲染行，只重渲染变更块
+  3. `tui/chat/chat_history.go`：`cachedMessage` 加 `blockCache` 字段；`renderMessage` 加 `mdCache` 参数
+  4. `tui/chat/chat_history_render.go`：Pending 助手消息走 `RenderMarkdownIncremental`（复用 block 缓存），非 Pending 走原 `NewMarkdown` 全量路径
+- **安全网**：先加 `TestRenderMarkdownEquivalenceGolden`（捕获重构前全块类型输出为 golden）+ `TestBlockCacheMatchesFreshRender`（增量输出 == 全量输出），再做等价重构；`TestChatHistoryStreamingDeltaReusesBlockCache` 验证缓存复用
+- **实测性能**（`BenchmarkChatHistoryStreamAppend`，200 delta 流式渲染）：优化前 3,261,499 ns/op / 49,549 allocs → 优化后 292,925 ns/op / 3,005 allocs —— **11.1× 提速、12.0× 省内存、16.5× 少分配**
+- **影响范围**: `tui/component/markdown.go`、`tui/component/markdown_equiv_test.go`(新)、`tui/chat/chat_history.go`、`tui/chat/chat_history_render.go`、`tui/chat/chat_history_test.go`
+- **风险等级**: 中（渲染路径重构，但 golden 等价测试 + 增量一致性测试全覆盖；非 Pending 路径完全不变）
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./tui/...` ✅（全 9 子包）| gofmt ✅ | benchmark 11× 提升 ✅
+
+## 2026-07-16: TUI 模块优化 Phase A — 五个超大文件机械拆分（Batch 1-5）
+
+- **变更**（纯机械拆分，不改逻辑，同包分文件零 export 摩擦）：
+  1. `tui/tui.go` (1051行) → 6 文件：`tui.go`(类型+构造+Children+accessor, 269) / `tui_lifecycle.go`(Start/Stop/Tick/Every, 209) / `tui_loop.go`(eventLoop, 45) / `tui_input.go`(processMsg/Cmd/mouse, 279) / `tui_render.go`(RequestRender/renderFrame/normalizeLine, 171) / `tui_focus.go`(focus+overlay 栈, 131)
+  2. `tui/chat/chat_history.go` (1321行) → 3 文件：`chat_history.go`(类型+Append/Patch/Delta+msgCache, 458) / `chat_history_render.go`(Render/renderAll/renderMessage+selection, 526) / `chat_history_input.go`(Update/handleMouse/scroll/click-toggle, 371)
+  3. `tui/chat/chat_app.go` (1169行) → 4 文件：`chat_app.go`(类型+构造+Print*/Busy/Idle+overlayHandle, 463) / `chat_app_stream.go`(onEditorSubmit/onAgent*/onMessageDelta, 95) / `chat_app_tool.go`(onTool*/onHandoff*/onTurn*/extractToolDiff, 301) / `chat_app_layout.go`(chatLayout+Update+doCopy, 363)
+  4. `tui/component/editor.go` (1343行) → 5 文件：`editor.go`(类型+构造+SetValue/Select+Focusable+Update, 346) / `editor_render.go`(Render+handleMouse+hitTest, 324) / `editor_edit.go`(processKeys+editing 原语, 415) / `editor_killring.go`(kill-ring+yank, 126) / `editor_history.go`(undo/redo+input history, 182)
+  5. `cmd/mady/main.go` (1057行) → 5 文件：`main.go`(入口+setupFrameworkContext+知识库加载, 680) / `server.go`(runServer, 90) / `acp.go`(runAcp, 40) / `slash_suggestions.go`(buildSlashSuggestions, 46) / `tui_helpers.go`(thinking/project/format 辅助, 265)
+- **保留的不变量**：(1) `onMessageDelta` 的 StreamID 临界区不拆；(2) `ToggleKeyHelp` 锁内捕获 ref/锁外调 host 的反死锁模式；(3) ChatHistory 的 msgCache/invalidateMessageLocked 增量缓存框架；(4) 同包白盒测试（renderFrame/processMsg/sendMsgSafe/onMessageDelta）零影响
+- **修复**：拆分 chat_history_render.go 时一处 `applySelectionHighlightLocked` 末尾参数误抄为 `width`（应为 `lineWidth`），被 `TestSelectionHighlightKeepsVisibleWidthStable` 等 3 个测试捕获并修正
+- **影响范围**: `tui/`、`tui/chat/`、`tui/component/`、`cmd/mady/`（仅文件重组，无语义变更）
+- **风险等级**: 低（机械移动，测试全覆盖验证语义等价）
+- **审查要求**: L1
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./tui/... ./cmd/...` ✅（全 9 子包通过）| gofmt ✅
+
 ## 2026-07-16: 全量质量审阅 v0.3.0 — 9 维度全覆盖（29 检查点通过，2 修复）
 
 - **变更**:

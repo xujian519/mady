@@ -1,7 +1,9 @@
 package terminal
 
 import (
+	"encoding/json"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -80,6 +82,81 @@ func (m *KeybindingsManager) SetUserBindings(b map[string][]KeyID) {
 		m.userBindings[k] = cp
 	}
 	m.rebuild()
+}
+
+// LoadUserBindingsJSON parses a keymap.json document and applies it as the
+// user-override layer. The JSON shape is:
+//
+//	{
+//	  "tui.editor.deleteWordBackward": ["ctrl+backspace"],
+//	  "tui.input.submit":             ["enter", "ctrl+j"]
+//	}
+//
+// Each key is a binding ID; each value is a list of physical-key tokens that
+// parseKeyID understands ("ctrl+k", "alt+left", "shift+tab", "pageUp", ...).
+// Keys whose tokens fail to parse are skipped with the reason collected in the
+// returned warnings, so a typo in the file degrades gracefully rather than
+// aborting the whole keymap. A nil/empty document clears overrides.
+func (m *KeybindingsManager) LoadUserBindingsJSON(data []byte) (warnings []string, err error) {
+	if len(data) == 0 {
+		m.SetUserBindings(nil)
+		return nil, nil
+	}
+	var raw map[string][]string
+	if err := jsonDecode(data, &raw); err != nil {
+		return nil, err
+	}
+	bindings := make(map[string][]KeyID, len(raw))
+	for id, tokens := range raw {
+		var valid []KeyID
+		for _, tok := range tokens {
+			tok = strings.TrimSpace(tok)
+			if tok == "" {
+				warnings = append(warnings, id+": empty key token skipped")
+				continue
+			}
+			// Validate the token shape: the last "+"-segment is the key name
+			// and must be non-empty; earlier segments must be known modifiers.
+			// Unknown modifiers are reported but the token is still accepted,
+			// because parseKeyID silently drops unknown modifiers — better to
+			// warn and keep a partial binding than to reject the whole map.
+			if w := validateKeyToken(tok); w != "" {
+				warnings = append(warnings, id+": "+w)
+			}
+			valid = append(valid, KeyID(tok))
+		}
+		if len(valid) > 0 {
+			bindings[id] = valid
+		}
+	}
+	m.SetUserBindings(bindings)
+	return warnings, nil
+}
+
+// validateKeyToken returns a warning string if the token looks malformed
+// (empty name segment, or an unknown modifier), or "" if it looks fine.
+func validateKeyToken(tok string) string {
+	parts := strings.Split(strings.ToLower(tok), "+")
+	if len(parts) == 0 || parts[len(parts)-1] == "" {
+		return "key " + tok + " has no name"
+	}
+	knownMods := map[string]bool{
+		"ctrl": true, "control": true, "alt": true, "option": true,
+		"shift": true, "super": true, "cmd": true, "command": true,
+		"meta": true, "hyper": true,
+	}
+	for i := 0; i < len(parts)-1; i++ {
+		if !knownMods[parts[i]] {
+			return "unknown modifier " + parts[i] + " in " + tok
+		}
+	}
+	return ""
+}
+
+// jsonDecode is a tiny indirection so the JSON dependency stays local to this
+// method.
+func jsonDecode(data []byte, v interface{}) error {
+	return json.Unmarshal(data, v)
 }
 
 // Matches reports whether any key event in the raw input `data` matches the

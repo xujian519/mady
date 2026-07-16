@@ -73,6 +73,10 @@ type tuiSession struct {
 
 	app              *chat.ChatApp
 	currentThemeName string
+
+	// slashReg is the single source of truth for slash commands: both
+	// handleSubmit (dispatch) and the autocomplete menu read from it.
+	slashReg *Registry
 }
 
 // buildAgentConfig constructs the agentcore.Config based on current session state.
@@ -285,87 +289,23 @@ func (s *tuiSession) submitInput(input string) {
 }
 
 // handleSubmit processes user input from the TUI, dispatching slash commands
-// or forwarding plain text to the agent.
+// via the slash registry or forwarding plain text to the agent.
 func (s *tuiSession) handleSubmit(input string) {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
 		return
 	}
 
-	if strings.HasPrefix(trimmed, "/thinking") {
-		s.handleThinkingCommand(trimmed)
+	if cmd := s.slashReg.Lookup(trimmed, s); cmd != nil {
+		cmd.Handler(slashCtx{s: s, input: trimmed})
 		return
 	}
 
-	if strings.HasPrefix(trimmed, "/theme") {
-		s.handleThemeCommand(trimmed)
+	if strings.HasPrefix(trimmed, "/") {
+		s.app.PrintSystem(fmt.Sprintf("未知命令: %s（输入 / 查看可用命令）", trimmed))
 		return
 	}
-
-	if trimmed == "/mode" && s.useMultiDomain {
-		agentName := s.currentAgent.Config().Name
-		s.app.PrintSystem(fmt.Sprintf("当前 Agent: %s（多域路由模式）", agentName))
-		return
-	}
-
-	if trimmed == "/case" || strings.HasPrefix(trimmed, "/case ") {
-		s.handleCaseCommand(trimmed)
-		return
-	}
-
-	if trimmed == "/deadline" {
-		s.handleDeadlineCommand()
-		return
-	}
-
-	switch trimmed {
-	case "/help":
-		s.app.ToggleKeyHelp()
-	case "/clear", "/new":
-		s.handleClearCommand()
-	case "/branch":
-		s.handleBranchCommand()
-	case "/save":
-		s.handleSaveCommand()
-	case "/skill:":
-		s.app.PrintSystem("mady tui 简化版未加载技能，请使用 example/cli-chat 配合 SKILL_DIRS")
-	case "/copy":
-		s.handleCopyCommand()
-	case "/export":
-		s.handleExportCommand(trimmed)
-	case "/review":
-		s.handleReviewCommand()
-	case "/approve":
-		if !s.reviewMode {
-			s.app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
-			return
-		}
-		s.recordApprovalDecision(domains.DecisionAdopted, "", "")
-		s.app.PrintSystem("✅ 已确认 — Agent 将继续执行")
-		s.submitInput("确认")
-	case "/reject":
-		if !s.reviewMode {
-			s.app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
-			return
-		}
-		s.recordApprovalDecision(domains.DecisionRejected, "", "用户拒绝，要求修改")
-		s.app.PrintSystem("❌ 已拒绝 — Agent 将根据您的反馈调整")
-		s.submitInput("拒绝，请根据审核意见修改后重新输出")
-	case "/plan":
-		s.handlePlanCommand()
-	case "/quit", "exit":
-		_ = s.app.Stop()
-	default:
-		if strings.HasPrefix(trimmed, "/skill:") {
-			s.app.PrintSystem("mady tui 简化版未加载技能，请使用 example/cli-chat 配合 SKILL_DIRS")
-			return
-		}
-		if strings.HasPrefix(trimmed, "/") {
-			s.app.PrintSystem(fmt.Sprintf("未知命令: %s（输入 / 查看可用命令）", trimmed))
-			return
-		}
-		s.submitInput(trimmed)
-	}
+	s.submitInput(trimmed)
 }
 
 func (s *tuiSession) handleThinkingCommand(trimmed string) {
