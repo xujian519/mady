@@ -58,6 +58,9 @@ type tuiSession struct {
 	checkpointSaver *agentcore.MemoryCheckpointSaver
 	currentThreadID string
 	sessionDir      string
+	// workflowStore persists five-step workflow checkpoints for the
+	// confirmation gate (Stage ② → human confirm → resume Stage ③).
+	workflowStore reasoning.CheckpointStore
 
 	// Project/case context
 	currentProject     *domains.ProjectRecord
@@ -212,7 +215,16 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 			retriever,
 			llmClient,
 		)
-		cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowTool(runner))
+		// Confirmation gate: when review mode is on, Stage ② interrupts for
+		// human rule confirmation. The workflow checkpoint store (lazily
+		// initialized) persists the interruption point for resumption.
+		if s.reviewMode {
+			runner.SetRequireRuleConfirmation(true)
+			if s.workflowStore == nil {
+				s.workflowStore = reasoning.NewMemoryCheckpointStore()
+			}
+		}
+		cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowToolWithCheckpoint(runner, s.workflowStore))
 	} else if cfg.ProjectDir != "" {
 		cfg.SystemPrompt += fmt.Sprintf(
 			"\n\n【当前工作目录】\n你正在「%s」目录下工作。可以使用文件工具（read、ls、grep、find、write_file 等）读取和分析该目录中的文件。用户提到的相对路径默认基于此目录。",

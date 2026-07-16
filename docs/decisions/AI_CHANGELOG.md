@@ -1,5 +1,44 @@
 # AI 决策变更日志
 
+## 2026-07-16: 确认阀闭环（Stage② 中断 → checkpoint → resume 续跑）
+
+### 背景
+设计文档二核心闭环：Stage ② 检索规则后须经人工确认才能约束 Plan/Execute/Check。
+此前 B（ConfirmedRuleSet）只做数据底座，卡在 run_five_step_workflow 工具无状态
+（局部 runner，中断后丢失）。本次解决工具状态管理，打通完整闭环。
+
+### 机制
+```
+run_five_step_workflow（无 checkpoint_id）
+  → Stage① 事实 → Stage② 规则检索
+  → runStage2 返回 InterruptError（requireConfirmation=true 时）
+  → 工具 SaveCheckpoint（保存 blackboard 到 CheckpointStore）
+  → 返回"规则待确认 + checkpoint_id"消息
+用户确认规则 → run_five_step_workflow（带 checkpoint_id + confirmed_rules）
+  → ResumeFromCheckpoint + SetConfirmedRules
+  → runFrom(startStage=3) 续跑 Stage③④⑤
+```
+
+### 改动
+- `five_step_runner.go`：FiveStepRunnerConfig 加 RequireRuleConfirmation；
+  FiveStepRunner 加 requireConfirmation 字段 + SetRequireRuleConfirmation setter；
+  runStage2 末尾返回 InterruptError（携带 gate/stage/total_rules/case_id）
+- `handoff_integration.go`：WorkflowToolInput 加 CheckpointID + ConfirmedRules；
+  AsWorkflowToolWithCheckpoint(runner, store) 新函数——中断时存 checkpoint +
+  resume 时恢复 + SetConfirmedRules + runFrom(3)；旧 AsWorkflowTool(runner)
+  转调它（传 nil store，向后兼容）
+- `tui_session.go`：tuiSession 加 workflowStore（MemoryCheckpointStore）；
+  reviewMode 开启时 SetRequireRuleConfirmation(true) + 注入 store
+
+### 闭环现状
+确认阀仅在 reviewMode 开启时生效（默认关闭，不破坏现有行为）。B/F/G 的
+ConfirmedRuleSet/RuleAssertionHook/ConfirmedRuleWriter 现可被真正填充/触发/写入。
+
+- **影响范围**: `domains/reasoning/{five_step_runner,handoff_integration,confirmation_gate_test}.go`、`cmd/mady/tui_session.go`
+- **风险等级**: 中（改变五步工作法 Stage②→③ 的过渡语义，但默认关闭 + 向后兼容）
+- **审查要求**: L2（涉及人机协作安全边界）
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race` ✅ | gofmt ✅
+
 ## 2026-07-16: Stage ② 接入确定性规则源（第四路 RuleSourceRules）
 
 ### 背景

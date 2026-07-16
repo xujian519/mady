@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/xujian519/mady/agentcore"
 )
 
 // FiveStepRunner orchestrates the five-step reasoning workflow.
@@ -23,6 +25,11 @@ type FiveStepRunner struct {
 	bb           *FactBlackboard
 	// Stage ① config.
 	stage1Collectors []FactCollectorFunc
+	// requireConfirmation gates Stage ② → ③ with a human-confirmation interrupt.
+	// When true, runStage2 returns an InterruptError after retrieval so the
+	// caller can save a checkpoint and let the user confirm/edit the rule set
+	// before Plan/Execute/Check consume it.
+	requireConfirmation bool
 }
 
 // FactCollectorFunc is a function that implements Stage ① fact collection.
@@ -39,9 +46,14 @@ type FiveStepRunnerConfig struct {
 	Manifest     *WorkflowManifest         // nil = use defaults per CaseType
 	Collectors   []FactCollectorFunc       // nil = skip Stage ① (use seedBlackboard)
 	RuleManifest *RuleRetrievalManifest    // nil = use default based on CaseType
-	CaseID       string
-	CaseType     CaseType
-	TechField    string
+	// RequireRuleConfirmation, when true, pauses after Stage ② rule retrieval
+	// for human confirmation before proceeding to Plan (Stage ③). The pause is
+	// implemented as an InterruptError carrying the retrieved rule count, so the
+	// tool layer can save a checkpoint and let the user confirm.
+	RequireRuleConfirmation bool
+	CaseID                  string
+	CaseType                CaseType
+	TechField               string
 }
 
 // NewFiveStepRunner creates a runner for the five-step workflow.
@@ -50,14 +62,15 @@ func NewFiveStepRunner(cfg FiveStepRunnerConfig) *FiveStepRunner {
 		cfg.Planner = NewPlanner(nil)
 	}
 	r := &FiveStepRunner{
-		planner:          cfg.Planner,
-		compiler:         NewPlanCompiler(cfg.NodeBuilder),
-		retriever:        cfg.Retriever,
-		checker:          cfg.Checker,
-		manifest:         cfg.Manifest,
-		ruleManifest:     cfg.RuleManifest,
-		bb:               NewFactBlackboard(cfg.CaseID, cfg.CaseType, cfg.TechField),
-		stage1Collectors: cfg.Collectors,
+		planner:             cfg.Planner,
+		compiler:            NewPlanCompiler(cfg.NodeBuilder),
+		retriever:           cfg.Retriever,
+		checker:             cfg.Checker,
+		manifest:            cfg.Manifest,
+		ruleManifest:        cfg.RuleManifest,
+		bb:                  NewFactBlackboard(cfg.CaseID, cfg.CaseType, cfg.TechField),
+		stage1Collectors:    cfg.Collectors,
+		requireConfirmation: cfg.RequireRuleConfirmation,
 	}
 	// Register manifest's Plan steps as Planner template if provided.
 	if cfg.Manifest != nil {
@@ -65,6 +78,13 @@ func NewFiveStepRunner(cfg FiveStepRunnerConfig) *FiveStepRunner {
 		cfg.Planner.RegisterTemplate(cfg.CaseType, PlanIntentChain, *plan)
 	}
 	return r
+}
+
+// SetRequireRuleConfirmation toggles the Stage ② confirmation gate. When
+// enabled, runStage2 interrupts after retrieval so the caller can save a
+// checkpoint and let the user confirm the rule set before Plan/Execute/Check.
+func (r *FiveStepRunner) SetRequireRuleConfirmation(enabled bool) {
+	r.requireConfirmation = enabled
 }
 
 // Run executes the full five-step reasoning workflow from Stage ①.
@@ -119,6 +139,22 @@ func (r *FiveStepRunner) runStage2(ctx context.Context) error {
 	r.bb.SetStageOutput("stage2", map[string]int{
 		"total_rules": len(rules),
 	})
+
+	// Confirmation gate: pause for human review of the retrieved rule set
+	// before Plan/Execute/Check consume it. The interrupt carries the rule
+	// count so the tool layer can surface a confirmation prompt and save a
+	// checkpoint for later resumption at Stage ③.
+	if r.requireConfirmation && len(rules) > 0 {
+		return agentcore.NewInterruptErrorWithData(
+			fmt.Sprintf("规则检索完成（%d 条），请人工确认规则集后继续", len(rules)),
+			map[string]any{
+				"gate":        "rule_confirmation",
+				"stage":       2,
+				"total_rules": len(rules),
+				"case_id":     r.bb.CaseID,
+			},
+		)
+	}
 	return nil
 }
 
