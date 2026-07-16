@@ -46,6 +46,13 @@ func NewDisclosureTool(provider agentcore.Provider) *agentcore.Tool {
 				"input": p.Text,
 			})
 			if err != nil {
+				// Pregel 节点可能返回 InterruptError（如 review_gate 的人工复核
+				// 关卡）。这类 error 必须透传给 agent loop，由其置 Interrupted
+				// 状态并等待 Resume——若当作普通错误吞成 FailureResult，中断
+				// 信号会丢失，人机协作关卡形同虚设。
+				if agentcore.IsInterrupt(err) {
+					return agentcore.InterruptMessage(err), err
+				}
 				return agentcore.NewFailureResult("分析执行失败",
 					"分析过程中出现错误，请检查交底书内容是否完整。"), nil
 			}

@@ -390,13 +390,39 @@ func buildAnalysisReport(state graph.PregelState, reportText string) *AnalysisRe
 // =============================================================================
 
 // reviewGateNode 返回人工复核关卡的 Pregel 节点。
-// 标记流程已到复核节点，实际暂停由 ApprovalGate LifecycleHook 触发。
+//
+// 此节点是 disclosure 管线的终点关卡：当管线运行到此，说明新颖性初判
+// 与分析报告已生成，必须由人工复核后才能采信。节点返回 InterruptError
+// 将执行控制交还给 agent loop，触发人机协作（agentcore 的中断-恢复机制）。
+//
+// 中断机制（对齐 docs/specs/design-rule-acquisition-stage.md 第五节）：
+//   - 节点 return agentcore.NewInterruptErrorWithData → Pregel Run 原样冒泡
+//     （WrapNodeError 的 NodeError.Unwrap 链保留 ErrInterrupt）
+//   - analyze_disclosure 工具识别 IsInterrupt 后透传（而非吞错为 FailureResult）
+//   - agent loop executeToolCalls 命中 IsInterrupt → 状态置 Interrupted，等待 Resume
+//
+// 历史背景：早期版本此节点是 no-op（仅设 flag），注释称"实际暂停由
+// ApprovalGate LifecycleHook 触发"，但 ApprovalGate 是 chat agent 的
+// AfterModelCall hook，挂不到作为工具执行的 Pregel 子图节点上，故该 gate
+// 形同虚设。改为主动返回中断 error 后才真正生效。
 func reviewGateNode() graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		state["_gate_ready"] = true
 		if report, ok := state[StateKeyReport].(*AnalysisReport); ok && report != nil {
 			report.ReviewedByHuman = false
 		}
-		return state, nil
+		// 携带报告摘要作为中断数据，供人工审阅入口展示。
+		data := map[string]any{
+			"gate":  "disclosure_review",
+			"stage": "review_gate",
+		}
+		if report, ok := state[StateKeyReport].(*AnalysisReport); ok && report != nil {
+			data["novelty"] = report.Novelty
+			data["report_id"] = report.ID
+		}
+		return state, agentcore.NewInterruptErrorWithData(
+			"技术交底书分析完成，请人工复核新颖性初判与分析报告",
+			data,
+		)
 	}
 }

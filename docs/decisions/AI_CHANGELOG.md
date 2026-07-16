@@ -1,5 +1,34 @@
 # AI 决策变更日志
 
+## 2026-07-16: disclosure review_gate 从 no-op 改为主动触发人工复核中断
+
+### 背景
+评估设计文档（`design-rule-acquisition-stage.md` 第五节）时发现：disclosure 管线的 `review_gate` 节点是 no-op（仅设 `_gate_ready` flag），注释称"实际暂停由 ApprovalGate LifecycleHook 触发"，但 ApprovalGate 是 chat agent 的 `AfterModelCall` hook，挂不到作为工具执行的 Pregel 子图节点上——该关卡形同虚设。
+
+### 关键发现：中断机制已就绪，无需写"适配层"
+核实冒泡链路后发现核心机制天然成立，原计划"Pregel→InterruptError 适配层"不必新建：
+- `domains.RequireApproval`（approval.go:155）已封装 `agentcore.NewInterruptErrorWithData`
+- Pregel 节点 return 的 error 经 `WrapNodeError` 包成 `NodeError`，而 `NodeError.Unwrap()`（errors.go:26）保留 Unwrap 链
+- `agentcore.IsInterrupt` 用 `errors.Is(err, ErrInterrupt)` 穿透 NodeError → interruptError → ErrInterrupt ✅
+
+真正的缺口只有两处：(1) review_gate 不返回中断；(2) `analyze_disclosure` 工具吞错（一律转 FailureResult，中断信号丢失）。
+
+### 改动
+- `disclosure/report.go` review_gate 节点：从 no-op 改为返回 `agentcore.NewInterruptErrorWithData`，携带 report_id/novelty/gate 标签供人工审阅入口定位。直接用 agentcore 原语而非 `domains.RequireApproval`，避免基础设施层 disclosure 反向依赖领域层 domains（ADR-0001）
+- `disclosure/tool.go`：Pregel Run 返回 error 时识别 `IsInterrupt` 并透传（`return msg, err`），其余错误仍转 FailureResult。这是中断信号能到 agent loop 的关键卡点
+- 测试：新增 `TestReviewGateInterrupt_PregelPropagation` 验证 InterruptError 经 Pregel Run + WrapNodeError 后 IsInterrupt 仍成立；更新 `TestReviewGateNode` / `TestReviewGateNode_NilReport` / `TestDisclosureAnalysisGraph_FullFlow` 反映新行为
+
+### ⚠️ 安全敏感——需人工审阅
+此改动改变"重点节点人机协作"的触发方式（review_gate 从静默变主动中断）。虽未修改 `domains/approval.go`（安全敏感路径），但：
+- disclosure 管线现在**必定**在 review_gate 暂停等人工 Resume，行为从"静默完成"变为"强制复核"
+- 若有下游代码依赖"disclosure 工具总是成功返回"的假设，会因中断而中断
+- 建议人工确认：TUI/Server 入口对 disclosure 中断的 Resume 流程是否完备
+
+- **影响范围**: `disclosure/{report,tool,disclosure_test}.go`、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 中（行为变更影响人机协作关卡，但机制是复用已验证的 agentcore 中断，非新造）
+- **审查要求**: L2（涉及人机协作安全边界）
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./disclosure/ ./cmd/mady/` ✅ | gofmt ✅
+
 ## 2026-07-16: reasoning Stage ② 规则召回接入真实知识资产（vector + skill 两路）
 
 ### 背景

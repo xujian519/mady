@@ -332,30 +332,91 @@ func TestReviewGateNode(t *testing.T) {
 	}
 
 	result, err := node(context.Background(), state)
-	if err != nil {
-		t.Fatalf("reviewGateNode failed: %v", err)
+	// review_gate 现在返回 InterruptError 以触发人工复核——这是预期行为。
+	if err == nil {
+		t.Fatal("reviewGateNode should return an interrupt error to trigger human review")
+	}
+	if !agentcore.IsInterrupt(err) {
+		t.Fatalf("reviewGateNode error should be an InterruptError, got: %v", err)
 	}
 
+	// 仍应设置 _gate_ready 并标记未复核，保持状态副作用。
 	ready, ok := result["_gate_ready"].(bool)
 	if !ok || !ready {
 		t.Error("expected _gate_ready to be true")
 	}
+
+	// 中断应携带 report_id 供人工审阅入口定位。
+	data := agentcore.InterruptData(err)
+	if data["report_id"] != "test" {
+		t.Errorf("interrupt data report_id = %v, want 'test'", data["report_id"])
+	}
+	if data["gate"] != "disclosure_review" {
+		t.Errorf("interrupt data gate = %v, want 'disclosure_review'", data["gate"])
+	}
 }
 
 func TestReviewGateNode_NilReport(t *testing.T) {
-	// 验证 nil report 不会 panic
+	// 验证 nil report 不会 panic，且仍返回中断 error（无 report_id 但有 gate）。
 	node := reviewGateNode()
 	state := graph.PregelState{
 		StateKeyReport: (*AnalysisReport)(nil),
 	}
 
 	result, err := node(context.Background(), state)
-	if err != nil {
-		t.Fatalf("reviewGateNode with nil report failed: %v", err)
+	if err == nil || !agentcore.IsInterrupt(err) {
+		t.Fatalf("reviewGateNode should return InterruptError even with nil report, got: %v", err)
 	}
 
 	if _, ok := result["_gate_ready"].(bool); !ok {
 		t.Error("expected _gate_ready even with nil report")
+	}
+	// report_id 应缺失（nil report），但 gate 标签应存在。
+	data := agentcore.InterruptData(err)
+	if _, hasID := data["report_id"]; hasID {
+		t.Error("nil report should not carry report_id")
+	}
+	if data["gate"] != "disclosure_review" {
+		t.Errorf("interrupt data gate = %v, want 'disclosure_review'", data["gate"])
+	}
+}
+
+// TestReviewGateInterrupt_PregelPropagation 验证 review_gate 返回的 InterruptError
+// 经过 Pregel Run → WrapNodeError(NodeError) 包装后，agentcore.IsInterrupt 仍能识别。
+// 这是 analyze_disclosure 工具透传中断信号的必要前提：若 WrapNodeError 破坏了
+// Unwrap 链，IsInterrupt 会失败，tool.go 的透传分支永远走不到。
+func TestReviewGateInterrupt_PregelPropagation(t *testing.T) {
+	pg := graph.NewPregelGraph()
+	if err := pg.AddNode("entry", func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+		state[StateKeyReport] = &AnalysisReport{ID: "propagation-test"}
+		return state, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.AddNode("review_gate", reviewGateNode()); err != nil {
+		t.Fatal(err)
+	}
+	pg.AddEdge("entry", "review_gate")
+
+	compiled, err := pg.Compile("entry", 10)
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+
+	_, runErr := compiled.Run(context.Background(), graph.PregelState{})
+	if runErr == nil {
+		t.Fatal("expected Pregel Run to propagate the interrupt error, got nil")
+	}
+	// 核心断言：经 WrapNodeError 包装后 IsInterrupt 必须仍为 true。
+	if !agentcore.IsInterrupt(runErr) {
+		t.Fatalf("IsInterrupt lost after Pregel propagation; error: %v\n"+
+			"如果这里失败，说明 NodeError.Unwrap 链被破坏，analyze_disclosure 工具无法透传中断", runErr)
+	}
+
+	// InterruptData 也应穿透 NodeError 包装，携带 review_gate 设置的字段。
+	data := agentcore.InterruptData(runErr)
+	if data["report_id"] != "propagation-test" {
+		t.Errorf("InterruptData report_id lost: got %v", data["report_id"])
 	}
 }
 
@@ -372,8 +433,14 @@ func TestDisclosureAnalysisGraph_FullFlow(t *testing.T) {
 
 	initial := graph.PregelState{StateKeyInput: sampleDisclosure}
 	final, err := cpg.Run(context.Background(), initial)
-	if err != nil {
-		t.Fatalf("graph execution failed: %v", err)
+	// review_gate 现在主动返回 InterruptError 触发人工复核——这是预期行为。
+	// 中断发生在所有产出节点（extract/merge/consistency/keywords/novelty/report）
+	// 之后，所以 state 仍应包含完整产出，下面继续验证。
+	if err == nil {
+		t.Fatal("expected graph to interrupt at review_gate, got nil error")
+	}
+	if !agentcore.IsInterrupt(err) {
+		t.Fatalf("expected InterruptError from review_gate, got: %v", err)
 	}
 
 	// 验证核心输出
