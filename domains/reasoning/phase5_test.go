@@ -21,7 +21,7 @@ func TestWorkflowTool_Integration(t *testing.T) {
 				{Rule: RuleConstraint{ArticleID: "A22.3", ArticleName: "创造性", Requirement: ReqMust}, Source: RuleSourceVector, Priority: 1, Confidence: 0.95},
 				{Rule: RuleConstraint{ArticleID: "A22.2", ArticleName: "新颖性", Requirement: ReqMust}, Source: RuleSourceVector, Priority: 1, Confidence: 0.9},
 			},
-		}, nil,
+		}, nil, nil,
 	)
 
 	runner := NewWorkflowRunner("case_tool_001", CasePatentability, "量子计算", retriever, nil)
@@ -114,7 +114,7 @@ func TestCheckpoint_SaveAndResume(t *testing.T) {
 				rules: []RetrievedRule{
 					{Rule: RuleConstraint{ArticleID: "A22.1", ArticleName: "新颖性", Requirement: ReqMust}, Source: RuleSourceVector, Priority: 1, Confidence: 0.9},
 				},
-			}, nil,
+			}, nil, nil,
 		),
 	})
 	if err != nil {
@@ -249,7 +249,7 @@ func TestRaceCondition_ConcurrentRetriever(t *testing.T) {
 		},
 	}
 
-	retriever := NewMultiSourceRetriever(nil, vs, nil)
+	retriever := NewMultiSourceRetriever(nil, vs, nil, nil)
 	manifest := RuleRetrievalManifest{
 		ManifestID: "race_test",
 		Sources:    []RuleSourceCfg{{Source: RuleSourceVector, MaxPerSource: 5}},

@@ -1,5 +1,43 @@
 # AI 决策变更日志
 
+## 2026-07-16: Stage ② 接入确定性规则源（第四路 RuleSourceRules）
+
+### 背景
+核查发现：此前"三路召回已完成"的声明有盲点——MultiSourceRetriever 的三路（KG/
+Vector/Skill）都是中低权威性来源，而**权威性最高的确定性规则引擎**（domains/rules
+的 17 个 YAML，NOV-001~004 等）从未被它消费。Engine.ToRuleConstraints() 全仓库
+仅测试调用，生产零调用。规则引擎虽已装配为 chat agent 的 search_rules 工具，
+但五步工作法"获取规则"阶段根本没查它。
+
+### 改动
+- `domains/reasoning/types.go`：新增 `RuleSourceRules = "deterministic_rules"` 枚举
+- `domains/reasoning/rule_retrieval.go`：
+  - 新增 `RuleEngineSource` 接口（MatchRules，与 RuleVectorStore/RuleSkillReader 同构）
+  - MultiSourceRetriever 加 ruleEngine 字段 + 构造函数第 4 参数
+  - 新增 queryRules 方法 + querySource switch 分支
+  - Retrieve 把 manifest.CaseType 注入 queryCtx 供规则域映射
+- `domains/reasoning/manifest.go`：4 个 manifest（Novelty/Patentability/Drafting/
+  Invalidation）的 Sources 均加 RuleSourceRules 为第一路（Weight 1.2，高于 KG 1.0）
+- `domains/reasoning/wiring/rule_engine_adapter.go`：RuleEngineAdapter 包装 rules.Engine，
+  caseType→domain 映射（patentability→patent_novelty+patent_inventiveness 等），
+  跨域去重，未知 caseType 回退 keyword 搜索
+- `cmd/mady/main.go`：frameworkContext 加 RuleEngine 字段，setupFrameworkContext
+  加载（消除 runTui 重复 LoadEngineFromMadyHome），buildReasoningRetriever 接第四路
+
+### 权威性分层现状（对齐设计文档二第二节）
+Stage ② 现为真正的四路召回：
+| 路 | 来源 | AuthorityScore | 权威性 |
+|---|---|---|---|
+| Rules | domains/rules YAML | 0.95 | 最高（代码固化法条映射） |
+| KG | 知识图谱 | 0.9 | 中高（结构化事实） |
+| Vector | knowledge.db FTS | 0.7 | 中（规范性依据） |
+| Skill | wiki patent-cards | 0.4 | 低（经验参考） |
+
+- **影响范围**: `domains/reasoning/{types,rule_retrieval,manifest,phase2..5_test}.go`、`domains/reasoning/wiring/rule_engine_adapter{,_test}.go`、`cmd/mady/main.go`
+- **风险等级**: 低（纯召回扩容，四路任一缺失静默跳过；签名变更仅影响 1 生产调用点 + 9 测试）
+- **审查要求**: L1
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./domains/reasoning/...` ✅ | gofmt ✅
+
 ## 2026-07-16: TUI 中断用户引导（缺口3 收尾）
 
 ### 背景

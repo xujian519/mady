@@ -310,6 +310,9 @@ type frameworkContext struct {
 	// KnowledgeBackend 是已打开的 SQLite 知识库（FTS + 向量），
 	// 供 reasoning Stage ② 规则召回等子系统复用，避免重复打开数据库。
 	KnowledgeBackend knowledge.KnowledgeBackend
+	// RuleEngine 是已加载的确定性规则引擎（domains/rules YAML），
+	// 供 reasoning Stage ② 的第四路（RuleSourceRules）召回复用。
+	RuleEngine *rules.Engine
 	// WikiRoot 是 Obsidian wiki 根目录（~/.mady/knowledge/wiki 或 $WIKI_PATH），
 	// 供 reasoning Stage ② 的 patent-cards 经验召回复用。可为 ""。
 	WikiRoot string
@@ -373,6 +376,13 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	// 优先 $WIKI_PATH，否则 $MADY_HOME/knowledge/wiki（通常软链接到外部语料）。
 	// 仅当目录存在时赋值，避免 SkillRuleReader 指向空路径。
 	fc.WikiRoot = resolveWikiRoot(fc.MadyHome)
+
+	// 确定性规则引擎：从 $MADY_HOME/knowledge/rules 加载 YAML（通常软链接到外部语料）。
+	// 供 reasoning Stage ② 第四路（RuleSourceRules）召回 + chat agent 的 search_rules 工具。
+	fc.RuleEngine, _ = rules.LoadEngineFromMadyHome()
+	if fc.RuleEngine != nil {
+		fmt.Fprintf(os.Stderr, "rules: 已加载规则引擎（%d 条规则）\n", len(fc.RuleEngine.AllRules()))
+	}
 
 	// Manifest 加载：go:embed 内置 + 外部覆盖。
 	// 优先级：$MANIFEST_DIR > ~/.mady/manifests > 仅内置。
@@ -499,14 +509,15 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 }
 
 // buildReasoningRetriever 从框架上下文中构造 MultiSourceRetriever。
-// 当知识图谱或知识库后端任一可用时创建适配链，否则返回 nil（Stage ② 跳过）。
+// 当任一规则源可用时创建适配链，否则返回 nil（Stage ② 跳过）。
 //
-// 三路规则召回的装配（对齐 design-rule-acquisition-stage.md）：
+// 四路规则召回的装配（对齐 design-rule-acquisition-stage.md 权威性分层）：
+//   - Rules 路（RuleSourceRules）：确定性规则引擎 YAML（权威性最高 0.95），依赖 RuleEngine
 //   - KG 路（RuleSourceKG）：知识图谱多跳遍历，依赖 KnowledgeGraph
 //   - Vector 路（RuleSourceVector）：FTS 全文检索，依赖 KnowledgeBackend
 //   - Skill 路（RuleSourceSkill）：wiki patent-cards 经验召回，依赖 WikiRoot
 func buildReasoningRetriever(fc *frameworkContext) *reasoning.MultiSourceRetriever {
-	if fc.KnowledgeGraph == nil && fc.KnowledgeBackend == nil && fc.WikiRoot == "" {
+	if fc.KnowledgeGraph == nil && fc.KnowledgeBackend == nil && fc.WikiRoot == "" && fc.RuleEngine == nil {
 		return nil
 	}
 	var walker *reasoning.ReasoningWalker
@@ -522,7 +533,11 @@ func buildReasoningRetriever(fc *frameworkContext) *reasoning.MultiSourceRetriev
 	if fc.WikiRoot != "" {
 		sr = reasoningwiring.NewSkillRuleReader(fc.WikiRoot)
 	}
-	return reasoning.NewMultiSourceRetriever(walker, vs, sr)
+	var re reasoning.RuleEngineSource
+	if fc.RuleEngine != nil {
+		re = reasoningwiring.NewRuleEngineAdapter(fc.RuleEngine)
+	}
+	return reasoning.NewMultiSourceRetriever(walker, vs, sr, re)
 }
 
 // buildRouterConfig 根据可用的 Manifest 构建 Router Agent 配置。
@@ -604,11 +619,11 @@ func runTui(ctx context.Context) {
 		log.Printf("theme init: %v", err)
 	}
 
-	ruleEngine, _ := rules.LoadEngineFromMadyHome()
+	// 复用 setupFrameworkContext 已加载的规则引擎（避免重复 LoadEngineFromMadyHome）。
+	ruleEngine := fc.RuleEngine
 	var ruleExt agentcore.Extension
 	if ruleEngine != nil {
 		ruleExt = rules.NewExtension(ruleEngine)
-		log.Printf("rules: 已加载规则引擎（%d 条规则）", len(ruleEngine.AllRules()))
 	}
 
 	provider, err := agentconfig.BuildProvider()

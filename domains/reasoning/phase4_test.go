@@ -229,7 +229,7 @@ func TestFiveStepRunner_WithMultiHypothesisStep(t *testing.T) {
 				rules: []RetrievedRule{
 					{Rule: RuleConstraint{ArticleID: "A22.3", ArticleName: "创造性", Requirement: ReqMust}, Source: RuleSourceVector, Priority: 1, Confidence: 0.9},
 				},
-			}, nil,
+			}, nil, nil,
 		),
 	})
 

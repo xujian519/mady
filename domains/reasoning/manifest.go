@@ -232,6 +232,7 @@ func defaultNoveltySearchManifest() *WorkflowManifest {
 		Stage2: Stage2Config{
 			ManifestID: "patent_novelty_rules",
 			Sources: []RuleSourceCfg{
+				{Source: RuleSourceRules, MaxPerSource: 10, Weight: 1.2},
 				{Source: RuleSourceKG, MaxPerSource: 10, Weight: 1.0},
 				{Source: RuleSourceVector, MaxPerSource: 5, Weight: 0.8},
 			},
@@ -273,6 +274,7 @@ func defaultPatentabilityManifest() *WorkflowManifest {
 		Stage2: Stage2Config{
 			ManifestID: "patent_patentability_rules",
 			Sources: []RuleSourceCfg{
+				{Source: RuleSourceRules, MaxPerSource: 15, Weight: 1.2},
 				{Source: RuleSourceKG, MaxPerSource: 15, Weight: 1.0},
 				{Source: RuleSourceVector, MaxPerSource: 5, Weight: 0.8},
 				{Source: RuleSourceSkill, MaxPerSource: 5, Weight: 0.6},
@@ -332,6 +334,7 @@ func defaultDraftingManifest() *WorkflowManifest {
 		Stage2: Stage2Config{
 			ManifestID: "patent_drafting_rules",
 			Sources: []RuleSourceCfg{
+				{Source: RuleSourceRules, MaxPerSource: 10, Weight: 1.2},
 				{Source: RuleSourceKG, MaxPerSource: 10, Weight: 1.0},
 				{Source: RuleSourceVector, MaxPerSource: 5, Weight: 0.8},
 			},
@@ -418,6 +421,7 @@ func defaultInvalidationManifest() *WorkflowManifest {
 		Stage2: Stage2Config{
 			ManifestID: "patent_invalidation_rules",
 			Sources: []RuleSourceCfg{
+				{Source: RuleSourceRules, MaxPerSource: 15, Weight: 1.2},
 				{Source: RuleSourceKG, MaxPerSource: 15, Weight: 1.0},
 				{Source: RuleSourceVector, MaxPerSource: 5, Weight: 0.8},
 				{Source: RuleSourceSkill, MaxPerSource: 5, Weight: 0.6},

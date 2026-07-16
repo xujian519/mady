@@ -40,21 +40,35 @@ type RuleSkillReader interface {
 	ReadRules(ctx context.Context, domain string) ([]RetrievedRule, error)
 }
 
-// MultiSourceRetriever queries three rule sources in parallel and
+// RuleEngineSource queries a deterministic rule engine (domains/rules YAML)
+// for rules matching a case type. This is the highest-authority source in the
+// Stage ② rule-acquisition hierarchy: its output is code-curated law-article
+// mappings (e.g. NOV-001~004 novelty rules), not retrieved corpus fragments.
+type RuleEngineSource interface {
+	// MatchRules returns deterministic rules applicable to the given case type
+	// and query context. The query context carries keywords/tech_field that
+	// implementations may use to select the rule domain (e.g. mapping a
+	// novelty query to the "patent_novelty" rule domain).
+	MatchRules(ctx context.Context, caseType string, queryCtx map[string]string) ([]RetrievedRule, error)
+}
+
+// MultiSourceRetriever queries up to four rule sources in parallel and
 // aggregates the results according to the Manifest.
 type MultiSourceRetriever struct {
 	walker      *ReasoningWalker
 	vectorStore RuleVectorStore
 	skillReader RuleSkillReader
+	ruleEngine  RuleEngineSource
 }
 
 // NewMultiSourceRetriever creates a retriever. Any source may be nil,
 // in which case it is skipped during retrieval.
-func NewMultiSourceRetriever(walker *ReasoningWalker, vs RuleVectorStore, sr RuleSkillReader) *MultiSourceRetriever {
+func NewMultiSourceRetriever(walker *ReasoningWalker, vs RuleVectorStore, sr RuleSkillReader, re RuleEngineSource) *MultiSourceRetriever {
 	return &MultiSourceRetriever{
 		walker:      walker,
 		vectorStore: vs,
 		skillReader: sr,
+		ruleEngine:  re,
 	}
 }
 
@@ -67,6 +81,9 @@ func (r *MultiSourceRetriever) Retrieve(ctx context.Context, manifest RuleRetrie
 
 	// Build query context from facts and technical field.
 	queryCtx := buildQueryContext(facts, techField)
+	// case_type lets the deterministic-rules source select the matching rule
+	// domain (e.g. novelty → patent_novelty). Other sources ignore it.
+	queryCtx["case_type"] = string(manifest.CaseType)
 
 	var (
 		mu       sync.Mutex
@@ -139,9 +156,30 @@ func (r *MultiSourceRetriever) querySource(ctx context.Context, src RuleSourceCf
 		return r.queryVector(ctx, src, queryCtx)
 	case RuleSourceSkill:
 		return r.querySkill(ctx, src)
+	case RuleSourceRules:
+		return r.queryRules(ctx, src, queryCtx)
 	default:
 		return nil, fmt.Errorf("unknown rule source: %s", src.Source)
 	}
+}
+
+// queryRules fetches deterministic rules from the rule engine. The case type
+// (passed through from the manifest) lets the engine select the matching rule
+// domain; queryCtx keywords are available as a secondary signal.
+func (r *MultiSourceRetriever) queryRules(ctx context.Context, src RuleSourceCfg, queryCtx map[string]string) ([]RetrievedRule, error) {
+	if r.ruleEngine == nil {
+		return nil, nil
+	}
+	caseType := queryCtx["case_type"]
+	rules, err := r.ruleEngine.MatchRules(ctx, caseType, queryCtx)
+	if err != nil {
+		return nil, fmt.Errorf("deterministic rules: %w", err)
+	}
+	maxPerSource := src.MaxPerSource
+	if maxPerSource > 0 && len(rules) > maxPerSource {
+		rules = rules[:maxPerSource]
+	}
+	return rules, nil
 }
 
 func (r *MultiSourceRetriever) queryKG(ctx context.Context, src RuleSourceCfg, queryCtx map[string]string) ([]RetrievedRule, error) {

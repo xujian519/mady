@@ -152,9 +152,10 @@ type ExecutionPlan struct {
 type RuleSource string
 
 const (
-	RuleSourceKG     RuleSource = "knowledge_graph" // 知识图谱
-	RuleSourceVector RuleSource = "vector_db"       // 向量数据库
-	RuleSourceSkill  RuleSource = "skill_md"        // SKILL.md 规则文档
+	RuleSourceKG     RuleSource = "knowledge_graph"     // 知识图谱
+	RuleSourceVector RuleSource = "vector_db"           // 向量数据库
+	RuleSourceSkill  RuleSource = "skill_md"            // SKILL.md 规则文档
+	RuleSourceRules  RuleSource = "deterministic_rules" // 确定性规则引擎（domains/rules YAML）
 )
 
 // RetrievedRule is the Stage ② output — a RuleConstraint enriched with

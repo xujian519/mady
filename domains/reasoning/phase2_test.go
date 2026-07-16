@@ -90,6 +90,7 @@ func TestFiveStepRunner_WithRetriever(t *testing.T) {
 				},
 			},
 			nil, // No skill reader
+			nil, // No deterministic rule engine
 		),
 	})
 
@@ -135,7 +136,7 @@ func TestFiveStepRunner_Stage1Stage2_Combined(t *testing.T) {
 				rules: []RetrievedRule{
 					{Rule: RuleConstraint{ArticleID: "A22.3", ArticleName: "创造性", Requirement: ReqMust}, Source: RuleSourceVector, Priority: 1, Confidence: 0.9},
 				},
-			}, nil,
+			}, nil, nil,
 		),
 	})
 
@@ -170,7 +171,7 @@ func TestMultiSourceRetriever_Retrieve(t *testing.T) {
 		},
 	}
 
-	retriever := NewMultiSourceRetriever(nil, vs, nil)
+	retriever := NewMultiSourceRetriever(nil, vs, nil, nil)
 	manifest := RuleRetrievalManifest{
 		ManifestID: "test",
 		CaseType:   CaseNoveltySearch,
@@ -197,7 +198,7 @@ func TestMultiSourceRetriever_Deduplicate(t *testing.T) {
 		},
 	}
 
-	retriever := NewMultiSourceRetriever(nil, vs, nil)
+	retriever := NewMultiSourceRetriever(nil, vs, nil, nil)
 	manifest := RuleRetrievalManifest{
 		ManifestID: "test_dedup",
 		Sources:    []RuleSourceCfg{{Source: RuleSourceVector, MaxPerSource: 10}},
