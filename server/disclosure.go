@@ -154,10 +154,24 @@ func (m *disclosureTaskManager) executeTask(ctx context.Context, task *disclosur
 	state, runErr := compiled.Run(ctx, state)
 
 	task.mu.Lock()
-	if runErr != nil {
+	switch {
+	case runErr != nil && agentcore.IsInterrupt(runErr):
+		// review_gate 在报告生成之后才中断（节点顺序：...→generate_report→
+		// review_gate），所以 state 里已有完整 AnalysisReport。提取出来标记为
+		// "awaiting_review"，让客户端拿到报告自行人工复核——而非当作失败。
+		// Server 是异步任务模型，无交互式 Resume，故不保留中断态等待恢复。
+		report := disclosure.ExtractReportFromState(state)
+		if report != nil {
+			task.Status = "awaiting_review"
+			task.Result = report
+		} else {
+			task.Status = "failed"
+			task.Err = fmt.Errorf("interrupted but no report in state: %w", runErr)
+		}
+	case runErr != nil:
 		task.Status = "failed"
 		task.Err = runErr
-	} else {
+	default:
 		report := disclosure.ExtractReportFromState(state)
 		if report != nil {
 			task.Status = "completed"

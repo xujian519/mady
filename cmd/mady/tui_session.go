@@ -288,6 +288,51 @@ func (s *tuiSession) submitInput(input string) {
 	}()
 }
 
+// resumeIfInterrupted continues the agent from an interrupt point (e.g. the
+// disclosure review_gate) by calling agent.Resume, which preserves the
+// interrupted runLoop's state. Returns true when a resume was initiated.
+//
+// This is the hard-interrupt recovery path, distinct from submitInput: when a
+// Pregel tool node returns InterruptError, the agent loop exits and only
+// Resume() can pick it up — submitInput would instead start a fresh turn and
+// lose the in-flight tool context. Callers (/approve) should try this first
+// and fall back to submitInput only when the agent is not interrupted (the
+// ApprovalGate keyword-triggered soft-interrupt case).
+func (s *tuiSession) resumeIfInterrupted() bool {
+	agent := s.currentAgent
+	if agent == nil || agent.Interrupted() == nil {
+		return false
+	}
+	store := s.agentStore
+	threadID := s.currentThreadID
+	go func() {
+		s.runMu.Lock()
+		defer s.runMu.Unlock()
+
+		runCtx, cancel := context.WithCancel(s.ctx)
+		s.cancelMu.Lock()
+		s.runCancel = cancel
+		s.cancelMu.Unlock()
+		defer func() {
+			s.cancelMu.Lock()
+			s.runCancel = nil
+			s.cancelMu.Unlock()
+		}()
+
+		if _, err := agent.Resume(runCtx); err != nil {
+			log.Printf("[mady] agent resume failed: %v", err)
+			return
+		}
+		if store == nil {
+			return
+		}
+		if err := agent.SaveState(context.Background(), threadID); err != nil {
+			log.Printf("[mady] save state: %v", err)
+		}
+	}()
+	return true
+}
+
 // handleSubmit processes user input from the TUI, dispatching slash commands
 // via the slash registry or forwarding plain text to the agent.
 func (s *tuiSession) handleSubmit(input string) {

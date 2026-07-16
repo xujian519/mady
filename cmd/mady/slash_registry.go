@@ -244,7 +244,13 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 			}
 			s.recordApprovalDecision(domains.DecisionAdopted, "", "")
 			s.app.PrintSystem("✅ 已确认 — Agent 将继续执行")
-			s.submitInput("确认")
+			// Hard-interrupt path (e.g. disclosure review_gate): agent loop has
+			// exited at an InterruptError and only Resume() can continue it.
+			// Fall back to submitInput for ApprovalGate keyword soft-interrupts
+			// where the agent is still running and a new "确认" turn suffices.
+			if !s.resumeIfInterrupted() {
+				s.submitInput("确认")
+			}
 		},
 	})
 	r.Register(SlashCommand{

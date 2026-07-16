@@ -1,5 +1,40 @@
 # AI 决策变更日志
 
+## 2026-07-16: disclosure 中断的 Resume 闭环修复（Server + TUI）
+
+### 背景
+上一条记录（review_gate 改为主动中断）落地后，核实消费层发现两处缺口：
+review_gate 的 InterruptError 在机制层能冒泡到 agent loop，但 TUI/Server
+都没准备好处理这个**工具内部硬中断**（区别于 ApprovalGate 的关键词软中断）。
+
+### 缺口1（Server，硬回归）— 已修复
+`server/disclosure.go` executeTask 原先把所有 Pregel error 置为 `failed`。
+review_gate 必然返回 InterruptError，导致所有 Server 端交底书分析任务失败。
+修复：识别 `agentcore.IsInterrupt`，因 review_gate 在报告生成之后才中断，
+此时 state 已含完整 AnalysisReport，提取并置为 `awaiting_review` 状态返回
+（Server 是异步任务模型，无交互式 Resume，让客户端拿到报告自行人工复核）。
+
+### 缺口2（TUI）— 已修复
+`/approve` 原先用 `submitInput("确认")` → `agent.Run` 开新 turn，会丢弃被
+中断工具的中间 state。新增 `tuiSession.resumeIfInterrupted()`：当 agent 处于
+`Interrupted` 态时调 `agent.Resume`（从中断点继续同一 runLoop），否则回退到
+原 submitInput（兼容 ApprovalGate 软中断）。
+
+### 缺口3（中断用户引导）— 遗留，本次不做
+`AgentInterruptEvent` 在 TUI 侧无针对 disclosure review 的引导（"请输入
+/approve 确认"），用户看到中断会困惑。当前 `Ctrl+C` 绑定的是 `OnInterrupt`
+（取消执行），与"确认恢复"语义无关。此项涉及 TUI 交互设计，留待后续。
+
+### 改动
+- `server/disclosure.go`：executeTask 识别 IsInterrupt → awaiting_review + report
+- `cmd/mady/tui_session.go`：新增 `resumeIfInterrupted()`（goroutine + runMu，调 agent.Resume）
+- `cmd/mady/slash_registry.go`：/approve 先 resumeIfInterrupted，失败回退 submitInput
+
+- **影响范围**: `server/disclosure.go`、`cmd/mady/{tui_session,slash_registry}.go`
+- **风险等级**: 中（/approve 行为变更：硬中断走 Resume、软中断走 Run，两路径分流）
+- **审查要求**: L2（涉及人机协作恢复链路）
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./disclosure/ ./server/ ./cmd/mady/` ✅ | gofmt ✅
+
 ## 2026-07-16: disclosure review_gate 从 no-op 改为主动触发人工复核中断
 
 ### 背景
