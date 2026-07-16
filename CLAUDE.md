@@ -103,7 +103,7 @@ mady/
                  /      |       \         \
         提供者层   工具层(35)    扩展层    领域扩展层
                  \      |       /         /
-         基础设施层：graph/ session/ skill/ prompt/ store/ mcp/
+         基础设施层：graph/ session/ skill/ prompt/ store/
                      disclosure/ memory/ filequeue/ fuzzy/
                      knowledge/ retrieval/ benchmark/ integration/
                                    |

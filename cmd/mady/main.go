@@ -666,7 +666,7 @@ func runTui(ctx context.Context) {
 		providerName:      firstNonEmpty(os.Getenv("PROVIDER"), "deepseek"),
 		planModel:         agentconfig.DefaultPlanModel,
 		normalModel:       model,
-		currentThinking:   agentconfig.ThinkingFromEnv(),
+		currentThinking:   agentThinking(agentconfig.ThinkingFromEnv()),
 		useMultiDomain:    useMultiDomain,
 		useIntegratedMode: useIntegratedMode,
 		ruleExt:           ruleExt,
@@ -759,4 +759,17 @@ func firstNonEmpty(s, fallback string) string {
 		return s
 	}
 	return fallback
+}
+
+// agentThinking 将 agentconfig.ThinkingConfig 转换为 agentcore.ThinkingConfig。
+func agentThinking(cfg *agentconfig.ThinkingConfig) *agentcore.ThinkingConfig {
+	if cfg == nil {
+		return nil
+	}
+	return &agentcore.ThinkingConfig{
+		IncludeThoughts: cfg.IncludeThoughts,
+		Display:         agentcore.ThinkingDisplay(cfg.Display),
+		Effort:          agentcore.ThinkingEffort(cfg.Effort),
+		Budget:          cfg.Budget,
+	}
 }

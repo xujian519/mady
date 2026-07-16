@@ -5,36 +5,19 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/xujian519/mady/graph"
 )
 
-// KgNode is a node in the knowledge graph.
-type KgNode struct {
-	ID       string `json:"id"`
-	NodeType string `json:"node_type"`
-	Name     string `json:"name"`
-	Content  string `json:"content,omitempty"`
-}
-
-// KgEdge is a directed, weighted edge in the knowledge graph.
-type KgEdge struct {
-	TargetID string  `json:"target_id"`
-	Relation string  `json:"relation"`
-	Weight   float64 `json:"weight"`
-}
-
-// KgNodeDetail is a node together with its outgoing and incoming edges.
-type KgNodeDetail struct {
-	Node     KgNode   `json:"node"`
-	Outgoing []KgEdge `json:"outgoing"`
-	Incoming []KgEdge `json:"incoming"`
-}
-
-// KnowledgeGraphStore is the storage interface for multi-hop reasoning
-// traversal. A concrete implementation is provided by knowledge/graph/ (Week 5).
-type KnowledgeGraphStore interface {
-	SearchNodes(keyword, nodeType string, limit int) ([]KgNode, error)
-	GetNodeDetail(nodeID string) (*KgNodeDetail, error)
-}
+// 从 graph 包（L1 基础设施层）重新导出知识图谱类型。
+// domains/reasoning 和 knowledge/graph 均通过这些基础设施层类型解耦，
+// 避免跨 L2 相互依赖。
+type (
+	KgNode              = graph.KgNode
+	KgEdge              = graph.KgEdge
+	KgNodeDetail        = graph.KgNodeDetail
+	KnowledgeGraphStore = graph.KnowledgeGraphStore
+)
 
 // LlmMessage is a single chat message for the LlmClient interface.
 type LlmMessage struct {

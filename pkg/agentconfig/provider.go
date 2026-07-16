@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/provider/chatcompat"
 )
@@ -26,7 +25,16 @@ import (
 // returns a chatcompat provider wired to the correct backend. Provider-specific
 // fallback keys (DEEPSEEK_API_KEY, ZHIPU_API_KEY, KIMI_API_KEY) are honored.
 // Returns an error when no API key is configured.
-func BuildProvider() (agentcore.Provider, error) {
+//
+// Returns a non-nil provider on success (never (nil, nil)).
+// Callers that need the agentcore.Provider interface can assign the result:
+//
+//	var p agentcore.Provider = chatProvider
+//
+// Note: assigning a nil *chatcompat.Provider to agentcore.Provider produces
+// a non-nil interface value (Go nil-concrete vs nil-interface pitfall).
+// The contract above prevents this.
+func BuildProvider() (*chatcompat.Provider, error) {
 	providerType := util.EnvOrDefault("PROVIDER", "deepseek")
 
 	apiKey := os.Getenv("API_KEY")
@@ -98,10 +106,31 @@ func DefaultModel() string {
 	}
 }
 
+// ThinkingConfig captures reasoning-related configuration parsed from
+// environment variables. To obtain agentcore.ThinkingConfig, callers
+// should construct it directly from these fields (agentcore and pkg/agentconfig
+// cannot import each other without a cycle):
+//
+//	cfg := agentconfig.ThinkingFromEnv()
+//	if cfg != nil {
+//	    thinking := &agentcore.ThinkingConfig{
+//	        IncludeThoughts: cfg.IncludeThoughts,
+//	        Display:         agentcore.ThinkingDisplay(cfg.Display),
+//	        Effort:          agentcore.ThinkingEffort(cfg.Effort),
+//	        Budget:          cfg.Budget,
+//	    }
+//	}
+type ThinkingConfig struct {
+	IncludeThoughts bool
+	Display         string // "summarized" / "hidden" / ""
+	Effort          string // "low" / "medium" / "high" / "xhigh" / "max" / ""
+	Budget          int64  // 0 means provider default
+}
+
 // ThinkingFromEnv reads the THINKING_INCLUDE_THOUGHTS / THINKING_DISPLAY /
 // THINKING_EFFORT / THINKING_BUDGET variables and returns a ThinkingConfig.
 // Returns nil when none are set, leaving thinking behavior at the provider default.
-func ThinkingFromEnv() *agentcore.ThinkingConfig {
+func ThinkingFromEnv() *ThinkingConfig {
 	includeRaw := strings.TrimSpace(os.Getenv("THINKING_INCLUDE_THOUGHTS"))
 	displayRaw := strings.TrimSpace(os.Getenv("THINKING_DISPLAY"))
 	effortRaw := strings.TrimSpace(os.Getenv("THINKING_EFFORT"))
@@ -110,17 +139,17 @@ func ThinkingFromEnv() *agentcore.ThinkingConfig {
 		return nil
 	}
 
-	cfg := &agentcore.ThinkingConfig{}
+	cfg := &ThinkingConfig{}
 	if includeRaw != "" {
 		if v, err := strconv.ParseBool(includeRaw); err == nil {
 			cfg.IncludeThoughts = v
 		}
 	}
 	if displayRaw != "" {
-		cfg.Display = agentcore.ThinkingDisplay(strings.ToLower(displayRaw))
+		cfg.Display = strings.ToLower(displayRaw)
 	}
 	if effortRaw != "" {
-		cfg.Effort = agentcore.ThinkingEffort(strings.ToLower(effortRaw))
+		cfg.Effort = strings.ToLower(effortRaw)
 	}
 	if budgetRaw != "" {
 		if v, err := strconv.ParseInt(budgetRaw, 10, 64); err == nil {

@@ -11,7 +11,7 @@
 //
 //	Document → Builder → GraphStore (adjacency list) → Query/Cache
 //	                     ↑ JSON persist/restore
-//	                     ↑ ReasoningStoreAdapter → reasoning.KnowledgeGraphStore
+//	                     ↑ ReasoningStoreAdapter → graph.KnowledgeGraphStore (L1)
 package graph
 
 // NodeType constants identify the kind of entity a graph node represents.

@@ -41,17 +41,17 @@ func TestRefreshAndSearch(t *testing.T) {
 	defer fi.Close()
 
 	// Refresh index.
-	if err := fi.Refresh(context.TODO()); err != nil {
+	if err := fi.Refresh(context.Background()); err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
 
 	// 2nd refresh should be idempotent (no crash, no duplicate records).
-	if err := fi.Refresh(context.TODO()); err != nil {
+	if err := fi.Refresh(context.Background()); err != nil {
 		t.Fatalf("2nd Refresh: %v", err)
 	}
 
 	// Search by filename/query.
-	results, err := fi.Search(context.TODO(), "审查意见", 10)
+	results, err := fi.Search(context.Background(), "审查意见", 10)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -80,10 +80,10 @@ func TestSearchByFileName(t *testing.T) {
 	}
 	defer fi.Close()
 
-	fi.Refresh(context.TODO())
+	fi.Refresh(context.Background())
 
 	// Search for patentability — filename match should score highly.
-	results, err := fi.Search(context.TODO(), "patentability", 10)
+	results, err := fi.Search(context.Background(), "patentability", 10)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -107,10 +107,10 @@ func TestSearchEmptyQuery(t *testing.T) {
 		t.Fatalf("OpenFileIndex: %v", err)
 	}
 	defer fi.Close()
-	fi.Refresh(context.TODO())
+	fi.Refresh(context.Background())
 
 	// Empty query should return most recently modified.
-	results, err := fi.Search(context.TODO(), "", 10)
+	results, err := fi.Search(context.Background(), "", 10)
 	if err != nil {
 		t.Fatalf("Search empty: %v", err)
 	}
@@ -158,22 +158,22 @@ func TestRefresh_NewFileAfterInitialScan(t *testing.T) {
 
 	// Initial scan with one file.
 	mustWriteFile(t, filepath.Join(dir, "a.txt"), "File A")
-	if err := fi.Refresh(context.TODO()); err != nil {
+	if err := fi.Refresh(context.Background()); err != nil {
 		t.Fatalf("initial Refresh: %v", err)
 	}
 
-	r1, _ := fi.Search(context.TODO(), "a.txt", 10)
+	r1, _ := fi.Search(context.Background(), "a.txt", 10)
 	if len(r1) != 1 {
 		t.Fatalf("expected 1 file after initial refresh, got %d", len(r1))
 	}
 
 	// Add a new file and re-scan.
 	mustWriteFile(t, filepath.Join(dir, "b.txt"), "UniqueContentB")
-	if err := fi.Refresh(context.TODO()); err != nil {
+	if err := fi.Refresh(context.Background()); err != nil {
 		t.Fatalf("incremental Refresh: %v", err)
 	}
 
-	r2, _ := fi.Search(context.TODO(), "UniqueContentB", 10)
+	r2, _ := fi.Search(context.Background(), "UniqueContentB", 10)
 	if len(r2) == 0 {
 		t.Fatal("expected at least 1 result for new file")
 	}
@@ -194,13 +194,13 @@ func TestRefresh_DeletedFile(t *testing.T) {
 
 	mustWriteFile(t, filepath.Join(dir, "keep.txt"), "Keep me")
 	mustWriteFile(t, filepath.Join(dir, "delete.txt"), "Delete me")
-	fi.Refresh(context.TODO())
+	fi.Refresh(context.Background())
 
 	// Delete one file.
 	os.Remove(filepath.Join(dir, "delete.txt"))
-	fi.Refresh(context.TODO())
+	fi.Refresh(context.Background())
 
-	results, _ := fi.Search(context.TODO(), "", 10)
+	results, _ := fi.Search(context.Background(), "", 10)
 	if len(results) != 1 {
 		t.Fatalf("expected 1 file after deletion, got %d", len(results))
 	}
@@ -215,7 +215,7 @@ func TestFileIndex_Reopen(t *testing.T) {
 		t.Fatalf("first OpenFileIndex: %v", err)
 	}
 	mustWriteFile(t, filepath.Join(dir, "persist.txt"), "Persistent data")
-	fi.Refresh(context.TODO())
+	fi.Refresh(context.Background())
 	fi.Close()
 
 	// Reopen the same database — data should persist.
@@ -225,7 +225,7 @@ func TestFileIndex_Reopen(t *testing.T) {
 	}
 	defer fi2.Close()
 
-	results, _ := fi2.Search(context.TODO(), "persistent", 10)
+	results, _ := fi2.Search(context.Background(), "persistent", 10)
 	if len(results) == 0 {
 		t.Fatal("expected persisted data after reopen")
 	}

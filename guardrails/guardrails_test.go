@@ -73,7 +73,7 @@ func TestGuardrail_BlockedPhrases(t *testing.T) {
 					Content: tt.content,
 				},
 			}
-			gr.AfterModelCall(context.TODO(), nil, mcc)
+			gr.AfterModelCall(context.Background(), nil, mcc)
 			if tt.wantErr && mcc.Err == nil {
 				t.Error("expected error but got nil")
 			}
@@ -148,7 +148,7 @@ func TestGuardrail_DisclaimerInjection(t *testing.T) {
 					Content: tt.content,
 				},
 			}
-			gr.AfterModelCall(context.TODO(), nil, mcc)
+			gr.AfterModelCall(context.Background(), nil, mcc)
 
 			injected := mcc.Response.Content != tt.content
 			if tt.shouldInject && !injected {
@@ -175,7 +175,7 @@ func TestGuardrail_ApprovalKeywords(t *testing.T) {
 				Content: "专利结论：该发明具有新颖性。",
 			},
 		}
-		gr.AfterModelCall(context.TODO(), nil, mcc)
+		gr.AfterModelCall(context.Background(), nil, mcc)
 
 		if !mcc.Response.SuppressPersist {
 			t.Error("expected SuppressPersist to be set at LevelStrict with approval keyword")
@@ -192,7 +192,7 @@ func TestGuardrail_ApprovalKeywords(t *testing.T) {
 				Content: "专利结论：该发明具有新颖性。",
 			},
 		}
-		gr.AfterModelCall(context.TODO(), nil, mcc)
+		gr.AfterModelCall(context.Background(), nil, mcc)
 
 		if mcc.Response.SuppressPersist {
 			t.Error("LevelStandard should not set SuppressPersist")
@@ -206,7 +206,7 @@ func TestGuardrail_NilResponseIsSafe(t *testing.T) {
 		RiskKeywords: []string{"风险"},
 	}}
 	// Should not panic with nil response.
-	gr.AfterModelCall(context.TODO(), nil, &agentcore.ModelCallContext{
+	gr.AfterModelCall(context.Background(), nil, &agentcore.ModelCallContext{
 		Response: nil,
 		Err:      nil,
 	})
@@ -224,7 +224,7 @@ func TestGuardrail_ErrorResponseIsSkipped(t *testing.T) {
 		Err: agentcore.NewNodeError("provider error", nil, "test", "test"),
 	}
 	original := mcc.Response.Content
-	gr.AfterModelCall(context.TODO(), nil, mcc)
+	gr.AfterModelCall(context.Background(), nil, mcc)
 	// Should skip on error.
 	if mcc.Response.Content != original {
 		t.Errorf("content was modified on error")

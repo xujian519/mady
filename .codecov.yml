@@ -1,0 +1,30 @@
+# Codecov configuration for Mady
+# See https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "40...80"
+
+  status:
+    project:
+      default:
+        # Base coverage to compare against (auto-detected from base commit)
+        target: 50%
+        # Allow coverage to drop by up to 2% without failing
+        threshold: 2%
+    patch:
+      default:
+        target: 50%
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+
+ignore:
+  - "**/*_test.go"
+  - "example/"
+  - "benchmark/"
+  - "integration/"
+  - "vendor/"

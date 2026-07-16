@@ -287,8 +287,14 @@ func (m *AgentBrowserManager) Evaluate(taskID string, expression string, timeout
 }
 
 func (m *AgentBrowserManager) Console(taskID string, timeout time.Duration) (*AgentBrowserResult, error) {
-	consoleRes, _ := m.RunCommand(taskID, "console", []string{"-j"}, timeout)
-	errorsRes, _ := m.RunCommand(taskID, "errors", []string{"-j"}, timeout)
+	consoleRes, consoleErr := m.RunCommand(taskID, "console", []string{"-j"}, timeout)
+	if consoleErr != nil {
+		fmt.Fprintf(os.Stderr, "browser console: %v\n", consoleErr)
+	}
+	errorsRes, errorsErr := m.RunCommand(taskID, "errors", []string{"-j"}, timeout)
+	if errorsErr != nil {
+		fmt.Fprintf(os.Stderr, "browser errors: %v\n", errorsErr)
+	}
 
 	data := map[string]any{}
 	if consoleRes != nil && consoleRes.Success && consoleRes.Data != nil {

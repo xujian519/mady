@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/xujian519/mady/acp"
+	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/pkg/agentconfig"
 )
 
@@ -37,6 +38,18 @@ func main() {
 	}
 }
 
+// thinkingConfig 将 agentconfig.ThinkingConfig 转换为 agentcore.ThinkingConfig。
+func thinkingConfig(cfg *agentconfig.ThinkingConfig) *agentcore.ThinkingConfig {
+	if cfg == nil {
+		return nil
+	}
+	return &agentcore.ThinkingConfig{
+		IncludeThoughts: cfg.IncludeThoughts,
+		Display:         agentcore.ThinkingDisplay(cfg.Display),
+		Effort:          agentcore.ThinkingEffort(cfg.Effort),
+		Budget:          cfg.Budget,
+	}
+}
 func run(ctx context.Context) error {
 	provider, err := agentconfig.BuildProvider()
 	if err != nil {
@@ -45,7 +58,7 @@ func run(ctx context.Context) error {
 	return acp.RunServer(ctx, acp.RunOptions{
 		Provider: provider,
 		Model:    agentconfig.DefaultModel(),
-		Thinking: agentconfig.ThinkingFromEnv(),
+		Thinking: thinkingConfig(agentconfig.ThinkingFromEnv()),
 		AgentInfo: acp.AgentInfo{
 			Name:    "mady",
 			Version: "0.1.0",

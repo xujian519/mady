@@ -1,11 +1,11 @@
 package graph
 
 import (
-	"github.com/xujian519/mady/domains/reasoning"
+	kgraph "github.com/xujian519/mady/graph"
 )
 
 // ReasoningStoreAdapter wraps a GraphStore so it satisfies the
-// reasoning.KnowledgeGraphStore interface used by the ReasoningWalker for
+// KnowledgeGraphStore interface used by the ReasoningWalker for
 // multi-hop traversal. It translates between the graph's rich node/edge types
 // and the walker's lightweight KgNode/KgEdge/KgNodeDetail types.
 //
@@ -13,7 +13,7 @@ import (
 //
 //	store := graph.NewGraphStore()
 //	// ... build graph ...
-//	var kg reasoning.KnowledgeGraphStore = graph.NewReasoningStoreAdapter(store)
+//	var kg kgraph.KnowledgeGraphStore = graph.NewReasoningStoreAdapter(store)
 //	walker := reasoning.NewReasoningWalker(kg, llmClient)
 type ReasoningStoreAdapter struct {
 	store *GraphStore
@@ -30,9 +30,9 @@ func NewReasoningStoreAdapterWithCache(store *GraphStore, cache *GraphCache) *Re
 	return &ReasoningStoreAdapter{store: store, cache: cache}
 }
 
-// SearchNodes implements reasoning.KnowledgeGraphStore. It performs a
-// substring search and converts results to reasoning.KgNode.
-func (a *ReasoningStoreAdapter) SearchNodes(keyword, nodeType string, limit int) ([]reasoning.KgNode, error) {
+// SearchNodes implements KnowledgeGraphStore. It performs a
+// substring search and converts results to KgNode.
+func (a *ReasoningStoreAdapter) SearchNodes(keyword, nodeType string, limit int) ([]kgraph.KgNode, error) {
 	if a.cache != nil {
 		if cached := a.cache.GetSearch(searchKey(keyword, nodeType, limit)); cached != nil {
 			return nodesToReasoning(cached), nil
@@ -45,9 +45,9 @@ func (a *ReasoningStoreAdapter) SearchNodes(keyword, nodeType string, limit int)
 	return nodesToReasoning(results), nil
 }
 
-// GetNodeDetail implements reasoning.KnowledgeGraphStore. It returns the node
+// GetNodeDetail implements KnowledgeGraphStore. It returns the node
 // with its outgoing and incoming edges.
-func (a *ReasoningStoreAdapter) GetNodeDetail(nodeID string) (*reasoning.KgNodeDetail, error) {
+func (a *ReasoningStoreAdapter) GetNodeDetail(nodeID string) (*kgraph.KgNodeDetail, error) {
 	if a.cache != nil {
 		if cached := a.cache.GetNodeDetail(nodeID); cached != nil {
 			return detailToReasoning(cached), nil
@@ -64,10 +64,10 @@ func (a *ReasoningStoreAdapter) GetNodeDetail(nodeID string) (*reasoning.KgNodeD
 }
 
 // nodesToReasoning converts graph nodes to the walker's lightweight type.
-func nodesToReasoning(nodes []*GraphNode) []reasoning.KgNode {
-	result := make([]reasoning.KgNode, 0, len(nodes))
+func nodesToReasoning(nodes []*GraphNode) []kgraph.KgNode {
+	result := make([]kgraph.KgNode, 0, len(nodes))
 	for _, n := range nodes {
-		result = append(result, reasoning.KgNode{
+		result = append(result, kgraph.KgNode{
 			ID:       n.ID,
 			NodeType: n.NodeType,
 			Name:     n.Name,
@@ -78,28 +78,28 @@ func nodesToReasoning(nodes []*GraphNode) []reasoning.KgNode {
 }
 
 // detailToReasoning converts a graph node detail to the walker's type.
-func detailToReasoning(d *GraphNodeDetail) *reasoning.KgNodeDetail {
+func detailToReasoning(d *GraphNodeDetail) *kgraph.KgNodeDetail {
 	if d == nil || d.Node == nil {
 		return nil
 	}
-	outgoing := make([]reasoning.KgEdge, 0, len(d.Outgoing))
+	outgoing := make([]kgraph.KgEdge, 0, len(d.Outgoing))
 	for _, e := range d.Outgoing {
-		outgoing = append(outgoing, reasoning.KgEdge{
+		outgoing = append(outgoing, kgraph.KgEdge{
 			TargetID: e.TargetID,
 			Relation: e.Relation,
 			Weight:   e.Weight,
 		})
 	}
-	incoming := make([]reasoning.KgEdge, 0, len(d.Incoming))
+	incoming := make([]kgraph.KgEdge, 0, len(d.Incoming))
 	for _, e := range d.Incoming {
-		incoming = append(incoming, reasoning.KgEdge{
+		incoming = append(incoming, kgraph.KgEdge{
 			TargetID: e.SourceID, // note: for incoming edges, the "target" from the walker's perspective is the source
 			Relation: e.Relation,
 			Weight:   e.Weight,
 		})
 	}
-	return &reasoning.KgNodeDetail{
-		Node: reasoning.KgNode{
+	return &kgraph.KgNodeDetail{
+		Node: kgraph.KgNode{
 			ID:       d.Node.ID,
 			NodeType: d.Node.NodeType,
 			Name:     d.Node.Name,
@@ -111,4 +111,4 @@ func detailToReasoning(d *GraphNodeDetail) *reasoning.KgNodeDetail {
 }
 
 // Compile-time assertion that ReasoningStoreAdapter satisfies the interface.
-var _ reasoning.KnowledgeGraphStore = (*ReasoningStoreAdapter)(nil)
+var _ kgraph.KnowledgeGraphStore = (*ReasoningStoreAdapter)(nil)

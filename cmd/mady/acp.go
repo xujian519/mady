@@ -25,7 +25,7 @@ func runAcp(ctx context.Context) {
 	err := acp.RunServer(ctx, acp.RunOptions{
 		Provider:   fc.Provider,
 		Model:      agentconfig.DefaultModel(),
-		Thinking:   agentconfig.ThinkingFromEnv(),
+		Thinking:   agentThinking(agentconfig.ThinkingFromEnv()),
 		Lifecycle:  fc.WikiHook,
 		Extensions: extSlice(fc.KnowledgeExt),
 		AgentInfo: acp.AgentInfo{

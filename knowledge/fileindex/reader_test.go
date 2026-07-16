@@ -22,7 +22,7 @@ func testdataAbs() string {
 
 func TestReader_ReadText(t *testing.T) {
 	fr := NewFileReader(".")
-	result, err := fr.readText(context.TODO(), filepath.Join(testdataAbs(), "test.txt"))
+	result, err := fr.readText(context.Background(), filepath.Join(testdataAbs(), "test.txt"))
 	if err != nil {
 		t.Fatalf("readText: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestReader_ReadText(t *testing.T) {
 
 func TestReader_ReadCSV(t *testing.T) {
 	fr := NewFileReader(".")
-	result, err := fr.readSpreadsheet(context.TODO(), filepath.Join(testdataAbs(), "test.csv"))
+	result, err := fr.readSpreadsheet(context.Background(), filepath.Join(testdataAbs(), "test.csv"))
 	if err != nil {
 		t.Fatalf("readSpreadsheet(CSV): %v", err)
 	}
@@ -56,7 +56,7 @@ func TestReader_ReadCSV(t *testing.T) {
 
 func TestReader_ReadDocx(t *testing.T) {
 	fr := NewFileReader(".")
-	result, err := fr.readDocx(context.TODO(), filepath.Join(testdataAbs(), "test.docx"))
+	result, err := fr.readDocx(context.Background(), filepath.Join(testdataAbs(), "test.docx"))
 	if err != nil {
 		t.Fatalf("readDocx: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestReader_ReadProjectFile_Dispatch(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := fr.ReadProjectFile(context.TODO(), tc.relPath)
+			result, err := fr.ReadProjectFile(context.Background(), tc.relPath)
 			if err != nil {
 				t.Fatalf("ReadProjectFile(%s): %v", tc.relPath, err)
 			}
@@ -138,7 +138,7 @@ func TestReader_PathSandbox(t *testing.T) {
 	fr := NewFileReader("/tmp/test-project")
 
 	// Absolute path outside project should be rejected.
-	_, err := fr.ReadProjectFile(context.TODO(), "/etc/passwd")
+	_, err := fr.ReadProjectFile(context.Background(), "/etc/passwd")
 	if err == nil {
 		t.Fatal("expected error for path outside root")
 	}
@@ -147,7 +147,7 @@ func TestReader_PathSandbox(t *testing.T) {
 	}
 
 	// Relative path with ../ escape should be rejected.
-	_, err = fr.ReadProjectFile(context.TODO(), "../etc/passwd")
+	_, err = fr.ReadProjectFile(context.Background(), "../etc/passwd")
 	if err == nil {
 		t.Fatal("expected error for relative path escape")
 	}
@@ -164,7 +164,7 @@ func TestReader_PDF(t *testing.T) {
 	}
 
 	fr := NewFileReader(".")
-	result, err := fr.readPDF(context.TODO(), pdfPath)
+	result, err := fr.readPDF(context.Background(), pdfPath)
 	if err != nil {
 		t.Fatalf("readPDF: %v", err)
 	}

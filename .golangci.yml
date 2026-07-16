@@ -10,6 +10,7 @@ linters:
   enable:
     - errcheck
     - gocritic
+    - gosec
     - govet
     - ineffassign
     - misspell
