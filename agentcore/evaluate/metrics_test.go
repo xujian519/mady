@@ -116,6 +116,71 @@ func TestRuneLen(t *testing.T) {
 	}
 }
 
+func TestEvidenceGroundedness(t *testing.T) {
+	m := EvidenceGroundedness{ValidEvidence: []string{"CN001", "CN002", "guide-p2-c3"}}
+	check := func(p string, want float64) {
+		t.Helper()
+		if got := m.Compute(p, ""); !approxEqual(got, want) {
+			t.Errorf("EvidenceGroundedness(%q)=%.3f want %.3f", p, got, want)
+		}
+	}
+	// Both citations valid → 1.0.
+	check("引用了 doc_id: CN001 和 [CN002]", 1.0)
+	// One valid, one hallucinated → 0.5.
+	check("doc_id: CN001 和 doc_id: FAKE999", 0.5)
+	// No citations → 0 (ungrounded).
+	check("无任何证据引用", 0)
+	// All hallucinated → 0.
+	check("[FAKE001] [FAKE002]", 0)
+}
+
+func TestEvidenceGroundedness_EmptyValidSet(t *testing.T) {
+	m := EvidenceGroundedness{ValidEvidence: nil}
+	// No valid evidence set → cannot ground → 0 even if prediction cites IDs.
+	if got := m.Compute("doc_id: CN001", ""); got != 0 {
+		t.Errorf("empty ValidEvidence should return 0, got %.3f", got)
+	}
+}
+
+func TestEvidenceGroundedness_WithCitations(t *testing.T) {
+	base := EvidenceGroundedness{}
+	adapted := base.WithCitations([]string{"A1", "A2"}).(EvidenceGroundedness)
+	if len(adapted.ValidEvidence) != 2 {
+		t.Errorf("WithCitations should set ValidEvidence, got %d", len(adapted.ValidEvidence))
+	}
+}
+
+func TestRuleComplianceCompleteness(t *testing.T) {
+	m := RuleComplianceCompleteness{Required: []string{"NOV-001", "NOV-002", "A22.3"}}
+	check := func(p string, want float64) {
+		t.Helper()
+		if got := m.Compute(p, ""); !approxEqual(got, want) {
+			t.Errorf("RuleComplianceCompleteness(%q)=%.3f want %.3f", p, got, want)
+		}
+	}
+	// All three rules referenced → 1.0.
+	check("已检查 NOV-001、NOV-002 和 A22.3", 1.0)
+	// Two of three → 0.667.
+	check("适用 NOV-001 与 A22.3", 2.0/3.0)
+	// None → 0.
+	check("未提及任何规则", 0)
+}
+
+func TestRuleComplianceCompleteness_EmptyRequired(t *testing.T) {
+	m := RuleComplianceCompleteness{}
+	if got := m.Compute("anything", ""); got != 1 {
+		t.Errorf("empty Required should return 1, got %.3f", got)
+	}
+}
+
+func TestRuleComplianceCompleteness_CaseInsensitive(t *testing.T) {
+	m := RuleComplianceCompleteness{Required: []string{"NOV-001"}}
+	// Lowercase prediction should still match uppercase rule ID.
+	if got := m.Compute("checked nov-001", ""); !approxEqual(got, 1) {
+		t.Errorf("case-insensitive match failed: %.3f", got)
+	}
+}
+
 func approxEqual(a, b float64) bool {
 	return a-b > -0.001 && a-b < 0.001
 }
