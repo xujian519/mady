@@ -105,7 +105,7 @@ func TestSkillRuleReader_MissingDirReturnsNil(t *testing.T) {
 	if err != nil {
 		t.Fatalf("missing dir should not error, got %v", err)
 	}
-	if rules != nil && len(rules) != 0 {
+	if len(rules) != 0 {
 		t.Fatalf("missing dir got %v, want empty", rules)
 	}
 }

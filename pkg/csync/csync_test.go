@@ -334,9 +334,8 @@ func TestMapRangeConcurrent(t *testing.T) {
 				count++
 				return true
 			})
-			if count != n {
-				// May race with concurrent writes, just exercise the path.
-			}
+			// May race with concurrent writes, just exercise the path.
+			_ = count == n
 		}()
 	}
 	wg.Wait()

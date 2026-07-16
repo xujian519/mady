@@ -59,7 +59,7 @@ func DownloadFile(part *FilePart, destPath string) error {
 		return fmt.Errorf("decode base64: %w", err)
 	}
 
-	if err := os.WriteFile(destPath, data, 0644); err != nil {
+	if err := os.WriteFile(destPath, data, 0600); err != nil {
 		return fmt.Errorf("write file: %w", err)
 	}
 	return nil

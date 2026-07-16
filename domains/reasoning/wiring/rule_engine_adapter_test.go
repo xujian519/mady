@@ -152,7 +152,7 @@ func TestRuleEngineAdapter_MatchRules_EmptyKeywordFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MatchRules: %v", err)
 	}
-	if rules != nil && len(rules) != 0 {
+	if len(rules) != 0 {
 		t.Errorf("empty keyword + unknown caseType got %d rules, want 0", len(rules))
 	}
 }

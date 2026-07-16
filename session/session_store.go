@@ -271,7 +271,7 @@ func (s *FileStore) Create(_ context.Context, opts CreateOptions) (*Manager, err
 
 	if persist {
 		headerData, _ := json.Marshal(header)
-		if err := os.WriteFile(filePath, append(headerData, '\n'), 0o644); err != nil {
+		if err := os.WriteFile(filePath, append(headerData, '\n'), 0o600); err != nil {
 			return nil, fmt.Errorf("write session header: %w", err)
 		}
 		mgr.flushed = true

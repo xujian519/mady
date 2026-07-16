@@ -73,7 +73,7 @@ func (w *ConfirmedRuleWriter) Write(caseID, caseType, techField string, rs reaso
 	filename := fmt.Sprintf("%s_%d.json", safeID, ts)
 	path := filepath.Join(w.dir, filename)
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return "", fmt.Errorf("confirmed rule writer: write %s: %w", path, err)
 	}
 	return path, nil

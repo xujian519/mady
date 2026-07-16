@@ -623,7 +623,7 @@ func (s *tuiSession) handleExportCommand(trimmed string) {
 		exportPath = filepath.Join(exportDir, fmt.Sprintf("export-%s.md", time.Now().Format("20060102-150405")))
 	}
 	exportContent := formatExportMarkdown(msgs, s.currentThreadID, s.currentProject)
-	if err := os.WriteFile(exportPath, []byte(exportContent), 0o644); err != nil {
+	if err := os.WriteFile(exportPath, []byte(exportContent), 0o600); err != nil {
 		s.app.PrintError(fmt.Errorf("导出失败: %w", err))
 		return
 	}

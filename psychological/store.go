@@ -56,7 +56,7 @@ func (s *Store) SaveSDTState(sessionID string, state SDTState, roundCount int) e
 	}
 	path := filepath.Join(s.dir, sessionID+".json")
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, encoded, 0o644); err != nil {
+	if err := os.WriteFile(tmp, encoded, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

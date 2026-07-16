@@ -252,7 +252,7 @@ func (r *ProjectRegistry) SaveMeta(projectID string, meta *ProjectMeta) error {
 	}
 
 	path := filepath.Join(dir, metaFileName)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("写入 meta: %w", err)
 	}
 	return nil
@@ -334,7 +334,7 @@ func (r *ProjectRegistry) persistLocked() error {
 	}
 
 	path := r.registryPath()
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("写入 registry: %w", err)
 	}
 	r.dirty = false

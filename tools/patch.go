@@ -24,7 +24,7 @@ func (d DefaultPatchOperations) ReadFile(ctx context.Context, path string) ([]by
 	return os.ReadFile(path)
 }
 func (d DefaultPatchOperations) WriteFile(path string, content []byte) error {
-	return os.WriteFile(path, content, 0644)
+	return os.WriteFile(path, content, 0600)
 }
 func (d DefaultPatchOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 	return os.Stat(path)

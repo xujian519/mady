@@ -41,7 +41,7 @@ func TestBuildReasoningRetriever_Stage2Wiring(t *testing.T) {
 	}
 
 	// The retriever's source fields are unexported; we assert construction
-	// success here. Per-lane behaviour is covered by data-free unit tests in
+	// success here. Per-lane behavior is covered by data-free unit tests in
 	// domains/reasoning/wiring/*_test.go.
 	t.Logf("Stage ② retriever wired: backend=%v wikiRoot=%q",
 		backend != nil, wikiRoot)

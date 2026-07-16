@@ -216,7 +216,7 @@ func (s *Server) aguiHandler() http.Handler {
 
 func (s *Server) ListenAndServe(addr string) error {
 	handler := s.Handler()
-	s.srv.Store(&http.Server{Addr: addr, Handler: handler})
+	s.srv.Store(&http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second})
 	return s.srv.Load().ListenAndServe()
 }
 
@@ -224,7 +224,7 @@ func (s *Server) ListenAndServe(addr string) error {
 // For production deployments always use TLS or a TLS-terminating reverse proxy.
 func (s *Server) ListenAndServeTLS(addr, certFile, keyFile string) error {
 	handler := s.Handler()
-	s.srv.Store(&http.Server{Addr: addr, Handler: handler})
+	s.srv.Store(&http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second})
 	return s.srv.Load().ListenAndServeTLS(certFile, keyFile)
 }
 

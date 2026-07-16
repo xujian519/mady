@@ -165,7 +165,7 @@ func NewExecuteCodeTool(cfg *ExecuteCodeToolConfig) *agentcore.Tool {
 			defer os.RemoveAll(tmpDir)
 
 			scriptPath := filepath.Join(tmpDir, "script.py")
-			if err := os.WriteFile(scriptPath, []byte(input.Code), 0644); err != nil {
+			if err := os.WriteFile(scriptPath, []byte(input.Code), 0600); err != nil {
 				return nil, fmt.Errorf("failed to write script: %w", err)
 			}
 
@@ -185,7 +185,7 @@ func NewExecuteCodeTool(cfg *ExecuteCodeToolConfig) *agentcore.Tool {
 
 				stubPath := filepath.Join(tmpDir, "mady_tools.py")
 				stub := generatePTCStub(ptc.allowedToolNames())
-				if err := os.WriteFile(stubPath, []byte(stub), 0644); err != nil {
+				if err := os.WriteFile(stubPath, []byte(stub), 0600); err != nil {
 					return nil, fmt.Errorf("failed to write PTC stub: %w", err)
 				}
 			}

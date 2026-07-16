@@ -23,7 +23,7 @@ type WriteFileOperations interface {
 type DefaultWriteFileOperations struct{}
 
 func (d DefaultWriteFileOperations) WriteFile(path string, content []byte) error {
-	return os.WriteFile(path, content, 0644)
+	return os.WriteFile(path, content, 0600)
 }
 
 func (d DefaultWriteFileOperations) ReadFile(path string) ([]byte, error) {

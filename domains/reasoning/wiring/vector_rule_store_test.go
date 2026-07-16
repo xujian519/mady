@@ -108,7 +108,7 @@ func TestVectorRuleStore_SearchRules_EmptyResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchRules: %v", err)
 	}
-	if rules != nil && len(rules) != 0 {
+	if len(rules) != 0 {
 		t.Fatalf("got %d rules, want empty", len(rules))
 	}
 }

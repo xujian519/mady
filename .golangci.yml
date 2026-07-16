@@ -80,6 +80,7 @@ linters:
         path: _test\.go
       - linters:
           - revive
+          - gosec
         path: example/
       - linters:
           - revive
@@ -101,6 +102,61 @@ linters:
           - errcheck
         path: tools/
         source: '(?:\.(?:Run|StartRecording|StopRecording|CloseSession|CloseTab|ReapOrphans|Signal|StopScreencast|Do|runABCommand|HandleDialog|SetDeadline|Wait|WalkDir)\(|fmt\.(?:Sscanf|Scanln)\(|os\.(?:WriteFile|MkdirAll)\(|session\.(?:recorder|cloudProvider|camofoxClient)\.|tempFile\.Write\(|conn\.Write\(|\b(?:osaKeyImpl|winKey|xdoKey)\()'
+      # gosec G101: 中文文本被误报为硬编码凭据
+      - linters:
+          - gosec
+        path: domains/rules/slop_engine\.go
+        text: G101
+      # gosec G115: 图形渲染/Unix 权限转换中整数截断是有意为之
+      - linters:
+          - gosec
+        path: tui/|mcp/config_discovery_owner_unix\.go
+        text: G115
+      # gosec G118: 后台 goroutine 是正常的服务器模式
+      - linters:
+          - gosec
+        path: cmd/mady/server\.go|memory/extension\.go
+        text: G118
+      # gosec G122: filepath.Walk 遍历文件系统是必要的
+      - linters:
+          - gosec
+        path: knowledge/loader/wiki\.go
+        text: G122
+      # gosec G201/G202: 参数化 SQL 占位符使用了安全的拼接方式
+      - linters:
+          - gosec
+        path: memory/sqlite_store\.go|knowledge/sqlite/store\.go
+        text: G201|G202
+      # gosec G204: MCP 客户端需要启动外部进程
+      - linters:
+          - gosec
+        path: mcp/client\.go
+        text: G204
+      # gosec G404: 非密码学场景使用 math/rand 可接受
+      - linters:
+          - gosec
+        path: memory/compiler/
+        text: G404
+      # gosec G602: range 循环保证索引安全，误报
+      - linters:
+          - gosec
+        path: retrieval/domain/base\.go
+        text: G602
+      # gosec G703: 受控路径（命令行参数/配置文件），taint 分析误报
+      - linters:
+          - gosec
+        path: cmd/mady/|mcp/config_discovery|tui/theme/global\.go
+        text: G703
+      # gosec G704: A2A 客户端需要连接远程 agent，非 SSRF
+      - linters:
+          - gosec
+        path: a2a/server\.go
+        text: G704
+      # tools/ 子模块 gosec: 工具的核心功能就是执行命令/管理进程
+      - linters:
+          - gosec
+        path: tools/
+        text: G204|G702|G703
     paths:
       - third_party$
       - builtin$

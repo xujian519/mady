@@ -82,7 +82,7 @@ func TestConfirmedRuleWriter_ListEmptyDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List on empty dir: %v", err)
 	}
-	if paths != nil && len(paths) != 0 {
+	if len(paths) != 0 {
 		t.Errorf("empty dir List = %v, want nil/empty", paths)
 	}
 }

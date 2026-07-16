@@ -31,16 +31,3 @@ func (p *handoffProvider) Complete(_ context.Context, _ *agentcore.ProviderReque
 func (p *handoffProvider) Stream(_ context.Context, _ *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
 	return nil, fmt.Errorf("streaming not implemented")
 }
-
-// riskKeywordProvider 返回包含风险关键词的固定内容。
-type riskKeywordProvider struct {
-	content string
-}
-
-func (p *riskKeywordProvider) Complete(_ context.Context, _ *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
-	return &agentcore.ProviderResponse{Content: p.content}, nil
-}
-
-func (p *riskKeywordProvider) Stream(_ context.Context, _ *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
-	return nil, fmt.Errorf("streaming not implemented")
-}

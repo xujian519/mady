@@ -283,7 +283,7 @@ func (sr *SessionRecorder) saveAsWebM(outputPath string) error {
 
 	for i, frame := range sr.frames {
 		framePath := filepath.Join(tmpDir, fmt.Sprintf("frame_%06d.png", i))
-		if err := os.WriteFile(framePath, frame.Data, 0644); err != nil {
+		if err := os.WriteFile(framePath, frame.Data, 0600); err != nil {
 			return err
 		}
 	}

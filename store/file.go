@@ -32,7 +32,7 @@ func (fs *SnapshotStore) Save(_ context.Context, key string, snap agentcore.Stat
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
 	tmp := fs.path(key) + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("write snapshot: %w", err)
 	}
 	if err := os.Rename(tmp, fs.path(key)); err != nil {

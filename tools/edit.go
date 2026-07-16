@@ -24,7 +24,7 @@ func (d DefaultEditOperations) ReadFile(ctx context.Context, path string) ([]byt
 	return os.ReadFile(path)
 }
 func (d DefaultEditOperations) WriteFile(path string, content []byte) error {
-	return os.WriteFile(path, content, 0644)
+	return os.WriteFile(path, content, 0600)
 }
 func (d DefaultEditOperations) Access(path string) error {
 	_, err := os.Stat(path)

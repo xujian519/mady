@@ -378,7 +378,7 @@ func (s *Server) Handler() http.Handler {
 
 // ListenAndServe starts the HTTP server.
 func (s *Server) ListenAndServe(addr string) error {
-	s.srv = &http.Server{Addr: addr, Handler: s.Handler()}
+	s.srv = &http.Server{Addr: addr, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	return s.srv.ListenAndServe()
 }
 

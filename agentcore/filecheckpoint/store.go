@@ -23,7 +23,7 @@ type OSFileSystem struct{}
 func (OSFileSystem) ReadFile(path string) ([]byte, error)  { return os.ReadFile(path) }
 func (OSFileSystem) Stat(path string) (os.FileInfo, error) { return os.Stat(path) }
 func (OSFileSystem) WriteFile(path string, content []byte) error {
-	return os.WriteFile(path, content, 0644)
+	return os.WriteFile(path, content, 0600)
 }
 func (OSFileSystem) Remove(path string) error { return os.Remove(path) }
 
