@@ -10,6 +10,7 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 type DialogPolicy string
@@ -498,13 +499,10 @@ func formatFrameTree(frames []*FrameInfo, truncated bool) string {
 }
 
 type SupervisorRegistry struct {
-	mu          sync.RWMutex
-	supervisors map[string]*CDPSupervisor
+	supervisors csync.Map[string, *CDPSupervisor]
 }
 
-var defaultSupervisorRegistry = &SupervisorRegistry{
-	supervisors: make(map[string]*CDPSupervisor),
-}
+var defaultSupervisorRegistry = &SupervisorRegistry{}
 
 func SetSupervisorRegistry(r *SupervisorRegistry) {
 	defaultSupervisorRegistry = r
@@ -515,49 +513,42 @@ func GetSupervisorRegistry() *SupervisorRegistry {
 }
 
 func (r *SupervisorRegistry) GetOrStart(taskID string, cdpURL string, dialogPolicy DialogPolicy, dialogTimeout time.Duration) (*CDPSupervisor, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if existing, ok := r.supervisors[taskID]; ok {
+	// Fast path: already exists
+	if existing, ok := r.supervisors.Get(taskID); ok {
 		return existing, nil
 	}
 
 	supervisor := NewCDPSupervisor(cdpURL, taskID, dialogPolicy, dialogTimeout)
-	r.supervisors[taskID] = supervisor
-
 	ctx := context.Background()
 	if err := supervisor.Start(ctx); err != nil {
-		delete(r.supervisors, taskID)
 		return nil, err
 	}
 
+	// GetOrSet returns the existing value if present, or stores and returns the new one.
+	actual := r.supervisors.GetOrSet(taskID, func() *CDPSupervisor { return supervisor })
+	if actual != supervisor {
+		// Another goroutine stored first — clean up our extra.
+		supervisor.Stop()
+		return actual, nil
+	}
 	return supervisor, nil
 }
 
 func (r *SupervisorRegistry) Get(taskID string) (*CDPSupervisor, bool) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	s, ok := r.supervisors[taskID]
-	return s, ok
+	return r.supervisors.Get(taskID)
 }
 
 func (r *SupervisorRegistry) Stop(taskID string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if s, ok := r.supervisors[taskID]; ok {
+	if s, ok := r.supervisors.Get(taskID); ok {
 		s.Stop()
-		delete(r.supervisors, taskID)
+		r.supervisors.Del(taskID)
 	}
 }
 
 func (r *SupervisorRegistry) StopAll() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for id, s := range r.supervisors {
+	for id, s := range r.supervisors.Copy() {
 		s.Stop()
-		delete(r.supervisors, id)
+		r.supervisors.Del(id)
 	}
 }
 

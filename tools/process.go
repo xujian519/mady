@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 // ProcessRegistry manages background processes.
 type ProcessRegistry struct {
-	mu        sync.RWMutex
-	processes map[string]*ProcessEntry
+	processes csync.Map[string, *ProcessEntry]
 }
 
 // ProcessEntry tracks a background process.
@@ -35,42 +35,31 @@ type ProcessEntry struct {
 
 // NewProcessRegistry creates a new process registry.
 func NewProcessRegistry() *ProcessRegistry {
-	return &ProcessRegistry{
-		processes: make(map[string]*ProcessEntry),
-	}
+	return &ProcessRegistry{}
 }
 
 // Register adds a process to the registry.
 func (r *ProcessRegistry) Register(entry *ProcessEntry) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.processes[entry.ID] = entry
+	r.processes.Set(entry.ID, entry)
 }
 
 // Get retrieves a process by ID.
 func (r *ProcessRegistry) Get(id string) (*ProcessEntry, bool) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	entry, ok := r.processes[id]
-	return entry, ok
+	return r.processes.Get(id)
 }
 
 // List returns all process IDs.
 func (r *ProcessRegistry) List() []string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	ids := make([]string, 0, len(r.processes))
-	for id := range r.processes {
+	ids := make([]string, 0, r.processes.Len())
+	for id := range r.processes.Copy() {
 		ids = append(ids, id)
 	}
 	return ids
 }
 
 func (r *ProcessRegistry) ListAll() []*ProcessEntry {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	entries := make([]*ProcessEntry, 0, len(r.processes))
-	for _, entry := range r.processes {
+	entries := make([]*ProcessEntry, 0, r.processes.Len())
+	for _, entry := range r.processes.Copy() {
 		entries = append(entries, entry)
 	}
 	return entries
@@ -78,14 +67,12 @@ func (r *ProcessRegistry) ListAll() []*ProcessEntry {
 
 // Cleanup removes completed processes older than maxAge.
 func (r *ProcessRegistry) Cleanup(maxAge time.Duration) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	now := time.Now()
 	removed := 0
-	for id, entry := range r.processes {
+	for id, entry := range r.processes.Copy() {
 		if entry.Status != "running" && entry.EndTime != nil {
 			if now.Sub(*entry.EndTime) > maxAge {
-				delete(r.processes, id)
+				r.processes.Del(id)
 				removed++
 			}
 		}

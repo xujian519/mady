@@ -6,46 +6,34 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/chromedp/cdproto/accessibility"
 	"github.com/chromedp/chromedp"
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 type RefMapper struct {
-	mu   sync.RWMutex
-	refs map[string]string
+	refs csync.Map[string, string]
 }
 
 func NewRefMapper() *RefMapper {
-	return &RefMapper{
-		refs: make(map[string]string),
-	}
+	return &RefMapper{}
 }
 
 func (rm *RefMapper) Clear() {
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
-	rm.refs = make(map[string]string)
+	rm.refs.Reset(make(map[string]string))
 }
 
 func (rm *RefMapper) Set(ref string, selector string) {
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
-	rm.refs[ref] = selector
+	rm.refs.Set(ref, selector)
 }
 
 func (rm *RefMapper) Get(ref string) (string, bool) {
-	rm.mu.RLock()
-	defer rm.mu.RUnlock()
-	s, ok := rm.refs[ref]
-	return s, ok
+	return rm.refs.Get(ref)
 }
 
 func (rm *RefMapper) Count() int {
-	rm.mu.RLock()
-	defer rm.mu.RUnlock()
-	return len(rm.refs)
+	return rm.refs.Len()
 }
 
 type snapshotResult struct {

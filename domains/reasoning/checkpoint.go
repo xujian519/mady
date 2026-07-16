@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 // =============================================================================
@@ -34,28 +34,21 @@ type CheckpointStore interface {
 
 // MemoryCheckpointStore is an in-memory implementation for testing.
 type MemoryCheckpointStore struct {
-	mu          sync.RWMutex
-	checkpoints map[string]*StageCheckpoint
+	checkpoints csync.Map[string, *StageCheckpoint]
 }
 
 // NewMemoryCheckpointStore creates an in-memory checkpoint store.
 func NewMemoryCheckpointStore() *MemoryCheckpointStore {
-	return &MemoryCheckpointStore{
-		checkpoints: make(map[string]*StageCheckpoint),
-	}
+	return &MemoryCheckpointStore{}
 }
 
 func (s *MemoryCheckpointStore) Save(ctx context.Context, cp *StageCheckpoint) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.checkpoints[cp.CheckpointID] = cp
+	s.checkpoints.Set(cp.CheckpointID, cp)
 	return nil
 }
 
 func (s *MemoryCheckpointStore) Load(ctx context.Context, checkpointID string) (*StageCheckpoint, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	cp, ok := s.checkpoints[checkpointID]
+	cp, ok := s.checkpoints.Get(checkpointID)
 	if !ok {
 		return nil, fmt.Errorf("checkpoint %q not found", checkpointID)
 	}
@@ -63,9 +56,7 @@ func (s *MemoryCheckpointStore) Load(ctx context.Context, checkpointID string) (
 }
 
 func (s *MemoryCheckpointStore) Delete(ctx context.Context, checkpointID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.checkpoints, checkpointID)
+	s.checkpoints.Del(checkpointID)
 	return nil
 }
 

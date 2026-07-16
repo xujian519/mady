@@ -14,41 +14,26 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 var (
-	defaultBrowserManagerRegistry = struct {
-		mu       sync.RWMutex
-		managers map[string]*BrowserManager
-	}{
-		managers: make(map[string]*BrowserManager),
-	}
+	defaultBrowserManagerRegistry = csync.NewMap[string, *BrowserManager]()
 
 	// ShutdownCh 收到信号时关闭，通知调用方执行退出。由 SetupSignalHandler 写入。
 	ShutdownCh = make(chan struct{})
 )
 
 func RegisterBrowserManager(id string, mgr *BrowserManager) {
-	defaultBrowserManagerRegistry.mu.Lock()
-	defer defaultBrowserManagerRegistry.mu.Unlock()
-	defaultBrowserManagerRegistry.managers[id] = mgr
+	defaultBrowserManagerRegistry.Set(id, mgr)
 }
 
 func UnregisterBrowserManager(id string) {
-	defaultBrowserManagerRegistry.mu.Lock()
-	defer defaultBrowserManagerRegistry.mu.Unlock()
-	delete(defaultBrowserManagerRegistry.managers, id)
+	defaultBrowserManagerRegistry.Del(id)
 }
 
 func EmergencyCleanupAll() {
-	defaultBrowserManagerRegistry.mu.RLock()
-	managers := make([]*BrowserManager, 0, len(defaultBrowserManagerRegistry.managers))
-	for _, mgr := range defaultBrowserManagerRegistry.managers {
-		managers = append(managers, mgr)
-	}
-	defaultBrowserManagerRegistry.mu.RUnlock()
-
-	for _, mgr := range managers {
+	for _, mgr := range defaultBrowserManagerRegistry.Copy() {
 		mgr.CloseAll()
 	}
 	GetSupervisorRegistry().StopAll()

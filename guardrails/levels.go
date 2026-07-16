@@ -3,9 +3,9 @@ package guardrails
 import (
 	"context"
 	"strings"
-	"sync"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 // Level defines the strictness tier of a guardrail.
@@ -27,10 +27,7 @@ const (
 	LevelStrict
 )
 
-var (
-	customLevelsMu sync.RWMutex
-	customLevels   = map[string]Level{}
-)
+var customLevels = csync.NewMap[string, Level]()
 
 // RegisterLevel registers a custom guardrail level name and associates it
 // with the given Level value. The name is also registered with agentcore
@@ -40,18 +37,13 @@ func RegisterLevel(name string, level Level) {
 	if name == "" {
 		return
 	}
-	customLevelsMu.Lock()
-	defer customLevelsMu.Unlock()
-	customLevels[name] = level
+	customLevels.Set(name, level)
 	agentcore.RegisterValidGuardrailLevel(name)
 }
 
 // RegisteredLevel returns the Level value registered for name, if any.
 func RegisteredLevel(name string) (Level, bool) {
-	customLevelsMu.RLock()
-	defer customLevelsMu.RUnlock()
-	level, ok := customLevels[name]
-	return level, ok
+	return customLevels.Get(name)
 }
 
 // Config configures a guardrail instance.

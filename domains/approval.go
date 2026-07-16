@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 // ApprovalGate is a LifecycleHook that pauses Agent execution at critical
@@ -205,8 +205,7 @@ type ApprovalStore interface {
 // MemoryApprovalStore is an in-memory ApprovalStore for testing and
 // single-session use. Data is lost on process exit.
 type MemoryApprovalStore struct {
-	mu      sync.RWMutex
-	records []ApprovalRecord
+	records csync.Slice[ApprovalRecord]
 }
 
 // NewMemoryApprovalStore creates an empty MemoryApprovalStore.
@@ -216,18 +215,14 @@ func NewMemoryApprovalStore() *MemoryApprovalStore {
 
 // Save appends a record.
 func (s *MemoryApprovalStore) Save(_ context.Context, record ApprovalRecord) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.records = append(s.records, record)
+	s.records.Append(record)
 	return nil
 }
 
 // List returns all records for the given session, oldest first.
 func (s *MemoryApprovalStore) List(_ context.Context, sessionID string) ([]ApprovalRecord, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	var out []ApprovalRecord
-	for _, r := range s.records {
+	for _, r := range s.records.Copy() {
 		if r.SessionID == sessionID {
 			out = append(out, r)
 		}
@@ -237,10 +232,8 @@ func (s *MemoryApprovalStore) List(_ context.Context, sessionID string) ([]Appro
 
 // ListByCase returns all records for the given case ID, oldest first.
 func (s *MemoryApprovalStore) ListByCase(_ context.Context, caseID string) ([]ApprovalRecord, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	var out []ApprovalRecord
-	for _, r := range s.records {
+	for _, r := range s.records.Copy() {
 		if r.CaseID == caseID {
 			out = append(out, r)
 		}
