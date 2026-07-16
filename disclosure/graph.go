@@ -7,6 +7,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/retrieval/domain"
 )
 
 // =============================================================================
@@ -244,7 +245,21 @@ func linkPFETriples(ext *ExtractionResult) {
 // Pregel 图构建
 // =============================================================================
 
-// BuildDisclosureAnalysisGraph 构建技术交底书分析的 Pregel 图。
+// GraphOption 可选地配置 disclosure 图的依赖（如 retrieve_prior_art 的检索器）。
+// 采用 functional option 模式，使无检索器的调用点零破坏，有检索器的调用点注入。
+type GraphOption func(*graphConfig)
+
+type graphConfig struct {
+	retriever domain.DomainRetriever
+}
+
+// WithRetriever 注入专利领域检索器，启用 retrieve_prior_art 节点的真实检索。
+// 未注入时该节点标记 evidence_coverage=none，check_novelty 据此降级。
+func WithRetriever(r domain.DomainRetriever) GraphOption {
+	return func(c *graphConfig) { c.retriever = r }
+}
+
+// BuildDisclosureAnalysisGraph 构建技术交底书分析的 Pregel 图（无检索器，兼容旧调用）。
 // 返回编译后的图，入口节点为 "preprocess"。
 //
 // 图拓扑：
@@ -253,8 +268,17 @@ func linkPFETriples(ext *ExtractionResult) {
 //	extract_* → merge_extractions (单一合并节点)
 //	merge_extractions → check_consistency
 //	check_consistency → [retry: extract_*] or [continue: generate_keywords]
-//	generate_keywords → check_novelty → generate_report → review_gate → __end__
+//	generate_keywords → retrieve_prior_art → check_novelty → generate_report → review_gate → __end__
 func BuildDisclosureAnalysisGraph(provider agentcore.Provider) (*graph.CompiledPregelGraph, error) {
+	return BuildDisclosureAnalysisGraphWithOpts(provider)
+}
+
+// BuildDisclosureAnalysisGraphWithOpts 构建带可选依赖的 disclosure 图。
+func BuildDisclosureAnalysisGraphWithOpts(provider agentcore.Provider, opts ...GraphOption) (*graph.CompiledPregelGraph, error) {
+	cfg := &graphConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	pg := graph.NewPregelGraph()
 
 	// 注册节点
@@ -277,6 +301,9 @@ func BuildDisclosureAnalysisGraph(provider agentcore.Provider) (*graph.CompiledP
 		return nil, err
 	}
 	if err := pg.AddNode("generate_keywords", generateKeywordsNode()); err != nil {
+		return nil, err
+	}
+	if err := pg.AddNode("retrieve_prior_art", retrievePriorArtNode(cfg.retriever)); err != nil {
 		return nil, err
 	}
 	if err := pg.AddNode("check_novelty", noveltyNode(provider)); err != nil {
@@ -308,7 +335,8 @@ func BuildDisclosureAnalysisGraph(provider agentcore.Provider) (*graph.CompiledP
 	}
 
 	// 静态边：后半段线性流程
-	mustAddEdge(pg, "generate_keywords", "check_novelty")
+	mustAddEdge(pg, "generate_keywords", "retrieve_prior_art")
+	mustAddEdge(pg, "retrieve_prior_art", "check_novelty")
 	mustAddEdge(pg, "check_novelty", "generate_report")
 	mustAddEdge(pg, "generate_report", "review_gate")
 	mustAddEdge(pg, "review_gate", graph.PregelEnd)

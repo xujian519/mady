@@ -120,6 +120,41 @@ func buildNoveltyInput(state graph.PregelState) string {
 		}
 	}
 
+	// 注入 retrieve_prior_art 产出的现有技术证据，让 LLM 基于真实语料比对
+	// 而非凭参数化知识猜测（对齐 design-prior-art-retrieval-stage.md 第3.3节）。
+	if evidence := extractEvidenceForPrompt(state); evidence != "" {
+		fmt.Fprintf(&sb, "## 现有技术证据（来自知识库检索）\n\n%s\n\n", evidence)
+		sb.WriteString("**要求**：每个特征评估必须引用相关证据的 doc_id（填入 cited_evidence_ids），")
+		sb.WriteString("无证据支撑的判断标注为「疑似」。引用不存在的 doc_id 视为不可信。\n\n")
+	}
+
+	return sb.String()
+}
+
+// extractEvidenceForPrompt 格式化证据片段供 LLM prompt 使用，并标注覆盖率
+// 以便 LLM 在无证据时明确说明"无法基于外部语料判断"。
+func extractEvidenceForPrompt(state graph.PregelState) string {
+	coverage, _ := state[StateKeyEvidenceCoverage].(string)
+	if coverage == "none" {
+		return "（无可用现有技术证据——无法基于外部语料判断，请在结论中说明此限制）"
+	}
+	raw, ok := state[StateKeyEvidence]
+	if !ok {
+		return ""
+	}
+	chunks, ok := raw.([]EvidenceChunk)
+	if !ok || len(chunks) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	for i, c := range chunks {
+		fmt.Fprintf(&sb, "[%d] doc_id: %s\n", i+1, c.DocID)
+		if c.Title != "" {
+			fmt.Fprintf(&sb, "    标题: %s\n", c.Title)
+		}
+		fmt.Fprintf(&sb, "    原文: %s\n", c.Snippet)
+		fmt.Fprintf(&sb, "    相似度: %.2f\n\n", c.Score)
+	}
 	return sb.String()
 }
 
@@ -146,6 +181,11 @@ func noveltySchema() map[string]any {
 							"confidence":        map[string]any{"type": "string", "enum": []string{"high", "medium", "low"}},
 							"reasoning":         map[string]any{"type": "string"},
 							"similar_prior_art": map[string]any{"type": "string"},
+							"cited_evidence_ids": map[string]any{
+								"type":        "array",
+								"items":       map[string]any{"type": "string"},
+								"description": "引用的现有技术证据 doc_id 列表（来自 prompt 中的证据列表）。无证据时为空数组。",
+							},
 						},
 						"required": []string{"feature_id", "novelty_status", "confidence", "reasoning"},
 					},
@@ -175,15 +215,17 @@ type noveltyOutput struct {
 }
 
 type featureAssessment struct {
-	FeatureID       string `json:"feature_id"`
-	NoveltyStatus   string `json:"novelty_status"`
-	Confidence      string `json:"confidence"`
-	Reasoning       string `json:"reasoning"`
-	SimilarPriorArt string `json:"similar_prior_art,omitempty"`
+	FeatureID        string   `json:"feature_id"`
+	NoveltyStatus    string   `json:"novelty_status"`
+	Confidence       string   `json:"confidence"`
+	Reasoning        string   `json:"reasoning"`
+	SimilarPriorArt  string   `json:"similar_prior_art,omitempty"`
+	CitedEvidenceIDs []string `json:"cited_evidence_ids,omitempty"`
 }
 
-// parseNoveltyOutput 解析 LLM 的 JSON 输出为 NoveltyResult。
-func parseNoveltyOutput(output string, _ graph.PregelState) *NoveltyResult {
+// parseNoveltyOutput 解析 LLM 的 JSON 输出为 NoveltyResult，并从 state 读取
+// evidence_coverage 以反映判断是否基于真实语料比对。
+func parseNoveltyOutput(output string, state graph.PregelState) *NoveltyResult {
 	jsonStr := extractJSON(output)
 	if jsonStr == "" {
 		return &NoveltyResult{
@@ -204,6 +246,18 @@ func parseNoveltyOutput(output string, _ graph.PregelState) *NoveltyResult {
 
 	var b strings.Builder
 	b.WriteString("## 新颖性分析（LLM 评估）\n\n")
+
+	// 反映证据覆盖状态，让人工审阅者知道判断是否基于真实语料。
+	coverage, _ := state[StateKeyEvidenceCoverage].(string)
+	switch coverage {
+	case "none":
+		b.WriteString("⚠️ **未基于外部现有技术语料**：本次评估无可用证据，结论仅供参考，需人工核实。\n\n")
+	case "partial":
+		b.WriteString("📎 **部分基于外部语料**：证据覆盖不完整，部分判断可能缺乏比对依据。\n\n")
+	case "full":
+		b.WriteString("✅ **基于外部现有技术语料比对**\n\n")
+	}
+
 	for _, fa := range parsed.FeatureAssessments {
 		label := noveltyStatusLabels[fa.NoveltyStatus]
 		if label == "" {
@@ -213,6 +267,9 @@ func parseNoveltyOutput(output string, _ graph.PregelState) *NoveltyResult {
 		b.WriteString("  " + fa.Reasoning + "\n")
 		if fa.SimilarPriorArt != "" {
 			b.WriteString("  相似现有技术: " + fa.SimilarPriorArt + "\n")
+		}
+		if len(fa.CitedEvidenceIDs) > 0 {
+			fmt.Fprintf(&b, "  引用证据: %s\n", strings.Join(fa.CitedEvidenceIDs, ", "))
 		}
 		b.WriteString("\n")
 	}

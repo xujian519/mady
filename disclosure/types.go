@@ -155,18 +155,30 @@ type AnalysisReport struct {
 // =============================================================================
 
 const (
-	StateKeyInput           = "input"
-	StateKeyOutput          = "output"
-	StateKeyDoc             = "document"
-	StateKeyExtractProblem  = "extract_problem_output"  // 问题提取 Agent 的原始输出
-	StateKeyExtractFeatures = "extract_features_output" // 特征提取 Agent 的原始输出
-	StateKeyExtractEffects  = "extract_effects_output"  // 效果提取 Agent 的原始输出
-	StateKeyExtraction      = "extraction_result"       // 合并后的 ExtractionResult
-	StateKeyConsistency     = "consistency_result"
-	StateKeyRetryCount      = "retry_count"
-	StateKeyRetryFeedback   = "retry_feedback" // 一致性校验失败时传递给提取 Agent 的反馈
-	StateKeySearchKeywords  = "search_keywords"
-	StateKeyNovelty         = "novelty_result"
-	StateKeyReport          = "report"
-	StateKeyErrors          = "errors"
+	StateKeyInput            = "input"
+	StateKeyOutput           = "output"
+	StateKeyDoc              = "document"
+	StateKeyExtractProblem   = "extract_problem_output"  // 问题提取 Agent 的原始输出
+	StateKeyExtractFeatures  = "extract_features_output" // 特征提取 Agent 的原始输出
+	StateKeyExtractEffects   = "extract_effects_output"  // 效果提取 Agent 的原始输出
+	StateKeyExtraction       = "extraction_result"       // 合并后的 ExtractionResult
+	StateKeyConsistency      = "consistency_result"
+	StateKeyRetryCount       = "retry_count"
+	StateKeyRetryFeedback    = "retry_feedback" // 一致性校验失败时传递给提取 Agent 的反馈
+	StateKeySearchKeywords   = "search_keywords"
+	StateKeyNovelty          = "novelty_result"
+	StateKeyReport           = "report"
+	StateKeyErrors           = "errors"
+	StateKeyEvidence         = "evidence_chunks"   // retrieve_prior_art 产出的证据片段
+	StateKeyEvidenceCoverage = "evidence_coverage" // "full" | "partial" | "none"
 )
+
+// EvidenceChunk 是 retrieve_prior_art 节点产出的单条现有技术证据，
+// 供 check_novelty 注入 LLM prompt 作为比对依据（对齐 design-prior-art-
+// retrieval-stage.md）。每条携带可定位的原文片段 + 来源文档 ID + 相似度。
+type EvidenceChunk struct {
+	DocID   string  `json:"doc_id"`  // 来源文档标识（knowledge.db 的 document_id）
+	Title   string  `json:"title"`   // 文档/片段标题
+	Snippet string  `json:"snippet"` // 原文片段（截断）
+	Score   float64 `json:"score"`   // 相似度（0-1，归一化）
+}
