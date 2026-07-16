@@ -182,7 +182,7 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 	editor.SetMaxRows(cfg.EditorMaxRows)
 	editor.SetPrompt(cfg.EditorPrompt, strings.Repeat(" ", len(cfg.EditorPrompt)))
 	editor.SetFocusIndicator("")
-	editor.SetPlaceholder("Type a message...")
+	editor.SetPlaceholder("输入消息…（/ 查看命令）")
 	editor.SetPlaceholderFn(func(s string) string { return theme.CurrentPalette().Dim.Render(s) })
 
 	loader := component.NewLoader(func() {}, theme.CurrentPalette().Dim.Render("thinking..."))
@@ -318,6 +318,16 @@ func (a *ChatApp) SetFooter(f core.Component) {
 
 func (a *ChatApp) Footer() core.Component {
 	return a.layout.footer
+}
+
+// SetSidebar installs an optional left sidebar panel. When non-nil and the
+// terminal is ≥96 columns wide, the layout switches to sidebar + main.
+// Pass nil to remove the sidebar and revert to single-column mode.
+func (a *ChatApp) SetSidebar(c core.Component) {
+	a.layout.sidebar = c
+	if a.host != nil {
+		a.host.RequestRender()
+	}
 }
 
 func (a *ChatApp) Start() error {

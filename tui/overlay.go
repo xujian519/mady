@@ -94,6 +94,13 @@ type Overlay struct {
 	// DimBackground dims the underlying lines and draws a drop shadow around
 	// the overlay region (see dimBackgroundRows).
 	DimBackground bool
+
+	// Phase 4.2: stored render position for mouse coordinate translation.
+	// Set by composeOverlays during rendering; used by TranslateMouse.
+	renderedRow    int64
+	renderedCol    int64
+	renderedWidth  int64
+	renderedHeight int64
 }
 
 // NewCenteredOverlay is a convenience constructor for a centered panel
@@ -234,6 +241,8 @@ func composeOverlays(base []core.Row, overlays []*Overlay, cols, rows int64) []c
 		}
 
 		origin := resolveOverlayOrigin(ov, cols, rows, w, h)
+		ov.renderedRow = origin.row
+		ov.renderedCol = origin.col
 		base = spliceOverlayRows(base, content, origin.row, origin.col, cols)
 	}
 	return base
@@ -453,6 +462,23 @@ func clearWideBoundary(row *core.Row, colIdx int64, incoming int8, _ int64) {
 }
 
 type overlayOrigin struct{ row, col int64 }
+
+// TranslateMouse adjusts absolute screen mouse coordinates to the overlay's local
+// coordinate space. Returns (row - renderedRow, col - renderedCol). If the mouse
+// is outside the overlay region, ok is false.
+func (ov *Overlay) TranslateMouse(row, col int64) (localRow, localCol int64, ok bool) {
+	if ov == nil {
+		return 0, 0, false
+	}
+	localRow = row - ov.renderedRow
+	localCol = col - ov.renderedCol
+	if localRow < 0 || localCol < 0 ||
+		localRow >= ov.renderedHeight || localCol >= ov.renderedWidth {
+		return 0, 0, false
+	}
+	ok = true
+	return
+}
 
 func resolveOverlayOrigin(ov *Overlay, cols, rows, w, h int64) overlayOrigin {
 	var r, c int64

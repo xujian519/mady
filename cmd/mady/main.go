@@ -666,7 +666,6 @@ func runTui(ctx context.Context) {
 		providerName:      firstNonEmpty(os.Getenv("PROVIDER"), "deepseek"),
 		planModel:         agentconfig.DefaultPlanModel,
 		normalModel:       model,
-		currentThinking:   agentThinking(agentconfig.ThinkingFromEnv()),
 		useMultiDomain:    useMultiDomain,
 		useIntegratedMode: useIntegratedMode,
 		ruleExt:           ruleExt,
@@ -677,12 +676,23 @@ func runTui(ctx context.Context) {
 		sessionDir:        sessionDir,
 	}
 
+	// 初始化 SettingsStore（~/.mady/settings.json），优先于其他操作
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		store, storeErr := NewSettingsStore(filepath.Join(homeDir, ".mady", "settings.json"))
+		if storeErr == nil {
+			s.store = store
+		}
+	}
+	if s.store == nil {
+		s.store, _ = NewSettingsStore("")
+	}
+
 	s.currentAgent = agentcore.New(s.buildAgentConfig())
 	defer s.currentAgent.Close()
 
-	s.currentThemeName = "dark"
+	// 同步当前终端检测到的主题到 store（仅在首次启动时）
 	if name := theme.CurrentPalette().Semantic.Name; strings.Contains(strings.ToLower(name), "light") {
-		s.currentThemeName = "light"
+		s.store.Set(SettingKeyTheme, "light", SettingsScopeGlobal)
 	}
 
 	// Build the slash registry once; both handleSubmit and the autocomplete
@@ -737,7 +747,10 @@ func runTui(ctx context.Context) {
 		}
 	}
 
-	app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.planMode, useMultiDomain, s.currentThinking))
+	// Phase 4.4: install sidebar when the terminal is wide enough
+	app.SetSidebar(s.buildSidebar())
+
+	app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), useMultiDomain, s.thinkingConfig()))
 
 	modeInfo := "单 Agent 模式"
 	if useMultiDomain {

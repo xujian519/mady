@@ -121,6 +121,68 @@ func (t *TUI) RemoveOverlay(o *Overlay) bool {
 	return false
 }
 
+// ---------------------------------------------------------------------------
+// Focus cycle — Tab / Shift+Tab traversal across registered components.
+// ---------------------------------------------------------------------------
+
+// RegisterFocusCycle sets the ordered list of components that Tab traverses.
+// When an overlay opens, the cycle is saved and restored on close.
+func (t *TUI) RegisterFocusCycle(comps []core.Component) {
+	t.mu.Lock()
+	t.focusCycle = comps
+	t.mu.Unlock()
+}
+
+// FocusNext advances focus to the next component in the cycle (Tab).
+func (t *TUI) FocusNext() {
+	next := t.focusTarget(1)
+	if next != nil {
+		t.Focus(next)
+	}
+}
+
+// FocusPrevious moves focus to the previous component in the cycle (Shift+Tab).
+func (t *TUI) FocusPrevious() {
+	next := t.focusTarget(-1)
+	if next != nil {
+		t.Focus(next)
+	}
+}
+
+// focusTarget returns the next (+1) or previous (-1) component in the cycle.
+// Returns nil when the cycle is empty. Lock is held only while reading the cycle
+// and current focus; Focus() manages its own locking.
+func (t *TUI) focusTarget(dir int) core.Component {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.focusCycle) == 0 {
+		return nil
+	}
+	cur := t.focusedLocked()
+	for i, c := range t.focusCycle {
+		if c == cur {
+			idx := (i + dir) % len(t.focusCycle)
+			if idx < 0 {
+				idx += len(t.focusCycle)
+			}
+			return t.focusCycle[idx]
+		}
+	}
+	// Current not in cycle: return first (dir=1) or last (dir=-1)
+	if dir >= 0 {
+		return t.focusCycle[0]
+	}
+	return t.focusCycle[len(t.focusCycle)-1]
+}
+
+// focusedLocked returns the top of the focus stack. Caller must hold t.mu.
+func (t *TUI) focusedLocked() core.Component {
+	if len(t.focus) == 0 {
+		return nil
+	}
+	return t.focus[len(t.focus)-1]
+}
+
 // Overlays returns a snapshot of the current overlay stack.
 func (t *TUI) Overlays() []*Overlay {
 	t.mu.Lock()

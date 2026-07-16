@@ -222,6 +222,7 @@ func (a *Autocomplete) Refresh(value string, cursorPos int64) {
 			Value:       s.InsertText,
 			Label:       s.Label,
 			Description: s.Description,
+			Group:       s.GroupLabel,
 		}
 	}
 	a.list.SetItems(items)

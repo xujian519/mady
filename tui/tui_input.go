@@ -91,6 +91,21 @@ func (t *TUI) processMsg(msg core.Msg) {
 	}
 
 	if focused != nil {
+		// Phase 4.2: translate absolute mouse coordinates to overlay-local space
+		if mm, ok := msg.(core.MouseMsg); ok {
+			t.mu.Lock()
+			for _, ov := range t.overlays {
+				if ov != nil && ov.Content == focused {
+					if lr, lc, ok2 := ov.TranslateMouse(mm.Row, mm.Col); ok2 {
+						mm.Row = lr
+						mm.Col = lc
+						msg = mm
+					}
+					break
+				}
+			}
+			t.mu.Unlock()
+		}
 		if u, ok := focused.(core.Updatable); ok {
 			if cmd := u.Update(msg); cmd != nil {
 				go t.execCmd(cmd)

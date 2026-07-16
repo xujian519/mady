@@ -173,5 +173,23 @@ func applyColorKey(t *SemanticTheme, key, col string) {
 		t.SyntaxOperator = col
 	case "syntaxPunctuation":
 		t.SyntaxPunctuation = col
+
+	// Phase 1 新增 token：背景层次与证据/置信度
+	case "background":
+		t.Background = col
+	case "surface":
+		t.Surface = col
+	case "surfaceRaised":
+		t.SurfaceRaised = col
+	case "evidenceSupport":
+		t.EvidenceSupport = col
+	case "evidenceCounter":
+		t.EvidenceCounter = col
+	case "confidenceLow":
+		t.ConfidenceLow = col
+	case "confidenceMedium":
+		t.ConfidenceMedium = col
+	case "confidenceHigh":
+		t.ConfidenceHigh = col
 	}
 }

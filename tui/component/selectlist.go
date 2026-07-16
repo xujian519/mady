@@ -25,6 +25,10 @@ type SelectItem struct {
 	Value       string
 	Label       string
 	Description string
+	// Group, when non-empty, inserts a category header before this item in the
+	// rendered list. Only the first item of each group needs Group set; the
+	// renderer tracks the last-seen group to avoid duplicate headers.
+	Group string
 }
 
 // SelectListTheme overrides styling.
@@ -35,6 +39,9 @@ type SelectListTheme struct {
 	ScrollInfoFn     func(string) string
 	NoMatchFn        func(string) string
 	MatchHighlightFn func(string) string // highlights matched runes when filtering
+	// GroupHeaderFn styles a non-selectable category header row.
+	// When nil, group headers are rendered with Dim style.
+	GroupHeaderFn func(string) string
 }
 
 // SelectList is a Focusable component.
@@ -187,8 +194,18 @@ func (s *SelectList) Render(width int64) []string {
 		end = int64(len(items))
 	}
 
+	lastGroup := ""
 	for i := scroll; i < end; i++ {
 		fi := items[i]
+		// Insert group header when entering a new group
+		if fi.item.Group != "" && fi.item.Group != lastGroup {
+			lastGroup = fi.item.Group
+			ghFn := sltheme.GroupHeaderFn
+			if ghFn == nil {
+				ghFn = theme.CurrentPalette().Dim.Render
+			}
+			out = append(out, core.PadToWidth(ghFn("▎ "+fi.item.Group), width))
+		}
 		prefix := "  "
 		labelFn := func(x string) string { return x }
 		if i == cursor {

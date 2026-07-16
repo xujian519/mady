@@ -145,10 +145,12 @@ type TUI struct {
 	options TUIOptions
 	km      *terminal.KeybindingsManager
 
-	mu       sync.Mutex
-	children []core.Component
-	overlays []*Overlay
-	focus    []core.Component // focus stack; top is the active target
+	mu         sync.Mutex
+	children   []core.Component
+	overlays   []*Overlay
+	focus      []core.Component // focus stack; top is the active target
+	focusCycle []core.Component // ordered list for Tab/Shift+Tab traversal
+	savedCycle []core.Component // saved cycle while an overlay is open
 
 	renderRequested int64
 	prevFrame       []core.Row

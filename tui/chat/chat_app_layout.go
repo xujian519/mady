@@ -47,6 +47,9 @@ func (f *editorFrame) Render(width int64) []string {
 
 func (f *editorFrame) Invalidate() {}
 
+// sidebarWidth is the fixed column count for the sidebar when width >= 96.
+const sidebarWidth = 24
+
 type chatLayout struct {
 	host         layoutHost
 	app          *ChatApp
@@ -57,6 +60,7 @@ type chatLayout struct {
 	statusBar    *component.StatusBar
 	footer       core.Component
 	ac           *component.Autocomplete
+	sidebar      core.Component // Phase 4.4: optional sidebar panel
 	lastRows     int64
 	headerHeight int
 	// editorTop is the absolute screen row of the editor's top border, as
@@ -70,30 +74,11 @@ type textSelectionComponent interface {
 	ClearSelection()
 }
 
-func (l *chatLayout) Render(width int64) []string {
-	var rows int64
-	if l.host != nil {
-		_, rows = l.host.TerminalSize()
-	}
-	if rows <= 0 {
-		rows = l.lastRows
-	}
-	if rows <= 0 {
-		rows = 24
-	}
-	l.lastRows = rows
-
-	// Use a fixed terminal-size override for this render so Flex can compute
-	// the Fill allocation correctly even when the host reports a different size
-	// due to timing. The real terminal size is read from l.host in the first
-	// branch above; this wrapper just makes sure Flex sees a consistent height.
-	bounds := &fixedBounds{width: width, height: rows}
-
-	flex := layout.NewFlex(layout.DirectionVertical)
-	flex.Bounds = bounds
-
-	headerIndex := -1
-	var editorFrameIndex int
+// buildFlex populates a vertical Flex with the standard chat components.
+// Returns the indices for header and editor frame for ChildRect queries.
+func (l *chatLayout) buildFlex(flex *layout.Flex) (headerIndex, editorIndex int) {
+	headerIndex = -1
+	editorIndex = -1
 
 	if l.header != nil {
 		headerIndex = len(flex.Children)
@@ -111,7 +96,7 @@ func (l *chatLayout) Render(width int64) []string {
 		flex.AddChild(layout.Natural(l.loader))
 	}
 	editorFrame := &editorFrame{editor: l.editor}
-	editorFrameIndex = len(flex.Children)
+	editorIndex = len(flex.Children)
 	flex.AddChild(layout.Natural(editorFrame))
 	if l.footer != nil {
 		flex.AddChild(layout.Natural(l.footer))
@@ -119,14 +104,53 @@ func (l *chatLayout) Render(width int64) []string {
 	if l.statusBar != nil {
 		flex.AddChild(layout.Natural(l.statusBar))
 	}
+	return
+}
 
-	out := flex.Render(width)
-
-	if headerIndex >= 0 {
-		l.headerHeight = int(flex.ChildRect(headerIndex).Height)
+func (l *chatLayout) Render(width int64) []string {
+	var rows int64
+	if l.host != nil {
+		_, rows = l.host.TerminalSize()
 	}
-	if editorFrameIndex >= 0 {
-		l.editorTop = flex.ChildRect(editorFrameIndex).Row
+	if rows <= 0 {
+		rows = l.lastRows
+	}
+	if rows <= 0 {
+		rows = 24
+	}
+	l.lastRows = rows
+
+	bounds := &fixedBounds{width: width, height: rows}
+
+	// Phase 4.4: responsive sidebar — ≥96 columns shows sidebar + main, else single column
+	useSidebar := l.sidebar != nil && width >= 96
+	mainWidth := width
+	if useSidebar {
+		mainWidth = width - sidebarWidth
+	}
+
+	// Build and render the main flex once. ChildRect is populated by Render().
+	mainFlex := layout.NewFlex(layout.DirectionVertical)
+	mainFlex.Bounds = &fixedBounds{width: mainWidth, height: rows}
+	hIdx, eIdx := l.buildFlex(mainFlex)
+
+	var out []string
+	if useSidebar {
+		outer := layout.NewFlex(layout.DirectionHorizontal)
+		outer.Bounds = bounds
+		outer.AddChild(layout.Natural(l.sidebar))
+		outer.AddChild(layout.FillWeight(mainFlex, 1))
+		out = outer.Render(width)
+	} else {
+		out = mainFlex.Render(width)
+	}
+
+	// Extract layout metadata from the rendered flex.
+	if hIdx >= 0 {
+		l.headerHeight = int(mainFlex.ChildRect(hIdx).Height)
+	}
+	if eIdx >= 0 {
+		l.editorTop = mainFlex.ChildRect(eIdx).Row
 	}
 	return out
 }
@@ -232,22 +256,6 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 			if adjusted.Row >= 0 {
 				l.history.Update(adjusted)
 			}
-			// Also forward to the editor (row-adjusted for its own screen
-			// position, skipping its top border row) so click-drag text
-			// selection works inside the input box. Mouse mode itself stays
-			// globally enabled — the editor bounds-checks and ignores events
-			// outside its own rendered rows.
-			//
-			// Forwarded unconditionally (not gated on the adjusted row being
-			// in range): once a drag starts, the mouse can easily drift onto
-			// the editor's border row or outside it entirely before the
-			// button is released. If MouseRelease were dropped here because
-			// the row briefly fell out of range, the editor would be stuck
-			// with selDragging=true forever, and every later mouse move
-			// (terminals report motion regardless of button state) would
-			// keep extending a phantom selection. The editor's own
-			// hitTestLocked/selDragging checks already validate press/motion
-			// positions, so forwarding everything is safe.
 			if upd, ok := l.editor.(core.Updatable); ok {
 				editorAdjusted := m
 				editorAdjusted.Row -= l.editorTop + 1
@@ -260,7 +268,6 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 				case "v":
 					if isPrimaryShortcutMod(k.Mods) &&
 						k.Mods&terminal.ModAlt != 0 {
-						// Ctrl+Alt+V / Cmd+Alt+V → image paste
 						if l.app.cfg.OnImagePaste != nil {
 							l.app.cfg.OnImagePaste()
 						}
@@ -269,7 +276,6 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 				case "escape":
 					if l.ac != nil && l.ac.Active() {
 						l.ac.Hide()
-						// File browser: ESC navigates up one level.
 						value := l.app.editor.GetValue()
 						if (strings.HasPrefix(value, "@file:") || strings.HasPrefix(value, "@folder:")) &&
 							len(value) > len("@file:") {
@@ -286,18 +292,10 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 					l.history.ScrollBy(5)
 				case "c", "insert":
 					if isCopyShortcut(k) {
-						// Prefer copying an active selection over interrupting.
-						// This matters because many terminals don't report a
-						// distinguishable Cmd modifier (no Kitty keyboard protocol
-						// support) and send Cmd+C as the same byte sequence as
-						// Ctrl+C. Without this check, Cmd+C while the agent is
-						// running would interrupt it instead of copying the text
-						// the user just selected.
 						if hasSelection(l) {
 							doCopy(l)
 							return nil
 						}
-						// Ctrl+C while agent is running: interrupt
 						if k.Mods&terminal.ModCtrl != 0 && l.app.cfg.OnInterrupt != nil && l.app.isRunning() {
 							l.app.cfg.OnInterrupt()
 							return nil

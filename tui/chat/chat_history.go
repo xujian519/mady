@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/theme"
 )
@@ -52,6 +53,10 @@ type ChatMessage struct {
 	At        time.Time     // emission time (for display).
 	Duration  time.Duration // optional — displayed after Meta.
 	Collapsed bool          // when true, tool output shows summary; click to expand.
+
+	// DomainMsg holds a structured professional artifact (evidence/conclusion/approval).
+	// When non-nil, renderMessage routes to the corresponding card component.
+	DomainMsg *agentcore.DomainMessage
 
 	// Thinking blocks (structured content).
 	ThinkingSegments []ThinkingSegment

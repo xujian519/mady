@@ -34,6 +34,11 @@ type StatusBar struct {
 	// Context-window occupancy: used / total tokens. total==0 means "hide".
 	ctxUsed  int64
 	ctxTotal int64
+
+	// Phase 4: enhanced status fields
+	caseName     string // current case/thread name
+	pendingCount int    // pending review items, 0 = hide
+	persisted    bool   // session save state indicator
 }
 
 func NewStatusBar() *StatusBar {
@@ -74,6 +79,28 @@ func (s *StatusBar) SetContext(used, total int64) {
 	s.mu.Lock()
 	s.ctxUsed = used
 	s.ctxTotal = total
+	s.mu.Unlock()
+}
+
+// SetCaseInfo displays the current case/thread name on the status bar.
+func (s *StatusBar) SetCaseInfo(name string) {
+	s.mu.Lock()
+	s.caseName = name
+	s.mu.Unlock()
+}
+
+// SetPendingReview shows the count of items awaiting human review.
+// count <= 0 hides the indicator.
+func (s *StatusBar) SetPendingReview(count int) {
+	s.mu.Lock()
+	s.pendingCount = count
+	s.mu.Unlock()
+}
+
+// SetPersisted shows/hides a save-state indicator.
+func (s *StatusBar) SetPersisted(saved bool) {
+	s.mu.Lock()
+	s.persisted = saved
 	s.mu.Unlock()
 }
 
@@ -118,7 +145,18 @@ func (s *StatusBar) Render(width int64) []string {
 		left.WriteString(p.Dim.Render(theme.SymbolCheck + " " + s.agent))
 	}
 
-	// Context-window occupancy bar, prepended to the right cluster. A 10-cell
+	// Phase 4: case name, pending review count, save state
+	if s.caseName != "" {
+		left.WriteString(p.Dim.Render(" 📁 " + s.caseName))
+	}
+	if s.pendingCount > 0 {
+		left.WriteString(p.Accent.Render(fmt.Sprintf(" ⚖ %d待确认", s.pendingCount)))
+	}
+	if s.persisted {
+		left.WriteString(p.Success.Render(" 💾"))
+	}
+
+	// Context-window occupancy bar, prepended to the right cluster.
 	// inline bar colored by load (green < 70%, amber < 90%, red otherwise).
 	if s.ctxTotal > 0 && s.ctxUsed >= 0 {
 		right.WriteString(" " + renderContextBar(s.ctxUsed, s.ctxTotal, p))

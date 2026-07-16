@@ -235,10 +235,19 @@ func (h *ChatHistory) renderAll(width int64) []string {
 	var ranges []msgRange
 
 	if len(h.messages) == 0 {
-		// Empty history — show welcome
-		pal := h.theme.UserStyle
-		welcome := pal.Render("▌ ") + h.theme.SystemStyle.Render("Ready — type a message")
-		return []string{"", "", "", welcome, "", "", ""}
+		// 品牌启动屏：引导用户开始对话或使用命令
+		dim := h.theme.DimStyle
+		accent := h.theme.UserStyle
+		sys := h.theme.SystemStyle
+
+		return []string{
+			"",
+			accent.Render("  Mady") + dim.Render(" — 证据驱动的专利案件工作台"),
+			"",
+			sys.Render("  输入消息开始对话，输入 / 查看可用命令"),
+			dim.Render("  Ctrl+C 退出  ·  Ctrl+P 命令面板  ·  ? 帮助"),
+			"",
+		}
 	}
 
 	for i := 0; i < len(h.messages); i++ {
@@ -298,6 +307,12 @@ func (h *ChatHistory) renderAll(width int64) []string {
 					summary := fmt.Sprintf("[+] %d tools · %d msgs", toolCount, sysCount)
 					if sysCount == 0 {
 						summary = fmt.Sprintf("[+] %d tools", toolCount)
+					}
+					for j := i; j <= groupEnd; j++ {
+						if h.messages[j].Meta != "" && h.messages[j].Meta != "tool" {
+							summary = "[+] " + h.messages[j].Meta
+							break
+						}
 					}
 					out = append(out, bar+theme.DimStyle.Render(summary))
 					ranges = append(ranges, msgRange{
@@ -464,8 +479,37 @@ func trimBlankEdges(lines []string) []string {
 	return lines[start:end]
 }
 
+// renderDomainCard routes a DomainMessage to the appropriate professional card renderer.
+func (h *ChatHistory) renderDomainCard(m ChatMessage, theme ChatHistoryTheme, width int64) []string {
+	dm := m.DomainMsg
+	if dm == nil {
+		return nil
+	}
+	switch dm.Type {
+	case "evidence_card":
+		ecTheme := component.DefaultEvidenceCardTheme()
+		return component.RenderEvidenceCard(dm, m.Collapsed, ecTheme, width)
+	case "conclusion_card":
+		ccTheme := component.DefaultConclusionCardTheme()
+		return component.RenderConclusionCard(dm, ccTheme, width)
+	case "approval_prompt":
+		acTheme := component.DefaultApprovalCardTheme()
+		return component.RenderApprovalCard(dm, acTheme, width)
+	default:
+		// Fallback: render body as markdown
+		md := component.NewMarkdown(dm.Body)
+		md.SetTheme(theme.MarkdownTheme)
+		return md.Render(width)
+	}
+}
+
 func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width int64, mdCache *component.BlockCache) []string {
 	h.renderCount++
+	// Phase 5: route domain messages to professional card renderers
+	if m.DomainMsg != nil {
+		return h.renderDomainCard(m, theme, width)
+	}
+
 	switch m.Role {
 	case RoleUser:
 		bar := theme.UserStyle.Render("▌ ")

@@ -13,8 +13,29 @@ import (
 	"github.com/xujian519/mady/tui/core"
 )
 
+// newTestSession creates a tuiSession with an in-memory store for tests.
+func newTestSession(opts ...func(s *tuiSession)) *tuiSession {
+	s := &tuiSession{}
+	s.store, _ = NewSettingsStore("") // in-memory, no file
+	for _, o := range opts {
+		o(s)
+	}
+	return s
+}
+
+func withReviewMode(on bool) func(*tuiSession) {
+	return func(s *tuiSession) {
+		val := "off"
+		if on {
+			val = "on"
+		}
+		s.store.Set(SettingKeyReview, val, SettingsScopeGlobal)
+	}
+}
+
 func TestSlashRegistryLookupExactAndPrefix(t *testing.T) {
-	s := &tuiSession{useMultiDomain: true, reviewMode: true}
+	s := newTestSession(withReviewMode(true))
+	s.useMultiDomain = true
 	r := s.buildSlashRegistry()
 
 	cases := []struct {
@@ -50,7 +71,8 @@ func TestSlashRegistryAvailableGate(t *testing.T) {
 	// /approve and /reject are intentionally NOT gated by Available — they
 	// always match so the handler can emit a guiding "review mode off" hint
 	// instead of "未知命令" (the gate lives inside the handler).
-	multiOff := &tuiSession{useMultiDomain: false, reviewMode: false}
+	multiOff := newTestSession(withReviewMode(false))
+	multiOff.useMultiDomain = false
 	r := multiOff.buildSlashRegistry()
 
 	if cmd := r.Lookup("/mode", multiOff); cmd != nil {
@@ -61,7 +83,8 @@ func TestSlashRegistryAvailableGate(t *testing.T) {
 		t.Errorf("/approve should always be dispatchable (handler gates review mode), got nil")
 	}
 
-	multiOn := &tuiSession{useMultiDomain: true, reviewMode: true}
+	multiOn := newTestSession(withReviewMode(true))
+	multiOn.useMultiDomain = true
 	r2 := multiOn.buildSlashRegistry()
 	if cmd := r2.Lookup("/mode", multiOn); cmd == nil {
 		t.Errorf("/mode should be available in multi-domain mode")
@@ -76,7 +99,8 @@ func TestSlashRegistryAvailableGate(t *testing.T) {
 // SuggestText override the menu would offer "/skill", which the prefix
 // matcher rejects, leaving the user with an "未知命令" dead end.
 func TestSlashRegistrySkillSuggestionHasColon(t *testing.T) {
-	s := &tuiSession{useMultiDomain: false}
+	s := newTestSession()
+	s.useMultiDomain = false
 	r := s.buildSlashRegistry()
 	sugs := r.Suggestions(s)
 	for _, sg := range sugs {
@@ -95,7 +119,7 @@ func TestSlashRegistrySkillSuggestionHasColon(t *testing.T) {
 }
 
 func TestSlashRegistryUnknownCommand(t *testing.T) {
-	s := &tuiSession{}
+	s := newTestSession()
 	r := s.buildSlashRegistry()
 	if cmd := r.Lookup("/nonexistent", s); cmd != nil {
 		t.Errorf("unknown command should return nil, got %q", cmd.Name)
@@ -103,7 +127,8 @@ func TestSlashRegistryUnknownCommand(t *testing.T) {
 }
 
 func TestSlashRegistrySuggestionsReflectAvailability(t *testing.T) {
-	s := &tuiSession{useMultiDomain: false, reviewMode: false}
+	s := newTestSession(withReviewMode(false))
+	s.useMultiDomain = false
 	r := s.buildSlashRegistry()
 	sugs := r.Suggestions(s)
 

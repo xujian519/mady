@@ -137,6 +137,9 @@ type Suggestion struct {
 	InsertText string
 	// Description is an optional dim suffix shown next to the label.
 	Description string
+	// GroupLabel, when non-empty, groups this suggestion under a category header
+	// in the autocomplete list (e.g. "mode", "session", "case").
+	GroupLabel string
 	// Tag is an opaque value callers can inspect on apply.
 	Tag any
 }

@@ -17,6 +17,11 @@ type Palette struct {
 	SettingsKey, SettingsValueSelected                      Style
 	LoaderSpinner, ProgressPrompt, ProgressCompletion       Style
 	Thinking                                                Style
+
+	// Phase 1 新增：背景层次与证据/置信度可视化
+	Background, Surface, SurfaceRaised              Style
+	EvidenceSupport, EvidenceCounter                Style
+	ConfidenceLow, ConfidenceMedium, ConfidenceHigh Style
 }
 
 var atomicPalette atomic.Pointer[Palette]
@@ -173,6 +178,20 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 		p.Thinking = NewStyle().Fg(BrightBlack).Italic()
 	}
 
+	// Phase 1 新增：背景与表面层次
+	p.Background = fg(firstNonEmpty(sem.Background, "#07111F"))
+	p.Surface = fg(firstNonEmpty(sem.Surface, "#0C1B2A"))
+	p.SurfaceRaised = fg(firstNonEmpty(sem.SurfaceRaised, "#102638"))
+
+	// Phase 1 新增：证据方向着色
+	p.EvidenceSupport = fg(firstNonEmpty(sem.EvidenceSupport, "#5BC0EB"))
+	p.EvidenceCounter = fg(firstNonEmpty(sem.EvidenceCounter, "#CFA7FF"))
+
+	// Phase 1 新增：置信度梯度着色
+	p.ConfidenceLow = fg(firstNonEmpty(sem.ConfidenceLow, "#D7B65C"))
+	p.ConfidenceMedium = fg(firstNonEmpty(sem.ConfidenceMedium, "#38C8F4"))
+	p.ConfidenceHigh = fg(firstNonEmpty(sem.ConfidenceHigh, "#52D6A0"))
+
 	return p
 }
 
@@ -199,6 +218,14 @@ func SyncPaletteGlobals(sem *SemanticTheme, mode ColorMode) {
 
 func init() {
 	SyncPaletteGlobals(DefaultSemanticDark(), DetectColorMode())
+}
+
+// firstNonEmpty returns a if non-empty, otherwise b.
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // SemStyle builds a foreground Style from a hex / 256 index string.

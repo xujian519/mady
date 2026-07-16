@@ -26,16 +26,11 @@ func (s *tuiSession) openSettings() {
 	box.SetPadding(1, 1)
 	box.AddChild(settings)
 
-	// Track the overlay handle so OnSubmit can close it. The closure captures
-	// ov by reference; assignment below happens before any user interaction
-	// can fire the callbacks, so this ordering is safe.
+	// Track the overlay handle so OnSubmit can close it.
 	var ov chat.OverlayRef
-	// OnChange: apply the cycled value immediately so the user sees the effect
-	// without having to submit (matches the /theme /plan etc. live behavior).
-	// NOTE: SettingsList.submitOrCycle (Enter) fires BOTH OnChange and
-	// OnSubmit, so OnSubmit must NOT re-apply — doing so would double-trigger
-	// the plan/review toggles (toggle twice = no-op) and rebuild the agent
-	// twice. OnSubmit's only job is to close the panel.
+	// OnChange: apply immediately via store, which guarantees idempotent writes.
+	// SettingsList.submitOrCycle (Enter) fires both OnChange and OnSubmit;
+	// re-applying via the store is safe (same value = no-op).
 	settings.OnChange(func(e component.SettingEntry) { s.applySettingEntry(e) })
 	settings.OnSubmit(func(_ component.SettingEntry) {
 		if ov != nil {
@@ -49,23 +44,26 @@ func (s *tuiSession) openSettings() {
 func (s *tuiSession) buildSettingEntries() []component.SettingEntry {
 	// Theme entry reflects the current palette name.
 	themeCur := int64(0)
-	if s.currentThemeName == "light" {
+	switch s.themeName() {
+	case "light":
 		themeCur = 1
+	case "mady-dark":
+		themeCur = 2
 	}
 	// Plan mode: 0=off, 1=on.
 	var planCur int64
-	if s.planMode {
+	if s.isPlanMode() {
 		planCur = 1
 	}
 	// Review mode: 0=off, 1=on.
 	var reviewCur int64
-	if s.reviewMode {
+	if s.isReviewMode() {
 		reviewCur = 1
 	}
 	// Thinking: 0=default, 1=summarized, 2=omitted.
 	thinkingCur := int64(0)
-	if s.currentThinking != nil {
-		switch s.currentThinking.Display {
+	if s.thinkingConfig() != nil {
+		switch s.thinkingConfig().Display {
 		case agentcore.ThinkingDisplaySummarized:
 			thinkingCur = 1
 		case agentcore.ThinkingDisplayOmitted:
@@ -113,16 +111,74 @@ func (s *tuiSession) buildSettingEntries() []component.SettingEntry {
 // existing slash-command handlers, so the panel and the command line stay in
 // sync (single behavior, two entry points).
 func (s *tuiSession) applySettingEntry(e component.SettingEntry) {
+	val := e.Options[e.Current].Value
+	// 直接通过子命令 handler 应用设置，handler 内部负责写入 store 并重建 agent。
+	// 注意：不要在 handler 之前写 store，否则 handler 的幂等检查会误判"已在目标状态"而跳过重建。
 	switch e.Key {
 	case "theme":
-		val := e.Options[e.Current].Value
 		s.handleThemeCommand("/theme " + val)
 	case "plan":
-		s.handlePlanCommand()
+		s.handlePlanCommandEx(val) // "on" or "off" — idempotent
 	case "review":
-		s.handleReviewCommand()
+		s.handleReviewCommandEx(val) // "on" or "off" — idempotent
 	case "thinking":
-		val := e.Options[e.Current].Value
 		s.handleThinkingCommand("/thinking " + val)
 	}
+}
+
+// openCommandCenter builds a CommandCenter from the slash registry and opens
+// it as a focused, dimmed overlay. Use /cmd or Ctrl+P to invoke.
+func (s *tuiSession) openCommandCenter() {
+	items := s.buildCommandItems()
+	cc := component.NewCommandCenter(items)
+	cc.OnExecute(func(item component.CommandItem) {
+		s.app.PrintSystem("▸ " + item.Label)
+		s.handleSubmit(item.Label)
+	})
+	cc.OnClose(func() {
+		// Overlay close handled by the overlay system
+	})
+
+	box := component.NewBox()
+	box.SetBorder(component.BorderRounded)
+	box.SetTitle("命令中心 — 搜索 / 执行  ·  Esc 关闭")
+	box.SetPadding(1, 1)
+	box.AddChild(cc)
+
+	_ = s.app.OpenOverlay(box, chat.OverlayOpts{WidthPct: 70, HeightPct: 60, Dim: true})
+}
+
+// buildCommandItems converts slash registry commands to CommandItems.
+func (s *tuiSession) buildCommandItems() []component.CommandItem {
+	categoryNames := map[string]string{
+		"mode":     "⚙ 模式",
+		"session":  "📂 会话",
+		"case":     "📋 案件",
+		"settings": "🔧 设置",
+		"general":  "📌 通用",
+	}
+	var items []component.CommandItem
+	for _, cmd := range s.slashReg.cmds {
+		avail, reason := true, ""
+		if cmd.Available != nil {
+			avail, reason = cmd.Available(s)
+		}
+		cat := cmd.Category
+		if name, ok := categoryNames[cat]; ok {
+			cat = name
+		}
+		label := "/" + cmd.Name
+		if cmd.Usage != "" {
+			label = cmd.Usage
+		}
+		items = append(items, component.CommandItem{
+			Name:        cmd.Name,
+			Label:       label,
+			Category:    cat,
+			Description: cmd.Desc,
+			Available:   avail,
+			Reason:      reason,
+		})
+	}
+	return items
 }

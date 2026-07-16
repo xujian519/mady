@@ -50,6 +50,18 @@ type SemanticTheme struct {
 
 	LoaderSpinner string `json:"loaderSpinner"` // optional; default Accent
 	ProgressBar   string `json:"progressBar"`   // optional
+
+	// 背景与表面层次（Phase 1 mady-dark 品牌主题新增 token）
+	Background    string `json:"background"`
+	Surface       string `json:"surface"`
+	SurfaceRaised string `json:"surfaceRaised"`
+
+	// 证据与置信度可视化
+	EvidenceSupport  string `json:"evidenceSupport"`
+	EvidenceCounter  string `json:"evidenceCounter"`
+	ConfidenceLow    string `json:"confidenceLow"`
+	ConfidenceMedium string `json:"confidenceMedium"`
+	ConfidenceHigh   string `json:"confidenceHigh"`
 }
 
 // DefaultSemanticDark uses Claude Code's warm dark palette.
@@ -155,5 +167,76 @@ func DefaultSemanticLight() *SemanticTheme {
 
 		LoaderSpinner: "#0066cc",
 		ProgressBar:   "#1565c0",
+	}
+}
+
+// DefaultMadyDark is the Mady brand dark theme using cold blue tones that match
+// the Logo's deep-space blue + cyan light-arc palette. It conveys rationality and
+// restraint suitable for professional patent/law workflows.
+// The warm-amber DefaultSemanticDark remains available via /theme dark.
+func DefaultMadyDark() *SemanticTheme {
+	return &SemanticTheme{
+		Name: "mady-dark",
+
+		// 品牌冷色系：Logo 深空蓝 + 青蓝光弧
+		Accent:       "#38C8F4",
+		Border:       "#1D3B52",
+		BorderAccent: "#5DDCFF",
+		BorderMuted:  "#1D3B52",
+		Success:      "#52D6A0",
+		Error:        "#F17878",
+		Warning:      "#D7B65C",
+		Muted:        "#7892A5",
+		Dim:          "#4B6378",
+		Text:         "#DCEAF3",
+		System:       "#5BC0EB",
+		ThinkingText: "#7892A5",
+
+		UserMessage:   "#5DDCFF",
+		AssistantText: "#DCEAF3",
+
+		SelectedBg:    "#164C63",
+		UserMessageBg: "#102638",
+		ToolPendingBg: "#102638",
+		ToolSuccessBg: "#0F2A1E",
+		ToolErrorBg:   "#2C1A1A",
+
+		// Markdown 着色
+		MdHeading:         "#38C8F4",
+		MdLink:            "#5BC0EB",
+		MdLinkURL:         "#7892A5",
+		MdCode:            "#52D6A0",
+		MdCodeBlock:       "#52D6A0",
+		MdCodeBlockBorder: "#1D3B52",
+		MdQuote:           "#7892A5",
+		MdQuoteBorder:     "#38C8F4",
+		MdHr:              "#1D3B52",
+		MdListBullet:      "#38C8F4",
+
+		// 语法高亮
+		SyntaxComment:     "#7892A5",
+		SyntaxKeyword:     "#CFA7FF",
+		SyntaxFunction:    "#5DDCFF",
+		SyntaxVariable:    "#F17878",
+		SyntaxString:      "#52D6A0",
+		SyntaxNumber:      "#D7B65C",
+		SyntaxType:        "#5BC0EB",
+		SyntaxOperator:    "#DCEAF3",
+		SyntaxPunctuation: "#7892A5",
+
+		LoaderSpinner: "#38C8F4",
+		ProgressBar:   "#38C8F4",
+
+		// Phase 1 新增 token：背景层次
+		Background:    "#07111F",
+		Surface:       "#0C1B2A",
+		SurfaceRaised: "#102638",
+
+		// 证据与置信度可视化
+		EvidenceSupport:  "#5BC0EB",
+		EvidenceCounter:  "#CFA7FF",
+		ConfidenceLow:    "#D7B65C",
+		ConfidenceMedium: "#38C8F4",
+		ConfidenceHigh:   "#52D6A0",
 	}
 }

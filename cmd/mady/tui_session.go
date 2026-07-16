@@ -31,13 +31,11 @@ type tuiSession struct {
 	fc  *frameworkContext
 
 	// Provider/model config
-	provider        agentcore.Provider
-	model           string
-	providerName    string
-	planModel       string
-	normalModel     string
-	planMode        bool
-	currentThinking *agentcore.ThinkingConfig
+	provider     agentcore.Provider
+	model        string
+	providerName string
+	planModel    string
+	normalModel  string
 
 	// Mode flags
 	useMultiDomain    bool
@@ -68,18 +66,65 @@ type tuiSession struct {
 	currentFileIndex   *fileindex.FileIndex
 	currentFileWatcher *fileindex.FileWatcher
 
-	reviewMode bool
-
 	// Approval gate state — persists human decisions (adopted/modified/rejected)
 	// to accumulate real AdoptionRate data for evaluation (see P3 roadmap).
 	approvalGate *domains.ApprovalGate
 
-	app              *chat.ChatApp
-	currentThemeName string
+	app *chat.ChatApp
 
 	// slashReg is the single source of truth for slash commands: both
 	// handleSubmit (dispatch) and the autocomplete menu read from it.
 	slashReg *Registry
+
+	// store is the single source of truth for settings (theme, plan, review, thinking).
+	// All slash-command handlers read/write through it; the convenience fields below
+	// are synced from the store at startup.
+	store *SettingsStore
+}
+
+// isPlanMode reports whether plan mode is enabled.
+func (s *tuiSession) isPlanMode() bool { return s.store.Get(SettingKeyPlan) == "on" }
+
+// isReviewMode reports whether the review gate is enabled.
+func (s *tuiSession) isReviewMode() bool { return s.store.Get(SettingKeyReview) == "on" }
+
+// themeName returns the current theme name from the store.
+func (s *tuiSession) themeName() string { return s.store.Get(SettingKeyTheme) }
+
+// thinkingDisplay returns the thinking display mode string.
+func (s *tuiSession) thinkingDisplay() string { return s.store.Get(SettingKeyThinking) }
+
+// thinkingConfig builds a ThinkingConfig from the current thinking setting.
+// applyThinkingConfig converts a ThinkingConfig to a store value and persists it.
+func (s *tuiSession) applyThinkingConfig(cfg *agentcore.ThinkingConfig) {
+	val := "default"
+	if cfg != nil {
+		switch cfg.Display {
+		case agentcore.ThinkingDisplaySummarized:
+			val = "summarized"
+		case agentcore.ThinkingDisplayOmitted:
+			val = "omitted"
+		}
+	}
+	s.store.Set(SettingKeyThinking, val, SettingsScopeGlobal)
+}
+
+// syncFromStore reads the store and applies settings to the runtime environment.
+// Called once at startup.
+func (s *tuiSession) syncFromStore() {
+	// Theme, plan, review, thinking are read on-demand via store.Get().
+	// This method exists as a hook for future store→runtime sync needs.
+}
+
+func (s *tuiSession) thinkingConfig() *agentcore.ThinkingConfig {
+	switch s.store.Get(SettingKeyThinking) {
+	case "summarized":
+		return &agentcore.ThinkingConfig{Display: agentcore.ThinkingDisplaySummarized}
+	case "omitted":
+		return &agentcore.ThinkingConfig{Display: agentcore.ThinkingDisplayOmitted}
+	default:
+		return nil
+	}
 }
 
 // buildAgentConfig constructs the agentcore.Config based on current session state.
@@ -93,10 +138,10 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 			Name:      "mady",
 			Model:     s.model,
 			Provider:  s.provider,
-			Thinking:  cloneThinkingConfig(s.currentThinking),
+			Thinking:  cloneThinkingConfig(s.thinkingConfig()),
 			Streaming: true,
 		}
-		if s.planMode {
+		if s.isPlanMode() {
 			base.Model = s.planModel
 			if base.Thinking == nil {
 				base.Thinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
@@ -119,8 +164,8 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 
 	case s.useMultiDomain:
 		cfg := buildRouterConfig(s.fc.BaseConfig, s.fc.Manifests)
-		cfg.Thinking = cloneThinkingConfig(s.currentThinking)
-		if s.planMode {
+		cfg.Thinking = cloneThinkingConfig(s.thinkingConfig())
+		if s.isPlanMode() {
 			cfg.Model = s.planModel
 			if cfg.Thinking == nil {
 				cfg.Thinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
@@ -142,8 +187,8 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 
 	default:
 		effectiveModel := s.model
-		effectiveThinking := cloneThinkingConfig(s.currentThinking)
-		if s.planMode {
+		effectiveThinking := cloneThinkingConfig(s.thinkingConfig())
+		if s.isPlanMode() {
 			effectiveModel = s.planModel
 			if effectiveThinking == nil {
 				effectiveThinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
@@ -218,7 +263,7 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 		// Confirmation gate: when review mode is on, Stage ② interrupts for
 		// human rule confirmation. The workflow checkpoint store (lazily
 		// initialized) persists the interruption point for resumption.
-		if s.reviewMode {
+		if s.isReviewMode() {
 			runner.SetRequireRuleConfirmation(true)
 			if s.workflowStore == nil {
 				s.workflowStore = reasoning.NewMemoryCheckpointStore()
@@ -232,7 +277,7 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 		)
 	}
 
-	if s.reviewMode {
+	if s.isReviewMode() {
 		var gate *domains.ApprovalGate
 		// Wire up SQLite persistence so human decisions (adopted/modified/rejected)
 		// are recorded for AdoptionRate evaluation (roadmap P3). Falls back to
@@ -359,51 +404,66 @@ func (s *tuiSession) handleSubmit(input string) {
 	}
 
 	if strings.HasPrefix(trimmed, "/") {
-		s.app.PrintSystem(fmt.Sprintf("未知命令: %s（输入 / 查看可用命令）", trimmed))
+		suggestions := s.slashReg.Suggest(trimmed, s)
+		if len(suggestions) > 0 {
+			quoted := make([]string, len(suggestions))
+			for i, n := range suggestions {
+				quoted[i] = "/" + n
+			}
+			s.app.PrintSystem(fmt.Sprintf("未知命令: %s — 你是不是想输入 %s？",
+				trimmed, strings.Join(quoted, " 或 ")))
+		} else {
+			s.app.PrintSystem(fmt.Sprintf("未知命令: %s（输入 / 查看可用命令）", trimmed))
+		}
 		return
 	}
 	s.submitInput(trimmed)
 }
 
 func (s *tuiSession) handleThinkingCommand(trimmed string) {
-	next, changed, err := parseThinkingCommand(trimmed, s.currentThinking)
+	next, changed, err := parseThinkingCommand(trimmed, s.thinkingConfig())
 	if err != nil {
 		s.app.PrintError(err)
 		return
 	}
 	if !changed {
-		s.app.PrintSystem("推理配置: " + formatThinkingConfig(s.currentThinking))
+		s.app.PrintSystem("推理配置: " + formatThinkingConfig(s.thinkingConfig()))
 		return
 	}
-	s.currentThinking = next
+	s.applyThinkingConfig(next)
 	s.runMu.Lock()
 	prev := s.currentAgent
 	s.currentAgent = agentcore.New(s.buildAgentConfig())
 	prev.Close()
 	agentadapter.BindAgent(s.app, s.currentAgent)
-	s.app.PrintSystem("推理配置已更新: " + formatThinkingConfig(s.currentThinking))
+	s.app.PrintSystem("推理配置已更新: " + formatThinkingConfig(s.thinkingConfig()))
 	mdl := s.normalModel
-	if s.planMode {
+	if s.isPlanMode() {
 		mdl = s.planModel
 	}
-	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.planMode, s.useMultiDomain, s.currentThinking))
+	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
 	s.runMu.Unlock()
 }
 
 func (s *tuiSession) handleThemeCommand(trimmed string) {
 	switch trimmed {
 	case "/theme":
-		s.app.PrintSystem("当前主题: " + s.currentThemeName)
+		s.app.PrintSystem("当前主题: " + s.themeName())
 	case "/theme dark":
 		theme.SetSemanticTheme(theme.DefaultSemanticDark(), theme.DetectColorMode())
 		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-		s.currentThemeName = "dark"
+		s.store.Set(SettingKeyTheme, "dark", SettingsScopeGlobal)
 		s.app.PrintSystem("已切换深色主题")
 	case "/theme light":
 		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
 		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-		s.currentThemeName = "light"
+		s.store.Set(SettingKeyTheme, "light", SettingsScopeGlobal)
 		s.app.PrintSystem("已切换浅色主题")
+	case "/theme mady-dark":
+		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
+		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
+		s.store.Set(SettingKeyTheme, "mady-dark", SettingsScopeGlobal)
+		s.app.PrintSystem("已切换 Mady 品牌深色主题")
 	}
 }
 
@@ -447,7 +507,7 @@ func (s *tuiSession) handleCaseCommand(trimmed string) {
 		s.closeFileResources()
 		s.currentProjectMeta = nil
 		s.rebuildAgent()
-		s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.planMode, s.useMultiDomain, s.currentThinking))
+		s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
 		s.app.PrintSystem(fmt.Sprintf("已清除案件上下文（%s）", oldName))
 
 	default:
@@ -495,7 +555,7 @@ func (s *tuiSession) switchToProject(matched *domains.ProjectRecord) {
 		s.currentProjectMeta = meta
 	}
 	s.rebuildAgent()
-	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.planMode, s.useMultiDomain, s.currentThinking))
+	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
 	s.app.PrintSystem(fmt.Sprintf("已切换到案件: %s（%s）\n工作目录: %s\n⚖ 已启用五阶段法律推理工具（run_five_step_workflow）", matched.Alias, matched.ProjectID, matched.RootPath))
 }
 
@@ -630,16 +690,40 @@ func (s *tuiSession) handleExportCommand(trimmed string) {
 	s.app.PrintSystem(fmt.Sprintf("📄 已导出到 %s（%d 条消息）", exportPath, len(msgs)))
 }
 
-func (s *tuiSession) handleReviewCommand() {
-	s.reviewMode = !s.reviewMode
+// handleReviewCommandEx implements /review [on|off|status] with idempotent semantics.
+// Bare /review (no argument) displays current status.
+func (s *tuiSession) handleReviewCommandEx(sub string) {
+	switch sub {
+	case "on":
+		if s.isReviewMode() {
+			s.app.PrintSystem("⚖ 审核关卡已在启用状态")
+			return
+		}
+		s.store.Set(SettingKeyReview, "on", SettingsScopeGlobal)
+	case "off":
+		if !s.isReviewMode() {
+			s.app.PrintSystem("⚖ 审核关卡已在关闭状态")
+			return
+		}
+		s.store.Set(SettingKeyReview, "off", SettingsScopeGlobal)
+	default:
+		// 查看状态：/review 或 /review status
+		status := "关闭"
+		if s.isReviewMode() {
+			status = "启用"
+		}
+		s.app.PrintSystem(fmt.Sprintf("⚖ 审核关卡: %s  |  使用 /review on 或 /review off 切换", status))
+		return
+	}
+
 	s.runMu.Lock()
 	prev := s.currentAgent
 	s.currentAgent = agentcore.New(s.buildAgentConfig())
 	prev.Close()
 	s.runMu.Unlock()
 	agentadapter.BindAgent(s.app, s.currentAgent)
-	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.planMode, s.useMultiDomain, s.currentThinking))
-	if s.reviewMode {
+	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	if s.isReviewMode() {
 		s.app.PrintSystem("⚖ 审核关卡已启用 — 专利结论/法律意见/风险评估将插入人工审核提示")
 		if s.currentProject != nil {
 			ct := s.currentProject.CaseType
@@ -656,8 +740,34 @@ func (s *tuiSession) handleReviewCommand() {
 	}
 }
 
-func (s *tuiSession) handlePlanCommand() {
-	s.planMode = !s.planMode
+// handlePlanCommandEx implements /plan [on|off|status] with idempotent semantics.
+// Bare /plan (no argument) displays current status.
+func (s *tuiSession) handlePlanCommandEx(sub string) {
+	switch sub {
+	case "on":
+		if s.isPlanMode() {
+			s.app.PrintSystem(fmt.Sprintf("🧠 计划模式已在启用状态 · 模型: %s", s.planModel))
+			return
+		}
+		s.store.Set(SettingKeyPlan, "on", SettingsScopeGlobal)
+	case "off":
+		if !s.isPlanMode() {
+			s.app.PrintSystem(fmt.Sprintf("⚡ 已在普通模式 · 模型: %s", s.normalModel))
+			return
+		}
+		s.store.Set(SettingKeyPlan, "off", SettingsScopeGlobal)
+	default:
+		// 查看状态：/plan 或 /plan status
+		status := "关闭（普通模式）"
+		mdl := s.normalModel
+		if s.isPlanMode() {
+			status = "启用"
+			mdl = s.planModel
+		}
+		s.app.PrintSystem(fmt.Sprintf("🧠 计划模式: %s · 模型: %s  |  使用 /plan on 或 /plan off 切换", status, mdl))
+		return
+	}
+
 	s.runMu.Lock()
 	prev := s.currentAgent
 	s.currentAgent = agentcore.New(s.buildAgentConfig())
@@ -665,14 +775,103 @@ func (s *tuiSession) handlePlanCommand() {
 	s.runMu.Unlock()
 	agentadapter.BindAgent(s.app, s.currentAgent)
 	mdl := s.normalModel
-	if s.planMode {
+	if s.isPlanMode() {
 		mdl = s.planModel
 	}
-	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.planMode, s.useMultiDomain, s.currentThinking))
-	if s.planMode {
+	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	if s.isPlanMode() {
 		s.app.PrintSystem("🧠 计划模式已启用 · 模型: " + s.planModel + " · 推理强度: max")
 	} else {
 		s.app.PrintSystem("⚡ 已切回普通模式 · 模型: " + s.normalModel)
+	}
+}
+
+// buildSidebar creates a simple sidebar panel showing session and case context.
+// Called once at startup when the terminal is >= 96 columns wide.
+func (s *tuiSession) buildSidebar() core.Component {
+	return &sidebarPanel{session: s}
+}
+
+// sidebarPanel is a simple sidebar component for the Mady TUI.
+type sidebarPanel struct {
+	session *tuiSession
+}
+
+func (p *sidebarPanel) Render(width int64) []string {
+	s := p.session
+	pale := theme.CurrentPalette()
+	dim := pale.Dim.Render
+	accent := pale.Accent.Render
+	if width < 1 {
+		width = 1
+	}
+
+	var lines []string
+	// Title
+	lines = append(lines, accent("▎ Mady"))
+	lines = append(lines, dim(strings.Repeat("─", int(width))))
+
+	// Session info
+	lines = append(lines, dim("📂 会话"))
+	lines = append(lines, "  "+core.TruncateToWidth(s.currentThreadID, width-4, "…"))
+
+	// Case context
+	if s.currentProject != nil {
+		lines = append(lines, "")
+		lines = append(lines, dim("📋 案件"))
+		lines = append(lines, "  "+core.TruncateToWidth(s.currentProject.Alias, width-4, "…"))
+	}
+
+	// Status
+	lines = append(lines, "")
+	lines = append(lines, dim("⚙ 模式"))
+	modeStatus := "普通"
+	if s.isPlanMode() {
+		modeStatus = "计划"
+	}
+	if s.isReviewMode() {
+		modeStatus += " · 审核"
+	}
+	lines = append(lines, "  "+modeStatus)
+
+	// Quick actions
+	lines = append(lines, "")
+	lines = append(lines, dim("⌨ 快捷操作"))
+	lines = append(lines, "  /cmd  命令中心")
+	lines = append(lines, "  /plan 计划模式")
+	lines = append(lines, "  ?     快捷键")
+
+	// Fill remaining space
+	for int64(len(lines)) < 20 {
+		lines = append(lines, "")
+	}
+
+	return lines
+}
+
+func (p *sidebarPanel) Invalidate() {}
+
+// handleSettingsReset restores all settings to factory defaults and rebuilds the agent.
+func (s *tuiSession) handleSettingsReset() {
+	if err := s.store.Reset(); err != nil {
+		s.app.PrintError(fmt.Errorf("settings reset failed: %w", err))
+		return
+	}
+	// Rebuild agent with defaults
+	s.runMu.Lock()
+	prev := s.currentAgent
+	s.currentAgent = agentcore.New(s.buildAgentConfig())
+	prev.Close()
+	s.runMu.Unlock()
+	agentadapter.BindAgent(s.app, s.currentAgent)
+	mdl := s.normalModel
+	if s.isPlanMode() {
+		mdl = s.planModel
+	}
+	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	s.app.PrintSystem("✅ 设置已恢复默认值")
+	for k, v := range s.store.Export() {
+		s.app.PrintSystem(fmt.Sprintf("  %s = %s", k, v))
 	}
 }
 

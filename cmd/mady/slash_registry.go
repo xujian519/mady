@@ -23,9 +23,11 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/fuzzy"
 	"github.com/xujian519/mady/tui/core"
 )
 
@@ -42,16 +44,40 @@ type slashHandler func(ctx slashCtx)
 
 // SlashCommand describes one registered slash command.
 type SlashCommand struct {
-	Name      string
-	Aliases   []string
-	Desc      string
-	Match     func(input string) bool
-	Available func(s *tuiSession) bool
+	Name    string
+	Aliases []string
+	Desc    string
+	// Category groups commands visually: "general"|"mode"|"session"|"case"|"settings".
+	Category string
+	// Usage is a one-line syntax hint, e.g. "/plan [on|off|status]".
+	Usage string
+	// Examples shows typical invocations (optional).
+	Examples []string
+	// Risk signals destructive potential: "none"|"destructive"|"data_loss".
+	Risk  string
+	Match func(input string) bool
+	// Available returns (ok, reason). When ok is false, reason explains why
+	// the command is unavailable (shown in autocomplete and /help).
+	Available func(s *tuiSession) (bool, string)
 	Handler   slashHandler
 	// SuggestText overrides the autocomplete insert text. When empty,
 	// Suggestions uses "/" + Name. Set this for commands whose trigger token
 	// is not exactly "/" + Name (e.g. "/skill:" whose Name is "skill").
 	SuggestText string
+}
+
+// availableBool wraps a legacy func(s *tuiSession) bool into the new
+// (bool, string) signature, returning "" as the reason when unavailable.
+func availableBool(fn func(s *tuiSession) bool) func(s *tuiSession) (bool, string) {
+	if fn == nil {
+		return nil
+	}
+	return func(s *tuiSession) (bool, string) {
+		if fn(s) {
+			return true, ""
+		}
+		return false, ""
+	}
 }
 
 // Registry is an ordered collection of SlashCommands.
@@ -97,8 +123,10 @@ func prefixMatch(name string) func(string) bool {
 func (r *Registry) Lookup(input string, s *tuiSession) *SlashCommand {
 	for i := range r.cmds {
 		c := &r.cmds[i]
-		if c.Available != nil && !c.Available(s) {
-			continue
+		if c.Available != nil {
+			if ok, _ := c.Available(s); !ok {
+				continue
+			}
 		}
 		if c.Match(input) {
 			return c
@@ -113,8 +141,10 @@ func (r *Registry) Lookup(input string, s *tuiSession) *SlashCommand {
 func (r *Registry) Suggestions(s *tuiSession) []core.Suggestion {
 	var out []core.Suggestion
 	for _, c := range r.cmds {
-		if c.Available != nil && !c.Available(s) {
-			continue
+		if c.Available != nil {
+			if ok, _ := c.Available(s); !ok {
+				continue
+			}
 		}
 		// SuggestText lets a command advertise a trigger that is not exactly
 		// "/" + Name — e.g. "/skill:" whose Name is "skill". Without this the
@@ -127,35 +157,96 @@ func (r *Registry) Suggestions(s *tuiSession) []core.Suggestion {
 			InsertText:  text,
 			Label:       text,
 			Description: c.Desc,
+			GroupLabel:  c.Category,
 		})
 	}
 	return out
 }
 
-// buildSlashRegistry registers every TUI slash command. Order matters: more
+// Suggest returns up to 3 registered command names whose Levenshtein distance
+// from the extracted token is ≤ 3, ranked closest first. Only commands that
+// are currently available are considered. Used by handleSubmit to produce
+// "你是不是想输入 /xxx？" hints for unknown commands.
+func (r *Registry) Suggest(input string, s *tuiSession) []string {
+	// Extract the command token: "/themes" → "themes", "/theme dark" → "theme"
+	tok := strings.TrimPrefix(input, "/")
+	if sp := strings.IndexByte(tok, ' '); sp >= 0 {
+		tok = tok[:sp]
+	}
+	if tok == "" {
+		return nil
+	}
+
+	type scored struct {
+		name string
+		dist int64
+	}
+	var candidates []scored
+	for _, c := range r.cmds {
+		if c.Available != nil {
+			if ok, _ := c.Available(s); !ok {
+				continue
+			}
+		}
+		d := fuzzy.LevenshteinDistance(tok, c.Name)
+		if d <= 3 {
+			candidates = append(candidates, scored{c.Name, d})
+		}
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].dist < candidates[j].dist })
+
+	var out []string
+	for i, c := range candidates {
+		if i >= 3 {
+			break
+		}
+		out = append(out, c.name)
+	}
+	return out
+}
+
+// parseSlashSubcommand extracts the first argument after the command name.
+// Example: parseSlashSubcommand("/plan on", "plan") → "on"
+// Example: parseSlashSubcommand("/plan", "plan") → ""
+func parseSlashSubcommand(input, cmdName string) string {
+	prefix := "/" + cmdName
+	if !strings.HasPrefix(input, prefix) {
+		return ""
+	}
+	rest := strings.TrimSpace(strings.TrimPrefix(input, prefix))
+	if sp := strings.IndexByte(rest, ' '); sp >= 0 {
+		return rest[:sp]
+	}
+	return rest
+}
+
+// buildSlashRegistry registers every// buildSlashRegistry registers every TUI slash command. Order matters: more
 // specific prefix commands (thinking, theme, case, skill:) must be registered
 // before the generic fallback so Lookup short-circuits correctly — mirroring
 // the original two-branch dispatch.
 func (s *tuiSession) buildSlashRegistry() *Registry {
 	r := NewRegistry()
 
-	multiDomain := func(s *tuiSession) bool { return s.useMultiDomain }
+	multiDomain := availableBool(func(s *tuiSession) bool { return s.useMultiDomain })
 
 	r.Register(SlashCommand{
-		Name:    "thinking",
-		Desc:    "查看或修改推理模式",
-		Match:   prefixMatch("thinking"),
-		Handler: func(ctx slashCtx) { s.handleThinkingCommand(ctx.input) },
+		Name:     "thinking",
+		Category: "mode",
+		Desc:     "查看或修改推理模式",
+		Match:    prefixMatch("thinking"),
+		Handler:  func(ctx slashCtx) { s.handleThinkingCommand(ctx.input) },
 	})
 	r.Register(SlashCommand{
-		Name:    "theme",
-		Desc:    "切换主题",
-		Match:   prefixMatch("theme"),
-		Handler: func(ctx slashCtx) { s.handleThemeCommand(ctx.input) },
+		Name:     "theme",
+		Category: "settings",
+		Desc:     "切换主题",
+		Match:    prefixMatch("theme"),
+		Handler:  func(ctx slashCtx) { s.handleThemeCommand(ctx.input) },
 	})
 	r.Register(SlashCommand{
-		Name: "case",
-		Desc: "查看或切换案件",
+		Name:     "case",
+		Category: "case",
+		Desc:     "查看或切换案件",
 		Match: func(input string) bool {
 			return input == "/case" || strings.HasPrefix(input, "/case ")
 		},
@@ -163,6 +254,7 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	})
 	r.Register(SlashCommand{
 		Name:        "skill",
+		Category:    "general",
 		Desc:        "显式调用技能",
 		Match:       prefixMatch("skill:"),
 		SuggestText: "/skill:",
@@ -173,6 +265,7 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 
 	r.Register(SlashCommand{
 		Name:      "mode",
+		Category:  "general",
 		Desc:      "显示当前 Agent 模式",
 		Match:     exactMatch("mode"),
 		Available: multiDomain,
@@ -182,63 +275,72 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		},
 	})
 	r.Register(SlashCommand{
-		Name:    "deadline",
-		Desc:    "显示当前案件期限",
-		Match:   exactMatch("deadline"),
-		Handler: func(ctx slashCtx) { s.handleDeadlineCommand() },
+		Name:     "deadline",
+		Category: "case",
+		Desc:     "显示当前案件期限",
+		Match:    exactMatch("deadline"),
+		Handler:  func(ctx slashCtx) { s.handleDeadlineCommand() },
 	})
 
 	r.Register(SlashCommand{
-		Name:    "help",
-		Desc:    "显示快捷键",
-		Match:   exactMatch("help"),
-		Handler: func(ctx slashCtx) { s.app.ToggleKeyHelp() },
+		Name:     "help",
+		Category: "general",
+		Desc:     "显示快捷键",
+		Match:    exactMatch("help"),
+		Handler:  func(ctx slashCtx) { s.app.ToggleKeyHelp() },
 	})
 	r.Register(SlashCommand{
-		Name:    "clear",
-		Aliases: []string{"new"},
-		Desc:    "开始新对话",
-		Match:   exactMatch("clear", "new"),
-		Handler: func(ctx slashCtx) { s.handleClearCommand() },
+		Name:     "clear",
+		Category: "session",
+		Aliases:  []string{"new"},
+		Desc:     "开始新对话",
+		Match:    exactMatch("clear", "new"),
+		Handler:  func(ctx slashCtx) { s.handleClearCommand() },
 	})
 	r.Register(SlashCommand{
-		Name:    "branch",
-		Desc:    "从当前对话创建分支",
-		Match:   exactMatch("branch"),
-		Handler: func(ctx slashCtx) { s.handleBranchCommand() },
+		Name:     "branch",
+		Category: "session",
+		Desc:     "从当前对话创建分支",
+		Match:    exactMatch("branch"),
+		Handler:  func(ctx slashCtx) { s.handleBranchCommand() },
 	})
 	r.Register(SlashCommand{
-		Name:    "save",
-		Desc:    "显示会话保存信息",
-		Match:   exactMatch("save"),
-		Handler: func(ctx slashCtx) { s.handleSaveCommand() },
+		Name:     "save",
+		Category: "session",
+		Desc:     "显示会话保存信息",
+		Match:    exactMatch("save"),
+		Handler:  func(ctx slashCtx) { s.handleSaveCommand() },
 	})
 	r.Register(SlashCommand{
-		Name:    "copy",
-		Desc:    "复制最后一条回复",
-		Match:   exactMatch("copy"),
-		Handler: func(ctx slashCtx) { s.handleCopyCommand() },
+		Name:     "copy",
+		Category: "general",
+		Desc:     "复制最后一条回复",
+		Match:    exactMatch("copy"),
+		Handler:  func(ctx slashCtx) { s.handleCopyCommand() },
 	})
 	r.Register(SlashCommand{
-		Name:    "export",
-		Desc:    "导出当前对话为 Markdown",
-		Match:   exactMatch("export"),
-		Handler: func(ctx slashCtx) { s.handleExportCommand(ctx.input) },
+		Name:     "export",
+		Category: "session",
+		Desc:     "导出当前对话为 Markdown",
+		Match:    exactMatch("export"),
+		Handler:  func(ctx slashCtx) { s.handleExportCommand(ctx.input) },
 	})
 	r.Register(SlashCommand{
-		Name:    "review",
-		Desc:    "切换审核关卡（关键内容人工确认）",
-		Match:   exactMatch("review"),
-		Handler: func(ctx slashCtx) { s.handleReviewCommand() },
+		Name:     "review",
+		Category: "mode",
+		Desc:     "切换审核关卡（关键内容人工确认）",
+		Match:    exactMatch("review"),
+		Handler:  func(ctx slashCtx) { s.handleReviewCommandEx(parseSlashSubcommand(ctx.input, "review")) },
 	})
 	r.Register(SlashCommand{
-		Name:  "approve",
-		Desc:  "确认AI输出，继续执行（审核模式下）",
-		Match: exactMatch("approve"),
+		Name:     "approve",
+		Category: "mode",
+		Desc:     "确认AI输出，继续执行（审核模式下）",
+		Match:    exactMatch("approve"),
 		Handler: func(ctx slashCtx) {
 			// Gate inside the handler (not via Available) so that when review
 			// mode is off the user gets a guiding hint instead of "未知命令".
-			if !s.reviewMode {
+			if !s.isReviewMode() {
 				s.app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
 				return
 			}
@@ -254,11 +356,12 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		},
 	})
 	r.Register(SlashCommand{
-		Name:  "reject",
-		Desc:  "拒绝AI输出，请求修改（审核模式下）",
-		Match: exactMatch("reject"),
+		Name:     "reject",
+		Category: "mode",
+		Desc:     "拒绝AI输出，请求修改（审核模式下）",
+		Match:    exactMatch("reject"),
 		Handler: func(ctx slashCtx) {
-			if !s.reviewMode {
+			if !s.isReviewMode() {
 				s.app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
 				return
 			}
@@ -268,22 +371,41 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		},
 	})
 	r.Register(SlashCommand{
-		Name:    "plan",
-		Desc:    "切换计划模式（高质量推理）",
-		Match:   exactMatch("plan"),
-		Handler: func(ctx slashCtx) { s.handlePlanCommand() },
+		Name:     "plan",
+		Category: "mode",
+		Desc:     "切换计划模式（高质量推理）",
+		Match:    exactMatch("plan"),
+		Handler:  func(ctx slashCtx) { s.handlePlanCommandEx(parseSlashSubcommand(ctx.input, "plan")) },
 	})
 	r.Register(SlashCommand{
-		Name:    "settings",
-		Desc:    "打开设置面板",
-		Match:   exactMatch("settings"),
-		Handler: func(ctx slashCtx) { s.openSettings() },
+		Name:     "cmd",
+		Desc:     "打开命令中心（搜索并执行所有命令）",
+		Category: "general",
+		Usage:    "/cmd",
+		Match:    exactMatch("cmd"),
+		Handler:  func(ctx slashCtx) { s.openCommandCenter() },
+	})
+
+	r.Register(SlashCommand{
+		Name:     "settings",
+		Category: "settings",
+		Desc:     "打开设置面板",
+		Match:    exactMatch("settings"),
+		Handler: func(ctx slashCtx) {
+			sub := parseSlashSubcommand(ctx.input, "settings")
+			if sub == "reset" {
+				s.handleSettingsReset()
+			} else {
+				s.openSettings()
+			}
+		},
 	})
 	r.Register(SlashCommand{
-		Name:    "quit",
-		Desc:    "退出",
-		Match:   func(input string) bool { return input == "/quit" || input == "exit" },
-		Handler: func(ctx slashCtx) { _ = s.app.Stop() },
+		Name:     "quit",
+		Category: "general",
+		Desc:     "退出",
+		Match:    func(input string) bool { return input == "/quit" || input == "exit" },
+		Handler:  func(ctx slashCtx) { _ = s.app.Stop() },
 	})
 
 	return r
