@@ -178,3 +178,116 @@ func (lr *LegalReranker) Rerank(results []ScoredChunk) []ScoredChunk {
 
 	return results
 }
+
+// PatentReranker boosts chunks based on patent document-type authority.
+// In patent prosecution, examination guidelines and statutes are more
+// authoritative than case law or technical literature when judging novelty
+// and inventiveness. This reranker promotes high-authority doc types so they
+// surface above lower-authority hits in the retrieve_prior_art results.
+//
+// It also supports suppressing evidence whose metadata indicates it post-dates
+// the application (via the SuppressFutureDates flag + a date metadata key),
+// since such documents cannot be valid prior art.
+type PatentReranker struct {
+	// DocTypeRank maps document type labels to authority ranks (higher = more
+	// authoritative). Matched against chunk metadata[DocTypeKey].
+	DocTypeRank map[string]int
+
+	// DocTypeKey is the chunk metadata key carrying the document type.
+	// Default: "doc_type".
+	DocTypeKey string
+
+	// BoostPerRank is the score multiplier per rank level above baseline.
+	// Default: 0.2.
+	BoostPerRank float64
+
+	// SuppressFutureDateKey, when non-empty, names a metadata key carrying an
+	// ISO date (e.g. "2025-01-01"). Chunks dated after ApplicationDate get
+	// their score multiplied by FutureDatePenalty (suppressed as invalid prior art).
+	ApplicationDate       string
+	SuppressFutureDateKey string
+	FutureDatePenalty     float64
+}
+
+// DefaultPatentDocTypeRank returns the standard patent document authority hierarchy.
+func DefaultPatentDocTypeRank() map[string]int {
+	return map[string]int{
+		"审查指南":   100, // examination guidelines — highest procedural authority
+		"指南":     100,
+		"专利法":    95, // statutes
+		"法条":     95,
+		"实施细则":   90,
+		"司法解释":   80,
+		"判例":     70, // court decisions / precedent
+		"复审无效决定": 65,
+		"技术文献":   50, // technical literature / papers
+		"专利文献":   45, // other patents
+		"wiki":   30, // experience notes — lowest
+	}
+}
+
+// NewPatentReranker creates a PatentReranker with default doc-type hierarchy.
+func NewPatentReranker() *PatentReranker {
+	return &PatentReranker{
+		DocTypeRank:       DefaultPatentDocTypeRank(),
+		DocTypeKey:        "doc_type",
+		BoostPerRank:      0.2,
+		FutureDatePenalty: 0.1,
+	}
+}
+
+// Rerank implements Reranker by adjusting scores based on patent doc-type
+// authority and suppressing future-dated evidence.
+func (pr *PatentReranker) Rerank(results []ScoredChunk) []ScoredChunk {
+	if len(results) == 0 {
+		return results
+	}
+
+	rank := pr.DocTypeRank
+	if rank == nil {
+		rank = DefaultPatentDocTypeRank()
+	}
+	boost := pr.BoostPerRank
+	if boost <= 0 {
+		boost = 0.2
+	}
+	key := pr.DocTypeKey
+	if key == "" {
+		key = "doc_type"
+	}
+	penalty := pr.FutureDatePenalty
+	if penalty <= 0 {
+		penalty = 0.1
+	}
+
+	// Find baseline rank among present doc types.
+	baselineRank := 1000
+	for _, r := range results {
+		if rk, ok := rank[r.Metadata[key]]; ok && rk < baselineRank {
+			baselineRank = rk
+		}
+	}
+
+	for i := range results {
+		// Suppress future-dated evidence (cannot be valid prior art).
+		if pr.SuppressFutureDateKey != "" && pr.ApplicationDate != "" {
+			if d := results[i].Metadata[pr.SuppressFutureDateKey]; d > pr.ApplicationDate {
+				results[i].Score *= penalty
+			}
+		}
+		// Boost by doc-type authority.
+		if rk, ok := rank[results[i].Metadata[key]]; ok {
+			rankDiff := float64(rk-baselineRank) / 100.0
+			if rankDiff > 0 {
+				results[i].Score *= 1.0 + boost*rankDiff
+			}
+		}
+	}
+
+	// Re-sort by adjusted score descending (consistent with other rerankers
+	// that mutate scores in place — caller expects descending order).
+	sort.SliceStable(results, func(a, b int) bool {
+		return results[a].Score > results[b].Score
+	})
+	return results
+}

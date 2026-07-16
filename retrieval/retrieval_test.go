@@ -163,3 +163,70 @@ func TestDefaultLegalHierarchy(t *testing.T) {
 		t.Error("法律 should rank higher than 行政法规")
 	}
 }
+
+func TestPatentReranker_BoostsGuidelinesOverLiterature(t *testing.T) {
+	reranker := NewPatentReranker()
+	results := []ScoredChunk{
+		{Chunk: Chunk{ID: "lit", Metadata: map[string]string{"doc_type": "技术文献"}}, Score: 0.6},
+		{Chunk: Chunk{ID: "guide", Metadata: map[string]string{"doc_type": "审查指南"}}, Score: 0.6},
+	}
+	reranked := reranker.Rerank(results)
+	// 审查指南 (rank 100) should outrank 技术文献 (rank 50) despite equal base score.
+	if reranked[0].ID != "guide" {
+		t.Errorf("expected 审查指南 to rank first, got %s (score %.3f vs %.3f)",
+			reranked[0].ID, reranked[0].Score, reranked[1].Score)
+	}
+}
+
+func TestPatentReranker_EmptyResults(t *testing.T) {
+	reranker := NewPatentReranker()
+	if result := reranker.Rerank(nil); result != nil {
+		t.Errorf("expected nil for empty results, got %v", result)
+	}
+}
+
+func TestPatentReranker_SuppressesFutureDated(t *testing.T) {
+	reranker := NewPatentReranker()
+	reranker.ApplicationDate = "2024-01-01"
+	reranker.SuppressFutureDateKey = "date"
+	results := []ScoredChunk{
+		{Chunk: Chunk{ID: "valid", Metadata: map[string]string{"date": "2023-06-01", "doc_type": "专利法"}}, Score: 0.8},
+		{Chunk: Chunk{ID: "future", Metadata: map[string]string{"date": "2025-01-01", "doc_type": "专利法"}}, Score: 0.8},
+	}
+	reranked := reranker.Rerank(results)
+	// The future-dated chunk should be suppressed (penalty multiplier applied).
+	var futureScore, validScore float64
+	for _, r := range reranked {
+		if r.ID == "future" {
+			futureScore = r.Score
+		}
+		if r.ID == "valid" {
+			validScore = r.Score
+		}
+	}
+	if futureScore >= validScore {
+		t.Errorf("future-dated (2025) should be suppressed below valid (2023): %.3f vs %.3f", futureScore, validScore)
+	}
+}
+
+func TestPatentReranker_NoMetadataNoCrash(t *testing.T) {
+	reranker := NewPatentReranker()
+	// Chunks without doc_type metadata should pass through unchanged (no boost, no crash).
+	results := []ScoredChunk{
+		{Chunk: Chunk{ID: "plain", Metadata: nil}, Score: 0.5},
+	}
+	reranked := reranker.Rerank(results)
+	if len(reranked) != 1 || reranked[0].Score != 0.5 {
+		t.Errorf("plain chunk should be unchanged, got score %.3f", reranked[0].Score)
+	}
+}
+
+func TestDefaultPatentDocTypeRank(t *testing.T) {
+	h := DefaultPatentDocTypeRank()
+	if h["审查指南"] <= h["技术文献"] {
+		t.Error("审查指南 should rank higher than 技术文献")
+	}
+	if h["专利法"] <= h["判例"] {
+		t.Error("专利法 (statute) should rank higher than 判例 (case law)")
+	}
+}
