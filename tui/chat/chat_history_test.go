@@ -366,7 +366,7 @@ func TestChatHistoryStreamingDeltaReusesBlockCache(t *testing.T) {
 	h.AppendDelta(id, " More text.")
 	_ = h.Render(60)
 	h.mu.Lock()
-	cm, _ = h.msgCache[id]
+	cm = h.msgCache[id]
 	h.mu.Unlock()
 	if cm.blockCache.Entries() < firstEntries {
 		t.Errorf("block cache shrank after delta: first=%d now=%d (earlier blocks should be reused)",
@@ -377,7 +377,7 @@ func TestChatHistoryStreamingDeltaReusesBlockCache(t *testing.T) {
 	h.AppendDelta(id, "\n\n- new bullet")
 	_ = h.Render(60)
 	h.mu.Lock()
-	cm, _ = h.msgCache[id]
+	cm = h.msgCache[id]
 	h.mu.Unlock()
 	if cm.blockCache.Entries() <= firstEntries {
 		t.Errorf("block cache did not grow after adding a block: first=%d now=%d",

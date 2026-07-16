@@ -123,7 +123,7 @@ func (m *KeybindingsManager) LoadUserBindingsJSON(data []byte) (warnings []strin
 				warnings = append(warnings, id+": "+w+" (skipped)")
 				continue
 			}
-			valid = append(valid, KeyID(tok))
+			valid = append(valid, tok)
 		}
 		if len(valid) > 0 {
 			bindings[id] = valid

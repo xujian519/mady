@@ -631,7 +631,7 @@ func runTui(ctx context.Context) {
 		AltScreen:                  true,
 		MouseMode:                  "auto",
 		KittyKeyboardFlags:         1,
-		ContextWindow:              fc.BaseConfig.CompactionConfig.ContextWindow,
+		ContextWindow:              fc.BaseConfig.ContextWindow,
 		Context:                    ctx,
 		OnInterrupt: func() {
 			s.cancelMu.Lock()

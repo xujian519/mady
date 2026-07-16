@@ -50,7 +50,7 @@ func TestLoadUserBindingsJSONRejectsUnknownModifier(t *testing.T) {
 	// "a" binding that hijacks every plain keystroke.
 	got := km.Keys("tui.editor.cursorLeft")
 	for _, k := range got {
-		if string(k) == "foobar+a" {
+		if k == "foobar+a" {
 			t.Errorf("rejected token foobar+a was stored in bindings: %v", got)
 		}
 	}
@@ -114,8 +114,8 @@ func sameKeys(a, b []KeyID) bool {
 	ac := make([]string, len(a))
 	bc := make([]string, len(b))
 	for i := range a {
-		ac[i] = string(a[i])
-		bc[i] = string(b[i])
+		ac[i] = a[i]
+		bc[i] = b[i]
 	}
 	sort.Strings(ac)
 	sort.Strings(bc)
