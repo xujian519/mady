@@ -76,6 +76,58 @@ type RuleConstraint struct {
 	ApplicableStages []string    `json:"applicable_stages,omitempty"`
 }
 
+// RuleConfirmation records the human operator's verdict on a retrieved rule.
+type RuleConfirmation string
+
+const (
+	RuleConfirmed RuleConfirmation = "confirmed" // adopted verbatim
+	RuleModified  RuleConfirmation = "modified"  // adopted with edits
+	RuleRejected  RuleConfirmation = "rejected"  // rejected, excluded from plan
+)
+
+// ConfirmedRuleEntry pairs a retrieved rule with its human-confirmation status.
+// For Status == RuleModified, Modified holds the edited version that downstream
+// stages consume in place of the original Rule.
+type ConfirmedRuleEntry struct {
+	Rule        RuleConstraint   `json:"rule"`
+	Status      RuleConfirmation `json:"status"`
+	Modified    *RuleConstraint  `json:"modified,omitempty"`
+	Feedback    string           `json:"feedback,omitempty"`
+	ConfirmedAt string           `json:"confirmed_at,omitempty"`
+}
+
+// ConfirmedRuleSet is the immutable snapshot of human-confirmed rules produced
+// after Stage ② retrieval. Plan/Execute/Check consume only entries with Status
+// confirmed or modified; rejected entries are retained for audit but isolated.
+// (对齐 docs/specs/design-rule-acquisition-stage.md 第五节 ConfirmedRuleSet.)
+type ConfirmedRuleSet struct {
+	Entries []ConfirmedRuleEntry `json:"entries"`
+	Locked  bool                 `json:"locked"`
+}
+
+// ActiveConstraints returns the RuleConstraints that downstream stages should
+// consume: confirmed entries use their original Rule, modified entries use
+// the Modified revision. Rejected entries are excluded.
+func (rs *ConfirmedRuleSet) ActiveConstraints() []RuleConstraint {
+	if rs == nil {
+		return nil
+	}
+	out := make([]RuleConstraint, 0, len(rs.Entries))
+	for _, e := range rs.Entries {
+		switch e.Status {
+		case RuleConfirmed:
+			out = append(out, e.Rule)
+		case RuleModified:
+			if e.Modified != nil {
+				out = append(out, *e.Modified)
+			} else {
+				out = append(out, e.Rule) // fallback if Modified missing
+			}
+		}
+	}
+	return out
+}
+
 // ReasoningChainNode is one hop in a multi-hop reasoning chain.
 type ReasoningChainNode struct {
 	KgNodeID string `json:"kg_node_id"`

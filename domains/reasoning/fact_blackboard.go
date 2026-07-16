@@ -24,11 +24,12 @@ type FactBlackboard struct {
 	articleJudgments map[string]ArticleJudgment
 	plan             *ExecutionPlan
 	// Stage ①-⑤ workflow fields.
-	rplan        *Plan          // Stage ③ Plan (replaces ExecutionPlan for new code)
-	checkReport  *CheckReport   // Stage ⑤ output
-	stageOutputs map[string]any // per-stage outputs, keyed by "stage1".."stage5"
-	workflowID   string         // current WorkflowManifest ID
-	currentStage int            // current stage (1-5)
+	rplan          *Plan             // Stage ③ Plan (replaces ExecutionPlan for new code)
+	checkReport    *CheckReport      // Stage ⑤ output
+	stageOutputs   map[string]any    // per-stage outputs, keyed by "stage1".."stage5"
+	workflowID     string            // current WorkflowManifest ID
+	currentStage   int               // current stage (1-5)
+	confirmedRules *ConfirmedRuleSet // Stage ② 后人工确认的规则集（nil=未确认）
 }
 
 // NewFactBlackboard creates an empty blackboard for the given case.
@@ -171,6 +172,40 @@ func (b *FactBlackboard) SetRuleConstraints(cs []RuleConstraint) {
 	b.checkNotLocked()
 	b.ruleConstraints = cs
 	b.touch()
+}
+
+// ConfirmedRules returns the human-confirmed rule set, or nil if Stage ②
+// output has not yet been confirmed.
+func (b *FactBlackboard) ConfirmedRules() *ConfirmedRuleSet {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.confirmedRules
+}
+
+// SetConfirmedRules stores the human-confirmed rule set. Panics if locked.
+// Once set, ConfirmedRuleConstraints (and thus Plan/Execute/Check) will only
+// consume confirmed/modified entries, isolating rejected rules.
+func (b *FactBlackboard) SetConfirmedRules(rs ConfirmedRuleSet) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checkNotLocked()
+	b.confirmedRules = &rs
+	b.touch()
+}
+
+// ConfirmedRuleConstraints returns the rule constraints that downstream stages
+// (Plan/Execute/Check) should consume. When a ConfirmedRuleSet is present, it
+// returns only confirmed/modified entries (modified uses the edited version).
+// When no confirmation has occurred (confirmedRules == nil), it falls back to
+// the raw retrieved RuleConstraints — preserving backward compatibility for
+// workflows that haven't integrated the confirmation gate yet.
+func (b *FactBlackboard) ConfirmedRuleConstraints() []RuleConstraint {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.confirmedRules != nil {
+		return b.confirmedRules.ActiveConstraints()
+	}
+	return b.ruleConstraints
 }
 
 // ArticleJudgments returns the map of article judgments.
@@ -317,6 +352,7 @@ type factBlackboardJSON struct {
 	StageOutputs     map[string]any             `json:"stage_outputs,omitempty"`
 	WorkflowID       string                     `json:"workflow_id,omitempty"`
 	CurrentStage     int                        `json:"current_stage"`
+	ConfirmedRules   *ConfirmedRuleSet          `json:"confirmed_rules,omitempty"`
 }
 
 func (b *FactBlackboard) MarshalJSON() ([]byte, error) {
@@ -339,6 +375,7 @@ func (b *FactBlackboard) MarshalJSON() ([]byte, error) {
 		StageOutputs:     b.stageOutputs,
 		WorkflowID:       b.workflowID,
 		CurrentStage:     b.currentStage,
+		ConfirmedRules:   b.confirmedRules,
 	})
 }
 
@@ -368,5 +405,6 @@ func (b *FactBlackboard) UnmarshalJSON(data []byte) error {
 	b.stageOutputs = s.StageOutputs
 	b.workflowID = s.WorkflowID
 	b.currentStage = s.CurrentStage
+	b.confirmedRules = s.ConfirmedRules
 	return nil
 }

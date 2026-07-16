@@ -47,7 +47,7 @@ var ErrUnreferencedConclusion = errors.New("三段论结论缺少必要引用：
 // articleExists reports whether an article ID is known to the blackboard
 // (either as a rule constraint or an article judgment).
 func articleExists(bb *FactBlackboard, articleID string) bool {
-	for _, c := range bb.RuleConstraints() {
+	for _, c := range bb.ConfirmedRuleConstraints() {
 		if c.ArticleID == articleID {
 			return true
 		}

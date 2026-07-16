@@ -154,7 +154,7 @@ func (c *EnhancedSyllogismChecker) checkEvidentiarySufficiency(ctx context.Conte
 
 	fmt.Fprintf(&sb, "\n适用规则（共 %d 条）：\n", len(plan.UsedRules))
 	for _, rid := range plan.UsedRules {
-		for _, c := range bb.RuleConstraints() {
+		for _, c := range bb.ConfirmedRuleConstraints() {
 			if c.ArticleID == rid {
 				fmt.Fprintf(&sb, "- [%s] %s\n", rid, c.Description)
 				break
@@ -194,7 +194,7 @@ func (c *EnhancedSyllogismChecker) buildSyllogisms(bb *FactBlackboard, plan *Pla
 
 		if len(plan.UsedRules) > 0 {
 			rid := plan.UsedRules[i%len(plan.UsedRules)]
-			for _, rc := range bb.RuleConstraints() {
+			for _, rc := range bb.ConfirmedRuleConstraints() {
 				if rc.ArticleID == rid {
 					majorPremise = Premise{
 						Label:   rc.ArticleName,

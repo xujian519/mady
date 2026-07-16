@@ -87,7 +87,7 @@ func (p *Planner) GeneratePlan(ctx context.Context, bb *FactBlackboard, intent P
 	if intent == PlanIntentSimple || intent == PlanIntentChain {
 		if plan := p.lookupTemplate(bb.CaseType, intent); plan != nil {
 			plan.UsedFacts = factIDs(bb.ActiveFacts())
-			plan.UsedRules = ruleIDsFromConstraints(bb.RuleConstraints())
+			plan.UsedRules = ruleIDsFromConstraints(bb.ConfirmedRuleConstraints())
 			bb.SetPlanV2(*plan)
 			return plan, nil
 		}
@@ -143,7 +143,7 @@ func (p *Planner) llmGenerate(ctx context.Context, bb *FactBlackboard, intent Pl
 	}
 
 	plan.UsedFacts = factIDs(bb.ActiveFacts())
-	plan.UsedRules = ruleIDsFromConstraints(bb.RuleConstraints())
+	plan.UsedRules = ruleIDsFromConstraints(bb.ConfirmedRuleConstraints())
 	bb.SetPlanV2(*plan)
 	return plan, nil
 }
@@ -175,7 +175,7 @@ func (p *Planner) buildLLMPrompt(bb *FactBlackboard, intent PlanIntent) string {
 	sb.WriteString("\n")
 
 	// List rule constraints.
-	constraints := bb.RuleConstraints()
+	constraints := bb.ConfirmedRuleConstraints()
 	fmt.Fprintf(&sb, "适用规则（共 %d 条）:\n", len(constraints))
 	for _, r := range constraints {
 		fmt.Fprintf(&sb, "- [%s] [%s] %s\n", r.ArticleID, r.Requirement, r.Description)
@@ -265,7 +265,7 @@ func (p *Planner) buildFallbackPlan(bb *FactBlackboard, intent PlanIntent) *Plan
 			Strategy:    StrategyChain,
 		}},
 		UsedFacts: factIDs(bb.ActiveFacts()),
-		UsedRules: ruleIDsFromConstraints(bb.RuleConstraints()),
+		UsedRules: ruleIDsFromConstraints(bb.ConfirmedRuleConstraints()),
 	}
 	bb.SetPlanV2(*plan)
 	return plan
