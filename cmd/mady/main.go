@@ -687,12 +687,14 @@ func runTui(ctx context.Context) {
 		s.store, _ = NewSettingsStore("")
 	}
 
-	s.currentAgent = agentcore.New(s.buildAgentConfig())
-	defer s.currentAgent.Close()
+	// 从 store 读取持久化的主题并应用（首次启动使用 mady-dark 默认值）。
+	// 直接调 SetSemanticTheme 而不是 handleThemeCommand，因为此时 s.app 尚未初始化。
+	applyStoredTheme(s)
 
 	// 同步当前终端检测到的主题到 store（仅在首次启动时）
 	if name := theme.CurrentPalette().Semantic.Name; strings.Contains(strings.ToLower(name), "light") {
 		s.store.Set(SettingKeyTheme, "light", SettingsScopeGlobal)
+		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
 	}
 
 	// Build the slash registry once; both handleSubmit and the autocomplete
@@ -734,7 +736,10 @@ func runTui(ctx context.Context) {
 		},
 	})
 	s.app = app
-	agentadapter.BindAgent(app, s.currentAgent)
+	// Agent 在 app.Start() 之后创建并绑定，避免阻塞首帧渲染。
+
+	// 现在 s.app 已就绪，通过 handler 应用持久化主题（同时更新 History 主题 + 状态栏）
+	s.handleThemeCommand("/theme " + s.store.Get(SettingKeyTheme))
 
 	// Load user keymap overrides from ~/.mady/keymap.json (if present) into the
 	// app's keybinding manager so the editor and chat honor customized keys.
@@ -761,10 +766,34 @@ func runTui(ctx context.Context) {
 		st := fc.WikiStore.Stats()
 		app.PrintSystem(fmt.Sprintf("wiki 知识库: %d 文档, %d 分块 (RAG: patent)", st.TotalDocs, st.TotalChunks))
 	}
+
+	// 先启动 TUI 渲染，再创建 Agent。避免 agentcore.New 阻塞首帧。
 	if err := app.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
+		return
 	}
+
+	s.currentAgent = agentcore.New(s.buildAgentConfig())
+	defer s.currentAgent.Close()
+	agentadapter.BindAgent(app, s.currentAgent)
+	app.PrintSystem("Agent 就绪，可以开始对话")
+
 	<-app.Done()
+}
+
+// applyStoredTheme reads the persisted theme from the store and applies it to
+// the terminal palette. Called early in startup before s.app exists, so it uses
+// SetSemanticTheme directly rather than going through handleThemeCommand.
+func applyStoredTheme(s *tuiSession) {
+	name := s.store.Get(SettingKeyTheme)
+	switch name {
+	case "light":
+		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
+	case "dark":
+		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
+	default:
+		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
+	}
 }
 
 func firstNonEmpty(s, fallback string) string {

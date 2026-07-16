@@ -33,7 +33,7 @@ const (
 	SettingKeyReview   = "review"
 	SettingKeyThinking = "thinking"
 
-	DefaultTheme    = "dark"
+	DefaultTheme    = "light"
 	DefaultPlan     = "off"
 	DefaultReview   = "off"
 	DefaultThinking = "default"
@@ -49,7 +49,7 @@ var defaultValues = map[string]string{
 
 // validValues maps each setting key to its set of accepted values.
 var validValues = map[string][]string{
-	SettingKeyTheme:    {"dark", "light", "mady-dark"},
+	SettingKeyTheme:    {"dark", "light"},
 	SettingKeyPlan:     {"on", "off"},
 	SettingKeyReview:   {"on", "off"},
 	SettingKeyThinking: {"default", "summarized", "omitted"},

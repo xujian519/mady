@@ -29,7 +29,7 @@ func fireThemeChange() {
 // briefly see torn Style on 32-bit — prefer reloading when idle.
 func SetSemanticTheme(sem *SemanticTheme, mode ColorMode) {
 	if sem == nil {
-		sem = DefaultSemanticDark()
+		sem = DefaultSemanticLight()
 	}
 	SyncPaletteGlobals(sem, mode)
 	fireThemeChange()
@@ -52,7 +52,7 @@ func DefaultSemanticForTerminal() *SemanticTheme {
 	if DetectTerminalBackground() == "light" {
 		return DefaultSemanticLight()
 	}
-	return DefaultSemanticDark()
+	return DefaultSemanticLight()
 }
 
 // InitThemeFromEnv loads TUI_THEME or AGENT_TUI_THEME JSON (pi-compatible subset),

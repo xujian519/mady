@@ -37,6 +37,8 @@ type KeyHelp struct {
 	groupBy  string // prefix separator, default "."
 	override map[string]string
 
+	onClose func() // called on Esc; set by caller to close the overlay
+
 	cacheWidth int64
 	cacheLines []string
 	dirty      bool
@@ -57,6 +59,13 @@ func (h *KeyHelp) SetTitle(t string) {
 	h.mu.Lock()
 	h.title = t
 	h.dirty = true
+	h.mu.Unlock()
+}
+
+// SetOnClose registers a callback for when Esc is pressed (closes the overlay).
+func (h *KeyHelp) SetOnClose(fn func()) {
+	h.mu.Lock()
+	h.onClose = fn
 	h.mu.Unlock()
 }
 
@@ -139,6 +148,13 @@ func (h *KeyHelp) Update(msg core.Msg) core.Cmd {
 			h.ScrollBy(-5)
 		case terminal.MatchesKey(data, "pgdown"):
 			h.ScrollBy(5)
+		case terminal.MatchesKey(data, "escape") || data == "\x1b":
+			h.mu.RLock()
+			fn := h.onClose
+			h.mu.RUnlock()
+			if fn != nil {
+				fn()
+			}
 		}
 	case core.WindowSizeMsg:
 		h.Invalidate()

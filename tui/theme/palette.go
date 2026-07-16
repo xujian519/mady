@@ -29,7 +29,7 @@ var atomicPalette atomic.Pointer[Palette]
 func CurrentPalette() *Palette {
 	p := atomicPalette.Load()
 	if p == nil {
-		p = BuildPalette(DefaultSemanticDark(), DetectColorMode())
+		p = BuildPalette(DefaultSemanticLight(), DetectColorMode())
 		atomicPalette.Store(p)
 	}
 	return p
@@ -38,7 +38,7 @@ func CurrentPalette() *Palette {
 // BuildPalette materializes SemanticTheme into Style values.
 func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 	if sem == nil {
-		sem = DefaultSemanticDark()
+		sem = DefaultSemanticLight()
 	}
 	p := &Palette{Semantic: sem, Mode: mode}
 
@@ -217,7 +217,7 @@ func SyncPaletteGlobals(sem *SemanticTheme, mode ColorMode) {
 }
 
 func init() {
-	SyncPaletteGlobals(DefaultSemanticDark(), DetectColorMode())
+	SyncPaletteGlobals(DefaultSemanticLight(), DetectColorMode())
 }
 
 // firstNonEmpty returns a if non-empty, otherwise b.

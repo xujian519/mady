@@ -15,14 +15,14 @@ type themeJSONFile struct {
 }
 
 // ParseSemanticThemeJSON parses a pi-compatible theme JSON document into SemanticTheme.
-// Unknown keys are ignored; missing colors inherit from base (typically DefaultSemanticDark).
+// Unknown keys are ignored; missing colors inherit from base (typically DefaultSemanticLight).
 func ParseSemanticThemeJSON(data []byte, base *SemanticTheme) (*SemanticTheme, error) {
 	var raw themeJSONFile
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
 	}
 	if base == nil {
-		base = DefaultSemanticDark()
+		base = DefaultSemanticLight()
 	}
 	out := *base
 	if raw.Name != "" {

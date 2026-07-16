@@ -64,60 +64,6 @@ type SemanticTheme struct {
 	ConfidenceHigh   string `json:"confidenceHigh"`
 }
 
-// DefaultSemanticDark uses Claude Code's warm dark palette.
-func DefaultSemanticDark() *SemanticTheme {
-	return &SemanticTheme{
-		Name: "dark",
-
-		Accent:       "#d4a843", // warm amber
-		Border:       "#d4a843",
-		BorderAccent: "#e6b84c",
-		BorderMuted:  "#606070",
-		Success:      "#7ec87b", // soft green
-		Error:        "#e06c75", // soft red
-		Warning:      "#d4a843", // amber
-		Muted:        "#a0a0b0",
-		Dim:          "#888898",
-		Text:         "#e0e0e0",
-		System:       "#d4a843",
-		ThinkingText: "#9098a8",
-
-		UserMessage:   "#e6b84c",
-		AssistantText: "#e0e0e0",
-
-		SelectedBg:    "#3c3c50",
-		UserMessageBg: "#2d2d3f",
-		ToolPendingBg: "#2d2d3f",
-		ToolSuccessBg: "#283228",
-		ToolErrorBg:   "#3c2828",
-
-		MdHeading:         "#d4a843",
-		MdLink:            "#61afef",
-		MdLinkURL:         "#a0a0b0",
-		MdCode:            "#98c379",
-		MdCodeBlock:       "#98c379",
-		MdCodeBlockBorder: "#606070",
-		MdQuote:           "#a0a0b0",
-		MdQuoteBorder:     "#d4a843",
-		MdHr:              "#606070",
-		MdListBullet:      "#d4a843",
-
-		SyntaxComment:     "#9098a8",
-		SyntaxKeyword:     "#c678dd",
-		SyntaxFunction:    "#e5c07b",
-		SyntaxVariable:    "#e06c75",
-		SyntaxString:      "#98c379",
-		SyntaxNumber:      "#d19a66",
-		SyntaxType:        "#56b6c2",
-		SyntaxOperator:    "#abb2bf",
-		SyntaxPunctuation: "#abb2bf",
-
-		LoaderSpinner: "#d4a843",
-		ProgressBar:   "#d4a843",
-	}
-}
-
-// DefaultSemanticLight is a readable light palette (not identical to pi light.json).
 func DefaultSemanticLight() *SemanticTheme {
 	return &SemanticTheme{
 		Name: "light",
@@ -173,10 +119,9 @@ func DefaultSemanticLight() *SemanticTheme {
 // DefaultMadyDark is the Mady brand dark theme using cold blue tones that match
 // the Logo's deep-space blue + cyan light-arc palette. It conveys rationality and
 // restraint suitable for professional patent/law workflows.
-// The warm-amber DefaultSemanticDark remains available via /theme dark.
 func DefaultMadyDark() *SemanticTheme {
 	return &SemanticTheme{
-		Name: "mady-dark",
+		Name: "dark",
 
 		// 品牌冷色系：Logo 深空蓝 + 青蓝光弧
 		Accent:       "#38C8F4",

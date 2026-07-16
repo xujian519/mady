@@ -449,21 +449,17 @@ func (s *tuiSession) handleThemeCommand(trimmed string) {
 	switch trimmed {
 	case "/theme":
 		s.app.PrintSystem("当前主题: " + s.themeName())
-	case "/theme dark":
-		theme.SetSemanticTheme(theme.DefaultSemanticDark(), theme.DetectColorMode())
-		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-		s.store.Set(SettingKeyTheme, "dark", SettingsScopeGlobal)
-		s.app.PrintSystem("已切换深色主题")
+
 	case "/theme light":
 		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
 		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
 		s.store.Set(SettingKeyTheme, "light", SettingsScopeGlobal)
 		s.app.PrintSystem("已切换浅色主题")
-	case "/theme mady-dark":
+	case "/theme dark":
 		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
 		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-		s.store.Set(SettingKeyTheme, "mady-dark", SettingsScopeGlobal)
-		s.app.PrintSystem("已切换 Mady 品牌深色主题")
+		s.store.Set(SettingKeyTheme, "dark", SettingsScopeGlobal)
+		s.app.PrintSystem("已切换深色主题")
 	}
 }
 

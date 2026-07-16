@@ -44,11 +44,10 @@ func (s *tuiSession) openSettings() {
 func (s *tuiSession) buildSettingEntries() []component.SettingEntry {
 	// Theme entry reflects the current palette name.
 	themeCur := int64(0)
-	switch s.themeName() {
-	case "light":
-		themeCur = 1
-	case "mady-dark":
-		themeCur = 2
+	if s.themeName() == "dark" {
+		themeCur = 0 // dark (品牌冷色)
+	} else {
+		themeCur = 1 // light
 	}
 	// Plan mode: 0=off, 1=on.
 	var planCur int64

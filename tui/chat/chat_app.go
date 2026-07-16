@@ -429,7 +429,8 @@ func (a *ChatApp) ToggleKeyHelp() OverlayRef {
 		return nil
 	}
 	help := component.NewKeyHelp(a.km)
-	help.SetTitle("Keybindings — Esc to close")
+	help.SetTitle("Keybindings — ↑↓ 翻页 · Esc 关闭")
+	help.SetOnClose(func() { a.CloseKeyHelp() })
 	ov := &overlayHandle{
 		content:       help,
 		focus:         true,

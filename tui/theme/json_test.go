@@ -15,7 +15,7 @@ func TestParseSemanticThemeJSONPiShape(t *testing.T) {
 			"success": "green"
 		}
 	}`
-	sem, err := ParseSemanticThemeJSON([]byte(raw), DefaultSemanticDark())
+	sem, err := ParseSemanticThemeJSON([]byte(raw), DefaultSemanticLight())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestParseSemanticThemeJSONPiShape(t *testing.T) {
 
 func TestParseSemanticThemeJSONIgnoresUnknownKeys(t *testing.T) {
 	raw := `{"name":"x","vars":{},"colors":{"unknownKey":"#123456","accent":"#abcdef"}}`
-	sem, err := ParseSemanticThemeJSON([]byte(raw), DefaultSemanticDark())
+	sem, err := ParseSemanticThemeJSON([]byte(raw), DefaultSemanticLight())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,9 +47,9 @@ func TestParseSemanticThemeJSONIgnoresUnknownKeys(t *testing.T) {
 func TestSetSemanticThemeUpdatesGlobals(t *testing.T) {
 	ForceColor(true)
 	t.Cleanup(func() { ForceColor(false) })
-	SetSemanticTheme(DefaultSemanticLight(), ColorModeTruecolor)
+	SetSemanticTheme(DefaultMadyDark(), ColorModeTruecolor)
 	if !strings.Contains(StyleUser.Render("x"), "\x1b[") {
 		t.Fatalf("StyleUser should emit ansi: %q", StyleUser.Render("x"))
 	}
-	SetSemanticTheme(DefaultSemanticDark(), ColorModeTruecolor)
+	SetSemanticTheme(DefaultSemanticLight(), ColorModeTruecolor)
 }
