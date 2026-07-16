@@ -34,5 +34,7 @@ docs/specs/{feature-name}/
 |------|------|------|------|-------------|
 | 心理引擎设计 | `docs/superpowers/specs/2026-07-10-nuochat-psychological-engine-design.md` | 2026-07-10 | 已完成 | — |
 | 向量检索落地 | `docs/specs/vector-retrieval/` | 2026-07-13 | Spec 待 Sign-off | [待指派] |
+| 现有技术检索阶段（disclosure retrieve_prior_art 节点） | `docs/specs/design-prior-art-retrieval-stage.md` | 2026-07-16 | 设计草案（已核对代码） | [待指派] |
+| 获取规则阶段（知识资产接入与人工确认闭环） | `docs/specs/design-rule-acquisition-stage.md` | 2026-07-16 | 设计草案（已核对代码） | [待指派] |
 
 > 阶段含义：Spec 待 Sign-off（四阶段文档已就绪，等人工审阅）→ 实现中 → 已完成。
