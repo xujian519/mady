@@ -34,6 +34,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/reasoning"
+	reasoningwiring "github.com/xujian519/mady/domains/reasoning/wiring"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/fileindex"
@@ -64,8 +65,12 @@ const defaultSystemPrompt = "你是 Mady 智能助手，一个能力完备的通
 // It tries the SQLite backend first (vector + FTS RRF fusion via
 // KNOWLEDGE_DB_DIR), falling back to the in-memory wiki store
 // (WIKI_PATH) for backward compatibility.
-// Returns the in-memory store (nil when using SQLite) and a retrieval hook.
-func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, agentcore.Extension) {
+// Returns the in-memory store (nil when using SQLite), a retrieval hook,
+// the knowledge extension, and the raw backend interface (nil when using
+// the in-memory store or when no backend is configured). The backend is
+// exposed so other subsystems (e.g. reasoning Stage ② rule retrieval) can
+// reuse the already-opened SQLite FTS index without reopening the database.
+func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, agentcore.Extension, knowledge.KnowledgeBackend) {
 	// 1. Try SQLite backend (vector + FTS RRF fusion).
 	embedder := buildEmbedder()
 	backend, knowledgeDBPath := loadKnowledgeBackend(madyHome)
@@ -126,21 +131,21 @@ func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 			Prefix:   "以下是知识库中检索到的相关专利法律信息，请参考使用：\n",
 		})
 		if hook != nil {
-			return nil, hook, ext
+			return nil, hook, ext, backend
 		}
 	}
 
 	// 2. Fallback: in-memory wiki store (WIKI_PATH).
 	wikiPath := os.Getenv("WIKI_PATH")
 	if wikiPath == "" {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	store := knowledge.NewStore()
 	wikiLoader := loader.NewWikiLoader(store, wikiPath)
 	stats, err := wikiLoader.ImportWiki()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "wiki: import failed: %v\n", err)
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	fmt.Fprintf(os.Stderr, "wiki: imported %d docs, %d chunks\n",
 		stats.Imported, store.Stats().TotalChunks)
@@ -149,7 +154,27 @@ func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 		MaxChars: 4000,
 		Prefix:   "以下是知识库中检索到的相关专利法律信息，请参考使用：\n",
 	})
-	return store, hook, nil
+	return store, hook, nil, nil
+}
+
+// resolveWikiRoot resolves the Obsidian wiki root for patent-cards access.
+// Priority: $WIKI_PATH > $MADY_HOME/knowledge/wiki. Returns "" when neither
+// resolves to an existing directory, so callers can leave the skill lane
+// disabled without pointing at a non-existent path.
+func resolveWikiRoot(madyHome string) string {
+	if p := os.Getenv("WIKI_PATH"); p != "" {
+		if info, err := os.Stat(p); err == nil && info.IsDir() {
+			return p
+		}
+	}
+	if madyHome == "" {
+		return ""
+	}
+	candidate := filepath.Join(madyHome, "knowledge", "wiki")
+	if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+		return candidate
+	}
+	return ""
 }
 
 // extSlice wraps a single Extension into a slice, returning nil for nil input.
@@ -282,6 +307,12 @@ type frameworkContext struct {
 	// KnowledgeGraph 是实体-关系知识图谱，用于多跳推理遍历。
 	// 启动时为空，由 wiki 导入或其他数据管线填充。
 	KnowledgeGraph *kgwgraph.GraphStore
+	// KnowledgeBackend 是已打开的 SQLite 知识库（FTS + 向量），
+	// 供 reasoning Stage ② 规则召回等子系统复用，避免重复打开数据库。
+	KnowledgeBackend knowledge.KnowledgeBackend
+	// WikiRoot 是 Obsidian wiki 根目录（~/.mady/knowledge/wiki 或 $WIKI_PATH），
+	// 供 reasoning Stage ② 的 patent-cards 经验召回复用。可为 ""。
+	WikiRoot string
 }
 
 // setupFrameworkContext 执行三个入口共享的初始化逻辑：
@@ -336,7 +367,12 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	}
 
 	// 知识检索：优先 SQLite backend（向量+FTS RRF），回退 wiki 内存库。
-	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt = loadWikiStore(fc.MadyHome)
+	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = loadWikiStore(fc.MadyHome)
+
+	// Wiki 根目录：供 reasoning Stage ② 的 patent-cards 经验召回读取。
+	// 优先 $WIKI_PATH，否则 $MADY_HOME/knowledge/wiki（通常软链接到外部语料）。
+	// 仅当目录存在时赋值，避免 SkillRuleReader 指向空路径。
+	fc.WikiRoot = resolveWikiRoot(fc.MadyHome)
 
 	// Manifest 加载：go:embed 内置 + 外部覆盖。
 	// 优先级：$MANIFEST_DIR > ~/.mady/manifests > 仅内置。
@@ -463,14 +499,30 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 }
 
 // buildReasoningRetriever 从框架上下文中构造 MultiSourceRetriever。
-// 当知识图谱可用时创建完整适配链，否则返回 nil（Stage ② 跳过）。
+// 当知识图谱或知识库后端任一可用时创建适配链，否则返回 nil（Stage ② 跳过）。
+//
+// 三路规则召回的装配（对齐 design-rule-acquisition-stage.md）：
+//   - KG 路（RuleSourceKG）：知识图谱多跳遍历，依赖 KnowledgeGraph
+//   - Vector 路（RuleSourceVector）：FTS 全文检索，依赖 KnowledgeBackend
+//   - Skill 路（RuleSourceSkill）：wiki patent-cards 经验召回，依赖 WikiRoot
 func buildReasoningRetriever(fc *frameworkContext) *reasoning.MultiSourceRetriever {
-	if fc.KnowledgeGraph == nil {
+	if fc.KnowledgeGraph == nil && fc.KnowledgeBackend == nil && fc.WikiRoot == "" {
 		return nil
 	}
-	adapter := kgwgraph.NewReasoningStoreAdapter(fc.KnowledgeGraph)
-	walker := reasoning.NewReasoningWalker(adapter, nil)
-	return reasoning.NewMultiSourceRetriever(walker, nil, nil)
+	var walker *reasoning.ReasoningWalker
+	if fc.KnowledgeGraph != nil {
+		adapter := kgwgraph.NewReasoningStoreAdapter(fc.KnowledgeGraph)
+		walker = reasoning.NewReasoningWalker(adapter, nil)
+	}
+	var vs reasoning.RuleVectorStore
+	if fc.KnowledgeBackend != nil {
+		vs = reasoningwiring.NewVectorRuleStore(fc.KnowledgeBackend)
+	}
+	var sr reasoning.RuleSkillReader
+	if fc.WikiRoot != "" {
+		sr = reasoningwiring.NewSkillRuleReader(fc.WikiRoot)
+	}
+	return reasoning.NewMultiSourceRetriever(walker, vs, sr)
 }
 
 // buildRouterConfig 根据可用的 Manifest 构建 Router Agent 配置。

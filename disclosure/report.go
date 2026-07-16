@@ -75,7 +75,12 @@ func collectKeywordsFromExtraction(ext *ExtractionResult) []string {
 
 // noveltyStubNode 返回新颖性初判的 Pregel 节点。
 // 基于已提取的技术特征、问题、效果进行结构化预评估。
-// Phase 2 将增强为 retrieval 模块集成 + domains/reasoning 推理引擎。
+//
+// 注意：这是新颖性判断的启发式回退路径，仅在 LLM 调用失败时使用
+// （主管线 check_novelty 走 noveltyNode 的 LLM 调用，见 novelty.go）。
+// retrieval/ 与 knowledge/graph/ 已接入 chat agent 和 reasoning Stage ②
+// 规则召回，但 disclosure 管线本身的节点尚未接入——见
+// docs/specs/design-prior-art-retrieval-stage.md 的 retrieve_prior_art 设计。
 func noveltyStubNode() graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		result := assessNoveltyFromState(state)
