@@ -100,7 +100,7 @@ func (b *LLMNodeBuilder) BuildReActObserve(step PlanStep, bb *FactBlackboard) Pr
 // including accumulated context from previous steps.
 func (b *LLMNodeBuilder) buildStepPrompt(step PlanStep, bb *FactBlackboard, state PregelState) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("请完成以下分析步骤：\n%s\n\n", step.Description))
+	fmt.Fprintf(&sb, "请完成以下分析步骤：\n%s\n\n", step.Description)
 
 	// Include relevant facts from the blackboard.
 	facts := bb.ActiveFacts()
@@ -114,7 +114,7 @@ func (b *LLMNodeBuilder) buildStepPrompt(step PlanStep, bb *FactBlackboard, stat
 			if len(content) > 300 {
 				content = content[:300] + "..."
 			}
-			sb.WriteString(fmt.Sprintf("- %s\n", content))
+			fmt.Fprintf(&sb, "- %s\n", content)
 		}
 		sb.WriteString("\n")
 	}

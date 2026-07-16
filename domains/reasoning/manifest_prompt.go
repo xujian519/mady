@@ -21,11 +21,11 @@ func ManifestToSystemPrompt(m *WorkflowManifest) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("你是一名资深的专利代理人。请按照以下%d步分析流程完成本次任务：\n\n", len(m.Stage4.Steps)))
+	fmt.Fprintf(&sb, "你是一名资深的专利代理人。请按照以下%d步分析流程完成本次任务：\n\n", len(m.Stage4.Steps))
 
 	for _, step := range m.Stage4.Steps {
 		strategyHint := strategyDescription(step.Strategy)
-		sb.WriteString(fmt.Sprintf("第%d步（%s）：%s\n", step.Order, strategyHint, step.Description))
+		fmt.Fprintf(&sb, "第%d步（%s）：%s\n", step.Order, strategyHint, step.Description)
 	}
 
 	sb.WriteString("\n分析要求：\n")

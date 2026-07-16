@@ -217,7 +217,7 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 	}
 
 	if s.reviewMode {
-		gate := domains.NewApprovalGate(domains.DefaultApprovalConfig())
+		var gate *domains.ApprovalGate
 		// Wire up SQLite persistence so human decisions (adopted/modified/rejected)
 		// are recorded for AdoptionRate evaluation (roadmap P3). Falls back to
 		// in-memory store if the SQLite store cannot be opened.
