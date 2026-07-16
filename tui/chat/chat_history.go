@@ -437,6 +437,12 @@ func (h *ChatHistory) Clear() {
 	h.renderCount = 0
 	h.selActive = false
 	h.selDragging = false
+	// Reset the stick-to-bottom anchor so a cleared history (e.g. /new) does
+	// not carry a stale tailAnchorLen from the pre-clear era — otherwise the
+	// next streaming run would show a meaningless "↓ N new" hint computed
+	// against the old content length.
+	h.tailAnchorLen = 0
+	h.follow = true
 	h.mu.Unlock()
 	h.invalidate()
 }

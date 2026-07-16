@@ -115,13 +115,13 @@ func (m *KeybindingsManager) LoadUserBindingsJSON(data []byte) (warnings []strin
 				warnings = append(warnings, id+": empty key token skipped")
 				continue
 			}
-			// Validate the token shape: the last "+"-segment is the key name
-			// and must be non-empty; earlier segments must be known modifiers.
-			// Unknown modifiers are reported but the token is still accepted,
-			// because parseKeyID silently drops unknown modifiers — better to
-			// warn and keep a partial binding than to reject the whole map.
+			// Reject malformed tokens outright rather than accepting them.
+			// parseKeyID silently drops unknown modifiers, so a token like
+			// "foobar+a" would otherwise degrade into a bare "a" binding and
+			// hijack every plain keystroke — far more dangerous than a no-op.
 			if w := validateKeyToken(tok); w != "" {
-				warnings = append(warnings, id+": "+w)
+				warnings = append(warnings, id+": "+w+" (skipped)")
+				continue
 			}
 			valid = append(valid, KeyID(tok))
 		}

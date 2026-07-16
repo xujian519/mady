@@ -46,15 +46,19 @@ func TestSlashRegistryLookupExactAndPrefix(t *testing.T) {
 }
 
 func TestSlashRegistryAvailableGate(t *testing.T) {
-	// /mode requires multi-domain; /approve and /reject require review mode.
+	// /mode is gated by multi-domain (hidden from autocomplete + Lookup when off).
+	// /approve and /reject are intentionally NOT gated by Available — they
+	// always match so the handler can emit a guiding "review mode off" hint
+	// instead of "未知命令" (the gate lives inside the handler).
 	multiOff := &tuiSession{useMultiDomain: false, reviewMode: false}
 	r := multiOff.buildSlashRegistry()
 
 	if cmd := r.Lookup("/mode", multiOff); cmd != nil {
 		t.Errorf("/mode should be unavailable without multi-domain, got %v", cmd)
 	}
-	if cmd := r.Lookup("/approve", multiOff); cmd != nil {
-		t.Errorf("/approve should be unavailable without review mode, got %v", cmd)
+	// /approve matches even when review is off — the handler prints the hint.
+	if cmd := r.Lookup("/approve", multiOff); cmd == nil {
+		t.Errorf("/approve should always be dispatchable (handler gates review mode), got nil")
 	}
 
 	multiOn := &tuiSession{useMultiDomain: true, reviewMode: true}
@@ -65,6 +69,29 @@ func TestSlashRegistryAvailableGate(t *testing.T) {
 	if cmd := r2.Lookup("/approve", multiOn); cmd == nil {
 		t.Errorf("/approve should be available in review mode")
 	}
+}
+
+// TestSlashRegistrySkillSuggestionHasColon verifies the /skill: command
+// advertises "/skill:" (with colon) in the autocomplete menu — without the
+// SuggestText override the menu would offer "/skill", which the prefix
+// matcher rejects, leaving the user with an "未知命令" dead end.
+func TestSlashRegistrySkillSuggestionHasColon(t *testing.T) {
+	s := &tuiSession{useMultiDomain: false}
+	r := s.buildSlashRegistry()
+	sugs := r.Suggestions(s)
+	for _, sg := range sugs {
+		if strings.Contains(sg.InsertText, "skill") {
+			if sg.InsertText != "/skill:" {
+				t.Errorf("skill suggestion = %q, want /skill: (with colon)", sg.InsertText)
+			}
+			// And the advertised suggestion must actually match the command.
+			if cmd := r.Lookup(sg.InsertText, s); cmd == nil {
+				t.Errorf("suggestion %q does not match any command", sg.InsertText)
+			}
+			return
+		}
+	}
+	t.Errorf("no skill suggestion found in %v", sugs)
 }
 
 func TestSlashRegistryUnknownCommand(t *testing.T) {

@@ -28,15 +28,14 @@ func TestLoadUserBindingsJSONAppliesValid(t *testing.T) {
 	}
 }
 
-func TestLoadUserBindingsJSONWarnsUnknownModifier(t *testing.T) {
+func TestLoadUserBindingsJSONRejectsUnknownModifier(t *testing.T) {
 	km := NewKeybindingsManager(DefaultKeybindings())
 	json := `{"tui.editor.cursorLeft": ["foobar+a"]}`
 	warnings, err := km.LoadUserBindingsJSON([]byte(json))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Unknown modifier "foobar" should produce a warning, but the token is
-	// still accepted (parseKeyID drops unknown modifiers silently).
+	// Unknown modifier "foobar" must produce a warning...
 	found := false
 	for _, w := range warnings {
 		if contains(w, "foobar") {
@@ -45,6 +44,15 @@ func TestLoadUserBindingsJSONWarnsUnknownModifier(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected a warning about unknown modifier 'foobar', got %v", warnings)
+	}
+	// ...AND the token must be rejected (not stored). Otherwise parseKeyID
+	// would silently drop "foobar" and the token would degrade into a bare
+	// "a" binding that hijacks every plain keystroke.
+	got := km.Keys("tui.editor.cursorLeft")
+	for _, k := range got {
+		if string(k) == "foobar+a" {
+			t.Errorf("rejected token foobar+a was stored in bindings: %v", got)
+		}
 	}
 }
 

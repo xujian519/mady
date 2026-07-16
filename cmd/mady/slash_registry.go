@@ -48,6 +48,10 @@ type SlashCommand struct {
 	Match     func(input string) bool
 	Available func(s *tuiSession) bool
 	Handler   slashHandler
+	// SuggestText overrides the autocomplete insert text. When empty,
+	// Suggestions uses "/" + Name. Set this for commands whose trigger token
+	// is not exactly "/" + Name (e.g. "/skill:" whose Name is "skill").
+	SuggestText string
 }
 
 // Registry is an ordered collection of SlashCommands.
@@ -63,8 +67,6 @@ func (r *Registry) Register(c SlashCommand) { r.cmds = append(r.cmds, c) }
 
 // exactMatch matches "/name" or "/name " exactly, or any "/alias".
 func exactMatch(name string, aliases ...string) func(string) bool {
-	tokens := map[string]bool{"": true}
-	_ = tokens["/"+name]
 	return func(input string) bool {
 		if !strings.HasPrefix(input, "/") {
 			return false
@@ -114,9 +116,16 @@ func (r *Registry) Suggestions(s *tuiSession) []core.Suggestion {
 		if c.Available != nil && !c.Available(s) {
 			continue
 		}
+		// SuggestText lets a command advertise a trigger that is not exactly
+		// "/" + Name — e.g. "/skill:" whose Name is "skill". Without this the
+		// menu would suggest "/skill", which the prefix matcher then rejects.
+		text := c.SuggestText
+		if text == "" {
+			text = "/" + c.Name
+		}
 		out = append(out, core.Suggestion{
-			InsertText:  "/" + c.Name,
-			Label:       "/" + c.Name,
+			InsertText:  text,
+			Label:       text,
 			Description: c.Desc,
 		})
 	}
@@ -131,7 +140,6 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	r := NewRegistry()
 
 	multiDomain := func(s *tuiSession) bool { return s.useMultiDomain }
-	reviewOn := func(s *tuiSession) bool { return s.reviewMode }
 
 	r.Register(SlashCommand{
 		Name:    "thinking",
@@ -154,9 +162,10 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Handler: func(ctx slashCtx) { s.handleCaseCommand(ctx.input) },
 	})
 	r.Register(SlashCommand{
-		Name:  "skill",
-		Desc:  "显式调用技能",
-		Match: prefixMatch("skill:"),
+		Name:        "skill",
+		Desc:        "显式调用技能",
+		Match:       prefixMatch("skill:"),
+		SuggestText: "/skill:",
 		Handler: func(ctx slashCtx) {
 			s.app.PrintSystem("mady tui 简化版未加载技能，请使用 example/cli-chat 配合 SKILL_DIRS")
 		},
@@ -223,22 +232,30 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Handler: func(ctx slashCtx) { s.handleReviewCommand() },
 	})
 	r.Register(SlashCommand{
-		Name:      "approve",
-		Desc:      "确认AI输出，继续执行（审核模式下）",
-		Match:     exactMatch("approve"),
-		Available: reviewOn,
+		Name:  "approve",
+		Desc:  "确认AI输出，继续执行（审核模式下）",
+		Match: exactMatch("approve"),
 		Handler: func(ctx slashCtx) {
+			// Gate inside the handler (not via Available) so that when review
+			// mode is off the user gets a guiding hint instead of "未知命令".
+			if !s.reviewMode {
+				s.app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
+				return
+			}
 			s.recordApprovalDecision(domains.DecisionAdopted, "", "")
 			s.app.PrintSystem("✅ 已确认 — Agent 将继续执行")
 			s.submitInput("确认")
 		},
 	})
 	r.Register(SlashCommand{
-		Name:      "reject",
-		Desc:      "拒绝AI输出，请求修改（审核模式下）",
-		Match:     exactMatch("reject"),
-		Available: reviewOn,
+		Name:  "reject",
+		Desc:  "拒绝AI输出，请求修改（审核模式下）",
+		Match: exactMatch("reject"),
 		Handler: func(ctx slashCtx) {
+			if !s.reviewMode {
+				s.app.PrintSystem("⚠ 审核关卡未启用。使用 /review 开启")
+				return
+			}
 			s.recordApprovalDecision(domains.DecisionRejected, "", "用户拒绝，要求修改")
 			s.app.PrintSystem("❌ 已拒绝 — Agent 将根据您的反馈调整")
 			s.submitInput("拒绝，请根据审核意见修改后重新输出")

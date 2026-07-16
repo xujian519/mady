@@ -274,7 +274,13 @@ func loadKeymapOverrides(madyHome string, km *terminal.KeybindingsManager) []str
 	path := filepath.Join(madyHome, "keymap.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		// Missing file is the common case — no keymap customization.
+		// A missing file is the common case (no keymap customization) —
+		// stay silent. But a present-but-unreadable file (permissions, IO
+		// error) would silently disable the user's customization with no
+		// signal, so surface those.
+		if !os.IsNotExist(err) {
+			return []string{fmt.Sprintf("cannot read %s: %v", path, err)}
+		}
 		return nil
 	}
 	warnings, err := km.LoadUserBindingsJSON(data)

@@ -214,7 +214,6 @@ func parseBlocks(src string) []Block {
 		if fm := reFence.FindStringSubmatch(ln); fm != nil {
 			fence := fm[1]
 			lang := fm[2]
-			start := i
 			i++
 			var codeLines []string
 			closed := false
@@ -231,7 +230,6 @@ func parseBlocks(src string) []Block {
 				Kind: kindFence, Lines: codeLines,
 				Fence: fence, Lang: lang, Closed: closed,
 			}
-			_ = start
 			blocks = append(blocks, b)
 			continue
 		}

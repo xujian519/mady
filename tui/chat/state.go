@@ -60,6 +60,7 @@ const (
 	evtMessageDelta
 	evtToolStart
 	evtToolEnd
+	evtTurnStart
 	evtTurnEnd
 	evtHandoffStart
 	evtHandoffEnd
@@ -67,8 +68,13 @@ const (
 	evtCompactionEnd
 	evtAgentEnd
 	evtAgentError
+	evtAutoRetry
 	evtApprovalRequest
 	evtApprovalDecision
+	// evtUnknown is the safe default for unrecognized events: Transition has
+	// no case for it, so it returns the state unchanged (a true no-op). This
+	// must NOT be evtAgentStart, which would spuriously flip Idle→Streaming.
+	evtUnknown
 )
 
 // Transition returns the AppState that results from applying one event in the
@@ -163,6 +169,8 @@ func EventKindFor(e ChatEvent) eventKind {
 		return evtToolStart
 	case ToolCallEndChatEvent:
 		return evtToolEnd
+	case TurnStartChatEvent:
+		return evtTurnStart
 	case TurnEndChatEvent:
 		return evtTurnEnd
 	case HandoffStartChatEvent:
@@ -177,6 +185,12 @@ func EventKindFor(e ChatEvent) eventKind {
 		return evtAgentEnd
 	case AgentErrorChatEvent:
 		return evtAgentError
+	case AutoRetryChatEvent:
+		return evtAutoRetry
 	}
-	return evtAgentStart // unknown events default to a no-op-ish bucket
+	// Unknown events map to evtUnknown, for which Transition has no case —
+	// it returns the current state unchanged (a genuine no-op). Returning
+	// evtAgentStart here would wrongly flip Idle→Streaming on any future
+	// event type added without an explicit mapping.
+	return evtUnknown
 }

@@ -247,6 +247,12 @@ func (a *ChatApp) onTurnStart(e ChatEvent) {
 	if !ok {
 		return
 	}
+	// Mark the turn start so onTurnEnd can compute tok/s from a SINGLE turn's
+	// elapsed time (not cumulative since AgentStart — that would dilute the
+	// rate across earlier turns and misreport the streaming speed).
+	a.mu.Lock()
+	a.model.turnStarted = time.Now()
+	a.mu.Unlock()
 	if a.cfg.ShowTurns && t.Turn > 1 {
 		a.history.Append(ChatMessage{
 			Role: RoleDivider,
@@ -280,6 +286,12 @@ func (a *ChatApp) onTurnEnd(e ChatEvent) {
 
 	if a.statusBar != nil {
 		a.statusBar.SetUsage(prompt, completion, tokPerSec)
+		// Context-occupancy bar: the turn's TotalTokens is the live context
+		// size after this turn. When ContextWindow is configured, surface it
+		// so the user can see how full the context is heading into compaction.
+		if a.cfg.ContextWindow > 0 {
+			a.statusBar.SetContext(te.Usage.TotalTokens, a.cfg.ContextWindow)
+		}
 		a.host.RequestRender()
 	}
 	a.history.CollapseConsecutiveTools()

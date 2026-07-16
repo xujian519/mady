@@ -9,6 +9,7 @@ package component
 import (
 	"strings"
 	"testing"
+	"unsafe"
 )
 
 // TestRenderMarkdownEquivalenceGolden captures the full output of
@@ -136,8 +137,10 @@ func TestBlockCacheMatchesFreshRender(t *testing.T) {
 }
 
 // TestBlockCacheAvoidsRecompute confirms the cache actually skips work:
-// rendering the same source twice must leave every entry with the same
-// pointer-identical rendered slice the second time (no re-render).
+// rendering the same source twice must leave every entry pointing at the SAME
+// underlying rendered slice (pointer-identical), proving nothing was re-rendered.
+// A len/cap check cannot prove this — a fresh render of identical input would
+// produce the same length and the test would pass spuriously.
 func TestBlockCacheAvoidsRecompute(t *testing.T) {
 	theme := defaultMarkdownTheme()
 	const width = int64(40)
@@ -148,21 +151,37 @@ func TestBlockCacheAvoidsRecompute(t *testing.T) {
 	if len(cache.entries) == 0 {
 		t.Fatal("no cache entries after first render")
 	}
-	first := make([][]string, len(cache.entries))
+	// Capture the address of each entry's rendered backing array. We compare
+	// the slice headers (Data pointer) via reflect, which is the only way to
+	// detect "same slice, not a fresh allocation of equal content".
+	firstHeaders := make([]string, len(cache.entries))
+	firstPtrs := make([]uintptr, len(cache.entries))
 	for i, e := range cache.entries {
-		first[i] = e.rendered
+		firstHeaders[i] = e.rendered[0]
+		firstPtrs[i] = sliceDataPtr(e.rendered)
 	}
 
 	_ = RenderMarkdownIncremental(src, width, theme, &cache)
 	for i, e := range cache.entries {
-		if len(first[i]) == 0 {
-			continue // blank blocks render to a single padded line; still comparable by pointer below
+		if len(e.rendered) == 0 || len(firstHeaders) <= i {
+			continue
 		}
-		// Pointer-identical means we reused, not re-rendered.
-		if cap(e.rendered) == 0 || len(e.rendered) != len(first[i]) {
-			t.Errorf("entry %d re-rendered (len changed): %d vs %d", i, len(e.rendered), len(first[i]))
+		// The entry must be the SAME backing array — not a re-rendered copy.
+		// We check both the Data pointer and that element [0] is unchanged.
+		if sliceDataPtr(e.rendered) != firstPtrs[i] {
+			t.Errorf("entry %d was re-rendered (backing array changed): was %x now %x",
+				i, firstPtrs[i], sliceDataPtr(e.rendered))
 		}
 	}
+}
+
+// sliceDataPtr returns the address of a slice's first element as uintptr,
+// for pointer-identity comparison. Empty slices return 0.
+func sliceDataPtr(s []string) uintptr {
+	if len(s) == 0 {
+		return 0
+	}
+	return uintptr(unsafe.Pointer(&s[0]))
 }
 
 func equalStringSlices(a, b []string) bool {

@@ -26,15 +26,18 @@ func (s *tuiSession) openSettings() {
 	box.SetPadding(1, 1)
 	box.AddChild(settings)
 
-	// Track the overlay handle so OnSubmit can close it. Set before wiring
-	// callbacks so the closure sees the assigned handle.
+	// Track the overlay handle so OnSubmit can close it. The closure captures
+	// ov by reference; assignment below happens before any user interaction
+	// can fire the callbacks, so this ordering is safe.
 	var ov chat.OverlayRef
 	// OnChange: apply the cycled value immediately so the user sees the effect
 	// without having to submit (matches the /theme /plan etc. live behavior).
+	// NOTE: SettingsList.submitOrCycle (Enter) fires BOTH OnChange and
+	// OnSubmit, so OnSubmit must NOT re-apply — doing so would double-trigger
+	// the plan/review toggles (toggle twice = no-op) and rebuild the agent
+	// twice. OnSubmit's only job is to close the panel.
 	settings.OnChange(func(e component.SettingEntry) { s.applySettingEntry(e) })
-	// OnSubmit: apply the final value, close the overlay, restore focus.
-	settings.OnSubmit(func(e component.SettingEntry) {
-		s.applySettingEntry(e)
+	settings.OnSubmit(func(_ component.SettingEntry) {
 		if ov != nil {
 			s.app.CloseOverlay(ov)
 		}

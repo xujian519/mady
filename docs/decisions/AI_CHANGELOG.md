@@ -1,5 +1,33 @@
 # AI 决策变更日志
 
+## 2026-07-16: TUI 优化代码质量审阅 — 9 项问题修复
+
+对 12 批次 TUI 优化做全面批判性审阅（3 个 Explore agent 交叉审阅 component/chat/cmd 三层），发现并修复 9 项真问题：
+
+### 严重（功能 bug）
+- **S2 settings 双重触发**：`settings_panel.go` OnSubmit 重复调 applySettingEntry——Enter 时 SettingsList 先 cycle+OnChange 再 OnSubmit，导致 plan/review toggle 两次抵消（等于没改）+ 重建 agent 两遍。修复：OnSubmit 只关闭 overlay 不 apply（OnChange 已 apply）
+- **S1 /approve /reject 回归**：注册表用 `Available: reviewOn` gate，review 关闭时 Lookup 返回 nil → 落入"未知命令"分支，丢失原"⚠ 审核关卡未启用"引导提示。修复：去掉 Available gate，改 Handler 内检查 reviewMode 恢复引导语义
+- **M5 /skill: 补全缺冒号**：Suggestions 给 `/skill`（Name 无冒号），但 prefixMatch 要 `/skill:`——补全选中后变未知命令。修复：SlashCommand 加 SuggestText 字段，skill 命令填 `/skill:`
+
+### 中等（潜在 bug / 设计缺陷）
+- **M2 keymap 未知修饰键降级裸键**：`foobar+a` 告警但仍接受，parseKeyID 静默丢 foobar 后变裸 `a`，劫持所有裸 a 按键（比绑定失败更危险）。修复：未知修饰键时**拒绝 token**（不入 valid），告警说明已跳过
+- **component S1 SetContext 死代码**：context 占用条从未接线（ctxUsed/Total 恒为 0）。修复：ChatAppConfig 加 ContextWindow 字段，onTurnEnd 用 `te.Usage.TotalTokens / ContextWindow` 调 SetContext 激活
+- **M1 EventKindFor 默认分支错误**：未知事件返回 evtAgentStart（会错误触发 Idle→Streaming），且遗漏 TurnStart/AutoRetry。修复：加 evtUnknown（Transition 无 case → 真 no-op）+ 显式映射 TurnStart/AutoRetry
+- **M4 Clear() 未重置 tailAnchorLen**：清空历史后 tailAnchorLen 残留旧值，下次流式显示无意义的"↓ N new"。修复：Clear 重置 tailAnchorLen=0 + follow=true
+- **M3 loadKeymapOverrides 吞权限错误**：所有 ReadFile 错误当 missing file 忽略，权限不足时静默禁用定制。修复：用 os.IsNotExist 区分，非 not-exist 错误告警
+- **component S2 TestBlockCacheAvoidsRecompute 无效断言**：原断言只比 len/cap 不比指针，删掉 cache-hit 分支测试仍通过（优化核心保证形同虚设）。修复：改 unsafe.Pointer 比较切片底层数组地址，真正验证复用
+
+### 顺带清理
+- 删除 `slash_registry.go` exactMatch 的死代码（`tokens` map 只写不读）
+- 删除 `markdown.go` parseBlocks 的 `_ = start` 残留
+- tok/s 量纲修复：turnStarted 改在 onTurnStart 重置（单 turn 耗时，非自 AgentStart 累计）
+- settings_panel.go 注释修正（ov 赋值顺序描述与代码相反）
+
+- **影响范围**: `cmd/mady/{slash_registry,settings_panel,tui_helpers,main}.go`、`tui/chat/{chat_app,chat_app_tool,chat_history,state}.go`、`tui/terminal/keybindings.go`、`tui/component/markdown.go` + 4 个 _test.go
+- **风险等级**: 低-中（S2/S1/M5 是用户可见 bug 修复；其余为健壮性/测试有效性提升）
+- **审查要求**: L2
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./tui/... ./cmd/...` ✅（全 11 子包）| gofmt ✅
+
 ## 2026-07-16: TUI 模块优化 Phase B/C/D — 批次 7-12 全部落地
 
 ### Batch 7（P1-3）ToolCard 共享渲染组件

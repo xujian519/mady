@@ -74,6 +74,10 @@ type ChatAppConfig struct {
 	ShowTimings bool
 	ShowTurns   bool
 
+	// ContextWindow is the model's max context size in tokens, used to render
+	// the StatusBar context-occupancy bar. 0 hides the bar.
+	ContextWindow int64
+
 	// ReasoningRenderer controls how thinking segments are displayed in the
 	// chat history. Pass nil (default) to hide reasoning; pass a
 	// *DefaultReasoningRenderer to restore the legacy Show/Mode policy; pass

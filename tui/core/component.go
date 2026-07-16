@@ -1,6 +1,6 @@
 package core
 
-import "sync"
+import "github.com/xujian519/mady/pkg/csync"
 
 // ---------------------------------------------------------------------------
 // Component interface
@@ -71,8 +71,7 @@ type WantsKeyRelease interface {
 
 // Container renders a vertical stack of child components.
 type Container struct {
-	mu       sync.RWMutex
-	children []Component
+	children csync.Slice[Component]
 }
 
 // NewContainer returns an empty container.
@@ -83,18 +82,16 @@ func (c *Container) AddChild(child Component) {
 	if child == nil {
 		return
 	}
-	c.mu.Lock()
-	c.children = append(c.children, child)
-	c.mu.Unlock()
+	c.children.Append(child)
 }
 
 // RemoveChild removes the first occurrence of child. Returns true if removed.
 func (c *Container) RemoveChild(child Component) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for i, ch := range c.children {
+	children := c.children.Copy()
+	for i, ch := range children {
 		if ch == child {
-			c.children = append(c.children[:i], c.children[i+1:]...)
+			children = append(children[:i], children[i+1:]...)
+			c.children.SetSlice(children)
 			return true
 		}
 	}
@@ -103,26 +100,17 @@ func (c *Container) RemoveChild(child Component) bool {
 
 // Clear removes all children.
 func (c *Container) Clear() {
-	c.mu.Lock()
-	c.children = nil
-	c.mu.Unlock()
+	c.children.SetSlice(nil)
 }
 
 // Children returns a snapshot slice of the current children.
 func (c *Container) Children() []Component {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	out := make([]Component, len(c.children))
-	copy(out, c.children)
-	return out
+	return c.children.Copy()
 }
 
 // Render concatenates child renders vertically.
 func (c *Container) Render(width int64) []string {
-	c.mu.RLock()
-	children := make([]Component, len(c.children))
-	copy(children, c.children)
-	c.mu.RUnlock()
+	children := c.children.Copy()
 
 	var lines []string
 	for _, ch := range children {
@@ -136,11 +124,7 @@ func (c *Container) Render(width int64) []string {
 
 // Invalidate fans out to all children.
 func (c *Container) Invalidate() {
-	c.mu.RLock()
-	children := make([]Component, len(c.children))
-	copy(children, c.children)
-	c.mu.RUnlock()
-	for _, ch := range children {
+	for _, ch := range c.children.Copy() {
 		ch.Invalidate()
 	}
 }

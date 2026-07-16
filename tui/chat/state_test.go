@@ -63,6 +63,7 @@ func TestEventKindForMapsChatEvents(t *testing.T) {
 		{MessageDeltaChatEvent{}, evtMessageDelta},
 		{ToolCallStartChatEvent{}, evtToolStart},
 		{ToolCallEndChatEvent{}, evtToolEnd},
+		{TurnStartChatEvent{}, evtTurnStart},
 		{TurnEndChatEvent{}, evtTurnEnd},
 		{AgentEndChatEvent{}, evtAgentEnd},
 		{AgentErrorChatEvent{Err: nil}, evtAgentError},
@@ -70,6 +71,7 @@ func TestEventKindForMapsChatEvents(t *testing.T) {
 		{CompactionEndChatEvent{}, evtCompactionEnd},
 		{HandoffStartChatEvent{}, evtHandoffStart},
 		{HandoffEndChatEvent{}, evtHandoffEnd},
+		{AutoRetryChatEvent{}, evtAutoRetry},
 	}
 	for _, c := range cases {
 		if got := EventKindFor(c.evt); got != c.want {
@@ -77,6 +79,26 @@ func TestEventKindForMapsChatEvents(t *testing.T) {
 		}
 	}
 }
+
+// TestEventKindForUnknownIsNoOp confirms the default mapping (evtUnknown) is a
+// genuine no-op in every state — it must never flip Idle→Streaming the way a
+// careless evtAgentStart default would.
+func TestEventKindForUnknownIsNoOp(t *testing.T) {
+	for _, s := range []AppState{StateIdle, StateStreaming, StateToolRunning, StateCompacting, StateAwaitingConfirm} {
+		if got := Transition(s, evtUnknown); got != s {
+			t.Errorf("evtUnknown should be a no-op in %s, got %s", s, got)
+		}
+	}
+	// And a truly unknown ChatEvent maps to evtUnknown (not evtAgentStart).
+	ue := unknownTestEvent{}
+	if got := EventKindFor(ue); got != evtUnknown {
+		t.Errorf("EventKindFor(unknown) = %d, want evtUnknown", got)
+	}
+}
+
+type unknownTestEvent struct{}
+
+func (unknownTestEvent) ChatEventKind() ChatEventType { return "unknown-test-event" }
 
 func TestAppStateString(t *testing.T) {
 	want := map[AppState]string{
