@@ -353,6 +353,7 @@ func (a *ChatApp) Subscribe(sub EventSubscriber) {
 	sub.On(ChatEventAutoRetry, a.onAutoRetry)
 	sub.On(ChatEventAgentError, a.onAgentError)
 	sub.On(ChatEventAgentEnd, a.onAgentEnd)
+	sub.On(ChatEventAgentInterrupt, a.onAgentInterrupt)
 }
 
 func (a *ChatApp) PrintSystem(msg string) {

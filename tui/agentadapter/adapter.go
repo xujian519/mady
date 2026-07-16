@@ -40,6 +40,20 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 			}
 			handler(chat.AgentErrorChatEvent{Err: ev.Err})
 		})
+	case chat.ChatEventAgentInterrupt:
+		s.agent.On(agentcore.EventAgentInterrupt, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.AgentInterruptEvent)
+			if !ok {
+				return
+			}
+			var reason string
+			var data map[string]any
+			if ev.Reason != nil {
+				reason = ev.Reason.Reason
+				data = ev.Reason.Data
+			}
+			handler(chat.AgentInterruptChatEvent{Reason: reason, Data: data})
+		})
 	case chat.ChatEventTurnStart:
 		s.agent.On(agentcore.EventTurnStart, func(e agentcore.Event) {
 			ev, ok := e.(*agentcore.TurnStartEvent)

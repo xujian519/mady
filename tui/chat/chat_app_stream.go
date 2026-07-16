@@ -100,3 +100,61 @@ func (a *ChatApp) onAgentEnd(e ChatEvent) {
 	a.mu.Unlock()
 	a.Idle()
 }
+
+// onAgentInterrupt handles an agent pausing for human review. It finalizes
+// any in-flight stream, returns the UI to idle (so the user can type), and
+// prints a guidance prompt telling the user how to resume (/approve) or
+// reject (/reject). The prompt is tailored to the interrupt source: a
+// gate-tagged hard interrupt (e.g. disclosure review_gate) gets an explicit
+// "review the report" hint, while a generic ApprovalGate keyword interrupt
+// gets a standard prompt.
+func (a *ChatApp) onAgentInterrupt(e ChatEvent) {
+	ev, ok := e.(AgentInterruptChatEvent)
+	if !ok {
+		return
+	}
+	a.mu.Lock()
+	a.finalizeStreamLocked()
+	a.mu.Unlock()
+	a.Idle()
+	a.PrintSystem(interruptGuidance(ev))
+}
+
+// interruptGuidance builds the human-readable prompt shown when an agent
+// pauses for review. It inspects the interrupt Data to tailor the wording:
+//
+//   - gate == "disclosure_review": the disclosure pipeline finished and the
+//     novelty assessment / report awaits review — point the user at /approve.
+//   - any other gate tag: a generic hard-interrupt review prompt.
+//   - no gate tag (ApprovalGate keyword soft-interrupt): standard prompt.
+func interruptGuidance(ev AgentInterruptChatEvent) string {
+	reason := ev.Reason
+	if reason == "" {
+		reason = "已暂停"
+	}
+	gate, _ := ev.Data["gate"].(string)
+	switch gate {
+	case "disclosure_review":
+		return strings.Join([]string{
+			"⏸️  技术交底书分析已暂停，等待人工复核",
+			"原因：" + reason,
+			"",
+			"操作方式：",
+			"  • /approve — 确认新颖性初判与分析报告，继续执行",
+			"  • /reject  — 拒绝，要求修改后重新分析",
+		}, "\n")
+	default:
+		extra := ""
+		if gate != "" {
+			extra = "（关卡：" + gate + "）"
+		}
+		return strings.Join([]string{
+			"⏸️  已暂停等待人工确认" + extra,
+			"原因：" + reason,
+			"",
+			"操作方式：",
+			"  • /approve — 确认并继续",
+			"  • /reject  — 拒绝并要求修改",
+		}, "\n")
+	}
+}

@@ -1,5 +1,36 @@
 # AI 决策变更日志
 
+## 2026-07-16: TUI 中断用户引导（缺口3 收尾）
+
+### 背景
+前一条记录修复了 Resume 闭环的 Server + TUI 缺口，遗留缺口3：AgentInterruptEvent
+在 TUI 侧无引导文案，用户看到中断会困惑。核实发现 agentadapter 根本没有映射
+EventAgentInterrupt（switch 无此分支），中断事件被静默丢弃，TUI 永远不知道发生了中断。
+
+### 改动
+补全中断事件从 agentcore → adapter → chat_app 的完整渲染链路：
+- `tui/chat/events.go`：新增 `ChatEventAgentInterrupt` 常量 + `AgentInterruptChatEvent` 类型
+  （携带 Reason + Data，Data 含 gate 标签供文案定制）
+- `tui/agentadapter/adapter.go`：新增 `case ChatEventAgentInterrupt` 分支，把
+  `agentcore.AgentInterruptEvent` 映射成 `chat.AgentInterruptChatEvent`
+- `tui/chat/chat_app.go`：Subscribe 注册 `onAgentInterrupt`
+- `tui/chat/chat_app_stream.go`：`onAgentInterrupt` handler 结束流式→Idle→PrintSystem
+  渲染引导文案；`interruptGuidance` 按 Data["gate"] 定制：disclosure_review 显示
+  "技术交底书分析已暂停，等待人工复核"，其他 gate 显示关卡名，无 gate（ApprovalGate
+  软中断）显示通用提示。三类都引导用户用 /approve 或 /reject
+- 测试：`interrupt_guidance_test.go` 覆盖三分支 + 空回退 + ChatEventKind
+
+### 闭环状态
+中断人机协作三缺口全部关闭：
+- ✅ 缺口1（Server）：awaiting_review 状态 + 返回 report
+- ✅ 缺口2（TUI Resume）：/approve 走 agent.Resume 从中断点继续
+- ✅ 缺口3（TUI 引导）：中断时渲染 /approve /reject 引导文案
+
+- **影响范围**: `tui/chat/{events,chat_app,chat_app_stream,interrupt_guidance_test,chat_app_test}.go`、`tui/agentadapter/adapter.go`
+- **风险等级**: 低（纯 UI 渲染，不改变中断/恢复机制本身，只补事件映射 + 文案）
+- **审查要求**: L1
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./tui/... ./cmd/mady/` ✅ | gofmt ✅
+
 ## 2026-07-16: disclosure 中断的 Resume 闭环修复（Server + TUI）
 
 ### 背景

@@ -26,6 +26,7 @@ const (
 	ChatEventCompactionStart ChatEventType = "compaction_start"
 	ChatEventCompactionEnd   ChatEventType = "compaction_end"
 	ChatEventAutoRetry       ChatEventType = "auto_retry"
+	ChatEventAgentInterrupt  ChatEventType = "agent_interrupt"
 )
 
 type ChatEvent interface {
@@ -45,6 +46,17 @@ type AgentEndChatEvent struct {
 }
 
 func (AgentEndChatEvent) ChatEventKind() ChatEventType { return ChatEventAgentEnd }
+
+// AgentInterruptChatEvent carries the reason an agent paused for human
+// review (e.g. disclosure review_gate, or an ApprovalGate keyword trigger).
+// Reason.Data may hold gate-specific context (gate name, report_id) that the
+// TUI uses to render a tailored guidance prompt.
+type AgentInterruptChatEvent struct {
+	Reason string
+	Data   map[string]any
+}
+
+func (AgentInterruptChatEvent) ChatEventKind() ChatEventType { return ChatEventAgentInterrupt }
 
 type AgentErrorChatEvent struct {
 	Err error
