@@ -175,6 +175,56 @@ func (s *SQLiteStore) FTSSearch(query string, topK int) ([]retrieval.ScoredChunk
 	return results, rows.Err()
 }
 
+// GetChunksByDocID returns up to limit chunks belonging to the given document
+// ID, ordered by chunk_index. It is the doc-level fetch counterpart to the
+// query-level FTSSearch/VectorSearch, enabling DomainRetriever.GetDocument to
+// reconstruct a document's text without exposing the underlying *sql.DB.
+//
+// limit <= 0 defaults to 10. Returns an empty slice (no error) when the
+// document ID has no chunks in the store.
+func (s *SQLiteStore) GetChunksByDocID(docID string, limit int) ([]retrieval.ScoredChunk, error) {
+	if docID == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.db.Query(`
+		SELECT id, document_id, chunk_index, heading, content
+		FROM chunks
+		WHERE document_id = ?
+		ORDER BY chunk_index
+		LIMIT ?`, docID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get chunks by docID: %w", err)
+	}
+	defer rows.Close()
+
+	var results []retrieval.ScoredChunk
+	for rows.Next() {
+		var id int
+		var did, content string
+		var heading sql.NullString
+		var chunkIdx int
+		if err := rows.Scan(&id, &did, &chunkIdx, &heading, &content); err != nil {
+			return nil, fmt.Errorf("get chunks scan: %w", err)
+		}
+		results = append(results, retrieval.ScoredChunk{
+			Chunk: retrieval.Chunk{
+				ID:       strconv.Itoa(id),
+				DocID:    did,
+				Content:  content,
+				Position: chunkIdx,
+				Metadata: map[string]string{
+					"heading":    heading.String,
+					"chunk_type": "section",
+				},
+			},
+		})
+	}
+	return results, rows.Err()
+}
+
 // VectorSearch performs brute-force cosine-similarity search against stored
 // BGE-M3 embeddings. If the in-memory vector index is loaded (via
 // PreloadVectors), it uses parallel in-memory computation (~50-200ms for
