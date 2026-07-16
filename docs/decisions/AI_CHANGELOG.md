@@ -1,5 +1,31 @@
 # AI 决策变更日志
 
+## 2026-07-16: reasoning Stage ② 规则召回接入真实知识资产（vector + skill 两路）
+
+### 背景
+评估两份设计文档（`design-prior-art-retrieval-stage.md`、`design-rule-acquisition-stage.md`）时，经代码 + 运行时数据双重核实，纠正了一处关键误判：
+
+- **规则引擎早已完整装配**：`cmd/mady/main.go:555` `rules.LoadEngineFromMadyHome()` → `engine.go:31` 解析 `$MADY_HOME/knowledge/rules`（软链接到 xiaonuo 的 17 个 YAML）→ `tui_session.go:112/135/181` 注入三种 agent。启动即生效，`search_rules`/`get_article_framework` 工具已上线。
+- **知识数据早已就位**：`~/.mady/knowledge/{knowledge.db 6.5G, patent_kg.db 207M, laws-full.db 152M, wiki/ 1573md}` 全部软链接到 xiaonuo，`knowledge/sqlite` 查询层已接入 chat agent。
+- **真正的缺口在 Stage ②**：`main.go` `buildReasoningRetriever` 用 `reasoning.NewMultiSourceRetriever(walker, nil, nil)` —— 后两个 nil（`RuleVectorStore` / `RuleSkillReader`）导致"获取规则"阶段只能查知识图谱，向量检索和 wiki 经验两路完全缺失。
+
+### 改动
+- **新建 `domains/reasoning/wiring/` 子包**（装配层，保持 reasoning 主体零基础设施依赖，符合 ADR-0001）：
+  - `vector_rule_store.go`：`VectorRuleStore` 把已打开的 `knowledge.KnowledgeBackend.FTSSearch` 适配为 `reasoning.RuleVectorStore`，命中法条/审查指南语料片段，AuthorityScore=0.7（规范性依据层）
+  - `skill_rule_reader.go`：`SkillRuleReader` 解析 `patent-cards/*.md`（Obsidian 列表式元数据 + 卡片正文）为 `reasoning.RuleSkillReader`，AuthorityScore=0.4（经验参考层，非法律依据）
+- **`cmd/mady/main.go`**：`loadWikiStore` 增加 `KnowledgeBackend` 返回值；`frameworkContext` 加 `KnowledgeBackend`/`WikiRoot` 字段；`buildReasoningRetriever` 接入三路（KG + Vector + Skill）；新增 `resolveWikiRoot` 解析 wiki 根目录
+- **`disclosure/report.go:78`**：订正过时注释（原"Phase 2 将增强 retrieval 集成"误判为未来计划，实际 retrieval 已接入 chat agent 与 Stage ②，仅 disclosure 节点未接）
+
+### 边界（不做）
+- 不动 disclosure 管线节点（`retrieve_prior_art` 是独立任务，需先建 `PatentDomainRetriever`）
+- 不接审批阀（需 Pregel→InterruptError 适配层，是 design-rule-acquisition-stage.md 的后续）
+- 不碰任何安全敏感路径
+
+- **影响范围**: `domains/reasoning/wiring/{vector_rule_store,skill_rule_reader}.go` + 2 测试 + testdata、`cmd/mady/{main,stage2_wiring_test}.go`、`disclosure/report.go`、`docs/decisions/AI_CHANGELOG.md`
+- **风险等级**: 低（纯装配层接线，新增子包不修改 reasoning 主包任何现有代码；三路任一数据缺失时该路静默跳过，不影响现有行为）
+- **审查要求**: L1（不涉及护栏/Handoff/沙箱/Checkpoint）
+- **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./domains/reasoning/... ./cmd/mady/...` ✅
+
 ## 2026-07-16: TUI 优化代码质量审阅 — 9 项问题修复
 
 对 12 批次 TUI 优化做全面批判性审阅（3 个 Explore agent 交叉审阅 component/chat/cmd 三层），发现并修复 9 项真问题：
