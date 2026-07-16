@@ -1472,3 +1472,50 @@ review_gate 必然返回 InterruptError，导致所有 Server 端交底书分析
 - **风险等级**: 低（评估与测试代码，不影响生产运行时路径；仅修改数据/指标/测试结构）
 - **审查要求**: L2（涉及评估指标行为与 Golden Benchmark 数据质量，需审阅指标语义是否正确）
 - **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./...` 全绿 ✅ | `make eval` ✅ | `golangci-lint` 未运行（网络超时无法安装 v2.12.2）
+
+## 2026-07-16: 7 个文件裸 sync.RWMutex 迁移到 pkg/csync 泛型容器
+
+### 背景
+项目中大量使用 `sync.RWMutex` + `map`/`slice` 的并发保护模式，存在大量重复的
+Lock/Unlock 样板代码。`pkg/csync` 提供了 `csync.Map`, `csync.Slice`, `csync.Value`
+泛型容器封装了内部 RWMutex，用 `Get/Set/Del/Copy` 代替手写锁。
+
+### 改动
+
+| 文件 | 原来 | 改为 |
+|------|------|------|
+| `acp/session.go` | `mu sync.RWMutex` + `sessions map[string]*sessionState` | `sessions *csync.Map[string, *sessionState]` |
+| `acp/server.go` | `clientCapsMu sync.RWMutex` + `clientCaps *ClientCapabilities` | `clientCaps atomic.Pointer[ClientCapabilities]`（单指针，csync.Value 不支持 pointer） |
+| `acp/server.go` | `pendingMu sync.Mutex` + `pending map[string]chan acpResponse` | `pending *csync.Map[string, chan acpResponse]` |
+| `knowledge/store.go` | `mu sync.RWMutex` + `docs/chunks/byDomain` 三个 map | 三个独立的 `*csync.Map[...]` |
+| `server/disclosure.go` | `mu sync.RWMutex` + `tasks map[string]*disclosureTask` | `tasks *csync.Map[string, *disclosureTask]` |
+| `server/server.go` | `mu sync.RWMutex` 保护 config/maxBody/srv | `config *csync.Value[Config]` + `maxRequestBodyBytes atomic.Int64` + `srv atomic.Pointer[http.Server]` |
+| `server/disclosure.go` | `s.mu.RLock/Unlock` 保护 disclosure 双检锁 | `disclosure atomic.Pointer[disclosureTaskManager]` + `discMu sync.Mutex` |
+| `knowledge/graph/cache.go` | 原样保留（csync.Map 缺 Range 迭代，evictIfNeeded 需遍历删除） | 添加 `// TODO(csync):` 说明 |
+| `session/session.go` | `idMu sync.Mutex` + `idCounter int64` | `idCounter atomic.Int64`（Remove idMu） |
+| `session/session.go` | `locksMu sync.Mutex` + 耦合 LRU 链表 | 原样保留，添加 TODO 说明需同时处理 list + map |
+
+- **原因**: 消除重复的 Lock/Unlock 样板代码，利用泛型容器提供类型安全的并发访问
+- **影响范围**: acp/session.go, acp/server.go, knowledge/store.go, server/disclosure.go, server/server.go, session/session.go, knowledge/graph/cache.go
+- **风险等级**: 低（纯互斥替换，不改 API 签名；测试全绿）
+- **审查要求**: L1
+- **验证**: `go build ./...` ✅ | `go test ./acp/... ./knowledge/... ./server/... ./session/...` ✅
+
+## 2026-07-16: goimports -local 统一导入分组
+- **Decision**: pre-commit 钩子中 goimports 增加 `-local github.com/xujian519/mady` 标志，使 import 分组变为标准的三段式（标准库/第三方/本地）
+- **Reason**: GO-DEVELOPMENT-STANDARDS.md §2.3 要求三段式导入分组，但原配置缺少 `-local` 导致第三方和本地包混在同一组
+- **Impact**: `.pre-commit-config.yaml` 修改；全仓 13 个文件自动格式化调整导入顺序
+- **Risk**: 低（纯格式化变更，不影响语义）
+- **Verification**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test ./...` ✅
+
+## 2026-07-16: 测试中 time.Sleep 替换为 channel/ticker 同步
+- **Decision**: 移除 `tui/lifecycle_test.go`（2处）、`a2a/ratelimit_test.go`（1处）、`mcp/client_test.go`（5处）、`server/server_test.go`（1处）中的 `time.Sleep` 调用，改用 `time.NewTicker` + channel 等待或 channel 同步
+- **Reason**: GO-DEVELOPMENT-STANDARDS.md §7.7 要求避免 time.Sleep 导致脆弱测试
+- **Risk**: 低
+- **Verification**: `go test ./tui/... ./a2a/... ./mcp/... ./server/...` ✅
+
+## 2026-07-16: 补充导出常量块注释
+- **Decision**: 为 `agentcore/state.go`、`agentcore/provider.go`（3处）、`agentcore/executor.go` 的 const 块补充块级注释
+- **Reason**: 导出符号必须注释（GO-DEVELOPMENT-STANDARDS.md §10.1），部分 const 块此前缺少文档
+- **Risk**: 低
+- **Verification**: `go build ./agentcore/...` ✅

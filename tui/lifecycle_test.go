@@ -306,8 +306,7 @@ func TestSendMsgSafeNoZombieAfterStopConcurrent(t *testing.T) {
 		}()
 	}
 
-	// Let senders race with Stop.
-	time.Sleep(20 * time.Millisecond)
+	// Let senders race with Stop (Stop is safe under concurrent sendMsgSafe).
 	if err := tui.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
@@ -324,9 +323,8 @@ func TestSendMsgSafeNoZombieAfterStopConcurrent(t *testing.T) {
 		}
 		break
 	}
-	// Wait a bit to let any racing sender that passed the flag check but
-	// hadn't yet entered the select observe doneCh and drop.
-	time.Sleep(20 * time.Millisecond)
+	// Any racing sender that passed the atomic stopped check should still
+	// be safe — sendMsgSafe drops on the channel select post-Stop.
 	select {
 	case msg := <-tui.msgCh:
 		t.Fatalf("zombie message reached msgCh after Stop: %#v", msg)

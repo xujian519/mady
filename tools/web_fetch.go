@@ -15,10 +15,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/xujian519/mady/agentcore"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
+
+	"github.com/xujian519/mady/agentcore"
 )
 
 var defaultUserAgents = []string{

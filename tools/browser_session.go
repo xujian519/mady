@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+
 	"github.com/xujian519/mady/tools/browser_providers"
 )
 

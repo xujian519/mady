@@ -17,6 +17,10 @@ type cacheEntry struct {
 //
 // The cache is best-effort: callers must invalidate it (via Invalidate) when
 // the underlying store is mutated, or use a short TTL.
+//
+// TODO(csync): csync.Map lacks iteration (Range/ForEach), and evictIfNeeded
+// needs to traverse-and-delete. Either add Range to csync.Map or replace
+// the eviction strategy before migrating.
 type GraphCache struct {
 	mu          sync.RWMutex
 	nodeDetails map[string]*cacheEntry

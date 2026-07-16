@@ -14,6 +14,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 // ──────────────────────────────────────────────
@@ -69,8 +70,7 @@ type disclosureTask struct {
 }
 
 type disclosureTaskManager struct {
-	mu      sync.RWMutex
-	tasks   map[string]*disclosureTask
+	tasks   *csync.Map[string, *disclosureTask]
 	counter atomic.Int64
 	stopCh  chan struct{}
 }
@@ -78,7 +78,7 @@ type disclosureTaskManager struct {
 // newDisclosureTaskManager 创建一个新的任务管理器并启动后台清理 goroutine。
 func newDisclosureTaskManager() *disclosureTaskManager {
 	m := &disclosureTaskManager{
-		tasks:  make(map[string]*disclosureTask),
+		tasks:  csync.NewMap[string, *disclosureTask](),
 		stopCh: make(chan struct{}),
 	}
 	go m.cleanupLoop()
@@ -102,9 +102,7 @@ func (m *disclosureTaskManager) submitTask(provider agentcore.Provider, text str
 		doneCh:    make(chan struct{}),
 	}
 
-	m.mu.Lock()
-	m.tasks[id] = task
-	m.mu.Unlock()
+	m.tasks.Set(id, task)
 
 	// 使用带超时的 context，避免图执行无限挂起
 	ctx, cancel := context.WithTimeout(context.Background(), disclosureExecTimeout)
@@ -193,10 +191,7 @@ func (m *disclosureTaskManager) executeTask(ctx context.Context, task *disclosur
 }
 
 func (m *disclosureTaskManager) getTask(id string) (*disclosureTask, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	task, ok := m.tasks[id]
-	return task, ok
+	return m.tasks.Get(id)
 }
 
 // cleanupLoop 定期清理已过期的任务，防止内存泄漏。
@@ -214,12 +209,11 @@ func (m *disclosureTaskManager) cleanupLoop() {
 }
 
 func (m *disclosureTaskManager) cleanup(olderThan time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	now := time.Now()
-	for id, task := range m.tasks {
+	tasks := m.tasks.Copy()
+	for id, task := range tasks {
 		if !task.DoneAt.IsZero() && now.Sub(task.DoneAt) > olderThan {
-			delete(m.tasks, id)
+			m.tasks.Del(id)
 		}
 	}
 }
@@ -230,18 +224,18 @@ func (m *disclosureTaskManager) cleanup(olderThan time.Duration) {
 
 // initDisclosureManager 确保 disclosure 管理器已初始化。
 func (s *Server) initDisclosureManager() *disclosureTaskManager {
-	s.mu.RLock()
-	dm := s.disclosure
-	s.mu.RUnlock()
+	dm := s.disclosure.Load()
 	if dm != nil {
 		return dm
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.disclosure == nil {
-		s.disclosure = newDisclosureTaskManager()
+	s.discMu.Lock()
+	defer s.discMu.Unlock()
+	dm = s.disclosure.Load()
+	if dm == nil {
+		dm = newDisclosureTaskManager()
+		s.disclosure.Store(dm)
 	}
-	return s.disclosure
+	return dm
 }
 
 // handleDisclosureAnalyze 接收交底书文本，启动异步分析。

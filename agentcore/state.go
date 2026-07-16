@@ -7,6 +7,7 @@ import (
 
 type Status string
 
+// Status values for the Agent lifecycle state machine.
 const (
 	StatusIdle        Status = "idle"
 	StatusRunning     Status = "running"

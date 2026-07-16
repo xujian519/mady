@@ -25,15 +25,22 @@ func TestRateLimiter_Allow(t *testing.T) {
 		t.Fatal("expected deny after burst")
 	}
 
-	// Wait for token refill by polling.
+	// Wait for token refill by polling with a ticker.
 	var allowed bool
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if rl.Allow(ip) {
-			allowed = true
-			break
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	deadline := time.After(2 * time.Second)
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			if rl.Allow(ip) {
+				allowed = true
+				break loop
+			}
+		case <-deadline:
+			break loop
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 	if !allowed {
 		t.Fatal("expected allow after refill")

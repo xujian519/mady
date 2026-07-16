@@ -145,16 +145,17 @@ func TestScheduleRefresh_CoalescesBurst(t *testing.T) {
 	scheduleRefresh(context.Background(), &mu, &inFlight, &pending, run, nil, nil, "test", "stdio")
 	close(unblock)
 
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
+		<-ticker.C
 		if runCount.Load() == 2 {
-			time.Sleep(20 * time.Millisecond)
 			if got := runCount.Load(); got != 2 {
 				t.Fatalf("runCount = %d", got)
 			}
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for coalesced refreshes; runCount=%d", runCount.Load())
 }
@@ -356,8 +357,11 @@ func TestStdioExtension_HotReloadsToolsOnListChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
+		<-ticker.C
 		names := agent.ToolNames()
 		hasEcho := false
 		hasReverse := false
@@ -372,7 +376,6 @@ func TestStdioExtension_HotReloadsToolsOnListChanged(t *testing.T) {
 		if hasReverse && !hasEcho {
 			return
 		}
-		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("tool names after hot reload = %#v", agent.ToolNames())
 }
@@ -836,15 +839,17 @@ func TestStdioClient_ReconnectAfterCrashKeepsClientUsable(t *testing.T) {
 	}
 
 	// 等待 readLoop 检测到进程退出
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
+		<-ticker.C
 		client.mu.Lock()
 		readErr := client.readErr
 		client.mu.Unlock()
 		if readErr != nil {
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	// 调用工具 → 触发 tryReconnect。测试辅助进程会被重新启动，重连应成功。
@@ -905,15 +910,17 @@ func TestStdioClient_ReconnectEmitsEvents(t *testing.T) {
 	}
 
 	// 等待 readLoop 检测到进程退出
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
+		<-ticker.C
 		client.mu.Lock()
 		readErr := client.readErr
 		client.mu.Unlock()
 		if readErr != nil {
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	// 调用工具 → 触发 tryReconnect

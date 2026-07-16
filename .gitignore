@@ -69,3 +69,6 @@ coverage.xml
 /mady
 /mady-acp
 sessions/
+
+# --- Graphify artifacts (rebuildable) ---
+graphify-out/

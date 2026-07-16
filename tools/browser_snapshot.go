@@ -9,6 +9,7 @@ import (
 
 	"github.com/chromedp/cdproto/accessibility"
 	"github.com/chromedp/chromedp"
+
 	"github.com/xujian519/mady/pkg/csync"
 )
 

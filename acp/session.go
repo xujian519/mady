@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 type sessionState struct {
@@ -42,8 +43,7 @@ func (s *sessionState) Cancel() {
 }
 
 type SessionManager struct {
-	sessions map[string]*sessionState
-	mu       sync.RWMutex
+	sessions *csync.Map[string, *sessionState]
 
 	agentFactory AgentFactory
 	sessionStore SessionStore
@@ -68,7 +68,7 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 	}
 
 	sm := &SessionManager{
-		sessions:     make(map[string]*sessionState),
+		sessions:     csync.NewMap[string, *sessionState](),
 		agentFactory: cfg.AgentFactory,
 		sessionStore: cfg.SessionStore,
 		homeDir:      cfg.HomeDir,
@@ -112,14 +112,12 @@ func (sm *SessionManager) CreateSession(ctx context.Context, cwd, sessionID stri
 		Mode:      agent.Mode(),
 	}
 
-	sm.mu.Lock()
-	if prev, ok := sm.sessions[sessionID]; ok {
+	if prev, ok := sm.sessions.Get(sessionID); ok {
 		if prev.Agent != nil && prev.Agent.Core() != nil {
 			prev.Agent.Core().Close()
 		}
 	}
-	sm.sessions[sessionID] = state
-	sm.mu.Unlock()
+	sm.sessions.Set(sessionID, state)
 
 	sm.saveSessionMeta(state)
 
@@ -128,9 +126,8 @@ func (sm *SessionManager) CreateSession(ctx context.Context, cwd, sessionID stri
 }
 
 func (sm *SessionManager) GetSession(sessionID string) *sessionState {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-	return sm.sessions[sessionID]
+	state, _ := sm.sessions.Get(sessionID)
+	return state
 }
 
 func (sm *SessionManager) UpdateCWD(sessionID, cwd string) *sessionState {
@@ -168,10 +165,8 @@ func (sm *SessionManager) UpdateMode(sessionID, mode string) error {
 }
 
 func (sm *SessionManager) SetRunning(sessionID string, cancel context.CancelFunc) {
-	sm.mu.RLock()
-	state := sm.sessions[sessionID]
-	sm.mu.RUnlock()
-	if state == nil {
+	state, ok := sm.sessions.Get(sessionID)
+	if !ok {
 		return
 	}
 	state.mu.Lock()
@@ -181,10 +176,8 @@ func (sm *SessionManager) SetRunning(sessionID string, cancel context.CancelFunc
 }
 
 func (sm *SessionManager) SetIdle(sessionID string) {
-	sm.mu.RLock()
-	state := sm.sessions[sessionID]
-	sm.mu.RUnlock()
-	if state == nil {
+	state, ok := sm.sessions.Get(sessionID)
+	if !ok {
 		return
 	}
 	state.mu.Lock()
@@ -209,11 +202,10 @@ func (sm *SessionManager) ForkSession(ctx context.Context, sessionID, cwd string
 }
 
 func (sm *SessionManager) ListSessions(cwd string) []SessionInfo {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
+	sessions := sm.sessions.Copy()
 
 	var result []SessionInfo
-	for id, state := range sm.sessions {
+	for id, state := range sessions {
 		if cwd != "" && state.CWD != cwd {
 			continue
 		}
@@ -228,10 +220,7 @@ func (sm *SessionManager) ListSessions(cwd string) []SessionInfo {
 }
 
 func (sm *SessionManager) RestoreSession(ctx context.Context, sessionID string) (*sessionState, error) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	if state, ok := sm.sessions[sessionID]; ok {
+	if state, ok := sm.sessions.Get(sessionID); ok {
 		return state, nil
 	}
 
@@ -253,20 +242,18 @@ func (sm *SessionManager) RestoreSession(ctx context.Context, sessionID string) 
 		Mode:      agent.Mode(),
 	}
 
-	sm.sessions[sessionID] = state
+	sm.sessions.Set(sessionID, state)
 	sm.logger.Info("restored session from disk", "session_id", sessionID)
 	return state, nil
 }
 
 func (sm *SessionManager) Cleanup() {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	for id, state := range sm.sessions {
+	sessions := sm.sessions.Copy()
+	for id, state := range sessions {
 		if state.cancel != nil {
 			state.cancel()
 		}
-		delete(sm.sessions, id)
+		sm.sessions.Del(id)
 	}
 }
 
@@ -287,7 +274,7 @@ func (sm *SessionManager) loadPersistedSessions(ctx context.Context) {
 	metas := sm.sessionStore.ListSessions("")
 	loaded := 0
 	for _, meta := range metas {
-		if _, exists := sm.sessions[meta.SessionID]; exists {
+		if _, exists := sm.sessions.Get(meta.SessionID); exists {
 			continue
 		}
 		agent, err := sm.agentFactory.CreateAgent(ctx, meta.SessionID, meta.CWD, meta.Model, meta.Mode)
@@ -295,13 +282,13 @@ func (sm *SessionManager) loadPersistedSessions(ctx context.Context) {
 			sm.logger.Warn("failed to restore session", "session_id", meta.SessionID, "err", err)
 			continue
 		}
-		sm.sessions[meta.SessionID] = &sessionState{
+		sm.sessions.Set(meta.SessionID, &sessionState{
 			SessionID: meta.SessionID,
 			Agent:     agent,
 			CWD:       meta.CWD,
 			Model:     agent.Model(),
-			Mode:      agent.Mode(),
-		}
+			Mode:      meta.Mode,
+		})
 		loaded++
 	}
 	if loaded > 0 {

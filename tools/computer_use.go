@@ -22,10 +22,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xujian519/mady/agentcore"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
+
+	"github.com/xujian519/mady/agentcore"
 )
 
 type cuBackend string

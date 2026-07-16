@@ -82,6 +82,7 @@ func thinkingConfigEqual(a, b *ThinkingConfig) bool {
 
 type ThinkingDisplay string
 
+// ThinkingDisplay values control how provider reasoning/thinking content is surfaced.
 const (
 	ThinkingDisplayDefault    ThinkingDisplay = ""
 	ThinkingDisplaySummarized ThinkingDisplay = "summarized"
@@ -90,6 +91,7 @@ const (
 
 type ThinkingEffort string
 
+// ThinkingEffort values specify how much reasoning effort the provider should spend.
 const (
 	ThinkingEffortDefault ThinkingEffort = ""
 	ThinkingEffortLow     ThinkingEffort = "low"
@@ -226,6 +228,7 @@ func MergeCallConfig(base, override *CallConfig) *CallConfig {
 
 type ResponseFormatType string
 
+// ResponseFormatType values specify the expected LLM response structure.
 const (
 	ResponseFormatText       ResponseFormatType = "text"
 	ResponseFormatJSONObject ResponseFormatType = "json_object"

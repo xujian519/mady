@@ -140,8 +140,7 @@ type Manager struct {
 	pathCache    atomic.Pointer[pathCache]
 
 	mu        sync.RWMutex
-	idMu      sync.Mutex
-	idCounter int64
+	idCounter atomic.Int64
 }
 
 func newManager(header Header, filePath string, persist bool) *Manager {
@@ -639,7 +638,7 @@ type FileStore struct {
 	dir      string
 	locks    map[string]*list.Element // id → LRU list element
 	lockList *list.List               // LRU: Front=MRU, Back=LRU
-	locksMu  sync.Mutex
+	locksMu  sync.Mutex               // TODO(csync): locks map + LRU list are coupled; needs both csync.Map and a separate ordered structure
 
 	// maxLocks caps the per-session lock cache. When the cache exceeds this
 	// limit the oldest entries are evicted (LRU). This prevents unbounded
@@ -1011,10 +1010,8 @@ func MessagesFromEntries(entries []Entry) []agentcore.Message {
 // ---------------------------------------------------------------------------
 
 func (m *Manager) generateID() string {
-	m.idMu.Lock()
-	defer m.idMu.Unlock()
-	m.idCounter++
-	return fmt.Sprintf("%d_%d", time.Now().UnixNano(), m.idCounter)
+	counter := m.idCounter.Add(1)
+	return fmt.Sprintf("%d_%d", time.Now().UnixNano(), counter)
 }
 
 func generateID() string {

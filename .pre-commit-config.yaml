@@ -19,7 +19,7 @@ repos:
         files: \.go$
       - id: go-imports
         name: go imports
-        entry: /Users/xujian/go/bin/goimports -l -w
+        entry: /Users/xujian/go/bin/goimports -l -w -local github.com/xujian519/mady
         language: system
         files: \.go$
       - id: go-vet

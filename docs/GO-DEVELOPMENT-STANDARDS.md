@@ -150,7 +150,7 @@ import (
 )
 ```
 
-使用 `goimports`（或 `gofmt` + 手动排序）确保格式一致。
+使用 `goimports`（或 `gofmt` + 手动排序）确保格式一致。注意 `goimports` 需要 `-local github.com/xujian519/mady` 标志才能正确分隔第三方和本地导入组；pre-commit 钩子中已配置该参数。
 
 ### 2.4 文件组织
 
@@ -1025,10 +1025,10 @@ Co-authored-by: Claude <noreply@anthropic.com>
 
 > 本文档持续更新。发现新的最佳实践或项目模式变化时，请同步更新本文档。
 >
-> 参考链接：  
-> - [Effective Go](https://go.dev/doc/effective_go)  
-> - [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments)  
-> - [Standard Go Project Layout](https://github.com/golang-standards/project-layout)  
-> - [Kubernetes Coding Conventions](https://github.com/kubernetes/community/blob/master/contributors/guide/coding-conventions.md)  
-> - [Uber Go Style Guide](https://github.com/uber-go/guide)  
+> 参考链接：
+> - [Effective Go](https://go.dev/doc/effective_go)
+> - [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments)
+> - [Standard Go Project Layout](https://github.com/golang-standards/project-layout)
+> - [Kubernetes Coding Conventions](https://github.com/kubernetes/community/blob/master/contributors/guide/coding-conventions.md)
+> - [Uber Go Style Guide](https://github.com/uber-go/guide)
 > - [Go Wiki: Go Code Review Comments (中文)](https://golang.google.cn/wiki/CodeReviewComments)

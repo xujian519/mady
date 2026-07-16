@@ -13,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/xujian519/mady/pkg/csync"
 )
 
 type Server struct {
@@ -27,12 +29,10 @@ type Server struct {
 
 	// Outbound client requests (e.g. session/request_permission) keyed by id.
 	nextOutID atomic.Int64
-	pending   map[string]chan acpResponse
-	pendingMu sync.Mutex
+	pending   *csync.Map[string, chan acpResponse]
 
 	// Capabilities advertised by the client in initialize (fs, terminal).
-	clientCaps   *ClientCapabilities
-	clientCapsMu sync.RWMutex
+	clientCaps atomic.Pointer[ClientCapabilities]
 
 	// allowedFSCaps is the set of FS capabilities the server accepts from clients.
 	allowedFSCaps map[string]bool
@@ -80,7 +80,7 @@ func NewServer(cfg ServerConfig) *Server {
 		reader:        bufio.NewReader(cfg.Reader),
 		rawReader:     cfg.Reader,
 		writer:        cfg.Writer,
-		pending:       make(map[string]chan acpResponse),
+		pending:       csync.NewMap[string, chan acpResponse](),
 	}
 }
 
@@ -158,13 +158,9 @@ func (s *Server) sendRequest(method string, params any, timeout time.Duration) (
 	}
 
 	ch := make(chan acpResponse, 1)
-	s.pendingMu.Lock()
-	s.pending[idStr] = ch
-	s.pendingMu.Unlock()
+	s.pending.Set(idStr, ch)
 	defer func() {
-		s.pendingMu.Lock()
-		delete(s.pending, idStr)
-		s.pendingMu.Unlock()
+		s.pending.Del(idStr)
 	}()
 
 	s.writerMu.Lock()
@@ -190,10 +186,8 @@ func (s *Server) deliverClientResponse(id any, line []byte) {
 	if !ok {
 		return
 	}
-	s.pendingMu.Lock()
-	ch := s.pending[idStr]
-	s.pendingMu.Unlock()
-	if ch == nil {
+	ch, ok := s.pending.Get(idStr)
+	if !ok {
 		return
 	}
 	var resp JSONRPCResponse
@@ -240,10 +234,9 @@ func DefaultPermissionOptions() []PermissionOption {
 // meaning the agent should read/write through the editor (seeing unsaved
 // buffers) instead of touching disk directly.
 func (s *Server) clientSupportsFS() bool {
-	s.clientCapsMu.RLock()
-	defer s.clientCapsMu.RUnlock()
-	return s.clientCaps != nil && s.clientCaps.FS != nil &&
-		(s.clientCaps.FS.ReadTextFile || s.clientCaps.FS.WriteTextFile)
+	caps := s.clientCaps.Load()
+	return caps != nil && caps.FS != nil &&
+		(caps.FS.ReadTextFile || caps.FS.WriteTextFile)
 }
 
 // ReadTextFile reads a file through the client (editor), seeing unsaved buffers.
@@ -408,9 +401,7 @@ func (s *Server) handleInitialize(req *JSONRPCRequest) {
 		s.writeError(req.ID, -32602, "Client capabilities rejected", err.Error())
 		return
 	}
-	s.clientCapsMu.Lock()
-	s.clientCaps = params.ClientCapabilities
-	s.clientCapsMu.Unlock()
+	s.clientCaps.Store(params.ClientCapabilities)
 	s.logger.Info("ACP initialize", "client", clientName)
 
 	result := InitializeResult{

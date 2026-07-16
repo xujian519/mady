@@ -657,6 +657,7 @@ func TestServerStreamChatEmitsHTTPMCPTransportErrorEvents(t *testing.T) {
 	getCount := 0
 	firstGETStarted := make(chan struct{})
 	releaseFirstGET := make(chan struct{})
+	secondGETWritten := make(chan struct{})
 
 	mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -680,6 +681,7 @@ func TestServerStreamChatEmitsHTTPMCPTransportErrorEvents(t *testing.T) {
 				_, _ = w.Write([]byte("data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/ping\"}\n\n"))
 			case 2:
 				_, _ = w.Write([]byte("data: {not-json}\n\n"))
+				close(secondGETWritten)
 			default:
 				<-r.Context().Done()
 			}
@@ -785,7 +787,17 @@ func TestServerStreamChatEmitsHTTPMCPTransportErrorEvents(t *testing.T) {
 	}
 
 	close(releaseFirstGET)
-	time.Sleep(150 * time.Millisecond)
+	// 等待第二个 GET 写入无效 SSE 数据（触发 transport error），
+	// 然后短时间 yield 让 runServerStream goroutine 完成 SSE 错误处理。
+	select {
+	case <-secondGETWritten:
+		// 等待 SSE 错误处理完成（in-memory 处理通常 < 1ms）
+		tmr := time.NewTimer(10 * time.Millisecond)
+		<-tmr.C
+		tmr.Stop()
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for second GET to write data")
+	}
 	close(provider.release)
 
 	select {

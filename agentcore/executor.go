@@ -14,7 +14,9 @@ import (
 type ExecutionMode string
 
 const (
-	ModeSerial   ExecutionMode = "serial"
+	// ModeSerial runs tool calls one after the other (default).
+	ModeSerial ExecutionMode = "serial"
+	// ModeParallel runs independent tool calls concurrently.
 	ModeParallel ExecutionMode = "parallel"
 )
 

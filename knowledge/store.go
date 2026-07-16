@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
+	"github.com/xujian519/mady/pkg/csync"
 	"github.com/xujian519/mady/retrieval"
 )
 
@@ -14,10 +14,9 @@ import (
 // It handles loading, chunking, indexing, and provides retrieval hooks
 // for Agent integration.
 type Store struct {
-	mu       sync.RWMutex
-	docs     map[string]*Document         // docID → Document
-	chunks   map[string][]retrieval.Chunk // docID → chunks
-	byDomain map[string][]string          // domain → []docID
+	docs     *csync.Map[string, *Document]         // docID → Document
+	chunks   *csync.Map[string, []retrieval.Chunk] // docID → chunks
+	byDomain *csync.Map[string, []string]          // domain → []docID
 
 	chunkOpts retrieval.ChunkOptions
 }
@@ -36,9 +35,9 @@ type Document struct {
 // NewStore creates a new knowledge store.
 func NewStore() *Store {
 	return &Store{
-		docs:      make(map[string]*Document),
-		chunks:    make(map[string][]retrieval.Chunk),
-		byDomain:  make(map[string][]string),
+		docs:      csync.NewMap[string, *Document](),
+		chunks:    csync.NewMap[string, []retrieval.Chunk](),
+		byDomain:  csync.NewMap[string, []string](),
 		chunkOpts: retrieval.DefaultChunkOptions(),
 	}
 }
@@ -59,9 +58,6 @@ func (s *Store) LoadText(domain, docID, title, content string) error {
 
 // AddDocument adds a document to the store and chunks it for retrieval.
 func (s *Store) AddDocument(domain, docID, title, content, source string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	doc := &Document{
 		ID:         docID,
 		Searchable: true, // default: searchable unless explicitly marked otherwise
@@ -70,30 +66,28 @@ func (s *Store) AddDocument(domain, docID, title, content, source string) error 
 		Content:    content,
 		Source:     source,
 	}
-	s.docs[docID] = doc
+	s.docs.Set(docID, doc)
 
 	// Chunk the document for retrieval.
 	chunks := retrieval.ChunkDocument(docID, content, s.chunkOpts)
-	s.chunks[docID] = chunks
+	s.chunks.Set(docID, chunks)
 
-	s.byDomain[domain] = append(s.byDomain[domain], docID)
+	domainIDs, _ := s.byDomain.Get(domain)
+	domainIDs = append(domainIDs, docID)
+	s.byDomain.Set(domain, domainIDs)
 	return nil
 }
 
 // GetDocument returns a document by ID.
 func (s *Store) GetDocument(docID string) (*Document, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	doc, ok := s.docs[docID]
-	return doc, ok
+	return s.docs.Get(docID)
 }
 
 // AllDocIDs returns all document IDs in the store.
 func (s *Store) AllDocIDs() []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	ids := make([]string, 0, len(s.docs))
-	for id := range s.docs {
+	docs := s.docs.Copy()
+	ids := make([]string, 0, len(docs))
+	for id := range docs {
 		ids = append(ids, id)
 	}
 	return ids
@@ -101,10 +95,9 @@ func (s *Store) AllDocIDs() []string {
 
 // SearchableDocCount returns the count of searchable documents.
 func (s *Store) SearchableDocCount() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	docs := s.docs.Copy()
 	count := 0
-	for _, doc := range s.docs {
+	for _, doc := range docs {
 		if doc.Searchable {
 			count++
 		}
@@ -114,12 +107,12 @@ func (s *Store) SearchableDocCount() int {
 
 // ChunksForDomain returns all chunks for documents in a given domain.
 func (s *Store) ChunksForDomain(domain string) []retrieval.Chunk {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	docIDs, _ := s.byDomain.Get(domain)
 
 	var all []retrieval.Chunk
-	for _, docID := range s.byDomain[domain] {
-		all = append(all, s.chunks[docID]...)
+	for _, docID := range docIDs {
+		chunks, _ := s.chunks.Get(docID)
+		all = append(all, chunks...)
 	}
 	return all
 }
@@ -128,28 +121,26 @@ func (s *Store) ChunksForDomain(domain string) []retrieval.Chunk {
 // Directory/index pages (Searchable=false) are excluded. This is the preferred
 // method for RAG retrieval to avoid noise from index/navigation pages.
 func (s *Store) SearchableChunksForDomain(domain string) []retrieval.Chunk {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	docIDs, _ := s.byDomain.Get(domain)
 
 	var all []retrieval.Chunk
-	for _, docID := range s.byDomain[domain] {
-		doc, ok := s.docs[docID]
+	for _, docID := range docIDs {
+		doc, ok := s.docs.Get(docID)
 		if !ok || !doc.Searchable {
 			continue
 		}
-		all = append(all, s.chunks[docID]...)
+		chunks, _ := s.chunks.Get(docID)
+		all = append(all, chunks...)
 	}
 	return all
 }
 
 // AllChunks returns all chunks across all domains.
 func (s *Store) AllChunks() []retrieval.Chunk {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
+	chunks := s.chunks.Copy()
 	var all []retrieval.Chunk
-	for _, chunks := range s.chunks {
-		all = append(all, chunks...)
+	for _, chunkList := range chunks {
+		all = append(all, chunkList...)
 	}
 	return all
 }
@@ -171,18 +162,19 @@ func (s *Store) RetrievalHook(domain string, config retrieval.RetrievalConfig) *
 
 // Stats returns store statistics.
 func (s *Store) Stats() StoreStats {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	docs := s.docs.Copy()
+	chunks := s.chunks.Copy()
+	byDomain := s.byDomain.Copy()
 
 	stats := StoreStats{
-		TotalDocs:   len(s.docs),
+		TotalDocs:   len(docs),
 		TotalChunks: 0,
 		ByDomain:    make(map[string]int),
 	}
-	for _, chunks := range s.chunks {
-		stats.TotalChunks += len(chunks)
+	for _, chunkList := range chunks {
+		stats.TotalChunks += len(chunkList)
 	}
-	for domain, ids := range s.byDomain {
+	for domain, ids := range byDomain {
 		stats.ByDomain[domain] = len(ids)
 	}
 	return stats
@@ -222,24 +214,24 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 		content string
 	}
 	var pending []chunkRef
-	s.mu.Lock()
-	for docID, chunks := range s.chunks {
-		doc := s.docs[docID]
+	chunks := s.chunks.Copy()
+	docs := s.docs.Copy()
+	for docID, docChunks := range chunks {
+		doc := docs[docID]
 		if doc != nil && !doc.Searchable {
 			continue
 		}
-		for i := range chunks {
-			if _, hasEmbedding := chunks[i].Metadata["embedding"]; hasEmbedding {
+		for i := range docChunks {
+			if _, hasEmbedding := docChunks[i].Metadata["embedding"]; hasEmbedding {
 				continue
 			}
 			pending = append(pending, chunkRef{
 				docID:   docID,
-				chunkID: chunks[i].ID,
-				content: chunks[i].Content,
+				chunkID: docChunks[i].ID,
+				content: docChunks[i].Content,
 			})
 		}
 	}
-	s.mu.Unlock()
 
 	if len(pending) == 0 {
 		return nil
@@ -269,20 +261,27 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 
 		result := batchResult{refs: batch, vecs: vectors}
 
-		s.mu.Lock()
 		for j, vec := range result.vecs {
-			chunks := s.chunks[result.refs[j].docID]
-			for k := range chunks {
-				if chunks[k].ID == result.refs[j].chunkID {
-					if chunks[k].Metadata == nil {
-						chunks[k].Metadata = make(map[string]string)
+			curChunks, ok := s.chunks.Get(result.refs[j].docID)
+			if !ok {
+				continue
+			}
+			// Deep copy to avoid sharing metadata map with csync.Map value.
+			newChunks := make([]retrieval.Chunk, len(curChunks))
+			copy(newChunks, curChunks)
+			for k := range newChunks {
+				if newChunks[k].ID == result.refs[j].chunkID {
+					meta := make(map[string]string, len(newChunks[k].Metadata)+1)
+					for mk, mv := range newChunks[k].Metadata {
+						meta[mk] = mv
 					}
-					retrieval.StoreEmbedding(&chunks[k], vec)
+					newChunks[k].Metadata = meta
+					retrieval.StoreEmbedding(&newChunks[k], vec)
 					break
 				}
 			}
+			s.chunks.Set(result.refs[j].docID, newChunks)
 		}
-		s.mu.Unlock()
 	}
 
 	return nil
@@ -291,9 +290,6 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 // LoadPatentClaims loads patent claim documents with IPC metadata.
 // The content is structured as claims text with embedded IPC classification.
 func (s *Store) LoadPatentClaims(docID, title, content string, ipc string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	doc := &Document{
 		ID:      docID,
 		Title:   title,
@@ -305,7 +301,7 @@ func (s *Store) LoadPatentClaims(docID, title, content string, ipc string) error
 			"type": "claims",
 		},
 	}
-	s.docs[docID] = doc
+	s.docs.Set(docID, doc)
 
 	chunks := retrieval.ChunkDocument(docID, content, s.chunkOpts)
 	// Tag chunks with metadata for retrieval.
@@ -316,16 +312,15 @@ func (s *Store) LoadPatentClaims(docID, title, content string, ipc string) error
 		chunks[i].Metadata["ipc"] = ipc
 		chunks[i].Metadata["type"] = "claims"
 	}
-	s.chunks[docID] = chunks
-	s.byDomain["patent"] = append(s.byDomain["patent"], docID)
+	s.chunks.Set(docID, chunks)
+	domainIDs, _ := s.byDomain.Get("patent")
+	domainIDs = append(domainIDs, docID)
+	s.byDomain.Set("patent", domainIDs)
 	return nil
 }
 
 // LoadLegalStatute loads a legal statute document with law metadata.
 func (s *Store) LoadLegalStatute(docID, title, content string, lawSource string, articles []string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	doc := &Document{
 		ID:      docID,
 		Title:   title,
@@ -337,7 +332,7 @@ func (s *Store) LoadLegalStatute(docID, title, content string, lawSource string,
 			"type":       "statute",
 		},
 	}
-	s.docs[docID] = doc
+	s.docs.Set(docID, doc)
 
 	chunks := retrieval.ChunkDocument(docID, content, s.chunkOpts)
 	for i := range chunks {
@@ -347,8 +342,10 @@ func (s *Store) LoadLegalStatute(docID, title, content string, lawSource string,
 		chunks[i].Metadata["law_source"] = lawSource
 		chunks[i].Metadata["type"] = "statute"
 	}
-	s.chunks[docID] = chunks
-	s.byDomain["legal"] = append(s.byDomain["legal"], docID)
+	s.chunks.Set(docID, chunks)
+	domainIDs, _ := s.byDomain.Get("legal")
+	domainIDs = append(domainIDs, docID)
+	s.byDomain.Set("legal", domainIDs)
 	return nil
 }
 

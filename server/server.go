@@ -19,24 +19,25 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agui"
+	"github.com/xujian519/mady/pkg/csync"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/skill"
 )
 
 // Server exposes an Agent as an HTTP/SSE API.
 type Server struct {
-	mu       sync.RWMutex
-	config   agentcore.Config
+	config   *csync.Value[agentcore.Config]
 	eventBus *agentcore.EventBus
 	cors     CORSConfig
-	srv      *http.Server
+	srv      atomic.Pointer[http.Server]
 
 	agentPool  sync.Map // threadID -> *agentcore.Agent; cached agents for reuse
 	poolMu     sync.Mutex
 	poolLimit  int
-	disclosure *disclosureTaskManager // Disclosure 异步任务管理器
+	disclosure atomic.Pointer[disclosureTaskManager]
+	discMu     sync.Mutex // guards lazy init of disclosure
 
-	maxRequestBodyBytes int64
+	maxRequestBodyBytes atomic.Int64
 }
 
 // CORSConfig 配置 HTTP 跨域资源共享策略。
@@ -129,12 +130,13 @@ type SkillRegistryStatusResponse struct {
 }
 
 func New(cfg agentcore.Config) *Server {
-	return &Server{
-		config:              cfg,
-		eventBus:            agentcore.NewEventBus(),
-		poolLimit:           64,
-		maxRequestBodyBytes: defaultMaxRequestBodyBytes,
+	s := &Server{
+		config:    csync.NewValue(cfg),
+		eventBus:  agentcore.NewEventBus(),
+		poolLimit: 64,
 	}
+	s.maxRequestBodyBytes.Store(defaultMaxRequestBodyBytes)
+	return s
 }
 
 // defaultMaxRequestBodyBytes caps the size of incoming JSON request bodies to
@@ -144,20 +146,16 @@ const defaultMaxRequestBodyBytes = 10 << 20 // 10 MiB
 // SetMaxRequestBodyBytes overrides the maximum accepted request body size in
 // bytes. Values <= 0 reset it to the default (10 MiB).
 func (s *Server) SetMaxRequestBodyBytes(n int64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if n <= 0 {
 		n = defaultMaxRequestBodyBytes
 	}
-	s.maxRequestBodyBytes = n
+	s.maxRequestBodyBytes.Store(n)
 }
 
 // limitedBody wraps the request body with http.MaxBytesReader so that JSON
 // decoding fails fast instead of buffering an unbounded payload into memory.
 func (s *Server) limitedBody(w http.ResponseWriter, r *http.Request) io.Reader {
-	s.mu.RLock()
-	limit := s.maxRequestBodyBytes
-	s.mu.RUnlock()
+	limit := s.maxRequestBodyBytes.Load()
 	if limit <= 0 {
 		limit = defaultMaxRequestBodyBytes
 	}
@@ -178,8 +176,8 @@ func (s *Server) Close() {
 		s.agentPool.Delete(key)
 		return true
 	})
-	if s.disclosure != nil {
-		s.disclosure.close()
+	if dm := s.disclosure.Load(); dm != nil {
+		dm.close()
 	}
 }
 
@@ -218,27 +216,21 @@ func (s *Server) aguiHandler() http.Handler {
 
 func (s *Server) ListenAndServe(addr string) error {
 	handler := s.Handler()
-	s.mu.Lock()
-	s.srv = &http.Server{Addr: addr, Handler: handler}
-	s.mu.Unlock()
-	return s.srv.ListenAndServe()
+	s.srv.Store(&http.Server{Addr: addr, Handler: handler})
+	return s.srv.Load().ListenAndServe()
 }
 
 // ListenAndServeTLS starts the server with TLS encryption.
 // For production deployments always use TLS or a TLS-terminating reverse proxy.
 func (s *Server) ListenAndServeTLS(addr, certFile, keyFile string) error {
 	handler := s.Handler()
-	s.mu.Lock()
-	s.srv = &http.Server{Addr: addr, Handler: handler}
-	s.mu.Unlock()
-	return s.srv.ListenAndServeTLS(certFile, keyFile)
+	s.srv.Store(&http.Server{Addr: addr, Handler: handler})
+	return s.srv.Load().ListenAndServeTLS(certFile, keyFile)
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.Close()
-	s.mu.RLock()
-	httpSrv := s.srv
-	s.mu.RUnlock()
+	httpSrv := s.srv.Load()
 	if httpSrv == nil {
 		return nil
 	}
@@ -570,12 +562,13 @@ func (s *Server) handleReloadSkills(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	s.mu.Lock()
-	oldSkills := cloneSkills(s.config.AvailableSkills)
-	oldDiagnostics := cloneSkillDiagnostics(s.config.SkillDiagnostics)
-	s.config.AvailableSkills = cloneSkills(skills)
-	s.config.SkillDiagnostics = cloneSkillDiagnostics(diagnostics)
-	s.mu.Unlock()
+	oldCfg := s.config.Get()
+	oldSkills := cloneSkills(oldCfg.AvailableSkills)
+	oldDiagnostics := cloneSkillDiagnostics(oldCfg.SkillDiagnostics)
+	newCfg := oldCfg
+	newCfg.AvailableSkills = cloneSkills(skills)
+	newCfg.SkillDiagnostics = cloneSkillDiagnostics(diagnostics)
+	s.config.Set(newCfg)
 	cfg = s.snapshotConfig()
 	skillsSummary := skillSummariesFor(cfg.AvailableSkills, cfg.SelectedSkills)
 	oldSkillSummaries := skillSummariesFor(oldSkills, cfg.SelectedSkills)
@@ -958,9 +951,7 @@ func (s *Server) threadStore() (threadStore, bool) {
 }
 
 func (s *Server) snapshotConfig() agentcore.Config {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	cfg := s.config
+	cfg := s.config.Get()
 	cfg.SelectedSkills = agentcore.CloneStringSlice(cfg.SelectedSkills)
 	cfg.SkillPaths = agentcore.CloneStringSlice(cfg.SkillPaths)
 	cfg.AvailableSkills = cloneSkills(cfg.AvailableSkills)
