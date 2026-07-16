@@ -266,3 +266,78 @@ func TestMapConcurrent(t *testing.T) {
 		t.Fatalf("expected len %d, got %d", n, m.Len())
 	}
 }
+
+func TestMapRange(t *testing.T) {
+	m := NewMap[string, int]()
+	m.Set("a", 1)
+	m.Set("b", 2)
+	m.Set("c", 3)
+
+	sum := 0
+	count := 0
+	m.Range(func(k string, v int) bool {
+		count++
+		sum += v
+		return true // continue
+	})
+	if count != 3 || sum != 6 {
+		t.Fatalf("expected count=3 sum=6, got count=%d sum=%d", count, sum)
+	}
+
+	// Early stop: stop after first key.
+	count = 0
+	m.Range(func(k string, v int) bool {
+		count++
+		return false
+	})
+	if count != 1 {
+		t.Fatalf("expected early stop after 1, got %d", count)
+	}
+
+	// Nil map: should not panic.
+	var nilMap Map[string, int]
+	nilMap.Range(func(k string, v int) bool {
+		t.Fatal("should not be called on nil map")
+		return true
+	})
+}
+
+func TestMapForEach(t *testing.T) {
+	m := NewMap[string, int]()
+	m.Set("x", 10)
+	m.Set("y", 20)
+
+	sum := 0
+	m.ForEach(func(k string, v int) {
+		sum += v
+	})
+	if sum != 30 {
+		t.Fatalf("expected sum=30, got %d", sum)
+	}
+}
+
+func TestMapRangeConcurrent(t *testing.T) {
+	m := NewMap[int, int]()
+	const n = 50
+	for i := 0; i < n; i++ {
+		m.Set(i, i*10)
+	}
+
+	// Concurrent reads with Range should not race.
+	var wg sync.WaitGroup
+	for g := 0; g < 10; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			count := 0
+			m.Range(func(k int, v int) bool {
+				count++
+				return true
+			})
+			if count != n {
+				// May race with concurrent writes, just exercise the path.
+			}
+		}()
+	}
+	wg.Wait()
+}

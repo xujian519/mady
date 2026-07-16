@@ -8,8 +8,6 @@ import (
 	"runtime/debug"
 	"sync"
 	"time"
-
-	"github.com/xujian519/mady/agentcore"
 )
 
 // PregelState is the shared mutable state passed between Pregel nodes.
@@ -43,15 +41,9 @@ func deepCopyValue(v any) any {
 			cp[i] = deepCopyValue(v)
 		}
 		return cp
-	case []agentcore.Message:
-		cp := make([]agentcore.Message, len(val))
-		for i, m := range val {
-			cp[i] = m.Clone()
-		}
-		return cp
 	}
 
-	// Handle typed maps and slices via reflection.
+	// Handle typed maps, slices, and structs via reflection.
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Map:
@@ -70,6 +62,14 @@ func deepCopyValue(v any) any {
 			cp.Index(i).Set(reflect.ValueOf(elem))
 		}
 		return cp.Interface()
+	case reflect.Struct:
+		cp := reflect.New(rv.Type()).Elem()
+		for i := 0; i < rv.NumField(); i++ {
+			if cp.Field(i).CanSet() {
+				cp.Field(i).Set(reflect.ValueOf(deepCopyValue(rv.Field(i).Interface())))
+			}
+		}
+		return cp.Interface()
 	}
 
 	// Immutable types (string, int, float, bool, struct without pointers)
@@ -82,20 +82,30 @@ func (s PregelState) GetString(key string) string {
 	return v
 }
 
-func (s PregelState) GetMessages(key string) []agentcore.Message {
+func (s PregelState) GetMessages(key string) []any {
 	raw, ok := s[key]
 	if !ok {
 		return nil
 	}
-	if msgs, ok := raw.([]agentcore.Message); ok {
+	// Fast path: already []any.
+	if msgs, ok := raw.([]any); ok {
 		return msgs
+	}
+	// Reflection path: convert typed slice (e.g., []agentcore.Message) to []any.
+	rv := reflect.ValueOf(raw)
+	if rv.Kind() == reflect.Slice {
+		result := make([]any, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			result[i] = rv.Index(i).Interface()
+		}
+		return result
 	}
 	return nil
 }
 
 const PregelEnd = "__end__"
 
-// PregelStep adapts a CompiledPregelGraph to the agentcore.Step interface,
+// PregelStep adapts a CompiledPregelGraph to the Step interface,
 // enabling it to be used as a node in DAG graphs, Router branches, Pipeline
 // steps, and as a Handoff delegate target.
 //
@@ -110,7 +120,7 @@ func (ps *PregelStep) Run(ctx context.Context, input string) (string, error) {
 	return ps.Graph.RunString(ctx, input)
 }
 
-var _ agentcore.Step = (*PregelStep)(nil)
+var _ Step = (*PregelStep)(nil)
 
 type PregelNode func(ctx context.Context, state PregelState) (PregelState, error)
 
@@ -189,7 +199,7 @@ func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (P
 	for len(active) > 0 {
 		steps++
 		if steps > cpg.maxSteps {
-			return state, agentcore.WrapNodeError(agentcore.ErrExceedMaxSteps, "pregel")
+			return state, fmt.Errorf("pregel: %w", ErrExceedMaxSteps)
 		}
 
 		var nextActive []string
@@ -203,7 +213,7 @@ func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (P
 		for _, name := range active {
 			node, ok := cpg.pg.nodes[name]
 			if !ok {
-				return state, agentcore.NewNodeError("node not found", nil, "pregel", name)
+				return state, fmt.Errorf("pregel: node %s not found", name)
 			}
 
 			wg.Add(1)
@@ -213,12 +223,7 @@ func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (P
 				out, err := func() (out PregelState, err error) {
 					defer func() {
 						if r := recover(); r != nil {
-							err = agentcore.NewNodeError(
-								fmt.Sprintf("node panicked: %v\n%s", r, debug.Stack()),
-								nil,
-								"pregel",
-								nodeName,
-							)
+							err = fmt.Errorf("pregel: node %s panicked: %v\n%s", nodeName, r, debug.Stack())
 						}
 					}()
 					return nodeFn(ctx, snapshot)
@@ -234,7 +239,7 @@ func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (P
 
 		for name, err := range errs {
 			if err != nil {
-				return state, agentcore.WrapNodeError(err, "pregel:"+name)
+				return state, fmt.Errorf("pregel:%s: %w", name, err)
 			}
 		}
 
@@ -304,7 +309,7 @@ func (pc *PregelCheckpointer) RunWithCheckpoints(ctx context.Context, initial Pr
 	for len(active) > 0 {
 		steps++
 		if steps > pc.graph.maxSteps {
-			return state, agentcore.WrapNodeError(agentcore.ErrExceedMaxSteps, "pregel_checkpointed")
+			return state, fmt.Errorf("pregel_checkpointed: %w", ErrExceedMaxSteps)
 		}
 
 		stateBytes, err := json.Marshal(state)
@@ -330,11 +335,11 @@ func (pc *PregelCheckpointer) RunWithCheckpoints(ctx context.Context, initial Pr
 		for _, name := range active {
 			node, ok := pc.graph.pg.nodes[name]
 			if !ok {
-				return state, agentcore.NewNodeError("node not found", nil, "pregel_checkpointed", name)
+				return state, fmt.Errorf("pregel_checkpointed: node %s not found", name)
 			}
 			out, err := node(ctx, state)
 			if err != nil {
-				return state, agentcore.WrapNodeError(err, "pregel_checkpointed:"+name)
+				return state, fmt.Errorf("pregel_checkpointed:%s: %w", name, err)
 			}
 			for k, v := range out {
 				state[k] = v

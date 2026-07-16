@@ -193,8 +193,7 @@ type ExecutionPlanStep struct {
 // ExecutionPlan is the action plan derived from the blackboard.
 //
 // Deprecated: Use Plan for new code. ExecutionPlan remains for backward
-// compatibility with existing workflows. FactBlackboard.SetPlan accepts
-// both types during the migration period.
+// compatibility with existing workflows. Will be removed in v0.6.0.
 type ExecutionPlan struct {
 	Steps     []ExecutionPlanStep `json:"steps"`
 	Artifacts []string            `json:"artifacts"`

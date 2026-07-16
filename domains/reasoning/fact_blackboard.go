@@ -47,6 +47,9 @@ func NewFactBlackboard(caseID string, caseType CaseType, technicalField string) 
 
 func (b *FactBlackboard) touch() { b.UpdatedAt = nowISO() }
 
+// checkNotLocked panics if the blackboard is locked. This is an intentional
+// programmer-error guard — mutating a locked blackboard indicates a bug in the
+// caller. Callers must check IsLocked() before calling any mutating method.
 func (b *FactBlackboard) checkNotLocked() {
 	if b.Locked {
 		panic("factBlackboard: attempt to mutate a locked blackboard")
@@ -241,7 +244,7 @@ func (b *FactBlackboard) Plan() *ExecutionPlan {
 
 // SetPlan stores an execution plan. Panics if locked.
 //
-// Deprecated: Use SetPlanV2 for new code.
+// Deprecated: Use SetPlanV2 for new code. Will be removed in v0.6.0.
 func (b *FactBlackboard) SetPlan(p ExecutionPlan) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

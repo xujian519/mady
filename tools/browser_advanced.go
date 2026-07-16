@@ -20,9 +20,6 @@ import (
 
 var (
 	defaultBrowserManagerRegistry = csync.NewMap[string, *BrowserManager]()
-
-	// ShutdownCh 收到信号时关闭，通知调用方执行退出。由 SetupSignalHandler 写入。
-	ShutdownCh = make(chan struct{})
 )
 
 func RegisterBrowserManager(id string, mgr *BrowserManager) {
@@ -36,6 +33,7 @@ func UnregisterBrowserManager(id string) {
 func EmergencyCleanupAll() {
 	for _, mgr := range defaultBrowserManagerRegistry.Copy() {
 		mgr.CloseAll()
+		mgr.Stop()
 	}
 	GetSupervisorRegistry().StopAll()
 }
@@ -47,7 +45,6 @@ func SetupSignalHandler() {
 	go func() {
 		<-sigChan
 		EmergencyCleanupAll()
-		close(ShutdownCh)
 	}()
 }
 

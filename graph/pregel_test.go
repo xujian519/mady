@@ -75,7 +75,10 @@ func TestPregelState_GetMessages(t *testing.T) {
 	state := PregelState{"msgs": msgs}
 
 	got := state.GetMessages("msgs")
-	if len(got) != 1 || got[0].Content != "hello" {
+	if len(got) != 1 {
+		t.Fatalf("GetMessages len = %d, want 1", len(got))
+	}
+	if msg, ok := got[0].(agentcore.Message); !ok || msg.Content != "hello" {
 		t.Fatalf("GetMessages = %+v, want 1 message", got)
 	}
 

@@ -18,9 +18,12 @@ type cacheEntry struct {
 // The cache is best-effort: callers must invalidate it (via Invalidate) when
 // the underlying store is mutated, or use a short TTL.
 //
-// TODO(csync): csync.Map lacks iteration (Range/ForEach), and evictIfNeeded
-// needs to traverse-and-delete. Either add Range to csync.Map or replace
-// the eviction strategy before migrating.
+// TODO(csync): csync.Map now has Range/ForEach (added 2026-07). Migration from
+// sync.RWMutex + plain maps to csync.Map is feasible. However, the current
+// design uses a single mutex to atomically protect all three maps together;
+// splitting into three separate csync.Map instances would require care around
+// the Invalidate/Stats atomicity boundary. Consider migrating when the cache
+// eviction strategy is being refactored.
 type GraphCache struct {
 	mu          sync.RWMutex
 	nodeDetails map[string]*cacheEntry

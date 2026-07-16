@@ -2,6 +2,7 @@ package agentcore
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -84,17 +85,16 @@ func TestBrokerContextCancel(t *testing.T) {
 	// Cancel the context.
 	cancel()
 
-	// Give the cleanup goroutine time to run.
-	time.Sleep(50 * time.Millisecond)
-
-	if n := b.SubscriberCount(); n != 0 {
-		t.Fatalf("expected 0 subscribers after cancel, got %d", n)
-	}
-
-	// Channel should be closed after cancel.
+	// Channel should be closed after cancel — this synchronizes with the
+	// cleanup goroutine. Once the channel is closed, the subscriber count
+	// must be zero.
 	_, ok := <-sub
 	if ok {
 		t.Fatal("expected channel to be closed after context cancel")
+	}
+
+	if n := b.SubscriberCount(); n != 0 {
+		t.Fatalf("expected 0 subscribers after cancel, got %d", n)
 	}
 }
 
@@ -133,21 +133,26 @@ func TestBrokerPublishMustDeliver(t *testing.T) {
 	// Fill the buffer with 1.
 	b.Publish(1)
 
-	// Start a goroutine that will drain after a delay.
-	ready := make(chan struct{})
+	// Start a goroutine that drains on signal, simulating async work completion.
+	drain := make(chan struct{})
+	drained := make(chan struct{})
 	go func() {
-		close(ready)
-		time.Sleep(50 * time.Millisecond)
+		<-drain
 		<-sub // drain the first message, freeing buffer space
+		close(drained)
 	}()
 
-	<-ready // ensure goroutine is running
+	// PublishMustDeliver should block until the goroutine drains the buffer.
+	// Use a goroutine to unblock it after a brief scheduler yield.
+	go func() {
+		runtime.Gosched()
+		close(drain)
+	}()
 
-	// PublishMustDeliver should block briefly, then succeed after the
-	// goroutine drains the buffer.
 	b.PublishMustDeliver(ctx, 2)
+	<-drained
 
-	// Verify we can still read 2.
+	// Verify we can still read message 2.
 	select {
 	case msg := <-sub:
 		if msg != 2 {

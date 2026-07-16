@@ -125,6 +125,7 @@ func (s Style) Render(text string) string {
 //
 // Deprecated: these global variables are not concurrency-safe and cannot
 // support independent theme instances. Use CurrentPalette() instead.
+// Will be removed in v0.6.0.
 // ---------------------------------------------------------------------------
 
 var (

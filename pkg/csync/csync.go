@@ -207,6 +207,28 @@ func (m *Map[K, V]) Reset(input map[K]V) {
 	m.inner = input
 }
 
+// Range calls f sequentially for each key and value in the map. If f
+// returns false, iteration stops. The map is locked for reading during
+// iteration. Safe on nil map (no iteration).
+func (m *Map[K, V]) Range(f func(key K, value V) bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.inner == nil {
+		return
+	}
+	for k, v := range m.inner {
+		if !f(k, v) {
+			return
+		}
+	}
+}
+
+// ForEach calls f for each key and value in the map. Convenience wrapper
+// around Range that always iterates all entries.
+func (m *Map[K, V]) ForEach(f func(key K, value V)) {
+	m.Range(func(k K, v V) bool { f(k, v); return true })
+}
+
 // Copy returns a shallow copy of the underlying map. Returns nil for
 // an uninitialized (nil) map.
 func (m *Map[K, V]) Copy() map[K]V {

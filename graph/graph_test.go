@@ -526,11 +526,14 @@ func TestGraphStateConcurrentAccess(t *testing.T) {
 
 func TestGraphStateGetMessages(t *testing.T) {
 	gs := NewGraphState()
-	msgs := []agentcore.Message{{Role: agentcore.RoleUser, Content: "hello"}}
+	msgs := []any{agentcore.Message{Role: agentcore.RoleUser, Content: "hello"}}
 	gs.SetMessages("history", msgs)
 
 	got := gs.GetMessages("history")
-	if len(got) != 1 || got[0].Content != "hello" {
+	if len(got) != 1 {
+		t.Fatal("unexpected length from GraphState")
+	}
+	if msg, ok := got[0].(agentcore.Message); !ok || msg.Content != "hello" {
 		t.Fatal("unexpected messages from GraphState")
 	}
 

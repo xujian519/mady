@@ -2,9 +2,8 @@ package graph
 
 import (
 	"context"
+	"reflect"
 	"sync"
-
-	"github.com/xujian519/mady/agentcore"
 )
 
 // GraphStateKey is the context key for accessing per-run graph state.
@@ -46,19 +45,28 @@ func (gs *GraphState) GetString(key string) string {
 
 // GetMessages retrieves a message slice from the shared state (e.g., for
 // passing conversation context between nodes).
-func (gs *GraphState) GetMessages(key string) []agentcore.Message {
+func (gs *GraphState) GetMessages(key string) []any {
 	v := gs.Get(key)
 	if v == nil {
 		return nil
 	}
-	if msgs, ok := v.([]agentcore.Message); ok {
+	if msgs, ok := v.([]any); ok {
 		return msgs
+	}
+	// Reflection fallback: convert typed slices (e.g., []agentcore.Message).
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Slice {
+		result := make([]any, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			result[i] = rv.Index(i).Interface()
+		}
+		return result
 	}
 	return nil
 }
 
 // SetMessages stores a message slice in the shared state.
-func (gs *GraphState) SetMessages(key string, msgs []agentcore.Message) {
+func (gs *GraphState) SetMessages(key string, msgs []any) {
 	gs.Set(key, msgs)
 }
 

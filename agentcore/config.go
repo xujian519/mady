@@ -41,7 +41,7 @@ type ExecutionConfig struct {
 	MaxTurns      int64
 	Middleware    []Middleware
 	// Deprecated: use Middleware instead. These are auto-adapted to Middleware
-	// in New() for backward compatibility.
+	// in New() for backward compatibility. Will be removed in v0.6.0.
 	GlobalBefore       []BeforeHook
 	GlobalAfter        []AfterHook
 	ValidateArguments  bool

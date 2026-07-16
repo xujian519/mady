@@ -5,13 +5,43 @@ import (
 	"fmt"
 	"sort"
 	"sync"
-
-	"github.com/xujian519/mady/agentcore"
 )
 
-// Step is a unit of work in a graph node.
-// Re-exported from the root package for convenience.
-type Step = agentcore.Step
+// Step is a unit of work in a graph node. Any type implementing Run can be
+// used as a graph node. agentcore.Step satisfies this interface.
+type Step interface {
+	Run(ctx context.Context, input string) (string, error)
+}
+
+// StreamStep is a streaming variant of Step. Nodes implementing this can
+// process input and produce output as streams, enabling pipelined execution.
+type StreamStep interface {
+	RunStream(ctx context.Context, input any) (any, error)
+}
+
+// ErrExceedMaxSteps is returned when a graph exceeds the maximum step count.
+var ErrExceedMaxSteps = fmt.Errorf("超出最大执行步数")
+
+// StreamStepToStep adapts a StreamStep to Step by running it with the input as
+// a string and collecting the stream output into a single result.
+func StreamStepToStep(s StreamStep) Step {
+	return &streamToStepAdapter{stream: s}
+}
+
+type streamToStepAdapter struct {
+	stream StreamStep
+}
+
+func (a *streamToStepAdapter) Run(ctx context.Context, input string) (string, error) {
+	out, err := a.stream.RunStream(ctx, input)
+	if err != nil {
+		return "", err
+	}
+	if s, ok := out.(string); ok {
+		return s, nil
+	}
+	return fmt.Sprintf("%v", out), nil
+}
 
 // condRouter pairs a routing function with its valid target nodes.
 type condRouter struct {
@@ -24,7 +54,7 @@ type condRouter struct {
 // and executes independent branches in parallel at runtime.
 type Graph struct {
 	nodes       map[string]Step
-	streamNodes map[string]agentcore.StreamStep
+	streamNodes map[string]StreamStep
 	edges       map[string][]string
 	condEdges   map[string]condRouter // conditional edges: from → {route, targets}
 }
@@ -32,7 +62,7 @@ type Graph struct {
 func NewGraph() *Graph {
 	return &Graph{
 		nodes:       make(map[string]Step),
-		streamNodes: make(map[string]agentcore.StreamStep),
+		streamNodes: make(map[string]StreamStep),
 		edges:       make(map[string][]string),
 		condEdges:   make(map[string]condRouter),
 	}
@@ -49,7 +79,7 @@ func (g *Graph) AddNode(name string, step Step) error {
 // AddStreamNode adds a streaming node. The node processes input as a stream
 // and produces output as a stream. The graph engine uses StreamStep semantics
 // when executing in streaming mode (Runner.RunStream).
-func (g *Graph) AddStreamNode(name string, step agentcore.StreamStep) error {
+func (g *Graph) AddStreamNode(name string, step StreamStep) error {
 	if g.nodeExists(name) {
 		return fmt.Errorf("graph: duplicate node %q", name)
 	}
@@ -112,7 +142,7 @@ type CompiledGraph struct {
 	InDegree    map[string]int64
 	RevEdges    map[string][]string
 	StateFn     GenStateFn
-	StreamNodes map[string]agentcore.StreamStep
+	StreamNodes map[string]StreamStep
 	CondEdges   map[string]condRouter // conditional routing from → {route, targets}
 }
 
@@ -153,7 +183,7 @@ func (g *Graph) Compile(opts CompileOptions) (*CompiledGraph, error) {
 		return nil, err
 	}
 
-	streamNodes := make(map[string]agentcore.StreamStep, len(g.streamNodes))
+	streamNodes := make(map[string]StreamStep, len(g.streamNodes))
 	for name, s := range g.streamNodes {
 		streamNodes[name] = s
 	}
@@ -239,7 +269,7 @@ func (cg *CompiledGraph) Run(ctx context.Context, input string) (string, error) 
 		for _, name := range layerNodes {
 			steps++
 			if steps > cg.MaxSteps {
-				return "", agentcore.WrapNodeError(agentcore.ErrExceedMaxSteps, "graph")
+				return "", fmt.Errorf("graph: %w", ErrExceedMaxSteps)
 			}
 
 			nodeInput := input
@@ -273,7 +303,7 @@ func (cg *CompiledGraph) Run(ctx context.Context, input string) (string, error) 
 
 		for name, err := range errs {
 			if err != nil {
-				return "", agentcore.WrapNodeError(err, "graph:"+name)
+				return "", fmt.Errorf("graph:%s: %w", name, err)
 			}
 		}
 		for name, out := range results {
@@ -286,7 +316,7 @@ func (cg *CompiledGraph) Run(ctx context.Context, input string) (string, error) 
 						step := cg.getNode(target)
 						targetOut, err := step.Run(ctx, out)
 						if err != nil {
-							return "", agentcore.WrapNodeError(err, "graph:"+target)
+							return "", fmt.Errorf("graph:%s: %w", target, err)
 						}
 						outputs[target] = targetOut
 						for _, to := range cg.graph.edges[target] {
@@ -316,7 +346,7 @@ var _ Step = (*CompiledGraph)(nil)
 
 // allNodes merges Step and StreamStep node names into a single map for use
 // by FindTerminalOutput (which only needs the names, not the values).
-func allNodes(stepNodes map[string]Step, streamNodes map[string]agentcore.StreamStep) map[string]Step {
+func allNodes(stepNodes map[string]Step, streamNodes map[string]StreamStep) map[string]Step {
 	merged := make(map[string]Step, len(stepNodes)+len(streamNodes))
 	for k, v := range stepNodes {
 		merged[k] = v
@@ -334,7 +364,7 @@ func (cg *CompiledGraph) getNode(name string) Step {
 		return step
 	}
 	if ss, ok := cg.StreamNodes[name]; ok {
-		return agentcore.StreamStepToStep(ss)
+		return StreamStepToStep(ss)
 	}
 	return nil
 }

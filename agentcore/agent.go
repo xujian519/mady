@@ -77,15 +77,18 @@ type Config struct {
 
 	// Deprecated: use Lifecycle.BeforeToolExecution instead. This hook is
 	// auto-adapted to the Lifecycle chain in New() for backward compatibility.
+	// Will be removed in v0.6.0.
 	BeforeToolCall func(ctx context.Context, tc ToolCall) *ToolCallOverride
 
 	// Deprecated: use Lifecycle.AfterToolExecution instead. This hook is
 	// auto-adapted to the Lifecycle chain in New() for backward compatibility.
+	// Will be removed in v0.6.0.
 	AfterToolCall func(ctx context.Context, tc ToolCall, result *ToolResult) *ToolResult
 
 	// Deprecated: use Lifecycle.AfterToolExecution instead (it receives the
 	// full Results slice and can modify it in-place). This hook is auto-adapted
 	// to the Lifecycle chain in New() for backward compatibility.
+	// Will be removed in v0.6.0.
 	PostProcessResults func(ctx context.Context, calls []ToolCall, results []ToolResult) []ToolResult
 
 	// Extensions are registered during New() and contribute tools, hooks, etc.

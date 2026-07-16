@@ -638,7 +638,7 @@ type FileStore struct {
 	dir      string
 	locks    map[string]*list.Element // id → LRU list element
 	lockList *list.List               // LRU: Front=MRU, Back=LRU
-	locksMu  sync.Mutex               // TODO(csync): locks map + LRU list are coupled; needs both csync.Map and a separate ordered structure
+	locksMu  sync.Mutex               // TODO(csync): csync.Map now has Range/ForEach. Migration feasible — replace locks (map) with csync.Map while keeping locksMu for lockList atomicity.
 
 	// maxLocks caps the per-session lock cache. When the cache exceeds this
 	// limit the oldest entries are evicted (LRU). This prevents unbounded

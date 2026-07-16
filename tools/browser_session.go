@@ -16,27 +16,33 @@ import (
 	"github.com/xujian519/mady/tools/browser_providers"
 )
 
-var privateIPBlocks []*net.IPNet
+var (
+	privateIPBlocks   []*net.IPNet
+	privateIPInitOnce sync.Once
+)
 
-func init() {
-	for _, cidr := range []string{
-		"127.0.0.0/8",
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"169.254.0.0/16",
-		"::1/128",
-		"fc00::/7",
-		"fe80::/10",
-	} {
-		_, block, err := net.ParseCIDR(cidr)
-		if err == nil {
-			privateIPBlocks = append(privateIPBlocks, block)
+func initPrivateIPBlocks() {
+	privateIPInitOnce.Do(func() {
+		for _, cidr := range []string{
+			"127.0.0.0/8",
+			"10.0.0.0/8",
+			"172.16.0.0/12",
+			"192.168.0.0/16",
+			"169.254.0.0/16",
+			"::1/128",
+			"fc00::/7",
+			"fe80::/10",
+		} {
+			_, block, err := net.ParseCIDR(cidr)
+			if err == nil {
+				privateIPBlocks = append(privateIPBlocks, block)
+			}
 		}
-	}
+	})
 }
 
 func isPrivateIP(ip net.IP) bool {
+	initPrivateIPBlocks()
 	for _, block := range privateIPBlocks {
 		if block.Contains(ip) {
 			return true
@@ -155,14 +161,20 @@ type BrowserManager struct {
 	agentBrowserMgr        *AgentBrowserManager
 	fallbackCloudProviders []browser_providers.CloudBrowserProvider
 	activeSession          string
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewBrowserManager(cfg *BrowserConfig) *BrowserManager {
 	cfg.defaults()
 
+	ctx, cancel := context.WithCancel(context.Background())
 	mgr := &BrowserManager{
 		sessions: make(map[string]*BrowserSession),
 		config:   *cfg,
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 
 	backend := DetectBackend(&mgr.config)
@@ -211,8 +223,13 @@ func NewBrowserManager(cfg *BrowserConfig) *BrowserManager {
 	go func() {
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			mgr.CleanupInactiveSessions(cfg.InactivityTimeout)
+		for {
+			select {
+			case <-mgr.ctx.Done():
+				return
+			case <-ticker.C:
+				mgr.CleanupInactiveSessions(cfg.InactivityTimeout)
+			}
 		}
 	}()
 
@@ -691,6 +708,14 @@ func (bm *BrowserManager) CleanupInactiveSessions(timeout time.Duration) {
 	}
 }
 
+// Stop cancels the background cleanup goroutine. After Stop returns, the
+// BrowserManager is safe to discard. CloseAll is preferred for graceful
+// shutdown; Stop ensures the ticker goroutine exits even if CloseAll is
+// not called.
+func (bm *BrowserManager) Stop() {
+	bm.cancel()
+}
+
 func (bm *BrowserManager) CloseAll() {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
@@ -731,4 +756,7 @@ func (bm *BrowserManager) CloseAll() {
 
 	bm.sessions = make(map[string]*BrowserSession)
 	bm.activeSession = ""
+
+	// Stop the background cleanup ticker goroutine.
+	bm.Stop()
 }

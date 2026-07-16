@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/xujian519/mady/agentcore"
 )
 
 // Checkpoint captures the complete execution state at a specific point.
@@ -126,7 +124,7 @@ func (ig *InterruptableGraph) runFrom(ctx context.Context, input string, startLa
 		for _, name := range layerNodes {
 			steps++
 			if steps > ig.graph.MaxSteps {
-				return "", nil, agentcore.WrapNodeError(agentcore.ErrExceedMaxSteps, "interruptable_graph")
+				return "", nil, fmt.Errorf("interruptable_graph: %w", ErrExceedMaxSteps)
 			}
 
 			intCfg, hasInterrupt := ig.interrupts[name]
@@ -148,7 +146,7 @@ func (ig *InterruptableGraph) runFrom(ctx context.Context, input string, startLa
 			step := ig.graph.getNode(name)
 			out, err := step.Run(ctx, nodeInput)
 			if err != nil {
-				return "", nil, agentcore.WrapNodeError(err, "interruptable_graph:"+name)
+				return "", nil, fmt.Errorf("interruptable_graph:%s: %w", name, err)
 			}
 
 			ig.mu.Lock()

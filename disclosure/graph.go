@@ -317,35 +317,29 @@ func BuildDisclosureAnalysisGraphWithOpts(provider agentcore.Provider, opts ...G
 	}
 
 	// 静态边：preprocess → 三提取节点（并发）
-	mustAddEdge(pg, "preprocess", "extract_problem")
-	mustAddEdge(pg, "preprocess", "extract_features")
-	mustAddEdge(pg, "preprocess", "extract_effects")
-
-	// 静态边：三提取节点 → 合并节点
-	mustAddEdge(pg, "extract_problem", "merge_extractions")
-	mustAddEdge(pg, "extract_features", "merge_extractions")
-	mustAddEdge(pg, "extract_effects", "merge_extractions")
-
-	// 静态边：合并节点 → 一致性校验
-	mustAddEdge(pg, "merge_extractions", "check_consistency")
+	for _, edge := range [][2]string{
+		{"preprocess", "extract_problem"},
+		{"preprocess", "extract_features"},
+		{"preprocess", "extract_effects"},
+		{"extract_problem", "merge_extractions"},
+		{"extract_features", "merge_extractions"},
+		{"extract_effects", "merge_extractions"},
+		{"merge_extractions", "check_consistency"},
+		{"generate_keywords", "retrieve_prior_art"},
+		{"retrieve_prior_art", "check_novelty"},
+		{"check_novelty", "generate_report"},
+		{"generate_report", "review_gate"},
+		{"review_gate", graph.PregelEnd},
+	} {
+		if err := pg.AddEdge(edge[0], edge[1]); err != nil {
+			return nil, err
+		}
+	}
 
 	// 条件边：一致性校验 → 前进或回退
 	if err := pg.SetConditionalEdge("check_consistency", consistencyRouter); err != nil {
 		return nil, err
 	}
 
-	// 静态边：后半段线性流程
-	mustAddEdge(pg, "generate_keywords", "retrieve_prior_art")
-	mustAddEdge(pg, "retrieve_prior_art", "check_novelty")
-	mustAddEdge(pg, "check_novelty", "generate_report")
-	mustAddEdge(pg, "generate_report", "review_gate")
-	mustAddEdge(pg, "review_gate", graph.PregelEnd)
-
 	return pg.Compile("preprocess", 100)
-}
-
-func mustAddEdge(pg *graph.PregelGraph, from, to string) {
-	if err := pg.AddEdge(from, to); err != nil {
-		panic("disclosure graph: " + err.Error())
-	}
 }

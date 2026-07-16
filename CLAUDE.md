@@ -7,9 +7,9 @@
 
 ## 技术栈
 
-- **Go 1.25+**：多模块项目（go.work 包含根模块 + `./tools` 子模块）
+- **Go 1.25**：多模块项目（go.work 包含根模块 + `./tools` 子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 552 个 Go 源文件（376 非测试 + 176 测试），~134K 行代码
+- 737 个 Go 源文件（490 非测试 + 247 测试），~134K 行代码
 
 ## 构建与测试
 
@@ -87,7 +87,6 @@ mady/
 ├── fuzzy/            # 模糊匹配
 ├── prompt/           # 提示词模板
 ├── protocol/         # JSON-RPC 协议原语
-├── components/       # 共享组件（已废弃，将迁移）
 └── pkg/
     ├── agentconfig/  #   统一 Provider/Model 配置层
     └── util/         #   路径解析等通用工具

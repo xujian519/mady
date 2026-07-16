@@ -503,13 +503,20 @@ type SupervisorRegistry struct {
 	supervisors csync.Map[string, *CDPSupervisor]
 }
 
-var defaultSupervisorRegistry = &SupervisorRegistry{}
+var (
+	defaultSupervisorRegistry   = &SupervisorRegistry{}
+	defaultSupervisorRegistryMu sync.RWMutex
+)
 
 func SetSupervisorRegistry(r *SupervisorRegistry) {
+	defaultSupervisorRegistryMu.Lock()
+	defer defaultSupervisorRegistryMu.Unlock()
 	defaultSupervisorRegistry = r
 }
 
 func GetSupervisorRegistry() *SupervisorRegistry {
+	defaultSupervisorRegistryMu.RLock()
+	defer defaultSupervisorRegistryMu.RUnlock()
 	return defaultSupervisorRegistry
 }
 
