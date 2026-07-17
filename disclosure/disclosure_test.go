@@ -301,19 +301,38 @@ func TestMergeExtractionsNode(t *testing.T) {
 	}
 }
 
-func TestNoveltyStubNode(t *testing.T) {
-	node := noveltyStubNode()
+func TestNoveltyNode_NoExtraction(t *testing.T) {
+	// 生产管线实际使用的 check_novelty 节点（novelty.go 的 noveltyNode）。
+	// 空 state 无提取结果时，节点在调用 LLM 之前短路返回"无法评估"，
+	// 因此传 nil provider 也不会触发任何 LLM 调用。
+	node := noveltyNode(nil)
 	state := graph.PregelState{}
 
 	result, err := node(context.Background(), state)
 	if err != nil {
-		t.Fatalf("noveltyStubNode failed: %v", err)
+		t.Fatalf("noveltyNode failed: %v", err)
 	}
 
 	nr, ok := result[StateKeyNovelty].(*NoveltyResult)
 	if !ok {
 		t.Fatal("expected *NoveltyResult in state")
 	}
+	if nr.Assessed {
+		t.Error("expected novelty NOT assessed when no features extracted")
+	}
+	if nr.Conclusion == "" {
+		t.Error("expected non-empty novelty conclusion")
+	}
+	if nr.Notes == "" {
+		t.Error("expected non-empty novelty notes")
+	}
+}
+
+func TestAssessNoveltyFromState(t *testing.T) {
+	// LLM 失败时的启发式回退路径（novelty.go 中 noveltyNode 的 fallback）。
+	// 即使空 state 也应产出确定的预评估结果。
+	nr := assessNoveltyFromState(graph.PregelState{})
+
 	if !nr.Assessed {
 		t.Error("expected novelty to be assessed (even with empty state)")
 	}

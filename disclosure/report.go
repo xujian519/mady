@@ -70,26 +70,15 @@ func collectKeywordsFromExtraction(ext *ExtractionResult) []string {
 }
 
 // =============================================================================
-// check_novelty — 新颖性初判（基于技术特征分类与关键词匹配）
+// check_novelty 启发式回退 — 基于技术特征分类与关键词匹配
 // =============================================================================
 
-// noveltyStubNode 返回新颖性初判的 Pregel 节点。
-// 基于已提取的技术特征、问题、效果进行结构化预评估。
-//
-// 注意：这是新颖性判断的启发式回退路径，仅在 LLM 调用失败时使用
-// （主管线 check_novelty 走 noveltyNode 的 LLM 调用，见 novelty.go）。
-// retrieval/ 与 knowledge/graph/ 已接入 chat agent 和 reasoning Stage ②
-// 规则召回，但 disclosure 管线本身的节点尚未接入——见
-// docs/specs/design-prior-art-retrieval-stage.md 的 retrieve_prior_art 设计。
-func noveltyStubNode() graph.PregelNode {
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-		result := assessNoveltyFromState(state)
-		state[StateKeyNovelty] = result
-		return state, nil
-	}
-}
-
 // assessNoveltyFromState 基于 PregelState 中的提取结果和关键词进行新颖性预评估。
+// 这是 check_novelty 的启发式回退路径：生产管线节点由 novelty.go 的
+// noveltyNode(provider) 创建（LLM 逐特征评估），仅在其 LLM 调用失败时
+// 回退到本函数。retrieval/ 与 knowledge/graph/ 已接入 chat agent 和
+// reasoning Stage ② 规则召回——见
+// docs/specs/design-prior-art-retrieval-stage.md 的 retrieve_prior_art 设计。
 func assessNoveltyFromState(state graph.PregelState) *NoveltyResult {
 	// Collect available data.
 	var features []TechFeature

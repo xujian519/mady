@@ -28,6 +28,8 @@ tags:
     description: 会话线程管理
   - name: Skills
     description: 技能管理
+  - name: Disclosure
+    description: 技术交底书分析
   - name: States
     description: 状态快照
   - name: AG-UI
@@ -69,7 +71,7 @@ paths:
                 thinking:
                   type: object
                   description: 推理过程配置
-                    properties:
+                  properties:
                       display:
                         type: string
                         enum: [collapsed, expanded, summarized, omitted]
@@ -152,6 +154,105 @@ paths:
           description: 重载完成
         "401":
           description: 未认证
+
+  # ---- Disclosure ----
+  /v1/disclosure/analyze:
+    post:
+      tags: [Disclosure]
+      summary: 提交技术交底书，启动异步分析
+      description: |
+        接收交底书纯文本，后台运行 Pregel 分析管线（提取 → 一致性校验 →
+        检索关键词 → 新颖性初判 → 报告生成 → 人工复核关卡）。
+        返回任务 ID，通过轮询或 SSE 流获取进度与结果。
+        任务结果保留 30 分钟后自动清理。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisclosureAnalyzeRequest"
+      responses:
+        "202":
+          description: 任务已受理，返回任务 ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisclosureAnalyzeResponse"
+        "400":
+          description: 请求体非法或 text 为空（返回 status=failed）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisclosureAnalyzeResponse"
+        "500":
+          description: 服务端未配置 LLM Provider（返回 status=failed）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisclosureAnalyzeResponse"
+
+  /v1/disclosure/analyze/{task_id}:
+    get:
+      tags: [Disclosure]
+      summary: 轮询分析任务状态与结果
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 提交分析时返回的任务 ID
+      responses:
+        "200":
+          description: 任务当前状态（完成时携带分析结果）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisclosureTaskStatus"
+        "404":
+          description: 任务不存在（或已过保留期被清理）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /v1/disclosure/analyze/{task_id}/stream:
+    get:
+      tags: [Disclosure]
+      summary: SSE 流式获取分析进度
+      description: |
+        以 Server-Sent Events 实时推送执行进度：
+        - 连接建立后先发送 `: connected` 注释行
+        - 每 500ms 推送一次 `event: progress`，data 为 DisclosureTaskStatus
+          （含 progress，不含 result）
+        - 任务结束时推送一次 `event: done`，data 为含 result/error 的
+          最终 DisclosureTaskStatus，随后连接关闭
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 提交分析时返回的任务 ID
+      responses:
+        "200":
+          description: "SSE 事件流（event: progress / done）"
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/DisclosureTaskStatus"
+        "404":
+          description: 任务不存在（或已过保留期被清理）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
 
   # ---- Threads ----
   /api/threads:
@@ -361,3 +462,88 @@ components:
           format: date-time
         message_count:
           type: integer
+
+    DisclosureAnalyzeRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          description: 技术交底书纯文本内容（非空）
+
+    DisclosureAnalyzeResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+          description: 任务 ID（格式 disclosure-{时间戳}-{序号}）；失败时为空
+        status:
+          type: string
+          description: 受理成功为 pending；请求被拒绝为 failed
+
+    DisclosureTaskStatus:
+      type: object
+      properties:
+        task_id:
+          type: string
+          description: 任务 ID
+        status:
+          type: string
+          enum: [pending, running, awaiting_review, completed, failed]
+          description: |
+            任务状态：pending 排队中 / running 执行中 /
+            awaiting_review 分析完成待人工复核（review_gate 中断，含结果）/
+            completed 已完成 / failed 失败
+        progress:
+          $ref: "#/components/schemas/DisclosureProgress"
+        result:
+          $ref: "#/components/schemas/DisclosureReport"
+        error:
+          type: string
+          description: 失败原因（status=failed 时存在）
+
+    DisclosureProgress:
+      type: object
+      properties:
+        current_node:
+          type: string
+          description: 当前执行中的 Pregel 节点
+        nodes_done:
+          type: array
+          items:
+            type: string
+          description: 已完成节点列表
+
+    DisclosureReport:
+      type: object
+      description: 结构化分析报告（disclosure.AnalysisReport）
+      properties:
+        id:
+          type: string
+          description: 报告 ID
+        document:
+          type: object
+          description: 解析后的交底书文档（标题/格式/段落）
+        extraction:
+          type: object
+          description: 提取结果（技术问题/技术特征/技术效果/PFE 三元组）
+        consistency:
+          type: object
+          description: 一致性校验结果（得分/问题列表/重试状态）
+        search_keywords:
+          type: array
+          items:
+            type: string
+          description: 推荐检索关键词
+        novelty:
+          type: object
+          description: 新颖性初判（assessed/conclusion/notes）
+        report_text:
+          type: string
+          description: LLM 生成的报告正文（Markdown）
+        generated_at:
+          type: string
+          format: date-time
+        reviewed_by_human:
+          type: boolean
+          description: 是否已通过人工复核

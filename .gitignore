@@ -68,7 +68,9 @@ coverage.xml
 .cursor/
 /mady
 /mady-acp
+/acp-server
 sessions/
 
 # --- Graphify artifacts (rebuildable) ---
 graphify-out/
+/tui-demo

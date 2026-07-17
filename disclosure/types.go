@@ -130,7 +130,9 @@ type ExtractionResult struct {
 	PFETriples []PFETriple   `json:"pfe_triples"`
 }
 
-// NoveltyResult 是新颖性初判的输出（Phase 2 stub 实现）。
+// NoveltyResult 是新颖性初判的输出。
+// 由 check_novelty 节点产出：生产路径是 novelty.go 的 noveltyNode（LLM 逐特征
+// 评估）；LLM 调用失败时回退为 report.go 的 assessNoveltyFromState 启发式评估。
 type NoveltyResult struct {
 	Assessed   bool   `json:"assessed"`
 	Conclusion string `json:"conclusion"`
