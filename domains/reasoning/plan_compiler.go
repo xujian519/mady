@@ -95,55 +95,54 @@ func (c *PlanCompiler) CompilePlanToGraph(plan *Plan, bb *FactBlackboard) (*grap
 	var prevTerminal string // last node in the previous step's subgraph
 
 	for i, step := range plan.Steps {
-		var terminal string
+		// stepEntry: 本子图的入口节点（前一步的输出应连接至此）
+		// stepTerminal: 本子图的终止节点（本步完成后连接下一步的入口）
+		var stepEntry, stepTerminal string
 
 		switch step.Strategy {
 		case StrategyChain:
-			name, err := c.buildChainStep(g, step, bb)
+			entry, term, err := c.buildChainStep(g, step, bb)
 			if err != nil {
 				return nil, "", fmt.Errorf("plan compiler: chain step %d: %w", i, err)
 			}
-			if i == 0 {
-				entryName = name
-			}
-			terminal = name
+			stepEntry = entry
+			stepTerminal = term
 		case StrategyReact:
 			entry, term, err := c.buildReActStep(g, step, bb)
 			if err != nil {
 				return nil, "", fmt.Errorf("plan compiler: react step %d: %w", i, err)
 			}
-			if i == 0 {
-				entryName = entry
-			}
-			terminal = term
+			stepEntry = entry
+			stepTerminal = term
 		case StrategyMultiHypothesis:
 			entry, term, err := BuildMultiHypothesisSubgraph(g, step, bb, c.builder)
 			if err != nil {
 				return nil, "", fmt.Errorf("plan compiler: multi_hypothesis step %d: %w", i, err)
 			}
-			if i == 0 {
-				entryName = entry
-			}
-			terminal = term
+			stepEntry = entry
+			stepTerminal = term
 		default:
 			// Fallback: treat unknown strategies as chain.
-			name, err := c.buildChainStep(g, step, bb)
+			entry, term, err := c.buildChainStep(g, step, bb)
 			if err != nil {
 				return nil, "", fmt.Errorf("plan compiler: fallback chain step %d: %w", i, err)
 			}
-			if i == 0 {
-				entryName = name
-			}
-			terminal = name
+			stepEntry = entry
+			stepTerminal = term
+		}
+
+		if i == 0 {
+			entryName = stepEntry
 		}
 
 		if i > 0 && prevTerminal != "" {
-			if err := g.AddEdge(prevTerminal, terminal); err != nil {
+			// 前一步的终止节点 → 本步的入口节点
+			if err := g.AddEdge(prevTerminal, stepEntry); err != nil {
 				return nil, "", fmt.Errorf("plan compiler: connect step %d→%d: %w", i, i+1, err)
 			}
 		}
 
-		prevTerminal = terminal
+		prevTerminal = stepTerminal
 	}
 
 	// Connect final terminal to PregelEnd.
@@ -157,12 +156,14 @@ func (c *PlanCompiler) CompilePlanToGraph(plan *Plan, bb *FactBlackboard) (*grap
 }
 
 // buildChainStep creates a single linear node for a chain-strategy step.
-func (c *PlanCompiler) buildChainStep(g GraphBuilder, step PlanStep, bb *FactBlackboard) (string, error) {
+// Returns (entryNodeName, terminalNodeName, error). For chain steps the
+// entry and terminal are the same node (single linear step).
+func (c *PlanCompiler) buildChainStep(g GraphBuilder, step PlanStep, bb *FactBlackboard) (string, string, error) {
 	name := fmt.Sprintf("chain_%d", step.Order)
 	if err := g.AddNode(name, c.builder.BuildChainNode(step, bb)); err != nil {
-		return "", fmt.Errorf("add chain node: %w", err)
+		return "", "", fmt.Errorf("add chain node: %w", err)
 	}
-	return name, nil
+	return name, name, nil
 }
 
 // buildReActStep creates a think → act → observe cycle for a ReAct step.

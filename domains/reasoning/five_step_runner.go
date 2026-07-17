@@ -241,6 +241,8 @@ func detectPlanIntent(bb *FactBlackboard) PlanIntent {
 		return PlanIntentChain // Deterministic comparison.
 	case CaseRejection, CaseReexamination:
 		return PlanIntentChain // Structured response to office actions.
+	case CaseDrafting, CaseInfringement:
+		return PlanIntentChain // Structured multi-step analysis.
 	default:
 		return PlanIntentSimple
 	}

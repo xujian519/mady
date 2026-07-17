@@ -5,9 +5,40 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/tools"
+	"github.com/xujian519/mady/workflows/patent"
 )
+
+// globalDraftingRunner 是 FiveStepRunner 的全局实例，由 SetupPatentDraftingEngine
+// 在启动期一次性注入，PatentAgentConfig 从中读取并注册为工具。
+// 使用全局而非参数传递的原因是 PatentAgentConfig 签名受 domainFactoryMap
+// 约束（func(agentcore.Config) agentcore.Config），无法添加额外参数。
+//
+// 并发安全：setupFrameworkContext 是单线程的，写入后所有读取都是并发安全的。
+var globalDraftingRunner *reasoning.FiveStepRunner
+
+// SetupPatentDraftingEngine 在启动期注入五步推理引擎实例，
+// 使 PatentAgentConfig 可以将 run_five_step_workflow 工具注册到所有
+// Patent Agent 实例中（包括 Router Handoff 创建的子 Agent）。
+//
+// retriever 和 llm 均可为 nil——retriever 为 nil 时 Stage ② 跳过；
+// llm 为 nil 时降级为 noop 节点（仅回显步骤描述，不做 LLM 分析）。
+// 必须在任何 Agent 创建前调用。
+func SetupPatentDraftingEngine(retriever *reasoning.MultiSourceRetriever, llm reasoning.LlmClient) {
+	globalDraftingRunner = reasoning.NewWorkflowRunner(
+		"patent-agent", reasoning.CaseDrafting, "", retriever, llm,
+	)
+}
+
+// injectDraftingTool 向 Agent 配置注册 run_five_step_workflow 工具。
+// 当 globalDraftingRunner 未配置（nil）时静默跳过，不影响现有行为。
+func injectDraftingTool(cfg *agentcore.Config) {
+	if globalDraftingRunner != nil {
+		cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowTool(globalDraftingRunner))
+	}
+}
 
 // PatentAgentConfig builds the patent domain Agent configuration.
 func PatentAgentConfig(base agentcore.Config) agentcore.Config {
@@ -49,17 +80,19 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			Provider: base.Provider,
 			Model:    base.Model,
 		},
-		WebSearch:   &tools.WebSearchToolConfig{},
-		WebFetch:    &tools.WebFetchToolConfig{},
-		ComputerUse: true,
+		WebSearch:  &tools.WebSearchToolConfig{},
+		WebFetch:   &tools.WebFetchToolConfig{},
+		PatentTool: tools.PatentToolConfigDefaults(),
 		DisableTools: []string{
 			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
 			tools.ToolBrowser, tools.ToolExecuteCode,
-			tools.ToolProcess,
 		},
-		MaxBytes: 100 * 1024,
+		MaxBytes:   100 * 1024,
+		ExtraTools: []*agentcore.Tool{patent.NewPatentNoveltyTool()},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)
+
+	injectDraftingTool(&cfg)
 
 	// Chunked context engine for long patent documents.
 	cfg.Engine = "chunked"
@@ -127,6 +160,8 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 		MaxBytes: 100 * 1024,
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)
+
+	injectDraftingTool(&cfg)
 
 	// Chunked context engine for long patent/legal documents.
 	if base.Engine == "" {

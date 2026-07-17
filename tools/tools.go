@@ -138,6 +138,15 @@ type ExtensionConfig struct {
 	// all tools are enabled (backward compatible).
 	DisableTools []string
 
+	// ExtraTools is an optional set of add-on tools to register on top of
+	// the built-in set. Use this for domain-specific tools that live outside
+	// the tools package (e.g. workflows/patent.NewPatentNoveltyTool).
+	// These tools bypass the EnabledTools/DisableTools filtering: if you
+	// pass an extra tool, it WILL be registered regardless of the allow/block
+	// lists. This is intentional — extra tools are explicitly opted-in by the
+	// caller (the domain config factory) and should not be silently suppressed.
+	ExtraTools []*agentcore.Tool
+
 	// MaxBytes is the default output byte limit shared across all tools (default: 50KB).
 	MaxBytes int64
 
@@ -356,6 +365,15 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 
 	if cfg.ComputerUse {
 		addTool(NewComputerUseTool(cfg.ComputerUseConfig))
+	}
+
+	// ExtraTools: domain-specific tools injected by the caller (e.g.
+	// workflows/patent.NewPatentNoveltyTool). These bypass the allow/block
+	// list filtering because they are explicitly opted-in at the call site.
+	for _, t := range cfg.ExtraTools {
+		if t != nil {
+			tools = append(tools, t)
+		}
 	}
 
 	return tools

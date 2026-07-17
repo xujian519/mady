@@ -46,7 +46,7 @@ func TestPlanCompiler_CompilePlanToGraph_PropagatesError(t *testing.T) {
 
 func TestBuildChainStep_PropagatesError(t *testing.T) {
 	compiler := NewPlanCompiler(nil)
-	_, err := compiler.buildChainStep(&failingGraphBuilder{}, PlanStep{Order: 1}, &FactBlackboard{})
+	_, _, err := compiler.buildChainStep(&failingGraphBuilder{}, PlanStep{Order: 1}, &FactBlackboard{})
 	if err == nil {
 		t.Fatal("expected error from failing GraphBuilder, got nil")
 	}

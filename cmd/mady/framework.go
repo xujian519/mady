@@ -18,6 +18,7 @@ import (
 	"github.com/xujian519/mady/domains/reasoning"
 	reasoningwiring "github.com/xujian519/mady/domains/reasoning/wiring"
 	"github.com/xujian519/mady/domains/rules"
+	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/knowledge"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/mcp"
@@ -156,8 +157,9 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		fmt.Fprintf(os.Stderr, "manifest: 未加载任何 manifest（内置 embed 异常？）→ 将回退到单 Agent 模式\n")
 	}
 
-	// Skill 自动发现：扫描 $SKILL_DIR、$HOME/.agent、$PWD/.agent、~/.mady/skills。
-	// 优先级：$SKILL_DIR > $HOME/.agent > $PWD/.agent > ~/.mady/skills。
+	// Skill 自动发现：扫描 $SKILL_DIR、$HOME/.agent、$PWD/.agent、~/.mady/skills、
+	// ~/.agents/skills/。
+	// 优先级：$SKILL_DIR > $HOME/.agent > $PWD/.agent > ~/.mady/skills > ~/.agents/skills。
 	// 同名 skill 保留最先发现的。
 	var skillPaths []string
 	if sd := os.Getenv("SKILL_DIR"); sd != "" {
@@ -171,6 +173,9 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	}
 	if madyHome != "" {
 		skillPaths = append(skillPaths, filepath.Join(madyHome, "skills"))
+	}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		skillPaths = append(skillPaths, filepath.Join(homeDir, ".agents", "skills"))
 	}
 	loadedSkills, skillDiags, skillErr := skill.Load(skillPaths...)
 	if skillErr != nil {
@@ -241,6 +246,31 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 
 	// 初始化知识图谱（空存储，由 wiki import 或数据管线填充）。
 	fc.KnowledgeGraph = kgwgraph.NewGraphStore()
+
+	// 专利撰写推理引擎注入。
+	// 构建 retriever（可能为 nil，FiveStepRunner 内部可降级）和 LLM 客户端，
+	// 使 PatentAgentConfig 创建的所有 Agent 实例均可调用 run_five_step_workflow 工具。
+	retriever := buildReasoningRetriever(fc)
+	var llmClient reasoning.LlmClient
+	if fc.Provider != nil {
+		llmClient = reasoning.NewLlmClientFromProvider(fc.Provider, agentconfig.DefaultModel())
+	}
+	domains.SetupPatentDraftingEngine(retriever, llmClient)
+
+	// 引用核验装配注入：使 PatentAgentConfig 中的 CitationGate 运行在
+	// P2b Strict 模式（带留痕 store）。Source 为 nil 时 Gate 退回 S1 静态表。
+	approvalDB := filepath.Join(fc.WorkspaceDir, "approvals.db")
+	var citationStore domains.ApprovalStore
+	if store, err := sqlitestore.NewApprovalStore(approvalDB); err == nil {
+		citationStore = store
+	} else {
+		fmt.Fprintf(os.Stderr, "citation: 打开留痕数据库失败 %s: %v（降级为内存存储）\n", approvalDB, err)
+		citationStore = domains.NewMemoryApprovalStore()
+	}
+	domains.SetupCitationWiring(domains.CitationWiring{
+		Source: nil, // nil → 退回 S1 静态表（zero-dep 默认源）
+		Store:  citationStore,
+	})
 
 	return fc
 }
