@@ -4,6 +4,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/xujian519/mady/guardrails"
+	"github.com/xujian519/mady/pkg/lawcite"
 )
 
 // Metric scores a single prediction against a reference answer, returning a
@@ -163,13 +166,13 @@ func (m CitationCompleteness) Compute(prediction, _ string) float64 {
 		return 1
 	}
 	lowerPred := strings.ToLower(prediction)
-	normPred := normalizeChineseNumerals(lowerPred)
+	normPred := lawcite.Normalize(lowerPred)
 	predSet := extractLawCitations(normPred)
 
 	hit := 0
 	for _, c := range m.Required {
 		lowerC := strings.ToLower(c)
-		normC := normalizeChineseNumerals(lowerC)
+		normC := lawcite.Normalize(lowerC)
 
 		matched := false
 		requiredSet := extractLawCitations(normC)
@@ -186,23 +189,20 @@ func (m CitationCompleteness) Compute(prediction, _ string) float64 {
 	return float64(hit) / float64(len(m.Required))
 }
 
-var citationPattern = regexp.MustCompile(`第(\d+)条(?:第(\d+)款)?(?:第(\d+)项)?(?:之一|之二|之三)?`)
-
-// extractLawCitations extracts normalized legal citations like "第22条第3款" from text.
-// It also supports item-level references (e.g., "第22条第3款第2项") and article suffixes
-// such as "第10条之一".
+// extractLawCitations 从文本中抽取归一化法条引用键（"第22条第3款"格式）。
+// P1c 起委托 pkg/lawcite.Extract——与线上引用核验 Gate（guardrails）
+// 共享同一抽取源，本包不再维护私有正则与中文数字归一化副本
+// （docs/design/citation-verification-gate.md §3 决策四）。
+// 键不含"之一/之二/之三"后缀，保持 v0.8 基线口径不变。
 func extractLawCitations(s string) map[string]bool {
 	set := make(map[string]bool)
-	for _, m := range citationPattern.FindAllStringSubmatch(s, -1) {
-		article := m[1]
-		paragraph := m[2]
-		item := m[3]
-		key := "第" + article + "条"
-		if paragraph != "" {
-			key += "第" + paragraph + "款"
+	for _, c := range lawcite.Extract(s) {
+		key := "第" + strconv.Itoa(c.Article) + "条"
+		if c.Paragraph > 0 {
+			key += "第" + strconv.Itoa(c.Paragraph) + "款"
 		}
-		if item != "" {
-			key += "第" + item + "项"
+		if c.Item > 0 {
+			key += "第" + strconv.Itoa(c.Item) + "项"
 		}
 		set[key] = true
 	}
@@ -240,59 +240,29 @@ func citationSetMatches(required, pred map[string]bool) bool {
 	return false
 }
 
-var (
-	cnDigits = map[rune]int{
-		'〇': 0, '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4,
-		'五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
-	}
-	cnUnits = map[rune]int{
-		'十': 10, '百': 100, '千': 1000,
-	}
-	cnLawNumeralPattern = regexp.MustCompile(`第([〇零一二两三四五六七八九十百千]+)(条|款|项|章|节|点|部分)`)
-)
+// ============================================================================
+// CitationValidity
+// ============================================================================
 
-// chineseToArabic converts a Chinese numeral string to an integer.
-// It handles numbers up to 9999 (e.g., "二十二" -> 22, "一百二十三" -> 123).
-func chineseToArabic(s string) (int, bool) {
-	if s == "" {
-		return 0, false
-	}
-	var result, current int
-	for _, r := range s {
-		if digit, ok := cnDigits[r]; ok {
-			current = digit
-		} else if unit, ok := cnUnits[r]; ok {
-			if current == 0 {
-				current = 1
-			}
-			result += current * unit
-			current = 0
-		} else {
-			return 0, false
-		}
-	}
-	result += current
-	return result, true
-}
+// CitationValidity scores the trustworthiness of legal citations in the
+// prediction by running the same verification source as the online guardrail
+// (guardrails.VerifyCitations：R1 存在性 + R2 语境相关性，见
+// docs/design/citation-verification-gate.md §8）。
+//
+// 得分 = Valid 引用数 ÷ 可核验引用数（Unknown/Unverifiable 不计入分母——
+// 静态表未覆盖或无用途声明的引用既不加分也不扣分，与 Gate 的放行语义一致）。
+// 全文无任何可核验引用时得 1（无依据扣分）。
+type CitationValidity struct{}
 
-// normalizeChineseNumerals replaces Chinese numerals inside legal citation patterns
-// ("第X条/款/项...") with Arabic numerals. Unlike a global replacement, this only
-// touches numeral sequences that appear immediately after "第" and before a legal
-// unit word, preventing accidental conversion of ordinary Chinese text.
-// Example: "专利法第二十二条第三款" -> "专利法第22条第3款".
-func normalizeChineseNumerals(s string) string {
-	return cnLawNumeralPattern.ReplaceAllStringFunc(s, func(match string) string {
-		sub := cnLawNumeralPattern.FindStringSubmatch(match)
-		if sub == nil {
-			return match
-		}
-		numCn := sub[1]
-		rest := match[len("第")+len(numCn):]
-		if n, ok := chineseToArabic(numCn); ok {
-			return "第" + strconv.Itoa(n) + rest
-		}
-		return match
-	})
+func (m CitationValidity) Name() string { return "citation_validity" }
+
+func (m CitationValidity) Compute(prediction, _ string) float64 {
+	report := guardrails.VerifyCitations(prediction)
+	verifiable := report.Total - report.Unknown - report.Unverifiable
+	if verifiable <= 0 {
+		return 1
+	}
+	return float64(report.Valid) / float64(verifiable)
 }
 
 // ============================================================================

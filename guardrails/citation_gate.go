@@ -55,6 +55,14 @@ type FlaggedCitation struct {
 type CitationReport struct {
 	Total   int               // 抽取到的引用总数（去重后）
 	Flagged []FlaggedCitation // 被标记的引用
+
+	// 各判定计数（P1c 新增，供 citation_validity 指标计分）：
+	// 五者之和等于 Total；Flagged 即 Suspect+Invalid 的明细。
+	Valid        int // 存在且语境匹配
+	Unknown      int // 静态表未覆盖，无法核验
+	Unverifiable int // 无用途声明可核对
+	Suspect      int // 张冠李戴疑点
+	Invalid      int // 编号超范围疑点
 }
 
 // CitationGateConfig 配置引用核验 Gate。
@@ -129,6 +137,18 @@ func VerifyCitations(text string) CitationReport {
 	report := CitationReport{Total: len(citations)}
 	for _, c := range citations {
 		verdict, reason := verifyOne(c)
+		switch verdict {
+		case VerdictValid:
+			report.Valid++
+		case VerdictUnknown:
+			report.Unknown++
+		case VerdictUnverifiable:
+			report.Unverifiable++
+		case VerdictSuspect:
+			report.Suspect++
+		case VerdictInvalid:
+			report.Invalid++
+		}
 		if verdict == VerdictSuspect || verdict == VerdictInvalid {
 			report.Flagged = append(report.Flagged, FlaggedCitation{
 				Citation: c, Verdict: verdict, Reason: reason,

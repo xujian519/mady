@@ -1,5 +1,44 @@
 # AI 决策变更日志
 
+## 2026-07-17: 引用核验 P1c——metrics 同源重构 + citation_validity 指标
+
+### 背景
+设计方案（ed813ce）§3 决策四要求评测与护栏共享同一引用抽取源。P1b 落地
+Gate 后，metrics.go 仍维护私有正则与中文数字归一化副本（双份实现漂移风险）。
+P1c 收口：评测指标同源 + 新增 citation_validity，让"答案引对了没有"
+（而非仅"引全了没有"）进入评测体系。
+
+### 改动
+- `pkg/lawcite`：导出 `Normalize`（中文数字归一化公共 API，供 metrics
+  同口径使用，不再维护私有副本）
+- `guardrails/citation_gate.go`：CitationReport 新增五类判定计数
+  （Valid/Unknown/Unverifiable/Suspect/Invalid），Flagged 明细与
+  Gate 处置行为零改动
+- `agentcore/evaluate/metrics.go`：
+  新增 `CitationValidity` 指标——调 guardrails.VerifyCitations，
+  得分 = Valid ÷（总 − Unknown − Unverifiable），无可核验引用得 1
+  （与 Gate 放行语义一致）；6 组单测覆盖（合法/无引用/Unknown/
+  Unverifiable/Suspect/Invalid/对错参半）。
+  `CitationCompleteness` 同源重构：删除私有 citationPattern 与中文数字
+  归一化全套副本（约 100 行），抽取改调 lawcite.Extract、归一化改调
+  lawcite.Normalize；匹配语义（条级前缀泛化/项引用/之一后缀/子串防护）
+  零改动
+- `scripts/replay_citation_metrics/`：指标离线回放工具（P1c 验收件）——
+  三层 93 条缓存答案逐题重算两指标输出 JSON 快照，按 caseID 排序累加
+  保证逐字节确定。scripts/ 下回放工具改 cmd 布局各居子目录
+  （replay_citation_gate 随之迁移，用法改为
+  `go run ./scripts/replay_citation_gate`）
+
+- **影响范围**: evaluate/guardrails/lawcite 各 1 文件改 + scripts 1 新 1 迁
+- **风险等级**: 低（评测口径经快照等价验证；Gate 行为零改动）
+- **审查要求**: L1
+- **验证**: 口径等价硬性验收——重构前后 93 题×3 层×2 指标 per-case 得分
+  零差异（before 快照锚定 v0.8 报告值 0.935）✅ | citation_validity 首批
+  真实数据：L0 0.935 / L1 0.984 / L3 0.935 ✅ | `go vet`/`go build`
+  双模块 ✅ | `golangci-lint run` 双模块 0 issues ✅ |
+  `go test -race ./...` 全量 ✅ | gate 回放回归（三层 TP 全命中、
+  误报 0）✅
+
 ## 2026-07-18: 启用 computer_use 桌面控制工具（Assistant + Patent Agent）
 
 ### 背景

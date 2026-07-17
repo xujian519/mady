@@ -78,6 +78,27 @@ func TestCitationCompleteness(t *testing.T) {
 	}
 }
 
+func TestCitationValidity(t *testing.T) {
+	m := CitationValidity{}
+	check := func(p string, want float64) {
+		t.Helper()
+		if got := m.Compute(p, ""); !approxEqual(got, want) {
+			t.Errorf("CitationValidity(%q)=%.3f want %.3f", p, got, want)
+		}
+	}
+	// 合法引用：第 22 条用途声明命中注册主题（创造性）。
+	check("根据专利法第22条第3款的规定，权利要求1具备创造性。", 1.0)
+	// 无法条引用 / 静态表未覆盖（Unknown）/ 无用途声明（Unverifiable）：不计入分母，得 1。
+	check("该权利要求具备创造性。", 1.0)
+	check("依据专利法第64条，保护范围以权利要求的内容为准。", 1.0)
+	check("修改符合专利法第33条。", 1.0)
+	// 张冠李戴（Suspect）与幻觉编号（Invalid）：计入分母且非 Valid，得 0。
+	check("分析如下：专利法第47条（分案申请）允许申请人提出分案。", 0.0)
+	check("依据专利法第二百零八条，该申请应予驳回。", 0.0)
+	// 对错参半：Valid 1 / 可核验 2 = 0.5。
+	check("根据专利法第22条第3款，具备创造性。专利法第47条（分案申请）允许分案。", 0.5)
+}
+
 func TestLengthScore(t *testing.T) {
 	m := LengthScore{Min: 10, Ideal: 100, Max: 200}
 	check := func(p string, wantMin, wantMax float64) {

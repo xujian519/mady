@@ -330,3 +330,11 @@ func normalizeChineseNumerals(s string) string {
 		return match
 	})
 }
+
+// Normalize 导出 normalizeChineseNumerals，供评测指标（agentcore/evaluate）
+// 对 required citations 做同口径归一化——P1c 起 metrics.go 不再维护私有副本。
+// 仅转换「第X条/款/项/章/节/点/部分」内的数字，普通中文数字（"二十二项任务"）
+// 不受影响，可安全用于任意文本。
+func Normalize(s string) string {
+	return normalizeChineseNumerals(s)
+}

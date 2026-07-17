@@ -7,7 +7,7 @@
 //   - patent_exam_2008_a31_02（法条编号幻觉题）三层答案必须全部命中；
 //   - 其余答案误报（Flagged 非空）必须为 0。
 //
-// 用法：go run ./scripts/replay_citation_gate.go
+// 用法：go run ./scripts/replay_citation_gate
 package main
 
 import (
