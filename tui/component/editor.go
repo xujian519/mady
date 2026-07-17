@@ -93,6 +93,11 @@ type Editor struct {
 	onSubmit func(value string)
 	onChange func(value string)
 	onCancel func()
+
+	// autocompleteActiveCheck, when non-nil, is called before processing up/down
+	// keys for input history navigation. When it returns true, history navigation
+	// is skipped so the autocomplete's SelectList can handle the key instead.
+	autocompleteActiveCheck func() bool
 }
 
 type editorSnapshot struct {
@@ -313,6 +318,25 @@ func (e *Editor) clearMouseSelectionLocked() {
 func (e *Editor) OnSubmit(fn func(string)) { e.mu.Lock(); e.onSubmit = fn; e.mu.Unlock() }
 func (e *Editor) OnChange(fn func(string)) { e.mu.Lock(); e.onChange = fn; e.mu.Unlock() }
 func (e *Editor) OnCancel(fn func())       { e.mu.Lock(); e.onCancel = fn; e.mu.Unlock() }
+
+// SetAutocompleteActiveCheck registers a function that returns whether an
+// autocomplete popup is currently active. When active, up/down keys skip
+// input-history navigation and pass through so the autocomplete's SelectList
+// can handle them instead. Pass nil to clear the check.
+func (e *Editor) SetAutocompleteActiveCheck(fn func() bool) {
+	e.mu.Lock()
+	e.autocompleteActiveCheck = fn
+	e.mu.Unlock()
+}
+
+// isAutocompleteActive returns true when the registered autocomplete check
+// (if any) reports the popup as active. Safe to call from any goroutine.
+func (e *Editor) isAutocompleteActive() bool {
+	e.mu.RLock()
+	fn := e.autocompleteActiveCheck
+	e.mu.RUnlock()
+	return fn != nil && fn()
+}
 
 // SetFocused / IsFocused implement Focusable.
 func (e *Editor) SetFocused(on bool) { e.mu.Lock(); e.focused = on; e.mu.Unlock() }

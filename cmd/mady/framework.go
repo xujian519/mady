@@ -25,6 +25,7 @@ import (
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/skill"
+	"github.com/xujian519/mady/tools"
 )
 
 // frameworkContext 封装入口之间共享的初始化资源。
@@ -244,6 +245,23 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		fc.BaseConfig.ProjectDir = cwd
 	}
 
+	// 内置工具扩展：为所有 Agent 提供基础文件工具（read/edit/write_file/ls/grep/find/glob/view）
+	// 和网络工具（web_search/web_fetch）。领域 Agent 工厂函数（AssistantAgentConfig 等）
+	// 在此基础之上叠加领域特定配置（沙箱、禁用列表等）。
+	// 不启用沙箱：BaseConfig 是共享基础，沙箱由领域工厂函数按需开启。
+	// 不启用危险工具：bash/git/browser/execute_code/process/computer_use 默认关闭。
+	toolWorkingDir := fc.BaseConfig.ProjectDir
+	if toolWorkingDir == "" {
+		toolWorkingDir = fc.BaseConfig.WorkspaceDir
+	}
+	baseTools := tools.NewExtension(tools.ExtensionConfig{
+		WorkingDir: toolWorkingDir,
+		DisableTools: []string{
+			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
+			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolProcess, tools.ToolComputerUse,
+		},
+	})
+	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, baseTools)
 	// 初始化知识图谱（空存储，由 wiki import 或数据管线填充）。
 	fc.KnowledgeGraph = kgwgraph.NewGraphStore()
 

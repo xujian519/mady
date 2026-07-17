@@ -251,6 +251,13 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 	}
 	chatApp.layout = layout
 
+	// When autocomplete is active, up/down keys should navigate the suggestion
+	// list rather than the input history. The check is wired here so the Editor
+	// can skip history navigation in processKeys.
+	if chatApp.ac != nil {
+		editor.SetAutocompleteActiveCheck(chatApp.ac.Active)
+	}
+
 	editor.OnChange(func(value string) {
 		if chatApp.ac != nil {
 			if chatApp.skipRefresh {
