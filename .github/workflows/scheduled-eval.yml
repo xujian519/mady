@@ -1,0 +1,47 @@
+name: Scheduled Evaluation
+
+# Weekly full live evaluation run. Runs every Sunday at 2:00 UTC.
+# Tests all benchmark suites against a live LLM backend.
+# Results are uploaded as artifacts for review.
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # Every Sunday at 2:00 UTC
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  live-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build benchmark
+        run: go build ./agentcore/evaluate/benchmark/
+
+      - name: Run live evaluation (P2a suite)
+        env:
+          PROVIDER: ${{ secrets.EVAL_PROVIDER }}
+          API_KEY: ${{ secrets.EVAL_API_KEY }}
+          BASE_URL: ${{ secrets.EVAL_BASE_URL }}
+          MADY_LIVE_EVAL: '1'
+          MADY_EVAL_JUDGE_MODEL: 'deepseek-flash'
+          MADY_JUDGE_SAMPLES: '3'
+        run: |
+          go test -count=1 -v ./agentcore/evaluate/benchmark/ -run 'TestEvalSuite_' -timeout 40m
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: |
+            eval-results/
+            *.json
+          retention-days: 30

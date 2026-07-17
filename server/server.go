@@ -1,7 +1,5 @@
 package server
 
-// TODO(refactor): 此文件超过 1228 行，建议按职责拆分为多个文件以提升可维护性。
-// 参考 docs/GO-DEVELOPMENT-STANDARDS.md 2.4 节。
 
 import (
 	"context"
