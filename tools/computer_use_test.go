@@ -382,6 +382,16 @@ func TestComputerUseSchema(t *testing.T) {
 	if !ok || len(enum) != 14 {
 		t.Fatalf("action enum 应有 14 个动作，得到 %v", action["enum"])
 	}
+	// "required" 必须是与 properties 平级的顶层键——嵌进 properties 会变成
+	// 名为 "required" 的非法属性定义（数组值），oMLX 等 OpenAI 兼容端点
+	// 序列化该畸形 schema 时直接 500（2026-07-18 冒烟实测）。
+	if _, leaked := props["required"]; leaked {
+		t.Error("\"required\" 不得出现在 properties 内（应为顶层键）")
+	}
+	req, ok := s["required"].([]any)
+	if !ok || len(req) != 1 || req[0] != "action" {
+		t.Errorf("顶层 required 应为 [action]，得到 %v", s["required"])
+	}
 }
 
 func TestNewComputerUseTool(t *testing.T) {

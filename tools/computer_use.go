@@ -170,8 +170,8 @@ func computerUseSchema() map[string]any {
 				"type":        "boolean",
 				"description": "在操作后执行截屏并将结果包含在返回内容中",
 			},
-			"required": []any{"action"},
 		},
+		"required": []any{"action"},
 	}
 }
 

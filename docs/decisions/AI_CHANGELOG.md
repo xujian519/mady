@@ -1,5 +1,39 @@
 # AI 决策变更日志
 
+## 2026-07-18: fix(tools) computer_use schema 畸形致 oMLX 500 + 引用核验端到端冒烟
+
+### 背景
+P1b 域接线后的端到端冒烟（domains.PatentAgentConfig 完整 hook 链 + oMLX
+真实生成）首轮即 provider 500。curl 分层诊断（裸请求 ✅ / 简单工具 ✅ /
+完整产品配置 ❌）定位到 1971fea 启用的 computer_use 工具 schema 畸形——
+TUI assistant / patent agent 走 oMLX 等 OpenAI 兼容端点必现。
+
+### 改动
+- fix(tools)：`computerUseSchema()` 的 `"required": ["action"]` 误置于
+  `properties` 内部（变成名为 "required" 的非法属性定义，值为数组），
+  端点序列化该畸形 schema 时 500；移正为与 properties 平级的顶层键
+  （对照 bash/browser 等全部工具写法一致，grep 确认为独例）。
+  `TestComputerUseSchema` 补两条防回归断言（properties 内不得含
+  "required" 键；顶层 required == [action]）——既有测试只断言字段
+  存在故漏检
+- feat(scripts)：`scripts/smoke_citation_gate` 端到端冒烟工具——完整
+  PatentAgentConfig hook 链（CitationGate + Strict 护栏 + ApprovalGate）
+  + oMLX 单题跑批（SMOKE_CASE / SMOKE_MAX_TOKENS / SMOKE_MAX_TURNS 可配）；
+  SMOKE_FILE 离线模式对任意文本跑 guardrails.VerifyCitations 出判定报告
+
+### 冒烟结论（patent_exam_2008_a31_02 单题）
+- 链路通畅：修复后 1m27s 生成 2059 字，完整 hook 链无异常
+- Gate 行为正确：本次生成引用 1 条且 Valid → 正确地未标注（非失灵）
+- 幻觉命中实景（对 v0.8 L0 缓存真实幻觉答案离线核验）：4 条引用
+  1 Valid / 2 Unknown / 1 Suspect，提示文案精确指出「专利法第47条第1款」
+  用途"分案申请"与本条主题（无效宣告效力）不一致、更接近细则第42条
+
+- **影响范围**: tools/ 2 文件改 + scripts/ 1 新增
+- **风险等级**: 低（schema 修复经全部同类工具对照为独例）
+- **审查要求**: L1
+- **验证**: tools 模块 vet/build/test/lint 0 issues ✅ | 冒烟端到端 ✅ |
+  离线核验演示 ✅
+
 ## 2026-07-17: 引用核验 P1c——metrics 同源重构 + citation_validity 指标
 
 ### 背景
