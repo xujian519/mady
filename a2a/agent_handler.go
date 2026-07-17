@@ -110,6 +110,7 @@ func (h *DefaultAgentHandler) evictOldTasksLocked() {
 }
 
 func (h *DefaultAgentHandler) SetMaxConcurrency(n int) {
+	// Not safe for concurrent use with runAgent — call before any SendTask.
 	if n <= 0 {
 		n = 10
 	}
@@ -187,13 +188,19 @@ func (h *DefaultAgentHandler) continueTask(ctx context.Context, task *Task, req 
 	}
 
 	h.tasksMu.Lock()
+	defer h.tasksMu.Unlock()
+
+	// Re-validate state under write lock — CancelTask may have acted since SendTask's RLock.
+	if isTerminalState(task.State) || (task.State != TaskStateInputRequired && task.State != TaskStateSubmitted) {
+		return nil, fmt.Errorf("task %q state changed to %q, cannot continue", req.ID, task.State)
+	}
+
 	task.Messages = append(task.Messages, req.Message)
 	task.State = TaskStateWorking
 	task.History = append(task.History, TaskStatus{
 		State:     TaskStateWorking,
 		Timestamp: time.Now(),
 	})
-	h.tasksMu.Unlock()
 
 	h.publish(task.ID, &TaskUpdateEvent{Result: &Task{ID: task.ID, State: TaskStateWorking}, Final: false})
 
@@ -203,10 +210,10 @@ func (h *DefaultAgentHandler) continueTask(ctx context.Context, task *Task, req 
 func (h *DefaultAgentHandler) runAgent(ctx context.Context, task *Task, input string) (*Task, error) {
 	select {
 	case h.execSem <- struct{}{}:
+		defer func() { <-h.execSem }()
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	defer func() { <-h.execSem }()
 
 	h.tasksMu.Lock()
 	if task.State != TaskStateWorking {
@@ -243,20 +250,18 @@ func (h *DefaultAgentHandler) runAgent(ctx context.Context, task *Task, input st
 	}
 
 	h.tasksMu.Lock()
-	defer h.tasksMu.Unlock()
 
+	needNotify := true
 	if err != nil {
-		task.State = TaskStateFailed
-		task.History = append(task.History, TaskStatus{
-			State:     TaskStateFailed,
-			Timestamp: time.Now(),
-		})
-		h.evictOldTasksLocked()
-		h.notify(task)
-		return task, nil
-	}
-
-	if h.inputRequired != nil && h.inputRequired(output) {
+		// Preserve TaskStateCanceled if CancelTask already acted.
+		if task.State != TaskStateCanceled {
+			task.State = TaskStateFailed
+			task.History = append(task.History, TaskStatus{
+				State:     TaskStateFailed,
+				Timestamp: time.Now(),
+			})
+		}
+	} else if h.inputRequired != nil && h.inputRequired(output) {
 		task.State = TaskStateInputRequired
 		task.Messages = append(task.Messages, Message{
 			Role:  string(RoleAgent),
@@ -266,26 +271,28 @@ func (h *DefaultAgentHandler) runAgent(ctx context.Context, task *Task, input st
 			State:     TaskStateInputRequired,
 			Timestamp: time.Now(),
 		})
-		h.notify(task)
-		return task, nil
+	} else {
+		task.State = TaskStateCompleted
+		task.Messages = append(task.Messages, Message{
+			Role:  string(RoleAgent),
+			Parts: []Part{NewTextPart(output)},
+		})
+		task.Artifacts = append(task.Artifacts, Artifact{
+			Name:  "output",
+			Parts: []Part{NewTextPart(output)},
+		})
+		task.History = append(task.History, TaskStatus{
+			State:     TaskStateCompleted,
+			Timestamp: time.Now(),
+		})
 	}
 
-	task.State = TaskStateCompleted
-	task.Messages = append(task.Messages, Message{
-		Role:  string(RoleAgent),
-		Parts: []Part{NewTextPart(output)},
-	})
-	task.Artifacts = append(task.Artifacts, Artifact{
-		Name:  "output",
-		Parts: []Part{NewTextPart(output)},
-	})
-	task.History = append(task.History, TaskStatus{
-		State:     TaskStateCompleted,
-		Timestamp: time.Now(),
-	})
-
 	h.evictOldTasksLocked()
-	h.notify(task)
+	h.tasksMu.Unlock()
+
+	if needNotify {
+		h.notify(task)
+	}
 	return task, nil
 }
 
@@ -379,14 +386,15 @@ func (h *DefaultAgentHandler) GetTask(ctx context.Context, req GetTaskRequest) (
 // CancelTask implements AgentHandler.
 func (h *DefaultAgentHandler) CancelTask(ctx context.Context, req CancelTaskRequest) (*Task, error) {
 	h.tasksMu.Lock()
-	defer h.tasksMu.Unlock()
 
 	task, ok := h.tasks[req.ID]
 	if !ok {
+		h.tasksMu.Unlock()
 		return nil, fmt.Errorf("task %q not found", req.ID)
 	}
 
 	if isTerminalState(task.State) {
+		h.tasksMu.Unlock()
 		return nil, fmt.Errorf("task %q is already in terminal state %q", req.ID, task.State)
 	}
 
@@ -404,6 +412,9 @@ func (h *DefaultAgentHandler) CancelTask(ctx context.Context, req CancelTaskRequ
 	})
 
 	h.evictOldTasksLocked()
+	h.tasksMu.Unlock()
+
+	// notify outside tasksMu to avoid blocking task ops on HTTP push latency.
 	h.notify(task)
 	return task, nil
 }

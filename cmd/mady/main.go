@@ -30,6 +30,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	_ "github.com/joho/godotenv/autoload" // 自动加载 .env 文件（如有）
 )
 
 func main() {

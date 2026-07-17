@@ -84,8 +84,12 @@ func keywordOverlap(candidateKW map[string]bool, ruleKWs []string) float64 {
 		}
 	}
 
-	// Use the smaller set as denominator to detect subset relationships.
-	denom := min(len(candidateKW), len(ruleKWs))
+	// Jaccard-like overlap: union denominator prevents narrow candidates from
+	// being incorrectly flagged as duplicates against broad existing rules.
+	denom := len(candidateKW) + len(ruleKWs) - matched
+	if denom <= 0 {
+		return 0
+	}
 
 	return float64(matched) / float64(denom)
 }

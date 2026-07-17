@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -128,7 +129,7 @@ func serializeSortedJSON(v any, indent string) string {
 		}
 		return "false"
 	case float64:
-		return fmt.Sprintf("%v", vv)
+		return strconv.FormatFloat(vv, 'G', -1, 64)
 	case nil:
 		return "null"
 	default:
