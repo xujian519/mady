@@ -1,0 +1,27 @@
+{
+  "suite": "tool_accuracy",
+  "description": "基础工具选择与参数准确性测试",
+  "cases": [
+    {
+      "id": "tool_search_basic",
+      "domain": "patent",
+      "input": "搜索AI相关的中国专利",
+      "expected": "[{\"name\":\"search_patents\",\"arguments\":{\"query\":\"人工智能\",\"patent_office\":\"CN\"}}]",
+      "required_citations": []
+    },
+    {
+      "id": "tool_read_document",
+      "domain": "general",
+      "input": "读取案件文件 CN2023100001 的分析报告",
+      "expected": "[{\"name\":\"read_document\",\"arguments\":{\"path\":\"CN2023100001/analysis.md\"}}]",
+      "required_citations": []
+    },
+    {
+      "id": "tool_workflow_multi",
+      "domain": "patent",
+      "input": "搜索并分析对比文件",
+      "expected": "[{\"name\":\"search_prior_art\",\"arguments\":{\"keywords\":[\"对比文件\"]}},{\"name\":\"analyze_patent\",\"arguments\":{\"mode\":\"novelty\"}}]",
+      "required_citations": []
+    }
+  ]
+}

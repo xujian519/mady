@@ -1,5 +1,72 @@
 # AI 决策变更日志
 
+## 2026-07-18: 从 XiaoNuo Agent 引入评估框架增强、死循环检测和推理策略编排
+
+### 背景
+对 XiaoNuo Agent（TypeScript Bun 单体仓库，34 个 @nuo/* 包）做深度分析后，
+识别出三大值得引入 Mady 的能力：评估框架增强、DoomLoop 死循环检测器、
+推理策略编排系统。按优先级依次实施。
+
+### 改动清单
+
+#### Plan 3：评估框架增强（agentcore/evaluate/）
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `evaluate/cli/cli.go` | **新增** | CLI 评估引擎：RunCLI / FormatResult / OutputResult，支持 static 和 live 模式，table/json/markdown 三种输出格式 |
+| `cmd/mady/main.go` | **修改** | 注册 `mady eval` 子命令 |
+| `cmd/mady/eval.go` | **新增** | eval 子命令实现，flag 解析（--suite/--domain/--case/--format/--mode/--model 等） |
+| `evaluate/tool_accuracy.go` + `_test.go` | **新增** | 工具调用准确性度量：三维度评分（工具选择 + 参数准确 + 调用顺序），12 个测试 |
+| `evaluate/workflow_quality.go` + `_test.go` | **新增** | 工作流执行质量度量：步骤完成度 + 顺序 + 精确性，支持 Pipeline/Parallel/Router 模式，11 个测试 |
+| `evaluate/reflection.go` + `_test.go` | **新增** | Reflection 自我反思质量评估 + RubricJudge 可定制多准则 LLM 评分，16 个测试 |
+| `evaluate/loader.go` + `_test.go` | **新增** | JSON 夹具加载系统：支持单文件/数组/原生数组格式，目录递归扫描，7 个测试 |
+| `evaluate/testdata/tool_accuracy_fixtures.json` | **新增** | 工具准确性评估示例夹具 |
+| `evaluate/report_enhanced.go` + `_test.go` | **新增** | 增强报告：指标分解（均值/最值/标准差/通过率）、百分位分布、趋势对比（baseline diff），10 个测试 |
+| `evaluate/eval_integration_test.go` | **新增** | 集成测试：全流水线测试（加载→评估→报告），4 个测试 |
+
+#### Plan 2：DoomLoop 死循环检测器（agentcore/doomloop/）
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `doomloop/doc.go` | **新增** | 包文档，6 种检测器概览 |
+| `doomloop/doomloop.go` + `_test.go` | **新增** | 核心实现：ToolCallLoop（重复工具调用）、TextRepetition（重复文本）、Cycle（A→B→A→B 循环）、EmptyResult（空结果）、CircuitBreaker（总迭代次数）、CompactionBreaker（重复压缩摘要）。25 个测试，实现 agentcore.LifecycleHook 接口 |
+
+#### Plan 1：推理策略编排系统（agentcore/）
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `reasoning_strategy.go` + `_test.go` | **新增** | 策略选择器（6 种策略：step_by_step/structured_analysis/debate/tree_of_thoughts/verified_thinking/first_principles）、框架步骤系统（3 级复杂度→不同框架）、策略提示注入（BeforeModelCall 自动追加系统提示）。11 个测试 |
+
+### 技术决策
+
+1. **CLI 子包隔离**：将 CLI 引擎放在 `evaluate/cli` 子包而非 `evaluate` 包内，
+   避免 benchmark 导入冲突（import cycle）。
+2. **Metric 接口兼容**：所有新度量实现现有的 `Metric` 接口（`Name() + Compute()`），
+   无需修改 Evaluator 核心。
+3. **DoomLoop 通过 LifecycleHook 接入**：不影响 Agent 运行时的核心循环，
+   检测器通过标准钩子机制注入，可独立启用/关闭。
+4. **推理策略提示不侵入核心提示**：策略提示通过 `BeforeModelCall` 在每次调用前
+   追加到 system message 末尾，不影响原始提示结构。
+
+### 验证
+
+- `go build ./...` ✅
+- `go test ./agentcore/doomloop/` ✅（25 个测试）
+- `go test ./agentcore/evaluate/...` ✅（全部 78+ 测试，含 7 个新测试文件的 60+ 测试）
+- `go test ./agentcore/ -run "TestReasoning..."` ✅（11 个测试）
+- `go build ./cmd/mady/` ✅
+- `golangci-lint run ./...` 0 issues ✅（提交前收口：测试 nil Context →
+  context.TODO、报告落盘权限 0644→0600、string 比较改 bytes.Equal、
+  嵌入字段选择器简化、gofmt 全仓、main.go eval 错误返回检查）
+
+- **影响范围**: agentcore/evaluate 10 新（含 cli 子包与 testdata）+
+  agentcore/doomloop 2 新 + agentcore/reasoning_strategy 1 新 1 测 +
+  cmd/mady 1 新 1 改
+- **风险等级**: 低（均为新增包/钩子/子命令，默认 Agent 配置未改动；
+  DoomLoop 与推理策略经 LifecycleHook 可选接入）
+- **审查要求**: L1
+- **验证**: 见上 ✅
+
 ## 2026-07-18: fix(tools) computer_use schema 畸形致 oMLX 500 + 引用核验端到端冒烟
 
 ### 背景

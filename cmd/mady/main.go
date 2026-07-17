@@ -1,11 +1,12 @@
 // Command mady is the unified entry point for the Mady agent framework.
 //
-// It exposes four subcommands:
+// It exposes five subcommands:
 //
 //	mady tui   — interactive terminal chat (default)
 //	mady serve — HTTP/SSE API server with multi-domain routing
 //	mady acp   — run as an ACP (Agent Client Protocol) server for editors like Zed
 //	mady trust-mcp — trust an MCP config file so its commands may run at startup
+//	mady eval  — run evaluation benchmarks (static or live) and generate reports
 //
 // All configuration is via environment variables (see package agentconfig):
 //
@@ -50,6 +51,11 @@ func main() {
 		runAcp(ctx)
 	case "trust-mcp":
 		runTrustMCP(os.Args)
+	case "eval":
+		if err := runEval(ctx, os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "eval:", err)
+			os.Exit(1)
+		}
 	case "-h", "--help", "help":
 		printUsage()
 	default:
@@ -68,10 +74,11 @@ Usage:
 
 Commands:
   tui   Launch the interactive terminal chat (default).
-	  serve Run as an HTTP/SSE API server with multi-domain routing.
+  serve Run as an HTTP/SSE API server with multi-domain routing.
   acp   Run as an ACP server (stdio JSON-RPC) for editors like Zed.
   trust-mcp [path]  Trust an MCP config file (default: ./.mcp.json) so its
         commands may run at startup (records a SHA-256 in trusted-mcp.json).
+  eval  Run evaluation benchmarks (static or live) and generate reports.
   help  Show this help message.
 
 Configuration (environment variables):
@@ -81,5 +88,7 @@ Configuration (environment variables):
 
 Examples:
   PROVIDER=deepseek API_KEY=sk-... mady tui
-  PROVIDER=zhipu API_KEY=... mady acp`)
+  PROVIDER=zhipu API_KEY=... mady acp
+  mady eval --suite p2a --mode static
+  mady eval --case patent_exam_2009_a22_01 --format json`)
 }
