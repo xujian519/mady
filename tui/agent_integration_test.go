@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -10,31 +9,13 @@ import (
 	"github.com/xujian519/mady/pkg/agentconfig"
 )
 
-func hasAPIKey() bool {
-	keys := []string{
-		"API_KEY",
-		"DEEPSEEK_API_KEY",
-		"ZHIPU_API_KEY",
-		"KIMI_CODE_API_KEY",
-		"KIMI_API_KEY",
-		"OPENAI_API_KEY",
-	}
-	for _, k := range keys {
-		if os.Getenv(k) != "" {
-			return true
-		}
-	}
-	return false
-}
-
 func TestAgentRunInTUISession(t *testing.T) {
-	if !hasAPIKey() {
-		t.Skip("skipping integration test: no API key configured")
-	}
-
+	// 直接探测 BuildProvider：当前 PROVIDER（默认 deepseek）没有可用 key 时
+	// 跳过，避免环境里只配置了其他 provider 的 key（如 KIMI_API_KEY）导致
+	// 跳过条件误判、测试误跑后失败。
 	provider, err := agentconfig.BuildProvider()
 	if err != nil {
-		t.Fatalf("build provider: %v", err)
+		t.Skipf("skipping integration test: %v", err)
 	}
 	model := agentconfig.DefaultModel()
 

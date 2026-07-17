@@ -78,7 +78,6 @@ type textSelectionComponent interface {
 // Returns the indices for header and editor frame for ChildRect queries.
 func (l *chatLayout) buildFlex(flex *layout.Flex) (headerIndex, editorIndex int) {
 	headerIndex = -1
-	editorIndex = -1
 
 	if l.header != nil {
 		headerIndex = len(flex.Children)

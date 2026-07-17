@@ -85,9 +85,7 @@ func RenderEvidenceCard(msg *agentcore.DomainMessage, collapsed bool, t Evidence
 		if sp.Snippet != "" {
 			// Render snippet as quoted text
 			quote := "  ┃ " + sp.Snippet
-			for _, ql := range core.WrapAnsi(t.Body(quote), width-2) {
-				lines = append(lines, ql)
-			}
+			lines = append(lines, core.WrapAnsi(t.Body(quote), width-2)...)
 		}
 	}
 

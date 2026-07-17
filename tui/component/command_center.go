@@ -102,8 +102,10 @@ func (c *CommandCenter) Render(width int64) []string {
 	} else {
 		searchText = p.Assistant.Render(searchText)
 	}
-	out = append(out, core.PadToWidth("  > "+searchText, width))
-	out = append(out, p.Dim.Render(strings.Repeat("─", int(width))))
+	out = append(out,
+		core.PadToWidth("  > "+searchText, width),
+		p.Dim.Render(strings.Repeat("─", int(width))),
+	)
 
 	// Items with group headers
 	if len(c.filtered) == 0 {
@@ -164,8 +166,7 @@ func (c *CommandCenter) Render(width int64) []string {
 
 // Update processes key input for the command center.
 func (c *CommandCenter) Update(msg core.Msg) core.Cmd {
-	switch m := msg.(type) {
-	case core.KeyMsg:
+	if m, ok := msg.(core.KeyMsg); ok {
 		c.processKey(m.Data)
 	}
 	return nil

@@ -45,21 +45,20 @@ func RenderApprovalCard(msg *agentcore.DomainMessage, t ApprovalCardTheme, width
 	var lines []string
 
 	// Header banner
-	lines = append(lines, divider)
-	lines = append(lines, core.PadToWidth(t.Warning("  ⚠  人 工 审 核 关 卡"), width))
-	lines = append(lines, divider)
+	lines = append(lines,
+		divider,
+		core.PadToWidth(t.Warning("  ⚠  人 工 审 核 关 卡"), width),
+		divider,
+	)
 
 	// Conclusion summary
 	if msg.Title != "" {
 		lines = append(lines, core.PadToWidth("  "+t.Title(msg.Title), width))
 	}
 
-	// Confidence bar
+	// Confidence bar + evidence summary divider
 	confBar := renderApprovalConfBar(msg.Confidence, t, width)
-	lines = append(lines, confBar)
-
-	// Evidence summary
-	lines = append(lines, dashDivider)
+	lines = append(lines, confBar, dashDivider)
 	supportN := msg.SupportingSpans()
 	counterN := msg.ContradictingSpans()
 	lines = append(lines, t.Dim(fmt.Sprintf("  支持证据: %d  ·  反对证据: %d", supportN, counterN)))
