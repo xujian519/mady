@@ -34,8 +34,9 @@ func runEval(ctx context.Context, args []string) error {
 	domain := fs.String("domain", "", "领域过滤: patent, legal, general")
 	var caseIDs multiStringFlag
 	fs.Var(&caseIDs, "case", "指定用例 ID (可重复)")
-	format := fs.String("format", "markdown", "输出格式: table, json, markdown")
+	format := fs.String("format", "markdown", "输出格式: table, json, markdown, enhanced")
 	output := fs.String("output", "", "输出文件路径 (默认 stdout)")
+	baseline := fs.String("baseline", "", "(enhanced 格式) 前次评估的 JSON 结果文件，用于趋势对比")
 	mode := fs.String("mode", "static", "执行模式: static, live")
 	model := fs.String("model", "", "(live 模式) LLM 模型名")
 	workers := fs.Int("workers", 4, "(live 模式) 并发数")
@@ -64,8 +65,10 @@ func runEval(ctx context.Context, args []string) error {
 		outputFormat = cli.FormatJSON
 	case "markdown":
 		outputFormat = cli.FormatMarkdown
+	case "enhanced":
+		outputFormat = cli.FormatEnhanced
 	default:
-		return fmt.Errorf("不支持的输出格式 %q, 可用值: table, json, markdown", *format)
+		return fmt.Errorf("不支持的输出格式 %q, 可用值: table, json, markdown, enhanced", *format)
 	}
 
 	if runMode == cli.ModeLive && *model == "" {
@@ -73,15 +76,16 @@ func runEval(ctx context.Context, args []string) error {
 	}
 
 	evalCLI := &cli.EvalCLI{
-		Suite:      *suite,
-		Domain:     *domain,
-		CaseIDs:    caseIDs,
-		Format:     outputFormat,
-		Output:     *output,
-		Mode:       runMode,
-		LLMModel:   *model,
-		Workers:    *workers,
-		TimeoutSec: *timeoutSec,
+		Suite:        *suite,
+		Domain:       *domain,
+		CaseIDs:      caseIDs,
+		Format:       outputFormat,
+		Output:       *output,
+		BaselineFile: *baseline,
+		Mode:         runMode,
+		LLMModel:     *model,
+		Workers:      *workers,
+		TimeoutSec:   *timeoutSec,
 	}
 
 	result, err := cli.RunCLI(ctx, evalCLI)

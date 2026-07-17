@@ -41,6 +41,21 @@ func ChatAgentConfig(base agentcore.Config) agentcore.Config {
 		"- 不确定的专业问题建议用户咨询相关专业人士",
 	}, "\n")
 
+	// DoomLoop: 死循环检测器。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
+
+	// ReasoningStrategy: 根据问题复杂度动态调整推理 effort/budget。
+	// 聊天场景关闭 StrategyHintInjection：不在系统提示中注入策略提示（如
+	// "请按步骤逐步推理"），避免对简单聊天产生不自然的引导。
+	chatSelector := agentcore.NewDefaultStrategySelector()
+	chatSelector.StrategyHintInjection = false
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		agentcore.NewReasoningStrategyRouter(
+			agentcore.NewDefaultClassifier(),
+			chatSelector,
+		),
+	)
+
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		guardrails.New(
 			guardrails.WithLevel(guardrails.LevelLight),

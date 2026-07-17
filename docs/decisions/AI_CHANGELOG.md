@@ -1,5 +1,99 @@
 # AI 决策变更日志
 
+## 2026-07-18: Code Review 全部 6 个问题修复
+
+### 修复清单
+
+| 优先级 | 问题 | 改动 |
+|--------|------|------|
+| 🔴 P1 | `formatEnhancedReport` silient 吞 baseline 错误 | 改用 `fmt.Fprintf(os.Stderr, ...)` 输出读文件/解析JSON的警告信息 |
+| 🟡 P2 | `ReasoningStrategyRouter` 每次 BeforeModelCall 原地修改系统消息 | 改为 `cp := msg; cp.Content += hint; mcc.Request.Messages[i] = cp` 先拷贝再赋值 |
+| 🟡 P2 | 4 份完全相同的 DoomLoop 配置拷贝 | 提取 `domains/lifecycle.go` 中的 `defaultDoomLoopHook()`，4 个领域统一调用；消除 4 处 `doomloop` 子包 import |
+| 🟡 P2 | ChatAgent 收到"逐步推理"策略提示不适合聊天 | 创建 `chatSelector` 并将 `StrategyHintInjection = false`，保留 effort/budget 调整但不注入系统提示 |
+| 🟢 P3 | `SuppressPersist` 位置与内容修改分离 | 合并为 `mcc.Response.SuppressPersist = g.config.Level >= LevelStrict` 紧跟在 `Content` 赋值之后 |
+| 🟢 P3 | 集成测试 signal 收集 5 处重复模板代码 | 提取 `signalCapture` + `newDoomloopWithCapture` + `runStubAgent` 辅助函数，5 个测试各减少约 30 行重复代码 |
+
+### 额外改进
+- 集成测试新增 `signalCapture.requireDetected` / `requireNone` 方法，统一信号断言逻辑
+- 新增 `runStubAgent` 辅助函数消除测试中重复的 `agentcore.New` + `defer agent.Close()` + `agent.Run` 样板代码
+- 4 个领域文件移除不再需要的 `"github.com/xujian519/mady/agentcore/doomloop"` import
+
+## 2026-07-18: ReasoningStrategyRouter 接入 4 个领域 Agent
+
+### 改动
+- **domains/assistant.go**：在 DoomLoop 之后接入 `ReasoningStrategyRouter`，
+  通用助理场景默认使用 StepByStep → StructuredAnalysis → VerifiedThinking
+  三级复杂度策略
+- **domains/chat.go**：同助理模式接入，聊天场景也能在复杂问题时获得结构化推理支持
+- **domains/patent.go**：专利分析场景接入，默认策略映射适配专利审查/三性分析需求
+- **domains/legal.go**：法律分析场景接入，策略提示涵盖三段论推理和法律适用框架
+
+### 接线模式
+每个领域在 Lifecycle 链中的位置：
+```
+DoomLoop (安全第一: 死循环检测)
+  → ReasoningStrategyRouter (优化: effort/budget + strategy hint)
+  → CitationGate (引用核验)
+  → Guardrails (内容安全)
+  → Psychological / Tools (扩展)
+```
+`ReasoningStrategyRouter` 使用默认配置（`NewDefaultClassifier` +
+`NewDefaultStrategySelector`），策略映射为 Low→StepByStep、
+Medium→StructuredAnalysis、High→VerifiedThinking。领域可通过注入自定义
+`ComplexityClassifier` 或 `StrategySelector` 调整行为。
+
+## 2026-07-18: DoomLoop 集成测试——7 个端到端测试覆盖 5 个探测器和领域接线
+
+### 改动
+- **integration/doomloop_e2e_test.go**（新增）：7 个集成测试用例，覆盖：
+  - `TestDoomLoopE2E_ToolCallLoop` — mock provider 返回相同工具调用 3 次以上，
+    验证 ToolCallLoop 信号正确发射
+  - `TestDoomLoopE2E_TextRepetition` — provider 返回重复文本 + 持续工具调用，
+    使 Agent 保持循环，验证 TextRepetition 信号正确发射
+  - `TestDoomLoopE2E_CircuitBreaker` — provider 返回超出熔断器上限的工具调用，
+    验证 CircuitBreaker 信号正确发射
+  - `TestDoomLoopE2E_EmptyResult` — 注册返回空结果的工具，验证 EmptyResult
+    信号正确发射
+  - `TestDoomLoopE2E_NormalOperation` — provider 返回多样化响应（不同文本/
+    不同工具），验证无误报信号
+  - `TestDoomLoopE2E_DomainLifecycleChain` — 验证 DoomLoop 与自定义
+    LifecycleHook 正确组合为 LifecycleChain，BeforeAgentRun 按序调用
+  - `TestDoomLoopE2E_DomainConfigAssistant` — 使用 `domains.AssistantAgentConfig`
+    构建完整领域 Agent，验证 DoomLoop 接线不导致构造或运行错误
+
+### 测试设计要点
+- 使用 `//go:build integration` 构建标签，遵循既有集成测试约定
+- doomLoopProvider 结构体封装 mock LLM 响应模式，通过 contentFn/toolCallsFn
+  函数字段灵活控制每轮调用返回的内容
+- 注意到文本重复探测器的关键约束：Agent 在无工具调用的文本响应后立即退出内层
+  循环，因此 TextRepetition 测试必须让 provider 同时返回重复文本和工具调用，
+  使 Agent 持续迭代以积累探测器历史
+
+## 2026-07-18: 评估框架增强收尾——新度量注册 + `--format enhanced` CLI
+
+### 改动
+- **suite.go**：`DefaultEvaluator()` 新增 `ToolAccuracy` 和 `WorkflowQuality`
+  两个度量，跑批时自动覆盖工具调用准确性和工作流执行质量
+- **cli/cli.go**：新增 `FormatEnhanced` 输出格式；`formatEnhancedReport()`
+  调用 `BuildEnhancedReport` + `FormatEnhancedReport`，支持指标分解、
+  百分位分布、最差/最佳用例展示；支持 `BaselineFile` 从 JSON 文件加载
+  前次结果做趋势对比（退化/改善用例高亮）
+- **evaluator.go**：`BatchReport` 和 `CaseResult` 添加 JSON tags，确保
+  baseline JSON 文件可被正确反序列化
+- **cmd/mady/eval.go**：新增 `--format enhanced` 和 `--baseline <文件>` 标志
+- **main.go**：帮助文本增加 enhanced 格式示例
+
+### 用法示例
+
+```bash
+# 增强报告输出（含指标分解 + 百分位 + 最差/最佳用例）
+mady eval --format enhanced --suite p2a --mode static
+
+# 带 baseline 的趋势对比
+mady eval --format json --suite p2a --mode static -o baseline.json
+mady eval --format enhanced --baseline baseline.json --suite p2a --mode static
+```
+
 ## 2026-07-18: 引用核验 P2a——CitationSource 知识源抽象 + S2 wiki 法条索引（82 条全覆盖）
 
 ### 背景

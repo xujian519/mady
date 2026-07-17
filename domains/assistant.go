@@ -47,6 +47,18 @@ func AssistantAgentConfig(base agentcore.Config) agentcore.Config {
 		"- 不确定的专业问题建议用户咨询相关专业人士",
 	}, "\n")
 
+	// DoomLoop: 死循环检测器，监控工具调用循环、重复文本、空结果等异常。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
+
+	// ReasoningStrategy: 根据问题复杂度动态调整推理 effort/budget，
+	// 并在系统提示中注入策略提示（如 StepByStep / StructuredAnalysis）。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		agentcore.NewReasoningStrategyRouter(
+			agentcore.NewDefaultClassifier(),
+			agentcore.NewDefaultStrategySelector(),
+		),
+	)
+
 	// Guardrail: LevelStandard with assistant disclaimer.
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		guardrails.New(

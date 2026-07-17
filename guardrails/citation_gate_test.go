@@ -185,9 +185,10 @@ func TestGateCleanPassThrough(t *testing.T) {
 
 func TestGateRecorderCalledAtStandard(t *testing.T) {
 	var got CitationReport
+	var gotContent string
 	hook := NewCitationGate(
 		WithCitationGateLevel(LevelStandard),
-		WithCitationRecorder(func(r CitationReport) { got = r }),
+		WithCitationRecorder(func(r CitationReport, content string) { got, gotContent = r, content }),
 	)
 	callHook(t, hook, &agentcore.ProviderResponse{
 		Content: "专利法第47条（分案申请）。",
@@ -195,19 +196,58 @@ func TestGateRecorderCalledAtStandard(t *testing.T) {
 	if len(got.Flagged) != 1 {
 		t.Fatalf("Recorder 应收到 1 条标记, 实际 %+v", got)
 	}
+	// content 必须是追加提示之前的原始输出（供留痕 OriginalOutput）。
+	if gotContent != "专利法第47条（分案申请）。" {
+		t.Errorf("Recorder content 应为原始输出, 实际 %q", gotContent)
+	}
 }
 
 func TestGateRecorderNotCalledAtLight(t *testing.T) {
 	called := false
 	hook := NewCitationGate(
 		WithCitationGateLevel(LevelLight),
-		WithCitationRecorder(func(CitationReport) { called = true }),
+		WithCitationRecorder(func(CitationReport, string) { called = true }),
 	)
 	callHook(t, hook, &agentcore.ProviderResponse{
 		Content: "专利法第47条（分案申请）。",
 	})
 	if called {
 		t.Error("Light 档不得触发 Recorder")
+	}
+}
+
+// TestGateStrictSuppressesPersist 验证 Strict 档（P2b）：命中疑点时
+// SuppressPersist=true（未复核输出不入库），但提示仍追加、Recorder 仍回调——
+// 用户可见本次输出，仅持久化被抑制，执行不阻断。
+func TestGateStrictSuppressesPersist(t *testing.T) {
+	var got CitationReport
+	hook := NewCitationGate(
+		WithCitationGateLevel(LevelStrict),
+		WithCitationRecorder(func(r CitationReport, _ string) { got = r }),
+	)
+	resp := callHook(t, hook, &agentcore.ProviderResponse{
+		Content: "专利法第47条（分案申请）。",
+	})
+	if !resp.SuppressPersist {
+		t.Error("Strict 档命中疑点必须 SuppressPersist=true")
+	}
+	if !strings.Contains(resp.Content, "引用核验提示") {
+		t.Error("Strict 档仍应追加存疑提示（用户可见）")
+	}
+	if len(got.Flagged) != 1 {
+		t.Error("Strict 档仍应触发 Recorder 留痕")
+	}
+}
+
+// TestGateStandardDoesNotSuppress 验证 Standard 档不抑制持久化——
+// SuppressPersist 是 Strict 专属处置，Standard 仅标注+留痕。
+func TestGateStandardDoesNotSuppress(t *testing.T) {
+	hook := NewCitationGate(WithCitationGateLevel(LevelStandard))
+	resp := callHook(t, hook, &agentcore.ProviderResponse{
+		Content: "专利法第47条（分案申请）。",
+	})
+	if resp.SuppressPersist {
+		t.Error("Standard 档不得 SuppressPersist")
 	}
 }
 

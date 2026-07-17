@@ -90,5 +90,6 @@ Examples:
   PROVIDER=deepseek API_KEY=sk-... mady tui
   PROVIDER=zhipu API_KEY=... mady acp
   mady eval --suite p2a --mode static
-  mady eval --case patent_exam_2009_a22_01 --format json`)
+  mady eval --case patent_exam_2009_a22_01 --format json
+  mady eval --format enhanced --baseline baseline.json --suite p2a --mode static`)
 }

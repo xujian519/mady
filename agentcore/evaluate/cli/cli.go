@@ -23,6 +23,7 @@ const (
 	FormatTable    OutputFormat = "table"
 	FormatJSON     OutputFormat = "json"
 	FormatMarkdown OutputFormat = "markdown"
+	FormatEnhanced OutputFormat = "enhanced"
 )
 
 // RunMode 控制评估的执行模式。
@@ -64,6 +65,10 @@ type EvalCLI struct {
 
 	// TimeoutSec 单题超时秒数，默认 900
 	TimeoutSec int
+
+	// BaselineFile 指定前次评估结果的 JSON 文件路径（用于 enhanced 格式的趋势对比）。
+	// 文件应为 RunResult 导出格式（含 total_cases / pass_rate 等字段）。
+	BaselineFile string
 
 	// Predictions 仅在 static 模式使用，预存预测 map[CaseID]prediction
 	Predictions map[string]string
@@ -287,6 +292,8 @@ func FormatResult(result *RunResult) string {
 		return formatTableReport(result.Report)
 	case FormatJSON:
 		return formatJSONReport(result.Report, result.Duration)
+	case FormatEnhanced:
+		return formatEnhancedReport(result)
 	default:
 		return formatMarkdownReport(result.Report, result.Duration)
 	}
@@ -367,6 +374,40 @@ func formatJSONReport(report *evaluate.BatchReport, duration time.Duration) stri
 		return fmt.Sprintf(`{"error": %q}`, err.Error())
 	}
 	return string(data)
+}
+
+// formatEnhancedReport renders a BatchReport with full enhanced analysis:
+// metric breakdown, percentiles, worst/best cases, and trend comparison.
+// If result.CLIConfig.BaselineFile is set, it loads the previous run for
+// trend comparison. Baseline load errors are reported to stderr.
+func formatEnhancedReport(result *RunResult) string {
+	report := result.Report
+	duration := result.Duration
+
+	// Load baseline from file if provided.
+	var prev *evaluate.BatchReport
+	if result.CLIConfig.BaselineFile != "" {
+		data, err := os.ReadFile(result.CLIConfig.BaselineFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 读取 baseline 文件失败 %q: %v\n", result.CLIConfig.BaselineFile, err)
+		} else {
+			var prevReport evaluate.BatchReport
+			if err := json.Unmarshal(data, &prevReport); err != nil {
+				fmt.Fprintf(os.Stderr, "警告: baseline JSON 解析失败 %q: %v\n", result.CLIConfig.BaselineFile, err)
+			} else {
+				prev = &prevReport
+			}
+		}
+	}
+
+	enh := evaluate.BuildEnhancedReport(report, prev)
+	output := evaluate.FormatEnhancedReport(enh)
+	output += fmt.Sprintf("\n## 执行信息\n\n- 耗时: %s\n", duration.Round(time.Millisecond))
+
+	if prev == nil {
+		output += "\n> 💡 提示：使用 `--baseline <文件>` 可对比前次运行的趋势变化。\n"
+	}
+	return output
 }
 
 // OutputResult 将运行结果写入指定的输出目标。

@@ -70,6 +70,18 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	// Chunked context engine for long legal documents.
 	cfg.Engine = "chunked"
 
+	// DoomLoop: 死循环检测器。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
+
+	// ReasoningStrategy: 法律分析需要结构化推理（三段论/法律适用），
+	// 根据问题复杂度自动选择推理策略，注入 strategy hint。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		agentcore.NewReasoningStrategyRouter(
+			agentcore.NewDefaultClassifier(),
+			agentcore.NewDefaultStrategySelector(),
+		),
+	)
+
 	// 法条引用核验 Gate（P1b）：R1 存在性 + R2 交叉匹配，命中疑点追加存疑提示。
 	// P1b 阶段统一按 Standard 处置；Strict 的 SuppressPersist + ApprovalGate 联动留待 P2。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,

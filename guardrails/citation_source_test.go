@@ -134,7 +134,7 @@ func TestGateUsesInjectedSource(t *testing.T) {
 	var recorded CitationReport
 	hook := NewCitationGate(
 		WithCitationGateLevel(LevelStandard),
-		WithCitationRecorder(func(r CitationReport) { recorded = r }),
+		WithCitationRecorder(func(r CitationReport, _ string) { recorded = r }),
 		WithCitationSource(s2),
 	)
 	resp := callHook(t, hook, &agentcore.ProviderResponse{

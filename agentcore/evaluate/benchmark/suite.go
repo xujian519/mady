@@ -15,6 +15,8 @@ import (
 //   - KeywordRecall: fraction of reference keywords present in prediction
 //   - CitationCompleteness: fraction of required citations present
 //   - JudgeConsistency: heuristic keyword-overlap agreement (Phase 3)
+//   - ToolAccuracy: tool call name, argument, and ordering correctness
+//   - WorkflowQuality: workflow step completion, ordering, and precision
 //
 // The pass threshold is the package default (0.7).
 func DefaultEvaluator() *evaluate.Evaluator {
@@ -23,6 +25,8 @@ func DefaultEvaluator() *evaluate.Evaluator {
 		evaluate.KeywordRecall{},
 		evaluate.CitationCompleteness{},
 		&evaluate.JudgeConsistency{},
+		evaluate.ToolAccuracy{},
+		evaluate.WorkflowQuality{},
 	)
 }
 

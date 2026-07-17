@@ -64,11 +64,22 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	// Chunked context engine for long patent documents.
 	cfg.Engine = "chunked"
 
-	// 法条引用核验 Gate（P1b）：R1 存在性 + R2 交叉匹配，命中疑点追加存疑提示。
-	// P1b 阶段统一按 Standard 处置；Strict 的 SuppressPersist + ApprovalGate 联动留待 P2。
+	// DoomLoop: 死循环检测器，监控工具调用循环、重复文本、空结果等异常。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
+
+	// ReasoningStrategy: 专利分析通常需要结构化分析或验证式推理，
+	// 因此注入策略提示，根据问题复杂度自动选择合适推理方式。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard)),
+		agentcore.NewReasoningStrategyRouter(
+			agentcore.NewDefaultClassifier(),
+			agentcore.NewDefaultStrategySelector(),
+		),
 	)
+
+	// 法条引用核验 Gate（P2b Strict）：命中疑点追加存疑提示 +
+	// citation_verify 留痕 + SuppressPersist（未人工复核不入库）。
+	// 知识源与留痕 store 由装配侧注入（citation_wiring.go）。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, newCitationGate(DomainPatent, ""))
 
 	// Guardrail: LevelStrict with patent disclaimer + approval gate.
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,

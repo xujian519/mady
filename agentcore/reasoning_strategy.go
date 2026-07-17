@@ -245,10 +245,14 @@ func (r *ReasoningStrategyRouter) BeforeModelCall(ctx context.Context, arc *Agen
 		hint := r.Selector.StrategyHint(c)
 
 		if hint != "" {
-			// Find the system message and append the hint.
+			// Find the system message, make a copy, and append the hint.
+			// Avoid in-place mutation of mcc.Request.Messages[i] so other
+			// AfterModelCall observers see an unmodified request.
 			for i, msg := range mcc.Request.Messages {
 				if msg.Role == RoleSystem {
-					mcc.Request.Messages[i].Content += hint
+					cp := msg
+					cp.Content += hint
+					mcc.Request.Messages[i] = cp
 					break
 				}
 			}

@@ -20,9 +20,12 @@ import (
 // （Unverifiable）的引用一律放行；只有「明确声明用途 + 明确不匹配」
 // 或「编号超范围」才触发处置。处置措辞为"存疑提示"，判断权留给专业人。
 //
-// P1b 范围：Light/Standard 处置（追加提示 + 可选 Recorder 留痕回调）。
-// Strict 档的 SuppressPersist + ApprovalGate 联动在 P2 接入，
-// 当前 Strict 按 Standard 行为处理。
+// 处置档位：
+//   - Light：追加存疑提示；
+//   - Standard：追加提示 + Recorder 留痕回调（P1b）；
+//   - Strict（P2b 落地）：追加提示 + 留痕 + SuppressPersist——未人工复核
+//     的命中输出不写入会话存储（与 levels.go 审批关键词同款模式，
+//     消费点在 agentcore/agent_run.go）。Strict 不阻断执行，跑批安全。
 
 // CitationVerdict 是单条法条引用的核验结论。
 type CitationVerdict int
@@ -70,8 +73,10 @@ type CitationGateConfig struct {
 	Level Level
 
 	// Recorder 在 Level ≥ Standard 且存在被标记引用时回调，
-	// 供 disclosure 等留痕系统消费（P2 接线；nil 时仅追加提示文案）。
-	Recorder func(CitationReport)
+	// 供 disclosure 等留痕系统消费（P2b 接线 domains 侧 ApprovalStore）；
+	// nil 时仅追加提示文案。content 参数是追加提示**之前**的原始输出，
+	// 供留痕记录 OriginalOutput。
+	Recorder func(report CitationReport, content string)
 
 	// Source 是核验主题知识源（设计 §5：S1 静态表 / S2 知识库索引复合）。
 	// nil 时使用 S1 内嵌静态表（citation_table.go）。
@@ -87,7 +92,8 @@ func WithCitationGateLevel(l Level) CitationGateOption {
 }
 
 // WithCitationRecorder 设置核验报告留痕回调（Level ≥ Standard 生效）。
-func WithCitationRecorder(r func(CitationReport)) CitationGateOption {
+// content 参数是追加提示之前的原始输出。
+func WithCitationRecorder(r func(report CitationReport, content string)) CitationGateOption {
 	return func(c *CitationGateConfig) { c.Recorder = r }
 }
 
@@ -133,12 +139,16 @@ func (g *citationGate) AfterModelCall(_ context.Context, _ *agentcore.AgentRunCo
 		return
 	}
 
-	// Light 及以上：追加存疑提示（Strict 在 P2 前与 Standard 同行为）。
+	// Light 及以上：追加存疑提示。
 	mcc.Response.Content = content + FormatCitationWarnings(report)
+	// Strict（P2b）：命中疑点的输出在人工复核前不写入会话存储
+	// （SuppressPersist 消费点在 agentcore/agent_run.go；用户仍可见
+	// 本次输出与提示，仅跳过持久化，不阻断执行，跑批安全）。
+	mcc.Response.SuppressPersist = g.config.Level >= LevelStrict
 
-	// Standard 及以上：留痕回调。
+	// Standard 及以上：留痕回调（content 为追加提示前的原始输出）。
 	if g.config.Level >= LevelStandard && g.config.Recorder != nil {
-		g.config.Recorder(report)
+		g.config.Recorder(report, content)
 	}
 }
 

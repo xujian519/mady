@@ -16,20 +16,20 @@ type TestCase struct {
 
 // CaseResult holds the scored output for one TestCase.
 type CaseResult struct {
-	CaseID     string
-	Passed     bool
-	Scores     map[string]float64 // metric name → score
-	Average    float64            // mean of all metric scores
-	Prediction string             // the actual output that was scored
+	CaseID     string             `json:"case_id"`
+	Passed     bool               `json:"passed"`
+	Scores     map[string]float64 `json:"scores,omitempty"`
+	Average    float64            `json:"average"`
+	Prediction string             `json:"prediction,omitempty"`
 }
 
 // BatchReport aggregates results across many test cases.
 type BatchReport struct {
-	Results         []CaseResult
-	TotalCases      int
-	PassedCases     int
-	AggregateScores map[string]float64 // metric name → mean across all cases
-	PassRate        float64
+	Results         []CaseResult       `json:"results,omitempty"`
+	TotalCases      int                `json:"total_cases"`
+	PassedCases     int                `json:"passed_cases"`
+	AggregateScores map[string]float64 `json:"aggregate_scores,omitempty"`
+	PassRate        float64            `json:"pass_rate"`
 }
 
 // RunFunc produces a prediction for a given input. In practice this calls the
