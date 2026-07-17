@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -98,5 +99,48 @@ func TestEvalSuite_DefaultEvaluator(t *testing.T) {
 	)
 	if report.PassRate != 1.0 {
 		t.Errorf("perfect match should pass, got PassRate=%.4f", report.PassRate)
+	}
+}
+
+// TestP2AEvalCases_SuiteEnv 是 MADY_EVAL_SUITE=p2a 筛选机制的离线门禁：
+// 设置后必须返回全量 31 道 P2A 真题（稳定顺序、与数据集一致），
+// 保证"P2A 全量 31 题 live 基线"随时可以一键触发。
+func TestP2AEvalCases_SuiteEnv(t *testing.T) {
+	t.Setenv("MADY_EVAL_SUITE", "p2a")
+
+	cases := p2aEvalCases(t)
+	if len(cases) != 31 {
+		t.Fatalf("MADY_EVAL_SUITE=p2a should yield all 31 P2A cases, got %d", len(cases))
+	}
+	for i, c := range cases {
+		if c.ID != PatentExamRealCases()[i].ID {
+			t.Fatalf("suite mode should preserve dataset order: case %d = %q, want %q",
+				i, c.ID, PatentExamRealCases()[i].ID)
+		}
+		if !strings.HasPrefix(c.ID, "patent_exam_") {
+			t.Errorf("case %q is not a P2A real exam case", c.ID)
+		}
+	}
+}
+
+// TestP2AEvalCases_DefaultSample 验证默认（无 suite 环境变量）时保持
+// 原有的固定种子随机抽样行为（默认 3 题），避免影响既有基线对比。
+func TestP2AEvalCases_DefaultSample(t *testing.T) {
+	os.Unsetenv("MADY_EVAL_SUITE")
+	os.Unsetenv("MADY_EVAL_CASES")
+
+	cases := p2aEvalCases(t)
+	if len(cases) != 3 {
+		t.Fatalf("default sample should be 3 cases, got %d", len(cases))
+	}
+}
+
+// TestP2AEvalCases_CaseCountEnv 验证 MADY_EVAL_CASES 的题量控制仍生效。
+func TestP2AEvalCases_CaseCountEnv(t *testing.T) {
+	t.Setenv("MADY_EVAL_CASES", "10")
+
+	cases := p2aEvalCases(t)
+	if len(cases) != 10 {
+		t.Fatalf("MADY_EVAL_CASES=10 should yield 10 cases, got %d", len(cases))
 	}
 }

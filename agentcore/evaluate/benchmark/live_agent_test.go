@@ -52,6 +52,23 @@ func evalAgentCaseCount(t *testing.T) int {
 	return 3
 }
 
+// p2aEvalCases 返回 P2A（31 道专利代理人考试真题）评估用例：
+//   - 默认：按 evalAgentCaseCount 随机抽样（固定种子 20241201，跨层级可复现对比）；
+//   - MADY_EVAL_SUITE=p2a：返回全量 31 题（稳定顺序，不打乱），
+//     用于"P2A 全量 31 题 live 基线"跑批（P3 数据就绪标准②）。
+//
+// 注：MADY_EVAL_CASES=31 与 MADY_EVAL_SUITE=p2a 都会覆盖全部 31 题，
+// 区别在于前者保持随机顺序、后者按数据集原始顺序便于对照逐题结果。
+func p2aEvalCases(t *testing.T) []evaluate.TestCase {
+	t.Helper()
+	all := PatentExamRealCases()
+	if os.Getenv("MADY_EVAL_SUITE") == "p2a" {
+		t.Logf("MADY_EVAL_SUITE=p2a: running all %d P2A cases in stable order", len(all))
+		return all
+	}
+	return randomCases(t, all, evalAgentCaseCount(t), 20241201)
+}
+
 // caseTypeFromExamID infers the reasoning CaseType from a P2A exam case ID.
 // P2A IDs follow the pattern patent_exam_YYYY_aXX_NN where aXX encodes the
 // primary patent-law article under examination.
@@ -304,7 +321,7 @@ func joinCounts(parts []string) string {
 // higher tiers.
 func TestLiveAgentBaselineEval(t *testing.T) {
 	env := newDeepSeekTestEnv(t)
-	cases := randomCases(t, PatentExamRealCases(), evalAgentCaseCount(t), 20241201)
+	cases := p2aEvalCases(t)
 	t.Logf("Baseline tier: %d cases (seed 20241201)", len(cases))
 	for i, c := range cases {
 		t.Logf("  selected %d: %s", i+1, c.ID)
@@ -326,7 +343,7 @@ func TestLiveAgentBaselineEval(t *testing.T) {
 // inventive-step questions).
 func TestLiveAgentWithWorkflowEval(t *testing.T) {
 	env := newDeepSeekTestEnv(t)
-	cases := randomCases(t, PatentExamRealCases(), evalAgentCaseCount(t), 20241201)
+	cases := p2aEvalCases(t)
 	t.Logf("Workflow tier: %d cases (seed 20241201)", len(cases))
 
 	llm := reasoning.NewLlmClientFromProvider(env.Provider, env.Model)
@@ -580,7 +597,7 @@ func TestLiveAgentWithPatentToolsEval(t *testing.T) {
 	if os.Getenv("MADY_EVAL_PATENT_TOOLS") != "1" {
 		t.Skip("set MADY_EVAL_PATENT_TOOLS=1 to run the patent-tools tier (requires NUO_PATENT_PATH + network)")
 	}
-	cases := randomCases(t, PatentExamRealCases(), evalAgentCaseCount(t), 20241201)
+	cases := p2aEvalCases(t)
 	t.Logf("Patent-tools tier: %d cases (seed 20241201)", len(cases))
 
 	// PatentToolConfigDefaults reads NUO_PATENT_PATH (falling back to the bare

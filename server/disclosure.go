@@ -13,6 +13,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/disclosure"
+	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/pkg/csync"
 )
@@ -39,6 +40,25 @@ type DisclosureTaskStatus struct {
 	Progress *DisclosureProgress        `json:"progress,omitempty"`
 	Result   *disclosure.AnalysisReport `json:"result,omitempty"`
 	Error    string                     `json:"error,omitempty"`
+	// ReviewDecision 记录人工复核结论（adopted/modified/rejected），
+	// 仅在复核端点受理后非空。
+	ReviewDecision string `json:"review_decision,omitempty"`
+}
+
+// DisclosureReviewRequest 是人工复核结论的提交请求。
+// Decision 取值为 adopted（采纳）/ modified（修改后采纳）/ rejected（拒绝），
+// 与 domains.ApprovalDecision 对齐；modified 时 ModifiedOutput 承载改后内容。
+type DisclosureReviewRequest struct {
+	Decision       string `json:"decision"`
+	ModifiedOutput string `json:"modified_output,omitempty"`
+	Feedback       string `json:"feedback,omitempty"`
+	CaseID         string `json:"case_id,omitempty"`
+}
+
+// DisclosureReviewResponse 是复核受理的响应。
+type DisclosureReviewResponse struct {
+	TaskID string `json:"task_id"`
+	Status string `json:"status"`
 }
 
 // DisclosureProgress 是 Pregel 图的执行进度。
@@ -64,6 +84,9 @@ type disclosureTask struct {
 	Err       error
 	CreatedAt time.Time
 	DoneAt    time.Time
+	// ReviewDecision 记录人工复核结论（adopted/modified/rejected），
+	// 由 handleDisclosureReview 在留痕成功后写入。
+	ReviewDecision string
 
 	mu     sync.RWMutex
 	doneCh chan struct{}
@@ -277,10 +300,11 @@ func (s *Server) handleDisclosureStatus(w http.ResponseWriter, r *http.Request) 
 
 	task.mu.RLock()
 	resp := DisclosureTaskStatus{
-		TaskID:   task.ID,
-		Status:   task.Status,
-		Progress: task.Progress,
-		Result:   task.Result,
+		TaskID:         task.ID,
+		Status:         task.Status,
+		Progress:       task.Progress,
+		Result:         task.Result,
+		ReviewDecision: task.ReviewDecision,
 	}
 	if task.Err != nil {
 		resp.Error = task.Err.Error()
@@ -288,6 +312,80 @@ func (s *Server) handleDisclosureStatus(w http.ResponseWriter, r *http.Request) 
 	task.mu.RUnlock()
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleDisclosureReview 受理 awaiting_review 任务的人工复核结论，并将决策
+// 留痕到 ApprovalStore（P3 专家盲测数据收集链路的关键触点）。
+//
+// Server 是异步任务模型，review_gate 中断后图已终止、无 Resume 路径，因此
+// 人工复核通过此端点显式提交：复核结论写入 SQLite（与 TUI /approve /reject
+// 同一 RecordDecision 模式），报告标记 ReviewedByHuman。
+func (s *Server) handleDisclosureReview(w http.ResponseWriter, r *http.Request) {
+	var req DisclosureReviewRequest
+	if err := json.NewDecoder(s.limitedBody(w, r)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	decision := domains.ApprovalDecision(req.Decision)
+	switch decision {
+	case domains.DecisionAdopted, domains.DecisionModified, domains.DecisionRejected:
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "decision must be one of adopted/modified/rejected"})
+		return
+	}
+
+	store := s.getApprovalStore()
+	if store == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "approval store not configured"})
+		return
+	}
+
+	dm := s.initDisclosureManager()
+	taskID := r.PathValue("task_id")
+	task, ok := dm.getTask(taskID)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "task not found"})
+		return
+	}
+
+	// 在任务锁内校验状态、留痕并更新，避免并发重复复核产生脏记录。
+	task.mu.Lock()
+	defer task.mu.Unlock()
+	if task.Status != "awaiting_review" {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error": fmt.Sprintf("task is %q, not awaiting_review", task.Status),
+		})
+		return
+	}
+
+	// 留痕的 OriginalOutput 取被审报告正文；缺失时退化为整份报告的 JSON。
+	original := ""
+	if task.Result != nil {
+		original = task.Result.ReportText
+		if original == "" {
+			if data, err := json.Marshal(task.Result); err == nil {
+				original = string(data)
+			}
+		}
+	}
+	if err := domains.RecordApprovalDecision(
+		r.Context(), store,
+		taskID, req.CaseID, "disclosure_review", original,
+		decision, req.ModifiedOutput, req.Feedback,
+	); err != nil {
+		slog.Default().Error("disclosure: record review decision failed",
+			"task_id", taskID, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to record review decision"})
+		return
+	}
+
+	task.Status = "reviewed"
+	task.ReviewDecision = req.Decision
+	if task.Result != nil {
+		// 三种结论都算"已经人工复核"——rejected 同样是复核行为的结果。
+		task.Result.ReviewedByHuman = true
+	}
+	writeJSON(w, http.StatusOK, DisclosureReviewResponse{TaskID: taskID, Status: "reviewed"})
 }
 
 // handleDisclosureStream 使用 SSE 实时推送执行进度。

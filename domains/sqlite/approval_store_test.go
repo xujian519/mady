@@ -50,6 +50,54 @@ func TestSQLiteApprovalStore_SaveAndList(t *testing.T) {
 	}
 }
 
+// TestSQLiteApprovalStore_StateRoundTrip 验证审批状态机的 State 随记录持久化，
+// 且旧格式（无 state 字段）记录读取时能从 Decision 推导重建。
+func TestSQLiteApprovalStore_StateRoundTrip(t *testing.T) {
+	dir, err := os.MkdirTemp("", "approval_test")
+	if err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	store, err := NewApprovalStore(dir + "/approval.db")
+	if err != nil {
+		t.Fatalf("NewApprovalStore: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	rec := domains.ApprovalRecord{
+		ID:        "appr_state",
+		SessionID: "session_state",
+		Decision:  domains.DecisionModified,
+		State:     domains.StateModified,
+	}
+	if err := store.Save(ctx, rec); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	records, err := store.List(ctx, "session_state")
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("List returned %d records, want 1", len(records))
+	}
+	if records[0].State != domains.StateModified {
+		t.Errorf("state=%q, want %q", records[0].State, domains.StateModified)
+	}
+
+	// 旧格式数据（无 state 字段）：读取时应按 Decision 重建状态。
+	legacy := `{"id":"appr_legacy","session_id":"session_state","decision":"rejected"}`
+	got, err := unmarshalRecord([]byte(legacy))
+	if err != nil {
+		t.Fatalf("unmarshalRecord legacy: %v", err)
+	}
+	if got.State != domains.StateRejected {
+		t.Errorf("legacy state=%q, want %q (derived from decision)", got.State, domains.StateRejected)
+	}
+}
+
 func TestSQLiteApprovalStore_ListByCase(t *testing.T) {
 	dir, err := os.MkdirTemp("", "approval_test")
 	if err != nil {

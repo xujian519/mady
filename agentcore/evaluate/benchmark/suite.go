@@ -50,10 +50,9 @@ func LiveEvaluator(judge agentcore.Provider, model string) *evaluate.Evaluator {
 	)
 }
 
-// AllCases returns every registered benchmark case across all domains.
-// New datasets should append their cases here.
-func AllCases() []evaluate.TestCase {
-
+// registeredCases 汇总所有已注册的 benchmark 数据集。
+// 新数据集应在此追加。
+func registeredCases() []evaluate.TestCase {
 	var cases []evaluate.TestCase
 	cases = append(cases, PatentExamCases...)
 	cases = append(cases, PatentExamRealA2Cases...)
@@ -66,25 +65,21 @@ func AllCases() []evaluate.TestCase {
 	return cases
 }
 
-// ValidCases returns benchmark cases suitable for live evaluation.
+// AllCases 返回跨领域的全部已注册 benchmark 案例。
+func AllCases() []evaluate.TestCase {
+	return registeredCases()
+}
+
+// ValidCases 返回适用于 live evaluation 的 benchmark 案例。
 //
-// P2B (InvalidationDecisionCases) was frozen on 2026-07-15 due to empty-shell
-// inputs (claim/evidence/reason all blank for 40/40 cases). It has since been
-// REBUILT from the 宝宸知识库_Raw dataset (31562 real invalidation-decision MD
-// files) with correct field extraction: claim 1, evidence list, invalidation
-// grounds, and a balanced conclusion distribution (全部无效/维持有效/部分无效).
-// P2B is now RE-ENABLED for live evaluation. See scripts/extract_invalidation_cases.py.
+// P2B（InvalidationDecisionCases）曾因空壳输入（40/40 案例的
+// claim/evidence/reason 全空）于 2026-07-15 冻结，此后已基于宝宸知识库_Raw
+// 数据集（31562 件真实无效决定书 MD 文件）重建，字段提取正确（权利要求 1、
+// 证据列表、无效理由），且结论分布均衡（全部无效/维持有效/部分无效）。
+// P2B 现已重新启用 live evaluation，当前与 AllCases 一致。
+// 见 scripts/extract_invalidation_cases.py。
 func ValidCases() []evaluate.TestCase {
-	var cases []evaluate.TestCase
-	cases = append(cases, PatentExamCases...)
-	cases = append(cases, PatentExamRealA2Cases...)
-	cases = append(cases, PatentExamRealA22Cases...)
-	cases = append(cases, PatentExamRealA26Cases...)
-	cases = append(cases, PatentExamRealA31Cases...)
-	cases = append(cases, PatentExamRealA33Cases...)
-	cases = append(cases, PatentExamRealR42Cases...)
-	cases = append(cases, InvalidationDecisionCases...)
-	return cases
+	return registeredCases()
 }
 
 // CasesByDomain returns benchmark cases filtered by domain string.

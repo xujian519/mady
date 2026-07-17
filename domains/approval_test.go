@@ -309,10 +309,46 @@ func TestDecisionToState(t *testing.T) {
 		{"unknown", StateNone},
 	}
 	for _, tc := range cases {
-		got := decisionToState(tc.decision)
+		got := DecisionToState(tc.decision)
 		if got != tc.want {
-			t.Fatalf("decisionToState(%q) = %q, want %q", tc.decision, got, tc.want)
+			t.Fatalf("DecisionToState(%q) = %q, want %q", tc.decision, got, tc.want)
 		}
+	}
+}
+
+// TestRecordApprovalDecision_PackageLevel 验证包级留痕入口（供 Server/ACP 等
+// 无 ApprovalGate 实例的 HITL 触点使用）与 gate.RecordDecision 产生一致的记录。
+func TestRecordApprovalDecision_PackageLevel(t *testing.T) {
+	store := NewMemoryApprovalStore()
+	ctx := context.Background()
+
+	err := RecordApprovalDecision(ctx, store, "sess-srv", "case-9", "disclosure_review",
+		"新颖性初判：具备新颖性", DecisionAdopted, "", "复核通过")
+	if err != nil {
+		t.Fatalf("RecordApprovalDecision: %v", err)
+	}
+
+	records, err := store.List(ctx, "sess-srv")
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	r := records[0]
+	if r.Decision != DecisionAdopted || r.State != StateApproved {
+		t.Errorf("record = (%q, %q), want (adopted, approved)", r.Decision, r.State)
+	}
+	if r.TriggerKeyword != "disclosure_review" {
+		t.Errorf("trigger keyword = %q, want disclosure_review", r.TriggerKeyword)
+	}
+	if r.ID == "" || r.Timestamp.IsZero() {
+		t.Error("record ID/Timestamp should be populated")
+	}
+
+	// nil store 必须是静默 no-op（与 gate 无 store 时的语义一致）。
+	if err := RecordApprovalDecision(ctx, nil, "s", "c", "k", "o", DecisionAdopted, "", ""); err != nil {
+		t.Errorf("nil store should be a no-op, got %v", err)
 	}
 }
 

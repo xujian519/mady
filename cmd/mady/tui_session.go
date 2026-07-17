@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -91,10 +92,6 @@ func (s *tuiSession) isReviewMode() bool { return s.store.Get(SettingKeyReview) 
 // themeName returns the current theme name from the store.
 func (s *tuiSession) themeName() string { return s.store.Get(SettingKeyTheme) }
 
-// thinkingDisplay returns the thinking display mode string.
-func (s *tuiSession) thinkingDisplay() string { return s.store.Get(SettingKeyThinking) }
-
-// thinkingConfig builds a ThinkingConfig from the current thinking setting.
 // applyThinkingConfig converts a ThinkingConfig to a store value and persists it.
 func (s *tuiSession) applyThinkingConfig(cfg *agentcore.ThinkingConfig) {
 	val := "default"
@@ -106,14 +103,9 @@ func (s *tuiSession) applyThinkingConfig(cfg *agentcore.ThinkingConfig) {
 			val = "omitted"
 		}
 	}
-	s.store.Set(SettingKeyThinking, val, SettingsScopeGlobal)
-}
-
-// syncFromStore reads the store and applies settings to the runtime environment.
-// Called once at startup.
-func (s *tuiSession) syncFromStore() {
-	// Theme, plan, review, thinking are read on-demand via store.Get().
-	// This method exists as a hook for future store→runtime sync needs.
+	if err := s.store.Set(SettingKeyThinking, val, SettingsScopeGlobal); err != nil {
+		log.Printf("settings: persist thinking: %v", err)
+	}
 }
 
 func (s *tuiSession) thinkingConfig() *agentcore.ThinkingConfig {
@@ -453,12 +445,16 @@ func (s *tuiSession) handleThemeCommand(trimmed string) {
 	case "/theme light":
 		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
 		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-		s.store.Set(SettingKeyTheme, "light", SettingsScopeGlobal)
+		if err := s.store.Set(SettingKeyTheme, "light", SettingsScopeGlobal); err != nil {
+			log.Printf("settings: persist theme: %v", err)
+		}
 		s.app.PrintSystem("已切换浅色主题")
 	case "/theme dark":
 		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
 		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-		s.store.Set(SettingKeyTheme, "dark", SettingsScopeGlobal)
+		if err := s.store.Set(SettingKeyTheme, "dark", SettingsScopeGlobal); err != nil {
+			log.Printf("settings: persist theme: %v", err)
+		}
 		s.app.PrintSystem("已切换深色主题")
 	}
 }
@@ -695,13 +691,17 @@ func (s *tuiSession) handleReviewCommandEx(sub string) {
 			s.app.PrintSystem("⚖ 审核关卡已在启用状态")
 			return
 		}
-		s.store.Set(SettingKeyReview, "on", SettingsScopeGlobal)
+		if err := s.store.Set(SettingKeyReview, "on", SettingsScopeGlobal); err != nil {
+			log.Printf("settings: persist review: %v", err)
+		}
 	case "off":
 		if !s.isReviewMode() {
 			s.app.PrintSystem("⚖ 审核关卡已在关闭状态")
 			return
 		}
-		s.store.Set(SettingKeyReview, "off", SettingsScopeGlobal)
+		if err := s.store.Set(SettingKeyReview, "off", SettingsScopeGlobal); err != nil {
+			log.Printf("settings: persist review: %v", err)
+		}
 	default:
 		// 查看状态：/review 或 /review status
 		status := "关闭"
@@ -745,13 +745,17 @@ func (s *tuiSession) handlePlanCommandEx(sub string) {
 			s.app.PrintSystem(fmt.Sprintf("🧠 计划模式已在启用状态 · 模型: %s", s.planModel))
 			return
 		}
-		s.store.Set(SettingKeyPlan, "on", SettingsScopeGlobal)
+		if err := s.store.Set(SettingKeyPlan, "on", SettingsScopeGlobal); err != nil {
+			log.Printf("settings: persist plan: %v", err)
+		}
 	case "off":
 		if !s.isPlanMode() {
 			s.app.PrintSystem(fmt.Sprintf("⚡ 已在普通模式 · 模型: %s", s.normalModel))
 			return
 		}
-		s.store.Set(SettingKeyPlan, "off", SettingsScopeGlobal)
+		if err := s.store.Set(SettingKeyPlan, "off", SettingsScopeGlobal); err != nil {
+			log.Printf("settings: persist plan: %v", err)
+		}
 	default:
 		// 查看状态：/plan 或 /plan status
 		status := "关闭（普通模式）"
@@ -803,24 +807,25 @@ func (p *sidebarPanel) Render(width int64) []string {
 	}
 
 	var lines []string
-	// Title
-	lines = append(lines, accent("▎ Mady"))
-	lines = append(lines, dim(strings.Repeat("─", int(width))))
-
-	// Session info
-	lines = append(lines, dim("📂 会话"))
-	lines = append(lines, "  "+core.TruncateToWidth(s.currentThreadID, width-4, "…"))
+	// Title + session info
+	lines = append(lines,
+		accent("▎ Mady"),
+		dim(strings.Repeat("─", int(width))),
+		dim("📂 会话"),
+		"  "+core.TruncateToWidth(s.currentThreadID, width-4, "…"),
+	)
 
 	// Case context
 	if s.currentProject != nil {
-		lines = append(lines, "")
-		lines = append(lines, dim("📋 案件"))
-		lines = append(lines, "  "+core.TruncateToWidth(s.currentProject.Alias, width-4, "…"))
+		lines = append(lines,
+			"",
+			dim("📋 案件"),
+			"  "+core.TruncateToWidth(s.currentProject.Alias, width-4, "…"),
+		)
 	}
 
 	// Status
-	lines = append(lines, "")
-	lines = append(lines, dim("⚙ 模式"))
+	lines = append(lines, "", dim("⚙ 模式"))
 	modeStatus := "普通"
 	if s.isPlanMode() {
 		modeStatus = "计划"
@@ -828,14 +833,16 @@ func (p *sidebarPanel) Render(width int64) []string {
 	if s.isReviewMode() {
 		modeStatus += " · 审核"
 	}
-	lines = append(lines, "  "+modeStatus)
 
 	// Quick actions
-	lines = append(lines, "")
-	lines = append(lines, dim("⌨ 快捷操作"))
-	lines = append(lines, "  /cmd  命令中心")
-	lines = append(lines, "  /plan 计划模式")
-	lines = append(lines, "  ?     快捷键")
+	lines = append(lines,
+		"  "+modeStatus,
+		"",
+		dim("⌨ 快捷操作"),
+		"  /cmd  命令中心",
+		"  /plan 计划模式",
+		"  ?     快捷键",
+	)
 
 	// Fill remaining space
 	for int64(len(lines)) < 20 {
@@ -903,10 +910,29 @@ func (s *tuiSession) recordApprovalDecision(decision domains.ApprovalDecision, m
 	if s.currentProject != nil {
 		caseID = s.currentProject.ProjectID
 	}
+	// 硬中断（如 disclosure review_gate）等待 Resume 时，ApprovalGate 的
+	// lastTriggeredOutput 并未经过关键词触发，若仍按软中断路径留痕会丢失
+	// 被审对象。改用中断原因与结构化数据填充记录，确保复核结论能定位到
+	// 具体的 gate 与报告（P3 盲测需要按记录回溯被审产出）。
+	triggerKeyword := "review"
+	originalOutput := ""
+	if agent := s.currentAgent; agent != nil {
+		if ir := agent.Interrupted(); ir != nil {
+			if gate, ok := ir.Data["gate"].(string); ok && gate != "" {
+				triggerKeyword = gate
+			}
+			originalOutput = ir.Reason
+			if len(ir.Data) > 0 {
+				if data, err := json.Marshal(ir.Data); err == nil {
+					originalOutput += "\n" + string(data)
+				}
+			}
+		}
+	}
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
-	// originalOutput="" lets the gate use its saved lastTriggeredOutput.
-	if err := s.approvalGate.RecordDecision(ctx, s.currentThreadID, caseID, "review", "", decision, modifiedOutput, feedback); err != nil {
+	// originalOutput 为空时（纯关键词软中断）由 gate 使用 lastTriggeredOutput。
+	if err := s.approvalGate.RecordDecision(ctx, s.currentThreadID, caseID, triggerKeyword, originalOutput, decision, modifiedOutput, feedback); err != nil {
 		log.Printf("approval: record decision: %v", err)
 	}
 }

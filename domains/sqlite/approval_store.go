@@ -169,6 +169,7 @@ type approvalRecordJSON struct {
 	Decision       string    `json:"decision"`
 	ModifiedOutput string    `json:"modified_output,omitempty"`
 	Feedback       string    `json:"feedback,omitempty"`
+	State          string    `json:"state,omitempty"`
 }
 
 func marshalRecord(r domains.ApprovalRecord) ([]byte, error) {
@@ -182,6 +183,7 @@ func marshalRecord(r domains.ApprovalRecord) ([]byte, error) {
 		Decision:       string(r.Decision),
 		ModifiedOutput: r.ModifiedOutput,
 		Feedback:       r.Feedback,
+		State:          string(r.State),
 	})
 }
 
@@ -190,7 +192,7 @@ func unmarshalRecord(data []byte) (domains.ApprovalRecord, error) {
 	if err := json.Unmarshal(data, &j); err != nil {
 		return domains.ApprovalRecord{}, err
 	}
-	return domains.ApprovalRecord{
+	rec := domains.ApprovalRecord{
 		ID:             j.ID,
 		SessionID:      j.SessionID,
 		CaseID:         j.CaseID,
@@ -200,7 +202,14 @@ func unmarshalRecord(data []byte) (domains.ApprovalRecord, error) {
 		Decision:       domains.ApprovalDecision(j.Decision),
 		ModifiedOutput: j.ModifiedOutput,
 		Feedback:       j.Feedback,
-	}, nil
+		State:          domains.ApprovalState(j.State),
+	}
+	// 兼容早期未持久化 State 的记录：由 Decision 推导重建，
+	// 保证状态机在读取侧始终可正确还原。
+	if rec.State == "" {
+		rec.State = domains.DecisionToState(rec.Decision)
+	}
+	return rec, nil
 }
 
 // --- store.CaseStore ---

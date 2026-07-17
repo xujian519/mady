@@ -258,14 +258,32 @@ func (g *ApprovalGate) RecordDecision(
 	decision ApprovalDecision,
 	modifiedOutput, feedback string,
 ) error {
-	if g.store == nil {
-		return nil
-	}
 	// Use the saved triggered output if the caller didn't provide one.
 	if originalOutput == "" {
 		originalOutput = g.lastTriggeredOutput
 	}
 	g.lastTriggeredOutput = "" // consume
+	return RecordApprovalDecision(
+		ctx, g.store,
+		sessionID, caseID, triggerKeyword, originalOutput,
+		decision, modifiedOutput, feedback,
+	)
+}
+
+// RecordApprovalDecision 在不挂载 ApprovalGate 实例的人工决策入口（如 Server
+// HTTP 复核端点、ACP 工具授权回调）直接持久化一条 ApprovalRecord。
+// 它与 ApprovalGate.RecordDecision 共用同一构造逻辑（记录 ID、状态机映射），
+// 确保所有 HITL 触点的留痕格式一致。store 为 nil 时是静默 no-op。
+func RecordApprovalDecision(
+	ctx context.Context,
+	store ApprovalStore,
+	sessionID, caseID, triggerKeyword, originalOutput string,
+	decision ApprovalDecision,
+	modifiedOutput, feedback string,
+) error {
+	if store == nil {
+		return nil
+	}
 	record := ApprovalRecord{
 		ID:             fmt.Sprintf("appr_%d_%s", time.Now().UnixNano(), sessionID),
 		SessionID:      sessionID,
@@ -276,14 +294,14 @@ func (g *ApprovalGate) RecordDecision(
 		Decision:       decision,
 		ModifiedOutput: modifiedOutput,
 		Feedback:       feedback,
-		State:          decisionToState(decision),
+		State:          DecisionToState(decision),
 	}
-	return g.store.Save(ctx, record)
+	return store.Save(ctx, record)
 }
 
-// decisionToState maps a human approval decision to the corresponding state
+// DecisionToState maps a human approval decision to the corresponding state
 // machine state so that persisted records can be reconstructed correctly.
-func decisionToState(d ApprovalDecision) ApprovalState {
+func DecisionToState(d ApprovalDecision) ApprovalState {
 	switch d {
 	case DecisionAdopted:
 		return StateApproved

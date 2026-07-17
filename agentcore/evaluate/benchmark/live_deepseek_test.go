@@ -20,25 +20,44 @@ type deepSeekTestEnv struct {
 	Model    string
 }
 
-// newDeepSeekTestEnv 从环境变量读取 API key 与模型名称，构造 DeepSeek provider。
-// 当 MADY_LIVE_EVAL 或 DEEPSEEK_API_KEY 未设置时返回 nil 表示跳过。
+// newDeepSeekTestEnv 从环境变量读取 API key 与模型名称，构造 live 评估 provider。
+// 当 MADY_LIVE_EVAL 未设为 "1" 或密钥缺失时跳过（t.Skip）。
+//
+// 端点选择（DeepSeek 官方端点优先，支持任意 OpenAI 兼容端点回退）：
+//   - DEEPSEEK_API_KEY（可选 DEEPSEEK_MODEL，默认 deepseek-chat）
+//     → https://api.deepseek.com/v1；
+//   - 否则 MADY_EVAL_API_KEY + MADY_EVAL_BASE_URL + MADY_EVAL_MODEL
+//     → 任意 OpenAI 兼容端点（如本地 MLX 服务 http://127.0.0.1:8000/v1），
+//     用于零成本/最小成本冒烟验证 live 链路。
 func newDeepSeekTestEnv(t *testing.T) *deepSeekTestEnv {
 	t.Helper()
 	if os.Getenv("MADY_LIVE_EVAL") != "1" {
 		t.Skip("set MADY_LIVE_EVAL=1 to run live evaluation against DeepSeek")
 	}
-	apiKey := os.Getenv("DEEPSEEK_API_KEY")
-	if apiKey == "" {
-		t.Skip("DEEPSEEK_API_KEY not set")
+	if apiKey := os.Getenv("DEEPSEEK_API_KEY"); apiKey != "" {
+		model := os.Getenv("DEEPSEEK_MODEL")
+		if model == "" {
+			model = "deepseek-chat"
+		}
+		return &deepSeekTestEnv{
+			Provider: chatcompat.New(chatcompat.Config{
+				APIKey:  apiKey,
+				BaseURL: "https://api.deepseek.com/v1",
+			}),
+			Model: model,
+		}
 	}
-	model := os.Getenv("DEEPSEEK_MODEL")
-	if model == "" {
-		model = "deepseek-chat"
+	// 回退：通用 OpenAI 兼容端点（本地或第三方），三者缺一不可。
+	apiKey := os.Getenv("MADY_EVAL_API_KEY")
+	baseURL := os.Getenv("MADY_EVAL_BASE_URL")
+	model := os.Getenv("MADY_EVAL_MODEL")
+	if apiKey == "" || baseURL == "" || model == "" {
+		t.Skip("DEEPSEEK_API_KEY not set (or provide MADY_EVAL_API_KEY + MADY_EVAL_BASE_URL + MADY_EVAL_MODEL)")
 	}
 	return &deepSeekTestEnv{
 		Provider: chatcompat.New(chatcompat.Config{
 			APIKey:  apiKey,
-			BaseURL: "https://api.deepseek.com/v1",
+			BaseURL: baseURL,
 		}),
 		Model: model,
 	}
@@ -178,15 +197,13 @@ func TestLiveDeepSeekInvalidationEval(t *testing.T) {
 	runLiveEval(t, env, cases, cachePath, invalidationSystemPrompt)
 }
 
-// TestLiveDeepSeekEval 使用 DeepSeek API 对随机 3 道专利代理人考试真题进行真实评分。
-// 固定随机种子保证结果可复现；中间结果缓存到 /tmp/mady_deepseek_eval.json。
+// TestLiveDeepSeekEval 使用 DeepSeek API 对专利代理人考试真题（P2A）进行真实评分。
+// 默认随机抽 3 题（固定种子保证可复现）；MADY_EVAL_CASES 控制题量，
+// MADY_EVAL_SUITE=p2a 跑全量 31 题。中间结果缓存到 /tmp/mady_deepseek_eval.json。
 func TestLiveDeepSeekEval(t *testing.T) {
 	env := newDeepSeekTestEnv(t)
 
-	allCases := PatentExamRealCases()
-	seed := int64(20241201)
-	cases := randomCases(t, allCases, 3, seed)
-	t.Logf("Random seed: %d", seed)
+	cases := p2aEvalCases(t)
 	for i, c := range cases {
 		t.Logf("selected %d: %s", i+1, c.ID)
 	}
