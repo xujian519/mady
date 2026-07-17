@@ -1,5 +1,26 @@
 # AI 决策变更日志
 
+## 2026-07-18: 启用 computer_use 桌面控制工具（Assistant + Patent Agent）
+
+### 背景
+用户需要在专利检索与下载场景中控制本地桌面浏览器，操作 CNIPA/Google Patents 等网站。
+`computer_use` 工具已在 `tools/` 中完整实现（macOS/Linux/Windows 三平台后端 + 安全拦截 + 测试），
+但此前在所有领域 Agent 中均被禁用。
+
+### 改动
+- `domains/assistant.go`：`ExtensionConfig` 新增 `ComputerUse: true`，从 `DisableTools` 移除 `tools.ToolComputerUse`
+- `domains/patent.go`：同上
+- Legal Agent 保持原有禁用状态（暂无浏览器操作场景）
+- 默认审批模式为 `COMPUTER_USE_APPROVAL=none`（仅拦截危险操作，不额外提示）
+
+### 影响范围
+- `domains/assistant.go`（+1 行 / -1 行）
+- `domains/patent.go`（+1 行 / -1 行）
+
+### 审查要求
+- L1（简单配置变更，不涉及敏感路径）
+- `computer_use` 已在 SECURITY.md 中列为需用户授权的敏感工具，用户已知悉
+
 ## 2026-07-17: 引用核验 Gate P1a+P1b 实施（lawcite 同源抽取 + 双级核验 + 域接线）
 
 ### 背景
