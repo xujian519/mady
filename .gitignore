@@ -74,3 +74,6 @@ sessions/
 # --- Graphify artifacts (rebuildable) ---
 graphify-out/
 /tui-demo
+
+# 本地评估跑批产物
+.eval-runs/

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -141,6 +142,7 @@ func agentRunFunc(env *deepSeekTestEnv, agentTools []*agentcore.Tool, sysPrompt 
 				Model:     env.Model,
 				Provider:  env.Provider,
 				Streaming: true,
+				MaxTokens: liveMaxResponseTokens,
 			},
 			SystemPrompt: sysPrompt,
 			Tools:        agentTools,
@@ -235,55 +237,77 @@ func runAgentLiveEvalWithFactory(t *testing.T, env *deepSeekTestEnv, cases []eva
 
 	// For the fixed-tools path, wrap once upfront. For the factory path,
 	// wrapping happens per-case inside the loop.
-	fixedCounter, fixedTools := newToolCallCounter(agentTools)
 	cache := loadCache(cachePath)
-	missing := false
+	// 生成阶段并发跑批（与 runLiveEval 同理）：每 case 独立的工具计数器避免
+	// 共享计数器数据竞争；错误收集后统一 Errorf（不能从子 goroutine 调用）。
+	// 先同步挑出未运行的题（主 goroutine 读 cache），再并发执行。
+	var pending []int
 	for i, c := range cases {
 		if pred, ok := cache[c.ID]; ok && pred != "" {
 			t.Logf("(%d/%d) %s loaded from cache (len=%d)", i+1, len(cases), c.ID, len(pred))
 			continue
 		}
-		missing = true
-
-		// Select tools for this case: factory (per-case) or fixed set.
-		var runTools []*agentcore.Tool
-		var counter *toolCallCounter
-		if factory != nil {
-			counter, runTools = newToolCallCounter(factory(c.ID))
-		} else {
-			counter, runTools = fixedCounter, fixedTools
-		}
-		t.Logf("(%d/%d) running Agent for %s ...", i+1, len(cases), c.ID)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		run := agentRunFunc(env, runTools, systemPrompt)
-		out, err := run(ctx, c.Input)
-		cancel()
-		if err != nil {
-			t.Errorf("case %s: %v", c.ID, err)
-			cache[c.ID] = ""
-			continue
-		}
-		cache[c.ID] = out
-		saveCache(cachePath, cache)
-		t.Logf("(%d/%d) %s done (len=%d) tools[%s]", i+1, len(cases), c.ID, len(out), counter.snapshot())
+		pending = append(pending, i)
 	}
-	if missing {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var runErrs []error
+	sem := make(chan struct{}, liveEvalWorkers)
+	for _, i := range pending {
+		c := cases[i]
+		i := i
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			// Select tools for this case: factory (per-case) or fixed set.
+			// 计数器始终按 case 新建，并发下无共享状态。
+			var runTools []*agentcore.Tool
+			var counter *toolCallCounter
+			if factory != nil {
+				counter, runTools = newToolCallCounter(factory(c.ID))
+			} else {
+				counter, runTools = newToolCallCounter(agentTools)
+			}
+			t.Logf("(%d/%d) running Agent for %s ...", i+1, len(cases), c.ID)
+			ctx, cancel := context.WithTimeout(context.Background(), liveCaseTimeout)
+			defer cancel()
+			run := agentRunFunc(env, runTools, systemPrompt)
+			out, err := run(ctx, c.Input)
+			mu.Lock()
+			if err != nil {
+				runErrs = append(runErrs, fmt.Errorf("case %s: %w", c.ID, err))
+				cache[c.ID] = ""
+			} else {
+				cache[c.ID] = out
+				saveCache(cachePath, cache)
+			}
+			mu.Unlock()
+			if err == nil {
+				t.Logf("(%d/%d) %s done (len=%d) tools[%s]", i+1, len(cases), c.ID, len(out), counter.snapshot())
+			}
+		}()
+	}
+	wg.Wait()
+	for _, err := range runErrs {
+		t.Errorf("%v", err)
+	}
+	if len(pending) > 0 {
 		saveCache(cachePath, cache)
 	}
 
 	// Score with the same LiveEvaluator used by the bare-LLM baseline so the
-	// two tiers are directly comparable.
-	report, err := LiveEvaluator(env.Provider, env.Model).EvaluateBatch(context.Background(), cases, func(ctx context.Context, input string) (string, error) {
+	// two tiers are directly comparable. 评判结果按题缓存（<cachePath>.judge），
+	// 长跑批被打断可无损续跑。
+	report := evaluateBatchWithJudgeCache(t, LiveEvaluator(env.Provider, env.Model), cases, func(ctx context.Context, input string) (string, error) {
 		for _, c := range cases {
 			if c.Input == input {
 				return cache[c.ID], nil
 			}
 		}
 		return "", fmt.Errorf("no prediction cached for input")
-	})
-	if err != nil {
-		t.Fatalf("EvaluateBatch: %v", err)
-	}
+	}, cachePath+".judge")
 
 	t.Logf("Total cases: %d", report.TotalCases)
 	t.Logf("Passed: %d", report.PassedCases)
@@ -507,7 +531,7 @@ func TestLiveAgentP2BHitlEval(t *testing.T) {
 		}
 		draftMissing = true
 		t.Logf("(%d/%d) generating draft for %s ...", i+1, len(cases), c.ID)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), liveCaseTimeout)
 		run := agentRunFunc(env, nil, invalidationSystemPrompt)
 		out, err := run(ctx, c.Input)
 		cancel()

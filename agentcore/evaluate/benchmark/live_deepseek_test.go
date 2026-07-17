@@ -3,11 +3,12 @@ package benchmark
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/evaluate"
@@ -86,29 +87,62 @@ func runLiveEval(t *testing.T, env *deepSeekTestEnv, cases []evaluate.TestCase, 
 	}
 
 	cache := loadCache(cachePath)
+	// 生成阶段并发跑批：本地 MLX 端点支持连续批处理，liveEvalWorkers 路并发
+	// 显著缩短墙钟时间；cache 写入与 firstErr 收集由 mu 保护，错误在 Wait 后
+	// 统一 Fatal（t.Fatalf 不能从子 goroutine 调用）。
+	// 先同步挑出未生成的题（主 goroutine 读 cache），再并发生成，
+	// 否则主循环读 cache 与 worker 写 cache 形成数据竞争。
+	var pending []int
 	for i, c := range cases {
 		if pred, ok := cache[c.ID]; ok && pred != "" {
 			t.Logf("(%d/%d) %s loaded from cache (len=%d)", i+1, len(cases), c.ID, len(pred))
 			continue
 		}
-		t.Logf("(%d/%d) calling DeepSeek for %s...", i+1, len(cases), c.ID)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		req := &agentcore.ProviderRequest{
-			Model: env.Model,
-			Messages: []agentcore.Message{
-				{Role: agentcore.RoleSystem, Content: systemPrompt},
-				{Role: agentcore.RoleUser, Content: c.Input},
-			},
-			Temperature: 0.2,
-		}
-		resp, err := env.Provider.Complete(ctx, req)
-		cancel()
-		if err != nil {
-			t.Fatalf("case %s: %v", c.ID, err)
-		}
-		cache[c.ID] = resp.Content
-		saveCache(cachePath, cache)
-		t.Logf("(%d/%d) %s response length: %d", i+1, len(cases), c.ID, len(resp.Content))
+		pending = append(pending, i)
+	}
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+	sem := make(chan struct{}, liveEvalWorkers)
+	for _, i := range pending {
+		c := cases[i]
+		i := i
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			t.Logf("(%d/%d) calling DeepSeek for %s...", i+1, len(cases), c.ID)
+			ctx, cancel := context.WithTimeout(context.Background(), liveCaseTimeout)
+			defer cancel()
+			req := &agentcore.ProviderRequest{
+				Model: env.Model,
+				Messages: []agentcore.Message{
+					{Role: agentcore.RoleSystem, Content: systemPrompt},
+					{Role: agentcore.RoleUser, Content: c.Input},
+				},
+				Temperature: 0.2,
+				MaxTokens:   liveMaxResponseTokens,
+			}
+			resp, err := env.Provider.Complete(ctx, req)
+			mu.Lock()
+			if err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("case %s: %w", c.ID, err)
+				}
+			} else {
+				cache[c.ID] = resp.Content
+				saveCache(cachePath, cache)
+			}
+			mu.Unlock()
+			if err == nil {
+				t.Logf("(%d/%d) %s response length: %d", i+1, len(cases), c.ID, len(resp.Content))
+			}
+		}()
+	}
+	wg.Wait()
+	if firstErr != nil {
+		t.Fatalf("%v", firstErr)
 	}
 
 	// Build input -> prediction map for efficient RunFunc lookup.
@@ -117,12 +151,10 @@ func runLiveEval(t *testing.T, env *deepSeekTestEnv, cases []evaluate.TestCase, 
 		inputToPred[c.Input] = cache[c.ID]
 	}
 
-	report, err := LiveEvaluator(env.Provider, env.Model).EvaluateBatch(context.Background(), cases, func(ctx context.Context, input string) (string, error) {
+	// 评判阶段同样按题缓存（<cachePath>.judge），长跑批被打断可无损续跑。
+	report := evaluateBatchWithJudgeCache(t, LiveEvaluator(env.Provider, env.Model), cases, func(ctx context.Context, input string) (string, error) {
 		return inputToPred[input], nil
-	})
-	if err != nil {
-		t.Fatalf("EvaluateBatch: %v", err)
-	}
+	}, cachePath+".judge")
 
 	t.Logf("Total cases: %d", report.TotalCases)
 	t.Logf("Passed: %d", report.PassedCases)

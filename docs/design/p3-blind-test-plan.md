@@ -179,7 +179,9 @@ MADY_LIVE_EVAL=1 MADY_EVAL_SUITE=p2a DEEPSEEK_API_KEY=<key> \
 
 （`MADY_EVAL_SUITE=p2a` 为全量 31 题稳定顺序筛选；`MADY_EVAL_CASES=31` 亦可，但为随机顺序。无 DeepSeek key 时用 `MADY_EVAL_API_KEY` + `MADY_EVAL_BASE_URL` + `MADY_EVAL_MODEL` 指向任意 OpenAI 兼容端点。）
 
-参考锚点：P2A L1（Agent 框架）历史基线 llm_judge 均值 0.700（10 题抽样，`docs/evaluation-baseline-v0.7.md`）；全量 31 题基线待首次跑批后固化到本文档。
+参考锚点：P2A L1（Agent 框架）历史基线 llm_judge 均值 0.700（10 题抽样，DeepSeek，`docs/evaluation-baseline-v0.7.md`）。
+
+**全量 31 题基线（2026-07-17 首次固化，`docs/evaluation-baseline-v0.8.md`）**：本地 oMLX `gemma-4-12B-it-8bit`（推理与评判同模型自评，MaxTokens 8192）——L0 裸 LLM 通过率 90.3%（28/31，citation 0.935 / judge 0.723）；L1 Agent 框架通过率 93.5%（29/31，citation 0.935 / judge 0.746）。共性失败题 2 道（`2008_a31_02`、`2009_a22_01`），归因为小模型法条编号幻觉与基准口径疑点。注意：与 DeepSeek 历史基线不可直接对比（被测模型与 judge 均不同），盲测启动时须以同口径复跑锚定。
 
 ## 9. 成功标准（通过线）
 

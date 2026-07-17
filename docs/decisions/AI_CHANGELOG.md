@@ -1,5 +1,33 @@
 # AI 决策变更日志
 
+## 2026-07-17: P2A 全量 31 题本地基线（v0.8）+ 跑批 harness 增强
+
+### 背景
+v0.7 留下「小样本陷阱」遗留问题（3→10 题结论多次反转），需 P2A 全量 31 题稳健基线
+作为质量锚点（P3 盲测方案 §8 前置依赖）。用户指定用本地 oMLX 免费端点
+（127.0.0.1:8000，gemma-4-12B-it-8bit）跑批，零 API 成本、可高频复跑。
+
+### 改动
+- 跑批 harness（仅测试代码，`agentcore/evaluate/benchmark/`）：
+  生成/评判双阶段拆分、各自按题落盘缓存（$TMPDIR，断点续跑）；
+  4 worker 并发 + 主 goroutine 同步筛 pending（修复缓存读写 map 数据竞争，
+  曾触发 fatal error: concurrent map read and map write）；
+  单题 15 分钟超时；MaxTokens 8192 上限消除本地低吞吐下的超长输出 livelock
+- `docs/evaluation-baseline-v0.8.md`：全量基线报告成文。
+  结果：L0 裸 LLM 90.3%（28/31，citation 0.935 / judge 0.723）；
+  L1 Agent 框架 93.5%（29/31，citation 0.935 / judge 0.746）。
+  共性失败题 2 道：2008_a31_02（法条编号幻觉：误引"专利法第47条/细则21条"，
+  正确为细则第42条；同模型自评无法识别，judge 仍给 0.77+）、
+  2009_a22_01（基准期望引用与参考答案自引法条不自洽，待核官方答案）。
+  报告含与 DeepSeek 历史基线的不可比性声明（被测模型+judge 均不同）
+- `docs/design/p3-blind-test-plan.md` §8：全量基线数据固化到锚点章节
+
+- **影响范围**: 测试代码 + 文档，无产品代码改动
+- **风险等级**: 低
+- **审查要求**: L1
+- **验证**: `go vet` 双模块 ✅ | `go test -race ./agentcore/evaluate/...` ✅ |
+  `golangci-lint run` 双模块 0 issues ✅ | 31 题两层级全量跑批完成 ✅
+
 ## 2026-07-17: golangci-lint 本地门禁清零（23 issues）
 
 ### 背景
