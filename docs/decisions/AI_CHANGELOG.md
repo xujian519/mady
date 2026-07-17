@@ -1,5 +1,52 @@
 # AI 决策变更日志
 
+## 2026-07-17: 引用核验 Gate P1a+P1b 实施（lawcite 同源抽取 + 双级核验 + 域接线）
+
+### 背景
+设计方案（见上条，ed813ce）已定硬验收标准：v0.8 缓存的 93 条真实答案回放，
+幻觉题全命中且误报为 0。本条目按 P1a（同源抽取包）→ P1b（核验 Gate +
+静态表 + 域接线）落地，Strict 档 SuppressPersist 联动按方案留 P2。
+
+### 改动
+- P1a `pkg/lawcite`（fcd9533）：法条引用结构化抽取（中文数字归一、
+  承接语境 statuteWindow=120 法律归属、条/款/项/之N 定位、引用点 ±40 字语境、
+  Key 去重），评测与护栏同源的单一事实源；19 项单测 + Benchmark 0.73ms
+- P1b `guardrails/citation_table.go`（S1 静态主题表）：只收 2008→2020
+  条号稳定且无争议的条目（漂移条目落 Unknown 放行）；主题词宁少勿多，
+  泛化词（说明书/权利要求书/发明）不收录；新增 invalidationGrounds
+  （可作无效宣告理由的实体条款集）
+- P1b `guardrails/citation_gate.go`：VerifyCitations 双级核验
+  （R1 存在性：专利法 >82 条判 Invalid；R2 语境相关性：用途声明与本条
+  注册主题比对）+ CitationGate LifecycleHook（AfterModelCall 相位，
+  工具调用回合跳过）+ FormatCitationWarnings（"请人工核对"存疑措辞，
+  对照 tone-style-guide）
+- 回放校准两轮，全部沉淀为对抗测试：
+  第一轮确立核心判定式 Suspect=本条主题未命中+交叉命中另一条主题
+  （仅本条未命中→Unverifiable 放行）；crossMatchNoise 泛化噪声词表
+  （实施/使用/公告/请求等不参与交叉匹配）；enumStarters 枚举接续符
+  剔除逗号（"根据专利法第X条，<用途>"是标准句式）
+  第二轮 L3 三案裁定：2013_a26_01 判**真错误**入 knownTruePositives
+  （智力活动规则错引第22条，应引第25条）；2012_a31_02 真误报→
+  topics[31] 补原文措辞"限于一项"使逐字引用自证 Valid；
+  2009_a2_02 真误报→"无效宣告"对 invalidationGrounds 条款豁免交叉匹配
+  （"无效宣告理由（专利法第九条）"是同位命名而非张冠李戴）
+- 域接线：domains/patent.go（PatentAgentConfig 与 BuildProjectAgent 两处）、
+  domains/legal.go 各接入 NewCitationGate(LevelStandard)，置于
+  guardrails.New 之前；P1b 阶段 Strict 域统一按 Standard 处置
+  （追加提示 + Recorder 留痕回调），SuppressPersist + ApprovalGate 联动留 P2
+
+- **影响范围**: guardrails/ 新增 2 文件、pkg/lawcite 新增（P1a 已提交）、
+  domains/ 接线 2 文件、scripts/replay_citation_gate.go 回放验收工具
+- **风险等级**: 中——新 hook 进入专利/法律域 AfterModelCall 热路径；
+  domains/patent.go 属安全敏感路径（BuildProjectAgent WorkingDir 沙箱
+  边界所在文件），本次仅追加 Lifecycle hook 未触碰 WorkingDir 逻辑
+- **审查要求**: L2（人工审阅 citation_gate.go 判定矩阵、静态表收录口径、
+  domains 接线点）
+- **验证**: `go vet` 双模块 ✅ | `go build` 双模块 ✅ |
+  `golangci-lint run` 双模块 0 issues ✅ | `go test -race ./...` 全量 ✅ |
+  回放验收：三层 93 条真实答案 TP 全命中（L0 3 / L1 1 / L3 3）、误报 0、
+  exit 0 ✅
+
 ## 2026-07-17: 法条引用核验 Gate 设计方案（待评审）
 
 ### 背景

@@ -70,6 +70,12 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	// Chunked context engine for long legal documents.
 	cfg.Engine = "chunked"
 
+	// 法条引用核验 Gate（P1b）：R1 存在性 + R2 交叉匹配，命中疑点追加存疑提示。
+	// P1b 阶段统一按 Standard 处置；Strict 的 SuppressPersist + ApprovalGate 联动留待 P2。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard)),
+	)
+
 	// Guardrail: LevelStrict with legal disclaimer + approval gate.
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		guardrails.New(

@@ -63,6 +63,12 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	// Chunked context engine for long patent documents.
 	cfg.Engine = "chunked"
 
+	// 法条引用核验 Gate（P1b）：R1 存在性 + R2 交叉匹配，命中疑点追加存疑提示。
+	// P1b 阶段统一按 Standard 处置；Strict 的 SuppressPersist + ApprovalGate 联动留待 P2。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard)),
+	)
+
 	// Guardrail: LevelStrict with patent disclaimer + approval gate.
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		guardrails.New(
@@ -114,6 +120,11 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	if base.Engine == "" {
 		cfg.Engine = "chunked"
 	}
+
+	// 法条引用核验 Gate（P1b）：案件答案同样纳入引用核验。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard)),
+	)
 
 	// LevelStrict 护栏 + 人工审批门
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
