@@ -105,6 +105,8 @@ type InitializeResult struct {
 
 type AuthenticateParams struct {
 	MethodID string `json:"methodId"`
+	// Token 是 methodId 为 "token" 时携带的静态令牌（扩展字段，向后兼容）。
+	Token string `json:"token,omitempty"`
 }
 
 type AuthenticateResult struct{}

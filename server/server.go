@@ -19,6 +19,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agui"
+	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/pkg/csync"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/skill"
@@ -31,11 +32,16 @@ type Server struct {
 	cors     CORSConfig
 	srv      atomic.Pointer[http.Server]
 
-	agentPool  sync.Map // threadID -> *agentcore.Agent; cached agents for reuse
+	agentPool  sync.Map // threadID -> *poolEntry; cached agents for reuse (refcounted)
 	poolMu     sync.Mutex
 	poolLimit  int
 	disclosure atomic.Pointer[disclosureTaskManager]
 	discMu     sync.Mutex // guards lazy init of disclosure
+
+	// approvalStore 持久化人工复核决策（disclosure 复核端点等 HITL 触点）。
+	// 由 SetApprovalStore 注入；未配置时复核端点返回 503。
+	approvalMu    sync.RWMutex
+	approvalStore domains.ApprovalStore
 
 	maxRequestBodyBytes atomic.Int64
 }
@@ -152,6 +158,21 @@ func (s *Server) SetMaxRequestBodyBytes(n int64) {
 	s.maxRequestBodyBytes.Store(n)
 }
 
+// SetApprovalStore 注入人工决策留痕存储（如 domains/sqlite.SQLiteApprovalStore）。
+// 传入 nil 可解除配置。未配置时 disclosure 复核端点返回 503，其余端点不受影响。
+func (s *Server) SetApprovalStore(store domains.ApprovalStore) {
+	s.approvalMu.Lock()
+	defer s.approvalMu.Unlock()
+	s.approvalStore = store
+}
+
+// getApprovalStore 返回当前配置的留痕存储，未配置时为 nil。
+func (s *Server) getApprovalStore() domains.ApprovalStore {
+	s.approvalMu.RLock()
+	defer s.approvalMu.RUnlock()
+	return s.approvalStore
+}
+
 // limitedBody wraps the request body with http.MaxBytesReader so that JSON
 // decoding fails fast instead of buffering an unbounded payload into memory.
 func (s *Server) limitedBody(w http.ResponseWriter, r *http.Request) io.Reader {
@@ -169,13 +190,19 @@ func (s *Server) OnAll(h agentcore.EventHandler) func() { return s.eventBus.OnAl
 func (s *Server) EmitEvent(e agentcore.Event)           { s.eventBus.Emit(e) }
 func (s *Server) Close() {
 	s.eventBus.Close()
+	// 摘除全部池化 entry：空闲的立即 Close，仍在使用中的标记 evicted，
+	// 由最后一次 releaseAgent 归还时关闭（避免 shutdown 时关闭使用中的 agent）。
+	s.poolMu.Lock()
 	s.agentPool.Range(func(key, value any) bool {
-		if agent, ok := value.(*agentcore.Agent); ok {
-			agent.Close()
-		}
+		entry := value.(*poolEntry)
 		s.agentPool.Delete(key)
+		entry.evicted = true
+		if entry.refs == 0 {
+			entry.agent.Close()
+		}
 		return true
 	})
+	s.poolMu.Unlock()
 	if dm := s.disclosure.Load(); dm != nil {
 		dm.close()
 	}
@@ -194,6 +221,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/disclosure/analyze", s.handleDisclosureAnalyze)
 	mux.HandleFunc("GET /v1/disclosure/analyze/{task_id}", s.handleDisclosureStatus)
 	mux.HandleFunc("GET /v1/disclosure/analyze/{task_id}/stream", s.handleDisclosureStream)
+	mux.HandleFunc("POST /v1/disclosure/analyze/{task_id}/review", s.handleDisclosureReview)
 	mux.HandleFunc("POST /api/threads", s.handleCreateThread)
 	mux.HandleFunc("GET /api/threads", s.handleListThreads)
 	mux.HandleFunc("GET /api/threads/{key}", s.handleGetThread)
@@ -284,7 +312,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSyncChat(w http.ResponseWriter, r *http.Request, req ChatRequest) {
-	agent, err := s.loadAgent(r.Context(), req.ThreadID, requestCallConfig(req))
+	entry, err := s.loadAgent(r.Context(), req.ThreadID, requestCallConfig(req))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, ChatResponse{
 			ThreadID: req.ThreadID,
@@ -292,12 +320,13 @@ func (s *Server) handleSyncChat(w http.ResponseWriter, r *http.Request, req Chat
 		})
 		return
 	}
+	agent := entry.agent
 
 	output, err := agent.Run(r.Context(), req.Message)
 	if saveErr := s.saveAgentState(r.Context(), agent, req.ThreadID); saveErr != nil && err == nil {
 		err = saveErr
 	}
-	s.releaseAgent(agent, req.ThreadID)
+	s.releaseAgent(entry, req.ThreadID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, ChatResponse{
 			ThreadID: req.ThreadID,
@@ -319,7 +348,7 @@ func (s *Server) handleStreamChat(w http.ResponseWriter, r *http.Request, req Ch
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	agent, err := s.loadAgent(r.Context(), req.ThreadID, requestCallConfig(req))
+	entry, err := s.loadAgent(r.Context(), req.ThreadID, requestCallConfig(req))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, ChatResponse{
 			ThreadID: req.ThreadID,
@@ -327,6 +356,7 @@ func (s *Server) handleStreamChat(w http.ResponseWriter, r *http.Request, req Ch
 		})
 		return
 	}
+	agent := entry.agent
 
 	// dead marks the connection as unwritable (client disconnect, marshal
 	// failure, underlying write error). Once set, subsequent writeSSE calls
@@ -378,7 +408,7 @@ func (s *Server) handleStreamChat(w http.ResponseWriter, r *http.Request, req Ch
 		runErr = saveErr
 	}
 	unregister() // detach BEFORE releasing — see comment above
-	s.releaseAgent(agent, req.ThreadID)
+	s.releaseAgent(entry, req.ThreadID)
 
 	done := StreamDoneEvent{
 		Schema:   streamSchemaChatDone,
@@ -805,21 +835,44 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-func (s *Server) loadAgent(ctx context.Context, threadID string, callCfg *agentcore.CallConfig) (*agentcore.Agent, error) {
+// poolEntry 包装池化 agent，用引用计数跟踪并发使用（C2 use-after-free 修复）。
+// 所有字段仅由 poolMu 保护下访问：
+//   - loadAgent 借用时 refs+1，releaseAgent 归还时 refs-1；
+//   - 淘汰/关闭仅标记 evicted 并摘除出池；
+//   - 只有 refs 归零且 evicted 时才真正 Close agent，
+//     保证使用中的 agent 绝不会被提前关闭。
+type poolEntry struct {
+	agent   *agentcore.Agent
+	refs    int  // 正在使用该 agent 的请求数
+	evicted bool // 已从池中摘除；refs 归零后需要 Close
+	pooled  bool // 是否已存入 agentPool
+}
+
+// loadAgent 借用 threadID 对应的 agent（优先复用池化实例）。
+// 调用方必须在使用完成后调用 releaseAgent 归还恰好一次。
+func (s *Server) loadAgent(ctx context.Context, threadID string, callCfg *agentcore.CallConfig) (*poolEntry, error) {
 	if threadID != "" && callCfg == nil {
-		if cached, ok := s.agentPool.Load(threadID); ok {
-			if agent, ok := cached.(*agentcore.Agent); ok {
-				if ts, ok := s.threadStore(); ok {
-					if threadCfg, hasCfg, err := ts.GetThreadConfig(ctx, threadID); err == nil && hasCfg {
-						agent.ApplyCallConfig(threadCfg)
-					}
+		// 池命中路径：在 poolMu 内原子完成查找与引用计数递增，
+		// 防止与淘汰/关闭竞争（此前 Load 不持锁，release 的淘汰逻辑
+		// 可能关闭正在使用的 agent）。
+		s.poolMu.Lock()
+		cached, ok := s.agentPool.Load(threadID)
+		if ok {
+			cached.(*poolEntry).refs++
+		}
+		s.poolMu.Unlock()
+		if ok {
+			entry := cached.(*poolEntry)
+			if ts, has := s.threadStore(); has {
+				if threadCfg, hasCfg, err := ts.GetThreadConfig(ctx, threadID); err == nil && hasCfg {
+					entry.agent.ApplyCallConfig(threadCfg)
 				}
-				if err := agent.LoadState(ctx, threadID); err == nil {
-					return agent, nil
-				}
-				s.agentPool.Delete(threadID)
-				agent.Close()
 			}
+			if err := entry.agent.LoadState(ctx, threadID); err == nil {
+				return entry, nil
+			}
+			// LoadState 失败：摘除并按引用计数释放（仍有其他请求使用时延迟关闭）。
+			s.discardPoolEntry(threadID, entry)
 		}
 	}
 
@@ -828,43 +881,95 @@ func (s *Server) loadAgent(ctx context.Context, threadID string, callCfg *agentc
 	if ts, ok := s.threadStore(); ok {
 		provider = ts
 	}
-	return agentcore.LoadAgent(ctx, cfg, agentcore.LoadAgentOptions{
+	agent, err := agentcore.LoadAgent(ctx, cfg, agentcore.LoadAgentOptions{
 		ThreadID:          threadID,
 		CallCfg:           callCfg,
 		ThreadCfgProvider: provider,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &poolEntry{agent: agent, refs: 1}, nil
 }
 
-func (s *Server) releaseAgent(agent *agentcore.Agent, threadID string) {
+// discardPoolEntry 将 entry 从池中摘除并归还一次引用；若已无其他请求使用，
+// 立即 Close，否则由最后一次 releaseAgent 负责 Close。
+func (s *Server) discardPoolEntry(threadID string, entry *poolEntry) {
+	s.poolMu.Lock()
+	defer s.poolMu.Unlock()
+	// 仅当池中仍是同一个 entry 时摘除，避免误删并发新建的同 key entry。
+	if cur, ok := s.agentPool.Load(threadID); ok && cur == entry {
+		s.agentPool.Delete(threadID)
+		entry.evicted = true
+	}
+	entry.refs--
+	if entry.refs == 0 && entry.evicted {
+		entry.agent.Close()
+	}
+}
+
+// releaseAgent 归还 loadAgent 借用的 entry。池化 entry 保留复用；
+// 非池化 entry 尝试入池（池满或已有存活 entry 时直接关闭）。
+func (s *Server) releaseAgent(entry *poolEntry, threadID string) {
 	if threadID == "" {
-		agent.Close()
+		entry.agent.Close()
 		return
 	}
-	// Serialize access per threadID to prevent use-after-free race.
-	// Two concurrent requests for the same threadID would otherwise race
-	// on LoadOrStore + Close + Store, where the first request's agent
-	// could be closed while still in use by the second.
 	s.poolMu.Lock()
+	defer s.poolMu.Unlock()
+	entry.refs--
+	if entry.evicted {
+		// 已被淘汰：最后一次归还时关闭。
+		if entry.refs == 0 {
+			entry.agent.Close()
+		}
+		return
+	}
+	if entry.pooled {
+		// 正常归还池化 entry，保留在池中复用。
+		return
+	}
+	// 非池化来源的 agent：尝试入池。
+	if _, ok := s.agentPool.Load(threadID); ok {
+		// 池中已有同 threadID 的存活 entry（并发请求已建立），关闭多余的 agent。
+		entry.agent.Close()
+		return
+	}
+	if s.poolCountLocked() >= s.poolLimit {
+		s.evictIdleLocked()
+	}
+	if s.poolCountLocked() >= s.poolLimit {
+		// 没有空闲 entry 可淘汰：不入池，直接关闭。
+		entry.agent.Close()
+		return
+	}
+	entry.pooled = true
+	s.agentPool.Store(threadID, entry)
+}
+
+// poolCountLocked 返回当前池内 entry 数。调用方须持有 poolMu。
+func (s *Server) poolCountLocked() int {
 	count := 0
 	s.agentPool.Range(func(_, _ any) bool {
 		count++
-		return count < s.poolLimit
+		return true
 	})
-	if count >= s.poolLimit {
-		s.agentPool.Range(func(key, value any) bool {
-			if a, ok := value.(*agentcore.Agent); ok {
-				a.Close()
-			}
-			s.agentPool.Delete(key)
-			return false
-		})
-	}
-	prev, loaded := s.agentPool.LoadOrStore(threadID, agent)
-	if loaded {
-		prev.(*agentcore.Agent).Close()
-		s.agentPool.Store(threadID, agent)
-	}
-	s.poolMu.Unlock()
+	return count
+}
+
+// evictIdleLocked 淘汰一个空闲（refs==0）entry 并立即关闭其 agent。
+// 使用中的 entry 不会被淘汰。调用方须持有 poolMu。
+func (s *Server) evictIdleLocked() {
+	s.agentPool.Range(func(key, value any) bool {
+		entry := value.(*poolEntry)
+		if entry.refs != 0 {
+			return true // 继续使用中的 entry，寻找下一个
+		}
+		s.agentPool.Delete(key)
+		entry.evicted = true
+		entry.agent.Close()
+		return false
+	})
 }
 
 func (s *Server) saveAgentState(ctx context.Context, agent *agentcore.Agent, threadID string) error {

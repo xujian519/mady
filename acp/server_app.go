@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains"
 )
 
 // RunOptions configures a ready-to-run ACP server assembled by RunServer.
@@ -33,6 +34,12 @@ type RunOptions struct {
 	Lifecycle agentcore.LifecycleHook
 	// Extensions 注入知识扩展等可选能力（如 search_knowledge / add_document 工具）。
 	Extensions []agentcore.Extension
+	// AuthProvider 配置 ACP 认证；为 nil 时不校验认证（仅本地开发，
+	// 启动时输出警告）。配置后客户端须先 authenticate 才能调用会话方法。
+	AuthProvider AuthProvider
+	// ApprovalStore 可选：配置后工具授权（session/request_permission）的人工
+	// 决策会留痕，供 P3 专家盲测的 HITL 数据收集；为 nil 时不留痕。
+	ApprovalStore domains.ApprovalStore
 }
 
 // sessionModePrimary is the default (and only) mode advertised over ACP.
@@ -177,6 +184,8 @@ func RunServer(ctx context.Context, opts RunOptions) error {
 	server := NewServer(ServerConfig{
 		SessionManager: sessionMgr,
 		AgentInfo:      opts.AgentInfo,
+		AuthProvider:   opts.AuthProvider,
+		ApprovalStore:  opts.ApprovalStore,
 		Logger:         opts.Logger,
 		// 允许 ACP 客户端（如 Zed）声明文件系统读写能力。
 		// 本地编辑器场景下 FS 能力本质安全，且 ACPFileSystem 通过编辑器路由文件操作

@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/pkg/csync"
 )
 
@@ -27,12 +28,20 @@ type Server struct {
 	writer     io.Writer
 	writerMu   sync.Mutex
 
+	// approvalStore 持久化编辑器端的人工工具授权决策（allow/reject），
+	// 供 P3 专家盲测的 HITL 触点数据收集；为 nil 时不留痕。
+	approvalStore domains.ApprovalStore
+
 	// Outbound client requests (e.g. session/request_permission) keyed by id.
 	nextOutID atomic.Int64
 	pending   *csync.Map[string, chan acpResponse]
 
 	// Capabilities advertised by the client in initialize (fs, terminal).
 	clientCaps atomic.Pointer[ClientCapabilities]
+
+	// authenticated 标记当前连接是否已通过 authenticate 认证。
+	// 仅在 AuthProvider 声明了认证方式（authRequired）时作为门禁使用。
+	authenticated atomic.Bool
 
 	// allowedFSCaps is the set of FS capabilities the server accepts from clients.
 	allowedFSCaps map[string]bool
@@ -55,6 +64,9 @@ type ServerConfig struct {
 	// will accept from clients. An empty map means no FS capabilities are allowed.
 	// Keys are capability names like "FS.ReadTextFile", "FS.WriteTextFile".
 	AllowedFSCapabilities map[string]bool
+	// ApprovalStore 可选：配置后 session/request_permission 的人工授权结论
+	// 会按 domains.RecordApprovalDecision 模式留痕（与 TUI/Server 触点一致）。
+	ApprovalStore domains.ApprovalStore
 }
 
 func NewServer(cfg ServerConfig) *Server {
@@ -69,12 +81,15 @@ func NewServer(cfg ServerConfig) *Server {
 	}
 	if cfg.AuthProvider == nil {
 		cfg.AuthProvider = &noopAuthProvider{}
+		cfg.Logger.Warn("acp: 未配置认证提供者，允许未认证访问（仅限本地开发）；" +
+			"对外暴露时请配置认证（如 MADY_ACP_TOKEN）")
 	}
 
 	return &Server{
 		sessionMgr:    cfg.SessionManager,
 		agentInfo:     cfg.AgentInfo,
 		authProv:      cfg.AuthProvider,
+		approvalStore: cfg.ApprovalStore,
 		allowedFSCaps: cfg.AllowedFSCapabilities,
 		logger:        cfg.Logger,
 		reader:        bufio.NewReader(cfg.Reader),
@@ -230,6 +245,39 @@ func DefaultPermissionOptions() []PermissionOption {
 	}
 }
 
+// permissionDecisionFor 把工具授权的 allow/deny 布尔结果映射为审批决策枚举：
+// allow → adopted（人工放行），deny → rejected（人工拒绝）。
+func permissionDecisionFor(allow bool) domains.ApprovalDecision {
+	if allow {
+		return domains.DecisionAdopted
+	}
+	return domains.DecisionRejected
+}
+
+// recordPermissionDecision 将编辑器端的人工工具授权结论留痕到 ApprovalStore，
+// 与 TUI /approve /reject、Server /review 端点共用同一 RecordDecision 模式。
+// 未配置 store 时为 no-op；记录失败仅记日志，绝不阻断授权主流程。
+func (s *Server) recordPermissionDecision(sessionID, toolName string, rawInput any, decision domains.ApprovalDecision, feedback string) {
+	if s.approvalStore == nil {
+		return
+	}
+	original := ""
+	if rawInput != nil {
+		if data, err := json.Marshal(rawInput); err == nil {
+			original = string(data)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := domains.RecordApprovalDecision(
+		ctx, s.approvalStore,
+		sessionID, "", "tool_permission:"+toolName, original,
+		decision, "", feedback,
+	); err != nil {
+		s.logger.Warn("acp: 记录工具授权决策失败", "session_id", sessionID, "tool", toolName, "error", err)
+	}
+}
+
 // clientSupportsFS reports whether the client advertised filesystem capability,
 // meaning the agent should read/write through the editor (seeing unsaved
 // buffers) instead of touching disk directly.
@@ -353,6 +401,13 @@ func (s *Server) handleRequest(ctx context.Context, req *JSONRPCRequest) {
 			s.writeError(req.ID, -32603, "Internal error", err.Error())
 		}
 	}()
+	// 认证门禁：AuthProvider 声明了认证方式时，initialize/authenticate
+	// 之外的所有方法必须先完成 authenticate，否则拒绝（fail-closed）。
+	if s.authRequired() && !s.authenticated.Load() &&
+		req.Method != "initialize" && req.Method != "authenticate" {
+		s.writeError(req.ID, -32000, "Authentication required", req.Method)
+		return
+	}
 	switch req.Method {
 	case "initialize":
 		s.handleInitialize(req)
@@ -443,7 +498,15 @@ func (s *Server) handleAuthenticate(ctx context.Context, req *JSONRPCRequest) {
 		s.writeError(req.ID, -32001, "Authentication failed", err.Error())
 		return
 	}
+	// 认证成功：放行后续所有方法的认证门禁。
+	s.authenticated.Store(true)
 	s.writeResponse(req.ID, result)
+}
+
+// authRequired 报告服务端是否配置了需要客户端认证的 AuthProvider。
+// 未声明任何认证方式（如本地开发的 noop provider）时返回 false。
+func (s *Server) authRequired() bool {
+	return len(s.authProv.AuthMethods()) > 0
 }
 
 func (s *Server) handleNewSession(ctx context.Context, req *JSONRPCRequest) {
@@ -614,9 +677,13 @@ func (s *Server) handlePrompt(ctx context.Context, req *JSONRPCRequest) {
 				RawInput:   rawInput,
 			}, DefaultPermissionOptions())
 			if err != nil || outcome == nil || outcome.Outcome != "selected" {
-				return false // error/canceled → deny (these are dangerous-tool gates)
+				// error/canceled → deny (these are dangerous-tool gates)
+				s.recordPermissionDecision(sid, name, rawInput, domains.DecisionRejected, "canceled_or_error")
+				return false
 			}
-			return strings.HasPrefix(outcome.OptionID, "allow")
+			allow := strings.HasPrefix(outcome.OptionID, "allow")
+			s.recordPermissionDecision(sid, name, rawInput, permissionDecisionFor(allow), outcome.OptionID)
+			return allow
 		})
 	}
 

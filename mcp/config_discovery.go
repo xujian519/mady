@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -52,6 +51,10 @@ func LoadMCPConfig(path string) (*MCPConfigFile, error) {
 //  3. $PWD/.mcp.json
 //  4. ~/.claude.json (Claude Desktop format, only if it contains "mcpServers")
 //
+// 安全说明（C7）：$PWD/.mcp.json 属于不可信目录来源，须为当前用户所有且
+// 内容已通过信任校验（`mady trust-mcp <path>` 或 MADY_MCP_TRUST_CWD=1），
+// 否则跳过并给出警告——防止克隆的恶意仓库借配置静默执行 stdio command。
+//
 // Returns the list of successfully created extensions and any non-fatal
 // warnings (e.g. parse errors for optional config files).
 func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Extension, []error) {
@@ -62,6 +65,9 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 		return nil, nil
 	}
 	var configPaths []string
+	// cwdConfigPath 标记由 $PWD 发现的配置文件（不可信目录来源，C7）；
+	// 与 $MCP_CONFIG 等显式用户意图来源区分，仅对它施加信任校验。
+	var cwdConfigPath string
 
 	// 1. $MCP_CONFIG — explicit override
 	if p := os.Getenv("MCP_CONFIG"); p != "" {
@@ -75,7 +81,8 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 
 	// 3. $PWD/.mcp.json
 	if cwd, err := os.Getwd(); err == nil {
-		configPaths = append(configPaths, filepath.Join(cwd, ".mcp.json"))
+		cwdConfigPath = filepath.Join(cwd, ".mcp.json")
+		configPaths = append(configPaths, cwdConfigPath)
 	}
 
 	// 4. ~/.claude.json (Claude Desktop format)
@@ -97,12 +104,24 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 		if cfgPath == "" {
 			continue
 		}
-		// Skip $PWD/.mcp.json if not owned by current user (security:
-		// prevents command execution via malicious config in shared dirs).
-		if strings.HasSuffix(cfgPath, string(filepath.Separator)+".mcp.json") {
+		// $PWD/.mcp.json 属于不可信目录来源（C7），执行其中 stdio command 前：
+		// 1) 文件须为当前用户所有（防共享目录投毒）；
+		// 2) 文件内容须已通过信任校验（防克隆的恶意仓库借 .mcp.json 静默执行命令）。
+		// $MCP_CONFIG / ~/.mady/mcp.json / ~/.claude.json 是显式用户意图来源，不受影响。
+		if cfgPath == cwdConfigPath {
+			if _, err := os.Stat(cfgPath); err != nil {
+				continue // 不存在：与既往行为一致，静默跳过
+			}
 			if !isOwnedByCurrentUser(cfgPath) {
 				warnings = append(warnings,
 					fmt.Errorf("mcp: skipping %s — not owned by current user (security)", cfgPath))
+				continue
+			}
+			if !cwdTrustBypassed() && !isConfigTrusted(cfgPath, madyHome) {
+				warnings = append(warnings, fmt.Errorf(
+					"mcp: skipping %s — untrusted project config: "+
+						"run `mady trust-mcp %s` to allow its commands, or set MADY_MCP_TRUST_CWD=1",
+					cfgPath, cfgPath))
 				continue
 			}
 		}

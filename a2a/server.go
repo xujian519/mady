@@ -102,6 +102,10 @@ type Server struct {
 
 	rateLimiter *RateLimiter
 
+	// allowedOrigins 是 WebSocket Origin 显式白名单（C4 修复），
+	// 在同源与本地回环来源之外追加放行的 Origin（完整匹配，含 scheme+host[:port]）。
+	allowedOrigins []string
+
 	sessionMgr *SessionManager
 	sessionTTL time.Duration
 
@@ -143,6 +147,12 @@ func WithTaskTTL(ttl time.Duration) ServerOption {
 
 func WithRateLimiter(limiter *RateLimiter) ServerOption {
 	return func(s *Server) { s.rateLimiter = limiter }
+}
+
+// WithAllowedOrigins 追加 WebSocket Origin 白名单（完整 Origin 字符串，
+// 如 "https://app.example.com"）。同源与本地回环来源默认放行，无需配置。
+func WithAllowedOrigins(origins ...string) ServerOption {
+	return func(s *Server) { s.allowedOrigins = append(s.allowedOrigins, origins...) }
 }
 
 func WithSessionManager(ttl time.Duration) ServerOption {

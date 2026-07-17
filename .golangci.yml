@@ -145,7 +145,7 @@ linters:
       # gosec G703: 受控路径（命令行参数/配置文件），taint 分析误报
       - linters:
           - gosec
-        path: cmd/mady/|mcp/config_discovery|tui/theme/global\.go
+        path: cmd/mady/|mcp/config_discovery|mcp/config_trust\.go|tui/theme/global\.go
         text: G703
       # gosec G704: A2A 客户端需要连接远程 agent，非 SSRF
       - linters:

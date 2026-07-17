@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -17,13 +18,49 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
-	// CheckOrigin defaults to same-origin only.
-	// Override via SetCheckOrigin for cross-origin deployments.
+	// 默认仅允许同源 WebSocket 握手（严格 host 相等，防子域名前缀绕过）；
+	// handleWebSocket 会替换为 Server.checkWSOrigin，
+	// 即同源 + 本地回环来源 + 配置白名单。
 	CheckOrigin: func(r *http.Request) bool {
-		return r.Header.Get("Origin") == "" || r.Host == "" ||
-			strings.HasPrefix(r.Header.Get("Origin"), "http://"+r.Host) ||
-			strings.HasPrefix(r.Header.Get("Origin"), "https://"+r.Host)
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil || u.Host == "" || r.Host == "" {
+			return false
+		}
+		return strings.EqualFold(u.Host, r.Host)
 	},
+}
+
+// checkWSOrigin 校验 WebSocket 握手的 Origin（C4 修复）：
+//   - 无 Origin 头（非浏览器客户端）放行；
+//   - 同源放行（Origin 的 host 与请求 Host 严格相等，防子域名前缀绕过）；
+//   - 本地回环来源（localhost/127.0.0.1/::1，任意端口）放行，保持本地开发体验；
+//   - 其余来源仅在 WithAllowedOrigins 配置的显式白名单内才放行。
+func (s *Server) checkWSOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	if r.Host != "" && strings.EqualFold(u.Host, r.Host) {
+		return true
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	for _, allowed := range s.allowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 type wsConn struct {
@@ -61,7 +98,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	// 按服务器配置替换 Origin 校验（同源 + 回环来源 + 白名单）。
+	up := upgrader
+	up.CheckOrigin = s.checkWSOrigin
+	conn, err := up.Upgrade(w, r, nil)
 	if err != nil {
 		s.logger.Error("websocket upgrade failed", "error", err)
 		return
