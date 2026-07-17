@@ -147,7 +147,7 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 
 	// Create extensions in parallel with a bounded total discovery timeout.
 	// A single hung stdio server should not block mady startup for the rest.
-	discCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	discCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	var mu sync.Mutex
@@ -187,7 +187,7 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 	select {
 	case <-waitDone:
 	case <-discCtx.Done():
-		warnings = append(warnings, fmt.Errorf("mcp: discovery timed out after %v; some servers may still be starting", 10*time.Second))
+		warnings = append(warnings, fmt.Errorf("mcp: discovery timed out after %v; some servers may still be starting", 3*time.Second))
 	}
 
 	return extensions, warnings

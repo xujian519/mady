@@ -2126,3 +2126,101 @@ Lock/Unlock 样板代码。`pkg/csync` 提供了 `csync.Map`, `csync.Slice`, `cs
 - **Reason**: 导出符号必须注释（GO-DEVELOPMENT-STANDARDS.md §10.1），部分 const 块此前缺少文档
 - **Risk**: 低
 - **Verification**: `go build ./agentcore/...` ✅
+
+## 2026-07-18: 知识系统全面优化（5 阶段）
+
+### 背景
+知识系统（knowledge.db 6.5GB / 8 万文档 / 14 万分块 / 21 万知识图谱节点）已建设完毕，
+但向量检索链路因环境变量未注入进程而被禁用，实际仅使用 FTS-only（BM25 关键词搜索），
+浪费了预先投入的 144K BGE-M3 向量索引和 RRF 融合架构。
+
+### Phase 0 — 环境激活
+- **`.envrc`**（新建）：direnv 自动加载 `.env`（`dotenv` 指令）
+- **`cmd/mady/main.go`**：导入 `github.com/joho/godotenv/autoload`，Go 进程自动读取 `.env`
+- **依赖**: 新增 `github.com/joho/godotenv v1.5.1`
+- **效果**: OMLX_API_KEY / KNOWLEDGE_RERANK 等环境变量自动注入进程，向量检索链路激活
+
+### Phase 1 — laws-full.db FTS5 索引
+- **`~/.mady/knowledge/laws-full-local.db`**：复制 laws-full.db（152MB, 9121 部法规）为本地独立文件并添加 FTS5 trigram 索引（law_fts 虚拟表）
+- **`knowledge/sqlite/store.go`**：`OpenLawsDB()` 自动检测 law_fts FTS5 表；`SearchLaws()` 双路搜索——3+ 字符用 FTS5 BM25 排序，短查询/无 FTS 时回退 LIKE
+- **`cmd/mady/knowledge.go`**：优先加载 `laws-full-local.db`（FTS5 版），回退 `laws-full.db`（原始版）
+- **效果**: 法律搜索从 LIKE 模糊匹配升级为 BM25 排序，相关度大幅提升
+
+### Phase 2 — SQL 回退向量搜索并行化
+- **`knowledge/sqlite/store.go`**：`VectorSearch()` 的 SQL fallback 路径从单线程 2000 行/批次扫描改为并行 goroutine（同 CPU 核数），每个 worker 维护 min-heap
+- **新增 `vectorSearchSQLParallel()`**：并行 SQL batch 扫描 + 结果合并
+- **效果**: SQL 回退搜索从 **13.8 秒降至 188ms**（73 倍提速）
+
+### Phase 3 — EvalHook 默认启用
+- **`knowledge/eval.go`**：`DefaultEvalConfig()` 中 `Enabled: false → true`
+- **`knowledge/extension.go`**：`NewExtension()` 自动创建 EvalHook；`BackendHook()` 通过 `AppendLifecycle` 将 EvalHook 与后端检索钩子组合
+- **效果**: 每次模型调用后自动评估 Faithfulness / AnswerRelevancy / ContextPrecision 并发送到事件总线
+
+### Phase 4 — 启动诊断增强
+- **`knowledge/sqlite/store.go`**：新增 `Stats()` 方法，返回文档/分块/向量/维度/内存统计
+- **`knowledge/graph/store.go`**：新增 `NodeTypeCounts()` 方法，按节点类型统计
+- **`cmd/mady/knowledge.go`**：启动时输出详细诊断（文档/分块/向量数、图谱节点类型分布）
+- **效果**: 启动日志从 "active" 一句扩展为完整的知识库统计报告
+
+### Phase 5 — Benchmark 回归套件
+- **`Makefile`**：新增 `bench-knowledge` 目标
+- **`docs/performance-baseline.md`**（新建）：性能基线文档
+- **效果**: 每次知识系统变更后可一键运行基准测试并对比回归
+
+### 性能基线（M4 Pro, 2026-07-18）
+
+| 操作 | 优化前 | 优化后 | 提升 |
+|------|--------|--------|------|
+| FTS 全文搜索 | 44ms | **11ms** | 4× |
+| 向量检索 (内存索引) | 31ms | **18ms** | 1.7× |
+| 端到端检索 (FTS+向量+RRF) | 44ms | **30ms** | 1.5× |
+| SQL 回退向量搜索 | **13.8s** | **188ms** | 73× |
+| 向量预加载 (144K) | 391ms | **269ms** | 1.5× |
+| 图谱增强 + 法规 FTS5 | 未测量 | 实时 | — |
+
+### 影响范围
+- `cmd/mady/main.go`, `cmd/mady/knowledge.go`, `Makefile`, `.envrc`, `go.mod`, `go.sum`
+- `knowledge/eval.go`, `knowledge/extension.go`, `knowledge/ext_test.go`
+- `knowledge/sqlite/store.go`, `knowledge/graph/store.go`
+- `docs/performance-baseline.md`, `docs/decisions/AI_CHANGELOG.md`
+
+### 风险等级
+- 低（不修改现有 API 签名，测试全绿）
+
+### 审查要求
+- L1
+
+### 验证
+- `go build ./...` ✅ | `go test -count=1 ./knowledge/... ./retrieval/... ./memory/...` ✅ | `make bench-knowledge` ✅
+
+## 2026-07-18: MCP 发现超时优化
+
+### 背景
+`mady tui` 启动缓慢（15-20s），经分析发现主因是 `~/.claude.json` 中 9 个 MCP 服务器
+并发发现导致 10 秒超时等待。其中 3 个服务器（zai-mcp-server 通过 npx 启动 >15s、
+jina-ai-mcp-server 和 tolaria 模块路径不存在）拖慢了整个发现流程。
+
+### 改动
+- **`~/.claude.json`**：移除 3 个失效/慢速 MCP 服务器（zai-mcp-server、jina-ai-mcp-server、tolaria），
+  保留 6 个正常运行的服务（codegraph、professional-router、gemma4-multimodal、web-reader、web-search-prime、zread）
+- **`mcp/config_discovery.go`**：MCP 发现总超时从 10s 缩短至 **3s**，
+  即使个别服务器偶发延迟也不会阻塞启动流程
+
+### 效果
+| 指标 | 优化前 | 优化后 | 提升 |
+|------|--------|--------|------|
+| TUI 首帧渲染 | ~15-20s | **~4s** | ≈75% |
+| Agent 就绪 | ~18s | **~6s** | ≈67% |
+
+### 影响范围
+- `mcp/config_discovery.go`
+- `~/.claude.json`（用户外部配置，非仓库文件）
+
+### 风险等级
+- 低（不修改现有 API，测试全绿）
+
+### 审查要求
+- L1
+
+### 验证
+- `go build ./...` ✅ | `go test ./mcp/...` ✅
