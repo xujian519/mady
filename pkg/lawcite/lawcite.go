@@ -313,6 +313,13 @@ func chineseToArabic(s string) (int, bool) {
 	return result, true
 }
 
+// ParseChineseNumber 导出 chineseToArabic，供知识库法条索引器（S2，
+// knowledge/loader）解析「### 第九条」等标题中的中文条号。
+// 输入应仅为数字部分（"九"、"二十二"），不含"第/条"等字。
+func ParseChineseNumber(s string) (int, bool) {
+	return chineseToArabic(s)
+}
+
 // normalizeChineseNumerals 仅将「第X条/款/项/章/节/点/部分」中的中文数字
 // 替换为阿拉伯数字，不触碰普通中文文本。
 // 例："专利法第二十二条第三款" → "专利法第22条第3款"。

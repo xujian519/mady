@@ -1,5 +1,52 @@
 # AI 决策变更日志
 
+## 2026-07-18: 引用核验 P2a——CitationSource 知识源抽象 + S2 wiki 法条索引（82 条全覆盖）
+
+### 背景
+设计方案（docs/design/citation-verification-gate.md）§5 决策二规划了
+三层核验源降级：S1 内嵌静态表（P1b 落地）→ S2 知识库法条索引 → S3 联网
+法条库。P1b 的 S1 静态表仅覆盖 30 条手工精校条目，核验大量落 Unknown
+放行。P2a 落地 S2：运行时从 wiki 拆分法条（`~/.mady/knowledge/wiki/
+法律法规/法律/专利法-2020-拆分-*.md`）的 H3 标题（### 第X条 <标题>）
+构建「条号 → 主题关键词」索引，专利法 2020 全 82 条覆盖。
+
+### 改动
+- `guardrails/citation_source.go`（新增）：`CitationSource` 接口
+  （Topics/MaxArticle 两方法）+ S1 静态表适配（DefaultCitationSource）+
+  `CompositeCitationSource`（关键词并集去重 primary 在前、上限取 primary
+  非零优先）+ `CitationSourceFuncs` 函数适配器（knowledge/loader 不
+  import guardrails，装配侧 cmd/mady 组合注入，依赖倒置）
+- `guardrails/citation_gate.go`：CitationGateConfig 新增 Source 字段 +
+  WithCitationSource 选项；VerifyCitationsWithSource 导出（nil 源退回
+  S1，VerifyCitations 行为零改动）；verifyOne 参数化知识源。
+  **交叉匹配仍只查 S1 精校词**（crossMatchTopics 不走注入源）——S2 自动
+  标题词只参与本条自证，不参与张冠李戴判定，误报防线 #1 的延伸
+- `knowledge/loader/law_index.go`（新增）：BuildLawArticleIndex 遍历
+  拆分文件（排除目录/实施细则/part 文件），lawcite.ParseChineseNumber
+  解析条号，标题按「与/及/和/、」切分子短语（≥2 字去重）。
+  **v1 只索引专利法-2020**：实施细则-2023 因 2001/2010/2023 条号漂移
+  （考试答案按旧口径引用，用 2023 主题核验必误报）暂缓，留 P3+ 版本感知
+- `pkg/lawcite`：导出 ParseChineseNumber（chineseToArabic 包装，供索引器）
+- `scripts/smoke_citation_gate`：lint 收口（exitAfterDefer 抽 runSmoke
+  函数、两处 G703 #nosec 说明）
+
+### 验收（硬性）
+- S1 默认源回放（go run ./scripts/replay_citation_gate）：三层 93 题
+  真实幻觉全命中、误报 0 ✅（verifyOne 参数化后行为等价）
+- S1+S2 复合源回放（knowledge/loader/law_index_replay_test.go，
+  TestCompositeSource_Replay）：L0 TP 3 / L1 TP 2 / L3 TP 4，三层误报
+  均 0 ✅——S2 自证未掩盖任何已知幻觉
+- 真实 wiki 索引断言：82 条全覆盖、第 9 条含「先申请原则」、第 22 条含
+  「创造性」✅
+
+- **影响范围**: guardrails 2 改 2 新 + knowledge/loader 1 新 2 测 +
+  lawcite 1 改 + scripts 1 改
+- **风险等级**: 低（未注入 Source 时 Gate 行为与 P1b 逐字节等价；
+  S2 词不参与交叉匹配，复合源经回放实测零误报）
+- **审查要求**: L1（guardrails/ 改动对照 docs/chat-assistant-architecture.md）
+- **验证**: go vet/build 双模块 ✅ | golangci-lint run 0 issues ✅ |
+  go test -race ./... 全绿 ✅ | 双重回放验收 ✅（见上）
+
 ## 2026-07-18: 从 XiaoNuo Agent 引入评估框架增强、死循环检测和推理策略编排
 
 ### 背景

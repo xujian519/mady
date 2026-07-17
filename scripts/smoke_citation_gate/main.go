@@ -53,7 +53,7 @@ func envInt(key string, def int64) int64 {
 
 // verifyFile 离线核验既有文本文件（SMOKE_FILE 模式）。
 func verifyFile(file string) {
-	data, err := os.ReadFile(file)
+	data, err := os.ReadFile(file) //#nosec G703 -- 冒烟工具按用户显式指定的 SMOKE_FILE 路径读取，属预期行为
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取失败 %s: %v\n", file, err)
 		os.Exit(1)
@@ -67,6 +67,21 @@ func verifyFile(file string) {
 		return
 	}
 	fmt.Println("→ 标记明细" + guardrails.FormatCitationWarnings(report))
+}
+
+// runSmoke 执行一次端到端生成。资源释放收在函数内部（defer），
+// 使 main 中的 os.Exit 不会跳过清理（gocritic exitAfterDefer）。
+func runSmoke(cfg agentcore.Config, input string) (out string, elapsed time.Duration, err error) {
+	agent := agentcore.New(cfg)
+	defer agent.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	defer cancel()
+
+	start := time.Now()
+	out, err = agent.Run(ctx, input)
+	elapsed = time.Since(start).Round(time.Second)
+	return out, elapsed, err
 }
 
 func main() {
@@ -126,15 +141,7 @@ func main() {
 	}
 	cfg := domains.PatentAgentConfig(base)
 
-	agent := agentcore.New(cfg)
-	defer agent.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
-	defer cancel()
-
-	start := time.Now()
-	out, err := agent.Run(ctx, input)
-	elapsed := time.Since(start).Round(time.Second)
+	out, elapsed, err := runSmoke(cfg, input)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Agent 运行失败（%s）：%v\n", elapsed, err)
 		os.Exit(1)
@@ -143,7 +150,7 @@ func main() {
 
 	// 完整输出落盘（不入库）。
 	outPath := filepath.Join(os.TempDir(), fmt.Sprintf("mady_smoke_citation_gate_%s.md", caseID))
-	if werr := os.WriteFile(outPath, []byte(out), 0o600); werr != nil {
+	if werr := os.WriteFile(outPath, []byte(out), 0o600); werr != nil { //#nosec G703 -- 冒烟工具输出路径由 SMOKE_CASE 环境变量拼接，属本地开发工具预期行为
 		fmt.Fprintln(os.Stderr, "输出落盘失败:", werr)
 	} else {
 		fmt.Println("完整输出:", outPath)

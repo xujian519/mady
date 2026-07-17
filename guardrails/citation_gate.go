@@ -72,6 +72,10 @@ type CitationGateConfig struct {
 	// Recorder 在 Level ≥ Standard 且存在被标记引用时回调，
 	// 供 disclosure 等留痕系统消费（P2 接线；nil 时仅追加提示文案）。
 	Recorder func(CitationReport)
+
+	// Source 是核验主题知识源（设计 §5：S1 静态表 / S2 知识库索引复合）。
+	// nil 时使用 S1 内嵌静态表（citation_table.go）。
+	Source CitationSource
 }
 
 // CitationGateOption 是 CitationGate 的函数式选项。
@@ -85,6 +89,14 @@ func WithCitationGateLevel(l Level) CitationGateOption {
 // WithCitationRecorder 设置核验报告留痕回调（Level ≥ Standard 生效）。
 func WithCitationRecorder(r func(CitationReport)) CitationGateOption {
 	return func(c *CitationGateConfig) { c.Recorder = r }
+}
+
+// WithCitationSource 注入核验主题知识源（设计 §5 决策二）。
+// 典型用法：装配侧用 CompositeCitationSource 合并 S1 静态表与
+// S2 知识库索引（knowledge/loader.BuildLawArticleIndex）后注入；
+// 不设置时退回 S1 静态表，行为与 P1b 完全一致。
+func WithCitationSource(src CitationSource) CitationGateOption {
+	return func(c *CitationGateConfig) { c.Source = src }
 }
 
 // NewCitationGate 创建引用核验 LifecycleHook。
@@ -116,7 +128,7 @@ func (g *citationGate) AfterModelCall(_ context.Context, _ *agentcore.AgentRunCo
 		return
 	}
 
-	report := VerifyCitations(content)
+	report := VerifyCitationsWithSource(content, g.config.Source)
 	if len(report.Flagged) == 0 {
 		return
 	}
@@ -131,12 +143,21 @@ func (g *citationGate) AfterModelCall(_ context.Context, _ *agentcore.AgentRunCo
 }
 
 // VerifyCitations 对文本中的法条引用做 R1/R2 双级核验。
-// 导出供评测指标（citation_validity）与回放脚本复用。
+// 导出供评测指标（citation_validity）与回放脚本复用；固定使用 S1 静态表。
 func VerifyCitations(text string) CitationReport {
+	return VerifyCitationsWithSource(text, nil)
+}
+
+// VerifyCitationsWithSource 同 VerifyCitations，但使用指定知识源核验
+// （src 为 nil 时退回 S1 静态表）。P2 起 Gate 经此消费 S1/S2 复合源。
+func VerifyCitationsWithSource(text string, src CitationSource) CitationReport {
+	if src == nil {
+		src = defaultCitationSource()
+	}
 	citations := lawcite.Unique(lawcite.Extract(text))
 	report := CitationReport{Total: len(citations)}
 	for _, c := range citations {
-		verdict, reason := verifyOne(c)
+		verdict, reason := verifyOne(c, src)
 		switch verdict {
 		case VerdictValid:
 			report.Valid++
@@ -159,21 +180,16 @@ func VerifyCitations(text string) CitationReport {
 }
 
 // verifyOne 核验单条引用，返回判定与依据。
-func verifyOne(c lawcite.Citation) (CitationVerdict, string) {
-	topics, maxArticle := citationTopics(c.Statute)
-	if topics == nil {
-		// 法律归属未知或该法无主题表 → 无法核验。
-		return VerdictUnknown, ""
-	}
-
+func verifyOne(c lawcite.Citation, src CitationSource) (CitationVerdict, string) {
 	// R1 存在性。
+	maxArticle := src.MaxArticle(c.Statute)
 	if maxArticle > 0 && c.Article > maxArticle {
 		return VerdictInvalid, fmt.Sprintf("编号超出《%s》有效范围（共 %d 条）",
 			c.Statute.String(), maxArticle)
 	}
 
 	// R2 语境相关性。
-	keywords, ok := topics[c.Article]
+	keywords, ok := src.Topics(c.Statute, c.Article)
 	if !ok {
 		return VerdictUnknown, ""
 	}
@@ -190,6 +206,9 @@ func verifyOne(c lawcite.Citation) (CitationVerdict, string) {
 	// **另一条**的注册主题（交叉匹配）。仅"本条没命中"判 Unverifiable——
 	// 宽松转述（如把第 33 条说成"关于专利权范围的变更"）一律放行，
 	// 这是回放校准出的关键误报防线。
+	// 注意：交叉匹配只查 S1 静态表的精校词（crossMatchTopics），
+	// S2 知识库自动生成的标题词不参与——自动词区分度未经人工校准，
+	// 参与交叉匹配会把正确引用误判为张冠李戴（误报防线 #1 的延伸）。
 	crossStatute, crossArticle, crossKW := crossMatchTopics(c.Statute, c.Article, purpose)
 	if crossKW == "" {
 		return VerdictUnverifiable, ""
