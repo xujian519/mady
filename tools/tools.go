@@ -175,6 +175,8 @@ func (e *Extension) Name() string { return "builtin-tools" }
 // WithVision configures the vision_analyze tool to use the given provider and
 // model. 必须在 Init() 之前调用（即在 agentcore.New 之前），否则配置不生效。
 // 对 nil 接收者安全（no-op）。
+// 浏览器工具（browser vision action / browser_vision）共享同一视觉配置；
+// 显式设置的 Browser.Vision 不被覆盖。
 func (e *Extension) WithVision(provider agentcore.Provider, model string) {
 	if e == nil {
 		return
@@ -182,6 +184,12 @@ func (e *Extension) WithVision(provider agentcore.Provider, model string) {
 	e.config.Vision = &VisionToolConfig{
 		Provider: provider,
 		Model:    model,
+	}
+	if e.config.Browser != nil && e.config.Browser.Vision == nil {
+		e.config.Browser.Vision = &VisionToolConfig{
+			Provider: provider,
+			Model:    model,
+		}
 	}
 }
 
@@ -334,6 +342,11 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(NewPatentLegalStatusTool(cfg.PatentTool))
 
 	if cfg.Browser != nil {
+		// 浏览器视觉分析与 vision_analyze 共用同一套视觉配置
+		// （显式设置的 Browser.Vision 优先）。
+		if cfg.Browser.Vision == nil {
+			cfg.Browser.Vision = cfg.Vision
+		}
 		addTool(NewBrowserTool(cfg.Browser))
 	}
 

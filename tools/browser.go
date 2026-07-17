@@ -134,6 +134,11 @@ type BrowserToolConfig struct {
 	RecordSessions      bool
 	RecordingDir        string
 	VisionModel         string
+	// Vision 配置 browser vision action / browser_vision 工具的视觉分析能力。
+	// nil 时 defaults() 按 MADY_VISION_* 环境变量构造；仍未配置则 vision
+	// 分析返回明确的“未配置”错误，绝不返回伪造的占位结果。
+	// 通常由 Extension.WithVision 或 BuildTools 自动共享 vision_analyze 的配置。
+	Vision              *VisionToolConfig
 	MaxImageSize        int
 	InactivityTimeout   time.Duration
 	UserAgent           string
@@ -160,6 +165,11 @@ func (c *BrowserToolConfig) defaults() {
 	if os.Getenv("AGENT_BROWSER_ENABLED") == "true" || os.Getenv("AGENT_BROWSER_PATH") != "" {
 		c.AgentBrowserEnabled = true
 	}
+	// 解析视觉分析配置：显式注入的优先，否则按环境变量/未配置错误兜底。
+	if c.Vision == nil {
+		c.Vision = &VisionToolConfig{}
+	}
+	c.Vision.defaults()
 }
 
 func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
@@ -1309,7 +1319,10 @@ func NewBrowserVisionTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("screenshot failed: %w", err)
 			}
 
-			analysis := fmt.Sprintf("Vision analysis requested for: %s (model: %s)", input.Question, cfg.VisionModel)
+			analysis, err := analyzeBrowserScreenshot(ctx, cfg, input.Question, screenshotData)
+			if err != nil {
+				return nil, err
+			}
 
 			session.mu.Lock()
 			session.lastActivity = time.Now()
