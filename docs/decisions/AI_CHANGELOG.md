@@ -838,6 +838,54 @@ review_gate 必然返回 InterruptError，导致所有 Server 端交底书分析
 - **审查要求**: L2
 - **验证**: `go build ./...` ✅ | `go vet ./...` ✅ | `go test -race ./tui/...` ✅（全 9 子包）| gofmt ✅ | benchmark 11× 提升 ✅
 
+## 2026-07-18: 修复 PlanCompiler 边连接 bug——多假设子图被完全绕过
+
+### 背景
+`TestDrafting_WorkflowTool` 集成测试写入失败：步骤 4（StrategyMultiHypothesis）未产出任何内容，
+步骤 5 的链式节点却消耗了本属于步骤 4 的 LLM 调用。调试发现 Pregel 执行仅 4 次 LLM 调用
+（应 5 次），步骤 4 的多假设子图被完全绕过。
+
+### 根因
+`CompilePlanToGraph` 中，步骤间的边连接使用 `terminal`（子图最后一个节点）而非 `entry`
+（子图入口节点）：
+```go
+// 原代码：
+g.AddEdge(prevTerminal, terminal)  // terminal = rejectName（多假设子图末端）
+// 应改为：
+g.AddEdge(prevTerminal, stepEntry) // stepEntry = aThink（多假设子图入口）
+```
+对于 `StrategyChain` 和 `StrategyReact`，入口 == 末端（单节点或 think→observe），
+原错误被掩盖。但对 `StrategyMultiHypothesis`，`terminal = rejectName` 而 `entry = aThink`，
+前一步直接连到子图末端的 rejection 节点，整个多假设子图从不激活。
+
+### 改动
+- `domains/reasoning/plan_compiler.go`：引入 `stepEntry` 和 `stepTerminal` 变量，
+  在 switch 分支中分别记录每个步骤的入口和终止节点。边连接改为
+  `g.AddEdge(prevTerminal, stepEntry)`，`prevTerminal = stepTerminal`。
+  将 `if i == 0 { entryName = ... }` 移出 switch 分支统一在循环体处理。
+
+### 影响范围
+- `domains/reasoning/plan_compiler.go`（`CompilePlanToGraph` 方法重写步骤间边连接逻辑）
+
+### 风险等级
+低（修正逻辑正确性；既有 graph 测试全部通过；4 个 drafting 集成测试全部通过；
+全部 26 个集成测试回归绿色）
+
+### 验证
+- `go build ./...` ✅
+- `go test ./graph/...` 52 测试全部通过 ✅
+- `go test ./domains/reasoning/...` 全部通过 ✅
+- `go test -tags integration ./integration/...` 26 集成测试全部通过 ✅
+- `TestDrafting_WorkflowTool` 修复后 5 步全部输出、所有 LLM 调用正确 ✅
+
+### Code Review 收尾修复
+
+1. **`buildChainStep` 返回类型统一**：改为返回 `(string, string, error)`（entry == terminal 相同），
+   使 `CompilePlanToGraph` 的 switch 四个分支全部用一致的 `(entry, term, err)` 模式，
+   消除 StrategyChain 分支需单独赋值的视觉差异。
+2. **提取 `injectDraftingTool` helper**：消除 `globalDraftingRunner` nil 守卫在
+   `PatentAgentConfig` 和 `BuildProjectAgent` 两处的重复，各从 5 行压缩为 1 行调用。
+
 ## 2026-07-16: TUI 模块优化 Phase A — 五个超大文件机械拆分（Batch 1-5）
 
 - **变更**（纯机械拆分，不改逻辑，同包分文件零 export 摩擦）：
