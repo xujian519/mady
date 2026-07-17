@@ -1,5 +1,159 @@
 # AI 决策变更日志
 
+## 2026-07-17: golangci-lint 本地门禁清零（23 issues）
+
+### 背景
+应用户要求安装 golangci-lint（brew，v2.12.2 与 CI 同版本），实测发现根模块 22 +
+tools 1 个 lint 问题（TUI 改版与 main.go 拆分后积累，CI 门禁处于红色状态）。
+
+### 改动
+- errcheck ×8：cmd/mady 设置持久化 `s.store.Set` 错误处理（失败 log 不打断交互）
+- gocritic ×8：append 链合并 ×7 + 单 case switch 改 if ×1
+- gosec ×2：settings_store.go 写文件权限 0644→0600（行为变化：仅影响新建文件）；
+  tools/vision.go EnvVisionAPIKey 误报行内豁免（#nosec G101，环境变量名非凭证）
+- ineffassign/staticcheck ×2：删除必被覆盖的 editorIndex 赋值；for 循环改 append 展开
+- unused ×3：删除无引用私有方法 thinkingDisplay/syncFromStore 和 TUI.savedCycle 字段
+
+- **影响范围**: `cmd/mady/`、`tui/`、`tools/vision.go`（共 9 文件）
+- **风险等级**: 低（机械修复，唯一行为变化为 0600 收紧）
+- **审查要求**: L1
+- **验证**: `golangci-lint run ./...` 根+tools 均 0 issues ✅ | build/test ✅
+
+## 2026-07-17: 下一阶段路线图共识（人机协作）+ roadmap.md 重写
+
+### 背景
+docs/roadmap.md 停留在 07-14，与代码现实严重脱节：P2B"❄️冻结"条目已过时
+（07-15 当天已用宝宸知识库 31562 件重建 100 例并解冻，07-16 完成 L0→L5 五层评估）；
+retrieve_prior_art、规则获取四步闭环、RecordDecision 均已落地但未反映。
+项目实际进度比文档路线图超前约 3 个月，已站在 P3 门口。
+
+### 用户决策（四点共识）
+1. P3 专家盲测必须真人真测，**当前只做数据收集就绪，不启动真实盲测**
+2. 协议层 C1-C8 Critical：规划执行（见下方专条）
+3. 巨型文件拆分（main.go / computer_use.go）：规划执行（见下方专条）
+4. 视觉分析空壳：规划执行（见下方专条）
+
+### 改动
+- `docs/roadmap.md` 全文重写：P2B 冻结条目标注过时并补重建/五层评估定论；
+  补 07-15/16 集中落地清单（设计一、规则闭环、HITL、TUI 产品化）；
+  P3 调整为"数据收集就绪"（三条就绪标准）；新增"下一阶段执行计划"
+  （Sprint 0 安检包 / Sprint 1 协议层 / Sprint 2 拆分 / Sprint 3 视觉 / 封存项 / 文档同步债）
+- `docs/design/p3-blind-test-plan.md`：盲测方案成文（见 P3 就绪专条）
+
+- **影响范围**: 纯文档
+- **风险等级**: 低
+- **审查要求**: L1
+- **验证**: 不适用（文档）
+
+## 2026-07-17: 协议层 C1-C8 Critical 安全修复（Phase 7 遗留清零）
+
+### 背景
+Phase 7 审查 8 项协议层 Critical 全部标 ❌，文档间修复状态无法对应。
+逐项代码核实：C3/C6 已被此前批次修复（本轮补回归测试），C1/C2/C4/C5/C7/C8 真实存在
+或只修了一半（如 C4 同源校验可被子域名前缀绕过、C5 无条件信任 XFF 可被伪造绕过、
+C7 文件所有权检查对克隆恶意仓库无效）。
+
+### 改动（13 改 + 7 新）
+- C1 ACP 认证：`acp/auth.go` TokenAuthProvider（常量时间比较）+ initialize/
+  authenticate 之外方法强制门禁（-32000）；`MADY_ACP_TOKEN` 接线；默认不配置
+  仍允许本地开发 + 启动警告
+- C2 Agent 池 use-after-free：`server/server.go` 池化 entry 引用计数
+  （refs/evicted/pooled 全部 poolMu 下访问），淘汰只摘标记、refs 归零才真正 Close；
+  新增 pool_test.go 并发压测（-race）
+- C4 CheckOrigin：`a2a/ws.go` 严格 host 相等 + 回环放行 + WithAllowedOrigins 白名单
+- C5 速率限制：`a2a/ratelimit.go` SetTrustedProxies 可信代理门控，默认仅信回环
+- C7 .mcp.json 命令执行：`mcp/config_trust.go` SHA-256 信任存储
+  （$MADY_HOME/trusted-mcp.json，0600）+ `mady trust-mcp` 子命令；
+  **行为变化（有意）**：cwd 的 .mcp.json 未信任不再静默执行
+- C8 TLS：`cmd/mady/server.go` 接线 -tls-cert/-tls-key（成对，缺一则 fail-fast）
+
+- **影响范围**: `acp/`、`server/`、`a2a/`、`mcp/`、`cmd/mady/`、`.golangci.yml`
+- **风险等级**: 高（安全敏感路径；C7 改变默认行为）
+- **审查要求**: L3（协议安全边界，需人工审阅）
+- **验证**: build/vet ✅ | `go test -race ./acp/... ./server/... ./a2a/... ./mcp/...` ✅ | golangci-lint 0 issues（改动目录）
+
+## 2026-07-17: 视觉分析全链路真实化（清除伪造占位）
+
+### 背景
+`tools/vision.go` DefaultVisionOperations.Analyze 返回 "[Vision analysis placeholder]"
+伪造文本；浏览器 vision action 截图后丢弃字节返回伪造字符串。诚实性红线：
+禁止返回伪造分析。
+
+### 改动
+- `tools/vision.go`：DefaultVisionOperations 实现真实 OpenAI 兼容多模态调用
+  （image_url data URL，60s 超时，错误体截断 4KB）；新增 MADY_VISION_MODEL /
+  MADY_VISION_API_KEY / MADY_VISION_BASE_URL env 兜底；未配置时返回明确中文错误
+- `tools/browser.go` / `browser_tool_handlers.go`：BrowserToolConfig 加 Vision 字段；
+  handleVision 与 browser_vision 共用 analyzeBrowserScreenshot（MIME 魔数检测 + 限额）
+- `tools/tools.go`：WithVision 配置自动共享给 browser（显式配置优先）
+- 测试 +14：mock provider 请求构造/ctx 透传/错误路径、httptest HTTP 构造、env 三态
+
+- **影响范围**: `tools/{vision,browser,browser_tool_handlers,tools,vision_test}.go`
+- **风险等级**: 中（工具行为变化：未配置时从伪造文本变为明确错误）
+- **审查要求**: L2
+- **验证**: `cd tools && go build/vet/test -race ./...` ✅
+
+## 2026-07-17: main.go 与 computer_use.go 拆分（技术债务批次）
+
+### 改动
+- `cmd/mady/main.go` 821 行 → 85 行；拆出 `framework.go`（装配 308 行）、
+  `knowledge.go`（知识库 241 行）、`tui.go`（子命令 239 行），纯机械移动；
+  顺带 git rm `cmd/mady/web_test.html`（临时调试页）+ .gitignore 补 `/acp-server`
+- `tools/computer_use.go` 2564 行 → 532 行 + 8 个职责文件（safety/exec/keys/
+  cua_driver/som/macos/win/lin；`_win.go`/`_lin.go` 命名规避 GOOS 隐式排除）；
+  新增 `computer_use_test.go` 482 行 16 测试（安全拦截/审批/解析/SOM/Schema）
+- **加固**：fork bomb 拦截正则补全覆盖经典写法 `:(){ :|:& };:`（原正则要求
+  `:(` 后无 `)` 直接 `{`，匹配不到）；fails-closed 方向，放行语义不变
+
+- **影响范围**: `cmd/mady/`、`tools/computer_use*.go`、`.gitignore`
+- **风险等级**: 中（拆分纯机械；正则加固为拦截方向）
+- **审查要求**: L2（computer_use 属工具能力层）
+- **验证**: build/vet ✅ | `go test -race ./cmd/... ./tools/...` ✅ | gofmt ✅
+
+## 2026-07-17: P3 数据收集就绪（HITL 触点补全 + 评估筛选 + 盲测方案）
+
+### 背景
+用户决策：专家盲测必须真人，当前只把数据收集链路做扎实（路线图三条就绪标准）。
+
+### 改动
+- **HITL 触点全留痕**（原仅 TUI /approve /reject 一路）：
+  - `domains/approval.go` 抽出包级 RecordApprovalDecision（与 gate.RecordDecision
+    同源）；`domains/sqlite/approval_store.go` 补 State 字段 JSON 持久化
+  - TUI 硬中断路径补齐：`recordApprovalDecision` 检测 agent.Interrupted()，
+    用中断 gate 标识 + 结构化数据填充（原先 OriginalOutput 落空）
+  - Server 新增 `POST /v1/disclosure/analyze/{task_id}/review`（无 store 返回 503
+    而非静默丢数据）；ACP session/request_permission 授权结论留痕（接线就绪，
+    待 PermissionAware 实现激活）
+  - cmd/mady/{server,acp}.go 打开与 TUI 同一份 approvals.db，三入口汇聚
+- **评估筛选**：`MADY_EVAL_SUITE=p2a` 全量 31 题稳定顺序；newDeepSeekTestEnv
+  支持 MADY_EVAL_API_KEY/BASE_URL/MODEL 任意 OpenAI 兼容端点；
+  本地 MLX 端点冒烟通过（裸 LLM 9.2s / Agent 18.6s）
+- **盲测方案**：`docs/design/p3-blind-test-plan.md`（先后对照 + sham 盲化、
+  拉丁方分配、双人标注 κ、通过线预设、伦理免责、P2A 锚定指令）
+
+- **影响范围**: `domains/`、`server/`、`acp/`、`cmd/mady/`、`agentcore/evaluate/`、docs
+- **风险等级**: 高（domains/approval.go 属 SECURITY.md 安全敏感路径——纯新增/重命名，
+  未触碰 gate 触发逻辑，需人工审阅后合入）
+- **审查要求**: L3
+- **验证**: build ✅ | `go test -race ./agentcore/... ./server/... ./disclosure/... ./domains/... ./acp/...` ✅
+
+## 2026-07-17: 仓库卫生快赢（死代码 / demo 残留 / openapi / benchmark 注释）
+
+### 改动
+- 删除 `disclosure/report.go` noveltyStubNode 死代码（生产已被 noveltyNode 取代）；
+  测试改测生产路径；types.go "Phase 2 stub" 陈旧注释订正
+- git rm `example/tui-demo2`、`example/tui-demo3`（迭代残留，tui-demo 保留且编译通过）
+- `docs/openapi.yaml` 补 3 条 disclosure 路由（+188 行）并修复两处既有 YAML 语法错误
+- benchmark：invalidation_decisions.go 头注释订正（40→100 例、脚本名、数据源）；
+  suite.go AllCases/ValidCases 重复 append 序列提取为 registeredCases()
+- `tui/agent_integration_test.go`：hasAPIKey 白名单守卫改为直接探测 BuildProvider
+  （修复 KIMI_API_KEY 环境下误判放行导致的测试失败）
+
+- **影响范围**: `disclosure/`、`example/`、`docs/openapi.yaml`、`agentcore/evaluate/benchmark/`、`tui/`
+- **风险等级**: 低
+- **审查要求**: L1
+- **验证**: build/vet ✅ | `go test -race ./disclosure/... ./agentcore/evaluate/...` ✅
+
 ## 2026-07-16: 确认阀闭环（Stage② 中断 → checkpoint → resume 续跑）
 
 ### 背景
