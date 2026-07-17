@@ -77,3 +77,8 @@ graphify-out/
 
 # 本地评估跑批产物
 .eval-runs/
+
+# 本地 go build 产物（scripts/ 下工具默认输出到 cwd）
+/smoke_citation_gate
+/replay_citation_gate
+/replay_citation_metrics
