@@ -127,10 +127,10 @@ linters:
           - gosec
         path: memory/sqlite_store\.go|knowledge/sqlite/store\.go
         text: G201|G202
-      # gosec G204: MCP 客户端需要启动外部进程
+      # gosec G204: MCP 客户端需要启动外部进程（NewStdioClient + tryReconnect）
       - linters:
           - gosec
-        path: mcp/client\.go
+        path: mcp/client\.go|mcp/client_reconnect\.go
         text: G204
       # gosec G404: 非密码学场景使用 math/rand 可接受
       - linters:
