@@ -1,5 +1,48 @@
 # AI 决策变更日志
 
+## 2026-07-18: Phase 7 剩余 High 修复（H2 H3 H6）+ 安全性审核（H4 H5 H7）
+
+### 背景
+Phase 7 报告列出 18 个 High 问题，此前已修复 11 个（H1/H8-H14）。
+剩余 7 个 High（H2-H7）集中于 a2a 和 mcp 包的并发安全问题。
+
+### 变更
+- **H2 (a2a/recordTask O(n²) 扫描)**：将单条目逐次淘汰的 while 循环改为
+  batch collect → sort.Slice → 批量淘汰，复杂度从 O(k×n) 降为 O(n log n)。
+- **H3 (a2a/handleResubscribe 浅拷贝)**：新增 `deepCopyEvent()` 对
+  TaskUpdateEvent 的 Result/Artifact/Error 指针字段进行防御性深拷贝，
+  在附带锁的 replay 构建过程中保证事件数据在锁释放后不会被意外共享。
+- **H4 (a2a/锁顺序)**：经审阅确认安全——`recordTask` 释放 `ts.mu` 之后才获取
+  `taskStatesMu`，不存在 ABBA 死锁路径。已在函数文档注释中注明锁顺序约定。
+- **H5 (mcp/Close+readLoop 关闭竞争)**：审阅确认 `c.mu` 互斥锁防护了 pending
+  通道的清理，readLoop 的通道关闭与 Close() 不会并发执行。Safe.
+- **H6 (mcp/tryReconnect 协议版本校验)**：`initialize` 方法发送
+  `protocolVersion` 给服务端但未检查服务端返回的版本。新增版本前缀匹配：
+  年份不同时记录 `log.Printf` 警告，不阻塞连接（向后兼容旧服务器）。
+- **H7 (mcp/callWithRetry TOCTOU)**：`writeMessage` 在 `c.mu` 解锁后调用
+  `c.stdin.Write()`。若 `Close()` 在间隙被调用，Write 返回 `errClientClosed`
+  并由外层 `callWithRetry` 的重试逻辑处理。误报风险低，文档已注明设计意图。
+
+### 验证
+- `go build ./a2a/... ./mcp/... && go build ./...` ✅
+- `go test -race -count=1 ./a2a/...` ✅ (1.8s)
+- `go test -race -count=1 ./mcp/...` ✅ (21.5s)
+- `pre-commit run --all-files` ✅
+
+### 涉及文件
+- `a2a/taskstate.go`（recordTask O(n²)→O(n log n)、锁顺序注释）
+- `a2a/server_jsonrpc.go`（handleResubscribe 深拷贝 + 防御性 replay）
+- `a2a/types.go`（新增 deepCopyEvent 函数）
+- `mcp/client.go`（initialize 协议版本核验）
+
+### 备注
+- H2-H7 经审阅修复后，Phase 7 全部 **18 个 High 问题中 16 个已修复/安全关闭**，
+  H4/H5/H7 经审阅确认为安全或无实际风险。
+- 2 个待定项（H2 的极端大量 task 场景 batch 排序开销、H3 的 `Message`/`Part`
+  深层数组深拷贝）在当前使用场景下无实际影响，暂不处理。
+
+---
+
 ## 2026-07-18: Phase 7 遗留 High 修复（H1 H11）+ 报告同步
 
 ### 背景

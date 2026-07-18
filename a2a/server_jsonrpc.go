@@ -409,27 +409,47 @@ func (s *Server) handleResubscribe(ctx context.Context, w http.ResponseWriter, r
 	afterSeq := lastEventIDFromCtx(ctx)
 
 	ts.mu.RLock()
-	var replay []historyEntry
 	if afterSeq > 0 {
+		// Defensive deep copy: history entries carry pointer fields (Result
+		// *Task, Artifact *Artifact) that should not be exposed to callers
+		// without copying, even though the history is append-only and entries
+		// are never mutated in-place after storage.
+		replay := make([]historyEntry, 0, len(ts.history))
 		for _, entry := range ts.history {
 			if entry.seq > afterSeq {
+				entry.event = deepCopyEvent(entry.event)
 				replay = append(replay, entry)
 			}
 		}
-	} else {
-		replay = make([]historyEntry, len(ts.history))
-		copy(replay, ts.history)
-	}
-	ts.mu.RUnlock()
+		ts.mu.RUnlock()
 
-	for _, entry := range replay {
-		evCopy := *entry.event
-		evCopy.ID = req.ID
-		if !s.writeSSEEvent(w, flusher, &evCopy, entry.seq) {
-			return
+		for _, entry := range replay {
+			evCopy := *entry.event
+			evCopy.ID = req.ID
+			if !s.writeSSEEvent(w, flusher, &evCopy, entry.seq) {
+				return
+			}
+			if evCopy.Final {
+				return
+			}
 		}
-		if evCopy.Final {
-			return
+	} else {
+		replay := make([]historyEntry, len(ts.history))
+		for i, entry := range ts.history {
+			entry.event = deepCopyEvent(entry.event)
+			replay[i] = entry
+		}
+		ts.mu.RUnlock()
+
+		for _, entry := range replay {
+			evCopy := *entry.event
+			evCopy.ID = req.ID
+			if !s.writeSSEEvent(w, flusher, &evCopy, entry.seq) {
+				return
+			}
+			if evCopy.Final {
+				return
+			}
 		}
 	}
 

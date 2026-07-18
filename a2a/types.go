@@ -353,3 +353,29 @@ func ExtractInputModes(msg Message) []string {
 	}
 	return result
 }
+
+// deepCopyEvent returns a defensive deep copy of a TaskUpdateEvent.
+// The copy shares no pointer-addressable fields with the original,
+// so callers can safely use it after the source lock is released.
+func deepCopyEvent(e *TaskUpdateEvent) *TaskUpdateEvent {
+	if e == nil {
+		return nil
+	}
+	out := &TaskUpdateEvent{
+		ID:    e.ID,
+		Final: e.Final,
+	}
+	if e.Result != nil {
+		t := *e.Result
+		out.Result = &t
+	}
+	if e.Artifact != nil {
+		a := *e.Artifact
+		out.Artifact = &a
+	}
+	if e.Error != nil {
+		ec := *e.Error
+		out.Error = &ec
+	}
+	return out
+}

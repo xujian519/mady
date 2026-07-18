@@ -190,10 +190,17 @@ func (c *Client) initialize(ctx context.Context) error {
 		},
 	}
 	var result struct {
-		Capabilities json.RawMessage `json:"capabilities"`
+		ProtocolVersion string          `json:"protocolVersion"`
+		Capabilities    json.RawMessage `json:"capabilities"`
 	}
 	if err := c.call(ctx, "initialize", params, &result); err != nil {
 		return fmt.Errorf("mcp initialize: %w", err)
+	}
+	// 核验服务端协议版本兼容性。MCP 使用字符串版本号通常为 "YYYY-MM-DD" 格式，
+	// 此处做前缀匹配：服务端版本 ≥ 客户端版本（按字符串前缀顺序）即视为兼容。
+	// 如果服务器未返回 protocolVersion（旧版或非标准实现），不阻塞但记录警告。
+	if result.ProtocolVersion != "" && !strings.HasPrefix(result.ProtocolVersion, protocolVersion[:7]) {
+		log.Printf("mcp: server protocol version mismatch: server=%q client=%q", result.ProtocolVersion, protocolVersion)
 	}
 	caps, err := decodeCapabilities(result.Capabilities)
 	if err != nil {

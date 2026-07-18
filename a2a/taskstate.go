@@ -3,6 +3,7 @@ package a2a
 import (
 	"log/slog"
 	"runtime/debug"
+	"sort"
 	"sync"
 	"time"
 )
@@ -122,6 +123,7 @@ func isTerminalState(state TaskState) bool {
 }
 
 // recordTask stores a task snapshot in event history for resubscription.
+// Lock ordering: ts.mu → (release) → taskStatesMu → t.mu(RLock).
 func (s *Server) recordTask(task *Task) {
 	ts := s.getTaskState(task.ID)
 	ts.mu.Lock()
@@ -139,29 +141,49 @@ func (s *Server) recordTask(task *Task) {
 
 	if newSize > int64(s.maxTotalHist) {
 		s.taskStatesMu.Lock()
-		for s.totalHistSize.Load() > int64(s.maxTotalHist) {
-			oldest := ""
-			oldestTime := time.Now()
-			for id, t := range s.taskStates {
-				t.mu.RLock()
-				if len(t.history) > 0 {
-					first := t.history[0].event
-					if first.Result != nil && len(first.Result.History) > 0 && first.Result.History[0].Timestamp.Before(oldestTime) {
-						oldestTime = first.Result.History[0].Timestamp
-						oldest = id
-					}
+		// Batch collect: one pass to get all task ages, O(n), then evict
+		// the oldest tasks in sorted order instead of re-scanning per eviction.
+		type taskAge struct {
+			id        string
+			firstTS   time.Time
+			totalSize int
+		}
+		ages := make([]taskAge, 0, len(s.taskStates))
+		for id, t := range s.taskStates {
+			t.mu.RLock()
+			if len(t.history) > 0 {
+				first := t.history[0].event
+				if first.Result != nil && len(first.Result.History) > 0 {
+					ages = append(ages, taskAge{
+						id:        id,
+						firstTS:   first.Result.History[0].Timestamp,
+						totalSize: len(t.history),
+					})
 				}
-				t.mu.RUnlock()
 			}
-			if oldest == "" {
+			t.mu.RUnlock()
+		}
+		sort.Slice(ages, func(i, j int) bool {
+			return ages[i].firstTS.Before(ages[j].firstTS)
+		})
+		for _, a := range ages {
+			if s.totalHistSize.Load() <= int64(s.maxTotalHist) {
 				break
 			}
-			ots := s.taskStates[oldest]
+			ots := s.taskStates[a.id]
+			if ots == nil {
+				continue
+			}
 			ots.mu.Lock()
 			removed := len(ots.history)
+			for _, ch := range ots.subs {
+				close(ch)
+			}
+			ots.subs = nil
+			ots.history = nil
 			ots.mu.Unlock()
 			s.totalHistSize.Add(-int64(removed))
-			delete(s.taskStates, oldest)
+			delete(s.taskStates, a.id)
 		}
 		s.taskStatesMu.Unlock()
 	}
