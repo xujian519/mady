@@ -47,13 +47,17 @@ func TestInstallMady_DryRun(t *testing.T) {
 	if result.Preview == "" {
 		t.Fatal("expected non-empty preview")
 	}
-	// Verify preview is valid JSON for MCPServerConfig.
-	var cfg MCPServerConfig
+	// Verify preview is valid JSON for MCPConfigFile (full mcpServers wrapper).
+	var cfg MCPConfigFile
 	if err := json.Unmarshal([]byte(result.Preview), &cfg); err != nil {
 		t.Fatalf("preview is not valid JSON: %v", err)
 	}
-	if len(cfg.Args) == 0 || cfg.Args[0] != "acp" {
-		t.Fatalf("args = %v", cfg.Args)
+	madyServer, ok := cfg.MCPServers["mady"]
+	if !ok {
+		t.Fatal("preview missing mady server entry")
+	}
+	if len(madyServer.Args) == 0 || madyServer.Args[0] != "acp" {
+		t.Fatalf("args = %v", madyServer.Args)
 	}
 }
 

@@ -324,7 +324,29 @@ func parseMadyExtension(raw string, path string) (*MadyExtension, []Diagnostic) 
 			Message: fmt.Sprintf("mady: extension parse error: %v", err),
 		}}
 	}
-	return &ext, nil
+	// Validate type coercion: yaml.v3 silently converts int→string for
+	// scalar fields (e.g. mode: 123 becomes "0"). Detect suspicious values.
+	var diags []Diagnostic
+	if rawMap, mapOK := rawMady.(map[string]any); mapOK {
+		if rawMode, modeOK := rawMap["mode"]; modeOK {
+			switch rawMode.(type) {
+			case int, float64, bool:
+				diags = append(diags, Diagnostic{
+					Path:    path,
+					Message: fmt.Sprintf("mady: field 'mode' has wrong type (%T), expected string", rawMode),
+				})
+			}
+		}
+		if rawApproval, approvalOK := rawMap["approval_required"]; approvalOK {
+			if _, strOK := rawApproval.(string); strOK {
+				diags = append(diags, Diagnostic{
+					Path:    path,
+					Message: "mady: field 'approval_required' is a string, expected boolean (true/false) or integer (0/1)",
+				})
+			}
+		}
+	}
+	return &ext, diags
 }
 
 // extractRawHeader extracts the frontmatter header (between --- fences)
@@ -338,8 +360,9 @@ func extractRawHeader(raw string) string {
 	rest := strings.TrimPrefix(raw, fence)
 	end := strings.Index(rest, "\n---\n")
 	if end < 0 {
-		// Accept trailing "---" without a following newline.
-		end = strings.Index(rest, "\n---")
+		// Fallback: accept trailing "---" (without following newline).
+		// Use LastIndex to avoid matching "\n---" inside body content.
+		end = strings.LastIndex(rest, "\n---")
 		if end < 0 {
 			return ""
 		}

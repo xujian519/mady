@@ -116,8 +116,8 @@ func TestExtension_ProvideEmptyQuery(t *testing.T) {
 
 func TestEvalHookDefaults(t *testing.T) {
 	cfg := DefaultEvalConfig()
-	if cfg.Enabled {
-		t.Fatal("expected eval disabled by default")
+	if !cfg.Enabled {
+		t.Fatal("expected eval enabled by default")
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/retrieval"
@@ -69,12 +70,15 @@ type KnowledgeExtension struct {
 	graph         GraphEnhancer
 	lawSearcher   LawSearcher
 	hook          *retrieval.RetrievalHook
+	evalHook      *EvalHook
 	domain        string
 	cfg           KnowledgeExtConfig
 
 	// lastGraphCtx caches the most recent graph enhancement context so
 	// BackendRetrievalHook can inject it alongside chunk results.
+	// Protected by graphMu for concurrent access from ACP multi-client sessions.
 	lastGraphCtx string
+	graphMu      sync.RWMutex
 }
 
 // WithBackend injects a SQLite-backed knowledge retrieval backend and an
@@ -146,12 +150,14 @@ func NewExtension(store *Store, g GraphEnhancer, domain string, cfg KnowledgeExt
 	}
 	cfg.RetrievalConfig.DomainHint = domain
 	cfg.Domain = domain
+	evalCfg := DefaultEvalConfig()
 	return &KnowledgeExtension{
-		store:  store,
-		graph:  g,
-		hook:   retrieval.NewRetrievalHook(chunks, cfg.RetrievalConfig),
-		domain: domain,
-		cfg:    cfg,
+		store:    store,
+		graph:    g,
+		hook:     retrieval.NewRetrievalHook(chunks, cfg.RetrievalConfig),
+		evalHook: NewEvalHook(evalCfg),
+		domain:   domain,
+		cfg:      cfg,
 	}
 }
 
@@ -172,12 +178,18 @@ func (e *KnowledgeExtension) LifecycleHook() agentcore.LifecycleHook { return e.
 // configured backend (SQLite FTS + vector RRF fusion). Unlike LifecycleHook
 // (which returns a RetrievalHook that requires pre-loaded in-memory chunks),
 // this hook searches the backend database directly on each model call.
+// When the default eval config is enabled, an EvalHook is composed into
+// the returned lifecycle for retrieval quality measurement.
 // Returns nil if no backend is configured.
 func (e *KnowledgeExtension) BackendHook(cfg retrieval.RetrievalConfig) agentcore.LifecycleHook {
 	if e.backend == nil {
 		return nil
 	}
-	return NewBackendRetrievalHook(e, cfg)
+	h := NewBackendRetrievalHook(e, cfg)
+	if e.evalHook != nil {
+		return agentcore.AppendLifecycle(h, e.evalHook)
+	}
+	return h
 }
 
 func (e *KnowledgeExtension) TransformContext(_ context.Context, msgs []agentcore.Message) []agentcore.Message {
@@ -277,6 +289,8 @@ func (e *KnowledgeExtension) Search(ctx context.Context, query string, topK int)
 // search. Returns empty string when no graph enhancer is configured or the
 // last search produced no enhancement.
 func (e *KnowledgeExtension) GraphContext() string {
+	e.graphMu.RLock()
+	defer e.graphMu.RUnlock()
 	return e.lastGraphCtx
 }
 
@@ -426,6 +440,7 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 	// Graph-enhanced retrieval: expand results with similar cases and
 	// citation chains from the knowledge graph. The context is cached for
 	// BackendRetrievalHook to inject alongside chunk results.
+	e.graphMu.Lock()
 	if e.graph != nil && len(fused) > 0 {
 		result := e.graph.Enhance(fused)
 		if ge, ok := result.(GraphEnhancement); ok {
@@ -434,6 +449,7 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 	} else {
 		e.lastGraphCtx = ""
 	}
+	e.graphMu.Unlock()
 
 	return fused
 }
@@ -480,7 +496,11 @@ func (e *KnowledgeExtension) Provide(ctx context.Context, input agentcore.BuildI
 		return nil, nil
 	}
 
-	results := e.search(ctx, query, 5)
+	topK := e.cfg.RetrievalConfig.TopK
+	if topK <= 0 {
+		topK = 5
+	}
+	results := e.search(ctx, query, topK)
 	if len(results) == 0 {
 		return nil, nil
 	}

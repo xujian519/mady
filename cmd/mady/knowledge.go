@@ -49,7 +49,12 @@ func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 			dbDir := filepath.Dir(knowledgeDBPath)
 
 			// Open laws-full.db for law full-text search.
-			lawsPath := filepath.Join(dbDir, "laws-full.db")
+			// Try laws-full-local.db first (has FTS5 index), fall back to
+			// laws-full.db (original, LIKE-only search).
+			lawsPath := filepath.Join(dbDir, "laws-full-local.db")
+			if _, err := os.Stat(lawsPath); os.IsNotExist(err) {
+				lawsPath = filepath.Join(dbDir, "laws-full.db")
+			}
 			if _, err := os.Stat(lawsPath); err == nil {
 				if err := store.OpenLawsDB(lawsPath); err != nil {
 					fmt.Fprintf(os.Stderr, "knowledge: laws-full.db open failed: %v\n", err)
@@ -69,7 +74,12 @@ func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 						}
 						return out, nil
 					})
-					fmt.Fprintf(os.Stderr, "knowledge: laws-full.db active (9121 laws)\n")
+					mode := "FTS5"
+					if !store.HasLawFTS() {
+						mode = "LIKE"
+					}
+					lawsLabel := filepath.Base(lawsPath)
+					fmt.Fprintf(os.Stderr, "knowledge: %s active (%s search)\n", lawsLabel, mode)
 				}
 			}
 
@@ -79,8 +89,14 @@ func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 			} else if gs.NodeCount() > 0 {
 				enhancer := kgwgraph.NewGraphEnhancer(gs, kgwgraph.DefaultEnhanceConfig())
 				ext.WithGraph(enhancer)
-				fmt.Fprintf(os.Stderr, "knowledge: graph enhancer active (%d nodes, %d edges)\n",
-					gs.NodeCount(), gs.EdgeCount())
+				// Compute node type breakdown for diagnostics.
+				typeCounts := gs.NodeTypeCounts()
+				lawCount := typeCounts[kgwgraph.NodeLawArticle]
+				caseCount := typeCounts[kgwgraph.NodeCase] + typeCounts[kgwgraph.NodeJudgment]
+				ipcCount := typeCounts[kgwgraph.NodeIPC]
+				evidenceCount := typeCounts[kgwgraph.NodeEvidence]
+				fmt.Fprintf(os.Stderr, "knowledge:   图谱 %d 节点 / %d 边 (法律%d, 案例%d, IPC%d, 证据%d)\n",
+					gs.NodeCount(), gs.EdgeCount(), lawCount, caseCount, ipcCount, evidenceCount)
 			}
 		}
 
@@ -201,7 +217,10 @@ func loadKnowledgeBackend(madyHome string) (knowledge.KnowledgeBackend, string) 
 	if err := store.PreloadVectors(); err != nil {
 		fmt.Fprintf(os.Stderr, "knowledge: vector preload failed, using SQL batch fallback: %v\n", err)
 	} else {
-		fmt.Fprintf(os.Stderr, "knowledge: SQLite backend active (%s, in-memory vectors)\n", dbPath)
+		stats := store.Stats()
+		fmt.Fprintf(os.Stderr, "knowledge: SQLite backend active (%s)\n", dbPath)
+		fmt.Fprintf(os.Stderr, "knowledge:   文档 %d | 分块 %d | 向量 %d (%d维, %.0f MB)\n",
+			stats.Documents, stats.Chunks, stats.Embeddings, stats.Dim, stats.VectorMemoryMB)
 	}
 	return store, dbPath
 }

@@ -40,7 +40,7 @@ type EvalConfig struct {
 // DefaultEvalConfig 返回默认配置。
 func DefaultEvalConfig() EvalConfig {
 	return EvalConfig{
-		Enabled:         false, // Phase 3 默认关闭
+		Enabled:         true, // 启用 RAGAS 风格启发式评估
 		LogResults:      true,
 		MinFaithfulness: 0.7,
 	}
@@ -66,7 +66,7 @@ type EvalResult struct {
 
 // AfterModelCall 在每次模型调用后评估质量。
 func (h *EvalHook) AfterModelCall(_ context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {
-	if !h.cfg.Enabled || mcc == nil || mcc.Request == nil || mcc.Response == nil {
+	if !h.cfg.Enabled || arc == nil || mcc == nil || mcc.Request == nil || mcc.Response == nil {
 		return
 	}
 

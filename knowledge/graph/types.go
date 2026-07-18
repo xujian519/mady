@@ -27,6 +27,7 @@ const (
 	NodeRule          = "Rule"
 	NodeDomainGuide   = "DomainGuide"
 	NodeIPC           = "IPC"
+	NodeEvidence      = "Evidence"
 )
 
 // RelationType constants describe directed edges between nodes.

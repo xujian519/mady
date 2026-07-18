@@ -123,6 +123,7 @@ func DetectAgents() []AgentInfo {
 			parent := filepath.Dir(cp)
 			if _, err := os.Stat(parent); err == nil {
 				info.ConfigPath = cp
+				info.Installed = true
 				break
 			}
 			// Fallback: check the CLI binary on PATH.
@@ -192,7 +193,12 @@ func InstallMady(agentName string, dryRun bool) (*InstallResult, error) {
 		Args:    []string{"acp"},
 	}
 
-	preview, err := json.MarshalIndent(serverEntry, "", "  ")
+	fullCfg := &MCPConfigFile{
+		MCPServers: map[string]MCPServerConfig{
+			"mady": serverEntry,
+		},
+	}
+	preview, err := json.MarshalIndent(fullCfg, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("mcp: serialize preview: %w", err)
 	}

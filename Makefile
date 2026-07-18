@@ -62,6 +62,13 @@ eval:
 eval-race:
 	$(GO) test $(GOFLAGS) -race -v ./agentcore/evaluate/benchmark/...
 
+# --- Knowledge Benchmarks ---
+# bench-knowledge runs the full knowledge system benchmark suite with
+# vector search enabled. Results are saved to bench-knowledge.txt.
+bench-knowledge:
+	OMLX_API_KEY=$${OMLX_API_KEY:?error: OMLX_API_KEY not set} KNOWLEDGE_RERANK=on \
+	$(GO) test -bench=. -benchmem -count=1 ./knowledge/... 2>&1 | tee bench-knowledge.txt
+
 # --- Coverage ---
 coverage:
 	$(GO) test $(GOFLAGS) -coverprofile=coverage.out ./...

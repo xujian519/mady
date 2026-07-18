@@ -222,6 +222,17 @@ func (s *GraphStore) EdgeCount() int {
 	return count
 }
 
+// NodeTypeCounts returns a map from NodeType to count.
+func (s *GraphStore) NodeTypeCounts() map[string]int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	counts := make(map[string]int, len(s.nodes))
+	for _, n := range s.nodes {
+		counts[n.NodeType]++
+	}
+	return counts
+}
+
 // Stats returns a summary of the graph size.
 func (s *GraphStore) Stats() GraphBuildResult {
 	return GraphBuildResult{
