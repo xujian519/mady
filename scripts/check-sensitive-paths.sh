@@ -4,9 +4,12 @@
 # 配合 pre-commit hook 和 CI Workflow 使用。
 #
 # 用法:
-#   ./scripts/check-sensitive-paths.sh [--ci-base <ref>]
-#     --ci-base <ref>  在 CI 中与指定 base ref 对比 (如 origin/main)
-#     无参数时检测 git diff --cached (pre-commit)
+#   ./scripts/check-sensitive-paths.sh [--ci-base <ref> | --msg-file <path>]
+#     --ci-base <ref>   在 CI 中与指定 base ref 对比 (如 origin/main)
+#     --msg-file <path> commit-msg 钩子模式：AI 协助标记检测读取指定的提交消息文件
+#                       (pre-commit 在 commit-msg 阶段将消息文件路径作为参数传入)，
+#                       变更文件检测仍为 git diff --cached
+#     无参数时检测 git diff --cached (pre-commit)，AI 标记检测 git log HEAD
 
 set -euo pipefail
 
@@ -48,23 +51,42 @@ CHANGED_FILES=""
 
 # 解析参数
 BASE_REF=""
+MSG_FILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ci-base)
-      BASE_REF="$2"
+      BASE_REF="${2:-}"
       if [ -z "$BASE_REF" ]; then
         echo "Error: --ci-base requires a non-empty value" >&2
         exit 1
       fi
       shift 2
       ;;
+    --msg-file)
+      MSG_FILE="${2:-}"
+      if [ -z "$MSG_FILE" ]; then
+        echo "Error: --msg-file requires a non-empty value" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1" >&2
-      echo "Usage: $0 [--ci-base <ref>]" >&2
+      echo "Usage: $0 [--ci-base <ref> | --msg-file <path>]" >&2
       exit 1
       ;;
   esac
 done
+
+if [ -n "$BASE_REF" ] && [ -n "$MSG_FILE" ]; then
+  echo "Error: --ci-base and --msg-file cannot be used together" >&2
+  exit 1
+fi
+
+if [ -n "$MSG_FILE" ] && [ ! -f "$MSG_FILE" ]; then
+  echo "Error: message file not found: $MSG_FILE" >&2
+  exit 1
+fi
 
 # 获取变更文件列表
 if [ -n "$BASE_REF" ]; then
@@ -106,10 +128,15 @@ for prefix in "${SENSITIVE_PATH_PREFIXES[@]}"; do
 done
 
 # 检查提交信息是否含 AI 协助标记
-# 在 --ci-base 模式下检查范围中的所有 commit，而非仅 HEAD
+# --ci-base 模式检查范围中的所有 commit；--msg-file 模式读取指定的提交消息文件；
+# 无参数时回退为检查 HEAD commit
 AI_DETECT_REGEX="co-authored-by.*(claude|ai|copilot|codex|gemini)"
 if [ -n "$BASE_REF" ]; then
   if git log --format=%B "$BASE_REF"...HEAD 2>/dev/null | grep -qiE "$AI_DETECT_REGEX"; then
+    HAS_AI_COAUTHOR=true
+  fi
+elif [ -n "$MSG_FILE" ]; then
+  if grep -qiE "$AI_DETECT_REGEX" "$MSG_FILE" 2>/dev/null; then
     HAS_AI_COAUTHOR=true
   fi
 else

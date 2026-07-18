@@ -2,7 +2,7 @@
 
 > 本文档记录所有内置工具的稳定 Schema 契约。工具 Schema 变更必须同步更新本文档，
 > 否则 CI 调和测试（`agentcore/contract_test.go`）将失败。
-> 
+>
 > 每个工具记录：名称、描述、分类（read/write/command/network/other）、关键参数。
 
 ## 文件操作工具

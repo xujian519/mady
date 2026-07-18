@@ -19,7 +19,7 @@ repos:
         files: \.go$
       - id: go-imports
         name: go imports
-        entry: /Users/xujian/go/bin/goimports -l -w -local github.com/xujian519/mady
+        entry: bash -ec 'G="$(go env GOPATH)/bin/goimports"; [ -x "$G" ] || G=goimports; "$G" -l -w -local github.com/xujian519/mady "$@"' --
         language: system
         files: \.go$
       - id: go-vet
@@ -28,6 +28,11 @@ repos:
         language: system
         files: \.go$
         pass_filenames: false
+      - id: check-sensitive-paths
+        name: sensitive paths gate
+        entry: bash scripts/check-sensitive-paths.sh --msg-file
+        language: system
+        stages: [commit-msg]
 
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v9.22.0

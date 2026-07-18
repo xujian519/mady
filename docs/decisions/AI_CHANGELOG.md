@@ -1,5 +1,48 @@
 # AI 决策变更日志
 
+## 2026-07-18: M1 门禁加固（4/4）：pre-commit 跨机器兼容 + commit-msg 敏感路径门禁
+
+### 背景
+`.pre-commit-config.yaml` 的 `go-imports` hook 硬编码 `/Users/xujian/go/bin/goimports`，
+换机器/CI 即失效；同时 sensitive-paths 检查此前仅在 `--ci-base` 模式（GitHub Actions）
+和无参数模式（HEAD commit）下运行，**本地 `git commit` 阶段没有任何门禁**，
+导致开发者可以在本地静默提交"AI 参与 + 敏感路径"的违规组合，CI 才会拦截——反馈链路过长。
+
+### 变更
+- `.pre-commit-config.yaml`：
+  - `go-imports` entry 改为动态查找：优先用 `go env GOPATH/bin/goimports`，
+    缺失时回退 `PATH` 中的 `goimports`，跨机器/CI 通用
+  - 新增 `check-sensitive-paths` hook（`stages: [commit-msg]`），
+    调用 `scripts/check-sensitive-paths.sh --msg-file` 读取本次提交消息文件
+- `scripts/check-sensitive-paths.sh`：新增 `--msg-file <path>` 参数，
+  供 commit-msg 钩子读取 pre-commit 传入的提交消息文件；
+  与 `--ci-base` 互斥；空参数/文件不存在/未知参数均显式报错退出
+
+### 验证
+- `bash -n scripts/check-sensitive-paths.sh` ✅
+- 边界用例 4 项全部按预期：互斥分支 exit=1、未知参数 exit=1、
+  缺值 exit=1、msg 文件不存在 exit=1
+- `pre-commit run --hook-stage commit-msg --commit-msg-filename <tmp>` ✅
+  （`sensitive paths gate ... Passed`、`commitlint ... Passed`）
+- 关键阻塞场景：构造"AI Co-authored-by + 暂存 guardrails/levels.go"，
+  commit-msg 钩子返回 exit=1 并打印完整阻塞提示文案 ✅
+- `pre-commit run --all-files` ✅（trailing-whitespace / end-of-file 顺手清理
+  docs/TOOL_CONTRACT.md、docs/design/citation-verification-gate.md、
+  docs/evaluation-baseline-invalidation-p2b.json 三处历史格式遗留）
+
+### 涉及文件
+- `.pre-commit-config.yaml`、`scripts/check-sensitive-paths.sh`
+- （格式顺手清理）`docs/TOOL_CONTRACT.md`、`docs/design/citation-verification-gate.md`、
+  `docs/evaluation-baseline-invalidation-p2b.json`
+
+### 备注
+- 本地需执行 `pre-commit install --hook-type commit-msg` 注册 commit-msg 钩子
+  （`.git/hooks/commit-msg` 不在版本控制内，新克隆需手动安装）
+- CI 端 `.github/workflows/ai-code-quality.yml` 仍使用 `--ci-base` 模式，
+  与本次新增 `--msg-file` 模式互不影响，无需改动
+
+---
+
 ## 2026-07-18: M1 门禁加固（3/4）：清理无效 -short flag 与 forbidigo 死配置
 
 ### 背景
