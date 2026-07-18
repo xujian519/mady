@@ -87,8 +87,11 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
 			tools.ToolBrowser, tools.ToolExecuteCode,
 		},
-		MaxBytes:   100 * 1024,
-		ExtraTools: []*agentcore.Tool{patent.NewPatentNoveltyTool()},
+		MaxBytes: 100 * 1024,
+		ExtraTools: []*agentcore.Tool{
+			patent.NewPatentNoveltyTool(),
+			patent.NewOAResponseTool(),
+		},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)
 

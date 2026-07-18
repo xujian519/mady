@@ -70,6 +70,10 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	// Chunked context engine for long legal documents.
 	cfg.Engine = "chunked"
 
+	// Reasoning engine injection: same five-step workflow + legal case
+	// comparison tools as PatentAgent, via the shared injectDraftingTool.
+	injectDraftingTool(&cfg)
+
 	// DoomLoop: 死循环检测器。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
 

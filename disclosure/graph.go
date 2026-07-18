@@ -315,6 +315,9 @@ func BuildDisclosureAnalysisGraphWithOpts(provider agentcore.Provider, opts ...G
 	if err := pg.AddNode("review_gate", reviewGateNode()); err != nil {
 		return nil, err
 	}
+	if err := pg.AddNode("draft_claims", draftClaimsNode()); err != nil {
+		return nil, err
+	}
 
 	// 静态边：preprocess → 三提取节点（并发）
 	for _, edge := range [][2]string{
@@ -329,7 +332,8 @@ func BuildDisclosureAnalysisGraphWithOpts(provider agentcore.Provider, opts ...G
 		{"retrieve_prior_art", "check_novelty"},
 		{"check_novelty", "generate_report"},
 		{"generate_report", "review_gate"},
-		{"review_gate", graph.PregelEnd},
+		{"review_gate", "draft_claims"},
+		{"draft_claims", graph.PregelEnd},
 	} {
 		if err := pg.AddEdge(edge[0], edge[1]); err != nil {
 			return nil, err

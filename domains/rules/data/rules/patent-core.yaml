@@ -1,0 +1,229 @@
+rules:
+  - ruleId: "patent-a22.2-novelty"
+    name: "新颖性核查——单独对比原则"
+    description: >
+      根据专利法第22条第2款和审查指南第二部分第三章，判断权利要求是否具有新颖性。
+      核心原则是单独对比：只能将一项现有技术与一项权利要求进行对比，
+      不得将多篇对比文件的特征组合起来否定新颖性。
+    legalBasis: "专利法第22条第2款"
+    domain: patent
+    severity: critical
+    action: block
+    check:
+      type: patent_novelty
+      method: single_comparison
+      principles:
+        - "单独对比：一项权利要求只能与一份现有技术文件对比"
+        - "全文对比：现有技术文件的所有内容（包括明确记载和隐含公开）均可用于对比"
+        - "惯用手段直接置换：本领域惯用手段的直接置换视为相同内容"
+        - "上下位概念：上位概念不破坏下位概念的新颖性"
+      rules:
+        - "如果现有技术文件公开了权利要求的全部技术特征，且技术领域相同、解决的技术问题相同、预期效果相同，则权利要求不具备新颖性"
+        - "如果现有技术文件未公开权利要求的至少一个技术特征，则权利要求具备新颖性"
+        - "新颖性判断不得将多篇现有技术组合"
+      conditions:
+        - "申请日（有优先权的指优先权日）前的现有技术"
+        - "抵触申请仅用于新颖性判断，不得用于创造性判断"
+
+  - ruleId: "patent-a22.3-inventiveness-1"
+    name: "创造性核查——确定最接近的现有技术"
+    description: >
+      根据专利法第22条第3款和审查指南第二部分第四章，确定最接近的现有技术。
+      最接近的现有技术是指与要求保护的发明最密切相关的一个现有技术方案。
+    legalBasis: "专利法第22条第3款"
+    domain: patent
+    severity: critical
+    action: block
+    check:
+      type: patent_inventiveness
+      method: determine_closest_prior_art
+      principles:
+        - "技术领域相同或相近"
+        - "公开的技术特征最多"
+        - "所要解决的技术问题最相近"
+        - "技术效果最接近"
+      rules:
+        - "优先选择与本发明技术领域相同的现有技术"
+        - "如果技术领域不同，但现有技术能够实现本发明的功能，也可以作为最接近的现有技术"
+
+  - ruleId: "patent-a22.3-inventiveness-2"
+    name: "创造性核查——区别特征与实际问题"
+    description: >
+      三步法第二步：确定区别特征和发明实际解决的技术问题。
+      客观分析权利要求与最接近现有技术的区别，基于区别特征确定实际解决的技术问题。
+    legalBasis: "专利法第22条第3款"
+    domain: patent
+    severity: critical
+    action: block
+    check:
+      type: patent_inventiveness
+      method: determine_distinguishing_features
+      principles:
+        - "区别特征必须是权利要求明确记载的技术特征"
+        - "实际解决的技术问题基于区别特征的技术效果确定"
+        - "不得将说明书中未记载的技术效果作为确定技术问题的基础"
+        - "可以重新确定技术问题（不必与申请文件声称的问题完全一致）"
+      rules:
+        - "列出权利要求与最接近现有技术的全部区别特征"
+        - "基于区别特征所能达到的技术效果确定实际解决的技术问题"
+
+  - ruleId: "patent-a22.3-inventiveness-3"
+    name: "创造性核查——非显而易见性"
+    description: >
+      三步法第三步：判断要求保护的发明对本领域技术人员是否显而易见。
+      重点分析现有技术整体上是否存在技术启示。
+    legalBasis: "专利法第22条第3款"
+    domain: patent
+    severity: critical
+    action: block
+    check:
+      type: patent_inventiveness
+      method: assess_obviousness
+      principles:
+        - "本领域技术人员的知识和能力水平"
+        - "区别特征为公知常识 → 显而易见"
+        - "区别特征为最接近现有技术的相关技术手段，且作用相同 → 有启示"
+        - "区别特征为另一份对比文件披露的相关技术手段，且作用相同 → 有启示"
+        - "现有技术中存在将区别特征应用到最接近现有技术以解决技术问题的启示 → 显而易见"
+      rules:
+        - "不得进行'事后诸葛亮'式的分析"
+        - "必须基于申请日前的现有技术状态进行判断"
+        - "如果要求保护的技术方案产生了预料不到的技术效果，即使存在形式上的启示，也不能认定为显而易见"
+
+  - ruleId: "patent-a25-excluded"
+    name: "不授予专利权的客体核查"
+    description: >
+      根据专利法第25条，核查发明是否属于不授予专利权的情形。
+      包括科学发现、智力活动规则和方法、疾病诊断和治疗方法、动植物品种、原子核变换方法等。
+    legalBasis: "专利法第25条"
+    domain: patent
+    severity: critical
+    action: block
+    check:
+      type: patent_eligibility
+      method: check_excluded_subject_matter
+      principles:
+        - "科学发现：揭示自然界原本存在的规律或现象，未利用自然规律解决技术问题"
+        - "智力活动规则和方法：纯粹的思维规则，不包含技术手段"
+        - "疾病诊断和治疗方法：以有生命的人体或动物体为对象"
+        - "动植物品种：可借助生物学生产方法获得专利权保护"
+      rules:
+        - "权利要求整体是否包含技术手段（不是纯粹的智力活动规则）"
+        - "如果权利要求包含技术特征，即使涉及智力活动规则也可能不被排除"
+        - "计算机程序本身不属于授权客体，但涉及计算机程序的发明可以授权"
+
+  - ruleId: "patent-a26.3-disclosure"
+    name: "说明书充分公开核查"
+    description: >
+      根据专利法第26条第3款，核查说明书是否对发明作出清楚、完整的说明，
+      以所属技术领域的技术人员能够实现为准。
+    legalBasis: "专利法第26条第3款"
+    domain: patent
+    severity: critical
+    action: block
+    check:
+      type: patent_disclosure
+      method: check_sufficient_disclosure
+      principles:
+        - "以所属技术领域的技术人员能够实现为准"
+        - "清楚：技术术语含义明确，无歧义"
+        - "完整：包含理解发明、实现发明所需的全部必要技术内容"
+        - "能够实现：技术人员根据说明书记载无需创造性劳动即可实施"
+      requirements:
+        - "技术领域"
+        - "背景技术"
+        - "发明内容（要解决的技术问题、技术方案、有益效果）"
+        - "附图说明（如有附图）"
+        - "具体实施方式（至少一个实施例）"
+      rules:
+        - "缺少关键技术手段的说明 → 公开不充分"
+        - "技术手段含糊不清 → 公开不充分"
+        - "仅给出任务/设想，未给出具体技术手段 → 公开不充分"
+        - "实验数据不足以证明技术效果 → 公开不充分"
+
+  - ruleId: "patent-a26.4-clarity"
+    name: "权利要求清楚核查"
+    description: >
+      根据专利法第26条第4款，权利要求应当以说明书为依据，清楚、简要地限定要求专利保护的范围。
+    legalBasis: "专利法第26条第4款"
+    domain: patent
+    severity: major
+    action: review
+    check:
+      type: patent_claim_analysis
+      method: check_clarity
+      principles:
+        - "清楚：保护范围明确，无歧义"
+        - "简要：表述简洁，不包含不必要的技术特征"
+        - "以说明书为依据：每项权利要求都能在说明书中找到依据"
+      requirements:
+        - "权利要求的类型清楚（产品/方法）"
+        - "技术特征用语含义明确"
+        - "引用关系正确"
+        - "多项从属权利要求引用基础正确"
+      rules:
+        - "使用模糊用语（如'大约''优选''等等'）→ 不清楚"
+        - "权利要求的技术特征在说明书中无记载 → 得不到支持"
+        - "上位概念概括过宽（覆盖了无法实现的技术方案）→ 得不到支持"
+        - "从属权利要求的引用关系错误 → 不清楚"
+
+  - ruleId: "patent-a26.4-support"
+    name: "权利要求支持核查"
+    description: >
+      权利要求应当以说明书为依据，不得超出说明书公开的范围。
+    legalBasis: "专利法第26条第4款"
+    domain: patent
+    severity: major
+    action: review
+    check:
+      type: patent_claim_analysis
+      method: check_support
+      principles:
+        - "每项权利要求的技术特征必须在说明书中有对应记载"
+        - "上位概念的概括不能超出说明书公开的范围"
+        - "功能性限定应得到说明书的充分支持"
+      rules:
+        - "说明书仅公开了一个实施例，权利要求概括了一个宽泛的范围 → 不支持"
+        - "说明书明确排除了某种实施方式，权利要求包含了该方式 → 不支持"
+
+  - ruleId: "patent-a33-amendment"
+    name: "修改不超范围核查"
+    description: >
+      根据专利法第33条，对发明专利申请文件的修改不得超出原说明书和权利要求书记载的范围。
+    legalBasis: "专利法第33条"
+    domain: patent
+    severity: critical
+    action: block
+    check:
+      type: patent_amendment
+      method: check_amendment_scope
+      principles:
+        - "修改不得引入新的技术内容"
+        - "修改后的技术方案必须能从原申请文件中直接、毫无疑义地确定"
+        - "原说明书和权利要求书（包括附图）记载的范围是修改的上限"
+      rules:
+        - "增加原申请文件中未明确记载的技术特征 → 超范围"
+        - "删除必要的技术特征导致保护范围扩大 → 超范围"
+        - "将上位概念改为下位概念（下位概念在原文件中无记载）→ 超范围"
+        - "修改数值范围（新范围未在原文件中明确记载）→ 超范围"
+
+  - ruleId: "patent-a9-first-to-file"
+    name: "先申请原则核查"
+    description: >
+      根据专利法第9条，同样的发明创造只能授予一项专利权。
+      两个以上申请人分别就同样的发明创造申请专利的，专利权授予最先申请的人。
+    legalBasis: "专利法第9条"
+    domain: patent
+    severity: major
+    action: review
+    check:
+      type: patent_novelty
+      method: check_double_patenting
+      principles:
+        - "同样的发明创造：技术方案完全相同或仅存在简单文字变换"
+        - "同一申请日：申请人可选择放弃其中一个"
+        - "不同申请日：驳回在后申请"
+      rules:
+        - "权利要求保护范围完全相同 → 重复授权"
+        - "仅在表述方式上有区别但保护范围相同 → 重复授权"
+        - "上下位概念的差异不属于同样的发明创造"

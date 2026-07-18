@@ -1,0 +1,47 @@
+articleId: "patent-law-a22.2"
+name: "专利法第22条第2款——新颖性"
+lawRef: "中华人民共和国专利法（2020修正）第22条第2款"
+guidelineRef: "审查指南（2023修订）第二部分第三章"
+steps:
+  - id: "step-1"
+    order: 1
+    name: "确定申请日（优先权日）"
+    ruleRef: "patent-a22.2-novelty"
+    inputHint: "申请日或优先权日"
+    outputSchema:
+      effectiveDate: "string（有效申请日/优先权日）"
+  - id: "step-2"
+    order: 2
+    name: "确定现有技术的范围"
+    ruleRef: "patent-a22.2-novelty"
+    inputHint: "申请日前的公开文献、使用公开、其他方式公开"
+    outputSchema:
+      priorArtDate: "string（公开日）"
+      isPriorArt: "bool（是否属于现有技术）"
+  - id: "step-3"
+    order: 3
+    name: "逐项对比技术特征"
+    ruleRef: "patent-a22.2-novelty"
+    inputHint: "权利要求的全部技术特征列表 + 对比文件公开的内容"
+    outputSchema:
+      claimFeatures: "[]string（权利要求的技术特征）"
+      disclosedFeatures: "[]string（对比文件公开的对应特征）"
+      missingFeatures: "[]string（未被公开的特征）"
+  - id: "step-4"
+    order: 4
+    name: "判断是否单独公开全部技术特征"
+    ruleRef: "patent-a22.2-novelty"
+    inputHint: "单独对比：一份对比文件是否公开了权利要求的全部技术特征"
+    outputSchema:
+      allDisclosed: "bool（是否全部公开）"
+      sameField: "bool（技术领域是否相同）"
+      sameProblem: "bool（解决的技术问题是否相同）"
+      sameEffect: "bool（预期的技术效果是否相同）"
+conclusionSchema:
+  hasNovelty: "bool（是否具有新颖性）"
+  reasoning: "string（判断理由，引用对比文件的具体段落）"
+  confidence: "string（high/medium/low）"
+applicableTo:
+  - novelty
+  - patentability
+  - examination

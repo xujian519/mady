@@ -31,6 +31,15 @@ const (
 
 	// StatuteExamGuideline 表示《专利审查指南》。
 	StatuteExamGuideline
+
+	// StatuteTrademarkLaw 表示《中华人民共和国商标法》（2019修正）。
+	StatuteTrademarkLaw
+
+	// StatuteCopyrightLaw 表示《中华人民共和国著作权法》（2020修正）。
+	StatuteCopyrightLaw
+
+	// StatuteAntiUnfairCompetition 表示《中华人民共和国反不正当竞争法》（2019修正）。
+	StatuteAntiUnfairCompetition
 )
 
 // String 返回法律文件的规范简称，用于核验提示文案。
@@ -42,6 +51,12 @@ func (s Statute) String() string {
 		return "专利法实施细则"
 	case StatuteExamGuideline:
 		return "专利审查指南"
+	case StatuteTrademarkLaw:
+		return "商标法"
+	case StatuteCopyrightLaw:
+		return "著作权法"
+	case StatuteAntiUnfairCompetition:
+		return "反不正当竞争法"
 	default:
 		return "未知法律"
 	}
@@ -109,6 +124,9 @@ var statutePatterns = []struct {
 	{StatuteImplementingRules, regexp.MustCompile(`专利法实施细则|专利法实施条例|实施细则|实施条例|细则`)},
 	{StatuteExamGuideline, regexp.MustCompile(`专利审查指南|审查指南`)},
 	{StatutePatentLaw, regexp.MustCompile(`专利法`)},
+	{StatuteTrademarkLaw, regexp.MustCompile(`商标法`)},
+	{StatuteCopyrightLaw, regexp.MustCompile(`著作权法`)},
+	{StatuteAntiUnfairCompetition, regexp.MustCompile(`反不正当竞争法`)},
 }
 
 // statuteMention 记录一次法律名称出现的位置与归属。

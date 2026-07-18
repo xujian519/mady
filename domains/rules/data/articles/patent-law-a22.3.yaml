@@ -1,0 +1,41 @@
+articleId: "patent-law-a22.3"
+name: "专利法第22条第3款——创造性（三步法）"
+lawRef: "中华人民共和国专利法（2020修正）第22条第3款"
+guidelineRef: "审查指南（2023修订）第二部分第四章"
+steps:
+  - id: "step-1"
+    order: 1
+    name: "确定最接近的现有技术"
+    ruleRef: "patent-a22.3-inventiveness-1"
+    inputHint: "检索到的现有技术文献列表"
+    outputSchema:
+      closestPriorArt: "string（最接近现有技术的文献号）"
+      selectionReason: "string（选择理由：技术领域/公开特征/技术问题/技术效果）"
+  - id: "step-2"
+    order: 2
+    name: "确定区别特征和实际解决的技术问题"
+    ruleRef: "patent-a22.3-inventiveness-2"
+    inputHint: "权利要求 vs 最接近现有技术的特征对比表"
+    outputSchema:
+      distinguishingFeatures: "[]string（区别技术特征）"
+      technicalEffect: "string（区别特征达到的技术效果）"
+      actualProblem: "string（实际解决的技术问题——可不同于申请文件声称）"
+  - id: "step-3"
+    order: 3
+    name: "判断是否显而易见"
+    ruleRef: "patent-a22.3-inventiveness-3"
+    inputHint: "区别特征在本领域的公知性/对比文件中的记载"
+    outputSchema:
+      isCommonKnowledge: "bool（区别特征是否为公知常识）"
+      isTaughtByOtherRef: "bool（其他对比文件是否公开该区别特征且作用相同）"
+      hasTeachingMotivation: "bool（是否存在结合启示）"
+      unexpectedEffect: "bool（是否产生预料不到的技术效果）"
+conclusionSchema:
+  isInventive: "bool（是否具有创造性）"
+  reasoning: "string（三步法推理过程，引用对比文件具体段落和法律依据）"
+  confidence: "string（high/medium/low）"
+applicableTo:
+  - inventiveness
+  - patentability
+  - examination
+  - invalidation
