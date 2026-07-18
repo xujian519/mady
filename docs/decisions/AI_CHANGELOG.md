@@ -1,5 +1,50 @@
 # AI 决策变更日志
 
+## 2026-07-18: P2-5 大文件拆分（4 个 >1000 行文件 → 20 个聚焦文件）
+
+### 背景
+全量技术债务扫描后，发现 4 个超过 1000 行的文件集中了多个不相关的职责：
+`mcp/client.go` (1005)、`mcp/http.go` (1023)、`a2a/server.go` (1027)、`server/server.go` (1324)。
+单文件职责过重影响可读性、增量编译效率、code review 质量，且新增功能时容易产生 merge conflict。
+按"小炸弹不是大炸弹"原则，分 4 个 phase 顺序拆分（按风险升序：mcp → a2a → server）。
+
+### 拆分明细
+
+| Phase | 原文件 (行数) | 拆分后文件 | commit |
+|---|---|---|---|
+| 1 | `mcp/client.go` (1005) | `client.go` + `stdio_extension.go` + `client_jsonrpc.go` + `client_readloop.go` + `client_reconnect.go` (5 文件) | `cbeec0d` |
+| 2 | `mcp/http.go` (1023) | `http.go` + `http_jsonrpc.go` + `http_sse.go` + `http_session.go` (4 文件) | `23baa2c` |
+| 3 | `a2a/server.go` (1027) | `server.go` + `server_options.go` + `server_taskstate.go` + `server_jsonrpc.go` + `server_card.go` (5 文件) | `aafc6ec` |
+| 4 | `server/server.go` (1324) | `server.go` + `types.go` + `pool.go` + `chat.go` + `thread.go` + `skills.go` (6 文件) | `6ee1dd3` |
+
+### 拆分原则
+- **同包内拆分**：每个新文件保持 `package` 不变，Go 天然支持同包跨文件可见 unexported 符号
+- **按职责聚类**：每个新文件聚焦单一主题（jsonrpc / sse / session / reconnect / thread / skills / pool / types）
+- **零外部 API 变更**：导出符号在原 package 内重组，签名不变；调用方（cmd/mady, example/, tools/）零影响
+- **测试零修改**：所有 `_test.go` 在 same package，可见 unexported 符号，无需调整
+- **每个 phase 一 commit**：便于独立 revert 与 code review
+
+### 收益
+- 4379 行 → 20 文件，每文件 80-510 行，单文件平均行数下降 ~70%
+- HTTP MCP 客户端的 jsonrpc / sse / session 三个子问题彻底分离，后续维护可独立修改
+- server/server.go 的 use-after-free 防护逻辑（pool.go）独立成文件，安全审计边界更清晰
+- 增量编译：修改 chat 逻辑不再触发 thread/skills 的重新编译
+
+### 关键陷阱记录
+1. **Write 工具偶发"假成功"**：Phase 2/3/4 多次遇到 Write 报"Wrote file successfully"但文件实际未创建，build 时报符号 undefined。**对策**：每写一个文件立即 `ls -la` 验证
+2. **goimports 路径**：本机 PATH 不含 `$(go env GOPATH)/bin`，`.pre-commit-config.yaml` 保留绝对路径 `/Users/xujian/go/bin/goimports`，不要改为 PATH 查找（会让 hook 在本机立即失败）
+3. **gosec G204 豁免**：`mcp/client.go` 拆分后 `exec.Command` 迁移到 `client_reconnect.go`，`.golangci.yml` 的豁免规则需同步扩展为 `mcp/client\.go|mcp/client_reconnect\.go`
+
+### 验证
+每个 phase 完成后均跑全套验证（根 + tools 子模块）：
+- `go build ./...`：OK
+- `go vet ./...`：OK
+- `goimports -l` + `gofmt -l`：clean
+- `golangci-lint run ./...`：0 issues
+- `go test -race -count=1 ./...`：全部 PASS，无 DATA RACE
+
+---
+
 ## 2026-07-18: 全量技术债务清理（P0 真实 Bug + P1 Lint 债务 + P2 结构性改进）
 
 ### 背景
