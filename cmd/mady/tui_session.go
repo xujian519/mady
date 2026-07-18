@@ -16,6 +16,7 @@ import (
 	"github.com/xujian519/mady/domains/reasoning"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/knowledge/fileindex"
+	"github.com/xujian519/mady/memory"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/tools"
 	"github.com/xujian519/mady/tui/agentadapter"
@@ -45,6 +46,7 @@ type tuiSession struct {
 	// Extensions
 	ruleExt      agentcore.Extension
 	fileIndexExt *fileindex.Extension
+	memExt       *memory.MemoryExtension // 长期记忆扩展（Agent 重建时重新创建）
 
 	// Agent state
 	currentAgent *agentcore.Agent
@@ -89,6 +91,52 @@ func (s *tuiSession) isPlanMode() bool { return s.store.Get(SettingKeyPlan) == "
 // isReviewMode reports whether the review gate is enabled.
 func (s *tuiSession) isReviewMode() bool { return s.store.Get(SettingKeyReview) == "on" }
 
+// detectAgentID 返回当前 Agent 角色的标识符，用于记忆作用域隔离。
+func (s *tuiSession) detectAgentID() string {
+	switch {
+	case s.useIntegratedMode:
+		return "chat-agent"
+	case s.useMultiDomain:
+		return "router"
+	default:
+		return "single"
+	}
+}
+
+// detectProjectID 返回当前案件的 ProjectID（如有），用于记忆作用域隔离。
+func (s *tuiSession) detectProjectID() string {
+	if s.currentProject != nil {
+		return s.currentProject.ProjectID
+	}
+	return ""
+}
+
+// buildMemoryExtension 根据当前会话状态构建 MemoryExtension。
+// 使用 WithSharedManager() 参数，确保 Dispose 时不关闭框架级共享 Manager。
+// 当 fc.MemoryManager 为 nil 时返回 nil（记忆功能不可用）。
+func (s *tuiSession) buildMemoryExtension() *memory.MemoryExtension {
+	if s.fc.MemoryManager == nil {
+		return nil
+	}
+	scope := memory.MemoryScope{
+		UserID:    s.currentThreadID,
+		SessionID: s.currentThreadID,
+		AgentID:   s.detectAgentID(),
+		ProjectID: s.detectProjectID(),
+	}
+	return memory.NewExtension(s.fc.MemoryManager, scope,
+		memory.DefaultExtensionConfig(), memory.WithSharedManager())
+}
+
+// injectMemoryExtension 将 s.memExt 注入到 agentcore.Config 的 Extensions 列表中。
+// 当 memExt 为 nil 时直接返回原 cfg 不变。
+func (s *tuiSession) injectMemoryExtension(cfg agentcore.Config) agentcore.Config {
+	if s.memExt != nil {
+		cfg.Extensions = append(cfg.Extensions, s.memExt)
+	}
+	return cfg
+}
+
 // themeName returns the current theme name from the store.
 func (s *tuiSession) themeName() string { return s.store.Get(SettingKeyTheme) }
 
@@ -122,6 +170,9 @@ func (s *tuiSession) thinkingConfig() *agentcore.ThinkingConfig {
 // buildAgentConfig constructs the agentcore.Config based on current session state.
 // It replaces the former buildCfg closure inside runTui.
 func (s *tuiSession) buildAgentConfig() agentcore.Config {
+	// 构建当前会话的记忆作用域和 MemoryExtension。
+	s.memExt = s.buildMemoryExtension()
+
 	switch {
 	case s.useIntegratedMode:
 		base := s.fc.BaseConfig
@@ -152,7 +203,7 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 			cfg.Extensions = append(cfg.Extensions, s.ruleExt)
 		}
 		cfg.Extensions = append(cfg.Extensions, s.fileIndexExt)
-		return s.applyPersistence(cfg)
+		return s.injectMemoryExtension(s.applyPersistence(cfg))
 
 	case s.useMultiDomain:
 		cfg := buildRouterConfig(s.fc.BaseConfig, s.fc.Manifests)
@@ -175,7 +226,7 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 			cfg.Extensions = append(cfg.Extensions, s.ruleExt)
 		}
 		cfg.Extensions = append(cfg.Extensions, s.fileIndexExt)
-		return s.applyPersistence(cfg)
+		return s.injectMemoryExtension(s.applyPersistence(cfg))
 
 	default:
 		effectiveModel := s.model
@@ -221,7 +272,7 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 			singleCfg.Extensions = append(singleCfg.Extensions, s.ruleExt)
 		}
 		singleCfg.Extensions = append(singleCfg.Extensions, s.fileIndexExt)
-		return s.applyPersistence(singleCfg)
+		return s.injectMemoryExtension(s.applyPersistence(singleCfg))
 	}
 }
 

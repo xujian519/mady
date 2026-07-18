@@ -226,6 +226,19 @@ func (m *Manager) Stats(ctx context.Context) MemoryStats {
 	return m.store.Stats(ctx)
 }
 
+// LogStats 输出当前记忆存储的统计摘要到 stderr。
+// 适用于启动时或定期诊断调用。
+func (m *Manager) LogStats(ctx context.Context) {
+	stats := m.Stats(ctx)
+	total := stats.TotalEntries
+	if total == 0 {
+		fmt.Printf("[memory] 存储为空\n")
+		return
+	}
+	fmt.Printf("[memory] 统计概要: 总计 %d 条 | User %d | Session %d | LongTerm %d\n",
+		total, stats.UserCount, stats.SessionCount, stats.LongTermCnt)
+}
+
 // Close 关闭管理器并释放资源。
 func (m *Manager) Close() error {
 	return m.store.Close()

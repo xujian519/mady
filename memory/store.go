@@ -27,6 +27,9 @@ type InMemoryStore struct {
 	dimension   int // embedding 维度
 	embedder    retrieval.Embedder
 	now         func() time.Time
+
+	// capacityWarned 记录已告警的最高阈值，确保每个阈值只告警一次。
+	capacityWarned atomic.Int64
 }
 
 // InMemoryOption 是 InMemoryStore 的函数式配置选项。
@@ -268,7 +271,11 @@ func (s *InMemoryStore) Remember(ctx context.Context, content string, scope Memo
 	s.mu.Lock()
 	s.entries[id] = entry
 	s.byLayer[layer][id] = struct{}{}
+	entryCount := len(s.entries)
 	s.mu.Unlock()
+
+	// 容量监控：超过阈值时发出告警（仅一次）。
+	s.maybeWarnCapacity(entryCount)
 
 	return id, nil
 }
@@ -611,3 +618,22 @@ func sortMemoryByCreatedAt(s []MemoryEntry, asc bool) {
 
 // 编译时检查
 var _ MemoryStore = (*InMemoryStore)(nil)
+
+// capacityWarnThresholds 定义容量告警阈值（条目数）。
+var capacityWarnThresholds = []int{1000, 5000, 10000, 50000}
+
+// maybeWarnCapacity 在存储容量超过阈值时输出告警日志。
+// 每个阈值只告警一次：capacityWarned 记录已告警的最高阈值，
+// 后续只有更高阈值被超过时才会再次告警。
+func (s *InMemoryStore) maybeWarnCapacity(entryCount int) {
+	warned := int(s.capacityWarned.Load())
+	for _, threshold := range capacityWarnThresholds {
+		if entryCount >= threshold && threshold > warned {
+			s.capacityWarned.Store(int64(threshold))
+			fmt.Printf("[memory] InMemoryStore: 条目数已达 %d，可能影响性能。"+
+				"建议切换至 SQLiteMemoryStore 或在适当时机调用 Prune() 清理低价值记忆\n",
+				entryCount)
+			return
+		}
+	}
+}

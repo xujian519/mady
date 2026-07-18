@@ -22,6 +22,7 @@ import (
 	"github.com/xujian519/mady/knowledge"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/mcp"
+	"github.com/xujian519/mady/memory"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/skill"
@@ -55,6 +56,9 @@ type frameworkContext struct {
 	// WikiRoot 是 Obsidian wiki 根目录（~/.mady/knowledge/wiki 或 $WIKI_PATH），
 	// 供 reasoning Stage ② 的 patent-cards 经验召回复用。可为 ""。
 	WikiRoot string
+	// MemoryManager 是长期记忆系统的核心协调器。
+	// 所有入口（tui/serve/acp）共享同一个 Manager 实例。
+	MemoryManager *memory.Manager
 }
 
 // setupFrameworkContext 执行三个入口共享的初始化逻辑：
@@ -269,6 +273,31 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		},
 	})
 	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, baseTools)
+
+	// 长期记忆系统：优先 SQLite 持久化，回退 InMemoryStore。
+	// SQLite 文件位于 MADY_HOME/memory.db，所有 Agent 共享同一个存储后端，
+	// 支持跨会话持久化和向量检索。
+	memoryDB := filepath.Join(madyHome, "memory.db")
+	var memoryStore memory.MemoryStore
+	if madyHome != "" {
+		ms, err := memory.NewSQLiteMemoryStore(memoryDB)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "memory: 打开 SQLite 存储失败 %s: %v（降级为 InMemoryStore）\n", memoryDB, err)
+			memoryStore = memory.NewInMemoryStore()
+		} else {
+			fmt.Fprintf(os.Stderr, "memory: SQLite 持久化存储已加载（%s）\n", memoryDB)
+			memoryStore = ms
+		}
+	} else {
+		memoryStore = memory.NewInMemoryStore()
+	}
+	fc.MemoryManager = memory.NewManager(memoryStore, nil, nil, memory.DefaultManagerConfig())
+	// 在 BaseConfig 中注册 MemoryExtension 供所有入口复用。
+	// MemoryScope 在入口层填充（因 UserID/SessionID 仅在会话上下文中可知）。
+	// 此处仅创建共享存储与管理器，扩展实例由入口层（tui/serve/acp）按需创建。
+	fc.MemoryManager.LogStats(context.Background())
+	fmt.Fprintf(os.Stderr, "memory: 长期记忆系统已就绪\n")
+
 	// 初始化知识图谱（空存储，由 wiki import 或数据管线填充）。
 	fc.KnowledgeGraph = kgwgraph.NewGraphStore()
 

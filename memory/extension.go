@@ -24,6 +24,11 @@ type MemoryExtension struct {
 	manager *Manager
 	scope   MemoryScope
 	cfg     ExtensionConfig
+
+	// managerOwned 表示此 Extension 是否拥有 manager 的生命周期。
+	// 为 true 时 Dispose() 将关闭 manager；为 false 时 manager 由外部管理，
+	// 适用于 framework 共享 Manager 的场景（Agent 重建时不丢失存储连接）。
+	managerOwned bool
 }
 
 // ExtensionConfig 控制 MemoryExtension 的行为。
@@ -61,11 +66,29 @@ func DefaultExtensionConfig() ExtensionConfig {
 
 // NewExtension 创建一个记忆扩展。
 // scope 指定此 Agent 的记忆作用域。
-func NewExtension(manager *Manager, scope MemoryScope, cfg ExtensionConfig) *MemoryExtension {
-	return &MemoryExtension{
-		manager: manager,
-		scope:   scope,
-		cfg:     cfg,
+// 默认 Dispose() 会关闭 manager；如需由外部管理 manager 生命周期，
+// 请传递 WithSharedManager() 选项。
+func NewExtension(manager *Manager, scope MemoryScope, cfg ExtensionConfig, opts ...ExtensionOption) *MemoryExtension {
+	e := &MemoryExtension{
+		manager:      manager,
+		scope:        scope,
+		cfg:          cfg,
+		managerOwned: true, // 默认：Extension 拥有 manager
+	}
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
+}
+
+// ExtensionOption 定义 MemoryExtension 的构造选项。
+type ExtensionOption func(*MemoryExtension)
+
+// WithSharedManager 指示 Extension 不拥有 manager 的生命周期。
+// 适用于 framework 共享 Manager 的场景——Agent 重建时不关闭存储连接。
+func WithSharedManager() ExtensionOption {
+	return func(e *MemoryExtension) {
+		e.managerOwned = false
 	}
 }
 
@@ -92,7 +115,10 @@ func (e *MemoryExtension) Init(ctx context.Context, agent *agentcore.Agent) erro
 }
 
 func (e *MemoryExtension) Dispose() error {
-	return e.manager.Close()
+	if e.managerOwned {
+		return e.manager.Close()
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
