@@ -75,3 +75,41 @@ func TestInputSelectAllReplacesOnlyInputText(t *testing.T) {
 		t.Fatalf("typing should replace selected input text, got %q", got)
 	}
 }
+
+func TestInputPlaceholder(t *testing.T) {
+	in := NewInput(nil)
+	in.SetPlaceholder("type here")
+	in.SetFocused(false)
+	lines := in.Render(20)
+	if !strings.Contains(lines[0], "type here") {
+		t.Errorf("expected placeholder in render, got %q", lines[0])
+	}
+}
+
+func TestInputOnChange(t *testing.T) {
+	in := NewInput(nil)
+	in.SetFocused(true)
+	var changed string
+	in.OnChange(func(v string) { changed = v })
+	in.Update(core.KeyMsg{Data: "abc"})
+	if changed != "abc" {
+		t.Errorf("OnChange = %q, want abc", changed)
+	}
+}
+
+func TestInputSetValue(t *testing.T) {
+	in := NewInput(nil)
+	in.SetValue("preset")
+	if in.GetValue() != "preset" {
+		t.Errorf("GetValue = %q, want preset", in.GetValue())
+	}
+}
+
+func TestInputSetPrompt(t *testing.T) {
+	in := NewInput(nil)
+	in.SetPrompt("> ")
+	lines := in.Render(20)
+	if !strings.Contains(lines[0], "> ") {
+		t.Errorf("expected prompt in render, got %q", lines[0])
+	}
+}

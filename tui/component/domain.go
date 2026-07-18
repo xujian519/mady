@@ -7,8 +7,8 @@ package component
 // 为遵循 tui/LAYERS.md 的分层约束（tui/component 不依赖 agentcore），
 // 类型定义下沉到本包，agentcore 不再持有 TUI 专用数据模型。
 //
-// 上层（tui/agentadapter）负责从 agentcore.Message.Metadata["domain"]
-// 解码 JSON 到此处的 DomainMessage，再注入 ChatMessage.DomainMsg。
+// DomainMessage 目前由上层调用方直接构造并注入 chat.ChatMessage.DomainMsg；
+// agentcore.Message.Metadata["domain"] 的 JSON 解码链路尚未实现。
 
 // DomainMessageType 标记结构化专业消息的渲染类型。
 type DomainMessageType string

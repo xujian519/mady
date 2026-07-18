@@ -52,7 +52,7 @@ func DefaultSemanticForTerminal() *SemanticTheme {
 	if DetectTerminalBackground() == "light" {
 		return DefaultSemanticLight()
 	}
-	return DefaultSemanticLight()
+	return DefaultMadyDark()
 }
 
 // InitThemeFromEnv loads TUI_THEME or AGENT_TUI_THEME JSON (pi-compatible subset),

@@ -62,6 +62,11 @@ type AgentStartEvent struct {
 	Input     string `json:"input,omitempty"`
 }
 
+// NewAgentStartEvent 构造一个 AgentStartEvent。
+func NewAgentStartEvent(agentName, input string) *AgentStartEvent {
+	return &AgentStartEvent{baseEvent: newBase(EventAgentStart), AgentName: agentName, Input: input}
+}
+
 // AgentEndEvent 是 Agent 执行完成时触发的事件。
 type AgentEndEvent struct {
 	baseEvent
@@ -69,10 +74,20 @@ type AgentEndEvent struct {
 	Output    string `json:"output"`
 }
 
+// NewAgentEndEvent 构造一个 AgentEndEvent。
+func NewAgentEndEvent(agentName, output string) *AgentEndEvent {
+	return &AgentEndEvent{baseEvent: newBase(EventAgentEnd), AgentName: agentName, Output: output}
+}
+
 // AgentErrorEvent 是 Agent 执行错误时触发的事件。
 type AgentErrorEvent struct {
 	baseEvent
 	Err error `json:"error"`
+}
+
+// NewAgentErrorEvent 构造一个 AgentErrorEvent。
+func NewAgentErrorEvent(err error) *AgentErrorEvent {
+	return &AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err}
 }
 
 // AgentInterruptEvent 是 Agent 被中断时触发的事件。
@@ -82,6 +97,11 @@ type AgentInterruptEvent struct {
 	Reason    *InterruptReason `json:"reason,omitempty"`
 }
 
+// NewAgentInterruptEvent 构造一个 AgentInterruptEvent。
+func NewAgentInterruptEvent(agentName string, reason *InterruptReason) *AgentInterruptEvent {
+	return &AgentInterruptEvent{baseEvent: newBase(EventAgentInterrupt), AgentName: agentName, Reason: reason}
+}
+
 // SkillLoadedEvent 是技能加载完成时触发的事件。
 type SkillLoadedEvent struct {
 	baseEvent
@@ -89,6 +109,11 @@ type SkillLoadedEvent struct {
 	Path      string `json:"path,omitempty"`
 	Source    string `json:"source"`
 	Arguments string `json:"arguments,omitempty"`
+}
+
+// NewSkillLoadedEvent 构造一个 SkillLoadedEvent。
+func NewSkillLoadedEvent(skillName, path, source, arguments string) *SkillLoadedEvent {
+	return &SkillLoadedEvent{baseEvent: newBase(EventSkillLoaded), SkillName: skillName, Path: path, Source: source, Arguments: arguments}
 }
 
 // SkillsReloadedEvent 是技能热重载完成时触发的事件。
@@ -133,11 +158,21 @@ type TurnStartEvent struct {
 	Turn int64 `json:"turn"`
 }
 
+// NewTurnStartEvent 构造一个 TurnStartEvent。
+func NewTurnStartEvent(turn int64) *TurnStartEvent {
+	return &TurnStartEvent{baseEvent: newBase(EventTurnStart), Turn: turn}
+}
+
 // TurnEndEvent 是 Agent 内部循环结束一轮时触发的事件。
 type TurnEndEvent struct {
 	baseEvent
 	Turn  int64      `json:"turn"`
 	Usage TokenUsage `json:"usage"`
+}
+
+// NewTurnEndEvent 构造一个 TurnEndEvent。
+func NewTurnEndEvent(turn int64, usage TokenUsage) *TurnEndEvent {
+	return &TurnEndEvent{baseEvent: newBase(EventTurnEnd), Turn: turn, Usage: usage}
 }
 
 // MessageDeltaEvent 是 LLM 流式输出消息片段时触发的事件。
@@ -147,10 +182,20 @@ type MessageDeltaEvent struct {
 	Kind  BlockKind `json:"kind,omitempty"`
 }
 
+// NewMessageDeltaEvent 构造一个 MessageDeltaEvent。
+func NewMessageDeltaEvent(delta string, kind BlockKind) *MessageDeltaEvent {
+	return &MessageDeltaEvent{baseEvent: newBase(EventMessageDelta), Delta: delta, Kind: kind}
+}
+
 // ToolCallStartEvent 是工具调用开始时触发的事件。
 type ToolCallStartEvent struct {
 	baseEvent
 	ToolCall ToolCall `json:"tool_call"`
+}
+
+// NewToolCallStartEvent 构造一个 ToolCallStartEvent。
+func NewToolCallStartEvent(toolCall ToolCall) *ToolCallStartEvent {
+	return &ToolCallStartEvent{baseEvent: newBase(EventToolCallStart), ToolCall: toolCall}
 }
 
 // ToolCallEndEvent 是工具调用结束时触发的事件。
@@ -163,6 +208,11 @@ type ToolCallEndEvent struct {
 	Duration   time.Duration `json:"duration"`
 }
 
+// NewToolCallEndEvent 构造一个 ToolCallEndEvent。
+func NewToolCallEndEvent(toolCallID, toolName, result string, err error, duration time.Duration) *ToolCallEndEvent {
+	return &ToolCallEndEvent{baseEvent: newBase(EventToolCallEnd), ToolCallID: toolCallID, ToolName: toolName, Result: result, Err: err, Duration: duration}
+}
+
 // HandoffStartEvent 是 Handoff 交接开始时触发的事件。
 type HandoffStartEvent struct {
 	baseEvent
@@ -171,6 +221,11 @@ type HandoffStartEvent struct {
 	Mode        string `json:"mode"`
 	Context     string `json:"context"`
 	Invisible   bool   `json:"invisible,omitempty"`
+}
+
+// NewHandoffStartEvent 构造一个 HandoffStartEvent。
+func NewHandoffStartEvent(sourceAgent, targetAgent, mode, context string, invisible bool) *HandoffStartEvent {
+	return &HandoffStartEvent{baseEvent: newBase(EventHandoffStart), SourceAgent: sourceAgent, TargetAgent: targetAgent, Mode: mode, Context: context, Invisible: invisible}
 }
 
 // HandoffEndEvent 是 Handoff 交接结束时触发的事件。
@@ -183,11 +238,21 @@ type HandoffEndEvent struct {
 	Invisible   bool          `json:"invisible"`
 }
 
+// NewHandoffEndEvent 构造一个 HandoffEndEvent。
+func NewHandoffEndEvent(targetAgent, output string, duration time.Duration, err error, invisible bool) *HandoffEndEvent {
+	return &HandoffEndEvent{baseEvent: newBase(EventHandoffEnd), TargetAgent: targetAgent, Output: output, Duration: duration, Err: err, Invisible: invisible}
+}
+
 // CompactionStartEvent 是上下文压缩开始时触发的事件。
 type CompactionStartEvent struct {
 	baseEvent
 	TokensBefore  int64 `json:"tokens_before"`
 	ContextWindow int64 `json:"context_window"`
+}
+
+// NewCompactionStartEvent 构造一个 CompactionStartEvent。
+func NewCompactionStartEvent(tokensBefore, contextWindow int64) *CompactionStartEvent {
+	return &CompactionStartEvent{baseEvent: newBase(EventCompactionStart), TokensBefore: tokensBefore, ContextWindow: contextWindow}
 }
 
 // CompactionEndEvent 是上下文压缩结束时触发的事件。
@@ -199,6 +264,11 @@ type CompactionEndEvent struct {
 	Duration     time.Duration `json:"duration"`
 }
 
+// NewCompactionEndEvent 构造一个 CompactionEndEvent。
+func NewCompactionEndEvent(tokensBefore, tokensAfter, messagesCut int64, duration time.Duration) *CompactionEndEvent {
+	return &CompactionEndEvent{baseEvent: newBase(EventCompactionEnd), TokensBefore: tokensBefore, TokensAfter: tokensAfter, MessagesCut: messagesCut, Duration: duration}
+}
+
 // AutoRetryEvent 是自动重试发生时触发的事件。
 type AutoRetryEvent struct {
 	baseEvent
@@ -206,6 +276,11 @@ type AutoRetryEvent struct {
 	MaxRetries int64         `json:"max_retries"`
 	Delay      time.Duration `json:"delay"`
 	Err        error         `json:"error"`
+}
+
+// NewAutoRetryEvent 构造一个 AutoRetryEvent。
+func NewAutoRetryEvent(attempt, maxRetries int64, delay time.Duration, err error) *AutoRetryEvent {
+	return &AutoRetryEvent{baseEvent: newBase(EventAutoRetry), Attempt: attempt, MaxRetries: maxRetries, Delay: delay, Err: err}
 }
 
 // --- JSON serialization for events with error fields ---
