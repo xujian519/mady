@@ -1,5 +1,32 @@
 # AI 决策变更日志
 
+## 2026-07-18: M1 门禁加固（2/4）：codecov 配置合并并启用覆盖率门槛
+
+### 背景
+仓库根目录同时存在 `codecov.yml`（project target 30%/threshold 5%）与 `.codecov.yml`
+（50%/2%）两份冲突配置，Codecov 实际生效项不确定；且 CI 覆盖率上传步骤
+`fail_ci_if_error: false`，上传失败静默通过，覆盖率门禁形同虚设。
+当前覆盖率基线约 61.4%，采取渐进收紧策略。
+
+### 变更
+- 删除 `.codecov.yml`，配置统一合并进 `codecov.yml`：
+  - project target 55%、threshold 2%（低于当前基线，留出缓冲渐进收紧）
+  - patch target 50%
+  - ignore 取两文件并集：`example/**`、`benchmark/**`、`integration/**`、
+    `**/*_test.go`、`**/doc.go`、`vendor/**`
+  - 保留原有 precision(2)/round(down)/comment 配置，range 调整为 `55...80`
+- `.github/workflows/ci.yml`：覆盖率上传步骤 `fail_ci_if_error` 由 `false` 改为 `true`，
+  上传失败将直接使 CI 失败
+
+### 验证
+- `go build ./... && go vet ./...` ✅
+- pre-commit `check-yaml` 通过（提交时自动校验 codecov.yml / ci.yml 语法）
+
+### 涉及文件
+- `codecov.yml`、`.codecov.yml`（删除）、`.github/workflows/ci.yml`
+
+---
+
 ## 2026-07-18: M1 门禁加固（1/4）：integration e2e 测试接入 CI
 
 ### 背景
