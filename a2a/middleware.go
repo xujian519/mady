@@ -4,8 +4,38 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 )
+
+// SensitiveQueryParams lists URL query parameters whose values should be
+// redacted before logging, to prevent credential leakage in access logs.
+var SensitiveQueryParams = []string{"token", "apiKey", "api_key", "apikey"}
+
+// RedactURL returns the URL string with sensitive query parameter values
+// replaced by "REDACTED". Use this instead of r.URL.String() or r.RequestURI
+// in logging to prevent credential leakage.
+func RedactURL(r *http.Request) string {
+	return redactQueryValues(r.URL)
+}
+
+func redactQueryValues(u *url.URL) string {
+	q := u.Query()
+	if len(q) == 0 {
+		return u.RequestURI()
+	}
+	redacted := false
+	for _, key := range SensitiveQueryParams {
+		if q.Get(key) != "" {
+			q.Set(key, "REDACTED")
+			redacted = true
+		}
+	}
+	if !redacted {
+		return u.RequestURI()
+	}
+	return u.Path + "?" + q.Encode()
+}
 
 // ---------------------------------------------------------------------------
 // Auth middleware

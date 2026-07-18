@@ -90,6 +90,11 @@ func (c *wsConn) close() error {
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	if s.auth.APIKey != "" || s.auth.BearerToken != "" {
+		// Note: token/apiKey via query params is a pragmatic trade-off —
+		// browser WebSocket API cannot set custom headers on upgrade
+		// requests. The downside is potential leakage in upstream proxy
+		// logs. Use RedactURL() for logging when URL containing these
+		// params needs to be recorded.
 		key := r.URL.Query().Get("apiKey")
 		token := r.URL.Query().Get("token")
 		if !s.checkWSAuth(key, token) {

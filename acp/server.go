@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -518,9 +519,10 @@ func (s *Server) handleNewSession(ctx context.Context, req *JSONRPCRequest) {
 		}
 	}
 
-	cwd := params.CWD
-	if cwd == "" {
-		cwd = "."
+	cwd, err := sanitizeCWD(params.CWD)
+	if err != nil {
+		s.writeError(req.ID, -32602, "Invalid CWD", err.Error())
+		return
 	}
 
 	state, err := s.sessionMgr.CreateSession(ctx, cwd, "")
@@ -607,9 +609,10 @@ func (s *Server) handleForkSession(ctx context.Context, req *JSONRPCRequest) {
 		}
 	}
 
-	cwd := params.CWD
-	if cwd == "" {
-		cwd = "."
+	cwd, err := sanitizeCWD(params.CWD)
+	if err != nil {
+		s.writeError(req.ID, -32602, "Invalid CWD", err.Error())
+		return
 	}
 
 	state, err := s.sessionMgr.ForkSession(ctx, params.SessionID, cwd)
@@ -941,4 +944,18 @@ func (n *noopAuthProvider) AuthMethods() []any {
 
 func (n *noopAuthProvider) Authenticate(_ context.Context, _ AuthenticateParams) (*AuthenticateResult, error) {
 	return nil, fmt.Errorf("authentication not configured: no auth provider registered")
+}
+
+// sanitizeCWD 清洗 CWD 路径，防止目录遍历（../）攻击。
+// 空 CWD 默认 "."；经 filepath.Clean 归一化后转为绝对路径。
+func sanitizeCWD(cwd string) (string, error) {
+	if cwd == "" {
+		cwd = "."
+	}
+	cleaned := filepath.Clean(cwd)
+	abs, err := filepath.Abs(cleaned)
+	if err != nil {
+		return "", fmt.Errorf("cwd abs: %w", err)
+	}
+	return abs, nil
 }
