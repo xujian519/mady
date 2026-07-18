@@ -10,6 +10,19 @@ allowed_tools:
   - bash
   - grep
   - find
+
+mady:
+  mode: patent
+  guardrail_level: strict
+  approval_required: true
+  example_prompt: "检索专利 CN112345678A 并分析其新颖性"
+  example_prompt_zh: "检索专利 CN112345678A 并分析其新颖性"
+  capabilities:
+    - patent_search
+    - reasoning
+    - approval_gate
+    - disclosure_analysis
+  handoff_allowed: true
 ---
 
 # 专利代理与知识产权分析

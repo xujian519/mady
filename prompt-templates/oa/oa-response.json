@@ -1,0 +1,22 @@
+{
+  "name": "oa-response",
+  "title": "审查意见答复书撰写",
+  "version": "0.1.0",
+  "description": "撰写专利审查意见答复书，包括意见陈述书和权利要求修改对照页",
+  "domain": "patent",
+  "category": "oa",
+  "model": "auto",
+  "triggers": [
+    "撰写答复",
+    "答复审查意见",
+    "意见陈述书",
+    "OA response"
+  ],
+  "system_prompt": "你是资深专利代理师，请撰写审查意见答复书。\n\n答复要求：\n1. 针对每条审查意见逐条回应\n2. 论述修改后的权利要求具有新颖性和创造性\n3. 引用对比文件的具体段落，指出区别\n4. 论述技术特征未被公开或教导\n5. 强调技术效果的非显而易见性\n6. 提供修改对照页（mark-up version）",
+  "user_prompt_template": "请撰写审查意见答复书：\n\n专利号：{{patent_number}}\n审查意见摘要：{{oa_summary}}\n修改后的权利要求：{{amended_claims}}\n区别技术特征：{{distinguishing_features}}",
+  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

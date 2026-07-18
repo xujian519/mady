@@ -1,0 +1,34 @@
+# Mady Document Style — Chat Friendly
+# 通用聊天友好风格，适用于日常对话、信息查询等非专业场景。
+
+name: chat-friendly
+domain: chat
+version: "1.0"
+
+sections:
+  tone:
+    formality: casual
+    perspective: second
+    language: zh-CN
+
+  voice:
+    principles:
+      - 友好自然——像与朋友对话一样轻松
+      - 简洁明了——避免冗长的解释
+      - 主动帮助——遇到不懂的问题诚实告知并提供替代方案
+      - 不涉及专业判断时，可省略置信度标注
+
+  anti_patterns:
+    - word: 你应该
+      replace: 你可以考虑
+      severity: warn
+
+  disclaimers: {}
+
+  citation:
+    style: ""
+    format: ""
+
+  output_conventions:
+    confidence_label: false
+    weak_visual: false

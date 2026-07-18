@@ -1,5 +1,114 @@
 # AI 决策变更日志
 
+## 2026-07-18: Open Design 思路引入 —— Tier 3 实现（最终阶段）
+
+### 背景
+完成 Open Design 思路引入的第三阶段（高影响力/高复杂度），覆盖所有剩余 3 项特性。
+至此，全部 8 个思路已分三个 Tier 完整引入 Mady。
+
+### 本次实现（Tier 3 — 高影响力 / 高复杂度）
+
+| # | 特性 | 改动 |
+|---|------|------|
+| 6 | **文档模板库** | `domains/doctmpl/`：`DocTemplate` 类型 + `LoadDocTemplates` / `LoadDocTemplatesFromFS` / `ResolveDoc` / `FindDocByCategory` / `DocIndex` API。`doc-templates/` 含 12 个 Markdown 模板（claims 3 / specification 4 / oa-response 3 / disclosure 2），使用 `{{variable}}` 占位符语法。`go:embed` 嵌为二进制内置模板，用户可在 `$MADY_HOME/doc-templates/` 覆盖或新增 |
+| 7 | **Pipeline Atoms** | `agentcore/atom.go`：`Atom` 接口（Name/Description/Category/InputSchema/OutputSchema）+ 5 个具体原子操作（search / extract / compare / reasoning / approval-gate）+ 全局注册表（RegisterAtom / LookupAtom / ListAtoms / ListAtomsByCategory / AtomIndex）。`agentcore/plugin.go`：`PluginStage` 新增 `Atom` 字段，校验阶段验证原子引用有效性；3 个 plugin.json 已更新使用 atom 引用替代裸 tool 名 |
+| 8 | **Agent 适配器模式** | `provider/adapter/`：`AgentAdapter` 接口（Name/Description/Detect/Spawn/Capabilities）+ `AgentSession` 接口（Send/Stream/Close）+ `AgentCapabilities` / `SpawnConfig` / `StreamChunk` 类型 + 全局注册表（RegisterAdapter / LookupAdapter / ListAdapters / DetectAll / AdapterIndex）。`claude.go`（Claude Code 适配器）+ `codex.go`（Codex CLI 适配器），均通过 `cliSession`（stdin/stdout 双向通信）实现 AgentSession |
+
+### 技术细节
+
+**文档模板库（借鉴 OD 的 template system）**：
+- Markdown + YAML frontmatter 格式，`extractFrontmatter` 解析器
+- `LoadDocTemplatesFromFS` 统一 fs.FS 接口，支持 embed.FS 和 os.DirFS
+- `ResolveDoc` 使用 `strings.ReplaceAll("{{"+key+"}}", value)` 替换变量
+- `DocIndex` 按 category 分组输出可读索引，适合 CLI 帮助
+
+**Pipeline Atoms（借鉴 OD 的可组合 pipeline 原语）**：
+- 5 个原子覆盖完整专利工作流：搜索 → 提取 → 对比 → 推理 → 审批
+- `PluginStage.Atom` 引用注册表原子，实现从"粗粒度工具名"到"语义原子"的升级
+- 向后兼容：Tool 字段仍有效（当 Atom 为空时）；两者共存时 atom 提供语义约束
+- 原子通过 init() 自动注册，包导入即可使用
+
+**Agent 适配器模式（借鉴 OD 的 agent composability）**：
+- `detect → spawn → stream → capabilities` 四步统一接口
+- `cliSession` 共享实现适用于所有 CLI-based 编码助手（Claude/Codex/Cursor/Copilot）
+- `DetectAll` 运行时发现已安装的编码助手及其可用性
+- `AdapterIndex` 生成终端诊断表格（✓/✗ 状态）
+- mock 实现（mockAdapter/mockSession）便于单元测试
+
+### 不影响
+- 所有新增特性为纯新增，不修改任何已有生产代码路径
+- Pipeline Atoms 通过 PluginStage.Atom 可选引用，不改变已有 plugin.json 的行为
+- doc-templates 为独立目录，不影响已有文件
+- 不涉及安全红线路径
+
+### 验证
+- `go build ./...` ✅
+- `go test -race ./...` ✅（全部 82 包通过，含新增 3 个测试文件，18+ 新用例）
+- `go vet ./...` ✅（零警告）
+- `tools/` 子模块 build/test/vet ✅
+- 项目全量无新增 lint 问题
+
+## 2026-07-18: Open Design 思路引入 —— Tier 2 实现
+
+### 本次实现（Tier 2 — 中等影响力）
+
+| # | 特性 | 改动 |
+|---|------|------|
+| 4 | **结构化 DOCUMENT_STYLE.md** | `domains/style.go`：`DocumentStyle` 类型（YAML 风格指南，包含 tone/voice/anti_patterns/disclaimers/citation/output_conventions），`SystemPrompt()` 方法生成注入文本。`styles/` 目录含 4 个默认风格（patent-standard / legal-standard / chat-friendly / assistant-neutral） |
+| 5 | **专利工作流插件系统原型** | `agentcore/plugin.go`：`PluginManifest` 类型 + `ValidatePlugin` + `ScanPlugins` + `LoadPlugin`。`plugins/patent/` 含 3 个原型插件（novelty-analysis / infringement-check / oa-response），每个插件 = `plugin.json` + `SKILL.md`，pipeline 由可组合 stages 构成 |
+
+### 技术细节
+
+**DocumentStyle（借鉴 OD 的 DESIGN.md）**：
+- YAML 格式，9 个结构化章节替代原有纯 prose `tone-style-guide.md`
+- `SystemPrompt()` 自动生成 agent 注入文本，按领域（patent/legal/chat/assistant）可切换
+- 反模式（anti_patterns）标注 severity（block/warn）便于自动化检测
+
+**Plugin System（借鉴 OD 的 open-design.json + pipeline）**：
+- 插件 = `plugin.json`（manifest）+ `SKILL.md`（agent contract）
+- Pipeline 由可组合 stages 构成，每个 stage = id + tool + description
+- 复用现有 `ValidateManifest` 校验框架（name regex / domain / guardrail_level）
+- `ScanPlugins` 自动发现 `plugins/` 目录下的所有 `plugin.json`
+- 3 个原型覆盖核心专利场景：新颖性分析（5 stages）、侵权比对（7 stages）、OA 答复（6 stages）
+
+### 不影响
+- 不涉及安全红线路径
+- 原有 `tone-style-guide.md` 保留为人可读参考文档
+- 插件与现有 SKILL.md 技能系统并行运作
+
+### 验证
+- `go build ./...` ✅
+- `go test -race ./...` ✅（全部通过，含新增 9 个测试文件，30+ 新用例）
+- `go vet ./...` ✅
+
+## 2026-07-18: 引入 Open Design 项目思路 —— 三阶段 Tier 1 实现
+
+### 背景
+深度研究 [open-design](https://github.com/nexu-io/open-design)（79K+ Stars）项目，
+识别出 8 个可引入思路并按影响力排序。详见 plan.md 完整分析报告。
+
+### 本次实现（Tier 1 — 高影响力 / 低风险）
+
+| # | 特性 | 改动 |
+|---|------|------|
+| 1 | **MCP Install CLI** | `mcp/install.go` + `cmd/mady/mcp_install.go`：`mady mcp-install <agent>` 一键将 Mady 的 ACP 服务端接入 Claude Code / Codex / Cursor / Gemini CLI / GitHub Copilot 等编码 Agent |
+| 2 | **SKILL.md 扩展字段** | `skill/skill.go` 新增 `MadyExtension` 结构体（mode/guardrail_level/approval_required/inputs/example_prompt/capabilities/handoff_allowed），`skill/frontmatter.go` 新增 YAML 解析，4 个现有 SKILL.md 已添加 `mady:` 扩展段 |
+| 3 | **提示词模板库** | `prompt-templates/` 目录含 16 个 curated 模板（检索/分析/撰写/OA/交底书/法律），`prompt/loader.go` 提供 `LoadPrompts` / `ResolvePrompt` / `FindPromptByTrigger` / `FindPromptByName` API |
+
+### 技术细节
+- MCP Install 复用已有 `MCPServerConfig` / `MCPConfigFile` 类型，支持 `--list` / `--print` / `--uninstall`
+- SKILL.md `mady:` 扩展使用 `gopkg.in/yaml.v3` 解析，向后兼容（无扩展字段的旧 SKILL.md 不受影响）
+- 提示词模板使用 `{{variable}}` 语法，与现有 `prompt.Template` 渲染器独立并存
+
+### 不影响
+- 不涉及安全红线路径（不修改 `agentcore/handoff.go`、`guardrails/levels.go`、`tools/bash.go` 等）
+- `tools/` 子模块无变更，多模块工作区规则无违反
+
+### 验证
+- `go build ./...` ✅
+- `go test -race ./...` ✅（全部通过，含新增 5 个测试文件）
+- `go vet ./...` ✅
+
 ## 2026-07-18: Code Review 全部 6 个问题修复
 
 ### 修复清单

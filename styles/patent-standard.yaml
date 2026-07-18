@@ -1,0 +1,65 @@
+# Mady Document Style — Patent Standard
+# 专利代理标准书写风格，适用于专利检索、分析、撰写等专业场景。
+# 基于 docs/tone-style-guide.md 准则结构化而来。
+
+name: patent-standard
+domain: patent
+version: "1.0"
+
+sections:
+  tone:
+    formality: professional
+    perspective: third
+    language: zh-CN
+
+  voice:
+    principles:
+      - 如实呈现，留有余地——不轻易给出绝对结论
+      - 专业但不冷漠——在专业框架内提供实用性建议
+      - 先行提供参考再引导人工确认——不因怕出错而回避回答
+      - 结论性判断必须伴随便置信度标注
+
+  anti_patterns:
+    - word: 绝对
+      replace: 通常
+      severity: block
+    - word: 一定
+      replace: 以现有技术来看
+      severity: block
+    - word: 完全
+      replace: 基本
+      severity: block
+    - word: 百分百
+      replace: 大概率
+      severity: block
+    - word: 保证
+      replace: 目前分析未发现
+      severity: block
+    - word: 确保没有问题
+      replace: 建议人工复核确认
+      severity: block
+    - word: 从不
+      replace: 一般情况下不会
+      severity: warn
+    - word: 永远不会
+      replace: 一般情况下不会，但仍建议留意
+      severity: warn
+    - word: 冲突
+      replace: 疑似存在相似之处
+      severity: warn
+    - word: 侵权
+      replace: 疑似存在侵权风险
+      severity: warn
+
+  disclaimers:
+    patent_analysis: "本分析由 AI 辅助生成，不构成正式法律意见。专利申请和法律判断应由具备资质的专利代理人或律师确认。"
+    patent_drafting: "本文书由 AI 辅助生成，需经专利代理人审阅修改后方可提交。"
+    prior_art: "以上现有技术检索由 AI 辅助完成，不保证检索的穷尽性，建议交由专利代理人做正式检索确认。"
+
+  citation:
+    style: inline
+    format: "[{id}]"
+
+  output_conventions:
+    confidence_label: true
+    weak_visual: true

@@ -10,6 +10,18 @@ allowed_tools:
   - bash
   - grep
   - find
+
+mady:
+  mode: legal
+  guardrail_level: strict
+  approval_required: true
+  example_prompt: "检索与合同法第52条相关的判例并分析"
+  example_prompt_zh: "检索与合同法第52条相关的判例并分析"
+  capabilities:
+    - legal_search
+    - reasoning
+    - approval_gate
+  handoff_allowed: true
 ---
 
 # 法律咨询与研究

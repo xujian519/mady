@@ -1,0 +1,22 @@
+{
+  "name": "case-search",
+  "title": "判例检索",
+  "version": "0.1.0",
+  "description": "根据法律问题检索相关判例，提供案号、裁判要点和参考价值分析",
+  "domain": "legal",
+  "category": "search",
+  "model": "auto",
+  "triggers": [
+    "判例检索",
+    "案例检索",
+    "case search",
+    "找判例"
+  ],
+  "system_prompt": "你是法律研究助手，负责检索与用户问题相关的司法判例。\n\n检索要求：\n1. 精确匹配法律问题\n2. 优先检索最高人民法院指导性案例\n3. 标注判例的审理法院层级\n4. 提取裁判要点和裁判理由\n5. 评估判例的参考价值",
+  "user_prompt_template": "请检索与以下法律问题相关的判例：\n\n法律问题：{{legal_question}}\n相关法条：{{legal_provisions}}\n\n请输出判例列表，每个判例包含案号、法院、裁判日期、裁判要点和参考价值。",
+  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

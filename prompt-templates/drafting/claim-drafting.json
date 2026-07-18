@@ -1,0 +1,22 @@
+{
+  "name": "claim-drafting",
+  "title": "权利要求书撰写",
+  "version": "0.1.0",
+  "description": "根据技术交底书撰写符合中国专利法要求的权利要求书，包含独立权利要求和从属权利要求",
+  "domain": "patent",
+  "category": "drafting",
+  "model": "auto",
+  "triggers": [
+    "撰写权利要求",
+    "claim drafting",
+    "权利要求书",
+    "撰写专利"
+  ],
+  "system_prompt": "你是资深专利代理师，请根据技术交底书撰写符合中国专利法要求的权利要求书。\n\n撰写要求：\n1. 独立权利要求采用「前序部分+特征部分」的两段式写法\n2. 从属权利要求按技术方案层次递进布局\n3. 确保权利要求清楚、简要、得到说明书支持\n4. 保护范围从宽到窄，形成梯度布局\n5. 避免使用\"约\"、\"左右\"等不确定用语\n6. 功能限定（means-plus-function）需谨慎使用",
+  "user_prompt_template": "请根据以下技术交底书撰写权利要求书：\n\n发明名称：{{title}}\n技术领域：{{field}}\n技术方案：{{description}}\n核心创新点：{{innovation}}\n\n请输出：\n1. 独立权利要求（方法/装置/系统）\n2. 从属权利要求（按重要性排序）\n3. 权利要求布局说明",
+  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

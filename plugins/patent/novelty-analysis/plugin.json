@@ -1,0 +1,38 @@
+{
+  "name": "novelty-analysis",
+  "version": "0.1.0",
+  "domain": "patent",
+  "guardrail_level": "standard",
+  "description": "专利新颖性分析工作流：检索现有技术 → 特征对比 → 生成分析结论 → 人工审阅确认",
+  "pipeline": {
+    "stages": [
+      {
+        "id": "search",
+        "atom": "search",
+        "description": "检索最接近的现有技术文献"
+      },
+      {
+        "id": "decompose",
+        "atom": "extract",
+        "description": "分解技术方案为最小技术特征单元"
+      },
+      {
+        "id": "compare",
+        "atom": "compare",
+        "description": "逐项对比技术特征与现有技术（单独对比原则）"
+      },
+      {
+        "id": "conclude",
+        "atom": "reasoning",
+        "description": "生成新颖性初步判断结论（附置信度）"
+      },
+      {
+        "id": "approval",
+        "atom": "approval-gate",
+        "description": "人工审阅确认分析结论"
+      }
+    ]
+  },
+  "allowed_sources": ["mady-router"],
+  "handoff_targets": ["patent-agent"]
+}

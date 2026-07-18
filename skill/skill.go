@@ -8,6 +8,32 @@ import (
 	"strings"
 )
 
+// MadyExtension holds Mady-specific SKILL.md frontmatter extensions
+// under the "mady:" key. All fields are optional and default to zero values.
+type MadyExtension struct {
+	Mode             string      `yaml:"mode"`            // chat | assistant | patent | legal | disclosure
+	GuardrailLevel   string      `yaml:"guardrail_level"` // light | standard | strict
+	ApprovalRequired bool        `yaml:"approval_required"`
+	Inputs           []MadyInput `yaml:"inputs"`
+	ExamplePrompt    string      `yaml:"example_prompt"`
+	ExamplePromptZh  string      `yaml:"example_prompt_zh"`
+	Capabilities     []string    `yaml:"capabilities"`
+	HandoffAllowed   bool        `yaml:"handoff_allowed"`
+}
+
+// MadyInput describes a typed input field for a skill, intended for
+// UI-driven parameter collection before invocation.
+type MadyInput struct {
+	Name     string   `yaml:"name"`
+	Type     string   `yaml:"type"` // string | integer | enum | boolean
+	Required bool     `yaml:"required"`
+	Default  string   `yaml:"default"`
+	Label    string   `yaml:"label"`
+	Values   []string `yaml:"values"` // for enum type
+	Min      int      `yaml:"min"`    // for integer type
+	Max      int      `yaml:"max"`    // for integer type
+}
+
 // Skill is one parsed SKILL.md package discovered from disk.
 type Skill struct {
 	Name          string
@@ -23,6 +49,9 @@ type Skill struct {
 	AllowedTools           []string
 	DisableModelInvocation bool
 	Metadata               map[string]string
+	// Mady holds Mady-specific extensions parsed from the "mady:" frontmatter
+	// block. Nil when no extensions are declared.
+	Mady *MadyExtension
 }
 
 // Diagnostic reports a non-fatal issue found while loading a skill.

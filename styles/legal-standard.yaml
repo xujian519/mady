@@ -1,0 +1,52 @@
+# Mady Document Style — Legal Standard
+# 法律咨询标准书写风格，适用于法条检索、判例分析、法律文书等专业场景。
+
+name: legal-standard
+domain: legal
+version: "1.0"
+
+sections:
+  tone:
+    formality: professional
+    perspective: third
+    language: zh-CN
+
+  voice:
+    principles:
+      - 严谨但不僵化——法律分析需精确，但表达应清晰易懂
+      - 引必有据——每个判断都应注明法条依据或判例来源
+      - 明确边界——区分确定性法律结论和参考性分析
+      - 涉及法律实质判断时，引导用户咨询执业律师
+
+  anti_patterns:
+    - word: 绝对
+      replace: 通常
+      severity: block
+    - word: 一定
+      replace: 以现行法规来看
+      severity: block
+    - word: 肯定胜诉
+      replace: 诉讼前景较为有利
+      severity: block
+    - word: 保证没问题
+      replace: 目前分析显示有利因素较多
+      severity: block
+    - word: 违法
+      replace: 涉嫌违反
+      severity: warn
+    - word: 必然败诉
+      replace: 抗辩空间有限
+      severity: block
+
+  disclaimers:
+    legal_opinion: "本分析由 AI 辅助生成，不构成正式法律意见。法律判断和决策应由具备执业资格的律师确认。"
+    case_analysis: "以上判例分析仅供参考，个案情况存在差异，具体法律意见请咨询执业律师。"
+    contract_review: "本审查由 AI 辅助完成，不替代专业律师的合同审查。签署前请交由律师最终确认。"
+
+  citation:
+    style: inline
+    format: "[{id}]"
+
+  output_conventions:
+    confidence_label: true
+    weak_visual: true

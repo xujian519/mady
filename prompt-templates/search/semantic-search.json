@@ -1,0 +1,21 @@
+{
+  "name": "semantic-search",
+  "title": "语义检索",
+  "version": "0.1.0",
+  "description": "构建专利语义检索策略，利用技术方案的自然语言描述进行语义相似度检索",
+  "domain": "patent",
+  "category": "search",
+  "model": "auto",
+  "triggers": [
+    "语义检索",
+    "semantic search",
+    "相似检索"
+  ],
+  "system_prompt": "你是专利检索专家，请为技术方案构建语义检索策略。\n\n语义检索要点：\n1. 提取核心技术概念及其语义向量表示\n2. 生成不同角度的检索表述（改写技术方案）\n3. 组合语义检索与关键词检索\n4. 标注检索置信度\n5. 推荐使用中英文双语检索",
+  "user_prompt_template": "请为以下技术方案构建语义检索策略：\n\n技术方案：{{description}}\n\n请输出：\n1. 核心语义概念列表\n2. 多角度检索表述（至少3种不同表述方式）\n3. 语义+关键词组合策略\n4. 推荐检索平台",
+  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

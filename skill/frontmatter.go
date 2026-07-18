@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 const maxSkillNameLength = 64
@@ -36,6 +38,13 @@ func loadSkillFile(path string) (*Skill, []Diagnostic, error) {
 		DisableModelInvocation: parseBool(frontmatter["disable-model-invocation"]),
 		Metadata:               parseMetadata(frontmatter["metadata"]),
 	}
+
+	// Parse mady:\n YAML block from the frontmatter header.
+	if madyExt, diags := parseMadyExtension(string(body), abs); madyExt != nil {
+		item.Mady = madyExt
+		diagnostics = append(diagnostics, diags...)
+	}
+
 	if item.Name == "" {
 		item.Name = filepath.Base(item.BaseDir)
 		diagnostics = append(diagnostics, Diagnostic{
@@ -279,4 +288,61 @@ func readSkillBody(item Skill) (string, error) {
 	}
 	_, content, _ := parseFrontmatter(string(raw), item.FilePath)
 	return strings.TrimSpace(content), nil
+}
+
+// parseMadyExtension extracts the raw frontmatter header from raw SKILL.md
+// content, parses it as YAML, and returns the MadyExtension under the "mady"
+// key. Returns nil when no mady: block is present.
+func parseMadyExtension(raw string, path string) (*MadyExtension, []Diagnostic) {
+	header := extractRawHeader(raw)
+	if header == "" {
+		return nil, nil
+	}
+	var doc map[string]interface{}
+	if err := yaml.Unmarshal([]byte(header), &doc); err != nil {
+		return nil, []Diagnostic{{
+			Path:    path,
+			Message: fmt.Sprintf("mady: YAML parse error: %v", err),
+		}}
+	}
+	rawMady, ok := doc["mady"]
+	if !ok {
+		return nil, nil
+	}
+	// Re-marshal the mady sub-tree so we can unmarshal into MadyExtension.
+	madyBytes, err := yaml.Marshal(rawMady)
+	if err != nil {
+		return nil, []Diagnostic{{
+			Path:    path,
+			Message: fmt.Sprintf("mady: marshal error: %v", err),
+		}}
+	}
+	var ext MadyExtension
+	if err := yaml.Unmarshal(madyBytes, &ext); err != nil {
+		return nil, []Diagnostic{{
+			Path:    path,
+			Message: fmt.Sprintf("mady: extension parse error: %v", err),
+		}}
+	}
+	return &ext, nil
+}
+
+// extractRawHeader extracts the frontmatter header (between --- fences)
+// from raw SKILL.md content. Returns empty string if no header is found.
+func extractRawHeader(raw string) string {
+	const fence = "---\n"
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	if !strings.HasPrefix(raw, fence) {
+		return ""
+	}
+	rest := strings.TrimPrefix(raw, fence)
+	end := strings.Index(rest, "\n---\n")
+	if end < 0 {
+		// Accept trailing "---" without a following newline.
+		end = strings.Index(rest, "\n---")
+		if end < 0 {
+			return ""
+		}
+	}
+	return rest[:end]
 }

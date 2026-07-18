@@ -1,0 +1,48 @@
+{
+  "name": "infringement-check",
+  "version": "0.1.0",
+  "domain": "patent",
+  "guardrail_level": "strict",
+  "description": "专利侵权比对分析工作流：确定保护范围 → 特征分解 → 全面覆盖比对 → 等同评估 → 风险定级",
+  "pipeline": {
+    "stages": [
+      {
+        "id": "scope",
+        "atom": "reasoning",
+        "description": "确定目标专利的权利要求保护范围"
+      },
+      {
+        "id": "decompose-target",
+        "atom": "reasoning",
+        "description": "分解目标专利权利要求的全部技术特征"
+      },
+      {
+        "id": "decompose-accused",
+        "atom": "reasoning",
+        "description": "分解被控侵权方案的技术特征"
+      },
+      {
+        "id": "compare-all-elements",
+        "atom": "compare",
+        "description": "全面覆盖原则逐项比对"
+      },
+      {
+        "id": "evaluate-equivalence",
+        "atom": "reasoning",
+        "description": "评估等同侵权的可能性（等同原则 + 禁止反悔 + 捐献规则）"
+      },
+      {
+        "id": "risk-rating",
+        "atom": "reasoning",
+        "description": "输出侵权风险等级（高/中/低）和置信度"
+      },
+      {
+        "id": "approval",
+        "atom": "approval-gate",
+        "description": "人工审阅确认——侵权结论必须由专利律师确认"
+      }
+    ]
+  },
+  "allowed_sources": ["mady-router"],
+  "handoff_targets": ["patent-agent"]
+}

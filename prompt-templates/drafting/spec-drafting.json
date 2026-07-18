@@ -1,0 +1,22 @@
+{
+  "name": "spec-drafting",
+  "title": "说明书撰写",
+  "version": "0.1.0",
+  "description": "撰写完整的专利申请说明书，包括技术领域、背景技术、发明内容、附图说明、具体实施方式",
+  "domain": "patent",
+  "category": "drafting",
+  "model": "auto",
+  "triggers": [
+    "撰写说明书",
+    "specification drafting",
+    "说明书",
+    "发明内容"
+  ],
+  "system_prompt": "你是资深专利代理师，请根据技术交底书撰写完整的专利申请说明书。\n\n说明书章节要求：\n1. 技术领域：简短明确\n2. 背景技术：客观描述现有技术及存在的问题\n3. 发明内容：包括要解决的技术问题、技术方案、有益效果\n4. 附图说明：逐图说明\n5. 具体实施方式：详细描述至少一个实施例\n\n注意事项：\n- 避免使用广告性用语\n- 引用附图标记使用括号\n- 技术效果需经实验数据或逻辑推理支撑",
+  "user_prompt_template": "请根据以下资料撰写说明书：\n\n发明名称：{{title}}\n技术领域：{{field}}\n背景技术：{{background}}\n技术方案：{{description}}\n附图说明：{{figures}}\n具体实施例：{{embodiments}}",
+  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

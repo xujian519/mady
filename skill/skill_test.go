@@ -204,3 +204,133 @@ Secret body`)
 		t.Fatal("skill from .hidden directory should NOT be discovered")
 	}
 }
+
+func TestLoad_MadyExtension(t *testing.T) {
+	root := t.TempDir()
+	mustWriteSkill(t, filepath.Join(root, "patent-analysis", "SKILL.md"), `---
+name: patent-analysis
+description: Patent deep analysis skill
+allowed-tools:
+  - web_search
+  - patent_search
+
+mady:
+  mode: patent
+  guardrail_level: standard
+  approval_required: true
+  inputs:
+    - name: patent_number
+      type: string
+      required: true
+      label: 专利号
+    - name: analysis_type
+      type: enum
+      values:
+        - novelty
+        - infringement
+        - validity
+      default: novelty
+      label: 分析类型
+  example_prompt: "Analyze patent CN109690000A for novelty"
+  example_prompt_zh: "分析专利 CN109690000A 的权利要求新颖性"
+  capabilities:
+    - patent_search
+    - reasoning
+    - approval_gate
+  handoff_allowed: true
+---
+Perform step-by-step patent analysis.`)
+
+	skills, _, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(skills))
+	}
+	item := skills[0]
+	if item.Mady == nil {
+		t.Fatal("expected Mady extension to be parsed")
+	}
+	ext := item.Mady
+	if ext.Mode != "patent" {
+		t.Fatalf("mode = %q", ext.Mode)
+	}
+	if ext.GuardrailLevel != "standard" {
+		t.Fatalf("guardrail_level = %q", ext.GuardrailLevel)
+	}
+	if !ext.ApprovalRequired {
+		t.Fatal("approval_required should be true")
+	}
+	if len(ext.Inputs) != 2 {
+		t.Fatalf("inputs len = %d", len(ext.Inputs))
+	}
+	if ext.Inputs[0].Name != "patent_number" || ext.Inputs[0].Type != "string" || !ext.Inputs[0].Required {
+		t.Fatalf("input[0] = %+v", ext.Inputs[0])
+	}
+	if ext.Inputs[1].Name != "analysis_type" || ext.Inputs[1].Type != "enum" || len(ext.Inputs[1].Values) != 3 {
+		t.Fatalf("input[1] = %+v", ext.Inputs[1])
+	}
+	if ext.ExamplePrompt != "Analyze patent CN109690000A for novelty" {
+		t.Fatalf("example_prompt = %q", ext.ExamplePrompt)
+	}
+	if ext.ExamplePromptZh != "分析专利 CN109690000A 的权利要求新颖性" {
+		t.Fatalf("example_prompt_zh = %q", ext.ExamplePromptZh)
+	}
+	if len(ext.Capabilities) != 3 {
+		t.Fatalf("capabilities len = %d", len(ext.Capabilities))
+	}
+	if !ext.HandoffAllowed {
+		t.Fatal("handoff_allowed should be true")
+	}
+}
+
+func TestLoad_MadyExtensionAbsent(t *testing.T) {
+	root := t.TempDir()
+	mustWriteSkill(t, filepath.Join(root, "plain-skill", "SKILL.md"), `---
+name: plain-skill
+description: Skill without Mady extensions
+---
+Just a regular skill.`)
+
+	skills, _, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(skills))
+	}
+	if skills[0].Mady != nil {
+		t.Fatal("expected nil Mady extension for plain skill")
+	}
+}
+
+func TestLoad_MadyExtensionPartialFields(t *testing.T) {
+	root := t.TempDir()
+	mustWriteSkill(t, filepath.Join(root, "minimal", "SKILL.md"), `---
+name: minimal
+description: Minimal skill with partial Mady extension
+mady:
+  mode: chat
+---
+Minimal body.`)
+
+	skills, _, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(skills))
+	}
+	item := skills[0]
+	if item.Mady == nil {
+		t.Fatal("expected Mady extension")
+	}
+	if item.Mady.Mode != "chat" {
+		t.Fatalf("mode = %q", item.Mady.Mode)
+	}
+	// Other fields should be zero values.
+	if item.Mady.ApprovalRequired {
+		t.Fatal("approval_required should default to false")
+	}
+}

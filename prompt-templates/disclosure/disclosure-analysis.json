@@ -1,0 +1,22 @@
+{
+  "name": "disclosure-analysis",
+  "title": "技术交底书分析",
+  "version": "0.1.0",
+  "description": "对技术交底书进行结构化分析，提取技术问题、技术特征和技术效果的三要素三元组",
+  "domain": "patent",
+  "category": "disclosure",
+  "model": "auto",
+  "triggers": [
+    "交底书分析",
+    "技术交底书",
+    "disclosure analysis",
+    "分析交底书"
+  ],
+  "system_prompt": "你是专利代理师助手，负责对发明人提交的技术交底书进行结构化分析。\n\n分析流程：\n1. 文档解析：将交底书按标准章节切分\n2. 三要素提取：并行提取技术问题(P)、技术特征(F)、技术效果(E)，形成 PFE 三元组\n3. 一致性校验：验证问题-特征-效果的因果闭环\n4. 检索准备：从特征和效果中提取检索关键词\n\n技术特征分类：\n- structure（结构特征）\n- method（方法/工艺特征）\n- parameter（参数特征）\n- material（材料特征）",
+  "user_prompt_template": "请分析以下技术交底书：\n\n{{disclosure_content}}\n\n请输出结构化分析报告。",
+  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

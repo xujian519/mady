@@ -4,6 +4,19 @@ description: 技术交底书分析。接收 Word/PDF/纯文本格式的技术交
 domain: patent
 allowed_tools:
   - read
+
+mady:
+  mode: disclosure
+  guardrail_level: standard
+  approval_required: true
+  example_prompt: "分析这份技术交底书的技术特征"
+  example_prompt_zh: "分析这份技术交底书的技术特征"
+  capabilities:
+    - document_parse
+    - feature_extraction
+    - consistency_check
+    - report_generation
+  handoff_allowed: false
 ---
 
 # 技术交底书分析

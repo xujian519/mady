@@ -8,6 +8,15 @@ allowed_tools:
   - read
   - write_file
   - bash
+
+mady:
+  mode: chat
+  guardrail_level: light
+  example_prompt: "帮我查一下北京的天气"
+  example_prompt_zh: "帮我查一下北京的天气"
+  capabilities:
+    - web_search
+    - web_fetch
 ---
 
 # 聊天与智能助理

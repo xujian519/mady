@@ -53,6 +53,11 @@ func main() {
 		runAcp(ctx)
 	case "trust-mcp":
 		runTrustMCP(os.Args)
+	case "mcp-install":
+		if err := runMCPInstall(ctx, os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "mcp-install:", err)
+			os.Exit(1)
+		}
 	case "eval":
 		if err := runEval(ctx, os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "eval:", err)
@@ -78,6 +83,8 @@ Commands:
   tui   Launch the interactive terminal chat (default).
   serve Run as an HTTP/SSE API server with multi-domain routing.
   acp   Run as an ACP server (stdio JSON-RPC) for editors like Zed.
+  mcp-install [--list|<agent>]  Wire Mady as an MCP server into coding agents
+        (e.g. mady mcp-install claude). Use --list to see detected agents.
   trust-mcp [path]  Trust an MCP config file (default: ./.mcp.json) so its
         commands may run at startup (records a SHA-256 in trusted-mcp.json).
   eval  Run evaluation benchmarks (static or live) and generate reports.

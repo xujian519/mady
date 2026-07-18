@@ -1,0 +1,43 @@
+{
+  "name": "oa-response",
+  "version": "0.1.0",
+  "domain": "patent",
+  "guardrail_level": "strict",
+  "description": "审查意见答复工作流：分析审查意见 → 识别驳回理由 → 制定答复策略 → 撰写意见陈述书 → 人工审阅",
+  "pipeline": {
+    "stages": [
+      {
+        "id": "analyze-oa",
+        "atom": "reasoning",
+        "description": "解析审查意见通知书，提取所有驳回理由和引用对比文件"
+      },
+      {
+        "id": "assess-grounds",
+        "atom": "reasoning",
+        "description": "逐条评估驳回理由的合理性和反驳空间"
+      },
+      {
+        "id": "strategy",
+        "atom": "reasoning",
+        "description": "制定答复策略：争辩 / 修改权利要求 / 删除 / 组合策略"
+      },
+      {
+        "id": "draft-amendments",
+        "tool": "write_file",
+        "description": "生成修改后的权利要求对照页"
+      },
+      {
+        "id": "draft-response",
+        "tool": "write_file",
+        "description": "撰写意见陈述书"
+      },
+      {
+        "id": "approval",
+        "atom": "approval-gate",
+        "description": "人工审阅确认——答复书必须由专利代理人确认后方可提交"
+      }
+    ]
+  },
+  "allowed_sources": ["mady-router"],
+  "handoff_targets": ["patent-agent"]
+}
