@@ -1,5 +1,40 @@
 # AI 决策变更日志
 
+## 2026-07-18: Phase 7 遗留 High 修复（H1 H11）+ 报告同步
+
+### 背景
+Phase 7 全量审阅报告（2026-07-14）标识 8 Critical + 18 High + 34 Medium 问题。
+此前 `bda2694` / `6171e2e` 已修复全部 8 Critical 和 6 个 High，但报告状态列未同步；
+且 H1（WebSocket token URL 日志泄漏）与 H11（ACP CWD 路径沙箱验证）仍未修复。
+
+### 变更
+- **H1 (a2a)**：新增 `RedactURL()` 函数（`a2a/middleware.go`），脱敏 token/apiKey 等敏感
+  查询参数后输出 URL；`handleWebSocket` 处添加注释说明 query param 的已知风险交换。
+  新增 `a2a/middleware_test.go`（5 个用例覆盖脱敏/非脱敏/空参数）。
+- **H11 (acp)**：新增 `sanitizeCWD()` 函数，在 `handleNewSession` / `handleForkSession`
+  中对 CWD 路径执行 `filepath.Clean` + `filepath.Abs`，防止 `../` 目录遍历。
+- `docs/review/phase7-summary-and-roadmap.md`：全量同步——8 Critical 标注 ✅ + 修复 commit 引用；
+  High 表新增状态列（11/18 已修复）；CI 门禁表 3 项🔴→✅；安全防护评级 ⭐⭐⭐→⭐⭐⭐⭐；
+  总体评级从 ⭐⭐⭐⭐(4/5) 维持。
+
+### 验证
+- `go build ./acp/... ./a2a/...` ✅
+- `go test -count=1 ./acp/... ./a2a/...` ✅（acp 0.011s / a2a 0.839s）
+- `pre-commit run --all-files` ✅（含 sensitive-paths gate 和 commitlint）
+
+### 涉及文件
+- `acp/server.go`（sanitizeCWD 新增 + handleNewSession/handleForkSession 改用 sanitizeCWD）
+- `a2a/middleware.go`（RedactURL + SensitiveQueryParams 新增）
+- `a2a/middleware_test.go`（新建）
+- `a2a/ws.go`（handleWebSocket 添加日志脱敏注释说明）
+- `docs/review/phase7-summary-and-roadmap.md`（全表同步）
+
+### 备注
+- 剩余 7 个 High（H2-H7）未处理，主要是 a2a 锁顺序/竞争和 mcp 关闭竞争，需独立审查。
+  从 roadmap 看 P3 盲测完成前不会启动这类协议层修复，符合"停止规则"。
+
+---
+
 ## 2026-07-18: M1 门禁加固（4/4）：pre-commit 跨机器兼容 + commit-msg 敏感路径门禁
 
 ### 背景
