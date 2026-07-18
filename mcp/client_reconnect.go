@@ -52,9 +52,7 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 		backoff = initialReconnectDelay
 	}
 	c.reconnectBackoff = backoff * 2
-	if c.reconnectBackoff > maxReconnectBackoff {
-		c.reconnectBackoff = maxReconnectBackoff
-	}
+	c.reconnectBackoff = min(c.reconnectBackoff, maxReconnectBackoff)
 
 	// 连续重连失败超过阈值后重置退避，防止长时间停留在最大间隔。
 	// 注意：reconnectAttempts 在本函数开头已递增（++），此处重置为 0 后，

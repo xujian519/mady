@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -55,10 +56,8 @@ func (s *Server) checkWSOrigin(r *http.Request) bool {
 	case "localhost", "127.0.0.1", "::1":
 		return true
 	}
-	for _, allowed := range s.allowedOrigins {
-		if origin == allowed {
-			return true
-		}
+	if slices.Contains(s.allowedOrigins, origin) {
+		return true
 	}
 	return false
 }
@@ -755,9 +754,7 @@ func (c *WSConnection) tryReconnect() bool {
 	c.mu.Unlock()
 
 	backoff := time.Duration(500<<min(attempt-1, 5)) * time.Millisecond
-	if backoff > 30*time.Second {
-		backoff = 30 * time.Second
-	}
+	backoff = min(backoff, 30*time.Second)
 	timer := time.NewTimer(backoff)
 	defer timer.Stop()
 	select {
