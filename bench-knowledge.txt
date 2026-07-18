@@ -1,0 +1,32 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/xujian519/mady/knowledge
+cpu: Apple M4 Pro
+BenchmarkBackendSearch-14    	      51	  29979694 ns/op	  166469 B/op	    1407 allocs/op
+--- BENCH: BenchmarkBackendSearch-14
+    bench_test.go:85: benchmark ext ready: dim=1024
+    bench_test.go:109: first query: "专利侵权判定" → 5 results
+    bench_test.go:109: first query: "专利侵权判定" → 5 results
+BenchmarkRRFFusion-14        	  237103	      4735 ns/op	   12736 B/op	      51 allocs/op
+PASS
+ok  	github.com/xujian519/mady/knowledge	3.206s
+PASS
+ok  	github.com/xujian519/mady/knowledge/fileindex	0.054s
+PASS
+ok  	github.com/xujian519/mady/knowledge/graph	0.030s
+PASS
+ok  	github.com/xujian519/mady/knowledge/loader	0.033s
+goos: darwin
+goarch: arm64
+pkg: github.com/xujian519/mady/knowledge/sqlite
+cpu: Apple M4 Pro
+BenchmarkPreloadVectorIndex-14      	       4	 268760688 ns/op	1799327226 B/op	 1440728 allocs/op
+BenchmarkFTSSearch-14               	     100	  11274441 ns/op	   19048 B/op	     174 allocs/op
+--- BENCH: BenchmarkFTSSearch-14
+    bench_test.go:77: benchmark env: 144069 vectors, dim=1024, queries=5
+BenchmarkVectorIndexSearch-14       	      63	  18132375 ns/op	   28731 B/op	     362 allocs/op
+BenchmarkVectorSearchInMemory-14    	      63	  18358901 ns/op	   43050 B/op	     571 allocs/op
+BenchmarkVectorSearchSQL-14         	       6	 188329944 ns/op	878681653 B/op	  639589 allocs/op
+BenchmarkGetChunk-14                	  157760	      7666 ns/op	     843 B/op	      28 allocs/op
+PASS
+ok  	github.com/xujian519/mady/knowledge/sqlite	11.350s

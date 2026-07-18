@@ -1,6 +1,6 @@
 # Mady 工作流指南
 
-Mady 内置三种可调用的专业分析工作流。
+Mady 内置多种可调用的专业分析工作流和推理引擎。
 
 ## 1. 技术交底书分析 (Disclosure)
 
@@ -32,8 +32,13 @@ Patent Agent 配备 `analyze_disclosure` 工具，在对话中自动触发。
 ```
 预处理 → 问题提取 / 特征提取 / 效果提取 (并行)
        → 合并 → 一致性校验 (最多 2 轮回退)
-       → 关键词生成 → 新颖性初判 → 报告生成 → 人工复核
+       → 关键词生成 → 新颖性初判 (LLM JSON Schema)
+       → 报告生成 → review_gate (主动中断等待人工确认)
 ```
+
+> **review_gate 行为（v0.3.0+）**：之前 review_gate 是 no-op（仅设 `_gate_ready` flag），
+> 现已改为返回 `agentcore.InterruptError`（复用已有中断机制，Pregel NodeError 透传），
+> 在报告生成后强制暂停管线，等待人工 Resume/确认。此变化影响所有 disclosure 调用。
 
 ### 输出结构
 
@@ -48,7 +53,8 @@ Patent Agent 配备 `analyze_disclosure` 工具，在对话中自动触发。
   },
   "consistency": { "pass": true, "issues": [], "overall_score": 0.85 },
   "search_keywords": ["..."],
-  "report_text": "..."
+  "report_text": "...",
+  "novelty_assessment": { "status": "passed", "confidence": 0.75 }
 }
 ```
 
@@ -63,7 +69,8 @@ Patent Agent 配备 `analyze_disclosure` 工具，在对话中自动触发。
 ### 分析流程
 
 ```
-解析 → 检索 → 特征比对 → 规则引擎校验 → 输出报告
+解析 → 检索(三路 RRF + cross-encoder 重排) → 特征比对
+     → 规则引擎校验 → 证据注射 → 输出报告
 ```
 
 ### 规则引擎
@@ -98,3 +105,69 @@ Patent Agent 配备 `analyze_disclosure` 工具，在对话中自动触发。
 - 大前提：适用法条和规则
 - 小前提：案件事实
 - 结论：法律判断（附带推理链）
+
+## 4. 五步工作法推理 (Five-Step Workflow)
+
+> 专利分析的标准推理框架，融合事实发现、规则获取、规划执行与检查。
+
+### 触发方式
+
+Patent Agent 的 `run_five_step_workflow` 工具，或通过 `analyze_patent_novelty` 内嵌触发。
+
+### 流程
+
+```
+Stage① 发现事实 (Fact Blackboard)
+  → Stage② 获取规则 (四路召回 + 确认阀)
+    → KG (0.9 权威度)
+    → Vector (FTS5, 0.7 权威度)
+    → Skill (wiki patent-cards, 0.4 权威度)
+    → Rules (确定性规则引擎, 0.95 权威度)
+    → 确认阀: 人工确认规则后才进入下一阶段
+      → 中断 → SaveCheckpoint → ResumeFromCheckpoint
+  → Stage③ 规划 (ConfirmedRuleSet 约束 Plan)
+  → Stage④ 执行 (工具编排 + evidence 注射)
+  → Stage⑤ 检查 (RuleAssertionHook 对比事实/规则验证)
+```
+
+### 确认阀闭环
+
+`reviewMode` 开启时，Stage② 返回规则后触发 `InterruptError`（携带 `checkpoint_id`），
+SaveCheckpoint 保存 blackboard 到 `CheckpointStore`，用户 /approve 后
+ResumeFromCheckpoint + SetConfirmedRules 续跑 Stage③-⑤。
+
+## 5. 插件工作流 (Plugin System)
+
+> 可组合的专利工作流原型，基于 `plugin.json` + `SKILL.md` 定义。
+
+### 内置插件
+
+| 插件 | 组件 | Pipeline Stages |
+|------|------|----------------|
+| novelty-analysis | `plugins/patent/novelty-analysis/` | 5 stages |
+| infringement-check | `plugins/patent/infringement-check/` | 7 stages |
+| oa-response | `plugins/patent/oa-response/` | 6 stages |
+
+### Pipeline Atoms
+
+每个 stage 引用注册表原子（`RegisterAtom`/`LookupAtom`），覆盖完整专利工作流：
+- **search** — 现有技术检索
+- **extract** — 特征提取
+- **compare** — 特征比对
+- **reasoning** — 推理判断
+- **approval-gate** — 审批关卡
+
+与现有 `tool` 字段向后兼容。Atom 为空时退回到传统 Tool 名匹配。
+
+## 6. 文档模板库 (Doc Templates)
+
+> Markdown + `{{variable}}` 语法的文档模板，支持按 category 分组使用。
+
+| 类别 | 模板数 | 存放位置 |
+|------|:------:|----------|
+| Claims (权利要求) | 3 | `doc-templates/claims/` |
+| Specification (说明书) | 4 | `doc-templates/specification/` |
+| OA Response (答复) | 3 | `doc-templates/oa-response/` |
+| Disclosure (交底书) | 2 | `doc-templates/disclosure/` |
+
+通过 `go:embed` 编进二进制，用户可在 `$MADY_HOME/doc-templates/` 覆盖或新增。

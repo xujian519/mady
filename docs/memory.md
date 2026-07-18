@@ -63,7 +63,7 @@ score = 0.5 × semantic_similarity + 0.3 × recency_decay + 0.2 × importance
 
 ```go
 cfg := DefaultExtensionConfig()
-cfg.AutoExtract = true // 启用
+cfg.AutoExtract = true // 启用（默认关闭）
 ```
 
 ### 显式管理（Tool-based, Letta 风格）
@@ -75,6 +75,23 @@ ToolCall("remember", {content: "用户偏好中文回答", importance: 0.9})
 ToolCall("recall", {query: "编程偏好", limit: 5})
 ToolCall("forget", {memory_id: "mem_123"})
 ```
+
+### 预加热 (Preheat)
+
+`Preheater` 在 Agent 启动时从 SQLite 或 JSONL 预加载用户/项目级记忆，
+减少首次调用时的提取延迟：
+
+```go
+preheater := NewPreheater(store, preheatCfg)
+preheater.Preheat(ctx, scope, target)
+```
+
+## 记忆编译器 (Compiler)
+
+`memory/compiler/` 实现策略学习型记忆编译器：
+- 从多轮对话中提取可复用的策略模式
+- 按置信度分级（observed → suggested → established）
+- 输出为结构化 `StrategyEntry` 供 Agent 跨会话复用
 
 ## 使用示例
 
