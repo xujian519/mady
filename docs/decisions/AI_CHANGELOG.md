@@ -1,47 +1,58 @@
 # AI 决策变更日志
 
-## 2026-07-18: TUI 质量审查后续修复（P1 主题检测 + P2 测试覆盖提升）
+## 2026-07-18: TUI 质量审查修复落地（P1 主题检测 + P2 测试覆盖 + 支撑构造函数）
 
 ### 背景
-对 Mady `tui/` 模块进行全面质量审查后，识别出 1 个 P1 功能缺陷和 1 个 P2 结构性短板：
-- `tui/theme/global.go:51` 的 `DefaultSemanticForTerminal()` 始终返回浅色主题，深色终端检测失效
-- TUI 整体测试覆盖率仅 47.0%，`agentadapter` 低至 21.5%，`component` 38.2%，`terminal` 42.6%
-
-本次集中修复上述问题，并补充 agentcore 事件构造函数以支持跨包测试。
+对 Mady `tui/` 模块进行全面质量审查后，识别出 1 个 P1 功能缺陷、1 个 P2 结构性短板，
+以及变更日志与代码状态不一致的问题。本次集中完成这些修复的落地工作。
 
 ### 修复内容
 
 1. **P1 修复深色终端主题检测**
    - `tui/theme/global.go`：`DefaultSemanticForTerminal()` 在检测到非浅色终端时返回 `DefaultMadyDark()`
-   - 新增 `tui/theme/global_test.go`：覆盖 COLORFGBG 显式 dark/light、缺失值、异常值，以及 `SetSemanticTheme`/`InitThemeFromEnv` 的 dark 路径
+   - 新增 `tui/theme/global_test.go`：覆盖 COLORFGBG 缺失、异常、深色（0–7）与浅色（8+）分支，
+     并验证 `SetSemanticTheme`/`CurrentPalette` 全局状态同步
    - 测试通过保存/恢复 `atomicPalette` 避免全局状态交叉污染
 
 2. **P2 提升 TUI 测试覆盖率**
-   - `tui/agentadapter/adapter_test.go`：补充 12 个事件映射测试，覆盖 agent start/end/error/interrupt、turn end、message delta、tool call start/end、handoff start/end、compaction start/end、auto retry、未知事件类型
-   - 新增 `tui/terminal/keybindings_test.go`：覆盖 Matches、SetUserBindings、冲突检测、未知 ID 忽略、Register、All、重复 token 处理
-   - 新增 `tui/component/settings_test.go`：覆盖空列表、Get/SetValue、导航、OnChange、OnSubmit、焦点
-   - 扩展 `tui/component/selectlist_test.go`：覆盖空列表、MaxVisible 最小值、Cancel、OnSelectionChange、空渲染、过滤空、分组头、滚动
-   - 扩展 `tui/component/input_test.go`：覆盖 Placeholder、OnChange、SetValue、SetPrompt
-   - 新增 `tui/component/loader_test.go`：覆盖渲染、SetMessage、SetStyle、Start/Stop、幂等 Stop、SetTheme、Animate
+   - 重写 `tui/agentadapter/adapter_test.go`：删除空回调，改为通过真实事件总线 emit agentcore 事件，
+     等待异步分发 drain 后断言 chat 事件字段，覆盖 agent start、turn end、message delta、agent error
+   - 新增 `tui/terminal/keybindings_test.go`：覆盖 Register、Matches、SetUserBindings、
+     冲突检测、All、LoadUserBindingsJSON（含非法 token 与空输入）
+   - 新增 `tui/component/settings_test.go`：覆盖空列表、Get/SetValue、导航、左右循环、
+     OnChange、OnSubmit、渲染
+   - 新增 `tui/component/loader_test.go`：覆盖 Start/Stop 幂等、IsRunning、SetMessage、
+     SetStyle、渲染、CancellableLoader abort
 
 3. **支撑性改动：agentcore 事件构造函数**
-   - `agentcore/event.go`：为外部测试和调用方新增 `NewAgentStartEvent`、`NewAgentEndEvent`、`NewAgentErrorEvent`、`NewAgentInterruptEvent`、`NewTurnStartEvent`、`NewTurnEndEvent`、`NewMessageDeltaEvent`、`NewToolCallStartEvent`、`NewToolCallEndEvent`、`NewHandoffStartEvent`、`NewHandoffEndEvent`、`NewCompactionStartEvent`、`NewCompactionEndEvent`、`NewAutoRetryEvent`、`NewSkillLoadedEvent`
+   - `agentcore/event.go`：为外部测试和调用方新增 `NewAgentStartEvent`、`NewAgentEndEvent`、
+     `NewAgentErrorEvent`、`NewAgentInterruptEvent`、`NewSkillLoadedEvent`、`NewTurnStartEvent`、
+     `NewTurnEndEvent`、`NewMessageDeltaEvent`、`NewToolCallStartEvent`、`NewToolCallEndEvent`、
+     `NewHandoffStartEvent`、`NewHandoffEndEvent`、`NewCompactionStartEvent`、
+     `NewCompactionEndEvent`、`NewAutoRetryEvent`（共 15 个）
    - 所有构造函数自动设置正确的 `baseEvent.Kind`，解决外部包无法构造可路由事件的问题
 
+4. **文档与注释同步**
+   - `tui/component/domain.go`：修正注释，明确 `agentcore.Message.Metadata["domain"]` 的 JSON
+     解码链路尚未实现，避免维护者误以为该链路已完工
+
+5. **误报澄清**
+   - `agentcore/evaluate/metrics_test.go:TestSetCitationVerifierConcurrent` 经 10 次 `-race` 实测
+     稳定通过，无 `send on closed channel` 风险；其 `sync.WaitGroup` 用法正确，无需改动
+
 ### 验证
-- `go build ./...` ✅（根 + tools 子模块）
-- `go vet ./tui/... ./agentcore/...` ✅
-- `go test -race ./tui/...` ✅（全部 9 子包通过）
+- `go build ./...` ✅（根模块）
+- `go test -race ./tui/theme/ ./tui/component/ ./tui/terminal/ ./tui/agentadapter/ ./agentcore/ ./agentcore/evaluate/` ✅
 - `golangci-lint run ./tui/... ./agentcore/...` ✅ 0 issues
-- TUI 覆盖率：47.0% → 50.7%；`agentadapter` 21.5% → 78.5%；`component` 38.2% → 43.4%；`terminal` 42.6% → 47.1%；`theme` 50.3% → 56.2%
+- 覆盖率数字待全量跑批后重新测量
 
 ### 涉及文件
 - `tui/theme/global.go`、`tui/theme/global_test.go`
 - `tui/agentadapter/adapter_test.go`
 - `tui/terminal/keybindings_test.go`
-- `tui/component/settings_test.go`、`tui/component/selectlist_test.go`、`tui/component/input_test.go`、`tui/component/loader_test.go`
+- `tui/component/settings_test.go`、`tui/component/loader_test.go`
 - `agentcore/event.go`
-
+- `tui/component/domain.go`
 ---
 
 ## 2026-07-18: 规范合规全面修复（P0/P1/P2/P3 共 9 项）
@@ -114,8 +125,12 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 - **P1-2 `currentCitationVerifier` 并发安全**：原为裸 `var CitationVerifier`，
   `mady eval --workers N` 并发调用 `Compute()` 存在 data race。
   改为 `atomic.Pointer[CitationVerifier]`，`SetCitationVerifier` 走原子 Store，
-  新增 `TestSetCitationVerifierConcurrent` 用 `sync.WaitGroup` 复现 8 goroutine × 200 轮竞争
-  （`go test -race` 通过）。`metrics_test.go` 改用公开 API `SetCitationVerifier` 而非直接 var 赋值。
+  新增 `TestSetCitationVerifierConcurrent` 用确定性 barrier 协调（writer 与 readers
+  通过 channel 握手，保证每轮切换的 verifier 都被所有 readers 观察到），断言两个
+  可区分 verifier（score=0.0 与 0.5）均被实际观察到——而非仅检查 `score ∈ [0,1]`
+  （后者是恒真的假阳性断言）或靠 goroutine 调度运气（后者 flaky）。
+  （`go test -race -count=5` 通过）。`metrics_test.go` 改用公开 API `SetCitationVerifier`
+  而非直接 var 赋值。两个测试均标注 `// 不可加 t.Parallel()` 以防未来误用。
 - **P1-3 commitlint CI 触发口径**：`.github/workflows/ci.yml` 原 `on: [push, pull_request]`
   导致 push 到 main 时会 lint 单个 squash commit（语义无意义）。
   改为 `if: github.event_name == 'pull_request'` 仅 PR 触发，并补注释说明覆盖范围。
@@ -140,11 +155,11 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 > `tui/theme/global.go` 等）导致的测试失败。本次 commit 前，已通过 `git stash`
 > 隔离所有无关改动，本次修复涉及包的测试结果见上。
 
-### 涉及文件（本次修复 23 个 = 20 改 + 2 新增 + 1 删除）
+### 涉及文件（本次修复 24 个 = 21 改 + 2 新增 + 1 删除）
 **新增**：`tui/component/domain.go`、`commitlint.config.js`
 **删除**：`agentcore/message_domain.go`
 **修改**：
-- `scripts/check-sensitive-paths.sh`、`SECURITY.md`、`AGENTS.md`、`CLAUDE.md`、`docs/GO-DEVELOPMENT-STANDARDS.md`、`tui/LAYERS.md`
+- `scripts/check-sensitive-paths.sh`、`SECURITY.md`、`AGENTS.md`、`CLAUDE.md`、`docs/GO-DEVELOPMENT-STANDARDS.md`、`tui/LAYERS.md`、`README.md`
 - `tui/chat/chat_history.go`、`tui/component/{evidence,conclusion,approval}_card.go`
 - `server/server.go`
 - `.github/workflows/ci.yml`
@@ -152,9 +167,9 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 - `agentcore/evaluate/metrics.go`、`agentcore/evaluate/metrics_test.go`
 - `scripts/replay_citation_metrics/main.go`
 
-> **隔离记录**：commit 前工作区另含 8 个无关改动（`agentcore/event.go`、
-> `tui/agentadapter/adapter_test.go`、`tui/theme/global.go`、`tui/theme/global_test.go`、
-> `tui/component/{input,selectlist,loader,settings}_test.go`、`tui/terminal/keybindings_test.go`），
+> **隔离记录**：commit 前工作区另含 5 个无关改动（`agentcore/event.go`、
+> `tui/agentadapter/adapter_test.go`、`tui/theme/global.go`、
+> `tui/component/input_test.go`、`tui/component/selectlist_test.go`），
 > 对应上方"TUI 质量审查后续修复"条目。已 `git stash` 保留，本次修复 commit 不含这些改动。
 
 ---

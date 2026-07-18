@@ -98,6 +98,8 @@ func TestCitationValidity(t *testing.T) {
 	// 注入线上引用核验 Gate 作为核验源，与生产装配（cmd/mady eval）一致。
 	// 通过公开 API SetCitationVerifier 注入，t.Cleanup 恢复默认值。
 	// SetCitationVerifier 内部用 atomic.Pointer 保证并发安全。
+	//
+	// 不可加 t.Parallel() — 依赖全局 currentCitationVerifier 的串行隔离。
 	prev := getCitationVerifier()
 	t.Cleanup(func() { SetCitationVerifier(prev) })
 	SetCitationVerifier(func(text string) CitationValidityReport {
@@ -125,50 +127,97 @@ func TestCitationValidity(t *testing.T) {
 }
 
 // TestSetCitationVerifierConcurrent 验证 SetCitationVerifier 与 Compute 并发无 data race。
-// 必须 `go test -race` 跑此用例才能真正验证。
+//
+// 不可加 t.Parallel() — 依赖全局 currentCitationVerifier 的串行隔离。
+// 必须 `go test -race` 跑此用例才能真正验证原子性。
+//
+// 设计要点：断言"两个 verifier 都被观察到"不能靠运气（goroutine 调度可能导致
+// writer 在 readers 启动前就跑完）。这里采用确定性协调：
+//   - writer 每轮切换 verifier 后通过 barrier 等所有 readers 完成一次 Compute，
+//     再进入下一轮。这样每轮 readers 看到的 verifier 是确定的。
+//   - 我们仍用 atomic.Pointer 的 Load/Store（而非锁）让 race detector 能检测到
+//     任何非原子访问尝试。
 func TestSetCitationVerifierConcurrent(t *testing.T) {
 	prev := getCitationVerifier()
 	t.Cleanup(func() { SetCitationVerifier(prev) })
 
-	// 凇备两个核验器交替切换
-	verifierA := func(_ string) CitationValidityReport { return CitationValidityReport{Total: 2, Valid: 1, Unknown: 1} }
-	verifierB := func(_ string) CitationValidityReport { return CitationValidityReport{Total: 4, Valid: 2, Unknown: 2} }
+	// 两个 verifier 产生可区分的分数：
+	//   verifierA: Total=2, Valid=1 → verifiable=2, score=0.5
+	//   verifierB: Total=2, Valid=0 → verifiable=2, score=0.0
+	verifierA := func(_ string) CitationValidityReport { return CitationValidityReport{Total: 2, Valid: 1} }
+	verifierB := func(_ string) CitationValidityReport { return CitationValidityReport{Total: 2, Valid: 0} }
 	SetCitationVerifier(verifierA)
 
-	const goroutines = 8
-	const iterations = 200
-	var wg sync.WaitGroup
-	wg.Add(goroutines + 1)
+	const readers = 8
+	const rounds = 50 // 每轮切换一次 verifier；rounds 足够让 race detector 观察到竞争
 
-	// 一个 goroutine 反复 Set
+	var observed sync.Map
+
+	// barrier：每轮所有 readers 各 Compute 一次后释放，writer 才进入下一轮。
+	// writer 单独跑一个 goroutine，与 readers 通过两个 channel 握手。
+	readerDone := make(chan struct{}, readers)
+	writerRelease := make(chan struct{})
+
+	// writer goroutine：交替切换 A/B，每轮放行 readers 后等他们完成
 	go func() {
-		defer wg.Done()
-		for i := 0; i < iterations; i++ {
-			if i%2 == 0 {
+		for r := 0; r < rounds; r++ {
+			if r%2 == 0 {
 				SetCitationVerifier(verifierB)
 			} else {
 				SetCitationVerifier(verifierA)
 			}
+			// 放行所有 readers
+			for i := 0; i < readers; i++ {
+				writerRelease <- struct{}{}
+			}
+			// 等所有 readers 完成本轮 Compute
+			for i := 0; i < readers; i++ {
+				<-readerDone
+			}
 		}
+		close(writerRelease)
 	}()
 
-	// N 个 goroutine 反复 Compute（读）
-	for range goroutines {
+	// reader goroutines：每轮先等 writer 放行，再 Compute 一次，通知完成
+	var wg sync.WaitGroup
+	wg.Add(readers)
+	for range readers {
 		go func() {
 			defer wg.Done()
 			m := CitationValidity{}
-			for j := 0; j < iterations; j++ {
-				// 任何时刻都应返回 [0,1]，不应 panic
+			for {
+				_, ok := <-writerRelease
+				if !ok {
+					return
+				}
 				score := m.Compute("测试文本", "")
 				if score < 0 || score > 1 {
 					t.Errorf("Compute 返回越界值: %f", score)
 					return
 				}
+				observed.Store(score, true)
+				readerDone <- struct{}{}
 			}
 		}()
 	}
-
 	wg.Wait()
+
+	// 确定性断言：barrier 协调保证每一轮 verifier 都被所有 readers 观察到，
+	// 因此 rounds ≥ 2 时 A 和 B 的分数都必须出现在 observed 中。
+	gotA, gotB := false, false
+	observed.Range(func(k, _ any) bool {
+		s := k.(float64)
+		if s == 0.5 {
+			gotA = true
+		}
+		if s == 0.0 {
+			gotB = true
+		}
+		return true
+	})
+	if !gotA || !gotB {
+		t.Errorf("期望观察到两个 verifier 的分数 (0.0 和 0.5)，gotA=%v gotB=%v", gotA, gotB)
+	}
 }
 
 func TestLengthScore(t *testing.T) {

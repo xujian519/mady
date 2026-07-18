@@ -377,6 +377,8 @@ finalState, _ := cpg.Run(ctx, graph.PregelState{"input": "求解 x^2=4"})
 追加写入的 JSONL 树结构，支持分支、压缩、标签和版本迁移。
 
 ```go
+// 假设已 import "log"、"context"、"github.com/xujian519/mady/pkg/util"、
+// "github.com/xujian519/mady/session"、"github.com/xujian519/mady/agentcore"。
 // 优先使用 $MADY_HOME 或 ~/.mady，避免硬编码相对路径。
 sessionDir, err := util.ResolveDataDir("sessions")
 if err != nil {
