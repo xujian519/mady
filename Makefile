@@ -11,7 +11,7 @@ BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS ?= -ldflags "-s -w -X main.commitHash=$(COMMIT_HASH) -X main.buildTime=$(BUILD_TIME)"
 GOLANGCI_LINT_VERSION ?= v2.12.2
 
-.PHONY: all build test test-race test-short coverage vet lint fmt clean \
+.PHONY: all build test test-race test-short test-integration test-verbose coverage vet lint fmt clean \
         install install-hooks install-lint \
         build-cli-chat build-wiki-import build-acp-server build-mady \
         run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client run-mady run-acp-server \
@@ -49,6 +49,9 @@ test-race:
 
 test-short:
 	$(GO) test $(GOFLAGS) -short -count=1 ./...
+
+test-integration:
+	$(GO) test $(GOFLAGS) -tags integration -count=1 ./integration/...
 
 test-verbose:
 	$(GO) test $(GOFLAGS) -v -count=1 ./...
@@ -162,6 +165,7 @@ help:
 	@echo "  test               Run all tests"
 	@echo "  test-race          Run tests with race detector"
 	@echo "  test-short         Run tests in short mode"
+	@echo "  test-integration   Run integration e2e tests (build tag: integration)"
 	@echo "  test-verbose       Run tests with verbose output"
 	@echo ""
 	@echo "Eval:"

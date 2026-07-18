@@ -1,5 +1,27 @@
 # AI 决策变更日志
 
+## 2026-07-18: M1 门禁加固（1/4）：integration e2e 测试接入 CI
+
+### 背景
+`integration/` 下的 e2e 测试（build tag `integration`，本地 21 个用例全绿）此前只能手动跑，
+CI 无任何门禁，回归无法被自动拦截。
+
+### 变更
+- `Makefile`：新增 `test-integration` target（`go test -tags integration -count=1 ./integration/...`），
+  同步加入 `.PHONY` 与 help 文本（Test 段落）
+- `.github/workflows/ci.yml`：新增 `integration` job（位于 build-and-test 之后），
+  ubuntu-latest + checkout@v7 + setup-go@v6（`env.GO_VERSION`），
+  执行 `go test -tags integration -count=1 -timeout 10m ./integration/...`
+
+### 验证
+- `go test -tags integration -count=1 ./integration/...` ✅（26 个 PASS，含子测试）
+- `go build ./... && go vet ./...` ✅
+
+### 涉及文件
+- `Makefile`、`.github/workflows/ci.yml`
+
+---
+
 ## 2026-07-18: TUI 质量审查修复落地（P1 主题检测 + P2 测试覆盖 + 支撑构造函数）
 
 ### 背景
