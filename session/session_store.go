@@ -178,7 +178,7 @@ type FileStore struct {
 	dir      string
 	locks    map[string]*list.Element // id → LRU list element
 	lockList *list.List               // LRU: Front=MRU, Back=LRU
-	locksMu  sync.Mutex               // Protects locks (map) and lockList (LRU). csync.Map migration deferred (2026-07-18): would double-lock without reducing contention since locksMu serialises all LRU ops.
+	locksMu  sync.Mutex               // Protects locks (map) and lockList (LRU). csync.Map migration deferred (2026-07-18): would double-lock without reducing contention since locksMu serializes all LRU ops.
 
 	// maxLocks caps the per-session lock cache. When the cache exceeds this
 	// limit the oldest entries are evicted (LRU). This prevents unbounded

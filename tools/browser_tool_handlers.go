@@ -113,7 +113,10 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 		return nil, fmt.Errorf("navigation timed out: page did not become interactive")
 	}
 
-	// 3. Small sleep to allow SPA rendering.
+	// 3. SPA 渲染缓冲：readyState 进入 interactive/complete 后，单页应用通常
+	//    仍需数百毫秒完成首屏 hydration/动态注入。此处用固定 1s 缓冲是经验值
+	//    （项目内无 SPA 集成测试可校准），改短或改 readyState 轮询前需先用真实
+	//    SPA 站点验证 snapshot 完整性。
 	time.Sleep(1 * time.Second)
 
 	// 4. Apply stealth JS to hide automation fingerprints.

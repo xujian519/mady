@@ -8,7 +8,7 @@ type Strategy string
 const (
 	StrategyAnthropicPrefix Strategy = "anthropic-prefix" // Claude 前缀缓存
 	StrategyOpenAIPrompt    Strategy = "openai-prompt"    // GPT 提示缓存
-	StrategyGeneric         Strategy = "generic"           // 通用无缓存
+	StrategyGeneric         Strategy = "generic"          // 通用无缓存
 )
 
 // Policy 定义一条缓存策略。

@@ -1,6 +1,5 @@
 package server
 
-
 import (
 	"context"
 	"crypto/subtle"

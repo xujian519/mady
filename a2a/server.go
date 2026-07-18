@@ -1,6 +1,5 @@
 package a2a
 
-
 import (
 	"bytes"
 	"context"
@@ -1014,7 +1013,6 @@ func (s *Server) PublishTaskUpdate(taskID string, ev *TaskUpdateEvent) {
 	}
 }
 
-
 type recordingResponseWriter struct {
 	code int
 	Body *bytes.Buffer
@@ -1027,5 +1025,3 @@ func httptestNewRecorder() *recordingResponseWriter {
 func (r *recordingResponseWriter) Header() http.Header         { return http.Header{} }
 func (r *recordingResponseWriter) Write(b []byte) (int, error) { return r.Body.Write(b) }
 func (r *recordingResponseWriter) WriteHeader(code int)        { r.code = code }
-
-

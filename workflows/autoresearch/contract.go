@@ -55,9 +55,9 @@ type SuccessCriterion struct {
 
 // Evidence 是单轮研究的产出证据。
 type Evidence struct {
-	Round    int       `json:"round"`
-	Summary  string    `json:"summary"`
-	Findings []string  `json:"findings"`
+	Round     int      `json:"round"`
+	Summary   string   `json:"summary"`
+	Findings  []string `json:"findings"`
 	ToolsUsed []string `json:"tools_used"`
 }
 

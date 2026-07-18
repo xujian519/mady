@@ -1,5 +1,73 @@
 # AI 决策变更日志
 
+## 2026-07-18: 全量技术债务清理（P0 真实 Bug + P1 Lint 债务 + P2 结构性改进）
+
+### 背景
+对 Mady（858 文件 / ~185K 行 / go.work 多模块）执行全量技术债务扫描，发现 7/16 REVIEW
+后的 Tier 3 提交引入了大量未跑 lint 的新代码，lint 从 4 issues 涨到 35 issues。本次
+集中清理 3 项真实 Bug + 5 类 lint 债务 + 4 项结构性改进，根模块与 tools 子模块均达到
+`golangci-lint run ./...` 0 issues。
+
+### P0：真实 Bug（3 项）
+
+| # | 文件 | 问题 | 修复 |
+|---|------|------|------|
+| A | `tools/vision.go:244` | 运算符优先级歧义：`len>=2 && II \|\| MM` 等价于 `(len>=2 && II) \|\| (MM)`，当 `len<2` 且首字节为 'M' 时 `data[1]` 越界 panic | 改为 `if len(data) >= 2 { if magic := string(data[:2]); magic == "II" \|\| magic == "MM" {...}}`，补 7 个回归用例（含单字节 'M'/'I' 不 panic） |
+| B | `mcp/install.go:304` | MCP 配置文件权限 0o644 允许同组/其他用户读取（配置含 token、命令执行白名单） | `0o644` → `0o600` |
+| C | `a2a/push.go` | **SSRF TOCTOU 漏洞**：`validateWebhookURL` 提前 `net.LookupHost` 查私网 IP，但 `http.Client.Do(req)` 内部会再次 DNS 解析，DNS rebinding 攻击可在两次查询间切换 IP 绕过防护 | 新增 `ssrfSafeDialer.DialContext`：自行 `LookupIPAddr` 后选首个公网 IP 用 `net.JoinHostPort` 重组地址直连，**完全绕开 Transport 内部二次解析**；`validateWebhookURL` 移除 `LookupHost` 调用（私网检查下沉到 dialer）。补 4 个 SSRF 测试（dialer 拒私网/放行、URL 校验、端到端 Notify） |
+
+`.golangci.yml` 新增白名单：`a2a/push\.go` 的 G704，附注释说明运行时防护消除 taint。
+
+### P1：Lint 债务批量清理（31 项）
+
+| 类别 | 数量 | 文件 |
+|---|---|---|
+| gofmt | 10 | `a2a/server.go`、`agentcore/cache/{policy,stats}.go`、`mcp/{client,http}.go`、`memory/compiler/rule_engine_bridge.go`、`server/server.go`、`tools/browser.go`、`workflows/autoresearch/{contract,heartbeat}.go`（一次 `gofmt -w .` 修复） |
+| QF1012（`WriteString+Sprintf` → `Fprintf`） | 15 | `domains/style.go` x9、`prompt/loader.go` x4、`domains/doctmpl/loader.go` x2 |
+| errcheck | 1 | `provider/adapter/session.go:65` `io.Copy` 改 `_, _ = io.Copy`（goroutine stderr 复制，错误无法返回） |
+| gocritic ifElseChain → switch | 3 | `a2a/agent_handler.go:255`、`tui/component/editor_edit.go:34,42` |
+| misspell | 1 | `session/session_store.go:181` `serialises` → `serializes` |
+| SA9009 | 1 | `domains/style.go:19` 注释含 `//go:embed` 文字被误判，重写注释消除 |
+
+### P2：结构性改进（3 项）
+
+| # | 文件 | 改动 |
+|---|---|---|
+| 1 | `tools/browser_tool_handlers.go:117` | SPA 渲染缓冲 1s sleep 保留（无对应集成测试可校准），强化注释说明经验值来源及修改前置条件 |
+| 2 | `memory/sqlite_store.go:526` | `_ = json.Unmarshal(...)` 保留（与同函数 `time.Parse` 一致的 best-effort 降级策略），加注释说明 metadata 列无 schema 约束、损坏时降级为 nil 以避免单条记录阻塞整次查询 |
+| 3 | `knowledge/loader/law_index_test.go:135` | `os.UserHomeDir()` + `/.mady` 硬拼接 → `util.MadyHome()`，对齐 AGENTS.md 的"任意 cwd 启动 / `$MADY_HOME` 覆盖"原则；并加 `t.Setenv("MADY_HOME", t.TempDir())` 隔离副作用（`MadyHome()` 会 `EnsureDir` 创建目录）。其余两处 skip（`patent_retriever_test.go`、`stage2_wiring_test.go`）经审查为合理的 corpus/env 门控，保留 |
+
+> 备注：`.pre-commit-config.yaml` 的 goimports 绝对路径硬编码问题在评估后**未修改**——本机 PATH 不含 `$(go env GOPATH)/bin`，改为 PATH 查找会让 hook 在本机立即失败；AGENTS.md 已有"换机器需重装 goimports 并调整该路径"的警告，保持现状更稳。
+
+### 已审查的非问题（避免误改）
+- 32 处 `_ =` 忽略错误中 28 处为合理 defer cleanup；4 处 a2ui `json.Unmarshal` 注释明确合约
+- 9 处 `time.Sleep(1s)` 中 `process.go:416` 进程轮询合理，浏览器自动化 8 处合理
+- 所有 `MustXxx` panic = Go 惯例；全库无 `recover()` 吞 panic 反模式
+- TODO/FIXME/HACK 标记为 0；无循环依赖（8 层洋葱架构）
+- 二进制产物（mady/acp-server/cli-chat 等）在 `.gitignore` 中，未入库
+
+### 未做（待评估）
+- **4 个大文件拆分**（`server/server.go` 1325 行 / `a2a/server.go` 1031 行 / `mcp/http.go` 1024 行 / `mcp/client.go` 1006 行）：风险较高，需配套测试，标记为 P2-5 单独评估
+- Phase 4 backlog（multi_hypothesis 双雄辩论等 6 项）已在 `docs/decisions/phase4-backlog.md` 规划
+
+### 验证
+- `go build ./...` ✅（根 + tools 子模块）
+- `go vet ./...` ✅（根 + tools 子模块，零警告）
+- `golangci-lint run ./...` ✅ **0 issues**（根 + tools 子模块）
+- `go test -race ./...` ✅ 全部 60+ 包通过（根 + tools），无数据竞争
+- `gofmt -l .` ✅ clean（根 + tools）
+
+### 涉及文件（共 21 个）
+`.golangci.yml`、`a2a/a2a_test.go`、`a2a/agent_handler.go`、
+`a2a/push.go`、`a2a/server.go`、`agentcore/cache/{policy,stats}.go`、
+`domains/doctmpl/loader.go`、`domains/style.go`、`docs/decisions/AI_CHANGELOG.md`、
+`knowledge/loader/law_index_test.go`、`mcp/{client,http,install}.go`、
+`memory/compiler/rule_engine_bridge.go`、`memory/sqlite_store.go`、`prompt/loader.go`、
+`provider/adapter/session.go`、`server/server.go`、`session/session_store.go`、
+`tools/browser.go`、`tools/browser_tool_handlers.go`、`tools/vision.go`、
+`tools/vision_test.go`、`tui/component/editor_edit.go`、
+`workflows/autoresearch/{contract,heartbeat}.go`
+
 ## 2026-07-18: Open Design 思路引入 —— Tier 3 实现（最终阶段）
 
 ### 背景

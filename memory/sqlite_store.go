@@ -522,6 +522,9 @@ func scanEntry(sc scanner) (MemoryEntry, error) {
 	if len(embBlob) > 0 {
 		entry.Embedding = bytesToFloats(embBlob)
 	}
+	// Metadata 列在 schema 中未强制 JSON 约束，历史数据可能含 null/坏值。
+	// 此处与上方 time.Parse 的处理保持一致：best-effort 解析，损坏时降级为
+	// 零值（nil map），避免单条记录的 metadata 损坏导致整条 MemoryEntry 读不出。
 	if metaJSON != "" && metaJSON != "{}" {
 		_ = json.Unmarshal([]byte(metaJSON), &entry.Metadata)
 	}

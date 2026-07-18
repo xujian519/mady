@@ -1,6 +1,5 @@
 package mcp
 
-
 import (
 	"bufio"
 	"bytes"

@@ -131,9 +131,9 @@ func DocIndex(templates []DocTemplate) string {
 		if !ok {
 			continue
 		}
-		b.WriteString(fmt.Sprintf("  [%s]\n", cat))
+		fmt.Fprintf(&b, "  [%s]\n", cat)
 		for _, t := range items {
-			b.WriteString(fmt.Sprintf("    %-30s — %s\n", t.Name, t.Description))
+			fmt.Fprintf(&b, "    %-30s — %s\n", t.Name, t.Description)
 		}
 		b.WriteString("\n")
 	}

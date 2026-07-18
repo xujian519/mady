@@ -62,7 +62,7 @@ func newCLISession(ctx context.Context, bin, subcmd string, cfg SpawnConfig) (Ag
 
 	var stderrBuf bytes.Buffer
 	go func() {
-		io.Copy(&stderrBuf, stderrPipe)
+		_, _ = io.Copy(&stderrBuf, stderrPipe)
 	}()
 
 	return &cliSession{

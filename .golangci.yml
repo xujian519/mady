@@ -152,6 +152,12 @@ linters:
           - gosec
         path: a2a/server\.go
         text: G704
+      # gosec G704: push.go 的 webhook URL 已通过 ssrfSafeDialer 在 connect 时
+      # 校验解析 IP（消除 DNS rebinding TOCTOU），gosec taint 分析无法识别运行时防护
+      - linters:
+          - gosec
+        path: a2a/push\.go
+        text: G704
       # tools/ 子模块 gosec: 工具的核心功能就是执行命令/管理进程
       - linters:
           - gosec

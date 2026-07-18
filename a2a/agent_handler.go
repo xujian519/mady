@@ -252,7 +252,8 @@ func (h *DefaultAgentHandler) runAgent(ctx context.Context, task *Task, input st
 	h.tasksMu.Lock()
 
 	needNotify := true
-	if err != nil {
+	switch {
+	case err != nil:
 		// Preserve TaskStateCanceled if CancelTask already acted.
 		if task.State != TaskStateCanceled {
 			task.State = TaskStateFailed
@@ -261,7 +262,7 @@ func (h *DefaultAgentHandler) runAgent(ctx context.Context, task *Task, input st
 				Timestamp: time.Now(),
 			})
 		}
-	} else if h.inputRequired != nil && h.inputRequired(output) {
+	case h.inputRequired != nil && h.inputRequired(output):
 		task.State = TaskStateInputRequired
 		task.Messages = append(task.Messages, Message{
 			Role:  string(RoleAgent),
@@ -271,7 +272,7 @@ func (h *DefaultAgentHandler) runAgent(ctx context.Context, task *Task, input st
 			State:     TaskStateInputRequired,
 			Timestamp: time.Now(),
 		})
-	} else {
+	default:
 		task.State = TaskStateCompleted
 		task.Messages = append(task.Messages, Message{
 			Role:  string(RoleAgent),

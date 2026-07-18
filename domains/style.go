@@ -15,8 +15,8 @@ import (
 // generating any user-facing content.
 //
 // Style files live under $MADY_HOME/styles/<name>.yaml. Built-in styles
-// for each domain (patent, legal, chat, assistant) are embedded via
-// go:embed in agentcore/manifests/ (see styles/ directory).
+// for each domain (patent, legal, chat, assistant) are embedded
+// (see agentcore/manifests/styles/ directory).
 type DocumentStyle struct {
 	Name    string `yaml:"name"`
 	Domain  string `yaml:"domain"`
@@ -90,7 +90,7 @@ func LoadStyle(path string) (*DocumentStyle, error) {
 func (s *DocumentStyle) SystemPrompt() string {
 	var b strings.Builder
 	b.WriteString("<!-- Document Style Guide -->\n")
-	b.WriteString(fmt.Sprintf("Style: %s (domain: %s, version: %s)\n", s.Name, s.Domain, s.Version))
+	fmt.Fprintf(&b, "Style: %s (domain: %s, version: %s)\n", s.Name, s.Domain, s.Version)
 	b.WriteString("\n")
 
 	// Tone.
@@ -98,13 +98,13 @@ func (s *DocumentStyle) SystemPrompt() string {
 	if t.Formality != "" || t.Perspective != "" || t.Language != "" {
 		b.WriteString("## Tone\n")
 		if t.Formality != "" {
-			b.WriteString(fmt.Sprintf("- Formality: %s\n", t.Formality))
+			fmt.Fprintf(&b, "- Formality: %s\n", t.Formality)
 		}
 		if t.Perspective != "" {
-			b.WriteString(fmt.Sprintf("- Perspective: %s person\n", t.Perspective))
+			fmt.Fprintf(&b, "- Perspective: %s person\n", t.Perspective)
 		}
 		if t.Language != "" {
-			b.WriteString(fmt.Sprintf("- Language: %s\n", t.Language))
+			fmt.Fprintf(&b, "- Language: %s\n", t.Language)
 		}
 		b.WriteString("\n")
 	}
@@ -113,7 +113,7 @@ func (s *DocumentStyle) SystemPrompt() string {
 	if len(s.Sections.Voice.Principles) > 0 {
 		b.WriteString("## Voice Principles\n")
 		for _, p := range s.Sections.Voice.Principles {
-			b.WriteString(fmt.Sprintf("- %s\n", p))
+			fmt.Fprintf(&b, "- %s\n", p)
 		}
 		b.WriteString("\n")
 	}
@@ -126,7 +126,7 @@ func (s *DocumentStyle) SystemPrompt() string {
 			if ap.Severity == "warn" {
 				tag = "[WARN]"
 			}
-			b.WriteString(fmt.Sprintf("- %s Never use %q → use %q instead\n", tag, ap.Word, ap.Replace))
+			fmt.Fprintf(&b, "- %s Never use %q → use %q instead\n", tag, ap.Word, ap.Replace)
 		}
 		b.WriteString("\n")
 	}
@@ -135,7 +135,7 @@ func (s *DocumentStyle) SystemPrompt() string {
 	if len(s.Sections.Disclaimers) > 0 {
 		b.WriteString("## Required Disclaimers\n")
 		for key, text := range s.Sections.Disclaimers {
-			b.WriteString(fmt.Sprintf("- %s: %s\n", key, text))
+			fmt.Fprintf(&b, "- %s: %s\n", key, text)
 		}
 		b.WriteString("\n")
 	}
@@ -143,9 +143,9 @@ func (s *DocumentStyle) SystemPrompt() string {
 	// Citation.
 	if s.Sections.Citation.Style != "" {
 		b.WriteString("## Citation Format\n")
-		b.WriteString(fmt.Sprintf("- Style: %s\n", s.Sections.Citation.Style))
+		fmt.Fprintf(&b, "- Style: %s\n", s.Sections.Citation.Style)
 		if s.Sections.Citation.Format != "" {
-			b.WriteString(fmt.Sprintf("- Format: %s\n", s.Sections.Citation.Format))
+			fmt.Fprintf(&b, "- Format: %s\n", s.Sections.Citation.Format)
 		}
 		b.WriteString("\n")
 	}

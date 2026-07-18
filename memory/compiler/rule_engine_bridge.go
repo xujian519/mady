@@ -45,7 +45,7 @@ func CandidateToCheckRule(c RuleCandidate) patent.CheckRule {
 		Level:            patent.LevelQuality, // safest non-blocking default
 		Severity:         severity,
 		Message:          c.DraftRuleText,
-		CheckType:        "",                    // requires human classification
+		CheckType:        "", // requires human classification
 		RequiredElements: keywords,
 		FixSuggestion:    c.Guidance,
 	}

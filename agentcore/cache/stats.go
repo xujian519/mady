@@ -4,8 +4,8 @@ import "sync/atomic"
 
 // Stats 记录缓存命中/未命中统计。
 type Stats struct {
-	Hits       atomic.Int64 `json:"hits"`
-	Misses     atomic.Int64 `json:"misses"`
+	Hits        atomic.Int64 `json:"hits"`
+	Misses      atomic.Int64 `json:"misses"`
 	TokensSaved atomic.Int64 `json:"tokens_saved"`
 	TotalCalls  atomic.Int64 `json:"total_calls"`
 }

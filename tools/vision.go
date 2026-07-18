@@ -240,9 +240,11 @@ func detectImageMIME(data []byte) string {
 		return "image/bmp"
 	}
 
-	// TIFF: II or MM
-	if len(data) >= 2 && (data[0] == 'I' && data[1] == 'I') || (data[0] == 'M' && data[1] == 'M') {
-		return "image/tiff"
+	// TIFF: II (little-endian) or MM (big-endian)
+	if len(data) >= 2 {
+		if magic := string(data[:2]); magic == "II" || magic == "MM" {
+			return "image/tiff"
+		}
 	}
 
 	return "application/octet-stream"

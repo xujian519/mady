@@ -129,7 +129,14 @@ func TestDetectImageMIME(t *testing.T) {
 		{[]byte{'G', 'I', 'F', '8'}, "image/gif"},
 		{[]byte{'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'}, "image/webp"},
 		{[]byte{'B', 'M'}, "image/bmp"},
+		{[]byte{'I', 'I'}, "image/tiff"},
+		{[]byte{'M', 'M'}, "image/tiff"},
+		{[]byte{'I', 'I', 0x2A, 0x00}, "image/tiff"},
+		{[]byte{'M', 'M', 0x00, 0x2A}, "image/tiff"},
 		{[]byte{}, "application/octet-stream"},
+		{[]byte{'M'}, "application/octet-stream"},
+		{[]byte{'I'}, "application/octet-stream"},
+		{[]byte{'X'}, "application/octet-stream"},
 	}
 
 	for _, tt := range tests {

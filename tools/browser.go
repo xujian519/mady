@@ -58,4 +58,3 @@ func (c *BrowserToolConfig) defaults() {
 	}
 	c.Vision.defaults()
 }
-

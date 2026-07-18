@@ -31,19 +31,21 @@ func (e *Editor) processKeys(data string) {
 		case km.Matches(raw, "tui.editor.cursorRight"):
 			e.moveCursor(0, 1)
 		case km.Matches(raw, "tui.editor.cursorUp"):
-			if e.focused && e.row == 0 && e.historyPrev() {
-			} else if e.isAutocompleteActive() {
+			switch {
+			case e.focused && e.row == 0 && e.historyPrev():
+			case e.isAutocompleteActive():
 				// Autocomplete active: let the SelectList handle up/down
 				// for suggestion navigation. Skip both history and cursor move.
-			} else {
+			default:
 				e.moveCursor(-1, 0)
 			}
 		case km.Matches(raw, "tui.editor.cursorDown"):
-			if e.focused && e.row >= int64(len(e.lines)-1) && e.historyNext() {
-			} else if e.isAutocompleteActive() {
+			switch {
+			case e.focused && e.row >= int64(len(e.lines)-1) && e.historyNext():
+			case e.isAutocompleteActive():
 				// Autocomplete active: let the SelectList handle up/down
 				// for suggestion navigation. Skip both history and cursor move.
-			} else {
+			default:
 				e.moveCursor(1, 0)
 			}
 		case km.Matches(raw, "tui.editor.cursorWordLeft"):

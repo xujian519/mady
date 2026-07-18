@@ -131,9 +131,9 @@ func PromptIndex(templates []PromptTemplate) string {
 		if !ok {
 			continue
 		}
-		b.WriteString(fmt.Sprintf("  [%s]\n", cat))
+		fmt.Fprintf(&b, "  [%s]\n", cat)
 		for _, tmpl := range items {
-			b.WriteString(fmt.Sprintf("    %-30s — %s\n", tmpl.Name, tmpl.Description))
+			fmt.Fprintf(&b, "    %-30s — %s\n", tmpl.Name, tmpl.Description)
 		}
 		b.WriteString("\n")
 	}
@@ -149,9 +149,9 @@ func PromptIndex(templates []PromptTemplate) string {
 		if found {
 			continue
 		}
-		b.WriteString(fmt.Sprintf("  [%s]\n", cat))
+		fmt.Fprintf(&b, "  [%s]\n", cat)
 		for _, tmpl := range items {
-			b.WriteString(fmt.Sprintf("    %-30s — %s\n", tmpl.Name, tmpl.Description))
+			fmt.Fprintf(&b, "    %-30s — %s\n", tmpl.Name, tmpl.Description)
 		}
 		b.WriteString("\n")
 	}

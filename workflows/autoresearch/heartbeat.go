@@ -4,12 +4,12 @@ import "time"
 
 // Heartbeat 是长周期研究任务的心跳监控记录。
 type Heartbeat struct {
-	ContractID  string        `json:"contract_id"`
-	LastBeat    time.Time     `json:"last_beat"`
-	Interval    time.Duration `json:"interval"`
-	Timeout     time.Duration `json:"timeout"`
-	BeatCount   int           `json:"beat_count"`
-	IsStale     bool          `json:"is_stale"`
+	ContractID string        `json:"contract_id"`
+	LastBeat   time.Time     `json:"last_beat"`
+	Interval   time.Duration `json:"interval"`
+	Timeout    time.Duration `json:"timeout"`
+	BeatCount  int           `json:"beat_count"`
+	IsStale    bool          `json:"is_stale"`
 }
 
 // NewHeartbeat 创建一个心跳监控器。

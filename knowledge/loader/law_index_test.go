@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // TestSplitTitleTopics 验证 H3 标题 → 主题关键词的切分规则：
@@ -131,12 +133,20 @@ func TestBuildLawArticleIndex_Empty(t *testing.T) {
 
 // TestBuildLawArticleIndex_RealWiki 条件测试：真实 wiki 法条目录存在时，
 // 断言《专利法（2020）》82 条全覆盖、第 9 条含「先申请」词。
+//
+// 路径解析走 util.MadyHome（与 AGENTS.md 的"任意 cwd 启动"原则对齐），
+// 支持 $MADY_HOME 覆盖默认 ~/.mady；不再用 os.UserHomeDir()+".mady" 硬拼接。
+//
+// 注意：util.MadyHome 会 EnsureDir 创建目录，为避免测试副作用污染真实 ~/.mady，
+// 用 t.Setenv + t.TempDir 隔离 MADY_HOME 到测试专用空目录，再让 os.Stat 自然失败
+// 进入 skip 分支——这样既覆盖了"MadyHome 不可用"的语义，又不修改用户家目录。
 func TestBuildLawArticleIndex_RealWiki(t *testing.T) {
-	home, err := os.UserHomeDir()
+	t.Setenv("MADY_HOME", t.TempDir())
+	home, err := util.MadyHome()
 	if err != nil {
-		t.Skip("无法定位用户目录")
+		t.Skipf("MadyHome unavailable: %v", err)
 	}
-	dir := filepath.Join(home, ".mady", "knowledge", "wiki", "法律法规", "法律")
+	dir := filepath.Join(home, "knowledge", "wiki", "法律法规", "法律")
 	if _, err := os.Stat(dir); err != nil {
 		t.Skipf("真实 wiki 法条目录不存在，跳过：%s", dir)
 	}
