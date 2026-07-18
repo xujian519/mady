@@ -216,12 +216,19 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	}
 
 	// Workspace：$WORKSPACE_DIR > ~/.mady/workspace。
+	// MadyHome() 最终回退会调 filepath.Abs("./.mady")，故此处不会出现 cwd 相对路径。
 	workspaceDir := os.Getenv("WORKSPACE_DIR")
 	if workspaceDir == "" {
 		if madyHome != "" {
 			workspaceDir = filepath.Join(madyHome, "workspace")
 		} else {
-			workspaceDir = "./workspace" // 降级兜底
+			// 不可达兜底：MadyHome() 仅在 filepath.Abs 自身失败时返错。
+			// 走 ResolveDataDir 以保证最终路径仍经过 filepath.Abs 规范化。
+			dir, err := util.ResolveDataDir("workspace")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "mady: 解析 workspace 目录失败，回退为空串: %v\n", err)
+			}
+			workspaceDir = dir
 		}
 	}
 	// 确保 workspace 及 projects 子目录存在。

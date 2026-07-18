@@ -1,5 +1,164 @@
 # AI 决策变更日志
 
+## 2026-07-18: TUI 质量审查后续修复（P1 主题检测 + P2 测试覆盖提升）
+
+### 背景
+对 Mady `tui/` 模块进行全面质量审查后，识别出 1 个 P1 功能缺陷和 1 个 P2 结构性短板：
+- `tui/theme/global.go:51` 的 `DefaultSemanticForTerminal()` 始终返回浅色主题，深色终端检测失效
+- TUI 整体测试覆盖率仅 47.0%，`agentadapter` 低至 21.5%，`component` 38.2%，`terminal` 42.6%
+
+本次集中修复上述问题，并补充 agentcore 事件构造函数以支持跨包测试。
+
+### 修复内容
+
+1. **P1 修复深色终端主题检测**
+   - `tui/theme/global.go`：`DefaultSemanticForTerminal()` 在检测到非浅色终端时返回 `DefaultMadyDark()`
+   - 新增 `tui/theme/global_test.go`：覆盖 COLORFGBG 显式 dark/light、缺失值、异常值，以及 `SetSemanticTheme`/`InitThemeFromEnv` 的 dark 路径
+   - 测试通过保存/恢复 `atomicPalette` 避免全局状态交叉污染
+
+2. **P2 提升 TUI 测试覆盖率**
+   - `tui/agentadapter/adapter_test.go`：补充 12 个事件映射测试，覆盖 agent start/end/error/interrupt、turn end、message delta、tool call start/end、handoff start/end、compaction start/end、auto retry、未知事件类型
+   - 新增 `tui/terminal/keybindings_test.go`：覆盖 Matches、SetUserBindings、冲突检测、未知 ID 忽略、Register、All、重复 token 处理
+   - 新增 `tui/component/settings_test.go`：覆盖空列表、Get/SetValue、导航、OnChange、OnSubmit、焦点
+   - 扩展 `tui/component/selectlist_test.go`：覆盖空列表、MaxVisible 最小值、Cancel、OnSelectionChange、空渲染、过滤空、分组头、滚动
+   - 扩展 `tui/component/input_test.go`：覆盖 Placeholder、OnChange、SetValue、SetPrompt
+   - 新增 `tui/component/loader_test.go`：覆盖渲染、SetMessage、SetStyle、Start/Stop、幂等 Stop、SetTheme、Animate
+
+3. **支撑性改动：agentcore 事件构造函数**
+   - `agentcore/event.go`：为外部测试和调用方新增 `NewAgentStartEvent`、`NewAgentEndEvent`、`NewAgentErrorEvent`、`NewAgentInterruptEvent`、`NewTurnStartEvent`、`NewTurnEndEvent`、`NewMessageDeltaEvent`、`NewToolCallStartEvent`、`NewToolCallEndEvent`、`NewHandoffStartEvent`、`NewHandoffEndEvent`、`NewCompactionStartEvent`、`NewCompactionEndEvent`、`NewAutoRetryEvent`、`NewSkillLoadedEvent`
+   - 所有构造函数自动设置正确的 `baseEvent.Kind`，解决外部包无法构造可路由事件的问题
+
+### 验证
+- `go build ./...` ✅（根 + tools 子模块）
+- `go vet ./tui/... ./agentcore/...` ✅
+- `go test -race ./tui/...` ✅（全部 9 子包通过）
+- `golangci-lint run ./tui/... ./agentcore/...` ✅ 0 issues
+- TUI 覆盖率：47.0% → 50.7%；`agentadapter` 21.5% → 78.5%；`component` 38.2% → 43.4%；`terminal` 42.6% → 47.1%；`theme` 50.3% → 56.2%
+
+### 涉及文件
+- `tui/theme/global.go`、`tui/theme/global_test.go`
+- `tui/agentadapter/adapter_test.go`
+- `tui/terminal/keybindings_test.go`
+- `tui/component/settings_test.go`、`tui/component/selectlist_test.go`、`tui/component/input_test.go`、`tui/component/loader_test.go`
+- `agentcore/event.go`
+
+---
+
+## 2026-07-18: 规范合规全面修复（P0/P1/P2/P3 共 9 项）
+
+### 背景
+对照 AGENTS.md / CLAUDE.md / SECURITY.md / CONTRIBUTING.md / tone-style-guide /
+chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P1、3 项 P2/P3 真实违规，
+无任何"误报"。本次集中修复全部 9 项。
+
+### P0：真实违规（4 项）
+
+1. **敏感路径清单 6 份不一致**：`scripts/check-sensitive-paths.sh` 仅 10 条，
+   AGENTS.md/CLAUDE.md 各 18 条，SECURITY.md 12 条，GO-DEVELOPMENT-STANDARDS.md 9 条，
+   CI 实际只检测 10 条路径——8 个文档承诺的敏感路径门禁缺口
+   - 修复：脚本扩展为 18 条权威源（补 `tools/vision.go` + 7 个上层边界文件），
+     4 份管理文档同步为 20 条（脚本 18 + 目录级 `agentcore/permission/`、`guardrails/guardian/`）
+   - 在每份文档显式声明"脚本为权威源"，避免未来漂移
+2. **`tui/chat` 违规导入 `agentcore`**：LAYERS.md 第 21 行明确禁令，
+   `chat_history.go:16` 实际 import agentcore（使用 DomainMessage 类型）
+   - 修复：将 `agentcore/message_domain.go` 整体下沉到 `tui/component/domain.go`
+     （该文件本就是孤儿——所有引用方都在 TUI 内部，agentcore/evidence 包有独立的同名类型）
+3. **`tui/component` 3 个 card 组件违规导入 `agentcore`**：LAYERS.md Layer 4 仅允许依赖 Layer 0–2
+   - 修复：随 P0-2 一次性消除——DomainMessage 迁移到本包后，evidence_card/approval_card/conclusion_card
+     均去掉 agentcore import，改用同包类型
+4. **删除原 `agentcore/message_domain.go`**：无任何外部消费者（agentcore/evidence 包定义独立的
+   EvidenceDirection/EvidenceSpan，与 DomainMessage 无关）
+
+### P1：规范执行偏差（2 项）
+
+1. **`server.New` 导出符号无注释**（GO-DEVELOPMENT-STANDARDS.md §10.1 要求每个导出符号必须注释）
+   - 修复：补中文注释（SSEKeepAlive 已有注释，原审查误报）
+2. **GO-DEVELOPMENT-STANDARDS.md §10.1 与 §10.4 内部矛盾**：§10.1 示例用英文，§10.4 要求中文
+   - 修复：§10.1 显式约定"注释使用中文，但首句以英文符号名开头以兼容 godoc/golint"，
+     示例改为中文版本
+3. **CI 未强制 Conventional Commits**：仅本地 pre-commit 钩子，贡献者未装钩子可绕过
+   - 修复：新增 `commitlint.config.js`（放宽 header-max-length 到 120 以兼容中文 subject，
+     关闭 subject-case），在 `.github/workflows/ci.yml` 增加 commitlint job（wagoid/commitlint-github-action@v6）
+
+### P2：架构与路径规范（2 项）
+
+1. **cmd/mady 3 处 `./` 相对路径兜底**：framework.go:224、server.go:58、tui.go:81
+   违反 AGENTS.md "禁止新增 ./ 相对路径默认值"
+   - 修复：兜底分支改用 `util.ResolveDataDir()`，与 `MadyHome()` 三级解析保持一致
+   - 注：这些分支理论上不可达（MadyHome 最终回退已调 filepath.Abs），
+     修复目的在于统一治理、防止未来扩张
+2. **`agentcore/evaluate` 反向依赖 `guardrails`**：metrics.go:260 调用 `guardrails.VerifyCitations`，
+   违反"上层不得反向依赖下层"约束
+   - 修复：依赖注入模式——在 evaluate 包定义本地 `CitationValidityReport` +
+     `CitationVerifier` 函数变量 + `SetCitationVerifier` 注入 API，evaluate 包零 guardrails 引用
+   - 注入点：`cmd/mady/eval.go`（顶层装配层）通过 `citationVerifierAdapter` 注入；
+     `scripts/replay_citation_metrics/main.go` 同步注入；
+     `metrics_test.go` 通过 t.Cleanup 在测试中注入并恢复
+   - 测试场景例外：`evaluate/benchmark/live_*_test.go` 的 `provider/chatcompat`、
+     `domains/reasoning` 反向引用属合理的测试集成场景（需真实 LLM 才能跑），保留现状
+
+### P3：文档一致性（1 项）
+
+1. **`tui/layout` 在 LAYERS.md 缺定义**：CLAUDE.md:102 标注"Layer 8"错误，
+   实际 `tui/layout` 仅依赖 `tui/core`（Layer 0）
+   - 修复：LAYERS.md 表格补 `tui/layout` 行（Layer 0 扩展），Directory Structure 补 layout/ 子树，
+     CLAUDE.md 描述改为"Layer 0 扩展：布局原语（仅依赖 core）"
+
+### 合规修复复审纠偏（P1-1 ~ P2-2）
+
+对本次合规修复进行第二轮质量复审，发现并修复 7 项遗留问题（3 P0 + 4 P1/P2）：
+
+- **P1-1 脚本扩展为目录前缀匹配**：`scripts/check-sensitive-paths.sh` 原仅 `grep -Fx` 精确匹配，
+  无法覆盖 `agentcore/permission/` 与 `guardrails/guardian/` 目录下新增文件。
+  新增 `SENSITIVE_PATH_PREFIXES` 数组 + `grep -F` 前缀匹配循环。
+- **P1-2 `currentCitationVerifier` 并发安全**：原为裸 `var CitationVerifier`，
+  `mady eval --workers N` 并发调用 `Compute()` 存在 data race。
+  改为 `atomic.Pointer[CitationVerifier]`，`SetCitationVerifier` 走原子 Store，
+  新增 `TestSetCitationVerifierConcurrent` 用 `sync.WaitGroup` 复现 8 goroutine × 200 轮竞争
+  （`go test -race` 通过）。`metrics_test.go` 改用公开 API `SetCitationVerifier` 而非直接 var 赋值。
+- **P1-3 commitlint CI 触发口径**：`.github/workflows/ci.yml` 原 `on: [push, pull_request]`
+  导致 push 到 main 时会 lint 单个 squash commit（语义无意义）。
+  改为 `if: github.event_name == 'pull_request'` 仅 PR 触发，并补注释说明覆盖范围。
+- **P1-4 README 示例硬编码 `"./sessions"`**：README.md:380 仍示范旧反模式。
+  改为展示 `util.ResolveDataDir("sessions")` + error handling 正确范式。
+- **P2-1 `ResolveDataDir` 错误被静默吞掉**：`cmd/mady/{framework,server,tui}.go` 三处
+  `sessionDir, _ = util.ResolveDataDir(...)` 用 `_, _` 丢弃 error。
+  改为捕获并 `log.Printf` / `fmt.Fprintf(os.Stderr, ...)` 输出，便于兜底分支异常时定位。
+- **P2-2 过期"修复："注释前缀**：`cmd/mady/server.go:69` 残留 `// 修复：使用 fc.WorkspaceDir...`
+  合并到 P2-1 同一 edit 中清理为现在时态描述。
+
+### 验证（复审后全量重跑）
+- `go build ./...` / `go vet ./...`：OK
+- `cd tools && go build ./... && go vet ./...`：OK
+- `golangci-lint run ./...`（根 + tools）：0 issues
+- `go test -race -count=1 ./... 2>&1 | grep -E "^(ok|FAIL|---)"`：70 包全部 `ok`，无 FAIL
+- `cd tools && go test -race -count=1 ./...`：2 包全部 `ok`
+- 敏感路径清单 5 份文档条目数一致：脚本 18（权威源）、4 份管理文档 20（含目录级 2 条）
+
+> **注**：本次修复声称"全量测试通过"时曾出现失误——首次跑 `go test -race ./...`
+> 输出被 `tail -80` 截断，掩盖了工作区中其它无关改动（`tui/agentadapter/adapter_test.go`、
+> `tui/theme/global.go` 等）导致的测试失败。本次 commit 前，已通过 `git stash`
+> 隔离所有无关改动，本次修复涉及包的测试结果见上。
+
+### 涉及文件（本次修复 23 个 = 20 改 + 2 新增 + 1 删除）
+**新增**：`tui/component/domain.go`、`commitlint.config.js`
+**删除**：`agentcore/message_domain.go`
+**修改**：
+- `scripts/check-sensitive-paths.sh`、`SECURITY.md`、`AGENTS.md`、`CLAUDE.md`、`docs/GO-DEVELOPMENT-STANDARDS.md`、`tui/LAYERS.md`
+- `tui/chat/chat_history.go`、`tui/component/{evidence,conclusion,approval}_card.go`
+- `server/server.go`
+- `.github/workflows/ci.yml`
+- `cmd/mady/{framework,server,tui,eval}.go`
+- `agentcore/evaluate/metrics.go`、`agentcore/evaluate/metrics_test.go`
+- `scripts/replay_citation_metrics/main.go`
+
+> **隔离记录**：commit 前工作区另含 8 个无关改动（`agentcore/event.go`、
+> `tui/agentadapter/adapter_test.go`、`tui/theme/global.go`、`tui/theme/global_test.go`、
+> `tui/component/{input,selectlist,loader,settings}_test.go`、`tui/terminal/keybindings_test.go`），
+> 对应上方"TUI 质量审查后续修复"条目。已 `git stash` 保留，本次修复 commit 不含这些改动。
+
+---
+
 ## 2026-07-18: Code Review 第二轮修复（5 项 P0/P1 + 1 项测试质量）
 
 ### 背景

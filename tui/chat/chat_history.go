@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/theme"
 )
@@ -54,9 +53,9 @@ type ChatMessage struct {
 	Duration  time.Duration // optional — displayed after Meta.
 	Collapsed bool          // when true, tool output shows summary; click to expand.
 
-	// DomainMsg holds a structured professional artifact (evidence/conclusion/approval).
-	// When non-nil, renderMessage routes to the corresponding card component.
-	DomainMsg *agentcore.DomainMessage
+	// DomainMsg 承载结构化专业产出（证据/结论/审批）。
+	// 非空时 renderMessage 路由到对应的卡片组件渲染。
+	DomainMsg *component.DomainMessage
 
 	// Thinking blocks (structured content).
 	ThinkingSegments []ThinkingSegment

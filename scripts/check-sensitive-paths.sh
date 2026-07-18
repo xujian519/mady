@@ -11,6 +11,8 @@
 set -euo pipefail
 
 # 安全敏感路径列表（基于 Mady 项目安全红线分析）
+# 维护约定：本数组为权威源，AGENTS.md / CLAUDE.md / SECURITY.md /
+# docs/GO-DEVELOPMENT-STANDARDS.md §12.1 须与之保持一致。
 SENSITIVE_PATHS=(
   "agentcore/handoff.go"          # 交接白名单校验 (isHandoffAllowed)
   "guardrails/levels.go"          # 护栏等级枚举 (Light/Standard/Strict)
@@ -22,6 +24,22 @@ SENSITIVE_PATHS=(
   "agentcore/manifest.go"         # Manifest 校验规则
   "domains/project.go"            # ValidateProjectPath 路径校验
   "tools/bash.go"                 # Bash 工具 (非沙箱模式)
+  "agentcore/hooks.go"            # LifecycleHook 运行时注册与优先级
+  "disclosure/report.go"          # review_gate 主动中断 (Pregel 内中断信号)
+  "guardrails/citation_gate.go"   # 引用核验门 (双级核验判定矩阵)
+  "guardrails/citation_table.go"  # 静态主题收录口径与漂移控制
+  "mcp/config_trust.go"           # MCP 配置信任存储 (.mcp.json 命令执行)
+  "acp/auth.go"                   # ACP 认证 (TokenAuthProvider 常量时间比较)
+  "server/server.go"              # Agent 池引用计数 (use-after-free 防护)
+  "tools/vision.go"               # 视觉工具沙箱字段传播 (历史沙箱绕过修复点)
+)
+
+# SENSITIVE_PATH_PREFIXES 列出目录级敏感路径前缀（必须以 / 结尾）。
+# 命中前缀下任意文件均视为敏感变更，弥补 SENSITIVE_PATHS 只能整行精确匹配文件名的局限。
+# 例如 agentcore/permission/decision.go 会被前缀 agentcore/permission/ 命中。
+SENSITIVE_PATH_PREFIXES=(
+  "agentcore/permission/"         # 权限决策 (Allow/Ask/Deny)
+  "guardrails/guardian/"          # Guardian AI 熔断器
 )
 
 HAS_SENSITIVE_CHANGES=false
@@ -73,6 +91,17 @@ for path in "${SENSITIVE_PATHS[@]}"; do
   if echo "$CHANGED_FILES" | grep -q -Fx "$path"; then
     HAS_SENSITIVE_CHANGES=true
     SENSITIVE_HITS="${SENSITIVE_HITS}  - $path\n"
+  fi
+done
+
+# 检查目录级敏感路径前缀（命中前缀下任意文件均视为敏感变更）
+for prefix in "${SENSITIVE_PATH_PREFIXES[@]}"; do
+  if echo "$CHANGED_FILES" | grep -q -F "$prefix"; then
+    HAS_SENSITIVE_CHANGES=true
+    # 列出该前缀下的实际命中文件，便于审查者快速定位
+    while IFS= read -r hit; do
+      [ -n "$hit" ] && SENSITIVE_HITS="${SENSITIVE_HITS}  - $hit (匹配前缀 $prefix)\n"
+    done <<< "$(echo "$CHANGED_FILES" | grep -F "$prefix")"
   fi
 done
 

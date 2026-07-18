@@ -99,7 +99,7 @@ mady/
 │   ├── chat/         #   Layer 5: 聊天应用（含 AppState 显式状态机）
 │   ├── stdio/        #   Layer 6: 过程式 I/O
 │   ├── agentadapter/ #   Layer 7: Agent 适配器
-│   └── layout/       #   Layer 8: 布局管理
+│   └── layout/       #   Layer 0 扩展：布局原语（仅依赖 core）
 ├── workflow/         # 工作流原语（Pipeline/Parallel/Router）
 ├── workflows/        # 领域工作流（legal/patent/autoresearch）
 ├── benchmark/        # 性能基准测试
@@ -224,6 +224,8 @@ Router (mady-router)
 
 ### 敏感路径快速参考
 
+本表与 `scripts/check-sensitive-paths.sh` 的 `SENSITIVE_PATHS` 数组保持同步，后者为权威源。
+
 | 路径 | 安全边界 |
 |------|---------|
 | `agentcore/handoff.go` | 交接白名单校验 (isHandoffAllowed) |
@@ -243,3 +245,6 @@ Router (mady-router)
 | `mcp/config_trust.go` | MCP 配置信任存储 (.mcp.json 命令执行) |
 | `acp/auth.go` | ACP 认证 (TokenAuthProvider 常量时间比较) |
 | `server/server.go` | Agent 池引用计数 (use-after-free 防护) |
+| `tools/vision.go` | 视觉工具沙箱字段传播 (历史沙箱绕过修复点) |
+| `agentcore/permission/` | 权限决策 (Allow/Ask/Deny) |
+| `guardrails/guardian/` | Guardian AI 熔断器 |

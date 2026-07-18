@@ -9,6 +9,22 @@ env:
   GO_VERSION: "1.25"
 
 jobs:
+  commitlint:
+    # 仅在 PR 上运行：对 PR 内每个 commit 单独校验 Conventional Commits。
+    # 直接 push 到 main 的提交通常是 squash-merge 的产物，不再逐条校验。
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    name: commitlint
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Run commitlint
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.js
+
   lint:
     runs-on: ubuntu-latest
     name: lint

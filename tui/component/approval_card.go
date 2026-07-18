@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
 )
@@ -37,8 +36,8 @@ func DefaultApprovalCardTheme() ApprovalCardTheme {
 	}
 }
 
-// RenderApprovalCard renders a DomainMessage of type approval_prompt.
-func RenderApprovalCard(msg *agentcore.DomainMessage, t ApprovalCardTheme, width int64) []string {
+// RenderApprovalCard 渲染类型为 approval_prompt 的 DomainMessage。
+func RenderApprovalCard(msg *DomainMessage, t ApprovalCardTheme, width int64) []string {
 	divider := t.Border(strings.Repeat("═", int(width)))
 	dashDivider := t.Dim(strings.Repeat("─", int(width)))
 

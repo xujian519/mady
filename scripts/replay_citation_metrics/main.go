@@ -24,7 +24,21 @@ import (
 
 	"github.com/xujian519/mady/agentcore/evaluate"
 	"github.com/xujian519/mady/agentcore/evaluate/benchmark"
+	"github.com/xujian519/mady/guardrails"
 )
+
+// adapter 将 guardrails.CitationReport 映射到 evaluate.CitationValidityReport，
+// 让 evaluate 包在零 guardrails 引用的前提下复用线上引用核验 Gate。
+func adapter(r guardrails.CitationReport) evaluate.CitationValidityReport {
+	return evaluate.CitationValidityReport{
+		Total:        r.Total,
+		Valid:        r.Valid,
+		Unknown:      r.Unknown,
+		Unverifiable: r.Unverifiable,
+		Suspect:      r.Suspect,
+		Invalid:      r.Invalid,
+	}
+}
 
 // caseScore 是单题引用类指标得分。
 type caseScore struct {
@@ -40,6 +54,12 @@ type layerReport struct {
 }
 
 func main() {
+	// 注入线上引用核验 Gate 作为 citation_validity 的核验源，
+	// 与 docs/design/citation-verification-gate.md §9 等价验收对齐。
+	evaluate.SetCitationVerifier(func(text string) evaluate.CitationValidityReport {
+		return adapter(guardrails.VerifyCitations(text))
+	})
+
 	// 题库 caseID → required citations。
 	required := make(map[string][]string)
 	for _, c := range benchmark.AllCases() {

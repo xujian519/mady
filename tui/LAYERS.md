@@ -5,13 +5,17 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 | Layer | Package | Description | Depends on |
 |-------|---------|-------------|------------|
 | 0 Foundation | `tui/core` | Basic types, interfaces, rune utilities, fuzzy match, SpinnerStyle | None (only stdlib) |
+| 0 Layout | `tui/layout` | Declarative layout primitives (Flex) — pure data over `core.Component`, no theming/agentcore | Layer 0 |
 | 1 Terminal I/O | `tui/terminal` | Terminal abstraction, key parsing, input buffer | Layer 0 |
 | 2 Theming | `tui/theme` | Palette, semantic theme, JSON loading, file watch, Style | Layer 0, 1 |
 | 3 Engine | `tui` (root) | TUI container, event loop, overlay system, ChatApp bridge | Layer 0–2, chat |
-| 4 Components | `tui/component` | UI components (Editor, Markdown, Loader, etc.) + fuzzy provider | Layer 0–2, fuzzy |
+| 4 Components | `tui/component` | UI components (Editor, Markdown, Loader, etc.) + fuzzy provider + domain cards | Layer 0–2, fuzzy |
 | 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory) | Layer 0–2, 4 |
 | 6 Stdio | `tui/stdio` | Procedural stdout/stdin tools (Spinner, Renderer, ProgressBar, LineReader) | Layer 0, 2 |
 | 7 Adapter | `tui/agentadapter` | Agentcore → chat event conversion, BindAgent convenience | Layer 5, agentcore |
+
+> `tui/layout` 在编号上归入 Layer 0（仅依赖 `tui/core`，不依赖 theming/agentcore），
+> 但在概念上是"布局原语"——独立列出以便贡献者快速定位。
 
 ## Rules
 
@@ -57,7 +61,11 @@ tui/
 ├── component/             # Layer 4 — Components
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
+│   ├── domain.go          # DomainMessage / DomainAction 等专业卡片数据模型
 │   ├── editor.go          # Multi-line text editor (Emacs-style)
+│   ├── evidence_card.go   # 证据卡渲染器
+│   ├── conclusion_card.go # 结论卡渲染器
+│   ├── approval_card.go   # 审批门卡渲染器
 │   ├── fuzzy_provider.go  # FuzzyContentProvider, NormalizeForMatch, SubstringFuzzyFilter
 │   ├── image.go           # Kitty/Sixel/iTerm2 image display
 │   ├── input.go           # Single-line input editor
@@ -69,6 +77,10 @@ tui/
 │   ├── statusbar.go       # StatusBar
 │   ├── syntax.go          # Syntax highlighting
 │   └── text.go            # Text, TruncatedText
+│
+├── layout/                # Layer 0 — Layout primitives (depends on core only)
+│   ├── flex.go            # Flex declarative layout (main-axis size policies)
+│   └── layout.go          # Layout helpers
 │
 ├── chat/                  # Layer 5 — Application
 │   ├── chat_app.go        # ChatApp + chatLayout (AppHost interface, no *TUI dep)

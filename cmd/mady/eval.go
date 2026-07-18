@@ -7,8 +7,28 @@ import (
 	"os"
 	"strings"
 
+	"github.com/xujian519/mady/agentcore/evaluate"
 	"github.com/xujian519/mady/agentcore/evaluate/cli"
+	"github.com/xujian519/mady/guardrails"
 )
+
+// citationVerifierAdapter 将线上引用核验 Gate（guardrails.VerifyCitations）
+// 适配为 evaluate.CitationVerifier，作为 `mady eval` 的核验源注入。
+//
+// 注入点选在 cmd/mady 顶层入口而非 agentcore/evaluate/cli，原因是：
+// evaluate 包不得反向引用 guardrails（架构约束，详见 AGENTS.md 分层规范），
+// 由顶层装配层注入最干净。
+func citationVerifierAdapter(text string) evaluate.CitationValidityReport {
+	r := guardrails.VerifyCitations(text)
+	return evaluate.CitationValidityReport{
+		Total:        r.Total,
+		Valid:        r.Valid,
+		Unknown:      r.Unknown,
+		Unverifiable: r.Unverifiable,
+		Suspect:      r.Suspect,
+		Invalid:      r.Invalid,
+	}
+}
 
 // runEvalCLI 运行评估 CLI 子命令。
 //
@@ -28,6 +48,9 @@ import (
 //	--workers    (live 模式) 并发数 (默认 4)
 //	--timeout    (live 模式) 单题超时秒数 (默认 900)
 func runEval(ctx context.Context, args []string) error {
+	// 注入线上引用核验 Gate 作为 citation_validity 核验源。
+	evaluate.SetCitationVerifier(citationVerifierAdapter)
+
 	fs := flag.NewFlagSet("eval", flag.ContinueOnError)
 
 	suite := fs.String("suite", "all", "测试集: p1, p2a, p2b, all")

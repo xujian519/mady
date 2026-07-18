@@ -47,6 +47,10 @@ type CORSConfig struct {
 	AllowCredentials bool
 }
 
+// New 根据传入的 agentcore.Config 创建一个 Server 实例。
+//
+// 初始化内部 Agent 池（上限 64）、事件总线以及请求体大小限制（默认 10 MiB）。
+// 调用方随后通过 ServeHTTP / RegisterHandler 等方法挂载到 HTTP 路由。
 func New(cfg agentcore.Config) *Server {
 	s := &Server{
 		config:    csync.NewValue(cfg),

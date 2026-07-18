@@ -1,8 +1,24 @@
 package evaluate
 
 import (
+	"sync"
 	"testing"
+
+	"github.com/xujian519/mady/guardrails"
 )
+
+// adapter 将 guardrails.CitationReport 映射到本包 CitationValidityReport，
+// 用于在测试中复用线上引用核验 Gate。
+func adapter(r guardrails.CitationReport) CitationValidityReport {
+	return CitationValidityReport{
+		Total:        r.Total,
+		Valid:        r.Valid,
+		Unknown:      r.Unknown,
+		Unverifiable: r.Unverifiable,
+		Suspect:      r.Suspect,
+		Invalid:      r.Invalid,
+	}
+}
 
 func TestExactMatch(t *testing.T) {
 	m := ExactMatch{CaseSensitive: false}
@@ -79,6 +95,15 @@ func TestCitationCompleteness(t *testing.T) {
 }
 
 func TestCitationValidity(t *testing.T) {
+	// 注入线上引用核验 Gate 作为核验源，与生产装配（cmd/mady eval）一致。
+	// 通过公开 API SetCitationVerifier 注入，t.Cleanup 恢复默认值。
+	// SetCitationVerifier 内部用 atomic.Pointer 保证并发安全。
+	prev := getCitationVerifier()
+	t.Cleanup(func() { SetCitationVerifier(prev) })
+	SetCitationVerifier(func(text string) CitationValidityReport {
+		return adapter(guardrails.VerifyCitations(text))
+	})
+
 	m := CitationValidity{}
 	check := func(p string, want float64) {
 		t.Helper()
@@ -97,6 +122,53 @@ func TestCitationValidity(t *testing.T) {
 	check("依据专利法第二百零八条，该申请应予驳回。", 0.0)
 	// 对错参半：Valid 1 / 可核验 2 = 0.5。
 	check("根据专利法第22条第3款，具备创造性。专利法第47条（分案申请）允许分案。", 0.5)
+}
+
+// TestSetCitationVerifierConcurrent 验证 SetCitationVerifier 与 Compute 并发无 data race。
+// 必须 `go test -race` 跑此用例才能真正验证。
+func TestSetCitationVerifierConcurrent(t *testing.T) {
+	prev := getCitationVerifier()
+	t.Cleanup(func() { SetCitationVerifier(prev) })
+
+	// 凇备两个核验器交替切换
+	verifierA := func(_ string) CitationValidityReport { return CitationValidityReport{Total: 2, Valid: 1, Unknown: 1} }
+	verifierB := func(_ string) CitationValidityReport { return CitationValidityReport{Total: 4, Valid: 2, Unknown: 2} }
+	SetCitationVerifier(verifierA)
+
+	const goroutines = 8
+	const iterations = 200
+	var wg sync.WaitGroup
+	wg.Add(goroutines + 1)
+
+	// 一个 goroutine 反复 Set
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			if i%2 == 0 {
+				SetCitationVerifier(verifierB)
+			} else {
+				SetCitationVerifier(verifierA)
+			}
+		}
+	}()
+
+	// N 个 goroutine 反复 Compute（读）
+	for range goroutines {
+		go func() {
+			defer wg.Done()
+			m := CitationValidity{}
+			for j := 0; j < iterations; j++ {
+				// 任何时刻都应返回 [0,1]，不应 panic
+				score := m.Compute("测试文本", "")
+				if score < 0 || score > 1 {
+					t.Errorf("Compute 返回越界值: %f", score)
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestLengthScore(t *testing.T) {

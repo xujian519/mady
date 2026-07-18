@@ -15,6 +15,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
+	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
 )
@@ -50,19 +51,26 @@ func runServer(ctx context.Context) {
 
 	// Session persistence via JSONL file store.
 	// 优先级：$SESSION_DIR > ~/.mady/sessions。
+	// MadyHome() 最终回退已调 filepath.Abs，不会出现 cwd 相对路径。
 	sessionDir := os.Getenv("SESSION_DIR")
 	if sessionDir == "" {
 		if fc.MadyHome != "" {
 			sessionDir = filepath.Join(fc.MadyHome, "sessions")
 		} else {
-			sessionDir = "./sessions" // 降级兜底
+			// 不可达兜底：MadyHome() 仅在 filepath.Abs 自身失败时返错。
+			// 走 ResolveDataDir 以保证最终路径仍经过 filepath.Abs 规范化。
+			dir, err := util.ResolveDataDir("sessions")
+			if err != nil {
+				log.Printf("resolve sessions dir: %v (falling back to empty)", err)
+			}
+			sessionDir = dir
 		}
 	}
 	fileStore, err := session.NewFileStore(sessionDir)
 	if err != nil {
 		log.Printf("session: %v (continuing without persistence)", err)
 	} else {
-		// 修复：使用 fc.WorkspaceDir 而非硬编码 "./workspace"，
+		// 使用 fc.WorkspaceDir 而非硬编码 "./workspace"，
 		// 确保与 ProjectRegistry、AgentStore 共用同一 workspace。
 		cfg.Store = session.NewAgentStore(fileStore, fc.WorkspaceDir)
 	}

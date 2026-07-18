@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
 )
@@ -39,8 +38,8 @@ func DefaultConclusionCardTheme() ConclusionCardTheme {
 	}
 }
 
-// RenderConclusionCard renders a DomainMessage of type conclusion_card.
-func RenderConclusionCard(msg *agentcore.DomainMessage, t ConclusionCardTheme, width int64) []string {
+// RenderConclusionCard 渲染类型为 conclusion_card 的 DomainMessage。
+func RenderConclusionCard(msg *DomainMessage, t ConclusionCardTheme, width int64) []string {
 	bar := t.Border("▌")
 	title := msg.Title
 	if title == "" {

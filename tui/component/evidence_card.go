@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
 )
@@ -37,8 +36,8 @@ func DefaultEvidenceCardTheme() EvidenceCardTheme {
 	}
 }
 
-// RenderEvidenceCard renders a DomainMessage of type evidence_card to width columns.
-func RenderEvidenceCard(msg *agentcore.DomainMessage, collapsed bool, t EvidenceCardTheme, width int64) []string {
+// RenderEvidenceCard 渲染类型为 evidence_card 的 DomainMessage 到指定宽度。
+func RenderEvidenceCard(msg *DomainMessage, collapsed bool, t EvidenceCardTheme, width int64) []string {
 	bar := t.Border("▌")
 	title := msg.Title
 	if title == "" {
@@ -67,10 +66,10 @@ func RenderEvidenceCard(msg *agentcore.DomainMessage, collapsed bool, t Evidence
 		dirIcon := "○"
 		dirColor := t.Dim
 		switch sp.Direction {
-		case agentcore.DirectionSupporting:
+		case DirectionSupporting:
 			dirIcon = "⊕"
 			dirColor = t.SupportColor
-		case agentcore.DirectionContradicting:
+		case DirectionContradicting:
 			dirIcon = "⊖"
 			dirColor = t.CounterColor
 		}

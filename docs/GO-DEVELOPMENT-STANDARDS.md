@@ -810,19 +810,19 @@ go mod tidy
 ### 10.1 导出符号文档
 
 ```go
-// EventBus provides async pub/sub for agent lifecycle events.
-// Events are dispatched via an internal Broker for fan-out delivery.
-// Event ordering is preserved — a single goroutine processes events sequentially.
+// EventBus 提供 Agent 生命周期事件的异步发布/订阅能力。
+// 内部通过 Broker 实现扇出投递；事件顺序由单 goroutine 顺序消费保证。
 //
-// Delivery semantics:
-//   - Emit: best-effort, non-blocking...
-//   - EmitMustDeliver: bounded-blocking...
+// 投递语义：
+//   - Emit：best-effort，非阻塞……
+//   - EmitMustDeliver：有界阻塞……
 type EventBus struct { ... }
 ```
 
 格式规则：
 - 每个导出符号必须注释。
-- 首句以符号名开头：`// EventBus provides...`
+- 注释使用中文（遵循 §10.4），但首句以英文符号名开头以兼容 `godoc`/`golint`，
+  形如 `// EventBus 提供……`。
 - 句尾句号结束。
 
 ### 10.2 关键逻辑注释
@@ -921,19 +921,29 @@ CI 必须包含：
 
 ### 12.1 敏感路径
 
-以下文件变更需要特别的人工审查（L4 审查要求）：
+以下文件变更需要特别的人工审查（L4 审查要求）。本表与 `scripts/check-sensitive-paths.sh`
+的 `SENSITIVE_PATHS` 数组保持同步，后者为权威源。
 
 | 文件 | 安全边界 |
 |------|---------|
 | `agentcore/handoff.go` | 交接白名单校验 (`isHandoffAllowed`) |
 | `guardrails/levels.go` | 护栏等级枚举 (Light/Standard/Strict) |
 | `domains/router.go` | 路由白名单 AllowedSources |
+| `domains/patent.go` | 动态 WorkingDir (BuildProjectAgent) |
 | `domains/approval.go` | ApprovalGate 生命周期钩子 |
 | `tools/path.go` | 文件系统沙箱隔离 |
 | `tools/tools.go` | 工具能力门控 (ExtensionConfig) |
 | `agentcore/manifest.go` | Manifest 校验规则 |
 | `domains/project.go` | ValidateProjectPath 路径校验 |
 | `tools/bash.go` | Bash 工具（非沙箱模式） |
+| `agentcore/hooks.go` | LifecycleHook 运行时注册与优先级 |
+| `disclosure/report.go` | review_gate 主动中断（Pregel 内中断信号） |
+| `guardrails/citation_gate.go` | 引用核验门（双级核验判定矩阵） |
+| `guardrails/citation_table.go` | 静态主题收录口径与漂移控制 |
+| `mcp/config_trust.go` | MCP 配置信任存储（.mcp.json 命令执行） |
+| `acp/auth.go` | ACP 认证（TokenAuthProvider 常量时间比较） |
+| `server/server.go` | Agent 池引用计数（use-after-free 防护） |
+| `tools/vision.go` | 视觉工具沙箱字段传播（历史沙箱绕过修复点） |
 
 ### 12.2 密钥管理
 

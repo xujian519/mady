@@ -18,6 +18,7 @@ import (
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/tui"
 	"github.com/xujian519/mady/tui/agentadapter"
@@ -78,7 +79,13 @@ func runTui(ctx context.Context) {
 		if fc.MadyHome != "" {
 			sessionDir = filepath.Join(fc.MadyHome, "sessions")
 		} else {
-			sessionDir = "./sessions"
+			// 不可达兜底：MadyHome() 仅在 filepath.Abs 自身失败时返错。
+			// 走 ResolveDataDir 以保证最终路径仍经过 filepath.Abs 规范化。
+			dir, err := util.ResolveDataDir("sessions")
+			if err != nil {
+				log.Printf("resolve sessions dir: %v (falling back to empty)", err)
+			}
+			sessionDir = dir
 		}
 	}
 	var agentStore *session.AgentStore
