@@ -90,9 +90,6 @@ linters:
           - staticcheck
         path: tools/browser_providers/
         text: ST1003
-      - linters:
-          - forbidigo
-        path: cmd/mady/main.go
       # 允许忽略确定性图构建、不可恢复的 I/O 写入和资源清理的错误
       - linters:
           - errcheck

@@ -127,7 +127,7 @@ jobs:
 
       - name: go test (race)
         working-directory: ${{ matrix.module.path }}
-        run: go test -race -count=1 -short ./...
+        run: go test -race -count=1 ./...
 
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.module.name == 'root'

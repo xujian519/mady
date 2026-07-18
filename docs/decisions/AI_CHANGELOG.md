@@ -1,5 +1,28 @@
 # AI 决策变更日志
 
+## 2026-07-18: M1 门禁加固（3/4）：清理无效 -short flag 与 forbidigo 死配置
+
+### 背景
+- CI race 步骤 `go test -race -count=1 -short ./...` 中的 `-short` 是纯无效 flag：
+  全库 0 处 `testing.Short()` 调用，没有任何测试会因此在 CI 被跳过
+- `.golangci.yml` 存在针对 `cmd/mady/main.go` 的 forbidigo 排除规则，
+  但 forbidigo 未出现在 `linters.enable` 列表中，规则永远不会生效，属死配置
+
+### 变更
+- `.github/workflows/ci.yml`：race 步骤命令去掉 `-short`，
+  改为 `go test -race -count=1 ./...`（Makefile 的 `test-short` target 保留不动）
+- `.golangci.yml`：删除 forbidigo 排除规则（原第 93-95 行）
+
+### 验证
+- `golangci-lint run ./...`（根模块）✅ 0 issues
+- `cd tools && golangci-lint run ./...`（tools 子模块）✅ 0 issues
+- `go build ./... && go vet ./...` ✅
+
+### 涉及文件
+- `.github/workflows/ci.yml`、`.golangci.yml`
+
+---
+
 ## 2026-07-18: M1 门禁加固（2/4）：codecov 配置合并并启用覆盖率门槛
 
 ### 背景
