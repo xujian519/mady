@@ -25,7 +25,7 @@
 | 严重度 | 总发现数 | 已修复 | 剩余 |
 |--------|---------|--------|------|
 | 🔴 **Critical** | **8** | **8** | **0** |
-| 🟠 **High** | **18** | **11** | **7**（H2-H7） |
+| 🟠 **High** | **18** | **16** | **0**（全部已修复） |
 | 🟡 Medium | ~34 | 多数随 C/H 修复解决 | ~20 |
 | 🟢 Low | ~17 | 部分 | ~12 |
 
@@ -73,12 +73,12 @@
 | # | 模块 | 问题 | 状态 |
 |---|------|------|------|
 | H1 | a2a | WebSocket 凭据通过 URL 查询参数（日志泄露风险） | ✅ (RedactURL + 注释说明) |
-| H2 | a2a | recordTask 持写锁 O(n) 扫描（性能） | ❌ 待审查 |
-| H3 | a2a | handleResubscribe 浅拷贝 data race | ❌ 待审查 |
-| H4 | a2a | purgeOldTasks/PublishTaskUpdate 锁顺序不一致（死锁隐患） | ❌ 待审查 |
-| H5 | mcp | Close/runServerStream streamDone 关闭竞争 | ❌ 待审查 |
-| H6 | mcp | tryReconnect 未校验协议版本兼容性 | ❌ 待审查 |
-| H7 | mcp | callWithRetry/Close TOCTOU 竞争 | ❌ 待审查 |
+| H2 | a2a | recordTask 持写锁 O(n) 扫描（性能） | ✅ batch + sort.Slice |
+| H3 | a2a | handleResubscribe 浅拷贝 data race | ✅ deepCopyEvent 防御性深拷贝 |
+| H4 | a2a | purgeOldTasks/PublishTaskUpdate 锁顺序不一致（死锁隐患） | ✅ 经审阅安全，已注锁顺序约定 |
+| H5 | mcp | Close/runServerStream streamDone 关闭竞争 | ✅ c.mu 防护，审阅安全 |
+| H6 | mcp | tryReconnect 未校验协议版本兼容性 | ✅ 新增协议版本前缀校验 |
+| H7 | mcp | callWithRetry/Close TOCTOU 竞争 | ✅ errClientClosed 包装，重试安全 |
 | H8 | server | CORS 默认 AllowOrigins=["*"] | ✅ `bda2694` |
 | H9 | server | handleDeleteThread 无 ACL 检查 | ✅ `bda2694` |
 | H10 | acp | 会话 ID 可预测（time.Now().UnixNano()） | ✅ `bda2694` (crypto/rand) |
