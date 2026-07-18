@@ -254,13 +254,33 @@ Co-authored-by: Claude <noreply@anthropic.com>
 
 ## 本地检查
 
-提交前建议运行：
+### 首次克隆后安装钩子
 
 ```bash
-# 使用 pre-commit（已配置 .pre-commit-config.yaml）
+# 注册 pre-commit 钩子（pre-commit 阶段：格式、vet 等）
+pre-commit install
+
+# 注册 commit-msg 钩子（commit-msg 阶段：敏感路径门禁 + Conventional Commits）
+# 这一步容易遗漏——不装则本地提交不会触发 sensitive-paths gate 和 commitlint
+pre-commit install --hook-type commit-msg
+```
+
+> `.git/hooks/` 不在版本控制内，所以每个新克隆的仓库都需要手动执行上述命令。
+> 如未安装 commit-msg 钩子，本地 `git commit` 不会拦截"AI 参与 + 敏感路径"的违规组合，
+> 只能等到 GitHub Actions CI 阶段才暴露。
+
+### 提交前自检
+
+```bash
+# 运行所有 pre-commit 钩子（不区分阶段）
 pre-commit run --all-files
 
-# 检查是否涉及安全敏感路径（需先 git add 暂存变更）
+# 模拟 commit-msg 阶段（用临时消息文件验证敏感路径门禁 + commitlint）
+TMP=$(mktemp); printf 'feat: xxx\n' > "$TMP"
+pre-commit run --hook-stage commit-msg --commit-msg-filename "$TMP"
+rm -f "$TMP"
+
+# 手动检查是否涉及安全敏感路径（需先 git add 暂存变更）
 git add .
 ./scripts/check-sensitive-paths.sh
 ```
