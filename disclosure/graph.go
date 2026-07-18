@@ -268,7 +268,7 @@ func WithRetriever(r domain.DomainRetriever) GraphOption {
 //	extract_* → merge_extractions (单一合并节点)
 //	merge_extractions → check_consistency
 //	check_consistency → [retry: extract_*] or [continue: generate_keywords]
-//	generate_keywords → retrieve_prior_art → check_novelty → generate_report → review_gate → __end__
+//	generate_keywords → retrieve_prior_art → check_novelty → generate_report → review_gate → draft_claims → __end__
 func BuildDisclosureAnalysisGraph(provider agentcore.Provider) (*graph.CompiledPregelGraph, error) {
 	return BuildDisclosureAnalysisGraphWithOpts(provider)
 }

@@ -1,5 +1,54 @@
 # AI 决策变更日志
 
+## 2026-07-18: Code Review 第二轮修复（5 项 P0/P1 + 1 项测试质量）
+
+### 背景
+`/review` 对未提交改动 + 既有代码扫描后报告 8 项问题（4 P0 + 2 P1 + 2 P2）。逐项核查后发现 **3 项误报**（审查员看的是旧版本），**5 项真问题 + 1 项测试质量建议**。用户选择"全部 8 项修复 + 先修问题再一起提交"。
+
+### 误报核查（3 项）
+| # | 审查声称 | 实际状态 | 结论 |
+|---|---|---|---|
+| 1 | `audit.go` key 派生用 `copy` | 实际已是 `sha256.Sum256([]byte(keyStr))` | 误报（旧版本） |
+| 2 | `claim_drafting.go:43` 空输出丢 claims | 已有 `else { state[StateKeyOutput] = claims }` 分支 | 误报（旧版本） |
+| 3 | `legal.go:118` 注释引用不存在方法 | 当前文件只有 114 行，该注释不存在 | 误报（旧版本） |
+
+### 真实修复（5 项）
+1. **P0** `domains/audit.go` Encryptor 伪加密 → 真 AES-256-GCM 实现
+   - 新增 imports：`crypto/aes`、`crypto/cipher`、`crypto/rand`、`encoding/base64`、`io`
+   - `Protect`：用 AES-256-GCM 加密，返回 `base64(nonce || ciphertext)`
+   - `Reveal`：base64 解码 → AES-GCM 解密；任何失败 fail-open 返回原文（兼容迁移期间未加密数据）
+   - 修复 gocritic `appendAssign` 警告：`append(nonce, sealed...)` → `make + 双 append`
+   - 验证：Encryptor 无任何调用方，纯占位实现升级，零连锁影响
+2. **P0** `disclosure/claim_drafting.go:34,38` Pregel 节点错误返回 `nil` → `state`
+   - 两处 `return nil, fmt.Errorf(...)` → `return state, fmt.Errorf(...)`
+   - 与 `pregelAgentNode` 等其他节点的 `state, err` 契约对齐，避免后续 Pregel 加入 error-bridge 时 NPE
+3. **P0** `disclosure/claim_drafting.go` 孤儿权利要求防护
+   - 新增节点入口 guard：`len(ext.PFETriples) == 0` 时直接返回 `state, err`
+   - 原问题：当 `Problems` 为空且 `Features` 非空时，`linkPFETriples` 不会回填，会生成 `DependsOn:1` 但权利要求 1 不存在的孤儿，违反专利法第 26 条第 4 款引用清楚性要求
+4. **P1** `guardrails/citation_table.go:69` 商标法总条数 75 → 73
+   - 核对 CNIPA 公布的《商标法》（2019 年第四次修正）原文，最后一条是第七十三条（非七十五条）
+   - 注释同步更新："共八章 75 条" → "共八章 73 条"
+   - 影响：条号 74、75 不再被误判为合法引用，S1 存在性核验防线恢复
+5. **P1** `disclosure/graph.go:271` 图拓扑注释过时
+   - `generate_report → review_gate → __end__` → `... → review_gate → draft_claims → __end__`
+   - 与实际拓扑（line 334-336）对齐，避免新接入方误以为 review_gate 是终止节点
+
+### 测试质量补充（1 项）
+- `workflows/patent/oa_response_test.go:87-90` `TestParseOANode_InventivenessRejection`
+  - 原仅 `t.Logf` 无 assert → 改为 `if rejectionType != string(rules.OaInventiveness) { t.Errorf(...) }`
+  - 该测试原本等于无断言，等于不测；现在真正验证"创造性 → OaInventiveness"的映射
+
+### 验证
+- `go build ./...` / `go vet ./...`：OK
+- `goimports -l` / `gofmt -l`：clean
+- `golangci-lint run ./domains/... ./disclosure/... ./guardrails/... ./workflows/...`：0 issues
+- `go test -race -count=1`：domains / disclosure / guardrails / workflows/patent 全部 PASS
+
+### 涉及文件（5 个）
+`domains/audit.go`、`disclosure/claim_drafting.go`、`disclosure/graph.go`、`guardrails/citation_table.go`、`workflows/patent/oa_response_test.go`
+
+---
+
 ## 2026-07-18: P2-5 大文件拆分（4 个 >1000 行文件 → 20 个聚焦文件）
 
 ### 背景

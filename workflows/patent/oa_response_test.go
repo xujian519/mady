@@ -85,8 +85,9 @@ func TestParseOANode_InventivenessRejection(t *testing.T) {
 	}
 
 	rejectionType := out.GetString(OAStateRejectionType)
-	// "创造性" should match OaInventiveness
-	t.Logf("Detected rejection type: %s", rejectionType)
+	if rejectionType != string(rules.OaInventiveness) {
+		t.Errorf("expected rejection type %q, got %q", string(rules.OaInventiveness), rejectionType)
+	}
 }
 
 func TestClassifyRejectionNode(t *testing.T) {

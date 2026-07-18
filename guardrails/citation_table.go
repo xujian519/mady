@@ -65,8 +65,8 @@ var implementingRulesTopics = map[int][]string{
 	42: {"分案申请", "原申请", "两项以上发明"},
 }
 
-// maxTrademarkLawArticle 是《商标法》（2019 修正）的总条数（共八章 75 条）。
-const maxTrademarkLawArticle = 75
+// maxTrademarkLawArticle 是《商标法》（2019 修正）的总条数（共八章 73 条）。
+const maxTrademarkLawArticle = 73
 
 // maxCopyrightLawArticle 是《著作权法》（2020 修正）的总条数（共六章 67 条）。
 const maxCopyrightLawArticle = 67

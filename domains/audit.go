@@ -1,9 +1,14 @@
 package domains
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -181,12 +186,13 @@ type Encryptor struct {
 
 // NewEncryptor creates an encryptor from the MADY_ENC_KEY environment variable.
 // If the variable is empty, encryption is a no-op (plaintext passthrough).
+// The key string is run through SHA-256 to derive a 32-byte AES-256 key, so any
+// length passphrase is acceptable.
 func NewEncryptor() *Encryptor {
 	keyStr := os.Getenv("MADY_ENC_KEY")
 	if keyStr == "" {
 		return &Encryptor{} // no-op encryptor
 	}
-	// Use SHA-256 of the key string to derive a 32-byte AES key.
 	hash := sha256.Sum256([]byte(keyStr))
 	key := hash[:]
 	return &Encryptor{key: key}
@@ -197,24 +203,61 @@ func (e *Encryptor) Enabled() bool {
 	return len(e.key) > 0
 }
 
-// Protect encrypts plaintext. Returns the plaintext unchanged if encryption
-// is not enabled. In production (key set), this would perform AES-256-GCM.
+// Protect encrypts plaintext using AES-256-GCM and returns
+// base64(nonce || ciphertext). Returns plaintext unchanged if encryption is
+// disabled, plaintext is empty, or an internal error occurs (fail-open to
+// avoid silent data loss; callers must check Enabled() before relying on
+// confidentiality).
 func (e *Encryptor) Protect(plaintext string) string {
 	if !e.Enabled() || plaintext == "" {
 		return plaintext
 	}
-	// Production implementation: AES-256-GCM encrypt with random nonce,
-	// return base64(nonce + ciphertext).
-	// For now, return a fixed placeholder that does not leak plaintext.
-	return "[encrypted]"
+	block, err := aes.NewCipher(e.key)
+	if err != nil {
+		return plaintext
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return plaintext
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return plaintext
+	}
+	sealed := gcm.Seal(nil, nonce, []byte(plaintext), nil)
+	combined := make([]byte, 0, len(nonce)+len(sealed))
+	combined = append(combined, nonce...)
+	combined = append(combined, sealed...)
+	return base64.StdEncoding.EncodeToString(combined)
 }
 
-// Reveal decrypts ciphertext. Returns the plaintext unchanged if encryption
-// is not enabled or the text is not encrypted.
+// Reveal decrypts ciphertext produced by Protect. Returns the input unchanged
+// if encryption is disabled, the input is empty, or the input is not a valid
+// AES-GCM output (treated as unencrypted plaintext for migration compatibility).
 func (e *Encryptor) Reveal(ciphertext string) string {
 	if !e.Enabled() || ciphertext == "" {
 		return ciphertext
 	}
-	// Production implementation: AES-256-GCM decrypt.
-	return ciphertext
+	raw, err := base64.StdEncoding.DecodeString(ciphertext)
+	if err != nil {
+		return ciphertext
+	}
+	block, err := aes.NewCipher(e.key)
+	if err != nil {
+		return ciphertext
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return ciphertext
+	}
+	ns := gcm.NonceSize()
+	if len(raw) <= ns {
+		return ciphertext
+	}
+	nonce, ct := raw[:ns], raw[ns:]
+	plain, err := gcm.Open(nil, nonce, ct, nil)
+	if err != nil {
+		return ciphertext
+	}
+	return string(plain)
 }

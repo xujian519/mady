@@ -31,11 +31,15 @@ func draftClaimsNode() graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		ext, ok := state[StateKeyExtraction].(*ExtractionResult)
 		if !ok {
-			return nil, fmt.Errorf("disclosure: no extraction result in state, cannot draft claims")
+			return state, fmt.Errorf("disclosure: no extraction result in state, cannot draft claims")
 		}
 
 		if ext == nil || len(ext.Features) == 0 {
-			return nil, fmt.Errorf("disclosure: extraction result has no features, cannot draft claims")
+			return state, fmt.Errorf("disclosure: extraction result has no features, cannot draft claims")
+		}
+
+		if len(ext.PFETriples) == 0 {
+			return state, fmt.Errorf("disclosure: no PFE triples; cannot generate independent claim 1, refusing to draft claims that would reference a non-existent claim")
 		}
 
 		claims := buildClaimSet(ext)
