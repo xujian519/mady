@@ -56,10 +56,7 @@ func (s *Server) checkWSOrigin(r *http.Request) bool {
 	case "localhost", "127.0.0.1", "::1":
 		return true
 	}
-	if slices.Contains(s.allowedOrigins, origin) {
-		return true
-	}
-	return false
+	return slices.Contains(s.allowedOrigins, origin)
 }
 
 type wsConn struct {
