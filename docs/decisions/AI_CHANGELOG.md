@@ -1,3 +1,153 @@
+## 2026-07-20: 创造性分析完全独立节点——三步法 Pregel 子图 + EventBus 异步触发
+
+### 背景
+disclosure 管线（技术交底书分析）完成新颖性初判后，**创造性评估完全缺失**。
+原 `domains/reasoning/multi_hypothesis.go` 的多假设推理引擎是通用组件，
+无法直接对接专利三步法（最接近现有技术→区别特征→技术启示）的结构化流程。
+
+用户明确要求三条约束：
+1. P0 选 B：Pipeline Executor 优先实现（已完成）
+2. P1→P2 按顺序执行：先管线可运行，再评估消费，最后创造性分析
+3. 创造性分析**完全独立**：不嵌入 disclosure 管线代码，通过 EventBus 事件驱动
+
+### 变更
+
+#### P2.1: 创造性分析 Pregel 子图（`domains/inventiveness/`）
+- **新增 `domains/inventiveness/graph.go`**：独立的 Pregel 子图，不依赖 disclosure 包
+  - 图拓扑：`load_input → step1_closest_prior_art → step2_distinguishing_features → step3_technical_suggestion → generate_conclusion → __end__`
+  - 三步法严格对齐《专利审查指南》第二部分第三章 3.2.1.1：
+    - Step 1：从现有技术证据中确定最接近的对比文件（Temperature=0.2，确定性任务）
+    - Step 2：列举区别特征 + 重新确定实际解决的技术问题（Temperature=0.2）
+    - Step 3：判断是否存在技术启示——多假设推理典型场景（Temperature=0.2）
+  - 每步均为独立 LLM Agent 节点，输出结构化 JSON
+  - `EvidenceCoverage == "none"` 时跳过全部步骤，设置 `Skipped=true`
+- 定义本地值类型（`InventivenessInput`/`InventivenessResult`/`ThreeStepResult`/`EvidenceChunk`/`TechFeature`/`PFETriple`）避免 disclosure 包依赖——disclosure 有同名类型但独立维护
+
+#### P2.2: EventBus 触发器（`server/disclosure_events.go`）
+- **新增 `server/disclosure_events.go`**：
+  - `DisclosureCompletedEvent`：实现 `agentcore.Event` 接口，由 `disclosureTaskManager` 在任务完成后自动发射
+  - `InventivenessTrigger`：事件消费者，订阅 `disclosure_completed` 事件
+    - 筛选条件：Report != nil && Err == "" && 有提取数据
+    - 执行流程：构建 `InventivenessInput`（含特征/PFE三角/新颖性结论）→ 运行 Pregel 子图 → 通过回调储存结果
+    - 异步、容错：子图失败仅记日志，不影响上游 disclosure 管线
+    - 支持 `WithInventivenessResultHandler` 选项注入结果回调
+- **修改 `server/disclosure.go`**：
+  - `disclosureTaskManager` 新增 `eventBus` 字段
+  - `newDisclosureTaskManager(eventBus)` 构造函数参数化
+  - `initDisclosureManager` 传递 `s.eventBus`
+  - `executeTask` 完成后调用 `emitCompleted` 发射事件
+  - `DisclosureTaskStatus` 新增 `Inventiveness` 字段
+
+#### P2.3: 结果汇总到 API
+- **修改 `server/server.go`**：
+  - `Server` 新增 `inventivenessResults` map（`*csync.Map[string, *inventiveness.InventivenessResult]`）
+  - 新增 `SetInventivenessResult` / `GetInventivenessResult` 方法
+  - 新增 `github.com/xujian519/mady/domains/inventiveness` 导入
+- **修改 `server/disclosure.go`**：
+  - `handleDisclosureStatus` 查询 `GetInventivenessResult` 并附加到响应
+- **修改 `cmd/mady/server.go`**：
+  - 在 `runServer` 中创建并启动 `server.NewInventivenessTrigger`
+  - 注入 `srv.SetInventivenessResult` 作为结果回调
+
+### 架构决策
+- **EventBus 解耦而非图内嵌入**：将 inventiveness 分析与 disclosure 管线彻底分离。disclosure 管线结束时仅发射事件，不关心谁消费。触发器和子图可以独立测试、独立替换、或在不同部署环境中选择性启用。
+- **值类型复制而非包依赖**：`domains/inventiveness` 定义独立的 `EvidenceChunk`/`TechFeature`/`PFETriple` 类型（与 disclosure 包的对应类型字段完全一致）。避免 disclosure→inventiveness 或 inventiveness→disclosure 的单向依赖。两者之间通过 server 包的桥接函数转换。
+- **结果回调模式**：`InventivenessTrigger` 不直接持有 `*Server` 引用，通过 `WithInventivenessResultHandler` 回调注入。保持触发器可测试（注入 mock handler）且与 server 包的解耦。
+- **`csync.Map` 而非 `sync.Map`**：复用既有并发安全 map 实现，与 disclosure 任务管理器一致的模式。
+
+### 文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `domains/inventiveness/graph.go` | 新增 | 三步法 Pregel 子图（5 节点 + 5 种值类型） |
+| `server/disclosure_events.go` | 新增 | DisclosureCompletedEvent + InventivenessTrigger |
+| `server/disclosure.go` | 修改 | eventBus 集成 + emitCompleted + result 扩展 |
+| `server/server.go` | 修改 | inventivenessResults map + Set/Get 方法 |
+| `cmd/mady/server.go` | 修改 | 触发器装配 |
+| `docs/decisions/AI_CHANGELOG.md` | 修改 | 本记录 |
+
+### 验证
+- `go build ./server/... ./domains/inventiveness/... ./cmd/mady/...` ✅
+- `go build ./...` ✅（全项目无回归）
+- `go vet ./server/... ./domains/inventiveness/...` ✅
+- `go test -race -count=1 ./server/...` ✅（3.2s）
+- `go test -race -count=1 ./agentcore/...` ✅
+
+---
+
+## 2026-07-20: EvalHook 数据接消费端——评估指标从"发了没人看"到可查询、可告警
+
+### 背景
+`knowledge/eval.go` 的 `EvalHook` 在 `AfterModelCall` 后发送 `evalResultEvent` 到事件总线，但 **没有任何消费者**。三个评估指标（Faithfulness、AnswerRelevancy、ContextPrecision）被计算、被发射、被遗忘——这是之前 `search_knowledge` 工具被注册但无人知晓调用的同模式第三次重演。
+
+### 变更
+
+#### 1. EvalStore 持久化层
+- **新增 `knowledge/eval_store.go`**：`EvalStore` 读写独立 `eval.db` SQLite 数据库。自动迁移创建 `eval_results` 表（含 turn、question、answer、faithfulness 等字段 + created_at/faithfulness 索引）。提供 `Save`、`QueryByThreshold`、`QueryStats` 三个方法。
+- **新增 `knowledge/eval_store_test.go`**：5 个测试覆盖 Save/Query round-trip、多行统计、空表统计、duration 解析、默认配置验证。
+
+#### 2. EvalConsumer 事件消费者
+- **新增 `knowledge/eval_consumer.go`**：`EvalConsumer` 实现 `agentcore.EventHandler`（回调式，直接注册到 `EventBus.OnAll`），过滤 `eval_result` 事件后执行：①持久化到 SQLite ②阈值检查（< AlertThreshold 打印 Warn）③极低忠实度（< 0.4）打印 Error 告警。
+
+#### 3. 配置扩展
+- **`knowledge/eval.go`**：`EvalConfig` 新增 `AlertThreshold`（默认 0.6）和 `AlertAction`（默认 "log"），`DefaultEvalConfig` 同步更新。
+
+#### 4. 服务器集成
+- **`cmd/mady/server.go`**：启动时打开 `~/.mady/eval.db`，创建 `EvalConsumer`，通过 `srv.OnAll(consumer.OnEvent)` 注册到 Server 事件总线。
+- **`server/server.go`**：新增 `EventBus()` getter 方法。
+
+#### 5. mady eval baseline CLI
+- **`cmd/mady/eval.go`**：新增 `runEvalBaseline` 子命令，读取 eval.db 输出基线统计：总评估数、平均忠实度/相关度/精度、低忠实度率，并展示前 5 条低忠实度示例。与现有 `mady eval` 评估套件共用入口（`mady eval baseline [--since YYYY-MM-DD] [--until YYYY-MM-DD]`）。
+
+### 架构决策
+- **独立 eval.db**：不与 knowledge.db 共享数据库，避免 schema 耦合和迁移复杂性。eval.db 仅用于 EvalResult 持久化，生命周期独立于知识库。
+- **回调式 EventHandler**：使用 `EventBus.OnAll`（同步回调）而非 `Subscribe`（channel），避免 goroutine 泄漏风险。回调式在事件量不大时（每次模型调用一次）性能足够。
+
+### 验证
+- `go test -race ./knowledge/...` ✅
+- `go build ./cmd/mady/...` ✅
+- `go build ./...` ✅
+- `mady eval baseline` 可执行并输出正确格式
+
+---
+
+## 2026-07-20: Pipeline Executor 实现——插件系统真正可运行
+
+### 背景
+外部智能体审阅发现 `plugins/patent/novelty-analysis/`、`infringement-check/`、`oa-response/` 三个插件目录包含 `plugin.json` + `SKILL.md`（定义了完整的 pipeline 阶段），但 `agentcore.ScanPlugins` 仅被测试代码调用，**没有任何生产代码加载和执行它们**。这些插件处于"看起来已实现但从未运行"的危险状态。
+
+### 变更
+
+#### 1. Pipeline Executor 系统（P0）
+- **新增 `agentcore/pipeline_handler.go`**：`StageHandler` 接口（`Name()` + `Execute()`）+ `StageHandlerRegistry`（类似 Atom 注册表模式）+ `PipelineState` 类型（key-value state）+ `StageError`/`InterruptStageError` 错误类型
+- **新增 `agentcore/pipeline_executor.go`**：`PipelineExecutor` 编排器，按 `PluginManifest.Pipeline.Stages` 顺序遍历，Atom 阶段派发到 `StageHandlerRegistry`，Tool 阶段标记跳过。支持 `WithFailOnUnknown` 配置化。`finalizeState` 确保中断时仍写入执行元数据
+- **新增 `agentcore/pipeline_stage_handlers.go`**：5 个内建 `StageHandler`：
+  - `searchHandler`：通过 `Retriever` 接口（本地类型，解耦 `retrieval/domain` 循环依赖）执行 FTS5 检索
+  - `extractHandler`：LLM Agent 结构化提取（JSON Schema 输出），支持 features/problems/effects 三种类型
+  - `compareHandler`：LLM Agent 逐特征对比（单独对比原则），生成 claim_chart + diff_features
+  - `reasoningHandler`：通用 LLM 推理（自由文本输出），自动从 state 构建上下文
+  - `approvalGateHandler`：返回 `InterruptStageError` 触发人机交互（镜像 disclosure review_gate 模式）
+- **新增 `agentcore/plugin_manager.go`**：`PluginManager` 封装插件发现 + 执行 + 提供 `RunPluginTool()`（注册 `run_plugin` Agent 工具）
+- **新增 `agentcore/pipeline_executor_test.go`**：13 个单元测试覆盖：空 pipeline、未知 atom、FailOnUnknown、state 隔离、approval-gate 中断、tool stage 跳过、reasoning/extract handler、多阶段 pipeline、manifest 元数据、Handler 注册表查询、PipelineState getter/setter、JSON 提取
+
+#### 2. cmd/mady 框架集成
+- **`cmd/mady/framework.go`**：新增 `pluginToolExtension` 类型（单工具 Extension 适配器）+ 在 `setupFrameworkContext` 中扫描 `plugins/` 目录并加载插件管理器；发现插件时注册 `run_plugin` 工具到 BaseConfig
+
+### 架构决策
+- **StageHandler 与 Atom 分离**：`Atom` 接口保持纯 schema 契约（无 Execute），`StageHandler` 是独立的运行时执行器接口。这允许未来切换执行模型而不影响 Atom 定义。
+- **本地 `Retriever` 接口**：`pipeline_stage_handlers.go` 定义 `Retriever`/`RetrieverQuery`/`RetrieverResults`/`RetrieverDocument` 本地类型，避免 `agentcore → retrieval/domain → knowledge → agentcore` 导入循环。
+- **`repoDir/plugins/` + `~/.mady/plugins/` 双路径搜索**：支持开发时本地插件和部署后用户插件共存。
+- **Tool-based stages 标记跳过**：Tool 阶段（如 `draft-amendments` 的 `write_file`）尚未实现，当前跳过并记录 warning。计划 P2 阶段接入工具框架。
+
+### 验证
+- `go build ./agentcore/...` ✅
+- `go test -race ./agentcore/...` ✅（13 新增测试 + 所有既有测试）
+- `go build ./cmd/mady/...` ✅
+- `go vet ./agentcore/... ./cmd/mady/...` ✅
+- `go build ./...` ✅（全项目无回归）
+
+---
+
 ## 2026-07-19: 四大证据源全面接线修复
 
 ### 背景

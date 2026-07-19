@@ -19,11 +19,11 @@ const (
 
 // VarDefinition describes the constraints on a single template variable.
 type VarDefinition struct {
-	Name        string `yaml:"name"`        // 变量名（不含 {{}} 包裹）
+	Name        string  `yaml:"name"`        // 变量名（不含 {{}} 包裹）
 	Type        VarType `yaml:"type"`        // 数据类型
-	Required    bool   `yaml:"required"`    // 是否必填
-	Default     string `yaml:"default"`     // 默认值
-	Description string `yaml:"description"` // 变量含义描述
+	Required    bool    `yaml:"required"`    // 是否必填
+	Default     string  `yaml:"default"`     // 默认值
+	Description string  `yaml:"description"` // 变量含义描述
 }
 
 // VarSchema is the complete variable constraint set for a template,

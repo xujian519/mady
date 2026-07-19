@@ -15,6 +15,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
+	"github.com/xujian519/mady/knowledge"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/pkg/util"
 	rsqlite "github.com/xujian519/mady/retrieval/domain/sqlite"
@@ -112,6 +113,37 @@ func runServer(ctx context.Context) {
 				srv.SetDisclosureRetriever(retriever)
 				log.Printf("disclosure: PatentDomainRetriever 已接入（证据源: %s）", retriever.SourceName())
 			}
+		}
+	}
+
+	// Eval 评估数据持久化：启动 EvalConsumer 监听 eval_result 事件。
+	// 评估指标（Faithfulness/AnswerRelevancy/ContextPrecision）原本只发送到
+	// 事件总线但无人消费；现在写入 SQLite 并触发阈值告警。
+	if fc.MadyHome != "" {
+		evalDB := filepath.Join(fc.MadyHome, "eval.db")
+		evalStore, err := knowledge.NewEvalStore(knowledge.EvalStoreConfig{DSN: evalDB})
+		if err != nil {
+			log.Printf("eval store: 打开 %s 失败: %v（评估数据不持久化）", evalDB, err)
+		} else {
+			evalCfg := knowledge.DefaultEvalConfig()
+			consumer := knowledge.NewEvalConsumer(evalStore,
+				knowledge.WithAlertThreshold(evalCfg.AlertThreshold),
+			)
+			srv.OnAll(consumer.OnEvent)
+			log.Printf("eval: 评估数据持久化已启用（%s），忠实度阈值: %.2f", evalDB, evalCfg.AlertThreshold)
+		}
+	}
+
+	// 创造性分析触发器：disclosure 管线完成后自动运行三步法创造性评估。
+	// 结果可通过 GET /v1/disclosure/analyze/{task_id} 的 inventiveness 字段查询。
+	{
+		provider := fc.BaseConfig.Provider
+		if provider != nil {
+			trigger := server.NewInventivenessTrigger(provider, srv.EventBus(),
+				server.WithInventivenessResultHandler(srv.SetInventivenessResult),
+			)
+			trigger.Start()
+			log.Printf("inventiveness: 创造性分析触发器已启动（独立子图模式）")
 		}
 	}
 	if *tlsCert != "" {

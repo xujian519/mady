@@ -133,8 +133,8 @@ func TestExtractPlaceholders_None(t *testing.T) {
 
 func TestValidatedResolve_AllPass(t *testing.T) {
 	tmpl := DocTemplate{
-		Name:      "test",
-		Body:      "# {{title}}\n\n发明：{{invention}}",
+		Name: "test",
+		Body: "# {{title}}\n\n发明：{{invention}}",
 		VarSchema: NewVarSchema([]VarDefinition{
 			{Name: "title", Type: VarString, Required: true},
 			{Name: "invention", Type: VarString, Required: true},

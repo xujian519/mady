@@ -35,14 +35,22 @@ type EvalConfig struct {
 
 	// MinFaithfulness 答案忠实度阈值（低于此值时发出警告）。
 	MinFaithfulness float64 `json:"min_faithfulness"`
+
+	// AlertThreshold 低于此忠实度自动标记需要人工复核（默认 0.6）。
+	AlertThreshold float64 `json:"alert_threshold" yaml:"alert_threshold"`
+
+	// AlertAction 低忠实度时的告警行为："log" | "metadata" | "interrupt"（默认 "log"）。
+	AlertAction string `json:"alert_action" yaml:"alert_action"`
 }
 
 // DefaultEvalConfig 返回默认配置。
 func DefaultEvalConfig() EvalConfig {
 	return EvalConfig{
-		Enabled:         true, // 启用 RAGAS 风格启发式评估
+		Enabled:         true,
 		LogResults:      true,
 		MinFaithfulness: 0.7,
+		AlertThreshold:  0.6,
+		AlertAction:     "log",
 	}
 }
 

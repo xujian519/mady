@@ -95,11 +95,12 @@ func (e *Extension) handleQuery(ctx context.Context, args json.RawMessage) (any,
 	}
 
 	var patterns []*WritingPattern
-	if params.Query != "" {
+	switch {
+	case params.Query != "":
 		patterns = e.store.SearchPatterns(params.Query, "", 5)
-	} else if params.CaseType != "" {
+	case params.CaseType != "":
 		patterns = e.store.MatchPatterns(params.CaseType, params.Features)
-	} else {
+	default:
 		// List all if no filter provided.
 		all := e.store.All()
 		if len(all) > 5 {

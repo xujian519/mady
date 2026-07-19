@@ -32,6 +32,25 @@ import (
 	"github.com/xujian519/mady/tools"
 )
 
+// pluginToolExtension wraps a single *agentcore.Tool into an Extension
+// for registration into the agent's tool chain. This is a lightweight
+// adapter that makes the run_plugin tool available as a standard Extension
+// without modifying the tools package's ExtensionConfig.
+type pluginToolExtension struct {
+	agentcore.BaseLifecycleHook
+	tool *agentcore.Tool
+}
+
+func (e *pluginToolExtension) Name() string                                     { return "plugin-tool" }
+func (e *pluginToolExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
+func (e *pluginToolExtension) Dispose() error                                   { return nil }
+func (e *pluginToolExtension) BuildTools() []*agentcore.Tool {
+	if e.tool == nil {
+		return nil
+	}
+	return []*agentcore.Tool{e.tool}
+}
+
 // frameworkContext 封装入口之间共享的初始化资源。
 type frameworkContext struct {
 	BaseConfig      agentcore.Config

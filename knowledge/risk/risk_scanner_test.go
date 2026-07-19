@@ -185,7 +185,7 @@ func TestStoreCaseSearcher_NilStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchCases() error = %v", err)
 	}
-	if results != nil && len(results) > 0 {
+	if len(results) > 0 {
 		t.Error("expected empty results for nil store")
 	}
 }

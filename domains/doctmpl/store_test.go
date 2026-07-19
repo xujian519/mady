@@ -72,14 +72,14 @@ func TestTemplateStore_Render(t *testing.T) {
 
 	// Render a simple markdown template.
 	output, err := store.Render("method-claim", map[string]string{
-		"method_name":    "一种图像处理方法",
-		"step_1":         "获取输入图像",
-		"step_2":         "对图像进行预处理",
-		"step_3":         "输出处理结果",
-		"step_1_detail":  "对输入图像进行归一化处理",
-		"step_4":         "对处理结果进行后处理",
-		"key_param":      "归一化系数",
-		"range_value":    "0.1-0.9",
+		"method_name":   "一种图像处理方法",
+		"step_1":        "获取输入图像",
+		"step_2":        "对图像进行预处理",
+		"step_3":        "输出处理结果",
+		"step_1_detail": "对输入图像进行归一化处理",
+		"step_4":        "对处理结果进行后处理",
+		"key_param":     "归一化系数",
+		"range_value":   "0.1-0.9",
 	}, FormatMarkdown, RenderMeta{})
 	if err != nil {
 		t.Fatal(err)

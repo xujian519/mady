@@ -193,11 +193,9 @@ func (s *TemplateStore) ListConflicts() []VersionConflict {
 		if !exists || t.Version == embeddedVer {
 			continue
 		}
-		sev := "warn"
+		sev := "info" // default: user is ahead of or equal to embedded
 		if t.Version < embeddedVer {
 			sev = "warn"
-		} else {
-			sev = "info" // user is ahead of or equal to embedded
 		}
 		conflicts = append(conflicts, VersionConflict{
 			TemplateName: t.Name,

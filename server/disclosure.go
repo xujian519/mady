@@ -14,6 +14,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/pkg/csync"
 	"github.com/xujian519/mady/retrieval/domain"
@@ -44,6 +45,9 @@ type DisclosureTaskStatus struct {
 	// ReviewDecision 记录人工复核结论（adopted/modified/rejected），
 	// 仅在复核端点受理后非空。
 	ReviewDecision string `json:"review_decision,omitempty"`
+	// Inventiveness 承载创造性三步法评估结果（异步完成后非空）。
+	// 由 InventivenessTrigger 在 disclosure 管线结束后自动触发并填充。
+	Inventiveness *inventiveness.InventivenessResult `json:"inventiveness,omitempty"`
 }
 
 // DisclosureReviewRequest 是人工复核结论的提交请求。
@@ -94,16 +98,19 @@ type disclosureTask struct {
 }
 
 type disclosureTaskManager struct {
-	tasks   *csync.Map[string, *disclosureTask]
-	counter atomic.Int64
-	stopCh  chan struct{}
+	tasks    *csync.Map[string, *disclosureTask]
+	counter  atomic.Int64
+	stopCh   chan struct{}
+	eventBus *agentcore.EventBus
 }
 
 // newDisclosureTaskManager 创建一个新的任务管理器并启动后台清理 goroutine。
-func newDisclosureTaskManager() *disclosureTaskManager {
+// eventBus 为可选参数，非 nil 时任务完成后发射 DisclosureCompletedEvent。
+func newDisclosureTaskManager(eventBus *agentcore.EventBus) *disclosureTaskManager {
 	m := &disclosureTaskManager{
-		tasks:  csync.NewMap[string, *disclosureTask](),
-		stopCh: make(chan struct{}),
+		tasks:    csync.NewMap[string, *disclosureTask](),
+		stopCh:   make(chan struct{}),
+		eventBus: eventBus,
 	}
 	go m.cleanupLoop()
 	return m
@@ -179,6 +186,18 @@ func (m *disclosureTaskManager) executeTask(ctx context.Context, task *disclosur
 	// 使用传入的 ctx（带超时），而非 context.Background()
 	state, runErr := compiled.Run(ctx, state)
 
+	// 从 PregelState 提取证据片段和覆盖度，供下游消费者（如 InventivenessTrigger）。
+	var evidenceChunks []disclosure.EvidenceChunk
+	var evidenceCoverage string
+	if raw, ok := state[disclosure.StateKeyEvidence]; ok {
+		if chunks, ok := raw.([]disclosure.EvidenceChunk); ok {
+			evidenceChunks = chunks
+		}
+	}
+	if cov, ok := state[disclosure.StateKeyEvidenceCoverage].(string); ok {
+		evidenceCoverage = cov
+	}
+
 	task.mu.Lock()
 	switch {
 	case runErr != nil && agentcore.IsInterrupt(runErr):
@@ -214,7 +233,23 @@ func (m *disclosureTaskManager) executeTask(ctx context.Context, task *disclosur
 	}
 	task.Progress.NodesDone = append(task.Progress.NodesDone, "done")
 	task.DoneAt = time.Now()
+
+	// 在锁内构建事件（eventBus.Emit 是非阻塞的），消除时序间隙。
+	if m.eventBus != nil {
+		ev := DisclosureCompletedEvent{
+			at:               task.DoneAt,
+			TaskID:           task.ID,
+			Report:           task.Result,
+			EvidenceChunks:   evidenceChunks,
+			EvidenceCoverage: evidenceCoverage,
+		}
+		if task.Err != nil {
+			ev.Err = task.Err.Error()
+		}
+		m.eventBus.Emit(ev)
+	}
 	task.mu.Unlock()
+
 	close(task.doneCh)
 }
 
@@ -260,7 +295,7 @@ func (s *Server) initDisclosureManager() *disclosureTaskManager {
 	defer s.discMu.Unlock()
 	dm = s.disclosure.Load()
 	if dm == nil {
-		dm = newDisclosureTaskManager()
+		dm = newDisclosureTaskManager(s.eventBus)
 		s.disclosure.Store(dm)
 	}
 	return dm
@@ -294,7 +329,7 @@ func (s *Server) handleDisclosureAnalyze(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// handleDisclosureStatus 返回指定任务的状态/结果。
+// handleDisclosureStatus 返回指定任务的状态/结果（含创造性分析结果）。
 func (s *Server) handleDisclosureStatus(w http.ResponseWriter, r *http.Request) {
 	dm := s.initDisclosureManager()
 	taskID := r.PathValue("task_id")
@@ -316,6 +351,11 @@ func (s *Server) handleDisclosureStatus(w http.ResponseWriter, r *http.Request) 
 		resp.Error = task.Err.Error()
 	}
 	task.mu.RUnlock()
+
+	// 附加创造性分析结果（异步完成）。
+	if inv := s.GetInventivenessResult(taskID); inv != nil {
+		resp.Inventiveness = inv
+	}
 
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -435,14 +475,21 @@ func (s *Server) handleDisclosureStream(w http.ResponseWriter, r *http.Request) 
 		case <-task.doneCh:
 			task.mu.RLock()
 			resp := DisclosureTaskStatus{
-				TaskID: task.ID,
-				Status: task.Status,
-				Result: task.Result,
+				TaskID:         task.ID,
+				Status:         task.Status,
+				Progress:       task.Progress,
+				Result:         task.Result,
+				ReviewDecision: task.ReviewDecision,
 			}
 			if task.Err != nil {
 				resp.Error = task.Err.Error()
 			}
 			task.mu.RUnlock()
+
+			// SSE 流同样附加创造性分析结果（与 REST 状态端点一致）。
+			if inv := s.GetInventivenessResult(taskID); inv != nil {
+				resp.Inventiveness = inv
+			}
 
 			payload, _ := json.Marshal(resp)
 			writeSSE("event: done\ndata: %s\n\n", payload)

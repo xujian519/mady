@@ -15,6 +15,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agui"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/pkg/csync"
 	"github.com/xujian519/mady/retrieval/domain"
 )
@@ -42,6 +43,11 @@ type Server struct {
 	// 未配置时 retrieve_prior_art 节点降级为 evidence_coverage=none（纯 LLM 知识）。
 	disclosureRetriever atomic.Pointer[domain.DomainRetriever]
 
+	// inventivenessResults 存储创造性三步法评估的异步结果。
+	// 由 InventivenessTrigger 在 disclosure 管线完成后自动填充，
+	// 在 disclosure 状态查询端点一并返回。key = disclosure task ID。
+	inventivenessResults *csync.Map[string, *inventiveness.InventivenessResult]
+
 	maxRequestBodyBytes atomic.Int64
 }
 
@@ -59,9 +65,10 @@ type CORSConfig struct {
 // 调用方随后通过 ServeHTTP / RegisterHandler 等方法挂载到 HTTP 路由。
 func New(cfg agentcore.Config) *Server {
 	s := &Server{
-		config:    csync.NewValue(cfg),
-		eventBus:  agentcore.NewEventBus(),
-		poolLimit: 64,
+		config:               csync.NewValue(cfg),
+		eventBus:             agentcore.NewEventBus(),
+		poolLimit:            64,
+		inventivenessResults: csync.NewMap[string, *inventiveness.InventivenessResult](),
 	}
 	s.maxRequestBodyBytes.Store(defaultMaxRequestBodyBytes)
 	return s
@@ -114,6 +121,18 @@ func (s *Server) getDisclosureRetriever() domain.DomainRetriever {
 	return *ptr
 }
 
+// SetInventivenessResult 存储创造性分析异步结果。
+// 由 InventivenessTrigger 在 disclosure 完成后自动调用，taskID 对应 disclosure 任务。
+func (s *Server) SetInventivenessResult(taskID string, result *inventiveness.InventivenessResult) {
+	s.inventivenessResults.Set(taskID, result)
+}
+
+// GetInventivenessResult 查询创造性分析异步结果。未完成时为 nil。
+func (s *Server) GetInventivenessResult(taskID string) *inventiveness.InventivenessResult {
+	result, _ := s.inventivenessResults.Get(taskID)
+	return result
+}
+
 // limitedBody wraps the request body with http.MaxBytesReader so that JSON
 // decoding fails fast instead of buffering an unbounded payload into memory.
 func (s *Server) limitedBody(w http.ResponseWriter, r *http.Request) io.Reader {
@@ -129,6 +148,7 @@ func (s *Server) On(t agentcore.EventType, h agentcore.EventHandler) func() {
 }
 func (s *Server) OnAll(h agentcore.EventHandler) func() { return s.eventBus.OnAll(h) }
 func (s *Server) EmitEvent(e agentcore.Event)           { s.eventBus.Emit(e) }
+func (s *Server) EventBus() *agentcore.EventBus         { return s.eventBus }
 func (s *Server) Close() {
 	s.eventBus.Close()
 	// 摘除全部池化 entry：空闲的立即 Close，仍在使用中的标记 evicted，

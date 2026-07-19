@@ -8,7 +8,7 @@ import (
 )
 
 // NewListDocTemplatesTool creates the list_doc_templates agent tool.
-// It exposes the template catalogue so the agent can browse available
+// It exposes the template catalog so the agent can browse available
 // templates by category and domain.
 func NewListDocTemplatesTool(store *TemplateStore) *agentcore.Tool {
 	return &agentcore.Tool{
