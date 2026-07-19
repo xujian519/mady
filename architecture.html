@@ -3,446 +3,2072 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mady 中观智能体 — 架构图</title>
+<title>Mady 中观智能体 — 架构文档</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #0d1117;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  canvas { display: block; }
+/* ================================================================
+   Design Tokens
+   ================================================================ */
+:root {
+  --bg:         #f8fafc;
+  --surface:    #ffffff;
+  --fg:         #0f172a;
+  --muted:      #64748b;
+  --border:     #e2e8f0;
+  --accent:     #2563eb;
+  --accent-bg:  #eff6ff;
+  --nav-bg:     #1e293b;
+
+  --c-external:   #6366f1;
+  --c-external-bg:#eef2ff;
+  --c-core:       #2563eb;
+  --c-core-bg:    #eff6ff;
+  --c-domain:     #0d9488;
+  --c-domain-bg:  #f0fdfa;
+  --c-infra:      #d97706;
+  --c-infra-bg:   #fffbeb;
+  --c-app:        #059669;
+  --c-app-bg:     #ecfdf5;
+  --c-tui:        #db2777;
+  --c-tui-bg:     #fdf2f8;
+  --c-provider:   #0891b2;
+  --c-provider-bg:#ecfeff;
+  --c-tool:       #ea580c;
+  --c-tool-bg:    #fff7ed;
+  --c-disclosure: #7c3aed;
+  --c-disclosure-bg:#f5f3ff;
+  --c-memory:     #e11d48;
+  --c-memory-bg:  #fff1f2;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.06);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,.08);
+
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+  --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  --font-mono:    'SF Mono', 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Navigation ---- */
+.tab-nav {
+  position: fixed; top:0; left:0; right:0;
+  z-index: 1000;
+  background: var(--nav-bg);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 56px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  gap: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tab-nav .brand {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+  margin-right: 16px;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+.tab-nav .brand small {
+  font-weight: 400;
+  font-size: 11px;
+  opacity: 0.5;
+  margin-left: 6px;
+}
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.tab-btn:hover { color: #e2e8f0; background: rgba(255,255,255,.08); }
+.tab-btn.active { color: #fff; background: var(--accent); }
+
+/* ---- Main Content ---- */
+.main {
+  margin-top: 56px;
+  padding: 40px 32px 80px;
+  max-width: 1480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.tab-page { display: none; }
+.tab-page.active { display: block; }
+
+/* ---- Header ---- */
+.page-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.page-header h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.page-header .subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+.page-header .stats {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.page-header .stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.page-header .stat .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ---- Layer Section ---- */
+.layer { margin-bottom: 16px; }
+.layer-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-left: 4px;
+}
+.layer-label .bar { width: 3px; height: 16px; border-radius: 2px; }
+.layer-label h2 {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.layer-label .count {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+/* ---- Card Grid ---- */
+.card-grid { display: grid; gap: 12px; }
+
+/* ---- Base Card ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: transparent;
+}
+.card:hover::before { opacity: 1; }
+.card-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: 3px;
+}
+.card-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Card accents */
+.card.external::before { background: var(--c-external); }
+.card.external .card-name { color: var(--c-external); }
+.card.core::before { background: var(--c-core); }
+.card.core .card-name { color: var(--c-core); }
+.card.domain::before { background: var(--c-domain); }
+.card.domain .card-name { color: var(--c-domain); }
+.card.infra::before { background: var(--c-infra); }
+.card.infra .card-name { color: var(--c-infra); }
+.card.app::before { background: var(--c-app); }
+.card.app .card-name { color: var(--c-app); }
+.card.tui-card::before { background: var(--c-tui); }
+.card.tui-card .card-name { color: var(--c-tui); }
+.card.provider-card::before { background: var(--c-provider); }
+.card.provider-card .card-name { color: var(--c-provider); }
+.card.tool-card::before { background: var(--c-tool); }
+.card.tool-card .card-name { color: var(--c-tool); }
+.card.disclosure::before { background: var(--c-disclosure); }
+.card.disclosure .card-name { color: var(--c-disclosure); }
+.card.memory::before { background: var(--c-memory); }
+.card.memory .card-name { color: var(--c-memory); }
+
+/* ---- Core Engine Area ---- */
+.core-area {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+/* ---- Big Core Card ---- */
+.core-mega {
+  background: var(--surface);
+  border: 2px solid var(--c-core);
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
+  box-shadow: 0 0 0 4px var(--c-core-bg);
+}
+.core-mega .mega-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--c-core);
+  margin-bottom: 3px;
+}
+.core-mega .mega-desc {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 14px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+.core-mega .sub-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.core-mega .chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  transition: background 0.15s, color 0.15s;
+}
+.chip-primary { background: var(--c-core-bg); color: var(--c-core); }
+.chip-primary:hover { background: var(--c-core); color: #fff; }
+.chip-interface { background: #f1f5f9; color: var(--muted); }
+.chip-interface:hover { background: #e2e8f0; color: var(--fg); }
+.chip-domain { background: var(--c-domain-bg); color: var(--c-domain); }
+.chip-infra { background: var(--c-infra-bg); color: var(--c-infra); }
+.chip-disclosure { background: var(--c-disclosure-bg); color: var(--c-disclosure); }
+.chip-memory { background: var(--c-memory-bg); color: var(--c-memory); }
+
+/* ---- Side Panel ---- */
+.side-panel { display: flex; flex-direction: column; gap: 12px; }
+
+/* ---- Flow Arrow ---- */
+.flow-arrow {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0;
+}
+.flow-arrow svg { display: block; }
+.flow-arrow .arrow-path { stroke: #cbd5e1; stroke-width: 1.5; fill: none; stroke-dasharray: 6 4; }
+.flow-arrow .arrow-head { fill: #cbd5e1; }
+
+/* ---- TUI Layers ---- */
+.tui-layers { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+.tui-layers .tui-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 8px; border-radius: 4px; font-size: 11px;
+  font-family: var(--font-mono); letter-spacing: 0.02em; color: var(--muted);
+  transition: background 0.12s, color 0.12s;
+}
+.tui-layers .tui-row:hover { background: var(--c-tui-bg); color: var(--c-tui); }
+.tui-layers .tui-row .idx { width: 18px; text-align: right; color: var(--c-tui); opacity: 0.5; font-size: 10px; }
+
+/* ---- Section title ---- */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 28px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.section-title:first-of-type { margin-top: 0; }
+.section-sub {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 20px 0 10px;
+}
+
+/* ---- Dependency Diagram ---- */
+.dep-diagram {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  overflow-x: auto;
+  margin-bottom: 20px;
+}
+.dep-diagram svg { display: block; margin: 0 auto; }
+
+/* ---- Pipeline Flow ---- */
+.pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+}
+.pipeline .node {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: var(--c-core-bg);
+  color: var(--c-core);
+  border: 1px solid rgba(37,99,235,.2);
+  white-space: nowrap;
+}
+.pipeline .node:hover { background: var(--c-core); color: #fff; }
+.pipeline .node.cond { background: var(--c-infra-bg); color: var(--c-infra); border-color: rgba(217,119,6,.2); }
+.pipeline .node.cond:hover { background: var(--c-infra); color: #fff; }
+.pipeline .node.end { background: #f1f5f9; color: var(--muted); border-color: transparent; }
+.pipeline .node.end:hover { background: #e2e8f0; }
+.pipeline .arrow { color: #94a3b8; font-size: 16px; font-family: var(--font-mono); font-weight: 300; }
+
+/* ---- Lifecycle Sequence ---- */
+.lifecycle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 2;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.lifecycle .phase { color: var(--c-core); font-weight: 600; }
+.lifecycle .opt { color: var(--muted); }
+.lifecycle .hook { color: var(--c-domain); }
+.lifecycle .sep { color: #e2e8f0; }
+
+/* ---- Info Box ---- */
+.info-box {
+  padding: 12px 16px;
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 13px;
+  margin-bottom: 12px;
+  color: var(--fg);
+  line-height: 1.6;
+}
+.info-box strong { color: var(--accent); }
+
+/* ---- Table ---- */
+.arch-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.arch-table th {
+  background: #f1f5f9;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.arch-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.arch-table tr:last-child td { border-bottom: none; }
+.arch-table tr:hover td { background: #f8fafc; }
+.arch-table .mod-name { font-family: var(--font-mono); font-weight: 500; }
+.arch-table .mod-path { font-family: var(--font-mono); color: var(--muted); font-size: 11px; }
+
+/* ---- Grid layouts ---- */
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-5 { grid-template-columns: repeat(5, 1fr); }
+.grid-6 { grid-template-columns: repeat(6, 1fr); }
+
+/* ---- Detail card ---- */
+.card-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+}
+.card-detail::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  border-radius: 2px 2px 0 0;
+}
+.card-detail:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.card-detail .cd-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
+}
+.card-detail .cd-path {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  margin-bottom: 6px;
+}
+.card-detail .cd-desc { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 6px; }
+.card-detail .cd-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.card-detail .cd-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  background: #f1f5f9;
+  color: var(--muted);
+}
+
+/* ---- Legend ---- */
+.legend {
+  margin-top: 36px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.legend h3 {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.legend-grid { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.legend-item .swatch {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.legend-item .swatch.line-solid { width: 14px; height: 0; border-top: 2px solid #94a3b8; border-radius: 0; }
+.legend-item .swatch.line-dash { width: 14px; height: 0; border-top: 1.5px dashed #cbd5e1; border-radius: 0; }
+
+/* ---- Footer ---- */
+.footer {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  letter-spacing: 0.01em;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 1200px) {
+  .main { padding: 32px 16px 64px; }
+  .core-area { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .page-header h1 { font-size: 22px; }
+  .grid-2, .grid-3, .grid-4, .grid-5, .grid-6 { grid-template-columns: 1fr; }
+  .tab-nav { padding: 0 12px; }
+  .tab-btn { padding: 8px 10px; font-size: 12px; }
+}
 </style>
 </head>
 <body>
-<canvas id="arch"></canvas>
+
+<!-- ============================================================
+     Navigation
+     ============================================================ -->
+<nav class="tab-nav" role="tablist">
+  <span class="brand">Mady <small>中观智能体</small></span>
+  <button class="tab-btn active" data-tab="overview" role="tab" aria-selected="true">架构总览</button>
+  <button class="tab-btn" data-tab="deps" role="tab">模块依赖关系</button>
+  <button class="tab-btn" data-tab="core" role="tab">核心引擎深度解析</button>
+  <button class="tab-btn" data-tab="flows" role="tab">数据流与关键场景</button>
+  <button class="tab-btn" data-tab="modules" role="tab">领域扩展与基础设施</button>
+</nav>
+
+<!-- ============================================================
+     PAGE 1: 架构总览
+     ============================================================ -->
+<div class="main">
+<div class="tab-page active" id="page-overview" role="tabpanel">
+
+  <header class="page-header">
+    <h1>Mady 中观智能体 — 架构总览</h1>
+    <p class="subtitle">github.com/xujian519/mady · 中观风格智能体框架</p>
+    <div class="stats">
+      <span class="stat"><span class="dot" style="background:var(--c-core)"></span> Go 1.25</span>
+      <span class="stat"><span class="dot" style="background:var(--c-domain)"></span> 871 Go 源文件 (含 293 测试)</span>
+      <span class="stat"><span class="dot" style="background:var(--c-infra)"></span> ~185K 行代码</span>
+      <span class="stat"><span class="dot" style="background:#8b5cf6"></span> 15,565 符号 · 19,628 边</span>
+      <span class="stat"><span class="dot" style="background:#f59e0b"></span> 多模块 (go.work)</span>
+    </div>
+  </header>
+
+  <!-- Layer 1: External Interface -->
+  <section class="layer">
+    <div class="layer-label">
+      <span class="bar" style="background:var(--c-external)"></span>
+      <h2>外部接口层</h2>
+      <span class="count">6 个协议入口</span>
+    </div>
+    <div class="card-grid grid-6">
+      <div class="card external">
+        <div class="card-name">A2A</div>
+        <div class="card-desc">Agent-to-Agent 协议 · 多智能体互操作 (JSON-RPC+WS)</div>
+      </div>
+      <div class="card external">
+        <div class="card-name">A2UI</div>
+        <div class="card-desc">Agent-to-UI · 声明式界面渲染协议 v0.9.1</div>
+      </div>
+      <div class="card external">
+        <div class="card-name">Server</div>
+        <div class="card-desc">HTTP/SSE API · Agent 池 + 聊天+交底书接口</div>
+      </div>
+      <div class="card external">
+        <div class="card-name">AGUI</div>
+        <div class="card-desc">Agent GUI Events · SSE 事件总线协议</div>
+      </div>
+      <div class="card external">
+        <div class="card-name">MCP</div>
+        <div class="card-desc">Model Context Protocol · stdio + HTTP/SSE 传输</div>
+      </div>
+      <div class="card external">
+        <div class="card-name">ACP</div>
+        <div class="card-desc">Agent Comm Protocol · JSON-RPC + TokenAuth 认证</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="flow-arrow">
+    <svg width="40" height="32" viewBox="0 0 40 32">
+      <line x1="20" y1="0" x2="20" y2="24" class="arrow-path"/>
+      <polygon points="20,32 13,22 27,22" class="arrow-head"/>
+    </svg>
+  </div>
+
+  <!-- Layer 2: Core Engine -->
+  <section class="layer">
+    <div class="layer-label">
+      <span class="bar" style="background:var(--c-core)"></span>
+      <h2>核心引擎层</h2>
+      <span class="count">agentcore · 110+ 源文件 + 12 子模块</span>
+    </div>
+    <div class="core-area">
+
+      <!-- Left: TUI -->
+      <div class="side-panel">
+        <div class="layer-label" style="margin-bottom:6px;">
+          <span class="bar" style="background:var(--c-tui)"></span>
+          <h2>终端 UI (TUI)</h2>
+        </div>
+        <div class="card tui-card">
+          <div class="card-name">tui/</div>
+          <div class="card-desc">8 层 Elm 风格架构 + 布局层</div>
+          <div class="tui-layers">
+            <div class="tui-row"><span class="idx">8</span> layout — 布局原语</div>
+            <div class="tui-row"><span class="idx">7</span> agentadapter — Agent→Chat 适配</div>
+            <div class="tui-row"><span class="idx">6</span> stdio — 过程式 stdout/stdin</div>
+            <div class="tui-row"><span class="idx">5</span> chat — 聊天应用 (AppState 状态机)</div>
+            <div class="tui-row"><span class="idx">4</span> component — UI 组件库 (ToolCard/StatusBar)</div>
+            <div class="tui-row"><span class="idx">3</span> 引擎层 — 事件循环 + 差异渲染</div>
+            <div class="tui-row"><span class="idx">2</span> theme — 语义调色板 + 品牌主题</div>
+            <div class="tui-row"><span class="idx">1</span> terminal — 终端 I/O (keymap.json)</div>
+            <div class="tui-row"><span class="idx">0</span> core — Component 接口</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center: agentcore -->
+      <div class="core-mega">
+        <div class="mega-title">agentcore</div>
+        <div class="mega-desc">Agent · Config · Provider · Tool · EventBus · Lifecycle · State · Stream · Message · Executor</div>
+
+        <div style="font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;">核心模块</div>
+        <div class="sub-row">
+          <span class="chip chip-primary">Agent</span>
+          <span class="chip chip-primary">Config</span>
+          <span class="chip chip-primary">Provider</span>
+          <span class="chip chip-primary">Tool</span>
+          <span class="chip chip-primary">EventBus</span>
+          <span class="chip chip-primary">Lifecycle</span>
+          <span class="chip chip-primary">State</span>
+          <span class="chip chip-primary">Stream</span>
+          <span class="chip chip-primary">Message</span>
+          <span class="chip chip-primary">Executor</span>
+        </div>
+
+        <div style="font-size:11px;color:var(--muted);margin:8px 0 5px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;">引擎与编排</div>
+        <div class="sub-row">
+          <span class="chip chip-primary">ContextEngine</span>
+          <span class="chip chip-primary">Executor</span>
+          <span class="chip chip-primary">Extension</span>
+          <span class="chip chip-primary">Handoff</span>
+          <span class="chip chip-primary">Compaction</span>
+          <span class="chip chip-primary">Orchestrate</span>
+          <span class="chip chip-primary">ReasoningRouter</span>
+          <span class="chip chip-primary">ReasoningStrategy</span>
+          <span class="chip chip-primary">Blocks</span>
+          <span class="chip chip-primary">Atom</span>
+        </div>
+
+        <div style="font-size:11px;color:var(--muted);margin:8px 0 5px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;">子模块</div>
+        <div class="sub-row">
+          <span class="chip chip-interface">cache/</span>
+          <span class="chip chip-interface">concurrency/</span>
+          <span class="chip chip-interface">doomloop/</span>
+          <span class="chip chip-interface">evidence/</span>
+          <span class="chip chip-interface">evaluate/</span>
+          <span class="chip chip-interface">filecheckpoint/</span>
+          <span class="chip chip-interface">permission/</span>
+          <span class="chip chip-interface">planmode/</span>
+          <span class="chip chip-interface">tracing/</span>
+          <span class="chip chip-interface">manifests/</span>
+        </div>
+
+        <div style="font-size:11px;color:var(--muted);margin:8px 0 5px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;">基础设施接口</div>
+        <div class="sub-row">
+          <span class="chip chip-interface">Store</span>
+          <span class="chip chip-interface">Tracer</span>
+          <span class="chip chip-interface">Checkpoint</span>
+          <span class="chip chip-interface">Middleware</span>
+          <span class="chip chip-interface">Skill/SkillExt</span>
+          <span class="chip chip-interface">Schema</span>
+          <span class="chip chip-interface">Retry</span>
+          <span class="chip chip-interface">Steering</span>
+          <span class="chip chip-interface">Budget</span>
+          <span class="chip chip-interface">Token</span>
+        </div>
+      </div>
+
+      <!-- Right: Provider + Tools -->
+      <div class="side-panel">
+        <div class="layer-label" style="margin-bottom:6px;">
+          <span class="bar" style="background:var(--c-provider)"></span>
+          <h2>Provider 层</h2>
+        </div>
+        <div class="card provider-card">
+          <div class="card-name">chatcompat/</div>
+          <div class="card-desc">OpenAI Compat 适配层<br>DeepSeek / GLM / Kimi / Qwen</div>
+        </div>
+        <div class="card provider-card">
+          <div class="card-name">smartrouter/</div>
+          <div class="card-desc">智能模型路由<br>Task + Priority 调度</div>
+        </div>
+        <div class="card provider-card">
+          <div class="card-name">adapter/</div>
+          <div class="card-desc">Agent 适配器<br>Claude Code / Codex CLI</div>
+        </div>
+
+        <div class="layer-label" style="margin:10px 0 6px;">
+          <span class="bar" style="background:var(--c-tool)"></span>
+          <h2>内置工具层</h2>
+        </div>
+        <div class="card tool-card">
+          <div class="card-name">tools/ (独立子模块)</div>
+          <div class="card-desc" style="display:flex;flex-wrap:wrap;gap:3px 5px;margin-top:4px;">
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">browser</span>
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">bash</span>
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">read/edit</span>
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">write/delete</span>
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">grep/find</span>
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">web_search</span>
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">web_fetch</span>
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">computer_use</span>
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">git</span>
+            <span style="background:var(--c-tool-bg);color:var(--c-tool);padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--font-mono);">mcp_bridge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="flow-arrow">
+    <svg width="40" height="32" viewBox="0 0 40 32">
+      <line x1="20" y1="0" x2="20" y2="24" class="arrow-path"/>
+      <polygon points="20,32 13,22 27,22" class="arrow-head"/>
+    </svg>
+  </div>
+
+  <!-- Layer 3: Domain Extension Layer -->
+  <section class="layer">
+    <div class="layer-label">
+      <span class="bar" style="background:var(--c-domain)"></span>
+      <h2>领域扩展层</h2>
+      <span class="count">10+ 领域模块</span>
+    </div>
+    <div class="card-grid grid-5">
+      <div class="card domain">
+        <div class="card-name">disclosure/</div>
+        <div class="card-desc">技术交底书分析管线 · 11 节点 Pregel 图</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">domains/</div>
+        <div class="card-desc">领域配置 + 推理引擎 · 可插拔领域适配</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">psychological/</div>
+        <div class="card-desc">心理引擎 · VAD/OCC/EMA/SDT/CBT 模型</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">guardrails/</div>
+        <div class="card-desc">三级护栏 + 引用核验门 + Guardian 熔断器</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">memory/</div>
+        <div class="card-desc">长期记忆 · 三层模型 + 策略学习编译器</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">knowledge/</div>
+        <div class="card-desc">知识图谱 · 文件索引 + 文档加载器 + 法条索引</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">retrieval/</div>
+        <div class="card-desc">混合检索引擎 · 关键词/BM25/向量/RRF</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">workflows/</div>
+        <div class="card-desc">Legal/Patent 领域工作流模板</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">mcp/</div>
+        <div class="card-desc">MCP 客户端 · stdio + HTTP/SSE · 发现/信任/安装</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">plugins/</div>
+        <div class="card-desc">专利工作流插件 · novelty/infringement/oa</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="flow-arrow">
+    <svg width="40" height="32" viewBox="0 0 40 32">
+      <line x1="20" y1="0" x2="20" y2="24" class="arrow-path"/>
+      <polygon points="20,32 13,22 27,22" class="arrow-head"/>
+    </svg>
+  </div>
+
+  <!-- Layer 4: Infrastructure -->
+  <section class="layer">
+    <div class="layer-label">
+      <span class="bar" style="background:var(--c-infra)"></span>
+      <h2>基础设施层</h2>
+      <span class="count">15+ 基础组件</span>
+    </div>
+    <div class="card-grid grid-5">
+      <div class="card infra"><div class="card-name">graph/</div><div class="card-desc">DAG + Pregel 迭代计算 + 状态快照</div></div>
+      <div class="card infra"><div class="card-name">session/</div><div class="card-desc">JSONL Tree 会话持久化</div></div>
+      <div class="card infra"><div class="card-name">workflow/</div><div class="card-desc">Pipeline/Parallel/Router 工作流原语</div></div>
+      <div class="card infra"><div class="card-name">skill/</div><div class="card-desc">SKILL.md 解析器（MadyExtension 扩展字段）</div></div>
+      <div class="card infra"><div class="card-name">prompt/</div><div class="card-desc">模板化 Prompt 管理与渲染</div></div>
+      <div class="card infra"><div class="card-name">store/</div><div class="card-desc">SnapshotStore 快照存储</div></div>
+      <div class="card infra"><div class="card-name">filequeue/</div><div class="card-desc">Mutex Queue 文件队列</div></div>
+      <div class="card infra"><div class="card-name">fuzzy/</div><div class="card-desc">Fuzzy Match 模糊匹配引擎</div></div>
+      <div class="card infra"><div class="card-name">pkg/</div><div class="card-desc">agentconfig · csync · lawcite · util</div></div>
+      <div class="card infra"><div class="card-name">protocol/</div><div class="card-desc">JSON-RPC 协议原语</div></div>
+      <div class="card infra"><div class="card-name">prompt-templates/</div><div class="card-desc">16 个 curated 提示词模板</div></div>
+      <div class="card infra"><div class="card-name">styles/</div><div class="card-desc">文档风格指南 YAML（4 套默认风格）</div></div>
+      <div class="card infra"><div class="card-name">doc-templates/</div><div class="card-desc">专利文档模板（claims/specification/oa）</div></div>
+      <div class="card infra"><div class="card-name">integration/</div><div class="card-desc">端到端集成测试（doomloop/chain/drafting）</div></div>
+      <div class="card infra"><div class="card-name">benchmark/</div><div class="card-desc">性能基准测试</div></div>
+    </div>
+  </section>
+
+  <div class="flow-arrow">
+    <svg width="40" height="32" viewBox="0 0 40 32">
+      <line x1="20" y1="0" x2="20" y2="24" class="arrow-path"/>
+      <polygon points="20,32 13,22 27,22" class="arrow-head"/>
+    </svg>
+  </div>
+
+  <!-- Layer 5: Application Entry -->
+  <section class="layer">
+    <div class="layer-label">
+      <span class="bar" style="background:var(--c-app)"></span>
+      <h2>应用入口</h2>
+      <span class="count">4 个入口 + 7 个示例</span>
+    </div>
+    <div class="card-grid grid-4" style="max-width:800px;margin:0 auto;">
+      <div class="card app"><div class="card-name">cmd/mady</div><div class="card-desc">统一 CLI 入口 · mady tui/serve/acp/eval/mcp-install/trust-mcp</div></div>
+      <div class="card app"><div class="card-name">server/</div><div class="card-desc">HTTP/SSE API Server（Agent 池 + 引用计数保护）</div></div>
+      <div class="card app"><div class="card-name">example/</div><div class="card-desc">7 个示例应用（A2A/A2UI/ACP/TUI 等）</div></div>
+      <div class="card app"><div class="card-name">tools/go.mod</div><div class="card-desc">独立子模块 · browser/computer_use 等</div></div>
+    </div>
+  </section>
+
+  <!-- Legend -->
+  <section class="legend">
+    <h3>图例</h3>
+    <div class="legend-grid">
+      <div class="legend-item"><span class="swatch" style="background:var(--c-external)"></span> 外部接口协议</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-core)"></span> 核心引擎 agentcore</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-domain)"></span> 领域扩展模块</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-infra)"></span> 基础设施组件</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-app)"></span> 应用入口</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-tui)"></span> 终端 UI (TUI)</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-provider)"></span> Provider 适配层</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-tool)"></span> 内置工具 (tools/)</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-disclosure)"></span> Disclosure 管线</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-memory)"></span> 记忆系统</div>
+      <div class="legend-item"><span class="swatch line-solid"></span> 直接调用 / 依赖</div>
+      <div class="legend-item"><span class="swatch line-dash"></span> 数据流 / 事件流</div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    「离二边，行中道」— 不落有无，不执生灭，恰到好处的抽象，克制的工程实践
+  </footer>
+</div>
+
+<!-- ============================================================
+     PAGE 2: 模块依赖关系
+     ============================================================ -->
+<div class="tab-page" id="page-deps" role="tabpanel">
+
+  <header class="page-header">
+    <h1>模块依赖关系</h1>
+    <p class="subtitle">基于实际 import 关系的模块依赖拓扑</p>
+  </header>
+
+  <section class="section-title">分层依赖拓扑</section>
+
+  <!-- Dependency Diagram SVG -->
+  <div class="dep-diagram">
+    <svg viewBox="0 0 1100 820" width="1100" height="820" style="max-width:100%;height:auto;font-family:'SF Mono','JetBrains Mono',ui-monospace,monospace;">
+      <defs>
+        <marker id="arrow-solid" viewBox="0 0 10 10" refX="25" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"/>
+        </marker>
+        <marker id="arrow-dash" viewBox="0 0 10 10" refX="25" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#cbd5e1"/>
+        </marker>
+      </defs>
+
+      <!-- Background -->
+      <rect x="0" y="0" width="1100" height="820" fill="#f8fafc" rx="12"/>
+
+      <!-- ======== Layer 1: 应用入口层 (Top) ======== -->
+      <rect x="380" y="10" width="200" height="28" rx="6" fill="var(--c-app-bg)" stroke="var(--c-app)" stroke-width="1.2"/>
+      <text x="480" y="30" text-anchor="middle" font-size="11" font-weight="600" fill="var(--c-app)">应用入口 cmd/mady</text>
+
+      <!-- ======== Layer 2: 外部接口层 ======== -->
+      <rect x="60" y="70" width="980" height="58" rx="10" fill="var(--c-external-bg)" stroke="var(--c-external)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+      <text x="80" y="90" font-size="10" fill="var(--c-external)" font-weight="600">外部接口层</text>
+      <rect x="80" y="96" width="90" height="22" rx="4" fill="white" stroke="var(--c-external)" stroke-width="1"/>
+      <text x="125" y="111" text-anchor="middle" font-size="10" fill="var(--c-external)">A2A</text>
+      <rect x="180" y="96" width="90" height="22" rx="4" fill="white" stroke="var(--c-external)" stroke-width="1"/>
+      <text x="225" y="111" text-anchor="middle" font-size="10" fill="var(--c-external)">A2UI</text>
+      <rect x="280" y="96" width="90" height="22" rx="4" fill="white" stroke="var(--c-external)" stroke-width="1"/>
+      <text x="325" y="111" text-anchor="middle" font-size="10" fill="var(--c-external)">Server</text>
+      <rect x="380" y="96" width="90" height="22" rx="4" fill="white" stroke="var(--c-external)" stroke-width="1"/>
+      <text x="425" y="111" text-anchor="middle" font-size="10" fill="var(--c-external)">AGUI</text>
+      <rect x="480" y="96" width="90" height="22" rx="4" fill="white" stroke="var(--c-external)" stroke-width="1"/>
+      <text x="525" y="111" text-anchor="middle" font-size="10" fill="var(--c-external)">MCP</text>
+      <rect x="580" y="96" width="90" height="22" rx="4" fill="white" stroke="var(--c-external)" stroke-width="1"/>
+      <text x="625" y="111" text-anchor="middle" font-size="10" fill="var(--c-external)">ACP</text>
+
+      <!-- ======== Layer 3: TUI ======== -->
+      <rect x="60" y="150" width="240" height="100" rx="10" fill="var(--c-tui-bg)" stroke="var(--c-tui)" stroke-width="1.2"/>
+      <text x="180" y="172" text-anchor="middle" font-size="11" font-weight="600" fill="var(--c-tui)">TUI 终端界面</text>
+      <text x="80" y="190" font-size="9" fill="var(--c-tui)" opacity="0.7">tui/core → tui/terminal → tui/theme</text>
+      <text x="80" y="206" font-size="9" fill="var(--c-tui)" opacity="0.7">→ tui/component → tui/chat</text>
+      <text x="80" y="222" font-size="9" fill="var(--c-tui)" opacity="0.7">→ tui/stdio → tui/agentadapter</text>
+      <text x="80" y="238" font-size="9" fill="var(--c-tui)" opacity="0.7">→ tui/layout</text>
+
+      <!-- ======== Layer 4: 核心引擎 agentcore ======== -->
+      <rect x="320" y="150" width="720" height="100" rx="10" fill="var(--c-core-bg)" stroke="var(--c-core)" stroke-width="2"/>
+      <text x="680" y="172" text-anchor="middle" font-size="12" font-weight="700" fill="var(--c-core)">核心引擎 agentcore</text>
+      <rect x="340" y="180" width="130" height="20" rx="4" fill="var(--c-core)" opacity="0.1"/>
+      <text x="405" y="194" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">Agent 运行时</text>
+      <rect x="480" y="180" width="130" height="20" rx="4" fill="var(--c-core)" opacity="0.1"/>
+      <text x="545" y="194" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">LifecycleHook</text>
+      <rect x="620" y="180" width="130" height="20" rx="4" fill="var(--c-core)" opacity="0.1"/>
+      <text x="685" y="194" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">Extension 体系</text>
+      <rect x="760" y="180" width="130" height="20" rx="4" fill="var(--c-core)" opacity="0.1"/>
+      <text x="825" y="194" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">Handoff 交接</text>
+      <rect x="340" y="208" width="130" height="20" rx="4" fill="var(--c-core)" opacity="0.1"/>
+      <text x="405" y="222" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">EventBus</text>
+      <rect x="480" y="208" width="130" height="20" rx="4" fill="var(--c-core)" opacity="0.1"/>
+      <text x="545" y="222" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">ReasoningRouter</text>
+      <rect x="620" y="208" width="130" height="20" rx="4" fill="var(--c-core)" opacity="0.1"/>
+      <text x="685" y="222" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">Atom/Pipeline</text>
+      <rect x="760" y="208" width="130" height="20" rx="4" fill="var(--c-core)" opacity="0.1"/>
+      <text x="825" y="222" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">Provider 抽象</text>
+      <text x="340" y="240" font-size="9" fill="var(--muted)">子模块: cache/ concurrency/ doomloop/ evidence/ evaluate/ filecheckpoint/</text>
+      <text x="340" y="245" font-size="9" fill="var(--muted)">permission/ planmode/ tracing/ manifests/</text>
+
+      <!-- ======== Layer 5: Provider + Tools ======== -->
+      <rect x="60" y="280" width="980" height="60" rx="10" fill="var(--c-provider-bg)" stroke="var(--c-provider)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+      <text x="80" y="298" font-size="9" fill="var(--c-provider)" font-weight="600">Provider + 工具层</text>
+      <rect x="80" y="306" width="130" height="22" rx="4" fill="white" stroke="var(--c-provider)" stroke-width="1"/>
+      <text x="145" y="321" text-anchor="middle" font-size="10" fill="var(--c-provider)">chatcompat/</text>
+      <rect x="220" y="306" width="130" height="22" rx="4" fill="white" stroke="var(--c-provider)" stroke-width="1"/>
+      <text x="285" y="321" text-anchor="middle" font-size="10" fill="var(--c-provider)">smartrouter/</text>
+      <rect x="360" y="306" width="130" height="22" rx="4" fill="white" stroke="var(--c-provider)" stroke-width="1"/>
+      <text x="425" y="321" text-anchor="middle" font-size="10" fill="var(--c-provider)">adapter/</text>
+      <rect x="500" y="306" width="200" height="22" rx="4" fill="white" stroke="var(--c-tool)" stroke-width="1"/>
+      <text x="600" y="321" text-anchor="middle" font-size="10" fill="var(--c-tool)">tools/ (独立子模块 go.mod)</text>
+
+      <!-- ======== Layer 6: 领域扩展层 ======== -->
+      <rect x="60" y="370" width="980" height="120" rx="10" fill="var(--c-domain-bg)" stroke="var(--c-domain)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+      <text x="80" y="388" font-size="9" fill="var(--c-domain)" font-weight="600">领域扩展层 (注入 agentcore LifecycleProvider + ToolProvider)</text>
+      <rect x="80" y="396" width="140" height="22" rx="4" fill="white" stroke="var(--c-domain)" stroke-width="1"/>
+      <text x="150" y="411" text-anchor="middle" font-size="10" fill="var(--c-domain)">disclosure/</text>
+      <rect x="230" y="396" width="140" height="22" rx="4" fill="white" stroke="var(--c-domain)" stroke-width="1"/>
+      <text x="300" y="411" text-anchor="middle" font-size="10" fill="var(--c-domain)">domains/</text>
+      <rect x="380" y="396" width="140" height="22" rx="4" fill="white" stroke="var(--c-domain)" stroke-width="1"/>
+      <text x="450" y="411" text-anchor="middle" font-size="10" fill="var(--c-domain)">guardrails/</text>
+      <rect x="530" y="396" width="140" height="22" rx="4" fill="white" stroke="var(--c-domain)" stroke-width="1"/>
+      <text x="600" y="411" text-anchor="middle" font-size="10" fill="var(--c-domain)">memory/</text>
+      <rect x="680" y="396" width="140" height="22" rx="4" fill="white" stroke="var(--c-domain)" stroke-width="1"/>
+      <text x="750" y="411" text-anchor="middle" font-size="10" fill="var(--c-domain)">psychological/</text>
+      <rect x="830" y="396" width="100" height="22" rx="4" fill="white" stroke="var(--c-domain)" stroke-width="1"/>
+      <text x="880" y="411" text-anchor="middle" font-size="10" fill="var(--c-domain)">mcp/</text>
+      <rect x="80" y="426" width="200" height="22" rx="4" fill="white" stroke="var(--c-domain)" stroke-width="1"/>
+      <text x="180" y="441" text-anchor="middle" font-size="10" fill="var(--c-domain)">knowledge/ + retrieval/</text>
+      <rect x="290" y="426" width="180" height="22" rx="4" fill="white" stroke="var(--c-domain)" stroke-width="1"/>
+      <text x="380" y="441" text-anchor="middle" font-size="10" fill="var(--c-domain)">workflows/ + plugins/</text>
+      <rect x="500" y="426" width="180" height="22" rx="4" fill="white" stroke="var(--c-disclosure)" stroke-width="1"/>
+      <text x="590" y="441" text-anchor="middle" font-size="10" fill="var(--c-disclosure)">citation_gate/ (双级核验)</text>
+      <text x="80" y="466" font-size="9" fill="var(--muted)">domains/ 子模块: doctmpl/ reasoning/ collector/ sqlite/ wiring/ rules/</text>
+      <text x="80" y="478" font-size="9" fill="var(--muted)">knowledge/ 子模块: fileindex/ graph/ loader/ sqlite/</text>
+
+      <!-- ======== Layer 7: 基础设施层 ======== -->
+      <rect x="60" y="520" width="980" height="100" rx="10" fill="var(--c-infra-bg)" stroke="var(--c-infra)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+      <text x="80" y="538" font-size="9" fill="var(--c-infra)" font-weight="600">基础设施层</text>
+      <rect x="80" y="546" width="110" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="135" y="561" text-anchor="middle" font-size="10" fill="var(--c-infra)">graph/</text>
+      <rect x="200" y="546" width="110" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="255" y="561" text-anchor="middle" font-size="10" fill="var(--c-infra)">session/</text>
+      <rect x="320" y="546" width="110" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="375" y="561" text-anchor="middle" font-size="10" fill="var(--c-infra)">workflow/</text>
+      <rect x="440" y="546" width="110" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="495" y="561" text-anchor="middle" font-size="10" fill="var(--c-infra)">skill/</text>
+      <rect x="560" y="546" width="110" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="615" y="561" text-anchor="middle" font-size="10" fill="var(--c-infra)">prompt/</text>
+      <rect x="680" y="546" width="110" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="735" y="561" text-anchor="middle" font-size="10" fill="var(--c-infra)">store/</text>
+      <rect x="800" y="546" width="110" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="855" y="561" text-anchor="middle" font-size="10" fill="var(--c-infra)">pkg/</text>
+      <rect x="920" y="546" width="110" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="975" y="561" text-anchor="middle" font-size="10" fill="var(--c-infra)">protocol/</text>
+      <rect x="80" y="576" width="200" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="180" y="591" text-anchor="middle" font-size="10" fill="var(--c-infra)">filequeue/ + fuzzy/</text>
+      <rect x="290" y="576" width="200" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="390" y="591" text-anchor="middle" font-size="10" fill="var(--c-infra)">prompt-templates/</text>
+      <rect x="500" y="576" width="200" height="22" rx="4" fill="white" stroke="var(--c-infra)" stroke-width="1"/>
+      <text x="600" y="591" text-anchor="middle" font-size="10" fill="var(--c-infra)">styles/ + doc-templates/</text>
+
+      <!-- ======== Arrow: cmd → Server/external ======== -->
+      <line x1="480" y1="38" x2="370" y2="96" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+      <line x1="480" y1="38" x2="425" y2="96" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+
+      <!-- ======== Arrow: external → agentcore ======== -->
+      <line x1="125" y1="118" x2="405" y2="150" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+      <line x1="325" y1="118" x2="545" y2="150" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+      <line x1="625" y1="118" x2="685" y2="150" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+
+      <!-- ======== Arrow: TUI → agentcore ======== -->
+      <line x1="300" y1="200" x2="340" y2="200" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+
+      <!-- ======== Arrow: agentcore → Provider/Tools ======== -->
+      <line x1="680" y1="250" x2="600" y2="306" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+      <line x1="405" y1="250" x2="145" y2="306" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+
+      <!-- ======== Arrow: agentcore → Domain ======== -->
+      <line x1="680" y1="250" x2="450" y2="396" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+      <line x1="405" y1="250" x2="150" y2="396" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+      <line x1="545" y1="250" x2="300" y2="396" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+      <line x1="825" y1="250" x2="600" y2="396" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+
+      <!-- ======== Arrow: Domain → Infra ======== -->
+      <line x1="150" y1="490" x2="135" y2="546" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrow-solid)"/>
+      <line x1="600" y1="490" x2="495" y2="546" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrow-solid)"/>
+      <line x1="880" y1="490" x2="855" y2="546" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrow-solid)"/>
+
+      <!-- ======== Legend box ======== -->
+      <rect x="60" y="650" width="980" height="160" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="80" y="672" font-size="11" fill="var(--muted)" font-weight="600">关系说明</text>
+      <line x1="80" y1="690" x2="310" y2="690" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-solid)"/>
+      <text x="320" y="694" font-size="10" fill="var(--muted)">直接调用/依赖 (从上层 → 下层)</text>
+      <line x1="80" y1="710" x2="310" y2="710" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrow-dash)"/>
+      <text x="320" y="714" font-size="10" fill="var(--muted)">数据流/事件流</text>
+      <text x="80" y="738" font-size="10" fill="var(--muted)">核心设计原则：</text>
+      <text x="80" y="755" font-size="10" fill="var(--muted)">• 严格单向依赖 — 上层可导入下层，反向禁止</text>
+      <text x="80" y="772" font-size="10" fill="var(--muted)">• Extension 接口 — 工具/钩子/中间件均通过 Extension 机制注入</text>
+      <text x="80" y="789" font-size="10" fill="var(--muted)">• LifecycleHook — Agent 执行每个阶段可拦截 (BeforeToolCall / AfterModelCall 等)</text>
+      <text x="80" y="806" font-size="10" fill="var(--muted)">• EventBus — 类型安全事件总线，支持实时可观测性</text>
+    </svg>
+  </div>
+
+  <section class="section-sub">模块依赖矩阵</section>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">各模块间的核心 import 依赖关系（只列出跨模块导入，省略标准库和外部依赖）：</p>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>模块</th><th>依赖的其他 Mady 模块</th><th>被哪些模块依赖</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mod-name">cmd/mady</td>
+        <td>tui/, server/, agentcore, session/, skill/, domains/, guardrails/, mcp/</td>
+        <td>— (入口)</td>
+      </tr>
+      <tr>
+        <td class="mod-name">server/</td>
+        <td>agentcore, disclosure/, domains/, session/, guardrails/</td>
+        <td>cmd/mady</td>
+      </tr>
+      <tr>
+        <td class="mod-name">tui/</td>
+        <td>agentcore, skill/, session/, store/</td>
+        <td>cmd/mady</td>
+      </tr>
+      <tr>
+        <td class="mod-name">disclosure/</td>
+        <td>agentcore, graph/, retrieval/, knowledge/</td>
+        <td>server/</td>
+      </tr>
+      <tr>
+        <td class="mod-name">domains/</td>
+        <td>agentcore, guardrails/, knowledge/, retrieval/, psychological/, graph/</td>
+        <td>cmd/mady, server/</td>
+      </tr>
+      <tr>
+        <td class="mod-name">guardrails/</td>
+        <td>agentcore, pkg/csync</td>
+        <td>domains/, server/, cmd/mady</td>
+      </tr>
+      <tr>
+        <td class="mod-name">memory/</td>
+        <td>agentcore, store/</td>
+        <td>agentcore (via Extension)</td>
+      </tr>
+      <tr>
+        <td class="mod-name">psychological/</td>
+        <td>（纯计算，无 Mady 内部依赖）</td>
+        <td>domains/</td>
+      </tr>
+      <tr>
+        <td class="mod-name">knowledge/</td>
+        <td>store/</td>
+        <td>disclosure/, domains/</td>
+      </tr>
+      <tr>
+        <td class="mod-name">retrieval/</td>
+        <td>agentcore, knowledge/</td>
+        <td>disclosure/, domains/</td>
+      </tr>
+      <tr>
+        <td class="mod-name">mcp/</td>
+        <td>agentcore</td>
+        <td>cmd/mady, agentcore</td>
+      </tr>
+      <tr>
+        <td class="mod-name">agentcore</td>
+        <td>mcp/, store/</td>
+        <td>所有上层模块</td>
+      </tr>
+      <tr>
+        <td class="mod-name">graph/</td>
+        <td>（纯图计算，无 Mady 内部依赖）</td>
+        <td>disclosure/, domains/</td>
+      </tr>
+      <tr>
+        <td class="mod-name">session/</td>
+        <td>（无 Mady 内部依赖）</td>
+        <td>tui/, agentcore, cmd/mady</td>
+      </tr>
+      <tr>
+        <td class="mod-name">store/</td>
+        <td>（无 Mady 内部依赖）</td>
+        <td>agentcore, tui/, memory/, knowledge/</td>
+      </tr>
+      <tr>
+        <td class="mod-name">pkg/</td>
+        <td>（无 Mady 内部依赖）</td>
+        <td>guardrails/ (csync), domains/ (lawcite), agentcore (agentconfig)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <section class="section-sub">分层依赖原则</section>
+  <div class="info-box">
+    <strong>8 层架构依赖规则</strong>：严格单向依赖，上层可导入下层，反向禁止。<br>
+    <strong>外部接口层</strong> (A2A/A2UI/Server/AGUI/MCP/ACP) → <strong>核心引擎层</strong> (agentcore) → <strong>领域扩展层</strong> (disclosure/domains/guardrails 等) → <strong>基础设施层</strong> (graph/session/workflow 等)<br>
+    TUI 层、Provider 层、Tools 层与核心引擎层处于同一级别，通过接口注入。
+  </div>
+
+</div>
+
+<!-- ============================================================
+     PAGE 3: 核心引擎深度解析
+     ============================================================ -->
+<div class="tab-page" id="page-core" role="tabpanel">
+
+  <header class="page-header">
+    <h1>核心引擎深度解析</h1>
+    <p class="subtitle">agentcore — 模块内部架构与关键设计模式</p>
+  </header>
+
+  <section class="section-title">LifecycleHook 拦截链</section>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">LifecycleHook 是 agentcore 最核心的扩展机制。Agent 的每次执行都沿以下路径触发钩子：</p>
+
+  <div class="lifecycle">
+BeforeAgentRun
+  <span class="sep">→</span> (<span class="phase">Turn Loop</span>:
+    BeforeTurn
+    <span class="sep">→</span> BeforeModelCall
+    <span class="sep">→</span> <span class="opt">[Model Call]</span>
+    <span class="sep">→</span> AfterModelCall
+    <span class="sep">→</span> <span class="opt">[if tool calls]</span> BeforeToolExecution
+    <span class="sep">→</span> <span class="opt">[Tool Execution]</span>
+    <span class="sep">→</span> AfterToolExecution
+    <span class="sep">→</span> AfterTurn
+  )
+  <span class="sep">→</span> AfterAgentRun
+  </div>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">消息持久化为独立钩子链，在每次 AddMessage 时触发：</p>
+
+  <div class="lifecycle">
+<span class="phase">Message Persist:</span>
+  BeforeMessagePersist <span class="sep">→</span> <span class="opt">[Store]</span> <span class="sep">→</span> AfterMessagePersist
+  </div>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:12px;"><strong>钩子的实现者（LifecycleProvider）：</strong></p>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>实现者</th><th>所在模块</th><th>拦截的钩子</th><th>功能说明</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mod-name">GuardrailHook</td>
+        <td class="mod-path">agentcore/lifecycle.go</td>
+        <td>AfterModelCall</td>
+        <td>校验模型输出，拒绝不安全内容</td>
+      </tr>
+      <tr>
+        <td class="mod-name">ReasoningRouter</td>
+        <td class="mod-path">agentcore/reasoning_router.go</td>
+        <td>BeforeModelCall</td>
+        <td>按复杂度调节 thinking effort/budget</td>
+      </tr>
+      <tr>
+        <td class="mod-name">ReasoningStrategyRouter</td>
+        <td class="mod-path">agentcore/reasoning_strategy.go</td>
+        <td>BeforeModelCall</td>
+        <td>注入策略提示词 + 框架步骤</td>
+      </tr>
+      <tr>
+        <td class="mod-name">MemoryExtension</td>
+        <td class="mod-path">memory/extension.go</td>
+        <td>BeforeTurn, AfterTurn, BeforeAgentRun</td>
+        <td>三层记忆注入与持久化</td>
+      </tr>
+      <tr>
+        <td class="mod-name">compilerHook</td>
+        <td class="mod-path">memory/compiler/extension.go</td>
+        <td>BeforeTurn, AfterTurn</td>
+        <td>策略学习：ε-greedy 选策略 → 追踪执行 → 回馈</td>
+      </tr>
+      <tr>
+        <td class="mod-name">guardrail (领域)</td>
+        <td class="mod-path">guardrails/levels.go</td>
+        <td>AfterModelCall</td>
+        <td>三级护栏：拦截短语/风险关键词/审批关键词</td>
+      </tr>
+      <tr>
+        <td class="mod-name">CitationGate</td>
+        <td class="mod-path">guardrails/citation_gate.go</td>
+        <td>AfterModelCall</td>
+        <td>S1 静态表 + S2 知识源双级核验</td>
+      </tr>
+      <tr>
+        <td class="mod-name">PlanModeExtension</td>
+        <td class="mod-path">agentcore/planmode/extension.go</td>
+        <td>BeforeToolExecution</td>
+        <td>计划模式工具门控</td>
+      </tr>
+      <tr>
+        <td class="mod-name">FileCheckpointExtension</td>
+        <td class="mod-path">agentcore/filecheckpoint/extension.go</td>
+        <td>BeforeAgentRun, AfterAgentRun</td>
+        <td>文件级快照与回退</td>
+      </tr>
+      <tr>
+        <td class="mod-name">Guardian</td>
+        <td class="mod-path">guardrails/guardian/</td>
+        <td>AfterModelCall</td>
+        <td>AI 安全审查熔断器</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <section class="section-title">Extension 插件体系</section>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Extension 接口是 Mady 的插件化基石。每个扩展可选择性地实现以下提供者接口：</p>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>接口</th><th>方法</th><th>注册到 Agent 的什么位置</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mod-name">Extension</td>
+        <td>Name(), Init(ctx, agent), Dispose()</td>
+        <td>基础接口，所有扩展都必须实现</td>
+      </tr>
+      <tr>
+        <td class="mod-name">ToolProvider</td>
+        <td>Tools() []*Tool</td>
+        <td>agent.RegisterTools() — 注册工具</td>
+      </tr>
+      <tr>
+        <td class="mod-name">HookProvider</td>
+        <td>BeforeHooks(), AfterHooks()</td>
+        <td>agent.config.GlobalBefore/After — 添加到钩子链</td>
+      </tr>
+      <tr>
+        <td class="mod-name">MiddlewareProvider</td>
+        <td>Middleware() []Middleware</td>
+        <td>agent.config.Middleware — 中间件链</td>
+      </tr>
+      <tr>
+        <td class="mod-name">SystemPromptProvider</td>
+        <td>SystemPromptSuffix() string</td>
+        <td>追加到 agent.config.SystemPrompt</td>
+      </tr>
+      <tr>
+        <td class="mod-name">TransformContextProvider</td>
+        <td>TransformContext(ctx, msgs) []Message</td>
+        <td>agent.config.TransformContext — 消息转换链</td>
+      </tr>
+      <tr>
+        <td class="mod-name">LifecycleProvider</td>
+        <td>LifecycleHook() LifecycleHook</td>
+        <td>agent.config.Lifecycle — 生命周期钩子链</td>
+      </tr>
+      <tr>
+        <td class="mod-name">EventSnapshotProvider</td>
+        <td>SnapshotEvents() []Event</td>
+        <td>为新监听器提供快照事件</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="info-box">
+    <strong>扩展注册流程</strong>：<code>ext.Init(ctx, agent)</code> → 类型断言检查 <code>ToolProvider</code>/<code>HookProvider</code>/<code>LifecycleProvider</code> 等 → 分别注册到 <code>agent.RegisterTools()</code>/<code>agent.config.GlobalBefore</code>/<code>agent.config.Lifecycle</code>。<br>
+    销毁时倒序调用 <code>ext.Dispose()</code> — 先注册的后销毁。
+  </div>
+
+  <section class="section-title">Handoff 交接机制</section>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Handoff 是 Mady 的多 Agent 协作核心。Router Agent 通过 <code>transfer_to_*</code> 工具将任务委派给领域 Agent。</p>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>组件</th><th>文件</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mod-name">HandoffConfig</td>
+        <td class="mod-path">agentcore/handoff.go</td>
+        <td>目标配置（Name/Description/Mode/AllowedSources/FallbackMsg/Invisible）</td>
+      </tr>
+      <tr>
+        <td class="mod-name">HandoffMode</td>
+        <td class="mod-path">agentcore/handoff.go</td>
+        <td>两种模式：<strong>HandoffDelegate</strong>（子 Agent 运行后返回结果）或 <strong>HandoffTransfer</strong>（完全移交对话控制权）</td>
+      </tr>
+      <tr>
+        <td class="mod-name">HandoffContext</td>
+        <td class="mod-path">agentcore/handoff_context.go</td>
+        <td>结构化交接上下文（意图/实体/最近消息），减少 token 消耗</td>
+      </tr>
+      <tr>
+        <td class="mod-name">HandoffResult</td>
+        <td class="mod-path">agentcore/handoff_result.go</td>
+        <td>子 Agent 返回的结构化结果（Action/Result/Success）</td>
+      </tr>
+      <tr>
+        <td class="mod-name">SafeHandoff</td>
+        <td class="mod-path">agentcore/handoff.go</td>
+        <td>基于 AllowedSources 白名单的运行时交接校验（isHandoffAllowed）</td>
+      </tr>
+      <tr>
+        <td class="mod-name">Invisible Handoff</td>
+        <td class="mod-path">agentcore/handoff.go</td>
+        <td>Invisible=true 时，子 Agent 事件不转发到事件总线，UI 无切换痕迹</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;"><strong>Router Agent 委派流向（domains/router.go）：</strong></p>
+
+  <div class="lifecycle">
+Router (mady-router)
+  <span class="sep">→</span> transfer_to_chat       <span class="sep">→</span> Chat Agent (日常聊天)
+  <span class="sep">→</span> transfer_to_assistant  <span class="sep">→</span> Assistant Agent (任务执行)
+  <span class="sep">→</span> transfer_to_patent     <span class="sep">→</span> Patent Agent (专利分析)
+  <span class="sep">→</span> transfer_to_legal      <span class="sep">→</span> Legal Agent (法律分析)
+  </div>
+
+  <section class="section-title">推理策略路由</section>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">ReasoningRouter 按复杂度动态调节推理策略。三档复杂度（Low / Medium / High）对应不同的 thinking effort 和策略：</p>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>复杂度</th><th>Thinking Effort</th><th>默认策略</th><th>框架步骤数</th><th>典型触发场景</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mod-name">Low</td>
+        <td>low</td>
+        <td>StepByStep</td>
+        <td>3（理解→回答→验证）</td>
+        <td>简单问答、短文本（&lt;200 字）</td>
+      </tr>
+      <tr>
+        <td class="mod-name">Medium</td>
+        <td>medium</td>
+        <td>StructuredAnalysis</td>
+        <td>4（分解→收集→分析→结论）</td>
+        <td>中等长度、无明显复杂关键词</td>
+      </tr>
+      <tr>
+        <td class="mod-name">High</td>
+        <td>high</td>
+        <td>VerifiedThinking</td>
+        <td>6（分解→研究→分析→综合→验证→结论）</td>
+        <td>包含分析/法律/专利/架构等关键词，或对话深度 ≥6 轮</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">6 种可选的推理策略（ReasoningStrategy）：</p>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>策略</th><th>StrategyHint 核心指令</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="mod-name">Default</td><td>让模型自行选择推理方式</td></tr>
+      <tr><td class="mod-name">StepByStep</td><td>按步骤逐步推理，每步标注【步骤N/总步数】</td></tr>
+      <tr><td class="mod-name">StructuredAnalysis</td><td>结构化框架：分解→事实收集→法律分析→结论</td></tr>
+      <tr><td class="mod-name">Debate</td><td>模拟多方辩论，综合各方观点</td></tr>
+      <tr><td class="mod-name">TreeOfThoughts</td><td>思维树：关键决策点探索多个分支</td></tr>
+      <tr><td class="mod-name">VerifiedThinking</td><td>每步自我验证：逻辑一致性、法条适用正确性</td></tr>
+      <tr><td class="mod-name">FirstPrinciples</td><td>第一性原理：回归基础重建论证链</td></tr>
+    </tbody>
+  </table>
+
+  <section class="section-title">EventBus 事件系统</section>
+
+  <div class="info-box">
+    <strong>Broker[T]</strong> (agentcore/pubsub.go) — 类型安全的泛型事件总线。<br>
+    支持两种发布语义：<strong>Publish</strong>（尽力投递，缓冲区满时丢弃）和 <strong>PublishMustDeliver</strong>（有界阻塞，默认 50ms 超时）。<br>
+    每个订阅者独立缓冲通道（默认 4096），支持扇出到多个监听器。
+  </div>
+
+  <section class="section-title">Agent 执行循环</section>
+
+  <div class="lifecycle">
+<span class="phase">Agent.Run(input):</span>
+  <span class="sep">→</span> 加载配置
+  <span class="sep">→</span> <span class="hook">BeforeAgentRun</span>
+  <span class="sep">→</span> (内循环:
+    <span class="sep">→</span> <span class="hook">BeforeTurn</span>
+    <span class="sep">→</span> ContextEngine 构建请求 (Chunked/Tiered/Truncate)
+    <span class="sep">→</span> <span class="hook">BeforeModelCall</span> (→ ReasoningRouter/Strategy 注入)
+    <span class="sep">→</span> Provider.Chat (LLM 调用)
+    <span class="sep">→</span> <span class="hook">AfterModelCall</span> (→ GuardrailHook/Guardian/Guardrails/CitationGate 核验)
+    <span class="sep">→</span> [有工具调用] Executor.ExecuteAll
+      <span class="sep">→</span> <span class="hook">BeforeToolExecution</span> (→ PlanModeExtension 门控)
+      <span class="sep">→</span> Middleware 链 (Timeout/Retry/Logging)
+      <span class="sep">→</span> 执行每个 Tool.Func
+      <span class="sep">→</span> <span class="hook">AfterToolExecution</span>
+    <span class="sep">→</span> <span class="hook">AfterTurn</span>
+  )
+  <span class="sep">→</span> <span class="hook">AfterAgentRun</span>
+  <span class="sep">→</span> 返回 output
+  </div>
+
+</div>
+
+<!-- ============================================================
+     PAGE 4: 数据流与关键场景
+     ============================================================ -->
+<div class="tab-page" id="page-flows" role="tabpanel">
+
+  <header class="page-header">
+    <h1>数据流与关键场景</h1>
+    <p class="subtitle">核心业务流程的完整数据链路</p>
+  </header>
+
+  <section class="section-title">1. Disclosure 交底书分析管线</section>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">disclosure/ 实现了 11 节点 Pregel 图，逐节点处理技术交底书。管线由 <code>BuildDisclosureAnalysisGraphWithOpts</code> 构建：</p>
+
+  <div class="pipeline">
+    <span class="node">preprocess</span>
+    <span class="arrow">→</span>
+    <span class="node">extract_problem</span>
+    <span class="arrow">→</span>
+    <span class="node">merge_extractions</span>
+    <span class="arrow">→</span>
+    <span class="node cond">check_consistency</span>
+    <span class="arrow">↕</span>
+    <span class="node">extract_features</span>
+    <span class="arrow">→</span>
+    <span class="node">generate_keywords</span>
+    <span class="arrow">→</span>
+    <span class="node">retrieve_prior_art</span>
+    <span class="arrow">→</span>
+    <span class="node">check_novelty</span>
+    <span class="arrow">→</span>
+    <span class="node">generate_report</span>
+    <span class="arrow">→</span>
+    <span class="node cond">review_gate</span>
+    <span class="arrow">→</span>
+    <span class="node">draft_claims</span>
+    <span class="arrow">→</span>
+    <span class="node end">__end__</span>
+  </div>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">实际上前三个提取节点并行执行：</p>
+
+  <div class="pipeline">
+    <span class="node">preprocess</span>
+    <span class="arrow">→</span>
+    <span class="node">extract_problem</span>
+    <span class="arrow" style="visibility:hidden;width:0;">→</span>
+    <span class="node" style="background:var(--c-tui-bg);color:var(--c-tui);border-color:rgba(219,39,119,.2);">extract_features</span>
+    <span class="arrow" style="visibility:hidden;width:0;">→</span>
+    <span class="node" style="background:var(--c-domain-bg);color:var(--c-domain);border-color:rgba(13,148,136,.2);">extract_effects</span>
+    <span class="arrow">→</span>
+    <span class="node">merge_extractions</span>
+  </div>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;"><strong>关键节点说明：</strong></p>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>节点</th><th>类型</th><th>功能</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="mod-name">preprocess</td><td>纯函数</td><td>文本清洗、分段、标准化预处理</td></tr>
+      <tr><td class="mod-name">extract_problem</td><td>Agent 包装</td><td>提取交底书要解决的技术问题</td></tr>
+      <tr><td class="mod-name">extract_features</td><td>Agent 包装</td><td>提取技术特征（功能/类别/重要性）</td></tr>
+      <tr><td class="mod-name">extract_effects</td><td>Agent 包装</td><td>提取技术效果和有益效果</td></tr>
+      <tr><td class="mod-name">merge_extractions</td><td>合并节点</td><td>合并三个 Agent 输出，构建 PFE 三元组交叉引用</td></tr>
+      <tr><td class="mod-name">check_consistency</td><td><strong>条件节点</strong></td><td>一致性校验 → 不通过则注入 retry_feedback 回退到提取节点</td></tr>
+      <tr><td class="mod-name">generate_keywords</td><td>纯函数</td><td>从提取结果生成检索关键词</td></tr>
+      <tr><td class="mod-name">retrieve_prior_art</td><td>检索器</td><td>专利检索（支持可选的 DomainRetriever 注入）</td></tr>
+      <tr><td class="mod-name">check_novelty</td><td>Agent 包装</td><td>基于现有技术评估新颖性/创造性</td></tr>
+      <tr><td class="mod-name">generate_report</td><td>Agent 包装</td><td>生成结构化分析报告</td></tr>
+      <tr><td class="mod-name">review_gate</td><td><strong>中断门</strong></td><td>主动中断信号 → 等待人工复核（adopted/modified/rejected）</td></tr>
+      <tr><td class="mod-name">draft_claims</td><td>纯函数</td><td>根据审核结论撰写权利要求草案</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box">
+    <strong>条件回退机制</strong>：<code>check_consistency</code> 是条件边节点，通过 <code>consistencyRouter</code> 判断一致性校验结果：
+    通过 → 前进到 <code>generate_keywords</code>；不通过 → 将反馈写入 <code>StateKeyRetryFeedback</code>，回退到提取节点重试。
+  </div>
+
+  <section class="section-title">2. 引用核验门 (CitationGate)</section>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">双级引文核验机制，作为 LifecycleHook 在 AfterModelCall 阶段拦截：</p>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>级别</th><th>核验方式</th><th>核验对象</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mod-name">S1 静态表</td>
+        <td>citation_table.go · 82 条精校法条</td>
+        <td>检查模型引用是否在静态主题收录范围内</td>
+      </tr>
+      <tr>
+        <td class="mod-name">S2 知识源</td>
+        <td>citation_source.go · Composite 复合源</td>
+        <td>在多个知识源中验证引用的准确性</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="info-box">
+    <strong>判定矩阵</strong>：S1 通过且 S2 通过 → 放行；S1 通过但 S2 不通过 → 标记警告；S1 不通过 → 返回明确错误信息。
+  </div>
+
+  <section class="section-title">3. 三级护栏系统</section>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>级别</th><th>拦截功能</th><th>适用场景</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mod-name" style="color:#22c55e">LevelLight</td>
+        <td>拦截 <code>BlockedPhrases</code>（恶意代码/攻击方法/非法入侵）</td>
+        <td>日常聊天</td>
+      </tr>
+      <tr>
+        <td class="mod-name" style="color:#eab308">LevelStandard</td>
+        <td>↑ 以上 + 检测 <code>RiskKeywords</code> → 追加免责声明</td>
+        <td>专业咨询领域</td>
+      </tr>
+      <tr>
+        <td class="mod-name" style="color:#ef4444">LevelStrict</td>
+        <td>↑ 以上 + 检测 <code>ApprovalKeywords</code> → 挂起人工审批（SuppressPersist）</td>
+        <td>法律/专利等高风险领域</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Guardian 熔断器（guardrails/guardian/）作为额外安全层，在护栏之上用独立 AI Agent 进行内容安全审查。</p>
+
+  <section class="section-title">4. 三层记忆系统</section>
+
+  <table class="arch-table">
+    <thead>
+      <tr><th>层级</th><th>实现</th><th>功能</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mod-name">Layer 1: STM</td>
+        <td class="mod-path">memory/extension.go</td>
+        <td>短期工作记忆 · 上下文窗口内的即时记忆</td>
+      </tr>
+      <tr>
+        <td class="mod-name">Layer 2: EWM</td>
+        <td class="mod-path">memory/extractor.go · retriever.go</td>
+        <td>摘要工作记忆 · 提取历史关键信息供检索</td>
+      </tr>
+      <tr>
+        <td class="mod-name">Layer 3: LTM</td>
+        <td class="mod-path">memory/sqlite_store.go · manager.go</td>
+        <td>长期记忆 · 持久化存储（SQLite 向量 + FTS5 全文）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;"><strong>策略学习编译器</strong>（memory/compiler/）：</p>
+  <div class="info-box">
+    <strong>Compiler 机制</strong>：在 <code>BeforeTurn</code> 时使用 <strong>ε-greedy 算法</strong>从策略池中选择最优策略，注入策略建议到系统提示词；
+    <code>AfterTurn</code> 时追踪执行轨迹并回馈结果，更新策略的成功/失败计数。
+    支持策略衰减（DecayConfig）和探索率调参。执行轨迹采用环形缓冲区存储。
+  </div>
+
+  <section class="section-title">5. 用户请求完整处理链路</section>
+
+  <div class="lifecycle">
+<span class="phase">TUI</span> / <span class="phase">Server</span> / <span class="phase">A2A</span> / <span class="phase">MCP</span>   ← 用户输入
+  <span class="sep">→</span> <strong>Router Agent</strong> (domains/router.go)
+  <span class="sep">→</span> 分类用户意图 (domains/classifier.go)
+  <span class="sep">→</span> 调用 transfer_to_* 工具
+  <span class="sep">→</span> <strong>HandoffContext</strong> 构建 (提取意图/实体/最近消息)
+  <span class="sep">→</span> <strong>SafeHandoff</strong> 白名单校验 (isHandoffAllowed)
+  <span class="sep">→</span> <strong>领域 Agent</strong> (Chat / Assistant / Patent / Legal)
+    <span class="sep">→</span> <span class="hook">LifecycleHook 链</span>
+    <span class="sep">→</span> <strong>ReasoningRouter</strong> 分类复杂度 → 注入策略
+    <span class="sep">→</span> <strong>Provider</strong> (chatcompat / smartrouter)
+    <span class="sep">→</span> <span class="hook">Guardrails</span> + <span class="hook">CitationGate</span> 核验
+    <span class="sep">→</span> 返回结果
+  <span class="sep">→</span> <strong>HandoffResult</strong> 包装返回
+  <span class="sep">→</span> TUI / Server 渲染输出
+  </div>
+
+</div>
+
+<!-- ============================================================
+     PAGE 5: 领域扩展与基础设施
+     ============================================================ -->
+<div class="tab-page" id="page-modules" role="tabpanel">
+
+  <header class="page-header">
+    <h1>领域扩展与基础设施</h1>
+    <p class="subtitle">所有模块的详细说明和子结构</p>
+  </header>
+
+  <section class="section-title">领域扩展模块</section>
+
+  <div class="card-grid grid-2">
+    <div class="card-detail" style="border-top-color:var(--c-disclosure);">
+      <div class="cd-name" style="color:var(--c-disclosure)">disclosure/</div>
+      <div class="cd-path">技术交底书分析管线</div>
+      <div class="cd-desc">11 节点 Pregel 图 + 条件回退 + review_gate 主动中断。含提取/合并/一致性校验/检索/新颖性检查/报告生成/权利要求撰写。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">Pregel 图</span>
+        <span class="cd-tag">Agent 包装</span>
+        <span class="cd-tag">条件路由</span>
+        <span class="cd-tag">人工复核</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/</div>
+      <div class="cd-path">领域配置 + 推理引擎</div>
+      <div class="cd-desc">Router Agent 路由、Chat/Assistant/Patent/Legal 领域配置、ApprovalGate 审批门、Classifier 意图分类、Graph 知识图挂载、Style 文档风格、Project 项目管理、Audit 审计跟踪。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">4 领域 Agent</span>
+        <span class="cd-tag">Handoff 委派</span>
+        <span class="cd-tag">审批门</span>
+        <span class="cd-tag">风格指南</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/reasoning/</div>
+      <div class="cd-path">推理引擎子模块</div>
+      <div class="cd-desc">事实黑板、三段论推理、多跳遍历、五步工作法、规划编译器。子模块：collector/（上下文收集与路由）、sqlite/（推理持久化）、wiring/（向量/skill/rule 三路适配装配）。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">事实黑板</span>
+        <span class="cd-tag">三段论</span>
+        <span class="cd-tag">多跳遍历</span>
+        <span class="cd-tag">装配层</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/rules/</div>
+      <div class="cd-path">YAML 规则引擎</div>
+      <div class="cd-desc">规则文件解析 + OA 审查意见分析 + 反套话引擎（检测模板化表述）。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">规则引擎</span>
+        <span class="cd-tag">OA 分析</span>
+        <span class="cd-tag">反套话</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/doctmpl/</div>
+      <div class="cd-path">文档模板库</div>
+      <div class="cd-desc">Markdown + YAML frontmatter 模板，支持 {{variable}} 变量插值。用于快速生成标准专利文档。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">模板引擎</span>
+        <span class="cd-tag">YAML frontmatter</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-memory);">
+      <div class="cd-name" style="color:var(--c-memory)">memory/</div>
+      <div class="cd-path">三层长期记忆系统</div>
+      <div class="cd-desc">STM（短期工作记忆）+ EWM（摘要工作记忆）+ LTM（SQLite 持久化）。含 Compiler 策略学习（ε-greedy 选策略）、Preference 偏好管理、Preheat 预热。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">SQLite</span>
+        <span class="cd-tag">FTS5</span>
+        <span class="cd-tag">策略学习</span>
+        <span class="cd-tag">ε-greedy</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:#8b5cf6;">
+      <div class="cd-name" style="color:#8b5cf6">guardrails/</div>
+      <div class="cd-path">三级护栏系统</div>
+      <div class="cd-desc">Light/Standard/Strict 三级护栏 + CitationGate 双级引文核验（S1 静态 82 条 + S2 知识源复合） + Guardian AI 熔断器。含 Disclaimer 声明、DeferredPersist 延迟持久化、GuidelineSource 指南源。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">护栏</span>
+        <span class="cd-tag">引文核验</span>
+        <span class="cd-tag">熔断器</span>
+        <span class="cd-tag">审批门</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:#8b5cf6;">
+      <div class="cd-name" style="color:#8b5cf6">guardrails/guardian/</div>
+      <div class="cd-path">AI 安全审查子 Agent</div>
+      <div class="cd-desc">在护栏之上用独立 AI Agent 熔断器进行深度内容安全审查，作为最后安全防线。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">子 Agent</span>
+        <span class="cd-tag">安全审查</span>
+        <span class="cd-tag">熔断</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">psychological/</div>
+      <div class="cd-path">心理引擎</div>
+      <div class="cd-desc">VAD 情感维度、OCC 情绪模型（22 种情绪推演）、EMA 认知评价、SDT 自决理论（心理需求追踪）、CBT 认知扭曲检测。含 Signal 文本信号提取、Distortion 扭曲检测（可配置 LLM 验证）、Pipeline 全流程编排。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">VAD</span>
+        <span class="cd-tag">OCC</span>
+        <span class="cd-tag">EMA</span>
+        <span class="cd-tag">SDT</span>
+        <span class="cd-tag">CBT</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">knowledge/</div>
+      <div class="cd-path">知识管理</div>
+      <div class="cd-desc">fileindex/（MD 文件扫描与缓存） + graph/（图谱存储/查询/增量） + loader/（Wiki/Patent/Legal 加载器 + 法条索引构建） + sqlite/（FTS5 全文 + 向量余弦）。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">知识图谱</span>
+        <span class="cd-tag">FTS5</span>
+        <span class="cd-tag">向量</span>
+        <span class="cd-tag">文档加载器</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">retrieval/</div>
+      <div class="cd-path">混合检索引擎</div>
+      <div class="cd-desc">Keyword（关键词）+ BM25（全文）+ Vector（向量嵌入）+ RRF（融合排序）。含 Citation 引用标注、Embedding 嵌入生成、Model Rerank（cross-encoder 重排）、Aggregation 聚合策略。domain/ 子模块：检索域基础抽象。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">BM25</span>
+        <span class="cd-tag">向量检索</span>
+        <span class="cd-tag">RRF</span>
+        <span class="cd-tag">重排序</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">workflows/</div>
+      <div class="cd-path">领域工作流</div>
+      <div class="cd-desc">Legal 法律分析工作流、Patent 专利分析工作流、AutoResearch 自动研究工作流。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">工作流</span>
+        <span class="cd-tag">领域模板</span>
+      </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">plugins/</div>
+      <div class="cd-path">专利工作流插件</div>
+      <div class="cd-desc">novelty-analysis（新颖性分析）、infringement-check（侵权检查）、oa-response（审查意见答复）。各插件含 plugin.json + SKILL.md。</div>
+      <div class="cd-tags">
+        <span class="cd-tag">插件</span>
+        <span class="cd-tag">plugin.json</span>
+        <span class="cd-tag">SKILL.md</span>
+      </div>
+    </div>
+  </div>
+
+  <section class="section-title">Provider 与工具层</section>
+
+  <div class="card-grid grid-3">
+    <div class="card-detail" style="border-top-color:var(--c-provider);">
+      <div class="cd-name" style="color:var(--c-provider)">provider/chatcompat/</div>
+      <div class="cd-path">OpenAI Chat Completions 兼容层</div>
+      <div class="cd-desc">适配 DeepSeek / GLM / Kimi / Qwen 等模型，统一 API 接口。</div>
+      <div class="cd-tags"><span class="cd-tag">API 兼容</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-provider);">
+      <div class="cd-name" style="color:var(--c-provider)">provider/smartrouter/</div>
+      <div class="cd-path">智能模型路由</div>
+      <div class="cd-desc">按 Task + Priority 调度模型，选择性调用大/小模型以优化成本。</div>
+      <div class="cd-tags"><span class="cd-tag">模型路由</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-provider);">
+      <div class="cd-name" style="color:var(--c-provider)">provider/adapter/</div>
+      <div class="cd-path">Agent 适配器</div>
+      <div class="cd-desc">适配 Claude Code / Codex CLI 等外部 Agent 协议，实现互操作。</div>
+      <div class="cd-tags"><span class="cd-tag">Agent 适配</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-tool);">
+      <div class="cd-name" style="color:var(--c-tool)">tools/（独立子模块）</div>
+      <div class="cd-path">tools/go.mod · ~60 源文件</div>
+      <div class="cd-desc">内置工具集：browser（浏览器自动化 + stealth + session）、computer_use（桌面控制三平台 + SOM）、bash（沙箱/非沙箱）、web_search/fetch、MCP bridge。browser_providers/ 抽象（Browserbase/Firecrawl/BrowserUse）。</div>
+      <div class="cd-tags"><span class="cd-tag">浏览器</span><span class="cd-tag">桌面控制</span><span class="cd-tag">Web</span></div>
+    </div>
+  </div>
+
+  <section class="section-title">外部协议模块</section>
+
+  <div class="card-grid grid-3">
+    <div class="card-detail" style="border-top-color:var(--c-external);">
+      <div class="cd-name" style="color:var(--c-external)">a2a/</div>
+      <div class="cd-path">Agent-to-Agent 协议（Google）</div>
+      <div class="cd-desc">JSON-RPC + WebSocket 传输。含 AgentCard 发现、TaskState 管理、Push 推送、RateLimit 限流、Handoff 跨 Agent 交接、Middleware 中间件链、多模态消息支持。</div>
+      <div class="cd-tags"><span class="cd-tag">JSON-RPC</span><span class="cd-tag">WS</span><span class="cd-tag">多模态</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-external);">
+      <div class="cd-name" style="color:var(--c-external)">a2ui/</div>
+      <div class="cd-path">Agent-to-UI 声明式协议 v0.9.1</div>
+      <div class="cd-desc">声明式界面渲染协议。含 Component/Surface/Datamodel/Stream/Validate/Binding（对接 A2A/AGUI/agentcore）。Builder 构建器 + Catalog 组件目录 + Dynamic 动态更新。</div>
+      <div class="cd-tags"><span class="cd-tag">声明式 UI</span><span class="cd-tag">流式渲染</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-external);">
+      <div class="cd-name" style="color:var(--c-external)">agui/</div>
+      <div class="cd-path">Agent GUI Events</div>
+      <div class="cd-desc">SSE 事件总线协议。含 Handler（事件处理 + SSE 流式推送）、Converter（事件转换器 + 重连逻辑）、Client 客户端、Types（77 种事件类型定义）。E2E 测试覆盖。</div>
+      <div class="cd-tags"><span class="cd-tag">SSE</span><span class="cd-tag">事件总线</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-external);">
+      <div class="cd-name" style="color:var(--c-external)">mcp/</div>
+      <div class="cd-path">Model Context Protocol 客户端</div>
+      <div class="cd-desc">stdio + HTTP/SSE 传输。含 Client（JSON-RPC + 读取循环 + 重连）、Config 发现与信任（.mcp.json 命令执行保护）、Install 安装、Capabilities 能力协商、Tool 刷新、Events 事件。</div>
+      <div class="cd-tags"><span class="cd-tag">MCP</span><span class="cd-tag">JSON-RPC</span><span class="cd-tag">信任管理</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-external);">
+      <div class="cd-name" style="color:var(--c-external)">acp/</div>
+      <div class="cd-path">Agent 通信协议</div>
+      <div class="cd-desc">JSON-RPC 基础协议 + TokenAuthProvider 常量时间认证。含 Server（app/server 两种模式）、Session 管理、Protocol Types、Permission Recording。</div>
+      <div class="cd-tags"><span class="cd-tag">认证</span><span class="cd-tag">JSON-RPC</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-external);">
+      <div class="cd-name" style="color:var(--c-external)">server/</div>
+      <div class="cd-path">HTTP/SSE API 服务器</div>
+      <div class="cd-desc">Agent 池（引用计数 use-after-free 防护） + Chat 接口 + Disclosure 交底书分析管理 + Review 人工复核接口。E2E 测试覆盖。</div>
+      <div class="cd-tags"><span class="cd-tag">HTTP</span><span class="cd-tag">Agent 池</span></div>
+    </div>
+  </div>
+
+  <section class="section-title">基础设施模块</section>
+
+  <div class="card-grid grid-3">
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">graph/</div>
+      <div class="cd-path">DAG + Pregel 图计算引擎</div>
+      <div class="cd-desc">DAG 有向无环图 + Pregel 迭代计算 + State 状态管理 + Checkpoint 快照检查点。支持条件边（ConditionalEdge）和并行节点。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">session/</div>
+      <div class="cd-path">会话管理</div>
+      <div class="cd-desc">JSONL Tree 会话持久化，完整的会话生命周期管理。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">workflow/</div>
+      <div class="cd-path">工作流原语</div>
+      <div class="cd-desc">Pipeline（流水线）、Parallel（并行）、Router（条件路由）三原语。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">skill/</div>
+      <div class="cd-path">技能解析器</div>
+      <div class="cd-desc">SKILL.md 解析（含 MadyExtension 扩展字段）。支持热重载。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">prompt/</div>
+      <div class="cd-path">提示词模板加载器</div>
+      <div class="cd-desc">加载 + 渲染提示词模板，支持变量插值。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">store/</div>
+      <div class="cd-path">快照存储</div>
+      <div class="cd-desc">SnapshotStore 快照存储，支持 Agent 状态持久化与恢复。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">filequeue/</div>
+      <div class="cd-path">文件队列</div>
+      <div class="cd-desc">基于互斥锁的持久化队列，支持异步任务处理。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">fuzzy/</div>
+      <div class="cd-path">模糊匹配</div>
+      <div class="cd-desc">Fuzzy Match 引擎，支持近似字符串匹配。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">pkg/</div>
+      <div class="cd-path">通用工具包</div>
+      <div class="cd-desc">agentconfig/（统一 Provider/Model 配置层）、csync/（并发同步原语）、lawcite/（法条引用解析与归一化）、util/（路径解析等通用工具）。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">protocol/</div>
+      <div class="cd-path">JSON-RPC 协议原语</div>
+      <div class="cd-desc">JSON-RPC 基础协议实现，被 A2A/MCP/ACP 共用。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">prompt-templates/</div>
+      <div class="cd-path">16 个 curated 提示词模板</div>
+      <div class="cd-desc">专利分析、法律推理、文本改写、需求分析等场景模板。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">styles/</div>
+      <div class="cd-path">文档风格指南 YAML</div>
+      <div class="cd-desc">4 套默认风格（patent-standard / legal-standard / chat-friendly / assistant-neutral）。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">doc-templates/</div>
+      <div class="cd-path">文档模板库</div>
+      <div class="cd-desc">claims（权利要求书）/ specification（说明书）/ oa-response（审查意见答复）/ disclosure（交底书）。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">integration/</div>
+      <div class="cd-path">端到端集成测试</div>
+      <div class="cd-desc">doomloop（死循环检测）/ chain（链式调用）/ drafting（撰写）/ guardrails（护栏）/ handoff（交接）E2E 测试。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">benchmark/</div>
+      <div class="cd-path">性能基准测试</div>
+      <div class="cd-desc">Agent 执行、推理策略、检索等关键路径的性能基准。</div>
+    </div>
+  </div>
+
+  <section class="section-title">入口与示例</section>
+
+  <div class="card-grid grid-2" style="max-width:800px;margin:0 auto;">
+    <div class="card-detail" style="border-top-color:var(--c-app);">
+      <div class="cd-name" style="color:var(--c-app)">cmd/mady/</div>
+      <div class="cd-path">统一 CLI 入口</div>
+      <div class="cd-desc">mady tui（终端界面）| mady serve（HTTP 服务）| mady acp（ACP 服务）| mady eval（评估）| mady mcp-install（MCP 安装）| mady trust-mcp（MCP 信任管理）。</div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-app);">
+      <div class="cd-name" style="color:var(--c-app)">example/</div>
+      <div class="cd-path">7 个示例应用</div>
+      <div class="cd-desc">a2a-client / a2a-server / a2ui-demo / acp-server / provider-compat / tui-demo。</div>
+    </div>
+  </div>
+
+  <section class="legend">
+    <h3>文件概要</h3>
+    <div class="legend-grid">
+      <div class="legend-item">Go 源文件: 871 (含 293 测试)</div>
+      <div class="legend-item">接口定义: 168</div>
+      <div class="legend-item">结构体: 1,396</div>
+      <div class="legend-item">函数/方法: 7,962</div>
+      <div class="legend-item">常量: 963</div>
+      <div class="legend-item">变量: 342</div>
+      <div class="legend-item">外部依赖: gorilla/websocket / sqlite（modernc）/ OTel / yaml.v3</div>
+      <div class="legend-item">多模块: go.work（根 + tools 子模块）</div>
+    </div>
+  </section>
+
+</div>
+</div>
+
+<!-- ============================================================
+     JavaScript: Tab Switching
+     ============================================================ -->
 <script>
-const canvas = document.getElementById('arch');
-const ctx = canvas.getContext('2d');
+(function(){
+  const tabs = document.querySelectorAll('.tab-btn');
+  const pages = {
+    'overview': document.getElementById('page-overview'),
+    'deps':     document.getElementById('page-deps'),
+    'core':     document.getElementById('page-core'),
+    'flows':    document.getElementById('page-flows'),
+    'modules':  document.getElementById('page-modules'),
+  };
 
-const W = Math.min(window.innerWidth, 1600);
-const H = Math.min(window.innerHeight, 1200);
-canvas.width = W;
-canvas.height = H;
-
-// Scale factor for retina
-const dpr = window.devicePixelRatio || 1;
-canvas.width = W * dpr;
-canvas.height = H * dpr;
-canvas.style.width = W + 'px';
-canvas.style.height = H + 'px';
-ctx.scale(dpr, dpr);
-
-// Colors - GitHub dark theme inspired
-const C = {
-  bg:       '#0d1117',
-  surface:  '#161b22',
-  border:   '#30363d',
-  borderH:  '#58a6ff',
-  text:     '#c9d1d9',
-  textDim:  '#8b949e',
-  textBold: '#f0f6fc',
-  blue:     '#58a6ff',
-  blueBg:   'rgba(56,139,253,0.12)',
-  green:    '#3fb950',
-  greenBg:  'rgba(63,185,80,0.12)',
-  orange:   '#d2991d',
-  orangeBg: 'rgba(210,153,29,0.12)',
-  purple:   '#a371f7',
-  purpleBg: 'rgba(163,113,247,0.12)',
-  red:      '#f85149',
-  redBg:    'rgba(248,81,73,0.12)',
-  cyan:     '#39d2c0',
-  cyanBg:   'rgba(57,210,192,0.12)',
-  pink:     '#f778ba',
-  pinkBg:   'rgba(247,120,186,0.12)',
-};
-
-// ---- Helper functions ----
-
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
-
-function drawBox(x, y, w, h, color, title, subtitle, fontSize) {
-  ctx.fillStyle = C.surface;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
-  roundRect(x, y, w, h, 6);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = C.textBold;
-  ctx.font = 'bold ' + (fontSize || 13) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(title, x + w/2, y + 22);
-
-  if (subtitle) {
-    ctx.fillStyle = C.textDim;
-    ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText(subtitle, x + w/2, y + 36);
+  function switchTab(tabId) {
+    // Update buttons
+    tabs.forEach(btn => {
+      const isActive = btn.dataset.tab === tabId;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive);
+    });
+    // Update pages
+    Object.entries(pages).forEach(([id, page]) => {
+      if (page) page.classList.toggle('active', id === tabId);
+    });
   }
-}
 
-function drawSmallBox(x, y, w, h, color, text) {
-  ctx.fillStyle = C.bg;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
-  roundRect(x, y, w, h, 4);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = C.text;
-  ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, x + w/2, y + h/2);
-  ctx.textBaseline = 'alphabetic';
-}
-
-function drawArrow(x1, y1, x2, y2, color, dashed) {
-  ctx.strokeStyle = color || C.border;
-  ctx.lineWidth = 1.2;
-  ctx.setLineDash(dashed ? [4, 3] : []);
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const len = 6;
-  ctx.fillStyle = color || C.border;
-  ctx.beginPath();
-  ctx.moveTo(x2, y2);
-  ctx.lineTo(x2 - len * Math.cos(angle - 0.5), y2 - len * Math.sin(angle - 0.5));
-  ctx.lineTo(x2 - len * Math.cos(angle + 0.5), y2 - len * Math.sin(angle + 0.5));
-  ctx.closePath();
-  ctx.fill();
-}
-
-function colorByName(name) {
-  const m = { blue: C.blue, green: C.green, orange: C.orange, purple: C.purple,
-              red: C.red, cyan: C.cyan, pink: C.pink };
-  return m[name] || C.textDim;
-}
-
-// ---- Clear ----
-ctx.fillStyle = C.bg;
-ctx.fillRect(0, 0, W, H);
-
-// ---- TITLE ----
-ctx.fillStyle = C.textBold;
-ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'center';
-ctx.fillText('Mady（中观智能体）架构总览', W/2, 38);
-
-ctx.fillStyle = C.textDim;
-ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.fillText('github.com/xujian519/mady  ·  Go 1.25  ·  419 files  ·  ~108K lines', W/2, 60);
-
-// ---- Data-driven layer definitions ----
-
-const GAP = 14;         // horizontal gap between boxes
-const VGAP = 14;        // vertical gap between small boxes inside a row
-const ROW_GAP = 40;     // vertical gap between layers
-const coreW = 440;
-const coreX = (W - coreW) / 2;
-
-// Helper: center a row of boxes and return the start X
-function centerRow(count, boxW, gap) {
-  const total = count * boxW + (count - 1) * gap;
-  return (W - total) / 2;
-}
-
-// ---- 1. EXTERNAL LAYER ----
-const extY = 80, extH = 105, extW = 125;
-const extItems = [
-  { t: 'A2A', s: 'Agent-to-Agent', c: 'cyan' },
-  { t: 'A2UI', s: 'Agent-to-UI', c: 'pink' },
-  { t: 'Server', s: 'HTTP/SSE API', c: 'green' },
-  { t: 'AGUI', s: 'Agent GUI Events', c: 'purple' },
-  { t: 'MCP', s: 'Model Context Protocol', c: 'orange' },
-  { t: 'ACP', s: 'Agent Comm Protocol', c: 'purple' },
-];
-const extStartX = centerRow(extItems.length, extW, GAP);
-
-ctx.fillStyle = C.textDim;
-ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'left';
-ctx.fillText('外部接口层', extStartX, extY - 8);
-
-extItems.forEach(function(item, i) {
-  const x = extStartX + i * (extW + GAP);
-  drawBox(x, extY, extW, extH, colorByName(item.c), item.t, item.s, 13);
-});
-
-// ---- 2. CORE ENGINE LAYER ----
-const coreY = 220, coreH = 220;
-
-// Draw core box outline
-ctx.fillStyle = C.blue;
-ctx.strokeStyle = C.blue;
-ctx.lineWidth = 2;
-ctx.setLineDash([]);
-roundRect(coreX - 6, coreY - 6, coreW + 12, coreH + 12, 10);
-ctx.stroke();
-
-ctx.fillStyle = C.textDim;
-ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'left';
-ctx.fillText('核心引擎层  agentcore', coreX, coreY - 12);
-
-drawBox(coreX, coreY, coreW, coreH, C.blue, 'agentcore',
-  'Agent · Config · Provider · Tool · EventBus · Lifecycle · State · Stream · Message', 13);
-
-// Core sub-component rows
-const subY = coreY + 55, subH = 26;
-const coreRows = [
-  [
-    { t: 'Agent', w: 52 }, { t: 'Config', w: 58 }, { t: 'Provider', w: 66 },
-    { t: 'Tool', w: 40 }, { t: 'EventBus', w: 66 }, { t: 'Lifecycle', w: 66 },
-    { t: 'State', w: 46 }, { t: 'Stream', w: 54 }, { t: 'Message', w: 64 },
-  ],
-  [
-    { t: 'ContextEngine', w: 110 }, { t: 'Executor', w: 64 }, { t: 'Extension', w: 72 },
-    { t: 'Handoff', w: 64 }, { t: 'Compaction', w: 84 }, { t: 'Orchestrate', w: 82 },
-    { t: 'ReasoningRouter', w: 110 }, { t: 'Blocks', w: 52 },
-  ],
-  [
-    { t: 'Store', w: 46 }, { t: 'Tracer', w: 54 }, { t: 'Checkpoint', w: 82 },
-    { t: 'Middleware', w: 78 }, { t: 'Skill/SkillExt', w: 92 }, { t: 'Schema', w: 54 },
-    { t: 'Retry', w: 44 }, { t: 'Steering', w: 62 }, { t: 'Budget', w: 54 }, { t: 'Token', w: 50 },
-  ],
-];
-
-// Row 1 & 2 colored blue, Row 3 (interfaces) in dim
-coreRows.forEach(function(row, ri) {
-  const totalW = row.reduce(function(s, sb) { return s + sb.w; }, 0) + (row.length - 1) * (VGAP - 2);
-  var rowX = coreX + (coreW - totalW) / 2;
-  var c = ri === 2 ? C.textDim : C.blue;
-  row.forEach(function(sb) {
-    drawSmallBox(rowX, subY + ri * (subH + 6), sb.w, subH, c, sb.t);
-    rowX += sb.w + VGAP - 2;
+  tabs.forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      switchTab(this.dataset.tab);
+    });
   });
-});
 
-// ---- SIDE PANELS ----
-
-// Provider layer (right of core)
-const provY = 235, provH = 75, provW = 145;
-const provItems = [
-  { t: 'chatcompat', s: 'OpenAI Compat (DeepSeek/GLM/Kimi/Qwen)', c: 'green' },
-  { t: 'smartrouter', s: '智能路由 (Task + Priority)', c: 'cyan' },
-];
-const provStartX = coreX + coreW + 28;
-
-ctx.fillStyle = C.textDim;
-ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'left';
-ctx.fillText('Provider 层', provStartX, provY - 8);
-
-provItems.forEach(function(p, i) {
-  drawBox(provStartX, provY + i * (provH + 8), provW, provH, colorByName(p.c), p.t, p.s, 11);
-});
-
-// Tools layer (right of core, below provider)
-const toolY = 330, toolH = 75, toolW = 112;
-const toolItems = [
-  { t: 'browser', c: 'orange' }, { t: 'bash', c: 'orange' },
-  { t: 'read/edit', c: 'orange' }, { t: 'write/delete', c: 'orange' },
-  { t: 'grep/find', c: 'orange' }, { t: 'web_search', c: 'orange' },
-  { t: 'web_fetch', c: 'orange' }, { t: 'execute_code', c: 'orange' },
-  { t: 'git', c: 'orange' }, { t: 'mcp_bridge', c: 'orange' },
-];
-const toolStartX = coreX + coreW + 28;
-
-ctx.fillStyle = C.textDim;
-ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'left';
-ctx.fillText('内置工具层  tools/', toolStartX, toolY - 8);
-
-const toolsPerRow = 5;
-toolItems.forEach(function(t, i) {
-  const tx = toolStartX + (i % toolsPerRow) * (toolW + 5);
-  const ty = toolY + Math.floor(i / toolsPerRow) * (toolH + 8);
-  drawBox(tx, ty, toolW, toolH, colorByName(t.c), t.t, '', 11);
-});
-
-// TUI (left of core)
-const tuiX = 40, tuiY = 240, tuiW = 112, tuiH = 310;
-
-ctx.fillStyle = C.textDim;
-ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'left';
-ctx.fillText('终端 UI', tuiX, tuiY - 8);
-
-drawBox(tuiX, tuiY, tuiW, tuiH, C.pink, 'tui/', '8-layer Elm Style', 12);
-
-const tuiLayers = [
-  { t: 'agentadapter (7)', s: 'Agent→Chat 桥接' },
-  { t: 'stdio (6)', s: '过程式 stdout/stdin' },
-  { t: 'chat (5)', s: '聊天应用层' },
-  { t: 'component (4)', s: 'UI 组件库' },
-  { t: 'tui/engine (3)', s: '事件循环+差异渲染' },
-  { t: 'theme (2)', s: '语义调色板' },
-  { t: 'terminal (1)', s: 'Terminal I/O (Kitty)' },
-  { t: 'core (0)', s: 'Component 接口' },
-];
-tuiLayers.forEach(function(l, i) {
-  drawSmallBox(tuiX + 8, tuiY + 52 + i * 20, tuiW - 16, 17, C.pink, l.t);
-});
-
-// ---- 3. DOMAIN EXTENSION LAYER (NEW) ----
-const domY = 485, domH = 90, domW = 132;
-const domItems = [
-  { t: 'psychological/', s: '心理引擎 (VAD/OCC/EMA/SDT/CBT)', c: 'cyan' },
-  { t: 'domains/', s: '领域配置 + 推理引擎', c: 'blue' },
-  { t: 'guardrails/', s: '三级护栏 (Light/Std/Strict)', c: 'red' },
-  { t: 'knowledge/', s: '知识图谱 + 文档加载器', c: 'green' },
-  { t: 'retrieval/', s: '关键词/BM25/向量嵌入', c: 'cyan' },
-  { t: 'workflows/', s: 'Legal/Patent 领域工作流', c: 'purple' },
-];
-const domStartX = centerRow(domItems.length, domW, GAP);
-
-ctx.fillStyle = C.textDim;
-ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'left';
-ctx.fillText('领域扩展层', domStartX, domY - 8);
-
-domItems.forEach(function(item, i) {
-  const x = domStartX + i * (domW + GAP);
-  drawBox(x, domY, domW, domH, colorByName(item.c), item.t, item.s, 11);
-});
-
-// ---- 4. INFRASTRUCTURE LAYER ----
-const infraY = 615, infraH = 95, infraW = 118;
-const infraItems = [
-  { t: 'graph/', s: 'DAG + Pregel', c: 'purple' },
-  { t: 'session/', s: 'JSONL Tree', c: 'cyan' },
-  { t: 'workflow/', s: 'Pipeline/Router', c: 'purple' },
-  { t: 'skill/', s: 'SKILL.md 热重载', c: 'pink' },
-  { t: 'prompt/', s: 'Templates', c: 'cyan' },
-  { t: 'store/', s: 'SnapshotStore', c: 'cyan' },
-  { t: 'mcp/', s: 'stdio + HTTP/SSE', c: 'orange' },
-  { t: 'knowledge/graph', s: '图谱存储/查询/增量', c: 'green' },
-  { t: 'filequeue/', s: 'Mutex Queue', c: 'textDim' },
-  { t: 'fuzzy/', s: 'Fuzzy Match', c: 'textDim' },
-];
-const infraStartX = centerRow(infraItems.length, infraW, 8);
-
-ctx.fillStyle = C.textDim;
-ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'left';
-ctx.fillText('基础设施层', infraStartX, infraY - 8);
-
-infraItems.forEach(function(item, i) {
-  const x = infraStartX + i * (infraW + 8);
-  drawBox(x, infraY, infraW, infraH, colorByName(item.c), item.t, item.s, 11);
-});
-
-// ---- 5. APPLICATION ENTRY LAYER (NEW) ----
-const appY = 748, appH = 75, appW = 150;
-const appItems = [
-  { t: 'cmd/mady', s: 'mady tui | mady acp', c: 'blue' },
-  { t: 'server/', s: 'HTTP/SSE API Server', c: 'green' },
-  { t: 'example/', s: '9 个示例应用', c: 'purple' },
-];
-const appStartX = centerRow(appItems.length, appW, GAP);
-
-ctx.fillStyle = C.textDim;
-ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'left';
-ctx.fillText('应用入口', appStartX, appY - 8);
-
-appItems.forEach(function(item, i) {
-  const x = appStartX + i * (appW + GAP);
-  drawBox(x, appY, appW, appH, colorByName(item.c), item.t, item.s, 12);
-});
-
-// ---- ARROWS ----
-
-// Provider → Core (solid green)
-drawArrow(provStartX + provW/2, provY + provH/2, coreX + coreW, coreY + 70, C.green, false);
-// Provider (smartrouter) → Core (dashed conditional)
-drawArrow(provStartX + provW/2, provY + provH + 8 + provH/2, coreX + coreW, coreY + 100, C.cyan, true);
-
-// Tools → Core (solid orange)
-drawArrow(toolStartX + toolW/2, toolY + toolH/2, coreX + coreW, coreY + coreH - 50, C.orange, false);
-
-// Core → Domain Extension (dashed)
-drawArrow(coreX + coreW/2, coreY + coreH + 6, coreX + coreW/2, domY, C.border, true);
-
-// Domain Extension → Infrastructure (dashed)
-infraItems.forEach(function(item, i) {
-  const x = infraStartX + i * (infraW + 8) + infraW/2;
-  drawArrow(coreX + coreW/2 + (i - 4.5) * 45, domY + domH + 6, x, infraY, C.border, true);
-});
-
-// Infrastructure → App Entry (dashed)
-appItems.forEach(function(item, i) {
-  const x = appStartX + i * (appW + GAP) + appW/2;
-  drawArrow(coreX + coreW/2 + (i - 1) * 90, infraY + infraH + 6, x, appY, C.textDim, true);
-});
-
-// TUI ↔ Core (dashed pink)
-drawArrow(tuiX + tuiW, tuiY + tuiH/2, coreX, coreY + 80, C.pink, true);
-
-// Domain Extension → Core (dashed, feedback)
-drawArrow(domStartX + domW/2, domY + domH, domStartX + domW/2, domY + domH + 8, C.border, false);
-
-// ---- LEGEND ----
-const legX = W - 265, legY = 80;
-ctx.fillStyle = C.surface;
-ctx.strokeStyle = C.border;
-ctx.lineWidth = 1;
-roundRect(legX - 10, legY - 5, 250, 155, 6);
-ctx.fill();
-ctx.stroke();
-
-ctx.fillStyle = C.textBold;
-ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'left';
-ctx.fillText('图例', legX + 5, legY + 15);
-
-const legendItems = [
-  { c: C.blue, t: '实线: 直接依赖/调用' },
-  { c: C.orange, t: '虚线: 数据流/事件流' },
-  { c: C.green, t: 'Provider 实现 agentcore.Provider' },
-  { c: C.purple, t: 'Extension 扩展点 (SOP 接口探测)' },
-  { c: C.cyan, t: '存储/持久化组件' },
-  { c: C.pink, t: 'UI / 用户交互' },
-  { c: C.red, t: '领域扩展层: 领域特定模块' },
-];
-
-legendItems.forEach(function(item, i) {
-  const y = legY + 40 + i * 17;
-  ctx.fillStyle = item.c;
-  ctx.fillRect(legX + 5, y - 3, 12, 3);
-  ctx.fillStyle = C.textDim;
-  ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-  ctx.fillText(item.t, legX + 24, y + 2);
-});
-
-// ---- BOTTOM NOTE ----
-ctx.fillStyle = C.textDim;
-ctx.font = 'italic 11px -apple-system, BlinkMacSystemFont, sans-serif';
-ctx.textAlign = 'center';
-ctx.fillText('"离二边，行中道" — 不落有无，不执生灭，恰到好处的抽象，克制的工程实践', W/2, H - 15);
-
+  // Keyboard navigation
+  const tabIds = Object.keys(pages);
+  tabs.forEach((btn, i) => {
+    btn.addEventListener('keydown', function(e) {
+      let nextIdx = -1;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        nextIdx = (i + 1) % tabIds.length;
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        nextIdx = (i - 1 + tabIds.length) % tabIds.length;
+      }
+      if (nextIdx >= 0) {
+        e.preventDefault();
+        tabs[nextIdx].focus();
+        tabs[nextIdx].click();
+      }
+    });
+  });
+})();
 </script>
+
 </body>
 </html>
