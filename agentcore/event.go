@@ -35,6 +35,7 @@ const (
 	EventCompactionEnd   EventType = "compaction_end"
 	EventAutoRetry       EventType = "auto_retry"
 	EventAgentInterrupt  EventType = "agent_interrupt"
+	EventA2UI            EventType = "a2ui"
 )
 
 // Event is the common interface for all agent lifecycle events.
@@ -281,6 +282,21 @@ type AutoRetryEvent struct {
 // NewAutoRetryEvent 构造一个 AutoRetryEvent。
 func NewAutoRetryEvent(attempt, maxRetries int64, delay time.Duration, err error) *AutoRetryEvent {
 	return &AutoRetryEvent{baseEvent: newBase(EventAutoRetry), Attempt: attempt, MaxRetries: maxRetries, Delay: delay, Err: err}
+}
+
+// A2UIEvent 是 Agent 发射 A2UI 声明式 UI 信封时触发的事件。该事件携带
+// 完整的 A2UI 信封数据（以 map[string]any 形式），通过 AG-UI 的 CUSTOM
+// 事件通道（name: "a2ui"）传输给前端渲染器。
+type A2UIEvent struct {
+	baseEvent
+	// Envelope 是 A2UI 协议信封的 JSON 兼容表示，包含 createSurface、
+	// updateComponents、updateDataModel 或 deleteSurface 之一。
+	Envelope map[string]any `json:"envelope"`
+}
+
+// NewA2UIEvent 构造一个 A2UIEvent。
+func NewA2UIEvent(envelope map[string]any) *A2UIEvent {
+	return &A2UIEvent{baseEvent: newBase(EventA2UI), Envelope: envelope}
 }
 
 // --- JSON serialization for events with error fields ---

@@ -230,6 +230,30 @@ func testConfig(provider agentcore.Provider, streaming bool) agentcore.Config {
 	}
 }
 
+// testConfigWithOptions returns a test config with additional options applied.
+func testConfigWithOptions(provider agentcore.Provider, streaming bool, opts ...agentcore.ConfigOption) agentcore.Config {
+	cfg := testConfig(provider, streaming)
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
+}
+
+// a2uiEmitterHook emits an A2UIEvent after each turn for end-to-end testing.
+type a2uiEmitterHook struct {
+	agentcore.BaseLifecycleHook
+}
+
+func (h *a2uiEmitterHook) AfterTurn(ctx context.Context, arc *agentcore.AgentRunContext, info agentcore.TurnInfo) {
+	arc.Agent.EmitEvent(agentcore.NewA2UIEvent(map[string]any{
+		"version": "v0.9.1",
+		"createSurface": map[string]any{
+			"surfaceId": "e2e-test",
+			"catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
+		},
+	}))
+}
+
 // ──────────────────────────────────────────────
 // 测试用例
 // ──────────────────────────────────────────────
@@ -535,4 +559,49 @@ func TestE2E_StepNameIncrement(t *testing.T) {
 	}
 	// 验证 step name 从 turn_1 开始（因为工具调用多一轮）
 	fmt.Printf("step names: %v\n", stepNames)
+}
+
+func TestE2E_A2UIStream(t *testing.T) {
+	provider := &streamingTextProvider{}
+	cfg := testConfigWithOptions(provider, true, agentcore.WithLifecycle(&a2uiEmitterHook{}))
+	h := agui.NewHandler(cfg)
+
+	body := `{"messages":[{"role":"user","content":"hello"}]}`
+	raw := postAGUI(t, h, body)
+	events := parseSSE(t, raw)
+
+	// Verify the event sequence includes the A2UI CUSTOM event.
+	foundA2UI := false
+	for _, ev := range events {
+		if ev.Event == "CUSTOM" {
+			var ce agui.CustomEvent
+			if err := json.Unmarshal([]byte(ev.Data), &ce); err != nil {
+				t.Fatalf("CUSTOM event parse error: %v", err)
+			}
+			if ce.Name == "a2ui" {
+				foundA2UI = true
+				val, ok := ce.Value.(map[string]any)
+				if !ok {
+					t.Fatalf("a2ui event value type = %T, want map[string]any", ce.Value)
+				}
+				if val["version"] != "v0.9.1" {
+					t.Errorf("version = %v, want v0.9.1", val["version"])
+				}
+				cs, ok := val["createSurface"].(map[string]any)
+				if !ok {
+					t.Fatal("createSurface not found in a2ui event value")
+				}
+				if cs["surfaceId"] != "e2e-test" {
+					t.Errorf("surfaceId = %v, want e2e-test", cs["surfaceId"])
+				}
+				break
+			}
+		}
+	}
+	if !foundA2UI {
+		for i, ev := range events {
+			t.Logf("  [%d] event=%s data=%s", i, ev.Event, ev.Data)
+		}
+		t.Fatal("A2UI CUSTOM event not found in SSE stream")
+	}
 }

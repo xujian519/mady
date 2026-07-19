@@ -782,3 +782,55 @@ func TestCapabilitiesStateAndHITL(t *testing.T) {
 		t.Error("expected HITL interrupts")
 	}
 }
+
+func TestConvertA2UIEvent(t *testing.T) {
+	c := NewConverter("t1", "r1")
+	ev := agentcore.NewA2UIEvent(map[string]any{
+		"version": "v0.9.1",
+		"createSurface": map[string]any{
+			"surfaceId": "demo",
+			"catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
+		},
+	})
+	events := c.Convert(ev)
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ce, ok := events[0].(CustomEvent)
+	if !ok {
+		t.Fatal("expected CustomEvent")
+	}
+	if ce.Name != "a2ui" {
+		t.Errorf("Name = %q, want a2ui", ce.Name)
+	}
+	val, ok := ce.Value.(map[string]any)
+	if !ok {
+		t.Fatalf("Value type = %T, want map[string]any", ce.Value)
+	}
+	if val["version"] != "v0.9.1" {
+		t.Errorf("version = %v, want v0.9.1", val["version"])
+	}
+	cs, ok := val["createSurface"].(map[string]any)
+	if !ok {
+		t.Fatalf("createSurface not found in value")
+	}
+	if cs["surfaceId"] != "demo" {
+		t.Errorf("surfaceId = %v, want demo", cs["surfaceId"])
+	}
+}
+
+func TestConvertA2UIEventPreservesTimestamp(t *testing.T) {
+	c := NewConverter("t1", "r1")
+	ev := agentcore.NewA2UIEvent(map[string]any{
+		"deleteSurface": map[string]any{"surfaceId": "s"},
+	})
+	events := c.Convert(ev)
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	ce := events[0].(CustomEvent)
+	// Verify timestamp is set (not zero)
+	if ce.Timestamp == 0 {
+		t.Fatal("timestamp should not be zero")
+	}
+}

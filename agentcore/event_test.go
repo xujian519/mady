@@ -166,3 +166,73 @@ func TestEventBus_Subscribe(t *testing.T) {
 		t.Fatal("timed out waiting for event via Subscribe")
 	}
 }
+
+func TestA2UIEventCreation(t *testing.T) {
+	env := map[string]any{
+		"version": "v0.9.1",
+		"createSurface": map[string]any{
+			"surfaceId": "test",
+			"catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
+		},
+	}
+	ev := NewA2UIEvent(env)
+	if ev == nil {
+		t.Fatal("NewA2UIEvent returned nil")
+	}
+	if ev.EventKind() != EventA2UI {
+		t.Fatalf("EventKind = %v, want %v", ev.EventKind(), EventA2UI)
+	}
+	if ev.EventTime().IsZero() {
+		t.Fatal("EventTime should not be zero")
+	}
+	if ev.Envelope == nil {
+		t.Fatal("Envelope should not be nil")
+	}
+	if ev.Envelope["version"] != "v0.9.1" {
+		t.Fatalf("version = %v, want v0.9.1", ev.Envelope["version"])
+	}
+}
+
+func TestA2UIEventEmitAndReceive(t *testing.T) {
+	eb := NewEventBus()
+	defer eb.Close()
+
+	env := map[string]any{
+		"deleteSurface": map[string]any{"surfaceId": "s"},
+	}
+	ev := NewA2UIEvent(env)
+	if ev == nil {
+		t.Fatal("NewA2UIEvent returned nil")
+	}
+
+	// Register handler
+	var got Event
+	done := make(chan struct{})
+	eb.On(EventA2UI, func(e Event) {
+		got = e
+		close(done)
+	})
+
+	// Emit
+	eb.EmitMustDeliver(t.Context(), ev)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for A2UIEvent")
+	}
+
+	if got == nil {
+		t.Fatal("handler was not called")
+	}
+	if got.EventKind() != EventA2UI {
+		t.Fatalf("EventKind = %v, want %v", got.EventKind(), EventA2UI)
+	}
+	ae, ok := got.(*A2UIEvent)
+	if !ok {
+		t.Fatalf("got type = %T, want *A2UIEvent", got)
+	}
+	if ae.Envelope["deleteSurface"] == nil {
+		t.Fatal("Envelope should contain deleteSurface")
+	}
+}

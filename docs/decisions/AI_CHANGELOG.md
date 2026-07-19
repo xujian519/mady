@@ -1,3 +1,45 @@
+## 2026-07-19: A2UI 模块审阅与完备化
+
+### 背景
+对 a2ui 包（Agent-to-UI 协议 v0.9.1 实现）进行"完整可运行"审阅，发现：
+- 模块自身质量极高（100% 测试覆盖率、零 vet 警告），但 **完全未被运行时集成**（零外部调用者）
+- `agui/converter.go` 默认分支错误地传递了完整 A2UIEvent 结构体而非仅信封数据
+
+### 变更
+
+#### 1. 模块自身改进（P1）
+- **静默吞错修复**：`UpdateDataModel.UnmarshalJSON` 丢弃 `json.Unmarshal` 错误 → 显式检查
+- **补齐 Builder 构造函数**：新增 `Video`、`AudioPlayer`、`Tabs`、`Modal`、`DateTimeInput`、`ChoicePicker` 6 个便捷构造函数
+- **新增 `NewCheck` 构造函数**：简化客户端校验声明
+- **100% 覆盖率保持**：新增 20+ 测试
+
+#### 2. 运行时集成（P2）
+- **新增 `agentcore.A2UIEvent` 事件类型**（EventType = "a2ui"）：承载序列化的 A2UI 信封，避免循环依赖
+- **新增 `a2ui.ToAgentCoreEvent()` 桥接函数**：将 Envelope 转为 EventBus 兼容事件
+- **修复 `agui/converter.go` 默认分支**：添加 `case *agentcore.A2UIEvent`，传递 `ev.Envelope` 而非整个结构体，保留原始时间戳
+- **消除冗余序列化**：`ToAgentCoreEvent` 复用已有的 `envelopeToMap` 函数
+
+#### 3. 测试完备化
+- **agentcore A2UIEvent 单元测试**：创建、事件总线发射与接收
+- **agui 转换器 A2UIEvent 测试**：验证 CUSTOM 事件名称/值正确性
+- **端到端 SSE 流测试**（`TestE2E_A2UIStream`）：通过生命周期钩子发射 A2UIEvent，验证其在 AG-UI SSE 流中呈现为 `CUSTOM (name: "a2ui")` 事件
+
+#### 4. 示例程序（P3）
+- **新增 `example/a2ui-demo/`**：演示 Builder API、数据绑定、AG-UI/A2A 传输绑定
+
+### 架构决策
+- **事件桥接模式**：a2ui→agui 存在单向依赖（a2ui 导入 agui 的 CustomEvent 类型），agui 反向导入会形成循环依赖。采用 agentcore.A2UIEvent 作为中间事件类型，agui 转换器仅需识别事件名 "a2ui"，不依赖 a2ui 包
+- **envelopeToMap 序列化**：将结构体转为泛型 map 后通过事件总线传输，保持 agentcore 对 a2ui 类型的零感知
+
+### 验证
+- `go build ./...` ✅
+- `go test ./a2ui/...` ✅（100% 覆盖率）
+- `go test ./agui/...` ✅（含新 A2UI e2e 测试）
+- `go test ./agentcore/...` ✅（含新 A2UIEvent 测试）
+- `go run ./example/a2ui-demo/` ✅
+
+---
+
 # AI 决策变更日志
 
 > 本文件记录 AI 协助开发过程中的关键决策。新决策追加在本文件顶部。

@@ -75,6 +75,15 @@ type ServerCapabilities struct {
 	AcceptsInlineCatalogs bool `json:"acceptsInlineCatalogs,omitempty"`
 }
 
+// DefaultServerCapabilities returns a ServerCapabilities with the BasicCatalog
+// pre-populated, suitable as a starting point for agents that emit A2UI.
+func DefaultServerCapabilities() ServerCapabilities {
+	return ServerCapabilities{
+		SupportedCatalogIDs:   []string{BasicCatalogID},
+		AcceptsInlineCatalogs: false,
+	}
+}
+
 // ClientCapabilities advertises what catalogs a client can render. It is placed
 // in the metadata of every client-to-server message.
 type ClientCapabilities struct {

@@ -160,3 +160,46 @@ func CheckBox(id string, label any, path string) Component {
 func Slider(id, path string) Component {
 	return NewComponent(id, "Slider", map[string]any{"value": Bind(path)})
 }
+
+// Video creates a Video component bound to the given URL.
+func Video(id string, url any) Component {
+	return NewComponent(id, "Video", map[string]any{"url": url})
+}
+
+// AudioPlayer creates an AudioPlayer component bound to the given URL.
+func AudioPlayer(id string, url any) Component {
+	return NewComponent(id, "AudioPlayer", map[string]any{"url": url})
+}
+
+// TabItem describes a single tab within a Tabs component, with a human-readable
+// label and the ID of the child component rendered when the tab is active.
+type TabItem struct {
+	Child string `json:"child"`
+	Label string `json:"label"`
+}
+
+// Tabs creates a Tabs container from the given tab definitions.
+func Tabs(id string, tabs []TabItem) Component {
+	items := make([]any, len(tabs))
+	for i, t := range tabs {
+		items[i] = map[string]any{"child": t.Child, "label": t.Label}
+	}
+	return NewComponent(id, "Tabs", map[string]any{"tabs": items})
+}
+
+// Modal creates a Modal with the given body child and optional entry-point
+// child (e.g. the button that opens the modal).
+func Modal(id, child, entryPointChild string) Component {
+	return NewComponent(id, "Modal", map[string]any{"child": child, "entryPointChild": entryPointChild})
+}
+
+// DateTimeInput creates a date/time input bound to the given data-model path.
+func DateTimeInput(id, path string) Component {
+	return NewComponent(id, "DateTimeInput", map[string]any{"value": Bind(path)})
+}
+
+// ChoicePicker creates a choice picker (dropdown / select) bound to the given
+// data-model path, with the provided options slice.
+func ChoicePicker(id, path string, options any) Component {
+	return NewComponent(id, "ChoicePicker", map[string]any{"value": Bind(path), "options": options})
+}

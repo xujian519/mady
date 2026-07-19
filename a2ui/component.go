@@ -176,3 +176,10 @@ type Check struct {
 	// Message describes why the check failed.
 	Message string `json:"message,omitempty"`
 }
+
+// NewCheck builds a Check that invokes the named function and displays the
+// given message when validation fails. It is a convenience constructor for
+// the common case of a direct function-based check.
+func NewCheck(call, message string) Check {
+	return Check{Call: call, Message: message}
+}

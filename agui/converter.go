@@ -308,6 +308,13 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 		events = append(events, c.convertAutoRetry(*ev)...)
 		return events
 
+	case *agentcore.A2UIEvent:
+		return []any{CustomEvent{
+			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
+			Name:      "a2ui",
+			Value:     ev.Envelope,
+		}}
+
 	default:
 		var events []any
 		events = append(events, c.closeAll(time.Now())...)

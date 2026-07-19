@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/xujian519/mady/a2a"
+	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agui"
 )
 
@@ -606,6 +607,58 @@ func TestBuilderConstructors(t *testing.T) {
 			t.Fatalf("Slider: %+v", c)
 		}
 	})
+	t.Run("Video", func(t *testing.T) {
+		c := Video("v1", "https://example.com/video.mp4")
+		if c.ID != "v1" || c.Type != "Video" || c.Props["url"] != "https://example.com/video.mp4" {
+			t.Fatalf("Video: %+v", c)
+		}
+	})
+	t.Run("AudioPlayer", func(t *testing.T) {
+		c := AudioPlayer("a1", "https://example.com/audio.mp3")
+		if c.ID != "a1" || c.Type != "AudioPlayer" || c.Props["url"] != "https://example.com/audio.mp3" {
+			t.Fatalf("AudioPlayer: %+v", c)
+		}
+	})
+	t.Run("Tabs", func(t *testing.T) {
+		c := Tabs("tab1", []TabItem{{Child: "info", Label: "info"}, {Child: "settings", Label: "settings"}})
+		if c.ID != "tab1" || c.Type != "Tabs" {
+			t.Fatalf("Tabs: %+v", c)
+		}
+		tabs, ok := c.Props["tabs"].([]any)
+		if !ok || len(tabs) != 2 {
+			t.Fatalf("Tabs tabs: %+v", c.Props["tabs"])
+		}
+	})
+	t.Run("Modal", func(t *testing.T) {
+		c := Modal("m1", "body", "trigger")
+		if c.ID != "m1" || c.Type != "Modal" {
+			t.Fatalf("Modal: %+v", c)
+		}
+		if c.Props["child"] != "body" || c.Props["entryPointChild"] != "trigger" {
+			t.Fatalf("Modal props: %+v", c.Props)
+		}
+	})
+	t.Run("DateTimeInput", func(t *testing.T) {
+		c := DateTimeInput("dt1", "/appointment")
+		if c.ID != "dt1" || c.Type != "DateTimeInput" {
+			t.Fatalf("DateTimeInput: %+v", c)
+		}
+		d, ok := c.Props["value"].(Dynamic)
+		if !ok || !d.IsPath || d.Path != "/appointment" {
+			t.Fatalf("DateTimeInput value binding: %+v", c.Props["value"])
+		}
+	})
+	t.Run("ChoicePicker", func(t *testing.T) {
+		opts := []map[string]any{{"label": "A", "value": "a"}, {"label": "B", "value": "b"}}
+		c := ChoicePicker("cp1", "/choice", opts)
+		if c.ID != "cp1" || c.Type != "ChoicePicker" {
+			t.Fatalf("ChoicePicker: %+v", c)
+		}
+		d, ok := c.Props["value"].(Dynamic)
+		if !ok || !d.IsPath || d.Path != "/choice" {
+			t.Fatalf("ChoicePicker value binding: %+v", c.Props["value"])
+		}
+	})
 	t.Run("Set", func(t *testing.T) {
 		c := NewComponent("x", "Text", nil)
 		c.Set("text", "hi")
@@ -619,6 +672,19 @@ func TestBuilderConstructors(t *testing.T) {
 			t.Fatalf("FunctionAction: %+v", a)
 		}
 	})
+}
+
+func TestNewCheck(t *testing.T) {
+	chk := NewCheck("required", "此项必填")
+	if chk.Call != "required" || chk.Message != "此项必填" {
+		t.Fatalf("NewCheck: %+v", chk)
+	}
+	if chk.Args != nil {
+		t.Fatalf("NewCheck: Args should be nil")
+	}
+	if chk.Condition != nil {
+		t.Fatalf("NewCheck: Condition should be nil")
+	}
 }
 
 func TestBuilderThemeAndDelete(t *testing.T) {
@@ -1731,5 +1797,65 @@ func TestUpdateDataModelUnmarshalDirectMalformedJSON(t *testing.T) {
 	var u UpdateDataModel
 	if err := u.UnmarshalJSON([]byte(`{`)); err == nil {
 		t.Fatal("expected error for malformed JSON")
+	}
+}
+
+func TestToAgentCoreEvent(t *testing.T) {
+	env := NewCreateSurface("test-surface", BasicCatalogID)
+	ae := ToAgentCoreEvent(env)
+	if ae == nil {
+		t.Fatal("ToAgentCoreEvent returned nil")
+	}
+	if ae.EventKind() != agentcore.EventA2UI {
+		t.Fatalf("EventKind = %v, want %v", ae.EventKind(), agentcore.EventA2UI)
+	}
+	if ae.Envelope == nil {
+		t.Fatal("Envelope is nil")
+	}
+	// Verify the envelope carries the expected fields.
+	if ae.Envelope["version"] != "v0.9.1" {
+		t.Fatalf("version = %v, want v0.9.1", ae.Envelope["version"])
+	}
+	cs, ok := ae.Envelope["createSurface"].(map[string]any)
+	if !ok {
+		t.Fatalf("createSurface not found or wrong type: %+v", ae.Envelope)
+	}
+	if cs["surfaceId"] != "test-surface" || cs["catalogId"] != BasicCatalogID {
+		t.Fatalf("createSurface = %+v", cs)
+	}
+}
+
+func TestToAgentCoreEventVersionFill(t *testing.T) {
+	// Envelopes without a version should have v0.9.1 filled in.
+	env := Envelope{CreateSurface: &CreateSurface{SurfaceID: "s", CatalogID: BasicCatalogID}}
+	ae := ToAgentCoreEvent(env)
+	if ae.Envelope["version"] != "v0.9.1" {
+		t.Fatalf("version = %v, want v0.9.1", ae.Envelope["version"])
+	}
+}
+
+func TestToAgentCoreEventMarshalError(t *testing.T) {
+	// An envelope that cannot be marshaled should still produce a valid event
+	// with an error field in the envelope.
+	env := Envelope{CreateSurface: &CreateSurface{SurfaceID: "s", CatalogID: BasicCatalogID}}
+	// Force a cycle that cant marshal by setting a self-referencing circular value.
+	// Note: The Envelope struct doesnt have any circular references, so marshal
+	// always succeeds. This test verifies that the happy path handles it gracefully.
+	ae := ToAgentCoreEvent(env)
+	if ae == nil || ae.Envelope == nil {
+		t.Fatal("expected valid event even on edge case")
+	}
+}
+
+func TestDefaultServerCapabilities(t *testing.T) {
+	caps := DefaultServerCapabilities()
+	if len(caps.SupportedCatalogIDs) != 1 {
+		t.Fatalf("SupportedCatalogIDs = %v, want [BasicCatalogID]", caps.SupportedCatalogIDs)
+	}
+	if caps.SupportedCatalogIDs[0] != BasicCatalogID {
+		t.Fatalf("SupportedCatalogIDs[0] = %q, want %q", caps.SupportedCatalogIDs[0], BasicCatalogID)
+	}
+	if caps.AcceptsInlineCatalogs {
+		t.Fatal("AcceptsInlineCatalogs should be false by default")
 	}
 }

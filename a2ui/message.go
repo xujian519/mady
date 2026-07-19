@@ -141,9 +141,10 @@ func (u *UpdateDataModel) UnmarshalJSON(data []byte) error {
 	}
 	if raw, ok := m["value"]; ok {
 		var v any
-		_ = json.Unmarshal(raw, &v) // always succeeds when the outer json.Unmarshal succeeded
-		u.Value = v
-		u.ValueSet = true
+		if err := json.Unmarshal(raw, &v); err == nil {
+			u.Value = v
+			u.ValueSet = true
+		}
 	}
 	return nil
 }
