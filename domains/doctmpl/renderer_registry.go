@@ -6,8 +6,9 @@ import (
 )
 
 // RendererRegistry maps OutputFormat values to Renderer implementations.
-// It is safe for concurrent use once populated (all writes happen at
-// initialization time).
+// Writes (Register) must happen before concurrent reads (Get, Has, Formats,
+// Render). The typical pattern is to populate the registry at init time
+// and then treat it as read-only.
 type RendererRegistry struct {
 	renderers map[OutputFormat]Renderer
 }

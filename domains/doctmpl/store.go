@@ -3,6 +3,7 @@ package doctmpl
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -10,6 +11,8 @@ import (
 type ListOptions struct {
 	Category string // 按类别筛选（空=全部）
 	Domain   string // 按领域筛选（空=全部）
+	Language string // G10: 按语言筛选（空=全部）
+	Query    string // G9: 按 name/title/description/use_when 模糊搜索
 }
 
 // TemplateStore is a thread-safe cache of loaded DocTemplates plus a
@@ -21,6 +24,10 @@ type TemplateStore struct {
 	templates []DocTemplate
 	byName    map[string]int // name → index in templates
 	renderers *RendererRegistry
+
+	// embeddedVersions tracks version strings of embedded templates at load
+	// time, used for conflict detection (G5).
+	embeddedVersions map[string]string
 }
 
 // NewTemplateStore creates a store by loading embedded templates from the
@@ -28,8 +35,9 @@ type TemplateStore struct {
 // found under userRoots. A default MarkdownRenderer is registered.
 func NewTemplateStore(userRoots ...string) (*TemplateStore, error) {
 	store := &TemplateStore{
-		byName:    make(map[string]int),
-		renderers: NewRendererRegistry(),
+		byName:           make(map[string]int),
+		renderers:        NewRendererRegistry(),
+		embeddedVersions: make(map[string]string),
 	}
 	store.renderers.Register(&MarkdownRenderer{})
 
@@ -39,6 +47,7 @@ func NewTemplateStore(userRoots ...string) (*TemplateStore, error) {
 		return nil, fmt.Errorf("doctmpl: load embedded templates: %w", err)
 	}
 	for i := range embedded {
+		store.embeddedVersions[embedded[i].Name] = embedded[i].Version
 		store.add(&embedded[i])
 	}
 
@@ -68,12 +77,13 @@ func (s *TemplateStore) add(tmpl *DocTemplate) {
 	}
 }
 
-// List returns templates matching the given options. Both filters are
+// List returns templates matching the given options. All filters are
 // optional — zero-value ListOptions returns all templates.
 func (s *TemplateStore) List(opts ListOptions) []DocTemplate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	q := strings.ToLower(strings.TrimSpace(opts.Query))
 	var result []DocTemplate
 	for _, t := range s.templates {
 		if opts.Category != "" && t.Category != opts.Category {
@@ -81,6 +91,17 @@ func (s *TemplateStore) List(opts ListOptions) []DocTemplate {
 		}
 		if opts.Domain != "" && t.Domain != opts.Domain {
 			continue
+		}
+		if opts.Language != "" && t.Language != opts.Language {
+			continue
+		}
+		if q != "" {
+			if !strings.Contains(strings.ToLower(t.Name), q) &&
+				!strings.Contains(strings.ToLower(t.Title), q) &&
+				!strings.Contains(strings.ToLower(t.Description), q) &&
+				!strings.Contains(strings.ToLower(t.UseWhen), q) {
+				continue
+			}
 		}
 		result = append(result, t)
 	}
@@ -121,7 +142,7 @@ func (s *TemplateStore) Render(name string, vars map[string]string, format Outpu
 			name, format, tmpl.SupportedFormats)
 	}
 
-	resolved := ResolveDoc(tmpl, vars)
+	resolved := ValidatedResolve(tmpl, vars).Output
 	return s.renderers.Render(format, resolved, meta)
 }
 
@@ -129,6 +150,143 @@ func (s *TemplateStore) Render(name string, vars map[string]string, format Outpu
 // registration of additional renderers.
 func (s *TemplateStore) RendererRegistry() *RendererRegistry {
 	return s.renderers
+}
+
+// FindByNameAndLang finds a template by name and optional language filter.
+// When lang is empty, behaves identically to FindByName. Note: the current
+// store model stores one entry per unique name (user override semantics),
+// so multi-language variants are represented as separate templates with
+// distinct names (e.g., "method-claim-zh" / "method-claim-en").
+func (s *TemplateStore) FindByNameAndLang(name string, lang string) (DocTemplate, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	idx, ok := s.byName[name]
+	if !ok {
+		return DocTemplate{}, false
+	}
+	tmpl := s.templates[idx]
+	if lang != "" && tmpl.Language != lang {
+		return DocTemplate{}, false
+	}
+	return tmpl, true
+}
+
+// VersionConflict describes a version discrepancy between embedded and
+// user-overridden templates.
+type VersionConflict struct {
+	TemplateName string // 模板名
+	EmbeddedVer  string // 内嵌版本
+	UserVer      string // 用户版本
+	Severity     string // "info" | "warn"
+}
+
+// ListConflicts returns templates where the user's override has a different
+// version than the embedded template.
+func (s *TemplateStore) ListConflicts() []VersionConflict {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var conflicts []VersionConflict
+	for _, t := range s.templates {
+		embeddedVer, exists := s.embeddedVersions[t.Name]
+		if !exists || t.Version == embeddedVer {
+			continue
+		}
+		sev := "warn"
+		if t.Version < embeddedVer {
+			sev = "warn"
+		} else {
+			sev = "info" // user is ahead of or equal to embedded
+		}
+		conflicts = append(conflicts, VersionConflict{
+			TemplateName: t.Name,
+			EmbeddedVer:  embeddedVer,
+			UserVer:      t.Version,
+			Severity:     sev,
+		})
+	}
+	return conflicts
+}
+
+// MergedVarContext is the merged variable space of multiple templates with
+// shared variables.
+type MergedVarContext struct {
+	Templates  []DocTemplate   // 参与合并的模板
+	SharedVars []string        // 跨模板共享的变量名
+	AllVars    []VarDefinition // 去重合并后的全部变量
+}
+
+// MergeVarContext merges the variable spaces of the named templates.
+// Shared variables (declared via shared_vars in the frontmatter) are
+// automatically identified and deduplicated.
+func (s *TemplateStore) MergeVarContext(names []string) (*MergedVarContext, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var templates []DocTemplate
+	seenVars := make(map[string]bool)
+	sharedVars := make(map[string]int) // var name → count across templates
+
+	for _, name := range names {
+		idx, ok := s.byName[name]
+		if !ok {
+			return nil, fmt.Errorf("doctmpl: template %q not found", name)
+		}
+		tmpl := s.templates[idx]
+		templates = append(templates, tmpl)
+
+		if tmpl.VarSchema != nil {
+			for _, v := range tmpl.VarSchema.Definitions {
+				sharedVars[v.Name]++
+			}
+		}
+		for _, sv := range tmpl.SharedVars {
+			// Only increment for shared_vars NOT already in Definitions
+			// (avoids double-counting from the same template).
+			if tmpl.VarSchema == nil {
+				sharedVars[sv]++
+			} else if _, inDefs := tmpl.VarSchema.byName[sv]; !inDefs {
+				sharedVars[sv]++
+			}
+		}
+	}
+
+	ctx := &MergedVarContext{
+		Templates: templates,
+	}
+
+	// Variables appearing in multiple templates are shared.
+	for name, count := range sharedVars {
+		if count > 1 {
+			ctx.SharedVars = append(ctx.SharedVars, name)
+		}
+	}
+
+	// Merge all var definitions (dedup by name, last wins).
+	for _, tmpl := range templates {
+		if tmpl.VarSchema == nil {
+			continue
+		}
+		for _, d := range tmpl.VarSchema.Definitions {
+			seenVars[d.Name] = true
+		}
+	}
+
+	// Build merged definitions from last template.
+	for name := range seenVars {
+		for i := len(templates) - 1; i >= 0; i-- {
+			if templates[i].VarSchema == nil {
+				continue
+			}
+			if def, ok := templates[i].VarSchema.Get(name); ok {
+				ctx.AllVars = append(ctx.AllVars, def)
+				break
+			}
+		}
+	}
+
+	return ctx, nil
 }
 
 // Count returns the total number of templates in the store.
@@ -154,6 +312,9 @@ type tmplSummary struct {
 	Description string   `json:"description"`
 	Domain      string   `json:"domain"`
 	Version     string   `json:"version"`
+	Language    string   `json:"language,omitempty"`
+	Style       string   `json:"style,omitempty"`
+	UseWhen     string   `json:"use_when,omitempty"`
 	Formats     []string `json:"formats"`
 }
 
@@ -171,6 +332,9 @@ func (s *TemplateStore) toSummaries(templates []DocTemplate) []tmplSummary {
 			Description: t.Description,
 			Domain:      t.Domain,
 			Version:     t.Version,
+			Language:    t.Language,
+			Style:       t.StyleName,
+			UseWhen:     t.UseWhen,
 			Formats:     fmts,
 		}
 	}

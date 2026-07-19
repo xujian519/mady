@@ -15,6 +15,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/reasoning"
 	reasoningwiring "github.com/xujian519/mady/domains/reasoning/wiring"
 	"github.com/xujian519/mady/domains/rules"
@@ -281,6 +282,36 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	})
 	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, baseTools)
 
+	// 插件系统：从 plugins/ 目录发现并加载 patent/legal 工作流插件。
+	// 为所有 Agent 注册 run_plugin 工具，使其可按名称调用插件工作流。
+	// 扫描当前工作目录和 MadyHome 下的 plugins 目录。
+	pluginSearchDirs := []string{}
+	if cwd, err := os.Getwd(); err == nil {
+		pluginSearchDirs = append(pluginSearchDirs, filepath.Join(cwd, "plugins"))
+	}
+	if madyHome != "" {
+		pluginSearchDirs = append(pluginSearchDirs, filepath.Join(madyHome, "plugins"))
+	}
+	pluginManager, err := agentcore.NewPluginManager(fc.Provider, nil, pluginSearchDirs...)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "plugin: 初始化插件管理器失败: %v（run_plugin 工具不可用）\n", err)
+	} else {
+		plugins := pluginManager.Plugins()
+		if len(plugins) > 0 {
+			var names []string
+			for _, p := range plugins {
+				names = append(names, p.Name)
+			}
+			fmt.Fprintf(os.Stderr, "plugin: 已加载 %d 个插件（%s）\n", len(plugins), strings.Join(names, ", "))
+			// 将 run_plugin 工具注册到 BaseConfig 的内建工具列表中。
+			// 通过嵌入一个仅含此工具的轻量 Extension 实现。
+			pluginTool := pluginManager.RunPluginTool()
+			fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, &pluginToolExtension{tool: pluginTool})
+		} else {
+			fmt.Fprintf(os.Stderr, "plugin: 未发现任何插件（搜索路径: %v）\n", pluginSearchDirs)
+		}
+	}
+
 	// 长期记忆系统：优先 SQLite 持久化，回退 InMemoryStore。
 	// SQLite 文件位于 MADY_HOME/memory.db，所有 Agent 共享同一个存储后端，
 	// 支持跨会话持久化和向量检索。
@@ -387,6 +418,15 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		llmClient = reasoning.NewLlmClientFromProvider(fc.Provider, agentconfig.DefaultModel())
 	}
 	domains.SetupPatentDraftingEngine(retriever, llmClient)
+
+	// 文档模板仓库：加载内嵌模板 + 用户自定义模板
+	userTmplDir := filepath.Join(fc.MadyHome, "doc-templates")
+	store, err := doctmpl.NewTemplateStore(userTmplDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "doctmpl: 加载模板仓库失败: %v（模板工具不可用）\n", err)
+	} else {
+		domains.SetupDocTemplateStore(store)
+	}
 
 	// 引用核验装配注入：使 PatentAgentConfig 中的 CitationGate 运行在
 	// P2b Strict 模式（带留痕 store）。Source 为 nil 时 Gate 退回 S1 静态表。

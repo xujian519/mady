@@ -64,47 +64,17 @@ func TestOutputFormat_MIME(t *testing.T) {
 	}
 }
 
-func TestParseFormatsList(t *testing.T) {
-	tests := []struct {
-		name   string
-		raw    string
-		expect []OutputFormat
-	}{
-		{"empty", "", []OutputFormat{FormatMarkdown}},
-		{"single", "markdown", []OutputFormat{FormatMarkdown}},
-		{"bracketed list", "[markdown, docx, email]", []OutputFormat{FormatMarkdown, FormatDOCX, FormatEmail}},
-		{"plain list", "markdown, docx", []OutputFormat{FormatMarkdown, FormatDOCX}},
-		{"with spaces", " markdown ,  pdf ", []OutputFormat{FormatMarkdown, FormatPDF}},
-		{"empty brackets", "[]", []OutputFormat{FormatMarkdown}},
-		{"unknown only", "[unknown]", []OutputFormat{FormatMarkdown}},
-		{"mixed known unknown", "[markdown, unknown]", []OutputFormat{FormatMarkdown}},
-		{"all five", "markdown, docx, pdf, html, email",
-			[]OutputFormat{FormatMarkdown, FormatDOCX, FormatPDF, FormatHTML, FormatEmail}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parseFormatsList(tt.raw)
-			if len(got) != len(tt.expect) {
-				t.Fatalf("len = %d, want %d: %v", len(got), len(tt.expect), got)
-			}
-			for i, f := range got {
-				if f != tt.expect[i] {
-					t.Errorf("got[%d] = %q, want %q", i, f, tt.expect[i])
-				}
-			}
-		})
-	}
-}
-
 func TestParseDocTemplate_Formats(t *testing.T) {
-	// Template with formats field.
+	// Template with formats field using YAML list syntax.
 	data := []byte(`---
 name: test
 title: 测试
 category: claims
 description: 测试模板
 domain: patent
-formats: [markdown, docx]
+formats:
+  - markdown
+  - docx
 ---
 # {{title}}
 `)
@@ -124,7 +94,6 @@ formats: [markdown, docx]
 }
 
 func TestParseDocTemplate_FormatsDefault(t *testing.T) {
-	// Template without formats field should default to [markdown].
 	data := []byte(`---
 name: test
 title: 测试
@@ -145,6 +114,65 @@ domain: patent
 	}
 }
 
+func TestParseDocTemplate_StyleName(t *testing.T) {
+	data := []byte(`---
+name: test
+title: 测试
+category: claims
+domain: patent
+style: patent-standard
+---
+# {{title}}
+`)
+	tmpl, err := parseDocTemplate("test.md", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tmpl.StyleName != "patent-standard" {
+		t.Errorf("StyleName = %q", tmpl.StyleName)
+	}
+}
+
+func TestParseDocTemplate_Vars(t *testing.T) {
+	data := []byte(`---
+name: test
+title: 测试
+category: claims
+domain: patent
+vars:
+  - name: title
+    type: string
+    required: true
+    description: 发明名称
+  - name: count
+    type: number
+    required: false
+    default: "1"
+---
+# {{title}}
+`)
+	tmpl, err := parseDocTemplate("test.md", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tmpl.VarSchema == nil {
+		t.Fatal("VarSchema is nil")
+	}
+	if tmpl.VarSchema.Empty() {
+		t.Fatal("VarSchema is empty")
+	}
+	if len(tmpl.VarSchema.Names()) != 2 {
+		t.Fatalf("names = %v", tmpl.VarSchema.Names())
+	}
+	def, ok := tmpl.VarSchema.Get("count")
+	if !ok {
+		t.Fatal("count not found")
+	}
+	if def.Default != "1" {
+		t.Errorf("default = %q", def.Default)
+	}
+}
+
 func TestMarkdownRenderer(t *testing.T) {
 	r := &MarkdownRenderer{}
 	if r.Format() != FormatMarkdown {
@@ -161,16 +189,27 @@ func TestMarkdownRenderer(t *testing.T) {
 		}
 	})
 
-	t.Run("with style name", func(t *testing.T) {
-		out, err := r.Render("content", RenderMeta{StyleName: "patent-standard"})
+	t.Run("with style disclaimer", func(t *testing.T) {
+		style := &RenderStyle{Name: "patent-standard", Disclaimer: "本分析由AI辅助生成。"}
+		out, err := r.Render("content", RenderMeta{Style: style})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(out), "<!-- style: patent-standard -->") {
-			t.Error("missing style comment")
+		if !strings.Contains(string(out), "本分析由AI辅助生成") {
+			t.Error("missing disclaimer")
 		}
 		if !strings.Contains(string(out), "content") {
 			t.Error("missing content")
+		}
+	})
+
+	t.Run("with nil style", func(t *testing.T) {
+		out, err := r.Render("content", RenderMeta{Style: nil})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(out) != "content" {
+			t.Errorf("output = %q", string(out))
 		}
 	})
 

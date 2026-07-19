@@ -68,11 +68,25 @@ type Renderer interface {
 }
 
 // RenderMeta carries rendering-time metadata.
-// StyleName references a DocumentStyle by name (loaded by the caller).
 type RenderMeta struct {
-	StyleName string // 风格名称，如 "patent-standard"（可空）
-	Title     string // 文档标题
-	Author    string // 作者/代理人
-	Date      string // 日期
-	Filename  string // 建议文件名（不含扩展名）
+	Style    *RenderStyle // 风格信息（可空），由调用方从 DocumentStyle 转换
+	Title    string       // 文档标题
+	Author   string       // 作者/代理人
+	Date     string       // 日期
+	Filename string       // 建议文件名（不含扩展名）
+}
+
+// RenderStyle 是 DocumentStyle 的精简投影，包含渲染时需要的风格信息。
+// 避免 doctmpl 包直接依赖 domains 包（避免循环依赖）。
+type RenderStyle struct {
+	Name       string // 风格名，如 "patent-standard"
+	Disclaimer string // 适用当前模板的免责声明
+}
+
+// ApplyDisclaimer 在 Markdown 输出前附加免责声明。
+func (s *RenderStyle) ApplyDisclaimer(md string) string {
+	if s == nil || s.Disclaimer == "" {
+		return md
+	}
+	return "> ⚠️ " + s.Disclaimer + "\n\n---\n\n" + md
 }

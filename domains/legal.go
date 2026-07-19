@@ -16,6 +16,7 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg.SystemPrompt = strings.Join([]string{
 		"你是 Mady 的法律咨询与研究模块。",
 		"用简体中文回复，专业严谨。",
+		styleInjection("legal"),
 		"",
 		"五步工作法：",
 		"1. 发现事实 — 了解案件背景、当事人信息、法律诉求",
@@ -75,6 +76,7 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	// Reasoning engine injection: same five-step workflow + legal case
 	// comparison tools as PatentAgent, via the shared injectDraftingTool.
 	injectDraftingTool(&cfg)
+	injectDocTemplateTools(&cfg)
 
 	// DoomLoop: 死循环检测器。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())

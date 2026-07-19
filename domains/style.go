@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/xujian519/mady/domains/doctmpl"
 	"gopkg.in/yaml.v3"
 )
 
@@ -186,4 +187,63 @@ func FindStyleByName(styles []DocumentStyle, name string) (*DocumentStyle, bool)
 		}
 	}
 	return nil, false
+}
+
+// ToRenderStyle converts a DocumentStyle to the lightweight doctmpl.RenderStyle
+// used during template rendering. categoryHint selects the most appropriate
+// disclaimer (e.g. "oa-response" → patent_analysis).
+func (s *DocumentStyle) ToRenderStyle(categoryHint string) *doctmpl.RenderStyle {
+	if s == nil {
+		return nil
+	}
+	return &doctmpl.RenderStyle{
+		Name:       s.Name,
+		Disclaimer: s.DisclaimerFor(categoryHint),
+	}
+}
+
+// DisclaimerFor selects the most appropriate disclaimer for a given template
+// category. Falls back to a domain-level disclaimer when no category match.
+func (s *DocumentStyle) DisclaimerFor(category string) string {
+	if s == nil {
+		return ""
+	}
+	// Category → disclaimer key mapping.
+	keyMap := map[string]string{
+		"specification": "patent_drafting",
+		"claims":        "patent_drafting",
+		"oa-response":   "patent_analysis",
+		"disclosure":    "patent_analysis",
+	}
+	if key, ok := keyMap[category]; ok {
+		if d, ok2 := s.Sections.Disclaimers[key]; ok2 {
+			return d
+		}
+	}
+	// Fallback: domain-level disclaimer.
+	fallbackKey := s.Domain + "_analysis"
+	if d, ok := s.Sections.Disclaimers[fallbackKey]; ok {
+		return d
+	}
+	return ""
+}
+
+// SystemPromptForTemplate generates a combined system prompt that includes
+// both the style guide and template context, so the LLM generates content
+// that follows the style while filling the template.
+func (s *DocumentStyle) SystemPromptForTemplate(tmpl doctmpl.DocTemplate) string {
+	if s == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(s.SystemPrompt())
+	b.WriteString("\n<!-- Template Context -->\n")
+	fmt.Fprintf(&b, "Template: %s (%s)\n", tmpl.Name, tmpl.Title)
+	fmt.Fprintf(&b, "Category: %s\n", tmpl.Category)
+	if d := s.DisclaimerFor(tmpl.Category); d != "" {
+		fmt.Fprintf(&b, "Required Disclaimer: %s\n", d)
+	}
+	b.WriteString("\nGenerate content following the style guide above and filling the template variables below.\n")
+	b.WriteString("<!-- End Template Context -->")
+	return b.String()
 }

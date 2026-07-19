@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/tools"
@@ -40,6 +41,27 @@ func injectDraftingTool(cfg *agentcore.Config) {
 	}
 }
 
+// globalTemplateStore 是 TemplateStore 的全局实例，由 SetupDocTemplateStore
+// 在启动期注入。遵循与 globalDraftingRunner 一致的模式。
+var globalTemplateStore *doctmpl.TemplateStore
+
+// SetupDocTemplateStore 在启动期注入模板仓库实例，使 PatentAgentConfig 和
+// LegalAgentConfig 可以将文档模板工具注册到所有 Agent 实例中。
+// 必须在任何 Agent 创建前调用。
+func SetupDocTemplateStore(store *doctmpl.TemplateStore) {
+	globalTemplateStore = store
+}
+
+// injectDocTemplateTools 向 Agent 配置注册文档模板相关工具。
+func injectDocTemplateTools(cfg *agentcore.Config) {
+	if globalTemplateStore != nil {
+		cfg.Tools = append(cfg.Tools,
+			doctmpl.NewListDocTemplatesTool(globalTemplateStore),
+			doctmpl.NewRenderDocTemplateTool(globalTemplateStore),
+		)
+	}
+}
+
 // PatentAgentConfig builds the patent domain Agent configuration.
 func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg := base
@@ -48,6 +70,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg.SystemPrompt = strings.Join([]string{
 		"你是 Mady 的专利代理与知识产权分析模块。",
 		"用简体中文回复，专业严谨。",
+		styleInjection("patent"),
 		"",
 		"五步工作法：",
 		"1. 发现事实 — 了解发明内容、技术领域、申请人需求",
@@ -96,6 +119,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg.Extensions = append(cfg.Extensions, toolExt)
 
 	injectDraftingTool(&cfg)
+	injectDocTemplateTools(&cfg)
 
 	// Chunked context engine for long patent documents.
 	cfg.Engine = "chunked"
@@ -165,6 +189,7 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	cfg.Extensions = append(cfg.Extensions, toolExt)
 
 	injectDraftingTool(&cfg)
+	injectDocTemplateTools(&cfg)
 
 	// Chunked context engine for long patent/legal documents.
 	if base.Engine == "" {

@@ -14,18 +14,26 @@ func NewListDocTemplatesTool(store *TemplateStore) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name:     "list_doc_templates",
 		ReadOnly: true,
-		Description: "列出可用的文档模板，支持按 category（claims/specification/oa-response/disclosure）" +
+		Description: "列出可用的文档模板，支持按 category（claims/specification/oa-response/disclosure/legal）" +
 			"和 domain（patent/legal）筛选。返回模板名、标题、描述、支持格式。",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"category": map[string]any{
 					"type":        "string",
-					"description": "可选，按类别筛选（claims/specification/oa-response/disclosure）",
+					"description": "可选，按类别筛选（claims/specification/oa-response/disclosure/legal）",
 				},
 				"domain": map[string]any{
 					"type":        "string",
 					"description": "可选，按领域筛选（patent/legal）",
+				},
+				"language": map[string]any{
+					"type":        "string",
+					"description": "可选，按语言筛选（zh-CN/en-US）",
+				},
+				"query": map[string]any{
+					"type":        "string",
+					"description": "可选，按模板名/标题/描述模糊搜索",
 				},
 			},
 		},
@@ -33,6 +41,8 @@ func NewListDocTemplatesTool(store *TemplateStore) *agentcore.Tool {
 			var p struct {
 				Category string `json:"category"`
 				Domain   string `json:"domain"`
+				Language string `json:"language"`
+				Query    string `json:"query"`
 			}
 			if len(args) > 0 {
 				if err := json.Unmarshal(args, &p); err != nil {
@@ -43,12 +53,14 @@ func NewListDocTemplatesTool(store *TemplateStore) *agentcore.Tool {
 			templates := store.List(ListOptions{
 				Category: p.Category,
 				Domain:   p.Domain,
+				Language: p.Language,
+				Query:    p.Query,
 			})
 
 			if len(templates) == 0 {
 				return agentcore.NewHandoffResult(
 					"list_doc_templates",
-					"没有匹配的模板。可用类别: claims, specification, oa-response, disclosure。",
+					"没有匹配的模板。可用类别: claims, specification, oa-response, disclosure, legal。",
 				), nil
 			}
 
