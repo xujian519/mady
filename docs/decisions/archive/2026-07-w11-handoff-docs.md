@@ -1,0 +1,209 @@
+# AI 决策变更日志（归档）
+
+> **归档段**：2026-07-11~12 文档同步与 Invisible Handoff
+
+> 本文件包含 12 个决策记录，从主 `AI_CHANGELOG.md` 归档。
+> 归档时间：2026-07-19。主文件仅保留近期决策与归档索引。
+
+---
+
+## 2026-07-12: 文档全面同步 — 552 文件/134K 行/新增 domains/rules + knowledge/sqlite + retrieval/domain
+
+- **变更**:
+  1. **CLAUDE.md**: 代码统计（517→552 文件，352→376 非测试，165→176 测试，~126K→~134K 行）；目录结构新增 domains/rules/、knowledge/sqlite/、retrieval/domain/、tools/browser_providers/、pkg/agentconfig/、benchmark/、integration/；agentcore 文件数修正（88+27→75+40，含子包拆分）；依赖列表更新（+modernc.org/sqlite +gopkg.in/yaml.v3）；架构图基础设施层补 knowledge/retrieval/benchmark/integration
+  2. **README.md**: 发展路线新增 SQLite 知识库 + RRF 混合检索、YAML 规则引擎 + OA 解析 + 反套话引擎、五步工作法；知识管理段落补充 SQLite 只读取层和 RRF；推理引擎段落补充 domains/rules（OA解析/反套话/法律意图）；扩展表格新增规则引擎行
+  3. **CHANGELOG.md**: [0.3.0] 新增 10 项 Added（SQLite 读取层、RRF 混合检索、YAML 规则引擎、OA 解析、反套话引擎、法律意图检测、五步工作法、pkg/agentconfig、browser_providers）
+  4. **CONTRIBUTING.md**: 目录结构新增 domains/rules、knowledge/sqlite、retrieval/domain、tools/browser_providers、benchmark、integration、pkg/agentconfig；架构图基础设施层补 benchmark/integration
+  5. **docs/knowledge.md**: 架构图补充 KnowledgeBackend + RRF Fuser；新增 SQLite 只读取层段落（3 个数据库表 + RRF 公式）
+  6. **docs/adr/0001**: 基础设施层补充 knowledge/retrieval/benchmark/integration；依赖说明补充 modernc.org/sqlite
+  7. **docs/chat-assistant-architecture.md**: 新增「v0.3.0 后续迭代（已完成）」10 项
+  8. **AGENTS.md**: 核心分层描述更新（+domains/rules +memory +disclosure +ACP）；新增文件数/行数统计
+- **原因**: 文档再次滞后于代码进度（代码已 552 文件/~134K 行，文档仍记 517 文件/~126K 行；v0.3.0 新增的 domains/rules + knowledge/sqlite + RRF 混合检索 + OA 解析 + 反套话引擎 + 五步工作法在多份文档中缺失）
+- **影响范围**: CLAUDE.md, README.md, CHANGELOG.md, CONTRIBUTING.md, AGENTS.md, docs/knowledge.md, docs/adr/0001, docs/chat-assistant-architecture.md, docs/decisions/AI_CHANGELOG.md
+- **风险等级**: 低（纯文档变更，不涉及代码逻辑）
+- **审查要求**: L1
+
+---
+
+## 2026-07-12: XiaoNuno专利能力移植 — OA解析/反套话引擎/法律意图检测
+
+- **变更**:
+  1. **新增 `domains/rules/oa_parser.go`**: 审查意见解析器（从XiaoNuo legal-bus/src/rules/oa-parser.ts移植）。纯规则零LLM，3个提取函数：`DetectOaRejectionType`(7组关键词匹配novelty/inventiveness/clarity/support/disclosure/scope/formal)、`ExtractCitations`(正则提取CN/US/WO/EP/JP/KR专利文献号)、`ExtractAffectedClaims`(正则提取权利要求号+范围展开)；入口`ParseOfficeAction`+`FormatOaSummary`
+  2. **新增 `domains/rules/slop_engine.go`**: 反AI套话引擎（从XiaoNuo slop-engine.ts 452行完整移植）。三层架构：Layer1短语级(42条正则替换规则，7个分组filler/qualifier/meta/intimacy/subjectless/search/advisory)、Layer2结构级(6种缺陷检测empty_three_step/fake_comparison/binary_turn/reason_pile/passive_voice/oa_formula)、Layer3评分级(50分制5维directness/evidence/rhythm/practicality/concision+8项快检)；入口`AnalyzeSlop`+`FormatSlopAnalysis`
+  3. **新增 `domains/legal_intent.go`**: 法律意图细分检测器（从XiaoNuo LegalIntentDetector.ts 270行移植）。`@legal`显式触发+15组关键词→CaseType映射(复用reasoning.CaseType 12种)、专利语境门控(14个信号词)、子串去重(utf8.RuneCountInString)；入口`DetectLegalIntent`+`SelectRunMode`。独立函数，不修改现有ClassifyIntent路由
+  4. **修改 `domains/rules/engine.go`**: RulesExtension.Tools()新增2个ReadOnly工具：`parse_office_action`(审查意见解析)、`analyze_slop`(反套话分析)
+- **原因**: Mady基础框架完整但缺专利文书规则解析层。XiaoNuo的纯规则解析器从BCIP codex-patent-domain(Rust)移植，天然适合Go重写，零LLM开销
+- **影响范围**: domains/rules/oa_parser.go(新), domains/rules/oa_parser_test.go(新), domains/rules/slop_engine.go(新), domains/rules/slop_engine_test.go(新), domains/legal_intent.go(新), domains/legal_intent_test.go(新), domains/rules/engine.go(修改)
+- **风险等级**: 低（6个新文件+1个文件追加工具，不修改现有路由/classifier/安全路径）
+- **审查要求**: L2
+
+---
+
+## 2026-07-12: ACP 知识系统集成修复
+
+- **变更**:
+  1. **`acp/server_app.go`**: `RunOptions` 新增 `Lifecycle agentcore.LifecycleHook` 字段；`buildAgentConfig` 将其注入 `agentcore.Config.Lifecycle`，使 ACP 创建/重建的 Agent 能携带知识检索等生命周期钩子
+  2. **`cmd/mady/main.go`**: `runAcp()` 改为调用 `setupFrameworkContext()`（与 `runTui`/`runServer` 对齐），将 `fc.WikiHook` 通过 `RunOptions.Lifecycle` 传入 ACP 服务器
+- **原因**: ACP 入口（`mady acp`）此前完全跳过了 `setupFrameworkContext()`，不加载 Wiki 知识库、不注入 RAG 检索钩子，导致 ACP 用户（如 Zed 编辑器）无法使用知识系统；TUI 和 Serve 已正确集成
+- **影响范围**: acp/server_app.go, cmd/mady/main.go
+- **风险等级**: 低（新增可选字段，nil 时不改变原有行为；已有测试全部通过）
+- **审查要求**: L2
+
+---
+
+## 2026-07-12: 阶段4 — YAML规则引擎 (domains/rules/)
+
+- **变更**:
+  1. **新增 `domains/rules/types.go`**: Go类型系统，覆盖4种YAML格式 — Rule/Check（规则文件）、ArticleFramework/ArticleStep（法条框架）、Orchestration/DiscoveryStage/ExecutionTemplate（事务编排）、ReflectionDomain（反思指示词）；Check使用自定义`UnmarshalYAML`两遍解码：已知字段填充结构体，未知字段保存在`Extra map[string]any`供消费者解释
+  2. **新增 `domains/rules/loader.go`**: `LoadFromDir(dir)` 从目录加载全部YAML文件，自动分类（顶层规则文件/articles/*/orchestrations/*/reflection-indicators.yaml），构建索引（rulesByDomain/rulesBySeverity/ruleIndex）
+  3. **新增 `domains/rules/engine.go`**: `Engine`查询引擎（AllRules/RuleByID/RulesByDomain/RulesBySeverity/Article/Orchestration/ReflectionIndicators/SearchRules/ToRuleConstraints）+ `RulesExtension`实现agentcore.Extension（ToolProvider+SystemPromptProvider+TransformContextProvider）；暴露3个工具：search_rules、get_article_framework、get_orchestration；ToRuleConstraints将规则转换为reasoning.RuleConstraint供推理框架使用
+  4. **新增 `domains/rules/engine_test.go`**: 10个测试覆盖全部功能（加载/Extra字段/域查询/严重度查询/ID查询/搜索/法条框架/编排/反思指示词/RuleConstraint转换）
+  5. **依赖**: 添加 `gopkg.in/yaml.v3` v3.0.1（已在go.sum中间接存在，现提升为直接依赖）
+- **原因**: XiaoNuo的规则数据（novelty/inventiveness/disclosure/claims/amendment/response 6个顶层规则文件 + 8个法条框架 + 2个事务编排 + 反思指示词）是专利法律推理的核心知识资产，需要在Mady中以Extension机制集成，供Agent通过工具查询规则、法条判断框架和事务编排方案
+- **影响范围**: go.mod, go.sum, domains/rules/types.go, domains/rules/loader.go, domains/rules/engine.go, domains/rules/engine_test.go
+- **风险等级**: 低（纯新增包，不修改任何现有文件）
+- **审查要求**: L2
+
+---
+
+## 2026-07-12: 代码审查修复 — Context传播/错误处理/FTS5转义/LIKE转义
+
+- **变更**:
+  1. **Context传播** (`knowledge/extension.go`): `search`/`backendSearch`/`memorySearch` 方法签名增加 `context.Context` 参数；`handleSearch`/`Provide` 传递调用者ctx；`backendSearch` 中 `e.embedder.Embed` 从 `context.Background()` 改为 `ctx`，支持用户中断时取消嵌入API调用
+  2. **NewSQLiteStore错误处理** (`knowledge/sqlite/store.go`): 添加 `db.Ping()` 验证连通性；维度检测查询失败时返回error而非静默回退到dim=1024
+  3. **VectorSearch rows.Err()** (`knowledge/sqlite/store.go`): 内层 `rows.Next()` 循环后添加 `rows.Err()` 检查，避免DB错误导致静默返回部分结果
+  4. **FTS5引号转义** (`knowledge/sqlite/store.go`): `strconv.Quote(query)` 替换为 FTS5 兼容的双引号包裹+内部双引号加倍（`"` → `""`），避免反斜杠转义导致查询异常
+  5. **SearchLaws LIKE转义** (`knowledge/sqlite/store.go`): 转义 `%`→`\%`、`_`→`\_`、`\`→`\\`，添加 `ESCAPE '\'` 子句，确保关键词字面匹配
+  6. **backendSearch错误日志** (`knowledge/extension.go`): FTS/Vector/Embed 错误从静默吞没改为 `log.Printf` 记录，便于诊断持续性故障
+- **原因**: 代码审查发现6个问题（2中等+4低），涉及context传播缺失、错误静默吞没、SQL注入风险（非安全注入但语义错误）
+- **影响范围**: knowledge/extension.go, knowledge/sqlite/store.go
+- **风险等级**: 低（修复内部实现细节，不改变公开API）
+- **审查要求**: L2
+
+---
+
+## 2026-07-12: 引入 XiaoNuo 知识系统数据资产 + SQLite 读取层 + RRF 混合检索
+
+- **变更**:
+  1. **数据资产引入**: 在 `~/.mady/knowledge/` 下创建符号链接，引入 XiaoNuo Agent 的知识数据（knowledge.db 6.5GB 含81K文档/144K分块/215K图谱节点/144K嵌入向量；laws-full.db 152MB 含9121条法律；patent_kg.db 207MB；ipc-classification/ 6.8MB；wiki/ 17MB；rules/ 76KB）
+  2. **SQLite 依赖**: 添加 `modernc.org/sqlite` v1.53.0（纯Go无CGO），更新 go.mod
+  3. **SQLite 读取层** (`knowledge/sqlite/store.go`, 419行): `SQLiteStore` 支持只读打开 knowledge.db/laws-full.db/patent_kg.db；`FTSSearch` 利用 FTS5 trigram + BM25 评分；`VectorSearch` 批量读取 BLOB float32 嵌入向量计算余弦相似度；`LoadGraph` 从 kg_nodes/kg_edges 批量加载到内存 GraphStore；`SearchLaws` LIKE 搜索法律库
+  4. **RRF 融合检索器** (`retrieval/hybrid.go`): `RRFFuser` 实现 Reciprocal Rank Fusion 算法（k=60），融合 FTS 和向量搜索结果，score-agnostic 只看排名位置
+  5. **Extension 集成 SQLite 后端** (`knowledge/extension.go`): 新增 `KnowledgeBackend` 接口（`FTSSearch`/`VectorSearch`）；`WithBackend()` setter 注入 SQLiteStore + Embedder；`search()` 方法优先走 SQLite 后端（FTS+Vector RRF 融合），降级到内存关键词搜索；`handleSearch`/`Provide` 统一调用 `search()` 分发
+  6. **测试**: `knowledge/sqlite/store_test.go`（FTS/Graph/Laws 3测试全过）；`retrieval/hybrid_test.go`（RRF 4测试全过）
+- **原因**: Mady 原有知识库仅2篇种子文档，无法支撑专利/法律专业领域智能体；XiaoNuo Agent 的数据模型（GraphNode/GraphEdge/节点类型/关系类型/权威度权重）与 Mady 完全对齐，嵌入向量格式兼容（BGE-M3 1024维 float32 LE），可直接复用
+- **影响范围**: go.mod, go.sum, knowledge/sqlite/store.go, knowledge/sqlite/store_test.go, retrieval/hybrid.go, retrieval/hybrid_test.go, knowledge/extension.go
+- **风险等级**: 低（新增文件+非破坏性修改，现有功能通过 WithBackend 可选注入，不影响默认行为）
+- **审查要求**: L2（新增 SQLite 依赖和数据访问层，需确认只读模式和路径安全）
+
+---
+
+## 2026-07-11: 文档全面同步实际开发进度
+
+- **变更**:
+  1. **CLAUDE.md**: 代码统计（419→517 文件，283→352 非测试，136→165 测试，~108K→~126K 行）；目录结构新增 disclosure/memory/agentcore 子包/guardrails/guardian/；架构概要扩展层 10+→35+；新增 Invisible Handoff + IntegratedChatConfig 描述
+  2. **CHANGELOG.md**: 版本顺序修正（0.3.0→0.2.0→0.1.0）；补充 0.3.0 缺失特性（Embed Manifest、MADY_HOME、Invisible Handoff、Reasonix 9 包、四级压缩、Permission/Guardian/PlanMode/Evidence/FileCheckpoint/MemoryCompiler/Tracing/Evaluate）；添加 [0.3.0] 链接
+  3. **README.md**: 发展路线更新（下季度项中已实现的标记为当前）；架构图补充 memory/；manifest 说明改为 embed + ~/.mady/manifests/；扩展表格新增 8 个 opt-in 扩展包（Evidence/FileCheckpoint/Permission/PlanMode/Guardian/Evaluate/Tracing/Memory）；工具数 40+→35
+  4. **SECURITY.md**: 护栏描述修正为实际行为（关键词屏蔽+免责声明+审批门，非"仅免责声明"）；新增 Guardian AI 熔断器 + Permission 权限门控描述；新增安全敏感路径表（12 条路径）；版本表 0.1.x→0.x.x
+  5. **docs/chat-assistant-architecture.md**: 后续迭代补充 Invisible Handoff / Embed Manifest / Reasonix 包；下季度候选项更新
+  6. **docs/manifest-guide.md**: 文件位置改为 embed + $MADY_HOME/manifests/；启动方式更新
+  7. **docs/adr/0001**: TUI 7 层→8 层；基础设施层补充 disclosure/memory/filequeue/fuzzy
+  8. **CONTRIBUTING.md**: 目录结构新增 disclosure/memory/filequeue/fuzzy；架构图工具层 10+→35，基础设施层补充新模块
+- **原因**: 文档全面滞后于代码实际进度（代码已 517 文件/~126K 行，文档仍记 419 文件/~108K 行；v0.3.0 新增的 12 项特性在多份文档中缺失或描述不足）
+- **影响范围**: CLAUDE.md, CHANGELOG.md, README.md, SECURITY.md, docs/chat-assistant-architecture.md, docs/manifest-guide.md, docs/adr/0001-use-layered-architecture.md, CONTRIBUTING.md
+- **风险等级**: 低（纯文档变更，不涉及代码逻辑）
+- **审查要求**: L1
+
+---
+
+## 2026-07-11: Chat Agent 与意图识别模块深度融合（Invisible Handoff + IntegratedChatConfig）
+
+- **变更**:
+  1. `agentcore/handoff.go`：`HandoffConfig` 新增 `Invisible bool` 字段；`executeDelegate` 中 `Invisible=true` 时不再将子 Agent 事件总线转发到父 Agent
+  2. `agentcore/event.go`：`HandoffStartEvent` / `HandoffEndEvent` 新增 `Invisible bool` 字段
+  3. `domains/router.go`：提取 `ProfessionalHandoffConfigs()` 共享函数；`AllowedSources` 白名单增加 `"chat-agent"`
+  4. `domains/chat.go`：新增 `IntegratedChatConfig(base)` 工厂函数，注册 `ProfessionalHandoffConfigs` 为 Invisible Handoff，SystemPrompt 融合路由指令与对话能力；`ChatAgentConfig` 保持纯聊天向后兼容
+  5. `tui/chat/events.go`：`HandoffStartChatEvent` / `HandoffEndChatEvent` 新增 `Invisible bool` 字段
+  6. `tui/agentadapter/adapter.go`：透传 `Invisible` 标志
+  7. `tui/chat/chat_app.go`：`onToolStart`/`onToolEnd` 跳过 `transfer_to_*` 工具显示；`onHandoffStart`/`onHandoffEnd` 跳过 `Invisible` 交接公告
+  8. `cmd/mady/main.go`：新增 `useIntegratedMode`（`MADY_ROUTER_MODE=1` 回退到传统 Router 模式，`MADY_SINGLE_AGENT=1` 回退到单 Agent 模式）；集成模式使用 `IntegratedChatConfig` 作为默认 Agent
+
+- **原因**: Chat Agent 功能单一且意图识别交接过程在 TUI 中可见（`transfer_to_*` 工具调用 + handoff 系统消息 + 子 Agent 实时输出流），影响用户体验。深度融合后 Chat Agent 成为统一对话界面，内部通过 Invisible Handoff 无缝委派专业任务。
+
+- **影响范围**: agentcore/handoff.go, agentcore/event.go, domains/router.go, domains/chat.go, tui/chat/events.go, tui/agentadapter/adapter.go, tui/chat/chat_app.go, cmd/mady/main.go
+
+- **风险等级**: 中（触及 `agentcore/handoff.go` 的安全敏感路径 — HandoffConfig 结构体和 executeDelegate 事件总线逻辑，但 AllowedSources 白名单校验不变，仅新增 Invisible 控制字段）
+
+- **审查要求**: L3（handoff 白名单扩展 + 入口模式切换逻辑需审阅）
+
+---
+
+## 2026-07-11: 让 mady 在任意工作目录开箱即用（embed manifest + MADY_HOME 统一路径层）
+
+- **变更**:
+  1. `pkg/util/paths.go`（新增）：统一路径解析层 `MadyHome()` / `EnsureDir()` / `ResolveDataDir()`，优先级 `$MADY_HOME` > `~/.mady`
+  2. `agentcore/embedded_manifests.go`（新增）+ `agentcore/manifests/*.json`（从仓库根 `manifests/` 迁入）：4 个领域 manifest 通过 `go:embed` 编进二进制，任意目录可用
+  3. `agentcore/manifest_loader.go`：重构出 `ScanManifestsFromFS(fs.FS)`，新增 `LoadManifests(userDir)` 实现「内置 embed + 外部目录覆盖/新增」合并语义
+  4. `cmd/mady/main.go`：`setupFrameworkContext()` 统一走 `util.MadyHome()`，消除 5 处 cwd 相对路径依赖（manifest/workspace/session/AgentStore cwd）；修掉 `main.go:581` 硬编码 `./workspace` 绕过 `WORKSPACE_DIR` 的隐蔽 bug
+  5. `agentcore/agent.go` Config 新增 `WorkspaceDir` 字段；`domains/assistant.go` 读取 `base.WorkspaceDir` 替代硬编码 `./workspace`，经 Router 工厂链透传
+  6. `Makefile` 新增 `install` target（默认 `PREFIX=~/.local`）
+  7. 文档同步：`.env.example` 清理死变量（`KNOWLEDGE_DIR`/`SKILL_DIR`单数）、新增 `MADY_HOME` 说明；`AGENTS.md` 补「资源定位」gotcha
+- **原因**: 修复"从非项目根目录启动 `mady tui` 静默降级为裸 LLM 对话"的根因——manifest 扫描依赖相对路径 `./manifests`，目录不存在时 `ScanManifests` 返回 nil 导致 `useMultiDomain=false`，全部领域 agent 能力丢失
+- **影响范围**: pkg/util, agentcore(manifest_loader/agent/embedded_manifests), cmd/mady, domains/assistant, Makefile, .env.example, AGENTS.md
+- **风险等级**: 中（触及安全敏感路径 `agentcore/manifest_loader.go` 的 Manifest 校验规则，但未改校验逻辑，仅重构加载入口 + 加 embed；`domains/assistant.go` WorkingDir 透传影响工具沙箱边界）
+- **审查要求**: L3
+
+---
+
+## 2026-07-11: 引入 Reasonix 高价值特性 — Phase 0-2 实施
+
+- **变更**: 基于 Reasonix 分析报告，为 Mady 引入 9 个新特性包，全部以 opt-in Extension 模式接入，零侵入现有代码路径：
+  1. **Phase 0.1 Tool ReadOnly** (`agentcore/tool.go`): Tool 结构新增 `ReadOnly` 字段 + `DynamicReadOnly` 回调 + `ToolReadOnly()` 辅助函数；`tools/tools.go` 标记 12 个只读工具
+  2. **Phase 0.2 Evidence Ledger** (`agentcore/evidence/`): Receipt/Ledger/查询方法/context 注入/Extension 自动注册，追踪每个 turn 的工具调用证据
+  3. **Phase 0.3 File Checkpoint** (`agentcore/filecheckpoint/`): Store/Snapshot/Restore + BeforeHook 自动快照写入工具，支持按 turn 回退文件状态
+  4. **Phase 1.1 Guardian AI** (`guardrails/guardian/`): AI 安全审查子 Agent，熔断器，三档审查级别，Middleware 集成，fail-closed
+  5. **Phase 1.2 Permission System** (`agentcore/permission/`): Allow/Ask/Deny 三态决策 + 规则解析（glob/command prefix）+ Approver 接口 + Middleware
+  6. **Phase 1.3 Plan Mode** (`agentcore/planmode/`): 计划模式工具门控，bash 命令安全分类器（read-only/write），LifecycleHook 集成
+  7. **Phase 2.1 Tiered Compaction** (`agentcore/context_engine_tiered.go`): 四级渐进式压缩管线（snip→prune→force-fold），注册为 "tiered" ContextEngine
+  8. **Phase 2.2 Memory Compiler** (`memory/compiler/`): 策略学习型记忆扩展，ε-greedy 探索，执行轨迹追踪，质量分级 + 置信度衰减，5 个预置专利/法律策略
+- **原因**: 系统性提升 Agent 安全性、上下文管理效率、和学习能力，借鉴 Reasonix 工程实践
+- **影响范围**: agentcore/{tool.go, evidence/, filecheckpoint/, permission/, planmode/, context_engine_tiered.go, context_engine.go, context_engine_test.go}, tools/tools.go, guardrails/guardian/, memory/compiler/
+- **安全敏感**: 是（涉及 Permission 门控、Guardian 审查、Plan Mode 工具门控、文件系统操作）
+- **验证**: go build ✅ | go test -race ✅ 全部通过
+- **风险等级**: 中（新功能均为 opt-in，不影响现有代码路径）
+- **审查要求**: L3
+
+---
+
+## 2026-07-11: 修复三个 CRITICAL 并发安全问题
+
+- **变更**:
+  1. `domains/agent_pool.go` GetOrCreate 消除 defer+手动 Unlock 混合模式导致的 double-unlock panic，改为显式 Lock/Unlock + 锁外批量 Close
+  2. `domains/reasoning/fact_blackboard.go` 为 FactBlackboard 添加 sync.RWMutex 保护所有字段，写方法检查 Locked 并 panic，MarshalJSON/UnmarshalJSON 加锁
+  3. `domains/project.go` 提取 StatusActive/StatusArchived/StatusUnreachable 常量替换硬编码字符串
+- **原因**: 消除运行时 panic 风险和并发数据竞争
+- **影响范围**: domains/agent_pool.go, domains/reasoning/fact_blackboard.go, domains/project.go
+- **风险等级**: 中（涉及安全敏感路径 agent_pool 和并发同步）
+- **审查要求**: L3
+
+---
+
+## 2026-07-11: 全面代码质量审查修复 — 16 CRITICAL + 45 MAJOR + lint清零
+
+- **变更**:
+  1. **CRITICAL 安全修复**: tools/ delete.go/move.go/patch.go 改用 resolvePathSandboxed 堵住沙箱绕过；tools.go BuildTools 传播 Sandbox 配置；bash.go 添加 Setpgid 进程组隔离 + 临时文件延迟清理 + Write 错误检查
+  2. **CRITICAL 并发/泄漏修复**: agentcore/stream.go Map/Merge 添加 out.Done() 监听取消 goroutine 泄漏；session/session.go 锁缓存改 LRU 淘汰替代全量清空；knowledge/store.go ReindexVectors 锁外批量 Embed；server/server.go handleSkillEvents defer unregister；tui/tui.go PanicMsg 处理 + terminal.go readLoop 错误日志 + 写错误记录
+  3. **MAJOR agentcore 修复**: 删除死代码(`_ = tc`/tmpState)；compaction 失败时清空 previousSummary；runStreaming 添加 recover；提取 buildRequestMessages 辅助函数；handoff_context 全局 goroutine 简化 + 移除 intentCacheStopCh；handoff.go fmt.Printf → slog；新增 messagesNoClone 内部方法；agent.go map 直接访问改为 Create 调用
+  4. **MAJOR tools 修复**: process.go handleKill/handleList 从 stub 改为 Registry 实现；handleStatus/handleWait 从 registry 查真实 entry；browser.go Stealth JS 改用 AddScriptToEvaluateOnNewDocument；find.go WalkDir 深度限制 5 层；grep.go Kill 后立即 Wait
+  5. **MAJOR 网络层修复**: a2a PublishTaskUpdate/ReadLoop 事件丢弃添加 slog；SSEKeepAlive 添加 mu 参数；disclosure SSE 添加写锁；mcp/client.go tryReconnect 递归深度限制 3
+  6. **MAJOR 基础设施修复**: store/file.go + psychological/store.go 原子写入(tmp+rename)；filequeue RWMutex 替代 Mutex；session persistEntry O(1) hasAssistant 标志；session readInfo 加锁；knowledge/graph 手写 intToStr/floatToStr → 标准库
+  7. **MAJOR 其他修复**: guardrails 免责声明完整文本匹配；psychological SDT 权重归一化；disclosure 重试时删除三个提取 key；cmd/mady log.Fatalf → return；example a2a-client/a2a-server signal handling
+  8. **Lint 清零**: 18 个 golangci-lint issues 全部修复（dupArg/appendCombine/exitAfterDefer/gofmt/ineffassign/QF1008/QF1012/S1005/SA9003/unconvert/unused）
+  9. **代码重复消除**: 4 处 itoa → strconv.Itoa；3 处 lastUserMessage → agentcore.LastUserMessage；2 处 validateKey → util.ValidateKey
+- **原因**: 系统性消除审查报告中的 16 CRITICAL / 45+ MAJOR / golangci-lint 问题
+- **影响范围**: 全项目（agentcore/tools/domains/session/knowledge/server/tui/a2a/mcp/disclosure/guardrails/psychological/store/filequeue/workflow/cmd/example）
+- **验证**: go build ✅ | go vet ✅ | go test -race ✅ 全部通过 | golangci-lint 0 issues
+- **风险等级**: 中（涉及安全敏感路径 tools/path 沙箱 + handoff + guardrails）
+- **审查要求**: L3
+
+---

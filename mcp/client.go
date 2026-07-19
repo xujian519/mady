@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"sync"
@@ -200,7 +200,7 @@ func (c *Client) initialize(ctx context.Context) error {
 	// 此处做前缀匹配：服务端版本 ≥ 客户端版本（按字符串前缀顺序）即视为兼容。
 	// 如果服务器未返回 protocolVersion（旧版或非标准实现），不阻塞但记录警告。
 	if result.ProtocolVersion != "" && !strings.HasPrefix(result.ProtocolVersion, protocolVersion[:7]) {
-		log.Printf("mcp: server protocol version mismatch: server=%q client=%q", result.ProtocolVersion, protocolVersion)
+		slog.Warn("mcp: server protocol version mismatch", "server", result.ProtocolVersion, "client", protocolVersion)
 	}
 	caps, err := decodeCapabilities(result.Capabilities)
 	if err != nil {
@@ -295,7 +295,7 @@ func (c *Client) Close() error {
 	// log and abandon rather than block callers indefinitely.
 	if c.cmd.Process != nil {
 		if err := killProcessTree(c.cmd.Process.Pid); err != nil {
-			log.Printf("mcp client: kill process tree failed: %v", err)
+			slog.Warn("mcp client: kill process tree failed", "err", err)
 		}
 	}
 	killTimer := time.NewTimer(2 * time.Second)
@@ -306,7 +306,7 @@ func (c *Client) Close() error {
 			return err
 		}
 	case <-killTimer.C:
-		log.Printf("mcp client: cmd.Wait did not return after kill, goroutine may leak")
+		slog.Warn("mcp client: cmd.Wait did not return after kill, goroutine may leak")
 	}
 	return nil
 }

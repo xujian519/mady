@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -122,7 +122,7 @@ func scheduleRefresh(
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("[mcp] tools refresh goroutine panicked: %v\n%s", r, debug.Stack())
+				slog.Error("mcp: tools refresh goroutine panicked", "err", r, "stack", string(debug.Stack()))
 			}
 		}()
 		for {

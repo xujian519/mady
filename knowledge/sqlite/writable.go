@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"path/filepath"
 	"strconv"
@@ -262,7 +262,7 @@ func (w *WritableStore) Search(ctx context.Context, query string, topK int) ([]r
 	if ftsResults, err := w.ftsSearch(query, topK); err == nil && len(ftsResults) > 0 {
 		lists = append(lists, ftsResults)
 	} else if err != nil {
-		log.Printf("[writable] FTS search error: %v", err)
+		slog.Error("writable: FTS search error", "err", err)
 	}
 
 	// Vector path.
@@ -272,10 +272,10 @@ func (w *WritableStore) Search(ctx context.Context, query string, topK int) ([]r
 			if vecResults, vErr := w.vectorSearch(vecs[0], topK); vErr == nil && len(vecResults) > 0 {
 				lists = append(lists, vecResults)
 			} else if vErr != nil {
-				log.Printf("[writable] vector search error: %v", vErr)
+				slog.Error("writable: vector search error", "err", vErr)
 			}
 		} else if err != nil {
-			log.Printf("[writable] embed error: %v", err)
+			slog.Error("writable: embed error", "err", err)
 		}
 	}
 

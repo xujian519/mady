@@ -44,12 +44,13 @@ func TestParseSemanticThemeJSONIgnoresUnknownKeys(t *testing.T) {
 	}
 }
 
-func TestSetSemanticThemeUpdatesGlobals(t *testing.T) {
+func TestSetSemanticThemeUpdatesPalette(t *testing.T) {
 	ForceColor(true)
 	t.Cleanup(func() { ForceColor(false) })
 	SetSemanticTheme(DefaultMadyDark(), ColorModeTruecolor)
-	if !strings.Contains(StyleUser.Render("x"), "\x1b[") {
-		t.Fatalf("StyleUser should emit ansi: %q", StyleUser.Render("x"))
+	userStyle := CurrentPalette().User
+	if !strings.Contains(userStyle.Render("x"), "\x1b[") {
+		t.Fatalf("palette User style should emit ansi: %q", userStyle.Render("x"))
 	}
 	SetSemanticTheme(DefaultSemanticLight(), ColorModeTruecolor)
 }

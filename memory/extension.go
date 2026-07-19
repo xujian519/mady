@@ -3,7 +3,7 @@ package memory
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -236,13 +236,13 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("[memory] panic in RememberFromTurn: %v", r)
+				slog.Error("memory: panic in RememberFromTurn", "err", r)
 			}
 		}()
 		extractCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if _, err := h.ext.manager.RememberFromTurn(extractCtx, userMsg, respContent, h.ext.scope); err != nil {
-			log.Printf("[memory] RememberFromTurn failed: %v", err)
+			slog.Warn("memory: RememberFromTurn failed", "err", err)
 		}
 	}()
 }

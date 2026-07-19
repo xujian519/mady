@@ -103,17 +103,6 @@ func TestFactBlackboard_ArticleJudgments(t *testing.T) {
 	}
 }
 
-func TestFactBlackboard_Plan(t *testing.T) {
-	bb := NewFactBlackboard("case-1", CasePatentability, "")
-	bb.SetPlan(ExecutionPlan{
-		Steps:     []ExecutionPlanStep{{Order: 1, Description: "撰写", ToolName: "draft"}},
-		Artifacts: []string{"claims.md"},
-	})
-	if bb.Plan() == nil || len(bb.Plan().Steps) != 1 {
-		t.Fatalf("plan mismatch")
-	}
-}
-
 func TestFactBlackboard_Lock(t *testing.T) {
 	bb := NewFactBlackboard("case-1", CasePatentability, "")
 	if bb.Locked {

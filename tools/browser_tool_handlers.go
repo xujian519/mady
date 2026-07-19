@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -122,7 +122,7 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	// 4. Apply stealth JS to hide automation fingerprints.
 	stealthCtx, stealthCancel := context.WithTimeout(timeoutCtx, 3*time.Second)
 	if err := chromedp.Run(stealthCtx, chromedp.Evaluate(stealthJavaScript, nil)); err != nil {
-		log.Printf("browser: stealth js injection failed: %v", err)
+		slog.Warn("browser: stealth js injection failed", "err", err)
 	}
 	stealthCancel()
 
@@ -130,7 +130,7 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	var title string
 	titleCtx, titleCancel := context.WithTimeout(timeoutCtx, 5*time.Second)
 	if err := chromedp.Run(titleCtx, chromedp.Title(&title)); err != nil {
-		log.Printf("browser: get title failed: %v", err)
+		slog.Warn("browser: get title failed", "err", err)
 	}
 	titleCancel()
 
@@ -421,7 +421,7 @@ func handleBack(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 			chromedp.Location(&url),
 			chromedp.Title(&title),
 		); err != nil {
-			log.Printf("browser: get location/title failed: %v", err)
+			slog.Warn("browser: get location/title failed", "err", err)
 		}
 		snapshot, err = generateSnapshot(session.ctx, false, session.refMapper)
 		cancel()
@@ -436,7 +436,7 @@ func handleBack(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 			chromedp.Location(&url),
 			chromedp.Title(&title),
 		); err != nil {
-			log.Printf("browser: get location/title failed: %v", err)
+			slog.Warn("browser: get location/title failed", "err", err)
 		}
 		snapshot, err = generateSnapshot(timeoutCtx, false, session.refMapper)
 	default:

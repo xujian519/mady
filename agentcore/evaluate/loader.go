@@ -48,12 +48,12 @@ type FixtureFile struct {
 
 // TestCaseExtended extends TestCase with an optional metadata field.
 type TestCaseExtended struct {
-	ID                string                 `json:"id"`
-	Domain            string                 `json:"domain"`
-	Input             string                 `json:"input"`
-	Expected          string                 `json:"expected"`
-	RequiredCitations []string               `json:"required_citations,omitempty"`
-	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	ID                string         `json:"id"`
+	Domain            string         `json:"domain"`
+	Input             string         `json:"input"`
+	Expected          string         `json:"expected"`
+	RequiredCitations []string       `json:"required_citations,omitempty"`
+	Metadata          map[string]any `json:"metadata,omitempty"`
 }
 
 // LoadDir loads all JSON fixture files from a directory. It skips non-JSON

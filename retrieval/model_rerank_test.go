@@ -238,7 +238,7 @@ func TestModelReranker_ImplementsInterfaces(t *testing.T) {
 	var _ Reranker = mr
 	var _ QueryReranker = mr
 
-	if _, ok := interface{}(mr).(QueryReranker); !ok {
+	if _, ok := any(mr).(QueryReranker); !ok {
 		t.Fatal("ModelReranker must implement QueryReranker")
 	}
 }

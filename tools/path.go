@@ -3,7 +3,7 @@ package tools
 import (
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,7 +46,7 @@ func resolvePathSandboxed(userPath, cwd string, sbx WorkingDirSandbox) (string, 
 	if !sbx.Enabled {
 		sandboxWarnOnce.Do(func() {
 			if sbx.WorkingDir != "" {
-				log.Printf("[sandbox] WARNING: sandbox disabled, path boundary check skipped (workingDir=%q). This warning will not be repeated.", sbx.WorkingDir)
+				slog.Warn("sandbox: sandbox disabled, path boundary check skipped", "workingDir", sbx.WorkingDir)
 			}
 		})
 		return abs, nil

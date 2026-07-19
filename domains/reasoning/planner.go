@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 )
@@ -125,20 +125,20 @@ func (p *Planner) lookupTemplate(caseType CaseType, intent PlanIntent) *Plan {
 // JSON parse failure), it falls back to buildFallbackPlan.
 func (p *Planner) llmGenerate(ctx context.Context, bb *FactBlackboard, intent PlanIntent) (*Plan, error) {
 	if p.llm == nil {
-		log.Printf("[planner] LLM client is nil, using fallback plan for case=%s intent=%s", bb.CaseID, intent)
+		slog.Warn("planner: LLM client is nil, using fallback plan", "case", bb.CaseID, "intent", intent)
 		return p.buildFallbackPlan(bb, intent), nil
 	}
 
 	prompt := p.buildLLMPrompt(bb, intent)
 	resp, err := p.llm.Chat(ctx, []LlmMessage{{Role: "user", Content: prompt}})
 	if err != nil {
-		log.Printf("[planner] LLM call failed: %v — using fallback plan", err)
+		slog.Warn("planner: LLM call failed, using fallback plan", "err", err)
 		return p.buildFallbackPlan(bb, intent), nil
 	}
 
 	plan, err := p.parsePlanResponse(resp, bb, intent)
 	if err != nil {
-		log.Printf("[planner] LLM response parse failed: %v — using fallback plan", err)
+		slog.Warn("planner: LLM response parse failed, using fallback plan", "err", err)
 		return p.buildFallbackPlan(bb, intent), nil
 	}
 

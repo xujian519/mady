@@ -298,7 +298,7 @@ func parseMadyExtension(raw string, path string) (*MadyExtension, []Diagnostic) 
 	if header == "" {
 		return nil, nil
 	}
-	var doc map[string]interface{}
+	var doc map[string]any
 	if err := yaml.Unmarshal([]byte(header), &doc); err != nil {
 		return nil, []Diagnostic{{
 			Path:    path,

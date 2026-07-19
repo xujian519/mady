@@ -322,7 +322,7 @@ func (m RubricJudge) parseRubricScore(content string, criteria []RubricCriterion
 	}
 
 	// Parse the JSON response.
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal([]byte(content), &result); err != nil {
 		// Fallback: try to extract any numeric score.
 		return extractNumericScore(content)
@@ -392,8 +392,8 @@ func extractNumericScore(content string) float64 {
 	return 0
 }
 
-// toFloat64 converts an interface{} to float64.
-func toFloat64(v interface{}) float64 {
+// toFloat64 converts an any to float64.
+func toFloat64(v any) float64 {
 	switch val := v.(type) {
 	case float64:
 		return val

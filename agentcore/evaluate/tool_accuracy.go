@@ -39,8 +39,8 @@ type ToolAccuracy struct {
 
 // ToolCallJSON represents a single tool call in the prediction/reference JSON.
 type ToolCallJSON struct {
-	Name      string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments"`
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
 }
 
 func (m ToolAccuracy) Name() string { return "tool_accuracy" }
@@ -129,7 +129,7 @@ func computeArgAccuracy(predCalls, refCalls []ToolCallJSON, strict bool) float64
 
 // scoreArgs returns the fraction of expected argument key-value pairs present
 // in the prediction arguments.
-func scoreArgs(pred, ref map[string]interface{}, strict bool) float64 {
+func scoreArgs(pred, ref map[string]any, strict bool) float64 {
 	if len(ref) == 0 && len(pred) == 0 {
 		return 1
 	}
@@ -153,7 +153,7 @@ func scoreArgs(pred, ref map[string]interface{}, strict bool) float64 {
 // valuesMatch compares two argument values. In non-strict mode, numeric values
 // are compared by their JSON-marshaled representation (so 10 == 10.0). In
 // strict mode all values must be deep equal.
-func valuesMatch(expected, actual interface{}, strict bool) bool {
+func valuesMatch(expected, actual any, strict bool) bool {
 	if strict {
 		// Include type in comparison so e.g. float64(10) != string("10").
 		return fmt.Sprintf("%T(%v)", expected, expected) == fmt.Sprintf("%T(%v)", actual, actual)

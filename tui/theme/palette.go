@@ -195,25 +195,12 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 	return p
 }
 
-// SyncPaletteGlobals updates the atomic palette and legacy package-level Style
-// variables (same snapshot) for code that still references StyleUser etc.
+// SyncPaletteGlobals updates the atomic palette snapshot for the given
+// semantic theme + color mode. Callers should use CurrentPalette() to
+// read the active styles.
 func SyncPaletteGlobals(sem *SemanticTheme, mode ColorMode) {
 	p := BuildPalette(sem, mode)
 	atomicPalette.Store(p)
-	StyleUser = p.User
-	StyleAssistant = p.Assistant
-	StyleSystem = p.System
-	StyleTool = p.Tool
-	StyleToolName = p.ToolName
-	StyleError = p.Error
-	StyleSuccess = p.Success
-	StyleDim = p.Dim
-	StyleBold = p.Bold
-	StyleHandoff = p.Handoff
-	StyleCode = p.Code
-	StyleCodeBlock = p.CodeBlock
-	StyleUsage = p.Usage
-	StyleThinking = p.Thinking
 }
 
 func init() {

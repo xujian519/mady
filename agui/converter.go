@@ -256,138 +256,56 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 	case agentcore.HandoffStartEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "handoff_start",
-			Value: map[string]any{
-				"source_agent": ev.SourceAgent,
-				"target_agent": ev.TargetAgent,
-				"mode":         ev.Mode,
-				"context":      ev.Context,
-			},
-		})
+		events = append(events, c.convertHandoffStart(ev)...)
 		return events
 	case *agentcore.HandoffStartEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "handoff_start",
-			Value: map[string]any{
-				"source_agent": ev.SourceAgent,
-				"target_agent": ev.TargetAgent,
-				"mode":         ev.Mode,
-				"context":      ev.Context,
-			},
-		})
+		events = append(events, c.convertHandoffStart(*ev)...)
 		return events
 
 	case agentcore.HandoffEndEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "handoff_end",
-			Value: map[string]any{
-				"target_agent": ev.TargetAgent,
-				"output":       ev.Output,
-				"duration_ms":  ev.Duration.Milliseconds(),
-			},
-		})
+		events = append(events, c.convertHandoffEnd(ev)...)
 		return events
 	case *agentcore.HandoffEndEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "handoff_end",
-			Value: map[string]any{
-				"target_agent": ev.TargetAgent,
-				"output":       ev.Output,
-				"duration_ms":  ev.Duration.Milliseconds(),
-			},
-		})
+		events = append(events, c.convertHandoffEnd(*ev)...)
 		return events
 
 	case agentcore.CompactionStartEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "compaction_start",
-			Value: map[string]any{
-				"tokens_before":  ev.TokensBefore,
-				"context_window": ev.ContextWindow,
-			},
-		})
+		events = append(events, c.convertCompactionStart(ev)...)
 		return events
 	case *agentcore.CompactionStartEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "compaction_start",
-			Value: map[string]any{
-				"tokens_before":  ev.TokensBefore,
-				"context_window": ev.ContextWindow,
-			},
-		})
+		events = append(events, c.convertCompactionStart(*ev)...)
 		return events
 
 	case agentcore.CompactionEndEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "compaction_end",
-			Value: map[string]any{
-				"tokens_before": ev.TokensBefore,
-				"tokens_after":  ev.TokensAfter,
-				"messages_cut":  ev.MessagesCut,
-				"duration_ms":   ev.Duration.Milliseconds(),
-			},
-		})
+		events = append(events, c.convertCompactionEnd(ev)...)
 		return events
 	case *agentcore.CompactionEndEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "compaction_end",
-			Value: map[string]any{
-				"tokens_before": ev.TokensBefore,
-				"tokens_after":  ev.TokensAfter,
-				"messages_cut":  ev.MessagesCut,
-				"duration_ms":   ev.Duration.Milliseconds(),
-			},
-		})
+		events = append(events, c.convertCompactionEnd(*ev)...)
 		return events
 
 	case agentcore.AutoRetryEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "auto_retry",
-			Value: map[string]any{
-				"attempt":     ev.Attempt,
-				"max_retries": ev.MaxRetries,
-				"delay_ms":    ev.Delay.Milliseconds(),
-			},
-		})
+		events = append(events, c.convertAutoRetry(ev)...)
 		return events
 	case *agentcore.AutoRetryEvent:
 		var events []any
 		events = append(events, c.closeAll(ev.EventTime())...)
-		events = append(events, CustomEvent{
-			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
-			Name:      "auto_retry",
-			Value: map[string]any{
-				"attempt":     ev.Attempt,
-				"max_retries": ev.MaxRetries,
-				"delay_ms":    ev.Delay.Milliseconds(),
-			},
-		})
+		events = append(events, c.convertAutoRetry(*ev)...)
 		return events
 
 	default:
@@ -503,6 +421,83 @@ func (c *Converter) convertToolCallEnd(t time.Time, toolCallID, toolName, result
 		Role:       "tool",
 	})
 	return events
+}
+
+// convertHandoffStart converts a HandoffStartEvent (value or dereferenced pointer)
+// into a CustomEvent with handoff metadata.
+func (c *Converter) convertHandoffStart(ev agentcore.HandoffStartEvent) []any {
+	return []any{
+		CustomEvent{
+			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
+			Name:      "handoff_start",
+			Value: map[string]any{
+				"source_agent": ev.SourceAgent,
+				"target_agent": ev.TargetAgent,
+				"mode":         ev.Mode,
+				"context":      ev.Context,
+			},
+		},
+	}
+}
+
+// convertHandoffEnd converts a HandoffEndEvent into a CustomEvent with result metadata.
+func (c *Converter) convertHandoffEnd(ev agentcore.HandoffEndEvent) []any {
+	return []any{
+		CustomEvent{
+			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
+			Name:      "handoff_end",
+			Value: map[string]any{
+				"target_agent": ev.TargetAgent,
+				"output":       ev.Output,
+				"duration_ms":  ev.Duration.Milliseconds(),
+			},
+		},
+	}
+}
+
+// convertCompactionStart converts a CompactionStartEvent into a CustomEvent.
+func (c *Converter) convertCompactionStart(ev agentcore.CompactionStartEvent) []any {
+	return []any{
+		CustomEvent{
+			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
+			Name:      "compaction_start",
+			Value: map[string]any{
+				"tokens_before":  ev.TokensBefore,
+				"context_window": ev.ContextWindow,
+			},
+		},
+	}
+}
+
+// convertCompactionEnd converts a CompactionEndEvent into a CustomEvent.
+func (c *Converter) convertCompactionEnd(ev agentcore.CompactionEndEvent) []any {
+	return []any{
+		CustomEvent{
+			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
+			Name:      "compaction_end",
+			Value: map[string]any{
+				"tokens_before": ev.TokensBefore,
+				"tokens_after":  ev.TokensAfter,
+				"messages_cut":  ev.MessagesCut,
+				"duration_ms":   ev.Duration.Milliseconds(),
+			},
+		},
+	}
+}
+
+// convertAutoRetry converts an AutoRetryEvent into a CustomEvent.
+func (c *Converter) convertAutoRetry(ev agentcore.AutoRetryEvent) []any {
+	return []any{
+		CustomEvent{
+			BaseEvent: baseEvent(EventCustom, ev.EventTime()),
+			Name:      "auto_retry",
+			Value: map[string]any{
+				"attempt":     ev.Attempt,
+				"max_retries": ev.MaxRetries,
+				"delay_ms":    ev.Delay.Milliseconds(),
+			},
+		},
+	}
 }
 
 func MessagesFromAgent(msgs []agentcore.Message) []Message {

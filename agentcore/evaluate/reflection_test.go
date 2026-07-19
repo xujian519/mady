@@ -184,7 +184,7 @@ func TestParseRubricScore_CodeFence(t *testing.T) {
 
 func TestToFloat64(t *testing.T) {
 	tests := []struct {
-		input interface{}
+		input any
 		want  float64
 	}{
 		{float64(0.5), 0.5},

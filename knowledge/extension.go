@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -391,7 +391,7 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 	if ftsResults, err := e.backend.FTSSearch(query, candidateK); err == nil && len(ftsResults) > 0 {
 		lists = append(lists, ftsResults)
 	} else if err != nil {
-		log.Printf("[knowledge] FTS search error: %v", err)
+		slog.Error("knowledge: FTS search error", "err", err)
 	}
 
 	// Lane 2: knowledge.db vector (cosine similarity).
@@ -401,10 +401,10 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 			if vecResults, vErr := e.backend.VectorSearch(vecs[0], candidateK); vErr == nil && len(vecResults) > 0 {
 				lists = append(lists, vecResults)
 			} else if vErr != nil {
-				log.Printf("[knowledge] vector search error: %v", vErr)
+				slog.Error("knowledge: vector search error", "err", vErr)
 			}
 		} else if err != nil {
-			log.Printf("[knowledge] embed error: %v", err)
+			slog.Error("knowledge: embed error", "err", err)
 		}
 	}
 
@@ -413,7 +413,7 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 		if userResults, err := e.writable.Search(ctx, query, candidateK); err == nil && len(userResults) > 0 {
 			lists = append(lists, userResults)
 		} else if err != nil {
-			log.Printf("[knowledge] user store search error: %v", err)
+			slog.Error("knowledge: user store search error", "err", err)
 		}
 	}
 

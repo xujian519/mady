@@ -23,7 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -248,13 +248,13 @@ func (fi *FileIndex) Refresh(ctx context.Context) error {
 		// Sync FTS5 (delete old + insert new).
 		if _, err := fi.db.ExecContext(ctx, `DELETE FROM file_records_fts WHERE rowid IN (
 			SELECT rowid FROM file_records WHERE path = ?)`, relPath); err != nil {
-			log.Printf("fileindex: fts5 delete error: %v", err)
+			slog.Error("fileindex: fts5 delete error", "err", err)
 		}
 		if _, err := fi.db.ExecContext(ctx,
 			`INSERT INTO file_records_fts (rowid, path, preview_text) VALUES (
 				(SELECT rowid FROM file_records WHERE path = ?), ?, ?)`,
 			relPath, relPath, preview); err != nil {
-			log.Printf("fileindex: fts5 insert error: %v", err)
+			slog.Error("fileindex: fts5 insert error", "err", err)
 		}
 	}
 
@@ -264,7 +264,7 @@ func (fi *FileIndex) Refresh(ctx context.Context) error {
 			// Delete FTS5 entry FIRST (while the record still exists for the subquery).
 			if _, err := fi.db.ExecContext(ctx, `DELETE FROM file_records_fts WHERE rowid IN (
 				SELECT rowid FROM file_records WHERE path = ?)`, path); err != nil {
-				log.Printf("fileindex: fts5 delete error on remove: %v", err)
+				slog.Error("fileindex: fts5 delete error on remove", "err", err)
 			}
 			_, _ = fi.db.ExecContext(ctx, `DELETE FROM file_records WHERE path = ?`, path)
 		}

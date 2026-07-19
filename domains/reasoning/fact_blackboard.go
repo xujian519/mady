@@ -242,17 +242,6 @@ func (b *FactBlackboard) Plan() *ExecutionPlan {
 	return b.plan
 }
 
-// SetPlan stores an execution plan. Panics if locked.
-//
-// Deprecated: Use SetPlanV2 for new code. Will be removed in v0.6.0.
-func (b *FactBlackboard) SetPlan(p ExecutionPlan) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.checkNotLocked()
-	b.plan = &p
-	b.touch()
-}
-
 // PlanV2 returns the Stage ③ Plan, or nil if none has been set.
 func (b *FactBlackboard) PlanV2() *Plan {
 	b.mu.RLock()

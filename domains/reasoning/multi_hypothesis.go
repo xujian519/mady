@@ -359,8 +359,8 @@ func stateGetStringSlice(state PregelState, key string) []string {
 		if ss, ok := v.([]string); ok {
 			return ss
 		}
-		// Also try []interface{} (common in JSON deserialization).
-		if si, ok := v.([]interface{}); ok {
+		// Also try []any (common in JSON deserialization).
+		if si, ok := v.([]any); ok {
 			ss := make([]string, 0, len(si))
 			for _, e := range si {
 				if s, ok := e.(string); ok {

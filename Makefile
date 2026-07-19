@@ -19,14 +19,22 @@ GOLANGCI_LINT_VERSION ?= v2.12.2
         help
 
 # Default target
+# 覆盖根模块 + tools 子模块（go.work 多模块结构）。
+# 注：单独 `go build/test/vet ./...` 在根目录执行时不会覆盖 tools/ 子模块，
+# 这里通过显式两段调用来保证一致性（CI 的 matrix 也覆盖了相同路径）。
 all: vet build test
+
+# TOOLS_BUILD_DIR 用于在 tools 子模块执行命令时切换工作目录。
+# 所有 `cd tools && go ...` 调用都使用 `$(GO)` 与 `$(GOFLAGS)`，与根模块保持一致。
 
 # --- Build ---
 build:
 	$(GO) build $(GOFLAGS) ./...
+	cd tools && $(GO) build $(GOFLAGS) ./...
 
 build-release:
 	$(GO) build $(GOFLAGS) $(LDFLAGS) ./...
+	cd tools && $(GO) build $(GOFLAGS) $(LDFLAGS) ./...
 
 build-cli-chat:
 	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINDIR)/cli-chat ./example/cli-chat/
@@ -41,20 +49,26 @@ build-mady:
 	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINDIR)/mady ./cmd/mady/
 
 # --- Test ---
+# 所有 test target 都同时跑根模块和 tools 子模块，避免本地与 CI 不一致。
+# 失败时使用 `&&` 短路：根模块失败则不再跑 tools（与 matrix CI 行为一致）。
 test:
 	$(GO) test $(GOFLAGS) -count=1 ./...
+	cd tools && $(GO) test $(GOFLAGS) -count=1 ./...
 
 test-race:
 	$(GO) test $(GOFLAGS) -race -count=1 ./...
+	cd tools && $(GO) test $(GOFLAGS) -race -count=1 ./...
 
 test-short:
 	$(GO) test $(GOFLAGS) -short -count=1 ./...
+	cd tools && $(GO) test $(GOFLAGS) -short -count=1 ./...
 
 test-integration:
 	$(GO) test $(GOFLAGS) -tags integration -count=1 ./integration/...
 
 test-verbose:
 	$(GO) test $(GOFLAGS) -v -count=1 ./...
+	cd tools && $(GO) test $(GOFLAGS) -v -count=1 ./...
 
 # --- Eval Suite (CI Gate) ---
 # eval runs the benchmark test suite under agentcore/evaluate/benchmark.
@@ -73,6 +87,8 @@ bench-knowledge:
 	$(GO) test -bench=. -benchmem -count=1 ./knowledge/... 2>&1 | tee bench-knowledge.txt
 
 # --- Coverage ---
+# coverage 仅生成根模块覆盖率（与 CI 的 codecov 上传路径对齐）。
+# 如需 tools 覆盖率，单独执行 `cd tools && go test -coverprofile=tools.coverage.out ./...`
 coverage:
 	$(GO) test $(GOFLAGS) -coverprofile=coverage.out ./...
 	$(GO) tool cover -html=coverage.out -o coverage.html
@@ -86,6 +102,7 @@ coverage-check:
 # --- Lint ---
 vet:
 	$(GO) vet $(GOFLAGS) ./...
+	cd tools && $(GO) vet $(GOFLAGS) ./...
 
 lint: vet
 	@if command -v golangci-lint >/dev/null 2>&1; then \
@@ -152,6 +169,9 @@ run-acp-server:
 help:
 	@echo "Mady Makefile"
 	@echo "============="
+	@echo ""
+	@echo "Note: all build/test/vet targets cover BOTH the root module"
+	@echo "      and the ./tools sub-module (go.work multi-module workspace)."
 	@echo ""
 	@echo "Build:"
 	@echo "  build              Build all packages"

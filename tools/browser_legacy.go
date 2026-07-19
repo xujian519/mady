@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -13,6 +14,117 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 )
+
+// chromedpNavigateAndSnapshot runs the shared chromedp-based navigation flow
+// used by all chromedp-backed browser backends (Lightpanda, Local, CDP,
+// Browserbase, BrowserUse, Firecrawl, AgentBrowser).
+//
+// The flow is:
+//  1. Inject stealth JS to hide automation fingerprints.
+//  2. Navigate to parsedURL and wait for the page to become interactive.
+//  3. Apply stealth JS again post-navigation.
+//  4. Read the page title.
+//  5. Generate an accessibility snapshot via generateSnapshot.
+//  6. Update session state (url, title, lastActivity).
+//
+// navErrPrefix scopes error messages (e.g. "lightpanda navigation failed"
+// vs "navigation failed") so callers can distinguish backends in errors.
+//
+// Returns the generated snapshot (which may be empty on partial failure)
+// and any error. On success the caller owns the returned snapshot; on
+// error the caller should propagate err.
+func chromedpNavigateAndSnapshot(
+	session *BrowserSession,
+	parsedURL *url.URL,
+	navTimeout time.Duration,
+	navErrPrefix string,
+) (string, error) {
+	timeoutCtx, cancel := context.WithTimeout(session.ctx, navTimeout)
+	defer cancel()
+
+	// Inject stealth JS before navigation.
+	chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
+		_, _ = page.AddScriptToEvaluateOnNewDocument(stealthJavaScript).Do(ctx)
+		return nil
+	}))
+
+	// Navigate.
+	if err := chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
+		_, _, _, _, err := page.Navigate(parsedURL.String()).Do(ctx)
+		return err
+	})); err != nil {
+		if isDeadlineError(err) {
+			return "", navigationTimeoutError(parsedURL.String(), navTimeout)
+		}
+		return "", fmt.Errorf("%s: %w", navErrPrefix, err)
+	}
+
+	// Wait for DOM to be interactive or URL to match target host.
+	readyCtx, readyCancel := context.WithTimeout(timeoutCtx, 30*time.Second)
+	var ready bool
+	for i := 0; i < 30; i++ {
+		var state string
+		chromedp.Run(readyCtx, chromedp.Evaluate(`
+			(function() {
+				return JSON.stringify({
+					state: document.readyState,
+					url: window.location.href
+				});
+			})()
+		`, &state))
+
+		var navResult struct {
+			State string `json:"state"`
+			URL   string `json:"url"`
+		}
+		if json.Unmarshal([]byte(state), &navResult) == nil {
+			if navResult.State == "interactive" || navResult.State == "complete" {
+				ready = true
+				break
+			}
+			// If URL changed to target, consider it successful even if still loading resources.
+			if strings.Contains(navResult.URL, parsedURL.Host) {
+				ready = true
+				break
+			}
+		}
+		time.Sleep(1 * time.Second)
+	}
+	readyCancel()
+
+	if !ready {
+		return "", fmt.Errorf("navigation timed out: page did not become interactive")
+	}
+
+	// Allow SPA rendering to settle.
+	time.Sleep(1 * time.Second)
+
+	// Re-apply stealth JS post-navigation.
+	stealthCtx, stealthCancel := context.WithTimeout(timeoutCtx, 3*time.Second)
+	chromedp.Run(stealthCtx, chromedp.Evaluate(stealthJavaScript, nil))
+	stealthCancel()
+
+	// Read page title.
+	var title string
+	titleCtx, titleCancel := context.WithTimeout(timeoutCtx, 5*time.Second)
+	chromedp.Run(titleCtx, chromedp.Title(&title))
+	titleCancel()
+
+	// Generate snapshot.
+	snapshot, err := generateSnapshot(timeoutCtx, false, session.refMapper)
+
+	session.mu.Lock()
+	session.url = parsedURL.String()
+	session.title = title
+	session.lastActivity = time.Now()
+	session.mu.Unlock()
+
+	if err != nil {
+		snapshot = fmt.Sprintf("(snapshot unavailable: %v)", err)
+	}
+
+	return snapshot, nil
+}
 
 func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 	if cfg == nil {
@@ -88,95 +200,16 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				}
 			case BackendLightpanda:
 				navTimeout := navigationTimeout(cfg.CommandTimeout)
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, navTimeout)
-
-				chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
-					_, _ = page.AddScriptToEvaluateOnNewDocument(stealthJavaScript).Do(ctx)
-					return nil
-				}))
-
-				if err := chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
-					_, _, _, _, err := page.Navigate(parsedURL.String()).Do(ctx)
-					return err
-				})); err != nil {
-					cancel()
-					if isDeadlineError(err) {
-						return nil, navigationTimeoutError(parsedURL.String(), navTimeout)
-					}
-					return nil, fmt.Errorf("lightpanda navigation failed: %w", err)
-				}
-
-				// 2. Wait for DOM to be interactive or URL to match
-				readyCtx, readyCancel := context.WithTimeout(timeoutCtx, 30*time.Second)
-				var ready bool
-				for i := 0; i < 30; i++ {
-					var state string
-					chromedp.Run(readyCtx, chromedp.Evaluate(`
-						(function() {
-							return JSON.stringify({
-								state: document.readyState,
-								url: window.location.href
-							});
-						})()
-					`, &state))
-
-					var navResult struct {
-						State string `json:"state"`
-						URL   string `json:"url"`
-					}
-					if json.Unmarshal([]byte(state), &navResult) == nil {
-						if navResult.State == "interactive" || navResult.State == "complete" {
-							ready = true
-							break
-						}
-						// If URL changed to target, consider it successful even if still loading resources
-						if strings.Contains(navResult.URL, parsedURL.Host) {
-							ready = true
-							break
-						}
-					}
-					time.Sleep(1 * time.Second)
-				}
-				readyCancel()
-
-				if !ready {
-					cancel()
-					return nil, fmt.Errorf("navigation timed out: page did not become interactive")
-				}
-
-				// 3. Small sleep to allow SPA rendering
-				time.Sleep(1 * time.Second)
-
-				// 3b. Apply stealth JS to hide automation fingerprints
-				stealthCtx, stealthCancel := context.WithTimeout(timeoutCtx, 3*time.Second)
-				chromedp.Run(stealthCtx, chromedp.Evaluate(stealthJavaScript, nil))
-				stealthCancel()
-
-				// 4. Get title
-				var title string
-				titleCtx, titleCancel := context.WithTimeout(timeoutCtx, 5*time.Second)
-				chromedp.Run(titleCtx, chromedp.Title(&title))
-				titleCancel()
-
-				// 5. Generate snapshot to update ref map
-				snapshot, err = generateSnapshot(timeoutCtx, false, session.refMapper)
-				cancel()
-
-				session.mu.Lock()
-				session.url = parsedURL.String()
-				session.title = title
-				session.lastActivity = time.Now()
-				session.mu.Unlock()
-
+				snapshot, err = chromedpNavigateAndSnapshot(session, parsedURL, navTimeout, "lightpanda navigation failed")
 				if err != nil {
-					snapshot = fmt.Sprintf("(snapshot unavailable: %v)", err)
+					return nil, err
 				}
 
 				if NeedsLightpandaFallback(cfg.Engine, snapshot, 0, nil) {
 					fallbackResult, fallbackErr := RunChromeFallbackCommand(ctx, "navigate", map[string]any{"url": input.URL}, cfg.CommandTimeout)
 					if fallbackErr == nil {
 						snapshot, _ = fallbackResult["snapshot"].(string)
-						title, _ = fallbackResult["title"].(string)
+						title, _ := fallbackResult["title"].(string)
 						session.mu.Lock()
 						session.title = title
 						session.mu.Unlock()
@@ -185,87 +218,9 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				}
 			case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 				navTimeout := navigationTimeout(cfg.CommandTimeout)
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, navTimeout)
-
-				chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
-					_, _ = page.AddScriptToEvaluateOnNewDocument(stealthJavaScript).Do(ctx)
-					return nil
-				}))
-
-				if err := chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
-					_, _, _, _, err := page.Navigate(parsedURL.String()).Do(ctx)
-					return err
-				})); err != nil {
-					cancel()
-					if isDeadlineError(err) {
-						return nil, navigationTimeoutError(parsedURL.String(), navTimeout)
-					}
-					return nil, fmt.Errorf("navigation failed: %w", err)
-				}
-
-				// 2. Wait for DOM to be interactive or URL to match
-				readyCtx, readyCancel := context.WithTimeout(timeoutCtx, 30*time.Second)
-				var ready bool
-				for i := 0; i < 30; i++ {
-					var state string
-					chromedp.Run(readyCtx, chromedp.Evaluate(`
-						(function() {
-							return JSON.stringify({
-								state: document.readyState,
-								url: window.location.href
-							});
-						})()
-					`, &state))
-
-					var navResult struct {
-						State string `json:"state"`
-						URL   string `json:"url"`
-					}
-					if json.Unmarshal([]byte(state), &navResult) == nil {
-						if navResult.State == "interactive" || navResult.State == "complete" {
-							ready = true
-							break
-						}
-						if strings.Contains(navResult.URL, parsedURL.Host) {
-							ready = true
-							break
-						}
-					}
-					time.Sleep(1 * time.Second)
-				}
-				readyCancel()
-
-				if !ready {
-					cancel()
-					return nil, fmt.Errorf("navigation timed out: page did not become interactive")
-				}
-
-				// 3. Small sleep to allow SPA rendering
-				time.Sleep(1 * time.Second)
-
-				// 3b. Apply stealth JS to hide automation fingerprints
-				stealthCtx, stealthCancel := context.WithTimeout(timeoutCtx, 3*time.Second)
-				chromedp.Run(stealthCtx, chromedp.Evaluate(stealthJavaScript, nil))
-				stealthCancel()
-
-				// 4. Get title
-				var title string
-				titleCtx, titleCancel := context.WithTimeout(timeoutCtx, 5*time.Second)
-				chromedp.Run(titleCtx, chromedp.Title(&title))
-				titleCancel()
-
-				// 5. Generate snapshot to update ref map
-				snapshot, err = generateSnapshot(timeoutCtx, false, session.refMapper)
-				cancel()
-
-				session.mu.Lock()
-				session.url = parsedURL.String()
-				session.title = title
-				session.lastActivity = time.Now()
-				session.mu.Unlock()
-
+				snapshot, err = chromedpNavigateAndSnapshot(session, parsedURL, navTimeout, "navigation failed")
 				if err != nil {
-					snapshot = fmt.Sprintf("(snapshot unavailable: %v)", err)
+					return nil, err
 				}
 			default:
 				return nil, fmt.Errorf("backend %s not yet supported for navigation", session.backendType)

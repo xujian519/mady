@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"regexp"
 	"strings"
@@ -159,7 +159,7 @@ func (s *ptcServer) reply(conn net.Conn, resp ptcResponse) {
 		return
 	}
 	if _, err := conn.Write(b); err != nil {
-		log.Printf("[ptc] write reply failed: %v", err)
+		slog.Warn("ptc: write reply failed", "err", err)
 	}
 }
 

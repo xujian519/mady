@@ -2,7 +2,7 @@ package theme
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"runtime/debug"
 	"time"
@@ -21,7 +21,7 @@ func StartSemanticThemeWatcher(path string, poll time.Duration, onReload func())
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("[theme] theme watcher goroutine panicked: %v\n%s", r, debug.Stack())
+				slog.Error("theme: watcher goroutine panicked", "err", r, "stack", string(debug.Stack()))
 			}
 		}()
 		var lastMtime int64 = -1

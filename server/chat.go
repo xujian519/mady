@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -103,12 +103,12 @@ func (s *Server) handleStreamChat(w http.ResponseWriter, r *http.Request, req Ch
 		}
 		payload, err := json.Marshal(data)
 		if err != nil {
-			log.Printf("server: SSE marshal error (event=%s): %v", eventType, err)
+			slog.Error("server: SSE marshal error", "event", eventType, "err", err)
 			dead.Store(true)
 			return
 		}
 		if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, payload); err != nil {
-			log.Printf("server: SSE write error (event=%s): %v", eventType, err)
+			slog.Error("server: SSE write error", "event", eventType, "err", err)
 			dead.Store(true)
 			return
 		}

@@ -3,7 +3,7 @@ package agentcore
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 )
@@ -128,7 +128,7 @@ func New(cfg Config) *Agent {
 	// Agent from executing.
 	configErr := cfg.Validate()
 	if configErr != nil {
-		log.Printf("[agentcore] WARNING: config validation failed: %v", configErr)
+		slog.Warn("agentcore: config validation failed", "err", configErr)
 	}
 
 	reg := NewRegistry()
@@ -179,10 +179,10 @@ func New(cfg Config) *Agent {
 		var err error
 		ctxEngine, err = engineReg.Create(engineName, engineCfg)
 		if err != nil {
-			log.Printf("[agentcore] context engine %q init failed: %v, falling back to default", engineName, err)
+			slog.Warn("agentcore: context engine init failed, falling back to default", "engine", engineName, "err", err)
 			ctxEngine, err = engineReg.Create(engineReg.Default(), engineCfg)
 			if err != nil {
-				log.Printf("[agentcore] default context engine also failed: %v", err)
+				slog.Error("agentcore: default context engine also failed", "err", err)
 			}
 		}
 	}
@@ -210,7 +210,7 @@ func New(cfg Config) *Agent {
 
 	if len(cfg.Extensions) > 0 {
 		if err := a.extensions.Register(context.Background(), a, cfg.Extensions...); err != nil {
-			log.Printf("[agentcore] extension registration failed: %v", err)
+			slog.Error("agentcore: extension registration failed", "err", err)
 		}
 	}
 

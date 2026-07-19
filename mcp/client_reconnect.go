@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"time"
 
@@ -154,7 +154,7 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 			select {
 			case <-done:
 			case <-timer.C:
-				log.Printf("mcp client: cmd.Wait did not return after reconnect cleanup")
+				slog.Warn("mcp client: cmd.Wait did not return after reconnect cleanup")
 			}
 		}()
 		c.emitReconnectEvent(ReconnectPhaseFailed, "initialize_failed", c.reconnectAttempts, err)

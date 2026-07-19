@@ -121,31 +121,6 @@ func (s Style) Render(text string) string {
 }
 
 // ---------------------------------------------------------------------------
-// Predefined styles for agent UI (theme-aware via SyncPaletteGlobals)
-//
-// Deprecated: these global variables are not concurrency-safe and cannot
-// support independent theme instances. Use CurrentPalette() instead.
-// Will be removed in v0.6.0.
-// ---------------------------------------------------------------------------
-
-var (
-	StyleUser      Style
-	StyleAssistant Style
-	StyleSystem    Style
-	StyleTool      Style
-	StyleToolName  Style
-	StyleError     Style
-	StyleSuccess   Style
-	StyleDim       Style
-	StyleBold      Style
-	StyleHandoff   Style
-	StyleCode      Style
-	StyleCodeBlock Style
-	StyleUsage     Style
-	StyleThinking  Style
-)
-
-// ---------------------------------------------------------------------------
 // Color detection
 // ---------------------------------------------------------------------------
 

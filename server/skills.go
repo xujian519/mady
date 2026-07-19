@@ -4,7 +4,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -109,12 +109,12 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		payload, err := json.Marshal(data)
 		if err != nil {
-			log.Printf("server: SSE marshal error (event=%s): %v", eventType, err)
+			slog.Error("server: SSE marshal error", "event", eventType, "err", err)
 			dead.Store(true)
 			return
 		}
 		if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, payload); err != nil {
-			log.Printf("server: SSE write error (event=%s): %v", eventType, err)
+			slog.Error("server: SSE write error", "event", eventType, "err", err)
 			dead.Store(true)
 			return
 		}

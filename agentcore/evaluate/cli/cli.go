@@ -76,7 +76,7 @@ type EvalCLI struct {
 
 // ProviderFactory 是创建 LLM Provider 的工厂函数，供 live 模式使用。
 type ProviderFactory func(model string) (interface {
-	Complete(ctx context.Context, req interface{}) (interface{}, error)
+	Complete(ctx context.Context, req any) (any, error)
 }, error)
 
 // RunResult 包含 CLI 评估的完整结果。
@@ -263,16 +263,16 @@ func runLive(ctx context.Context, cases []evaluate.TestCase, cli *EvalCLI) (*eva
 	return benchmark.DefaultEvaluator().EvaluateStatic(cases, predictions), nil
 }
 
-func callProviderSimple(ctx context.Context, provider interface{}, input string) (string, error) {
+func callProviderSimple(ctx context.Context, provider any, input string) (string, error) {
 	type Completer interface {
-		Complete(ctx context.Context, req interface{}) (interface{}, error)
+		Complete(ctx context.Context, req any) (any, error)
 	}
 	p, ok := provider.(Completer)
 	if !ok {
 		return "", fmt.Errorf("provider 不实现 Complete 接口")
 	}
-	resp, err := p.Complete(ctx, map[string]interface{}{
-		"messages": []map[string]interface{}{
+	resp, err := p.Complete(ctx, map[string]any{
+		"messages": []map[string]any{
 			{"role": "user", "content": input},
 		},
 	})

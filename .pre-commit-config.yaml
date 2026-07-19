@@ -19,12 +19,24 @@ repos:
         files: \.go$
       - id: go-imports
         name: go imports
+        # 跨机器兼容：优先 $(go env GOPATH)/bin/goimports，缺失则回退 PATH 中的 goimports。
         entry: bash -ec 'G="$(go env GOPATH)/bin/goimports"; [ -x "$G" ] || G=goimports; "$G" -l -w -local github.com/xujian519/mady "$@"' --
         language: system
         files: \.go$
       - id: go-vet
         name: go vet
-        entry: bash -ec 'go vet ./...'
+        # go.work 多模块结构：必须分别 vet 根模块和 tools/ 子模块，
+        # 否则根目录 `go vet ./...` 不会覆盖 tools/。
+        entry: bash -ec 'go vet ./... && (cd tools && go vet ./...)' --
+        language: system
+        files: \.go$
+        pass_filenames: false
+      - id: golangci-lint
+        name: golangci-lint
+        # go.work 多模块结构：必须分别 lint 根模块和 tools/ 子模块。
+        # 脚本处理跨机器兼容（GOPATH/bin 优先，PATH 回退）与未安装时的非阻塞降级。
+        # 与 Makefile lint target 行为对齐。
+        entry: bash scripts/precommit-golangci-lint.sh
         language: system
         files: \.go$
         pass_filenames: false

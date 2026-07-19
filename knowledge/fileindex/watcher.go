@@ -3,7 +3,7 @@ package fileindex
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,8 +52,6 @@ type FileWatcherConfig struct {
 	// PollInterval is the fallback poll interval when fsnotify cannot be used
 	// (default 60s). Set to 0 to disable polling fallback.
 	PollInterval time.Duration
-	// Logger receives diagnostic messages. When nil, a default logger is used.
-	Logger *log.Logger
 }
 
 // NewFileWatcher creates a FileWatcher bound to the given FileIndex.
@@ -97,7 +95,7 @@ func (fw *FileWatcher) Start(ctx context.Context) error {
 	if err := fw.addDirTree(w, rootDir); err != nil {
 		w.Close()
 		// Fall back to polling instead of failing entirely (graceful degradation).
-		log.Printf("filewatcher: add watch %s failed: %v, falling back to polling", rootDir, err)
+		slog.Warn("filewatcher: add watch failed, falling back to polling", "dir", rootDir, "err", err)
 		fw.mu.Unlock()
 		if fw.pollInt <= 0 {
 			return fmt.Errorf("filewatcher: fsnotify unavailable and polling disabled")
@@ -177,7 +175,7 @@ func (fw *FileWatcher) eventLoop(w *fsnotify.Watcher) {
 			if !ok {
 				return
 			}
-			log.Printf("filewatcher: error: %v", err)
+			slog.Error("filewatcher: error", "err", err)
 
 		case <-fw.stopCh:
 			return
@@ -226,7 +224,7 @@ func (fw *FileWatcher) handleEvent(event fsnotify.Event) {
 			}
 			// Trigger Refresh.
 			if err := fw.index.Refresh(context.Background()); err != nil {
-				log.Printf("filewatcher: refresh after debounce: %v", err)
+				slog.Error("filewatcher: refresh after debounce", "err", err)
 			}
 		})
 	} else {
@@ -292,7 +290,7 @@ func (fw *FileWatcher) startPolling(ctx context.Context) error {
 	fw.doneCh = make(chan struct{})
 	fw.running = true
 
-	log.Printf("filewatcher: fsnotify unavailable, falling back to polling every %v", fw.pollInt)
+	slog.Info("filewatcher: fsnotify unavailable, falling back to polling", "interval", fw.pollInt)
 
 	go func() {
 		defer close(fw.doneCh)

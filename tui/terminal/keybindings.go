@@ -155,7 +155,7 @@ func validateKeyToken(tok string) string {
 
 // jsonDecode is a tiny indirection so the JSON dependency stays local to this
 // method.
-func jsonDecode(data []byte, v interface{}) error {
+func jsonDecode(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
