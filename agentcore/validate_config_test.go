@@ -143,3 +143,39 @@ func TestConfigValidate_StubConfig(t *testing.T) {
 		t.Fatalf("StubConfig should validate: %v", err)
 	}
 }
+
+func TestConfigValidate_AllowedSourcesEmpty(t *testing.T) {
+	cfg := Config{
+		ModelConfig: ModelConfig{Model: "gpt-4", Provider: &stubProvider{}},
+		Handoffs: []HandoffConfig{
+			{Name: "patent", AllowedSources: []string{"chat", ""}},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for empty AllowedSources entry")
+	}
+}
+
+func TestConfigValidate_AllowedSourcesSelfReference(t *testing.T) {
+	cfg := Config{
+		ModelConfig: ModelConfig{Model: "gpt-4", Provider: &stubProvider{}},
+		Handoffs: []HandoffConfig{
+			{Name: "patent", AllowedSources: []string{"patent"}}, // self
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for self-referential AllowedSources")
+	}
+}
+
+func TestConfigValidate_AllowedSourcesValid(t *testing.T) {
+	cfg := Config{
+		ModelConfig: ModelConfig{Model: "gpt-4", Provider: &stubProvider{}},
+		Handoffs: []HandoffConfig{
+			{Name: "patent", AllowedSources: []string{"chat", "*"}},
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid AllowedSources should pass: %v", err)
+	}
+}

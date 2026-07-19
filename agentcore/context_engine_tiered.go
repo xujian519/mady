@@ -153,6 +153,10 @@ func (e *TieredEngine) forceFold(ctx context.Context, msgs []Message, focusTopic
 
 // snipToolResults truncates old tool result messages to head+tail summaries.
 // It preserves the last keepRecentTokens worth of messages untouched.
+//
+// Head/tail lengths are measured in RUNES (not bytes) so that multi-byte
+// UTF-8 content (e.g., Chinese) is never split in the middle of a character,
+// which would produce invalid UTF-8 and corrupt the provider request.
 func (e *TieredEngine) snipToolResults(msgs []Message) []Message {
 	tailStart := e.findTailBoundary(msgs)
 
@@ -165,14 +169,15 @@ func (e *TieredEngine) snipToolResults(msgs []Message) []Message {
 		if e.processed[i] == "snipped" || e.processed[i] == "pruned" {
 			continue
 		}
-		content := result[i].Content
-		if len(content) <= e.snipHeadChars+e.snipTailChars+50 {
+		runes := []rune(result[i].Content)
+		if len(runes) <= e.snipHeadChars+e.snipTailChars+50 {
 			continue // too short to snip
 		}
-		head := content[:min(e.snipHeadChars, len(content))] //nolint:mnd
+		headEnd := min(e.snipHeadChars, len(runes))
+		head := string(runes[:headEnd])
 		tail := ""
-		if len(content) > e.snipHeadChars+e.snipTailChars {
-			tail = content[len(content)-e.snipTailChars:]
+		if len(runes) > e.snipHeadChars+e.snipTailChars {
+			tail = string(runes[len(runes)-e.snipTailChars:])
 		}
 		result[i].Content = head + "\n[...已截断以节省上下文空间...]\n" + tail
 		e.processed[i] = "snipped"
@@ -272,13 +277,15 @@ func (e *TieredEngine) TierLevel(msgs []Message, contextWindow int64) string {
 }
 
 // SnipMessageContent truncates content to head+tail with a marker.
+// Lengths are measured in runes so multi-byte UTF-8 is never split mid-character.
 // Exported for testing.
 func SnipMessageContent(content string, headChars, tailChars int) string {
-	if len(content) <= headChars+tailChars+50 {
+	runes := []rune(content)
+	if len(runes) <= headChars+tailChars+50 {
 		return content
 	}
-	head := content[:headChars]
-	tail := content[len(content)-tailChars:]
+	head := string(runes[:headChars])
+	tail := string(runes[len(runes)-tailChars:])
 	return head + "\n[...已截断以节省上下文空间...]\n" + tail
 }
 

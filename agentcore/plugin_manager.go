@@ -43,11 +43,17 @@ func (pm *PluginManager) Plugins() []PluginManifest { return pm.plugins }
 func (pm *PluginManager) RunPlugin(ctx context.Context, name string, input PipelineState) (PipelineState, error) {
 	for i := range pm.plugins {
 		if pm.plugins[i].Name == name {
-			// Inject retriever into state for search stages.
-			if pm.retriever != nil {
-				input["_retriever"] = pm.retriever
+			// 注入 retriever 到本地副本，避免直接修改调用方传入的 input map
+			// （调用方可能复用同一 input 跨多次 RunPlugin 调用，直接写入会累积
+			// _retriever 及潜在其它键，污染后续调用）。
+			state := make(PipelineState, len(input)+1)
+			for k, v := range input {
+				state[k] = v
 			}
-			return pm.executor.Run(ctx, &pm.plugins[i], input)
+			if pm.retriever != nil {
+				state["_retriever"] = pm.retriever
+			}
+			return pm.executor.Run(ctx, &pm.plugins[i], state)
 		}
 	}
 	return nil, fmt.Errorf("plugin: %q not found (scanned %d plugins)", name, len(pm.plugins))

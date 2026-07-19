@@ -357,9 +357,6 @@ func (m LengthScore) Compute(prediction, _ string) float64 {
 		return float64(n) / float64(min)
 	}
 	if n > max {
-		if max <= 0 {
-			return 0
-		}
 		excess := n - max
 		decayWindow := max / 2
 		if decayWindow <= 0 {

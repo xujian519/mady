@@ -30,7 +30,8 @@ type HandoffConfig struct {
 	AgentConfig Config
 
 	// AllowedSources 限制哪些 Agent 可以交接到此目标。
-	// 为空或包含 "*" 时表示不限制。仅在 createHandoffTool 的 Func 中运行时校验。
+	// 采用 default-deny：为空 → 拒绝所有来源；只有包含 "*" 或显式列出
+	// 源 Agent 名称时才放行。仅在 createHandoffTool 的 Func 中运行时校验。
 	AllowedSources []string
 
 	// FallbackMsg 是交接失败或校验不通过时展示给用户的兜底文案。
@@ -113,6 +114,12 @@ func (a *Agent) createHandoffTool(h HandoffConfig) *Tool {
 
 // executeDelegate creates a sub-agent, runs it, and returns its output as a tool result.
 func (a *Agent) executeDelegate(ctx context.Context, h HandoffConfig, input string) (any, error) {
+	// Bound delegation depth to prevent unbounded recursion when agents hand
+	// off to one another (A→B→A→…). Mirrors the guard in task_tool.go.
+	depth := DepthFromContext(ctx)
+	if depth >= DefaultMaxDelegationDepth {
+		return nil, fmt.Errorf("handoff delegate 深度超限: 当前 %d >= 上限 %d: %w", depth, DefaultMaxDelegationDepth, ErrDepthExceeded)
+	}
 	start := time.Now()
 
 	// 构建结构化交接上下文，减少 token 消耗并提升交接质量。
@@ -141,7 +148,7 @@ func (a *Agent) executeDelegate(ctx context.Context, h HandoffConfig, input stri
 	}
 	defer sub.Close()
 
-	output, err := sub.Run(ctx, enrichedInput)
+	output, err := sub.Run(WithDepth(ctx, depth+1), enrichedInput)
 
 	a.emit(&HandoffEndEvent{
 		baseEvent:   newBase(EventHandoffEnd),
@@ -181,6 +188,11 @@ func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (st
 	}) {
 		return "", fmt.Errorf("handoff to %s is not allowed (re-check)", handoff.TargetName)
 	}
+	// Bound delegation depth (see executeDelegate) to prevent transfer loops.
+	depth := DepthFromContext(ctx)
+	if depth >= DefaultMaxDelegationDepth {
+		return "", fmt.Errorf("handoff transfer 深度超限: 当前 %d >= 上限 %d: %w", depth, DefaultMaxDelegationDepth, ErrDepthExceeded)
+	}
 	start := time.Now()
 
 	// 构建结构化交接上下文
@@ -209,6 +221,9 @@ func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (st
 	a.inheritRuntime(target)
 
 	// Inherit conversation: replace source system prompt with target's, keep the rest.
+	// [SECURITY] All non-system messages (which may include sensitive case data,
+	// prior tool outputs, credentials surfaced by tools) are copied verbatim to
+	// the target. Ensure target trust level >= source before relying on transfer.
 	if handoff.TargetConfig.SystemPrompt != "" {
 		if err := target.persistMessage(ctx, Message{Role: RoleSystem, Content: handoff.TargetConfig.SystemPrompt}); err != nil {
 			return "", err
@@ -223,7 +238,7 @@ func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (st
 		}
 	}
 
-	output, err := target.Continue(ctx)
+	output, err := target.Continue(WithDepth(ctx, depth+1))
 
 	a.emit(&HandoffEndEvent{
 		baseEvent:   newBase(EventHandoffEnd),
@@ -240,6 +255,14 @@ func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (st
 
 // inheritRuntime copies the source agent's tools, extensions, and config-level
 // runtime state onto the target agent.
+//
+// [SECURITY] This is a full-trust transfer: the source's entire toolset,
+// middleware, extensions and lifecycle hooks are re-registered on the target.
+// Callers must ensure that source and target agents operate at the same trust
+// level. Handing off from a high-privilege agent (e.g. one with filesystem or
+// bash tools) to a lower-privilege target will leak those capabilities to the
+// target. Use HandoffDelegate (which does NOT inherit runtime) when the
+// target is less trusted than the source.
 func (a *Agent) inheritRuntime(target *Agent) {
 	// Copy tools from source to target (excluding handoff tools).
 	for _, t := range a.registry.Tools() {

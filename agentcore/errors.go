@@ -143,11 +143,6 @@ func (e *HandoffError) Error() string {
 
 func (e *HandoffError) Unwrap() error { return e.Err }
 
-// NewHandoffError 创建一个 Handoff 错误。
-func NewHandoffError(op, targetName, details string, err error) error {
-	return &HandoffError{Op: op, TargetName: targetName, Details: details, Err: err}
-}
-
 // GuardrailError 表示护栏拦截错误。
 type GuardrailError struct {
 	LevelStr string // 护栏等级描述（"light"/"standard"/"strict"）
@@ -164,11 +159,6 @@ func (e *GuardrailError) Error() string {
 }
 
 func (e *GuardrailError) Unwrap() error { return e.Err }
-
-// NewGuardrailError 创建一个护栏错误。
-func NewGuardrailError(levelStr, reason, details string, err error) error {
-	return &GuardrailError{LevelStr: levelStr, Reason: reason, Details: details, Err: err}
-}
 
 // IsRetryable 判断错误是否可重试。
 func IsRetryable(err error) bool {

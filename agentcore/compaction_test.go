@@ -82,55 +82,6 @@ func TestShouldCompactIneffective(t *testing.T) {
 	}
 }
 
-func TestFindCutPointBasic(t *testing.T) {
-	msgs := make([]Message, 10)
-	for i := range msgs {
-		// Each message ~200 tokens (800 chars)
-		content := string(make([]byte, 800))
-		if i == 0 {
-			msgs[i] = Message{Role: RoleSystem, Content: "sys"}
-		} else if i%2 == 1 {
-			msgs[i] = Message{Role: RoleUser, Content: content}
-		} else {
-			msgs[i] = Message{Role: RoleAssistant, Content: content}
-		}
-	}
-	cut := findCutPoint(msgs, 2000, 3)
-	if cut <= 0 {
-		t.Fatal("expected positive cut point")
-	}
-}
-
-func TestFindCutPointTooFew(t *testing.T) {
-	msgs := []Message{
-		{Role: RoleUser, Content: "a"},
-		{Role: RoleAssistant, Content: "b"},
-	}
-	cut := findCutPoint(msgs, 2000, 3)
-	if cut != 0 {
-		t.Fatalf("expected 0 for too few messages, got %d", cut)
-	}
-}
-
-func TestFindCutPointSkipsSystem(t *testing.T) {
-	msgs := make([]Message, 10)
-	for i := range msgs {
-		content := string(make([]byte, 800))
-		if i == 0 {
-			msgs[i] = Message{Role: RoleSystem, Content: "system prompt"}
-		} else if i%2 == 1 {
-			msgs[i] = Message{Role: RoleUser, Content: content}
-		} else {
-			msgs[i] = Message{Role: RoleAssistant, Content: content}
-		}
-	}
-	cut := findCutPoint(msgs, 2000, 3)
-	// Should skip the system message (index 0)
-	if cut < 1 {
-		t.Fatalf("expected cut >= 1 to protect system message, got %d", cut)
-	}
-}
-
 func TestAlignBoundaryForward(t *testing.T) {
 	msgs := []Message{
 		{Role: RoleUser, Content: "a"},

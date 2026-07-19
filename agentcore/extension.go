@@ -67,9 +67,21 @@ func NewExtensionRegistry() *ExtensionRegistry {
 }
 
 // Register adds extensions and immediately initializes them.
+//
+// 若第 N 个扩展 Init 失败，前面已 Init 成功的扩展会被逆序 Dispose，
+// 以释放已申请的资源（goroutine、文件句柄、订阅等），避免泄漏。
+// 注意：已写入 agent.config 的 Tools/Hooks/Middleware 等不回滚
+// （调用方在 Register 失败后通常丢弃该 agent）。
 func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...Extension) error {
 	for _, ext := range exts {
 		if err := ext.Init(ctx, agent); err != nil {
+			// 逆序 Dispose 已成功 Init 的扩展，释放资源。
+			r.mu.Lock()
+			for i := len(r.extensions) - 1; i >= 0; i-- {
+				_ = r.extensions[i].Dispose()
+			}
+			r.extensions = nil
+			r.mu.Unlock()
 			return err
 		}
 
@@ -95,6 +107,9 @@ func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...
 			}
 		}
 		if tp, ok := ext.(TransformContextProvider); ok {
+			// 注意：每个 TransformContextProvider 会包裹当前已注册的 TransformContext，
+			// 形成 LIFO 嵌套链（最后注册的最外层先执行）。扩展数量多时会形成
+			// 深嵌套调用栈。若需扁平执行，可改用 []func 列表顺序应用。
 			prev := agent.config.TransformContext
 			agent.config.TransformContext = func(ctx context.Context, msgs []Message) []Message {
 				if prev != nil {

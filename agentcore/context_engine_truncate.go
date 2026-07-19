@@ -56,9 +56,17 @@ func (e *TruncateEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition
 	if contextWindow <= 0 {
 		return false
 	}
-	reserve := contextWindow / 4
+	// Respect the configured thresholdPercent (e.g., 0.8 triggers at 80% of
+	// the window), falling back to a 75% default (== window - window/4) so
+	// behavior matches CompressorEngine.shouldCompact when unset.
+	triggerThreshold := int64(0)
+	if e.thresholdPercent > 0 && e.thresholdPercent < 1.0 {
+		triggerThreshold = int64(float64(contextWindow) * e.thresholdPercent)
+	} else {
+		triggerThreshold = contextWindow - contextWindow/4
+	}
 	estimated := EstimateMessagesTokens(msgs) + EstimateToolDefinitionsTokens(toolDefs)
-	return estimated > contextWindow-reserve
+	return estimated > triggerThreshold
 }
 
 func (e *TruncateEngine) Compress(ctx context.Context, msgs []Message, focusTopic string) ([]Message, int64, error) {

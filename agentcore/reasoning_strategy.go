@@ -245,17 +245,19 @@ func (r *ReasoningStrategyRouter) BeforeModelCall(ctx context.Context, arc *Agen
 		hint := r.Selector.StrategyHint(c)
 
 		if hint != "" {
-			// Find the system message, make a copy, and append the hint.
-			// Avoid in-place mutation of mcc.Request.Messages[i] so other
-			// AfterModelCall observers see an unmodified request.
-			for i, msg := range mcc.Request.Messages {
+			// 克隆整个 Messages slice 后替换 mcc.Request.Messages 指针，
+			// 避免直接写回底层数组（mcc.Request.Messages[i]=cp 会污染原 slice，
+			// 使此前已捕获该 slice 引用的观察者看到被修改的请求）。
+			orig := mcc.Request.Messages
+			cloned := make([]Message, len(orig))
+			copy(cloned, orig)
+			for i, msg := range cloned {
 				if msg.Role == RoleSystem {
-					cp := msg
-					cp.Content += hint
-					mcc.Request.Messages[i] = cp
+					cloned[i].Content = msg.Content + hint
 					break
 				}
 			}
+			mcc.Request.Messages = cloned
 		}
 	}
 

@@ -2,6 +2,7 @@ package evaluate
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -85,6 +86,8 @@ func FormatRAGReport(result *RAGBatchResult) string {
 	return b.String()
 }
 
+// sortedMetricNames collects the distinct metric names appearing across the
+// given results and returns them sorted for stable report output.
 func sortedMetricNames(results []CaseResult) []string {
 	seen := make(map[string]bool)
 	var names []string
@@ -96,5 +99,6 @@ func sortedMetricNames(results []CaseResult) []string {
 			}
 		}
 	}
+	sort.Strings(names)
 	return names
 }

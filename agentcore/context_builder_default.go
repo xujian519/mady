@@ -238,7 +238,7 @@ func truncateMessagesByTokens(msgs []Message, maxTokens int64) []Message {
 	tokensUsed := int64(0)
 	// 从最新的消息开始收集（反向）
 	for i := len(msgs) - 1; i >= 0; i-- {
-		tok := int64(len([]rune(msgs[i].Content)) / 4)
+		tok := EstimateTokens(msgs[i].Content)
 		if tokensUsed+tok > maxTokens {
 			break
 		}

@@ -5,14 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // MessageBus is a simple fan-out / fan-in message channel for orchestrating
 // multiple agents. It is optional; use it when you want explicit routing
 // between steps without sharing a single Agent state.
 type MessageBus struct {
-	mu   sync.Mutex
-	subs map[string][]chan Message
+	mu      sync.Mutex
+	subs    map[string][]chan Message
+	dropped atomic.Int64
 }
 
 // NewMessageBus creates an empty bus.
@@ -30,8 +32,16 @@ func (b *MessageBus) Publish(topic string, m Message) {
 		select {
 		case ch <- m:
 		default:
+			b.dropped.Add(1)
 		}
 	}
+}
+
+// DroppedMessages returns the cumulative count of messages that were dropped
+// because a subscriber's channel buffer was full. Useful for monitoring
+// backpressure in orchestration pipelines.
+func (b *MessageBus) DroppedMessages() int64 {
+	return b.dropped.Load()
 }
 
 // Subscribe returns a receive-only channel for topic with buffer cap, and

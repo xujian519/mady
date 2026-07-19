@@ -381,3 +381,54 @@ func TestExtractJSONFromText(t *testing.T) {
 		}
 	}
 }
+
+// panicStageHandler always panics in Execute. Used to verify that the
+// pipeline executor isolates handler panics instead of crashing the caller.
+type panicStageHandler struct{ name string }
+
+func (h panicStageHandler) Name() string { return h.name }
+func (panicStageHandler) Execute(ctx context.Context, state PipelineState, provider Provider) (PipelineState, error) {
+	panic("simulated plugin panic")
+}
+
+// noopStageHandler is used to clean up the global registry after the panic
+// test so the registered atom does not leak into other tests.
+type noopStageHandler struct{ name string }
+
+func (h noopStageHandler) Name() string { return h.name }
+func (noopStageHandler) Execute(context.Context, PipelineState, Provider) (PipelineState, error) {
+	return nil, nil
+}
+
+func TestPipelineExecutor_HandlerPanicIsolated(t *testing.T) {
+	const atomName = "test-panic-isolated"
+	RegisterStageHandler(panicStageHandler{name: atomName})
+	defer RegisterStageHandler(noopStageHandler{name: atomName})
+
+	e := NewPipelineExecutor(mockProvider{})
+	manifest := &PluginManifest{
+		Name:   "panic-test",
+		Domain: "patent",
+		Pipeline: PluginPipeline{
+			Stages: []PluginStage{
+				{ID: "boom", Atom: atomName, Description: "handler that panics"},
+			},
+		},
+	}
+
+	state, err := e.Run(context.Background(), manifest, PipelineState{})
+	if err == nil {
+		t.Fatal("expected error from panicking handler")
+	}
+	stageErr, ok := err.(*StageError)
+	if !ok {
+		t.Fatalf("expected *StageError (panic converted), got %T: %v", err, err)
+	}
+	if stageErr.StageID != "boom" {
+		t.Errorf("expected StageID boom, got %s", stageErr.StageID)
+	}
+	// Execution metadata must still be finalized.
+	if executed, ok := state["_executed_stages"].([]string); !ok || len(executed) != 0 {
+		t.Errorf("expected finalized _executed_stages (possibly empty), got %v", state["_executed_stages"])
+	}
+}

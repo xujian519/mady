@@ -90,8 +90,6 @@ func toKV(a agentcore.SpanAttribute) attribute.KeyValue {
 		return k.Bool(v)
 	case []string:
 		return k.StringSlice(v)
-	case []attribute.KeyValue:
-		return k.StringSlice(nil) // unsupported shape; fall back
 	default:
 		return k.String(fmt.Sprintf("%v", v))
 	}

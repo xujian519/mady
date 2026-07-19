@@ -71,6 +71,9 @@ func (s *Store) BeginTurn(turn int64, prompt string, msgIndex int) {
 // SnapshotFile records the pre-edit state of path if it hasn't been snapshotted
 // this turn. This must be called BEFORE the file is modified.
 func (s *Store) SnapshotFile(path string) error {
+	if !s.isPathSafe(path) {
+		return fmt.Errorf("snapshot: path %q escapes workspace root", path)
+	}
 	s.mu.Lock()
 	if s.cur == nil {
 		s.mu.Unlock()
@@ -152,6 +155,9 @@ func (s *Store) Restore(turn int64) error {
 }
 
 func (s *Store) restoreFile(f FileSnap) error {
+	if !s.isPathSafe(f.Path) {
+		return fmt.Errorf("restore: path %q escapes workspace root", f.Path)
+	}
 	if f.Content == nil {
 		// File didn't exist at checkpoint time — delete it if present.
 		if _, err := s.fs.Stat(f.Path); err == nil {
@@ -162,20 +168,38 @@ func (s *Store) restoreFile(f FileSnap) error {
 	return s.fs.WriteFile(f.Path, []byte(*f.Content))
 }
 
-// RestoreAndTrim restores to the given turn and removes all checkpoints after it.
+// RestoreAndTrim restores to the given turn and removes all checkpoints after
+// it. The restore and the trim run atomically with respect to concurrent
+// BeginTurn by holding the store lock for the whole operation: previously
+// Restore released the lock while doing file IO, so a concurrent BeginTurn
+// could append a checkpoint that the subsequent trim would then drop.
 func (s *Store) RestoreAndTrim(turn int64) error {
-	if err := s.Restore(turn); err != nil {
-		return err
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	trimmed := s.done[:0]
+
+	var target *TurnCheckpoint
+	keep := make([]*TurnCheckpoint, 0, len(s.done))
 	for _, c := range s.done {
+		if c.Turn == turn {
+			target = c
+		}
 		if c.Turn <= turn {
-			trimmed = append(trimmed, c)
+			keep = append(keep, c)
 		}
 	}
-	s.done = trimmed
+	if target == nil {
+		return fmt.Errorf("no checkpoint for turn %d", turn)
+	}
+
+	// Restore files (restoreFile does not take s.mu, so holding the lock
+	// here is safe; it briefly blocks other operations but guarantees
+	// atomicity of restore+trim).
+	for _, f := range target.Files {
+		if err := s.restoreFile(f); err != nil {
+			return fmt.Errorf("restore %s: %w", f.Path, err)
+		}
+	}
+	s.done = keep
 	return nil
 }
 
@@ -192,6 +216,17 @@ func (s *Store) CurrentTurnPaths() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// isPathSafe reports whether path is allowed to be snapshotted or restored.
+// When root is empty (test mode), all paths are allowed; otherwise the path
+// must resolve to a location inside the workspace root, preventing a tool
+// from escaping the sandbox via ".." or absolute paths outside the root.
+func (s *Store) isPathSafe(path string) bool {
+	if s.root == "" {
+		return true
+	}
+	return isWithinRoot(path, s.root)
 }
 
 // isWithinRoot checks whether path is within the workspace root.

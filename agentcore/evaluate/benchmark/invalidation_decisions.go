@@ -9,7 +9,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/xujian519/mady/agentcore/evaluate"
 )
@@ -25,7 +24,9 @@ var InvalidationDecisionCases []evaluate.TestCase
 
 func init() {
 	if err := json.Unmarshal(invalidationDecisionCasesJSON, &InvalidationDecisionCases); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load invalidation decision benchmark cases: %v\n", err)
-		InvalidationDecisionCases = nil
+		// invalidation_decisions.json is embedded at compile time, so a parse
+		// failure means a corrupted build or merge conflict residue. Fail loud
+		// so CI catches it instead of silently making the benchmark incomplete.
+		panic(fmt.Sprintf("evaluate/benchmark: failed to load invalidation decision cases: %v", err))
 	}
 }

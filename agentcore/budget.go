@@ -174,7 +174,9 @@ func (c *BudgetController) fireExceed(err error) {
 	}
 	var be *BudgetExceededError
 	if errors.As(err, &be) {
-		c.OnExceed(be.Dimension, c.budget, c.Usage())
+		// 通过 Budget()/Usage() 方法读取，保证与公开 API 的锁契约一致，
+		// 避免 fireExceed 直接读字段导致后续维护者误判 budget 可变。
+		c.OnExceed(be.Dimension, c.Budget(), c.Usage())
 	}
 }
 
@@ -200,9 +202,12 @@ func (c *BudgetController) BeforeModelCall(_ context.Context, _ *AgentRunContext
 // AfterModelCall accumulates actual usage from the provider response. A call
 // is counted once issued regardless of success; tokens are only added when the
 // response reports them.
+//
+// 累加后若已超限，异步触发 OnExceed 告警（AfterModelCall 返回 void 无法
+// 阻断已发生的消耗，但可让调用方/监控系统知晓超限，避免"事后记账"导致
+// 实际消耗可达 ~2× 预算上限而无信号）。
 func (c *BudgetController) AfterModelCall(_ context.Context, _ *AgentRunContext, mcc *ModelCallContext) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.usage.Calls++
 	if mcc != nil && mcc.Response != nil {
 		total := mcc.Response.Usage.TotalTokens
@@ -212,6 +217,11 @@ func (c *BudgetController) AfterModelCall(_ context.Context, _ *AgentRunContext,
 		if total > 0 {
 			c.usage.Tokens += total
 		}
+	}
+	exceeded := c.checkModelLocked()
+	c.mu.Unlock()
+	if exceeded != nil {
+		c.fireExceed(exceeded)
 	}
 }
 

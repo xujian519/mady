@@ -76,10 +76,21 @@ func (e *FileCheckpointExtension) LifecycleHook() agentcore.LifecycleHook {
 }
 
 func (e *FileCheckpointExtension) beforeWriteHook(_ context.Context, hc *agentcore.HookContext) error {
-	if hc == nil || !writerTools[hc.ToolName] {
+	if hc == nil {
 		return nil
 	}
-	paths := extractPathsFromArgs(hc.Arguments)
+	var paths []string
+	switch hc.ToolName {
+	case "bash":
+		// bash is not in writerTools because its target paths are not
+		// declared in args; extract best-effort from redirections.
+		paths = extractBashWritePaths(hc.Arguments)
+	default:
+		if !writerTools[hc.ToolName] {
+			return nil
+		}
+		paths = extractPathsFromArgs(hc.Arguments)
+	}
 	for _, p := range paths {
 		if p == "" {
 			continue
@@ -102,7 +113,13 @@ func (h *checkpointHook) BeforeTurn(_ context.Context, arc *agentcore.AgentRunCo
 	if arc == nil {
 		return nil
 	}
-	h.ext.store.BeginTurn(arc.Turn, arc.Input, len(arc.Messages))
+	// The current turn's user message is the last entry in Messages at
+	// BeforeTurn time; its index is len-1. Guard against empty slices.
+	idx := len(arc.Messages) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	h.ext.store.BeginTurn(arc.Turn, arc.Input, idx)
 	return nil
 }
 
@@ -146,6 +163,52 @@ func extractPathsFromArgs(args json.RawMessage) []string {
 				if v != "" {
 					paths = append(paths, v)
 				}
+			}
+		}
+	}
+	return paths
+}
+
+// extractBashWritePaths extracts file paths that a bash command is likely to
+// modify, focusing on output redirections (> file, >> file, and the attached
+// >file form). This is a BEST-EFFORT heuristic — bash is Turing-complete and
+// paths derived from command substitution, variables, heredocs, or tools like
+// sed -i/awk are NOT captured. Callers requiring guaranteed rollback must
+// avoid bash for file mutation or snapshot the whole workspace. Despite
+// being incomplete, this covers the most common redirection patterns that
+// would otherwise silently escape checkpointing.
+func extractBashWritePaths(args json.RawMessage) []string {
+	if len(args) == 0 {
+		return nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(args, &fields); err != nil {
+		return nil
+	}
+	raw, ok := fields["command"]
+	if !ok {
+		return nil
+	}
+	var cmd string
+	if err := json.Unmarshal(raw, &cmd); err != nil {
+		return nil
+	}
+	var paths []string
+	tokens := strings.Fields(cmd)
+	for i := 0; i < len(tokens); i++ {
+		tok := tokens[i]
+		switch {
+		case tok == ">" || tok == ">>":
+			// "cmd > file": target is the next token.
+			if i+1 < len(tokens) {
+				paths = append(paths, tokens[i+1])
+				i++ // skip the consumed target token
+			}
+		case strings.HasPrefix(tok, ">"):
+			// "cmd >file": target attached to the operator.
+			target := strings.TrimLeft(tok, ">")
+			if target != "" {
+				paths = append(paths, target)
 			}
 		}
 	}

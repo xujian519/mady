@@ -5,7 +5,7 @@ import "sync"
 // Ledger stores the receipts available for verification during the current turn.
 // It is thread-safe and nil-safe: a nil ledger is a no-op for all methods.
 type Ledger struct {
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	receipts []Receipt
 }
 
@@ -37,8 +37,8 @@ func (l *Ledger) Len() int {
 	if l == nil {
 		return 0
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return len(l.receipts)
 }
 
@@ -47,8 +47,8 @@ func (l *Ledger) Snapshot() []Receipt {
 	if l == nil {
 		return nil
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	out := make([]Receipt, len(l.receipts))
 	copy(out, l.receipts)
 	return out

@@ -166,14 +166,15 @@ func parseWorkflowSteps(s string) []WorkflowStepRecord {
 		return []WorkflowStepRecord{single}
 	}
 
-	// Fallback: extract JSON from text.
-	if idx := strings.Index(s, "["); idx >= 0 {
-		end := strings.LastIndex(s, "]")
-		if end > idx {
-			if err := json.Unmarshal([]byte(s[idx:end+1]), &steps); err == nil {
-				return steps
-			}
+	// Fallback: extract every bracket-balanced "[...]" span from prose.
+	for _, sub := range extractJSONArrays(s) {
+		var batch []WorkflowStepRecord
+		if err := json.Unmarshal([]byte(sub), &batch); err == nil && len(batch) > 0 {
+			steps = append(steps, batch...)
 		}
+	}
+	if len(steps) > 0 {
+		return steps
 	}
 
 	// Fallback: line-based simple parsing.

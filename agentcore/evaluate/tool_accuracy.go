@@ -219,18 +219,60 @@ func parseToolCalls(s string) []ToolCallJSON {
 		return []ToolCallJSON{single}
 	}
 
-	// Fallback: try to find JSON arrays embedded in text (common in LLM output).
-	if idx := strings.Index(s, "["); idx >= 0 {
-		end := strings.LastIndex(s, "]")
-		if end > idx {
-			sub := s[idx : end+1]
-			if err := json.Unmarshal([]byte(sub), &calls); err == nil {
-				return calls
+	// Fallback: extract every bracket-balanced "[...]" span (common when the
+	// LLM wraps JSON in prose or emits multiple blocks) and parse each.
+	for _, sub := range extractJSONArrays(s) {
+		var batch []ToolCallJSON
+		if err := json.Unmarshal([]byte(sub), &batch); err == nil && len(batch) > 0 {
+			calls = append(calls, batch...)
+		}
+	}
+	return calls
+}
+
+// extractJSONArrays returns all top-level bracket-balanced "[...]" substrings
+// in s, ignoring brackets inside JSON string literals. Used to recover JSON
+// arrays embedded in LLM prose or emitted as multiple blocks.
+func extractJSONArrays(s string) []string {
+	var spans []string
+	depth := 0
+	start := -1
+	inStr := false
+	esc := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if esc {
+			esc = false
+			continue
+		}
+		if inStr {
+			switch c {
+			case '\\':
+				esc = true
+			case '"':
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inStr = true
+		case '[':
+			if depth == 0 {
+				start = i
+			}
+			depth++
+		case ']':
+			if depth > 0 {
+				depth--
+				if depth == 0 && start >= 0 {
+					spans = append(spans, s[start:i+1])
+					start = -1
+				}
 			}
 		}
 	}
-
-	return nil
+	return spans
 }
 
 // NormalizeToolCalls sorts a JSON array of tool calls by name then arguments.

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -88,11 +89,26 @@ func (j LLMJudge) Compute(prediction, reference string) float64 {
 		samples = 1
 	}
 
-	scores := make([]float64, 0, samples)
-	for i := 0; i < samples; i++ {
-		s := j.computeOnce(prediction, reference)
-		scores = append(scores, s)
+	// Run judge samples with bounded concurrency to avoid a serial N×timeout
+	// wait (default Samples=3 × 60s = 3min per case otherwise). Concurrency is
+	// capped to 3 to avoid overwhelming the provider.
+	scores := make([]float64, samples)
+	conc := samples
+	if conc > 3 {
+		conc = 3
 	}
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, conc)
+	for i := 0; i < samples; i++ {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(idx int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			scores[idx] = j.computeOnce(prediction, reference)
+		}(i)
+	}
+	wg.Wait()
 	return median(scores)
 }
 

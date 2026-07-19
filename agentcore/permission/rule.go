@@ -116,12 +116,9 @@ func extractMatchValue(toolName string, args json.RawMessage) string {
 		}
 	}
 
-	// Fallback: first string value
-	for _, v := range m {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
+	// 已知路径键已在上文处理。不再使用"map 第一个 string 值"作为 fallback，
+	// 因为 Go map 遍历顺序随机，会导致同一输入多次匹配返回不同字段，
+	// 规则判定不确定。未覆盖的键返回空串（不匹配），行为可预测。
 	return ""
 }
 

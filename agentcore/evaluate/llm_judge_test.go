@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"strings"
+	"sync"
 	"testing"
 	"unicode/utf8"
 
@@ -115,18 +116,22 @@ func TestMedian(t *testing.T) {
 }
 
 // stubJudgeProvider returns a scripted sequence of responses to simulate
-// multi-sample judging without network calls.
+// multi-sample judging without network calls. It is safe for concurrent use
+// because LLMJudge.Compute fans out samples in parallel.
 type stubJudgeProvider struct {
+	mu        sync.Mutex
 	responses []string
 	calls     int
 }
 
 func (s *stubJudgeProvider) Complete(ctx context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+	s.mu.Lock()
 	resp := "0.5"
 	if s.calls < len(s.responses) {
 		resp = s.responses[s.calls]
 	}
 	s.calls++
+	s.mu.Unlock()
 	return &agentcore.ProviderResponse{Content: resp}, nil
 }
 

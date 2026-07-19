@@ -45,14 +45,18 @@ var alwaysAllowed = map[string]bool{
 //  5. Bash with read-only command → allowed
 //  6. Everything else → blocked
 func (p Policy) Decide(toolName string, readOnly bool, args json.RawMessage) Decision {
-	if blockedTools[toolName] {
+	// Tool names are matched case-insensitively so that "Edit", "EDIT", and
+	// "edit" are treated identically. All map keys below are lowercase.
+	name := strings.ToLower(toolName)
+
+	if blockedTools[name] {
 		return Decision{
 			Blocked: true,
 			Message: fmt.Sprintf("计划模式下禁止使用写入工具 %s", toolName),
 		}
 	}
 
-	if alwaysAllowed[toolName] {
+	if alwaysAllowed[name] {
 		return Decision{}
 	}
 
@@ -66,7 +70,7 @@ func (p Policy) Decide(toolName string, readOnly bool, args json.RawMessage) Dec
 		return Decision{}
 	}
 
-	if strings.EqualFold(toolName, "bash") {
+	if name == "bash" {
 		if isReadOnlyBashCommand(args) {
 			return Decision{}
 		}

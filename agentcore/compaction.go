@@ -107,57 +107,6 @@ func shouldCompact(msgs []Message, toolDefs []ToolDefinition, contextWindow int6
 	return estimated > triggerThreshold
 }
 
-func findCutPoint(msgs []Message, keepRecentTokens int64, protectFirstN int) int64 {
-	if keepRecentTokens <= 0 {
-		keepRecentTokens = 2000
-	}
-	if protectFirstN <= 0 {
-		protectFirstN = 3
-	}
-	if len(msgs) <= 3 {
-		return 0
-	}
-
-	accum := int64(0)
-	candidateCut := int64(len(msgs))
-
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == RoleSystem {
-			continue
-		}
-		accum += EstimateMessageTokens(msgs[i])
-		if accum >= keepRecentTokens {
-			candidateCut = int64(i + 1)
-			break
-		}
-	}
-
-	candidateCut = alignBoundaryForward(msgs, candidateCut)
-
-	minCut := int64(0)
-	if len(msgs) > 0 && msgs[0].Role == RoleSystem {
-		minCut = 1
-	}
-
-	headProtect := int64(protectFirstN)
-	if candidateCut <= minCut+headProtect+1 {
-		return 0
-	}
-
-	nonSystemCount := int64(0)
-	for i := minCut; i < int64(len(msgs)); i++ {
-		if msgs[i].Role != RoleSystem {
-			nonSystemCount++
-		}
-	}
-
-	if nonSystemCount <= headProtect+3 {
-		return 0
-	}
-
-	return candidateCut
-}
-
 func alignBoundaryForward(msgs []Message, cut int64) int64 {
 	for cut < int64(len(msgs)) && msgs[cut].Role == RoleTool {
 		cut++
@@ -408,36 +357,29 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 
 	resp, err := compProvider.Complete(ctx, summaryReq)
 
-	var summaryContent string
-	var summaryFailed bool
-
 	if err != nil {
-		summaryFailed = true
-		nDropped := int64(len(turnsToSummarize))
-		summaryContent = fmt.Sprintf(
-			"%s\n"+
-				"Summary generation failed: %v. %d message(s) were "+
-				"removed to free context space but could not be summarized. The removed "+
-				"messages contained earlier work in this session. Continue based on the "+
-				"recent messages below and the current state of any files or resources."+
-				"%s",
-			compactionSummaryPrefix, err, nDropped, compactionSummaryEndMarker,
-		)
+		// Summary generation failed: preserve the original messages rather
+		// than replacing them with a lossy fallback. Previously this path
+		// built a one-line "summary failed" placeholder and still called
+		// ReplaceMessages, permanently dropping the [compressStart:compressEnd)
+		// slice — unrecoverable data loss on a transient provider error.
+		// Rely on summaryFailureCooldown to suppress tight retry loops.
 		if compState != nil {
 			compState.previousSummary = ""
 			compState.lastSummaryError = err.Error()
 			compState.summaryFailureCooldown = time.Now().Add(time.Duration(summaryFailureCooldownSeconds) * time.Second)
 		}
-	} else {
-		summaryContent = resp.Content
-		if compState != nil {
-			compState.previousSummary = summaryContent
-			compState.lastSummaryError = ""
-		}
+		return 0, fmt.Errorf("compaction summary generation failed: %w", err)
+	}
+
+	summaryContent := resp.Content
+	if compState != nil {
+		compState.previousSummary = summaryContent
+		compState.lastSummaryError = ""
 	}
 
 	var summaryMsg Message
-	if structured && !summaryFailed {
+	if structured {
 		sum, perr := parseStructuredCompactionSummary(resp.Content)
 		if perr != nil {
 			nDropped := int64(len(turnsToSummarize))
@@ -493,6 +435,12 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 
 	compressed = sanitizeToolPairs(compressed)
 
+	// NOTE: ReplaceMessages bypasses the BeforeMessagePersist/AfterMessagePersist
+	// lifecycle hooks (those only fire in the normal persistMessage append
+	// path). Hooks that inspect or audit message content — e.g. guardrail or
+	// evidence hooks — will NOT see this compaction summary. This is an
+	// accepted audit gap for now; a future BeforeCompactionPersist/
+	// AfterCompactionPersist hook pair would close it (review finding M1).
 	state.ReplaceMessages(compressed)
 
 	newEstimate := EstimateMessagesTokens(compressed)

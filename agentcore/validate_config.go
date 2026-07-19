@@ -57,6 +57,25 @@ func validateHandoffs(handoffs []HandoffConfig) error {
 			return fmt.Errorf("agentcore: duplicate handoff target %q (Handoffs[%d])", h.Name, i)
 		}
 		seen[h.Name] = true
+
+		// AllowedSources uses default-deny semantics. Validate its contents
+		// so misconfigurations surface at startup rather than as silent
+		// "handoff blocked" failures at runtime.
+		for j, src := range h.AllowedSources {
+			if strings.TrimSpace(src) == "" {
+				return fmt.Errorf("agentcore: Handoffs[%d].AllowedSources[%d] is empty or blank (remove it, or use %q to allow any source)", i, j, "*")
+			}
+		}
+		// A target listing its own name as an allowed source is almost always
+		// a misconfiguration (A→A). The runtime depth guard bounds it, but we
+		// reject it here to surface the mistake early.
+		for _, src := range h.AllowedSources {
+			if src == h.Name {
+				return fmt.Errorf("agentcore: Handoffs[%d] (%q) lists itself in AllowedSources; remove the self-reference", i, h.Name)
+			}
+		}
+		// Note: mixing "*" with explicit names is redundant but not invalid;
+		// we leave it to the operator.
 	}
 	return nil
 }

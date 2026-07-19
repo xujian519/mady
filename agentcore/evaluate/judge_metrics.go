@@ -82,6 +82,9 @@ type GuardrailFalseNegativeRate struct {
 	FlaggedHighRisk int // 护栏标记为高风险的数量
 }
 
+// Name returns the aggregate metric identifier. NOTE: GuardrailFalseNegativeRate
+// does NOT implement the Metric interface (it has no Compute method); it is an
+// aggregate computed from guardrail logs. Use Rate()/Score() instead.
 func (GuardrailFalseNegativeRate) Name() string { return "guardrail_false_negative_rate" }
 
 // Rate returns the false negative rate in [0, 1]. Lower is better.
@@ -116,6 +119,9 @@ type AdoptionRate struct {
 	Rejected int // 拒绝
 }
 
+// Name returns the aggregate metric identifier. NOTE: AdoptionRate does NOT
+// implement the Metric interface (it has no Compute method); it is an aggregate
+// computed from ApprovalGate review records. Use FullyAdopted()/Accepted() etc.
 func (AdoptionRate) Name() string { return "adoption_rate" }
 
 // Total returns the total number of reviewed outputs.

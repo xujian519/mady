@@ -159,8 +159,13 @@ type CompressorEngine struct {
 	autoCompactLimit    int64
 	compressionModel    string
 	compressionProvider Provider
-	compressionBaseURL  string
-	compressionAPIKey   string
+	// compressionBaseURL and compressionAPIKey are currently UNUSED: they are
+	// populated from ContextEngineConfig but nothing reads them to construct a
+	// dedicated compression Provider — the summary request always uses the
+	// main Provider/Model. Reserved for a future dedicated compression model
+	// (see docs/review/agentcore-deep-review-2026-07-20.md, finding M2).
+	compressionBaseURL string
+	compressionAPIKey  string
 
 	state          *compactionState
 	compressionCnt int64

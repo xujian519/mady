@@ -7,6 +7,12 @@ import (
 
 // readOnlyCommands are bash commands that don't modify state.
 // Classification is conservative: if uncertain, treat as write.
+//
+// NOTE: general-purpose interpreters (python, node, ruby, ...) are
+// intentionally absent — their -c/-e flags can execute arbitrary code
+// (file deletion, network exfiltration) without any shell redirection
+// operator, which the redirect check below cannot detect. They are
+// fail-closed by virtue of not being listed here.
 var readOnlyCommands = map[string]bool{
 	// File inspection
 	"cat": true, "head": true, "tail": true, "less": true, "more": true,
@@ -17,21 +23,20 @@ var readOnlyCommands = map[string]bool{
 	"ls": true, "tree": true, "lsof": true,
 	// Diff
 	"diff": true, "comm": true,
-	// Git read-only
-	"git": true, // git itself is allowed; subcommands are checked
+	// Git read-only (subcommands are checked below)
+	"git": true,
+	// Go read-only (subcommands are checked below): go test/vet/list are
+	// read; go run/build/generate execute code or write output.
+	"go": true,
 	// Process info
-	"ps": true, "top": true, "htop": true, "killall": false,
+	"ps": true, "top": true, "htop": true,
 	// Network read
 	"ping": true, "dig": true, "nslookup": true, "host": true,
-	// Dev tools (read-only invocations)
-	"go":     true, // go test, go vet, go list are read; go build writes
-	"cargo":  true,
-	"node":   true,
-	"python": true, "python3": true,
-	"ruby": true,
-	// Text processing (no side effects)
-	"sort": true, "uniq": true, "cut": true, "tr": true, "awk": true,
-	"sed": false, // sed -i writes
+	// Text processing (emit to stdout only, cannot execute code).
+	"sort": true, "uniq": true, "cut": true, "tr": true,
+	// sed (-i) and awk (system()/redirect inside the program) can mutate
+	// state → fail-closed.
+	"sed": false, "awk": false,
 	// Environment
 	"echo": true, "printf": true, "env": true, "printenv": true,
 	"date": true, "whoami": true, "id": true, "uname": true,
@@ -40,8 +45,9 @@ var readOnlyCommands = map[string]bool{
 	"seq": true, "yes": true, "test": true, "[": true,
 }
 
-// writeSubcommands classifies commands that have both read and write modes.
-// Key: command name, Value: set of read-only subcommands.
+// readSubcommands classifies commands that have both read and write modes.
+// Key: command name, Value: set of read-only subcommands. A subcommand not
+// present here is treated as write (fail-closed).
 var readSubcommands = map[string]map[string]bool{
 	"git": {
 		"status": true, "diff": true, "log": true, "show": true,
@@ -49,6 +55,13 @@ var readSubcommands = map[string]map[string]bool{
 		"blame": true, "shortlog": true, "describe": true,
 		"ls-files": true, "ls-remote": true, "rev-parse": true,
 		"config": true, "help": true,
+	},
+	"go": {
+		"test": true, "vet": true, "list": true, "show": true,
+		"doc": true, "version": true, "env": true, "help": true,
+		"bug": true,
+		// build/run/install/get/mod/fmt/generate write files or execute
+		// code → not whitelisted.
 	},
 }
 
@@ -94,9 +107,9 @@ func isReadOnlyCommandString(cmd string) bool {
 	}
 
 	// Reject command chaining with &&, ||, ;, | unless we can verify
-	// all parts are read-only. For safety, treat chained commands as write.
-	if hasChainingOperator(cmd) {
-		parts := splitChainedCommands(cmd)
+	// all parts are read-only. Operators inside quotes are ignored.
+	parts := splitCommandChain(cmd)
+	if len(parts) > 1 {
 		for _, part := range parts {
 			if !isReadOnlyCommandString(part) {
 				return false
@@ -105,8 +118,8 @@ func isReadOnlyCommandString(cmd string) bool {
 		return true
 	}
 
-	// Reject output redirection
-	if strings.Contains(cmd, ">") || strings.Contains(cmd, ">>") {
+	// Reject output redirection (>, >>) occurring outside quotes.
+	if strings.Contains(stripQuoted(cmd), ">") {
 		return false
 	}
 
@@ -134,8 +147,10 @@ func isReadOnlyCommandString(cmd string) bool {
 				}
 				return subs[sub]
 			}
-			// Command without subcommand: allow if it's inherently read-only
-			return bin == "git" // bare git is harmless
+			// Command without subcommand: allow only for git (bare git
+			// prints usage and exits). go/cargo with no subcommand are
+			// blocked to avoid surprises.
+			return bin == "git"
 		}
 		return true
 	}
@@ -144,26 +159,117 @@ func isReadOnlyCommandString(cmd string) bool {
 	return false
 }
 
-func hasChainingOperator(cmd string) bool {
-	for _, op := range []string{"&&", "||", ";", "|"} {
-		if strings.Contains(cmd, op) {
-			return true
+// stripQuoted returns a copy of s with single- and double-quoted regions
+// replaced by spaces (preserving length), so that operators or redirections
+// that appear inside quotes — e.g. the pipe in `grep "a|b"` — are not
+// mistaken for shell operators. Backslash escapes inside double quotes are
+// respected.
+func stripQuoted(s string) string {
+	var b strings.Builder
+	inSingle, inDouble := false, false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+				b.WriteByte(' ')
+			} else {
+				b.WriteByte(' ')
+			}
+		case inDouble:
+			switch {
+			case c == '\\' && i+1 < len(s):
+				b.WriteByte(' ')
+				b.WriteByte(' ')
+				i++
+			case c == '"':
+				inDouble = false
+				b.WriteByte(' ')
+			default:
+				b.WriteByte(' ')
+			}
+		default:
+			switch c {
+			case '\'':
+				inSingle = true
+				b.WriteByte(' ')
+			case '"':
+				inDouble = true
+				b.WriteByte(' ')
+			default:
+				b.WriteByte(c)
+			}
 		}
 	}
-	return false
+	return b.String()
 }
 
-func splitChainedCommands(cmd string) []string {
+// splitCommandChain splits a command string on shell operators
+// (&&, ||, ;, |) that occur outside single- or double-quoted regions. It
+// returns the trimmed sub-commands; if no top-level operator is present it
+// returns a single-element slice. A single trailing '&' (background) is also
+// treated as a separator.
+func splitCommandChain(cmd string) []string {
 	var parts []string
-	// Simple split on known operators
-	for _, op := range []string{"&&", "||", ";", "|"} {
-		cmd = strings.ReplaceAll(cmd, op, "\n")
-	}
-	for _, line := range strings.Split(cmd, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			parts = append(parts, line)
+	var seg strings.Builder
+	inSingle, inDouble := false, false
+	flush := func() {
+		if s := strings.TrimSpace(seg.String()); s != "" {
+			parts = append(parts, s)
 		}
+		seg.Reset()
+	}
+	for i := 0; i < len(cmd); i++ {
+		c := cmd[i]
+		switch {
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+			}
+			seg.WriteByte(c)
+		case inDouble:
+			switch {
+			case c == '\\' && i+1 < len(cmd):
+				seg.WriteByte(c)
+				if i+1 < len(cmd) {
+					seg.WriteByte(cmd[i+1])
+					i++
+				}
+			case c == '"':
+				inDouble = false
+				seg.WriteByte(c)
+			default:
+				seg.WriteByte(c)
+			}
+		default:
+			switch c {
+			case '\'':
+				inSingle = true
+				seg.WriteByte(c)
+			case '"':
+				inDouble = true
+				seg.WriteByte(c)
+			case ';', '|':
+				// ';' separates statements; '|' pipes. '||' is two adjacent
+				// '|' which collapses naturally into one split point.
+				flush()
+			case '&':
+				if i+1 < len(cmd) && cmd[i+1] == '&' {
+					i++ // consume second '&'
+					flush()
+				} else {
+					// single trailing '&' = background; treat as separator
+					flush()
+				}
+			default:
+				seg.WriteByte(c)
+			}
+		}
+	}
+	flush()
+	if len(parts) == 0 {
+		return []string{strings.TrimSpace(cmd)}
 	}
 	return parts
 }

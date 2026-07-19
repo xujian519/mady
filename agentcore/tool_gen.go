@@ -168,7 +168,10 @@ func generateSchemaForType(t reflect.Type, lenient bool) *jsonSchema {
 		}
 	}
 
-	schema := typeToSchema(t, lenient)
+	// 始终生成 strict 版本缓存，保证缓存内容与调用顺序无关。
+	// 若首次以 lenient=true 调用就缓存 relax 后的版本，后续 strict 调用
+	// 会命中缓存拿到错误的 lenient 版本（缺少 Required 字段）。
+	schema := typeToSchema(t, false)
 
 	if t.Kind() == reflect.Struct {
 		schemaCacheMu.Lock()
@@ -179,6 +182,12 @@ func generateSchemaForType(t reflect.Type, lenient bool) *jsonSchema {
 		schemaCacheMu.Unlock()
 	}
 
+	// 返回前按需 relax（不污染缓存）。
+	if lenient {
+		cloned := cloneSchema(schema)
+		relaxSchemaLocal(cloned)
+		return cloned
+	}
 	return schema
 }
 
@@ -411,7 +420,10 @@ func patchArgs(raw json.RawMessage, aliases map[string]string, ci *coerceInfo) (
 
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return raw, nil // not an object, return as-is
+		// 非 object（array/string/null 等）：best-effort 透传，不在此处报错。
+		// 后续 json.Unmarshal 到具体 struct 会给出明确的类型错误，
+		// 调用方仍能定位失败原因。保持 passthrough 契约以兼容非 object 参数。
+		return raw, nil
 	}
 
 	// Resolve aliases.
@@ -463,11 +475,13 @@ func tryCoerceValue(key string, val any, ci *coerceInfo) any {
 	}
 
 	if ci.intKeys[key] {
-		if f, err := strconv.ParseFloat(s, 64); err == nil {
-			return f
-		}
+		// 优先按整数解析；仅当 ParseFloat 结果是整数值时才转换，
+		// 避免 "1.5" 被强转为 float64 后无法 Unmarshal 到 int 字段。
 		if i, err := strconv.ParseInt(s, 10, 64); err == nil {
 			return float64(i)
+		}
+		if f, err := strconv.ParseFloat(s, 64); err == nil && f == float64(int64(f)) {
+			return f
 		}
 	}
 

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/evaluate"
 	"github.com/xujian519/mady/agentcore/evaluate/benchmark"
 )
@@ -74,10 +75,15 @@ type EvalCLI struct {
 	Predictions map[string]string
 }
 
+// Completer is the minimal provider interface required by live mode. It is
+// satisfied by agentcore.Provider (which also exposes Stream), but declared
+// locally so that test doubles only need to implement Complete.
+type Completer interface {
+	Complete(ctx context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error)
+}
+
 // ProviderFactory 是创建 LLM Provider 的工厂函数，供 live 模式使用。
-type ProviderFactory func(model string) (interface {
-	Complete(ctx context.Context, req any) (any, error)
-}, error)
+type ProviderFactory func(model string) (Completer, error)
 
 // RunResult 包含 CLI 评估的完整结果。
 type RunResult struct {
@@ -226,6 +232,15 @@ func runLive(ctx context.Context, cases []evaluate.TestCase, cli *EvalCLI) (*eva
 		go func(t caseTask, idx int) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			// 隔离 goroutine panic：避免 panic 导致 wg.Done 未调用而使
+			// wg.Wait() 永久阻塞整个评估进程。panic 转为该用例的错误结果。
+			defer func() {
+				if r := recover(); r != nil {
+					mu.Lock()
+					results[idx] = caseResult{index: idx, prediction: "", err: fmt.Errorf("评估 panic: %v", r)}
+					mu.Unlock()
+				}
+			}()
 
 			if cli.LLMProvider == nil {
 				mu.Lock()
@@ -263,23 +278,17 @@ func runLive(ctx context.Context, cases []evaluate.TestCase, cli *EvalCLI) (*eva
 	return benchmark.DefaultEvaluator().EvaluateStatic(cases, predictions), nil
 }
 
-func callProviderSimple(ctx context.Context, provider any, input string) (string, error) {
-	type Completer interface {
-		Complete(ctx context.Context, req any) (any, error)
-	}
-	p, ok := provider.(Completer)
-	if !ok {
-		return "", fmt.Errorf("provider 不实现 Complete 接口")
-	}
-	resp, err := p.Complete(ctx, map[string]any{
-		"messages": []map[string]any{
-			{"role": "user", "content": input},
+func callProviderSimple(ctx context.Context, provider Completer, input string) (string, error) {
+	resp, err := provider.Complete(ctx, &agentcore.ProviderRequest{
+		Model: "",
+		Messages: []agentcore.Message{
+			{Role: "user", Content: input},
 		},
 	})
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%v", resp), nil
+	return resp.Content, nil
 }
 
 // FormatResult 根据 cli 配置输出格式，将运行结果转为字符串。

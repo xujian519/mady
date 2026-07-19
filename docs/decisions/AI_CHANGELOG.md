@@ -1,3 +1,63 @@
+## 2026-07-20: agentcore 深度审阅全面修复（43 项：2C/8H/18M/25L 全清）
+
+### 背景
+承接 agentcore 深度审阅报告（`docs/review/agentcore-deep-review-2026-07-20.md`），对全部 43 项发现按模块分 16 组修复。
+
+### 改动（均通过 build/vet/lint(0 issues)/race/test）
+
+**P0 安全熔断（planmode/pipeline/handoff/filecheckpoint/doomloop）**
+- `planmode/readonly.go` 重写：移除 python/node/go/ruby/cargo 解释器的 readOnly 放行（`-c`/`-e` 执行任意代码绕过）；awk/sed fail-closed（内部 `>`/`w` 重定向绕过 `strings.Contains(">")` 检测）；go 改 subcommand 白名单（test/vet/list 放行，run/build 阻止）；新增引号感知的 stripQuoted/splitCommandChain 替换字符串 Contains 误判 [安全敏感]
+- `pipeline_executor.go`: 抽取 executeStage 包 defer recover，StageHandler panic 不再拖垮 doomloop（参考 executor.go:320）
+- `handoff.go`: executeDelegate/handleTransfer 加 DepthFromContext 限深（≥DefaultMaxDelegationDepth=8 返回 ErrDepthExceeded）+ WithDepth(ctx,+1)，防互相 delegate 栈溢出 [安全敏感]
+- `filecheckpoint/store.go`: SnapshotFile/restoreFile 入口加 isPathSafe 校验；RestoreAndTrim 重写为全程持锁原子（消除并发丢 checkpoint）；extension.go bash 重定向路径提取 + BeforeTurn off-by-one 修复 [安全敏感]
+- `doomloop/doomloop.go`: detector 遍历改为持 mu（OnSignal 锁外回调）；删除 totalToolCalls 死字段；新增 SignalError 结构化错误 + errors.As [安全敏感]
+
+**P0 数据完整性 + 健壮性**
+- `context_engine_tiered.go`: snipToolResults 改 []rune 切片（中文 UTF-8 不断裂）
+- `compaction.go`: summary 失败时保留原文不再 ReplaceMessages 丢数据；删除 findCutPoint 死函数
+- `evaluate/cli/cli.go`: runLive goroutine 加 defer recover；删除 any 类型擦除，新增 Completer 接口 + callProviderSimple 用具体 ProviderRequest/Response 类型（不再 fmt.Sprintf("%v") 把结构体格式化）
+- `extension.go`: Register 第 N 个 Init 失败时逆序 Dispose 已成功者
+- `budget.go`: AfterModelCall 累加后检查超限并 fireExceed 告警
+- `reasoning_strategy.go`: 注入 hint 改用真克隆 slice（兑现"不原地修改"注释承诺）
+
+**P1 一致性 + 健壮性**
+- `tool_gen.go`: schemaCache 始终缓存 strict 版（与调用顺序无关）；tryCoerceValue int 字段 ParseInt 优先
+- `plugin_manager.go`: retriever 注入前 copy input（不污染调用方 map）
+- `permission.go`: Mode==Deny 时 readOnly 降级 Ask（不再自动放行）[安全敏感]
+- `evidence`: 删除 BeforeModelCall 死代码；Ledger 改 RWMutex
+- `evaluate`: extractJSONArrays 括号配平迭代（支持多块/字符串感知）；llm_judge Samples 有界并发；benchmark init 失败 panic（CI 不再假绿）；sortedMetricNames 加排序
+
+**P2 死代码清理**
+- 删除 NewHandoffError/NewGuardrailError（全仓零调用）；orchestrate Publish 加 DroppedMessages 计数；tracing/otel.go 删不可达分支
+
+### 影响范围
+agentcore/ 全子树（planmode/pipeline/handoff/filecheckpoint/doomloop/context_engine/compaction/evaluate/extension/budget/reasoning_strategy/tool_gen/plugin_manager/permission/evidence/orchestrate/tracing/errors）
+
+### 风险等级
+- 中（含 5 处安全敏感路径修复：planmode/handoff/filecheckpoint/doomloop/permission，需人工审阅）
+
+### 审查要求
+- L2（安全敏感路径：planmode/readonly.go、handoff.go、filecheckpoint/store.go、doomloop/doomloop.go、permission/permission.go）
+
+### 验证
+- `go build ./...` ✅ | `go vet ./...` ✅ | `golangci-lint run ./agentcore/...` 0 issues ✅ | `go test -race ./agentcore/...` 全绿 ✅ | 根模块 build/vet ✅
+
+
+## 2026-07-20: agentcore 深度审阅（182 文件全量，2C/8H/18M/25L）
+
+### 背景
+对 agentcore/ 全量子树（基线 `bda2694`..`9f9846b`，增量 +10309/-679 行，约占 agentcore 1/3）进行逐文件精读质量评估，采用 8 阶段方法（基线验证→自动化扫描→历史回归→核心循环回归→三路并行精读→安全并发专项→汇总）。
+
+### 产物
+- **新增 `docs/review/agentcore-deep-review-2026-07-20.md`**：结构化审阅报告（执行摘要/基线/历史回归矩阵/按严重度清单/按模块发现/修复路线图 P0-P3/质量趋势/覆盖矩阵）
+
+### 关键发现
+- **整体评级：良好（B+）**。`golangci-lint` 0 issues、`go test -race` 全绿、vet 通过、TODO 清零；核心循环重构（agent_run.go 拆分 runLoop/runInnerLoop + failLoop 提取）质量高；hooks.go 修复 time.After timer 泄漏
+- **2 Critical**：planmode 只读判定被 python/node/awk 等解释器绕过（`planmode/readonly.go:27-33`）；pipeline StageHandler.Execute 无 panic recover（`pipeline_executor.go:96`，对比 executor.go:320 工具路径有 recover）
+- **8 High**：handoff 无递归限深（互相 delegate→栈溢出）、filecheckpoint isWithinRoot 死代码+零路径校验、doomloop detector 隐式串行假设、TieredEngine 中文 UTF-8 截断、evaluate/cli runLive 损坏且 0% 覆盖、extension.Register 部分失败泄漏、compaction summary 失败丢消息、planmode awk/sed 内部重定向绕过
+- **历史回归**：P2-4(doc.go)/C5-C6(stream泄漏)/manifest GuardrailLevel/P0-13(context.Background 25→8处) **全部通过**；P0-11 部分残留（NewHandoffError/NewGuardrailError 全仓零调用）
+- **未修改任何代码**，仅产出审阅报告。所有 Critical/High 经主会话亲自核实。修复路线图见报告第 7 节
+
 ## 2026-07-20: 创造性分析完全独立节点——三步法 Pregel 子图 + EventBus 异步触发
 
 ### 背景

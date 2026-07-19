@@ -52,7 +52,11 @@ func DefaultPolicy() Policy {
 // Decide evaluates the policy for the given tool call.
 //
 // Priority: Deny > Ask > Allow > fallback.
-// Fallback: read-only tools → Allow; writer tools → Mode (default Ask).
+// Fallback: read-only tools → Allow（除非 Mode==Deny，此时改为 Ask 以尊重
+// "默认拒绝"语义）；writer tools → Mode（默认 Ask）。
+//
+// 注意：readOnly 标记的优先级高于 Mode，但当 Mode==Deny 时，read-only 工具
+// 也不再自动放行，而是降级为 Ask，避免在显式拒绝策略下仍放行只读工具。
 func (p Policy) Decide(toolName string, readOnly bool, args json.RawMessage) Decision {
 	for _, r := range p.Deny {
 		if r.Matches(toolName, args) {
@@ -71,6 +75,10 @@ func (p Policy) Decide(toolName string, readOnly bool, args json.RawMessage) Dec
 	}
 
 	if readOnly {
+		// 显式 Deny 模式下，read-only 工具也不再自动放行，降级为 Ask。
+		if p.Mode == DecisionDeny {
+			return DecisionAsk
+		}
 		return DecisionAllow
 	}
 	if p.Mode == DecisionAllow {

@@ -18,4 +18,14 @@
 //
 // The detector implements agentcore.LifecycleHook and monitors both
 // AfterModelCall and AfterToolExecution phases.
+//
+// # Concurrency
+//
+// Individual detectors are NOT internally synchronized. The DoomLoop
+// coordinator serializes hook invocations by holding its own mutex across
+// each detector sweep, so a single DoomLoop instance is safe for the normal
+// agent lifecycle (one hook chain per agent run). A DoomLoop shared across
+// multiple concurrent agent runs is also protected by this mutex, though
+// OnSignal callbacks are always invoked outside the lock and must not call
+// back into the DoomLoop re-entrantly.
 package doomloop

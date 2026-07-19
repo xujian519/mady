@@ -2,6 +2,7 @@ package doomloop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -107,8 +108,7 @@ type DoomLoop struct {
 	detectors []Detector
 
 	// aggregated state
-	totalToolCalls int
-	signals        []Signal
+	signals []Signal
 }
 
 // New creates a DoomLoop with the given options.
@@ -161,7 +161,6 @@ func (dl *DoomLoop) Signals() []Signal {
 func (dl *DoomLoop) Reset() {
 	dl.mu.Lock()
 	defer dl.mu.Unlock()
-	dl.totalToolCalls = 0
 	dl.signals = nil
 	for _, d := range dl.detectors {
 		d.Reset()
@@ -197,14 +196,22 @@ func (h *doomLoopHook) AfterModelCall(_ context.Context, _ *agentcore.AgentRunCo
 		return
 	}
 	dl := h.parent
+	// Hold the lock across the detector sweep so detector state (which is
+	// NOT internally synchronized) is protected. The DoomLoop contract
+	// requires serial hook invocation; the lock is defensive against a
+	// shared DoomLoop or a future concurrent runtime. OnSignal callbacks
+	// fire AFTER the lock is released (in emitSignal) so they cannot
+	// deadlock and cannot observe partial state.
 	dl.mu.Lock()
-	dl.totalToolCalls += len(mcc.Response.ToolCalls)
-	dl.mu.Unlock()
-
+	pending := make([]Signal, 0)
 	for _, d := range dl.detectors {
 		if sig := d.RecordModelCall(mcc); sig != nil {
-			dl.emitSignal(*sig)
+			pending = append(pending, *sig)
 		}
+	}
+	dl.mu.Unlock()
+	for _, s := range pending {
+		dl.emitSignal(s)
 	}
 }
 
@@ -213,10 +220,16 @@ func (h *doomLoopHook) AfterToolExecution(_ context.Context, _ *agentcore.AgentR
 		return
 	}
 	dl := h.parent
+	dl.mu.Lock()
+	pending := make([]Signal, 0)
 	for _, d := range dl.detectors {
 		if sig := d.RecordToolResult(tec); sig != nil {
-			dl.emitSignal(*sig)
+			pending = append(pending, *sig)
 		}
+	}
+	dl.mu.Unlock()
+	for _, s := range pending {
+		dl.emitSignal(s)
 	}
 }
 
@@ -526,12 +539,42 @@ func (d *compactionBreaker) Reset() { d.consecutive = 0 }
 // Signal helpers
 // ============================================================================
 
+// SignalError wraps a doomloop Signal as an error so callers can propagate
+// fatal signals through the standard error chain and recover them with
+// errors.As or IsDoomLoopFatal. Prefer NewSignalError over fmt.Errorf when
+// constructing doomloop errors.
+type SignalError struct {
+	Signal Signal
+}
+
+// Error implements error.
+func (e *SignalError) Error() string {
+	return fmt.Sprintf("doomloop %s: %s", e.Signal.Detector, e.Signal.Reason)
+}
+
+// NewSignalError wraps a Signal as an error.
+func NewSignalError(s Signal) error {
+	return &SignalError{Signal: s}
+}
+
 // IsDoomLoopFatal checks if the error from the agent runtime was caused by a
 // doomloop signal. Returns the Signal if so, nil otherwise.
+//
+// It prefers structured SignalError recovery via errors.As; as a compatibility
+// fallback it also scans the error string for known detector IDs, which may
+// produce false positives if a caller's error message happens to contain a
+// detector name like "cycle" or "empty_result". New code should construct
+// doomloop errors with NewSignalError.
 func IsDoomLoopFatal(err error) *Signal {
 	if err == nil {
 		return nil
 	}
+	var se *SignalError
+	if errors.As(err, &se) {
+		s := se.Signal
+		return &s
+	}
+	// Compatibility fallback: string match (fragile).
 	errStr := err.Error()
 	for _, id := range []DetectorID{
 		DetectorToolCallLoop, DetectorTextRepetition,

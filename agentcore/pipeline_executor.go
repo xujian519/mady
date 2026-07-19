@@ -44,7 +44,11 @@ func NewPipelineExecutor(provider Provider, opts ...ExecOption) *PipelineExecuto
 }
 
 // Run executes all stages in the manifest's pipeline sequentially.
-// The initial state is a copy of input (safe to reuse input across calls).
+// The initial state is a SHALLOW copy of input: top-level keys are copied,
+// but slice/map/pointer values are shared with the caller. It is safe to
+// reuse the input map across Run calls, but stage handlers that mutate a
+// shared slice/map value will also mutate the caller's copy. Callers that
+// need full isolation should deep-copy reference values before passing them.
 //
 // Returns the final PipelineState after all stages complete, or an error
 // if a stage fails (unless the error is an InterruptStageError, which is
@@ -57,7 +61,9 @@ func (e *PipelineExecutor) Run(ctx context.Context, manifest *PluginManifest, in
 		return input, nil
 	}
 
-	// Copy input to avoid mutation of caller's map.
+	// Shallow-copy input keys to avoid the caller's map being mutated.
+	// Reference values (slices, maps, pointers) are still shared — see
+	// the Run doc comment.
 	state := make(PipelineState, len(input))
 	for k, v := range input {
 		state[k] = v
@@ -93,7 +99,7 @@ func (e *PipelineExecutor) Run(ctx context.Context, manifest *PluginManifest, in
 				continue
 			}
 
-			out, err := handler.Execute(ctx, state, e.provider)
+			out, err := e.executeStage(ctx, stage, handler, state)
 			if err != nil {
 				if IsInterruptStage(err) {
 					// Interrupt (e.g. approval-gate) is returned as-is.
@@ -128,4 +134,19 @@ func (e *PipelineExecutor) Run(ctx context.Context, manifest *PluginManifest, in
 
 	finalizeState()
 	return state, nil
+}
+
+// executeStage runs a single stage handler with panic isolation. A panic
+// inside the handler (or any third-party plugin code it calls) is converted
+// to a plain error so it cannot crash the doomloop main loop; the caller
+// wraps it into a StageError uniformly with ordinary handler errors. An
+// InterruptStageError is preserved as-is so approval gates keep working.
+func (e *PipelineExecutor) executeStage(ctx context.Context, stage PluginStage, handler StageHandler, state PipelineState) (out PipelineState, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			out = nil
+			err = fmt.Errorf("stage %q handler panic: %v", stage.ID, r)
+		}
+	}()
+	return handler.Execute(ctx, state, e.provider)
 }

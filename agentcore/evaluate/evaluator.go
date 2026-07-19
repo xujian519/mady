@@ -102,7 +102,6 @@ func (e *Evaluator) EvaluateBatch(ctx context.Context, cases []TestCase, run Run
 				Scores:  map[string]float64{},
 				Average: 0,
 			})
-			report.TotalCases++
 			continue
 		}
 		result := e.Evaluate(prediction, tc.Expected, tc.RequiredCitations)
