@@ -487,6 +487,30 @@ func (s *SQLiteMemoryStore) Close() error {
 	return nil
 }
 
+// BuildBM25Index 从数据库中全量加载记忆并构建 BM25 索引。
+// 返回的索引可用于混合检索（稠密向量 + BM25 稀疏 + RRF 融合）。
+func (s *SQLiteMemoryStore) BuildBM25Index(ctx context.Context) (*BM25Index, error) {
+	rows, err := s.db.QueryContext(ctx, selectColumns+` FROM memories`)
+	if err != nil {
+		return nil, fmt.Errorf("memory/sqlite: build bm25: %w", err)
+	}
+	defer rows.Close()
+
+	index := NewBM25Index(DefaultBM25Config())
+	for rows.Next() {
+		entry, err := scanEntry(rows)
+		if err != nil {
+			return nil, fmt.Errorf("memory/sqlite: build bm25 scan: %w", err)
+		}
+		index.Add(entry.ID, entry.Content)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("memory/sqlite: build bm25 rows: %w", err)
+	}
+
+	return index, nil
+}
+
 // --- 内部辅助 ---
 
 const selectColumns = `SELECT id, user_id, agent_id, session_id, project_id, layer, content,

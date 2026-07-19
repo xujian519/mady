@@ -23,8 +23,10 @@ import (
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/mcp"
 	"github.com/xujian519/mady/memory"
+	"github.com/xujian519/mady/memory/compiler"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
+	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/skill"
 	"github.com/xujian519/mady/tools"
 )
@@ -59,6 +61,11 @@ type frameworkContext struct {
 	// MemoryManager 是长期记忆系统的核心协调器。
 	// 所有入口（tui/serve/acp）共享同一个 Manager 实例。
 	MemoryManager *memory.Manager
+	// MemoryCompiler 是策略学习编译器，通过 ε-greedy 探索策略选择最佳执行路径。
+	// 与 MemoryManager 不同，CompilerExtension 无 scope 依赖，直接注册到 BaseConfig。
+	MemoryCompiler *compiler.Compiler
+	// SessionSummarizer 是会话关闭时的异步汇总器。为 nil 时跳过汇总。
+	SessionSummarizer *memory.SessionSummarizer
 }
 
 // setupFrameworkContext 执行三个入口共享的初始化逻辑：
@@ -278,25 +285,95 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	// SQLite 文件位于 MADY_HOME/memory.db，所有 Agent 共享同一个存储后端，
 	// 支持跨会话持久化和向量检索。
 	memoryDB := filepath.Join(madyHome, "memory.db")
+
+	// 1. 构建 Embedder（向量语义检索）。
+	// 通过环境变量 EMBEDDING_BASE_URL / EMBEDDING_API_KEY / EMBEDDING_MODEL 配置。
+	// 未配置时 embedder 为 nil，Recall 自动降级为关键词匹配。
+	var embedder retrieval.Embedder
+	if embURL := os.Getenv("EMBEDDING_BASE_URL"); embURL != "" {
+		embModel := os.Getenv("EMBEDDING_MODEL")
+		if embModel == "" {
+			embModel = "bge-m3" // 默认 BGE-M3，中英文效果好
+		}
+		embKey := os.Getenv("EMBEDDING_API_KEY")
+		embedder = retrieval.NewAPIEmbedder(embURL, embKey, embModel)
+		fmt.Fprintf(os.Stderr, "memory: Embedding 已启用 (model: %s, dims: %d)\n",
+			embModel, embedder.Dimensions())
+	} else {
+		fmt.Fprintf(os.Stderr, "memory: 未配置 EMBEDDING_BASE_URL，使用关键词检索\n")
+	}
+
+	// 2. 构建 MemoryStore（优先 SQLite + embedding）。
 	var memoryStore memory.MemoryStore
+	var storeOpts []memory.SQLiteOption
+	if embedder != nil {
+		storeOpts = append(storeOpts, memory.WithSQLiteEmbedder(embedder))
+	}
 	if madyHome != "" {
-		ms, err := memory.NewSQLiteMemoryStore(memoryDB)
+		ms, err := memory.NewSQLiteMemoryStore(memoryDB, storeOpts...)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "memory: 打开 SQLite 存储失败 %s: %v（降级为 InMemoryStore）\n", memoryDB, err)
-			memoryStore = memory.NewInMemoryStore()
+			memoryStore = memory.NewInMemoryStore(memory.WithEmbedder(embedder))
 		} else {
 			fmt.Fprintf(os.Stderr, "memory: SQLite 持久化存储已加载（%s）\n", memoryDB)
 			memoryStore = ms
 		}
 	} else {
-		memoryStore = memory.NewInMemoryStore()
+		memoryStore = memory.NewInMemoryStore(memory.WithEmbedder(embedder))
 	}
-	fc.MemoryManager = memory.NewManager(memoryStore, nil, nil, memory.DefaultManagerConfig())
+
+	// 3. 构建 Extractor（LLM 原子事实提取）。
+	// 通过环境变量 MADY_MEMORY_AUTO_EXTRACT 控制（默认关闭，保持向后兼容）。
+	var extractor *memory.Extractor
+	managerCfg := memory.DefaultManagerConfig()
+	if os.Getenv("MADY_MEMORY_AUTO_EXTRACT") == "1" {
+		if fc.Provider != nil {
+			model := agentconfig.DefaultModel()
+			llmExtractor := memory.NewProviderExtractor(fc.Provider, model)
+			extractor = memory.NewExtractor(llmExtractor, memory.DefaultExtractorConfig())
+			managerCfg.AutoExtract = true
+			fmt.Fprintf(os.Stderr, "memory: LLM 事实提取已启用 (model: %s)\n", model)
+		} else {
+			fmt.Fprintf(os.Stderr, "memory: MADY_MEMORY_AUTO_EXTRACT=1 但 Provider 不可用，跳过\n")
+		}
+	}
+
+	fc.MemoryManager = memory.NewManager(memoryStore, extractor, nil, managerCfg)
 	// 在 BaseConfig 中注册 MemoryExtension 供所有入口复用。
 	// MemoryScope 在入口层填充（因 UserID/SessionID 仅在会话上下文中可知）。
 	// 此处仅创建共享存储与管理器，扩展实例由入口层（tui/serve/acp）按需创建。
 	fc.MemoryManager.LogStats(context.Background())
 	fmt.Fprintf(os.Stderr, "memory: 长期记忆系统已就绪\n")
+
+	// 4. 构建 BM25 索引并注入 Retriever（启用混合检索：稠密向量 + BM25 稀疏 + RRF 融合）。
+	// 仅 SQLite 持久化存储支持 BM25（需全量扫描构建索引）。
+	if sqliteStore, ok := memoryStore.(*memory.SQLiteMemoryStore); ok {
+		if bm25Idx, err := sqliteStore.BuildBM25Index(context.Background()); err == nil {
+			fc.MemoryManager.SetBM25Index(bm25Idx)
+			fmt.Fprintf(os.Stderr, "memory: BM25 混合检索已启用（%d 条索引）\n", bm25Idx.Size())
+		} else {
+			fmt.Fprintf(os.Stderr, "memory: BM25 索引构建失败: %v（退化为纯稠密检索）\n", err)
+		}
+	}
+
+	// 策略学习编译器：注册 CompilerExtension 到 BaseConfig 供所有入口复用。
+	// 与 MemoryExtension 不同，CompilerExtension 无 scope 依赖（策略选择只依赖 goal 文本），
+	// 因此直接注册到 BaseConfig.Extensions，无需入口层按需创建。
+	fc.MemoryCompiler = compiler.NewCompiler(compiler.Config{
+		ExplorationRate: 5, // 5% ε-greedy 探索率
+		MaxTraces:       1000,
+	})
+	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions,
+		compiler.NewExtension(fc.MemoryCompiler))
+	fmt.Fprintf(os.Stderr, "compiler: 策略学习系统已就绪（%d 个预设策略）\n",
+		len(fc.MemoryCompiler.Strategies()))
+
+	// 会话汇总器：当 Provider 可用且 MADY_MEMORY_AUTO_EXTRACT=1 时启用。
+	// 在会话关闭时从 Session 层提取长期事实存入 LongTerm 层。
+	if fc.Provider != nil && os.Getenv("MADY_MEMORY_AUTO_EXTRACT") == "1" {
+		fc.SessionSummarizer = memory.NewSessionSummarizer(fc.Provider, agentconfig.DefaultModel())
+		fmt.Fprintf(os.Stderr, "memory: 会话汇总器已启用\n")
+	}
 
 	// 初始化知识图谱（空存储，由 wiki import 或数据管线填充）。
 	fc.KnowledgeGraph = kgwgraph.NewGraphStore()

@@ -29,6 +29,9 @@ type MemoryExtension struct {
 	// 为 true 时 Dispose() 将关闭 manager；为 false 时 manager 由外部管理，
 	// 适用于 framework 共享 Manager 的场景（Agent 重建时不丢失存储连接）。
 	managerOwned bool
+
+	// summarizer 用于会话关闭时从 Session 层提取长期事实。为 nil 时跳过汇总。
+	summarizer *SessionSummarizer
 }
 
 // ExtensionConfig 控制 MemoryExtension 的行为。
@@ -115,10 +118,64 @@ func (e *MemoryExtension) Init(ctx context.Context, agent *agentcore.Agent) erro
 }
 
 func (e *MemoryExtension) Dispose() error {
+	// 会话关闭时触发异步汇总（借鉴 Letta Sleep-time Agent）
+	if e.summarizer != nil {
+		e.OnSessionClose(context.Background())
+	}
 	if e.managerOwned {
 		return e.manager.Close()
 	}
 	return nil
+}
+
+// SetSummarizer 设置会话汇总器。为 nil 时跳过会话关闭时的汇总逻辑。
+func (e *MemoryExtension) SetSummarizer(s *SessionSummarizer) {
+	e.summarizer = s
+}
+
+// OnSessionClose 在会话关闭时被调用。
+// 如果配置了 summarizer 且 Manager 启用了 CleanupSessionOnClose，
+// 则从 Session 层提取长期事实并存入 LongTerm 层。
+// 汇总在 goroutine 中异步执行，不阻塞会话关闭流程。
+func (e *MemoryExtension) OnSessionClose(ctx context.Context) {
+	if e.summarizer == nil || e.manager == nil {
+		return
+	}
+
+	go func() {
+		// 使用带超时的 context，防止 LLM 调用永久挂起导致 goroutine 泄漏
+		summaryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		// 1. 拉取本 Session 层所有记忆
+		sessionMemories, err := e.manager.store.List(summaryCtx, LayerSession, ListOptions{Limit: 200})
+		if err != nil || len(sessionMemories) == 0 {
+			return
+		}
+
+		// 2. 调用 Summarizer 提取长期事实
+		facts, err := e.summarizer.Summarize(summaryCtx, sessionMemories)
+		if err != nil || len(facts) == 0 {
+			return
+		}
+
+		// 3. 存入 LongTerm 层（经过去重）
+		for _, fact := range facts {
+			if e.manager.cfg.EnableDedup {
+				_, _ = e.manager.Deduplicate(summaryCtx, fact.Content, e.scope, LayerLongTerm)
+			} else {
+				_, _ = e.manager.store.Remember(summaryCtx, fact.Content, e.scope, LayerLongTerm, fact.Metadata)
+			}
+		}
+
+		// 4. 可选清理 Session 层
+		if e.manager.cfg.CleanupSessionOnClose {
+			_ = e.manager.store.ForgetAll(summaryCtx, MemoryFilter{
+				SessionID: e.scope.SessionID,
+				Layer:     LayerSession,
+			})
+		}
+	}()
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +193,12 @@ func (e *MemoryExtension) Provide(ctx context.Context, input agentcore.BuildInpu
 		return nil, nil
 	}
 
+	// 情绪感知：检测 psychological 扩展注入的心理上下文，调整检索策略
+	emotion := ExtractEmotionContext(input.Messages)
+	if emotion.Present {
+		query = e.emotionAwareQuery(query, emotion)
+	}
+
 	filter := MemoryFilter{UserID: e.scope.UserID, TopK: e.cfg.TopK}
 	results, err := e.manager.Search(ctx, query, filter)
 	if err != nil || len(results) == 0 {
@@ -150,6 +213,20 @@ func (e *MemoryExtension) Provide(ctx context.Context, input agentcore.BuildInpu
 	}
 	contextBlock := buildMemoryContextBlock(results, e.scope)
 	return []agentcore.Message{{Role: agentcore.RoleSystem, Content: contextBlock}}, nil
+}
+
+// emotionAwareQuery 根据情绪状态增强检索查询。
+// 负面情绪时偏重"安抚"、"共情"相关记忆；正面情绪时偏重"偏好"、"风格"。
+func (e *MemoryExtension) emotionAwareQuery(query string, ec EmotionContext) string {
+	if ec.IsNegative() || ec.IsHighArousal() {
+		// 负面/高唤醒：优先检索安抚策略和共情记忆
+		return query + " 用户偏好 安抚 沟通策略"
+	}
+	if ec.IsPositive() {
+		// 正面情绪：优先检索风格偏好和工作习惯
+		return query + " 用户偏好 风格 工作习惯"
+	}
+	return query
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +309,9 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 		return
 	}
 
+	// 提取情绪上下文（用于记忆标注）
+	emotion := ExtractEmotionContext(arc.Messages)
+
 	// 异步提取记忆（不阻塞主流程）
 	go func() {
 		defer func() {
@@ -241,8 +321,8 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 		}()
 		extractCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if _, err := h.ext.manager.RememberFromTurn(extractCtx, userMsg, respContent, h.ext.scope); err != nil {
-			slog.Warn("memory: RememberFromTurn failed", "err", err)
+		if _, err := h.ext.manager.RememberFromTurnWithEmotion(extractCtx, userMsg, respContent, h.ext.scope, emotion); err != nil {
+			slog.Warn("memory: RememberFromTurnWithEmotion failed", "err", err)
 		}
 	}()
 }

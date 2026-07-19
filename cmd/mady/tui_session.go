@@ -124,8 +124,15 @@ func (s *tuiSession) buildMemoryExtension() *memory.MemoryExtension {
 		AgentID:   s.detectAgentID(),
 		ProjectID: s.detectProjectID(),
 	}
-	return memory.NewExtension(s.fc.MemoryManager, scope,
+	ext := memory.NewExtension(s.fc.MemoryManager, scope,
 		memory.DefaultExtensionConfig(), memory.WithSharedManager())
+
+	// 若框架级会话汇总器可用，注入到扩展实例（会话关闭时异步汇总）
+	if s.fc.SessionSummarizer != nil {
+		ext.SetSummarizer(s.fc.SessionSummarizer)
+	}
+
+	return ext
 }
 
 // injectMemoryExtension 将 s.memExt 注入到 agentcore.Config 的 Extensions 列表中。

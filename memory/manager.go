@@ -15,7 +15,8 @@ type Manager struct {
 	clock     func() time.Time
 
 	// 配置
-	cfg ManagerConfig
+	cfg      ManagerConfig
+	dedupCfg DedupConfig // 去重配置
 }
 
 // ManagerConfig 控制 Manager 的行为。
@@ -34,6 +35,14 @@ type ManagerConfig struct {
 
 	// MemoryBudgetRatio 记忆占总上下文的默认比例（0~1）。
 	MemoryBudgetRatio float64 `json:"memory_budget_ratio"`
+
+	// EnableDedup 开启时，每次 RememberFromTurn 自动对提取的事实做去重。
+	// 默认为 false，保持向后兼容。
+	EnableDedup bool `json:"enable_dedup"`
+
+	// CleanupSessionOnClose 开启时，会话关闭后自动清理 Session 层记忆。
+	// 默认为 false。仅在 EnableDedup 场景下有实际意义（P3 阶段启用）。
+	CleanupSessionOnClose bool `json:"cleanup_session_on_close"`
 }
 
 // DefaultManagerConfig 返回默认配置。
@@ -64,11 +73,20 @@ func NewManager(store MemoryStore, extractor *Extractor, retriever *Retriever, c
 		retriever: retriever,
 		clock:     time.Now,
 		cfg:       cfg,
+		dedupCfg:  DefaultDedupConfig(),
 	}
 }
 
 // Store 返回底层 MemoryStore。
 func (m *Manager) Store() MemoryStore { return m.store }
+
+// SetBM25Index 设置 BM25 稀疏检索引擎，启用混合检索（稠密+稀疏+RRF）。
+// idx 为 nil 时退化为纯稠密检索。
+func (m *Manager) SetBM25Index(idx *BM25Index) {
+	if m.retriever != nil {
+		m.retriever.SetBM25Index(idx)
+	}
+}
 
 // WithClock 设置时钟（测试用）。
 func (m *Manager) WithClock(clock func() time.Time) *Manager {
@@ -91,9 +109,13 @@ func (m *Manager) RememberBatch(ctx context.Context, entries []MemoryEntry) erro
 }
 
 // RememberFromTurn 从一轮对话中提取并保存记忆。
-// 如果 ManagerConfig.AutoExtract 为 true 且 extractor 不为 nil，
-// 将使用 LLM 提取原子事实。否则将对话轮次原文作为一条记忆保存。
+// 委托到 RememberFromTurnWithEmotion（无情绪上下文）。
 func (m *Manager) RememberFromTurn(ctx context.Context, userInput, assistantOutput string, scope MemoryScope) ([]string, error) {
+	return m.RememberFromTurnWithEmotion(ctx, userInput, assistantOutput, scope, EmotionContext{})
+}
+
+// RememberFromTurnWithEmotion 从一轮对话中提取记忆并附加情绪上下文标注。
+func (m *Manager) RememberFromTurnWithEmotion(ctx context.Context, userInput, assistantOutput string, scope MemoryScope, ec EmotionContext) ([]string, error) {
 	if userInput == "" && assistantOutput == "" {
 		return nil, nil
 	}
@@ -101,11 +123,9 @@ func (m *Manager) RememberFromTurn(ctx context.Context, userInput, assistantOutp
 	var ids []string
 
 	if m.cfg.AutoExtract && m.extractor != nil {
-		// LLM 提取
 		content := fmt.Sprintf("用户说: %s\n助手回答: %s", userInput, assistantOutput)
 		facts, err := m.extractor.Extract(ctx, content, scope)
 		if err != nil {
-			// LLM 提取失败时 fallback 到原文保存
 			id, fallbackErr := m.store.Remember(ctx, content, scope, LayerSession, map[string]any{"type": "fallback"})
 			if fallbackErr == nil {
 				ids = append(ids, id)
@@ -113,14 +133,41 @@ func (m *Manager) RememberFromTurn(ctx context.Context, userInput, assistantOutp
 			return ids, fmt.Errorf("memory: extract failed (fallback used): %w", err)
 		}
 		for _, fact := range facts {
-			id, err := m.store.Remember(ctx, fact.Content, scope, LayerLongTerm, fact.Metadata)
-			if err != nil {
-				continue
+			if ec.Present {
+				if fact.Metadata == nil {
+					fact.Metadata = make(map[string]any)
+				}
+				fact.Metadata["emotion"] = map[string]any{
+					"valence":          ec.Valence,
+					"arousal":          ec.Arousal,
+					"dominance":        ec.Dominance,
+					"dominant_emotion": ec.DominantEmotion,
+				}
+				fact.Importance += ec.EmotionBoost()
+				if fact.Importance > 1.0 {
+					fact.Importance = 1.0
+				}
+			}
+			var id string
+			if m.cfg.EnableDedup {
+				result, dedupErr := m.Deduplicate(ctx, fact.Content, scope, LayerLongTerm)
+				if dedupErr != nil {
+					continue
+				}
+				if result.Action == DedupAdd {
+					id = result.NewID
+				} else {
+					id = result.ExistingID
+				}
+			} else {
+				id, err = m.store.Remember(ctx, fact.Content, scope, LayerLongTerm, fact.Metadata)
+				if err != nil {
+					continue
+				}
 			}
 			ids = append(ids, id)
 		}
 	} else {
-		// 原文保存到 Session 层
 		var b string
 		if userInput != "" {
 			b = "用户: " + userInput
@@ -131,7 +178,16 @@ func (m *Manager) RememberFromTurn(ctx context.Context, userInput, assistantOutp
 			}
 			b += "助手: " + assistantOutput
 		}
-		id, err := m.store.Remember(ctx, b, scope, LayerSession, nil)
+		metadata := map[string]any{}
+		if ec.Present {
+			metadata["emotion"] = map[string]any{
+				"valence":          ec.Valence,
+				"arousal":          ec.Arousal,
+				"dominance":        ec.Dominance,
+				"dominant_emotion": ec.DominantEmotion,
+			}
+		}
+		id, err := m.store.Remember(ctx, b, scope, LayerSession, metadata)
 		if err != nil {
 			return nil, err
 		}
