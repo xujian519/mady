@@ -13,7 +13,10 @@
   ],
   "system_prompt": "你是专利代理师，请撰写专利申请摘要。摘要应简要说明发明的技术问题、技术方案要点和主要用途，一般不超过300字。",
   "user_prompt_template": "请为以下技术方案撰写专利摘要（不超过300字）：\n\n发明名称：{{title}}\n技术方案：{{description}}",
-  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "changelog": [
+    {"version": "0.1.1", "date": "2026-07-19", "description": "修复 $schema 字段位置"}
+  ],
   "attribution": {
     "source": "Mady core",
     "license": "Apache-2.0"

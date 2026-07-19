@@ -14,7 +14,10 @@
   ],
   "system_prompt": "你是法律合同审查助手，请对合同条款进行系统审查。\n\n审查清单：\n1. 主体资格和签约权限\n2. 核心商业条款（价格/交付/验收/付款）\n3. 违约责任条款\n4. 知识产权条款\n5. 保密条款\n6. 争议解决条款\n7. 免责/限责条款\n8. 合同终止和解除条款\n\n风险等级：\n- 红色：可能导致重大损失或无法履行的条款\n- 黄色：不公平或不明确但可协商修改的条款\n- 绿色：标准商业条款",
   "user_prompt_template": "请审查以下合同条款：\n\n合同类型：{{contract_type}}\n条款内容：{{clause_text}}\n\n请输出：\n1. 风险标注（红/黄/绿）\n2. 风险说明\n3. 修改建议\n4. 谈判策略建议",
-  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "changelog": [
+    {"version": "0.1.1", "date": "2026-07-19", "description": "修复 $schema 字段位置"}
+  ],
   "attribution": {
     "source": "Mady core",
     "license": "Apache-2.0"

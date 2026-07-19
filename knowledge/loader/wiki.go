@@ -107,12 +107,6 @@ func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ stri
 			return nil
 		}
 
-		// Exclude excessively split fragments.
-		if IsSplitFragment(path) {
-			stats.SkippedFilter++
-			return nil
-		}
-
 		// Read file.
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -140,6 +134,14 @@ func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ stri
 		// Check card-index for quality metadata.
 		searchable := l.Filter.IsSearchable(path)
 		metadata := make(map[string]string)
+
+		// Annotate excessively split fragments (3+ nested (1) markers)
+		// with is_split=true and mark non-searchable to keep retrieval clean.
+		if IsSplitFragment(path) {
+			metadata["is_split"] = "true"
+			searchable = false
+		}
+
 		if meta.Domain != "" {
 			metadata["domain"] = meta.Domain
 		}
@@ -157,6 +159,9 @@ func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ stri
 		}
 		if meta.Summary != "" {
 			metadata["summary"] = meta.Summary
+		}
+		if meta.ReviewedAt != "" {
+			metadata["reviewed_at"] = meta.ReviewedAt
 		}
 
 		// Enrich from card index.

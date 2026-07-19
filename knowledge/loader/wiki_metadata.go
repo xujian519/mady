@@ -7,26 +7,28 @@ import (
 
 // WikiMetadata holds extracted metadata from a wiki document.
 type WikiMetadata struct {
-	Title     string   // first H1 heading
-	Source    string   // "> **来源：** ..."
-	LawRefs   []string // "> **核心法条：** ..." or "> **法律依据：** ..."
-	WikiLinks []string // all [[wikilinks]] in the document
-	Domain    string   // derived from directory structure (e.g. "专利侵权")
-	DocType   string   // "judgment", "guideline", "law", "wiki_card", "reexam", "practice"
-	Summary   string   // "## 核心要点" or "## 核心审查标准" content
-	Tags      []string // "> **标签：** ..." fields (reexam docs)
+	Title      string   // first H1 heading
+	Source     string   // "> **来源：** ..."
+	LawRefs    []string // "> **核心法条：** ..." or "> **法律依据：** ..."
+	WikiLinks  []string // all [[wikilinks]] in the document
+	Domain     string   // derived from directory structure (e.g. "专利侵权")
+	DocType    string   // "judgment", "guideline", "law", "wiki_card", "reexam", "practice"
+	Summary    string   // "## 核心要点" or "## 核心审查标准" content
+	Tags       []string // "> **标签：** ..." fields (reexam docs)
+	ReviewedAt string   // "> **最后审查：** ..." or "> **reviewed_at：** ..." (version tracking)
 }
 
 // wikiMetadataPatterns holds regex patterns for metadata extraction.
 var (
-	reSource    = regexp.MustCompile(`>\s*\*\*来源[：:]\s*\*\*\s*(.+)`)
-	reLawRefs   = regexp.MustCompile(`>\s*\*\*(?:核心法条|对应法条|法律依据)[：:]\s*\*\*\s*(.+)`)
-	reWikiLink  = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
-	reTags      = regexp.MustCompile(`>\s*\*\*标签[：:]\s*\*\*\s*(.+)`)
-	reH1        = regexp.MustCompile(`^#\s+(.+)`)
-	reSummary   = regexp.MustCompile(`##\s*(?:核心要点|核心审查标准|核心概述)\s*\n([\s\S]*?)(?:\n##|\z)`)
-	reTechField = regexp.MustCompile(`>\s*\*\*技术领域[：:]\s*\*\*\s*(.+)`)
-	reGuideSect = regexp.MustCompile(`>\s*\*\*来源[：:]\s*\*\*\s*《专利审查指南》(.+)`)
+	reSource     = regexp.MustCompile(`>\s*\*\*来源[：:]\s*\*\*\s*(.+)`)
+	reLawRefs    = regexp.MustCompile(`>\s*\*\*(?:核心法条|对应法条|法律依据)[：:]\s*\*\*\s*(.+)`)
+	reWikiLink   = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
+	reTags       = regexp.MustCompile(`>\s*\*\*标签[：:]\s*\*\*\s*(.+)`)
+	reH1         = regexp.MustCompile(`^#\s+(.+)`)
+	reSummary    = regexp.MustCompile(`##\s*(?:核心要点|核心审查标准|核心概述)\s*\n([\s\S]*?)(?:\n##|\z)`)
+	reTechField  = regexp.MustCompile(`>\s*\*\*技术领域[：:]\s*\*\*\s*(.+)`)
+	reGuideSect  = regexp.MustCompile(`>\s*\*\*来源[：:]\s*\*\*\s*《专利审查指南》(.+)`)
+	reReviewedAt = regexp.MustCompile(`>\s*\*\*(?:最后审查|reviewed_at)[：:]\s*\*\*\s*(.+)`)
 )
 
 // ExtractMetadata parses metadata from wiki document content and file path.
@@ -97,6 +99,11 @@ func ExtractMetadata(content, filePath string) *WikiMetadata {
 	}
 	if techMatch := reTechField.FindStringSubmatch(content); len(techMatch) >= 2 {
 		_ = techMatch // technical field for reexam docs
+	}
+
+	// Reviewed/last-reviewed date (version tracking for obsolescence detection).
+	if match := reReviewedAt.FindStringSubmatch(content); len(match) >= 2 {
+		m.ReviewedAt = strings.TrimSpace(match[1])
 	}
 
 	return m

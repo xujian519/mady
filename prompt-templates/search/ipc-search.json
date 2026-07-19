@@ -13,7 +13,10 @@
   ],
   "system_prompt": "你是专利分类专家，请根据技术方案确定相关的国际专利分类（IPC）号。\n\n分析步骤：\n1. 理解技术方案的本质特征\n2. 查找IPC分类表中对应的部、大类、小类、大组、小组\n3. 给出主分类号和副分类号\n4. 构建IPC检索式\n5. 标注分类的覆盖范围说明",
   "user_prompt_template": "请为以下技术方案确定IPC分类号：\n\n技术方案：{{description}}\n\n请输出：\n1. 主分类号及说明\n2. 副分类号及说明\n3. IPC检索式\n4. 分类依据说明",
-  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "changelog": [
+    {"version": "0.1.1", "date": "2026-07-19", "description": "修复 $schema 字段位置"}
+  ],
   "attribution": {
     "source": "Mady core",
     "license": "Apache-2.0"

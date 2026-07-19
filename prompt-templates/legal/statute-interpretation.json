@@ -14,7 +14,10 @@
   ],
   "system_prompt": "你是法律研究助手，请对指定法律条文进行体系化解释和适用分析。\n\n分析框架：\n1. 文义解释：条文的字面含义\n2. 体系解释：在整部法律中的定位\n3. 目的解释：立法目的和意图\n4. 历史解释：立法背景和演变\n5. 司法实践：法院在裁判中的解释倾向\n6. 学术观点：主流学者的解释意见",
   "user_prompt_template": "请对以下法条进行解释和适用分析：\n\n法律法规：{{statute}}\n条款：{{provision}}\n案件事实：{{facts}}\n\n请输出体系化解释和本案中的适用分析。",
-  "": "https://mady.ai/schemas/prompt-template.v1.json",
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "changelog": [
+    {"version": "0.1.1", "date": "2026-07-19", "description": "修复 $schema 字段位置"}
+  ],
   "attribution": {
     "source": "Mady core",
     "license": "Apache-2.0"
