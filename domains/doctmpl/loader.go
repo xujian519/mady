@@ -15,14 +15,15 @@ import (
 
 // DocTemplate is one parsed document template.
 type DocTemplate struct {
-	Name        string
-	Title       string
-	Category    string
-	Description string
-	Domain      string
-	Version     string
-	FilePath    string // absolute path to the template file
-	Body        string // Markdown body after frontmatter
+	Name             string         // frontmatter name
+	Title            string         // 中文标题
+	Category         string         // claims/specification/oa-response/disclosure
+	Description      string         // 一行描述
+	Domain           string         // patent/legal
+	Version          string         // semver
+	SupportedFormats []OutputFormat // 支持的输出格式（缺省 [markdown]）
+	FilePath         string         // absolute path to the template file
+	Body             string         // Markdown body after frontmatter
 }
 
 // LoadDocTemplates reads all .md template files from the given root
@@ -160,14 +161,15 @@ func parseDocTemplate(path string, data []byte) (*DocTemplate, error) {
 		return nil, fmt.Errorf("%s: missing name in frontmatter", path)
 	}
 	return &DocTemplate{
-		Name:        fm["name"],
-		Title:       fm["title"],
-		Category:    fm["category"],
-		Description: fm["description"],
-		Domain:      fm["domain"],
-		Version:     fm["version"],
-		FilePath:    path,
-		Body:        strings.TrimSpace(body),
+		Name:             fm["name"],
+		Title:            fm["title"],
+		Category:         fm["category"],
+		Description:      fm["description"],
+		Domain:           fm["domain"],
+		Version:          fm["version"],
+		SupportedFormats: parseFormatsList(fm["formats"]),
+		FilePath:         path,
+		Body:             strings.TrimSpace(body),
 	}, nil
 }
 

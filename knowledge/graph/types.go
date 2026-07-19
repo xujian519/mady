@@ -16,18 +16,19 @@ package graph
 
 // NodeType constants identify the kind of entity a graph node represents.
 const (
-	NodeConcept       = "Concept"
-	NodeLawArticle    = "LawArticle"
-	NodeGuidelineRule = "GuidelineRule"
-	NodeCase          = "Case"
-	NodeJudgment      = "Judgment"
-	NodeWikiCard      = "WikiCard"
-	NodePersonalNote  = "PersonalNote"
-	NodeBookReference = "BookReference"
-	NodeRule          = "Rule"
-	NodeDomainGuide   = "DomainGuide"
-	NodeIPC           = "IPC"
-	NodeEvidence      = "Evidence"
+	NodeConcept        = "Concept"
+	NodeLawArticle     = "LawArticle"
+	NodeGuidelineRule  = "GuidelineRule"
+	NodeCase           = "Case"
+	NodeJudgment       = "Judgment"
+	NodeWikiCard       = "WikiCard"
+	NodePersonalNote   = "PersonalNote"
+	NodeBookReference  = "BookReference"
+	NodeRule           = "Rule"
+	NodeDomainGuide    = "DomainGuide"
+	NodeIPC            = "IPC"
+	NodeEvidence       = "Evidence"
+	NodeWritingPattern = "WritingPattern"
 )
 
 // RelationType constants describe directed edges between nodes.
@@ -42,6 +43,7 @@ const (
 	RelCitedBy       = "CITED_BY"
 	RelImplementedBy = "IMPLEMENTED_BY"
 	RelContains      = "CONTAINS"
+	RelAppliesTo     = "APPLIES_TO"
 )
 
 // GraphNode is a single entity in the knowledge graph.
@@ -125,6 +127,7 @@ var docTypeToNode = map[string]string{
 	"case":           NodeCase,
 	"judgment":       NodeJudgment,
 	"card":           NodeWikiCard,
+	"reexam":         NodeJudgment,
 	"personal_note":  NodePersonalNote,
 	"book_reference": NodeBookReference,
 	"agent_config":   NodeConcept,

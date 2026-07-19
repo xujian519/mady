@@ -168,8 +168,10 @@ func (b *GraphBuilder) createEdges(doc ParsedDoc) {
 		b.edgeCount++
 	}
 
-	// Cases and Judgments: reverse APPLIES edges + SIMILAR_TO detection.
-	if nodeType == NodeCase || nodeType == NodeJudgment {
+	// Cases, Judgments, and GuidelineRules: reverse APPLIES edges + SIMILAR_TO detection.
+	// GuidelineRule nodes represent guideline sections that interpret specific
+	// law articles, so they get APPLIES edges from cited laws.
+	if nodeType == NodeCase || nodeType == NodeJudgment || nodeType == NodeGuidelineRule {
 		for _, lawRef := range capSlice(doc.Metadata.LawRefs, 5) {
 			lawNodeID := lawNodeID(lawRef)
 			if lawNodeID == "" {

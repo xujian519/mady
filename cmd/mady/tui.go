@@ -16,7 +16,9 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains/rules"
+	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/knowledge/fileindex"
+	"github.com/xujian519/mady/knowledge/risk"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/session"
@@ -27,6 +29,28 @@ import (
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
 )
+
+// loadWritingPatterns 加载写作模式种子文件并返回 PatternStore。
+func loadWritingPatterns(madyHome string) *writing.PatternStore {
+	store := writing.NewPatternStore()
+	if madyHome == "" {
+		return store
+	}
+	// 种子模式文件位于 $MADY_HOME/knowledge/seed-patterns/ 或项目目录。
+	seedDirs := []string{
+		filepath.Join(madyHome, "knowledge", "seed-patterns"),
+		filepath.Join("domains", "writing", "seed-patterns"),
+	}
+	for _, dir := range seedDirs {
+		count, err := store.LoadSeedDir(dir)
+		if err == nil && count > 0 {
+			log.Printf("writing: loaded %d seed pattern files from %s", count, dir)
+			return store
+		}
+	}
+	log.Println("writing: no seed patterns found, using empty store")
+	return store
+}
 
 // defaultSystemPrompt 仅在多域 manifest 全部加载失败时的最终兜底。
 // 正常情况下 mady 通过 go:embed 内置的 4 个领域 manifest 进入多域路由模式，
@@ -60,6 +84,18 @@ func runTui(ctx context.Context) {
 	var ruleExt agentcore.Extension
 	if ruleEngine != nil {
 		ruleExt = rules.NewExtension(ruleEngine)
+	}
+
+	// 风险扫描扩展（依赖知识库中的判决文书数据）。
+	var riskExt agentcore.Extension
+	if fc.WikiStore != nil {
+		riskExt = risk.NewExtension(fc.WikiStore, risk.DefaultScannerConfig())
+	}
+
+	// 写作模式扩展。
+	var writingExt agentcore.Extension
+	if patternStore := loadWritingPatterns(fc.MadyHome); patternStore != nil {
+		writingExt = writing.NewExtension(patternStore)
 	}
 
 	provider, err := agentconfig.BuildProvider()
@@ -111,6 +147,8 @@ func runTui(ctx context.Context) {
 		useMultiDomain:    useMultiDomain,
 		useIntegratedMode: useIntegratedMode,
 		ruleExt:           ruleExt,
+		riskExt:           riskExt,
+		writingExt:        writingExt,
 		fileIndexExt:      fileIndexExt,
 		agentStore:        agentStore,
 		checkpointSaver:   agentcore.NewMemoryCheckpointSaver(),

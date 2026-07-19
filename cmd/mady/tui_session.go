@@ -45,6 +45,8 @@ type tuiSession struct {
 
 	// Extensions
 	ruleExt      agentcore.Extension
+	riskExt      agentcore.Extension
+	writingExt   agentcore.Extension
 	fileIndexExt *fileindex.Extension
 	memExt       *memory.MemoryExtension // 长期记忆扩展（Agent 重建时重新创建）
 
@@ -209,6 +211,12 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 		if s.ruleExt != nil {
 			cfg.Extensions = append(cfg.Extensions, s.ruleExt)
 		}
+		if s.riskExt != nil {
+			cfg.Extensions = append(cfg.Extensions, s.riskExt)
+		}
+		if s.writingExt != nil {
+			cfg.Extensions = append(cfg.Extensions, s.writingExt)
+		}
 		cfg.Extensions = append(cfg.Extensions, s.fileIndexExt)
 		return s.injectMemoryExtension(s.applyPersistence(cfg))
 
@@ -231,6 +239,12 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 		}
 		if s.ruleExt != nil {
 			cfg.Extensions = append(cfg.Extensions, s.ruleExt)
+		}
+		if s.riskExt != nil {
+			cfg.Extensions = append(cfg.Extensions, s.riskExt)
+		}
+		if s.writingExt != nil {
+			cfg.Extensions = append(cfg.Extensions, s.writingExt)
 		}
 		cfg.Extensions = append(cfg.Extensions, s.fileIndexExt)
 		return s.injectMemoryExtension(s.applyPersistence(cfg))
@@ -277,6 +291,12 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 		}
 		if s.ruleExt != nil {
 			singleCfg.Extensions = append(singleCfg.Extensions, s.ruleExt)
+		}
+		if s.riskExt != nil {
+			singleCfg.Extensions = append(singleCfg.Extensions, s.riskExt)
+		}
+		if s.writingExt != nil {
+			singleCfg.Extensions = append(singleCfg.Extensions, s.writingExt)
 		}
 		singleCfg.Extensions = append(singleCfg.Extensions, s.fileIndexExt)
 		return s.injectMemoryExtension(s.applyPersistence(singleCfg))
