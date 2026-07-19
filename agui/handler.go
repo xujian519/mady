@@ -137,6 +137,17 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 	})
 	defer unregister()
 
+	// 在每个 turn 结束后发射状态快照，使前端能追踪 Agent 状态变化。
+	// Snapshot() 内部持有 RLock，线程安全。
+	unregisterSnap := agent.On(agentcore.EventTurnEnd, func(e agentcore.Event) {
+		snap := agent.State().Snapshot()
+		mu.Lock()
+		writeSSE(w, flusher, string(EventStateSnapshot),
+			converter.StateSnapshot(time.Now(), snap))
+		mu.Unlock()
+	})
+	defer unregisterSnap()
+
 	var message string
 	if len(input.Messages) > 0 {
 		last := input.Messages[len(input.Messages)-1]

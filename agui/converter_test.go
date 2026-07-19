@@ -769,8 +769,8 @@ func TestCapabilitiesStateAndHITL(t *testing.T) {
 	if !caps.State.Snapshots {
 		t.Error("expected state snapshots to be true")
 	}
-	if !caps.State.Deltas {
-		t.Error("expected state deltas to be true")
+	if caps.State.Deltas {
+		t.Error("expected state deltas to be false")
 	}
 	if !caps.HumanInTheLoop.Supported {
 		t.Error("expected HITL supported")

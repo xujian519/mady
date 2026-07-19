@@ -1,0 +1,26 @@
+{
+  "name": "@mady/agui-client",
+  "version": "0.1.0",
+  "description": "TypeScript client SDK for the Mady AGUI SSE Event Protocol",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mady",
+    "agent",
+    "sse",
+    "ai",
+    "protocol"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

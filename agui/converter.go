@@ -559,7 +559,7 @@ func CapabilitiesFromConfig(cfg agentcore.Config) AgentCapabilities {
 		},
 		State: &StateCapabilities{
 			Snapshots:       true,
-			Deltas:          true,
+			Deltas:          false, // 当前仅支持全量快照，不支持 JSON Patch 增量
 			PersistentState: cfg.Store != nil,
 		},
 		MultiAgent: &MultiAgentCapabilities{
