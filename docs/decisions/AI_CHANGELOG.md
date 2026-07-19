@@ -1,3 +1,23 @@
+## 2026-07-20: 修复 CI 在缺 pandoc 的 macOS runner 上 e2e 测试失败
+
+### 背景
+远程 CI 自 `b52de24` 之后连续 8 次失败（`fix(agentcore): 深度审阅全面修复...` 起）。根因：`disclosure/e2e_docx_flow_test.go::Test_DOCX_to_Report_FullFlow` 第 7 步无条件调用 `SaveReport(report, "*.docx")`，其底层 `convertToDOCX` 依赖外部 `pandoc` 可执行文件；GitHub Actions 的 `macos-latest` runner 默认未安装 pandoc，`exec.Command("pandoc", ...)` 返回 `exec: "pandoc": executable file not found in $PATH`，整个测试 FAIL。`build-and-test` 矩阵的 `fail-fast` 默认策略随后取消 `ubuntu-latest/root` 作业，导致全红。
+
+### 改动（1 文件，均通过 vet/race/lint/test）
+- `disclosure/e2e_docx_flow_test.go`: 新增 `os/exec` import；DOCX 导出段（原 244-250 行）改为先 `exec.LookPath("pandoc")` 判定——不可用时 `t.Logf` 跳过、不触发 `t.Fatalf`，与同包 `export_test.go:110-114` 中 `TestSaveReport_DOCX` 的兼容写法一致；其余 MD 导出/正文断言逻辑完全保留。
+
+### 影响范围
+- 仅 `disclosure` 测试代码，不涉及导出/产品逻辑（`disclosure/export.go` 未动）。
+- CI 侧无配套依赖变更（仍走 `actions/setup-go@v6`，未在 workflow 里 brew install pandoc）：本地有 pandoc 时仍验证完整链路，CI 无 pandoc 时只跳过 DOCX 导出子步骤。
+
+### 风险等级
+- 低（仅测试跳过逻辑，未改产品代码，不触碰安全敏感路径）。
+
+### 审查要求
+- L0（测试兼容性修复，无安全影响）。
+
+---
+
 ## 2026-07-20: agentcore 深度审阅全面修复（43 项：2C/8H/18M/25L 全清）
 
 ### 背景

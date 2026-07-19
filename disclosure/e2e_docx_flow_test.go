@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/xml"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -241,13 +242,17 @@ func Test_DOCX_to_Report_FullFlow(t *testing.T) {
 	t.Logf("✅ 步骤7: 报告已导出")
 	t.Logf("   └─ Markdown 文件: %s (%d bytes)", mdPath, len(mdData))
 
-	// 导出 DOCX
+	// 导出 DOCX（pandoc 不可用时跳过，与 TestSaveReport_DOCX 一致）
 	docxOutPath := filepath.Join(tmpDir, "分析报告.docx")
-	if err := SaveReport(report, docxOutPath); err != nil {
-		t.Fatalf("❌ 报告导出 DOCX 失败: %v", err)
+	if _, err := exec.LookPath("pandoc"); err != nil {
+		t.Logf("   └─ pandoc 不可用，跳过 DOCX 导出测试")
+	} else {
+		if err := SaveReport(report, docxOutPath); err != nil {
+			t.Fatalf("❌ 报告导出 DOCX 失败: %v", err)
+		}
+		docxOutData, _ := os.ReadFile(docxOutPath)
+		t.Logf("   └─ DOCX 文件: %s (%d bytes)", docxOutPath, len(docxOutData))
 	}
-	docxOutData, _ := os.ReadFile(docxOutPath)
-	t.Logf("   └─ DOCX 文件: %s (%d bytes)", docxOutPath, len(docxOutData))
 
 	// 验证 Markdown 报告内容
 	if !strings.Contains(string(mdData), "一种低功耗运动检测传感器") {
