@@ -100,7 +100,7 @@ func IntegratedChatConfig(base agentcore.Config) agentcore.Config {
 		"【专业任务路由】",
 		"当用户提出专业领域问题，使用 transfer_to_* 工具将任务委派给领域专家处理。",
 		"委派完成后，直接向用户呈现最终结果，不需要解释「切换」过程：",
-		"- transfer_to_assistant → 通用智能助理（代码生成、文件操作、网页搜索、数据分析等工具密集型任务）",
+		"- transfer_to_assistant → 通用智能助理（代码生成、文件操作、学术论文检索、网页搜索、数据分析等工具密集型任务）",
 		"- transfer_to_patent → 专利代理与知识产权分析（专利检索、权利要求分析、新颖性比对）",
 		"- transfer_to_legal → 法律咨询与研究（法条检索、判例检索、法律分析）",
 		"",

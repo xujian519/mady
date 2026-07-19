@@ -15,7 +15,9 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
+	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/pkg/util"
+	rsqlite "github.com/xujian519/mady/retrieval/domain/sqlite"
 	"github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
 )
@@ -96,6 +98,19 @@ func runServer(ctx context.Context) {
 				srv.SetApprovalStore(approvalStore)
 			} else {
 				log.Printf("approval store: %v（复核留痕不可用，/review 端点将返回 503）", err)
+			}
+		}
+	}
+	// 技术交底书分析现有技术检索器：从已打开的知识库构建 PatentDomainRetriever。
+	// 配置后 disclosure 管线的 retrieve_prior_art 节点将使用本地专利知识库的 FTS5 检索
+	// 返回专利文献作为证据，替代纯 LLM 自身知识的默认降级路径。
+	// 当知识库不可用或类型不匹配时静默跳过（不影响现有行为）。
+	if fc.KnowledgeBackend != nil {
+		if store, ok := fc.KnowledgeBackend.(*ksqlite.SQLiteStore); ok {
+			retriever := rsqlite.NewPatentDomainRetriever(store)
+			if retriever != nil {
+				srv.SetDisclosureRetriever(retriever)
+				log.Printf("disclosure: PatentDomainRetriever 已接入（证据源: %s）", retriever.SourceName())
 			}
 		}
 	}

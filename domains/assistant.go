@@ -28,6 +28,8 @@ func AssistantAgentConfig(base agentcore.Config) agentcore.Config {
 		"",
 		"职责：",
 		"- 信息检索与网页搜索（使用 web_search / web_fetch 工具）",
+		"- 学术论文检索（使用 scholar_search 工具查 Semantic Scholar / arXiv）",
+		"- 知识库检索法规、案例、技术方案（使用 search_knowledge / search_laws 工具）",
 		"- 代码生成、阅读和修改（使用 read / write_file / edit 工具）",
 		"- 文件操作和项目管理（使用 ls / glob / grep / find 工具）",
 		"- 内容创作和编辑",

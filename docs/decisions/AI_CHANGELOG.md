@@ -1,3 +1,39 @@
+## 2026-07-19: 四大证据源全面接线修复
+
+### 背景
+此前对编排层地基和证据接入点的分析发现三个结构性问题：
+1. disclosure 分析管线的 `retrieve_prior_art` 节点从未接入 `PatentDomainRetriever`，新颖性评估降级为纯 LLM 自身知识
+2. `scholar_search`（学术论文检索）和 `search_knowledge`（知识库检索）虽然在 tools 层注册，但无 Agent 的 SystemPrompt 提及，LLM 不知道何时调用
+3. `BuildProjectAgent` 案件模式搜索工具依赖 base extension 隐式提供，缺少显式声明
+
+### 变更
+
+#### 1. disclosure 管线接入 PatentDomainRetriever（P0）
+- **`server/server.go`**：新增 `disclosureRetriever atomic.Pointer[domain.DomainRetriever]` 字段 + `SetDisclosureRetriever`/`getDisclosureRetriever` 方法
+- **`server/disclosure.go`**：`submitTask`/`executeTask` 沿参数链传递 `domain.DomainRetriever`；`executeTask` 调用 `BuildDisclosureAnalysisGraphWithOpts(provider, WithRetriever(retriever))` 替代原 `BuildDisclosureAnalysisGraph(provider)`
+- **`cmd/mady/server.go`**：从 `fc.KnowledgeBackend` 类型断言为 `*knowledge/sqlite.SQLiteStore`，构建 `retrieval/domain/sqlite.PatentDomainRetriever` 并注入 Server
+
+#### 2. SystemPrompt 补充搜索工具指引（P1）
+- **`domains/assistant.go`**：职责列表新增 `scholar_search` 和 `search_knowledge / search_laws`
+- **`domains/patent.go`**：五步工作法第 2 步新增 `scholar_search` 和 `search_knowledge / search_laws`；第 4 步显式提到 `patent_lookup`
+- **`domains/legal.go`**：可用工具列表新增 `scholar_search` 和 `search_knowledge / search_laws`，区分互联网检索与本地知识库检索
+- **`domains/chat.go`**：IntegratedChatConfig 的路由描述中补充学术论文检索
+
+#### 3. BuildProjectAgent 搜索工具探究
+经代码追踪，`BuildProjectAgent` 的 Agent 实例已通过 `setupFrameworkContext` 的 `baseTools` extension 获得 `web_search`/`web_fetch`/`scholar_search`/`patent_lookup` 等搜索工具（base extension 的 `BuildTools` 无 `EnabledTools` 过滤），无需额外修改。
+
+### 架构决策
+- **disclosure 图构建模式从单参扩展为可选 option 链**：`BuildDisclosureAnalysisGraph(provider)` 仍然保持向后兼容（降级为无检索器），新代码路径调用 `BuildDisclosureAnalysisGraphWithOpts(provider, WithRetriever(...))` 激活检索
+- **PatentDomainRetriever 依赖注入路径**：`frameworkContext.KnowledgeBackend` → 类型断言 `*SQLiteStore` → `NewPatentDomainRetriever(store)`，复用已在 `loadWikiStore` 中打开的数据库连接，避免二次打开
+- **evidence_coverage 传递链路**：`retrieve_prior_art` 节点检测到 retriever != nil 后执行真实 FTS5 检索 → `evidence_coverage` 设为 `"patent_database"` → `check_novelty` 节点据此注入证据上下文至 LLM、而非纯 LLM 知识降级
+
+### 验证
+- `go build ./server/... ./cmd/mady/... ./domains/... ./disclosure/...` ✅
+- `go test ./disclosure/... ./server/... ./domains/...` ✅
+- `go test ./tools/... ./knowledge/... ./retrieval/... ./agentcore/...` ✅
+
+---
+
 ## 2026-07-19: A2UI 模块审阅与完备化
 
 ### 背景

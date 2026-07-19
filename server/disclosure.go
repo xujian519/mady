@@ -16,6 +16,7 @@ import (
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/pkg/csync"
+	"github.com/xujian519/mady/retrieval/domain"
 )
 
 // ──────────────────────────────────────────────
@@ -113,7 +114,7 @@ func (m *disclosureTaskManager) close() {
 	close(m.stopCh)
 }
 
-func (m *disclosureTaskManager) submitTask(provider agentcore.Provider, text string) string {
+func (m *disclosureTaskManager) submitTask(provider agentcore.Provider, retriever domain.DomainRetriever, text string) string {
 	seq := m.counter.Add(1)
 	id := fmt.Sprintf("disclosure-%s-%04d", formatTimestamp(time.Now()), seq)
 	task := &disclosureTask{
@@ -146,18 +147,22 @@ func (m *disclosureTaskManager) submitTask(provider agentcore.Provider, text str
 				close(task.doneCh)
 			}
 		}()
-		m.executeTask(ctx, task, provider)
+		m.executeTask(ctx, task, provider, retriever)
 	}()
 	return id
 }
 
-func (m *disclosureTaskManager) executeTask(ctx context.Context, task *disclosureTask, provider agentcore.Provider) {
+func (m *disclosureTaskManager) executeTask(ctx context.Context, task *disclosureTask, provider agentcore.Provider, retriever domain.DomainRetriever) {
 	task.mu.Lock()
 	task.Status = "running"
 	task.Progress = &DisclosureProgress{CurrentNode: "preprocess"}
 	task.mu.Unlock()
 
-	compiled, err := disclosure.BuildDisclosureAnalysisGraph(provider)
+	var opts []disclosure.GraphOption
+	if retriever != nil {
+		opts = append(opts, disclosure.WithRetriever(retriever))
+	}
+	compiled, err := disclosure.BuildDisclosureAnalysisGraphWithOpts(provider, opts...)
 	if err != nil {
 		task.mu.Lock()
 		task.Status = "failed"
@@ -281,7 +286,8 @@ func (s *Server) handleDisclosureAnalyze(w http.ResponseWriter, r *http.Request)
 	}
 
 	dm := s.initDisclosureManager()
-	taskID := dm.submitTask(provider, req.Text)
+	retriever := s.getDisclosureRetriever()
+	taskID := dm.submitTask(provider, retriever, req.Text)
 	writeJSON(w, http.StatusAccepted, DisclosureAnalyzeResponse{
 		TaskID: taskID,
 		Status: "pending",

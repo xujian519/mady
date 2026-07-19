@@ -16,6 +16,7 @@ import (
 	"github.com/xujian519/mady/agui"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/pkg/csync"
+	"github.com/xujian519/mady/retrieval/domain"
 )
 
 // Server exposes an Agent as an HTTP/SSE API.
@@ -35,6 +36,11 @@ type Server struct {
 	// 由 SetApprovalStore 注入；未配置时复核端点返回 503。
 	approvalMu    sync.RWMutex
 	approvalStore domains.ApprovalStore
+
+	// disclosureRetriever 是技术交底书分析时检索现有技术的专利领域检索器。
+	// 由外部调用方（如 cmd/mady/server.go）通过 SetDisclosureRetriever 注入；
+	// 未配置时 retrieve_prior_art 节点降级为 evidence_coverage=none（纯 LLM 知识）。
+	disclosureRetriever atomic.Pointer[domain.DomainRetriever]
 
 	maxRequestBodyBytes atomic.Int64
 }
@@ -87,6 +93,25 @@ func (s *Server) getApprovalStore() domains.ApprovalStore {
 	s.approvalMu.RLock()
 	defer s.approvalMu.RUnlock()
 	return s.approvalStore
+}
+
+// SetDisclosureRetriever 注入技术交底书分析时使用的专利领域检索器。
+// 传入 nil 可解除配置。未配置时 retrieve_prior_art 节点降级为 evidence_coverage=none。
+func (s *Server) SetDisclosureRetriever(r domain.DomainRetriever) {
+	var ptr *domain.DomainRetriever
+	if r != nil {
+		ptr = &r
+	}
+	s.disclosureRetriever.Store(ptr)
+}
+
+// getDisclosureRetriever 返回当前配置的专利领域检索器，未配置时为 nil。
+func (s *Server) getDisclosureRetriever() domain.DomainRetriever {
+	ptr := s.disclosureRetriever.Load()
+	if ptr == nil {
+		return nil
+	}
+	return *ptr
 }
 
 // limitedBody wraps the request body with http.MaxBytesReader so that JSON
