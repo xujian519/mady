@@ -58,6 +58,13 @@ jobs:
           version: v2.12.2
           working-directory: .
 
+      - name: 运行 tools/ Lint（AI 参与时加严）
+        if: steps.ai-detect.outputs.ai_involved == 'true'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: tools
+
       - name: 安装 Go（AI 参与时加严）
         if: steps.ai-detect.outputs.ai_involved == 'true'
         uses: actions/setup-go@v6
@@ -69,4 +76,6 @@ jobs:
 
       - name: 运行测试（AI 参与时加严）
         if: steps.ai-detect.outputs.ai_involved == 'true'
-        run: go test -count=1 -race ./...
+        run: |
+          go test -count=1 -race ./...
+          cd tools && go test -count=1 -race ./...

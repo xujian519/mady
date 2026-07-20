@@ -921,29 +921,20 @@ CI 必须包含：
 
 ### 12.1 敏感路径
 
-以下文件变更需要特别的人工审查（L4 审查要求）。本表与 `scripts/check-sensitive-paths.sh`
-的 `SENSITIVE_PATHS` 数组保持同步，后者为权威源。
+以下文件变更需要特别的人工审查（L4 审查要求）。**完整且唯一权威的敏感路径清单**
+见 `scripts/check-sensitive-paths.sh` 的 `SENSITIVE_PATHS` 数组（与 CI 门禁中的
+`check-sensitive-paths.sh` 调用保持一致）。此处仅列代表性路径。
 
-| 文件 | 安全边界 |
-|------|---------|
-| `agentcore/handoff.go` | 交接白名单校验 (`isHandoffAllowed`) |
-| `guardrails/levels.go` | 护栏等级枚举 (Light/Standard/Strict) |
-| `domains/router.go` | 路由白名单 AllowedSources |
-| `domains/patent.go` | 动态 WorkingDir (BuildProjectAgent) |
-| `domains/approval.go` | ApprovalGate 生命周期钩子 |
-| `tools/path.go` | 文件系统沙箱隔离 |
-| `tools/tools.go` | 工具能力门控 (ExtensionConfig) |
-| `agentcore/manifest.go` | Manifest 校验规则 |
-| `domains/project.go` | ValidateProjectPath 路径校验 |
-| `tools/bash.go` | Bash 工具（非沙箱模式） |
-| `agentcore/hooks.go` | LifecycleHook 运行时注册与优先级 |
-| `disclosure/report.go` | review_gate 主动中断（Pregel 内中断信号） |
-| `guardrails/citation_gate.go` | 引用核验门（双级核验判定矩阵） |
-| `guardrails/citation_table.go` | 静态主题收录口径与漂移控制 |
-| `mcp/config_trust.go` | MCP 配置信任存储（.mcp.json 命令执行） |
-| `acp/auth.go` | ACP 认证（TokenAuthProvider 常量时间比较） |
-| `server/server.go` | Agent 池引用计数（use-after-free 防护） |
-| `tools/vision.go` | 视觉工具沙箱字段传播（历史沙箱绕过修复点） |
+- `agentcore/handoff.go` — 交接白名单校验
+- `guardrails/levels.go` — 护栏等级枚举
+- `domains/router.go` / `domains/patent.go` / `domains/approval.go` / `domains/project.go`
+- `tools/path.go` / `tools/tools.go` / `tools/bash.go` / `tools/vision.go`
+- `agentcore/manifest.go` / `agentcore/hooks.go` / `agentcore/permission/`
+- `disclosure/report.go`
+- `guardrails/citation_gate.go` / `guardrails/citation_table.go` / `guardrails/guardian/`
+- `mcp/config_trust.go`
+- `acp/auth.go`
+- `server/server.go`
 
 ### 12.2 密钥管理
 

@@ -1,0 +1,87 @@
+# CODEOWNERS — 默认评审归属
+# 每当 PR 修改所列路径时，自动请求指定人员/团队 review。
+# 语法：<路径模式> <所有者>
+# 参考：https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repositorys-configuring-code-owners
+
+# 全局默认所有者
+* @xujian519
+
+# === 安全敏感路径（与 scripts/check-sensitive-paths.sh 的 SENSITIVE_PATHS 保持同步） ===
+
+# 交接白名单校验
+agentcore/handoff.go @xujian519
+
+# 护栏等级枚举
+guardrails/levels.go @xujian519
+
+# 路由白名单
+domains/router.go @xujian519
+
+# 动态 WorkingDir
+domains/patent.go @xujian519
+
+# ApprovalGate 生命周期
+domains/approval.go @xujian519
+
+# 文件系统沙箱隔离
+tools/path.go @xujian519
+
+# 工具能力门控
+tools/tools.go @xujian519
+
+# Manifest 校验规则
+agentcore/manifest.go @xujian519
+
+# 路径校验
+domains/project.go @xujian519
+
+# Bash 工具（非沙箱模式）
+tools/bash.go @xujian519
+
+# LifecycleHook 运行时注册
+agentcore/hooks.go @xujian519
+
+# review_gate 主动中断
+disclosure/report.go @xujian519
+
+# 引用核验门
+guardrails/citation_gate.go @xujian519
+guardrails/citation_table.go @xujian519
+
+# MCP 配置信任存储
+mcp/config_trust.go @xujian519
+
+# ACP 认证
+acp/auth.go @xujian519
+
+# Agent 池引用计数
+server/server.go @xujian519
+
+# 视觉工具沙箱字段传播
+tools/vision.go @xujian519
+
+# 权限决策
+agentcore/permission/ @xujian519
+
+# Guardian AI 熔断器
+guardrails/guardian/ @xujian519
+
+# === 核心模块 ===
+
+# 核心 Agent 运行时
+agentcore/ @xujian519
+
+# 工具扩展子模块
+tools/ @xujian519
+
+# 领域配置
+domains/ @xujian519
+
+# 护栏系统
+guardrails/ @xujian519
+
+# CI/CD 与门禁配置
+.github/ @xujian519
+
+# 文档
+docs/ @xujian519

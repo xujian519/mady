@@ -24,6 +24,10 @@ GOLANGCI_LINT_VERSION ?= v2.12.2
 # 这里通过显式两段调用来保证一致性（CI 的 matrix 也覆盖了相同路径）。
 all: vet build test
 
+# "提交前真实标准"——比 all 更完整：包含 lint（golangci-lint）与 test-race（竞态检测）。
+# 提交前请运行 make verify 而非 make all，以确保门禁完整闭合。
+verify: lint build test-race
+
 # TOOLS_BUILD_DIR 用于在 tools 子模块执行命令时切换工作目录。
 # 所有 `cd tools && go ...` 调用都使用 `$(GO)` 与 `$(GOFLAGS)`，与根模块保持一致。
 
@@ -228,3 +232,4 @@ help:
 	@echo "Other:"
 	@echo "  clean              Remove build artifacts"
 	@echo "  all                Run vet + build + test (default)"
+	@echo "  verify             Run lint + build + test-race (pre-commit standard)"

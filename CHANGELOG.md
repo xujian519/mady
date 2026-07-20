@@ -1,5 +1,9 @@
 # Changelog
 
+> **职责边界**：本文件记录 **对用户可见的变化**（功能、修复、破坏性变更），
+> 按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式组织。
+> **AI 决策记录**见 `docs/decisions/AI_CHANGELOG.md`——记录 AI 参与改动的背景、风险和验证结果。
+
 本文件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，
 版本号遵循 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/)。
 

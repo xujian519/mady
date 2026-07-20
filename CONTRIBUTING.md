@@ -25,26 +25,33 @@ go work sync
 
 ### 构建
 
-```bash
-# 构建所有包
-go build ./...
+推荐使用 Makefile 封装（覆盖根模块和 `tools/` 子模块）：
 
-# 构建 tools 子模块
-cd tools && go build ./...
+```bash
+# 构建所有包（根模块 + tools/ 子模块）
+make build
+
+# 或使用原始的 go build（注意不会覆盖 tools/）
+go build ./....
 ```
+
+> **注意**：Mady 是 `go.work` 多模块结构。根目录执行 `go build ./...` 不会覆盖 `tools/` 子模块。
+> 除非使用 Makefile，否则需要单独 `cd tools && go build ./...`。
 
 ### 运行测试
 
 ```bash
-# 运行所有测试
-go test ./...
+# 提交前标准（推荐）：lint + build + race 测试，覆盖根模块 + tools/
+make verify
 
-# 带竞态检测
-go test -race ./...
+# 快速验证（日常开发）
+make all       # vet + build + test（不含 race）
 
-# 生成覆盖率报告
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out -o coverage.html
+# 仅带竞态检测
+make test-race
+
+# 生成覆盖率报告（仅根模块，tools/ 需单独执行）
+make coverage
 ```
 
 ## 代码库结构
