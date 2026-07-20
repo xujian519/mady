@@ -258,7 +258,7 @@ func permissionDecisionFor(allow bool) domains.ApprovalDecision {
 // recordPermissionDecision 将编辑器端的人工工具授权结论留痕到 ApprovalStore，
 // 与 TUI /approve /reject、Server /review 端点共用同一 RecordDecision 模式。
 // 未配置 store 时为 no-op；记录失败仅记日志，绝不阻断授权主流程。
-func (s *Server) recordPermissionDecision(sessionID, toolName string, rawInput any, decision domains.ApprovalDecision, feedback string) {
+func (s *Server) recordPermissionDecision(ctx context.Context, sessionID, toolName string, rawInput any, decision domains.ApprovalDecision, feedback string) {
 	if s.approvalStore == nil {
 		return
 	}
@@ -268,7 +268,7 @@ func (s *Server) recordPermissionDecision(sessionID, toolName string, rawInput a
 			original = string(data)
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if err := domains.RecordApprovalDecision(
 		ctx, s.approvalStore,
@@ -681,11 +681,11 @@ func (s *Server) handlePrompt(ctx context.Context, req *JSONRPCRequest) {
 			}, DefaultPermissionOptions())
 			if err != nil || outcome == nil || outcome.Outcome != "selected" {
 				// error/canceled → deny (these are dangerous-tool gates)
-				s.recordPermissionDecision(sid, name, rawInput, domains.DecisionRejected, "canceled_or_error")
+				s.recordPermissionDecision(ctx, sid, name, rawInput, domains.DecisionRejected, "canceled_or_error")
 				return false
 			}
 			allow := strings.HasPrefix(outcome.OptionID, "allow")
-			s.recordPermissionDecision(sid, name, rawInput, permissionDecisionFor(allow), outcome.OptionID)
+			s.recordPermissionDecision(ctx, sid, name, rawInput, permissionDecisionFor(allow), outcome.OptionID)
 			return allow
 		})
 	}

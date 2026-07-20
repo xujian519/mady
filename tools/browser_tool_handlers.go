@@ -149,7 +149,7 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 
 	// 7. Lightpanda-specific fallback when the snapshot is empty.
 	if session.backendType == BackendLightpanda && NeedsLightpandaFallback(cfg.Engine, snapshot, 0, nil) {
-		fallbackResult, fallbackErr := RunChromeFallbackCommand(context.Background(), "navigate",
+		fallbackResult, fallbackErr := RunChromeFallbackCommand(ctx, "navigate",
 			map[string]any{"url": input.URL}, cfg.CommandTimeout)
 		if fallbackErr == nil {
 			if v, ok := fallbackResult["snapshot"].(string); ok {

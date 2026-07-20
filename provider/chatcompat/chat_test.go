@@ -225,6 +225,120 @@ func TestProviderComplete_EndpointPathOverride(t *testing.T) {
 	}
 }
 
+func TestProviderComplete_DefaultPlaceholderResolvesDeepSeekModel(t *testing.T) {
+	t.Setenv("PROVIDER", "deepseek")
+
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"resp_default",
+			"choices":[{"message":{"role":"assistant","content":"ok"}}],
+			"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+		}`))
+	}))
+	defer srv.Close()
+
+	provider := New(Config{
+		APIKey:  "test-key",
+		BaseURL: srv.URL,
+		Client:  srv.Client(),
+	})
+
+	if _, err := provider.Complete(context.Background(), &agentcore.ProviderRequest{
+		Model:    "default",
+		Messages: []agentcore.Message{{Role: agentcore.RoleUser, Content: "hi"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if gotBody["model"] != "deepseek-v4-flash" {
+		t.Fatalf("model = %#v, want deepseek-v4-flash", gotBody["model"])
+	}
+}
+
+func TestProviderComplete_DefaultPlaceholderResolvesGenericModel(t *testing.T) {
+	t.Setenv("PROVIDER", "generic")
+	t.Setenv("MODEL", "gpt-4o-mini")
+
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"resp_generic",
+			"choices":[{"message":{"role":"assistant","content":"ok"}}],
+			"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+		}`))
+	}))
+	defer srv.Close()
+
+	provider := New(Config{
+		APIKey:  "test-key",
+		BaseURL: srv.URL,
+		Client:  srv.Client(),
+	})
+
+	if _, err := provider.Complete(context.Background(), &agentcore.ProviderRequest{
+		Model:    "default",
+		Messages: []agentcore.Message{{Role: agentcore.RoleUser, Content: "hi"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if gotBody["model"] != "gpt-4o-mini" {
+		t.Fatalf("model = %#v, want gpt-4o-mini", gotBody["model"])
+	}
+}
+
+func TestProviderComplete_DeepSeekOmitsResponseFormat(t *testing.T) {
+	t.Setenv("PROVIDER", "deepseek")
+
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"resp_deepseek_rf",
+			"choices":[{"message":{"role":"assistant","content":"ok"}}],
+			"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+		}`))
+	}))
+	defer srv.Close()
+
+	provider := New(Config{
+		APIKey:  "test-key",
+		BaseURL: srv.URL,
+		Client:  srv.Client(),
+	})
+
+	_, err := provider.Complete(context.Background(), &agentcore.ProviderRequest{
+		Model:    "deepseek-v4-flash",
+		Messages: []agentcore.Message{{Role: agentcore.RoleUser, Content: "hi"}},
+		ResponseFormat: agentcore.NewJSONSchemaResponseFormat("answer", map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"answer": map[string]any{"type": "string"},
+			},
+			"required": []string{"answer"},
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := gotBody["response_format"]; ok {
+		t.Fatalf("response_format should be omitted for deepseek, got %#v", gotBody["response_format"])
+	}
+}
+
 func TestProviderComplete_ExtraHeaders(t *testing.T) {
 	var gotCustom string
 	var gotAuth string

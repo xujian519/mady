@@ -218,7 +218,7 @@ func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (st
 	defer target.Close()
 
 	// Inherit runtime state from the source agent.
-	a.inheritRuntime(target)
+	a.inheritRuntime(ctx, target)
 
 	// Inherit conversation: replace source system prompt with target's, keep the rest.
 	// [SECURITY] All non-system messages (which may include sensitive case data,
@@ -263,7 +263,7 @@ func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (st
 // bash tools) to a lower-privilege target will leak those capabilities to the
 // target. Use HandoffDelegate (which does NOT inherit runtime) when the
 // target is less trusted than the source.
-func (a *Agent) inheritRuntime(target *Agent) {
+func (a *Agent) inheritRuntime(ctx context.Context, target *Agent) {
 	// Copy tools from source to target (excluding handoff tools).
 	for _, t := range a.registry.Tools() {
 		if isHandoffTool(t.Name) {
@@ -285,7 +285,7 @@ func (a *Agent) inheritRuntime(target *Agent) {
 
 	// Re-register source extensions on target.
 	if len(srcExtensions) > 0 {
-		if err := target.extensions.Register(context.Background(), target, srcExtensions...); err != nil {
+		if err := target.extensions.Register(ctx, target, srcExtensions...); err != nil {
 			slog.Default().Warn("inheritRuntime: extensions.Register failed", "agent", a.config.Name, "error", err)
 		}
 	}

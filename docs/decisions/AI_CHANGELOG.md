@@ -1,3 +1,566 @@
+## 2026-07-20: 全仓技术债务修复（补充：修复 agent_run.go nilness tautology）
+
+### 变更（1 文件）
+- `agentcore/agent_run.go:264` 中条件 `mcc.Err != nil && err == nil` 的 `err == nil`
+  是 tautological（前一行 `err != nil` 已 return），简化为 `mcc.Err != nil`
+
+### 验证
+- `go build ./...` ✅ | `go vet ./...` ✅ | `golangci-lint run` 0 issues ✅
+- `go test -race ./agentcore/...` 全绿 ✅
+
+---
+
+## 2026-07-20: 全仓技术债务修复（Code Review 阶段——5 项结构改进）
+
+### 背景
+全仓技术债务扫描 + 3 轮修复（15 项）完成后，执行 Code Review 技能评估。审阅发现 5 项可改进：
+1. `cmd/mady/tui_session.go` 已超 1000 行（1058 → 1123）
+2. `renderAllWithState` 快/慢路径循环体完全重复（detectToolGroup 已提取但未消除）
+3. `distributeVerticalFill` / `distributeHorizontalFill` 80% 代码重复
+4. `withStartupDiscoveryTimeout` 硬读 `os.Args[1]`
+5. `distributeHorizontalFill` 用指针参数更新 maxHeight
+
+### 变更（5 项，7 文件 + 2 新增）
+
+**1. 拆分 tui_session.go（+2 文件）**
+- `tui_session.go`：1123 行 → 327 行（struct + accessors + 所有 handle* handler + sidebar + approval store）
+- **新增** `tui_session_config.go`：buildAgentConfig / applyPlanModeThinking / extendConfig / applyPersistence / buildMemoryExtension / injectMemoryExtension
+- **新增** `tui_session_agent.go`：getCurrentAgent / agentStatus / markAgentInitializing / setAgentInitError / swapCurrentAgent / shutdownAgent / agentUnavailableMessage / initializeAgentAsync / rebuildAgent / submitInput / resumeIfInterrupted
+- 三个文件各约 120-330 行，每个文件一个聚焦职责
+
+**2. 合并 renderAllWithState 快/慢路径（`tui/chat/chat_history_render.go`）**
+- 提取 `renderMessagesRange(msgs, start, ...)` 封装共用的循环体
+- 快路径：splice clean prefix + `renderMessagesRange(firstDirtyIdx)`
+- 慢路径：`renderMessagesRange(0)`
+- 消除 ~80 行结构重复，两路径行为永不漂移
+- 修复快路径缺少 `return` 导致慢路径续跑的 bug（原始代码因 `return` 存在未触发）
+
+**3. 合并 distributeFill（`tui/layout/flex.go`）**
+- 提取 `distributeFill(fillCount, totalWeight, containerSize, used, sizes, rendered, renderFn)` 核心算法
+- `distributeVerticalFill` 和 `distributeHorizontalFill` 各约 5 行包装
+- 消除 ~30 行重复，`distributeHorizontalFill` 的 maxHeight 改为返回值消除指针参数
+
+**4. 修复 os.Args 隐式依赖（`cmd/mady/framework.go` / tui.go / server.go / acp.go）**
+- `withStartupDiscoveryTimeout(ctx)` → `withStartupDiscoveryTimeout(ctx, cmdName)`
+- 三处调用方显式传入子命令名（`"tui"` / `"serve"` / `"acp"`）
+
+### 文件规模变化
+| 文件 | 改前 | 改后 | 说明 |
+|------|------|------|------|
+| `tui_session.go` | 1123 | 327 | -71%：handler + sidebar + approval store |
+| `tui_session_config.go` | — | 167 | 新增：config 构造 |
+| `tui_session_agent.go` | — | 166 | 新增：agent 状态管理 |
+| `chat_history_render.go` | 947 | 522 | -45%：提取 renderMessagesRange 消除循环体重复 |
+| `flex.go` | 528 | 512 | -3%：合并 distributeFill 核心算法 |
+
+### 验证
+- `go build ./...` ✅ | `go vet ./...` ✅ | `golangci-lint run` 0 issues ✅
+- `go test -race ./tui/... ./cmd/mady/...` 全绿 ✅
+
+### 影响范围
+- `cmd/mady/tui_session.go`（重写）+ `tui_session_config.go`（新增）+ `tui_session_agent.go`（新增）
+- `tui/chat/chat_history_render.go`（提取 renderMessagesRange、修复快路径漏 return）
+- `tui/layout/flex.go`（合并 distributeFill、maxHeight 返回值化）
+- `cmd/mady/framework.go` / `tui.go` / `server.go` / `acp.go`（cmdName 参数化）
+
+### 风险等级
+- 低（纯结构提取与语义等价修复，validate 途径全部通过）
+
+---
+
+## 2026-07-20: 全仓技术债务修复（第三轮：detectToolGroup 提取 + 快慢路径去重）
+
+### 背景
+第二轮修复（3+2 文件）后，`renderAllWithState` 的快速/慢速路径仍包含两段完全相同的工具组检测逻辑（各 ~25 行），每次维护需同步修改两处。
+
+### 变更（1 文件）
+
+1. **`tui/chat/chat_history_render.go` — 提取 `detectToolGroup()`**
+   - 新增 `detectToolGroup(msgs, i)` 方法，封装工具组/中间轮次检测逻辑
+   - 快速路径原 25 行内联代码 → `h.detectToolGroup(msgs, i)` 调用
+   - 慢速路径原 25 行内联代码同步替换
+   - **效果**：消除 50 行完全相同的代码，两个路径各剩 5 行调用
+   - **修复**：初始实现遗漏 `i==0 && end==len-1` 时 `midTurn` 默认 true 的语义（`foundPrev` 标记补丁）
+
+### 设计要点
+- `detectToolGroup` 仅做检测不涉及渲染：返回 `groupEnd` 和 `ok` 布尔值，渲染仍由 `renderToolGroup` 完成
+- 行为等价性：原始 inline 代码 `midTurn` 在无前一条非工具消息时默认 true（不折叠），提取版通过 `foundPrev` 标记保留该语义
+- 至此 `renderAllWithState` 中所有可提取的内联代码均已提取完毕：`renderToolGroup`（R3）、`renderMessageSeparator`（R3）、`detectToolGroup`（本轮）
+
+### 验证
+- `go build ./...` ✅ | `go vet ./...` ✅ | `golangci-lint run ./tui/...` 0 issues ✅ | `go test -race ./tui/...` 全绿 ✅
+
+### 影响范围
+- `tui/chat/chat_history_render.go`（~70 行重组 + 新增 35 行方法）
+
+### 风险等级
+- 低（纯代码提取 + 语义等价补丁，不改变运行时行为）
+
+---
+
+## 2026-07-20: 全仓技术债务修复（第二轮：快速修复 + 函数拆分 + 布局模板化）
+
+### 背景
+在第一轮修复（context 传播 / framework 拆分 / innerLoop 拆分）基础上继续推进剩余高价值项。
+
+### 变更（4 文件）
+
+1. **`tools/bash.go:263` — 临时文件创建错误日志**
+   - `os.CreateTemp` 失败时原为 `_ =` 静默忽略，现改为捕获并 `fmt.Fprintf(os.Stderr, ...)` 输出警告
+   - 不影响执行流程（后续 `if tempFile != nil` 仍是防御性检查）
+
+2. **`a2a/server_jsonrpc.go:96` — JSONRPC 响应编码错误日志**
+   - `json.NewEncoder(w).Encode(results)` 原为 `_ =` 忽略，现改为捕获并用 `slog.Default().Warn` 记录
+
+3. **`cmd/mady/tui_session.go` — `buildAgentConfig()` 三路分支重构**
+   - 137 行 → 提取 `extendConfig()`（公共扩展后缀，14 行重复 ×3 消除）+ `applyPlanModeThinking()`（计划模式 Thinking 覆盖）
+   - 三个 switch 分支保持独立（IntegratedChat / Router / 单 Agent），公共后缀集中到 `extendConfig`
+
+4. **`tui/layout/flex.go` — `renderVertical` / `renderHorizontal` 填充分配模板化**
+   - 提取 `distributeVerticalFill()` 和 `distributeHorizontalFill()` 替代两处重复的 Fill 分配循环
+   - 两函数共享相同算法骨架，维度差异（高/宽）通过参数区分；`distributeHorizontalFill` 额外跟踪 `maxHeight`
+
+### 设计要点
+- `extendConfig` 按"接收 config → 注入扩展 → 注入记忆/持久化 → 返回"路径设计，各 switch 分支在调用前后可自由追加特殊配置（如 planMode thinking + permission extension）
+- Fill 分配提取为独立函数后，Flex 的主渲染流程更清晰地表达为：测量 → 分配 → 布局 → 输出
+
+### 影响范围
+- `tools/bash.go`（2 行）
+- `a2a/server_jsonrpc.go`（1 行替换）
+- `cmd/mady/tui_session.go`（~140 行重组）
+- `tui/layout/flex.go`（~80 行新增 + 替换）
+
+### 风险等级
+- 低（纯代码重组 + 错误日志增强，不改变任何运行时行为或协议语义）
+
+---
+
+## 2026-07-20: 全仓技术债务扫描 + 三项高价值修复
+
+### 背景
+对全仓库 841 个 Go 源文件进行了系统性扫描（go vet / go build / golangci-lint / go test / 静态分析），评估技术债务分布。选择三项高价值修复执行。
+
+### 变更（6 文件）
+
+1. **`context.Background()` 传播修复（3 处）**
+   - `tools/browser_tool_handlers.go:152`：`navigateHandler` 中 Lightpanda fallback 调用 `RunChromeFallbackCommand(context.Background(), ...)` → 改用现有参数 `ctx`（已在函数签名中）
+   - `agentcore/handoff.go:288`：`inheritRuntime` 中 `extensions.Register(context.Background(), ...)` → 加 `ctx` 参数并由调用方 `executeDelegate(ctx)` 传入
+   - `acp/server.go:261`：`recordPermissionDecision` 中 `context.WithTimeout(context.Background(), 5s)` → 加 `ctx` 参数并由 `handlePrompt(ctx)` 中的闭包传入；同步更新测试文件调用签名
+   - 验证：`go build ./acp/... ./agentcore/... ./tools/...` + `go test -race` 全线通过
+
+2. **`setupFrameworkContext()` 函数拆分（cmd/mady/framework.go）**
+   - 370 行单函数 → 8 个单职责子函数 + 主干约 70 行控制流
+   - 提取：`loadManifests`、`discoverSkills`、`discoverMCP`、`initWorkspace`、`buildBaseTools`、`initPlugins`、`initMemorySystem`、`initReasoningAndTemplates`
+   - 验证：`go build ./cmd/mady/...` + `go vet` + `golangci-lint` + `go test -race ./cmd/mady/...`
+   - 行为等价：纯段落式机械提取，无共享局部变量，验证构建/测试全部通过
+
+3. **`runInnerLoop()` 核心循环拆分（agentcore/agent_run.go）**
+   - 254 行单函数 → 提取 `callModelWithFallback`（Provider 调用 + Context Overflow 重试封装）和 `guardTruncation`（max_tokens 截断守卫）
+   - 主干从 254 行降至约 220 行，两个提取点均为纯功能段落、无外层循环控制流捕获
+   - 验证：`go test -race ./agentcore/...` + `go test -race ./...`（含竞态）全线通过
+
+### 设计要点
+- **纯机械提取 + 语义等价**：三项修复均不改变运行时逻辑，仅为代码组织优化
+- `inheritRuntime` 和 `recordPermissionDecision` 的 `ctx` 参数使上下文传播链更完整，消除潜在的资源泄漏路径
+- `setupFrameworkContext` 的子函数名按"动词+领域"命名（`loadManifests`、`initWorkspace`），对应文件中已有的 `loadWikiStore`、`resolveWikiRoot` 模式
+
+### 影响范围
+- `tools/browser_tool_handlers.go`（1 行）
+- `agentcore/handoff.go`（3 行）
+- `agentcore/agent_run.go`（~60 行新增 + 替换）
+- `acp/server.go`（3 行）
+- `acp/permission_recording_test.go`（4 行）
+- `cmd/mady/framework.go`（~380 行重组）
+
+### 风险等级
+- 低（纯代码重组 + 简单上下文传播，不触及安全敏感路径，不改变运行时行为）
+
+---
+
+## 2026-07-20: 手工 dry-run 暴露并修复 provider/disclosure 启动兼容问题（进行中）
+
+### 背景
+在按 `docs/design/disclosure-internal-dry-run.md` 执行真实手工彩排时，服务可正常启动，`POST /v1/disclosure/analyze` 也能返回 `task_id`，但真实 DeepSeek 环境下 disclosure 管线在提取阶段暴露出两类兼容性问题：
+
+1. **模型名占位值 `"default"` 未被解析**
+   - disclosure 提取/报告节点等大量调用仍使用 `Model: "default"`
+   - `chatcompat` provider 会原样把 `"default"` 发给 DeepSeek，导致 400：
+     - `The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed default`
+
+2. **DeepSeek Chat Completions 端点不接受 `response_format: json_schema`**
+   - disclosure 提取节点使用 `NewJSONSchemaResponseFormat(...)`
+   - 真实请求在提取阶段报 400：
+     - `This response_format type is unavailable now`
+
+同时，本地继续构建 `mady` 时还顺手暴露了两个与当前彩排无关、但会阻塞 `build-mady` 的现存编译残留：
+
+- `cmd/mady/tui_session.go` 丢失 `handleInput()` 函数声明
+- `cmd/mady/tui_session_config.go` 存在未使用/重复 import
+
+### 已完成变更（6 文件）
+
+1. **统一解析 `"default"` 模型占位值（`provider/chatcompat/chat.go`）**
+   - 新增 `resolveModelName()`
+   - 当请求模型为 `""` 或 `"default"` 时，按当前 provider 环境解析为实际模型：
+     - DeepSeek → `deepseek-v4-flash`
+     - Zhipu → `glm-5.2`
+     - Kimi → `kimi-k2.6`
+     - Generic → 使用 `MODEL`
+   - 这样 disclosure / memory / inventiveness 等所有仍写 `"default"` 的路径都会自动落到真实模型名
+
+2. **补 provider 回归测试（`provider/chatcompat/chat_test.go`）**
+   - 验证 DeepSeek 环境下 `"default"` 会解析为 `deepseek-v4-flash`
+   - 验证 Generic 环境下 `"default"` 会解析为 `MODEL`
+
+3. **为 disclosure 添加 DeepSeek response_format 兼容开关（`disclosure/model_compat.go`）**
+   - 新增 `supportsJSONSchemaResponseFormat()`
+   - 当前策略：
+     - `PROVIDER` 为空或 `deepseek` → 关闭 `json_schema response_format`
+     - 其他 provider → 保持开启
+
+4. **在 disclosure 提取/新颖性节点按 provider 条件启用 schema（`disclosure/extract.go`、`disclosure/novelty.go`）**
+   - DeepSeek 下不再显式挂 `NewJSONSchemaResponseFormat(...)`
+   - 继续依赖 prompt 约束输出 JSON，并由既有解析逻辑本地解析
+
+5. **补 disclosure 兼容测试（`disclosure/model_compat_test.go`、`disclosure/extract_config_test.go`）**
+   - 验证默认 DeepSeek 环境下不使用 `json_schema response_format`
+   - 验证 Generic 环境下仍允许 schema
+
+6. **修复 `cmd/mady` 现存编译残留**
+   - `cmd/mady/tui_session.go`
+     - 补回丢失的 `handleInput()` 函数声明
+     - 清理两个未使用 import
+   - `cmd/mady/tui_session_config.go`
+     - 清理未使用 `log` import
+     - 删除重复 `permission` import
+
+### 验证
+- `go test -count=1 ./provider/chatcompat` 通过
+- `go test -count=1 ./disclosure ./server` 通过
+- `go build ./cmd/mady` 通过
+- `make build-mady` 通过
+- 真实服务启动与 `POST /v1/disclosure/analyze` 通过，能够拿到 `task_id`
+
+### 当前状态
+- **已修复**：`default model` 真实 provider 400
+- **已修复**：`cmd/mady` 当前构建残留
+- **仍待收口**：真实 DeepSeek disclosure 提取阶段仍返回 `response_format type unavailable`
+  - 当前单测表明 disclosure 配置层已不再主动挂 schema
+  - 说明还存在一条更深的运行时路径，把 `ResponseFormat` 带回了 provider 请求
+  - 下一步应继续向 `agentcore.Agent -> ProviderRequest -> chatcompat.buildRequest()` 实际运行时链路收缩定位
+
+### 风险等级
+- 中（真实 provider 兼容修复已部分落地，但手工 dry-run 尚未完全走通）
+
+### 审查要求
+- L2（真实集成问题修复 + 运行中问题继续定位）
+
+## 2026-07-20: 补充 disclosure 内部 dry-run 准备包（操作清单 + 一键 gate）
+
+### 背景
+前序稳定化工作已经完成：
+
+- 启动链路稳固
+- disclosure happy-path smoke 已落地
+- 审批留痕一致性测试已补齐
+- build / race / lint / 任意目录启动已回归通过
+
+下一步不再适合继续堆新功能，而应把“内部彩排”变成一个可直接执行的流程包，供后续真人试用或 P3 前演练复用。
+
+### 变更（2 文件）
+
+1. **新增内部 dry-run 文档（`docs/design/disclosure-internal-dry-run.md`）**
+   - 明确内部彩排目标：
+     - `analyze -> awaiting_review -> reviewed`
+     - 审批留痕可回溯
+     - Markdown 导出路径仍可用
+   - 提供一套最小操作口径：
+     - 启动 `mady serve`
+     - `POST /v1/disclosure/analyze`
+     - `GET /v1/disclosure/analyze/{task_id}`
+     - `POST /v1/disclosure/analyze/{task_id}/review`
+   - 区分自动化 gate 与手工彩排：
+     - 自动化验证使用 `make test-dry-run-gate`
+     - 导出验证统一复用 `make test-disclosure-smoke`
+   - 补充完成标准、常见现象与建议节奏，便于后续真人试用前快速复用
+
+2. **新增 dry-run gate（`Makefile`）**
+   - 增加 `test-dry-run-gate` 目标
+   - 组合执行：
+     - `test-disclosure-smoke`
+     - `test-approval-audit`
+   - `help` 同步展示，作为 disclosure 内部彩排前的统一准入门槛
+
+### 设计要点
+- **文档与自动化配套**：不是只写一份操作说明，而是给出一条一键 gate，避免彩排前靠人工记忆流程。
+- **优先复用已有验证资产**：导出和留痕不重新造测试，直接复用前两步已经补好的 smoke / audit。
+- **服务于真人试用前的“彩排”**：目标是流程可演练，而不是新增产品能力。
+
+### 验证
+- `make test-dry-run-gate` 通过
+
+### 影响范围
+- `docs/design/disclosure-internal-dry-run.md`
+- `Makefile`
+
+### 风险等级
+- 低（文档 + make 入口补充，不改产品逻辑）
+
+### 审查要求
+- L0（流程资产补充）
+
+## 2026-07-20: 启动体验收尾（入口级 MCP discovery 超时 + eval store 降级初始化）
+
+### 背景
+在完成 build / race / lint / 任意目录启动回归后，启动日志仍暴露两个“非阻断但影响体感”的点：
+
+1. **MCP discovery 启动预算偏长**
+   - 默认总超时仍是 3 秒，即便 `tui` / `serve` 只是希望“尽快可用、MCP 最佳努力补齐”
+   - 用户感知上会把这段等待误认为“启动还没好”
+
+2. **eval.db 初始化告警语义过粗**
+   - `runServer` 直接尝试打开 `eval.db`，未显式准备父目录
+   - 打开失败时日志只说“评估数据不持久化”，但没有强调“主服务继续可用”
+
+### 变更（5 文件）
+
+1. **MCP discovery 支持 context 级 timeout override（`mcp/config_discovery.go`）**
+   - 新增 `mcp.WithDiscoveryTimeout(ctx, timeout)`，允许调用方为单次启动传入 discovery 总超时覆盖值
+   - `DiscoverMCPExtensions()` 读取顺序改为：
+     - `ctx` override
+     - `MADY_MCP_DISCOVERY_TIMEOUT_MS`
+     - 默认 `3s`
+   - 保留环境变量覆盖能力，但不再强依赖“改进程级 env”来区分入口场景
+
+2. **为 `tui` / `serve` 自动注入更短启动预算（`cmd/mady/framework.go`）**
+   - 新增 `withStartupDiscoveryTimeout(ctx)`
+   - 当满足以下条件时，自动给 `setupFrameworkContext()` 注入 `1.5s` MCP discovery timeout：
+     - 当前子命令是 `tui` 或 `serve`
+     - 用户未显式设置 `MADY_MCP_DISCOVERY_TIMEOUT_MS`
+   - 这样交互式入口优先“尽快可用”，而不是总是等待完整的 MCP auto-discovery 预算
+
+3. **eval store 初始化抽成 helper（`cmd/mady/server.go`）**
+   - 新增 `openEvalStore(evalDB string)`：
+     - 先 `EnsureDir(filepath.Dir(evalDB))`
+     - 再创建 `knowledge.NewEvalStore(...)`
+   - 失败日志改为：
+     - 明确指出是 `eval store` 不可用
+     - 明确说明“仅禁用评估数据持久化，不影响主服务”
+
+4. **补充 focused test（`mcp/config_discovery_test.go`）**
+   - 新增 timeout 解析测试：
+     - `ctx` override 优先于 env
+     - env 回退生效
+     - 默认值回退生效
+
+5. **补充 eval store 初始化测试（`cmd/mady/server_test.go`）**
+   - 新增 `TestOpenEvalStore_CreatesParentDir`
+   - 验证 nested 父目录不存在时也能成功创建并产出 `eval.db`
+
+### 验证
+- `go test -count=1 ./cmd/mady ./mcp` 通过
+- `go test -race -count=1 ./cmd/mady` 通过
+- `make lint` 通过
+- 从临时目录启动 `build/mady serve`：
+  - MCP discovery 告警已从 `3s` 降为 `1.5s`
+  - eval store 告警改为明确的“降级继续”语义
+
+### 影响范围
+- `mcp/config_discovery.go`
+- `mcp/config_discovery_test.go`
+- `cmd/mady/framework.go`
+- `cmd/mady/server.go`
+- `cmd/mady/server_test.go`
+
+### 风险等级
+- 低（启动期配置与日志优化，未改核心业务状态机）
+
+### 审查要求
+- L0（局部启动体验优化，可通过单测与启动日志验证）
+
+## 2026-07-20: 修复 disclosure 状态轮询的并发竞态（深拷贝任务快照）
+
+### 背景
+在执行收口回归包时，`make test-race` 首次失败，定位到 `server` 包中新加的 happy-path smoke test：
+- 后台 goroutine 在 `disclosureTaskManager.executeTask()` 内更新 `task.Progress` / `task.Result`
+- 同时 HTTP 轮询接口 `handleDisclosureStatus()` 在持读锁期间仅做了浅拷贝，然后把共享指针直接交给 `encoding/json`
+
+结果是 JSON 编码在锁外继续遍历 `Progress.NodesDone` 或 `Result` 内部字段时，可能与后台写入并发，触发 race detector。
+
+### 变更（1 文件）
+
+1. **为 disclosure 状态接口构建独立快照（`server/disclosure.go`）**
+   - 新增 `cloneDisclosureProgress()`：
+     - 深拷贝 `CurrentNode`
+     - 复制 `NodesDone` 切片，避免与后台 append 共享底层数组
+   - 新增 `cloneAnalysisReport()`：
+     - 优先通过 JSON round-trip 深拷贝 `AnalysisReport`
+     - round-trip 失败时回退为结构体浅拷贝，保证接口稳态可用
+   - `handleDisclosureStatus()` 改为在 `task.mu.RLock()` 内构建响应快照：
+     - `Progress` 使用 `cloneDisclosureProgress(task.Progress)`
+     - `Result` 使用 `cloneAnalysisReport(task.Result)`
+   - 锁外仅负责附加创造性分析结果并写回 HTTP 响应，不再暴露共享可变指针
+
+### 设计要点
+- **锁内取快照，锁外编码**：既保留状态接口的并发可读性，也避免把任务内部可变对象直接泄露给 JSON encoder。
+- **优先修语义，不扩锁范围**：没有把整个 `writeJSON` 包进锁里，避免把网络输出与锁耦合。
+- **以 race gate 驱动修复**：该问题不是纯理论隐患，而是已被 `go test -race` 真实捕获。
+
+### 验证
+- `go test -race -count=1 -run TestDisclosureHappyPathSmoke -v ./server` 通过
+- `make test-race` 通过
+- `make lint` 通过
+- 从临时目录启动 `build/mady serve`，成功走完 `setupFrameworkContext()` 并监听 `:8080`
+
+### 影响范围
+- `server/disclosure.go`
+
+### 风险等级
+- 低（只调整状态轮询的响应快照构造，不改业务状态机）
+
+### 审查要求
+- L0（并发安全修复，局部可验证）
+
+## 2026-07-20: 补齐审批留痕一致性测试（TUI / Server / ACP 三入口对齐）
+
+### 背景
+当前人工决策留痕已覆盖三条入口：
+- TUI `/approve` `/reject` 走 `ApprovalGate.RecordDecision`
+- Server disclosure `/review` 端点走 `domains.RecordApprovalDecision`
+- ACP 工具授权回调走 `domains.RecordApprovalDecision`
+
+其中 `domains.RecordApprovalDecision` 已提供统一的记录构造逻辑，但此前缺少对 **TUI 入口** 的 focused 测试，导致“三入口是否真的按同一语义落库”主要依赖代码阅读和零散测试，缺少一条可复跑的审计证据链。
+
+### 变更（3 文件）
+
+1. **新增 TUI 留痕测试（`cmd/mady/tui_session_approval_test.go`）**
+   - `TestTUISessionRecordApprovalDecision_SoftInterruptUsesReviewTrigger`
+     - 通过 `ApprovalGate.AfterModelCall` 造景软中断
+     - 验证 TUI 记录使用 `trigger=review`
+     - 验证 `OriginalOutput` 来自 gate 缓存的被审输出
+     - 验证 `CaseID`、`Decision`、`State`、`ModifiedOutput`、`Feedback` 全部正确持久化
+   - `TestTUISessionRecordApprovalDecision_HardInterruptUsesGateData`
+     - 用真实 `agentcore.Agent` + 中断工具造景 `agent.Interrupted()`
+     - 验证 disclosure 硬中断路径使用 `trigger=disclosure_review`
+     - 验证 `OriginalOutput` 同时包含中断 reason 与结构化 `Data`
+     - 验证 rejected 决策正确映射到 `StateRejected`
+
+2. **新增一致性回归入口（`Makefile`）**
+   - 增加 `test-approval-audit` 目标，统一执行：
+     - `./domains`
+     - `./server`
+     - `./acp`
+     - `./cmd/mady`
+   - 用于一次性覆盖三条审批/授权留痕路径的 focused 回归。
+
+3. **已有测试矩阵形成三入口闭环**
+   - `domains/approval_test.go`：校验统一构造逻辑与状态映射
+   - `server/disclosure_review_test.go`：校验 disclosure `/review` 路径
+   - `acp/permission_recording_test.go`：校验 ACP 工具授权路径
+   - 本次新增的 `cmd/mady/tui_session_approval_test.go` 补齐 TUI 路径，三者组合形成完整一致性证据。
+
+### 设计要点
+- **补测试，不改行为**：第三包目标是验证三入口语义一致，而不是重构留痕实现。
+- **软/硬中断分开测**：TUI 同时存在 keyword soft-interrupt 与 disclosure hard-interrupt 两条记录路径，必须分别覆盖。
+- **复用既有统一入口**：继续以 `domains.RecordApprovalDecision` / `DecisionToState` 为单一真源，避免引入新的构造分叉。
+
+### 影响范围
+- `cmd/mady/tui_session_approval_test.go`
+- `Makefile`
+- 既有 `domains` / `server` / `acp` 测试资产被统一纳入一个 focused 审计入口
+
+### 风险等级
+- 低（新增测试与命令入口，不改产品逻辑）
+
+### 审查要求
+- L0（测试资产补充，无安全影响）
+
+## 2026-07-20: 新增 disclosure happy-path smoke test（analyze -> review -> export）
+
+### 背景
+当前项目已具备 disclosure 异步分析、`awaiting_review` 人工复核和 Markdown/DOCX 导出能力，也已有若干单点测试（如 review 端点校验、导出测试、disclosure e2e）。但缺少一条**轻量、可快速复跑**的最小 happy path 验收链，难以在“走顺流程、稳固基础”阶段持续确认主流程仍然可用。
+
+### 变更（2 文件）
+
+1. **新增 focused smoke test（`server/disclosure_smoke_test.go`）**
+   - 新增 `TestDisclosureHappyPathSmoke`，通过 HTTP handler 串起完整最小链路：
+     - `POST /v1/disclosure/analyze`
+     - 轮询 `GET /v1/disclosure/analyze/{task_id}` 等待 `awaiting_review`
+     - `POST /v1/disclosure/analyze/{task_id}/review`
+     - 再次轮询状态确认 `reviewed`
+     - 对返回报告执行 `disclosure.SaveReport(...md)` 导出
+   - 测试内置 `disclosureSmokeProvider`，使用 stub JSON 响应驱动 disclosure Pregel 图，不依赖真实 LLM 或外部知识库。
+   - 断言覆盖：
+     - analyze 返回非空 `task_id`
+     - review 前报告已生成但 `ReviewedByHuman=false`
+     - review 后状态推进到 `reviewed` 且审批记录已写入 `ApprovalStore`
+     - Markdown 导出成功，且已复核报告不再带“尚未经人工复核”警告
+
+2. **新增 Makefile 入口（`Makefile`）**
+   - 增加 `test-disclosure-smoke` 目标，执行：
+     - `go test -count=1 -run TestDisclosureHappyPathSmoke ./server`
+   - `help` 同步展示该命令，便于本地和后续 CI/人工回归直接复用。
+
+### 设计要点
+- **只测主干，不测全部分支**：目标是快速确认 happy path 活着，而不是替代全量 e2e。
+- **低依赖**：使用 stub provider + 内存 ApprovalStore，避免真实模型、知识库、pandoc 等外部条件导致冒烟验证不稳定。
+- **覆盖 review/export 衔接点**：既验证 server 的 `awaiting_review -> reviewed` 状态机，也顺带验证“复核后的报告”能被导出成最终交付物。
+
+### 影响范围
+- `server/disclosure_smoke_test.go`
+- `Makefile`
+
+### 风险等级
+- 低（新增测试与命令入口，不改产品逻辑）
+
+### 审查要求
+- L0（测试资产补充，无安全影响）
+
+## 2026-07-20: 稳固 TUI 启动链路（后台初始化 Agent + 显式状态 + 可调 discovery 超时）
+
+### 背景
+前一轮修复已经为 `mady tui` 启动窗口期补上 nil 防御，避免用户在 Agent 未就绪时立即输入导致 panic；但根因仍在：`cmd/mady/tui.go` 中 `app.Start()` 之后仍同步执行 `agentcore.New(s.buildAgentConfig())`，启动尾段依然被 Agent 创建与 MCP discovery 阻塞。结果是首帧虽已渲染，但用户只能得到“请稍候”的被动提示，状态不可见、失败原因不可见，且 `/mode` 等读 `currentAgent` 的路径仍散落裸访问。
+
+### 变更（4 文件）
+
+1. **TUI 启动改为后台初始化（`cmd/mady/tui.go`）**
+   - `app.Start()` 成功后不再同步 `agentcore.New(...)`。
+   - 改为调用 `tuiSession.initializeAgentAsync()` 在后台创建 Agent；主线程立即进入事件循环。
+   - 退出时统一通过 `shutdownAgent()` 取回并关闭当前 Agent，避免与后台初始化并发冲突。
+
+2. **统一 Agent 状态管理（`cmd/mady/tui_session.go`）**
+   - 新增 `agentMu`、`agentInitInFlight`、`agentInitErr`、`shuttingDown` 字段，显式表示“初始化中 / 初始化失败 / 关闭中”。
+   - 新增 helper：`getCurrentAgent()`、`agentStatus()`、`markAgentInitializing()`、`swapCurrentAgent()`、`shutdownAgent()`、`agentUnavailableMessage()`、`initializeAgentAsync()`。
+   - `submitInput()` 与 `resumeIfInterrupted()` 改为先检查状态，再在 `runMu` 临界区内重读当前 Agent，避免 goroutine 持有被 rebuild/close 掉的实例。
+   - `handleThinkingCommand`、`handleReviewCommandEx`、`handlePlanCommandEx`、`handleSettingsReset` 统一复用 `rebuildAgent()`，收拢重复的 `agentcore.New + Close + BindAgent` 逻辑。
+   - `recordApprovalDecision()` 改为通过 `getCurrentAgent()` 读取中断状态，不再裸读 `s.currentAgent`。
+
+3. **Slash 命令读取显式状态（`cmd/mady/slash_registry.go`）**
+   - `/mode` 命令不再只判断 `currentAgent == nil`，而是区分“初始化中 / 初始化失败 / 尚未就绪”三种状态并给出对应提示。
+
+4. **MCP discovery 超时改为可调（`mcp/config_discovery.go`）**
+   - 抽取默认 discovery 总超时常量 `defaultDiscoveryTimeout = 3s`。
+   - 新增 `MADY_MCP_DISCOVERY_TIMEOUT_MS` 环境变量读取逻辑；当值为正整数毫秒时覆盖默认超时。
+   - discovery 超时警告改为引用实际生效的 timeout，便于后续 TUI/Server 按场景调优。
+
+### 设计要点
+- **先让首屏真的“活着”**：不是只把 panic 变成提示，而是把 Agent 创建完全移出启动主路径。
+- **状态显式化**：启动期不再把“未就绪”与“失败”都折叠成 nil；交互层可以准确反馈当前阶段。
+- **访问收口**：把 `currentAgent` 的直接读写收敛到 helper，后续若改成 `atomic.Pointer` 或更细粒度锁，不必全仓扫点替换。
+- **向后兼容**：未改变领域配置、审批逻辑、MCP 发现顺序，只调整启动时序与状态暴露。
+
+### 影响范围
+- `cmd/mady/tui.go`
+- `cmd/mady/tui_session.go`
+- `cmd/mady/slash_registry.go`
+- `mcp/config_discovery.go`
+
+### 风险等级
+- 低到中（主要是 TUI 启动时序调整；不触碰安全敏感路径）
+
+### 审查要求
+- L1（启动时序与并发状态管理改动，建议人工过一遍）
+
 ## 2026-07-20: 修复 TUI 输入框区域溢出（Flex 容器不裁剪总输出）
 
 ### 背景

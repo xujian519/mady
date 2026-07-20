@@ -17,17 +17,19 @@ import (
 func noveltyNode(provider agentcore.Provider) graph.PregelNode {
 	cfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
-			Name:           "disclosure-novelty",
-			Model:          "default",
-			Provider:       provider,
-			Temperature:    0.2,
-			ResponseFormat: agentcore.NewJSONSchemaResponseFormat("novelty_assessment", noveltySchema()),
+			Name:        "disclosure-novelty",
+			Model:       "default",
+			Provider:    provider,
+			Temperature: 0.2,
 		},
 		SystemPrompt: buildNoveltyPrompt(),
 		ExecutionConfig: agentcore.ExecutionConfig{
 			MaxTurns:          1,
 			ValidateArguments: true,
 		},
+	}
+	if supportsJSONSchemaResponseFormat() {
+		cfg.ResponseFormat = agentcore.NewJSONSchemaResponseFormat("novelty_assessment", noveltySchema())
 	}
 
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {

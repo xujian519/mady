@@ -104,6 +104,36 @@ type disclosureTaskManager struct {
 	eventBus *agentcore.EventBus
 }
 
+func cloneDisclosureProgress(src *DisclosureProgress) *DisclosureProgress {
+	if src == nil {
+		return nil
+	}
+	dst := &DisclosureProgress{
+		CurrentNode: src.CurrentNode,
+	}
+	if len(src.NodesDone) > 0 {
+		dst.NodesDone = append([]string(nil), src.NodesDone...)
+	}
+	return dst
+}
+
+func cloneAnalysisReport(src *disclosure.AnalysisReport) *disclosure.AnalysisReport {
+	if src == nil {
+		return nil
+	}
+	data, err := json.Marshal(src)
+	if err != nil {
+		cp := *src
+		return &cp
+	}
+	var dst disclosure.AnalysisReport
+	if err := json.Unmarshal(data, &dst); err != nil {
+		cp := *src
+		return &cp
+	}
+	return &dst
+}
+
 // newDisclosureTaskManager 创建一个新的任务管理器并启动后台清理 goroutine。
 // eventBus 为可选参数，非 nil 时任务完成后发射 DisclosureCompletedEvent。
 func newDisclosureTaskManager(eventBus *agentcore.EventBus) *disclosureTaskManager {
@@ -343,8 +373,8 @@ func (s *Server) handleDisclosureStatus(w http.ResponseWriter, r *http.Request) 
 	resp := DisclosureTaskStatus{
 		TaskID:         task.ID,
 		Status:         task.Status,
-		Progress:       task.Progress,
-		Result:         task.Result,
+		Progress:       cloneDisclosureProgress(task.Progress),
+		Result:         cloneAnalysisReport(task.Result),
 		ReviewDecision: task.ReviewDecision,
 	}
 	if task.Err != nil {

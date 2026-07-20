@@ -22,7 +22,7 @@ func runAcp(ctx context.Context) {
 		os.Exit(1)
 	}
 
-	fc := setupFrameworkContext(ctx)
+	fc := setupFrameworkContext(ctx, "acp")
 
 	opts := acp.RunOptions{
 		Provider:   fc.Provider,

@@ -24,7 +24,6 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/tui"
-	"github.com/xujian519/mady/tui/agentadapter"
 	"github.com/xujian519/mady/tui/chat"
 	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/core"
@@ -74,7 +73,7 @@ func runTui(ctx context.Context) {
 		os.Exit(1)
 	}
 
-	fc := setupFrameworkContext(ctx)
+	fc := setupFrameworkContext(ctx, "tui")
 
 	if err := theme.InitThemeFromEnv(); err != nil {
 		log.Printf("theme init: %v", err)
@@ -251,21 +250,19 @@ func runTui(ctx context.Context) {
 		app.PrintSystem(fmt.Sprintf("wiki 知识库: %d 文档, %d 分块 (RAG: patent)", st.TotalDocs, st.TotalChunks))
 	}
 
-	// 先启动 TUI 渲染，再创建 Agent。避免 agentcore.New 阻塞首帧。
-	// 注意：app.Start() 后事件循环已在另一 goroutine 运行，此处到 New 返回
-	// 之前存在窗口期——用户输入会触发 submitInput，其内部对 nil agent 做了
-	// 防御（见 tui_session.go）。
+	// 先启动 TUI 渲染，再在后台初始化 Agent，避免 agentcore.New 阻塞首帧。
+	// 启动后到 Agent 就绪前会经过显式“初始化中”状态；submitInput、/mode
+	// 等入口统一读取该状态，而不是依赖裸 nil 判断。
 	if err := app.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		return
 	}
-
-	s.currentAgent = agentcore.New(s.buildAgentConfig())
-	defer s.currentAgent.Close()
-	agentadapter.BindAgent(app, s.currentAgent)
-	app.PrintSystem("Agent 就绪，可以开始对话")
+	s.initializeAgentAsync()
 
 	<-app.Done()
+	if agent := s.shutdownAgent(); agent != nil {
+		agent.Close()
+	}
 }
 
 // applyStoredTheme reads the persisted theme from the store and applies it to

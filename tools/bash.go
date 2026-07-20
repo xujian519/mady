@@ -260,7 +260,10 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 
 				// Start writing to temp file once output exceeds threshold.
 				if totalBytes > int(cfg.MaxBytes) && tempFile == nil {
-					tempFile, _ = os.CreateTemp("", "mady-bash-*.log")
+					tempFile, tempFileErr := os.CreateTemp("", "mady-bash-*.log")
+					if tempFileErr != nil {
+						fmt.Fprintf(os.Stderr, "bash: 创建日志临时文件失败: %v（输出截断后无法提供完整日志）\n", tempFileErr)
+					}
 					if tempFile != nil {
 						tempFilePath = tempFile.Name()
 						for _, c := range chunks {

@@ -242,27 +242,18 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			}
 		}
 
-		resp, err := a.callProviderWithRetry(ctx, req)
+		resp, err := a.callModelWithFallback(ctx, req)
 		if err != nil {
-			// Context overflow: attempt compaction then retry once
-			if IsContextOverflowError(err) && a.config.ContextWindow > 0 {
-				if compErr := a.ForceCompact(ctx); compErr == nil {
-					req.Messages = a.buildRequestMessages(ctx)
-					resp, err = a.callProviderWithRetry(ctx, req)
-				}
+			if errors.Is(err, context.Canceled) {
+				// User interrupted — emit clean end event instead of cryptic error
+				a.state.SetStatus(StatusFinished)
+				a.emit(&AgentEndEvent{
+					baseEvent: newBase(EventAgentEnd),
+					AgentName: a.config.Name,
+				})
+				return "", true, nil
 			}
-			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					// User interrupted — emit clean end event instead of cryptic error
-					a.state.SetStatus(StatusFinished)
-					a.emit(&AgentEndEvent{
-						baseEvent: newBase(EventAgentEnd),
-						AgentName: a.config.Name,
-					})
-					return "", true, nil
-				}
-				return "", true, a.failLoop(fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
-			}
+			return "", true, a.failLoop(fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
 		}
 
 		// Lifecycle: AfterModelCall
@@ -270,7 +261,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
 			mcc := &ModelCallContext{Request: req, Response: resp, Err: err}
 			lc.AfterModelCall(ctx, arc, mcc)
-			if mcc.Err != nil && err == nil {
+			if mcc.Err != nil {
 				if !resp.SuppressPersist {
 					if pErr := a.persistMessage(ctx, Message{
 						Role:      RoleAssistant,
@@ -325,19 +316,9 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		// valid, some not) leaves the conversation in an inconsistent state.
 		// Refuse the entire batch up front and persist error results so the
 		// model regenerates with complete output.
-		if resp.FinishReason == "length" && hasInvalidToolCallArgs(resp.ToolCalls) {
-			for _, tc := range resp.ToolCalls {
-				if perr := a.persistMessage(ctx, Message{
-					Role:       RoleTool,
-					Content:    "错误: 此工具调用未被执行，因为模型输出被 max_tokens 截断，生成了无效的 JSON 参数。请重新生成包含完整参数的工具调用；如果调用内容较大，请拆分或减少输出长度。",
-					ToolCallID: tc.ID,
-					Name:       tc.Name,
-				}); perr != nil {
-					return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "truncation guard persist failed", perr)
-				}
-			}
-			if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
-				return "", true, err
+		if handled, gErr := a.guardTruncation(ctx, turn, resp); handled {
+			if gErr != nil {
+				return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "truncation guard failed", gErr)
 			}
 			continue
 		}
@@ -428,6 +409,49 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 	}
 
 	return finalOutput, false, nil
+}
+
+// callModelWithFallback 调用 Provider，按 Context Overflow 触发一次压缩重试。
+func (a *Agent) callModelWithFallback(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error) {
+	resp, err := a.callProviderWithRetry(ctx, req)
+	if err != nil {
+		// Context overflow: attempt compaction then retry once
+		if IsContextOverflowError(err) && a.config.ContextWindow > 0 {
+			if compErr := a.ForceCompact(ctx); compErr == nil {
+				req.Messages = a.buildRequestMessages(ctx)
+				resp, err = a.callProviderWithRetry(ctx, req)
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return resp, nil
+}
+
+// guardTruncation 检测模型输出是否被 max_tokens 截断且包含无效工具调用参数。
+// 返回 (handled, err)：
+//   - handled=true, err=nil  → 截断已处理，调用方应 continue
+//   - handled=true, err!=nil → 截断处理中遇到致命错误
+//   - handled=false          → 非截断场景，调用方继续正常流程
+func (a *Agent) guardTruncation(ctx context.Context, turn int64, resp *ProviderResponse) (bool, error) {
+	if resp.FinishReason != "length" || !hasInvalidToolCallArgs(resp.ToolCalls) {
+		return false, nil
+	}
+	for _, tc := range resp.ToolCalls {
+		if perr := a.persistMessage(ctx, Message{
+			Role:       RoleTool,
+			Content:    "错误: 此工具调用未被执行，因为模型输出被 max_tokens 截断，生成了无效的 JSON 参数。请重新生成包含完整参数的工具调用；如果调用内容较大，请拆分或减少输出长度。",
+			ToolCallID: tc.ID,
+			Name:       tc.Name,
+		}); perr != nil {
+			return true, perr
+		}
+	}
+	if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 // failLoop is the standard error exit path from the run loop.

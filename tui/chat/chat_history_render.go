@@ -420,205 +420,155 @@ func (h *ChatHistory) renderAllWithState(
 			}
 
 			// Re-render only dirty messages
-			for i := firstDirtyIdx; i < len(msgs); i++ {
-				m := msgs[i]
-				// Handle tool groups in the dirty section
-				if m.Role == RoleTool || m.Role == RoleSystem {
-					groupEnd := i
-					for j := i + 1; j < len(msgs); j++ {
-						r := msgs[j].Role
-						if r == RoleTool || r == RoleSystem {
-							groupEnd = j
-						} else {
-							break
-						}
-					}
-					midTurn := groupEnd == len(msgs)-1
-					if midTurn {
-						for j := i - 1; j >= 0; j-- {
-							if msgs[j].Role != RoleTool && msgs[j].Role != RoleSystem {
-								midTurn = msgs[j].Pending
-								break
-							}
-						}
-					}
-					if groupEnd > i && !midTurn {
-						bar := theme.ToolBorder.Render("▌ ")
-						toolCount, sysCount := 0, 0
-						for j := i; j <= groupEnd; j++ {
-							if msgs[j].Role == RoleTool {
-								toolCount++
-							} else {
-								sysCount++
-							}
-						}
-						if expandedGroups[i] {
-							start := len(out)
-							summary := fmt.Sprintf("[-] %d tools · %d msgs", toolCount, sysCount)
-							if sysCount == 0 {
-								summary = fmt.Sprintf("[-] %d tools", toolCount)
-							}
-							out = append(out, core.PadToWidth(bar+theme.DimStyle.Render(summary), width))
-							for j := i; j <= groupEnd; j++ {
-								out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, width, cache))...)
-							}
-							ranges = append(ranges, msgRange{
-								startLine: start, endLine: len(out), msgIndex: i,
-								toolGroup: true, groupFrom: i, groupTo: groupEnd,
-							})
-						} else {
-							start := len(out)
-							summary := fmt.Sprintf("[+] %d tools · %d msgs", toolCount, sysCount)
-							if sysCount == 0 {
-								summary = fmt.Sprintf("[+] %d tools", toolCount)
-							}
-							for j := i; j <= groupEnd; j++ {
-								if msgs[j].Meta != "" && msgs[j].Meta != "tool" {
-									summary = "[+] " + msgs[j].Meta
-									break
-								}
-							}
-							out = append(out, bar+theme.DimStyle.Render(summary))
-							ranges = append(ranges, msgRange{
-								startLine: start, endLine: len(out), msgIndex: i,
-								toolGroup: true, groupFrom: i, groupTo: groupEnd,
-							})
-						}
-						i = groupEnd
-						continue
-					}
-				}
-
-				// Always check the separator between consecutive messages,
-				// matching the full-rebuild loop's behavior (which uses i > 0).
-				// Using i > firstDirtyIdx would skip the separator between the
-				// last clean message and the first dirty message.
-				{
-					prev := msgs[i-1]
-					switch {
-					case (prev.Role == RoleUser && m.Role == RoleAssistant) ||
-						(prev.Role == RoleAssistant && m.Role == RoleUser):
-						sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
-						out = append(out, "", sep, "")
-					case prev.Role == RoleTool || m.Role == RoleTool:
-					default:
-						out = append(out, "", "")
-					}
-				}
-				start := len(out)
-				out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(m, theme, width, cache))...)
-				ranges = append(ranges, msgRange{startLine: start, endLine: len(out), msgIndex: i})
-			}
+			out, ranges = h.renderMessagesRange(msgs, firstDirtyIdx, theme, expandedGroups, width, cache, out, ranges)
 
 			// Apply selection highlight
 			selEmpty := selStart.line == selEnd.line && selStart.col == selEnd.col
 			if selActive && !selEmpty {
 				h.applySelectionHighlightSnapshot(out, width, selStart, selEnd)
 			}
-
 			return out, ranges
 		}
 	}
 
-	for i := 0; i < len(msgs); i++ {
-		m := msgs[i]
+	// Full rebuild path
+	out, ranges = h.renderMessagesRange(msgs, 0, theme, expandedGroups, width, cache, out, ranges)
 
-		// Detect a run of consecutive tool/system messages starting at i.
-		if m.Role == RoleTool || m.Role == RoleSystem {
-			groupEnd := i
-			for j := i + 1; j < len(msgs); j++ {
-				r := msgs[j].Role
-				if r == RoleTool || r == RoleSystem {
-					groupEnd = j
-				} else {
-					break
-				}
-			}
-			// Group 2+ consecutive tools UNLESS we're still mid-turn:
-			// the group extends to the end AND the last non-tool msg is pending.
-			midTurn := groupEnd == len(msgs)-1
-			if midTurn {
-				// Check if the last non-tool message is still streaming.
-				for j := i - 1; j >= 0; j-- {
-					if msgs[j].Role != RoleTool && msgs[j].Role != RoleSystem {
-						midTurn = msgs[j].Pending
-						break
-					}
-				}
-			}
-			if groupEnd > i && !midTurn {
-				// Render collapsed or expanded group
-				bar := theme.ToolBorder.Render("▌ ")
-				toolCount, sysCount := 0, 0
-				for j := i; j <= groupEnd; j++ {
-					if msgs[j].Role == RoleTool {
-						toolCount++
-					} else {
-						sysCount++
-					}
-				}
-
-				if expandedGroups[i] {
-					start := len(out)
-					summary := fmt.Sprintf("[-] %d tools · %d msgs", toolCount, sysCount)
-					if sysCount == 0 {
-						summary = fmt.Sprintf("[-] %d tools", toolCount)
-					}
-					out = append(out, core.PadToWidth(bar+theme.DimStyle.Render(summary), width))
-					for j := i; j <= groupEnd; j++ {
-						out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, width, cache))...)
-					}
-					ranges = append(ranges, msgRange{
-						startLine: start, endLine: len(out), msgIndex: i,
-						toolGroup: true, groupFrom: i, groupTo: groupEnd,
-					})
-				} else {
-					start := len(out)
-					summary := fmt.Sprintf("[+] %d tools · %d msgs", toolCount, sysCount)
-					if sysCount == 0 {
-						summary = fmt.Sprintf("[+] %d tools", toolCount)
-					}
-					for j := i; j <= groupEnd; j++ {
-						if msgs[j].Meta != "" && msgs[j].Meta != "tool" {
-							summary = "[+] " + msgs[j].Meta
-							break
-						}
-					}
-					out = append(out, bar+theme.DimStyle.Render(summary))
-					ranges = append(ranges, msgRange{
-						startLine: start, endLine: len(out), msgIndex: i,
-						toolGroup: true, groupFrom: i, groupTo: groupEnd,
-					})
-				}
-				i = groupEnd
-				continue
-			}
-		}
-
-		if i > 0 {
-			prev := msgs[i-1]
-			switch {
-			case (prev.Role == RoleUser && m.Role == RoleAssistant) ||
-				(prev.Role == RoleAssistant && m.Role == RoleUser):
-				sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
-				out = append(out, "", sep, "")
-			case prev.Role == RoleTool || m.Role == RoleTool:
-			default:
-				out = append(out, "", "")
-			}
-		}
-		start := len(out)
-		out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(m, theme, width, cache))...)
-		ranges = append(ranges, msgRange{startLine: start, endLine: len(out), msgIndex: i})
-	}
-
-	// Apply selection highlight using snapshot selection state.
+	// Apply selection highlight
 	selEmpty := selStart.line == selEnd.line && selStart.col == selEnd.col
 	if selActive && !selEmpty {
 		h.applySelectionHighlightSnapshot(out, width, selStart, selEnd)
 	}
 
 	return out, ranges
+}
+
+// renderMessagesRange 从 start 开始渲染连续消息到 out/ranges。
+// 快路径（start > 0，拼接）和慢路径（start = 0，全量）共用此函数。
+// renderMessageSeparator 的 i > 0 条件对两路径均成立：快路径保证
+// firstDirtyIdx > 0，慢路径从 0 开始自然跳过首次无前任消息。
+func (h *ChatHistory) renderMessagesRange(
+	msgs []ChatMessage, start int,
+	theme ChatHistoryTheme, expandedGroups map[int]bool, width int64,
+	cache map[string]cachedMessage,
+	out []string, ranges []msgRange,
+) ([]string, []msgRange) {
+	for i := start; i < len(msgs); i++ {
+		m := msgs[i]
+		if groupEnd, ok := h.detectToolGroup(msgs, i); ok {
+			lines, r := h.renderToolGroup(msgs, i, groupEnd, expandedGroups[i], theme, width, cache)
+			out = append(out, lines...)
+			ranges = append(ranges, r)
+			i = groupEnd
+			continue
+		}
+		if i > 0 {
+			out = append(out, h.renderMessageSeparator(msgs[i-1], m, width, theme)...)
+		}
+		startLine := len(out)
+		out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(m, theme, width, cache))...)
+		ranges = append(ranges, msgRange{startLine: startLine, endLine: len(out), msgIndex: i})
+	}
+	return out, ranges
+}
+
+// detectToolGroup 检查 msgs[i] 是否为一组连续工具/系统消息的起始。
+// 如果是且不在中间轮次（mid-turn，Assistant 仍在 Pending 中），返回
+// groupEnd（含）和 ok=true。快速路径和慢速路径共用此检测逻辑。
+func (h *ChatHistory) detectToolGroup(msgs []ChatMessage, i int) (groupEnd int, ok bool) {
+	if msgs[i].Role != RoleTool && msgs[i].Role != RoleSystem {
+		return 0, false
+	}
+	end := i
+	for j := i + 1; j < len(msgs); j++ {
+		r := msgs[j].Role
+		if r == RoleTool || r == RoleSystem {
+			end = j
+		} else {
+			break
+		}
+	}
+	// 单条工具消息不折叠
+	if end == i {
+		return 0, false
+	}
+	// 检查是否为中间轮次（消息在末尾且前一条 Assistant 消息仍在 Pending）
+	if end == len(msgs)-1 {
+		foundPrev := false
+		for j := i - 1; j >= 0; j-- {
+			if msgs[j].Role != RoleTool && msgs[j].Role != RoleSystem {
+				if msgs[j].Pending {
+					return 0, false // mid-turn，不折叠
+				}
+				foundPrev = true
+				break
+			}
+		}
+		// 没有前一条非工具消息（如 i==0 全部为工具消息），
+		// 原始逻辑 midTurn 保持 true，不折叠
+		if !foundPrev {
+			return 0, false
+		}
+	}
+	return end, true
+}
+
+// renderToolGroup 渲染一组连续的工具/系统消息为折叠（[+]）或展开（[-]）形式。
+// 返回渲染后的行列表及对应的 msgRange。
+func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expanded bool, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) ([]string, msgRange) {
+	bar := theme.ToolBorder.Render("▌ ")
+	toolCount, sysCount := 0, 0
+	for j := start; j <= end; j++ {
+		if msgs[j].Role == RoleTool {
+			toolCount++
+		} else {
+			sysCount++
+		}
+	}
+
+	var lines []string
+	if expanded {
+		summary := fmt.Sprintf("[-] %d tools · %d msgs", toolCount, sysCount)
+		if sysCount == 0 {
+			summary = fmt.Sprintf("[-] %d tools", toolCount)
+		}
+		lines = append(lines, core.PadToWidth(bar+theme.DimStyle.Render(summary), width))
+		for j := start; j <= end; j++ {
+			lines = append(lines, trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, width, cache))...)
+		}
+	} else {
+		summary := fmt.Sprintf("[+] %d tools · %d msgs", toolCount, sysCount)
+		if sysCount == 0 {
+			summary = fmt.Sprintf("[+] %d tools", toolCount)
+		}
+		for j := start; j <= end; j++ {
+			if msgs[j].Meta != "" && msgs[j].Meta != "tool" {
+				summary = "[+] " + msgs[j].Meta
+				break
+			}
+		}
+		lines = append(lines, bar+theme.DimStyle.Render(summary))
+	}
+
+	return lines, msgRange{
+		startLine: 0, endLine: len(lines), msgIndex: start,
+		toolGroup: true, groupFrom: start, groupTo: end,
+	}
+}
+
+// renderMessageSeparator 在两条连续消息之间插入视觉分隔符。
+// 返回空行列表（可能含分隔线），调用方直接 append 到输出 buffer。
+func (h *ChatHistory) renderMessageSeparator(prev, curr ChatMessage, width int64, theme ChatHistoryTheme) []string {
+	switch {
+	case (prev.Role == RoleUser && curr.Role == RoleAssistant) ||
+		(prev.Role == RoleAssistant && curr.Role == RoleUser):
+		sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
+		return []string{"", sep, ""}
+	case prev.Role == RoleTool || curr.Role == RoleTool:
+		return nil
+	default:
+		return []string{"", ""}
+	}
 }
 
 func (h *ChatHistory) applySelectionHighlightLocked(lines []string, width int64) {

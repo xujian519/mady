@@ -232,61 +232,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	enabled := enabledSet(cfg.EnabledTools)
 	useAllowList := len(cfg.EnabledTools) > 0
 
-	// Propagate sandbox configuration to all file tool configs.
-	sbx := WorkingDirSandbox{
-		Enabled:    cfg.SandboxEnabled,
-		WorkingDir: cfg.WorkingDir,
-	}
-	if cfg.Read == nil {
-		cfg.Read = &ReadToolConfig{}
-	}
-	cfg.Read.Sandbox = sbx
-	if cfg.Edit == nil {
-		cfg.Edit = &EditToolConfig{}
-	}
-	cfg.Edit.Sandbox = sbx
-	if cfg.WriteFile == nil {
-		cfg.WriteFile = &WriteFileToolConfig{}
-	}
-	cfg.WriteFile.Sandbox = sbx
-	if cfg.Patch == nil {
-		cfg.Patch = &PatchToolConfig{}
-	}
-	cfg.Patch.Sandbox = sbx
-	if cfg.Delete == nil {
-		cfg.Delete = &DeleteToolConfig{}
-	}
-	cfg.Delete.Sandbox = sbx
-	if cfg.Move == nil {
-		cfg.Move = &MoveToolConfig{}
-	}
-	cfg.Move.Sandbox = sbx
-
-	// Inject sandbox into read-only tools and bash.
-	if cfg.Ls == nil {
-		cfg.Ls = &LsToolConfig{}
-	}
-	cfg.Ls.Sandbox = sbx
-	if cfg.Grep == nil {
-		cfg.Grep = &GrepToolConfig{}
-	}
-	cfg.Grep.Sandbox = sbx
-	if cfg.Find == nil {
-		cfg.Find = &FindToolConfig{}
-	}
-	cfg.Find.Sandbox = sbx
-	if cfg.Glob == nil {
-		cfg.Glob = &GlobToolConfig{}
-	}
-	cfg.Glob.Sandbox = sbx
-	if cfg.View == nil {
-		cfg.View = &ViewToolConfig{}
-	}
-	cfg.View.Sandbox = sbx
-	if cfg.Bash == nil {
-		cfg.Bash = &BashToolConfig{}
-	}
-	cfg.Bash.Sandbox = sbx
+	propagateSandbox(&cfg)
 
 	var tools []*agentcore.Tool
 
@@ -338,10 +284,6 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 		}
 	}
 	addTool(NewProcessTool(cfg.WorkingDir, cfg.Process))
-	if cfg.Vision == nil {
-		cfg.Vision = &VisionToolConfig{}
-	}
-	cfg.Vision.Sandbox = sbx
 	addTool(readOnly(NewVisionTool(cfg.WorkingDir, cfg.Vision)))
 	addTool(readOnly(NewViewTool(cfg.WorkingDir, cfg.View)))
 	addTool(readOnly(NewGlobTool(cfg.WorkingDir, cfg.Glob)))
@@ -385,6 +327,67 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	}
 
 	return tools
+}
+
+// propagateSandbox 将 Sandbox 配置注入到所有文件操作工具的 config 中。
+// 确保不启用沙箱时各 config 仍正确初始化。
+func propagateSandbox(cfg *ExtensionConfig) {
+	sbx := WorkingDirSandbox{
+		Enabled:    cfg.SandboxEnabled,
+		WorkingDir: cfg.WorkingDir,
+	}
+	if cfg.Read == nil {
+		cfg.Read = &ReadToolConfig{}
+	}
+	cfg.Read.Sandbox = sbx
+	if cfg.Edit == nil {
+		cfg.Edit = &EditToolConfig{}
+	}
+	cfg.Edit.Sandbox = sbx
+	if cfg.WriteFile == nil {
+		cfg.WriteFile = &WriteFileToolConfig{}
+	}
+	cfg.WriteFile.Sandbox = sbx
+	if cfg.Patch == nil {
+		cfg.Patch = &PatchToolConfig{}
+	}
+	cfg.Patch.Sandbox = sbx
+	if cfg.Delete == nil {
+		cfg.Delete = &DeleteToolConfig{}
+	}
+	cfg.Delete.Sandbox = sbx
+	if cfg.Move == nil {
+		cfg.Move = &MoveToolConfig{}
+	}
+	cfg.Move.Sandbox = sbx
+	if cfg.Ls == nil {
+		cfg.Ls = &LsToolConfig{}
+	}
+	cfg.Ls.Sandbox = sbx
+	if cfg.Grep == nil {
+		cfg.Grep = &GrepToolConfig{}
+	}
+	cfg.Grep.Sandbox = sbx
+	if cfg.Find == nil {
+		cfg.Find = &FindToolConfig{}
+	}
+	cfg.Find.Sandbox = sbx
+	if cfg.Glob == nil {
+		cfg.Glob = &GlobToolConfig{}
+	}
+	cfg.Glob.Sandbox = sbx
+	if cfg.View == nil {
+		cfg.View = &ViewToolConfig{}
+	}
+	cfg.View.Sandbox = sbx
+	if cfg.Bash == nil {
+		cfg.Bash = &BashToolConfig{}
+	}
+	cfg.Bash.Sandbox = sbx
+	if cfg.Vision == nil {
+		cfg.Vision = &VisionToolConfig{}
+	}
+	cfg.Vision.Sandbox = sbx
 }
 
 // disabledSet converts a disable list to a set for O(1) lookup.

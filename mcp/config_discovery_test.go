@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadMCPConfig(t *testing.T) {
@@ -77,6 +78,34 @@ func TestDiscoverMCPExtensions_NoConfigFiles(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected 0 warnings, got %d", len(warnings))
+	}
+}
+
+func TestDiscoveryTimeout_ContextOverrideWins(t *testing.T) {
+	t.Setenv("MADY_MCP_DISCOVERY_TIMEOUT_MS", "2800")
+	ctx := WithDiscoveryTimeout(context.Background(), 1500*time.Millisecond)
+
+	got := discoveryTimeout(ctx)
+	if got != 1500*time.Millisecond {
+		t.Fatalf("discoveryTimeout(ctx) = %v, want 1.5s", got)
+	}
+}
+
+func TestDiscoveryTimeout_EnvFallback(t *testing.T) {
+	t.Setenv("MADY_MCP_DISCOVERY_TIMEOUT_MS", "2200")
+
+	got := discoveryTimeout(context.Background())
+	if got != 2200*time.Millisecond {
+		t.Fatalf("discoveryTimeout(env) = %v, want 2.2s", got)
+	}
+}
+
+func TestDiscoveryTimeout_Default(t *testing.T) {
+	t.Setenv("MADY_MCP_DISCOVERY_TIMEOUT_MS", "")
+
+	got := discoveryTimeout(context.Background())
+	if got != defaultDiscoveryTimeout {
+		t.Fatalf("discoveryTimeout(default) = %v, want %v", got, defaultDiscoveryTimeout)
 	}
 }
 

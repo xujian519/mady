@@ -93,7 +93,9 @@ func (s *Server) handleBatchJSONRPC(w http.ResponseWriter, r *http.Request, reqs
 		}
 	}
 
-	_ = json.NewEncoder(w).Encode(results)
+	if err := json.NewEncoder(w).Encode(results); err != nil {
+		slog.Default().Warn("a2a: 编码 JSONRPC 批量响应失败", "error", err)
+	}
 }
 
 func (s *Server) dispatchJSONRPC(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
@@ -88,13 +89,28 @@ type frameworkContext struct {
 	SessionSummarizer *memory.SessionSummarizer
 }
 
+const startupMCPDiscoveryTimeout = 1500 * time.Millisecond
+
+func withStartupDiscoveryTimeout(ctx context.Context, cmdName string) context.Context {
+	if os.Getenv("MADY_MCP_DISCOVERY_TIMEOUT_MS") != "" {
+		return ctx
+	}
+	switch cmdName {
+	case "tui", "serve":
+		return mcp.WithDiscoveryTimeout(ctx, startupMCPDiscoveryTimeout)
+	default:
+		return ctx
+	}
+}
+
 // setupFrameworkContext 执行三个入口共享的初始化逻辑：
 //   - Provider 构建
 //   - MadyHome 解析（~/.mady，任意 cwd 可用）
 //   - Manifest 加载（go:embed 内置 + MADY_HOME/manifests 外部覆盖）
 //   - Wiki 知识库加载（可选的 WIKI_PATH 环境变量）
 //   - ProjectRegistry 初始化
-func setupFrameworkContext(ctx context.Context) *frameworkContext {
+func setupFrameworkContext(ctx context.Context, cmdName string) *frameworkContext {
+	ctx = withStartupDiscoveryTimeout(ctx, cmdName)
 	fc := &frameworkContext{}
 
 	provider, err := agentconfig.BuildProvider()
@@ -154,18 +170,29 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		fmt.Fprintf(os.Stderr, "rules: 已加载规则引擎（%d 条规则）\n", len(fc.RuleEngine.AllRules()))
 	}
 
-	// Manifest 加载：go:embed 内置 + 外部覆盖。
-	// 优先级：$MANIFEST_DIR > ~/.mady/manifests > 仅内置。
-	// 内置 4 个 manifest 始终可用（embed 进二进制），外部目录可选。
+	loadManifests(fc)
+	discoverSkills(fc)
+	discoverMCP(ctx, fc)
+	initWorkspace(fc)
+	buildBaseTools(fc)
+	initPlugins(fc)
+	initMemorySystem(fc)
+	initReasoningAndTemplates(fc)
+
+	return fc
+}
+
+// loadManifests 加载 go:embed 内置 + 外部覆盖的 AgentManifest 到 fc。
+// 优先级：$MANIFEST_DIR > ~/.mady/manifests > 仅内置。
+func loadManifests(fc *frameworkContext) {
 	manifestDir := os.Getenv("MANIFEST_DIR")
-	if manifestDir == "" && madyHome != "" {
-		manifestDir = filepath.Join(madyHome, "manifests")
+	if manifestDir == "" && fc.MadyHome != "" {
+		manifestDir = filepath.Join(fc.MadyHome, "manifests")
 	}
 	fc.ManifestDir = manifestDir
 	mergeRes := agentcore.LoadManifests(manifestDir)
 	fc.Manifests = mergeRes.Manifests
 
-	// 醒目加载日志：区分内置 / 外部 / 覆盖 / 新增
 	if mergeRes.EmbeddedCount > 0 {
 		fmt.Fprintf(os.Stderr, "manifest: 已加载 %d 个内置 Agent（embed）\n", mergeRes.EmbeddedCount)
 	}
@@ -188,11 +215,11 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	if len(fc.Manifests) == 0 {
 		fmt.Fprintf(os.Stderr, "manifest: 未加载任何 manifest（内置 embed 异常？）→ 将回退到单 Agent 模式\n")
 	}
+}
 
-	// Skill 自动发现：扫描 $SKILL_DIR、$HOME/.agent、$PWD/.agent、~/.mady/skills、
-	// ~/.agents/skills/。
-	// 优先级：$SKILL_DIR > $HOME/.agent > $PWD/.agent > ~/.mady/skills > ~/.agents/skills。
-	// 同名 skill 保留最先发现的。
+// discoverSkills 扫描多路径 SKILL.md 并注册到 BaseConfig。
+// 优先级：$SKILL_DIR > $HOME/.agent > $PWD/.agent > ~/.mady/skills > ~/.agents/skills。
+func discoverSkills(fc *frameworkContext) {
 	var skillPaths []string
 	if sd := os.Getenv("SKILL_DIR"); sd != "" {
 		skillPaths = append(skillPaths, sd)
@@ -203,8 +230,8 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	if cwd, err := os.Getwd(); err == nil {
 		skillPaths = append(skillPaths, filepath.Join(cwd, ".agent"))
 	}
-	if madyHome != "" {
-		skillPaths = append(skillPaths, filepath.Join(madyHome, "skills"))
+	if fc.MadyHome != "" {
+		skillPaths = append(skillPaths, filepath.Join(fc.MadyHome, "skills"))
 	}
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		skillPaths = append(skillPaths, filepath.Join(homeDir, ".agents", "skills"))
@@ -212,27 +239,30 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	loadedSkills, skillDiags, skillErr := skill.Load(skillPaths...)
 	if skillErr != nil {
 		fmt.Fprintf(os.Stderr, "skill: 加载失败: %v\n", skillErr)
-	} else {
-		fc.BaseConfig.SkillPaths = skillPaths
-		fc.BaseConfig.AvailableSkills = loadedSkills
-		fc.BaseConfig.SkillDiagnostics = skillDiags
-		if len(loadedSkills) > 0 {
-			var names []string
-			for _, s := range loadedSkills {
-				names = append(names, s.Name)
-			}
-			fmt.Fprintf(os.Stderr, "skill: 从 %d 个路径加载 %d 个 skill（%s）\n",
-				len(skillPaths), len(loadedSkills), strings.Join(names, ", "))
+		return
+	}
+	fc.BaseConfig.SkillPaths = skillPaths
+	fc.BaseConfig.AvailableSkills = loadedSkills
+	fc.BaseConfig.SkillDiagnostics = skillDiags
+	if len(loadedSkills) > 0 {
+		var names []string
+		for _, s := range loadedSkills {
+			names = append(names, s.Name)
 		}
-		if len(skillDiags) > 0 {
-			for _, d := range skillDiags {
-				fmt.Fprintf(os.Stderr, "skill: [警告] %s: %s\n", d.Path, d.Message)
-			}
+		fmt.Fprintf(os.Stderr, "skill: 从 %d 个路径加载 %d 个 skill（%s）\n",
+			len(skillPaths), len(loadedSkills), strings.Join(names, ", "))
+	}
+	if len(skillDiags) > 0 {
+		for _, d := range skillDiags {
+			fmt.Fprintf(os.Stderr, "skill: [警告] %s: %s\n", d.Path, d.Message)
 		}
 	}
+}
 
-	// MCP 自动发现：扫描 $MCP_CONFIG、~/.mady/mcp.json、$PWD/.mcp.json、~/.claude.json。
-	mcpExts, mcpWarnings := mcp.DiscoverMCPExtensions(ctx, madyHome)
+// discoverMCP 自动发现并注册 MCP 扩展到 BaseConfig。
+// 扫描 $MCP_CONFIG、~/.mady/mcp.json、$PWD/.mcp.json、~/.claude.json。
+func discoverMCP(ctx context.Context, fc *frameworkContext) {
+	mcpExts, mcpWarnings := mcp.DiscoverMCPExtensions(ctx, fc.MadyHome)
 	for _, w := range mcpWarnings {
 		fmt.Fprintf(os.Stderr, "mcp: [警告] %v\n", w)
 	}
@@ -245,16 +275,16 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 			len(mcpExts), strings.Join(names, ", "))
 		fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, mcpExts...)
 	}
+}
 
-	// Workspace：$WORKSPACE_DIR > ~/.mady/workspace。
-	// MadyHome() 最终回退会调 filepath.Abs("./.mady")，故此处不会出现 cwd 相对路径。
+// initWorkspace 解析 workspace 目录、创建 projects 子目录、初始化 ProjectRegistry。
+// 优先级：$WORKSPACE_DIR > ~/.mady/workspace。
+func initWorkspace(fc *frameworkContext) {
 	workspaceDir := os.Getenv("WORKSPACE_DIR")
 	if workspaceDir == "" {
-		if madyHome != "" {
-			workspaceDir = filepath.Join(madyHome, "workspace")
+		if fc.MadyHome != "" {
+			workspaceDir = filepath.Join(fc.MadyHome, "workspace")
 		} else {
-			// 不可达兜底：MadyHome() 仅在 filepath.Abs 自身失败时返错。
-			// 走 ResolveDataDir 以保证最终路径仍经过 filepath.Abs 规范化。
 			dir, err := util.ResolveDataDir("workspace")
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "mady: 解析 workspace 目录失败，回退为空串: %v\n", err)
@@ -262,32 +292,20 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 			workspaceDir = dir
 		}
 	}
-	// 确保 workspace 及 projects 子目录存在。
-	// ProjectRegistry.Register 写入 registry.json 时依赖父目录已创建
-	// （NewProjectRegistryOrEmpty 只 load 不 mkdir）。
 	if err := util.EnsureDir(filepath.Join(workspaceDir, "projects")); err != nil {
 		fmt.Fprintf(os.Stderr, "mady: 创建 workspace 目录失败: %v\n", err)
 	}
 	fc.WorkspaceDir = workspaceDir
-	projectDir := filepath.Join(workspaceDir, "projects")
-	fc.ProjectRegistry = domains.NewProjectRegistryOrEmpty(projectDir)
-
-	// 注入 WorkspaceDir 到 BaseConfig，供领域工厂函数（如 AssistantAgentConfig）
-	// 读取，避免工具沙箱硬编码 cwd 相对路径。
+	fc.ProjectRegistry = domains.NewProjectRegistryOrEmpty(filepath.Join(workspaceDir, "projects"))
 	fc.BaseConfig.WorkspaceDir = workspaceDir
-
-	// ProjectDir = 用户当前 cwd，作为工具沙箱边界。
-	// 领域工厂函数读取此字段设置工具 WorkingDir。
-	// 案件模式在 applyPersistence 中覆盖为 RootPath。
 	if cwd, err := os.Getwd(); err == nil {
 		fc.BaseConfig.ProjectDir = cwd
 	}
+}
 
-	// 内置工具扩展：为所有 Agent 提供基础文件工具（read/edit/write_file/ls/grep/find/glob/view）
-	// 和网络工具（web_search/web_fetch）。领域 Agent 工厂函数（AssistantAgentConfig 等）
-	// 在此基础之上叠加领域特定配置（沙箱、禁用列表等）。
-	// 不启用沙箱：BaseConfig 是共享基础，沙箱由领域工厂函数按需开启。
-	// 不启用危险工具：bash/git/browser/execute_code/process/computer_use 默认关闭。
+// buildBaseTools 为所有 Agent 注册基础文件工具和网络工具。
+// 危险工具（bash/git/browser/execute_code/process/computer_use）默认关闭。
+func buildBaseTools(fc *frameworkContext) {
 	toolWorkingDir := fc.BaseConfig.ProjectDir
 	if toolWorkingDir == "" {
 		toolWorkingDir = fc.BaseConfig.WorkspaceDir
@@ -300,50 +318,48 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		},
 	})
 	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, baseTools)
+}
 
-	// 插件系统：从 plugins/ 目录发现并加载 patent/legal 工作流插件。
-	// 为所有 Agent 注册 run_plugin 工具，使其可按名称调用插件工作流。
-	// 扫描当前工作目录和 MadyHome 下的 plugins 目录。
+// initPlugins 从 plugins/ 目录发现并加载工作流插件。
+// 为所有 Agent 注册 run_plugin 工具。
+func initPlugins(fc *frameworkContext) {
 	pluginSearchDirs := []string{}
 	if cwd, err := os.Getwd(); err == nil {
 		pluginSearchDirs = append(pluginSearchDirs, filepath.Join(cwd, "plugins"))
 	}
-	if madyHome != "" {
-		pluginSearchDirs = append(pluginSearchDirs, filepath.Join(madyHome, "plugins"))
+	if fc.MadyHome != "" {
+		pluginSearchDirs = append(pluginSearchDirs, filepath.Join(fc.MadyHome, "plugins"))
 	}
 	pluginManager, err := agentcore.NewPluginManager(fc.Provider, nil, pluginSearchDirs...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "plugin: 初始化插件管理器失败: %v（run_plugin 工具不可用）\n", err)
-	} else {
-		plugins := pluginManager.Plugins()
-		if len(plugins) > 0 {
-			var names []string
-			for _, p := range plugins {
-				names = append(names, p.Name)
-			}
-			fmt.Fprintf(os.Stderr, "plugin: 已加载 %d 个插件（%s）\n", len(plugins), strings.Join(names, ", "))
-			// 将 run_plugin 工具注册到 BaseConfig 的内建工具列表中。
-			// 通过嵌入一个仅含此工具的轻量 Extension 实现。
-			pluginTool := pluginManager.RunPluginTool()
-			fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, &pluginToolExtension{tool: pluginTool})
-		} else {
-			fmt.Fprintf(os.Stderr, "plugin: 未发现任何插件（搜索路径: %v）\n", pluginSearchDirs)
-		}
+		return
 	}
+	plugins := pluginManager.Plugins()
+	if len(plugins) > 0 {
+		var names []string
+		for _, p := range plugins {
+			names = append(names, p.Name)
+		}
+		fmt.Fprintf(os.Stderr, "plugin: 已加载 %d 个插件（%s）\n", len(plugins), strings.Join(names, ", "))
+		pluginTool := pluginManager.RunPluginTool()
+		fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, &pluginToolExtension{tool: pluginTool})
+	} else {
+		fmt.Fprintf(os.Stderr, "plugin: 未发现任何插件（搜索路径: %v）\n", pluginSearchDirs)
+	}
+}
 
-	// 长期记忆系统：优先 SQLite 持久化，回退 InMemoryStore。
-	// SQLite 文件位于 MADY_HOME/memory.db，所有 Agent 共享同一个存储后端，
-	// 支持跨会话持久化和向量检索。
-	memoryDB := filepath.Join(madyHome, "memory.db")
+// initMemorySystem 初始化长期记忆系统，含 Embedder、MemoryStore（优先 SQLite）、
+// BM25 混合检索、策略学习编译器、会话汇总器。
+func initMemorySystem(fc *frameworkContext) {
+	memoryDB := filepath.Join(fc.MadyHome, "memory.db")
 
-	// 1. 构建 Embedder（向量语义检索）。
-	// 通过环境变量 EMBEDDING_BASE_URL / EMBEDDING_API_KEY / EMBEDDING_MODEL 配置。
-	// 未配置时 embedder 为 nil，Recall 自动降级为关键词匹配。
+	// 1. 构建 Embedder。
 	var embedder retrieval.Embedder
 	if embURL := os.Getenv("EMBEDDING_BASE_URL"); embURL != "" {
 		embModel := os.Getenv("EMBEDDING_MODEL")
 		if embModel == "" {
-			embModel = "bge-m3" // 默认 BGE-M3，中英文效果好
+			embModel = "bge-m3"
 		}
 		embKey := os.Getenv("EMBEDDING_API_KEY")
 		embedder = retrieval.NewAPIEmbedder(embURL, embKey, embModel)
@@ -353,13 +369,13 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		fmt.Fprintf(os.Stderr, "memory: 未配置 EMBEDDING_BASE_URL，使用关键词检索\n")
 	}
 
-	// 2. 构建 MemoryStore（优先 SQLite + embedding）。
+	// 2. 构建 MemoryStore。
 	var memoryStore memory.MemoryStore
 	var storeOpts []memory.SQLiteOption
 	if embedder != nil {
 		storeOpts = append(storeOpts, memory.WithSQLiteEmbedder(embedder))
 	}
-	if madyHome != "" {
+	if fc.MadyHome != "" {
 		ms, err := memory.NewSQLiteMemoryStore(memoryDB, storeOpts...)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "memory: 打开 SQLite 存储失败 %s: %v（降级为 InMemoryStore）\n", memoryDB, err)
@@ -372,15 +388,13 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		memoryStore = memory.NewInMemoryStore(memory.WithEmbedder(embedder))
 	}
 
-	// 3. 构建 Extractor（LLM 原子事实提取）。
-	// 通过环境变量 MADY_MEMORY_AUTO_EXTRACT 控制（默认关闭，保持向后兼容）。
+	// 3. 构建 Extractor。
 	var extractor *memory.Extractor
 	managerCfg := memory.DefaultManagerConfig()
 	if os.Getenv("MADY_MEMORY_AUTO_EXTRACT") == "1" {
 		if fc.Provider != nil {
 			model := agentconfig.DefaultModel()
-			llmExtractor := memory.NewProviderExtractor(fc.Provider, model)
-			extractor = memory.NewExtractor(llmExtractor, memory.DefaultExtractorConfig())
+			extractor = memory.NewExtractor(memory.NewProviderExtractor(fc.Provider, model), memory.DefaultExtractorConfig())
 			managerCfg.AutoExtract = true
 			fmt.Fprintf(os.Stderr, "memory: LLM 事实提取已启用 (model: %s)\n", model)
 		} else {
@@ -389,14 +403,10 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	}
 
 	fc.MemoryManager = memory.NewManager(memoryStore, extractor, nil, managerCfg)
-	// 在 BaseConfig 中注册 MemoryExtension 供所有入口复用。
-	// MemoryScope 在入口层填充（因 UserID/SessionID 仅在会话上下文中可知）。
-	// 此处仅创建共享存储与管理器，扩展实例由入口层（tui/serve/acp）按需创建。
 	fc.MemoryManager.LogStats(context.Background())
 	fmt.Fprintf(os.Stderr, "memory: 长期记忆系统已就绪\n")
 
-	// 4. 构建 BM25 索引并注入 Retriever（启用混合检索：稠密向量 + BM25 稀疏 + RRF 融合）。
-	// 仅 SQLite 持久化存储支持 BM25（需全量扫描构建索引）。
+	// 4. BM25 混合检索。
 	if sqliteStore, ok := memoryStore.(*memory.SQLiteMemoryStore); ok {
 		if bm25Idx, err := sqliteStore.BuildBM25Index(context.Background()); err == nil {
 			fc.MemoryManager.SetBM25Index(bm25Idx)
@@ -406,31 +416,27 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		}
 	}
 
-	// 策略学习编译器：注册 CompilerExtension 到 BaseConfig 供所有入口复用。
-	// 与 MemoryExtension 不同，CompilerExtension 无 scope 依赖（策略选择只依赖 goal 文本），
-	// 因此直接注册到 BaseConfig.Extensions，无需入口层按需创建。
+	// 5. 策略学习编译器。
 	fc.MemoryCompiler = compiler.NewCompiler(compiler.Config{
-		ExplorationRate: 5, // 5% ε-greedy 探索率
+		ExplorationRate: 5,
 		MaxTraces:       1000,
 	})
-	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions,
-		compiler.NewExtension(fc.MemoryCompiler))
+	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, compiler.NewExtension(fc.MemoryCompiler))
 	fmt.Fprintf(os.Stderr, "compiler: 策略学习系统已就绪（%d 个预设策略）\n",
 		len(fc.MemoryCompiler.Strategies()))
 
-	// 会话汇总器：当 Provider 可用且 MADY_MEMORY_AUTO_EXTRACT=1 时启用。
-	// 在会话关闭时从 Session 层提取长期事实存入 LongTerm 层。
+	// 6. 会话汇总器。
 	if fc.Provider != nil && os.Getenv("MADY_MEMORY_AUTO_EXTRACT") == "1" {
 		fc.SessionSummarizer = memory.NewSessionSummarizer(fc.Provider, agentconfig.DefaultModel())
 		fmt.Fprintf(os.Stderr, "memory: 会话汇总器已启用\n")
 	}
 
-	// 初始化知识图谱（空存储，由 wiki import 或数据管线填充）。
 	fc.KnowledgeGraph = kgwgraph.NewGraphStore()
+}
 
-	// 专利撰写推理引擎注入。
-	// 构建 retriever（可能为 nil，FiveStepRunner 内部可降级）和 LLM 客户端，
-	// 使 PatentAgentConfig 创建的所有 Agent 实例均可调用 run_five_step_workflow 工具。
+// initReasoningAndTemplates 初始化推理引擎 retriever/LLM 客户端、文档模板仓库、
+// 以及引用核验装配（CitationGate 留痕 store）。
+func initReasoningAndTemplates(fc *frameworkContext) {
 	retriever := buildReasoningRetriever(fc)
 	var llmClient reasoning.LlmClient
 	if fc.Provider != nil {
@@ -438,7 +444,6 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 	}
 	domains.SetupPatentDraftingEngine(retriever, llmClient)
 
-	// 文档模板仓库：加载内嵌模板 + 用户自定义模板
 	userTmplDir := filepath.Join(fc.MadyHome, "doc-templates")
 	store, err := doctmpl.NewTemplateStore(userTmplDir)
 	if err != nil {
@@ -447,8 +452,6 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		domains.SetupDocTemplateStore(store)
 	}
 
-	// 引用核验装配注入：使 PatentAgentConfig 中的 CitationGate 运行在
-	// P2b Strict 模式（带留痕 store）。Source 为 nil 时 Gate 退回 S1 静态表。
 	approvalDB := filepath.Join(fc.WorkspaceDir, "approvals.db")
 	var citationStore domains.ApprovalStore
 	if store, err := sqlitestore.NewApprovalStore(approvalDB); err == nil {
@@ -458,11 +461,9 @@ func setupFrameworkContext(ctx context.Context) *frameworkContext {
 		citationStore = domains.NewMemoryApprovalStore()
 	}
 	domains.SetupCitationWiring(domains.CitationWiring{
-		Source: nil, // nil → 退回 S1 静态表（zero-dep 默认源）
+		Source: nil,
 		Store:  citationStore,
 	})
-
-	return fc
 }
 
 // buildReasoningRetriever 从框架上下文中构造 MultiSourceRetriever。

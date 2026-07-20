@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -477,11 +478,11 @@ func (p *Provider) buildRequest(req *agentcore.ProviderRequest, stream bool) (ch
 	}
 
 	cr := chatRequest{
-		Model:          req.Model,
+		Model:          resolveModelName(req.Model),
 		Messages:       ToMessages(msgs),
 		Tools:          ToTools(req.Tools),
 		Stream:         stream,
-		ResponseFormat: ToResponseFormat(req.ResponseFormat),
+		ResponseFormat: p.toResponseFormat(req.ResponseFormat),
 	}
 	if req.Temperature > 0 {
 		t := req.Temperature
@@ -505,6 +506,44 @@ func (p *Provider) buildRequest(req *agentcore.ProviderRequest, stream bool) (ch
 		extra = p.config.BuildExtraBody(req)
 	}
 	return cr, extra
+}
+
+func resolveModelName(requested string) string {
+	requested = strings.TrimSpace(requested)
+	if requested != "" && !strings.EqualFold(requested, "default") {
+		return requested
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("PROVIDER"))) {
+	case "", "deepseek":
+		return "deepseek-v4-flash"
+	case "zhipu":
+		return "glm-5.2"
+	case "kimi":
+		return "kimi-k2.6"
+	default:
+		if model := strings.TrimSpace(os.Getenv("MODEL")); model != "" {
+			return model
+		}
+	}
+	return requested
+}
+
+func (p *Provider) toResponseFormat(format *agentcore.ResponseFormat) *chatResponseFormat {
+	if shouldOmitResponseFormat(p.config.BaseURL, format) {
+		return nil
+	}
+	return ToResponseFormat(format)
+}
+
+func shouldOmitResponseFormat(baseURL string, format *agentcore.ResponseFormat) bool {
+	if format == nil {
+		return false
+	}
+	base := strings.ToLower(strings.TrimSpace(baseURL))
+	if strings.ToLower(strings.TrimSpace(os.Getenv("PROVIDER"))) == "deepseek" {
+		return true
+	}
+	return strings.Contains(base, "api.deepseek.com")
 }
 
 func ToResponseFormat(format *agentcore.ResponseFormat) *chatResponseFormat {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -27,6 +28,21 @@ type MCPServerConfig struct {
 // Compatible with Claude Desktop mcpServers format.
 type MCPConfigFile struct {
 	MCPServers map[string]MCPServerConfig `json:"mcpServers"`
+}
+
+const defaultDiscoveryTimeout = 3 * time.Second
+
+type discoveryTimeoutContextKey struct{}
+
+// WithDiscoveryTimeout attaches a discovery timeout override to ctx.
+// It is intended for startup-sensitive entry points such as `mady tui`
+// or `mady serve`, allowing them to keep MCP auto-discovery best-effort
+// without paying the full default timeout on every launch.
+func WithDiscoveryTimeout(ctx context.Context, timeout time.Duration) context.Context {
+	if timeout <= 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, discoveryTimeoutContextKey{}, timeout)
 }
 
 // LoadMCPConfig reads and parses an MCP config JSON file.
@@ -145,9 +161,11 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 		return nil, warnings
 	}
 
+	discoveryTimeout := discoveryTimeout(ctx)
+
 	// Create extensions in parallel with a bounded total discovery timeout.
 	// A single hung stdio server should not block mady startup for the rest.
-	discCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	discCtx, cancel := context.WithTimeout(ctx, discoveryTimeout)
 	defer cancel()
 
 	var mu sync.Mutex
@@ -187,10 +205,25 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 	select {
 	case <-waitDone:
 	case <-discCtx.Done():
-		warnings = append(warnings, fmt.Errorf("mcp: discovery timed out after %v; some servers may still be starting", 3*time.Second))
+		warnings = append(warnings, fmt.Errorf("mcp: discovery timed out after %v; some servers may still be starting", discoveryTimeout))
 	}
 
 	return extensions, warnings
+}
+
+func discoveryTimeout(ctx context.Context) time.Duration {
+	if ctx != nil {
+		if timeout, ok := ctx.Value(discoveryTimeoutContextKey{}).(time.Duration); ok && timeout > 0 {
+			return timeout
+		}
+	}
+	if raw := os.Getenv("MADY_MCP_DISCOVERY_TIMEOUT_MS"); raw != "" {
+		ms, err := strconv.Atoi(raw)
+		if err == nil && ms > 0 {
+			return time.Duration(ms) * time.Millisecond
+		}
+	}
+	return defaultDiscoveryTimeout
 }
 
 // createExtension builds the appropriate agentcore.Extension from a server config.

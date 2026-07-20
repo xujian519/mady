@@ -40,7 +40,7 @@ func buildExtractionConfig(provider agentcore.Provider, extType extractionType) 
 		},
 	}
 
-	if schema := buildExtractionSchema(extType); schema != nil {
+	if schema := buildExtractionSchema(extType); schema != nil && supportsJSONSchemaResponseFormat() {
 		cfg.ResponseFormat = agentcore.NewJSONSchemaResponseFormat(
 			"disclosure_extract_"+string(extType), schema,
 		)

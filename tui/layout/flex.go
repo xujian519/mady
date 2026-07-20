@@ -188,43 +188,7 @@ func (f *Flex) renderVertical(width int64) []string {
 
 	// Second pass: distribute remaining space among Fill children.
 	if fillCount > 0 {
-		remaining := totalHeight - used
-		if totalHeight <= 0 {
-			remaining = 0
-		}
-		if remaining < 0 {
-			remaining = 0
-		}
-		perWeight := int64(0)
-		if totalWeight > 0 {
-			perWeight = remaining / int64(totalWeight)
-		}
-		allocated := int64(0)
-		fi := 0
-		for i, ch := range f.Children {
-			if ch.Policy != SizeFill {
-				continue
-			}
-			fi++
-			weight := ch.Weight
-			if weight <= 0 {
-				weight = 1
-			}
-			h := perWeight * int64(weight)
-			if fi == fillCount {
-				h = remaining - allocated
-			}
-			if h < 1 {
-				h = 1
-			}
-			sizes[i] = h
-			if ch.OnAllocate != nil {
-				ch.OnAllocate(h)
-			}
-			rendered[i] = ch.Component.Render(width)
-			used += h
-			allocated += h
-		}
+		f.distributeVerticalFill(fillCount, totalWeight, totalHeight, used, width, sizes, rendered)
 	}
 
 	// Third pass: if the container is over-committed, squeeze SizeShrinkable
@@ -425,44 +389,7 @@ func (f *Flex) renderHorizontal(width int64) []string {
 
 	// Second pass: distribute remaining width among Fill children.
 	if fillCount > 0 {
-		remaining := totalWidth - used
-		if remaining < 0 {
-			remaining = 0
-		}
-		perWeight := int64(0)
-		if totalWeight > 0 {
-			perWeight = remaining / int64(totalWeight)
-		}
-		allocated := int64(0)
-		fi := 0
-		for i, ch := range f.Children {
-			if ch.Policy != SizeFill {
-				continue
-			}
-			fi++
-			weight := ch.Weight
-			if weight <= 0 {
-				weight = 1
-			}
-			w := perWeight * int64(weight)
-			if fi == fillCount {
-				w = remaining - allocated
-			}
-			if w < 1 {
-				w = 1
-			}
-			sizes[i] = w
-			if ch.OnAllocate != nil {
-				ch.OnAllocate(w)
-			}
-			lines := ch.Component.Render(w)
-			rendered[i] = lines
-			if h := int64(len(lines)); h > maxHeight {
-				maxHeight = h
-			}
-			used += w
-			allocated += w
-		}
+		maxHeight = f.distributeHorizontalFill(fillCount, totalWeight, totalWidth, used, sizes, rendered)
 	}
 
 	if maxHeight < 1 {
@@ -513,4 +440,67 @@ func naturalWidth(lines []string) int64 {
 		}
 	}
 	return max
+}
+
+// distributeFill 是 Fill 子元素空间分配的核心算法。
+// 各 Fill 子元素按 Weight 比例获取剩余空间，最后一个多退少补处理取整余数。
+// renderFn 参数适配垂直/水平的渲染差异（垂直用固定 width，水平用动态分配值）。
+func (f *Flex) distributeFill(fillCount, totalWeight int, containerSize, used int64, sizes []int64, rendered [][]string, renderFn func(i int, size int64) []string) {
+	if fillCount <= 0 {
+		return
+	}
+	remaining := containerSize - used
+	if containerSize <= 0 || remaining < 0 {
+		remaining = 0
+	}
+	perWeight := int64(0)
+	if totalWeight > 0 {
+		perWeight = remaining / int64(totalWeight)
+	}
+	allocated := int64(0)
+	fi := 0
+	for i, ch := range f.Children {
+		if ch.Policy != SizeFill {
+			continue
+		}
+		fi++
+		weight := ch.Weight
+		if weight <= 0 {
+			weight = 1
+		}
+		size := perWeight * int64(weight)
+		if fi == fillCount {
+			size = remaining - allocated
+		}
+		if size < 1 {
+			size = 1
+		}
+		sizes[i] = size
+		if ch.OnAllocate != nil {
+			ch.OnAllocate(size)
+		}
+		rendered[i] = renderFn(i, size)
+		allocated += size
+	}
+}
+
+// distributeVerticalFill 为纵向布局的 Fill 子元素分配剩余高度。
+func (f *Flex) distributeVerticalFill(fillCount, totalWeight int, containerSize, used, width int64, sizes []int64, rendered [][]string) {
+	f.distributeFill(fillCount, totalWeight, containerSize, used, sizes, rendered, func(i int, _ int64) []string {
+		return f.Children[i].Component.Render(width)
+	})
+}
+
+// distributeHorizontalFill 为横向布局的 Fill 子元素分配剩余宽度，
+// 返回渲染后的最大行高。
+func (f *Flex) distributeHorizontalFill(fillCount, totalWeight int, containerSize, used int64, sizes []int64, rendered [][]string) int64 {
+	maxHeight := int64(0)
+	f.distributeFill(fillCount, totalWeight, containerSize, used, sizes, rendered, func(i int, size int64) []string {
+		lines := f.Children[i].Component.Render(size)
+		if h := int64(len(lines)); h > maxHeight {
+			maxHeight = h
+		}
+		return lines
+	})
+	return maxHeight
 }

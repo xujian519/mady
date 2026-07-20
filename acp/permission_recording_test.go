@@ -37,9 +37,9 @@ func TestRecordPermissionDecision_Persists(t *testing.T) {
 	srv := newRecordingTestServer(t, store)
 	ctx := context.Background()
 
-	srv.recordPermissionDecision("sess-1", "bash", map[string]any{"command": "ls"}, domains.DecisionAdopted, "allow_once")
-	srv.recordPermissionDecision("sess-1", "write_file", map[string]any{"path": "/tmp/x"}, domains.DecisionRejected, "reject_once")
-	srv.recordPermissionDecision("sess-1", "bash", nil, domains.DecisionRejected, "canceled_or_error")
+	srv.recordPermissionDecision(ctx, "sess-1", "bash", map[string]any{"command": "ls"}, domains.DecisionAdopted, "allow_once")
+	srv.recordPermissionDecision(ctx, "sess-1", "write_file", map[string]any{"path": "/tmp/x"}, domains.DecisionRejected, "reject_once")
+	srv.recordPermissionDecision(ctx, "sess-1", "bash", nil, domains.DecisionRejected, "canceled_or_error")
 
 	records, err := store.List(ctx, "sess-1")
 	if err != nil {
@@ -74,6 +74,7 @@ func TestRecordPermissionDecision_Persists(t *testing.T) {
 // TestRecordPermissionDecision_NoStore 验证未配置 store 时为安全 no-op。
 func TestRecordPermissionDecision_NoStore(t *testing.T) {
 	srv := newRecordingTestServer(t, nil)
+	ctx := context.Background()
 	// 不应 panic，也不产生任何副作用。
-	srv.recordPermissionDecision("sess-x", "bash", nil, domains.DecisionAdopted, "allow_once")
+	srv.recordPermissionDecision(ctx, "sess-x", "bash", nil, domains.DecisionAdopted, "allow_once")
 }

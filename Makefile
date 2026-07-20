@@ -11,7 +11,7 @@ BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS ?= -ldflags "-s -w -X main.commitHash=$(COMMIT_HASH) -X main.buildTime=$(BUILD_TIME)"
 GOLANGCI_LINT_VERSION ?= v2.12.2
 
-.PHONY: all build test test-race test-short test-integration test-verbose coverage vet lint fmt clean \
+.PHONY: all build test test-race test-short test-integration test-verbose test-disclosure-smoke test-approval-audit test-dry-run-gate coverage vet lint fmt clean \
         install install-hooks install-lint \
         build-cli-chat build-wiki-import build-acp-server build-mady \
         run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client run-mady run-acp-server \
@@ -69,6 +69,17 @@ test-integration:
 test-verbose:
 	$(GO) test $(GOFLAGS) -v -count=1 ./...
 	cd tools && $(GO) test $(GOFLAGS) -v -count=1 ./...
+
+# disclosure smoke 验证最小 happy path：analyze -> awaiting_review -> review -> export
+test-disclosure-smoke:
+	$(GO) test $(GOFLAGS) -count=1 -run TestDisclosureHappyPathSmoke ./server
+
+# approval audit 验证 TUI / Server / ACP 三条人工决策留痕入口的记录语义一致
+test-approval-audit:
+	$(GO) test $(GOFLAGS) -count=1 ./domains ./server ./acp ./cmd/mady
+
+# disclosure 内部 dry-run gate：主路径 happy path + 留痕一致性
+test-dry-run-gate: test-disclosure-smoke test-approval-audit
 
 # --- Eval Suite (CI Gate) ---
 # eval runs the benchmark test suite under agentcore/evaluate/benchmark.
@@ -187,6 +198,9 @@ help:
 	@echo "  test-short         Run tests in short mode"
 	@echo "  test-integration   Run integration e2e tests (build tag: integration)"
 	@echo "  test-verbose       Run tests with verbose output"
+	@echo "  test-disclosure-smoke  Run the disclosure happy-path smoke test"
+	@echo "  test-approval-audit   Run approval-record consistency tests"
+	@echo "  test-dry-run-gate    Run the disclosure internal dry-run gate"
 	@echo ""
 	@echo "Eval:"
 	@echo "  eval               Run Golden Benchmark CI gate (metric chain + case integrity)"

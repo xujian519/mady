@@ -23,6 +23,17 @@ import (
 	"github.com/xujian519/mady/session"
 )
 
+func openEvalStore(evalDB string) (*knowledge.EvalStore, error) {
+	if err := util.EnsureDir(filepath.Dir(evalDB)); err != nil {
+		return nil, fmt.Errorf("prepare eval store dir: %w", err)
+	}
+	store, err := knowledge.NewEvalStore(knowledge.EvalStoreConfig{DSN: evalDB})
+	if err != nil {
+		return nil, fmt.Errorf("open eval store: %w", err)
+	}
+	return store, nil
+}
+
 // runServer launches the HTTP/SSE API server with multi-domain routing.
 func runServer(ctx context.Context) {
 	fs := flag.NewFlagSet("mady serve", flag.ExitOnError)
@@ -39,7 +50,7 @@ func runServer(ctx context.Context) {
 		return
 	}
 
-	fc := setupFrameworkContext(ctx)
+	fc := setupFrameworkContext(ctx, "serve")
 
 	// Build Router config from manifests (or use hardcoded fallback).
 	cfg := buildRouterConfig(fc.BaseConfig, fc.Manifests)
@@ -121,9 +132,9 @@ func runServer(ctx context.Context) {
 	// 事件总线但无人消费；现在写入 SQLite 并触发阈值告警。
 	if fc.MadyHome != "" {
 		evalDB := filepath.Join(fc.MadyHome, "eval.db")
-		evalStore, err := knowledge.NewEvalStore(knowledge.EvalStoreConfig{DSN: evalDB})
+		evalStore, err := openEvalStore(evalDB)
 		if err != nil {
-			log.Printf("eval store: 打开 %s 失败: %v（评估数据不持久化）", evalDB, err)
+			log.Printf("eval store: %s 不可用: %v（仅禁用评估数据持久化，不影响主服务）", evalDB, err)
 		} else {
 			evalCfg := knowledge.DefaultEvalConfig()
 			consumer := knowledge.NewEvalConsumer(evalStore,

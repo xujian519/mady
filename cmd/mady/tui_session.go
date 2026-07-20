@@ -19,8 +19,6 @@ import (
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/memory"
 	"github.com/xujian519/mady/session"
-	"github.com/xujian519/mady/tools"
-	"github.com/xujian519/mady/tui/agentadapter"
 	"github.com/xujian519/mady/tui/chat"
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
@@ -49,22 +47,24 @@ type tuiSession struct {
 	riskExt      agentcore.Extension
 	writingExt   agentcore.Extension
 	fileIndexExt *fileindex.Extension
-	memExt       *memory.MemoryExtension // 长期记忆扩展（Agent 重建时重新创建）
+	memExt       *memory.MemoryExtension
 
 	// Agent state
-	currentAgent *agentcore.Agent
-	runMu        sync.Mutex
-	cancelMu     sync.Mutex
-	runCancel    context.CancelFunc
+	agentMu           sync.RWMutex
+	currentAgent      *agentcore.Agent
+	agentInitInFlight bool
+	agentInitErr      string
+	shuttingDown      bool
+	runMu             sync.Mutex
+	cancelMu          sync.Mutex
+	runCancel         context.CancelFunc
 
 	// Session persistence
 	agentStore      *session.AgentStore
 	checkpointSaver *agentcore.MemoryCheckpointSaver
 	currentThreadID string
 	sessionDir      string
-	// workflowStore persists five-step workflow checkpoints for the
-	// confirmation gate (Stage ② → human confirm → resume Stage ③).
-	workflowStore reasoning.CheckpointStore
+	workflowStore   reasoning.CheckpointStore
 
 	// Project/case context
 	currentProject     *domains.ProjectRecord
@@ -72,90 +72,27 @@ type tuiSession struct {
 	currentFileIndex   *fileindex.FileIndex
 	currentFileWatcher *fileindex.FileWatcher
 
-	// Approval gate state — persists human decisions (adopted/modified/rejected)
-	// to accumulate real AdoptionRate data for evaluation (see P3 roadmap).
+	// Approval gate state
 	approvalGate *domains.ApprovalGate
 
 	// toolApprover is the interactive tool-call approval controller.
-	// When PermissionExtension returns DecisionAsk, the agent goroutine
-	// blocks in Approve() while the TUI main loop polls PollPending().
 	toolApprover *permission.TUIChannelApprover
 
 	app *chat.ChatApp
 
-	// slashReg is the single source of truth for slash commands: both
-	// handleSubmit (dispatch) and the autocomplete menu read from it.
+	// slashReg is the single source of truth for slash commands.
 	slashReg *Registry
 
-	// store is the single source of truth for settings (theme, plan, review, thinking).
-	// All slash-command handlers read/write through it; the convenience fields below
-	// are synced from the store at startup.
+	// store is the single source of truth for settings.
 	store *SettingsStore
 }
 
-// isPlanMode reports whether plan mode is enabled.
-func (s *tuiSession) isPlanMode() bool { return s.store.Get(SettingKeyPlan) == "on" }
+// --- Simple accessors ---
 
-// isReviewMode reports whether the review gate is enabled.
+func (s *tuiSession) isPlanMode() bool   { return s.store.Get(SettingKeyPlan) == "on" }
 func (s *tuiSession) isReviewMode() bool { return s.store.Get(SettingKeyReview) == "on" }
+func (s *tuiSession) themeName() string  { return s.store.Get(SettingKeyTheme) }
 
-// detectAgentID 返回当前 Agent 角色的标识符，用于记忆作用域隔离。
-func (s *tuiSession) detectAgentID() string {
-	switch {
-	case s.useIntegratedMode:
-		return "chat-agent"
-	case s.useMultiDomain:
-		return "router"
-	default:
-		return "single"
-	}
-}
-
-// detectProjectID 返回当前案件的 ProjectID（如有），用于记忆作用域隔离。
-func (s *tuiSession) detectProjectID() string {
-	if s.currentProject != nil {
-		return s.currentProject.ProjectID
-	}
-	return ""
-}
-
-// buildMemoryExtension 根据当前会话状态构建 MemoryExtension。
-// 使用 WithSharedManager() 参数，确保 Dispose 时不关闭框架级共享 Manager。
-// 当 fc.MemoryManager 为 nil 时返回 nil（记忆功能不可用）。
-func (s *tuiSession) buildMemoryExtension() *memory.MemoryExtension {
-	if s.fc.MemoryManager == nil {
-		return nil
-	}
-	scope := memory.MemoryScope{
-		UserID:    s.currentThreadID,
-		SessionID: s.currentThreadID,
-		AgentID:   s.detectAgentID(),
-		ProjectID: s.detectProjectID(),
-	}
-	ext := memory.NewExtension(s.fc.MemoryManager, scope,
-		memory.DefaultExtensionConfig(), memory.WithSharedManager())
-
-	// 若框架级会话汇总器可用，注入到扩展实例（会话关闭时异步汇总）
-	if s.fc.SessionSummarizer != nil {
-		ext.SetSummarizer(s.fc.SessionSummarizer)
-	}
-
-	return ext
-}
-
-// injectMemoryExtension 将 s.memExt 注入到 agentcore.Config 的 Extensions 列表中。
-// 当 memExt 为 nil 时直接返回原 cfg 不变。
-func (s *tuiSession) injectMemoryExtension(cfg agentcore.Config) agentcore.Config {
-	if s.memExt != nil {
-		cfg.Extensions = append(cfg.Extensions, s.memExt)
-	}
-	return cfg
-}
-
-// themeName returns the current theme name from the store.
-func (s *tuiSession) themeName() string { return s.store.Get(SettingKeyTheme) }
-
-// applyThinkingConfig converts a ThinkingConfig to a store value and persists it.
 func (s *tuiSession) applyThinkingConfig(cfg *agentcore.ThinkingConfig) {
 	val := "default"
 	if cfg != nil {
@@ -182,311 +119,26 @@ func (s *tuiSession) thinkingConfig() *agentcore.ThinkingConfig {
 	}
 }
 
-// buildAgentConfig constructs the agentcore.Config based on current session state.
-// It replaces the former buildCfg closure inside runTui.
-func (s *tuiSession) buildAgentConfig() agentcore.Config {
-	// 构建当前会话的记忆作用域和 MemoryExtension。
-	s.memExt = s.buildMemoryExtension()
-
+func (s *tuiSession) detectAgentID() string {
 	switch {
 	case s.useIntegratedMode:
-		base := s.fc.BaseConfig
-		base.Name = "chat-agent"
-		base.ModelConfig = agentcore.ModelConfig{
-			Name:      "mady",
-			Model:     s.model,
-			Provider:  s.provider,
-			Thinking:  cloneThinkingConfig(s.thinkingConfig()),
-			Streaming: true,
-		}
-		if s.isPlanMode() {
-			base.Model = s.planModel
-			if base.Thinking == nil {
-				base.Thinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
-			} else {
-				base.Thinking.Effort = agentcore.ThinkingEffortMax
-			}
-		}
-		// Inject permission extension with TUI approver before domain factory.
-		if s.toolApprover != nil {
-			base.Extensions = append(base.Extensions,
-				permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))
-		}
-		cfg := domains.IntegratedChatConfig(base)
-		if s.fc.WikiHook != nil {
-			cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, s.fc.WikiHook)
-		}
-		if s.fc.KnowledgeExt != nil {
-			cfg.Extensions = append(cfg.Extensions, s.fc.KnowledgeExt)
-		}
-		if s.ruleExt != nil {
-			cfg.Extensions = append(cfg.Extensions, s.ruleExt)
-		}
-		if s.riskExt != nil {
-			cfg.Extensions = append(cfg.Extensions, s.riskExt)
-		}
-		if s.writingExt != nil {
-			cfg.Extensions = append(cfg.Extensions, s.writingExt)
-		}
-		cfg.Extensions = append(cfg.Extensions, s.fileIndexExt)
-		return s.injectMemoryExtension(s.applyPersistence(cfg))
-
+		return "chat-agent"
 	case s.useMultiDomain:
-		// Inject permission extension with TUI approver before domain factory.
-		if s.toolApprover != nil {
-			base := s.fc.BaseConfig
-			base.Extensions = append(base.Extensions,
-				permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))
-		}
-		cfg := buildRouterConfig(s.fc.BaseConfig, s.fc.Manifests)
-		cfg.Thinking = cloneThinkingConfig(s.thinkingConfig())
-		if s.isPlanMode() {
-			cfg.Model = s.planModel
-			if cfg.Thinking == nil {
-				cfg.Thinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
-			} else {
-				cfg.Thinking.Effort = agentcore.ThinkingEffortMax
-			}
-		}
-		if s.fc.WikiHook != nil {
-			cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, s.fc.WikiHook)
-		}
-		if s.fc.KnowledgeExt != nil {
-			cfg.Extensions = append(cfg.Extensions, s.fc.KnowledgeExt)
-		}
-		if s.ruleExt != nil {
-			cfg.Extensions = append(cfg.Extensions, s.ruleExt)
-		}
-		if s.riskExt != nil {
-			cfg.Extensions = append(cfg.Extensions, s.riskExt)
-		}
-		if s.writingExt != nil {
-			cfg.Extensions = append(cfg.Extensions, s.writingExt)
-		}
-		cfg.Extensions = append(cfg.Extensions, s.fileIndexExt)
-		return s.injectMemoryExtension(s.applyPersistence(cfg))
-
+		return "router"
 	default:
-		effectiveModel := s.model
-		effectiveThinking := cloneThinkingConfig(s.thinkingConfig())
-		if s.isPlanMode() {
-			effectiveModel = s.planModel
-			if effectiveThinking == nil {
-				effectiveThinking = &agentcore.ThinkingConfig{Effort: agentcore.ThinkingEffortMax}
-			} else {
-				effectiveThinking.Effort = agentcore.ThinkingEffortMax
-			}
-		}
-		singleCfg := agentcore.Config{
-			ModelConfig: agentcore.ModelConfig{
-				Name:      "mady",
-				Model:     effectiveModel,
-				Provider:  s.provider,
-				Thinking:  effectiveThinking,
-				Streaming: true,
-			},
-			SystemPrompt: defaultSystemPrompt,
-			ExecutionConfig: agentcore.ExecutionConfig{
-				MaxTurns:          25,
-				ExecutionMode:     agentcore.ModeSerial,
-				ValidateArguments: true,
-			},
-			CompactionConfig: agentcore.CompactionConfig{
-				ContextWindow:    128000,
-				ReserveTokens:    32000,
-				KeepRecentTokens: 4000,
-			},
-			RetryConfig: &agentcore.RetryConfig{
-				MaxRetries:  3,
-				BaseDelayMs: 1000,
-				MaxDelayMs:  15000,
-			},
-			Lifecycle: s.fc.WikiHook,
-		}
-		if s.fc.KnowledgeExt != nil {
-			singleCfg.Extensions = append(singleCfg.Extensions, s.fc.KnowledgeExt)
-		}
-		if s.ruleExt != nil {
-			singleCfg.Extensions = append(singleCfg.Extensions, s.ruleExt)
-		}
-		if s.riskExt != nil {
-			singleCfg.Extensions = append(singleCfg.Extensions, s.riskExt)
-		}
-		if s.writingExt != nil {
-			singleCfg.Extensions = append(singleCfg.Extensions, s.writingExt)
-		}
-		singleCfg.Extensions = append(singleCfg.Extensions, s.fileIndexExt)
-		return s.injectMemoryExtension(s.applyPersistence(singleCfg))
+		return "single"
 	}
 }
 
-// applyPersistence injects session store, checkpoint, project context,
-// review gate, and vision config into the given agent config.
-func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
-	if s.agentStore != nil {
-		cfg.Store = s.agentStore
-	}
-	cfg.Checkpoint = &agentcore.CheckpointSettings{
-		Saver:    s.checkpointSaver,
-		ThreadID: s.currentThreadID,
-	}
+func (s *tuiSession) detectProjectID() string {
 	if s.currentProject != nil {
-		cfg.WorkspaceDir = s.currentProject.RootPath
-		cfg.ProjectDir = s.currentProject.RootPath
-		cfg.SystemPrompt += formatProjectContext(s.currentProject, s.currentProjectMeta)
-
-		retriever := buildReasoningRetriever(s.fc)
-		var llmClient reasoning.LlmClient
-		if s.provider != nil {
-			llmClient = reasoning.NewLlmClientFromProvider(s.provider, s.model)
-		}
-		runner := reasoning.NewWorkflowRunner(
-			s.currentProject.ProjectID,
-			mapMatterTypeToCaseType(s.currentProjectMeta),
-			s.currentProject.Domain,
-			retriever,
-			llmClient,
-		)
-		// Confirmation gate: when review mode is on, Stage ② interrupts for
-		// human rule confirmation. The workflow checkpoint store (lazily
-		// initialized) persists the interruption point for resumption.
-		if s.isReviewMode() {
-			runner.SetRequireRuleConfirmation(true)
-			if s.workflowStore == nil {
-				s.workflowStore = reasoning.NewMemoryCheckpointStore()
-			}
-		}
-		cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowToolWithCheckpoint(runner, s.workflowStore))
-	} else if cfg.ProjectDir != "" {
-		cfg.SystemPrompt += fmt.Sprintf(
-			"\n\n【当前工作目录】\n你正在「%s」目录下工作。可以使用文件工具（read、ls、grep、find、write_file 等）读取和分析该目录中的文件。用户提到的相对路径默认基于此目录。",
-			cfg.ProjectDir,
-		)
+		return s.currentProject.ProjectID
 	}
-
-	if s.isReviewMode() {
-		var gate *domains.ApprovalGate
-		// Wire up SQLite persistence so human decisions (adopted/modified/rejected)
-		// are recorded for AdoptionRate evaluation (roadmap P3). Falls back to
-		// in-memory store if the SQLite store cannot be opened.
-		if store, err := s.openApprovalStore(); err == nil {
-			gate = domains.NewApprovalGate(domains.DefaultApprovalConfig(), domains.WithApprovalStore(store))
-		} else {
-			gate = domains.NewApprovalGate(domains.DefaultApprovalConfig(), domains.WithApprovalStore(domains.NewMemoryApprovalStore()))
-		}
-		s.approvalGate = gate
-		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, gate)
-	} else {
-		s.approvalGate = nil
-	}
-
-	for _, ext := range cfg.Extensions {
-		if te, ok := ext.(*tools.Extension); ok {
-			te.WithVision(s.provider, s.model)
-		}
-	}
-
-	return cfg
+	return ""
 }
 
-// rebuildAgent recreates the current agent from the latest config and rebinds it to the UI.
-func (s *tuiSession) rebuildAgent() {
-	s.runMu.Lock()
-	defer s.runMu.Unlock()
-	prev := s.currentAgent
-	s.currentAgent = agentcore.New(s.buildAgentConfig())
-	prev.Close()
-	agentadapter.BindAgent(s.app, s.currentAgent)
-}
+// --- Slash command handlers ---
 
-// submitInput sends user input to the current agent asynchronously.
-// The agent runs in a separate goroutine to avoid blocking the TUI event loop.
-//
-// 启动序列中 app.Start() 先于 agentcore.New 完成（见 tui.go），因此存在
-// 窗口期：TUI 已可接收输入，但 s.currentAgent 尚未赋值。此处必须做 nil
-// 防御，否则 goroutine 内 agent.Run 会解引用 nil receiver 导致 panic。
-func (s *tuiSession) submitInput(input string) {
-	agent := s.currentAgent
-	if agent == nil {
-		s.app.PrintSystem("Agent 正在初始化，请稍候片刻再发送消息…")
-		return
-	}
-	store := s.agentStore
-	threadID := s.currentThreadID
-	go func() {
-		s.runMu.Lock()
-		defer s.runMu.Unlock()
-
-		runCtx, cancel := context.WithCancel(s.ctx)
-		s.cancelMu.Lock()
-		s.runCancel = cancel
-		s.cancelMu.Unlock()
-		defer func() {
-			s.cancelMu.Lock()
-			s.runCancel = nil
-			s.cancelMu.Unlock()
-		}()
-
-		if _, err := agent.Run(runCtx, input); err != nil {
-			log.Printf("[mady] agent run failed: %v", err)
-			return
-		}
-		if store == nil {
-			return
-		}
-		if err := agent.SaveState(context.Background(), threadID); err != nil {
-			log.Printf("[mady] save state: %v", err)
-		}
-	}()
-}
-
-// resumeIfInterrupted continues the agent from an interrupt point (e.g. the
-// disclosure review_gate) by calling agent.Resume, which preserves the
-// interrupted runLoop's state. Returns true when a resume was initiated.
-//
-// This is the hard-interrupt recovery path, distinct from submitInput: when a
-// Pregel tool node returns InterruptError, the agent loop exits and only
-// Resume() can pick it up — submitInput would instead start a fresh turn and
-// lose the in-flight tool context. Callers (/approve) should try this first
-// and fall back to submitInput only when the agent is not interrupted (the
-// ApprovalGate keyword-triggered soft-interrupt case).
-func (s *tuiSession) resumeIfInterrupted() bool {
-	agent := s.currentAgent
-	if agent == nil || agent.Interrupted() == nil {
-		return false
-	}
-	store := s.agentStore
-	threadID := s.currentThreadID
-	go func() {
-		s.runMu.Lock()
-		defer s.runMu.Unlock()
-
-		runCtx, cancel := context.WithCancel(s.ctx)
-		s.cancelMu.Lock()
-		s.runCancel = cancel
-		s.cancelMu.Unlock()
-		defer func() {
-			s.cancelMu.Lock()
-			s.runCancel = nil
-			s.cancelMu.Unlock()
-		}()
-
-		if _, err := agent.Resume(runCtx); err != nil {
-			log.Printf("[mady] agent resume failed: %v", err)
-			return
-		}
-		if store == nil {
-			return
-		}
-		if err := agent.SaveState(context.Background(), threadID); err != nil {
-			log.Printf("[mady] save state: %v", err)
-		}
-	}()
-	return true
-}
-
-// handleSubmit processes user input from the TUI, dispatching slash commands
-// via the slash registry or forwarding plain text to the agent.
 func (s *tuiSession) handleSubmit(input string) {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
@@ -543,18 +195,13 @@ func (s *tuiSession) handleThinkingCommand(trimmed string) {
 		return
 	}
 	s.applyThinkingConfig(next)
-	s.runMu.Lock()
-	prev := s.currentAgent
-	s.currentAgent = agentcore.New(s.buildAgentConfig())
-	prev.Close()
-	agentadapter.BindAgent(s.app, s.currentAgent)
+	s.rebuildAgent()
 	s.app.PrintSystem("推理配置已更新: " + formatThinkingConfig(s.thinkingConfig()))
 	mdl := s.normalModel
 	if s.isPlanMode() {
 		mdl = s.planModel
 	}
 	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
-	s.runMu.Unlock()
 }
 
 func (s *tuiSession) handleThemeCommand(trimmed string) {
@@ -569,6 +216,7 @@ func (s *tuiSession) handleThemeCommand(trimmed string) {
 			log.Printf("settings: persist theme: %v", err)
 		}
 		s.app.PrintSystem("已切换浅色主题")
+
 	case "/theme dark":
 		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
 		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
@@ -802,8 +450,7 @@ func (s *tuiSession) handleExportCommand(trimmed string) {
 	s.app.PrintSystem(fmt.Sprintf("📄 已导出到 %s（%d 条消息）", exportPath, len(msgs)))
 }
 
-// handleReviewCommandEx implements /review [on|off|status] with idempotent semantics.
-// Bare /review (no argument) displays current status.
+// handleReviewCommandEx implements /review [on|off|status].
 func (s *tuiSession) handleReviewCommandEx(sub string) {
 	switch sub {
 	case "on":
@@ -823,7 +470,6 @@ func (s *tuiSession) handleReviewCommandEx(sub string) {
 			log.Printf("settings: persist review: %v", err)
 		}
 	default:
-		// 查看状态：/review 或 /review status
 		status := "关闭"
 		if s.isReviewMode() {
 			status = "启用"
@@ -832,12 +478,7 @@ func (s *tuiSession) handleReviewCommandEx(sub string) {
 		return
 	}
 
-	s.runMu.Lock()
-	prev := s.currentAgent
-	s.currentAgent = agentcore.New(s.buildAgentConfig())
-	prev.Close()
-	s.runMu.Unlock()
-	agentadapter.BindAgent(s.app, s.currentAgent)
+	s.rebuildAgent()
 	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
 	if s.isReviewMode() {
 		s.app.PrintSystem("⚖ 审核关卡已启用 — 专利结论/法律意见/风险评估将插入人工审核提示")
@@ -856,8 +497,7 @@ func (s *tuiSession) handleReviewCommandEx(sub string) {
 	}
 }
 
-// handlePlanCommandEx implements /plan [on|off|status] with idempotent semantics.
-// Bare /plan (no argument) displays current status.
+// handlePlanCommandEx implements /plan [on|off|status].
 func (s *tuiSession) handlePlanCommandEx(sub string) {
 	switch sub {
 	case "on":
@@ -877,7 +517,6 @@ func (s *tuiSession) handlePlanCommandEx(sub string) {
 			log.Printf("settings: persist plan: %v", err)
 		}
 	default:
-		// 查看状态：/plan 或 /plan status
 		status := "关闭（普通模式）"
 		mdl := s.normalModel
 		if s.isPlanMode() {
@@ -888,12 +527,7 @@ func (s *tuiSession) handlePlanCommandEx(sub string) {
 		return
 	}
 
-	s.runMu.Lock()
-	prev := s.currentAgent
-	s.currentAgent = agentcore.New(s.buildAgentConfig())
-	prev.Close()
-	s.runMu.Unlock()
-	agentadapter.BindAgent(s.app, s.currentAgent)
+	s.rebuildAgent()
 	mdl := s.normalModel
 	if s.isPlanMode() {
 		mdl = s.planModel
@@ -906,13 +540,12 @@ func (s *tuiSession) handlePlanCommandEx(sub string) {
 	}
 }
 
-// buildSidebar creates a simple sidebar panel showing session and case context.
-// Called once at startup when the terminal is >= 96 columns wide.
+// --- Sidebar ---
+
 func (s *tuiSession) buildSidebar() core.Component {
 	return &sidebarPanel{session: s}
 }
 
-// sidebarPanel is a simple sidebar component for the Mady TUI.
 type sidebarPanel struct {
 	session *tuiSession
 }
@@ -927,7 +560,6 @@ func (p *sidebarPanel) Render(width int64) []string {
 	}
 
 	var lines []string
-	// Title + session info
 	lines = append(lines,
 		accent("▎ Mady"),
 		dim(strings.Repeat("─", int(width))),
@@ -935,7 +567,6 @@ func (p *sidebarPanel) Render(width int64) []string {
 		"  "+core.TruncateToWidth(s.currentThreadID, width-4, "…"),
 	)
 
-	// Case context
 	if s.currentProject != nil {
 		lines = append(lines,
 			"",
@@ -944,7 +575,6 @@ func (p *sidebarPanel) Render(width int64) []string {
 		)
 	}
 
-	// Status
 	lines = append(lines, "", dim("⚙ 模式"))
 	modeStatus := "普通"
 	if s.isPlanMode() {
@@ -954,7 +584,6 @@ func (p *sidebarPanel) Render(width int64) []string {
 		modeStatus += " · 审核"
 	}
 
-	// Quick actions
 	lines = append(lines,
 		"  "+modeStatus,
 		"",
@@ -964,29 +593,22 @@ func (p *sidebarPanel) Render(width int64) []string {
 		"  ?     快捷键",
 	)
 
-	// Fill remaining space
 	for int64(len(lines)) < 20 {
 		lines = append(lines, "")
 	}
-
 	return lines
 }
 
 func (p *sidebarPanel) Invalidate() {}
 
-// handleSettingsReset restores all settings to factory defaults and rebuilds the agent.
+// --- Settings ---
+
 func (s *tuiSession) handleSettingsReset() {
 	if err := s.store.Reset(); err != nil {
 		s.app.PrintError(fmt.Errorf("settings reset failed: %w", err))
 		return
 	}
-	// Rebuild agent with defaults
-	s.runMu.Lock()
-	prev := s.currentAgent
-	s.currentAgent = agentcore.New(s.buildAgentConfig())
-	prev.Close()
-	s.runMu.Unlock()
-	agentadapter.BindAgent(s.app, s.currentAgent)
+	s.rebuildAgent()
 	mdl := s.normalModel
 	if s.isPlanMode() {
 		mdl = s.planModel
@@ -998,10 +620,8 @@ func (s *tuiSession) handleSettingsReset() {
 	}
 }
 
-// openApprovalStore creates a SQLite-backed ApprovalStore in the workspace
-// directory. The store persists human approval decisions (adopted/modified/
-// rejected) so that real AdoptionRate data accumulates across sessions —
-// the foundation for P3 expert blind testing and Golden Benchmark regression.
+// --- Approval store ---
+
 func (s *tuiSession) openApprovalStore() (domains.ApprovalStore, error) {
 	base := s.fc.WorkspaceDir
 	if base == "" {
@@ -1018,10 +638,6 @@ func (s *tuiSession) openApprovalStore() (domains.ApprovalStore, error) {
 	return store, nil
 }
 
-// recordApprovalDecision persists the human operator's verdict on the last
-// gated Agent output. Called from /approve (adopted) and /reject (rejected).
-// For /approve followed by edits, the modified output can be passed via the
-// modifiedOutput parameter (used by a future /modify command).
 func (s *tuiSession) recordApprovalDecision(decision domains.ApprovalDecision, modifiedOutput, feedback string) {
 	if s.approvalGate == nil {
 		return
@@ -1030,13 +646,9 @@ func (s *tuiSession) recordApprovalDecision(decision domains.ApprovalDecision, m
 	if s.currentProject != nil {
 		caseID = s.currentProject.ProjectID
 	}
-	// 硬中断（如 disclosure review_gate）等待 Resume 时，ApprovalGate 的
-	// lastTriggeredOutput 并未经过关键词触发，若仍按软中断路径留痕会丢失
-	// 被审对象。改用中断原因与结构化数据填充记录，确保复核结论能定位到
-	// 具体的 gate 与报告（P3 盲测需要按记录回溯被审产出）。
 	triggerKeyword := "review"
 	originalOutput := ""
-	if agent := s.currentAgent; agent != nil {
+	if agent := s.getCurrentAgent(); agent != nil {
 		if ir := agent.Interrupted(); ir != nil {
 			if gate, ok := ir.Data["gate"].(string); ok && gate != "" {
 				triggerKeyword = gate
@@ -1051,7 +663,6 @@ func (s *tuiSession) recordApprovalDecision(decision domains.ApprovalDecision, m
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
-	// originalOutput 为空时（纯关键词软中断）由 gate 使用 lastTriggeredOutput。
 	if err := s.approvalGate.RecordDecision(ctx, s.currentThreadID, caseID, triggerKeyword, originalOutput, decision, modifiedOutput, feedback); err != nil {
 		log.Printf("approval: record decision: %v", err)
 	}
