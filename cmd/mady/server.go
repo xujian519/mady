@@ -23,9 +23,48 @@ import (
 	"github.com/xujian519/mady/session"
 )
 
+func preflightWritableSQLitePath(dbPath string) error {
+	dir := filepath.Dir(dbPath)
+	if err := util.EnsureDir(dir); err != nil {
+		return fmt.Errorf("prepare db dir: %w", err)
+	}
+
+	probePath := filepath.Join(dir, fmt.Sprintf(".mady-write-probe-%d.tmp", time.Now().UnixNano()))
+	probeFile, err := os.OpenFile(probePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("probe db dir writable: %w", err)
+	}
+	if _, err := probeFile.WriteString("probe"); err != nil {
+		_ = probeFile.Close()
+		_ = os.Remove(probePath)
+		return fmt.Errorf("probe db dir write: %w", err)
+	}
+	if err := probeFile.Close(); err != nil {
+		_ = os.Remove(probePath)
+		return fmt.Errorf("close dir probe: %w", err)
+	}
+	if err := os.Remove(probePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cleanup dir probe: %w", err)
+	}
+
+	if _, err := os.Stat(dbPath); err == nil {
+		dbFile, openErr := os.OpenFile(dbPath, os.O_RDWR, 0)
+		if openErr != nil {
+			return fmt.Errorf("open existing db read-write: %w", openErr)
+		}
+		if closeErr := dbFile.Close(); closeErr != nil {
+			return fmt.Errorf("close existing db handle: %w", closeErr)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("stat db path: %w", err)
+	}
+
+	return nil
+}
+
 func openEvalStore(evalDB string) (*knowledge.EvalStore, error) {
-	if err := util.EnsureDir(filepath.Dir(evalDB)); err != nil {
-		return nil, fmt.Errorf("prepare eval store dir: %w", err)
+	if err := preflightWritableSQLitePath(evalDB); err != nil {
+		return nil, fmt.Errorf("preflight eval store path: %w", err)
 	}
 	store, err := knowledge.NewEvalStore(knowledge.EvalStoreConfig{DSN: evalDB})
 	if err != nil {
@@ -105,12 +144,16 @@ func runServer(ctx context.Context) {
 		approvalDir = fc.MadyHome
 	}
 	if approvalDir != "" {
-		if err := os.MkdirAll(approvalDir, 0o755); err == nil {
-			if approvalStore, err := sqlitestore.NewApprovalStore(filepath.Join(approvalDir, "approvals.db")); err == nil {
+		approvalDB := filepath.Join(approvalDir, "approvals.db")
+		preflightErr := preflightWritableSQLitePath(approvalDB)
+		if preflightErr == nil {
+			if approvalStore, err := sqlitestore.NewApprovalStore(approvalDB); err == nil {
 				srv.SetApprovalStore(approvalStore)
 			} else {
-				log.Printf("approval store: %v（复核留痕不可用，/review 端点将返回 503）", err)
+				log.Printf("approval store: %s 不可用: %v（复核留痕不可用，/review 端点将返回 503）", approvalDB, err)
 			}
+		} else {
+			log.Printf("approval store: %s 不可写: %v（复核留痕不可用，/review 端点将返回 503）", approvalDB, preflightErr)
 		}
 	}
 	// 技术交底书分析现有技术检索器：从已打开的知识库构建 PatentDomainRetriever。
@@ -134,7 +177,7 @@ func runServer(ctx context.Context) {
 		evalDB := filepath.Join(fc.MadyHome, "eval.db")
 		evalStore, err := openEvalStore(evalDB)
 		if err != nil {
-			log.Printf("eval store: %s 不可用: %v（仅禁用评估数据持久化，不影响主服务）", evalDB, err)
+			log.Printf("eval store: %s 不可写: %v（仅禁用评估数据持久化，不影响主服务）", evalDB, err)
 		} else {
 			evalCfg := knowledge.DefaultEvalConfig()
 			consumer := knowledge.NewEvalConsumer(evalStore,

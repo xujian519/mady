@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/domains"
@@ -163,5 +165,35 @@ func TestSQLiteApprovalStore_Delete(t *testing.T) {
 	records, _ := store.ListByCase(ctx, "case_del")
 	if len(records) != 0 {
 		t.Errorf("expected 0 records after delete, got %d", len(records))
+	}
+}
+
+func TestNewApprovalStore_FailsReadonlyDatabase(t *testing.T) {
+	dir, err := os.MkdirTemp("", "approval_test")
+	if err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	dbPath := filepath.Join(dir, "approval.db")
+	store, err := NewApprovalStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewApprovalStore initial create: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if err := os.Chmod(dbPath, 0o444); err != nil {
+		t.Fatalf("Chmod readonly: %v", err)
+	}
+	defer func() { _ = os.Chmod(dbPath, 0o644) }()
+
+	_, err = NewApprovalStore(dbPath)
+	if err == nil {
+		t.Fatal("NewApprovalStore should fail for readonly database")
+	}
+	if !strings.Contains(err.Error(), "readonly") && !strings.Contains(err.Error(), "write probe") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

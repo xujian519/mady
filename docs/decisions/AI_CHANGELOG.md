@@ -1,3 +1,38 @@
+## 2026-07-20: disclosure 真实 dry-run 收口与 SQLite 可写性预检
+
+### 背景
+- 真实 DeepSeek 环境下，`POST /v1/disclosure/analyze` 已恢复可用，但继续执行手工 dry-run 时，
+  `POST /v1/disclosure/analyze/{task_id}/review` 在默认 `~/.mady/workspace/approvals.db`
+  上返回 500。
+- 受控实例日志确认根因为 `approval/sqlite: save: attempt to write a readonly database (8)`；
+  也即审批留痕问题暴露得过晚，启动阶段未能提前识别默认数据目录/SQLite 文件不可写。
+
+### 变更（4 文件）
+- `domains/sqlite/approval_store.go`
+  - 在 `NewApprovalStore()` 完成 schema 初始化后追加真实写探针：
+    通过事务内向 `approval_records` 插入一条探测记录并回滚，
+    将只读数据库从“运行时 /review 才失败”前移为“启动期打开 store 即失败”。
+- `cmd/mady/server.go`
+  - 新增 `preflightWritableSQLitePath()`，在打开 `approvals.db` / `eval.db` 前先验证：
+    父目录可创建、目录可写、已存在 DB 文件可读写。
+  - 调整 server 启动日志口径，把 SQLite 相关失败统一表述为“不可写”，
+    明确它只会降级审批留痕或评估持久化，不阻断主服务。
+- `domains/sqlite/approval_store_test.go`
+  - 新增只读 DB 初始化失败回归测试，锁定写探针行为。
+- `cmd/mady/server_test.go`
+  - 新增 SQLite 路径预检会自动创建父目录的最小测试。
+
+### 验证
+- 真实手工 dry-run：
+  - 默认 `~/.mady` 环境：成功跑到 `awaiting_review`，但 `/review` 暴露只读 DB 问题并产生日志。
+  - 项目内可写 `MADY_HOME=/Users/xujian/projects/Mady/.tmp/mady-home` 环境：
+    `analyze -> awaiting_review -> reviewed` 全链路通过，`approvals.db` 成功落库
+    `disclosure_review / adopted` 记录。
+- 代码级回归：
+  - 待本轮针对性测试与诊断一起收口。
+
+---
+
 ## 2026-07-20: 全仓技术债务修复（补充：修复 agent_run.go nilness tautology）
 
 ### 变更（1 文件）

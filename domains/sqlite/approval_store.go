@@ -45,6 +45,10 @@ func NewApprovalStore(dbPath string) (*SQLiteApprovalStore, error) {
 		db.Close()
 		return nil, fmt.Errorf("approval/sqlite: init schema: %w", err)
 	}
+	if err := s.probeWritable(context.Background()); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("approval/sqlite: write probe: %w", err)
+	}
 	return s, nil
 }
 
@@ -63,6 +67,22 @@ func (s *SQLiteApprovalStore) initSchema(ctx context.Context) error {
 		CREATE INDEX IF NOT EXISTS idx_approval_case   ON approval_records(case_id);
 	`)
 	return err
+}
+
+func (s *SQLiteApprovalStore) probeWritable(ctx context.Context) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	probeID := fmt.Sprintf("__approval_probe_%d", time.Now().UnixNano())
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO approval_records (id, data) VALUES (?, ?)
+	`, probeID, `{"probe":true}`); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Save persists an ApprovalRecord. If a record with the same ID exists,
