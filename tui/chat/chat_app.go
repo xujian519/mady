@@ -239,13 +239,14 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 	}
 
 	layout := &chatLayout{
-		host:      chatApp,
-		app:       chatApp,
-		history:   history,
-		editor:    editor,
-		loader:    loader,
-		statusBar: statusBar,
-		ac:        chatApp.ac,
+		host:          chatApp,
+		app:           chatApp,
+		history:       history,
+		editor:        editor,
+		loader:        loader,
+		statusBar:     statusBar,
+		ac:            chatApp.ac,
+		editorMaxRows: cfg.EditorMaxRows,
 	}
 	if header != nil {
 		layout.header = header

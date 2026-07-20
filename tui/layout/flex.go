@@ -101,6 +101,18 @@ func (f *Flex) measureHeight(ch Child, width int64) int64 {
 	return int64(len(lines))
 }
 
+// reallocateShrinkable notifies a SizeShrinkable child of its new target
+// height via OnAllocate (so it can shrink its own rendering, e.g. an editor
+// reducing visible rows), re-renders it, and records the assigned size.
+func (f *Flex) reallocateShrinkable(i int, newSize, width int64, rendered [][]string, sizes []int64) {
+	ch := f.Children[i]
+	if ch.OnAllocate != nil {
+		ch.OnAllocate(newSize)
+	}
+	rendered[i] = ch.Component.Render(width)
+	sizes[i] = newSize
+}
+
 func (f *Flex) renderVertical(width int64) []string {
 	totalHeight := f.totalHeight()
 	f.height = totalHeight
@@ -121,6 +133,13 @@ func (f *Flex) renderVertical(width int64) []string {
 		}
 		switch ch.Policy {
 		case SizeNatural:
+			lines := ch.Component.Render(width)
+			rendered[i] = lines
+			sizes[i] = int64(len(lines))
+			used += sizes[i]
+		case SizeShrinkable:
+			// Measure at natural height first; the third pass squeezes it
+			// down (toward Min) only if the container is over-committed.
 			lines := ch.Component.Render(width)
 			rendered[i] = lines
 			sizes[i] = int64(len(lines))
@@ -208,6 +227,69 @@ func (f *Flex) renderVertical(width int64) []string {
 		}
 	}
 
+	// Third pass: if the container is over-committed, squeeze SizeShrinkable
+	// children (down toward their Min) until the total fits totalHeight. Fill
+	// children have already been clamped to their min guard of 1, so only
+	// Shrinkable children can still give back space.
+	if totalHeight > 0 && used > totalHeight {
+		over := used - totalHeight
+		type shrinkEntry struct {
+			idx   int
+			slack int64
+		}
+		var entries []shrinkEntry
+		totalSlack := int64(0)
+		for i, ch := range f.Children {
+			if ch.Policy != SizeShrinkable {
+				continue
+			}
+			slack := sizes[i] - ch.Min
+			if slack <= 0 {
+				continue
+			}
+			entries = append(entries, shrinkEntry{i, slack})
+			totalSlack += slack
+		}
+		if totalSlack > 0 {
+			// Proportional cut: each Shrinkable child gives back a share of
+			// the overflow proportional to its slack (distance above Min).
+			cutTotal := int64(0)
+			for _, e := range entries {
+				cut := over * e.slack / totalSlack
+				newSize := sizes[e.idx] - cut
+				if min := f.Children[e.idx].Min; newSize < min {
+					newSize = min
+				}
+				cutTotal += sizes[e.idx] - newSize
+				f.reallocateShrinkable(e.idx, newSize, width, rendered, sizes)
+			}
+			// Greedy remainder: integer division leaves a small leftover;
+			// trim one row at a time from any child still above its Min.
+			rest := over - cutTotal
+			for rest > 0 {
+				progressed := false
+				for _, e := range entries {
+					if rest <= 0 {
+						break
+					}
+					min := f.Children[e.idx].Min
+					if sizes[e.idx] > min {
+						f.reallocateShrinkable(e.idx, sizes[e.idx]-1, width, rendered, sizes)
+						rest--
+						progressed = true
+					}
+				}
+				if !progressed {
+					break
+				}
+			}
+			used = 0
+			for i := range f.Children {
+				used += sizes[i]
+			}
+		}
+	}
+
 	// Compute rectangles and compose output.
 	row := int64(0)
 	for i, ch := range f.Children {
@@ -235,6 +317,22 @@ func (f *Flex) renderVertical(width int64) []string {
 			} else {
 				out = append(out, core.PadToWidth("", width))
 			}
+		}
+	}
+	// Safety net: even after shrinking Shrinkable children the total may still
+	// exceed totalHeight (non-shrinkable children alone overfill the screen, or
+	// a Shrinkable child ignored the OnAllocate target). Drop the excess from
+	// the top so the bottom — input area and status bar, the user's focus —
+	// stays visible rather than scrolling off-screen.
+	if totalHeight > 0 && int64(len(out)) > totalHeight {
+		trim := int64(len(out)) - totalHeight
+		out = out[trim:]
+		// Sync rects so ChildRect reflects actual screen positions: every child
+		// shifts up by the trimmed rows. Children fully scrolled off the top
+		// get a negative Row; callers translate mouse coords using these, so
+		// they must match the rendered output (e.g. editorTop for the editor).
+		for i := range f.rects {
+			f.rects[i].Row -= trim
 		}
 	}
 	return out

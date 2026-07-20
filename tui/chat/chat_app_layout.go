@@ -64,6 +64,9 @@ type chatLayout struct {
 	sidebar      core.Component // Phase 4.4: optional sidebar panel
 	lastRows     int64
 	headerHeight int
+	// editorMaxRows is the baseline (un-shrunk) row budget for the editor,
+	// reset on every buildFlex pass so a previous shrink does not stick.
+	editorMaxRows int64
 	// editorTop is the absolute screen row of the editor's top border, as
 	// computed by the most recent Render call. Used to translate MouseMsg
 	// screen coordinates into the editor's own row space (see Update).
@@ -75,10 +78,33 @@ type textSelectionComponent interface {
 	ClearSelection()
 }
 
+// maxRowsSetter is implemented by components whose visible row count can be
+// capped at runtime (Editor, ChatHistory). buildFlex uses it to reset the
+// editor to its baseline and to shrink it when the Flex is over-committed.
+type maxRowsSetter interface {
+	SetMaxRows(n int64)
+}
+
 // buildFlex populates a vertical Flex with the standard chat components.
 // Returns the indices for header and editor frame for ChildRect queries.
+// resetEditorBaseline restores the editor to its baseline row budget so a
+// previous render's OnAllocate shrink does not contaminate the next
+// natural-height measurement. Both buildFlex and recalcMaxRows measure the
+// editor's natural height and must call this first.
+func (l *chatLayout) resetEditorBaseline() {
+	if l.editorMaxRows > 0 {
+		if ed, ok := l.editor.(maxRowsSetter); ok {
+			ed.SetMaxRows(l.editorMaxRows)
+		}
+	}
+}
+
 func (l *chatLayout) buildFlex(flex *layout.Flex) (headerIndex, editorIndex int) {
 	headerIndex = -1
+
+	// Reset the editor to its baseline row budget before measuring; see
+	// resetEditorBaseline for why.
+	l.resetEditorBaseline()
 
 	if l.header != nil {
 		headerIndex = len(flex.Children)
@@ -95,9 +121,21 @@ func (l *chatLayout) buildFlex(flex *layout.Flex) (headerIndex, editorIndex int)
 	if l.loader != nil && l.loader.IsRunning() {
 		flex.AddChild(layout.Natural(l.loader))
 	}
-	editorFrame := &editorFrame{editor: l.editor}
+	ef := &editorFrame{editor: l.editor}
 	editorIndex = len(flex.Children)
-	flex.AddChild(layout.Natural(editorFrame))
+	// editorFrame is Shrinkable (min 3 = top border + ≥1 editor row + bottom
+	// border): when header + editor + autocomplete + status bar overfill the
+	// terminal, the Flex squeezes the editor (via OnAllocate → SetMaxRows)
+	// instead of pushing the input area off-screen.
+	flex.AddChild(layout.Shrinkable(ef, 3).WithAllocate(func(h int64) {
+		if ed, ok := l.editor.(maxRowsSetter); ok {
+			rows := h - 2 // subtract top + bottom borders
+			if rows < 1 {
+				rows = 1
+			}
+			ed.SetMaxRows(rows)
+		}
+	}))
 	if l.footer != nil {
 		flex.AddChild(layout.Natural(l.footer))
 	}
@@ -319,6 +357,10 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 }
 
 func (l *chatLayout) recalcMaxRows(width, height int64) {
+	// Measure with the editor at its baseline, not a leftover shrink value
+	// from the previous render's OnAllocate.
+	l.resetEditorBaseline()
+
 	var headerH, loaderH, editorH, footerH, statusH, acH int64
 	if l.header != nil {
 		headerH = int64(len(l.header.Render(width)))

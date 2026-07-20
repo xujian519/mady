@@ -206,6 +206,111 @@ func TestFlexHorizontalFixedWithFill(t *testing.T) {
 	}
 }
 
+// shrinkComp simulates a component that can cap its visible rows at runtime
+// (like the Editor). maxRows==0 means unrestricted; OnAllocate drives SetMaxRows.
+type shrinkComp struct {
+	lines   []string
+	maxRows int64
+}
+
+func (c *shrinkComp) Render(width int64) []string {
+	lines := c.lines
+	if c.maxRows > 0 && int64(len(lines)) > c.maxRows {
+		lines = lines[:c.maxRows]
+	}
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		out[i] = core.PadToWidth(l, width)
+	}
+	return out
+}
+
+func (c *shrinkComp) SetMaxRows(n int64) { c.maxRows = n }
+func (c *shrinkComp) Invalidate()        {}
+
+func TestFlexVerticalShrinkable(t *testing.T) {
+	// editor: 8 natural rows, min 2.
+	ed := &shrinkComp{lines: []string{"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"}}
+	header := &fixedComp{lines: []string{"h1"}}
+	var alloc int64
+	flex := NewFlex(DirectionVertical,
+		Natural(header),
+		Shrinkable(ed, 2).WithAllocate(func(h int64) { alloc = h; ed.SetMaxRows(h) }),
+	)
+	flex.Bounds = &bounds{w: 10, h: 5}
+	out := flex.Render(10)
+	// header=1, editor natural=8, used=9 > 5, over=4. slack=8-2=6.
+	// cut = 4*6/6 = 4 → newSize=4. total = 1+4 = 5.
+	if len(out) != 5 {
+		t.Fatalf("len(out)=%d, want 5", len(out))
+	}
+	if alloc != 4 {
+		t.Fatalf("OnAllocate got %d, want 4", alloc)
+	}
+	if ed.maxRows != 4 {
+		t.Fatalf("ed.maxRows=%d, want 4", ed.maxRows)
+	}
+}
+
+func TestFlexVerticalShrinkableHitsMinThenSafetyNet(t *testing.T) {
+	// header is Natural (non-shrinkable) and already large; editor shrinks to
+	// its Min but the total still overflows → safety net trims the top.
+	ed := &shrinkComp{lines: []string{"e1", "e2", "e3", "e4", "e5"}}
+	header := &fixedComp{lines: []string{"h1", "h2", "h3"}}
+	flex := NewFlex(DirectionVertical,
+		Natural(header),
+		Shrinkable(ed, 3).WithAllocate(func(h int64) { ed.SetMaxRows(h) }),
+	)
+	flex.Bounds = &bounds{w: 10, h: 4}
+	out := flex.Render(10)
+	// header=3, editor natural=5, used=8 > 4, over=4. slack=5-3=2.
+	// cut = 4*2/2 = 4 → newSize=5-4=1 < min 3 → clamp 3. cutTotal=2.
+	// greedy: rest=2, editor already at min → no progress.
+	// used = 3+3 = 6 > 4. safety net drops top 2 → len=4, editor rows visible.
+	if len(out) != 4 {
+		t.Fatalf("len(out)=%d, want 4 (safety net)", len(out))
+	}
+	if ed.maxRows != 3 {
+		t.Fatalf("ed.maxRows=%d, want 3 (shrunk to min)", ed.maxRows)
+	}
+	// Bottom row must be an editor row (e3), not a header row.
+	if out[len(out)-1] != "e3        " {
+		t.Fatalf("bottom line=%q, want editor row (input area must stay visible)", out[len(out)-1])
+	}
+	// Safety net must shift rects so ChildRect matches the cropped output:
+	// 6 rows trimmed to 4 drops the top 2, so editor (was Row 3) is now Row 1.
+	// Mouse coord translation relies on this (chatLayout.editorTop).
+	if r := flex.ChildRect(1); r.Row != 1 {
+		t.Fatalf("editor Row=%d after safety-net trim, want 1 (rects must shift with the crop)", r.Row)
+	}
+	if r := flex.ChildRect(0); r.Row != -2 {
+		t.Fatalf("header Row=%d after safety-net trim, want -2 (scrolled off top)", r.Row)
+	}
+}
+
+func TestFlexVerticalShrinkableProportional(t *testing.T) {
+	// Two shrinkable children: larger slack absorbs more of the overflow.
+	a := &shrinkComp{lines: []string{"a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8"}} // 8, min 2
+	b := &shrinkComp{lines: []string{"b1", "b2", "b3", "b4"}}                         // 4, min 1
+	flex := NewFlex(DirectionVertical,
+		Shrinkable(a, 2).WithAllocate(func(h int64) { a.SetMaxRows(h) }),
+		Shrinkable(b, 1).WithAllocate(func(h int64) { b.SetMaxRows(h) }),
+	)
+	flex.Bounds = &bounds{w: 10, h: 6}
+	out := flex.Render(10)
+	// used=12 > 6, over=6. totalSlack=6+3=9.
+	// a cut=6*6/9=4 → newSize=4. b cut=6*3/9=2 → newSize=2. total=4+2=6.
+	if len(out) != 6 {
+		t.Fatalf("len(out)=%d, want 6", len(out))
+	}
+	if a.maxRows != 4 {
+		t.Fatalf("a.maxRows=%d, want 4", a.maxRows)
+	}
+	if b.maxRows != 2 {
+		t.Fatalf("b.maxRows=%d, want 2", b.maxRows)
+	}
+}
+
 func assertLines(t *testing.T, got, want []string) {
 	t.Helper()
 	if len(got) != len(want) {

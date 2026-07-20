@@ -30,6 +30,13 @@ const (
 	SizeFill
 	// SizePercent assigns a percentage of the available container size.
 	SizePercent
+	// SizeShrinkable takes its natural height, but when the container is
+	// over-committed (total children height exceeds the available size) it is
+	// squeezed down — along with other Shrinkable children — until the total
+	// fits (never below Child.Min). After each squeeze Flex invokes
+	// OnAllocate with the new target height so the component can re-render at
+	// the smaller size (e.g. an editor reducing its visible rows).
+	SizeShrinkable
 )
 
 // BoundsProvider supplies the total available size for a Flex container.
@@ -90,6 +97,20 @@ func Min(c core.Component, min int64) Child {
 // Max returns a Child whose size is at most max.
 func Max(c core.Component, max int64) Child {
 	return Child{Component: c, Policy: SizeMax, Max: max}
+}
+
+// Shrinkable returns a Child that takes its natural height but yields space
+// when the Flex container is over-committed: it is squeezed down (never below
+// min) until the combined children height fits the available size. After each
+// squeeze Flex calls OnAllocate with the new target height, so attach one via
+// WithAllocate to let the component re-render at the smaller size. Use this
+// for components that would rather shrink than push siblings off-screen
+// (e.g. a multi-line editor border frame).
+func Shrinkable(c core.Component, min int64) Child {
+	if min < 1 {
+		min = 1
+	}
+	return Child{Component: c, Policy: SizeShrinkable, Min: min}
 }
 
 // WithAllocate attaches an allocation callback to a Child.

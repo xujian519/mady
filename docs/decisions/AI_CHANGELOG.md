@@ -1,3 +1,55 @@
+## 2026-07-20: 修复 TUI 输入框区域溢出（Flex 容器不裁剪总输出）
+
+### 背景
+用户报告 TUI 界面"输入框区域有大量溢出"。静态分析确认根因不在 Editor 本身（`Editor.Render` 已有 `maxRows` 硬截断，默认 8 行），而在装配输入框的垂直 Flex 容器：`tui/layout/flex.go` 的 `renderVertical` 对 Natural 子组件（header/autocomplete/editorFrame/footer/statusBar）按实际渲染行数累加，**从不裁剪总输出到终端高度**。当这些组件行数之和 ≥ 终端 rows 时，Fill 子组件（history）被压到 0，底部输入框与状态栏被挤出可视区域。
+
+### 变更（5 文件，均通过 build/vet/lint(0 issues)/`go test -race ./...` 全量）
+
+1. **新增 SizeShrinkable 布局策略（`tui/layout/layout.go`）**
+   - `SizePolicy` 枚举新增 `SizeShrinkable`：取自然高度，但当容器总高度不足时可向下收缩（不低于 `Min`）。
+   - 新增构造函数 `Shrinkable(c, min)`。
+
+2. **Flex 按比例收缩 + 安全网裁剪（`tui/layout/flex.go`）**
+   - `renderVertical` 第一遍测量 Shrinkable 子组件自然高度并计入 `used`。
+   - 新增第三遍：当 `used > totalHeight` 时，收集所有 Shrinkable 子组件的 slack（`size - Min`），按比例分摊 overflow；整数除法残余用贪心逐行修正。每次收缩通过 `OnAllocate` 通知组件新目标高度并重渲染。辅助方法 `reallocateShrinkable(i, newSize, width, rendered, sizes)`。
+   - 新增安全网：最终输出若仍超 `totalHeight`（不可压缩组件单独溢出，或 Shrinkable 组件未响应 OnAllocate），从**顶部**截断保留底部（输入框/状态栏为用户焦点），保证永不溢出终端。
+
+3. **editorFrame 改为可收缩（`tui/chat/chat_app_layout.go`）**
+   - `chatLayout` 新增 `editorMaxRows int64` 字段（基线行预算）。
+   - 新增 `maxRowsSetter` 接口（`SetMaxRows(int64)`），供类型断言解耦。
+   - `buildFlex`：①开头重置 editor 到基线 `maxRows`（防止上次收缩值粘连，保证自然高度测量准确）；②`editorFrame` 从 `Natural` 改为 `Shrinkable(ef, 3)`（min 3 = 上下边框 + ≥1 编辑行），`OnAllocate` 回调将 editor `SetMaxRows(h-2)` 以配合重渲染收缩。
+
+4. **传基线配置（`tui/chat/chat_app.go`）**
+   - `chatLayout` 构造新增 `editorMaxRows: cfg.EditorMaxRows`（来自 `newChatApp`，默认 8）。
+
+5. **测试（`tui/layout/flex_test.go`）**
+   - 新增 `shrinkComp` mock（支持 `SetMaxRows` 运行时截断）。
+   - `TestFlexVerticalShrinkable`：单 Shrinkable 按比例收缩 + OnAllocate 被调用 + 总输出 == totalHeight。
+   - `TestFlexVerticalShrinkableHitsMinThenSafetyNet`：收缩到 Min 后仍溢出 → 安全网从顶部裁剪，底部输入行可见。
+   - `TestFlexVerticalShrinkableProportional`：两 Shrinkable 按 slack 比例分摊。
+
+### 设计要点
+- **向后兼容**：`SizeShrinkable` 是新增枚举值，现有 Natural/Fill/Fixed/Min/Max/Percent 行为完全不变；未标记 Shrinkable 的组件不参与收缩。
+- **双保险**：主动收缩（editor 响应 OnAllocate 减小 maxRows）+ 兜底安全网（极端情况裁顶部），输入框与状态栏始终可见。
+- **不持久化收缩**：`buildFlex` 每次重置基线，避免上一次收缩值污染下一次自然高度测量。
+- **Autocomplete 暂未标 Shrinkable**：`component.Autocomplete` 无运行时可见行数控制接口，保持 Natural，由安全网兜底（候选项通常不多且短暂出现）；主要溢出来源（多行 editor 粘贴）已根治。
+
+### 审查后修复（3 处）
+- **安全网同步 `rects` 偏移**：安全网从顶部裁剪输出后，`f.rects[i].Row` 同步减去裁剪量，使 `ChildRect` 反映实际屏幕位置。修复 `chatLayout.editorTop`（用于鼠标坐标→editor 行转换）在极端溢出时记录裁剪前位置、导致鼠标点击/选区定位失效的 bug。新增测试断言 editor Row==1、header Row==-2（裁出顶部）。
+- **注释勘误**：第三遍注释由"Fill clamped to 0"改为"clamped to their min guard of 1"（第二遍实际下界保护为 1）。
+- **`recalcMaxRows` 测量一致性**：抽出 `resetEditorBaseline()` 方法，`buildFlex` 与 `recalcMaxRows` 开头共用，保证两处自然高度测量都基于基线 maxRows 而非上一帧收缩值。
+
+### 影响范围
+- TUI 布局层（`tui/layout/`）+ chat 装配层（`tui/chat/chat_app_layout.go`、`chat_app.go`）。
+- 不触碰 Agent 运行时/安全敏感路径（敏感路径清单均未命中）。
+- 水平布局 `renderHorizontal` 未改动（其高度由 `maxHeight` 决定，不涉及终端高度溢出）。
+
+### 风险等级
+- 低（纯 TUI 布局渲染，无安全影响；向后兼容新策略）
+
+### 审查要求
+- L0（TUI 布局修复，无安全影响）
+
 ## 2026-07-20: 修复 TUI 五处用户体验问题（鼠标选中/复制粘贴/Settings Esc退出/斜杠命令/步数上限）
 
 ### 背景
