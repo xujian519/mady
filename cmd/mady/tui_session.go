@@ -384,8 +384,16 @@ func (s *tuiSession) rebuildAgent() {
 
 // submitInput sends user input to the current agent asynchronously.
 // The agent runs in a separate goroutine to avoid blocking the TUI event loop.
+//
+// 启动序列中 app.Start() 先于 agentcore.New 完成（见 tui.go），因此存在
+// 窗口期：TUI 已可接收输入，但 s.currentAgent 尚未赋值。此处必须做 nil
+// 防御，否则 goroutine 内 agent.Run 会解引用 nil receiver 导致 panic。
 func (s *tuiSession) submitInput(input string) {
 	agent := s.currentAgent
+	if agent == nil {
+		s.app.PrintSystem("Agent 正在初始化，请稍候片刻再发送消息…")
+		return
+	}
 	store := s.agentStore
 	threadID := s.currentThreadID
 	go func() {

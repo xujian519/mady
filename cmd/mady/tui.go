@@ -243,13 +243,16 @@ func runTui(ctx context.Context) {
 	if useMultiDomain {
 		modeInfo = "多域路由模式"
 	}
-	app.PrintSystem(fmt.Sprintf("Mady 中观智能体已启动（%s）。输入消息开始对话，输入 / 查看命令。Ctrl+C 退出。", modeInfo))
+	app.PrintSystem(fmt.Sprintf("Mady 中观智能体已启动（%s）。正在初始化 Agent，请稍候… 输入 / 查看命令，Ctrl+C 退出。", modeInfo))
 	if fc.WikiStore != nil {
 		st := fc.WikiStore.Stats()
 		app.PrintSystem(fmt.Sprintf("wiki 知识库: %d 文档, %d 分块 (RAG: patent)", st.TotalDocs, st.TotalChunks))
 	}
 
 	// 先启动 TUI 渲染，再创建 Agent。避免 agentcore.New 阻塞首帧。
+	// 注意：app.Start() 后事件循环已在另一 goroutine 运行，此处到 New 返回
+	// 之前存在窗口期——用户输入会触发 submitInput，其内部对 nil agent 做了
+	// 防御（见 tui_session.go）。
 	if err := app.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		return

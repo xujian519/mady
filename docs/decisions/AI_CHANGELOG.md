@@ -1,4 +1,31 @@
-## 2026-07-20: 修复 CI 在缺 pandoc 的 macOS runner 上 e2e 测试失败
+## 2026-07-20: 修复 TUI 启动窗口期 nil agent panic
+
+### 背景
+用户反馈 `mady tui` 启动后立即输入消息会 panic（`SIGSEGV addr=0x318`）。根因是启动序列的时序错位：`cmd/mady/tui.go` 中 `app.Start()` 先于 `agentcore.New(...)` 返回，TUI 事件循环已在另一 goroutine 运行并接收输入，回调 `submitInput` → `agent.Run` 解引用 nil receiver（`s.currentAgent` 尚未赋值）。窗口期实际长度约 3 秒（`buildAgentConfig` 内 MCP discovery 阻塞），用户必现触发。
+
+### 改动（3 文件，均通过 vet/build/race/test/lint）
+- `cmd/mady/tui_session.go`: `submitInput` 入口加 nil 防御——`s.currentAgent == nil` 时用 `app.PrintSystem` 提示"Agent 正在初始化，请稍候片刻再发送消息…"并 return，避免 goroutine 内 `agent.Run` nil deref。注释说明窗口期成因。
+- `cmd/mady/slash_registry.go`: `/mode` 命令 Handler 同样加 nil 防御（窗口期内执行 slash 命令同样会 panic）。
+- `cmd/mady/tui.go`: 启动首条提示从"输入消息开始对话"改为"正在初始化 Agent，请稍候…"，避免误导用户在 Agent 未就绪时输入；`app.Start()` 前补注释说明窗口期与 nil 防御位置。
+
+### 影响范围
+- 仅 `cmd/mady/` 三个文件，不触碰 agentcore/agent.go/agent_run.go（panic 现场但非根因）。
+- 不改变"先 Start 再 New"的启动序列（保持首帧渲染不被阻塞的策略），只补防御。
+- 其他已访问 `s.currentAgent` 的路径已有 nil 检查：`resumeIfInterrupted`（tui_session.go:430）、`tui_session.go:997`；reload/switch 等 `prev := s.currentAgent` 路径为用户主动操作，窗口期内不可达。
+
+### 后续优化（未本次处理）
+- MCP discovery 超时 3s（`mcp: discovery timed out after 3s`）导致窗口期过长，可考虑异步化或缩短超时。
+- 更彻底的方案是把 agent 创建移到 `app.Start()` 之前，或用 atomic.Pointer 保护 `s.currentAgent` 读写。
+
+### 风险等级
+- 低（防御性 nil 检查 + 提示文案调整，未改产品逻辑，不触碰安全敏感路径）。
+
+### 审查要求
+- L0（TUI 健壮性修复，无安全影响）。
+
+---
+
+
 
 ### 背景
 远程 CI 自 `b52de24` 之后连续 8 次失败（`fix(agentcore): 深度审阅全面修复...` 起）。根因：`disclosure/e2e_docx_flow_test.go::Test_DOCX_to_Report_FullFlow` 第 7 步无条件调用 `SaveReport(report, "*.docx")`，其底层 `convertToDOCX` 依赖外部 `pandoc` 可执行文件；GitHub Actions 的 `macos-latest` runner 默认未安装 pandoc，`exec.Command("pandoc", ...)` 返回 `exec: "pandoc": executable file not found in $PATH`，整个测试 FAIL。`build-and-test` 矩阵的 `fail-fast` 默认策略随后取消 `ubuntu-latest/root` 作业，导致全红。

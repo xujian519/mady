@@ -270,6 +270,10 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Match:     exactMatch("mode"),
 		Available: multiDomain,
 		Handler: func(ctx slashCtx) {
+			if s.currentAgent == nil {
+				s.app.PrintSystem("Agent 正在初始化，请稍候…")
+				return
+			}
 			agentName := s.currentAgent.Config().Name
 			s.app.PrintSystem(fmt.Sprintf("当前 Agent: %s（多域路由模式）", agentName))
 		},
