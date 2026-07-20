@@ -540,67 +540,6 @@ func (s *tuiSession) handlePlanCommandEx(sub string) {
 	}
 }
 
-// --- Sidebar ---
-
-func (s *tuiSession) buildSidebar() core.Component {
-	return &sidebarPanel{session: s}
-}
-
-type sidebarPanel struct {
-	session *tuiSession
-}
-
-func (p *sidebarPanel) Render(width int64) []string {
-	s := p.session
-	pale := theme.CurrentPalette()
-	dim := pale.Dim.Render
-	accent := pale.Accent.Render
-	if width < 1 {
-		width = 1
-	}
-
-	var lines []string
-	lines = append(lines,
-		accent("▎ Mady"),
-		dim(strings.Repeat("─", int(width))),
-		dim("📂 会话"),
-		"  "+core.TruncateToWidth(s.currentThreadID, width-4, "…"),
-	)
-
-	if s.currentProject != nil {
-		lines = append(lines,
-			"",
-			dim("📋 案件"),
-			"  "+core.TruncateToWidth(s.currentProject.Alias, width-4, "…"),
-		)
-	}
-
-	lines = append(lines, "", dim("⚙ 模式"))
-	modeStatus := "普通"
-	if s.isPlanMode() {
-		modeStatus = "计划"
-	}
-	if s.isReviewMode() {
-		modeStatus += " · 审核"
-	}
-
-	lines = append(lines,
-		"  "+modeStatus,
-		"",
-		dim("⌨ 快捷操作"),
-		"  /cmd  命令中心",
-		"  /plan 计划模式",
-		"  ?     快捷键",
-	)
-
-	for int64(len(lines)) < 20 {
-		lines = append(lines, "")
-	}
-	return lines
-}
-
-func (p *sidebarPanel) Invalidate() {}
-
 // --- Settings ---
 
 func (s *tuiSession) handleSettingsReset() {

@@ -48,9 +48,6 @@ func (f *editorFrame) Render(width int64) []string {
 
 func (f *editorFrame) Invalidate() {}
 
-// sidebarWidth is the fixed column count for the sidebar when width >= 96.
-const sidebarWidth = 24
-
 type chatLayout struct {
 	host         layoutHost
 	app          *ChatApp
@@ -61,7 +58,6 @@ type chatLayout struct {
 	statusBar    *component.StatusBar
 	footer       core.Component
 	ac           *component.Autocomplete
-	sidebar      core.Component // Phase 4.4: optional sidebar panel
 	lastRows     int64
 	headerHeight int
 	// editorMaxRows is the baseline (un-shrunk) row budget for the editor,
@@ -158,33 +154,12 @@ func (l *chatLayout) Render(width int64) []string {
 	}
 	l.lastRows = rows
 
-	bounds := &fixedBounds{width: width, height: rows}
-
-	// Phase 4.4: responsive sidebar — ≥96 columns shows sidebar + main, else single column
-	useSidebar := l.sidebar != nil && width >= 96
-	mainWidth := width
-	if useSidebar {
-		mainWidth = width - sidebarWidth
-	}
-
-	// Build and render the main flex once. ChildRect is populated by Render().
+	// Build and render the main flex.
 	mainFlex := layout.NewFlex(layout.DirectionVertical)
-	mainFlex.Bounds = &fixedBounds{width: mainWidth, height: rows}
+	mainFlex.Bounds = &fixedBounds{width: width, height: rows}
 	hIdx, eIdx := l.buildFlex(mainFlex)
 
-	var out []string
-	if useSidebar {
-		outer := layout.NewFlex(layout.DirectionHorizontal)
-		outer.Bounds = bounds
-		// sidebar 必须用 Fixed 而非 Natural：renderHorizontal 对 SizeNatural
-		// 会分配全部父宽度（flex.go），导致 mainFlex 的 Fill 拿到 0 列，
-		// 主区域（history/editor/statusBar）完全不渲染。
-		outer.AddChild(layout.Fixed(l.sidebar, sidebarWidth))
-		outer.AddChild(layout.FillWeight(mainFlex, 1))
-		out = outer.Render(width)
-	} else {
-		out = mainFlex.Render(width)
-	}
+	out := mainFlex.Render(width)
 
 	// Extract layout metadata from the rendered flex.
 	if hIdx >= 0 {

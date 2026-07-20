@@ -119,7 +119,6 @@ func (s *tuiSession) initializeAgentAsync() {
 			prev.Close()
 		}
 		agentadapter.BindAgent(s.app, newAgent)
-		s.app.PrintSystem("Agent 就绪，可以开始对话")
 	}()
 }
 

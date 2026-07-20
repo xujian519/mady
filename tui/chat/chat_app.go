@@ -352,16 +352,6 @@ func (a *ChatApp) Footer() core.Component {
 	return a.layout.footer
 }
 
-// SetSidebar installs an optional left sidebar panel. When non-nil and the
-// terminal is ≥96 columns wide, the layout switches to sidebar + main.
-// Pass nil to remove the sidebar and revert to single-column mode.
-func (a *ChatApp) SetSidebar(c core.Component) {
-	a.layout.sidebar = c
-	if a.host != nil {
-		a.host.RequestRender()
-	}
-}
-
 func (a *ChatApp) Start() error {
 	a.host.AddChild(a.layout)
 	if err := a.host.Start(); err != nil {

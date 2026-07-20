@@ -235,20 +235,9 @@ func runTui(ctx context.Context) {
 		}
 	}
 
-	// Phase 4.4: install sidebar when the terminal is wide enough
-	app.SetSidebar(s.buildSidebar())
-
 	app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), useMultiDomain, s.thinkingConfig()))
 
-	modeInfo := "单 Agent 模式"
-	if useMultiDomain {
-		modeInfo = "多域路由模式"
-	}
-	app.PrintSystem(fmt.Sprintf("Mady 中观智能体已启动（%s）。正在初始化 Agent，请稍候… 输入 / 查看命令，Ctrl+C 退出。", modeInfo))
-	if fc.WikiStore != nil {
-		st := fc.WikiStore.Stats()
-		app.PrintSystem(fmt.Sprintf("wiki 知识库: %d 文档, %d 分块 (RAG: patent)", st.TotalDocs, st.TotalChunks))
-	}
+	app.PrintSystem("Mady 已就绪")
 
 	// 先启动 TUI 渲染，再在后台初始化 Agent，避免 agentcore.New 阻塞首帧。
 	// 启动后到 Agent 就绪前会经过显式“初始化中”状态；submitInput、/mode
