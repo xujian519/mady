@@ -169,6 +169,43 @@ func TestFlexHorizontalFill(t *testing.T) {
 	}
 }
 
+// TestFlexHorizontalNaturalStarvesFill 记录一个已知的布局陷阱：
+// renderHorizontal 对 SizeNatural 会分配全部父宽度（见 flex.go 的注释
+// "treat it as the full parent width for now"），导致同级的 Fill 子组件
+// 被压缩到最小宽度 1（renderHorizontal 有 if w < 1 { w = 1 } 保护）。
+// 需要固定宽度列时必须用 Fixed，而不是 Natural。
+// 参考 chat_app_layout.go 的 sidebar 布局修复（Natural 让主区域只剩 1 列）。
+func TestFlexHorizontalNaturalStarvesFill(t *testing.T) {
+	sidebar := &fixedComp{lines: []string{"▎ Mady", "📂 会话"}}
+	main := &fixedComp{lines: []string{"header", "editor"}}
+	flex := NewFlex(DirectionHorizontal, Natural(sidebar), Fill(main))
+	flex.Bounds = &bounds{w: 100, h: 10}
+	flex.Render(100)
+	// Natural 在水平模式占满 100，Fill(main) 被压到最小宽度 1。
+	if r := flex.ChildRect(0); r.Width != 100 {
+		t.Fatalf("Natural sidebar Width=%d, want 100 (gotcha: Natural starves siblings)", r.Width)
+	}
+	if r := flex.ChildRect(1); r.Width != 1 {
+		t.Fatalf("Fill main Width=%d, want 1 (Natural starved it to the min-guard)", r.Width)
+	}
+}
+
+// TestFlexHorizontalFixedWithFill 验证固定宽度列（如 sidebar）应使用 Fixed
+// 而非 Natural：Fixed(24) + FillWeight 得到正确的宽度分配。
+func TestFlexHorizontalFixedWithFill(t *testing.T) {
+	sidebar := &fixedComp{lines: []string{"▎ Mady", "📂 会话"}}
+	main := &fixedComp{lines: []string{"header", "editor"}}
+	flex := NewFlex(DirectionHorizontal, Fixed(sidebar, 24), FillWeight(main, 1))
+	flex.Bounds = &bounds{w: 100, h: 10}
+	flex.Render(100)
+	if r := flex.ChildRect(0); r.Width != 24 {
+		t.Fatalf("Fixed sidebar Width=%d, want 24", r.Width)
+	}
+	if r := flex.ChildRect(1); r.Width != 76 {
+		t.Fatalf("Fill main Width=%d, want 76 (100-24)", r.Width)
+	}
+}
+
 func assertLines(t *testing.T, got, want []string) {
 	t.Helper()
 	if len(got) != len(want) {

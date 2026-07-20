@@ -137,7 +137,10 @@ func (l *chatLayout) Render(width int64) []string {
 	if useSidebar {
 		outer := layout.NewFlex(layout.DirectionHorizontal)
 		outer.Bounds = bounds
-		outer.AddChild(layout.Natural(l.sidebar))
+		// sidebar 必须用 Fixed 而非 Natural：renderHorizontal 对 SizeNatural
+		// 会分配全部父宽度（flex.go），导致 mainFlex 的 Fill 拿到 0 列，
+		// 主区域（history/editor/statusBar）完全不渲染。
+		outer.AddChild(layout.Fixed(l.sidebar, sidebarWidth))
 		outer.AddChild(layout.FillWeight(mainFlex, 1))
 		out = outer.Render(width)
 	} else {

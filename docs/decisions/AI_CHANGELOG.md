@@ -1,3 +1,35 @@
+## 2026-07-20: 修复 TUI 宽度 ≥96 列时 sidebar 吞掉主区域导致渲染异常
+
+### 背景
+用户报告在非项目目录启动 `mady tui` 时界面异常：左侧菜单可见（`▎ Mady`/`📂 会话`/`/cmd 命令中心` 等），右侧大面积空白、无输入框、最右侧一列垂直短线。gemma4-multimodal 看图确认症状。
+
+### 根因
+`tui/chat/chat_app_layout.go:140` 用 `layout.Natural(l.sidebar)` 把 sidebar 加入水平 Flex。但 `tui/layout/flex.go:267-271` 的 `renderHorizontal` 对 `SizeNatural` 的处理是 **占用全部父宽度**（代码注释："treat it as the full parent width for now"），导致同级的 `FillWeight(mainFlex, 1)` 被压到最小保护宽度 1 列（`flex.go:353-355 if w < 1 { w = 1 }`）。结果 sidebar 吞掉几乎所有宽度，主区域（header/history/editor/statusBar）被渲染到 **1 列宽**，每行只有 1 个字符——截图里"右侧垂直短线"即主区域 1 列渲染的字符。
+
+触发条件：终端宽度 ≥96 列时启用 sidebar（`chat_app_layout.go:125 useSidebar := l.sidebar != nil && width >= 96`）。`app.SetSidebar(s.buildSidebar())` 在 `tui.go:238` 无条件调用，不分项目/非项目目录（用户感觉"非项目目录才出问题"是巧合——实际取决于终端窗口宽度，项目目录下用户窗口可能 <96 列）。
+
+### 改动（2 文件 + 1 测试，均通过 vet/build/race/lint/test）
+- `tui/chat/chat_app_layout.go:140`: `layout.Natural(l.sidebar)` → `layout.Fixed(l.sidebar, sidebarWidth)`。sidebar 固定占 24 列，mainFlex FillWeight 得到 `width - 24` 列。补注释说明 Natural 在水平 Flex 中会占满父宽度的陷阱。
+- `tui/layout/flex_test.go`: 新增两个回归测试：
+  - `TestFlexHorizontalNaturalStarvesFill`: 记录 gotcha——Natural(sidebar) 占满 100 列，Fill(main) 被压到最小 1 列（min-guard）
+  - `TestFlexHorizontalFixedWithFill`: 验证正确用法——Fixed(sidebar,24) + FillWeight(main,1) 得到 24 + 76 的正确分配
+
+### 影响范围
+- 仅 TUI 布局层（`tui/chat` + `tui/layout`），不触碰 agentcore/产品逻辑/安全敏感路径。
+- 修复所有 ≥96 列终端的 sidebar 布局，不改变 <96 列（无 sidebar）的行为。
+- `tui/layout/flex.go` 未改动——Natural 占满宽度的行为是布局引擎既有契约（其他使用 Natural 的地方依赖此语义），本次只在调用点改用 Fixed。
+
+### PTY 验证
+200x50 PTY（`/tmp` 目录）启动捕获：sidebar（24 列 `▎ Mady`/`📂 会话`/`⚙ 模式`/`⌨ 快捷操作`）与主区域（header `mady · model=deepseek-v4-flash`、系统消息、`Agent 就绪`）并排正常渲染。
+
+### 风险等级
+- 低（TUI 布局修复，1 行产品代码改动 + 回归测试，不触碰安全敏感路径）。
+
+### 审查要求
+- L0（TUI 渲染修复，无安全影响）。
+
+---
+
 ## 2026-07-20: 修复 TUI 启动窗口期 nil agent panic
 
 ### 背景
