@@ -10,6 +10,7 @@ package chat
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/core"
@@ -196,11 +197,8 @@ func doCopyToClipboard(l *chatLayout, text string) {
 		if err := CopyToClipboard(text); err != nil {
 			l.app.PrintError(fmt.Errorf("clipboard: %w", err))
 		} else {
-			truncated := text
-			if core.VisibleWidth(truncated) > 60 {
-				truncated = core.TruncateToWidth(truncated, 57, "...")
-			}
-			l.app.PrintSystem("📋 已复制: " + truncated)
+			runeCount := utf8.RuneCountInString(text)
+			l.app.PrintSystem(fmt.Sprintf("📋 已复制（%d 字符）", runeCount))
 		}
 	}()
 }

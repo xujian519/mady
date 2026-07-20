@@ -268,14 +268,25 @@ func (t *TUI) enableMouse(mode string) {
 	t.outMu.Unlock()
 	switch mode {
 	case "sgr":
-		// Enable SGR positioning (?1006h) + basic click tracking (?1000h).
-		// We intentionally use ?1000h instead of ?1002h (button-event tracking)
-		// because ?1002h captures ALL mouse drag events, which prevents the
-		// terminal's OS-level native text selection (drag-to-select on macOS).
-		// With ?1000h only button press events are reported — drag events pass
-		// through to the OS, allowing native text selection while still letting
-		// the TUI handle click interactions (focus, scrolling, etc.).
-		_, _ = t.term.Write([]byte("\x1b[?1000h\x1b[?1006h"))
+		// Enable SGR positioning (?1006h) + button-event tracking (?1002h).
+		//
+		// ?1002h (button-event tracking) reports press, motion AND release
+		// events. This gives the TUI full mouse-drag visibility so that
+		// both the Editor and ChatHistory components can implement smooth
+		// text selection via their own handleMouse() methods — which
+		// already handle MousePress/MouseMotion/MouseRelease correctly.
+		//
+		// The downside is that ?1002h prevents the terminal emulator's
+		// OS-level native text selection (drag-to-select). We accept this
+		// trade-off because:
+		//   a) The TUI renders its own selection highlight (ANSI bg).
+		//   b) Selected text is copyable via ⌘+C (Editor) or right-click
+		//      (ChatHistory), both of which feed the system clipboard.
+		//
+		// Do NOT use ?1000h (basic click tracking) here — it only reports
+		// press events, starving MouseMotion handlers in both the Editor
+		// and ChatHistory, which makes the TUI's own selection unusable.
+		_, _ = t.term.Write([]byte("\x1b[?1002h\x1b[?1006h"))
 	case "x11":
 		_, _ = t.term.Write([]byte("\x1b[?1000h"))
 	}
