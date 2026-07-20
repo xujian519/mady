@@ -7,9 +7,9 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
-// EmotionContext 是从 psychological 扩展注入的消息中提取的情绪摘要。
+// emotionContext 是从 psychological 扩展注入的消息中提取的情绪摘要。
 // 当上下文中无心理分析块时，所有字段为零值。
-type EmotionContext struct {
+type emotionContext struct {
 	// Present 为 true 表示检测到心理分析块。
 	Present bool
 	// Valence 愉悦度 (-1~1)。负值表示负面情绪。
@@ -22,10 +22,10 @@ type EmotionContext struct {
 	DominantEmotion string
 }
 
-// ExtractEmotionContext 从消息列表中提取心理分析块。
+// extractEmotionContext 从消息列表中提取心理分析块。
 // 检测 psychological 扩展注入的 【当前感知的用户心理状态】 块，
 // 解析其中的 VAD 三维情绪坐标。
-func ExtractEmotionContext(msgs []agentcore.Message) EmotionContext {
+func extractEmotionContext(msgs []agentcore.Message) emotionContext {
 	for _, msg := range msgs {
 		if msg.Role != agentcore.RoleSystem {
 			continue
@@ -34,13 +34,13 @@ func ExtractEmotionContext(msgs []agentcore.Message) EmotionContext {
 			return parseEmotionBlock(msg.Content)
 		}
 	}
-	return EmotionContext{}
+	return emotionContext{}
 }
 
 // parseEmotionBlock 从 psychological 上下文块文本中解析 VAD 坐标。
 // 格式示例: "主导情绪: frustration, VAD(愉悦度=-0.55, 唤醒度=0.55, 支配度=0.35)"
-func parseEmotionBlock(block string) EmotionContext {
-	ec := EmotionContext{Present: true}
+func parseEmotionBlock(block string) emotionContext {
+	ec := emotionContext{Present: true}
 
 	// 解析 VAD 坐标
 	if idx := strings.Index(block, "VAD("); idx != -1 {
@@ -90,23 +90,23 @@ func parseFloatField(s, prefix string) float64 {
 }
 
 // IsNegative 返回当前情绪是否为负面（愉悦度 < -0.3）。
-func (ec EmotionContext) IsNegative() bool {
+func (ec emotionContext) IsNegative() bool {
 	return ec.Valence < -0.3
 }
 
 // IsPositive 返回当前情绪是否为正面（愉悦度 > 0.3）。
-func (ec EmotionContext) IsPositive() bool {
+func (ec emotionContext) IsPositive() bool {
 	return ec.Valence > 0.3
 }
 
 // IsHighArousal 返回唤醒度是否偏高（> 0.7）。
-func (ec EmotionContext) IsHighArousal() bool {
+func (ec emotionContext) IsHighArousal() bool {
 	return ec.Arousal > 0.7
 }
 
 // EmotionBoost 返回情绪对记忆重要性的加成系数。
 // 情绪化时刻（高唤醒度）的记忆更重要。
-func (ec EmotionContext) EmotionBoost() float64 {
+func (ec emotionContext) EmotionBoost() float64 {
 	if !ec.Present {
 		return 0
 	}

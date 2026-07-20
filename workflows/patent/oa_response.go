@@ -17,16 +17,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/graph"
 )
 
 // State keys used by the OA response workflow.
 const (
 	OAStateInput            = "oa_input"             // original OA notification text
-	OAStateParsed           = "oa_parsed"            // *rules.ParsedOfficeAction (struct)
+	OAStateParsed           = "oa_parsed"            // *ParsedOfficeAction
 	OAStateRejectionType    = "oa_rejection_type"    // string: OaRejectionType value
-	OAStateCitations        = "oa_citations"         // []rules.CitedReference
+	OAStateCitations        = "oa_citations"         // []CitedReference
 	OAStateAffectedClaims   = "oa_affected_claims"   // []int
 	OAStateResponseStrategy = "oa_response_strategy" // string: argument / amendment / combined
 	OAStateClaimAmendments  = "oa_claim_amendments"  // string: claim amendment markup
@@ -47,7 +46,7 @@ func parseOANode(ctx context.Context, state graph.PregelState) (graph.PregelStat
 		return nil, fmt.Errorf("oa_response: OA notification text is empty")
 	}
 
-	parsed := rules.ParseOfficeAction(input)
+	parsed := ParseOA(input)
 
 	// Also extract examiner arguments by splitting on common sentence patterns.
 	examinerArgs := extractExaminerArguments(input)
@@ -56,7 +55,7 @@ func parseOANode(ctx context.Context, state graph.PregelState) (graph.PregelStat
 	return graph.PregelState{
 		OAStateInput:          input,
 		OAStateParsed:         &parsed,
-		OAStateRejectionType:  string(parsed.RejectionType),
+		OAStateRejectionType:  parsed.RejectionType,
 		OAStateCitations:      parsed.Citations,
 		OAStateAffectedClaims: parsed.AffectedClaims,
 	}, nil
@@ -102,7 +101,7 @@ func extractExaminerArguments(text string) []string {
 //   - multiple types → combined strategy (争辩+修改)
 func classifyRejectionNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 	rejectionType := state.GetString(OAStateRejectionType)
-	parsed, ok := state[OAStateParsed].(*rules.ParsedOfficeAction)
+	parsed, ok := state[OAStateParsed].(*ParsedOfficeAction)
 	if !ok {
 		return nil, fmt.Errorf("oa_response: invalid or missing parsed OA state")
 	}
@@ -122,15 +121,15 @@ func classifyRejectionNode(ctx context.Context, state graph.PregelState) (graph.
 }
 
 // determineResponseStrategy picks the response strategy based on rejection type.
-func determineResponseStrategy(rejectionType string, parsed *rules.ParsedOfficeAction) string {
-	switch rules.OaRejectionType(rejectionType) {
-	case rules.OaNovelty, rules.OaInventiveness:
+func determineResponseStrategy(rejectionType string, parsed *ParsedOfficeAction) string {
+	switch OaRejectionType(rejectionType) {
+	case OaNovelty, OaInventiveness:
 		return "argument" // 主要通过争辩
-	case rules.OaClarity, rules.OaSupport, rules.OaScope:
+	case OaClarity, OaSupport, OaScope:
 		return "amendment" // 主要通过修改权利要求
-	case rules.OaDisclosure:
+	case OaDisclosure:
 		return "argument" // 需要论述公开充分
-	case rules.OaFormal:
+	case OaFormal:
 		return "amendment" // 形式修改
 	default:
 		return "combined" // 争辩+修改组合
@@ -139,12 +138,12 @@ func determineResponseStrategy(rejectionType string, parsed *rules.ParsedOfficeA
 
 // selectOATemplate maps rejection type to the appropriate doc template name.
 func selectOATemplate(rejectionType string, strategy string) string {
-	switch rules.OaRejectionType(rejectionType) {
-	case rules.OaNovelty:
+	switch OaRejectionType(rejectionType) {
+	case OaNovelty:
 		return "novelty-defense"
-	case rules.OaInventiveness:
+	case OaInventiveness:
 		return "inventiveness-defense"
-	case rules.OaClarity, rules.OaSupport:
+	case OaClarity, OaSupport:
 		return "clarity-amendment"
 	default:
 		if strategy == "argument" {
@@ -157,7 +156,7 @@ func selectOATemplate(rejectionType string, strategy string) string {
 // analyzeClaimsNode performs claim-level analysis and generates amendment suggestions.
 // It identifies which claims need modification and drafts amendment markup.
 func analyzeClaimsNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-	parsed, ok := state[OAStateParsed].(*rules.ParsedOfficeAction)
+	parsed, ok := state[OAStateParsed].(*ParsedOfficeAction)
 	if !ok || parsed == nil {
 		return nil, fmt.Errorf("oa_response: invalid or missing parsed OA state")
 	}
@@ -174,9 +173,9 @@ func analyzeClaimsNode(ctx context.Context, state graph.PregelState) (graph.Preg
 			if i >= 5 {
 				break // limit to 5 claims in the table
 			}
-			amendType := claimAmendmentType(rules.OaRejectionType(rejectionType), claimNum)
+			amendType := claimAmendmentType(OaRejectionType(rejectionType), claimNum)
 			fmt.Fprintf(&amendments, "| 权利要求 %d | %s | [原内容] | [建议修改] | %s |\n",
-				claimNum, amendType, amendmentBasis(rules.OaRejectionType(rejectionType)))
+				claimNum, amendType, amendmentBasis(OaRejectionType(rejectionType)))
 		}
 	} else {
 		amendments.WriteString("| — | 无需修改 | — | — | 基于以下争辩理由，本权利要求无需修改 |\n")
@@ -186,22 +185,22 @@ func analyzeClaimsNode(ctx context.Context, state graph.PregelState) (graph.Preg
 
 	// Add strategy-specific guidance.
 	amendments.WriteString("## 答复策略建议\n\n")
-	switch rules.OaRejectionType(rejectionType) {
-	case rules.OaNovelty:
+	switch OaRejectionType(rejectionType) {
+	case OaNovelty:
 		amendments.WriteString("- **策略**：单独对比原则争辩\n")
 		amendments.WriteString("- **要点**：论证对比文件未公开至少一项技术特征\n")
 		amendments.WriteString("- **风险**：低（新颖性争辩成功率相对较高）\n")
-	case rules.OaInventiveness:
+	case OaInventiveness:
 		amendments.WriteString("- **策略**：三步法争辩\n")
 		amendments.WriteString("- **要点**：确定区别特征 → 确定实际解决的技术问题 → 论证非显而易见\n")
 		amendments.WriteString("- **关键**：重点论述'不存在技术启示'\n")
-	case rules.OaClarity:
+	case OaClarity:
 		amendments.WriteString("- **策略**：澄清修改\n")
 		amendments.WriteString("- **要点**：明确限定用语含义、删除模糊表述、补充连接关系\n")
-	case rules.OaSupport:
+	case OaSupport:
 		amendments.WriteString("- **策略**：修改权利要求使其得到说明书支持\n")
 		amendments.WriteString("- **要点**：将上位概念限缩为说明书明确记载的具体实施方式\n")
-	case rules.OaDisclosure:
+	case OaDisclosure:
 		amendments.WriteString("- **策略**：论述公开充分\n")
 		amendments.WriteString("- **要点**：说明本领域技术人员根据说明书能够实现发明\n")
 	default:
@@ -234,16 +233,16 @@ func analyzeClaimsNode(ctx context.Context, state graph.PregelState) (graph.Preg
 }
 
 // claimAmendmentType returns the amendment action for a specific claim.
-func claimAmendmentType(rejectionType rules.OaRejectionType, claimNum int) string {
+func claimAmendmentType(rejectionType OaRejectionType, claimNum int) string {
 	switch rejectionType {
-	case rules.OaClarity:
+	case OaClarity:
 		if claimNum == 1 {
 			return "澄清限定"
 		}
 		return "从属引用调整"
-	case rules.OaSupport:
+	case OaSupport:
 		return "限缩"
-	case rules.OaScope:
+	case OaScope:
 		if claimNum == 1 {
 			return "限缩/删除"
 		}
@@ -254,15 +253,15 @@ func claimAmendmentType(rejectionType rules.OaRejectionType, claimNum int) strin
 }
 
 // amendmentBasis returns the legal basis description for the amendment.
-func amendmentBasis(rejectionType rules.OaRejectionType) string {
+func amendmentBasis(rejectionType OaRejectionType) string {
 	switch rejectionType {
-	case rules.OaClarity:
+	case OaClarity:
 		return "专利法第26条第4款（清楚）"
-	case rules.OaSupport:
+	case OaSupport:
 		return "专利法第26条第4款（支持）"
-	case rules.OaScope:
+	case OaScope:
 		return "专利法第33条（修改不超范围）"
-	case rules.OaNovelty, rules.OaInventiveness:
+	case OaNovelty, OaInventiveness:
 		return "区别技术特征（非修改，争辩）"
 	default:
 		return "审查指南相关规定"
@@ -288,7 +287,7 @@ func relevancyLabel(code string) string {
 // draftResponseNode assembles the final response draft by rendering the
 // appropriate doc template with structured analysis data.
 func draftResponseNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-	parsed, ok := state[OAStateParsed].(*rules.ParsedOfficeAction)
+	parsed, ok := state[OAStateParsed].(*ParsedOfficeAction)
 	if !ok {
 		return nil, fmt.Errorf("oa_response: invalid or missing parsed OA state in draft phase")
 	}
@@ -303,7 +302,7 @@ func draftResponseNode(ctx context.Context, state graph.PregelState) (graph.Preg
 	// Header section.
 	response.WriteString("## 审查意见概述\n\n")
 	if parsed != nil {
-		response.WriteString(rules.FormatOaSummary(*parsed))
+		response.WriteString(FormatOaSummary(*parsed))
 		response.WriteString("\n\n")
 
 		if len(parsed.ExaminerArguments) > 0 {
@@ -324,7 +323,7 @@ func draftResponseNode(ctx context.Context, state graph.PregelState) (graph.Preg
 
 	// Template-specific drafting guidance.
 	response.WriteString("## 意见陈述\n\n")
-	response.WriteString(draftResponseBody(rules.OaRejectionType(rejectionType), parsed))
+	response.WriteString(draftResponseBody(OaRejectionType(rejectionType), parsed))
 	response.WriteString("\n")
 
 	// Disclaimer.
@@ -352,11 +351,11 @@ func draftResponseNode(ctx context.Context, state graph.PregelState) (graph.Preg
 }
 
 // draftResponseBody generates the core argument section based on rejection type.
-func draftResponseBody(rejectionType rules.OaRejectionType, parsed *rules.ParsedOfficeAction) string {
+func draftResponseBody(rejectionType OaRejectionType, parsed *ParsedOfficeAction) string {
 	var b strings.Builder
 
 	switch rejectionType {
-	case rules.OaNovelty:
+	case OaNovelty:
 		b.WriteString("### 一、关于新颖性（专利法第22条第2款）\n\n")
 		b.WriteString("审查员认为本申请相对于对比文件不具备新颖性。申请人认为该审查意见不能成立。\n\n")
 		b.WriteString("#### 区别特征分析\n\n")
@@ -367,7 +366,7 @@ func draftResponseBody(rejectionType rules.OaRejectionType, parsed *rules.Parsed
 		b.WriteString("根据审查指南第二部分第三章的规定，新颖性判断应遵循单独对比原则。")
 		b.WriteString("对比文件未公开权利要求1的全部技术特征，因此权利要求1具备新颖性。\n")
 
-	case rules.OaInventiveness:
+	case OaInventiveness:
 		b.WriteString("### 一、关于创造性（专利法第22条第3款）\n\n")
 		b.WriteString("#### 第一步：最接近的现有技术\n\n")
 		b.WriteString("[认可/不认可]对比文件1作为最接近的现有技术。\n\n")
@@ -380,14 +379,14 @@ func draftResponseBody(rejectionType rules.OaRejectionType, parsed *rules.Parsed
 		b.WriteString("2. [技术启示分析2]\n\n")
 		b.WriteString("因此，权利要求1的技术方案对于本领域技术人员而言并非显而易见。\n")
 
-	case rules.OaClarity:
+	case OaClarity:
 		b.WriteString("### 一、关于权利要求不清楚（专利法第26条第4款）\n\n")
 		b.WriteString("针对审查员指出的不清楚之处，申请人已作出相应修改：\n\n")
 		b.WriteString("- [修改项1]：[说明]\n")
 		b.WriteString("- [修改项2]：[说明]\n\n")
 		b.WriteString("修改后的权利要求清楚地限定了保护范围。\n")
 
-	case rules.OaSupport:
+	case OaSupport:
 		b.WriteString("### 一、关于权利要求得不到说明书支持（专利法第26条第4款）\n\n")
 		b.WriteString("针对审查员的意见，申请人已将原权利要求的[上位概念]限缩为说明书[具体段落]明确记载的[具体实施方式]。\n\n")
 		b.WriteString("修改后的权利要求得到说明书的充分支持。\n")

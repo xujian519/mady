@@ -18,8 +18,8 @@ func TestRRFFusion(t *testing.T) {
 		{Entry: MemoryEntry{ID: "A", Content: "doc A", CreatedAt: now}, Semantic: 0.4, Rank: 2},
 	}
 
-	cfg := DefaultRRFConfig()
-	result := RRFFusion(dense, sparse, cfg)
+	cfg := defaultRRFConfig()
+	result := rrfFusion(dense, sparse, cfg)
 
 	if len(result) != 4 {
 		t.Fatalf("expected 4 unique results, got %d", len(result))
@@ -56,10 +56,10 @@ func TestRRFFusion(t *testing.T) {
 }
 
 func TestRRFFusionEmpty(t *testing.T) {
-	cfg := DefaultRRFConfig()
+	cfg := defaultRRFConfig()
 
 	// Both empty
-	result := RRFFusion(nil, nil, cfg)
+	result := rrfFusion(nil, nil, cfg)
 	if len(result) != 0 {
 		t.Errorf("expected empty result, got %d", len(result))
 	}
@@ -68,7 +68,7 @@ func TestRRFFusionEmpty(t *testing.T) {
 	dense := []ScoredMemory{
 		{Entry: MemoryEntry{ID: "A", Content: "doc A"}, Semantic: 0.9},
 	}
-	result2 := RRFFusion(dense, nil, cfg)
+	result2 := rrfFusion(dense, nil, cfg)
 	if len(result2) != 1 {
 		t.Errorf("expected 1 result, got %d", len(result2))
 	}
@@ -86,8 +86,8 @@ func TestRRFFusionCustomK(t *testing.T) {
 	}
 
 	// K=0 should default to 60
-	cfg := RRFConfig{K: 0}
-	result := RRFFusion(dense, sparse, cfg)
+	cfg := rrfConfig{K: 0}
+	result := rrfFusion(dense, sparse, cfg)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(result))
 	}

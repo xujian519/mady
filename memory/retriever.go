@@ -11,7 +11,7 @@ import (
 type Retriever struct {
 	cfg       RetrieverConfig
 	bm25Index *BM25Index // BM25 索引，为 nil 时跳过稀疏检索
-	rrfCfg    RRFConfig
+	rrfCfg    rrfConfig
 }
 
 // RetrieverConfig 控制检索行为。
@@ -51,7 +51,7 @@ func DefaultRetrieverConfig() RetrieverConfig {
 func NewRetriever(cfg RetrieverConfig) *Retriever {
 	return &Retriever{
 		cfg:    cfg,
-		rrfCfg: DefaultRRFConfig(),
+		rrfCfg: defaultRRFConfig(),
 	}
 }
 
@@ -131,7 +131,7 @@ func (r *Retriever) HybridSearch(ctx context.Context, store MemoryStore, query s
 	}
 
 	// 4. RRF 融合
-	fused := RRFFusion(denseResults, sparseResults, r.rrfCfg)
+	fused := rrfFusion(denseResults, sparseResults, r.rrfCfg)
 	if len(fused) > topK {
 		fused = fused[:topK]
 	}

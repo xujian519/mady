@@ -46,6 +46,11 @@ type TransformContextProvider interface {
 
 // LifecycleProvider is an optional interface extensions can implement
 // to participate in the agent execution lifecycle.
+//
+// For new code, consider implementing one or more of the fine-grained
+// observer interfaces (AgentRunObserver, TurnObserver, ModelCallObserver,
+// ToolCallObserver, MessagePersistObserver) instead. The Register function
+// automatically detects them via ObserversToHook.
 type LifecycleProvider interface {
 	LifecycleHook() LifecycleHook
 }
@@ -120,6 +125,10 @@ func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...
 		}
 		if lp, ok := ext.(LifecycleProvider); ok {
 			agent.config.Lifecycle = appendLifecycleHook(agent.config.Lifecycle, lp.LifecycleHook())
+		}
+		// Observer 接口独立检查（不因 LifecycleProvider 的实现而跳过）
+		if hook := ObserversToHook(ext); hook != nil {
+			agent.config.Lifecycle = appendLifecycleHook(agent.config.Lifecycle, hook)
 		}
 		agent.configMu.Unlock()
 

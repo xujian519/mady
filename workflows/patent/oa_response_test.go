@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -42,9 +41,9 @@ func TestParseOANode_NoveltyRejection(t *testing.T) {
 	}
 
 	// Verify citations extraction
-	citations, ok := out[OAStateCitations].([]rules.CitedReference)
+	citations, ok := out[OAStateCitations].([]CitedReference)
 	if !ok {
-		t.Fatal("expected OAStateCitations to be []rules.CitedReference")
+		t.Fatal("expected OAStateCitations to be []CitedReference")
 	}
 	if len(citations) == 0 {
 		t.Error("expected at least 1 citation extracted")
@@ -60,9 +59,9 @@ func TestParseOANode_NoveltyRejection(t *testing.T) {
 	}
 
 	// Verify parsed struct
-	parsed, ok := out[OAStateParsed].(*rules.ParsedOfficeAction)
+	parsed, ok := out[OAStateParsed].(*ParsedOfficeAction)
 	if !ok || parsed == nil {
-		t.Fatal("expected OAStateParsed to be *rules.ParsedOfficeAction")
+		t.Fatal("expected OAStateParsed to be *ParsedOfficeAction")
 	}
 }
 
@@ -85,8 +84,8 @@ func TestParseOANode_InventivenessRejection(t *testing.T) {
 	}
 
 	rejectionType := out.GetString(OAStateRejectionType)
-	if rejectionType != string(rules.OaInventiveness) {
-		t.Errorf("expected rejection type %q, got %q", string(rules.OaInventiveness), rejectionType)
+	if rejectionType != string(OaInventiveness) {
+		t.Errorf("expected rejection type %q, got %q", string(OaInventiveness), rejectionType)
 	}
 }
 
@@ -94,44 +93,44 @@ func TestClassifyRejectionNode(t *testing.T) {
 	tests := []struct {
 		name           string
 		rejectionType  string
-		citations      []rules.CitedReference
+		citations      []CitedReference
 		affectedClaims []int
 		wantStrategy   string
 		wantTemplate   string
 	}{
 		{
 			name:          "novelty → argument strategy",
-			rejectionType: string(rules.OaNovelty),
+			rejectionType: string(OaNovelty),
 			wantStrategy:  "argument",
 			wantTemplate:  "novelty-defense",
 		},
 		{
 			name:          "inventiveness → argument strategy",
-			rejectionType: string(rules.OaInventiveness),
+			rejectionType: string(OaInventiveness),
 			wantStrategy:  "argument",
 			wantTemplate:  "inventiveness-defense",
 		},
 		{
 			name:          "clarity → amendment strategy",
-			rejectionType: string(rules.OaClarity),
+			rejectionType: string(OaClarity),
 			wantStrategy:  "amendment",
 			wantTemplate:  "clarity-amendment",
 		},
 		{
 			name:          "support → amendment strategy",
-			rejectionType: string(rules.OaSupport),
+			rejectionType: string(OaSupport),
 			wantStrategy:  "amendment",
 			wantTemplate:  "clarity-amendment",
 		},
 		{
 			name:          "scope → amendment strategy",
-			rejectionType: string(rules.OaScope),
+			rejectionType: string(OaScope),
 			wantStrategy:  "amendment",
 			wantTemplate:  "clarity-amendment",
 		},
 		{
 			name:          "disclosure → argument strategy",
-			rejectionType: string(rules.OaDisclosure),
+			rejectionType: string(OaDisclosure),
 			wantStrategy:  "argument",
 			wantTemplate:  "novelty-defense",
 		},
@@ -139,8 +138,8 @@ func TestClassifyRejectionNode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parsed := &rules.ParsedOfficeAction{
-				RejectionType:  rules.OaRejectionType(tt.rejectionType),
+			parsed := &ParsedOfficeAction{
+				RejectionType:  string(OaRejectionType(tt.rejectionType)),
 				Citations:      tt.citations,
 				AffectedClaims: tt.affectedClaims,
 			}
@@ -168,9 +167,9 @@ func TestClassifyRejectionNode(t *testing.T) {
 }
 
 func TestAnalyzeClaimsNode(t *testing.T) {
-	parsed := &rules.ParsedOfficeAction{
-		RejectionType: rules.OaNovelty,
-		Citations: []rules.CitedReference{
+	parsed := &ParsedOfficeAction{
+		RejectionType: string(OaNovelty),
+		Citations: []CitedReference{
 			{DocumentNumber: "CN123456A", Relevancy: "X"},
 			{DocumentNumber: "US789012B", Relevancy: "A"},
 		},
@@ -178,7 +177,7 @@ func TestAnalyzeClaimsNode(t *testing.T) {
 	}
 	state := graph.PregelState{
 		OAStateParsed:           parsed,
-		OAStateRejectionType:    string(rules.OaNovelty),
+		OAStateRejectionType:    string(OaNovelty),
 		OAStateResponseStrategy: "argument",
 		OAStateCitations:        parsed.Citations,
 		OAStateAffectedClaims:   parsed.AffectedClaims,
@@ -207,15 +206,15 @@ func TestAnalyzeClaimsNode(t *testing.T) {
 }
 
 func TestDraftResponseNode(t *testing.T) {
-	parsed := &rules.ParsedOfficeAction{
-		RejectionType:     rules.OaInventiveness,
-		Citations:         []rules.CitedReference{{DocumentNumber: "CN123456A", Relevancy: "X"}},
+	parsed := &ParsedOfficeAction{
+		RejectionType:     string(OaInventiveness),
+		Citations:         []CitedReference{{DocumentNumber: "CN123456A", Relevancy: "X"}},
 		AffectedClaims:    []int{1},
 		ExaminerArguments: []string{"对比文件1公开了本发明的全部技术特征。"},
 	}
 	state := graph.PregelState{
 		OAStateParsed:           parsed,
-		OAStateRejectionType:    string(rules.OaInventiveness),
+		OAStateRejectionType:    string(OaInventiveness),
 		OAStateResponseStrategy: "argument",
 		OAStateTemplateUsed:     "inventiveness-defense",
 		OAStateClaimAmendments:  "## 权利要求修改对照表\n\n无需修改\n",
@@ -304,13 +303,13 @@ func TestDetermineResponseStrategy(t *testing.T) {
 		rejectionType string
 		want          string
 	}{
-		{string(rules.OaNovelty), "argument"},
-		{string(rules.OaInventiveness), "argument"},
-		{string(rules.OaClarity), "amendment"},
-		{string(rules.OaSupport), "amendment"},
-		{string(rules.OaScope), "amendment"},
-		{string(rules.OaDisclosure), "argument"},
-		{string(rules.OaFormal), "amendment"},
+		{string(OaNovelty), "argument"},
+		{string(OaInventiveness), "argument"},
+		{string(OaClarity), "amendment"},
+		{string(OaSupport), "amendment"},
+		{string(OaScope), "amendment"},
+		{string(OaDisclosure), "argument"},
+		{string(OaFormal), "amendment"},
 	}
 
 	for _, tt := range tests {
@@ -329,11 +328,11 @@ func TestSelectOATemplate(t *testing.T) {
 		strategy      string
 		want          string
 	}{
-		{string(rules.OaNovelty), "argument", "novelty-defense"},
-		{string(rules.OaInventiveness), "argument", "inventiveness-defense"},
-		{string(rules.OaClarity), "amendment", "clarity-amendment"},
-		{string(rules.OaSupport), "amendment", "clarity-amendment"},
-		{string(rules.OaFormal), "amendment", "clarity-amendment"},
+		{string(OaNovelty), "argument", "novelty-defense"},
+		{string(OaInventiveness), "argument", "inventiveness-defense"},
+		{string(OaClarity), "amendment", "clarity-amendment"},
+		{string(OaSupport), "amendment", "clarity-amendment"},
+		{string(OaFormal), "amendment", "clarity-amendment"},
 	}
 
 	for _, tt := range tests {

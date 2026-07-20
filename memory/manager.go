@@ -111,11 +111,11 @@ func (m *Manager) RememberBatch(ctx context.Context, entries []MemoryEntry) erro
 // RememberFromTurn 从一轮对话中提取并保存记忆。
 // 委托到 RememberFromTurnWithEmotion（无情绪上下文）。
 func (m *Manager) RememberFromTurn(ctx context.Context, userInput, assistantOutput string, scope MemoryScope) ([]string, error) {
-	return m.RememberFromTurnWithEmotion(ctx, userInput, assistantOutput, scope, EmotionContext{})
+	return m.rememberFromTurnWithEmotion(ctx, userInput, assistantOutput, scope, emotionContext{})
 }
 
 // RememberFromTurnWithEmotion 从一轮对话中提取记忆并附加情绪上下文标注。
-func (m *Manager) RememberFromTurnWithEmotion(ctx context.Context, userInput, assistantOutput string, scope MemoryScope, ec EmotionContext) ([]string, error) {
+func (m *Manager) rememberFromTurnWithEmotion(ctx context.Context, userInput, assistantOutput string, scope MemoryScope, ec emotionContext) ([]string, error) {
 	if userInput == "" && assistantOutput == "" {
 		return nil, nil
 	}

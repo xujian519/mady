@@ -223,8 +223,8 @@ type reasoningContext struct {
 // (大前提:法条 → 小前提:案件事实 → 结论) for every applicable law; the conclude node
 // renders the auditable reasoning trace. The returned FactBlackboard can be
 // inspected after invocation to audit facts, rule constraints, and chains.
-func BuildComparisonGraphWithReasoning(caseID string, caseType reasoning.CaseType) (*graph.CompiledPregelGraph, *reasoning.FactBlackboard, error) {
-	bb := reasoning.NewFactBlackboard(caseID, caseType, "")
+func BuildComparisonGraphWithReasoning(caseID string, caseType CaseType) (*graph.CompiledPregelGraph, *reasoning.FactBlackboard, error) {
+	bb := reasoning.NewFactBlackboard(caseID, reasoning.CaseType(caseType), "")
 	rc := &reasoningContext{bb: bb}
 
 	g := graph.NewPregelGraph()

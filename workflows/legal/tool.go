@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -38,25 +37,28 @@ func NewLegalComparisonTool() *agentcore.Tool {
 				return agentcore.NewFailureResult("输入为空", "案件事实不能为空"), nil
 			}
 
-			compiled, bb, err := BuildComparisonGraphWithReasoning(
-				"case-auto", reasoning.CaseInvalidation,
+			compiled, rawBB, err := BuildComparisonGraphWithReasoning(
+				"case-auto", CaseInvalidation,
 			)
 			if err != nil {
 				return agentcore.NewFailureResult("分析引擎初始化失败",
 					"法律案例分析功能暂时不可用，请稍后重试。"), nil
 			}
-			if bb == nil {
+			if rawBB == nil {
 				return agentcore.NewFailureResult("推理引擎初始化失败",
 					"法律推理引擎未能正确初始化。"), nil
 			}
 
-			bb.AddFact(reasoning.FactEntry{
+			bb := WrapBlackboard(rawBB)
+			if err := bb.AddFact(FactEntry{
 				ID:          "case_facts",
 				Content:     p.CaseFacts,
 				Source:      "user_text",
 				ExtractedAt: time.Now().Format(time.RFC3339),
 				Confidence:  0.9,
-			})
+			}); err != nil {
+				return agentcore.NewFailureResult("事实录入失败", err.Error()), nil
+			}
 
 			state, err := compiled.Run(ctx, graph.PregelState{
 				StateCaseFacts: p.CaseFacts,

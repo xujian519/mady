@@ -355,8 +355,21 @@ func WithExtensions(exts ...Extension) ConfigOption {
 }
 
 // WithLifecycle sets the lifecycle hook.
+//
+// Deprecated: prefer WithLifecycleObservers for new code.
 func WithLifecycle(hook LifecycleHook) ConfigOption {
 	return func(c *Config) { c.Lifecycle = hook }
+}
+
+// WithLifecycleObservers adds one or more observer interfaces as lifecycle hooks.
+// Each argument should implement one of AgentRunObserver, TurnObserver,
+// ModelCallObserver, ToolCallObserver, or MessagePersistObserver.
+func WithLifecycleObservers(observers ...any) ConfigOption {
+	return func(c *Config) {
+		if hook := ObserversToHook(observers...); hook != nil {
+			c.Lifecycle = appendLifecycleHook(c.Lifecycle, hook)
+		}
+	}
 }
 
 // WithTransformContext sets the context transform function.
@@ -392,4 +405,54 @@ func WithSteeringMode(m SteeringMode) ConfigOption {
 // WithFollowUpMode sets the follow-up message mode.
 func WithFollowUpMode(m SteeringMode) ConfigOption {
 	return func(c *Config) { c.FollowUpMode = m }
+}
+
+// --- Preset Configurations ---
+
+// DefaultConfigOption returns sensible default settings for general-purpose agents.
+// Use NewConfig(DefaultConfigOption()) to create a Config with these defaults,
+// then override specific fields with ConfigOption functions.
+//
+// Recommended pattern:
+//
+//	cfg := NewConfig(DefaultConfigOption(),
+//	    WithModel("gpt-4"),
+//	    WithProvider(openaiProvider),
+//	)
+func DefaultConfigOption() ConfigOption {
+	return func(c *Config) {
+		c.ModelConfig = ModelConfig{
+			MaxTokens:   4096,
+			Temperature: 0.7,
+		}
+		c.ExecutionConfig = ExecutionConfig{
+			MaxTurns: 20,
+		}
+		c.CompactionConfig = CompactionConfig{
+			ContextWindow:    8192,
+			KeepRecentTokens: 2000,
+		}
+	}
+}
+
+// ChatConfigOption returns a preset for conversational agents.
+// Optimized for high responsiveness and shorter context.
+func ChatConfigOption() ConfigOption {
+	return func(c *Config) {
+		c.Temperature = 0.8
+		c.MaxTokens = 2048
+		c.MaxTurns = 10
+		c.KeepRecentTokens = 3000
+	}
+}
+
+// AnalysisConfigOption returns a preset for deep analysis agents.
+// Optimized for thorough reasoning with longer context.
+func AnalysisConfigOption() ConfigOption {
+	return func(c *Config) {
+		c.Temperature = 0.3
+		c.MaxTokens = 8192
+		c.MaxTurns = 50
+		c.KeepRecentTokens = 4000
+	}
 }

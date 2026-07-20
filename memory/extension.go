@@ -194,7 +194,7 @@ func (e *MemoryExtension) Provide(ctx context.Context, input agentcore.BuildInpu
 	}
 
 	// 情绪感知：检测 psychological 扩展注入的心理上下文，调整检索策略
-	emotion := ExtractEmotionContext(input.Messages)
+	emotion := extractEmotionContext(input.Messages)
 	if emotion.Present {
 		query = e.emotionAwareQuery(query, emotion)
 	}
@@ -217,7 +217,7 @@ func (e *MemoryExtension) Provide(ctx context.Context, input agentcore.BuildInpu
 
 // emotionAwareQuery 根据情绪状态增强检索查询。
 // 负面情绪时偏重"安抚"、"共情"相关记忆；正面情绪时偏重"偏好"、"风格"。
-func (e *MemoryExtension) emotionAwareQuery(query string, ec EmotionContext) string {
+func (e *MemoryExtension) emotionAwareQuery(query string, ec emotionContext) string {
 	if ec.IsNegative() || ec.IsHighArousal() {
 		// 负面/高唤醒：优先检索安抚策略和共情记忆
 		return query + " 用户偏好 安抚 沟通策略"
@@ -310,7 +310,7 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 	}
 
 	// 提取情绪上下文（用于记忆标注）
-	emotion := ExtractEmotionContext(arc.Messages)
+	emotion := extractEmotionContext(arc.Messages)
 
 	// 异步提取记忆（不阻塞主流程）
 	go func() {
@@ -321,8 +321,8 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 		}()
 		extractCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if _, err := h.ext.manager.RememberFromTurnWithEmotion(extractCtx, userMsg, respContent, h.ext.scope, emotion); err != nil {
-			slog.Warn("memory: RememberFromTurnWithEmotion failed", "err", err)
+		if _, err := h.ext.manager.rememberFromTurnWithEmotion(extractCtx, userMsg, respContent, h.ext.scope, emotion); err != nil {
+			slog.Warn("memory: rememberFromTurnWithEmotion failed", "err", err)
 		}
 	}()
 }

@@ -160,6 +160,10 @@ linters:
           - gosec
         path: tools/
         text: G204|G702|G703
+      # SA1019: LifecycleHook 已标记 Deprecated，过渡期仍大量使用
+      - linters:
+          - staticcheck
+        text: SA1019
     paths:
       - third_party$
       - builtin$

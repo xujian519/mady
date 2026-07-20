@@ -2,6 +2,7 @@ package agentcore
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 )
@@ -47,8 +48,47 @@ type TurnInfo struct {
 	HadToolCalls bool
 }
 
+// --- Granular Observer Interfaces ---
+// These split the monolithic LifecycleHook into focused, single-responsibility
+// interfaces. New code should implement the specific observer(s) it needs rather
+// than the full LifecycleHook. Use ObserversToHook() to convert them.
+
+// AgentRunObserver watches agent-level start/end events.
+type AgentRunObserver interface {
+	BeforeAgentRun(ctx context.Context, arc *AgentRunContext) error
+	AfterAgentRun(ctx context.Context, arc *AgentRunContext, output string, err error)
+}
+
+// TurnObserver watches per-turn begin/end events.
+type TurnObserver interface {
+	BeforeTurn(ctx context.Context, arc *AgentRunContext) error
+	AfterTurn(ctx context.Context, arc *AgentRunContext, info TurnInfo)
+}
+
+// ModelCallObserver watches LLM call lifecycle.
+type ModelCallObserver interface {
+	BeforeModelCall(ctx context.Context, arc *AgentRunContext, mcc *ModelCallContext) error
+	AfterModelCall(ctx context.Context, arc *AgentRunContext, mcc *ModelCallContext)
+}
+
+// ToolCallObserver watches tool execution lifecycle.
+type ToolCallObserver interface {
+	BeforeToolExecution(ctx context.Context, arc *AgentRunContext, tec *ToolExecutionContext) error
+	AfterToolExecution(ctx context.Context, arc *AgentRunContext, tec *ToolExecutionContext)
+}
+
+// MessagePersistObserver watches message persistence events.
+type MessagePersistObserver interface {
+	BeforeMessagePersist(ctx context.Context, arc *AgentRunContext, msg *Message) error
+	AfterMessagePersist(ctx context.Context, arc *AgentRunContext, msg Message)
+}
+
 // LifecycleHook intercepts a specific phase of agent execution.
 // Returning a non-nil error short-circuits the phase.
+//
+// Deprecated: prefer implementing AgentRunObserver / TurnObserver /
+// ModelCallObserver / ToolCallObserver / MessagePersistObserver instead.
+// Existing implementations continue to work via BaseLifecycleHook.
 type LifecycleHook interface {
 	// BeforeAgentRun is called once when the agent starts.
 	// Modify arc.Messages to alter the initial prompt.
@@ -186,6 +226,114 @@ func (lc LifecycleChain) AfterMessagePersist(ctx context.Context, arc *AgentRunC
 	for i := len(lc) - 1; i >= 0; i-- {
 		lc[i].AfterMessagePersist(ctx, arc, msg)
 	}
+}
+
+// --- Observer-to-LifecycleHook adapters ---
+
+// ObserversToHook converts one or more observer interfaces into a single
+// LifecycleHook. Each argument should implement one of the five observer
+// interfaces (AgentRunObserver, TurnObserver, ModelCallObserver,
+// ToolCallObserver, MessagePersistObserver). Arguments that don't match
+// any observer interface are silently ignored.
+//
+// If a single observer is passed, it is wrapped directly (no LifecycleChain).
+// Multiple observers are composed via LifecycleChain.
+func ObserversToHook(observers ...any) LifecycleHook {
+	var hooks []LifecycleHook
+	for _, o := range observers {
+		if h := wrapObserver(o); h != nil {
+			hooks = append(hooks, h)
+		} else {
+			// Warn about types that don't implement any observer interface —
+			// this catches typos, interface changes, and mistaken usage early.
+			log.Printf("[WARN] ObserversToHook: ignoring unsupported type %T", o)
+		}
+	}
+	switch len(hooks) {
+	case 0:
+		return nil
+	case 1:
+		return hooks[0]
+	default:
+		return LifecycleChain(hooks)
+	}
+}
+
+func wrapObserver(o any) LifecycleHook {
+	switch v := o.(type) {
+	case AgentRunObserver:
+		return &agentRunObserverAdapter{observer: v}
+	case TurnObserver:
+		return &turnObserverAdapter{observer: v}
+	case ModelCallObserver:
+		return &modelCallObserverAdapter{observer: v}
+	case ToolCallObserver:
+		return &toolCallObserverAdapter{observer: v}
+	case MessagePersistObserver:
+		return &messagePersistObserverAdapter{observer: v}
+	default:
+		return nil
+	}
+}
+
+type agentRunObserverAdapter struct {
+	BaseLifecycleHook
+	observer AgentRunObserver
+}
+
+func (a *agentRunObserverAdapter) BeforeAgentRun(ctx context.Context, arc *AgentRunContext) error {
+	return a.observer.BeforeAgentRun(ctx, arc)
+}
+func (a *agentRunObserverAdapter) AfterAgentRun(ctx context.Context, arc *AgentRunContext, output string, err error) {
+	a.observer.AfterAgentRun(ctx, arc, output, err)
+}
+
+type turnObserverAdapter struct {
+	BaseLifecycleHook
+	observer TurnObserver
+}
+
+func (a *turnObserverAdapter) BeforeTurn(ctx context.Context, arc *AgentRunContext) error {
+	return a.observer.BeforeTurn(ctx, arc)
+}
+func (a *turnObserverAdapter) AfterTurn(ctx context.Context, arc *AgentRunContext, info TurnInfo) {
+	a.observer.AfterTurn(ctx, arc, info)
+}
+
+type modelCallObserverAdapter struct {
+	BaseLifecycleHook
+	observer ModelCallObserver
+}
+
+func (a *modelCallObserverAdapter) BeforeModelCall(ctx context.Context, arc *AgentRunContext, mcc *ModelCallContext) error {
+	return a.observer.BeforeModelCall(ctx, arc, mcc)
+}
+func (a *modelCallObserverAdapter) AfterModelCall(ctx context.Context, arc *AgentRunContext, mcc *ModelCallContext) {
+	a.observer.AfterModelCall(ctx, arc, mcc)
+}
+
+type toolCallObserverAdapter struct {
+	BaseLifecycleHook
+	observer ToolCallObserver
+}
+
+func (a *toolCallObserverAdapter) BeforeToolExecution(ctx context.Context, arc *AgentRunContext, tec *ToolExecutionContext) error {
+	return a.observer.BeforeToolExecution(ctx, arc, tec)
+}
+func (a *toolCallObserverAdapter) AfterToolExecution(ctx context.Context, arc *AgentRunContext, tec *ToolExecutionContext) {
+	a.observer.AfterToolExecution(ctx, arc, tec)
+}
+
+type messagePersistObserverAdapter struct {
+	BaseLifecycleHook
+	observer MessagePersistObserver
+}
+
+func (a *messagePersistObserverAdapter) BeforeMessagePersist(ctx context.Context, arc *AgentRunContext, msg *Message) error {
+	return a.observer.BeforeMessagePersist(ctx, arc, msg)
+}
+func (a *messagePersistObserverAdapter) AfterMessagePersist(ctx context.Context, arc *AgentRunContext, msg Message) {
+	a.observer.AfterMessagePersist(ctx, arc, msg)
 }
 
 // --- built-in lifecycle hooks ---

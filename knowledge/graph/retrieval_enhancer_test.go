@@ -74,23 +74,3 @@ func TestGraphEnhancer_AuthorityFilter(t *testing.T) {
 		t.Errorf("expected 0 similar after authority filter, got %d", len(result.Similar))
 	}
 }
-
-func TestTopAuthorities(t *testing.T) {
-	store := NewGraphStore()
-	store.AddNode(&GraphNode{ID: "law1", NodeType: NodeLawArticle, Name: "法条A", AuthorityWeight: 1.0})
-	store.AddNode(&GraphNode{ID: "law2", NodeType: NodeLawArticle, Name: "法条B", AuthorityWeight: 0.8})
-	store.AddNode(&GraphNode{ID: "case1", NodeType: NodeCase, Name: "案例", AuthorityWeight: 0.7})
-	store.AddNode(&GraphNode{ID: "law3", NodeType: NodeLawArticle, Name: "法条C", AuthorityWeight: 0.9})
-
-	top := TopAuthorities(store, NodeLawArticle, 2)
-	if len(top) != 2 {
-		t.Fatalf("expected 2, got %d", len(top))
-	}
-	// Should be sorted by authority descending: law1(1.0) then law3(0.9).
-	if top[0].ID != "law1" {
-		t.Errorf("expected law1 first, got %s", top[0].ID)
-	}
-	if top[1].ID != "law3" {
-		t.Errorf("expected law3 second, got %s", top[1].ID)
-	}
-}

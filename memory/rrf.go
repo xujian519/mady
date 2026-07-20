@@ -4,24 +4,24 @@ import (
 	"sort"
 )
 
-// RRFConfig 控制 Reciprocal Rank Fusion 的行为。
-type RRFConfig struct {
+// rrfConfig 控制 Reciprocal Rank Fusion 的行为。
+type rrfConfig struct {
 	// K 是 RRF 平滑参数，默认 60（标准值）。
 	K int `json:"k"`
 }
 
-// DefaultRRFConfig 返回标准 RRF 配置。
-func DefaultRRFConfig() RRFConfig {
-	return RRFConfig{K: 60}
+// defaultRRFConfig 返回标准 RRF 配置。
+func defaultRRFConfig() rrfConfig {
+	return rrfConfig{K: 60}
 }
 
-// RRFFusion 对稠密检索和稀疏检索的结果进行 Reciprocal Rank Fusion。
+// rrfFusion 对稠密检索和稀疏检索的结果进行 Reciprocal Rank Fusion。
 //
 // 融合公式：RRF_score(d) = Σ_{r in rankings} 1 / (K + rank_dr)
 // 其中 rank_dr 是文档 d 在排名 r 中的位置（1-indexed），K 是平滑参数。
 //
 // 两个结果集可以为空（但不会同时为空），融合后按 RRF 分数降序排列。
-func RRFFusion(dense, sparse []ScoredMemory, cfg RRFConfig) []ScoredMemory {
+func rrfFusion(dense, sparse []ScoredMemory, cfg rrfConfig) []ScoredMemory {
 	if len(dense) == 0 && len(sparse) == 0 {
 		return nil
 	}

@@ -13,7 +13,6 @@ package graph
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -153,7 +152,7 @@ func (e *GraphEnhancer) Enhance(seeds []retrieval.ScoredChunk) any {
 
 // formatSeedsOnly formats seed chunks without graph expansion.
 func (e *GraphEnhancer) formatSeedsOnly(seeds []retrieval.ScoredChunk) string {
-	items := ScoredChunksToCitable(seeds)
+	items := retrieval.ScoredChunksToCitable(seeds)
 	if len(items) == 0 {
 		return ""
 	}
@@ -166,7 +165,7 @@ func (e *GraphEnhancer) formatSeedsOnly(seeds []retrieval.ScoredChunk) string {
 
 // formatEnhanced formats the full enhancement result with citation chains.
 func (e *GraphEnhancer) formatEnhanced(seeds []retrieval.ScoredChunk, similar, citations []*GraphNode) string {
-	seedItems := ScoredChunksToCitable(seeds)
+	seedItems := retrieval.ScoredChunksToCitable(seeds)
 
 	var b strings.Builder
 	if len(seedItems) > 0 {
@@ -210,30 +209,4 @@ func formatGraphNodeRef(idx int, n *GraphNode, label string) string {
 	fmt.Fprintf(&b, "%.2f", n.AuthorityWeight)
 	b.WriteString("]\n")
 	return b.String()
-}
-
-// ScoredChunksToCitable converts retrieval.ScoredChunk slices to CitableItem
-// slices, bridging the retrieval and citation layers.
-func ScoredChunksToCitable(seeds []retrieval.ScoredChunk) []retrieval.CitableItem {
-	// Delegate to the retrieval package's own converter for consistency.
-	return retrieval.ScoredChunksToCitable(seeds)
-}
-
-// TopAuthorities returns the top-n graph nodes by authority weight for a given
-// node type (e.g., LawArticle), useful for building a "most authoritative
-// statutes" reference list.
-func TopAuthorities(store *GraphStore, nodeType string, n int) []*GraphNode {
-	var nodes []*GraphNode
-	for _, node := range store.AllNodes() {
-		if node.NodeType == nodeType {
-			nodes = append(nodes, node)
-		}
-	}
-	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].AuthorityWeight > nodes[j].AuthorityWeight
-	})
-	if len(nodes) > n {
-		nodes = nodes[:n]
-	}
-	return nodes
 }

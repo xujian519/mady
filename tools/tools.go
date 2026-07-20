@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/tools/desktop"
 )
 
 // 工具名常量，用于 DisableTools 配置。
@@ -34,6 +35,13 @@ const (
 	ToolProcess     = "process"
 	ToolVision      = "vision_analyze"
 )
+
+// ComputerUseToolConfig is a type alias for backward compatibility.
+// New code should use desktop.ComputerUseToolConfig directly.
+type ComputerUseToolConfig = desktop.ComputerUseToolConfig
+
+// NewComputerUseTool is re-exported from the desktop package for backward compatibility.
+var NewComputerUseTool = desktop.NewComputerUseTool
 
 // Shared default limits used across tool configurations.
 const (
@@ -116,7 +124,7 @@ type ExtensionConfig struct {
 	ComputerUse bool
 
 	// ComputerUseConfig configures the computer_use tool. Nil uses sensible defaults.
-	ComputerUseConfig *ComputerUseToolConfig
+	ComputerUseConfig *desktop.ComputerUseToolConfig
 
 	// SandboxEnabled enforces the WorkingDir boundary for file tools when true.
 	// When enabled, read/write/edit/etc. tools reject paths that escape the
@@ -364,7 +372,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	}
 
 	if cfg.ComputerUse {
-		addTool(NewComputerUseTool(cfg.ComputerUseConfig))
+		addTool(desktop.NewComputerUseTool(cfg.ComputerUseConfig))
 	}
 
 	// ExtraTools: domain-specific tools injected by the caller (e.g.

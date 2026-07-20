@@ -5,12 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/graph"
 )
 
 func TestBuildComparisonGraphWithReasoning(t *testing.T) {
-	compiled, bb, err := BuildComparisonGraphWithReasoning("case-001", reasoning.CaseGeneralLegal)
+	compiled, bb, err := BuildComparisonGraphWithReasoning("case-001", CaseGeneralLegal)
 	if err != nil {
 		t.Fatalf("BuildComparisonGraphWithReasoning: %v", err)
 	}
@@ -48,7 +47,7 @@ func TestBuildComparisonGraphWithReasoning(t *testing.T) {
 }
 
 func TestReasoningGraphBlackboardAuditable(t *testing.T) {
-	compiled, bb, err := BuildComparisonGraphWithReasoning("case-002", reasoning.CaseInfringement)
+	compiled, bb, err := BuildComparisonGraphWithReasoning("case-002", CaseInfringement)
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -125,7 +124,7 @@ func TestDetectTechnicalField(t *testing.T) {
 func TestReasoningGraphNoStatutes(t *testing.T) {
 	// Facts that match no keyword set → placeholder statute, no syllogisms,
 	// but the graph should still complete without error.
-	compiled, bb, err := BuildComparisonGraphWithReasoning("case-003", reasoning.CaseGeneralLegal)
+	compiled, bb, err := BuildComparisonGraphWithReasoning("case-003", CaseGeneralLegal)
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}

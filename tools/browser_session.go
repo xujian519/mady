@@ -13,7 +13,7 @@ import (
 
 	"github.com/chromedp/chromedp"
 
-	"github.com/xujian519/mady/tools/browser_providers"
+	"github.com/xujian519/mady/tools/browserproviders"
 )
 
 var (
@@ -136,7 +136,7 @@ type BrowserSession struct {
 	sessionID      string
 	backendType    BrowserBackendType
 	cdpURL         string
-	cloudProvider  browser_providers.CloudBrowserProvider
+	cloudProvider  browserproviders.CloudBrowserProvider
 	cloudSessionID string
 	camofoxClient  *CamofoxClient
 	lightpandaProc *LightpandaProcess
@@ -155,11 +155,11 @@ type BrowserManager struct {
 	mu                     sync.RWMutex
 	sessions               map[string]*BrowserSession
 	config                 BrowserConfig
-	cloudProvider          browser_providers.CloudBrowserProvider
+	cloudProvider          browserproviders.CloudBrowserProvider
 	camofoxClient          *CamofoxClient
 	lightpandaMgr          *LightpandaManager
 	agentBrowserMgr        *AgentBrowserManager
-	fallbackCloudProviders []browser_providers.CloudBrowserProvider
+	fallbackCloudProviders []browserproviders.CloudBrowserProvider
 	activeSession          string
 
 	ctx    context.Context
@@ -180,11 +180,11 @@ func NewBrowserManager(cfg *BrowserConfig) *BrowserManager {
 	backend := DetectBackend(&mgr.config)
 	switch backend {
 	case BackendBrowserbase:
-		mgr.cloudProvider = browser_providers.NewBrowserbaseProvider()
+		mgr.cloudProvider = browserproviders.NewBrowserbaseProvider()
 	case BackendBrowserUse:
-		mgr.cloudProvider = browser_providers.NewBrowserUseProvider()
+		mgr.cloudProvider = browserproviders.NewBrowserUseProvider()
 	case BackendFirecrawl:
-		mgr.cloudProvider = browser_providers.NewFirecrawlProvider()
+		mgr.cloudProvider = browserproviders.NewFirecrawlProvider()
 	case BackendCamofox:
 		mgr.camofoxClient = NewCamofoxClient(CamofoxConfig{
 			BaseURL:    cfg.CamofoxURL,
@@ -204,11 +204,11 @@ func NewBrowserManager(cfg *BrowserConfig) *BrowserManager {
 	if backend == BackendLocal || backend == BackendLightpanda {
 		for _, try := range []struct {
 			name    string
-			factory func() browser_providers.CloudBrowserProvider
+			factory func() browserproviders.CloudBrowserProvider
 		}{
-			{"browserbase", func() browser_providers.CloudBrowserProvider { return browser_providers.NewBrowserbaseProvider() }},
-			{"browser_use", func() browser_providers.CloudBrowserProvider { return browser_providers.NewBrowserUseProvider() }},
-			{"firecrawl", func() browser_providers.CloudBrowserProvider { return browser_providers.NewFirecrawlProvider() }},
+			{"browserbase", func() browserproviders.CloudBrowserProvider { return browserproviders.NewBrowserbaseProvider() }},
+			{"browser_use", func() browserproviders.CloudBrowserProvider { return browserproviders.NewBrowserUseProvider() }},
+			{"firecrawl", func() browserproviders.CloudBrowserProvider { return browserproviders.NewFirecrawlProvider() }},
 		} {
 			if try.name == cfg.CloudProvider {
 				continue // already the primary provider
@@ -485,7 +485,7 @@ func (bm *BrowserManager) createCloudSession(ctx context.Context, session *Brows
 	return nil
 }
 
-func (bm *BrowserManager) createCloudSessionWithProvider(ctx context.Context, session *BrowserSession, provider browser_providers.CloudBrowserProvider) error {
+func (bm *BrowserManager) createCloudSessionWithProvider(ctx context.Context, session *BrowserSession, provider browserproviders.CloudBrowserProvider) error {
 	if provider == nil || !provider.IsConfigured() {
 		return fmt.Errorf("cloud provider not configured")
 	}
