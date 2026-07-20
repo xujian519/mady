@@ -365,6 +365,9 @@ func (a *Agent) FollowUp(msg Message) { a.followUp.Push(msg) }
 
 func (a *Agent) ExtensionNames() []string { return a.extensions.Names() }
 
+// Emit dispatches an event to the agent's event bus for TUI/SSE subscribers.
+func (a *Agent) Emit(e Event) { a.eventBus.Emit(e) }
+
 func (a *Agent) emit(e Event) { a.eventBus.Emit(e) }
 
 func (a *Agent) tracer() Tracer {

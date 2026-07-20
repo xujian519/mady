@@ -27,6 +27,7 @@ const (
 	ChatEventCompactionEnd   ChatEventType = "compaction_end"
 	ChatEventAutoRetry       ChatEventType = "auto_retry"
 	ChatEventAgentInterrupt  ChatEventType = "agent_interrupt"
+	ChatEventApprovalPrompt  ChatEventType = "approval_prompt"
 )
 
 type ChatEvent interface {
@@ -57,6 +58,14 @@ type AgentInterruptChatEvent struct {
 }
 
 func (AgentInterruptChatEvent) ChatEventKind() ChatEventType { return ChatEventAgentInterrupt }
+
+// ApprovalPromptChatEvent 是 ApprovalGate 触发人工审核时发射的事件。
+// TUI 的 onApprovalPrompt 将其渲染为含 DomainMsg (approval_prompt) 的 ChatMessage。
+type ApprovalPromptChatEvent struct {
+	Content string
+}
+
+func (ApprovalPromptChatEvent) ChatEventKind() ChatEventType { return ChatEventApprovalPrompt }
 
 type AgentErrorChatEvent struct {
 	Err error

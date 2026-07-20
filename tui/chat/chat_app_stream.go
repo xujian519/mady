@@ -10,6 +10,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	"github.com/xujian519/mady/tui/component"
 )
 
 func (a *ChatApp) onEditorSubmit(value string) {
@@ -157,4 +159,28 @@ func interruptGuidance(ev AgentInterruptChatEvent) string {
 			"  • /reject  — 拒绝并要求修改",
 		}, "\n")
 	}
+}
+
+// onApprovalPrompt handles an ApprovalPromptEvent emitted by the ApprovalGate
+// lifecycle hook. It renders an approval card (DomainMsgTypeApprovalPrompt)
+// as a system message so the user sees the /approve and /reject actions.
+func (a *ChatApp) onApprovalPrompt(e ChatEvent) {
+	ev, ok := e.(ApprovalPromptChatEvent)
+	if !ok {
+		return
+	}
+	a.mu.Lock()
+	a.finalizeStreamLocked()
+	a.mu.Unlock()
+	a.Idle()
+
+	dm := &component.DomainMessage{
+		Type: component.DomainMsgTypeApprovalPrompt,
+		Body: ev.Content,
+		Actions: []component.DomainAction{
+			{Label: "确认并继续", Command: "/approve"},
+			{Label: "拒绝并要求修改", Command: "/reject"},
+		},
+	}
+	a.history.Append(ChatMessage{Role: RoleSystem, DomainMsg: dm})
 }

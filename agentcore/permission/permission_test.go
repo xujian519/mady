@@ -282,10 +282,16 @@ func TestTUIChannelApprover(t *testing.T) {
 	go func() {
 		done <- a.Approve(ctx, "Delete", args)
 	}()
-	for i := 0; i < 100; i++ {
-		if a.PollPending() != nil {
+	var req2 *ApprovalRequest
+	for i := 0; i < 200; i++ {
+		req2 = a.PollPending()
+		if req2 != nil {
 			break
 		}
+		time.Sleep(time.Millisecond)
+	}
+	if req2 == nil {
+		t.Fatal("expected pending request (deny test), got nil")
 	}
 	a.Respond(DecisionDeny)
 	d = <-done
@@ -298,10 +304,16 @@ func TestTUIChannelApprover(t *testing.T) {
 	go func() {
 		done <- a.Approve(ctx2, "Edit", args)
 	}()
-	for i := 0; i < 100; i++ {
-		if a.PollPending() != nil {
+	req2 = nil
+	for i := 0; i < 200; i++ {
+		req2 = a.PollPending()
+		if req2 != nil {
 			break
 		}
+		time.Sleep(time.Millisecond)
+	}
+	if req2 == nil {
+		t.Fatal("expected pending request (cancel test), got nil")
 	}
 	cancel() // cancel the context
 	d = <-done

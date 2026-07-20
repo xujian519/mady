@@ -84,7 +84,8 @@ func NewApprovalGate(config ApprovalConfig, opts ...func(*ApprovalGate)) *Approv
 
 // AfterModelCall implements LifecycleHook.AfterModelCall.
 // It checks if the model's output triggers human approval and, if so,
-// interrupts execution to wait for confirmation.
+// sends a steer message to the agent and emits an approval prompt event
+// so the TUI can render an approval card with /approve and /reject actions.
 func (g *ApprovalGate) AfterModelCall(_ context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {
 	if mcc == nil || mcc.Response == nil || mcc.Err != nil {
 		return
@@ -104,13 +105,20 @@ func (g *ApprovalGate) AfterModelCall(_ context.Context, arc *agentcore.AgentRun
 	// human operator issues /approve or /reject.
 	g.lastTriggeredOutput = mcc.Response.Content
 
-	// Interrupt and wait for human approval.
-	// The interrupted output is preserved, and the human can review it
-	// before calling Resume() to continue.
+	// Inject the approval prompt so the model sees it on the next turn.
+	steerMsg := g.buildApprovalMessage(mcc.Response.Content)
 	arc.Agent.Steer(agentcore.Message{
 		Role:    agentcore.RoleSystem,
-		Content: g.buildApprovalMessage(mcc.Response.Content),
+		Content: steerMsg,
 	})
+
+	// Emit an approval prompt event for the TUI layer to render an approval
+	// card (approval_card.go) alongside the model's output. The adapter
+	// (tui/agentadapter) translates this into a ChatMessage with DomainMsg
+	// set to DomainMsgTypeApprovalPrompt.
+	arc.Agent.Emit(agentcore.NewApprovalPromptEvent(
+		"", mcc.Response.Content, mcc.Response.ToolCalls,
+	))
 }
 
 // needsApproval checks if the content triggers the approval requirement.

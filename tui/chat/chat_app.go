@@ -395,6 +395,7 @@ func (a *ChatApp) Subscribe(sub EventSubscriber) {
 	sub.On(ChatEventAgentError, a.onAgentError)
 	sub.On(ChatEventAgentEnd, a.onAgentEnd)
 	sub.On(ChatEventAgentInterrupt, a.onAgentInterrupt)
+	sub.On(ChatEventApprovalPrompt, a.onApprovalPrompt)
 }
 
 func (a *ChatApp) PrintSystem(msg string) {

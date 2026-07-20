@@ -267,12 +267,12 @@ func TestChatAppSubscribe(t *testing.T) {
 	adapter := &testSubscriber{handlers: make(map[ChatEventType]func(ChatEvent))}
 	app.Subscribe(adapter)
 
-	if len(adapter.handlers) != 14 {
-		t.Fatalf("expected 14 handlers registered, got %d", len(adapter.handlers))
+	if len(adapter.handlers) != 15 {
+		t.Fatalf("expected 15 handlers registered, got %d", len(adapter.handlers))
 	}
 	for _, et := range []ChatEventType{
 		ChatEventAgentStart, ChatEventAgentEnd, ChatEventAgentError,
-		ChatEventAgentInterrupt,
+		ChatEventAgentInterrupt, ChatEventApprovalPrompt,
 		ChatEventTurnStart, ChatEventTurnEnd, ChatEventMessageDelta,
 		ChatEventToolCallStart, ChatEventToolCallEnd,
 		ChatEventHandoffStart, ChatEventHandoffEnd,

@@ -35,6 +35,7 @@ const (
 	EventCompactionEnd   EventType = "compaction_end"
 	EventAutoRetry       EventType = "auto_retry"
 	EventAgentInterrupt  EventType = "agent_interrupt"
+	EventApprovalPrompt  EventType = "approval_prompt"
 	EventA2UI            EventType = "a2ui"
 )
 
@@ -297,6 +298,25 @@ type A2UIEvent struct {
 // NewA2UIEvent 构造一个 A2UIEvent。
 func NewA2UIEvent(envelope map[string]any) *A2UIEvent {
 	return &A2UIEvent{baseEvent: newBase(EventA2UI), Envelope: envelope}
+}
+
+// ApprovalPromptEvent 是 ApprovalGate 触发人工审核时发射的事件。
+// TUI 适配层监听此事件并在聊天中渲染审批卡片（approval_card 组件）。
+type ApprovalPromptEvent struct {
+	baseEvent
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	Content   string     `json:"content"`
+	AgentName string     `json:"agent_name,omitempty"`
+}
+
+// NewApprovalPromptEvent 构造一个 ApprovalPromptEvent。
+func NewApprovalPromptEvent(agentName, content string, toolCalls []ToolCall) *ApprovalPromptEvent {
+	return &ApprovalPromptEvent{
+		baseEvent: newBase(EventApprovalPrompt),
+		AgentName: agentName,
+		Content:   content,
+		ToolCalls: toolCalls,
+	}
 }
 
 // --- JSON serialization for events with error fields ---

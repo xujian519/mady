@@ -155,6 +155,16 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 				Delay: ev.Delay, Err: ev.Err,
 			})
 		})
+	case chat.ChatEventApprovalPrompt:
+		s.agent.On(agentcore.EventApprovalPrompt, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.ApprovalPromptEvent)
+			if !ok {
+				return
+			}
+			handler(chat.ApprovalPromptChatEvent{
+				Content: ev.Content,
+			})
+		})
 	}
 }
 
