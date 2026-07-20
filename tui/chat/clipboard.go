@@ -68,3 +68,35 @@ func copyOSC52(text string) error {
 func CopyToClipboardOSC52(text string) error {
 	return copyOSC52(text)
 }
+
+// ReadFromClipboard reads text from the system clipboard.
+// It tries native tools first (pbpaste/xclip/clip), then falls back to an
+// empty string. OSC 52 readback is not implemented (terminal support is rare).
+func ReadFromClipboard() (string, error) {
+	return readNative()
+}
+
+func readNative() (string, error) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pbpaste")
+	case "linux":
+		if p, _ := exec.LookPath("xclip"); p != "" {
+			cmd = exec.Command("xclip", "-selection", "clipboard", "-o")
+		} else if p, _ := exec.LookPath("xsel"); p != "" {
+			cmd = exec.Command("xsel", "--clipboard", "--output")
+		} else {
+			return "", fmt.Errorf("no clipboard command found")
+		}
+	case "windows":
+		cmd = exec.Command("powershell", "-command", "Get-Clipboard")
+	default:
+		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("read clipboard: %w", err)
+	}
+	return strings.TrimRight(string(out), "\n\r"), nil
+}

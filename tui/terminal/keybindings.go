@@ -295,14 +295,15 @@ func DefaultKeybindings() map[string]KeybindingDef {
 		"tui.input.newLine": {DefaultKeys: []KeyID{"shift+enter", "alt+enter"}, Description: "Insert newline"},
 		"tui.input.submit":  {DefaultKeys: []KeyID{"enter"}, Description: "Submit input"},
 		"tui.input.tab":     {DefaultKeys: []KeyID{"tab"}, Description: "Autocomplete"},
-		"tui.input.copy":    {DefaultKeys: []KeyID{"ctrl+c", "super+c", "meta+c", "ctrl+super+c", "ctrl+meta+c"}, Description: "Copy / interrupt"},
+		"tui.input.copy":    {DefaultKeys: []KeyID{"super+c", "meta+c", "ctrl+super+c", "ctrl+meta+c"}, Description: "Copy"},
+		"tui.input.paste":   {DefaultKeys: []KeyID{"super+v", "ctrl+v", "meta+v"}, Description: "Paste"},
 
 		"tui.select.up":       {DefaultKeys: []KeyID{"up", "ctrl+p"}, Description: "Selection up"},
 		"tui.select.down":     {DefaultKeys: []KeyID{"down", "ctrl+n"}, Description: "Selection down"},
 		"tui.select.pageUp":   {DefaultKeys: []KeyID{"pageUp"}, Description: "Selection page up"},
 		"tui.select.pageDown": {DefaultKeys: []KeyID{"pageDown"}, Description: "Selection page down"},
 		"tui.select.confirm":  {DefaultKeys: []KeyID{"enter"}, Description: "Confirm selection"},
-		"tui.select.cancel":   {DefaultKeys: []KeyID{"escape", "ctrl+c"}, Description: "Cancel selection"},
+		"tui.select.cancel":   {DefaultKeys: []KeyID{"escape"}, Description: "Cancel selection"},
 	}
 }
 

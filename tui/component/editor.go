@@ -93,6 +93,14 @@ type Editor struct {
 	onSubmit func(value string)
 	onChange func(value string)
 	onCancel func()
+	onCopy   func(text string) // ⌘+C / Ctrl+C copy handler
+	onPaste  func() core.Cmd   // ⌘+V / Ctrl+V paste handler (returns a Cmd that reads clipboard async)
+
+	// pastePendingCmd holds a Cmd returned by onPaste that should be
+	// executed by the TUI event loop. Set in handlePaste, returned from
+	// Update, cleared after execution. This keeps clipboard reads off the
+	// event-loop goroutine.
+	pastePendingCmd core.Cmd
 
 	// autocompleteActiveCheck, when non-nil, is called before processing up/down
 	// keys for input history navigation. When it returns true, history navigation
@@ -314,10 +322,12 @@ func (e *Editor) clearMouseSelectionLocked() {
 	e.selDragging = false
 }
 
-// OnSubmit / OnChange / OnCancel register callbacks.
-func (e *Editor) OnSubmit(fn func(string)) { e.mu.Lock(); e.onSubmit = fn; e.mu.Unlock() }
-func (e *Editor) OnChange(fn func(string)) { e.mu.Lock(); e.onChange = fn; e.mu.Unlock() }
-func (e *Editor) OnCancel(fn func())       { e.mu.Lock(); e.onCancel = fn; e.mu.Unlock() }
+// OnSubmit / OnChange / OnCancel / OnCopy / OnPaste register callbacks.
+func (e *Editor) OnSubmit(fn func(string))   { e.mu.Lock(); e.onSubmit = fn; e.mu.Unlock() }
+func (e *Editor) OnChange(fn func(string))   { e.mu.Lock(); e.onChange = fn; e.mu.Unlock() }
+func (e *Editor) OnCancel(fn func())         { e.mu.Lock(); e.onCancel = fn; e.mu.Unlock() }
+func (e *Editor) OnCopy(fn func(string))     { e.mu.Lock(); e.onCopy = fn; e.mu.Unlock() }
+func (e *Editor) OnPaste(fn func() core.Cmd) { e.mu.Lock(); e.onPaste = fn; e.mu.Unlock() }
 
 // SetAutocompleteActiveCheck registers a function that returns whether an
 // autocomplete popup is currently active. When active, up/down keys skip
@@ -359,8 +369,20 @@ func (e *Editor) Update(msg core.Msg) core.Cmd {
 	switch m := msg.(type) {
 	case core.KeyMsg:
 		e.processKeys(m.Data)
+		// After processing keys, return any pending paste Cmd that was
+		// stored by handlePaste. The TUI event loop will execute it in a
+		// goroutine (non-blocking), and when the clipboard read completes,
+		// the result PasteMsg flows back through Update for buffer insertion.
+		e.mu.Lock()
+		cmd := e.pastePendingCmd
+		e.pastePendingCmd = nil
+		e.mu.Unlock()
+		return cmd
 	case core.PasteMsg:
-		e.processKeys(m.Text)
+		// Terminal bracketed paste or async clipboard read result.
+		// Use insertText for batch insertion (undo snapshot + onChange once)
+		// instead of per-rune insertRune which triggers O(n) snapshots.
+		e.insertText(m.Text)
 	case core.WindowSizeMsg:
 		e.Invalidate()
 	case core.MouseMsg:

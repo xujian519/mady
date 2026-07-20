@@ -26,13 +26,18 @@ func (s *tuiSession) openSettings() {
 	box.SetPadding(1, 1)
 	box.AddChild(settings)
 
-	// Track the overlay handle so OnSubmit can close it.
+	// Track the overlay handle so OnSubmit/OnCancel can close it.
 	var ov chat.OverlayRef
 	// OnChange: apply immediately via store, which guarantees idempotent writes.
 	// SettingsList.submitOrCycle (Enter) fires both OnChange and OnSubmit;
 	// re-applying via the store is safe (same value = no-op).
 	settings.OnChange(func(e component.SettingEntry) { s.applySettingEntry(e) })
 	settings.OnSubmit(func(_ component.SettingEntry) {
+		if ov != nil {
+			s.app.CloseOverlay(ov)
+		}
+	})
+	settings.OnCancel(func() {
 		if ov != nil {
 			s.app.CloseOverlay(ov)
 		}

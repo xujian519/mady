@@ -147,6 +147,9 @@ func ScanPlugins(roots ...string) ([]PluginManifest, error) {
 	var all []PluginManifest
 	seen := make(map[string]bool)
 	for _, root := range roots {
+		if _, err := os.Stat(root); os.IsNotExist(err) {
+			continue
+		}
 		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err

@@ -7,6 +7,8 @@ package component
 // and clear stale mouse/Select-All selection state.
 
 import (
+	"strings"
+
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/terminal"
 )
@@ -84,6 +86,18 @@ func (e *Editor) processKeys(data string) {
 			e.undo()
 		case km.Matches(raw, "ctrl+shift+z"), km.Matches(raw, "ctrl+y"):
 			e.redo()
+		case km.Matches(raw, "tui.input.copy"):
+			e.handleCopy()
+		case km.Matches(raw, "tui.input.paste"):
+			e.handlePaste()
+		case km.Matches(raw, "tui.input.tab"):
+			// Tab while autocomplete is active: let the autocomplete handle it
+			// (either apply the suggestion or dismiss). Don't insert a literal
+			// tab character into the buffer.
+			if e.isAutocompleteActive() {
+				continue
+			}
+			e.insertRune(k.Rune)
 		default:
 			if k.Rune == '\n' || k.Rune == '\r' {
 				continue
@@ -385,6 +399,66 @@ func (e *Editor) deleteToLineStart() {
 	}
 }
 
+func (e *Editor) handleCopy() {
+	e.mu.RLock()
+	onCopy := e.onCopy
+	selected := ""
+	if e.allSelected {
+		selected = e.valueLocked()
+	} else if start, end, ok := e.normalizedSelectionLocked(); ok {
+		var b strings.Builder
+		for r := start.row; r <= end.row; r++ {
+			if r >= int64(len(e.lines)) {
+				break
+			}
+			line := e.lines[r]
+			lo, hi := int64(0), int64(len(line))
+			if r == start.row {
+				lo = start.col
+			}
+			if r == end.row {
+				hi = end.col
+			}
+			if lo < 0 {
+				lo = 0
+			}
+			if hi > int64(len(line)) {
+				hi = int64(len(line))
+			}
+			if lo < hi {
+				b.WriteString(string(line[lo:hi]))
+			}
+			if r != end.row {
+				b.WriteByte('\n')
+			}
+		}
+		selected = b.String()
+	}
+	e.mu.RUnlock()
+	if onCopy != nil && selected != "" {
+		onCopy(selected)
+	}
+}
+
+func (e *Editor) handlePaste() {
+	e.mu.RLock()
+	fn := e.onPaste
+	e.mu.RUnlock()
+	if fn == nil {
+		return
+	}
+	// onPaste returns a core.Cmd that reads clipboard in a goroutine.
+	// Store it as pastePendingCmd; Editor.Update will return it to the TUI
+	// event loop for async execution. The Cmd returns core.PasteMsg{Text}
+	// which flows back through Update → insertText for batch insertion.
+	cmd := fn()
+	if cmd != nil {
+		e.mu.Lock()
+		e.pastePendingCmd = cmd
+		e.mu.Unlock()
+	}
+}
+
 func (e *Editor) deleteToLineEnd() {
 	e.mu.Lock()
 	e.clearMouseSelectionLocked()
@@ -414,6 +488,62 @@ func (e *Editor) deleteToLineEnd() {
 	killed := string(cur[e.col:])
 	e.lines[e.row] = cur[:e.col]
 	e.pushKillRingLocked(killed)
+	fn := e.onChange
+	v := e.valueLocked()
+	e.mu.Unlock()
+	if fn != nil {
+		fn(v)
+	}
+}
+
+// insertText inserts a block of text into the editor buffer at the cursor
+// position, handling newlines. It pushes a single undo snapshot and fires
+// onChange once, making it suitable for large pastes where per-rune insertRune
+// would trigger O(n) snapshots and callbacks.
+func (e *Editor) insertText(text string) {
+	e.mu.Lock()
+	e.clearMouseSelectionLocked()
+	e.pushSnapshotLocked()
+	if e.allSelected {
+		e.clearSelectionContentLocked()
+	}
+
+	lines := strings.Split(text, "\n")
+	if len(lines) == 0 {
+		e.mu.Unlock()
+		return
+	}
+
+	// First line is appended to the current row at cursor.
+	cur := e.lines[e.row]
+	prefix := make([]rune, e.col)
+	copy(prefix, cur[:e.col])
+	suffix := make([]rune, len(cur)-int(e.col))
+	copy(suffix, cur[e.col:])
+
+	prefix = append(prefix, []rune(lines[0])...)
+	e.lines[e.row] = prefix
+
+	// Middle lines create new rows inserted after current row.
+	for i := 1; i < len(lines); i++ {
+		row := []rune(lines[i])
+		// Grow slice and shift elements right to make room.
+		e.lines = append(e.lines, nil)
+		copy(e.lines[e.row+2:], e.lines[e.row+1:])
+		e.lines[e.row+1] = row
+		e.row++
+	}
+
+	// Append the original suffix (content after cursor) to the last row.
+	if len(lines) > 1 {
+		e.lines[e.row] = append(e.lines[e.row], suffix...)
+		e.col = int64(len(e.lines[e.row]) - len(suffix))
+	} else {
+		e.lines[e.row] = append(prefix, suffix...)
+		e.col = int64(len(prefix))
+	}
+
+	e.allSelected = false
 	fn := e.onChange
 	v := e.valueLocked()
 	e.mu.Unlock()

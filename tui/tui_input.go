@@ -268,10 +268,14 @@ func (t *TUI) enableMouse(mode string) {
 	t.outMu.Unlock()
 	switch mode {
 	case "sgr":
-		// Enable SGR positioning (?1006h) + button-event tracking (?1002h).
-		// No ?1007l — we let the terminal convert wheel-to-arrow itself;
-		// some terminals show rendering artifacts when toggling ?1007.
-		_, _ = t.term.Write([]byte("\x1b[?1002h\x1b[?1006h"))
+		// Enable SGR positioning (?1006h) + basic click tracking (?1000h).
+		// We intentionally use ?1000h instead of ?1002h (button-event tracking)
+		// because ?1002h captures ALL mouse drag events, which prevents the
+		// terminal's OS-level native text selection (drag-to-select on macOS).
+		// With ?1000h only button press events are reported — drag events pass
+		// through to the OS, allowing native text selection while still letting
+		// the TUI handle click interactions (focus, scrolling, etc.).
+		_, _ = t.term.Write([]byte("\x1b[?1000h\x1b[?1006h"))
 	case "x11":
 		_, _ = t.term.Write([]byte("\x1b[?1000h"))
 	}

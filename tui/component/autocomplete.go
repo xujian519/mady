@@ -278,7 +278,12 @@ func (a *Autocomplete) applyCurrent() {
 	}
 	replace := item.Value
 	if trigger.Trigger() != "" {
-		replace = trigger.Trigger() + replace
+		// Guard against double-triggering: when the suggestion InsertText
+		// already starts with the trigger (e.g. "/" + "/help" → "//help"),
+		// skip prepending the trigger to avoid duplicating it.
+		if !strings.HasPrefix(replace, trigger.Trigger()) {
+			replace = trigger.Trigger() + replace
+		}
 	}
 	runes := []rune(a.value)
 	newRunes := make([]rune, 0, len(runes)+len([]rune(replace)))

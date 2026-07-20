@@ -55,6 +55,7 @@ type SettingsList struct {
 
 	onChange func(entry SettingEntry)
 	onSubmit func(entry SettingEntry)
+	onCancel func()
 }
 
 // NewSettingsList creates a SettingsList.
@@ -124,6 +125,9 @@ func (s *SettingsList) OnChange(fn func(SettingEntry)) { s.mu.Lock(); s.onChange
 
 // OnSubmit fires when Enter is pressed on an entry (after cycling).
 func (s *SettingsList) OnSubmit(fn func(SettingEntry)) { s.mu.Lock(); s.onSubmit = fn; s.mu.Unlock() }
+
+// OnCancel registers an Escape-key callback.
+func (s *SettingsList) OnCancel(fn func()) { s.mu.Lock(); s.onCancel = fn; s.mu.Unlock() }
 
 // SetFocused / IsFocused implement Focusable.
 func (s *SettingsList) SetFocused(on bool) { s.mu.Lock(); s.focused = on; s.mu.Unlock() }
@@ -253,6 +257,8 @@ func (s *SettingsList) processKeys(data string) {
 		s.cycleValue(1)
 	case km.Matches(data, "tui.select.confirm"):
 		s.submitOrCycle()
+	case km.Matches(data, "tui.select.cancel"):
+		s.cancel()
 	}
 }
 
@@ -296,6 +302,15 @@ func (s *SettingsList) cycleValue(delta int64) {
 	s.mu.Unlock()
 	if fn != nil {
 		fn(updated)
+	}
+}
+
+func (s *SettingsList) cancel() {
+	s.mu.RLock()
+	fn := s.onCancel
+	s.mu.RUnlock()
+	if fn != nil {
+		fn()
 	}
 }
 

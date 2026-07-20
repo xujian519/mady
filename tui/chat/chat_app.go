@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/core"
@@ -270,6 +271,29 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 	})
 	editor.OnSubmit(func(value string) {
 		chatApp.onEditorSubmit(value)
+	})
+	editor.OnCopy(func(text string) {
+		go func() {
+			if err := CopyToClipboard(text); err != nil {
+				chatApp.PrintError(fmt.Errorf("clipboard: %w", err))
+				return
+			}
+			runeCount := utf8.RuneCountInString(text)
+			chatApp.PrintSystem(fmt.Sprintf("📋 已复制（%d 字符）", runeCount))
+		}()
+	})
+	editor.OnPaste(func() core.Cmd {
+		return func() core.Msg {
+			text, err := ReadFromClipboard()
+			if err != nil {
+				// PrintError (history.Append) and RequestRender (channel send)
+				// are both safe to call from non-main goroutines.
+				chatApp.PrintError(fmt.Errorf("paste: %w", err))
+				chatApp.host.RequestRender()
+				return nil
+			}
+			return core.PasteMsg{Text: text}
+		}
 	})
 	editor.OnCancel(func() {
 		if cfg.OnQuit != nil {

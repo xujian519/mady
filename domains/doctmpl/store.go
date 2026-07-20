@@ -3,6 +3,7 @@ package doctmpl
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 )
@@ -55,10 +56,11 @@ func NewTemplateStore(userRoots ...string) (*TemplateStore, error) {
 	if len(userRoots) > 0 {
 		userTemplates, err := LoadDocTemplates(userRoots...)
 		if err != nil {
-			return nil, fmt.Errorf("doctmpl: load user templates: %w", err)
-		}
-		for i := range userTemplates {
-			store.add(&userTemplates[i])
+			slog.Warn("doctmpl: failed to load user templates, using embedded templates only", "error", err)
+		} else {
+			for i := range userTemplates {
+				store.add(&userTemplates[i])
+			}
 		}
 	}
 

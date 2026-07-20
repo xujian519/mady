@@ -18,11 +18,11 @@ func ChatAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg := base
 	cfg.Name = "chat-agent"
 
-	// 聊天场景轮次上限 8（零值兜底 + 截断过高值）。
-	// 显式传入 1-7 的较小值不会被覆盖 —— 仅当值为 0（未设置）
-	// 或大于 8 时才会被修正。
-	if cfg.MaxTurns == 0 || cfg.MaxTurns > 8 {
-		cfg.MaxTurns = 8
+	// 聊天场景轮次上限 100（零值兜底 + 截断过高值）。
+	// 显式传入 1-99 的较小值不会被覆盖 —— 仅当值为 0（未设置）
+	// 或大于 100 时才会被修正。
+	if cfg.MaxTurns == 0 || cfg.MaxTurns > 100 {
+		cfg.MaxTurns = 100
 	}
 
 	cfg.SystemPrompt = strings.Join([]string{
