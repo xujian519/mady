@@ -46,6 +46,12 @@ func (e *PermissionExtension) Init(_ context.Context, agent *agentcore.Agent) er
 // Dispose implements agentcore.Extension.
 func (e *PermissionExtension) Dispose() error { return nil }
 
+// SetApprover replaces the current approver at runtime. Thread-safe since
+// Approve is called from the agent goroutine serially (no concurrent calls).
+func (e *PermissionExtension) SetApprover(a Approver) {
+	e.approver = a
+}
+
 // Middleware implements agentcore.MiddlewareProvider.
 func (e *PermissionExtension) Middleware() []agentcore.Middleware {
 	return []agentcore.Middleware{e.permissionMiddleware}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/guardrails"
@@ -175,6 +176,13 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	cfg.SystemPrompt = buildProjectSystemPrompt(rec)
 	cfg.ProjectDir = rec.RootPath
 
+	// 权限门控：写入工具需确认，只读工具自动放行。
+	// 如果 TUI 已注入带交互式 Approver 的 PermissionExtension，此处跳过。
+	if !hasExtensionNamed(cfg.Extensions, permission.ExtensionName) {
+		cfg.Extensions = append(cfg.Extensions,
+			permission.NewExtension(permission.ProjectAgentPolicy(), nil))
+	}
+
 	// 动态 WorkingDir = 案件真实文件夹，沙箱约束在此边界内
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir:     rec.RootPath,
@@ -218,6 +226,18 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	)
 
 	return cfg
+}
+
+// hasExtensionNamed reports whether cfg.Extensions already contains an
+// extension with the given name. Used by BuildProjectAgent to avoid
+// overwriting a PermissionExtension injected by the TUI layer.
+func hasExtensionNamed(exts []agentcore.Extension, name string) bool {
+	for _, ext := range exts {
+		if ext.Name() == name {
+			return true
+		}
+	}
+	return false
 }
 
 // buildProjectSystemPrompt 构造含案件上下文的 System Prompt。

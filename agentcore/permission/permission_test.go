@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestDecision_String(t *testing.T) {
@@ -181,5 +182,130 @@ func TestGlobMatch(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("globMatch(%q,%q)=%v want %v", tt.pattern, tt.name, got, tt.want)
 		}
+	}
+}
+
+func TestProjectAgentPolicy(t *testing.T) {
+	policy := ProjectAgentPolicy()
+
+	tests := []struct {
+		name     string
+		tool     string
+		args     json.RawMessage
+		readOnly bool
+		want     Decision
+	}{
+		// Allow: read-only tools
+		{"read tool", "read", nil, true, DecisionAllow},
+		{"ls tool", "ls", nil, true, DecisionAllow},
+		{"grep tool", "grep", nil, true, DecisionAllow},
+		{"find tool", "find", nil, true, DecisionAllow},
+		{"glob tool", "glob", nil, true, DecisionAllow},
+		{"view tool", "view", nil, true, DecisionAllow},
+
+		// Ask: write tools
+		{"edit tool", "edit", nil, false, DecisionAsk},
+		{"write_file tool", "write_file", nil, false, DecisionAsk},
+
+		// Deny: destructive tools
+		{"bash tool", "bash", nil, false, DecisionDeny},
+		{"delete tool", "delete", nil, false, DecisionDeny},
+		{"move tool", "move", nil, false, DecisionDeny},
+		{"process tool", "process", nil, false, DecisionDeny},
+		{"execute_code tool", "execute_code", nil, false, DecisionDeny},
+
+		// Fallback: unlisted read-only tool → Allow
+		{"unlisted read-only", "web_search", nil, true, DecisionAllow},
+
+		// Fallback: unlisted writer → Ask (Mode=DecisionAsk)
+		{"unlisted writer", "browser", nil, false, DecisionAsk},
+
+		// Deny is not sensitive to readOnly flag (deny overrides everything)
+		{"deny even if readOnly", "bash", nil, true, DecisionDeny},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := policy.Decide(tt.tool, tt.readOnly, tt.args)
+			if got != tt.want {
+				t.Errorf("ProjectAgentPolicy().Decide(%q, readOnly=%v) = %v; want %v",
+					tt.tool, tt.readOnly, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTUIChannelApprover(t *testing.T) {
+	ctx := context.Background()
+	a := NewTUIChannelApprover()
+
+	// Initially no pending request.
+	if req := a.PollPending(); req != nil {
+		t.Fatalf("expected nil pending, got %+v", req)
+	}
+
+	// Launch Approve in a goroutine (it blocks).
+	done := make(chan Decision, 1)
+	args, _ := json.Marshal(map[string]any{"path": "/tmp/test.go"})
+	go func() {
+		done <- a.Approve(ctx, "Edit", args)
+	}()
+
+	// Wait for the pending request.
+	var req *ApprovalRequest
+	for i := 0; i < 200; i++ {
+		req = a.PollPending()
+		if req != nil {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if req == nil {
+		t.Fatal("expected pending request, got nil")
+	}
+	if req.ToolName != "Edit" {
+		t.Errorf("ToolName=%q want %q", req.ToolName, "Edit")
+	}
+
+	// Respond Allow and check the result.
+	a.Respond(DecisionAllow)
+	d := <-done
+	if d != DecisionAllow {
+		t.Errorf("Approve() returned %v; want Allow", d)
+	}
+
+	// After Respond, PollPending should be nil.
+	if req := a.PollPending(); req != nil {
+		t.Errorf("expected nil after respond, got %+v", req)
+	}
+
+	// Test Deny response.
+	go func() {
+		done <- a.Approve(ctx, "Delete", args)
+	}()
+	for i := 0; i < 100; i++ {
+		if a.PollPending() != nil {
+			break
+		}
+	}
+	a.Respond(DecisionDeny)
+	d = <-done
+	if d != DecisionDeny {
+		t.Errorf("Approve() returned %v; want Deny", d)
+	}
+
+	// Test context cancellation.
+	ctx2, cancel := context.WithCancel(context.Background())
+	go func() {
+		done <- a.Approve(ctx2, "Edit", args)
+	}()
+	for i := 0; i < 100; i++ {
+		if a.PollPending() != nil {
+			break
+		}
+	}
+	cancel() // cancel the context
+	d = <-done
+	if d != DecisionDeny {
+		t.Errorf("Approve() after cancel returned %v; want Deny", d)
 	}
 }

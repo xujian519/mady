@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/knowledge/fileindex"
@@ -150,6 +151,7 @@ func runTui(ctx context.Context) {
 		riskExt:           riskExt,
 		writingExt:        writingExt,
 		fileIndexExt:      fileIndexExt,
+		toolApprover:      permission.NewTUIChannelApprover(),
 		agentStore:        agentStore,
 		checkpointSaver:   agentcore.NewMemoryCheckpointSaver(),
 		currentThreadID:   "default",

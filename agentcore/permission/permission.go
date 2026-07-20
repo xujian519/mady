@@ -49,6 +49,39 @@ func DefaultPolicy() Policy {
 	return Policy{Mode: DecisionAsk}
 }
 
+// ProjectAgentPolicy returns a policy suitable for project-linked agents:
+//   - read/ls/grep/find/glob/view → Allow (read-only)
+//   - write_file/edit → Ask (requires confirmation)
+//   - bash/delete/move/process/execute_code → Deny (destructive)
+//   - all others → Ask (conservative fallback)
+//
+// Policy 决策顺序: Deny > Ask > Allow > fallback。
+// 回退时只读工具自动 Allow，写入工具回退到 Mode（默认 Ask）。
+func ProjectAgentPolicy() Policy {
+	return Policy{
+		Mode: DecisionAsk,
+		Allow: []Rule{
+			{Tool: "read"},
+			{Tool: "ls"},
+			{Tool: "grep"},
+			{Tool: "find"},
+			{Tool: "glob"},
+			{Tool: "view"},
+		},
+		Ask: []Rule{
+			{Tool: "write_file"},
+			{Tool: "edit"},
+		},
+		Deny: []Rule{
+			{Tool: "bash"},
+			{Tool: "delete"},
+			{Tool: "move"},
+			{Tool: "process"},
+			{Tool: "execute_code"},
+		},
+	}
+}
+
 // Decide evaluates the policy for the given tool call.
 //
 // Priority: Deny > Ask > Allow > fallback.

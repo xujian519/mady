@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/reasoning"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
@@ -74,6 +75,11 @@ type tuiSession struct {
 	// Approval gate state — persists human decisions (adopted/modified/rejected)
 	// to accumulate real AdoptionRate data for evaluation (see P3 roadmap).
 	approvalGate *domains.ApprovalGate
+
+	// toolApprover is the interactive tool-call approval controller.
+	// When PermissionExtension returns DecisionAsk, the agent goroutine
+	// blocks in Approve() while the TUI main loop polls PollPending().
+	toolApprover *permission.TUIChannelApprover
 
 	app *chat.ChatApp
 
@@ -201,6 +207,11 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 				base.Thinking.Effort = agentcore.ThinkingEffortMax
 			}
 		}
+		// Inject permission extension with TUI approver before domain factory.
+		if s.toolApprover != nil {
+			base.Extensions = append(base.Extensions,
+				permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))
+		}
 		cfg := domains.IntegratedChatConfig(base)
 		if s.fc.WikiHook != nil {
 			cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, s.fc.WikiHook)
@@ -221,6 +232,12 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 		return s.injectMemoryExtension(s.applyPersistence(cfg))
 
 	case s.useMultiDomain:
+		// Inject permission extension with TUI approver before domain factory.
+		if s.toolApprover != nil {
+			base := s.fc.BaseConfig
+			base.Extensions = append(base.Extensions,
+				permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))
+		}
 		cfg := buildRouterConfig(s.fc.BaseConfig, s.fc.Manifests)
 		cfg.Thinking = cloneThinkingConfig(s.thinkingConfig())
 		if s.isPlanMode() {
@@ -473,6 +490,23 @@ func (s *tuiSession) resumeIfInterrupted() bool {
 func (s *tuiSession) handleSubmit(input string) {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
+		return
+	}
+
+	// Check for pending tool approval request.
+	if req := s.toolApprover.PollPending(); req != nil {
+		switch strings.ToLower(trimmed) {
+		case "y", "yes", "n", "no":
+			if trimmed == "y" || trimmed == "yes" {
+				s.toolApprover.Respond(permission.DecisionAllow)
+				s.app.PrintSystem("✅ 已允许执行: " + req.ToolName)
+			} else {
+				s.toolApprover.Respond(permission.DecisionDeny)
+				s.app.PrintSystem("❌ 已拒绝执行: " + req.ToolName)
+			}
+		default:
+			s.app.PrintSystem("输入 y (允许) 或 n (拒绝) 以回应审批请求")
+		}
 		return
 	}
 
