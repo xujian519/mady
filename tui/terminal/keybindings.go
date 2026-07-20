@@ -304,6 +304,12 @@ func DefaultKeybindings() map[string]KeybindingDef {
 		"tui.select.pageDown": {DefaultKeys: []KeyID{"pageDown"}, Description: "Selection page down"},
 		"tui.select.confirm":  {DefaultKeys: []KeyID{"enter"}, Description: "Confirm selection"},
 		"tui.select.cancel":   {DefaultKeys: []KeyID{"escape"}, Description: "Cancel selection"},
+
+		"tui.review.pass":  {DefaultKeys: []KeyID{"p"}, Description: "通过复核"},
+		"tui.review.back":  {DefaultKeys: []KeyID{"b"}, Description: "返回补证据"},
+		"tui.review.block": {DefaultKeys: []KeyID{"f"}, Description: "标记阻塞"},
+
+		"tui.system.open": {DefaultKeys: []KeyID{"s"}, Description: "打开系统态"},
 	}
 }
 

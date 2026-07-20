@@ -68,8 +68,24 @@ func (h *tuiAppHost) PushOverlay(ov chat.OverlayRef) {
 		hp = 70
 	}
 
+	// Determine overlay category via optional interface. overlayHandle (in
+	// chat) implements OverlayCategory() for this; other OverlayRef
+	// implementations return 0 (OverlaySelection) by default.
+	cat := OverlaySelection
+	if categoriser, ok := ov.(interface{ OverlayCategory() int }); ok {
+		switch categoriser.OverlayCategory() {
+		case chat.OverlayCatReview:
+			cat = OverlayReview
+		case chat.OverlayCatGate:
+			cat = OverlayGate
+		case chat.OverlayCatSystem:
+			cat = OverlaySystem
+		}
+	}
+
 	o := &Overlay{
 		Content:       ov.OverlayContent(),
+		Category:      cat,
 		Focus:         wantsFocus,
 		DimBackground: dimBg,
 		Anchor:        anchor,

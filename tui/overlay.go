@@ -13,6 +13,38 @@ var (
 )
 
 // ---------------------------------------------------------------------------
+// OverlayCategory — classifies overlays by purpose so the TUI can apply
+// consistent sizing, focus behavior, and close rules per category.
+// ---------------------------------------------------------------------------
+
+// OverlayCategory describes the purpose of an overlay panel.
+type OverlayCategory int
+
+const (
+	OverlaySelection OverlayCategory = iota // 选择型—快速切换对象（会话/线程/分支）
+	OverlayReview                           // 审阅型—查看依据与细节（证据/引用/键位表）
+	OverlayGate                             // 复核型—结构化审阅（复核门/高风确认）
+	OverlaySystem                           // 系统型—运行条件解释（降级/阻塞/日志）
+)
+
+// DefaultOverlaySize returns the default width/height percentage for a given
+// overlay category. Callers may override these defaults per-instance.
+func DefaultOverlaySize(cat OverlayCategory) (wPct, hPct int64) {
+	switch cat {
+	case OverlaySelection:
+		return 40, 30
+	case OverlayReview:
+		return 60, 60
+	case OverlayGate:
+		return 70, 75
+	case OverlaySystem:
+		return 50, 40
+	default:
+		return 60, 60
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Overlay — a floating panel mounted on top of the root view.
 //
 // Positioning supports:
@@ -86,6 +118,11 @@ type Overlay struct {
 
 	Width  OverlaySize
 	Height OverlaySize
+
+	// Category classifies the overlay's purpose for default sizing and
+	// behavior. Defaults to OverlaySelection (zero value) for backward
+	// compatibility.
+	Category OverlayCategory
 
 	// Focus tells the TUI to push Content onto the focus stack when the
 	// overlay is mounted, and pop it when removed.

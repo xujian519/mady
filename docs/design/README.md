@@ -44,3 +44,11 @@
 |------|------|
 | `docs/specs/README.md` | Spec-Driven 开发流程（四阶段文档链） |
 | `docs/decisions/AI_CHANGELOG.md` | AI 决策变更日志 |
+
+## 当前设计草案
+
+位于 `docs/design/`：
+
+| 文档 | 内容 |
+|------|------|
+| `docs/design/tui-overlay-optimization-v0.1.md` | 现有单主视图 TUI + 浮层优化方案，强调当前判断主轴、浮层分类、复核门与系统态设计 |

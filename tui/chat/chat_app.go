@@ -124,20 +124,31 @@ type chatModel struct {
 type ChatApp struct {
 	cfg ChatAppConfig
 
-	host      AppHost
-	history   *ChatHistory
-	editor    *component.Editor
-	loader    *component.Loader
-	layout    *chatLayout
-	header    *component.TruncatedText
-	statusBar *component.StatusBar
-	ac        *component.Autocomplete
-	km        *terminal.KeybindingsManager
+	host         AppHost
+	history      *ChatHistory
+	editor       *component.Editor
+	loader       *component.Loader
+	layout       *chatLayout
+	header       *component.TruncatedText
+	statusBar    *component.StatusBar
+	ac           *component.Autocomplete
+	km           *terminal.KeybindingsManager
+	judgmentView *component.JudgmentView
 
 	mu    sync.Mutex
 	model chatModel
 
 	helpOverlay OverlayRef
+
+	// reviewGateOverlay tracks the active review gate overlay, if any.
+	// Access is guarded by mu; see OpenReviewGate/CloseReviewGate for
+	// lock-ordering discipline.
+	reviewGateOverlay OverlayRef
+
+	// systemStatusOverlay tracks the active system status overlay, if any.
+	// Access is guarded by mu; see OpenSystemStatus/CloseSystemStatus for
+	// lock-ordering discipline.
+	systemStatusOverlay OverlayRef
 
 	// SuppressAutoRetry suppresses auto-retry messages from being printed to
 	// the chat history. When true, retry events are silently dropped instead of
@@ -194,14 +205,15 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 	}
 
 	chatApp := &ChatApp{
-		cfg:       cfg,
-		host:      cfg.Host,
-		history:   history,
-		editor:    editor,
-		loader:    loader,
-		statusBar: statusBar,
-		km:        km,
-		model:     chatModel{ActiveTools: make(map[string]time.Time)},
+		cfg:          cfg,
+		host:         cfg.Host,
+		history:      history,
+		editor:       editor,
+		loader:       loader,
+		statusBar:    statusBar,
+		km:           km,
+		judgmentView: component.NewJudgmentView(),
+		model:        chatModel{ActiveTools: make(map[string]time.Time)},
 	}
 
 	var header *component.TruncatedText
@@ -242,6 +254,7 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 		host:          chatApp,
 		app:           chatApp,
 		history:       history,
+		judgmentView:  chatApp.judgmentView,
 		editor:        editor,
 		loader:        loader,
 		statusBar:     statusBar,
@@ -346,6 +359,21 @@ func (a *ChatApp) SetFooter(f core.Component) {
 	if a.host != nil {
 		a.host.RequestRender()
 	}
+}
+
+// UpdateJudgmentView triggers a re-render of the judgment view. Call this
+// after mutating the component returned by JudgmentView() to apply changes.
+func (a *ChatApp) UpdateJudgmentView() {
+	if a.judgmentView != nil {
+		a.layout.updateJudgmentView()
+	}
+}
+
+// JudgmentView returns the component so callers can configure it directly.
+// After calling setters on the returned component, call UpdateJudgmentView()
+// to apply the changes.
+func (a *ChatApp) JudgmentView() *component.JudgmentView {
+	return a.judgmentView
 }
 
 func (a *ChatApp) Footer() core.Component {
@@ -458,6 +486,7 @@ func (a *ChatApp) ToggleKeyHelp() OverlayRef {
 		content:       help,
 		focus:         true,
 		dimBackground: true,
+		category:      OverlayCatReview,
 		widthPct:      70,
 		heightPct:     70,
 	}
@@ -478,11 +507,181 @@ func (a *ChatApp) CloseKeyHelp() {
 	}
 }
 
+// ReviewGateData carries the structured data needed to render a review gate overlay.
+// See component.ReviewGate for field descriptions.
+type ReviewGateData struct {
+	Title      string
+	Judgment   string
+	Confidence float64
+	Evidences  []component.ReviewEvidence
+	Checklist  []component.ReviewCheckItem
+	Risks      []string
+	OnPass     func()
+	OnBack     func()
+	OnBlock    func()
+}
+
+// OpenReviewGate opens a review gate overlay with the given data.
+// Lock discipline: a.mu is NOT held during PushOverlay (see ToggleKeyHelp).
+func (a *ChatApp) OpenReviewGate(data ReviewGateData) OverlayRef {
+	a.mu.Lock()
+	if a.reviewGateOverlay != nil {
+		// Close existing review gate before opening a new one.
+		ov := a.reviewGateOverlay
+		a.reviewGateOverlay = nil
+		a.mu.Unlock()
+		a.host.RemoveOverlay(ov)
+		a.mu.Lock()
+	}
+
+	rg := component.NewReviewGate(data.Judgment, data.Confidence, data.Evidences, data.Checklist, data.Risks)
+	if data.Title != "" {
+		rg.SetTitle(data.Title)
+	}
+	rg.SetKeybindings(a.km)
+	if data.OnPass != nil {
+		rg.SetOnPass(data.OnPass)
+	}
+	if data.OnBack != nil {
+		rg.SetOnBack(data.OnBack)
+	}
+	if data.OnBlock != nil {
+		rg.SetOnBlock(data.OnBlock)
+	}
+	rg.SetOnClose(func() { a.CloseReviewGate() })
+
+	ov := &overlayHandle{
+		content:       rg,
+		focus:         true,
+		dimBackground: true,
+		category:      OverlayCatGate,
+		widthPct:      70,
+		heightPct:     75,
+	}
+	a.reviewGateOverlay = ov
+	a.mu.Unlock()
+	a.host.PushOverlay(ov)
+	a.host.RequestRender()
+	return ov
+}
+
+// CloseReviewGate closes the review gate overlay if open.
+func (a *ChatApp) CloseReviewGate() {
+	a.mu.Lock()
+	ov := a.reviewGateOverlay
+	a.reviewGateOverlay = nil
+	a.mu.Unlock()
+	if ov != nil {
+		a.host.RemoveOverlay(ov)
+		a.host.Focus(a.editor)
+	}
+}
+
+// openReviewGateFromData constructs and opens a review gate overlay from
+// typed payload data. The payload is already parsed by the adapter layer;
+// this method simply maps it to ReviewGateData (with callbacks attached).
+func (a *ChatApp) openReviewGateFromData(data *ReviewGatePayload) {
+	if data == nil || data.Judgment == "" {
+		return
+	}
+	gateData := ReviewGateData{
+		Title:      data.Title,
+		Judgment:   data.Judgment,
+		Confidence: data.Confidence,
+		Evidences:  data.Evidences,
+		Checklist:  data.Checklist,
+		Risks:      data.Risks,
+		OnPass: func() {
+			a.submitApprovalCommand("/approve")
+		},
+		OnBack: func() {
+			a.submitApprovalCommand("请补充证据后重新分析")
+		},
+		OnBlock: func() {
+			a.submitApprovalCommand("/reject 当前条件不满足，标记为阻塞")
+		},
+	}
+	a.OpenReviewGate(gateData)
+}
+
+// submitApprovalCommand submits a command or text as user input.
+// Used by review gate callbacks to communicate approval decisions.
+func (a *ChatApp) submitApprovalCommand(cmd string) {
+	a.CloseReviewGate()
+	a.onEditorSubmit(cmd)
+}
+
+// SystemStatusData carries the structured data needed to render a system
+// status overlay. See component.SysEvent for event field descriptions.
+type SystemStatusData struct {
+	Mode       string
+	ModeReason string
+	Events     []component.SysEvent
+	Impacts    []string
+}
+
+// OpenSystemStatus opens a system status overlay with the given data.
+// Lock discipline: a.mu is NOT held during PushOverlay (see ToggleKeyHelp).
+func (a *ChatApp) OpenSystemStatus(data SystemStatusData) OverlayRef {
+	a.mu.Lock()
+	if a.systemStatusOverlay != nil {
+		ov := a.systemStatusOverlay
+		a.systemStatusOverlay = nil
+		a.mu.Unlock()
+		a.host.RemoveOverlay(ov)
+		a.mu.Lock()
+	}
+
+	ss := component.NewSystemStatus()
+	ss.SetMode(data.Mode, data.ModeReason)
+	ss.SetEvents(data.Events)
+	ss.SetImpacts(data.Impacts)
+	ss.SetKeybindings(a.km)
+	ss.SetOnClose(func() { a.CloseSystemStatus() })
+
+	ov := &overlayHandle{
+		content:       ss,
+		focus:         true,
+		dimBackground: true,
+		category:      OverlayCatSystem,
+		widthPct:      50,
+		heightPct:     40,
+	}
+	a.systemStatusOverlay = ov
+	a.mu.Unlock()
+	a.host.PushOverlay(ov)
+	a.host.RequestRender()
+	return ov
+}
+
+// CloseSystemStatus closes the system status overlay if open.
+func (a *ChatApp) CloseSystemStatus() {
+	a.mu.Lock()
+	ov := a.systemStatusOverlay
+	a.systemStatusOverlay = nil
+	a.mu.Unlock()
+	if ov != nil {
+		a.host.RemoveOverlay(ov)
+		a.host.Focus(a.editor)
+	}
+}
+
+// OverlayCategory constants — these match the categories in the tui package
+// but are defined here so the chat package does not import tui directly.
+// The bridge (chat_bridge.go in package tui) maps them via type assertion.
+const (
+	OverlayCatSelection = iota // 选择型
+	OverlayCatReview           // 审阅型
+	OverlayCatGate             // 复核型
+	OverlayCatSystem           // 系统型
+)
+
 // OverlayOpts configures an overlay opened via OpenOverlay.
 type OverlayOpts struct {
 	WidthPct  int  // percentage of terminal width (0 = default 60)
 	HeightPct int  // percentage of terminal height (0 = default 60)
 	Dim       bool // dim the background while open
+	Category  int  // overlay category (OverlayCat*), 0 = selection
 }
 
 // OpenOverlay mounts an arbitrary content component as a centered, focused
@@ -500,6 +699,7 @@ func (a *ChatApp) OpenOverlay(content core.Component, opts OverlayOpts) OverlayR
 		content:       content,
 		focus:         true,
 		dimBackground: opts.Dim,
+		category:      opts.Category,
 		widthPct:      opts.WidthPct,
 		heightPct:     opts.HeightPct,
 	}
@@ -525,6 +725,7 @@ type overlayHandle struct {
 	content       core.Component
 	focus         bool
 	dimBackground bool
+	category      int // OverlayCat* constant, 0 = selection
 	anchor        int
 	percentX      int
 	percentY      int
@@ -542,6 +743,12 @@ func (o *overlayHandle) OverlayPercentX() int           { return o.percentX }
 func (o *overlayHandle) OverlayPercentY() int           { return o.percentY }
 func (o *overlayHandle) OverlayWidthPct() int           { return o.widthPct }
 func (o *overlayHandle) OverlayHeightPct() int          { return o.heightPct }
+
+// OverlayCategory returns the category code for bridge propagation.
+// This is NOT part of the OverlayRef interface — it is detected via type
+// assertion in tuiAppHost.PushOverlay so the interface stays backward
+// compatible.
+func (o *overlayHandle) OverlayCategory() int { return o.category }
 
 func (a *ChatApp) finalizeStreamLocked() {
 	id := a.model.StreamID

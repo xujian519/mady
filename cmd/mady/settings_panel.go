@@ -42,7 +42,7 @@ func (s *tuiSession) openSettings() {
 			s.app.CloseOverlay(ov)
 		}
 	})
-	ov = s.app.OpenOverlay(box, chat.OverlayOpts{WidthPct: 60, HeightPct: 50, Dim: true})
+	ov = s.app.OpenOverlay(box, chat.OverlayOpts{WidthPct: 60, HeightPct: 50, Dim: true, Category: chat.OverlayCatReview})
 }
 
 // buildSettingEntries derives the current setting values from session state.
@@ -149,7 +149,7 @@ func (s *tuiSession) openCommandCenter() {
 	box.SetPadding(1, 1)
 	box.AddChild(cc)
 
-	_ = s.app.OpenOverlay(box, chat.OverlayOpts{WidthPct: 70, HeightPct: 60, Dim: true})
+	_ = s.app.OpenOverlay(box, chat.OverlayOpts{WidthPct: 70, HeightPct: 60, Dim: true, Category: chat.OverlayCatReview})
 }
 
 // buildCommandItems converts slash registry commands to CommandItems.

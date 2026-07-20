@@ -52,6 +52,7 @@ type chatLayout struct {
 	host         layoutHost
 	app          *ChatApp
 	header       core.Component
+	judgmentView *component.JudgmentView
 	history      *ChatHistory
 	loader       *component.Loader
 	editor       core.Component
@@ -105,6 +106,9 @@ func (l *chatLayout) buildFlex(flex *layout.Flex) (headerIndex, editorIndex int)
 	if l.header != nil {
 		headerIndex = len(flex.Children)
 		flex.AddChild(layout.Natural(l.header))
+	}
+	if l.judgmentView != nil && !l.judgmentView.IsEmpty() {
+		flex.AddChild(layout.Natural(l.judgmentView))
 	}
 	if l.history != nil {
 		flex.AddChild(layout.FillWeight(l.history, 1).WithAllocate(func(h int64) {
@@ -303,6 +307,22 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 					l.history.ScrollBy(-5)
 				case "pageDown":
 					l.history.ScrollBy(5)
+				case "s":
+					// Bare [s] opens system status overlay when the judgment
+					// view is expanded (awaiting_review / blocked) — the user
+					// can see the [s] action hint and is typically reviewing,
+					// not composing input. The key also reaches the editor;
+					// a stray "s" character is harmless.
+					if l.judgmentView != nil && l.judgmentView.IsExpanded() {
+						mode := "normal"
+						if jm := l.judgmentView.Mode(); jm != "" {
+							mode = jm
+						}
+						l.app.OpenSystemStatus(SystemStatusData{
+							Mode: mode,
+						})
+						return nil
+					}
 				case "c", "insert":
 					if isCopyShortcut(k) {
 						if hasSelection(l) {
@@ -336,9 +356,12 @@ func (l *chatLayout) recalcMaxRows(width, height int64) {
 	// from the previous render's OnAllocate.
 	l.resetEditorBaseline()
 
-	var headerH, loaderH, editorH, footerH, statusH, acH int64
+	var headerH, jvH, loaderH, editorH, footerH, statusH, acH int64
 	if l.header != nil {
 		headerH = int64(len(l.header.Render(width)))
+	}
+	if l.judgmentView != nil {
+		jvH = l.judgmentView.Height(width)
 	}
 	if l.editor != nil {
 		editorH = int64(len(l.editor.Render(width))) + 2
@@ -355,13 +378,48 @@ func (l *chatLayout) recalcMaxRows(width, height int64) {
 	if l.ac != nil && l.ac.Active() {
 		acH = int64(len(l.ac.Render(width)))
 	}
-	reserved := headerH + editorH + loaderH + footerH + statusH + acH
+	reserved := headerH + jvH + editorH + loaderH + footerH + statusH + acH
 	remaining := height - reserved
 	if remaining < 1 {
 		remaining = 1
 	}
 	if l.history != nil {
 		l.history.SetMaxRows(remaining)
+	}
+}
+
+// updateJudgmentView syncs the judgment view state from the ChatApp model.
+// It updates the status and phase based on model state, sets action hints,
+// and requests a render.
+func (l *chatLayout) updateJudgmentView() {
+	if l.judgmentView == nil {
+		return
+	}
+	l.app.mu.Lock()
+	running := l.app.model.Running
+	streamID := l.app.model.StreamID
+	l.app.mu.Unlock()
+
+	// Derive status from model state.
+	status := "idle"
+	if running {
+		if streamID != "" {
+			status = "streaming"
+		} else {
+			status = "running"
+		}
+	}
+	l.judgmentView.SetStatus(status)
+
+	// Set action hints. The [s] system status action is always available;
+	// other actions (review, evidence) are added conditionally as the view
+	// transitions into expanded states.
+	l.judgmentView.SetActions([]component.JudgmentAction{
+		{Key: "s", Label: "系统态"},
+	})
+
+	if l.app.host != nil {
+		l.app.host.RequestRender()
 	}
 }
 

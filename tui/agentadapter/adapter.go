@@ -3,6 +3,7 @@ package agentadapter
 import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/tui/chat"
+	"github.com/xujian519/mady/tui/component"
 )
 
 func BindAgent(sub chat.Subscriber, agent *agentcore.Agent) {
@@ -163,6 +164,7 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 			}
 			handler(chat.ApprovalPromptChatEvent{
 				Content: ev.Content,
+				Data:    parseReviewGateData(ev.Content, ev.Data),
 			})
 		})
 	}
@@ -174,4 +176,77 @@ func convertUsage(u agentcore.TokenUsage) chat.TokenUsage {
 		CompletionTokens: u.CompletionTokens,
 		TotalTokens:      u.TotalTokens,
 	}
+}
+
+// parseReviewGateData converts the unstructured map from agentcore into a
+// typed ReviewGatePayload. This is the single parsing boundary — consumers
+// in the chat package receive typed data and never parse map[string]any.
+func parseReviewGateData(content string, data map[string]any) *chat.ReviewGatePayload {
+	if data == nil {
+		return nil
+	}
+	judgment, _ := data["judgment"].(string)
+	if judgment == "" {
+		return nil
+	}
+	title, _ := data["title"].(string)
+	conf, _ := data["confidence"].(float64)
+
+	payload := &chat.ReviewGatePayload{
+		Title:      title,
+		Judgment:   judgment,
+		Confidence: conf,
+	}
+
+	// Parse evidences
+	if evRaw, ok := data["evidences"].([]any); ok {
+		for _, r := range evRaw {
+			if m, ok := r.(map[string]any); ok {
+				ev := component.ReviewEvidence{}
+				if id, ok := m["id"].(string); ok {
+					ev.ID = id
+				}
+				if t, ok := m["title"].(string); ok {
+					ev.Title = t
+				}
+				if role, ok := m["role"].(string); ok {
+					ev.Role = role
+				}
+				if s, ok := m["summary"].(string); ok {
+					ev.Summary = s
+				}
+				if st, ok := m["status"].(float64); ok {
+					ev.Status = component.EvidenceStatus(int(st))
+				}
+				payload.Evidences = append(payload.Evidences, ev)
+			}
+		}
+	}
+
+	// Parse checklist
+	if clRaw, ok := data["checklist"].([]any); ok {
+		for _, r := range clRaw {
+			if m, ok := r.(map[string]any); ok {
+				ci := component.ReviewCheckItem{}
+				if l, ok := m["label"].(string); ok {
+					ci.Label = l
+				}
+				if c, ok := m["checked"].(bool); ok {
+					ci.Checked = c
+				}
+				payload.Checklist = append(payload.Checklist, ci)
+			}
+		}
+	}
+
+	// Parse risks
+	if rRaw, ok := data["risks"].([]any); ok {
+		for _, r := range rRaw {
+			if s, ok := r.(string); ok {
+				payload.Risks = append(payload.Risks, s)
+			}
+		}
+	}
+
+	return payload
 }

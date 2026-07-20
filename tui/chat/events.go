@@ -1,6 +1,10 @@
 package chat
 
-import "time"
+import (
+	"time"
+
+	"github.com/xujian519/mady/tui/component"
+)
 
 type EventSubscriber interface {
 	On(eventType ChatEventType, handler func(ChatEvent))
@@ -59,10 +63,23 @@ type AgentInterruptChatEvent struct {
 
 func (AgentInterruptChatEvent) ChatEventKind() ChatEventType { return ChatEventAgentInterrupt }
 
+// ReviewGatePayload carries the structured data for the review gate overlay.
+// This is a data-only type (no callbacks) used for cross-layer transfer.
+type ReviewGatePayload struct {
+	Title      string
+	Judgment   string
+	Confidence float64
+	Evidences  []component.ReviewEvidence
+	Checklist  []component.ReviewCheckItem
+	Risks      []string
+}
+
 // ApprovalPromptChatEvent 是 ApprovalGate 触发人工审核时发射的事件。
 // TUI 的 onApprovalPrompt 将其渲染为含 DomainMsg (approval_prompt) 的 ChatMessage。
+// Data 字段携带可选的复核门结构化数据（ReviewGatePayload）。
 type ApprovalPromptChatEvent struct {
 	Content string
+	Data    *ReviewGatePayload
 }
 
 func (ApprovalPromptChatEvent) ChatEventKind() ChatEventType { return ChatEventApprovalPrompt }

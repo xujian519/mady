@@ -20,6 +20,8 @@ const (
 	DomainMsgTypeConclusionCard DomainMessageType = "conclusion_card"
 	// DomainMsgTypeApprovalPrompt 渲染为带操作按钮的审批门卡。
 	DomainMsgTypeApprovalPrompt DomainMessageType = "approval_prompt"
+	// DomainMsgTypeReviewGate 渲染为结构化复核门浮层。
+	DomainMsgTypeReviewGate DomainMessageType = "review_gate"
 )
 
 // EvidenceDirection 描述证据与主张之间的关系方向。

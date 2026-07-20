@@ -302,11 +302,13 @@ func NewA2UIEvent(envelope map[string]any) *A2UIEvent {
 
 // ApprovalPromptEvent 是 ApprovalGate 触发人工审核时发射的事件。
 // TUI 适配层监听此事件并在聊天中渲染审批卡片（approval_card 组件）。
+// Data 字段携带可选的复核门结构化数据（如 judgment/confidence/evidences 等）。
 type ApprovalPromptEvent struct {
 	baseEvent
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-	Content   string     `json:"content"`
-	AgentName string     `json:"agent_name,omitempty"`
+	ToolCalls []ToolCall     `json:"tool_calls,omitempty"`
+	Content   string         `json:"content"`
+	AgentName string         `json:"agent_name,omitempty"`
+	Data      map[string]any `json:"data,omitempty"`
 }
 
 // NewApprovalPromptEvent 构造一个 ApprovalPromptEvent。

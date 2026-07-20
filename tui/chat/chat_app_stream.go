@@ -61,6 +61,7 @@ func (a *ChatApp) onAgentStart(e ChatEvent) {
 	a.model.turnStarted = time.Now()
 	a.mu.Unlock()
 	a.Busy("thinking...")
+	a.layout.updateJudgmentView()
 }
 
 func (a *ChatApp) onMessageDelta(e ChatEvent) {
@@ -73,12 +74,14 @@ func (a *ChatApp) onMessageDelta(e ChatEvent) {
 	// the new one, so two concurrent deltas could both read the same old id
 	// and both append to the same baseline — corrupting the stream.
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	id := a.model.StreamID
 	newID := a.history.AppendDelta(id, d.Delta)
 	if newID != id {
 		a.model.StreamID = newID
 	}
+	a.mu.Unlock()
+	// Streaming is active; ensure judgment view reflects the running state.
+	a.layout.updateJudgmentView()
 }
 
 func (a *ChatApp) onAgentError(e ChatEvent) {
@@ -90,6 +93,7 @@ func (a *ChatApp) onAgentError(e ChatEvent) {
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
 	a.Idle()
+	a.layout.updateJudgmentView()
 	a.PrintError(ev.Err)
 }
 
@@ -101,6 +105,7 @@ func (a *ChatApp) onAgentEnd(e ChatEvent) {
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
 	a.Idle()
+	a.layout.updateJudgmentView()
 }
 
 // onAgentInterrupt handles an agent pausing for human review. It finalizes
@@ -164,6 +169,8 @@ func interruptGuidance(ev AgentInterruptChatEvent) string {
 // onApprovalPrompt handles an ApprovalPromptEvent emitted by the ApprovalGate
 // lifecycle hook. It renders an approval card (DomainMsgTypeApprovalPrompt)
 // as a system message so the user sees the /approve and /reject actions.
+// If the event carries structured review gate data (via ev.Data), it also
+// opens the review gate overlay.
 func (a *ChatApp) onApprovalPrompt(e ChatEvent) {
 	ev, ok := e.(ApprovalPromptChatEvent)
 	if !ok {
@@ -173,6 +180,8 @@ func (a *ChatApp) onApprovalPrompt(e ChatEvent) {
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
 	a.Idle()
+	a.judgmentView.SetStatus("awaiting_review")
+	a.layout.updateJudgmentView()
 
 	dm := &component.DomainMessage{
 		Type: component.DomainMsgTypeApprovalPrompt,
@@ -183,4 +192,9 @@ func (a *ChatApp) onApprovalPrompt(e ChatEvent) {
 		},
 	}
 	a.history.Append(ChatMessage{Role: RoleSystem, DomainMsg: dm})
+
+	// If structured review gate data is present, open the overlay.
+	if ev.Data != nil {
+		a.openReviewGateFromData(ev.Data)
+	}
 }
