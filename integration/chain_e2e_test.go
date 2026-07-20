@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/workflows/legal"
 	"github.com/xujian519/mady/workflows/patent"
@@ -58,7 +57,7 @@ func TestChainE2E_PatentNoveltyAnalysis(t *testing.T) {
 
 func TestChainE2E_LegalCaseComparison(t *testing.T) {
 	compiled, bb, err := legal.BuildComparisonGraphWithReasoning(
-		"case-e2e-001", reasoning.CaseInvalidation,
+		"case-e2e-001", legal.CaseInvalidation,
 	)
 	if err != nil {
 		t.Fatalf("BuildComparisonGraphWithReasoning: %v", err)

@@ -9,7 +9,6 @@ import (
 
 	"github.com/xujian519/mady/agentcore/evaluate"
 	"github.com/xujian519/mady/agentcore/tracing"
-	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/knowledge"
 	kgraph "github.com/xujian519/mady/knowledge/graph"
@@ -24,7 +23,7 @@ import (
 // auditable syllogism chains and the blackboard accumulates validated facts.
 func TestLegalSyllogismE2E(t *testing.T) {
 	compiled, bb, err := legal.BuildComparisonGraphWithReasoning(
-		"case-001", reasoning.CaseInvalidation,
+		"case-001", legal.CaseInvalidation,
 	)
 	if err != nil {
 		t.Fatalf("BuildComparisonGraphWithReasoning: %v", err)
