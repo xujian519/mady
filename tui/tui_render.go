@@ -33,6 +33,7 @@ func (t *TUI) renderFrame() {
 	children := make([]core.Component, len(t.children))
 	copy(children, t.children)
 	prev := t.prevFrame
+	prevRaw := t.prevRaw
 	prevW := t.prevWidth
 	first := t.firstFrame
 	t.mu.Unlock()
@@ -40,10 +41,26 @@ func (t *TUI) renderFrame() {
 	// Render children to strings, then parse each line into a cell Row.
 	// Parsing happens here (not in components) so component authors keep the
 	// simple []string API and the engine owns the cell model.
+	//
+	// Optimization: store raw output strings alongside parsed Rows. Before
+	// calling ParseLine (which walks the string character-by-character to
+	// parse ANSI escapes), compare the raw string against the previous
+	// frame's raw string. If identical, reuse the already-parsed Row
+	// directly. During streaming, only 1-2 lines per frame actually change,
+	// so this avoids hundreds of ParseLine calls per frame.
 	var rows []core.Row
+	var rawLines []string
 	for _, c := range children {
 		for _, ln := range c.Render(cols) {
 			ln = normalizeLine(ln, cols)
+			rawLines = append(rawLines, ln)
+			// Fast path: if the raw string is byte-identical to the previous
+			// frame at the same position, reuse the parsed Row.
+			idx := len(rows)
+			if idx < len(prevRaw) && idx < len(prev) && ln == prevRaw[idx] {
+				rows = append(rows, prev[idx])
+				continue
+			}
 			rows = append(rows, core.ParseLine(ln))
 		}
 	}
@@ -152,6 +169,7 @@ func (t *TUI) renderFrame() {
 
 	t.mu.Lock()
 	t.prevFrame = rows
+	t.prevRaw = rawLines
 	t.prevWidth = cols
 	t.firstFrame = false
 	t.mu.Unlock()

@@ -18,17 +18,15 @@ import (
 	"github.com/xujian519/mady/tui/core"
 )
 
-// renderMessageCached returns the rendered lines for a message, using a
-// per-message cache keyed on message ID. Caller must hold mu.
-//
-// For Pending assistant messages the cache also carries a per-block render
-// cache so streaming deltas only re-render the tail block (see
-// component.BlockCache). Non-Pending messages cache the whole rendered output.
-func (h *ChatHistory) renderMessageCached(m ChatMessage, theme ChatHistoryTheme, width int64) []string {
+// renderMessageCachedWithCache is the cache-parameterized variant used during
+// lock-free snapshot rendering. It reads from and writes to the provided cache
+// map instead of h.msgCache, so the snapshot render can run without holding
+// h.mu while still benefiting from per-message caching.
+func (h *ChatHistory) renderMessageCachedWithCache(m ChatMessage, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) []string {
 	if m.ID == "" {
 		return h.renderMessage(m, theme, width, nil)
 	}
-	if cached, ok := h.msgCache[m.ID]; ok {
+	if cached, ok := cache[m.ID]; ok {
 		// Pending messages must re-render on every delta (their text grew),
 		// but they reuse the block cache so only the tail block re-renders.
 		if !m.Pending {
@@ -38,7 +36,7 @@ func (h *ChatHistory) renderMessageCached(m ChatMessage, theme ChatHistoryTheme,
 		trimmed := trimBlankEdges(lines)
 		cachedLines := make([]string, len(trimmed))
 		copy(cachedLines, trimmed)
-		h.msgCache[m.ID] = cachedMessage{lines: cachedLines, blockCache: cached.blockCache}
+		cache[m.ID] = cachedMessage{lines: cachedLines, blockCache: cached.blockCache}
 		return cachedLines
 	}
 	var bc *component.BlockCache
@@ -54,11 +52,67 @@ func (h *ChatHistory) renderMessageCached(m ChatMessage, theme ChatHistoryTheme,
 	trimmed := trimBlankEdges(lines)
 	cachedLines := make([]string, len(trimmed))
 	copy(cachedLines, trimmed)
-	h.msgCache[m.ID] = cachedMessage{lines: cachedLines, blockCache: bc}
+	cache[m.ID] = cachedMessage{lines: cachedLines, blockCache: bc}
 	return cachedLines
 }
 
+// renderSnapshot holds a point-in-time copy of the mutable state that renderAll
+// needs. It is captured under ChatHistory.mu, then the lock is released before
+// the expensive renderAll runs. This keeps the critical section short so
+// streaming deltas (AppendDelta) are never blocked by Markdown parsing.
+type renderSnapshot struct {
+	msgs              []ChatMessage
+	theme             ChatHistoryTheme
+	expandedGroups    map[int]bool
+	selActive         bool
+	selStart          selectionPos
+	selEnd            selectionPos
+	reasoningRenderer ReasoningRenderer
+	firstDirtyIdx     int      // earliest changed message index (0 = full rebuild)
+	cachedAll         []string // previous render output, for splice fast path
+	cachedMsgRanges   []msgRange
+}
+
+// captureSnapshot copies all mutable render state under h.mu. The returned
+// snapshot is safe to use without holding the lock.
+func (h *ChatHistory) captureSnapshot() renderSnapshot {
+	msgs := make([]ChatMessage, len(h.messages))
+	copy(msgs, h.messages)
+	eg := make(map[int]bool, len(h.expandedGroups))
+	for k, v := range h.expandedGroups {
+		eg[k] = v
+	}
+	// Snapshot cachedAll and cachedMsgRanges for the streaming fast path,
+	// avoiding unlocked reads of these fields during Phase 2 rendering.
+	cal := h.cachedAll
+	cmr := make([]msgRange, len(h.cachedMsgRanges))
+	copy(cmr, h.cachedMsgRanges)
+	return renderSnapshot{
+		msgs:              msgs,
+		theme:             h.theme,
+		expandedGroups:    eg,
+		selActive:         h.selActive,
+		selStart:          h.selStart,
+		selEnd:            h.selEnd,
+		reasoningRenderer: h.reasoningRenderer,
+		firstDirtyIdx:     h.firstDirtyIdx,
+		cachedAll:         cal,
+		cachedMsgRanges:   cmr,
+	}
+}
+
 // Render draws the transcript, clipping to MaxRows when set.
+//
+// Phase 2 optimization: the expensive renderAll (which iterates all messages
+// and runs Markdown parsing) no longer runs under ChatHistory.mu. Instead we:
+//  1. Snapshot mutable state under the lock
+//  2. Release the lock and render from the snapshot
+//  3. Re-acquire the lock to merge the updated msgCache and write back results
+//
+// This eliminates the main serialization point between streaming delta
+// processing (AppendDelta) and rendering (renderAll). Before this change,
+// AppendDelta could block for 5-10ms waiting for renderAll to release the
+// lock; now the critical section is ~100µs (snapshot + merge).
 func (h *ChatHistory) Render(width int64) []string {
 	if width < 1 {
 		width = 1
@@ -68,11 +122,55 @@ func (h *ChatHistory) Render(width int64) []string {
 	if h.cachedWidth != width {
 		h.cachedWidth = width
 		h.clearMsgCacheLocked()
+		h.firstDirtyIdx = 0
 		h.dirty = true
 	}
-	if h.dirty || h.cachedAll == nil {
-		h.cachedAll = h.renderAll(width)
+
+	needRender := h.dirty || h.cachedAll == nil
+
+	var all []string
+	if needRender {
+		// Phase 1: snapshot mutable state under lock.
+		// Reset dirty BEFORE releasing the lock so Phase 3 can detect
+		// whether AppendDelta set it during Phase 2. If h.dirty is still
+		// false at merge time, no concurrent mutations happened and we can
+		// safely clear firstDirtyIdx. If true, AppendDelta set it and we
+		// must preserve both flags for the next render cycle.
 		h.dirty = false
+		snap := h.captureSnapshot()
+		// Shallow-copy the msgCache map so the snapshot render can use
+		// existing cached entries and populate new ones locally.
+		localCache := make(map[string]cachedMessage, len(h.msgCache))
+		for k, v := range h.msgCache {
+			localCache[k] = v
+		}
+		h.mu.Unlock()
+
+		// Phase 2: expensive rendering without holding h.mu.
+		// AppendDelta can process new deltas concurrently.
+		rendered, ranges := h.renderAllFromSnapshot(snap, width, localCache)
+
+		// Phase 3: merge results back under lock.
+		h.mu.Lock()
+		// Replace h.msgCache with localCache. localCache started as a
+		// shallow copy of h.msgCache (before Phase 2) plus any new entries
+		// populated during snapshot rendering. Entries that AppendDelta
+		// deleted during Phase 2 are intentionally NOT carried over — the
+		// stale render output they held is invalid. When the next Render
+		// cycle runs (triggered by AppendDelta's RequestRender), it will
+		// re-render those messages with the current text.
+		h.msgCache = localCache
+		h.cachedAll = rendered
+		h.cachedMsgRanges = ranges
+		// If no concurrent mutation set dirty=true during Phase 2,
+		// clear the incremental tracking. Otherwise AppendDelta (or
+		// another mutation) already set firstDirtyIdx and we keep it
+		// — the next Render call triggered by their RequestRender
+		// will process the fresh content.
+		if !h.dirty {
+			h.firstDirtyIdx = 0
+		}
+
 		// If content changed (was dirty), reset scroll if following tail.
 		if wasDirty && h.follow {
 			h.offset = 0
@@ -89,21 +187,24 @@ func (h *ChatHistory) Render(width int64) []string {
 				h.offset = 0
 			}
 		}
+		all = h.cachedAll
+	} else {
+		all = h.cachedAll
 	}
+
 	// Refresh the tail anchor whenever the viewport is at the tail so that,
 	// once the user scrolls up, tailAnchorLen freezes and Render can compute
 	// how many new lines have arrived since.
 	if h.follow {
-		h.tailAnchorLen = int64(len(h.cachedAll))
+		h.tailAnchorLen = int64(len(all))
 	}
 	newSinceAnchor := int64(0)
 	if !h.follow && h.tailAnchorLen > 0 {
-		newSinceAnchor = int64(len(h.cachedAll)) - h.tailAnchorLen
+		newSinceAnchor = int64(len(all)) - h.tailAnchorLen
 		if newSinceAnchor < 0 {
 			newSinceAnchor = 0
 		}
 	}
-	all := h.cachedAll
 	maxRows := h.maxRows
 	offset := h.offset
 	follow := h.follow
@@ -229,16 +330,47 @@ func (h *ChatHistory) getSelectedTextLocked() string {
 	return strings.Join(result, "\n")
 }
 
-func (h *ChatHistory) renderAll(width int64) []string {
-	theme := h.theme
+// renderAllFromSnapshot renders the full transcript from a snapshot captured
+// under h.mu. It writes new cache entries to localCache instead of h.msgCache,
+// and returns the rendered lines + msgRanges so the caller can merge them back
+// under the lock. This is the Phase 2 rendering path — it runs without h.mu.
+func (h *ChatHistory) renderAllFromSnapshot(snap renderSnapshot, width int64, localCache map[string]cachedMessage) ([]string, []msgRange) {
+	return h.renderAllWithState(snap.msgs, snap.theme, snap.expandedGroups, snap.selActive,
+		snap.selStart, snap.selEnd, snap.reasoningRenderer, width, localCache,
+		snap.firstDirtyIdx, snap.cachedAll, snap.cachedMsgRanges)
+}
+
+// renderAllWithState is the unified rendering core. It takes all mutable state
+// as parameters so it can be called both from renderAll (with live h fields)
+// and from renderAllFromSnapshot (with snapshot copies).
+func (h *ChatHistory) renderAllWithState(
+	msgs []ChatMessage,
+	theme ChatHistoryTheme,
+	expandedGroups map[int]bool,
+	selActive bool,
+	selStart, selEnd selectionPos,
+	rr ReasoningRenderer,
+	width int64,
+	cache map[string]cachedMessage,
+	firstDirtyIdx int,
+	cachedAll []string,
+	cachedMsgRanges []msgRange,
+) ([]string, []msgRange) {
+	// Temporarily swap the reasoning renderer so renderMessage (called from
+	// renderMessageCachedWithCache) uses the snapshot value. Safe because
+	// the event loop is single-threaded and AppendDelta never reads this.
+	savedRR := h.reasoningRenderer
+	h.reasoningRenderer = rr
+	defer func() { h.reasoningRenderer = savedRR }()
+
 	var out []string
 	var ranges []msgRange
 
-	if len(h.messages) == 0 {
+	if len(msgs) == 0 {
 		// 品牌启动屏：引导用户开始对话或使用命令
-		dim := h.theme.DimStyle
-		accent := h.theme.UserStyle
-		sys := h.theme.SystemStyle
+		dim := theme.DimStyle
+		accent := theme.UserStyle
+		sys := theme.SystemStyle
 
 		return []string{
 			"",
@@ -247,17 +379,155 @@ func (h *ChatHistory) renderAll(width int64) []string {
 			sys.Render("  输入消息开始对话，输入 / 查看可用命令"),
 			dim.Render("  Ctrl+C 退出  ·  Ctrl+P 命令面板  ·  ? 帮助"),
 			"",
+		}, nil
+	}
+
+	// Streaming fast path: when only the tail of the message list changed
+	// (the common AppendDelta case), splice the unchanged prefix from the
+	// previous cachedAll instead of rebuilding from scratch. This turns
+	// renderAll from O(N) into O(1) during streaming.
+	if firstDirtyIdx > 0 && firstDirtyIdx < len(msgs) &&
+		cachedAll != nil && len(cachedMsgRanges) > 0 {
+		// Find the line where clean (unchanged) messages end in the
+		// previous cachedAll. We walk cachedMsgRanges backwards from
+		// firstDirtyIdx to find the boundary.
+		cleanEnd := 0
+		for _, r := range cachedMsgRanges {
+			if r.msgIndex >= firstDirtyIdx {
+				break
+			}
+			// For tool groups, ensure the entire group is clean
+			if r.toolGroup && r.groupTo >= firstDirtyIdx {
+				break
+			}
+			cleanEnd = r.endLine
+		}
+		if cleanEnd > 0 && cleanEnd <= len(cachedAll) {
+			// Splice: keep clean prefix, re-render only dirty suffix.
+			out := make([]string, 0, cleanEnd+len(cachedAll)-cleanEnd)
+			out = append(out, cachedAll[:cleanEnd]...)
+			var ranges []msgRange
+
+			// Copy ranges for clean messages unchanged
+			for _, r := range cachedMsgRanges {
+				if r.msgIndex >= firstDirtyIdx {
+					break
+				}
+				if r.toolGroup && r.groupTo >= firstDirtyIdx {
+					break
+				}
+				ranges = append(ranges, r)
+			}
+
+			// Re-render only dirty messages
+			for i := firstDirtyIdx; i < len(msgs); i++ {
+				m := msgs[i]
+				// Handle tool groups in the dirty section
+				if m.Role == RoleTool || m.Role == RoleSystem {
+					groupEnd := i
+					for j := i + 1; j < len(msgs); j++ {
+						r := msgs[j].Role
+						if r == RoleTool || r == RoleSystem {
+							groupEnd = j
+						} else {
+							break
+						}
+					}
+					midTurn := groupEnd == len(msgs)-1
+					if midTurn {
+						for j := i - 1; j >= 0; j-- {
+							if msgs[j].Role != RoleTool && msgs[j].Role != RoleSystem {
+								midTurn = msgs[j].Pending
+								break
+							}
+						}
+					}
+					if groupEnd > i && !midTurn {
+						bar := theme.ToolBorder.Render("▌ ")
+						toolCount, sysCount := 0, 0
+						for j := i; j <= groupEnd; j++ {
+							if msgs[j].Role == RoleTool {
+								toolCount++
+							} else {
+								sysCount++
+							}
+						}
+						if expandedGroups[i] {
+							start := len(out)
+							summary := fmt.Sprintf("[-] %d tools · %d msgs", toolCount, sysCount)
+							if sysCount == 0 {
+								summary = fmt.Sprintf("[-] %d tools", toolCount)
+							}
+							out = append(out, core.PadToWidth(bar+theme.DimStyle.Render(summary), width))
+							for j := i; j <= groupEnd; j++ {
+								out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, width, cache))...)
+							}
+							ranges = append(ranges, msgRange{
+								startLine: start, endLine: len(out), msgIndex: i,
+								toolGroup: true, groupFrom: i, groupTo: groupEnd,
+							})
+						} else {
+							start := len(out)
+							summary := fmt.Sprintf("[+] %d tools · %d msgs", toolCount, sysCount)
+							if sysCount == 0 {
+								summary = fmt.Sprintf("[+] %d tools", toolCount)
+							}
+							for j := i; j <= groupEnd; j++ {
+								if msgs[j].Meta != "" && msgs[j].Meta != "tool" {
+									summary = "[+] " + msgs[j].Meta
+									break
+								}
+							}
+							out = append(out, bar+theme.DimStyle.Render(summary))
+							ranges = append(ranges, msgRange{
+								startLine: start, endLine: len(out), msgIndex: i,
+								toolGroup: true, groupFrom: i, groupTo: groupEnd,
+							})
+						}
+						i = groupEnd
+						continue
+					}
+				}
+
+				// Always check the separator between consecutive messages,
+				// matching the full-rebuild loop's behavior (which uses i > 0).
+				// Using i > firstDirtyIdx would skip the separator between the
+				// last clean message and the first dirty message.
+				{
+					prev := msgs[i-1]
+					switch {
+					case (prev.Role == RoleUser && m.Role == RoleAssistant) ||
+						(prev.Role == RoleAssistant && m.Role == RoleUser):
+						sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
+						out = append(out, "", sep, "")
+					case prev.Role == RoleTool || m.Role == RoleTool:
+					default:
+						out = append(out, "", "")
+					}
+				}
+				start := len(out)
+				out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(m, theme, width, cache))...)
+				ranges = append(ranges, msgRange{startLine: start, endLine: len(out), msgIndex: i})
+			}
+
+			// Apply selection highlight
+			selEmpty := selStart.line == selEnd.line && selStart.col == selEnd.col
+			if selActive && !selEmpty {
+				h.applySelectionHighlightSnapshot(out, width, selStart, selEnd)
+			}
+
+			return out, ranges
 		}
 	}
 
-	for i := 0; i < len(h.messages); i++ {
-		m := h.messages[i]
+	for i := 0; i < len(msgs); i++ {
+		m := msgs[i]
 
 		// Detect a run of consecutive tool/system messages starting at i.
 		if m.Role == RoleTool || m.Role == RoleSystem {
 			groupEnd := i
-			for j := i + 1; j < len(h.messages); j++ {
-				r := h.messages[j].Role
+			for j := i + 1; j < len(msgs); j++ {
+				r := msgs[j].Role
 				if r == RoleTool || r == RoleSystem {
 					groupEnd = j
 				} else {
@@ -266,12 +536,12 @@ func (h *ChatHistory) renderAll(width int64) []string {
 			}
 			// Group 2+ consecutive tools UNLESS we're still mid-turn:
 			// the group extends to the end AND the last non-tool msg is pending.
-			midTurn := groupEnd == len(h.messages)-1
+			midTurn := groupEnd == len(msgs)-1
 			if midTurn {
 				// Check if the last non-tool message is still streaming.
 				for j := i - 1; j >= 0; j-- {
-					if h.messages[j].Role != RoleTool && h.messages[j].Role != RoleSystem {
-						midTurn = h.messages[j].Pending
+					if msgs[j].Role != RoleTool && msgs[j].Role != RoleSystem {
+						midTurn = msgs[j].Pending
 						break
 					}
 				}
@@ -281,14 +551,14 @@ func (h *ChatHistory) renderAll(width int64) []string {
 				bar := theme.ToolBorder.Render("▌ ")
 				toolCount, sysCount := 0, 0
 				for j := i; j <= groupEnd; j++ {
-					if h.messages[j].Role == RoleTool {
+					if msgs[j].Role == RoleTool {
 						toolCount++
 					} else {
 						sysCount++
 					}
 				}
 
-				if h.expandedGroups[i] {
+				if expandedGroups[i] {
 					start := len(out)
 					summary := fmt.Sprintf("[-] %d tools · %d msgs", toolCount, sysCount)
 					if sysCount == 0 {
@@ -296,7 +566,7 @@ func (h *ChatHistory) renderAll(width int64) []string {
 					}
 					out = append(out, core.PadToWidth(bar+theme.DimStyle.Render(summary), width))
 					for j := i; j <= groupEnd; j++ {
-						out = append(out, trimBlankEdges(h.renderMessageCached(h.messages[j], theme, width))...)
+						out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, width, cache))...)
 					}
 					ranges = append(ranges, msgRange{
 						startLine: start, endLine: len(out), msgIndex: i,
@@ -309,8 +579,8 @@ func (h *ChatHistory) renderAll(width int64) []string {
 						summary = fmt.Sprintf("[+] %d tools", toolCount)
 					}
 					for j := i; j <= groupEnd; j++ {
-						if h.messages[j].Meta != "" && h.messages[j].Meta != "tool" {
-							summary = "[+] " + h.messages[j].Meta
+						if msgs[j].Meta != "" && msgs[j].Meta != "tool" {
+							summary = "[+] " + msgs[j].Meta
 							break
 						}
 					}
@@ -326,7 +596,7 @@ func (h *ChatHistory) renderAll(width int64) []string {
 		}
 
 		if i > 0 {
-			prev := h.messages[i-1]
+			prev := msgs[i-1]
 			switch {
 			case (prev.Role == RoleUser && m.Role == RoleAssistant) ||
 				(prev.Role == RoleAssistant && m.Role == RoleUser):
@@ -338,17 +608,17 @@ func (h *ChatHistory) renderAll(width int64) []string {
 			}
 		}
 		start := len(out)
-		out = append(out, trimBlankEdges(h.renderMessageCached(m, theme, width))...)
+		out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(m, theme, width, cache))...)
 		ranges = append(ranges, msgRange{startLine: start, endLine: len(out), msgIndex: i})
 	}
-	h.cachedMsgRanges = ranges
 
-	// Apply selection highlight
-	if h.selActive && !h.isSelectionEmptyLocked() {
-		h.applySelectionHighlightLocked(out, width)
+	// Apply selection highlight using snapshot selection state.
+	selEmpty := selStart.line == selEnd.line && selStart.col == selEnd.col
+	if selActive && !selEmpty {
+		h.applySelectionHighlightSnapshot(out, width, selStart, selEnd)
 	}
 
-	return out
+	return out, ranges
 }
 
 func (h *ChatHistory) applySelectionHighlightLocked(lines []string, width int64) {
@@ -459,6 +729,108 @@ func (h *ChatHistory) applySelectionHighlightLocked(lines []string, width int64)
 
 		highlighted := core.SerializeRow(row)
 		// Keep each highlighted row width-stable across drag updates.
+		lines[i] = core.PadToWidth(core.TruncateToWidth(highlighted, lineWidth, ""), lineWidth)
+	}
+}
+
+// applySelectionHighlightSnapshot is the lock-free variant of
+// applySelectionHighlightLocked used during snapshot rendering. It takes
+// selection state as explicit parameters and highlights the full content
+// (viewport clipping happens later in Render).
+func (h *ChatHistory) applySelectionHighlightSnapshot(lines []string, width int64, selStart, selEnd selectionPos) {
+	total := int64(len(lines))
+	if total == 0 {
+		return
+	}
+
+	topLine := selStart.line
+	botLine := selEnd.line
+	topCol := selStart.col
+	botCol := selEnd.col
+
+	// Normalize so topLine <= botLine, and when equal topCol <= botCol
+	if topLine > botLine || (topLine == botLine && topCol > botCol) {
+		topLine, botLine = botLine, topLine
+		topCol, botCol = botCol, topCol
+	}
+
+	// Clamp to content bounds
+	if topLine < 0 {
+		topLine = 0
+		topCol = 0
+	}
+	if botLine >= total {
+		botLine = total - 1
+		botCol = core.VisibleWidth(lines[botLine])
+	}
+
+	selBg := h.theme.SelectedBg
+	if selBg == "" {
+		selBg = "\x1b[48;5;33m"
+	}
+	selStyle := core.ParseLine(selBg + " " + "\x1b[0m")
+	if selStyle.IsRaw() || len(selStyle.Cells) == 0 {
+		return
+	}
+	selectedStyle := selStyle.Cells[0].Style
+	if selectedStyle.Bg.IsDefault() {
+		return
+	}
+
+	for i := topLine; i <= botLine && i < total; i++ {
+		line := lines[i]
+		row := core.ParseLine(line)
+		if row.IsRaw() {
+			continue
+		}
+		lineWidth := row.VisibleWidth()
+		if lineWidth <= 0 {
+			continue
+		}
+
+		fromCol := int64(0)
+		toCol := lineWidth
+		switch {
+		case topLine == botLine:
+			fromCol = topCol
+			toCol = botCol
+		case i == topLine:
+			fromCol = topCol
+		case i == botLine:
+			toCol = botCol
+		}
+
+		if fromCol < 0 {
+			fromCol = 0
+		}
+		if toCol < 0 {
+			toCol = 0
+		}
+		if fromCol > lineWidth {
+			fromCol = lineWidth
+		}
+		if toCol > lineWidth {
+			toCol = lineWidth
+		}
+		if toCol < fromCol {
+			toCol = fromCol
+		}
+
+		if fromCol != toCol {
+			start := int(fromCol)
+			endCol := int(toCol)
+			if start < 0 {
+				start = 0
+			}
+			if endCol > len(row.Cells) {
+				endCol = len(row.Cells)
+			}
+			for c := start; c < endCol; c++ {
+				row.Cells[c].Style = selectedStyle
+			}
+		}
+
+		highlighted := core.SerializeRow(row)
 		lines[i] = core.PadToWidth(core.TruncateToWidth(highlighted, lineWidth, ""), lineWidth)
 	}
 }

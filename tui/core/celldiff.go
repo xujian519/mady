@@ -68,10 +68,45 @@ type RowCellDiff struct {
 // DiffFrame returns cell-level diffs for every row that changed between
 // old and new. Rows only present in old are omitted; the caller is
 // expected to clear trailing lines when new is shorter than old.
+//
+// Optimization: scans from both ends to find the common prefix and suffix
+// of unchanged rows, then only diffs the middle section. In streaming
+// scenarios where only 1-2 lines change per frame (out of 500+), this
+// avoids ~499 RowsEqual calls per frame.
 func DiffFrame(old, new []Row) []RowCellDiff {
+	// Find common prefix — rows that are identical from the top.
+	prefix := 0
+	for prefix < len(old) && prefix < len(new) && RowsEqual(old[prefix], new[prefix]) {
+		prefix++
+	}
+
+	// Find common suffix — rows that are identical from the bottom,
+	// but only after the prefix to avoid double-counting.
+	//
+	// The suffix optimization is only valid when old and new have the same
+	// length. When lengths differ (e.g., autocomplete appears/disappears,
+	// editor resizes), matched suffix rows sit at different absolute screen
+	// positions in old vs new. Skipping their re-emission would leave stale
+	// content at the old positions, causing visual corruption.
+	suffix := 0
+	if len(old) == len(new) {
+		for suffix < len(old)-prefix && suffix < len(new)-prefix {
+			if !RowsEqual(old[len(old)-1-suffix], new[len(new)-1-suffix]) {
+				break
+			}
+			suffix++
+		}
+	}
+
+	oldEnd := len(old) - suffix
+	newStart := prefix
+	newEnd := len(new) - suffix
+
 	var out []RowCellDiff
-	for i, n := range new {
-		if i >= len(old) {
+	for i := newStart; i < newEnd; i++ {
+		n := new[i]
+		if i >= oldEnd {
+			// Row exists only in new (new rows appended).
 			if n.IsRaw() {
 				out = append(out, RowCellDiff{Row: int64(i), RawContent: n.Raw})
 			} else {

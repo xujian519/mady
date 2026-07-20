@@ -243,6 +243,7 @@ func (h *ChatHistory) expandToolGroup(msgRangeIdx int) {
 		}
 	}
 	h.dirty = true
+	h.firstDirtyIdx = 0
 	h.clearMsgCacheLocked()
 }
 

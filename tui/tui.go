@@ -153,6 +153,7 @@ type TUI struct {
 
 	renderRequested int64
 	prevFrame       []core.Row
+	prevRaw         []string // raw output strings, for fast line-level change detection
 	prevWidth       int64
 	firstFrame      bool
 	started         bool
@@ -194,7 +195,7 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 		o = opts[0]
 	}
 	if o.TickInterval <= 0 {
-		o.TickInterval = 16 * time.Millisecond
+		o.TickInterval = 8 * time.Millisecond
 	}
 	km := o.Keybindings
 	if km == nil {
