@@ -7,7 +7,7 @@
 
 ## 技术栈
 
-- **Go 1.25**：多模块项目（go.work 包含根模块 + `./tools` 子模块）
+- **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` 子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
 - 841 个 Go 源文件（558 非测试 + 283 测试），~185K 行代码
 

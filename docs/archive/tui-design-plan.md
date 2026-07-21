@@ -18,7 +18,7 @@
 
 ## 1. 背景与目标
 
-Mady 是面向专利/法律专业场景的 Go 1.25 Agent 运行时框架。当前 TUI 入口为 `cmd/mady/main.go` 的 `runTui()`，启动 `chat.ChatApp`；自研组件体系位于 `tui/`，未使用 Bubble Tea，事件驱动（`Msg`/`Update`/`Cmd`），组件渲染为 `[]string`。
+Mady 是面向专利/法律专业场景的 Go 1.26 Agent 运行时框架。当前 TUI 入口为 `cmd/mady/main.go` 的 `runTui()`，启动 `chat.ChatApp`；自研组件体系位于 `tui/`，未使用 Bubble Tea，事件驱动（`Msg`/`Update`/`Cmd`），组件渲染为 `[]string`。
 
 本次设计目标：
 

@@ -6,7 +6,7 @@
 
 **Architecture:** 自底向上实现：工具函数 → 类型定义 → 算法引擎(OCC/EMA/VAD) → 检测匹配(认知扭曲/SDT/策略) → 管道编排 → 集成层(Extension/Hook) → 修改 chat.go。所有算法纯 Go 标准库，零外部依赖。
 
-**Tech Stack:** Go 1.25+, 标准库 (regexp, math, sync, encoding/json, os)
+**Tech Stack:** Go 1.26+, 标准库 (regexp, math, sync, encoding/json, os)
 
 ---
 

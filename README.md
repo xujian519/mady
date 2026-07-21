@@ -1,7 +1,7 @@
 # Mady（中观智能体）
 
 [![CI](https://github.com/xujian519/mady/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/xujian519/mady/actions/workflows/ci.yml)
-[![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev/dl/)
+[![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/dl/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Reference](https://pkg.go.dev/badge/github.com/xujian519/mady.svg)](https://pkg.go.dev/github.com/xujian519/mady)
 
@@ -152,7 +152,7 @@ mady trust-mcp     # 信任 MCP 配置文件（SHA-256 记录到 trusted-mcp.jso
 go get github.com/xujian519/mady/agentcore
 ```
 
-需要 **Go 1.25+**。
+需要 **Go 1.26+**。
 
 > 贡献指南见 [CONTRIBUTING.md](CONTRIBUTING.md) | 变更日志见 [CHANGELOG.md](CHANGELOG.md) | API 规范见 [docs/openapi/](docs/openapi/)
 

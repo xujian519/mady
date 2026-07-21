@@ -2,7 +2,7 @@
 
 **审查日期**: 2025-06-11
 **项目规模**: 484 文件 (Go 471 + YAML 13), ~867K 行
-**核心依赖**: Go 1.25, gorilla/websocket, OpenTelemetry
+**核心依赖**: Go 1.26, gorilla/websocket, OpenTelemetry
 **审查覆盖**: 6 大维度 × 15+ 包层级
 
 ---

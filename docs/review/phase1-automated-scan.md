@@ -14,7 +14,7 @@
 | 依赖完整性 | `go mod verify` | ✅ **all modules verified** |
 | 依赖同步 | `go mod tidy -diff` | ✅ **clean, 无差异** |
 | 死代码检测 | `staticcheck -checks U1000` | ⚠️ **2 处** (均为 example/acp-server 的 ldflags 构建变量) |
-| Go 漏洞扫描 | `govulncheck ./...` | ⚠️ **跳过** — Go 1.25 + govulncheck v1.6.0 兼容性 panic |
+| Go 漏洞扫描 | `govulncheck ./...` | ⚠️ **跳过** — Go 1.26 + govulncheck v1.6.0 兼容性 panic |
 | 覆盖率基准 | `go test -coverprofile` | 见下方覆盖率矩阵 |
 
 ## 已知问题确认

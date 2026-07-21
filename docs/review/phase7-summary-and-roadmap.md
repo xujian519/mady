@@ -134,7 +134,7 @@
 | go test -race | ✅ 全部通过 | 保持 |
 | go mod tidy | ✅ clean | 保持 |
 | 覆盖率 | 🟡 ~65% | 目标 70%+ |
-| govulncheck | ⚠️ Go 1.25 兼容性 | 等待工具更新 |
+| govulncheck | ⚠️ Go 1.26 兼容性 | 等待工具更新 |
 | ACP 认证 | ✅ TokenAuthProvider 常量时间比较 + fail-closed | 保持 |
 | WebSocket 来源检查 | ✅ 同源+回环+白名单 | 保持 |
 | MCP 配置安全 | ✅ 文件所有权校验+信任存储 | 保持 |

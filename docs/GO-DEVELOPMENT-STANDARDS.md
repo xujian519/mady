@@ -28,11 +28,11 @@
 
 ### 1.1 多模块布局
 
-Mady 使用 Go 1.25 多模块（`go.work`），根模块 + `./tools` 子模块：
+Mady 使用 Go 1.26 多模块（`go.work`），根模块 + `./tools` 子模块：
 
 ```go
 // go.work
-go 1.25.0
+go 1.26.0
 use (
     .
     ./tools
