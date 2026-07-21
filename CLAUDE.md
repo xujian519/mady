@@ -14,6 +14,9 @@
 ## 构建与测试
 
 ```bash
+# 提交前标准（推荐）：lint + build + race 测试，覆盖根模块 + tools 子模块
+make verify
+
 # 构建所有包
 go build ./...
 

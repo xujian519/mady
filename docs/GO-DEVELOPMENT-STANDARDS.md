@@ -76,7 +76,7 @@ Mady 8 层架构，严格单向依赖：
                     ↓
                核心引擎层：agentcore
              ↙     ↓       ↘        ↘
-        提供者层  工具层(35)  扩展层    领域扩展层
+        提供者层  工具层(60)  扩展层    领域扩展层
              ↘     ↓       ↙        ↙
              基础设施层：graph/ session/ skill/ prompt/ store/
                       mcp/ knowledge/ retrieval/ disclosure/ memory/ ...
