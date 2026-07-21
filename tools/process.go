@@ -65,13 +65,14 @@ func (r *ProcessRegistry) ListAll() []*ProcessEntry {
 	return entries
 }
 
-// Cleanup removes completed processes older than maxAge.
+// Cleanup removes completed processes ending more than maxAge ago.
+// When maxAge is 0, all completed processes (regardless of end time) are removed.
 func (r *ProcessRegistry) Cleanup(maxAge time.Duration) int {
 	now := time.Now()
 	removed := 0
 	for id, entry := range r.processes.Copy() {
 		if entry.Status != "running" && entry.EndTime != nil {
-			if now.Sub(*entry.EndTime) > maxAge {
+			if now.Sub(*entry.EndTime) >= maxAge {
 				r.processes.Del(id)
 				removed++
 			}
