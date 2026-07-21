@@ -47,8 +47,6 @@ type tuiSession struct {
 	useIntegratedMode bool
 
 	// Extensions
-	ruleExt      agentcore.Extension
-	riskExt      agentcore.Extension
 	writingExt   agentcore.Extension
 	fileIndexExt *fileindex.Extension
 	memExt       *memory.MemoryExtension

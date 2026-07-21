@@ -7,6 +7,8 @@ import (
 	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/reasoning"
+	"github.com/xujian519/mady/domains/rules"
+	"github.com/xujian519/mady/knowledge/risk"
 	"github.com/xujian519/mady/memory"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/tools"
@@ -125,6 +127,9 @@ func (s *tuiSession) applyPlanModeThinking(cfg *agentcore.Config) {
 
 // extendConfig 为配置注入共享扩展：WikiHook、知识图谱、规则引擎、风险评估、
 // 写作辅助、文件索引、以及记忆扩展和持久化。
+//
+// 扩展从 s.fc 按需读取（而非预构建），确保 deferred 初始化完成后
+// rebuildAgent() 能获取到最新装配的扩展实例。
 func (s *tuiSession) extendConfig(cfg agentcore.Config) agentcore.Config {
 	if s.fc.WikiHook != nil {
 		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, s.fc.WikiHook)
@@ -132,11 +137,13 @@ func (s *tuiSession) extendConfig(cfg agentcore.Config) agentcore.Config {
 	if s.fc.KnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, s.fc.KnowledgeExt)
 	}
-	if s.ruleExt != nil {
-		cfg.Extensions = append(cfg.Extensions, s.ruleExt)
+	// 规则引擎扩展：从 fc.RuleEngine 按需构建（可能由 deferred 任务填充）。
+	if s.fc.RuleEngine != nil {
+		cfg.Extensions = append(cfg.Extensions, rules.NewExtension(s.fc.RuleEngine))
 	}
-	if s.riskExt != nil {
-		cfg.Extensions = append(cfg.Extensions, s.riskExt)
+	// 风险扫描扩展：从 fc.WikiStore 按需构建（可能由 deferred 任务填充）。
+	if s.fc.WikiStore != nil {
+		cfg.Extensions = append(cfg.Extensions, risk.NewExtension(s.fc.WikiStore, risk.DefaultScannerConfig()))
 	}
 	if s.writingExt != nil {
 		cfg.Extensions = append(cfg.Extensions, s.writingExt)

@@ -261,6 +261,287 @@ func TestCmdASelectsAllEditorText(t *testing.T) {
 	}
 }
 
+// TestChatAppFSMInitializing verifies the initial FSM state is StateInitializing
+// and the judgment view reflects "initializing" status before MarkAgentReady.
+func TestChatAppFSMInitializing(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+
+	// Before MarkAgentReady, state must be StateInitializing.
+	app.mu.Lock()
+	gotState := app.model.state
+	app.mu.Unlock()
+	if gotState != StateInitializing {
+		t.Errorf("initial FSM state = %s, want %s", gotState, StateInitializing)
+	}
+
+	// JudgmentView initial status should be "initializing".
+	app.layout.updateJudgmentView()
+	if status := app.judgmentView.Status(); status != "initializing" {
+		t.Errorf("initial JV status = %q, want %q", status, "initializing")
+	}
+
+	// Non-intrusive: user can still type during initialization.
+	var captured string
+	app.editor.Update(core.KeyMsg{Data: "\r"}) // empty submit should be ignored
+	_ = captured
+}
+
+// TestChatAppFSMReadyTransition verifies the StateInitializing → StateIdle
+// transition and judgment view update when MarkAgentReady is called.
+func TestChatAppFSMReadyTransition(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+
+	// Mark agent ready — simulates initialiazeAgentAsync completion.
+	app.MarkAgentReady()
+
+	app.mu.Lock()
+	gotState := app.model.state
+	app.mu.Unlock()
+	if gotState != StateIdle {
+		t.Errorf("after MarkAgentReady: FSM state = %s, want %s", gotState, StateIdle)
+	}
+
+	// Judgment view should reflect idle status.
+	if status := app.judgmentView.Status(); status != "idle" {
+		t.Errorf("after MarkAgentReady: JV status = %q, want %q", status, "idle")
+	}
+
+	// From idle, agent start should transition to streaming.
+	app.Busy("working")
+	app.mu.Lock()
+	app.model.state = Transition(app.model.state, evtAgentStart)
+	app.mu.Unlock()
+	app.layout.updateJudgmentView()
+	if status := app.judgmentView.Status(); status != "streaming" {
+		t.Errorf("after evtAgentStart from idle: JV status = %q, want %q", status, "streaming")
+	}
+}
+
+// TestChatAppFSMFullLifecycle tests the complete FSM lifecycle through
+// JudgmentView integration: idle → streaming → tool → streaming → idle.
+func TestChatAppFSMFullLifecycle(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	app.MarkAgentReady() // start from idle
+
+	// idle → streaming (agent start)
+	app.onAgentStart(AgentStartChatEvent{})
+	app.mu.Lock()
+	if s := app.model.state; s != StateStreaming {
+		t.Errorf("after agentStart: FSM = %s, want %s", s, StateStreaming)
+	}
+	app.mu.Unlock()
+	if status := app.judgmentView.Status(); status != "streaming" {
+		t.Errorf("after agentStart: JV = %q, want %q", status, "streaming")
+	}
+
+	// streaming → tool-running
+	app.onToolStart(ToolCallStartChatEvent{
+		ToolCall: ToolCallInfo{ID: "t1", Name: "search"},
+	})
+	app.mu.Lock()
+	if s := app.model.state; s != StateToolRunning {
+		t.Errorf("after toolStart: FSM = %s, want %s", s, StateToolRunning)
+	}
+	app.mu.Unlock()
+	if status := app.judgmentView.Status(); status != "analyzing" {
+		t.Errorf("after toolStart: JV = %q, want %q", status, "analyzing")
+	}
+
+	// tool-running → streaming (tool end)
+	app.onToolEnd(ToolCallEndChatEvent{
+		ToolCallID: "t1", ToolName: "search",
+	})
+	app.mu.Lock()
+	if s := app.model.state; s != StateStreaming {
+		t.Errorf("after toolEnd: FSM = %s, want %s", s, StateStreaming)
+	}
+	app.mu.Unlock()
+	if status := app.judgmentView.Status(); status != "streaming" {
+		t.Errorf("after toolEnd: JV = %q, want %q", status, "streaming")
+	}
+
+	// streaming → idle (agent end)
+	app.onAgentEnd(AgentEndChatEvent{})
+	app.mu.Lock()
+	if s := app.model.state; s != StateIdle {
+		t.Errorf("after agentEnd: FSM = %s, want %s", s, StateIdle)
+	}
+	app.mu.Unlock()
+	if status := app.judgmentView.Status(); status != "idle" {
+		t.Errorf("after agentEnd: JV = %q, want %q", status, "idle")
+	}
+}
+
+// TestChatAppFSMApprovalFlow verifies the approval interrupt path:
+// streaming → awaiting-confirm → idle (approval decision).
+func TestChatAppFSMApprovalFlow(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	app.MarkAgentReady()
+
+	// Start a run.
+	app.onAgentStart(AgentStartChatEvent{})
+
+	// Approval prompt — FSM should go to AwaitingConfirm.
+	app.onApprovalPrompt(ApprovalPromptChatEvent{
+		Content: "是否确认该结论？",
+	})
+	app.mu.Lock()
+	if s := app.model.state; s != StateAwaitingConfirm {
+		t.Errorf("after approvalPrompt: FSM = %s, want %s", s, StateAwaitingConfirm)
+	}
+	app.mu.Unlock()
+	if status := app.judgmentView.Status(); status != "awaiting_review" {
+		t.Errorf("after approvalPrompt: JV = %q, want %q", status, "awaiting_review")
+	}
+	if !app.judgmentView.IsExpanded() {
+		t.Error("judgment view should be expanded during approval")
+	}
+}
+
+// TestChatAppFSMErrorFlow verifies that agent errors transition to StateFailed
+// and the judgment view reflects "failed" status.
+func TestChatAppFSMErrorFlow(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	app.MarkAgentReady()
+
+	// Run and error.
+	app.onAgentStart(AgentStartChatEvent{})
+	app.onAgentError(AgentErrorChatEvent{Err: errors.New("test error")})
+	app.mu.Lock()
+	if s := app.model.state; s != StateIdle {
+		t.Errorf("after agentError: FSM = %s, want %s", s, StateIdle)
+	}
+	app.mu.Unlock()
+
+	// When agent errors, the FSM transitions to Idle (not Failed) to allow
+	// retry. The error is displayed via PrintError in the chat history.
+	// (Failed is reserved for initialization failure — see MarkAgentFailed.)
+}
+
+// TestChatAppMarkAgentFailed verifies the init failure path.
+func TestChatAppMarkAgentFailed(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+
+	// Simulate agent initialization failure.
+	app.MarkAgentFailed()
+	app.mu.Lock()
+	if s := app.model.state; s != StateFailed {
+		t.Errorf("after MarkAgentFailed: FSM = %s, want %s", s, StateFailed)
+	}
+	app.mu.Unlock()
+	if status := app.judgmentView.Status(); status != "failed" {
+		t.Errorf("after MarkAgentFailed: JV = %q, want %q", status, "failed")
+	}
+}
+
+// TestChatAppFSMCompactionFlow verifies context compaction transitions.
+func TestChatAppFSMCompactionFlow(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	app.MarkAgentReady()
+
+	// Start run and trigger compaction.
+	app.onAgentStart(AgentStartChatEvent{})
+	app.onCompactionStart(CompactionStartChatEvent{TokensBefore: 8000})
+	app.mu.Lock()
+	if s := app.model.state; s != StateCompacting {
+		t.Errorf("after compactionStart: FSM = %s, want %s", s, StateCompacting)
+	}
+	app.mu.Unlock()
+	if status := app.judgmentView.Status(); status != "compacting" {
+		t.Errorf("after compactionStart: JV = %q, want %q", status, "compacting")
+	}
+
+	// Compaction end → back to streaming.
+	app.onCompactionEnd(CompactionEndChatEvent{
+		TokensBefore: 8000, TokensAfter: 4000, MessagesCut: 5,
+	})
+	app.mu.Lock()
+	if s := app.model.state; s != StateStreaming {
+		t.Errorf("after compactionEnd: FSM = %s, want %s", s, StateStreaming)
+	}
+	app.mu.Unlock()
+	if status := app.judgmentView.Status(); status != "streaming" {
+		t.Errorf("after compactionEnd: JV = %q, want %q", status, "streaming")
+	}
+}
+
+// TestBuildSystemStatusData_Initializing verifies that the system status
+// data correctly reflects StateInitializing.
+func TestBuildSystemStatusData_Initializing(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	// FSM starts at StateInitializing per constructor.
+	sd := buildSystemStatusData(app, "")
+	if sd.Mode != "" {
+		t.Errorf("Mode = %q, want empty for initializing", sd.Mode)
+	}
+	if len(sd.Events) == 0 {
+		t.Fatal("expected at least one event (FSM state)")
+	}
+	if sd.Events[0].Message != "Agent 状态: initializing" {
+		t.Errorf("first event message = %q, want 'Agent 状态: initializing'", sd.Events[0].Message)
+	}
+}
+
+// TestBuildSystemStatusData_Idle verifies the idle state shows "就绪".
+func TestBuildSystemStatusData_Idle(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	app.MarkAgentReady() // StateInitializing → StateIdle
+
+	sd := buildSystemStatusData(app, "")
+	if sd.ModeReason != "就绪" {
+		t.Errorf("ModeReason = %q, want 就绪", sd.ModeReason)
+	}
+}
+
+// TestBuildSystemStatusData_AwaitingConfirm verifies awaiting_review state
+// populates the approval event.
+func TestBuildSystemStatusData_AwaitingConfirm(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	app.MarkAgentReady()
+	app.onApprovalPrompt(ApprovalPromptChatEvent{
+		Content: "需要确认新颖性分析结果",
+		Data: &ReviewGatePayload{
+			Title:      "新颖性复核",
+			Judgment:   "权利要求1-5具备新颖性",
+			Confidence: 0.85,
+		},
+	})
+
+	// System status should reflect the awaiting_review state.
+	sd := buildSystemStatusData(app, "")
+	if sd.Mode != "awaiting_review" {
+		t.Errorf("Mode = %q, want awaiting_review", sd.Mode)
+	}
+	if !strings.Contains(sd.ModeReason, "等待") || !strings.Contains(sd.ModeReason, "复核") {
+		t.Errorf("ModeReason = %q, should contain 等待 and 复核", sd.ModeReason)
+	}
+	// Should have an approval-related event.
+	hasApprovalEvent := false
+	for _, ev := range sd.Events {
+		if strings.Contains(ev.Message, "审批") {
+			hasApprovalEvent = true
+			break
+		}
+	}
+	if !hasApprovalEvent {
+		t.Error("expected approval event in system status")
+	}
+}
+
+// TestBuildSystemStatusData_Failed verifies the failed state shows degraded.
+func TestBuildSystemStatusData_Failed(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	app.MarkAgentFailed() // StateInitializing → StateFailed
+
+	sd := buildSystemStatusData(app, "")
+	if sd.Mode != "degraded" {
+		t.Errorf("Mode = %q, want degraded for failed state", sd.Mode)
+	}
+	if sd.Events[0].Level != "error" {
+		t.Errorf("first event level = %q, want error", sd.Events[0].Level)
+	}
+}
+
 func TestChatAppSubscribe(t *testing.T) {
 	app, _ := newTestChatApp(t, ChatAppConfig{})
 

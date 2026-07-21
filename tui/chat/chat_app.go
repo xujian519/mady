@@ -113,6 +113,16 @@ type chatModel struct {
 	ActiveTools map[string]time.Time
 	Running     bool
 
+	// state is the FSM's current interaction state. It is the single source
+	// of truth for UI state display (JudgmentView, StatusBar). Handlers
+	// call Transition(state, EventKindFor(e)) to compute the next state.
+	// Initialized to StateInitializing at ChatApp creation.
+	state AppState
+
+	// Running, StreamID, ActiveTools are retained as compatibility shims
+	// during the progressive refactor. New code should read/write state.
+	// TODO(sprint-2): remove these after all handlers use Transition().
+
 	// Token accounting for the StatusBar indicator. usagePrompt/Completion
 	// accumulate across turns within one agent run; turnStarted is set on
 	// AgentStart so onTurnEnd can compute tok/s = completion / elapsed.
@@ -198,7 +208,10 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 		statusBar:    statusBar,
 		km:           km,
 		judgmentView: component.NewJudgmentView(),
-		model:        chatModel{ActiveTools: make(map[string]time.Time)},
+		model: chatModel{
+			state:       StateInitializing,
+			ActiveTools: make(map[string]time.Time),
+		},
 	}
 
 	chatApp.header = newChatHeader(cfg)
@@ -495,6 +508,26 @@ func (a *ChatApp) Idle() {
 func (a *ChatApp) SetJudgmentSummary(s JudgmentSummary) {
 	a.mu.Lock()
 	a.model.judgmentSummary = s
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
+}
+
+// MarkAgentReady signals that agent initialization has completed and
+// transitions the FSM from StateInitializing to StateIdle. Called after
+// initializeAgentAsync successfully binds the agent to the ChatApp.
+func (a *ChatApp) MarkAgentReady() {
+	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtAgentReady)
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
+}
+
+// MarkAgentFailed signals that agent initialization hit a terminal error and
+// transitions the FSM to StateFailed. Called from initializeAgentAsync's
+// error recovery path so the UI reflects the failed state.
+func (a *ChatApp) MarkAgentFailed() {
+	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtAgentError)
 	a.mu.Unlock()
 	a.layout.updateJudgmentView()
 }

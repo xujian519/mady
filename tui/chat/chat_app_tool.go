@@ -26,8 +26,10 @@ func (a *ChatApp) onToolStart(e ChatEvent) {
 	}
 	a.mu.Lock()
 	a.model.ActiveTools[tc.ToolCall.ID] = time.Now()
+	a.model.state = Transition(a.model.state, evtToolStart)
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
+	a.layout.updateJudgmentView()
 	a.history.Append(ChatMessage{
 		ID:   "tool-" + tc.ToolCall.ID,
 		Role: RoleTool,
@@ -47,6 +49,7 @@ func (a *ChatApp) onToolEnd(e ChatEvent) {
 	}
 	a.mu.Lock()
 	delete(a.model.ActiveTools, tc.ToolCallID)
+	a.model.state = Transition(a.model.state, evtToolEnd)
 	a.mu.Unlock()
 
 	status := theme.CurrentPalette().Success.Render(theme.SymbolCheck + " done")
@@ -113,6 +116,7 @@ func (a *ChatApp) onToolEnd(e ChatEvent) {
 			}
 		}
 	}
+	a.layout.updateJudgmentView()
 }
 
 var editorTools = map[string]bool{
@@ -302,6 +306,10 @@ func (a *ChatApp) onCompactionStart(e ChatEvent) {
 	if !ok {
 		return
 	}
+	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtCompactionStart)
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
 	a.Busy(fmt.Sprintf("compacting context (%d tokens)...", ev.TokensBefore))
 }
 
@@ -310,6 +318,10 @@ func (a *ChatApp) onCompactionEnd(e ChatEvent) {
 	if !ok {
 		return
 	}
+	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtCompactionEnd)
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
 	a.history.Append(ChatMessage{
 		Role: RoleSystem,
 		Text: fmt.Sprintf("%s compacted %d %s %d tokens (-%d msgs, %s)",
