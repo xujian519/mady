@@ -28,6 +28,143 @@
 - 方案内容与当前“先稳主流程、不过早扩布局复杂度”的项目节奏一致；
   适合作为后续小步实施 `TUI` 体验优化的基线文档。
 
+## 2026-07-21: 专利分析工作流检索真实化 + CLI 子命令 + TUI 斜杠命令
+
+### 背景
+- 用户反馈专利分析工作流（新颖性分析 / OA 答复）脱离实际使用场景：
+  核心检索节点为占位实现，缺少直接调用的入口，TUI 中只能通过自然语言让 LLM 决定是否调用工具。
+- 调研确认代码基础设施（Pregel 图、规则引擎、双轨检查器、disclosure 管线）本身完成度很高，
+  但实际可用性被以下三个 gap 限制：① searchNode 是占位 ② 无直接 CLI 入口 ③ TUI 需斜杠命令快捷触发。
+
+### 变更（7 文件）
+- `workflows/patent/analysis.go`
+  - 新增 `GraphOption` / `graphConfig` / `WithRetriever` 模式，对齐 disclosure/graph.go 的注入风格
+  - 将 `searchNode` 从裸函数改为闭包工厂 `newSearchNode(retriever)`：
+    - retriever 非 nil 时查询 `domain.DomainRetriever` 返回真实现有技术
+    - retriever 为 nil 时返回占位文本（向后兼容）
+  - 新增 `BuildNoveltyGraphWithRulesWithOpts(opts ...GraphOption)` 支持可选检索器注入
+  - 新增 `BuildNoveltyGraphWithOpts` 对应无规则引擎版本的选项注入
+  - 保留 `BuildNoveltyGraph` / `BuildNoveltyGraphWithRules` 作为无选项的向后兼容包装
+- `workflows/patent/tool.go`
+  - `NewPatentNoveltyTool(opts ...GraphOption)` 接受选项参数，传递给 `BuildNoveltyGraphWithRulesWithOpts`
+- `workflows/patent/analysis_test.go`
+  - `TestSearchNode` 改为调用 `newSearchNode(nil)` 闭包工厂
+  - 新增 `TestSearchNode_WithRetriever` 验证 nil retriever 场景
+- `domains/patent.go`
+  - 新增 `globalPatentRetriever` + `SetupPatentRetriever(r)` + `GetPatentRetriever()`，遵循 `globalDraftingRunner` 的全局注入模式
+  - `PatentAgentConfig` 中 `NewPatentNoveltyTool(WithRetriever(globalPatentRetriever))` 传递检索器
+- `cmd/mady/framework.go`
+  - `initReasoningAndTemplates` 中新增：从 `KnowledgeBackend` 构建 `PatentDomainRetriever` 并调用 `SetupPatentRetriever`
+- `cmd/mady/patent.go`（新文件）
+  - 新增 `mady patent novelty` 和 `mady patent oa` CLI 子命令，直接运行 Pregel 图输出 Markdown
+- `cmd/mady/tui_session.go` + `cmd/mady/slash_registry.go`
+  - 新增 `/novelty <描述>` 斜杠命令：直接触发新颖性分析 Pregel 图
+  - 新增 `/oa <OA文本>` 斜杠命令：直接触发 OA 答复 Pregel 图
+  - 新增 `/patent` 帮助命令
+  - `main.go` 注册 `patent` 子命令并更新用法说明
+
+### 设计决策
+1. **检索注入沿用 disclosure 的 `GraphOption` 模式**，而非全局变量——保持架构一致性，函数签名零破坏
+2. **CLI 子命令直接调用 Pregel 图**（方式二），而非包装成 Tool——更轻量，适合脚本/管道场景
+3. **斜杠命令绕过 LLM 意图分类**——确定性触发工作流，避免"描述了需求但 LLM 选择不调用工具"的问题
+4. **确定性优先**：所有新增入口都复用已有的确定性规则引擎，LLM 仅作为可选增强层
+
+### 风险与限制
+- CLI 模式下 `globalPatentRetriever` 为 nil（未运行 setupFrameworkContext），search 节点自动降级为占位结果。需要用 TUI/Server 模式才能享受真实检索
+- `openKnowledgeBackend` 返回的是 `knowledge.KnowledgeBackend` 接口，断言为 `*ksqlite.SQLiteStore` 可能失败（数据库格式不匹配），此时静默跳过
+
+### 验证
+- `go build ./...` 全量编译通过
+- `go vet ./...` 零警告
+- `go test ./workflows/patent/...` — 51 个测试全通过
+- `go test ./domains/...` — 所有子包通过
+- CLI 验证：`go run ./cmd/mady/ patent novelty "一种智能窗户清洁装置"` 输出完整分析报告（含规则引擎检查）
+- CLI 验证：`go run ./cmd/mady/ patent oa "审查员认为..."` 输出 OA 答复骨架
+- 向后兼容：不传 `WithRetriever` 的 `NewPatentNoveltyTool()` 与旧行为一致
+
+## 2026-07-21: 专利分析导出 + OA 答复 LLM 增强节点
+
+### 背景
+- P4：新颖性分析和 OA 答复结果缺少导出功能（CLI 仅输出到 stdout，TUI 仅显示为系统消息）
+- P5：OA 答复书骨架为纯确定性逻辑，缺少实质性论证段落，代理师需要从头撰写论证
+
+### 变更（5 文件）
+- `workflows/patent/export.go`（新文件）
+  - 新增 `ExportNoveltyReport(output)` / `SaveNoveltyReport(output, filePath)` — 新颖性分析报告 Markdown 导出
+  - 新增 `ExportOAResponse(output)` / `SaveOAResponse(output, filePath)` — OA 答复书 Markdown 导出
+  - 文件头包含生成时间和类型元数据注释
+- `workflows/patent/oa_response.go`
+  - 新增 `OAGraphOption` / `oaGraphConfig` / `WithOAProvider` 模式（与 analysis.go 的 GraphOption 对齐）
+  - 新增 `newOAEnhanceNode(provider agentcore.Provider)` — LLM 增强节点闭包工厂：
+    - 读取确定性骨架 + 原始 OA 文本，构建 prompt 调 LLM 生成实质性论证段落
+    - LLM 失败时静默降级（保留确定性输出，不阻塞管线）
+    - provider 为 nil 时返回 no-op 节点
+  - 新增 `BuildOAResponseGraphWithOpts(opts ...OAGraphOption)` — 有 provider 时管线变为 `draft_response → llm_enhance → approval_gate`
+  - 保留 `BuildOAResponseGraph()` 作为向后兼容包装
+  - 新增状态键 `OAStateLLMEnhanced` 标记增强是否生效
+- `workflows/patent/oa_response_tool.go`
+  - `NewOAResponseTool(opts ...OAGraphOption)` 接受选项，传递给 `BuildOAResponseGraphWithOpts`
+  - 修复编码乱码："权���要求" → "权利要求"
+- `workflows/patent/oa_response_test.go`
+  - 新增 `TestBuildOAResponseGraphWithOpts_NoProvider` — 无 provider 时图运行正常且无增强
+  - 新增 `TestOAEnhanceNode_NoopOnNilProvider` — nil provider 的 no-op 行为验证
+  - 新增 `TestOAEnhanceNode_WithNilProviderGraph` — 有无 opts（无 provider）输出一致
+- `cmd/mady/patent.go`
+  - `novelty` 和 `oa` 子命令新增 `-o <file>` 可选参数，写入 Markdown 文件
+  - 参数解析重构为 `parseCLIArgs(args)` 统一处理 `-f` / `-o` / 直接文本
+
+### 设计决策
+1. **导出复用已有 Markdown 输出**：export.go 不重新渲染结构，只在已有输出上添加文件头元数据。避免与 disclosure/export.go 的 AnalysisReport 结构冲突
+2. **OA LLM 增强节点遵循 disclosure 内联工厂模式**：创建独立 Agent 实例、MaxTurns=1、JSON Schema 可选、失败静默降级——与 noveltyNode / reportNode 一致
+3. **OAGraphOption 与 GraphOption 分离**：虽然模式相同，但 OA 图的配置项（provider）与新颖性图的配置项（retriever）类型不同，各自定义避免 type confusion
+4. **LLM 增强为可选**：不改变默认行为，无 provider 注入时管线行为与之前完全一致
+
+### 风险与限制
+- OA LLM 增强节点的 SystemPrompt 目前内联在 Go 代码中（与 disclosure 的做法一致），未使用 prompt-templates/ 目录中的 JSON 模板。后续可迁移到模板系统
+- LLM 增强对 provider 可用性有隐式要求——provider 不可用时静默降级，用户可能不知道增强未生效（由 OAStateLLMEnhanced 标记，但 TUI 目前未展示此标记）
+- 导出功能仅支持 Markdown 格式（不含 DOCX），因为 OA 和 Novelty 输出不是结构化对象
+
+### 验证
+- `go build ./...` 通过
+- `go vet ./...` 零警告
+- `go test -count=1 ./workflows/patent/...` — 54 个测试全通过（新增 3 个）
+- CLI: `mady patent novelty -o /tmp/report.md "描述"` 写入带元数据的 Markdown 文件
+- CLI: `mady patent oa -o /tmp/response.md "OA文本"` 同上
+
+---
+
+## 2026-07-21: Slash 命令结果持久化到 Session（深度集成）
+
+### 背景
+- P4 阶段 `/novelty` 和 `/oa` 斜杠命令已添加（通过 `PrintSystem()` 显示），但输出未持久化到 `session.AgentStore` JSONL
+- 正常对话通过 `submitInput()` → `agent.Run()` → `agent.SaveState()` 自动持久化，但斜杠命令绕过 Agent 直接调用 Pregel 图，结果仅存于 ChatHistory 内存，TUI 重启后丢失
+- 已有文件导出功能（`export.go`），但未覆盖 TUI 内会话恢复场景
+
+### 变更（1 文件）
+- `cmd/mady/tui_session.go`
+  - 新增 `persistSlashMessages(inputLine, outputText string)` 方法：
+    - 若 `agentStore == nil` 静默跳过（持久化未启用）
+    - 通过 `agentStore.Load()` 获取当前线程已有消息，构造用户消息（`RoleUser`+原始命令行）和助手消息（`RoleAssistant`+分析结果）
+    - 调用 `agentStore.Save()` 写入 JSONL，错误仅记录日志不阻断显示
+  - `handleNoveltySlash`：获取 Pregel 输出后先调用 `persistSlashMessages` 再 `PrintSystem`
+  - `handleOASlash`：同上
+
+### 设计决策
+1. **先持久化再显示**：即使 JSONL 写入失败也不影响用户立即看到结果
+2. **复用现有 AgentStore API**：`Save()` 内部 `syncMessages()` 自动做增量追加，只需传递完整消息列表
+3. **用户消息保存原始命令行**：用 `ctx.input`（如 `/novelty "发明..."`）而非提取后的 description，确保线程历史可追溯完整输入
+4. **5 秒超时**：持久化操作用 `context.WithTimeout` 保护，不阻塞事件循环
+
+### 风险与限制
+- 当前 `/branch` 的 `snap.Messages` 加载后通过 `ChatHistory.Append` 重建，但 ChatHistory 的消息 ID 与 AgentStore 的消息 ID 不互通——重启后 slash 结果理论上在 JSONL 中存在，但 TUI 需要显式加载恢复（当前 `/branch` 和默认启动的恢复机制尚未覆盖此场景）
+- 不影响正常 Agent 对话的持久化流程（`submitInput` → `agent.SaveState` 路径不变）
+
+### 验证
+- `go build ./...` 通过
+- `go vet ./...` 零警告
+- `go test ./cmd/mady/...` 全部通过
+- 手动验证：TUI 中 `/novelty "一种方法"` 执行后，session JSONL 文件包含对应 user/assistant 消息条目
+
 ---
 
 ## 2026-07-20: disclosure 真实 dry-run 收口与 SQLite 可写性预检

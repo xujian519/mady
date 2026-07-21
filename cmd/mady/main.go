@@ -1,12 +1,13 @@
 // Command mady is the unified entry point for the Mady agent framework.
 //
-// It exposes five subcommands:
+// It exposes six subcommands:
 //
 //	mady tui   — interactive terminal chat (default)
 //	mady serve — HTTP/SSE API server with multi-domain routing
 //	mady acp   — run as an ACP (Agent Client Protocol) server for editors like Zed
 //	mady trust-mcp — trust an MCP config file so its commands may run at startup
 //	mady eval  — run evaluation benchmarks (static or live) and generate reports
+//	mady patent — patent analysis CLI (novelty analysis, OA response drafting)
 //
 // All configuration is via environment variables (see package agentconfig):
 //
@@ -63,6 +64,8 @@ func main() {
 			fmt.Fprintln(os.Stderr, "eval:", err)
 			os.Exit(1)
 		}
+	case "patent":
+		runPatentCLI(ctx, os.Args)
 	case "-h", "--help", "help":
 		printUsage()
 	default:
@@ -88,6 +91,7 @@ Commands:
   trust-mcp [path]  Trust an MCP config file (default: ./.mcp.json) so its
         commands may run at startup (records a SHA-256 in trusted-mcp.json).
   eval  Run evaluation benchmarks (static or live) and generate reports.
+  patent  Patent analysis CLI: novelty analysis, OA response drafting.
   help  Show this help message.
 
 Configuration (environment variables):

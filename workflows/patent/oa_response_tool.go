@@ -12,14 +12,16 @@ import (
 // response Pregel graph for use by the Patent Agent.
 //
 // The tool takes an OA notification text as input, runs it through the
-// deterministic Pregel pipeline (parse → classify → analyze → draft → approve),
+// Pregel pipeline (parse → classify → analyze → draft → [llm_enhance] → approve),
 // and returns a structured response skeleton.
-func NewOAResponseTool() *agentcore.Tool {
+// Supports optional LLM enhancement via OAGraphOption.
+func NewOAResponseTool(opts ...OAGraphOption) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name: "draft_oa_response",
 		Description: `起草审查意见答复书：输入审查意见通知书文本，自动解析驳回类型和引用对比文件，` +
-			`分析受影响的权���要求，制定答复策略，生成结构化答复书骨架。
-输出包含：权利要求修改对照表、答复策略建议、对比文件分析、法律依据引用。`,
+			`分析受影响的权利要求，制定答复策略，生成结构化答复书骨架。
+输出包含：权利要求修改对照表、答复策略建议、对比文件分析、法律依据引用。
+如有 LLM 增强配置，将在确定性骨架基础上自动生成实质性论证段落。`,
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -47,7 +49,7 @@ func NewOAResponseTool() *agentcore.Tool {
 				return agentcore.NewFailureResult("输入为空", "审查意见通知书文本不能为空"), nil
 			}
 
-			compiled, err := BuildOAResponseGraph()
+			compiled, err := BuildOAResponseGraphWithOpts(opts...)
 			if err != nil {
 				return agentcore.NewFailureResult("答复引擎初始化失败",
 					"OA 答复功能暂时不可用，请稍后重试。"), nil

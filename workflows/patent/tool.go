@@ -10,7 +10,8 @@ import (
 
 // NewPatentNoveltyTool 创建 analyze_patent_novelty 工具，
 // 封装专利新颖性分析 Pregel 图（含规则引擎检查）。
-func NewPatentNoveltyTool() *agentcore.Tool {
+// 支持通过 GraphOption 注入检索器等可选依赖。
+func NewPatentNoveltyTool(opts ...GraphOption) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name:        "analyze_patent_novelty",
 		Description: "对发明进行新颖性和创造性分析：输入发明描述，提取技术特征，与现有技术对比，生成结构化分析报告（含规则引擎校验）。",
@@ -36,7 +37,7 @@ func NewPatentNoveltyTool() *agentcore.Tool {
 				return agentcore.NewFailureResult("输入为空", "发明描述不能为空"), nil
 			}
 
-			compiled, err := BuildNoveltyGraphWithRules()
+			compiled, err := BuildNoveltyGraphWithRulesWithOpts(opts...)
 			if err != nil {
 				return agentcore.NewFailureResult("分析引擎初始化失败",
 					"专利新颖性分析功能暂时不可用，请稍后重试。"), nil

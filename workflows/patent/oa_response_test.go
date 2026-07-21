@@ -372,3 +372,82 @@ func TestApprovalGateNode_EmptyDraft(t *testing.T) {
 		t.Error("expected error for empty draft")
 	}
 }
+
+func TestBuildOAResponseGraphWithOpts_NoProvider(t *testing.T) {
+	// Without provider, graph should be identical to BuildOAResponseGraph.
+	g, err := BuildOAResponseGraphWithOpts()
+	if err != nil {
+		t.Fatalf("BuildOAResponseGraphWithOpts() error = %v", err)
+	}
+	if g == nil {
+		t.Fatal("expected non-nil graph")
+	}
+
+	// Verify it runs without LLM enhancement.
+	state, err := g.Run(context.Background(), graph.PregelState{
+		OAStateInput: "审查员认为权利要求1不具备新颖性。",
+	})
+	if err != nil {
+		t.Fatalf("graph.Run() error = %v", err)
+	}
+	output := state.GetString(OAStateOutput)
+	if output == "" {
+		t.Fatal("expected non-empty output")
+	}
+	if enhanced, ok := state[OAStateLLMEnhanced].(bool); ok && enhanced {
+		t.Error("expected no LLM enhancement without provider")
+	}
+}
+
+func TestOAEnhanceNode_NoopOnNilProvider(t *testing.T) {
+	node := newOAEnhanceNode(nil)
+	if node == nil {
+		t.Fatal("newOAEnhanceNode(nil) should return non-nil node")
+	}
+
+	state := graph.PregelState{
+		OAStateResponseDraft: "test draft",
+		OAStateInput:         "test input",
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("noop enhance node error = %v", err)
+	}
+
+	// Should pass through unchanged.
+	draft := out.GetString(OAStateResponseDraft)
+	if draft != "test draft" {
+		t.Error("expected draft to pass through unchanged")
+	}
+	enhanced, ok := out[OAStateLLMEnhanced].(bool)
+	if !ok || enhanced {
+		t.Error("expected OAStateLLMEnhanced=false for nil provider")
+	}
+}
+
+func TestOAEnhanceNode_WithNilProviderGraph(t *testing.T) {
+	// BuildOAResponseGraphWithOpts with no provider should produce
+	// the same output as BuildOAResponseGraph.
+	g1, err := BuildOAResponseGraph()
+	if err != nil {
+		t.Fatalf("BuildOAResponseGraph() error = %v", err)
+	}
+	g2, err := BuildOAResponseGraphWithOpts()
+	if err != nil {
+		t.Fatalf("BuildOAResponseGraphWithOpts() error = %v", err)
+	}
+
+	state1, err1 := g1.Run(context.Background(), graph.PregelState{
+		OAStateInput: "审查员认为权利要求1不具备专利法第22条第2款规定的新颖性。",
+	})
+	state2, err2 := g2.Run(context.Background(), graph.PregelState{
+		OAStateInput: "审查员认为权利要求1不具备专利法第22条第2款规定的新颖性。",
+	})
+
+	if err1 != nil || err2 != nil {
+		t.Fatalf("graph.Run() error g1=%v g2=%v", err1, err2)
+	}
+	if state1.GetString(OAStateOutput) != state2.GetString(OAStateOutput) {
+		t.Error("expected identical output with and without opts (no provider)")
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/guardrails"
+	"github.com/xujian519/mady/retrieval/domain"
 	"github.com/xujian519/mady/tools"
 	"github.com/xujian519/mady/workflows/patent"
 )
@@ -45,6 +46,23 @@ func injectDraftingTool(cfg *agentcore.Config) {
 // globalTemplateStore 是 TemplateStore 的全局实例，由 SetupDocTemplateStore
 // 在启动期注入。遵循与 globalDraftingRunner 一致的模式。
 var globalTemplateStore *doctmpl.TemplateStore
+
+// globalPatentRetriever 是专利领域检索器的全局实例，由 SetupPatentRetriever
+// 在启动期注入。PatentAgentConfig 构造 analyze_patent_novelty 工具时传入，
+// 使 search 节点能进行真实现有技术检索。
+var globalPatentRetriever domain.DomainRetriever
+
+// SetupPatentRetriever 在启动期注入专利领域检索器实例，
+// 使 PatentAgentConfig 可以将检索能力注入 analyze_patent_novelty 工具。
+// retriever 可为 nil——nil 时 search 节点返回占位结果，保持向后兼容。
+func SetupPatentRetriever(r domain.DomainRetriever) {
+	globalPatentRetriever = r
+}
+
+// GetPatentRetriever 返回已注入的全局专利检索器，供 CLI/Server 等入口复用。
+func GetPatentRetriever() domain.DomainRetriever {
+	return globalPatentRetriever
+}
 
 // SetupDocTemplateStore 在启动期注入模板仓库实例，使 PatentAgentConfig 和
 // LegalAgentConfig 可以将文档模板工具注册到所有 Agent 实例中。
@@ -113,7 +131,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		},
 		MaxBytes: 100 * 1024,
 		ExtraTools: []*agentcore.Tool{
-			patent.NewPatentNoveltyTool(),
+			patent.NewPatentNoveltyTool(patent.WithRetriever(globalPatentRetriever)),
 			patent.NewOAResponseTool(),
 		},
 	})

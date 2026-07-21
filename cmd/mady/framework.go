@@ -23,12 +23,15 @@ import (
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/knowledge"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
+	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/mcp"
 	"github.com/xujian519/mady/memory"
 	"github.com/xujian519/mady/memory/compiler"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/retrieval"
+	"github.com/xujian519/mady/retrieval/domain"
+	rsqlite "github.com/xujian519/mady/retrieval/domain/sqlite"
 	"github.com/xujian519/mady/skill"
 	"github.com/xujian519/mady/tools"
 )
@@ -435,7 +438,7 @@ func initMemorySystem(fc *frameworkContext) {
 }
 
 // initReasoningAndTemplates 初始化推理引擎 retriever/LLM 客户端、文档模板仓库、
-// 以及引用核验装配（CitationGate 留痕 store）。
+// 引用核验装配（CitationGate 留痕 store），以及专利新颖性分析的检索器。
 func initReasoningAndTemplates(fc *frameworkContext) {
 	retriever := buildReasoningRetriever(fc)
 	var llmClient reasoning.LlmClient
@@ -443,6 +446,17 @@ func initReasoningAndTemplates(fc *frameworkContext) {
 		llmClient = reasoning.NewLlmClientFromProvider(fc.Provider, agentconfig.DefaultModel())
 	}
 	domains.SetupPatentDraftingEngine(retriever, llmClient)
+
+	// 专利新颖性分析现有技术检索器：从已打开的知识库构建 PatentDomainRetriever。
+	// 配置后 analyze_patent_novelty 工具的 search 节点将使用本地专利知识库的 FTS5
+	// 检索返回专利文献作为证据，替代默认的占位文本。
+	var patentRetriever domain.DomainRetriever
+	if fc.KnowledgeBackend != nil {
+		if store, ok := fc.KnowledgeBackend.(*ksqlite.SQLiteStore); ok {
+			patentRetriever = rsqlite.NewPatentDomainRetriever(store)
+		}
+	}
+	domains.SetupPatentRetriever(patentRetriever)
 
 	userTmplDir := filepath.Join(fc.MadyHome, "doc-templates")
 	store, err := doctmpl.NewTemplateStore(userTmplDir)

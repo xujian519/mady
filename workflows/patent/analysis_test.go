@@ -88,7 +88,9 @@ func TestSearchNode(t *testing.T) {
 	state := graph.PregelState{
 		StateSearchQuery: "超声波 清洁 窗户",
 	}
-	out, err := searchNode(context.Background(), state)
+	// Use newSearchNode(nil) — no retriever, returns placeholder results.
+	node := newSearchNode(nil)
+	out, err := node(context.Background(), state)
 	if err != nil {
 		t.Fatalf("searchNode: %v", err)
 	}
@@ -96,6 +98,21 @@ func TestSearchNode(t *testing.T) {
 	priorArt, ok := out[StatePriorArt].([]string)
 	if !ok || len(priorArt) == 0 {
 		t.Fatal("expected prior art results")
+	}
+}
+
+func TestSearchNode_WithRetriever(t *testing.T) {
+	state := graph.PregelState{
+		StateSearchQuery: "超声波清洗",
+	}
+	node := newSearchNode(nil)
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("searchNode with nil retriever: %v", err)
+	}
+	priorArt, _ := out[StatePriorArt].([]string)
+	if len(priorArt) == 0 {
+		t.Fatal("expected prior art even with nil retriever")
 	}
 }
 

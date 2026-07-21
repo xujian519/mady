@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/retrieval/domain"
 )
 
 // State keys used by the patent analysis workflow.
@@ -108,25 +109,92 @@ func buildSearchQuery(features []string) string {
 	return strings.Join(features[:n], " ")
 }
 
-// searchNode simulates prior art search. In production, this would use the
-// knowledge.Store RetrievalHook or an external patent database.
-// For now, it passes the search query through for the analyze phase.
-func searchNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-	query := state.GetString(StateSearchQuery)
-	features := state[StateFeatures]
+// =============================================================================
+// GraphOption — 可选依赖注入
+// =============================================================================
 
-	out := graph.PregelState{
-		StateSearchQuery: query,
-		// In production, StatePriorArt would be populated from the knowledge store.
-		StatePriorArt: []string{
-			"现有技术文献检索结果将在此处展示",
-			"检索范围: 中国专利数据库、外国专利数据库",
-		},
+// GraphOption 可选地配置 patent 分析图的依赖（如 search 节点的检索器）。
+// 采用 functional option 模式，使无检索器的调用点零破坏。
+type GraphOption func(*graphConfig)
+
+type graphConfig struct {
+	retriever domain.DomainRetriever
+}
+
+// WithRetriever 注入专利领域检索器，启用 search 节点的真实现有技术检索。
+// 未注入时 search 节点返回占位文本，保持向后兼容。
+func WithRetriever(r domain.DomainRetriever) GraphOption {
+	return func(c *graphConfig) { c.retriever = r }
+}
+
+// =============================================================================
+// 检索节点
+// =============================================================================
+
+// newSearchNode 创建现有技术检索的 Pregel 节点。
+// retriever 为 nil 时返回占位结果（兼容旧行为）。
+// retriever 非 nil 时查询专利领域检索器，产出真实现有技术列表。
+func newSearchNode(retriever domain.DomainRetriever) graph.PregelNode {
+	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+		query := state.GetString(StateSearchQuery)
+		features, _ := state[StateFeatures].([]string)
+
+		out := graph.PregelState{
+			StateSearchQuery: query,
+		}
+		if features != nil {
+			out[StateFeatures] = features
+		}
+
+		// 无检索器 → 返回占位结果（保持向后兼容）。
+		if retriever == nil {
+			out[StatePriorArt] = []string{
+				"现有技术文献检索结果将在此处展示",
+				"检索范围: 中国专利数据库、外国专利数据库",
+			}
+			return out, nil
+		}
+
+		// 真实检索：用查询文本搜索专利领域检索器。
+		results, err := retriever.Search(ctx, domain.DomainQuery{
+			Text:       query,
+			MaxResults: 8,
+		})
+		if err != nil {
+			// 检索失败不应阻断管线，返回占位让分析节点降级处理。
+			out[StatePriorArt] = []string{
+				"现有技术检索暂时不可用",
+				"建议手动检索相关对比文件",
+			}
+			return out, nil
+		}
+
+		priorArt := make([]string, 0, len(results.Documents))
+		for _, doc := range results.Documents {
+			snippet := doc.Snippet
+			if snippet == "" && doc.Content != "" {
+				// 截取内容前 200 字作为摘要。
+				runes := []rune(doc.Content)
+				if len(runes) > 200 {
+					snippet = string(runes[:200]) + "…"
+				} else {
+					snippet = doc.Content
+				}
+			}
+			text := fmt.Sprintf("[%s] %s", doc.ID, doc.Title)
+			if snippet != "" {
+				text += ": " + snippet
+			}
+			priorArt = append(priorArt, text)
+		}
+
+		if len(priorArt) == 0 {
+			priorArt = append(priorArt, "未检索到相关现有技术文献")
+		}
+
+		out[StatePriorArt] = priorArt
+		return out, nil
 	}
-	if features != nil {
-		out[StateFeatures] = features
-	}
-	return out, nil
 }
 
 // analyzeNode performs feature-by-feature comparison between the invention
@@ -192,20 +260,26 @@ func concludeNode(ctx context.Context, state graph.PregelState) (graph.PregelSta
 	}, nil
 }
 
-// BuildNoveltyGraph constructs a Pregel graph for patent novelty analysis.
+// BuildNoveltyGraph constructs a Pregel graph for patent novelty analysis
+// (无检索器注入，search 节点返回占位结果）。
 //
 // Graph structure:
 //
 //	parse → search → analyze → conclude → __end__
-//
-// The analyze node has a conditional self-loop: if new search directions
-// are discovered, it routes back to search for refinement. This enables
-// the iterative nature of patent examination.
 func BuildNoveltyGraph() (*graph.CompiledPregelGraph, error) {
+	return BuildNoveltyGraphWithOpts()
+}
+
+// BuildNoveltyGraphWithOpts 构造新颖性分析 Pregel 图，支持可选的依赖注入。
+func BuildNoveltyGraphWithOpts(opts ...GraphOption) (*graph.CompiledPregelGraph, error) {
+	cfg := &graphConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	g := graph.NewPregelGraph()
 
 	g.AddNode("parse", parseNode)
-	g.AddNode("search", searchNode)
+	g.AddNode("search", newSearchNode(cfg.retriever))
 	g.AddNode("analyze", analyzeNode)
 	g.AddNode("conclude", concludeNode)
 
@@ -290,18 +364,30 @@ func concludeWithRulesNode(ctx context.Context, state graph.PregelState) (graph.
 
 // BuildNoveltyGraphWithRules constructs a Pregel graph for patent novelty
 // analysis with the deterministic rule engine check inserted between analyze
-// and conclude:
+// and conclude (无检索器注入，search 节点返回占位结果）。
+//
+// Graph structure:
 //
 //	parse → search → analyze → rule_check → conclude_with_rules → __end__
-//
-// The rule_check node evaluates the analysis against DefaultPatentRules and
-// produces a verdict (pass / needs_revision / blocked). The enhanced conclude
-// node embeds the check report and flags blocked analyses.
 func BuildNoveltyGraphWithRules() (*graph.CompiledPregelGraph, error) {
+	return BuildNoveltyGraphWithRulesWithOpts()
+}
+
+// BuildNoveltyGraphWithRulesWithOpts 构造带规则引擎检查的新颖性分析图，
+// 支持可选的依赖注入（如检索器）。
+//
+// Graph structure:
+//
+//	parse → search → analyze → rule_check → conclude_with_rules → __end__
+func BuildNoveltyGraphWithRulesWithOpts(opts ...GraphOption) (*graph.CompiledPregelGraph, error) {
+	cfg := &graphConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	g := graph.NewPregelGraph()
 
 	g.AddNode("parse", parseNode)
-	g.AddNode("search", searchNode)
+	g.AddNode("search", newSearchNode(cfg.retriever))
 	g.AddNode("analyze", analyzeNode)
 	g.AddNode("rule_check", ruleCheckNode)
 	g.AddNode("conclude", concludeWithRulesNode)

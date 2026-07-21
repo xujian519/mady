@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -32,6 +33,7 @@ const (
 	OAStateResponseDraft    = "oa_response_draft"    // string: final response draft
 	OAStateTemplateUsed     = "oa_template_used"     // string: which doc template was used
 	OAStateOutput           = "oa_output"            // string: final output text
+	OAStateLLMEnhanced      = "oa_llm_enhanced"      // bool: whether LLM enhancement was applied
 )
 
 // =============================================================================
@@ -439,19 +441,131 @@ func approvalGateNode(ctx context.Context, state graph.PregelState) (graph.Prege
 }
 
 // =============================================================================
+// LLM 增强节点（可选）
+// =============================================================================
+
+// newOAEnhanceNode 创建 OA 答复的 LLM 增强节点。
+// 在确定性骨架基础上，调用 LLM 生成实质性论证段落。
+// provider 为 nil 时返回 no-op 节点（跳过增强）。
+//
+// 参考 disclosure/novelty.go 的内联工厂模式，使用 MaxTurns=1 的单次 LLM 调用。
+func newOAEnhanceNode(provider agentcore.Provider) graph.PregelNode {
+	if provider == nil {
+		return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+			state[OAStateLLMEnhanced] = false
+			return state, nil
+		}
+	}
+
+	cfg := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:        "oa-enhance",
+			Model:       "default",
+			Provider:    provider,
+			Temperature: 0.3,
+		},
+		SystemPrompt: `你是资深的中国专利代理师，负责撰写审查意见（OA）答复书的实质论证部分。
+请基于已有的答复骨架，撰写具体、有说服力的论证段落。
+
+要求：
+1. 针对审查员指出的驳回理由，逐条进行实质性反驳
+2. 引用对比文件的具体技术特征，详细说明区别
+3. 结合《专利审查指南》的相关规定，论证本发明的专利性
+4. 使用专利代理实务中的标准措辞和专业表述
+5. 论证应当具体、有针对性，避免空洞套话
+
+输出格式：
+直接输出增强后的完整答复书 Markdown 文本。在原有骨架的基础上，
+在每个章节下补充具体的论证段落。不需要额外说明或前缀。`,
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns:          1,
+			ValidateArguments: true,
+		},
+	}
+
+	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+		// 读取确定性骨架。
+		draft := state.GetString(OAStateResponseDraft)
+		if draft == "" {
+			state[OAStateLLMEnhanced] = false
+			return state, nil
+		}
+
+		// 构建 LLM 输入：原始 OA 文本 + 骨架。
+		oaInput := state.GetString(OAStateInput)
+		var prompt strings.Builder
+		prompt.WriteString("【审查意见通知书原文】\n")
+		prompt.WriteString(oaInput)
+		prompt.WriteString("\n\n【现有答复骨架】\n")
+		prompt.WriteString(draft)
+		prompt.WriteString("\n\n请基于上述信息，撰写完整、有说服力的答复书。")
+
+		agent := agentcore.New(cfg)
+		output, err := agent.Run(ctx, prompt.String())
+		agent.Close()
+		if err != nil {
+			// LLM 失败时静默降级，保留确定性输出。
+			state[OAStateLLMEnhanced] = false
+			return state, nil
+		}
+
+		if output == "" {
+			state[OAStateLLMEnhanced] = false
+			return state, nil
+		}
+
+		state[OAStateResponseDraft] = output
+		state[OAStateOutput] = output
+		state[OAStateLLMEnhanced] = true
+		return state, nil
+	}
+}
+
+// =============================================================================
 // Graph Builder
 // =============================================================================
 
-// BuildOAResponseGraph constructs a Pregel graph for OA response drafting.
+// OAGraphOption 可选地配置 OA 答复图的依赖（如 LLM 增强节点）。
+type OAGraphOption func(*oaGraphConfig)
+
+type oaGraphConfig struct {
+	provider agentcore.Provider
+}
+
+// WithOAProvider 注入 LLM Provider，启用 draft_response 之后的 LLM 增强节点。
+// 注入后管线变为：draft_response → llm_enhance → approval_gate
+// 未注入时 llm_enhance 为 no-op，保留纯确定性输出（向后兼容）。
+func WithOAProvider(p agentcore.Provider) OAGraphOption {
+	return func(c *oaGraphConfig) { c.provider = p }
+}
+
+// BuildOAResponseGraph constructs a Pregel graph for OA response drafting
+// (无 LLM 增强，全确定性节点）。
 //
 // Graph structure:
 //
 //	parse_oa → classify_rejection → analyze_claims → draft_response → approval_gate → __end__
-//
-// All nodes are deterministic (no LLM calls). The graph produces a structured
-// response skeleton with claim amendment tables, strategy guidance, citation
-// analysis, and a template-based response body.
 func BuildOAResponseGraph() (*graph.CompiledPregelGraph, error) {
+	return BuildOAResponseGraphWithOpts()
+}
+
+// BuildOAResponseGraphWithOpts 构造 OA 答复 Pregel 图，支持可选的 LLM 增强节点注入。
+//
+// 无 provider 时管线：
+//
+//	parse_oa → classify_rejection → analyze_claims → draft_response → approval_gate → __end__
+//
+// 有 provider 时管线：
+//
+//	parse_oa → classify_rejection → analyze_claims → draft_response → llm_enhance → approval_gate → __end__
+//
+// llm_enhance 节点在确定性骨架基础上，调用 LLM 生成实质性论证段落。
+// LLM 调用失败时静默降级，保留确定性输出。
+func BuildOAResponseGraphWithOpts(opts ...OAGraphOption) (*graph.CompiledPregelGraph, error) {
+	cfg := &oaGraphConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	g := graph.NewPregelGraph()
 
 	if err := g.AddNode("parse_oa", parseOANode); err != nil {
@@ -470,14 +584,30 @@ func BuildOAResponseGraph() (*graph.CompiledPregelGraph, error) {
 		return nil, err
 	}
 
-	// Linear flow: parse → classify → analyze → draft → approve → end.
-	for _, edge := range [][2]string{
+	// 插入 LLM 增强节点（如有 provider 注入）。
+	if cfg.provider != nil {
+		if err := g.AddNode("llm_enhance", newOAEnhanceNode(cfg.provider)); err != nil {
+			return nil, err
+		}
+	}
+
+	// Linear flow with optional LLM enhancement.
+	edges := [][2]string{
 		{"parse_oa", "classify_rejection"},
 		{"classify_rejection", "analyze_claims"},
 		{"analyze_claims", "draft_response"},
-		{"draft_response", "approval_gate"},
-		{"approval_gate", graph.PregelEnd},
-	} {
+	}
+	if cfg.provider != nil {
+		edges = append(edges, [][2]string{
+			{"draft_response", "llm_enhance"},
+			{"llm_enhance", "approval_gate"},
+		}...)
+	} else {
+		edges = append(edges, [2]string{"draft_response", "approval_gate"})
+	}
+	edges = append(edges, [2]string{"approval_gate", graph.PregelEnd})
+
+	for _, edge := range edges {
 		if err := g.AddEdge(edge[0], edge[1]); err != nil {
 			return nil, err
 		}

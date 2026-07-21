@@ -22,6 +22,10 @@ import (
 	"github.com/xujian519/mady/tui/chat"
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
+	"github.com/xujian519/mady/workflows/patent"
+
+	// graph 包用于 PregelState 构建（斜杠命令直接调用工作流）
+	"github.com/xujian519/mady/graph"
 )
 
 // tuiSession holds the mutable state shared across TUI command handlers.
@@ -605,4 +609,117 @@ func (s *tuiSession) recordApprovalDecision(decision domains.ApprovalDecision, m
 	if err := s.approvalGate.RecordDecision(ctx, s.currentThreadID, caseID, triggerKeyword, originalOutput, decision, modifiedOutput, feedback); err != nil {
 		log.Printf("approval: record decision: %v", err)
 	}
+}
+
+// persistSlashMessages 将斜杠命令的用户输入和 Pregel 输出写入 AgentStore JSONL，
+// 确保分析结果不因 TUI 重启而丢失。
+//
+// 若持久化未启用（agentStore == nil），静默跳过；错误仅记录日志，不阻塞显示。
+func (s *tuiSession) persistSlashMessages(inputLine, outputText string) {
+	if s.agentStore == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	defer cancel()
+
+	// 加载当前线程已有消息准备追加。
+	existing, err := s.agentStore.Load(ctx, s.currentThreadID)
+	if err != nil {
+		// Load 在首次使用空线程时返回 StatusIdle + 空 Messages，不会报错。
+		log.Printf("[mady] load thread for slash persistence: %v", err)
+		return
+	}
+
+	msgs := existing.Messages
+	msgs = append(msgs,
+		agentcore.Message{Role: agentcore.RoleUser, Content: inputLine},
+		agentcore.Message{Role: agentcore.RoleAssistant, Content: outputText},
+	)
+
+	snap := agentcore.StateSnapshot{
+		Status:     agentcore.StatusFinished,
+		Messages:   msgs,
+		Turn:       existing.Turn + 1,
+		TotalUsage: existing.TotalUsage,
+	}
+
+	if err := s.agentStore.Save(ctx, s.currentThreadID, snap); err != nil {
+		log.Printf("[mady] persist slash result: %v", err)
+	}
+}
+
+// handleNoveltySlash 处理 /novelty <描述> 斜杠命令——直接运行新颖性分析 Pregel 图，
+// 绕过 LLM 意图分类，结果输出到聊天面板并经 AgentStore 持久化。
+func (s *tuiSession) handleNoveltySlash(ctx slashCtx) {
+	// 提取 /novelty 之后的描述文本。
+	description := strings.TrimSpace(strings.TrimPrefix(ctx.input, "/novelty"))
+	description = strings.Trim(description, `"'`)
+	if description == "" {
+		s.app.PrintSystem("用法: /novelty <发明描述>\n" +
+			"示例: /novelty \"一种基于深度学习的图像识别方法，包括卷积神经网络...\"")
+		return
+	}
+
+	opts := []patent.GraphOption{}
+	if retriever := domains.GetPatentRetriever(); retriever != nil {
+		opts = append(opts, patent.WithRetriever(retriever))
+	}
+	compiled, err := patent.BuildNoveltyGraphWithRulesWithOpts(opts...)
+	if err != nil {
+		s.app.PrintError(fmt.Errorf("新颖性分析引擎初始化失败: %w", err))
+		return
+	}
+
+	state, err := compiled.Run(s.ctx, graph.PregelState{
+		patent.StateInput: description,
+	})
+	if err != nil {
+		s.app.PrintError(fmt.Errorf("新颖性分析执行失败: %w", err))
+		return
+	}
+
+	output := state.GetString(patent.StateOutput)
+	if output == "" {
+		s.app.PrintSystem("分析完成但未能生成输出结果。")
+		return
+	}
+
+	// 先持久化再显示：确保即使写入失败也不阻断用户体验。
+	s.persistSlashMessages(ctx.input, output)
+	s.app.PrintSystem(output)
+}
+
+// handleOASlash 处理 /oa <OA通知书文本> 斜杠命令——直接运行 OA 答复起草 Pregel 图。
+func (s *tuiSession) handleOASlash(ctx slashCtx) {
+	oaText := strings.TrimSpace(strings.TrimPrefix(ctx.input, "/oa"))
+	oaText = strings.Trim(oaText, `"'`)
+	if oaText == "" {
+		s.app.PrintSystem("用法: /oa <OA通知书文本>\n" +
+			"示例: /oa \"审查员认为权利要求1不具备专利法第22条第2款规定的新颖性\"")
+		return
+	}
+
+	compiled, err := patent.BuildOAResponseGraph()
+	if err != nil {
+		s.app.PrintError(fmt.Errorf("OA 答复引擎初始化失败: %w", err))
+		return
+	}
+
+	state, err := compiled.Run(s.ctx, graph.PregelState{
+		patent.OAStateInput: oaText,
+	})
+	if err != nil {
+		s.app.PrintError(fmt.Errorf("OA 答复生成失败: %w", err))
+		return
+	}
+
+	output := state.GetString(patent.OAStateOutput)
+	if output == "" {
+		s.app.PrintSystem("OA 答复生成完成但未能生成输出结果。")
+		return
+	}
+
+	// 先持久化再显示。
+	s.persistSlashMessages(ctx.input, output)
+	s.app.PrintSystem(output)
 }

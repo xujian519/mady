@@ -263,6 +263,41 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		},
 	})
 
+	// 专利分析快捷命令：直接运行 Pregel 工作流，绕过 LLM 意图分类。
+	r.Register(SlashCommand{
+		Name:     "novelty",
+		Category: "case",
+		Desc:     "新颖性/创造性分析：对发明进行技术特征提取、现有技术检索和规则引擎检查",
+		Usage:    "/novelty <发明描述>",
+		Examples: []string{`/novelty "一种基于深度学习的图像识别方法，包括卷积神经网络..."`},
+		Risk:     "none",
+		Match:    exactMatch("novelty"),
+		Handler:  func(ctx slashCtx) { s.handleNoveltySlash(ctx) },
+	})
+	r.Register(SlashCommand{
+		Name:     "oa",
+		Category: "case",
+		Desc:     "审查意见（OA）答复起草：分析通知书文本，生成答复书骨架",
+		Usage:    "/oa <OA通知书文本>",
+		Examples: []string{`/oa "审查员认为权利要求1不具备新颖性..."`},
+		Risk:     "none",
+		Match:    exactMatch("oa"),
+		Handler:  func(ctx slashCtx) { s.handleOASlash(ctx) },
+	})
+	r.Register(SlashCommand{
+		Name:     "patent",
+		Category: "case",
+		Desc:     "专利分析工具帮助",
+		Usage:    "/patent",
+		Match:    exactMatch("patent"),
+		Handler: func(ctx slashCtx) {
+			s.app.PrintSystem("专利分析快捷命令：\n" +
+				"  /novelty <描述>    — 新颖性/创造性分析\n" +
+				"  /oa <通知书文本>   — OA答复书起草\n" +
+				"\n也可以直接在对话中输入自然语言描述需求，AI会自动调用分析工具。")
+		},
+	})
+
 	r.Register(SlashCommand{
 		Name:      "mode",
 		Category:  "general",
