@@ -133,6 +133,8 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		ExtraTools: []*agentcore.Tool{
 			patent.NewPatentNoveltyTool(patent.WithRetriever(globalPatentRetriever)),
 			patent.NewOAResponseTool(),
+			patent.NewSpecificationTool(),
+			patent.NewDebateTool(),
 		},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)

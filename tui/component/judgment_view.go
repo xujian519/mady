@@ -75,6 +75,7 @@ func (v *JudgmentView) SetPhase(phase string) {
 
 // SetStatus sets the machine status. This controls the rendering mode:
 //   - "idle" / "streaming" → collapsed (single line)
+//   - "analyzing" / "running" → collapsed with phase
 //   - "done" / "ready"     → normal (status + judgment line)
 //   - "awaiting_review" / "blocked" → expanded (full view)
 //   - "degraded"           → adds mode tag
@@ -311,6 +312,8 @@ func statusLabelFromStatus(s string) string {
 	switch s {
 	case "idle":
 		return "空闲"
+	case "analyzing":
+		return "分析中"
 	case "running":
 		return "运行中"
 	case "streaming":

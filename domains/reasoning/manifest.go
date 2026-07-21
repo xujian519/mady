@@ -203,6 +203,21 @@ func (s *WorkflowManifestStore) List() []string {
 }
 
 // =============================================================================
+// Global workflow manifest store
+// =============================================================================
+
+// globalWorkflowStore 是全局 WorkflowManifestStore 单例，
+// 由 framework.go 启动时调用 LoadYAMLWorkflowManifests 填充。
+// NewWorkflowRunner 优先从此读取 YAML 配置，缺失时回退到 DefaultManifests()。
+var globalWorkflowStore = NewWorkflowManifestStore()
+
+// GlobalWorkflowStore 返回全局 workflow manifest 存储实例。
+// 调用方（framework.go / NewWorkflowRunner）通过此函数访问。
+func GlobalWorkflowStore() *WorkflowManifestStore {
+	return globalWorkflowStore
+}
+
+// =============================================================================
 // Built-in default manifests (fallback when no YAML is available).
 // =============================================================================
 

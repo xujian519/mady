@@ -397,8 +397,9 @@ func (l *chatLayout) recalcMaxRows(width, height int64) {
 }
 
 // updateJudgmentView syncs the judgment view state from the ChatApp model.
-// It updates the status and phase based on model state, sets action hints,
-// and requests a render.
+// It derives status from running/streaming/idle, populates the judgment
+// summary (phase, judgment, confidence, pending) from the model's
+// judgmentSummary snapshot, and sets action hints.
 func (l *chatLayout) updateJudgmentView() {
 	if l.judgmentView == nil {
 		return
@@ -406,26 +407,49 @@ func (l *chatLayout) updateJudgmentView() {
 	l.app.mu.Lock()
 	running := l.app.model.Running
 	streamID := l.app.model.StreamID
+	js := l.app.model.judgmentSummary
 	l.app.mu.Unlock()
 
 	// Derive status from model state.
+	// Status precedence: streaming (text output) > analyzing (tool execution)
+	// > running (between phases) > idle.
 	status := "idle"
 	if running {
-		if streamID != "" {
+		switch {
+		case streamID != "":
 			status = "streaming"
-		} else {
+		case len(l.app.model.ActiveTools) > 0:
+			status = "analyzing"
+		default:
 			status = "running"
 		}
 	}
 	l.judgmentView.SetStatus(status)
 
-	// Set action hints. The [s] system status action is always available;
-	// other actions (review, evidence) are added conditionally as the view
-	// transitions into expanded states.
-	l.judgmentView.SetActions([]component.JudgmentAction{
+	// Populate judgment-bar content from the model snapshot.
+	if js.Phase != "" {
+		l.judgmentView.SetPhase(js.Phase)
+	}
+	if js.Judgment != "" {
+		l.judgmentView.SetJudgment(js.Judgment)
+	}
+	if js.Confidence >= 0 {
+		l.judgmentView.SetConfidence(int(js.Confidence * 100))
+	} else {
+		l.judgmentView.SetConfidence(-1)
+	}
+	l.judgmentView.SetPending(js.Pending)
+
+	// Action hints: evidence and system status always available; review
+	// action appears when the view is expanded (awaiting_review/blocked).
+	actions := []component.JudgmentAction{
 		{Key: "e", Label: "证据详情"},
 		{Key: "s", Label: "系统态"},
-	})
+	}
+	if l.judgmentView.IsExpanded() {
+		actions = append(actions, component.JudgmentAction{Key: "r", Label: "复核"})
+	}
+	l.judgmentView.SetActions(actions)
 
 	if l.app.host != nil {
 		l.app.host.RequestRender()

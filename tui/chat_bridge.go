@@ -74,6 +74,8 @@ func (h *tuiAppHost) PushOverlay(ov chat.OverlayRef) {
 	cat := OverlaySelection
 	if categoriser, ok := ov.(interface{ OverlayCategory() int }); ok {
 		switch categoriser.OverlayCategory() {
+		case chat.OverlayCatSelection:
+			cat = OverlaySelection
 		case chat.OverlayCatReview:
 			cat = OverlayReview
 		case chat.OverlayCatGate:

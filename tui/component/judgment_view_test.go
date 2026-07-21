@@ -179,6 +179,7 @@ func TestJudgmentViewStatusLabels(t *testing.T) {
 		label  string
 	}{
 		{"idle", "空闲"},
+		{"analyzing", "分析中"},
 		{"running", "运行中"},
 		{"streaming", "输出中"},
 		{"awaiting_review", "等待复核"},

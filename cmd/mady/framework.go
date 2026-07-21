@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/doctmpl"
@@ -444,6 +446,11 @@ func initMemorySystem(fc *frameworkContext) {
 // initReasoningAndTemplates 初始化推理引擎 retriever/LLM 客户端、文档模板仓库、
 // 引用核验装配（CitationGate 留痕 store），以及专利新颖性分析的检索器。
 func initReasoningAndTemplates(fc *frameworkContext) {
+	// 加载 YAML workflow manifest：$MADY_HOME/workflows/ 目录。
+	// 首次启动时自动写入内置默认 YAML 文件作为模板，随后用户可自行编辑。
+	// Manifest 优先级：YAML 文件 > 内置默认值。
+	loadWorkflowManifests(fc.MadyHome)
+
 	retriever := buildReasoningRetriever(fc)
 	var llmClient reasoning.LlmClient
 	if fc.Provider != nil {
@@ -492,6 +499,72 @@ func initReasoningAndTemplates(fc *frameworkContext) {
 		Source: citationSource,
 		Store:  citationStore,
 	})
+}
+
+// loadWorkflowManifests 从 $MADY_HOME/workflows/ 加载 YAML workflow manifest。
+// 首次启动时，若目录为空，会自动写入内置默认 manifest 作为模板；
+// 用户可编辑这些 YAML 文件来定制五步推理工作流，无需重编译。
+//
+// Manifest 优先级：YAML 文件 > 内置默认值（在 NewWorkflowRunner 中实现）。
+func loadWorkflowManifests(madyHome string) {
+	workflowDir := filepath.Join(madyHome, "workflows")
+
+	// 确保目录存在
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		slog.Warn("无法创建 workflow manifest 目录，使用内置默认值",
+			"dir", workflowDir, "error", err)
+		return
+	}
+
+	store := reasoning.GlobalWorkflowStore()
+
+	// 尝试加载已存在的 YAML 文件
+	if err := store.LoadDir(workflowDir); err == nil {
+		ids := store.List()
+		slog.Info("workflow manifest 已从 YAML 加载",
+			"dir", workflowDir, "count", len(ids), "manifests", ids)
+		return
+	}
+
+	// 目录为空或无有效 YAML — 写入内置默认文件作为模板
+	defaults := reasoning.DefaultManifests()
+	seeded := 0
+	for _, m := range defaults {
+		filename := filepath.Join(workflowDir, m.ID+".yaml")
+		if _, statErr := os.Stat(filename); statErr == nil {
+			continue // 文件已存在，不覆盖
+		}
+		data, err := yaml.Marshal(map[string]any{"workflow_manifest": m})
+		if err != nil {
+			slog.Warn("workflow manifest 序列化失败",
+				"id", m.ID, "error", err)
+			continue
+		}
+		if err := os.WriteFile(filename, data, 0600); err != nil {
+			slog.Warn("无法写入 workflow manifest 模板",
+				"path", filename, "error", err)
+			continue
+		}
+		seeded++
+	}
+
+	if seeded > 0 {
+		slog.Info("已生成 workflow manifest YAML 模板",
+			"dir", workflowDir, "count", seeded)
+	} else {
+		slog.Debug("workflow manifest: 已有 YAML 文件，跳过模板生成",
+			"dir", workflowDir)
+	}
+
+	// 重新加载（包含刚写入的模板或已存在文件）
+	if err := store.LoadDir(workflowDir); err != nil {
+		slog.Warn("workflow manifest YAML 加载失败，使用内置默认值",
+			"dir", workflowDir, "error", err)
+	} else {
+		ids := store.List()
+		slog.Info("workflow manifest 已从 YAML 加载",
+			"dir", workflowDir, "count", len(ids), "manifests", ids)
+	}
 }
 
 // buildReasoningRetriever 从框架上下文中构造 MultiSourceRetriever。

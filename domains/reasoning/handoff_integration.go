@@ -214,6 +214,10 @@ func joinLines(lines []string) string {
 // llm is optional — when non-nil, the checker uses it for Level 2 (logical
 // consistency) and Level 3 (evidentiary sufficiency) validation. Without it,
 // only Level 1 (reference existence) checking is performed.
+//
+// Manifest 优先级：YAML 文件（~/.mady/workflows/）> 内置默认值。
+// 当 globalWorkflowStore 中有匹配 caseType 的 YAML manifest 时优先使用；
+// 否则回退到 DefaultManifests() 中对应的内置配置。
 func NewWorkflowRunner(caseID string, caseType CaseType, techField string, retriever *MultiSourceRetriever, llm LlmClient) *FiveStepRunner {
 	planner := NewPlanner(llm)
 	for _, v := range DefaultManifests() {
@@ -222,13 +226,22 @@ func NewWorkflowRunner(caseID string, caseType CaseType, techField string, retri
 		planner.RegisterTemplate(v.CaseType, PlanIntentChain, *plan)
 	}
 
-	// Find matching manifest.
+	// 优先从 YAML 加载的全局 store 中查找匹配的 manifest。
+	// 如果 store 为空（启动时未加载任何 YAML）或无匹配 caseType，回退到内置默认值。
 	var manifest *WorkflowManifest
-	for _, m := range DefaultManifests() {
-		if m.CaseType == caseType {
-			m := m
+	if gs := GlobalWorkflowStore(); gs != nil {
+		if m, ok := gs.GetByCaseType(caseType); ok {
 			manifest = m
-			break
+		}
+	}
+	// 回退：遍历内置默认值查找匹配的 manifest。
+	if manifest == nil {
+		for _, m := range DefaultManifests() {
+			if m.CaseType == caseType {
+				m := m
+				manifest = m
+				break
+			}
 		}
 	}
 

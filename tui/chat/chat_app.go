@@ -119,6 +119,11 @@ type chatModel struct {
 	usagePrompt     int64
 	usageCompletion int64
 	turnStarted     time.Time
+
+	// judgmentSummary carries the current judgment-bar snapshot. It is
+	// populated during agent execution (approval prompts, interrupts) and
+	// cleared on agent start.
+	judgmentSummary JudgmentSummary
 }
 
 type ChatApp struct {
@@ -484,6 +489,25 @@ func (a *ChatApp) Idle() {
 	a.host.RequestRender()
 }
 
+// SetJudgmentSummary populates the judgment-bar summary from the provided
+// snapshot and triggers a render. Called by event handlers when structured
+// judgment data arrives (e.g. review gate, approval prompt).
+func (a *ChatApp) SetJudgmentSummary(s JudgmentSummary) {
+	a.mu.Lock()
+	a.model.judgmentSummary = s
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
+}
+
+// ClearJudgmentSummary resets the judgment-bar to idle. Called when a new
+// agent run starts so stale data from a previous run doesn't leak.
+func (a *ChatApp) ClearJudgmentSummary() {
+	a.mu.Lock()
+	a.model.judgmentSummary = JudgmentSummary{}
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
+}
+
 func (a *ChatApp) PrintStatus(message string) {
 	a.loader.SetMessage(theme.CurrentPalette().Dim.Render(message))
 	a.host.RequestRender()
@@ -795,6 +819,50 @@ func (a *ChatApp) CloseOverlay(ov OverlayRef) {
 	}
 	a.host.RemoveOverlay(ov)
 	a.host.Focus(a.editor)
+}
+
+// OpenSelectionOverlay opens a selection-type overlay for quick object
+// switching (sessions, threads, branches). Default size: 40/30.
+func (a *ChatApp) OpenSelectionOverlay(content core.Component) OverlayRef {
+	return a.OpenOverlay(content, OverlayOpts{
+		WidthPct:  40,
+		HeightPct: 30,
+		Dim:       true,
+		Category:  OverlayCatSelection,
+	})
+}
+
+// OpenReviewOverlay opens a review-type overlay for viewing details
+// (evidence, citations, keybindings). Default size: 60/60.
+func (a *ChatApp) OpenReviewOverlay(content core.Component) OverlayRef {
+	return a.OpenOverlay(content, OverlayOpts{
+		WidthPct:  60,
+		HeightPct: 60,
+		Dim:       true,
+		Category:  OverlayCatReview,
+	})
+}
+
+// OpenGateOverlay opens a gate-type overlay for structured review
+// (review gates, high-risk confirmations). Default size: 70/75.
+func (a *ChatApp) OpenGateOverlay(content core.Component) OverlayRef {
+	return a.OpenOverlay(content, OverlayOpts{
+		WidthPct:  70,
+		HeightPct: 75,
+		Dim:       true,
+		Category:  OverlayCatGate,
+	})
+}
+
+// OpenSystemOverlay opens a system-type overlay for runtime condition
+// explanation (degraded mode, blocked, logs). Default size: 50/40.
+func (a *ChatApp) OpenSystemOverlay(content core.Component) OverlayRef {
+	return a.OpenOverlay(content, OverlayOpts{
+		WidthPct:  50,
+		HeightPct: 40,
+		Dim:       true,
+		Category:  OverlayCatSystem,
+	})
 }
 
 type overlayHandle struct {

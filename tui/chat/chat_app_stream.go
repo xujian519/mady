@@ -59,6 +59,8 @@ func (a *ChatApp) onAgentStart(e ChatEvent) {
 	a.model.usagePrompt = 0
 	a.model.usageCompletion = 0
 	a.model.turnStarted = time.Now()
+	// Clear judgment summary so stale data from a previous run doesn't leak.
+	a.model.judgmentSummary = JudgmentSummary{}
 	a.mu.Unlock()
 	a.Busy("thinking...")
 	a.layout.updateJudgmentView()
@@ -124,6 +126,12 @@ func (a *ChatApp) onAgentInterrupt(e ChatEvent) {
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
 	a.Idle()
+	// Show the interrupt phase in the judgment bar so the user sees the
+	// context of the pause (e.g. "分析阶段" for review_gate).
+	a.SetJudgmentSummary(JudgmentSummary{
+		Phase:    "复核阶段",
+		Judgment: ev.Reason,
+	})
 	a.PrintSystem(interruptGuidance(ev))
 }
 
@@ -181,7 +189,18 @@ func (a *ChatApp) onApprovalPrompt(e ChatEvent) {
 	a.mu.Unlock()
 	a.Idle()
 	a.judgmentView.SetStatus("awaiting_review")
-	a.layout.updateJudgmentView()
+
+	// Populate judgment-bar summary from structured review gate data.
+	if ev.Data != nil {
+		a.SetJudgmentSummary(JudgmentSummary{
+			Phase:      "复核阶段",
+			Judgment:   ev.Data.Judgment,
+			Confidence: ev.Data.Confidence,
+			Pending:    ev.Data.Risks,
+		})
+	} else {
+		a.layout.updateJudgmentView()
+	}
 
 	dm := &component.DomainMessage{
 		Type: component.DomainMsgTypeApprovalPrompt,

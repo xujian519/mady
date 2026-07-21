@@ -74,6 +74,21 @@ type ReviewGatePayload struct {
 	Risks      []string
 }
 
+// JudgmentSummary carries structured judgment data for the TUI's
+// judgment-bar summary at the top of the chat view. It represents the
+// agent's current "判断 + 置信度 + 仍待确认" in a compact form.
+//
+//   - Phase: task phase label, e.g. "分析阶段", "草案阶段", "复核阶段"
+//   - Judgment: one-line conclusion text
+//   - Confidence: 0.0-1.0, maps to 0-100 bar; <0 means hide the bar
+//   - Pending: still-to-confirm items (only the first 3 are shown)
+type JudgmentSummary struct {
+	Phase      string
+	Judgment   string
+	Confidence float64
+	Pending    []string
+}
+
 // ApprovalPromptChatEvent 是 ApprovalGate 触发人工审核时发射的事件。
 // TUI 的 onApprovalPrompt 将其渲染为含 DomainMsg (approval_prompt) 的 ChatMessage。
 // Data 字段携带可选的复核门结构化数据（ReviewGatePayload）。
