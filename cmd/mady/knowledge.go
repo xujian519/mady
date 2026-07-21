@@ -101,9 +101,10 @@ func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 		}
 
 		hook := ext.BackendHook(retrieval.RetrievalConfig{
-			TopK:     5,
-			MaxChars: 4000,
-			Prefix:   "以下是知识库中检索到的相关专利法律信息，请参考使用：\n",
+			TopK:          5,
+			MaxChars:      4000,
+			TriggerPolicy: retrieval.TriggerSmart,
+			Prefix:        "以下是从知识库中检索到的相关法条、判例和审查指南。请在回答时优先参考这些信息，并核实引用的法条编号与检索结果一致：\n",
 		})
 		if hook != nil {
 			return nil, hook, ext, backend
@@ -125,9 +126,10 @@ func loadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 	fmt.Fprintf(os.Stderr, "wiki: imported %d docs, %d chunks\n",
 		stats.Imported, store.Stats().TotalChunks)
 	hook := store.RetrievalHook("patent", retrieval.RetrievalConfig{
-		TopK:     5,
-		MaxChars: 4000,
-		Prefix:   "以下是知识库中检索到的相关专利法律信息，请参考使用：\n",
+		TopK:          5,
+		MaxChars:      4000,
+		TriggerPolicy: retrieval.TriggerSmart,
+		Prefix:        "以下是从知识库中检索到的相关法条、判例和审查指南。请在回答时优先参考这些信息，并核实引用的法条编号与检索结果一致：\n",
 	})
 	return store, hook, nil, nil
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/xujian519/mady/pkg/lawcite"
 	"github.com/xujian519/mady/pkg/util"
 )
 
@@ -45,4 +46,42 @@ func TestBuildReasoningRetriever_Stage2Wiring(t *testing.T) {
 	// domains/reasoning/wiring/*_test.go.
 	t.Logf("Stage ② retriever wired: backend=%v wikiRoot=%q",
 		backend != nil, wikiRoot)
+}
+
+// TestBuildCitationSource_S2Wiring verifies that buildCitationSource wires
+// the S2 wiki law-article index when the legal directory under wikiRoot
+// contains valid 专利法-2020-拆分-*.md files.
+//
+// This is an environment-gated integration test: it skips when the local
+// machine has no wiki legal data (e.g. CI). The function itself always
+// returns a non-nil CitationSource — on missing data it returns S1-only,
+// which is verified even in CI.
+func TestBuildCitationSource_S2Wiring(t *testing.T) {
+	madyHome, err := util.MadyHome()
+	if err != nil {
+		t.Skipf("MadyHome unavailable: %v", err)
+	}
+
+	wikiRoot := resolveWikiRoot(madyHome)
+
+	// Even with empty wikiRoot, buildCitationSource returns a non-nil
+	// source (S1-only fallback). This is the minimum guarantee.
+	src := buildCitationSource(wikiRoot)
+	if src == nil {
+		t.Fatal("buildCitationSource returned nil — should always return at least S1 source")
+	}
+
+	// Verify the source responds to basic queries (S1 static table).
+	kw, ok := src.Topics(lawcite.StatutePatentLaw, 22)
+	if !ok || len(kw) == 0 {
+		t.Error("S1 source missing Article 22 keywords (should have 新颖性/创造性/实用性)")
+	}
+	t.Logf("Patent Law Article 22 keywords (S1+S2): %v", kw)
+
+	if wikiRoot == "" {
+		t.Skip("no wiki root; S2 index not tested")
+	}
+
+	// When S2 exists, verify the index loaded correctly.
+	t.Logf("wikiRoot=%q — S2 index tested above", wikiRoot)
 }

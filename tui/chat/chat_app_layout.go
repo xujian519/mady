@@ -323,6 +323,14 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 						})
 						return nil
 					}
+				case "e":
+					// Bare [e] opens evidence details overlay when the
+					// judgment view is expanded. Shows retrieved knowledge
+					// sources (law articles, judgments) used in the analysis.
+					if l.judgmentView != nil && l.judgmentView.IsExpanded() {
+						l.app.OpenEvidenceOverlay(EvidenceOverlayData{})
+						return nil
+					}
 				case "c", "insert":
 					if isCopyShortcut(k) {
 						if hasSelection(l) {
@@ -415,6 +423,7 @@ func (l *chatLayout) updateJudgmentView() {
 	// other actions (review, evidence) are added conditionally as the view
 	// transitions into expanded states.
 	l.judgmentView.SetActions([]component.JudgmentAction{
+		{Key: "e", Label: "证据详情"},
 		{Key: "s", Label: "系统态"},
 	})
 

@@ -21,8 +21,9 @@ import (
 type BackendRetrievalHook struct {
 	agentcore.BaseLifecycleHook
 
-	ext    *KnowledgeExtension
-	config retrieval.RetrievalConfig
+	ext       *KnowledgeExtension
+	config    retrieval.RetrievalConfig
+	turnCount int64 // internal turn counter for first_n policy
 }
 
 // NewBackendRetrievalHook creates a hook that delegates search to the
@@ -34,6 +35,14 @@ func NewBackendRetrievalHook(ext *KnowledgeExtension, cfg retrieval.RetrievalCon
 	if cfg.TopK <= 0 {
 		cfg = retrieval.DefaultRetrievalConfig()
 	}
+	// Auto-inject DefaultClassifier when TriggerSmart is used without one.
+	if cfg.TriggerPolicy == retrieval.TriggerSmart && cfg.ComplexityClassifier == nil {
+		cfg.ComplexityClassifier = agentcore.NewDefaultClassifier()
+	}
+	// Default FirstNTurns when using TriggerFirstN without explicit value.
+	if cfg.TriggerPolicy == retrieval.TriggerFirstN && cfg.FirstNTurns <= 0 {
+		cfg.FirstNTurns = 3
+	}
 	return &BackendRetrievalHook{
 		ext:    ext,
 		config: cfg,
@@ -41,14 +50,21 @@ func NewBackendRetrievalHook(ext *KnowledgeExtension, cfg retrieval.RetrievalCon
 }
 
 // BeforeModelCall implements LifecycleHook.BeforeModelCall.
-// It extracts the last user message, searches the backend knowledge store,
-// and injects relevant chunks into the model's context as a system message.
-// When a graph enhancer is configured, graph-enhanced context (similar
-// cases, citation chains) is appended after the chunk results.
+// It extracts the last user message, checks trigger policy, searches the
+// backend knowledge store, and injects relevant chunks into the model's
+// context as a system message. When a graph enhancer is configured,
+// graph-enhanced context (similar cases, citation chains) is appended
+// after the chunk results.
 func (h *BackendRetrievalHook) BeforeModelCall(ctx context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) error {
 	if mcc == nil || mcc.Request == nil {
 		return nil
 	}
+
+	// Check trigger policy before performing expensive backend search.
+	if !h.shouldTrigger(arc) {
+		return nil
+	}
+	h.turnCount++
 
 	query := agentcore.LastUserMessage(arc.Messages)
 	if query == "" {
@@ -72,6 +88,33 @@ func (h *BackendRetrievalHook) BeforeModelCall(ctx context.Context, arc *agentco
 
 	h.injectContext(mcc.Request, contextBlock)
 	return nil
+}
+
+// shouldTrigger checks if retrieval should fire this turn.
+func (h *BackendRetrievalHook) shouldTrigger(arc *agentcore.AgentRunContext) bool {
+	switch h.config.TriggerPolicy {
+	case retrieval.TriggerSmart:
+		return h.shouldTriggerSmart(arc)
+	case retrieval.TriggerFirstN:
+		return h.turnCount < int64(h.config.FirstNTurns)
+	case retrieval.TriggerOnDemand:
+		return false // only via tool
+	default: // TriggerAlways
+		return true
+	}
+}
+
+// shouldTriggerSmart uses ComplexityClassifier to decide if retrieval is needed.
+func (h *BackendRetrievalHook) shouldTriggerSmart(arc *agentcore.AgentRunContext) bool {
+	if h.config.ComplexityClassifier == nil {
+		return true // fallback to always
+	}
+	query := agentcore.LastUserMessage(arc.Messages)
+	if query == "" {
+		return false
+	}
+	c := h.config.ComplexityClassifier.Classify(query, arc.Messages)
+	return c >= agentcore.ComplexityMedium
 }
 
 // buildContextBlock formats retrieved chunks into a context string,

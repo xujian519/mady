@@ -22,13 +22,16 @@ import (
 	reasoningwiring "github.com/xujian519/mady/domains/reasoning/wiring"
 	"github.com/xujian519/mady/domains/rules"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
+	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/knowledge"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
+	"github.com/xujian519/mady/knowledge/loader"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/mcp"
 	"github.com/xujian519/mady/memory"
 	"github.com/xujian519/mady/memory/compiler"
 	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/pkg/lawcite"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/retrieval/domain"
@@ -480,8 +483,13 @@ func initReasoningAndTemplates(fc *frameworkContext) {
 		fmt.Fprintf(os.Stderr, "citation: 打开留痕数据库失败 %s: %v（降级为内存存储）\n", approvalDB, err)
 		citationStore = domains.NewMemoryApprovalStore()
 	}
+
+	// 引用核验知识源装配：S1 内嵌静态表（citation_table.go）+ S2 wiki 法条索引。
+	// S2 从 ~/.mady/knowledge/wiki/legal 下的拆分法条文件构建，覆盖《专利法（2020）》82 条。
+	// 构建失败时（wiki 目录不存在/文件不完整）降级为仅 S1 源，不影响启动。
+	citationSource := buildCitationSource(fc.WikiRoot)
 	domains.SetupCitationWiring(domains.CitationWiring{
-		Source: nil,
+		Source: citationSource,
 		Store:  citationStore,
 	})
 }
@@ -546,4 +554,42 @@ func agentThinking(cfg *agentconfig.ThinkingConfig) *agentcore.ThinkingConfig {
 		Effort:          agentcore.ThinkingEffort(cfg.Effort),
 		Budget:          cfg.Budget,
 	}
+}
+
+// buildCitationSource 从 wiki 拆分法条文件构建 S2 知识源索引，与 S1
+// 内嵌静态表组合为复合源（CompositeCitationSource）。wiki 目录不存在
+// 或文件不完整时降级为仅 S1 源，不阻断启动。
+//
+// v1 范围：仅《专利法（2020）》82 条的 wiki 拆分文件（配置路径 $MADY_HOME/
+// knowledge/wiki/legal/*专利法-2020-拆分-*.md）。其余法律（商标法/著作权法等）
+// 目前仅靠 S1 静态表核验，版本感知索引留待 P3+ 扩展。
+func buildCitationSource(wikiRoot string) guardrails.CitationSource {
+	s1 := guardrails.DefaultCitationSource()
+
+	if wikiRoot == "" {
+		return s1
+	}
+	legalDir := filepath.Join(wikiRoot, "legal")
+	idx, err := loader.BuildLawArticleIndex(legalDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "citation: 构建 S2 法条索引失败: %v（降级为仅 S1 静态表）\n", err)
+		return s1
+	}
+	fmt.Fprintf(os.Stderr, "citation: S2 法条索引已加载（《专利法》%d 条）\n", idx.ArticleCount())
+
+	s2 := guardrails.CitationSourceFuncs{
+		TopicsFunc: func(s lawcite.Statute, article int) ([]string, bool) {
+			if s != lawcite.StatutePatentLaw {
+				return nil, false // v1 仅覆盖专利法，其余交由 S1
+			}
+			return idx.Topics(article)
+		},
+		MaxArticleFunc: func(s lawcite.Statute) int {
+			if s != lawcite.StatutePatentLaw {
+				return 0 // 交由 S1 判定存在性上限
+			}
+			return idx.MaxArticle()
+		},
+	}
+	return guardrails.CompositeCitationSource(s1, s2)
 }

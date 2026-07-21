@@ -150,6 +150,10 @@ type ChatApp struct {
 	// lock-ordering discipline.
 	systemStatusOverlay OverlayRef
 
+	// evidenceOverlay tracks the active evidence details overlay, if any.
+	// Access is guarded by mu; see OpenEvidenceOverlay/CloseEvidenceOverlay.
+	evidenceOverlay OverlayRef
+
 	// SuppressAutoRetry suppresses auto-retry messages from being printed to
 	// the chat history. When true, retry events are silently dropped instead of
 	// showing "⚠ retry N/M in D". Used by mady to buffer retry messages
@@ -680,6 +684,57 @@ func (a *ChatApp) CloseSystemStatus() {
 	a.mu.Lock()
 	ov := a.systemStatusOverlay
 	a.systemStatusOverlay = nil
+	a.mu.Unlock()
+	if ov != nil {
+		a.host.RemoveOverlay(ov)
+		a.host.Focus(a.editor)
+	}
+}
+
+// EvidenceOverlayData carries evidence items to display in the evidence
+// details overlay. Maps to component.EvidenceItem.
+type EvidenceOverlayData struct {
+	Items []component.EvidenceItem
+}
+
+// OpenEvidenceOverlay opens the evidence details overlay.
+// Lock discipline: a.mu is NOT held during PushOverlay (see ToggleKeyHelp).
+func (a *ChatApp) OpenEvidenceOverlay(data EvidenceOverlayData) OverlayRef {
+	a.mu.Lock()
+	if a.evidenceOverlay != nil {
+		ov := a.evidenceOverlay
+		a.evidenceOverlay = nil
+		a.mu.Unlock()
+		a.host.RemoveOverlay(ov)
+		a.mu.Lock()
+	}
+
+	eo := component.NewEvidenceOverlay()
+	if len(data.Items) > 0 {
+		eo.SetItems(data.Items)
+	}
+	eo.SetOnClose(func() { a.CloseEvidenceOverlay() })
+
+	ov := &overlayHandle{
+		content:       eo,
+		focus:         true,
+		dimBackground: true,
+		category:      OverlayCatReview,
+		widthPct:      60,
+		heightPct:     60,
+	}
+	a.evidenceOverlay = ov
+	a.mu.Unlock()
+	a.host.PushOverlay(ov)
+	a.host.RequestRender()
+	return ov
+}
+
+// CloseEvidenceOverlay closes the evidence details overlay if open.
+func (a *ChatApp) CloseEvidenceOverlay() {
+	a.mu.Lock()
+	ov := a.evidenceOverlay
+	a.evidenceOverlay = nil
 	a.mu.Unlock()
 	if ov != nil {
 		a.host.RemoveOverlay(ov)
