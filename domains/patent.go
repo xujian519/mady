@@ -164,13 +164,13 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 
 	// Guardrail: LevelStrict with patent disclaimer + approval gate.
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		guardrails.New(
+		agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelStrict),
 			guardrails.WithDisclaimer(guardrails.DisclaimerPatent),
 			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("patent")),
 			guardrails.WithApproval(guardrails.ApprovalKeywordsFor("patent")),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-		),
+		)),
 	)
 
 	// Human approval gate for critical decisions.
@@ -226,18 +226,18 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 
 	// 法条引用核验 Gate（P1b）：案件答案同样纳入引用核验。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard)),
+		agentcore.NewIFaceLifecycleHook(guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard))),
 	)
 
 	// LevelStrict 护栏 + 人工审批门
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		guardrails.New(
+		agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelStrict),
 			guardrails.WithDisclaimer(guardrails.DisclaimerPatent),
 			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("patent")),
 			guardrails.WithApproval(guardrails.ApprovalKeywordsFor("patent")),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-		),
+		)),
 	)
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		NewApprovalGate(ApprovalConfig{

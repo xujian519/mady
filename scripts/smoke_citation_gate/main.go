@@ -32,8 +32,8 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/evaluate/benchmark"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/evaluate/benchmark"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/provider/chatcompat"
 )

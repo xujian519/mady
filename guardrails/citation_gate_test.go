@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/xujian519/mady/agentcore"
+	iface "github.com/xujian519/mady/agentcore/iface"
 )
 
 // ============================================================================
@@ -128,7 +128,7 @@ func TestVerifyCrossArticleHallucinations(t *testing.T) {
 		// 权利要求清楚/简要在第 26 条，错引第 42 条。
 		"**《专利法》第42条**：规定了权利要求书应当清楚、简要。",
 		// 智力活动规则（第 25 条客体）错引第 22 条（回放 patent_exam_2013_a26_01 确认的真实错误）。
-		"根据《专利法》第22条，单纯的“印制文字”或“广告宣传行为”属于智力活动规则或单纯的商业行为，不具备技术性。",
+		`根据《专利法》第22条，单纯的"印制文字"或"广告宣传行为"属于智力活动规则或单纯的商业行为，不具备技术性。`,
 	}
 	for _, text := range cases {
 		report := VerifyCitations(text)
@@ -142,44 +142,43 @@ func TestVerifyCrossArticleHallucinations(t *testing.T) {
 // Hook 行为（AfterModelCall 处置）
 // ============================================================================
 
-// callHook 构造一次 AfterModelCall 调用并返回修改后的响应。
-func callHook(t *testing.T, hook agentcore.LifecycleHook, resp *agentcore.ProviderResponse) *agentcore.ProviderResponse {
+// callHook 构造一次 AfterModelCall 调用并返回修改后的 ModelCallContext。
+func callHook(t *testing.T, hook iface.LifecycleHook, content string) *iface.ModelCallContext {
 	t.Helper()
-	mcc := &agentcore.ModelCallContext{Response: resp}
-	hook.AfterModelCall(context.Background(), nil, mcc)
-	return resp
+	ifaceMCC := &iface.ModelCallContext{Content: content}
+	hook.AfterModelCall(context.Background(), nil, ifaceMCC)
+	return ifaceMCC
 }
 
 func TestGateAnnotatesSuspect(t *testing.T) {
 	hook := NewCitationGate(WithCitationGateLevel(LevelStandard))
-	resp := callHook(t, hook, &agentcore.ProviderResponse{
-		Content: "分析如下：专利法第47条（分案申请）允许申请人提出分案。",
-	})
-	if !strings.Contains(resp.Content, "引用核验提示") {
-		t.Errorf("命中疑点应追加提示: %q", resp.Content)
+	mcc := callHook(t, hook, "分析如下：专利法第47条（分案申请）允许申请人提出分案。")
+	if !strings.Contains(mcc.Content, "引用核验提示") {
+		t.Errorf("命中疑点应追加提示: %q", mcc.Content)
 	}
-	if !strings.Contains(resp.Content, "第47条") {
-		t.Errorf("提示应含被标记引用: %q", resp.Content)
+	if !strings.Contains(mcc.Content, "第47条") {
+		t.Errorf("提示应含被标记引用: %q", mcc.Content)
 	}
 }
 
 func TestGateSkipsToolCallTurns(t *testing.T) {
 	hook := NewCitationGate()
-	resp := callHook(t, hook, &agentcore.ProviderResponse{
-		Content:   "专利法第47条（分案申请）。",
-		ToolCalls: []agentcore.ToolCall{{ID: "1", Name: "read"}},
-	})
-	if strings.Contains(resp.Content, "引用核验提示") {
-		t.Errorf("工具调用回合不得标注: %q", resp.Content)
+	mcc := &iface.ModelCallContext{
+		Content:      "专利法第47条（分案申请）。",
+		HasToolCalls: true,
+	}
+	hook.AfterModelCall(context.Background(), nil, mcc)
+	if strings.Contains(mcc.Content, "引用核验提示") {
+		t.Errorf("工具调用回合不得标注: %q", mcc.Content)
 	}
 }
 
 func TestGateCleanPassThrough(t *testing.T) {
 	hook := NewCitationGate(WithCitationGateLevel(LevelStandard))
 	original := "根据专利法第22条第3款，权利要求1具备创造性。"
-	resp := callHook(t, hook, &agentcore.ProviderResponse{Content: original})
-	if resp.Content != original {
-		t.Errorf("合法答案不得改动: %q", resp.Content)
+	mcc := callHook(t, hook, original)
+	if mcc.Content != original {
+		t.Errorf("合法答案不得改动: %q", mcc.Content)
 	}
 }
 
@@ -190,9 +189,7 @@ func TestGateRecorderCalledAtStandard(t *testing.T) {
 		WithCitationGateLevel(LevelStandard),
 		WithCitationRecorder(func(r CitationReport, content string) { got, gotContent = r, content }),
 	)
-	callHook(t, hook, &agentcore.ProviderResponse{
-		Content: "专利法第47条（分案申请）。",
-	})
+	callHook(t, hook, "专利法第47条（分案申请）。")
 	if len(got.Flagged) != 1 {
 		t.Fatalf("Recorder 应收到 1 条标记, 实际 %+v", got)
 	}
@@ -208,9 +205,7 @@ func TestGateRecorderNotCalledAtLight(t *testing.T) {
 		WithCitationGateLevel(LevelLight),
 		WithCitationRecorder(func(CitationReport, string) { called = true }),
 	)
-	callHook(t, hook, &agentcore.ProviderResponse{
-		Content: "专利法第47条（分案申请）。",
-	})
+	callHook(t, hook, "专利法第47条（分案申请）。")
 	if called {
 		t.Error("Light 档不得触发 Recorder")
 	}
@@ -225,13 +220,11 @@ func TestGateStrictSuppressesPersist(t *testing.T) {
 		WithCitationGateLevel(LevelStrict),
 		WithCitationRecorder(func(r CitationReport, _ string) { got = r }),
 	)
-	resp := callHook(t, hook, &agentcore.ProviderResponse{
-		Content: "专利法第47条（分案申请）。",
-	})
-	if !resp.SuppressPersist {
+	mcc := callHook(t, hook, "专利法第47条（分案申请）。")
+	if !mcc.SuppressPersist {
 		t.Error("Strict 档命中疑点必须 SuppressPersist=true")
 	}
-	if !strings.Contains(resp.Content, "引用核验提示") {
+	if !strings.Contains(mcc.Content, "引用核验提示") {
 		t.Error("Strict 档仍应追加存疑提示（用户可见）")
 	}
 	if len(got.Flagged) != 1 {
@@ -243,22 +236,14 @@ func TestGateStrictSuppressesPersist(t *testing.T) {
 // SuppressPersist 是 Strict 专属处置，Standard 仅标注+留痕。
 func TestGateStandardDoesNotSuppress(t *testing.T) {
 	hook := NewCitationGate(WithCitationGateLevel(LevelStandard))
-	resp := callHook(t, hook, &agentcore.ProviderResponse{
-		Content: "专利法第47条（分案申请）。",
-	})
-	if resp.SuppressPersist {
+	mcc := callHook(t, hook, "专利法第47条（分案申请）。")
+	if mcc.SuppressPersist {
 		t.Error("Standard 档不得 SuppressPersist")
 	}
 }
 
 func TestGateNilResponseSafe(t *testing.T) {
 	hook := NewCitationGate()
-	// nil Response / 带 Err 均不得 panic。
-	hook.AfterModelCall(context.Background(), nil, &agentcore.ModelCallContext{})
-	hook.AfterModelCall(context.Background(), nil, &agentcore.ModelCallContext{
-		Err: context.Canceled,
-		Response: &agentcore.ProviderResponse{
-			Content: "专利法第47条（分案申请）。",
-		},
-	})
+	// nil mcc 不得 panic。
+	hook.AfterModelCall(context.Background(), nil, nil)
 }

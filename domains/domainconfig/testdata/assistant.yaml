@@ -1,0 +1,17 @@
+name: assistant-agent
+domain: assistant
+description: "通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。"
+guardrail_level: standard
+config:
+  model: gpt-4o
+  temperature: 0.3
+  max_tokens: 4096
+  engine: chunked
+  max_turns: 50
+  tools:
+    - web_search
+    - web_fetch
+    - read
+    - write_file
+  skill_paths:
+    - skills/assistant

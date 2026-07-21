@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/pkg/lawcite"
 )
 
@@ -137,13 +136,11 @@ func TestGateUsesInjectedSource(t *testing.T) {
 		WithCitationRecorder(func(r CitationReport, _ string) { recorded = r }),
 		WithCitationSource(s2),
 	)
-	resp := callHook(t, hook, &agentcore.ProviderResponse{
-		Content: "根据专利法第99条，这是一个不存在的条号。",
-	})
-	if resp == nil || len(recorded.Flagged) != 1 || recorded.Flagged[0].Verdict != VerdictInvalid {
-		t.Fatalf("注入源后第 99 条应判 Invalid 并留痕：resp=%+v recorded=%+v", resp, recorded)
+	mcc := callHook(t, hook, "根据专利法第99条，这是一个不存在的条号。")
+	if mcc == nil || len(recorded.Flagged) != 1 || recorded.Flagged[0].Verdict != VerdictInvalid {
+		t.Fatalf("注入源后第 99 条应判 Invalid 并留痕：mcc=%+v recorded=%+v", mcc, recorded)
 	}
-	if !strings.Contains(resp.Content, "引用核验提示") {
+	if !strings.Contains(mcc.Content, "引用核验提示") {
 		t.Error("响应应追加引用核验提示")
 	}
 }

@@ -63,12 +63,12 @@ func AssistantAgentConfig(base agentcore.Config) agentcore.Config {
 
 	// Guardrail: LevelStandard with assistant disclaimer.
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		guardrails.New(
+		agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelStandard),
 			guardrails.WithDisclaimer(guardrails.DisclaimerAssistant),
 			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("assistant")),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-		),
+		)),
 	)
 
 	// Tools extension — core capability of assistant agent.

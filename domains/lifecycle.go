@@ -2,7 +2,7 @@ package domains
 
 import (
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/doomloop"
+	"github.com/xujian519/mady/doomloop"
 )
 
 // defaultDoomLoopHook 返回领域统一的死循环检测 hook。

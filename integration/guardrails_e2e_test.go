@@ -55,12 +55,12 @@ func TestGuardrailE2E_PatentDisclaimer(t *testing.T) {
 		ExecutionConfig: agentcore.ExecutionConfig{
 			MaxTurns: 3,
 		},
-		Lifecycle: guardrails.New(
+		Lifecycle: agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelStrict),
 			guardrails.WithDisclaimer(guardrails.DisclaimerPatent),
 			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("patent")),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-		),
+		)),
 	}
 
 	agent := agentcore.New(cfg)
@@ -97,13 +97,13 @@ func TestGuardrailE2E_ApprovalKeywordTriggersGate(t *testing.T) {
 		ExecutionConfig: agentcore.ExecutionConfig{
 			MaxTurns: 3,
 		},
-		Lifecycle: guardrails.New(
+		Lifecycle: agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelStrict),
 			guardrails.WithDisclaimer(guardrails.DisclaimerPatent),
 			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("patent")),
 			guardrails.WithApproval(guardrails.ApprovalKeywordsFor("patent")),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-		),
+		)),
 	}
 
 	agent := agentcore.New(cfg)
@@ -143,12 +143,12 @@ func TestGuardrailE2E_AssistantDisclaimer(t *testing.T) {
 		ExecutionConfig: agentcore.ExecutionConfig{
 			MaxTurns: 3,
 		},
-		Lifecycle: guardrails.New(
+		Lifecycle: agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelStandard),
 			guardrails.WithDisclaimer(guardrails.DisclaimerAssistant),
 			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("assistant")),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-		),
+		)),
 	}
 
 	agent := agentcore.New(cfg)

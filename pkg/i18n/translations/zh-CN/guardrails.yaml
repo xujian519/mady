@@ -1,0 +1,10 @@
+# guardrails 护栏文案
+guardrail.disclaimer.standard: "免责声明：本回复由 AI 生成，仅供参考，不构成法律意见。"
+guardrail.disclaimer.strict: "法律免责声明：以下内容由 AI 辅助生成，仅供专业代理人参考，不构成正式法律意见。建议结合具体案情审慎判断，必要时咨询资深代理人。"
+guardrail.disclaimer.light: "本回复由 AI 生成，请注意核实。"
+guardrail.disclaimer.standard_short: "AI 生成内容，仅供参考。"
+guardrail.disclaimer.strict_short: "AI 辅助生成，仅供专业参考，不构成法律意见。"
+guardrail.disclaimer.light_short: "AI 生成，请注意核实。"
+guardrail.level_tag.strict: "[严格审查]"
+guardrail.level_tag.standard: "[标准审查]"
+guardrail.level_tag.light: "[轻量审查]"

@@ -1,0 +1,10 @@
+# guardrails 护栏文案 (English)
+guardrail.disclaimer.standard: "Disclaimer: This response is AI-generated and for reference only. It does not constitute legal advice."
+guardrail.disclaimer.strict: "Legal Disclaimer: The following content is AI-assisted and for professional reference only. It does not constitute formal legal advice. Please exercise professional judgment based on specific case circumstances and consult senior counsel when necessary."
+guardrail.disclaimer.light: "This response is AI-generated. Please verify."
+guardrail.disclaimer.standard_short: "AI-generated content, for reference only."
+guardrail.disclaimer.strict_short: "AI-assisted, for professional reference only, not legal advice."
+guardrail.disclaimer.light_short: "AI-generated, please verify."
+guardrail.level_tag.strict: "[Strict Review]"
+guardrail.level_tag.standard: "[Standard Review]"
+guardrail.level_tag.light: "[Light Review]"

@@ -3,8 +3,8 @@ package component
 import (
 	"strings"
 
-	"github.com/xujian519/mady/fuzzy"
 	core "github.com/xujian519/mady/tui/core"
+	"github.com/xujian519/mady/tui/internal/fuzzy"
 )
 
 // ---------------------------------------------------------------------------

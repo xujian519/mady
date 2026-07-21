@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xujian519/mady/agentcore/evaluate"
-	"github.com/xujian519/mady/agentcore/evaluate/cli"
+	"github.com/xujian519/mady/evaluate"
+	"github.com/xujian519/mady/evaluate/cli"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/pkg/util"

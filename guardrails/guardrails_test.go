@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/xujian519/mady/agentcore"
+	iface "github.com/xujian519/mady/agentcore/iface"
 )
 
 func TestNew_DefaultLevelIsLight(t *testing.T) {
@@ -68,17 +68,13 @@ func TestGuardrail_BlockedPhrases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gr := &guardrail{config: tt.config}
-			mcc := &agentcore.ModelCallContext{
-				Response: &agentcore.ProviderResponse{
-					Content: tt.content,
-				},
+			ifaceMCC := &iface.ModelCallContext{Content: tt.content}
+			gr.AfterModelCall(context.Background(), nil, ifaceMCC)
+			if tt.wantErr && !ifaceMCC.Blocked {
+				t.Error("expected blocked but got no block")
 			}
-			gr.AfterModelCall(context.Background(), nil, mcc)
-			if tt.wantErr && mcc.Err == nil {
-				t.Error("expected error but got nil")
-			}
-			if !tt.wantErr && mcc.Err != nil {
-				t.Errorf("unexpected error: %v", mcc.Err)
+			if !tt.wantErr && ifaceMCC.Blocked {
+				t.Errorf("unexpected blocked: %s", ifaceMCC.Content)
 			}
 		})
 	}
@@ -143,22 +139,19 @@ func TestGuardrail_DisclaimerInjection(t *testing.T) {
 				Disclaimer:   tt.disclaimer,
 				RiskKeywords: tt.riskKeywords,
 			}}
-			mcc := &agentcore.ModelCallContext{
-				Response: &agentcore.ProviderResponse{
-					Content: tt.content,
-				},
-			}
-			gr.AfterModelCall(context.Background(), nil, mcc)
+			ifaceMCC := &iface.ModelCallContext{Content: tt.content}
+			oldContent := ifaceMCC.Content
+			gr.AfterModelCall(context.Background(), nil, ifaceMCC)
 
-			injected := mcc.Response.Content != tt.content
+			injected := ifaceMCC.Content != oldContent
 			if tt.shouldInject && !injected {
-				t.Errorf("disclaimer not injected. content: %s", mcc.Response.Content)
+				t.Errorf("disclaimer not injected. content: %s", ifaceMCC.Content)
 			}
 			if !tt.shouldInject && injected {
-				t.Errorf("disclaimer unexpectedly injected. content: %s", mcc.Response.Content)
+				t.Errorf("disclaimer unexpectedly injected. content: %s", ifaceMCC.Content)
 			}
-			if tt.shouldNotContain != "" && strings.Contains(mcc.Response.Content, tt.shouldNotContain) {
-				t.Errorf("content should not contain %q: %s", tt.shouldNotContain, mcc.Response.Content)
+			if tt.shouldNotContain != "" && strings.Contains(ifaceMCC.Content, tt.shouldNotContain) {
+				t.Errorf("content should not contain %q: %s", tt.shouldNotContain, ifaceMCC.Content)
 			}
 		})
 	}
@@ -170,14 +163,12 @@ func TestGuardrail_ApprovalKeywords(t *testing.T) {
 			Level:            LevelStrict,
 			ApprovalKeywords: []string{"专利结论"},
 		}}
-		mcc := &agentcore.ModelCallContext{
-			Response: &agentcore.ProviderResponse{
-				Content: "专利结论：该发明具有新颖性。",
-			},
+		ifaceMCC := &iface.ModelCallContext{
+			Content: "专利结论：该发明具有新颖性。",
 		}
-		gr.AfterModelCall(context.Background(), nil, mcc)
+		gr.AfterModelCall(context.Background(), nil, ifaceMCC)
 
-		if !mcc.Response.SuppressPersist {
+		if !ifaceMCC.SuppressPersist {
 			t.Error("expected SuppressPersist to be set at LevelStrict with approval keyword")
 		}
 	})
@@ -187,14 +178,12 @@ func TestGuardrail_ApprovalKeywords(t *testing.T) {
 			Level:            LevelStandard,
 			ApprovalKeywords: []string{"专利结论"},
 		}}
-		mcc := &agentcore.ModelCallContext{
-			Response: &agentcore.ProviderResponse{
-				Content: "专利结论：该发明具有新颖性。",
-			},
+		ifaceMCC := &iface.ModelCallContext{
+			Content: "专利结论：该发明具有新颖性。",
 		}
-		gr.AfterModelCall(context.Background(), nil, mcc)
+		gr.AfterModelCall(context.Background(), nil, ifaceMCC)
 
-		if mcc.Response.SuppressPersist {
+		if ifaceMCC.SuppressPersist {
 			t.Error("LevelStandard should not set SuppressPersist")
 		}
 	})
@@ -205,11 +194,8 @@ func TestGuardrail_NilResponseIsSafe(t *testing.T) {
 		Level:        LevelStrict,
 		RiskKeywords: []string{"风险"},
 	}}
-	// Should not panic with nil response.
-	gr.AfterModelCall(context.Background(), nil, &agentcore.ModelCallContext{
-		Response: nil,
-		Err:      nil,
-	})
+	// Should not panic with nil mcc.
+	gr.AfterModelCall(context.Background(), nil, nil)
 }
 
 func TestGuardrail_ErrorResponseIsSkipped(t *testing.T) {
@@ -217,16 +203,10 @@ func TestGuardrail_ErrorResponseIsSkipped(t *testing.T) {
 		Level:        LevelStrict,
 		RiskKeywords: []string{"风险"},
 	}}
-	mcc := &agentcore.ModelCallContext{
-		Response: &agentcore.ProviderResponse{
-			Content: "有风险的内容",
-		},
-		Err: agentcore.NewNodeError("provider error", nil, "test", "test"),
-	}
-	original := mcc.Response.Content
-	gr.AfterModelCall(context.Background(), nil, mcc)
-	// Should skip on error.
-	if mcc.Response.Content != original {
-		t.Errorf("content was modified on error")
+	// Empty content should be skipped (no processing).
+	ifaceMCC := &iface.ModelCallContext{Content: ""}
+	gr.AfterModelCall(context.Background(), nil, ifaceMCC)
+	if ifaceMCC.Content != "" {
+		t.Errorf("empty content was unexpectedly modified: %q", ifaceMCC.Content)
 	}
 }

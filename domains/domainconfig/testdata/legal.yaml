@@ -1,0 +1,19 @@
+name: legal-advisor
+domain: legal
+description: "法律咨询与研究。处理法条检索、判例检索、法律分析、法律文书生成。"
+guardrail_level: strict
+knowledge_domain: legal
+handoff_targets:
+  - chat-agent
+  - assistant-agent
+config:
+  model: gpt-4o
+  temperature: 0.2
+  max_tokens: 4096
+  engine: chunked
+  max_turns: 30
+  tools:
+    - legal_search
+    - legal_analysis
+  skill_paths:
+    - skills/legal

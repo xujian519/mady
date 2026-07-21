@@ -1,6 +1,6 @@
 package core
 
-import "github.com/xujian519/mady/pkg/csync"
+import "github.com/xujian519/mady/tui/internal/csync"
 
 // ---------------------------------------------------------------------------
 // Component interface

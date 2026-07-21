@@ -11,30 +11,8 @@ import (
 )
 
 // =============================================================================
-// generate_keywords — 检索关键词生成（Phase 1 简化版）
+// check_novelty 启发式回退 — 基于技术特征分类与关键词匹配
 // =============================================================================
-
-// generateKeywordsNode 返回检索关键词生成的 Pregel 节点。
-// Phase 1 实现为确定性规则提取，Phase 2 将替换为 LLM 混合模式。
-func generateKeywordsNode() graph.PregelNode {
-	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-		var keywords []string
-
-		// 从提取结果中收集关键词
-		if raw, ok := state[StateKeyExtraction]; ok {
-			if ext, ok := raw.(*ExtractionResult); ok && ext != nil {
-				keywords = collectKeywordsFromExtraction(ext)
-			}
-		}
-
-		if len(keywords) == 0 {
-			keywords = []string{"技术交底书分析"}
-		}
-
-		state[StateKeySearchKeywords] = keywords
-		return state, nil
-	}
-}
 
 // collectKeywordsFromExtraction 从提取的特征/问题/效果中收集关键词。
 func collectKeywordsFromExtraction(ext *ExtractionResult) []string {

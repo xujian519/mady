@@ -7,7 +7,7 @@
 //	LevelStandard — 专业咨询，增加不确定性声明要求
 //	LevelStrict   — 法律/专利，强制免责声明 + 人工审批门
 //
-// Each level is implemented as an agentcore.LifecycleHook that inspects
+// Each level is implemented as an iface.LifecycleHook that inspects
 // model output in AfterModelCall and can inject warnings, block execution,
 // or trigger human approval workflows.
 //

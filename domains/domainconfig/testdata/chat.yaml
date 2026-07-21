@@ -1,0 +1,10 @@
+name: chat-agent
+domain: chat
+description: "日常对话助手。处理普通问答、信息查询、闲聊等无严格领域约束的任务。"
+guardrail_level: light
+config:
+  model: gpt-4o-mini
+  temperature: 0.7
+  max_tokens: 2048
+  engine: basic
+  max_turns: 20

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/skill"
 )
 
@@ -123,8 +124,8 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 
 	writeSSE("skills_snapshot", skillSnapshotEventPayload(s.snapshotConfig()))
 
-	ch := make(chan agentcore.Event, 8)
-	unregister := s.On(agentcore.EventSkillsReloaded, func(e agentcore.Event) {
+	ch := make(chan iface.Event, 8)
+	unregister := s.On(iface.EventType(agentcore.EventSkillsReloaded), func(e iface.Event) {
 		select {
 		case ch <- e:
 		default:
@@ -139,7 +140,11 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case e := <-ch:
-			writeSSE(string(e.EventKind()), streamEventPayload("", e))
+			agentE, ok := e.Payload().(agentcore.Event)
+			if !ok {
+				continue
+			}
+			writeSSE(string(agentE.EventKind()), streamEventPayload("", agentE))
 		}
 	}
 }
@@ -179,7 +184,7 @@ func (s *Server) handleReloadSkills(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	_, missing := skill.ResolveSelection(cfg.AvailableSkills, cfg.SelectedSkills)
-	s.EmitEvent(agentcore.NewSkillsReloadedEvent(
+	reloaded := agentcore.NewSkillsReloadedEvent(
 		cfg.SkillPaths,
 		len(skillsSummary),
 		visible,
@@ -190,7 +195,8 @@ func (s *Server) handleReloadSkills(w http.ResponseWriter, r *http.Request) {
 		updatedSkills,
 		addedDiagnostics,
 		removedDiagnostics,
-	))
+	)
+	s.EmitEvent(iface.NewEvent(iface.EventType(reloaded.EventKind()), reloaded))
 	writeJSON(w, http.StatusOK, SkillRegistryStatusResponse{
 		Skills:                  skillsSummary,
 		SelectedSkills:          agentcore.CloneStringSlice(cfg.SelectedSkills),

@@ -111,6 +111,19 @@ func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig
 	}
 }
 
+// RouterConfigWithLLM builds the Router Agent configuration with an LLMClassifier.
+// It creates an LLMClassifier from the given provider and passes it through.
+// This is a convenience wrapper around RouterConfigWithClassifier.
+//
+// If provider is nil, it falls back to RouterConfig (keyword-only) to avoid
+// silently degrading.
+func RouterConfigWithLLM(base agentcore.Config, provider agentcore.Provider) agentcore.Config {
+	if provider == nil {
+		return RouterConfig(base)
+	}
+	return RouterConfigWithClassifier(base, NewLLMClassifier(provider))
+}
+
 // RouterConfigWithClassifier builds the Router Agent configuration with an
 // optional IntentClassifier. If classifier is nil, KeywordClassifier is used.
 func RouterConfigWithClassifier(base agentcore.Config, classifier IntentClassifier) agentcore.Config {

@@ -4,15 +4,24 @@ info:
   description: |
     Mady（中观智能体）是一个面向专利/法律/IP 专业人士的智能 Agent 平台。
 
+    ## 版本
+    当前稳定版本 v1（2026-07-21）。所有端点通过 `/api/v1/*` 前缀标识。
+    旧版 `/api/*` 路径保留向后兼容，但标记为已废弃（`deprecated: true`）。
+
     ## 认证
-    技能管理端点（`/api/skills/*`）支持可选的 Bearer Token 认证。
+    技能管理端点（`/api/v1/skills/*`）支持可选的 Bearer Token 认证。
     配置 `SkillAPIAuthToken` 后，需要在请求头中携带 `Authorization: Bearer <token>`。
 
     ## 流式响应
-    `/api/chat` 支持两种模式：
+    `/api/v1/chat` 支持两种模式：
     - `stream: false`（默认）— 返回 JSON
     - `stream: true` — 返回 SSE（Server-Sent Events）流
-  version: "0.1.0"
+
+    ## 运维端点
+    - `/health` — 存活检查（负载均衡）
+    - `/ready` — 就绪检查（Agent 池 + Disclosure 健康度）
+    - `/metrics` — Prometheus 格式指标
+  version: "1.0.0"
   contact:
     name: Mady Authors
     url: https://github.com/xujian519/mady
@@ -34,10 +43,63 @@ tags:
     description: 状态快照
   - name: AG-UI
     description: Agent GUI 事件流
+  - name: Operations
+    description: 运维与可观测性端点
 
 paths:
-  # ---- Chat ----
-  /api/chat:
+  # ======================================================
+  # 运维端点
+  # ======================================================
+  /health:
+    get:
+      tags: [Operations]
+      summary: 存活检查
+      description: 轻量级存活探测，适用于负载均衡器健康检查。返回固定 JSON 结构。
+      responses:
+        "200":
+          description: 服务器存活
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /ready:
+    get:
+      tags: [Operations]
+      summary: 就绪检查
+      description: |
+        检查服务器及其依赖组件是否就绪。
+        - Agent 池：统计池中 Agent 数量
+        - Disclosure 任务管理器：统计运行中的分析任务
+      responses:
+        "200":
+          description: 服务器就绪
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadyResponse"
+
+  /metrics:
+    get:
+      tags: [Operations]
+      summary: 监控指标
+      description: |
+        返回 Prometheus 格式的运行时指标：
+        - `http_requests_total` — 请求总数
+        - `http_request_errors_total` — 5xx 错误数
+        - `http_active_connections` — 当前活跃连接数
+      responses:
+        "200":
+          description: 指标文本
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ======================================================
+  # Chat API (v1)
+  # ======================================================
+  /api/v1/chat:
     post:
       tags: [Chat]
       summary: 发送消息并获取 Agent 响应
@@ -49,55 +111,45 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [message]
-              properties:
-                message:
-                  type: string
-                  description: 用户消息内容
-                thread_id:
-                  type: string
-                  description: 会话线程 ID（可选，用于保持上下文）
-                stream:
-                  type: boolean
-                  default: false
-                  description: 是否使用 SSE 流式返回
-                model:
-                  type: string
-                  description: 覆盖默认模型
-                response_format:
-                  type: object
-                  description: 结构化输出格式配置
-                thinking:
-                  type: object
-                  description: 推理过程配置
-                  properties:
-                      display:
-                        type: string
-                        enum: [collapsed, expanded, summarized, omitted]
-                      effort:
-                        type: string
-                        enum: [none, low, medium, high]
-                      budget:
-                        type: integer
-                        description: 推理 Token 预算
-                skills:
-                  type: array
-                  items:
-                    type: string
-                  description: 启用的技能列表
+              $ref: "#/components/schemas/ChatRequest"
       responses:
         "200":
           description: 同步响应（stream=false 时）
           content:
             application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/ChatResponse"
         "200 (SSE)":
           description: 流式响应（stream=true 时）
 
-  # ---- Skills ----
-  /api/skills:
+  /api/chat:
+    post:
+      tags: [Chat]
+      summary: 发送消息并获取 Agent 响应（已废弃）
+      deprecated: true
+      description: |
+        旧版聊天端点。请迁移至 `/api/v1/chat`。
+        主聊天端点。支持同步（JSON）和流式（SSE）两种模式。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: 同步响应
+          content:
+            application/json:
+              schema:
+                type: object
+        "200 (SSE)":
+          description: 流式响应
+
+  # ======================================================
+  # Skills API (v1)
+  # ======================================================
+  /api/v1/skills:
     get:
       tags: [Skills]
       summary: 列出已注册技能
@@ -113,7 +165,24 @@ paths:
                 items:
                   $ref: "#/components/schemas/Skill"
 
-  /api/skills/diagnostics:
+  /api/skills:
+    get:
+      tags: [Skills]
+      summary: 列出已注册技能（已废弃）
+      deprecated: true
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 技能列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Skill"
+
+  /api/v1/skills/diagnostics:
     get:
       tags: [Skills]
       summary: 获取技能加载诊断信息
@@ -123,7 +192,18 @@ paths:
         "200":
           description: 诊断报告
 
-  /api/skills/events:
+  /api/skills/diagnostics:
+    get:
+      tags: [Skills]
+      summary: 获取技能加载诊断信息（已废弃）
+      deprecated: true
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 诊断报告
+
+  /api/v1/skills/events:
     get:
       tags: [Skills]
       summary: SSE 流式获取技能事件
@@ -133,7 +213,18 @@ paths:
         "200":
           description: SSE 事件流
 
-  /api/skills/status:
+  /api/skills/events:
+    get:
+      tags: [Skills]
+      summary: SSE 流式获取技能事件（已废弃）
+      deprecated: true
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: SSE 事件流
+
+  /api/v1/skills/status:
     get:
       tags: [Skills]
       summary: 获取技能注册表状态
@@ -143,7 +234,18 @@ paths:
         "200":
           description: 技能状态信息
 
-  /api/skills/reload:
+  /api/skills/status:
+    get:
+      tags: [Skills]
+      summary: 获取技能注册表状态（已废弃）
+      deprecated: true
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 技能状态信息
+
+  /api/v1/skills/reload:
     post:
       tags: [Skills]
       summary: 热重载技能（从磁盘重新扫描 SKILL.md）
@@ -155,7 +257,22 @@ paths:
         "401":
           description: 未认证
 
-  # ---- Disclosure ----
+  /api/skills/reload:
+    post:
+      tags: [Skills]
+      summary: 热重载技能（已废弃）
+      deprecated: true
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 重载完成
+        "401":
+          description: 未认证
+
+  # ======================================================
+  # Disclosure API (v1)
+  # ======================================================
   /v1/disclosure/analyze:
     post:
       tags: [Disclosure]
@@ -195,6 +312,8 @@ paths:
     get:
       tags: [Disclosure]
       summary: 轮询分析任务状态与结果
+      description: |
+        查询指定任务的状态。完成时携带完整的分析报告和创造性评估结果。
       parameters:
         - name: task_id
           in: path
@@ -254,8 +373,47 @@ paths:
                   error:
                     type: string
 
-  # ---- Threads ----
-  /api/threads:
+  /v1/disclosure/analyze/{task_id}/review:
+    post:
+      tags: [Disclosure]
+      summary: 提交人工复核结论
+      description: |
+        受理 awaiting_review 状态任务的人工复核结论。
+        决策留痕到 ApprovalStore（P3 专家盲测数据收集触点）。
+        仅在任务状态为 awaiting_review 时可用。
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 待复核的任务 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisclosureReviewRequest"
+      responses:
+        "200":
+          description: 复核结论已受理
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisclosureReviewResponse"
+        "400":
+          description: 请求体非法（decision 非 adopted/modified/rejected）
+        "404":
+          description: 任务不存在
+        "409":
+          description: 任务状态非 awaiting_review（无法复核）
+        "503":
+          description: ApprovalStore 未配置
+
+  # ======================================================
+  # Threads API (v1)
+  # ======================================================
+  /api/v1/threads:
     post:
       tags: [Threads]
       summary: 创建新线程
@@ -284,7 +442,38 @@ paths:
                 items:
                   $ref: "#/components/schemas/Thread"
 
-  /api/threads/{key}:
+  /api/threads:
+    post:
+      tags: [Threads]
+      summary: 创建新线程（已废弃）
+      deprecated: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: 线程已创建
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thread"
+    get:
+      tags: [Threads]
+      summary: 列出所有线程（已废弃）
+      deprecated: true
+      responses:
+        "200":
+          description: 线程列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Thread"
+
+  /api/v1/threads/{key}:
     get:
       tags: [Threads]
       summary: 获取线程详情
@@ -310,7 +499,35 @@ paths:
         "204":
           description: 已删除
 
-  /api/threads/{key}/branch:
+  /api/threads/{key}:
+    get:
+      tags: [Threads]
+      summary: 获取线程详情（已废弃）
+      deprecated: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 线程详情
+    delete:
+      tags: [Threads]
+      summary: 删除线程（已废弃）
+      deprecated: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: 已删除
+
+  /api/v1/threads/{key}/branch:
     post:
       tags: [Threads]
       summary: 从当前叶子或指定节点创建分支
@@ -324,7 +541,22 @@ paths:
         "201":
           description: 新分支线程
 
-  /api/threads/{key}/config:
+  /api/threads/{key}/branch:
+    post:
+      tags: [Threads]
+      summary: 从指定节点创建分支（已废弃）
+      deprecated: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: 新分支线程
+
+  /api/v1/threads/{key}/config:
     get:
       tags: [Threads]
       summary: 获取线程级调用配置
@@ -350,7 +582,35 @@ paths:
         "200":
           description: 配置已更新
 
-  /api/threads/{key}/thinking:
+  /api/threads/{key}/config:
+    get:
+      tags: [Threads]
+      summary: 获取线程级调用配置（已废弃）
+      deprecated: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 线程配置
+    put:
+      tags: [Threads]
+      summary: 设置或清除线程级调用配置（已废弃）
+      deprecated: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 配置已更新
+
+  /api/v1/threads/{key}/thinking:
     get:
       tags: [Threads]
       summary: 获取线程级推理配置
@@ -376,8 +636,38 @@ paths:
         "200":
           description: 配置已更新
 
-  # ---- States ----
-  /api/states:
+  /api/threads/{key}/thinking:
+    get:
+      tags: [Threads]
+      summary: 获取线程级推理配置（已废弃）
+      deprecated: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 推理配置
+    put:
+      tags: [Threads]
+      summary: 设置或清除线程级推理配置（已废弃）
+      deprecated: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 配置已更新
+
+  # ======================================================
+  # States API (v1)
+  # ======================================================
+  /api/v1/states:
     get:
       tags: [States]
       summary: 列出持久化状态键
@@ -385,7 +675,16 @@ paths:
         "200":
           description: 状态键列表
 
-  /api/states/{key}:
+  /api/states:
+    get:
+      tags: [States]
+      summary: 列出持久化状态键（已废弃）
+      deprecated: true
+      responses:
+        "200":
+          description: 状态键列表
+
+  /api/v1/states/{key}:
     get:
       tags: [States]
       summary: 获取状态快照
@@ -411,7 +710,37 @@ paths:
         "204":
           description: 已删除
 
-  # ---- AG-UI ----
+  /api/states/{key}:
+    get:
+      tags: [States]
+      summary: 获取状态快照（已废弃）
+      deprecated: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 状态快照数据
+    delete:
+      tags: [States]
+      summary: 删除状态快照（已废弃）
+      deprecated: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: 已删除
+
+  # ======================================================
+  # AG-UI
+  # ======================================================
   /agui/{path}:
     get:
       tags: [AG-UI]
@@ -435,6 +764,91 @@ components:
       description: 用于技能管理 API 的可选认证
 
   schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        time:
+          type: string
+          format: date-time
+          example: "2026-07-21T12:00:00Z"
+
+    ReadyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        time:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          properties:
+            agents:
+              type: integer
+              description: Agent 池总数量
+            agents_idle:
+              type: integer
+              description: 空闲 Agent 数量
+            disclosure_tasks:
+              type: integer
+              description: 运行中的 disclosure 分析任务数
+
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: 用户消息内容
+        thread_id:
+          type: string
+          description: 会话线程 ID（可选，用于保持上下文）
+        stream:
+          type: boolean
+          default: false
+          description: 是否使用 SSE 流式返回
+        model:
+          type: string
+          description: 覆盖默认模型
+        response_format:
+          type: object
+          description: 结构化输出格式配置
+        thinking:
+          type: object
+          description: 推理过程配置
+          properties:
+            display:
+              type: string
+              enum: [collapsed, expanded, summarized, omitted]
+            effort:
+              type: string
+              enum: [none, low, medium, high]
+            budget:
+              type: integer
+              description: 推理 Token 预算
+        skills:
+          type: array
+          items:
+            type: string
+          description: 启用的技能列表
+
+    ChatResponse:
+      type: object
+      properties:
+        output:
+          type: string
+          description: Agent 响应文本
+        thread_id:
+          type: string
+          description: 会话线程 ID
+        error:
+          type: string
+          description: 错误信息（失败时存在）
+
     Skill:
       type: object
       properties:
@@ -481,6 +895,34 @@ components:
           type: string
           description: 受理成功为 pending；请求被拒绝为 failed
 
+    DisclosureReviewRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [adopted, modified, rejected]
+          description: 复核决定：adopted（采纳）/ modified（修改后采纳）/ rejected（拒绝）
+        modified_output:
+          type: string
+          description: modified 决策时的改后内容
+        feedback:
+          type: string
+          description: 复核反馈意见
+        case_id:
+          type: string
+          description: 关联案件 ID
+
+    DisclosureReviewResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+          description: 任务 ID
+        status:
+          type: string
+          description: 受理后状态（reviewed）
+
     DisclosureTaskStatus:
       type: object
       properties:
@@ -489,11 +931,11 @@ components:
           description: 任务 ID
         status:
           type: string
-          enum: [pending, running, awaiting_review, completed, failed]
+          enum: [pending, running, awaiting_review, reviewed, completed, failed]
           description: |
             任务状态：pending 排队中 / running 执行中 /
-            awaiting_review 分析完成待人工复核（review_gate 中断，含结果）/
-            completed 已完成 / failed 失败
+            awaiting_review 分析完成待人工复核 /
+            reviewed 已人工复核 / completed 已完成 / failed 失败
         progress:
           $ref: "#/components/schemas/DisclosureProgress"
         result:
@@ -501,6 +943,12 @@ components:
         error:
           type: string
           description: 失败原因（status=failed 时存在）
+        review_decision:
+          type: string
+          description: 人工复核决定（adopted/modified/rejected）
+        inventiveness:
+          type: object
+          description: 创造性三步法评估结果
 
     DisclosureProgress:
       type: object

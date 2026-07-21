@@ -54,11 +54,11 @@ func currentCitationWiring() CitationWiring {
 // 案件 Agent 传 Agent 名与案件号（ListByCase 可按案件查待审）。
 func newCitationGate(sessionID, caseID string) agentcore.LifecycleHook {
 	w := currentCitationWiring()
-	return guardrails.NewCitationGate(
+	return agentcore.NewIFaceLifecycleHook(guardrails.NewCitationGate(
 		guardrails.WithCitationGateLevel(guardrails.LevelStrict),
 		guardrails.WithCitationSource(w.Source),
 		guardrails.WithCitationRecorder(citationRecorder(w.Store, sessionID, caseID)),
-	)
+	))
 }
 
 // citationRecorder 构建域级留痕闭包：命中疑点写 ApprovalRecord

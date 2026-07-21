@@ -57,10 +57,10 @@ func ChatAgentConfig(base agentcore.Config) agentcore.Config {
 	)
 
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		guardrails.New(
+		agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelLight),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-		),
+		)),
 	)
 
 	// 心理引擎 — 轻量模式：VAD/OCC 语气调整，不做认知扭曲诊断

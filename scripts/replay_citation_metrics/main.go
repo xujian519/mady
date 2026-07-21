@@ -22,8 +22,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/xujian519/mady/agentcore/evaluate"
-	"github.com/xujian519/mady/agentcore/evaluate/benchmark"
+	"github.com/xujian519/mady/evaluate"
+	"github.com/xujian519/mady/evaluate/benchmark"
 	"github.com/xujian519/mady/guardrails"
 )
 

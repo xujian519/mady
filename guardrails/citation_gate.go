@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xujian519/mady/agentcore"
+	iface "github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/pkg/lawcite"
 )
 
@@ -106,7 +106,7 @@ func WithCitationSource(src CitationSource) CitationGateOption {
 }
 
 // NewCitationGate 创建引用核验 LifecycleHook。
-func NewCitationGate(opts ...CitationGateOption) agentcore.LifecycleHook {
+func NewCitationGate(opts ...CitationGateOption) iface.LifecycleHook {
 	cfg := CitationGateConfig{Level: LevelLight}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -115,24 +115,21 @@ func NewCitationGate(opts ...CitationGateOption) agentcore.LifecycleHook {
 }
 
 type citationGate struct {
-	agentcore.BaseLifecycleHook
+	iface.BaseLifecycleHook
 	config CitationGateConfig
 }
 
 // AfterModelCall 核验模型输出中的法条引用并按等级处置。
-// 工具调用回合（Response.ToolCalls 非空）不是面向用户的答案，直接跳过，
+// 工具调用回合（HasToolCalls 为 true）不是面向用户的答案，直接跳过，
 // 避免污染工具循环。
-func (g *citationGate) AfterModelCall(_ context.Context, _ *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {
-	if mcc == nil || mcc.Response == nil || mcc.Err != nil {
+func (g *citationGate) AfterModelCall(_ context.Context, _ *iface.AgentRunContext, mcc *iface.ModelCallContext) {
+	if mcc == nil {
 		return
 	}
-	if len(mcc.Response.ToolCalls) > 0 {
+	if len(mcc.Content) == 0 || mcc.HasToolCalls {
 		return
 	}
-	content := mcc.Response.Content
-	if content == "" {
-		return
-	}
+	content := mcc.Content
 
 	report := VerifyCitationsWithSource(content, g.config.Source)
 	if len(report.Flagged) == 0 {
@@ -140,11 +137,11 @@ func (g *citationGate) AfterModelCall(_ context.Context, _ *agentcore.AgentRunCo
 	}
 
 	// Light 及以上：追加存疑提示。
-	mcc.Response.Content = content + FormatCitationWarnings(report)
+	mcc.Content = content + FormatCitationWarnings(report)
 	// Strict（P2b）：命中疑点的输出在人工复核前不写入会话存储
 	// （SuppressPersist 消费点在 agentcore/agent_run.go；用户仍可见
 	// 本次输出与提示，仅跳过持久化，不阻断执行，跑批安全）。
-	mcc.Response.SuppressPersist = g.config.Level >= LevelStrict
+	mcc.SuppressPersist = g.config.Level >= LevelStrict
 
 	// Standard 及以上：留痕回调（content 为追加提示前的原始输出）。
 	if g.config.Level >= LevelStandard && g.config.Recorder != nil {

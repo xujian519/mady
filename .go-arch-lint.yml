@@ -1,0 +1,78 @@
+version: 3
+workdir: .
+
+packages:
+  - name: agentcore
+    path: ./agentcore
+    rules:
+      - forbidden:
+          - ./domains          # agentcore 不得导入 domains
+          - ./server           # agentcore 不得导入 server
+          - ./tui              # agentcore 不得导入 tui
+
+  - name: graph
+    path: ./graph
+    rules:
+      - forbidden:
+          - ./agentcore        # graph 不得导入 agentcore
+          - ./domains          # graph 不得导入 domains
+          - ./server           # graph 不得导入 server
+
+  - name: tui_chat
+    path: ./tui/chat
+    rules:
+      - forbidden:
+          - ./agentcore        # tui/chat 不得导入 agentcore（保持现有设计正确）
+
+  - name: knowledge
+    path: ./knowledge
+    rules:
+      - forbidden:
+          - ./server           # knowledge 不得导入 server
+          - ./tui              # knowledge 不得导入 tui
+          - ./domains          # knowledge 不得导入 domains
+
+  - name: memory
+    path: ./memory
+    rules:
+      - forbidden:
+          - ./server           # memory 不得导入 server
+          - ./tui              # memory 不得导入 tui
+
+  - name: retrieval
+    path: ./retrieval
+    rules:
+      - forbidden:
+          - ./server           # retrieval 不得导入 server
+          - ./domains          # retrieval 不得导入 domains
+          - ./tui              # retrieval 不得导入 tui
+
+  - name: server
+    path: ./server
+    rules:
+      - forbidden:
+          - ./tui              # server 不得导入 tui
+          - ./tools            # server 不得导入 tools 子模块
+
+  - name: provider
+    path: ./provider
+    rules:
+      - forbidden:
+          - ./domains          # provider 不得导入 domains
+          - ./server           # provider 不得导入 server
+          - ./tui              # provider 不得导入 tui
+
+  - name: disclosure
+    path: ./disclosure
+    rules:
+      - forbidden:
+          - ./tui              # disclosure 不得导入 tui
+          - ./server           # disclosure 不得导入 server
+          - ./domains          # disclosure 不得导入 domains
+
+  - name: tools_submodule
+    path: ./tools
+    rules:
+      - forbidden:
+          - ./domains          # tools 子模块不应导入 domains
+          - ./server           # tools 子模块不应导入 server

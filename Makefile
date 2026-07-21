@@ -26,7 +26,7 @@ all: vet build test
 
 # "提交前真实标准"——比 all 更完整：包含 lint（golangci-lint）与 test-race（竞态检测）。
 # 提交前请运行 make verify 而非 make all，以确保门禁完整闭合。
-verify: lint build test-race
+verify: lint check-arch build test-race
 
 # TOOLS_BUILD_DIR 用于在 tools 子模块执行命令时切换工作目录。
 # 所有 `cd tools && go ...` 调用都使用 `$(GO)` 与 `$(GOFLAGS)`，与根模块保持一致。
@@ -86,13 +86,13 @@ test-approval-audit:
 test-dry-run-gate: test-disclosure-smoke test-approval-audit
 
 # --- Eval Suite (CI Gate) ---
-# eval runs the benchmark test suite under agentcore/evaluate/benchmark.
+# eval runs the benchmark test suite under evaluate/benchmark.
 # Run this before merging Prompt/Rule/Skill changes.
 eval:
-	$(GO) test $(GOFLAGS) -v ./agentcore/evaluate/benchmark/...
+	$(GO) test $(GOFLAGS) -v ./evaluate/benchmark/...
 
 eval-race:
-	$(GO) test $(GOFLAGS) -race -v ./agentcore/evaluate/benchmark/...
+	$(GO) test $(GOFLAGS) -race -v ./evaluate/benchmark/...
 
 # --- Knowledge Benchmarks ---
 # bench-knowledge runs the full knowledge system benchmark suite with
@@ -113,6 +113,18 @@ coverage:
 coverage-check:
 	$(GO) test $(GOFLAGS) -coverprofile=coverage.out ./...
 	@$(GO) tool cover -func=coverage.out | tail -1
+
+# --- Architecture Boundary Check ---
+.PHONY: check-arch
+check-arch:
+	@echo "=== Running architecture boundary checks ==="
+	@if command -v go-arch-lint >/dev/null 2>&1; then \
+		go-arch-lint check; \
+		echo "✓ go-arch-lint passed"; \
+	else \
+		echo "go-arch-lint not installed, falling back to script check..."; \
+		scripts/check-arch-boundaries.sh; \
+	fi
 
 # --- Lint ---
 vet:

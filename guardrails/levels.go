@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/xujian519/mady/agentcore"
+	iface "github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/pkg/csync"
 )
 
@@ -38,7 +38,6 @@ func RegisterLevel(name string, level Level) {
 		return
 	}
 	customLevels.Set(name, level)
-	agentcore.RegisterValidGuardrailLevel(name)
 }
 
 // RegisteredLevel returns the Level value registered for name, if any.
@@ -91,7 +90,7 @@ func WithApproval(kw []string) Option { return func(c *Config) { c.ApprovalKeywo
 func WithBlockedPhrases(p []string) Option { return func(c *Config) { c.BlockedPhrases = p } }
 
 // New creates a guardrail LifecycleHook with the given options.
-func New(opts ...Option) agentcore.LifecycleHook {
+func New(opts ...Option) iface.LifecycleHook {
 	cfg := Config{
 		Level:          LevelLight,
 		BlockedPhrases: []string{"恶意代码", "攻击方法", "非法入侵"},
@@ -103,22 +102,22 @@ func New(opts ...Option) agentcore.LifecycleHook {
 }
 
 type guardrail struct {
-	agentcore.BaseLifecycleHook
+	iface.BaseLifecycleHook
 	config Config
 }
 
-func (g *guardrail) AfterModelCall(_ context.Context, _ *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {
-	if mcc == nil || mcc.Response == nil || mcc.Err != nil {
+func (g *guardrail) AfterModelCall(_ context.Context, _ *iface.AgentRunContext, mcc *iface.ModelCallContext) {
+	if mcc == nil {
 		return
 	}
 
-	content := mcc.Response.Content
+	content := mcc.Content
 
 	// Step 1: Blocked phrases — reject entirely (all levels).
 	for _, phrase := range g.config.BlockedPhrases {
 		if strings.Contains(content, phrase) {
-			mcc.Err = agentcore.NewNodeError("内容安全检查未通过", nil, "guardrail", phrase)
-			mcc.Response.Content = "抱歉，该回复因内容安全原因被拦截。"
+			mcc.Content = "抱歉，该回复因内容安全原因被拦截。"
+			mcc.Blocked = true
 			return
 		}
 	}
@@ -130,17 +129,14 @@ func (g *guardrail) AfterModelCall(_ context.Context, _ *agentcore.AgentRunConte
 			disclaimer = "⚠️ 本回复由 AI 生成，仅供参考，不构成专业建议。"
 		}
 		if g.hasRiskKeyword(content) && !strings.Contains(content, disclaimer) {
-			mcc.Response.Content = content + "\n\n---\n" + disclaimer
+			mcc.Content = content + "\n\n---\n" + disclaimer
 		}
 	}
 
 	// Step 3: Approval keywords — suppress persistence before human review (Strict only).
-	// This complements domains.ApprovalGate: the gate pauses execution and prompts
-	// the human operator, while SuppressPersist ensures the un-reviewed output is
-	// not written to the session store until approval is granted.
 	if g.config.Level >= LevelStrict && len(g.config.ApprovalKeywords) > 0 {
 		if g.hasApprovalKeyword(content) {
-			mcc.Response.SuppressPersist = true
+			mcc.SuppressPersist = true
 		}
 	}
 }

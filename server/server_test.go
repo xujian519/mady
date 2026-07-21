@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/mcp"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/skill"
@@ -1489,12 +1490,14 @@ Planner body`)
 	defer srv.Close()
 
 	events := make(chan agentcore.SkillsReloadedEvent, 1)
-	srv.On(agentcore.EventSkillsReloaded, func(e agentcore.Event) {
-		if ev, ok := e.(agentcore.SkillsReloadedEvent); ok {
-			events <- ev
-		}
-		if ev, ok := e.(*agentcore.SkillsReloadedEvent); ok {
-			events <- *ev
+	srv.On(iface.EventType(agentcore.EventSkillsReloaded), func(e iface.Event) {
+		if raw := e.Payload(); raw != nil {
+			if ev, ok := raw.(agentcore.SkillsReloadedEvent); ok {
+				events <- ev
+			}
+			if ev, ok := raw.(*agentcore.SkillsReloadedEvent); ok {
+				events <- *ev
+			}
 		}
 	})
 

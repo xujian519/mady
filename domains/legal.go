@@ -93,18 +93,18 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	// 法条引用核验 Gate（P1b）：R1 存在性 + R2 交叉匹配，命中疑点追加存疑提示。
 	// P1b 阶段统一按 Standard 处置；Strict 的 SuppressPersist + ApprovalGate 联动留待 P2。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard)),
+		agentcore.NewIFaceLifecycleHook(guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard))),
 	)
 
 	// Guardrail: LevelStrict with legal disclaimer + approval gate.
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		guardrails.New(
+		agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelStrict),
 			guardrails.WithDisclaimer(guardrails.DisclaimerLegal),
 			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("legal")),
 			guardrails.WithApproval(guardrails.ApprovalKeywordsFor("legal")),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-		),
+		)),
 	)
 
 	// Human approval gate for critical decisions.

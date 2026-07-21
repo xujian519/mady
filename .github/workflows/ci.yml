@@ -47,6 +47,22 @@ jobs:
           version: v2.12.2
           working-directory: tools
 
+  check-arch:
+    runs-on: ubuntu-latest
+    name: check-arch
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install go-arch-lint
+        run: go install github.com/fe3dback/go-arch-lint@latest
+
+      - name: Run architecture boundary checks
+        run: go-arch-lint check
+
   eval:
     runs-on: ubuntu-latest
     name: eval-benchmark
@@ -58,7 +74,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Run Golden Benchmark
-        run: go test -count=1 -v ./agentcore/evaluate/benchmark/ -run 'TestEvalSuite_'
+        run: go test -count=1 -v ./evaluate/benchmark/ -run 'TestEvalSuite_'
         env:
           MADY_LIVE_EVAL: ""
 

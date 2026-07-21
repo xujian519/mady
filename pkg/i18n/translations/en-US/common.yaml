@@ -1,0 +1,9 @@
+# Common translations
+common.yes: "Yes"
+common.no: "No"
+common.confirm: "Confirm"
+common.cancel: "Cancel"
+common.error: "Error"
+common.success: "Success"
+common.loading: "Loading..."
+common.unknown: "Unknown"

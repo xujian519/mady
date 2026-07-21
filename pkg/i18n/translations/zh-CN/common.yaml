@@ -1,0 +1,9 @@
+# 通用文案
+common.yes: "是"
+common.no: "否"
+common.confirm: "确认"
+common.cancel: "取消"
+common.error: "错误"
+common.success: "成功"
+common.loading: "加载中..."
+common.unknown: "未知"

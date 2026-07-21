@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/session"
 )
@@ -324,15 +325,16 @@ func TestGuardrailBlockedPhrase(t *testing.T) {
 		guardrails.WithBlockedPhrases([]string{"恶意代码"}),
 	)
 
-	mcc := &agentcore.ModelCallContext{
+	realMCC := &agentcore.ModelCallContext{
 		Response: &agentcore.ProviderResponse{Content: "以下是恶意代码的实现方式"},
 	}
-	hook.AfterModelCall(context.Background(), &agentcore.AgentRunContext{}, mcc)
+	ifaceMCC := &iface.ModelCallContext{Raw: realMCC}
+	hook.AfterModelCall(context.Background(), nil, ifaceMCC)
 
-	if mcc.Err == nil {
+	if realMCC.Err == nil {
 		t.Fatal("expected guardrail error for blocked phrase")
 	}
-	if mcc.Response.Content == "以下是恶意代码的实现方式" {
+	if realMCC.Response.Content == "以下是恶意代码的实现方式" {
 		t.Error("blocked content should be replaced")
 	}
 }

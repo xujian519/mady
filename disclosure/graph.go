@@ -300,7 +300,7 @@ func BuildDisclosureAnalysisGraphWithOpts(provider agentcore.Provider, opts ...G
 	if err := pg.AddNode("check_consistency", consistencyCheckNode()); err != nil {
 		return nil, err
 	}
-	if err := pg.AddNode("generate_keywords", generateKeywordsNode()); err != nil {
+	if err := pg.AddNode("generate_keywords", generateKeywordsNodeWithLLM(provider)); err != nil {
 		return nil, err
 	}
 	if err := pg.AddNode("retrieve_prior_art", retrievePriorArtNode(cfg.retriever)); err != nil {

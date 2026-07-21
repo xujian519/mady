@@ -1,0 +1,21 @@
+name: patent-agent
+domain: patent
+description: "专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对、专利申请文书。"
+guardrail_level: strict
+knowledge_domain: patent
+handoff_targets:
+  - chat-agent
+  - assistant-agent
+config:
+  model: gpt-4o
+  temperature: 0.1
+  max_tokens: 4096
+  engine: chunked
+  max_turns: 50
+  system_prompt: "你是专利代理人，负责专利检索、分析和撰写。"
+  tools:
+    - patent_search
+    - drafting
+    - doc_templates
+  skill_paths:
+    - skills/patent

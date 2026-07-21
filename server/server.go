@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/agui"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/inventiveness"
@@ -20,10 +21,40 @@ import (
 	"github.com/xujian519/mady/retrieval/domain"
 )
 
+// registerAPIRoute 同时注册新版（/api/v1/*）和旧版（/api/*）路由。
+// 新版附加 X-API-Version 头，旧版附加废弃提示头。
+func registerAPIRoute(mux *http.ServeMux, pattern string, handler http.Handler) {
+	parts := strings.SplitN(pattern, " ", 2)
+	var method, path string
+	if len(parts) == 2 {
+		method = parts[0]
+		path = parts[1]
+	} else {
+		path = parts[0]
+	}
+
+	v1Path := strings.Replace(path, "/api/", "/api/v1/", 1)
+	if v1Path == path {
+		// 没有 /api/ 前缀的路径（如 /v1/disclosure/*），保持原样
+		mux.Handle(pattern, handler)
+		return
+	}
+
+	var v1Pattern string
+	if method != "" {
+		v1Pattern = method + " " + v1Path
+	} else {
+		v1Pattern = v1Path
+	}
+
+	mux.Handle(v1Pattern, withVersionHeader(handler, "v1"))
+	mux.Handle(pattern, withDeprecationNotice(handler))
+}
+
 // Server exposes an Agent as an HTTP/SSE API.
 type Server struct {
 	config   *csync.Value[agentcore.Config]
-	eventBus *agentcore.EventBus
+	eventBus iface.EventBus
 	cors     CORSConfig
 	srv      atomic.Pointer[http.Server]
 
@@ -48,6 +79,10 @@ type Server struct {
 	// 在 disclosure 状态查询端点一并返回。key = disclosure task ID。
 	inventivenessResults *csync.Map[string, *inventiveness.InventivenessResult]
 
+	// metrics 记录 HTTP 请求指标。默认使用 NopMetricsRecorder（静默），
+	// 可通过 SetMetricsRecorder 注入 Prometheus 等生产实现。
+	metrics MetricsRecorder
+
 	maxRequestBodyBytes atomic.Int64
 }
 
@@ -66,9 +101,10 @@ type CORSConfig struct {
 func New(cfg agentcore.Config) *Server {
 	s := &Server{
 		config:               csync.NewValue(cfg),
-		eventBus:             agentcore.NewEventBus(),
+		eventBus:             agentcore.NewIFaceEventBus(agentcore.NewEventBus()),
 		poolLimit:            64,
 		inventivenessResults: csync.NewMap[string, *inventiveness.InventivenessResult](),
+		metrics:              NopMetricsRecorder{},
 	}
 	s.maxRequestBodyBytes.Store(defaultMaxRequestBodyBytes)
 	return s
@@ -85,6 +121,15 @@ func (s *Server) SetMaxRequestBodyBytes(n int64) {
 		n = defaultMaxRequestBodyBytes
 	}
 	s.maxRequestBodyBytes.Store(n)
+}
+
+// SetMetricsRecorder 注入自定义指标记录器。传入 nil 时复位为 NopMetricsRecorder。
+func (s *Server) SetMetricsRecorder(m MetricsRecorder) {
+	if m == nil {
+		s.metrics = NopMetricsRecorder{}
+		return
+	}
+	s.metrics = m
 }
 
 // SetApprovalStore 注入人工决策留痕存储（如 domains/sqlite.SQLiteApprovalStore）。
@@ -143,12 +188,12 @@ func (s *Server) limitedBody(w http.ResponseWriter, r *http.Request) io.Reader {
 	return http.MaxBytesReader(w, r.Body, limit)
 }
 
-func (s *Server) On(t agentcore.EventType, h agentcore.EventHandler) func() {
+func (s *Server) On(t iface.EventType, h iface.EventHandler) func() {
 	return s.eventBus.On(t, h)
 }
-func (s *Server) OnAll(h agentcore.EventHandler) func() { return s.eventBus.OnAll(h) }
-func (s *Server) EmitEvent(e agentcore.Event)           { s.eventBus.Emit(e) }
-func (s *Server) EventBus() *agentcore.EventBus         { return s.eventBus }
+func (s *Server) OnAll(h iface.EventHandler) func() { return s.eventBus.OnAll(h) }
+func (s *Server) EmitEvent(e iface.Event)           { s.eventBus.Emit(e) }
+func (s *Server) EventBus() iface.EventBus          { return s.eventBus }
 func (s *Server) Close() {
 	s.eventBus.Close()
 	// 摘除全部池化 entry：空闲的立即 Close，仍在使用中的标记 evicted，
@@ -173,30 +218,51 @@ func (s *Server) Close() {
 // Mount it on your own mux or pass directly to http.ListenAndServe.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/chat", s.handleChat)
-	mux.HandleFunc("GET /api/skills", s.handleListSkills)
-	mux.HandleFunc("GET /api/skills/diagnostics", s.handleSkillDiagnostics)
-	mux.HandleFunc("GET /api/skills/events", s.handleSkillEvents)
-	mux.HandleFunc("GET /api/skills/status", s.handleSkillStatus)
-	mux.HandleFunc("POST /api/skills/reload", s.handleReloadSkills)
+
+	// 健康检查端点
+	mux.HandleFunc("GET /health", handleHealthFast)
+	mux.HandleFunc("GET /ready", s.handleReady)
+
+	// Chat API
+	registerAPIRoute(mux, "POST /api/chat", http.HandlerFunc(s.handleChat))
+
+	// Skills API
+	registerAPIRoute(mux, "GET /api/skills", http.HandlerFunc(s.handleListSkills))
+	registerAPIRoute(mux, "GET /api/skills/diagnostics", http.HandlerFunc(s.handleSkillDiagnostics))
+	registerAPIRoute(mux, "GET /api/skills/events", http.HandlerFunc(s.handleSkillEvents))
+	registerAPIRoute(mux, "GET /api/skills/status", http.HandlerFunc(s.handleSkillStatus))
+	registerAPIRoute(mux, "POST /api/skills/reload", http.HandlerFunc(s.handleReloadSkills))
+
+	// Disclosure API（已是 /v1/disclosure/* 版本化）
 	mux.HandleFunc("POST /v1/disclosure/analyze", s.handleDisclosureAnalyze)
 	mux.HandleFunc("GET /v1/disclosure/analyze/{task_id}", s.handleDisclosureStatus)
 	mux.HandleFunc("GET /v1/disclosure/analyze/{task_id}/stream", s.handleDisclosureStream)
 	mux.HandleFunc("POST /v1/disclosure/analyze/{task_id}/review", s.handleDisclosureReview)
-	mux.HandleFunc("POST /api/threads", s.handleCreateThread)
-	mux.HandleFunc("GET /api/threads", s.handleListThreads)
-	mux.HandleFunc("GET /api/threads/{key}", s.handleGetThread)
-	mux.HandleFunc("GET /api/threads/{key}/config", s.handleGetThreadConfig)
-	mux.HandleFunc("PUT /api/threads/{key}/config", s.handlePutThreadConfig)
-	mux.HandleFunc("GET /api/threads/{key}/thinking", s.handleGetThreadThinking)
-	mux.HandleFunc("PUT /api/threads/{key}/thinking", s.handlePutThreadThinking)
-	mux.HandleFunc("POST /api/threads/{key}/branch", s.handleBranchThread)
-	mux.HandleFunc("DELETE /api/threads/{key}", s.handleDeleteThread)
-	mux.HandleFunc("GET /api/states", s.handleListStates)
-	mux.HandleFunc("GET /api/states/{key}", s.handleGetState)
-	mux.HandleFunc("DELETE /api/states/{key}", s.handleDeleteState)
+
+	// Threads API
+	registerAPIRoute(mux, "POST /api/threads", http.HandlerFunc(s.handleCreateThread))
+	registerAPIRoute(mux, "GET /api/threads", http.HandlerFunc(s.handleListThreads))
+	registerAPIRoute(mux, "GET /api/threads/{key}", http.HandlerFunc(s.handleGetThread))
+	registerAPIRoute(mux, "GET /api/threads/{key}/config", http.HandlerFunc(s.handleGetThreadConfig))
+	registerAPIRoute(mux, "PUT /api/threads/{key}/config", http.HandlerFunc(s.handlePutThreadConfig))
+	registerAPIRoute(mux, "GET /api/threads/{key}/thinking", http.HandlerFunc(s.handleGetThreadThinking))
+	registerAPIRoute(mux, "PUT /api/threads/{key}/thinking", http.HandlerFunc(s.handlePutThreadThinking))
+	registerAPIRoute(mux, "POST /api/threads/{key}/branch", http.HandlerFunc(s.handleBranchThread))
+	registerAPIRoute(mux, "DELETE /api/threads/{key}", http.HandlerFunc(s.handleDeleteThread))
+
+	// States API
+	registerAPIRoute(mux, "GET /api/states", http.HandlerFunc(s.handleListStates))
+	registerAPIRoute(mux, "GET /api/states/{key}", http.HandlerFunc(s.handleGetState))
+	registerAPIRoute(mux, "DELETE /api/states/{key}", http.HandlerFunc(s.handleDeleteState))
+
+	// AG-UI 事件流（不添加版本化，保持独立路径）
 	mux.Handle("/agui/{path}", s.aguiHandler())
-	return withCORS(mux, s.cors)
+
+	// 构建中间件链：loggingMiddleware 包裹所有非 /agui/ 处理逻辑
+	// /agui/ 是 SSE 长连接，不适合请求日志。
+	h := withCORS(mux, s.cors)
+	h = loggingMiddleware(h)
+	return h
 }
 
 func (s *Server) aguiHandler() http.Handler {

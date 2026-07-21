@@ -23,6 +23,12 @@ repos:
         entry: bash -ec 'G="$(go env GOPATH)/bin/goimports"; [ -x "$G" ] || G=goimports; "$G" -l -w -local github.com/xujian519/mady "$@"' --
         language: system
         files: \.go$
+      - id: check-arch-boundaries
+        name: architecture boundaries
+        entry: bash scripts/check-arch-boundaries.sh
+        language: system
+        files: '\.go$'
+        pass_filenames: false
       - id: go-vet
         name: go vet
         # go.work 多模块结构：必须分别 vet 根模块和 tools/ 子模块，

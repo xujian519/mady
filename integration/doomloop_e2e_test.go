@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/doomloop"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/doomloop"
 )
 
 // ============================================================================

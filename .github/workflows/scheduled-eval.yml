@@ -23,7 +23,7 @@ jobs:
           go-version: '1.25'
 
       - name: Build benchmark
-        run: go build ./agentcore/evaluate/benchmark/
+        run: go build ./evaluate/benchmark/
 
       - name: Run live evaluation (P2a suite)
         env:
@@ -34,7 +34,7 @@ jobs:
           MADY_EVAL_JUDGE_MODEL: 'deepseek-flash'
           MADY_JUDGE_SAMPLES: '3'
         run: |
-          go test -count=1 -v ./agentcore/evaluate/benchmark/ -run 'TestEvalSuite_' -timeout 40m
+          go test -count=1 -v ./evaluate/benchmark/ -run 'TestEvalSuite_' -timeout 40m
 
       - name: Upload eval results
         if: always()

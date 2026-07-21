@@ -1,7 +1,7 @@
 package domains
 
 import (
-	"github.com/xujian519/mady/agentcore/evaluate"
+	"github.com/xujian519/mady/evaluate"
 )
 
 // ApprovalToTestCase converts a single ApprovalRecord (where the human
