@@ -17,7 +17,7 @@
 | A3 | `CONTRIBUTING.md` | 协作规范 | ~290 | 开发环境搭建、目录结构、编码规范、PR 流程、审查分级（L1-L4）、专有开发流程 |
 | A4 | `SECURITY.md` | 安全规范 | ~85 | 漏洞报告、密钥管理、工具执行、护栏配置、权限门控、敏感路径 |
 | A5 | `.pre-commit-config.yaml` | 门禁配置 | 55 | pre-commit 钩子（gofmt/goimports/go vet/golangci-lint/sensitive-paths/commitlint） |
-| A6 | `commitlint.config.js` | 版本控制 | 12 | Conventional Commits 强制 + header-max-length=120 + 中文支持 |
+| A6 | `commitlint.config.mjs` | 版本控制 | 12 | Conventional Commits 强制 + header-max-length=120 + 中文支持 |
 | A7 | `.golangci.yml` | Lint 规范 | 184 | 18 个启用 linter、细粒度排除规则、formatter 配置 |
 | A8 | `Makefile` | 构建规范 | ~200 | 标准化构建/测试/lint/安装入口 |
 
