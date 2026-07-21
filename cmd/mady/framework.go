@@ -144,7 +144,7 @@ func setupFrameworkContext(ctx context.Context, cmdName string) *frameworkContex
 			ValidateArguments: true,
 		},
 		CompactionConfig: agentcore.CompactionConfig{
-			ContextWindow:    128000,
+			ContextWindow:    agentconfig.ResolveContextWindow(model),
 			ReserveTokens:    32000,
 			KeepRecentTokens: 4000,
 		},

@@ -8,6 +8,7 @@ import (
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/memory"
+	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/tools"
 )
 
@@ -93,7 +94,7 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 				ValidateArguments: true,
 			},
 			CompactionConfig: agentcore.CompactionConfig{
-				ContextWindow:    128000,
+				ContextWindow:    agentconfig.ResolveContextWindow(s.model),
 				ReserveTokens:    32000,
 				KeepRecentTokens: 4000,
 			},

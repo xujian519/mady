@@ -9,6 +9,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/pkg/agentconfig"
 )
 
 // RunOptions configures a ready-to-run ACP server assembled by RunServer.
@@ -29,6 +30,9 @@ type RunOptions struct {
 	SystemPrompt string
 	// MaxTurns caps the agent loop iterations per prompt (default 25).
 	MaxTurns int
+	// ContextWindow overrides the auto-resolved context window (in tokens)
+	// for the model. 0 means auto-resolve based on the model name.
+	ContextWindow int64
 	// Lifecycle 注入知识检索等生命周期钩子（如 Wiki RAG）。
 	// 为 nil 时不注入任何钩子，保持裸 LLM 对话。
 	Lifecycle agentcore.LifecycleHook
@@ -104,6 +108,12 @@ func (f *acpAgentFactory) AvailableModes() []SessionMode {
 }
 
 func buildAgentConfig(opts RunOptions, model string) agentcore.Config {
+	// Resolve context window: explicit override takes priority, otherwise
+	// auto-resolve based on model name (e.g. deepseek-v4 → 1M).
+	ctxWindow := opts.ContextWindow
+	if ctxWindow <= 0 {
+		ctxWindow = agentconfig.ResolveContextWindow(model)
+	}
 	maxTurns := opts.MaxTurns
 	if maxTurns <= 0 {
 		maxTurns = 25
@@ -128,7 +138,7 @@ func buildAgentConfig(opts RunOptions, model string) agentcore.Config {
 			ValidateArguments: true,
 		},
 		CompactionConfig: agentcore.CompactionConfig{
-			ContextWindow:    128000,
+			ContextWindow:    ctxWindow,
 			ReserveTokens:    32000,
 			KeepRecentTokens: 4000,
 		},

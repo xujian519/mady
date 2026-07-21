@@ -91,6 +91,29 @@ func BuildProvider() (*chatcompat.Provider, error) {
 	}), nil
 }
 
+// ResolveContextWindow returns the appropriate context window size (in tokens)
+// for the given model name. Each supported model is explicitly listed with its
+// documented maximum context window. Unknown models return a safe default of
+// 256K to avoid overly aggressive compaction on untested model combinations.
+//
+// Supported models (aligned with DefaultModel + provider package):
+//
+//	deepseek-v4-flash / deepseek-v4-pro  → 1,000,000 (1M)
+//	kimi-k2.6 / kimi-k2.7-code           → 1,000,000 (1M)
+//	glm-5.2 / glm-5v-turbo              → 1,000,000 (1M)
+//	generic / unknown                    →   256,000 (256K, safe default)
+func ResolveContextWindow(model string) int64 {
+	name := strings.ToLower(strings.TrimSpace(model))
+	switch {
+	case strings.HasPrefix(name, "deepseek-v4"),
+		strings.HasPrefix(name, "kimi-k2"),
+		strings.HasPrefix(name, "glm-5"):
+		return 1_000_000
+	default:
+		return 256_000
+	}
+}
+
 // DefaultModel returns the conventional model id for the configured provider.
 // For the "generic" provider the MODEL env var is used (empty when unset).
 func DefaultModel() string {
