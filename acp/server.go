@@ -19,6 +19,19 @@ import (
 	"github.com/xujian519/mady/pkg/csync"
 )
 
+// ---------------------------------------------------------------------------
+// ACP Server — method handlers grouped by responsibility.
+// Types: Server, acpResponse, ServerConfig
+// Lifecycle: NewServer, isTimeoutError, Run
+// Outbound: sendRequest, deliverClientResponse
+// Permission: RequestPermission, DefaultPermissionOptions, ...
+// File operations: clientSupportsFS, ReadTextFile, WriteTextFile, sessionFS
+// Response helpers: writeResponse, writeNotification, writeError
+// Request dispatch: handleRequest
+// Method handlers: handleInitialize through buildModelState/buildModeState
+// Utilities: extractPromptContent, validateClientCapabilities, ...
+// ---------------------------------------------------------------------------
+
 type Server struct {
 	sessionMgr *SessionManager
 	agentInfo  AgentInfo
@@ -70,6 +83,9 @@ type ServerConfig struct {
 	ApprovalStore domains.ApprovalStore
 }
 
+// ---------------------------------------------------------------------------
+// Server construction
+
 func NewServer(cfg ServerConfig) *Server {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -101,6 +117,9 @@ func NewServer(cfg ServerConfig) *Server {
 }
 
 // isTimeoutError returns true when an I/O error is due to a read deadline expiry.
+// ---------------------------------------------------------------------------
+// Server lifecycle: isTimeoutError, Run
+
 func isTimeoutError(err error) bool {
 	if e, ok := err.(interface{ Timeout() bool }); ok {
 		return e.Timeout()
@@ -160,6 +179,9 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Outbound requests: sendRequest, deliverClientResponse
+
 // sendRequest issues an outbound JSON-RPC request to the client and waits for
 // the response. Used for client-side methods like session/request_permission.
 func (s *Server) sendRequest(method string, params any, timeout time.Duration) (json.RawMessage, error) {
@@ -217,6 +239,10 @@ func (s *Server) deliverClientResponse(id any, line []byte) {
 	}
 	ch <- acpResponse{result: resp.Result}
 }
+
+// ---------------------------------------------------------------------------
+// Permission operations: RequestPermission, DefaultPermissionOptions,
+// permissionDecisionFor, recordPermissionDecision
 
 // RequestPermission asks the client (editor) to authorize a tool call and
 // returns the user's outcome. Mirrors ACP's session/request_permission.
@@ -279,6 +305,10 @@ func (s *Server) recordPermissionDecision(ctx context.Context, sessionID, toolNa
 	}
 }
 
+// ---------------------------------------------------------------------------
+// File operations (via client): clientSupportsFS, ReadTextFile,
+// WriteTextFile, sessionFS
+
 // clientSupportsFS reports whether the client advertised filesystem capability,
 // meaning the agent should read/write through the editor (seeing unsaved
 // buffers) instead of touching disk directly.
@@ -329,6 +359,9 @@ func (f *sessionFS) ReadTextFile(path string) ([]byte, error) {
 func (f *sessionFS) WriteTextFile(path string, content []byte) error {
 	return f.server.WriteTextFile(f.sessionID, path, content)
 }
+
+// ---------------------------------------------------------------------------
+// Response helpers: writeResponse, writeNotification, writeError
 
 func (s *Server) writeResponse(id any, result any) {
 	resp := JSONRPCResponse{
@@ -394,6 +427,9 @@ func (s *Server) writeError(id any, code int, message string, data any) {
 	s.writerMu.Unlock()
 }
 
+// ---------------------------------------------------------------------------
+// Request dispatch: handleRequest
+
 func (s *Server) handleRequest(ctx context.Context, req *JSONRPCRequest) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -437,6 +473,9 @@ func (s *Server) handleRequest(ctx context.Context, req *JSONRPCRequest) {
 		s.writeError(req.ID, -32601, "Method not found", req.Method)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Method handlers: handleInitialize, handleAuthenticate, handleNewSession, ...
 
 func (s *Server) handleInitialize(req *JSONRPCRequest) {
 	var params InitializeParams
@@ -835,6 +874,9 @@ func (s *Server) handleSetModel(req *JSONRPCRequest) {
 	s.writeResponse(req.ID, nil)
 }
 
+// ---------------------------------------------------------------------------
+// State builders: buildModelState, buildModeState, sendNotification
+
 func (s *Server) buildModelState(state *sessionState) *SessionModelState {
 	if state == nil {
 		return nil
@@ -862,6 +904,10 @@ func (s *Server) buildModeState() *SessionModeState {
 func (s *Server) sendNotification(sessionID string, method string, params any) {
 	s.writeNotification(method, params)
 }
+
+// ---------------------------------------------------------------------------
+// Utilities: extractPromptContent, validateClientCapabilities,
+// noopAuthProvider, sanitizeCWD
 
 // extractPromptContent flattens an ACP prompt (an array of content blocks) into
 // a single text prompt. It handles every block type Zed may send: plain text,

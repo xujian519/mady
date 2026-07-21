@@ -353,6 +353,172 @@ func indexSubstr(r []rune, i int64, s string) int64 {
 	return -1
 }
 
+// ---------------------------------------------------------------------------
+// tokenize helpers — each handles one lexical category.
+// All return (newI, token, handled); when handled is false the caller should
+// try the next category.
+
+// tokenizeComment handles block comment continuation across lines and
+// block comment start.  It also manages the inBlockComment state flag.
+func tokenizeComment(r []rune, i int64, spec *LangSpec, inBlockComment *bool) (int64, Token, bool) {
+	if *inBlockComment {
+		end := spec.BlockComment[1]
+		if end != "" {
+			if idx := indexSubstr(r, i, end); idx >= 0 {
+				seg := string(r[i : i+idx+int64(len([]rune(end)))])
+				*inBlockComment = false
+				return i + idx + int64(len([]rune(end))), Token{Kind: TokComment, Text: seg}, true
+			}
+			// Till end-of-line.
+			nlIdx := indexNewline(r, i)
+			if nlIdx < 0 {
+				return int64(len(r)), Token{Kind: TokComment, Text: string(r[i:])}, true
+			}
+			return i + nlIdx, Token{Kind: TokComment, Text: string(r[i : i+nlIdx])}, true
+		}
+		// Misconfigured spec — treat as text and bail out.
+		*inBlockComment = false
+		return i, Token{}, false
+	}
+	// Block comment start.
+	if spec.BlockComment[0] != "" && hasPrefixAt(r, i, spec.BlockComment[0]) {
+		end := spec.BlockComment[1]
+		start := i
+		i += int64(len([]rune(spec.BlockComment[0])))
+		if end != "" {
+			if idx := indexSubstr(r, i, end); idx >= 0 {
+				closeIdx := i + idx + int64(len([]rune(end)))
+				return closeIdx, Token{Kind: TokComment, Text: string(r[start:closeIdx])}, true
+			}
+		}
+		// Continues past end-of-line.
+		nlIdx := indexNewline(r, i)
+		if nlIdx < 0 {
+			*inBlockComment = true
+			return int64(len(r)), Token{Kind: TokComment, Text: string(r[start:])}, true
+		}
+		*inBlockComment = true
+		return i + nlIdx, Token{Kind: TokComment, Text: string(r[start : i+nlIdx])}, true
+	}
+	return i, Token{}, false
+}
+
+// tokenizeLineComment handles //-style and #-style line comments.
+func tokenizeLineComment(r []rune, i int64, spec *LangSpec) (int64, Token, bool) {
+	var ok bool
+	switch {
+	case spec.LineComment != "" && hasPrefixAt(r, i, spec.LineComment):
+		ok = true
+	case spec.HashComment && r[i] == '#':
+		ok = true
+	}
+	if !ok {
+		return i, Token{}, false
+	}
+	nlIdx := indexNewline(r, i)
+	var seg string
+	if nlIdx < 0 {
+		seg = string(r[i:])
+		i = int64(len(r))
+	} else {
+		seg = string(r[i : i+nlIdx])
+		i += nlIdx
+	}
+	return i, Token{Kind: TokComment, Text: seg}, true
+}
+
+// tokenizeString handles raw and escaped string literals.
+func tokenizeString(r []rune, i int64, spec *LangSpec) (int64, Token, bool) {
+	if j, ok := matchStringStart(r, i, spec.RawStringDelims); ok {
+		delim := spec.RawStringDelims[j]
+		end := consumeRawString(r, i+int64(len(delim)), delim)
+		return end, Token{Kind: TokString, Text: string(r[i:end])}, true
+	}
+	if j, ok := matchStringStart(r, i, spec.StringDelims); ok {
+		delim := spec.StringDelims[j]
+		end := consumeEscapedString(r, i+int64(len(delim)), delim)
+		return end, Token{Kind: TokString, Text: string(r[i:end])}, true
+	}
+	return i, Token{}, false
+}
+
+// tokenizeNumber handles numeric literals (decimal, hex, octal, binary, float).
+func tokenizeNumber(r []rune, i int64, n int64) (int64, Token, bool) {
+	c := r[i]
+	if !unicode.IsDigit(c) {
+		if c != '.' || i+1 >= n || !unicode.IsDigit(r[i+1]) {
+			return i, Token{}, false
+		}
+	}
+	end := i + 1
+	sawDot := c == '.'
+	for end < n {
+		ch := r[end]
+		if unicode.IsDigit(ch) {
+			end++
+			continue
+		}
+		if ch == '.' && !sawDot {
+			sawDot = true
+			end++
+			continue
+		}
+		// hex / oct / bin / e-notation / underscores
+		if (ch == 'x' || ch == 'X' || ch == 'o' || ch == 'O' || ch == 'b' || ch == 'B' ||
+			ch == 'e' || ch == 'E' || ch == '_' || ch == '+' || ch == '-') && end > i {
+			// Only allow +/- directly after e/E.
+			if (ch == '+' || ch == '-') && (r[end-1] != 'e' && r[end-1] != 'E') {
+				break
+			}
+			end++
+			continue
+		}
+		if isHexDigit(ch) && end > i+1 && (r[i+1] == 'x' || r[i+1] == 'X') {
+			end++
+			continue
+		}
+		break
+	}
+	return end, Token{Kind: TokNumber, Text: string(r[i:end])}, true
+}
+
+// tokenizeIdent handles identifiers, keywords, type names, and function calls.
+func tokenizeIdent(r []rune, i int64, n int64, spec *LangSpec) (int64, Token, bool) {
+	if !isIdentStart(r[i]) {
+		return i, Token{}, false
+	}
+	end := i + 1
+	for end < n && isIdentCont(r[end]) {
+		end++
+	}
+	text := string(r[i:end])
+	kind := TokText
+	switch {
+	case spec.Keywords != nil && spec.Keywords[text]:
+		kind = TokKeyword
+	case spec.Types != nil && spec.Types[text]:
+		kind = TokType
+	case !spec.DisableFunctionHighlight && end < n && r[end] == '(':
+		kind = TokFunction
+	}
+	return end, Token{Kind: kind, Text: text}, true
+}
+
+// tokenizePunct handles operators and single punctuation characters.
+func tokenizePunct(r []rune, i int64, n int64) (int64, Token, bool) {
+	if isOperatorRune(r[i]) {
+		end := i + 1
+		for end < n && isOperatorRune(r[end]) {
+			end++
+		}
+		return end, Token{Kind: TokOperator, Text: string(r[i:end])}, true
+	}
+	if isPunctuation(r[i]) {
+		return i + 1, Token{Kind: TokPunctuation, Text: string(r[i])}, true
+	}
+	return i, Token{}, false
+}
+
 // tokenize produces tokens grouped by source line, respecting block comment
 // continuations across lines.
 func tokenize(source string, spec *LangSpec) [][]Token {
@@ -374,177 +540,31 @@ func tokenize(source string, spec *LangSpec) [][]Token {
 			continue
 		}
 
-		// Block comment continuation.
-		if inBlockComment {
-			end := spec.BlockComment[1]
-			if end != "" {
-				if idx := indexSubstr(r, i, end); idx >= 0 {
-					seg := string(r[i : i+idx+int64(len([]rune(end)))])
-					cur = append(cur, Token{Kind: TokComment, Text: seg})
-					i += idx + int64(len([]rune(end)))
-					inBlockComment = false
-					continue
-				}
-				// Till end-of-line.
-				nlIdx := indexNewline(r, i)
-				var seg string
-				if nlIdx < 0 {
-					seg = string(r[i:])
-					i = n
-				} else {
-					seg = string(r[i : i+nlIdx])
-					i += nlIdx
-				}
-				cur = append(cur, Token{Kind: TokComment, Text: seg})
-				continue
-			}
-			// Misconfigured spec — treat as text and bail out.
-			inBlockComment = false
-		}
+		var tok Token
+		var handled bool
 
-		// Block comment start.
-		if spec.BlockComment[0] != "" && hasPrefixAt(r, i, spec.BlockComment[0]) {
-			end := spec.BlockComment[1]
-			start := i
-			i += int64(len([]rune(spec.BlockComment[0])))
-			// Find end on the same slice.
-			if idx := indexSubstr(r, i, end); idx >= 0 {
-				closeIdx := i + idx + int64(len([]rune(end)))
-				seg := string(r[start:closeIdx])
-				cur = append(cur, Token{Kind: TokComment, Text: seg})
-				i = closeIdx
-			} else {
-				// Continues past end-of-line.
-				nlIdx := indexNewline(r, i)
-				if nlIdx < 0 {
-					cur = append(cur, Token{Kind: TokComment, Text: string(r[start:])})
-					i = n
-				} else {
-					cur = append(cur, Token{Kind: TokComment, Text: string(r[start : i+nlIdx])})
-					i += nlIdx
-				}
-				inBlockComment = true
-			}
+		if i, tok, handled = tokenizeComment(r, i, spec, &inBlockComment); handled {
+			cur = append(cur, tok)
 			continue
 		}
-
-		// Line comment.
-		if spec.LineComment != "" && hasPrefixAt(r, i, spec.LineComment) {
-			nlIdx := indexNewline(r, i)
-			var seg string
-			if nlIdx < 0 {
-				seg = string(r[i:])
-				i = n
-			} else {
-				seg = string(r[i : i+nlIdx])
-				i += nlIdx
-			}
-			cur = append(cur, Token{Kind: TokComment, Text: seg})
+		if i, tok, handled = tokenizeLineComment(r, i, spec); handled {
+			cur = append(cur, tok)
 			continue
 		}
-		if spec.HashComment && c == '#' {
-			nlIdx := indexNewline(r, i)
-			var seg string
-			if nlIdx < 0 {
-				seg = string(r[i:])
-				i = n
-			} else {
-				seg = string(r[i : i+nlIdx])
-				i += nlIdx
-			}
-			cur = append(cur, Token{Kind: TokComment, Text: seg})
+		if i, tok, handled = tokenizeString(r, i, spec); handled {
+			cur = append(cur, tok)
 			continue
 		}
-
-		// Raw strings.
-		if j, ok := matchStringStart(r, i, spec.RawStringDelims); ok {
-			delim := spec.RawStringDelims[j]
-			end := consumeRawString(r, i+int64(len(delim)), delim)
-			cur = append(cur, Token{Kind: TokString, Text: string(r[i:end])})
-			i = end
+		if i, tok, handled = tokenizeNumber(r, i, n); handled {
+			cur = append(cur, tok)
 			continue
 		}
-
-		// Regular strings (with escape).
-		if j, ok := matchStringStart(r, i, spec.StringDelims); ok {
-			delim := spec.StringDelims[j]
-			end := consumeEscapedString(r, i+int64(len(delim)), delim)
-			cur = append(cur, Token{Kind: TokString, Text: string(r[i:end])})
-			i = end
+		if i, tok, handled = tokenizeIdent(r, i, n, spec); handled {
+			cur = append(cur, tok)
 			continue
 		}
-
-		// Numbers.
-		if unicode.IsDigit(c) || (c == '.' && i+1 < n && unicode.IsDigit(r[i+1])) {
-			end := i + 1
-			sawDot := c == '.'
-			for end < n {
-				ch := r[end]
-				if unicode.IsDigit(ch) {
-					end++
-					continue
-				}
-				if ch == '.' && !sawDot {
-					sawDot = true
-					end++
-					continue
-				}
-				// hex / oct / bin / e-notation / underscores
-				if (ch == 'x' || ch == 'X' || ch == 'o' || ch == 'O' || ch == 'b' || ch == 'B' ||
-					ch == 'e' || ch == 'E' || ch == '_' || ch == '+' || ch == '-') && end > i {
-					// Only allow +/- directly after e/E.
-					if (ch == '+' || ch == '-') && (r[end-1] != 'e' && r[end-1] != 'E') {
-						break
-					}
-					end++
-					continue
-				}
-				if isHexDigit(ch) && end > i+1 && (r[i+1] == 'x' || r[i+1] == 'X') {
-					end++
-					continue
-				}
-				break
-			}
-			cur = append(cur, Token{Kind: TokNumber, Text: string(r[i:end])})
-			i = end
-			continue
-		}
-
-		// Identifier / keyword / type / function-call.
-		if isIdentStart(c) {
-			end := i + 1
-			for end < n && isIdentCont(r[end]) {
-				end++
-			}
-			text := string(r[i:end])
-			kind := TokText
-			switch {
-			case spec.Keywords != nil && spec.Keywords[text]:
-				kind = TokKeyword
-			case spec.Types != nil && spec.Types[text]:
-				kind = TokType
-			case !spec.DisableFunctionHighlight && end < n && r[end] == '(':
-				kind = TokFunction
-			}
-			cur = append(cur, Token{Kind: kind, Text: text})
-			i = end
-			continue
-		}
-
-		// Operators / punctuation.
-		if isOperatorRune(c) {
-			end := i + 1
-			for end < n && isOperatorRune(r[end]) {
-				end++
-			}
-			cur = append(cur, Token{Kind: TokOperator, Text: string(r[i:end])})
-			i = end
-			continue
-		}
-
-		if isPunctuation(c) {
-			cur = append(cur, Token{Kind: TokPunctuation, Text: string(c)})
-			i++
+		if i, tok, handled = tokenizePunct(r, i, n); handled {
+			cur = append(cur, tok)
 			continue
 		}
 
