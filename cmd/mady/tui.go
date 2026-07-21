@@ -241,7 +241,12 @@ func runTui(ctx context.Context) {
 			app.PrintSystem("⚠ " + p.UserMessage)
 		}
 	}
-	app.PrintSystem("Mady 已就绪")
+	// 结构化欢迎信息：品牌标识 + 命令速查 + 当前上下文。
+	projectLabel := "无"
+	if s.currentProject != nil {
+		projectLabel = s.currentProject.Alias
+	}
+	app.PrintWelcome(s.providerName, s.normalModel, modeLabel, projectLabel)
 
 	// 先启动 TUI 渲染，再在后台初始化 Agent 和延迟任务。
 	if err := app.Start(); err != nil {

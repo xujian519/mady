@@ -548,6 +548,123 @@ func (a *ChatApp) ClearJudgmentSummary() {
 	a.layout.updateJudgmentView()
 }
 
+// PrintWelcome appends a structured welcome message to the chat history,
+// displayed with RoleSystem styling (▌ prefix + system color).
+//
+// Format (centered layout with effective width = terminal width - 2):
+//
+//	                   ◈ Mady ◈
+//	               中观智能体 · β
+//
+//	               ─── 快速命令 ───
+//
+//	/help  快捷键指南       /clear 开始新对话
+//	/case  案件上下文       /plan  计划/行动模式
+//	/review 审核关卡        /thinking 推理显示
+//	/theme  切换深色/浅色   /settings 设置面板
+//
+//	               ─── 当前上下文 ───
+//
+//	 提供方: deepseek · 模型: deepseek-v4-flash
+//	 模式:   集成 · 案件: 无
+//
+//	 💡 输入 / 查看命令，或直接用自然语言向我提问
+//
+// Two-column command layout degrades to single-column below 60 cols.
+func (a *ChatApp) PrintWelcome(provider, model, mode, project string) {
+	width := int64(80)
+	if a.host != nil {
+		if w, _ := a.host.TerminalSize(); w > 0 {
+			width = w
+		}
+	}
+	// Account for the "▌ " prefix added by RoleSystem renderer.
+	contentW := width - 2
+	if contentW < 40 {
+		contentW = 40
+	}
+
+	var b strings.Builder
+
+	// Top breathing space.
+	b.WriteString("\n")
+
+	// Centered title: "  ◈ Mady ◈  "
+	title := "  ◈ Mady ◈  "
+	pad := int(contentW-core.VisibleWidth(title)) / 2
+	if pad > 0 {
+		b.WriteString(strings.Repeat(" ", pad))
+	}
+	b.WriteString(title)
+	b.WriteString("\n")
+
+	// Centered subtitle.
+	sub := "中观智能体 · β"
+	pad = int(contentW-core.VisibleWidth(sub)) / 2
+	if pad > 0 {
+		b.WriteString(strings.Repeat(" ", pad))
+	}
+	b.WriteString(sub)
+	b.WriteString("\n\n")
+
+	// Separator with label.
+	b.WriteString(centeredLabel(contentW, "快速命令"))
+	b.WriteString("\n\n")
+
+	// Command list — dual-column layout when width permits.
+	type cmdPair struct{ left, right string }
+	pairs := []cmdPair{
+		{"/help  快捷键指南", "/clear 开始新对话"},
+		{"/case  案件上下文", "/plan  计划/行动模式"},
+		{"/review 审核关卡", "/thinking 推理显示"},
+		{"/theme  切换深色/浅色", "/settings 设置面板"},
+	}
+
+	if contentW >= 60 {
+		colW := contentW / 2
+		for _, p := range pairs {
+			left := core.PadToWidth(p.left, colW)
+			b.WriteString(left)
+			b.WriteString(p.right)
+			b.WriteString("\n")
+		}
+	} else {
+		for _, p := range pairs {
+			b.WriteString("  ")
+			b.WriteString(p.left)
+			b.WriteString("\n  ")
+			b.WriteString(p.right)
+			b.WriteString("\n")
+		}
+	}
+
+	b.WriteString("\n")
+
+	// Context separator.
+	b.WriteString(centeredLabel(contentW, "当前上下文"))
+	b.WriteString("\n\n")
+
+	// Context info lines.
+	fmt.Fprintf(&b, "  提供方: %s · 模型: %s\n", provider, model)
+	fmt.Fprintf(&b, "  模式:   %s · 案件: %s\n", mode, project)
+
+	b.WriteString("\n")
+	b.WriteString("  💡 输入 / 查看命令，或直接用自然语言向我提问\n")
+	b.WriteString("\n")
+
+	a.history.Append(ChatMessage{Role: RoleSystem, Text: b.String()})
+}
+
+// centeredLabel returns a line like "──── 标签 ────" centered within width.
+func centeredLabel(width int64, label string) string {
+	text := "─── " + label + " ───"
+	pad := int(width-core.VisibleWidth(text)) / 2
+	if pad < 0 {
+		pad = 0
+	}
+	return strings.Repeat(" ", pad) + text
+}
+
 func (a *ChatApp) PrintStatus(message string) {
 	a.loader.SetMessage(theme.CurrentPalette().Dim.Render(message))
 	a.host.RequestRender()
