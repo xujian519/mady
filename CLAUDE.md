@@ -9,7 +9,7 @@
 
 - **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` 子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 841 个 Go 源文件（558 非测试 + 283 测试），~185K 行代码
+- 940 个 Go 源文件（630 非测试 + 310 测试），~207K 行代码
 
 ## 构建与测试
 
@@ -31,7 +31,7 @@ cd tools && go test ./...
 
 ```
 mady/
-├── agentcore/        # 核心 Agent 运行时（75 源 + 40 测试）
+├── agentcore/        # 核心 Agent 运行时（64 源 + 44 测试，根目录）
 │   ├── cache/        #   缓存抽象
 │   ├── concurrency/  #   并发原语
 │   ├── doomloop/     #   死循环检测器（6 种探测器）
@@ -55,22 +55,25 @@ mady/
 ├── disclosure/       # 技术交底书分析管线（11 节点 Pregel，含 review_gate 主动中断）
 ├── domains/          # 领域 Agent 配置 + 推理引擎
 │   ├── doctmpl/      #   文档模板库（Markdown + YAML frontmatter）
+│   ├── inventiveness/#   发明性评估图引擎
 │   ├── reasoning/    #   事实黑板、三段论、多跳遍历、五步工作法、规划编译器
 │   │   ├── collector/#     上下文收集与路由
 │   │   ├── sqlite/   #     推理持久化
 │   │   └── wiring/   #     装配层（vector/skill/rule 三路适配）
 │   ├── rules/        #   YAML 规则引擎 + OA 解析 + 反套话引擎
-│   └── sqlite/       #     领域持久化（approval_store）
+│   ├── sqlite/       #     领域持久化（approval_store）
+│   └── writing/      #   撰写质量评估、模式存储、技能编译器
 ├── graph/            # 图引擎（DAG + Pregel）
 ├── guardrails/       # 三级护栏系统（含引用核验 Gate）
 │   ├── citation_gate.go  # 引用核验门（双级核验 S1 静态表 + S2 知识源）
 │   ├── citation_table.go # S1 静态主题表（专利法 82 条精校）
 │   ├── citation_source.go# 知识源抽象 + Composite 复合源
 │   └── guardian/     #   AI 安全审查子 Agent（熔断器）
-├── knowledge/        # 知识管理（知识图谱 + 文档加载器）
+├── knowledge/        # 知识管理（知识图谱 + 文档加载器 + 风险扫描）
 │   ├── fileindex/    #   文件索引（MD 文件扫描与缓存）
 │   ├── graph/        #   图谱存储/查询/缓存/增量
 │   ├── loader/       #   Wiki/Patent/Legal 加载器 + 法条索引构建
+│   ├── risk/         #   风险扫描器（侵权/合规关键词）
 │   └── sqlite/       #   SQLite 只读层（FTS5 全文 + 向量余弦）
 ├── mcp/              # MCP 客户端（stdio + HTTP/SSE）
 ├── memory/           # 长期记忆系统（三层模型）
@@ -89,10 +92,10 @@ mady/
 ├── skill/            # SKILL.md 解析器（含 MadyExtension 扩展字段）
 ├── skills/           # 内置技能定义（chat/patent/legal/disclosure）
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块 ~60 源文件）
+├── tools/            # 内置工具扩展（独立子模块 ~85 源文件）
 │   ├── computer_use*.go  # 桌面控制（macOS/Linux/Windows 三平台 + SOM）
 │   ├── browser_*.go      # 浏览器自动化（stealth/session/recorder/supervisor）
-│   └── browser_providers/# 浏览器提供商抽象（Browserbase/Firecrawl/BrowserUse）
+│   └── browser_providers/# 浏览器提供商抽象
 ├── tui/              # 终端 UI（8 层 Elm 架构）
 │   ├── core/         #   Layer 0: Component 接口
 │   ├── terminal/     #   Layer 1: 终端 I/O（含 keymap.json 配置文件）
@@ -107,17 +110,17 @@ mady/
 ├── workflows/        # 领域工作流（legal/patent/autoresearch）
 ├── benchmark/        # 性能基准测试
 ├── integration/      # 端到端集成测试（含 doomloop/chain/drafting/guardrails/handoff）
-├── cmd/mady/         # 统一入口（mady tui | mady serve | mady acp | mady eval | mady mcp-install | mady trust-mcp）
-├── example/          # 示例应用（7 个）
+├── cmd/mady/         # 统一入口（mady tui | mady serve | mady acp | mady eval | mady mcp-install | mady trust-mcp | mady patent）
+├── example/          # 示例应用（9 个）
 ├── docs/             # 文档（ADRs、OpenAPI 规范、设计文档、评审报告）
 ├── filequeue/        # 文件队列
 ├── fuzzy/            # 模糊匹配
 ├── prompt/           # 提示词模板加载器
-├── prompt-templates/ # 提示词模板库（16 个 curated 模板）
+├── prompt-templates/ # 提示词模板库（20 个 curated 模板）
 ├── protocol/         # JSON-RPC 协议原语
 ├── plugins/          # 专利工作流插件（novelty-analysis / infringement-check / oa-response）
 ├── styles/           # 文档风格指南 YAML（patent-standard / legal-standard / chat-friendly / assistant-neutral）
-├── doc-templates/    # 文档模板库（claims / specification / oa-response / disclosure）
+├── doc-templates/    # 文档模板库（claims / specification / oa-response / disclosure / legal）
 ├── manifests/        # 外部 manifest 示例
 ├── pkg/
 │   ├── agentconfig/  #   统一 Provider/Model 配置层
@@ -135,7 +138,7 @@ mady/
                         |
                    核心引擎层：agentcore
                  /      |       \         \
-        提供者层   工具层(60源)    扩展层    领域扩展层
+        提供者层   工具层(85源)    扩展层    领域扩展层
                  \      |       /         /
          基础设施层：graph/ session/ skill/ prompt/ store/
                      disclosure/ memory/ filequeue/ fuzzy/
@@ -144,7 +147,7 @@ mady/
                                    |
                     TUI 层：8-layer Elm 架构（含 layout 层）
                                    |
-                    应用入口：cmd/mady（6 子命令） server/  example/
+                    应用入口：cmd/mady（8 子命令） server/  example/
 ```
 
 ## 设计约定

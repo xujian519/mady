@@ -1,13 +1,15 @@
 // Command mady is the unified entry point for the Mady agent framework.
 //
-// It exposes six subcommands:
+// It exposes eight subcommands:
 //
 //	mady tui   — interactive terminal chat (default)
 //	mady serve — HTTP/SSE API server with multi-domain routing
 //	mady acp   — run as an ACP (Agent Client Protocol) server for editors like Zed
 //	mady trust-mcp — trust an MCP config file so its commands may run at startup
+//	mady mcp-install — wire Mady as an MCP server into coding agents (e.g. claude)
 //	mady eval  — run evaluation benchmarks (static or live) and generate reports
 //	mady patent — patent analysis CLI (novelty analysis, OA response drafting)
+//	mady help  — show usage help
 //
 // All configuration is via environment variables (see package agentconfig):
 //
@@ -20,10 +22,13 @@ package main
 // 分布在同包兄弟文件中：
 //   - framework.go — frameworkContext + setupFrameworkContext 等共享装配
 //   - knowledge.go — 知识库（SQLite/wiki/embedder/reranker）装配
-//   - tui.go + tui_session.go + tui_helpers.go + slash_registry.go — `mady tui`
+//   - tui.go + tui_session.go + tui_session_config.go + tui_session_agent.go
+//     + tui_helpers.go + tui_storage.go + tui_deferred.go + slash_registry.go — `mady tui`
 //   - server.go    — `mady serve`
 //   - acp.go       — `mady acp`
 //   - trust_mcp.go — `mady trust-mcp`
+//   - mcp_install.go — `mady mcp-install`
+//   - patent.go    — `mady patent`
 
 import (
 	"context"
