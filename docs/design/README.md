@@ -52,3 +52,5 @@
 | 文档 | 内容 |
 |------|------|
 | `docs/design/tui-overlay-optimization-v0.1.md` | 现有单主视图 TUI + 浮层优化方案，强调当前判断主轴、浮层分类、复核门与系统态设计 |
+| `docs/design/p3-blind-test-plan.md` | P3 专家盲测总方案，覆盖目标、指标、案件来源、流程、数据采集与通过线 |
+| `docs/design/p3-blind-test-case-jiaoche-daizhou.md` | “绞车带轴”单案盲测用例卡，固化输入材料、专家任务书、评分表与单案通过标准 |

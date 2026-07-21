@@ -185,67 +185,13 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 	for a.state.Status() == StatusRunning {
 		turn := a.state.NextTurn()
 
-		if turn-loopStartTurn > a.config.MaxTurns {
-			err := NewNodeError("exceeded max turns", ErrExceedMaxSteps, a.config.Name, fmt.Sprintf("turn:%d", turn))
-			a.state.SetStatus(StatusError)
-			a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+		if err := a.runPreTurn(ctx, loopStartTurn, turn); err != nil {
 			return "", true, err
 		}
 
-		// Context compaction
-		if err := a.maybeCompact(ctx); err != nil {
-			return "", true, a.failLoop(fmt.Sprintf("turn:%d|compaction", turn), "compaction failed", err)
-		}
-
-		// Inject steering messages before LLM call
-		if steered := a.steering.Drain(); len(steered) > 0 {
-			for _, msg := range steered {
-				if err := a.persistMessage(ctx, msg); err != nil {
-					return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist steering failed", err)
-				}
-			}
-		}
-
-		if lc := a.lifecycle(); lc != nil {
-			arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
-			if err := lc.BeforeTurn(ctx, arc); err != nil {
-				return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle before_turn failed", err)
-			}
-		}
-
-		if err := a.checkpointTurnStart(ctx, turn); err != nil {
-			a.state.SetStatus(StatusError)
-			a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
-			return "", true, err
-		}
-
-		a.emit(&TurnStartEvent{baseEvent: newBase(EventTurnStart), Turn: turn})
-
-		msgs := a.buildRequestMessages(ctx)
-
-		req := &ProviderRequest{
-			Model:          a.config.Model,
-			Messages:       msgs,
-			Tools:          a.registry.Definitions(),
-			Temperature:    a.config.Temperature,
-			MaxTokens:      a.config.MaxTokens,
-			ResponseFormat: a.config.ResponseFormat,
-			Thinking:       a.config.Thinking,
-		}
-
-		// Lifecycle: BeforeModelCall
-		if lc := a.lifecycle(); lc != nil {
-			arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
-			mcc := &ModelCallContext{Request: req}
-			if lcErr := lc.BeforeModelCall(ctx, arc, mcc); lcErr != nil {
-				return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle before_model_call failed", lcErr)
-			}
-		}
-
-		resp, err := a.callModelWithFallback(ctx, req)
+		resp, err := a.runModelTurn(ctx, turn)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				// User interrupted — emit clean end event instead of cryptic error
 				a.state.SetStatus(StatusFinished)
 				a.emit(&AgentEndEvent{
 					baseEvent: newBase(EventAgentEnd),
@@ -256,30 +202,9 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			return "", true, a.failLoop(fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
 		}
 
-		// Lifecycle: AfterModelCall
-		if lc := a.lifecycle(); lc != nil {
-			arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
-			mcc := &ModelCallContext{Request: req, Response: resp, Err: err}
-			lc.AfterModelCall(ctx, arc, mcc)
-			if mcc.Err != nil {
-				if !resp.SuppressPersist {
-					if pErr := a.persistMessage(ctx, Message{
-						Role:      RoleAssistant,
-						Content:   resp.Content,
-						Blocks:    resp.Blocks,
-						ToolCalls: resp.ToolCalls,
-					}); pErr != nil {
-						return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", pErr)
-					}
-				}
-				if err := a.persistMessage(ctx, Message{
-					Role:    RoleSystem,
-					Content: fmt.Sprintf("错误: %s", mcc.Err.Error()),
-				}); err != nil {
-					return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist guardrail error failed", err)
-				}
-				continue
-			}
+		// Lifecycle: AfterModelCall — error is non-fatal, persist and continue
+		if a.runAfterModelCall(ctx, turn, resp) {
+			continue
 		}
 
 		// Accumulate usage
@@ -312,10 +237,6 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 
 		// Truncation guard: when the provider reports finish_reason="length" the
 		// model hit max_tokens and any tool-call arguments may be cut mid-JSON.
-		// The executor validates JSON per-call, but a partial batch (some calls
-		// valid, some not) leaves the conversation in an inconsistent state.
-		// Refuse the entire batch up front and persist error results so the
-		// model regenerates with complete output.
 		if handled, gErr := a.guardTruncation(ctx, turn, resp); handled {
 			if gErr != nil {
 				return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "truncation guard failed", gErr)
@@ -338,8 +259,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "tool execution persist failed", err)
 		}
 
-		// Early-exit: a tool returned a terminating result; its content is
-		// the final answer and no further LLM turn runs.
+		// Early-exit: a tool returned a terminating result
 		if earlyExit != "" {
 			finalOutput = earlyExit
 			a.state.SetStatus(StatusFinished)
@@ -349,7 +269,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			break
 		}
 
-		// Context cancellation during tool execution — exit cleanly.
+		// Context cancellation during tool execution
 		if errors.Is(ctx.Err(), context.Canceled) {
 			a.state.SetStatus(StatusFinished)
 			a.emit(&AgentEndEvent{
@@ -388,7 +308,6 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 
 		// Tool-call repetition detection: if the model makes the same set of
 		// tool calls (by name) 3+ turns in a row, it is stuck in a retry loop
-		// even though the text content differs each turn.
 		if len(resp.ToolCalls) > 0 {
 			sig := toolCallSignature(resp.ToolCalls)
 			if sig == lastToolSignature {
@@ -409,6 +328,109 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 	}
 
 	return finalOutput, false, nil
+}
+
+// runPreTurn executes the pre-model phase of a single turn:
+// MaxTurns check, context compaction, steering injection, BeforeTurn lifecycle,
+// turn checkpoint, and TurnStartEvent.
+// Returns a terminal error (caller should abort the loop) or nil.
+func (a *Agent) runPreTurn(ctx context.Context, loopStartTurn, turn int64) error {
+	if turn-loopStartTurn > a.config.MaxTurns {
+		err := NewNodeError("exceeded max turns", ErrExceedMaxSteps, a.config.Name, fmt.Sprintf("turn:%d", turn))
+		a.state.SetStatus(StatusError)
+		a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+		return err
+	}
+	if err := a.maybeCompact(ctx); err != nil {
+		return a.failLoop(fmt.Sprintf("turn:%d|compaction", turn), "compaction failed", err)
+	}
+	if steered := a.steering.Drain(); len(steered) > 0 {
+		for _, msg := range steered {
+			if err := a.persistMessage(ctx, msg); err != nil {
+				return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist steering failed", err)
+			}
+		}
+	}
+	if lc := a.lifecycle(); lc != nil {
+		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+		if err := lc.BeforeTurn(ctx, arc); err != nil {
+			return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle before_turn failed", err)
+		}
+	}
+	if err := a.checkpointTurnStart(ctx, turn); err != nil {
+		a.state.SetStatus(StatusError)
+		a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
+		return err
+	}
+	a.emit(&TurnStartEvent{baseEvent: newBase(EventTurnStart), Turn: turn})
+	return nil
+}
+
+// runModelTurn builds the provider request, runs the BeforeModelCall lifecycle
+// hook, and calls the LLM. On success it returns the provider response.
+// A canceled context is returned as context.Canceled for the caller to handle;
+// all other provider errors are wrapped via failLoop.
+func (a *Agent) runModelTurn(ctx context.Context, turn int64) (*ProviderResponse, error) {
+	msgs := a.buildRequestMessages(ctx)
+
+	req := &ProviderRequest{
+		Model:          a.config.Model,
+		Messages:       msgs,
+		Tools:          a.registry.Definitions(),
+		Temperature:    a.config.Temperature,
+		MaxTokens:      a.config.MaxTokens,
+		ResponseFormat: a.config.ResponseFormat,
+		Thinking:       a.config.Thinking,
+	}
+
+	if lc := a.lifecycle(); lc != nil {
+		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+		mcc := &ModelCallContext{Request: req}
+		if lcErr := lc.BeforeModelCall(ctx, arc, mcc); lcErr != nil {
+			return nil, a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle before_model_call failed", lcErr)
+		}
+	}
+
+	resp, err := a.callModelWithFallback(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// runAfterModelCall runs the AfterModelCall lifecycle hook.
+// Returns true if the hook returned an error (meaning the caller should
+// continue the outer loop after persisting error messages); false otherwise.
+// When the hook has an error, the assistant + error messages are persisted.
+func (a *Agent) runAfterModelCall(ctx context.Context, turn int64, resp *ProviderResponse) bool {
+	lc := a.lifecycle()
+	if lc == nil {
+		return false
+	}
+	arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+	mcc := &ModelCallContext{Request: nil, Response: resp}
+	lc.AfterModelCall(ctx, arc, mcc)
+	if mcc.Err == nil {
+		return false
+	}
+	if !resp.SuppressPersist {
+		if pErr := a.persistMessage(ctx, Message{
+			Role:      RoleAssistant,
+			Content:   resp.Content,
+			Blocks:    resp.Blocks,
+			ToolCalls: resp.ToolCalls,
+		}); pErr != nil {
+			_ = a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", pErr)
+			return true
+		}
+	}
+	if err := a.persistMessage(ctx, Message{
+		Role:    RoleSystem,
+		Content: fmt.Sprintf("错误: %s", mcc.Err.Error()),
+	}); err != nil {
+		_ = a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist guardrail error failed", err)
+	}
+	return true
 }
 
 // callModelWithFallback 调用 Provider，按 Context Overflow 触发一次压缩重试。

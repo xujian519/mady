@@ -82,7 +82,6 @@ func chromedpNavigateAndSnapshot(
 				ready = true
 				break
 			}
-			// If URL changed to target, consider it successful even if still loading resources.
 			if strings.Contains(navResult.URL, parsedURL.Host) {
 				ready = true
 				break
@@ -96,7 +95,6 @@ func chromedpNavigateAndSnapshot(
 		return "", fmt.Errorf("navigation timed out: page did not become interactive")
 	}
 
-	// Allow SPA rendering to settle.
 	time.Sleep(1 * time.Second)
 
 	// Re-apply stealth JS post-navigation.
@@ -104,13 +102,11 @@ func chromedpNavigateAndSnapshot(
 	chromedp.Run(stealthCtx, chromedp.Evaluate(stealthJavaScript, nil))
 	stealthCancel()
 
-	// Read page title.
 	var title string
 	titleCtx, titleCancel := context.WithTimeout(timeoutCtx, 5*time.Second)
 	chromedp.Run(titleCtx, chromedp.Title(&title))
 	titleCancel()
 
-	// Generate snapshot.
 	snapshot, err := generateSnapshot(timeoutCtx, false, session.refMapper)
 
 	session.mu.Lock()
@@ -126,11 +122,84 @@ func chromedpNavigateAndSnapshot(
 	return snapshot, nil
 }
 
-func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
+// ---------------------------------------------------------------------------
+// Standalone tool constructors
+// ---------------------------------------------------------------------------
+// Each NewBrowser*Tool function builds an agentcore.Tool whose Func closure
+// parses the incoming JSON arguments, obtains the active browser session,
+// dispatches to the appropriate backend, and returns a formatted result.
+// Most share the same skeleton — the factory newBrowserTool removes the
+// nil-check / cfg.defaults() boilerplate.
+
+// refPrefixNormalized returns ref prefixed with "@" if not already present.
+func refPrefixNormalized(ref string) string {
+	if !strings.HasPrefix(ref, "@") {
+		return "@" + ref
+	}
+	return ref
+}
+
+// touchSession updates the session's lastActivity timestamp.
+// Safe to call with a nil session (no-op).
+func touchSession(session *BrowserSession) {
+	if session == nil {
+		return
+	}
+	session.mu.Lock()
+	session.lastActivity = time.Now()
+	session.mu.Unlock()
+}
+
+// chromedpBackends is the set of backends that use chromedp for page automation.
+var chromedpBackends = map[BrowserBackendType]bool{
+	BackendLightpanda:   true,
+	BackendLocal:        true,
+	BackendCDP:          true,
+	BackendBrowserbase:  true,
+	BackendBrowserUse:   true,
+	BackendFirecrawl:    true,
+	BackendAgentBrowser: true,
+}
+
+// isChromedpBackend returns true when backend is backed by chromedp.
+func isChromedpBackend(bt BrowserBackendType) bool { return chromedpBackends[bt] }
+
+// ---------------------------------------------------------------------------
+// toolConfig wraps the common NewBrowser*Tool preamble.
+func toolConfig(cfg *BrowserToolConfig) *BrowserToolConfig {
 	if cfg == nil {
 		cfg = &BrowserToolConfig{}
 	}
 	cfg.defaults()
+	return cfg
+}
+
+// toolParams builds a *agentcore.Tool with the given identity and func.
+// All browser tools share the same preamble (nil-check + defaults), which
+// this helper eliminates.
+func toolParams(name, desc string, params map[string]any, fn agentcore.ToolFunc) *agentcore.Tool {
+	return &agentcore.Tool{
+		Name:        name,
+		Description: desc,
+		Parameters:  params,
+		Func:        fn,
+	}
+}
+
+// chromedpEval runs a chromedp action with cfg.CommandTimeout, canceling on
+// return. It is a small convenience for the one-liner chromedp calls that
+// appear in most browser tools.
+func chromedpEval(session *BrowserSession, cfg *BrowserToolConfig, action chromedp.Action) error {
+	timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
+	defer cancel()
+	return chromedp.Run(timeoutCtx, action)
+}
+
+// ---------------------------------------------------------------------------
+// NewBrowserNavigateTool creates a new browser_navigate tool.
+// This is the only browser tool that also initializes a BrowserManager.
+func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
+	cfg = toolConfig(cfg)
 
 	bm := NewBrowserManager(&BrowserConfig{
 		Headless:            cfg.Headless,
@@ -155,10 +224,10 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 	})
 	SetDefaultBrowserManager(bm)
 
-	return &agentcore.Tool{
-		Name:        "browser_navigate",
-		Description: "导航到指定 URL 并返回无障碍快照。用于用户提供的 URL、交互式页面、登录流程或 JavaScript 密集型页面。简单信息检索请优先使用 web_search（更快、更便宜、无浏览器开销）。",
-		Parameters: map[string]any{
+	return toolParams(
+		"browser_navigate",
+		"导航到指定 URL 并返回无障碍快照。用于用户提供的 URL、交互式页面、登录流程或 JavaScript 密集型页面。简单信息检索请优先使用 web_search（更快、更便宜、无浏览器开销）。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"url": map[string]any{
@@ -168,7 +237,7 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			},
 			"required": []any{"url"},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				URL string `json:"url"`
 			}
@@ -204,7 +273,6 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				if err != nil {
 					return nil, err
 				}
-
 				if NeedsLightpandaFallback(cfg.Engine, snapshot, 0, nil) {
 					fallbackResult, fallbackErr := RunChromeFallbackCommand(ctx, "navigate", map[string]any{"url": input.URL}, cfg.CommandTimeout)
 					if fallbackErr == nil {
@@ -255,7 +323,7 @@ func NewBrowserNavigateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 
 			return result(fmt.Sprintf("Navigated to %s\nTitle: %s\n\n%s%s", url, title, snapshot, extraInfo), nil)
 		},
-	}
+	)
 }
 
 func navigationTimeout(commandTimeout time.Duration) time.Duration {
@@ -273,16 +341,13 @@ func navigationTimeoutError(url string, timeout time.Duration) error {
 	return fmt.Errorf("navigation timed out after %s while opening %s. The page may be slow, blocked, or still loading; try again, use browser_snapshot if the page partially loaded, or raise the browser command timeout", timeout.Round(time.Second), url)
 }
 
+// NewBrowserSnapshotTool creates a browser_snapshot tool.
 func NewBrowserSnapshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_snapshot",
-		Description: "获取当前页面的基于文本的无障碍树快照。使用 ref ID（例如 @e5）与元素交互。",
-		Parameters: map[string]any{
+	cfg = toolConfig(cfg)
+	return toolParams(
+		"browser_snapshot",
+		"获取当前页面的基于文本的无障碍树快照。使用 ref ID（例如 @e5）与元素交互。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"full": map[string]any{
@@ -297,7 +362,7 @@ func NewBrowserSnapshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				},
 			},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				Full bool   `json:"full"`
 				Mode string `json:"mode"`
@@ -315,15 +380,10 @@ func NewBrowserSnapshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			}
 
 			var snapshot string
-
 			switch session.backendType {
 			case BackendCamofox:
 				snapshot, err = session.camofoxClient.GetSnapshot(session.sessionID, input.Full)
-			case BackendLightpanda:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				snapshot, err = GeneratePageSnapshot(timeoutCtx, input.Full, session.refMapper, input.Mode)
-				cancel()
-			case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
+			case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 				snapshot, err = GeneratePageSnapshot(timeoutCtx, input.Full, session.refMapper, input.Mode)
 				cancel()
@@ -354,19 +414,42 @@ func NewBrowserSnapshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 
 			return result(fmt.Sprintf("Page: %s\nTitle: %s\n\n%s%s", url, title, snapshot, extraInfo), nil)
 		},
-	}
+	)
 }
 
-func NewBrowserClickTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
+// refLookupErr formats a ref-not-found error based on whether the ref mapper
+// has ever seen any refs (0 hits → page state unknown; otherwise stale state).
+func refLookupErr(ref string, mapper *RefMapper) error {
+	if mapper.Count() == 0 {
+		return fmt.Errorf("ref %s not found. Page state is unknown. Call browser_snapshot first", ref)
 	}
-	cfg.defaults()
+	return fmt.Errorf("ref %s not found in current page state. Call browser_snapshot to refresh", ref)
+}
 
-	return &agentcore.Tool{
-		Name:        "browser_click",
-		Description: "通过 ref ID（例如 @e5）点击元素。ref ID 显示在 browser_snapshot 输出中。",
-		Parameters: map[string]any{
+// refLookupWithFallback looks up a ref in the refMapper and, on a miss,
+// attempts to retrieve the XPath from the in-browser __covoRefMap.
+// timeoutCtx must be backed by a chromedp context.
+func refLookupWithFallback(timeoutCtx context.Context, ref string, session *BrowserSession) (string, error) {
+	xpath, ok := session.refMapper.Get(ref)
+	if ok {
+		return xpath, nil
+	}
+	var jsXpath string
+	js := fmt.Sprintf(`window.__covoRefMap && window.__covoRefMap[%q] || null`, ref)
+	if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(js, &jsXpath)); err == nil && jsXpath != "" {
+		session.refMapper.Set(ref, jsXpath)
+		return jsXpath, nil
+	}
+	return "", refLookupErr(ref, session.refMapper)
+}
+
+// NewBrowserClickTool creates a browser_click tool.
+func NewBrowserClickTool(cfg *BrowserToolConfig) *agentcore.Tool {
+	cfg = toolConfig(cfg)
+	return toolParams(
+		"browser_click",
+		"通过 ref ID（例如 @e5）点击元素。ref ID 显示在 browser_snapshot 输出中。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"ref": map[string]any{
@@ -376,7 +459,7 @@ func NewBrowserClickTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			},
 			"required": []any{"ref"},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				Ref string `json:"ref"`
 			}
@@ -384,11 +467,7 @@ func NewBrowserClickTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			ref := input.Ref
-			if !strings.HasPrefix(ref, "@") {
-				ref = "@" + ref
-			}
-
+			ref := refPrefixNormalized(input.Ref)
 			session, err := RequireActiveSession()
 			if err != nil {
 				return nil, err
@@ -399,48 +478,12 @@ func NewBrowserClickTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			switch session.backendType {
 			case BackendCamofox:
 				snapshot, err = session.camofoxClient.Click(session.sessionID, ref)
-			case BackendLightpanda:
+			case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				xpath, lookupErr := session.refMapper.Get(ref)
-				if lookupErr {
-					// Fallback: try to get from window.__covoRefMap in the browser
-					var jsXpath string
-					js := fmt.Sprintf(`window.__covoRefMap && window.__covoRefMap[%q] || null`, ref)
-					if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(js, &jsXpath)); err == nil && jsXpath != "" {
-						xpath = jsXpath
-						session.refMapper.Set(ref, xpath) // Cache it for next time
-					} else {
-						cancel()
-						if session.refMapper.Count() == 0 {
-							return nil, fmt.Errorf("ref %s not found. Page state is unknown. Call browser_snapshot first", ref)
-						}
-						return nil, fmt.Errorf("ref %s not found in current page state. Call browser_snapshot to refresh", ref)
-					}
-				}
-				if err := chromedp.Run(timeoutCtx, chromedp.Click(xpath, chromedp.BySearch)); err != nil {
+				xpath, lookupErr := refLookupWithFallback(timeoutCtx, ref, session)
+				if lookupErr != nil {
 					cancel()
-					return nil, fmt.Errorf("click failed for %s: %w", ref, err)
-				}
-				cancel()
-				time.Sleep(500 * time.Millisecond)
-				snapshot, err = generateSnapshot(session.ctx, false, session.refMapper)
-			case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				xpath, lookupErr := session.refMapper.Get(ref)
-				if lookupErr {
-					// Fallback: try to get from window.__covoRefMap in the browser
-					var jsXpath string
-					js := fmt.Sprintf(`window.__covoRefMap && window.__covoRefMap[%q] || null`, ref)
-					if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(js, &jsXpath)); err == nil && jsXpath != "" {
-						xpath = jsXpath
-						session.refMapper.Set(ref, xpath) // Cache it for next time
-					} else {
-						cancel()
-						if session.refMapper.Count() == 0 {
-							return nil, fmt.Errorf("ref %s not found. Page state is unknown. Call browser_snapshot first", ref)
-						}
-						return nil, fmt.Errorf("ref %s not found in current page state. Call browser_snapshot to refresh", ref)
-					}
+					return nil, lookupErr
 				}
 				if err := chromedp.Run(timeoutCtx, chromedp.Click(xpath, chromedp.BySearch)); err != nil {
 					cancel()
@@ -457,25 +500,19 @@ func NewBrowserClickTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, err
 			}
 
-			session.mu.Lock()
-			session.lastActivity = time.Now()
-			session.mu.Unlock()
-
+			touchSession(session)
 			return result(fmt.Sprintf("Clicked %s\n\n%s", ref, snapshot), nil)
 		},
-	}
+	)
 }
 
+// NewBrowserTypeTool creates a browser_type tool.
 func NewBrowserTypeTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_type",
-		Description: "在输入字段中键入文本。先清除字段，然后输入文本。",
-		Parameters: map[string]any{
+	cfg = toolConfig(cfg)
+	return toolParams(
+		"browser_type",
+		"在输入字段中键入文本。先清除字段，然后输入文本。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"ref": map[string]any{
@@ -489,7 +526,7 @@ func NewBrowserTypeTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			},
 			"required": []any{"ref", "text"},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				Ref  string `json:"ref"`
 				Text string `json:"text"`
@@ -498,11 +535,7 @@ func NewBrowserTypeTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
 
-			ref := input.Ref
-			if !strings.HasPrefix(ref, "@") {
-				ref = "@" + ref
-			}
-
+			ref := refPrefixNormalized(input.Ref)
 			session, err := RequireActiveSession()
 			if err != nil {
 				return nil, err
@@ -513,57 +546,19 @@ func NewBrowserTypeTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			switch session.backendType {
 			case BackendCamofox:
 				resultMsg, err = session.camofoxClient.Type(session.sessionID, ref, input.Text)
-			case BackendLightpanda:
+			case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				xpath, lookupErr := session.refMapper.Get(ref)
-				if lookupErr {
-					// Fallback: try to get from window.__covoRefMap in the browser
-					var jsXpath string
-					js := fmt.Sprintf(`window.__covoRefMap && window.__covoRefMap[%q] || null`, ref)
-					if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(js, &jsXpath)); err == nil && jsXpath != "" {
-						xpath = jsXpath
-						session.refMapper.Set(ref, xpath) // Cache it for next time
-					} else {
-						cancel()
-						if session.refMapper.Count() == 0 {
-							return nil, fmt.Errorf("ref %s not found. Page state is unknown. Call browser_snapshot first", ref)
-						}
-						return nil, fmt.Errorf("ref %s not found in current page state. Call browser_snapshot to refresh", ref)
-					}
+				xpath, lookupErr := refLookupWithFallback(timeoutCtx, ref, session)
+				if lookupErr != nil {
+					cancel()
+					return nil, lookupErr
 				}
-				if err := chromedp.Run(timeoutCtx,
+				if cErr := chromedp.Run(timeoutCtx,
 					chromedp.Clear(xpath, chromedp.BySearch),
 					chromedp.SendKeys(xpath, input.Text, chromedp.BySearch),
-				); err != nil {
+				); cErr != nil {
 					cancel()
-					return nil, fmt.Errorf("type failed for %s: %w", ref, err)
-				}
-				cancel()
-				resultMsg = fmt.Sprintf("Typed \"%s\" into %s", input.Text, ref)
-			case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				xpath, lookupErr := session.refMapper.Get(ref)
-				if lookupErr {
-					// Fallback: try to get from window.__covoRefMap in the browser
-					var jsXpath string
-					js := fmt.Sprintf(`window.__covoRefMap && window.__covoRefMap[%q] || null`, ref)
-					if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(js, &jsXpath)); err == nil && jsXpath != "" {
-						xpath = jsXpath
-						session.refMapper.Set(ref, xpath) // Cache it for next time
-					} else {
-						cancel()
-						if session.refMapper.Count() == 0 {
-							return nil, fmt.Errorf("ref %s not found. Page state is unknown. Call browser_snapshot first", ref)
-						}
-						return nil, fmt.Errorf("ref %s not found in current page state. Call browser_snapshot to refresh", ref)
-					}
-				}
-				if err := chromedp.Run(timeoutCtx,
-					chromedp.Clear(xpath, chromedp.BySearch),
-					chromedp.SendKeys(xpath, input.Text, chromedp.BySearch),
-				); err != nil {
-					cancel()
-					return nil, fmt.Errorf("type failed for %s: %w", ref, err)
+					return nil, fmt.Errorf("type failed for %s: %w", ref, cErr)
 				}
 				cancel()
 				resultMsg = fmt.Sprintf("Typed \"%s\" into %s", input.Text, ref)
@@ -575,25 +570,19 @@ func NewBrowserTypeTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, err
 			}
 
-			session.mu.Lock()
-			session.lastActivity = time.Now()
-			session.mu.Unlock()
-
+			touchSession(session)
 			return result(resultMsg, nil)
 		},
-	}
+	)
 }
 
+// NewBrowserScrollTool creates a browser_scroll tool.
 func NewBrowserScrollTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_scroll",
-		Description: "向上或向下滚动页面。",
-		Parameters: map[string]any{
+	cfg = toolConfig(cfg)
+	return toolParams(
+		"browser_scroll",
+		"向上或向下滚动页面。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"direction": map[string]any{
@@ -604,14 +593,13 @@ func NewBrowserScrollTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			},
 			"required": []any{"direction"},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				Direction string `json:"direction"`
 			}
 			if err := json.Unmarshal(args, &input); err != nil {
 				return nil, fmt.Errorf("invalid arguments: %w", err)
 			}
-
 			if input.Direction != "up" && input.Direction != "down" {
 				return nil, fmt.Errorf("direction must be \"up\" or \"down\"")
 			}
@@ -622,37 +610,20 @@ func NewBrowserScrollTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			}
 
 			var snapshot string
+			script := "window.scrollBy(0, 500);"
+			if input.Direction == "up" {
+				script = "window.scrollBy(0, -500);"
+			}
 
 			switch session.backendType {
 			case BackendCamofox:
 				snapshot, err = session.camofoxClient.Scroll(session.sessionID, input.Direction)
-			case BackendLightpanda:
+			case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				script := "window.scrollBy(0, 500);"
-				if input.Direction == "up" {
-					script = "window.scrollBy(0, -500);"
-				}
-				var res any
-				if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(script, &res)); err != nil {
+				if cErr := chromedp.Run(timeoutCtx, chromedp.Evaluate(script, &struct{}{})); cErr != nil {
 					cancel()
-					return nil, fmt.Errorf("scroll failed: %w", err)
+					return nil, fmt.Errorf("scroll failed: %w", cErr)
 				}
-				cancel()
-				snapshot, err = generateSnapshot(session.ctx, false, session.refMapper)
-			case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-
-				script := "window.scrollBy(0, 500);"
-				if input.Direction == "up" {
-					script = "window.scrollBy(0, -500);"
-				}
-
-				var res any
-				if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(script, &res)); err != nil {
-					cancel()
-					return nil, fmt.Errorf("scroll failed: %w", err)
-				}
-
 				snapshot, err = generateSnapshot(timeoutCtx, false, session.refMapper)
 				cancel()
 			default:
@@ -663,29 +634,23 @@ func NewBrowserScrollTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, err
 			}
 
-			session.mu.Lock()
-			session.lastActivity = time.Now()
-			session.mu.Unlock()
-
+			touchSession(session)
 			return result(fmt.Sprintf("Scrolled %s\n\n%s", input.Direction, snapshot), nil)
 		},
-	}
+	)
 }
 
+// NewBrowserBackTool creates a browser_back tool.
 func NewBrowserBackTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_back",
-		Description: "在浏览器历史记录中后退。",
-		Parameters: map[string]any{
+	cfg = toolConfig(cfg)
+	return toolParams(
+		"browser_back",
+		"在浏览器历史记录中后退。",
+		map[string]any{
 			"type":       "object",
 			"properties": map[string]any{},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			session, err := RequireActiveSession()
 			if err != nil {
 				return nil, err
@@ -699,34 +664,23 @@ func NewBrowserBackTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				snapshot, err = session.camofoxClient.Back(session.sessionID)
 			case BackendLightpanda:
 				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				if err := chromedp.Run(timeoutCtx,
+				if cErr := chromedp.Run(timeoutCtx,
 					chromedp.NavigateBack(),
 					chromedp.WaitReady("body", chromedp.ByQuery),
-				); err != nil {
+				); cErr != nil {
 					cancel()
-					return nil, fmt.Errorf("back navigation failed: %w", err)
+					return nil, fmt.Errorf("back navigation failed: %w", cErr)
 				}
-				chromedp.Run(timeoutCtx,
-					chromedp.Location(&url),
-					chromedp.Title(&title),
-				)
+				chromedp.Run(timeoutCtx, chromedp.Location(&url), chromedp.Title(&title))
 				cancel()
 				snapshot, err = generateSnapshot(session.ctx, false, session.refMapper)
 			case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-
-				if err := chromedp.Run(timeoutCtx,
-					chromedp.NavigateBack(),
-				); err != nil {
+				if cErr := chromedp.Run(timeoutCtx, chromedp.NavigateBack()); cErr != nil {
 					cancel()
-					return nil, fmt.Errorf("back navigation failed: %w", err)
+					return nil, fmt.Errorf("back navigation failed: %w", cErr)
 				}
-
-				chromedp.Run(timeoutCtx,
-					chromedp.Location(&url),
-					chromedp.Title(&title),
-				)
-
+				chromedp.Run(timeoutCtx, chromedp.Location(&url), chromedp.Title(&title))
 				snapshot, err = generateSnapshot(timeoutCtx, false, session.refMapper)
 				cancel()
 			default:
@@ -745,19 +699,16 @@ func NewBrowserBackTool(cfg *BrowserToolConfig) *agentcore.Tool {
 
 			return result(fmt.Sprintf("Navigated back\nURL: %s\nTitle: %s\n\n%s", url, title, snapshot), nil)
 		},
-	}
+	)
 }
 
+// NewBrowserPressTool creates a browser_press tool.
 func NewBrowserPressTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_press",
-		Description: "按下键盘按键。常用按键：Enter、Tab、Escape、ArrowUp、ArrowDown、ArrowLeft、ArrowRight。",
-		Parameters: map[string]any{
+	cfg = toolConfig(cfg)
+	return toolParams(
+		"browser_press",
+		"按下键盘按键。常用按键：Enter、Tab、Escape、ArrowUp、ArrowDown、ArrowLeft、ArrowRight。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"key": map[string]any{
@@ -767,7 +718,7 @@ func NewBrowserPressTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			},
 			"required": []any{"key"},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				Key string `json:"key"`
 			}
@@ -785,22 +736,10 @@ func NewBrowserPressTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			switch session.backendType {
 			case BackendCamofox:
 				resultMsg, err = session.camofoxClient.Press(session.sessionID, input.Key)
-			case BackendLightpanda:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				if err := chromedp.Run(timeoutCtx, chromedp.KeyEvent(input.Key)); err != nil {
-					cancel()
-					return nil, fmt.Errorf("key press failed: %w", err)
+			case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
+				if cErr := chromedpEval(session, cfg, chromedp.KeyEvent(input.Key)); cErr != nil {
+					return nil, fmt.Errorf("key press failed: %w", cErr)
 				}
-				cancel()
-				resultMsg = fmt.Sprintf("Pressed key: %s", input.Key)
-			case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				defer cancel()
-
-				if err := chromedp.Run(timeoutCtx, chromedp.KeyEvent(input.Key)); err != nil {
-					return nil, fmt.Errorf("key press failed: %w", err)
-				}
-
 				resultMsg = fmt.Sprintf("Pressed key: %s", input.Key)
 			default:
 				err = fmt.Errorf("backend %s not supported for press", session.backendType)
@@ -810,25 +749,19 @@ func NewBrowserPressTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, err
 			}
 
-			session.mu.Lock()
-			session.lastActivity = time.Now()
-			session.mu.Unlock()
-
+			touchSession(session)
 			return result(resultMsg, nil)
 		},
-	}
+	)
 }
 
+// NewBrowserScreenshotTool creates a browser_screenshot tool.
 func NewBrowserScreenshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_screenshot",
-		Description: "截取当前页面截图。返回 base64 编码的 PNG 数据。",
-		Parameters: map[string]any{
+	cfg = toolConfig(cfg)
+	return toolParams(
+		"browser_screenshot",
+		"截取当前页面截图。返回 base64 编码的 PNG 数据。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"full_page": map[string]any{
@@ -838,7 +771,7 @@ func NewBrowserScreenshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				},
 			},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				FullPage bool `json:"full_page"`
 			}
@@ -860,22 +793,10 @@ func NewBrowserScreenshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				if err == nil {
 					sizeBytes = len(buf)
 				}
-			case BackendLightpanda:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
+			case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 				var buf []byte
-				if err := chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot(&buf)); err != nil {
-					cancel()
-					return nil, fmt.Errorf("screenshot failed: %w", err)
-				}
-				cancel()
-				sizeBytes = len(buf)
-			case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				defer cancel()
-
-				var buf []byte
-				if err := chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot(&buf)); err != nil {
-					return nil, fmt.Errorf("screenshot failed: %w", err)
+				if cErr := chromedpEval(session, cfg, chromedp.CaptureScreenshot(&buf)); cErr != nil {
+					return nil, fmt.Errorf("screenshot failed: %w", cErr)
 				}
 				sizeBytes = len(buf)
 			default:
@@ -886,28 +807,22 @@ func NewBrowserScreenshotTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, err
 			}
 
-			session.mu.Lock()
-			session.lastActivity = time.Now()
-			session.mu.Unlock()
-
+			touchSession(session)
 			return result(fmt.Sprintf("Screenshot captured (%d bytes)", sizeBytes), map[string]any{
 				"format":     "png",
 				"size_bytes": sizeBytes,
 			})
 		},
-	}
+	)
 }
 
+// NewBrowserEvaluateTool creates a browser_evaluate tool.
 func NewBrowserEvaluateTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_evaluate",
-		Description: "在页面上下文中执行 JavaScript。返回执行结果。",
-		Parameters: map[string]any{
+	cfg = toolConfig(cfg)
+	return toolParams(
+		"browser_evaluate",
+		"在页面上下文中执行 JavaScript。返回执行结果。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"expression": map[string]any{
@@ -921,7 +836,7 @@ func NewBrowserEvaluateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			},
 			"required": []any{"expression"},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				Expression string `json:"expression"`
 				FrameID    string `json:"frame_id"`
@@ -940,15 +855,10 @@ func NewBrowserEvaluateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			switch {
 			case session.supervisor != nil && input.FrameID != "":
 				evalResult, err = session.supervisor.EvaluateJS(input.Expression, input.FrameID)
-			case session.backendType == BackendLightpanda || session.backendType == BackendLocal || session.backendType == BackendCDP || session.backendType == BackendBrowserbase || session.backendType == BackendBrowserUse || session.backendType == BackendFirecrawl:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				var result string
-				if err := chromedp.Run(timeoutCtx, chromedp.EvaluateAsDevTools(input.Expression, &result)); err != nil {
-					cancel()
-					return nil, fmt.Errorf("evaluation failed: %w", err)
+			case isChromedpBackend(session.backendType):
+				if cErr := chromedpEval(session, cfg, chromedp.EvaluateAsDevTools(input.Expression, &evalResult)); cErr != nil {
+					return nil, fmt.Errorf("evaluation failed: %w", cErr)
 				}
-				cancel()
-				evalResult = result
 			default:
 				err = fmt.Errorf("JS evaluation not supported for backend %s", session.backendType)
 			}
@@ -957,25 +867,19 @@ func NewBrowserEvaluateTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, err
 			}
 
-			session.mu.Lock()
-			session.lastActivity = time.Now()
-			session.mu.Unlock()
-
+			touchSession(session)
 			return result(fmt.Sprintf("Result: %s", evalResult), nil)
 		},
-	}
+	)
 }
 
+// NewBrowserDialogTool creates a browser_dialog tool.
 func NewBrowserDialogTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_dialog",
-		Description: "处理待处理的 JavaScript 对话框（alert/confirm/prompt）。在 browser_snapshot 显示待处理对话框后使用。",
-		Parameters: map[string]any{
+	_ = toolConfig(cfg)
+	return toolParams(
+		"browser_dialog",
+		"处理待处理的 JavaScript 对话框（alert/confirm/prompt）。在 browser_snapshot 显示待处理对话框后使用。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"dialog_id": map[string]any{
@@ -993,7 +897,7 @@ func NewBrowserDialogTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			},
 			"required": []any{"dialog_id", "accept"},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				DialogID   string `json:"dialog_id"`
 				Accept     bool   `json:"accept"`
@@ -1025,49 +929,40 @@ func NewBrowserDialogTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				msg += fmt.Sprintf(" with text: %s", input.PromptText)
 			}
 
+			touchSession(session)
 			return result(msg, nil)
 		},
-	}
+	)
 }
 
+// NewBrowserConsoleTool creates a browser_console tool.
 func NewBrowserConsoleTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_console",
-		Description: "获取当前页面的控制台消息和 JavaScript 错误。",
-		Parameters: map[string]any{
+	_ = toolConfig(cfg)
+	return toolParams(
+		"browser_console",
+		"获取当前页面的控制台消息和 JavaScript 错误。",
+		map[string]any{
 			"type":       "object",
 			"properties": map[string]any{},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			session, err := RequireActiveSession()
 			if err != nil {
 				return nil, err
 			}
-
-			session.mu.Lock()
-			session.lastActivity = time.Now()
-			session.mu.Unlock()
-
+			touchSession(session)
 			return result("Console messages are captured asynchronously. Use browser_evaluate to check page state.", nil)
 		},
-	}
+	)
 }
 
+// NewBrowserVisionTool creates a browser_vision tool.
 func NewBrowserVisionTool(cfg *BrowserToolConfig) *agentcore.Tool {
-	if cfg == nil {
-		cfg = &BrowserToolConfig{}
-	}
-	cfg.defaults()
-
-	return &agentcore.Tool{
-		Name:        "browser_vision",
-		Description: "截取截图并使用视觉 AI 模型分析。询问关于页面内容的问题。",
-		Parameters: map[string]any{
+	cfg = toolConfig(cfg)
+	return toolParams(
+		"browser_vision",
+		"截取截图并使用视觉 AI 模型分析。询问关于页面内容的问题。",
+		map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"question": map[string]any{
@@ -1082,7 +977,7 @@ func NewBrowserVisionTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			},
 			"required": []any{"question"},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		func(ctx context.Context, args json.RawMessage) (any, error) {
 			var input struct {
 				Question string `json:"question"`
 				Annotate bool   `json:"annotate"`
@@ -1102,12 +997,9 @@ func NewBrowserVisionTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			case BackendCamofox:
 				screenshotData, err = session.camofoxClient.Screenshot(session.sessionID)
 			case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
-				timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-				if err := chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot(&screenshotData)); err != nil {
-					cancel()
-					return nil, fmt.Errorf("screenshot failed: %w", err)
+				if cErr := chromedpEval(session, cfg, chromedp.CaptureScreenshot(&screenshotData)); cErr != nil {
+					return nil, fmt.Errorf("screenshot failed: %w", cErr)
 				}
-				cancel()
 			default:
 				return nil, fmt.Errorf("backend %s not supported for vision", session.backendType)
 			}
@@ -1121,11 +1013,8 @@ func NewBrowserVisionTool(cfg *BrowserToolConfig) *agentcore.Tool {
 				return nil, err
 			}
 
-			session.mu.Lock()
-			session.lastActivity = time.Now()
-			session.mu.Unlock()
-
+			touchSession(session)
 			return result(analysis, nil)
 		},
-	}
+	)
 }

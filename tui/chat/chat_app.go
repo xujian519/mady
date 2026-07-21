@@ -169,34 +169,10 @@ func NewChatAppWithHost(cfg ChatAppConfig, host AppHost) *ChatApp {
 }
 
 func newChatApp(cfg ChatAppConfig) *ChatApp {
-	if cfg.EditorMinRows <= 0 {
-		cfg.EditorMinRows = 1
-	}
-	if cfg.EditorMaxRows <= 0 {
-		cfg.EditorMaxRows = 8
-	}
-	if cfg.EditorPrompt == "" {
-		cfg.EditorPrompt = "> "
-	}
-
+	cfg = applyChatDefaults(cfg)
 	km := terminal.NewKeybindingsManager(terminal.DefaultKeybindings())
-
-	history := NewChatHistory()
-	if cfg.Theme != nil {
-		history.SetTheme(*cfg.Theme)
-	}
-	if cfg.ReasoningRenderer != nil {
-		history.SetReasoningRenderer(cfg.ReasoningRenderer)
-	}
-
-	editor := component.NewEditor(km)
-	editor.SetMinRows(cfg.EditorMinRows)
-	editor.SetMaxRows(cfg.EditorMaxRows)
-	editor.SetPrompt(cfg.EditorPrompt, strings.Repeat(" ", len(cfg.EditorPrompt)))
-	editor.SetFocusIndicator("")
-	editor.SetPlaceholder("输入消息…（/ 查看命令）")
-	editor.SetPlaceholderFn(func(s string) string { return theme.CurrentPalette().Dim.Render(s) })
-
+	history := newChatHistoryWithConfig(cfg)
+	editor := newChatEditor(cfg, km)
 	loader := component.NewLoader(func() {}, theme.CurrentPalette().Dim.Render("thinking..."))
 
 	statusBar := component.NewStatusBar()
@@ -216,115 +192,160 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 		model:        chatModel{ActiveTools: make(map[string]time.Time)},
 	}
 
-	var header *component.TruncatedText
-	if cfg.Title != "" {
-		header = component.NewTruncatedText(theme.CurrentPalette().User.Render(cfg.Title))
-	}
-	chatApp.header = header
+	chatApp.header = newChatHeader(cfg)
+	chatApp.ac = newChatAutocomplete(cfg, chatApp)
+	chatApp.layout = newChatLayout(cfg, chatApp, history, editor, loader, statusBar)
+	bindChatEditorEvents(chatApp, editor, history)
+	return chatApp
+}
 
-	if len(cfg.Providers) > 0 {
-		chatApp.ac = component.NewAutocomplete(cfg.Providers...)
-		chatApp.ac.OnApply(func(newValue string, _ int64, _ core.Suggestion) {
-			chatApp.skipRefresh = true
-			chatApp.editor.SetValue(newValue)
-			// Force a refresh only when switching to a file/folder browser so
-			// that cascading providers activate immediately.
-			if strings.HasPrefix(newValue, "@file:") || strings.HasPrefix(newValue, "@folder:") {
-				chatApp.ac.Refresh(newValue, int64(len(newValue)))
-			}
-			chatApp.host.Focus(chatApp.editor)
-			chatApp.host.RequestRender()
-		})
-		chatApp.ac.OnDismiss(func() {
-			// File browser: ESC navigates up one directory level instead of
-			// dismissing outright. At the root, dismiss normally.
-			value := chatApp.editor.GetValue()
-			if (strings.HasPrefix(value, "@file:") || strings.HasPrefix(value, "@folder:")) &&
-				len(value) > len("@file:") {
-				// Remove the last path segment (file or directory).
-				newValue := popLastPathSegment(value)
-				chatApp.editor.SetValue(newValue)
-				chatApp.ac.Refresh(newValue, int64(len(newValue)))
-			}
-			chatApp.host.RequestRender()
-		})
+// applyChatDefaults fills in default values for a ChatAppConfig.
+func applyChatDefaults(cfg ChatAppConfig) ChatAppConfig {
+	if cfg.EditorMinRows <= 0 {
+		cfg.EditorMinRows = 1
 	}
+	if cfg.EditorMaxRows <= 0 {
+		cfg.EditorMaxRows = 8
+	}
+	if cfg.EditorPrompt == "" {
+		cfg.EditorPrompt = "> "
+	}
+	return cfg
+}
 
+// newChatHistoryWithConfig creates a ChatHistory and applies theme/renderer.
+func newChatHistoryWithConfig(cfg ChatAppConfig) *ChatHistory {
+	history := NewChatHistory()
+	if cfg.Theme != nil {
+		history.SetTheme(*cfg.Theme)
+	}
+	if cfg.ReasoningRenderer != nil {
+		history.SetReasoningRenderer(cfg.ReasoningRenderer)
+	}
+	return history
+}
+
+// newChatEditor creates the input editor with config-driven settings.
+func newChatEditor(cfg ChatAppConfig, km *terminal.KeybindingsManager) *component.Editor {
+	editor := component.NewEditor(km)
+	editor.SetMinRows(cfg.EditorMinRows)
+	editor.SetMaxRows(cfg.EditorMaxRows)
+	editor.SetPrompt(cfg.EditorPrompt, strings.Repeat(" ", len(cfg.EditorPrompt)))
+	editor.SetFocusIndicator("")
+	editor.SetPlaceholder("输入消息…（/ 查看命令）")
+	editor.SetPlaceholderFn(func(s string) string { return theme.CurrentPalette().Dim.Render(s) })
+	return editor
+}
+
+// newChatHeader creates the title header component, or nil if no title is set.
+func newChatHeader(cfg ChatAppConfig) *component.TruncatedText {
+	if cfg.Title == "" {
+		return nil
+	}
+	return component.NewTruncatedText(theme.CurrentPalette().User.Render(cfg.Title))
+}
+
+// newChatAutocomplete sets up autocomplete with file/folder navigation callbacks.
+func newChatAutocomplete(cfg ChatAppConfig, a *ChatApp) *component.Autocomplete {
+	if len(cfg.Providers) == 0 {
+		return nil
+	}
+	ac := component.NewAutocomplete(cfg.Providers...)
+	ac.OnApply(func(newValue string, _ int64, _ core.Suggestion) {
+		a.skipRefresh = true
+		a.editor.SetValue(newValue)
+		if strings.HasPrefix(newValue, "@file:") || strings.HasPrefix(newValue, "@folder:") {
+			a.ac.Refresh(newValue, int64(len(newValue)))
+		}
+		a.host.Focus(a.editor)
+		a.host.RequestRender()
+	})
+	ac.OnDismiss(func() {
+		value := a.editor.GetValue()
+		if (strings.HasPrefix(value, "@file:") || strings.HasPrefix(value, "@folder:")) &&
+			len(value) > len("@file:") {
+			newValue := popLastPathSegment(value)
+			a.editor.SetValue(newValue)
+			a.ac.Refresh(newValue, int64(len(newValue)))
+		}
+		a.host.RequestRender()
+	})
+	return ac
+}
+
+// newChatLayout builds the layout tree for the chat app.
+func newChatLayout(cfg ChatAppConfig, a *ChatApp, history *ChatHistory, editor *component.Editor, loader *component.Loader, statusBar *component.StatusBar) *chatLayout {
 	layout := &chatLayout{
-		host:          chatApp,
-		app:           chatApp,
+		host:          a,
+		app:           a,
 		history:       history,
-		judgmentView:  chatApp.judgmentView,
+		judgmentView:  a.judgmentView,
 		editor:        editor,
 		loader:        loader,
 		statusBar:     statusBar,
-		ac:            chatApp.ac,
+		ac:            a.ac,
 		editorMaxRows: cfg.EditorMaxRows,
 	}
-	if header != nil {
-		layout.header = header
+	if a.header != nil {
+		layout.header = a.header
 	}
-	chatApp.layout = layout
+	return layout
+}
 
-	// When autocomplete is active, up/down keys should navigate the suggestion
-	// list rather than the input history. The check is wired here so the Editor
-	// can skip history navigation in processKeys.
-	if chatApp.ac != nil {
-		editor.SetAutocompleteActiveCheck(chatApp.ac.Active)
+// bindChatEditorEvents wires all editor and history event callbacks.
+func bindChatEditorEvents(a *ChatApp, editor *component.Editor, history *ChatHistory) {
+	if a.ac != nil {
+		editor.SetAutocompleteActiveCheck(a.ac.Active)
 	}
 
 	editor.OnChange(func(value string) {
-		if chatApp.ac != nil {
-			if chatApp.skipRefresh {
-				chatApp.skipRefresh = false
+		if a.ac != nil {
+			if a.skipRefresh {
+				a.skipRefresh = false
 			} else {
-				chatApp.ac.Refresh(value, int64(len(value)))
+				a.ac.Refresh(value, int64(len(value)))
 			}
-			chatApp.host.RequestRender()
+			a.host.RequestRender()
 		}
 	})
 	editor.OnSubmit(func(value string) {
-		chatApp.onEditorSubmit(value)
+		a.onEditorSubmit(value)
 	})
 	editor.OnCopy(func(text string) {
 		go func() {
 			if err := CopyToClipboard(text); err != nil {
-				chatApp.PrintError(fmt.Errorf("clipboard: %w", err))
+				a.PrintError(fmt.Errorf("clipboard: %w", err))
 				return
 			}
 			runeCount := utf8.RuneCountInString(text)
-			chatApp.PrintSystem(fmt.Sprintf("📋 已复制（%d 字符）", runeCount))
+			a.PrintSystem(fmt.Sprintf("📋 已复制（%d 字符）", runeCount))
 		}()
 	})
 	editor.OnPaste(func() core.Cmd {
 		return func() core.Msg {
 			text, err := ReadFromClipboard()
 			if err != nil {
-				// PrintError (history.Append) and RequestRender (channel send)
-				// are both safe to call from non-main goroutines.
-				chatApp.PrintError(fmt.Errorf("paste: %w", err))
-				chatApp.host.RequestRender()
+				a.PrintError(fmt.Errorf("paste: %w", err))
+				a.host.RequestRender()
 				return nil
 			}
 			return core.PasteMsg{Text: text}
 		}
 	})
 	editor.OnCancel(func() {
-		if cfg.OnQuit != nil {
-			cfg.OnQuit()
+		if a.cfg.OnQuit != nil {
+			a.cfg.OnQuit()
 		}
-		chatApp.Stop()
+		a.Stop()
 	})
 
 	history.SetOnCopy(func(text string) {
 		go func() {
 			if err := CopyToClipboard(text); err != nil {
-				chatApp.PrintError(fmt.Errorf("clipboard: %w", err))
+				a.PrintError(fmt.Errorf("clipboard: %w", err))
 			}
 		}()
 	})
-
-	return chatApp
 }
 
 func (a *ChatApp) SetHost(host AppHost) {
