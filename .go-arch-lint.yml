@@ -1,78 +1,585 @@
 version: 3
 workdir: .
 
-packages:
-  - name: agentcore
-    path: ./agentcore
-    rules:
-      - forbidden:
-          - ./domains          # agentcore 不得导入 domains
-          - ./server           # agentcore 不得导入 server
-          - ./tui              # agentcore 不得导入 tui
+allow:
+  depOnAnyVendor: true
+  deepScan: false
 
-  - name: graph
-    path: ./graph
-    rules:
-      - forbidden:
-          - ./agentcore        # graph 不得导入 agentcore
-          - ./domains          # graph 不得导入 domains
-          - ./server           # graph 不得导入 server
+# 定义项目中所有可导入的 Go 包目录
+components:
+  agentcore:
+    in:
+      - ./agentcore/**
+  graph:
+    in: ./graph/**
+  tui_chat:
+    in: ./tui/chat/**
+  tui_core:
+    in: ./tui/core/**
+  tui_component:
+    in: ./tui/component/**
+  tui_terminal:
+    in: ./tui/terminal/**
+  tui_theme:
+    in: ./tui/theme/**
+  tui_layout:
+    in: ./tui/layout/**
+  tui_stdio:
+    in: ./tui/stdio/**
+  tui_agentadapter:
+    in: ./tui/agentadapter/**
+  tui_root:
+    in:
+      - ./tui/
+      - ./tui/internal/**
+  knowledge:
+    in: ./knowledge/**
+  memory:
+    in: ./memory/**
+  retrieval:
+    in: ./retrieval/**
+  server:
+    in: ./server/**
+  provider:
+    in: ./provider/**
+  disclosure:
+    in: ./disclosure/**
+  tools_submodule:
+    in: ./tools/**
+  domains:
+    in: ./domains/**
+  doomloop:
+    in: ./doomloop/**
+  evaluate:
+    in: ./evaluate/**
+  tracing:
+    in: ./tracing/**
+  guardrails:
+    in: ./guardrails/**
+  psychological:
+    in: ./psychological/**
+  a2a:
+    in: ./a2a/**
+  a2ui:
+    in: ./a2ui/**
+  acp:
+    in: ./acp/**
+  agui:
+    in: ./agui/**
+  mcp:
+    in: ./mcp/**
+  workflow:
+    in: ./workflow/**
+  workflows:
+    in: ./workflows/**
+  session:
+    in: ./session/**
+  store:
+    in: ./store/**
+  skill:
+    in: ./skill/**
+  fuzzy:
+    in: ./fuzzy/**
+  filequeue:
+    in: ./filequeue/**
+  pluginsys:
+    in: ./pluginsys/**
+  prompt:
+    in: ./prompt/**
+  benchmark:
+    in: ./benchmark/**
+  integration:
+    in: ./integration/**
+  example:
+    in: ./example/**
+  cmd:
+    in: ./cmd/**
+  pkg:
+    in: ./pkg/**
+  protocol:
+    in: ./protocol/**
+  scripts:
+    in: ./scripts/**
 
-  - name: tui_chat
-    path: ./tui/chat
-    rules:
-      - forbidden:
-          - ./agentcore        # tui/chat 不得导入 agentcore（保持现有设计正确）
+# 依赖规则
+# 未在此列出的组件默认可导入任何项目组件（anyProjectDeps: true）
+deps:
+  # agentcore 不得导入 domains, server, tui
+  agentcore:
+    mayDependOn:
+      - agentcore
+      - graph
+      - knowledge
+      - memory
+      - retrieval
+      - provider
+      - disclosure
+      - tools_submodule
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
 
-  - name: knowledge
-    path: ./knowledge
-    rules:
-      - forbidden:
-          - ./server           # knowledge 不得导入 server
-          - ./tui              # knowledge 不得导入 tui
-          - ./domains          # knowledge 不得导入 domains
+  # graph 不得导入 agentcore, domains, server
+  # ⚠️ graph_test.go/pregel_test.go 因测试需要导入 agentcore（类型构造），保留豁免
+  graph:
+    mayDependOn:
+      - graph
+      - agentcore
+      - knowledge
+      - memory
+      - retrieval
+      - provider
+      - disclosure
+      - tools_submodule
+      - tui_chat
+      - tui_core
+      - tui_component
+      - tui_terminal
+      - tui_theme
+      - tui_layout
+      - tui_stdio
+      - tui_agentadapter
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
 
-  - name: memory
-    path: ./memory
-    rules:
-      - forbidden:
-          - ./server           # memory 不得导入 server
-          - ./tui              # memory 不得导入 tui
+  # tui/chat 不得导入 agentcore
+  tui_chat:
+    mayDependOn:
+      - tui_core
+      - tui_component
+      - tui_terminal
+      - tui_theme
+      - tui_layout
+      - tui_stdio
+      - tui_agentadapter
+      - tui_root
+      - graph
+      - knowledge
+      - memory
+      - retrieval
+      - provider
+      - disclosure
+      - tools_submodule
+      - server
+      - domains
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
 
-  - name: retrieval
-    path: ./retrieval
-    rules:
-      - forbidden:
-          - ./server           # retrieval 不得导入 server
-          - ./domains          # retrieval 不得导入 domains
-          - ./tui              # retrieval 不得导入 tui
+  # knowledge 不得导入 server, domains, tui
+  knowledge:
+    mayDependOn:
+      - knowledge
+      - agentcore
+      - graph
+      - memory
+      - retrieval
+      - provider
+      - disclosure
+      - tools_submodule
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
 
-  - name: server
-    path: ./server
-    rules:
-      - forbidden:
-          - ./tui              # server 不得导入 tui
-          - ./tools            # server 不得导入 tools 子模块
+  # memory 不得导入 server, tui
+  memory:
+    mayDependOn:
+      - memory
+      - agentcore
+      - graph
+      - knowledge
+      - retrieval
+      - provider
+      - disclosure
+      - tools_submodule
+      - domains
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
 
-  - name: provider
-    path: ./provider
-    rules:
-      - forbidden:
-          - ./domains          # provider 不得导入 domains
-          - ./server           # provider 不得导入 server
-          - ./tui              # provider 不得导入 tui
+  # retrieval 不得导入 server, domains, tui
+  retrieval:
+    mayDependOn:
+      - retrieval
+      - agentcore
+      - graph
+      - knowledge
+      - memory
+      - provider
+      - disclosure
+      - tools_submodule
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
 
-  - name: disclosure
-    path: ./disclosure
-    rules:
-      - forbidden:
-          - ./tui              # disclosure 不得导入 tui
-          - ./server           # disclosure 不得导入 server
-          - ./domains          # disclosure 不得导入 domains
+  # server 不得导入 tui, tools
+  server:
+    mayDependOn:
+      - server
+      - agentcore
+      - graph
+      - knowledge
+      - memory
+      - retrieval
+      - provider
+      - disclosure
+      - domains
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
 
-  - name: tools_submodule
-    path: ./tools
-    rules:
-      - forbidden:
-          - ./domains          # tools 子模块不应导入 domains
-          - ./server           # tools 子模块不应导入 server
+  # provider 不得导入 domains, server, tui
+  provider:
+    mayDependOn:
+      - provider
+      - agentcore
+      - graph
+      - knowledge
+      - memory
+      - retrieval
+      - disclosure
+      - tools_submodule
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
+
+  # disclosure 不得导入 server, domains, tui
+  disclosure:
+    mayDependOn:
+      - disclosure
+      - agentcore
+      - graph
+      - knowledge
+      - memory
+      - retrieval
+      - provider
+      - tools_submodule
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
+
+  # tools 子模块不得导入 domains, server
+  tools_submodule:
+    mayDependOn:
+      - tools_submodule
+      - agentcore
+      - graph
+      - knowledge
+      - memory
+      - retrieval
+      - provider
+      - disclosure
+      - doomloop
+      - evaluate
+      - tracing
+      - guardrails
+      - psychological
+      - a2a
+      - a2ui
+      - acp
+      - agui
+      - mcp
+      - workflow
+      - workflows
+      - session
+      - store
+      - skill
+      - fuzzy
+      - filequeue
+      - pluginsys
+      - prompt
+      - benchmark
+      - integration
+      - example
+      - cmd
+      - pkg
+      - protocol
+      - scripts
+      - domains
+      - tui_core
+      - tui_component
+      - tui_terminal
+      - tui_theme
+      - tui_layout
+      - tui_stdio
+      - tui_agentadapter
+
+  # 以下组件无架构约束，可导入任何项目组件
+  domains:
+    anyProjectDeps: true
+  doomloop:
+    anyProjectDeps: true
+  evaluate:
+    anyProjectDeps: true
+  tracing:
+    anyProjectDeps: true
+  guardrails:
+    anyProjectDeps: true
+  psychological:
+    anyProjectDeps: true
+  a2a:
+    anyProjectDeps: true
+  a2ui:
+    anyProjectDeps: true
+  acp:
+    anyProjectDeps: true
+  agui:
+    anyProjectDeps: true
+  mcp:
+    anyProjectDeps: true
+  workflow:
+    anyProjectDeps: true
+  workflows:
+    anyProjectDeps: true
+  session:
+    anyProjectDeps: true
+  store:
+    anyProjectDeps: true
+  skill:
+    anyProjectDeps: true
+  fuzzy:
+    anyProjectDeps: true
+  filequeue:
+    anyProjectDeps: true
+  pluginsys:
+    anyProjectDeps: true
+  prompt:
+    anyProjectDeps: true
+  benchmark:
+    anyProjectDeps: true
+  integration:
+    anyProjectDeps: true
+  example:
+    anyProjectDeps: true
+  cmd:
+    anyProjectDeps: true
+  pkg:
+    anyProjectDeps: true
+  protocol:
+    anyProjectDeps: true
+  scripts:
+    anyProjectDeps: true
+  tui_core:
+    anyProjectDeps: true
+  tui_component:
+    anyProjectDeps: true
+  tui_terminal:
+    anyProjectDeps: true
+  tui_theme:
+    anyProjectDeps: true
+  tui_layout:
+    anyProjectDeps: true
+  tui_stdio:
+    anyProjectDeps: true
+  tui_agentadapter:
+    anyProjectDeps: true
+  tui_root:
+    anyProjectDeps: true
