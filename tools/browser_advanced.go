@@ -20,6 +20,7 @@ import (
 
 var (
 	defaultBrowserManagerRegistry = csync.NewMap[string, *BrowserManager]()
+	reHostname                    = regexp.MustCompile(`https?://([^/]+)`)
 )
 
 func RegisterBrowserManager(id string, mgr *BrowserManager) {
@@ -251,8 +252,7 @@ func ValidatePostRedirectURL(finalURL string, originalURL string, allowPrivate b
 
 func getHostname(rawURL string) string {
 	if strings.HasPrefix(rawURL, "http://") || strings.HasPrefix(rawURL, "https://") {
-		u := regexp.MustCompile(`https?://([^/]+)`)
-		if matches := u.FindStringSubmatch(rawURL); len(matches) > 1 {
+		if matches := reHostname.FindStringSubmatch(rawURL); len(matches) > 1 {
 			return matches[1]
 		}
 	}

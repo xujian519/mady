@@ -236,6 +236,9 @@ func (b *FactBlackboard) GetArticleJudgment(id string) (ArticleJudgment, bool) {
 }
 
 // Plan returns the current execution plan, or nil if none has been set.
+//
+// Deprecated: Use PlanV2 for new code. Plan relies on the legacy ExecutionPlan
+// type and is only retained for backward compatibility. Will be removed in v0.6.0.
 func (b *FactBlackboard) Plan() *ExecutionPlan {
 	b.mu.RLock()
 	defer b.mu.RUnlock()

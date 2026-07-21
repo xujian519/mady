@@ -139,7 +139,7 @@ func (w *WritableStore) initSchema() error {
 //
 // The call is serialized by a mutex to ensure transaction integrity. Reads
 // from other goroutines are not blocked (WAL mode allows concurrent readers).
-func (w *WritableStore) AddDocument(ctx context.Context, docID, title, content string) error {
+func (w *WritableStore) AddDocument(ctx context.Context, docID, title, content string) (retErr error) {
 	if docID == "" {
 		return errors.New("writable: docID must not be empty")
 	}
@@ -185,7 +185,15 @@ func (w *WritableStore) AddDocument(ctx context.Context, docID, title, content s
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback() //nolint:errcheck
+	defer func() {
+		// Rollback on error; calling Rollback after Commit returns
+		// sql.ErrTxDone which is safe to ignore.
+		if retErr != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("rollback: %w", rbErr))
+			}
+		}
+	}()
 
 	now := time.Now().UTC().Format(time.RFC3339)
 

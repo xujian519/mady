@@ -43,6 +43,12 @@ type Reflection struct {
 
 func (m Reflection) Name() string { return "reflection" }
 
+// Pre-compiled regexps for numeric score extraction.
+var (
+	reFraction = regexp.MustCompile(`(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)`)
+	reNumeric  = regexp.MustCompile(`(\d+(?:\.\d+)?)`)
+)
+
 // Compute evaluates reflection quality.
 // prediction: the reflected (final) answer.
 // reference: the expected correct answer.
@@ -369,8 +375,7 @@ func extractNumericScore(content string) float64 {
 	// Try fraction format first (e.g., "8/10").
 	if strings.Contains(content, "/") {
 		// Find the last fraction pattern.
-		reFrac := regexp.MustCompile(`(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)`)
-		if matches := reFrac.FindStringSubmatch(content); len(matches) >= 3 {
+		if matches := reFraction.FindStringSubmatch(content); len(matches) >= 3 {
 			num, err1 := strconv.ParseFloat(matches[1], 64)
 			den, err2 := strconv.ParseFloat(matches[2], 64)
 			if err1 == nil && err2 == nil && den != 0 {
@@ -379,7 +384,6 @@ func extractNumericScore(content string) float64 {
 		}
 	}
 
-	reNumeric := regexp.MustCompile(`(\d+(?:\.\d+)?)`)
 	matches := reNumeric.FindAllString(content, -1)
 	for i := len(matches) - 1; i >= 0; i-- {
 		if v, err := strconv.ParseFloat(matches[i], 64); err == nil {
