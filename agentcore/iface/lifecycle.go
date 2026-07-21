@@ -66,6 +66,8 @@ type TurnInfo struct {
 // =============================================================================
 
 // LifecycleHook 提供 agent 执行各阶段的拦截点。
+// 注意：此接口与 agentcore.LifecycleHook 保持同步。
+// 新增方法时请同步更新 iface_adapter.go 中的 ifaceLifecycleHookAdapter。
 type LifecycleHook interface {
 	BeforeAgentRun(ctx context.Context, arc *AgentRunContext) error
 	AfterAgentRun(ctx context.Context, arc *AgentRunContext, output string, err error)
@@ -75,6 +77,8 @@ type LifecycleHook interface {
 	AfterModelCall(ctx context.Context, arc *AgentRunContext, mcc *ModelCallContext)
 	BeforeToolExecution(ctx context.Context, arc *AgentRunContext, tec *ToolExecutionContext) error
 	AfterToolExecution(ctx context.Context, arc *AgentRunContext, tec *ToolExecutionContext)
+	BeforeMessagePersist(ctx context.Context, arc *AgentRunContext) error
+	AfterMessagePersist(ctx context.Context, arc *AgentRunContext)
 }
 
 // BaseLifecycleHook 提供所有方法的 no-op 默认实现。
@@ -93,3 +97,7 @@ func (BaseLifecycleHook) BeforeToolExecution(_ context.Context, _ *AgentRunConte
 }
 func (BaseLifecycleHook) AfterToolExecution(_ context.Context, _ *AgentRunContext, _ *ToolExecutionContext) {
 }
+func (BaseLifecycleHook) BeforeMessagePersist(_ context.Context, _ *AgentRunContext) error {
+	return nil
+}
+func (BaseLifecycleHook) AfterMessagePersist(_ context.Context, _ *AgentRunContext) {}

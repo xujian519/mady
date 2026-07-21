@@ -8,7 +8,7 @@
 |------|------|------|--------|
 | `domains/reasoning/plan_compiler.go` | 17 | `multi_hypothesis`: dual-advocate + judge subgraph | 高 |
 | `domains/reasoning/five_step_runner.go` | 239 | Phase 4: promote to multi_hypothesis intent | 高 |
-| `agentcore/evaluate/judge_metrics.go` | 13 | Phase 4+: LLM-based judge (currently heuristic) | 中 |
+| `evaluate/judge_metrics.go` | 13 | Phase 4+: LLM-based judge (currently heuristic) | 中 |
 | `knowledge/eval.go` | 21 | Phase 4+ 接入 LLM 评分器 | 中 |
 | `tui/component/statusbar.go` | 38, 148 | Phase 4: enhanced status fields (case name, pending count) | 低 |
 | `tui/chat/chat_app_layout.go` | 63, 124 | Phase 4.4: responsive sidebar panel | 低 |

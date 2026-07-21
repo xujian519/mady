@@ -246,7 +246,7 @@ func citationSetMatches(required, pred map[string]bool) bool {
 
 // CitationValidityReport 是 CitationValidity 指标所需的核验汇总。
 // 字段语义与 guardrails.CitationReport 对应字段一致，由装配侧注入适配器
-// 完成映射，使本包不直接依赖 guardrails（agentcore/evaluate 不得反向
+// 完成映射，使本包不直接依赖 guardrails（evaluate 不得反向
 // 引用扩展层）。
 type CitationValidityReport struct {
 	Total        int // 抽取到的引用总数（去重后）

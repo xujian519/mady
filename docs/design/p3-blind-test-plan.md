@@ -174,7 +174,7 @@ T0 培训校准（30 min，统一标注规则与工具使用）
 
 ```bash
 MADY_LIVE_EVAL=1 MADY_EVAL_SUITE=p2a DEEPSEEK_API_KEY=<key> \
-  go test -run 'TestLiveAgentBaselineEval' -v ./agentcore/evaluate/benchmark/
+  go test -run 'TestLiveAgentBaselineEval' -v ./evaluate/benchmark/
 ```
 
 （`MADY_EVAL_SUITE=p2a` 为全量 31 题稳定顺序筛选；`MADY_EVAL_CASES=31` 亦可，但为随机顺序。无 DeepSeek key 时用 `MADY_EVAL_API_KEY` + `MADY_EVAL_BASE_URL` + `MADY_EVAL_MODEL` 指向任意 OpenAI 兼容端点。）

@@ -26,7 +26,7 @@
 // # OpenTelemetry
 //
 // When the agent is instrumented with OpenTelemetry (see package
-// agentcore/tracing), evaluation runs can be wrapped in a span via
+// tracing), evaluation runs can be wrapped in a span via
 // [NewTracedEvaluator] so that evaluation latency and metric values appear in
 // the same trace as the agent run under review.
 package evaluate

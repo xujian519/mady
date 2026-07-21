@@ -251,7 +251,7 @@
 | ID | 任务 | 预估 | 依赖 |
 |----|------|------|------|
 | **T4.2.1** | 为每个 node 执行记录：`start_time` / `end_time` / `duration_ms` / `token_usage` / `retry_count` / `error_type` | 3h | T4.1.2 |
-| **T4.2.2** | 接入 OpenTelemetry tracing（项目已有 `agentcore/tracing/`，扩展 span 到 node 级别） | 3h | T4.2.1 |
+| **T4.2.2** | 接入 OpenTelemetry tracing（项目已有 `tracing/`，扩展 span 到 node 级别） | 3h | T4.2.1 |
 | **T4.2.3** | 实现 `RunSummary` 聚合：总耗时、各 node 耗时分布、token 消耗、重试次数、降级次数 | 3h | T4.2.1 |
 | **T4.2.4** | 在 GRAPH_REPORT.md 风格的审计报告中输出 RunSummary | 2h | T4.2.3 |
 

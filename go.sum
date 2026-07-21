@@ -64,6 +64,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/xujian519/mady/tools v0.0.0-20260711000742-56d5e1c6ad94 h1:NBWyCe3/rg/dJ4KQASaUIZcWs3CX9f57lW5uBiLHD/g=
 github.com/xujian519/mady/tools v0.0.0-20260711000742-56d5e1c6ad94/go.mod h1:WWH4e1mx7aFX0Uq6NA+qdJ1TRGOilGUXT7YCXxVv6LE=
+github.com/xujian519/mady/tui v0.0.0-20260721162033-d76ce4144d96 h1:wWk1bE7Mw7M7iFBXrH2tHU5O0pryN5WND25Zj1ZsStc=
+github.com/xujian519/mady/tui v0.0.0-20260721162033-d76ce4144d96/go.mod h1:WI0/YFRaPs7w9fjOK6SbDvaI1G8tm2g9xbu9UM5FoI4=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=

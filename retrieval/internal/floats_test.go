@@ -41,44 +41,6 @@ func TestBytesToFloats_InvalidLength(t *testing.T) {
 	}
 }
 
-func TestCosineSimilarity(t *testing.T) {
-	tests := []struct {
-		name string
-		a, b []float32
-		want float64
-	}{
-		{"identical", []float32{1, 0, 0}, []float32{1, 0, 0}, 1.0},
-		{"opposite", []float32{1, 0, 0}, []float32{-1, 0, 0}, -1.0},
-		{"orthogonal", []float32{1, 0, 0}, []float32{0, 1, 0}, 0.0},
-		{"45deg", []float32{1, 0}, []float32{1, 1}, 1.0 / math.Sqrt2},
-		{"mixed", []float32{1, 2, 3}, []float32{4, 5, 6}, 0.974631846},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := CosineSimilarity(tt.a, tt.b)
-			if math.Abs(got-tt.want) > 1e-6 {
-				t.Errorf("got %f, want %f", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestCosineSimilarity_EdgeCases(t *testing.T) {
-	if got := CosineSimilarity(nil, []float32{1, 2}); got != 0 {
-		t.Errorf("nil a should return 0, got %f", got)
-	}
-	if got := CosineSimilarity([]float32{1, 2}, nil); got != 0 {
-		t.Errorf("nil b should return 0, got %f", got)
-	}
-	if got := CosineSimilarity([]float32{1}, []float32{1, 2}); got != 0 {
-		t.Errorf("different lengths should return 0, got %f", got)
-	}
-	if got := CosineSimilarity([]float32{0, 0}, []float32{1, 2}); got != 0 {
-		t.Errorf("zero vector should return 0, got %f", got)
-	}
-}
-
 func TestL2Norm(t *testing.T) {
 	tests := []struct {
 		vec  []float32

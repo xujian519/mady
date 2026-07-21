@@ -19,7 +19,7 @@ import (
 // citationVerifierAdapter 将线上引用核验 Gate（guardrails.VerifyCitations）
 // 适配为 evaluate.CitationVerifier，作为 `mady eval` 的核验源注入。
 //
-// 注入点选在 cmd/mady 顶层入口而非 agentcore/evaluate/cli，原因是：
+// 注入点选在 cmd/mady 顶层入口而非 evaluate/cli，原因是：
 // evaluate 包不得反向引用 guardrails（架构约束，详见 AGENTS.md 分层规范），
 // 由顶层装配层注入最干净。
 func citationVerifierAdapter(text string) evaluate.CitationValidityReport {

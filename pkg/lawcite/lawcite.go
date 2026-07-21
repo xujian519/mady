@@ -1,6 +1,6 @@
 // Package lawcite 提供中文专利法域文本中法条引用的结构化抽取。
 //
-// 本包是「评测指标（agentcore/evaluate）与线上引用核验护栏（guardrails）
+// 本包是「评测指标（evaluate）与线上引用核验护栏（guardrails）
 // 共享的同源引用理解」（见 docs/design/citation-verification-gate.md §3 决策四）：
 // 从自由文本中识别「专利法第22条第3款」「《专利法实施细则》第四十二条」
 // 「细则第68条」等引用，归一化中文数字、识别所属法律、并截取引用点语境，
@@ -294,7 +294,7 @@ func mustAtoi(s string) int {
 }
 
 // ============================================================================
-// 中文数字归一化（与 agentcore/evaluate 口径一致，P1c 后 metrics.go 改调本包）
+// 中文数字归一化（与 evaluate 口径一致，P1c 后 metrics.go 改调本包）
 // ============================================================================
 
 var (
@@ -356,7 +356,7 @@ func normalizeChineseNumerals(s string) string {
 	})
 }
 
-// Normalize 导出 normalizeChineseNumerals，供评测指标（agentcore/evaluate）
+// Normalize 导出 normalizeChineseNumerals，供评测指标（evaluate）
 // 对 required citations 做同口径归一化——P1c 起 metrics.go 不再维护私有副本。
 // 仅转换「第X条/款/项/章/节/点/部分」内的数字，普通中文数字（"二十二项任务"）
 // 不受影响，可安全用于任意文本。

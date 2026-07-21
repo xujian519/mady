@@ -26,14 +26,20 @@ echo ""
 # agentcore 层
 check_no_import ./agentcore "github.com/xujian519/mady/domains" "agentcore → domains"
 check_no_import ./agentcore "github.com/xujian519/mady/server" "agentcore → server"
+check_no_import ./agentcore "github.com/xujian519/mady/tui" "agentcore → tui"
 
 # 基础设施层
 check_no_import ./graph "github.com/xujian519/mady/agentcore" "graph → agentcore"
+check_no_import ./graph "github.com/xujian519/mady/domains" "graph → domains"
+check_no_import ./graph "github.com/xujian519/mady/server" "graph → server"
 check_no_import ./knowledge "github.com/xujian519/mady/server" "knowledge → server"
 check_no_import ./knowledge "github.com/xujian519/mady/tui" "knowledge → tui"
+check_no_import ./knowledge "github.com/xujian519/mady/domains" "knowledge → domains"
 check_no_import ./memory "github.com/xujian519/mady/server" "memory → server"
+check_no_import ./memory "github.com/xujian519/mady/tui" "memory → tui"
 check_no_import ./retrieval "github.com/xujian519/mady/server" "retrieval → server"
 check_no_import ./retrieval "github.com/xujian519/mady/domains" "retrieval → domains"
+check_no_import ./retrieval "github.com/xujian519/mady/tui" "retrieval → tui"
 
 # TUI 层
 check_no_import ./tui/chat "github.com/xujian519/mady/agentcore" "tui/chat → agentcore"
@@ -44,12 +50,17 @@ check_no_import ./server "github.com/xujian519/mady/tools" "server → tools"
 
 # provider 层
 check_no_import ./provider "github.com/xujian519/mady/domains" "provider → domains"
+check_no_import ./provider "github.com/xujian519/mady/server" "provider → server"
+check_no_import ./provider "github.com/xujian519/mady/tui" "provider → tui"
 
 # disclosure 层
 check_no_import ./disclosure "github.com/xujian519/mady/tui" "disclosure → tui"
+check_no_import ./disclosure "github.com/xujian519/mady/server" "disclosure → server"
+check_no_import ./disclosure "github.com/xujian519/mady/domains" "disclosure → domains"
 
 # tools 子模块
 check_no_import ./tools "github.com/xujian519/mady/domains" "tools → domains"
+check_no_import ./tools "github.com/xujian519/mady/server" "tools → server"
 
 echo ""
 echo "=== 结果: $PASS 通过, $ERRORS 失败 ==="

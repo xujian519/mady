@@ -11,14 +11,14 @@
 |------|------|------|---------------|
 | **生产数据** | 来自真实案件、当事人、专利局的实际业务数据 | 真实交底书、客户信息、案件文档 | 仅限用户本地 `~/.mady/workspace/`，不得提交至仓库 |
 | **测试数据** | 人工构造或经脱敏处理的模拟数据 | 示例交底书、mock 案件、合成法律文书 | 可提交至 `integration/testdata/`、`example/` 等目录 |
-| **基准数据** | 公开的评估基准题集 | 专利考试真题、《专利审查指南》公开内容 | `agentcore/evaluate/benchmark/testdata/` |
+| **基准数据** | 公开的评估基准题集 | 专利考试真题、《专利审查指南》公开内容 | `evaluate/benchmark/testdata/` (v0.5 前为 `agentcore/evaluate/benchmark/testdata/`) |
 | **配置数据** | Agent Manifest、规则定义、技能文件 | `manifests/`、`domains/rules/`、`skills/` | 可提交至仓库（不含密钥） |
 
 ### 数据分类原则
 
 - **生产数据禁止进入版本控制**：任何包含真实当事人信息、案件文档、内部业务逻辑的数据不得提交到仓库
 - **测试数据必须脱敏**：使用占位符（如 `张三`、`某公司`、`CN123456789A` 等）替换真实信息
-- **基线数据需注明来源**：`agentcore/evaluate/benchmark/` 中的真题数据须在文件头部标注来源
+- **基线数据需注明来源**：`evaluate/benchmark/` 中的真题数据须在文件头部标注来源（v0.5 前为 `agentcore/evaluate/benchmark/`）
 
 ---
 

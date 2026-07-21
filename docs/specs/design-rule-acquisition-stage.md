@@ -137,4 +137,4 @@ Wiki 不是被动查询对象，需双向设计：
 
 - ~~`ConfirmedRuleSet` 与现有 `EvidenceSpan`、`PendingApproval` 的具体数据结构如何复用/扩展，需结合 `agentcore/evidence` 实际定义确定。~~ **已明确**：`EvidenceSpan` 字段见第四节订正（无 DocID/Page/Similarity）；`PendingApproval` 是枚举值，状态机用 `ApprovalRecordState`。三者均不在 `agentcore/evidence`，审批相关在 `domains` 包。
 - ~~`RuleAssertion` 现有实现是否已支持作为 lifecycle hook 挂载，还是需要新增适配层。~~ **已明确**：需新增适配层（`RuleAssertion` 是普通函数，非 hook，见第五节订正）。
-- `RuleComplianceCompleteness` 指标的具体计分逻辑，建议参考 `agentcore/evaluate/metrics.go:147` 中 `CitationCompleteness` 的实现模式（已核实该指标存在，`RuleComplianceCompleteness` 与 `EvidenceGroundedness` 均未存在，待新建）。
+- `RuleComplianceCompleteness` 指标的具体计分逻辑，建议参考 `evaluate/metrics.go:147` 中 `CitationCompleteness` 的实现模式（已核实该指标存在，`RuleComplianceCompleteness` 与 `EvidenceGroundedness` 均未存在，待新建）。

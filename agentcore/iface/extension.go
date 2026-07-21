@@ -19,42 +19,9 @@ type ExtensionInfo struct {
 	Name string
 }
 
-// =============================================================================
-// 追踪接口
-// =============================================================================
-
-// Span 表示一次追踪工作单元。
-type Span interface {
-	End()
-	RecordError(err error)
-	AddEvent(name string, attrs ...SpanAttribute)
-}
-
-// SpanAttribute 是附加到 Span 的键值对。
-type SpanAttribute struct {
-	Key   string
-	Value any
-}
-
-// Tracer 创建追踪 span。
-type Tracer interface {
-	Start(ctx context.Context, name string, attrs ...SpanAttribute) (context.Context, Span)
-}
-
-// NoopTracer 返回丢弃所有追踪数据的空 tracer。
-func NoopTracer() Tracer {
-	return noopTracer{}
-}
-
-type noopTracer struct{}
-type noopSpan struct{}
-
-func (noopTracer) Start(ctx context.Context, _ string, _ ...SpanAttribute) (context.Context, Span) {
-	return ctx, noopSpan{}
-}
-func (noopSpan) End()                                  {}
-func (noopSpan) RecordError(_ error)                   {}
-func (noopSpan) AddEvent(_ string, _ ...SpanAttribute) {}
+// 追踪接口定义已迁移到 agentcore/tracer.go。
+// 本包不重复定义 Tracer/Span/SpanAttribute。
+// 如需使用追踪功能，请通过 agentcore.NewTracerAdapter() 或直接引用 agentcore.Tracer。
 
 // =============================================================================
 // 工具接口

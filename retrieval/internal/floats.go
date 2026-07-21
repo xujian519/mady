@@ -33,24 +33,8 @@ func BytesToFloats(b []byte) []float32 {
 	return vec
 }
 
-// CosineSimilarity 计算两个 float32 向量的余弦相似度。
-// 零向量或长度不一致时返回 0。
-func CosineSimilarity(a, b []float32) float64 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 0
-	}
-	var dot, normA, normB float64
-	for i := range a {
-		fa, fb := float64(a[i]), float64(b[i])
-		dot += fa * fb
-		normA += fa * fa
-		normB += fb * fb
-	}
-	if normA == 0 || normB == 0 {
-		return 0
-	}
-	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
-}
+// CosineSimilarity 已迁移到 retrieval.CosineSimilarity (retrieval/embedding.go)。
+// 本包不再重复定义，保持一致的事实来源。
 
 // L2Norm 计算 float32 向量的 L2 范数。
 func L2Norm(vec []float32) float64 {

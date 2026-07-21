@@ -6,7 +6,7 @@ package evaluate
 
 // ApprovalRecord 是最小审批记录接口。
 // 用于从外部审批系统（如 domains.ApprovalRecord）接入采纳率统计，
-// 避免 agentcore/evaluate 包反向依赖领域层。
+// 避免 evaluate 包反向依赖领域层。
 //
 // Decision 返回审批结果，取值为 "adopted" | "modified" | "rejected"。
 type ApprovalRecord interface {

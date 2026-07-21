@@ -177,7 +177,8 @@ func (a *ifaceLifecycleHookAdapter) BeforeTurn(ctx context.Context, arc *AgentRu
 
 func (a *ifaceLifecycleHookAdapter) AfterTurn(ctx context.Context, arc *AgentRunContext, info TurnInfo) {
 	ifaceARC := &iface.AgentRunContext{Input: arc.Input, TurnCount: arc.Turn}
-	ifaceInfo := iface.TurnInfo{HadToolCalls: info.HadToolCalls, ToolCount: len(arc.Messages)}
+	// ToolCount 置 0：agentcore.TurnInfo 不提供本回合工具调用计数，len(arc.Messages) 是消息总数而非工具数。
+	ifaceInfo := iface.TurnInfo{HadToolCalls: info.HadToolCalls, ToolCount: 0}
 	a.inner.AfterTurn(ctx, ifaceARC, ifaceInfo)
 }
 
@@ -234,6 +235,16 @@ func (a *ifaceLifecycleHookAdapter) AfterToolExecution(ctx context.Context, arc 
 		ToolNames: toolNames(tec.ToolCalls),
 	}
 	a.inner.AfterToolExecution(ctx, ifaceARC, ifaceTEC)
+}
+
+func (a *ifaceLifecycleHookAdapter) BeforeMessagePersist(ctx context.Context, arc *AgentRunContext, msg *Message) error {
+	ifaceARC := &iface.AgentRunContext{Input: arc.Input, TurnCount: arc.Turn}
+	return a.inner.BeforeMessagePersist(ctx, ifaceARC)
+}
+
+func (a *ifaceLifecycleHookAdapter) AfterMessagePersist(ctx context.Context, arc *AgentRunContext, msg Message) {
+	ifaceARC := &iface.AgentRunContext{Input: arc.Input, TurnCount: arc.Turn}
+	a.inner.AfterMessagePersist(ctx, ifaceARC)
 }
 
 // toolNames 从 ToolCall 切片提取名称列表。

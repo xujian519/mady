@@ -95,7 +95,7 @@ Mady 8 层架构，严格单向依赖：
 |--------|---------|
 | 创建 `common/`、`utils/` 包 | 按领域拆分为 `fuzzy/`、`filequeue/` 等有明确语义的包 |
 | `import . "package"`（dot import） | 禁止使用（测试中也不要默认使用） |
-| 在 `init()` 中 panic | 记录日志到 stderr 而不是 panic（见 `agentcore/evaluate/benchmark/invalidation_decisions.go` 修复） |
+| 在 `init()` 中 panic | 记录日志到 stderr 而不是 panic（见 `evaluate/benchmark/invalidation_decisions.go` 修复） |
 | 使用 `_` 忽略错误 | 始终检查所有错误返回值 |
 | 全局状态（`http.DefaultServeMux` 等） | 创建专用实例注入 |
 

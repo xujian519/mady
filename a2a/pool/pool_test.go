@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -78,42 +77,12 @@ func TestDefaultCheckFuncNon200(t *testing.T) {
 	}
 }
 
-func TestConsecutiveFailuresEviction(t *testing.T) {
-	// 使用自定义 checkFn 模拟连续失败
-	var failCount atomic.Int32
-	checkFn := func(ctx context.Context, url string) bool {
-		failCount.Add(1)
-		return false
-	}
-
-	p := pool.New(checkFn).WithTTL(3)
-
-	reg := &registry.Registration{Name: "agent-1", URL: "http://localhost:8080"}
-	p.Join(reg)
-
-	// 触发检查循环（不启动 ticker，手动调用内部逻辑）
-	// 使用带超时的 ctx 避免死锁
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	// 通过 Start/Stop 测试摘除逻辑
-	p.Start(ctx)
-	// 给 checkAll 一点时间执行
-	time.Sleep(50 * time.Millisecond)
-	p.Stop()
-
-	// 通过 alive 检查 agent 是否已被摘除
-	// 由于 checkFn 一直返回 false，经过 ttl=3 次后应被摘除
-	// 但 pool 的 checkAll 是按 ticker 周期执行的，我们需要模拟多次检查
-	// 更好的方式：直接构造多次检查的场景
-}
-
 func TestStartStop(t *testing.T) {
 	checkFn := func(ctx context.Context, url string) bool {
 		return false
 	}
 
-	p := pool.New(checkFn).WithInterval(50 * time.Millisecond)
+	p := pool.New(checkFn).WithInterval(30 * time.Millisecond)
 
 	reg := &registry.Registration{Name: "agent-1", URL: "http://localhost:8080"}
 	p.Join(reg)
@@ -121,17 +90,28 @@ func TestStartStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.Start(ctx)
 
-	time.Sleep(200 * time.Millisecond)
+	// Wait for some check cycles to run
+	time.Sleep(100 * time.Millisecond)
 	cancel()
+	p.Stop()
 
-	// 等待停止
-	time.Sleep(50 * time.Millisecond)
+	// After stop, agent should have been evicted due to consecutive failures
+	if alive := p.Alive(); len(alive) != 0 {
+		t.Errorf("expected 0 alive after stop+eviction, got %d", len(alive))
+	}
 
-	// Start again after stop
+	// Re-join and restart
+	p.Join(reg)
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	p.Start(ctx2)
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
+
+	if alive := p.Alive(); len(alive) != 1 {
+		t.Errorf("expected 1 alive after restart, got %d", len(alive))
+	}
+
 	cancel2()
+	p.Stop()
 }
 
 func TestDoubleStart(t *testing.T) {
