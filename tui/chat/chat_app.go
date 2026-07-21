@@ -175,6 +175,10 @@ type ChatApp struct {
 	// and only flush them on final failure (Hermes-style buffered retry).
 	SuppressAutoRetry bool
 
+	// defaultPlaceholder holds the original editor placeholder text so Idle()
+	// can restore it after Busy() temporarily sets "Ctrl+C to interrupt".
+	defaultPlaceholder string
+
 	skipRefresh bool // suppress autocomplete re-activation after applying a suggestion
 }
 
@@ -200,14 +204,15 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 	}
 
 	chatApp := &ChatApp{
-		cfg:          cfg,
-		host:         cfg.Host,
-		history:      history,
-		editor:       editor,
-		loader:       loader,
-		statusBar:    statusBar,
-		km:           km,
-		judgmentView: component.NewJudgmentView(),
+		cfg:                cfg,
+		host:               cfg.Host,
+		history:            history,
+		editor:             editor,
+		loader:             loader,
+		statusBar:          statusBar,
+		km:                 km,
+		judgmentView:       component.NewJudgmentView(),
+		defaultPlaceholder: "输入消息…（/ 查看命令）",
 		model: chatModel{
 			state:       StateInitializing,
 			ActiveTools: make(map[string]time.Time),
@@ -498,7 +503,9 @@ func (a *ChatApp) Idle() {
 	if a.statusBar != nil {
 		a.statusBar.Idle()
 	}
-	a.editor.SetPlaceholder("")
+	// 恢复原始占位符（Busy 时被替换为 "Ctrl+C to interrupt"）。
+	// 不得清空为 ""，否则首次 Agent 运行后输入区丢失提示文字。
+	a.editor.SetPlaceholder(a.defaultPlaceholder)
 	a.host.RequestRender()
 }
 

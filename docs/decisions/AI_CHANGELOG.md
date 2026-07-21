@@ -5,6 +5,37 @@
 > 按 Keep a Changelog + 语义化版本组织。本文件记录 AI 决策上下文（背景、变更理由、验证结果），
 > 供开发者和 AI 助手追溯"为什么这样改"。
 
+## 2026-07-21: 修复 TUI 运行时 stderr 泄漏 + 编辑器占位符复位
+
+### 背景
+TUI 进入 alternate screen 模式后，`os.Stderr` 与 `os.Stdout` 共享同一个终端设备，
+任何向 stderr 的写入（`slog.Warn`/`log.Printf`/`fmt.Fprintf(os.Stderr,…)`）都会直接
+出现在 TUI 显示区（尤其是游标所在的编辑器输入区），导致"警告信息溢出到输入区"的视觉污染。
+
+同时，编辑器占位符在 `Idle()` 中被清空为 `""` 而非恢复原始值，
+导致首次 Agent 运行后输入区永久丢失"输入消息…"提示文字。
+
+### 变更内容
+
+**`cmd/mady/tui.go` — stderr 重定向**
+- 新增 `redirectStderrToFile(madyHome string) func()`：在 `app.Start()` 成功后
+  将 `log.SetOutput`、`slog.SetDefault`、`os.Stderr` 三者重定向到
+  `~/.mady/logs/mady.log`，并返回 cleanup 函数在 TUI exit 后恢复
+- `slog` 级别降为 `LevelWarn`（TUI 运行时 Debug/Info 不写日志文件）
+- 日志文件格式：`\n--- mady tui started at {time} ---\n` 分隔每次启动
+- `runTui()` 调用时机：`app.Start()` 成功后立即执行，失败时的错误仍可输出到真实终端
+
+**`tui/chat/chat_app.go` — 编辑器占位符恢复**
+- `ChatApp` 新增 `defaultPlaceholder string` 字段，构造函数中初始化为空
+- `newChatApp()` 设置 `defaultPlaceholder: "输入消息…（/ 查看命令）"`
+- `Idle()` 使用 `a.defaultPlaceholder` 替代硬编码 `""`
+
+### 验证
+- `go build ./...` ✓
+- `go vet ./cmd/mady/... ./tui/chat/...` ✓
+- `go test ./tui/... -count=1` ✓（全部 9 子包通过）
+- `go build ./cmd/mady/...` ✓
+
 ## 2026-07-21: Phase 3 工作流工具 + TUI 判断摘要条与浮层统一
 
 ### 背景

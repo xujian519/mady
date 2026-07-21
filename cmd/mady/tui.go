@@ -10,9 +10,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
@@ -246,6 +248,11 @@ func runTui(ctx context.Context) {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		return
 	}
+	// TUI 已进入 alternate screen 模式；此后所有 stderr 输出都会泄漏
+	// 到 TUI 显示区。重定向 log/slog/os.Stderr 到日志文件以阻止泄漏。
+	// 启动失败的错误（上方）仍可正常输出到真实终端。
+	stderrCleanup := redirectStderrToFile(fc.MadyHome)
+	defer stderrCleanup()
 	s.initializeAgentAsync()
 	if fc.Deferred != nil {
 		fc.Deferred.StartAll(ctx)
@@ -282,4 +289,54 @@ func firstNonEmpty(s, fallback string) string {
 		return s
 	}
 	return fallback
+}
+
+// redirectStderrToFile 将 log/slog/os.Stderr 输出重定向到日志文件，
+// 防止 TUI alternate screen 模式下日志/警告泄漏到终端显示区。
+//
+// 覆盖三个输出路径：
+//   - log.Printf / log.Println → log.SetOutput
+//   - slog.Warn / slog.Error   → slog.SetDefault (只保留 >=Warn 级别)
+//   - fmt.Fprintf(os.Stderr,…) → os.Stderr 变量替换
+//
+// 返回的 cleanup 函数应在 TUI exit 后调用以恢复原始 stderr。
+// madyHome 为空时返回 no-op 函数。
+func redirectStderrToFile(madyHome string) func() {
+	if madyHome == "" {
+		return func() {}
+	}
+
+	logsDir := filepath.Join(madyHome, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		log.Printf("logs: cannot create %s: %v (stderr not redirected)", logsDir, err)
+		return func() {}
+	}
+
+	logPath := filepath.Join(logsDir, "mady.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Printf("logs: cannot open %s: %v (stderr not redirected)", logPath, err)
+		return func() {}
+	}
+
+	origStderr := os.Stderr
+	os.Stderr = logFile
+	log.SetOutput(logFile)
+	slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
+		Level: slog.LevelWarn, // TUI 运行时只保留 >=Warn 级别
+	})))
+
+	// 记录日志重定向信息到文件
+	now := time.Now().Format("2006-01-02 15:04:05")
+	fmt.Fprintf(logFile, "\n--- mady tui started at %s ---\n", now)
+
+	return func() {
+		// TUI 已退出 alternate screen，恢复原始 stderr 输出
+		os.Stderr = origStderr
+		log.SetOutput(origStderr)
+		slog.SetDefault(slog.New(slog.NewTextHandler(origStderr, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})))
+		logFile.Close()
+	}
 }
