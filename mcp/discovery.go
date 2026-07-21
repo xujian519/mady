@@ -605,16 +605,20 @@ func handleDiscoveryNotification(
 		}
 		if subscribed := state.invalidateResource(in.URI); subscribed {
 			refreshResource(in.URI)
-		} else {
-			state.onResourceUpdated(ctx, in.URI, nil)
+		} else if state.cfg.ResourceUpdatedHandler != nil {
+			state.cfg.ResourceUpdatedHandler(ctx, in.URI, nil)
 		}
 	case "notifications/resources/list_changed":
 		state.invalidateResourcesList()
-		state.onResourcesListChanged(ctx)
+		if state.cfg.ResourcesListChangedHandler != nil {
+			state.cfg.ResourcesListChangedHandler(ctx)
+		}
 		refreshResourcesList()
 	case "notifications/prompts/list_changed":
 		state.invalidatePromptsList()
-		state.onPromptsListChanged(ctx)
+		if state.cfg.PromptsListChangedHandler != nil {
+			state.cfg.PromptsListChangedHandler(ctx)
+		}
 		refreshPromptsList()
 	}
 	return nil
@@ -628,11 +632,13 @@ func (c *Client) refreshResourceAsync(uri string) {
 			}
 		}()
 		result, err := readResource(context.Background(), c.discovery, c.invokeDiscovery, uri)
-		if err != nil {
-			c.discovery.onAsyncRefreshError(context.Background(), err)
+		if err != nil && c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+			c.discovery.cfg.AsyncRefreshErrorHandler(context.Background(), err)
 			return
 		}
-		c.discovery.onResourceUpdated(context.Background(), uri, result)
+		if c.discovery.cfg.ResourceUpdatedHandler != nil {
+			c.discovery.cfg.ResourceUpdatedHandler(context.Background(), uri, result)
+		}
 	}()
 }
 
@@ -644,11 +650,11 @@ func (c *Client) refreshResourcesListAsync() {
 			}
 		}()
 		if _, err := listResources(context.Background(), c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.onAsyncRefreshError(context.Background(), err)
+			c.discovery.cfg.AsyncRefreshErrorHandler(context.Background(), err)
 			return
 		}
 		if _, err := listResourceTemplates(context.Background(), c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.onAsyncRefreshError(context.Background(), err)
+			c.discovery.cfg.AsyncRefreshErrorHandler(context.Background(), err)
 		}
 	}()
 }
@@ -661,7 +667,7 @@ func (c *Client) refreshPromptsListAsync() {
 			}
 		}()
 		if _, err := listPrompts(context.Background(), c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.onAsyncRefreshError(context.Background(), err)
+			c.discovery.cfg.AsyncRefreshErrorHandler(context.Background(), err)
 		}
 	}()
 }
@@ -674,11 +680,13 @@ func (c *HTTPClient) refreshResourceAsync(uri string) {
 			}
 		}()
 		result, err := readResource(c.bgCtx, c.discovery, c.invokeDiscovery, uri)
-		if err != nil {
-			c.discovery.onAsyncRefreshError(c.bgCtx, err)
+		if err != nil && c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+			c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
 			return
 		}
-		c.discovery.onResourceUpdated(c.bgCtx, uri, result)
+		if c.discovery.cfg.ResourceUpdatedHandler != nil {
+			c.discovery.cfg.ResourceUpdatedHandler(c.bgCtx, uri, result)
+		}
 	}()
 }
 
@@ -690,11 +698,11 @@ func (c *HTTPClient) refreshResourcesListAsync() {
 			}
 		}()
 		if _, err := listResources(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.onAsyncRefreshError(c.bgCtx, err)
+			c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
 			return
 		}
 		if _, err := listResourceTemplates(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.onAsyncRefreshError(c.bgCtx, err)
+			c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
 		}
 	}()
 }
@@ -707,7 +715,7 @@ func (c *HTTPClient) refreshPromptsListAsync() {
 			}
 		}()
 		if _, err := listPrompts(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.onAsyncRefreshError(c.bgCtx, err)
+			c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
 		}
 	}()
 }

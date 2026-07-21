@@ -124,6 +124,17 @@ func analyzeBrowserScreenshot(ctx context.Context, cfg *BrowserToolConfig, quest
 	return analysis, nil
 }
 
+// imageInfo holds metadata about a single image element on the page.
+// Parsed from the getImagesJS evaluation result via JSON unmarshalling.
+type imageInfo struct {
+	Index     int     `json:"index"`
+	Src       string  `json:"src"`
+	Alt       string  `json:"alt"`
+	Width     float64 `json:"width"`
+	Height    float64 `json:"height"`
+	Displayed bool    `json:"displayed"`
+}
+
 // handleGetImages returns a list of images found on the current page.
 func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
 	session, err := RequireActiveSession()
@@ -159,7 +170,7 @@ func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserTo
 		return nil, fmt.Errorf("get_images failed: %w", err)
 	}
 
-	var images []map[string]any
+	var images []imageInfo
 	if err := json.Unmarshal([]byte(resultJSON), &images); err != nil {
 		return nil, fmt.Errorf("failed to parse image data: %w", err)
 	}
@@ -175,22 +186,15 @@ func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserTo
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Found %d images on the page:\n\n", len(images))
 	for _, img := range images {
-		src, _ := img["src"].(string)
-		alt, _ := img["alt"].(string)
-		w, _ := img["width"].(float64)
-		h, _ := img["height"].(float64)
-		displayed, _ := img["displayed"].(bool)
-
-		index, _ := img["index"].(float64)
-		fmt.Fprintf(&sb, "  [%d] ", int(index))
-		if !displayed {
+		fmt.Fprintf(&sb, "  [%d] ", img.Index)
+		if !img.Displayed {
 			sb.WriteString("(hidden) ")
 		}
-		fmt.Fprintf(&sb, "%dx%d", int(w), int(h))
-		if alt != "" {
-			fmt.Fprintf(&sb, " alt=%q", alt)
+		fmt.Fprintf(&sb, "%dx%d", int(img.Width), int(img.Height))
+		if img.Alt != "" {
+			fmt.Fprintf(&sb, " alt=%q", img.Alt)
 		}
-		fmt.Fprintf(&sb, "\n       src: %s\n", src)
+		fmt.Fprintf(&sb, "\n       src: %s\n", img.Src)
 	}
 
 	return result(sb.String(), map[string]any{

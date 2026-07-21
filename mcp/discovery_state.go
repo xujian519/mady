@@ -4,7 +4,6 @@ package mcp
 // from discovery.go to separate data access from discovery logic.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 )
@@ -145,30 +144,6 @@ func (s *discoveryState) invalidatePromptsList() {
 	s.prompts = nil
 	s.promptsLoaded = false
 	s.promptResults = make(map[string]*PromptResult)
-}
-
-func (s *discoveryState) onResourceUpdated(ctx context.Context, uri string, result *ReadResourceResult) {
-	if s.cfg.ResourceUpdatedHandler != nil {
-		s.cfg.ResourceUpdatedHandler(ctx, uri, result)
-	}
-}
-
-func (s *discoveryState) onResourcesListChanged(ctx context.Context) {
-	if s.cfg.ResourcesListChangedHandler != nil {
-		s.cfg.ResourcesListChangedHandler(ctx)
-	}
-}
-
-func (s *discoveryState) onPromptsListChanged(ctx context.Context) {
-	if s.cfg.PromptsListChangedHandler != nil {
-		s.cfg.PromptsListChangedHandler(ctx)
-	}
-}
-
-func (s *discoveryState) onAsyncRefreshError(ctx context.Context, err error) {
-	if err != nil && s.cfg.AsyncRefreshErrorHandler != nil {
-		s.cfg.AsyncRefreshErrorHandler(ctx, err)
-	}
 }
 
 func promptCacheKey(name string, arguments map[string]any) (string, error) {
