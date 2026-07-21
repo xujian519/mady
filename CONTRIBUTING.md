@@ -32,7 +32,7 @@ go work sync
 make build
 
 # 或使用原始的 go build（注意不会覆盖 tools/）
-go build ./....
+go build ./...
 ```
 
 > **注意**：Mady 是 `go.work` 多模块结构。根目录执行 `go build ./...` 不会覆盖 `tools/` 子模块。
@@ -80,7 +80,7 @@ mady/
 ├── skill/            # 技能加载器
 ├── skills/           # 内置技能定义
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块，35 工具）
+├── tools/            # 内置工具扩展（独立子模块，60 工具）
 ├── tui/              # 终端 UI（8 层 Elm 架构）
 │   ├── core/         #   基础层 (Layer 0)
 │   ├── terminal/     #   终端 I/O (Layer 1)

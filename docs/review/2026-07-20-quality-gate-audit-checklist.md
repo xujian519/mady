@@ -254,22 +254,22 @@
 - [ ] 在 GitHub 后台确认并开启 `Require pull request before merging`
 - [ ] 在 GitHub 后台确认并开启 `Require approvals`
 - [ ] 在 GitHub 后台将关键 CI job 设为 `required status checks`
-- [ ] 新增 `make verify`，使其真正代表提交前标准
-- [ ] 让 `AI Code Quality Gate` 显式覆盖 `tools/` 子模块
+- [x] 新增 `make verify`，使其真正代表提交前标准 ✅（已存在并推广至 AGENTS.md / CLAUDE.md / PR 模板）
+- [x] 让 `AI Code Quality Gate` 显式覆盖 `tools/` 子模块 ✅（已覆盖 lint + test）
 
 ### P1：统一口径，降低长期漂移
 
-- [ ] 更新 [CONTRIBUTING.md](file:///Users/xujian/projects/Mady/CONTRIBUTING.md) 的构建与测试示例，改成多模块口径
-- [ ] 更新 [PULL_REQUEST_TEMPLATE.md](file:///Users/xujian/projects/Mady/.github/PULL_REQUEST_TEMPLATE.md) 的检查项，显式加入 `-race` 与 `tools/`
-- [ ] 引入 `CODEOWNERS`，为敏感路径和核心模块建立默认评审归属
-- [ ] 收敛敏感路径表格，保留脚本为唯一权威，文档改为引用式摘要
+- [x] 更新 [CONTRIBUTING.md](file:///Users/xujian/projects/Mady/CONTRIBUTING.md) 的构建与测试示例，改成多模块口径 ✅（已修复 `go build ./....` 笔误，tools 计数 35→60）
+- [x] 更新 [PULL_REQUEST_TEMPLATE.md](file:///Users/xujian/projects/Mady/.github/PULL_REQUEST_TEMPLATE.md) 的检查项，显式加入 `-race` 与 `tools/` ✅
+- [x] 引入 `CODEOWNERS`，为敏感路径和核心模块建立默认评审归属 ✅（已存在 `.github/CODEOWNERS`）
+- [x] 收敛敏感路径表格，保留脚本为唯一权威，文档改为引用式摘要 ✅（所有文档已声明脚本为权威源）
 - [ ] 明确 `CHANGELOG.md` 与 `AI_CHANGELOG.md` 的职责边界
 
 ### P2：持续优化
 
 - [ ] 评估是否把 `coverage` 扩展为 root + `tools/` 的联合视图
 - [ ] 评估是否为 release 增加轻量发布前校验
-- [ ] 补充一页式开发者门禁速查表
+- [x] 补充一页式开发者门禁速查表 ✅（已创建 `docs/developer-quickstart.md`）
 
 ---
 
@@ -278,8 +278,8 @@
 可直接用于 issue、周报或阶段总结：
 
 > 当前仓库已具备较完整的本地与 CI 质量门禁，整体方向正确，能够支撑项目持续演进。
-> 主要缺口集中在三处：本地默认入口尚未完全等于真实提交标准、AI 加严门与多模块覆盖不完全一致、远程 GitHub 分支保护是否已启用仍需后台核验。
-> 下一步不宜继续增加规则密度，而应优先完成门禁闭环、文档口径统一与权威源收敛。
+> 本地门禁口径已统一（`make verify` 已成为各文档推荐入口），AI Code Quality Gate 已覆盖 tools/ 子模块，
+> 敏感路径权威源已收敛，CODEOWNERS 已配置。主要剩余缺口：GitHub 远程分支保护需后台确认。
 
 ---
 
