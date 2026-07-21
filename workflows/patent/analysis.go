@@ -146,12 +146,11 @@ func newSearchNode(retriever domain.DomainRetriever) graph.PregelNode {
 			out[StateFeatures] = features
 		}
 
-		// 无检索器 → 返回占位结果（保持向后兼容）。
+		// 无检索器 → 标记降级，返回空结果。
 		if retriever == nil {
-			out[StatePriorArt] = []string{
-				"现有技术文献检索结果将在此处展示",
-				"检索范围: 中国专利数据库、外国专利数据库",
-			}
+			graph.MarkDegraded(out, StatePriorArt, []string{},
+				graph.DegradationRetrieverNil,
+				"未配置现有技术检索器，无法进行真实检索。建议在项目设置中配置专利数据库接入。")
 			return out, nil
 		}
 
@@ -161,11 +160,10 @@ func newSearchNode(retriever domain.DomainRetriever) graph.PregelNode {
 			MaxResults: 8,
 		})
 		if err != nil {
-			// 检索失败不应阻断管线，返回占位让分析节点降级处理。
-			out[StatePriorArt] = []string{
-				"现有技术检索暂时不可用",
-				"建议手动检索相关对比文件",
-			}
+			// 检索失败不阻断管线，但显式标记降级。
+			graph.MarkDegraded(out, StatePriorArt, []string{},
+				graph.DegradationSearchFailed,
+				fmt.Sprintf("现有技术检索失败: %v。建议手动检索相关对比文件。", err))
 			return out, nil
 		}
 
@@ -216,7 +214,9 @@ func analyzeNode(ctx context.Context, state graph.PregelState) (graph.PregelStat
 	}
 
 	comparison.WriteString("\n### 现有技术参考\n\n")
-	if len(priorArt) > 0 {
+	if mark := graph.GetDegradationMark(state, StatePriorArt); mark != nil {
+		fmt.Fprintf(&comparison, "> ⚠️ 检索降级：%s\n\n", mark.Message)
+	} else if len(priorArt) > 0 {
 		for _, art := range priorArt {
 			fmt.Fprintf(&comparison, "- %s\n", art)
 		}

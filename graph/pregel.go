@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -130,6 +129,8 @@ type PregelGraph struct {
 	nodes            map[string]PregelNode
 	edges            map[string][]string
 	conditionalEdges map[string]PregelEdgeRouter
+	nodePolicies     map[string]NodePolicy // 按节点名配置的运行时策略
+	schema           *StateSchema          // 编译时传递到 CompiledPregelGraph
 }
 
 func NewPregelGraph() *PregelGraph {
@@ -172,10 +173,31 @@ func (pg *PregelGraph) SetConditionalEdge(from string, router PregelEdgeRouter) 
 	return nil
 }
 
+// SetSchema 配置状态合并策略。必须在 Compile 之前调用。
+func (pg *PregelGraph) SetSchema(schema *StateSchema) {
+	pg.schema = schema
+}
+
+// SetNodePolicy 为指定节点配置运行时策略（重试、超时、副作用标记）。
+// 必须在 Compile 之前调用。
+func (pg *PregelGraph) SetNodePolicy(name string, policy NodePolicy) error {
+	if _, ok := pg.nodes[name]; !ok {
+		return fmt.Errorf("pregel: unknown node %q", name)
+	}
+	if pg.nodePolicies == nil {
+		pg.nodePolicies = make(map[string]NodePolicy)
+	}
+	pg.nodePolicies[name] = policy
+	return nil
+}
+
 type CompiledPregelGraph struct {
 	pg       *PregelGraph
 	entry    string
 	maxSteps int64
+	// Schema 配置并行节点输出合并策略。nil 时使用确定性最后写入者胜出（按节点名排序）。
+	Schema       *StateSchema
+	nodePolicies map[string]NodePolicy // 编译时从 PregelGraph 复制
 }
 
 func (pg *PregelGraph) Compile(entryNode string, maxSteps ...int64) (*CompiledPregelGraph, error) {
@@ -188,7 +210,19 @@ func (pg *PregelGraph) Compile(entryNode string, maxSteps ...int64) (*CompiledPr
 		limit = maxSteps[0]
 	}
 
-	return &CompiledPregelGraph{pg: pg, entry: entryNode, maxSteps: limit}, nil
+	// 编译时复制节点策略，避免后续修改 PregelGraph 影响已编译的图。
+	policies := make(map[string]NodePolicy, len(pg.nodePolicies))
+	for k, v := range pg.nodePolicies {
+		policies[k] = v
+	}
+
+	return &CompiledPregelGraph{
+		pg:           pg,
+		entry:        entryNode,
+		maxSteps:     limit,
+		Schema:       pg.schema,
+		nodePolicies: policies,
+	}, nil
 }
 
 func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (PregelState, error) {
@@ -220,14 +254,12 @@ func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (P
 			go func(nodeName string, nodeFn PregelNode) {
 				defer wg.Done()
 				snapshot := state.Clone()
-				out, err := func() (out PregelState, err error) {
-					defer func() {
-						if r := recover(); r != nil {
-							err = fmt.Errorf("pregel: node %s panicked: %v\n%s", nodeName, r, debug.Stack())
-						}
-					}()
-					return nodeFn(ctx, snapshot)
-				}()
+				policy, hasPolicy := cpg.nodePolicies[nodeName]
+				var policyPtr *NodePolicy
+				if hasPolicy {
+					policyPtr = &policy
+				}
+				out, err := executeWithPolicy(ctx, nodeName, nodeFn, snapshot, policyPtr)
 				mu.Lock()
 				results[nodeName] = out
 				errs[nodeName] = err
@@ -243,10 +275,10 @@ func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (P
 			}
 		}
 
-		for _, out := range results {
-			for k, v := range out {
-				state[k] = v
-			}
+		// Merge results deterministically using the configured schema.
+		// When Schema is nil, default last-write-wins (sorted by node name) applies.
+		if err := mergeWithSchema(state, results, cpg.Schema); err != nil {
+			return state, err
 		}
 
 		for _, name := range active {
@@ -337,12 +369,20 @@ func (pc *PregelCheckpointer) RunWithCheckpoints(ctx context.Context, initial Pr
 			if !ok {
 				return state, fmt.Errorf("pregel_checkpointed: node %s not found", name)
 			}
-			out, err := node(ctx, state)
+			snapshot := state.Clone()
+			policy, hasPolicy := pc.graph.nodePolicies[name]
+			var policyPtr *NodePolicy
+			if hasPolicy {
+				policyPtr = &policy
+			}
+			out, err := executeWithPolicy(ctx, name, node, snapshot, policyPtr)
 			if err != nil {
 				return state, fmt.Errorf("pregel_checkpointed:%s: %w", name, err)
 			}
-			for k, v := range out {
-				state[k] = v
+			// Merge deterministically using schema (same as parallel Run path).
+			singleResult := map[string]PregelState{name: out}
+			if err := mergeWithSchema(state, singleResult, pc.graph.Schema); err != nil {
+				return state, err
 			}
 
 			if targets, ok := pc.graph.pg.edges[name]; ok {

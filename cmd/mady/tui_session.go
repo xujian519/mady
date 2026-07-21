@@ -15,6 +15,7 @@ import (
 	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/reasoning"
+	reasoningsqlite "github.com/xujian519/mady/domains/reasoning/sqlite"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/memory"
@@ -575,6 +576,25 @@ func (s *tuiSession) openApprovalStore() (domains.ApprovalStore, error) {
 	store, err := sqlitestore.NewApprovalStore(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("approval store: open %s: %w", dbPath, err)
+	}
+	return store, nil
+}
+
+// openWorkflowCheckpointStore 打开 SQLite 工作流检查点存储。
+// 参照 openApprovalStore 模式，使用 WorkspaceDir 作为基准路径。
+// 返回错误时调用方应回退到内存存储。
+func (s *tuiSession) openWorkflowCheckpointStore() (reasoning.CheckpointStore, error) {
+	base := s.fc.WorkspaceDir
+	if base == "" {
+		base = filepath.Join(os.TempDir(), "mady")
+	}
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return nil, fmt.Errorf("workflow checkpoint: mkdir %s: %w", base, err)
+	}
+	dbPath := filepath.Join(base, "workflow_checkpoints.db")
+	store, err := reasoningsqlite.NewCheckpointStore(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("workflow checkpoint: open %s: %w", dbPath, err)
 	}
 	return store, nil
 }

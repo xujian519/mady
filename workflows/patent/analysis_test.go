@@ -95,9 +95,9 @@ func TestSearchNode(t *testing.T) {
 		t.Fatalf("searchNode: %v", err)
 	}
 
-	priorArt, ok := out[StatePriorArt].([]string)
-	if !ok || len(priorArt) == 0 {
-		t.Fatal("expected prior art results")
+	// 无检索器时应标记降级（而非返回占位字符串）。
+	if !graph.IsDegraded(out, StatePriorArt) {
+		t.Fatal("expected degraded prior art when retriever is nil")
 	}
 }
 
@@ -110,9 +110,9 @@ func TestSearchNode_WithRetriever(t *testing.T) {
 	if err != nil {
 		t.Fatalf("searchNode with nil retriever: %v", err)
 	}
-	priorArt, _ := out[StatePriorArt].([]string)
-	if len(priorArt) == 0 {
-		t.Fatal("expected prior art even with nil retriever")
+	// 降级标记应存在。
+	if !graph.IsDegraded(out, StatePriorArt) {
+		t.Fatal("expected degraded prior art with nil retriever")
 	}
 }
 

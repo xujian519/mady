@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
@@ -185,7 +186,14 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 		if s.isReviewMode() {
 			runner.SetRequireRuleConfirmation(true)
 			if s.workflowStore == nil {
-				s.workflowStore = reasoning.NewMemoryCheckpointStore()
+				// 优先使用 SQLite 持久化存储，失败时回退到内存。
+				store, err := s.openWorkflowCheckpointStore()
+				if err != nil {
+					log.Printf("工作流检查点：SQLite 不可用，回退到内存存储: %v", err)
+					s.workflowStore = reasoning.NewMemoryCheckpointStore()
+				} else {
+					s.workflowStore = store
+				}
 			}
 		}
 		cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowToolWithCheckpoint(runner, s.workflowStore))

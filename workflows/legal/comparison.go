@@ -79,17 +79,13 @@ func caseSearchNode(ctx context.Context, state graph.PregelState) (graph.PregelS
 	terms := extractKeyTerms(facts)
 	query := strings.Join(terms, " ")
 
-	// Placeholder case search results; query is surfaced for future integration
-	// with a real case database (e.g., knowledge.Store FTS).
-	cases := []string{
-		fmt.Sprintf("类似判例检索（查询：%s）", query),
-		"类似判例检索结果",
-	}
-
+	// 判例检索尚未接入真实数据库，显式标记降级。
 	out := graph.PregelState{
-		StateCaseFacts:    facts,
-		StateSimilarCases: cases,
+		StateCaseFacts: facts,
 	}
+	graph.MarkDegraded(out, StateSimilarCases, []string{},
+		graph.DegradationNotImplemented,
+		fmt.Sprintf("类似判例检索尚未接入真实数据库（查询：%s）。检索结果将在功能就绪后自动补充。", query))
 	if statutes != nil {
 		out[StateStatutes] = statutes
 	}
@@ -140,7 +136,9 @@ func compareNode(ctx context.Context, state graph.PregelState) (graph.PregelStat
 	comparison.WriteString("\n")
 
 	comparison.WriteString("\n### 类似判例参考\n\n")
-	if len(cases) > 0 {
+	if mark := graph.GetDegradationMark(state, StateSimilarCases); mark != nil {
+		fmt.Fprintf(&comparison, "> ⚠️ 判例检索降级：%s\n\n", mark.Message)
+	} else if len(cases) > 0 {
 		for _, c := range cases {
 			fmt.Fprintf(&comparison, "- %s\n", c)
 		}
@@ -339,8 +337,12 @@ func (rc *reasoningContext) compareNode(ctx context.Context, state graph.PregelS
 	}
 	comparison.WriteString(excerpt)
 	comparison.WriteString("\n\n### 类似判例参考\n\n")
-	for _, c := range cases {
-		fmt.Fprintf(&comparison, "- %s\n", c)
+	if mark := graph.GetDegradationMark(state, StateSimilarCases); mark != nil {
+		fmt.Fprintf(&comparison, "> ⚠️ 判例检索降级：%s\n\n", mark.Message)
+	} else {
+		for _, c := range cases {
+			fmt.Fprintf(&comparison, "- %s\n", c)
+		}
 	}
 
 	// Build auditable syllogisms (大前提→小前提→结论) for every applicable law.

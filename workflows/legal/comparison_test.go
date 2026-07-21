@@ -75,9 +75,14 @@ func TestCaseSearchNode(t *testing.T) {
 		t.Fatalf("caseSearchNode: %v", err)
 	}
 
-	cases, ok := out[StateSimilarCases].([]string)
-	if !ok || len(cases) == 0 {
-		t.Fatal("expected similar cases")
+	// 判例检索尚未实现，应标记降级。
+	if !graph.IsDegraded(out, StateSimilarCases) {
+		t.Fatal("expected degraded similar cases (not implemented)")
+	}
+	if mark := graph.GetDegradationMark(out, StateSimilarCases); mark == nil {
+		t.Fatal("expected degradation mark")
+	} else if mark.Reason != graph.DegradationNotImplemented {
+		t.Errorf("expected not_implemented, got %s", mark.Reason)
 	}
 }
 
