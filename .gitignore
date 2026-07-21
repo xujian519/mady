@@ -82,3 +82,6 @@ graphify-out/
 /smoke_citation_gate
 /replay_citation_gate
 /replay_citation_metrics
+
+# --- Qoder repowiki (auto-generated knowledge base cache) ---
+.qoder/

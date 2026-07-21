@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -454,7 +455,12 @@ func initReasoningAndTemplates(fc *frameworkContext) {
 	if fc.KnowledgeBackend != nil {
 		if store, ok := fc.KnowledgeBackend.(*ksqlite.SQLiteStore); ok {
 			patentRetriever = rsqlite.NewPatentDomainRetriever(store)
+		} else {
+			slog.Debug("patent retriever disabled: KnowledgeBackend is not *ksqlite.SQLiteStore",
+				"type", fmt.Sprintf("%T", fc.KnowledgeBackend))
 		}
+	} else {
+		slog.Debug("patent retriever disabled: KnowledgeBackend is nil")
 	}
 	domains.SetupPatentRetriever(patentRetriever)
 

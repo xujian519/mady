@@ -192,6 +192,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		resp, err := a.runModelTurn(ctx, turn)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
+				// User interrupted — emit clean end event instead of cryptic error.
 				a.state.SetStatus(StatusFinished)
 				a.emit(&AgentEndEvent{
 					baseEvent: newBase(EventAgentEnd),

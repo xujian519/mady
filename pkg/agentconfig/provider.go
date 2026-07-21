@@ -102,12 +102,16 @@ func BuildProvider() (*chatcompat.Provider, error) {
 //	kimi-k2.6 / kimi-k2.7-code           → 1,000,000 (1M)
 //	glm-5.2 / glm-5v-turbo              → 1,000,000 (1M)
 //	generic / unknown                    →   256,000 (256K, safe default)
+//
+// Note: each family prefix is listed explicitly to avoid accidental matches
+// (e.g. "glm-5" prefix would match "glm-50" or "glm-500").
 func ResolveContextWindow(model string) int64 {
 	name := strings.ToLower(strings.TrimSpace(model))
 	switch {
 	case strings.HasPrefix(name, "deepseek-v4"),
 		strings.HasPrefix(name, "kimi-k2"),
-		strings.HasPrefix(name, "glm-5"):
+		strings.HasPrefix(name, "glm-5."),
+		strings.HasPrefix(name, "glm-5v"):
 		return 1_000_000
 	default:
 		return 256_000

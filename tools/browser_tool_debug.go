@@ -1,5 +1,8 @@
 package tools
 
+// Debug/utility handlers extracted from browser_tool_handlers.go.
+// RequireActiveSession is defined in browser_session.go.
+
 import (
 	"context"
 	"encoding/json"
