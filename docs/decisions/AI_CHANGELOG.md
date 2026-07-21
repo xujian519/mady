@@ -5,6 +5,44 @@
 > 按 Keep a Changelog + 语义化版本组织。本文件记录 AI 决策上下文（背景、变更理由、验证结果），
 > 供开发者和 AI 助手追溯"为什么这样改"。
 
+## 2026-07-21: Sprint 3 — 大文件拆分重构（R7/R8/R9）
+
+### 背景
+- 持续推进文件规模治理，对项目中最大的非测试源文件进行拆分，降低认知负荷和合并冲突风险。
+- 本次处理 3 个大文件：mcp/discovery.go（889→717行）、tools/browser_tool_handlers.go（817→167行）、agentcore/event.go（730→254行）。
+- 纯重构，零行为变更。
+
+### 变更（7 文件）
+
+**R7: mcp/discovery.go 拆分**
+- 新增 mcp/discovery_state.go（183行），提取所有 discoveryState 缓存/状态管理方法（cachedResources、storeResources、cachedResourceTemplates、cachedPrompts、markSubscribed、invalidateResource 等 17 个方法）。
+- mcp/discovery.go 从 889 行缩减到 717 行（-19%），专注于发现协议的核心编排逻辑。
+
+**R8: tools/browser_tool_handlers.go 拆分**
+- 新增 tools/browser_tool_navigate.go（257行）：handleNavigate + handleBack（导航类处理函数）
+- 新增 tools/browser_tool_interact.go（229行）：handleClick + handleType + handleScroll + handlePress + handleDialog（交互类处理函数）
+- 新增 tools/browser_tool_media.go（200行）：handleScreenshot + handleVision + analyzeBrowserScreenshot + handleGetImages（媒体/视觉类处理函数）
+- tools/browser_tool_handlers.go 从 817 行缩减到 167 行（-80%），仅保留 handleSnapshot + handleEvaluate + handleConsole + handleCdp
+
+**R9: agentcore/event.go 拆分**
+- 新增 agentcore/event_types.go（482行），提取所有事件类型定义、构造器、JSON 序列化和 error 辅助函数
+- agentcore/event.go 从 730 行缩减到 254 行（-65%），仅保留 EventBus 实现
+
+### 设计要点
+- 按功能领域垂直拆分，文件以 browser_tool_<category>.go 命名，方便 IDE 模糊搜索
+- 事件类型与 EventBus 实现分离：event_types.go 只定义数据结构和序列化，event.go 只负责发布/订阅编排
+- 所有新文件保持 package 不变，不引入新的公共 API
+- drainSentinel 保留在 event.go 中（紧耦合于 Drain 方法），不随事件类型迁移
+
+### 验证
+- go build ./... — 通过
+- go vet ./... — 通过
+- golangci-lint run — 0 issues（根模块 + tools 子模块）
+- go test -race ./agentcore/... ./mcp/... — 全部通过（含 mcp 测试 20.7s）
+- cd tools && go test -race ./... — 全部通过
+
+
+
 ## 2026-07-21: 补充“绞车带轴”专家盲测单案用例卡
 
 ### 背景
@@ -29,6 +67,44 @@
 ### 验证
 - 文档内容已与 `docs/design/p3-blind-test-plan.md` 的 P3 总体方法保持一致。
 - 新文档已纳入 `docs/design/README.md` 索引，可作为后续新增更多单案盲测卡的模板起点。
+
+## 2026-07-21: 为“绞车带轴”案件补充 Mady 基线输出模板
+
+### 背景
+- 在完成 `90-任务书.md` 与 `99-评分要点.md` 后，用户继续推进该案的盲测准备，希望补齐一份可直接承接 `Mady` 生成结果的“基线输出模板”，用于 T2 盲化标注阶段作为被评审文本。
+- 现有仓库仅有通用导出能力（如 `workflows/patent/export.go` 的 Markdown 文件头模式），没有面向单案盲测的基线输出模板，因此需要在案件目录内新增一份可直接填充和外发的 Markdown 骨架。
+
+### 变更（2 文件）
+- `/Users/xujian/projects/exam-papers/绞车带轴/95-Mady-基线输出模板.md`
+  - 新增案件级基线输出模板，覆盖发明/实用新型两套权利要求书草案、区别点说明、不确定点与人工复核提示。
+  - 在顶部增加元信息注释块，承接模型、运行入口、输入材料和操作人信息，但提醒外发给专家前可删除来源信息。
+  - 模板中的内部自检提示已对齐本案最新口径：权利要求 1 优先围绕相交通孔与锁链式适配，不把定位柱默认当作独立权利要求必备特征。
+- `docs/decisions/AI_CHANGELOG.md`
+  - 追加本条记录，延续“变更即记录”的仓库约定。
+
+### 设计要点
+- **模板承接输出而非替代输出**：该文件是 `Mady` 基线产物的整理骨架，不直接预填具体权利要求文本，避免在还未真实运行时伪造结果。
+- **一份文件兼顾内部与外发**：通过 HTML 注释和引用块承载内部元信息与复核提示，使同一份模板既可用于内部留档，也能轻量处理后发给专家盲评。
+- **保持盲评友好结构**：正文按“发明 / 实用新型 / 区别点 / 不确定点”固定布局，便于多个案件、多个专家横向比对。
+
+## 2026-07-21: 为“绞车带轴”案件补充 Mady 基线输出 v1 草案
+
+### 背景
+- 在案件目录中落地 `95-Mady-基线输出模板.md` 后，用户继续推进下一步，希望不只停留在空模板，而是直接形成一份首版基线答案，作为后续内部复核与专家盲评版裁剪的基础。
+- 该案的评审口径已明确收敛：权利要求 1 优先围绕“相交通孔 + 锁链式适配”构造，`定位柱`不再默认视为独立权利要求必备特征，因此基线答案需要显式体现这一收敛策略。
+
+### 变更（2 文件）
+- `/Users/xujian/projects/exam-papers/绞车带轴/96-Mady-基线输出-v1.md`
+  - 新增首版基线输出草案，包含发明/实用新型两套权利要求书草案、相对对比文件的区别点说明、以及不确定点与人工复核提示。
+  - 发明与实用新型的独立权利要求均围绕杆状本体、第一通孔、第二通孔及其相交关系展开，并将锁链式捆绑带适配作为主保护点。
+  - 将 `定位柱`、绳索式适配和整体绞车常规结构下沉到从属或扩展保护层次，避免再次偏回“多类型兼容一次性塞进独权”的旧口径。
+- `docs/decisions/AI_CHANGELOG.md`
+  - 追加本条记录，区分“模板文件”和“已填充的 v1 基线内容”。
+
+### 设计要点
+- **先给可复核的 v1，再做盲评裁剪**：当前文件保留内部元信息与复核提示，便于先做专业口径校准，再生成剥离来源信息的专家盲评版。
+- **独权口径显式收敛**：首版答案不追求把所有实施方式都塞进权利要求 1，而是优先稳住锁链式适配的核心区别点。
+- **保留不确定点而不伪装确定性**：对“链环分别穿设或卡接”的具体措辞强度、发明与实用新型的进一步区分空间等，明确列入人工复核项，避免把尚待校准的表述当成定稿事实。
 
 ## 2026-07-20: 新增现有 TUI + 浮层优化方案设计稿
 
