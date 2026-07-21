@@ -1,5 +1,16 @@
 package component
 
+// session_selector.go — SessionSelector overlay component.
+//
+// Renders an interactive session picker panel with:
+//   - fuzzy-filtered session list (name, label, preview)
+//   - session metadata display (message count, timestamps, parent session)
+//   - keyboard navigation with select / delete / rename actions
+//   - current-session indicator
+//
+// Built on top of the Table component for column layout. Mounted as an
+// overlay when the user requests a session switch.
+
 import (
 	"fmt"
 	"strings"

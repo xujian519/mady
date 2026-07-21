@@ -1,5 +1,16 @@
 package component
 
+// table.go — Table component for tabular data display.
+//
+// Renders a scrollable table with:
+//   - weighted column distribution (proportional, min/max width constraints)
+//   - custom cell renderers per column (func(rowIdx, colWidth) string)
+//   - row selection highlighting and dimming
+//   - configurable empty-state message
+//   - thread-safe read/write with sync.RWMutex
+//
+// Used by SessionSelector, SkillCenter, and other data-driven panels.
+
 import (
 	"strings"
 	"sync"

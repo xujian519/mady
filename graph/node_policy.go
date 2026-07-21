@@ -24,6 +24,7 @@ type NodePolicy struct {
 }
 
 // RetryPolicy 已废弃，保留向后兼容。新代码使用 NodePolicy。
+//
 // Deprecated: 使用 NodePolicy。
 type RetryPolicy = NodePolicy
 

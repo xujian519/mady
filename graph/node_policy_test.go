@@ -209,7 +209,7 @@ func TestExecuteWithPolicy_ContextCancelled(t *testing.T) {
 
 	_, err := executeWithPolicy(ctx, "test", node, PregelState{}, policy)
 	if err == nil {
-		t.Fatal("expected context cancelled error")
+		t.Fatal("expected context canceled error")
 	}
 }
 

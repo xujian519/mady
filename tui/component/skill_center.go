@@ -1,5 +1,15 @@
 package component
 
+// skill_center.go — SkillCenter overlay component.
+//
+// Renders a visual skill management panel with:
+//   - skill list (name, state, provenance, pinned, use count)
+//   - fuzzy filter for quick lookup
+//   - keyboard navigation with select / pin / toggle actions
+//   - onInvalidate callback for parent re-render triggers
+//
+// Mounted as an overlay when the user opens the skill management view.
+
 import (
 	"fmt"
 	"strings"

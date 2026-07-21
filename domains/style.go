@@ -5,8 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/xujian519/mady/domains/doctmpl"
 	"gopkg.in/yaml.v3"
+
+	"github.com/xujian519/mady/domains/doctmpl"
 )
 
 // DocumentStyle is a machine-readable writing style guide for Mady agents.

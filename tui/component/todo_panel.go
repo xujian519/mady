@@ -1,5 +1,16 @@
 package component
 
+// todo_panel.go — TodoPanel overlay component.
+//
+// Renders a visual TODO list panel with:
+//   - task list (content, status, priority) backed by a data provider
+//   - keyboard navigation with toggle / select actions
+//   - status-based styling (pending, in-progress, done)
+//   - priority indicators
+//   - onInvalidate callback for parent re-render triggers
+//
+// Mounted as an overlay when the user opens the task tracking view.
+
 import (
 	"fmt"
 	"strings"

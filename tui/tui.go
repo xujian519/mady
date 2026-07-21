@@ -44,7 +44,8 @@ var errTUIAlreadyStopped = errors.New("tui: Start called on a stopped TUI; const
 // TUIOptions configures a TUI instance.
 type TUIOptions struct {
 	// TickInterval is the minimum time between frames when many renders are
-	// requested in a burst. Defaults to 16ms (~60 fps).
+	// requested in a burst. Defaults to 8ms (~125 fps) to ensure smooth
+	// streaming output; increase to 16ms if CPU usage is a concern.
 	TickInterval time.Duration
 
 	// DisableBracketedPaste suppresses paste mode at start. Default is to enable.
