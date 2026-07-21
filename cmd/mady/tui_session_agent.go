@@ -9,6 +9,45 @@ import (
 	"github.com/xujian519/mady/tui/agentadapter"
 )
 
+// ErrorSeverity classifies agent runtime errors for user-facing display.
+// Higher severity produces more prominent messaging.
+type ErrorSeverity int
+
+const (
+	// RunFailure is a fatal agent execution error that prevents the current
+	// operation from completing (agent.Run / agent.Resume failure).
+	RunFailure ErrorSeverity = iota + 1
+	// PostProcessFailure is a non-fatal error during post-execution steps
+	// (e.g. state saving) that does not affect the agent's output.
+	PostProcessFailure
+	// Degradation is a non-blocking infrastructure issue that reduces
+	// capability but does not interrupt the user (e.g. store unavailable).
+	Degradation
+)
+
+// severityLabel returns a human-readable prefix for the severity level.
+func severityLabel(se ErrorSeverity) string {
+	switch se {
+	case RunFailure:
+		return "❌"
+	case PostProcessFailure:
+		return "⚠"
+	case Degradation:
+		return "⚠"
+	default:
+		return "⚠"
+	}
+}
+
+// showUserError formats and displays an agent-level error in the chat panel.
+// Unlike PrintError (which shows the raw error), showUserError provides
+// context-aware messaging with severity-appropriate prefixes.
+func showUserError(s *tuiSession, se ErrorSeverity, format string, args ...any) {
+	label := severityLabel(se)
+	msg := fmt.Sprintf(format, args...)
+	s.app.PrintSystem(fmt.Sprintf("%s %s", label, msg))
+}
+
 // getCurrentAgent 返回当前 Agent 实例，线程安全。
 func (s *tuiSession) getCurrentAgent() *agentcore.Agent {
 	s.agentMu.RLock()
@@ -89,6 +128,7 @@ func (s *tuiSession) agentUnavailableMessage() string {
 }
 
 // initializeAgentAsync 在后台 goroutine 中初始化 Agent，不阻塞 TUI 启动。
+// 初始化完成后通过 MarkAgentReady 通知 FSM 从 StateInitializing 切换到 StateIdle。
 func (s *tuiSession) initializeAgentAsync() {
 	s.markAgentInitializing()
 	go func() {
@@ -105,6 +145,8 @@ func (s *tuiSession) initializeAgentAsync() {
 				log.Printf("[mady] %v", err)
 				if s.setAgentInitError(err) {
 					s.app.PrintSystem("Agent 初始化失败，请查看日志后重试当前操作。")
+					// 通知 FSM 切换到失败状态，使 JudgmentView 反映终止态。
+					s.app.MarkAgentFailed()
 				}
 			}
 		}()
@@ -119,14 +161,31 @@ func (s *tuiSession) initializeAgentAsync() {
 			prev.Close()
 		}
 		agentadapter.BindAgent(s.app, newAgent)
+		// 通知 FSM: 初始化完成，StateInitializing → StateIdle。
+		s.app.MarkAgentReady()
 	}()
 }
 
-// rebuildAgent recreates the current agent from the latest config and rebinds it to the UI.
+// rebuildAgent recreates the current agent from the latest config and rebinds
+// it to the UI. If the agent construction panics (e.g. nil provider), the
+// previous agent is preserved so the TUI remains usable.
 func (s *tuiSession) rebuildAgent() {
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
-	newAgent := agentcore.New(s.buildAgentConfig())
+
+	var newAgent *agentcore.Agent
+	defer func() {
+		if r := recover(); r != nil {
+			if newAgent != nil {
+				newAgent.Close()
+			}
+			err := fmt.Errorf("agent rebuild failed: %v", r)
+			log.Printf("[mady] %v", err)
+			showUserError(s, RunFailure, "Agent 重建失败，保持当前 Agent 继续运行: %v", r)
+		}
+	}()
+
+	newAgent = agentcore.New(s.buildAgentConfig())
 	prev, ok := s.swapCurrentAgent(newAgent)
 	if !ok {
 		newAgent.Close()
@@ -171,14 +230,14 @@ func (s *tuiSession) submitInput(input string) {
 		}()
 
 		if _, err := agent.Run(runCtx, input); err != nil {
-			log.Printf("[mady] agent run failed: %v", err)
+			showUserError(s, RunFailure, "Agent 执行失败: %v", err)
 			return
 		}
 		if store == nil {
 			return
 		}
 		if err := agent.SaveState(context.Background(), threadID); err != nil {
-			log.Printf("[mady] save state: %v", err)
+			showUserError(s, Degradation, "会话保存失败（不影响本次输出）: %v", err)
 		}
 	}()
 }
@@ -219,14 +278,14 @@ func (s *tuiSession) resumeIfInterrupted() bool {
 		}()
 
 		if _, err := agent.Resume(runCtx); err != nil {
-			log.Printf("[mady] agent resume failed: %v", err)
+			showUserError(s, RunFailure, "Agent 恢复执行失败: %v", err)
 			return
 		}
 		if store == nil {
 			return
 		}
 		if err := agent.SaveState(context.Background(), threadID); err != nil {
-			log.Printf("[mady] save state: %v", err)
+			showUserError(s, Degradation, "会话保存失败（不影响已恢复的执行）: %v", err)
 		}
 	}()
 	return true

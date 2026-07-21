@@ -6,36 +6,49 @@ package chat
 // Why: the handlers in chat_app_stream.go / chat_app_tool.go mutate chatModel
 // fields (Running, StreamID, ActiveTools) directly, so the "what state are we
 // in" question is scattered across branches. This module makes the state
-// lattice explicit and pure — Transition(s, event) -> (newState, []sideEffect)
-// has no side effects, so it can be table-tested and used as a regression
-// oracle for the handler behavior.
+// lattice explicit and pure — Transition(s, event) -> newState has no side
+// effects, so it can be table-tested and used as a regression oracle.
 //
 // The states deliberately mirror what the user sees:
 //
+//   StateInitializing   — agent is being initialized (TUI just started)
 //   StateIdle           — nothing running, editor is the focus
 //   StateStreaming      — assistant text is streaming (StreamID != "")
 //   StateToolRunning    — one or more tool calls are in flight
 //   StateAwaitingConfirm— an approval gate is blocking (review mode)
 //   StateCompacting     — context compaction is running
+//   StateFailed         — agent run/init encountered a terminal error
+//
+// StateDegraded is deliberately NOT a separate AppState value — it is a
+// cross-cutting visual modifier on the StatusBar (set via JudgmentView
+// SetMode("degraded")), not an FSM state. A degraded system can still be
+// in Idle / Streaming / etc. (see Sprint 1C).
 //
 // This is a progressive refactor: today the handlers still own the mutable
-// model; this FSM is the documented spec + test target. A later pass can have
-// the handlers delegate to Transition and apply the returned side effects.
+// model; this FSM is the documented spec + test target. Handlers call
+// Transition(state, EventKindFor(e)) to compute the next state and store
+// the result in chatModel.state, and updateJudgmentView reads from it.
 
 // AppState is one interaction state of the ChatApp FSM.
 type AppState int
 
 const (
-	StateIdle AppState = iota
-	StateStreaming
-	StateToolRunning
-	StateAwaitingConfirm
-	StateCompacting
+	StateInitializing    AppState = iota // before agent is first ready
+	StateIdle                            // nothing running, editor focused
+	StateStreaming                       // assistant text is streaming
+	StateToolRunning                     // tool call(s) in flight
+	StateAwaitingConfirm                 // approval gate blocking (review mode)
+	StateCompacting                      // context compaction running
+	StateFailed                          // agent run/init terminal error
 )
 
 // String returns a human-readable state name for diagnostics and tests.
 func (s AppState) String() string {
 	switch s {
+	case StateInitializing:
+		return "initializing"
+	case StateIdle:
+		return "idle"
 	case StateStreaming:
 		return "streaming"
 	case StateToolRunning:
@@ -44,6 +57,8 @@ func (s AppState) String() string {
 		return "awaiting-confirm"
 	case StateCompacting:
 		return "compacting"
+	case StateFailed:
+		return "failed"
 	default:
 		return "idle"
 	}
@@ -71,6 +86,10 @@ const (
 	evtAutoRetry
 	evtApprovalRequest
 	evtApprovalDecision
+	// evtAgentReady fires when the agent finishes initializing and is ready
+	// for user input, transitioning StateInitializing → StateIdle.
+	// This is distinct from evtAgentStart, which starts a streaming run.
+	evtAgentReady
 	// evtUnknown is the safe default for unrecognized events: Transition has
 	// no case for it, so it returns the state unchanged (a true no-op). This
 	// must NOT be evtAgentStart, which would spuriously flip Idle→Streaming.
@@ -83,20 +102,39 @@ const (
 //
 // The lattice (events that change state):
 //
-//	Idle            --AgentStart-->        Streaming
-//	Streaming       --MessageDelta-->      Streaming      (steady)
-//	Streaming       --ToolStart-->         ToolRunning
-//	ToolRunning     --ToolEnd-->           Streaming      (back to text or idle)
-//	Streaming       --CompactionStart-->   Compacting
-//	Compacting      --CompactionEnd-->     Streaming
-//	*               --ApprovalRequest-->   AwaitingConfirm
-//	AwaitingConfirm --ApprovalDecision-->  Streaming (or Idle if no stream)
-//	Streaming       --AgentEnd/Error-->    Idle
-//	Streaming       --TurnEnd-->           Streaming (turn boundary, not end)
+//	Initializing     --AgentReady-->        Idle
+//	Initializing     --AgentStart-->        Streaming  (optimistic: agent starts
+//	                                           processing user input during init)
+//	Initializing     --AgentError-->        Failed
+//	Idle             --AgentStart-->        Streaming
+//	Idle             --ApprovalRequest-->   AwaitingConfirm
+//	Streaming        --MessageDelta-->      Streaming      (steady)
+//	Streaming        --ToolStart-->         ToolRunning
+//	ToolRunning      --ToolEnd-->           Streaming      (back to text)
+//	Streaming        --CompactionStart-->   Compacting
+//	Compacting       --CompactionEnd-->     Streaming
+//	*                --ApprovalRequest-->   AwaitingConfirm
+//	AwaitingConfirm  --ApprovalDecision-->  Streaming (or Idle if no stream)
+//	Streaming        --AgentEnd/Error-->    Idle
+//	Failed           --AgentReady-->        Idle  (re-initialized)
+//	Failed           --AgentStart-->        Streaming  (retry)
 //
 // Events that don't change the current state are no-ops (return s unchanged).
 func Transition(s AppState, e eventKind) AppState {
 	switch s {
+	case StateInitializing:
+		switch e {
+		case evtAgentReady:
+			return StateIdle
+		case evtAgentStart:
+			return StateStreaming
+		case evtAgentError:
+			return StateFailed
+		case evtApprovalRequest:
+			return StateAwaitingConfirm
+		}
+		return s
+
 	case StateIdle:
 		if e == evtAgentStart {
 			return StateStreaming
@@ -141,6 +179,9 @@ func Transition(s AppState, e eventKind) AppState {
 		if e == evtAgentEnd || e == evtAgentError {
 			return StateIdle
 		}
+		if e == evtApprovalRequest {
+			return StateAwaitingConfirm
+		}
 		return s
 
 	case StateAwaitingConfirm:
@@ -149,6 +190,18 @@ func Transition(s AppState, e eventKind) AppState {
 		}
 		if e == evtAgentEnd || e == evtAgentError {
 			return StateIdle
+		}
+		return s
+
+	case StateFailed:
+		if e == evtAgentReady {
+			return StateIdle
+		}
+		if e == evtAgentStart {
+			return StateStreaming
+		}
+		if e == evtApprovalRequest {
+			return StateAwaitingConfirm
 		}
 		return s
 	}

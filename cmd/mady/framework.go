@@ -96,6 +96,10 @@ type frameworkContext struct {
 	MemoryCompiler *compiler.Compiler
 	// SessionSummarizer 是会话关闭时的异步汇总器。为 nil 时跳过汇总。
 	SessionSummarizer *memory.SessionSummarizer
+
+	// Deferred 持有后台延迟初始化任务集。非 TUI 入口（serve/acp）保持 nil。
+	// TUI 在 app.Start() 后调用 fc.Deferred.StartAll() 执行它们。
+	Deferred *DeferredInit
 }
 
 const startupMCPDiscoveryTimeout = 1500 * time.Millisecond
@@ -118,9 +122,15 @@ func withStartupDiscoveryTimeout(ctx context.Context, cmdName string) context.Co
 //   - Manifest 加载（go:embed 内置 + MADY_HOME/manifests 外部覆盖）
 //   - Wiki 知识库加载（可选的 WIKI_PATH 环境变量）
 //   - ProjectRegistry 初始化
+//
+// 当 cmdName == "tui" 时，重型初始化（MCP/memory/reasoning/plugins等）
+// 注册到 fc.Deferred 延迟队列而非立即执行，由调用方在 app.Start() 之后
+// 通过 fc.Deferred.StartAll() 在后台完成。serve/acp 入口保持全同步。
 func setupFrameworkContext(ctx context.Context, cmdName string) *frameworkContext {
 	ctx = withStartupDiscoveryTimeout(ctx, cmdName)
 	fc := &frameworkContext{}
+
+	// === 首帧必需：立即执行 ===
 
 	provider, err := agentconfig.BuildProvider()
 	if err != nil {
@@ -164,22 +174,103 @@ func setupFrameworkContext(ctx context.Context, cmdName string) *frameworkContex
 		},
 	}
 
-	// 知识检索：优先 SQLite backend（向量+FTS RRF），回退 wiki 内存库。
-	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = loadWikiStore(fc.MadyHome)
+	// Manifest 加载（go:embed 为主 + 可选目录扫描）：轻量快速，保持同步。
+	// Manifest 决定多域路由模式，TUI 需要它来做模式判定。
+	loadManifests(fc)
 
-	// Wiki 根目录：供 reasoning Stage ② 的 patent-cards 经验召回读取。
-	// 优先 $WIKI_PATH，否则 $MADY_HOME/knowledge/wiki（通常软链接到外部语料）。
-	// 仅当目录存在时赋值，避免 SkillRuleReader 指向空路径。
+	// === 后台延迟阶段：仅在 TUI 入口使用延迟队列 ===
+	deferBackground := (cmdName == "tui")
+
+	if deferBackground {
+		fc.Deferred = newDeferredInit()
+		registerDeferredTasks(ctx, fc)
+	} else {
+		// serve/acp：全同步执行
+		executeSyncRemaining(ctx, fc)
+	}
+
+	return fc
+}
+
+// registerDeferredTasks 注册所有非关键初始化任务到 fc.Deferred。
+// 这些任务将在 app.Start() 之后以后台 goroutine 方式执行。
+func registerDeferredTasks(ctx context.Context, fc *frameworkContext) {
+	// WikiStore/Knowledge loading
+	fc.Deferred.Add("wikistore", func() error {
+		fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = loadWikiStore(fc.MadyHome)
+		return nil
+	})
+	fc.Deferred.Add("wikiroot", func() error {
+		fc.WikiRoot = resolveWikiRoot(fc.MadyHome)
+		return nil
+	})
+
+	// Rule engine
+	fc.Deferred.Add("rules", func() error {
+		engine, err := rules.LoadEngineFromMadyHome()
+		if err != nil {
+			return err
+		}
+		fc.RuleEngine = engine
+		if engine != nil {
+			fmt.Fprintf(os.Stderr, "rules: 已加载规则引擎（%d 条规则）\n", len(engine.AllRules()))
+		}
+		return nil
+	})
+
+	// Skills
+	fc.Deferred.Add("skills", func() error {
+		discoverSkills(fc)
+		return nil
+	})
+
+	// MCP
+	fc.Deferred.Add("mcp", func() error {
+		discoverMCP(ctx, fc)
+		return nil
+	})
+
+	// Workspace
+	fc.Deferred.Add("workspace", func() error {
+		initWorkspace(fc)
+		return nil
+	})
+
+	// Base tools
+	fc.Deferred.Add("tools", func() error {
+		buildBaseTools(fc)
+		return nil
+	})
+
+	// Plugins
+	fc.Deferred.Add("plugins", func() error {
+		initPlugins(fc)
+		return nil
+	})
+
+	// Memory system
+	fc.Deferred.Add("memory", func() error {
+		initMemorySystem(fc)
+		return nil
+	})
+
+	// Reasoning + Templates
+	fc.Deferred.Add("reasoning", func() error {
+		initReasoningAndTemplates(fc)
+		return nil
+	})
+}
+
+// executeSyncRemaining 同步执行所有剩余初始化（serve/acp 入口使用）。
+func executeSyncRemaining(ctx context.Context, fc *frameworkContext) {
+	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = loadWikiStore(fc.MadyHome)
 	fc.WikiRoot = resolveWikiRoot(fc.MadyHome)
 
-	// 确定性规则引擎：从 $MADY_HOME/knowledge/rules 加载 YAML（通常软链接到外部语料）。
-	// 供 reasoning Stage ② 第四路（RuleSourceRules）召回 + chat agent 的 search_rules 工具。
 	fc.RuleEngine, _ = rules.LoadEngineFromMadyHome()
 	if fc.RuleEngine != nil {
 		fmt.Fprintf(os.Stderr, "rules: 已加载规则引擎（%d 条规则）\n", len(fc.RuleEngine.AllRules()))
 	}
 
-	loadManifests(fc)
 	discoverSkills(fc)
 	discoverMCP(ctx, fc)
 	initWorkspace(fc)
@@ -187,8 +278,6 @@ func setupFrameworkContext(ctx context.Context, cmdName string) *frameworkContex
 	initPlugins(fc)
 	initMemorySystem(fc)
 	initReasoningAndTemplates(fc)
-
-	return fc
 }
 
 // loadManifests 加载 go:embed 内置 + 外部覆盖的 AgentManifest 到 fc。

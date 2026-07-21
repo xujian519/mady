@@ -318,9 +318,7 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 						if jm := l.judgmentView.Mode(); jm != "" {
 							mode = jm
 						}
-						l.app.OpenSystemStatus(SystemStatusData{
-							Mode: mode,
-						})
+						l.app.OpenSystemStatus(buildSystemStatusData(l.app, mode))
 						return nil
 					}
 				case "e":
@@ -397,31 +395,44 @@ func (l *chatLayout) recalcMaxRows(width, height int64) {
 }
 
 // updateJudgmentView syncs the judgment view state from the ChatApp model.
-// It derives status from running/streaming/idle, populates the judgment
-// summary (phase, judgment, confidence, pending) from the model's
-// judgmentSummary snapshot, and sets action hints.
+// It derives the status text from the FSM state (model.state), falling back
+// to the Running+StreamID heuristic only when the FSM is in Idle (the FSM
+// doesn't track "between-phases-activity" that the old heuristic detected).
+// This is the transitional implementation; after full FSM adoption the
+// Running+StreamID+ActiveTools fields will be removed.
 func (l *chatLayout) updateJudgmentView() {
 	if l.judgmentView == nil {
 		return
 	}
 	l.app.mu.Lock()
-	running := l.app.model.Running
+	fsmState := l.app.model.state
 	streamID := l.app.model.StreamID
 	js := l.app.model.judgmentSummary
 	l.app.mu.Unlock()
 
-	// Derive status from model state.
-	// Status precedence: streaming (text output) > analyzing (tool execution)
-	// > running (between phases) > idle.
-	status := "idle"
-	if running {
-		switch {
-		case streamID != "":
+	// Derive status text from FSM state.
+	var status string
+	switch fsmState {
+	case StateInitializing:
+		status = "initializing"
+	case StateStreaming:
+		status = "streaming"
+	case StateToolRunning:
+		status = "analyzing"
+	case StateAwaitingConfirm:
+		status = "awaiting_review"
+	case StateCompacting:
+		status = "compacting"
+	case StateFailed:
+		status = "failed"
+	case StateIdle:
+		// Fallback: the old heuristic detected "between-phases" activity via
+		// Running+ActiveTools; use it for idle-only until full FSM migration.
+		// Running is no longer the single truth source; check ActiveTools only.
+		if streamID != "" {
 			status = "streaming"
-		case len(l.app.model.ActiveTools) > 0:
-			status = "analyzing"
-		default:
-			status = "running"
+		} else {
+			status = "idle"
 		}
 	}
 	l.judgmentView.SetStatus(status)
@@ -466,4 +477,106 @@ func popLastPathSegment(value string) string {
 		return value
 	}
 	return trimmed[:idx+1]
+}
+
+// buildSystemStatusData constructs a SystemStatusData from the ChatApp's
+// FSM state, active tools, and judgment summary. Called when the user opens
+// the system status overlay via the [s] shortcut.
+func buildSystemStatusData(app *ChatApp, mode string) SystemStatusData {
+	app.mu.Lock()
+	fsmState := app.model.state
+	toolCount := len(app.model.ActiveTools)
+	js := app.model.judgmentSummary
+	app.mu.Unlock()
+
+	// Build events list from FSM state.
+	var modeReason string
+	var events []component.SysEvent
+
+	// Event 1: Current FSM state.
+	stateLabel := fsmState.String()
+	events = append(events, component.SysEvent{
+		Time:    "",
+		Message: fmt.Sprintf("Agent 状态: %s", stateLabel),
+		Level:   stateLevel(stateLabel),
+	})
+
+	// Event 2: Active tools (if any).
+	if toolCount > 0 {
+		events = append(events, component.SysEvent{
+			Time:    "",
+			Message: fmt.Sprintf("活跃工具: %d 个进行中", toolCount),
+			Level:   "info",
+		})
+	}
+
+	// Event 3: Approval state (if awaiting review).
+	if js.Phase != "" || js.Judgment != "" {
+		judgmentSnippet := js.Judgment
+		if len(judgmentSnippet) > 40 {
+			judgmentSnippet = judgmentSnippet[:40] + "..."
+		}
+		phaseLabel := js.Phase
+		if phaseLabel == "" {
+			phaseLabel = "分析中"
+		}
+		msg := fmt.Sprintf("审批: %s", phaseLabel)
+		if judgmentSnippet != "" {
+			msg += " · " + judgmentSnippet
+		}
+		events = append(events, component.SysEvent{
+			Time:    "",
+			Message: msg,
+			Level:   "info",
+		})
+		if mode == "" {
+			mode = "awaiting_review"
+		}
+	}
+
+	// Derive mode reason from state.
+	switch fsmState {
+	case StateAwaitingConfirm:
+		modeReason = "等待人工复核"
+	case StateFailed:
+		if mode == "" {
+			mode = "degraded"
+		}
+		modeReason = "上次操作未正常完成"
+	case StateInitializing:
+		modeReason = "Agent 正在后台初始化"
+	case StateStreaming, StateToolRunning:
+		modeReason = "Agent 正在执行任务"
+	case StateCompacting:
+		modeReason = "上下文窗口压缩中"
+	default:
+		modeReason = "就绪"
+	}
+
+	// Impacts: storage persistence hints from the status bar.
+	var impacts []string
+	if mode == "degraded" || mode == "" {
+		impacts = append(impacts, "部分组件以降级模式运行，功能可能受限")
+	}
+
+	return SystemStatusData{
+		Mode:       mode,
+		ModeReason: modeReason,
+		Events:     events,
+		Impacts:    impacts,
+	}
+}
+
+// stateLevel maps an AppState to a SysEvent severity level.
+func stateLevel(s string) string {
+	switch s {
+	case "failed":
+		return "error"
+	case "awaiting-confirm":
+		return "warn"
+	case "initializing", "compacting":
+		return "info"
+	default:
+		return "info"
+	}
 }

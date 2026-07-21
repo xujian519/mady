@@ -53,6 +53,8 @@ func (a *ChatApp) onAgentStart(e ChatEvent) {
 	}
 	a.mu.Lock()
 	a.model.StreamID = ""
+	// Update FSM state: agent is now streaming its response.
+	a.model.state = Transition(a.model.state, evtAgentStart)
 	// Reset per-run token accounting and mark the turn start so onTurnEnd can
 	// compute tok/s. Also reset the StatusBar so stale numbers from a previous
 	// run don't linger.
@@ -71,16 +73,14 @@ func (a *ChatApp) onMessageDelta(e ChatEvent) {
 	if !ok {
 		return
 	}
-	// Read-modify-write StreamID under a single critical section. The
-	// previous code released the lock between reading StreamID and writing
-	// the new one, so two concurrent deltas could both read the same old id
-	// and both append to the same baseline — corrupting the stream.
+	// Read-modify-write StreamID under a single critical section.
 	a.mu.Lock()
 	id := a.model.StreamID
 	newID := a.history.AppendDelta(id, d.Delta)
 	if newID != id {
 		a.model.StreamID = newID
 	}
+	a.model.state = Transition(a.model.state, evtMessageDelta)
 	a.mu.Unlock()
 	// Streaming is active; ensure judgment view reflects the running state.
 	a.layout.updateJudgmentView()
@@ -92,6 +92,7 @@ func (a *ChatApp) onAgentError(e ChatEvent) {
 		return
 	}
 	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtAgentError)
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
 	a.Idle()
@@ -104,6 +105,7 @@ func (a *ChatApp) onAgentEnd(e ChatEvent) {
 		return
 	}
 	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtAgentEnd)
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
 	a.Idle()
@@ -123,6 +125,7 @@ func (a *ChatApp) onAgentInterrupt(e ChatEvent) {
 		return
 	}
 	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtApprovalRequest)
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
 	a.Idle()
@@ -185,6 +188,7 @@ func (a *ChatApp) onApprovalPrompt(e ChatEvent) {
 		return
 	}
 	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtApprovalRequest)
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
 	a.Idle()

@@ -15,6 +15,13 @@ func TestTransitionFSM(t *testing.T) {
 		event eventKind
 		want  AppState
 	}{
+		// Initializing
+		{"initializing + agentReady → idle", StateInitializing, evtAgentReady, StateIdle},
+		{"initializing + agentStart → streaming", StateInitializing, evtAgentStart, StateStreaming},
+		{"initializing + agentError → failed", StateInitializing, evtAgentError, StateFailed},
+		{"initializing + approvalRequest → awaiting", StateInitializing, evtApprovalRequest, StateAwaitingConfirm},
+		{"initializing + delta → initializing (steady)", StateInitializing, evtMessageDelta, StateInitializing},
+
 		// Idle
 		{"idle + agentStart → streaming", StateIdle, evtAgentStart, StateStreaming},
 		{"idle + delta → idle (no stream started)", StateIdle, evtMessageDelta, StateIdle},
@@ -33,17 +40,25 @@ func TestTransitionFSM(t *testing.T) {
 		// ToolRunning
 		{"tool + toolEnd → streaming", StateToolRunning, evtToolEnd, StateStreaming},
 		{"tool + compactionStart → compacting", StateToolRunning, evtCompactionStart, StateCompacting},
+		{"tool + approvalRequest → awaiting", StateToolRunning, evtApprovalRequest, StateAwaitingConfirm},
 		{"tool + agentError → idle", StateToolRunning, evtAgentError, StateIdle},
 
 		// Compacting
 		{"compacting + compactionEnd → streaming", StateCompacting, evtCompactionEnd, StateStreaming},
 		{"compacting + agentEnd → idle", StateCompacting, evtAgentEnd, StateIdle},
 		{"compacting + delta → compacting (steady)", StateCompacting, evtMessageDelta, StateCompacting},
+		{"compacting + approvalRequest → awaiting", StateCompacting, evtApprovalRequest, StateAwaitingConfirm},
 
 		// AwaitingConfirm
 		{"awaiting + approvalDecision → streaming", StateAwaitingConfirm, evtApprovalDecision, StateStreaming},
 		{"awaiting + agentError → idle", StateAwaitingConfirm, evtAgentError, StateIdle},
 		{"awaiting + delta → awaiting (steady)", StateAwaitingConfirm, evtMessageDelta, StateAwaitingConfirm},
+
+		// Failed
+		{"failed + agentReady → idle", StateFailed, evtAgentReady, StateIdle},
+		{"failed + agentStart → streaming (retry)", StateFailed, evtAgentStart, StateStreaming},
+		{"failed + approvalRequest → awaiting", StateFailed, evtApprovalRequest, StateAwaitingConfirm},
+		{"failed + delta → failed (steady)", StateFailed, evtMessageDelta, StateFailed},
 	}
 	for _, c := range cases {
 		got := Transition(c.from, c.event)
@@ -84,7 +99,7 @@ func TestEventKindForMapsChatEvents(t *testing.T) {
 // genuine no-op in every state — it must never flip Idle→Streaming the way a
 // careless evtAgentStart default would.
 func TestEventKindForUnknownIsNoOp(t *testing.T) {
-	for _, s := range []AppState{StateIdle, StateStreaming, StateToolRunning, StateCompacting, StateAwaitingConfirm} {
+	for _, s := range []AppState{StateInitializing, StateIdle, StateStreaming, StateToolRunning, StateCompacting, StateAwaitingConfirm, StateFailed} {
 		if got := Transition(s, evtUnknown); got != s {
 			t.Errorf("evtUnknown should be a no-op in %s, got %s", s, got)
 		}
@@ -102,11 +117,13 @@ func (unknownTestEvent) ChatEventKind() ChatEventType { return "unknown-test-eve
 
 func TestAppStateString(t *testing.T) {
 	want := map[AppState]string{
+		StateInitializing:    "initializing",
 		StateIdle:            "idle",
 		StateStreaming:       "streaming",
 		StateToolRunning:     "tool-running",
 		StateAwaitingConfirm: "awaiting-confirm",
 		StateCompacting:      "compacting",
+		StateFailed:          "failed",
 	}
 	for s, w := range want {
 		if s.String() != w {

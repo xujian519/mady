@@ -16,12 +16,9 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
-	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/knowledge/fileindex"
-	"github.com/xujian519/mady/knowledge/risk"
 	"github.com/xujian519/mady/pkg/agentconfig"
-	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/tui"
 	"github.com/xujian519/mady/tui/chat"
@@ -79,30 +76,14 @@ func runTui(ctx context.Context) {
 		log.Printf("theme init: %v", err)
 	}
 
-	// 复用 setupFrameworkContext 已加载的规则引擎（避免重复 LoadEngineFromMadyHome）。
-	ruleEngine := fc.RuleEngine
-	var ruleExt agentcore.Extension
-	if ruleEngine != nil {
-		ruleExt = rules.NewExtension(ruleEngine)
-	}
-
-	// 风险扫描扩展（依赖知识库中的判决文书数据）。
-	var riskExt agentcore.Extension
-	if fc.WikiStore != nil {
-		riskExt = risk.NewExtension(fc.WikiStore, risk.DefaultScannerConfig())
-	}
-
-	// 写作模式扩展。
+	// 写作模式扩展：本地独立加载，不依赖延迟队列。
 	var writingExt agentcore.Extension
 	if patternStore := loadWritingPatterns(fc.MadyHome); patternStore != nil {
 		writingExt = writing.NewExtension(patternStore)
 	}
 
-	provider, err := agentconfig.BuildProvider()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "mady tui: %v\n", err)
-		os.Exit(1)
-	}
+	// 复用 setupFrameworkContext 已构建的 Provider，避免重复调用 agentconfig.BuildProvider()。
+	provider := fc.Provider
 	model := agentconfig.DefaultModel()
 
 	useSingleAgent := os.Getenv("MADY_SINGLE_AGENT") == "1"
@@ -110,27 +91,36 @@ func runTui(ctx context.Context) {
 	useMultiDomain := !useSingleAgent && len(fc.Manifests) > 0
 	useIntegratedMode := useMultiDomain && !useRouterMode
 
+	// === 存储预检（Sprint 1B） ===
+	// 在构建 tuiSession 前完成所有存储探测，结果写入 s.storageProbes。
+	var storageProbes []StorageProbeResult
+
+	// Session 持久化探针
 	sessionDir := os.Getenv("SESSION_DIR")
-	if sessionDir == "" {
-		if fc.MadyHome != "" {
-			sessionDir = filepath.Join(fc.MadyHome, "sessions")
+	sessionProbe := probeSessionDir(sessionDir, fc.MadyHome, fc.WorkspaceDir)
+	storageProbes = append(storageProbes, sessionProbe)
+
+	// 如果 session 可写，构建 agentStore（供后续 tuiSession 使用）。
+	var agentStore *session.AgentStore
+	if sessionProbe.Unavailable {
+		log.Printf("session: %s (continuing without persistence)", sessionProbe.Message)
+	} else {
+		fileStore, err := session.NewFileStore(sessionProbe.ResolvedDir)
+		if err != nil {
+			log.Printf("session: %v (continuing without persistence)", err)
 		} else {
-			// 不可达兜底：MadyHome() 仅在 filepath.Abs 自身失败时返错。
-			// 走 ResolveDataDir 以保证最终路径仍经过 filepath.Abs 规范化。
-			dir, err := util.ResolveDataDir("sessions")
-			if err != nil {
-				log.Printf("resolve sessions dir: %v (falling back to empty)", err)
-			}
-			sessionDir = dir
+			agentStore = session.NewAgentStore(fileStore, fc.WorkspaceDir)
 		}
 	}
-	var agentStore *session.AgentStore
-	fileStore, persistErr := session.NewFileStore(sessionDir)
-	if persistErr != nil {
-		log.Printf("session: %v (continuing without persistence)", persistErr)
-	} else {
-		agentStore = session.NewAgentStore(fileStore, fc.WorkspaceDir)
-	}
+
+	// Settings 探针
+	homeDir, _ := os.UserHomeDir()
+	settingsProbe := probeSettingsStore(homeDir)
+	storageProbes = append(storageProbes, settingsProbe)
+
+	// Approval store 探针
+	approvalProbe := probeApprovalStore(fc.WorkspaceDir, fc.MadyHome)
+	storageProbes = append(storageProbes, approvalProbe)
 
 	fileIndexExt := fileindex.NewExtension(fileindex.ExtensionConfig{
 		FallbackDir: fc.BaseConfig.ProjectDir,
@@ -146,26 +136,26 @@ func runTui(ctx context.Context) {
 		normalModel:       model,
 		useMultiDomain:    useMultiDomain,
 		useIntegratedMode: useIntegratedMode,
-		ruleExt:           ruleExt,
-		riskExt:           riskExt,
 		writingExt:        writingExt,
 		fileIndexExt:      fileIndexExt,
 		toolApprover:      permission.NewTUIChannelApprover(),
 		agentStore:        agentStore,
 		checkpointSaver:   agentcore.NewMemoryCheckpointSaver(),
 		currentThreadID:   "default",
-		sessionDir:        sessionDir,
+		sessionDir:        sessionProbe.ResolvedDir,
 	}
 
-	// 初始化 SettingsStore（~/.mady/settings.json），优先于其他操作
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		store, storeErr := NewSettingsStore(filepath.Join(homeDir, ".mady", "settings.json"))
+	// 初始化 SettingsStore
+	if settingsProbe.Unavailable {
+		log.Printf("settings: %s (using transient store)", settingsProbe.Message)
+		s.store, _ = NewSettingsStore("")
+	} else {
+		store, storeErr := NewSettingsStore(settingsProbe.Path)
 		if storeErr == nil {
 			s.store = store
+		} else {
+			s.store, _ = NewSettingsStore("")
 		}
-	}
-	if s.store == nil {
-		s.store, _ = NewSettingsStore("")
 	}
 
 	// 从 store 读取持久化的主题并应用（首次启动使用 mady-dark 默认值）。
@@ -235,22 +225,40 @@ func runTui(ctx context.Context) {
 		}
 	}
 
-	app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), useMultiDomain, s.thinkingConfig()))
+	// 设置状态栏：包含 provider/model/mode 和存储降级状态。
+	modeLabel := statusBarModeLabel(s.isPlanMode(), useMultiDomain, s.thinkingConfig())
+	degTag := storageDegradationTag(storageProbes)
+	if degTag != "" {
+		modeLabel += " · " + degTag
+	}
+	app.UpdateStatusBar(s.providerName, s.normalModel, modeLabel)
 
+	// 输出存储降级提示到聊天区（仅在有降级时）。
+	for _, p := range storageProbes {
+		if p.Unavailable {
+			app.PrintSystem("⚠ " + p.UserMessage)
+		}
+	}
 	app.PrintSystem("Mady 已就绪")
 
-	// 先启动 TUI 渲染，再在后台初始化 Agent，避免 agentcore.New 阻塞首帧。
-	// 启动后到 Agent 就绪前会经过显式“初始化中”状态；submitInput、/mode
-	// 等入口统一读取该状态，而不是依赖裸 nil 判断。
+	// 先启动 TUI 渲染，再在后台初始化 Agent 和延迟任务。
 	if err := app.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		return
 	}
 	s.initializeAgentAsync()
+	if fc.Deferred != nil {
+		fc.Deferred.StartAll(ctx)
+	}
 
 	<-app.Done()
 	if agent := s.shutdownAgent(); agent != nil {
 		agent.Close()
+	}
+
+	// 后台延迟任务如果有错误，汇总输出到日志（TUI 已关闭，用户可查看）。
+	if fc.Deferred != nil && fc.Deferred.HasErrors() {
+		log.Printf("[mady] deferred init errors:\n%s", fc.Deferred.ErrorSummary())
 	}
 }
 
