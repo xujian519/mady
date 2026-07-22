@@ -1,5 +1,88 @@
 # AI 变更记录
 
+## 2026-07-22: 专利法第26.3条判断模块全面增强 — 对标 Wiki 知识库补全 10 项差距
+
+### 背景
+对照宝宸知识库 Wiki 中关于专利法第26.3条（充分公开）的全部规定（审查指南 + 司法解释 +
+各技术领域特殊规则 + 大量案例），项目现有 `domains/enablement/` 模块存在 10 项差距。
+本次一次性实施 P0/P1/P2 全部优先级修复，将 26.3 判断模块从"基础三步法"升级为
+"领域自适应 + 六种情形 + 完整规则体系"。
+
+### 变更内容
+
+**P0 — 修补审查指南硬性规定缺口**
+
+- **差距1（六种情形）**：`types.go` `EnablementJudgment` 新增 `MeansCannotSolve`（技术手段
+  不能解决技术问题）和 `PartialMeansUnreal`（多手段方案某一手段不能实现）两个标志；
+  `nodes.go` step3 prompt 从 4 种情形扩展为 6 种，并明确标注「能够实现 = 实现方案 +
+  解决问题 + 产生效果 三者同时满足」；`patent-core.yaml` 判定规则从 4 条增至 6 条；
+  `framework.go` 默认框架同步更新
+- **差距3（司法解释）**：`patent-law-a26.3.yaml` 新增 `judicialInterpretations` 段，
+  纳入授权确权规定2020第六条（公开不充分三种情形 + 26.3→26.4联动）、第九条（功能性特征）、
+  第十条（补充实验数据）
+- **差距5（清楚性增强）**：`types.go` `ClarityResult` 新增 `CoinedTerms`（自造词）和
+  `ObviousErrors`（明显错误）字段；`nodes.go` step2 prompt 增加自造词检测和
+  明显错误识别（唯一正确理解→不影响；多种解释→不符合26.3）
+- **差距10（案例补充）**：`enablement_cases.json` 新增 5 个 fixture（手段不能解决/部分不能实现/
+  自造词/化学马库什/生物保藏）；benchmark 新增 2 个评测用例（飞行汽车/多功能手环）
+
+**P1 — 领域规则与规则体系增强**
+
+- **差距2a/2b/2c/2d（领域规则）**：新增 `domain_rules.go`（210行），实现：
+  - 领域自动检测（`DetectDomain`）：基于关键词匹配识别 chemical/biotech/tcm/computer/mechanical/electronic
+  - 化学三要素规则：确认/制备/用途 + 马库什权利要求 + 第二医药用途 + 补充实验数据
+  - 生物保藏制度：两个条件判定 + 序列表要求
+  - 中药领域规则：正名要求 + 配比记载 + 可预测性判断
+  - 计算机领域规则：流程图要求 + AI参数关联（2023修订）
+  - 机械/电学领域规则：可预见性 + 附图可实施性
+- **差距7（实验数据体系）**：`types.go` 新增 `ExperimentDataAssessment` 结构
+  （四要素：样品/方法/结果/对应关系），结论节点输出实验数据有效性评估
+- **差距4（判断标准细化）**：step3 prompt 增加 4 项细化标准——技术问题认定规则、
+  无需过度实验标准（In re Wands 8因素）、明显夸大效果处理；step1 prompt 增加完整性三层要求
+  和「完整 ≠ 面面俱到」原则
+- **差距8（26.3/26.4联动）**：`EnablementResult` 新增 `SupportIssue` 和 `SupportWarnings` 字段；
+  结论节点 prompt 增加联动评估指令
+
+**P2 — 远期演进**
+
+- **差距6（完整性内容质量）**：step1 prompt 从"章节存在性检查"升级为"内容充分性评估"
+- **差距9（26.3/22.4界限）**：结论节点 prompt 和 SKILL.md 明确区分公开不充分与实用性
+- **SKILL.md 全面重写**：判断标准从 4 项扩展为 8 项，新增实验数据规则、26.3/26.4区分、
+  26.3/22.4界限、功能性描述边界等完整内容
+
+### 涉及文件（11 个源文件 + 2 个数据文件 + 1 个技能文件 + 1 个文档）
+
+| 文件 | 变更类型 |
+|------|---------|
+| `domains/enablement/types.go` | 修改：新增 5 个字段/结构 |
+| `domains/enablement/nodes.go` | 修改：全步骤 prompt 重写 + 新字段解析 |
+| `domains/enablement/graph.go` | 修改：新增 stateKeyDomain |
+| `domains/enablement/framework.go` | 修改：默认框架同步 |
+| `domains/enablement/domain_rules.go` | **新增**：领域检测 + 各领域规则文本 |
+| `domains/enablement/enablement_test.go` | 修改：新增 15+ 测试用例 |
+| `domains/enablement/testdata/enablement_cases.json` | 修改：新增 5 个 fixture |
+| `domains/rules/data/articles/patent-law-a26.3.yaml` | 修改：6 种情形 + 司法解释 |
+| `domains/rules/data/rules/patent-core.yaml` | 修改：判定规则 4→6 条 |
+| `evaluate/benchmark/patent_exam_real_a26_3.go` | 修改：新增 2 个评测用例 |
+| `skills/enablement/SKILL.md` | 修改：全面重写判断标准与规则 |
+| `docs/decisions/AI_CHANGELOG.md` | 本条记录 |
+
+### 验证
+- `go build ./domains/enablement/... ./evaluate/... ./domains/rules/... ./server/...` 通过
+- `go vet` 同上范围通过
+- `go test ./domains/enablement/...` — 45+ 测试用例全部通过（含 15 个新增测试）
+- `go test ./domains/rules/...` 通过
+- `go test ./evaluate/...` 通过（benchmark 的 `TestEvalSuite_GoldenPerfect` 为改动前已有失败）
+
+### 设计决策
+- **领域检测策略**：采用关键词匹配而非 IPC 分类码，因为 disclosure 管线提取的 Features/Problems
+  天然包含领域关键词，无需额外标注步骤。优先级 chemical > biotech > tcm > computer > electronic > mechanical
+- **领域规则注入方式**：通过 prompt 追加而非硬编码判断，保持 LLM Agent 的灵活性，
+  同时确保领域特殊规则被纳入考量
+- **六种情形 vs 五种**：审查指南原文列举 5 种"无法实现"情形，项目中 `insufficient_data`
+  对应第5种且语义清晰，故保留为独立标志。新增加的 `means_cannot_solve` 和 `partial_means_unrealizable`
+  补全第3、4种情形，总计 6 个标志覆盖审查指南全部情形
+
 ## 2026-07-22: 实用新型/发明驳回复审请求工作流 — 产出实现规划文档（Spec 阶段）
 
 ### 背景

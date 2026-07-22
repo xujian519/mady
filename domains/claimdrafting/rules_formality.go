@@ -61,28 +61,6 @@ func (r *formalityPeriodRule) Check(claims []Claim, _ DraftInput) []Violation {
 }
 
 // =============================================================================
-// 形式规范规则：科技术语一致性
-// =============================================================================
-
-// formalityTermConsistencyRule 检查科技术语是否与说明书一致。
-// 依据：细则第20条第3款——权利要求书中使用的科技术语应当与说明书中使用的科技术语一致。
-// 注意：目前检查从 Description 中提取的术语对比，后续可增强为术语表匹配。
-type formalityTermConsistencyRule struct{ baseRule }
-
-func (r *formalityTermConsistencyRule) Check(claims []Claim, _ DraftInput) []Violation {
-	// 初期不做高成本的术语对比，仅做基本的术语格式提示
-	var violations []Violation
-	knownTerms := make(map[string]bool)
-
-	// 收集说明书的科技术语（通过特征描述）
-	// （当前为空，待后续增强）
-
-	_ = knownTerms
-	_ = claims
-	return violations
-}
-
-// =============================================================================
 // 形式规范规则：不得有插图
 // =============================================================================
 

@@ -578,7 +578,8 @@ func TestDefaultFramework_ContainsAllKeyTerms(t *testing.T) {
 		"26",
 		"清楚", "完整", "能够实现",
 		"技术领域", "背景技术", "发明内容", "附图说明", "具体实施方式",
-		"缺少关键技术手段", "技术手段含糊不清", "仅给出任务", "实验数据不足",
+		"缺少关键技术手段", "技术手段含糊不清", "仅给出任务", "不能解决技术问题",
+		"某一手段不能实现", "实验证据",
 	}
 	for _, term := range requiredTerms {
 		if !contains(fw, term) {
@@ -746,5 +747,257 @@ func TestFrameworkAdapter_FallbackToDefault(t *testing.T) {
 	}
 	if contains(result, "其他法条") {
 		t.Error("framework should NOT contain wrong article's data")
+	}
+}
+
+// =============================================================================
+// Domain detection tests
+// =============================================================================
+
+func TestDetectDomain_Chemical(t *testing.T) {
+	input := &EnablementInput{
+		Features: []TechFeature{
+			{ID: "f1", Description: "化合物A的分子式", Category: "material"},
+		},
+		Problems: []string{"需要一种新型催化剂"},
+		Effects:  []string{"催化活性提高"},
+	}
+	domain := DetectDomain(input)
+	if domain != DomainChemical {
+		t.Errorf("expected DomainChemical, got %s", domain)
+	}
+}
+
+func TestDetectDomain_Biotech(t *testing.T) {
+	input := &EnablementInput{
+		Features: []TechFeature{
+			{ID: "f1", Description: "使用微生物菌株发酵", Category: "method"},
+		},
+		Problems: []string{"需要酶制剂"},
+	}
+	domain := DetectDomain(input)
+	if domain != DomainBiotech {
+		t.Errorf("expected DomainBiotech, got %s", domain)
+	}
+}
+
+func TestDetectDomain_TCM(t *testing.T) {
+	input := &EnablementInput{
+		Features: []TechFeature{
+			{ID: "f1", Description: "葛根和砂仁等中药药材的组合物", Category: "material"},
+		},
+		Effects: []string{"解酒毒"},
+	}
+	domain := DetectDomain(input)
+	if domain != DomainTCM {
+		t.Errorf("expected DomainTCM, got %s", domain)
+	}
+}
+
+func TestDetectDomain_Computer(t *testing.T) {
+	input := &EnablementInput{
+		Features: []TechFeature{
+			{ID: "f1", Description: "使用机器学习算法处理数据", Category: "method"},
+		},
+		Problems: []string{"需要高效的AI模型"},
+	}
+	domain := DetectDomain(input)
+	if domain != DomainComputer {
+		t.Errorf("expected DomainComputer, got %s", domain)
+	}
+}
+
+func TestDetectDomain_Mechanical(t *testing.T) {
+	input := &EnablementInput{
+		Features: []TechFeature{
+			{ID: "f1", Description: "壳体(1)与支架通过螺栓连接", Category: "structure"},
+		},
+		Problems: []string{"需要稳定的机械结构"},
+	}
+	domain := DetectDomain(input)
+	if domain != DomainMechanical {
+		t.Errorf("expected DomainMechanical, got %s", domain)
+	}
+}
+
+func TestDetectDomain_General(t *testing.T) {
+	domain := DetectDomain(nil)
+	if domain != DomainGeneral {
+		t.Errorf("expected DomainGeneral for nil input, got %s", domain)
+	}
+
+	input := &EnablementInput{
+		Features: []TechFeature{
+			{ID: "f1", Description: "某种东西", Category: "misc"},
+		},
+	}
+	domain = DetectDomain(input)
+	if domain != DomainGeneral {
+		t.Errorf("expected DomainGeneral for generic input, got %s", domain)
+	}
+}
+
+func TestDomainStep3Supplement_NonEmpty(t *testing.T) {
+	// Chemical, biotech, TCM, computer, mechanical/electronic should all have supplements
+	domains := []TechDomain{
+		DomainChemical, DomainBiotech, DomainTCM,
+		DomainComputer, DomainMechanical, DomainElectronic,
+	}
+	for _, d := range domains {
+		s := DomainStep3Supplement(d)
+		if s == "" {
+			t.Errorf("DomainStep3Supplement(%s) returned empty string", d)
+		}
+	}
+}
+
+func TestDomainStep3Supplement_GeneralEmpty(t *testing.T) {
+	s := DomainStep3Supplement(DomainGeneral)
+	if s != "" {
+		t.Errorf("DomainStep3Supplement(DomainGeneral) should return empty string, got %d chars", len(s))
+	}
+}
+
+func TestDomainStep2Supplement_TCM(t *testing.T) {
+	s := DomainStep2Supplement(DomainTCM)
+	if !contains(s, "正名") {
+		t.Error("TCM step2 supplement should mention 正名")
+	}
+}
+
+func TestDomainLabel(t *testing.T) {
+	cases := map[TechDomain]string{
+		DomainChemical:   "化学/医药",
+		DomainBiotech:    "生物技术",
+		DomainTCM:        "中药",
+		DomainComputer:   "计算机/软件/AI",
+		DomainMechanical: "机械/结构",
+		DomainElectronic: "电子/电气",
+		DomainGeneral:    "通用",
+	}
+	for domain, expected := range cases {
+		got := DomainLabel(domain)
+		if got != expected {
+			t.Errorf("DomainLabel(%s) = %q, want %q", domain, got, expected)
+		}
+	}
+}
+
+// =============================================================================
+// New types verification tests
+// =============================================================================
+
+func TestEnablementJudgment_NewFlags_JSONRoundtrip(t *testing.T) {
+	judgment := EnablementJudgment{
+		CanImplement:       false,
+		MissingKeyMeans:    true,
+		MeansCannotSolve:   true,
+		PartialMeansUnreal: true,
+		FailureReasons:     []string{"技术手段不能解决技术问题"},
+	}
+	data, err := json.Marshal(judgment)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var restored EnablementJudgment
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if !restored.MeansCannotSolve {
+		t.Error("MeansCannotSolve flag not preserved in JSON roundtrip")
+	}
+	if !restored.PartialMeansUnreal {
+		t.Error("PartialMeansUnreal flag not preserved in JSON roundtrip")
+	}
+}
+
+func TestClarityResult_NewFields_JSONRoundtrip(t *testing.T) {
+	clarity := ClarityResult{
+		IsClear:        false,
+		CoinedTerms:    []string{"气相指痕光谱"},
+		ObviousErrors:  []string{"滤网位置矛盾"},
+		AmbiguousTerms: []string{"藤子暗消"},
+	}
+	data, err := json.Marshal(clarity)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var restored ClarityResult
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if len(restored.CoinedTerms) != 1 || restored.CoinedTerms[0] != "气相指痕光谱" {
+		t.Errorf("CoinedTerms not preserved: %v", restored.CoinedTerms)
+	}
+	if len(restored.ObviousErrors) != 1 {
+		t.Errorf("ObviousErrors not preserved: %v", restored.ObviousErrors)
+	}
+}
+
+func TestEnablementResult_NewFields_JSONRoundtrip(t *testing.T) {
+	result := EnablementResult{
+		Assessed:        true,
+		TechDomain:      "chemical",
+		IsSufficient:    false,
+		SupportIssue:    true,
+		SupportWarnings: []string{"权利要求1得不到说明书支持"},
+		DataAssessment: &ExperimentDataAssessment{
+			DataNeeded:     true,
+			DataProvided:   false,
+			IsValid:        false,
+			MissingFactors: []string{"实验方法", "实验结果"},
+		},
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var restored EnablementResult
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if restored.TechDomain != "chemical" {
+		t.Errorf("TechDomain = %q, want 'chemical'", restored.TechDomain)
+	}
+	if !restored.SupportIssue {
+		t.Error("SupportIssue not preserved")
+	}
+	if restored.DataAssessment == nil {
+		t.Fatal("DataAssessment is nil after roundtrip")
+	}
+	if !restored.DataAssessment.DataNeeded {
+		t.Error("DataAssessment.DataNeeded not preserved")
+	}
+}
+
+func TestExperimentDataAssessment_JSONRoundtrip(t *testing.T) {
+	assess := ExperimentDataAssessment{
+		DataNeeded:     true,
+		DataProvided:   true,
+		IsValid:        false,
+		MissingFactors: []string{"结果与效果的对应关系"},
+		Notes:          "实验数据笼统不具体",
+	}
+	data, err := json.Marshal(assess)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var restored ExperimentDataAssessment
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if !restored.DataNeeded || !restored.DataProvided || restored.IsValid {
+		t.Errorf("flags not preserved: %+v", restored)
+	}
+	if len(restored.MissingFactors) != 1 {
+		t.Errorf("MissingFactors not preserved: %v", restored.MissingFactors)
 	}
 }

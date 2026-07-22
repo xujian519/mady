@@ -23,7 +23,9 @@ steps:
     inputHint: "说明书全文、PFE三元组（问题-特征-效果因果链）"
     outputSchema:
       isClear: "bool（技术术语是否无歧义，表述是否清楚）"
-      ambiguousTerms: "[]string（存在歧义的术语列表）"
+      ambiguousTerms: "[]string（歧义术语——领域内多种理解且未界定）"
+      coinedTerms: "[]string（自造词——非领域常规术语且未给出定义）"
+      obviousErrors: "[]string（明显错误——能识别但存在歧义的笔误/矛盾）"
       orphanFeatures: "[]string（孤立特征——有特征但无对应技术效果）"
       orphanEffects: "[]string（孤立效果——有效果但无对应技术特征）"
   - id: "step-3"
@@ -32,11 +34,13 @@ steps:
     ruleRef: "patent-a26.3-disclosure"
     inputHint: "PFE三元组、技术特征、具体实施方式、实验数据（如有）"
     outputSchema:
-      canImplement: "bool（本领域技术人员根据说明书记载能否无需创造性劳动即可实施）"
+      canImplement: "bool（本领域技术人员根据说明书记载能否无需创造性劳动即可实施，且能解决技术问题并产生预期效果）"
+      onlyTaskNoMeans: "bool（是否仅给出任务/设想，未给出任何技术手段）"
+      vagueMeans: "bool（技术手段是否含糊不清、无法具体实施）"
+      meansCannotSolve: "bool（给出了技术手段，但不能解决技术问题，如违背物理原理）"
+      partialMeansUnrealizable: "bool（多手段方案中某一手段不能实现）"
       missingKeyMeans: "bool（是否缺少关键技术手段的说明）"
-      vagueMeans: "bool（技术手段是否含糊不清、不具体）"
-      onlyTaskNoMeans: "bool（是否仅给出任务/设想，未给出具体技术手段）"
-      insufficientData: "bool（实验数据是否不足以证明技术效果）"
+      insufficientData: "bool（方案须依赖实验结果但未给出实验证据）"
       failureReasons: "[]string（不能实施的具体原因列表）"
 conclusionSchema:
   isSufficient: "bool（是否满足专利法第26条第3款充分公开的要求）"
@@ -50,3 +54,34 @@ applicableTo:
   - examination
   - invalidation
   - drafting
+judicialInterpretations:
+  - title: "最高人民法院关于审理专利授权确权行政案件适用法律若干问题的规定（一）（2020）"
+    articles:
+      - number: "第六条"
+        text: >
+          说明书未充分公开特定技术内容，导致在专利申请日有下列情形之一的，
+          人民法院应当认定说明书及与该特定技术内容相关的权利要求不符合
+          专利法第二十六条第三款的规定：
+          （一）权利要求限定的技术方案不能实施的；
+          （二）实施权利要求限定的技术方案不能解决发明或者实用新型所要解决的技术问题的；
+          （三）确认权利要求限定的技术方案能够解决发明或者实用新型所要解决的技术问题，
+          需要付出过度劳动的。
+          当事人仅依据前款规定的未充分公开的特定技术内容，主张与该特定技术内容相关的
+          权利要求符合专利法第二十六条第四款关于"权利要求书应当以说明书为依据"的规定的，
+          人民法院不予支持。
+        keyPoints:
+          - "公开不充分的三种情形：不能实施、不能解决技术问题、需付出过度劳动"
+          - "公开不充分必然导致不支持（26.3→26.4联动）"
+      - number: "第九条"
+        text: >
+          对于功能性特征，权利要求书、说明书及附图未公开能够实现该功能或者效果的
+          任何具体实施方式的，人民法院应当认定说明书和具有该技术特征的权利要求
+          不符合专利法第二十六条第三款的规定。
+        keyPoints:
+          - "功能性特征：未公开任何具体实施方式→不符合26.3"
+      - number: "第十条"
+        text: >
+          药品专利申请人在申请日以后提交补充实验数据，主张依赖该数据证明专利申请
+          符合专利法第二十二条第三款、第二十六条第三款等规定的，人民法院应予审查。
+        keyPoints:
+          - "补充实验数据可主张证明26.3（须审查时间条件和主体条件）"

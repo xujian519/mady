@@ -13,9 +13,8 @@ import (
 // 当 LLM provider 可用时，提供优化表述、从零撰写、措辞优化等能力。
 // 当 provider 不可用时，降级为纯规则引擎模式。
 type LLMDrafter struct {
-	provider   Provider // LLM provider 接口
-	builder    *ClaimBuilder
-	promptTmpl string // 提示词模板
+	provider Provider // LLM provider 接口
+	builder  *ClaimBuilder
 }
 
 // Provider 是 LLM provider 接口，用于抽象实际的 LLM 调用。
@@ -62,7 +61,7 @@ func (d *LLMDrafter) DraftFromScratch(input DraftInput) (*DraftOutput, error) {
 func (d *LLMDrafter) buildPrompt(input DraftInput) string {
 	var fb, pb, eb strings.Builder
 	for _, f := range input.Features {
-		fb.WriteString(fmt.Sprintf("- %s（类别：%s，重要性：%s）\n", f.Description, f.Category, f.Importance))
+		fmt.Fprintf(&fb, "- %s（类别：%s，重要性：%s）\n", f.Description, f.Category, f.Importance)
 	}
 	for _, p := range input.Problems {
 		pb.WriteString("- " + p + "\n")
@@ -100,35 +99,4 @@ func (d *LLMDrafter) buildPrompt(input DraftInput) string {
 	b.WriteString("请输出完整的权利要求书（以权利要求书为标题），包含独立权利要求和从属权利要求。")
 
 	return b.String()
-}
-
-// parseClaimResult 解析 LLM 返回的权利要求文本。
-// 这是一个基础实现，后续可通过更精确的 NLP 解析增强。
-func parseClaimResult(_ string) ([]Claim, []string) {
-	// 基础实现：返回空列表和简单的提示信息
-	return nil, []string{"LLM 生成了权利要求，请人工审核格式"}
-}
-
-// filterClaimsByKind 按类型过滤权利要求。
-func filterClaimsByKind(claims []Claim, kind string) []Claim {
-	var filtered []Claim
-	for _, c := range claims {
-		if c.Kind == kind {
-			filtered = append(filtered, c)
-		}
-	}
-	return filtered
-}
-
-// extractSuggestionMessages 从违规列表中提取建议消息。
-func extractSuggestionMessages(violations []Violation) []string {
-	var messages []string
-	seen := make(map[string]bool)
-	for _, v := range violations {
-		if v.Suggestion != "" && !seen[v.Suggestion] {
-			messages = append(messages, "["+v.RuleName+"] "+v.Suggestion)
-			seen[v.Suggestion] = true
-		}
-	}
-	return messages
 }

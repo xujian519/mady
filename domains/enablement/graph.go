@@ -17,6 +17,7 @@ const (
 	stateKeyStep1  = "step1_completeness"
 	stateKeyStep2  = "step2_clarity"
 	stateKeyStep3  = "step3_enablement"
+	stateKeyDomain = "tech_domain"
 )
 
 // =============================================================================

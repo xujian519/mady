@@ -177,5 +177,201 @@
       "deficiencies_min": 1,
       "should_skip": true
     }
+  },
+  {
+    "id": "case_means_cannot_solve_problem",
+    "description": "技术手段不能解决技术问题——折叠椅违背物理原理",
+    "source": "invalidation_34992",
+    "input": {
+      "features": [
+        {
+          "id": "f1",
+          "description": "椅背和椅座之间通过不可折叠的折弯件连接",
+          "category": "structure",
+          "function": "连接椅背和椅座",
+          "importance": "high"
+        }
+      ],
+      "pfe_triples": [
+        {
+          "id": "t1",
+          "problem": "需要一种可折叠的便携椅子",
+          "feature_ids": ["f1"],
+          "effect": "椅子可折叠收纳"
+        }
+      ],
+      "problems": ["需要一种可折叠的便携椅子"],
+      "effects": ["椅子可折叠收纳"],
+      "doc_sections": {
+        "technical_field": "本发明涉及家具领域，具体涉及一种折叠椅。",
+        "content": "本发明提供一种折叠椅，椅背和椅座通过折弯件连接，实现折叠。",
+        "embodiments": "椅背和椅座之间使用一体成型的刚性折弯件连接。"
+      },
+      "has_drawings": false
+    },
+    "expected": {
+      "is_sufficient": false,
+      "confidence": "high",
+      "deficiencies_min": 1,
+      "means_cannot_solve": true
+    }
+  },
+  {
+    "id": "case_partial_means_unrealizable",
+    "description": "多手段方案中某一手段不能实现——多功能设备某模块无实现",
+    "source": "invalidation_19367",
+    "input": {
+      "features": [
+        {
+          "id": "f1",
+          "description": "手写笔在触摸板上书写",
+          "category": "method",
+          "function": "输入手写轨迹",
+          "importance": "high"
+        },
+        {
+          "id": "f2",
+          "description": "语音识别模块",
+          "category": "structure",
+          "function": "实现语音输入功能",
+          "importance": "medium"
+        }
+      ],
+      "pfe_triples": [
+        {
+          "id": "t1",
+          "problem": "需要一种多功能输入装置",
+          "feature_ids": ["f1", "f2"],
+          "effect": "同时支持手写和语音输入"
+        }
+      ],
+      "problems": ["需要一种多功能输入装置"],
+      "effects": ["同时支持手写和语音输入"],
+      "doc_sections": {
+        "technical_field": "本发明涉及输入设备技术领域。",
+        "content": "本发明提供一种多功能输入装置，包括手写输入和语音输入功能。",
+        "embodiments": "装置包括触摸板和手写笔，以及一个语音识别模块。但说明书中未公开语音识别模块的具体结构、算法或型号。"
+      },
+      "has_drawings": false
+    },
+    "expected": {
+      "is_sufficient": false,
+      "confidence": "medium",
+      "deficiencies_min": 1,
+      "partial_means_unrealizable": true
+    }
+  },
+  {
+    "id": "case_coined_term",
+    "description": "清楚性问题——自造词未定义",
+    "source": "invalidation_13248",
+    "input": {
+      "features": [
+        {
+          "id": "f1",
+          "description": "使用气相指痕光谱检测装置进行分析",
+          "category": "method",
+          "function": "检测样品成分",
+          "importance": "high"
+        }
+      ],
+      "pfe_triples": [
+        {
+          "id": "t1",
+          "problem": "需要一种快速检测样品成分的方法",
+          "feature_ids": ["f1"],
+          "effect": "快速获得成分分析结果"
+        }
+      ],
+      "problems": ["需要一种快速检测样品成分的方法"],
+      "effects": ["快速获得成分分析结果"],
+      "doc_sections": {
+        "technical_field": "本发明涉及分析检测技术领域。",
+        "content": "本发明提供一种使用气相指痕光谱技术的检测方法。",
+        "embodiments": "将样品置于气相指痕光谱检测装置中，设置参数后进行检测。"
+      },
+      "has_drawings": false
+    },
+    "expected": {
+      "is_sufficient": false,
+      "confidence": "medium",
+      "deficiencies_min": 1
+    }
+  },
+  {
+    "id": "case_chemical_markush",
+    "description": "化学领域马库什权利要求——化合物缺少实验数据",
+    "source": "invalidation_73780",
+    "input": {
+      "features": [
+        {
+          "id": "f1",
+          "description": "通式I所示的新型杂环化合物",
+          "category": "material",
+          "function": "作为药物活性成分",
+          "importance": "high"
+        }
+      ],
+      "pfe_triples": [
+        {
+          "id": "t1",
+          "problem": "需要新型抗肿瘤药物",
+          "feature_ids": ["f1"],
+          "effect": "抑制肿瘤细胞生长"
+        }
+      ],
+      "problems": ["需要新型抗肿瘤药物"],
+      "effects": ["抑制肿瘤细胞生长"],
+      "doc_sections": {
+        "technical_field": "本发明涉及药物化学领域。",
+        "content": "本发明提供通式I所示的杂环化合物及其药学上可接受的盐。",
+        "embodiments": "通式I涵盖R1选自氢、烷基、芳基，R2选自卤素、羟基。说明书中未提供任何生物活性实验数据。"
+      },
+      "has_drawings": false
+    },
+    "expected": {
+      "is_sufficient": false,
+      "confidence": "high",
+      "deficiencies_min": 2,
+      "insufficient_data": true
+    }
+  },
+  {
+    "id": "case_biopharm_depository",
+    "description": "生物技术——生物材料未保藏",
+    "source": "invalidation_synthetic_biopharm",
+    "input": {
+      "features": [
+        {
+          "id": "f1",
+          "description": "使用特定保藏编号的微生物菌株发酵生产酶制剂",
+          "category": "method",
+          "function": "生物催化生产目标酶",
+          "importance": "high"
+        }
+      ],
+      "pfe_triples": [
+        {
+          "id": "t1",
+          "problem": "需要高效生产特定酶的方法",
+          "feature_ids": ["f1"],
+          "effect": "酶产量提高5倍"
+        }
+      ],
+      "problems": ["需要高效生产特定酶的方法"],
+      "effects": ["酶产量提高5倍"],
+      "doc_sections": {
+        "technical_field": "本发明涉及生物技术领域。",
+        "content": "本发明使用一种新分离的微生物菌株生产酶制剂。",
+        "embodiments": "将菌株接种于发酵培养基中，在适宜条件下培养。说明书中未记载菌株的分类学特征、保藏信息，也未提供菌株获取途径。"
+      },
+      "has_drawings": false
+    },
+    "expected": {
+      "is_sufficient": false,
+      "confidence": "high",
+      "deficiencies_min": 1,
+      "missing_key_means": true
+    }
   }
 ]
