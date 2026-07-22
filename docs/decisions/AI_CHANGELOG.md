@@ -1,5 +1,74 @@
 # AI 变更记录
 
+## 2026-07-23: 四大功能模块断链修复 — inventiveness/claimdrafting/specdrafting 接线
+
+### 背景
+工作流系统优化后，四个核心专利功能模块（可实现性/创造性/权利要求书/说明书撰写）的图引擎和规则引擎代码已完整实现且单元测试全过，但**装配层（wiring）存在断链**——部分模块的工具/扩展从未注册到运行时 Agent，沦为死代码。
+
+### 变更内容
+
+**断链 1：inventiveness 工具未注册** — `domains/patent.go`（敏感路径）
+- `PatentAgentConfig.ExtraTools` 漏注册 `NewInventivenessTool`，仅 `enablement` 被注册
+- 修复：添加 `inventiveness.NewInventivenessTool(WithProvider(base.Provider))`，与 enablement 对称
+- 影响：TUI 模式下 `evaluate_inventiveness` 工具此前完全不可达（Server 模式通过事件触发器可用）
+
+**断链 2：claimdrafting 完全未接线（三重断链修复）**
+- `domains/claimdrafting/provider_adapter.go`（**新增**）：`ProviderAdapter` 将 `agentcore.Provider` 适配为 `claimdrafting.Provider`（`Complete(prompt)→string`）
+- `domains/claimdrafting/extension.go`（修改）：修复 `handleDraftClaims` 死字段——原代码直接 `NewClaimBuilder` 绕过 `e.drafter`，现改为优先使用 drafter（LLM 增强）并降级到 builder；新增 `Drafter()` getter
+- `domains/patent.go`（修改）：新增 `globalClaimDraftingExt` + `SetupClaimDraftingExtension()`，注入到 `PatentAgentConfig` 和 `BuildProjectAgent`
+
+**断链 3：specdrafting 完全未接线 + 替换旧版**
+- `domains/patent.go`（修改）：新增 `globalSpecDraftingExt` + `SetupSpecDraftingExtension()`，注入到 `PatentAgentConfig` 和 `BuildProjectAgent`
+- 移除 `patent.NewSpecificationTool()`（workflows/patent 简单版），由 `specdrafting.Extension`（12 节点 Pregel 图 + 16 条规则 + 评分器）替代
+- `cmd/mady/framework.go`（修改）：启动期调用 `SetupClaimDraftingExtension` + `SetupSpecDraftingExtension`
+
+### 断链根因
+四模块均通过全局注入模式（`globalXxx` + `Setup*`）装配，与 `globalKnowledgeExt`/`globalDraftingRunner` 一致。但三个模块的 Setup 函数和注入逻辑在上一批优化中遗漏编写，导致代码虽完整却不可达。
+
+### 测试
+- `go build ./...` + `go build ./cmd/mady/...` 全部通过
+- `go test ./domains/...` 全部通过（15 个包 0 失败）
+- `go vet` + `gofmt` 干净
+
+### 涉及文件（5 个）
+
+| 文件 | 变更类型 |
+|------|---------|
+| `domains/claimdrafting/provider_adapter.go` | **新增**：agentcore.Provider 适配器 |
+| `domains/claimdrafting/extension.go` | 修改：修复 drafter 死字段 + 新增 Drafter() getter |
+| `domains/patent.go` | 修改：注册 inventiveness 工具 + 两个 extension 注入 + Setup 函数（敏感路径） |
+| `cmd/mady/framework.go` | 修改：启动期调用两个 Setup 函数 |
+| `docs/decisions/AI_CHANGELOG.md` | 本条记录 |
+
+### 残留事项
+~~`claimdrafting.LLMDrafter.DraftFromScratch` 的 LLM 结果解析为 `TODO`（drafter.go:55 `_ = result`），当前 LLM 路径仍降级到 builder。接线已完成，LLM 解析待后续实现。~~ **已实现**（见后续条目）
+
+## 2026-07-23: claimdrafting LLM 结果解析实现
+
+### 变更内容
+
+**`domains/claimdrafting/drafter.go`**（重写）
+- 实现 `parseClaimsFromLLM()` 解析器：将 LLM 生成的自由文本权利要求解析为结构化 `Claim` 对象
+- 支持独立权利要求（"其特征在于"两段式）、从属权利要求（"根据权利要求"引用式）、多项从属（"或"连接多引用）
+- 3 个解析测试 + 5 个异常格式降级测试全部通过
+- `DraftFromScratch` 流程重构：builder 降级输出 → LLM 调用 → 解析成功则返回结构化结果 → 解析失败静默降级 builder
+- prompt 增加技术领域提示 + 输出格式示例（约束 LLM 输出格式便于解析）
+- `TechDomain` 现在正确传递：`handleDraftClaims` 为 `DraftInput.TechDomain` 设值，prompt 中包含技术领域提示
+
+**测试**（`domains/claimdrafting/integration_test.go`）：
+- `TestParseClaimsFromLLM_Basic` — 产品+方法独立权利要求 + 从属 + 多项从属全链路解析
+- `TestParseClaimsFromLLM_Malformed` — 5 种异常格式识别
+- `TestParseClaimsFromLLM_DomainCarryOver` — TechDomain 传递验证
+
+### 涉及文件（4 个）
+
+| 文件 | 变更类型 |
+|------|---------|
+| `domains/claimdrafting/drafter.go` | 重写：实现 LLM 结果解析 + 重构 DraftFromScratch 流程 |
+| `domains/claimdrafting/extension.go` | 修改：handleDraftClaims 传递 TechDomain 给 DraftInput |
+| `domains/claimdrafting/integration_test.go` | 修改：新增 3 个解析器测试 |
+| `docs/decisions/AI_CHANGELOG.md` | 本条记录 |
+
 ## 2026-07-22: 工作流编排器优化第三批 — 工具注册 + CLI/TUI 入口 + 复审请求工作流
 
 ### 背景

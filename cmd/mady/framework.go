@@ -606,6 +606,11 @@ func initReasoningAndTemplates(fc *frameworkContext) {
 	// 执行（串行队列），此处 fc.KnowledgeExt 已就绪。
 	domains.SetupKnowledgeExtension(fc.KnowledgeExt)
 
+	// 权利要求书 + 说明书撰写扩展注入（claimdrafting/specdrafting 图引擎增强版）。
+	// provider 可用时启用 LLM 逐节点撰写；不可用时降级为纯规则引擎模板填充。
+	domains.SetupClaimDraftingExtension(fc.Provider, agentconfig.DefaultModel())
+	domains.SetupSpecDraftingExtension(fc.Provider)
+
 	userTmplDir := filepath.Join(fc.MadyHome, "doc-templates")
 	store, err := doctmpl.NewTemplateStore(userTmplDir)
 	if err != nil {

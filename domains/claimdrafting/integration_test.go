@@ -272,3 +272,140 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	t.Logf("违规数: %d", len(violations))
 	t.Logf("警告数: %d", len(output.Warnings))
 }
+
+// TestParseClaimsFromLLM_Basic 验证 LLM 返回文本的解析器能正确提取结构化的权利要求。
+func TestParseClaimsFromLLM_Basic(t *testing.T) {
+	input := DraftInput{
+		Title:    "一种智能温度控制装置",
+		Problems: []string{"温度控制精度不足", "响应速度慢"},
+		Effects:  []string{"提高温度控制精度", "加快响应速度"},
+		Features: []Feature{
+			{ID: "f1", Description: "温度传感器", Category: "structure", Importance: "high"},
+			{ID: "f2", Description: "微处理器", Category: "structure", Importance: "high"},
+			{ID: "f3", Description: "加热元件", Category: "structure", Importance: "high"},
+		},
+	}
+	text := `权利要求书
+
+1. 一种智能温度控制装置，包括温度传感器和微处理器，其特征在于，所述微处理器根据温度传感器的检测信号控制加热元件的功率输出。
+
+2. 根据权利要求1所述的智能温度控制装置，其特征在于，所述温度传感器为热电偶。
+
+3. 根据权利要求1或2所述的智能温度控制装置，其特征在于，还包括与微处理器连接的显示模块。
+
+4. 一种智能温度控制方法，其特征在于，包括以下步骤：获取温度传感器的检测信号；微处理器根据检测信号计算功率输出值；根据功率输出值控制加热元件。`
+
+	output := parseClaimsFromLLM(text, input)
+	if output == nil {
+		t.Fatal("parseClaimsFromLLM returned nil")
+	}
+	if output.Claims == nil {
+		t.Fatal("expected non-nil Claims")
+	}
+
+	// 验证独立权利要求数量（应有两个：产品+方法）
+	if len(output.Claims.IndependentClaims) != 2 {
+		t.Fatalf("expected 2 independent claims, got %d", len(output.Claims.IndependentClaims))
+	}
+
+	// 验证独立权利要求 1
+	c1 := output.Claims.IndependentClaims[0]
+	if c1.Number != 1 {
+		t.Errorf("expected claim number 1, got %d", c1.Number)
+	}
+	if c1.Kind != "independent" {
+		t.Errorf("expected kind independent, got %s", c1.Kind)
+	}
+	if c1.Preamble == "" || !strings.Contains(c1.Preamble, "温度控制装置") {
+		t.Errorf("preamble should contain '温度控制装置', got %q", c1.Preamble)
+	}
+	if c1.Characterized == "" || !strings.Contains(c1.Characterized, "微处理器") {
+		t.Errorf("characterized should contain '微处理器', got %q", c1.Characterized)
+	}
+	if c1.ClaimType != ClaimTypeProduct {
+		t.Errorf("expected ClaimTypeProduct, got %s", c1.ClaimType)
+	}
+
+	// 验证从属权利要求
+	if len(output.Claims.DependentClaims) != 2 {
+		t.Fatalf("expected 2 dependent claims, got %d", len(output.Claims.DependentClaims))
+	}
+
+	// 验证第 2 条（从属）
+	c2 := output.Claims.DependentClaims[0]
+	if c2.Number != 2 {
+		t.Errorf("expected claim number 2, got %d", c2.Number)
+	}
+	if c2.Kind != "dependent" {
+		t.Errorf("expected kind dependent, got %s", c2.Kind)
+	}
+	if len(c2.DependsOn) != 1 || c2.DependsOn[0] != 1 {
+		t.Errorf("expected depends on [1], got %v", c2.DependsOn)
+	}
+
+	// 验证第 3 条（多项从属）
+	c3 := output.Claims.DependentClaims[1]
+	if c3.Number != 3 {
+		t.Errorf("expected claim number 3, got %d", c3.Number)
+	}
+	if len(c3.DependsOn) != 2 || c3.DependsOn[0] != 1 || c3.DependsOn[1] != 2 {
+		t.Errorf("expected depends on [1,2], got %v", c3.DependsOn)
+	}
+
+	// 验证独立权利要求 4（方法权利要求）
+	c4 := output.Claims.IndependentClaims[1]
+	if c4.Number != 4 {
+		t.Errorf("expected claim number 4, got %d", c4.Number)
+	}
+	if c4.ClaimType != ClaimTypeMethod {
+		t.Errorf("independent claim 4 should be ClaimTypeMethod, got %s", c4.ClaimType)
+	}
+}
+
+// TestParseClaimsFromLLM_Malformed 验证解析器遇到格式错误时正确返回 nil（触发降级）。
+func TestParseClaimsFromLLM_Malformed(t *testing.T) {
+	input := DraftInput{Title: "test"}
+	tests := []struct {
+		name string
+		text string
+	}{
+		{"empty", ""},
+		{"no claims", "这是无关文本"},
+		{"missing independent", "2. 根据权利要求1所述的装置。"}, // 没有 1 号
+		{"bad number format", "一. 一种装置，其特征在于，xxx。"},
+		{"missing period in dependency", "2. 根据权利要求1所述的"}, // 缺少内容
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := parseClaimsFromLLM(tt.text, input)
+			if output != nil {
+				t.Errorf("expected nil for malformed input, got non-nil output with %d claims", len(output.Claims.IndependentClaims))
+			}
+		})
+	}
+}
+
+// TestParseClaimsFromLLM_DomainCarryOver 验证 TechDomain 正确传递到输出。
+func TestParseClaimsFromLLM_DomainCarryOver(t *testing.T) {
+	input := DraftInput{
+		Title: "一种机械装置",
+		Features: []Feature{
+			{ID: "f1", Description: "弹性元件", Category: "structure", Importance: "high"},
+		},
+	}
+	input.TechDomain = DomainMechanical
+
+	text := `权利要求书
+
+1. 一种机械装置，其特征在于，包含弹性元件。
+
+2. 根据权利要求1所述的机械装置，其特征在于，所述弹性元件为弹簧。`
+
+	output := parseClaimsFromLLM(text, input)
+	if output == nil {
+		t.Fatal("parseClaimsFromLLM returned nil")
+	}
+	if output.InputMeta.Domain != DomainMechanical {
+		t.Errorf("expected InputMeta.Domain %s, got %s", DomainMechanical, output.InputMeta.Domain)
+	}
+}

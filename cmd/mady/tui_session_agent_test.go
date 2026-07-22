@@ -119,6 +119,7 @@ func TestRebuildAgentPanicRecover(t *testing.T) {
 		app:   app,
 		ctx:   context.Background(),
 		store: mustNewTransientStore(),
+		fc:    &frameworkContext{},
 	}
 
 	// repeatedAgentRebuild calls rebuildAgent in a loop, expecting the defer

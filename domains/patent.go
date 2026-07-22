@@ -6,9 +6,12 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
+	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
+	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/domains/reasoning"
+	"github.com/xujian519/mady/domains/specdrafting"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/retrieval/domain"
 	"github.com/xujian519/mady/tools"
@@ -66,6 +69,45 @@ var globalKnowledgeExt agentcore.Extension
 // 必须在任何 Agent 创建前调用。
 func SetupKnowledgeExtension(ext agentcore.Extension) {
 	globalKnowledgeExt = ext
+}
+
+// globalClaimDraftingExt 是权利要求撰写扩展的全局实例，由 SetupClaimDraftingExtension
+// 在启动期注入。PatentAgentConfig 将其注册到 Extensions 中，使 Patent Agent
+// 拥有 draft_claims 工具（五步法 builder + 规则引擎校验 + 可选 LLM 增强）。
+var globalClaimDraftingExt agentcore.Extension
+
+// globalSpecDraftingExt 是说明书撰写扩展的全局实例，由 SetupSpecDraftingExtension
+// 在启动期注入。PatentAgentConfig 将其注册到 Extensions 中，使 Patent Agent
+// 拥有 draft_specification / validate_specification 工具（12 节点 Pregel 图引擎
+// + 16 条校验规则 + 评分器）。
+var globalSpecDraftingExt agentcore.Extension
+
+// SetupClaimDraftingExtension 在启动期构造并注入权利要求撰写扩展。
+// provider 非 nil 时启用 LLM 增强（通过 ProviderAdapter 桥接）。
+// 必须在任何 Agent 创建前调用。
+func SetupClaimDraftingExtension(provider agentcore.Provider, model string) {
+	engine := claimdrafting.NewRuleEngine()
+	claimdrafting.RegisterDefaultRules(engine)
+	ext := claimdrafting.NewExtension(engine)
+	if provider != nil {
+		adapter := claimdrafting.NewProviderAdapter(provider, model)
+		// Pass a default builder so drafter's fallback path doesn't NPE.
+		ext.SetDrafter(claimdrafting.NewLLMDrafter(adapter, claimdrafting.NewClaimBuilder("", "")))
+	}
+	globalClaimDraftingExt = ext
+}
+
+// SetupSpecDraftingExtension 在启动期构造并注入说明书撰写扩展。
+// provider 非 nil 时启用 12 节点 Pregel 图引擎（LLM 逐节点撰写）。
+// 必须在任何 Agent 创建前调用。
+func SetupSpecDraftingExtension(provider agentcore.Provider) {
+	engine := specdrafting.NewRuleEngine()
+	specdrafting.RegisterDefaultRules(engine)
+	ext := specdrafting.NewExtension(engine)
+	if provider != nil {
+		ext.SetDrafter(specdrafting.NewLLMDrafter(provider, nil))
+	}
+	globalSpecDraftingExt = ext
 }
 
 // SetupPatentRetriever 在启动期注入专利领域检索器实例，
@@ -152,12 +194,12 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		ExtraTools: []*agentcore.Tool{
 			patent.NewPatentNoveltyTool(patent.WithRetriever(globalPatentRetriever)),
 			patent.NewOAResponseTool(),
-			patent.NewSpecificationTool(),
 			patent.NewDebateTool(),
 			patent.NewInvalidationTool(patent.WithInvRetriever(globalPatentRetriever)),
 			patent.NewInfringementTool(),
 			patent.NewReexaminationTool(),
 			enablement.NewEnablementTool(enablement.WithProvider(base.Provider)),
+			inventiveness.NewInventivenessTool(inventiveness.WithProvider(base.Provider)),
 		},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)
@@ -170,6 +212,17 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	// 之前仅在会话级 extendConfig 注入到顶层 Chat Agent，Handoff 子 Agent 无法获得。
 	if globalKnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
+	}
+
+	// 权利要求书撰写扩展（claimdrafting）：五步法 builder + 六类规则校验 + 可选 LLM 增强。
+	if globalClaimDraftingExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalClaimDraftingExt)
+	}
+
+	// 说明书撰写扩展（specdrafting）：12 节点 Pregel 图引擎 + 16 条校验规则 + 评分器，
+	// 替代旧的 workflows/patent.NewSpecificationTool（简单 workflow 版）。
+	if globalSpecDraftingExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalSpecDraftingExt)
 	}
 
 	// Chunked context engine for long patent documents.
@@ -256,6 +309,17 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	// 能检索本地知识库中的法律法规、司法解释和案例。
 	if globalKnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
+	}
+
+	// 权利要求书撰写扩展（claimdrafting）：五步法 builder + 六类规则校验 + 可选 LLM 增强。
+	if globalClaimDraftingExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalClaimDraftingExt)
+	}
+
+	// 说明书撰写扩展（specdrafting）：12 节点 Pregel 图引擎 + 16 条校验规则 + 评分器，
+	// 替代旧的 workflows/patent.NewSpecificationTool（简单 workflow 版）。
+	if globalSpecDraftingExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalSpecDraftingExt)
 	}
 
 	// Chunked context engine for long patent/legal documents.

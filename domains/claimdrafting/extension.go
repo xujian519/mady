@@ -43,6 +43,13 @@ func (e *Extension) SetDrafter(d *LLMDrafter) {
 	e.drafter = d
 }
 
+// Drafter 返回已注入的 LLM 撰写器（读安全，可能为 nil）。
+func (e *Extension) Drafter() *LLMDrafter {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.drafter
+}
+
 // Name 实现 agentcore.Extension 接口。
 func (e *Extension) Name() string { return ExtensionName }
 
@@ -107,16 +114,23 @@ func (e *Extension) handleDraftClaims(ctx context.Context, args json.RawMessage)
 	}
 
 	domain := parseTechDomain(params.TechDomain)
-
-	// 使用领域特定的 Builder（每个工具调用创建新的 Builder 以保证领域隔离）
-	builder := NewClaimBuilder(domain, "")
 	input := DraftInput{
-		Title:    params.Title,
-		Problems: params.Problems,
-		Features: params.Features,
+		Title:      params.Title,
+		Problems:   params.Problems,
+		Features:   params.Features,
+		TechDomain: domain,
 	}
 
-	output, err := builder.Build(input)
+	// 优先使用 drafter（LLM 增强），降级到纯规则引擎 Builder。
+	// drafter 内部在 provider 不可用时也会自行降级到 Builder。
+	var output *DraftOutput
+	var err error
+	if d := e.Drafter(); d != nil {
+		output, err = d.DraftFromScratch(input)
+	} else {
+		builder := NewClaimBuilder(domain, "")
+		output, err = builder.Build(input)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("draft_claims: 撰写失败: %w", err)
 	}

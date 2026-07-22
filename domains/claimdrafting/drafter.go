@@ -2,6 +2,8 @@ package claimdrafting
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -35,27 +37,268 @@ func NewLLMDrafter(provider Provider, builder *ClaimBuilder) *LLMDrafter {
 }
 
 // DraftFromScratch 使用 LLM 从头撰写权利要求书。
-// 当 provider 不可用时，降级为 builder 的规则引擎生成。
+// 流程：先通过规则引擎 builder 生成降级输出，再尝试 LLM 增强。
+// LLM 返回的文本被解析为结构化 Claim 对象；解析失败时静默降级到 builder 输出。
 func (d *LLMDrafter) DraftFromScratch(input DraftInput) (*DraftOutput, error) {
-	// interface nil guard
-	if d == nil || d.provider == nil || !d.provider.Available() {
-		return d.builder.Build(input)
+	// Guard: nil receiver or nil builder → create a default fallback builder.
+	if d == nil || d.builder == nil {
+		return NewClaimBuilder("", "").Build(input)
 	}
 
-	// 构建提示词
-	prompt := d.buildPrompt(input)
+	// 步骤 1：builder 降级输出（确保总有可用结果）
+	fallback, err := d.builder.Build(input)
+	if err != nil {
+		return nil, err
+	}
 
-	// 调用 LLM
+	// 步骤 2：尝试 LLM 增强
+	if d.provider == nil || !d.provider.Available() {
+		return fallback, nil
+	}
+
+	prompt := d.buildPrompt(input)
 	result, err := d.provider.Complete(prompt)
 	if err != nil {
-		// LLM 失败时降级
-		return d.builder.Build(input)
+		return fallback, nil
 	}
 
-	// TODO(下一阶段): 实现 LLM 返回结果的精确解析（当前降级到规则引擎）
-	_ = result
-	return d.builder.Build(input)
+	// 步骤 3：解析 LLM 结果
+	if parsed := parseClaimsFromLLM(result, input); parsed != nil {
+		parsed.Warnings = fallback.Warnings // 复用 builder 的规则校验警告
+		return parsed, nil
+	}
+
+	return fallback, nil
 }
+
+// =============================================================================
+// LLM 结果解析器
+// =============================================================================
+
+// claimNumPattern 匹配 "N. " 格式的权利要求编号前缀。
+var claimNumPattern = regexp.MustCompile(`(\d+)\.\s+`)
+
+// parseClaimsFromLLM 将 LLM 生成的权利要求文本解析为结构化 DraftOutput。
+// text 预期格式：
+//
+//	权利要求书
+//
+//	1. preamble，其特征在于，characterized。
+//	2. 根据权利要求1所述的limitation。
+//	3. 根据权利要求1或2所述的limitation。
+//
+// 任意一条权利要求解析失败时返回 nil（触发调用方降级到 builder）。
+func parseClaimsFromLLM(text string, input DraftInput) *DraftOutput {
+	claimTexts := splitClaimTexts(text)
+	if len(claimTexts) == 0 {
+		return nil
+	}
+
+	var indClaims, depClaims []Claim
+	for _, ct := range claimTexts {
+		c := parseSingleClaim(ct)
+		if c == nil {
+			return nil
+		}
+		if c.Kind == "independent" {
+			indClaims = append(indClaims, *c)
+		} else {
+			depClaims = append(depClaims, *c)
+		}
+	}
+
+	if len(indClaims) == 0 {
+		return nil // 必须至少有一个独立权利要求
+	}
+
+	// 推断 claimType：从独立权利要求中选取第一个的类型
+	claimType := ClaimTypeProduct
+	for _, c := range indClaims {
+		if c.ClaimType != "" {
+			claimType = c.ClaimType
+			break
+		}
+	}
+
+	return &DraftOutput{
+		Claims: &ClaimSet{
+			IndependentClaims: indClaims,
+			DependentClaims:   depClaims,
+		},
+		InputMeta: struct {
+			Domain       TechDomain `json:"domain"`
+			ClaimType    ClaimType  `json:"claim_type"`
+			FeatureCount int        `json:"feature_count"`
+		}{
+			Domain:       input.TechDomain,
+			ClaimType:    claimType,
+			FeatureCount: len(input.Features),
+		},
+	}
+}
+
+// splitClaimTexts 将全文按 "N. " 模式切分为单个权利要求文本块。
+func splitClaimTexts(text string) []string {
+	// 去除标题行（如 "权利要求书"）
+	lines := strings.SplitN(text, "\n", 2)
+	if len(lines) > 1 && strings.Contains(lines[0], "权利要求书") {
+		text = lines[1]
+	}
+
+	locs := claimNumPattern.FindAllStringSubmatchIndex(text, -1)
+	if len(locs) == 0 {
+		return nil
+	}
+
+	var claims []string
+	for i, loc := range locs {
+		start := loc[0]
+		var end int
+		if i+1 < len(locs) {
+			end = locs[i+1][0]
+		} else {
+			end = len(text)
+		}
+		claims = append(claims, strings.TrimSpace(text[start:end]))
+	}
+	return claims
+}
+
+// parseSingleClaim 解析单条权利要求文本。
+func parseSingleClaim(text string) *Claim {
+	m := claimNumPattern.FindStringSubmatch(text)
+	if m == nil {
+		return nil
+	}
+	number, err := strconv.Atoi(m[1])
+	if err != nil {
+		return nil
+	}
+
+	// 提取 "N. " 之后的正文
+	dotIdx := strings.Index(text, ". ")
+	if dotIdx < 0 {
+		return nil
+	}
+	body := strings.TrimSpace(text[dotIdx+2:])
+
+	// 去除末尾句号（支持中英文）
+	body = strings.TrimSuffix(body, "。")
+	body = strings.TrimSuffix(body, ".")
+
+	// 从属权利要求：以 "根据权利要求" 开头（需优先于 "其特征在于" 检查，
+	// 因为从属权利要求的限定部分也可能包含 "其特征在于"）。
+	if strings.HasPrefix(body, "根据权利要求") {
+		after := body[len("根据权利要求"):]
+
+		// 查找 "所述的" 分隔位置
+		sepIdx := strings.Index(after, "所述的")
+		if sepIdx < 0 {
+			return nil
+		}
+		depStr := after[:sepIdx]
+		limitation := strings.TrimSpace(after[sepIdx+len("所述的"):])
+
+		// 解析引用编号：支持 "1"、"1或2"、"1、2或3"
+		depStr = strings.ReplaceAll(depStr, "、", "或")
+		parts := strings.Split(depStr, "或")
+		var dependsOn []int
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if n, err := strconv.Atoi(p); err == nil {
+				dependsOn = append(dependsOn, n)
+			}
+		}
+		if len(dependsOn) == 0 {
+			return nil
+		}
+
+		claimType := ClaimTypeProduct
+		lower := strings.ToLower(limitation)
+		if strings.Contains(lower, "方法") || strings.Contains(lower, "工艺") || strings.Contains(lower, "流程") {
+			claimType = ClaimTypeMethod
+		}
+
+		return &Claim{
+			Number:     number,
+			Kind:       "dependent",
+			DependsOn:  dependsOn,
+			Limitation: limitation,
+			ClaimType:  claimType,
+		}
+	}
+
+	// 独立权利要求：含 "其特征在于"
+	if idx := strings.Index(body, "其特征在于"); idx >= 0 {
+		preamble := strings.TrimSpace(body[:idx])
+		preamble = strings.TrimSuffix(preamble, "，")
+		preamble = strings.TrimSuffix(preamble, ",")
+
+		characterized := strings.TrimSpace(body[idx+len("其特征在于"):])
+
+		// 推断 claimType
+		claimType := ClaimTypeProduct
+		lower := strings.ToLower(preamble + characterized)
+		if strings.Contains(lower, "方法") || strings.Contains(lower, "工艺") || strings.Contains(lower, "流程") {
+			claimType = ClaimTypeMethod
+		}
+
+		return &Claim{
+			Number:        number,
+			Kind:          "independent",
+			Preamble:      preamble,
+			Characterized: characterized,
+			ClaimType:     claimType,
+		}
+	}
+
+	// 从属权利要求：以 "根据权利要求" 开头
+	if strings.HasPrefix(body, "根据权利要求") {
+		after := body[len("根据权利要求"):]
+
+		// 查找 "所述的" 分隔位置
+		sepIdx := strings.Index(after, "所述的")
+		if sepIdx < 0 {
+			return nil
+		}
+		depStr := after[:sepIdx]
+		limitation := strings.TrimSpace(after[sepIdx+len("所述的"):])
+
+		// 解析引用编号：支持 "1"、"1或2"、"1、2或3"
+		depStr = strings.ReplaceAll(depStr, "、", "或")
+		parts := strings.Split(depStr, "或")
+		var dependsOn []int
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if n, err := strconv.Atoi(p); err == nil {
+				dependsOn = append(dependsOn, n)
+			}
+		}
+		if len(dependsOn) == 0 {
+			return nil
+		}
+
+		claimType := ClaimTypeProduct
+		lower := strings.ToLower(limitation)
+		if strings.Contains(lower, "方法") || strings.Contains(lower, "工艺") || strings.Contains(lower, "流程") {
+			claimType = ClaimTypeMethod
+		}
+
+		return &Claim{
+			Number:     number,
+			Kind:       "dependent",
+			DependsOn:  dependsOn,
+			Limitation: limitation,
+			ClaimType:  claimType,
+		}
+	}
+
+	return nil
+}
+
+// =============================================================================
+// Prompt 构建
+// =============================================================================
 
 // buildPrompt 构建 LLM 提示词。
 func (d *LLMDrafter) buildPrompt(input DraftInput) string {
@@ -78,6 +321,11 @@ func (d *LLMDrafter) buildPrompt(input DraftInput) string {
 	b.WriteString("## 发明名称\n")
 	b.WriteString(input.Title)
 	b.WriteString("\n\n")
+	if input.TechDomain != "" {
+		b.WriteString("## 技术领域\n")
+		b.WriteString(string(input.TechDomain))
+		b.WriteString("\n\n")
+	}
 	b.WriteString("## 技术问题\n")
 	b.WriteString(problemsStr)
 	b.WriteString("\n")
@@ -96,7 +344,11 @@ func (d *LLMDrafter) buildPrompt(input DraftInput) string {
 	b.WriteString("6. 从属权利要求只能引用在前的权利要求\n")
 	b.WriteString("7. 多项从属只能择一引用（用或），不得用和\n")
 	b.WriteString("8. 实用新型只能有产品权利要求\n\n")
-	b.WriteString("请输出完整的权利要求书（以权利要求书为标题），包含独立权利要求和从属权利要求。")
+	b.WriteString("请按以下格式输出完整的权利要求书，每条权利要求独占一行：\n\n")
+	b.WriteString("权利要求书\n\n")
+	b.WriteString("1. 【前序部分】，其特征在于，【特征部分】。\n")
+	b.WriteString("2. 根据权利要求1所述的【限定部分】。\n")
+	b.WriteString("3. 根据权利要求1或2所述的【限定部分】。\n")
 
 	return b.String()
 }
