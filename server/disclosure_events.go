@@ -159,13 +159,11 @@ func (t *InventivenessTrigger) runGraph(ctx context.Context, input *inventivenes
 	}
 
 	state := graph.PregelState{}
-	// 用 inventiveness 包约定的 key 写入输入数据。
-	state["inventiveness_input"] = input
+	state[inventiveness.StateKeyInput] = input
 
 	state, runErr := compiled.Run(ctx, state)
 
-	// 从 state 中提取结果。
-	if raw, ok := state["inventiveness_result"]; ok {
+	if raw, ok := state[inventiveness.StateKeyResult]; ok {
 		if result, ok := raw.(*inventiveness.InventivenessResult); ok {
 			return result, runErr
 		}
