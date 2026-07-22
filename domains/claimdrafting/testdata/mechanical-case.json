@@ -1,0 +1,16 @@
+{
+  "title": "一种智能夹持装置",
+  "problems": ["现有技术中夹持装置夹持力不稳定"],
+  "effects": ["提高夹持稳定性", "自适应调节夹持力"],
+  "features": [
+    {"id": "f1", "description": "夹持臂", "category": "structure", "importance": "high", "prior_status": "known"},
+    {"id": "f2", "description": "驱动气缸", "category": "structure", "importance": "high", "prior_status": "unknown"},
+    {"id": "f3", "description": "压力传感器", "category": "structure", "importance": "high", "prior_status": "unknown"},
+    {"id": "f4", "description": "控制阀", "category": "structure", "importance": "medium", "prior_status": "unknown"},
+    {"id": "f5", "description": "弹性垫片", "category": "structure", "importance": "low", "prior_status": "unknown"}
+  ],
+  "pfe_triples": [
+    {"id": "t1", "problem": "夹持力不稳定", "feature_ids": ["f1", "f2", "f3"]}
+  ],
+  "prior_art": "现有气动夹持装置，包括夹持臂和驱动气缸"
+}
