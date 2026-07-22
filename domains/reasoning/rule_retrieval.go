@@ -3,6 +3,7 @@ package reasoning
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 )
@@ -53,12 +54,14 @@ type RuleEngineSource interface {
 }
 
 // MultiSourceRetriever queries up to four rule sources in parallel and
-// aggregates the results according to the Manifest.
+// aggregates the results according to the Manifest. It can optionally
+// extract workflow topology from the knowledge graph for plan generation.
 type MultiSourceRetriever struct {
 	walker      *ReasoningWalker
 	vectorStore RuleVectorStore
 	skillReader RuleSkillReader
 	ruleEngine  RuleEngineSource
+	topologyExt *TopologyExtractor // optional — enables topology extraction
 }
 
 // NewMultiSourceRetriever creates a retriever. Any source may be nil,
@@ -70,6 +73,14 @@ func NewMultiSourceRetriever(walker *ReasoningWalker, vs RuleVectorStore, sr Rul
 		skillReader: sr,
 		ruleEngine:  re,
 	}
+}
+
+// WithTopologyExtractor attaches a topology extractor for KG-driven
+// workflow generation. When set, RetrieveWithTopology can derive ordered
+// WorkflowSteps from the knowledge graph for the requested case type.
+func (r *MultiSourceRetriever) WithTopologyExtractor(ext *TopologyExtractor) *MultiSourceRetriever {
+	r.topologyExt = ext
+	return r
 }
 
 // Retrieve runs all configured sources in parallel and returns an aggregated,
@@ -251,6 +262,32 @@ func (r *MultiSourceRetriever) querySkill(ctx context.Context, src RuleSourceCfg
 		return nil, fmt.Errorf("skill reader: %w", err)
 	}
 	return rules, nil
+}
+
+// RetrieveWithTopology runs all configured sources in parallel (like Retrieve)
+// and additionally extracts workflow topology from the knowledge graph. The
+// topology provides ordered WorkflowSteps that encode the CITES/APPLIES/RELATED_TO
+// structure around GuidelineRule nodes matching the case type.
+//
+// The topology is best-effort: it returns nil when no topology extractor is
+// configured or when the KG has no matching GuidelineRule nodes for the case type.
+// In that case, callers should fall back to the flat rule list alone.
+func (r *MultiSourceRetriever) RetrieveWithTopology(ctx context.Context, manifest RuleRetrievalManifest, facts []FactEntry, techField string) ([]RetrievedRule, *WorkflowTopology, error) {
+	rules, err := r.Retrieve(ctx, manifest, facts, techField)
+	if err != nil {
+		return nil, nil, err
+	}
+	if r.topologyExt == nil || !r.topologyExt.HasStore() {
+		return rules, nil, nil
+	}
+
+	topology, err := r.topologyExt.ExtractByCaseType(ctx, manifest.CaseType, 2, 15)
+	if err != nil {
+		// Topology extraction is best-effort; don't fail the whole retrieval.
+		slog.Error("retrieve: topology extraction failed", "caseType", manifest.CaseType, "err", err)
+		return rules, nil, nil
+	}
+	return rules, topology, nil
 }
 
 // --- helpers ---

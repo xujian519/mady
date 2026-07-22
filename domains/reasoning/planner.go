@@ -35,15 +35,19 @@ func computeFactsInPromptLimit(contextWindow int64) int {
 
 // Planner generates a Plan (Stage ③) from facts and rules.
 //
-// Two generation paths:
-//   - Template path: for simple intents, looks up a pre-built Plan template,
-//     fills in UsedFacts/UsedRules from the blackboard, and returns it.
+// Three generation paths (tried in order):
+//   - Template path: for simple intents, looks up a pre-built Plan template
+//     registered via RegisterTemplate.
+//   - KG topology path: when no template matches, attempts to generate a
+//     Plan from the knowledge graph's WorkflowTopology (if a TopologyExtractor
+//     is configured).
 //   - LLM path: for complex/ambiguous intents, calls the LLM to generate a
 //     Plan, optionally with multi-hypothesis branching.
 type Planner struct {
 	llm           LlmClient
 	templates     map[string]Plan // key: "<CaseType>_<PlanIntent>"
 	contextWindow int64
+	topologyExt   *TopologyExtractor // optional — enables KG topology path
 	mu            sync.RWMutex
 }
 
@@ -54,6 +58,14 @@ func NewPlanner(llm LlmClient) *Planner {
 		llm:       llm,
 		templates: make(map[string]Plan),
 	}
+}
+
+// WithTopologyExtractor attaches a topology extractor. When set and no
+// hand-written template matches, the Planner attempts to generate a Plan
+// from the knowledge graph's edge topology for the given case type.
+func (p *Planner) WithTopologyExtractor(ext *TopologyExtractor) *Planner {
+	p.topologyExt = ext
+	return p
 }
 
 // SetContextWindow configures the model context window used to compute the
@@ -89,6 +101,10 @@ func (p *Planner) GeneratePlan(ctx context.Context, bb *FactBlackboard, intent P
 			plan.UsedFacts = factIDs(bb.ActiveFacts())
 			plan.UsedRules = ruleIDsFromConstraints(bb.ConfirmedRuleConstraints())
 			bb.SetPlanV2(*plan)
+			return plan, nil
+		}
+		// No hand-written template — try KG topology path.
+		if plan := p.generateFromTopology(ctx, bb, intent); plan != nil {
 			return plan, nil
 		}
 	}
@@ -129,7 +145,7 @@ func (p *Planner) llmGenerate(ctx context.Context, bb *FactBlackboard, intent Pl
 		return p.buildFallbackPlan(bb, intent), nil
 	}
 
-	prompt := p.buildLLMPrompt(bb, intent)
+	prompt := p.buildLLMPrompt(ctx, bb, intent)
 	resp, err := p.llm.Chat(ctx, []LlmMessage{{Role: "user", Content: prompt}})
 	if err != nil {
 		slog.Warn("planner: LLM call failed, using fallback plan", "err", err)
@@ -149,7 +165,7 @@ func (p *Planner) llmGenerate(ctx context.Context, bb *FactBlackboard, intent Pl
 }
 
 // buildLLMPrompt constructs the LLM prompt for plan generation.
-func (p *Planner) buildLLMPrompt(bb *FactBlackboard, intent PlanIntent) string {
+func (p *Planner) buildLLMPrompt(ctx context.Context, bb *FactBlackboard, intent PlanIntent) string {
 	var sb strings.Builder
 	sb.WriteString("你是一名资深专利分析专家。请根据以下案件信息和分析意图，生成一个结构化的执行计划。\n\n")
 
@@ -181,6 +197,21 @@ func (p *Planner) buildLLMPrompt(bb *FactBlackboard, intent PlanIntent) string {
 		fmt.Fprintf(&sb, "- [%s] [%s] %s\n", r.ArticleID, r.Requirement, r.Description)
 	}
 	sb.WriteString("\n")
+
+	// KG topology-derived recommended step order (if available).
+	if p.topologyExt != nil && p.topologyExt.HasStore() {
+		topology, err := p.topologyExt.ExtractByCaseType(ctx, bb.CaseType, 2, 10)
+		if err == nil && len(topology.Steps) > 0 {
+			fmt.Fprintf(&sb, "知识图谱推荐步骤顺序（基于 %d 条审查指南规则）:\n", len(topology.Steps))
+			for i, s := range topology.Steps {
+				fmt.Fprintf(&sb, "  %d. [%s] %s\n", i+1, s.Relation, s.Name)
+				if s.Content != "" {
+					fmt.Fprintf(&sb, "     规则摘要: %s\n", truncate(s.Content, 150))
+				}
+			}
+			sb.WriteString("\n")
+		}
+	}
 
 	// Instruction for plan generation.
 	sb.WriteString("请生成一个执行计划，格式为 JSON，结构如下：\n")
@@ -250,6 +281,72 @@ func (p *Planner) parsePlanResponse(resp string, bb *FactBlackboard, intent Plan
 		}
 	}
 	return &plan, nil
+}
+
+// generateFromTopology attempts to build a Plan from the knowledge graph's
+// WorkflowTopology. It returns nil when no topology extractor is configured,
+// the KG has no matching GuidelineRule nodes, or the topology cannot produce
+// a valid Plan. Callers fall through to the LLM or fallback path.
+func (p *Planner) generateFromTopology(ctx context.Context, bb *FactBlackboard, intent PlanIntent) *Plan {
+	if p.topologyExt == nil || !p.topologyExt.HasStore() || bb == nil {
+		return nil
+	}
+
+	topology, err := p.topologyExt.ExtractByCaseType(ctx, bb.CaseType, 2, 10)
+	if err != nil || topology == nil || len(topology.Steps) == 0 {
+		return nil
+	}
+
+	steps := make([]PlanStep, 0, len(topology.Steps))
+	for i, ts := range topology.Steps {
+		// Convert topology-level dependency indices (0-indexed) to PlanStep
+		// DependsOn references (1-indexed Order numbers).
+		var dependsOn []string
+		if i < len(topology.Dependencies) && len(topology.Dependencies[i]) > 0 {
+			for _, depIdx := range topology.Dependencies[i] {
+				depOrder := depIdx + 1
+				dependsOn = append(dependsOn, fmt.Sprintf("step_%d", depOrder))
+			}
+		}
+		step := PlanStep{
+			Order:         i + 1,
+			Strategy:      ts.Strategy,
+			DependsOn:     dependsOn,
+			RequiredRules: []string{ts.ArticleID},
+		}
+		// Build a natural-language description from the KG node.
+		switch ts.Relation {
+		case WorkflowRelCites:
+			step.Description = fmt.Sprintf("核查 %s — 依据 %s", ts.NodeType, ts.Name)
+			if ts.Content != "" {
+				step.Description += "：" + truncate(ts.Content, 100)
+			}
+		case WorkflowRelApplies:
+			step.Description = fmt.Sprintf("对比 %s — %s 适用分析", ts.Name, bb.CaseType)
+		case WorkflowRelRelatedTo:
+			step.Description = fmt.Sprintf("关联审查 %s — %s", ts.NodeType, ts.Name)
+		default:
+			step.Description = fmt.Sprintf("分析 %s — %s", ts.NodeType, ts.Name)
+		}
+		step.ExpectedOutput = fmt.Sprintf("%s 分析结论", ts.NodeType)
+		steps = append(steps, step)
+	}
+
+	if len(steps) == 0 {
+		return nil
+	}
+
+	pid := fmt.Sprintf("plan_%s_%s_kg", bb.CaseID, intent)
+	plan := &Plan{
+		PlanID:   pid,
+		Intent:   intent,
+		CaseType: bb.CaseType,
+		Steps:    steps,
+	}
+	plan.UsedFacts = factIDs(bb.ActiveFacts())
+	plan.UsedRules = ruleIDsFromConstraints(bb.ConfirmedRuleConstraints())
+	bb.SetPlanV2(*plan)
+	return plan
 }
 
 // buildFallbackPlan creates a minimal single-step chain Plan.

@@ -229,6 +229,61 @@ const (
 	StrategyMultiHypothesis StrategyType = "multi_hypothesis"
 )
 
+// WorkflowRelation describes the edge relation type that connects a workflow
+// step to its parent GuidelineRule in the knowledge graph topology.
+// These mirror knowledge/graph relation constants but are defined here to
+// keep the domains/reasoning layer free of knowledge/graph import cycles.
+type WorkflowRelation string
+
+const (
+	WorkflowRelCites     WorkflowRelation = "CITES"      // 引用法条 — 必须检查的实体要求
+	WorkflowRelApplies   WorkflowRelation = "APPLIES"    // 适用 — 需要案例对比/正反方辩论
+	WorkflowRelRelatedTo WorkflowRelation = "RELATED_TO" // 关联 — 相关联的审查步骤
+	WorkflowRelContains  WorkflowRelation = "CONTAINS"   // 包含 — 子规则/子步骤
+)
+
+// WorkflowStep is a single step derived from the knowledge graph topology.
+// Unlike PlanStep (which is LLM-generated), WorkflowStep is extracted from
+// the KG edge structure around a GuidelineRule seed node.
+type WorkflowStep struct {
+	// ArticleID is the KG node ID of the rule/law/article this step references.
+	ArticleID string `json:"article_id"`
+	// NodeType is the KG node type (LawArticle, GuidelineRule, Case, etc.).
+	NodeType string `json:"node_type"`
+	// Name is the human-readable title from the KG node.
+	Name string `json:"name"`
+	// Content is a truncated preview of the rule content from the KG node.
+	Content string `json:"content,omitempty"`
+	// Relation is the edge type from the parent GuidelineRule to this node.
+	Relation WorkflowRelation `json:"relation"`
+	// Strategy is the recommended execution strategy for this step.
+	Strategy StrategyType `json:"strategy"`
+	// Priority ranks the step's importance (1=highest/must-do).
+	Priority int `json:"priority"`
+	// AuthorityWeight is the KG node's authority weight (0-1).
+	AuthorityWeight float64 `json:"authority_weight"`
+}
+
+// WorkflowTopology represents the workflow structure derived from a
+// knowledge graph traversal around a GuidelineRule seed node.
+// It encodes the ordered steps and their dependencies as encoded by
+// the KG edge topology (CITES/APPLIES/RELATED_TO chains).
+type WorkflowTopology struct {
+	// CaseType is the business-process type that triggered this topology.
+	CaseType CaseType `json:"case_type"`
+	// RootRule is the ID of the seed GuidelineRule node.
+	RootRule string `json:"root_rule"`
+	// Steps are the extracted steps, ordered by topological priority.
+	Steps []WorkflowStep `json:"steps"`
+	// Dependencies encodes the step dependency matrix:
+	// Dependencies[i] contains the indices of steps that step i depends on.
+	Dependencies [][]int `json:"dependencies,omitempty"`
+	// AuthorityScore aggregates the authority weights across all steps.
+	AuthorityScore float64 `json:"authority_score"`
+	// Gaps describes any missing coverage noted during extraction.
+	Gaps []string `json:"gaps,omitempty"`
+}
+
 // PlanIntent describes the cognitive mode of a Plan (Stage ③).
 type PlanIntent string
 
