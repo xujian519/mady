@@ -1,0 +1,181 @@
+[
+  {
+    "id": "case_chemical_insufficient",
+    "description": "化学案例——公开不充分（缺少关键工艺参数和实验数据）",
+    "source": "patent_exam_2011_a26_3_chemical",
+    "input": {
+      "features": [
+        {
+          "id": "f1",
+          "description": "取原料A和原料B",
+          "category": "method",
+          "function": "制备催化剂的前驱体",
+          "importance": "high"
+        },
+        {
+          "id": "f2",
+          "description": "在高温下反应",
+          "category": "method",
+          "function": "使原料A和B发生反应生成催化剂",
+          "importance": "high"
+        }
+      ],
+      "pfe_triples": [
+        {
+          "id": "t1",
+          "problem": "现有催化剂活性不够高",
+          "feature_ids": ["f1", "f2"],
+          "effect": "催化剂活性提高30%以上"
+        }
+      ],
+      "problems": ["现有催化剂活性不够高"],
+      "effects": ["催化剂活性提高30%以上"],
+      "doc_sections": {
+        "technical_field": "本发明涉及催化剂技术领域，具体涉及一种用于石油裂化的高效催化剂。",
+        "background": "现有石油裂化催化剂活性有限，需要提高催化效率。",
+        "content": "本发明的目的是提供一种催化活性更高的催化剂。通过优化制备工艺参数，可以获得比现有催化剂活性提高30%以上的产品。",
+        "embodiments": "取原料A和原料B，在高温下反应，得到催化剂产品。"
+      },
+      "has_drawings": false
+    },
+    "expected": {
+      "is_sufficient": false,
+      "confidence": "high",
+      "deficiencies_min": 2,
+      "missing_key_means": true,
+      "vague_means": true,
+      "insufficient_data": true
+    }
+  },
+  {
+    "id": "case_mechanical_sufficient",
+    "description": "机械案例——充分公开成立（完整实施例+附图）",
+    "source": "patent_exam_2012_a26_3_mechanical",
+    "input": {
+      "features": [
+        {
+          "id": "f1",
+          "description": "壳体(1)",
+          "category": "structure",
+          "function": "容纳滤网和刮板组件",
+          "importance": "high"
+        },
+        {
+          "id": "f2",
+          "description": "滤网(2)",
+          "category": "structure",
+          "function": "过滤液体中的杂质",
+          "importance": "high"
+        },
+        {
+          "id": "f3",
+          "description": "电机(4)驱动刮板(3)沿滤网表面往复运动",
+          "category": "method",
+          "function": "自动清除滤网表面杂质",
+          "importance": "high"
+        },
+        {
+          "id": "f4",
+          "description": "反冲洗管(5)向滤网喷水",
+          "category": "method",
+          "function": "辅助冲洗滤网",
+          "importance": "medium"
+        }
+      ],
+      "pfe_triples": [
+        {
+          "id": "t1",
+          "problem": "现有滤网需要人工拆卸清洗，费时费力",
+          "feature_ids": ["f1", "f2", "f3", "f4"],
+          "effect": "实现自动清洁滤网，无需人工拆卸"
+        }
+      ],
+      "problems": ["现有滤网需要人工拆卸清洗，费时费力"],
+      "effects": ["实现自动清洁滤网，无需人工拆卸"],
+      "doc_sections": {
+        "technical_field": "本实用新型涉及过滤设备技术领域",
+        "background": "现有滤网需要人工拆卸清洗，费时费力，且清洗过程中设备需要停机。",
+        "content": "本实用新型提供一种自动清洁滤网装置，通过机械刮板和反冲洗装置实现自动清洁。",
+        "drawings": "图1为装置结构示意图",
+        "embodiments": "如图1所示，装置包括壳体(1)、滤网(2)、刮板(3)、电机(4)、反冲洗管(5)。工作时，电机驱动刮板沿滤网表面往复运动，同时反冲洗管向滤网喷水。"
+      },
+      "has_drawings": true
+    },
+    "expected": {
+      "is_sufficient": true,
+      "confidence": "high",
+      "deficiencies_min": 0
+    }
+  },
+  {
+    "id": "case_electronic_boundary",
+    "description": "电子案例——功能性描述边界（CMOS传感器支撑结构）",
+    "source": "invalidation_decision_021",
+    "input": {
+      "features": [
+        {
+          "id": "f1",
+          "description": "基板上贴装CMOS传感器及电容电阻和驱动马达",
+          "category": "structure",
+          "function": "形成影像传感器基础结构",
+          "importance": "high"
+        },
+        {
+          "id": "f2",
+          "description": "隔离墙底座上设有CMOS传感器空位、电容电阻空位及驱动马达空位",
+          "category": "structure",
+          "function": "隔离不同组件防止干扰",
+          "importance": "high"
+        },
+        {
+          "id": "f3",
+          "description": "CMOS传感器空位上表面安装一玻璃片",
+          "category": "structure",
+          "function": "保护传感器并透光",
+          "importance": "high"
+        }
+      ],
+      "pfe_triples": [
+        {
+          "id": "t1",
+          "problem": "现有影像传感器封装中隔离墙无法有效隔离不同组件",
+          "feature_ids": ["f1", "f2", "f3"],
+          "effect": "实现不同组件的有效隔离，提升影像质量"
+        }
+      ],
+      "problems": ["现有影像传感器封装中隔离墙无法有效隔离不同组件"],
+      "effects": ["实现不同组件的有效隔离，提升影像质量"],
+      "doc_sections": {
+        "technical_field": "本发明涉及半导体封装技术领域，具体涉及高像素影像传感器封装结构。",
+        "background": "现有CMOS传感器封装中，不同组件之间容易相互干扰，影响影像质量。",
+        "content": "本发明提供一种高像素影像传感器封装结构，通过隔离墙将CMOS传感器、电容电阻和驱动马达分别隔离。",
+        "embodiments": "基板上贴装CMOS传感器及电容电阻和驱动马达，隔离墙底座上对应各组件位置分别设有空位，CMOS传感器空位上表面安装玻璃片。隔离墙可采用蚀刻或光刻工艺形成。"
+      },
+      "has_drawings": true
+    },
+    "expected": {
+      "is_sufficient": true,
+      "confidence": "medium",
+      "deficiencies_min": 0
+    }
+  },
+  {
+    "id": "case_empty_input",
+    "description": "边界案例——空输入（无特征无三元组）",
+    "source": "synthetic",
+    "input": {
+      "features": [],
+      "pfe_triples": [],
+      "problems": [],
+      "effects": [],
+      "doc_sections": {},
+      "has_drawings": false
+    },
+    "expected": {
+      "is_sufficient": false,
+      "confidence": "low",
+      "deficiencies_min": 1,
+      "should_skip": true
+    }
+  }
+]

@@ -16,6 +16,7 @@ import (
 	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/agui"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/enablement"
 	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/pkg/csync"
 	"github.com/xujian519/mady/retrieval/domain"
@@ -74,6 +75,11 @@ type Server struct {
 	// 未配置时 retrieve_prior_art 节点降级为 evidence_coverage=none（纯 LLM 知识）。
 	disclosureRetriever atomic.Pointer[domain.DomainRetriever]
 
+	// enablementResults 存储 26.3 充分公开评估的异步结果。
+	// 由 EnablementTrigger 在 disclosure 管线完成后自动填充，
+	// 在 disclosure 状态查询端点一并返回。key = disclosure task ID。
+	enablementResults *csync.Map[string, *enablement.EnablementResult]
+
 	// inventivenessResults 存储创造性三步法评估的异步结果。
 	// 由 InventivenessTrigger 在 disclosure 管线完成后自动填充，
 	// 在 disclosure 状态查询端点一并返回。key = disclosure task ID。
@@ -104,6 +110,7 @@ func New(cfg agentcore.Config) *Server {
 		eventBus:             agentcore.NewIFaceEventBus(agentcore.NewEventBus()),
 		poolLimit:            64,
 		inventivenessResults: csync.NewMap[string, *inventiveness.InventivenessResult](),
+		enablementResults:    csync.NewMap[string, *enablement.EnablementResult](),
 		metrics:              NopMetricsRecorder{},
 	}
 	s.maxRequestBodyBytes.Store(defaultMaxRequestBodyBytes)
@@ -175,6 +182,18 @@ func (s *Server) SetInventivenessResult(taskID string, result *inventiveness.Inv
 // GetInventivenessResult 查询创造性分析异步结果。未完成时为 nil。
 func (s *Server) GetInventivenessResult(taskID string) *inventiveness.InventivenessResult {
 	result, _ := s.inventivenessResults.Get(taskID)
+	return result
+}
+
+// SetEnablementResult 存储 26.3 充分公开评估异步结果。
+// 由 EnablementTrigger 在 disclosure 完成后自动调用，taskID 对应 disclosure 任务。
+func (s *Server) SetEnablementResult(taskID string, result *enablement.EnablementResult) {
+	s.enablementResults.Set(taskID, result)
+}
+
+// GetEnablementResult 查询 26.3 充分公开评估异步结果。未完成时为 nil。
+func (s *Server) GetEnablementResult(taskID string) *enablement.EnablementResult {
+	result, _ := s.enablementResults.Get(taskID)
 	return result
 }
 

@@ -206,6 +206,17 @@ func runServer(ctx context.Context) {
 			log.Printf("inventiveness: 创造性分析触发器已启动（独立子图模式）")
 		}
 	}
+	// 26.3 充分公开评估触发器：disclosure 管线完成后自动运行充分公开判断。
+	{
+		provider := fc.BaseConfig.Provider
+		if provider != nil {
+			trigger := server.NewEnablementTrigger(provider, srv.EventBus(),
+				server.WithEnablementResultHandler(srv.SetEnablementResult),
+			)
+			trigger.Start()
+			log.Printf("enablement: 26.3 充分公开评估触发器已启动（独立子图模式）")
+		}
+	}
 	if *tlsCert != "" {
 		log.Printf("Mady server starting on %s with TLS (multi-domain routing enabled)", *addr)
 	} else {

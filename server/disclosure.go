@@ -15,6 +15,7 @@ import (
 	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/enablement"
 	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/pkg/csync"
@@ -49,6 +50,9 @@ type DisclosureTaskStatus struct {
 	// Inventiveness 承载创造性三步法评估结果（异步完成后非空）。
 	// 由 InventivenessTrigger 在 disclosure 管线结束后自动触发并填充。
 	Inventiveness *inventiveness.InventivenessResult `json:"inventiveness,omitempty"`
+	// Enablement 承载 26.3 充分公开评估结果（异步完成后非空）。
+	// 由 EnablementTrigger 在 disclosure 管线结束后自动触发并填充。
+	Enablement *enablement.EnablementResult `json:"enablement,omitempty"`
 }
 
 // DisclosureReviewRequest 是人工复核结论的提交请求。
@@ -387,6 +391,10 @@ func (s *Server) handleDisclosureStatus(w http.ResponseWriter, r *http.Request) 
 	if inv := s.GetInventivenessResult(taskID); inv != nil {
 		resp.Inventiveness = inv
 	}
+	// 附加 26.3 充分公开评估结果（异步完成）。
+	if en := s.GetEnablementResult(taskID); en != nil {
+		resp.Enablement = en
+	}
 
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -520,6 +528,9 @@ func (s *Server) handleDisclosureStream(w http.ResponseWriter, r *http.Request) 
 			// SSE 流同样附加创造性分析结果（与 REST 状态端点一致）。
 			if inv := s.GetInventivenessResult(taskID); inv != nil {
 				resp.Inventiveness = inv
+			}
+			if en := s.GetEnablementResult(taskID); en != nil {
+				resp.Enablement = en
 			}
 
 			payload, _ := json.Marshal(resp)

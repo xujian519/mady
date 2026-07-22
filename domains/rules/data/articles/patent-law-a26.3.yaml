@@ -1,0 +1,52 @@
+articleId: "patent-law-a26.3"
+name: "专利法第26条第3款——说明书充分公开（可实现性）"
+lawRef: "中华人民共和国专利法（2020修正）第26条第3款"
+guidelineRef: "审查指南（2023修订）第二部分第二章第2.1节"
+steps:
+  - id: "step-1"
+    order: 1
+    name: "检查说明书结构完整性"
+    ruleRef: "patent-a26.3-disclosure"
+    inputHint: "说明书全文、章节切分结果"
+    outputSchema:
+      hasTechField: "bool（是否有技术领域章节）"
+      hasBackground: "bool（是否有背景技术章节）"
+      hasContent: "bool（是否有发明内容章节）"
+      hasDrawings: "bool（是否有附图说明章节）"
+      hasEmbodiment: "bool（是否有具体实施方式章节）"
+      missingSections: "[]string（缺失章节列表）"
+      score: "float64（完整性得分 0.0-1.0）"
+  - id: "step-2"
+    order: 2
+    name: "检查说明书清楚性"
+    ruleRef: "patent-a26.3-disclosure"
+    inputHint: "说明书全文、PFE三元组（问题-特征-效果因果链）"
+    outputSchema:
+      isClear: "bool（技术术语是否无歧义，表述是否清楚）"
+      ambiguousTerms: "[]string（存在歧义的术语列表）"
+      orphanFeatures: "[]string（孤立特征——有特征但无对应技术效果）"
+      orphanEffects: "[]string（孤立效果——有效果但无对应技术特征）"
+  - id: "step-3"
+    order: 3
+    name: "检查能够实现性（核心标准）"
+    ruleRef: "patent-a26.3-disclosure"
+    inputHint: "PFE三元组、技术特征、具体实施方式、实验数据（如有）"
+    outputSchema:
+      canImplement: "bool（本领域技术人员根据说明书记载能否无需创造性劳动即可实施）"
+      missingKeyMeans: "bool（是否缺少关键技术手段的说明）"
+      vagueMeans: "bool（技术手段是否含糊不清、不具体）"
+      onlyTaskNoMeans: "bool（是否仅给出任务/设想，未给出具体技术手段）"
+      insufficientData: "bool（实验数据是否不足以证明技术效果）"
+      failureReasons: "[]string（不能实施的具体原因列表）"
+conclusionSchema:
+  isSufficient: "bool（是否满足专利法第26条第3款充分公开的要求）"
+  reasoning: "string（判断推理过程，引用审查指南具体条款和说明书具体段落）"
+  confidence: "string（置信度：high/medium/low）"
+  deficiencies: "[]string（具体缺陷清单，为空则表示无缺陷）"
+  legalNote: "string（法律提示：本判断由 AI 辅助生成，不构成正式法律意见）"
+applicableTo:
+  - disclosure
+  - patentability
+  - examination
+  - invalidation
+  - drafting

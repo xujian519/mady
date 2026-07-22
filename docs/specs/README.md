@@ -36,5 +36,6 @@ docs/specs/{feature-name}/
 | 向量检索落地 | `docs/specs/vector-retrieval/` | 2026-07-13 | **已上线**（FTS5 + 向量 + RRF 融合已落地，文档待同步） | — |
 | 现有技术检索阶段（disclosure retrieve_prior_art 节点） | `docs/specs/design-prior-art-retrieval-stage.md` | 2026-07-16 | **已上线**（代码验证完毕，DomainRetriever + PatentReranker 已接入） | — |
 | 获取规则阶段（知识资产接入与人工确认闭环） | `docs/specs/design-rule-acquisition-stage.md` | 2026-07-16 | **已上线**（四路召回 + 确认阀 + checkpoint/resume 闭环已验证） | — |
+| 实用新型/发明驳回复审请求工作流 | `docs/specs/reexamination-request/` | 2026-07-22 | 设计草案（待 Sign-off） | [待指派] |
 
 > 阶段含义：设计草案 → Spec 待 Sign-off → 已上线（代码已落地） → 已完成。

@@ -62,6 +62,7 @@ func registeredCases() []evaluate.TestCase {
 	cases = append(cases, PatentExamRealA2Cases...)
 	cases = append(cases, PatentExamRealA22Cases...)
 	cases = append(cases, PatentExamRealA26Cases...)
+	cases = append(cases, PatentExamRealA26_3Cases...)
 	cases = append(cases, PatentExamRealA31Cases...)
 	cases = append(cases, PatentExamRealA33Cases...)
 	cases = append(cases, PatentExamRealR42Cases...)

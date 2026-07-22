@@ -7,6 +7,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/domains/doctmpl"
+	"github.com/xujian519/mady/domains/enablement"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/retrieval/domain"
@@ -150,6 +151,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			patent.NewOAResponseTool(),
 			patent.NewSpecificationTool(),
 			patent.NewDebateTool(),
+			enablement.NewEnablementTool(enablement.WithProvider(base.Provider)),
 		},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)
