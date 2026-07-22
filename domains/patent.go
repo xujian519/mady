@@ -241,6 +241,12 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	injectDraftingTool(&cfg)
 	injectDocTemplateTools(&cfg)
 
+	// 知识库扩展：使项目级 Agent 具备 search_knowledge / search_laws 工具，
+	// 能检索本地知识库中的法律法规、司法解释和案例。
+	if globalKnowledgeExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
+	}
+
 	// Chunked context engine for long patent/legal documents.
 	if base.Engine == "" {
 		cfg.Engine = "chunked"

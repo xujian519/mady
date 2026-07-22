@@ -1,5 +1,59 @@
 # AI 变更记录
 
+## 2026-07-22: 实用新型/发明驳回复审请求工作流 — 产出实现规划文档（Spec 阶段）
+
+### 背景
+项目中专利文书自动化仅覆盖「审查意见答复（OA Response）」（`workflows/patent/oa_response.go`），
+未覆盖「驳回复审请求」这一独立法律程序（审查员作出驳回决定后向复审和无效审理部门提复审）。
+全仓无任何复审请求的可执行工作流。经确认用户场景为「正式的驳回复审请求书」后，
+按 Spec-Driven 流程先行产出规划文档。
+
+### 变更内容
+- **新增** `docs/specs/reexamination-request/01-proposal.md`：完整提案文档，含背景、业务差异
+  （复审请求 ≠ OA 答复）、目标、成功标准、设计方案（数据模型 / Pregel 图 / 工具签名 / 文档模板）、
+  实用新型特化考量、文件清单、决策摘要、风险
+- **更新** `docs/specs/README.md` Spec 索引表，追加复审请求工作流条目
+
+## 2026-07-22: 知识管理系统审阅优化 — BuildProjectAgent 注入 + 测试补充
+
+### 背景
+全面审阅知识管理系统与智能体的集成链路，发现：
+1. `BuildProjectAgent` 未注入 `globalKnowledgeExt`，导致项目级 Agent 缺少 `search_knowledge`/`search_laws`/`add_document` 工具
+2. 重排器（Reranker）5 种实现零单元测试
+3. `KnowledgeExtension` 核心入口缺少集成测试
+
+### 变更内容
+- **修复** `domains/patent.go` `BuildProjectAgent()`：添加 `globalKnowledgeExt` 注入（241-246 行），使项目级 Agent 获得知识检索工具
+- **新增** `retrieval/rerank_test.go`：16 个测试用例覆盖 PositionReranker（空输入/位置加分/零权重/重排序）、DeduplicatingReranker（空/单条/去重/长签名）、ChainReranker（空链/顺序执行）、LegalReranker（空/权威提升/自定义层级/未知来源）、PatentReranker（空/权威提升/未来日期抑制/自定义等级/未知类型）
+- **新增** `knowledge/extension_test.go`：20 个测试用例覆盖 Search 多路径（有后端/嵌入器/可写库/图谱/重排器/空查询/无结果）、BackendHook 图增强注入、工具暴露（search_laws/add_document/all）
+
+### 验证
+- `go build ./...` 通过
+- `go vet ./knowledge/... ./retrieval/... ./memory/... ./domains/...` 通过
+- `go test ./knowledge/... ./retrieval/... ./memory/...` — 12 个测试包、全部通过
+- 完整编译无新诊断
+
+### 设计决策
+- **图引擎选型**：复用现有 Pregel（`graph` 包），图结构 `parse_decision → classify_grounds →
+  analyze_claims → draft_request → [llm_enhance] → approval_gate`，与 OA 工作流同范式
+- **实用新型特化**：实用新型初步审查不审查创造性，且高频驳回理由为「实用新型客体」
+  （专利法第 2 条第 3 款），故独立设计 `um-subject-defense.md` 模板与 `GroundUMSubject` 类型分支，
+  理由枚举不含 `inventiveness`
+- **复用已有资产**：`domains/case_index.go` 的 `DocRejection`/`CaseStatusRejected`、
+  `domains/legal_intent.go` 的 `CaseReexamination` 意图识别、OA 工作流的工具封装模式
+- **任务粒度**：阶段 1+2 控制在 5 个文件内（2 新增 Go 文件 + 2 新增模板 + 1 行注册），符合
+  AGENTS.md「单次改动 3-5 文件」约定；`domains/patent.go` 属敏感路径，注册改动需 L3 审阅
+
+### 待确认项（[NEEDS CLARIFICATION]）
+- Human Owner 待指派
+- `domains/deadline_calculator.go` 是否已含复审 3 个月期限规则，影响阶段 4 案件闭环
+
+### 验证结果
+- 本条为 Spec 阶段文档产出，未涉及代码改动，无需构建/测试验证
+- 文档结构与现有 `docs/specs/vector-retrieval/01-proposal.md` 格式对齐
+
+---
+
 ## 2026-07-22: 知识库工具注入修正 — search_knowledge/search_laws 归属 Patent/Legal Agent
 
 ### 背景

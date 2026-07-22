@@ -176,6 +176,12 @@ func (lr *LegalReranker) Rerank(results []ScoredChunk) []ScoredChunk {
 		}
 	}
 
+	// Re-sort by adjusted score descending. Score mutations can change
+	// the relative ordering — the caller expects descending order.
+	sort.SliceStable(results, func(a, b int) bool {
+		return results[a].Score > results[b].Score
+	})
+
 	return results
 }
 
