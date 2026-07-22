@@ -276,6 +276,36 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Handler:  func(ctx slashCtx) { s.handleOASlash(ctx) },
 	})
 	r.Register(SlashCommand{
+		Name:     "invalidation",
+		Category: "case",
+		Desc:     "专利无效宣告分析：识别无效理由，逐项生成论证骨架",
+		Usage:    "/invalidation <权利要求文本>",
+		Examples: []string{`/invalidation "1. 一种图像处理方法..."`},
+		Risk:     "none",
+		Match:    exactMatch("invalidation"),
+		Handler:  func(ctx slashCtx) { s.handleInvalidationSlash(ctx) },
+	})
+	r.Register(SlashCommand{
+		Name:     "infringement",
+		Category: "case",
+		Desc:     "专利侵权比对分析：全面覆盖（字面侵权）+ 等同侵权分析",
+		Usage:    "/infringement <权利要求文本> | <被控侵权方案>",
+		Examples: []string{`/infringement 1. 一种装置包括A和B。 | 被控产品包含A和C`},
+		Risk:     "none",
+		Match:    exactMatch("infringement"),
+		Handler:  func(ctx slashCtx) { s.handleInfringementSlash(ctx) },
+	})
+	r.Register(SlashCommand{
+		Name:     "reexamination",
+		Category: "case",
+		Desc:     "驳回复审请求书起草：解析驳回决定，生成复审请求书骨架",
+		Usage:    "/reexamination <驳回决定书文本>",
+		Examples: []string{`/reexamination "驳回决定编号：2024-001..."`},
+		Risk:     "none",
+		Match:    exactMatch("reexamination"),
+		Handler:  func(ctx slashCtx) { s.handleReexaminationSlash(ctx) },
+	})
+	r.Register(SlashCommand{
 		Name:     "patent",
 		Category: "case",
 		Desc:     "专利分析工具帮助",
@@ -283,8 +313,11 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Match:    exactMatch("patent"),
 		Handler: func(ctx slashCtx) {
 			s.app.PrintSystem("专利分析快捷命令：\n" +
-				"  /novelty <描述>    — 新颖性/创造性分析\n" +
-				"  /oa <通知书文本>   — OA答复书起草\n" +
+				"  /novelty <描述>            — 新颖性/创造性分析\n" +
+				"  /oa <通知书文本>           — OA答复书起草\n" +
+				"  /invalidation <权利要求>   — 无效宣告分析\n" +
+				"  /infringement <权利要求> | <被控方案> — 侵权比对分析\n" +
+				"  /reexamination <驳回决定>  — 复审请求书起草\n" +
 				"\n也可以直接在对话中输入自然语言描述需求，AI会自动调用分析工具。")
 		},
 	})

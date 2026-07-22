@@ -272,6 +272,20 @@ var synonymMap = map[string][]string{
 	"三步法":  {"最接近的现有技术", "区别技术特征", "技术启示"},
 	"单独对比": {"单独对比原则", "一一对比"},
 	"公知常识": {"惯用技术手段", "常规设计", "common knowledge"},
+	// Infringement domain terms.
+	"全面覆盖": {"全部技术特征", "逐一比对", "全覆盖原则"},
+	"等同":   {"等同替换", "等同侵权", "基本相同的手段", "基本相同的功能", "基本相同的效果"},
+	"禁止反悔": {"审查过程禁反言", "prosecution history estoppel", "修改导致放弃"},
+	"捐献规则": {"捐献原则", "dedicated to the public"},
+	"技术特征": {"技术特征分解", "权项特征", "limitation"},
+	// Invalidation domain terms.
+	"无效宣告": {"无效请求", "宣告无效", "invalidation"},
+	"组合动机": {"结合启示", "有动机结合", "技术结合启示"},
+	"优先权日": {"优先权", "申请日", "filing date"},
+	// Reexamination domain terms.
+	"复审":   {"复审请求", "驳回复审", "reexamination"},
+	"程序违法": {"程序错误", "违反法定程序"},
+	"新证据":  {"补充证据", "新提交的证据"},
 }
 
 // negationPatterns detect negated mentions within a context window.
@@ -363,7 +377,28 @@ func matchKeywordsAny(text string, keywords []string) bool {
 
 // DefaultPatentRules returns a baseline rule set covering the most common
 // patent examination checks under Chinese patent law (专利法第22条/第26条).
+// It aggregates rules from all scenario-specific rule sets for backward
+// compatibility. For targeted analysis, use the specific rule set functions
+// (NoveltyRules, InfringementRules, etc.) instead.
 func DefaultPatentRules() []CheckRule {
+	var rules []CheckRule
+	rules = append(rules, NoveltyRules()...)
+	rules = append(rules, InventivenessRules()...)
+	rules = append(rules, DisclosureRules()...)
+	rules = append(rules, InfringementRules()...)
+	rules = append(rules, InvalidationRules()...)
+	rules = append(rules, ReexaminationRules()...)
+	return rules
+}
+
+// ----------------------------------------------------------------------------
+// Scenario-specific rule sets
+// ----------------------------------------------------------------------------
+
+// NoveltyRules returns rules specific to patent novelty analysis (专利法第22条第2款).
+// These rules strengthen the baseline novelty checks with feature-coverage and
+// search-completeness verification.
+func NoveltyRules() []CheckRule {
 	return []CheckRule{
 		{
 			ID:               "NOVELTY-SINGLE-COMPARISON",
@@ -375,8 +410,28 @@ func DefaultPatentRules() []CheckRule {
 			CheckType:        CheckNovelty,
 			RequiredElements: []string{"新颖性", "对比文件"},
 			SingleComparison: true,
+			Domain:           "patent_novelty",
 			FixSuggestion:    "对每项权利要求与一份对比文件进行单独对比，明确相同或实质相同的技术方案",
 		},
+		{
+			ID:               "NOVELTY-FEATURE-COVERAGE",
+			Name:             "新颖性特征覆盖分析",
+			Description:      "新颖性分析应逐一比对权利要求的所有技术特征与对比文件",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "新颖性分析缺少技术特征的逐一比对",
+			CheckType:        CheckNovelty,
+			RequiredElements: []string{"技术特征"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "列出权利要求的全部技术特征，逐一标注对比文件是否公开",
+		},
+	}
+}
+
+// InventivenessRules returns rules specific to inventiveness analysis using the
+// three-step method (专利法第22条第3款).
+func InventivenessRules() []CheckRule {
+	return []CheckRule{
 		{
 			ID:          "INVENTIVENESS-THREE-STEP",
 			Name:        "创造性三步法",
@@ -390,8 +445,166 @@ func DefaultPatentRules() []CheckRule {
 				{"区别技术特征", "区别特征"},
 				{"技术启示", "显而易见", "公知常识"},
 			},
+			Domain:        "patent_inventiveness",
 			FixSuggestion: "明确最接近现有技术，提炼区别技术特征，论证是否存在技术启示",
 		},
+		{
+			ID:               "INVENTIVENESS-TECHNICAL-PROBLEM",
+			Name:             "实际解决技术问题",
+			Description:      "创造性三步法第二步应明确发明实际解决的技术问题",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "创造性分析未明确实际解决的技术问题",
+			CheckType:        CheckNovelty,
+			RequiredElements: []string{"区别技术特征"},
+			Domain:           "patent_inventiveness",
+			FixSuggestion:    "基于区别技术特征，确定发明相对于最接近现有技术实际解决的技术问题",
+		},
+	}
+}
+
+// InfringementRules returns rules for patent infringement analysis.
+// Covers the full-coverage principle, equivalence doctrine, prosecution history
+// estoppel (禁止反悔), and dedication rule (捐献规则).
+func InfringementRules() []CheckRule {
+	return []CheckRule{
+		{
+			ID:               "INFRINGEMENT-FULL-COVERAGE",
+			Name:             "侵权全面覆盖原则",
+			Description:      "侵权分析应全面比对被控方案是否包含权利要求的全部技术特征",
+			Level:            LevelMust,
+			Severity:         SeverityCritical,
+			Message:          "侵权分析缺少全面覆盖分析",
+			CheckType:        CheckInfringement,
+			RequiredElements: []string{"全面覆盖", "技术特征"},
+			Domain:           "patent_infringement",
+			FixSuggestion:    "分解权利要求为技术特征A/B/C，逐一判断被控方案是否包含",
+		},
+		{
+			ID:               "INFRINGEMENT-EQUIVALENCE",
+			Name:             "等同侵权判定",
+			Description:      "侵权分析应评估区别特征是否构成等同替换（手段/功能/效果基本相同）",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "侵权分析缺少等同原则评估",
+			CheckType:        CheckInfringement,
+			RequiredElements: []string{"等同"},
+			Domain:           "patent_infringement",
+			FixSuggestion:    "对不构成字面侵权的特征，检查是否满足等同三要素：手段/功能/效果基本相同+无需创造性劳动",
+		},
+		{
+			ID:               "INFRINGEMENT-ESTOPPEL",
+			Name:             "禁止反悔原则检查",
+			Description:      "侵权分析应考虑审查过程中的修改是否导致权利放弃（禁止反悔）",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "侵权分析未考虑禁止反悔原则的限制",
+			CheckType:        CheckInfringement,
+			RequiredElements: []string{"禁止反悔"},
+			Domain:           "patent_infringement",
+			FixSuggestion:    "审查专利审查过程中的修改和陈述，确认是否对等同范围构成限制",
+		},
+		{
+			ID:               "INFRINGEMENT-DEDICATION",
+			Name:             "捐献规则检查",
+			Description:      "说明书中披露但权利要求未保护的技术方案视为捐献公众",
+			Level:            LevelQuality,
+			Severity:         SeverityMinor,
+			Message:          "侵权分析未检查捐献规则的适用性",
+			CheckType:        CheckInfringement,
+			RequiredElements: []string{"捐献规则"},
+			Domain:           "patent_infringement",
+			FixSuggestion:    "确认被控方案对应的技术特征是否在说明书中披露但未写入权利要求",
+		},
+	}
+}
+
+// InvalidationRules returns rules for patent invalidation analysis (无效宣告).
+// Key constraints:
+//   - Each invalidation ground MUST be argued independently per claim
+//   - Multi-document combinations MUST justify combination motivation
+//   - Prior-art publication dates MUST be verified against priority date
+func InvalidationRules() []CheckRule {
+	return []CheckRule{
+		{
+			ID:               "INVALID-NOVELTY-SINGLE-COMPARISON",
+			Name:             "无效新颖性单独对比",
+			Description:      "无效宣告中的新颖性理由须采用单独对比原则",
+			Level:            LevelMust,
+			Severity:         SeverityCritical,
+			Message:          "无效宣告中新颖性论证未遵循单独对比原则",
+			CheckType:        CheckNovelty,
+			RequiredElements: []string{"新颖性", "对比文件"},
+			SingleComparison: true,
+			Domain:           "patent_invalidation",
+			FixSuggestion:    "对每项权利要求逐一与单份对比文件进行新颖性比对",
+		},
+		{
+			ID:          "INVALID-COMBINATION-MOTIVATION",
+			Name:        "无效组合动机论证",
+			Description: "多篇对比文件组合攻击创造性时，须论证组合的技术启示/动机",
+			Level:       LevelMust,
+			Severity:    SeverityCritical,
+			Message:     "无效宣告中多篇组合缺乏组合动机论证",
+			CheckType:   CheckInventiveness,
+			StepElements: [][]string{
+				{"最接近的现有技术", "最接近对比文件"},
+				{"区别技术特征", "区别特征"},
+				{"组合动机", "技术启示", "结合启示"},
+			},
+			Domain:        "patent_invalidation",
+			FixSuggestion: "论证本领域技术人员有动机将对比文件组合，说明组合的合理性",
+		},
+		{
+			ID:               "INVALID-PRIORITY-DATE-CHECK",
+			Name:             "对比文件公开日核实",
+			Description:      "无效宣告中引用的对比文件公开日须早于涉案专利的优先权日",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未核实对比文件的公开日是否早于优先权日",
+			CheckType:        CheckNovelty,
+			RequiredElements: []string{"优先权日"},
+			Domain:           "patent_invalidation",
+			FixSuggestion:    "核实每份对比文件的公开日，标注是否早于涉案专利的优先权日/申请日",
+		},
+	}
+}
+
+// ReexaminationRules returns rules for patent reexamination request drafting
+// (复审请求). Covers rejection-scope analysis, procedural legality, and new
+// evidence relevance.
+func ReexaminationRules() []CheckRule {
+	return []CheckRule{
+		{
+			ID:            "REEXAM-GROUNDS-SCOPE",
+			Name:          "复审理由范围审查",
+			Description:   "复审理由应在驳回决定范围内，或提供新的证据/理由",
+			Level:         LevelShould,
+			Severity:      SeverityMajor,
+			Message:       "复审理由分析不完整",
+			CheckType:     CheckClaimAnalysis,
+			Dimensions:    []string{"clarity", "consistency"},
+			Domain:        "patent_reexamination",
+			FixSuggestion: "逐条列出驳回理由，针对性回应或提交新证据克服",
+		},
+		{
+			ID:               "REEXAM-NEW-EVIDENCE",
+			Name:             "新证据关联性",
+			Description:      "复审中提交的新证据应与克服驳回理由直接相关",
+			Level:            LevelQuality,
+			Severity:         SeverityMinor,
+			Message:          "未说明新证据与驳回理由的关联性",
+			CheckType:        CheckNovelty,
+			RequiredElements: []string{"新证据"},
+			Domain:           "patent_reexamination",
+			FixSuggestion:    "对于每份新证据，说明其如何克服驳回决定中指出的缺陷",
+		},
+	}
+}
+
+// DisclosureRules returns rules for disclosure sufficiency and claim analysis.
+func DisclosureRules() []CheckRule {
+	return []CheckRule{
 		{
 			ID:              "DISCLOSURE-SUFFICIENCY",
 			Name:            "充分公开审查",
@@ -427,18 +640,6 @@ func DefaultPatentRules() []CheckRule {
 			Dimensions:    []string{"essential_features", "consistency"},
 			Domain:        "patent_claims",
 			FixSuggestion: "核对独立权利要求是否包含全部必要技术特征",
-		},
-		{
-			ID:               "INFRINGEMENT-FULL-COVERAGE",
-			Name:             "侵权全面覆盖",
-			Description:      "侵权分析应进行全面技术特征比对",
-			Level:            LevelQuality,
-			Severity:         SeverityMinor,
-			Message:          "侵权分析缺少全面覆盖分析",
-			CheckType:        CheckInfringement,
-			RequiredElements: []string{"权利要求", "技术特征"},
-			Domain:           "patent_infringement",
-			FixSuggestion:    "逐一比对被控技术方案与权利要求的全部技术特征",
 		},
 	}
 }

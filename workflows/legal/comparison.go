@@ -27,6 +27,33 @@ const (
 	StateOutput       = "output"        // final output text
 )
 
+// CaseSearcher abstracts precedent/case retrieval for the legal workflow.
+// Implementations can use knowledge.KnowledgeExtension, external APIs, or mock data.
+type CaseSearcher interface {
+	// SearchCases searches for similar precedent cases matching the query.
+	SearchCases(ctx context.Context, query string, maxResults int) ([]CaseSearchResult, error)
+}
+
+// CaseSearchResult is one matching case from a search query.
+type CaseSearchResult struct {
+	Title   string
+	Snippet string
+	Score   float64
+}
+
+// LegalGraphOption optionally configures the legal comparison graph's dependencies.
+type LegalGraphOption func(*legalGraphConfig)
+
+type legalGraphConfig struct {
+	searcher CaseSearcher
+}
+
+// WithCaseSearcher injects a case searcher, enabling real precedent retrieval.
+// When not injected, case_search returns degraded results (backward compatible).
+func WithCaseSearcher(s CaseSearcher) LegalGraphOption {
+	return func(c *legalGraphConfig) { c.searcher = s }
+}
+
 // Key legal keywords for statute identification.
 var legalKeywords = map[string][]string{
 	"专利法":     {"专利", "权利要求", "发明", "实用新型", "外观设计", "新颖性", "创造性", "侵权"},
@@ -69,28 +96,62 @@ func identifyStatutes(facts string) []string {
 	return matched
 }
 
-// caseSearchNode searches for similar precedent cases.
-// In production, this would query the knowledge.Store or a case database.
+// newCaseSearchNode creates a Pregel node that searches for similar precedent cases.
+// searcher 为 nil 时标记 DegradationNotImplemented（兼容旧行为）。
+// searcher 非 nil 时执行真实判例检索。
+func newCaseSearchNode(searcher CaseSearcher) graph.PregelNode {
+	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+		facts := state.GetString(StateCaseFacts)
+		statutes := state[StateStatutes]
+
+		// Extract key terms from facts for case similarity.
+		terms := extractKeyTerms(facts)
+		query := strings.Join(terms, " ")
+
+		out := graph.PregelState{
+			StateCaseFacts: facts,
+		}
+		if statutes != nil {
+			out[StateStatutes] = statutes
+		}
+
+		// No searcher → mark degraded (backward compatible).
+		if searcher == nil {
+			graph.MarkDegraded(out, StateSimilarCases, []string{},
+				graph.DegradationNotImplemented,
+				fmt.Sprintf("类似判例检索尚未接入真实数据库（查询：%s）。检索结果将在功能就绪后自动补充。", query))
+			return out, nil
+		}
+
+		// Real search.
+		results, err := searcher.SearchCases(ctx, query, 8)
+		if err != nil {
+			graph.MarkDegraded(out, StateSimilarCases, []string{},
+				graph.DegradationSearchFailed,
+				fmt.Sprintf("判例检索失败: %v", err))
+			return out, nil
+		}
+
+		var cases []string
+		for _, r := range results {
+			text := r.Title
+			if r.Snippet != "" {
+				text += ": " + r.Snippet
+			}
+			cases = append(cases, text)
+		}
+		if len(cases) == 0 {
+			cases = append(cases, "未检索到相似判例")
+		}
+		out[StateSimilarCases] = cases
+		return out, nil
+	}
+}
+
+// caseSearchNode is retained for backward compatibility — it delegates to
+// newCaseSearchNode(nil) which produces the degraded behavior.
 func caseSearchNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-	facts := state.GetString(StateCaseFacts)
-	statutes := state[StateStatutes]
-
-	// Extract key terms from facts for case similarity.
-	terms := extractKeyTerms(facts)
-	query := strings.Join(terms, " ")
-
-	// 判例检索尚未接入真实数据库，显式标记降级。
-	out := graph.PregelState{
-		StateCaseFacts: facts,
-	}
-	graph.MarkDegraded(out, StateSimilarCases, []string{},
-		graph.DegradationNotImplemented,
-		fmt.Sprintf("类似判例检索尚未接入真实数据库（查询：%s）。检索结果将在功能就绪后自动补充。", query))
-	if statutes != nil {
-		out[StateStatutes] = statutes
-	}
-
-	return out, nil
+	return newCaseSearchNode(nil)(ctx, state)
 }
 
 // extractKeyTerms identifies key legal terms from case facts.
@@ -189,10 +250,20 @@ func concludeNode(ctx context.Context, state graph.PregelState) (graph.PregelSta
 //
 //	statute → case_search → compare → conclude → __end__
 func BuildComparisonGraph() (*graph.CompiledPregelGraph, error) {
+	return BuildComparisonGraphWithOpts()
+}
+
+// BuildComparisonGraphWithOpts constructs the comparison graph with optional
+// dependency injection (e.g. case searcher).
+func BuildComparisonGraphWithOpts(opts ...LegalGraphOption) (*graph.CompiledPregelGraph, error) {
+	cfg := &legalGraphConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	g := graph.NewPregelGraph()
 
 	g.AddNode("statute", statuteNode)
-	g.AddNode("case_search", caseSearchNode)
+	g.AddNode("case_search", newCaseSearchNode(cfg.searcher))
 	g.AddNode("compare", compareNode)
 	g.AddNode("conclude", concludeNode)
 
@@ -212,7 +283,8 @@ const StateReasoningChains = "reasoning_chains"
 // compare/conclude can produce auditable syllogism chains rather than opaque
 // template strings.
 type reasoningContext struct {
-	bb *reasoning.FactBlackboard
+	bb       *reasoning.FactBlackboard
+	searcher CaseSearcher
 }
 
 // BuildComparisonGraphWithReasoning builds the comparison graph backed by a
@@ -221,9 +293,13 @@ type reasoningContext struct {
 // (大前提:法条 → 小前提:案件事实 → 结论) for every applicable law; the conclude node
 // renders the auditable reasoning trace. The returned FactBlackboard can be
 // inspected after invocation to audit facts, rule constraints, and chains.
-func BuildComparisonGraphWithReasoning(caseID string, caseType CaseType) (*graph.CompiledPregelGraph, *reasoning.FactBlackboard, error) {
+func BuildComparisonGraphWithReasoning(caseID string, caseType CaseType, opts ...LegalGraphOption) (*graph.CompiledPregelGraph, *reasoning.FactBlackboard, error) {
+	cfg := &legalGraphConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	bb := reasoning.NewFactBlackboard(caseID, reasoning.CaseType(caseType), "")
-	rc := &reasoningContext{bb: bb}
+	rc := &reasoningContext{bb: bb, searcher: cfg.searcher}
 
 	g := graph.NewPregelGraph()
 	g.AddNode("statute", rc.statuteNode)
@@ -311,7 +387,7 @@ func (rc *reasoningContext) statuteNode(ctx context.Context, state graph.PregelS
 }
 
 func (rc *reasoningContext) caseSearchNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-	return caseSearchNode(ctx, state)
+	return newCaseSearchNode(rc.searcher)(ctx, state)
 }
 
 func (rc *reasoningContext) compareNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {

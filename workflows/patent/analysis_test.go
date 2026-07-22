@@ -202,3 +202,143 @@ func TestBuildNoveltyGraph(t *testing.T) {
 
 	t.Logf("Output: %s", output[:min(len(output), 300)])
 }
+
+// mockRiskScanner implements FeatureRiskScanner for testing.
+type mockRiskScanner struct {
+	result *RiskScanResult
+	err    error
+}
+
+func (m *mockRiskScanner) ScanByFeatures(ctx context.Context, features []string) (*RiskScanResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.result, nil
+}
+
+func TestRiskScanNode_NilScanner(t *testing.T) {
+	node := newRiskScanNode(nil)
+	state := graph.PregelState{
+		StateFeatures: []string{"超声波", "清洁"},
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("riskScanNode nil scanner: %v", err)
+	}
+	// No scanner → no risk report in state.
+	if out.GetString(StateRiskReport) != "" {
+		t.Error("should not have risk report when scanner is nil")
+	}
+	// Features should still be passed through.
+	if features, _ := out[StateFeatures].([]string); len(features) != 2 {
+		t.Error("features should be preserved")
+	}
+}
+
+func TestRiskScanNode_WithScanner(t *testing.T) {
+	scanner := &mockRiskScanner{
+		result: &RiskScanResult{
+			Markdown: "## ⚠️ 风险扫描报告\n\n🔴 高风险：无效率75%",
+		},
+	}
+	node := newRiskScanNode(scanner)
+	state := graph.PregelState{
+		StateFeatures: []string{"超声波", "清洁"},
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("riskScanNode: %v", err)
+	}
+	report := out.GetString(StateRiskReport)
+	if report == "" {
+		t.Fatal("expected risk report in state")
+	}
+	if !strings.Contains(report, "风险扫描报告") {
+		t.Error("risk report should contain header")
+	}
+}
+
+func TestRiskScanNode_EmptyFeatures(t *testing.T) {
+	scanner := &mockRiskScanner{
+		result: &RiskScanResult{Markdown: "should not be called"},
+	}
+	node := newRiskScanNode(scanner)
+	out, err := node(context.Background(), graph.PregelState{})
+	if err != nil {
+		t.Fatalf("riskScanNode empty features: %v", err)
+	}
+	// No features → scanner not called, no report.
+	if out.GetString(StateRiskReport) != "" {
+		t.Error("should not have risk report with empty features")
+	}
+}
+
+func TestRiskScanNode_ScanError(t *testing.T) {
+	scanner := &mockRiskScanner{err: context.DeadlineExceeded}
+	node := newRiskScanNode(scanner)
+	state := graph.PregelState{
+		StateFeatures: []string{"超声波"},
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("scan error should not return error: %v", err)
+	}
+	// Scan failure → degraded, not fatal.
+	if !graph.IsDegraded(out, StateRiskReport) {
+		t.Error("expected degraded mark on scan failure")
+	}
+}
+
+func TestBuildNoveltyGraphWithRules_WithScanner(t *testing.T) {
+	scanner := &mockRiskScanner{
+		result: &RiskScanResult{Markdown: "## ⚠️ 风险扫描报告\n\n未发现显著风险信号。"},
+	}
+	g, err := BuildNoveltyGraphWithRulesWithOpts(WithRiskScanner(scanner))
+	if err != nil {
+		t.Fatalf("BuildNoveltyGraphWithRulesWithOpts: %v", err)
+	}
+
+	state := graph.PregelState{
+		StateInput: "一种基于深度学习的图像识别系统，包括图像采集模块、特征提取模块和分类模块，其特征在于所述特征提取模块使用改进的卷积神经网络结构。",
+	}
+
+	finalState, err := g.Run(context.Background(), state)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	output := finalState.GetString(StateOutput)
+	if output == "" {
+		t.Fatal("output should not be empty")
+	}
+	// Risk report should be embedded in the final output.
+	if !strings.Contains(output, "风险扫描报告") {
+		t.Error("output should contain risk scan report")
+	}
+}
+
+func TestBuildNoveltyGraphWithRules_WithoutScanner(t *testing.T) {
+	// No scanner injected — backward compatibility.
+	g, err := BuildNoveltyGraphWithRulesWithOpts()
+	if err != nil {
+		t.Fatalf("BuildNoveltyGraphWithRulesWithOpts: %v", err)
+	}
+
+	state := graph.PregelState{
+		StateInput: "一种基于深度学习的图像识别系统，包括特征提取模块。",
+	}
+
+	finalState, err := g.Run(context.Background(), state)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	output := finalState.GetString(StateOutput)
+	if output == "" {
+		t.Fatal("output should not be empty")
+	}
+	// No risk report should be present.
+	if strings.Contains(output, "风险扫描报告") {
+		t.Error("output should not contain risk scan when scanner not injected")
+	}
+}

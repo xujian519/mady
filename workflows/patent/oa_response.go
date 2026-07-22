@@ -34,6 +34,7 @@ const (
 	OAStateTemplateUsed     = "oa_template_used"     // string: which doc template was used
 	OAStateOutput           = "oa_output"            // string: final output text
 	OAStateLLMEnhanced      = "oa_llm_enhanced"      // bool: whether LLM enhancement was applied
+	OAStateApplicableRules  = "oa_applicable_rules"  // string: dynamically retrieved law articles (Markdown)
 )
 
 // =============================================================================
@@ -319,6 +320,13 @@ func draftResponseNode(ctx context.Context, state graph.PregelState) (graph.Preg
 	// Strategy section.
 	fmt.Fprintf(&response, "### 答复策略: %s (模板: %s)\n\n", strategyLabel(strategy), templateName)
 
+	// Dynamic law articles (if retrieved).
+	applicableRules := state.GetString(OAStateApplicableRules)
+	if applicableRules != "" {
+		response.WriteString(applicableRules)
+		response.WriteString("\n\n")
+	}
+
 	// Claim analysis section.
 	response.WriteString(amendments)
 	response.WriteString("\n")
@@ -522,14 +530,106 @@ func newOAEnhanceNode(provider agentcore.Provider) graph.PregelNode {
 }
 
 // =============================================================================
+// 法条动态检索节点
+// =============================================================================
+
+// rejectionTypeToQuery maps OA rejection types to knowledge-base search queries.
+// Each query is crafted to retrieve the most relevant law articles and guideline
+// excerpts for that rejection category.
+func rejectionTypeToQuery(rejectionType string) string {
+	switch OaRejectionType(rejectionType) {
+	case OaNovelty:
+		return "专利法第22条第2款 新颖性 单独对比 现有技术"
+	case OaInventiveness:
+		return "专利法第22条第3款 创造性 三步法 技术启示"
+	case OaClarity:
+		return "专利法第26条第4款 权利要求清楚 简明"
+	case OaSupport:
+		return "专利法第26条第4款 说明书支持 权利要求"
+	case OaDisclosure:
+		return "专利法第26条第3款 充分公开 能够实现"
+	case OaScope:
+		return "专利法第33条 修改 超出范围 原说明书"
+	default:
+		return "专利法 审查指南 答复策略"
+	}
+}
+
+// newRuleRetrievalNode creates a Pregel node that dynamically retrieves applicable
+// law articles based on the rejection type. retriever 为 nil 时返回 no-op。
+func newRuleRetrievalNode(retriever OARuleRetriever) graph.PregelNode {
+	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+		rejectionType := state.GetString(OAStateRejectionType)
+
+		out := graph.PregelState{
+			OAStateRejectionType:    rejectionType,
+			OAStateParsed:           state[OAStateParsed],
+			OAStateCitations:        state[OAStateCitations],
+			OAStateAffectedClaims:   state[OAStateAffectedClaims],
+			OAStateInput:            state[OAStateInput],
+			OAStateResponseStrategy: state.GetString(OAStateResponseStrategy),
+			OAStateTemplateUsed:     state.GetString(OAStateTemplateUsed),
+		}
+
+		if retriever == nil {
+			return out, nil
+		}
+
+		query := rejectionTypeToQuery(rejectionType)
+		articles, err := retriever.RetrieveRules(ctx, query)
+		if err != nil {
+			// 检索失败不阻断管线，标记降级。
+			graph.MarkDegraded(out, OAStateApplicableRules, "",
+				graph.DegradationSearchFailed,
+				fmt.Sprintf("法条动态检索失败: %v。将使用内置模板法条。", err))
+			return out, nil
+		}
+
+		if len(articles) > 0 {
+			var b strings.Builder
+			b.WriteString("## 适用法条与审查指南\n\n")
+			for _, a := range articles {
+				fmt.Fprintf(&b, "- **%s**（%s）：%s\n", a.ArticleRef, a.Source, a.Title)
+				if a.Content != "" {
+					excerpt := a.Content
+					if r := []rune(excerpt); len(r) > 200 {
+						excerpt = string(r[:200]) + "…"
+					}
+					fmt.Fprintf(&b, "  > %s\n", excerpt)
+				}
+			}
+			out[OAStateApplicableRules] = b.String()
+		}
+		return out, nil
+	}
+}
+
+// =============================================================================
 // Graph Builder
 // =============================================================================
 
-// OAGraphOption 可选地配置 OA 答复图的依赖（如 LLM 增强节点）。
+// OARuleRetriever abstracts dynamic retrieval of applicable law articles and
+// examination guidelines for OA response drafting.
+// When injected, the pipeline retrieves real law articles instead of using
+// hardcoded template strings.
+type OARuleRetriever interface {
+	RetrieveRules(ctx context.Context, rejectionType string) ([]OALawArticle, error)
+}
+
+// OALawArticle is a single law/guideline provision relevant to a rejection type.
+type OALawArticle struct {
+	ArticleRef string // e.g. "专利法第22条第3款"
+	Title      string // e.g. "创造性"
+	Content    string // provision text or guideline excerpt
+	Source     string // e.g. "专利法", "审查指南第二部分第四章"
+}
+
+// OAGraphOption 可选地配置 OA 答复图的依赖（如 LLM 增强节点、法条检索器）。
 type OAGraphOption func(*oaGraphConfig)
 
 type oaGraphConfig struct {
-	provider agentcore.Provider
+	provider      agentcore.Provider
+	ruleRetriever OARuleRetriever
 }
 
 // WithOAProvider 注入 LLM Provider，启用 draft_response 之后的 LLM 增强节点。
@@ -537,6 +637,13 @@ type oaGraphConfig struct {
 // 未注入时 llm_enhance 为 no-op，保留纯确定性输出（向后兼容）。
 func WithOAProvider(p agentcore.Provider) OAGraphOption {
 	return func(c *oaGraphConfig) { c.provider = p }
+}
+
+// WithOARuleRetriever 注入法条检索器，在 classify_rejection 之后插入
+// rule_retrieval 节点，根据驳回类型动态检索适用法条和审查指南段落。
+// 未注入时使用硬编码模板法条（向后兼容）。
+func WithOARuleRetriever(r OARuleRetriever) OAGraphOption {
+	return func(c *oaGraphConfig) { c.ruleRetriever = r }
 }
 
 // BuildOAResponseGraph constructs a Pregel graph for OA response drafting
@@ -549,18 +656,19 @@ func BuildOAResponseGraph() (*graph.CompiledPregelGraph, error) {
 	return BuildOAResponseGraphWithOpts()
 }
 
-// BuildOAResponseGraphWithOpts 构造 OA 答复 Pregel 图，支持可选的 LLM 增强节点注入。
+// BuildOAResponseGraphWithOpts 构造 OA 答复 Pregel 图，支持可选的法条检索器和 LLM 增强节点注入。
 //
-// 无 provider 时管线：
+// 无注入时管线：
 //
 //	parse_oa → classify_rejection → analyze_claims → draft_response → approval_gate → __end__
 //
-// 有 provider 时管线：
+// 有 ruleRetriever 时管线（在 classify 之后插入 rule_retrieval）：
 //
-//	parse_oa → classify_rejection → analyze_claims → draft_response → llm_enhance → approval_gate → __end__
+//	parse_oa → classify_rejection → rule_retrieval → analyze_claims → draft_response → approval_gate → __end__
 //
-// llm_enhance 节点在确定性骨架基础上，调用 LLM 生成实质性论证段落。
-// LLM 调用失败时静默降级，保留确定性输出。
+// 有 provider 时（在 draft 之后插入 llm_enhance）：
+//
+//	… → draft_response → llm_enhance → approval_gate → __end__
 func BuildOAResponseGraphWithOpts(opts ...OAGraphOption) (*graph.CompiledPregelGraph, error) {
 	cfg := &oaGraphConfig{}
 	for _, opt := range opts {
@@ -574,6 +682,15 @@ func BuildOAResponseGraphWithOpts(opts ...OAGraphOption) (*graph.CompiledPregelG
 	if err := g.AddNode("classify_rejection", classifyRejectionNode); err != nil {
 		return nil, err
 	}
+
+	// Conditionally insert rule_retrieval node.
+	hasRetriever := cfg.ruleRetriever != nil
+	if hasRetriever {
+		if err := g.AddNode("rule_retrieval", newRuleRetrievalNode(cfg.ruleRetriever)); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := g.AddNode("analyze_claims", analyzeClaimsNode); err != nil {
 		return nil, err
 	}
@@ -591,12 +708,19 @@ func BuildOAResponseGraphWithOpts(opts ...OAGraphOption) (*graph.CompiledPregelG
 		}
 	}
 
-	// Linear flow with optional LLM enhancement.
+	// Build edges — rule_retrieval is inserted between classify_rejection and analyze_claims.
 	edges := [][2]string{
 		{"parse_oa", "classify_rejection"},
-		{"classify_rejection", "analyze_claims"},
-		{"analyze_claims", "draft_response"},
 	}
+	if hasRetriever {
+		edges = append(edges,
+			[2]string{"classify_rejection", "rule_retrieval"},
+			[2]string{"rule_retrieval", "analyze_claims"},
+		)
+	} else {
+		edges = append(edges, [2]string{"classify_rejection", "analyze_claims"})
+	}
+	edges = append(edges, [2]string{"analyze_claims", "draft_response"})
 	if cfg.provider != nil {
 		edges = append(edges, [][2]string{
 			{"draft_response", "llm_enhance"},

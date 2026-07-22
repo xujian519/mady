@@ -11,7 +11,8 @@ import (
 
 // NewLegalComparisonTool 创建 compare_legal_cases 工具，
 // 封装法律案例比较 Pregel 图（含三段论推理引擎）。
-func NewLegalComparisonTool() *agentcore.Tool {
+// 支持 LegalGraphOption 注入判例检索器等可选依赖。
+func NewLegalComparisonTool(opts ...LegalGraphOption) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name:        "compare_legal_cases",
 		Description: "进行法律案例比较分析：输入案件事实描述，检索适用法条，查找相似判例，生成法律分析报告（含三段论推理链）。",
@@ -38,7 +39,7 @@ func NewLegalComparisonTool() *agentcore.Tool {
 			}
 
 			compiled, rawBB, err := BuildComparisonGraphWithReasoning(
-				"case-auto", CaseInvalidation,
+				"case-auto", CaseInvalidation, opts...,
 			)
 			if err != nil {
 				return agentcore.NewFailureResult("分析引擎初始化失败",

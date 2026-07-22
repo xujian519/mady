@@ -1,5 +1,138 @@
 # AI 变更记录
 
+## 2026-07-22: 工作流编排器优化第三批 — 工具注册 + CLI/TUI 入口 + 复审请求工作流
+
+### 背景
+第二批已完成无效宣告和侵权比对 Pregel 工作流的实现和测试，但缺口分析发现：
+1. 新工具未注册到任何 Agent（完全不可达）
+2. 无 CLI 子命令和 TUI 斜杠命令
+3. 复审请求工作流仅有规则定义，无 Pregel 实现
+
+本批完成全链路打通 + 复审工作流实现。
+
+### 变更内容
+
+**工具注册** — `domains/patent.go`（敏感路径）
+- `PatentAgentConfig` 的 `ExtraTools` 注册 `NewInvalidationTool`、`NewInfringementTool`、`NewReexaminationTool`
+- 三个新工具现可通过 Patent Agent 在 TUI/Server 模式下被 LLM 自动调用
+
+**CLI 子命令** — `cmd/mady/patent.go`
+- 新增 `mady patent invalidation` — 无效宣告分析
+- 新增 `mady patent infringement` — 侵权比对分析（双参数）
+- 新增 `mady patent reexamination` — 复审请求书起草
+
+**TUI 斜杠命令** — `cmd/mady/slash_registry.go` + `cmd/mady/tui_session.go`
+- 新增 `/invalidation <权利要求>` — 直接运行无效宣告 Pregel 图
+- 新增 `/infringement <权利要求> | <被控方案>` — 侵权比对（管道符分隔双参数）
+- 新增 `/reexamination <驳回决定书>` — 复审请求书起草
+- `/patent` 帮助命令更新为列出全部 5 个专利快捷命令
+
+**复审请求工作流** — `workflows/patent/reexamination.go`（新增，~380 行）
+- Pregel 5 节点图：`parse_decision → classify_grounds → draft_request → rule_check → conclude → __end__`
+- 驳回决定解析器：自动提取文号/日期/申请人/申请号/对比文件
+- 6 种驳回理由识别：新颖性/创造性/充分公开/权利要求清楚/修改超范围/实用新型客体
+- **实用新型特化**：自动检测专利类型，实用新型过滤创造性驳回理由
+- 法律依据：专利法第41条 + 3 个月期限提醒
+- 规则引擎集成：`ReexaminationRules()` + domain `"patent_reexamination"`
+- `NewReexaminationTool` → `draft_reexamination_request` 工具
+
+### 测试
+- `workflows/patent/reexamination_test.go`：12 个测试用例（空输入/决定解析/理由识别/客体识别/类型检测/实用新型过滤/骨架起草/规则引擎/发明端到端/实用新型端到端）
+- `go test -race -count=1 ./workflows/patent/... ./domains/... ./cmd/mady/...` 全部通过
+- 全部 17 个包 0 失败
+
+### 涉及文件（8 个）
+
+| 文件 | 变更类型 |
+|------|---------|
+| `domains/patent.go` | 修改：注册 3 个新工具（敏感路径） |
+| `cmd/mady/patent.go` | 修改：新增 3 个 CLI 子命令 |
+| `cmd/mady/slash_registry.go` | 修改：注册 3 个斜杠命令 |
+| `cmd/mady/tui_session.go` | 修改：新增 3 个 slash handler |
+| `workflows/patent/reexamination.go` | **新增**：复审请求 Pregel 工作流 |
+| `workflows/patent/reexamination_test.go` | **新增**：12 个测试 |
+| `workflows/patent/tool.go` | 修改：新增 `NewReexaminationTool` |
+| `docs/decisions/AI_CHANGELOG.md` | 本条记录 |
+
+## 2026-07-22: 工作流编排器优化第二批 — 无效宣告 + 侵权比对 Pregel 工作流
+
+### 背景
+第一批完成了规则引擎场景化 + 知识系统深度集成（4 项），但专利全生命周期中两个核心领域工作流仍然缺失：
+**无效宣告分析**和**侵权比对分析**。本次实施第二批（P0 优先级），补全这两个关键环节。
+
+### 变更内容
+
+**P0-1 无效宣告分析工作流** — `workflows/patent/invalidation.go`（新增）
+- Pregel 6 节点图：`parse_patent → identify_grounds → [gather_evidence] → analyze_grounds → conclude → __end__`
+- 5 种无效理由自动识别：A22.2 新颖性 / A22.3 创造性 / A26.3 充分公开 / A26.4 清楚支持 / A33 修改超范围
+- 权利要求解析器：自动识别独立/从属权利要求、编号和类型
+- `InvGraphOption` + `WithInvRetriever()` functional option，条件插入证据检索节点
+- 规则引擎集成：使用 `InvalidationRules()` + domain `"patent_invalidation"` 校验分析完整性
+- 逐理由独立分析框架（单独对比 / 三步法 / 充分公开 / 清楚支持 / 修改超范围），每项均有法律依据和要点提示
+
+**P0-2 侵权比对分析工作流** — `workflows/patent/infringement.go`（新增）
+- Pregel 6 节点图：`parse_claims → parse_product → full_coverage → equivalence → rule_check → conclude → __end__`
+- 全面覆盖分析：技术特征分解 + 逐特征比对 + 字面侵权判定
+- 等同侵权分析：手段/功能/效果三要素框架 + 禁止反悔/捐献规则限制提示
+- 规则引擎集成：使用 `InfringementRules()` + domain `"patent_invalidation"` 校验分析完整性
+- `InfGraphOption` functional option（预留扩展位）
+
+**工具注册** — `workflows/patent/tool.go`
+- `NewInvalidationTool(opts ...InvGraphOption)` → `analyze_patent_invalidation` 工具
+- `NewInfringementTool(opts ...InfGraphOption)` → `analyze_patent_infringement` 工具
+
+### 测试
+- `workflows/patent/invalidation_test.go`：14 个测试用例（空输入/权利要求解析/理由识别/证据降级/检索注入/分析框架/端到端/截断辅助函数）
+- `workflows/patent/infringement_test.go`：15 个测试用例（空输入/特征提取/全面覆盖全匹配-部分匹配/等同分析/规则引擎/端到端全匹配-部分匹配/辅助函数）
+- `go test -race ./workflows/patent/...` 全部通过，无回归
+
+### 设计决策
+- **与第一批保持一致**：functional option DI + nil-safe 降级 + 条件节点插入 + 规则引擎校验
+- **确定性骨架**：所有节点不调用 LLM，生成结构化分析骨架供代理师/律师审阅和填充
+- **技术特征匹配**：采用 naive 子串 + 3-rune 重叠匹配，适合骨架分析阶段；真实侵权比对仍需人工判断
+- **禁止反悔/捐献规则**：在等同分析中以提示性文案呈现，不做自动化判断（需审查历史档案）
+
+## 2026-07-22: 工作流编排器优化第一批 — 规则引擎场景化 + 知识系统深度集成
+
+### 背景
+对照专利全生命周期评估工作流覆盖度后，识别出 9 项优化空间。本次实施第一批 4 个无依赖项，
+聚焦规则引擎场景化和知识系统（风险扫描/判例检索/法条动态检索）与 Pregel 工作流的深度集成。
+
+### 变更内容
+
+**P2-8 规则引擎场景化** — `workflows/patent/rule_engine.go`
+- 将单一的 `DefaultPatentRules()` 拆分为 6 个场景规则集：
+  `NoveltyRules()` / `InventivenessRules()` / `InfringementRules()` /
+  `InvalidationRules()` / `ReexaminationRules()` / `DisclosureRules()`
+- 新增侵权规则（等同原则/禁止反悔/捐献规则）、无效规则（组合动机论证/公开日核实）、
+  复审规则（复审理由范围/新证据关联性）
+- 扩展 `synonymMap` 新增侵权/无效/复审领域术语
+- `DefaultPatentRules()` 改为聚合上述 6 个场景集的并集（向后兼容）
+
+**P1-3 风险扫描器集成** — `workflows/patent/analysis.go`
+- 新增 `FeatureRiskScanner` 接口和 `WithRiskScanner()` functional option
+- 新增 `risk_scan` Pregel 节点，在 `rule_check` 和 `conclude` 之间条件插入
+- `concludeWithRulesNode` 增强：将风险报告嵌入最终分析报告
+- 向后兼容：无 scanner 注入时管线行为与原有完全一致
+
+**P1-4 判例检索接入知识库** — `workflows/legal/comparison.go`
+- 新增 `CaseSearcher` 接口和 `WithCaseSearcher()` functional option
+- `caseSearchNode` 从 `DegradationNotImplemented` 升级为工厂模式 `newCaseSearchNode(searcher)`
+- `BuildComparisonGraph` / `BuildComparisonGraphWithReasoning` 均支持 opts 注入
+- 向后兼容：无 searcher 时保持原有降级行为
+
+**P2-9 OA 法条动态检索** — `workflows/patent/oa_response.go`
+- 新增 `OARuleRetriever` 接口和 `WithOARuleRetriever()` functional option
+- 新增 `rule_retrieval` Pregel 节点，在 `classify_rejection` 之后条件插入
+- `draftResponseNode` 增强：动态法条嵌入答复书的"适用法条"章节
+- 新增 `rejectionTypeToQuery` 映射函数（驳回类型→检索查询）
+- 向后兼容：无 retriever 时使用硬编码模板法条
+
+### 测试
+- 全部新增测试通过（含 race 检测）：`go test -race ./workflows/patent/... ./workflows/legal/...`
+- 向后兼容测试：无注入时与原有行为完全一致
+- 新增测试覆盖：nil 注入降级、正常注入、错误降级、端到端管线 4 个场景 × 4 项
+
 ## 2026-07-22: 专利法第26.3条判断模块全面增强 — 对标 Wiki 知识库补全 10 项差距
 
 ### 背景

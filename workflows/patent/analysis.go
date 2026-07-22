@@ -30,6 +30,7 @@ const (
 	StateOutput      = "output"       // final output text
 	StateRuleCheck   = "rule_check"   // rule engine check report (Markdown)
 	StateRuleVerdict = "rule_verdict" // aggregate Verdict from rule check
+	StateRiskReport  = "risk_report"  // risk scan report (Markdown), if scanner injected
 )
 
 // parseNode extracts technical features from the invention description.
@@ -109,6 +110,19 @@ func buildSearchQuery(features []string) string {
 	return strings.Join(features[:n], " ")
 }
 
+// FeatureRiskScanner scans technical feature combinations for historical
+// invalidation risk. Implemented by *risk.Scanner.
+type FeatureRiskScanner interface {
+	ScanByFeatures(ctx context.Context, features []string) (*RiskScanResult, error)
+}
+
+// RiskScanResult is a minimal projection of risk.ScanResult to avoid a direct
+// dependency on knowledge/risk from the workflow layer. The Markdown rendering
+// is the only field consumed by the pipeline.
+type RiskScanResult struct {
+	Markdown string // pre-rendered Markdown report
+}
+
 // =============================================================================
 // GraphOption — 可选依赖注入
 // =============================================================================
@@ -119,12 +133,20 @@ type GraphOption func(*graphConfig)
 
 type graphConfig struct {
 	retriever domain.DomainRetriever
+	scanner   FeatureRiskScanner
 }
 
 // WithRetriever 注入专利领域检索器，启用 search 节点的真实现有技术检索。
 // 未注入时 search 节点返回占位文本，保持向后兼容。
 func WithRetriever(r domain.DomainRetriever) GraphOption {
 	return func(c *graphConfig) { c.retriever = r }
+}
+
+// WithRiskScanner 注入风险扫描器，在 analyze 与 rule_check 之间插入
+// risk_scan 节点，对提取的技术特征进行历史无效宣告风险扫描。
+// 未注入时不插入该节点，保持向后兼容。
+func WithRiskScanner(s FeatureRiskScanner) GraphOption {
+	return func(c *graphConfig) { c.scanner = s }
 }
 
 // =============================================================================
@@ -328,7 +350,7 @@ func ruleCheckNode(ctx context.Context, state graph.PregelState) (graph.PregelSt
 }
 
 // concludeWithRulesNode is an enhanced conclude node that incorporates the
-// rule engine report into the final assessment.
+// rule engine report and optional risk scan into the final assessment.
 func concludeWithRulesNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 	base, err := concludeNode(ctx, state)
 	if err != nil {
@@ -337,20 +359,23 @@ func concludeWithRulesNode(ctx context.Context, state graph.PregelState) (graph.
 
 	ruleCheck := state.GetString(StateRuleCheck)
 	ruleVerdict := state.GetString(StateRuleVerdict)
+	riskReport := state.GetString(StateRiskReport)
 
 	var report strings.Builder
+
+	// If rules blocked, prepend a prominent warning.
+	if ruleVerdict == string(VerdictBlocked) {
+		report.WriteString("> ⛔ **规则引擎检查未通过**：分析存在严重缺陷，结论不宜直接采用。\n\n")
+	}
+
 	report.WriteString(base.GetString(StateConclusion))
 	report.WriteString("\n\n")
 	report.WriteString(ruleCheck)
 
-	// If rules blocked, prepend a prominent warning.
-	if ruleVerdict == string(VerdictBlocked) {
-		warning := "> ⛔ **规则引擎检查未通过**：分析存在严重缺陷，结论不宜直接采用。\n\n"
-		report.Reset()
-		report.WriteString(warning)
-		report.WriteString(base.GetString(StateConclusion))
+	// Append risk scan report if available.
+	if riskReport != "" {
 		report.WriteString("\n\n")
-		report.WriteString(ruleCheck)
+		report.WriteString(riskReport)
 	}
 
 	final := report.String()
@@ -359,6 +384,7 @@ func concludeWithRulesNode(ctx context.Context, state graph.PregelState) (graph.
 		StateOutput:      final,
 		StateRuleCheck:   ruleCheck,
 		StateRuleVerdict: ruleVerdict,
+		StateRiskReport:  riskReport,
 	}, nil
 }
 
@@ -373,12 +399,48 @@ func BuildNoveltyGraphWithRules() (*graph.CompiledPregelGraph, error) {
 	return BuildNoveltyGraphWithRulesWithOpts()
 }
 
+// newRiskScanNode creates a Pregel node that scans extracted technical features
+// for historical invalidation risk. scanner 为 nil 时返回 no-op（跳过风险扫描）。
+// scanner 非 nil 时调用 ScanByFeatures，将 Markdown 报告写入 StateRiskReport。
+func newRiskScanNode(scanner FeatureRiskScanner) graph.PregelNode {
+	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+		features, _ := state[StateFeatures].([]string)
+
+		out := graph.PregelState{}
+		if features != nil {
+			out[StateFeatures] = features
+		}
+
+		if scanner == nil || len(features) == 0 {
+			return out, nil
+		}
+
+		result, err := scanner.ScanByFeatures(ctx, features)
+		if err != nil {
+			// 风险扫描失败不阻断管线，仅标记降级。
+			graph.MarkDegraded(out, StateRiskReport, "",
+				graph.DegradationSearchFailed,
+				fmt.Sprintf("风险扫描失败: %v", err))
+			return out, nil
+		}
+
+		if result != nil && result.Markdown != "" {
+			out[StateRiskReport] = result.Markdown
+		}
+		return out, nil
+	}
+}
+
 // BuildNoveltyGraphWithRulesWithOpts 构造带规则引擎检查的新颖性分析图，
-// 支持可选的依赖注入（如检索器）。
+// 支持可选的依赖注入（如检索器、风险扫描器）。
 //
-// Graph structure:
+// 无 scanner 时图结构：
 //
 //	parse → search → analyze → rule_check → conclude_with_rules → __end__
+//
+// 有 scanner 时图结构（在 rule_check 和 conclude 之间插入 risk_scan）：
+//
+//	parse → search → analyze → rule_check → risk_scan → conclude_with_rules → __end__
 func BuildNoveltyGraphWithRulesWithOpts(opts ...GraphOption) (*graph.CompiledPregelGraph, error) {
 	cfg := &graphConfig{}
 	for _, opt := range opts {
@@ -392,10 +454,22 @@ func BuildNoveltyGraphWithRulesWithOpts(opts ...GraphOption) (*graph.CompiledPre
 	g.AddNode("rule_check", ruleCheckNode)
 	g.AddNode("conclude", concludeWithRulesNode)
 
+	// Conditionally add risk_scan node.
+	hasScanner := cfg.scanner != nil
+	if hasScanner {
+		g.AddNode("risk_scan", newRiskScanNode(cfg.scanner))
+	}
+
+	// Build edges — risk_scan is inserted between rule_check and conclude.
 	g.AddEdge("parse", "search")
 	g.AddEdge("search", "analyze")
 	g.AddEdge("analyze", "rule_check")
-	g.AddEdge("rule_check", "conclude")
+	if hasScanner {
+		g.AddEdge("rule_check", "risk_scan")
+		g.AddEdge("risk_scan", "conclude")
+	} else {
+		g.AddEdge("rule_check", "conclude")
+	}
 	g.AddEdge("conclude", graph.PregelEnd)
 
 	return g.Compile("parse", 10)

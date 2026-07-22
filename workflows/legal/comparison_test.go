@@ -162,3 +162,98 @@ func TestBuildComparisonGraph(t *testing.T) {
 
 	t.Logf("Output: %s", output[:min(len(output), 300)])
 }
+
+// mockCaseSearcher implements CaseSearcher for testing.
+type mockCaseSearcher struct {
+	results []CaseSearchResult
+	err     error
+}
+
+func (m *mockCaseSearcher) SearchCases(ctx context.Context, query string, maxResults int) ([]CaseSearchResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.results, nil
+}
+
+func TestCaseSearchNode_WithSearcher(t *testing.T) {
+	searcher := &mockCaseSearcher{
+		results: []CaseSearchResult{
+			{Title: "(2023)最高法知民终123号", Snippet: "商标侵权案，判赔50万", Score: 0.9},
+			{Title: "(2022)京73民终456号", Snippet: "不正当竞争纠纷", Score: 0.7},
+		},
+	}
+	node := newCaseSearchNode(searcher)
+	state := graph.PregelState{
+		StateCaseFacts: "商标侵权纠纷案件，被告使用近似标识",
+		StateStatutes:  []string{"商标法"},
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("caseSearchNode: %v", err)
+	}
+	// Should NOT be degraded when searcher returns results.
+	if graph.IsDegraded(out, StateSimilarCases) {
+		t.Fatal("should not be degraded when searcher is available")
+	}
+	cases, ok := out[StateSimilarCases].([]string)
+	if !ok || len(cases) != 2 {
+		t.Fatalf("expected 2 cases, got %v", out[StateSimilarCases])
+	}
+	if !strings.Contains(cases[0], "最高法知民终123号") {
+		t.Errorf("first case should contain title: %s", cases[0])
+	}
+}
+
+func TestCaseSearchNode_NilSearcher(t *testing.T) {
+	node := newCaseSearchNode(nil)
+	state := graph.PregelState{
+		StateCaseFacts: "合同违约",
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("caseSearchNode: %v", err)
+	}
+	// No searcher → degraded.
+	if !graph.IsDegraded(out, StateSimilarCases) {
+		t.Fatal("expected degraded when searcher is nil")
+	}
+}
+
+func TestCaseSearchNode_SearchError(t *testing.T) {
+	searcher := &mockCaseSearcher{err: context.DeadlineExceeded}
+	node := newCaseSearchNode(searcher)
+	state := graph.PregelState{
+		StateCaseFacts: "专利侵权",
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("search error should not return error: %v", err)
+	}
+	if !graph.IsDegraded(out, StateSimilarCases) {
+		t.Fatal("expected degraded on search failure")
+	}
+}
+
+func TestBuildComparisonGraphWithOpts_WithSearcher(t *testing.T) {
+	searcher := &mockCaseSearcher{
+		results: []CaseSearchResult{
+			{Title: "(2023)最高法知民终789号", Snippet: "专利侵权损害赔偿"},
+		},
+	}
+	g, err := BuildComparisonGraphWithOpts(WithCaseSearcher(searcher))
+	if err != nil {
+		t.Fatalf("BuildComparisonGraphWithOpts: %v", err)
+	}
+	state := graph.PregelState{
+		StateCaseFacts: "被告侵犯了原告的专利权，制造销售侵权产品。",
+	}
+	finalState, err := g.Run(context.Background(), state)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	output := finalState.GetString(StateOutput)
+	if !strings.Contains(output, "专利侵权损害赔偿") {
+		t.Error("output should contain case search results")
+	}
+}

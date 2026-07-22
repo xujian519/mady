@@ -451,3 +451,143 @@ func TestOAEnhanceNode_WithNilProviderGraph(t *testing.T) {
 		t.Error("expected identical output with and without opts (no provider)")
 	}
 }
+
+// mockOARuleRetriever implements OARuleRetriever for testing.
+type mockOARuleRetriever struct {
+	articles []OALawArticle
+	err      error
+}
+
+func (m *mockOARuleRetriever) RetrieveRules(ctx context.Context, rejectionType string) ([]OALawArticle, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.articles, nil
+}
+
+func TestRuleRetrievalNode_NilRetriever(t *testing.T) {
+	node := newRuleRetrievalNode(nil)
+	state := graph.PregelState{
+		OAStateRejectionType: string(OaNovelty),
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("ruleRetrievalNode nil: %v", err)
+	}
+	// No retriever → no applicable rules.
+	if out.GetString(OAStateApplicableRules) != "" {
+		t.Error("should not have applicable rules when retriever is nil")
+	}
+}
+
+func TestRuleRetrievalNode_WithRetriever(t *testing.T) {
+	retriever := &mockOARuleRetriever{
+		articles: []OALawArticle{
+			{
+				ArticleRef: "专利法第22条第2款",
+				Title:      "新颖性",
+				Content:    "新颖性，是指该发明或者实用新型不属于现有技术。",
+				Source:     "专利法",
+			},
+			{
+				ArticleRef: "审查指南第二部分第三章",
+				Title:      "新颖性审查",
+				Content:    "新颖性判断应当遵循单独对比原则。",
+				Source:     "审查指南",
+			},
+		},
+	}
+	node := newRuleRetrievalNode(retriever)
+	state := graph.PregelState{
+		OAStateRejectionType: string(OaNovelty),
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("ruleRetrievalNode: %v", err)
+	}
+	rules := out.GetString(OAStateApplicableRules)
+	if rules == "" {
+		t.Fatal("expected applicable rules in state")
+	}
+	if !strings.Contains(rules, "专利法第22条第2款") {
+		t.Error("should contain the article reference")
+	}
+	if !strings.Contains(rules, "单独对比原则") {
+		t.Error("should contain guideline excerpt")
+	}
+}
+
+func TestRuleRetrievalNode_RetrievalError(t *testing.T) {
+	retriever := &mockOARuleRetriever{err: context.DeadlineExceeded}
+	node := newRuleRetrievalNode(retriever)
+	state := graph.PregelState{
+		OAStateRejectionType: string(OaInventiveness),
+	}
+	out, err := node(context.Background(), state)
+	if err != nil {
+		t.Fatalf("retrieval error should not return error: %v", err)
+	}
+	if !graph.IsDegraded(out, OAStateApplicableRules) {
+		t.Error("expected degraded mark on retrieval failure")
+	}
+}
+
+func TestBuildOAResponseGraphWithOpts_WithRetriever(t *testing.T) {
+	retriever := &mockOARuleRetriever{
+		articles: []OALawArticle{
+			{
+				ArticleRef: "专利法第22条第3款",
+				Title:      "创造性",
+				Content:    "创造性，是指与现有技术相比具有突出的实质性特点和显著的进步。",
+				Source:     "专利法",
+			},
+		},
+	}
+	g, err := BuildOAResponseGraphWithOpts(WithOARuleRetriever(retriever))
+	if err != nil {
+		t.Fatalf("BuildOAResponseGraphWithOpts: %v", err)
+	}
+
+	state, err := g.Run(context.Background(), graph.PregelState{
+		OAStateInput: "审查员认为权利要求1-3相对于对比文件1（CN123456A）不具备创造性（专利法第22条第3款）。",
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	output := state.GetString(OAStateOutput)
+	if output == "" {
+		t.Fatal("output should not be empty")
+	}
+	// The dynamically retrieved article should appear in the output.
+	if !strings.Contains(output, "专利法第22条第3款") {
+		t.Error("output should contain dynamically retrieved article reference")
+	}
+	if !strings.Contains(output, "适用法条") {
+		t.Error("output should contain applicable rules section header")
+	}
+}
+
+func TestBuildOAResponseGraphWithOpts_WithoutRetriever(t *testing.T) {
+	// No retriever — backward compatibility.
+	g, err := BuildOAResponseGraphWithOpts()
+	if err != nil {
+		t.Fatalf("BuildOAResponseGraphWithOpts: %v", err)
+	}
+
+	state, err := g.Run(context.Background(), graph.PregelState{
+		OAStateInput: "审查员认为权利要求1不具备新颖性（专利法第22条第2款）。",
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	output := state.GetString(OAStateOutput)
+	if output == "" {
+		t.Fatal("output should not be empty")
+	}
+	// No dynamic retrieval section should appear.
+	if strings.Contains(output, "适用法条与审查指南") {
+		t.Error("should not contain dynamic rules section when no retriever")
+	}
+}

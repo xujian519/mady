@@ -154,6 +154,9 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			patent.NewOAResponseTool(),
 			patent.NewSpecificationTool(),
 			patent.NewDebateTool(),
+			patent.NewInvalidationTool(patent.WithInvRetriever(globalPatentRetriever)),
+			patent.NewInfringementTool(),
+			patent.NewReexaminationTool(),
 			enablement.NewEnablementTool(enablement.WithProvider(base.Provider)),
 		},
 	})
