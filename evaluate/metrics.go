@@ -165,13 +165,14 @@ func (m CitationCompleteness) Compute(prediction, _ string) float64 {
 	if len(m.Required) == 0 {
 		return 1
 	}
-	lowerPred := strings.ToLower(prediction)
+	// Remove spaces to handle "第 26 条" vs "第26条" formatting variants.
+	lowerPred := strings.ToLower(strings.ReplaceAll(prediction, " ", ""))
 	normPred := lawcite.Normalize(lowerPred)
 	predSet := extractLawCitations(normPred)
 
 	hit := 0
 	for _, c := range m.Required {
-		lowerC := strings.ToLower(c)
+		lowerC := strings.ToLower(strings.ReplaceAll(c, " ", ""))
 		normC := lawcite.Normalize(lowerC)
 
 		matched := false

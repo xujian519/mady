@@ -2,7 +2,6 @@ package specdrafting
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/graph"
@@ -248,9 +247,9 @@ func TestPatentType_Differences(t *testing.T) {
 		Features:    []SpecFeature{{ID: "f1", Description: "壳体", Category: "structure"}},
 	})
 
-	// 发明在无附图时"附图说明"应为"（无附图）"
-	if containsStr(invention.Sections[3].Content, "无附图") && !strings.Contains(invention.Sections[3].Content, "无附图") {
-		// 正常，跳过
+	// 发明在无附图时"附图说明"应包含"无附图"
+	if !containsStr(invention.Sections[3].Content, "无附图") {
+		t.Errorf("发明无附图时附图说明应包含'无附图'，实际: %s", invention.Sections[3].Content)
 	}
 
 	// 实用新型应有附图描述
@@ -335,7 +334,7 @@ func TestSpecBuilder_EdgeCases(t *testing.T) {
 func TestSpecInputFromExtraction(t *testing.T) {
 	input := SpecInputFromExtraction(nil, PatentTypeInvention, false, nil)
 	if input == nil {
-		t.Error("nil ExtractionResult 应返回非 nil SpecInput")
+		t.Fatal("nil ExtractionResult 应返回非 nil SpecInput")
 	}
 	if input.PatentType != PatentTypeInvention {
 		t.Errorf("PatentType 不匹配: %v", input.PatentType)

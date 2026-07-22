@@ -2,7 +2,6 @@ package specdrafting
 
 import (
 	"context"
-	"strings"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
@@ -11,26 +10,6 @@ import (
 // =============================================================================
 // 节点辅助函数
 // =============================================================================
-
-// newSpecAgent 创建统一配置的 LLM Agent 节点。
-func newSpecAgent(provider agentcore.Provider, name, prompt string, schema map[string]any) *agentcore.Agent {
-	cfg := agentcore.Config{
-		ModelConfig: agentcore.ModelConfig{
-			Name:        name,
-			Model:       "default",
-			Provider:    provider,
-			Temperature: 0.2,
-		},
-		SystemPrompt: prompt,
-		ExecutionConfig: agentcore.ExecutionConfig{
-			MaxTurns: 1,
-		},
-	}
-	if schema != nil {
-		cfg.ResponseFormat = agentcore.NewJSONSchemaResponseFormat(name, schema)
-	}
-	return agentcore.New(cfg)
-}
 
 // stateHasSkip 检查 state 中是否包含跳过标记。
 func stateHasSkip(state graph.PregelState) bool {
@@ -438,63 +417,4 @@ func countKeys(text string, keys []string) int {
 		}
 	}
 	return n
-}
-
-// sectionJSONSchema 生成各章节的 JSON Schema。
-func sectionJSONSchema(field string) map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			field: map[string]any{"type": "string", "description": "该章节的完整内容"},
-		},
-		"required": []string{field},
-	}
-}
-
-// titleJSONSchema 生成标题的 JSON Schema。
-var titleJSONSchema = map[string]any{
-	"type": "object",
-	"properties": map[string]any{
-		"title":    map[string]any{"type": "string", "description": "发明或实用新型名称，不超过25个字"},
-		"abstract": map[string]any{"type": "string", "description": "摘要，不超过300字"},
-	},
-	"required": []string{"title", "abstract"},
-}
-
-// serializeStateSection 序列化 state 中的章节内容为 LLM 输入。
-func serializeStateSection(state graph.PregelState, key string) string {
-	if v, ok := state[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-// buildLLMContext 构建 LLM 节点的完整上下文输入。
-func buildLLMContext(state graph.PregelState) string {
-	input := extractInput(state)
-	if input == nil {
-		return ""
-	}
-
-	var b strings.Builder
-	b.WriteString("发明名称：" + input.Title + "\n")
-	if len(input.Problems) > 0 {
-		b.WriteString("技术问题：" + strings.Join(input.Problems, "；") + "\n")
-	}
-	if len(input.Features) > 0 {
-		b.WriteString("技术特征：\n")
-		for _, f := range input.Features {
-			b.WriteString("- " + f.Description)
-			if f.Function != "" {
-				b.WriteString("（用于" + f.Function + "）")
-			}
-			b.WriteString("\n")
-		}
-	}
-	if len(input.Effects) > 0 {
-		b.WriteString("技术效果：" + strings.Join(input.Effects, "；") + "\n")
-	}
-	return b.String()
 }
