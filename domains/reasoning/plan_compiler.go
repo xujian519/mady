@@ -37,6 +37,11 @@ type NodeBuilder interface {
 
 	// BuildReActObserve returns the "observe" (process result) node.
 	BuildReActObserve(step PlanStep, bb *FactBlackboard) PregelNode
+
+	// BuildArbitratedJudgeNode returns a PregelNode that runs an arbitrated
+	// multi-LLM judge for debate-type steps. When no arbitration config is
+	// provided, it falls back to the deterministic judge logic.
+	BuildArbitratedJudgeNode(step PlanStep, bb *FactBlackboard, cfg *ArbitrationConfig) PregelNode
 }
 
 // noopNodeBuilder returns pass-through nodes for testing.
@@ -66,6 +71,23 @@ func (noopNodeBuilder) BuildReActAct(step PlanStep, bb *FactBlackboard) PregelNo
 func (noopNodeBuilder) BuildReActObserve(step PlanStep, bb *FactBlackboard) PregelNode {
 	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		state["_noop_has_next"] = "false" // generic key that all routers check as fallback
+		return state, nil
+	}
+}
+
+func (noopNodeBuilder) BuildArbitratedJudgeNode(step PlanStep, bb *FactBlackboard, cfg *ArbitrationConfig) PregelNode {
+	// noop fallback: use deterministic judge logic without multi-LLM.
+	// The mhVerdict is set as unresolved so the downstream rejectionNode
+	// still produces a human-escalation path (consistent with the existing
+	// test expectations for the noop builder).
+	stepID := fmt.Sprintf("step_%d_arbitrated_judge", step.Order)
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
+		state[stepID+"_output"] = step.Description + " — 仲裁: 使用确定性裁决（无 LLM）"
+		state[mhVerdict] = Verdict{
+			Resolved:         false,
+			UnresolvedReason: "确定性仲裁（无 LLM）",
+			Confidence:       0,
+		}
 		return state, nil
 	}
 }

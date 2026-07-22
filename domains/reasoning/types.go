@@ -392,6 +392,33 @@ type Verdict struct {
 	UnresolvedReason  string  `json:"unresolved_reason,omitempty"` // 无法裁决的原因
 }
 
+// =============================================================================
+// 缺口 3：ArbitrationConfig — 多 LLM 仲裁配置
+// =============================================================================
+
+// JudgeLLMConfig 定义一个仲裁 LLM 实例。
+type JudgeLLMConfig struct {
+	Name   string  `json:"name"`   // "deepseek", "claude", "gpt4o"
+	Model  string  `json:"model"`  // model identifier（如 "deepseek-v4-pro"）
+	Weight float64 `json:"weight"` // 0-1 voting weight，仲裁时加权
+}
+
+// ArbitrationConfig 定义多 LLM 仲裁配置。
+// 可选配置：当仲裁配置存在时，BuildMultiHypothesisSubgraph 使用多模型 Advocate。
+type ArbitrationConfig struct {
+	Judges       []JudgeLLMConfig `json:"judges"`
+	MinAgreement float64          `json:"min_agreement"` // 最低加权一致阈值 (0.5-1.0)
+	Strategy     string           `json:"strategy"`      // "weighted_vote" | "best_of_n"
+}
+
+// JudgeVote 记录单个 LLM 的裁决意见，由仲裁时收集使用。
+type JudgeVote struct {
+	JudgeName string  `json:"judge_name"`
+	Verdict   Verdict `json:"verdict"`
+	Score     float64 `json:"score"`
+	Reasoning string  `json:"reasoning"`
+}
+
 // NowISO returns the current UTC time in RFC3339 for timestamps.
 func NowISO() string {
 	return time.Now().UTC().Format(time.RFC3339)

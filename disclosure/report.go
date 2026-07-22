@@ -95,9 +95,10 @@ func assessNoveltyFromState(state graph.PregelState) *NoveltyResult {
 		b.WriteString("未提取到可分析的技术特征。\n")
 		b.WriteString("建议：确认技术交底书内容完整性，或手动补充技术特征描述。\n")
 		return &NoveltyResult{
-			Assessed:   true,
-			Conclusion: "特征不足，无法评估",
-			Notes:      b.String(),
+			Assessed:           true,
+			Conclusion:         "特征不足，无法评估",
+			Notes:              b.String(),
+			FeatureAssessments: []FeatureAssessment{},
 		}
 	}
 
@@ -197,9 +198,10 @@ func assessNoveltyFromState(state graph.PregelState) *NoveltyResult {
 	}
 
 	return &NoveltyResult{
-		Assessed:   true,
-		Conclusion: conclusion,
-		Notes:      b.String(),
+		Assessed:           true,
+		Conclusion:         conclusion,
+		Notes:              b.String(),
+		FeatureAssessments: []FeatureAssessment{},
 	}
 }
 

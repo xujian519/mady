@@ -14,9 +14,9 @@ import (
 //   Each advocate operates in an isolated state namespace (adv_a_* / adv_b_*).
 //   They share the FactBlackboard + RuleSet as read-only input.
 //
-// Superstep 2: SyllogismJudge filters logically invalid arguments,
-//   then EvidenceJudge weights the surviving arguments by rule authority
-//   and fact confidence.
+// Superstep 2: The arbitrated judge node (from builder.BuildArbitratedJudgeNode)
+//   runs either deterministic logic (noop builder) or multi-LLM arbitration
+//   (LLMNodeBuilder with ArbitrationConfig) to evaluate both arguments.
 //
 // Superstep 3: Conditional — if the verdict is unresolved and the cause
 //   is missing facts (not poor reasoning), trigger a retrieval back-edge.
@@ -50,10 +50,14 @@ var authorityMap = map[Requirement]float64{
 //	     │                        │
 //	     └────────┬───────────────┘
 //	              ↓
-//	       mh_merge ──→ mh_syllogism_judge ──→ mh_evidence_judge
-//	                                                 │
-//	                                       ┌─ reject? ─→ mh_rejection
-//	                                       └─ accept  ─→ (next step)
+//	       mh_merge ──→ mh_arbitrated_judge
+//	                           │
+//	                 ┌─ reject? → mh_rejection
+//	                 └─ accept  → (next step)
+//
+// The judge node is delegated to builder.BuildArbitratedJudgeNode, which enables
+// multi-LLM arbitration when an ArbitrationConfig is provided (LLMNodeBuilder),
+// or deterministic fallback (noopNodeBuilder for testing).
 func BuildMultiHypothesisSubgraph(g GraphBuilder, step PlanStep, bb *FactBlackboard, builder NodeBuilder) (string, string, error) {
 	// === Advocate A (pro) ===
 	aThink := fmt.Sprintf("mh_%d_adv_a_think", step.Order)
@@ -116,31 +120,30 @@ func BuildMultiHypothesisSubgraph(g GraphBuilder, step PlanStep, bb *FactBlackbo
 		return "", "", fmt.Errorf("connect b_observe→merge: %w", err)
 	}
 
-	// === Judges ===
-	sylName := fmt.Sprintf("mh_%d_syllogism_judge", step.Order)
-	evidName := fmt.Sprintf("mh_%d_evidence_judge", step.Order)
+	// === Judge ===
+	// Delegate to the builder's arbitrated judge — replaces the old hardcoded
+	// syllogismJudgeNode + evidenceJudgeNode chain. Pass nil ArbitrationConfig
+	// so the builder uses its default logic (deterministic for noop, or the
+	// caller can inject via LLMNodeBuilder's cfg at the higher level).
+	judgeName := fmt.Sprintf("mh_%d_arbitrated_judge", step.Order)
 	rejectName := fmt.Sprintf("mh_%d_rejection", step.Order)
 
-	if err := g.AddNode(sylName, syllogismJudgeNode()); err != nil {
-		return "", "", fmt.Errorf("add syllogism judge: %w", err)
-	}
-	if err := g.AddNode(evidName, evidenceJudgeNode()); err != nil {
-		return "", "", fmt.Errorf("add evidence judge: %w", err)
+	if err := g.AddNode(judgeName, builder.BuildArbitratedJudgeNode(step, bb, nil)); err != nil {
+		return "", "", fmt.Errorf("add arbitrated judge: %w", err)
 	}
 	if err := g.AddNode(rejectName, rejectionNode()); err != nil {
 		return "", "", fmt.Errorf("add rejection node: %w", err)
 	}
 
-	if err := g.AddEdge(mergeName, sylName); err != nil {
-		return "", "", fmt.Errorf("connect merge→syllogism: %w", err)
-	}
-	if err := g.AddEdge(sylName, evidName); err != nil {
-		return "", "", fmt.Errorf("connect syllogism→evidence: %w", err)
+	if err := g.AddEdge(mergeName, judgeName); err != nil {
+		return "", "", fmt.Errorf("connect merge→judge: %w", err)
 	}
 
-	// Conditional: if reject → rejection path; else → PregelEnd.
-	if err := g.SetConditionalEdge(evidName, evidenceRouter(rejectName)); err != nil {
-		return "", "", fmt.Errorf("set evidence conditional edge: %w", err)
+	// Conditional: both resolved and unresolved verdicts go through rejectionNode.
+	// rejectionNode passes through for resolved verdicts, produces escalation
+	// message for unresolved ones.
+	if err := g.SetConditionalEdge(judgeName, evidenceRouter(rejectName)); err != nil {
+		return "", "", fmt.Errorf("set judge conditional edge: %w", err)
 	}
 
 	return aThink, rejectName, nil
@@ -183,6 +186,8 @@ func mergeNode() PregelNode {
 }
 
 // syllogismJudgeNode filters logically invalid arguments.
+// Kept as an exported helper; use BuildMultiHypothesisSubgraph's
+// arbitrated judge path for new code.
 func syllogismJudgeNode() PregelNode {
 	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		argA, _ := state["arg_a"].(Argument)
@@ -213,6 +218,8 @@ func syllogismJudgeNode() PregelNode {
 }
 
 // evidenceJudgeNode compares surviving arguments by evidence weight.
+// Kept as an exported helper; use BuildMultiHypothesisSubgraph's
+// arbitrated judge path for new code.
 func evidenceJudgeNode() PregelNode {
 	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		argA, _ := state["arg_a"].(Argument)

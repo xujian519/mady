@@ -23,6 +23,7 @@ import (
 func pregelAgentNode(cfg agentcore.Config, stateKey string) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		agent := agentcore.New(cfg)
+		defer agent.Close()
 
 		// 读取输入：优先使用 state["input"]，回退到 document 文本
 		input := state.GetString(StateKeyInput)
@@ -187,13 +188,13 @@ func mergeEffectsFromState(ext *ExtractionResult, state graph.PregelState) {
 	}
 
 	for _, e := range parsed.Effects {
-		ext.Effects = append(ext.Effects, e.Text)
-
-		// 将 effect 关联到对应的 PFE 三元组（索引访问，非值拷贝）
+		// 检查当前 effect 是否匹配任一 PFE 三元组
+		matched := false
 		for i := range ext.PFETriples {
 			for _, fid := range e.From {
 				for _, tfid := range ext.PFETriples[i].FeatureIDs {
 					if fid == tfid {
+						matched = true
 						// 已有 Effect 则不覆盖，追加描述
 						if ext.PFETriples[i].Effect == "" {
 							ext.PFETriples[i].Effect = e.Text
@@ -204,6 +205,10 @@ func mergeEffectsFromState(ext *ExtractionResult, state graph.PregelState) {
 					}
 				}
 			}
+		}
+		// 匹配到的 effect 加入列表；未匹配的（孤立）由下方孤立检查追加标记
+		if matched {
+			ext.Effects = append(ext.Effects, e.Text)
 		}
 	}
 
@@ -297,6 +302,9 @@ func BuildDisclosureAnalysisGraphWithOpts(provider agentcore.Provider, opts ...G
 	if err := pg.AddNode("merge_extractions", mergeExtractionsNode()); err != nil {
 		return nil, err
 	}
+	if err := pg.AddNode("groundedness_filter", groundednessFilterNode(provider)); err != nil {
+		return nil, err
+	}
 	if err := pg.AddNode("check_consistency", consistencyCheckNode()); err != nil {
 		return nil, err
 	}
@@ -327,7 +335,8 @@ func BuildDisclosureAnalysisGraphWithOpts(provider agentcore.Provider, opts ...G
 		{"extract_problem", "merge_extractions"},
 		{"extract_features", "merge_extractions"},
 		{"extract_effects", "merge_extractions"},
-		{"merge_extractions", "check_consistency"},
+		{"merge_extractions", "groundedness_filter"},
+		{"groundedness_filter", "check_consistency"},
 		{"generate_keywords", "retrieve_prior_art"},
 		{"retrieve_prior_art", "check_novelty"},
 		{"check_novelty", "generate_report"},

@@ -2,6 +2,7 @@ package evaluate
 
 import (
 	"context"
+	"fmt"
 )
 
 // TestCase is a single evaluation example: an input prompt, the expected
@@ -12,6 +13,14 @@ type TestCase struct {
 	Input             string
 	Expected          string
 	RequiredCitations []string
+	// Era 标记案例所属时间分片，用于时间分割评估（如 "pre_2020" | "post_2020"）。
+	// 评估时可按 Era 分割训练集和测试集，检测模型对新知识的泛化能力。
+	Era string `json:"era,omitempty"`
+	// KnowledgeCutoff 是该案例的知识截止时间（RFC3339 格式）。
+	// 运行时应限制模型只能使用此时间之前的检索数据。
+	KnowledgeCutoff string `json:"knowledge_cutoff,omitempty"`
+	// Difficulty 标注案例难度，用于分层评估分析。
+	Difficulty string `json:"difficulty,omitempty"` // "easy" | "medium" | "hard"
 }
 
 // CaseResult holds the scored output for one TestCase.
@@ -88,6 +97,9 @@ func (e *Evaluator) Evaluate(prediction, reference string, requiredCitations []s
 // provided RunFunc to obtain predictions. A test case fails if RunFunc returns
 // an error or if its average score is below the threshold.
 func (e *Evaluator) EvaluateBatch(ctx context.Context, cases []TestCase, run RunFunc) (*BatchReport, error) {
+	if run == nil {
+		return nil, fmt.Errorf("evaluator: RunFunc is nil")
+	}
 	report := &BatchReport{
 		AggregateScores: make(map[string]float64),
 	}

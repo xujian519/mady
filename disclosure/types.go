@@ -130,13 +130,24 @@ type ExtractionResult struct {
 	PFETriples []PFETriple   `json:"pfe_triples"`
 }
 
+// FeatureAssessment 是单个技术特征的新颖性评估结果。
+type FeatureAssessment struct {
+	FeatureID        string   `json:"feature_id"`
+	NoveltyStatus    string   `json:"novelty_status"`
+	Confidence       string   `json:"confidence"`
+	Reasoning        string   `json:"reasoning"`
+	SimilarPriorArt  string   `json:"similar_prior_art,omitempty"`
+	CitedEvidenceIDs []string `json:"cited_evidence_ids,omitempty"`
+}
+
 // NoveltyResult 是新颖性初判的输出。
 // 由 check_novelty 节点产出：生产路径是 novelty.go 的 noveltyNode（LLM 逐特征
 // 评估）；LLM 调用失败时回退为 report.go 的 assessNoveltyFromState 启发式评估。
 type NoveltyResult struct {
-	Assessed   bool   `json:"assessed"`
-	Conclusion string `json:"conclusion"`
-	Notes      string `json:"notes"`
+	Assessed           bool                `json:"assessed"`
+	Conclusion         string              `json:"conclusion"`
+	Notes              string              `json:"notes"`
+	FeatureAssessments []FeatureAssessment `json:"feature_assessments,omitempty"`
 }
 
 // AnalysisReport 是最终的结构化分析报告。
@@ -171,9 +182,19 @@ const (
 	StateKeyNovelty          = "novelty_result"
 	StateKeyReport           = "report"
 	StateKeyErrors           = "errors"
-	StateKeyEvidence         = "evidence_chunks"   // retrieve_prior_art 产出的证据片段
-	StateKeyEvidenceCoverage = "evidence_coverage" // "full" | "partial" | "none"
+	StateKeyEvidence         = "evidence_chunks"     // retrieve_prior_art 产出的证据片段
+	StateKeyEvidenceCoverage = "evidence_coverage"   // "full" | "partial" | "none"
+	StateKeyGroundedness     = "groundedness_result" // groundedness 过滤节点产出
 )
+
+// GroundednessResult 是 groundedness 过滤节点的输出。
+// 评估提取的特征是否在原始交底书中有坚实依据。
+type GroundednessResult struct {
+	Skipped  bool               `json:"skipped"`   // 是否跳过（无特征或 LLM 调用失败）
+	Scores   map[string]float64 `json:"scores"`    // feature_id → 0-1 groundedness 分数
+	LowCount int                `json:"low_count"` // 分数 < 0.6 的特征数
+	Feedback string             `json:"feedback"`  // 低分特征的回退改进建议
+}
 
 // EvidenceChunk 是 retrieve_prior_art 节点产出的单条现有技术证据，
 // 供 check_novelty 注入 LLM prompt 作为比对依据（对齐 design-prior-art-

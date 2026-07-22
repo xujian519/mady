@@ -762,3 +762,308 @@ func TestTruncate(t *testing.T) {
 		t.Error("truncated string should be valid UTF-8")
 	}
 }
+
+// =============================================================================
+// 缺口 2 测试：逐特征新颖性评估
+// =============================================================================
+
+func TestGetExtractionFromState(t *testing.T) {
+	// Empty state → !ok
+	_, ok := GetExtraction(graph.PregelState{})
+	if ok {
+		t.Error("expected !ok for empty state")
+	}
+
+	// Valid extraction
+	ext := &ExtractionResult{Features: []TechFeature{{ID: "f1", Description: "test"}}}
+	state := graph.PregelState{StateKeyExtraction: ext}
+	got, ok := GetExtraction(state)
+	if !ok {
+		t.Fatalf("unexpected !ok")
+	}
+	if len(got.Features) != 1 || got.Features[0].ID != "f1" {
+		t.Error("extraction result mismatch")
+	}
+
+	// Wrong type
+	_, ok = GetExtraction(graph.PregelState{StateKeyExtraction: "not-an-extraction"})
+	if ok {
+		t.Error("expected !ok for wrong type")
+	}
+}
+
+func TestGetEvidenceFromState(t *testing.T) {
+	// Empty state → nil, !ok
+	got, ok := GetEvidence(graph.PregelState{})
+	if ok {
+		t.Error("expected !ok for empty state")
+	}
+	if got != nil {
+		t.Error("expected nil for empty state")
+	}
+
+	// Valid evidence
+	ev := []EvidenceChunk{{DocID: "d1", Score: 0.9}}
+	state := graph.PregelState{StateKeyEvidence: ev}
+	got, ok = GetEvidence(state)
+	if !ok || len(got) != 1 || got[0].DocID != "d1" {
+		t.Error("evidence mismatch")
+	}
+
+	// Wrong type
+	state = graph.PregelState{StateKeyEvidence: "wrong-type"}
+	got, ok = GetEvidence(state)
+	if ok {
+		t.Error("expected !ok for wrong type")
+	}
+	if got != nil {
+		t.Error("expected nil for wrong type")
+	}
+}
+
+func TestSelectTopEvidence(t *testing.T) {
+	ev := []EvidenceChunk{
+		{DocID: "a", Score: 0.5},
+		{DocID: "b", Score: 0.9},
+		{DocID: "c", Score: 0.7},
+		{DocID: "d", Score: 0.3},
+	}
+	feature := TechFeature{ID: "f1", Category: CatStructure}
+
+	// Top-2 by Score
+	selected := selectTopEvidence(feature, ev, 2)
+	if len(selected) != 2 {
+		t.Fatalf("expected 2, got %d", len(selected))
+	}
+	if selected[0].DocID != "b" || selected[1].DocID != "c" {
+		t.Errorf("expected [b, c], got [%s, %s]", selected[0].DocID, selected[1].DocID)
+	}
+
+	// Top-K larger than available
+	selected = selectTopEvidence(feature, ev, 10)
+	if len(selected) != 4 {
+		t.Errorf("expected 4, got %d", len(selected))
+	}
+
+	// Empty evidence
+	if got := selectTopEvidence(feature, nil, 3); got != nil {
+		t.Error("expected nil for empty evidence")
+	}
+
+	// topK <= 0
+	if got := selectTopEvidence(feature, ev, 0); got != nil {
+		t.Error("expected nil for topK <= 0")
+	}
+}
+
+func TestValidateCitedEvidenceIDs_AllValid(t *testing.T) {
+	assessment := FeatureAssessment{
+		FeatureID:        "f1",
+		CitedEvidenceIDs: []string{"d1", "d2"},
+		Confidence:       "high",
+	}
+	evidence := []EvidenceChunk{
+		{DocID: "d1", Score: 0.9},
+		{DocID: "d2", Score: 0.8},
+		{DocID: "d3", Score: 0.7},
+	}
+
+	result := validateCitedEvidenceIDs(assessment, evidence)
+	if len(result.CitedEvidenceIDs) != 2 {
+		t.Errorf("expected 2 valid IDs, got %d", len(result.CitedEvidenceIDs))
+	}
+	if result.Confidence != "high" {
+		t.Error("confidence should remain high when all IDs are valid")
+	}
+}
+
+func TestValidateCitedEvidenceIDs_SomeInvalid(t *testing.T) {
+	assessment := FeatureAssessment{
+		FeatureID:        "f1",
+		CitedEvidenceIDs: []string{"d1", "nonexistent"},
+		Confidence:       "high",
+	}
+	evidence := []EvidenceChunk{
+		{DocID: "d1", Score: 0.9},
+		{DocID: "d2", Score: 0.8},
+	}
+
+	result := validateCitedEvidenceIDs(assessment, evidence)
+	if len(result.CitedEvidenceIDs) != 1 || result.CitedEvidenceIDs[0] != "d1" {
+		t.Errorf("expected [d1], got %v", result.CitedEvidenceIDs)
+	}
+	if result.Confidence != "medium" {
+		t.Error("confidence should drop to medium when invalid IDs found")
+	}
+	if !strings.Contains(result.Reasoning, "已剔除") {
+		t.Error("reasoning should mention invalid IDs were removed")
+	}
+}
+
+func TestValidateCitedEvidenceIDs_Empty(t *testing.T) {
+	assessment := FeatureAssessment{
+		FeatureID:        "f1",
+		CitedEvidenceIDs: nil,
+		Confidence:       "medium",
+	}
+	result := validateCitedEvidenceIDs(assessment, nil)
+	if result.Confidence != "medium" {
+		t.Error("empty cited IDs should not change confidence")
+	}
+}
+
+func TestParsePerFeatureOutput_Valid(t *testing.T) {
+	output := `{"feature_id":"f1","novelty_status":"likely_novel","confidence":"high","reasoning":"novel feature","cited_evidence_ids":["d1"]}`
+	fa := parsePerFeatureOutput(output, "f1")
+	if fa.FeatureID != "f1" || fa.NoveltyStatus != "likely_novel" || fa.Confidence != "high" {
+		t.Errorf("parsed result mismatch: %+v", fa)
+	}
+	if len(fa.CitedEvidenceIDs) != 1 || fa.CitedEvidenceIDs[0] != "d1" {
+		t.Errorf("cited evidence mismatch: %v", fa.CitedEvidenceIDs)
+	}
+}
+
+func TestParsePerFeatureOutput_InvalidJSON(t *testing.T) {
+	fa := parsePerFeatureOutput("not json at all", "f1")
+	if fa.FeatureID != "f1" || fa.NoveltyStatus != "unclear" || fa.Confidence != "low" {
+		t.Errorf("expected fallback on invalid JSON, got: %+v", fa)
+	}
+}
+
+func TestParsePerFeatureOutput_MissingFields(t *testing.T) {
+	output := `{"feature_id":"","novelty_status":"","confidence":""}`
+	fa := parsePerFeatureOutput(output, "f1")
+	if fa.FeatureID != "f1" {
+		t.Errorf("expected feature_id fallback to f1, got %q", fa.FeatureID)
+	}
+	if fa.NoveltyStatus != "unclear" || fa.Confidence != "low" {
+		t.Error("expected defaults for empty status/confidence")
+	}
+}
+
+func TestAggregateNoveltyResult_AllNovel(t *testing.T) {
+	assessments := []FeatureAssessment{
+		{FeatureID: "f1", NoveltyStatus: "likely_novel", Confidence: "high"},
+		{FeatureID: "f2", NoveltyStatus: "likely_novel", Confidence: "medium"},
+	}
+	result := aggregateNoveltyResult(assessments, graph.PregelState{})
+	if !result.Assessed {
+		t.Error("expected assessed = true")
+	}
+	if !strings.Contains(result.Conclusion, "全部特征可能具有新颖性") {
+		t.Errorf("unexpected conclusion: %s", result.Conclusion)
+	}
+	if len(result.FeatureAssessments) != 2 {
+		t.Errorf("expected 2 assessments, got %d", len(result.FeatureAssessments))
+	}
+}
+
+func TestAggregateNoveltyResult_Mixed(t *testing.T) {
+	assessments := []FeatureAssessment{
+		{FeatureID: "f1", NoveltyStatus: "likely_novel", Confidence: "high"},
+		{FeatureID: "f2", NoveltyStatus: "likely_known", Confidence: "high"},
+		{FeatureID: "f3", NoveltyStatus: "unclear", Confidence: "low"},
+	}
+	result := aggregateNoveltyResult(assessments, graph.PregelState{})
+	if !strings.Contains(result.Conclusion, "不确定") {
+		t.Errorf("expected conclusion to mention uncertainty, got: %s", result.Conclusion)
+	}
+	if len(result.FeatureAssessments) != 3 {
+		t.Errorf("expected 3 assessments, got %d", len(result.FeatureAssessments))
+	}
+}
+
+func TestAggregateNoveltyResult_EvidenceCoverage(t *testing.T) {
+	assessments := []FeatureAssessment{
+		{FeatureID: "f1", NoveltyStatus: "likely_novel", Confidence: "high"},
+	}
+	// Test "none" coverage
+	state := graph.PregelState{StateKeyEvidenceCoverage: "none"}
+	result := aggregateNoveltyResult(assessments, state)
+	if !strings.Contains(result.Notes, "未基于外部现有技术语料") {
+		t.Error("expected coverage warning in notes")
+	}
+
+	// Test "full" coverage
+	state = graph.PregelState{StateKeyEvidenceCoverage: "full"}
+	result = aggregateNoveltyResult(assessments, state)
+	if !strings.Contains(result.Notes, "基于外部现有技术语料") {
+		t.Error("expected coverage confirmation in notes")
+	}
+}
+
+func TestRunBatchNovelty_NoExtraction(t *testing.T) {
+	cfg := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name: "test-batch", Provider: nil,
+		},
+	}
+	result, err := runBatchNovelty(context.Background(), graph.PregelState{}, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	nr, _ := result[StateKeyNovelty].(*NoveltyResult)
+	if nr == nil || nr.Assessed {
+		t.Error("expected novelty not assessed when no extraction")
+	}
+}
+
+func TestGetMaxParallelism(t *testing.T) {
+	n := getMaxParallelism()
+	if n <= 0 {
+		t.Errorf("expected positive parallelism, got %d", n)
+	}
+}
+
+func TestBuildNoveltyInputPerFeature(t *testing.T) {
+	feature := TechFeature{
+		ID: "f1", Description: "test feature",
+		Category: CatStructure, PriorArtStatus: "unknown",
+	}
+	topK := []EvidenceChunk{
+		{DocID: "d1", Title: "Prior Art 1", Snippet: "snippet...", Score: 0.95},
+	}
+
+	input := buildNoveltyInputPerFeature(graph.PregelState{}, feature, topK)
+	if !strings.Contains(input, "f1") || !strings.Contains(input, "test feature") {
+		t.Error("expected feature info in input")
+	}
+	if !strings.Contains(input, "d1") || !strings.Contains(input, "Prior Art 1") {
+		t.Error("expected evidence info in input")
+	}
+
+	// Without evidence
+	input = buildNoveltyInputPerFeature(graph.PregelState{}, feature, nil)
+	if !strings.Contains(input, "无可用证据") {
+		t.Error("expected 'no evidence' note when topK is empty")
+	}
+}
+
+func TestParseNoveltyOutput_WithFeatureAssessments(t *testing.T) {
+	output := `{"conclusion":"all novel","feature_assessments":[{"feature_id":"f1","novelty_status":"likely_novel","confidence":"high","reasoning":"new"}],"overall_confidence":"high"}`
+	result := parseNoveltyOutput(output, graph.PregelState{
+		StateKeyEvidenceCoverage: "full",
+	})
+	if !result.Assessed || result.Conclusion != "all novel" {
+		t.Errorf("conclusion mismatch: %s", result.Conclusion)
+	}
+	if len(result.FeatureAssessments) != 1 {
+		t.Fatalf("expected 1 feature assessment, got %d", len(result.FeatureAssessments))
+	}
+	if result.FeatureAssessments[0].FeatureID != "f1" {
+		t.Errorf("expected f1, got %s", result.FeatureAssessments[0].FeatureID)
+	}
+	if !strings.Contains(result.Notes, "基于外部现有技术语料") {
+		t.Error("expected coverage note in Notes")
+	}
+}
+
+func TestParseNoveltyOutput_InvalidJSON(t *testing.T) {
+	result := parseNoveltyOutput("not json", graph.PregelState{})
+	if !result.Assessed || !strings.Contains(result.Conclusion, "解析失败") {
+		t.Errorf("expected parse error in conclusion: %s", result.Conclusion)
+	}
+	if result.FeatureAssessments != nil {
+		t.Error("expected nil FeatureAssessments on parse failure")
+	}
+}
