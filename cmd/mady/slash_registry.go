@@ -244,15 +244,6 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Handler:  func(ctx slashCtx) { s.handleThemeCommand(ctx.input) },
 	})
 	r.Register(SlashCommand{
-		Name:     "case",
-		Category: "case",
-		Desc:     "查看或切换案件",
-		Match: func(input string) bool {
-			return input == "/case" || strings.HasPrefix(input, "/case ")
-		},
-		Handler: func(ctx slashCtx) { s.handleCaseCommand(ctx.input) },
-	})
-	r.Register(SlashCommand{
 		Name:        "skill",
 		Category:    "general",
 		Desc:        "显式调用技能",

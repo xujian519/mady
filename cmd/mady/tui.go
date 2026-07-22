@@ -241,12 +241,18 @@ func runTui(ctx context.Context) {
 			app.PrintSystem("⚠ " + p.UserMessage)
 		}
 	}
-	// 结构化欢迎信息：品牌标识 + 命令速查 + 当前上下文。
+	// 启动时自动检测当前目录是否关联案件。
+	// detectCaseFromCWD 只设置状态（含 status bar），不打印；
+	// 检测结果在欢迎信息之后输出，避免"已加载案件"出现在 banner 之前。
+	caseMsg := s.detectCaseFromCWD()
 	projectLabel := "无"
 	if s.currentProject != nil {
 		projectLabel = s.currentProject.Alias
 	}
 	app.PrintWelcome(s.providerName, s.normalModel, modeLabel, projectLabel)
+	if caseMsg != "" {
+		app.PrintSystem(caseMsg)
+	}
 
 	// 先启动 TUI 渲染，再在后台初始化 Agent 和延迟任务。
 	if err := app.Start(); err != nil {
@@ -266,6 +272,9 @@ func runTui(ctx context.Context) {
 	<-app.Done()
 	if agent := s.shutdownAgent(); agent != nil {
 		agent.Close()
+	}
+	if fc.CaseIndex != nil {
+		fc.CaseIndex.Close()
 	}
 
 	// 后台延迟任务如果有错误，汇总输出到日志（TUI 已关闭，用户可查看）。

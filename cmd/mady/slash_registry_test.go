@@ -48,7 +48,6 @@ func TestSlashRegistryLookupExactAndPrefix(t *testing.T) {
 		{"/thinking", "thinking"},
 		{"/thinking effort high", "thinking"}, // prefix match
 		{"/theme dark", "theme"},
-		{"/case list", "case"},
 		{"/skill:foo", "skill"},
 		{"/mode", "mode"},
 		{"/quit", "quit"},

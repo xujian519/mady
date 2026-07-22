@@ -559,7 +559,7 @@ func (a *ChatApp) ClearJudgmentSummary() {
 //	               ─── 快速命令 ───
 //
 //	/help  快捷键指南       /clear 开始新对话
-//	/case  案件上下文       /plan  计划/行动模式
+//	/new   案件上下文       /plan  计划/行动模式
 //	/review 审核关卡        /thinking 推理显示
 //	/theme  切换深色/浅色   /settings 设置面板
 //
@@ -615,9 +615,9 @@ func (a *ChatApp) PrintWelcome(provider, model, mode, project string) {
 	type cmdPair struct{ left, right string }
 	pairs := []cmdPair{
 		{"/help  快捷键指南", "/clear 开始新对话"},
-		{"/case  案件上下文", "/plan  计划/行动模式"},
-		{"/review 审核关卡", "/thinking 推理显示"},
-		{"/theme  切换深色/浅色", "/settings 设置面板"},
+		{"/review 审核关卡",      "/plan  计划/行动模式"},
+		{"/theme  切换深色/浅色", "/thinking 推理显示"},
+		{"/settings 设置面板",     ""},
 	}
 
 	if contentW >= 60 {

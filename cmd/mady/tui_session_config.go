@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
@@ -150,6 +151,11 @@ func (s *tuiSession) extendConfig(cfg agentcore.Config) agentcore.Config {
 		cfg.Extensions = append(cfg.Extensions, s.writingExt)
 	}
 	cfg.Extensions = append(cfg.Extensions, s.fileIndexExt)
+	// 案件管理扩展：AI 内部工具（list_cases/sync_case/focus_case 等），用户不可见。
+	if s.fc.CaseIndex != nil {
+		cwd, _ := os.Getwd()
+		cfg.Extensions = append(cfg.Extensions, domains.NewCaseExtension(s.fc.CaseIndex, cwd, caseFileReader{}))
+	}
 	return s.injectMemoryExtension(s.applyPersistence(cfg))
 }
 

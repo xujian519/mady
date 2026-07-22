@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 )
 
-// appDirName 是 Mady 在用户家目录下的应用数据目录名。
+// AppDirName 是 Mady 在用户家目录下的应用数据目录名。
 // 全仓统一约定为 ".mady"，与 acp/server_app.go、psychological/store.go 一致。
-const appDirName = ".mady"
+const AppDirName = ".mady"
 
 // MadyHome 返回 Mady 应用数据根目录（绝对路径），并确保目录存在。
 //
@@ -35,7 +35,7 @@ func MadyHome() (string, error) {
 	// 2. 家目录下的 .mady
 	home, err := os.UserHomeDir()
 	if err == nil && home != "" {
-		dir := filepath.Join(home, appDirName)
+		dir := filepath.Join(home, AppDirName)
 		if err := EnsureDir(dir); err != nil {
 			return "", err
 		}
@@ -43,7 +43,7 @@ func MadyHome() (string, error) {
 	}
 
 	// 3. 最终回退：cwd 下的 .mady（UserHomeDir 不可用时，极少见）
-	fallback, err := filepath.Abs(appDirName)
+	fallback, err := filepath.Abs(AppDirName)
 	if err != nil {
 		return "", fmt.Errorf("resolve fallback mady home: %w", err)
 	}

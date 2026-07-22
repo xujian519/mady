@@ -27,6 +27,7 @@ import (
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/knowledge"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
+	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/knowledge/loader"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/mcp"
@@ -61,10 +62,32 @@ func (e *pluginToolExtension) BuildTools() []*agentcore.Tool {
 	return []*agentcore.Tool{e.tool}
 }
 
+// caseFileReader implements domains.FileContentReader by wrapping fileindex.FileReader
+// with an os.ReadFile fallback. Lives in cmd/mady (application layer) to keep
+// domains free of knowledge/fileindex imports.
+type caseFileReader struct{}
+
+func (caseFileReader) ReadText(path string) string {
+	dir := filepath.Dir(path)
+	reader := fileindex.NewFileReader(dir)
+	if result, err := reader.ReadProjectFile(context.Background(), filepath.Base(path)); err == nil {
+		return result.Content
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 // frameworkContext 封装入口之间共享的初始化资源。
 type frameworkContext struct {
 	BaseConfig      agentcore.Config
 	ProjectRegistry *domains.ProjectRegistry
+	// CaseIndex 是基于 SQLite 的案件索引库，替代 ProjectRegistry 的核心功能。
+	// 支持两阶段身份（撰写期复合标识 → 申请号）、多路径关联、文档驱动信息提取。
+	// 可能为 nil（旧环境兼容），为 nil 时回退到 ProjectRegistry。
+	CaseIndex *domains.CaseIndex
 	WikiHook        agentcore.LifecycleHook
 	WikiStore       *knowledge.Store
 	KnowledgeExt    agentcore.Extension
@@ -395,6 +418,12 @@ func initWorkspace(fc *frameworkContext) {
 	}
 	fc.WorkspaceDir = workspaceDir
 	fc.ProjectRegistry = domains.NewProjectRegistryOrEmpty(filepath.Join(workspaceDir, "projects"))
+	// 初始化案件索引库（SQLite）。失败时仅记录日志，不阻塞启动。
+	if ci, err := domains.NewCaseIndex(filepath.Join(workspaceDir, "cases.db")); err != nil {
+		fmt.Fprintf(os.Stderr, "mady: 案件索引库初始化失败（回退到 ProjectRegistry）: %v\n", err)
+	} else {
+		fc.CaseIndex = ci
+	}
 	fc.BaseConfig.WorkspaceDir = workspaceDir
 	if cwd, err := os.Getwd(); err == nil {
 		fc.BaseConfig.ProjectDir = cwd

@@ -230,79 +230,77 @@ func (s *tuiSession) handleThemeCommand(trimmed string) {
 	}
 }
 
-func (s *tuiSession) handleCaseCommand(trimmed string) {
-	args := strings.TrimSpace(strings.TrimPrefix(trimmed, "/case"))
-	switch args {
-	case "", "list":
-		records := s.fc.ProjectRegistry.List()
-		if len(records) == 0 {
-			s.app.PrintSystem("暂无已注册案件。使用 mady serve 或 ProjectRegistry API 注册案件。")
-			return
-		}
-		var sb strings.Builder
-		fmt.Fprintf(&sb, "已注册案件（%d）：\n", len(records))
-		for i, rec := range records {
-			marker := "  "
-			if s.currentProject != nil && rec.ProjectID == s.currentProject.ProjectID {
-				marker = "→ "
-			}
-			fmt.Fprintf(&sb, "%s%d. %s（%s）[%s]\n", marker, i+1, rec.Alias, rec.ProjectID, rec.Domain)
-		}
-		if s.currentProject == nil {
-			sb.WriteString("\n使用 /case <ID或别名> 切换案件")
-		}
-		s.app.PrintSystem(sb.String())
-
-	case "info":
-		if s.currentProject == nil {
-			s.app.PrintSystem("当前未选择案件。使用 /case 查看可用案件。")
-			return
-		}
-		s.app.PrintSystem(formatProjectInfo(s.currentProject, s.currentProjectMeta))
-
-	case "off", "clear":
-		if s.currentProject == nil {
-			s.app.PrintSystem("当前未选择案件")
-			return
-		}
-		oldName := s.currentProject.Alias
-		s.currentProject = nil
-		s.closeFileResources()
-		s.currentProjectMeta = nil
-		s.rebuildAgent()
-		s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
-		s.app.PrintSystem(fmt.Sprintf("已清除案件上下文（%s）", oldName))
-
-	default:
-		records := s.fc.ProjectRegistry.List()
-		var matched *domains.ProjectRecord
-		for i := range records {
-			if strings.Contains(records[i].ProjectID, args) || strings.Contains(records[i].Alias, args) {
-				matched = &records[i]
-				break
-			}
-		}
-		if matched == nil {
-			s.app.PrintSystem(fmt.Sprintf("未找到匹配 '%s' 的案件。使用 /case 查看可用案件。", args))
-			return
-		}
-		s.switchToProject(matched)
+// detectCaseFromCWD checks if the current working directory is associated with
+// a known case and loads its context. Returns a status message (empty if no
+// case was found). Does not print — the caller decides when to show the message.
+func (s *tuiSession) detectCaseFromCWD() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
 	}
+	// 先尝试通过 CaseIndex 查找
+	if s.fc.CaseIndex != nil {
+		cases, _ := s.fc.CaseIndex.FindByPath(context.Background(), cwd)
+		if len(cases) > 0 {
+			rec := cases[0]
+			return s.loadCaseContext(&rec)
+		}
+	}
+	// 回退到 ProjectRegistry（旧机制）
+	if s.fc.ProjectRegistry != nil {
+		records := s.fc.ProjectRegistry.List()
+		for _, rec := range records {
+			if rec.RootPath == cwd || strings.HasPrefix(cwd, rec.RootPath+string(filepath.Separator)) {
+				r := rec
+				return s.switchToProject(&r)
+			}
+		}
+	}
+	return ""
 }
 
-func (s *tuiSession) switchToProject(matched *domains.ProjectRecord) {
+// loadCaseContext sets the session's case context from a CaseRecord.
+// Returns a status message for the caller to display.
+func (s *tuiSession) loadCaseContext(rec *domains.CaseRecord) string {
+	pr := rec.ToProjectRecord()
+	meta := rec.ToProjectMeta()
+	s.currentProject = &pr
+	s.currentProjectMeta = &meta
+
+	s.openFileIndexForPath(pr.RootPath, pr.ProjectID)
+	s.rebuildAgent()
+	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	return fmt.Sprintf("已加载案件: %s（%s）\n工作目录: %s", rec.DisplayLabel(), rec.PrimaryIdentity(), pr.RootPath)
+}
+
+// switchToProject sets the session's case context from a ProjectRecord.
+// Returns a status message for the caller to display.
+func (s *tuiSession) switchToProject(matched *domains.ProjectRecord) string {
 	s.currentProject = matched
 	s.currentProjectMeta = nil
 	s.closeFileResources()
 	s.fileIndexExt.SetFileIndex(nil)
 
+	s.openFileIndexForPath(matched.RootPath, matched.ProjectID)
+
+	if meta, err := s.fc.ProjectRegistry.LoadMeta(matched.ProjectID); err == nil {
+		s.currentProjectMeta = meta
+	}
+	s.rebuildAgent()
+	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	return fmt.Sprintf("已切换到案件: %s（%s）\n工作目录: %s\n⚖ 已启用五阶段法律推理工具（run_five_step_workflow）", matched.Alias, matched.ProjectID, matched.RootPath)
+}
+
+// openFileIndexForPath opens a file index for the given root path and project ID.
+// Both parameters are explicit — this method does not read s.currentProject.
+func (s *tuiSession) openFileIndexForPath(rootPath, projectID string) {
 	wsDir := s.fc.WorkspaceDir
 	if wsDir == "" {
 		wsDir = filepath.Join(os.TempDir(), "mady-fileindex")
 	}
-	dbPath := filepath.Join(wsDir, "projects", matched.ProjectID, "fileindex.db")
+	dbPath := filepath.Join(wsDir, "projects", projectID, "fileindex.db")
 
-	if fi, err := fileindex.OpenFileIndex(matched.RootPath, dbPath); err == nil {
+	if fi, err := fileindex.OpenFileIndex(rootPath, dbPath); err == nil {
 		_ = fi.Refresh(context.Background())
 		s.currentFileIndex = fi
 		s.fileIndexExt.SetFileIndex(fi)
@@ -313,13 +311,6 @@ func (s *tuiSession) switchToProject(matched *domains.ProjectRecord) {
 			s.currentFileWatcher = nil
 		}
 	}
-
-	if meta, err := s.fc.ProjectRegistry.LoadMeta(matched.ProjectID); err == nil {
-		s.currentProjectMeta = meta
-	}
-	s.rebuildAgent()
-	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
-	s.app.PrintSystem(fmt.Sprintf("已切换到案件: %s（%s）\n工作目录: %s\n⚖ 已启用五阶段法律推理工具（run_five_step_workflow）", matched.Alias, matched.ProjectID, matched.RootPath))
 }
 
 func (s *tuiSession) closeFileResources() {
@@ -337,7 +328,7 @@ func (s *tuiSession) closeFileResources() {
 
 func (s *tuiSession) handleDeadlineCommand() {
 	if s.currentProjectMeta == nil || len(s.currentProjectMeta.Deadlines) == 0 {
-		s.app.PrintSystem("当前案件无期限信息。使用 /case 选择案件。")
+		s.app.PrintSystem("当前案件无期限信息。")
 		return
 	}
 	var sb strings.Builder

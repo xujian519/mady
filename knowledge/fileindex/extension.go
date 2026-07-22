@@ -53,7 +53,7 @@ func (e *Extension) FileIndex() *FileIndex {
 }
 
 // SetFallbackDir updates the runtime fallback working directory.
-// Used when /case is cleared to reset the working directory to the initial CWD.
+// Used when case context is cleared to reset the working directory to the initial CWD.
 func (e *Extension) SetFallbackDir(dir string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -99,7 +99,7 @@ func (e *Extension) Tools() []*agentcore.Tool {
 		},
 		{
 			Name:        "search_project_files",
-			Description: "在项目文件夹中搜索文件。已通过 /case 切换且索引可用时，支持文件名、路径和文件内容搜索（RRF 排序）；基础模式仅匹配文件名和路径。返回按相关性排序的文件列表。",
+			Description: "在项目文件夹中搜索文件。已关联案件且索引可用时，支持文件名、路径和文件内容搜索（RRF 排序）；基础模式仅匹配文件名和路径。返回按相关性排序的文件列表。",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -174,7 +174,7 @@ func (e *Extension) handleSearch(ctx context.Context, args json.RawMessage) (any
 	// ---- Fallback mode: simple filename/path match via WalkDir ----
 	rootDir := e.workingDir()
 	if rootDir == "" {
-		return searchResult{Message: "未设置工作目录。请先使用 /case 命令切换到案件目录，或在案件文件夹下启动 Mady。"}, nil
+		return searchResult{Message: "未设置工作目录。请在案件文件夹下启动 Mady，系统会自动识别。"}, nil
 	}
 	return searchFallback(ctx, rootDir, input.Query, input.MaxResults), nil
 }
@@ -201,12 +201,12 @@ func (e *Extension) handleReadFile(ctx context.Context, args json.RawMessage) (a
 		}
 		rootDir = fi.Dir()
 		if rootDir == "" {
-			return map[string]string{"error": "未设置工作目录。请先使用 /case 命令切换到案件目录，或在案件文件夹下启动 Mady。"}, nil
+			return map[string]string{"error": "未设置工作目录。请在案件文件夹下启动 Mady，系统会自动识别。"}, nil
 		}
 	} else {
 		rootDir = e.workingDir()
 		if rootDir == "" {
-			return map[string]string{"error": "未设置工作目录。请先使用 /case 命令切换到案件目录，或在案件文件夹下启动 Mady。"}, nil
+			return map[string]string{"error": "未设置工作目录。请在案件文件夹下启动 Mady，系统会自动识别。"}, nil
 		}
 	}
 	fullPath := input.Path
