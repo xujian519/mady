@@ -45,9 +45,9 @@ var (
 	// PCT 申请号：PCT/CN2024/123456
 	pctRe = regexp.MustCompile(`PCT/[A-Z]{2}\d{4}/\d{6}`)
 	// 专利类型
-	typeInventionRe   = regexp.MustCompile(`发明专利`)
-	typeUtilityRe     = regexp.MustCompile(`实用新型`)
-	typeDesignRe      = regexp.MustCompile(`外观设计|外观专利`)
+	typeInventionRe = regexp.MustCompile(`发明专利`)
+	typeUtilityRe   = regexp.MustCompile(`实用新型`)
+	typeDesignRe    = regexp.MustCompile(`外观设计|外观专利`)
 	// 年份
 	yearRe = regexp.MustCompile(`(20\d{2})年`)
 	// 客户/申请人标签后内容
@@ -59,8 +59,8 @@ var (
 	// 申请日
 	filingDateRe = regexp.MustCompile(`(?:申请日|申请日期)\s*[:：]?\s*(\d{4})年(\d{1,2})月(\d{1,2})日`)
 	// 权利要求数量
-	claimCountRe  = regexp.MustCompile(`共\s*(\d+)\s*项权利要求|权利要求\s*(\d+)\s*项`)
-	indClaimRe    = regexp.MustCompile(`(?m)^\d+[\.、]\s`)
+	claimCountRe = regexp.MustCompile(`共\s*(\d+)\s*项权利要求|权利要求\s*(\d+)\s*项`)
+	indClaimRe   = regexp.MustCompile(`(?m)^\d+[\.、]\s`)
 	// 摘要
 	abstractLabelRe = regexp.MustCompile(`(?s)摘\s*要\s*\n(.+?)(?:\n\s*\n|\n附图|$)`)
 )
@@ -256,7 +256,7 @@ func detectPatentType(text string) string {
 
 func detectYear(text string) int {
 	if m := yearRe.FindStringSubmatch(text); len(m) > 1 {
-		if y, err := strconv.Atoi(m[1]); err == nil && y >= 2000 && y <= int(time.Now().Year()) {
+		if y, err := strconv.Atoi(m[1]); err == nil && y >= 2000 && y <= time.Now().Year() {
 			return y
 		}
 	}

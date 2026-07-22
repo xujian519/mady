@@ -173,35 +173,6 @@ func formatProjectContext(rec *domains.ProjectRecord, meta *domains.ProjectMeta)
 	return s
 }
 
-func formatProjectInfo(rec *domains.ProjectRecord, meta *domains.ProjectMeta) string {
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "案件: %s\n", rec.Alias)
-	fmt.Fprintf(&sb, "ID: %s\n", rec.ProjectID)
-	fmt.Fprintf(&sb, "领域: %s\n", rec.Domain)
-	fmt.Fprintf(&sb, "状态: %s\n", rec.Status)
-	fmt.Fprintf(&sb, "工作目录: %s\n", rec.RootPath)
-	fmt.Fprintf(&sb, "注册时间: %s\n", rec.RegisteredAt.Format("2006-01-02"))
-	if meta != nil {
-		if meta.MatterType != "" {
-			fmt.Fprintf(&sb, "事项类型: %s\n", meta.MatterType)
-		}
-		if meta.ClientName != "" {
-			fmt.Fprintf(&sb, "客户: %s\n", meta.ClientName)
-		}
-		if len(meta.Deadlines) > 0 {
-			sb.WriteString("期限:\n")
-			for _, d := range meta.Deadlines {
-				mark := ""
-				if d.Reminded {
-					mark = "✓ "
-				}
-				fmt.Fprintf(&sb, "  %s%s: %s\n", mark, d.Type, d.DueDate)
-			}
-		}
-	}
-	return sb.String()
-}
-
 // mapMatterTypeToCaseType 将案件事项类型映射到 reasoning 工作流的 CaseType。
 func mapMatterTypeToCaseType(meta *domains.ProjectMeta) reasoning.CaseType {
 	if meta == nil || meta.MatterType == "" {

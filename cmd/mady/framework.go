@@ -26,8 +26,8 @@ import (
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/knowledge"
-	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/knowledge/fileindex"
+	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/knowledge/loader"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/mcp"
@@ -87,12 +87,12 @@ type frameworkContext struct {
 	// CaseIndex 是基于 SQLite 的案件索引库，替代 ProjectRegistry 的核心功能。
 	// 支持两阶段身份（撰写期复合标识 → 申请号）、多路径关联、文档驱动信息提取。
 	// 可能为 nil（旧环境兼容），为 nil 时回退到 ProjectRegistry。
-	CaseIndex *domains.CaseIndex
-	WikiHook        agentcore.LifecycleHook
-	WikiStore       *knowledge.Store
-	KnowledgeExt    agentcore.Extension
-	Manifests       []agentcore.AgentManifest
-	Provider        agentcore.Provider
+	CaseIndex    *domains.CaseIndex
+	WikiHook     agentcore.LifecycleHook
+	WikiStore    *knowledge.Store
+	KnowledgeExt agentcore.Extension
+	Manifests    []agentcore.AgentManifest
+	Provider     agentcore.Provider
 	// MadyHome 是应用数据根目录（~/.mady），所有可写子资源从此派生。
 	MadyHome string
 	// WorkspaceDir 是解析后的 workspace 绝对路径（~/.mady/workspace 或 $WORKSPACE_DIR）。
@@ -591,6 +591,11 @@ func initReasoningAndTemplates(fc *frameworkContext) {
 		slog.Debug("patent retriever disabled: KnowledgeBackend is nil")
 	}
 	domains.SetupPatentRetriever(patentRetriever)
+
+	// 知识库扩展注入：使 PatentAgentConfig 和 LegalAgentConfig 构造的子 Agent
+	// 拥有 search_knowledge / search_laws 工具。wikistore 延迟任务先于 reasoning
+	// 执行（串行队列），此处 fc.KnowledgeExt 已就绪。
+	domains.SetupKnowledgeExtension(fc.KnowledgeExt)
 
 	userTmplDir := filepath.Join(fc.MadyHome, "doc-templates")
 	store, err := doctmpl.NewTemplateStore(userTmplDir)

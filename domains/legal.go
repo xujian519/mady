@@ -78,6 +78,13 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	injectDraftingTool(&cfg)
 	injectDocTemplateTools(&cfg)
 
+	// 知识库扩展：为法律 Agent 提供 search_knowledge / search_laws 工具，
+	// 使其能检索本地知识库中的法律法规、司法解释和案例。
+	// 之前仅在会话级 extendConfig 注入到顶层 Chat Agent，Handoff 子 Agent 无法获得。
+	if globalKnowledgeExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
+	}
+
 	// DoomLoop: 死循环检测器。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
 

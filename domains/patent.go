@@ -52,6 +52,21 @@ var globalTemplateStore *doctmpl.TemplateStore
 // 使 search 节点能进行真实现有技术检索。
 var globalPatentRetriever domain.DomainRetriever
 
+// globalKnowledgeExt 是知识库扩展的全局实例，由 SetupKnowledgeExtension
+// 在启动期注入。PatentAgentConfig 和 LegalAgentConfig 将其注册到 Extensions 中，
+// 使子 Agent 拥有 search_knowledge / search_laws 工具。
+// 遵循与 globalDraftingRunner 一致的全局注入模式（签名受 domainFactoryMap 约束）。
+var globalKnowledgeExt agentcore.Extension
+
+// SetupKnowledgeExtension 在启动期注入知识库扩展实例，
+// 使 PatentAgentConfig 和 LegalAgentConfig 可以将 search_knowledge /
+// search_laws 工具注册到所有 Agent 实例中（包括 Handoff 子 Agent）。
+// ext 为 nil 时静默跳过，不影响现有行为。
+// 必须在任何 Agent 创建前调用。
+func SetupKnowledgeExtension(ext agentcore.Extension) {
+	globalKnowledgeExt = ext
+}
+
 // SetupPatentRetriever 在启动期注入专利领域检索器实例，
 // 使 PatentAgentConfig 可以将检索能力注入 analyze_patent_novelty 工具。
 // retriever 可为 nil——nil 时 search 节点返回占位结果，保持向后兼容。
@@ -141,6 +156,13 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 
 	injectDraftingTool(&cfg)
 	injectDocTemplateTools(&cfg)
+
+	// 知识库扩展：为专利 Agent 提供 search_knowledge / search_laws 工具，
+	// 使其能检索本地知识库中的法律法规、司法解释和案例。
+	// 之前仅在会话级 extendConfig 注入到顶层 Chat Agent，Handoff 子 Agent 无法获得。
+	if globalKnowledgeExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
+	}
 
 	// Chunked context engine for long patent documents.
 	cfg.Engine = "chunked"

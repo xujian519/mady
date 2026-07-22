@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // register sqlite driver
 )
 
 // 案件标识阶段。随着权威文档的提交，案件身份逐步升级。
@@ -28,13 +29,13 @@ const (
 
 // 文档类型（权威信息来源）。
 const (
-	DocConfirmation = "confirmation" // 专利申请确认书
-	DocFiling       = "filing"       // 申请文件（定稿）
-	DocAcceptance   = "acceptance"   // 受理通知书
-	DocPublication  = "publication"  // 公开公告
+	DocConfirmation = "confirmation"  // 专利申请确认书
+	DocFiling       = "filing"        // 申请文件（定稿）
+	DocAcceptance   = "acceptance"    // 受理通知书
+	DocPublication  = "publication"   // 公开公告
 	DocOfficeAction = "office_action" // 审查意见通知书
-	DocGrant        = "grant"        // 授权通知书
-	DocRejection    = "rejection"    // 驳回决定
+	DocGrant        = "grant"         // 授权通知书
+	DocRejection    = "rejection"     // 驳回决定
 	DocOther        = "other"
 )
 
@@ -67,11 +68,11 @@ type CasePath struct {
 
 // CaseDocument 记录已解析的权威文档。
 type CaseDocument struct {
-	CaseID    string    `json:"case_id"`
-	DocType   string    `json:"doc_type"`
-	DocPath   string    `json:"doc_path"`
-	DocHash   string    `json:"doc_hash"`
-	ParsedAt  time.Time `json:"parsed_at"`
+	CaseID   string    `json:"case_id"`
+	DocType  string    `json:"doc_type"`
+	DocPath  string    `json:"doc_path"`
+	DocHash  string    `json:"doc_hash"`
+	ParsedAt time.Time `json:"parsed_at"`
 }
 
 // CaseEvent 记录案件状态变更日志。
@@ -184,11 +185,15 @@ func (ci *CaseIndex) Close() error {
 // syncFTS 删除并重建指定案件的全文索引行。
 // 调用方必须已持有 ci.mu（所有调用点都在锁内）。
 func (ci *CaseIndex) syncFTS(ctx context.Context, caseID, clientName, patentTitle, filingNumber string) {
-	ci.db.ExecContext(ctx, `DELETE FROM cases_fts WHERE case_id = ?`, caseID)
-	ci.db.ExecContext(ctx, `
+	if _, err := ci.db.ExecContext(ctx, `DELETE FROM cases_fts WHERE case_id = ?`, caseID); err != nil {
+		slog.Warn("case_index: syncFTS delete failed", "case_id", caseID, "error", err)
+	}
+	if _, err := ci.db.ExecContext(ctx, `
 		INSERT INTO cases_fts (case_id, client_name, patent_title, filing_number)
 		VALUES (?, ?, ?, ?)
-	`, caseID, clientName, patentTitle, filingNumber)
+	`, caseID, clientName, patentTitle, filingNumber); err != nil {
+		slog.Warn("case_index: syncFTS insert failed", "case_id", caseID, "error", err)
+	}
 }
 
 // --- Case CRUD ---
@@ -546,14 +551,14 @@ func (ci *CaseIndex) UpgradeToPublished(ctx context.Context, caseID, publication
 
 // CaseSearchQuery 定义案件检索条件。空字段表示不过滤。
 type CaseSearchQuery struct {
-	FilingNumber   string
-	ClientName     string
-	PatentTitle    string
-	PatentType     string
-	Year           int
-	Status         string
-	IdentityStage  string
-	Text           string // 全文模糊匹配（走 FTS5）
+	FilingNumber  string
+	ClientName    string
+	PatentTitle   string
+	PatentType    string
+	Year          int
+	Status        string
+	IdentityStage string
+	Text          string // 全文模糊匹配（走 FTS5）
 }
 
 // SearchCases 按条件检索案件。
@@ -601,7 +606,7 @@ func (ci *CaseIndex) SearchCases(ctx context.Context, q CaseSearchQuery) ([]Case
 			created_at, updated_at
 		FROM cases`
 	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
+		query += " WHERE " + strings.Join(conditions, " AND ") //nolint:gosec // conditions are static strings, args are parameterized
 	}
 	query += " ORDER BY updated_at DESC"
 

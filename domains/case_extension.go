@@ -49,9 +49,9 @@ func NewCaseExtension(index *CaseIndex, cwd string, reader FileContentReader) *C
 	return &CaseExtension{index: index, reader: reader, cwd: cwd}
 }
 
-func (e *CaseExtension) Name() string                                    { return "case-manager" }
+func (e *CaseExtension) Name() string                                     { return "case-manager" }
 func (e *CaseExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
-func (e *CaseExtension) Dispose() error                                  { return nil }
+func (e *CaseExtension) Dispose() error                                   { return nil }
 
 // Tools 返回 AI 内部工具集。
 func (e *CaseExtension) Tools() []*agentcore.Tool {
@@ -332,13 +332,13 @@ func (e *CaseExtension) handleSyncCase(ctx context.Context, args json.RawMessage
 	_, _ = EnsureCaseWorkspace(absDir)
 
 	return syncResult{
-		Directory:  absDir,
-		CaseID:     rec.CaseID,
-		Identity:   rec.PrimaryIdentity(),
-		Stage:      stage,
-		DocCount:   len(docs),
-		IsNew:      true,
-		Message:    fmt.Sprintf("已创建新案件: %s（阶段: %s，文档: %d 个）", rec.DisplayLabel(), stageLabel(stage), len(docs)),
+		Directory: absDir,
+		CaseID:    rec.CaseID,
+		Identity:  rec.PrimaryIdentity(),
+		Stage:     stage,
+		DocCount:  len(docs),
+		IsNew:     true,
+		Message:   fmt.Sprintf("已创建新案件: %s（阶段: %s，文档: %d 个）", rec.DisplayLabel(), stageLabel(stage), len(docs)),
 	}, nil
 }
 
@@ -642,8 +642,8 @@ type caseListItem struct {
 }
 
 type caseListResponse struct {
-	Total  int            `json:"total"`
-	Cases  []caseListItem `json:"cases"`
+	Total int            `json:"total"`
+	Cases []caseListItem `json:"cases"`
 }
 
 func caseListResult(cases []CaseRecord) caseListResponse {

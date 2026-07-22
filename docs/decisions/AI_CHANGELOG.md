@@ -1,5 +1,40 @@
 # AI 变更记录
 
+## 2026-07-22: 知识库工具注入修正 — search_knowledge/search_laws 归属 Patent/Legal Agent
+
+### 背景
+知识库（9121 部法律法规 + 专利法条 + 判例 + 审查指南）的 `search_knowledge` / `search_laws` 工具
+此前仅通过会话级 `extendConfig()` 注入到顶层 Chat Agent。HandoffDelegate 创建的子 Agent
+（patent-agent、legal-advisor）不继承父 Agent 扩展，导致这些专业 Agent 虽然在 System Prompt
+中声明可用 `search_knowledge / search_laws`，实际工具注册表中并不存在——LLM 要么调用
+不存在的工具（报错），要么凭训练数据编造法条（幻觉）。
+
+### 变更内容
+
+**domains/patent.go**
+- 新增 `globalKnowledgeExt` 全局变量 + `SetupKnowledgeExtension()` 注入函数（遵循 `globalDraftingRunner` / `globalPatentRetriever` 同一模式）
+- `PatentAgentConfig` 中在 `injectDocTemplateTools` 之后追加 `globalKnowledgeExt` 到 `cfg.Extensions`
+
+**domains/legal.go**
+- `LegalAgentConfig` 中同样追加 `globalKnowledgeExt` 到 `cfg.Extensions`
+
+**domains/assistant.go**
+- 从 System Prompt 移除 `search_knowledge / search_laws` 声明（assistant-agent 不拥有知识库工具，法律/专利知识检索属于 patent-agent / legal-advisor 职责）
+
+**cmd/mady/framework.go**
+- `initReasoningAndTemplates` 中调用 `domains.SetupKnowledgeExtension(fc.KnowledgeExt)`，在 `wikistore` 延迟任务完成后注入
+
+### 设计决策
+- 采用全局注入模式而非函数签名变更：`PatentAgentConfig` 签名受 `domainFactoryMap` 约束（`func(agentcore.Config) agentcore.Config`），添加参数需要改动 domainFactoryMap 及所有调用方
+- `KnowledgeExtension` 的 `Init()` / `Dispose()` 均为空操作，同一实例安全共享于多个 Agent
+- 暂未从 `extendConfig` 移除 Chat Agent 的 KnowledgeExt 注入：单 Agent 模式（`MADY_SINGLE_AGENT=1`）仍依赖此路径；集成模式下 Chat Agent 拥有该工具不影响正确性（System Prompt 已指示路由到专业 Agent）
+
+### 验证结果
+- `go build ./...` — 通过
+- `go test ./domains/...` — 通过
+
+
+
 > **职责边界**：本文件记录 **AI 参与的功能变更决策**——做了什么、为何做、潜在风险。
 > **与 CHANGELOG.md 的分工**：`CHANGELOG.md` 记录对用户可见的版本变化（功能/修复/破坏性变更），
 > 按 Keep a Changelog + 语义化版本组织。本文件记录 AI 决策上下文（背景、变更理由、验证结果），
