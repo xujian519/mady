@@ -104,7 +104,7 @@ func NewEditTool(cwd string, cfg *EditToolConfig) *agentcore.Tool {
 				return resultErrf("edits must contain at least one replacement")
 			}
 
-			resolved, sandboxErr := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			resolved, sandboxErr := resolvePathSandboxedMode(input.Path, cwd, cfg.Sandbox, AccessWrite)
 			if sandboxErr != nil {
 				return resultErrf("%v", sandboxErr)
 			}

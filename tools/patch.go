@@ -100,7 +100,7 @@ func NewPatchTool(cwd string, cfg *PatchToolConfig) *agentcore.Tool {
 				return resultErrf("old_string is required")
 			}
 
-			resolved, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			resolved, err := resolvePathSandboxedMode(input.Path, cwd, cfg.Sandbox, AccessWrite)
 			if err != nil {
 				return resultErrf("%v", err)
 			}

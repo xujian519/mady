@@ -131,9 +131,12 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	if workingDir == "" {
 		workingDir = base.WorkspaceDir
 	}
+	allowRead, allowWrite := BuildSandboxAllowLists()
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir:     workingDir,
 		SandboxEnabled: true,
+		AllowRead:      allowRead,
+		AllowWrite:     allowWrite,
 		Vision: &tools.VisionToolConfig{
 			Provider: base.Provider,
 			Model:    base.Model,
@@ -228,10 +231,13 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	}
 
 	// 动态 WorkingDir = 案件真实文件夹，沙箱约束在此边界内
+	allowRead, allowWrite := BuildSandboxAllowLists()
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir:     rec.RootPath,
 		EnabledTools:   []string{"read", "write_file", "edit", "grep", "find", "glob", "ls"},
 		SandboxEnabled: true,
+		AllowRead:      allowRead,
+		AllowWrite:     allowWrite,
 		Vision: &tools.VisionToolConfig{
 			Provider: base.Provider,
 			Model:    base.Model,

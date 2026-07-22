@@ -14,12 +14,36 @@ import (
 
 var sandboxWarnOnce sync.Once
 
+// ErrOutsideSandbox indicates a path was rejected by the sandbox.
+// Tools should check errors.Is(err, ErrOutsideSandbox) to decide whether
+// to escalate via the permission system (Ask) instead of returning a hard error.
+var ErrOutsideSandbox = fmt.Errorf("path outside sandbox")
+
+// AccessMode classifies a file operation as read-only or read-write.
+// Read-only tools (read, grep, glob, find, ls, view, vision) check both
+// WorkingDir and AllowRead. Write tools (write_file, edit, patch, delete,
+// move) check WorkingDir and AllowWrite.
+type AccessMode int
+
+const (
+	AccessRead AccessMode = iota
+	AccessWrite
+)
+
 // WorkingDirSandbox holds sandbox configuration for file tool path resolution.
 // When Enabled is true, resolvePathSandboxed enforces that all file operations
-// stay within the WorkingDir boundary.
+// stay within the WorkingDir boundary or an explicit allowlist.
 type WorkingDirSandbox struct {
 	Enabled    bool
 	WorkingDir string
+
+	// AllowRead lists extra directory trees that read-only tools may access.
+	// Write tools are NOT permitted in these directories.
+	AllowRead []string
+
+	// AllowWrite lists extra directory trees where write tools are permitted
+	// (in addition to WorkingDir). Use sparingly (e.g. temp directories).
+	AllowWrite []string
 }
 
 // SandboxDisabled returns a sandbox that allows all paths (backward compatible).
@@ -33,7 +57,16 @@ func SandboxDisabled(workingDir string) WorkingDirSandbox {
 // resolvePathSandboxed resolves a user-provided path and enforces the WorkingDir
 // boundary when the sandbox is enabled. When disabled, falls back to resolvePath.
 // Returns the resolved absolute path, or an error if the path escapes the sandbox.
+//
+// This overload defaults to AccessRead for backward compatibility with existing
+// call sites that don't specify a mode. New callers should use resolvePathSandboxedMode.
 func resolvePathSandboxed(userPath, cwd string, sbx WorkingDirSandbox) (string, error) {
+	return resolvePathSandboxedMode(userPath, cwd, sbx, AccessRead)
+}
+
+// resolvePathSandboxedMode is the mode-aware path resolver. Write tools pass
+// AccessWrite so that AllowRead-only directories are correctly rejected.
+func resolvePathSandboxedMode(userPath, cwd string, sbx WorkingDirSandbox, mode AccessMode) (string, error) {
 	resolved := resolvePath(userPath, cwd)
 	abs, err := filepath.Abs(resolved)
 	if err != nil {
@@ -57,12 +90,10 @@ func resolvePathSandboxed(userPath, cwd string, sbx WorkingDirSandbox) (string, 
 		return "", fmt.Errorf("工作目录解析失败: %w", err)
 	}
 
-	// 解析符号链接，防止 link_to_etc -> /etc 逃逸沙箱边界
-	realAbs, err := filepath.EvalSymlinks(abs)
+	// 解析符号链接，防止 link_to_etc -> /etc 逃逸沙箱边界。
+	// 对于尚不存在的文件（写操作常见），回退到最近的已存在父目录进行校验。
+	realAbs, err := evalSymlinksExist(abs)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return "", fmt.Errorf("path not found: %s", userPath)
-		}
 		return "", fmt.Errorf("路径解析失败: %w", err)
 	}
 	realCwd, err := filepath.EvalSymlinks(absCwd)
@@ -70,13 +101,80 @@ func resolvePathSandboxed(userPath, cwd string, sbx WorkingDirSandbox) (string, 
 		return "", fmt.Errorf("工作目录解析失败: %w", err)
 	}
 
-	// 确保在 WorkingDir 子树内
-	rel, err := filepath.Rel(realCwd, realAbs)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("路径 %q 不在工作目录 %q 范围内", userPath, absCwd)
+	// 1) 确保在 WorkingDir 子树内（读写均允许）
+	if isWithin(realCwd, realAbs) {
+		return realAbs, nil
 	}
 
-	return realAbs, nil
+	// 2) 检查白名单（白名单条目已在 propagateSandbox 时预解析符号链接）
+	if mode == AccessRead {
+		for _, allowed := range sbx.AllowRead {
+			if isWithin(allowed, realAbs) {
+				return realAbs, nil
+			}
+		}
+	}
+	for _, allowed := range sbx.AllowWrite {
+		if isWithin(allowed, realAbs) {
+			return realAbs, nil
+		}
+	}
+
+	return "", fmt.Errorf("%w: 路径 %q 不在允许范围内（可通过 mady trust-knowledge 添加白名单）", ErrOutsideSandbox, userPath)
+}
+
+// resolveAllowList pre-resolves symlinks for all allowlist entries at
+// sandbox construction time. Entries that cannot be resolved (non-existent
+// directories) are silently skipped. Call this once when populating
+// WorkingDirSandbox, not per-tool-invocation.
+func resolveAllowList(dirs []string) []string {
+	var resolved []string
+	for _, d := range dirs {
+		real, err := filepath.EvalSymlinks(d)
+		if err != nil {
+			continue
+		}
+		resolved = append(resolved, real)
+	}
+	return resolved
+}
+
+// isWithin reports whether path is inside the base directory tree (or equals base).
+// Both arguments must be real (symlink-resolved) absolute paths.
+func isWithin(base, path string) bool {
+	rel, err := filepath.Rel(base, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// evalSymlinksExist resolves symlinks for a path. If the full path doesn't
+// exist (common for write targets), it resolves the nearest existing ancestor
+// directory and appends the remaining path components. This preserves sandbox
+// safety because a non-existent path cannot contain a symlink — only its
+// existing ancestors can.
+func evalSymlinksExist(abs string) (string, error) {
+	real, err := filepath.EvalSymlinks(abs)
+	if err == nil {
+		return real, nil
+	}
+	if !os.IsNotExist(err) {
+		return "", err
+	}
+	// Walk up to the nearest existing ancestor.
+	dir := abs
+	for {
+		dir = filepath.Dir(dir)
+		if dir == "/" || dir == "." {
+			return "", fmt.Errorf("path not found: %s", abs)
+		}
+		if realDir, err := filepath.EvalSymlinks(dir); err == nil {
+			// Reconstruct the full path from the resolved ancestor.
+			rel, _ := filepath.Rel(dir, abs)
+			return filepath.Join(realDir, rel), nil
+		}
+	}
 }
 
 // resolveNFD 尝试 macOS NFD 标准化。
@@ -134,16 +232,6 @@ func OpenSandboxed(path string, sbx WorkingDirSandbox) (*os.File, error) {
 		return nil, err
 	}
 	return os.Open(resolved)
-}
-
-// OpenSandboxedFile resolves path against the sandbox, opens it with the given
-// flags and permissions, and returns the *os.File pinned to the validated inode.
-func OpenSandboxedFile(path string, sbx WorkingDirSandbox, flag int, perm os.FileMode) (*os.File, error) {
-	resolved, err := resolvePathSandboxed(path, sbx.WorkingDir, sbx)
-	if err != nil {
-		return nil, err
-	}
-	return os.OpenFile(resolved, flag, perm)
 }
 
 // readFileSandboxed opens a file through the sandbox, reads its full content,

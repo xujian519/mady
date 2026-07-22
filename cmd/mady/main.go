@@ -6,6 +6,7 @@
 //	mady serve — HTTP/SSE API server with multi-domain routing
 //	mady acp   — run as an ACP (Agent Client Protocol) server for editors like Zed
 //	mady trust-mcp — trust an MCP config file so its commands may run at startup
+//	mady trust-knowledge — manage sandbox read-only whitelist for knowledge bases
 //	mady mcp-install — wire Mady as an MCP server into coding agents (e.g. claude)
 //	mady eval  — run evaluation benchmarks (static or live) and generate reports
 //	mady patent — patent analysis CLI (novelty analysis, OA response drafting)
@@ -59,6 +60,8 @@ func main() {
 		runAcp(ctx)
 	case "trust-mcp":
 		runTrustMCP(os.Args)
+	case "trust-knowledge":
+		runTrustKnowledge(os.Args[2:])
 	case "mcp-install":
 		if err := runMCPInstall(ctx, os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mcp-install:", err)
@@ -95,6 +98,9 @@ Commands:
         (e.g. mady mcp-install claude). Use --list to see detected agents.
   trust-mcp [path]  Trust an MCP config file (default: ./.mcp.json) so its
         commands may run at startup (records a SHA-256 in trusted-mcp.json).
+  trust-knowledge <path>  Add a directory to the sandbox read-only whitelist
+        so file tools can access knowledge bases outside WorkingDir.
+        Use --list to show, --remove <path> to delete.
   eval  Run evaluation benchmarks (static or live) and generate reports.
   patent  Patent analysis CLI: novelty analysis, OA response drafting.
   help  Show this help message.

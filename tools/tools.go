@@ -134,6 +134,16 @@ type ExtensionConfig struct {
 	// BuildTools.
 	SandboxEnabled bool
 
+	// AllowRead lists extra directory trees that read-only tools (read, grep,
+	// glob, find, ls, view, vision) may access in addition to WorkingDir.
+	// Write tools (write_file, edit, patch, delete, move) are NOT permitted
+	// in these directories. Useful for knowledge bases, shared templates, etc.
+	AllowRead []string
+
+	// AllowWrite lists extra directory trees where write tools are permitted
+	// in addition to WorkingDir. Use sparingly (e.g. temp directories).
+	AllowWrite []string
+
 	// EnabledTools is a positive allowlist of tool names to include.
 	// When non-empty, only tools in this list are registered (overrides
 	// DisableTools). Use this for fine-grained per-project tool sets
@@ -335,6 +345,10 @@ func propagateSandbox(cfg *ExtensionConfig) {
 	sbx := WorkingDirSandbox{
 		Enabled:    cfg.SandboxEnabled,
 		WorkingDir: cfg.WorkingDir,
+		// Pre-resolve symlinks once at construction time so per-invocation
+		// sandbox checks avoid repeated EvalSymlinks syscalls.
+		AllowRead:  resolveAllowList(cfg.AllowRead),
+		AllowWrite: resolveAllowList(cfg.AllowWrite),
 	}
 	if cfg.Read == nil {
 		cfg.Read = &ReadToolConfig{}

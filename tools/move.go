@@ -85,11 +85,11 @@ func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool {
 				return resultErrf("dest is required")
 			}
 
-			sourcePath, err := resolvePathSandboxed(input.Source, cwd, cfg.Sandbox)
+			sourcePath, err := resolvePathSandboxedMode(input.Source, cwd, cfg.Sandbox, AccessWrite)
 			if err != nil {
 				return resultErrf("source: %v", err)
 			}
-			destPath, err := resolvePathSandboxed(input.Dest, cwd, cfg.Sandbox)
+			destPath, err := resolvePathSandboxedMode(input.Dest, cwd, cfg.Sandbox, AccessWrite)
 			if err != nil {
 				return resultErrf("dest: %v", err)
 			}

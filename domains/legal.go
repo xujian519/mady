@@ -52,9 +52,12 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	if workingDir == "" {
 		workingDir = base.WorkspaceDir
 	}
+	allowRead, allowWrite := BuildSandboxAllowLists()
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir:     workingDir,
 		SandboxEnabled: true,
+		AllowRead:      allowRead,
+		AllowWrite:     allowWrite,
 		Vision: &tools.VisionToolConfig{
 			Provider: base.Provider,
 			Model:    base.Model,

@@ -104,7 +104,7 @@ func NewWriteFileTool(cwd string, cfg *WriteFileToolConfig) *agentcore.Tool {
 				return resultErrf("path is required")
 			}
 
-			resolved, sandboxErr := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			resolved, sandboxErr := resolvePathSandboxedMode(input.Path, cwd, cfg.Sandbox, AccessWrite)
 			if sandboxErr != nil {
 				return resultErrf("%v", sandboxErr)
 			}

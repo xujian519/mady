@@ -101,7 +101,7 @@ func NewDeleteTool(cwd string, cfg *DeleteToolConfig) *agentcore.Tool {
 				return resultErrf("path is required")
 			}
 
-			resolved, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			resolved, err := resolvePathSandboxedMode(input.Path, cwd, cfg.Sandbox, AccessWrite)
 			if err != nil {
 				return resultErrf("%v", err)
 			}
