@@ -102,3 +102,102 @@ func (r *necessityNonEssentialRule) Check(claims []Claim, input DraftInput) []Vi
 	}
 	return violations
 }
+
+// =============================================================================
+// 单一性检查规则（专利法第31条）
+// =============================================================================
+
+type unityInventionRule struct{ baseRule }
+
+func (r *unityInventionRule) Check(claims []Claim, _ DraftInput) []Violation {
+	var indClaims []Claim
+	for _, c := range claims {
+		if c.Kind == "independent" {
+			indClaims = append(indClaims, c)
+		}
+	}
+	if len(indClaims) <= 1 {
+		return nil
+	}
+	claimTerms := make([][]string, len(indClaims))
+	for i, c := range indClaims {
+		text := c.Preamble + " " + c.Characterized
+		claimTerms[i] = extractTechnicalTerms(text)
+	}
+	commonTerms := findCommonTerms(claimTerms)
+	if len(commonTerms) < 2 {
+		var nums []string
+		for _, c := range indClaims {
+			nums = append(nums, strconv.Itoa(c.Number))
+		}
+		return []Violation{{
+			RuleName: r.Name(), RuleBasis: r.LegalBasis(),
+			Severity: SeverityWarning, ClaimNumber: 0,
+			Message:    "权利要求" + strings.Join(nums, "、") + "之间可能不满足单一性要求（专利法第31条），缺少共同的特定技术特征",
+			Suggestion: "请检查各独立权利要求是否属于一个总的发明构思，必要时提出分案申请",
+		}}
+	}
+	return nil
+}
+
+func extractTechnicalTerms(text string) []string {
+	var terms []string
+	seen := make(map[string]bool)
+	parts := strings.FieldsFunc(text, func(r rune) bool {
+		return r == '，' || r == '；' || r == '。' || r == '、' || r == ' ' || r == '：'
+	})
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if len([]rune(part)) < 2 || len([]rune(part)) > 8 {
+			continue
+		}
+		if isStopTerm(part) {
+			continue
+		}
+		if !seen[part] {
+			seen[part] = true
+			terms = append(terms, part)
+		}
+	}
+	return terms
+}
+
+func isStopTerm(s string) bool {
+	stops := []string{"所述", "包括", "其特征在于", "其特征在于", "一种", "及", "和", "与", "或",
+		"该", "其", "之", "的", "了", "在于", "特征", "属于", "用于", "按照",
+		"其中", "之间", "以上", "以下", "至少", "根据", "一个", "同时", "另外", "不是"}
+	for _, stop := range stops {
+		if s == stop {
+			return true
+		}
+	}
+	return false
+}
+
+func findCommonTerms(claimTerms [][]string) []string {
+	if len(claimTerms) == 0 {
+		return nil
+	}
+	common := make(map[string]int)
+	for _, term := range claimTerms[0] {
+		common[term] = 1
+	}
+	for i := 1; i < len(claimTerms); i++ {
+		set := make(map[string]bool)
+		for _, t := range claimTerms[i] {
+			set[t] = true
+		}
+		for t := range common {
+			if !set[t] {
+				delete(common, t)
+			}
+		}
+	}
+	var result []string
+	for t, cnt := range common {
+		if cnt >= len(claimTerms) {
+			result = append(result, t)
+		}
+	}
+	return result
+}

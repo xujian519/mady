@@ -1,6 +1,9 @@
 package claimdrafting
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // =============================================================================
 // 清楚性规则：权利要求的类型应当清楚
@@ -197,4 +200,73 @@ func (r *clarityReferenceChainRule) Check(claims []Claim, _ DraftInput) []Violat
 		}
 	}
 	return violations
+}
+
+// =============================================================================
+// 清楚性规则：引用基础（Antecedent Basis）
+// =============================================================================
+
+type clarityAntecedentBasisRule struct{ baseRule }
+
+func (r *clarityAntecedentBasisRule) Check(claims []Claim, _ DraftInput) []Violation {
+	var violations []Violation
+	claimTextMap := make(map[int]string)
+	for _, c := range claims {
+		claimTextMap[c.Number] = c.Preamble + " " + c.Characterized
+	}
+	for _, c := range claims {
+		if c.Kind != "dependent" || len(c.Limitation) == 0 {
+			continue
+		}
+		terms := extractAntecedentTerms(c.Limitation)
+		if len(terms) == 0 {
+			continue
+		}
+		for _, depNum := range c.DependsOn {
+			parentText, ok := claimTextMap[depNum]
+			if !ok {
+				continue
+			}
+			for _, term := range terms {
+				if !strings.Contains(parentText, term) {
+					violations = append(violations, Violation{
+						RuleName: r.Name(), RuleBasis: r.LegalBasis(),
+						Severity: SeverityWarning, ClaimNumber: c.Number,
+						Message:    "从属权利要求中使用了「" + term + "」，但该术语在引用的权利要求中未出现",
+						Suggestion: "请确保" + term + "在权利要求" + strconv.Itoa(depNum) + "中有首次出现（引用基础）",
+					})
+				}
+			}
+		}
+	}
+	return violations
+}
+
+func extractAntecedentTerms(limitation string) []string {
+	var terms []string
+	seen := make(map[string]bool)
+	parts := strings.FieldsFunc(limitation, func(r rune) bool {
+		return r == '，' || r == '；' || r == '。' || r == '、' || r == '）' || r == '('
+	})
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		idx := strings.Index(part, "所述")
+		if idx < 0 {
+			continue
+		}
+		after := part[idx+len("所述"):]
+		var sb strings.Builder
+		for _, r := range after {
+			if r == '，' || r == '；' || r == '。' || r == '、' || r == ' ' || r == '）' || r == '（' {
+				break
+			}
+			sb.WriteRune(r)
+		}
+		term := strings.TrimSpace(sb.String())
+		if len([]rune(term)) >= 2 && len([]rune(term)) <= 10 && !seen[term] {
+			seen[term] = true
+			terms = append(terms, term)
+		}
+	}
+	return terms
 }

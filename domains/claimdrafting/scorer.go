@@ -63,9 +63,10 @@ func (s *ClaimScorer) calcDimensionScores(_ []Claim, violations []Violation) map
 		DimClarity:   {"clarity-claim-type", "clarity-wording", "clarity-forbidden-words", "clarity-reference", "clarity-reference-chain"},
 		DimSupport:   {"support-embodiment", "support-functional", "support-pure-functional"},
 		DimNecessity: {"necessity-completeness", "necessity-non-essential"},
-		DimFormality: {"formality-numbering", "formality-period", "formality-term-consistency",
+		DimFormality: {"formality-numbering", "formality-period",
 			"formality-no-illustration", "formality-multiple-dependent", "formality-theme-consistency", "formality-scope-narrowing"},
-		DimScope: {"domain-mechanical", "domain-electrical", "domain-chemical", "domain-software", "domain-utility-model"},
+		DimScope: {"domain-mechanical", "domain-electrical", "domain-chemical", "domain-software", "domain-utility-model",
+			"scope-over-specification", "scope-equivalents-coverage"},
 	}
 
 	scores := make(map[string]float64)

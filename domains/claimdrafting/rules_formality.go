@@ -210,3 +210,92 @@ func (r *formalityScopeNarrowingRule) Check(claims []Claim, _ DraftInput) []Viol
 	}
 	return violations
 }
+
+// =============================================================================
+// 形式规范规则：并列独立权利要求
+// =============================================================================
+
+type formalityParallelClaimRule struct{ baseRule }
+
+func (r *formalityParallelClaimRule) Check(claims []Claim, _ DraftInput) []Violation {
+	var violations []Violation
+	parallelClaims := make(map[int]int)
+	for _, c := range claims {
+		if c.Kind != "independent" || c.Preamble == "" {
+			continue
+		}
+		refNum := extractReferencedClaim(c.Preamble)
+		if refNum > 0 {
+			parallelClaims[c.Number] = refNum
+		}
+	}
+	if len(parallelClaims) == 0 {
+		return nil
+	}
+	// 检查引用链是否循环
+	for pcNum, refNum := range parallelClaims {
+		visited := make(map[int]bool)
+		cur := refNum
+		for {
+			if visited[cur] {
+				violations = append(violations, Violation{
+					RuleName: r.Name(), RuleBasis: r.LegalBasis(),
+					Severity: SeverityError, ClaimNumber: pcNum,
+					Message:    "并列独立权利要求形成循环引用链",
+					Suggestion: "检查并列独立权利要求的引用关系，避免循环依赖",
+				})
+				break
+			}
+			visited[cur] = true
+			nextRef, ok := parallelClaims[cur]
+			if !ok {
+				break
+			}
+			cur = nextRef
+		}
+	}
+	// 检查引用目标是否存在
+	for pcNum, refNum := range parallelClaims {
+		found := false
+		for _, c := range claims {
+			if c.Number == refNum {
+				found = true
+				break
+			}
+		}
+		if !found {
+			violations = append(violations, Violation{
+				RuleName: r.Name(), RuleBasis: r.LegalBasis(),
+				Severity: SeverityError, ClaimNumber: pcNum,
+				Message:    "并列独立权利要求引用的权利要求" + strconv.Itoa(refNum) + "不存在",
+				Suggestion: "确保引用的权利要求编号有效",
+			})
+		}
+	}
+	return violations
+}
+
+func extractReferencedClaim(preamble string) int {
+	patterns := []string{"权利要求", "如权利要求", "根据权利要求"}
+	for _, p := range patterns {
+		idx := strings.Index(preamble, p)
+		if idx < 0 {
+			continue
+		}
+		after := preamble[idx+len([]rune(p)):]
+		var numStr string
+		for _, r := range after {
+			if r >= '0' && r <= '9' {
+				numStr += string(r)
+			} else if numStr != "" {
+				break
+			}
+		}
+		if numStr != "" {
+			if n, err := strconv.Atoi(numStr); err == nil {
+				return n
+			}
+		}
+	}
+	return 0
+}

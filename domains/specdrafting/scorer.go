@@ -43,9 +43,9 @@ func (s *SpecScorer) calcDimensionScores(violations []Violation) map[string]floa
 	}
 
 	dimensionRules := map[string][]string{
-		DimCompleteness:     {"structure-sections", "structure-content-triad", "structure-embodiment-detail"},
+		DimCompleteness:     {"structure-sections", "structure-content-triad"},
 		DimClarity:          {"clarity-terminology", "clarity-forbidden-words", "clarity-pfe-consistency", "clarity-term-consistency"},
-		DimSupport:          {"clarity-pfe-consistency"},
+		DimSupport:          {"structure-embodiment-detail"},
 		DimFormality:        {"structure-title-length", "structure-abstract-length"},
 		DimDomainAdaptation: {"domain-mechanical", "domain-electrical", "domain-chemical", "domain-software", "utility-drawings-required", "utility-product-only"},
 	}

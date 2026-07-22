@@ -130,6 +130,9 @@ func RegisterDefaultRules(engine *RuleEngine) {
 		&clarityReferenceChainRule{baseRule: newBaseRule("clarity-reference-chain",
 			"引用关系不得形成循环依赖",
 			"专利法第26条第4款")},
+		&clarityAntecedentBasisRule{baseRule: newBaseRule("clarity-antecedent-basis",
+			"从属权利要求中的术语应当在被引用的权利要求中有引用基础（先行词）",
+			"专利法第26条第4款")},
 	)
 
 	// 形式规范规则
@@ -152,6 +155,9 @@ func RegisterDefaultRules(engine *RuleEngine) {
 		&formalityScopeNarrowingRule{baseRule: newBaseRule("formality-scope-narrowing",
 			"从属权利要求的保护范围应当在其引用权利要求的保护范围之内",
 			"专利法第26条第4款")},
+		&formalityParallelClaimRule{baseRule: newBaseRule("formality-parallel-claim",
+			"并列独立权利要求的引用关系应当合法，不得循环引用或引用自身",
+			"审查指南(2010)第二部分第二章§3.3")},
 	)
 
 	// 支持性规则
@@ -167,7 +173,7 @@ func RegisterDefaultRules(engine *RuleEngine) {
 			"审查指南第二部分第二章§3.2.1")},
 	)
 
-	// 必要技术特征规则
+	// 必要技术特征与单一性规则
 	engine.RegisterAll(
 		&necessityCompletenessRule{baseRule: newBaseRule("necessity-completeness",
 			"独立权利要求应当记载解决技术问题的全部必要技术特征",
@@ -175,6 +181,19 @@ func RegisterDefaultRules(engine *RuleEngine) {
 		&necessityNonEssentialRule{baseRule: newBaseRule("necessity-non-essential",
 			"独立权利要求不应包含非必要技术特征，以免导致保护范围过窄",
 			"专利法第26条第4款")},
+		&unityInventionRule{baseRule: newBaseRule("unity-invention",
+			"多个独立权利要求之间应当满足单一性要求，包含相同或相应的特定技术特征",
+			"专利法第31条第1款")},
+	)
+
+	// 保护范围规则
+	engine.RegisterAll(
+		&scopeOverSpecificationRule{baseRule: newBaseRule("scope-over-specification",
+			"独立权利要求中不宜使用过度具体的下位概念，应尽可能使用上位概念以拓宽保护范围",
+			"专利法第26条第4款")},
+		&scopeEquivalentsCoverageRule{baseRule: newBaseRule("scope-equivalents-coverage",
+			"从属权利要求应为等同替换预留空间，通过多层次布局覆盖替代方案",
+			"审查指南第二部分第三章§3.4（等同原则）")},
 	)
 
 	// 领域特定规则

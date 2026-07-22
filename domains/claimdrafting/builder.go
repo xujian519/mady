@@ -52,24 +52,25 @@ func (b *ClaimBuilder) Build(input DraftInput) (*DraftOutput, error) {
 	essential, optional := classifyFeatures(input.Features, input.PFETriples)
 
 	if len(essential) == 0 && len(input.Features) > 0 {
-		// 降级：如果没有必要特征标记，将所有特征作为必要特征
 		essential = make([]Feature, len(input.Features))
 		copy(essential, input.Features)
 		optional = nil
 	}
 
-	// 步骤4：撰写独立权利要求
-	// 同步领域到 input（供规则引擎使用）
 	input.TechDomain = domain
-	indClaim, err := b.buildIndependent(input, domain, essential)
+
+	// 步骤4：撰写独立权利要求（支持并列独立权利要求策略）
+	indClaims, err := b.buildIndependentClaims(input, domain, essential)
 	if err != nil {
-		return nil, fmt.Errorf("build independent claim: %w", err)
+		return nil, fmt.Errorf("build independent claims: %w", err)
 	}
 
 	// 步骤5：撰写从属权利要求
-	depClaims := b.buildDependents(indClaim, input, optional)
+	depClaims := b.buildDependents(indClaims, input, optional)
 
-	allClaims := append([]Claim{indClaim}, depClaims...)
+	var allClaims []Claim
+	allClaims = append(allClaims, indClaims...)
+	allClaims = append(allClaims, depClaims...)
 
 	// 规则验证
 	violations := b.engine.Validate(allClaims, input)
@@ -80,13 +81,8 @@ func (b *ClaimBuilder) Build(input DraftInput) (*DraftOutput, error) {
 		}
 	}
 
-	claimSet := &ClaimSet{
-		IndependentClaims: []Claim{indClaim},
-		DependentClaims:   depClaims,
-	}
-
 	output := &DraftOutput{
-		Claims:    claimSet,
+		Claims:    &ClaimSet{IndependentClaims: indClaims, DependentClaims: depClaims},
 		Warnings:  warnings,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -97,6 +93,111 @@ func (b *ClaimBuilder) Build(input DraftInput) (*DraftOutput, error) {
 }
 
 // buildIndependent 构建独立权利要求。
+
+// buildIndependentClaims 根据撰写策略构建一个或多个独立权利要求。
+func (b *ClaimBuilder) buildIndependentClaims(input DraftInput, domain TechDomain, essential []Feature) ([]Claim, error) {
+	primary, err := b.buildIndependent(input, domain, essential)
+	if err != nil {
+		return nil, err
+	}
+	claims := []Claim{primary}
+	switch input.Strategy {
+	case StrategyProductAndMethod:
+		if p := b.buildParallelMethod(input, domain, primary.Number, essential); p != nil {
+			claims = append(claims, *p)
+		}
+	case StrategyProductAndManufacturing:
+		if p := b.buildParallelManufacturing(input, domain, primary.Number, essential); p != nil {
+			claims = append(claims, *p)
+		}
+	case StrategyProductAndUse:
+		if p := b.buildParallelUse(input, domain, primary.Number); p != nil {
+			claims = append(claims, *p)
+		}
+	}
+	return claims, nil
+}
+
+// buildParallelMethod 生成"一种实施权利要求1的方法"式并列独立权利要求。
+func (b *ClaimBuilder) buildParallelMethod(input DraftInput, domain TechDomain, primaryNum int, essential []Feature) *Claim {
+	methodFeatures := filterFeaturesByCategory(essential, "method")
+	if len(methodFeatures) == 0 {
+		methodFeatures = filterFeaturesByCategory(input.Features, "method")
+	}
+	if len(methodFeatures) == 0 {
+		return nil
+	}
+	subject := b.determineSubject(input.Title, domain)
+	claimNum := primaryNum + 1
+	preamble := fmt.Sprintf("一种实施权利要求%d所述%s的方法", primaryNum, subject)
+	var steps []string
+	for _, f := range methodFeatures {
+		steps = append(steps, formatParallelFeatureDesc(f, "method"))
+	}
+	if len(steps) == 0 {
+		steps = append(steps, "[待确定：方法步骤]")
+	}
+	return &Claim{Number: claimNum, ClaimType: ClaimTypeMethod, Kind: "independent",
+		Preamble: preamble, Characterized: strings.Join(steps, "；")}
+}
+
+// buildParallelManufacturing 生成"一种制造权利要求1的产品的方法"式并列独立权利要求。
+func (b *ClaimBuilder) buildParallelManufacturing(input DraftInput, domain TechDomain, primaryNum int, essential []Feature) *Claim {
+	methodFeatures := filterFeaturesByCategory(essential, "method")
+	if len(methodFeatures) == 0 {
+		methodFeatures = filterFeaturesByCategory(input.Features, "method")
+	}
+	if len(methodFeatures) == 0 {
+		return nil
+	}
+	subject := b.determineSubject(input.Title, domain)
+	claimNum := primaryNum + 1
+	preamble := fmt.Sprintf("一种制造权利要求%d所述%s的方法", primaryNum, subject)
+	var steps []string
+	for _, f := range methodFeatures {
+		steps = append(steps, formatParallelFeatureDesc(f, "manufacturing"))
+	}
+	if len(steps) == 0 {
+		steps = append(steps, "[待确定：制造步骤]")
+	}
+	return &Claim{Number: claimNum, ClaimType: ClaimTypeMethod, Kind: "independent",
+		Preamble: preamble, Characterized: strings.Join(steps, "；")}
+}
+
+// buildParallelUse 生成"一种权利要求1所述[产品]的用途"式用途权利要求（化学/医药领域）。
+func (b *ClaimBuilder) buildParallelUse(input DraftInput, domain TechDomain, primaryNum int) *Claim {
+	claimNum := primaryNum + 1
+	preamble := fmt.Sprintf("一种权利要求%d所述%s的用途", primaryNum, b.determineSubject(input.Title, domain))
+	return &Claim{Number: claimNum, ClaimType: ClaimTypeMethod, Kind: "independent",
+		Preamble: preamble, Characterized: "[待确定：用途]"}
+}
+
+// filterFeaturesByCategory 按类别过滤特征列表。
+func filterFeaturesByCategory(features []Feature, category string) []Feature {
+	var result []Feature
+	for _, f := range features {
+		if f.Category == category {
+			result = append(result, f)
+		}
+	}
+	return result
+}
+
+// formatParallelFeatureDesc 格式化并列独立权利要求的特征描述。
+func formatParallelFeatureDesc(f Feature, mode string) string {
+	desc := strings.TrimSpace(f.Description)
+	if desc == "" {
+		return "[特征]"
+	}
+	if mode == "method" || mode == "manufacturing" {
+		return desc + "步骤"
+	}
+	if f.Function != "" {
+		return desc + "，用于" + f.Function
+	}
+	return desc
+}
+
 func (b *ClaimBuilder) buildIndependent(input DraftInput, domain TechDomain, essential []Feature) (Claim, error) {
 	// 确定主题名称
 	subject := b.determineSubject(input.Title, domain)
@@ -185,9 +286,10 @@ func (b *ClaimBuilder) buildCharacterized(_ DraftInput, essential []Feature) str
 }
 
 // buildDependents 构建从属权利要求。
-func (b *ClaimBuilder) buildDependents(indClaim Claim, input DraftInput, optional []Feature) []Claim {
+func (b *ClaimBuilder) buildDependents(indClaims []Claim, input DraftInput, optional []Feature) []Claim {
 	var deps []Claim
 	claimNum := 2
+	primaryInd := indClaims[0]
 
 	// 按重要性排序可选特征
 	sorted := sortFeaturesByImportance(optional)
@@ -213,9 +315,9 @@ func (b *ClaimBuilder) buildDependents(indClaim Claim, input DraftInput, optiona
 	for _, desc := range directRefs {
 		deps = append(deps, Claim{
 			Number:     claimNum,
-			ClaimType:  indClaim.ClaimType,
+			ClaimType:  primaryInd.ClaimType,
 			Kind:       "dependent",
-			DependsOn:  []int{indClaim.Number},
+			DependsOn:  []int{primaryInd.Number},
 			Limitation: desc,
 		})
 		claimNum++
@@ -223,14 +325,14 @@ func (b *ClaimBuilder) buildDependents(indClaim Claim, input DraftInput, optiona
 
 	// 类型2：引用独立权利要求（前序部分特征的进一步限定）
 	for i, desc := range chainRefs {
-		depOn := indClaim.Number
+		depOn := primaryInd.Number
 		if i > 0 && len(deps) > 0 {
 			// 类型3：引用前一项从属权利要求（形成引用链）
 			depOn = claimNum - 1
 		}
 		deps = append(deps, Claim{
 			Number:     claimNum,
-			ClaimType:  indClaim.ClaimType,
+			ClaimType:  primaryInd.ClaimType,
 			Kind:       "dependent",
 			DependsOn:  []int{depOn},
 			Limitation: desc,

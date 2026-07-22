@@ -30,6 +30,16 @@ const (
 	ClaimTypeMethod  ClaimType = "method"  // 方法权利要求（制造/使用/处理方法）
 )
 
+// ClaimStrategy 定义权利要求书的撰写策略，控制独立权利要求的数量与类型布局。
+type ClaimStrategy string
+
+const (
+	StrategyProductOnly             ClaimStrategy = "product_only"
+	StrategyProductAndMethod        ClaimStrategy = "product_and_method"
+	StrategyProductAndManufacturing ClaimStrategy = "product_and_manufacturing"
+	StrategyProductAndUse           ClaimStrategy = "product_and_use"
+)
+
 // =============================================================================
 // 权利要求结构
 // =============================================================================
@@ -92,14 +102,15 @@ func (cs *ClaimSet) Claims() []Claim {
 // DraftInput 是权利要求撰写的输入数据。
 // 与 disclosure 包的 ExtractionResult 语义等价，保持独立定义以避免循环依赖。
 type DraftInput struct {
-	Title       string      `json:"title"`                 // 发明名称
-	TechDomain  TechDomain  `json:"tech_domain,omitempty"` // 技术领域（空则自动识别）
-	Problems    []string    `json:"problems"`              // 要解决的技术问题
-	Features    []Feature   `json:"features"`              // 技术特征列表
-	Effects     []string    `json:"effects"`               // 技术效果
-	PFETriples  []PFETriple `json:"pfe_triples"`           // 问题-特征-效果关联
-	PriorArt    string      `json:"prior_art,omitempty"`   // 最接近的现有技术描述
-	Description string      `json:"description,omitempty"` // 说明书摘要（用于支持性验证）
+	Title       string        `json:"title"`                 // 发明名称
+	TechDomain  TechDomain    `json:"tech_domain,omitempty"` // 技术领域（空则自动识别）
+	Strategy    ClaimStrategy `json:"strategy,omitempty"`    // 撰写策略（空则 product_only）
+	Problems    []string      `json:"problems"`              // 要解决的技术问题
+	Features    []Feature     `json:"features"`              // 技术特征列表
+	Effects     []string      `json:"effects"`               // 技术效果
+	PFETriples  []PFETriple   `json:"pfe_triples"`           // 问题-特征-效果关联
+	PriorArt    string        `json:"prior_art,omitempty"`   // 最接近的现有技术描述
+	Description string        `json:"description,omitempty"` // 说明书摘要（用于支持性验证）
 }
 
 // Feature 是最小技术单元——不可再分的原子技术手段。
