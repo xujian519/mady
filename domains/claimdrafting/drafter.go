@@ -17,6 +17,7 @@ import (
 type LLMDrafter struct {
 	provider Provider // LLM provider 接口
 	builder  *ClaimBuilder
+	engine   *RuleEngine // 规则引擎（用于 LLM 输出的二次验证）
 }
 
 // Provider 是 LLM provider 接口，用于抽象实际的 LLM 调用。
@@ -29,10 +30,12 @@ type Provider interface {
 
 // NewLLMDrafter 创建一个 LLM 撰写器。
 // provider 可为 nil（此时降级为纯规则引擎）。
-func NewLLMDrafter(provider Provider, builder *ClaimBuilder) *LLMDrafter {
+// engine 可为 nil（此时跳过 LLM 输出的规则验证）。
+func NewLLMDrafter(provider Provider, builder *ClaimBuilder, engine *RuleEngine) *LLMDrafter {
 	return &LLMDrafter{
 		provider: provider,
 		builder:  builder,
+		engine:   engine,
 	}
 }
 
@@ -64,7 +67,16 @@ func (d *LLMDrafter) DraftFromScratch(input DraftInput) (*DraftOutput, error) {
 
 	// 步骤 3：解析 LLM 结果
 	if parsed := parseClaimsFromLLM(result, input); parsed != nil {
-		parsed.Warnings = fallback.Warnings // 复用 builder 的规则校验警告
+		// 通过规则引擎验证 LLM 生成的 claims（而非复用 builder 的警告）
+		if d.engine != nil {
+			allClaims := parsed.Claims.Claims()
+			violations := d.engine.Validate(allClaims, input)
+			for _, v := range violations {
+				if v.Severity == SeverityWarning || v.Severity == SeverityInfo {
+					parsed.Warnings = append(parsed.Warnings, "["+v.RuleName+"] "+v.Message)
+				}
+			}
+		}
 		return parsed, nil
 	}
 
@@ -111,14 +123,8 @@ func parseClaimsFromLLM(text string, input DraftInput) *DraftOutput {
 		return nil // 必须至少有一个独立权利要求
 	}
 
-	// 推断 claimType：从独立权利要求中选取第一个的类型
-	claimType := ClaimTypeProduct
-	for _, c := range indClaims {
-		if c.ClaimType != "" {
-			claimType = c.ClaimType
-			break
-		}
-	}
+	// claimType 取第一个独立权利要求的类型（所有独立权利要求类型一致）
+	claimType := indClaims[0].ClaimType
 
 	return &DraftOutput{
 		Claims: &ClaimSet{
@@ -249,47 +255,6 @@ func parseSingleClaim(text string) *Claim {
 			Preamble:      preamble,
 			Characterized: characterized,
 			ClaimType:     claimType,
-		}
-	}
-
-	// 从属权利要求：以 "根据权利要求" 开头
-	if strings.HasPrefix(body, "根据权利要求") {
-		after := body[len("根据权利要求"):]
-
-		// 查找 "所述的" 分隔位置
-		sepIdx := strings.Index(after, "所述的")
-		if sepIdx < 0 {
-			return nil
-		}
-		depStr := after[:sepIdx]
-		limitation := strings.TrimSpace(after[sepIdx+len("所述的"):])
-
-		// 解析引用编号：支持 "1"、"1或2"、"1、2或3"
-		depStr = strings.ReplaceAll(depStr, "、", "或")
-		parts := strings.Split(depStr, "或")
-		var dependsOn []int
-		for _, p := range parts {
-			p = strings.TrimSpace(p)
-			if n, err := strconv.Atoi(p); err == nil {
-				dependsOn = append(dependsOn, n)
-			}
-		}
-		if len(dependsOn) == 0 {
-			return nil
-		}
-
-		claimType := ClaimTypeProduct
-		lower := strings.ToLower(limitation)
-		if strings.Contains(lower, "方法") || strings.Contains(lower, "工艺") || strings.Contains(lower, "流程") {
-			claimType = ClaimTypeMethod
-		}
-
-		return &Claim{
-			Number:     number,
-			Kind:       "dependent",
-			DependsOn:  dependsOn,
-			Limitation: limitation,
-			ClaimType:  claimType,
 		}
 	}
 

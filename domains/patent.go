@@ -92,7 +92,7 @@ func SetupClaimDraftingExtension(provider agentcore.Provider, model string) {
 	if provider != nil {
 		adapter := claimdrafting.NewProviderAdapter(provider, model)
 		// Pass a default builder so drafter's fallback path doesn't NPE.
-		ext.SetDrafter(claimdrafting.NewLLMDrafter(adapter, claimdrafting.NewClaimBuilder("", "")))
+		ext.SetDrafter(claimdrafting.NewLLMDrafter(adapter, claimdrafting.NewClaimBuilder("", ""), engine))
 	}
 	globalClaimDraftingExt = ext
 }
