@@ -117,6 +117,8 @@ type frameworkContext struct {
 	// MemoryCompiler 是策略学习编译器，通过 ε-greedy 探索策略选择最佳执行路径。
 	// 与 MemoryManager 不同，CompilerExtension 无 scope 依赖，直接注册到 BaseConfig。
 	MemoryCompiler *compiler.Compiler
+	// CompilerDBPath 是策略编译器持久化文件路径（$MADY_HOME/compiler.json）。
+	CompilerDBPath string
 	// SessionSummarizer 是会话关闭时的异步汇总器。为 nil 时跳过汇总。
 	SessionSummarizer *memory.SessionSummarizer
 
@@ -548,9 +550,16 @@ func initMemorySystem(fc *frameworkContext) {
 		ExplorationRate: 5,
 		MaxTraces:       1000,
 	})
+	// 从磁盘加载历史策略统计（重启不丢失学习成果）。
+	compilerDB := filepath.Join(fc.MadyHome, "compiler.json")
+	if err := fc.MemoryCompiler.Load(compilerDB); err != nil {
+		fmt.Fprintf(os.Stderr, "compiler: 加载持久化状态失败: %v（使用默认策略）\n", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "compiler: 策略学习系统已就绪（%d 个策略，已加载历史统计）\n",
+			len(fc.MemoryCompiler.Strategies()))
+	}
+	fc.CompilerDBPath = compilerDB
 	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, compiler.NewExtension(fc.MemoryCompiler))
-	fmt.Fprintf(os.Stderr, "compiler: 策略学习系统已就绪（%d 个预设策略）\n",
-		len(fc.MemoryCompiler.Strategies()))
 
 	// 6. 会话汇总器。
 	if fc.Provider != nil && os.Getenv("MADY_MEMORY_AUTO_EXTRACT") == "1" {

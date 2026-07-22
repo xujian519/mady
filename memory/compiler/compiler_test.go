@@ -2,8 +2,12 @@ package compiler
 
 import (
 	"math/rand"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/xujian519/mady/agentcore"
 )
 
 func TestStrategy_SuccessRate(t *testing.T) {
@@ -250,5 +254,169 @@ func TestExecutionTrace_Complete(t *testing.T) {
 	}
 	if trace.CompletedAt.IsZero() {
 		t.Error("completed time not set")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S1: Decay-aware strategy selection
+// ---------------------------------------------------------------------------
+
+func TestSelectStrategyWithDecay_PrefersRecent(t *testing.T) {
+	// Two strategies with same success rate, but one used recently and one long ago.
+	now := time.Now()
+	strategies := []Strategy{
+		{ID: "old", Preconditions: []string{"test"}, Successes: 8, Failures: 2, LastUsedAt: now.AddDate(0, 0, -60)},
+		{ID: "new", Preconditions: []string{"test"}, Successes: 8, Failures: 2, LastUsedAt: now},
+	}
+
+	cfg := DefaultDecayConfig()
+	rng := rand.New(rand.NewSource(42))
+	pick := SelectStrategyWithDecay("test", strategies, 0, cfg, rng)
+	if pick.Strategy == nil {
+		t.Fatal("expected non-nil pick")
+	}
+	if pick.Strategy.ID != "new" {
+		t.Errorf("expected 'new' (recently used) to be preferred, got %q", pick.Strategy.ID)
+	}
+}
+
+func TestSelectStrategyWithDecay_NoDecayFallback(t *testing.T) {
+	// Zero-valued DecayConfig should behave like SelectStrategy (no decay).
+	strategies := []Strategy{
+		{ID: "a", Preconditions: []string{"x"}, Successes: 3, Failures: 7},
+		{ID: "b", Preconditions: []string{"x"}, Successes: 9, Failures: 1},
+	}
+	rng := rand.New(rand.NewSource(1))
+	pick := SelectStrategyWithDecay("x", strategies, 0, DecayConfig{}, rng)
+	if pick.Strategy == nil || pick.Strategy.ID != "b" {
+		t.Errorf("expected 'b' (highest rate), got %+v", pick.Strategy)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S2: Quality-weighted learning
+// ---------------------------------------------------------------------------
+
+func TestCompiler_FinishTurn_NoiseSkipped(t *testing.T) {
+	c := NewCompiler(Config{ExplorationRate: 0})
+
+	_, sid := c.StartTurn("审查意见")
+	st, _ := c.StrategyByID(sid)
+	initialSuccess := st.Successes
+	initialFailures := st.Failures
+
+	// Aborted trace = NOISE → should not affect stats
+	trace := NewTrace("t1", "审查意见", sid, 1)
+	trace.Complete(OutcomeAborted, 0, 0)
+	c.FinishTurn(trace)
+
+	st2, _ := c.StrategyByID(sid)
+	if st2.Successes != initialSuccess || st2.Failures != initialFailures {
+		t.Errorf("noise trace should not affect stats: got S=%d F=%d, want S=%d F=%d",
+			st2.Successes, st2.Failures, initialSuccess, initialFailures)
+	}
+}
+
+func TestCompiler_FinishTurn_HighSignalCounts(t *testing.T) {
+	c := NewCompiler(Config{ExplorationRate: 0})
+
+	_, sid := c.StartTurn("审查意见")
+	st, _ := c.StrategyByID(sid)
+	initial := st.Successes
+
+	// Clean success (0 tool errors) = HIGH_SIGNAL
+	trace := NewTrace("t1", "审查意见", sid, 1)
+	trace.Complete(OutcomeSuccess, 3, 0)
+	c.FinishTurn(trace)
+
+	st2, _ := c.StrategyByID(sid)
+	if st2.Successes != initial+1 {
+		t.Errorf("high-signal success should increment: got %d want %d", st2.Successes, initial+1)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S3: Persistence (Save/Load)
+// ---------------------------------------------------------------------------
+
+func TestCompiler_SaveLoad(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compiler.json")
+
+	// Create compiler and accumulate some stats
+	c1 := NewCompiler(Config{ExplorationRate: 10, MaxTraces: 500})
+	trace := NewTrace("t1", "审查意见", "oa_three_step", 1)
+	trace.Complete(OutcomeSuccess, 2, 0)
+	c1.FinishTurn(trace)
+
+	// Save
+	if err := c1.Save(path); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("saved file not found: %v", err)
+	}
+
+	// Load into a fresh compiler
+	c2 := NewCompiler(Config{})
+	if err := c2.Load(path); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// Verify strategy stats survived
+	st, ok := c2.StrategyByID("oa_three_step")
+	if !ok {
+		t.Fatal("oa_three_step not found after load")
+	}
+	if st.Successes != 1 {
+		t.Errorf("loaded successes=%d want 1", st.Successes)
+	}
+}
+
+func TestCompiler_LoadNonExistent(t *testing.T) {
+	c := NewCompiler(Config{})
+	// Loading a non-existent file should be a no-op (not an error)
+	if err := c.Load("/tmp/does_not_exist_compiler_test.json"); err != nil {
+		t.Errorf("Load non-existent should return nil, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S4: Outcome classification helpers
+// ---------------------------------------------------------------------------
+
+func TestContainsFailureSignal(t *testing.T) {
+	tests := []struct {
+		text string
+		want bool
+	}{
+		{"任务已完成", false},
+		{"无法完成该操作", true},
+		{"I cannot help with that", true},
+		{"操作失败，请重试", true},
+		{"正常回复", false},
+		{"An error occurred during processing", true},
+	}
+	for _, tt := range tests {
+		got := containsFailureSignal(tt.text)
+		if got != tt.want {
+			t.Errorf("containsFailureSignal(%q)=%v want %v", tt.text, got, tt.want)
+		}
+	}
+}
+
+func TestCountToolStats(t *testing.T) {
+	// Verify the function handles nil gracefully.
+	calls, errors := countToolStats(nil)
+	if calls != 0 || errors != 0 {
+		t.Error("nil messages should return 0,0")
+	}
+
+	// Also verify empty slice returns zero.
+	calls, errors = countToolStats([]agentcore.Message{})
+	if calls != 0 || errors != 0 {
+		t.Error("empty messages should return 0,0")
 	}
 }

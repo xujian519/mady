@@ -55,6 +55,13 @@ type StrategyPick struct {
 //
 // If no strategies match, returns nil.
 func SelectStrategy(goal string, strategies []Strategy, explorationRate int, rng *rand.Rand) StrategyPick {
+	return SelectStrategyWithDecay(goal, strategies, explorationRate, DecayConfig{}, rng)
+}
+
+// SelectStrategyWithDecay picks the best strategy using ε-greedy with time-based
+// confidence decay. When decayCfg is zero-valued, it behaves identically to
+// SelectStrategy (no decay applied).
+func SelectStrategyWithDecay(goal string, strategies []Strategy, explorationRate int, decayCfg DecayConfig, rng *rand.Rand) StrategyPick {
 	if rng == nil {
 		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 	}
@@ -80,21 +87,31 @@ func SelectStrategy(goal string, strategies []Strategy, explorationRate int, rng
 		}
 	}
 
-	// Exploitation: pick highest success rate
+	// Exploitation: pick highest confidence (success rate with time decay)
+	useDecay := decayCfg.WeeklyDecayRate > 0
 	bestIdx := matching[0]
-	bestRate := strategies[bestIdx].SuccessRate()
+	bestScore := confidenceScore(strategies[bestIdx], decayCfg, useDecay)
 	for _, idx := range matching[1:] {
-		rate := strategies[idx].SuccessRate()
-		if rate > bestRate || (rate == bestRate && strategies[idx].Samples() > strategies[bestIdx].Samples()) {
-			bestRate = rate
+		score := confidenceScore(strategies[idx], decayCfg, useDecay)
+		if score > bestScore || (score == bestScore && strategies[idx].Samples() > strategies[bestIdx].Samples()) {
+			bestScore = score
 			bestIdx = idx
 		}
 	}
 	return StrategyPick{
 		Strategy: &strategies[bestIdx],
 		Explored: false,
-		Reason:   "exploitation: 选择成功率最高的策略",
+		Reason:   "exploitation: 选择置信度最高的策略",
 	}
+}
+
+// confidenceScore returns the decayed confidence for a strategy.
+// When useDecay is false, it falls back to raw SuccessRate.
+func confidenceScore(s Strategy, cfg DecayConfig, useDecay bool) float64 {
+	if !useDecay {
+		return s.SuccessRate()
+	}
+	return StrategyConfidence(s, cfg)
 }
 
 // DefaultStrategies returns preset strategies for the patent/legal domain.

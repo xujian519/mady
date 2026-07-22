@@ -1,8 +1,10 @@
 package compiler
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 )
@@ -18,6 +20,11 @@ type Compiler struct {
 	decayCfg        DecayConfig
 	rng             *rand.Rand
 	rngMu           sync.Mutex
+
+	// successToggle and failureToggle alternate for 50% effective weighting
+	// of MEDIUM_SIGNAL outcomes (see FinishTurn).
+	successToggle bool
+	failureToggle bool
 }
 
 // Config configures a Compiler.
@@ -53,18 +60,20 @@ func NewCompiler(cfg Config) *Compiler {
 
 // StartTurn selects a strategy for the given goal and returns compiled guidance.
 // The returned guidance string can be injected into the agent's context.
+// Strategy selection uses time-decayed confidence when DecayConfig is set.
 func (c *Compiler) StartTurn(goal string) (guidance string, strategyID string) {
 	c.mu.Lock()
 	strategies := make([]Strategy, len(c.strategies))
 	copy(strategies, c.strategies)
 	expRate := c.explorationRate
+	decayCfg := c.decayCfg
 	c.mu.Unlock()
 
 	c.rngMu.Lock()
 	rng := c.rng
 	c.rngMu.Unlock()
 
-	pick := SelectStrategy(goal, strategies, expRate, rng)
+	pick := SelectStrategyWithDecay(goal, strategies, expRate, decayCfg, rng)
 	if pick.Strategy == nil {
 		return "", ""
 	}
@@ -78,26 +87,49 @@ func (c *Compiler) StartTurn(goal string) (guidance string, strategyID string) {
 	}
 	c.mu.Unlock()
 
-	guidance = fmt.Sprintf("[策略建议] %s\n指导: %s\n(来源: %s, 成功率: %.0f%%)",
+	confidence := StrategyConfidence(*pick.Strategy, decayCfg)
+	guidance = fmt.Sprintf("[策略建议] %s\n指导: %s\n(来源: %s, 置信度: %.0f%%)",
 		pick.Strategy.Description, pick.Strategy.Guidance, pick.Reason,
-		pick.Strategy.SuccessRate()*100)
+		confidence*100)
 
 	return guidance, pick.Strategy.ID
 }
 
 // FinishTurn records the execution outcome and updates strategy statistics.
+// Trace signal quality (ClassifyQuality) affects the weight of the update:
+// HIGH_SIGNAL traces count fully, MEDIUM_SIGNAL count as 0.5, NOISE is skipped.
 func (c *Compiler) FinishTurn(trace ExecutionTrace) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Update strategy stats
+	// Update strategy stats (quality-weighted)
 	if trace.StrategyID != "" {
+		quality := ClassifyQuality(trace)
 		for i := range c.strategies {
 			if c.strategies[i].ID == trace.StrategyID {
-				if trace.Outcome.IsPositive() {
-					c.strategies[i].Successes++
-				} else if trace.Outcome == OutcomeFailure {
-					c.strategies[i].Failures++
+				switch {
+				case quality == QualityNoise:
+					// Noise traces do not affect strategy statistics.
+				case trace.Outcome.IsPositive():
+					if quality == QualityHigh {
+						c.strategies[i].Successes++
+					} else {
+						// MEDIUM_SIGNAL positive: 50% effective via alternation.
+						c.successToggle = !c.successToggle
+						if c.successToggle {
+							c.strategies[i].Successes++
+						}
+					}
+				case trace.Outcome == OutcomeFailure:
+					if quality == QualityHigh {
+						c.strategies[i].Failures++
+					} else {
+						// MEDIUM_SIGNAL failure: 50% effective via alternation.
+						c.failureToggle = !c.failureToggle
+						if c.failureToggle {
+							c.strategies[i].Failures++
+						}
+					}
 				}
 				break
 			}
@@ -169,4 +201,76 @@ func (c *Compiler) Stats() Stats {
 		}
 	}
 	return s
+}
+
+// ---------------------------------------------------------------------------
+// Persistence
+// ---------------------------------------------------------------------------
+
+// persistData is the JSON-serializable snapshot of Compiler state.
+type persistData struct {
+	Strategies      []Strategy  `json:"strategies"`
+	ExplorationRate int         `json:"exploration_rate"`
+	MaxTraces       int         `json:"max_traces"`
+	DecayConfig     DecayConfig `json:"decay_config"`
+}
+
+// Save persists the compiler's strategy statistics to a JSON file.
+// Traces are not persisted (they are ephemeral diagnostics); only strategy
+// stats and configuration are saved. Returns an error if writing fails.
+func (c *Compiler) Save(path string) error {
+	c.mu.Lock()
+	data := persistData{
+		Strategies:      make([]Strategy, len(c.strategies)),
+		ExplorationRate: c.explorationRate,
+		MaxTraces:       c.maxTraces,
+		DecayConfig:     c.decayCfg,
+	}
+	copy(data.Strategies, c.strategies)
+	c.mu.Unlock()
+
+	b, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Errorf("compiler: marshal: %w", err)
+	}
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		return fmt.Errorf("compiler: write %s: %w", path, err)
+	}
+	return nil
+}
+
+// Load restores strategy statistics from a previously saved JSON file.
+// If the file does not exist, Load returns nil (no-op) so callers can
+// unconditionally call Load on startup. Existing in-memory strategies are
+// replaced by the loaded data.
+func (c *Compiler) Load(path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // no saved state, start fresh
+		}
+		return fmt.Errorf("compiler: read %s: %w", path, err)
+	}
+
+	var data persistData
+	if err := json.Unmarshal(b, &data); err != nil {
+		return fmt.Errorf("compiler: unmarshal: %w", err)
+	}
+	if len(data.Strategies) == 0 {
+		return nil // empty file, keep defaults
+	}
+
+	c.mu.Lock()
+	c.strategies = data.Strategies
+	if data.ExplorationRate > 0 {
+		c.explorationRate = data.ExplorationRate
+	}
+	if data.MaxTraces > 0 {
+		c.maxTraces = data.MaxTraces
+	}
+	if data.DecayConfig.WeeklyDecayRate > 0 {
+		c.decayCfg = data.DecayConfig
+	}
+	c.mu.Unlock()
+	return nil
 }

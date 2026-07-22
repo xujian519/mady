@@ -273,6 +273,12 @@ func runTui(ctx context.Context) {
 	if agent := s.shutdownAgent(); agent != nil {
 		agent.Close()
 	}
+	// 持久化策略编译器状态（重启不丢失学习成果）。
+	if fc.MemoryCompiler != nil && fc.CompilerDBPath != "" {
+		if err := fc.MemoryCompiler.Save(fc.CompilerDBPath); err != nil {
+			log.Printf("compiler: save state: %v", err)
+		}
+	}
 	if fc.CaseIndex != nil {
 		fc.CaseIndex.Close()
 	}
