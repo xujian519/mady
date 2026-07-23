@@ -33,7 +33,7 @@ type TemplateStore struct {
 
 // NewTemplateStore creates a store by loading embedded templates from the
 // doctmpl package's //go:embed filesystem, then overlaying any templates
-// found under userRoots. A default MarkdownRenderer is registered.
+// found under userRoots. Markdown/DOCX/PDF renderers are registered by default.
 func NewTemplateStore(userRoots ...string) (*TemplateStore, error) {
 	store := &TemplateStore{
 		byName:           make(map[string]int),
@@ -41,6 +41,8 @@ func NewTemplateStore(userRoots ...string) (*TemplateStore, error) {
 		embeddedVersions: make(map[string]string),
 	}
 	store.renderers.Register(&MarkdownRenderer{})
+	store.renderers.Register(&DOCXRenderer{})
+	store.renderers.Register(&PDFRenderer{})
 
 	// Load embedded templates first.
 	embedded, err := LoadDocTemplatesFromFS(embeddedTemplatesFS, embeddedTemplatesDir)

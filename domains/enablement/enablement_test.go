@@ -1001,3 +1001,188 @@ func TestExperimentDataAssessment_JSONRoundtrip(t *testing.T) {
 		t.Errorf("MissingFactors not preserved: %v", restored.MissingFactors)
 	}
 }
+
+// =============================================================================
+// KnowledgeRetriever 相关测试
+// =============================================================================
+
+// mockKnowledgeRetriever 是 KnowledgeRetriever 的测试替身。
+type mockKnowledgeRetriever struct {
+	guidelines []string
+	cases      []string
+	err        error // 模拟检索失败
+}
+
+func (m *mockKnowledgeRetriever) SearchGuidelines(_ context.Context, _ TechDomain, _ []string, _ []TechFeature) ([]string, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.guidelines, nil
+}
+
+func (m *mockKnowledgeRetriever) SearchSimilarCases(_ context.Context, _ TechDomain, _ []TechFeature, _ []string) ([]string, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.cases, nil
+}
+
+func TestEnrichInput_NilRetriever(t *testing.T) {
+	input := &EnablementInput{
+		Features: []TechFeature{{ID: "f1", Description: "测试特征"}},
+	}
+
+	EnrichInput(context.Background(), input, nil)
+
+	if len(input.GuidelineRefs) != 0 {
+		t.Error("GuidelineRefs should be empty when retriever is nil")
+	}
+	if len(input.SimilarCases) != 0 {
+		t.Error("SimilarCases should be empty when retriever is nil")
+	}
+}
+
+func TestEnrichInput_NilInput(t *testing.T) {
+	// EnrichInput 在 input 为 nil 时不应 panic。
+	EnrichInput(context.Background(), nil, &mockKnowledgeRetriever{})
+}
+
+func TestEnrichInput_GuidelineRefs(t *testing.T) {
+	mock := &mockKnowledgeRetriever{
+		guidelines: []string{
+			"审查指南第二部分第二章第2.1.3节：能够实现的标准",
+			"审查指南第二部分第二章第2.1.2节：清楚、完整的要求",
+		},
+	}
+	input := &EnablementInput{
+		Features: []TechFeature{
+			{ID: "f1", Description: "催化剂活性组分", Category: "material", Function: "催化反应", Importance: "high"},
+		},
+		Problems: []string{"催化剂活性不够高"},
+	}
+
+	EnrichInput(context.Background(), input, mock)
+
+	if len(input.GuidelineRefs) != 2 {
+		t.Fatalf("expected 2 guideline refs, got %d", len(input.GuidelineRefs))
+	}
+	if !strings.Contains(input.GuidelineRefs[0], "审查指南") {
+		t.Errorf("first ref should contain '审查指南', got: %s", input.GuidelineRefs[0])
+	}
+}
+
+func TestEnrichInput_SimilarCases(t *testing.T) {
+	mock := &mockKnowledgeRetriever{
+		cases: []string{
+			"无效宣告决定第34992号：折叠椅充分公开案",
+			"行政判决第021号：CMOS传感器封装案",
+		},
+	}
+	input := &EnablementInput{
+		Features: []TechFeature{
+			{ID: "f1", Description: "壳体通过螺栓连接", Category: "structure", Function: "固定", Importance: "high"},
+		},
+	}
+
+	EnrichInput(context.Background(), input, mock)
+
+	if len(input.SimilarCases) != 2 {
+		t.Fatalf("expected 2 similar cases, got %d", len(input.SimilarCases))
+	}
+	if !strings.Contains(input.SimilarCases[0], "充分公开") {
+		t.Errorf("case should contain '充分公开', got: %s", input.SimilarCases[0])
+	}
+}
+
+func TestEnrichInput_ErrorGraceful(t *testing.T) {
+	mock := &mockKnowledgeRetriever{
+		guidelines: []string{"不应出现"},
+		cases:      []string{"不应出现"},
+		err:        assertError("模拟检索失败"),
+	}
+	input := &EnablementInput{
+		Features: []TechFeature{{ID: "f1", Description: "测试特征"}},
+	}
+
+	EnrichInput(context.Background(), input, mock)
+
+	if len(input.GuidelineRefs) != 0 {
+		t.Error("GuidelineRefs should be empty after retriever error")
+	}
+	if len(input.SimilarCases) != 0 {
+		t.Error("SimilarCases should be empty after retriever error")
+	}
+}
+
+type assertError string
+
+func (e assertError) Error() string { return string(e) }
+
+func TestBuildPFEInput_IncludesGuidelineRefs(t *testing.T) {
+	input := &EnablementInput{
+		GuidelineRefs: []string{"审查指南第二部分第二章第2.1.3节"},
+		Features:      []TechFeature{{ID: "f1", Description: "测试"}},
+		Problems:      []string{"测试问题"},
+		Effects:       []string{"测试效果"},
+	}
+	output := buildPFEInput(input)
+
+	if !strings.Contains(output, "审查指南参考") {
+		t.Error("buildPFEInput should include '审查指南参考' section")
+	}
+	if !strings.Contains(output, "审查指南第二部分第二章") {
+		t.Error("buildPFEInput should include guideline ref content")
+	}
+}
+
+func TestBuildPFEInput_IncludesSimilarCases(t *testing.T) {
+	input := &EnablementInput{
+		SimilarCases: []string{"无效宣告决定第34992号"},
+		Features:     []TechFeature{{ID: "f1", Description: "测试"}},
+		Problems:     []string{"测试问题"},
+	}
+	output := buildPFEInput(input)
+
+	if !strings.Contains(output, "类案参考") {
+		t.Error("buildPFEInput should include '类案参考' section")
+	}
+	if !strings.Contains(output, "无效宣告决定第34992号") {
+		t.Error("buildPFEInput should include similar case content")
+	}
+}
+
+func TestBuildPFEInput_EmptySimilarCases(t *testing.T) {
+	input := &EnablementInput{
+		Features: []TechFeature{{ID: "f1", Description: "测试"}},
+	}
+	output := buildPFEInput(input)
+
+	if strings.Contains(output, "类案参考") {
+		t.Error("buildPFEInput should not include '类案参考' when SimilarCases is empty")
+	}
+}
+
+func TestWithKnowledgeRetriever_Option(t *testing.T) {
+	cfg := &enablementConfig{}
+	opt := WithKnowledgeRetriever(&mockKnowledgeRetriever{
+		guidelines: []string{"测试条款"},
+	})
+
+	if cfg.knowledgeRetriever != nil {
+		t.Error("initial config should have nil retriever")
+	}
+
+	opt(cfg)
+
+	if cfg.knowledgeRetriever == nil {
+		t.Fatal("WithKnowledgeRetriever should set retriever on config")
+	}
+
+	refs, err := cfg.knowledgeRetriever.SearchGuidelines(context.Background(), DomainGeneral, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 1 || refs[0] != "测试条款" {
+		t.Errorf("unexpected guidelines: %v", refs)
+	}
+}

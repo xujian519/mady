@@ -253,15 +253,24 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 			var totalBytes int
 			var tempFile *os.File
 			var tempFilePath string
+			// dataMu protects chunks, totalBytes, tempFile, and tempFilePath
+			// because onData is called concurrently from two goroutines
+			// (stdout reader and stderr reader in DefaultBashOperations.Exec).
+			var dataMu sync.Mutex
 
 			onData := func(data []byte) {
+				dataMu.Lock()
+				defer dataMu.Unlock()
+
 				totalBytes += len(data)
 				chunks = append(chunks, data)
 
 				// Start writing to temp file once output exceeds threshold.
 				if totalBytes > int(cfg.MaxBytes) && tempFile == nil {
-					tempFile, tempFileErr := os.CreateTemp("", "mady-bash-*.log")
+					var tempFileErr error
+					tempFile, tempFileErr = os.CreateTemp("", "mady-bash-*.log")
 					if tempFileErr != nil {
+						tempFile = nil
 						fmt.Fprintf(os.Stderr, "bash: 创建日志临时文件失败: %v（输出截断后无法提供完整日志）\n", tempFileErr)
 					}
 					if tempFile != nil {

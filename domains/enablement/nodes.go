@@ -103,6 +103,7 @@ func step1CompletenessNode(provider agentcore.Provider) graph.PregelNode {
 			"请基于提供的说明书章节内容，判断每一项是否存在**及其内容质量**。",
 			"如果某项章节缺失或内容过于简略（如仅有一句话），请标记为缺失。",
 			"",
+			"",
 			"请输出 JSON 格式：",
 			`{"has_tech_field": bool, "has_background": bool, "has_content": bool,`,
 			`"has_drawings": bool, "has_embodiment": bool,`,
@@ -250,6 +251,9 @@ func step3EnablementNode(provider agentcore.Provider) graph.PregelNode {
 			"每个 Problem 是否都能通过一条完整的 Feature→Effect 链路实现？",
 			"如果某个 Problem 缺少对应的 Feature，即为公开不充分。",
 			"",
+			"**类案参考（如有提供）**：下面「类案参考」部分列出了与本案相似的类案判断，",
+			"请参考其中充分公开的判断标准，特别是典型案例中的审查实践。",
+			"但注意每个案件的判断应基于本案说明书的具体记载内容，类比时需考虑领域差异。",
 			"请输出 JSON 格式：",
 			`{"can_implement": bool,`,
 			`"missing_key_means": bool, "vague_means": bool,`,
@@ -507,6 +511,20 @@ func stateHasSkip(state graph.PregelState) bool {
 }
 
 // buildCompletenessInput 构建 Step 1 的 LLM 输入文本。
+
+// renderSimilarCases 将类案列表格式化为 Markdown 引用块。
+// 若 cases 为空则跳过输出。
+func renderSimilarCases(sb *strings.Builder, cases []string) {
+	if len(cases) == 0 {
+		return
+	}
+	sb.WriteString("## 类案参考\n")
+	for i, c := range cases {
+		fmt.Fprintf(sb, "- 案例%d: %s\n", i+1, c)
+	}
+	sb.WriteString("\n")
+}
+
 func buildCompletenessInput(input *EnablementInput) string {
 	var sb strings.Builder
 	sb.WriteString("## 说明书章节内容\n\n")
@@ -528,6 +546,7 @@ func buildCompletenessInput(input *EnablementInput) string {
 		}
 		sb.WriteString("\n")
 	}
+	renderSimilarCases(&sb, input.SimilarCases)
 
 	return sb.String()
 }
@@ -577,6 +596,8 @@ func buildPFEInput(input *EnablementInput) string {
 		}
 		sb.WriteString("\n")
 	}
+
+	renderSimilarCases(&sb, input.SimilarCases)
 
 	return sb.String()
 }

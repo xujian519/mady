@@ -3,6 +3,7 @@ package enablement
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -15,12 +16,20 @@ import (
 type EnablementOption func(*enablementConfig)
 
 type enablementConfig struct {
-	provider agentcore.Provider
+	provider           agentcore.Provider
+	knowledgeRetriever KnowledgeRetriever
 }
 
 // WithProvider 设置 LLM provider。
 func WithProvider(p agentcore.Provider) EnablementOption {
 	return func(c *enablementConfig) { c.provider = p }
+}
+
+// WithKnowledgeRetriever 设置知识检索器，用于自动获取审查指南参考和类案信息。
+// 注入后，每次评估前会自动检索相关知识并填充到 GuidelineRefs 和 SimilarCases 字段。
+// 不注入（nil）时行为不变，降级为仅依赖 LLM 内部知识。
+func WithKnowledgeRetriever(r KnowledgeRetriever) EnablementOption {
+	return func(c *enablementConfig) { c.knowledgeRetriever = r }
 }
 
 // NewEnablementTool 创建 26.3 充分公开评估工具。
@@ -108,6 +117,9 @@ func runEnablementTool(ctx context.Context, cfg *enablementConfig, args json.Raw
 		return map[string]string{"error": "参数解析失败，请提供 features 和 pfe_triples"}, nil
 	}
 
+	// 知识检索增强：填充 GuidelineRefs 和 SimilarCases
+	EnrichInput(ctx, input, cfg.knowledgeRetriever)
+
 	compiled, err := BuildEnablementGraph(cfg.provider)
 	if err != nil {
 		return map[string]string{"error": "构建评估图失败: " + err.Error()}, nil
@@ -192,6 +204,48 @@ func parseEnablementArgs(args json.RawMessage) *EnablementInput {
 	return input
 }
 
+// EnrichInput 在评估图执行前用知识检索结果增强 EnablementInput。
+// 检索结果填充到 GuidelineRefs 和 SimilarCases 字段，供后续 LLM 节点使用。
+// retriever 为 nil 时跳过检索，行为不变。
+func EnrichInput(ctx context.Context, input *EnablementInput, retriever KnowledgeRetriever) {
+	if retriever == nil || input == nil {
+		return
+	}
+
+	// 检测技术领域作为检索上下文
+	domain := DetectDomain(input)
+
+	// 检索审查指南条款
+	guidelines, err := retriever.SearchGuidelines(ctx, domain, input.Problems, input.Features)
+	if err != nil {
+		slog.Warn("enablement: 检索审查指南条款失败",
+			"error", err,
+			"domain", domain,
+		)
+	} else if len(guidelines) > 0 {
+		input.GuidelineRefs = append(input.GuidelineRefs, guidelines...)
+		slog.Debug("enablement: 检索到审查指南条款",
+			"count", len(guidelines),
+			"domain", domain,
+		)
+	}
+
+	// 检索类案
+	cases, err := retriever.SearchSimilarCases(ctx, domain, input.Features, input.Problems)
+	if err != nil {
+		slog.Warn("enablement: 检索类案失败",
+			"error", err,
+			"domain", domain,
+		)
+	} else if len(cases) > 0 {
+		input.SimilarCases = append(input.SimilarCases, cases...)
+		slog.Debug("enablement: 检索到类案",
+			"count", len(cases),
+			"domain", domain,
+		)
+	}
+}
+
 func stringsJoin(s ...string) string {
 	var b strings.Builder
 	for i, str := range s {
@@ -243,6 +297,9 @@ func NewEnablementToolFromReport(provider agentcore.Provider, report *disclosure
 			input.DocSections[string(section)] = content
 		}
 	}
+
+	// Note: NewEnablementToolFromReport 暂不支持知识检索增强。
+	// 如需知识赋能，请使用 NewEnablementTool + WithKnowledgeRetriever 路径。
 
 	compiled, err := BuildEnablementGraph(provider)
 	if err != nil {

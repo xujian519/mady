@@ -1,5 +1,7 @@
 package enablement
 
+import "context"
+
 // =============================================================================
 // 输入/输出类型（值类型，不依赖 disclosure 包）
 // =============================================================================
@@ -103,6 +105,26 @@ type EnablementJudgment struct {
 	InsufficientData   bool `json:"insufficient_data"`          // ⑥ 方案须依赖实验结果但未给出实验证据
 
 	Notes string `json:"notes"` // 评估说明
+}
+
+// =============================================================================
+// KnowledgeRetriever 接口 — 知识库联动抽象
+// =============================================================================
+
+// KnowledgeRetriever 为 enablement 评估提供审查指南条款和类案检索能力。
+// 由上层（server）注入具体实现，nil 时降级为不使用知识增强。
+//
+// 两方法均为幂等调用：同一输入多次调用返回一致结果；返回的字符串切片
+// 内容为格式化后的文本（非结构化数据），直接填入 GuidelineRefs / SimilarCases。
+type KnowledgeRetriever interface {
+	// SearchGuidelines 根据技术领域和技术问题检索相关审查指南条款。
+	// domain 为自动检测的技术领域（如 "chemical"），problems 为技术问题列表，
+	// features 为技术特征列表。返回格式化的条款引用文本列表。
+	SearchGuidelines(ctx context.Context, domain TechDomain, problems []string, features []TechFeature) ([]string, error)
+
+	// SearchSimilarCases 根据技术领域和技术特征检索类案。
+	// 返回格式化的案例摘要文本列表。
+	SearchSimilarCases(ctx context.Context, domain TechDomain, features []TechFeature, problems []string) ([]string, error)
 }
 
 // ExperimentDataAssessment 是实验数据有效性的专项检查结果。

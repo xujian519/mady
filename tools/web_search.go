@@ -278,11 +278,13 @@ func doJSONRequest(client *http.Client, req *http.Request, target any) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("search backend returned HTTP %d", resp.StatusCode)
 	}
-	return json.NewDecoder(resp.Body).Decode(target)
+	// Limit response body to 5MB to prevent memory exhaustion from
+	// malicious or misbehaving search backends.
+	return json.NewDecoder(io.LimitReader(resp.Body, 5<<20)).Decode(target)
 }
 
 func limitResults(results []SearchResult, count int) []SearchResult {
-	filtered := results[:0]
+	filtered := make([]SearchResult, 0, len(results))
 	for _, r := range results {
 		if r.Title == "" && r.URL == "" && r.Snippet == "" {
 			continue

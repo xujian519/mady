@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/xujian519/mady/domains/doctmpl"
 )
 
 // ExportFormat represents the output format for report export.
@@ -17,7 +19,8 @@ const (
 )
 
 // ExportReport 将分析报告导出为指定格式。
-// Markdown 格式直接生成；DOCX 格式通过 pandoc 转换（需安装 pandoc）。
+// Markdown 格式直接生成；DOCX 格式优先使用纯 Go 渲染器（无外部依赖），
+// 若失败则降级到 pandoc（需安装）。
 func ExportReport(report *AnalysisReport, format ExportFormat) ([]byte, error) {
 	md := buildMarkdownReport(report)
 
@@ -167,8 +170,23 @@ func buildMarkdownReport(report *AnalysisReport) string {
 	return b.String()
 }
 
-// convertToDOCX 将 Markdown 文本通过 pandoc 转换为 DOCX 格式。
+// convertToDOCX 将 Markdown 文本转换为 DOCX 格式。
+// 优先使用纯 Go 渲染器（domains/doctmpl.DOCXRenderer，无外部依赖）；
+// 失败时降级到 pandoc（若已安装）作为备选，确保兼容已有环境。
 func convertToDOCX(markdown string) ([]byte, error) {
+	renderer := &doctmpl.DOCXRenderer{}
+	if data, err := renderer.Render(markdown, doctmpl.RenderMeta{}); err == nil && len(data) > 0 {
+		return data, nil
+	}
+	// 降级：尝试 pandoc（如已安装）。
+	if _, lerr := exec.LookPath("pandoc"); lerr == nil {
+		return convertToDOCXViaPandoc(markdown)
+	}
+	return nil, fmt.Errorf("DOCX 生成失败：纯 Go 渲染器出错，且未安装 pandoc 备选工具")
+}
+
+// convertToDOCXViaPandoc 通过外部 pandoc 进程转换 DOCX（备选方案）。
+func convertToDOCXViaPandoc(markdown string) ([]byte, error) {
 	cmd := exec.Command("pandoc", "-f", "markdown", "-t", "docx", "--from=gfm")
 	cmd.Stdin = strings.NewReader(markdown)
 	var out bytes.Buffer

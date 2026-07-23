@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -64,13 +62,8 @@ type DefaultWebFetchOperations struct {
 func (d *DefaultWebFetchOperations) defaults() {
 	if d.Client == nil {
 		d.Client = &http.Client{
-			Timeout: 30 * time.Second,
-			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					Timeout: 10 * time.Second,
-					Control: safeDialControl,
-				}).DialContext,
-			},
+			Timeout:   30 * time.Second,
+			Transport: newSSRFSafeTransport(),
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				if len(via) >= 5 {
 					return fmt.Errorf("too many redirects")
@@ -90,39 +83,8 @@ func (d *DefaultWebFetchOperations) defaults() {
 	}
 }
 
-// isDisallowedIP reports whether ip must never be dialed by the web fetch
-// tool: loopback, link-local (this also covers cloud metadata endpoints such
-// as 169.254.169.254), private, unspecified, and multicast addresses.
-func isDisallowedIP(ip net.IP) bool {
-	if ip == nil {
-		return true
-	}
-	return ip.IsLoopback() ||
-		ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() ||
-		ip.IsUnspecified() ||
-		ip.IsMulticast() ||
-		ip.IsPrivate()
-}
-
-// safeDialControl is invoked by net.Dialer right before connecting to the
-// fully-resolved address (i.e. after DNS resolution), so it also protects
-// against DNS-rebinding and blocks SSRF via HTTP redirects since the same
-// Transport/Dialer is reused for redirected requests.
-func safeDialControl(network, address string, _ syscall.RawConn) error {
-	host, _, err := net.SplitHostPort(address)
-	if err != nil {
-		return fmt.Errorf("BLOCKED: refusing to dial %q: %w", address, err)
-	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		return fmt.Errorf("BLOCKED: refusing to dial non-IP address %q", address)
-	}
-	if isDisallowedIP(ip) {
-		return fmt.Errorf("BLOCKED: refusing to dial internal/private address %s", ip)
-	}
-	return nil
-}
+// isDisallowedIP and safeDialControl are defined in netutil.go and shared
+// with vision.go and other outbound HTTP tools.
 
 // validateFetchURL restricts web_fetch to public http/https URLs, rejecting
 // other schemes (file://, ftp://, gopher://, etc.) up front.

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
@@ -10,6 +11,7 @@ import (
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains/enablement"
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/knowledge"
 )
 
 // enablementExecTimeout 是单个 26.3 评估子图的最大执行时间。
@@ -28,13 +30,14 @@ const enablementExecTimeout = 10 * time.Minute
 //   - 异步执行：不阻塞 disclosure 管线的主流程
 //   - 容错运行：子图失败仅记录日志，不影响上游
 type EnablementTrigger struct {
-	provider      agentcore.Provider
-	bus           iface.EventBus
-	logger        *slog.Logger
-	cancel        func() // 取消订阅
-	ctx           context.Context
-	cancelCtx     context.CancelFunc
-	resultHandler func(taskID string, result *enablement.EnablementResult) // 可选回调，用于存储结果
+	provider           agentcore.Provider
+	bus                iface.EventBus
+	logger             *slog.Logger
+	cancel             func() // 取消订阅
+	ctx                context.Context
+	cancelCtx          context.CancelFunc
+	resultHandler      func(taskID string, result *enablement.EnablementResult) // 可选回调，用于存储结果
+	knowledgeRetriever enablement.KnowledgeRetriever                            // 可选知识检索器，用于填充审查指南和类案
 }
 
 // EnablementTriggerOption 配置 EnablementTrigger。
@@ -44,6 +47,13 @@ type EnablementTriggerOption func(*EnablementTrigger)
 // 典型用法：注入 s.SetEnablementResult，使结果可通过 API 查询。
 func WithEnablementResultHandler(fn func(taskID string, result *enablement.EnablementResult)) EnablementTriggerOption {
 	return func(t *EnablementTrigger) { t.resultHandler = fn }
+}
+
+// WithEnablementKnowledgeRetriever 设置知识检索器，用于在评估前自动检索
+// 审查指南条款和类案信息，填充到评估输入的 GuidelineRefs 和 SimilarCases 字段。
+// 不注入时降级为纯 LLM 知识评估。
+func WithEnablementKnowledgeRetriever(r enablement.KnowledgeRetriever) EnablementTriggerOption {
+	return func(t *EnablementTrigger) { t.knowledgeRetriever = r }
 }
 
 // NewEnablementTrigger 创建 26.3 充分公开评估触发器。
@@ -139,6 +149,9 @@ func (t *EnablementTrigger) onEvent(ev iface.Event) {
 // runGraph 构建并执行 26.3 充分公开评估 Pregel 子图。
 // 使用 context.WithTimeout 包装传入的 ctx，防止 LLM API 挂起时永久阻塞。
 func (t *EnablementTrigger) runGraph(ctx context.Context, input *enablement.EnablementInput) (*enablement.EnablementResult, error) {
+	// 知识检索增强：填充 GuidelineRefs 和 SimilarCases
+	enablement.EnrichInput(ctx, input, t.knowledgeRetriever)
+
 	compiled, err := enablement.BuildEnablementGraph(t.provider)
 	if err != nil {
 		return nil, err
@@ -226,4 +239,216 @@ func buildEnablementInput(report *disclosure.AnalysisReport, evidenceCoverage st
 	}
 
 	return input
+}
+
+// =============================================================================
+// serverKnowledgeRetriever — KnowledgeRetriever 的 server 层实现
+// =============================================================================
+
+// serverKnowledgeRetriever 是 enablement.KnowledgeRetriever 的 server 层实现，
+// 组合 LawSearcher（法律/审查指南检索）和 GraphEnhancer（类案图谱检索）。
+// 零值可用：当依赖项未注入时，SearchGuidelines 和 SearchSimilarCases 返回空列表。
+type serverKnowledgeRetriever struct {
+	lawSearcher knowledge.LawSearcher // 法律法规搜索引擎
+	graphCtxFn  func() string         // 知识图谱扩展上下文（来自 KnowledgeExtension.GraphContext）
+}
+
+// NewServerKnowledgeRetriever 从 agentcore.Extension 创建 KnowledgeRetriever。
+// 内部类型断言为 *knowledge.KnowledgeExtension 以获取 LawSearcher 和 GraphContext；
+// 当 ext 为 nil 或类型不匹配时返回 nil（降级为纯 LLM 知识评估）。
+// 典型用法：
+//
+//	kr := server.NewServerKnowledgeRetriever(fc.KnowledgeExt)
+func NewServerKnowledgeRetriever(ext agentcore.Extension) enablement.KnowledgeRetriever {
+	if ext == nil {
+		return nil
+	}
+	kext, ok := ext.(*knowledge.KnowledgeExtension)
+	if !ok {
+		return nil
+	}
+	return &serverKnowledgeRetriever{
+		lawSearcher: kext.LawSearcher(),
+		graphCtxFn:  kext.GraphContext,
+	}
+}
+
+// SearchGuidelines 根据技术领域和技术问题检索审查指南相关条款。
+// 使用 LawSearcher 搜索 laws-full.db，关键词为技术领域标签 + 审查指南 + 主要技术问题。
+// lawSearcher 为 nil 时降级返回空。
+func (r *serverKnowledgeRetriever) SearchGuidelines(ctx context.Context, domain enablement.TechDomain, problems []string, features []enablement.TechFeature) ([]string, error) {
+	if r.lawSearcher == nil {
+		return nil, nil
+	}
+
+	// 构建搜索查询：技术领域 + 审查指南 + 技术问题
+	query := buildGuidelineQuery(domain, problems, features)
+	if query == "" {
+		return nil, nil
+	}
+
+	// 搜索法律法规全文库，topK=5
+	results, err := r.lawSearcher(query, 5)
+	if err != nil {
+		return nil, err
+	}
+
+	// 过滤出审查指南相关的结果，并格式化为引用文本
+	var refs []string
+	for _, rec := range results {
+		// 仅保留审查指南或专利法相关的记录
+		if isGuidelineRelevant(rec) {
+			ref := formatLawRef(rec)
+			if ref != "" {
+				refs = append(refs, ref)
+			}
+		}
+	}
+
+	return refs, nil
+}
+
+// SearchSimilarCases 根据技术领域和技术特征检索类案。
+// 通过 graphCtxFn 获取最近一次知识图谱增强结果中的类案信息。
+// graphCtxFn 为 nil 或返回空字符串时降级返回空。
+func (r *serverKnowledgeRetriever) SearchSimilarCases(ctx context.Context, domain enablement.TechDomain, features []enablement.TechFeature, problems []string) ([]string, error) {
+	if r.graphCtxFn == nil {
+		return nil, nil
+	}
+
+	graphCtx := r.graphCtxFn()
+	if graphCtx == "" {
+		return nil, nil
+	}
+
+	// 图谱上下文可能包含大量信息，取其前 3 个类案片段
+	// 按换行分割，取包含案例关键词的前几条
+	var cases []string
+	lines := strings.Split(graphCtx, "\n")
+	caseCount := 0
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		// 保留包含案例标识的段落（案例/判决/无效宣告等）
+		if isCaseLine(trimmed) {
+			cases = append(cases, trimmed)
+			caseCount++
+			if caseCount >= 3 {
+				break
+			}
+		}
+	}
+
+	// 如果没找到结构化案例行，取前 2 段非空内容作为兜底
+	if len(cases) == 0 {
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				cases = append(cases, trimmed)
+				if len(cases) >= 2 {
+					break
+				}
+			}
+		}
+	}
+
+	return cases, nil
+}
+
+// buildGuidelineQuery 构建审查指南检索查询。
+func buildGuidelineQuery(domain enablement.TechDomain, problems []string, features []enablement.TechFeature) string {
+	var parts []string
+
+	// 加入技术领域标签
+	domainLabel := enablement.DomainLabel(domain)
+	if domainLabel != "通用" {
+		parts = append(parts, domainLabel)
+	}
+
+	// 加入审查指南前缀
+	parts = append(parts, "审查指南")
+
+	// 加入主要技术问题（取前 2 个）
+	for i, p := range problems {
+		if i >= 2 {
+			break
+		}
+		// 截断过长的问题描述
+		runes := []rune(p)
+		if len(runes) > 30 {
+			p = string(runes[:30])
+		}
+		parts = append(parts, p)
+	}
+
+	return strings.Join(parts, " ")
+}
+
+// isGuidelineRelevant 判断法律记录是否与审查指南相关。
+func isGuidelineRelevant(rec knowledge.LawRecord) bool {
+	name := rec.Name
+	category := rec.Category
+	level := rec.Level
+
+	// 审查指南本身
+	if strings.Contains(name, "审查指南") {
+		return true
+	}
+	// 审查指南下属分类
+	if strings.Contains(category, "审查指南") {
+		return true
+	}
+	// 专利法及其实施细则（与充分公开直接相关）
+	if strings.Contains(name, "专利法") || strings.Contains(name, "专利法实施细则") {
+		return true
+	}
+	// 级别为部门规章或司法解释的专利相关规定
+	if strings.Contains(level, "部门规章") && (strings.Contains(name, "专利") || strings.Contains(category, "专利")) {
+		return true
+	}
+	// 最高法专利相关司法解释
+	if strings.Contains(level, "司法解释") && strings.Contains(category, "专利") {
+		return true
+	}
+
+	return false
+}
+
+// formatLawRef 将法律记录格式化为引用文本。
+func formatLawRef(rec knowledge.LawRecord) string {
+	name := rec.Name
+	subtitle := rec.Subtitle
+	content := rec.Content
+
+	var b strings.Builder
+	b.WriteString(name)
+	if subtitle != "" {
+		b.WriteString(" - ")
+		b.WriteString(subtitle)
+	}
+
+	// 添加内容摘要
+	if content != "" {
+		runes := []rune(content)
+		if len(runes) > 300 {
+			content = string(runes[:300]) + "…"
+		}
+		b.WriteString("\n  ")
+		b.WriteString(content)
+	}
+
+	return b.String()
+}
+
+// isCaseLine 判断文本行是否包含案例标识。
+func isCaseLine(line string) bool {
+	keywords := []string{"案例", "判决", "无效宣告", "复审", "案号", "决定号", "行政判决"}
+	for _, kw := range keywords {
+		if strings.Contains(line, kw) {
+			return true
+		}
+	}
+	return false
 }

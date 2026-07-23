@@ -1,5 +1,56 @@
 # AI 变更记录
 
+## 2026-07-23: enablement 模块知识库联动补强
+
+### 背景
+`domains/enablement/` 的 `EnablementInput` 预定义了 `GuidelineRefs` 和 `SimilarCases` 字段但从未填充，
+LLM 节点无法利用知识库中的审查指南和类案。需要打通知识库检索链路。
+
+### 改动
+- **KnowledgeRetriever 接口** (`domains/enablement/types.go`): 定义 `SearchGuidelines` + `SearchSimilarCases` 两方法
+- **EnrichInput** (`domains/enablement/tool.go`): 图执行前自动调用知识检索填充，nil 安全降级
+- **renderSimilarCases 提取** (`domains/enablement/nodes.go`): 消除 buildCompletenessInput/buildPFEInput 中的重复渲染代码
+- **Step 3 prompt 类案参考** (`domains/enablement/nodes.go`): 在 26.3 核心判断步骤追加类案对比指令
+- **serverKnowledgeRetriever** (`server/enablement_events.go`): 组合 LawSearcher + GraphContext 的实现
+- **LawSearcher() getter** (`knowledge/extension.go`): 暴露 KnowledgeExtension 的 LawSearcher 供 server 层注入
+- **装配链路** (`cmd/mady/server.go`): EnablementTrigger 通过 `WithEnablementKnowledgeRetriever` 接入知识检索
+- **测试**: 新增 10 个 KnowledgeRetriever 测试 + 3 个 BuildPFEInput 测试，全部 65 PASS
+
+### 决策
+- 接口在 enablement 包定义，实现在 server 层（依赖倒置）
+- `NewServerKnowledgeRetriever` 接受 `agentcore.Extension` 接口，避免下游导入 concrete 类型
+- `NewEnablementToolFromReport` 暂不接入知识检索（仅在注释标记），纯代码层面无侵入已有调用方
+
+## 2026-07-23: 文档格式转换能力纯 Go 补齐（XLSX 解析 + DOCX/PDF 渲染器）
+
+### 背景
+验证 disclosure 文档处理流水线完整性时盘点文件格式转换能力，发现三处缺口：
+(1) `knowledge/fileindex` 的 XLSX/XLS 仅占位提示，无真实解析；
+(2) `disclosure/export.go` 的 DOCX 导出硬依赖外部 `pandoc` 进程；
+(3) `domains/doctmpl` 仅注册 MarkdownRenderer，FormatDOCX/FormatPDF 常量存在但无渲染器实现。
+按"纯 Go 补齐全部能力、外部依赖降级为备选+提示"目标统一补齐。
+
+### 改动
+- **P1 XLSX 解析** (`knowledge/fileindex/reader_spreadsheet.go`): `.xlsx` 分支改用 `xuri/excelize/v2`（纯 Go）按 sheet 转 markdown 表格，支持多 sheet 标题、空行过滤、千行截断；`.xls`（OLE 二进制老格式）保留降级提示建议转 xlsx/csv。新增测试 `reader_xlsx_test.go`（单 sheet/多 sheet/空表三类）。
+- **P2 DOCX 渲染器** (`domains/doctmpl/renderer_docx.go`): 纯标准库 `archive/zip`+手写 OOXML，零外部依赖、零 cgo。支持标题分级、段落合并、无序列表、表格（首行表头加粗+边框）、行内 `**加粗**`/`` `等宽` ``、XML 特殊字符转义、meta.Title 注入。**未用 unioffice（AGPL 传染）**。
+- **P3 PDF 渲染器** (`domains/doctmpl/renderer_pdf.go`): `signintech/gopdf`（BSD，纯 Go）。中文支持依赖嵌入系统 TTF/TTC 字体，自动搜索 macOS/Linux/Windows 常见候选（如 `/Library/Fonts/Arial Unicode.ttf`、Noto CJK、msyh.ttc）；找不到中文字体时返回明确错误并建议安装字体或改用 DOCX/Markdown，可经 `PDFRenderer.FontPath` 显式指定。
+- **P4 disclosure DOCX 导出去 pandoc** (`disclosure/export.go`): `convertToDOCX` 改为纯 Go（doctmpl.DOCXRenderer）优先，失败降级到 pandoc（若已安装），两者皆不可则返回清晰错误。原 pandoc 逻辑保留为 `convertToDOCXViaPandoc` 备选。
+- **P5 注册渲染器** (`domains/doctmpl/store.go`): `NewTemplateStore` 在 MarkdownRenderer 后注册 DOCXRenderer、PDFRenderer。
+
+### 新增依赖
+- `github.com/xuri/excelize/v2 v2.11.0`（MIT，纯 Go）
+- `github.com/signintech/gopdf v0.37.0`（BSD，纯 Go）
+- 项目仍零 cgo，go.mod 极轻量。
+
+### 验证
+- `go mod tidy`/`go build ./...`/`go vet ./...`: 全 PASS
+- `go test ./knowledge/fileindex/... ./domains/doctmpl/... ./disclosure/... ./workflows/patent/...`: 全绿（XLSX×3、DOCX×4、PDF×4 新增测试 + 原有测试回归通过）
+
+### AI 参与级别
+- L2（新增功能模块 + 基础设施层新依赖，无敏感路径改动；disclosure→domains/doctmpl 依赖方向经确认无循环）
+
+---
+
 ## 2026-07-23: agentcore 第二轮代码质量审阅修复（8 项）
 
 ### 背景

@@ -115,6 +115,13 @@ func (e *KnowledgeExtension) WithGraph(g GraphEnhancer) *KnowledgeExtension {
 	return e
 }
 
+// LawSearcher returns the configured law search function, or nil if not set.
+// Exposed for downstream consumers (e.g., enablement trigger) that need to
+// reuse the same law database connection for domain-specific retrieval.
+func (e *KnowledgeExtension) LawSearcher() LawSearcher {
+	return e.lawSearcher
+}
+
 // WithLawSearcher injects a law search function. When set, the search_laws
 // tool is exposed to the agent for full-text law retrieval.
 func (e *KnowledgeExtension) WithLawSearcher(fn LawSearcher) *KnowledgeExtension {

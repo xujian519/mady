@@ -211,8 +211,11 @@ func runServer(ctx context.Context) {
 	{
 		provider := fc.BaseConfig.Provider
 		if provider != nil {
+			// 构造知识检索器（从 KnowledgeExtension 获取 LawSearcher 和图谱上下文）
+			kr := server.NewServerKnowledgeRetriever(fc.KnowledgeExt)
 			trigger := server.NewEnablementTrigger(provider, srv.EventBus(),
 				server.WithEnablementResultHandler(srv.SetEnablementResult),
+				server.WithEnablementKnowledgeRetriever(kr),
 			)
 			trigger.Start()
 			log.Printf("enablement: 26.3 充分公开评估触发器已启动（独立子图模式）")

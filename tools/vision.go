@@ -49,7 +49,10 @@ func (d DefaultVisionOperations) client() *http.Client {
 	if d.Client != nil {
 		return d.Client
 	}
-	return &http.Client{Timeout: 60 * time.Second}
+	// Use SSRF-safe client to prevent access to internal/private network
+	// ranges (loopback, cloud metadata endpoints, etc.). This reuses the
+	// same dial control as web_fetch.go.
+	return newSSRFSafeHTTPClient(60 * time.Second)
 }
 
 func (d DefaultVisionOperations) Download(ctx context.Context, url string) ([]byte, string, error) {
