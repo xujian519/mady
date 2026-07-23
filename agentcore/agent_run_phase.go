@@ -3,6 +3,7 @@ package agentcore
 import (
 	"context"
 	"fmt"
+	"log/slog"
 )
 
 // runPreTurn executes the pre-model phase of a single turn:
@@ -136,6 +137,10 @@ func (a *Agent) guardTruncation(ctx context.Context, turn int64, resp *ProviderR
 		return false, nil
 	}
 	for _, tc := range resp.ToolCalls {
+		if tc.ID == "" {
+			slog.Debug("agent_run: guardTruncation found tool call with empty ID",
+				"turn", turn, "tool", tc.Name)
+		}
 		if perr := a.persistMessage(ctx, Message{
 			Role:       RoleTool,
 			Content:    "错误: 此工具调用未被执行，因为模型输出被 max_tokens 截断，生成了无效的 JSON 参数。请重新生成包含完整参数的工具调用；如果调用内容较大，请拆分或减少输出长度。",

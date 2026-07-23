@@ -127,8 +127,9 @@ func (e evalResultEvent) EventKind() agentcore.EventType { return EventTypeEvalR
 func (e evalResultEvent) EventTime() time.Time           { return e.at }
 
 // FaithlessnessWarning 返回忠实度警告（如果有）。
+// 当 Faithfulness == 0（无法评估）时不触发警告。
 func (r *EvalResult) FaithlessnessWarning() string {
-	if r.Faithfulness < 0.5 {
+	if r.Faithfulness > 0 && r.Faithfulness < 0.5 {
 		return fmt.Sprintf("低忠实度 (%.2f): 答案可能脱离检索上下文", r.Faithfulness)
 	}
 	return ""
@@ -148,7 +149,7 @@ func scoreFaithfulness(answer string, req *agentcore.ProviderRequest) float64 {
 	// 提取上下文中所有文本
 	contextText := extractContextText(req.Messages)
 	if contextText == "" {
-		return 0.8 // 无上下文时默认较高（没有可违反的材料）
+		return 0 // 无上下文时无法评估，返回 0 表示"无法判断"
 	}
 
 	answerLower := strings.ToLower(answer)
@@ -157,7 +158,7 @@ func scoreFaithfulness(answer string, req *agentcore.ProviderRequest) float64 {
 	// 提取答案中的关键实体（简单版本：长度 > 2 的词）
 	answerWords := tokenizeEval(answerLower)
 	if len(answerWords) == 0 {
-		return 0.8
+		return 0
 	}
 
 	hits := 0
@@ -229,6 +230,11 @@ func scoreContextPrecision(req *agentcore.ProviderRequest) float64 {
 }
 
 // countContextSnippets 统计上下文中的参考片段数。
+// 支持多种分隔符格式，按优先级匹配：
+//   - "\n---\n" 分隔符（N 个分隔符 = N+1 个片段）
+//   - "---" 成对标记的片段块（每段两个 --- 标记）
+//   - 无显式分隔符时返回 1（整个上下文视为一段）
+//   - 空字符串返回 0
 func countContextSnippets(req *agentcore.ProviderRequest) int {
 	if req == nil {
 		return 0
@@ -237,9 +243,15 @@ func countContextSnippets(req *agentcore.ProviderRequest) int {
 	if contextText == "" {
 		return 0
 	}
-	count := strings.Count(contextText, "---")
-	if count > 0 {
-		return count / 2 // 每段有两个 --- 标记（开头和结尾）
+	// Prefer specific "\n---\n" separator: each occurrence is a boundary
+	// between two snippets. N occurrences → N+1 snippets.
+	if count := strings.Count(contextText, "\n---\n"); count > 0 {
+		return count + 1
+	}
+	// Fall back to generic "---" paired markers: each snippet is wrapped in
+	// a pair, so count/2 gives snippet count.
+	if count := strings.Count(contextText, "---"); count > 0 {
+		return count / 2
 	}
 	return 1
 }

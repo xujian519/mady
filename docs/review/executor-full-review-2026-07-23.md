@@ -23,27 +23,29 @@
 
 ### 🟠 严重
 
-#### 1. MaxTurns off-by-one：实际允许的轮次数比配置多 1
+#### 1. ~~MaxTurns off-by-one~~ 不适用：NextTurn() 预增语义，`>` 比较正确
 
 **文件**: `agentcore/agent_run_phase.go:13`
-**严重级别**: 🟠 严重
+**严重级别**: ~~🟠 严重~~ → 已确认为误报
 
 ```go
 if turn-loopStartTurn > a.config.MaxTurns {
 ```
 
-使用 `>` 而非 `>=` 比较。当 `turn-loopStartTurn == MaxTurns` 时，条件不成立，允许执行额外一轮。例如 `MaxTurns=20` 时，实际可执行 21 轮（turn 0 到 turn 20）。
+审阅时误判为 off-by-one。实际 `NextTurn()` 先自增再返回（`s.turn++; return s.turn`），第一个 turn 值为 1。因此 `>` 比较正确允许 `MaxTurns` 轮执行：
 
-**复现场景**: 用户配置 MaxTurns=3，期望最多执行 3 轮工具调用循环，但实际执行了 4 轮才被阻止。可能导致额外的 LLM 调用费用。
+- MaxTurns=1: turn=1 → `1 > 1` → false ✓（允许 1 轮）
+- MaxTurns=3: turn=1,2,3 → `3 > 3` → false ✓（允许 3 轮）
+- MaxTurns=3: turn=4 → `4 > 3` → true ✓（第 4 轮被阻止）
 
-**修复建议**: 改为 `>=`：
-```go
-if turn-loopStartTurn >= a.config.MaxTurns {
-```
+原始代码正确。审阅报告中的修复建议 `>=` 会错误地将 MaxTurns=1 阻止第一轮调用。
 
-**注意**: 若现有行为是设计上期望的（例如第一轮视为"思考轮"不计入），请补充文档说明。
+**结论**: 无需修改。保留 `>` 比较。
+**验证**: `go test -race ./agentcore/...` 全部通过。
 
 ---
+
+#### 2. `ExecuteAll` 串行模式下 tool call 循环不检查 context cancellation
 
 #### 2. `ExecuteAll` 串行模式下 tool call 循环不检查 context cancellation
 
@@ -370,11 +372,14 @@ case p.sem <- struct{}{}:
 
 Mady 执行器整体架构设计优秀，代码质量高，并发安全性经过良好的考量。55 个测试文件覆盖了几乎所有非平凡功能，race detector 全通过。
 
-**需要优先关注的问题：**
+**已修复的问题（2026-07-23）：**
 
-1. **🔴 MaxTurns off-by-one**（`agent_run_phase.go:13`）— `>` 应为 `>=`，实际允许的轮次数比配置多 1
-2. **🔴 串行执行不支持 context 取消**（`executor.go:309`）— 用户取消请求后未执行工具仍会执行
-3. **🔴 InvokeTool 绕过配置校验**（`agent.go:349`）— 无效配置的 Agent 仍可执行工具
-4. **🟡 并发池 slot 保护可加强**（`executor.go:333`）— 防止未来代码修改引入 leak
-
-其余发现以优化建议为主，不影响当前功能正确性。
+| # | 问题 | 严重级别 | 修改 |
+|---|------|---------|------|
+| 1 | 串行执行不支持 context 取消 | 🟠 严重 | `executor.go:executeSerial` — 添加 `ctx.Done()` 检查 |
+| 2 | 并行模式 slot 释放结构脆弱 | 🟠 严重 | `executor.go:executeParallel` — 添加 `acquired` flag |
+| 3 | InvokeTool 绕过配置校验 | 🟠 严重 | `agent.go:InvokeTool` — 添加 `configErr` 检查 |
+| 4 | EvalHook 无上下文返回乐观值 | 🟡 建议 | `knowledge/eval.go` — 0.8→0，`alert` 现为可触发 |
+| 5 | Config() 值拷贝共享底层切片 | 🟡 建议 | `agent.go:Config()` — 6 个切片字段浅拷贝 |
+| 6 | RateLimitHook 时间戳无限增长 | 🔵 优化 | `lifecycle.go` — 每次调用自动修剪 |
+| 7 | guardTruncation 空 ID 无日志 | 🔵 优化 | `agent_run_phase.go` — 添加 `slog.Debug` |

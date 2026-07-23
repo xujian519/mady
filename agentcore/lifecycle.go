@@ -530,17 +530,23 @@ func (r *RateLimitHook) BeforeAgentRun(_ context.Context, _ *AgentRunContext) er
 func (r *RateLimitHook) BeforeModelCall(_ context.Context, _ *AgentRunContext, _ *ModelCallContext) error {
 	now := time.Now()
 	r.mu.Lock()
+
+	// Prune timestamps older than 1 minute to prevent unbounded slice growth
+	// in long-running agents. A single linear scan bounds the amortized cost
+	// to O(n) over the lifetime (each timestamp is removed exactly once).
+	windowStart := now.Add(-time.Minute)
+	cut := 0
+	for _, t := range r.turnTimestamps {
+		if t.After(windowStart) {
+			r.turnTimestamps[cut] = t
+			cut++
+		}
+	}
+	r.turnTimestamps = r.turnTimestamps[:cut]
 	r.turnTimestamps = append(r.turnTimestamps, now)
 
 	if r.MaxTurnsPerMinute > 0 {
-		windowStart := now.Add(-time.Minute)
-		count := 0
-		for _, t := range r.turnTimestamps {
-			if t.After(windowStart) {
-				count++
-			}
-		}
-		if int64(count) > r.MaxTurnsPerMinute {
+		if int64(len(r.turnTimestamps)) > r.MaxTurnsPerMinute {
 			r.mu.Unlock()
 			return NewNodeError("rate limit exceeded", nil, "lifecycle", "rate_limit")
 		}

@@ -309,6 +309,21 @@ func (e *Executor) ExecuteAll(ctx context.Context, calls []ToolCall, state *Agen
 func (e *Executor) executeSerial(ctx context.Context, calls []ToolCall, state *AgentState, cb *ExecuteCallbacks) []ToolResult {
 	results := make([]ToolResult, len(calls))
 	for i, tc := range calls {
+		// Context cancellation check: if the user canceled, skip remaining tools
+		// so cancellation is responsive even when serial execution is in progress.
+		select {
+		case <-ctx.Done():
+			for j := i; j < len(calls); j++ {
+				results[j] = ToolResult{
+					ToolCallID: calls[j].ID,
+					ToolName:   calls[j].Name,
+					Result:     "工具执行被中断",
+				}
+			}
+			return results
+		default:
+		}
+
 		if cb != nil && cb.OnStart != nil {
 			cb.OnStart(tc)
 		}
@@ -334,15 +349,23 @@ func (e *Executor) executeParallel(ctx context.Context, calls []ToolCall, state 
 		wg.Add(1)
 		go func(idx int, call ToolCall) {
 			defer wg.Done()
-			// Execute already has its own defer/recover guard, so any
-			// panicking tool is captured and returned as an error result.
+
+			// Defensive slot tracking: pool.Release is only called if Acquire
+			// succeeded, protecting against future code that might panic or
+			// return between Acquire and the deferred Release registration.
+			var acquired bool
+			defer func() {
+				if acquired {
+					pool.Release()
+				}
+			}()
 
 			// Context-aware acquire: respects ctx cancellation.
 			if err := pool.Acquire(ctx); err != nil {
 				results[idx] = ToolResult{ToolName: call.Name, Result: fmt.Sprintf("并发获取失败: %v", err)}
 				return
 			}
-			defer pool.Release()
+			acquired = true
 
 			if cb != nil && cb.OnStart != nil {
 				cb.OnStart(call)

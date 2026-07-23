@@ -1,5 +1,55 @@
 # AI 变更记录
 
+## 2026-07-23: Agent 运行时全量系统性审阅
+
+### 背景
+对 `agentcore/` 内核目录（~45 源文件，~3500 行）进行全量系统性代码审阅，覆盖六大维度：架构一致性、并发安全、错误处理、代码质量、测试充分性、安全合规。
+
+### 审阅产出
+- `docs/reviews/agent-runtime-review-20260723.md` — 完整审阅报告
+- 参考 `docs/review/executor-full-review-2026-07-23.md`、`docs/review/event-system-review-2026-07-23.md`
+
+### 发现统计
+- **P0 (Critical)** 2 项: CompressorEngine/CompactionState 数据竞争 — 需立即修复
+- **P1 (High)** 13 项: MaxTurns off-by-one、wrapObserver 多接口丢失、state.go 深拷贝纪律、inheritRuntime 安全红线等
+- **P2 (Medium)** 25 项: 事件完整性 iface 参数丢失、测试缺口等
+- **P3 (Low)** 16 项: 死代码、性能微优化等
+- **合计**: 56 项发现
+
+### 验证
+- `go test -race -count=1 ./agentcore/...` — 通过（3 个预存 pipeline LLM 测试失败非 race 相关）
+- `bash scripts/check-sensitive-paths.sh` — 通过
+
+## 2026-07-23: 执行器全量质量审阅与修复
+
+### 背景
+对 agentcore 执行器（核心运行循环、工具分发、子模块）进行全量质量审阅，覆盖 10+ 核心模块。发现 4 个 🟠 严重问题、6 个 🟡 建议、6 个 🔵 优化，其中 7 项已修复。
+
+### 审阅产出
+- `docs/review/executor-full-review-2026-07-23.md` — 14 页完整审阅报告
+- 与已有 `docs/review/event-system-review-2026-07-23.md` 事件系统审阅报告交叉引用
+
+### 改动
+
+**🔴 严重问题修复**
+- **串行执行支持 context 取消** (`agentcore/executor.go:executeSerial`): 每个工具调用前检查 `ctx.Done()`，取消时跳过剩余工具调用
+- **并行模式 slot 释放加固** (`agentcore/executor.go:executeParallel`): 添加 `acquired` flag，仅在 Acquire 成功后执行 `pool.Release()`，防止未来代码修改引入 leak
+- **InvokeTool 配置校验** (`agentcore/agent.go:InvokeTool`): 添加 `configErr` 前置检查，无效配置的 Agent 拒绝执行
+
+**🟡 建议问题修复**
+- **EvalHook 无上下文评分** (`knowledge/eval.go`): `scoreFaithfulness` 无上下文时返回 0（先前 0.8），使 EvalConsumer 的低忠实度警告可被触发
+- **Config() 值拷贝保护** (`agentcore/agent.go:Config`): 6 个切片字段（Tools/Handoffs/Extensions/Middleware/GlobalBefore/GlobalAfter）执行浅拷贝，防止调用方通过返回的 Config 与 Agent 内部状态竞态
+
+**🔵 优化修复**
+- **RateLimitHook 时间戳修剪** (`agentcore/lifecycle.go:BeforeModelCall`): 每轮自动修剪超过 1 分钟的历史时间戳，防止长期运行 Agent 中切片无限增长
+- **guardTruncation 空 ID 日志** (`agentcore/agent_run_phase.go`): 截断检测中发现空 TC.ID 时记录 `slog.Debug`
+
+### 验证
+- `go test -race -count=1 ./agentcore/...` ✅ 全部通过（9 个子包）
+- `go test -race -count=1 ./knowledge/...` ✅ 全部通过（6 个子包）
+- `go build ./...` ✅ 通过
+- `go vet ./agentcore/... ./knowledge/... ./server/...` ✅ 无警告
+
 ## 2026-07-23: 事件系统代码审阅与全部修复
 
 ### 背景

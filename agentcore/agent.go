@@ -3,6 +3,7 @@ package agentcore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -262,7 +263,28 @@ func (a *Agent) ConfigError() error { return a.configErr }
 func (a *Agent) Config() Config {
 	a.configMu.RLock()
 	defer a.configMu.RUnlock()
-	return a.config
+	// Shallow-copy slice/map fields so callers cannot race against
+	// the agent's internal state by mutating the returned Config.
+	cfg := a.config
+	cfg.Tools = append([]*Tool(nil), cfg.Tools...)
+	cfg.Handoffs = append([]HandoffConfig(nil), cfg.Handoffs...)
+	cfg.Extensions = append([]Extension(nil), cfg.Extensions...)
+	cfg.Middleware = append([]Middleware(nil), cfg.Middleware...)
+	cfg.GlobalBefore = append([]BeforeHook(nil), cfg.GlobalBefore...)
+	cfg.GlobalAfter = append([]AfterHook(nil), cfg.GlobalAfter...)
+	if cfg.LayerConfigs != nil {
+		cfg.LayerConfigs = cloneMap(cfg.LayerConfigs)
+	}
+	return cfg
+}
+
+// cloneMap shallow-copies a ContextLayer→LayerConfig map.
+func cloneMap(src map[ContextLayer]LayerConfig) map[ContextLayer]LayerConfig {
+	dst := make(map[ContextLayer]LayerConfig, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }
 
 // ApplyCallConfig updates the agent's Model, Thinking, ResponseFormat, and
@@ -347,6 +369,9 @@ func (a *Agent) GetTool(name string) (*Tool, bool) { return a.registry.Get(name)
 // guardrails, and any other configured hooks applied exactly as they would
 // be for the model's own tool calls.
 func (a *Agent) InvokeTool(ctx context.Context, name string, args json.RawMessage) (string, error) {
+	if a.configErr != nil {
+		return "", fmt.Errorf("agentcore: agent configuration is invalid: %w", a.configErr)
+	}
 	tc := ToolCall{Name: name, Arguments: string(args)}
 	result := a.executor.Execute(ctx, tc, a.state)
 	if result.Err != nil {
