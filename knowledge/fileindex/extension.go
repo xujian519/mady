@@ -84,7 +84,7 @@ func (e *Extension) Tools() []*agentcore.Tool {
 	return []*agentcore.Tool{
 		{
 			Name:        "read_project_file",
-			Description: "读取并深度处理案件文件夹中的文件。根据文件类型自动选择提取方式（文本直接读、PDF 通过 pdftotext 提取、docx 解压提取、CSV 表格格式化）。图片和音频文件返回元数据和成本提示。",
+			Description: "读取并深度处理工作目录中的文件。根据文件类型自动选择提取方式（文本直接读、PDF 通过 pdftotext 提取、docx 解压提取、CSV 表格格式化）。图片和音频文件返回元数据和成本提示。",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -99,7 +99,7 @@ func (e *Extension) Tools() []*agentcore.Tool {
 		},
 		{
 			Name:        "search_project_files",
-			Description: "在项目文件夹中搜索文件。已关联案件且索引可用时，支持文件名、路径和文件内容搜索（RRF 排序）；基础模式仅匹配文件名和路径。返回按相关性排序的文件列表。",
+			Description: "在项目文件夹中搜索文件。支持文件名、路径和文件内容搜索（RRF 排序），返回按相关性排序的文件列表。",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -174,7 +174,10 @@ func (e *Extension) handleSearch(ctx context.Context, args json.RawMessage) (any
 	// ---- Fallback mode: simple filename/path match via WalkDir ----
 	rootDir := e.workingDir()
 	if rootDir == "" {
-		return searchResult{Message: "未设置工作目录。请在案件文件夹下启动 Mady，系统会自动识别。"}, nil
+		rootDir, _ = os.Getwd()
+	}
+	if rootDir == "" {
+		return searchResult{Message: "未设置工作目录，无法搜索文件。"}, nil
 	}
 	return searchFallback(ctx, rootDir, input.Query, input.MaxResults), nil
 }
@@ -201,12 +204,12 @@ func (e *Extension) handleReadFile(ctx context.Context, args json.RawMessage) (a
 		}
 		rootDir = fi.Dir()
 		if rootDir == "" {
-			return map[string]string{"error": "未设置工作目录。请在案件文件夹下启动 Mady，系统会自动识别。"}, nil
+			rootDir, _ = os.Getwd()
 		}
 	} else {
 		rootDir = e.workingDir()
 		if rootDir == "" {
-			return map[string]string{"error": "未设置工作目录。请在案件文件夹下启动 Mady，系统会自动识别。"}, nil
+			rootDir, _ = os.Getwd()
 		}
 	}
 	fullPath := input.Path

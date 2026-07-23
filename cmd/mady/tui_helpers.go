@@ -152,9 +152,19 @@ func statusBarModeLabel(planMode, useMultiDomain bool, thinking *agentcore.Think
 }
 
 func formatProjectContext(rec *domains.ProjectRecord, meta *domains.ProjectMeta) string {
+	// 瞬态 CWD 上下文（无领域、无元数据）→ 简洁的工作目录说明，不冠以"案件"。
+	if rec.Domain == "" && meta == nil {
+		return fmt.Sprintf(
+			"\n\n---\n## 当前工作目录\n%s\n用户提到的相对路径默认基于此目录。",
+			rec.RootPath,
+		)
+	}
+
 	s := "\n\n---\n## 当前案件上下文\n"
 	s += fmt.Sprintf("- 案件: %s（%s）\n", rec.Alias, rec.ProjectID)
-	s += fmt.Sprintf("- 领域: %s\n", rec.Domain)
+	if rec.Domain != "" {
+		s += fmt.Sprintf("- 领域: %s\n", rec.Domain)
+	}
 	if meta != nil {
 		if meta.MatterType != "" {
 			s += fmt.Sprintf("- 事项类型: %s\n", meta.MatterType)

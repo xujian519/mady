@@ -231,12 +231,16 @@ func (s *tuiSession) handleThemeCommand(trimmed string) {
 }
 
 // detectCaseFromCWD checks if the current working directory is associated with
-// a known case and loads its context. Returns a status message (empty if no
-// case was found). Does not print — the caller decides when to show the message.
+// a known case and loads its context. When no case is found, automatically
+// creates a transient project context from CWD so the agent always has a
+// working directory — no manual case registration needed.
 func (s *tuiSession) detectCaseFromCWD() string {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return ""
+		cwd, _ = os.UserHomeDir()
+		if cwd == "" {
+			return ""
+		}
 	}
 	// 先尝试通过 CaseIndex 查找
 	if s.fc.CaseIndex != nil {
@@ -256,7 +260,31 @@ func (s *tuiSession) detectCaseFromCWD() string {
 			}
 		}
 	}
-	return ""
+	// 未关联已知案件 → 自动以 CWD 创建瞬态项目上下文
+	dirName := filepath.Base(cwd)
+	pr := &domains.ProjectRecord{
+		ProjectID:    fmt.Sprintf("cwd-%d", time.Now().UnixNano()),
+		Domain:       "",
+		Alias:        dirName,
+		RootPath:     cwd,
+		Status:       domains.StatusActive,
+		RegisteredAt: time.Now(),
+		LastAccessed: time.Now(),
+	}
+	s.applyProjectContext(pr, nil)
+	return fmt.Sprintf("工作目录: %s", cwd)
+}
+
+// applyProjectContext sets the project record + metadata, opens file index,
+// rebuilds the agent, and updates the status bar. It is the single shared
+// post-assignment sequence for all three entry paths (CWD fallback, CaseIndex
+// match, ProjectRegistry match).
+func (s *tuiSession) applyProjectContext(pr *domains.ProjectRecord, meta *domains.ProjectMeta) {
+	s.currentProject = pr
+	s.currentProjectMeta = meta
+	s.openFileIndexForPath(pr.RootPath, pr.ProjectID)
+	s.rebuildAgent()
+	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
 }
 
 // loadCaseContext sets the session's case context from a CaseRecord.
@@ -264,30 +292,20 @@ func (s *tuiSession) detectCaseFromCWD() string {
 func (s *tuiSession) loadCaseContext(rec *domains.CaseRecord) string {
 	pr := rec.ToProjectRecord()
 	meta := rec.ToProjectMeta()
-	s.currentProject = &pr
-	s.currentProjectMeta = &meta
-
-	s.openFileIndexForPath(pr.RootPath, pr.ProjectID)
-	s.rebuildAgent()
-	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	s.applyProjectContext(&pr, &meta)
 	return fmt.Sprintf("已加载案件: %s（%s）\n工作目录: %s", rec.DisplayLabel(), rec.PrimaryIdentity(), pr.RootPath)
 }
 
 // switchToProject sets the session's case context from a ProjectRecord.
 // Returns a status message for the caller to display.
 func (s *tuiSession) switchToProject(matched *domains.ProjectRecord) string {
-	s.currentProject = matched
-	s.currentProjectMeta = nil
 	s.closeFileResources()
-	s.fileIndexExt.SetFileIndex(nil)
 
-	s.openFileIndexForPath(matched.RootPath, matched.ProjectID)
-
-	if meta, err := s.fc.ProjectRegistry.LoadMeta(matched.ProjectID); err == nil {
-		s.currentProjectMeta = meta
+	meta, err := s.fc.ProjectRegistry.LoadMeta(matched.ProjectID)
+	if err != nil {
+		meta = nil
 	}
-	s.rebuildAgent()
-	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	s.applyProjectContext(matched, meta)
 	return fmt.Sprintf("已切换到案件: %s（%s）\n工作目录: %s\n⚖ 已启用五阶段法律推理工具（run_five_step_workflow）", matched.Alias, matched.ProjectID, matched.RootPath)
 }
 
@@ -322,7 +340,6 @@ func (s *tuiSession) closeFileResources() {
 		s.currentFileIndex.Close()
 		s.currentFileIndex = nil
 		s.fileIndexExt.SetFileIndex(nil)
-		s.fileIndexExt.SetFallbackDir(s.fc.BaseConfig.ProjectDir)
 	}
 }
 

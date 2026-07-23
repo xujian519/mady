@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -169,16 +168,18 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 		Saver:    s.checkpointSaver,
 		ThreadID: s.currentThreadID,
 	}
-	if s.currentProject != nil {
-		cfg.WorkspaceDir = s.currentProject.RootPath
-		cfg.ProjectDir = s.currentProject.RootPath
-		cfg.SystemPrompt += formatProjectContext(s.currentProject, s.currentProjectMeta)
+	// currentProject 由 detectCaseFromCWD 确保始终非空（匹配已知案件或自动从 CWD 创建）。
+	cfg.WorkspaceDir = s.currentProject.RootPath
+	cfg.ProjectDir = s.currentProject.RootPath
+	cfg.SystemPrompt += formatProjectContext(s.currentProject, s.currentProjectMeta)
 
-		retriever := buildReasoningRetriever(s.fc)
-		var llmClient reasoning.LlmClient
-		if s.provider != nil {
-			llmClient = reasoning.NewLlmClientFromProvider(s.provider, s.model)
-		}
+	retriever := buildReasoningRetriever(s.fc)
+	var llmClient reasoning.LlmClient
+	if s.provider != nil {
+		llmClient = reasoning.NewLlmClientFromProvider(s.provider, s.model)
+	}
+	// 仅在已有领域元数据时才注入五步推理工作流工具
+	if s.currentProjectMeta != nil && s.currentProjectMeta.MatterType != "" {
 		runner := reasoning.NewWorkflowRunner(
 			s.currentProject.ProjectID,
 			mapMatterTypeToCaseType(s.currentProjectMeta),
@@ -203,11 +204,6 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 			}
 		}
 		cfg.Tools = append(cfg.Tools, reasoning.AsWorkflowToolWithCheckpoint(runner, s.workflowStore))
-	} else if cfg.ProjectDir != "" {
-		cfg.SystemPrompt += fmt.Sprintf(
-			"\n\n【当前工作目录】\n你正在「%s」目录下工作。可以使用文件工具（read、ls、grep、find、write_file 等）读取和分析该目录中的文件。用户提到的相对路径默认基于此目录。",
-			cfg.ProjectDir,
-		)
 	}
 
 	if s.isReviewMode() {

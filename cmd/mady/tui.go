@@ -241,14 +241,10 @@ func runTui(ctx context.Context) {
 			app.PrintSystem("⚠ " + p.UserMessage)
 		}
 	}
-	// 启动时自动检测当前目录是否关联案件。
-	// detectCaseFromCWD 只设置状态（含 status bar），不打印；
-	// 检测结果在欢迎信息之后输出，避免"已加载案件"出现在 banner 之前。
+	// detectCaseFromCWD 始终以 CWD 创建项目上下文（匹配已知案件或从 CWD 自动创建）。
+	// 设置状态栏的工作目录标签，欢迎信息输出检测结果。
 	caseMsg := s.detectCaseFromCWD()
-	projectLabel := "无"
-	if s.currentProject != nil {
-		projectLabel = s.currentProject.Alias
-	}
+	projectLabel := s.currentProject.Alias
 	app.PrintWelcome(s.providerName, s.normalModel, modeLabel, projectLabel)
 	if caseMsg != "" {
 		app.PrintSystem(caseMsg)
