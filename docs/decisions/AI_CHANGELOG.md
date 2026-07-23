@@ -1,5 +1,49 @@
 # AI 变更记录
 
+## 2026-07-23: 文档同步 — AGENTS.md / CLAUDE.md 与代码实际状态对齐
+
+### 背景
+上一轮文档同步（`3206acd`）后，25 个功能提交带来了 335 个文件变更（+43K 行），
+包括 6 个全新专利分析子模块、编排内核硬化、CWD 即工作区行为变更等。
+AGENTS.md 与 CLAUDE.md 的目录结构、代码统计和资源定位描述已严重滞后。
+
+### 变更内容
+
+**代码统计更新**
+- AGENTS.md / CLAUDE.md：`940 源文件（630+310）/ ~207K 行` → `1081 源文件（732+349）/ ~240K 行`
+
+**CLAUDE.md 目录结构修正**
+- `agentcore/` 子目录：移除错误归属的 `doomloop/`、`evaluate/`、`tracing/`（实际为顶层独立包），
+  新增 `iface/`（接口抽象层）
+- `domains/` 子目录：新增 `claimdrafting/`（权利要求撰写）、`specdrafting/`（说明书撰写）、
+  `enablement/`（26.3 充分公开判断）、`evidence/`（证据规则引擎）、`domainconfig/`（统一领域配置），
+  更新 `reasoning/`（拓扑驱动泛化）、`sqlite/`（新增 case_index）
+- 顶层目录：新增 `doomloop/`、`evaluate/`（含 benchmark/calibrate/cli）、`tracing/`
+- `graph/`：补充 StateSchema/Reducer、NodePolicy、DegradationMark
+- `memory/compiler/`：补充时间衰减置信度、质量加权、持久化
+- `workflows/patent/`：补充无效宣告/侵权比对/复审请求
+- `pkg/`：新增 `i18n/`（zh-CN/en-US），`util/` 补充沙箱配置
+- `cmd/mady/`：新增 `trust-knowledge` 子命令
+- `tools/` 源文件统计：`~85 源文件` → `65 源 + 20 测试`
+
+**AGENTS.md 资源定位补充**
+- 新增"CWD 即工作区"段落：`detectCaseFromCWD` 自动创建瞬态项目上下文，
+  `applyPersistence` 移除案件关联门闩（cd3ae7d 行为变更）
+
+**AGENTS.md 项目概览**
+- 领域扩展层补充新增的 5 个子模块名称
+
+### 涉及文件（3 个）
+
+| 文件 | 变更类型 |
+|------|---------|
+| `AGENTS.md` | 修改：代码统计 + 资源定位补充 + 项目概览 |
+| `Claude.md` | 修改：目录结构全面修正（agentcore/domains/顶层/pkg/cmd）+ 代码统计 |
+| `docs/decisions/AI_CHANGELOG.md` | 本条记录 |
+
+### 说明
+敏感路径表与 `scripts/check-sensitive-paths.sh` 的 `SENSITIVE_PATHS` / `SENSITIVE_PATH_PREFIXES` 数组对比一致，无需更新。
+
 ## 2026-07-23: 四大功能模块断链修复 — inventiveness/claimdrafting/specdrafting 接线
 
 ### 背景

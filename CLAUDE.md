@@ -9,7 +9,7 @@
 
 - **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` 子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 940 个 Go 源文件（630 非测试 + 310 测试），~207K 行代码
+- 1081 个 Go 源文件（732 非测试 + 349 测试），~240K 行代码
 
 ## 构建与测试
 
@@ -31,18 +31,14 @@ cd tools && go test ./...
 
 ```
 mady/
-├── agentcore/        # 核心 Agent 运行时（64 源 + 44 测试，根目录）
+├── agentcore/        # 核心 Agent 运行时（65 源 + 44 测试，根目录）
 │   ├── cache/        #   缓存抽象
 │   ├── concurrency/  #   并发原语
-│   ├── doomloop/     #   死循环检测器（6 种探测器）
-│   ├── evidence/     #   工具调用证据账本（Receipt/Ledger）
-│   ├── evaluate/     #   评估框架（RAGAS 风格）
-│   │   ├── benchmark/#     跑批基准（P2A 31 题 / 无效决定 100 例）
-│   │   └── cli/      #     CLI 评估引擎（static/live 模式）
+│   ├── evidence/     #   工具调用证据账本（Receipt/Ledger/Claim Binding）
 │   ├── filecheckpoint/ # 文件级快照与回退
+│   ├── iface/        #   接口抽象层（Agent/Extension/Lifecycle/Provider/Event 契约）
 │   ├── permission/   #   细粒度权限门控（Allow/Ask/Deny）
 │   ├── planmode/     #   计划模式工具门控
-│   ├── tracing/      #   OpenTelemetry 追踪
 │   ├── atom.go       #   Pipeline Atoms（可组合原子操作）
 │   ├── plugin.go     #   插件系统（plugin.json + SKILL.md）
 │   ├── reasoning_strategy.go  # 推理策略编排（6 种策略）
@@ -53,17 +49,23 @@ mady/
 ├── acp/              # Agent 通信协议（JSON-RPC + 认证）
 ├── agui/             # Agent GUI 事件协议（SSE）
 ├── disclosure/       # 技术交底书分析管线（11 节点 Pregel，含 review_gate 主动中断）
-├── domains/          # 领域 Agent 配置 + 推理引擎
+├── doomloop/         # 死循环检测器（6 种探测器，LifecycleHook 实现）
+├── domains/          # 领域 Agent 配置 + 推理引擎 + 专利分析模块
+│   ├── claimdrafting/#   权利要求书撰写（LLM 增强撰写 + 6 类规则引擎 + 评分器）
 │   ├── doctmpl/      #   文档模板库（Markdown + YAML frontmatter）
-│   ├── inventiveness/#   发明性评估图引擎
-│   ├── reasoning/    #   事实黑板、三段论、多跳遍历、五步工作法、规划编译器
+│   ├── domainconfig/ #   统一领域配置（YAML/JSON 加载 + 校验）
+│   ├── enablement/   #   26.3 充分公开判断（图引擎 + 领域规则 + 知识库联动）
+│   ├── evidence/     #   专利证据判断规则引擎（三性/类型/举证责任/证明标准/日期/可信度）
+│   ├── inventiveness/#   创造性判断图引擎（四轮迭代优化 + 审查模拟）
+│   ├── reasoning/    #   事实黑板、三段论、多跳遍历、五步工作法、规划编译器、拓扑驱动泛化
 │   │   ├── collector/#     上下文收集与路由
 │   │   ├── sqlite/   #     推理持久化
 │   │   └── wiring/   #     装配层（vector/skill/rule 三路适配）
 │   ├── rules/        #   YAML 规则引擎 + OA 解析 + 反套话引擎
-│   ├── sqlite/       #     领域持久化（approval_store）
+│   ├── specdrafting/ #   说明书撰写（12 节点 Pregel 图 + 规则引擎 + 评分器）
+│   ├── sqlite/       #   领域持久化（approval_store / case_index）
 │   └── writing/      #   撰写质量评估、模式存储、技能编译器
-├── graph/            # 图引擎（DAG + Pregel）
+├── graph/            # 图引擎（DAG + Pregel，含 StateSchema/Reducer、NodePolicy、DegradationMark）
 ├── guardrails/       # 三级护栏系统（含引用核验 Gate）
 │   ├── citation_gate.go  # 引用核验门（双级核验 S1 静态表 + S2 知识源）
 │   ├── citation_table.go # S1 静态主题表（专利法 82 条精校）
@@ -77,7 +79,7 @@ mady/
 │   └── sqlite/       #   SQLite 只读层（FTS5 全文 + 向量余弦）
 ├── mcp/              # MCP 客户端（stdio + HTTP/SSE）
 ├── memory/           # 长期记忆系统（三层模型）
-│   └── compiler/     #   策略学习型记忆编译器
+│   └── compiler/     #   策略学习型记忆编译器（时间衰减置信度、质量加权、持久化）
 ├── psychological/    # 心理引擎（VAD/OCC/EMA/SDT/CBT）
 ├── provider/         # LLM 接入层
 │   ├── adapter/      #   Agent 适配器模式（Claude Code / Codex CLI）
@@ -92,10 +94,11 @@ mady/
 ├── skill/            # SKILL.md 解析器（含 MadyExtension 扩展字段）
 ├── skills/           # 内置技能定义（chat/patent/legal/disclosure）
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块 ~85 源文件）
+├── tools/            # 内置工具扩展（独立子模块，65 源 + 20 测试）
 │   ├── computer_use*.go  # 桌面控制（macOS/Linux/Windows 三平台 + SOM）
 │   ├── browser_*.go      # 浏览器自动化（stealth/session/recorder/supervisor）
 │   └── browser_providers/# 浏览器提供商抽象
+├── tracing/          # OpenTelemetry 追踪（分布式 span 注入）
 ├── tui/              # 终端 UI（8 层 Elm 架构）
 │   ├── core/         #   Layer 0: Component 接口
 │   ├── terminal/     #   Layer 1: 终端 I/O（含 keymap.json 配置文件）
@@ -107,10 +110,11 @@ mady/
 │   ├── agentadapter/ #   Layer 7: Agent 适配器
 │   └── layout/       #   Layer 0 扩展：布局原语（仅依赖 core）
 ├── workflow/         # 工作流原语（Pipeline/Parallel/Router）
-├── workflows/        # 领域工作流（legal/patent/autoresearch）
+├── workflows/        # 领域工作流（legal/patent/autoresearch；专利含无效宣告/侵权比对/复审请求）
 ├── benchmark/        # 性能基准测试
+├── evaluate/         # 评估框架（RAGAS 风格，benchmark 跑批 + CLI 引擎 + 校准）
 ├── integration/      # 端到端集成测试（含 doomloop/chain/drafting/guardrails/handoff）
-├── cmd/mady/         # 统一入口（mady tui | mady serve | mady acp | mady eval | mady mcp-install | mady trust-mcp | mady patent）
+├── cmd/mady/         # 统一入口（mady tui | mady serve | mady acp | mady eval | mady mcp-install | mady trust-mcp | mady trust-knowledge | mady patent）
 ├── example/          # 示例应用（9 个）
 ├── docs/             # 文档（ADRs、OpenAPI 规范、设计文档、评审报告）
 ├── filequeue/        # 文件队列
@@ -124,9 +128,10 @@ mady/
 ├── manifests/        # 外部 manifest 示例
 ├── pkg/
 │   ├── agentconfig/  #   统一 Provider/Model 配置层
-│   ├── lawcite/      #   法条引用解析与归一化（中文数字+条/款/项/之N）
 │   ├── csync/        #   并发同步原语
-│   └── util/         #   路径解析等通用工具
+│   ├── i18n/         #   国际化（zh-CN / en-US，护栏与通用文案翻译）
+│   ├── lawcite/      #   法条引用解析与归一化（中文数字+条/款/项/之N）
+│   └── util/         #   路径解析、沙箱配置等通用工具
 ```
 
 ## 架构概要
