@@ -29,8 +29,8 @@ var classificationSchema = map[string]any{
 	"properties": map[string]any{
 		"domain": map[string]any{
 			"type":        "string",
-			"enum":        []string{"chat", "assistant", "patent", "legal"},
-			"description": "分类的目标领域: chat(日常聊天), assistant(通用助理/任务执行), patent(专利代理), legal(法律咨询)",
+			"enum":        []string{"chat", "patent", "legal"},
+			"description": "分类的目标领域: chat(日常对话/通用任务), patent(专利代理), legal(法律咨询)",
 		},
 		"confidence": map[string]any{
 			"type":        "number",
@@ -165,7 +165,7 @@ func (c *LLMClassifier) classifyWithLLM(ctx context.Context, input string) (stri
 
 	// Validate domain.
 	switch result.Domain {
-	case DomainChat, DomainAssistant, DomainPatent, DomainLegal:
+	case DomainChat, DomainPatent, DomainLegal:
 	default:
 		return "", 0, fmt.Errorf("llm classify: unknown domain %q", result.Domain)
 	}

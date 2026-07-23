@@ -35,7 +35,6 @@ func withReviewMode(on bool) func(*tuiSession) {
 
 func TestSlashRegistryLookupExactAndPrefix(t *testing.T) {
 	s := newTestSession(withReviewMode(true))
-	s.useMultiDomain = true
 	r := s.buildSlashRegistry()
 
 	cases := []struct {
@@ -66,29 +65,27 @@ func TestSlashRegistryLookupExactAndPrefix(t *testing.T) {
 }
 
 func TestSlashRegistryAvailableGate(t *testing.T) {
-	// /mode is gated by multi-domain (hidden from autocomplete + Lookup when off).
+	// /mode is always available in unified mode.
 	// /approve and /reject are intentionally NOT gated by Available — they
 	// always match so the handler can emit a guiding "review mode off" hint
 	// instead of "未知命令" (the gate lives inside the handler).
-	multiOff := newTestSession(withReviewMode(false))
-	multiOff.useMultiDomain = false
-	r := multiOff.buildSlashRegistry()
+	s := newTestSession(withReviewMode(false))
+	r := s.buildSlashRegistry()
 
-	if cmd := r.Lookup("/mode", multiOff); cmd != nil {
-		t.Errorf("/mode should be unavailable without multi-domain, got %v", cmd)
+	if cmd := r.Lookup("/mode", s); cmd == nil {
+		t.Errorf("/mode should always be available in unified mode")
 	}
 	// /approve matches even when review is off — the handler prints the hint.
-	if cmd := r.Lookup("/approve", multiOff); cmd == nil {
+	if cmd := r.Lookup("/approve", s); cmd == nil {
 		t.Errorf("/approve should always be dispatchable (handler gates review mode), got nil")
 	}
 
-	multiOn := newTestSession(withReviewMode(true))
-	multiOn.useMultiDomain = true
-	r2 := multiOn.buildSlashRegistry()
-	if cmd := r2.Lookup("/mode", multiOn); cmd == nil {
-		t.Errorf("/mode should be available in multi-domain mode")
+	sOn := newTestSession(withReviewMode(true))
+	r2 := sOn.buildSlashRegistry()
+	if cmd := r2.Lookup("/mode", sOn); cmd == nil {
+		t.Errorf("/mode should be available")
 	}
-	if cmd := r2.Lookup("/approve", multiOn); cmd == nil {
+	if cmd := r2.Lookup("/approve", sOn); cmd == nil {
 		t.Errorf("/approve should be available in review mode")
 	}
 }
@@ -99,7 +96,6 @@ func TestSlashRegistryAvailableGate(t *testing.T) {
 // matcher rejects, leaving the user with an "未知命令" dead end.
 func TestSlashRegistrySkillSuggestionHasColon(t *testing.T) {
 	s := newTestSession()
-	s.useMultiDomain = false
 	r := s.buildSlashRegistry()
 	sugs := r.Suggestions(s)
 	for _, sg := range sugs {
@@ -127,18 +123,18 @@ func TestSlashRegistryUnknownCommand(t *testing.T) {
 
 func TestSlashRegistrySuggestionsReflectAvailability(t *testing.T) {
 	s := newTestSession(withReviewMode(false))
-	s.useMultiDomain = false
 	r := s.buildSlashRegistry()
 	sugs := r.Suggestions(s)
 
+	// /mode is always available in unified mode.
 	hasMode := false
 	for _, sg := range sugs {
 		if sg.InsertText == "/mode" {
 			hasMode = true
 		}
 	}
-	if hasMode {
-		t.Errorf("/mode should not appear in suggestions when multi-domain is off: %v", sugs)
+	if !hasMode {
+		t.Errorf("/mode should appear in suggestions in unified mode: %v", sugs)
 	}
 
 	// Core commands are always present.

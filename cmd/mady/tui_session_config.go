@@ -11,7 +11,6 @@ import (
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/knowledge/risk"
 	"github.com/xujian519/mady/memory"
-	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/tools"
 )
 
@@ -52,65 +51,21 @@ func (s *tuiSession) injectMemoryExtension(cfg agentcore.Config) agentcore.Confi
 func (s *tuiSession) buildAgentConfig() agentcore.Config {
 	s.memExt = s.buildMemoryExtension()
 
-	switch {
-	case s.useIntegratedMode:
-		base := s.fc.BaseConfig
-		base.Name = "chat-agent"
-		base.ModelConfig = agentcore.ModelConfig{
-			Name:      "mady",
-			Model:     s.model,
-			Provider:  s.provider,
-			Thinking:  cloneThinkingConfig(s.thinkingConfig()),
-			Streaming: true,
-		}
-		s.applyPlanModeThinking(&base)
-		if s.toolApprover != nil {
-			base.Extensions = append(base.Extensions,
-				permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))
-		}
-		return s.extendConfig(domains.IntegratedChatConfig(base))
-
-	case s.useMultiDomain:
-		if s.toolApprover != nil {
-			base := s.fc.BaseConfig
-			base.Extensions = append(base.Extensions,
-				permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))
-		}
-		cfg := buildRouterConfig(s.fc.BaseConfig, s.fc.Manifests)
-		cfg.Thinking = cloneThinkingConfig(s.thinkingConfig())
-		s.applyPlanModeThinking(&cfg)
-		return s.extendConfig(cfg)
-
-	default:
-		singleCfg := agentcore.Config{
-			ModelConfig: agentcore.ModelConfig{
-				Name:      "mady",
-				Model:     s.model,
-				Provider:  s.provider,
-				Thinking:  cloneThinkingConfig(s.thinkingConfig()),
-				Streaming: true,
-			},
-			SystemPrompt: defaultSystemPrompt,
-			ExecutionConfig: agentcore.ExecutionConfig{
-				MaxTurns:          25,
-				ExecutionMode:     agentcore.ModeSerial,
-				ValidateArguments: true,
-			},
-			CompactionConfig: agentcore.CompactionConfig{
-				ContextWindow:    agentconfig.ResolveContextWindow(s.model),
-				ReserveTokens:    32000,
-				KeepRecentTokens: 4000,
-			},
-			RetryConfig: &agentcore.RetryConfig{
-				MaxRetries:  3,
-				BaseDelayMs: 1000,
-				MaxDelayMs:  15000,
-			},
-			Lifecycle: s.fc.WikiHook,
-		}
-		s.applyPlanModeThinking(&singleCfg)
-		return s.extendConfig(singleCfg)
+	base := s.fc.BaseConfig
+	base.Name = "mady-agent"
+	base.ModelConfig = agentcore.ModelConfig{
+		Name:      "mady",
+		Model:     s.model,
+		Provider:  s.provider,
+		Thinking:  cloneThinkingConfig(s.thinkingConfig()),
+		Streaming: true,
 	}
+	s.applyPlanModeThinking(&base)
+	if s.toolApprover != nil {
+		base.Extensions = append(base.Extensions,
+			permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))
+	}
+	return s.extendConfig(domains.UnifiedAgentConfig(base))
 }
 
 // applyPlanModeThinking 在计划模式下将 Thinking 级别提升至最高。

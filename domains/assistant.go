@@ -10,6 +10,10 @@ import (
 )
 
 // AssistantAgentConfig 构建助理领域 Agent 配置。
+//
+// Deprecated: 使用 UnifiedAgentConfig 替代。保留仅供 domainFactoryMap 和
+// RouterConfigFromManifests 内部兼容。
+//
 // 助理 Agent 配备工具集（web_search、web_fetch、read、write_file 等），
 // 用于代码生成、文件操作、数据分析、网页搜索等任务执行。
 // 使用 LevelStandard 护栏，跨域路由由 RouterConfig 统一管理。

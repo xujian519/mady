@@ -406,11 +406,11 @@ func TestDoomLoopE2E_DomainConfigAssistant(t *testing.T) {
 		},
 		ExecutionConfig: agentcore.ExecutionConfig{MaxTurns: 3},
 	}
-	cfg := domains.AssistantAgentConfig(base)
+	cfg := domains.UnifiedAgentConfig(base)
 
-	output, err := runStubAgent(t, cfg, "验证 Assistant 领域配置包含 DoomLoop")
+	output, err := runStubAgent(t, cfg, "验证 Unified 领域配置包含 DoomLoop")
 	if err != nil {
-		t.Fatalf("assistant agent.Run failed: %v", err)
+		t.Fatalf("unified agent.Run failed: %v", err)
 	}
 	if output == "" {
 		t.Fatal("expected non-empty output from assistant agent")

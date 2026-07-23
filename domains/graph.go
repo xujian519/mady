@@ -23,20 +23,21 @@ func (s *funcStep) Run(ctx context.Context, input string) (string, error) {
 //	             ┌──────────┐
 //	             │  router  │ (classify intent)
 //	             └────┬─────┘
-//	      ┌───────────┼───────────┬───────────┐
-//	      ▼           ▼           ▼           ▼
-//	┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
-//	│  chat   │ │assistant│ │ patent  │ │  legal  │
-//	└─────────┘ └─────────┘ └─────────┘ └─────────┘
+//	      ┌───────────┼───────────┐
+//	      ▼           ▼           ▼
+//	┌──────────┐ ┌─────────┐ ┌─────────┐
+//	│ unified  │ │ patent  │ │  legal  │
+//	└──────────┘ └─────────┘ └─────────┘
 //
 // The router uses conditional edges to auto-route to the correct domain.
-func BuildDomainGraph(chatStep, assistantStep, patentStep, legalStep agentcore.Step) (*graph.CompiledGraph, error) {
-	return BuildDomainGraphWithClassifier(chatStep, assistantStep, patentStep, legalStep, nil)
+// chat/assistant intents both route to the unified node.
+func BuildDomainGraph(unifiedStep, patentStep, legalStep agentcore.Step) (*graph.CompiledGraph, error) {
+	return BuildDomainGraphWithClassifier(unifiedStep, patentStep, legalStep, nil)
 }
 
 // BuildDomainGraphWithClassifier constructs the top-level domain routing DAG
 // with an optional IntentClassifier. If classifier is nil, KeywordClassifier is used.
-func BuildDomainGraphWithClassifier(chatStep, assistantStep, patentStep, legalStep agentcore.Step, classifier IntentClassifier) (*graph.CompiledGraph, error) {
+func BuildDomainGraphWithClassifier(unifiedStep, patentStep, legalStep agentcore.Step, classifier IntentClassifier) (*graph.CompiledGraph, error) {
 	if classifier == nil {
 		classifier = &KeywordClassifier{}
 	}
@@ -46,8 +47,7 @@ func BuildDomainGraphWithClassifier(chatStep, assistantStep, patentStep, legalSt
 	g.AddNode("router", &funcStep{name: "router", fn: func(_ context.Context, input string) (string, error) {
 		return input, nil
 	}})
-	g.AddNode(DomainChat, chatStep)
-	g.AddNode(DomainAssistant, assistantStep)
+	g.AddNode(DomainChat, unifiedStep)
 	g.AddNode(DomainPatent, patentStep)
 	g.AddNode(DomainLegal, legalStep)
 
@@ -57,8 +57,12 @@ func BuildDomainGraphWithClassifier(chatStep, assistantStep, patentStep, legalSt
 		if err != nil {
 			return DomainChat
 		}
+		// chat 和 assistant 统一路由到 unified 节点。
+		if domain == DomainAssistant {
+			return DomainChat
+		}
 		return domain
-	}, []string{DomainChat, DomainAssistant, DomainPatent, DomainLegal})
+	}, []string{DomainChat, DomainPatent, DomainLegal})
 
 	return g.Compile(graph.CompileOptions{EntryNode: "router"})
 }

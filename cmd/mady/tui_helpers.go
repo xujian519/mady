@@ -133,14 +133,11 @@ func parseThinkingCommand(input string, current *agentcore.ThinkingConfig) (*age
 }
 
 // statusBarModeLabel 生成状态栏的模式标签（中文友好）。
-func statusBarModeLabel(planMode, useMultiDomain bool, thinking *agentcore.ThinkingConfig) string {
+func statusBarModeLabel(planMode bool, thinking *agentcore.ThinkingConfig) string {
 	if planMode {
 		return "🧠 计划"
 	}
-	label := "集成"
-	if useMultiDomain {
-		label = "多域路由"
-	}
+	label := "统一"
 	if thinking != nil && thinking.IncludeThoughts {
 		if thinking.Effort != "" && thinking.Effort != agentcore.ThinkingEffortDefault {
 			label += " · 推理" + string(thinking.Effort)

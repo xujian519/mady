@@ -51,20 +51,9 @@ func loadWritingPatterns(madyHome string) *writing.PatternStore {
 	return store
 }
 
-// defaultSystemPrompt 仅在多域 manifest 全部加载失败时的最终兜底。
-// 正常情况下 mady 通过 go:embed 内置的 4 个领域 manifest 进入多域路由模式，
-// 不会用到这个提示词。
-const defaultSystemPrompt = "你是 Mady 智能助手，一个能力完备的通用 AI 代理。" +
-	"你可以调用工具、检索知识、多步推理。请用简洁清晰的中文回答用户。"
-
 // runTui launches the interactive terminal chat.
 //
-// 运行模式切换（优先级由高到低）：
-//
-//	MADY_SINGLE_AGENT=1 → 单 Agent 模式（纯 LLM 对话，无路由）
-//	MADY_ROUTER_MODE=1  → Router 多域路由模式（传统交接可见）
-//	默认（有 Manifest）  → 集成模式（Chat Agent 统一入口，内部 Invisible Handoff）
-//	默认（无 Manifest）  → 单 Agent 模式（降级）
+// 统一 Agent 模式（UnifiedAgent）：内置工具集 + Invisible Handoff 到专利/法律领域。
 func runTui(ctx context.Context) {
 	fs := flag.NewFlagSet("mady tui", flag.ExitOnError)
 	if err := fs.Parse(os.Args[2:]); err != nil {
@@ -87,11 +76,6 @@ func runTui(ctx context.Context) {
 	// 复用 setupFrameworkContext 已构建的 Provider，避免重复调用 agentconfig.BuildProvider()。
 	provider := fc.Provider
 	model := agentconfig.DefaultModel()
-
-	useSingleAgent := os.Getenv("MADY_SINGLE_AGENT") == "1"
-	useRouterMode := os.Getenv("MADY_ROUTER_MODE") == "1"
-	useMultiDomain := !useSingleAgent && len(fc.Manifests) > 0
-	useIntegratedMode := useMultiDomain && !useRouterMode
 
 	// === 存储预检（Sprint 1B） ===
 	// 在构建 tuiSession 前完成所有存储探测，结果写入 s.storageProbes。
@@ -129,22 +113,20 @@ func runTui(ctx context.Context) {
 	})
 
 	s := &tuiSession{
-		ctx:               ctx,
-		fc:                fc,
-		provider:          provider,
-		model:             model,
-		providerName:      firstNonEmpty(os.Getenv("PROVIDER"), "deepseek"),
-		planModel:         agentconfig.DefaultPlanModel,
-		normalModel:       model,
-		useMultiDomain:    useMultiDomain,
-		useIntegratedMode: useIntegratedMode,
-		writingExt:        writingExt,
-		fileIndexExt:      fileIndexExt,
-		toolApprover:      permission.NewTUIChannelApprover(),
-		agentStore:        agentStore,
-		checkpointSaver:   agentcore.NewMemoryCheckpointSaver(),
-		currentThreadID:   "default",
-		sessionDir:        sessionProbe.ResolvedDir,
+		ctx:             ctx,
+		fc:              fc,
+		provider:        provider,
+		model:           model,
+		providerName:    firstNonEmpty(os.Getenv("PROVIDER"), "deepseek"),
+		planModel:       agentconfig.DefaultPlanModel,
+		normalModel:     model,
+		writingExt:      writingExt,
+		fileIndexExt:    fileIndexExt,
+		toolApprover:    permission.NewTUIChannelApprover(),
+		agentStore:      agentStore,
+		checkpointSaver: agentcore.NewMemoryCheckpointSaver(),
+		currentThreadID: "default",
+		sessionDir:      sessionProbe.ResolvedDir,
 	}
 
 	// 初始化 SettingsStore
@@ -181,7 +163,7 @@ func runTui(ctx context.Context) {
 	app = tui.NewChatApp(chat.ChatAppConfig{
 		Title:                      fmt.Sprintf("mady · model=%s", model),
 		ShowTurns:                  true,
-		SuppressHandoffToolDisplay: useIntegratedMode,
+		SuppressHandoffToolDisplay: true,
 		AltScreen:                  true,
 		MouseMode:                  "auto",
 		KittyKeyboardFlags:         1,
@@ -228,7 +210,7 @@ func runTui(ctx context.Context) {
 	}
 
 	// 设置状态栏：包含 provider/model/mode 和存储降级状态。
-	modeLabel := statusBarModeLabel(s.isPlanMode(), useMultiDomain, s.thinkingConfig())
+	modeLabel := statusBarModeLabel(s.isPlanMode(), s.thinkingConfig())
 	degTag := storageDegradationTag(storageProbes)
 	if degTag != "" {
 		modeLabel += " · " + degTag

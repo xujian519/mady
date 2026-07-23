@@ -736,15 +736,6 @@ func buildReasoningRetriever(fc *frameworkContext) *reasoning.MultiSourceRetriev
 	return reasoning.NewMultiSourceRetriever(walker, vs, sr, re)
 }
 
-// buildRouterConfig 根据可用的 Manifest 构建 Router Agent 配置。
-// 有 Manifest 时使用声明式注册，没有时回退到硬编码 RouterConfig。
-func buildRouterConfig(base agentcore.Config, manifests []agentcore.AgentManifest) agentcore.Config {
-	if len(manifests) > 0 {
-		return domains.RouterConfigFromManifests(base, manifests)
-	}
-	return domains.RouterConfig(base)
-}
-
 // extSlice wraps a single Extension into a slice, returning nil for nil input.
 func extSlice(ext agentcore.Extension) []agentcore.Extension {
 	if ext == nil {

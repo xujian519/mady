@@ -227,7 +227,7 @@ func parseSlashSubcommand(input, cmdName string) string {
 func (s *tuiSession) buildSlashRegistry() *Registry {
 	r := NewRegistry()
 
-	multiDomain := availableBool(func(s *tuiSession) bool { return s.useMultiDomain })
+	multiDomain := availableBool(func(s *tuiSession) bool { return true }) // 统一模式后始终可用
 
 	r.Register(SlashCommand{
 		Name:     "thinking",
@@ -342,7 +342,7 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 				return
 			}
 			agentName := agent.Config().Name
-			s.app.PrintSystem(fmt.Sprintf("当前 Agent: %s（多域路由模式）", agentName))
+			s.app.PrintSystem(fmt.Sprintf("当前 Agent: %s（统一模式）", agentName))
 		},
 	})
 	r.Register(SlashCommand{

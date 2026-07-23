@@ -1,5 +1,32 @@
 # AI 变更记录
 
+## 2026-07-23: Agent 三合一 — Chat + Assistant + Router → UnifiedAgent
+
+### 背景
+原架构中 Chat Agent（对话/情感陪伴）、Assistant Agent（工具执行）和 Router（领域路由）
+三者分离，集成模式下用户消息经过 Chat → transfer_to_assistant → 子 Agent 执行 →
+返回 HandoffResult → Chat 解释结果，产生 3 倍延迟和上下文序列化损耗。
+
+### 变更内容
+- 新增 `UnifiedAgentConfig`（`domains/unified.go`），融合三者能力
+- 删除运行时模式切换：移除 `MADY_SINGLE_AGENT`/`MADY_ROUTER_MODE` 环境变量
+- `buildAgentConfig`（`cmd/mady/tui_session_config.go`）从三分支 switch 简化为单一路径
+- `ProfessionalHandoffConfigs` 移除 assistant 目标，仅保留 patent/legal
+- `domainFactoryMap` 的 chat/assistant 统一映射到 `UnifiedAgentConfig`
+- 护栏等级统一为 `LevelLight`
+- `domains/graph.go` 简化为 3 节点路由图（unified/patent/legal）
+- 删除 `RouterConfig`/`RouterStep`/`RouterConfigWithRegistry` 等 6 个 Router 函数
+- 删除 `IntegratedChatConfig`（已被 UnifiedAgentConfig 替代）
+
+### 涉及敏感路径
+- `domains/router.go`（AllowedSources 白名单新增 `"mady-agent"`）
+- 护栏降级为 `LevelLight`（用户明确要求，未来通过人机协作/plan 模式替代）
+
+### AI 参与级别
+- L3（架构级重构，需人工审阅）
+
+---
+
 ## 2026-07-23: 文档同步 — AGENTS.md / CLAUDE.md 与代码实际状态对齐
 
 ### 背景

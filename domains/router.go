@@ -1,12 +1,10 @@
 package domains
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/workflow"
 )
 
 // Domain names used for intent classification and routing.
@@ -69,35 +67,21 @@ func ClassifyIntent(input string) string {
 	return DomainChat
 }
 
-// RouterConfig builds the Router Agent configuration.
-// It sets up domain sub-agents as HandoffDelegate targets so the
-// Router can dispatch work to the appropriate domain specialist.
-func RouterConfig(base agentcore.Config) agentcore.Config {
-	return RouterConfigWithClassifier(base, nil)
-}
-
-// ProfessionalHandoffConfigs 返回非聊天领域的 HandoffConfig 列表，
-// 供 Router 和 Chat Agent 共享使用。不包含 chat 自身（避免自递归）。
+// ProfessionalHandoffConfigs 返回专业领域（Patent/Legal）的 HandoffConfig 列表，
+// 供 UnifiedAgentConfig 和 RouterConfigFromManifests 共享使用。
+// 不包含 chat/assistant（已合并进 UnifiedAgent）。
 //
-// AllowedSources 包含 "mady-router"（Router Agent 委派）和 "chat-agent"
-// （集成模式下 Chat Agent 内部委派），两者都是受信任的调度入口。
+// AllowedSources 包含 "mady-router"（遗留 Router 委派）、"chat-agent"
+// （遗留集成模式委派）和 "mady-agent"（统一 Agent 委派），三者都是受信任的调度入口。
 // 扩展此白名单需要安全审阅。不包含 "*" 通配符，防止未授权 Agent 触发专业领域委派。
 func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig {
 	return []agentcore.HandoffConfig{
-		{
-			Name:           DomainAssistant,
-			Description:    "通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。",
-			Mode:           agentcore.HandoffDelegate,
-			AgentConfig:    AssistantAgentConfig(base),
-			AllowedSources: []string{"mady-router", "chat-agent"}, // Router 和 Chat Agent 均可委派
-			FallbackMsg:    "这个任务处理遇到点问题，要不你换个方式再说一遍，或稍后再试？",
-		},
 		{
 			Name:           DomainPatent,
 			Description:    "专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对。",
 			Mode:           agentcore.HandoffDelegate,
 			AgentConfig:    PatentAgentConfig(base),
-			AllowedSources: []string{"mady-router", "chat-agent"},
+			AllowedSources: []string{"mady-router", "chat-agent", "mady-agent"},
 			FallbackMsg:    "专利分析功能暂时不可用，建议稍后重试或联系专业代理人。",
 		},
 		{
@@ -105,92 +89,8 @@ func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig
 			Description:    "法律咨询与研究。处理法条检索、判例检索、法律分析。",
 			Mode:           agentcore.HandoffDelegate,
 			AgentConfig:    LegalAgentConfig(base),
-			AllowedSources: []string{"mady-router", "chat-agent"},
+			AllowedSources: []string{"mady-router", "chat-agent", "mady-agent"},
 			FallbackMsg:    "法律分析功能暂时不可用，建议稍后重试或咨询专业律师。",
-		},
-	}
-}
-
-// RouterConfigWithLLM builds the Router Agent configuration with an LLMClassifier.
-// It creates an LLMClassifier from the given provider and passes it through.
-// This is a convenience wrapper around RouterConfigWithClassifier.
-//
-// If provider is nil, it falls back to RouterConfig (keyword-only) to avoid
-// silently degrading.
-func RouterConfigWithLLM(base agentcore.Config, provider agentcore.Provider) agentcore.Config {
-	if provider == nil {
-		return RouterConfig(base)
-	}
-	return RouterConfigWithClassifier(base, NewLLMClassifier(provider))
-}
-
-// RouterConfigWithClassifier builds the Router Agent configuration with an
-// optional IntentClassifier. If classifier is nil, KeywordClassifier is used.
-func RouterConfigWithClassifier(base agentcore.Config, classifier IntentClassifier) agentcore.Config {
-	base.Name = "mady-router"
-
-	base.SystemPrompt = strings.Join([]string{
-		"你是 Mady（中观智能体）的调度路由 Agent。",
-		"你的职责是分析用户意图，将请求路由到对应的领域专家：",
-		"",
-		"- chat-agent: 日常聊天与情感陪伴。处理问候、闲聊、情绪支持等纯对话场景。",
-		"- assistant-agent: 通用智能助理。处理代码生成、文件操作、网页搜索、数据分析等工具密集型任务。",
-		"- patent-agent: 专利检索、权利要求分析、新颖性比对、专利申请文书",
-		"- legal-advisor: 法条检索、判例检索、法律分析、法律文书",
-		"",
-		"识别到专业领域问题时，使用 transfer_to_<domain> 工具将任务委派给对应专家。",
-		"一般对话和无法明确分类的请求，自己直接回答即可。",
-	}, "\n")
-
-	// 专业领域 Handoff（Assistant/Patent/Legal）从共享函数获取
-	profHandoffs := ProfessionalHandoffConfigs(base)
-	// Chat Handoff 仅 Router 需要（Chat Agent 自身不需要 transfer_to_chat）
-	chatHandoff := agentcore.HandoffConfig{
-		Name:           DomainChat,
-		Description:    "日常聊天与情感陪伴。处理问候、闲聊、情绪支持等纯对话场景。",
-		Mode:           agentcore.HandoffDelegate,
-		AgentConfig:    ChatAgentConfig(base),
-		AllowedSources: []string{"*"}, // 任何 Agent 都可以交回给 Chat
-		FallbackMsg:    "聊天模块暂时不可用，请稍后再试。",
-	}
-
-	base.Handoffs = append([]agentcore.HandoffConfig{chatHandoff}, profHandoffs...)
-	return base
-}
-
-// RouterStep returns a workflow.Router that classifies intent and routes
-// to the appropriate domain sub-graph (as a Step).
-func RouterStep(chatStep, assistantStep, patentStep, legalStep workflow.Step) workflow.Step {
-	return RouterStepWithClassifier(chatStep, assistantStep, patentStep, legalStep, nil)
-}
-
-// RouterStepWithClassifier returns a workflow.Router with an optional classifier.
-func RouterStepWithClassifier(chatStep, assistantStep, patentStep, legalStep workflow.Step, classifier IntentClassifier) workflow.Step {
-	if classifier == nil {
-		classifier = &KeywordClassifier{}
-	}
-	return &workflow.Router{
-		Route: func(ctx context.Context, input string) string {
-			domain, _, err := classifier.Classify(ctx, input)
-			if err != nil {
-				domain = DomainChat // fall back to chat on error
-			}
-			switch domain {
-			case DomainAssistant:
-				return DomainAssistant
-			case DomainPatent:
-				return DomainPatent
-			case DomainLegal:
-				return DomainLegal
-			default:
-				return DomainChat
-			}
-		},
-		Steps: map[string]workflow.Step{
-			DomainChat:      chatStep,
-			DomainAssistant: assistantStep,
-			DomainPatent:    patentStep,
-			DomainLegal:     legalStep,
 		},
 	}
 }
@@ -198,23 +98,25 @@ func RouterStepWithClassifier(chatStep, assistantStep, patentStep, legalStep wor
 // domainFactoryMap 将领域名称映射到对应的 Agent 工厂函数。
 // RouterConfigFromManifests 使用此映射将声明式 Manifest 转换
 // 为可执行的 HandoffConfig。
+//
+// chat 和 assistant 均映射到 UnifiedAgentConfig（三合一后不再区分）。
 var domainFactoryMap = map[string]func(agentcore.Config) agentcore.Config{
-	DomainChat:      ChatAgentConfig,
-	DomainAssistant: AssistantAgentConfig,
+	DomainChat:      UnifiedAgentConfig,
+	DomainAssistant: UnifiedAgentConfig,
 	DomainPatent:    PatentAgentConfig,
 	DomainLegal:     LegalAgentConfig,
 }
 
 // RouterConfigFromManifests 从 AgentManifest 列表构建 Router Agent 配置。
 // 它扫描 manifests，将每个 manifest 映射到对应的领域工厂函数，
-// 生成 HandoffConfig 条目，替换 RouterConfig 中的硬编码条目。
+// 生成 HandoffConfig 条目。
 //
-// 不在 factoryMap 中的 domain 会被自动跳过（不做 fallback 到默认 RouterConfig），
+// 不在 factoryMap 中的 domain 会被自动跳过（不做 fallback），
 // 因为入口已在 ScanManifests 阶段验证过 domain 有效性。
-// manifests 为空时返回默认的 RouterConfig。
+// manifests 为空时返回仅含 base 的配置（无 Handoff）。
 func RouterConfigFromManifests(base agentcore.Config, manifests []agentcore.AgentManifest) agentcore.Config {
 	if len(manifests) == 0 {
-		return RouterConfig(base)
+		return base
 	}
 
 	base.Name = "mady-router"
@@ -232,7 +134,7 @@ func RouterConfigFromManifests(base agentcore.Config, manifests []agentcore.Agen
 			Description:    m.Description,
 			Mode:           agentcore.HandoffDelegate,
 			AgentConfig:    factory(base),
-			AllowedSources: []string{"mady-router", "chat-agent"}, // 与 ProfessionalHandoffConfigs 对齐，不使用通配符
+			AllowedSources: []string{"mady-router", "chat-agent", "mady-agent"}, // 与 ProfessionalHandoffConfigs 对齐，不使用通配符
 			FallbackMsg:    fmt.Sprintf("%s 功能暂时不可用，请稍后再试。", m.Description),
 		})
 	}
@@ -263,53 +165,6 @@ func buildRouterSystemPrompt(manifests []agentcore.AgentManifest) string {
 // appendLifecycle composes lifecycle hooks safely (delegates to agentcore.AppendLifecycle).
 func appendLifecycle(existing, next agentcore.LifecycleHook) agentcore.LifecycleHook {
 	return agentcore.AppendLifecycle(existing, next)
-}
-
-// ──────────────────────────────────────────────
-// ProjectRegistry 感知路由
-// ──────────────────────────────────────────────
-
-// RouterConfigWithRegistry 在 RouterConfig 基础上追加 ProjectRegistry 中的
-// 案件专属 Handoff 目标。每个案件注册为 project-{projectID} 的 Handoff，
-// 使 Router 可以将涉及特定案件的请求委派给案件感知 Agent。
-//
-// 返回的配置包含三部分：
-//  1. 标准领域 Agent（chat/assistant/patent/legal）— 来自 RouterConfig
-//  2. 动态案件 Agent（project-{projectID}）— 来自 ProjectRegistry
-//  3. 可选的 AgentPool — 用于缓存案件 Agent 实例
-func RouterConfigWithRegistry(base agentcore.Config, registry *ProjectRegistry, classifier IntentClassifier) (agentcore.Config, *AgentPool) {
-	cfg := RouterConfigWithClassifier(base, classifier)
-
-	pool := NewAgentPool(base)
-
-	projects := registry.List()
-	for _, rec := range projects {
-		if rec.Status != "active" {
-			continue
-		}
-		if rec.ProjectID == "" {
-			continue
-		}
-		projectID := rec.ProjectID
-		alias := rec.Alias
-		if alias == "" {
-			alias = projectID
-		}
-		description := fmt.Sprintf("案件 %s — 处理 %s 相关的文件、期限和检索", alias, rec.Domain)
-
-		projectCfg := BuildProjectAgent(rec, base)
-
-		cfg.Handoffs = append(cfg.Handoffs, agentcore.HandoffConfig{
-			Name:           "project-" + projectID,
-			Description:    description,
-			Mode:           agentcore.HandoffDelegate,
-			AgentConfig:    projectCfg,
-			AllowedSources: []string{"mady-router", "chat-agent"},
-			FallbackMsg:    fmt.Sprintf("案件 %s 的 Agent 暂时不可用，请稍后重试。", alias),
-		})
-	}
-
-	return cfg, pool
 }
 
 // ProjectHandoffName 返回规范化的案件 Handoff 目标名称。

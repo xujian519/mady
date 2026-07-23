@@ -1,35 +1,35 @@
 package domains
 
 import (
-	"context"
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/workflow"
 )
 
-func TestRouterConfig(t *testing.T) {
+func TestUnifiedAgentConfig(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := RouterConfig(base)
+	cfg := UnifiedAgentConfig(base)
 
-	if cfg.Name != "mady-router" {
-		t.Errorf("name = %q, want %q", cfg.Name, "mady-router")
+	if cfg.Name != "mady-agent" {
+		t.Errorf("name = %q, want %q", cfg.Name, "mady-agent")
 	}
-	if len(cfg.Handoffs) != 4 {
-		t.Fatalf("handoffs = %d, want 4", len(cfg.Handoffs))
+	// UnifiedAgentConfig 应注册 patent/legal 两个 Handoff（不含 assistant/chat 自身）
+	if len(cfg.Handoffs) != 2 {
+		t.Fatalf("handoffs = %d, want 2", len(cfg.Handoffs))
 	}
 
 	expectedDomains := map[string]bool{
-		DomainChat:      false,
-		DomainAssistant: false,
-		DomainPatent:    false,
-		DomainLegal:     false,
+		DomainPatent: false,
+		DomainLegal:  false,
 	}
 	for _, h := range cfg.Handoffs {
 		expectedDomains[h.Name] = true
 		if h.Mode != agentcore.HandoffDelegate {
 			t.Errorf("handoff %q mode = %v, want delegate", h.Name, h.Mode)
+		}
+		if !h.Invisible {
+			t.Errorf("handoff %q should be invisible", h.Name)
 		}
 	}
 	for domain, found := range expectedDomains {
@@ -39,52 +39,28 @@ func TestRouterConfig(t *testing.T) {
 	}
 }
 
-func TestRouterConfigWithClassifier_NilUsesKeyword(t *testing.T) {
+func TestUnifiedAgentConfig_AllowedSources(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := RouterConfigWithClassifier(base, nil)
+	cfg := UnifiedAgentConfig(base)
 
-	// Should produce the same result as RouterConfig.
-	if cfg.Name != "mady-router" {
-		t.Errorf("name = %q, want %q", cfg.Name, "mady-router")
-	}
-	if len(cfg.Handoffs) != 4 {
-		t.Fatalf("handoffs = %d, want 4", len(cfg.Handoffs))
-	}
-}
-
-func TestRouterStep(t *testing.T) {
-	chatStep := &stubStep{name: "chat"}
-	assistantStep := &stubStep{name: "assistant"}
-	patentStep := &stubStep{name: "patent"}
-	legalStep := &stubStep{name: "legal"}
-
-	step := RouterStep(chatStep, assistantStep, patentStep, legalStep)
-
-	if step == nil {
-		t.Fatal("step is nil")
-	}
-
-	// The returned step should be a *workflow.Router.
-	router, ok := step.(*workflow.Router)
-	if !ok {
-		t.Fatalf("expected *workflow.Router, got %T", step)
-	}
-	if len(router.Steps) != 4 {
-		t.Fatalf("router steps = %d, want 4", len(router.Steps))
-	}
-}
-
-func TestRouterStepWithClassifier_NilUsesKeyword(t *testing.T) {
-	chatStep := &stubStep{name: "chat"}
-	assistantStep := &stubStep{name: "assistant"}
-	patentStep := &stubStep{name: "patent"}
-	legalStep := &stubStep{name: "legal"}
-
-	step := RouterStepWithClassifier(chatStep, assistantStep, patentStep, legalStep, nil)
-	_, ok := step.(*workflow.Router)
-	if !ok {
-		t.Fatalf("expected *workflow.Router, got %T", step)
+	for _, h := range cfg.Handoffs {
+		found := false
+		for _, src := range h.AllowedSources {
+			if src == "mady-agent" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("handoff %q AllowedSources missing 'mady-agent'", h.Name)
+		}
+		// 确保不包含通配符
+		for _, src := range h.AllowedSources {
+			if src == "*" {
+				t.Errorf("handoff %q AllowedSources should not contain '*'", h.Name)
+			}
+		}
 	}
 }
 
@@ -147,13 +123,4 @@ func TestAppendLifecycle(t *testing.T) {
 			t.Errorf("expected c at index 2")
 		}
 	})
-}
-
-// stubStep implements workflow.Step for testing.
-type stubStep struct {
-	name string
-}
-
-func (s *stubStep) Run(_ context.Context, _ string) (string, error) {
-	return s.name, nil
 }

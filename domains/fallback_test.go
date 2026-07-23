@@ -60,9 +60,9 @@ func TestFallback_DelegateErrorReturnsHandoffResult(t *testing.T) {
 	//   call 2: 子 Agent 的 LLM 调用 → 返回错误（模拟失败）
 	//   call 3+: Router 继续 → 返回 finalText
 	provider := &subAgentErrorProvider{
-		tool:      DomainAssistant,
-		errMsg:    "web_search timeout",
-		finalText: "继续", // Router 收到 HandoffResult 后的后续响应
+		tool:      DomainPatent,
+		errMsg:    "patent analysis timeout",
+		finalText: "继续", // Agent 收到 HandoffResult 后的后续响应
 	}
 
 	base := agentcore.Config{
@@ -76,7 +76,7 @@ func TestFallback_DelegateErrorReturnsHandoffResult(t *testing.T) {
 		},
 	}
 
-	cfg := RouterConfig(base)
+	cfg := UnifiedAgentConfig(base)
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 
@@ -101,7 +101,7 @@ func TestFallback_DelegateErrorReturnsHandoffResult(t *testing.T) {
 	}
 
 	// 错误发生后 delegate 返回 HandoffResult，错误不应冒泡到 agent.Run
-	if strings.Contains(output, "web_search timeout") {
+	if strings.Contains(output, "patent analysis timeout") {
 		t.Error("output should not contain raw error message")
 	}
 
@@ -184,7 +184,7 @@ func TestFallback_PatentAgentFallbackMsg(t *testing.T) {
 			Provider: &handoffProvider{tool: DomainChat, content: "ok"},
 		},
 	}
-	cfg := RouterConfig(base)
+	cfg := UnifiedAgentConfig(base)
 
 	var patentFallback string
 	for _, h := range cfg.Handoffs {
@@ -210,7 +210,7 @@ func TestFallback_LegalAgentFallbackMsg(t *testing.T) {
 			Provider: &handoffProvider{tool: DomainChat, content: "ok"},
 		},
 	}
-	cfg := RouterConfig(base)
+	cfg := UnifiedAgentConfig(base)
 
 	var legalFallback string
 	for _, h := range cfg.Handoffs {

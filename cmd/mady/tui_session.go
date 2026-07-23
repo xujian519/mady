@@ -43,10 +43,6 @@ type tuiSession struct {
 	planModel    string
 	normalModel  string
 
-	// Mode flags
-	useMultiDomain    bool
-	useIntegratedMode bool
-
 	// Extensions
 	writingExt   agentcore.Extension
 	fileIndexExt *fileindex.Extension
@@ -123,14 +119,7 @@ func (s *tuiSession) thinkingConfig() *agentcore.ThinkingConfig {
 }
 
 func (s *tuiSession) detectAgentID() string {
-	switch {
-	case s.useIntegratedMode:
-		return "chat-agent"
-	case s.useMultiDomain:
-		return "router"
-	default:
-		return "single"
-	}
+	return "mady-agent"
 }
 
 func (s *tuiSession) detectProjectID() string {
@@ -204,7 +193,7 @@ func (s *tuiSession) handleThinkingCommand(trimmed string) {
 	if s.isPlanMode() {
 		mdl = s.planModel
 	}
-	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.thinkingConfig()))
 }
 
 func (s *tuiSession) handleThemeCommand(trimmed string) {
@@ -284,7 +273,7 @@ func (s *tuiSession) applyProjectContext(pr *domains.ProjectRecord, meta *domain
 	s.currentProjectMeta = meta
 	s.openFileIndexForPath(pr.RootPath, pr.ProjectID)
 	s.rebuildAgent()
-	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.thinkingConfig()))
 }
 
 // loadCaseContext sets the session's case context from a CaseRecord.
@@ -490,7 +479,7 @@ func (s *tuiSession) handleReviewCommandEx(sub string) {
 	}
 
 	s.rebuildAgent()
-	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	s.app.UpdateStatusBar(s.providerName, s.normalModel, statusBarModeLabel(s.isPlanMode(), s.thinkingConfig()))
 	if s.isReviewMode() {
 		s.app.PrintSystem("⚖ 审核关卡已启用 — 专利结论/法律意见/风险评估将插入人工审核提示")
 		if s.currentProject != nil {
@@ -543,7 +532,7 @@ func (s *tuiSession) handlePlanCommandEx(sub string) {
 	if s.isPlanMode() {
 		mdl = s.planModel
 	}
-	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.thinkingConfig()))
 	if s.isPlanMode() {
 		s.app.PrintSystem("🧠 计划模式已启用 · 模型: " + s.planModel + " · 推理强度: max")
 	} else {
@@ -563,7 +552,7 @@ func (s *tuiSession) handleSettingsReset() {
 	if s.isPlanMode() {
 		mdl = s.planModel
 	}
-	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.useMultiDomain, s.thinkingConfig()))
+	s.app.UpdateStatusBar(s.providerName, mdl, statusBarModeLabel(s.isPlanMode(), s.thinkingConfig()))
 	s.app.PrintSystem("✅ 设置已恢复默认值")
 	for k, v := range s.store.Export() {
 		s.app.PrintSystem(fmt.Sprintf("  %s = %s", k, v))

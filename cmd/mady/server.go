@@ -15,6 +15,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/iface"
+	"github.com/xujian519/mady/domains"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/knowledge"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
@@ -92,8 +93,8 @@ func runServer(ctx context.Context) {
 
 	fc := setupFrameworkContext(ctx, "serve")
 
-	// Build Router config from manifests (or use hardcoded fallback).
-	cfg := buildRouterConfig(fc.BaseConfig, fc.Manifests)
+	// Build unified agent config.
+	cfg := domains.UnifiedAgentConfig(fc.BaseConfig)
 
 	// Attach wiki retrieval hook if available.
 	if fc.WikiHook != nil {

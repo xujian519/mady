@@ -7,15 +7,14 @@ import (
 )
 
 func TestRouterConfigFromManifests_Empty(t *testing.T) {
-	// Empty manifests should return the default RouterConfig
+	// Empty manifests should return the base config (no handoffs)
 	base := agentcore.Config{}
 	cfg := RouterConfigFromManifests(base, nil)
 
-	if cfg.Name != "mady-router" {
-		t.Errorf("expected name 'mady-router', got %q", cfg.Name)
-	}
-	if len(cfg.Handoffs) == 0 {
-		t.Error("expected non-empty Handoffs from default RouterConfig")
+	// With no manifests, RouterConfigFromManifests returns base as-is
+	// (no name override, no handoffs).
+	if len(cfg.Handoffs) != 0 {
+		t.Errorf("expected 0 handoffs for empty manifests, got %d", len(cfg.Handoffs))
 	}
 }
 
@@ -141,14 +140,28 @@ func TestRouterConfigFromManifests_HandoffConfig(t *testing.T) {
 	if h.Mode != agentcore.HandoffDelegate {
 		t.Errorf("expected HandoffDelegate mode, got %v", h.Mode)
 	}
-	if len(h.AllowedSources) != 2 || h.AllowedSources[0] != "mady-router" || h.AllowedSources[1] != "chat-agent" {
-		t.Errorf("expected AllowedSources [\"mady-router\", \"chat-agent\"], got %v", h.AllowedSources)
+	// AllowedSources 包含 mady-router, chat-agent, mady-agent
+	if len(h.AllowedSources) != 3 {
+		t.Errorf("expected 3 AllowedSources, got %d: %v", len(h.AllowedSources), h.AllowedSources)
+	}
+	for _, want := range []string{"mady-router", "chat-agent", "mady-agent"} {
+		found := false
+		for _, got := range h.AllowedSources {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("AllowedSources missing %q, got %v", want, h.AllowedSources)
+		}
 	}
 	if h.FallbackMsg == "" {
 		t.Error("FallbackMsg should not be empty")
 	}
-	if h.AgentConfig.Name != "chat-agent" {
-		t.Errorf("expected AgentConfig.Name 'chat-agent', got %q", h.AgentConfig.Name)
+	// chat domain 现在映射到 UnifiedAgentConfig，所以 AgentConfig.Name 是 "mady-agent"
+	if h.AgentConfig.Name != "mady-agent" {
+		t.Errorf("expected AgentConfig.Name 'mady-agent', got %q", h.AgentConfig.Name)
 	}
 }
 
