@@ -9,7 +9,9 @@ import (
 	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
+	"github.com/xujian519/mady/domains/infringement"
 	"github.com/xujian519/mady/domains/inventiveness"
+	"github.com/xujian519/mady/domains/novelty"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/domains/specdrafting"
 	"github.com/xujian519/mady/guardrails"
@@ -174,6 +176,10 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		workingDir = base.WorkspaceDir
 	}
 	allowRead, allowWrite := BuildSandboxAllowLists()
+
+	// infringement tool returns (tool, error) — capture error before slice literal.
+	infTool, _ := infringement.NewInfringementTool(base.Provider, nil, nil)
+
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir:     workingDir,
 		SandboxEnabled: true,
@@ -196,10 +202,11 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			patent.NewOAResponseTool(),
 			patent.NewDebateTool(),
 			patent.NewInvalidationTool(patent.WithInvRetriever(globalPatentRetriever)),
-			patent.NewInfringementTool(),
+			infTool,
 			patent.NewReexaminationTool(),
 			enablement.NewEnablementTool(enablement.WithProvider(base.Provider)),
 			inventiveness.NewInventivenessTool(inventiveness.WithProvider(base.Provider)),
+			novelty.NewNoveltyTool(novelty.WithProvider(base.Provider)),
 		},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)
