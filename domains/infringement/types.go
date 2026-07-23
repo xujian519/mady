@@ -261,8 +261,7 @@ const (
 	StateRemedyAssessment  = "inf_remedy_assessment"
 	StateStrategy          = "inf_strategy"
 	StateOutput            = "inf_output"
-	StateSkipped           = "inf_skipped"
-	StateStepResults       = "inf_step_results"
+	StateSkipped = "inf_skipped"
 )
 
 // Rule severity levels, matching domains/rules convention.

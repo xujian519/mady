@@ -406,9 +406,9 @@ type limitationPeriodRule struct{}
 
 func (r *limitationPeriodRule) Name() string { return "limitation-period-check" }
 func (r *limitationPeriodRule) Description() string {
-	return "验证诉讼时效：自得知或应知侵权行为之日起2年"
+	return "验证诉讼时效：自得知或应知侵权行为之日起3年（2020修正,专利法第74条）"
 }
-func (r *limitationPeriodRule) LegalBasis() string { return "专利法 第68条" }
+func (r *limitationPeriodRule) LegalBasis() string { return "专利法 第74条（2020修正,民法典第188条）" }
 func (r *limitationPeriodRule) Severity() string   { return SeverityShould }
 
 func (r *limitationPeriodRule) Check(ctx context.Context, input *RuleCheckInput) (*RuleCheckResult, error) {
@@ -416,8 +416,8 @@ func (r *limitationPeriodRule) Check(ctx context.Context, input *RuleCheckInput)
 		RuleName: r.Name(),
 		Passed:   true,
 		Suggestions: []string{
-			"诉讼时效为得知或应知侵权行为之日起2年",
-			"持续性侵权行为在起诉日仍在继续的，可追究起诉前2年内的责任",
+			"诉讼时效为得知或应知侵权行为之日起3年（2020年专利法第74条,与民法典第188条接轨）",
+			"持续性侵权行为在起诉日仍在继续的，可追究起诉前3年内的责任",
 		},
 	}, nil
 }

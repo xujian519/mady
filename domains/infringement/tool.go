@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
@@ -37,6 +38,7 @@ func NewInfringementTool(
 				"perspective":         map[string]any{"type": "string", "enum": []string{"patentee", "defendant"}, "description": "分析视角：patentee=专利权人/原告，defendant=被控侵权人/被告"},
 				"patent_type":         map[string]any{"type": "string", "enum": []string{"invention", "utility_model"}, "description": "专利类型：invention=发明，utility_model=实用新型"},
 				"prior_art_refs":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "已知现有技术文献引用（可选）"},
+				"license_info":        map[string]any{"type": "object", "description": "许可信息（可选）"},
 			},
 			"required": []string{"patent_claims", "accused_product", "perspective", "patent_type"},
 		},
@@ -47,21 +49,45 @@ func NewInfringementTool(
 				return nil, fmt.Errorf("infringement: parse args: %w", err)
 			}
 
+			perspective := Perspective(getString(raw, "perspective"))
+			patentType := PatentType(getString(raw, "patent_type"))
+
+			// Validate required enum values before any external calls.
+			if perspective != PerspectivePatentee && perspective != PerspectiveDefendant {
+				return nil, fmt.Errorf("infringement: invalid perspective %q, must be 'patentee' or 'defendant'", perspective)
+			}
+			if patentType != PatentTypeInvention && patentType != PatentTypeUtilityModel {
+				return nil, fmt.Errorf("infringement: invalid patent_type %q, must be 'invention' or 'utility_model'", patentType)
+			}
+
 			input := &InfringementInput{
 				PatentClaims:       getString(raw, "patent_claims"),
 				PatentSpec:         getString(raw, "patent_spec"),
 				ProsecutionHistory: getString(raw, "prosecution_history"),
 				AccusedProduct:     getString(raw, "accused_product"),
-				Perspective:        Perspective(getString(raw, "perspective")),
-				PatentType:         PatentType(getString(raw, "patent_type")),
+				Perspective:        perspective,
+				PatentType:         patentType,
 				PriorArtRefs:       getStringSlice(raw, "prior_art_refs"),
+				LicenseInfo:        getLicenseInfo(raw),
 			}
 
+			// Basic input validation before knowledge retrieval.
+			if input.PatentClaims == "" || input.AccusedProduct == "" {
+				return nil, fmt.Errorf("infringement: patent_claims and accused_product are required")
+			}
+
+			// Enrich with knowledge if retriever is available. Errors are non-fatal.
 			if knowledgeRetriever != nil {
-				guidelines, _ := knowledgeRetriever.SearchGuidelines(ctx, "专利侵权判定 全面覆盖原则 等同原则")
-				input.GuidelineRefs = guidelines
-				cases, _ := knowledgeRetriever.SearchSimilarCases(ctx, input.PatentClaims)
-				input.SimilarCases = cases
+				if g, err := knowledgeRetriever.SearchGuidelines(ctx, "专利侵权判定 全面覆盖原则 等同原则"); err != nil {
+					slog.Warn("infringement: guideline search failed", "err", err)
+				} else {
+					input.GuidelineRefs = g
+				}
+				if c, err := knowledgeRetriever.SearchSimilarCases(ctx, input.PatentClaims); err != nil {
+					slog.Warn("infringement: case search failed", "err", err)
+				} else {
+					input.SimilarCases = c
+				}
 			}
 
 			initialState := graph.PregelState{
@@ -74,8 +100,8 @@ func NewInfringementTool(
 			}
 
 			output, ok := resultState[StateOutput].(*InfringementOutput)
-			if !ok {
-				return nil, fmt.Errorf("infringement: unexpected output type")
+			if !ok || output == nil {
+				return nil, fmt.Errorf("infringement: unexpected output type or nil output")
 			}
 
 			return output, nil
@@ -111,4 +137,37 @@ func getStringSlice(args map[string]any, key string) []string {
 		}
 	}
 	return result
+}
+
+func getLicenseInfo(args map[string]any) *LicenseInfo {
+	raw, ok := args["license_info"]
+	if !ok || raw == nil {
+		return nil
+	}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	info := &LicenseInfo{}
+	if v, ok := m["has_license"]; ok {
+		if b, ok := v.(bool); ok {
+			info.HasLicense = b
+		}
+	}
+	if v, ok := m["license_type"]; ok {
+		if s, ok := v.(string); ok {
+			info.LicenseType = s
+		}
+	}
+	if v, ok := m["license_scope"]; ok {
+		if s, ok := v.(string); ok {
+			info.LicenseScope = s
+		}
+	}
+	if v, ok := m["royalty_rate"]; ok {
+		if f, ok := v.(float64); ok {
+			info.RoyaltyRate = f
+		}
+	}
+	return info
 }

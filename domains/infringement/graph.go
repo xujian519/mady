@@ -26,16 +26,16 @@ func BuildGraph(
 	pg := graph.NewPregelGraph()
 
 	nodes := map[string]graph.PregelNode{
-		"load_input":            loadInputNode(),
-		"claim_scope":           claimScopeNode(provider, frameworkProvider),
-		"feature_decomposition": featureDecompositionNode(provider),
-		"literal_infringement":  literalInfringementNode(provider),
-		"equivalence":           equivalenceNode(provider, frameworkProvider),
-		"infringement_verdict":  infringementVerdictNode(provider),
-		"defense_review":        defenseReviewNode(provider, frameworkProvider),
-		"remedy_assessment":     remedyAssessmentNode(provider, frameworkProvider),
-		"strategy":              strategyNode(provider),
-		"conclude":              concludeNode(),
+		"load_input":             loadInputNode(),
+		"claim_scope":            claimScopeNode(provider, frameworkProvider),
+		"feature_decomposition":  featureDecompositionNode(provider),
+		"literal_infringement":   literalInfringementNode(provider),
+		"equivalence":            equivalenceNode(provider, frameworkProvider),
+		"infringement_verdict":   infringementVerdictNode(provider),
+		"defense_review":         defenseReviewNode(provider, frameworkProvider),
+		"remedy_assessment":      remedyAssessmentNode(provider, frameworkProvider),
+		"strategy":               strategyNode(provider),
+		"conclude":               concludeNode(),
 	}
 
 	for name, node := range nodes {
@@ -66,8 +66,8 @@ func BuildGraph(
 }
 
 func stateHasSkip(state graph.PregelState) bool {
-	skipped, _ := state[StateSkipped].(bool)
-	return skipped
+	skipped, ok := state[StateSkipped].(bool)
+	return ok && skipped
 }
 
 func loadInputNode() graph.PregelNode {
@@ -105,34 +105,40 @@ func concludeNode() graph.PregelNode {
 		output := &InfringementOutput{
 			Disclaimer: "本分析基于AI辅助生成，不构成法律意见。侵权判定应由具有管辖权的法院或专利管理部门最终确定。分析结果仅供参考。",
 		}
-		if v, ok := state[StateClaimScope].(*ClaimScopeResult); ok {
+		if v, ok := state[StateClaimScope].(*ClaimScopeResult); ok && v != nil {
 			output.ClaimScope = *v
 		}
 		if v, ok := state[StateFeatureMapping].([]FeatureComparison); ok {
 			output.FeatureMapping = v
 		}
-		if v, ok := state[StateLiteralResult].(*LiteralResult); ok {
+		if v, ok := state[StateLiteralResult].(*LiteralResult); ok && v != nil {
 			output.LiteralResult = *v
 		}
-		if v, ok := state[StateEquivalenceResult].(*EquivalenceResult); ok {
+		if v, ok := state[StateEquivalenceResult].(*EquivalenceResult); ok && v != nil {
 			output.EquivalenceResult = *v
 		}
-		if v, ok := state[StateVerdict].(*InfringementVerdict); ok {
+		if v, ok := state[StateVerdict].(*InfringementVerdict); ok && v != nil {
 			output.Verdict = *v
 		}
 		if v, ok := state[StateDefenseAnalysis].([]DefenseAssessment); ok {
 			output.DefenseAnalysis = v
 		}
-		if v, ok := state[StateRemedyAssessment].(*RemedyResult); ok {
+		if v, ok := state[StateRemedyAssessment].(*RemedyResult); ok && v != nil {
 			output.RemedyAssessment = *v
 		}
-		if v, ok := state[StateStrategy].(*StrategyResult); ok {
+		if v, ok := state[StateStrategy].(*StrategyResult); ok && v != nil {
 			output.StrategyAdvice = *v
 		}
+
+		// Compute confidence from scorer; preserve LLM's legal risk assessment.
+		llmRisk := output.Verdict.RiskLevel
 		scorer := NewInfringementScorer(nil)
 		scores := scorer.Score(output)
 		output.Confidence = scores.Composite
-		output.Verdict.RiskLevel = scores.RiskLevel
+		// Only override RiskLevel if LLM didn't provide one (zero value fallback).
+		if llmRisk == "" {
+			output.Verdict.RiskLevel = scores.RiskLevel
+		}
 		state[StateOutput] = output
 		return state, nil
 	}

@@ -1,27 +1,33 @@
 package infringement
 
-// InfringementScorer computes a weighted multi-dimension likelihood score.
+// InfringementScorer computes a weighted multi-dimension infringement likelihood score.
+// The composite score represents how likely infringement is from the patentee's perspective:
+// higher = more likely to be found infringing.
+//
+// Dimensions that LOWER infringement likelihood (estoppel applied, strong defenses)
+// are inverted so they correctly reduce the composite.
 type InfringementScorer struct {
 	weights map[string]float64
 }
 
-// DefaultScorerWeights returns the standard weighting scheme.
-func DefaultScorerWeights() map[string]float64 {
-	return map[string]float64{
-		"literal_match":      0.25,
-		"equivalence":        0.20,
-		"estoppel_risk":      0.10,
-		"dedication_risk":    0.05,
-		"defense_strength":   0.20,
-		"remedy_exposure":    0.10,
-		"strategy_viability": 0.10,
-	}
+// defaultWeights is the pre-allocated static weighting scheme, shared across all scorers.
+var defaultWeights = map[string]float64{
+	"literal_match":     0.25, // more literal matches → higher infringement
+	"equivalence":       0.20, // more equivalents → higher infringement
+	"estoppel_risk":     0.10, // inverted: estoppel applied → lower infringement
+	"dedication_risk":   0.05, // inverted: dedication applied → lower infringement
+	"defense_strength":  0.20, // inverted: strong defenses → lower infringement
+	"remedy_exposure":   0.10, // post-infringement, informational
+	"strategy_viability": 0.10, // informational, neutral
 }
+
+// defaultScorer is a shared singleton for common use.
+var defaultScorer = &InfringementScorer{weights: defaultWeights}
 
 // NewInfringementScorer creates a scorer with custom or default weights.
 func NewInfringementScorer(weights map[string]float64) *InfringementScorer {
 	if weights == nil {
-		weights = DefaultScorerWeights()
+		return defaultScorer
 	}
 	return &InfringementScorer{weights: weights}
 }
@@ -36,12 +42,12 @@ type ScoreResult struct {
 // Score computes weighted scores from the analysis output.
 func (s *InfringementScorer) Score(output *InfringementOutput) *ScoreResult {
 	dim := map[string]float64{
-		"literal_match":      s.scoreLiteralMatch(output),
-		"equivalence":        s.scoreEquivalence(output),
-		"estoppel_risk":      s.calcEstoppelRisk(output),
-		"dedication_risk":    s.calcDedicationRisk(output),
-		"defense_strength":   s.scoreDefenses(output),
-		"remedy_exposure":    s.calcRemedyExposure(output),
+		"literal_match":     s.scoreLiteralMatch(output),
+		"equivalence":       s.scoreEquivalence(output),
+		"estoppel_risk":     s.calcEstoppelImpact(output),
+		"dedication_risk":   s.calcDedicationImpact(output),
+		"defense_strength":  s.calcDefenseImpact(output),
+		"remedy_exposure":   s.calcRemedyExposure(output),
 		"strategy_viability": s.scoreStrategy(output),
 	}
 	var composite float64
@@ -86,23 +92,31 @@ func (s *InfringementScorer) scoreEquivalence(o *InfringementOutput) float64 {
 	return float64(equivalent) / float64(len(equiv))
 }
 
-func (s *InfringementScorer) calcEstoppelRisk(o *InfringementOutput) float64 {
+// calcEstoppelImpact: estoppel applied = patentee CANNOT expand via equivalence
+// → infringement likelihood DECREASES. Return 1.0 when NOT applied (full scope available),
+// 0 when applied (scope limited).
+func (s *InfringementScorer) calcEstoppelImpact(o *InfringementOutput) float64 {
 	if o.EquivalenceResult.EstoppelApplied {
-		return 1.0
+		return 0 // estoppel limits the patentee — reduces infringement likelihood
 	}
-	return 0
+	return 1.0
 }
 
-func (s *InfringementScorer) calcDedicationRisk(o *InfringementOutput) float64 {
+// calcDedicationImpact: dedication applied = disclosed-but-unclaimed subject matter lost
+// → infringement likelihood DECREASES. Return 1.0 when NOT applied, 0 when applied.
+func (s *InfringementScorer) calcDedicationImpact(o *InfringementOutput) float64 {
 	if o.EquivalenceResult.DedicationApplied {
-		return 1.0
+		return 0
 	}
-	return 0
+	return 1.0
 }
 
-func (s *InfringementScorer) scoreDefenses(o *InfringementOutput) float64 {
+// calcDefenseImpact: stronger defenses → LESS likely to be found infringing.
+// Returns 1.0 (full contribution) when no strong defenses exist,
+// decreasing as more defenses show high/medium viability.
+func (s *InfringementScorer) calcDefenseImpact(o *InfringementOutput) float64 {
 	if len(o.DefenseAnalysis) == 0 {
-		return 0
+		return 1.0 // no defense analysis → assume full infringement likelihood
 	}
 	strong := 0
 	for _, d := range o.DefenseAnalysis {
@@ -110,7 +124,8 @@ func (s *InfringementScorer) scoreDefenses(o *InfringementOutput) float64 {
 			strong++
 		}
 	}
-	return float64(strong) / float64(len(o.DefenseAnalysis))
+	// Invert: many strong defenses → lower infringement likelihood
+	return 1.0 - float64(strong)/float64(len(o.DefenseAnalysis))
 }
 
 func (s *InfringementScorer) calcRemedyExposure(o *InfringementOutput) float64 {

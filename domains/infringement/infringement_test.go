@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestInfringementInput_JSONRoundTrip(t *testing.T) {
@@ -247,16 +248,24 @@ func TestBuildPerspectivePrompt_Defendant(t *testing.T) {
 
 // --- Helper tests ---
 
-func TestTruncate_Short(t *testing.T) {
-	if s := truncate("hello", 10); s != "hello" {
-		t.Errorf("truncate(hello, 10) = %s, want hello", s)
+func TestTruncateText_Short(t *testing.T) {
+	if s := truncateText("hello", 10); s != "hello" {
+		t.Errorf("truncateText(hello, 10) = %s, want hello", s)
 	}
 }
 
-func TestTruncate_Long(t *testing.T) {
-	s := truncate("hello world", 5)
-	if len(s) > 8 {
-		t.Errorf("truncate(hello world, 5) too long: %s", s)
+func TestTruncateText_Long(t *testing.T) {
+	s := truncateText("hello world", 5)
+	if len(s) <= 5 {
+		t.Errorf("truncateText(hello world, 5) too short: %s", s)
+	}
+}
+
+func TestTruncateText_Chinese(t *testing.T) {
+	// 6 Chinese characters = 18 bytes. Truncating to 3 runes should preserve valid UTF-8.
+	s := truncateText("专利侵权判定分析", 3)
+	if !utf8.ValidString(s) {
+		t.Error("truncateText produced invalid UTF-8 for Chinese text")
 	}
 }
 
