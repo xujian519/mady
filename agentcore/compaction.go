@@ -299,7 +299,10 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 		return 0, nil
 	}
 
-	msgs, prunedCount := pruneOldToolResults(msgs, int(keepRecentTokens/100))
+	// Use token-based tail boundary instead of rough keepRecentTokens/100 estimate.
+	tailStart := findTailCutByTokens(msgs, headProtect, keepRecentTokens)
+	protectTail := len(msgs) - int(tailStart)
+	msgs, prunedCount := pruneOldToolResults(msgs, protectTail)
 	if prunedCount > 0 {
 		state.ReplaceMessages(msgs)
 		msgs = state.Messages()
@@ -565,6 +568,10 @@ func sanitizeToolPairs(msgs []Message) []Message {
 		}
 	}
 
+	// Fast path: no tool calls were found, return original slice (CMP-009).
+	if len(toolCallIDs) == 0 {
+		return msgs
+	}
 	return result
 }
 

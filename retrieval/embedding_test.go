@@ -93,7 +93,7 @@ func TestVectorSearcher_Search(t *testing.T) {
 	searcher := NewVectorSearcher(emb)
 
 	// Query about patent infringement.
-	results := searcher.Search("全面覆盖原则侵权判断", chunks, 3)
+	results := searcher.Search(context.Background(), "全面覆盖原则侵权判断", chunks, 3)
 	if len(results) == 0 {
 		t.Fatal("expected at least 1 result")
 	}
@@ -111,7 +111,7 @@ func TestVectorSearcher_NoEmbedding(t *testing.T) {
 		{ID: "c1", Content: "no embedding stored"},
 	}
 	searcher := NewVectorSearcher(emb)
-	results := searcher.Search("test", chunks, 3)
+	results := searcher.Search(context.Background(), "test", chunks, 3)
 	if len(results) != 0 {
 		t.Errorf("chunks without embedding should not match: got %d results", len(results))
 	}
@@ -142,7 +142,7 @@ func TestHybridSearcher(t *testing.T) {
 		StoreEmbedding(&chunks[i], vec[0])
 	}
 
-	results := hybrid.Search("专利侵权判定方法", chunks, 2)
+	results := hybrid.Search(context.Background(), "专利侵权判定方法", chunks, 2)
 	if len(results) == 0 {
 		t.Fatal("expected results")
 	}

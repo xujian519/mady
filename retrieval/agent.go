@@ -2,8 +2,6 @@ package retrieval
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -154,26 +152,27 @@ func (h *RetrievalHook) UpdateChunks(chunks []Chunk) {
 // BeforeModelCall implements LifecycleHook.BeforeModelCall.
 // It checks the trigger policy, then searches the chunk index using the
 // latest user message as query and injects relevant chunks into context.
-func (h *RetrievalHook) BeforeModelCall(_ context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) error {
+func (h *RetrievalHook) BeforeModelCall(ctx context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) error {
 	if len(h.chunks) == 0 || mcc == nil || mcc.Request == nil {
 		return nil
 	}
 
-	// Check trigger policy.
-	if !h.shouldTrigger(arc) {
+	// Compute the query once and reuse (RTV-018).
+	query := agentcore.LastUserMessage(arc.Messages)
+
+	// Check trigger policy using the cached query.
+	if !h.shouldTrigger(arc, query) {
 		return nil
 	}
 
 	h.turnCount++
 
-	// Use the last user message as the search query.
-	query := agentcore.LastUserMessage(arc.Messages)
 	if query == "" {
 		return nil
 	}
 
 	// Search and rerank.
-	results := h.searcher.Search(query, h.chunks, h.config.TopK)
+	results := h.searcher.Search(ctx, query, h.chunks, h.config.TopK)
 	if h.reranker != nil {
 		results = h.reranker.Rerank(results)
 	}
@@ -194,89 +193,21 @@ func (h *RetrievalHook) BeforeModelCall(_ context.Context, arc *agentcore.AgentR
 }
 
 // shouldTrigger checks if retrieval should fire this turn.
-func (h *RetrievalHook) shouldTrigger(arc *agentcore.AgentRunContext) bool {
+func (h *RetrievalHook) shouldTrigger(arc *agentcore.AgentRunContext, query string) bool {
 	switch h.config.TriggerPolicy {
 	case TriggerSmart:
-		return h.shouldTriggerSmart(arc)
-	case TriggerFirstN:
-		return h.turnCount < int64(h.config.FirstNTurns)
-	case TriggerOnDemand:
-		return false // only via tool
-	default: // TriggerAlways
-		return true
+		return ShouldTriggerSmart(query, arc.Messages, h.config.ComplexityClassifier)
+	default:
+		return ShouldTrigger(h.config.TriggerPolicy, int(h.turnCount), h.config.FirstNTurns)
 	}
-}
-
-// shouldTriggerSmart uses ComplexityClassifier to decide if retrieval is needed.
-func (h *RetrievalHook) shouldTriggerSmart(arc *agentcore.AgentRunContext) bool {
-	if h.config.ComplexityClassifier == nil {
-		return true // fallback to always
-	}
-	query := agentcore.LastUserMessage(arc.Messages)
-	if query == "" {
-		return false
-	}
-	c := h.config.ComplexityClassifier.Classify(query, arc.Messages)
-	return c >= agentcore.ComplexityMedium
 }
 
 // buildContextBlock formats retrieved chunks into a single context string.
 func (h *RetrievalHook) buildContextBlock(results []ScoredChunk) string {
-	var b strings.Builder
-
-	prefix := h.config.Prefix
-	if prefix == "" {
-		prefix = "以下是检索到的相关参考信息，请在回答时参考：\n"
-	}
-	b.WriteString(prefix)
-
-	totalChars := 0
-	for i, r := range results {
-		if totalChars >= h.config.MaxChars {
-			break
-		}
-
-		chunkText := r.Content
-		if totalChars+len(chunkText) > h.config.MaxChars {
-			chunkText = chunkText[:h.config.MaxChars-totalChars] + "..."
-		}
-
-		fmt.Fprintf(&b, "\n--- 参考片段 %d (相关度: %.2f) ---\n", i+1, r.Score)
-		if h.config.DomainHint != "" {
-			fmt.Fprintf(&b, "[来源: %s/%s]\n", h.config.DomainHint, r.DocID)
-		}
-		b.WriteString(chunkText)
-		b.WriteString("\n")
-		totalChars += len(chunkText) + 100 // 100 for header overhead
-	}
-
-	return b.String()
+	return FormatContextBlock(results, h.config)
 }
 
 // injectContext prepends the retrieval context as a system message.
 func (h *RetrievalHook) injectContext(req *agentcore.ProviderRequest, contextBlock string) {
-	if contextBlock == "" {
-		return
-	}
-
-	// Insert as the last system message so it appears right before the
-	// conversation history, giving the LLM immediate access to the
-	// retrieved context.
-	sysMsg := agentcore.Message{
-		Role:    agentcore.RoleSystem,
-		Content: contextBlock,
-	}
-
-	// Insert before the last system message (if any) or at the beginning.
-	insertIdx := 0
-	for i, msg := range req.Messages {
-		if msg.Role == agentcore.RoleSystem {
-			insertIdx = i + 1
-		}
-	}
-
-	req.Messages = append(
-		req.Messages[:insertIdx],
-		append([]agentcore.Message{sysMsg}, req.Messages[insertIdx:]...)...,
-	)
+	InjectContext(req, contextBlock)
 }

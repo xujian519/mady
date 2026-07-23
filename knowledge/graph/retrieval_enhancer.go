@@ -127,7 +127,6 @@ func (e *GraphEnhancer) Enhance(seeds []retrieval.ScoredChunk) any {
 			}
 			lawID := edge.TargetID
 			citingNodes := QueryByRelation(e.store, lawID, RelCites, "incoming")
-			citingNodes = append(citingNodes, QueryByRelation(e.store, lawID, RelApplies, "outgoing")...)
 			for _, cn := range citingNodes {
 				if len(citations) >= e.config.MaxCitationChain {
 					break

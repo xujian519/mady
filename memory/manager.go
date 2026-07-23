@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -130,7 +131,7 @@ func (m *Manager) rememberFromTurnWithEmotion(ctx context.Context, userInput, as
 			if fallbackErr == nil {
 				ids = append(ids, id)
 			}
-			return ids, fmt.Errorf("memory: extract failed (fallback used): %w", err)
+			return ids, fmt.Errorf("memory: extract failed (fallback used): %w", truncateError(err, 200))
 		}
 		for _, fact := range facts {
 			if ec.Present {
@@ -298,4 +299,16 @@ func (m *Manager) LogStats(ctx context.Context) {
 // Close 关闭管理器并释放资源。
 func (m *Manager) Close() error {
 	return m.store.Close()
+}
+
+// truncateError 截断错误消息至 maxLen 字符，防止 LLM 返回的过长错误文本泄露给上层。
+func truncateError(err error, maxLen int) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	if len(msg) > maxLen {
+		msg = msg[:maxLen] + "..."
+	}
+	return errors.New(msg)
 }

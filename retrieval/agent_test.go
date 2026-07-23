@@ -29,7 +29,7 @@ func TestTriggerAlways(t *testing.T) {
 	arc := &agentcore.AgentRunContext{Messages: []agentcore.Message{
 		{Role: agentcore.RoleUser, Content: "test"},
 	}}
-	if !hook.shouldTrigger(arc) {
+	if !hook.shouldTrigger(arc, "test") {
 		t.Fatal("TriggerAlways should always trigger")
 	}
 }
@@ -44,14 +44,14 @@ func TestTriggerFirstN(t *testing.T) {
 	arc := &agentcore.AgentRunContext{}
 	for turn := 1; turn <= 3; turn++ {
 		hook.turnCount = int64(turn - 1)
-		if !hook.shouldTrigger(arc) {
+		if !hook.shouldTrigger(arc, "分析专利新颖性") {
 			t.Fatalf("turn %d should trigger", turn)
 		}
 	}
 
 	// Turn 4 should NOT trigger
 	hook.turnCount = 3
-	if hook.shouldTrigger(arc) {
+	if hook.shouldTrigger(arc, "分析专利新颖性") {
 		t.Fatal("turn 4 should not trigger")
 	}
 }
@@ -62,7 +62,7 @@ func TestTriggerOnDemand(t *testing.T) {
 		config: RetrievalConfig{TriggerPolicy: TriggerOnDemand},
 	}
 	arc := &agentcore.AgentRunContext{}
-	if hook.shouldTrigger(arc) {
+	if hook.shouldTrigger(arc, "分析专利新颖性") {
 		t.Fatal("OnDemand should not auto-trigger")
 	}
 }
@@ -91,7 +91,7 @@ func TestTriggerSmart(t *testing.T) {
 	arc := &agentcore.AgentRunContext{Messages: []agentcore.Message{
 		{Role: agentcore.RoleUser, Content: "分析专利新颖性"},
 	}}
-	if !hook.shouldTrigger(arc) {
+	if !hook.shouldTrigger(arc, "分析专利新颖性") {
 		t.Fatal("Medium complexity should trigger")
 	}
 }
@@ -108,7 +108,7 @@ func TestTriggerSmart_LowComplexity(t *testing.T) {
 	arc := &agentcore.AgentRunContext{Messages: []agentcore.Message{
 		{Role: agentcore.RoleUser, Content: "你好"},
 	}}
-	if hook.shouldTrigger(arc) {
+	if hook.shouldTrigger(arc, "分析专利新颖性") {
 		t.Fatal("Low complexity should not trigger")
 	}
 }
@@ -124,7 +124,7 @@ func TestTriggerSmart_NilClassifier(t *testing.T) {
 	arc := &agentcore.AgentRunContext{Messages: []agentcore.Message{
 		{Role: agentcore.RoleUser, Content: "test"},
 	}}
-	if !hook.shouldTrigger(arc) {
+	if !hook.shouldTrigger(arc, "分析专利新颖性") {
 		t.Fatal("nil classifier should fallback to trigger")
 	}
 }

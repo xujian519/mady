@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"time"
@@ -132,12 +133,14 @@ func (r *ModelReranker) RerankWithQuery(ctx context.Context, query string, resul
 
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
+		slog.Warn("model_rerank: marshal request body", "error", err)
 		return results
 	}
 
 	url := r.BaseURL + "/rerank"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
 	if err != nil {
+		slog.Warn("model_rerank: create request", "error", err)
 		return results
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -152,6 +155,7 @@ func (r *ModelReranker) RerankWithQuery(ctx context.Context, query string, resul
 
 	resp, err := client.Do(req)
 	if err != nil {
+		slog.Warn("model_rerank: http request failed", "error", err)
 		return results
 	}
 	defer resp.Body.Close()
@@ -159,15 +163,18 @@ func (r *ModelReranker) RerankWithQuery(ctx context.Context, query string, resul
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		_ = body // consumed to allow connection reuse; error is non-fatal
+		slog.Warn("model_rerank: non-200 status", "status", resp.StatusCode)
 		return results
 	}
 
 	var rr rerankResponse
 	if err := json.NewDecoder(resp.Body).Decode(&rr); err != nil {
+		slog.Warn("model_rerank: decode response body", "error", err)
 		return results
 	}
 
 	if len(rr.Results) == 0 {
+		slog.Warn("model_rerank: empty results in response")
 		return results
 	}
 

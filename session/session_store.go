@@ -137,8 +137,20 @@ func migrateV2ToV3(entries []Entry) {
 		if entries[i].Type == EntryCompaction {
 			var raw map[string]any
 			if json.Unmarshal(entries[i].Data, &raw) == nil {
-				if _, ok := raw["firstKeptEntryIndex"]; ok {
+				if idxVal, ok := raw["firstKeptEntryIndex"]; ok {
 					delete(raw, "firstKeptEntryIndex")
+
+					// Compute first_kept_entry_id from the entries list using
+					// the removed firstKeptEntryIndex as an index into the list.
+					if idxFloat, ok := idxVal.(float64); ok {
+						idx := int(idxFloat)
+						if entriesList, ok := raw["entries"].([]any); ok && idx >= 0 && idx < len(entriesList) {
+							if idStr, ok := entriesList[idx].(string); ok {
+								raw["first_kept_entry_id"] = idStr
+							}
+						}
+					}
+
 					updated, _ := json.Marshal(raw)
 					entries[i].Data = updated
 				}

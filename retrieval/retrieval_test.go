@@ -1,6 +1,7 @@
 package retrieval
 
 import (
+	"context"
 	"testing"
 )
 
@@ -53,7 +54,7 @@ func TestKeywordSearcher(t *testing.T) {
 	searcher := NewKeywordSearcher()
 
 	// Test patent search.
-	results := searcher.Search("专利检索 关键词 IPC", chunks, 3)
+	results := searcher.Search(context.Background(), "专利检索 关键词 IPC", chunks, 3)
 	if len(results) == 0 {
 		t.Fatal("expected results for patent search")
 	}
@@ -62,7 +63,7 @@ func TestKeywordSearcher(t *testing.T) {
 	}
 
 	// Test trademark search (should find trademark chunk, not patent).
-	results2 := searcher.Search("商标 近似性", chunks, 3)
+	results2 := searcher.Search(context.Background(), "商标 近似性", chunks, 3)
 	if len(results2) == 0 {
 		t.Fatal("expected results for trademark search")
 	}
@@ -71,7 +72,7 @@ func TestKeywordSearcher(t *testing.T) {
 	}
 
 	// Test empty query.
-	results3 := searcher.Search("", chunks, 3)
+	results3 := searcher.Search(context.Background(), "", chunks, 3)
 	if len(results3) != 0 {
 		t.Errorf("expected no results for empty query, got %d", len(results3))
 	}

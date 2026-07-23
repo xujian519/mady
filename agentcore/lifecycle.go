@@ -83,6 +83,21 @@ type MessagePersistObserver interface {
 	AfterMessagePersist(ctx context.Context, arc *AgentRunContext, msg Message)
 }
 
+// CompactionPersistObserver watches compaction persist events (ReplaceMessages).
+// Unlike MessagePersistObserver which fires per-message during AddMessage,
+// this fires once per ReplaceMessages call with the full compacted message list.
+// Useful for audit/evidence hooks that need to see compaction summaries.
+type CompactionPersistObserver interface {
+	// BeforeCompactionPersist is called before compacted messages replace the
+	// agent's state. Mutate msgs to alter what gets stored; return error to
+	// abort the compaction (the old messages remain in place).
+	BeforeCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) ([]Message, error)
+
+	// AfterCompactionPersist is called after compacted messages have been
+	// persisted. The msgs slice is the compacted messages that were stored.
+	AfterCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message)
+}
+
 // LifecycleHook intercepts a specific phase of agent execution.
 // Returning a non-nil error short-circuits the phase.
 //
@@ -124,6 +139,13 @@ type LifecycleHook interface {
 
 	// AfterMessagePersist runs after the message was stored.
 	AfterMessagePersist(ctx context.Context, arc *AgentRunContext, msg Message)
+
+	// BeforeCompactionPersist runs before ReplaceMessages during compaction.
+	// Mutate msgs to alter what gets stored; return error to abort the compaction.
+	BeforeCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) ([]Message, error)
+
+	// AfterCompactionPersist runs after ReplaceMessages during compaction.
+	AfterCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message)
 }
 
 // BaseLifecycleHook provides no-op defaults so implementations can override
@@ -148,6 +170,10 @@ func (BaseLifecycleHook) BeforeMessagePersist(_ context.Context, _ *AgentRunCont
 	return nil
 }
 func (BaseLifecycleHook) AfterMessagePersist(_ context.Context, _ *AgentRunContext, _ Message) {}
+func (BaseLifecycleHook) BeforeCompactionPersist(_ context.Context, _ *AgentRunContext, msgs []Message) ([]Message, error) {
+	return msgs, nil
+}
+func (BaseLifecycleHook) AfterCompactionPersist(_ context.Context, _ *AgentRunContext, _ []Message) {}
 
 // LifecycleChain composes multiple LifecycleHooks into one.
 // Hooks are called in order; AfterXxx hooks are called in reverse order.
@@ -228,13 +254,30 @@ func (lc LifecycleChain) AfterMessagePersist(ctx context.Context, arc *AgentRunC
 	}
 }
 
+func (lc LifecycleChain) BeforeCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) ([]Message, error) {
+	var err error
+	for _, h := range lc {
+		msgs, err = h.BeforeCompactionPersist(ctx, arc, msgs)
+		if err != nil {
+			return msgs, err
+		}
+	}
+	return msgs, nil
+}
+
+func (lc LifecycleChain) AfterCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) {
+	for i := len(lc) - 1; i >= 0; i-- {
+		lc[i].AfterCompactionPersist(ctx, arc, msgs)
+	}
+}
+
 // --- Observer-to-LifecycleHook adapters ---
 
 // ObserversToHook converts one or more observer interfaces into a single
-// LifecycleHook. Each argument should implement one of the five observer
+// LifecycleHook. Each argument should implement one of the observer
 // interfaces (AgentRunObserver, TurnObserver, ModelCallObserver,
-// ToolCallObserver, MessagePersistObserver). Arguments that don't match
-// any observer interface are silently ignored.
+// ToolCallObserver, MessagePersistObserver, CompactionPersistObserver).
+// Arguments that don't match any observer interface are silently ignored.
 //
 // If a single observer is passed, it is wrapped directly (no LifecycleChain).
 // Multiple observers are composed via LifecycleChain.
@@ -271,6 +314,8 @@ func wrapObserver(o any) LifecycleHook {
 		return &toolCallObserverAdapter{observer: v}
 	case MessagePersistObserver:
 		return &messagePersistObserverAdapter{observer: v}
+	case CompactionPersistObserver:
+		return &compactionPersistObserverAdapter{observer: v}
 	default:
 		return nil
 	}
@@ -334,6 +379,19 @@ func (a *messagePersistObserverAdapter) BeforeMessagePersist(ctx context.Context
 }
 func (a *messagePersistObserverAdapter) AfterMessagePersist(ctx context.Context, arc *AgentRunContext, msg Message) {
 	a.observer.AfterMessagePersist(ctx, arc, msg)
+}
+
+type compactionPersistObserverAdapter struct {
+	BaseLifecycleHook
+	observer CompactionPersistObserver
+}
+
+func (a *compactionPersistObserverAdapter) BeforeCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) ([]Message, error) {
+	return a.observer.BeforeCompactionPersist(ctx, arc, msgs)
+}
+
+func (a *compactionPersistObserverAdapter) AfterCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) {
+	a.observer.AfterCompactionPersist(ctx, arc, msgs)
 }
 
 // --- built-in lifecycle hooks ---

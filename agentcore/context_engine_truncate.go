@@ -95,6 +95,12 @@ func (e *TruncateEngine) Compress(ctx context.Context, msgs []Message, focusTopi
 		}
 	}
 
+	// Fallback for unset keepRecentTokens (CMP-012).
+	keepRecentTokens := e.keepRecentTokens
+	if keepRecentTokens <= 0 {
+		keepRecentTokens = 16384
+	}
+
 	// Find tail boundary by token budget
 	tailStart := int64(len(msgs))
 	accum := int64(0)
@@ -103,7 +109,7 @@ func (e *TruncateEngine) Compress(ctx context.Context, msgs []Message, focusTopi
 			continue
 		}
 		msgLen := EstimateMessageTokens(msgs[i])
-		if accum+msgLen > e.keepRecentTokens && accum > 0 {
+		if accum+msgLen > keepRecentTokens && accum > 0 {
 			tailStart = int64(i + 1)
 			break
 		}
@@ -114,6 +120,8 @@ func (e *TruncateEngine) Compress(ctx context.Context, msgs []Message, focusTopi
 	if headEnd >= tailStart {
 		return msgs, 0, nil
 	}
+
+	tokensBefore := EstimateMessagesTokens(msgs)
 
 	// Build truncated message list: head + tail
 	result := make([]Message, 0, headEnd+int64(len(msgs))-tailStart+1)
@@ -129,7 +137,10 @@ func (e *TruncateEngine) Compress(ctx context.Context, msgs []Message, focusTopi
 
 	e.compressionCnt++
 
-	return result, tailStart - headEnd, nil
+	tokensAfter := EstimateMessagesTokens(result)
+	saved := tokensBefore - tokensAfter
+
+	return result, saved, nil
 }
 
 func (e *TruncateEngine) GetToolSchemas() []ToolDefinition {

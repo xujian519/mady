@@ -108,6 +108,12 @@ func FormatCitationChain(items []CitableItem) string {
 		return ""
 	}
 
+	// Build index map for O(1) lookup by source+title (RTV-018).
+	idxMap := make(map[string]int, len(items))
+	for i, item := range items {
+		idxMap[item.Source+"\x00"+item.Title] = i
+	}
+
 	grouped := make(map[string][]CitableItem)
 	for _, item := range items {
 		grouped[item.Source] = append(grouped[item.Source], item)
@@ -125,7 +131,7 @@ func FormatCitationChain(items []CitableItem) string {
 		if label == "" {
 			label = t
 		}
-		chains = append(chains, formatChainLine(label, items, group))
+		chains = append(chains, formatChainLine(label, idxMap, group))
 		seen[t] = true
 	}
 
@@ -138,28 +144,20 @@ func FormatCitationChain(items []CitableItem) string {
 	}
 	sort.Strings(extra)
 	for _, t := range extra {
-		chains = append(chains, formatChainLine(t, items, grouped[t]))
+		chains = append(chains, formatChainLine(t, idxMap, grouped[t]))
 	}
 
 	return strings.Join(chains, "\n")
 }
 
-func formatChainLine(label string, all []CitableItem, group []CitableItem) string {
+func formatChainLine(label string, idxMap map[string]int, group []CitableItem) string {
 	var parts []string
 	for _, g := range group {
-		globalIdx := indexOfItem(all, g) + 1
-		parts = append(parts, fmt.Sprintf("[%d] %s", globalIdx, g.Title))
-	}
-	return label + ": " + strings.Join(parts, " → ")
-}
-
-func indexOfItem(items []CitableItem, target CitableItem) int {
-	for i, item := range items {
-		if item.Title == target.Title && item.Source == target.Source {
-			return i
+		if idx, ok := idxMap[g.Source+"\x00"+g.Title]; ok {
+			parts = append(parts, fmt.Sprintf("[%d] %s", idx+1, g.Title))
 		}
 	}
-	return -1
+	return label + ": " + strings.Join(parts, " → ")
 }
 
 // DetectConflicts scans items for the same keyword appearing in sources of
@@ -212,6 +210,9 @@ func DetectConflicts(items []CitableItem) []string {
 	return warnings
 }
 
+// keywordReplacer is a package-level shared Replacer for splitKeywords (RTV-020).
+var keywordReplacer = strings.NewReplacer(" ", "|", ",", "|", "，", "|", "、", "|", "。", "|")
+
 // splitKeywords extracts significant keywords (length >= 2 runes) from a title
 // by splitting on common delimiters.
 func splitKeywords(title string) []string {
@@ -220,8 +221,7 @@ func splitKeywords(title string) []string {
 		return nil
 	}
 	// Split on whitespace, commas (full/half width), and enumeration marks.
-	replacer := strings.NewReplacer(" ", "|", ",", "|", "，", "|", "、", "|", "。", "|")
-	parts := strings.Split(replacer.Replace(title), "|")
+	parts := strings.Split(keywordReplacer.Replace(title), "|")
 	var result []string
 	for _, p := range parts {
 		p = strings.TrimSpace(p)

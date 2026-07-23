@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/xujian519/mady/pkg/csync"
 	"github.com/xujian519/mady/retrieval"
@@ -19,6 +20,9 @@ type Store struct {
 	byDomain *csync.Map[string, []string]          // domain → []docID
 
 	chunkOpts retrieval.ChunkOptions
+
+	domainMu sync.Mutex // guards byDomain read-modify-write
+	chunksMu sync.Mutex // guards chunks read-modify-write in ReindexVectors
 }
 
 // Document represents a loaded knowledge document.
@@ -72,9 +76,11 @@ func (s *Store) AddDocument(domain, docID, title, content, source string) error 
 	chunks := retrieval.ChunkDocument(docID, content, s.chunkOpts)
 	s.chunks.Set(docID, chunks)
 
+	s.domainMu.Lock()
 	domainIDs, _ := s.byDomain.Get(domain)
 	domainIDs = append(domainIDs, docID)
 	s.byDomain.Set(domain, domainIDs)
+	s.domainMu.Unlock()
 	return nil
 }
 
@@ -143,6 +149,31 @@ func (s *Store) AllChunks() []retrieval.Chunk {
 		all = append(all, chunkList...)
 	}
 	return all
+}
+
+// RemoveDocument removes a document from the store by ID. It cleans up
+// the document entry, its chunks, and all domain index entries.
+func (s *Store) RemoveDocument(docID string) error {
+	s.docs.Del(docID)
+	s.chunks.Del(docID)
+
+	// Remove docID from all domain indexing.
+	s.domainMu.Lock()
+	byDomain := s.byDomain.Copy()
+	for domain, ids := range byDomain {
+		newIDs := make([]string, 0, len(ids))
+		for _, id := range ids {
+			if id != docID {
+				newIDs = append(newIDs, id)
+			}
+		}
+		if len(newIDs) != len(ids) {
+			s.byDomain.Set(domain, newIDs)
+		}
+	}
+	s.domainMu.Unlock()
+
+	return nil
 }
 
 // RetrievalHook creates an Agent retrieval hook scoped to a domain.
@@ -262,8 +293,10 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 		result := batchResult{refs: batch, vecs: vectors}
 
 		for j, vec := range result.vecs {
+			s.chunksMu.Lock()
 			curChunks, ok := s.chunks.Get(result.refs[j].docID)
 			if !ok {
+				s.chunksMu.Unlock()
 				continue
 			}
 			// Deep copy to avoid sharing metadata map with csync.Map value.
@@ -281,6 +314,7 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 				}
 			}
 			s.chunks.Set(result.refs[j].docID, newChunks)
+			s.chunksMu.Unlock()
 		}
 	}
 
@@ -313,9 +347,11 @@ func (s *Store) LoadPatentClaims(docID, title, content string, ipc string) error
 		chunks[i].Metadata["type"] = "claims"
 	}
 	s.chunks.Set(docID, chunks)
+	s.domainMu.Lock()
 	domainIDs, _ := s.byDomain.Get("patent")
 	domainIDs = append(domainIDs, docID)
 	s.byDomain.Set("patent", domainIDs)
+	s.domainMu.Unlock()
 	return nil
 }
 
@@ -343,9 +379,11 @@ func (s *Store) LoadLegalStatute(docID, title, content string, lawSource string,
 		chunks[i].Metadata["type"] = "statute"
 	}
 	s.chunks.Set(docID, chunks)
+	s.domainMu.Lock()
 	domainIDs, _ := s.byDomain.Get("legal")
 	domainIDs = append(domainIDs, docID)
 	s.byDomain.Set("legal", domainIDs)
+	s.domainMu.Unlock()
 	return nil
 }
 

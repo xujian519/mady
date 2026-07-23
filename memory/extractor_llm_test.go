@@ -1,7 +1,12 @@
 package memory
 
 import (
+	"context"
+	"errors"
+	"strings"
 	"testing"
+
+	"github.com/xujian519/mady/agentcore"
 )
 
 func TestParseFactsFromResponse(t *testing.T) {
@@ -119,6 +124,224 @@ func TestStripMarkdownFences(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Mock provider for LLM extractor tests
+// ---------------------------------------------------------------------------
+
+type mockProvider struct {
+	completeFn func(ctx context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error)
+}
+
+func (m *mockProvider) Complete(ctx context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+	return m.completeFn(ctx, req)
+}
+
+func (m *mockProvider) Stream(_ context.Context, _ *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
+	return nil, errors.New("stream not implemented")
+}
+
+// ---------------------------------------------------------------------------
+// 边界条件: 空对话
+// ---------------------------------------------------------------------------
+
+func TestExtractFacts_EmptyConversation(t *testing.T) {
+	extractor := NewProviderExtractor(nil, "test-model")
+
+	facts, err := extractor.ExtractFacts(context.Background(), "")
+	if err != nil {
+		t.Fatalf("unexpected error for empty conversation: %v", err)
+	}
+	if len(facts) != 0 {
+		t.Errorf("expected 0 facts from empty conversation, got %d", len(facts))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 敏感数据过滤
+// ---------------------------------------------------------------------------
+
+func TestExtractFacts_SensitiveDataFiltered(t *testing.T) {
+	// The extractor should NOT send sensitive data to the provider.
+	// We verify this by intercepting the request and checking that the
+	// sensitive data is not present in the prompt sent to the model.
+	var capturedRequest *agentcore.ProviderRequest
+	mock := &mockProvider{
+		completeFn: func(_ context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+			capturedRequest = req
+			return &agentcore.ProviderResponse{Content: `{"facts": ["用户偏好红色"]}`}, nil
+		},
+	}
+
+	extractor := NewProviderExtractor(mock, "test-model")
+
+	conversation := `用户: 我的密码是 password=supersecret123, 请帮我处理这个文件.
+助手: 好的,我帮你处理文件.`
+
+	facts, err := extractor.ExtractFacts(context.Background(), conversation)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(facts) == 0 {
+		t.Fatal("expected at least 1 fact")
+	}
+
+	// Verify the password was NOT sent to the LLM in plain text.
+	// The providerExtractor sends the entire conversation as-is, so
+	// we check that the captured request contains the conversation.
+	// This test validates that extractFact's conversation input
+	// has been sanitized before being passed to the LLM provider.
+	if capturedRequest != nil {
+		for _, msg := range capturedRequest.Messages {
+			if strings.Contains(msg.Content, "supersecret123") {
+				t.Errorf("sensitive data found in provider request: %s", msg.Content)
+			}
+		}
+	}
+}
+
+func TestExtractFacts_SensitiveFieldsInInput(t *testing.T) {
+	// Test with input containing various sensitive field patterns.
+	sensitiveInput := `用户: API key=sk-1234567890abcdef, 帮我查询.
+助手: 已查询完成, password=mysecret123不应该出现在记忆中.`
+
+	mock := &mockProvider{
+		completeFn: func(_ context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+			// Return a response that doesn't contain the sensitive data.
+			return &agentcore.ProviderResponse{Content: `{"facts": ["用户请求查询操作"]}`}, nil
+		},
+	}
+
+	extractor := NewProviderExtractor(mock, "test-model")
+	facts, err := extractor.ExtractFacts(context.Background(), sensitiveInput)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(facts) == 0 {
+		t.Error("expected facts despite sensitive data in input")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// LLM 错误路径: mock 返回 error
+// ---------------------------------------------------------------------------
+
+func TestExtractFacts_ProviderError_StructuredFailsThenFallback(t *testing.T) {
+	// Provider returns error on structured output call.
+	var callCount int
+	mock := &mockProvider{
+		completeFn: func(_ context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+			callCount++
+			if callCount == 1 {
+				// First call (structured) fails.
+				return nil, errors.New("provider unavailable")
+			}
+			// Second call (fallback) succeeds.
+			return &agentcore.ProviderResponse{
+				Content: "用户偏好使用表格\n用户从事专利代理工作",
+			}, nil
+		},
+	}
+
+	extractor := NewProviderExtractor(mock, "test-model")
+	facts, err := extractor.ExtractFacts(context.Background(), "用户: 我喜欢用表格\n助手: 好的")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(facts) != 2 {
+		t.Errorf("expected 2 facts from fallback, got %d: %v", len(facts), facts)
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 provider calls (1 structured + 1 fallback), got %d", callCount)
+	}
+}
+
+func TestExtractFacts_AllProvidersFail(t *testing.T) {
+	mock := &mockProvider{
+		completeFn: func(_ context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+			return nil, errors.New("provider permanently unavailable")
+		},
+	}
+
+	extractor := NewProviderExtractor(mock, "test-model")
+	facts, err := extractor.ExtractFacts(context.Background(), "用户: 你好\n助手: 你好")
+	if err == nil {
+		t.Fatal("expected error when all providers fail, got nil")
+	}
+	if facts != nil {
+		t.Errorf("expected nil facts on error, got %d", len(facts))
+	}
+}
+
+func TestExtractFacts_StructuredParseFailsThenFallback(t *testing.T) {
+	// Structured output returns invalid JSON → fallback to text parsing.
+	var callCount int
+	mock := &mockProvider{
+		completeFn: func(_ context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+			callCount++
+			if callCount == 1 {
+				// Structured output returns unparsable content.
+				return &agentcore.ProviderResponse{
+					Content: "not valid json at all",
+				}, nil
+			}
+			// Fallback succeeds.
+			return &agentcore.ProviderResponse{
+				Content: "1. 用户偏好表格\n2. 用户从事专利工作",
+			}, nil
+		},
+	}
+
+	extractor := NewProviderExtractor(mock, "test-model")
+	facts, err := extractor.ExtractFacts(context.Background(), "用户: 我用表格")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(facts) != 2 {
+		t.Errorf("expected 2 facts from fallback, got %d: %v", len(facts), facts)
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 provider calls, got %d", callCount)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 超长对话
+// ---------------------------------------------------------------------------
+
+func TestExtractFacts_LongConversation(t *testing.T) {
+	mock := &mockProvider{
+		completeFn: func(_ context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+			return &agentcore.ProviderResponse{
+				Content: `{"facts": ["用户有许多偏好", "对话内容较丰富"]}`,
+			}, nil
+		},
+	}
+
+	extractor := NewProviderExtractor(mock, "test-model")
+
+	// Generate a long conversation (100+ turns).
+	var sb strings.Builder
+	for i := 0; i < 100; i++ {
+		sb.WriteString("用户: 消息 ")
+		sb.WriteByte('A' + byte(i%26))
+		sb.WriteString("\n助手: 回复 ")
+		sb.WriteByte('a' + byte(i%26))
+		sb.WriteString("\n")
+	}
+
+	facts, err := extractor.ExtractFacts(context.Background(), sb.String())
+	if err != nil {
+		t.Fatalf("unexpected error for long conversation: %v", err)
+	}
+	if len(facts) != 2 {
+		t.Errorf("expected 2 facts from long conversation, got %d", len(facts))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 原有测试
+// ---------------------------------------------------------------------------
 
 func TestNewProviderExtractor(t *testing.T) {
 	// nil provider is acceptable — just won't be usable, but shouldn't panic.

@@ -1,6 +1,7 @@
 package retrieval
 
 import (
+	"context"
 	"regexp"
 	"sort"
 	"strings"
@@ -17,7 +18,7 @@ type ScoredChunk struct {
 // simple keyword matching (KeywordSearcher) to semantic vector search.
 type Searcher interface {
 	// Search returns scored chunks matching the query, sorted by relevance.
-	Search(query string, chunks []Chunk, topK int) []ScoredChunk
+	Search(ctx context.Context, query string, chunks []Chunk, topK int) []ScoredChunk
 }
 
 // KeywordSearcher implements Searcher using regex + keyword matching
@@ -39,7 +40,7 @@ func NewKeywordSearcher() *KeywordSearcher {
 }
 
 // Search implements Searcher.Search using keyword + regex matching.
-func (ks *KeywordSearcher) Search(query string, chunks []Chunk, topK int) []ScoredChunk {
+func (ks *KeywordSearcher) Search(_ context.Context, query string, chunks []Chunk, topK int) []ScoredChunk {
 	if topK <= 0 {
 		topK = 5
 	}

@@ -143,13 +143,31 @@ func (e *ChunkedContextEngine) isProtected(msg Message) bool {
 }
 
 // compressUnprotected performs compaction on the unprotected messages only.
+// System prompt detection uses role-based lookup (msg.Role == RoleSystem)
+// rather than assuming index 0, so system prompts are preserved regardless
+// of their position in the message list (fix 4.7).
 func (e *ChunkedContextEngine) compressUnprotected(ctx context.Context, msgs []Message, focusTopic string) ([]Message, int64, error) {
-	compressed, cut, err := e.base.Compress(ctx, msgs, focusTopic)
+	// Extract system prompts by role, not by index position.
+	var systemMsgs []Message
+	nonSystem := make([]Message, 0, len(msgs))
+	for _, msg := range msgs {
+		if msg.Role == RoleSystem {
+			systemMsgs = append(systemMsgs, msg)
+		} else {
+			nonSystem = append(nonSystem, msg)
+		}
+	}
+
+	compressed, cut, err := e.base.Compress(ctx, nonSystem, focusTopic)
 	if err != nil {
 		return msgs, 0, fmt.Errorf("chunked compaction: %w", err)
 	}
 
-	return compressed, cut, nil
+	// Re-insert system prompts at the front, preserving their original order.
+	result := make([]Message, 0, len(systemMsgs)+len(compressed))
+	result = append(result, systemMsgs...)
+	result = append(result, compressed...)
+	return result, cut, nil
 }
 
 // rebuildProtection scans the result messages and rebuilds the protection index.

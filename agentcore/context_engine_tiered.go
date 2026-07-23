@@ -2,6 +2,7 @@ package agentcore
 
 import (
 	"context"
+	"time"
 )
 
 // Multipliers for snipping non-tool messages (user/assistant/system).
@@ -31,7 +32,6 @@ type TieredEngine struct {
 
 	// Configuration
 	contextLength    int64
-	thresholdTokens  int64
 	keepRecentTokens int64
 	protectFirstN    int
 
@@ -74,19 +74,19 @@ func NewTieredEngine(cfg ContextEngineConfig) ContextEngine {
 	}
 	// Create embedded compressor for force-fold
 	e.compressor = &CompressorEngine{
-		model:               cfg.Model,
-		provider:            cfg.Provider,
-		contextLength:       cfg.ContextWindow,
-		thresholdPercent:    cfg.CompressionThreshold,
-		protectFirstN:       cfg.ProtectFirstN,
-		keepRecentTokens:    cfg.KeepRecentTokens,
-		structured:          cfg.StructuredCompaction,
-		autoCompactLimit:    cfg.AutoCompactLimit,
-		compressionModel:    cfg.CompressionModel,
-		compressionProvider: cfg.CompressionProvider,
-		compressionBaseURL:  cfg.CompressionBaseURL,
-		compressionAPIKey:   cfg.CompressionAPIKey,
-		state:               newCompactionState(),
+		model:              cfg.Model,
+		provider:           cfg.Provider,
+		contextLength:      cfg.ContextWindow,
+		thresholdPercent:   cfg.CompressionThreshold,
+		protectFirstN:      cfg.ProtectFirstN,
+		keepRecentTokens:   cfg.KeepRecentTokens,
+		structured:         cfg.StructuredCompaction,
+		autoCompactLimit:   cfg.AutoCompactLimit,
+		compressionModel:   cfg.CompressionModel,
+		compressionProv:    cfg.CompressionProvider,
+		compressionBaseURL: cfg.CompressionBaseURL,
+		compressionAPIKey:  cfg.CompressionAPIKey,
+		state:              newCompactionState(),
 	}
 	return e
 }
@@ -115,6 +115,18 @@ func (e *TieredEngine) UpdateFromResponse(usage TokenUsage) {
 func (e *TieredEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition, contextWindow int64) bool {
 	if contextWindow <= 0 {
 		return false
+	}
+	// Check the embedded compressor's breaker state: if the compressor is in
+	// cooldown from a summary failure or too many low-savings compactions,
+	// skip compaction entirely to avoid wasting time and tokens.
+	if e.compressor != nil && e.compressor.state != nil {
+		if time.Now().Before(e.compressor.state.summaryFailureCooldown) {
+			return false
+		}
+		if e.compressor.state.ineffectiveCompactions >= 2 &&
+			time.Now().Before(e.compressor.state.ineffectiveCooldownUntil) {
+			return false
+		}
 	}
 	estimated := EstimateMessagesTokens(msgs) + EstimateToolDefinitionsTokens(toolDefs)
 	ratio := float64(estimated) / float64(contextWindow)
@@ -261,9 +273,6 @@ func (e *TieredEngine) GetToolSchemas() []ToolDefinition { return nil }
 func (e *TieredEngine) ContextLength() int64 { return e.contextLength }
 
 func (e *TieredEngine) ThresholdTokens() int64 {
-	if e.thresholdTokens > 0 {
-		return e.thresholdTokens
-	}
 	return int64(float64(e.contextLength) * e.snipRatio)
 }
 

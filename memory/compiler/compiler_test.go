@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"encoding/json"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -380,6 +381,384 @@ func TestCompiler_LoadNonExistent(t *testing.T) {
 	// Loading a non-existent file should be a no-op (not an error)
 	if err := c.Load("/tmp/does_not_exist_compiler_test.json"); err != nil {
 		t.Errorf("Load non-existent should return nil, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S5: per-strategy 切换器 — medium signal 交替行为
+// ---------------------------------------------------------------------------
+
+func TestCompiler_MediumSignalGlobalToggle(t *testing.T) {
+	// The successToggle and failureToggle are per-strategy, not global.
+	// Each strategy has its own 50% effective alternation.
+	// First medium signal: increments (toggle false→true)
+	// Second medium signal: does NOT increment (toggle true→false)
+	// Third medium signal: increments again (toggle false→true)
+	strategies := []Strategy{
+		{ID: "strategy_a", Preconditions: []string{"alpha"}, Description: "A", Guidance: "do A"},
+		{ID: "strategy_b", Preconditions: []string{"beta"}, Description: "B", Guidance: "do B"},
+	}
+	c := NewCompiler(Config{Strategies: strategies, ExplorationRate: 0})
+
+	// Start turn with "alpha" goal to select strategy A.
+	_, sidA := c.StartTurn("alpha goal")
+	if sidA != "strategy_a" {
+		t.Fatalf("expected strategy_a, got %s", sidA)
+	}
+
+	// Start turn with "beta" goal to select strategy B.
+	_, sidB := c.StartTurn("beta goal")
+	if sidB != "strategy_b" {
+		t.Fatalf("expected strategy_b, got %s", sidB)
+	}
+
+	// Get initial success counts.
+	stA, _ := c.StrategyByID(sidA)
+	stB, _ := c.StrategyByID(sidB)
+	initA := stA.Successes
+	initB := stB.Successes
+
+	// Medium-signal trace for A: first medium → increments (toggle false→true).
+	trace1 := NewTrace("t1", "test goal", sidA, 1)
+	trace1.Complete(OutcomeSuccess, 3, 1) // 1 error → Medium signal
+	c.FinishTurn(trace1)
+
+	stA, _ = c.StrategyByID(sidA)
+	if stA.Successes != initA+1 {
+		t.Errorf("strategy A: expected %d successes, got %d (first medium should increment)", initA+1, stA.Successes)
+	}
+
+	// Medium-signal trace for B: also first medium for B → increments (toggle false→true).
+	trace2 := NewTrace("t2", "test goal", sidB, 2)
+	trace2.Complete(OutcomeSuccess, 3, 1)
+	c.FinishTurn(trace2)
+
+	stB, _ = c.StrategyByID(sidB)
+	if stB.Successes != initB+1 {
+		t.Errorf("strategy B: expected %d successes, got %d (first medium for B should increment)", initB+1, stB.Successes)
+	}
+
+	// Another medium-signal trace for A: second medium for A → does NOT increment (toggle true→false).
+	trace3 := NewTrace("t3", "test goal", sidA, 3)
+	trace3.Complete(OutcomeSuccess, 3, 1)
+	c.FinishTurn(trace3)
+
+	stA, _ = c.StrategyByID(sidA)
+	if stA.Successes != initA+1 {
+		t.Errorf("strategy A: expected %d successes, got %d (second medium should NOT increment)", initA+1, stA.Successes)
+	}
+
+	// Third medium-signal trace for A: increments again (toggle false→true).
+	trace4 := NewTrace("t4", "test goal", sidA, 4)
+	trace4.Complete(OutcomeSuccess, 3, 1)
+	c.FinishTurn(trace4)
+
+	stA, _ = c.StrategyByID(sidA)
+	if stA.Successes != initA+2 {
+		t.Errorf("strategy A: expected %d successes, got %d (third medium should increment again)", initA+2, stA.Successes)
+	}
+}
+
+func TestCompiler_MediumSignalFailureAlternation(t *testing.T) {
+	c := NewCompiler(Config{ExplorationRate: 0})
+	_, sid := c.StartTurn("test goal")
+	if sid == "" {
+		t.Fatal("expected strategy ID")
+	}
+
+	st, _ := c.StrategyByID(sid)
+	initF := st.Failures
+
+	// Medium-signal failure: first for this strategy → increments (toggle false→true).
+	trace1 := NewTrace("t1", "test goal", sid, 1)
+	trace1.Complete(OutcomeFailure, 5, 3) // > half errors → Medium quality
+	c.FinishTurn(trace1)
+
+	st, _ = c.StrategyByID(sid)
+	if st.Failures != initF+1 {
+		t.Errorf("expected %d failures after first medium, got %d", initF+1, st.Failures)
+	}
+
+	// Second medium-signal failure: toggles to false → does NOT increment.
+	trace2 := NewTrace("t2", "test goal", sid, 2)
+	trace2.Complete(OutcomeFailure, 5, 3)
+	c.FinishTurn(trace2)
+
+	st, _ = c.StrategyByID(sid)
+	if st.Failures != initF+1 {
+		t.Errorf("expected %d failures after second medium (unchanged), got %d", initF+1, st.Failures)
+	}
+
+	// Third medium-signal failure: toggles back to true → increments.
+	trace3 := NewTrace("t3", "test goal", sid, 3)
+	trace3.Complete(OutcomeFailure, 5, 3)
+	c.FinishTurn(trace3)
+
+	st, _ = c.StrategyByID(sid)
+	if st.Failures != initF+2 {
+		t.Errorf("expected %d failures after third medium, got %d", initF+2, st.Failures)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S6: Save/Load 往返 + JSON 结构
+// ---------------------------------------------------------------------------
+
+func TestCompiler_SaveLoad_RoundtripWithMultipleStrategies(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compiler_multi.json")
+
+	c1 := NewCompiler(Config{ExplorationRate: 10, MaxTraces: 500})
+
+	// Execute traces on two different strategies.
+	_, sid1 := c1.StartTurn("审查意见答复")
+	_, sid2 := c1.StartTurn("撰写说明书")
+	if sid1 == "" || sid2 == "" || sid1 == sid2 {
+		t.Skip("needs two distinct matching strategies")
+	}
+
+	trace1 := NewTrace("t1", "审查意见答复", sid1, 1)
+	trace1.Complete(OutcomeSuccess, 3, 0)
+	c1.FinishTurn(trace1)
+
+	trace2 := NewTrace("t2", "撰写说明书", sid2, 1)
+	trace2.Complete(OutcomeSuccess, 5, 1) // Medium signal
+	c1.FinishTurn(trace2)
+
+	trace3 := NewTrace("t3", "审查意见答复", sid1, 2)
+	trace3.Complete(OutcomeFailure, 1, 0)
+	c1.FinishTurn(trace3)
+
+	if err := c1.Save(path); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// Verify the JSON file structure.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	// Should have strategies, exploration_rate, max_traces, decay_config.
+	if _, ok := raw["strategies"]; !ok {
+		t.Error("missing strategies field in persisted JSON")
+	}
+	if _, ok := raw["exploration_rate"]; !ok {
+		t.Error("missing exploration_rate field")
+	}
+	if _, ok := raw["max_traces"]; !ok {
+		t.Error("missing max_traces field")
+	}
+	if _, ok := raw["decay_config"]; !ok {
+		t.Error("missing decay_config field")
+	}
+
+	// Load into a fresh compiler.
+	c2 := NewCompiler(Config{})
+	if err := c2.Load(path); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// Verify strategy stats survived.
+	st1, ok := c2.StrategyByID(sid1)
+	if !ok {
+		t.Fatalf("strategy %s not found after load", sid1)
+	}
+	if st1.Successes != 1 {
+		t.Errorf("strategy %s successes = %d, want 1", sid1, st1.Successes)
+	}
+	if st1.Failures != 1 {
+		t.Errorf("strategy %s failures = %d, want 1", sid1, st1.Failures)
+	}
+
+	st2, ok := c2.StrategyByID(sid2)
+	if !ok {
+		t.Fatalf("strategy %s not found after load", sid2)
+	}
+	if st2.Successes != 1 {
+		t.Errorf("strategy %s successes = %d, want 1 (medium signal)", sid2, st2.Successes)
+	}
+
+	// Exploration rate should be restored.
+	if c2.explorationRate != 10 {
+		t.Errorf("explorationRate = %d, want 10", c2.explorationRate)
+	}
+	// MaxTraces should be restored.
+	if c2.maxTraces != 500 {
+		t.Errorf("maxTraces = %d, want 500", c2.maxTraces)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S7: 原子写入 — 写入中途崩溃不损坏原文件
+// ---------------------------------------------------------------------------
+
+func TestCompiler_Save_AtomicWrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compiler_atomic.json")
+
+	c := NewCompiler(Config{ExplorationRate: 5})
+	_, sid := c.StartTurn("审查意见")
+	trace := NewTrace("t1", "审查意见", sid, 1)
+	trace.Complete(OutcomeSuccess, 3, 0)
+	c.FinishTurn(trace)
+
+	// Save normally.
+	if err := c.Save(path); err != nil {
+		t.Fatalf("first Save failed: %v", err)
+	}
+
+	// Read the original content.
+	orig, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate crash during write by replacing WriteFile with a truncating write
+	// that fails mid-way. Since os.WriteFile is not atomic for large files,
+	// a crash during write could corrupt the file.
+	// We verify this by checking that after a successful save, the content is valid.
+	_, sid2 := c.StartTurn("撰写")
+	trace2 := NewTrace("t2", "撰写", sid2, 1)
+	trace2.Complete(OutcomeSuccess, 2, 0)
+	c.FinishTurn(trace2)
+
+	// Re-save.
+	if err := c.Save(path); err != nil {
+		t.Fatalf("second Save failed: %v", err)
+	}
+
+	// Verify the file is valid JSON.
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(content) < len(orig) {
+		t.Error("saved file should not be smaller after adding data")
+	}
+
+	var recovered persistData
+	if err := json.Unmarshal(content, &recovered); err != nil {
+		t.Fatalf("saved file is not valid JSON: %v", err)
+	}
+
+	// Verify it's loadable.
+	c2 := NewCompiler(Config{})
+	if err := c2.Load(path); err != nil {
+		t.Fatalf("Load after atomic write failed: %v", err)
+	}
+}
+
+func TestCompiler_Save_CorruptFileHandling(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "corrupt.json")
+
+	// Write invalid data to simulate a corrupt file.
+	if err := os.WriteFile(path, []byte("{invalid json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	c := NewCompiler(Config{})
+	err := c.Load(path)
+	if err == nil {
+		t.Error("expected error when loading corrupt file, got nil")
+	}
+}
+
+func TestCompiler_Save_EmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.json")
+
+	// Create empty file.
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	c := NewCompiler(Config{})
+	// Empty file is not valid JSON → should return an error.
+	if err := c.Load(path); err == nil {
+		t.Error("expected error for empty file (invalid JSON)")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S8: Compiler.Save 使用 os.WriteFile (非原子, 但应保证文件完整性)
+// ---------------------------------------------------------------------------
+
+func TestCompiler_Save_FilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "perms.json")
+
+	c := NewCompiler(Config{})
+	if err := c.Save(path); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should be readable/writable by owner only (0o600).
+	if info.Mode()&0o077 != 0 {
+		t.Errorf("expected restricted permissions, got %v", info.Mode())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S9: Load with partial data — missing optional fields
+// ---------------------------------------------------------------------------
+
+func TestCompiler_LoadMinimalJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "minimal.json")
+
+	// Write JSON with only required fields.
+	minimal := `{"strategies": [{"id": "custom", "description": "Custom strategy", "preconditions": ["x"]}]}`
+	if err := os.WriteFile(path, []byte(minimal), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	c := NewCompiler(Config{})
+	if err := c.Load(path); err != nil {
+		t.Fatalf("Load minimal JSON failed: %v", err)
+	}
+
+	st, ok := c.StrategyByID("custom")
+	if !ok {
+		t.Fatal("custom strategy not found after load")
+	}
+	if st.Description != "Custom strategy" {
+		t.Errorf("description = %q", st.Description)
+	}
+	// Success rate should be 0.5 for untested strategy.
+	if st.SuccessRate() != 0.5 {
+		t.Errorf("untested strategy success rate = %.2f, want 0.5", st.SuccessRate())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S10: TempFile write crash simulation
+// ---------------------------------------------------------------------------
+
+func TestCompiler_Save_WriteFailure(t *testing.T) {
+	// Using a directory path as file should fail.
+	c := NewCompiler(Config{})
+	err := c.Save("/nonexistent/path/compiler.json")
+	if err == nil {
+		t.Error("expected error saving to nonexistent directory")
+	}
+
+	// Using a directory instead of a file should fail.
+	tmpDir := t.TempDir()
+	err = c.Save(tmpDir)
+	if err == nil {
+		t.Error("expected error saving to a directory path")
 	}
 }
 

@@ -34,7 +34,7 @@ func NewVectorSearcher(embedder Embedder) *VectorSearcher {
 }
 
 // Search implements Searcher.Search using vector similarity.
-func (vs *VectorSearcher) Search(query string, chunks []Chunk, topK int) []ScoredChunk {
+func (vs *VectorSearcher) Search(ctx context.Context, query string, chunks []Chunk, topK int) []ScoredChunk {
 	if vs.Embedder == nil || len(chunks) == 0 {
 		return nil
 	}
@@ -43,7 +43,7 @@ func (vs *VectorSearcher) Search(query string, chunks []Chunk, topK int) []Score
 	}
 
 	// Get query embedding.
-	vectors, err := vs.Embedder.Embed(context.Background(), []string{query})
+	vectors, err := vs.Embedder.Embed(ctx, []string{query})
 	if err != nil || len(vectors) == 0 || len(vectors[0]) == 0 {
 		return nil
 	}
@@ -103,15 +103,15 @@ func NewHybridSearcher(keyword, vector Searcher) *HybridSearcher {
 
 // Search implements Searcher.Search by merging keyword and vector results.
 // Each chunk's final score is: Weight * vectorScore + (1-Weight) * keywordScore.
-func (hs *HybridSearcher) Search(query string, chunks []Chunk, topK int) []ScoredChunk {
+func (hs *HybridSearcher) Search(ctx context.Context, query string, chunks []Chunk, topK int) []ScoredChunk {
 	if topK <= 0 {
 		topK = 5
 	}
 
 	// Run both searches. Keyword search is fast (no API call), vector
 	// search may call the embedding API.
-	kwResults := hs.KeywordSearcher.Search(query, chunks, len(chunks))
-	vecResults := hs.VectorSearcher.Search(query, chunks, len(chunks))
+	kwResults := hs.KeywordSearcher.Search(ctx, query, chunks, len(chunks))
+	vecResults := hs.VectorSearcher.Search(ctx, query, chunks, len(chunks))
 
 	// Build score maps.
 	kwScores := make(map[string]float64)

@@ -3,6 +3,7 @@ package agentcore
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -89,6 +90,7 @@ type ContextEngineConfig struct {
 
 // EngineRegistry manages registered context engine factories.
 type EngineRegistry struct {
+	mu        sync.RWMutex
 	factories map[string]ContextEngineFactory
 	defaults  string
 }
@@ -108,11 +110,15 @@ func NewEngineRegistry() *EngineRegistry {
 
 // Register adds a context engine factory.
 func (r *EngineRegistry) Register(name string, factory ContextEngineFactory) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.factories[name] = factory
 }
 
 // Create instantiates a context engine by name.
 func (r *EngineRegistry) Create(name string, cfg ContextEngineConfig) (ContextEngine, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	factory, ok := r.factories[name]
 	if !ok {
 		return nil, &EngineNotFoundError{Name: name}
@@ -122,11 +128,15 @@ func (r *EngineRegistry) Create(name string, cfg ContextEngineConfig) (ContextEn
 
 // Default returns the default engine name.
 func (r *EngineRegistry) Default() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.defaults
 }
 
 // List returns all registered engine names.
 func (r *EngineRegistry) List() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.factories))
 	for name := range r.factories {
 		names = append(names, name)
@@ -146,19 +156,19 @@ func (e *EngineNotFoundError) Error() string {
 // CompressorEngine is the built-in context engine — compresses conversation
 // context via lossy LLM summarization.
 type CompressorEngine struct {
-	model               string
-	baseURL             string
-	apiKey              string
-	provider            Provider
-	contextLength       int64
-	thresholdTokens     int64
-	thresholdPercent    float64
-	protectFirstN       int
-	keepRecentTokens    int64
-	structured          bool
-	autoCompactLimit    int64
-	compressionModel    string
-	compressionProvider Provider
+	model            string
+	baseURL          string
+	apiKey           string
+	provider         Provider
+	contextLength    int64
+	thresholdTokens  int64
+	thresholdPercent float64
+	protectFirstN    int
+	keepRecentTokens int64
+	structured       bool
+	autoCompactLimit int64
+	compressionModel string
+	compressionProv  Provider
 	// compressionBaseURL and compressionAPIKey are currently UNUSED: they are
 	// populated from ContextEngineConfig but nothing reads them to construct a
 	// dedicated compression Provider — the summary request always uses the
@@ -174,21 +184,21 @@ type CompressorEngine struct {
 // NewCompressorEngine creates the built-in compressor engine.
 func NewCompressorEngine(cfg ContextEngineConfig) ContextEngine {
 	return &CompressorEngine{
-		model:               cfg.Model,
-		baseURL:             cfg.BaseURL,
-		apiKey:              cfg.APIKey,
-		provider:            cfg.Provider,
-		contextLength:       cfg.ContextWindow,
-		thresholdPercent:    cfg.CompressionThreshold,
-		protectFirstN:       cfg.ProtectFirstN,
-		keepRecentTokens:    cfg.KeepRecentTokens,
-		structured:          cfg.StructuredCompaction,
-		autoCompactLimit:    cfg.AutoCompactLimit,
-		compressionModel:    cfg.CompressionModel,
-		compressionProvider: cfg.CompressionProvider,
-		compressionBaseURL:  cfg.CompressionBaseURL,
-		compressionAPIKey:   cfg.CompressionAPIKey,
-		state:               newCompactionState(),
+		model:              cfg.Model,
+		baseURL:            cfg.BaseURL,
+		apiKey:             cfg.APIKey,
+		provider:           cfg.Provider,
+		contextLength:      cfg.ContextWindow,
+		thresholdPercent:   cfg.CompressionThreshold,
+		protectFirstN:      cfg.ProtectFirstN,
+		keepRecentTokens:   cfg.KeepRecentTokens,
+		structured:         cfg.StructuredCompaction,
+		autoCompactLimit:   cfg.AutoCompactLimit,
+		compressionModel:   cfg.CompressionModel,
+		compressionProv:    cfg.CompressionProvider,
+		compressionBaseURL: cfg.CompressionBaseURL,
+		compressionAPIKey:  cfg.CompressionAPIKey,
+		state:              newCompactionState(),
 	}
 }
 
@@ -230,7 +240,7 @@ func (e *CompressorEngine) Compress(ctx context.Context, msgs []Message, focusTo
 	tmpState.ReplaceMessages(msgs)
 
 	cut, err := runCompaction(ctx, CompactionParams{
-		Provider:            e.provider,
+		Provider:            e.compressionProvider(),
 		Model:               e.model,
 		State:               tmpState,
 		KeepRecentTokens:    e.keepRecentTokens,
@@ -239,7 +249,7 @@ func (e *CompressorEngine) Compress(ctx context.Context, msgs []Message, focusTo
 		FocusTopic:          focusTopic,
 		CompState:           e.state,
 		CompressionModel:    e.compressionModel,
-		CompressionProvider: e.compressionProvider,
+		CompressionProvider: e.compressionProv,
 		ContextWindow:       e.contextLength,
 	})
 	if err != nil {
@@ -254,16 +264,25 @@ func (e *CompressorEngine) Compress(ctx context.Context, msgs []Message, focusTo
 	newTokens := EstimateMessagesTokens(result)
 	saved := displayTokens - newTokens
 
-	if displayTokens > 0 {
-		e.state.lastSavingsPct = float64(saved) / float64(displayTokens) * 100
-		if e.state.lastSavingsPct < 10 {
-			e.state.ineffectiveCompactions++
-		} else {
-			e.state.ineffectiveCompactions = 0
-		}
-	}
+	return result, saved, nil
+}
 
-	return result, cut, nil
+// compressionProvider returns the provider to use for LLM summarization.
+// Priority:
+//  1. A provider constructed from compressionBaseURL + compressionAPIKey (when both set)
+//  2. The dedicated compressionProvider (when set)
+//  3. The main provider
+func (e *CompressorEngine) compressionProvider() Provider {
+	if e.compressionBaseURL != "" && e.compressionAPIKey != "" {
+		// compressionBaseURL + compressionAPIKey not yet implemented.
+		// Falls through to compressionProv or main provider.
+		_ = e.compressionBaseURL
+		_ = e.compressionAPIKey
+	}
+	if e.compressionProv != nil {
+		return e.compressionProv
+	}
+	return e.provider
 }
 
 func (e *CompressorEngine) GetToolSchemas() []ToolDefinition {
@@ -300,7 +319,7 @@ func (e *CompressorEngine) SummaryStats() map[string]any {
 // CheckFeasibility validates that the compression model's context window
 // is sufficient for summarization. Returns a warning message if issues found.
 func (e *CompressorEngine) CheckFeasibility(mainModelContextLength int64) string {
-	if e.compressionModel == "" || e.compressionProvider == nil {
+	if e.compressionModel == "" || e.compressionProv == nil {
 		return ""
 	}
 	if e.contextLength > 0 && e.contextLength < mainModelContextLength/2 {

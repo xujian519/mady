@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
@@ -37,6 +38,8 @@ func (p *providerExtractor) ExtractFacts(ctx context.Context, conversation strin
 		return nil, nil
 	}
 
+	conversation = sensitiveDataFilter(conversation)
+
 	req := &agentcore.ProviderRequest{
 		Model: p.model,
 		Messages: []agentcore.Message{
@@ -68,6 +71,7 @@ func (p *providerExtractor) ExtractFacts(ctx context.Context, conversation strin
 // extractFallback 在 structured output 失败时使用纯文本提取。
 // 不要求 JSON 格式，逐行解析非空行作为事实。
 func (p *providerExtractor) extractFallback(ctx context.Context, conversation string) ([]string, error) {
+	conversation = sensitiveDataFilter(conversation)
 	req := &agentcore.ProviderRequest{
 		Model: p.model,
 		Messages: []agentcore.Message{
@@ -84,6 +88,23 @@ func (p *providerExtractor) extractFallback(ctx context.Context, conversation st
 	}
 
 	return parseFactsFromText(resp.Content), nil
+}
+
+// ---------------------------------------------------------------------------
+// 敏感数据过滤
+// ---------------------------------------------------------------------------
+
+var (
+	credentialPattern = regexp.MustCompile(`(?i)(password|api[_-]?key|secret|token|bearer)\s*[:=]\s*\S+`)
+	jwtPattern        = regexp.MustCompile(`eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+`)
+)
+
+// sensitiveDataFilter 在对话文本送入 LLM 之前过滤敏感信息。
+// 替换密码、API Key、密钥、令牌等凭据，以及 JWT 令牌。
+func sensitiveDataFilter(text string) string {
+	text = credentialPattern.ReplaceAllString(text, "$1: ***")
+	text = jwtPattern.ReplaceAllString(text, "[JWT TOKEN]")
+	return text
 }
 
 // ---------------------------------------------------------------------------

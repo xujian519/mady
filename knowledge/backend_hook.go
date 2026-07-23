@@ -2,8 +2,6 @@ package knowledge
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/retrieval"
@@ -94,84 +92,21 @@ func (h *BackendRetrievalHook) BeforeModelCall(ctx context.Context, arc *agentco
 func (h *BackendRetrievalHook) shouldTrigger(arc *agentcore.AgentRunContext) bool {
 	switch h.config.TriggerPolicy {
 	case retrieval.TriggerSmart:
-		return h.shouldTriggerSmart(arc)
-	case retrieval.TriggerFirstN:
-		return h.turnCount < int64(h.config.FirstNTurns)
-	case retrieval.TriggerOnDemand:
-		return false // only via tool
-	default: // TriggerAlways
-		return true
+		query := agentcore.LastUserMessage(arc.Messages)
+		return retrieval.ShouldTriggerSmart(query, arc.Messages, h.config.ComplexityClassifier)
+	default:
+		return retrieval.ShouldTrigger(h.config.TriggerPolicy, int(h.turnCount), h.config.FirstNTurns)
 	}
-}
-
-// shouldTriggerSmart uses ComplexityClassifier to decide if retrieval is needed.
-func (h *BackendRetrievalHook) shouldTriggerSmart(arc *agentcore.AgentRunContext) bool {
-	if h.config.ComplexityClassifier == nil {
-		return true // fallback to always
-	}
-	query := agentcore.LastUserMessage(arc.Messages)
-	if query == "" {
-		return false
-	}
-	c := h.config.ComplexityClassifier.Classify(query, arc.Messages)
-	return c >= agentcore.ComplexityMedium
 }
 
 // buildContextBlock formats retrieved chunks into a context string,
-// respecting MaxChars budget. Mirrors RetrievalHook.buildContextBlock.
+// respecting MaxChars budget.
 func (h *BackendRetrievalHook) buildContextBlock(results []retrieval.ScoredChunk) string {
-	var b strings.Builder
-
-	prefix := h.config.Prefix
-	if prefix == "" {
-		prefix = "以下是检索到的相关参考信息，请在回答时参考：\n"
-	}
-	b.WriteString(prefix)
-
-	totalChars := 0
-	for i, r := range results {
-		if totalChars >= h.config.MaxChars {
-			break
-		}
-
-		chunkText := r.Content
-		if totalChars+len(chunkText) > h.config.MaxChars {
-			chunkText = chunkText[:h.config.MaxChars-totalChars] + "..."
-		}
-
-		fmt.Fprintf(&b, "\n--- 参考片段 %d (相关度: %.2f) ---\n", i+1, r.Score)
-		if h.config.DomainHint != "" {
-			fmt.Fprintf(&b, "[来源: %s/%s]\n", h.config.DomainHint, r.DocID)
-		}
-		b.WriteString(chunkText)
-		b.WriteString("\n")
-		totalChars += len(chunkText) + 100
-	}
-
-	return b.String()
+	return retrieval.FormatContextBlock(results, h.config)
 }
 
 // injectContext prepends the retrieval context as a system message,
-// inserted after the last existing system message. Mirrors RetrievalHook.injectContext.
+// inserted after the last existing system message.
 func (h *BackendRetrievalHook) injectContext(req *agentcore.ProviderRequest, contextBlock string) {
-	if contextBlock == "" {
-		return
-	}
-
-	sysMsg := agentcore.Message{
-		Role:    agentcore.RoleSystem,
-		Content: contextBlock,
-	}
-
-	insertIdx := 0
-	for i, msg := range req.Messages {
-		if msg.Role == agentcore.RoleSystem {
-			insertIdx = i + 1
-		}
-	}
-
-	req.Messages = append(
-		req.Messages[:insertIdx],
-		append([]agentcore.Message{sysMsg}, req.Messages[insertIdx:]...)...,
-	)
+	retrieval.InjectContext(req, contextBlock)
 }

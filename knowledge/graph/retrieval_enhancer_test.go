@@ -31,10 +31,10 @@ func TestGraphEnhancer_WithExpansion(t *testing.T) {
 	store.AddNode(&GraphNode{ID: "doc3", NodeType: NodeCase, Name: "案例C", AuthorityWeight: 0.75})
 	lawID := lawNodeID("专利法第22条第3款")
 	store.AddNode(&GraphNode{ID: lawID, NodeType: NodeLawArticle, Name: "专利法第22条第3款", AuthorityWeight: 1.0})
-	// doc1 → doc2 (similar), doc1 → law (cites), law → doc3 (applies reverse).
+	// doc1 → doc2 (similar), doc1 → law (cites), doc3 → law (cites, same statute).
 	store.AddEdge(GraphEdge{SourceID: "doc1", TargetID: "doc2", Relation: RelSimilarTo, Weight: 0.6})
 	store.AddEdge(GraphEdge{SourceID: "doc1", TargetID: lawID, Relation: RelCites, Weight: 0.9})
-	store.AddEdge(GraphEdge{SourceID: lawID, TargetID: "doc3", Relation: RelApplies, Weight: 0.85})
+	store.AddEdge(GraphEdge{SourceID: "doc3", TargetID: lawID, Relation: RelCites, Weight: 0.85})
 
 	enhancer := NewGraphEnhancer(store, EnhanceConfig{MaxSimilar: 3, MaxCitationChain: 3, MinAuthority: 0.5})
 

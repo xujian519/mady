@@ -79,6 +79,12 @@ type KnowledgeExtension struct {
 	// Protected by graphMu for concurrent access from ACP multi-client sessions.
 	lastGraphCtx string
 	graphMu      sync.RWMutex
+
+	// memorySearcher and memoryReranker are cached instances to avoid
+	// re-allocating NewKeywordSearcher / NewPositionReranker on each
+	// memorySearch call (fix 4.4).
+	memorySearcher retrieval.Searcher
+	memoryReranker retrieval.Reranker
 }
 
 // WithBackend injects a SQLite-backed knowledge retrieval backend and an
@@ -179,14 +185,23 @@ func (e *KnowledgeExtension) Name() string                                     {
 func (e *KnowledgeExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
 func (e *KnowledgeExtension) Dispose() error                                   { return nil }
 
-func (e *KnowledgeExtension) LifecycleHook() agentcore.LifecycleHook { return e.hook }
+func (e *KnowledgeExtension) LifecycleHook() agentcore.LifecycleHook {
+	if e.backend != nil {
+		h := NewBackendRetrievalHook(e, e.cfg.RetrievalConfig)
+		if e.evalHook != nil {
+			return agentcore.AppendLifecycle(h, e.evalHook)
+		}
+		return h
+	}
+	return e.hook
+}
 
 // BackendHook returns a LifecycleHook that performs retrieval via the
-// configured backend (SQLite FTS + vector RRF fusion). Unlike LifecycleHook
-// (which returns a RetrievalHook that requires pre-loaded in-memory chunks),
-// this hook searches the backend database directly on each model call.
-// When the default eval config is enabled, an EvalHook is composed into
-// the returned lifecycle for retrieval quality measurement.
+// configured backend (SQLite FTS + vector RRF fusion).
+//
+// Deprecated: Use LifecycleHook() instead, which automatically returns the
+// appropriate hook (BackendRetrievalHook when backend is configured,
+// RetrievalHook otherwise). This method is retained for backward compatibility.
 // Returns nil if no backend is configured.
 func (e *KnowledgeExtension) BackendHook(cfg retrieval.RetrievalConfig) agentcore.LifecycleHook {
 	if e.backend == nil {
@@ -380,7 +395,7 @@ func (e *KnowledgeExtension) search(ctx context.Context, query string, topK int)
 	if e.backend != nil {
 		return e.backendSearch(ctx, query, topK)
 	}
-	return e.memorySearch(query, topK)
+	return e.memorySearch(ctx, query, topK)
 }
 
 // backendSearch performs FTS + vector RRF fusion via the SQLite backend.
@@ -462,7 +477,7 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 }
 
 // memorySearch uses the in-memory Store with keyword search + reranking.
-func (e *KnowledgeExtension) memorySearch(query string, topK int) []retrieval.ScoredChunk {
+func (e *KnowledgeExtension) memorySearch(ctx context.Context, query string, topK int) []retrieval.ScoredChunk {
 	if e.store == nil {
 		return nil
 	}
@@ -473,10 +488,17 @@ func (e *KnowledgeExtension) memorySearch(query string, topK int) []retrieval.Sc
 	if len(chunks) == 0 {
 		return nil
 	}
-	searcher := retrieval.NewKeywordSearcher()
-	results := searcher.Search(query, chunks, topK)
-	reranker := retrieval.NewPositionReranker()
-	return reranker.Rerank(results)
+
+	// Lazy init cached searcher/reranker to avoid re-allocation on each call.
+	if e.memorySearcher == nil {
+		e.memorySearcher = retrieval.NewKeywordSearcher()
+	}
+	if e.memoryReranker == nil {
+		e.memoryReranker = retrieval.NewPositionReranker()
+	}
+
+	results := e.memorySearcher.Search(ctx, query, chunks, topK)
+	return e.memoryReranker.Rerank(results)
 }
 
 func formatToolResults(results []retrieval.ScoredChunk) string {

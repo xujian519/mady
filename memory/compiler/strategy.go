@@ -16,6 +16,9 @@ type Strategy struct {
 	Failures      int       `json:"failures"`
 	LastUsedAt    time.Time `json:"last_used_at"`
 	CreatedAt     time.Time `json:"created_at"`
+
+	successToggle bool `json:"-"` // per-strategy medium signal success alternation
+	failureToggle bool `json:"-"` // per-strategy medium signal failure alternation
 }
 
 // Samples returns total number of uses.

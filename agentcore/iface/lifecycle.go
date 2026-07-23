@@ -79,6 +79,8 @@ type LifecycleHook interface {
 	AfterToolExecution(ctx context.Context, arc *AgentRunContext, tec *ToolExecutionContext)
 	BeforeMessagePersist(ctx context.Context, arc *AgentRunContext) error
 	AfterMessagePersist(ctx context.Context, arc *AgentRunContext)
+	BeforeCompactionPersist(ctx context.Context, arc *AgentRunContext) error
+	AfterCompactionPersist(ctx context.Context, arc *AgentRunContext)
 }
 
 // BaseLifecycleHook 提供所有方法的 no-op 默认实现。
@@ -101,3 +103,7 @@ func (BaseLifecycleHook) BeforeMessagePersist(_ context.Context, _ *AgentRunCont
 	return nil
 }
 func (BaseLifecycleHook) AfterMessagePersist(_ context.Context, _ *AgentRunContext) {}
+func (BaseLifecycleHook) BeforeCompactionPersist(_ context.Context, _ *AgentRunContext) error {
+	return nil
+}
+func (BaseLifecycleHook) AfterCompactionPersist(_ context.Context, _ *AgentRunContext) {}

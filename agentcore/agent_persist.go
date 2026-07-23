@@ -157,12 +157,27 @@ func (a *Agent) ForceCompactWithTopic(ctx context.Context, focusTopic string) er
 	})
 
 	start := time.Now()
-	newMsgs, messagesCut, err := a.contextEngine.Compress(ctx, msgs, focusTopic)
+	newMsgs, saved, err := a.contextEngine.Compress(ctx, msgs, focusTopic)
 	if err != nil {
 		return err
 	}
-	if messagesCut > 0 {
+	if saved > 0 {
+		// Lifecycle: BeforeCompactionPersist — let hooks inspect/modify the
+		// compacted messages before they replace the agent's state.
+		if lc := a.lifecycle(); lc != nil {
+			arc := &AgentRunContext{Agent: a, Input: focusTopic, Messages: newMsgs}
+			newMsgs, err = lc.BeforeCompactionPersist(ctx, arc, newMsgs)
+			if err != nil {
+				return err
+			}
+		}
 		a.state.ReplaceMessages(newMsgs)
+		// Lifecycle: AfterCompactionPersist — notify hooks that compaction
+		// messages are now the active state.
+		if lc := a.lifecycle(); lc != nil {
+			arc := &AgentRunContext{Agent: a, Input: focusTopic, Messages: newMsgs}
+			lc.AfterCompactionPersist(ctx, arc, newMsgs)
+		}
 	}
 
 	tokensAfter := EstimateMessagesTokens(a.state.Messages()) + EstimateToolDefinitionsTokens(toolDefs)
@@ -171,7 +186,7 @@ func (a *Agent) ForceCompactWithTopic(ctx context.Context, focusTopic string) er
 		baseEvent:    newBase(EventCompactionEnd),
 		TokensBefore: tokensBefore,
 		TokensAfter:  tokensAfter,
-		MessagesCut:  messagesCut,
+		MessagesCut:  saved,
 		Duration:     time.Since(start),
 	})
 	return nil

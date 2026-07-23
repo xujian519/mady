@@ -247,6 +247,17 @@ func (a *ifaceLifecycleHookAdapter) AfterMessagePersist(ctx context.Context, arc
 	a.inner.AfterMessagePersist(ctx, ifaceARC)
 }
 
+func (a *ifaceLifecycleHookAdapter) BeforeCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) ([]Message, error) {
+	ifaceARC := &iface.AgentRunContext{Input: arc.Input, TurnCount: arc.Turn}
+	err := a.inner.BeforeCompactionPersist(ctx, ifaceARC)
+	return msgs, err
+}
+
+func (a *ifaceLifecycleHookAdapter) AfterCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) {
+	ifaceARC := &iface.AgentRunContext{Input: arc.Input, TurnCount: arc.Turn}
+	a.inner.AfterCompactionPersist(ctx, ifaceARC)
+}
+
 // toolNames 从 ToolCall 切片提取名称列表。
 func toolNames(calls []ToolCall) []string {
 	names := make([]string, len(calls))

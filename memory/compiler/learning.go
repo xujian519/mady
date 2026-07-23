@@ -20,11 +20,6 @@ type Compiler struct {
 	decayCfg        DecayConfig
 	rng             *rand.Rand
 	rngMu           sync.Mutex
-
-	// successToggle and failureToggle alternate for 50% effective weighting
-	// of MEDIUM_SIGNAL outcomes (see FinishTurn).
-	successToggle bool
-	failureToggle bool
 }
 
 // Config configures a Compiler.
@@ -115,8 +110,8 @@ func (c *Compiler) FinishTurn(trace ExecutionTrace) {
 						c.strategies[i].Successes++
 					} else {
 						// MEDIUM_SIGNAL positive: 50% effective via alternation.
-						c.successToggle = !c.successToggle
-						if c.successToggle {
+						c.strategies[i].successToggle = !c.strategies[i].successToggle
+						if c.strategies[i].successToggle {
 							c.strategies[i].Successes++
 						}
 					}
@@ -125,8 +120,8 @@ func (c *Compiler) FinishTurn(trace ExecutionTrace) {
 						c.strategies[i].Failures++
 					} else {
 						// MEDIUM_SIGNAL failure: 50% effective via alternation.
-						c.failureToggle = !c.failureToggle
-						if c.failureToggle {
+						c.strategies[i].failureToggle = !c.strategies[i].failureToggle
+						if c.strategies[i].failureToggle {
 							c.strategies[i].Failures++
 						}
 					}
@@ -217,7 +212,8 @@ type persistData struct {
 
 // Save persists the compiler's strategy statistics to a JSON file.
 // Traces are not persisted (they are ephemeral diagnostics); only strategy
-// stats and configuration are saved. Returns an error if writing fails.
+// stats and configuration are saved. Uses atomic write (temp file + rename).
+// Returns an error if writing fails.
 func (c *Compiler) Save(path string) error {
 	c.mu.Lock()
 	data := persistData{
@@ -233,8 +229,14 @@ func (c *Compiler) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("compiler: marshal: %w", err)
 	}
-	if err := os.WriteFile(path, b, 0o600); err != nil {
-		return fmt.Errorf("compiler: write %s: %w", path, err)
+
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, b, 0o600); err != nil {
+		return fmt.Errorf("compiler: write %s: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath) // cleanup
+		return fmt.Errorf("compiler: rename %s -> %s: %w", tmpPath, path, err)
 	}
 	return nil
 }
