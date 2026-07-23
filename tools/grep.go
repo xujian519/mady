@@ -122,7 +122,7 @@ func NewGrepTool(cwd string, cfg *GrepToolConfig) *agentcore.Tool {
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
 				if err := pinPath(searchPath); err != nil {
-					return resultErrf("%v", err)
+					return resultErrf("%w", err)
 				}
 			}
 
@@ -245,8 +245,9 @@ func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limi
 		lineNum  int
 	}
 	matchCount := 0
+	var walkErr error
 	if isDir {
-		filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
+		walkErr = filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return nil
 			}
@@ -296,7 +297,11 @@ func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limi
 	}
 
 	if len(matches) == 0 {
-		return result("No matches found", nil)
+		msg := "No matches found"
+		if walkErr != nil {
+			msg += fmt.Sprintf(" (search may be incomplete: %v)", walkErr)
+		}
+		return result(msg, nil)
 	}
 
 	return formatGrepMatches(ctx, matches, searchPath, input, limit, isDir, cfg)

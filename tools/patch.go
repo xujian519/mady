@@ -102,13 +102,13 @@ func NewPatchTool(cwd string, cfg *PatchToolConfig) *agentcore.Tool {
 
 			resolved, err := resolvePathSandboxedMode(input.Path, cwd, cfg.Sandbox, AccessWrite)
 			if err != nil {
-				return resultErrf("%v", err)
+				return resultErrf("%w", err)
 			}
 			// When sandbox is enabled, pin the resolved inode to detect
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
 				if err := pinPath(resolved); err != nil {
-					return resultErrf("%v", err)
+					return resultErrf("%w", err)
 				}
 			}
 
@@ -187,8 +187,8 @@ func findClosestMatch(content, target string) string {
 	var matches []string
 	for i, line := range contentLines {
 		if strings.Contains(line, firstLine) {
-			contextStart := maxInt(0, i-1)
-			contextEnd := minInt(len(contentLines), i+len(targetLines)+1)
+			contextStart := max(0, i-1)
+			contextEnd := min(len(contentLines), i+len(targetLines)+1)
 			context := strings.Join(contentLines[contextStart:contextEnd], "\n")
 			matches = append(matches, fmt.Sprintf("Did you mean around line %d?\n```\n%s\n```", i+1, context))
 			if len(matches) >= 3 {
@@ -202,18 +202,4 @@ func findClosestMatch(content, target string) string {
 	}
 
 	return "Try reading the file first to verify the exact text."
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

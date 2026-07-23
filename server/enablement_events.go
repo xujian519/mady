@@ -341,17 +341,10 @@ func (r *serverKnowledgeRetriever) SearchSimilarCases(ctx context.Context, domai
 		}
 	}
 
-	// 如果没找到结构化案例行，取前 2 段非空内容作为兜底
+	// 如果没找到案例行，返回空——不相干文本被渲染成"类案参考"会误导 LLM 评估结论。
+	// 无类案时评估仍可基于 LLM 自身知识进行，降级安全。
 	if len(cases) == 0 {
-		for _, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if trimmed != "" {
-				cases = append(cases, trimmed)
-				if len(cases) >= 2 {
-					break
-				}
-			}
-		}
+		return nil, nil
 	}
 
 	return cases, nil

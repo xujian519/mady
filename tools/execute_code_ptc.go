@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -115,7 +116,9 @@ func (s *ptcServer) handle(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(30 * time.Second))
 
-	data, err := io.ReadAll(conn)
+	// Limit request size to 1MB to prevent memory exhaustion from a
+	// malicious or buggy local process connecting to the RPC port.
+	data, err := io.ReadAll(io.LimitReader(conn, 1<<20))
 	if err != nil || len(data) == 0 {
 		return
 	}
@@ -124,7 +127,9 @@ func (s *ptcServer) handle(ctx context.Context, conn net.Conn) {
 		s.reply(conn, ptcResponse{Error: "invalid request"})
 		return
 	}
-	if req.Token != s.token {
+	// Use constant-time comparison to prevent timing side-channel attacks
+	// on the authentication token.
+	if subtle.ConstantTimeCompare([]byte(req.Token), []byte(s.token)) != 1 {
 		s.reply(conn, ptcResponse{ID: req.ID, Error: "unauthorized"})
 		return
 	}

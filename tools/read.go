@@ -88,20 +88,30 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 
 			resolved, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
 			if err != nil {
-				return resultErrf("%v", err)
+				return resultErrf("%w", err)
 			}
 			// When sandbox is enabled, pin the resolved inode to detect
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
 				if err := pinPath(resolved); err != nil {
-					return resultErrf("%v", err)
+					return resultErrf("%w", err)
 				}
 			}
 			info, err := cfg.Operations.Stat(ctx, resolved)
 			if err != nil {
 				return resultErrf("file not found: %s", input.Path)
 			}
+			// Reject very large files to avoid OOM — the full content is read
+			// into memory before truncation. Users should use offset/limit.
+			const maxReadSize = 100 << 20 // 100MB
+			if !info.IsDir() && info.Size() > maxReadSize {
+				return resultErrf("file too large (%s): use offset and limit parameters to read specific sections", FormatSize(info.Size()))
+			}
 			if info.IsDir() {
+				// NOTE: directory listing bypasses cfg.Operations.ReadFile and
+				// directly uses os.ReadDir. Custom Operations implementations
+				// that don't support local filesystem directory listing will
+				// not get this path; it falls back to the error below instead.
 				entries, err := os.ReadDir(resolved)
 				if err != nil {
 					return resultErrf("cannot read directory: %s", input.Path)

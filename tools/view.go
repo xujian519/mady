@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 )
+
+// errMaxEntries is a sentinel error indicating the directory walk hit the
+// entry limit. Compared via errors.Is, not string matching.
+var errMaxEntries = errors.New("max_entries_reached")
 
 // ViewOperations defines pluggable operations for the view tool.
 type ViewOperations interface {
@@ -87,7 +92,7 @@ func NewViewTool(cwd string, cfg *ViewToolConfig) *agentcore.Tool {
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
 				if err := pinPath(dirPath); err != nil {
-					return resultErrf("%v", err)
+					return resultErrf("%w", err)
 				}
 			}
 
@@ -114,7 +119,7 @@ func NewViewTool(cwd string, cfg *ViewToolConfig) *agentcore.Tool {
 					return nil
 				}
 				if entries >= cfg.MaxEntries {
-					return fmt.Errorf("max_entries_reached")
+					return errMaxEntries
 				}
 
 				entriesList, err := cfg.Operations.ReadDir(path)
@@ -132,7 +137,7 @@ func NewViewTool(cwd string, cfg *ViewToolConfig) *agentcore.Tool {
 
 				for i, entry := range entriesList {
 					if entries >= cfg.MaxEntries {
-						return fmt.Errorf("max_entries_reached")
+						return errMaxEntries
 					}
 
 					isLast := i == len(entriesList)-1
@@ -156,7 +161,7 @@ func NewViewTool(cwd string, cfg *ViewToolConfig) *agentcore.Tool {
 							nextPrefix += "│   "
 						}
 						if err := walk(filepath.Join(path, entry.Name()), nextPrefix, depth+1); err != nil {
-							if err.Error() == "max_entries_reached" {
+							if errors.Is(err, errMaxEntries) {
 								return err
 							}
 						}
@@ -165,7 +170,7 @@ func NewViewTool(cwd string, cfg *ViewToolConfig) *agentcore.Tool {
 				return nil
 			}
 
-			if err := walk(dirPath, "", 1); err != nil && err.Error() != "max_entries_reached" {
+			if err := walk(dirPath, "", 1); err != nil && !errors.Is(err, errMaxEntries) {
 				return resultErrf("walk failed: %w", err)
 			}
 

@@ -122,7 +122,7 @@ func NewWriteFileTool(cwd string, cfg *WriteFileToolConfig) *agentcore.Tool {
 				}
 				if err := verifyOpenedInode(pinF, pinTarget); err != nil {
 					pinF.Close()
-					return resultErrf("%v", err)
+					return resultErrf("%w", err)
 				}
 				pinF.Close()
 			}

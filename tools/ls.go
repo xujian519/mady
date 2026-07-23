@@ -98,7 +98,7 @@ func NewLsTool(cwd string, cfg *LsToolConfig) *agentcore.Tool {
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
 				if err := pinPath(dirPath); err != nil {
-					return resultErrf("%v", err)
+					return resultErrf("%w", err)
 				}
 			}
 

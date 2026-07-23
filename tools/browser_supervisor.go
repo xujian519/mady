@@ -100,11 +100,13 @@ func (s *CDPSupervisor) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// cancel() is idempotent. We intentionally do NOT null out s.ctx/s.cancel:
+	// runSupervisor reads s.ctx.Done() without holding the lock, and a nil ctx
+	// would panic. Leaving s.ctx pointing at the (now-canceled) context makes
+	// s.ctx.Done() return a closed channel, letting runSupervisor exit cleanly.
 	if s.cancel != nil {
 		s.cancel()
 	}
-	s.ctx = nil
-	s.cancel = nil
 }
 
 func (s *CDPSupervisor) runSupervisor() {

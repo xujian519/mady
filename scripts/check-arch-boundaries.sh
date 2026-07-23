@@ -11,7 +11,7 @@ check_no_import() {
     local pkg="$1" forbidden="$2" label="${3:-$pkg → $forbidden}"
     local imports
     imports=$(go list -f '{{join .Imports "\n"}}' "$pkg" 2>/dev/null || true)
-    if echo "$imports" | grep -qF "$forbidden"; then
+    if echo "$imports" | grep -qxF "$forbidden"; then
         echo "FAIL: $label  —  $pkg 导入了 $forbidden"
         ERRORS=$((ERRORS + 1))
     else

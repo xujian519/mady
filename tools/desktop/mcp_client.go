@@ -190,9 +190,15 @@ func (c *mcpClient) Close() {
 	if c.closed {
 		return
 	}
-	c.closed = true
 
+	// closed 与 stdin 的所有读写统一由 c.mu 保护，与 call() 中的 stdin 写入互斥。
+	// 此前 closed 在 closeMu 下写、stdin 在 closeMu 下关闭，却与 call() 在
+	// c.mu 下的读写互不互斥，构成数据竞争。closeMu 仅作为外层重入保护。
+	c.mu.Lock()
+	c.closed = true
 	c.stdin.Close()
+	c.mu.Unlock()
+
 	if c.cmd != nil && c.cmd.Process != nil {
 		c.cmd.Process.Kill()
 		c.cmd.Wait()

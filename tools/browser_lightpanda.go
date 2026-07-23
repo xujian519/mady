@@ -53,13 +53,13 @@ func findLightpandaBinary() string {
 
 func (lm *LightpandaManager) StartProcess(ctx context.Context, taskID string, headless bool) (*LightpandaProcess, error) {
 	lm.mu.Lock()
-	defer lm.mu.Unlock()
-
 	if existing, ok := lm.processes[taskID]; ok {
+		lm.mu.Unlock()
 		return existing, nil
 	}
 
 	if lm.binaryPath == "" {
+		lm.mu.Unlock()
 		return nil, fmt.Errorf("lightpanda binary not found. Install from https://github.com/lightpanda-io/lightpanda")
 	}
 
@@ -79,6 +79,7 @@ func (lm *LightpandaManager) StartProcess(ctx context.Context, taskID string, he
 	cmd.Stderr = nil
 
 	if err := cmd.Start(); err != nil {
+		lm.mu.Unlock()
 		return nil, fmt.Errorf("failed to start lightpanda: %w", err)
 	}
 
@@ -92,11 +93,19 @@ func (lm *LightpandaManager) StartProcess(ctx context.Context, taskID string, he
 		StartedAt: time.Now(),
 	}
 
+	// Register under the lock so concurrent StartProcess callers dedup on the
+	// in-flight process, then release the lock before the slow readiness probe.
 	lm.processes[taskID] = process
+	lm.mu.Unlock()
 
+	// waitForCDP runs curl polls + sleeps (up to 10s); keep it OUT of lm.mu
+	// because CreateSession may be invoked while bm.mu is held.
 	if err := lm.waitForCDP(cdpURL, 10*time.Second); err != nil {
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait() // reap to avoid a zombie
+		lm.mu.Lock()
 		delete(lm.processes, taskID)
+		lm.mu.Unlock()
 		return nil, fmt.Errorf("lightpanda CDP not ready: %w", err)
 	}
 
@@ -140,26 +149,35 @@ func extractPortFromCDPURL(url string) int {
 }
 
 func (lm *LightpandaManager) StopProcess(taskID string) {
+	// Collect + remove under the lock; kill+wait outside so a slow reap
+	// doesn't block other callers.
 	lm.mu.Lock()
-	defer lm.mu.Unlock()
-
-	if proc, ok := lm.processes[taskID]; ok {
-		if proc.Cmd != nil && proc.Cmd.Process != nil {
-			proc.Cmd.Process.Kill()
-		}
+	proc, ok := lm.processes[taskID]
+	if ok {
 		delete(lm.processes, taskID)
+	}
+	lm.mu.Unlock()
+
+	if !ok {
+		return
+	}
+	if proc.Cmd != nil && proc.Cmd.Process != nil {
+		_ = proc.Cmd.Process.Kill()
+		_ = proc.Cmd.Wait() // reap the zombie; ignore "already exited" errors
 	}
 }
 
 func (lm *LightpandaManager) StopAll() {
 	lm.mu.Lock()
-	defer lm.mu.Unlock()
+	procs := lm.processes
+	lm.processes = make(map[string]*LightpandaProcess)
+	lm.mu.Unlock()
 
-	for id, proc := range lm.processes {
+	for _, proc := range procs {
 		if proc.Cmd != nil && proc.Cmd.Process != nil {
-			proc.Cmd.Process.Kill()
+			_ = proc.Cmd.Process.Kill()
+			_ = proc.Cmd.Wait() // reap the zombie; ignore "already exited" errors
 		}
-		delete(lm.processes, id)
 	}
 }
 
@@ -242,15 +260,22 @@ func (sr *SessionRecorder) AddFrame(data []byte, format string) {
 }
 
 func (sr *SessionRecorder) StopRecording() (string, error) {
+	// Flip the flag under the lock, then RELEASE it before closing frameChan
+	// and waiting on doneChan. processFrames's defer needs sr.mu to clear the
+	// flag; holding sr.mu across <-doneChan deadlocks forever.
 	sr.mu.Lock()
-	defer sr.mu.Unlock()
-
 	if !sr.isRecording {
+		sr.mu.Unlock()
 		return "", fmt.Errorf("not recording")
 	}
+	sr.isRecording = false
+	sr.mu.Unlock()
 
 	close(sr.frameChan)
 	<-sr.doneChan
+
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
 
 	if len(sr.frames) == 0 {
 		return "", fmt.Errorf("no frames captured")

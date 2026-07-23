@@ -128,7 +128,7 @@ func NewFindTool(cwd string, cfg *FindToolConfig) *agentcore.Tool {
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
 				if err := pinPath(searchPath); err != nil {
-					return resultErrf("%v", err)
+					return resultErrf("%w", err)
 				}
 			}
 			if !cfg.Operations.Exists(searchPath) {

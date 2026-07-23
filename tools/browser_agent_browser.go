@@ -321,21 +321,27 @@ func (m *AgentBrowserManager) Console(taskID string, timeout time.Duration) (*Ag
 }
 
 func (m *AgentBrowserManager) CreateChromeDPContext(taskID string) (context.Context, context.CancelFunc, error) {
+	// All CDPURL reads/writes must happen under m.mu: runABCommand writes it
+	// under m.mu (snapshot response caching). Copy to a local before releasing
+	// the lock so the allocator setup (which may block) runs unlocked.
 	m.mu.Lock()
 	session, ok := m.sessions[taskID]
-	m.mu.Unlock()
 	if !ok {
+		m.mu.Unlock()
 		return nil, nil, fmt.Errorf("no session for task %s", taskID)
 	}
 
 	if session.CDPURL == "" {
 		session.CDPURL = m.discoverCDPURL(session.SocketDir)
 	}
-	if session.CDPURL == "" {
+	cdpURL := session.CDPURL
+	m.mu.Unlock()
+
+	if cdpURL == "" {
 		return nil, nil, fmt.Errorf("CDP URL not available for task %s", taskID)
 	}
 
-	allocCtx, allocCancel := chromedp.NewRemoteAllocator(context.Background(), session.CDPURL)
+	allocCtx, allocCancel := chromedp.NewRemoteAllocator(context.Background(), cdpURL)
 	browserCtx, cancel := chromedp.NewContext(allocCtx)
 	cancelFn := func() {
 		cancel()

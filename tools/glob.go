@@ -135,7 +135,7 @@ func NewGlobTool(cwd string, cfg *GlobToolConfig) *agentcore.Tool {
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
 				if err := pinPath(searchPath); err != nil {
-					return resultErrf("%v", err)
+					return resultErrf("%w", err)
 				}
 			}
 			limit := cfg.Limit

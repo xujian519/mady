@@ -323,6 +323,7 @@ func TestDefaultVisionOperationsHTTPFlow(t *testing.T) {
 		Model:  "gpt-4o-mini",
 		APIURL: srv.URL + "/v1", // 传 base 地址，应自动拼接 /chat/completions
 		APIKey: "test-key",
+		Client: srv.Client(), // 使用测试服务器 client,避免 SSRF 防护拦截 127.0.0.1
 	}
 	got, err := ops.Analyze(context.Background(), tinyPNG(), "image/png", "标题是什么？")
 	if err != nil {
@@ -373,7 +374,7 @@ func TestDefaultVisionOperationsHTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	ops := DefaultVisionOperations{Model: "m", APIURL: srv.URL, APIKey: "k"}
+	ops := DefaultVisionOperations{Model: "m", APIURL: srv.URL, APIKey: "k", Client: srv.Client()}
 	_, err := ops.Analyze(context.Background(), tinyPNG(), "image/png", "q")
 	if err == nil || !strings.Contains(err.Error(), "HTTP 500") {
 		t.Fatalf("expected HTTP 500 error, got: %v", err)
@@ -439,7 +440,17 @@ func TestVisionToolEnvConfiguredEndToEnd(t *testing.T) {
 	t.Setenv(EnvVisionAPIKey, "k")
 	t.Setenv(EnvVisionBaseURL, srv.URL)
 
-	tool := NewVisionTool(t.TempDir(), nil)
+	// Let defaults() populate from env, then inject the test server client
+	// to bypass the SSRF-safe default transport (which blocks 127.0.0.1).
+	cfg := &VisionToolConfig{}
+	cfg.defaults()
+	if dvo, ok := cfg.Operations.(DefaultVisionOperations); ok {
+		dvo.Client = srv.Client()
+		cfg.Operations = dvo
+	} else {
+		t.Fatal("expected DefaultVisionOperations from env config")
+	}
+	tool := NewVisionTool(t.TempDir(), cfg)
 	args, _ := json.Marshal(map[string]string{
 		"base64": base64.StdEncoding.EncodeToString(tinyPNG()),
 		"prompt": "描述",

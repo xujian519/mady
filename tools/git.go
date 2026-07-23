@@ -115,6 +115,11 @@ func NewGitDiffTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 				gitArgs = append(gitArgs, "--staged")
 			}
 			if input.Target != "" {
+				// Reject arguments starting with '-' to prevent git option
+				// injection (e.g. --upload-pack, --output).
+				if strings.HasPrefix(input.Target, "-") {
+					return resultErrf("invalid target: must not start with '-' (possible option injection)")
+				}
 				gitArgs = append(gitArgs, input.Target)
 			}
 			if input.FilePath != "" {
@@ -143,7 +148,7 @@ func NewGitDiffTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 type GitLogInput struct {
 	MaxCount *int   `json:"max_count,omitempty"`
 	FilePath string `json:"file_path,omitempty"`
-	Oneline  bool   `json:"oneline,omitempty"`
+	Oneline  *bool  `json:"oneline,omitempty"`
 }
 
 func NewGitLogTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
@@ -174,8 +179,13 @@ func NewGitLogTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 				maxCount = *input.MaxCount
 			}
 
+			// Default to oneline format; respect explicit oneline: false.
+			oneline := true
+			if input.Oneline != nil {
+				oneline = *input.Oneline
+			}
 			gitArgs := []string{"log"}
-			if input.Oneline || !input.Oneline && maxCount <= 20 {
+			if oneline {
 				gitArgs = append(gitArgs, "--oneline")
 			}
 			gitArgs = append(gitArgs, fmt.Sprintf("-%d", maxCount))

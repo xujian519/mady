@@ -103,13 +103,13 @@ func NewDeleteTool(cwd string, cfg *DeleteToolConfig) *agentcore.Tool {
 
 			resolved, err := resolvePathSandboxedMode(input.Path, cwd, cfg.Sandbox, AccessWrite)
 			if err != nil {
-				return resultErrf("%v", err)
+				return resultErrf("%w", err)
 			}
 			// When sandbox is enabled, pin the resolved inode to detect
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
 				if err := pinPath(resolved); err != nil {
-					return resultErrf("%v", err)
+					return resultErrf("%w", err)
 				}
 			}
 

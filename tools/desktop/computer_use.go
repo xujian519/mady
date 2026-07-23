@@ -76,7 +76,13 @@ func getCuaDriverClient(ctx context.Context) (*mcpClient, error) {
 	if cuaDriverClient != nil {
 		return cuaDriverClient, nil
 	}
-	client, err := newMCPClient(ctx, "cua-driver", "mcp")
+	// cua-driver 是全局单例子进程，生命周期远长于任何单次请求。
+	// 绝不能把请求级 ctx 绑到子进程上——newMCPClient 内部使用
+	// exec.CommandContext(ctx,...)，一旦该 ctx 取消就会 SIGKILL 子进程，
+	// 导致首次请求结束后所有后续 computer_use 调用全部失败。
+	// 故此处用 context.Background() 创建子进程，仅在 Close() 时 kill。
+	_ = ctx
+	client, err := newMCPClient(context.Background(), "cua-driver", "mcp")
 	if err != nil {
 		return nil, fmt.Errorf("start cua-driver: %w", err)
 	}

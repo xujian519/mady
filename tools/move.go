@@ -3,9 +3,12 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -22,7 +25,41 @@ type DefaultMoveOperations struct{}
 
 func (d DefaultMoveOperations) Stat(path string) (os.FileInfo, error) { return os.Stat(path) }
 func (d DefaultMoveOperations) Rename(oldPath, newPath string) error {
-	return os.Rename(oldPath, newPath)
+	err := os.Rename(oldPath, newPath)
+	if err == nil {
+		return nil
+	}
+	// Cross-device move (EXDEV on Unix): fall back to copy + delete.
+	if errors.Is(err, syscall.EXDEV) {
+		if copyErr := copyFile(oldPath, newPath); copyErr != nil {
+			return copyErr
+		}
+		return os.Remove(oldPath)
+	}
+	return err
+}
+
+// copyFile copies the contents and permissions from src to dst.
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	info, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }
 func (d DefaultMoveOperations) MkdirAll(path string, perm os.FileMode) error {
 	return os.MkdirAll(path, perm)
@@ -117,14 +154,14 @@ func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool {
 				if pinErr == nil {
 					if err := verifyOpenedInode(pinSrc, sourcePath); err != nil {
 						pinSrc.Close()
-						return resultErrf("%v", err)
+						return resultErrf("%w", err)
 					}
 					pinSrc.Close()
 				}
 				if pinDst, pinErr := os.Open(destPath); pinErr == nil {
 					if err := verifyOpenedInode(pinDst, destPath); err != nil {
 						pinDst.Close()
-						return resultErrf("%v", err)
+						return resultErrf("%w", err)
 					}
 					pinDst.Close()
 				}

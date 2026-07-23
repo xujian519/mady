@@ -71,8 +71,12 @@ func (r *ProcessRegistry) Cleanup(maxAge time.Duration) int {
 	now := time.Now()
 	removed := 0
 	for id, entry := range r.processes.Copy() {
-		if entry.Status != "running" && entry.EndTime != nil {
-			if now.Sub(*entry.EndTime) >= maxAge {
+		entry.mu.Lock()
+		status := entry.Status
+		endTime := entry.EndTime
+		entry.mu.Unlock()
+		if status != "running" && endTime != nil {
+			if now.Sub(*endTime) >= maxAge {
 				r.processes.Del(id)
 				removed++
 			}
@@ -120,6 +124,10 @@ func (d *DefaultProcessOperations) Spawn(command string, cwd string) (*ProcessEn
 
 	cmd := exec.Command(shell, "-c", command)
 	cmd.Dir = cwd
+	// Setpgid creates a new process group so Kill(-pgid) only affects this
+	// command's children, preventing orphaned grandchild processes. This
+	// mirrors the bash tool's behavior (bash.go).
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	// Create output capture.
 	output := &outputBuffer{maxBytes: 200 * 1024} // 200KB rolling buffer
@@ -146,6 +154,11 @@ func (d *DefaultProcessOperations) Spawn(command string, cwd string) (*ProcessEn
 		err := cmd.Wait()
 		entry.mu.Lock()
 		defer entry.mu.Unlock()
+		// If the process was explicitly killed via handleKill, don't
+		// overwrite the "killed" status with the exit error.
+		if entry.Status == "killed" {
+			return
+		}
 		now := time.Now()
 		entry.EndTime = &now
 		entry.Output = output.Bytes()
@@ -292,7 +305,7 @@ func NewProcessTool(cwd string, cfg *ProcessToolConfig) *agentcore.Tool {
 			case "status":
 				return handleStatus(cfg, input)
 			case "wait":
-				return handleWait(cfg, input)
+				return handleWait(ctx, cfg, input)
 			case "kill":
 				return handleKill(cfg, input)
 			case "list":
@@ -370,7 +383,7 @@ func handleStatus(cfg *ProcessToolConfig, input ProcessToolInput) (any, error) {
 	return result(resultText, details)
 }
 
-func handleWait(cfg *ProcessToolConfig, input ProcessToolInput) (any, error) {
+func handleWait(ctx context.Context, cfg *ProcessToolConfig, input ProcessToolInput) (any, error) {
 	if input.ProcessID == "" {
 		return resultErrf("process_id is required for wait")
 	}
@@ -391,6 +404,12 @@ func handleWait(cfg *ProcessToolConfig, input ProcessToolInput) (any, error) {
 
 	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
 	for time.Now().Before(deadline) {
+		// Respect context cancellation (e.g. agent interrupt).
+		select {
+		case <-ctx.Done():
+			return resultErrf("wait canceled: %w", ctx.Err())
+		case <-time.After(1 * time.Second):
+		}
 		status, exitCode, output := cfg.Operations.Poll(entry)
 		if status != "running" {
 			outputText := string(output)

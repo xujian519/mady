@@ -277,7 +277,11 @@ func (bm *BrowserManager) SetActiveSession(sessionID string) {
 	defer bm.mu.Unlock()
 	if s, ok := bm.sessions[sessionID]; ok {
 		bm.activeSession = sessionID
+		// lastActivity is owned by session.mu (handlers update it there too);
+		// never write it under bm.mu to avoid split-lock races.
+		s.mu.Lock()
 		s.lastActivity = time.Now()
+		s.mu.Unlock()
 	}
 }
 
@@ -287,7 +291,9 @@ func (bm *BrowserManager) CreateSession(ctx context.Context, sessionID string, t
 
 	if existing, ok := bm.sessions[sessionID]; ok {
 		bm.activeSession = sessionID
+		existing.mu.Lock()
 		existing.lastActivity = time.Now()
+		existing.mu.Unlock()
 		return existing, nil
 	}
 
@@ -301,7 +307,9 @@ func (bm *BrowserManager) CreateSession(ctx context.Context, sessionID string, t
 	}
 	if existing, ok := bm.sessions[sessionID]; ok {
 		bm.activeSession = sessionID
+		existing.mu.Lock()
 		existing.lastActivity = time.Now()
+		existing.mu.Unlock()
 		return existing, nil
 	}
 
@@ -625,86 +633,89 @@ func (bm *BrowserManager) createLocalSession(ctx context.Context, session *Brows
 	return nil
 }
 
-func (bm *BrowserManager) CloseSession(sessionID string) {
-	bm.mu.Lock()
-	defer bm.mu.Unlock()
+// closeSessionResources tears down a single session's external resources
+// (supervisor, recorder, cloud/camofox/lightpanda/agent-browser handles,
+// chromedp cancel). It performs slow I/O and MUST be called WITHOUT holding
+// bm.mu — callers collect+remove the session under bm.mu, then invoke this.
+// emergency=true uses EmergencyCleanup (best-effort) instead of CloseSession
+// (graceful), matching the cleanup/CloseAll paths.
+func (bm *BrowserManager) closeSessionResources(session *BrowserSession, emergency bool) {
+	if session.supervisor != nil {
+		session.supervisor.Stop()
+	}
 
-	if session, ok := bm.sessions[sessionID]; ok {
-		if session.supervisor != nil {
-			session.supervisor.Stop()
-		}
+	if session.recorder != nil && session.recorder.IsRecording() {
+		session.recorder.StopRecording()
+	}
 
-		if session.recorder != nil && session.recorder.IsRecording() {
-			session.recorder.StopRecording()
-		}
-
-		if session.cloudProvider != nil && session.cloudSessionID != "" {
+	if session.cloudProvider != nil && session.cloudSessionID != "" {
+		if emergency {
+			session.cloudProvider.EmergencyCleanup(session.cloudSessionID)
+		} else {
 			session.cloudProvider.CloseSession(session.cloudSessionID)
 		}
+	}
 
-		if session.camofoxClient != nil {
-			session.camofoxClient.CloseTab(sessionID)
-		}
+	if session.camofoxClient != nil {
+		session.camofoxClient.CloseTab(session.sessionID)
+	}
 
-		if session.lightpandaProc != nil {
-			bm.lightpandaMgr.StopProcess(sessionID)
-		}
+	if session.lightpandaProc != nil {
+		bm.lightpandaMgr.StopProcess(session.sessionID)
+	}
 
-		if session.backendType == BackendAgentBrowser && bm.agentBrowserMgr != nil {
-			bm.agentBrowserMgr.StopSession(sessionID)
-		}
+	if session.backendType == BackendAgentBrowser && bm.agentBrowserMgr != nil {
+		bm.agentBrowserMgr.StopSession(session.sessionID)
+	}
 
-		if session.cancel != nil {
-			session.cancel()
-		}
+	if session.cancel != nil {
+		session.cancel()
+	}
+}
 
+func (bm *BrowserManager) CloseSession(sessionID string) {
+	// Collect + remove under bm.mu; tear down outside the lock to avoid
+	// blocking other callers on slow external I/O.
+	bm.mu.Lock()
+	session, ok := bm.sessions[sessionID]
+	if ok {
 		delete(bm.sessions, sessionID)
 		if bm.activeSession == sessionID {
 			bm.activeSession = ""
 		}
 	}
+	bm.mu.Unlock()
+
+	if ok {
+		bm.closeSessionResources(session, false)
+	}
 }
 
 func (bm *BrowserManager) CleanupInactiveSessions(timeout time.Duration) {
-	bm.mu.Lock()
-	defer bm.mu.Unlock()
-
 	now := time.Now()
+
+	// Collect expired sessions + remove from map under bm.mu.
+	// lastActivity is owned by session.mu, so read it under session.mu.RLock
+	// (not bm.mu).
+	bm.mu.Lock()
+	var expired []*BrowserSession
 	for id, session := range bm.sessions {
-		if now.Sub(session.lastActivity) > timeout {
-			if session.supervisor != nil {
-				session.supervisor.Stop()
-			}
-
-			if session.recorder != nil && session.recorder.IsRecording() {
-				session.recorder.StopRecording()
-			}
-
-			if session.cloudProvider != nil && session.cloudSessionID != "" {
-				session.cloudProvider.EmergencyCleanup(session.cloudSessionID)
-			}
-
-			if session.camofoxClient != nil {
-				session.camofoxClient.CloseTab(id)
-			}
-
-			if session.lightpandaProc != nil {
-				bm.lightpandaMgr.StopProcess(id)
-			}
-
-			if session.backendType == BackendAgentBrowser && bm.agentBrowserMgr != nil {
-				bm.agentBrowserMgr.StopSession(id)
-			}
-
-			if session.cancel != nil {
-				session.cancel()
-			}
-
+		session.mu.RLock()
+		last := session.lastActivity
+		session.mu.RUnlock()
+		if now.Sub(last) > timeout {
+			expired = append(expired, session)
 			delete(bm.sessions, id)
 			if bm.activeSession == id {
 				bm.activeSession = ""
 			}
 		}
+	}
+	bm.mu.Unlock()
+
+	// Tear down outside the lock — EmergencyCleanup/Stop may block for seconds.
+	for _, session := range expired {
+		bm.closeSessionResources(session, true)
 	}
 }
 
@@ -717,45 +728,21 @@ func (bm *BrowserManager) Stop() {
 }
 
 func (bm *BrowserManager) CloseAll() {
+	// Snapshot + clear under bm.mu; tear down outside the lock so slow
+	// EmergencyCleanup/Stop calls don't block the manager mutex.
 	bm.mu.Lock()
-	defer bm.mu.Unlock()
+	sessions := bm.sessions
+	bm.sessions = make(map[string]*BrowserSession)
+	bm.activeSession = ""
+	bm.mu.Unlock()
 
-	for _, session := range bm.sessions {
-		if session.supervisor != nil {
-			session.supervisor.Stop()
-		}
-
-		if session.recorder != nil && session.recorder.IsRecording() {
-			session.recorder.StopRecording()
-		}
-
-		if session.cloudProvider != nil && session.cloudSessionID != "" {
-			session.cloudProvider.EmergencyCleanup(session.cloudSessionID)
-		}
-
-		if session.camofoxClient != nil {
-			session.camofoxClient.CloseTab(session.sessionID)
-		}
-
-		if session.lightpandaProc != nil {
-			bm.lightpandaMgr.StopProcess(session.sessionID)
-		}
-
-		if session.backendType == BackendAgentBrowser && bm.agentBrowserMgr != nil {
-			bm.agentBrowserMgr.StopSession(session.sessionID)
-		}
-
-		if session.cancel != nil {
-			session.cancel()
-		}
+	for _, session := range sessions {
+		bm.closeSessionResources(session, true)
 	}
 
 	if bm.agentBrowserMgr != nil {
 		bm.agentBrowserMgr.StopAll()
 	}
-
-	bm.sessions = make(map[string]*BrowserSession)
-	bm.activeSession = ""
 
 	// Stop the background cleanup ticker goroutine.
 	bm.Stop()

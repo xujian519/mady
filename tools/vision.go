@@ -433,7 +433,7 @@ func NewVisionTool(cwd string, cfg *VisionToolConfig) *agentcore.Tool {
 					// Local file.
 					resolved, err := resolvePathSandboxed(input.Image, cwd, cfg.Sandbox)
 					if err != nil {
-						return resultErrf("%v", err)
+						return resultErrf("%w", err)
 					}
 					imageData, err = os.ReadFile(resolved)
 					if err != nil {

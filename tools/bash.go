@@ -158,7 +158,18 @@ type BashToolConfig struct {
 	Operations BashOperations
 	MaxBytes   int64
 	MaxLines   int64
-	Sandbox    WorkingDirSandbox
+
+	// Sandbox is included for structural compatibility with other tools, but
+	// NOTE: the bash tool does NOT enforce the WorkingDir sandbox boundary.
+	// Shell commands can access any path on the filesystem (cat /etc/passwd,
+	// curl to exfiltrate data, etc.). The Sandbox field exists only because
+	// propagateSandbox (tools.go) injects it into every tool config.
+	//
+	// The real security boundary for the bash tool is the DisableTools /
+	// EnabledTools gating in ExtensionConfig. To completely prevent shell
+	// access, exclude "bash" (and "process", "execute_code") from the
+	// tool set for agents that don't need it.
+	Sandbox WorkingDirSandbox
 
 	// DangerousPatterns is a list of regex patterns that the bash tool
 	// rejects before execution. Each pattern is matched against the full

@@ -68,10 +68,9 @@ func (r *CDPRecorder) StartRecording(ctx context.Context, browserCtx context.Con
 
 func (r *CDPRecorder) captureFrames(ctx context.Context) {
 	chromedp.ListenTarget(ctx, func(ev any) {
-		if !r.isRecording {
-			return
-		}
-
+		// NOTE: do not read r.isRecording here without the lock — StopRecording
+		// flips it under r.mu. The locked re-check below is the single source
+		// of truth, so this callback stays race-free.
 		if e, ok := ev.(*page.EventScreencastFrame); ok {
 			r.mu.Lock()
 			if !r.isRecording {

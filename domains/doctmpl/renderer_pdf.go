@@ -54,7 +54,9 @@ func (r *PDFRenderer) Render(md string, meta RenderMeta) ([]byte, error) {
 	}
 
 	if meta.Title != "" {
-		pdfRenderHeading(pdf, meta.Title, 1)
+		if err := pdfRenderHeading(pdf, meta.Title, 1); err != nil {
+			return nil, err
+		}
 	}
 	if err := pdfRenderMarkdown(pdf, md); err != nil {
 		return nil, err
@@ -112,7 +114,9 @@ func pdfRenderMarkdown(pdf *gopdf.GoPdf, md string) error {
 				i++
 			}
 			if len(tableRows) > 0 {
-				pdfRenderTable(pdf, tableRows)
+				if err := pdfRenderTable(pdf, tableRows); err != nil {
+					return err
+				}
 			}
 			continue
 		}
@@ -121,7 +125,9 @@ func pdfRenderMarkdown(pdf *gopdf.GoPdf, md string) error {
 			if err := flushPara(); err != nil {
 				return err
 			}
-			pdfRenderHeading(pdf, text, lvl)
+			if err := pdfRenderHeading(pdf, text, lvl); err != nil {
+				return err
+			}
 			i++
 			continue
 		}
@@ -130,7 +136,9 @@ func pdfRenderMarkdown(pdf *gopdf.GoPdf, md string) error {
 			if err := flushPara(); err != nil {
 				return err
 			}
-			pdfRenderListItem(pdf, strings.TrimSpace(trimmed[2:]))
+			if err := pdfRenderListItem(pdf, strings.TrimSpace(trimmed[2:])); err != nil {
+				return err
+			}
 			i++
 			continue
 		}
@@ -149,7 +157,7 @@ func pdfRenderMarkdown(pdf *gopdf.GoPdf, md string) error {
 	return flushPara()
 }
 
-func pdfRenderHeading(pdf *gopdf.GoPdf, text string, level int) {
+func pdfRenderHeading(pdf *gopdf.GoPdf, text string, level int) error {
 	size := pdfBodySize
 	switch {
 	case level <= 1:
@@ -159,44 +167,53 @@ func pdfRenderHeading(pdf *gopdf.GoPdf, text string, level int) {
 	case level == 3:
 		size = 13
 	}
-	pdf.SetFontSize(size)
+	if err := pdf.SetFontSize(size); err != nil {
+		return err
+	}
 	pdfEnsureSpace(pdf, size+8)
 	if pdf.GetY() > pdfTopMargin {
 		pdf.Br(6)
 	}
 	if err := pdf.MultiCell(&gopdf.Rect{W: pdfContentWidth, H: size + 6}, pdfStripInline(text)); err != nil {
 		// MultiCell 失败不致命，回退到 Text
-		pdf.Text(pdfStripInline(text))
+		if te := pdf.Text(pdfStripInline(text)); te != nil {
+			return te
+		}
 	}
-	pdf.SetFontSize(pdfBodySize)
+	return pdf.SetFontSize(pdfBodySize)
 }
 
 func pdfRenderParagraph(pdf *gopdf.GoPdf, text string) error {
 	text = pdfStripInline(text)
-	pdf.SetFontSize(pdfBodySize)
+	if err := pdf.SetFontSize(pdfBodySize); err != nil {
+		return err
+	}
 	h := float64(pdfEstimateLines(text, pdfBodySize, pdfContentWidth)) * pdfLineHeight
 	pdfEnsureSpace(pdf, h)
 	if err := pdf.MultiCell(&gopdf.Rect{W: pdfContentWidth, H: pdfLineHeight}, text); err != nil {
-		pdf.Text(text)
+		return pdf.Text(text)
 	}
 	pdf.Br(4)
 	return nil
 }
 
-func pdfRenderListItem(pdf *gopdf.GoPdf, text string) {
+func pdfRenderListItem(pdf *gopdf.GoPdf, text string) error {
 	text = "• " + pdfStripInline(text)
-	pdf.SetFontSize(pdfBodySize)
+	if err := pdf.SetFontSize(pdfBodySize); err != nil {
+		return err
+	}
 	h := float64(pdfEstimateLines(text, pdfBodySize, pdfContentWidth-15)) * pdfLineHeight
 	pdfEnsureSpace(pdf, h)
 	x := pdf.GetX()
 	pdf.SetX(x + 15)
 	if err := pdf.MultiCell(&gopdf.Rect{W: pdfContentWidth - 15, H: pdfLineHeight}, text); err != nil {
-		pdf.Text(text)
+		return pdf.Text(text)
 	}
+	return nil
 }
 
 // pdfRenderTable 渲染表格：表头行 + 下划线 + 数据行，按列等宽定位。
-func pdfRenderTable(pdf *gopdf.GoPdf, rows [][]string) {
+func pdfRenderTable(pdf *gopdf.GoPdf, rows [][]string) error {
 	cols := 0
 	for _, r := range rows {
 		if len(r) > cols {
@@ -204,10 +221,12 @@ func pdfRenderTable(pdf *gopdf.GoPdf, rows [][]string) {
 		}
 	}
 	if cols == 0 {
-		return
+		return nil
 	}
 	colW := pdfContentWidth / float64(cols)
-	pdf.SetFontSize(pdfBodySize)
+	if err := pdf.SetFontSize(pdfBodySize); err != nil {
+		return err
+	}
 	for ri, row := range rows {
 		pdfEnsureSpace(pdf, pdfLineHeight)
 		y := pdf.GetY()
@@ -217,7 +236,9 @@ func pdfRenderTable(pdf *gopdf.GoPdf, rows [][]string) {
 				cell = row[ci]
 			}
 			pdf.SetX(pdfLeftMargin + float64(ci)*colW)
-			pdf.Text(pdfStripInline(cell))
+			if err := pdf.Text(pdfStripInline(cell)); err != nil {
+				return err
+			}
 		}
 		pdf.SetY(y + pdfLineHeight)
 		if ri == 0 {
@@ -226,6 +247,7 @@ func pdfRenderTable(pdf *gopdf.GoPdf, rows [][]string) {
 		}
 	}
 	pdf.Br(4)
+	return nil
 }
 
 // ── 辅助 ──────────────────────────────────────────────────────────
@@ -243,7 +265,7 @@ func pdfEstimateLines(text string, fontSize, width float64) int {
 	units := 0.0
 	for _, r := range text {
 		if r > 127 {
-			units += 1
+			units++
 		} else {
 			units += 0.55
 		}
