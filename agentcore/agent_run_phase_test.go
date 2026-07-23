@@ -93,8 +93,7 @@ func (h *testBeforeTurnHook) BeforeTurn(ctx context.Context, arc *AgentRunContex
 }
 
 func TestGuardTruncation_EmptyToolCallID(t *testing.T) {
-	t.Parallel()
-	a := setupRunningAgent(t, Config{
+	a := New(Config{
 		ModelConfig: ModelConfig{
 			Name:     "trunc_empty_id",
 			Model:    "stub",
@@ -104,12 +103,14 @@ func TestGuardTruncation_EmptyToolCallID(t *testing.T) {
 			MaxTurns: 5,
 		},
 	})
+	a.state.SetStatus(StatusRunning)
 
 	// Invalid JSON args (truncated) with empty ID.
+	// guardTruncation logs a debug message and skips persist for empty IDs.
 	resp := &ProviderResponse{
 		FinishReason: "length",
 		ToolCalls: []ToolCall{
-			{ID: "", Name: "test_tool", Arguments: `{"input": "truncated`}, // invalid JSON
+			{ID: "", Name: "test_tool", Arguments: `{"input": "truncated`},
 		},
 	}
 
@@ -120,18 +121,10 @@ func TestGuardTruncation_EmptyToolCallID(t *testing.T) {
 	if !handled {
 		t.Fatal("guardTruncation should have handled (handled=true) for FinishReason=length + invalid args")
 	}
-
-	// Verify the tool result was persisted (message count should include it).
+	// Empty ID → persist is skipped; no tool result message should exist.
 	msgs := a.state.Messages()
-	if len(msgs) == 0 {
-		t.Fatal("expected at least one persisted message after guardTruncation")
-	}
-	last := msgs[len(msgs)-1]
-	if last.Role != RoleTool {
-		t.Fatalf("last message role = %q, want %q", last.Role, RoleTool)
-	}
-	if last.ToolCallID != "" {
-		t.Fatalf("expected empty ToolCallID for empty-ID tool call, got: %q", last.ToolCallID)
+	if len(msgs) != 0 {
+		t.Fatalf("expected 0 messages (empty ID tool call skipped), got %d", len(msgs))
 	}
 }
 
@@ -224,6 +217,19 @@ func TestGuardTruncation_InvalidJSON_FinishReasonLength(t *testing.T) {
 	}
 	if !handled {
 		t.Fatal("guardTruncation should handle FinishReason=length + invalid JSON args")
+	}
+
+	// Tool call has non-empty ID → the tool result should be persisted.
+	msgs := a.state.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 persisted tool result, got %d", len(msgs))
+	}
+	last := msgs[0]
+	if last.Role != RoleTool {
+		t.Fatalf("last msg role = %q, want %q", last.Role, RoleTool)
+	}
+	if last.ToolCallID != "call_1" {
+		t.Fatalf("ToolCallID = %q, want %q", last.ToolCallID, "call_1")
 	}
 }
 

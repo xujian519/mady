@@ -71,11 +71,11 @@ func (s *AgentState) Messages() []Message {
 	return cp
 }
 
-// messagesNoClone returns a deep-copied message slice. Every Message
+// messagesReadOnly returns a deep-copied message slice. Every Message
 // value is individually cloned so callers cannot race on reference-type
 // fields (ToolCalls, Blocks, Metadata, CacheControl) after release of the
 // read lock.
-func (s *AgentState) messagesNoClone() []Message {
+func (s *AgentState) messagesReadOnly() []Message {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	cp := make([]Message, len(s.messages))

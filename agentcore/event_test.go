@@ -639,7 +639,7 @@ func TestBroker_MustDeliverTimeout(t *testing.T) {
 }
 
 func TestBroker_MustDeliverTimeout_MultipleSubscribers(t *testing.T) {
-	b := NewBrokerWithOptions[Event](1)
+	b := NewBrokerWithOptions[Event](2)
 	b.SetMustDeliverTimeout(10 * time.Millisecond)
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -651,7 +651,7 @@ func TestBroker_MustDeliverTimeout_MultipleSubscribers(t *testing.T) {
 	// Slow subscriber: buffer fills up.
 	_ = b.Subscribe(ctx)
 
-	// Fill both subscriber buffers: one event for each.
+	// Fill both subscriber buffers (each has capacity 2).
 	b.Publish(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
 	b.Publish(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
 

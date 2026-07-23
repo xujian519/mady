@@ -224,7 +224,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 }
 
 func (a *Agent) buildRequestMessages(ctx context.Context) []Message {
-	msgs := a.state.messagesNoClone()
+	msgs := a.state.messagesReadOnly()
 	if cb := a.contextBuilder(); cb != nil {
 		buildInput := BuildInput{
 			Messages:      msgs,

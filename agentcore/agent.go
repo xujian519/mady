@@ -384,12 +384,20 @@ func (a *Agent) InvokeTool(ctx context.Context, name string, args json.RawMessag
 
 // Steer injects a message that will be picked up before the next LLM call.
 // Use this to redirect or interrupt the agent mid-conversation.
-func (a *Agent) Steer(msg Message) { _ = a.steering.Push(msg) }
+func (a *Agent) Steer(msg Message) {
+	if err := a.steering.Push(msg); err != nil {
+		slog.Warn("agent: failed to push steering message", "error", err)
+	}
+}
 
 // FollowUp queues a message that will be processed after the current
 // conversation finishes (no more tool calls). The agent loop restarts
 // with the follow-up as new input.
-func (a *Agent) FollowUp(msg Message) { _ = a.followUp.Push(msg) }
+func (a *Agent) FollowUp(msg Message) {
+	if err := a.followUp.Push(msg); err != nil {
+		slog.Warn("agent: failed to push follow-up message", "error", err)
+	}
+}
 
 // --- extensions ---
 

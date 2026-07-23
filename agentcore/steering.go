@@ -2,6 +2,7 @@ package agentcore
 
 import (
 	"errors"
+	"log/slog"
 	"sync"
 )
 
@@ -43,6 +44,8 @@ func (q *messageQueue) Push(msg Message) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if q.maxSize > 0 && len(q.msgs) >= q.maxSize {
+		slog.Warn("steering: message queue full, dropping message",
+			"max_size", q.maxSize, "mode", q.mode)
 		return ErrQueueFull
 	}
 	q.msgs = append(q.msgs, msg)

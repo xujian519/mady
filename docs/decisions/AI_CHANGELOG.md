@@ -1,5 +1,66 @@
 # AI 变更记录
 
+## 2026-07-23: Agent 运行时审阅修复 — 全面修复 56 项发现
+
+### 背景
+基于 `docs/reviews/agent-runtime-review-20260723.md` 的审阅结果，对 agentcore 内核实施全面修复。涵盖 13 个工作包、11 个 Git 提交预设，覆盖 56 项全部发现的修复或验证。
+
+### 修复统计
+- **P0 (Data Race)**: 2 项 — CompressorEngine/CompactionState 加锁 + atomic.Int64
+- **P1 (High)**: 13 项 — 含 MaxTurns 验证、wrapObserver 组合模式、State 深拷贝、inheritRuntime 安全过滤等
+- **P2 (Medium)**: 25 项 — 含 iface 适配器、Pipeline 错误路径、EventBus 清理、推理分类器等
+- **P3 (Low)**: 16 项 — 含死代码、注释、日志级别、测试加固等
+
+### 新增测试
+- 6 个测试文件（新建 4 + 追加 2），共 71 个新测试用例
+- 覆盖 agent_run_phase、agent_run_tool、deprecatedHookAdapter、ObserversToHook、ExtensionRegistry、EventBus 深度场景
+
+### 关键改动
+
+**并发安全**
+- `context_engine.go`: CompressorEngine.compressionCnt → atomic.Int64
+- `compaction.go`: compactionState 新增 sync.Mutex 保护所有字段
+- `context_engine_tiered.go`: TieredEngine 自有状态加锁
+- `state.go`: messagesNoClone/AddMessage/ReplaceMessages 统一深拷贝 Clone()
+
+**安全加固**
+- `handoff.go`: inheritRuntime 新增 isSensitiveTool 过滤，跳过 bash/write/delete/edit/file_/computer 等高危工具
+
+**Observer/扩展**
+- `lifecycle.go`: wrapObserver 改用接口断言模式，支持多 Observer 组合
+- `extension.go`: Register 失败设置 configErr，防止部分配置运行
+- `iface_adapter.go`: AfterModelCall 改用 errors.Join；Resume 添加中断数据告警
+
+**Schema/类型**
+- `tool_gen.go`: 整数类型生成 "type": "integer" 而非 "number"
+- `tool.go`: Registry.Definitions 在锁外调用 DynamicParameters
+- `executor.go`: DualToolOutput 空结果回退 [empty]；Serial 取消设置 Terminate 标记
+
+**状态机**
+- `state.go`: SetStatus 添加合法转换校验 + WARN 日志；PendingHandoff 返回值拷贝
+
+**推理系统**
+- `reasoning_strategy.go`: StrategyHint 注入使用 Clone() 深拷贝
+- `reasoning_router.go`: 关键词预小写、HistoryTurnsForHigh 仅统计 RoleUser、runeLen → utf8.RuneCountInString
+
+**上下文管理**
+- `context_engine_tiered.go`: Phase 1 日志提升至 slog.Warn
+- `config.go` + `compaction.go`: Compaction 冷却超时可配置化
+
+**Pipeline**
+- `pipeline_handler.go`: StageHandler/Atom 交叉验证
+- `pipeline_stage_handlers.go`: searchHandler 错误返回统一、extractJSONFromText 深度追踪
+- `plugin.go`: 闭包提取 defaultValidateOptions()
+
+**预算/流量**
+- `budget.go`: OnExceed 回调 fire-once 防护
+- `steering.go`: messageQueue 添加容量上限 + ErrQueueFull
+
+### 验证
+- `make verify` (lint + build + test-race, 根模块 + tools 子模块) — ✅ 全部通过
+- `go test -race -count=1 ./...` — 全模块 80+ 子包通过，零竞态
+- `scripts/check-sensitive-paths.sh` — 通过
+
 ## 2026-07-23: Agent 运行时全量系统性审阅
 
 ### 背景

@@ -321,10 +321,12 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		if turn-loopStartTurn >= 2 && resp.Content != "" && resp.Content == lastContent {
 			repeatCount++
 			if repeatCount >= 2 {
-				_ = a.steering.Push(Message{
+				if err := a.steering.Push(Message{
 					Role:    RoleSystem,
 					Content: "You have been repeating the same response. Stop this loop immediately. Do not call any more tools. Give a final answer based on what you have so far, or clearly state that you cannot complete the request and ask the user for guidance.",
-				})
+				}); err != nil {
+					slog.Warn("agent: failed to push steering message", "error", err)
+				}
 				lastContent = ""
 				repeatCount = 0
 			}
@@ -340,10 +342,12 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			if sig == lastToolSignature {
 				toolRepeatCount++
 				if toolRepeatCount >= 2 {
-					_ = a.steering.Push(Message{
+					if err := a.steering.Push(Message{
 						Role:    RoleSystem,
 						Content: "You have been calling the same tools repeatedly without progress. Stop this loop immediately. Do not call any more tools. Report to the user what you attempted and why it failed, and ask for guidance.",
-					})
+					}); err != nil {
+						slog.Warn("agent: failed to push steering message", "error", err)
+					}
 					lastToolSignature = ""
 					toolRepeatCount = 0
 				}
