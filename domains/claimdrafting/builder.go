@@ -92,8 +92,6 @@ func (b *ClaimBuilder) Build(input DraftInput) (*DraftOutput, error) {
 	return output, nil
 }
 
-// buildIndependent 构建独立权利要求。
-
 // buildIndependentClaims 根据撰写策略构建一个或多个独立权利要求。
 func (b *ClaimBuilder) buildIndependentClaims(input DraftInput, domain TechDomain, essential []Feature) ([]Claim, error) {
 	primary, err := b.buildIndependent(input, domain, essential)

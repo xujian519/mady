@@ -90,6 +90,7 @@ type BudgetController struct {
 	usage    BudgetUsage
 	start    time.Time
 	started  bool
+	fired    bool // fire-once guard for OnExceed
 	OnExceed func(dim BudgetDimension, budget Budget, usage BudgetUsage)
 }
 
@@ -124,6 +125,7 @@ func (c *BudgetController) Reset() {
 	c.usage = BudgetUsage{}
 	c.start = time.Time{}
 	c.started = false
+	c.fired = false
 }
 
 func (c *BudgetController) markStartLocked() {
@@ -176,6 +178,18 @@ func (c *BudgetController) fireExceed(err error) {
 	}
 	var be *BudgetExceededError
 	if errors.As(err, &be) {
+		// Fire-once guard: after the first exceed fires for this run, skip
+		// subsequent calls. Prevents duplicate callbacks when the same breach
+		// is detected by both BeforeModelCall pre-check and AfterModelCall
+		// accumulation, or across retry attempts.
+		c.mu.Lock()
+		if c.fired {
+			c.mu.Unlock()
+			return
+		}
+		c.fired = true
+		c.mu.Unlock()
+
 		// 通过 Budget()/Usage() 方法读取，保证与公开 API 的锁契约一致，
 		// 避免 fireExceed 直接读字段导致后续维护者误判 budget 可变。
 		c.OnExceed(be.Dimension, c.Budget(), c.Usage())
@@ -196,6 +210,9 @@ func (c *BudgetController) BeforeAgentRun(_ context.Context, _ *AgentRunContext)
 // a worst-case pre-check estimates prompt + max_tokens against the remaining
 // budget. This reduces the window where a single oversized response pushes
 // usage far past the limit before it's detected.
+//
+// OnExceed fires at most once per run — the first dimension to breach triggers
+// it; subsequent exceed detections within the same run are silently skipped.
 func (c *BudgetController) BeforeModelCall(_ context.Context, _ *AgentRunContext, mcc *ModelCallContext) error {
 	c.mu.Lock()
 	err := c.checkModelLocked()
@@ -228,9 +245,26 @@ func (c *BudgetController) BeforeModelCall(_ context.Context, _ *AgentRunContext
 // is counted once issued regardless of success; tokens are only added when the
 // response reports them.
 //
-// 累加后若已超限，异步触发 OnExceed 告警（AfterModelCall 返回 void 无法
-// 阻断已发生的消耗，但可让调用方/监控系统知晓超限，避免"事后记账"导致
-// 实际消耗可达 ~2× 预算上限而无信号）。
+// Design note: post-facto detection in AfterModelCall vs. pre-check in
+// BeforeModelCall:
+//
+//   - BeforeModelCall projects prompt + max_response_tokens against the
+//     remaining budget and blocks the call *before* it reaches the LLM.
+//     This catches the common case where the next call would exceed the limit.
+//
+//   - AfterModelCall captures real (not projected) token counts from the
+//     provider response. The pre-projection can under-estimate because
+//     EstimateMessagesTokens is approximate, and the provider may return more
+//     completion tokens than MaxTokens. Therefore AfterModelCall is still
+//     needed to detect those edge cases — even though by then the tokens are
+//     already consumed.
+//
+//   - Together they bound the overshoot to roughly one extra call in the
+//     worst case (vs. unbounded without the pre-check).
+//
+//   - OnExceed 异步通知：AfterModelCall 返回 void 无法阻断已发生的消耗，但
+//     可让调用方/监控系统知晓超限，避免"事后记账"导致实际消耗远超预算上限
+//     而无信号。fire-once 防护确保回调在单次运行中只触发一次。
 func (c *BudgetController) AfterModelCall(_ context.Context, _ *AgentRunContext, mcc *ModelCallContext) {
 	c.mu.Lock()
 	c.usage.Calls++

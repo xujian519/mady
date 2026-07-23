@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 )
 
 // --- 公开入口 ---
@@ -16,6 +17,11 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 	// 快速失败：拒绝以无效配置运行。
 	if a.configErr != nil {
 		return "", fmt.Errorf("agentcore: agent configuration is invalid: %w", a.configErr)
+	}
+
+	// 快速失败：拒绝空输入。
+	if strings.TrimSpace(input) == "" {
+		return "", fmt.Errorf("agentcore: empty input in Run()")
 	}
 
 	ctx, span := a.tracer().Start(ctx, "agent.run",
@@ -181,6 +187,11 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 			AgentName: a.config.Name,
 			Reason:    a.state.GetInterruptReason(),
 		})
+	case StatusError:
+		a.emitMustDeliver(ctx, &AgentErrorEvent{
+			baseEvent: newBase(EventAgentError),
+			Err:       NewNodeError("agent run loop exited with error", nil, a.config.Name, "runLoop"),
+		})
 	}
 	return finalOutput, nil
 }
@@ -310,7 +321,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		if turn-loopStartTurn >= 2 && resp.Content != "" && resp.Content == lastContent {
 			repeatCount++
 			if repeatCount >= 2 {
-				a.steering.Push(Message{
+				_ = a.steering.Push(Message{
 					Role:    RoleSystem,
 					Content: "You have been repeating the same response. Stop this loop immediately. Do not call any more tools. Give a final answer based on what you have so far, or clearly state that you cannot complete the request and ask the user for guidance.",
 				})
@@ -329,7 +340,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			if sig == lastToolSignature {
 				toolRepeatCount++
 				if toolRepeatCount >= 2 {
-					a.steering.Push(Message{
+					_ = a.steering.Push(Message{
 						Role:    RoleSystem,
 						Content: "You have been calling the same tools repeatedly without progress. Stop this loop immediately. Do not call any more tools. Report to the user what you attempted and why it failed, and ask for guidance.",
 					})

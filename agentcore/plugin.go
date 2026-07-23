@@ -29,17 +29,7 @@ type PluginStage = pluginsys.PluginStage
 // ValidatePlugin validates a PluginManifest's fields, including
 // agentcore-specific checks (atom lookup, guardrail level registry).
 func ValidatePlugin(p PluginManifest) error {
-	err := pluginsys.ValidatePlugin(p, &pluginsys.ValidateOptions{
-		AtomLookupFn: func(name string) bool {
-			return LookupAtom(name) != nil
-		},
-		IsValidGuardrailLevel: func(level string) bool {
-			validGuardrailLevelsMu.RLock()
-			ok := validGuardrailLevels[level]
-			validGuardrailLevelsMu.RUnlock()
-			return ok
-		},
-	})
+	err := pluginsys.ValidatePlugin(p, defaultValidateOptions())
 	if err != nil {
 		return fmt.Errorf("%w", err)
 	}
@@ -49,31 +39,27 @@ func ValidatePlugin(p PluginManifest) error {
 // LoadPlugin reads a plugin.json file and returns the parsed manifest
 // with full agentcore validation.
 func LoadPlugin(path string) (*PluginManifest, error) {
-	return pluginsys.LoadPlugin(path, &pluginsys.ValidateOptions{
-		AtomLookupFn: func(name string) bool {
-			return LookupAtom(name) != nil
-		},
-		IsValidGuardrailLevel: func(level string) bool {
-			validGuardrailLevelsMu.RLock()
-			ok := validGuardrailLevels[level]
-			validGuardrailLevelsMu.RUnlock()
-			return ok
-		},
-	})
+	return pluginsys.LoadPlugin(path, defaultValidateOptions())
 }
 
 // ScanPlugins discovers all plugin.json files under the given root
 // directories. Plugins with the same name keep the first one found.
 func ScanPlugins(roots ...string) ([]PluginManifest, error) {
-	return pluginsys.ScanPlugins(roots, &pluginsys.ValidateOptions{
+	return pluginsys.ScanPlugins(roots, defaultValidateOptions())
+}
+
+// defaultValidateOptions returns a ValidateOptions with atom and guardrail
+// lookups wired to the agentcore registries. Shared by ValidatePlugin,
+// LoadPlugin, and ScanPlugins to avoid closure duplication.
+func defaultValidateOptions() *pluginsys.ValidateOptions {
+	return &pluginsys.ValidateOptions{
 		AtomLookupFn: func(name string) bool {
 			return LookupAtom(name) != nil
 		},
 		IsValidGuardrailLevel: func(level string) bool {
 			validGuardrailLevelsMu.RLock()
-			ok := validGuardrailLevels[level]
-			validGuardrailLevelsMu.RUnlock()
-			return ok
+			defer validGuardrailLevelsMu.RUnlock()
+			return validGuardrailLevels[level]
 		},
-	})
+	}
 }

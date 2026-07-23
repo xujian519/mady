@@ -3,6 +3,7 @@ package agentcore
 import (
 	"context"
 	"strings"
+	"unicode/utf8"
 )
 
 // Complexity rates how demanding a turn is expected to be, driving the
@@ -99,6 +100,9 @@ func (r *ReasoningRouter) BeforeModelCall(_ context.Context, arc *AgentRunContex
 type DefaultClassifier struct {
 	// HighKeywords mark turns that need deep reasoning regardless of length.
 	HighKeywords []string
+	// highKeywordsLower is the pre-lowered copy of HighKeywords for fast
+	// case-insensitive matching in Classify.
+	highKeywordsLower []string
 	// MediumRuneLen: inputs longer than this are at least Medium.
 	MediumRuneLen int
 	// HighRuneLen: inputs longer than this are High (unless keywords apply).
@@ -111,15 +115,21 @@ type DefaultClassifier struct {
 // NewDefaultClassifier returns a classifier tuned for legal/patent and general
 // reasoning workloads.
 func NewDefaultClassifier() *DefaultClassifier {
+	kw := []string{
+		"分析", "推理", "对比", "论证", "法律", "专利", "侵权", "新颖性", "创造性",
+		"审查意见", "权利要求", "架构", "设计", "debug", "排查", "重构",
+		// English keywords restricted to domain-specific compound forms
+		// to avoid over-triggering High complexity on casual English
+		// questions like "why is X?" or "explain this".
+		"analyze", "architect", "troubleshoot",
+	}
+	lower := make([]string, len(kw))
+	for i, k := range kw {
+		lower[i] = strings.ToLower(k)
+	}
 	return &DefaultClassifier{
-		HighKeywords: []string{
-			"分析", "推理", "对比", "论证", "法律", "专利", "侵权", "新颖性", "创造性",
-			"审查意见", "权利要求", "架构", "设计", "debug", "排查", "重构",
-			// English keywords restricted to domain-specific compound forms
-			// to avoid over-triggering High complexity on casual English
-			// questions like "why is X?" or "explain this".
-			"analyze", "architect", "troubleshoot",
-		},
+		HighKeywords:        kw,
+		highKeywordsLower:   lower,
 		MediumRuneLen:       200,
 		HighRuneLen:         800,
 		HistoryTurnsForHigh: 6,
@@ -129,8 +139,8 @@ func NewDefaultClassifier() *DefaultClassifier {
 // Classify returns the estimated complexity for a turn.
 func (d *DefaultClassifier) Classify(input string, messages []Message) Complexity {
 	lower := strings.ToLower(input)
-	for _, kw := range d.HighKeywords {
-		if strings.Contains(lower, strings.ToLower(kw)) {
+	for _, kw := range d.highKeywordsLower {
+		if strings.Contains(lower, kw) {
 			return ComplexityHigh
 		}
 	}
@@ -142,7 +152,7 @@ func (d *DefaultClassifier) Classify(input string, messages []Message) Complexit
 	if high <= 0 {
 		high = 800
 	}
-	n := runeLen(input)
+	n := utf8.RuneCountInString(input)
 	var c Complexity
 	switch {
 	case n > high:
@@ -153,18 +163,20 @@ func (d *DefaultClassifier) Classify(input string, messages []Message) Complexit
 		c = ComplexityLow
 	}
 	// Bump on long conversations (accumulated context raises difficulty).
-	if d.HistoryTurnsForHigh > 0 && int64(len(messages)) >= d.HistoryTurnsForHigh && c < ComplexityHigh {
-		c++
+	// Only user messages count — system, assistant and tool messages are overhead,
+	// not genuine interaction turns.
+	if d.HistoryTurnsForHigh > 0 {
+		userCount := 0
+		for _, m := range messages {
+			if m.Role == RoleUser {
+				userCount++
+			}
+		}
+		if int64(userCount) >= d.HistoryTurnsForHigh && c < ComplexityHigh {
+			c++
+		}
 	}
 	return c
-}
-
-func runeLen(s string) int {
-	n := 0
-	for range s {
-		n++
-	}
-	return n
 }
 
 func latestUserInput(arc *AgentRunContext) string {

@@ -3,6 +3,7 @@ package agentcore
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 )
@@ -63,6 +64,9 @@ var (
 func RegisterStageHandler(h StageHandler) {
 	handlerRegistryMu.Lock()
 	defer handlerRegistryMu.Unlock()
+	if LookupAtom(h.Name()) == nil {
+		slog.Warn("pipeline: registered handler for undeclared atom", "handler", h.Name())
+	}
 	handlerRegistry[h.Name()] = h
 }
 

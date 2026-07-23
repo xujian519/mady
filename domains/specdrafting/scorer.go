@@ -36,10 +36,22 @@ func (s *SpecScorer) Score(spec *SpecOutput, input SpecInput) *ScoreReport {
 	}
 }
 
+// severityPenalty 按违规严重程度定义扣分权重。
+var severityPenalty = map[Severity]float64{
+	SeverityError:   20,
+	SeverityWarning: 10,
+	SeverityInfo:    5,
+}
+
 func (s *SpecScorer) calcDimensionScores(violations []Violation) map[string]float64 {
-	ruleViolations := make(map[string]int)
+	// 按严重程度加权统计各规则的违规扣分
+	rulePenalty := make(map[string]int)
 	for _, v := range violations {
-		ruleViolations[v.RuleName]++
+		penalty, ok := severityPenalty[v.Severity]
+		if !ok {
+			penalty = 20 // 未知严重程度按 Error 处理
+		}
+		rulePenalty[v.RuleName] += int(penalty)
 	}
 
 	dimensionRules := map[string][]string{
@@ -52,11 +64,11 @@ func (s *SpecScorer) calcDimensionScores(violations []Violation) map[string]floa
 
 	scores := make(map[string]float64)
 	for dim, rules := range dimensionRules {
-		v := 0
+		var totalPenalty int
 		for _, r := range rules {
-			v += ruleViolations[r]
+			totalPenalty += rulePenalty[r]
 		}
-		score := 100.0 - float64(v)*20.0
+		score := 100.0 - float64(totalPenalty)
 		if score < 0 {
 			score = 0
 		}

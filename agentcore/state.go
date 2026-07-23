@@ -2,6 +2,7 @@ package agentcore
 
 import (
 	"encoding/json"
+	"log/slog"
 	"sync"
 )
 
@@ -40,7 +41,24 @@ func (s *AgentState) Status() Status {
 func (s *AgentState) SetStatus(st Status) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !isValidTransition(s.status, st) {
+		slog.Warn("state: illegal status transition", "from", s.status, "to", st)
+	}
 	s.status = st
+}
+
+func isValidTransition(from, to Status) bool {
+	switch from {
+	case StatusIdle:
+		return to == StatusRunning
+	case StatusRunning:
+		return to == StatusFinished || to == StatusError || to == StatusInterrupted
+	case StatusFinished, StatusError:
+		return false // terminal states
+	case StatusInterrupted:
+		return to == StatusRunning // resume allowed
+	}
+	return false
 }
 
 func (s *AgentState) Messages() []Message {
@@ -53,20 +71,22 @@ func (s *AgentState) Messages() []Message {
 	return cp
 }
 
-// messagesNoClone returns a shallow copy of the message slice headers.
-// Individual Message values are NOT deep-copied (callers treat them as
-// read-only), but the slice itself is copied so that concurrent AddMessage
-// calls cannot race on the backing array. This avoids the -race detector
-// flagging concurrent read/write on the internal slice.
+// messagesNoClone returns a deep-copied message slice. Every Message
+// value is individually cloned so callers cannot race on reference-type
+// fields (ToolCalls, Blocks, Metadata, CacheControl) after release of the
+// read lock.
 func (s *AgentState) messagesNoClone() []Message {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	cp := make([]Message, len(s.messages))
-	copy(cp, s.messages)
+	for i, m := range s.messages {
+		cp[i] = m.Clone()
+	}
 	return cp
 }
 
 func (s *AgentState) AddMessage(m Message) {
+	m = m.Clone()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if m.ID != "" {
@@ -99,7 +119,10 @@ func (s *AgentState) HasSystemPrompt() bool {
 func (s *AgentState) ReplaceMessages(msgs []Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.messages = msgs
+	s.messages = make([]Message, len(msgs))
+	for i, m := range msgs {
+		s.messages[i] = m.Clone()
+	}
 }
 
 func (s *AgentState) Turn() int64 {
@@ -124,7 +147,11 @@ func (s *AgentState) SetPendingHandoff(h *PendingHandoff) {
 func (s *AgentState) PendingHandoff() *PendingHandoff {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.pendingHandoff
+	if s.pendingHandoff == nil {
+		return nil
+	}
+	cp := *s.pendingHandoff
+	return &cp
 }
 
 func (s *AgentState) ClearPendingHandoff() {

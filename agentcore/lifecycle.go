@@ -303,21 +303,32 @@ func ObserversToHook(observers ...any) LifecycleHook {
 }
 
 func wrapObserver(o any) LifecycleHook {
-	switch v := o.(type) {
-	case AgentRunObserver:
-		return &agentRunObserverAdapter{observer: v}
-	case TurnObserver:
-		return &turnObserverAdapter{observer: v}
-	case ModelCallObserver:
-		return &modelCallObserverAdapter{observer: v}
-	case ToolCallObserver:
-		return &toolCallObserverAdapter{observer: v}
-	case MessagePersistObserver:
-		return &messagePersistObserverAdapter{observer: v}
-	case CompactionPersistObserver:
-		return &compactionPersistObserverAdapter{observer: v}
-	default:
+	var hooks []LifecycleHook
+	if v, ok := o.(AgentRunObserver); ok {
+		hooks = append(hooks, &agentRunObserverAdapter{observer: v})
+	}
+	if v, ok := o.(TurnObserver); ok {
+		hooks = append(hooks, &turnObserverAdapter{observer: v})
+	}
+	if v, ok := o.(ModelCallObserver); ok {
+		hooks = append(hooks, &modelCallObserverAdapter{observer: v})
+	}
+	if v, ok := o.(ToolCallObserver); ok {
+		hooks = append(hooks, &toolCallObserverAdapter{observer: v})
+	}
+	if v, ok := o.(MessagePersistObserver); ok {
+		hooks = append(hooks, &messagePersistObserverAdapter{observer: v})
+	}
+	if v, ok := o.(CompactionPersistObserver); ok {
+		hooks = append(hooks, &compactionPersistObserverAdapter{observer: v})
+	}
+	switch len(hooks) {
+	case 0:
 		return nil
+	case 1:
+		return hooks[0]
+	default:
+		return LifecycleChain(hooks)
 	}
 }
 

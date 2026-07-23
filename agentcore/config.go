@@ -2,6 +2,7 @@ package agentcore
 
 import (
 	"context"
+	"time"
 
 	"github.com/xujian519/mady/skill"
 )
@@ -55,20 +56,22 @@ type ExecutionConfig struct {
 // CompactionConfig is user-facing agent configuration while ContextEngineConfig
 // is the engine-level equivalent. The mapping happens in Agent.New().
 type CompactionConfig struct {
-	ContextWindow         int64         // model context window size in tokens (e.g. 128000); 0 = no compaction
-	ReserveTokens         int64         // tokens reserved for response generation; default = ContextWindow/4
-	KeepRecentTokens      int64         // min recent tokens preserved during compaction; default = 2000
-	StructuredCompaction  bool          // emit JSON summaries instead of free-form paragraphs
-	ProtectFirstN         int           // number of non-system head messages to preserve verbatim; default = 3
-	CompressionThreshold  float64       // compress when usage exceeds this fraction of contextWindow; default = 0.75
-	AutoCompactTokenLimit int64         // absolute token threshold (overrides CompressionThreshold when > 0); default = 0
-	AntiThrashEnabled     bool          // skip compaction if recent savings < 10%; default = true
-	CompressionModel      string        // optional: separate model for summarization (cheaper/faster)
-	CompressionProvider   Provider      // optional: provider for compression model
-	CompressionBaseURL    string        // optional: base URL for compression model
-	CompressionAPIKey     string        // optional: API key for compression model
-	Engine                string        // context engine name; default = "compressor"
-	CustomEngine          ContextEngine // pre-built custom engine (overrides Engine name)
+	ContextWindow          int64         // model context window size in tokens (e.g. 128000); 0 = no compaction
+	ReserveTokens          int64         // tokens reserved for response generation; default = ContextWindow/4
+	KeepRecentTokens       int64         // min recent tokens preserved during compaction; default = 2000
+	StructuredCompaction   bool          // emit JSON summaries instead of free-form paragraphs
+	ProtectFirstN          int           // number of non-system head messages to preserve verbatim; default = 3
+	CompressionThreshold   float64       // compress when usage exceeds this fraction of contextWindow; default = 0.75
+	AutoCompactTokenLimit  int64         // absolute token threshold (overrides CompressionThreshold when > 0); default = 0
+	AntiThrashEnabled      bool          // skip compaction if recent savings < 10%; default = true
+	CompressionModel       string        // optional: separate model for summarization (cheaper/faster)
+	CompressionProvider    Provider      // optional: provider for compression model
+	CompressionBaseURL     string        // optional: base URL for compression model
+	CompressionAPIKey      string        // optional: API key for compression model
+	Engine                 string        // context engine name; default = "compressor"
+	CustomEngine           ContextEngine // pre-built custom engine (overrides Engine name)
+	SummaryFailureCooldown time.Duration // cooldown after a summary generation failure; default = 600s
+	IneffectiveCooldown    time.Duration // cooldown after ineffective compactions; default = 300s
 }
 
 // ConfigOption is a functional option for constructing a Config.
@@ -274,6 +277,20 @@ func WithCompressionThreshold(ratio float64) ConfigOption {
 // WithAntiThrash enables/disables anti-thrashing protection.
 func WithAntiThrash(enabled bool) ConfigOption {
 	return func(c *Config) { c.AntiThrashEnabled = enabled }
+}
+
+// WithSummaryFailureCooldown sets the cooldown period after a summary
+// generation failure. During the cooldown, compaction is skipped to avoid
+// tight retry loops. Default is 600s.
+func WithSummaryFailureCooldown(d time.Duration) ConfigOption {
+	return func(c *Config) { c.SummaryFailureCooldown = d }
+}
+
+// WithIneffectiveCooldown sets the cooldown period after two consecutive
+// low-savings compactions. Prevents thrashing when compaction is not
+// beneficial. Default is 300s.
+func WithIneffectiveCooldown(d time.Duration) ConfigOption {
+	return func(c *Config) { c.IneffectiveCooldown = d }
 }
 
 // WithCompressionModel sets a separate model for context compression.

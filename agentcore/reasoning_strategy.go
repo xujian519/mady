@@ -253,7 +253,9 @@ func (r *ReasoningStrategyRouter) BeforeModelCall(ctx context.Context, arc *Agen
 			// 使此前已捕获该 slice 引用的观察者看到被修改的请求）。
 			orig := mcc.Request.Messages
 			cloned := make([]Message, len(orig))
-			copy(cloned, orig)
+			for i, msg := range orig {
+				cloned[i] = msg.Clone()
+			}
 			injected := false
 			for i, msg := range cloned {
 				if msg.Role == RoleSystem {

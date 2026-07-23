@@ -1,6 +1,9 @@
 package specdrafting
 
-import "sync"
+import (
+	"strings"
+	"sync"
+)
 
 // =============================================================================
 // SpecRule 规则接口
@@ -117,7 +120,7 @@ func RegisterDefaultRules(engine *RuleEngine) {
 		&clarityTerminologyRule{baseRule: newBaseRule("clarity-terminology",
 			"应使用清楚的技术术语", "专利法第26条第3款")},
 		&clarityForbiddenWordsRule{baseRule: newBaseRule("clarity-forbidden-words",
-			"不得使用禁止用词和不确定用语", "审查指南第二部分第二章§2.1.1")},
+			"不得使用禁止用词和不确定用语", "专利法第26条第3款；审查指南第二部分第二章§2.1.1")},
 		&clarityPFEConsistencyRule{baseRule: newBaseRule("clarity-pfe-consistency",
 			"问题、方案、效果三者应相互适应", "专利法第26条第3款")},
 		&clarityTermConsistencyRule{baseRule: newBaseRule("clarity-term-consistency",
@@ -160,32 +163,9 @@ var forbiddenWords = []string{
 
 func containsAny(s string, words []string) (string, bool) {
 	for _, w := range words {
-		if containsStr(s, w) {
+		if strings.Contains(s, w) {
 			return w, true
 		}
 	}
 	return "", false
-}
-
-func containsStr(s, substr string) bool {
-	return indexOf(s, substr) >= 0
-}
-
-func indexOf(s, substr string) int {
-	if len(substr) == 0 {
-		return 0
-	}
-	for i := 0; i <= len(s)-len(substr); i++ {
-		match := true
-		for j := 0; j < len(substr); j++ {
-			if s[i+j] != substr[j] {
-				match = false
-				break
-			}
-		}
-		if match {
-			return i
-		}
-	}
-	return -1
 }

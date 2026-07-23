@@ -2,6 +2,7 @@ package agentcore
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -237,7 +238,7 @@ func TestPipelineExecutor_MultiStagePipeline(t *testing.T) {
 		Domain: "patent",
 		Pipeline: PluginPipeline{
 			Stages: []PluginStage{
-				// search is skipped because _retriever is not set
+				// search fails hard because _retriever is not set
 				{ID: "search", Atom: "search", Description: "search"},
 				// extract features
 				{ID: "extract", Atom: "extract", Description: "extract"},
@@ -249,36 +250,27 @@ func TestPipelineExecutor_MultiStagePipeline(t *testing.T) {
 		},
 	}
 
-	state, err := e.Run(context.Background(), manifest, PipelineState{
+	_, err := e.Run(context.Background(), manifest, PipelineState{
 		"text":            "一种基于深度学习的图像识别方法",
 		"extraction_type": "features",
 		"reasoning_input": "基于以上特征，评估新颖性",
 		"review_context":  "请审阅新颖性分析结论",
 	})
 	if err == nil {
-		t.Fatal("expected InterruptStageError at approval-gate")
+		t.Fatal("expected StageError from search stage (no retriever configured)")
 	}
-	if !IsInterruptStage(err) {
-		t.Fatalf("expected InterruptStageError, got %T: %v", err, err)
+	if IsInterruptStage(err) {
+		t.Fatalf("expected StageError, got InterruptStageError: %v", err)
 	}
-	if state.GetString("_interrupted_at") != "approval" {
-		t.Errorf("expected _interrupted_at=approval, got %q", state.GetString("_interrupted_at"))
+	var stageErr *StageError
+	if !errors.As(err, &stageErr) {
+		t.Fatalf("expected *StageError, got %T: %v", err, err)
 	}
-	// Verify intermediate stage outputs exist.
-	if state.GetString("extraction_result") == "" {
-		t.Error("expected extraction_result from extract stage")
+	if stageErr.StageID != "search" {
+		t.Errorf("expected StageID=search, got %q", stageErr.StageID)
 	}
-	if state.GetString("reasoning_output") == "" {
-		t.Error("expected reasoning_output from reasoning stage")
-	}
-	// Search handler should have produced an error because no retriever.
-	if state.GetString("prior_art") != "" {
-		t.Error("expected no prior_art (no retriever configured)")
-	}
-	// Check that search wasn't silently skipped — it should produce _error.
-	executed := state["_executed_stages"].([]string)
-	if len(executed) != 3 {
-		t.Errorf("expected 3 executed stages, got %d: %v", len(executed), executed)
+	if stageErr.Atom != "search" {
+		t.Errorf("expected Atom=search, got %q", stageErr.Atom)
 	}
 }
 

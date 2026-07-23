@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -177,28 +178,33 @@ type CompressorEngine struct {
 	compressionBaseURL string
 	compressionAPIKey  string
 
+	summaryFailureCooldown time.Duration
+	ineffectiveCooldown    time.Duration
+
 	state          *compactionState
-	compressionCnt int64
+	compressionCnt atomic.Int64
 }
 
 // NewCompressorEngine creates the built-in compressor engine.
 func NewCompressorEngine(cfg ContextEngineConfig) ContextEngine {
 	return &CompressorEngine{
-		model:              cfg.Model,
-		baseURL:            cfg.BaseURL,
-		apiKey:             cfg.APIKey,
-		provider:           cfg.Provider,
-		contextLength:      cfg.ContextWindow,
-		thresholdPercent:   cfg.CompressionThreshold,
-		protectFirstN:      cfg.ProtectFirstN,
-		keepRecentTokens:   cfg.KeepRecentTokens,
-		structured:         cfg.StructuredCompaction,
-		autoCompactLimit:   cfg.AutoCompactLimit,
-		compressionModel:   cfg.CompressionModel,
-		compressionProv:    cfg.CompressionProvider,
-		compressionBaseURL: cfg.CompressionBaseURL,
-		compressionAPIKey:  cfg.CompressionAPIKey,
-		state:              newCompactionState(),
+		model:                  cfg.Model,
+		baseURL:                cfg.BaseURL,
+		apiKey:                 cfg.APIKey,
+		provider:               cfg.Provider,
+		contextLength:          cfg.ContextWindow,
+		thresholdPercent:       cfg.CompressionThreshold,
+		protectFirstN:          cfg.ProtectFirstN,
+		keepRecentTokens:       cfg.KeepRecentTokens,
+		structured:             cfg.StructuredCompaction,
+		autoCompactLimit:       cfg.AutoCompactLimit,
+		compressionModel:       cfg.CompressionModel,
+		compressionProv:        cfg.CompressionProvider,
+		compressionBaseURL:     cfg.CompressionBaseURL,
+		compressionAPIKey:      cfg.CompressionAPIKey,
+		summaryFailureCooldown: summaryFailureCooldownSeconds * time.Second,
+		ineffectiveCooldown:    ineffectiveCompactionCooldownSeconds * time.Second,
+		state:                  newCompactionState(),
 	}
 }
 
@@ -216,7 +222,7 @@ func (e *CompressorEngine) OnSessionStart(ctx context.Context, model string, con
 
 func (e *CompressorEngine) OnSessionReset() {
 	e.state = newCompactionState()
-	e.compressionCnt = 0
+	e.compressionCnt.Store(0)
 }
 
 func (e *CompressorEngine) OnSessionEnd() {
@@ -240,17 +246,19 @@ func (e *CompressorEngine) Compress(ctx context.Context, msgs []Message, focusTo
 	tmpState.ReplaceMessages(msgs)
 
 	cut, err := runCompaction(ctx, CompactionParams{
-		Provider:            e.compressionProvider(),
-		Model:               e.model,
-		State:               tmpState,
-		KeepRecentTokens:    e.keepRecentTokens,
-		Structured:          e.structured,
-		ProtectFirstN:       e.protectFirstN,
-		FocusTopic:          focusTopic,
-		CompState:           e.state,
-		CompressionModel:    e.compressionModel,
-		CompressionProvider: e.compressionProv,
-		ContextWindow:       e.contextLength,
+		Provider:               e.compressionProvider(),
+		Model:                  e.model,
+		State:                  tmpState,
+		KeepRecentTokens:       e.keepRecentTokens,
+		Structured:             e.structured,
+		ProtectFirstN:          e.protectFirstN,
+		FocusTopic:             focusTopic,
+		CompState:              e.state,
+		CompressionModel:       e.compressionModel,
+		CompressionProvider:    e.compressionProv,
+		ContextWindow:          e.contextLength,
+		SummaryFailureCooldown: e.summaryFailureCooldown,
+		IneffectiveCooldown:    e.ineffectiveCooldown,
 	})
 	if err != nil {
 		return msgs, 0, err
@@ -259,7 +267,7 @@ func (e *CompressorEngine) Compress(ctx context.Context, msgs []Message, focusTo
 		return msgs, 0, nil
 	}
 
-	e.compressionCnt++
+	e.compressionCnt.Add(1)
 	result := tmpState.Messages()
 	newTokens := EstimateMessagesTokens(result)
 	saved := displayTokens - newTokens
@@ -298,21 +306,33 @@ func (e *CompressorEngine) ThresholdTokens() int64 {
 }
 
 func (e *CompressorEngine) CompressionCount() int64 {
-	return e.compressionCnt
+	return e.compressionCnt.Load()
 }
 
 func (e *CompressorEngine) LastSavingsPct() float64 {
+	if e.state == nil {
+		return 0
+	}
+	e.state.mu.Lock()
+	defer e.state.mu.Unlock()
 	return e.state.lastSavingsPct
 }
 
 // SummaryStats returns detailed compression statistics for diagnostics.
 func (e *CompressorEngine) SummaryStats() map[string]any {
+	e.state.mu.Lock()
+	prev := e.state.previousSummary
+	savings := e.state.lastSavingsPct
+	ineffective := e.state.ineffectiveCompactions
+	errStr := e.state.lastSummaryError
+	cooldown := e.state.summaryFailureCooldown
+	e.state.mu.Unlock()
 	return map[string]any{
-		"previous_summary":         e.state.previousSummary != "",
-		"last_savings_pct":         e.state.lastSavingsPct,
-		"ineffective_compactions":  e.state.ineffectiveCompactions,
-		"last_summary_error":       e.state.lastSummaryError,
-		"summary_failure_cooldown": e.state.summaryFailureCooldown.After(time.Now()),
+		"previous_summary":         prev != "",
+		"last_savings_pct":         savings,
+		"ineffective_compactions":  ineffective,
+		"last_summary_error":       errStr,
+		"summary_failure_cooldown": cooldown.After(time.Now()),
 	}
 }
 

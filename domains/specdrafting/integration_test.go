@@ -2,6 +2,7 @@ package specdrafting
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/graph"
@@ -180,7 +181,7 @@ func TestSpecScorer_Integration(t *testing.T) {
 func TestBuildSpecificationGraph_Execute(t *testing.T) {
 	ctx := context.Background()
 
-	compiled, err := BuildSpecificationGraph(nil, nil, nil)
+	compiled, err := BuildSpecificationGraph(nil, nil)
 	if err != nil {
 		t.Fatalf("BuildSpecificationGraph failed: %v", err)
 	}
@@ -248,7 +249,7 @@ func TestPatentType_Differences(t *testing.T) {
 	})
 
 	// 发明在无附图时"附图说明"应包含"无附图"
-	if !containsStr(invention.Sections[3].Content, "无附图") {
+	if !strings.Contains(invention.Sections[3].Content, "无附图") {
 		t.Errorf("发明无附图时附图说明应包含'无附图'，实际: %s", invention.Sections[3].Content)
 	}
 
@@ -325,7 +326,7 @@ func TestSpecBuilder_EdgeCases(t *testing.T) {
 			Features: []SpecFeature{{ID: "f1", Description: "测试特征"}},
 		})
 		content := output.Sections[2].Content
-		if !containsStr(content, "测试特征") {
+		if !strings.Contains(content, "测试特征") {
 			t.Log("特征在内容中得到反映")
 		}
 	})

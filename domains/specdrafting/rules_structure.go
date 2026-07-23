@@ -1,5 +1,7 @@
 package specdrafting
 
+import "strings"
+
 // =============================================================================
 // 结构完整性规则（5 条）
 // =============================================================================
@@ -29,7 +31,7 @@ func (r *structureSectionsRule) Check(spec *SpecOutput, _ SpecInput) []Violation
 	}
 	return []Violation{{
 		RuleName: r.Name(), RuleBasis: r.LegalBasis(),
-		Severity: SeverityError, Message: "缺少必要章节：" + fmtJoin(missing, "、"),
+		Severity: SeverityError, Message: "缺少必要章节：" + strings.Join(missing, "、"),
 	}}
 }
 
@@ -94,7 +96,7 @@ func (r *structureContentTriadRule) Check(spec *SpecOutput, _ SpecInput) []Viola
 	return []Violation{{
 		RuleName: r.Name(), RuleBasis: r.LegalBasis(),
 		Severity: SeverityError, SectionName: string(SecContent),
-		Message:    "发明内容缺少以下要素：" + fmtJoin(missing, "、"),
+		Message:    "发明内容缺少以下要素：" + strings.Join(missing, "、"),
 		Suggestion: "应包含要解决的技术问题、技术方案和有益效果三部分",
 	}}
 }
@@ -125,7 +127,7 @@ func (r *structureEmbodimentDetailRule) Check(spec *SpecOutput, _ SpecInput) []V
 	return []Violation{{
 		RuleName: r.Name(), RuleBasis: r.LegalBasis(),
 		Severity: SeverityWarning, SectionName: string(SecEmbodiment),
-		Message:    "具体实施方式存在以下问题：" + fmtJoin(issues, "；"),
+		Message:    "具体实施方式存在以下问题：" + strings.Join(issues, "；"),
 		Suggestion: "请给出至少一个详细实施方式",
 	}}
 }
@@ -145,20 +147,9 @@ func findSection(spec *SpecOutput, name SpecSectionName) string {
 
 func containsAnyOf(s string, words []string) bool {
 	for _, w := range words {
-		if containsStr(s, w) {
+		if strings.Contains(s, w) {
 			return true
 		}
 	}
 	return false
-}
-
-func fmtJoin(parts []string, sep string) string {
-	if len(parts) == 0 {
-		return ""
-	}
-	r := parts[0]
-	for i := 1; i < len(parts); i++ {
-		r += sep + parts[i]
-	}
-	return r
 }

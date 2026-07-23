@@ -49,6 +49,8 @@ func (e *RuleEngine) Register(rule ClaimRule) {
 
 // RegisterAll 批量注册规则（线程安全）。
 func (e *RuleEngine) RegisterAll(rules ...ClaimRule) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.rules = append(e.rules, rules...)
 }
 
@@ -142,7 +144,7 @@ func RegisterDefaultRules(engine *RuleEngine) {
 			"专利法实施细则第20条第1款")},
 		&formalityPeriodRule{baseRule: newBaseRule("formality-period",
 			"每一项权利要求只允许在其结尾处使用句号",
-			"专利法实施细则第20条")},
+			"专利法实施细则第20条第4款")},
 		&formalityNoIllustrationRule{baseRule: newBaseRule("formality-no-illustration",
 			"权利要求书中不得有插图",
 			"专利法实施细则第20条第3款")},
@@ -193,7 +195,7 @@ func RegisterDefaultRules(engine *RuleEngine) {
 			"专利法第26条第4款")},
 		&scopeEquivalentsCoverageRule{baseRule: newBaseRule("scope-equivalents-coverage",
 			"从属权利要求应为等同替换预留空间，通过多层次布局覆盖替代方案",
-			"审查指南第二部分第三章§3.4（等同原则）")},
+			"审查指南第二部分第二章§3.3")},
 	)
 
 	// 领域特定规则
@@ -206,13 +208,13 @@ func RegisterDefaultRules(engine *RuleEngine) {
 			"审查指南第二部分第二章")},
 		&domainChemicalRule{baseRule: newBaseRule("domain-chemical",
 			"化学组合物独立权利要求应包含组分及含量，含量之和应为100%",
-			"审查指南第二部分第二章")},
+			"审查指南第二部分第十章")},
 		&domainSoftwareRule{baseRule: newBaseRule("domain-software",
 			"计算机程序发明可写为方法权利要求或产品（功能模块）权利要求",
 			"审查指南第二部分第九章§5.2")},
 		&domainUtilityModelRule{baseRule: newBaseRule("domain-utility-model",
 			"实用新型专利只能有产品权利要求，不能有方法权利要求",
-			"专利法实施细则第2条")},
+			"专利法第2条第3款；审查指南第一部分第二章§6.1")},
 	)
 }
 

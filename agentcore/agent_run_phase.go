@@ -140,6 +140,7 @@ func (a *Agent) guardTruncation(ctx context.Context, turn int64, resp *ProviderR
 		if tc.ID == "" {
 			slog.Debug("agent_run: guardTruncation found tool call with empty ID",
 				"turn", turn, "tool", tc.Name)
+			continue
 		}
 		if perr := a.persistMessage(ctx, Message{
 			Role:       RoleTool,

@@ -43,8 +43,10 @@ func NewLLMDrafter(provider Provider, builder *ClaimBuilder, engine *RuleEngine)
 // 流程：先通过规则引擎 builder 生成降级输出，再尝试 LLM 增强。
 // LLM 返回的文本被解析为结构化 Claim 对象；解析失败时静默降级到 builder 输出。
 func (d *LLMDrafter) DraftFromScratch(input DraftInput) (*DraftOutput, error) {
-	// Guard: nil receiver or nil builder → create a default fallback builder.
-	if d == nil || d.builder == nil {
+	if d == nil {
+		panic("claimdrafting: LLMDrafter.DraftFromScratch called on nil receiver")
+	}
+	if d.builder == nil {
 		return NewClaimBuilder("", "").Build(input)
 	}
 
@@ -99,7 +101,8 @@ var claimNumPattern = regexp.MustCompile(`(\d+)\.\s+`)
 //	2. 根据权利要求1所述的limitation。
 //	3. 根据权利要求1或2所述的limitation。
 //
-// 任意一条权利要求解析失败时返回 nil（触发调用方降级到 builder）。
+// 采用部分解析策略：解析成功的保留，解析失败的单条被跳过并通过 Warnings 告警。
+// 仅当没有任何独立权利要求被成功解析时返回 nil（触发调用方降级到 builder）。
 func parseClaimsFromLLM(text string, input DraftInput) *DraftOutput {
 	claimTexts := splitClaimTexts(text)
 	if len(claimTexts) == 0 {
@@ -107,10 +110,12 @@ func parseClaimsFromLLM(text string, input DraftInput) *DraftOutput {
 	}
 
 	var indClaims, depClaims []Claim
+	var parseFailures int
 	for _, ct := range claimTexts {
 		c := parseSingleClaim(ct)
 		if c == nil {
-			return nil
+			parseFailures++
+			continue
 		}
 		if c.Kind == "independent" {
 			indClaims = append(indClaims, *c)
@@ -126,7 +131,7 @@ func parseClaimsFromLLM(text string, input DraftInput) *DraftOutput {
 	// claimType 取第一个独立权利要求的类型（所有独立权利要求类型一致）
 	claimType := indClaims[0].ClaimType
 
-	return &DraftOutput{
+	draftOutput := &DraftOutput{
 		Claims: &ClaimSet{
 			IndependentClaims: indClaims,
 			DependentClaims:   depClaims,
@@ -141,6 +146,13 @@ func parseClaimsFromLLM(text string, input DraftInput) *DraftOutput {
 			FeatureCount: len(input.Features),
 		},
 	}
+
+	if parseFailures > 0 {
+		draftOutput.Warnings = append(draftOutput.Warnings,
+			fmt.Sprintf("LLM 输出中有 %d 条权利要求解析失败，已自动跳过", parseFailures))
+	}
+
+	return draftOutput
 }
 
 // splitClaimTexts 将全文按 "N. " 模式切分为单个权利要求文本块。
@@ -219,11 +231,7 @@ func parseSingleClaim(text string) *Claim {
 			return nil
 		}
 
-		claimType := ClaimTypeProduct
-		lower := strings.ToLower(limitation)
-		if strings.Contains(lower, "方法") || strings.Contains(lower, "工艺") || strings.Contains(lower, "流程") {
-			claimType = ClaimTypeMethod
-		}
+		claimType := inferClaimType(limitation)
 
 		return &Claim{
 			Number:     number,
@@ -242,12 +250,7 @@ func parseSingleClaim(text string) *Claim {
 
 		characterized := strings.TrimSpace(body[idx+len("其特征在于"):])
 
-		// 推断 claimType
-		claimType := ClaimTypeProduct
-		lower := strings.ToLower(preamble + characterized)
-		if strings.Contains(lower, "方法") || strings.Contains(lower, "工艺") || strings.Contains(lower, "流程") {
-			claimType = ClaimTypeMethod
-		}
+		claimType := inferClaimType(preamble + " " + characterized)
 
 		return &Claim{
 			Number:        number,
@@ -259,6 +262,31 @@ func parseSingleClaim(text string) *Claim {
 	}
 
 	return nil
+}
+
+// inferClaimType 根据文本推断权利要求类型（产品/方法）。
+// 采用产品关键词优先策略：检测到"装置""设备""系统"等产品关键词时优先判定为 Product 类型，
+// 避免含"方法"关键词的产品权利要求被误判为 Method。
+func inferClaimType(text string) ClaimType {
+	lower := strings.ToLower(text)
+
+	// 产品关键词（优先级高）
+	productKW := []string{"装置", "设备", "系统", "组合物", "电路", "器具", "仪器", "器械", "组件"}
+	for _, kw := range productKW {
+		if strings.Contains(lower, kw) {
+			return ClaimTypeProduct
+		}
+	}
+
+	// 方法关键词
+	methodKW := []string{"方法", "工艺", "流程", "步骤"}
+	for _, kw := range methodKW {
+		if strings.Contains(lower, kw) {
+			return ClaimTypeMethod
+		}
+	}
+
+	return ClaimTypeProduct
 }
 
 // =============================================================================

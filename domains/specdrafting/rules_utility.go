@@ -1,5 +1,7 @@
 package specdrafting
 
+import "strings"
+
 // =============================================================================
 // 实用新型特有规则（3 条）
 // =============================================================================
@@ -72,7 +74,7 @@ func (r *utilitySingleIndependentRule) Check(_ *SpecOutput, input SpecInput) []V
 	}
 	indCount := 0
 	for _, c := range input.Claims {
-		if containsStr(c, "其特征在于") {
+		if strings.Contains(c, "其特征在于") {
 			indCount++
 		}
 	}

@@ -272,9 +272,14 @@ func (a *Agent) inheritRuntime(ctx context.Context, target *Agent) {
 		"target_agent", target.config.Name,
 		"security_note", "source tools/extensions/middleware are being transferred to target",
 	)
-	// Copy tools from source to target (excluding handoff tools).
+	// Copy tools from source to target (excluding handoff tools and sensitive tools).
 	for _, t := range a.registry.Tools() {
 		if isHandoffTool(t.Name) {
+			continue
+		}
+		if isSensitiveTool(t.Name) {
+			slog.Warn("inheritRuntime: skipping sensitive tool",
+				"tool", t.Name, "source", a.config.Name, "target", target.config.Name)
 			continue
 		}
 		target.registry.Register(t)
@@ -330,6 +335,18 @@ func (a *Agent) inheritRuntime(ctx context.Context, target *Agent) {
 
 func isHandoffTool(name string) bool {
 	return strings.HasPrefix(name, "transfer_to_")
+}
+
+// isSensitiveTool returns true for tools that should not be inherited by
+// a lower-trust target agent during Transfer-mode handoff.
+func isSensitiveTool(name string) bool {
+	sensitivePrefixes := []string{"bash", "write", "delete", "edit", "file_", "computer"}
+	for _, p := range sensitivePrefixes {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // isHandoffAllowed checks whether the source agent is in the target's

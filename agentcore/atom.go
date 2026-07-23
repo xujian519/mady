@@ -146,6 +146,9 @@ func init() {
 // RegisterAtom adds an atom to the global registry.
 // Duplicate names silently overwrite the previous registration.
 func RegisterAtom(a Atom) {
+	if a.Name() == "" {
+		panic("atom: cannot register atom with empty name")
+	}
 	atomRegistryMu.Lock()
 	defer atomRegistryMu.Unlock()
 	atomRegistry[a.Name()] = a

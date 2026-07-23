@@ -200,8 +200,8 @@ func New(cfg Config) *Agent {
 		registry:      reg,
 		eventBus:      NewEventBus(),
 		ownsEventBus:  true,
-		steering:      newMessageQueue(cfg.SteeringMode),
-		followUp:      newMessageQueue(cfg.FollowUpMode),
+		steering:      newMessageQueue(cfg.SteeringMode, 0),
+		followUp:      newMessageQueue(cfg.FollowUpMode, 0),
 		extensions:    NewExtensionRegistry(),
 		contextEngine: ctxEngine,
 		engineReg:     engineReg,
@@ -384,12 +384,12 @@ func (a *Agent) InvokeTool(ctx context.Context, name string, args json.RawMessag
 
 // Steer injects a message that will be picked up before the next LLM call.
 // Use this to redirect or interrupt the agent mid-conversation.
-func (a *Agent) Steer(msg Message) { a.steering.Push(msg) }
+func (a *Agent) Steer(msg Message) { _ = a.steering.Push(msg) }
 
 // FollowUp queues a message that will be processed after the current
 // conversation finishes (no more tool calls). The agent loop restarts
 // with the follow-up as new input.
-func (a *Agent) FollowUp(msg Message) { a.followUp.Push(msg) }
+func (a *Agent) FollowUp(msg Message) { _ = a.followUp.Push(msg) }
 
 // --- extensions ---
 

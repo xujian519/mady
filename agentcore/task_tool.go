@@ -143,7 +143,6 @@ func TaskToolWithDepth(name string, options []TaskOption, maxDepth int) *Tool {
 func TaskToolFromConfigs(name string, configs []Config) *Tool {
 	options := make([]TaskOption, len(configs))
 	for i, cfg := range configs {
-		cfg := cfg
 		name := cfg.Name
 		if name == "" {
 			name = fmt.Sprintf("sub_agent_%d", i)

@@ -2,8 +2,8 @@ package specdrafting
 
 import (
 	"context"
+	"strings"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -71,7 +71,7 @@ func loadInputNode() graph.PregelNode {
 
 // classifyDomainNode 细化技术领域分类。
 // 即使 input.TechDomain 已设置，也执行关键词重分类以覆盖 DomainGeneral 等情况。
-func classifyDomainNode(provider agentcore.Provider) graph.PregelNode {
+func classifyDomainNode() graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		if stateHasSkip(state) {
 			return state, nil
@@ -95,7 +95,7 @@ func classifyDomainNode(provider agentcore.Provider) graph.PregelNode {
 }
 
 // draftTitleNode 生成发明/实用新型名称。
-func draftTitleNode(provider agentcore.Provider) graph.PregelNode {
+func draftTitleNode(_ *SpecBuilder) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		if stateHasSkip(state) {
 			return state, nil
@@ -119,7 +119,7 @@ func draftTitleNode(provider agentcore.Provider) graph.PregelNode {
 }
 
 // draftTechFieldNode 生成技术领域章节。
-func draftTechFieldNode(provider agentcore.Provider) graph.PregelNode {
+func draftTechFieldNode(builder *SpecBuilder) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		if stateHasSkip(state) {
 			return state, nil
@@ -129,7 +129,6 @@ func draftTechFieldNode(provider agentcore.Provider) graph.PregelNode {
 			return state, nil
 		}
 
-		builder := NewSpecBuilder(nil)
 		content := builder.defaultTechField(*input, input.TechDomain)
 		state[StateKeyTechField] = content
 		return state, nil
@@ -137,7 +136,7 @@ func draftTechFieldNode(provider agentcore.Provider) graph.PregelNode {
 }
 
 // draftBackgroundNode 生成背景技术章节。
-func draftBackgroundNode(provider agentcore.Provider) graph.PregelNode {
+func draftBackgroundNode(builder *SpecBuilder) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		if stateHasSkip(state) {
 			return state, nil
@@ -146,7 +145,6 @@ func draftBackgroundNode(provider agentcore.Provider) graph.PregelNode {
 		if input == nil {
 			return state, nil
 		}
-		builder := NewSpecBuilder(nil)
 		content := builder.defaultBackground(*input)
 		state[StateKeyBackground] = content
 		return state, nil
@@ -154,7 +152,7 @@ func draftBackgroundNode(provider agentcore.Provider) graph.PregelNode {
 }
 
 // draftContentNode 生成发明内容章节（问题+方案+效果）。
-func draftContentNode(provider agentcore.Provider) graph.PregelNode {
+func draftContentNode(builder *SpecBuilder) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		if stateHasSkip(state) {
 			return state, nil
@@ -163,7 +161,6 @@ func draftContentNode(provider agentcore.Provider) graph.PregelNode {
 		if input == nil {
 			return state, nil
 		}
-		builder := NewSpecBuilder(nil)
 		content := builder.defaultContent(*input, input.TechDomain)
 		state[StateKeyContent] = content
 		return state, nil
@@ -171,7 +168,7 @@ func draftContentNode(provider agentcore.Provider) graph.PregelNode {
 }
 
 // draftDrawingsNode 生成附图说明章节。
-func draftDrawingsNode(provider agentcore.Provider) graph.PregelNode {
+func draftDrawingsNode(builder *SpecBuilder) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		if stateHasSkip(state) {
 			return state, nil
@@ -180,7 +177,6 @@ func draftDrawingsNode(provider agentcore.Provider) graph.PregelNode {
 		if input == nil {
 			return state, nil
 		}
-		builder := NewSpecBuilder(nil)
 		content := builder.defaultDrawings(*input)
 		state[StateKeyDrawings] = content
 		return state, nil
@@ -188,7 +184,7 @@ func draftDrawingsNode(provider agentcore.Provider) graph.PregelNode {
 }
 
 // draftEmbodimentNode 生成具体实施方式章节。
-func draftEmbodimentNode(provider agentcore.Provider) graph.PregelNode {
+func draftEmbodimentNode(builder *SpecBuilder) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		if stateHasSkip(state) {
 			return state, nil
@@ -197,7 +193,6 @@ func draftEmbodimentNode(provider agentcore.Provider) graph.PregelNode {
 		if input == nil {
 			return state, nil
 		}
-		builder := NewSpecBuilder(nil)
 		content := builder.defaultEmbodiment(*input, input.TechDomain)
 		state[StateKeyEmbodiment] = content
 		return state, nil
@@ -205,7 +200,7 @@ func draftEmbodimentNode(provider agentcore.Provider) graph.PregelNode {
 }
 
 // draftAbstractNode 生成摘要。
-func draftAbstractNode(provider agentcore.Provider) graph.PregelNode {
+func draftAbstractNode(builder *SpecBuilder) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		if stateHasSkip(state) {
 			return state, nil
@@ -218,7 +213,6 @@ func draftAbstractNode(provider agentcore.Provider) graph.PregelNode {
 		title, _ := state[StateKeyTitle].(string)
 		inputCopy := *input
 		inputCopy.Title = title
-		builder := NewSpecBuilder(nil)
 		abstract := builder.buildAbstract(inputCopy, nil)
 		state[StateKeyAbstract] = abstract
 		return state, nil
@@ -412,7 +406,7 @@ func classifyDomain(input *SpecInput) TechDomain {
 func countKeys(text string, keys []string) int {
 	n := 0
 	for _, k := range keys {
-		if containsStr(text, k) {
+		if strings.Contains(text, k) {
 			n++
 		}
 	}

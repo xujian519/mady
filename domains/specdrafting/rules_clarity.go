@@ -1,5 +1,7 @@
 package specdrafting
 
+import "strings"
+
 // =============================================================================
 // 清楚性规则（4 条）
 // =============================================================================
@@ -62,14 +64,14 @@ func (r *clarityPFEConsistencyRule) Check(spec *SpecOutput, input SpecInput) []V
 	var issues []Violation
 	hasProblem := false
 	for _, p := range input.Problems {
-		if p != "" && containsStr(content, truncStr(p, 20)) {
+		if p != "" && strings.Contains(content, truncStr(p, 20)) {
 			hasProblem = true
 			break
 		}
 	}
 	hasEffect := false
 	for _, e := range input.Effects {
-		if e != "" && containsStr(content, truncStr(e, 20)) {
+		if e != "" && strings.Contains(content, truncStr(e, 20)) {
 			hasEffect = true
 			break
 		}
@@ -105,7 +107,7 @@ func (r *clarityTermConsistencyRule) Check(spec *SpecOutput, _ SpecInput) []Viol
 	}
 	citations := 0
 	for _, sec := range spec.Sections {
-		if sec.Content != "" && containsStr(sec.Content, truncStr(title, 10)) {
+		if sec.Content != "" && strings.Contains(sec.Content, truncStr(title, 10)) {
 			citations++
 		}
 	}

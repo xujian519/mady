@@ -3,6 +3,7 @@ package agentcore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -80,6 +81,7 @@ func NewExtensionRegistry() *ExtensionRegistry {
 func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...Extension) error {
 	for _, ext := range exts {
 		if err := ext.Init(ctx, agent); err != nil {
+			agent.configErr = fmt.Errorf("extension registration failed: %w", err)
 			// 逆序 Dispose 已成功 Init 的扩展，释放资源。
 			r.mu.Lock()
 			for i := len(r.extensions) - 1; i >= 0; i-- {

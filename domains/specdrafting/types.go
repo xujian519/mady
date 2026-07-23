@@ -116,7 +116,8 @@ type SpecOutput struct {
 	Abstract  string        `json:"abstract"` // 说明书摘要（不超过300字）
 	Sections  []SpecSection `json:"sections"` // 各章节内容（有序）
 	Warnings  []string      `json:"warnings,omitempty"`
-	Score     float64       `json:"score,omitempty"` // 综合质量评分（0-100）
+	Score     float64       `json:"score,omitempty"`    // 综合质量评分（0-100）
+	Degraded  bool          `json:"degraded,omitempty"` // true 表示输出来自降级路径（非 LLM 增强）
 	Metadata  SpecMetadata  `json:"metadata"`
 	Timestamp string        `json:"timestamp"`
 }

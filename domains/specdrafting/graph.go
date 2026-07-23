@@ -3,7 +3,6 @@ package specdrafting
 import (
 	"fmt"
 
-	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -28,13 +27,10 @@ import (
 //	  → score
 //	  → finalize → __end__
 //
-// 每个撰写节点有两种模式：
-//   - LLM 模式：provider 可用时，使用 LLM Agent（Temperature=0.2, MaxTurns=1）
-//   - 降级模式：provider 为 nil 时，使用 SpecBuilder 模板填充
-//
+// 所有撰写节点使用 SpecBuilder 模板填充生成内容。
 // validate 和 score 节点使用规则引擎和评分器对生成结果进行校验。
-// 可通过 GraphOption 注入自定义的规则引擎和评分器。
-func BuildSpecificationGraph(provider agentcore.Provider, engine *RuleEngine, scorer *SpecScorer) (*graph.CompiledPregelGraph, error) {
+// engine 和 scorer 为 nil 时使用默认实现。
+func BuildSpecificationGraph(engine *RuleEngine, scorer *SpecScorer) (*graph.CompiledPregelGraph, error) {
 	pg := graph.NewPregelGraph()
 
 	// 默认引擎
@@ -46,16 +42,19 @@ func BuildSpecificationGraph(provider agentcore.Provider, engine *RuleEngine, sc
 		scorer = NewSpecScorer(engine)
 	}
 
+	// 共享 Builder 实例（避免各节点重复创建）
+	builder := NewSpecBuilder(nil)
+
 	nodes := map[string]graph.PregelNode{
 		"load_input":       loadInputNode(),
-		"classify_domain":  classifyDomainNode(provider),
-		"draft_title":      draftTitleNode(provider),
-		"draft_tech_field": draftTechFieldNode(provider),
-		"draft_background": draftBackgroundNode(provider),
-		"draft_content":    draftContentNode(provider),
-		"draft_drawings":   draftDrawingsNode(provider),
-		"draft_embodiment": draftEmbodimentNode(provider),
-		"draft_abstract":   draftAbstractNode(provider),
+		"classify_domain":  classifyDomainNode(),
+		"draft_title":      draftTitleNode(builder),
+		"draft_tech_field": draftTechFieldNode(builder),
+		"draft_background": draftBackgroundNode(builder),
+		"draft_content":    draftContentNode(builder),
+		"draft_drawings":   draftDrawingsNode(builder),
+		"draft_embodiment": draftEmbodimentNode(builder),
+		"draft_abstract":   draftAbstractNode(builder),
 		"validate":         validateNode(engine),
 		"score":            scoreNode(scorer),
 		"finalize":         finalizeNode(),
@@ -89,35 +88,4 @@ func BuildSpecificationGraph(provider agentcore.Provider, engine *RuleEngine, sc
 	}
 
 	return pg.Compile("load_input", 30)
-}
-
-// GraphOption 配置可选的图参数（预留扩展）。
-type GraphOption func(*graphConfig)
-
-type graphConfig struct {
-	engine *RuleEngine
-	scorer *SpecScorer
-}
-
-// WithRuleEngine 注入自定义规则引擎。
-func WithRuleEngine(engine *RuleEngine) GraphOption {
-	return func(c *graphConfig) {
-		c.engine = engine
-	}
-}
-
-// WithScorer 注入自定义评分器。
-func WithScorer(scorer *SpecScorer) GraphOption {
-	return func(c *graphConfig) {
-		c.scorer = scorer
-	}
-}
-
-// BuildSpecGraphWithOpts 使用选项构建图。
-func BuildSpecGraphWithOpts(provider agentcore.Provider, opts ...GraphOption) (*graph.CompiledPregelGraph, error) {
-	cfg := &graphConfig{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-	return BuildSpecificationGraph(provider, cfg.engine, cfg.scorer)
 }

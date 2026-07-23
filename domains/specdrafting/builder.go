@@ -1,6 +1,10 @@
 package specdrafting
 
-import "github.com/xujian519/mady/domains/doctmpl"
+import (
+	"strings"
+
+	"github.com/xujian519/mady/domains/doctmpl"
+)
 
 // SpecBuilder 模板组装引擎，当 LLM 不可用时作为降级路径。
 type SpecBuilder struct {
@@ -319,7 +323,7 @@ func parseSections(md string, _ SpecInput) []SpecSection {
 				}
 				j++
 			}
-			content := stringsTrimSpace(string(runes[contentStart:j]))
+			content := strings.TrimSpace(string(runes[contentStart:j]))
 
 			// 映射章节名
 			if name, ok := sectionTitleMap[titleText]; ok && content != "" {
@@ -339,22 +343,6 @@ func parseSections(md string, _ SpecInput) []SpecSection {
 		return nil
 	}
 	return sections
-}
-
-// stringsTrimSpace 移除首尾空白（替代标准库 strings.TrimSpace 避免导入）。
-func stringsTrimSpace(s string) string {
-	runes := []rune(s)
-	start, end := 0, len(runes)
-	for start < end && (runes[start] == ' ' || runes[start] == '\t' || runes[start] == '\n' || runes[start] == '\r') {
-		start++
-	}
-	for end > start && (runes[end-1] == ' ' || runes[end-1] == '\t' || runes[end-1] == '\n' || runes[end-1] == '\r') {
-		end--
-	}
-	if start >= end {
-		return ""
-	}
-	return string(runes[start:end])
 }
 
 func firstOr(strs []string, def string) string {

@@ -153,6 +153,9 @@ func (e *skillExtension) AfterModelCall(_ context.Context, arc *AgentRunContext,
 	mcc.Response.Blocks = nil
 	mcc.Response.Structured = nil
 	mcc.Response.SuppressPersist = true
+	// SuppressPersist only suppresses persist of this model response.
+	// FollowUp messages injected below go through Agent.FollowUp() →
+	// AddMessage(), which is NOT affected by this flag.
 }
 
 func (e *skillExtension) availableNames() []string {

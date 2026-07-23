@@ -29,9 +29,29 @@ func TestDefaultClassifier(t *testing.T) {
 func TestDefaultClassifier_HistoryBump(t *testing.T) {
 	c := NewDefaultClassifier()
 	msgs := make([]Message, c.HistoryTurnsForHigh)
+	for i := range msgs {
+		msgs[i] = Message{Role: RoleUser, Content: "prior turn"}
+	}
 	got := c.Classify("short", msgs)
 	if got != ComplexityMedium {
-		t.Fatalf("long history should bump Low→Medium, got %s", got)
+		t.Fatalf("long history with %d user messages should bump Low→Medium, got %s", c.HistoryTurnsForHigh, got)
+	}
+}
+
+func TestDefaultClassifier_HistoryBump_NonUserIgnored(t *testing.T) {
+	c := NewDefaultClassifier()
+	// system + tool messages should NOT trigger the history bump.
+	msgs := make([]Message, c.HistoryTurnsForHigh)
+	for i := range msgs {
+		if i%2 == 0 {
+			msgs[i] = Message{Role: RoleSystem, Content: "system prompt"}
+		} else {
+			msgs[i] = Message{Role: RoleTool, Content: `{"result":"ok"}`}
+		}
+	}
+	got := c.Classify("short", msgs)
+	if got != ComplexityLow {
+		t.Fatalf("non-user messages should NOT trigger history bump, got %s", got)
 	}
 }
 

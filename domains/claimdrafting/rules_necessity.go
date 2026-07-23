@@ -163,7 +163,7 @@ func extractTechnicalTerms(text string) []string {
 }
 
 func isStopTerm(s string) bool {
-	stops := []string{"所述", "包括", "其特征在于", "其特征在于", "一种", "及", "和", "与", "或",
+	stops := []string{"所述", "包括", "其特征在于", "一种", "及", "和", "与", "或",
 		"该", "其", "之", "的", "了", "在于", "特征", "属于", "用于", "按照",
 		"其中", "之间", "以上", "以下", "至少", "根据", "一个", "同时", "另外", "不是"}
 	for _, stop := range stops {

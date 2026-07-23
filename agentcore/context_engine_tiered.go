@@ -2,6 +2,8 @@ package agentcore
 
 import (
 	"context"
+	"log/slog"
+	"sync"
 	"time"
 )
 
@@ -29,6 +31,9 @@ const (
 type TieredEngine struct {
 	// Embedded compressor for force-fold level
 	compressor *CompressorEngine
+
+	// mu protects all mutable state fields below.
+	mu sync.Mutex
 
 	// Configuration
 	contextLength    int64
@@ -74,19 +79,21 @@ func NewTieredEngine(cfg ContextEngineConfig) ContextEngine {
 	}
 	// Create embedded compressor for force-fold
 	e.compressor = &CompressorEngine{
-		model:              cfg.Model,
-		provider:           cfg.Provider,
-		contextLength:      cfg.ContextWindow,
-		thresholdPercent:   cfg.CompressionThreshold,
-		protectFirstN:      cfg.ProtectFirstN,
-		keepRecentTokens:   cfg.KeepRecentTokens,
-		structured:         cfg.StructuredCompaction,
-		autoCompactLimit:   cfg.AutoCompactLimit,
-		compressionModel:   cfg.CompressionModel,
-		compressionProv:    cfg.CompressionProvider,
-		compressionBaseURL: cfg.CompressionBaseURL,
-		compressionAPIKey:  cfg.CompressionAPIKey,
-		state:              newCompactionState(),
+		model:                  cfg.Model,
+		provider:               cfg.Provider,
+		contextLength:          cfg.ContextWindow,
+		thresholdPercent:       cfg.CompressionThreshold,
+		protectFirstN:          cfg.ProtectFirstN,
+		keepRecentTokens:       cfg.KeepRecentTokens,
+		structured:             cfg.StructuredCompaction,
+		autoCompactLimit:       cfg.AutoCompactLimit,
+		compressionModel:       cfg.CompressionModel,
+		compressionProv:        cfg.CompressionProvider,
+		compressionBaseURL:     cfg.CompressionBaseURL,
+		compressionAPIKey:      cfg.CompressionAPIKey,
+		summaryFailureCooldown: summaryFailureCooldownSeconds * time.Second,
+		ineffectiveCooldown:    ineffectiveCompactionCooldownSeconds * time.Second,
+		state:                  newCompactionState(),
 	}
 	return e
 }
@@ -99,8 +106,10 @@ func (e *TieredEngine) OnSessionStart(ctx context.Context, model string, context
 }
 
 func (e *TieredEngine) OnSessionReset() {
+	e.mu.Lock()
 	e.compressionCnt = 0
 	e.processed = map[int]string{}
+	e.mu.Unlock()
 	e.compressor.OnSessionReset()
 }
 
@@ -130,6 +139,14 @@ func (e *TieredEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition, 
 	}
 	estimated := EstimateMessagesTokens(msgs) + EstimateToolDefinitionsTokens(toolDefs)
 	ratio := float64(estimated) / float64(contextWindow)
+	if ratio >= 0.5 && ratio < e.snipRatio {
+		slog.Warn("tiered: context usage entering soft-notice phase",
+			"usage_pct", int(ratio*100),
+			"threshold_pct", int(e.snipRatio*100),
+			"estimated_tokens", estimated,
+			"context_window", contextWindow,
+		)
+	}
 	return ratio >= e.snipRatio
 }
 
@@ -173,8 +190,10 @@ func (e *TieredEngine) forceFold(ctx context.Context, msgs []Message, focusTopic
 	if err != nil {
 		return msgs, 0, err
 	}
+	e.mu.Lock()
 	e.compressionCnt++
 	e.processed = map[int]string{} // reset tracking after full fold
+	e.mu.Unlock()
 	e.updateSavings(saved, displayTokens)
 	return result, saved, nil
 }
@@ -193,14 +212,19 @@ func (e *TieredEngine) snipMessages(msgs []Message) []Message {
 	result := deepCopyMessages(msgs)
 
 	for i := 0; i < tailStart && i < len(result); i++ {
-		if e.processed[i] == "snipped" || e.processed[i] == "pruned" {
+		e.mu.Lock()
+		status := e.processed[i]
+		e.mu.Unlock()
+		if status == "snipped" || status == "pruned" {
 			continue
 		}
 		headChars, tailChars := e.snipThresholdsForRole(result[i].Role)
 		snipped := SnipMessageContent(result[i].Content, headChars, tailChars)
 		if snipped != result[i].Content {
 			result[i].Content = snipped
+			e.mu.Lock()
 			e.processed[i] = "snipped"
+			e.mu.Unlock()
 		}
 	}
 
@@ -229,7 +253,10 @@ func (e *TieredEngine) pruneToolResults(msgs []Message) []Message {
 		if result[i].Role != RoleTool {
 			continue
 		}
-		if e.processed[i] == "pruned" {
+		e.mu.Lock()
+		status := e.processed[i]
+		e.mu.Unlock()
+		if status == "pruned" {
 			continue
 		}
 		content := result[i].Content
@@ -237,7 +264,9 @@ func (e *TieredEngine) pruneToolResults(msgs []Message) []Message {
 			continue // too short to prune
 		}
 		result[i].Content = "[旧工具输出已清除以节省上下文空间]"
+		e.mu.Lock()
 		e.processed[i] = "pruned"
+		e.mu.Unlock()
 	}
 
 	return sanitizeToolPairs(result)
@@ -264,7 +293,9 @@ func (e *TieredEngine) findTailBoundary(msgs []Message) int {
 
 func (e *TieredEngine) updateSavings(saved, original int64) {
 	if original > 0 {
+		e.mu.Lock()
 		e.lastSavingsPct = float64(saved) / float64(original) * 100
+		e.mu.Unlock()
 	}
 }
 
@@ -276,9 +307,17 @@ func (e *TieredEngine) ThresholdTokens() int64 {
 	return int64(float64(e.contextLength) * e.snipRatio)
 }
 
-func (e *TieredEngine) CompressionCount() int64 { return e.compressionCnt }
+func (e *TieredEngine) CompressionCount() int64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.compressionCnt
+}
 
-func (e *TieredEngine) LastSavingsPct() float64 { return e.lastSavingsPct }
+func (e *TieredEngine) LastSavingsPct() float64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.lastSavingsPct
+}
 
 func (e *TieredEngine) CheckFeasibility(mainModelContextLength int64) string {
 	return e.compressor.CheckFeasibility(mainModelContextLength)

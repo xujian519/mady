@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -41,7 +42,7 @@ const summaryTokensCeiling = 12000
 
 const summaryFailureCooldownSeconds = 600
 
-// ineffectiveCompactionCooldownSeconds defines the cooldown period after
+// ineffectiveCompactionCooldownSeconds defines the default cooldown period after
 // which the ineffective-compaction circuit breaker resets. Without this,
 // two consecutive low-savings compactions would permanently disable
 // compaction for the entire session, leading to context overflow.
@@ -66,6 +67,8 @@ const (
 )
 
 type compactionState struct {
+	mu sync.Mutex
+
 	previousSummary        string
 	lastSavingsPct         float64
 	ineffectiveCompactions int
@@ -109,14 +112,16 @@ func shouldCompact(msgs []Message, toolDefs []ToolDefinition, contextWindow int6
 	if contextWindow <= 0 {
 		return false
 	}
-	if compState != nil && time.Now().Before(compState.summaryFailureCooldown) {
-		return false
-	}
-	if compState != nil && compState.ineffectiveCompactions >= 2 {
-		// Time-based recovery: if the cooldown has elapsed, allow compaction
-		// to proceed. The counter is reset in runCompaction when it actually
-		// begins — not here, to keep this predicate side-effect-free.
-		if time.Now().Before(compState.ineffectiveCooldownUntil) {
+	if compState != nil {
+		compState.mu.Lock()
+		cooldownActive := time.Now().Before(compState.summaryFailureCooldown)
+		ineffectiveBlocking := compState.ineffectiveCompactions >= 2 &&
+			time.Now().Before(compState.ineffectiveCooldownUntil)
+		compState.mu.Unlock()
+		if cooldownActive {
+			return false
+		}
+		if ineffectiveBlocking {
 			return false
 		}
 	}
@@ -268,6 +273,16 @@ type CompactionParams struct {
 	// the pre-flight uses the main model's (larger) budget, which is
 	// conservative-safe (over-truncates slightly) but never under-protects.
 	ContextWindow int64
+
+	// SummaryFailureCooldown is the cooldown duration after a summary
+	// generation failure. During the cooldown, compaction is skipped to
+	// avoid tight retry loops. Default is 600s.
+	SummaryFailureCooldown time.Duration
+
+	// IneffectiveCooldown is the cooldown duration after two consecutive
+	// low-savings compactions. Prevents thrashing when compaction is not
+	// beneficial. Default is 300s.
+	IneffectiveCooldown time.Duration
 }
 
 func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
@@ -284,9 +299,13 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 	// Reset the ineffective-compaction breaker now that we are actually
 	// proceeding with a compaction. shouldCompact only checks the cooldown;
 	// the reset happens here to keep that predicate side-effect-free.
-	if compState != nil && compState.ineffectiveCompactions >= 2 &&
-		time.Now().After(compState.ineffectiveCooldownUntil) {
-		compState.ineffectiveCompactions = 0
+	if compState != nil {
+		compState.mu.Lock()
+		if compState.ineffectiveCompactions >= 2 &&
+			time.Now().After(compState.ineffectiveCooldownUntil) {
+			compState.ineffectiveCompactions = 0
+		}
+		compState.mu.Unlock()
 	}
 
 	nMessages := len(msgs)
@@ -338,8 +357,12 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 
 	var turnsToSummarize []Message
 	if summaryIdx >= 0 {
-		if summaryBody != "" && compState != nil && compState.previousSummary == "" {
-			compState.previousSummary = summaryBody
+		if summaryBody != "" && compState != nil {
+			compState.mu.Lock()
+			if compState.previousSummary == "" {
+				compState.previousSummary = summaryBody
+			}
+			compState.mu.Unlock()
 		}
 		startIdx := compressStart
 		if summaryIdx+1 > startIdx {
@@ -383,8 +406,12 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 	displayTokens := EstimateMessagesTokens(msgs)
 
 	var prevSummaryContext string
-	if compState != nil && compState.previousSummary != "" {
-		prevSummaryContext = fmt.Sprintf("\n\nPrevious summary (iterative update):\n%s\n\n", compState.previousSummary)
+	if compState != nil {
+		compState.mu.Lock()
+		if compState.previousSummary != "" {
+			prevSummaryContext = fmt.Sprintf("\n\nPrevious summary (iterative update):\n%s\n\n", compState.previousSummary)
+		}
+		compState.mu.Unlock()
 	}
 
 	var sb strings.Builder
@@ -442,17 +469,25 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 		// slice — unrecoverable data loss on a transient provider error.
 		// Rely on summaryFailureCooldown to suppress tight retry loops.
 		if compState != nil {
+			compState.mu.Lock()
 			compState.previousSummary = ""
 			compState.lastSummaryError = err.Error()
-			compState.summaryFailureCooldown = time.Now().Add(time.Duration(summaryFailureCooldownSeconds) * time.Second)
+			cooldown := p.SummaryFailureCooldown
+			if cooldown <= 0 {
+				cooldown = summaryFailureCooldownSeconds * time.Second
+			}
+			compState.summaryFailureCooldown = time.Now().Add(cooldown)
+			compState.mu.Unlock()
 		}
 		return 0, fmt.Errorf("compaction summary generation failed: %w", err)
 	}
 
 	summaryContent := resp.Content
 	if compState != nil {
+		compState.mu.Lock()
 		compState.previousSummary = summaryContent
 		compState.lastSummaryError = ""
+		compState.mu.Unlock()
 	}
 
 	var summaryMsg Message
@@ -531,18 +566,22 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 		if displayTokens > 0 {
 			savingsPct = float64(savedEstimate) / float64(displayTokens) * 100
 		}
+		compState.mu.Lock()
 		compState.lastSavingsPct = savingsPct
 		if savingsPct < 10 {
 			compState.ineffectiveCompactions++
 			// When the breaker trips, set a cooldown so it can recover later.
 			if compState.ineffectiveCompactions >= 2 {
-				compState.ineffectiveCooldownUntil = time.Now().Add(
-					ineffectiveCompactionCooldownSeconds * time.Second,
-				)
+				cooldown := p.IneffectiveCooldown
+				if cooldown <= 0 {
+					cooldown = ineffectiveCompactionCooldownSeconds * time.Second
+				}
+				compState.ineffectiveCooldownUntil = time.Now().Add(cooldown)
 			}
 		} else {
 			compState.ineffectiveCompactions = 0
 		}
+		compState.mu.Unlock()
 	}
 
 	return compressEnd - compressStart, nil

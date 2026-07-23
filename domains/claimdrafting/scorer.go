@@ -50,12 +50,24 @@ func (s *ClaimScorer) Score(claims []Claim, input DraftInput) *ScoreReport {
 	}
 }
 
+// severityPenalty 按违规严重程度定义扣分权重。
+var severityPenalty = map[Severity]float64{
+	SeverityError:   20,
+	SeverityWarning: 10,
+	SeverityInfo:    5,
+}
+
 // calcDimensionScores 计算各维度得分（0-100 分）。
+// 按违规严重程度差异化扣分：error 扣 20、warning 扣 10、info 扣 5。
 func (s *ClaimScorer) calcDimensionScores(_ []Claim, violations []Violation) map[string]float64 {
-	// 统计各规则的违规数量
-	ruleViolations := make(map[string]int)
+	// 按严重程度加权统计各规则的违规扣分
+	rulePenalty := make(map[string]int)
 	for _, v := range violations {
-		ruleViolations[v.RuleName]++
+		penalty, ok := severityPenalty[v.Severity]
+		if !ok {
+			penalty = 20 // 未知严重程度按 Error 处理
+		}
+		rulePenalty[v.RuleName] += int(penalty)
 	}
 
 	// 维度与规则的对应关系
@@ -71,12 +83,11 @@ func (s *ClaimScorer) calcDimensionScores(_ []Claim, violations []Violation) map
 
 	scores := make(map[string]float64)
 	for dim, rules := range dimensionRules {
-		dimViolations := 0
+		var totalPenalty int
 		for _, rule := range rules {
-			dimViolations += ruleViolations[rule]
+			totalPenalty += rulePenalty[rule]
 		}
-		// 每个违规扣 20 分，最多扣到 0
-		scores[dim] = max(0, 100.0-float64(dimViolations)*20.0)
+		scores[dim] = max(0, 100.0-float64(totalPenalty))
 	}
 
 	return scores

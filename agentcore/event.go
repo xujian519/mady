@@ -46,10 +46,11 @@ type EventBus struct {
 
 func NewEventBus() *EventBus {
 	eb := &EventBus{
-		handlers: make(map[EventType]map[uint64]EventHandler),
-		global:   make(map[uint64]EventHandler),
-		broker:   NewBroker[Event](),
-		done:     make(chan struct{}),
+		drainTimeout: 5 * time.Second,
+		handlers:     make(map[EventType]map[uint64]EventHandler),
+		global:       make(map[uint64]EventHandler),
+		broker:       NewBroker[Event](),
+		done:         make(chan struct{}),
 	}
 	ready := make(chan struct{})
 	go eb.dispatch(ready)
@@ -160,6 +161,9 @@ func (eb *EventBus) offID(t EventType, id uint64) {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 	delete(eb.handlers[t], id)
+	if len(eb.handlers[t]) == 0 {
+		delete(eb.handlers, t)
+	}
 }
 
 // offAllID removes a global handler by its registration ID. Idempotent.

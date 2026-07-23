@@ -74,7 +74,7 @@ func (r *clarityWordingRule) Check(claims []Claim, _ DraftInput) []Violation {
 // =============================================================================
 
 // clarityForbiddenWordsRule 检查是否使用了"例如""最好是"等非限定性用语。
-// 依据：审查指南第二部分第二章§3.2.2。
+// 依据：专利法第26条第4款；审查指南第二部分第二章§3.2.2。
 type clarityForbiddenWordsRule struct{ baseRule }
 
 func (r *clarityForbiddenWordsRule) Check(claims []Claim, _ DraftInput) []Violation {

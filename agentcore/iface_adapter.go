@@ -2,6 +2,8 @@ package agentcore
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/xujian519/mady/agentcore/iface"
@@ -32,6 +34,9 @@ func (a *agentRunnerAdapter) Continue(ctx context.Context) (string, error) {
 }
 
 func (a *agentRunnerAdapter) Resume(ctx context.Context, interruptData map[string]any) (string, error) {
+	if len(interruptData) > 0 {
+		slog.Warn("iface_adapter: Resume interruptData is not forwarded to agentcore Agent")
+	}
 	return a.inner.Resume(ctx)
 }
 
@@ -214,7 +219,8 @@ func (a *ifaceLifecycleHookAdapter) AfterModelCall(ctx context.Context, arc *Age
 			mcc.Response.Content = ifaceMCC.Content
 		}
 		if ifaceMCC.Blocked {
-			mcc.Err = NewNodeError("内容安全检查未通过", nil, "guardrail", "blocked")
+			err := NewNodeError("内容安全检查未通过", nil, "guardrail", "blocked")
+			mcc.Err = errors.Join(mcc.Err, err)
 		}
 	}
 }

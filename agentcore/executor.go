@@ -208,7 +208,10 @@ func (e *Executor) coreExecute(ctx context.Context, tc ToolCall) (string, error)
 		if dual.ForLLM != "" {
 			return dual.ForLLM, nil
 		}
-		return dual.ForUser, nil
+		if dual.ForUser != "" {
+			return dual.ForUser, nil
+		}
+		return "[empty]", nil
 	}
 
 	if str, ok := result.(string); ok {
@@ -318,6 +321,7 @@ func (e *Executor) executeSerial(ctx context.Context, calls []ToolCall, state *A
 					ToolCallID: calls[j].ID,
 					ToolName:   calls[j].Name,
 					Result:     "工具执行被中断",
+					Terminate:  true,
 				}
 			}
 			return results

@@ -610,3 +610,153 @@ func TestBroker_SubscribeAfterShutdown_ReturnsClosedChannel(t *testing.T) {
 		t.Fatal("Subscribe after Shutdown should return an immediately closed channel")
 	}
 }
+
+// --- 新增测试：Broker MustDeliver 超时行为 ---
+
+func TestBroker_MustDeliverTimeout(t *testing.T) {
+	// Create a broker with a tiny buffer (capacity 1) and short timeout (10ms).
+	b := NewBrokerWithOptions[Event](1)
+	b.SetMustDeliverTimeout(10 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// Subscribe a single slow subscriber.
+	_ = b.Subscribe(ctx)
+
+	// Fill the subscriber buffer.
+	b.Publish(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+
+	// The buffer is now full. PublishMustDeliver should time out on the
+	// slow (non-reading) subscriber, incrementing MustDeliverDropCount.
+	b.PublishMustDeliver(ctx, &AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+
+	if count := b.MustDeliverDropCount(); count == 0 {
+		t.Fatal("MustDeliverDropCount = 0, expected > 0 when subscriber buffer is full")
+	}
+
+	b.Shutdown()
+}
+
+func TestBroker_MustDeliverTimeout_MultipleSubscribers(t *testing.T) {
+	b := NewBrokerWithOptions[Event](1)
+	b.SetMustDeliverTimeout(10 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// Fast subscriber: reads events immediately.
+	fastCh := b.Subscribe(ctx)
+
+	// Slow subscriber: buffer fills up.
+	_ = b.Subscribe(ctx)
+
+	// Fill both subscriber buffers: one event for each.
+	b.Publish(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	b.Publish(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+
+	// Drain the fast subscriber so it can receive the next event.
+	<-fastCh
+	<-fastCh
+
+	// PublishMustDeliver should succeed for the fast subscriber (buffer empty)
+	// but time out for the slow one (buffer full).
+	b.PublishMustDeliver(ctx, &AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+
+	if count := b.MustDeliverDropCount(); count == 0 {
+		t.Fatal("MustDeliverDropCount = 0, expected > 0 when slow subscriber buffer is full")
+	}
+
+	// Fast subscriber should still have received the event.
+	select {
+	case <-fastCh:
+		// Success: fast subscriber got the event.
+	case <-time.After(time.Second):
+		t.Fatal("fast subscriber did not receive event within timeout")
+	}
+
+	b.Shutdown()
+}
+
+// --- 新增测试：Drain 超时行为 ---
+
+func TestEventBus_DrainTimeout_WithCustomTimeout(t *testing.T) {
+	eb := newTestEventBus()
+	defer eb.Close()
+
+	// Set a short drain timeout to verify Drain returns within it.
+	eb.SetDrainTimeout(5 * time.Millisecond)
+
+	var received atomic.Int32
+	eb.On(EventAgentStart, func(e Event) {
+		received.Add(1)
+		time.Sleep(100 * time.Millisecond) // slow handler
+	})
+
+	// Emit events that will be processed slowly.
+	for i := 0; i < 3; i++ {
+		eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	}
+
+	// Drain with short timeout should not block for the handler's full duration.
+	start := time.Now()
+	eb.Drain()
+	elapsed := time.Since(start)
+
+	// Should return well before 5 seconds (default).
+	if elapsed > 2*time.Second {
+		t.Fatalf("Drain took %v, expected to return quickly with 5ms timeout", elapsed)
+	}
+}
+
+func TestEventBus_DrainTimeout_FastHandlerSucceeds(t *testing.T) {
+	eb := newTestEventBus()
+	defer eb.Close()
+
+	eb.SetDrainTimeout(5 * time.Millisecond)
+
+	var received atomic.Int32
+	eb.On(EventAgentStart, func(e Event) {
+		received.Add(1)
+	})
+
+	n := 5
+	for i := 0; i < n; i++ {
+		eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	}
+
+	eb.Drain()
+
+	// All events should have been processed.
+	if got := received.Load(); int(got) != n {
+		t.Fatalf("received %d events, want %d", got, n)
+	}
+}
+
+func TestEventBus_DrainTimeout_AfterCloseReturnsQuickly(t *testing.T) {
+	eb := newTestEventBus()
+
+	eb.SetDrainTimeout(5 * time.Millisecond)
+
+	var received atomic.Int32
+	eb.On(EventAgentStart, func(e Event) {
+		received.Add(1)
+		time.Sleep(50 * time.Millisecond)
+	})
+
+	// Emit events and close immediately.
+	for i := 0; i < 5; i++ {
+		eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	}
+
+	eb.Close()
+
+	// Drain after close should return quickly.
+	start := time.Now()
+	eb.Drain()
+	elapsed := time.Since(start)
+
+	if elapsed > time.Second {
+		t.Fatalf("Drain after Close took %v, expected quick return", elapsed)
+	}
+}

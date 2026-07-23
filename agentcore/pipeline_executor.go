@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"runtime"
 )
 
 // PipelineExecutor runs a PluginManifest's pipeline by dispatching each stage
@@ -162,6 +164,12 @@ func (e *PipelineExecutor) Run(ctx context.Context, manifest *PluginManifest, in
 func (e *PipelineExecutor) executeStage(ctx context.Context, stage PluginStage, handler StageHandler, state PipelineState) (out PipelineState, err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			buf := make([]byte, 4096)
+			n := runtime.Stack(buf, false)
+			slog.Debug("pipeline: handler panic",
+				"stage", stage.ID,
+				"panic", r,
+				"stack", string(buf[:n]))
 			out = nil
 			err = fmt.Errorf("stage %q handler panic: %v", stage.ID, r)
 		}

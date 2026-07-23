@@ -22,7 +22,7 @@ func NewLLMDrafter(provider agentcore.Provider, builder *SpecBuilder) *LLMDrafte
 	d := &LLMDrafter{provider: provider, builder: builder}
 	if provider != nil {
 		// 预编译 Pregel 图
-		compiled, err := BuildSpecificationGraph(provider, nil, nil)
+		compiled, err := BuildSpecificationGraph(nil, nil)
 		if err == nil {
 			d.compiled = compiled
 		} else {
@@ -35,6 +35,8 @@ func NewLLMDrafter(provider agentcore.Provider, builder *SpecBuilder) *LLMDrafte
 // Draft 基于输入生成说明书。
 //   - LLM 模式：provider 可用且图编译成功时，执行 Pregel 图
 //   - 降级模式：回退到 Builder 模板填充
+//
+// 调用方可通过返回值的 Degraded 字段判断输出是否来自降级路径。
 func (d *LLMDrafter) Draft(input SpecInput) *SpecOutput {
 	if d.compiled != nil {
 		state, err := d.compiled.Run(context.Background(), graph.PregelState{
@@ -42,17 +44,22 @@ func (d *LLMDrafter) Draft(input SpecInput) *SpecOutput {
 		})
 		if err == nil {
 			if output, ok := state[StateKeyOutput].(*SpecOutput); ok && output != nil {
+				output.Degraded = false
 				return output
 			}
 		}
-		log.Printf("specdrafting: Pregel 图执行失败（将降级为 Builder）: %v", err)
+		log.Printf("specdrafting: Pregel 图执行失败（err=%v），降级为 Builder", err)
 	}
 
 	// 降级路径
+	var output *SpecOutput
 	if d.builder != nil {
-		return d.builder.Build(input)
+		output = d.builder.Build(input)
+	} else {
+		output = NewSpecBuilder(nil).Build(input)
 	}
-	return NewSpecBuilder(nil).Build(input)
+	output.Degraded = true
+	return output
 }
 
 // DraftAvailable 返回是否可以执行 LLM 撰写。

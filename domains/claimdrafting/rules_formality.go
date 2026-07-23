@@ -72,31 +72,43 @@ func (r *formalityNoIllustrationRule) Check(claims []Claim, _ DraftInput) []Viol
 	var violations []Violation
 	for _, c := range claims {
 		text := c.String()
-		// 检测常见插图标记
-		if strings.Contains(text, "如图") || strings.Contains(text, "图") {
-			// 允许引用附图标记（如"图1"在括号内）
-			// 简单检查：不在括号内的"图"字视为引用不当
-			hasIllegalFigRef := false
-			lines := strings.Split(text, "\n")
-			for _, line := range lines {
-				if strings.Contains(line, "如图") && !strings.Contains(line, "（") {
-					hasIllegalFigRef = true
-					break
-				}
-			}
-			if hasIllegalFigRef {
-				violations = append(violations, Violation{
-					RuleName:    r.Name(),
-					RuleBasis:   r.LegalBasis(),
-					Severity:    SeverityError,
-					ClaimNumber: c.Number,
-					Message:     "权利要求中不得包含'如图……所示'等引用附图的表述（除非是括号内的附图标记）",
-					Suggestion:  "删除'如图……所示'等表述，或将其替换为技术特征的直接描述",
-				})
-			}
+		// 检测常见插图引用标记
+		// 先拍平换行以应对跨行写法（如"如图 1\n所示"）
+		flatText := strings.ReplaceAll(text, "\n", " ")
+		if hasFigRefWithoutParens(flatText) {
+			violations = append(violations, Violation{
+				RuleName:    r.Name(),
+				RuleBasis:   r.LegalBasis(),
+				Severity:    SeverityError,
+				ClaimNumber: c.Number,
+				Message:     "权利要求中不得包含'如图……所示'等引用附图的表述（除非是括号内的附图标记）",
+				Suggestion:  "删除'如图……所示'等表述，或将其替换为技术特征的直接描述",
+			})
 		}
 	}
 	return violations
+}
+
+// figRefParens 是用于检测附图引用是否在括号内的括号字符串列表。
+// 声明为包级别变量避免每次调用重新分配。
+var figRefParens = []string{"（", "）", "(", ")", "[", "]"}
+
+// hasFigRefWithoutParens 检测文本中是否含有未加括号括起的附图引用（如"如图1所示"）。
+// 支持的中文括号：全角（）、英文括号()、方括号[]。
+func hasFigRefWithoutParens(text string) bool {
+	// 检测 "如图" 模式：后面跟数字/文字后接"所示"
+	// 避免将"流程图""方框图"等误判
+	if !strings.Contains(text, "如图") && !strings.Contains(text, "附图") {
+		return false
+	}
+
+	// 检查是否在任意一种括号内
+	for _, p := range figRefParens {
+		if strings.Contains(text, p) {
+			return false
+		}
+	}
+	return true
 }
 
 // =============================================================================

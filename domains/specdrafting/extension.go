@@ -149,10 +149,12 @@ func (e *Extension) handleDraftSpecification(ctx context.Context, args json.RawM
 		return nil, fmt.Errorf("draft_specification: 请提供技术交底书(disclosure)或提取结果(extraction)")
 	}
 
-	// 使用 drafter（如果可用）否则使用 builder
-	output := e.builder.Build(*input)
+	// 使用 drafter（如果可用）否则使用 builder，避免双重构建
+	var output *SpecOutput
 	if d := e.Drafter(); d != nil {
 		output = d.Draft(*input)
+	} else {
+		output = e.builder.Build(*input)
 	}
 
 	// 运行规则验证（engine 经 NewExtension 保证非 nil）
@@ -162,6 +164,11 @@ func (e *Extension) handleDraftSpecification(ctx context.Context, args json.RawM
 			output.Warnings = append(output.Warnings, "["+v.RuleName+"] "+v.Message)
 		}
 	}
+
+	// 运行评分
+	report := e.scorer.Score(output, *input)
+	output.Score = report.OverallScore
+
 	return output, nil
 }
 

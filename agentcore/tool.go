@@ -121,10 +121,15 @@ func (r *Registry) Get(name string) (*Tool, bool) {
 
 func (r *Registry) Definitions() []ToolDefinition {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
-	defs := make([]ToolDefinition, 0, len(r.tools))
+	tools := make([]*Tool, 0, len(r.tools))
 	for _, t := range r.tools {
-		defs = append(defs, t.Definition())
+		tools = append(tools, t)
+	}
+	r.mu.RUnlock()
+
+	defs := make([]ToolDefinition, len(tools))
+	for i, t := range tools {
+		defs[i] = t.Definition()
 	}
 	sort.Slice(defs, func(i, j int) bool {
 		return defs[i].Name < defs[j].Name

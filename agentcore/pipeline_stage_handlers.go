@@ -70,11 +70,11 @@ func (h *searchHandler) Execute(ctx context.Context, state PipelineState, provid
 	// Extract retriever from state.
 	rawRetriever, ok := state["_retriever"]
 	if !ok {
-		return PipelineState{"_error": "search: no retriever configured (set state[\"_retriever\"])"}, nil
+		return nil, fmt.Errorf("search: no retriever configured (set state[\"_retriever\"])")
 	}
 	retriever, ok := rawRetriever.(Retriever)
 	if !ok || retriever == nil {
-		return PipelineState{"_error": "search: retriever is nil or invalid type"}, nil
+		return nil, fmt.Errorf("search: retriever is nil or invalid type")
 	}
 
 	// Build query.
@@ -86,7 +86,7 @@ func (h *searchHandler) Execute(ctx context.Context, state PipelineState, provid
 	}
 
 	if query == "" && len(keywords) == 0 {
-		return PipelineState{"_error": "search: no query or keywords provided"}, nil
+		return nil, fmt.Errorf("search: no query or keywords provided")
 	}
 
 	results, err := retriever.Search(ctx, RetrieverQuery{
@@ -95,7 +95,7 @@ func (h *searchHandler) Execute(ctx context.Context, state PipelineState, provid
 		MaxResults: maxResults,
 	})
 	if err != nil {
-		return PipelineState{"_error": fmt.Sprintf("search failed: %v", err)}, nil
+		return nil, fmt.Errorf("search: search failed: %v", err)
 	}
 
 	out := make(PipelineState)
@@ -342,13 +342,25 @@ func tryParseExtraction(output string) map[string]any {
 	return parsed
 }
 
-// extractJSONFromText finds the first JSON object in a text string.
+// extractJSONFromText finds the first balanced JSON object in a text string
+// using depth tracking, correctly handling nested braces and trailing text.
 func extractJSONFromText(text string) string {
 	text = strings.TrimSpace(text)
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start >= 0 && end > start {
-		return text[start : end+1]
+	depth := 0
+	start := -1
+	for i, r := range text {
+		switch r {
+		case '{':
+			if depth == 0 {
+				start = i
+			}
+			depth++
+		case '}':
+			depth--
+			if depth == 0 && start >= 0 {
+				return text[start : i+1]
+			}
+		}
 	}
 	return ""
 }
