@@ -4,8 +4,9 @@
 //
 // Sub-packages:
 //
-//	workflows/patent — patent analysis, novelty checking, conflict detection, rule engine
-//	workflows/legal  — legal document comparison, clause reasoning
+//	workflows/patent       — patent analysis, novelty checking, conflict detection, rule engine
+//	workflows/legal        — legal document comparison, clause reasoning
+//	workflows/autoresearch — long-cycle research contract & heartbeat (state management)
 //
 // Workflow steps support human-in-the-loop approval gates and can be wired
 // into a domain Agent's HandoffConfig or domain graph.

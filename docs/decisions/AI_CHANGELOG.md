@@ -4103,3 +4103,88 @@ CI 检查（GitHub Actions）持续失败，涉及两个 job：
 
 ### 风险说明
 - 黑名单→白名单转换可能遗漏预期外的依赖路径，但 CI 此前从未正确执行 check-arch
+
+---
+
+## 2026-07-23: workflows/autoresearch 全量审阅修复
+
+### 背景
+对 `workflows/autoresearch` 包进行 8 维度全量代码审阅，发现 16 项需修复问题
+（P0×4、P1×4、P2×4、P3×4），涵盖并发安全、状态机守卫、测试覆盖、文档一致性、
+集成缺口。详见审阅报告。
+
+### 修复清单
+
+**P0 — 严重问题：**
+
+| # | 问题 | 改动 |
+|---|------|------|
+| 1 | 全包无锁导致并发不安全 | `ResearchContract` 和 `Heartbeat` 新增 embedded `sync.Mutex` + `json:"-"`，所有公共方法加 `Lock()/defer Unlock()` |
+| 2 | 状态机无非法转换保护 | `Start/Pause/Resume/Complete/Abort` 入口增加状态守卫；`Abort` 支持 `running/paused`；`Complete` 支持 `running/paused`；`Pause` 只允许 `running`；`Resume` 只允许 `paused`；`Start` 只允许 `idle` |
+| 3 | `Abort` 向 `SuccessCriteria` 追加条目阻塞 `AllCriteriaMet` | 移除 `Abort` 的副作用，新增 `AbortReason string` 独立字段；`AllCriteriaMet` 在 `StatusAborted` 时直接返回 `false` |
+| 4 | `IsExpired` 在未启动时误判（`time.Since(zeroTime) ≈ 292y`） | 入口检查 `c.StartedAt.IsZero()` 直接返回 `false` |
+
+**P1 — 代码质量：**
+
+| # | 问题 | 改动 |
+|---|------|------|
+| 1 | 默认值 `MaxDuration=0` 与注释"最多30分钟"矛盾 | `NewResearchContract` 中 `MaxDuration` 改为 `30 * time.Minute` |
+| 2 | `Domain` 无校验 | 声明 `validDomains` 集合，构造时检查，非法值归一化为 `"general"` |
+| 3 | `PausedAt/CompletedAt` 空指针恐慌风险 | 新增 `PausedAtTime() (time.Time, bool)` / `CompletedAtTime() (time.Time, bool)` 安全访问器 |
+| 4 | `Evidence` 无限追加 | `AddEvidence` 追加后检查上限（`MaxRounds` 或硬上限 100），超出时淘汰最旧条目 |
+| 5 | 测试覆盖率缺口（Abort/AddEvidence/时长过期 0%） | 新增 11 个测试用例覆盖所有缺口 |
+
+**P2 — 集成与文档：**
+
+| # | 问题 | 改动 |
+|---|------|------|
+| 1 | `workflows/doc.go` 未列出 autoresearch 子包 | 在 Sub-packages 章节追加 `workflows/autoresearch` 条目及说明 |
+| 2 | `SinceLastBeat` 文档未说明不判断过期 | 补充注释：过期判定请使用 `Check()` 后读取 `IsStale` |
+| 3 | 脆弱测试 `time.Sleep` | `TestHeartbeat` 中移除 `time.Sleep(time.Millisecond)`（`Timeout=1ns` 已足够触发过期） |
+| 4 | `AI_CHANGELOG.md` 缺少创建决策 | 本条目即为该包的完整创建决策和审阅修复记录 |
+
+### 涉及文件
+- `workflows/autoresearch/contract.go` — 重写：新增 mutex、状态守卫、AbortReason、默认值修正、Evidence 上限、空指针访问器、Domain 校验
+- `workflows/autoresearch/heartbeat.go` — 新增 mutex + SinceLastBeat 注释完善
+- `workflows/autoresearch/autoresearch_test.go` — 新增 11 个测试用例：TestAbort、TestAbortBlocksAllCriteriaMet、TestIsExpiredBeforeStart、TestTimeBasedExpiry、TestAddEvidence、TestEvidenceCap、TestIllegalStateTransitions、TestPausedAtCompletedAtAccessors、TestHeartbeatFullPath、TestNewContractDefaults、TestDomainValidation
+- `workflows/doc.go` — 追加 autoresearch 子包条目
+
+### 验证
+- `go build ./workflows/autoresearch/...` ✅
+- `go vet ./workflows/autoresearch/...` ✅
+- `go test -v -race -count=1 ./workflows/autoresearch/...` ✅（16 测试全绿）
+- `go test -race -count=5 ./workflows/autoresearch/...` ✅（5 次无 flaky）
+- 覆盖率：0% → **~93%**（Abort/AddEvidence/IsExpired/SinceLastBeat 从 0% 全覆盖）
+
+---
+
+## 2026-07-23: workflows/autoresearch 第二轮修复（P2/P3 剩余项）
+
+### 背景
+第一轮修复完成 P0/P1 全部 8 个问题后，继续处理审阅报告中的 P2/P3 剩余项：
+Heartbeat-Contract 编译器级耦合、持久化接口层、架构定位文档、可观测性埋点。
+
+### 修复清单
+
+| # | 问题 | 改动 |
+|---|------|------|
+| P2-3 | Heartbeat-Contract 松耦合（字符串 ContractID 无编译器保证） | 新增 `CreateHeartbeat(interval, timeout)` 方法，ContractID 自动从 `c.ID` 派生；新增 `ContractID()` 访问器 |
+| P2-1 | 持久化层缺失（纯内存，进程重启数据丢失） | 新增 `persist.go`：`ResearchStore` 接口（SaveContract/LoadContract/SaveHeartbeat/ListActive/DeleteContract）+ 深拷贝隔离的 `InMemoryResearchStore` 实现 |
+| P2-2 | 包归属说明不清晰 | `doc.go` 新增架构定位章节，明确 `autoresearch` 是"多轮次元级状态管理器"，与其他 workflow 是层次关系 |
+| P3-3 | 全包零可观测性 | 在 `Start/Pause/Resume/Complete/Abort/AdvanceRound/AddEvidence/Beat/Check` 所有关键生命周期点添加 `slog.Info/Warn/Debug` 日志，关键事件含结构化字段（contract_id/round/duration/reason） |
+
+### 涉及文件
+- `workflows/autoresearch/contract.go` — 新增 `CreateHeartbeat`、`ContractID`、`truncateString`；全部生命周期方法加 slog 日志
+- `workflows/autoresearch/heartbeat.go` — `Beat`/`Check` 加 slog 日志（stale 时 WARN 含 timeout 和距上次心跳时长）
+- `workflows/autoresearch/persist.go` **（新增）** — ResearchStore 接口 + InMemoryResearchStore（线程安全 + 深拷贝隔离）
+- `workflows/autoresearch/persist_test.go` **（新增）** — 8 个测试：SaveAndLoad、NotFound、ListActive、ListActive_Empty、SaveHeartbeat、DeleteContract、DeepCopyEvidence、ConcurrentSafety
+- `workflows/autoresearch/autoresearch_test.go` **（扩展）** — 新增 5 个测试：TestContractIDAccessor、TestCreateHeartbeat、TestTruncateString、TestEvidenceTrimmedLogging、TestDeepCopyAllFields
+- `workflows/autoresearch/doc.go` — 架构定位说明
+
+### 验证
+- `go build ./workflows/autoresearch/...` ✅
+- `go vet ./workflows/autoresearch/...` ✅
+- `go test -race -count=1 ./workflows/autoresearch/...` ✅（**28 测试全绿**）
+- `go test -race -count=5 ./workflows/autoresearch/...` ✅（5 次无 flaky）
+- `go build ./...` ✅（全项目无回归）
+- 覆盖率：93% → **100.0%**（全部 31 个函数 100% 覆盖）
