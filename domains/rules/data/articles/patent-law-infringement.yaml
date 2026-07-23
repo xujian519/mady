@@ -1,0 +1,69 @@
+articleId: patent-law-infringement
+name: 专利侵权判定框架
+lawRef: 专利法第11/59/62/65/66/69/70条 + 相关司法解释
+applicableTo:
+  - infringement
+
+steps:
+  - id: claim_scope
+    name: 确定专利保护范围
+    description: 以权利要求内容为准，说明书及附图用于解释权利要求
+    lawRef: 专利法第59条第1款
+
+  - id: feature_decomposition
+    name: 技术特征分解
+    description: 将权利要求和被控方案分别分解为技术特征列表
+    lawRef: 最高人民法院司法解释(2009)第7条
+
+  - id: all_elements
+    name: 全面覆盖原则比对
+    description: 逐特征比对，判断被控方案是否包含权利要求全部技术特征
+    lawRef: 最高人民法院司法解释(2009)第7条第2款
+
+  - id: equivalence
+    name: 等同原则分析
+    description: 手段/功能/效果三要素检验 + 禁止反悔 + 捐献规则
+    lawRef: 最高人民法院法释[2001]第17条 + 司法解释(2009)第5/6条
+
+  - id: verdict
+    name: 侵权判定结论
+    description: 综合字面侵权和等同分析，给出结论和置信度
+
+  - id: defenses
+    name: 抗辩体系审查
+    description: 现有技术/先用权/合法来源/权利用尽/权利冲突
+    lawRef: 专利法第62/69/70条
+
+  - id: remedies
+    name: 救济措施评估
+    description: 损害赔偿计算 + 禁令分析
+    lawRef: 专利法第65/66条
+
+  - id: strategy
+    name: 诉讼策略建议
+    description: 管辖/证据/时效/无效宣告/和解
+    lawRef: 专利法第68条 + 民事诉讼法第28条
+
+conclusionSchema:
+  type: object
+  properties:
+    conclusion:
+      type: string
+      enum: [infringed, not_infringed, uncertain]
+    likelihood:
+      type: number
+      minimum: 0
+      maximum: 1
+    basis:
+      type: array
+      items:
+        type: string
+        enum: [literal, equivalence]
+    key_findings:
+      type: array
+      items:
+        type: string
+    risk_level:
+      type: string
+      enum: [high, medium, low]
+  required: [conclusion, likelihood, basis, key_findings, risk_level]

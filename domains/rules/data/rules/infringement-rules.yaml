@@ -1,0 +1,109 @@
+rules:
+  # L1: Core Determination Rules
+  - ruleId: INF-ALL-ELEMENTS
+    name: 全部技术特征规则
+    legalBasis: 最高人民法院司法解释(2009)第7条
+    domain: infringement
+    severity: block
+    action: 被控方案缺少任何一项技术特征即不落入保护范围
+
+  - ruleId: INF-CLAIM-CONSTRUCTION
+    name: 权利要求解释规则
+    legalBasis: 专利法第59条第1款
+    domain: infringement
+    severity: must
+    action: 内部证据优先(权利要求书/说明书/审查档案)，外部证据辅助
+
+  - ruleId: INF-EQUIVALENCE-TEST
+    name: 等同三要素检验
+    legalBasis: 最高人民法院法释[2001]第17条
+    domain: infringement
+    severity: must
+    action: 手段/功能/效果均基本相同 + 非显而易见
+
+  - ruleId: INF-ESTOPPEL
+    name: 禁止反悔原则
+    legalBasis: 最高人民法院司法解释(2009)第6条
+    domain: infringement
+    severity: must
+    action: 审查过程中放弃的技术方案不得通过等同原则重新主张
+
+  - ruleId: INF-DEDICATION
+    name: 捐献规则
+    legalBasis: 最高人民法院司法解释(2009)第5条
+    domain: infringement
+    severity: should
+    action: 仅在说明书中披露但未写入权利要求的技术方案视为捐献
+
+  # L2: Defense Rules
+  - ruleId: INF-PRIOR-ART
+    name: 现有技术抗辩
+    legalBasis: 专利法第62条
+    domain: infringement
+    severity: must
+    action: 单独对比原则，被控技术属于现有技术则不侵权
+
+  - ruleId: INF-PRIOR-USE
+    name: 先用权抗辩
+    legalBasis: 专利法第69条第(二)项
+    domain: infringement
+    severity: must
+    action: 申请日前已制造/使用或做好必要准备
+
+  - ruleId: INF-LEGAL-SOURCE
+    name: 合法来源抗辩
+    legalBasis: 专利法第70条
+    domain: infringement
+    severity: must
+    action: 同时满足"不知道"+"合法来源"，不赔偿但需停止
+
+  - ruleId: INF-EXHAUSTION
+    name: 权利用尽
+    legalBasis: 专利法第69条第(一)项
+    domain: infringement
+    severity: should
+    action: 售出后使用/销售不侵权，不适用于重新制造
+
+  # L3: Remedy Rules
+  - ruleId: INF-DAMAGE-CASCADE
+    name: 损害赔偿四层递进
+    legalBasis: 专利法第65条
+    domain: infringement
+    severity: must
+    action: 实际损失→侵权所得→许可费倍数→法定赔偿(1万-500万)
+
+  - ruleId: INF-INJUNCTION-FACTORS
+    name: 临时禁令五要素
+    legalBasis: 专利法第66条
+    domain: infringement
+    severity: must
+    action: 侵权可能性/难以弥补的损害/困难权衡/担保/公共利益
+
+  - ruleId: INF-CONTRIBUTION
+    name: 专利贡献率分割
+    legalBasis: 最高人民法院司法解释(2009)第16条
+    domain: infringement
+    severity: should
+    action: 专利技术仅体现在部分部件时以该部件价值为基数
+
+  # L4: Strategy Rules
+  - ruleId: INF-JURISDICTION
+    name: 管辖选择
+    legalBasis: 民事诉讼法第28条
+    domain: infringement
+    severity: may
+    action: 被告所在地或侵权行为地，省会中院或指定中院
+
+  - ruleId: INF-LIMITATION
+    name: 诉讼时效
+    legalBasis: 专利法第68条
+    domain: infringement
+    severity: should
+    action: 得知或应知侵权之日起2年，持续侵权追究起诉前2年
+
+  - ruleId: INF-STAY
+    name: 无效宣告中止审理
+    legalBasis: 最高人民法院法释[2015]第9-11条
+    domain: infringement
+    severity: should
+    action: 被告可提无效宣告并申请中止，实用新型通常应当中止

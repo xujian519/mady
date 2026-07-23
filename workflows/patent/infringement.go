@@ -1,4 +1,11 @@
-// Package patent provides a Pregel-based patent infringement analysis workflow.
+// Package patent provides patent-related analysis workflows.
+//
+// Deprecated: The infringement analysis workflow (this file) has been superseded
+// by domains/infringement/. Use domains/infringement.NewInfringementTool() for
+// comprehensive infringement analysis with dual-perspective support (plaintiff/defendant)
+// and four-layer coverage (determination, defenses, remedies, strategy).
+//
+// The remaining workflows (novelty, debate, OA response, etc.) are still active.
 //
 // The infringement workflow compares a patent's claims against an accused
 // product/method under the "all-elements" (全面覆盖) rule and the doctrine
