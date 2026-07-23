@@ -235,3 +235,25 @@ rules:
         - "权利要求保护范围完全相同 → 重复授权"
         - "仅在表述方式上有区别但保护范围相同 → 重复授权"
         - "上下位概念的差异不属于同样的发明创造"
+
+  - ruleId: "patent-a22.5-prior-art-definition"
+    name: "现有技术定义核查"
+    description: >
+      根据专利法第22条第5款，判断技术方案是否构成现有技术。
+      现有技术是指申请日以前在国内外为公众所知的技术。
+      2008年修订后采用绝对新颖性标准，取消地域限制。
+    legalBasis: "专利法第22条第5款"
+    domain: patent
+    severity: critical
+    action: block
+    check:
+      type: patent_novelty
+      method: prior_art_definition
+      principles:
+        - "申请日以前在国内外为公众所知的技术"
+        - "2008年后无地域限制（绝对新颖性标准）"
+        - "充分公开（可实施性）是构成现有技术的前提"
+      rules:
+        - "申请当日公开的技术不构成现有技术"
+        - "处于保密状态的技术不构成现有技术"
+        - "公众可以看到产品不等于产品的具体技术方案已被公开（如可口可乐配方）"

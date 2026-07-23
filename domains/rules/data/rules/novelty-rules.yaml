@@ -1,0 +1,179 @@
+rules:
+  - ruleId: "novelty-prior-art-check"
+    name: "新颖性——现有技术审查"
+    description: >
+      根据专利法第22条第5款，判断技术方案是否在申请日前已为公众所知。
+    legalBasis: "专利法第22条第5款"
+    domain: patent_novelty
+    severity: critical
+    action: block
+    check:
+      type: patent_novelty
+      method: prior_art_check
+      principles:
+        - "申请日以前在国内外为公众所知的技术构成现有技术"
+        - "申请当日公开的技术不构成现有技术"
+        - "现有技术必须满足充分公开（可实施性）要求"
+      conditions:
+        - "公开日 < 申请日（优先权日）"
+        - "技术内容脱离保密状态"
+
+  - ruleId: "novelty-single-comparison"
+    name: "新颖性——单独对比原则"
+    description: "判断权利要求是否被一份单独现有技术覆盖"
+    legalBasis: "专利法第22条第2款"
+    domain: patent_novelty
+    severity: critical
+    action: block
+    check:
+      type: patent_novelty
+      method: single_comparison
+      principles:
+        - "只能将一项现有技术与一项权利要求对比"
+        - "不得组合多篇对比文件"
+        - "对比文件公开的内容包括明确记载和隐含公开"
+      rules:
+        - "全部技术特征被公开且领域/问题/效果相同 → 无新颖性"
+        - "至少一个技术特征未被公开 → 有新颖性"
+
+  - ruleId: "novelty-upper-lower-concept"
+    name: "新颖性——上下位概念"
+    legalBasis: "审查指南第二部分第三章第3.2.2节"
+    domain: patent_novelty
+    severity: major
+    action: block
+    check:
+      type: patent_novelty
+      method: concept_hierarchy
+      rules:
+        - "对比文件公开下位概念（铜）→ 破坏上位概念（金属）的新颖性"
+        - "对比文件公开上位概念（金属）→ 不破坏下位概念（铜）的新颖性"
+
+  - ruleId: "novelty-direct-replacement"
+    name: "新颖性——惯用手段的直接置换"
+    legalBasis: "审查指南第二部分第三章第3.2.3节"
+    domain: patent_novelty
+    severity: major
+    action: block
+    check:
+      type: patent_novelty
+      method: direct_replacement
+      rules:
+        - "本领域惯用手段的直接置换视为相同内容 → 无新颖性"
+        - "需以本领域技术人员的知识水平为判断标准"
+
+  - ruleId: "novelty-numeric-range"
+    name: "新颖性——数值范围判断"
+    legalBasis: "审查指南第二部分第三章第3.2.4节"
+    domain: patent_novelty
+    severity: major
+    action: block
+    check:
+      type: patent_novelty
+      method: numeric_range
+      rules:
+        - "对比文件数值落入权利要求范围 → 无新颖性"
+        - "范围部分重叠或有共同端点 → 无新颖性"
+        - "权利要求范围在对比文件范围内且无共同端点 → 有新颖性"
+        - "范围端点破坏离散数值端点的新颖性，但不破坏中间值的新颖性"
+
+  - ruleId: "novelty-four-factor"
+    name: "新颖性——四要素综合判断"
+    legalBasis: "审查指南第二部分第三章第3.1节"
+    domain: patent_novelty
+    severity: major
+    action: block
+    check:
+      type: patent_novelty
+      method: four_factor_test
+      rules:
+        - "技术领域相同"
+        - "解决的技术问题相同"
+        - "技术方案实质上相同"
+        - "预期效果相同"
+      requirements:
+        - "四要素中技术方案为核心要素"
+
+  - ruleId: "novelty-conflict-check"
+    name: "新颖性——抵触申请审查"
+    legalBasis: "专利法第22条第2款"
+    domain: patent_novelty
+    severity: critical
+    action: block
+    check:
+      type: patent_novelty
+      method: conflict_check
+      rules:
+        - "在先申请日 < 在后申请日"
+        - "在先申请公开日 ≥ 在后申请日"
+        - "在后申请权利要求被在先申请全文披露"
+      conditions:
+        - "抵触申请仅用于新颖性判断，不用于创造性判断"
+        - "外观设计不能作为发明/实用新型的抵触申请"
+
+  - ruleId: "novelty-grace-period"
+    name: "新颖性——宽限期"
+    legalBasis: "专利法第24条"
+    domain: patent_novelty
+    severity: major
+    action: review
+    check:
+      type: patent_novelty
+      method: grace_period
+      rules:
+        - "宽限期为6个月"
+        - "国际展览会首次展出 → 可享受宽限期"
+        - "规定学术/技术会议首次发表 → 可享受宽限期"
+        - "他人未经同意泄露 → 可享受宽限期"
+      conditions:
+        - "第三方独立公开 → 仍影响新颖性"
+        - "需在申请时声明+2个月内提交证明"
+
+  - ruleId: "novelty-priority"
+    name: "新颖性——优先权"
+    legalBasis: "专利法第29条"
+    domain: patent_novelty
+    severity: major
+    action: review
+    check:
+      type: patent_novelty
+      method: priority_check
+      rules:
+        - "国际优先权12个月，本国优先权12个月"
+        - "'相同主题'四要素：领域/问题/方案/效果"
+      conditions:
+        - "优先权日后的公开不损害新颖性"
+        - "增加在先申请未记载的特征 → 不能享受优先权"
+
+  - ruleId: "novelty-sufficient-disclosure"
+    name: "新颖性——充分公开要求"
+    legalBasis: "专利法第22条第5款"
+    domain: patent_novelty
+    severity: major
+    action: block
+    check:
+      type: patent_novelty
+      method: sufficient_disclosure
+      principles:
+        - "在先文献须使熟练技术人员能够实施该发明方案"
+        - "客观上能够实施 + 主观上相信能够实施"
+      rules:
+        - "公众可以看到产品不等于技术方案已被公开"
+        - "未充分公开的在先文献不能构成破坏新颖性的现有技术"
+
+  - ruleId: "novelty-publicly-known-standard"
+    name: "新颖性——'为公众所知'认定标准"
+    legalBasis: "专利法第22条第5款"
+    domain: patent_novelty
+    severity: major
+    action: review
+    check:
+      type: patent_novelty
+      method: publicly_known_standard
+      principles:
+        - "严格标准：不负保密义务的人所能得知的状态"
+        - "宽松标准（审查指南）：公众想得知就能够得知的状态"
+      rules:
+        - "出版物流通渠道对公众开放 → 构成公开"
+        - "互联网平台完全开放访问 → 构成公开"
+        - "产品内部特征无法从外部观察得知 → 不构成使用公开"

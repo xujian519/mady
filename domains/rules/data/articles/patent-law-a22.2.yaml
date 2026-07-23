@@ -1,6 +1,6 @@
 articleId: "patent-law-a22.2"
 name: "专利法第22条第2款——新颖性"
-lawRef: "中华人民共和国专利法（2020修正）第22条第2款"
+lawRef: "中华人民共和国专利法（2020修正）第22条第2款、第5款"
 guidelineRef: "审查指南（2023修订）第二部分第三章"
 steps:
   - id: "step-1"
@@ -10,16 +10,27 @@ steps:
     inputHint: "申请日或优先权日"
     outputSchema:
       effectiveDate: "string（有效申请日/优先权日）"
+
   - id: "step-2"
     order: 2
-    name: "确定现有技术的范围"
-    ruleRef: "patent-a22.2-novelty"
-    inputHint: "申请日前的公开文献、使用公开、其他方式公开"
+    name: "判断是否属于现有技术（为公众所知）"
+    ruleRef: "novelty-prior-art-check"
+    inputHint: "对比文件的公开方式（出版物/使用/销售/互联网/口头）+ 公开时间"
     outputSchema:
-      priorArtDate: "string（公开日）"
-      isPriorArt: "bool（是否属于现有技术）"
+      isPriorArt: "bool（是否构成现有技术）"
+      publicKnownStd: "string（严格/宽松标准）"
+      priorArtType: "string（公开方式分类）"
+
   - id: "step-3"
     order: 3
+    name: "充分公开（可实施性）审查"
+    ruleRef: "novelty-sufficient-disclosure"
+    inputHint: "在先文献的技术方案描述详情"
+    outputSchema:
+      isSufficient: "bool（是否充分公开）"
+
+  - id: "step-4"
+    order: 4
     name: "逐项对比技术特征"
     ruleRef: "patent-a22.2-novelty"
     inputHint: "权利要求的全部技术特征列表 + 对比文件公开的内容"
@@ -27,8 +38,9 @@ steps:
       claimFeatures: "[]string（权利要求的技术特征）"
       disclosedFeatures: "[]string（对比文件公开的对应特征）"
       missingFeatures: "[]string（未被公开的特征）"
-  - id: "step-4"
-    order: 4
+
+  - id: "step-5"
+    order: 5
     name: "判断是否单独公开全部技术特征"
     ruleRef: "patent-a22.2-novelty"
     inputHint: "单独对比：一份对比文件是否公开了权利要求的全部技术特征"
@@ -37,11 +49,44 @@ steps:
       sameField: "bool（技术领域是否相同）"
       sameProblem: "bool（解决的技术问题是否相同）"
       sameEffect: "bool（预期的技术效果是否相同）"
+      upperLowerConcept: "string（上下位概念判断结果：same/different/n_a）"
+      directReplacement: "bool（是否惯用手段直接置换）"
+      numericRangeResult: "string（数值范围判断结果）"
+
+  - id: "step-6"
+    order: 6
+    name: "抵触申请审查"
+    ruleRef: "novelty-conflict-check"
+    inputHint: "在先申请的全文内容（说明书+权利要求+附图）"
+    outputSchema:
+      isConflict: "bool（是否构成抵触申请）"
+      conflictReasons: "[]string（判断理由）"
+
+  - id: "step-7"
+    order: 7
+    name: "宽限期审查"
+    ruleRef: "novelty-grace-period"
+    inputHint: "公开方式（展览/会议/泄露）+ 公开日期"
+    outputSchema:
+      hasGrace: "bool（是否享有宽限期）"
+      graceWithin6m: "bool（是否在6个月内）"
+
+  - id: "step-8"
+    order: 8
+    name: "优先权审查"
+    ruleRef: "novelty-priority-check"
+    inputHint: "在先申请的申请日+技术方案+在后申请的技术方案"
+    outputSchema:
+      hasValidPriority: "bool（优先权是否成立）"
+      sameSubject: "bool（是否'相同主题'）"
+
 conclusionSchema:
   hasNovelty: "bool（是否具有新颖性）"
   reasoning: "string（判断理由，引用对比文件的具体段落）"
   confidence: "string（high/medium/low）"
+  failedClaims: "[]string（不具备新颖性的权利要求编号）"
 applicableTo:
   - novelty
   - patentability
   - examination
+  - invalidation
