@@ -1,0 +1,74 @@
+[
+  {
+    "name": "缺少必要技术特征_水龙头案",
+    "description": "水龙头案：独立权利要求未写入'阀杆伸出出水通道'，无法解决技术问题",
+    "input": {
+      "title": "一种节水水龙头",
+      "problems": ["现有水龙头无法在关闭后自动排空余水"],
+      "effects": ["关闭后自动排空余水，防止冻裂"],
+      "features": [
+        {"id": "f1", "description": "阀杆", "category": "structure", "importance": "high", "prior_status": "unknown"},
+        {"id": "f2", "description": "出水通道", "category": "structure", "importance": "high", "prior_status": "known"},
+        {"id": "f3", "description": "手柄", "category": "structure", "importance": "low", "prior_status": "known"},
+        {"id": "f4", "description": "阀芯", "category": "structure", "importance": "medium", "prior_status": "known"}
+      ],
+      "pfe_triples": [
+        {"id": "t1", "problem": "水龙头关闭后余水滞留", "feature_ids": ["f1", "f2"]}
+      ]
+    },
+    "expected_warnings_contain": ["必要技术特征"]
+  },
+  {
+    "name": "非必要技术特征_磁化防垢器",
+    "description": "磁化防垢器案：独立权利要求写入'涂防护漆'、'不超过5对'等非必要特征",
+    "input": {
+      "title": "一种磁化防垢器",
+      "problems": ["现有防垢器除垢效果不佳"],
+      "effects": ["提高除垢效果"],
+      "features": [
+        {"id": "f1", "description": "磁铁", "category": "structure", "importance": "high", "prior_status": "unknown"},
+        {"id": "f2", "description": "水管", "category": "structure", "importance": "high", "prior_status": "known"},
+        {"id": "f3", "description": "涂防护漆", "category": "structure", "importance": "low", "prior_status": "unknown"},
+        {"id": "f4", "description": "磁铁对数不超过5对", "category": "parameter", "importance": "low", "prior_status": "unknown"}
+      ],
+      "pfe_triples": [
+        {"id": "t1", "problem": "除垢效果不佳", "feature_ids": ["f1", "f2"]}
+      ]
+    },
+    "expected_warnings_contain": ["非必要"]
+  },
+  {
+    "name": "主题名称不当_含宣传用语",
+    "description": "主题名称中包含GCQ型、高效等不当用语",
+    "input": {
+      "title": "一种GCQ型高效节能空气净化器",
+      "problems": ["现有净化器净化效率低"],
+      "effects": ["提高净化效率"],
+      "features": [
+        {"id": "f1", "description": "HEPA过滤网", "category": "structure", "importance": "high", "prior_status": "unknown"},
+        {"id": "f2", "description": "风机", "category": "structure", "importance": "high", "prior_status": "known"}
+      ],
+      "pfe_triples": [
+        {"id": "t1", "problem": "净化效率低", "feature_ids": ["f1", "f2"]}
+      ]
+    },
+    "expected_validation_errors": ["发明名称超过25字"]
+  },
+  {
+    "name": "括号使用不当_可选择内容",
+    "description": "权利要求括号内包含可选择内容，如'最好焊接'",
+    "input": {
+      "title": "一种金属板连接结构",
+      "problems": ["现有金属板连接强度不足"],
+      "effects": ["提高连接强度"],
+      "features": [
+        {"id": "f1", "description": "铁皮", "category": "structure", "importance": "high", "prior_status": "known"},
+        {"id": "f2", "description": "搭接接头", "category": "structure", "importance": "high", "prior_status": "unknown"}
+      ],
+      "pfe_triples": [
+        {"id": "t1", "problem": "连接强度不足", "feature_ids": ["f1", "f2"]}
+      ]
+    },
+    "expected_warnings_contain": ["禁止"]
+  }
+]

@@ -26,14 +26,42 @@ const (
 
 // Rule is a single patent/legal compliance rule loaded from YAML.
 type Rule struct {
-	RuleID      string   `yaml:"ruleId"`
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	LegalBasis  string   `yaml:"legalBasis"`
-	Domain      string   `yaml:"domain"`
-	Severity    Severity `yaml:"severity"`
-	Action      Action   `yaml:"action"`
-	Check       Check    `yaml:"check"`
+	RuleID      string         `yaml:"ruleId"`
+	Name        string         `yaml:"name"`
+	Description string         `yaml:"description"`
+	LegalBasis  string         `yaml:"legalBasis"`
+	Domain      string         `yaml:"domain"`
+	Severity    Severity       `yaml:"severity"`
+	Action      Action         `yaml:"action"`
+	Check       Check          `yaml:"check"`
+	Extra       map[string]any `yaml:"-"`
+}
+
+// knownRuleFields lists the top-level YAML keys that are mapped to typed Rule struct fields.
+var knownRuleFields = []string{
+	"ruleId", "name", "description", "legalBasis",
+	"domain", "severity", "action", "check",
+}
+
+// UnmarshalYAML implements custom two-pass decoding: known fields populate
+// the typed struct, remaining fields (e.g. evidenceAssessment, evidenceType)
+// are captured in Extra.
+func (r *Rule) UnmarshalYAML(value *yaml.Node) error {
+	type plain Rule
+	if err := value.Decode((*plain)(r)); err != nil {
+		return err
+	}
+	var raw map[string]any
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	for _, k := range knownRuleFields {
+		delete(raw, k)
+	}
+	if len(raw) > 0 {
+		r.Extra = raw
+	}
+	return nil
 }
 
 // Check holds the rule's checking logic. The YAML schema is intentionally

@@ -311,3 +311,77 @@ func extractReferencedClaim(preamble string) int {
 	}
 	return 0
 }
+
+// =============================================================================
+// 形式规范规则：从属权利要求排序（金字塔型）
+// =============================================================================
+
+// formalityDependentOrderingRule 检查从属权利要求是否遵循"从宽到窄"的递进布局。
+// 依据：审查指南——从属权利要求应当对引用的权利要求作进一步限定，
+// 布局策略应遵循从重要到次要、从宽到窄的递进顺序。
+type formalityDependentOrderingRule struct{ baseRule }
+
+func (r *formalityDependentOrderingRule) Check(claims []Claim, _ DraftInput) []Violation {
+	var violations []Violation
+	// 找出所有从属权利要求
+	var deps []Claim
+	for _, c := range claims {
+		if c.Kind == "dependent" {
+			deps = append(deps, c)
+		}
+	}
+	if len(deps) < 2 {
+		return nil // 至少 2 项从属才有排序意义
+	}
+
+	// 检查引用链是否合理递进：
+	//  前序从属应引用独立权利要求（保护范围较宽）
+	//  后继从属可引用前序从属（递进限定，保护范围逐步收窄）
+	indepNumbers := make(map[int]bool)
+	for _, c := range claims {
+		if c.Kind == "independent" {
+			indepNumbers[c.Number] = true
+		}
+	}
+
+	indirectCount := 0
+	for _, d := range deps {
+		allIndependent := true
+		for _, dep := range d.DependsOn {
+			if !indepNumbers[dep] {
+				allIndependent = false
+				break
+			}
+		}
+		if !allIndependent {
+			indirectCount++
+		}
+	}
+
+	// 如果所有从属都直接引用独立权利要求，没有形成递进链：
+	if indirectCount == 0 && len(deps) >= 3 {
+		violations = append(violations, Violation{
+			RuleName:    r.Name(),
+			RuleBasis:   r.LegalBasis(),
+			Severity:    SeverityInfo,
+			ClaimNumber: 0,
+			Message:     "所有从属权利要求均直接引用独立权利要求，未形成'从宽到窄'的递进保护链",
+			Suggestion:  "建议将后几项从属权利要求改为引用前一项从属权利要求，形成逐步递进的保护层次（独立权利要求→从属1→从属2→从属3）",
+		})
+	}
+
+	// 检查早期从属是否引用了后期从属（乱序）
+	depOrder := make(map[int]int) // claimNumber → index
+	for i, d := range deps {
+		depOrder[d.Number] = i
+	}
+	for _, d := range deps {
+		for _, ref := range d.DependsOn {
+			if refIdx, ok := depOrder[ref]; ok && depOrder[d.Number] < refIdx {
+				// 从属引用了在后面出现的从属 → 非典型但合法
+			}
+		}
+	}
+
+	return violations
+}

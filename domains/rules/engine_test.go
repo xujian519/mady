@@ -92,6 +92,21 @@ patent:
     - "需人工确认"
 `
 
+const testRulesSubdirYAML = `rules:
+  - ruleId: SUB-001
+    name: 子目录规则测试
+    description: 来自 rules/ 子目录的规则
+    legalBasis: 专利法第33条
+    domain: patent_amendment
+    severity: major
+    action: review
+    check:
+      type: text_pattern
+      method: llm_judge
+      principles:
+        - "子目录规则应正常加载"
+`
+
 func setupTestDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -99,6 +114,14 @@ func setupTestDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "reflection-indicators.yaml"), []byte(testReflectionYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// rules/ 子目录
+	rulesDir := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(rulesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "sub-rules.yaml"), []byte(testRulesSubdirYAML), 0644); err != nil {
 		t.Fatal(err)
 	}
 	artDir := filepath.Join(dir, "articles")
@@ -124,8 +147,9 @@ func TestLoadFromDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFromDir error: %v", err)
 	}
-	if len(rs.Rules) != 2 {
-		t.Fatalf("expected 2 rules, got %d", len(rs.Rules))
+	// rules 来自：顶层 test-rules.yaml(2) + rules/ sub-rules.yaml(1) = 3
+	if len(rs.Rules) != 3 {
+		t.Fatalf("expected 3 rules (2 top-level + 1 rules/ subdir), got %d", len(rs.Rules))
 	}
 	if rs.Rules[0].RuleID != "TEST-001" {
 		t.Errorf("expected TEST-001, got %s", rs.Rules[0].RuleID)
@@ -141,6 +165,37 @@ func TestLoadFromDir(t *testing.T) {
 	}
 	if rs.Rules[0].Check.Assessment["hasDistinctiveFeature"] != "pass" {
 		t.Errorf("expected assessment pass, got %s", rs.Rules[0].Check.Assessment["hasDistinctiveFeature"])
+	}
+}
+
+func TestLoadFromDir_RulesSubdir(t *testing.T) {
+	dir := setupTestDir(t)
+	rs, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatalf("LoadFromDir error: %v", err)
+	}
+	// 验证 rules/ 子目录中的规则被正确加载
+	sub := rs.ruleIndex["SUB-001"]
+	if sub == nil {
+		t.Fatal("SUB-001 from rules/ subdirectory not found")
+	}
+	if sub.Domain != "patent_amendment" {
+		t.Errorf("expected domain 'patent_amendment', got %s", sub.Domain)
+	}
+	if sub.Severity != SeverityMajor {
+		t.Errorf("expected severity major, got %s", sub.Severity)
+	}
+	if len(sub.Check.Principles) != 1 {
+		t.Errorf("expected 1 principle, got %d", len(sub.Check.Principles))
+	}
+	// 通过 rules/ 子目录加载的规则也能通过 Engine 查询
+	e := NewEngine(rs)
+	amendRules := e.RulesByDomain("patent_amendment")
+	if len(amendRules) != 1 {
+		t.Errorf("expected 1 patent_amendment rule, got %d", len(amendRules))
+	}
+	if amendRules[0].RuleID != "SUB-001" {
+		t.Errorf("expected SUB-001 via Engine, got %s", amendRules[0].RuleID)
 	}
 }
 
@@ -190,8 +245,9 @@ func TestRulesBySeverity(t *testing.T) {
 		t.Fatalf("expected 1 critical rule, got %d", len(critical))
 	}
 	major := e.RulesBySeverity(SeverityMajor)
-	if len(major) != 1 {
-		t.Fatalf("expected 1 major rule, got %d", len(major))
+	// TEST-002 (顶级) + SUB-001 (rules/子目录) = 2
+	if len(major) != 2 {
+		t.Fatalf("expected 2 major rules, got %d", len(major))
 	}
 }
 
@@ -229,8 +285,9 @@ func TestSearchRules(t *testing.T) {
 		t.Errorf("expected TEST-001, got %s", results[0].RuleID)
 	}
 	results = e.SearchRules("专利法")
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results for '专利法', got %d", len(results))
+	// TEST-001/TEST-002（"专利法第22条"）+ SUB-001（"专利法第33条"）= 3
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results for '专利法', got %d", len(results))
 	}
 	results = e.SearchRules("不存在的关键词")
 	if len(results) != 0 {

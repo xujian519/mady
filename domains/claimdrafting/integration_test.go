@@ -409,3 +409,111 @@ func TestParseClaimsFromLLM_DomainCarryOver(t *testing.T) {
 		t.Errorf("expected InputMeta.Domain %s, got %s", DomainMechanical, output.InputMeta.Domain)
 	}
 }
+
+// =============================================================================
+// G1: 常见错误案例反向验证测试
+// =============================================================================
+
+// TestIntegration_ErrorCases 用知识库中的常见错误案例反向验证规则引擎的捕获能力。
+// 注意：这些测试直接构造含错误的claim输入，验证规则是否能检测到，而非测试Builder输出。
+func TestIntegration_ErrorCases(t *testing.T) {
+	engine := NewRuleEngine()
+	RegisterDefaultRules(engine)
+
+	t.Run("缺少必要技术特征_水龙头案", func(t *testing.T) {
+		// 模拟：独立权利要求未包含与PFE关联的必要特征f1（阀杆）
+		claims := []Claim{
+			{Number: 1, ClaimType: ClaimTypeProduct, Kind: "independent",
+				Preamble:      "一种节水水龙头，包括出水通道和手柄",
+				Characterized: "所述阀杆控制水流通断"},
+		}
+		input := DraftInput{
+			Title:    "一种节水水龙头",
+			Problems: []string{"关闭后余水滞留"},
+			Features: []Feature{
+				{ID: "f1", Description: "阀杆伸出出水通道", Category: "structure", Importance: "high"},
+				{ID: "f2", Description: "出水通道", Category: "structure", Importance: "high"},
+				{ID: "f3", Description: "手柄", Category: "structure", Importance: "low"},
+			},
+			PFETriples: []PFETriple{{ID: "t1", Problem: "余水滞留", FeatureIDs: []string{"f1", "f2"}}},
+		}
+		violations := engine.Validate(claims, input)
+		found := false
+		for _, v := range violations {
+			if strings.Contains(v.RuleName, "necessity") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			violationText := ""
+			for _, v := range violations {
+				violationText += " [" + v.RuleName + "]" + v.Message
+			}
+			t.Errorf("预期 necessity-completeness 规则触发，但未找到。实际违规: %s", violationText)
+		}
+	})
+
+	t.Run("非必要技术特征_磁化防垢器", func(t *testing.T) {
+		// 模拟：独立权利要求包含了低重要性的非必要特征
+		claims := []Claim{
+			{Number: 1, ClaimType: ClaimTypeProduct, Kind: "independent",
+				Preamble:      "一种磁化防垢器，包括磁铁和水管",
+				Characterized: "所述磁铁对数不超过5对，水管外表面涂防护漆"},
+		}
+		input := DraftInput{
+			Title: "一种磁化防垢器",
+			Features: []Feature{
+				{ID: "f1", Description: "磁铁", Category: "structure", Importance: "high"},
+				{ID: "f2", Description: "水管", Category: "structure", Importance: "high"},
+				{ID: "f3", Description: "涂防护漆", Category: "structure", Importance: "low"},
+				{ID: "f4", Description: "磁铁对数不超过5对", Category: "parameter", Importance: "low"},
+			},
+		}
+		violations := engine.Validate(claims, input)
+		found := false
+		for _, v := range violations {
+			if strings.Contains(v.RuleName, "non-essential") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			violationText := ""
+			for _, v := range violations {
+				violationText += " [" + v.RuleName + "]" + v.Message
+			}
+			t.Errorf("预期 non-essential 规则触发，但未找到。实际违规: %s", violationText)
+		}
+	})
+
+	t.Run("括号使用不当_可选择内容", func(t *testing.T) {
+		// 模拟：权利要求中使用"最好"等导致范围不清的用语
+		claims := []Claim{
+			{Number: 1, ClaimType: ClaimTypeProduct, Kind: "independent",
+				Preamble:      "一种金属板连接结构，包括铁皮，铁皮两端搭接在一起",
+				Characterized: "最好焊接固定"},
+		}
+		input := DraftInput{
+			Title: "一种金属板连接结构",
+			Features: []Feature{
+				{ID: "f1", Description: "铁皮", Category: "structure", Importance: "high"},
+			},
+		}
+		violations := engine.Validate(claims, input)
+		found := false
+		for _, v := range violations {
+			if strings.Contains(v.RuleName, "forbidden") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			violationText := ""
+			for _, v := range violations {
+				violationText += " [" + v.RuleName + "]" + v.Message
+			}
+			t.Errorf("预期 forbidden-words 规则触发，但未找到。实际违规: %s", violationText)
+		}
+	})
+}

@@ -14,6 +14,10 @@ import (
 
 const ExtensionName = "rules"
 
+// =============================================================================
+// Engine — 规则引擎查询接口
+// =============================================================================
+
 // Engine is the query interface over loaded rule data.
 type Engine struct {
 	mu  sync.RWMutex
@@ -26,7 +30,6 @@ func NewEngine(rs *RuleSet) *Engine {
 }
 
 // LoadEngineFromMadyHome loads rules from $MADY_HOME/knowledge/rules/.
-// Returns nil engine (no error) if the directory does not exist.
 func LoadEngineFromMadyHome() (*Engine, error) {
 	base, err := util.ResolveDataDir("knowledge")
 	if err != nil {
@@ -115,8 +118,7 @@ func (e *Engine) ReflectionIndicators(domain string) *ReflectionDomain {
 	return e.set.ReflectionDomains[domain]
 }
 
-// SearchRules performs a case-insensitive substring search across rule
-// name, description, legalBasis, and domain.
+// SearchRules performs a case-insensitive substring search.
 func (e *Engine) SearchRules(keyword string) []Rule {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -136,8 +138,7 @@ func (e *Engine) SearchRules(keyword string) []Rule {
 	return out
 }
 
-// ToRuleConstraints converts rules matching the given domain into
-// reasoning.RuleConstraint objects for the reasoning framework.
+// ToRuleConstraints converts rules into reasoning constraints.
 func (e *Engine) ToRuleConstraints(domain string) []reasoning.RuleConstraint {
 	rules := e.RulesByDomain(domain)
 	out := make([]reasoning.RuleConstraint, 0, len(rules))
@@ -162,7 +163,9 @@ func (e *Engine) ToRuleConstraints(domain string) []reasoning.RuleConstraint {
 	return out
 }
 
-// --- Extension implementation ---
+// =============================================================================
+// RulesExtension — agentcore 扩展实现
+// =============================================================================
 
 var (
 	_ agentcore.Extension                = (*RulesExtension)(nil)
@@ -208,7 +211,7 @@ func (e *RulesExtension) SystemPromptSuffix() string {
 		b.WriteString(d)
 		first = false
 	}
-	b.WriteString("\n\n使用 search_rules 工具查询具体规则，使用 get_article_framework 获取法条判断框架。")
+	b.WriteString("\n\n使用 search_rules 查询具体规则，get_article_framework 获取法条判断框架，parse_office_action 解析审查意见，validate_amendment 验证修改是否超范围。")
 	return b.String()
 }
 
@@ -216,6 +219,8 @@ func (e *RulesExtension) TransformContext(_ context.Context, msgs []agentcore.Me
 	return msgs
 }
 
+// Tools 提供 6 个工具：search_rules, get_article_framework, get_orchestration,
+// parse_office_action, validate_amendment, analyze_slop。
 func (e *RulesExtension) Tools() []*agentcore.Tool {
 	if e.engine == nil {
 		return nil
@@ -263,13 +268,13 @@ func (e *RulesExtension) Tools() []*agentcore.Tool {
 		},
 		{
 			Name:        "get_orchestration",
-			Description: "获取事务级编排方案（发现阶段、可用法条、执行模板）。支持 invalidation(无效宣告)、infringement(侵权分析)。",
+			Description: "获取事务级编排方案（发现阶段、可用法条、执行模板）。支持 invalidation(无效宣告)、infringement(侵权分析)、oa_response(审查意见答复)、re-examination(复审)。",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"case_type": map[string]any{
 						"type":        "string",
-						"description": "事务类型: invalidation 或 infringement",
+						"description": "事务类型: invalidation / infringement / oa_response / re-examination",
 					},
 				},
 				"required": []string{"case_type"},
@@ -305,6 +310,45 @@ func (e *RulesExtension) Tools() []*agentcore.Tool {
 			},
 		},
 		{
+			Name:        "validate_amendment",
+			Description: "验证专利申请文件的修改是否符合专利法第33条的规定（修改不超范围）。三步检查：修改依据合法性→直接毫无疑义确定判断→修改时机合规性。支持主动修改、被动修改（OA答复）、依职权修改三种场景。提供16条详细规则和13个典型案例参考。",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"original_claims": map[string]any{
+						"type":        "string",
+						"description": "原始权利要求书的内容",
+					},
+					"original_specification": map[string]any{
+						"type":        "string",
+						"description": "原始说明书的内容（包括附图描述）",
+					},
+					"amended_claims": map[string]any{
+						"type":        "string",
+						"description": "修改后的权利要求书内容",
+					},
+					"amended_specification": map[string]any{
+						"type":        "string",
+						"description": "修改后的说明书内容",
+					},
+					"modification_type": map[string]any{
+						"type":        "string",
+						"enum":        []string{"active", "passive", "ex_officio"},
+						"description": "修改类型：active（主动）/ passive（被动，针对审查意见）/ ex_officio（依职权）",
+					},
+					"office_action_text": map[string]any{
+						"type":        "string",
+						"description": "审查意见通知书全文（被动修改时必填）",
+					},
+				},
+				"required": []string{"original_claims", "amended_claims", "modification_type"},
+			},
+			ReadOnly: true,
+			Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+				return e.handleValidateAmendment(args)
+			},
+		},
+		{
 			Name:        "analyze_slop",
 			Description: "反AI套话润色分析。三层检测：短语替换（填充词/空泛修饰/元叙述等）→结构缺陷（假三步法/假对比表/假转折等）→50分制评分+交付前快检。",
 			Parameters: map[string]any{
@@ -330,146 +374,4 @@ func (e *RulesExtension) Tools() []*agentcore.Tool {
 			},
 		},
 	}
-}
-
-func (e *RulesExtension) handleSearch(args json.RawMessage) (any, error) {
-	var p struct {
-		Keyword string `json:"keyword"`
-		Domain  string `json:"domain"`
-	}
-	if err := json.Unmarshal(args, &p); err != nil {
-		return fmt.Sprintf("参数解析错误: %v", err), nil
-	}
-	if p.Keyword == "" && p.Domain == "" {
-		return "请提供搜索关键词或规则域", nil
-	}
-	var rules []Rule
-	if p.Domain != "" {
-		rules = e.engine.RulesByDomain(p.Domain)
-	} else {
-		rules = e.engine.SearchRules(p.Keyword)
-	}
-	if len(rules) == 0 {
-		return "未找到匹配的规则", nil
-	}
-	return formatRules(rules), nil
-}
-
-func (e *RulesExtension) handleArticle(args json.RawMessage) (any, error) {
-	var p struct {
-		ArticleID string `json:"article_id"`
-	}
-	if err := json.Unmarshal(args, &p); err != nil {
-		return fmt.Sprintf("参数解析错误: %v", err), nil
-	}
-	af := e.engine.Article(p.ArticleID)
-	if af == nil {
-		return fmt.Sprintf("未找到法条框架: %s", p.ArticleID), nil
-	}
-	return formatArticle(af), nil
-}
-
-func (e *RulesExtension) handleOrchestration(args json.RawMessage) (any, error) {
-	var p struct {
-		CaseType string `json:"case_type"`
-	}
-	if err := json.Unmarshal(args, &p); err != nil {
-		return fmt.Sprintf("参数解析错误: %v", err), nil
-	}
-	orch := e.engine.Orchestration(p.CaseType)
-	if orch == nil {
-		return fmt.Sprintf("未找到事务编排: %s", p.CaseType), nil
-	}
-	return formatOrchestration(orch), nil
-}
-
-// --- Formatters ---
-
-func formatRules(rules []Rule) string {
-	var b strings.Builder
-	for _, r := range rules {
-		fmt.Fprintf(&b, "### %s — %s\n", r.RuleID, r.Name)
-		fmt.Fprintf(&b, "- 描述: %s\n", r.Description)
-		fmt.Fprintf(&b, "- 法律依据: %s\n", r.LegalBasis)
-		fmt.Fprintf(&b, "- 域: %s\n", r.Domain)
-		fmt.Fprintf(&b, "- 严重度: %s | 动作: %s\n", r.Severity, r.Action)
-		fmt.Fprintf(&b, "- 检查类型: %s\n", r.Check.Type)
-		if len(r.Check.Principles) > 0 {
-			b.WriteString("- 原则:\n")
-			for _, p := range r.Check.Principles {
-				fmt.Fprintf(&b, "  - %s\n", p)
-			}
-		}
-		if len(r.Check.Rules) > 0 {
-			b.WriteString("- 规则:\n")
-			for _, r2 := range r.Check.Rules {
-				fmt.Fprintf(&b, "  - %s\n", r2)
-			}
-		}
-		if len(r.Check.Assessment) > 0 {
-			b.WriteString("- 评估:\n")
-			for k, v := range r.Check.Assessment {
-				fmt.Fprintf(&b, "  - %s → %s\n", k, v)
-			}
-		}
-		b.WriteString("\n")
-	}
-	return b.String()
-}
-
-func formatArticle(af *ArticleFramework) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "# %s — %s\n", af.ArticleID, af.Name)
-	fmt.Fprintf(&b, "法律依据: %s\n", af.LawRef)
-	if af.GuidelineRef != "" {
-		fmt.Fprintf(&b, "审查指南: %s\n", af.GuidelineRef)
-	}
-	b.WriteString("\n## 判断步骤\n")
-	for _, step := range af.Steps {
-		fmt.Fprintf(&b, "### 步骤%d: %s\n", step.Order, step.Name)
-		fmt.Fprintf(&b, "规则参考: %s\n", step.RuleRef)
-		fmt.Fprintf(&b, "输入提示: %s\n", step.InputHint)
-		if len(step.OutputSchema) > 0 {
-			b.WriteString("输出:\n")
-			for k, v := range step.OutputSchema {
-				fmt.Fprintf(&b, "  - %s: %s\n", k, v)
-			}
-		}
-		b.WriteString("\n")
-	}
-	b.WriteString("## 结论模式\n")
-	for k, v := range af.ConclusionSchema {
-		fmt.Fprintf(&b, "- %s: %s\n", k, v)
-	}
-	return b.String()
-}
-
-func formatOrchestration(orch *Orchestration) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "# %s — %s\n", orch.ID, orch.Name)
-	fmt.Fprintf(&b, "事务类型: %s\n", orch.CaseType)
-	fmt.Fprintf(&b, "描述: %s\n\n", orch.Description)
-	b.WriteString("## 发现阶段\n")
-	for i, stage := range orch.DiscoveryStages {
-		fmt.Fprintf(&b, "### %d. %s\n", i+1, stage.Name)
-		fmt.Fprintf(&b, "目标: %s\n", stage.Goal)
-		if len(stage.Suggestions) > 0 {
-			b.WriteString("建议:\n")
-			for _, s := range stage.Suggestions {
-				fmt.Fprintf(&b, "  - %s\n", s)
-			}
-		}
-		fmt.Fprintf(&b, "\n")
-	}
-	fmt.Fprintf(&b, "## 可用法条\n")
-	for _, aa := range orch.AvailableArticles {
-		fmt.Fprintf(&b, "%d. %s — %s\n", aa.Priority, aa.ArticleID, aa.Description)
-	}
-	fmt.Fprintf(&b, "\n## 执行模板\n")
-	fmt.Fprintf(&b, "产出物: %s\n", orch.ExecutionTemplate.ArtifactType)
-	fmt.Fprintf(&b, "章节:\n")
-	for _, s := range orch.ExecutionTemplate.Sections {
-		fmt.Fprintf(&b, "  - %s\n", s)
-	}
-	return b.String()
 }

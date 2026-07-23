@@ -1,0 +1,65 @@
+id: "re-examination"
+name: "专利复审事务"
+caseType: "re-examination"
+description: >
+  对专利申请被驳回后提出复审请求。复审程序中可以修改申请文件，
+  但修改需同时满足专利法第33条（不超范围）和专利法实施细则第60条第1款
+  （复审修改仅限于消除驳回缺陷）。复审阶段的修改限制比实质审查阶段更严格。
+discoveryStages:
+  - name: "驳回决定分析"
+    goal: "识别驳回决定引用的法条、对比文件和驳回理由"
+    suggestions:
+      - "使用 parse_office_action 解析驳回决定"
+      - "确认驳回决定中引用的所有对比文件和理由"
+      - "评估驳回理由成立的可能性"
+      - "如驳回涉及A33修改超范围，使用 validate_amendment 回顾原始修改记录"
+
+  - name: "修改方案设计（复审严格限制）"
+    goal: "设计复审程序中允许的修改方案"
+    suggestions:
+      - "复审阶段的修改必须严格限于消除驳回缺陷"
+      - "使用 validate_amendment(modification_type=passive) 验证修改合规性"
+      - "使用 get_article_framework('patent-law-a33') 获取A33判断框架"
+      - "特别注意：复审程序中不得扩大保护范围，不得引入新的技术内容"
+      - "参考 amendment-rules 中的明显错误更正规则（如驳回涉及形式缺陷）"
+      - "复审修改通常只能进一步限定权利要求，不得做整体替换"
+
+  - name: "复审请求书撰写"
+    goal: "撰写复审请求书，说明修改内容和复审理由"
+    suggestions:
+      - "明确说明修改所针对的驳回决定中的具体缺陷"
+      - "指出驳回决定中的事实认定或法律适用错误"
+      - "如无修改，说明原申请文件不存在驳回决定所指出的缺陷"
+      - "引用典型案例支持复审理由"
+      - "使用 analyze_slop 检查复审请求书文本质量"
+
+  - name: "口审准备（如需要）"
+    goal: "准备口审陈述要点"
+    suggestions:
+      - "准备技术方案对比表"
+      - "准备修改不超范围的书面论证"
+      - "预演审查员可能的质疑点"
+
+availableArticles:
+  - articleId: "patent-law-a33"
+    priority: 1
+    description: "修改不超范围（复审阶段修改必须遵守的底线规则）"
+  - articleId: "patent-law-a22.2"
+    priority: 2
+    description: "新颖性（如驳回理由涉及）"
+  - articleId: "patent-law-a22.3"
+    priority: 3
+    description: "创造性（如驳回理由涉及）"
+  - articleId: "patent-law-a26.3"
+    priority: 4
+    description: "充分公开（如驳回理由涉及）"
+
+executionTemplate:
+  artifactType: "复审请求书"
+  sections:
+    - "案件基本信息"
+    - "驳回决定概述"
+    - "修改说明（如有修改，注明修改依据和所针对的缺陷）"
+    - "复审理由（逐项反驳驳回理由）"
+    - "修改不超范围说明（如有修改）"
+    - "结论与请求"

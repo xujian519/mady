@@ -1,0 +1,356 @@
+# 修改规则集 — 专利法第33条修改不超范围
+# 15 条规则：修改依据(5) + 直接毫无疑义确定(6) + 修改时机(3) + 其他(1)
+# 来源：《专利法详解》第三章§33，《以案说法》第八章§1-2
+# 关联知识库：宝宸知识库/Wiki/专利实务/修改/
+
+rules:
+  # ── 修改依据规则（5条）────────────────────────────────────────
+
+  - ruleId: "amendment-basis-original-filing"
+    name: "修改依据以原始申请文件为核心"
+    description: >
+      专利申请文件的修改依据以申请日提交的原始文件为核心边界，
+      包括原始权利要求书、说明书及其附图的直接文字记载，
+      以及能够直接、毫无疑义地确定的内容。
+      不可以将仅在先申请中记载而未在在后申请中记载的内容通过修改加入。
+    legalBasis: "专利法第33条；审查指南第二部分第八章§5.1"
+    domain: "patent_amendment"
+    severity: critical
+    action: block
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "原始申请日提交的纸件权利要求书、说明书和附图是最基本的修改依据"
+        - "以计算机可读形式记载的相关内容也属于原始记载范围"
+        - "PCT国际申请以原始提交的国际申请文本为准"
+        - "分案申请的修改依据包括母案申请原始说明书和权利要求书"
+      conditions:
+        - "原始文件未记载的内容不能通过修改补入"
+        - "优先权文件中未要求优先权的内容不属于本申请原始记载"
+
+  - ruleId: "amendment-basis-abstract"
+    name: "摘要及摘要附图不得作为修改依据"
+    description: >
+      说明书摘要以及摘要附图是说明书记载内容的概述，仅是一种技术信息，
+      不具有法律效力。摘要以及摘要附图可以在申请日后提交，
+      其内容不属于专利申请原始记载的内容。
+    legalBasis: "专利法第33条；审查指南第二部分第八章§5.1"
+    domain: "patent_amendment"
+    severity: critical
+    action: block
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "摘要附图仅用于公开技术信息，不具备法律效力"
+        - "摘要中记载而未在说明书和权利要求书中记载的内容，不能用作修改依据"
+      rules:
+        - "禁止将说明书摘要中的内容补入说明书正文或权利要求书"
+        - "禁止将摘要附图补入说明书附图"
+      conditions:
+        - "修改来源为摘要或摘要附图 → 违规"
+
+  - ruleId: "amendment-basis-measured-drawing"
+    name: "通过测量附图获得的具体尺寸参数不得作为修改依据"
+    description: >
+      说明书附图仅仅是示意性的，不允许将通过对说明书附图进行测量
+      得到的具体尺寸参数增加到申请文件中。
+    legalBasis: "专利法第33条；审查指南第二部分第八章§5.1"
+    domain: "patent_amendment"
+    severity: critical
+    action: block
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "说明书附图具有示意性，并非精确工程图"
+        - "附图仅能用于支持能够直接、毫无疑义地确定的内容"
+      rules:
+        - "禁止将通过测量附图获取的具体数值作为修改依据"
+      conditions:
+        - "需要通过测量附图来确定尺寸参数 → 违规"
+
+  - ruleId: "amendment-basis-priority"
+    name: "优先权文件不得作为修改依据"
+    description: >
+      对于作为优先权基础的在先申请，其记载的未要求优先权的其他内容，
+      不属于在后要求优先权申请的原始记载内容。
+      优先权文件仅在核实优先权时作为对比基础。
+    legalBasis: "专利法第33条；审查指南第二部分第八章§5.1"
+    domain: "patent_amendment"
+    severity: critical
+    action: block
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "优先权文件不是本申请的原始文件"
+        - "优先权文件中未要求优先权的其他内容不属于本申请原始记载"
+      referenceCases:
+        - "第60010号复审决定（200680043814.7）：优先权文件中记载的发酵温度范围不能作为修改依据"
+
+  - ruleId: "amendment-basis-cited-document"
+    name: "引证文件作为修改依据的条件"
+    description: >
+      当说明书中引证了申请日前公开的外国专利文件，且对所引证的文件
+      及引用部分给出了明确指引时，应当认为本申请说明书中记载了
+      所述引证文件引用部分的内容，该内容可以作为修改的依据。
+      引证必须明确具体，不能是笼统引用。
+    legalBasis: "专利法第33条；审查指南第二部分第八章§5.1"
+    domain: "patent_amendment"
+    severity: major
+    action: review
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "引证文件必须针对申请日前公开的外国专利文件"
+        - "必须对所引证的文件及引用部分给出了明确指引"
+        - "笼统引用（如'参见某文献'）不满足条件"
+      referenceCases:
+        - "第89660号复审决定（200680028239.3）：WO2004/011436的引用部分可作为修改依据"
+      conditions:
+        - "引证不明确、未指明具体内容 → 不能作为修改依据"
+
+  # ── "直接地、毫无疑义地确定"判定规则（6条）─────────────────────
+
+  - ruleId: "amendment-judgment-common-knowledge"
+    name: "基于公知常识的技术特征改变"
+    description: >
+      虽然原始申请文件没有直接的文字记载，但所属领域技术人员
+      基于该领域的基本原理或技术上固有的内在联系，能够确定
+      某技术特征是客观存在的，则该技术特征属于能够直接、
+      毫无疑义地确定的内容。适用条件：内在联系 + 客观存在。
+      重要限制：公知常识如果仅是现有技术中的一种可能选择，
+      而非从原申请文件明确信息必然得出的，则不能补入。
+    legalBasis: "专利法第33条；《以案说法》第八章§2.1"
+    domain: "patent_amendment"
+    severity: major
+    action: review
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "内在联系：技术特征与原始记载之间存在技术上固有的、必然的联系"
+        - "客观存在：本领域技术人员能确定该技术特征是客观存在的"
+        - "公知常识≠可以直接毫无疑义确定：必须是依据原文件必然得出的内容"
+      rules:
+        - "基于基本原理可以必然得出的技术特征 → 不超范围"
+        - "同一含义的技术术语替换 → 不超范围"
+        - "仅是对现有技术多种可能选择之一的公知常识 → 超范围"
+      referenceCases:
+        - "第78703号（200810084576.5）：粘接必然在接触位置 → 不超范围"
+        - "第12569号（03117259.8）：滚筒被传送带和托轮共同支承 → 不超范围"
+        - "第12398号（0012315.4）：'重量份数比'→'重量配比' → 不超范围"
+        - "第18125号（200510137122.6）：涂隔离剂仅为一种可能选择 → 超范围"
+
+  - ruleId: "amendment-judgment-recombination"
+    name: "分离技术特征的重新组合"
+    description: >
+      对于将原始申请文件中不同技术方案的技术特征重新组合形成
+      新技术方案的修改方式，应着重考虑技术特征之间的关联性。
+      如果原始申请文件已表明某些特征之间只能以特定方式组合
+      才能解决技术问题，不能将其割裂、抽离、组合形成新方案。
+      反之，如果原始文件表明各特征之间不存在特定的绑定关系，
+      可以灵活组合，则允许重新组合。
+    legalBasis: "专利法第33条；《以案说法》第八章§2.2"
+    domain: "patent_amendment"
+    severity: critical
+    action: block
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "可关联组合：原始文件表明各特征可相互关联组合 → 允许"
+        - "特定绑定：表明只能以特定方式组合才能解决技术问题 → 禁止"
+      rules:
+        - "从实施例中抽取含量特征与其他特征组合，而实施例特征存在特定关联 → 超范围"
+        - "从不同实施例中抽取特征组合，但原始文件表明特征之间无绑定关系 → 不超范围"
+      referenceCases:
+        - "第34136号（02823751.X）：实施例特征存在特定关联→超范围"
+        - "第31579号（200510012488.0）：特征间无特定绑定关系→不超范围"
+
+  - ruleId: "amendment-judgment-generalization"
+    name: "基于下位概念或实施例的概括"
+    description: >
+      在多个下位概念或实施例的基础上概括修改为上位概念时，
+      应考查是否能直接、毫无疑义地得出该上位概念。关键在于
+      多个下位概念或实施例是否穷尽了所有可能实现方式，
+      或是否足以使本领域技术人员认识到申请人已表达了不限于
+      具体实施方式的意思表示。
+    legalBasis: "专利法第33条；《以案说法》第八章§2.3"
+    domain: "patent_amendment"
+    severity: major
+    action: review
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "实施例穷尽了某特征的所有可能实现方式 → 允许概括"
+        - "本领域技术人员能认识到申请人不限方式的意思表示 → 允许"
+      rules:
+        - "三个实施例覆盖了所有弹性机构方式→概括为可调节间隙→不超范围"
+      referenceCases:
+        - "第7581号（94110912.7）：三种弹性机构穷尽→概括为'可调节间隙'→不超范围"
+
+  - ruleId: "amendment-judgment-essential-deletion"
+    name: "不得删除必要技术特征"
+    description: >
+      删除技术方案中的必要技术特征将导致不能解决其技术问题，
+      修改后的技术方案超出了原说明书和权利要求书记载的范围。
+      必要技术特征是发明或实用新型为解决其技术问题所不可缺少的
+      技术特征，其总和足以构成技术方案使之区别于背景技术。
+    legalBasis: "专利法第33条；《以案说法》第八章§2.4"
+    domain: "patent_amendment"
+    severity: critical
+    action: block
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "必要技术特征的删除实质改变发明内容"
+        - "删除后技术方案将不能解决原技术问题"
+        - "判断时需结合发明目的、技术问题、背景技术缺陷和实施方式"
+      rules:
+        - "删除发明点的特征→超范围"
+        - "删除解决技术问题所不可或缺的特征→超范围"
+      referenceCases:
+        - "第9215号（02111380.7）：删除'不含化学试剂的纯天然竹纤维'→超范围"
+
+  - ruleId: "amendment-judgment-obvious-error"
+    name: "明显错误的修改"
+    description: >
+      更正明显错误需同时满足两个条件：
+      (1) 可从原始申请文件本身意识到存在错误之处
+      (2) 本领域技术人员能确定唯一的正确答案，排除其他修改可能。
+      不能因为存在其他理论上的修改可能就得出修改超范围的结论，
+      应基于原始申请文件整体探寻申请人真实意思。
+    legalBasis: "专利法第33条；《以案说法》第八章§2.5"
+    domain: "patent_amendment"
+    severity: major
+    action: review
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "矛盾可识别：从原文件本身可意识到存在错误"
+        - "答案唯一性：能确定唯一正确答案，排除其他可能"
+      rules:
+        - "文字记载与结构式/英文名称矛盾 + 可确定正确答案 → 允许更正"
+        - "技术逻辑自相矛盾 + 唯一正确解释 → 允许更正"
+      referenceCases:
+        - "第16242号（02148588.7）：芦丁→叶黄素（文字与结构式矛盾+唯一确定）→不超范围"
+        - "第24591号（03139760.3）：氟位置5位→4位（反应机理唯一确定）→不超范围"
+        - "第111983号（201210088627.8）：稀释比例500:1→1:500（技术逻辑矛盾+唯一正确）→不超范围"
+
+  - ruleId: "amendment-judgment-type-conversion"
+    name: "权利要求类型转化的判断"
+    description: >
+      涉及计算机程序的专利申请，方法权利要求与程序模块装置
+      权利要求本质都是由计算机程序实现，是同一发明构思的不同
+      表达方式，允许相互转化。瑞士型权利要求（物质X在制备
+      治疗疾病Y的药物中的应用）是疾病诊断治疗方法的常见修改方式。
+    legalBasis: "专利法第33条；《以案说法》第八章§2.6"
+    domain: "patent_amendment"
+    severity: major
+    action: review
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "软件领域方法权利要求与装置权利要求是同一构思的不同表达"
+        - "瑞士型权利要求转化通常不视为超范围"
+      rules:
+        - "软件方法←→装置转化 → 不超范围"
+        - "疾病的诊断治疗方法→瑞士型权利要求 → 不超范围"
+      referenceCases:
+        - "第98049号（200780050969.8）：软件方法←→装置转化→不超范围"
+        - "第102350号（200910111868.8）：诊断方法→瑞士型→不超范围"
+
+  # ── 修改时机规则（3条）────────────────────────────────────────
+
+  - ruleId: "amendment-timing-active"
+    name: "主动修改时机要求"
+    description: >
+      发明专利申请：在提出实质审查请求时，或者在收到进入实质审查
+      阶段通知书之日起的3个月内主动修改。
+      实用新型专利申请：自申请日起2个月内主动修改。
+    legalBasis: "专利法实施细则第51条"
+    domain: "patent_amendment"
+    severity: major
+    action: warn
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "发明：提出实审请求时或进入实审通知书之日起3个月内"
+        - "实用新型：自申请日起2个月内"
+      rules:
+        - "超过主动修改期限的修改，审查员一般不予接受"
+      conditions:
+        - "逾期主动修改 → 提醒可能不被接受"
+
+  - ruleId: "amendment-timing-passive"
+    name: "被动修改范围要求"
+    description: >
+      在国家知识产权局发出审查意见通知书后，申请人应针对
+      通知书指出的缺陷进行修改。修改应当与审查意见指出的
+      缺陷相关，不得引入新的未涉及的技术方案。
+    legalBasis: "专利法实施细则第51条第3款"
+    domain: "patent_amendment"
+    severity: critical
+    action: block
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "必须针对通知书指出的缺陷进行修改"
+        - "如何修改由申请人自己选择（2010年细则修改体现自主权）"
+      rules:
+        - "修改与通知书记载缺陷无关 → 不予接受"
+      conditions:
+        - "修改内容与审查意见指出的缺陷无关 → 违规"
+
+  - ruleId: "amendment-timing-ex-officio"
+    name: "依职权修改条件"
+    description: >
+      国家知识产权局可以自行修改申请文件中文字和符号的明显错误，
+      但应当通知申请人。条件：(1)申请具有授权前景并已接近审查
+      最后阶段；(2)修改限于文字和符号的明显错误，
+      不会对保护范围产生实质影响。
+    legalBasis: "专利法实施细则第51条第4款"
+    domain: "patent_amendment"
+    severity: info
+    action: note
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "具有授权前景并接近审查最后阶段"
+        - "仅限于文字和符号的明显错误"
+        - "不会对保护范围产生实质影响"
+
+  # ── 其他规则（1条）─────────────────────────────────────────────
+
+  - ruleId: "amendment-background-tech"
+    name: "背景技术内容可作为修改依据的条件"
+    description: >
+      如果申请日提交的说明书在其背景技术部分明确记载了与发明
+      技术方案直接相关的信息，导致本领域技术人员足以认识到
+      该信息属于发明技术方案的一部分，该内容可以作为修改依据。
+      背景技术部分并非绝对不可作为修改依据。
+    legalBasis: "专利法第33条"
+    domain: "patent_amendment"
+    severity: major
+    action: review
+    check:
+      type: patent_amendment
+      method: llm_judge
+      principles:
+        - "背景技术内容与发明技术方案直接相关"
+        - "本领域技术人员足以认识到该信息属于技术方案一部分"
+      referenceCases:
+        - "第56013号（200480040265.9）：背景技术记载的环境灵敏荧光基团可作为修改依据"
+      conditions:
+        - "背景技术仅描述现有技术缺陷，未涉及本发明的直接信息 → 不能作为修改依据"

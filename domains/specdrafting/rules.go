@@ -125,6 +125,10 @@ func RegisterDefaultRules(engine *RuleEngine) {
 			"问题、方案、效果三者应相互适应", "专利法第26条第3款")},
 		&clarityTermConsistencyRule{baseRule: newBaseRule("clarity-term-consistency",
 			"术语全文应保持一致", "专利法第26条第3款")},
+		&clarityEffectsSpecificRule{baseRule: newBaseRule("clarity-effects-specific",
+			"有益效果应具体分析因果关系，避免仅写笼统优点", "审查指南第二部分第二章§2.1.3")},
+		&clarityCitationRule{baseRule: newBaseRule("clarity-citation",
+			"背景技术应引证反映现有技术的文件", "专利法实施细则第17条第2款")},
 
 		&domainMechanicalRule{baseRule: newBaseRule("domain-mechanical",
 			"机械领域应描述零部件及其配置关系", "审查指南第二部分第二章")},
@@ -132,6 +136,8 @@ func RegisterDefaultRules(engine *RuleEngine) {
 			"电学领域应描述元器件、连接关系和功能", "审查指南第二部分第二章")},
 		&domainChemicalRule{baseRule: newBaseRule("domain-chemical",
 			"化学领域应公开组分含量及实验数据", "审查指南第二部分第十章")},
+		&domainChemicalEmbodimentRule{baseRule: newBaseRule("domain-chemical-embodiment",
+			"化学领域应提供足够数量和类型的实施例", "审查指南第二部分第十章§3.4")},
 		&domainSoftwareRule{baseRule: newBaseRule("domain-software",
 			"软件领域应描述方法步骤或功能模块", "审查指南第二部分第九章§5.2")},
 
@@ -141,6 +147,12 @@ func RegisterDefaultRules(engine *RuleEngine) {
 			"实用新型仅保护产品形状/构造", "专利法第2条第3款")},
 		&utilitySingleIndependentRule{baseRule: newBaseRule("utility-single-independent",
 			"实用新型应只有一个独立权利要求", "专利法实施细则第21条第1款")},
+
+		// 充分公开规则（专利法第26条第3款）
+		&enablementMeansExistRule{baseRule: newBaseRule("enablement-means-exist",
+			"说明书应当清楚、完整地说明发明，使所属领域技术人员能够实现", "专利法第26条第3款；审查指南第二部分第二章§2.1.3")},
+		&enablementExperimentEvidenceRule{baseRule: newBaseRule("enablement-experiment-evidence",
+			"化学/材料领域应提供实验数据证实技术效果", "专利法第26条第3款；审查指南第二部分第二章§2.1.3")},
 	)
 }
 

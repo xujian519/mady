@@ -25,7 +25,8 @@ type RuleSet struct {
 // Expected layout:
 //
 //	dir/
-//	  *.yaml              — rule files (rules: [...])
+//	  *.yaml              — rule files (top-level, or use rules/ subdir)
+//	  rules/*.yaml        — rule files (subdirectory, loaded after top-level)
 //	  articles/*.yaml     — article frameworks
 //	  orchestrations/*.yaml — orchestrations
 //	  reflection-indicators.yaml — reflection phrases
@@ -39,11 +40,11 @@ func LoadFromDir(dir string) (*RuleSet, error) {
 		ruleIndex:         make(map[string]*Rule),
 	}
 
+	// 1) Load rule files from the top-level directory
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("read rules dir %s: %w", dir, err)
 	}
-
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -64,6 +65,21 @@ func LoadFromDir(dir string) (*RuleSet, error) {
 		}
 	}
 
+	// 2) Load rule files from the rules/ subdirectory (if present)
+	rulesDir := filepath.Join(dir, "rules")
+	if rEntries, err := os.ReadDir(rulesDir); err == nil {
+		for _, entry := range rEntries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+				continue
+			}
+			path := filepath.Join(rulesDir, entry.Name())
+			if err := rs.loadRuleFile(path); err != nil {
+				return nil, fmt.Errorf("load rules/%s: %w", entry.Name(), err)
+			}
+		}
+	}
+
+	// 3) Load article frameworks from articles/ subdirectory
 	articlesDir := filepath.Join(dir, "articles")
 	if entries, err := os.ReadDir(articlesDir); err == nil {
 		for _, entry := range entries {
@@ -77,6 +93,7 @@ func LoadFromDir(dir string) (*RuleSet, error) {
 		}
 	}
 
+	// 4) Load orchestrations from orchestrations/ subdirectory
 	orchDir := filepath.Join(dir, "orchestrations")
 	if entries, err := os.ReadDir(orchDir); err == nil {
 		for _, entry := range entries {

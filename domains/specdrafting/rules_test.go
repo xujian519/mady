@@ -380,6 +380,122 @@ func TestSpecScorer_Score(t *testing.T) {
 	t.Logf("评分: %.1f, 等级: %s", report.OverallScore, report.Grade)
 }
 
+// =============================================================================
+// 充分公开规则测试（专利法第26条第3款）
+// =============================================================================
+
+func TestEnablementMeansExistRule_OnlyGoalNoMeans(t *testing.T) {
+	rule := &enablementMeansExistRule{baseRule: newBaseRule("em", "", "专利法第26条第3款")}
+	tests := []struct {
+		name    string
+		spec    *SpecOutput
+		wantErr bool
+	}{
+		{
+			name:    "仅描述问题无具体手段",
+			spec:    &SpecOutput{Sections: []SpecSection{{Name: SecContent, Content: "本发明要解决的技术问题是提升生产效率。有益效果是提高了效率。"}}},
+			wantErr: true,
+		},
+		{
+			name:    "含具体手段",
+			spec:    &SpecOutput{Sections: []SpecSection{{Name: SecContent, Content: "要解决的技术问题是提升效率。技术方案如下：包括驱动装置和传动机构，驱动装置与传动机构连接。有益效果是提高了效率。"}}},
+			wantErr: false,
+		},
+		{
+			name:    "无内容不触发",
+			spec:    &SpecOutput{},
+			wantErr: false,
+		},
+		{
+			name:    "仅效果描述无具体手段",
+			spec:    &SpecOutput{Sections: []SpecSection{{Name: SecContent, Content: "本发明具有结构简单、使用方便的优点。"}}},
+			wantErr: true, // 有效果描述但无技术支持手段，属于情形1
+		},
+		{
+			name:    "nil spec 不触发",
+			spec:    nil,
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := len(rule.Check(tt.spec, SpecInput{})) > 0
+			if got != tt.wantErr {
+				t.Errorf("Check() gotErr=%v, wantErr=%v", got, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestEnablementExperimentEvidenceRule(t *testing.T) {
+	rule := &enablementExperimentEvidenceRule{baseRule: newBaseRule("eee", "", "专利法第26条第3款")}
+	tests := []struct {
+		name    string
+		spec    *SpecOutput
+		input   SpecInput
+		wantErr bool
+	}{
+		{
+			name: "化学领域有实验数据",
+			spec: &SpecOutput{Sections: []SpecSection{
+				{Name: SecEmbodiment, Content: "实施例1：组分A 50g与组分B 30g混合。实施例2：组分A 60g与组分B 20g混合。实验结果表明效果显著。"},
+			}},
+			input:   SpecInput{TechDomain: DomainChemical},
+			wantErr: false,
+		},
+		{
+			name: "化学领域缺实验数据",
+			spec: &SpecOutput{Sections: []SpecSection{
+				{Name: SecEmbodiment, Content: "本发明提供了一种新组合物。该组合物具有优异的性能。"},
+			}},
+			input:   SpecInput{TechDomain: DomainChemical},
+			wantErr: true,
+		},
+		{
+			name: "机械领域不触发",
+			spec: &SpecOutput{Sections: []SpecSection{
+				{Name: SecEmbodiment, Content: "一种机械装置。"},
+			}},
+			input:   SpecInput{TechDomain: DomainMechanical},
+			wantErr: false,
+		},
+		{
+			name: "含material特征的其他领域也检查",
+			spec: &SpecOutput{Sections: []SpecSection{
+				{Name: SecEmbodiment, Content: "一种材料配方。"},
+			}},
+			input:   SpecInput{TechDomain: DomainGeneral, Features: []SpecFeature{{Category: "material"}}},
+			wantErr: true, // 材料配方应有实验证据，即使不在 Chemical 域也要检查
+		},
+		{
+			name: "化学领域一个实施例不足警告",
+			spec: &SpecOutput{Sections: []SpecSection{
+				{Name: SecEmbodiment, Content: "实施例1：组分A 50g与组分B 30g混合。实验数据：强度显著提高。"},
+			}},
+			input:   SpecInput{TechDomain: DomainChemical},
+			wantErr: true, // 化学领域至少需2个实施例，不足时警告
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := len(rule.Check(tt.spec, tt.input)) > 0
+			if got != tt.wantErr {
+				t.Errorf("Check() gotErr=%v, wantErr=%v", got, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestRuleEngine_TotalRuleCount_WithEnablement(t *testing.T) {
+	engine := NewRuleEngine()
+	RegisterDefaultRules(engine)
+	rules := engine.Rules()
+	// 原有 16 条 + 新增 5 条 enablement = 21 条
+	if len(rules) != 21 {
+		t.Errorf("预期 21 条规则, got %d", len(rules))
+	}
+}
+
 func genLongChinese(n int) string {
 	chars := []rune("本发明提供了一种挖掘机悬臂装置涉及工程机械技术领域。")
 	r := make([]rune, n)

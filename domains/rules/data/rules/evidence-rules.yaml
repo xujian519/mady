@@ -269,10 +269,10 @@ rules:
       type: proof_standard
       method: scored
       rules:
-        - 专利侵权: 高度盖然性（≥80%确信）
-        - 专利无效: 优势证据（>50%确信）
-        - 新颖性问题: 优势证据
-        - 优先权核实: 高度盖然性
+        - "专利侵权: 高度盖然性（≥80%确信）"
+        - "专利无效: 优势证据（>50%确信）"
+        - "新颖性问题: 优势证据"
+        - "优先权核实: 高度盖然性"
       conditions:
         - supporting_evidence_counted
         - contradicting_evidence_counted

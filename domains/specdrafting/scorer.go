@@ -56,10 +56,10 @@ func (s *SpecScorer) calcDimensionScores(violations []Violation) map[string]floa
 
 	dimensionRules := map[string][]string{
 		DimCompleteness:     {"structure-sections", "structure-content-triad"},
-		DimClarity:          {"clarity-terminology", "clarity-forbidden-words", "clarity-pfe-consistency", "clarity-term-consistency"},
-		DimSupport:          {"structure-embodiment-detail"},
+		DimClarity:          {"clarity-terminology", "clarity-forbidden-words", "clarity-pfe-consistency", "clarity-term-consistency", "clarity-effects-specific", "clarity-citation"},
+		DimSupport:          {"structure-embodiment-detail", "enablement-means-exist", "enablement-experiment-evidence"},
 		DimFormality:        {"structure-title-length", "structure-abstract-length"},
-		DimDomainAdaptation: {"domain-mechanical", "domain-electrical", "domain-chemical", "domain-software", "utility-drawings-required", "utility-product-only"},
+		DimDomainAdaptation: {"domain-mechanical", "domain-electrical", "domain-chemical", "domain-chemical-embodiment", "domain-software", "utility-drawings-required", "utility-product-only"},
 	}
 
 	scores := make(map[string]float64)

@@ -192,6 +192,8 @@ rules:
     name: "修改不超范围核查"
     description: >
       根据专利法第33条，对发明专利申请文件的修改不得超出原说明书和权利要求书记载的范围。
+      这是一条"笼统规则"——判断修改是否超范围的核心标准是
+      "直接地、毫无疑义地确定"。
     legalBasis: "专利法第33条"
     domain: patent
     severity: critical
@@ -208,6 +210,10 @@ rules:
         - "删除必要的技术特征导致保护范围扩大 → 超范围"
         - "将上位概念改为下位概念（下位概念在原文件中无记载）→ 超范围"
         - "修改数值范围（新范围未在原文件中明确记载）→ 超范围"
+      notes:
+        - "详细规则请参考 amendment-rules.yaml（15条详细规则+13个参考案例）"
+        - "使用 get_article_framework('patent-law-a33') 获取修改判断三步法框架"
+        - "使用 validate_amendment 工具进行结构化修改验证"
 
   - ruleId: "patent-a9-first-to-file"
     name: "先申请原则核查"

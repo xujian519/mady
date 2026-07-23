@@ -2024,6 +2024,51 @@ TUI 进入 alternate screen 模式后，`os.Stderr` 与 `os.Stdout` 共享同一
 
 ---
 
+## 2026-07-23: 专利修改规则体系全面集成（Phases 1-3）
+
+### 背景
+宝宸知识库 Wiki 中存储了详尽的专利修改规则体系（专利法第33条 + 15条子规则 + 13个典型案例），
+但智能体在执行撰写/OA答复/补正/复审/无效等任务时无法系统性地遵循这些规则。
+此前项目中仅有 `patent-core.yaml` 中一条笼统的 `patent-a33-amendment` 规则。
+
+### 变更内容
+
+**Phase 1 — YAML 规则文件（3 文件）**
+- `domains/rules/data/articles/patent-law-a33.yaml`：**新增**法条框架，三步判断法（依据合法性 → 直接毫无疑义确定 → 修改时机）
+- `domains/rules/data/rules/amendment-rules.yaml`：**新增**15条详细修改规则，覆盖修改依据(5)、直接毫无疑义判定(6)、修改时机(3)、背景技术(1)，每规则附带原则、规则和参考案例
+- `domains/rules/data/rules/patent-core.yaml`：**修改**已有 `patent-a33-amendment` 规则，增加交叉引用（指向 amendment-rules.yaml 和 validate_amendment 工具）
+- `domains/rules/loader.go`：**修复** loadRuleFile 增加了对 `rules/` 子目录的递归读取支持（此前 rules/ 下的文件永远不会被加载）；**修复** `evidence-rules.yaml` 中未加引号的 YAML 映射值导致的反序列化失败
+
+**Phase 2 — validate_amendment 工具（1 文件）**
+- `domains/rules/engine.go`：**新增** `validate_amendment` 工具（三步检查：修改依据→A33判定→时机合规），`handleValidateAmendment` 方法，`formatAmendmentAnalysis` 格式化器，`formatArticleShort` 辅助函数，`AmendmentAnalysis`/`AmendmentRuleRef` 值类型
+- `domains/rules/types.go`：**新增** `AmendmentRuleRef`、`AmendmentAnalysis` 结构体
+- `domains/rules/engine.go`：**修改** `SystemPromptSuffix()` 增加 validate_amendment 工具说明
+
+**Phase 3 — 编排方案 + amendment 模块（5 文件）**
+- `domains/rules/data/orchestrations/oa-response.yaml`：**新增**审查意见答复事务编排（4 个发现阶段 + 4 条可用法条 + 5 节执行模板）
+- `domains/rules/data/orchestrations/re-examination.yaml`：**新增**专利复审事务编排（4 个发现阶段 + 4 条可用法条 + 5 节执行模板）
+- `domains/amendment/doc.go`：**新增**包文档（架构定位、检查流程、使用方式）
+- `domains/amendment/types.go`：**新增**值类型（ModType、CheckInput、CheckResult、Violation）
+- `domains/amendment/checker.go`：**新增**编译型规则检查器（`AmendmentChecker`），注册 3 条编译型规则（基本输入检查、被动修改OA检查），提供 `FormatCheckResult` 格式化函数
+- `domains/amendment/checker_test.go`：**新增**8 个测试用例（无修改/有修改/被动无OA/被动有OA/无原始文件/空输入/说明书修改/格式化输出）
+
+### 架构决策
+1. **YAML 为主 + 编译型为辅**：修改超范围判断天然需要'本领域技术人员'视角，YAML 规则通过 LLM 判断最适合；编译型规则（`domains/amendment/`）负责边界明确的规则
+2. **规则从不加载到能加载**：`loader.go` 原只从 `data/` 顶层读取规则 YAML，`rules/` 子目录下已有文件（patent-core.yaml、evidence-rules.yaml）从未被加载。新增 `rules/` 子目录读取 + Rule UnmarshalYAML 收集额外字段
+3. **OA答复/复审作为独立编排方案**：与已有的 invalidation（无效宣告）编排方案并列，形成覆盖专利全生命周期的编排矩阵（4种事务类型）
+
+### 影响范围
+- 新增 9 个 YAML/Go 文件，修改 4 个既有文件
+- 不触碰任何安全敏感路径
+- 向后兼容：现有 `patent-a33-amendment` 规则保留并增强
+
+### 验证
+- `go build ./...` — 通过（根模块 + tools 子模块）
+- `go test ./domains/rules/... ./domains/amendment/...` — 全部通过（33 tests）
+- `make all` — 通过（vet + build + test）
+- YAML 文件验证：9 个文件全部有效
+- 真实数据加载验证：40 条规则 / 4 篇法条框架 / 2 个编排方案全部被加载
+
 
 
 ### 背景

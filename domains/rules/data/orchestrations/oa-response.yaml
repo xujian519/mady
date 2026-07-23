@@ -1,0 +1,61 @@
+id: "oa-response"
+name: "审查意见答复事务"
+caseType: "oa_response"
+description: >
+  针对国家知识产权局发出的审查意见通知书进行答复，包括分析驳回理由、
+  修改权利要求/说明书、撰写意见陈述书。核心是确保修改不超范围（A33）
+  且能克服审查意见指出的缺陷。
+discoveryStages:
+  - name: "审查意见分析"
+    goal: "识别驳回类型、引用的对比文件、受影响的权利要求"
+    suggestions:
+      - "使用 parse_office_action 解析审查意见通知书"
+      - "逐项确认驳回理由适用的法条（A22.2新颖性/A22.3创造性/A26.4清楚支持/A26.3充分公开）"
+      - "确定修改策略：缩小保护范围/增加技术特征/修改术语/删除技术方案"
+
+  - name: "修改方案设计"
+    goal: "设计不超范围且能克服缺陷的修改方案"
+    suggestions:
+      - "使用 validate_amendment 验证修改是否超出原始记载范围"
+      - "使用 get_article_framework('patent-law-a33') 获取A33判断框架"
+      - "确认修改是否针对审查意见指出的缺陷（被动修改要求）"
+      - "参考 amendment-rules 规则库中的典型案例（明显错误更正/特征删除/术语替换）"
+      - "如涉及创造性驳回，使用三步法框架重新评估"
+
+  - name: "答复书撰写"
+    goal: "撰写意见陈述书，说明修改内容且争辩修改符合法律规定"
+    suggestions:
+      - "逐项回应审查意见的驳回理由"
+      - "说明修改依据（引用原始文件的具体段落或附图）"
+      - "对修改超范围质疑进行争辩（如适用直接毫无疑义确定原则）"
+      - "使用 analyze_slop 检查答复文本中的AI套话"
+
+  - name: "终稿复核"
+    goal: "复核修改是否超范围，答复是否完整"
+    suggestions:
+      - "最终运行 validate_amendment 全面复核修改合规性"
+      - "确认所有审查意见均已回应"
+      - "检查修改后的权利要求保护范围层次是否合理"
+
+availableArticles:
+  - articleId: "patent-law-a33"
+    priority: 1
+    description: "修改不超范围（修改操作必须遵守的底线规则）"
+  - articleId: "patent-law-a22.2"
+    priority: 2
+    description: "新颖性（如驳回理由涉及）"
+  - articleId: "patent-law-a22.3"
+    priority: 3
+    description: "创造性（如驳回理由涉及）"
+  - articleId: "patent-law-a26.3"
+    priority: 4
+    description: "充分公开（如驳回理由涉及）"
+
+executionTemplate:
+  artifactType: "意见陈述书"
+  sections:
+    - "审查意见概述"
+    - "修改说明（含修改依据引用）"
+    - "关于驳回理由的逐项争辩"
+    - "关于修改合规性的说明"
+    - "结论与请求"

@@ -101,8 +101,15 @@ func (b *ClaimBuilder) buildIndependentClaims(input DraftInput, domain TechDomai
 	claims := []Claim{primary}
 	switch input.Strategy {
 	case StrategyProductAndMethod:
-		if p := b.buildParallelMethod(input, domain, primary.Number, essential); p != nil {
-			claims = append(claims, *p)
+		methodClaim := b.buildParallelMethod(input, domain, primary.Number, essential)
+		if methodClaim != nil {
+			claims = append(claims, *methodClaim)
+		}
+		// 软件领域：额外生成"用步骤限定的装置"产品权利要求
+		if domain == DomainSoftware {
+			if d := b.buildSoftwareApparatus(input, domain, primary.Number, methodClaim, essential); d != nil {
+				claims = append(claims, *d)
+			}
 		}
 	case StrategyProductAndManufacturing:
 		if p := b.buildParallelManufacturing(input, domain, primary.Number, essential); p != nil {
@@ -110,6 +117,16 @@ func (b *ClaimBuilder) buildIndependentClaims(input DraftInput, domain TechDomai
 		}
 	case StrategyProductAndUse:
 		if p := b.buildParallelUse(input, domain, primary.Number); p != nil {
+			claims = append(claims, *p)
+		}
+	case StrategyPharmaUse:
+		if p := b.buildPharmaUse(input, domain, primary.Number); p != nil {
+			claims = append(claims, *p)
+		}
+	case StrategyMarkush:
+		if p := b.buildMarkush(input, domain, primary.Number, essential); p != nil {
+			// 马库什类型替换主权利要求的ClaimType
+			claims[0].ClaimType = ClaimTypeProduct
 			claims = append(claims, *p)
 		}
 	}
@@ -170,6 +187,90 @@ func (b *ClaimBuilder) buildParallelUse(input DraftInput, domain TechDomain, pri
 		Preamble: preamble, Characterized: "[待确定：用途]"}
 }
 
+// buildPharmaUse 生成瑞士型权利要求（医药第二适应症）。
+//
+// 格式："物质X在制备治疗Y病的药物中的应用"
+// 法律依据：专利法第25条第1款第(三)项——疾病的诊断和治疗方法不授予专利权，
+// 但"用于制备药物的应用"（瑞士型权利要求）属于可授权客体。
+func (b *ClaimBuilder) buildPharmaUse(input DraftInput, domain TechDomain, primaryNum int) *Claim {
+	subject := b.determineSubject(input.Title, domain)
+	claimNum := primaryNum + 1
+
+	// 从问题和效果推断适应症
+	disease := "疾病Y"
+	if len(input.Problems) > 0 {
+		problem := input.Problems[0]
+		problem = strings.TrimPrefix(problem, "治疗")
+		problem = strings.TrimPrefix(problem, "解决")
+		if len([]rune(problem)) > 2 && len([]rune(problem)) < 50 {
+			disease = problem
+		}
+	}
+
+	preamble := fmt.Sprintf("一种%s在制备治疗%s的药物中的应用", subject, disease)
+
+	// 从特征中提取剂量/用法等进一步限定
+	var qualifiers []string
+	for _, f := range input.Features {
+		if f.Category == "parameter" {
+			qualifiers = append(qualifiers, formatFeatureDesc(f))
+		}
+	}
+	characterized := ""
+	if len(qualifiers) > 0 {
+		characterized = strings.Join(qualifiers, "；")
+	} else if len(input.Effects) > 0 {
+		characterized = "所述药物用于" + input.Effects[0]
+	} else {
+		characterized = "[待确定：药物用途的进一步限定]"
+	}
+
+	return &Claim{Number: claimNum, ClaimType: ClaimTypeMethod, Kind: "independent",
+		Preamble: preamble, Characterized: characterized}
+}
+
+// buildMarkush 生成马库什权利要求（通式化合物 + 取代基定义）。
+//
+// 马库什权利要求 = 通式化合物 + R1/R2...取代基定义 + 条件/排除
+// 法律依据：审查指南第二部分第十章§4.3——马库什权利要求。
+//
+// 格式：
+//
+//	式(I)化合物：A-R1-B
+//	其中，R1选自：H、C1-C6烷基、...；R2选自：OH、卤素、...
+//	前提是R1和R2不同时为H。
+func (b *ClaimBuilder) buildMarkush(input DraftInput, domain TechDomain, primaryNum int, essential []Feature) *Claim {
+	subject := b.determineSubject(input.Title, domain)
+	// 主权利要求采用马库什通式格式
+	preamble := fmt.Sprintf("一种如式(I)所示的%s", subject)
+
+	// 从前序问题或特征构建通式
+	core := "[待确定：核心母核]"
+	var substituents []string
+	for _, f := range essential {
+		if f.Category == "material" || f.Category == "structure" {
+			if core == "[待确定：核心母核]" {
+				core = f.Description
+			} else {
+				substituents = append(substituents, formatFeatureDesc(f))
+			}
+		}
+	}
+
+	characterized := core
+	if len(substituents) > 0 {
+		characterized += "，其中，" + strings.Join(substituents, "；")
+	}
+
+	return &Claim{
+		Number:        primaryNum + 1,
+		ClaimType:     ClaimTypeProduct,
+		Kind:          "independent",
+		Preamble:      preamble,
+		Characterized: characterized,
+	}
+}
+
 // filterFeaturesByCategory 按类别过滤特征列表。
 func filterFeaturesByCategory(features []Feature, category string) []Feature {
 	var result []Feature
@@ -194,6 +295,68 @@ func formatParallelFeatureDesc(f Feature, mode string) string {
 		return desc + "，用于" + f.Function
 	}
 	return desc
+}
+
+// buildSoftwareApparatus 为软件领域生成"用步骤限定的装置"产品权利要求。
+//
+// 知识库要求：含计算机程序的发明可同时用方法权利要求和"用步骤限定的装置"
+// 的产品权利要求保护。保护范围不变，但提供侵权场景覆盖。
+//
+// 格式：
+//
+//	"一种用于执行权利要求N所述方法的装置，包括：
+//	  用于执行步骤A的模块/单元；
+//	  用于执行步骤B的模块/单元；……"
+func (b *ClaimBuilder) buildSoftwareApparatus(input DraftInput, domain TechDomain, primaryNum int, methodClaim *Claim, essential []Feature) *Claim {
+	// 方法权利要求编号（primaryNum+1），装置权利要求引用方法权要
+	methodClaimNum := primaryNum + 1
+	// 装置权要编号：方法权要存在时+2，不存在时+1
+	claimNum := primaryNum + 1
+	if methodClaim != nil {
+		claimNum = primaryNum + 2
+	}
+	subject := b.determineSubject(input.Title, domain)
+
+	// 从方法特征构建"用于执行X步骤的模块"
+	var modules []string
+	for _, f := range essential {
+		if f.Category == "method" {
+			desc := strings.TrimSpace(f.Description)
+			if desc != "" {
+				modules = append(modules, "用于执行"+desc+"的单元")
+			}
+		}
+	}
+	// 如果方法权利要求有步骤描述，也从中提取
+	if methodClaim != nil && len(modules) == 0 {
+		steps := strings.Split(methodClaim.Characterized, "；")
+		for _, s := range steps {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				modules = append(modules, "用于"+s+"的单元")
+			}
+		}
+	}
+	// 如果仍然为空，从所有特征中提取
+	if len(modules) == 0 {
+		for _, f := range input.Features {
+			modules = append(modules, "用于"+strings.TrimSpace(f.Description)+"的模块")
+		}
+	}
+	if len(modules) == 0 {
+		modules = append(modules, "[待确定：功能模块]")
+	}
+
+	characterized := strings.Join(modules, "；")
+	preamble := fmt.Sprintf("一种用于执行权利要求%d所述方法的%s，其特征在于，包括", methodClaimNum, subject)
+
+	return &Claim{
+		Number:        claimNum,
+		ClaimType:     ClaimTypeProduct,
+		Kind:          "independent",
+		Preamble:      preamble,
+		Characterized: characterized + "；其中，各单元分别用于执行所述方法中的对应步骤",
+	}
 }
 
 func (b *ClaimBuilder) buildIndependent(input DraftInput, domain TechDomain, essential []Feature) (Claim, error) {
@@ -283,49 +446,55 @@ func (b *ClaimBuilder) buildCharacterized(_ DraftInput, essential []Feature) str
 	return strings.Join(distinguishing, "；")
 }
 
-// buildDependents 构建从属权利要求。
+// buildDependents 构建从属权利要求（金字塔型布局策略）。
+//
+// 布局策略遵循"从宽到窄"的梯度保护原则：
+//
+//	类型1（直接引用）：高重要性 + 高 PFE 关联度的特征 → 直接引用独立权利要求
+//	类型2（前序限定）：中等重要性的特征 → 引用独立权利要求
+//	类型3（递进链）：低重要性或细节性特征 → 引用前一项从属权利要求（形成引用链）
 func (b *ClaimBuilder) buildDependents(indClaims []Claim, input DraftInput, optional []Feature) []Claim {
 	var deps []Claim
-	claimNum := 2
+	claimNum := len(indClaims) + 1 // start after independent claims
 	primaryInd := indClaims[0]
 
-	// 按重要性排序可选特征
-	sorted := sortFeaturesByImportance(optional)
+	// 构建特征 → PFE 关联度映射
+	pfeCount := buildPFECountMap(input.PFETriples)
 
-	// 布局策略：
-	// 类型1：重要可选特征 → 直接引用独立权利要求
-	// 类型2：进一步限定前序特征 → 引用独立权利要求
-	// 类型3：结构细化 → 引用前一项从属权利要求
+	// 按综合得分排序：重要性越高、PFE 关联数越多 → 越靠前
+	sorted := sortFeaturesByScore(optional, pfeCount)
 
-	var directRefs []string
-	var chainRefs []string
-
+	// 将特征分为两个梯队
+	//   tier1：高重要性 或 PFE 关联 ≥2 的特征 → 直接引用独立权利要求
+	//   tier2：中低重要性特征 → 使用递进引用链
+	var tier1 []Feature
+	var tier2 []Feature
 	for _, f := range sorted {
-		desc := formatFeatureDesc(f)
-		if f.Importance == "high" {
-			directRefs = append(directRefs, desc)
+		if f.Importance == "high" || pfeCount[f.ID] >= 2 {
+			tier1 = append(tier1, f)
 		} else {
-			chainRefs = append(chainRefs, desc)
+			tier2 = append(tier2, f)
 		}
 	}
 
-	// 类型1：直接引用独立权利要求
-	for _, desc := range directRefs {
+	// 类型1：直接引用独立权利要求（tier1 特征）
+	for _, f := range tier1 {
 		deps = append(deps, Claim{
 			Number:     claimNum,
 			ClaimType:  primaryInd.ClaimType,
 			Kind:       "dependent",
 			DependsOn:  []int{primaryInd.Number},
-			Limitation: desc,
+			Limitation: formatFeatureDesc(f),
 		})
 		claimNum++
 	}
 
-	// 类型2：引用独立权利要求（前序部分特征的进一步限定）
-	for i, desc := range chainRefs {
+	// 类型2→3：递进引用链（tier2 特征）
+	//   第一个 tier2 特征引用独立权利要求
+	//   后续特征依次引用前一从属权利要求，形成"从宽到窄"的递进链
+	for i, f := range tier2 {
 		depOn := primaryInd.Number
 		if i > 0 && len(deps) > 0 {
-			// 类型3：引用前一项从属权利要求（形成引用链）
 			depOn = claimNum - 1
 		}
 		deps = append(deps, Claim{
@@ -333,12 +502,24 @@ func (b *ClaimBuilder) buildDependents(indClaims []Claim, input DraftInput, opti
 			ClaimType:  primaryInd.ClaimType,
 			Kind:       "dependent",
 			DependsOn:  []int{depOn},
-			Limitation: desc,
+			Limitation: formatFeatureDesc(f),
 		})
 		claimNum++
 	}
 
 	return deps
+}
+
+// buildPFECountMap 构建特征ID到PFE三元组关联数的映射。
+// 一个特征关联到越多PFE三元组，说明其在发明中越核心。
+func buildPFECountMap(triples []PFETriple) map[string]int {
+	counts := make(map[string]int)
+	for _, t := range triples {
+		for _, fid := range t.FeatureIDs {
+			counts[fid]++
+		}
+	}
+	return counts
 }
 
 // =============================================================================
@@ -459,13 +640,26 @@ func formatFeatureDesc(f Feature) string {
 	return desc
 }
 
-// sortFeaturesByImportance 按重要性排序特征：high → medium → low。
-func sortFeaturesByImportance(features []Feature) []Feature {
-	order := map[string]int{"high": 0, "medium": 1, "low": 2}
+// sortFeaturesByScore 按综合得分排序特征（金字塔型布局的基础排序）。
+// 得分 = importance 权重 × PFE 关联数加权。
+// 高得分特征应写入靠前的从属权利要求（保护范围较宽）。
+// 低得分特征应写入靠后的从属权利要求（递进限定）。
+func sortFeaturesByScore(features []Feature, pfeCount map[string]int) []Feature {
+	importanceWeight := map[string]int{"high": 100, "medium": 50, "low": 10}
 	sorted := make([]Feature, len(features))
 	copy(sorted, features)
-	sort.Slice(sorted, func(i, j int) bool {
-		return order[sorted[i].Importance] < order[sorted[j].Importance]
+	sort.SliceStable(sorted, func(i, j int) bool {
+		scoreI := importanceWeight[sorted[i].Importance] + pfeCount[sorted[i].ID]*15
+		scoreJ := importanceWeight[sorted[j].Importance] + pfeCount[sorted[j].ID]*15
+		if scoreI != scoreJ {
+			return scoreI > scoreJ // 高分优先
+		}
+		// 同分时按描述长度降序（更具体的在前）
+		if len(sorted[i].Description) != len(sorted[j].Description) {
+			return len(sorted[i].Description) > len(sorted[j].Description)
+		}
+		// 最终兜底：按 ID 字典序，确保严格弱序
+		return sorted[i].ID < sorted[j].ID
 	})
 	return sorted
 }

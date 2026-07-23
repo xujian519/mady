@@ -1,0 +1,54 @@
+articleId: "patent-law-a33"
+name: "专利法第33条——修改不超范围"
+lawRef: "中华人民共和国专利法（2020修正）第33条"
+guidelineRef: "审查指南（2023修订）第二部分第八章§4.3-§5.2"
+steps:
+  - id: "step-1"
+    order: 1
+    name: "确认修改依据合法性"
+    ruleRef: "patent-a33-amendment"
+    inputHint: "原始申请文件（说明书/权利要求书/附图）+ 修改后文件，需要确认修改内容是否能在原始文件中找到依据"
+    outputSchema:
+      originalText: "string（原始记载的文字内容）"
+      amendmentText: "string（修改后的文字内容）"
+      basisType: "string（依据类型：文字记载/直接确定/引证文件/背景技术/其他）"
+      isValidBasis: "bool（是否属于合法的修改依据）"
+      rejectionReason: "string（不合法时的具体原因——参考修改依据白名单）"
+
+  - id: "step-2"
+    order: 2
+    name: "判断'直接地、毫无疑义地确定'"
+    ruleRef: "patent-a33-amendment"
+    inputHint: "修改内容 + 原始文件 + 技术领域 + 公知常识 + 典型案例参考"
+    outputSchema:
+      判定类型: "string（公知常识改变/特征重组/上位概括/必要特征删除/明显错误更正/类型转化/其他）"
+      是否超范围: "bool（true=超范围，false=未超范围）"
+      推理过程: "string（基于原始文件、技术领域、公知常识的综合推理）"
+      参考案例: "string（如有匹配的参考案例，注明确认编号）"
+      违反情形: "[]string（如超范围，列出违反的具体情形）"
+
+  - id: "step-3"
+    order: 3
+    name: "检查修改时机合规性"
+    ruleRef: "patent-a33-amendment"
+    inputHint: "当前程序阶段（主动修改/被动修改/依职权修改）+ 审查意见内容（如为被动修改）"
+    outputSchema:
+      modificationType: "string（主动修改/被动修改/依职权修改）"
+      isTimely: "bool（是否符合修改时机要求）"
+      scopeCompliant: "bool（被动修改时是否针对通知书指出的缺陷）"
+      timingNote: "string（时机合规性说明）"
+
+conclusionSchema:
+  isCompliant: "bool（是否满足专利法第33条要求）"
+  violations: "[]string（具体违规清单，为空则表示无违规）"
+  reasoning: "string（综合判断推理过程，引用审查指南具体条款和典型案例）"
+  confidence: "string（high/medium/low）"
+  legalNote: "string（法律提示：本判断由 AI 辅助生成，不构成正式法律意见，最终修改以原始申请文件记载为准）"
+
+applicableTo:
+  - amendment
+  - examination
+  - invalidation
+  - re-examination
+  - drafting
+  - oa_response

@@ -212,3 +212,45 @@ func (r *domainUtilityModelRule) Check(claims []Claim, input DraftInput) []Viola
 	}
 	return violations
 }
+
+// =============================================================================
+// 领域特定规则：软件方法→产品转换提示
+// =============================================================================
+
+// domainMethodToProductRule 提示软件领域可将方法权利要求同时表达为产品形式。
+// 依据：审查指南第二部分第九章§5.2——含计算机程序的发明可以写成方法权利要求，
+// 也可以写成装置权利要求（用步骤限定装置）。
+type domainMethodToProductRule struct{ baseRule }
+
+func (r *domainMethodToProductRule) Check(claims []Claim, input DraftInput) []Violation {
+	var violations []Violation
+	if input.TechDomain != DomainSoftware {
+		return nil
+	}
+
+	// 检查是否同时有方法权利要求和对应的产品权利要求（用步骤限定装置）
+	hasMethod := false
+	hasApparatusForMethod := false
+	for _, c := range claims {
+		if c.ClaimType == ClaimTypeMethod && c.Kind == "independent" {
+			hasMethod = true
+		}
+		if c.ClaimType == ClaimTypeProduct && c.Kind == "independent" {
+			if strings.Contains(c.Preamble, "用于执行") {
+				hasApparatusForMethod = true
+			}
+		}
+	}
+
+	if hasMethod && !hasApparatusForMethod {
+		violations = append(violations, Violation{
+			RuleName:    r.Name(),
+			RuleBasis:   r.LegalBasis(),
+			Severity:    SeverityInfo,
+			ClaimNumber: 0,
+			Message:     "软件领域建议增加'用步骤限定的装置'产品权利要求，以覆盖设备制造商的侵权场景",
+			Suggestion:  "在方法权利要求之外，增加一项对应的产品权利要求（如'用于执行权利要求X所述方法的装置，包括用于……的模块'），保护范围不变，但可覆盖使用该方法的设备",
+		})
+	}
+	return violations
+}

@@ -38,6 +38,8 @@ const (
 	StrategyProductAndMethod        ClaimStrategy = "product_and_method"
 	StrategyProductAndManufacturing ClaimStrategy = "product_and_manufacturing"
 	StrategyProductAndUse           ClaimStrategy = "product_and_use"
+	StrategyPharmaUse               ClaimStrategy = "pharma_use" // 瑞士型权利要求（物质X在制备Y病药物中的应用）
+	StrategyMarkush                 ClaimStrategy = "markush"    // 马库什权利要求（通式化合物）
 )
 
 // =============================================================================

@@ -160,6 +160,9 @@ func RegisterDefaultRules(engine *RuleEngine) {
 		&formalityParallelClaimRule{baseRule: newBaseRule("formality-parallel-claim",
 			"并列独立权利要求的引用关系应当合法，不得循环引用或引用自身",
 			"审查指南(2010)第二部分第二章§3.3")},
+		&formalityDependentOrderingRule{baseRule: newBaseRule("formality-dependent-ordering",
+			"从属权利要求应从宽到窄递进布局，形成金字塔型保护层次",
+			"审查指南(2010)第二部分第二章§3.3")},
 	)
 
 	// 支持性规则
@@ -172,6 +175,12 @@ func RegisterDefaultRules(engine *RuleEngine) {
 			"审查指南第二部分第二章§3.2.1")},
 		&supportPureFunctionalRule{baseRule: newBaseRule("support-pure-functional",
 			"不得出现纯功能性权利要求（仅用功能描述整个技术方案）",
+			"审查指南第二部分第二章§3.2.1")},
+		&supportMarkushUnityRule{baseRule: newBaseRule("support-markush-unity",
+			"马库什权利要求中的各可选方案应具有共同结构，满足单一性要求",
+			"审查指南第二部分第十章§4.3")},
+		&supportFunctionalVarietyRule{baseRule: newBaseRule("support-functional-variety",
+			"功能性限定占比应适当，避免过度依赖功能描述导致权利要求不清楚",
 			"审查指南第二部分第二章§3.2.1")},
 	)
 
@@ -196,6 +205,9 @@ func RegisterDefaultRules(engine *RuleEngine) {
 		&scopeEquivalentsCoverageRule{baseRule: newBaseRule("scope-equivalents-coverage",
 			"从属权利要求应为等同替换预留空间，通过多层次布局覆盖替代方案",
 			"审查指南第二部分第二章§3.3")},
+		&scopePyramidRule{baseRule: newBaseRule("scope-pyramid",
+			"从属权利要求应形成从宽到窄的金字塔型多层次保护",
+			"审查指南第二部分第二章§3.3")},
 	)
 
 	// 领域特定规则
@@ -215,6 +227,9 @@ func RegisterDefaultRules(engine *RuleEngine) {
 		&domainUtilityModelRule{baseRule: newBaseRule("domain-utility-model",
 			"实用新型专利只能有产品权利要求，不能有方法权利要求",
 			"专利法第2条第3款；审查指南第一部分第二章§6.1")},
+		&domainMethodToProductRule{baseRule: newBaseRule("domain-method-to-product",
+			"软件领域可将方法权利要求同时表达为装置权利要求（用步骤限定装置）",
+			"审查指南第二部分第九章§5.2")},
 	)
 }
 
