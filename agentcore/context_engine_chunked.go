@@ -3,7 +3,6 @@ package agentcore
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 const chunkedEngineName = "chunked"
@@ -128,31 +127,18 @@ func (e *ChunkedContextEngine) splitMessages(msgs []Message) (protected, unprote
 }
 
 // isProtected checks if a message is a protected document chunk.
-// Messages are protected if they have the Metadata key "mady_doc_chunk"
-// set to "protected", or if they have Content over a threshold and
-// contain section markers typical of patent/legal documents.
+// Only messages with the explicit Metadata key "mady_doc_chunk" set to
+// "protected" are considered protected. We intentionally do NOT use
+// content-based heuristics (e.g. detecting "## " or "权利要求" in the text)
+// because LLM-generated compaction summaries routinely contain those
+// markers, which would cause summaries to be misclassified as protected
+// and never compressed again — leading to unbounded context growth.
 func (e *ChunkedContextEngine) isProtected(msg Message) bool {
-	// Explicit protection marker.
 	if v, ok := msg.Metadata["mady_doc_chunk"]; ok {
 		if s, ok := v.(string); ok && s == "protected" {
 			return true
 		}
 	}
-
-	// Implicit protection: large messages with document structure markers.
-	if len(msg.Content) > 1500 && (msg.Role == RoleSystem || msg.Type == MessageTypeCustom) {
-		structural := []string{
-			"权利要求", "## ", "法律依据", "判例要旨",
-			"技术领域", "背景技术", "发明内容", "具体实施方式",
-			"法条", "司法解释", "裁判要点",
-		}
-		for _, marker := range structural {
-			if strings.Contains(msg.Content, marker) {
-				return true
-			}
-		}
-	}
-
 	return false
 }
 

@@ -31,8 +31,6 @@ const prunedToolPlaceholder = "[旧工具输出已清除以节省上下文空间
 
 const charsPerToken = 4
 
-const imageTokenEstimate = 1600
-
 const imageCharEquivalent = imageTokenEstimate * charsPerToken
 
 const minSummaryTokens = 2000
@@ -42,6 +40,12 @@ const summaryRatio = 0.20
 const summaryTokensCeiling = 12000
 
 const summaryFailureCooldownSeconds = 600
+
+// ineffectiveCompactionCooldownSeconds defines the cooldown period after
+// which the ineffective-compaction circuit breaker resets. Without this,
+// two consecutive low-savings compactions would permanently disable
+// compaction for the entire session, leading to context overflow.
+const ineffectiveCompactionCooldownSeconds = 300
 
 // Pre-flight truncation constants for runCompaction's summarization protection.
 // When the messages-to-summarize exceed the model's context window, each
@@ -67,6 +71,10 @@ type compactionState struct {
 	ineffectiveCompactions int
 	lastSummaryError       string
 	summaryFailureCooldown time.Time
+	// ineffectiveCooldownUntil is the time after which the ineffective-
+	// compaction circuit breaker resets. Without a time-based recovery,
+	// the breaker would stay tripped for the entire session.
+	ineffectiveCooldownUntil time.Time
 }
 
 func newCompactionState() *compactionState {
@@ -105,7 +113,12 @@ func shouldCompact(msgs []Message, toolDefs []ToolDefinition, contextWindow int6
 		return false
 	}
 	if compState != nil && compState.ineffectiveCompactions >= 2 {
-		return false
+		// Time-based recovery: if the cooldown has elapsed, allow compaction
+		// to proceed. The counter is reset in runCompaction when it actually
+		// begins — not here, to keep this predicate side-effect-free.
+		if time.Now().Before(compState.ineffectiveCooldownUntil) {
+			return false
+		}
 	}
 	estimated := EstimateMessagesTokens(msgs) + EstimateToolDefinitionsTokens(toolDefs)
 
@@ -267,6 +280,14 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 	focusTopic := p.FocusTopic
 	compState := p.CompState
 	msgs := state.Messages()
+
+	// Reset the ineffective-compaction breaker now that we are actually
+	// proceeding with a compaction. shouldCompact only checks the cooldown;
+	// the reset happens here to keep that predicate side-effect-free.
+	if compState != nil && compState.ineffectiveCompactions >= 2 &&
+		time.Now().After(compState.ineffectiveCooldownUntil) {
+		compState.ineffectiveCompactions = 0
+	}
 
 	nMessages := len(msgs)
 	headProtect := int64(protectFirstN)
@@ -458,9 +479,12 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 			}
 		}
 	} else {
+		// Wrap with compactionSummaryPrefix so that findLatestContextSummary
+		// can locate this summary on subsequent compactions, enabling
+		// iterative (delta) summarisation rather than full re-summarisation.
 		summaryMsg = Message{
 			Role:    RoleSystem,
-			Content: summaryContent,
+			Content: fmt.Sprintf("%s\n%s%s", compactionSummaryPrefix, summaryContent, compactionSummaryEndMarker),
 			Type:    MessageTypeCompactionSummary,
 		}
 	}
@@ -507,6 +531,12 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 		compState.lastSavingsPct = savingsPct
 		if savingsPct < 10 {
 			compState.ineffectiveCompactions++
+			// When the breaker trips, set a cooldown so it can recover later.
+			if compState.ineffectiveCompactions >= 2 {
+				compState.ineffectiveCooldownUntil = time.Now().Add(
+					ineffectiveCompactionCooldownSeconds * time.Second,
+				)
+			}
 		} else {
 			compState.ineffectiveCompactions = 0
 		}

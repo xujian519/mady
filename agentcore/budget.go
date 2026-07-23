@@ -55,6 +55,11 @@ func (e *BudgetExceededError) Error() string {
 
 func (e *BudgetExceededError) Unwrap() error { return errBudgetExceeded }
 
+// defaultMaxResponseTokens is the conservative estimate used when the
+// provider request does not specify MaxTokens. Used by the worst-case
+// pre-check in BeforeModelCall.
+const defaultMaxResponseTokens = 4096
+
 // errBudgetExceeded is a sentinel so errors.Is(err, ErrBudgetExceeded) works
 // through wrapping.
 var errBudgetExceeded = errors.New("budget exceeded")
@@ -108,9 +113,6 @@ func (c *BudgetController) Usage() BudgetUsage {
 	u := c.usage
 	if c.started {
 		u.Duration = time.Since(c.start)
-		if u.Duration < c.usage.Duration {
-			u.Duration = c.usage.Duration
-		}
 	}
 	return u
 }
@@ -189,9 +191,32 @@ func (c *BudgetController) BeforeAgentRun(_ context.Context, _ *AgentRunContext)
 
 // BeforeModelCall checks token / call / duration limits before the LLM is
 // invoked. A *BudgetExceededError short-circuits the run.
-func (c *BudgetController) BeforeModelCall(_ context.Context, _ *AgentRunContext, _ *ModelCallContext) error {
+//
+// When a MaxTokens budget is set and the ModelCallContext carries a Request,
+// a worst-case pre-check estimates prompt + max_tokens against the remaining
+// budget. This reduces the window where a single oversized response pushes
+// usage far past the limit before it's detected.
+func (c *BudgetController) BeforeModelCall(_ context.Context, _ *AgentRunContext, mcc *ModelCallContext) error {
 	c.mu.Lock()
 	err := c.checkModelLocked()
+
+	// Worst-case pre-check: if we have the request, estimate prompt tokens
+	// and add max_tokens to see if this call alone could blow the budget.
+	if err == nil && mcc != nil && mcc.Request != nil && c.budget.MaxTokens > 0 {
+		promptEst := EstimateMessagesTokens(mcc.Request.Messages)
+		maxResp := mcc.Request.MaxTokens
+		if maxResp <= 0 {
+			maxResp = defaultMaxResponseTokens
+		}
+		projected := c.usage.Tokens + promptEst + maxResp
+		if projected > c.budget.MaxTokens {
+			err = &BudgetExceededError{
+				Dimension: BudgetDimTokens,
+				Limit:     c.budget.MaxTokens,
+				Used:      c.usage.Tokens,
+			}
+		}
+	}
 	c.mu.Unlock()
 	if err != nil {
 		c.fireExceed(err)

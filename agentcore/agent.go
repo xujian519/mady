@@ -115,6 +115,11 @@ type Agent struct {
 	contextEngine ContextEngine
 	engineReg     *EngineRegistry
 	interrupted   atomic.Pointer[InterruptReason]
+	// intentCacheMu + intentCache provide a per-Agent LLM intent summary
+	// cache. Previously this was a package-level global, which caused
+	// cross-agent cache pollution in multi-agent setups.
+	intentCacheMu sync.Mutex
+	intentCache   map[string]intentCacheEntry
 }
 
 func New(cfg Config) *Agent {

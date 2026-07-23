@@ -81,6 +81,11 @@ func (m Message) Clone() Message {
 	if len(m.Metadata) > 0 {
 		cp.Metadata = deepCopyMap(m.Metadata)
 	}
+	// Deep-copy CacheControl pointer so Clone truly is independent.
+	if m.CacheControl != nil {
+		cc := *m.CacheControl
+		cp.CacheControl = &cc
+	}
 	return cp
 }
 

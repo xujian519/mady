@@ -263,7 +263,15 @@ func (a *Agent) handleTransfer(ctx context.Context, handoff *PendingHandoff) (st
 // bash tools) to a lower-privilege target will leak those capabilities to the
 // target. Use HandoffDelegate (which does NOT inherit runtime) when the
 // target is less trusted than the source.
+//
+// A warning is logged every time this path is taken so operators can audit
+// capability transfers in production deployments.
 func (a *Agent) inheritRuntime(ctx context.Context, target *Agent) {
+	slog.Default().Warn("inheritRuntime: full-trust capability transfer",
+		"source_agent", a.config.Name,
+		"target_agent", target.config.Name,
+		"security_note", "source tools/extensions/middleware are being transferred to target",
+	)
 	// Copy tools from source to target (excluding handoff tools).
 	for _, t := range a.registry.Tools() {
 		if isHandoffTool(t.Name) {

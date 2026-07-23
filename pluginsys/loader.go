@@ -3,6 +3,7 @@ package pluginsys
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 )
@@ -46,7 +47,12 @@ func ScanPlugins(roots []string, opts *ValidateOptions) ([]PluginManifest, error
 				return fmt.Errorf("plugin: %s: %w", path, err)
 			}
 			if seen[p.Name] {
-				return nil // first wins
+				// First-wins: log a warning so operators know the duplicate was skipped.
+				slog.Warn("plugin: duplicate name skipped (first-wins)",
+					"name", p.Name,
+					"path", path,
+				)
+				return nil
 			}
 			seen[p.Name] = true
 			// Resolve skill path relative to plugin directory.

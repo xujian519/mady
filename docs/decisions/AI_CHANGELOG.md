@@ -1,5 +1,106 @@
 # AI 变更记录
 
+## 2026-07-23: agentcore 第二轮代码质量审阅修复（8 项）
+
+### 背景
+在第一轮 P0-P3 全量修复后，进行第二轮结构级审阅，发现 2 项 P1（语义正确性）、4 项 P2（结构简化）、2 项 P3（可维护性）。
+
+### P1 修复（语义正确性）
+- **sortedValidDomains 函数名说谎** (`manifest.go`): 函数名含 "sorted" 但未排序，map 迭代顺序随机导致错误信息不稳定。补 `sort.Strings` 使输出确定。
+- **context.Canceled 误设 StatusFinished** (`agent_run.go`): 两处 context.Canceled 路径错误设置 StatusFinished，与同文件 IsInterrupt 路径不一致，导致用户中断被误报为正常完成且无法 Resume。改用 StatusInterrupted，统一终端事件发射到 runLoop。
+
+### P2 结构简化（4 项）
+- **deprecatedHookAdapter 冗余锁** (`hooks.go`): 每个 Agent 拥有独立 adapter，不存在跨 Agent 共享，移除 blockedToolsMu 互斥锁及所有 Lock/Unlock 调用。
+- **imageTokenEstimate 定义位置错误** (`token.go`/`compaction.go`): token 估算常量原定义在 compaction.go，主要消费者在 token.go。移至 token.go，compaction.go 跨文件引用。
+- **executeParallel 冗余 panic recovery** (`executor.go`): Execute 自身已有 defer/recover，executeParallel 内的重复 recovery 永远不会被同一 panic 触发。移除冗余代码。
+- **PermissionExtension 字段排列误导** (`permission/extension.go`): mu 字段位于首位暗示保护全部字段，实际仅保护 approver。重排字段并加注释明确保护范围。
+
+### P3 可维护性（2 项）
+- **中断路径静默丢弃 endTurn 错误** (`agent_run.go`): context.Canceled 路径的 endTurn 错误改用 slog.Debug 记录，便于运维排查 checkpoint 丢失。
+- **runLoop 变量声明风格统一** (`agent_run.go`): finished/err 从循环内声明提升到循环外，与 finalOutput 风格一致。
+
+### 测试更新
+- `integration_test.go`: TestCancelDuringToolExecution 和 TestCancelThenRerun_SameAgent 的断言从 StatusFinished 改为 StatusInterrupted，匹配修正后的语义。
+
+### 验证
+- `go vet`: PASS | `golangci-lint`: 0 issues | `go test -race`: 全绿 | `go build`: PASS
+
+### AI 参与级别
+- L3（核心引擎语义修正 + 结构重构，含敏感路径 hooks.go/executor.go，需人工审阅合入）
+
+---
+
+## 2026-07-23: agentcore 核心引擎深度质量审阅修复（P0-P3 全量）
+
+### 背景
+对 agentcore（65 源文件 / ~16.7K 行）进行全量代码审阅，发现 6 项 P0（crash/数据损坏）、10 项 P1（功能 bug/安全风险）、17 项 P2（架构改进）、11 项 P3（技术债务）。本次一次性修复全部发现。
+
+### P0 修复（crash 与数据损坏）
+- **MessageBus close-vs-send 竞态** (`orchestrate.go`): Publish 改用 recover 防护 cancel-close 竞态 panic
+- **串行 Execute 无 panic recovery** (`executor.go`): 添加 defer/recover 到 Execute 公共方法
+- **并行 panic 结果语义错误** (`executor.go`): recover 时正确设置 Err + ToolCallID
+- **State.Restore 别名污染** (`state.go`): Restore 深拷贝 messages 防止穿透 checkpoint 存储
+- **非结构化压缩摘要迭代失效** (`compaction.go`): else 路径 summaryMsg 套 compactionSummaryPrefix
+- **EventBus.On 返回 nil panic** (`event.go`): closed 时返回 no-op func 而非 nil
+
+### P1 修复（功能 bug 与安全）
+- **ineffectiveCompactions 永久熔断** (`compaction.go`): 添加 5 分钟时间衰减恢复机制
+- **early-exit/handoff 不发 AgentEndEvent** (`agent_run.go`): AgentEndEvent 集中到 runLoop 统一发射
+- **context.Canceled 跳过 AfterTurn** (`agent_run.go`): 补全 endTurn 调用维护 Before/After 配对
+- **ChunkedEngine.isProtected 误判** (`context_engine_chunked.go`): 移除隐式内容启发式，仅认显式标记
+- **intentCache 全局共享** (`handoff_context.go` + `agent.go`): 改为 per-Agent 实例缓存
+- **messagesNoClone 竞态** (`state.go`): 返回切片头浅拷贝隔离底层数组
+- **deprecatedHookAdapter.blockedTools 无锁** (`hooks.go`): 添加 sync.Mutex 保护
+- **IsRetryable 死代码** (`errors.go`): 标记 Deprecated 并指向 IsRetryableError
+- **filecheckpoint Restore TOCTOU** (`store.go`): 全程持锁与 RestoreAndTrim 一致
+- **inheritRuntime 全信任转移** (`handoff.go`): 添加运行时安全审计日志
+
+### P2 架构改进（17 项）
+- UpdateFromResponse 实落地（`context_engine.go`）、Cache 文档修正（`cache/doc.go`）
+- iface 抽象层限制文档化（`iface/doc.go`）、Budget 预检查（`budget.go`）
+- 英文关键词过滤收紧（`reasoning_router.go`）、Message.Clone 深拷贝 CacheControl（`message.go`）
+- 图片 token 度量统一（`token.go`）、concurrency/evidence/filecheckpoint doc 修正
+- permission SetApprover 加锁（`permission/extension.go`）、Drain 超时可配（`event.go`）
+- Pipeline FailOnHandlerError 开关（`pipeline_executor.go`）、插件冲突告警（`pluginsys/loader.go`）
+- 深度偏移修正（`orchestrate.go`）、snapshot 失败日志（`filecheckpoint/extension.go`）
+
+### P3 技术债务（11 项）
+- 策略提示词无 system 时兜底注入、budget Duration 死代码清理
+- Manifest 错误信息动态化、PluginManager.Plugins() 返回拷贝
+- processed map 契约文档化、evidence/context.go 死代码移除
+
+### 涉及敏感路径
+- `agentcore/handoff.go`（inheritRuntime 安全审计日志）
+- `agentcore/hooks.go`（deprecatedHookAdapter 并发锁）
+- `agentcore/executor.go`（panic recovery）
+- `agentcore/state.go`（Restore 深拷贝）
+- `agentcore/compaction.go`（压缩摘要 prefix + 熔断恢复）
+
+### 验证
+- `go vet`: PASS | `golangci-lint`: 0 issues | `go test -race`: 全绿
+- `go build ./...`: PASS（根模块 + tools 子模块）
+
+### AI 参与级别
+- L3（核心引擎多文件修复，含并发安全/错误处理/状态管理变更，需人工审阅合入）
+
+---
+
+## 2026-07-23: 删除 evidence 包悬空测试 TestContext_RoundTrip
+
+### 背景
+`go vet ./...` 失败：`agentcore/evidence/ledger_test.go` 的 `TestContext_RoundTrip` 引用了 `WithLedger`/`FromContext`，但这两个函数已在 `context.go` 重构中被主动删除（零调用死代码，EvidenceExtension 通过私有字段直接访问 ledger）。测试未同步删除，导致该包测试编译失败（`go test ./agentcore/evidence/...` build failed），CI/vet 拦截。深度评审 M15（`docs/review/agentcore-deep-review-2026-07-20.md`）已记录此事。
+
+### 变更内容
+- `agentcore/evidence/ledger_test.go`：删除悬空的 `TestContext_RoundTrip` 测试函数及其 `context` 导入（被测功能已不存在）
+
+### 涉及敏感路径
+- 无（仅删除遗留测试，不触碰 `agentcore/evidence` 生产代码或任何敏感路径）
+
+### AI 参与级别
+- L1（测试清理，无逻辑变更）
+
+---
+
 ## 2026-07-23: 修复 TieredEngine 上下文压缩管线三个盲区
 
 ### 背景

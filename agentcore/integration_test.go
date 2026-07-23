@@ -40,7 +40,7 @@ func TestCancelDuringToolExecution(t *testing.T) {
 	if out != "" {
 		t.Fatalf("expected empty output on cancel, got %q", out)
 	}
-	assertStatus(t, agent, StatusFinished)
+	assertStatus(t, agent, StatusInterrupted)
 }
 
 func TestCancelDuringHandoff(t *testing.T) {
@@ -119,7 +119,7 @@ func TestCancelThenRerun_SameAgent(t *testing.T) {
 	if out != "" {
 		t.Fatalf("expected empty, got %q", out)
 	}
-	assertStatus(t, agent, StatusFinished)
+	assertStatus(t, agent, StatusInterrupted)
 
 	// Second run with new input — close done so the slow tool completes immediately.
 	close(done)

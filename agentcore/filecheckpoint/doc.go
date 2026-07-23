@@ -4,6 +4,7 @@
 // turn. A frontend can then rewind the workspace to an earlier turn.
 //
 // Only edit-tool changes are tracked — bash side effects are not (a shell
-// command's targets can't be known in advance). Snapshots live in memory and
-// optionally persist to a checkpoint directory.
+// command's targets can't be known in advance). Snapshots are stored in memory
+// only; they are lost when the process exits. Disk-based persistence is
+// planned but not yet implemented.
 package filecheckpoint

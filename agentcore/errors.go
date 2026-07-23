@@ -160,7 +160,10 @@ func (e *GuardrailError) Error() string {
 
 func (e *GuardrailError) Unwrap() error { return e.Err }
 
-// IsRetryable 判断错误是否可重试。
+// Deprecated: IsRetryable only checks for *RetryableError type assertions.
+// Use IsRetryableError (in retry.go) instead, which performs the actual
+// error-string matching used by the retry loop. The two functions have
+// confusingly similar names but completely different semantics.
 func IsRetryable(err error) bool {
 	if err == nil {
 		return false

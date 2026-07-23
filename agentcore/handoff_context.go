@@ -4,7 +4,6 @@ import (
 	"context"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -69,10 +68,9 @@ type intentCacheEntry struct {
 	expiresAt time.Time
 }
 
-var (
-	intentCacheMu sync.Mutex
-	intentCache   = make(map[string]intentCacheEntry)
-)
+// intentCacheEntry holds a cached user intent summary with expiry.
+// The cache itself is per-Agent (see Agent.intentCache field) to avoid
+// cross-agent cache pollution in multi-agent setups.
 
 // summarizeUserIntent 使用 Agent 的 Provider 生成用户意图摘要。
 // 先查缓存，缓存未命中时调用 LLM，再写缓存。
@@ -91,18 +89,23 @@ func (a *Agent) summarizeUserIntent(fullText string, msgs []Message) string {
 	// 用拼接后的全文做缓存键（符文安全截断以避免缓存膨胀）
 	cacheKey := truncateString(fullText, intentCacheMaxRunes)
 
-	intentCacheMu.Lock()
+	// Lazy-init per-agent cache
+	if a.intentCache == nil {
+		a.intentCache = make(map[string]intentCacheEntry)
+	}
+
+	a.intentCacheMu.Lock()
 	now := time.Now()
-	for k, v := range intentCache {
+	for k, v := range a.intentCache {
 		if now.After(v.expiresAt) {
-			delete(intentCache, k)
+			delete(a.intentCache, k)
 		}
 	}
-	if entry, ok := intentCache[cacheKey]; ok && now.Before(entry.expiresAt) {
-		intentCacheMu.Unlock()
+	if entry, ok := a.intentCache[cacheKey]; ok && now.Before(entry.expiresAt) {
+		a.intentCacheMu.Unlock()
 		return entry.intent
 	}
-	intentCacheMu.Unlock()
+	a.intentCacheMu.Unlock()
 
 	// 调用 LLM（使用 context.Background() 加超时，LLM 摘要不绑定请求生命周期，
 	// 因为即使在请求取消后，填充缓存的摘要值仍对后续请求有用）
@@ -125,12 +128,12 @@ func (a *Agent) summarizeUserIntent(fullText string, msgs []Message) string {
 	intent := strings.TrimSpace(resp.Content)
 
 	// 写缓存
-	intentCacheMu.Lock()
-	intentCache[cacheKey] = intentCacheEntry{
+	a.intentCacheMu.Lock()
+	a.intentCache[cacheKey] = intentCacheEntry{
 		intent:    intent,
 		expiresAt: time.Now().Add(intentCacheTTL),
 	}
-	intentCacheMu.Unlock()
+	a.intentCacheMu.Unlock()
 
 	return intent
 }

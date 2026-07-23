@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -15,9 +16,13 @@ const ExtensionName = "permission"
 // It registers as a Middleware positioned early in the chain so that
 // cheap deny decisions avoid downstream overhead (e.g. AI guardian review).
 type PermissionExtension struct {
-	policy   Policy
+	// policy and agent are immutable after construction/Init.
+	policy Policy
+	agent  *agentcore.Agent
+
+	// mu guards only approver (the sole mutable field).
+	mu       sync.RWMutex
 	approver Approver
-	agent    *agentcore.Agent
 }
 
 var (
@@ -46,10 +51,18 @@ func (e *PermissionExtension) Init(_ context.Context, agent *agentcore.Agent) er
 // Dispose implements agentcore.Extension.
 func (e *PermissionExtension) Dispose() error { return nil }
 
-// SetApprover replaces the current approver at runtime. Thread-safe since
-// Approve is called from the agent goroutine serially (no concurrent calls).
+// SetApprover replaces the current approver at runtime. Thread-safe.
 func (e *PermissionExtension) SetApprover(a Approver) {
+	e.mu.Lock()
 	e.approver = a
+	e.mu.Unlock()
+}
+
+// getApprover returns the current approver in a thread-safe manner.
+func (e *PermissionExtension) getApprover() Approver {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.approver
 }
 
 // Middleware implements agentcore.MiddlewareProvider.
@@ -72,8 +85,8 @@ func (e *PermissionExtension) permissionMiddleware(next agentcore.ExecuteFunc) a
 		case DecisionDeny:
 			return fmt.Sprintf("blocked: 权限策略拒绝了 %s 的调用", tc.Name), nil
 		case DecisionAsk:
-			if e.approver != nil {
-				d := e.approver.Approve(ctx, tc.Name, json.RawMessage(tc.Arguments))
+			if approver := e.getApprover(); approver != nil {
+				d := approver.Approve(ctx, tc.Name, json.RawMessage(tc.Arguments))
 				if d == DecisionDeny {
 					return fmt.Sprintf("blocked: 用户拒绝了 %s 的调用", tc.Name), nil
 				}

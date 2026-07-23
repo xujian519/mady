@@ -3,6 +3,7 @@ package filecheckpoint
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
@@ -96,8 +97,12 @@ func (e *FileCheckpointExtension) beforeWriteHook(_ context.Context, hc *agentco
 			continue
 		}
 		if err := e.store.SnapshotFile(p); err != nil {
-			// Non-fatal: don't block the tool call if snapshot fails.
-			// The agent will receive the error as feedback if needed.
+			// Log the failure so operators know the file won't be restorable.
+			// Non-fatal: don't block the tool call itself.
+			slog.Warn("filecheckpoint: snapshot failed, file will not be restorable",
+				"path", p,
+				"error", err,
+			)
 			continue
 		}
 	}

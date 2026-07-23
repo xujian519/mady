@@ -13,8 +13,8 @@ const ExtensionName = "evidence"
 //   - BeforeTurn: Reset the ledger for a fresh turn.
 //   - AfterToolExecution: Record each tool call as a Receipt.
 //
-// The Ledger is available to other components via context.Context
-// (evidence.WithLedger / evidence.FromContext).
+// The Ledger is accessed directly via the extension's Ledger() method
+// rather than through context.Context.
 type EvidenceExtension struct {
 	ledger *Ledger
 	agent  *agentcore.Agent

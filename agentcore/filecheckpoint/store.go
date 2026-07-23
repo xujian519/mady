@@ -131,8 +131,12 @@ func (s *Store) List() []Meta {
 
 // Restore reverts the workspace files to their state at the given turn.
 // Files created after the checkpoint are deleted; modified files are reverted.
+// The lock is held throughout file IO to prevent TOCTOU races with concurrent
+// BeginTurn (matching RestoreAndTrim's approach).
 func (s *Store) Restore(turn int64) error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	var target *TurnCheckpoint
 	for _, c := range s.done {
 		if c.Turn == turn {
@@ -140,7 +144,6 @@ func (s *Store) Restore(turn int64) error {
 			break
 		}
 	}
-	s.mu.Unlock()
 
 	if target == nil {
 		return fmt.Errorf("no checkpoint for turn %d", turn)

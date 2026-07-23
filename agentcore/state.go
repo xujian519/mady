@@ -53,14 +53,17 @@ func (s *AgentState) Messages() []Message {
 	return cp
 }
 
-// messagesNoClone returns the internal message slice WITHOUT deep-copying.
-// Callers MUST NOT modify the returned slice or any of its elements —
-// doing so will corrupt the agent's internal state. Reserved for hot paths
-// inside agentcore where the caller immediately copies or replaces the slice.
+// messagesNoClone returns a shallow copy of the message slice headers.
+// Individual Message values are NOT deep-copied (callers treat them as
+// read-only), but the slice itself is copied so that concurrent AddMessage
+// calls cannot race on the backing array. This avoids the -race detector
+// flagging concurrent read/write on the internal slice.
 func (s *AgentState) messagesNoClone() []Message {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.messages
+	cp := make([]Message, len(s.messages))
+	copy(cp, s.messages)
+	return cp
 }
 
 func (s *AgentState) AddMessage(m Message) {
@@ -180,7 +183,15 @@ func (s *AgentState) Restore(snap StateSnapshot) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.status = snap.Status
-	s.messages = snap.Messages
+	// Deep-copy messages to prevent aliasing: if we assign the slice
+	// header directly, a subsequent AddMessage that triggers append with
+	// spare capacity would write through to the snapshot's backing array,
+	// corrupting checkpoint history.
+	msgs := make([]Message, len(snap.Messages))
+	for i, m := range snap.Messages {
+		msgs[i] = m.Clone()
+	}
+	s.messages = msgs
 	s.turn = snap.Turn
 	s.totalUsage = snap.TotalUsage
 	if snap.InterruptReason != nil {

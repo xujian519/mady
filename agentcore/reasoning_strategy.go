@@ -1,6 +1,9 @@
 package agentcore
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // ============================================================================
 // ReasoningStrategy — turns a complexity classification into a concrete
@@ -251,11 +254,17 @@ func (r *ReasoningStrategyRouter) BeforeModelCall(ctx context.Context, arc *Agen
 			orig := mcc.Request.Messages
 			cloned := make([]Message, len(orig))
 			copy(cloned, orig)
+			injected := false
 			for i, msg := range cloned {
 				if msg.Role == RoleSystem {
 					cloned[i].Content = msg.Content + hint
+					injected = true
 					break
 				}
+			}
+			// Fallback: if no system message exists, prepend one.
+			if !injected {
+				cloned = append([]Message{{Role: RoleSystem, Content: strings.TrimSpace(hint)}}, cloned...)
 			}
 			mcc.Request.Messages = cloned
 		}

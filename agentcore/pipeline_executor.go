@@ -21,6 +21,10 @@ type PipelineExecutor struct {
 	// registered handler. When true, execution stops with an error.
 	// When false, the stage is skipped with a state warning entry.
 	FailOnUnknown bool
+
+	// FailOnHandlerError makes the executor check for an "_error" key in
+	// each stage's output state and fail the pipeline when present.
+	FailOnHandlerError bool
 }
 
 // ExecOption configures a PipelineExecutor.
@@ -29,6 +33,13 @@ type ExecOption func(*PipelineExecutor)
 // WithFailOnUnknown configures whether unknown stages cause failure.
 func WithFailOnUnknown(fail bool) ExecOption {
 	return func(e *PipelineExecutor) { e.FailOnUnknown = fail }
+}
+
+// WithFailOnHandlerError makes the executor check for an "_error" key in
+// each stage's output state and fail the pipeline when present. Without
+// this, handler-internal failures are silently passed through as state.
+func WithFailOnHandlerError(fail bool) ExecOption {
+	return func(e *PipelineExecutor) { e.FailOnHandlerError = fail }
 }
 
 // NewPipelineExecutor creates a pipeline executor with the given provider.
@@ -116,6 +127,13 @@ func (e *PipelineExecutor) Run(ctx context.Context, manifest *PluginManifest, in
 			// pipelines where later stages override earlier outputs).
 			for k, v := range out {
 				state[k] = v
+			}
+			// Check for handler-internal failures surfaced via "_error".
+			if e.FailOnHandlerError {
+				if errVal, ok := state["_error"].(string); ok && errVal != "" {
+					finalizeState()
+					return state, &StageError{StageID: stage.ID, Atom: stage.Atom, Err: fmt.Errorf("%s", errVal)}
+				}
 			}
 			executedStages = append(executedStages, stage.ID)
 			continue

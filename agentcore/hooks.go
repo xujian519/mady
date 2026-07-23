@@ -150,7 +150,9 @@ type deprecatedHookAdapter struct {
 	beforeToolCall     func(ctx context.Context, tc ToolCall) *ToolCallOverride
 	afterToolCall      func(ctx context.Context, tc ToolCall, result *ToolResult) *ToolResult
 	postProcessResults func(ctx context.Context, calls []ToolCall, results []ToolResult) []ToolResult
-	blockedTools       map[int]bool // indices of tools blocked before execution
+	// blockedTools holds indices of tools blocked before execution.
+	// Not goroutine-safe; each Agent creates its own adapter via New().
+	blockedTools map[int]bool
 }
 
 func (a *deprecatedHookAdapter) BeforeToolExecution(ctx context.Context, _ *AgentRunContext, tec *ToolExecutionContext) error {
@@ -184,8 +186,7 @@ func (a *deprecatedHookAdapter) BeforeToolExecution(ctx context.Context, _ *Agen
 func (a *deprecatedHookAdapter) AfterToolExecution(ctx context.Context, _ *AgentRunContext, tec *ToolExecutionContext) {
 	if a.afterToolCall != nil {
 		for i, tc := range tec.ToolCalls {
-			// Skip tools that were blocked before execution — they never ran,
-			// matching the old executeWithLoopHooks behavior.
+			// Skip tools that were blocked before execution — they never ran.
 			if a.blockedTools[i] {
 				continue
 			}

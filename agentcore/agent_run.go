@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 )
 
 // --- 公开入口 ---
@@ -127,26 +128,24 @@ func (a *Agent) Resume(ctx context.Context) (string, error) {
 // MaxTurns 按每次 runLoop 调用执行（不跨会话累积）。
 func (a *Agent) runLoop(ctx context.Context) (string, error) {
 	loopStartTurn := a.state.Turn()
+	var finalOutput string
+	var finished bool
+	var err error
 
 	for {
-		finalOutput, finished, err := a.runInnerLoop(ctx, loopStartTurn)
+		finalOutput, finished, err = a.runInnerLoop(ctx, loopStartTurn)
 		if err != nil {
 			return "", err
 		}
+
 		if finished {
-			return finalOutput, nil
+			break
 		}
 
-		// Outer loop: check for follow-up messages
+		// Check for follow-up messages
 		followUps := a.followUp.Drain()
 		if len(followUps) == 0 {
-			// No follow-ups: emit clean end event with whatever output we have.
-			a.emit(&AgentEndEvent{
-				baseEvent: newBase(EventAgentEnd),
-				AgentName: a.config.Name,
-				Output:    finalOutput,
-			})
-			return finalOutput, nil
+			break
 		}
 
 		// Restart the loop with follow-up messages
@@ -160,6 +159,25 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 			}
 		}
 	}
+
+	// Unified terminal-event emission. Interrupt and error paths set a
+	// different status; each gets its own event type here so there is
+	// exactly one terminal event per run.
+	switch a.state.Status() {
+	case StatusFinished:
+		a.emit(&AgentEndEvent{
+			baseEvent: newBase(EventAgentEnd),
+			AgentName: a.config.Name,
+			Output:    finalOutput,
+		})
+	case StatusInterrupted:
+		a.emit(&AgentInterruptEvent{
+			baseEvent: newBase(EventAgentInterrupt),
+			AgentName: a.config.Name,
+			Reason:    a.state.GetInterruptReason(),
+		})
+	}
+	return finalOutput, nil
 }
 
 // runInnerLoop 执行内层轮次循环，直到模型停止调用工具或达到终止条件。
@@ -190,12 +208,12 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		resp, err := a.runModelTurn(ctx, turn)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				// User interrupted — emit clean end event instead of cryptic error.
-				a.state.SetStatus(StatusFinished)
-				a.emit(&AgentEndEvent{
-					baseEvent: newBase(EventAgentEnd),
-					AgentName: a.config.Name,
-				})
+				// User canceled the request — maintain Before/After pairing
+				// via endTurn, then exit as an interruption (not a clean finish).
+				if e := a.endTurn(ctx, turn, TokenUsage{}, false); e != nil {
+					slog.Debug("agent_run: endTurn failed during context cancellation", "turn", turn, "error", e)
+				}
+				a.state.SetStatus(StatusInterrupted)
 				return "", true, nil
 			}
 			return "", true, a.failLoop(fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
@@ -248,11 +266,6 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			if IsInterrupt(err) {
 				a.state.SetStatus(StatusInterrupted)
 				a.state.SetInterruptReason(a.interrupted.Load())
-				a.emit(&AgentInterruptEvent{
-					baseEvent: newBase(EventAgentInterrupt),
-					AgentName: a.config.Name,
-					Reason:    a.interrupted.Load(),
-				})
 				return "", true, nil
 			}
 			return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "tool execution persist failed", err)
@@ -270,11 +283,10 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 
 		// Context cancellation during tool execution
 		if errors.Is(ctx.Err(), context.Canceled) {
-			a.state.SetStatus(StatusFinished)
-			a.emit(&AgentEndEvent{
-				baseEvent: newBase(EventAgentEnd),
-				AgentName: a.config.Name,
-			})
+			if e := a.endTurn(ctx, turn, resp.Usage, true); e != nil {
+				slog.Debug("agent_run: endTurn failed during context cancellation", "turn", turn, "error", e)
+			}
+			a.state.SetStatus(StatusInterrupted)
 			return "", true, nil
 		}
 		if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {

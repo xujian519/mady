@@ -29,6 +29,10 @@ const (
 	// ConflictTimeBoundary occurs when evidence references information
 	// outside its valid temporal range (e.g. a prior-art reference that
 	// post-dates the filing date).
+	//
+	// Note: This conflict type is defined for API completeness but is not
+	// currently produced by Detect(). It requires a date-aware evidence
+	// pipeline that is not yet implemented.
 	ConflictTimeBoundary ConflictType = "time_boundary"
 )
 

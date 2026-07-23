@@ -37,6 +37,9 @@ type EventBus struct {
 	broker   *Broker[Event]
 	done     chan struct{}
 	closed   bool
+	// drainTimeout controls how long Drain waits for queued events to
+	// be processed before returning. Default 5s; override via SetDrainTimeout.
+	drainTimeout time.Duration
 }
 
 func NewEventBus() *EventBus {
@@ -50,6 +53,15 @@ func NewEventBus() *EventBus {
 	go eb.dispatch(ready)
 	<-ready
 	return eb
+}
+
+// SetDrainTimeout overrides the default 5-second Drain timeout.
+// Use a longer value if handlers are slow or a large event backlog
+// is expected; use a shorter value for tests that need fast teardown.
+func (eb *EventBus) SetDrainTimeout(d time.Duration) {
+	eb.mu.Lock()
+	eb.drainTimeout = d
+	eb.mu.Unlock()
 }
 
 func (eb *EventBus) dispatch(ready chan<- struct{}) {
@@ -117,7 +129,7 @@ func (eb *EventBus) On(t EventType, h EventHandler) func() {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 	if eb.closed {
-		return nil
+		return func() {} // no-op so callers can safely defer cancel()
 	}
 	id := eb.nextID.Add(1)
 	if eb.handlers[t] == nil {
@@ -133,7 +145,7 @@ func (eb *EventBus) OnAll(h EventHandler) func() {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 	if eb.closed {
-		return nil
+		return func() {} // no-op so callers can safely defer cancel()
 	}
 	id := eb.nextID.Add(1)
 	eb.global[id] = h
@@ -236,10 +248,14 @@ func (eb *EventBus) Drain() {
 		return
 	}
 
-	// Wait for the drain sentinel to be processed, with a generous
-	// timeout to prevent hanging if the dispatch goroutine's channel
-	// is persistently full (PublishMustDeliver timeout).
-	timer := time.NewTimer(5 * time.Second)
+	// Wait for the drain sentinel to be processed, with a configurable
+	// timeout (default 5s, overridable via SetDrainTimeout) to prevent
+	// hanging if the dispatch goroutine's channel is persistently full.
+	timeout := eb.drainTimeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
 	case <-ack:

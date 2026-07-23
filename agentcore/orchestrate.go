@@ -24,16 +24,32 @@ func NewMessageBus() *MessageBus {
 
 // Publish delivers a copy of m to every subscriber of topic (non-blocking
 // per subscriber: drops if channel buffer full).
+//
+// The send loop uses recover to guard against a TOCTOU race: cancel may
+// close a channel between the snapshot (under lock) and the send (after
+// lock release). Sending to a closed channel panics in Go; we treat that as
+// a drop rather than crashing the process.
 func (b *MessageBus) Publish(topic string, m Message) {
 	b.mu.Lock()
 	chs := append([]chan Message(nil), b.subs[topic]...)
 	b.mu.Unlock()
 	for _, ch := range chs {
-		select {
-		case ch <- m:
-		default:
+		b.safeSend(ch, m)
+	}
+}
+
+// safeSend attempts a non-blocking send, recovering from a panic caused by
+// the channel being closed between snapshot and send.
+func (b *MessageBus) safeSend(ch chan Message, m Message) {
+	defer func() {
+		if r := recover(); r != nil {
 			b.dropped.Add(1)
 		}
+	}()
+	select {
+	case ch <- m:
+	default:
+		b.dropped.Add(1)
 	}
 }
 
@@ -116,12 +132,16 @@ func RunSequentialAgentsWithDepth(ctx context.Context, agents []*Agent, user str
 	}
 	var last string
 	var err error
+	// Each step runs at an increasing depth so that nested TaskTool
+	// delegation inside any step is also bounded. Using depth=i (not i+1)
+	// gives the first agent root-level (depth=0) and leaves headroom for
+	// the last agent to delegate one more level if needed.
 	for i, ag := range agents {
 		input := user
 		if i > 0 && last != "" {
 			input = last
 		}
-		last, err = ag.Run(WithDepth(ctx, i+1), input)
+		last, err = ag.Run(WithDepth(ctx, i), input)
 		if err != nil {
 			return "", err
 		}

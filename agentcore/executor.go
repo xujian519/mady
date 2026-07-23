@@ -223,8 +223,23 @@ func (e *Executor) coreExecute(ctx context.Context, tc ToolCall) (string, error)
 }
 
 // Execute runs a single tool call: tool-before → global-before → middleware chain → global-after → tool-after.
-func (e *Executor) Execute(ctx context.Context, tc ToolCall, state *AgentState) ToolResult {
+// A defer/recover guard ensures that a panicking tool does not crash the
+// entire agent run — the panic is captured and surfaced as an error result
+// so the model can react to it.
+func (e *Executor) Execute(ctx context.Context, tc ToolCall, state *AgentState) (tr ToolResult) {
 	start := time.Now()
+	defer func() {
+		if r := recover(); r != nil {
+			tr = ToolResult{
+				ToolCallID: tc.ID,
+				ToolName:   tc.Name,
+				Result:     fmt.Sprintf("工具 %s 内部异常（panic）: %v", tc.Name, r),
+				Err:        fmt.Errorf("工具 %s panic: %v", tc.Name, r),
+				Duration:   time.Since(start),
+			}
+		}
+	}()
+
 	tm := &terminateMarker{}
 	ctx = context.WithValue(ctx, terminateKey{}, tm)
 
@@ -254,7 +269,7 @@ func (e *Executor) Execute(ctx context.Context, tc ToolCall, state *AgentState) 
 	// middleware chain → core
 	result, err := e.chain(ctx, tc)
 
-	tr := ToolResult{
+	tr = ToolResult{
 		ToolCallID: tc.ID,
 		ToolName:   tc.Name,
 		Result:     result,
@@ -319,11 +334,8 @@ func (e *Executor) executeParallel(ctx context.Context, calls []ToolCall, state 
 		wg.Add(1)
 		go func(idx int, call ToolCall) {
 			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					results[idx] = ToolResult{ToolName: call.Name, Result: fmt.Sprintf("异常: %v", r)}
-				}
-			}()
+			// Execute already has its own defer/recover guard, so any
+			// panicking tool is captured and returned as an error result.
 
 			// Context-aware acquire: respects ctx cancellation.
 			if err := pool.Acquire(ctx); err != nil {

@@ -114,7 +114,11 @@ func NewDefaultClassifier() *DefaultClassifier {
 	return &DefaultClassifier{
 		HighKeywords: []string{
 			"分析", "推理", "对比", "论证", "法律", "专利", "侵权", "新颖性", "创造性",
-			"审查意见", "权利要求", "架构", "设计", "debug", "排查", "重构", "why", "explain",
+			"审查意见", "权利要求", "架构", "设计", "debug", "排查", "重构",
+			// English keywords restricted to domain-specific compound forms
+			// to avoid over-triggering High complexity on casual English
+			// questions like "why is X?" or "explain this".
+			"analyze", "architect", "troubleshoot",
 		},
 		MediumRuneLen:       200,
 		HighRuneLen:         800,

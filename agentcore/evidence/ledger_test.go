@@ -1,7 +1,6 @@
 package evidence
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 )
@@ -165,23 +164,4 @@ func TestLedger_NilSafe(t *testing.T) {
 	_ = l.HasSuccessfulWrite([]string{"/a"})
 	_ = l.HasAnySuccessfulReceipt()
 	_ = l.Snapshot()
-}
-
-func TestContext_RoundTrip(t *testing.T) {
-	l := NewLedger()
-	l.Record(Receipt{ToolName: "read", Success: true})
-	ctx := WithLedger(context.Background(), l)
-	got, ok := FromContext(ctx)
-	if !ok || got == nil {
-		t.Fatal("expected FromContext to return ledger")
-	}
-	if got.Len() != 1 {
-		t.Errorf("Len()=%d want 1", got.Len())
-	}
-
-	// No ledger in plain context.
-	_, ok2 := FromContext(context.Background())
-	if ok2 {
-		t.Error("expected ok=false for context without ledger")
-	}
 }

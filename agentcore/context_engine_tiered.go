@@ -50,6 +50,12 @@ type TieredEngine struct {
 
 	// Tracks which messages have already been snipped/pruned to avoid
 	// re-processing. Keyed by message index in the original slice.
+	//
+	// CONTRACT: This map is only safe as long as messages are appended at
+	// the tail (no insertions or deletions in the middle). The agent run
+	// loop guarantees this — compaction replaces the entire slice and
+	// resets this map via processedReset(). If future code adds mid-slice
+	// insertions (e.g. branch merging), switch to message-ID-based keys.
 	processed map[int]string // index → "snipped" | "pruned"
 }
 

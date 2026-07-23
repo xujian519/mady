@@ -36,8 +36,14 @@ func NewPluginManager(provider Provider, retriever Retriever, pluginDirs ...stri
 	return pm, nil
 }
 
-// Plugins returns the list of discovered PluginManifests.
-func (pm *PluginManager) Plugins() []PluginManifest { return pm.plugins }
+// Plugins returns a copy of the list of discovered PluginManifests.
+// The returned slice is safe for callers to mutate without affecting
+// the PluginManager's internal state.
+func (pm *PluginManager) Plugins() []PluginManifest {
+	out := make([]PluginManifest, len(pm.plugins))
+	copy(out, pm.plugins)
+	return out
+}
 
 // RunPlugin executes a plugin by name with the given input state.
 func (pm *PluginManager) RunPlugin(ctx context.Context, name string, input PipelineState) (PipelineState, error) {

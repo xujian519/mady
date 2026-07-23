@@ -3,6 +3,8 @@ package agentcore
 import (
 	"fmt"
 	"regexp"
+	"sort"
+	"strings"
 	"sync"
 )
 
@@ -68,6 +70,30 @@ func RegisterValidDomain(name string) {
 	validDomains[name] = true
 }
 
+// sortedValidDomains returns a sorted snapshot of registered domain names.
+func sortedValidDomains() []string {
+	validDomainsMu.RLock()
+	defer validDomainsMu.RUnlock()
+	out := make([]string, 0, len(validDomains))
+	for d := range validDomains {
+		out = append(out, d)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// sortedValidGuardrailLevels returns a sorted snapshot of registered guardrail levels.
+func sortedValidGuardrailLevels() []string {
+	validGuardrailLevelsMu.RLock()
+	defer validGuardrailLevelsMu.RUnlock()
+	out := make([]string, 0, len(validGuardrailLevels))
+	for l := range validGuardrailLevels {
+		out = append(out, l)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // RegisterValidGuardrailLevel registers an additional valid guardrail level
 // name for manifest validation. Empty names are ignored.
 func RegisterValidGuardrailLevel(name string) {
@@ -97,7 +123,7 @@ func ValidateManifest(m AgentManifest) error {
 	validDomainsMu.RUnlock()
 	if !ok {
 		return NewFatalError("manifest",
-			fmt.Sprintf("%q 的 domain %q 无效（有效值：chat/assistant/patent/legal）", m.Name, m.Domain), nil)
+			fmt.Sprintf("%q 的 domain %q 无效（有效值：%s）", m.Name, m.Domain, strings.Join(sortedValidDomains(), "/")), nil)
 	}
 
 	if m.GuardrailLevel != "" {
@@ -106,7 +132,7 @@ func ValidateManifest(m AgentManifest) error {
 		validGuardrailLevelsMu.RUnlock()
 		if !ok {
 			return NewFatalError("manifest",
-				fmt.Sprintf("%q 的 guardrail_level %q 无效（有效值：light/standard/strict）", m.Name, m.GuardrailLevel), nil)
+				fmt.Sprintf("%q 的 guardrail_level %q 无效（有效值：%s）", m.Name, m.GuardrailLevel, strings.Join(sortedValidGuardrailLevels(), "/")), nil)
 		}
 	}
 	return nil

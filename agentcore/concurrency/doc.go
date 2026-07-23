@@ -1,16 +1,22 @@
-// Package concurrency 提供泛型并发控制工具，包括类型安全的 Worker Pool，
-// 支持任务提交、结果收集和优雅关闭。
+// Package concurrency provides concurrency control primitives for agentcore.
 //
-// 主要类型：
-//   - Pool: 泛型 Worker Pool，管理 goroutine 生命周期
-//   - Config: Pool 配置（Worker 数量、队列大小等）
+// # Pool
 //
-// 使用示例：
+// Pool is a semaphore-based concurrency limiter. It restricts the number of
+// concurrent goroutines that can execute a critical section without spawning
+// dedicated worker goroutines.
 //
-//	pool := concurrency.NewPool[string, int](concurrency.Config{
-//	    MinWorkers: 4,
-//	    MaxWorkers: 10,
-//	})
-//	pool.Submit("task-1", func(ctx context.Context) (int, error) { ... })
-//	result, _ := pool.Wait(ctx)
+// Usage:
+//
+//	pool := concurrency.NewPool(10) // at most 10 concurrent
+//	if err := pool.Acquire(ctx); err != nil {
+//	    return err
+//	}
+//	defer pool.Release()
+//	// ... critical section ...
+//
+// # CloseablePool
+//
+// CloseablePool extends Pool with graceful shutdown. After Close, new Acquire
+// calls return ErrPoolClosed, allowing long-running operations to drain.
 package concurrency

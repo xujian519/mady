@@ -212,6 +212,10 @@ func (e *CompressorEngine) OnSessionReset() {
 func (e *CompressorEngine) OnSessionEnd() {
 }
 
+// UpdateFromResponse is a no-op. The compressor engine currently relies
+// entirely on heuristic token estimation. This method exists to satisfy
+// the ContextEngine interface and is reserved for future calibration
+// against real provider usage data.
 func (e *CompressorEngine) UpdateFromResponse(usage TokenUsage) {
 }
 

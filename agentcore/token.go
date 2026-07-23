@@ -13,6 +13,13 @@ import (
 // counts 3 bytes per CJK character — yielding only ~0.75 tokens/char from the
 // chars/4 base. We add a correction factor so Chinese-heavy conversations
 // trigger compaction at the right time instead of silently overflowing.
+
+// imageTokenEstimate is the rough token cost of a single image block in
+// mainstream vision models (e.g. GPT-4V, Claude). Used by both
+// EstimateMessageTokens (token accounting) and compaction's image-char
+// equivalence calculation.
+const imageTokenEstimate = 1600
+
 func EstimateTokens(text string) int64 {
 	if len(text) == 0 {
 		return 0
@@ -61,11 +68,19 @@ func isCJK(r rune) bool {
 }
 
 // EstimateMessageTokens estimates token count for a single message,
-// including role overhead, content, and tool call payloads.
+// including role overhead, content, tool call payloads, and image blocks.
 func EstimateMessageTokens(msg Message) int64 {
 	tokens := int64(4) // role + message framing overhead
 	tokens += EstimateTokens(MessageTextBody(msg))
 	tokens += EstimateTokens(msg.Name)
+	// Account for image blocks: each image costs ~1600 tokens in mainstream
+	// vision models. MessageTextBody renders images as short text ("[image]"),
+	// which severely underestimates. We add the difference for accuracy.
+	for _, b := range msg.Blocks {
+		if b.Kind == BlockKindImage {
+			tokens += imageTokenEstimate
+		}
+	}
 	for _, tc := range msg.ToolCalls {
 		tokens += EstimateTokens(tc.Name)
 		tokens += EstimateTokens(tc.Arguments)
