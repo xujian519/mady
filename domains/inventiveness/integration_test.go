@@ -186,7 +186,7 @@ func TestTypeCompatibility(t *testing.T) {
 	// This test exists as documentation of the contract.
 
 	// Verify that state keys are non-empty.
-	for _, key := range []string{StateKeyInput, StateKeyResult, stateKeyStep1, stateKeyStep2, stateKeyStep3, stateKeyStep4} {
+	for _, key := range []string{StateKeyInput, StateKeyResult, stateKeyExperiment, stateKeyStep1, stateKeyStep2, stateKeyStep3, stateKeyStep4} {
 		if key == "" {
 			t.Error("state key should not be empty")
 		}

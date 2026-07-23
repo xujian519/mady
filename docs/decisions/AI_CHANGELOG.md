@@ -1,5 +1,51 @@
 # AI 变更记录
 
+## 2026-07-23: 创造性模块优化 — 三期 12 项任务全覆盖（Phase 1-3）
+
+### 背景
+基于宝宸知识库 28 篇创造性文档的对比分析报告，对 `domains/inventiveness` 模块实施
+3 个阶段共 12 项优化任务，覆盖分析报告识别的全部 8 个缺口（GAP-1~GAP-9）。
+
+### 涉及文件
+- `domains/inventiveness/nodes.go` — 提示词增强 + 新增实验数据核验节点
+- `domains/inventiveness/types.go` — 新增 `ExperimentalData` 类型
+- `domains/inventiveness/graph.go` — 图拓扑扩展（6 节点 → 7 节点）
+- `domains/inventiveness/tool.go` — `parseInventivenessArgs` 向后兼容扩展
+- `domains/inventiveness/framework.go` — 多源一致性标记参考
+- `domains/inventiveness/integration_test.go` — stateKey 测试覆盖扩展
+- `domains/inventiveness/inventiveness_test.go` — 新术语验证
+
+### Phase 1: 提示词增强（P0 缺口，零代码架构变更）
+
+| 任务 | 对应缺口 | 改动 |
+|------|---------|------|
+| 1.1 改进动机结构化 | GAP-1 | 三维度逐维度分析框架（发现难度/结合动机/趋势引导），取代单段文字 |
+| 1.2 发明构思因果链 | GAP-2 | 两阶段推理：先构思比对→改进动机，再技术启示判断 |
+| 1.3 现有技术质量检查 | GAP-3 | Step1+Step3 追加准确理解指引（整体把握/明显错误/负面描述） |
+| 1.4 辅助因素结构化 | GAP-5 | 四类辅助因素（预料不到/商业成功/技术偏见/长期需求）结构化分析框架 |
+
+### Phase 2: 节点拓扑扩展（P1 缺口）
+
+| 任务 | 对应缺口 | 改动 |
+|------|---------|------|
+| 2.1 技术问题五种情形 | GAP-6 | 补充情形一~四完整框架 + 红线规则（不含手段/保护范围覆盖/回传Step3） |
+| 2.2 新增实验数据节点 | GAP-4 | 新 Pregel 节点（Step4→generate_conclusion之间），含 ExperimentalData 类型 |
+
+### Phase 3: 精度精化（P2/P3 缺口）
+
+| 任务 | 对应缺口 | 改动 |
+|------|---------|------|
+| 3.1 参数特征规则 | GAP-7 | 推定规则：结构/组分决定性能时参数特征不构成区别 |
+| 3.2 分析推理细化 | GAP-8 | 三维度综合评估框架（手段/难度/教导）结构化判断指引 |
+| 3.3 多源一致性标记 | GAP-9 | 崔国斌《专利法》+尹新天《专利法详解》来源备注 |
+
+### 验证结果
+- `make verify`（lint + build + test-race 双模块覆盖）：全部通过 ✅
+- 包测试 `go test -race ./domains/inventiveness/...`：全部通过 ✅
+- 所有改动向后兼容（新增字段 omitempty，无 ExperimentalData 输入时节点正常跳过）
+
+---
+
 ## 2026-07-23: Agent 运行时审阅修复 — 全面修复 56 项发现
 
 ### 背景

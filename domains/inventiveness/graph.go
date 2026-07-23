@@ -40,7 +40,8 @@ import (
 // 图拓扑:
 //
 //	load_input → step1_closest_prior_art → step2_distinguishing_features →
-//	step3_technical_suggestion → step4_significant_progress → generate_conclusion → __end__
+//	step3_technical_suggestion → step4_significant_progress →
+//	evaluate_experimental_data → generate_conclusion → __end__
 //
 // 每步均为单 Agent LLM 节点，输出结构化 JSON。
 // 结论逻辑：IsInventive = (Step3: 非显而易见) AND (Step4: 具有显著进步)
@@ -53,6 +54,7 @@ func BuildInventivenessGraph(provider agentcore.Provider) (*graph.CompiledPregel
 		"step2_distinguishing_features": step2DistinguishingFeaturesNode(provider),
 		"step3_technical_suggestion":    step3TechnicalSuggestionNode(provider),
 		"step4_significant_progress":    step4SignificantProgressNode(provider),
+		"evaluate_experimental_data":    evaluateExperimentalDataNode(),
 		"generate_conclusion":           generateConclusionNode(provider),
 	}
 
@@ -67,7 +69,8 @@ func BuildInventivenessGraph(provider agentcore.Provider) (*graph.CompiledPregel
 		{"step1_closest_prior_art", "step2_distinguishing_features"},
 		{"step2_distinguishing_features", "step3_technical_suggestion"},
 		{"step3_technical_suggestion", "step4_significant_progress"},
-		{"step4_significant_progress", "generate_conclusion"},
+		{"step4_significant_progress", "evaluate_experimental_data"},
+		{"evaluate_experimental_data", "generate_conclusion"},
 		{"generate_conclusion", graph.PregelEnd},
 	}
 	for _, e := range edges {

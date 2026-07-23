@@ -42,15 +42,25 @@ const (
 	InventionTypeElementChange = "element_change" // 要素变更发明：关系改变/替代/省略
 )
 
+// ExperimentalData 实验数据核验输入。
+// 用于评估实验数据充分性、补充数据可接受性、对比试验代表性。
+type ExperimentalData struct {
+	HasOriginalData   bool   `json:"has_original_data"`         // 原始申请文件中是否有实验数据
+	HasSupplementData bool   `json:"has_supplement_data"`       // 是否有申请日后补充实验数据
+	DataSummary       string `json:"data_summary,omitempty"`    // 实验数据摘要（关键发现）
+	ComparisonType    string `json:"comparison_type,omitempty"` // 对比试验类型：structure/combination/selection/transfer
+}
+
 // InventivenessInput 是创造性分析子图的完整输入。
 type InventivenessInput struct {
-	PriorArtChunks    []EvidenceChunk `json:"prior_art_chunks"`
-	Features          []TechFeature   `json:"features"`
-	PFETriples        []PFETriple     `json:"pfe_triples"`
-	NoveltyConclusion string          `json:"novelty_conclusion"`
-	EvidenceCoverage  string          `json:"evidence_coverage"`        // "full" / "partial" / "none"
-	InventionType     string          `json:"invention_type,omitempty"` // 发明类型（可选，留空时自动分类）
-	TechDomain        string          `json:"tech_domain,omitempty"`    // 技术领域：chemistry/computer/tcm（可选）
+	PriorArtChunks    []EvidenceChunk   `json:"prior_art_chunks"`
+	Features          []TechFeature     `json:"features"`
+	PFETriples        []PFETriple       `json:"pfe_triples"`
+	NoveltyConclusion string            `json:"novelty_conclusion"`
+	EvidenceCoverage  string            `json:"evidence_coverage"`           // "full" / "partial" / "none"
+	InventionType     string            `json:"invention_type,omitempty"`    // 发明类型（可选，留空时自动分类）
+	TechDomain        string            `json:"tech_domain,omitempty"`       // 技术领域：chemistry/computer/tcm（可选）
+	ExperimentalData  *ExperimentalData `json:"experimental_data,omitempty"` // 实验数据（可选，用于核验）
 }
 
 // =============================================================================

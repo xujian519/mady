@@ -522,6 +522,8 @@ func TestDefaultFramework_ContainsAllKeyTerms(t *testing.T) {
 		"最接近的现有技术", "区别特征", "技术启示",
 		"公知常识", "事后诸葛亮", "预料不到的技术效果",
 		"商业上的成功", "技术偏见", "长期未满足",
+		// Phase 3.3: 多源一致性标记
+		"综合来源备注", "两步要件的关系", "弹性空间",
 	}
 	for _, term := range requiredTerms {
 		if !strings.Contains(fw, term) {

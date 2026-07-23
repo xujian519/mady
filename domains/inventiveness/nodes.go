@@ -18,11 +18,12 @@ const (
 	// StateKeyInput 是 PregelState 中存储 InventivenessInput 的 key。
 	StateKeyInput = "inventiveness_input"
 	// StateKeyResult 是 PregelState 中存储 InventivenessResult 的 key。
-	StateKeyResult = "inventiveness_result"
-	stateKeyStep1  = "step1_closest_prior_art"
-	stateKeyStep2  = "step2_distinguishing_features"
-	stateKeyStep3  = "step3_technical_suggestion"
-	stateKeyStep4  = "step4_significant_progress"
+	StateKeyResult     = "inventiveness_result"
+	stateKeyExperiment = "evaluate_experimental_data"
+	stateKeyStep1      = "step1_closest_prior_art"
+	stateKeyStep2      = "step2_distinguishing_features"
+	stateKeyStep3      = "step3_technical_suggestion"
+	stateKeyStep4      = "step4_significant_progress"
 )
 
 // =============================================================================
@@ -87,7 +88,11 @@ func step1ClosestPriorArtNode(provider agentcore.Provider) graph.PregelNode {
 		if domainGuidance := techDomainGuidance(input.TechDomain); domainGuidance != "" {
 			prompt += domainGuidance + "\n\n"
 		}
-		prompt += "请列出选定文献的标题和理由。"
+		prompt += "请列出选定文献的标题和理由。\n\n"
+		prompt += "**现有技术信息质量提示**：\n"
+		prompt += "- 确定最接近现有技术时，应基于该文献的整体公开内容，而非仅关注局部文字或最佳实施例\n"
+		prompt += "- 注意识别文献中是否存在明显笔误（前后文字不一致、与整体教导相矛盾）\n"
+		prompt += "- 负面描述（如「不宜」「不适合」）不必然否定该技术手段的可实施性，应结合上下文整体把握\n"
 
 		inputText := buildInputText(input)
 		agent := newInventivenessAgent(provider, "inventiveness-step1", prompt, step1Schema())
@@ -133,12 +138,22 @@ func step2DistinguishingFeaturesNode(provider agentcore.Provider) graph.PregelNo
 		if domainGuidance := techDomainGuidance(input.TechDomain); domainGuidance != "" {
 			prompt += domainGuidance + "\n\n"
 		}
-		prompt += "**技术问题确定的五种情形**（判断当前属于哪种）：\n"
-		prompt += "情形一（相同现有技术）：最接近现有技术 = 申请人描述的现有技术 → 技术问题通常与说明书记载相同\n"
-		prompt += "情形二（不同现有技术，最常见）：最接近现有技术 ≠ 申请人描述的现有技术 → 需重新确定\n"
+		prompt += "**技术问题确定的五种情形**（判断当前属于哪种，并在结论中标注情形类型）：\n"
+		prompt += "情形一（相同现有技术）：最接近现有技术 = 申请人描述的现有技术\n"
+		prompt += "  → 技术问题通常与说明书记载相同，但仍需验证区别特征是否确实解决了声称的问题\n"
+		prompt += "情形二（不同现有技术，最常见）：最接近现有技术 ≠ 申请人描述的现有技术\n"
+		prompt += "  → 需重新确定技术问题，并以区别特征客观上达到的技术效果为准\n"
 		prompt += "情形三（领域相同但方案差异大）：技术问题在层次和方向上可能有较大差异\n"
-		prompt += "情形四（多特征且功能相互支持）：应整体考虑，确定一个统一的技术问题\n"
-		prompt += "情形五（所有效果均相当）：技术问题确定为「提供一种不同于最接近现有技术的可供选择的技术方案」\n\n"
+		prompt += "  → 注意概括粒度：过宽（上层抽象）会放大创造性，过窄（下层具体）会缩小创造性\n"
+		prompt += "情形四（多特征且功能相互支持）：多个特征协同解决同一技术问题\n"
+		prompt += "  → 应整体考虑，确定一个统一的技术问题，不得拆分后分别确定\n"
+		prompt += "情形五（所有效果均相当）：区别特征未带来不同于现有技术的技术效果\n"
+		prompt += "  → 技术问题确定为「提供一种不同于最接近现有技术的可供选择的技术方案」\n"
+		prompt += "  → 此时创造性判断的核心在于发明构思差异（而非技术效果）\n\n"
+		prompt += "**⚠️ 技术问题确定的红线规则**：\n"
+		prompt += "- 技术问题中不应包含解决手段本身（如应写「如何减少积绒」而非「如何通过减小底面积减少积绒」）\n"
+		prompt += "- 技术效果必须是区别特征带来的、且在整个权利要求保护范围内均能实现\n"
+		prompt += "- 技术问题确定后，应标注所属情形类型（情形一~五），供第 3 步跨领域判断参考\n\n"
 		prompt += "**发明形成过程分析**（影响技术问题认定的客观性）：\n"
 		prompt += "识别发明形成的出发点：\n"
 		prompt += "1. 新的构思或尚未认识的技术问题 → 问题本身有创造性（即使解决手段显而易见，发明仍可能具备创造性）\n"
@@ -149,6 +164,10 @@ func step2DistinguishingFeaturesNode(provider agentcore.Provider) graph.PregelNo
 		prompt += "- 互不依存、各自解决不同技术问题的特征 → 应拆分为独立的区别特征分别分析\n"
 		prompt += "- 紧密联系、协同作用、功能上相互支持的特征 → 应整体考虑，作为一个统一的技术手段\n"
 		prompt += "- 不得将协同特征拆分为碎片化特征逐一评价（这是「事后诸葛亮」的常见表现）\n\n"
+		prompt += "**参数特征特殊规则**：\n"
+		prompt += "- 对于参数限定的特征（性能参数/物理参数），如果能从结构、组分或制备方法等方面\n"
+		prompt += "  确定现有技术产品必然具备相应参数值，则该参数不构成实质区别特征\n"
+		prompt += "- 推定规则：当结构和组分决定性能时，参数特征在对比中不予考虑\n\n"
 		prompt += "**无贡献特征识别**（2023年审查指南第84号局令新增）：\n"
 		prompt += "对技术问题的解决没有作出贡献的特征，即使写入权利要求中，通常也不会对技术方案的创造性产生影响。\n"
 		prompt += "四维度判断标准：\n"
@@ -206,15 +225,26 @@ func step3TechnicalSuggestionNode(provider agentcore.Provider) graph.PregelNode 
 				prompt += domainGuidance + "\n\n"
 			}
 		}
-		prompt += "**发明构思分析**（防止「事后诸葛亮」的关键工具）：\n"
-		prompt += "发明构思是发明人为解决技术问题在谋求解决方案过程中提出的技术改进思路，体现在「技术问题→解决思路→技术手段」的脉络中。\n\n"
-		prompt += "五步构思比对法：\n"
-		prompt += "1. 提炼专利的发明构思（技术问题→解决思路→技术手段）\n"
-		prompt += "2. 找到最接近现有技术的发明构思\n"
-		prompt += "3. 比较两者在基本工作原理、改进途径、核心设计思想上是否存在本质差异\n"
-		prompt += "4. 如果构思迥异甚至相反，分析该差异是否构成技术结合的障碍\n"
-		prompt += "5. 即使属于替代方案，也应从构思差异入手进行具体分析\n\n"
-		prompt += "关键原则：发明构思不同时，形式相似 ≠ 技术启示。构思差异往往直接影响改进动机——不同构思意味着改进方向和路径根本不同。\n\n"
+		prompt += "**现有技术信息质量检查**（在判断技术启示前先确认现有技术的准确理解）：\n"
+		prompt += "1. 是否存在对现有技术的局部片面理解？（如仅看最佳实施例而忽略说明书整体教导）\n"
+		prompt += "2. 是否需要识别明显错误？（文字笔误、前后不一致，基于整体内容和技术常识判断）\n"
+		prompt += "3. 现有技术中的负面描述（如「不宜」「不适合」）是「彻底否定」还是「特定场景下的选择」？\n"
+		prompt += "   - 负面描述针对的问题在发明中是否同样存在？\n"
+		prompt += "   - 其他现有技术是否仍在使用该技术手段？\n"
+		prompt += "4. 上述质量检查结论是否影响对技术启示的判断？\n\n"
+		prompt += "**第 1 阶段：发明构思比对与改进动机分析**\n\n"
+		prompt += "发明构思是发明人为解决技术问题在谋求解决方案过程中提出的技术改进思路，\n"
+		prompt += "体现在「技术问题→解决思路→技术手段」的脉络中。\n\n"
+		prompt += "**步骤一：提炼双方的发明构思**\n"
+		prompt += "1. 提炼发明（专利/申请）的发明构思：从说明书记载的技术问题和解决思路出发\n"
+		prompt += "2. 提炼最接近现有技术的发明构思：从对比文件的整体技术方案理解其核心思路\n\n"
+		prompt += "**步骤二：比较构思差异并推断改进动机**\n"
+		prompt += "1. 比较两者在基本工作原理、改进途径、核心设计思想上是否存在本质差异\n"
+		prompt += "2. 如果构思迥异甚至相反 → 技术人员通常缺乏改进动机 → 趋向于不存在技术启示\n"
+		prompt += "3. 如果构思一致或相似 → 技术人员可能存在改进动机 → 进入第 2 阶段深度分析\n"
+		prompt += "4. 关键原则：发明构思不同时，形式相似 ≠ 技术启示。构思差异往往直接影响改进动机\n"
+		prompt += "5. 即使属于替代方案（解决问题和效果相同），也应从构思差异入手进行具体分析\n\n"
+		prompt += "**第 2 阶段：技术启示判断**（基于第 1 阶段的构思比对与改进动机结论）\n\n"
 		prompt += "**技术启示的五种情形**（逐一排除）：\n"
 		prompt += "1. 区别特征属于本领域公知常识（惯用手段、教科书/技术词典/技术手册记载）？\n"
 		prompt += "2. 区别特征在同一对比文件的其他部分已披露，且作用相同？\n"
@@ -228,23 +258,49 @@ func step3TechnicalSuggestionNode(provider agentcore.Provider) graph.PregelNode 
 		prompt += "- 区别特征在对比文件中的作用与在本发明中不同 → 不存在技术启示\n"
 		prompt += "- 禁止「事后诸葛亮」式分析（不得在知晓发明后反向推导）\n\n"
 		prompt += examinerErrorPrevention() + "\n\n"
-		prompt += "**分析推理与有限试验**：\n"
-		prompt += "如果本领域技术人员仅通过合乎逻辑的分析推理或有限的试验即可得到发明 → 显而易见。\n"
-		prompt += "- 分析推理：推理链条必须严密，不能有跳跃。公知功能相同手段的替换/选择→显而易见\n"
-		prompt += "- 有限试验（「有限」不专指数量，综合考量手段/难度/强度）：\n"
-		prompt += "  少数可选方案+公知验证手段→有限试验；现有技术给出具体数值起点+知晓调整方向→有限试验\n"
-		prompt += "  教导模糊、需大量摸索→超出有限试验→支持创造性\n"
-		prompt += "  大量可能组合+无指引缩小范围→非有限试验→支持创造性\n\n"
+		prompt += "**分析推理与有限试验结构化判断**：\n\n"
+		prompt += "**1. 分析推理**\n"
+		prompt += "- 区别特征是否为公知常识、惯用手段或功能相同的已知手段的等效替换？\n"
+		prompt += "  如果是且有合理成功预期 → 推理链条成立 → 趋向显而易见\n"
+		prompt += "- 推理链条是否严密、无跳跃？\n"
+		prompt += "- 现有技术面临的技术问题是否明确？替代手段是否属于公知的可选方案？\n"
+		prompt += "  如果均满足 → 经过合乎逻辑的分析推理即可得到 → 无创造性\n\n"
+		prompt += "**2. 有限的试验**\n"
+		prompt += "- 「有限」不专指数量的多寡，应综合考量以下三个维度：\n"
+		prompt += "  a) 试验手段本身是否属于常规？（公知验证手段 vs 需专门设计的实验）\n"
+		prompt += "  b) 试验难度和强度是否属于常规？（可选方案范围大小/参数调整方向清晰度）\n"
+		prompt += "  c) 现有技术教导是否充分？（方案方向越明确、结果预判越强→越「有限」）\n"
+		prompt += "- 少数可选方案 + 公知验证手段 → 有限试验 → 显而易见\n"
+		prompt += "- 现有技术给出具体数值起点 + 知晓调整方向 → 有限试验 → 显而易见\n"
+		prompt += "- 教导模糊、需大量摸索 → 超出有限试验 → 支持创造性\n"
+		prompt += "- 大量可能组合 + 无现有技术指引缩小范围 → 超出有限试验 → 支持创造性\n\n"
 		prompt += "**用途限定特征的创造性判断**：\n"
 		prompt += "- 仅在于使用环境或用途的限定，未带来产品结构/组成/方法改变→通常不影响创造性判断\n"
 		prompt += "- 用途限定隐含了产品具有特定结构或性能→该隐含特征应在创造性判断中予以考虑\n"
 		prompt += "- 「同类性」前提：对比前应先证明对比文件之间的同类性和作用一致性\n\n"
-		prompt += "**改进动机三维度分析**：\n"
-		prompt += "1. 发现技术问题的难易程度：问题原因超出本领域技术水平→无改进动机；原因已为公知常识→有动机\n"
-		prompt += "2. 不同现有技术结合的动机：无法预见结合结果或结合会破坏原有系统→无结合动机；\n"
-		prompt += "   技术发展趋势长期排斥该技术方案→无动机；普遍需求+明确技术指引→有动机\n"
-		prompt += "3. 最接近现有技术教导的改进方向：教导了与发明相同的改进方向→增强动机；\n"
-		prompt += "   长期未被改进的事实→佐证缺乏动机\n\n"
+		prompt += "**改进动机三维度系统分析**（逐维度推理后综合结论）：\n\n"
+		prompt += "**维度一：发现技术问题的难易程度**\n"
+		prompt += "- 现有技术是否存在该技术缺陷或待解决的问题？\n"
+		prompt += "- 导致该缺陷的内在原因是否已被本领域技术人员认识？\n"
+		prompt += "- 该原因的发现是否超出了申请日前技术人员的能力和水平？\n"
+		prompt += "- 如果原因长期未知且超出技术水平 → 即使解决手段本身容易，仍不具备改进动机\n"
+		prompt += "→ 结论：有改进动机 / 无改进动机 / 不确定\n\n"
+		prompt += "**维度二：不同现有技术结合的动机**\n"
+		prompt += "- 将多篇现有技术结合后是否有合理的成功预期？\n"
+		prompt += "- 结合是否会破坏原有系统的核心功能或结构？\n"
+		prompt += "- 区别特征与其所在整体技术方案是否密不可分（不可拆分移植）？\n"
+		prompt += "- 最接近现有技术是否为应用区别特征提供了适格的改进基础？\n"
+		prompt += "- 技术发展趋势是积极推动还是反向排斥该技术方案？\n"
+		prompt += "→ 结论：有结合动机 / 无结合动机 / 不确定\n\n"
+		prompt += "**维度三：技术发展趋势与行业规范的引导作用**\n"
+		prompt += "- 该技术在申请日前处于早期发展阶段还是成熟期？\n"
+		prompt += "  （早期：可借鉴信息少，需更多独立摸索 → 趋向于无改进动机）\n"
+		prompt += "- 技术发展趋势/行业规范是否明确支持该改进方向？\n"
+		prompt += "- 发展趋势是否在较长时间内排斥该技术方案（给出相反启示）？\n"
+		prompt += "→ 结论：正向引导（支持改进）/ 反向排斥（阻碍改进）/ 中性\n\n"
+		prompt += "**改进动机综合判断**：基于以上三个维度的系统分析，综合判断本领域技术人员\n"
+		prompt += "是否存在动机将区别特征应用于最接近现有技术以获得发明。\n"
+		prompt += "三个维度中任一维度明确「无动机」时，应审慎认定存在技术启示。\n\n"
 		prompt += "请输出 JSON 格式：\n"
 		prompt += "- technical_suggestion: true/false（是否存在技术启示）\n"
 		prompt += "- suggestion_type: 适用情形（common_knowledge/same_doc/other_doc/functional_equivalent/universal_need）\n"
@@ -315,6 +371,67 @@ func step4SignificantProgressNode(provider agentcore.Provider) graph.PregelNode 
 	}
 }
 
+// evaluateExperimentalDataNode 实验数据核验节点。
+// 评估实验数据充分性、补充数据可接受性、对比试验代表性。
+// 输出供 generateConclusionNode 的辅助因素分析使用。
+// 位置：Step4 之后、generate_conclusion 之前。
+// 注意：当 InventivenessInput 中未提供 ExperimentalData 时，节点正常跳过。
+func evaluateExperimentalDataNode() graph.PregelNode {
+	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+		if stateHasSkip(state) {
+			return state, nil
+		}
+
+		raw, ok := state[StateKeyInput]
+		if !ok {
+			return state, nil
+		}
+		input, ok := raw.(*InventivenessInput)
+		if !ok || input == nil || input.ExperimentalData == nil {
+			// 无实验数据输入，正常跳过
+			state[stateKeyExperiment] = ""
+			return state, nil
+		}
+
+		ed := input.ExperimentalData
+
+		var sb strings.Builder
+		sb.WriteString("## 实验数据核验报告\n\n")
+
+		// 1. 原始数据审查
+		sb.WriteString("### 1. 原始实验数据审查\n")
+		if ed.HasOriginalData {
+			sb.WriteString("- ✅ 原始申请文件中有实验数据记载\n")
+		} else {
+			sb.WriteString("- ❌ 原始申请文件中无实验数据记载\n")
+		}
+		if ed.DataSummary != "" {
+			fmt.Fprintf(&sb, "- 数据摘要：%s\n", ed.DataSummary)
+		}
+
+		// 2. 补充数据审查
+		sb.WriteString("\n### 2. 补充实验数据审查\n")
+		if ed.HasSupplementData {
+			sb.WriteString("- ⚠️ 存在申请日后补充实验数据\n")
+			sb.WriteString("- 需审查补充数据证明的技术效果是否可从原始申请文件公开内容中得到\n")
+			sb.WriteString("- 原则：先申请制下，补充数据不得为专利申请文件引入新信息\n")
+		} else {
+			sb.WriteString("- 无补充数据\n")
+		}
+
+		// 3. 对比试验代表性
+		sb.WriteString("\n### 3. 对比试验代表性评估\n")
+		if ed.ComparisonType != "" {
+			fmt.Fprintf(&sb, "- 对比试验类型：%s\n", ed.ComparisonType)
+		}
+		sb.WriteString("- 注意：不能仅以个别效果最好的实施例代表权利要求的整体保护范围\n")
+		sb.WriteString("- 注意：不能仅选择现有技术中效果最差的方案进行对比\n\n")
+
+		state[stateKeyExperiment] = sb.String()
+		return state, nil
+	}
+}
+
 // generateConclusionNode 汇总所有步骤的产出，生成最终创造性评估结论。
 // 结论逻辑：IsInventive = Step3.NonObvious AND Step4.HasSignificantProgress
 func generateConclusionNode(provider agentcore.Provider) graph.PregelNode {
@@ -347,11 +464,28 @@ func generateConclusionNode(provider agentcore.Provider) graph.PregelNode {
 		prompt += "1. 整体判断：该技术方案是否具备创造性\n"
 		prompt += "2. 是否具有显著的进步（基于 Step4 结论）\n"
 		prompt += "3. 置信度：high/medium/low\n"
-		prompt += "4. 辅助考虑因素（如有）：商业成功、预料不到的技术效果、长期需求等\n\n"
+		prompt += "4. 辅助判断因素结构化分析（如有相关信息则逐项检查，无则跳过）\n\n"
+		prompt += "**辅助判断因素分析**：\n\n"
+		prompt += "1. 预料不到的技术效果（如有实验数据）\n"
+		prompt += "   - 发明实际取得的技术效果是否超越了申请日前技术人员的预期？\n"
+		prompt += "   - 效果的「质变」（新性能）或「量变」（远超预期）是否无法从现有技术预测？\n"
+		prompt += "   - 实验数据来源：原始申请文件已有数据 vs 申请日后补充数据？\n"
+		prompt += "   - 补充实验数据证明的效果是否可从原始申请文件公开内容中得到？\n"
+		prompt += "   - 对比试验是否具有代表性？（避免以个别最优实施例代表权利要求整体保护范围）\n"
+		prompt += "   **特别注意**：预料不到的技术效果是创造性的充分条件而非必要条件。\n"
+		prompt += "   不能以「不具有预料不到的技术效果」为由得出不具备创造性的结论。\n\n"
+		prompt += "2. 商业上的成功（如有相关证据）\n"
+		prompt += "   - 是否真正取得商业成功？（市场份额、销售量等客观证据）\n"
+		prompt += "   - 商业成功是否直接由发明的区别技术特征导致？（排除广告宣传、销售策略等非技术因素）\n"
+		prompt += "   - 专利权人是否提交了商业成功与技术特征之间的关联证据？\n\n"
+		prompt += "3. 克服了技术偏见（如有相关证据）\n"
+		prompt += "   - 偏见是否具有普遍性？（如被教科书、技术手册等权威资料肯定的认识）\n"
+		prompt += "   - 该认识是否偏离客观事实？（而非仅是效果不理想的「取舍」）\n"
+		prompt += "   - 发明是否采用了因偏见而被行业舍弃的技术方案并取得成功？\n\n"
+		prompt += "4. 长期未满足的技术需求\n"
+		prompt += "   - 现有技术是否确实长期缺乏有效解决方案？\n"
+		prompt += "   - 现有技术中是否已存在解决该问题的有效手段？（有则不构成「长期未满足」）\n\n"
 		prompt += confidenceCalibration() + "\n\n"
-		prompt += "**特别注意**：预料不到的技术效果是创造性的充分条件而非必要条件。\n"
-		prompt += "三步法已认定非显而易见且具有有益效果的，不需强调预料不到的效果。\n"
-		prompt += "不能以「不具有预料不到的技术效果」为由得出不具备创造性的结论。\n\n"
 		prompt += "请输出 JSON 格式：\n"
 		prompt += "- conclusion: 整体结论\n"
 		prompt += "- is_inventive: true/false\n"
@@ -362,8 +496,13 @@ func generateConclusionNode(provider agentcore.Provider) graph.PregelNode {
 		agent := newInventivenessAgent(provider, "inventiveness-conclusion", prompt, conclusionSchema())
 		defer agent.Close()
 
+		experimentData, _ := state[stateKeyExperiment].(string)
+
 		inputText := fmt.Sprintf("第 1 步（最接近现有技术）:\n%s\n\n第 2 步（区别特征与技术问题）:\n%s\n\n第 3 步（技术启示判断）:\n%s\n\n第 4 步（显著的进步）:\n%s",
 			step1, step2, step3, step4)
+		if experimentData != "" {
+			inputText += "\n\n" + experimentData
+		}
 
 		output, err := agent.Run(ctx, inputText)
 		if err != nil {

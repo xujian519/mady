@@ -174,9 +174,24 @@ func parseInventivenessArgs(args json.RawMessage) *InventivenessInput {
 		EvidenceCoverage  string `json:"evidence_coverage"`
 		InventionType     string `json:"invention_type"`
 		TechDomain        string `json:"tech_domain"`
+		ExperimentalData  *struct {
+			HasOriginalData   bool   `json:"has_original_data"`
+			HasSupplementData bool   `json:"has_supplement_data"`
+			DataSummary       string `json:"data_summary,omitempty"`
+			ComparisonType    string `json:"comparison_type,omitempty"`
+		} `json:"experimental_data,omitempty"`
 	}
 	if err := json.Unmarshal(args, &raw); err != nil {
 		return nil
+	}
+
+	if raw.ExperimentalData != nil {
+		input.ExperimentalData = &ExperimentalData{
+			HasOriginalData:   raw.ExperimentalData.HasOriginalData,
+			HasSupplementData: raw.ExperimentalData.HasSupplementData,
+			DataSummary:       raw.ExperimentalData.DataSummary,
+			ComparisonType:    raw.ExperimentalData.ComparisonType,
+		}
 	}
 
 	for _, c := range raw.PriorArtChunks {
