@@ -1,6 +1,7 @@
 package agentcore
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -78,5 +79,48 @@ func TestEstimateToolDefinitionsTokens(t *testing.T) {
 	tokens = EstimateToolDefinitionsTokens(defs)
 	if tokens <= 0 {
 		t.Fatalf("expected positive token count, got %d", tokens)
+	}
+}
+
+func TestCountCJKRunes(t *testing.T) {
+	// Pure ASCII → 0
+	if got := countCJKRunes("hello world"); got != 0 {
+		t.Fatalf("ASCII: expected 0, got %d", got)
+	}
+	// Pure Chinese → 5
+	if got := countCJKRunes("你好世界吗"); got != 5 {
+		t.Fatalf("Chinese: expected 5, got %d", got)
+	}
+	// Mixed → 3
+	if got := countCJKRunes("hello 世界 abc"); got != 2 {
+		t.Fatalf("Mixed: expected 2, got %d", got)
+	}
+	// Japanese Hiragana
+	if got := countCJKRunes("こんにちは"); got != 5 {
+		t.Fatalf("Hiragana: expected 5, got %d", got)
+	}
+	// Korean Hangul
+	if got := countCJKRunes("안녕하세요"); got != 5 {
+		t.Fatalf("Hangul: expected 5, got %d", got)
+	}
+}
+
+func TestEstimateTokens_CJK(t *testing.T) {
+	// Chinese text should get a HIGHER estimate than pure ASCII of the same
+	// byte length, because CJK characters cost more tokens in real tokenizers.
+	chineseText := strings.Repeat("你", 100) // 100 CJK chars, 300 bytes UTF-8
+	asciiText := strings.Repeat("a", 300)   // 300 bytes
+
+	cjkTokens := EstimateTokens(chineseText)
+	asciiTokens := EstimateTokens(asciiText)
+
+	if cjkTokens <= asciiTokens {
+		t.Fatalf("CJK text should estimate higher than ASCII of same byte length: cjk=%d ascii=%d",
+			cjkTokens, asciiTokens)
+	}
+	// Base for 300 bytes = 75 tokens. CJK correction = 100 * 0.75 = 75.
+	// Total should be ~150.
+	if cjkTokens < 100 {
+		t.Fatalf("CJK estimate too low: expected >= 100, got %d", cjkTokens)
 	}
 }

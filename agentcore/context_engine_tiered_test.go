@@ -47,7 +47,7 @@ func TestTieredEngine_SnipToolResults(t *testing.T) {
 		{Role: RoleUser, Content: "thanks"},
 	}
 
-	result := e.snipToolResults(msgs)
+	result := e.snipMessages(msgs)
 
 	// The tool result should be truncated
 	if len(result[2].Content) >= len(longContent) {
@@ -98,7 +98,7 @@ func TestTieredEngine_PreserveTail(t *testing.T) {
 		{Role: RoleTool, Content: longContent, ToolCallID: "1"},
 	}
 
-	result := e.snipToolResults(msgs)
+	result := e.snipMessages(msgs)
 	// Find the tool result in the result
 	for _, m := range result {
 		if m.Role == RoleTool && m.Content != longContent {
@@ -118,7 +118,7 @@ func TestTieredEngine_ShortContentNotSnipped(t *testing.T) {
 		{Role: RoleTool, Content: "short", ToolCallID: "1"},
 	}
 
-	result := e.snipToolResults(msgs)
+	result := e.snipMessages(msgs)
 	for _, m := range result {
 		if m.Role == RoleTool && m.Content != "short" {
 			t.Error("short tool result should not be snipped")
@@ -232,5 +232,129 @@ func TestEngineRegistry_HasTiered(t *testing.T) {
 	}
 	if e.Name() != "tiered" {
 		t.Errorf("created engine name=%q want tiered", e.Name())
+	}
+}
+
+func TestTieredEngine_SnipLargeUserMessages(t *testing.T) {
+	e := NewTieredEngine(ContextEngineConfig{
+		ContextWindow:    10000,
+		KeepRecentTokens: 500, // protect recent tail
+	}).(*TieredEngine)
+
+	// Large user message (simulates pasted file content)
+	largeUserContent := strings.Repeat("这是用户粘贴的大段内容", 300) // ~3600 chars, all CJK
+	msgs := []Message{
+		{Role: RoleUser, Content: largeUserContent},
+		{Role: RoleAssistant, Content: "ok"},
+		{Role: RoleUser, Content: "do something with that"},
+		{Role: RoleAssistant, Content: "done"},
+		{Role: RoleUser, Content: "thanks"},
+	}
+
+	result := e.snipMessages(msgs)
+
+	// The large user message should be snipped
+	if result[0].Content == largeUserContent {
+		t.Error("large user message should be snipped")
+	}
+	if !strings.Contains(result[0].Content, "已截断") {
+		t.Error("snipped user message should contain truncation marker")
+	}
+
+	// Small messages should be untouched
+	if result[4].Content != "thanks" {
+		t.Error("small user message in tail should not be modified")
+	}
+}
+
+func TestTieredEngine_SnipLargeAssistantMessages(t *testing.T) {
+	e := NewTieredEngine(ContextEngineConfig{
+		ContextWindow:    10000,
+		KeepRecentTokens: 100,
+	}).(*TieredEngine)
+
+	largeAssistantContent := strings.Repeat("assistant output line\n", 500) // ~10000 chars
+	msgs := []Message{
+		{Role: RoleUser, Content: "do something"},
+		{Role: RoleAssistant, Content: largeAssistantContent},
+		{Role: RoleUser, Content: "ok"},
+	}
+
+	result := e.snipMessages(msgs)
+
+	// Large assistant message should be snipped
+	if result[1].Content == largeAssistantContent {
+		t.Error("large assistant message should be snipped")
+	}
+	if !strings.Contains(result[1].Content, "已截断") {
+		t.Error("snipped assistant message should contain truncation marker")
+	}
+}
+
+func TestTieredEngine_SnipBothToolAndNonToolInOnePass(t *testing.T) {
+	e := NewTieredEngine(ContextEngineConfig{
+		ContextWindow:    10000,
+		KeepRecentTokens: 100,
+	}).(*TieredEngine)
+
+	largeToolContent := strings.Repeat("T", 2000)
+	largeUserContent := strings.Repeat("U", 3000)
+	msgs := []Message{
+		{Role: RoleUser, Content: largeUserContent},
+		{Role: RoleAssistant, Content: "ok", ToolCalls: []ToolCall{{ID: "1", Name: "test"}}},
+		{Role: RoleTool, Content: largeToolContent, ToolCallID: "1"},
+		{Role: RoleUser, Content: "recent"},
+	}
+
+	result := e.snipMessages(msgs)
+
+	// Both large messages should be snipped in a single pass
+	if result[0].Content == largeUserContent {
+		t.Error("large user message should be snipped")
+	}
+	if result[2].Content == largeToolContent {
+		t.Error("large tool message should be snipped")
+	}
+
+	// Non-tool should get a larger head window than tool
+	userHead := e.snipHeadChars * snipNonToolHeadMultiplier
+	toolHead := e.snipHeadChars
+	if userHead <= toolHead {
+		t.Fatalf("non-tool head (%d) should be larger than tool head (%d)", userHead, toolHead)
+	}
+}
+
+func TestTruncateToTokenBudget(t *testing.T) {
+	// Content within budget → unchanged
+	short := "hello world"
+	result := truncateToTokenBudget(short, 5, 100, "...[marker]")
+	if result != short {
+		t.Fatalf("content within budget should be unchanged: got %q", result)
+	}
+
+	// Content over budget → truncated with marker
+	long := strings.Repeat("x", 10000) // ~2500 tokens
+	result = truncateToTokenBudget(long, 2500, 500, "...[marker]")
+	if result == long {
+		t.Fatal("over-budget content should be truncated")
+	}
+	if !strings.Contains(result, "...[marker]") {
+		t.Error("truncated content should contain marker")
+	}
+
+	// CJK content: token density is higher, so fewer runes are kept
+	cjkContent := strings.Repeat("你", 1000) // ~1500 tokens (with CJK correction)
+	result = truncateToTokenBudget(cjkContent, EstimateTokens(cjkContent), 500, "...[marker]")
+	if result == cjkContent {
+		t.Fatal("CJK over-budget content should be truncated")
+	}
+	// CJK should keep fewer runes than ASCII at the same token budget
+	asciiResult := truncateToTokenBudget(
+		strings.Repeat("x", 3000), EstimateTokens(strings.Repeat("x", 3000)), 500, "...[marker]")
+	cjkRunes := len([]rune(result))
+	asciiRunes := len([]rune(asciiResult))
+	if cjkRunes >= asciiRunes {
+		t.Fatalf("CJK should keep fewer runes than ASCII at same token budget: cjk=%d ascii=%d",
+			cjkRunes, asciiRunes)
 	}
 }

@@ -4,6 +4,15 @@ import (
 	"context"
 )
 
+// Multipliers for snipping non-tool messages (user/assistant/system).
+// Non-tool messages get larger head/tail windows because they are more
+// likely to contain context-critical content (file reads, pasted text,
+// LLM reasoning chains) than raw tool output.
+const (
+	snipNonToolHeadMultiplier = 4
+	snipNonToolTailMultiplier = 2
+)
+
 // TieredEngine implements a four-level progressive context compression pipeline.
 //
 // Instead of a single "summarize everything" approach, it applies increasingly
@@ -120,6 +129,7 @@ func (e *TieredEngine) Compress(ctx context.Context, msgs []Message, focusTopic 
 
 	case ratio >= e.pruneRatio:
 		result := e.pruneToolResults(msgs)
+		result = e.snipMessages(result)
 		newTokens := EstimateMessagesTokens(result)
 		saved := estimated - newTokens
 		if newTokens > int64(float64(e.contextLength)*e.pruneRatio) {
@@ -129,7 +139,7 @@ func (e *TieredEngine) Compress(ctx context.Context, msgs []Message, focusTopic 
 		return result, saved, nil
 
 	case ratio >= e.snipRatio:
-		result := e.snipToolResults(msgs)
+		result := e.snipMessages(msgs)
 		newTokens := EstimateMessagesTokens(result)
 		saved := estimated - newTokens
 		e.updateSavings(saved, estimated)
@@ -151,39 +161,43 @@ func (e *TieredEngine) forceFold(ctx context.Context, msgs []Message, focusTopic
 	return result, saved, nil
 }
 
-// snipToolResults truncates old tool result messages to head+tail summaries.
-// It preserves the last keepRecentTokens worth of messages untouched.
+// snipMessages truncates large messages (both tool results and user/assistant
+// content) in a single pass. Tool results get smaller head/tail windows;
+// non-tool messages get larger windows because they are more likely to contain
+// context-critical content (file reads, pasted text, LLM reasoning).
 //
-// Head/tail lengths are measured in RUNES (not bytes) so that multi-byte
-// UTF-8 content (e.g., Chinese) is never split in the middle of a character,
-// which would produce invalid UTF-8 and corrupt the provider request.
-func (e *TieredEngine) snipToolResults(msgs []Message) []Message {
+// Uses the exported SnipMessageContent for the actual truncation, which is
+// rune-safe (never splits multi-byte UTF-8 mid-character). Preserves the
+// last keepRecentTokens worth of messages untouched.
+func (e *TieredEngine) snipMessages(msgs []Message) []Message {
 	tailStart := e.findTailBoundary(msgs)
 
 	result := deepCopyMessages(msgs)
 
 	for i := 0; i < tailStart && i < len(result); i++ {
-		if result[i].Role != RoleTool {
-			continue
-		}
 		if e.processed[i] == "snipped" || e.processed[i] == "pruned" {
 			continue
 		}
-		runes := []rune(result[i].Content)
-		if len(runes) <= e.snipHeadChars+e.snipTailChars+50 {
-			continue // too short to snip
+		headChars, tailChars := e.snipThresholdsForRole(result[i].Role)
+		snipped := SnipMessageContent(result[i].Content, headChars, tailChars)
+		if snipped != result[i].Content {
+			result[i].Content = snipped
+			e.processed[i] = "snipped"
 		}
-		headEnd := min(e.snipHeadChars, len(runes))
-		head := string(runes[:headEnd])
-		tail := ""
-		if len(runes) > e.snipHeadChars+e.snipTailChars {
-			tail = string(runes[len(runes)-e.snipTailChars:])
-		}
-		result[i].Content = head + "\n[...已截断以节省上下文空间...]\n" + tail
-		e.processed[i] = "snipped"
 	}
 
 	return sanitizeToolPairs(result)
+}
+
+// snipThresholdsForRole returns head/tail rune budgets for snipping a message.
+// Tool results get the base snipHeadChars/snipTailChars; non-tool messages
+// get larger budgets to preserve more context.
+func (e *TieredEngine) snipThresholdsForRole(role Role) (head, tail int) {
+	if role == RoleTool {
+		return e.snipHeadChars, e.snipTailChars
+	}
+	return e.snipHeadChars * snipNonToolHeadMultiplier,
+		e.snipTailChars * snipNonToolTailMultiplier
 }
 
 // pruneToolResults replaces old tool results with a short placeholder.

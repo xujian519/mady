@@ -236,6 +236,7 @@ func (e *CompressorEngine) Compress(ctx context.Context, msgs []Message, focusTo
 		CompState:           e.state,
 		CompressionModel:    e.compressionModel,
 		CompressionProvider: e.compressionProvider,
+		ContextWindow:       e.contextLength,
 	})
 	if err != nil {
 		return msgs, 0, err

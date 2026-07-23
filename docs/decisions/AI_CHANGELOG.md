@@ -1,5 +1,29 @@
 # AI 变更记录
 
+## 2026-07-23: 修复 TieredEngine 上下文压缩管线三个盲区
+
+### 背景
+用户在 MD→DOCX 转换时遇到 `3,171,658 tokens` vs `1,048,565 tokens` 上限的 400 错误。
+审查上下文管理代码后发现三个结构性缺陷：
+1. Snip/Prune 只处理 `RoleTool` 消息，大的 user/assistant 消息漏网
+2. Force-fold 的摘要请求本身在上下文 3x 溢出时也会超出模型窗口
+3. CJK token 估算偏低（chars/4 对中文只分配 ~0.75 tokens/字），ShouldCompact 不及时触发
+
+### 变更内容
+- `agentcore/token.go`：`EstimateTokens` 新增 CJK 校正（+0.75 tokens/CJK 字符），新增 `countCJKRunes`/`isCJK`（含 ASCII 快速路径）
+- `agentcore/context_engine_tiered.go`：将 `snipToolResults` + `snipLargeMessages` 统一为单一 `snipMessages` 方法（复用 `SnipMessageContent`，单次 deepCopy），通过 `snipThresholdsForRole` 按角色分配 head/tail 预算
+- `agentcore/compaction.go`：`CompactionParams` 新增 `ContextWindow` 字段，`runCompaction` 在构建摘要 prompt 前预检截断（唯一截断防线）；提取 `truncateToTokenBudget` 共享辅助函数
+- `agentcore/context_engine.go`：构造 `CompactionParams` 时传递 `ContextWindow`
+- 自适应 token→rune 转换：`truncateToTokenBudget` 根据每条消息的实际 token 密度计算截断长度，避免对 ASCII 过截断或对 CJK 欠截断
+
+### 涉及敏感路径
+- 无（仅修改上下文压缩引擎内部逻辑，不触碰 handoff/guardrails/permission/sandbox/auth）
+
+### AI 参与级别
+- L2（bug fix，需人工审阅压缩逻辑正确性）
+
+---
+
 ## 2026-07-23: Agent 三合一 — Chat + Assistant + Router → UnifiedAgent
 
 ### 背景

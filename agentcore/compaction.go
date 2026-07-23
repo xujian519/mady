@@ -43,6 +43,24 @@ const summaryTokensCeiling = 12000
 
 const summaryFailureCooldownSeconds = 600
 
+// Pre-flight truncation constants for runCompaction's summarization protection.
+// When the messages-to-summarize exceed the model's context window, each
+// message is truncated to a proportional token budget before building the
+// summarization prompt.
+const (
+	// compactionSystemPromptOverhead reserves tokens for the summarization
+	// system prompt + framing. Added on top of summaryTokensCeiling (output budget).
+	compactionSystemPromptOverhead = 2000
+
+	// compactionMinPerMsgTokens is the floor for per-message truncation.
+	// Below this, messages become too short to be useful in a summary.
+	compactionMinPerMsgTokens = 100
+
+	// truncateMinTokensPerRune prevents division-by-near-zero when a message
+	// has very few runes relative to its token estimate (e.g., image blocks).
+	truncateMinTokensPerRune = 0.25
+)
+
 type compactionState struct {
 	previousSummary        string
 	lastSavingsPct         float64
@@ -225,6 +243,18 @@ type CompactionParams struct {
 	CompState           *compactionState
 	CompressionModel    string
 	CompressionProvider Provider
+
+	// ContextWindow is the main model's context limit (in tokens). When
+	// non-zero, runCompaction pre-truncates the messages-to-summarize so the
+	// summarization request itself doesn't overflow. This is the SOLE
+	// proactive truncation defense — all context engines (tiered, compressor,
+	// chunked) benefit because they all flow through runCompaction.
+	//
+	// Note: this is the main model's window, not the compression model's.
+	// If a dedicated CompressionModel with a smaller window is configured,
+	// the pre-flight uses the main model's (larger) budget, which is
+	// conservative-safe (over-truncates slightly) but never under-protects.
+	ContextWindow int64
 }
 
 func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
@@ -301,6 +331,29 @@ func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 
 	if len(turnsToSummarize) == 0 {
 		return 0, nil
+	}
+
+	// Pre-flight: if the messages-to-summarize exceed the model's context
+	// window, truncate each message proportionally BEFORE building the prompt.
+	// Without this, a 3M-token conversation would produce a 3M-token
+	// summarization request that itself overflows the model's context window.
+	if p.ContextWindow > 0 {
+		maxSummaryInput := p.ContextWindow - summaryTokensCeiling - compactionSystemPromptOverhead
+		if maxSummaryInput > 0 {
+			summarizeTokens := EstimateMessagesTokens(turnsToSummarize)
+			if summarizeTokens > maxSummaryInput {
+				perMsgLimit := max(maxSummaryInput/int64(len(turnsToSummarize)),
+					compactionMinPerMsgTokens)
+				for i := range turnsToSummarize {
+					turnsToSummarize[i].Content = truncateToTokenBudget(
+						turnsToSummarize[i].Content,
+						EstimateMessageTokens(turnsToSummarize[i]),
+						perMsgLimit,
+						"...[truncated for summary]",
+					)
+				}
+			}
+		}
 	}
 
 	displayTokens := EstimateMessagesTokens(msgs)
@@ -483,4 +536,30 @@ func sanitizeToolPairs(msgs []Message) []Message {
 	}
 
 	return result
+}
+
+// truncateToTokenBudget truncates content to fit a token budget, using the
+// message's actual token density to compute a rune-safe cut point.
+//
+// CJK text has ~1.5 tokens/rune; ASCII code has ~0.25 tokens/rune. Using the
+// real density (derived from msgTokens / runeCount) avoids over-truncating
+// ASCII or under-truncating CJK. If the content is already within budget, it
+// is returned unchanged.
+func truncateToTokenBudget(content string, msgTokens, tokenBudget int64, marker string) string {
+	if msgTokens <= tokenBudget {
+		return content
+	}
+	runes := []rune(content)
+	if len(runes) == 0 {
+		return content
+	}
+	tokensPerRune := float64(msgTokens) / float64(len(runes))
+	if tokensPerRune < truncateMinTokensPerRune {
+		tokensPerRune = truncateMinTokensPerRune
+	}
+	maxRunes := int(float64(tokenBudget) / tokensPerRune)
+	if len(runes) <= maxRunes {
+		return content
+	}
+	return string(runes[:maxRunes]) + marker
 }
