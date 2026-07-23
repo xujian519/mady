@@ -133,8 +133,8 @@ func NewSkillsReloadedEvent(
 	totalSkills, visibleSkills, hiddenSkills, diagnosticsCount int,
 	addedSkills, removedSkills, updatedSkills []string,
 	addedDiagnostics, removedDiagnostics []skill.Diagnostic,
-) SkillsReloadedEvent {
-	return SkillsReloadedEvent{
+) *SkillsReloadedEvent {
+	return &SkillsReloadedEvent{
 		baseEvent:          newBase(EventSkillsReloaded),
 		SkillPaths:         append([]string(nil), skillPaths...),
 		TotalSkills:        totalSkills,
@@ -391,9 +391,10 @@ func (e HandoffEndEvent) MarshalJSON() ([]byte, error) {
 		TargetAgent string        `json:"target_agent"`
 		Output      string        `json:"output"`
 		Duration    time.Duration `json:"duration"`
+		Invisible   bool          `json:"invisible"`
 		Error       string        `json:"error,omitempty"`
 		ErrorType   string        `json:"error_type,omitempty"`
-	}{e.Kind, e.At, e.TargetAgent, e.Output, e.Duration, util.ErrorString(e.Err), errorType(e.Err)})
+	}{e.Kind, e.At, e.TargetAgent, e.Output, e.Duration, e.Invisible, util.ErrorString(e.Err), errorType(e.Err)})
 }
 
 func (e *HandoffEndEvent) UnmarshalJSON(data []byte) error {
@@ -403,6 +404,7 @@ func (e *HandoffEndEvent) UnmarshalJSON(data []byte) error {
 		TargetAgent string        `json:"target_agent"`
 		Output      string        `json:"output"`
 		Duration    time.Duration `json:"duration"`
+		Invisible   bool          `json:"invisible"`
 		Error       string        `json:"error,omitempty"`
 		ErrorType   string        `json:"error_type,omitempty"`
 	}
@@ -414,6 +416,7 @@ func (e *HandoffEndEvent) UnmarshalJSON(data []byte) error {
 	e.TargetAgent = raw.TargetAgent
 	e.Output = raw.Output
 	e.Duration = raw.Duration
+	e.Invisible = raw.Invisible
 	if raw.Error != "" {
 		e.Err = reconstructError(raw.Error, raw.ErrorType)
 	}

@@ -1,6 +1,8 @@
 package agentcore
 
 import (
+	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -234,5 +236,377 @@ func TestA2UIEventEmitAndReceive(t *testing.T) {
 	}
 	if ae.Envelope["deleteSurface"] == nil {
 		t.Fatal("Envelope should contain deleteSurface")
+	}
+}
+
+// --- 新增测试：handler deregistration ---
+
+func TestEventBus_OnDeregistration(t *testing.T) {
+	eb := newTestEventBus()
+	defer eb.Close()
+
+	var count atomic.Int32
+	cancel := eb.On(EventAgentStart, func(e Event) {
+		count.Add(1)
+	})
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+	if got := count.Load(); got != 1 {
+		t.Fatalf("handler received %d events before cancel, want 1", got)
+	}
+
+	// Cancel the handler
+	cancel()
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+	if got := count.Load(); got != 1 {
+		t.Fatalf("handler received %d events after cancel, want 1 (still)", got)
+	}
+}
+
+func TestEventBus_OnAllDeregistration(t *testing.T) {
+	eb := newTestEventBus()
+	defer eb.Close()
+
+	var count atomic.Int32
+	cancel := eb.OnAll(func(e Event) {
+		count.Add(1)
+	})
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+	if got := count.Load(); got != 1 {
+		t.Fatalf("OnAll handler received %d events before cancel, want 1", got)
+	}
+
+	cancel()
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+	if got := count.Load(); got != 1 {
+		t.Fatalf("OnAll handler received %d events after cancel, want 1 (still)", got)
+	}
+}
+
+func TestEventBus_Deregistration_OnAndOnAll(t *testing.T) {
+	// Verify that typed and global handlers can be independently deregistered.
+	eb := newTestEventBus()
+	defer eb.Close()
+
+	var typed atomic.Int32
+	var global atomic.Int32
+
+	cancelTyped := eb.On(EventAgentStart, func(e Event) {
+		typed.Add(1)
+	})
+	cancelGlobal := eb.OnAll(func(e Event) {
+		global.Add(1)
+	})
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+	if typed.Load() != 1 {
+		t.Fatalf("typed handler = %d, want 1", typed.Load())
+	}
+	if global.Load() != 1 {
+		t.Fatalf("global handler = %d, want 1", global.Load())
+	}
+
+	// Only typed handler cancels
+	cancelTyped()
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+	if typed.Load() != 1 {
+		t.Fatalf("typed handler after cancel = %d, want 1", typed.Load())
+	}
+	if global.Load() != 2 {
+		t.Fatalf("global handler after typed cancel = %d, want 2", global.Load())
+	}
+
+	// Global also cancels
+	cancelGlobal()
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+	if global.Load() != 2 {
+		t.Fatalf("global handler after cancel = %d, want 2", global.Load())
+	}
+}
+
+// --- 新增测试：JSON 序列化往返 ---
+
+func TestEventBus_JSONRoundtrip_AgentErrorEvent(t *testing.T) {
+	orig := NewAgentErrorEvent(ErrExceedMaxSteps)
+	data, err := orig.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+
+	var restored AgentErrorEvent
+	if err := restored.UnmarshalJSON(data); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+
+	if restored.EventKind() != orig.EventKind() {
+		t.Fatalf("kind = %v, want %v", restored.EventKind(), orig.EventKind())
+	}
+	if restored.Err == nil || restored.Err.Error() != orig.Err.Error() {
+		t.Fatalf("error = %v, want %v", restored.Err, orig.Err)
+	}
+}
+
+func TestEventBus_JSONRoundtrip_AutoRetryEvent(t *testing.T) {
+	orig := NewAutoRetryEvent(2, 5, 100*time.Millisecond, context.DeadlineExceeded)
+	data, err := orig.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+
+	var restored AutoRetryEvent
+	if err := restored.UnmarshalJSON(data); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+
+	if restored.EventKind() != orig.EventKind() {
+		t.Fatalf("kind = %v, want %v", restored.EventKind(), orig.EventKind())
+	}
+	if restored.Attempt != orig.Attempt {
+		t.Fatalf("attempt = %d, want %d", restored.Attempt, orig.Attempt)
+	}
+	if restored.MaxRetries != orig.MaxRetries {
+		t.Fatalf("maxRetries = %d, want %d", restored.MaxRetries, orig.MaxRetries)
+	}
+	if !errors.Is(restored.Err, context.DeadlineExceeded) {
+		t.Fatalf("error should be DeadlineExceeded, got: %v", restored.Err)
+	}
+}
+
+func TestEventBus_JSONRoundtrip_ToolCallEndEvent(t *testing.T) {
+	orig := NewToolCallEndEvent("tc1", "my_tool", `{"result":"ok"}`, context.Canceled, 50*time.Millisecond)
+	data, err := orig.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+
+	var restored ToolCallEndEvent
+	if err := restored.UnmarshalJSON(data); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+
+	if restored.ToolCallID != orig.ToolCallID {
+		t.Fatalf("ToolCallID = %q, want %q", restored.ToolCallID, orig.ToolCallID)
+	}
+	if !errors.Is(restored.Err, context.Canceled) {
+		t.Fatalf("error should be Canceled, got: %v", restored.Err)
+	}
+}
+
+func TestEventBus_JSONRoundtrip_HandoffEndEvent(t *testing.T) {
+	testErr := errors.New("handoff rejected")
+	orig := NewHandoffEndEvent("patent_agent", "output text", 1*time.Second, testErr, true)
+	data, err := orig.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+
+	var restored HandoffEndEvent
+	if err := restored.UnmarshalJSON(data); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+
+	if restored.TargetAgent != orig.TargetAgent {
+		t.Fatalf("TargetAgent = %q, want %q", restored.TargetAgent, orig.TargetAgent)
+	}
+	if restored.Err == nil || restored.Err.Error() != "handoff rejected" {
+		t.Fatalf("error = %v, want 'handoff rejected'", restored.Err)
+	}
+	if restored.Invisible != orig.Invisible {
+		t.Fatalf("Invisible = %v, want %v", restored.Invisible, orig.Invisible)
+	}
+}
+
+// --- 新增测试：SetDrainTimeout / Drain 超时配置 ---
+
+func TestEventBus_DrainTimeout_Short(t *testing.T) {
+	eb := newTestEventBus()
+	defer eb.Close()
+
+	// Set a very short timeout so Drain returns quickly even when busy.
+	eb.SetDrainTimeout(1 * time.Millisecond)
+
+	var received atomic.Int32
+	eb.On(EventAgentStart, func(e Event) {
+		received.Add(1)
+		time.Sleep(50 * time.Millisecond) // slow handler
+	})
+
+	// Fill buffer with events
+	for i := 0; i < testEventBufSize; i++ {
+		eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	}
+
+	// Drain with short timeout — should not block for the full default 5s.
+	done := make(chan struct{})
+	go func() {
+		eb.Drain()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success: Drain returned within the short timeout
+	case <-time.After(3 * time.Second):
+		t.Fatal("Drain did not return within 3s despite 1ms timeout — SetDrainTimeout may not work")
+	}
+}
+
+func TestEventBus_DrainTimeout_ZeroResetsToDefault(t *testing.T) {
+	// Verify the code path: timeout <= 0 falls back to 5s.
+	eb := NewEventBus()
+
+	// Setting a value then zero should keep the default working
+	eb.SetDrainTimeout(0) // should reset to 5s but not hang
+
+	var received atomic.Int32
+	eb.On(EventAgentStart, func(e Event) {
+		received.Add(1)
+	})
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+
+	done := make(chan struct{})
+	go func() {
+		eb.Drain()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Drain with zero timeout blocked — should have used default 5s and returned quickly")
+	}
+
+	eb.Close()
+}
+
+// --- 新增测试：DropCount / MustDeliverDropCount ---
+
+func TestEventBus_DropCount_Incremented(t *testing.T) {
+	eb := newTestEventBus()
+
+	// Register a slow handler that blocks.
+	eb.On(EventAgentStart, func(e Event) {
+		time.Sleep(10 * time.Millisecond)
+	})
+
+	// The dispatch goroutine reads from the broker; we need to subscribe
+	// a slow consumer via Subscribe to slow down the pipeline enough that
+	// Publish(es) to the broker channel overflow.
+	slowCtx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	_ = eb.Subscribe(slowCtx)
+
+	// Publish enough events to overflow both the broker's dispatch buffer
+	// and the subscriber's buffer.
+	for i := 0; i < testEventBufSize*4; i++ {
+		eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	}
+
+	// Some events were dropped.
+	if count := eb.DropCount(); count == 0 {
+		t.Fatal("DropCount = 0, expected > 0 after overflow")
+	}
+	eb.Close()
+}
+
+func TestEventBus_PanicCount_Incremented(t *testing.T) {
+	eb := newTestEventBus()
+	defer eb.Close()
+
+	eb.OnAll(func(e Event) {
+		panic("expected panic")
+	})
+
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+
+	if count := eb.PanicCount(); count == 0 {
+		t.Fatal("PanicCount = 0, expected > 0 after handler panic")
+	}
+}
+
+// --- 新增测试：On 和 OnAll 关闭后注册返回 no-op ---
+
+func TestEventBus_OnAfterClose_NoOp(t *testing.T) {
+	eb := newTestEventBus()
+	eb.Close()
+
+	// Should not panic and return a no-op cancel function.
+	cancel := eb.On(EventAgentStart, func(e Event) {
+		t.Error("handler should never be called on closed bus")
+	})
+	cancel() // safe to call no-op cancel
+
+	// Emit should not panic either
+	eb.Emit(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	eb.Drain()
+}
+
+func TestEventBus_OnAllAfterClose_NoOp(t *testing.T) {
+	eb := newTestEventBus()
+	eb.Close()
+
+	cancel := eb.OnAll(func(e Event) {
+		t.Error("handler should never be called on closed bus")
+	})
+	cancel()
+}
+
+// --- 新增测试：MustDeliver 超时行为 ---
+
+func TestEventBus_MustDeliverTimedOut(t *testing.T) {
+	// Create a broker with very short timeout to force MustDeliver timeouts.
+	b := NewBrokerWithOptions[Event](testEventBufSize)
+	b.SetMustDeliverTimeout(1 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// Subscribe but DON'T read — the channel will fill up.
+	_ = b.Subscribe(ctx)
+
+	// Fill the buffer completely via Publish (non-blocking, will drop when full).
+	for i := 0; i < testEventBufSize*2; i++ {
+		b.Publish(&AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+	}
+
+	// The buffer is now full. PublishMustDeliver should time out.
+	b.PublishMustDeliver(ctx, &AgentStartEvent{baseEvent: baseEvent{Kind: EventAgentStart}})
+
+	if count := b.MustDeliverDropCount(); count == 0 {
+		t.Fatal("MustDeliverDropCount = 0, expected > 0 after buffer full with slow subscriber")
+	}
+
+	b.Shutdown()
+}
+
+// --- 新增测试：Broker Subscribe 后 Shutdown ---
+
+func TestBroker_SubscribeAfterShutdown_ReturnsClosedChannel(t *testing.T) {
+	b := NewBroker[Event]()
+	b.Shutdown()
+
+	ch := b.Subscribe(t.Context())
+
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Fatal("expected closed channel from Subscribe after Shutdown")
+		}
+	default:
+		t.Fatal("Subscribe after Shutdown should return an immediately closed channel")
 	}
 }

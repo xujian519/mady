@@ -509,12 +509,12 @@ func TestStreamEventPayloadShapesMCPRuntimeEvents(t *testing.T) {
 }
 
 func TestAgentEventPayloadShapesSkillLoadedEvent(t *testing.T) {
-	payload := agentEventPayload(agentcore.SkillLoadedEvent{
-		SkillName: "planner",
-		Path:      "/skills/planner/SKILL.md",
-		Source:    "model_selection",
-		Arguments: "scope work",
-	})
+	payload := agentEventPayload(agentcore.NewSkillLoadedEvent(
+		"planner",
+		"/skills/planner/SKILL.md",
+		"model_selection",
+		"scope work",
+	))
 	skillPayload, ok := payload.(SkillLoadedStreamPayload)
 	if !ok {
 		t.Fatalf("payload type = %T", payload)

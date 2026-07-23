@@ -116,12 +116,14 @@ func (h *EvalHook) AfterModelCall(_ context.Context, arc *agentcore.AgentRunCont
 }
 
 // evalResultEvent wraps an EvalResult as an agentcore.Event.
+const EventTypeEvalResult agentcore.EventType = "eval_result"
+
 type evalResultEvent struct {
 	at     time.Time
 	result EvalResult
 }
 
-func (e evalResultEvent) EventKind() agentcore.EventType { return agentcore.EventType("eval_result") }
+func (e evalResultEvent) EventKind() agentcore.EventType { return EventTypeEvalResult }
 func (e evalResultEvent) EventTime() time.Time           { return e.at }
 
 // FaithlessnessWarning 返回忠实度警告（如果有）。

@@ -183,11 +183,5 @@ func (e *skillExtension) emitSkillLoaded(item skill.Skill, source, args string) 
 	if e.agent == nil {
 		return
 	}
-	e.agent.EmitEvent(SkillLoadedEvent{
-		baseEvent: newBase(EventSkillLoaded),
-		SkillName: item.Name,
-		Path:      item.FilePath,
-		Source:    source,
-		Arguments: strings.TrimSpace(args),
-	})
+	e.agent.EmitEvent(NewSkillLoadedEvent(item.Name, item.FilePath, source, strings.TrimSpace(args)))
 }

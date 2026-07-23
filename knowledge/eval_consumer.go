@@ -45,7 +45,7 @@ func NewEvalConsumer(store *EvalStore, opts ...EvalConsumerOption) *EvalConsumer
 
 // OnEvent 实现 agentcore.EventHandler，可直接注册到 EventBus.OnAll。
 func (c *EvalConsumer) OnEvent(ev agentcore.Event) {
-	if ev.EventKind() != agentcore.EventType("eval_result") {
+	if ev.EventKind() != EventTypeEvalResult {
 		return
 	}
 

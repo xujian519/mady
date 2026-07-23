@@ -40,6 +40,8 @@ type EventBus struct {
 	// drainTimeout controls how long Drain waits for queued events to
 	// be processed before returning. Default 5s; override via SetDrainTimeout.
 	drainTimeout time.Duration
+	// panicCount 累计 safeCall 中捕获的 handler panic 次数，用于可观测性监控。
+	panicCount atomic.Uint64
 }
 
 func NewEventBus() *EventBus {
@@ -107,6 +109,7 @@ func (eb *EventBus) dispatch(ready chan<- struct{}) {
 func (eb *EventBus) safeCall(h EventHandler, e Event) {
 	defer func() {
 		if r := recover(); r != nil {
+			eb.panicCount.Add(1)
 			fmt.Fprintf(os.Stderr, "agentcore: event handler panicked (event=%s): %v\n%s\n", e.EventKind(), r, debugStack())
 		}
 	}()
@@ -209,6 +212,12 @@ func (eb *EventBus) MustDeliverDropCount() uint64 {
 	return eb.broker.MustDeliverDropCount()
 }
 
+// PanicCount 返回 safeCall 中累计捕获的 handler panic 次数。
+// 监控系统可以据此告警异常 handler 行为。
+func (eb *EventBus) PanicCount() uint64 {
+	return eb.panicCount.Load()
+}
+
 // Subscribe returns a channel that receives raw events from the event bus.
 // The channel is closed when ctx is canceled or the event bus is shut down.
 // Use this for consumers that want direct channel-based delivery (e.g. SSE
@@ -251,6 +260,9 @@ func (eb *EventBus) Drain() {
 	// Wait for the drain sentinel to be processed, with a configurable
 	// timeout (default 5s, overridable via SetDrainTimeout) to prevent
 	// hanging if the dispatch goroutine's channel is persistently full.
+	// Also watch eb.done for concurrent Close() — without this guard the
+	// Drain would wait the full timeout even though the broker was shut down
+	// between PublishMustDeliver and the ack check above (TOCTOU).
 	timeout := eb.drainTimeout
 	if timeout <= 0 {
 		timeout = 5 * time.Second
@@ -259,6 +271,7 @@ func (eb *EventBus) Drain() {
 	defer timer.Stop()
 	select {
 	case <-ack:
+	case <-eb.done:
 	case <-timer.C:
 	}
 }

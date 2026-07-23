@@ -17,19 +17,19 @@ func (a *Agent) runPreTurn(ctx context.Context, loopStartTurn, turn int64) error
 		return err
 	}
 	if err := a.maybeCompact(ctx); err != nil {
-		return a.failLoop(fmt.Sprintf("turn:%d|compaction", turn), "compaction failed", err)
+		return a.failLoop(ctx, fmt.Sprintf("turn:%d|compaction", turn), "compaction failed", err)
 	}
 	if steered := a.steering.Drain(); len(steered) > 0 {
 		for _, msg := range steered {
 			if err := a.persistMessage(ctx, msg); err != nil {
-				return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist steering failed", err)
+				return a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist steering failed", err)
 			}
 		}
 	}
 	if lc := a.lifecycle(); lc != nil {
 		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
 		if err := lc.BeforeTurn(ctx, arc); err != nil {
-			return a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle before_turn failed", err)
+			return a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle before_turn failed", err)
 		}
 	}
 	if err := a.checkpointTurnStart(ctx, turn); err != nil {
@@ -62,7 +62,7 @@ func (a *Agent) runModelTurn(ctx context.Context, turn int64) (*ProviderResponse
 		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
 		mcc := &ModelCallContext{Request: req}
 		if lcErr := lc.BeforeModelCall(ctx, arc, mcc); lcErr != nil {
-			return nil, a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle before_model_call failed", lcErr)
+			return nil, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle before_model_call failed", lcErr)
 		}
 	}
 
@@ -95,7 +95,7 @@ func (a *Agent) runAfterModelCall(ctx context.Context, turn int64, resp *Provide
 			Blocks:    resp.Blocks,
 			ToolCalls: resp.ToolCalls,
 		}); pErr != nil {
-			_ = a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", pErr)
+			_ = a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", pErr)
 			return true
 		}
 	}
@@ -103,7 +103,7 @@ func (a *Agent) runAfterModelCall(ctx context.Context, turn int64, resp *Provide
 		Role:    RoleSystem,
 		Content: fmt.Sprintf("错误: %s", mcc.Err.Error()),
 	}); err != nil {
-		_ = a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist guardrail error failed", err)
+		_ = a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist guardrail error failed", err)
 	}
 	return true
 }
@@ -154,10 +154,10 @@ func (a *Agent) guardTruncation(ctx context.Context, turn int64, resp *ProviderR
 // failLoop is the standard error exit path from the run loop.
 // It wraps err in a NodeError, sets error status, emits an error event,
 // and returns the constructed NodeError. ctxTag is typically fmt.Sprintf("turn:%d", turn).
-func (a *Agent) failLoop(ctxTag, description string, err error) error {
+func (a *Agent) failLoop(ctx context.Context, ctxTag, description string, err error) error {
 	ne := NewNodeError(description, err, a.config.Name, ctxTag)
 	a.state.SetStatus(StatusError)
-	a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
+	a.emitMustDeliver(ctx, &AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
 	return ne
 }
 

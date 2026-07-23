@@ -375,6 +375,12 @@ func (a *Agent) Emit(e Event) { a.eventBus.Emit(e) }
 
 func (a *Agent) emit(e Event) { a.eventBus.Emit(e) }
 
+// emitMustDeliver 使用有界阻塞语义发射终态事件（完成/错误/中断）。
+// 与 emit 不同，此方法保证在超时到期前尽力投递，适用于必须到达处理器的关键事件。
+func (a *Agent) emitMustDeliver(ctx context.Context, e Event) {
+	a.eventBus.EmitMustDeliver(ctx, e)
+}
+
 func (a *Agent) tracer() Tracer {
 	if a.config.Tracer != nil {
 		return a.config.Tracer

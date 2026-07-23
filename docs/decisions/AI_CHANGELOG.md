@@ -1,5 +1,37 @@
 # AI 变更记录
 
+## 2026-07-23: 事件系统代码审阅与全部修复
+
+### 背景
+对 agentcore 事件系统进行全方位技术审阅，发现 14 个问题（2 🟠 严重、6 🟡 建议、6 🔵 优化），全部修复。
+
+### 改动
+
+**🔴 严重问题修复**
+- **A2UIEvent/ApprovalPromptEvent SSE 映射** (`server/stream_events.go`): 新增 `A2UIStreamPayload`/`ApprovalPromptStreamPayload` 结构体及对应的 `agentEventPayload` case 分支，前端 SSE 流不再得不到这两个事件的结构化负载
+- **终端事件发射使用 EmitMustDeliver** (`agentcore/agent.go` 新增 `emitMustDeliver` 方法; `agentcore/agent_run.go` 终端 switch + 跟随错误路径; `agentcore/agent_run_phase.go` `failLoop`): 关键终态事件（AgentEnd/AgentError/AgentInterrupt）改用有界阻塞投递，高负载时不再可能被静默丢弃
+
+**🟡 建议问题修复**
+- **SkillsReloadedEvent 返回值类型统一** (`agentcore/event_types.go`): 改为返回 `*SkillsReloadedEvent` 指针，消除与所有其他事件构造函数的不一致
+- **PublishMustDeliver 超时日志降级** (`agentcore/pubsub.go`): `slog.Error` → `slog.Warn`，高负载时不再日志风暴
+- **HandoffEndEvent JSON 序列化缺失字段** (`agentcore/event_types.go`): 自定义 `MarshalJSON`/`UnmarshalJSON` 补上 `Invisible` 字段
+- **eval_result 事件类型常量** (`knowledge/eval.go` 新增 `EventTypeEvalResult`; `knowledge/eval_consumer.go` 改用常量): 消除硬编码字符串，消费方通过命名常量引用
+
+**🔵 优化建议修复**
+- **PanicCount 监控指标** (`agentcore/event.go`): EventBus 新增 `panicCount` 原子计数器和 `PanicCount()` 方法，`safeCall` 每次捕获 panic 时递增
+- **Drain TOCTOU 竞态优化** (`agentcore/event.go`): Drain 的 select 增加 `<-eb.done` 分支，Close 竞态下立即返回而非等待完整 5s 超时
+
+**测试改进**
+- 新增 14 个测试用例: handler 注销 (3)、JSON 序列化往返 (4)、DrainTimeout 配置 (2)、DropCount (1)、PanicCount (1)、关闭安全 (2)、MustDeliver 超时 (1)、Broker Subscribe 后 Shutdown (1)
+
+**代码结构重构**
+- **agentEventPayload 值/指针双 case → 单 pointer 调度** (`server/stream_events.go`): 消除所有 15 个事件类型的值类型 case 分支。确认所有内置事件通过指针构造函数产生，`skill_extension.go` 中的值类型发射点改用 `NewSkillLoadedEvent` 构造函数（返回指针）。共减少 ~70 行 case 分支代码
+
+### 验证
+- `go test -race -count=3 ./agentcore/ -run "TestEventBus|TestA2UI|TestBroker"` 全 3 次 PASS
+- `go test -race ./agentcore/ ./server/ ./knowledge/` 全 PASS
+- `go build ./...` 全 PASS
+
 ## 2026-07-23: enablement 模块知识库联动补强
 
 ### 背景

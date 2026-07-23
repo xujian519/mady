@@ -229,7 +229,7 @@ func (b *Broker[T]) PublishMustDeliver(ctx context.Context, event T) {
 			timer.Stop()
 		case <-timer.C:
 			b.mustDeliverDropCount.Add(1)
-			slog.Error("agentcore: PublishMustDeliver timed out",
+			slog.Warn("agentcore: PublishMustDeliver timed out",
 				"timeout", timeout)
 		case <-ctx.Done():
 			timer.Stop()

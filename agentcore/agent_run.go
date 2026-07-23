@@ -154,7 +154,7 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 			if err := a.persistMessage(ctx, msg); err != nil {
 				ne := NewNodeError("lifecycle persist follow-up failed", err, a.config.Name, "follow_up")
 				a.state.SetStatus(StatusError)
-				a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
+				a.emitMustDeliver(ctx, &AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: ne})
 				return "", ne
 			}
 		}
@@ -162,16 +162,21 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 
 	// Unified terminal-event emission. Interrupt and error paths set a
 	// different status; each gets its own event type here so there is
-	// exactly one terminal event per run.
+	// exactly one terminal event per run. The follow-up loop above also
+	// emits AgentErrorEvent directly (with immediate return) and thus
+	// does NOT reach this switch.
+	//
+	// Terminal events use EmitMustDeliver to ensure they reach subscribers
+	// even when the internal buffer is under pressure.
 	switch a.state.Status() {
 	case StatusFinished:
-		a.emit(&AgentEndEvent{
+		a.emitMustDeliver(ctx, &AgentEndEvent{
 			baseEvent: newBase(EventAgentEnd),
 			AgentName: a.config.Name,
 			Output:    finalOutput,
 		})
 	case StatusInterrupted:
-		a.emit(&AgentInterruptEvent{
+		a.emitMustDeliver(ctx, &AgentInterruptEvent{
 			baseEvent: newBase(EventAgentInterrupt),
 			AgentName: a.config.Name,
 			Reason:    a.state.GetInterruptReason(),
@@ -216,7 +221,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 				a.state.SetStatus(StatusInterrupted)
 				return "", true, nil
 			}
-			return "", true, a.failLoop(fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
+			return "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
 		}
 
 		// Lifecycle: AfterModelCall — error is non-fatal, persist and continue
@@ -239,7 +244,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 				Blocks:    resp.Blocks,
 				ToolCalls: resp.ToolCalls,
 			}); err != nil {
-				return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", err)
+				return "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", err)
 			}
 		}
 
@@ -256,7 +261,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		// model hit max_tokens and any tool-call arguments may be cut mid-JSON.
 		if handled, gErr := a.guardTruncation(ctx, turn, resp); handled {
 			if gErr != nil {
-				return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "truncation guard failed", gErr)
+				return "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "truncation guard failed", gErr)
 			}
 			continue
 		}
@@ -268,7 +273,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 				a.state.SetInterruptReason(a.interrupted.Load())
 				return "", true, nil
 			}
-			return "", true, a.failLoop(fmt.Sprintf("turn:%d", turn), "tool execution persist failed", err)
+			return "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "tool execution persist failed", err)
 		}
 
 		// Early-exit: a tool returned a terminating result

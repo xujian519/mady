@@ -225,6 +225,19 @@ type AutoRetryStreamPayload struct {
 	Error      string        `json:"error,omitempty"`
 }
 
+// A2UIStreamPayload 是 SSE 流中 A2UIEvent 的负载结构。
+type A2UIStreamPayload struct {
+	Envelope map[string]any `json:"envelope"`
+}
+
+// ApprovalPromptStreamPayload 是 SSE 流中 ApprovalPromptEvent 的负载结构。
+type ApprovalPromptStreamPayload struct {
+	ToolCalls []agentcore.ToolCall `json:"tool_calls,omitempty"`
+	Content   string               `json:"content"`
+	AgentName string               `json:"agent_name,omitempty"`
+	Data      map[string]any       `json:"data,omitempty"`
+}
+
 func streamEventPayload(threadID string, e agentcore.Event) any {
 	switch ev := e.(type) {
 	case mcp.CapabilitiesUpdatedEvent:
@@ -309,42 +322,27 @@ func agentEventEnvelope(threadID string, e agentcore.Event) AgentStreamEvent {
 	}
 }
 
+// agentEventPayload converts an agentcore Event to its SSE stream payload.
+//
+// All built-in events are produced by pointer-returning constructors, so only
+// pointer-type cases are needed. If a value-type event somehow reaches this
+// function (e.g. from a third-party consumer not using constructors), it falls
+// through to the default branch and is returned as-is.
 func agentEventPayload(e agentcore.Event) any {
 	switch ev := e.(type) {
-	case agentcore.AgentStartEvent:
-		return AgentStartStreamPayload{
-			AgentName: ev.AgentName,
-			Input:     ev.Input,
-		}
 	case *agentcore.AgentStartEvent:
 		return AgentStartStreamPayload{
 			AgentName: ev.AgentName,
 			Input:     ev.Input,
-		}
-	case agentcore.AgentEndEvent:
-		return AgentEndStreamPayload{
-			AgentName: ev.AgentName,
-			Output:    ev.Output,
 		}
 	case *agentcore.AgentEndEvent:
 		return AgentEndStreamPayload{
 			AgentName: ev.AgentName,
 			Output:    ev.Output,
 		}
-	case agentcore.AgentErrorEvent:
-		return AgentErrorStreamPayload{
-			Error: util.ErrorString(ev.Err),
-		}
 	case *agentcore.AgentErrorEvent:
 		return AgentErrorStreamPayload{
 			Error: util.ErrorString(ev.Err),
-		}
-	case agentcore.SkillLoadedEvent:
-		return SkillLoadedStreamPayload{
-			SkillName: ev.SkillName,
-			Path:      ev.Path,
-			Source:    ev.Source,
-			Arguments: ev.Arguments,
 		}
 	case *agentcore.SkillLoadedEvent:
 		return SkillLoadedStreamPayload{
@@ -352,19 +350,6 @@ func agentEventPayload(e agentcore.Event) any {
 			Path:      ev.Path,
 			Source:    ev.Source,
 			Arguments: ev.Arguments,
-		}
-	case agentcore.SkillsReloadedEvent:
-		return SkillsReloadedStreamPayload{
-			SkillPaths:         append([]string(nil), ev.SkillPaths...),
-			TotalSkills:        ev.TotalSkills,
-			VisibleSkills:      ev.VisibleSkills,
-			HiddenSkills:       ev.HiddenSkills,
-			DiagnosticsCount:   ev.DiagnosticsCount,
-			AddedSkills:        append([]string(nil), ev.AddedSkills...),
-			RemovedSkills:      append([]string(nil), ev.RemovedSkills...),
-			UpdatedSkills:      append([]string(nil), ev.UpdatedSkills...),
-			AddedDiagnostics:   append([]skill.Diagnostic(nil), ev.AddedDiagnostics...),
-			RemovedDiagnostics: append([]skill.Diagnostic(nil), ev.RemovedDiagnostics...),
 		}
 	case *agentcore.SkillsReloadedEvent:
 		return SkillsReloadedStreamPayload{
@@ -379,36 +364,17 @@ func agentEventPayload(e agentcore.Event) any {
 			AddedDiagnostics:   append([]skill.Diagnostic(nil), ev.AddedDiagnostics...),
 			RemovedDiagnostics: append([]skill.Diagnostic(nil), ev.RemovedDiagnostics...),
 		}
-	case agentcore.TurnStartEvent:
-		return TurnStartStreamPayload{Turn: ev.Turn}
 	case *agentcore.TurnStartEvent:
 		return TurnStartStreamPayload{Turn: ev.Turn}
-	case agentcore.TurnEndEvent:
-		return TurnEndStreamPayload{
-			Turn:  ev.Turn,
-			Usage: ev.Usage,
-		}
 	case *agentcore.TurnEndEvent:
 		return TurnEndStreamPayload{
 			Turn:  ev.Turn,
 			Usage: ev.Usage,
 		}
-	case agentcore.MessageDeltaEvent:
-		return MessageDeltaStreamPayload{Delta: ev.Delta}
 	case *agentcore.MessageDeltaEvent:
 		return MessageDeltaStreamPayload{Delta: ev.Delta}
-	case agentcore.ToolCallStartEvent:
-		return ToolCallStartStreamPayload{ToolCall: ev.ToolCall}
 	case *agentcore.ToolCallStartEvent:
 		return ToolCallStartStreamPayload{ToolCall: ev.ToolCall}
-	case agentcore.ToolCallEndEvent:
-		return ToolCallEndStreamPayload{
-			ToolCallID: ev.ToolCallID,
-			ToolName:   ev.ToolName,
-			Result:     ev.Result,
-			Error:      util.ErrorString(ev.Err),
-			Duration:   ev.Duration,
-		}
 	case *agentcore.ToolCallEndEvent:
 		return ToolCallEndStreamPayload{
 			ToolCallID: ev.ToolCallID,
@@ -417,26 +383,12 @@ func agentEventPayload(e agentcore.Event) any {
 			Error:      util.ErrorString(ev.Err),
 			Duration:   ev.Duration,
 		}
-	case agentcore.HandoffStartEvent:
-		return HandoffStartStreamPayload{
-			SourceAgent: ev.SourceAgent,
-			TargetAgent: ev.TargetAgent,
-			Mode:        ev.Mode,
-			Context:     ev.Context,
-		}
 	case *agentcore.HandoffStartEvent:
 		return HandoffStartStreamPayload{
 			SourceAgent: ev.SourceAgent,
 			TargetAgent: ev.TargetAgent,
 			Mode:        ev.Mode,
 			Context:     ev.Context,
-		}
-	case agentcore.HandoffEndEvent:
-		return HandoffEndStreamPayload{
-			TargetAgent: ev.TargetAgent,
-			Output:      ev.Output,
-			Duration:    ev.Duration,
-			Error:       util.ErrorString(ev.Err),
 		}
 	case *agentcore.HandoffEndEvent:
 		return HandoffEndStreamPayload{
@@ -445,22 +397,10 @@ func agentEventPayload(e agentcore.Event) any {
 			Duration:    ev.Duration,
 			Error:       util.ErrorString(ev.Err),
 		}
-	case agentcore.CompactionStartEvent:
-		return CompactionStartStreamPayload{
-			TokensBefore:  ev.TokensBefore,
-			ContextWindow: ev.ContextWindow,
-		}
 	case *agentcore.CompactionStartEvent:
 		return CompactionStartStreamPayload{
 			TokensBefore:  ev.TokensBefore,
 			ContextWindow: ev.ContextWindow,
-		}
-	case agentcore.CompactionEndEvent:
-		return CompactionEndStreamPayload{
-			TokensBefore: ev.TokensBefore,
-			TokensAfter:  ev.TokensAfter,
-			MessagesCut:  ev.MessagesCut,
-			Duration:     ev.Duration,
 		}
 	case *agentcore.CompactionEndEvent:
 		return CompactionEndStreamPayload{
@@ -469,19 +409,21 @@ func agentEventPayload(e agentcore.Event) any {
 			MessagesCut:  ev.MessagesCut,
 			Duration:     ev.Duration,
 		}
-	case agentcore.AutoRetryEvent:
-		return AutoRetryStreamPayload{
-			Attempt:    ev.Attempt,
-			MaxRetries: ev.MaxRetries,
-			Delay:      ev.Delay,
-			Error:      util.ErrorString(ev.Err),
-		}
 	case *agentcore.AutoRetryEvent:
 		return AutoRetryStreamPayload{
 			Attempt:    ev.Attempt,
 			MaxRetries: ev.MaxRetries,
 			Delay:      ev.Delay,
 			Error:      util.ErrorString(ev.Err),
+		}
+	case *agentcore.A2UIEvent:
+		return A2UIStreamPayload{Envelope: ev.Envelope}
+	case *agentcore.ApprovalPromptEvent:
+		return ApprovalPromptStreamPayload{
+			ToolCalls: ev.ToolCalls,
+			Content:   ev.Content,
+			AgentName: ev.AgentName,
+			Data:      ev.Data,
 		}
 	default:
 		return e
