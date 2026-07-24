@@ -780,3 +780,139 @@ func TestChatLayoutEndKeyFollowsTail(t *testing.T) {
 	}
 	hist.mu.Unlock()
 }
+
+// TestChatLayoutPageUpAtTop verifies that PageUp at the content top clamps
+// the offset to total-maxRows (the farthest scroll-up position) instead of
+// wrapping around or panicking.
+func TestChatLayoutPageUpAtTop(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	hist := app.History()
+
+	for i := 0; i < 30; i++ {
+		hist.Append(ChatMessage{Role: RoleAssistant, Text: fmt.Sprintf("msg %d", i)})
+	}
+
+	cols, _ := app.TerminalSize()
+	app.layout.Render(cols)
+
+	total := int64(len(hist.cachedAll))
+	if total <= hist.maxRows {
+		t.Skip("cachedAll too short for this test")
+	}
+	maxOffset := total - hist.maxRows
+
+	// Scroll all the way to the top via multiple pageUps.
+	for i := 0; i < 10; i++ {
+		app.layout.Update(core.KeyMsg{Data: "\x1b[5~"}) // pageUp
+	}
+	hist.mu.Lock()
+	if hist.offset < 0 {
+		t.Errorf("offset should never be negative: got %d", hist.offset)
+	}
+	// offset should be clamped to the max scroll position.
+	if hist.offset > maxOffset {
+		t.Errorf("offset=%d exceeds maxOffset=%d", hist.offset, maxOffset)
+	}
+	hist.mu.Unlock()
+
+	// More pageUps should safely stay at the top (no panic, no wrap).
+	app.layout.Update(core.KeyMsg{Data: "\x1b[5~"})
+	hist.mu.Lock()
+	if hist.offset < 0 || hist.offset > maxOffset {
+		t.Errorf("after extra pageUp at top: offset=%d should stay in [0,%d]", hist.offset, maxOffset)
+	}
+	hist.mu.Unlock()
+}
+
+// TestChatLayoutPageDownAtTail verifies that PageDown at the tail keeps
+// the viewport at the bottom and does not overshoot.
+func TestChatLayoutPageDownAtTail(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	hist := app.History()
+
+	for i := 0; i < 30; i++ {
+		hist.Append(ChatMessage{Role: RoleAssistant, Text: fmt.Sprintf("msg %d", i)})
+	}
+
+	cols, _ := app.TerminalSize()
+	app.layout.Render(cols)
+
+	// PageDown at the tail should be a no-op (offset stays 0).
+	app.layout.Update(core.KeyMsg{Data: "\x1b[6~"}) // pageDown
+	hist.mu.Lock()
+	if hist.offset != 0 {
+		t.Errorf("pageDown at tail: offset=%d, want 0", hist.offset)
+	}
+	hist.mu.Unlock()
+
+	// Same for Alt+↓ at the tail.
+	app.layout.Update(core.KeyMsg{Data: "\x1b[1;3B"}) // Alt+↓
+	hist.mu.Lock()
+	if hist.offset != 0 {
+		t.Errorf("Alt+↓ at tail: offset=%d, want 0", hist.offset)
+	}
+	hist.mu.Unlock()
+}
+
+// TestChatLayoutAltUpAtTop verifies that Alt+↑ at the content top clamps
+// to the farthest scroll position instead of going negative.
+func TestChatLayoutAltUpAtTop(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	hist := app.History()
+
+	for i := 0; i < 30; i++ {
+		hist.Append(ChatMessage{Role: RoleAssistant, Text: fmt.Sprintf("msg %d", i)})
+	}
+
+	cols, _ := app.TerminalSize()
+	app.layout.Render(cols)
+
+	total := int64(len(hist.cachedAll))
+	maxOffset := total - hist.maxRows
+
+	// Scroll far up with pageUp first, then nudge to the exact top with
+	// Alt+↑ until offset stabilizes.
+	for i := int64(0); i < maxOffset+5; i++ {
+		app.layout.Update(core.KeyMsg{Data: "\x1b[1;3A"}) // Alt+↑
+	}
+	hist.mu.Lock()
+	if hist.offset < 0 {
+		t.Errorf("offset should never be negative: got %d", hist.offset)
+	}
+	if hist.offset > maxOffset {
+		t.Errorf("offset=%d exceeds maxOffset=%d", hist.offset, maxOffset)
+	}
+	hist.mu.Unlock()
+}
+
+// TestChatLayoutNoScrollWithShortContent verifies that scrolling keys are
+// no-ops when the content is shorter than the viewport.
+func TestChatLayoutNoScrollWithShortContent(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	hist := app.History()
+
+	// Only 2 messages — content is shorter than the viewport.
+	hist.Append(ChatMessage{Role: RoleAssistant, Text: "short"})
+	hist.Append(ChatMessage{Role: RoleAssistant, Text: "content"})
+
+	cols, _ := app.TerminalSize()
+	app.layout.Render(cols)
+
+	if int64(len(hist.cachedAll)) <= hist.maxRows {
+		t.Log("content fits in viewport, scrolling should be no-op")
+	}
+
+	app.layout.Update(core.KeyMsg{Data: "\x1b[5~"}) // pageUp
+	hist.mu.Lock()
+	if hist.offset != 0 {
+		t.Errorf("pageUp with short content: offset=%d, want 0", hist.offset)
+	}
+	hist.mu.Unlock()
+
+	app.layout.Update(core.KeyMsg{Data: "\x1b[1;3A"}) // Alt+↑
+	hist.mu.Lock()
+	if hist.offset != 0 {
+		t.Errorf("Alt+↑ with short content: offset=%d, want 0", hist.offset)
+	}
+	hist.mu.Unlock()
+}

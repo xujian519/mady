@@ -81,8 +81,10 @@ func (t *TUI) renderFrame() {
 	// ignoring OnAllocate, or a Fill child returning more lines than
 	// allocated) would overflow the terminal and push the editor off-screen.
 	// Clipping from the top keeps the editor and status bar visible at the
-	// bottom where the user is typing.
+	// bottom where the user is typing. A debug log is emitted when clipping
+	// fires so layout bugs can be diagnosed even if the user doesn't notice.
 	if int64(len(rows)) > termRows {
+		slog.Debug("render frame clipped", "got", len(rows), "max", termRows)
 		rows = rows[len(rows)-int(termRows):]
 	}
 
