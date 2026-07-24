@@ -214,6 +214,15 @@ var stateMappers = map[string]stateMapperFunc{
 		}
 		return map[string]any{"_invalidation_input": map[string]string{"claims_text": p.ClaimsText}}
 	},
+	"analyze_disclosure": func(p orchParams) map[string]any {
+		if p.DisclosureText == "" {
+			return nil
+		}
+		return map[string]any{"_disclosure_input": map[string]string{"text": p.DisclosureText}}
+	},
+	"validate_specification": func(p orchParams) map[string]any {
+		return map[string]any{"_validate_spec_input": map[string]string{"specification": p.DisclosureText}}
+	},
 }
 
 // buildOrchestrationState maps user-provided parameters to the input keys

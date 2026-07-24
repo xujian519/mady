@@ -127,16 +127,22 @@ func buildOAResponseManifest() *agentcore.OrchestrationManifest {
 //
 // Steps:
 //
-//	① search_knowledge — 检索相关法规和现有技术
-//	② draft_claims — 撰写权利要求书（8节点Pregel图）
-//	③ draft_specification — 撰写说明书（12节点Pregel图）
-//	④ validate_specification — 校验说明书（16条规则）
+//	① analyze_disclosure — 技术交底书分析（10节点Pregel图）
+//	② search_knowledge — 检索相关法规和现有技术
+//	③ draft_claims — 撰写权利要求书（8节点Pregel图）
+//	④ draft_specification — 撰写说明书（12节点Pregel图）
+//	⑤ validate_specification — 校验说明书（16条规则）
 func buildPatentDraftingManifest() *agentcore.OrchestrationManifest {
 	return &agentcore.OrchestrationManifest{
 		ID:          "patent_drafting",
 		Name:        "完整专利撰写",
-		Description: "检索法规→撰写权利要求书→撰写说明书→校验说明书",
+		Description: "交底书分析→检索法规→撰写权利要求书→撰写说明书→校验说明书",
 		Steps: []agentcore.OrchestrationStep{
+			{
+				ToolName:    "analyze_disclosure",
+				Description: "技术交底书分析",
+				InputKey:    "_disclosure_input",
+			},
 			{
 				ToolName:    "search_knowledge",
 				Description: "检索相关法规和现有技术",

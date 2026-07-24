@@ -55,6 +55,15 @@ Patent Agent (LLM)
   └── [fallback] run_five_step_workflow
 ```
 
+### 2026-07-24 补充：patent_drafting 编排新增 analyze_disclosure 首步骤
+
+之前 `patent_drafting` 编排只有 4 步（search_knowledge → draft_claims → draft_specification → validate_specification），遗漏了技术交底书分析。用户期望从"交底书分析→检索→撰写→校验"的完整流程。
+
+| 文件 | 改动 |
+|------|------|
+| `domains/orchestration_bridge.go` | `buildPatentDraftingManifest` 新增 `analyze_disclosure` 步骤（10 节点 Pregel 图），调整步骤注释 |
+| `domains/orchestration_tools.go` | `stateMappers` 新增 `analyze_disclosure` 和 `validate_specification` 条目 |
+
 ### 影响
 从 TUI 发起专利事务时，LLM 调用 `run_orchestration`（一次调用）即可执行完整工作流，而非手动逐个调用 5-10 个工具。条件分支自动判断是否需要调用 `analyze_enablement`/`analyze_inventiveness`/`analyze_patent_novelty`。`validate_amendment`（A33 修改合规检查）作为 OA 答复工具链的内置步骤，自动执行。`rebuildAgent` 时不再有生命周期竞争风险。
 
