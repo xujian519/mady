@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"os"
+	"time"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
@@ -153,6 +156,20 @@ func (s *tuiSession) initializeAgentAsync() {
 		}()
 
 		newAgent = agentcore.New(s.buildAgentConfig())
+
+		// Load previous session state if available (cross-session persistence).
+		// 首次启动时 session 文件不存在是正常情况，静默跳过。
+		// 其他错误仅记录日志，不阻塞初始化。
+		if s.agentStore != nil {
+			loadCtx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+			if err := newAgent.LoadState(loadCtx, s.currentThreadID); err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					log.Printf("[mady] agent: 恢复上次会话失败（以空状态继续）: %v", err)
+				}
+			}
+			cancel()
+		}
+
 		newAgent.RegisterTools(domains.NewOrchestrationTool(newAgent))
 		prev, ok := s.swapCurrentAgent(newAgent)
 		if !ok {
