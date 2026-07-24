@@ -87,38 +87,18 @@ func (m *EgoLiteManager) Send(ctx context.Context, method string, params map[str
 		}
 	}
 
-	id := fmt.Sprintf("r%d", m.counter.Add(1))
-	req := egoLiteJSONRequest{ID: id, Method: method, Params: params}
-	data, err := json.Marshal(req)
+	result, err := m.sendRaw(ctx, method, params)
 	if err != nil {
-		return nil, fmt.Errorf("egolite: marshal request: %w", err)
-	}
-
-	ch := make(chan egoLiteJSONResponse, 1)
-	m.pending[id] = ch
-	defer func() { delete(m.pending, id) }()
-
-	data = append(data, '\n')
-	if _, err := m.stdin.Write(data); err != nil {
-		slog.Warn("egolite: stdin write failed, attempting restart", "err", err)
+		slog.Warn("egolite: send failed, attempting restart", "method", method, "err", err)
 		if restartErr := m.restart(ctx); restartErr != nil {
-			return nil, fmt.Errorf("egolite: write failed and restart error: %w (original: %w)", restartErr, err)
+			return nil, fmt.Errorf("egolite: send failed and restart error: %w (original: %w)", restartErr, err)
 		}
-		data2 := append([]byte(nil), data...)
-		if _, err := m.stdin.Write(data2); err != nil {
-			return nil, fmt.Errorf("egolite: write after restart failed: %w", err)
+		result, err = m.sendRaw(ctx, method, params)
+		if err != nil {
+			return nil, fmt.Errorf("egolite: send after restart failed: %w", err)
 		}
 	}
-
-	select {
-	case resp := <-ch:
-		if !resp.OK {
-			return nil, fmt.Errorf("egolite: %s: %s", method, resp.Error)
-		}
-		return resp.Result, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	return result, nil
 }
 
 // start 启动 ego-browser 子进程。写入 bridge 脚本到 stdin 后初始化任务空间。
@@ -158,6 +138,7 @@ func (m *EgoLiteManager) start(ctx context.Context) error {
 	result, err := m.sendRaw(ctx, "initTaskSpace", map[string]any{"name": m.taskName})
 	if err != nil {
 		m.cmd.Process.Kill()
+		_ = m.cmd.Wait()
 		m.cmd = nil
 		m.stdin = nil
 		m.stdout = nil
@@ -203,8 +184,9 @@ func (m *EgoLiteManager) sendRaw(ctx context.Context, method string, params map[
 
 // readLoop 持续从 stdout 读取 JSON 行并匹配 pending 请求。
 func (m *EgoLiteManager) readLoop() {
-	for m.stdout.Scan() {
-		line := m.stdout.Bytes()
+	scanner := m.stdout
+	for scanner.Scan() {
+		line := scanner.Bytes()
 		var resp egoLiteJSONResponse
 		if err := json.Unmarshal(line, &resp); err != nil {
 			slog.Warn("egolite: bad JSON from bridge", "line", string(line), "err", err)
@@ -225,6 +207,7 @@ func (m *EgoLiteManager) readLoop() {
 func (m *EgoLiteManager) restart(ctx context.Context) error {
 	if m.cmd != nil && m.cmd.Process != nil {
 		m.cmd.Process.Kill()
+		_ = m.cmd.Wait()
 	}
 	m.cmd = nil
 	m.stdin = nil
@@ -234,21 +217,27 @@ func (m *EgoLiteManager) restart(ctx context.Context) error {
 
 // Close 关闭管理器，清理桥进程。幂等。
 func (m *EgoLiteManager) Close() error {
+	// 1. Attempt graceful shutdown first (bypass closed check)
+	m.mu.Lock()
+	if m.cmd != nil && m.stdin != nil && m.currentTask != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_, _ = m.sendRaw(ctx, "completeTaskSpace", map[string]any{"keep": false})
+	}
+	m.mu.Unlock()
+
+	// 2. Mark closed and terminate
 	if !m.closed.CompareAndSwap(false, true) {
 		return nil
 	}
 	m.cancel()
 
-	// 尝试优雅关闭任务空间
-	if m.cmd != nil && m.stdin != nil && m.currentTask != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_, _ = m.Send(ctx, "completeTaskSpace", map[string]any{"keep": false})
-	}
-
+	m.mu.Lock()
 	if m.cmd != nil && m.cmd.Process != nil {
 		m.cmd.Process.Kill()
+		_ = m.cmd.Wait()
 	}
+	m.mu.Unlock()
 	return nil
 }
 
