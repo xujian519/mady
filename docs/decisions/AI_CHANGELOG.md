@@ -1,5 +1,35 @@
 # AI 变更记录
 
+## 2026-07-24: TUI 输出防溢出保护 — renderFrame/Flex 双层截断
+
+### 背景
+TUI 长期存在消息内容溢出到输入区的问题：新消息出现后，文本行"压"入编辑器边框内部，甚至推挤输入区。根源在于渲染管线缺少终极安全截断——Flex 布局理论上精确分配空间，但 `composeOverlays` 只补长不截短、Flex 安全网因 Fill 子元素精准占用剩余空间而从不触发。任何微小偏差（终端尺寸两次读数间变化、Shrinkable 子元素忽略 OnAllocate、组件返回行数超出分配）都会导致输出超过终端行数，终端发生滚动，输入区上移。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `tui/tui_render.go` | **修改** | `composeOverlays` 后增加终极截断：`len(rows) > termRows` 时从顶部裁剪，保证输入区始终可见 |
+| `tui/layout/flex.go` | **修改** | 加固 Flex 安全网，保持相同语义（溢出时从顶部裁剪），确保底层防御线 |
+
+### 设计决策
+- **从顶部裁剪（而非底部）**：底部是编辑器和状态栏——用户交互核心区域。裁剪顶部历史行虽然会短暂丢失可见信息，但用户可通过 PageUp/Alt+↑/鼠标滚轮恢复。
+- **双层防御**：renderFrame 层（外部兜底） + Flex 层（内部兜底）构成独立的两条防御线，任一层的 bug 都不会导致溢出。
+- **不修复 composeOverlays**：composeOverlays 的函数语义是"在 base 之上叠加 overlay，不足补齐"，截断不是它的职责；renderFrame 作为调用方负责确保最终输出不超过终端尺寸。
+
+## 2026-07-24: TUI 聊天历史滚动增强 + PageUp/PageDown 修复 + 测试覆盖
+
+### 背景
+TUI ChatHistory 存在多个历史消息浏览问题：(1) PageUp/PageDown 因 `case` 写成了 `"pageUp"` 但 `name` 已被 `strings.ToLower` 转为 `"pageup"`，**从未生效过**；(2) 即使生效，其 `ScrollBy` 符号也是反的（PageUp 向下滚）；(3) 每次只滚动 5 行，在大段消息中需要按 6-8 次才能翻一屏；(4) ↑/↓ 箭头键未绑定滚动；(5) "End to follow" 提示无对应快捷键。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `tui/chat/chat_history.go` | **修改** | 新增 `MaxRows()` getter 暴露当前视口高度 |
+| `tui/chat/chat_app_layout.go` | **修改** | 修复 PageUp/PageDown 大小写 bug（`"pageUp"`→`"pageup"`）；修复 ScrollBy 符号（PageUp=正数=向上滚）；改为全页滚动（`maxRows` 行）；新增 `Alt+↑/↓` 单行逐行滚动；新增 `End` 键触发 `FollowTail()` |
+| `tui/chat/chat_app_test.go` | **修改** | 新增 3 个测试：TestChatLayoutPageScroll、TestChatLayoutAltUpDownScroll、TestChatLayoutEndKeyFollowsTail |
+
 ## 2026-07-24: AgentToolchain — 专利工作流编排系统（含 Code Review 修复）
 
 ### 背景

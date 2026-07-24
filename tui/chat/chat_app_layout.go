@@ -303,10 +303,20 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 						}
 						return nil
 					}
-				case "pageUp":
-					l.history.ScrollBy(-5)
-				case "pageDown":
-					l.history.ScrollBy(5)
+				case "pageup":
+					l.history.ScrollBy(l.history.MaxRows())
+				case "pagedown":
+					l.history.ScrollBy(-l.history.MaxRows())
+				case "up":
+					if k.Mods&terminal.ModAlt != 0 {
+						l.history.ScrollBy(1)
+					}
+				case "down":
+					if k.Mods&terminal.ModAlt != 0 {
+						l.history.ScrollBy(-1)
+					}
+				case "end":
+					l.history.FollowTail()
 				case "s":
 					// Bare [s] opens system status overlay when the judgment
 					// view is expanded (awaiting_review / blocked) — the user

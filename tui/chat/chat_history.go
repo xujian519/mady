@@ -282,6 +282,13 @@ func (h *ChatHistory) SetMaxRows(n int64) {
 	h.invalidate()
 }
 
+// MaxRows returns the current viewport height.
+func (h *ChatHistory) MaxRows() int64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.maxRows
+}
+
 // SetMaxRowsDirect sets the viewport height without triggering invalidation.
 // Use this from within Render to avoid re-entrant RequestRender calls.
 func (h *ChatHistory) SetMaxRowsDirect(n int64) {

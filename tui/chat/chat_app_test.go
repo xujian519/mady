@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -654,4 +655,128 @@ func TestChatLayoutEditorTopAfterResize(t *testing.T) {
 	if app.layout.editorTop <= 1 || app.layout.editorTop >= 11 {
 		t.Fatalf("editorTop=%d out of range for 12-row terminal", app.layout.editorTop)
 	}
+}
+
+// TestChatLayoutPageScroll verifies that PageUp/PageDown scroll by the full
+// viewport height (maxRows) rather than a hardcoded small offset.
+// Per ScrollBy doc: positive = up (show older content), negative = down.
+func TestChatLayoutPageScroll(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	hist := app.History()
+
+	// Fill enough messages to exceed the viewport.
+	for i := 0; i < 30; i++ {
+		hist.Append(ChatMessage{Role: RoleAssistant, Text: fmt.Sprintf("Message %d with some content", i)})
+	}
+
+	// Render to trigger layout allocation and populate cachedAll.
+	cols, _ := app.TerminalSize()
+	app.layout.Render(cols)
+
+	pageSize := hist.maxRows
+	if pageSize <= 0 {
+		t.Fatal("maxRows should be positive after layout")
+	}
+	// Ensure cachedAll is tall enough to scroll by one page.
+	if int64(len(hist.cachedAll)) <= pageSize {
+		t.Fatalf("cachedAll too short: %d lines, need > %d", len(hist.cachedAll), pageSize)
+	}
+
+	// PageUp — positive n = scroll UP by maxRows lines.
+	app.layout.Update(core.KeyMsg{Data: "\x1b[5~"}) // CSI 5 ~ = pageUp
+	hist.mu.Lock()
+	if hist.offset != pageSize {
+		t.Errorf("pageUp: offset=%d, want %d", hist.offset, pageSize)
+	}
+	if hist.follow {
+		t.Error("pageUp: follow should be false after scrolling up")
+	}
+	hist.mu.Unlock()
+
+	// PageDown — negative n = scroll DOWN back toward the tail.
+	app.layout.Update(core.KeyMsg{Data: "\x1b[6~"}) // CSI 6 ~ = pageDown
+	hist.mu.Lock()
+	if hist.offset != 0 {
+		t.Errorf("pageDown: offset=%d, want 0", hist.offset)
+	}
+	// follow is NOT set to true automatically when offset reaches 0
+	// via ScrollBy; only the End key (FollowTail) restores it.
+	hist.mu.Unlock()
+}
+
+// TestChatLayoutAltUpDownScroll verifies that Alt+↑/↓ scroll by exactly 1 line.
+func TestChatLayoutAltUpDownScroll(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	hist := app.History()
+
+	for i := 0; i < 30; i++ {
+		hist.Append(ChatMessage{Role: RoleAssistant, Text: fmt.Sprintf("Message %d", i)})
+	}
+
+	cols, _ := app.TerminalSize()
+	app.layout.Render(cols)
+
+	if int64(len(hist.cachedAll)) <= 1 {
+		t.Fatal("cachedAll too short to test line-by-line scroll")
+	}
+
+	// Alt+↑ — positive n = scroll UP by 1 line.
+	app.layout.Update(core.KeyMsg{Data: "\x1b[1;3A"}) // Kitty CSI-u: Alt+↑
+	hist.mu.Lock()
+	if hist.offset != 1 {
+		t.Errorf("Alt+↑: offset=%d, want 1", hist.offset)
+	}
+	if hist.follow {
+		t.Error("Alt+↑: follow should be false after scrolling up")
+	}
+	hist.mu.Unlock()
+
+	// Alt+↓ — negative n = scroll DOWN by 1 line.
+	app.layout.Update(core.KeyMsg{Data: "\x1b[1;3B"}) // Kitty CSI-u: Alt+↓
+	hist.mu.Lock()
+	if hist.offset != 0 {
+		t.Errorf("Alt+↓: offset=%d, want 0", hist.offset)
+	}
+	hist.mu.Unlock()
+
+	// Plain ↑ without Alt — should NOT scroll (handled by editor).
+	app.layout.Update(core.KeyMsg{Data: "\x1b[A"}) // bare ↑
+	hist.mu.Lock()
+	if hist.offset != 0 {
+		t.Errorf("bare ↑: offset=%d, want 0 (should not scroll)", hist.offset)
+	}
+	hist.mu.Unlock()
+}
+
+// TestChatLayoutEndKeyFollowsTail verifies that End key triggers FollowTail(),
+// resetting offset and restoring follow=true.
+func TestChatLayoutEndKeyFollowsTail(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	hist := app.History()
+
+	for i := 0; i < 30; i++ {
+		hist.Append(ChatMessage{Role: RoleAssistant, Text: fmt.Sprintf("Message %d", i)})
+	}
+
+	cols, _ := app.TerminalSize()
+	app.layout.Render(cols)
+
+	// Scroll up first via pageUp.
+	app.layout.Update(core.KeyMsg{Data: "\x1b[5~"}) // pageUp
+	hist.mu.Lock()
+	if hist.offset == 0 {
+		t.Fatal("setup: pageUp should have scrolled up")
+	}
+	hist.mu.Unlock()
+
+	// End key — should follow tail: offset=0, follow=true.
+	app.layout.Update(core.KeyMsg{Data: "\x1b[F"}) // CSI F = end
+	hist.mu.Lock()
+	if hist.offset != 0 {
+		t.Errorf("End: offset=%d, want 0", hist.offset)
+	}
+	if !hist.follow {
+		t.Error("End: follow should be true after FollowTail")
+	}
+	hist.mu.Unlock()
 }

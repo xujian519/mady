@@ -75,6 +75,17 @@ func (t *TUI) renderFrame() {
 	}
 	rows = composeOverlays(rows, overlays, cols, termRows)
 
+	// Safety net: clip the total output to termRows. Even though the Flex
+	// layout should always produce exactly termRows lines, any mismatch
+	// (terminal resize between two Size reads, a Shrinkable component
+	// ignoring OnAllocate, or a Fill child returning more lines than
+	// allocated) would overflow the terminal and push the editor off-screen.
+	// Clipping from the top keeps the editor and status bar visible at the
+	// bottom where the user is typing.
+	if int64(len(rows)) > termRows {
+		rows = rows[len(rows)-int(termRows):]
+	}
+
 	// Locate the IME cursor marker across all rows. ParseLine already strips
 	// CURSOR_MARKER and records its column on the Row; here we just find the
 	// first row that carries one.

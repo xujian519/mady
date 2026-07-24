@@ -283,18 +283,20 @@ func (f *Flex) renderVertical(width int64) []string {
 			}
 		}
 	}
-	// Safety net: even after shrinking Shrinkable children the total may still
-	// exceed totalHeight (non-shrinkable children alone overfill the screen, or
-	// a Shrinkable child ignored the OnAllocate target). Drop the excess from
-	// the top so the bottom — input area and status bar, the user's focus —
-	// stays visible rather than scrolling off-screen.
+	// Safety net: ensure the total output never exceeds totalHeight. Even
+	// after shrinking Shrinkable children, a component that ignores its
+	// OnAllocate callback (or a Natural child whose height changed between
+	// the first-pass measurement and the composition loop) can produce more
+	// lines than the terminal can display. Drop the excess from the top so
+	// the bottom — input area and status bar, the user's focus — stays
+	// visible rather than scrolling off-screen.
 	if totalHeight > 0 && int64(len(out)) > totalHeight {
 		trim := int64(len(out)) - totalHeight
 		out = out[trim:]
-		// Sync rects so ChildRect reflects actual screen positions: every child
-		// shifts up by the trimmed rows. Children fully scrolled off the top
-		// get a negative Row; callers translate mouse coords using these, so
-		// they must match the rendered output (e.g. editorTop for the editor).
+		// Sync rects so ChildRect reflects actual screen positions: every
+		// child shifts up by the trimmed rows. Children fully scrolled off
+		// the top get a negative Row; callers translate mouse coords using
+		// these, so they must match the rendered output (e.g. editorTop).
 		for i := range f.rects {
 			f.rects[i].Row -= trim
 		}
