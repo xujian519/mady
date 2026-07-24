@@ -204,6 +204,7 @@ func NewBrowserManager(cfg *BrowserConfig) *BrowserManager {
 		if err != nil {
 			slog.Warn("egolite: create manager failed, falling back to local", "err", err)
 			backend = BackendLocal
+			mgr.config.EgoLiteEnabled = false // 持久化回退
 		}
 	}
 

@@ -28,7 +28,11 @@ func handleSnapshot(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	case BackendCamofox:
 		snapshot, err = session.camofoxClient.GetSnapshot(session.sessionID, input.Full)
 	case BackendEgoLite:
-		snapResult, snapErr := session.egoLiteManager.Send(ctx, "snapshotText", nil)
+		snapParams := map[string]any{}
+		if input.Full {
+			snapParams["scope"] = "full_page"
+		}
+		snapResult, snapErr := session.egoLiteManager.Send(ctx, "snapshotText", snapParams)
 		if snapErr != nil {
 			return nil, fmt.Errorf("egolite snapshot: %w", snapErr)
 		}

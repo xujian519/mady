@@ -18,7 +18,6 @@ const (
 type EgoLiteConfig struct {
 	Enabled  bool
 	TaskName string
-	Headless bool
 }
 
 // EgoLiteExtension 实现 agentcore.Extension，注册 handoff 和 task_spaces 工具。
@@ -27,7 +26,7 @@ type EgoLiteExtension struct {
 	cfg EgoLiteConfig
 }
 
-// Compile-time check: EgoLiteExtension satisfies agentcore.Extension.
+// EgoLiteExtension 实现了 agentcore.Extension 接口。
 var _ agentcore.Extension = (*EgoLiteExtension)(nil)
 
 // NewEgoLiteExtension 创建 EgoLite Extension。

@@ -53,9 +53,10 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	}
 
 	if session.backendType == BackendEgoLite {
+		navTimeout := navigationTimeout(cfg.CommandTimeout)
 		navResult, navErr := session.egoLiteManager.Send(ctx, "navigate", map[string]any{
 			"url":     parsedURL.String(),
-			"timeout": float64(20),
+			"timeout": float64(navTimeout.Seconds()),
 		})
 		if navErr != nil {
 			return nil, fmt.Errorf("egolite navigate: %w", navErr)
@@ -81,6 +82,10 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 		session.mu.RUnlock()
 		if title == "" {
 			title = "(unknown)"
+		}
+		// PostRedirectURL 安全校验（与 chromedp 路径保持一致）
+		if err := ValidatePostRedirectURL(session.url, input.URL, cfg.AllowPrivate, cfg.AutoLocalForPrivate); err != nil {
+			return nil, err
 		}
 		return result(fmt.Sprintf("Navigated to %s\nTitle: %s\n\n%s", url, title, sv), nil)
 	}

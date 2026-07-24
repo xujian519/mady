@@ -515,6 +515,17 @@ func buildBaseTools(fc *frameworkContext) {
 		}
 	}
 
+	// EgoLite 浏览器集成（MADY_EGOLITE=1 条件启用）：注册 handoff 和 task_spaces 工具。
+	// Runtime 层（浏览器后端）通过 BrowserToolConfig.EgoLiteEnabled 独立控制。
+	if os.Getenv("MADY_EGOLITE") == "1" {
+		if egoExt, err := tools.NewEgoLiteExtension(tools.EgoLiteConfig{
+			Enabled:  true,
+			TaskName: "mady-agent",
+		}); err == nil {
+			fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, egoExt)
+		}
+	}
+
 	// Guardian AI 安全审查（MADY_GUARDIAN=1 条件启用）：拦截非只读工具调用，
 	// 使用独立 Provider 会话进行安全审查。内置熔断器在连续拒绝时自动放行，
 	// 防止 Guardian 故障阻塞正常工作流。

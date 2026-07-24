@@ -159,6 +159,9 @@ func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserTo
 	if session.backendType == BackendCamofox {
 		return nil, fmt.Errorf("get_images not supported for camofox backend")
 	}
+	if session.backendType == BackendEgoLite {
+		return nil, fmt.Errorf("get_images not supported for egolite backend")
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 	defer cancel()
