@@ -10,6 +10,7 @@ package chat
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,8 +61,10 @@ type ChatMessage struct {
 	// Thinking blocks (structured content).
 	ThinkingSegments []ThinkingSegment
 
-	// Internal: last delta dedup to suppress streaming repetition loops.
-	lastDelta string
+	// Internal: set of deltas already applied to this message during streaming.
+	// Used to suppress duplicate or cumulative provider chunks that would
+	// otherwise cause visible text repetition in the UI.
+	deltaHistory map[string]struct{}
 }
 
 // ThinkingSegment holds a chunk of thinking text.
@@ -422,26 +425,12 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 
 	h.mu.Lock()
 
-	// Suppress consecutive identical deltas (LLM streaming repetition loop).
-	for i := range h.messages {
-		if h.messages[i].ID == id && h.messages[i].lastDelta == delta {
-			h.mu.Unlock()
-			return id
-		}
-	}
-
 	if id != "" {
 		for i := range h.messages {
 			if h.messages[i].ID == id {
-				h.messages[i].lastDelta = delta
-				if kind == "thinking" {
-					if len(h.messages[i].ThinkingSegments) == 0 {
-						h.messages[i].ThinkingSegments = append(h.messages[i].ThinkingSegments, ThinkingSegment{})
-					}
-					last := &h.messages[i].ThinkingSegments[len(h.messages[i].ThinkingSegments)-1]
-					last.Text += delta
-				} else {
-					h.messages[i].Text += delta
+				if !h.applyDeltaLocked(&h.messages[i], delta, kind) {
+					h.mu.Unlock()
+					return id
 				}
 				if !h.messages[i].Pending {
 					h.pendingCount++
@@ -464,10 +453,11 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 	h.msgIDSeq++
 	newID := fmt.Sprintf("msg-%d-%d", time.Now().UnixNano(), h.msgIDSeq)
 	msg := ChatMessage{
-		ID:      newID,
-		Role:    RoleAssistant,
-		Pending: true,
-		At:      time.Now(),
+		ID:           newID,
+		Role:         RoleAssistant,
+		Pending:      true,
+		At:           time.Now(),
+		deltaHistory: map[string]struct{}{delta: {}},
 	}
 	if kind == "thinking" {
 		msg.ThinkingSegments = []ThinkingSegment{{Text: delta}}
@@ -488,6 +478,53 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 	return newID
 }
 
+// applyDeltaLocked merges `delta` into the streaming message `m` while
+// suppressing common provider-level duplication patterns:
+//   - exact delta already seen for this message
+//   - cumulative chunks where delta starts with the current text
+//   - re-emitted suffixes already present at the end of the current text
+//
+// It returns true if the delta was applied and false if it was suppressed.
+// Caller must hold h.mu.
+func (h *ChatHistory) applyDeltaLocked(m *ChatMessage, delta, kind string) bool {
+	if m.deltaHistory == nil {
+		m.deltaHistory = make(map[string]struct{})
+	}
+	if _, seen := m.deltaHistory[delta]; seen {
+		return false
+	}
+
+	var target *string
+	if kind == "thinking" {
+		if len(m.ThinkingSegments) == 0 {
+			m.ThinkingSegments = append(m.ThinkingSegments, ThinkingSegment{})
+		}
+		target = &m.ThinkingSegments[len(m.ThinkingSegments)-1].Text
+	} else {
+		target = &m.Text
+	}
+
+	current := *target
+	if current != "" {
+		// Cumulative provider chunks: the provider sent the full text so far
+		// instead of an incremental delta. Replace rather than append.
+		if strings.HasPrefix(delta, current) {
+			*target = delta
+			m.deltaHistory[delta] = struct{}{}
+			return true
+		}
+		// Re-emitted suffix: provider re-sent a chunk already at the tail.
+		if strings.HasSuffix(current, delta) {
+			m.deltaHistory[delta] = struct{}{}
+			return false
+		}
+	}
+
+	*target += delta
+	m.deltaHistory[delta] = struct{}{}
+	return true
+}
+
 // Finalize clears the Pending flag on the given id.
 func (h *ChatHistory) Finalize(id string) {
 	h.PatchMessage(id, func(m *ChatMessage) {
@@ -495,6 +532,8 @@ func (h *ChatHistory) Finalize(id string) {
 			h.pendingCount--
 		}
 		m.Pending = false
+		// Release streaming dedup state; the message is no longer mutable.
+		m.deltaHistory = nil
 	})
 }
 

@@ -191,19 +191,17 @@ func (p *thinkingThenTextProvider) Stream(_ context.Context, _ *agentcore.Provid
 	ch := make(chan agentcore.StreamDelta, 6)
 	go func() {
 		if turn == 1 {
-			// 推理块
+			// 推理块：真实 Provider 在推理阶段 Content 为空，仅 ReasoningContent/Blocks 有值
 			ch <- agentcore.StreamDelta{
-				Content: "让我分析一下这个问题...",
 				Blocks: []agentcore.ContentBlock{
 					{Kind: agentcore.BlockKindThinking, Text: "让我分析一下这个问题..."},
 				},
 			}
 			ch <- agentcore.StreamDelta{
-				Content: "经过分析，",
 				Blocks: []agentcore.ContentBlock{
 					{Kind: agentcore.BlockKindThinking, Text: "经过分析，"}},
 			}
-			// 切换到文本（不带 Blocks 字段，使 kind 降为 BlockKindText）
+			// 切换到文本（不带 Blocks 字段）
 			ch <- agentcore.StreamDelta{Content: "答案是这样的。"}
 		}
 		ch <- agentcore.StreamDelta{Done: true}

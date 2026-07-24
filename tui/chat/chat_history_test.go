@@ -385,6 +385,45 @@ func TestChatHistoryStreamingDeltaReusesBlockCache(t *testing.T) {
 	}
 }
 
+// TestChatHistoryAppendDeltaDeduplicatesNonConsecutiveRepeats verifies that
+// identical deltas are suppressed even when they are not back-to-back. Some
+// providers (or proxy/buffer layers) re-emit the same sentence after a different
+// delta; without this guard the assistant text appears duplicated in the UI.
+func TestChatHistoryAppendDeltaDeduplicatesNonConsecutiveRepeats(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "Hello, ")
+	h.AppendDelta(id, "world!")
+	h.AppendDelta(id, "Hello, ") // non-consecutive repeat of an earlier delta
+	h.AppendDelta(id, "world!")  // non-consecutive repeat
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "Hello, world!"; got != want {
+		t.Fatalf("dedup failed: text=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryAppendDeltaRejectsCumulativeContent verifies that if a provider
+// mistakenly sends the full generated text so far as each "delta", we do not
+// keep appending it. This prevents the exponential/cumulative duplication seen
+// when providers stream whole sentences instead of incremental tokens.
+func TestChatHistoryAppendDeltaRejectsCumulativeContent(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "Hello")
+	h.AppendDelta(id, "Hello, world") // cumulative: contains prefix already in text
+	h.AppendDelta(id, "Hello, world!")
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "Hello, world!"; got != want {
+		t.Fatalf("cumulative dedup failed: text=%q want=%q", got, want)
+	}
+}
+
 // TestChatHistoryStickToBottomHint verifies the "↓ N new — End to follow"
 // hint appears when the user scrolls up and new content arrives, and that
 // returning to the tail clears it.

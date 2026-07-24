@@ -113,18 +113,20 @@ func (a *Agent) runStreaming(ctx context.Context, req *ProviderRequest) (*Provid
 				}()
 				if delta.Content != "" {
 					content.WriteString(delta.Content)
-					kind := BlockKindText
-					for _, bl := range delta.Blocks {
-						if bl.Kind == BlockKindThinking {
-							kind = BlockKindThinking
-							break
-						}
-					}
 					a.emit(&MessageDeltaEvent{
 						baseEvent: newBase(EventMessageDelta),
 						Delta:     delta.Content,
-						Kind:      kind,
+						Kind:      BlockKindText,
 					})
+				}
+				for _, bl := range delta.Blocks {
+					if bl.Kind == BlockKindThinking && bl.Text != "" {
+						a.emit(&MessageDeltaEvent{
+							baseEvent: newBase(EventMessageDelta),
+							Delta:     bl.Text,
+							Kind:      BlockKindThinking,
+						})
+					}
 				}
 				if len(delta.Blocks) > 0 {
 					blocks = MergeContentBlocks(blocks, delta.Blocks...)

@@ -370,3 +370,65 @@ func TestAgentRun_Streaming_ContextCancellation(t *testing.T) {
 	// Clean up the hanging provider channel
 	close(provider.ch)
 }
+
+// reasoningSplitProvider streams one chunk containing both normal content and a
+// thinking block. It is used to verify that runStreaming emits them as separate
+// MessageDeltaEvents with the correct BlockKind.
+type reasoningSplitProvider struct {
+	ch chan StreamDelta
+}
+
+func (p *reasoningSplitProvider) Complete(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (p *reasoningSplitProvider) Stream(ctx context.Context, req *ProviderRequest) (<-chan StreamDelta, error) {
+	p.ch = make(chan StreamDelta, 4)
+	p.ch <- StreamDelta{
+		Content: "visible answer",
+		Blocks: []ContentBlock{
+			{Kind: BlockKindThinking, Text: "inner reasoning"},
+		},
+	}
+	p.ch <- StreamDelta{Content: " continues"}
+	close(p.ch)
+	return p.ch, nil
+}
+
+func TestRunStreaming_EmitsContentAndReasoningAsSeparateKinds(t *testing.T) {
+	provider := &reasoningSplitProvider{}
+	agent := New(Config{
+		ModelConfig: ModelConfig{
+			Name:      "test",
+			Model:     "stub",
+			Provider:  provider,
+			Streaming: true,
+		},
+	})
+
+	var got []MessageDeltaEvent
+	agent.On(EventMessageDelta, func(e Event) {
+		if ev, ok := e.(*MessageDeltaEvent); ok {
+			got = append(got, *ev)
+		}
+	})
+
+	_, err := agent.Run(context.Background(), "hello")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(got) != 3 {
+		t.Fatalf("expected 3 delta events (content + thinking + content), got %d: %+v", len(got), got)
+	}
+
+	if got[0].Delta != "visible answer" || got[0].Kind != BlockKindText {
+		t.Errorf("first delta: got delta=%q kind=%v, want %q/%v", got[0].Delta, got[0].Kind, "visible answer", BlockKindText)
+	}
+	if got[1].Delta != "inner reasoning" || got[1].Kind != BlockKindThinking {
+		t.Errorf("second delta: got delta=%q kind=%v, want %q/%v", got[1].Delta, got[1].Kind, "inner reasoning", BlockKindThinking)
+	}
+	if got[2].Delta != " continues" || got[2].Kind != BlockKindText {
+		t.Errorf("third delta: got delta=%q kind=%v, want %q/%v", got[2].Delta, got[2].Kind, " continues", BlockKindText)
+	}
+}
