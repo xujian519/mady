@@ -31,8 +31,9 @@ var blockedTools = map[string]bool{
 
 // alwaysAllowed are tools that should always work even in plan mode.
 var alwaysAllowed = map[string]bool{
-	"ask":  true,
-	"todo": true,
+	"ask":       true,
+	"task_list": true,
+	"task_get":  true,
 }
 
 // Decide evaluates whether a tool call should be blocked in plan mode.

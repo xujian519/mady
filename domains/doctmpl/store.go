@@ -42,7 +42,8 @@ func NewTemplateStore(userRoots ...string) (*TemplateStore, error) {
 	}
 	store.renderers.Register(&MarkdownRenderer{})
 	store.renderers.Register(&DOCXRenderer{})
-	store.renderers.Register(&PDFRenderer{})
+	store.renderers.Register(NewPDFAutoRenderer())
+	store.renderers.Register(&HTMLRenderer{})
 
 	// Load embedded templates first.
 	embedded, err := LoadDocTemplatesFromFS(embeddedTemplatesFS, embeddedTemplatesDir)

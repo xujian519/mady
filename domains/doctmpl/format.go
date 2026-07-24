@@ -74,6 +74,7 @@ type RenderMeta struct {
 	Author   string       // 作者/代理人
 	Date     string       // 日期
 	Filename string       // 建议文件名（不含扩展名）
+	Language string       // 文档语言代码（如 zh-CN、en），影响 HTML lang 属性
 }
 
 // RenderStyle 是 DocumentStyle 的精简投影，包含渲染时需要的风格信息。

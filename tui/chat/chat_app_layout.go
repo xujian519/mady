@@ -329,6 +329,12 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 						l.app.OpenEvidenceOverlay(EvidenceOverlayData{})
 						return nil
 					}
+				case "t":
+					// Ctrl+T toggles the task list (TodoPanel) overlay.
+					if k.Mods&terminal.ModCtrl != 0 {
+						l.app.ToggleTodoPanel()
+						return nil
+					}
 				case "c", "insert":
 					if isCopyShortcut(k) {
 						if hasSelection(l) {

@@ -32,6 +32,8 @@ const (
 	ChatEventAutoRetry       ChatEventType = "auto_retry"
 	ChatEventAgentInterrupt  ChatEventType = "agent_interrupt"
 	ChatEventApprovalPrompt  ChatEventType = "approval_prompt"
+	ChatEventTaskCreated     ChatEventType = "task_created"
+	ChatEventTaskUpdated     ChatEventType = "task_updated"
 )
 
 type ChatEvent interface {
@@ -197,3 +199,28 @@ type TokenUsage struct {
 	CompletionTokens int64
 	TotalTokens      int64
 }
+
+// TaskInfo 是 agentcore.Task 的 TUI 层投影，避免 tui/chat 直接依赖 agentcore。
+// 由 agentadapter 层负责从 agentcore.Task 转换。
+type TaskInfo struct {
+	ID       string
+	Subject  string
+	Status   string
+	Priority string
+}
+
+// TaskCreatedChatEvent 在任务创建时触发，供 TodoPanel 实时刷新。
+type TaskCreatedChatEvent struct {
+	Task *TaskInfo
+}
+
+func (TaskCreatedChatEvent) ChatEventKind() ChatEventType { return ChatEventTaskCreated }
+
+// TaskUpdatedChatEvent 在任务更新时触发。
+type TaskUpdatedChatEvent struct {
+	Task      *TaskInfo
+	OldStatus string
+	NewStatus string
+}
+
+func (TaskUpdatedChatEvent) ChatEventKind() ChatEventType { return ChatEventTaskUpdated }

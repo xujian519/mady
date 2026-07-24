@@ -21,6 +21,7 @@ import (
 	"github.com/xujian519/mady/agentcore/evidence"
 	"github.com/xujian519/mady/agentcore/filecheckpoint"
 	"github.com/xujian519/mady/agentcore/planmode"
+	"github.com/xujian519/mady/agentcore/tasklist"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/reasoning"
@@ -503,6 +504,16 @@ func buildBaseTools(fc *frameworkContext) {
 		fc.PlanModeExt,
 		evidence.NewExtension(),
 	)
+
+	// 结构化任务管理：注入 task_create/task_get/task_update/task_list 四个工具，
+	// 让 LLM 在复杂多步骤任务中自管理待办清单。task_get/task_list 为只读（planmode 下可用），
+	// task_create/task_update 有副作用（planmode 下被门控）。持久化到 sessions 目录下。
+	if taskDir, err := util.ResolveDataDir("sessions"); err == nil {
+		taskDir = filepath.Join(taskDir, "tasks")
+		if taskExt, err := tasklist.NewExtension(taskDir); err == nil {
+			fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, taskExt)
+		}
+	}
 
 	// Guardian AI 安全审查（MADY_GUARDIAN=1 条件启用）：拦截非只读工具调用，
 	// 使用独立 Provider 会话进行安全审查。内置熔断器在连续拒绝时自动放行，

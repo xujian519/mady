@@ -147,6 +147,9 @@ type ChatApp struct {
 	layout       *chatLayout
 	header       *component.TruncatedText
 	statusBar    *component.StatusBar
+	todoPanel    *component.TodoPanel
+	todoOverlay  OverlayRef
+	tasks        map[string]component.TodoItem
 	ac           *component.Autocomplete
 	km           *terminal.KeybindingsManager
 	judgmentView *component.JudgmentView
@@ -213,6 +216,8 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 		statusBar:          statusBar,
 		km:                 km,
 		judgmentView:       component.NewJudgmentView(),
+		todoPanel:          component.NewTodoPanel(),
+		tasks:              make(map[string]component.TodoItem),
 		defaultPlaceholder: "输入消息…（/ 查看命令）",
 		model: chatModel{
 			state:       StateInitializing,
@@ -223,6 +228,10 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 	chatApp.header = newChatHeader(cfg)
 	chatApp.ac = newChatAutocomplete(cfg, chatApp)
 	chatApp.layout = newChatLayout(cfg, chatApp, history, editor, loader, statusBar)
+	chatApp.todoPanel.SetDataProvider(chatApp.collectTodoItems)
+	if chatApp.host != nil {
+		chatApp.todoPanel.SetOnInvalidate(chatApp.host.RequestRender)
+	}
 	bindChatEditorEvents(chatApp, editor, history)
 	return chatApp
 }
@@ -381,6 +390,9 @@ func (a *ChatApp) SetHost(host AppHost) {
 	a.loader = component.NewLoader(host.RequestRender, theme.CurrentPalette().Dim.Render("thinking..."))
 	a.layout.loader = a.loader
 	a.history.SetOnInvalidate(host.RequestRender)
+	if a.todoPanel != nil {
+		a.todoPanel.SetOnInvalidate(host.RequestRender)
+	}
 }
 
 func (a *ChatApp) Host() AppHost { return a.host }
@@ -464,6 +476,8 @@ func (a *ChatApp) Subscribe(sub EventSubscriber) {
 	sub.On(ChatEventAgentEnd, a.onAgentEnd)
 	sub.On(ChatEventAgentInterrupt, a.onAgentInterrupt)
 	sub.On(ChatEventApprovalPrompt, a.onApprovalPrompt)
+	sub.On(ChatEventTaskCreated, a.onTaskCreated)
+	sub.On(ChatEventTaskUpdated, a.onTaskUpdated)
 }
 
 func (a *ChatApp) PrintSystem(msg string) {

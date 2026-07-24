@@ -38,6 +38,7 @@ type TodoPanel struct {
 	theme        TodoPanelTheme
 	km           *terminal.KeybindingsManager
 	onToggle     func(TodoItem)
+	onClose      func()
 	onInvalidate func()
 }
 
@@ -120,6 +121,13 @@ func (t *TodoPanel) SetOnToggle(fn func(TodoItem)) {
 	t.mu.Unlock()
 }
 
+// SetOnClose sets the callback for closing the overlay (Esc key).
+func (t *TodoPanel) SetOnClose(fn func()) {
+	t.mu.Lock()
+	t.onClose = fn
+	t.mu.Unlock()
+}
+
 // SetDataProvider sets the function to fetch items.
 func (t *TodoPanel) SetDataProvider(fn func() []TodoItem) {
 	t.mu.Lock()
@@ -181,6 +189,13 @@ func (t *TodoPanel) processKeys(data string) {
 		t.moveSelected(1)
 	case km.Matches(data, "todo.toggle"):
 		t.toggleSelected()
+	case km.Matches(data, "todo.close"):
+		t.mu.RLock()
+		fn := t.onClose
+		t.mu.RUnlock()
+		if fn != nil {
+			fn()
+		}
 	}
 }
 
@@ -317,7 +332,7 @@ func (t *TodoPanel) statusIcon(status string) string {
 		return "◐"
 	case "completed":
 		return "●"
-	case "canceled":
+	case "canceled", "archived":
 		return "✗"
 	default:
 		return "○"
@@ -332,7 +347,7 @@ func (t *TodoPanel) statusStyle(status string) theme.Style {
 		return t.theme.InProgressStyle
 	case "completed":
 		return t.theme.CompletedStyle
-	case "canceled":
+	case "canceled", "archived":
 		return t.theme.CancelledStyle
 	default:
 		return t.theme.ItemStyle
@@ -348,7 +363,7 @@ func (t *TodoPanel) countStatuses() (pending, inProgress, completed, canceled in
 			inProgress++
 		case "completed":
 			completed++
-		case "canceled":
+		case "canceled", "archived":
 			canceled++
 		}
 	}

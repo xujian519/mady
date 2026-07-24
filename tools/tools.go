@@ -34,6 +34,7 @@ const (
 	ToolComputerUse = "computer_use"
 	ToolProcess     = "process"
 	ToolVision      = "vision_analyze"
+	ToolPandoc      = "convert_document"
 )
 
 // ComputerUseToolConfig is a type alias for backward compatibility.
@@ -114,6 +115,10 @@ type ExtensionConfig struct {
 	ScholarSearch *ScholarSearchConfig
 
 	PatentTool *PatentToolConfig
+
+	// Pandoc configures the convert_document tool (format conversion via Pandoc CLI).
+	// If nil, the tool is not registered. Requires Pandoc installed on the system.
+	Pandoc *PandocToolConfig
 	// NuoPatentPath defaults to PATH-based resolution ("nuo-patent" or "npx nuo-patent").
 	// PatentTool configures patent lookup/download tools via nuo-patent CLI.
 
@@ -310,6 +315,10 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(NewPatentDownloadTool(cfg.PatentTool))
 	addTool(NewPatentLegalStatusTool(cfg.PatentTool))
 
+	if cfg.Pandoc != nil {
+		addTool(NewPandocTool(cfg.Pandoc))
+	}
+
 	if cfg.Browser != nil {
 		// 浏览器视觉分析与 vision_analyze 共用同一套视觉配置
 		// （显式设置的 Browser.Vision 优先）。
@@ -402,6 +411,12 @@ func propagateSandbox(cfg *ExtensionConfig) {
 		cfg.Vision = &VisionToolConfig{}
 	}
 	cfg.Vision.Sandbox = sbx
+
+	// Pandoc: propagate WorkingDir so resolvePath enforces sandbox boundaries.
+	// Without this, WorkingDir stays empty and path checks are silently skipped.
+	if cfg.Pandoc != nil && cfg.Pandoc.WorkingDir == "" {
+		cfg.Pandoc.WorkingDir = cfg.WorkingDir
+	}
 }
 
 // disabledSet converts a disable list to a set for O(1) lookup.

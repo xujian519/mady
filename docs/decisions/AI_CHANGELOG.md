@@ -1,5 +1,125 @@
 # AI 变更记录
 
+## 2026-07-24: 结构化任务管理 — Plantask 工具集 + TUI TodoPanel
+
+### 背景
+Mady 缺乏结构化任务列表管理能力。LLM 在处理复杂多步骤任务时无法自行规划、追踪进度。通过对比 Eino 框架和 Claude Code 的 TodoWrite 设计，发现 Mady 已有一个预构建但从未实例化的 `tui/component/todo_panel.go` 组件和一个 planmode 中的幽灵 `"todo": true` 条目。本次正式引入 Plantask 功能，填补这一空缺。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `agentcore/task_types.go` | 新增 Task 数据模型（TaskStatus / TaskPriority / Task + Clone/Order），定义在 agentcore 包避免循环导入 |
+| `agentcore/tasklist/store.go` | 新增 Store 接口 + MemoryStore（内存实现，用于测试） |
+| `agentcore/tasklist/filestore.go` | 新增 FileStore（文件系统实现，原子写入 + .nextid 计数器持久化 + 启动时从现有文件推断 ID） |
+| `agentcore/tasklist/prompts.go` | 双语（中/英）工具描述，遵循 tone-style-guide（无绝对化表述） |
+| `agentcore/tasklist/tool_create.go` | task_create 工具：创建任务，发射 TaskCreatedEvent |
+| `agentcore/tasklist/tool_get.go` | task_get 工具（ReadOnly）：查询单个任务详情 |
+| `agentcore/tasklist/tool_update.go` | task_update 工具：更新状态/优先级/依赖，含 DFS 循环依赖检测 + 双向 blocks/blockedBy 维护，发射 TaskUpdatedEvent |
+| `agentcore/tasklist/tool_list.go` | task_list 工具（ReadOnly）：列出所有任务含统计摘要 |
+| `agentcore/tasklist/extension.go` | tasklist Extension（实现 Extension + ToolProvider + EventSnapshotProvider） |
+| `agentcore/tasklist/*_test.go` | 30+ 单元测试：Store CRUD、工具全路径、Extension 生命周期、FileStore 持久化、循环依赖检测 |
+| `agentcore/event_types.go` | 新增 EventTaskCreated / EventTaskUpdated 事件类型 |
+| `cmd/mady/framework.go` | 注入 tasklist Extension（~/.mady/sessions/tasks/） |
+| `agentcore/planmode/policy.go` | alwaysAllowed 新增 task_list / task_get（ReadOnly 工具在计划模式下始终可用） |
+| `tui/chat/events.go` | 新增 ChatEventTaskCreated / ChatEventTaskUpdated 事件类型 |
+| `tui/agentadapter/adapter.go` | agentcore 事件 → ChatEvent 桥接 |
+| `tui/chat/chat_app.go` | ChatApp 新增 todoPanel / tasks 字段，Subscribe 注册任务事件 |
+| `tui/chat/chat_app_todo.go` | 新增任务事件处理器 + ToggleTodoPanel / CloseTodoPanel overlay 管理 |
+| `tui/chat/chat_app_layout.go` | Ctrl+T 快捷键切换 TodoPanel |
+| `tui/chat/chat_app_test.go` | 订阅测试更新（17 handlers） |
+| `tui/component/todo_panel.go` | 新增 archived 状态支持 + onClose 回调 + todo.close 键处理 |
+| `tui/terminal/keybindings.go` | 新增 tui.todo.toggle 绑定（Ctrl+T） |
+
+### 设计决策
+- **Task 类型定义在 agentcore 包**：避免循环导入——tasklist 包引用 agentcore，事件类型在 agentcore/event_types.go 中引用 *Task。
+- **archived 而非 deleted**：保留审计留痕，不物理删除任务。List 默认排除 archived，可通过参数查询。
+- **双向依赖维护**：task_update 添加 blocks 时自动在目标任务添加 blockedBy，反之亦然。DFS 环检测防止循环依赖。
+- **planmode 门控**：task_get 和 task_list 为 ReadOnly（计划模式始终可用），task_create 和 task_update 被门控阻止。
+- **FileStore 原子写入**：写临时文件 + rename 模式防止崩溃导致数据损坏；.nextid 计数器持久化保证重启后 ID 单调递增。
+- **EventSnapshotProvider**：新 TUI 挂载时自动获取当前任务列表（发射为 TaskCreated 事件），实现状态恢复。
+
+### 安全敏感路径
+- `agentcore/planmode/policy.go` 修改了 alwaysAllowed 白名单，新增 task_list / task_get 两个 ReadOnly 工具。这两个工具不修改任何状态，仅查询任务列表和详情，安全等级与已有的 "ask" 工具一致。
+- `cmd/mady/framework.go` 注入 tasklist Extension，数据目录通过 `util.ResolveDataDir("sessions")` 解析，遵循统一的资源定位规范。
+
+### 验证结果
+- `go build ./...`：通过 ✅
+- `go vet ./...`：通过 ✅
+- `go test -race ./agentcore/tasklist/...`：30+ 测试全部通过 ✅
+- `go test ./...`：全部通过 ✅
+
+
+## 2026-07-24: PDF 质量升级 — chromedp Chrome 引擎 + Pandoc 启用
+
+### 背景
+P0 阶段已完成 HTML 渲染器（goldmark）和 Pandoc 集成。本次 P1 将 PDF 输出从 gopdf 手动布局升级为 headless Chrome 引擎渲染（CSS 级排版），同时在 PatentAgentConfig 和 BuildProjectAgent 中正式启用 Pandoc convert_document 工具。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `domains/doctmpl/renderer_pdf_chrome.go` | 新增 PDFChromeRenderer（Markdown→HTML→Chrome PrintToPDF）和 PDFAutoRenderer（惰性探测 Chrome，不可用自动回退 gopdf） |
+| `domains/doctmpl/renderer_pdf_chrome_test.go` | 新增 7 个测试：Format、nil 安全×2、端到端 PDF 渲染、探测一致性、probeChrome 超时保护 |
+| `domains/doctmpl/store.go` | PDF 渲染器从 `&PDFRenderer{}` 替换为 `NewPDFAutoRenderer()` |
+| `domains/patent.go` | PatentAgentConfig 和 BuildProjectAgent 的 ExtensionConfig 注入 `Pandoc: tools.PandocToolConfigDefaults()` |
+| `go.mod` | chromedp/cdproto 从 indirect 提升为 direct 依赖 |
+
+### 设计决策
+- **Chrome 引擎 vs gopdf**：gopdf 手动布局无法精确还原 CSS 排版（表格列宽、代码高亮、引用块样式）。Chrome 引擎通过 page.PrintToPDF() 实现 W3C 标准排版，同时利用系统级中文字体（不需要搜索 TTF/TTC 文件）。
+- **优雅降级架构**：PDFAutoRenderer 使用 sync.Once 在首次 Render 时惰性探测 Chrome 可用性。探测成功→委托 PDFChromeRenderer；失败→回退 PDFRenderer(gopdf)。探测仅执行一次，后续调用零开销。CI/无 Chrome 环境自动降级，开发者无感。
+- **HTML 作为中间格式**：复用 P0 的 HTMLRenderer（goldmark + 内嵌 CSS）作为 Chrome PDF 的输入。一套 CSS 同时服务于 HTML 输出和 PDF 输出，保证视觉一致性。
+- **ChromeWSURL 字段**：PDFChromeRenderer 支持远程 Chrome（WebSocket），为容器化/集群部署预留扩展点；为空时使用本地 headless Chrome。
+- **Pandoc 在两个 Agent 构建点启用**：PatentAgentConfig（默认专利 Agent）和 BuildProjectAgent（案件级动态 Agent）均注入 PandocToolConfigDefaults()，确保所有专利 Agent 均可用 convert_document 工具。
+
+### 安全敏感路径
+- `domains/patent.go` 是安全敏感路径（BuildProjectAgent 动态 WorkingDir）。Pandoc 注入不修改 WorkingDir/沙箱边界，仅新增工具注册。Pandoc 的沙箱路径校验已在 tools/pandoc.go 的 resolvePath 中实现。
+- `domains/doctmpl/store.go` 的渲染器注册变更不影响安全边界——PDFAutoRenderer 仅替换 PDF 格式的渲染实现，不改变接口契约。
+
+### 验证结果
+- `go build ./...`：通过 ✅（根模块 + tools 子模块）
+- `go vet ./...`：通过 ✅
+- `go test ./domains/doctmpl/`：57 个测试全部通过 ✅（含 7 个新增 Chrome PDF 测试）
+- `golangci-lint run`：0 issues ✅
+
+
+
+
+## 2026-07-24: 文档处理增强 — HTML 渲染器 + Pandoc 集成
+
+### 背景
+doctmpl 模块定义了 5 种输出格式（markdown/docx/pdf/html/email），但 HTML/Email 渲染器未实现；项目缺乏双向文档转换能力（DOCX→Markdown 等）。本次补全 HTML 渲染器并集成 Pandoc 外部工具。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `domains/doctmpl/renderer_html.go` | 新增 HTMLRenderer，使用 goldmark（CommonMark+GFM）将 Markdown 渲染为独立 HTML5 文档，含响应式 CSS、打印样式、免责声明/标题注入 |
+| `domains/doctmpl/renderer_html_test.go` | 新增 6 个测试：Format、nil 安全、基本 Markdown、完整文档（标题/作者/免责/表格/代码块）、语言属性、GFM 扩展特性 |
+| `domains/doctmpl/format.go` | RenderMeta 新增 Language 字段（影响 HTML lang 属性，默认 zh-CN） |
+| `domains/doctmpl/store.go` | NewTemplateStore 注册 HTMLRenderer |
+| `tools/pandoc.go` | 新增 convert_document 工具，通过 Pandoc CLI 实现文档格式互转（markdown/docx/html/pdf/epub/latex 等），支持 reference-doc 模板、TOC、沙箱路径校验 |
+| `tools/tools.go` | ExtensionConfig 新增 Pandoc 字段；BuildTools 条件注册（Pandoc 非空时注册）；新增 ToolPandoc 常量 |
+| `go.mod` | 新增 github.com/yuin/goldmark v1.8.4 依赖 |
+
+### 设计决策
+- **HTML 渲染器用 goldmark**：项目此前无 Markdown 解析库，PDF/DOCX 渲染器使用手写字符串匹配。HTML 需要语义正确的标签结构，goldmark（CommonMark + GFM 扩展）是 Go 生态最成熟的解析器，MIT 许可、纯 Go、零 CGO。
+- **Pandoc 作为外部工具集成**：而非自研 OOXML 引擎。Pandoc 支持 40+ 格式互转，通过 CLI 调用（遵循 PatentToolConfig 模式），GPL 许可但作为外部进程调用无传染性。
+- **Pandoc 条件注册**：只有 ExtensionConfig.Pandoc 非空时才注册工具，与 Browser 工具模式一致。用户需系统安装 Pandoc，通过 domains/patent.go 的 PatentAgentConfig 启用。
+- **沙箱路径校验**：PandocToolConfig.resolvePath 阻止输入/输出路径逃逸 WorkingDir（当 WorkingDir 非空时）。
+
+### 安全敏感路径
+- `tools/tools.go` 新增 Pandoc 配置字段和条件注册，不修改现有安全边界（ExtensionConfig.DisableTools/EnabledTools 门控逻辑不变）。
+- `tools/pandoc.go` 实现路径校验（resolvePath），防止目录遍历攻击。
+- 不暴露 pandoc 的危险参数（如 --lua-filter 可执行任意代码），仅开放 reference-doc/toc/standalone 等安全参数。
+
+### 验证结果
+- `go build ./...`：通过 ✅（根模块 + tools 子模块）
+- `go vet ./...`：通过 ✅
+- `go test ./domains/doctmpl/`：50 个测试全部通过 ✅
+- `golangci-lint run`：0 issues ✅
+
+
 ## 2026-07-24: B 档高价值接线 — guardian/tracing/evidence/disclosure
 
 ### 背景

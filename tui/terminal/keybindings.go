@@ -310,6 +310,8 @@ func DefaultKeybindings() map[string]KeybindingDef {
 		"tui.review.block": {DefaultKeys: []KeyID{"f"}, Description: "标记阻塞"},
 
 		"tui.system.open": {DefaultKeys: []KeyID{"s"}, Description: "打开系统态"},
+
+		"tui.todo.toggle": {DefaultKeys: []KeyID{"ctrl+t"}, Description: "Toggle task list panel"},
 	}
 }
 

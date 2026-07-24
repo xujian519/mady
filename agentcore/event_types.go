@@ -31,6 +31,8 @@ const (
 	EventAutoRetry       EventType = "auto_retry"
 	EventAgentInterrupt  EventType = "agent_interrupt"
 	EventApprovalPrompt  EventType = "approval_prompt"
+	EventTaskCreated     EventType = "task_created"
+	EventTaskUpdated     EventType = "task_updated"
 	EventA2UI            EventType = "a2ui"
 )
 
@@ -482,4 +484,33 @@ func reconstructError(msg, errType string) error {
 		return context.DeadlineExceeded
 	}
 	return errors.New(msg)
+}
+
+// TaskCreatedEvent 在任务创建时触发，供 TUI 实时刷新待办面板。
+type TaskCreatedEvent struct {
+	baseEvent
+	Task *Task `json:"task"`
+}
+
+// NewTaskCreatedEvent 构造一个 TaskCreatedEvent。
+func NewTaskCreatedEvent(task *Task) *TaskCreatedEvent {
+	return &TaskCreatedEvent{baseEvent: newBase(EventTaskCreated), Task: task}
+}
+
+// TaskUpdatedEvent 在任务更新时触发，携带状态变更信息。
+type TaskUpdatedEvent struct {
+	baseEvent
+	Task      *Task  `json:"task"`
+	OldStatus string `json:"old_status"`
+	NewStatus string `json:"new_status"`
+}
+
+// NewTaskUpdatedEvent 构造一个 TaskUpdatedEvent。
+func NewTaskUpdatedEvent(task *Task, oldStatus, newStatus string) *TaskUpdatedEvent {
+	return &TaskUpdatedEvent{
+		baseEvent: newBase(EventTaskUpdated),
+		Task:      task,
+		OldStatus: oldStatus,
+		NewStatus: newStatus,
+	}
 }

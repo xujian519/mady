@@ -18,7 +18,7 @@ func TestPolicy_BlockedTools(t *testing.T) {
 
 func TestPolicy_AlwaysAllowed(t *testing.T) {
 	p := Policy{}
-	for _, tool := range []string{"ask", "todo"} {
+	for _, tool := range []string{"ask", "task_list", "task_get"} {
 		d := p.Decide(tool, false, nil)
 		if d.Blocked {
 			t.Errorf("%s should always be allowed", tool)

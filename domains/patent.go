@@ -234,6 +234,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		WebSearch:  &tools.WebSearchToolConfig{},
 		WebFetch:   &tools.WebFetchToolConfig{},
 		PatentTool: tools.PatentToolConfigDefaults(),
+		Pandoc:     tools.PandocToolConfigDefaults(),
 		DisableTools: []string{
 			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
 			tools.ToolBrowser, tools.ToolExecuteCode,
@@ -350,6 +351,7 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 			Provider: base.Provider,
 			Model:    base.Model,
 		},
+		Pandoc:   tools.PandocToolConfigDefaults(),
 		MaxBytes: 100 * 1024,
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)

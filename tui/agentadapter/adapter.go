@@ -167,6 +167,26 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 				Data:    parseReviewGateData(ev.Content, ev.Data),
 			})
 		})
+	case chat.ChatEventTaskCreated:
+		s.agent.On(agentcore.EventTaskCreated, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.TaskCreatedEvent)
+			if !ok {
+				return
+			}
+			handler(chat.TaskCreatedChatEvent{Task: agentTaskToInfo(ev.Task)})
+		})
+	case chat.ChatEventTaskUpdated:
+		s.agent.On(agentcore.EventTaskUpdated, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.TaskUpdatedEvent)
+			if !ok {
+				return
+			}
+			handler(chat.TaskUpdatedChatEvent{
+				Task:      agentTaskToInfo(ev.Task),
+				OldStatus: ev.OldStatus,
+				NewStatus: ev.NewStatus,
+			})
+		})
 	}
 }
 
@@ -249,4 +269,18 @@ func parseReviewGateData(content string, data map[string]any) *chat.ReviewGatePa
 	}
 
 	return payload
+}
+
+// agentTaskToInfo converts an agentcore.Task to a chat.TaskInfo,
+// maintaining the architectural boundary that tui/chat must not import agentcore.
+func agentTaskToInfo(t *agentcore.Task) *chat.TaskInfo {
+	if t == nil {
+		return nil
+	}
+	return &chat.TaskInfo{
+		ID:       t.ID,
+		Subject:  t.Subject,
+		Status:   string(t.Status),
+		Priority: string(t.Priority),
+	}
 }
