@@ -173,6 +173,7 @@ type OrchestrationResult struct {
 
 	// Success indicates whether the orchestration completed without
 	// fatal errors. Optional-step failures do not affect Success.
+	// Interrupted (paused for user confirmation) is also Success=true.
 	Success bool
 
 	// StepsCompleted is the number of steps that executed (including
@@ -197,4 +198,21 @@ type OrchestrationResult struct {
 	// FinalOutput is the output of the last executed (non-optional,
 	// non-skipped) step. This is the primary result the caller cares about.
 	FinalOutput any
+
+	// --- Interrupt fields ---
+	// When a step interrupts (returns IsInterrupt), execution pauses.
+	// The caller should present PendingReview to the user, let them
+	// confirm or request changes, then resume via Run() with restart=true.
+
+	// InterruptedStep is set to the step's ToolName when execution paused
+	// at that step for user confirmation. Empty = no interrupt.
+	InterruptedStep string
+
+	// PartialState captures the orchestration state at interrupt time.
+	// Pass this back as initial state when resuming.
+	PartialState OrchestrationState
+
+	// PendingReview is a human-readable summary of what needs user
+	// confirmation: the step's output and a prompt for the user.
+	PendingReview string
 }

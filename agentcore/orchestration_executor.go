@@ -39,7 +39,11 @@ func NewOrchestrationExecutor(agent *Agent) *OrchestrationExecutor {
 //  3. The tool is invoked via Agent.InvokeTool (hooks are applied).
 //  4. On success, the raw JSON output is stored in state[step.ToolName].
 //  5. On failure:
-//     - Optional steps: error is recorded in result.StepErrors, execution continues.
+//     - IsInterrupt: execution pauses, result.InterruptedStep is set, the
+//     caller should present PendingReview for user confirmation, then
+//     resume via Run() with the returned PartialState as initial state.
+//     - Optional steps: error is recorded in result.StepErrors, execution
+//     continues.
 //     - Required steps: execution aborts, result.Success = false.
 func (e *OrchestrationExecutor) Run(ctx context.Context, m *OrchestrationManifest, state OrchestrationState) (*OrchestrationResult, error) {
 	result := &OrchestrationResult{
@@ -81,6 +85,24 @@ func (e *OrchestrationExecutor) Run(ctx context.Context, m *OrchestrationManifes
 		// Invoke the tool through the Agent (preserves hook pipeline).
 		rawOutput, err := e.agent.InvokeTool(ctx, step.ToolName, args)
 		if err != nil {
+			if IsInterrupt(err) {
+				// Interrupt: pause execution for user confirmation.
+				// Store partial state so the caller can resume later.
+				result.InterruptedStep = step.ToolName
+				result.PartialState = state
+				result.PendingReview = fmt.Sprintf("**%s** 已完成，请确认结果后继续。\n\n%s",
+					step.Description, rawOutput)
+
+				result.StepsCompleted++
+				result.StepResults[step.ToolName] = nil
+				result.Success = true // not a failure, just paused
+
+				summaryLines = append(summaryLines,
+					fmt.Sprintf("- ⏸️ **%s**: 已完成，等待用户确认", step.Description))
+				result.Summary = strings.Join(summaryLines, "\n")
+				return result, nil // no error — caller should check InterruptedStep
+			}
+
 			if step.Optional {
 				// Optional steps: record error, continue.
 				result.StepErrors[step.ToolName] = err.Error()

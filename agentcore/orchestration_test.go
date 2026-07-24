@@ -223,3 +223,72 @@ func TestConditionFunc_NilIsAlwaysTrue(t *testing.T) {
 		t.Error("nil condition should remain nil (executor treats nil as always-true)")
 	}
 }
+
+func TestOrchestrationExecutor_InterruptPausesAndReturnsPartialState(t *testing.T) {
+	// Step 1: succeeds normally.
+	tool1 := &Tool{
+		Name:        "step1",
+		Description: "First step",
+		Parameters:  map[string]any{"type": "object", "properties": map[string]any{}},
+		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+			return map[string]any{"result": "step1_done"}, nil
+		},
+	}
+	// Step 2: returns an interrupt (simulates "waiting for user confirmation").
+	tool2 := &Tool{
+		Name:        "step2",
+		Description: "Second step (interrupts)",
+		Parameters:  map[string]any{"type": "object", "properties": map[string]any{}},
+		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+			return "step2_partial_result", NewInterruptError("需要用户确认分析结果")
+		},
+	}
+	// Step 3: should not execute (orchestration pauses at step 2).
+	tool3 := &Tool{
+		Name:        "step3",
+		Description: "Third step",
+		Parameters:  map[string]any{"type": "object", "properties": map[string]any{}},
+		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+			t.Error("step3 should not be called when interrupted at step2")
+			return nil, nil
+		},
+	}
+
+	agent := New(stubAgentConfig("test_interrupt", []*Tool{tool1, tool2, tool3}))
+
+	manifest := &OrchestrationManifest{
+		ID:   "test_interrupt",
+		Name: "中断测试",
+		Steps: []OrchestrationStep{
+			{ToolName: "step1", Description: "第一步"},
+			{ToolName: "step2", Description: "第二步（中断）"},
+			{ToolName: "step3", Description: "第三步（不应执行）"},
+		},
+	}
+
+	executor := NewOrchestrationExecutor(agent)
+	result, err := executor.Run(context.Background(), manifest, nil)
+	if err != nil {
+		t.Fatalf("interrupt should not propagate as error: %v", err)
+	}
+
+	if !result.Success {
+		t.Error("interrupted orchestration should still have Success=true (paused, not failed)")
+	}
+	if result.InterruptedStep != "step2" {
+		t.Errorf("expected InterruptedStep 'step2', got %q", result.InterruptedStep)
+	}
+	if result.StepsCompleted != 2 {
+		t.Errorf("expected 2 completed steps (step1 ran, step2 interrupted after invocation), got %d", result.StepsCompleted)
+	}
+	if result.PendingReview == "" {
+		t.Error("expected non-empty PendingReview with step2's output")
+	}
+	if result.PartialState == nil {
+		t.Error("expected non-nil PartialState for resuming")
+	}
+	// PartialState should contain step1's output.
+	if _, ok := result.PartialState["step1"]; !ok {
+		t.Error("PartialState should contain step1's output")
+	}
+}

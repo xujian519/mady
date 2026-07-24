@@ -126,6 +126,15 @@ func handleRunOrchestration(ctx context.Context, args json.RawMessage, agent *ag
 			fmt.Sprintf("编排 %q 执行过程中断：%v", manifest.ID, err)), nil
 	}
 
+	// Check for interrupt: step paused for user confirmation.
+	// The tool returns normally with InterruptedStep set, so the LLM
+	// can present the pending review to the user and handle feedback.
+	if result.InterruptedStep != "" {
+		return agentcore.NewHandoffResult(
+			fmt.Sprintf("请确认%s的结果", result.InterruptedStep),
+			result.PendingReview+"\n\n"+result.Summary), nil
+	}
+
 	// Build a comprehensive result for the LLM.
 	return formatOrchestrationResult(result, manifest), nil
 }
@@ -308,6 +317,12 @@ func truncateText(s string, maxLen int) string {
 
 // formatOrchestrationResult builds a HandoffResult from an orchestration run.
 func formatOrchestrationResult(result *agentcore.OrchestrationResult, manifest *agentcore.OrchestrationManifest) agentcore.HandoffResult {
+	if result.InterruptedStep != "" {
+		return agentcore.NewHandoffResult(
+			fmt.Sprintf("请确认%s的结果", result.InterruptedStep),
+			result.PendingReview,
+		)
+	}
 	if result.Success {
 		return agentcore.NewHandoffResult(
 			fmt.Sprintf("%s — 已完成（%d/%d 步）", manifest.Name, result.StepsCompleted, len(manifest.Steps)),
