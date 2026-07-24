@@ -203,6 +203,12 @@ func setupFrameworkContext(ctx context.Context, cmdName string) *frameworkContex
 	// Manifest 决定多域路由模式，TUI 需要它来做模式判定。
 	loadManifests(fc)
 
+	// 接通用户自定义风格目录（~/.mady/styles）：必须在首次 LoadDefaultStyles
+	// 之前注册，同名风格覆盖内置，让代理人无需重编译即可定义个人/领域写作风格。
+	if fc.MadyHome != "" {
+		domains.AddStylePath(filepath.Join(fc.MadyHome, "styles"))
+	}
+
 	// === 后台延迟阶段：仅在 TUI 入口使用延迟队列 ===
 	deferBackground := (cmdName == "tui")
 

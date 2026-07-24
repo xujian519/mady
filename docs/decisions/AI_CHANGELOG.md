@@ -1,5 +1,39 @@
 # AI 变更记录
 
+## 2026-07-24: 跨案件写作习惯复用 — styles 接线 + memory UserID 修复
+
+### 背景
+用户在案件目录内形成的写作习惯受工具沙盒限制，无法跨案件复用。调研发现两条
+断路：(1) `~/.mady/styles` 用户自定义风格扩展点 `AddStylePath` 存在但 `cmd/mady`
+从未调用，且 `LoadDefaultStyles` 的"先到先得 break"会吞掉用户目录；(2) memory
+的 `LayerUser`（跨会话用户偏好层）`UserID` 被错配为 `currentThreadID`，导致偏好
+锁死在单会话内，无法跨案件复用。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `domains/style_embed.go` | `LoadDefaultStyles` 去掉 break，改为遍历所有路径合并、同名后者覆盖前者；提取可测试纯函数 `loadStylesFromPaths`；解析错误降级为跳过（不阻断有效风格） |
+| `domains/style_embed_test.go` | 新增 4 个测试：不同域合并 / 用户覆盖内置 / 坏文件跳过 / 不存在目录跳过 |
+| `cmd/mady/framework.go` | `loadManifests` 后接通 `domains.AddStylePath($MADY_HOME/styles)`，让用户风格目录生效 |
+| `cmd/mady/tui_session_config.go` | 新增 `stableUserID()`（$MADY_USER_ID > 系统用户名 > "default"），`buildMemoryExtension` 用它替换 `currentThreadID` 作为 UserID |
+| `cmd/mady/tui_session_config_test.go` | 新增 2 个测试：env 覆盖优先级 / 回退值非空且稳定 |
+
+### 设计决策
+- **styles 合并语义**：内置目录在前、用户目录在后，同名覆盖。用户无需重编译即可在
+  `~/.mady/styles/*.yaml` 覆盖内置 patent/legal 风格或定义新域风格。
+- **UserID 稳定化**：不破坏 SessionID（仍按会话隔离），仅 LayerUser 用稳定身份。
+  旧的以 threadID 为 key 的偏好记录将自然失效（向前不兼容，可接受——新会话正常工作）。
+- **不触发安全敏感路径**：改动文件均不在 `scripts/check-sensitive-paths.sh` 清单内。
+
+### 验证结果
+- `go build ./...` + `go vet`：通过 ✅
+- `go test ./...`（根模块全量）：无 FAIL ✅
+- `cd tools && go build ./... && go test ./...`：通过 ✅
+- 新增 6 个测试全部通过 ✅
+
+---
+
 ## 2026-07-23: 创造性模块优化 — 三期 12 项任务全覆盖（Phase 1-3）
 
 ### 背景

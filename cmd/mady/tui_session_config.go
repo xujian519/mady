@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"os/user"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
@@ -14,6 +15,21 @@ import (
 	"github.com/xujian519/mady/tools"
 )
 
+// stableUserID 返回跨会话稳定的用户身份，供 memory 的 LayerUser 偏好隔离使用。
+// 解析优先级：$MADY_USER_ID > 系统用户名 > "default"。
+//
+// 不能使用 threadID 作为 UserID：threadID 随每个会话变化，会导致 LayerUser
+// 记录的个人偏好被锁死在单个会话内，无法跨案件/跨会话复用（原先的缺陷）。
+func stableUserID() string {
+	if id := os.Getenv("MADY_USER_ID"); id != "" {
+		return id
+	}
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
+	}
+	return "default"
+}
+
 // buildMemoryExtension 根据当前会话状态构建 MemoryExtension。
 // 使用 WithSharedManager() 参数，确保 Dispose 时不关闭框架级共享 Manager。
 // 当 fc.MemoryManager 为 nil 时返回 nil（记忆功能不可用）。
@@ -22,7 +38,7 @@ func (s *tuiSession) buildMemoryExtension() *memory.MemoryExtension {
 		return nil
 	}
 	scope := memory.MemoryScope{
-		UserID:    s.currentThreadID,
+		UserID:    stableUserID(), // 跨会话稳定：LayerUser 偏好才能真正跨案件复用
 		SessionID: s.currentThreadID,
 		AgentID:   s.detectAgentID(),
 		ProjectID: s.detectProjectID(),
