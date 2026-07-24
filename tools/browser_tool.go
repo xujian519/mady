@@ -84,6 +84,8 @@ func NewBrowserTool(cfg *BrowserToolConfig) *agentcore.Tool {
 		ViewportWidth:       cfg.ViewportWidth,
 		ViewportHeight:      cfg.ViewportHeight,
 		AgentBrowserEnabled: cfg.AgentBrowserEnabled,
+		EgoLiteEnabled:      cfg.EgoLiteEnabled,
+		EgoLiteTaskName:     cfg.EgoLiteTaskName,
 	})
 	SetDefaultBrowserManager(bm)
 

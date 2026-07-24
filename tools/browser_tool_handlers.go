@@ -27,6 +27,13 @@ func handleSnapshot(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	switch session.backendType {
 	case BackendCamofox:
 		snapshot, err = session.camofoxClient.GetSnapshot(session.sessionID, input.Full)
+	case BackendEgoLite:
+		snapResult, snapErr := session.egoLiteManager.Send(ctx, "snapshotText", nil)
+		if snapErr != nil {
+			return nil, fmt.Errorf("egolite snapshot: %w", snapErr)
+		}
+		snapshot, _ = snapResult.(string)
+		err = nil
 	case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 		snapshot, err = GeneratePageSnapshot(timeoutCtx, input.Full, session.refMapper, mode)
@@ -76,6 +83,26 @@ func handleEvaluate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 
 	if session.backendType == BackendCamofox {
 		return nil, fmt.Errorf("JS evaluation not supported for camofox backend")
+	}
+
+	if session.backendType == BackendEgoLite {
+		evalRes, evalErr := session.egoLiteManager.Send(ctx, "evaluateJS", map[string]any{
+			"expression": input.Expression,
+		})
+		if evalErr != nil {
+			return nil, fmt.Errorf("egolite evaluate: %w", evalErr)
+		}
+		var evalStr string
+		switch v := evalRes.(type) {
+		case string:
+			evalStr = v
+		default:
+			evalStr = fmt.Sprintf("%v", v)
+		}
+		session.mu.Lock()
+		session.lastActivity = time.Now()
+		session.mu.Unlock()
+		return result(fmt.Sprintf("Result: %s", evalStr), nil)
 	}
 
 	var evalResult string

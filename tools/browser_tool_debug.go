@@ -39,6 +39,10 @@ func handleCdp(ctx context.Context, input browserToolInput, cfg *BrowserToolConf
 		return nil, err
 	}
 
+	if session.backendType == BackendEgoLite {
+		return nil, fmt.Errorf("cdp not supported for egolite backend")
+	}
+
 	var params json.RawMessage
 	if input.CDPParams != nil {
 		var marshalErr error

@@ -34,6 +34,8 @@ type BrowserToolConfig struct {
 	ViewportWidth       int
 	ViewportHeight      int
 	AgentBrowserEnabled bool
+	EgoLiteEnabled      bool
+	EgoLiteTaskName     string
 }
 
 func (c *BrowserToolConfig) defaults() {

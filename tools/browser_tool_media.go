@@ -29,6 +29,20 @@ func handleScreenshot(ctx context.Context, input browserToolInput, cfg *BrowserT
 		if err == nil {
 			sizeBytes = len(buf)
 		}
+	case BackendEgoLite:
+		b64, ssErr := session.egoLiteManager.Send(ctx, "captureScreenshot", nil)
+		if ssErr != nil {
+			return nil, fmt.Errorf("egolite screenshot: %w", ssErr)
+		}
+		b64Str, _ := b64.(string)
+		if b64Str == "" {
+			return nil, fmt.Errorf("egolite screenshot returned empty")
+		}
+		var buf []byte
+		buf, err = base64.StdEncoding.DecodeString(b64Str)
+		if err == nil {
+			sizeBytes = len(buf)
+		}
 	case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 		var buf []byte

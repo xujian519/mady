@@ -52,6 +52,39 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 		return result(fmt.Sprintf("Navigated to %s\n\n%s", url, snapshot), nil)
 	}
 
+	if session.backendType == BackendEgoLite {
+		navResult, navErr := session.egoLiteManager.Send(ctx, "navigate", map[string]any{
+			"url":     parsedURL.String(),
+			"timeout": float64(20),
+		})
+		if navErr != nil {
+			return nil, fmt.Errorf("egolite navigate: %w", navErr)
+		}
+		sv, _ := navResult.(string)
+		// get pageInfo to update session
+		if piResult, piErr := session.egoLiteManager.Send(ctx, "pageInfo", nil); piErr == nil {
+			if pi, ok := piResult.(map[string]any); ok {
+				session.mu.Lock()
+				if u, ok := pi["url"].(string); ok {
+					session.url = u
+				}
+				if t, ok := pi["title"].(string); ok {
+					session.title = t
+				}
+				session.lastActivity = time.Now()
+				session.mu.Unlock()
+			}
+		}
+		session.mu.RLock()
+		url := session.url
+		title := session.title
+		session.mu.RUnlock()
+		if title == "" {
+			title = "(unknown)"
+		}
+		return result(fmt.Sprintf("Navigated to %s\nTitle: %s\n\n%s", url, title, sv), nil)
+	}
+
 	// chromedp-based backends (local, CDP, lightpanda, cloud, agent-browser).
 	navTimeout := navigationTimeout(cfg.CommandTimeout)
 	timeoutCtx, cancel := context.WithTimeout(session.ctx, navTimeout)

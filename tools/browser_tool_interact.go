@@ -23,35 +23,49 @@ func handleClick(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 		return nil, err
 	}
 
-	if session.backendType == BackendCamofox {
-		snapshot, err := session.camofoxClient.Click(session.sessionID, ref)
-		if err != nil {
-			return nil, fmt.Errorf("camofox click failed: %w", err)
+	var snapshot string
+
+	switch session.backendType {
+	case BackendCamofox:
+		snap, cfErr := session.camofoxClient.Click(session.sessionID, ref)
+		if cfErr != nil {
+			return nil, fmt.Errorf("camofox click failed: %w", cfErr)
 		}
 		session.mu.Lock()
 		session.lastActivity = time.Now()
 		session.mu.Unlock()
-		return result(fmt.Sprintf("Clicked %s\n\n%s", ref, snapshot), nil)
-	}
+		return result(fmt.Sprintf("Clicked %s\n\n%s", ref, snap), nil)
 
-	// chromedp-based backends.
-	timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-	defer cancel()
+	case BackendEgoLite:
+		snapResult, clickErr := session.egoLiteManager.Send(ctx, "click", map[string]any{"ref": ref})
+		if clickErr != nil {
+			return nil, fmt.Errorf("egolite click: %w", clickErr)
+		}
+		sv, _ := snapResult.(string)
+		snapshot = sv
 
-	xpath, err := getXPathFromRef(timeoutCtx, session, ref)
-	if err != nil {
-		return nil, err
-	}
+	default:
+		// chromedp-based backends.
+		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
+		defer cancel()
 
-	if err := chromedp.Run(timeoutCtx, chromedp.Click(xpath, chromedp.BySearch)); err != nil {
-		return nil, fmt.Errorf("click failed for %s: %w", ref, err)
-	}
+		xpath, xErr := getXPathFromRef(timeoutCtx, session, ref)
+		if xErr != nil {
+			return nil, xErr
+		}
 
-	time.Sleep(500 * time.Millisecond)
+		if cErr := chromedp.Run(timeoutCtx, chromedp.Click(xpath, chromedp.BySearch)); cErr != nil {
+			return nil, fmt.Errorf("click failed for %s: %w", ref, cErr)
+		}
 
-	snapshot, snapErr := generateSnapshot(session.ctx, false, session.refMapper)
-	if snapErr != nil {
-		snapshot = fmt.Sprintf("(snapshot unavailable: %v)", snapErr)
+		time.Sleep(500 * time.Millisecond)
+
+		snap, snapErr := generateSnapshot(session.ctx, false, session.refMapper)
+		if snapErr != nil {
+			snapshot = fmt.Sprintf("(snapshot unavailable: %v)", snapErr)
+		} else {
+			snapshot = snap
+		}
 	}
 
 	session.mu.Lock()
@@ -74,38 +88,54 @@ func handleType(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 		return nil, err
 	}
 
-	if session.backendType == BackendCamofox {
-		resultMsg, err := session.camofoxClient.Type(session.sessionID, ref, input.Text)
-		if err != nil {
-			return nil, fmt.Errorf("camofox type failed: %w", err)
+	var resultMsg string
+
+	switch session.backendType {
+	case BackendCamofox:
+		rMsg, cfErr := session.camofoxClient.Type(session.sessionID, ref, input.Text)
+		if cfErr != nil {
+			return nil, fmt.Errorf("camofox type failed: %w", cfErr)
 		}
 		session.mu.Lock()
 		session.lastActivity = time.Now()
 		session.mu.Unlock()
-		return result(resultMsg, nil)
-	}
+		return result(rMsg, nil)
 
-	// chromedp-based backends.
-	timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-	defer cancel()
+	case BackendEgoLite:
+		typeResult, typeErr := session.egoLiteManager.Send(ctx, "typeText", map[string]any{
+			"ref": ref, "text": input.Text,
+		})
+		if typeErr != nil {
+			return nil, fmt.Errorf("egolite type: %w", typeErr)
+		}
+		rv, _ := typeResult.(string)
+		resultMsg = rv
 
-	xpath, err := getXPathFromRef(timeoutCtx, session, ref)
-	if err != nil {
-		return nil, err
-	}
+	default:
+		// chromedp-based backends.
+		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
+		defer cancel()
 
-	if err := chromedp.Run(timeoutCtx,
-		chromedp.Clear(xpath, chromedp.BySearch),
-		chromedp.SendKeys(xpath, input.Text, chromedp.BySearch),
-	); err != nil {
-		return nil, fmt.Errorf("type failed for %s: %w", ref, err)
+		xpath, xErr := getXPathFromRef(timeoutCtx, session, ref)
+		if xErr != nil {
+			return nil, xErr
+		}
+
+		if cErr := chromedp.Run(timeoutCtx,
+			chromedp.Clear(xpath, chromedp.BySearch),
+			chromedp.SendKeys(xpath, input.Text, chromedp.BySearch),
+		); cErr != nil {
+			return nil, fmt.Errorf("type failed for %s: %w", ref, cErr)
+		}
+
+		resultMsg = fmt.Sprintf("Typed \"%s\" into %s", input.Text, ref)
 	}
 
 	session.mu.Lock()
 	session.lastActivity = time.Now()
 	session.mu.Unlock()
 
-	return result(fmt.Sprintf("Typed \"%s\" into %s", input.Text, ref), nil)
+	return result(resultMsg, nil)
 }
 
 // handleScroll scrolls the page up or down.
@@ -119,34 +149,52 @@ func handleScroll(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 		return nil, err
 	}
 
-	if session.backendType == BackendCamofox {
-		snapshot, err := session.camofoxClient.Scroll(session.sessionID, input.Direction)
-		if err != nil {
-			return nil, fmt.Errorf("camofox scroll failed: %w", err)
+	var snapshot string
+
+	switch session.backendType {
+	case BackendCamofox:
+		snap, cfErr := session.camofoxClient.Scroll(session.sessionID, input.Direction)
+		if cfErr != nil {
+			return nil, fmt.Errorf("camofox scroll failed: %w", cfErr)
 		}
 		session.mu.Lock()
 		session.lastActivity = time.Now()
 		session.mu.Unlock()
-		return result(fmt.Sprintf("Scrolled %s\n\n%s", input.Direction, snapshot), nil)
-	}
+		return result(fmt.Sprintf("Scrolled %s\n\n%s", input.Direction, snap), nil)
 
-	// chromedp-based backends.
-	script := "window.scrollBy(0, 500);"
-	if input.Direction == "up" {
-		script = "window.scrollBy(0, -500);"
-	}
+	case BackendEgoLite:
+		dy := any(500)
+		if input.Direction == "up" {
+			dy = -500
+		}
+		scrollResult, scrollErr := session.egoLiteManager.Send(ctx, "scroll", map[string]any{"dy": dy})
+		if scrollErr != nil {
+			return nil, fmt.Errorf("egolite scroll: %w", scrollErr)
+		}
+		sv, _ := scrollResult.(string)
+		snapshot = sv
 
-	timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-	defer cancel()
+	default:
+		// chromedp-based backends.
+		script := "window.scrollBy(0, 500);"
+		if input.Direction == "up" {
+			script = "window.scrollBy(0, -500);"
+		}
 
-	var res any
-	if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(script, &res)); err != nil {
-		return nil, fmt.Errorf("scroll failed: %w", err)
-	}
+		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
+		defer cancel()
 
-	snapshot, snapErr := generateSnapshot(timeoutCtx, false, session.refMapper)
-	if snapErr != nil {
-		snapshot = fmt.Sprintf("(snapshot unavailable: %v)", snapErr)
+		var res any
+		if cErr := chromedp.Run(timeoutCtx, chromedp.Evaluate(script, &res)); cErr != nil {
+			return nil, fmt.Errorf("scroll failed: %w", cErr)
+		}
+
+		snap, snapErr := generateSnapshot(timeoutCtx, false, session.refMapper)
+		if snapErr != nil {
+			snapshot = fmt.Sprintf("(snapshot unavailable: %v)", snapErr)
+		} else {
+			snapshot = snap
+		}
 	}
 
 	session.mu.Lock()
@@ -167,30 +215,44 @@ func handlePress(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 		return nil, err
 	}
 
-	if session.backendType == BackendCamofox {
-		resultMsg, err := session.camofoxClient.Press(session.sessionID, input.Key)
-		if err != nil {
-			return nil, fmt.Errorf("camofox key press failed: %w", err)
+	var resultMsg string
+
+	switch session.backendType {
+	case BackendCamofox:
+		rMsg, cfErr := session.camofoxClient.Press(session.sessionID, input.Key)
+		if cfErr != nil {
+			return nil, fmt.Errorf("camofox key press failed: %w", cfErr)
 		}
 		session.mu.Lock()
 		session.lastActivity = time.Now()
 		session.mu.Unlock()
-		return result(resultMsg, nil)
-	}
+		return result(rMsg, nil)
 
-	// chromedp-based backends.
-	timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-	defer cancel()
+	case BackendEgoLite:
+		pressResult, pressErr := session.egoLiteManager.Send(ctx, "pressKey", map[string]any{"key": input.Key})
+		if pressErr != nil {
+			return nil, fmt.Errorf("egolite press: %w", pressErr)
+		}
+		rv, _ := pressResult.(string)
+		resultMsg = rv
 
-	if err := chromedp.Run(timeoutCtx, chromedp.KeyEvent(input.Key)); err != nil {
-		return nil, fmt.Errorf("key press failed: %w", err)
+	default:
+		// chromedp-based backends.
+		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
+		defer cancel()
+
+		if cErr := chromedp.Run(timeoutCtx, chromedp.KeyEvent(input.Key)); cErr != nil {
+			return nil, fmt.Errorf("key press failed: %w", cErr)
+		}
+
+		resultMsg = fmt.Sprintf("Pressed key: %s", input.Key)
 	}
 
 	session.mu.Lock()
 	session.lastActivity = time.Now()
 	session.mu.Unlock()
 
-	return result(fmt.Sprintf("Pressed key: %s", input.Key), nil)
+	return result(resultMsg, nil)
 }
 
 // handleDialog handles a pending JavaScript dialog (alert/confirm/prompt).
