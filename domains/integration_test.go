@@ -265,10 +265,10 @@ func TestSessionContinuityViaCheckpoint(t *testing.T) {
 // ──────────────────────────────────────────────
 
 func TestGuardrailDisclaimerInjection(t *testing.T) {
-	// 测试 AssistantAgentConfig（保留 LevelStandard）的护栏行为。
+	// 测试 LevelStandard 护栏的风险关键词→免责声明注入行为。
 	// UnifiedAgentConfig 使用 LevelLight（不注入免责声明），
-	// 但 AssistantAgentConfig 保留原有 LevelStandard 行为。
-	base := agentcore.Config{
+	// 此处直接内联 LevelStandard 护栏配置。
+	cfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Name:     "guardrail-test",
 			Model:    "stub",
@@ -277,9 +277,13 @@ func TestGuardrailDisclaimerInjection(t *testing.T) {
 		ExecutionConfig: agentcore.ExecutionConfig{
 			MaxTurns: 3,
 		},
+		Lifecycle: agentcore.LifecycleChain{
+			agentcore.NewIFaceLifecycleHook(guardrails.New(
+				guardrails.WithLevel(guardrails.LevelStandard),
+				guardrails.WithDisclaimer(guardrails.DisclaimerAssistant),
+			)),
+		},
 	}
-
-	cfg := AssistantAgentConfig(base)
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 

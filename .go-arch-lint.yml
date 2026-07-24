@@ -68,8 +68,6 @@ components:
     in: ./agui/**
   mcp:
     in: ./mcp/**
-  workflow:
-    in: ./workflow/**
   workflows:
     in: ./workflows/**
   session:
@@ -80,8 +78,6 @@ components:
     in: ./skill/**
   fuzzy:
     in: ./fuzzy/**
-  filequeue:
-    in: ./filequeue/**
   pluginsys:
     in: ./pluginsys/**
   prompt:
@@ -96,8 +92,6 @@ components:
     in: ./cmd/**
   pkg:
     in: ./pkg/**
-  protocol:
-    in: ./protocol/**
   scripts:
     in: ./scripts/**
 
@@ -125,13 +119,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -139,7 +131,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
 
   # graph 不得导入 agentcore, domains, server
@@ -172,13 +163,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -186,7 +175,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
 
   # tui/chat 不得导入 agentcore
@@ -219,13 +207,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -233,7 +219,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
 
   # knowledge 不得导入 server, domains, tui
@@ -257,13 +242,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -271,7 +254,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
 
   # memory 不得导入 server, tui
@@ -296,13 +278,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -310,7 +290,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
 
   # retrieval 不得导入 server, domains, tui
@@ -334,13 +313,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -348,7 +325,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
 
   # server 不得导入 tui, tools
@@ -373,13 +349,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -387,7 +361,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
 
   # provider 不得导入 domains, server, tui
@@ -411,13 +384,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -425,7 +396,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
 
   # disclosure 不得导入 server, domains, tui
@@ -449,13 +419,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -463,7 +431,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
 
   # tools 子模块不得导入 domains, server
@@ -487,13 +454,11 @@ deps:
       - acp
       - agui
       - mcp
-      - workflow
       - workflows
       - session
       - store
       - skill
       - fuzzy
-      - filequeue
       - pluginsys
       - prompt
       - benchmark
@@ -501,7 +466,6 @@ deps:
       - example
       - cmd
       - pkg
-      - protocol
       - scripts
       - domains
       - tui_core
@@ -535,8 +499,6 @@ deps:
     anyProjectDeps: true
   mcp:
     anyProjectDeps: true
-  workflow:
-    anyProjectDeps: true
   workflows:
     anyProjectDeps: true
   session:
@@ -546,8 +508,6 @@ deps:
   skill:
     anyProjectDeps: true
   fuzzy:
-    anyProjectDeps: true
-  filequeue:
     anyProjectDeps: true
   pluginsys:
     anyProjectDeps: true
@@ -562,8 +522,6 @@ deps:
   cmd:
     anyProjectDeps: true
   pkg:
-    anyProjectDeps: true
-  protocol:
     anyProjectDeps: true
   scripts:
     anyProjectDeps: true

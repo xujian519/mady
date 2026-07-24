@@ -174,7 +174,7 @@ func TestGuardrailE2E_MixedLevels(t *testing.T) {
 	chatProvider := &guardrailTestProvider{
 		outputs: []string{"你好！今天天气不错。"},
 	}
-	chatCfg := domains.ChatAgentConfig(agentcore.Config{
+	chatCfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Name:     "chat-test",
 			Model:    "stub",
@@ -183,7 +183,12 @@ func TestGuardrailE2E_MixedLevels(t *testing.T) {
 		ExecutionConfig: agentcore.ExecutionConfig{
 			MaxTurns: 3,
 		},
-	})
+		Lifecycle: agentcore.LifecycleChain{
+			agentcore.NewIFaceLifecycleHook(guardrails.New(
+				guardrails.WithLevel(guardrails.LevelLight),
+			)),
+		},
+	}
 	chatAgent := agentcore.New(chatCfg)
 	defer chatAgent.Close()
 
@@ -202,7 +207,7 @@ func TestGuardrailE2E_MixedLevels(t *testing.T) {
 	asstProvider := &guardrailTestProvider{
 		outputs: []string{"代码审查完成，发现潜在问题，建议修正后自动提交。"},
 	}
-	asstCfg := domains.AssistantAgentConfig(agentcore.Config{
+	asstCfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Name:     "asst-test",
 			Model:    "stub",
@@ -211,7 +216,13 @@ func TestGuardrailE2E_MixedLevels(t *testing.T) {
 		ExecutionConfig: agentcore.ExecutionConfig{
 			MaxTurns: 3,
 		},
-	})
+		Lifecycle: agentcore.LifecycleChain{
+			agentcore.NewIFaceLifecycleHook(guardrails.New(
+				guardrails.WithLevel(guardrails.LevelStandard),
+				guardrails.WithDisclaimer(guardrails.DisclaimerAssistant),
+			)),
+		},
+	}
 	asstAgent := agentcore.New(asstCfg)
 	defer asstAgent.Close()
 
