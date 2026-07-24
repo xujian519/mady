@@ -2,7 +2,6 @@ package tasklist
 
 import (
 	"context"
-	"sync"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -25,7 +24,6 @@ const ExtensionName = "tasklist"
 type Extension struct {
 	store Store
 	agent *agentcore.Agent
-	mu    sync.Mutex
 }
 
 var (
@@ -63,12 +61,13 @@ func (e *Extension) Init(_ context.Context, agent *agentcore.Agent) error {
 func (e *Extension) Dispose() error { return nil }
 
 // Tools 实现 agentcore.ToolProvider，返回 4 个任务管理工具。
+// 原子性由 Store.UpdateFunc 保证，无需 Extension 层额外加锁。
 func (e *Extension) Tools() []*agentcore.Tool {
 	return []*agentcore.Tool{
-		newCreateTool(e.store, &e.mu, e.agent),
-		newGetTool(e.store, &e.mu),
-		newUpdateTool(e.store, &e.mu, e.agent),
-		newListTool(e.store, &e.mu),
+		newCreateTool(e.store, e.agent),
+		newGetTool(e.store),
+		newUpdateTool(e.store, e.agent),
+		newListTool(e.store),
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -16,11 +15,10 @@ const TaskListToolName = "task_list"
 // taskListTool 列出所有任务。
 type taskListTool struct {
 	store Store
-	mu    *sync.Mutex
 }
 
-func newListTool(store Store, mu *sync.Mutex) *agentcore.Tool {
-	t := &taskListTool{store: store, mu: mu}
+func newListTool(store Store) *agentcore.Tool {
+	t := &taskListTool{store: store}
 	return &agentcore.Tool{
 		Name:        TaskListToolName,
 		Description: taskListDesc,
@@ -49,9 +47,6 @@ func (t *taskListTool) Run(ctx context.Context, args json.RawMessage) (any, erro
 	var p taskListArgs
 	// 参数可为空对象，忽略解析错误
 	_ = json.Unmarshal(args, &p)
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	tasks, err := t.store.List(ctx, p.IncludeArchived)
 	if err != nil {

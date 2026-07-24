@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -16,11 +15,10 @@ const TaskGetToolName = "task_get"
 // taskGetTool 查询单个任务详情。
 type taskGetTool struct {
 	store Store
-	mu    *sync.Mutex
 }
 
-func newGetTool(store Store, mu *sync.Mutex) *agentcore.Tool {
-	t := &taskGetTool{store: store, mu: mu}
+func newGetTool(store Store) *agentcore.Tool {
+	t := &taskGetTool{store: store}
 	return &agentcore.Tool{
 		Name:        TaskGetToolName,
 		Description: taskGetDesc,
@@ -53,9 +51,6 @@ func (t *taskGetTool) Run(ctx context.Context, args json.RawMessage) (any, error
 	if !isValidTaskID(p.TaskID) {
 		return nil, fmt.Errorf("无效的任务 ID %q（应为纯数字）", p.TaskID)
 	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	task, err := t.store.Get(ctx, p.TaskID)
 	if err != nil {

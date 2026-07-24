@@ -182,9 +182,7 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 				return
 			}
 			handler(chat.TaskUpdatedChatEvent{
-				Task:      agentTaskToInfo(ev.Task),
-				OldStatus: ev.OldStatus,
-				NewStatus: ev.NewStatus,
+				Task: agentTaskToInfo(ev.Task),
 			})
 		})
 	}

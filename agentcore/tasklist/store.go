@@ -21,10 +21,14 @@ import (
 type Store interface {
 	// Create 将新任务写入存储。t.ID 必须已由 NextID 分配。
 	Create(ctx context.Context, t *agentcore.Task) error
-	// Get 按 ID 读取单个任务。不存在时返回错误。
+	// Get 按 ID 读取单个任务（返回 Clone）。不存在时返回错误。
 	Get(ctx context.Context, id string) (*agentcore.Task, error)
 	// Update 覆盖写入已有任务。
 	Update(ctx context.Context, t *agentcore.Task) error
+	// UpdateFunc 在 Store 锁保护下原子地读取—修改—写回单个任务。
+	// mutate 收到任务的可变引用；返回 error 时放弃写入并返回该 error。
+	// 任务不存在时返回错误。这是工具层 read-modify-write 的唯一原子原语。
+	UpdateFunc(ctx context.Context, id string, mutate func(*agentcore.Task) error) (*agentcore.Task, error)
 	// List 返回所有非归档任务，按优先级降序 + ID 升序排列。
 	// includeArchived 为 true 时也返回归档任务。
 	List(ctx context.Context, includeArchived bool) ([]*agentcore.Task, error)
@@ -35,12 +39,10 @@ type Store interface {
 }
 
 // MemoryStore 是基于内存的 Store 实现，用于测试和单进程场景。
-// 设置 MaxTasks 限制最大任务数（0 表示无限），超出时最旧任务自动归档。
 type MemoryStore struct {
-	mu       sync.Mutex
-	tasks    map[string]*agentcore.Task
-	nextID   atomic.Int64
-	MaxTasks int
+	mu     sync.Mutex
+	tasks  map[string]*agentcore.Task
+	nextID atomic.Int64
 }
 
 // NewMemoryStore 创建一个空的内存存储。
@@ -79,6 +81,22 @@ func (m *MemoryStore) Update(_ context.Context, t *agentcore.Task) error {
 	}
 	m.tasks[t.ID] = t.Clone()
 	return nil
+}
+
+func (m *MemoryStore) UpdateFunc(_ context.Context, id string, mutate func(*agentcore.Task) error) (*agentcore.Task, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	t, ok := m.tasks[id]
+	if !ok {
+		return nil, fmt.Errorf("tasklist: task #%s not found", id)
+	}
+	// Work on a clone so mutate failure doesn't corrupt the stored copy.
+	working := t.Clone()
+	if err := mutate(working); err != nil {
+		return nil, err
+	}
+	m.tasks[id] = working
+	return working.Clone(), nil
 }
 
 func (m *MemoryStore) List(_ context.Context, includeArchived bool) ([]*agentcore.Task, error) {

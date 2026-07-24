@@ -218,9 +218,7 @@ func (TaskCreatedChatEvent) ChatEventKind() ChatEventType { return ChatEventTask
 
 // TaskUpdatedChatEvent 在任务更新时触发。
 type TaskUpdatedChatEvent struct {
-	Task      *TaskInfo
-	OldStatus string
-	NewStatus string
+	Task *TaskInfo
 }
 
 func (TaskUpdatedChatEvent) ChatEventKind() ChatEventType { return ChatEventTaskUpdated }

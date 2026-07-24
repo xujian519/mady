@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -21,7 +20,7 @@ import (
 type FileStore struct {
 	mu      sync.Mutex
 	baseDir string
-	nextID  atomic.Int64 // 内存缓存，启动时从 .nextid 文件加载
+	nextID  int64 // 内存缓存，启动时从 .nextid 文件加载；所有访问在 mu 下
 }
 
 // NewFileStore 在 baseDir 下创建文件存储。baseDir 不存在时自动创建。
@@ -42,7 +41,7 @@ func (f *FileStore) loadNextID() {
 	// 先尝试读取 .nextid 文件
 	if data, err := os.ReadFile(f.nextIDPath()); err == nil {
 		if n, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64); err == nil && n > 0 {
-			f.nextID.Store(n)
+			f.nextID = n
 			return
 		}
 	}
@@ -62,7 +61,7 @@ func (f *FileStore) loadNextID() {
 			maxID = n
 		}
 	}
-	f.nextID.Store(maxID)
+	f.nextID = maxID
 }
 
 func (f *FileStore) nextIDPath() string        { return filepath.Join(f.baseDir, ".nextid") }
@@ -95,6 +94,23 @@ func (f *FileStore) Update(_ context.Context, t *agentcore.Task) error {
 		return fmt.Errorf("tasklist: task #%s not found", t.ID)
 	}
 	return f.writeTask(path, t)
+}
+
+func (f *FileStore) UpdateFunc(_ context.Context, id string, mutate func(*agentcore.Task) error) (*agentcore.Task, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	path := f.taskPath(id)
+	t, err := f.readTask(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := mutate(t); err != nil {
+		return nil, err
+	}
+	if err := f.writeTask(path, t); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 func (f *FileStore) List(_ context.Context, includeArchived bool) ([]*agentcore.Task, error) {
@@ -136,7 +152,8 @@ func (f *FileStore) Delete(_ context.Context, id string) error {
 func (f *FileStore) NextID(_ context.Context) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	id := f.nextID.Add(1)
+	f.nextID++
+	id := f.nextID
 	// 持久化计数器（原子写入）
 	idStr := fmt.Sprintf("%d", id)
 	tmp := f.nextIDPath() + ".tmp"
@@ -186,17 +203,3 @@ var (
 	_ Store = (*MemoryStore)(nil)
 	_ Store = (*FileStore)(nil)
 )
-
-// SortByPriorityAndID 对任务列表排序（导出，供工具层使用）。
-func SortByPriorityAndID(tasks []*agentcore.Task) {
-	sortTasks(tasks)
-}
-
-// isValidTaskID 检查 ID 是否为纯数字字符串。
-func isValidTaskID(id string) bool {
-	if id == "" {
-		return false
-	}
-	_, err := strconv.ParseInt(id, 10, 64)
-	return err == nil
-}

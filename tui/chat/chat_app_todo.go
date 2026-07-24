@@ -15,6 +15,16 @@ import (
 	"github.com/xujian519/mady/tui/component"
 )
 
+// todoPriorityRank maps priority strings to sort weights for the TUI display.
+// This mirrors agentcore.TaskPriority.Order() but stays in the TUI layer
+// to avoid importing agentcore directly (TaskInfo is the boundary type).
+var todoPriorityRank = map[string]int{
+	"urgent": 4,
+	"high":   3,
+	"normal": 2,
+	"low":    1,
+}
+
 // onTaskCreated handles a TaskCreatedChatEvent by adding the task to the
 // local cache and refreshing the TodoPanel.
 func (a *ChatApp) onTaskCreated(e ChatEvent) {
@@ -57,7 +67,8 @@ func (a *ChatApp) collectTodoItems() []component.TodoItem {
 
 	// Sort by priority DESC (urgent first), then ID ASC.
 	sort.Slice(items, func(i, j int) bool {
-		if pi, pj := priorityOrder(items[i].Priority), priorityOrder(items[j].Priority); pi != pj {
+		pi, pj := todoPriorityRank[items[i].Priority], todoPriorityRank[items[j].Priority]
+		if pi != pj {
 			return pi > pj
 		}
 		return items[i].ID < items[j].ID
@@ -72,22 +83,6 @@ func taskToTodoItem(t *TaskInfo) component.TodoItem {
 		Content:  t.Subject,
 		Status:   string(t.Status),
 		Priority: string(t.Priority),
-	}
-}
-
-// priorityOrder returns a numeric ordering for priority strings.
-func priorityOrder(p string) int {
-	switch p {
-	case "urgent":
-		return 4
-	case "high":
-		return 3
-	case "normal":
-		return 2
-	case "low":
-		return 1
-	default:
-		return 0
 	}
 }
 

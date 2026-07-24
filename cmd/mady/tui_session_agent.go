@@ -161,6 +161,7 @@ func (s *tuiSession) initializeAgentAsync() {
 			prev.Close()
 		}
 		agentadapter.BindAgent(s.app, newAgent)
+		newAgent.EmitExtensionSnapshots()
 		// 通知 FSM: 初始化完成，StateInitializing → StateIdle。
 		s.app.MarkAgentReady()
 	}()
@@ -195,6 +196,7 @@ func (s *tuiSession) rebuildAgent() {
 		prev.Close()
 	}
 	agentadapter.BindAgent(s.app, newAgent)
+	newAgent.EmitExtensionSnapshots()
 }
 
 // submitInput sends user input to the current agent asynchronously.

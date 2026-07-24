@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
@@ -16,12 +15,11 @@ const TaskCreateToolName = "task_create"
 // taskCreateTool 创建新的待办任务。
 type taskCreateTool struct {
 	store Store
-	mu    *sync.Mutex
 	agent *agentcore.Agent
 }
 
-func newCreateTool(store Store, mu *sync.Mutex, agent *agentcore.Agent) *agentcore.Tool {
-	t := &taskCreateTool{store: store, mu: mu, agent: agent}
+func newCreateTool(store Store, agent *agentcore.Agent) *agentcore.Tool {
+	t := &taskCreateTool{store: store, agent: agent}
 	return &agentcore.Tool{
 		Name:        TaskCreateToolName,
 		Description: taskCreateDesc,
@@ -72,9 +70,6 @@ func (t *taskCreateTool) Run(ctx context.Context, args json.RawMessage) (any, er
 	if p.Desc == "" {
 		return nil, fmt.Errorf("缺少必填字段 'description'")
 	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	id, err := t.store.NextID(ctx)
 	if err != nil {

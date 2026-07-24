@@ -248,3 +248,38 @@ func TestPriorityOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestFileStore_UpdateFunc(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := NewFileStore(dir)
+	ctx := context.Background()
+	store.Create(ctx, &agentcore.Task{ID: "1", Subject: "Original", Status: agentcore.TaskPending})
+
+	result, err := store.UpdateFunc(ctx, "1", func(task *agentcore.Task) error {
+		task.Subject = "Updated"
+		task.Status = agentcore.TaskCompleted
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("UpdateFunc failed: %v", err)
+	}
+	if result.Subject != "Updated" {
+		t.Errorf("result subject = %q", result.Subject)
+	}
+
+	got, _ := store.Get(ctx, "1")
+	if got.Subject != "Updated" || got.Status != agentcore.TaskCompleted {
+		t.Errorf("stored = %+v", got)
+	}
+}
+
+func TestFileStore_UpdateFunc_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := NewFileStore(dir)
+	_, err := store.UpdateFunc(context.Background(), "999", func(task *agentcore.Task) error {
+		return nil
+	})
+	if err == nil {
+		t.Fatal("expected error for non-existent task")
+	}
+}

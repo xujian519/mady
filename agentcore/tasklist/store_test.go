@@ -2,6 +2,7 @@ package tasklist
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
@@ -198,5 +199,60 @@ func TestMemoryStore_CreateEmptyID(t *testing.T) {
 	task := &agentcore.Task{ID: "", Subject: "No ID"}
 	if err := s.Create(context.Background(), task); err == nil {
 		t.Fatal("expected error for empty ID")
+	}
+}
+
+func TestMemoryStore_UpdateFunc_Basic(t *testing.T) {
+	s := NewMemoryStore()
+	ctx := context.Background()
+	s.Create(ctx, &agentcore.Task{ID: "1", Subject: "Original", Status: agentcore.TaskPending})
+
+	result, err := s.UpdateFunc(ctx, "1", func(task *agentcore.Task) error {
+		task.Subject = "Mutated"
+		task.Status = agentcore.TaskInProgress
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("UpdateFunc failed: %v", err)
+	}
+	if result.Subject != "Mutated" {
+		t.Errorf("result subject = %q", result.Subject)
+	}
+
+	got, _ := s.Get(ctx, "1")
+	if got.Subject != "Mutated" {
+		t.Errorf("stored subject = %q, want Mutated", got.Subject)
+	}
+	if got.Status != agentcore.TaskInProgress {
+		t.Errorf("stored status = %q", got.Status)
+	}
+}
+
+func TestMemoryStore_UpdateFunc_NotFound(t *testing.T) {
+	s := NewMemoryStore()
+	_, err := s.UpdateFunc(context.Background(), "999", func(task *agentcore.Task) error {
+		return nil
+	})
+	if err == nil {
+		t.Fatal("expected error for non-existent task")
+	}
+}
+
+func TestMemoryStore_UpdateFunc_MutationError_AbortsWrite(t *testing.T) {
+	s := NewMemoryStore()
+	ctx := context.Background()
+	s.Create(ctx, &agentcore.Task{ID: "1", Subject: "Original", Status: agentcore.TaskPending})
+
+	_, err := s.UpdateFunc(ctx, "1", func(task *agentcore.Task) error {
+		task.Subject = "Should not persist"
+		return fmt.Errorf("deliberate failure")
+	})
+	if err == nil {
+		t.Fatal("expected mutation error to propagate")
+	}
+
+	got, _ := s.Get(ctx, "1")
+	if got.Subject != "Original" {
+		t.Error("mutate error should not persist changes")
 	}
 }

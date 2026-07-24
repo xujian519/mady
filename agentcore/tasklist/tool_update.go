@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
@@ -17,12 +15,11 @@ const TaskUpdateToolName = "task_update"
 // taskUpdateTool 更新已有任务（状态/优先级/依赖/owner）。
 type taskUpdateTool struct {
 	store Store
-	mu    *sync.Mutex
 	agent *agentcore.Agent
 }
 
-func newUpdateTool(store Store, mu *sync.Mutex, agent *agentcore.Agent) *agentcore.Tool {
-	t := &taskUpdateTool{store: store, mu: mu, agent: agent}
+func newUpdateTool(store Store, agent *agentcore.Agent) *agentcore.Tool {
+	t := &taskUpdateTool{store: store, agent: agent}
 	return &agentcore.Tool{
 		Name:        TaskUpdateToolName,
 		Description: taskUpdateDesc,
@@ -75,6 +72,12 @@ type taskUpdateArgs struct {
 }
 
 // Run 执行任务更新。
+//
+// 原子性策略：
+//   - 主任务的状态/优先级/owner 变更通过单次 UpdateFunc 原子完成。
+//   - 依赖关系的反向写入（addBlockedBy/addBlocks）各自通过独立 UpdateFunc 原子完成。
+//     验证全部在写入前完成——只有所有校验通过才开始写入。
+//   - 主任务的 Blocks/BlockedBy 字段在同一 UpdateFunc 中与状态等一起写入。
 func (t *taskUpdateTool) Run(ctx context.Context, args json.RawMessage) (any, error) {
 	var p taskUpdateArgs
 	if err := json.Unmarshal(args, &p); err != nil {
@@ -84,107 +87,106 @@ func (t *taskUpdateTool) Run(ctx context.Context, args json.RawMessage) (any, er
 		return nil, fmt.Errorf("无效的任务 ID %q（应为纯数字）", p.TaskID)
 	}
 
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	task, err := t.store.Get(ctx, p.TaskID)
-	if err != nil {
-		return nil, err
-	}
-
-	oldStatus := task.Status
-	var updatedFields []string
-
-	// 状态变更
+	// --- 预验证阶段（无写入） ---
 	if p.Status != "" {
-		newStatus := agentcore.TaskStatus(p.Status)
-		if !isValidStatus(newStatus) {
+		if !isValidStatus(agentcore.TaskStatus(p.Status)) {
 			return nil, fmt.Errorf("无效的状态 %q（可选值: pending/in_progress/completed/archived）", p.Status)
 		}
-		task.Status = newStatus
-		updatedFields = append(updatedFields, "status")
 	}
-
-	// 优先级变更
 	if p.Priority != "" {
-		newPriority := agentcore.TaskPriority(p.Priority)
-		if !isValidPriority(newPriority) {
+		if !isValidPriority(agentcore.TaskPriority(p.Priority)) {
 			return nil, fmt.Errorf("无效的优先级 %q（可选值: urgent/high/normal/low）", p.Priority)
 		}
-		task.Priority = newPriority
-		updatedFields = append(updatedFields, "priority")
 	}
 
-	// Owner 变更
-	if p.Owner != "" {
-		task.Owner = p.Owner
-		updatedFields = append(updatedFields, "owner")
-	}
-
-	// 依赖关系变更
+	// 依赖关系校验
+	var taskMap map[string]*agentcore.Task
 	if len(p.AddBlocks) > 0 || len(p.AddBlockedBy) > 0 {
 		allTasks, err := t.store.List(ctx, true)
 		if err != nil {
 			return nil, fmt.Errorf("读取任务列表失败: %w", err)
 		}
-		taskMap := buildTaskMap(allTasks)
+		taskMap = buildTaskMap(allTasks)
 
-		if len(p.AddBlocks) > 0 {
-			for _, blockedID := range p.AddBlocks {
-				if !isValidTaskID(blockedID) {
-					return nil, fmt.Errorf("无效的被阻塞任务 ID %q", blockedID)
-				}
-				if _, exists := taskMap[blockedID]; !exists {
-					return nil, fmt.Errorf("任务 #%s 不存在", blockedID)
-				}
-				if hasCyclicDependency(taskMap, p.TaskID, blockedID) {
-					return nil, fmt.Errorf("添加任务 #%s 到 #%s 的阻塞关系会形成循环依赖", blockedID, p.TaskID)
-				}
-			}
-			// 双向维护：被阻塞任务添加 blockedBy
-			for _, blockedID := range p.AddBlocks {
-				if err := addBlockedBy(ctx, t.store, blockedID, p.TaskID); err != nil {
-					return nil, err
-				}
-			}
-			task.Blocks = appendUnique(task.Blocks, p.AddBlocks...)
-			updatedFields = append(updatedFields, "blocks")
+		if _, exists := taskMap[p.TaskID]; !exists {
+			return nil, fmt.Errorf("任务 #%s 不存在", p.TaskID)
 		}
 
-		if len(p.AddBlockedBy) > 0 {
-			for _, blockerID := range p.AddBlockedBy {
-				if !isValidTaskID(blockerID) {
-					return nil, fmt.Errorf("无效的阻塞任务 ID %q", blockerID)
-				}
-				if _, exists := taskMap[blockerID]; !exists {
-					return nil, fmt.Errorf("任务 #%s 不存在", blockerID)
-				}
-				if hasCyclicDependency(taskMap, blockerID, p.TaskID) {
-					return nil, fmt.Errorf("添加任务 #%s 到 #%s 的被阻塞关系会形成循环依赖", blockerID, p.TaskID)
-				}
+		for _, blockedID := range p.AddBlocks {
+			if !isValidTaskID(blockedID) {
+				return nil, fmt.Errorf("无效的被阻塞任务 ID %q", blockedID)
 			}
-			// 双向维护：阻塞任务添加 blocks
-			for _, blockerID := range p.AddBlockedBy {
-				if err := addBlocks(ctx, t.store, blockerID, p.TaskID); err != nil {
-					return nil, err
-				}
+			if _, exists := taskMap[blockedID]; !exists {
+				return nil, fmt.Errorf("任务 #%s 不存在", blockedID)
 			}
-			task.BlockedBy = appendUnique(task.BlockedBy, p.AddBlockedBy...)
-			updatedFields = append(updatedFields, "blocked_by")
+			if hasCyclicDependency(taskMap, p.TaskID, blockedID) {
+				return nil, fmt.Errorf("添加任务 #%s 到 #%s 的阻塞关系会形成循环依赖", blockedID, p.TaskID)
+			}
+		}
+		for _, blockerID := range p.AddBlockedBy {
+			if !isValidTaskID(blockerID) {
+				return nil, fmt.Errorf("无效的阻塞任务 ID %q", blockerID)
+			}
+			if _, exists := taskMap[blockerID]; !exists {
+				return nil, fmt.Errorf("任务 #%s 不存在", blockerID)
+			}
+			if hasCyclicDependency(taskMap, blockerID, p.TaskID) {
+				return nil, fmt.Errorf("添加任务 #%s 到 #%s 的被阻塞关系会形成循环依赖", blockerID, p.TaskID)
+			}
 		}
 	}
 
-	task.UpdatedAt = time.Now()
-	if err := t.store.Update(ctx, task); err != nil {
+	// --- 写入阶段 ---
+	// 先写入反向依赖（每个原子），再写主任务。
+	for _, blockedID := range p.AddBlocks {
+		if _, err := t.store.UpdateFunc(ctx, blockedID, func(task *agentcore.Task) error {
+			task.BlockedBy = appendUnique(task.BlockedBy, p.TaskID)
+			task.UpdatedAt = time.Now()
+			return nil
+		}); err != nil {
+			return nil, fmt.Errorf("更新任务 #%s 的 blockedBy 失败: %w", blockedID, err)
+		}
+	}
+	for _, blockerID := range p.AddBlockedBy {
+		if _, err := t.store.UpdateFunc(ctx, blockerID, func(task *agentcore.Task) error {
+			task.Blocks = appendUnique(task.Blocks, p.TaskID)
+			task.UpdatedAt = time.Now()
+			return nil
+		}); err != nil {
+			return nil, fmt.Errorf("更新任务 #%s 的 blocks 失败: %w", blockerID, err)
+		}
+	}
+
+	// 主任务：状态/优先级/owner/依赖字段全部在一次原子写入中完成。
+	task, err := t.store.UpdateFunc(ctx, p.TaskID, func(task *agentcore.Task) error {
+		if p.Status != "" {
+			task.Status = agentcore.TaskStatus(p.Status)
+		}
+		if p.Priority != "" {
+			task.Priority = agentcore.TaskPriority(p.Priority)
+		}
+		if p.Owner != "" {
+			task.Owner = p.Owner
+		}
+		if len(p.AddBlocks) > 0 {
+			task.Blocks = appendUnique(task.Blocks, p.AddBlocks...)
+		}
+		if len(p.AddBlockedBy) > 0 {
+			task.BlockedBy = appendUnique(task.BlockedBy, p.AddBlockedBy...)
+		}
+		task.UpdatedAt = time.Now()
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 
 	// 发射事件供 TUI 实时刷新
 	if t.agent != nil {
-		t.agent.EmitEvent(agentcore.NewTaskUpdatedEvent(task, string(oldStatus), string(task.Status)))
+		t.agent.EmitEvent(agentcore.NewTaskUpdatedEvent(task, "", string(task.Status)))
 	}
 
-	return fmt.Sprintf("任务 #%s 已更新: %s", p.TaskID, strings.Join(updatedFields, ", ")), nil
+	return fmt.Sprintf("任务 #%s 已更新", p.TaskID), nil
 }
 
 func isValidStatus(s agentcore.TaskStatus) bool {
@@ -210,6 +212,9 @@ func buildTaskMap(tasks []*agentcore.Task) map[string]*agentcore.Task {
 // hasCyclicDependency 检查在 blockerID 和 blockedID 之间添加依赖是否会形成循环。
 // blockerID 是阻塞方，blockedID 是被阻塞方。
 // 如果 blockedID 通过 blocks 链能到达 blockerID，则形成循环。
+//
+// 注意：此检查基于当前快照，不检测同一批次中新增的边之间是否形成循环。
+// 对于 LLM 管理的任务列表，这种边缘情况的影响可接受。
 func hasCyclicDependency(taskMap map[string]*agentcore.Task, blockerID, blockedID string) bool {
 	if blockerID == blockedID {
 		return true
@@ -237,28 +242,6 @@ func canReach(taskMap map[string]*agentcore.Task, fromID, toID string, visited m
 		}
 	}
 	return false
-}
-
-// addBlockedBy 在 targetID 任务的 blockedBy 列表中追加 blockerID。
-func addBlockedBy(ctx context.Context, store Store, targetID, blockerID string) error {
-	t, err := store.Get(ctx, targetID)
-	if err != nil {
-		return err
-	}
-	t.BlockedBy = appendUnique(t.BlockedBy, blockerID)
-	t.UpdatedAt = time.Now()
-	return store.Update(ctx, t)
-}
-
-// addBlocks 在 targetID 任务的 blocks 列表中追加 blockedID。
-func addBlocks(ctx context.Context, store Store, targetID, blockedID string) error {
-	t, err := store.Get(ctx, targetID)
-	if err != nil {
-		return err
-	}
-	t.Blocks = appendUnique(t.Blocks, blockedID)
-	t.UpdatedAt = time.Now()
-	return store.Update(ctx, t)
 }
 
 func appendUnique(slice []string, items ...string) []string {

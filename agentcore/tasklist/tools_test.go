@@ -197,8 +197,8 @@ func TestTaskUpdate_StatusChange(t *testing.T) {
 		t.Fatalf("task_update failed: %v", err)
 	}
 	str := result.(string)
-	if !strings.Contains(str, "status") {
-		t.Errorf("expected status in updated fields: %q", str)
+	if !strings.Contains(str, "已更新") {
+		t.Errorf("result %q does not contain '已更新'", str)
 	}
 
 	task, _ := store.Get(ctx, "1")
