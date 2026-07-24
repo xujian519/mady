@@ -38,6 +38,16 @@ type Sizer interface {
 //
 // Update mutates component state and optionally returns a Cmd for
 // asynchronous side effects.
+//
+// IMPORTANT: Update MUST NOT perform blocking I/O (network, file read,
+// blocking channel operations). It runs on the TUI event-loop goroutine;
+// blocking it freezes the entire UI for the duration. Defer all I/O to
+// the returned Cmd, which executes asynchronously on a separate goroutine.
+// See Batch and Sequence for composing multiple Cmds.
+//
+// Update SHOULD complete in well under 1ms. When processing a large
+// ChatHistory mutation, prefer batch operations (AppendDelta over many
+// per-rune Append calls) to keep the loop responsive.
 type Updatable interface {
 	Update(msg Msg) Cmd
 }

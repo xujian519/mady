@@ -230,7 +230,12 @@ func (f *Flex) renderVertical(width int64) []string {
 			// Greedy remainder: integer division leaves a small leftover;
 			// trim one row at a time from any child still above its Min.
 			rest := over - cutTotal
-			for rest > 0 {
+			// maxIter guards against pathological edge cases where the
+			// proportional cut-rounding loop never converges (e.g. zero-Min
+			// shrinkable children that immediately re-grow via OnAllocate).
+			// 256 iterations is far more than any sane layout needs.
+			const maxIter = 256
+			for iter := 0; rest > 0 && iter < maxIter; iter++ {
 				progressed := false
 				for _, e := range entries {
 					if rest <= 0 {

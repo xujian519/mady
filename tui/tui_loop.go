@@ -14,8 +14,15 @@ import (
 func (t *TUI) eventLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			// Ensure terminal is restored before the process exits
-			t.Stop()
+			// Ensure terminal is restored before the process exits.
+			// Wrap Stop in a nested recover: if t.Stop() itself panics
+			// (extremely unlikely — termios restore should never do this),
+			// we still capture the original panic's stack trace rather than
+			// losing it to a secondary panic.
+			func() {
+				defer func() { recover() }()
+				t.Stop()
+			}()
 			panic(r) // re-panic after cleanup so the stack trace still shows
 		}
 	}()

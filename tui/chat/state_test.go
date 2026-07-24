@@ -87,6 +87,7 @@ func TestEventKindForMapsChatEvents(t *testing.T) {
 		{HandoffStartChatEvent{}, evtHandoffStart},
 		{HandoffEndChatEvent{}, evtHandoffEnd},
 		{AutoRetryChatEvent{}, evtAutoRetry},
+		{AgentInterruptChatEvent{}, evtInterrupt},
 	}
 	for _, c := range cases {
 		if got := EventKindFor(c.evt); got != c.want {
@@ -99,7 +100,7 @@ func TestEventKindForMapsChatEvents(t *testing.T) {
 // genuine no-op in every state — it must never flip Idle→Streaming the way a
 // careless evtAgentStart default would.
 func TestEventKindForUnknownIsNoOp(t *testing.T) {
-	for _, s := range []AppState{StateInitializing, StateIdle, StateStreaming, StateToolRunning, StateCompacting, StateAwaitingConfirm, StateFailed} {
+	for _, s := range []AppState{StateInitializing, StateIdle, StateStreaming, StateToolRunning, StateCompacting, StateAwaitingConfirm, StateFailed, StateInterrupted} {
 		if got := Transition(s, evtUnknown); got != s {
 			t.Errorf("evtUnknown should be a no-op in %s, got %s", s, got)
 		}
@@ -124,6 +125,7 @@ func TestAppStateString(t *testing.T) {
 		StateAwaitingConfirm: "awaiting-confirm",
 		StateCompacting:      "compacting",
 		StateFailed:          "failed",
+		StateInterrupted:     "interrupted",
 	}
 	for s, w := range want {
 		if s.String() != w {

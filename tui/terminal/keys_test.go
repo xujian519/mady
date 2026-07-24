@@ -46,6 +46,48 @@ func TestKittyCSIu(t *testing.T) {
 	}
 }
 
+func TestKittyAlternateKeyAndText(t *testing.T) {
+	// Kitty CSI u with alternate key (flag 4) and associated text (flag 16):
+	// ESC [ code ; mods ; event ; alt_key ; text u
+	//   code=97 (a), mods=2 (shift), event=1 (press), alt=65 (A), text=41 (hex for "A")
+	keys := ParseKeys("[97;2;1;65;%41u")
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 key, got %d", len(keys))
+	}
+	k := keys[0]
+	if k.Name != "a" || k.Rune != 'a' {
+		t.Fatalf("name/rune: want 'a', got %q / %c", k.Name, k.Rune)
+	}
+	if k.Mods != ModShift {
+		t.Fatalf("mods: want shift (2), got %d", k.Mods)
+	}
+	if k.Event != KeyPress {
+		t.Fatalf("event: want press (1), got %d", k.Event)
+	}
+	if k.Alt != 65 {
+		t.Fatalf("alt: want 65 (A), got %d", k.Alt)
+	}
+	if k.Text != "A" {
+		t.Fatalf(`text: want "A", got %q`, k.Text)
+	}
+}
+
+func TestKittyTextPercentDecode(t *testing.T) {
+	// Percent-encoded text: "%48%65%6c%6c%6f" = ASCII "Hello"
+	// Sequence: code=104('h'), no-mods(1), press(1), alt=0, text=%48%65%6c%6c%6f
+	keys := ParseKeys("[104;1;1;0;%48%49%21u")
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 key, got %d", len(keys))
+	}
+	k := keys[0]
+	if k.Name != "h" {
+		t.Fatalf(`name: want 'h', got %q`, k.Name)
+	}
+	if k.Text != "HI!" {
+		t.Fatalf(`text: want "HI!", got %q`, k.Text)
+	}
+}
+
 func TestParseKeysPrintable(t *testing.T) {
 	keys := ParseKeys("hi中")
 	if len(keys) != 3 {

@@ -50,6 +50,8 @@ type Key struct {
 	Rune  rune         // the character for printable keys (or 0)
 	Mods  Modifier     // modifier bitmask
 	Event KeyEventType // press / repeat / release
+	Alt   int64        // alternate key codepoint (Kitty flag 4), 0 = none
+	Text  string       // associated text (Kitty flag 16), "" = none
 	Raw   string       // the original bytes (for fallback / debugging)
 }
 
@@ -298,14 +300,53 @@ func decodeCSI(seq, params string, final byte) Key {
 }
 
 // decodeKittyU parses CSI unicode-codepoint ; mods [; event] ; ... u
+// The parameter positions depend on which Kitty keyboard flags (1/2/4/8/16)
+// were negotiated. Without flag context, the parser cannot tell whether the
+// third parameter is an event type, an alternate key, or associated text.
+// We use kittyActiveFlags() (set via SetKittyKeyboardFlagsFromTerminal) to
+// determine the layout. When flags are unknown (0), we default to the
+// simplest layout (code;mods) and treat everything else as a raw sequence.
+// Callers should ensure SetKittyKeyboardFlags is called before Start.
 func decodeKittyU(seq, params string) Key {
 	codeStr, rest := splitTwo(params, ";")
-	modStr, eventRest := splitTwo(rest, ";")
-	var evtStr string
-	if strings.Contains(eventRest, ";") {
-		evtStr, _ = splitTwo(eventRest, ";")
-	} else {
-		evtStr = eventRest
+	modStr, rest2 := splitTwo(rest, ";")
+	flags := kittyActiveFlags()
+
+	// Consume positional parameters from rest2 according to negotiated flags.
+	// Layout: code ; mods [; event] [; alt] [; text] u
+	var evtStr, altStr, textStr string
+
+	// When flags are unknown (0), default to the old greedy layout: parse
+	// up to 4 semicolon-separated fields (code;mods;event;alt;text). This
+	// preserves backward compatibility for callers that don't negotiate flags.
+	if flags == 0 {
+		flags = 1 | 2 | 4 | 16 // assume everything present
+	}
+
+	// Event type (flag 2).
+	if flags&2 != 0 {
+		if strings.Contains(rest2, ";") {
+			evtStr, rest2 = splitTwo(rest2, ";")
+		} else {
+			evtStr = rest2
+			rest2 = ""
+		}
+	}
+
+	// Alternate key codepoint (flag 4).
+	if flags&4 != 0 {
+		if strings.Contains(rest2, ";") {
+			altStr, rest2 = splitTwo(rest2, ";")
+		} else if rest2 != "" {
+			altStr = rest2
+			rest2 = ""
+		}
+	}
+
+	// Associated text (flag 16) — the remaining payload.
+	if flags&16 != 0 {
+		textStr = rest2
+		rest2 = ""
 	}
 
 	code := parseUint(codeStr)
@@ -318,7 +359,7 @@ func decodeKittyU(seq, params string) Key {
 		evt = KeyRelease
 	}
 
-	k := Key{Mods: mods, Event: evt, Raw: seq}
+	k := Key{Mods: mods, Event: evt, Alt: parseUint(altStr), Text: percentDecode(textStr), Raw: seq}
 	if code == 0 {
 		return k
 	}
@@ -474,6 +515,69 @@ func SetKittyProtocolActive(on bool) {
 
 // IsKittyProtocolActive returns the current Kitty protocol state.
 func IsKittyProtocolActive() bool { return atomic.LoadInt64(&kittyActive) == 1 }
+
+// kittyFlagsGlobal stores the currently negotiated Kitty keyboard protocol
+// flags (bitmask of 1|2|4|8|16). Used by decodeKittyU to determine which
+// positional parameters are present in CSI u sequences.
+var kittyFlagsGlobal int64
+
+// SetKittyKeyboardFlagsFromTerminal stores the negotiated Kitty keyboard flags
+// so the CSI-u parser can interpret positional parameters correctly without
+// needing to pass flags through the parse chain.
+func SetKittyKeyboardFlagsFromTerminal(flags int64) {
+	atomic.StoreInt64(&kittyFlagsGlobal, flags)
+}
+
+// kittyActiveFlags returns the currently negotiated flags. Safe to call
+// from any goroutine.
+func kittyActiveFlags() int64 { return atomic.LoadInt64(&kittyFlagsGlobal) }
+
+// percentDecode decodes a percent-encoded string from the Kitty keyboard
+// protocol's associated text field (flag 16). The text parameter contains
+// %XX sequences where XX is a two-digit hex byte value (e.g. "%48" = 'H').
+// Returns the decoded UTF-8 string, or the raw input if no % encoding is
+// present (backward compatibility with terminals that send raw text).
+func percentDecode(s string) string {
+	if s == "" {
+		return ""
+	}
+	// Fast path: no '%' means raw text, no decoding needed.
+	if !strings.Contains(s, "%") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' && i+2 < len(s) {
+			h := parseHexByte(s[i+1 : i+3])
+			if h != 0 || (s[i+1] == '0' && s[i+2] == '0') {
+				b.WriteByte(h)
+				i += 2
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+func parseHexByte(s string) byte {
+	var v byte
+	for i := 0; i < 2 && i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= '0' && c <= '9':
+			v = v*16 + (c - '0')
+		case c >= 'a' && c <= 'f':
+			v = v*16 + (c - 'a' + 10)
+		case c >= 'A' && c <= 'F':
+			v = v*16 + (c - 'A' + 10)
+		default:
+			return 0
+		}
+	}
+	return v
+}
 
 // Well-known KeyID constants for readability.
 const (

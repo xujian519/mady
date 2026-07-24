@@ -6,13 +6,19 @@ package tui
 // flag to avoid zombie messages after Stop.
 
 import (
+	"fmt"
 	"log/slog"
 	"runtime"
 	"strings"
+	"time"
 
 	core "github.com/xujian519/mady/tui/core"
 	terminal "github.com/xujian519/mady/tui/terminal"
 )
+
+// mouseThrottlePeriod is the minimum interval between MouseMotion events.
+// Matches the mouseThrottle ticker (~33ms for 30fps) and caps event throughput.
+const mouseThrottlePeriod = time.Second / 30
 
 func (t *TUI) processMsg(msg core.Msg) {
 	if msg == nil {
@@ -107,8 +113,16 @@ func (t *TUI) processMsg(msg core.Msg) {
 			t.mu.Unlock()
 		}
 		if u, ok := focused.(core.Updatable); ok {
+			start := time.Now()
 			if cmd := u.Update(msg); cmd != nil {
 				go t.execCmd(cmd)
+			}
+			if d := time.Since(start); d > 50*time.Millisecond {
+				slog.Default().Warn("slow Update in processMsg",
+					"component", fmt.Sprintf("%T", focused),
+					"msg", fmt.Sprintf("%T", msg),
+					"duration", d,
+				)
 			}
 		}
 	}
@@ -134,8 +148,16 @@ func (t *TUI) processMsg(msg core.Msg) {
 				// Non-focused children also get to run Cmds. This matches
 				// the focused-component path and avoids the footgun where a
 				// background component's Cmd is silently dropped.
+				start := time.Now()
 				if cmd := u.Update(msg); cmd != nil {
 					go t.execCmd(cmd)
+				}
+				if d := time.Since(start); d > 50*time.Millisecond {
+					slog.Default().Warn("slow Update in child component",
+						"component", fmt.Sprintf("%T", child),
+						"msg", fmt.Sprintf("%T", msg),
+						"duration", d,
+					)
 				}
 			}
 		}
@@ -249,6 +271,24 @@ func (t *TUI) onPaste(text string) {
 }
 
 func (t *TUI) onMouse(msg core.MouseMsg) {
+	// Throttle MouseMotion events: trackpad scrolling can produce 60+ events
+	// per second. We drain the throttle ticker channel and compare wall time
+	// to keep the effective rate at ~30fps. Non-motion events pass through.
+	if msg.Action == core.MouseMotion && t.mouseThrottle != nil {
+		select {
+		case <-t.mouseThrottle.C:
+			t.mouseLast = time.Now()
+		default:
+			// Ticker channel empty → events arriving faster than throttle rate.
+			// Accept if at least 16ms have passed since the last accepted event
+			// (a secondary time guard so a slow-ticking ticker doesn't starve
+			// motion entirely when the consumer is lagging).
+			if time.Since(t.mouseLast) < mouseThrottlePeriod {
+				return
+			}
+			t.mouseLast = time.Now()
+		}
+	}
 	t.SendMsg(msg)
 }
 

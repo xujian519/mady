@@ -53,6 +53,18 @@ func (t *TUI) renderFrame() {
 	for _, c := range children {
 		for _, ln := range c.Render(cols) {
 			ln = normalizeLine(ln, cols)
+			// Assert: after normalization, no line should exceed cols. A
+			// component returning over-wide content is a layout bug that
+			// would corrupt subsequent rows (wide chars/phrases spill into
+			// the next line under DECAWM-off). Log once per offending line
+			// so the buggy component author can diagnose without crashing.
+			if w := core.VisibleWidth(ln); w > cols {
+				slog.Default().Debug("component returned over-width line",
+					"component", fmt.Sprintf("%T", c),
+					"width", cols,
+					"got", w,
+				)
+			}
 			rawLines = append(rawLines, ln)
 			// Fast path: if the raw string is byte-identical to the previous
 			// frame at the same position, reuse the parsed Row.

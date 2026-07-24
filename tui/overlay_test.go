@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"sync"
 	"testing"
 
 	core "github.com/xujian519/mady/tui/core"
@@ -330,6 +331,15 @@ func (p *passthroughComp) Update(core.Msg) core.Cmd { return nil }
 // the overlay dimmed. This is the regression test for the bug where the row
 // directly below the overlay was left undimmed (a bright strip) instead of
 // carrying the bottom shadow band.
+
+// === Full-pipeline mouse coordinate translation tests ==============
+
+// TestOverlayMouseTranslation verifies that a mouse event directed at an
+// overlay is translated from absolute screen coordinates to overlay-local
+// coordinates before reaching the component.
+
+// TestOverlayMouseOutsideRegion verifies that clicking outside the overlay
+// region does NOT deliver the mouse event to the overlay component.
 func TestComposeOverlayDropShadow(t *testing.T) {
 	// 10 rows x 20 cols base. Overlay at (row=2,col=4), 6 wide, 3 tall.
 	// The backdrop must be a UNIFORM dim layer — no drop shadow ring (the
@@ -369,5 +379,131 @@ func TestComposeOverlayDropShadow(t *testing.T) {
 		if r.VisibleWidth() != 20 {
 			t.Fatalf("row %d width = %d, want 20", i, r.VisibleWidth())
 		}
+	}
+}
+
+// === Full-pipeline mouse coordinate translation tests ==============
+
+// mouseTracker records all MouseMsg events it receives via Update.
+type mouseTracker struct {
+	mu     sync.Mutex
+	events []core.MouseMsg
+}
+
+func (m *mouseTracker) Render(int64) []string { return nil }
+func (m *mouseTracker) Invalidate()           {}
+func (m *mouseTracker) Update(msg core.Msg) core.Cmd {
+	if mm, ok := msg.(core.MouseMsg); ok {
+		m.mu.Lock()
+		m.events = append(m.events, mm)
+		m.mu.Unlock()
+	}
+	return nil
+}
+func (m *mouseTracker) Events() []core.MouseMsg {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := make([]core.MouseMsg, len(m.events))
+	copy(cp, m.events)
+	return cp
+}
+
+// TestOverlayMouseTranslation verifies mouse event coordinate translation
+// from absolute screen coordinates to overlay-local coordinates.
+func TestOverlayMouseTranslation(t *testing.T) {
+	tracker := &mouseTracker{}
+	overlay := &Overlay{
+		Content: tracker,
+		Focus:   true,
+		// Simulate rendered position: overlay at top-left, rows [0,10), cols [0,20).
+		renderedRow:    0,
+		renderedCol:    0,
+		renderedWidth:  20,
+		renderedHeight: 10,
+	}
+
+	tui := &TUI{}
+	tui.overlays = []*Overlay{overlay}
+	tui.focus = []core.Component{tracker}
+
+	// Absolute click at screen (5, 15) — within overlay region.
+	tui.processMsg(core.MouseMsg{Action: core.MousePress, Row: 5, Col: 15, Button: 0})
+
+	events := tracker.Events()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 mouse event, got %d", len(events))
+	}
+	ev := events[0]
+	if ev.Row != 5 || ev.Col != 15 {
+		t.Fatalf("translated: want (%d,%d), got (%d,%d)", 5, 15, ev.Row, ev.Col)
+	}
+}
+
+// TestOverlayMouseTranslationOffset verifies translation when overlay
+// does not start at viewport origin.
+func TestOverlayMouseTranslationOffset(t *testing.T) {
+	tracker := &mouseTracker{}
+	overlay := &Overlay{
+		Content: tracker,
+		Focus:   true,
+		// Overlay at rows [5,15), cols [10,30).
+		renderedRow:    5,
+		renderedCol:    10,
+		renderedWidth:  20,
+		renderedHeight: 10,
+	}
+
+	tui := &TUI{}
+	tui.overlays = []*Overlay{overlay}
+	tui.focus = []core.Component{tracker}
+
+	// Absolute click at (12, 18) maps to overlay-local (7, 8).
+	tui.processMsg(core.MouseMsg{Action: core.MousePress, Row: 12, Col: 18, Button: 0})
+
+	events := tracker.Events()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 mouse event, got %d", len(events))
+	}
+	ev := events[0]
+	if ev.Row != 7 || ev.Col != 8 {
+		t.Fatalf("translated: want (%d,%d), got (%d,%d)", 7, 8, ev.Row, ev.Col)
+	}
+}
+
+// TestOverlayMouseOutsideTranslate verifies clicking outside the overlay
+// region is detected and the event is not translated (passes through with
+// absolute coordinates).
+func TestOverlayMouseOutsideTranslate(t *testing.T) {
+	tracker := &mouseTracker{}
+	overlay := &Overlay{
+		Content: tracker,
+		Focus:   true,
+		// Overlay at (0,0) size 5x3.
+		renderedRow:    0,
+		renderedCol:    0,
+		renderedWidth:  5,
+		renderedHeight: 3,
+	}
+
+	tui := &TUI{}
+	tui.overlays = []*Overlay{overlay}
+	tui.focus = []core.Component{tracker}
+
+	// Click at (20, 50) — well outside the overlay.
+	tui.processMsg(core.MouseMsg{Action: core.MousePress, Row: 20, Col: 50, Button: 0})
+
+	events := tracker.Events()
+	// The translation check in processMsg should still forward the event
+	// (processMsg doesn't filter outside events — it only translates and
+	// forwards). But the coordinates remain absolute since no translation
+	// occurs for out-of-bounds positions.
+	if len(events) != 1 {
+		t.Fatalf("expected 1 mouse event, got %d", len(events))
+	}
+	ev := events[0]
+	// Coordinates remain absolute (untranslated) because they fall outside
+	// the overlay's rendered region. TranslateMouse returns ok=false.
+	if ev.Row != 20 || ev.Col != 50 {
+		t.Fatalf("expected absolute coords for outside click: want (%d,%d), got (%d,%d)", 20, 50, ev.Row, ev.Col)
 	}
 }

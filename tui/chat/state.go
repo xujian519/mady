@@ -40,6 +40,7 @@ const (
 	StateAwaitingConfirm                 // approval gate blocking (review mode)
 	StateCompacting                      // context compaction running
 	StateFailed                          // agent run/init terminal error
+	StateInterrupted                     // agent paused for human review
 )
 
 // String returns a human-readable state name for diagnostics and tests.
@@ -59,6 +60,8 @@ func (s AppState) String() string {
 		return "compacting"
 	case StateFailed:
 		return "failed"
+	case StateInterrupted:
+		return "interrupted"
 	default:
 		return "idle"
 	}
@@ -84,6 +87,7 @@ const (
 	evtAgentEnd
 	evtAgentError
 	evtAutoRetry
+	evtInterrupt
 	evtApprovalRequest
 	evtApprovalDecision
 	// evtAgentReady fires when the agent finishes initializing and is ready
@@ -106,18 +110,24 @@ const (
 //	Initializing     --AgentStart-->        Streaming  (optimistic: agent starts
 //	                                           processing user input during init)
 //	Initializing     --AgentError-->        Failed
+//	Initializing     --Interrupt-->         Interrupted
 //	Idle             --AgentStart-->        Streaming
 //	Idle             --ApprovalRequest-->   AwaitingConfirm
+//	Idle             --Interrupt-->         Interrupted
 //	Streaming        --MessageDelta-->      Streaming      (steady)
 //	Streaming        --ToolStart-->         ToolRunning
 //	ToolRunning      --ToolEnd-->           Streaming      (back to text)
+//	ToolRunning      --Interrupt-->         Interrupted
 //	Streaming        --CompactionStart-->   Compacting
 //	Compacting       --CompactionEnd-->     Streaming
+//	Compacting       --Interrupt-->         Interrupted
 //	*                --ApprovalRequest-->   AwaitingConfirm
 //	AwaitingConfirm  --ApprovalDecision-->  Streaming (or Idle if no stream)
+//	AwaitingConfirm  --Interrupt-->         Interrupted
 //	Streaming        --AgentEnd/Error-->    Idle
 //	Failed           --AgentReady-->        Idle  (re-initialized)
 //	Failed           --AgentStart-->        Streaming  (retry)
+//	Failed           --Interrupt-->         Interrupted
 //
 // Events that don't change the current state are no-ops (return s unchanged).
 func Transition(s AppState, e eventKind) AppState {
@@ -132,6 +142,8 @@ func Transition(s AppState, e eventKind) AppState {
 			return StateFailed
 		case evtApprovalRequest:
 			return StateAwaitingConfirm
+		case evtInterrupt:
+			return StateInterrupted
 		}
 		return s
 
@@ -141,6 +153,9 @@ func Transition(s AppState, e eventKind) AppState {
 		}
 		if e == evtApprovalRequest {
 			return StateAwaitingConfirm
+		}
+		if e == evtInterrupt {
+			return StateInterrupted
 		}
 		return s
 
@@ -156,6 +171,8 @@ func Transition(s AppState, e eventKind) AppState {
 			return StateIdle
 		case evtMessageDelta, evtTurnEnd, evtHandoffStart, evtHandoffEnd:
 			return StateStreaming
+		case evtInterrupt:
+			return StateInterrupted
 		}
 		return s
 
@@ -169,6 +186,8 @@ func Transition(s AppState, e eventKind) AppState {
 			return StateAwaitingConfirm
 		case evtAgentEnd, evtAgentError:
 			return StateIdle
+		case evtInterrupt:
+			return StateInterrupted
 		}
 		return s
 
@@ -182,6 +201,9 @@ func Transition(s AppState, e eventKind) AppState {
 		if e == evtApprovalRequest {
 			return StateAwaitingConfirm
 		}
+		if e == evtInterrupt {
+			return StateInterrupted
+		}
 		return s
 
 	case StateAwaitingConfirm:
@@ -190,6 +212,9 @@ func Transition(s AppState, e eventKind) AppState {
 		}
 		if e == evtAgentEnd || e == evtAgentError {
 			return StateIdle
+		}
+		if e == evtInterrupt {
+			return StateInterrupted
 		}
 		return s
 
@@ -202,6 +227,21 @@ func Transition(s AppState, e eventKind) AppState {
 		}
 		if e == evtApprovalRequest {
 			return StateAwaitingConfirm
+		}
+		return s
+
+	case StateInterrupted:
+		if e == evtApprovalDecision {
+			return StateStreaming
+		}
+		if e == evtAgentEnd || e == evtAgentError {
+			return StateIdle
+		}
+		if e == evtApprovalRequest {
+			return StateAwaitingConfirm
+		}
+		if e == evtAgentStart {
+			return StateStreaming
 		}
 		return s
 	}
@@ -240,6 +280,8 @@ func EventKindFor(e ChatEvent) eventKind {
 		return evtAgentError
 	case AutoRetryChatEvent:
 		return evtAutoRetry
+	case AgentInterruptChatEvent:
+		return evtInterrupt
 	}
 	// Unknown events map to evtUnknown, for which Transition has no case —
 	// it returns the current state unchanged (a genuine no-op). Returning

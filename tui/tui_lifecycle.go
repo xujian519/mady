@@ -124,6 +124,14 @@ func (t *TUI) Stop() error {
 		t.cancel()
 	}
 
+	// Stop the mouse-throttle ticker to prevent a goroutine leak from the
+	// ticker's internal goroutine. The ticker is created in NewTUI and lives
+	// for the full TUI lifetime unconditionally (not just while mouse is
+	// enabled), so Stop is the only place to clean it up.
+	if t.mouseThrottle != nil {
+		t.mouseThrottle.Stop()
+	}
+
 	var stopErr error
 	if wasStarted {
 		t.disableMouse()

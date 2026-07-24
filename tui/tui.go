@@ -186,6 +186,13 @@ type TUI struct {
 
 	// OnDebug is invoked for ctrl+shift+d (if the terminal sends that chord).
 	OnDebug func()
+
+	// mouseThrottle guards MouseMotion events from flooding the event loop.
+	// Trackpad scrolling can produce 60+ motion events per second; we coalesce
+	// them to at most one per ~33ms (~30fps) to avoid saturating msgCh and
+	// consuming CPU on wasteful re-renders at sub-frame granularity.
+	mouseThrottle *time.Ticker
+	mouseLast     time.Time
 }
 
 // NewTUI constructs a TUI bound to term.
@@ -204,16 +211,17 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &TUI{
-		term:       term,
-		stdin:      terminal.NewStdinBuffer(),
-		options:    o,
-		km:         km,
-		firstFrame: true,
-		doneCh:     make(chan struct{}),
-		tickCh:     make(chan struct{}, 1),
-		msgCh:      make(chan core.Msg, 64),
-		ctx:        ctx,
-		cancel:     cancel,
+		term:          term,
+		stdin:         terminal.NewStdinBuffer(),
+		options:       o,
+		km:            km,
+		firstFrame:    true,
+		doneCh:        make(chan struct{}),
+		tickCh:        make(chan struct{}, 1),
+		msgCh:         make(chan core.Msg, 256),
+		mouseThrottle: time.NewTicker(mouseThrottlePeriod), // ~33ms, max 30fps mouse motion
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 }
 

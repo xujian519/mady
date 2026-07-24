@@ -125,7 +125,7 @@ func (a *ChatApp) onAgentInterrupt(e ChatEvent) {
 		return
 	}
 	a.mu.Lock()
-	a.model.state = Transition(a.model.state, evtApprovalRequest)
+	a.model.state = Transition(a.model.state, evtInterrupt)
 	a.finalizeStreamLocked()
 	a.mu.Unlock()
 	a.Idle()

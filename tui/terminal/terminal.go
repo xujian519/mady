@@ -138,7 +138,13 @@ func (t *ProcessTerminal) SetKittyKeyboardFlags(flags int64) {
 	if flags < 1 {
 		flags = 1
 	}
+	if flags&8 != 0 {
+		slog.Default().Warn("Kitty keyboard flag 8 enabled: may break CJK IME candidate-window positioning; see comment at SetKittyKeyboardFlags")
+	}
 	t.kittyFlags = flags
+	// Sync the global flags so decodeKittyU can determine which positional
+	// parameters are present in CSI u sequences.
+	SetKittyKeyboardFlagsFromTerminal(flags)
 }
 
 // Start enters raw mode, enables bracketed paste, and begins pumping input.

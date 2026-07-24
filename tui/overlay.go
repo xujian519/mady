@@ -128,8 +128,16 @@ type Overlay struct {
 	// overlay is mounted, and pop it when removed.
 	Focus bool
 
-	// DimBackground dims the underlying lines and draws a drop shadow around
-	// the overlay region (see dimBackgroundRows).
+	// DimBackground applies a uniform "frosted glass" dim effect to every
+	// cell outside the overlay rectangle. The dimming adds dimTextAttr and
+	// a dark glass background (dimBgColor) to cells, creating visual focus
+	// on the overlay content while keeping the underlying layout visible.
+	//
+	// No drop shadow is drawn: the shadow ring (a slightly darker bg on the
+	// overlay's right column and bottom band) rendered as faint rectangular
+	// "box" edges against the dim backdrop — visually indistinguishable from
+	// an artifact — so the backdrop is kept perfectly uniform (see
+	// dimBackgroundRows).
 	DimBackground bool
 
 	// Phase 4.2: stored render position for mouse coordinate translation.

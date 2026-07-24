@@ -441,6 +441,8 @@ func (l *chatLayout) updateJudgmentView() {
 		status = "compacting"
 	case StateFailed:
 		status = "failed"
+	case StateInterrupted:
+		status = "interrupted"
 	case StateIdle:
 		// Fallback: the old heuristic detected "between-phases" activity via
 		// Running+ActiveTools; use it for idle-only until full FSM migration.
@@ -552,6 +554,8 @@ func buildSystemStatusData(app *ChatApp, mode string) SystemStatusData {
 
 	// Derive mode reason from state.
 	switch fsmState {
+	case StateInterrupted:
+		modeReason = "等待人工复核"
 	case StateAwaitingConfirm:
 		modeReason = "等待人工复核"
 	case StateFailed:
@@ -590,8 +594,8 @@ func stateLevel(s string) string {
 		return "error"
 	case "awaiting-confirm":
 		return "warn"
-	case "initializing", "compacting":
-		return "info"
+	case "initializing", "compacting", "interrupted":
+		return "warn"
 	default:
 		return "info"
 	}
