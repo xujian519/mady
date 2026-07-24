@@ -6,6 +6,8 @@ package main
 // 降级提示（而非仅 log.Printf 静默降级）。
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,25 +32,62 @@ type StorageProbeResult struct {
 	UserMessage string
 }
 
+// resolveBaseSessionDir returns the unpartitioned session root directory and
+// whether the caller explicitly requested it via SESSION_DIR.
+// Priority: $SESSION_DIR > $MADY_HOME/sessions > util.ResolveDataDir("sessions").
+func resolveBaseSessionDir(envDir, madyHome string) (string, bool, error) {
+	if envDir != "" {
+		return envDir, true, nil
+	}
+	if madyHome != "" {
+		return filepath.Join(madyHome, "sessions"), false, nil
+	}
+	dir, err := util.ResolveDataDir("sessions")
+	if err != nil {
+		return "", false, err
+	}
+	return dir, false, nil
+}
+
+// cwdPartitionName returns a short, filesystem-safe identifier for a working
+// directory. It uses the first 16 hex chars of SHA-256 so names are stable
+// across restarts and avoid special-character issues on any platform.
+func cwdPartitionName(cwd string) string {
+	sum := sha256.Sum256([]byte(cwd))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+// writeCWDMapping records the original working directory inside the partition
+// so users can identify which directory belongs to which project.
+func writeCWDMapping(sessionDir, cwd string) error {
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(sessionDir, ".cwd"), []byte(cwd+"\n"), 0o600)
+}
+
 // probeSessionDir 检测 session 持久化目录的可写性。
 // 返回探测结果，其中 ResolvedDir 为最终解析的目录路径（即使不可写也返回）。
-func probeSessionDir(envDir, madyHome, workspaceDir string) StorageProbeResult {
+//
+// 当未显式设置 SESSION_DIR 且 cwd 非空时，会话目录会按当前工作目录分区：
+//
+//	<base>/sessions/by-cwd/<cwd-hash>/
+//
+// 这样在不同项目目录启动 TUI 时，各自只能看到自己的会话历史。
+func probeSessionDir(envDir, madyHome, workspaceDir, cwd string) StorageProbeResult {
 	r := StorageProbeResult{Name: "sessions"}
 
-	sessionDir := envDir
-	if sessionDir == "" {
-		if madyHome != "" {
-			sessionDir = filepath.Join(madyHome, "sessions")
-		} else {
-			dir, err := util.ResolveDataDir("sessions")
-			if err != nil {
-				r.Unavailable = true
-				r.Message = fmt.Sprintf("resolve sessions dir: %v", err)
-				r.UserMessage = "会话持久化未启用，当前为仅内存模式"
-				return r
-			}
-			sessionDir = dir
-		}
+	baseDir, explicit, err := resolveBaseSessionDir(envDir, madyHome)
+	if err != nil {
+		r.Unavailable = true
+		r.Message = fmt.Sprintf("resolve sessions dir: %v", err)
+		r.UserMessage = "会话持久化未启用，当前为仅内存模式"
+		return r
+	}
+
+	sessionDir := baseDir
+	if !explicit && cwd != "" {
+		sessionDir = filepath.Join(baseDir, "by-cwd", cwdPartitionName(cwd))
 	}
 	r.ResolvedDir = sessionDir
 	r.Path = sessionDir
@@ -59,6 +98,11 @@ func probeSessionDir(envDir, madyHome, workspaceDir string) StorageProbeResult {
 		r.Message = fmt.Sprintf("mkdir %s: %v", sessionDir, err)
 		r.UserMessage = "会话持久化未启用，当前为仅内存模式（无法创建会话目录）"
 		return r
+	}
+
+	// 记录原始工作目录，方便用户识别项目对应的存储分区。
+	if !explicit && cwd != "" {
+		_ = writeCWDMapping(sessionDir, cwd)
 	}
 
 	// 写探针：尝试创建临时文件。

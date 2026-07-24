@@ -1,5 +1,59 @@
 # AI 变更记录
 
+## 2026-07-25: TUI 会话持久化按当前工作目录隔离
+
+### 背景
+TUI 启动时所有项目的会话历史都混在同一个 `$MADY_HOME/sessions/` 目录下。用户在“知识库”文件夹和“mady”文件夹分别启动 TUI 时，看到的会话历史完全相同，无法按项目隔离。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `cmd/mady/tui_storage.go` | **修改** | `probeSessionDir` 新增 `cwd` 参数；未显式设置 `SESSION_DIR` 时，会话目录按 CWD 分区为 `<base>/sessions/by-cwd/<cwd-hash>/` |
+| `cmd/mady/tui_storage.go` | **新增函数** | `resolveBaseSessionDir`、`cwdPartitionName`、`writeCWDMapping`：支持目录分区并记录原始 CWD 到 `.cwd` 文件 |
+| `cmd/mady/tui.go` | **修改** | 启动时获取 `os.Getwd()` 传入 `probeSessionDir`；`NewAgentStore` 的 CWD 参数从 `fc.WorkspaceDir` 改为真实当前工作目录 |
+| `cmd/mady/tui_storage_test.go` | **新增测试** | `TestProbeSessionDir_PartitionsByCWD` 验证不同 CWD 进入不同分区并写入 `.cwd` 映射 |
+| `cmd/mady/tui_storage_test.go` | **新增测试** | `TestProbeSessionDir_ExplicitEnvDisablesPartition` 验证显式 `SESSION_DIR` 时不分区、不写入 `.cwd` |
+| `cmd/mady/tui_storage_test.go` | **修改** | 现有测试适配新的 `probeSessionDir` 签名 |
+
+### 设计决策
+- **显式 `SESSION_DIR` 优先**：用户手动指定全局会话目录时，保持原行为，不按 CWD 分区，避免破坏自定义部署。
+- **hash 分区而非原始路径**：使用 SHA-256 前 16 位作为目录名，避免 CWD 中的特殊字符、长度和大小写问题。
+- **`.cwd` 映射文件**：每个分区目录下保存原始工作目录路径，便于用户手动定位存储位置。
+- **向后兼容说明**：旧全局会话文件（`$MADY_HOME/sessions/*.jsonl`）不会被自动迁移；启用分区后，不同 CWD 下将开始新的会话历史。
+
+### 影响
+- 在不同项目目录启动 TUI 时，`/save`、`/branch`、自动恢复的历史仅对应当前目录的会话，不再跨项目混合。
+- `serve` 入口未使用 `probeSessionDir`，不受影响。
+
+## 2026-07-24: 修复 TUI 回复重复与 Content/ReasoningContent 事件 kind 错误
+
+### 背景
+TUI 运行 `deepseek-v4-flash` 时出现两个异常现象：
+1. Assistant 回复文本被重复打印 2~4 次；
+2. 行末出现大量 `…` 截断符。
+
+根因分析：
+- 截断符来自 `tui/chat/chat_history_render.go` 的安全截断逻辑，是**结果**而非原因；真正原因是消息文本本身因 Provider 层重复/累积 delta 被多次追加。
+- `agentcore/agent_provider.go` 中将 `delta.Content` 的 `Kind` 错误地绑定到是否存在 `BlockKindThinking` block，导致普通内容被写入 ThinkingSegments，或推理内容与普通内容混淆。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `tui/chat/chat_history.go` | **修改** | 将 `ChatMessage.lastDelta` 替换为 `deltaHistory map[string]struct{}`；新增 `applyDeltaLocked` 统一处理三种重复/累积模式：①已出现过的 delta；②delta 以当前文本开头（累积 Provider chunk）；③delta 是当前文本后缀（重发尾巴） |
+| `tui/chat/chat_history.go` | **修改** | `Finalize` 时清空 `deltaHistory` 释放流式去重状态 |
+| `tui/chat/chat_history_test.go` | **新增测试** | `TestChatHistoryAppendDeltaDeduplicatesNonConsecutiveRepeats` 验证非相邻重复 delta 被抑制 |
+| `tui/chat/chat_history_test.go` | **新增测试** | `TestChatHistoryAppendDeltaRejectsCumulativeContent` 验证累积式 Provider chunk 不会导致内容倍增 |
+| `agentcore/agent_provider.go` | **修改** | `runStreaming` 中 `delta.Content` 固定作为 `BlockKindText` 发出；`Blocks` 中的 `BlockKindThinking` 单独作为 `BlockKindThinking` 发出，二者解耦 |
+| `agentcore/agent_test.go` | **新增测试** | `TestRunStreaming_EmitsContentAndReasoningAsSeparateKinds` 验证 Content 与 Reasoning 分开发射且 kind 正确 |
+| `agui/handler_e2e_test.go` | **修改** | `thinkingThenTextProvider` 调整为更真实的 DeepSeek 行为：推理阶段 `Content` 为空，仅 `Blocks` 含 thinking；文本阶段仅 `Content` 有值 |
+
+### 影响
+- TUI 在 Provider 重复投递 delta 或发送累积 chunk 时，不再出现整句重复。
+- AGUI/TUI 的推理内容与普通内容事件正确分离，避免推理文本误入正文或正文误入 ThinkingSegments。
+- 现有 `TestChatAppMessageDeltaStream` 等流式测试保持通过；新增测试覆盖重复/累积场景。
+
 ## 2026-07-24: TUI 输出防溢出保护 — renderFrame/Flex 双层截断
 
 ### 背景

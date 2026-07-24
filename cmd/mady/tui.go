@@ -82,7 +82,8 @@ func runTui(ctx context.Context) {
 
 	// Session 持久化探针
 	sessionDir := os.Getenv("SESSION_DIR")
-	sessionProbe := probeSessionDir(sessionDir, fc.MadyHome, fc.WorkspaceDir)
+	cwd, _ := os.Getwd()
+	sessionProbe := probeSessionDir(sessionDir, fc.MadyHome, fc.WorkspaceDir, cwd)
 	storageProbes = append(storageProbes, sessionProbe)
 
 	// 如果 session 可写，构建 agentStore（供后续 tuiSession 使用）。
@@ -94,7 +95,7 @@ func runTui(ctx context.Context) {
 		if err != nil {
 			log.Printf("session: %v (continuing without persistence)", err)
 		} else {
-			agentStore = session.NewAgentStore(fileStore, fc.WorkspaceDir)
+			agentStore = session.NewAgentStore(fileStore, cwd)
 		}
 	}
 
