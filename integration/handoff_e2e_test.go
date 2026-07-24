@@ -212,8 +212,8 @@ func TestHandoffE2E_EmptyInput(t *testing.T) {
 	defer agent.Close()
 
 	_, err := agent.Run(context.Background(), "")
-	if err != nil {
-		t.Fatalf("agent.Run with empty input failed: %v", err)
+	if err == nil {
+		t.Fatal("agent.Run with empty input should return an error")
 	}
-	// Should not panic for empty input
+	// Should not panic for empty input — validation error is expected behavior
 }

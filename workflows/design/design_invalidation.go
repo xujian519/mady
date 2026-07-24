@@ -285,7 +285,7 @@ func compareOverallVisualNode(ctx context.Context, state graph.PregelState) (gra
 	// Step 3: 判断是否构成近似
 	comparison.WriteString("**第三步：判断是否构成近似**\n\n")
 	comparison.WriteString("基于整体观察和综合判断，从一般消费者角度评估：\n")
-	comparison.WriteString(fmt.Sprintf("- 设计空间等级：%s\n", info.DesignSpaceLevel))
+	fmt.Fprintf(&comparison, "- 设计空间等级：%s\n", info.DesignSpaceLevel)
 	switch info.DesignSpaceLevel {
 	case DesignSpaceLarge:
 		comparison.WriteString("- 该产品设计空间较大，一般消费者对设计差异的敏感度较低，相近似的判断尺度较为宽松\n")
@@ -351,14 +351,14 @@ func designConcludeNode(ctx context.Context, state graph.PregelState) (graph.Pre
 	// Target patent info.
 	report.WriteString("## 目标专利信息\n\n")
 	if info != nil {
-		report.WriteString(fmt.Sprintf("- **产品名称**：%s\n", info.Name))
+		fmt.Fprintf(&report, "- **产品名称**：%s\n", info.Name)
 		if info.ApplicationNo != "" {
-			report.WriteString(fmt.Sprintf("- **申请号**：%s\n", info.ApplicationNo))
+			fmt.Fprintf(&report, "- **申请号**：%s\n", info.ApplicationNo)
 		}
 		if info.ProductCategory != "" {
-			report.WriteString(fmt.Sprintf("- **产品类别**：%s\n", info.ProductCategory))
+			fmt.Fprintf(&report, "- **产品类别**：%s\n", info.ProductCategory)
 		}
-		report.WriteString(fmt.Sprintf("- **设计空间等级**：%s\n", info.DesignSpaceLevel))
+		fmt.Fprintf(&report, "- **设计空间等级**：%s\n", info.DesignSpaceLevel)
 	}
 	report.WriteString("\n")
 
@@ -366,7 +366,7 @@ func designConcludeNode(ctx context.Context, state graph.PregelState) (graph.Pre
 	report.WriteString("## 无效宣告理由\n\n")
 	if len(grounds) > 0 {
 		for i, g := range grounds {
-			report.WriteString(fmt.Sprintf("%d. **%s**\n", i+1, g.String()))
+			fmt.Fprintf(&report, "%d. **%s**\n", i+1, g.String())
 		}
 	} else {
 		report.WriteString("未指定具体无效宣告理由，默认按专利法第23条进行全面分析。\n")
@@ -388,9 +388,9 @@ func designConcludeNode(ctx context.Context, state graph.PregelState) (graph.Pre
 	// Conclusion.
 	report.WriteString("## 审查结论\n\n")
 	if len(grounds) > 0 {
-		report.WriteString(fmt.Sprintf("本报告分析了 %d 项外观设计无效宣告理由，基于整体观察、综合判断原则：\n\n", len(grounds)))
+		fmt.Fprintf(&report, "本报告分析了 %d 项外观设计无效宣告理由，基于整体观察、综合判断原则：\n\n", len(grounds))
 		for i, g := range grounds {
-			report.WriteString(fmt.Sprintf("%d. **%s**：须结合对比设计进行逐项判断。\n", i+1, g.String()))
+			fmt.Fprintf(&report, "%d. **%s**：须结合对比设计进行逐项判断。\n", i+1, g.String())
 		}
 	}
 	report.WriteString("\n")
