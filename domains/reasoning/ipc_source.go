@@ -50,24 +50,25 @@ func (a *IPCStandardAdapter) MatchByIPC(_ context.Context, ipcSection, article s
 	var matched []standards.IPCStandard
 
 	// Try matching as an IPC detail code first (e.g., "G06", "H04", "A61").
-	if isIPCDetail(ipcSection) {
+	switch {
+	case isIPCDetail(ipcSection):
 		found, err := standards.FindByIPCDetail(ipcSection)
 		if err != nil {
 			return nil, fmt.Errorf("FindByIPCDetail: %w", err)
 		}
 		matched = found
-	} else if len(ipcSection) == 1 && ipcSection >= "A" && ipcSection <= "H" {
+	case len(ipcSection) == 1 && ipcSection >= "A" && ipcSection <= "H":
 		// Treat single uppercase letter as an IPC section.
 		found, err := standards.FindByIPCSection(ipcSection)
 		if err != nil {
 			return nil, fmt.Errorf("FindByIPCSection: %w", err)
 		}
 		matched = found
-	} else {
+	default:
 		// Treat as a keyword search.
 		found, err := standards.Search(ipcSection)
 		if err != nil {
-			return nil, fmt.Errorf("Search: %w", err)
+			return nil, fmt.Errorf("search: %w", err)
 		}
 		matched = found
 		// If no results, fall back to "ALL" (cross-field standards).

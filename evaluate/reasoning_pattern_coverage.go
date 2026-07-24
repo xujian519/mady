@@ -122,10 +122,10 @@ func FormatCoverageReport(report *ReasoningPatternCoverageReport) string {
 
 	var b strings.Builder
 	b.WriteString("## 推理模式规则覆盖率\n\n")
-	b.WriteString(fmt.Sprintf("总推理模式: %d\n", report.TotalPatterns))
-	b.WriteString(fmt.Sprintf("已覆盖模式: %d\n", report.CoveredPatterns))
-	b.WriteString(fmt.Sprintf("覆盖率: %.1f%%\n", report.CoverageRate*100))
-	b.WriteString(fmt.Sprintf("关联规则总数: %d\n\n", report.TotalRules))
+	fmt.Fprintf(&b, "总推理模式: %d\n", report.TotalPatterns)
+	fmt.Fprintf(&b, "已覆盖模式: %d\n", report.CoveredPatterns)
+	fmt.Fprintf(&b, "覆盖率: %.1f%%\n", report.CoverageRate*100)
+	fmt.Fprintf(&b, "关联规则总数: %d\n\n", report.TotalRules)
 
 	b.WriteString("### 分类覆盖率\n\n")
 	b.WriteString("| 类别 | 模式数 | 已覆盖 | 覆盖率 | 关联规则 |\n")
@@ -140,15 +140,15 @@ func FormatCoverageReport(report *ReasoningPatternCoverageReport) string {
 	}
 	for _, cat := range categories {
 		if cc, ok := report.PatternsByCategory[cat.key]; ok {
-			b.WriteString(fmt.Sprintf("| %s | %d | %d | %.1f%% | %d |\n",
-				cat.label, cc.Total, cc.Covered, cc.Rate*100, cc.RuleHits))
+			fmt.Fprintf(&b, "| %s | %d | %d | %.1f%% | %d |\n",
+				cat.label, cc.Total, cc.Covered, cc.Rate*100, cc.RuleHits)
 		}
 	}
 
 	if len(report.UncoveredPatterns) > 0 {
 		b.WriteString("\n### 未覆盖的推理模式\n\n")
 		for _, u := range report.UncoveredPatterns {
-			b.WriteString(fmt.Sprintf("- %s\n", u))
+			fmt.Fprintf(&b, "- %s\n", u)
 		}
 	}
 

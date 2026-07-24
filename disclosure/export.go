@@ -6,9 +6,18 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-
-	"github.com/xujian519/mady/domains/doctmpl"
 )
+
+// DOCXConverter 将 Markdown 转换为 DOCX 格式。
+// 定义在此避免 disclosure 包反向依赖 domains/doctmpl（架构边界）。
+type DOCXConverter interface {
+	Render(markdownBody string) ([]byte, error)
+}
+
+var defaultDOCXConverter DOCXConverter
+
+// SetDOCXConverter 设置 DOCX 转换器，由 composition root（cmd/mady）注入。
+func SetDOCXConverter(c DOCXConverter) { defaultDOCXConverter = c }
 
 // ExportFormat represents the output format for report export.
 type ExportFormat string
@@ -171,12 +180,13 @@ func buildMarkdownReport(report *AnalysisReport) string {
 }
 
 // convertToDOCX 将 Markdown 文本转换为 DOCX 格式。
-// 优先使用纯 Go 渲染器（domains/doctmpl.DOCXRenderer，无外部依赖）；
+// 优先使用已注入的纯 Go 渲染器（无外部依赖）；
 // 失败时降级到 pandoc（若已安装）作为备选，确保兼容已有环境。
 func convertToDOCX(markdown string) ([]byte, error) {
-	renderer := &doctmpl.DOCXRenderer{}
-	if data, err := renderer.Render(markdown, doctmpl.RenderMeta{}); err == nil && len(data) > 0 {
-		return data, nil
+	if defaultDOCXConverter != nil {
+		if data, err := defaultDOCXConverter.Render(markdown); err == nil && len(data) > 0 {
+			return data, nil
+		}
 	}
 	// 降级：尝试 pandoc（如已安装）。
 	if _, lerr := exec.LookPath("pandoc"); lerr == nil {

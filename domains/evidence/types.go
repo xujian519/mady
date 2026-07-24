@@ -139,7 +139,7 @@ type DateSourceType string
 
 const (
 	SrcExactPage      DateSourceType = "exact_page_date"     // 页面明确标注的日期
-	SrcHttpHeader     DateSourceType = "http_header"         // HTTP 响应头中的日期
+	SrcHTTPHeader     DateSourceType = "http_header"         // HTTP 响应头中的日期
 	SrcWaybackMachine DateSourceType = "wayback_machine"     // Wayback Machine 记录
 	SrcDomainReg      DateSourceType = "domain_registration" // 域名注册日期
 	SrcClaimed        DateSourceType = "claimed_date"        // 主张方声称的日期

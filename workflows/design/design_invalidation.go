@@ -286,11 +286,12 @@ func compareOverallVisualNode(ctx context.Context, state graph.PregelState) (gra
 	comparison.WriteString("**第三步：判断是否构成近似**\n\n")
 	comparison.WriteString("基于整体观察和综合判断，从一般消费者角度评估：\n")
 	comparison.WriteString(fmt.Sprintf("- 设计空间等级：%s\n", info.DesignSpaceLevel))
-	if info.DesignSpaceLevel == DesignSpaceLarge {
+	switch info.DesignSpaceLevel {
+	case DesignSpaceLarge:
 		comparison.WriteString("- 该产品设计空间较大，一般消费者对设计差异的敏感度较低，相近似的判断尺度较为宽松\n")
-	} else if info.DesignSpaceLevel == DesignSpaceSmall {
+	case DesignSpaceSmall:
 		comparison.WriteString("- 该产品设计空间较小，一般消费者对设计差异更为敏感，相近似的判断尺度较为严格\n")
-	} else {
+	default:
 		comparison.WriteString("- 设计空间适中，需综合考量各设计特征对整体视觉效果的影响\n")
 	}
 	comparison.WriteString("- 是否构成近似，取决于整体视觉效果是否足以使一般消费者产生混淆\n\n")

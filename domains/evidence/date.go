@@ -67,16 +67,17 @@ func DetermineInternetPublicationDate(urlStr string, claimedDate string) *DateDe
 		if !parsed.IsZero() {
 			result.IsPriorArt = true
 			// 根据日期精度判断可靠度
-			if isPreciseDate(determined) {
+			switch {
+			case isPreciseDate(determined):
 				result.Reliability = RelHigh
 				result.SourceType = SrcExactPage
-			} else if isMonthOnlyDate(determined) {
+			case isMonthOnlyDate(determined):
 				// 月级日期按月末推定（较为保守）
 				result.Reliability = RelMedium
 				result.SourceType = SrcClaimed
 				// 将月级日期推定到月末最后一天
 				result.Determined = inferredMonthEnd(parsed)
-			} else {
+			default:
 				result.Reliability = RelMedium
 				result.SourceType = SrcClaimed
 			}
@@ -145,14 +146,15 @@ func DeterminePublicUseDate(description string, claimedDate string, filingDate s
 		if !parsed.IsZero() {
 			result.IsPriorArt = isBeforeFilingBool(determined, filingDate)
 			// 使用公开通常需要旁证印证，日期可靠度默认中等
-			if isPreciseDate(determined) {
+			switch {
+			case isPreciseDate(determined):
 				result.Determined = determined
 				result.Reliability = RelMedium
-			} else if isMonthOnlyDate(determined) {
+			case isMonthOnlyDate(determined):
 				// 月级日期推定到月末
 				result.Determined = inferredMonthEnd(parsed)
 				result.Reliability = RelLow
-			} else {
+			default:
 				result.Determined = determined
 				result.Reliability = RelLow
 			}
@@ -170,11 +172,12 @@ func DeterminePublicUseDate(description string, claimedDate string, filingDate s
 				result.IsPriorArt = isBeforeFilingBool(determined, filingDate)
 				result.Reliability = RelLow
 				result.SourceType = SrcInferred
-				if isPreciseDate(determined) {
+				switch {
+				case isPreciseDate(determined):
 					result.Determined = determined
-				} else if isMonthOnlyDate(determined) {
+				case isMonthOnlyDate(determined):
 					result.Determined = inferredMonthEnd(parsed)
-				} else {
+				default:
 					result.Determined = determined
 				}
 				return result

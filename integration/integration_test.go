@@ -121,7 +121,7 @@ func TestPatentRulesGraphCitationE2E(t *testing.T) {
 	// --- 2. Graph-enhanced retrieval ---
 	chunks := retrieval.ChunkDocument("case001", docs[0].Content, retrieval.DefaultChunkOptions())
 	searcher := retrieval.NewKeywordSearcher()
-	results := searcher.Search("创造性", chunks, 5)
+	results := searcher.Search(context.Background(), "创造性", chunks, 5)
 	if len(results) == 0 {
 		t.Fatal("keyword search returned no results")
 	}
