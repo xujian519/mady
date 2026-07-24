@@ -46,12 +46,10 @@ type Terminal interface {
 	MoveBy(lines int64)
 	MoveTo(row, col int64)
 
-	// PushKittyKeyboard re-emits the Kitty keyboard push sequence. Call after
-	// entering the alternate screen, which resets Kitty protocol state.
-	// See ProcessTerminal.PushKittyKeyboard for details.
+	// Context returns the cached terminal context for the session.
+	Context() *TerminalContext
+
 	PushKittyKeyboard()
-	// PopKittyKeyboard emits the Kitty keyboard pop sequence. Call before
-	// leaving the alternate screen.
 	PopKittyKeyboard()
 }
 
@@ -282,7 +280,11 @@ func (t *ProcessTerminal) MoveTo(row, col int64) {
 	fmt.Fprintf(t.out, "\x1b[%d;%dH", row, col)
 }
 
-// PushKittyKeyboard re-emits the Kitty keyboard push sequence (CSI >flags u).
+// Context returns the cached terminal context for the session.
+func (t *ProcessTerminal) Context() *TerminalContext {
+	return CurrentTerminalContext()
+}
+
 // Call this after entering the alternate screen.
 //
 // Background: switching to the alt screen resets the Kitty keyboard protocol
@@ -291,6 +293,11 @@ func (t *ProcessTerminal) MoveTo(row, col int64) {
 // like copy. Re-pushing after the alt-screen switch restores CSI u encoding.
 // See https://sw.kovidgoyal.net/kitty/keyboard-protocol/ ("when entering
 // alternate screen mode").
+//
+// IMPORTANT: flag changes must go through SetKittyKeyboardFlags, which
+// synchronises the global flags for decodeKittyU. Direct writes to
+// t.kittyFlags followed by PushKittyKeyboard would re-negotiate the terminal
+// without updating the parser, causing parameter layout mismatches.
 //
 // No-op when Kitty keyboard is disabled (mode "off") or unsupported (mode
 // "auto" on an unsupported terminal). Safe to call multiple times; each call
@@ -379,13 +386,15 @@ func (t *ProcessTerminal) shouldEnableKittyKbdLocked() bool {
 	case kittyKbdForceOff:
 		return false
 	default:
-		return TerminalSupportsKittyKeyboard()
+		ok, _ := CurrentTerminalContext().SupportsKittyKeyboard()
+		return ok
 	}
 }
 
 // TerminalSupportsKittyKeyboard returns true when the current terminal is
 // known to implement (a subset of) the Kitty keyboard protocol. This is a
-// best-effort heuristic based on env variables.
+// less accurate check than TerminalContext; prefer CurrentTerminalContext()
+// for new code. Kept for backwards compatibility.
 func TerminalSupportsKittyKeyboard() bool {
 	term := os.Getenv("TERM")
 	termProgram := os.Getenv("TERM_PROGRAM")
@@ -472,6 +481,9 @@ func (v *VirtualTerminal) MoveBy(int64)        {}
 func (v *VirtualTerminal) MoveTo(int64, int64) {}
 func (v *VirtualTerminal) PushKittyKeyboard()  {}
 func (v *VirtualTerminal) PopKittyKeyboard()   {}
+func (v *VirtualTerminal) Context() *TerminalContext {
+	return CurrentTerminalContext()
+}
 
 // Type feeds raw bytes as though the user typed them.
 func (v *VirtualTerminal) Type(data string) {

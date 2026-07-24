@@ -193,6 +193,15 @@ type TUI struct {
 	// consuming CPU on wasteful re-renders at sub-frame granularity.
 	mouseThrottle *time.Ticker
 	mouseLast     time.Time
+
+	// lastCursor tracks the cursor state emitted in the previous frame.
+	// renderFrame compares against it to avoid redundant ShowCursor/HideCursor
+	// and MoveTo commands — cursor blink timers are no longer reset every frame.
+	lastCursor struct {
+		visible  bool
+		row, col int64
+		first    bool // true before first frame emits cursor
+	}
 }
 
 // NewTUI constructs a TUI bound to term.
@@ -210,7 +219,7 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 		km = terminal.GetGlobalKeybindings()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &TUI{
+	t := &TUI{
 		term:          term,
 		stdin:         terminal.NewStdinBuffer(),
 		options:       o,
@@ -223,6 +232,8 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 		ctx:           ctx,
 		cancel:        cancel,
 	}
+	t.lastCursor.first = true
+	return t
 }
 
 // NewTUIWithOptions constructs a TUI using functional options.

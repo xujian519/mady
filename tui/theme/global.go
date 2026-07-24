@@ -35,13 +35,15 @@ func SetSemanticTheme(sem *SemanticTheme, mode ColorMode) {
 	fireThemeChange()
 }
 
-// ColorModeFromEnv reads TUI_COLORMODE: "truecolor" | "256" | empty = auto.
+// ColorModeFromEnv reads TUI_COLORMODE: "truecolor" | "256" | "16" | empty = auto.
 func ColorModeFromEnv() ColorMode {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("TUI_COLORMODE"))) {
 	case "256", "256color", "8bit":
 		return ColorMode256
 	case "truecolor", "24bit", "rgb":
 		return ColorModeTruecolor
+	case "16", "16color", "basic", "4bit":
+		return ColorModeBasic
 	default:
 		return DetectColorMode()
 	}

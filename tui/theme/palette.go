@@ -20,6 +20,7 @@ type Palette struct {
 
 	// Phase 1 新增：背景层次与证据/置信度可视化
 	Background, Surface, SurfaceRaised              Style
+	BackgroundBg, SurfaceBg, SurfaceRaisedBg        Style
 	EvidenceSupport, EvidenceCounter                Style
 	ConfidenceLow, ConfidenceMedium, ConfidenceHigh Style
 }
@@ -47,6 +48,15 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 		c := FgParams(hex, mode)
 		if c != "" {
 			s = s.WithFgParams(c)
+		}
+		return s
+	}
+
+	bg := func(hex string) Style {
+		s := NewStyle()
+		c := BgParams(hex, mode)
+		if c != "" {
+			s = s.WithBgParams(c)
 		}
 		return s
 	}
@@ -182,6 +192,10 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 	p.Background = fg(firstNonEmpty(sem.Background, "#07111F"))
 	p.Surface = fg(firstNonEmpty(sem.Surface, "#0C1B2A"))
 	p.SurfaceRaised = fg(firstNonEmpty(sem.SurfaceRaised, "#102638"))
+	// Background variants for surface fills (BgParams).
+	p.BackgroundBg = bg(firstNonEmpty(sem.Background, "#07111F"))
+	p.SurfaceBg = bg(firstNonEmpty(sem.Surface, "#0C1B2A"))
+	p.SurfaceRaisedBg = bg(firstNonEmpty(sem.SurfaceRaised, "#102638"))
 
 	// Phase 1 新增：证据方向着色
 	p.EvidenceSupport = fg(firstNonEmpty(sem.EvidenceSupport, "#5BC0EB"))
@@ -201,6 +215,7 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 func SyncPaletteGlobals(sem *SemanticTheme, mode ColorMode) {
 	p := BuildPalette(sem, mode)
 	atomicPalette.Store(p)
+	syncAliases(p)
 }
 
 func init() {

@@ -84,6 +84,9 @@ type tuiSession struct {
 
 	// store is the single source of truth for settings.
 	store *SettingsStore
+
+	// cancelAutoWatch cancels the system appearance watcher goroutine.
+	cancelAutoWatch func()
 }
 
 // --- Simple accessors ---
@@ -206,25 +209,59 @@ func (s *tuiSession) handleThinkingCommand(trimmed string) {
 }
 
 func (s *tuiSession) handleThemeCommand(trimmed string) {
-	switch trimmed {
-	case "/theme":
+	switch {
+	case trimmed == "/theme":
+		current := s.themeName()
+		if current == "" {
+			current = "auto"
+		}
+		s.app.PrintSystem("当前主题: " + current)
+		// List available themes on a second line.
+		names := theme.ThemeNames()
+		s.app.PrintSystem("可用主题: " + strings.Join(names, ", "))
+	case trimmed == "/theme list":
+		names := theme.ThemeNames()
+		s.app.PrintSystem("可用主题: " + strings.Join(names, ", "))
+		current := s.themeName()
+		if current == "" {
+			current = "auto"
+		}
+		s.app.PrintSystem("当前: " + current)
+
+	case strings.HasPrefix(trimmed, "/theme "):
+		name := strings.TrimSpace(strings.TrimPrefix(trimmed, "/theme "))
+		if name == "" {
+			s.app.PrintSystem("当前主题: " + s.themeName())
+			return
+		}
+		if info := theme.ThemeInfoByName(name); info != nil {
+			if err := theme.SetThemeByName(name); err != nil {
+				log.Printf("theme: apply %s: %v", name, err)
+			}
+			s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
+			if err := s.store.Set(SettingKeyTheme, name, SettingsScopeGlobal); err != nil {
+				log.Printf("settings: persist theme: %v", err)
+			}
+			s.app.PrintSystem("已切换主题: " + info.Display)
+
+			// Manage system appearance watcher.
+			if name == "auto" {
+				if s.cancelAutoWatch == nil {
+					s.cancelAutoWatch = theme.StartAutoThemeWatcher()
+					s.app.PrintSystem("已启用系统外观跟随 — macOS 切换深色/浅色时自动切换")
+				}
+			} else {
+				if s.cancelAutoWatch != nil {
+					s.cancelAutoWatch()
+					s.cancelAutoWatch = nil
+				}
+			}
+		} else {
+			s.app.PrintSystem("未知主题: " + name + "。可用主题: " + strings.Join(theme.ThemeNames(), ", "))
+		}
+
+	default:
 		s.app.PrintSystem("当前主题: " + s.themeName())
-
-	case "/theme light":
-		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
-		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-		if err := s.store.Set(SettingKeyTheme, "light", SettingsScopeGlobal); err != nil {
-			log.Printf("settings: persist theme: %v", err)
-		}
-		s.app.PrintSystem("已切换浅色主题")
-
-	case "/theme dark":
-		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
-		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-		if err := s.store.Set(SettingKeyTheme, "dark", SettingsScopeGlobal); err != nil {
-			log.Printf("settings: persist theme: %v", err)
-		}
-		s.app.PrintSystem("已切换深色主题")
 	}
 }
 

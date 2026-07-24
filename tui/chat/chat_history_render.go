@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/tui/core"
+	"github.com/xujian519/mady/tui/theme"
 )
 
 // renderSnapshot holds a point-in-time copy of the mutable state that renderAll
@@ -209,11 +210,54 @@ func (h *ChatHistory) Render(width int64) []string {
 		visible = append(visible, hint)
 	}
 
-	// Pad every line to full width so the TUI diff engine's \x1b[2K
-	// never leaves a partial column that could bleed into the next line.
-	for i, ln := range visible {
-		if core.VisibleWidth(ln) < width {
-			visible[i] = core.PadToWidth(ln, width)
+	// Draw scrollbar on the right edge when enabled and content overflows.
+	if h.sbEnabled && h.sbWidth > 0 && int64(len(all)) > maxRows {
+		contentWidth := width - h.sbWidth
+		if contentWidth < 1 {
+			contentWidth = 1
+		}
+		total := int64(len(all))
+		thumbLen := maxRows * maxRows / total
+		if thumbLen < 1 {
+			thumbLen = 1
+		}
+		start := end - maxRows
+		if start < 0 {
+			start = 0
+		}
+		thumbOff := start * (maxRows - thumbLen) / (total - maxRows)
+		thumbEnd := thumbOff + thumbLen
+		if thumbEnd > maxRows {
+			thumbEnd = maxRows
+		}
+
+		pal := theme.CurrentPalette()
+		trackStyle := pal.Dim.Render(" ")
+		thumbStyle := pal.Muted.Render("▐")
+		if !follow {
+			thumbStyle = pal.Border.Render("▐")
+		}
+
+		for i := int64(0); i < int64(len(visible)); i++ {
+			ln := visible[i]
+			if core.VisibleWidth(ln) > contentWidth {
+				ln = core.TruncateToWidth(ln, contentWidth, "…")
+			} else {
+				ln = core.PadToWidth(ln, contentWidth)
+			}
+			if i >= thumbOff && i < thumbEnd {
+				visible[i] = ln + thumbStyle
+			} else {
+				visible[i] = ln + trackStyle
+			}
+		}
+	} else {
+		// Pad every line to full width so the TUI diff engine's \x1b[2K
+		// never leaves a partial column that could bleed into the next line.
+		for i, ln := range visible {
+			if core.VisibleWidth(ln) < width {
+				visible[i] = core.PadToWidth(ln, width)
+			}
 		}
 	}
 

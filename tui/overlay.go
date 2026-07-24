@@ -2,15 +2,75 @@ package tui
 
 import (
 	core "github.com/xujian519/mady/tui/core"
+	"github.com/xujian519/mady/tui/theme"
 )
 
 // dimStyle values used by cell-level dimBackground. Palette lookups are
-// function calls, so these can't be `const`; package-level vars are fine
-// since they're only read (never mutated) after init.
+// function calls, so these can't be `const`.
 var (
 	dimTextAttr = core.AttrDim
-	dimBgColor  = core.Palette(235)
 )
+
+// dimBgColor returns the current surface background color as a core.Color
+// for overlay dimming. Derived from the theme's surface color so it follows
+// theme switches (dark → ~#0c1b2a, light → ~#e0e0e0).
+func dimBgColor() core.Color {
+	sem := theme.CurrentPalette().Semantic
+	if sem == nil {
+		return core.Palette(235)
+	}
+	// Use the Background hex from the current semantic theme.
+	bg := sem.Background
+	if bg == "" {
+		bg = sem.Surface
+	}
+	if bg == "" {
+		return core.Palette(235)
+	}
+	return hexToCoreColor(bg)
+}
+
+// hexToCoreColor converts a "#rrggbb" hex string to a core.Color using
+// the best available encoding (truecolor RGB tag).
+func hexToCoreColor(hex string) core.Color {
+	if len(hex) < 6 {
+		return core.Palette(235)
+	}
+	h := hex
+	if h[0] == '#' {
+		h = h[1:]
+	}
+	if len(h) != 6 {
+		return core.Palette(235)
+	}
+	// Parse hex to RGB.
+	var r, g, b uint8
+	for i := 0; i < 3; i++ {
+		v := uint8(0)
+		for j := 0; j < 2; j++ {
+			c := h[i*2+j]
+			switch {
+			case c >= '0' && c <= '9':
+				v = v*16 + uint8(c-'0')
+			case c >= 'a' && c <= 'f':
+				v = v*16 + uint8(c-'a'+10)
+			case c >= 'A' && c <= 'F':
+				v = v*16 + uint8(c-'A'+10)
+			default:
+				return core.Palette(235) // non-hex char → fallback
+			}
+		}
+		switch i {
+		case 0:
+			r = v
+		case 1:
+			g = v
+		case 2:
+			b = v
+		}
+	}
+	return core.RGB(r, g, b)
+}
 
 // ---------------------------------------------------------------------------
 // OverlayCategory — classifies overlays by purpose so the TUI can apply
@@ -365,7 +425,7 @@ func applyDimToRow(row core.Row, start, end int64, withBg bool) core.Row {
 			// bright half-cell speckle across the dimmed region — most
 			// visible with CJK text, where every wide char leaves a gap.
 			if withBg {
-				cell.Style.Bg = dimBgColor
+				cell.Style.Bg = dimBgColor()
 			}
 			cell.Style.Attrs |= dimTextAttr
 			if c > 0 {
@@ -376,7 +436,7 @@ func applyDimToRow(row core.Row, start, end int64, withBg bool) core.Row {
 		}
 		cell.Style.Attrs |= dimTextAttr
 		if withBg {
-			cell.Style.Bg = dimBgColor
+			cell.Style.Bg = dimBgColor()
 		}
 	}
 	return row

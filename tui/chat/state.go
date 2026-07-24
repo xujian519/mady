@@ -234,7 +234,7 @@ func Transition(s AppState, e eventKind) AppState {
 		if e == evtApprovalDecision {
 			return StateStreaming
 		}
-		if e == evtAgentEnd || e == evtAgentError {
+		if e == evtAgentEnd || e == evtAgentError || e == evtAgentReady {
 			return StateIdle
 		}
 		if e == evtApprovalRequest {

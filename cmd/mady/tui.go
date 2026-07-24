@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
@@ -146,14 +145,6 @@ func runTui(ctx context.Context) {
 	// 直接调 SetSemanticTheme 而不是 handleThemeCommand，因为此时 s.app 尚未初始化。
 	applyStoredTheme(s)
 
-	// 同步当前终端检测到的主题到 store（仅在首次启动时）
-	if name := theme.CurrentPalette().Semantic.Name; strings.Contains(strings.ToLower(name), "light") {
-		if err := s.store.Set(SettingKeyTheme, "light", SettingsScopeGlobal); err != nil {
-			log.Printf("settings: persist theme: %v", err)
-		}
-		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
-	}
-
 	// Build the slash registry once; both handleSubmit and the autocomplete
 	// menu read from it (single source of truth, no dual switch).
 	s.slashReg = s.buildSlashRegistry()
@@ -198,6 +189,12 @@ func runTui(ctx context.Context) {
 
 	// 现在 s.app 已就绪，通过 handler 应用持久化主题（同时更新 History 主题 + 状态栏）
 	s.handleThemeCommand("/theme " + s.store.Get(SettingKeyTheme))
+
+	// Enable visual scrollbar on the chat history for better content navigation.
+	app.History().SetScrollbarEnabled(true)
+
+	// Auto theme watcher is started by handleThemeCommand (/theme auto) above
+	// via s.cancelAutoWatch. Do NOT start here to avoid duplicate goroutines.
 
 	// Load user keymap overrides from ~/.mady/keymap.json (if present) into the
 	// app's keybinding manager so the editor and chat honor customized keys.
@@ -273,13 +270,27 @@ func runTui(ctx context.Context) {
 // SetSemanticTheme directly rather than going through handleThemeCommand.
 func applyStoredTheme(s *tuiSession) {
 	name := s.store.Get(SettingKeyTheme)
+	if name == "" {
+		name = "auto"
+	}
+	// Try theme registry first (supports named themes like "tokyo-night", etc.).
+	if info := theme.ThemeInfoByName(name); info != nil {
+		theme.ApplyThemeByName(name)
+		return
+	}
+	// Legacy fallback for "light"/"dark" aliases.
 	switch name {
 	case "light":
 		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
 	case "dark":
 		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
 	default:
-		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
+		// Try to apply "auto" as safe default.
+		if info := theme.ThemeInfoByName("auto"); info != nil {
+			theme.ApplyThemeByName("auto")
+		} else {
+			theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
+		}
 	}
 }
 

@@ -219,6 +219,24 @@ func (e *Editor) Render(width int64) []string {
 
 	selStart, selEnd, hasSel := e.normalizedSelectionLocked()
 
+	// Collect chips by hard row for interleaved rendering.
+	// Chips render as inline styled elements at their buffer positions.
+	// Multiple chips per row are rendered in position order, and
+	// text between chips passes through textFn for styling.
+	type chipInfo struct {
+		pos  int64
+		text string
+	}
+	chipByRow := make(map[int64][]chipInfo)
+	for _, cp := range e.chips.chips {
+		if cp.Chip == nil || cp.Chip.Display == "" {
+			continue
+		}
+		display := " " + chipKindPrefix(cp.Chip.Kind) + cp.Chip.Display + " "
+		styled := theme.CurrentPalette().Accent.Render(theme.CurrentPalette().Surface.Render(display))
+		chipByRow[cp.HardRow] = append(chipByRow[cp.HardRow], chipInfo{cp.RuneStart, styled})
+	}
+
 	var out []string
 	rowsMeta := make([]editorVisualRow, 0, len(visuals))
 	for idx, v := range visuals {
@@ -230,28 +248,62 @@ func (e *Editor) Render(width int64) []string {
 		}
 		segRunes := []rune(v.text)
 		segLen := int64(len(segRunes))
+		segStart := v.colOffset
+		segEnd := v.colOffset + segLen
 		rowsMeta = append(rowsMeta, editorVisualRow{
 			hardRow:    v.hardRow,
-			colStart:   v.colOffset,
-			colEnd:     v.colOffset + segLen,
+			colStart:   segStart,
+			colEnd:     segEnd,
 			isFirstSeg: v.isFirstSeg,
 		})
 
+		// Build body with chips interleaved. Standard text goes
+		// through textFn; chips retain their own styling.
+		rowChips := chipByRow[v.hardRow]
 		var bodyText string
-		switch {
-		case e.allSelected && v.text != "":
-			bodyText = "\x1b[48;5;33m" + core.StripAnsi(textFn(v.text)) + "\x1b[0m"
-		case hasSel:
-			if from, to, ok := selRangeInSegment(v.hardRow, v.colOffset, segLen, selStart, selEnd); ok && from < to {
-				before := string(segRunes[:from])
-				sel := string(segRunes[from:to])
-				after := string(segRunes[to:])
-				bodyText = before + "\x1b[48;5;33m" + sel + "\x1b[0m" + after
-			} else {
-				bodyText = textFn(v.text)
-			}
-		default:
+		if len(rowChips) == 0 {
 			bodyText = textFn(v.text)
+		} else {
+			cursor := segStart
+			for _, cr := range rowChips {
+				if cr.pos < segStart || cr.pos > segEnd {
+					continue
+				}
+				beforeIdx := cr.pos - segStart
+				if beforeIdx > int64(len(segRunes)) {
+					beforeIdx = int64(len(segRunes))
+				}
+				if beforeIdx < 0 {
+					beforeIdx = 0
+				}
+				if cursor < cr.pos {
+					bodyText += textFn(string(segRunes[cursor-segStart : beforeIdx]))
+				}
+				bodyText += cr.text
+				cursor = cr.pos
+			}
+			if cursor < segEnd {
+				bodyText += textFn(string(segRunes[cursor-segStart:]))
+			}
+		}
+
+		// Apply selection highlighting on top.
+		// IMPORTANT: when chips are present in this segment, skip per-rune
+		// selection rebuild (the hasSel branch replaces bodyText from raw
+		// segRunes, discarding chip interleaving). allSelected is safe
+		// because it wraps the already-interleaved bodyText in a uniform
+		// background, preserving chip text (though capsule styling is lost).
+		hasChipsInSeg := len(rowChips) > 0
+		switch {
+		case e.allSelected && bodyText != "":
+			bodyText = "\x1b[48;5;33m" + core.StripAnsi(bodyText) + "\x1b[0m"
+		case hasSel && !hasChipsInSeg:
+			if from, to, ok := selRangeInSegment(v.hardRow, segStart, segLen, selStart, selEnd); ok && from < to {
+				before := textFn(string(segRunes[:from]))
+				sel := core.StripAnsi(textFn(string(segRunes[from:to])))
+				afterVal := textFn(string(segRunes[to:]))
+				bodyText = before + "\x1b[48;5;33m" + sel + "\x1b[0m" + afterVal
+			}
 		}
 
 		body := core.PadToWidth(bodyText, innerW)

@@ -89,6 +89,37 @@ func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 		h.scrollByLocked(-3)
 		needInvalidate = true
 	case core.MousePress:
+		// Scrollbar click: when scrollbar is enabled and the click lands on the
+		// rightmost column(s), jump to the proportional position in content.
+		if h.sbEnabled && h.sbWidth > 0 && h.maxRows > 0 {
+			total := int64(len(h.cachedAll))
+			if total > h.maxRows {
+				sbCol := h.cachedWidth - h.sbWidth
+				if m.Col >= sbCol && sbCol >= 0 {
+					// Map Y position (relative to viewport) to scroll offset.
+					clickY := m.Row
+					if clickY < 0 {
+						clickY = 0
+					}
+					if clickY >= h.maxRows {
+						clickY = h.maxRows - 1
+					}
+					maxOffset := total - h.maxRows
+					newOffset := clickY * maxOffset / h.maxRows
+					if newOffset < 0 {
+						newOffset = 0
+					}
+					if newOffset > maxOffset {
+						newOffset = maxOffset
+					}
+					h.offset = newOffset
+					h.follow = false
+					h.mu.Unlock()
+					h.invalidate()
+					return
+				}
+			}
+		}
 		// Left button press: check if clicking on thinking header to toggle collapse
 		absLine := h.viewportRowToAbsoluteLocked(m.Row)
 		if absLine < 0 {
@@ -346,6 +377,9 @@ func (h *ChatHistory) ScrollBy(n int64) {
 
 func (h *ChatHistory) scrollByLocked(n int64) {
 	total := int64(len(h.cachedAll))
+	if n == 0 {
+		return
+	}
 	h.offset += n
 	if h.offset < 0 {
 		h.offset = 0

@@ -280,8 +280,9 @@ func (t *TUI) onMouse(msg core.MouseMsg) {
 			t.mouseLast = time.Now()
 		default:
 			// Ticker channel empty → events arriving faster than throttle rate.
-			// Accept if at least 16ms have passed since the last accepted event
-			// (a secondary time guard so a slow-ticking ticker doesn't starve
+			// Accept if at least mouseThrottlePeriod (~33ms) has passed since the
+			// last accepted event (secondary time guard so a slow-ticking ticker
+			// doesn't starve
 			// motion entirely when the consumer is lagging).
 			if time.Since(t.mouseLast) < mouseThrottlePeriod {
 				return

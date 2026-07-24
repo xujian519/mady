@@ -130,7 +130,27 @@ func (e *Editor) insertRune(r rune) {
 		newLines = append(newLines, after)
 		newLines = append(newLines, e.lines[e.row+1:]...)
 		e.lines = newLines
+		for i := range e.chips.chips {
+			cp := &e.chips.chips[i]
+			if cp.HardRow > e.row {
+				cp.HardRow++
+			} else if cp.HardRow == e.row && cp.RuneStart >= e.col {
+				cp.HardRow = e.row + 1
+				cp.RuneStart -= e.col
+				cp.RuneEnd = cp.RuneStart
+			}
+		}
 		e.row++
+		for i := range e.chips.chips {
+			cp := &e.chips.chips[i]
+			if cp.HardRow > e.row {
+				cp.HardRow++
+			} else if cp.HardRow == e.row && cp.RuneStart >= e.col {
+				cp.HardRow = e.row + 1
+				cp.RuneStart -= e.col
+				cp.RuneEnd = cp.RuneStart
+			}
+		}
 		e.col = 0
 	} else {
 		cur := e.lines[e.row]
@@ -140,6 +160,7 @@ func (e *Editor) insertRune(r rune) {
 		newLine = append(newLine, cur[e.col:]...)
 		e.lines[e.row] = newLine
 		e.col++
+		e.chips.ShiftAfter(e.row, e.col-1, 1)
 	}
 	e.lastKill = false
 	e.allSelected = false
@@ -237,11 +258,13 @@ func (e *Editor) deleteBackward() {
 		e.col = int64(len(prev))
 		e.lines[e.row-1] = append(prev, cur...)
 		e.lines = append(e.lines[:e.row], e.lines[e.row+1:]...)
+		adjustChipsLineMerge(e.chips, e.row, int64(len(prev)))
 		e.row--
 	} else {
 		cur := e.lines[e.row]
 		e.lines[e.row] = append(cur[:e.col-1], cur[e.col:]...)
 		e.col--
+		e.chips.ShiftAfter(e.row, e.col, -1)
 	}
 	fn := e.onChange
 	v := e.valueLocked()
@@ -274,10 +297,13 @@ func (e *Editor) deleteForward() {
 			return
 		}
 		next := e.lines[e.row+1]
+		curLen := int64(len(cur))
 		e.lines[e.row] = append(cur, next...)
 		e.lines = append(e.lines[:e.row+1], e.lines[e.row+2:]...)
+		adjustChipsLineMerge(e.chips, e.row+1, curLen)
 	} else {
 		e.lines[e.row] = append(cur[:e.col], cur[e.col+1:]...)
+		e.chips.ShiftAfter(e.row, e.col+1, -1)
 	}
 	fn := e.onChange
 	v := e.valueLocked()
@@ -310,9 +336,11 @@ func (e *Editor) deleteWordBackward() {
 		}
 		prev := e.lines[e.row-1]
 		cur := e.lines[e.row]
-		e.col = int64(len(prev))
+		prevLen := int64(len(prev))
+		e.col = prevLen
 		e.lines[e.row-1] = append(prev, cur...)
 		e.lines = append(e.lines[:e.row], e.lines[e.row+1:]...)
+		adjustChipsLineMerge(e.chips, e.row, prevLen)
 		e.row--
 		e.mu.Unlock()
 		return
@@ -351,8 +379,10 @@ func (e *Editor) deleteWordForward() {
 			return
 		}
 		next := e.lines[e.row+1]
+		curLen := int64(len(cur))
 		e.lines[e.row] = append(cur, next...)
 		e.lines = append(e.lines[:e.row+1], e.lines[e.row+2:]...)
+		adjustChipsLineMerge(e.chips, e.row+1, curLen)
 		e.mu.Unlock()
 		return
 	}
@@ -478,8 +508,10 @@ func (e *Editor) deleteToLineEnd() {
 		// Merge with next line if any.
 		if e.row < int64(len(e.lines)-1) {
 			next := e.lines[e.row+1]
+			curLen := int64(len(cur))
 			e.lines[e.row] = append(cur, next...)
 			e.lines = append(e.lines[:e.row+1], e.lines[e.row+2:]...)
+			adjustChipsLineMerge(e.chips, e.row+1, curLen)
 			e.pushKillRingLocked("\n")
 		}
 		e.mu.Unlock()
@@ -543,6 +575,31 @@ func (e *Editor) insertText(text string) {
 		e.col = int64(len(prefix))
 	}
 
+	// Adjust chip positions for single-line paste.
+	if len(lines) == 1 {
+		e.chips.ShiftAfter(e.row, e.col-int64(len([]rune(lines[0]))), int64(len([]rune(lines[0]))))
+	} else {
+		// Multi-line paste: chips after cursor move to the last inserted row.
+		insertedLines := int64(len(lines) - 1)
+		lastLineLen := int64(len([]rune(lines[len(lines)-1])))
+		origRow := e.row - insertedLines
+		origCol := e.col - lastLineLen
+		for i := range e.chips.chips {
+			cp := &e.chips.chips[i]
+			if cp.HardRow == origRow {
+				if cp.RuneStart >= origCol {
+					cp.HardRow += insertedLines
+					cp.RuneStart = cp.RuneStart - origCol + lastLineLen
+					if cp.RuneStart < 0 {
+						cp.RuneStart = 0
+					}
+					cp.RuneEnd = cp.RuneStart
+				}
+			} else if cp.HardRow > origRow {
+				cp.HardRow += insertedLines
+			}
+		}
+	}
 	e.allSelected = false
 	fn := e.onChange
 	v := e.valueLocked()

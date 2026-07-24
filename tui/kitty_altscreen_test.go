@@ -4,6 +4,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	terminal "github.com/xujian519/mady/tui/terminal"
 )
 
 // recordingTerminal captures the order of escape sequences written to it and
@@ -61,6 +63,7 @@ func (r *recordingTerminal) PopKittyKeyboard() {
 	r.events = append(r.events, "kitty_pop")
 	r.mu.Unlock()
 }
+func (r *recordingTerminal) Context() *terminal.TerminalContext { return nil }
 
 func (r *recordingTerminal) events_() []string {
 	r.mu.Lock()

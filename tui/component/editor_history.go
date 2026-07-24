@@ -19,6 +19,7 @@ func (e *Editor) pushSnapshotLocked() {
 		lines: cloneRuneLines(e.lines),
 		row:   e.row,
 		col:   e.col,
+		chips: cloneChips(e.chips.chips),
 	}
 	e.history = append(e.history, snap)
 	if int64(len(e.history)) > e.historyMax {
@@ -38,6 +39,7 @@ func (e *Editor) undo() {
 		lines: cloneRuneLines(e.lines),
 		row:   e.row,
 		col:   e.col,
+		chips: cloneChips(e.chips.chips),
 	}
 	snap := e.history[len(e.history)-1]
 	e.history = e.history[:len(e.history)-1]
@@ -45,6 +47,7 @@ func (e *Editor) undo() {
 	e.lines = snap.lines
 	e.row = snap.row
 	e.col = snap.col
+	e.chips.chips = cloneChips(snap.chips)
 	e.allSelected = false
 	fn := e.onChange
 	v := e.valueLocked()
@@ -65,6 +68,7 @@ func (e *Editor) redo() {
 		lines: cloneRuneLines(e.lines),
 		row:   e.row,
 		col:   e.col,
+		chips: cloneChips(e.chips.chips),
 	}
 	snap := e.future[len(e.future)-1]
 	e.future = e.future[:len(e.future)-1]
@@ -72,6 +76,7 @@ func (e *Editor) redo() {
 	e.lines = snap.lines
 	e.row = snap.row
 	e.col = snap.col
+	e.chips.chips = cloneChips(snap.chips)
 	e.allSelected = false
 	fn := e.onChange
 	v := e.valueLocked()

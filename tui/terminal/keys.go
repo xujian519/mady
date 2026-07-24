@@ -304,8 +304,10 @@ func decodeCSI(seq, params string, final byte) Key {
 // were negotiated. Without flag context, the parser cannot tell whether the
 // third parameter is an event type, an alternate key, or associated text.
 // We use kittyActiveFlags() (set via SetKittyKeyboardFlagsFromTerminal) to
-// determine the layout. When flags are unknown (0), we default to the
-// simplest layout (code;mods) and treat everything else as a raw sequence.
+// determine the layout. When flags are unknown (0), we fall back to a greedy
+// parser that assumes all fields (code;mods;event;alt;text) are present, since
+// the terminal was not yet negotiated — this backwards-compatible default
+// ensures pre-negotiation key events are still parsed correctly.
 // Callers should ensure SetKittyKeyboardFlags is called before Start.
 func decodeKittyU(seq, params string) Key {
 	codeStr, rest := splitTwo(params, ";")

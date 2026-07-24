@@ -75,6 +75,7 @@ type Editor struct {
 	focused        bool
 	focusIndicator string
 	km             *terminal.KeybindingsManager
+	chips          chipState // parallel chip model for inline tokens
 
 	killRing  []string
 	killIndex int64
@@ -112,6 +113,7 @@ type editorSnapshot struct {
 	lines [][]rune
 	row   int64
 	col   int64
+	chips []ChipPosition
 }
 
 // editorSelPos identifies a buffer position for mouse-drag selection: row is
@@ -205,6 +207,7 @@ func (e *Editor) SetPaddingX(n int64) {
 // SetValue overwrites the buffer and moves the cursor to the end.
 func (e *Editor) SetValue(s string) {
 	e.mu.Lock()
+	e.chips.Clear()
 	e.pushSnapshotLocked()
 	raw := strings.Split(s, "\n")
 	lines := make([][]rune, 0, len(raw))
@@ -389,4 +392,34 @@ func (e *Editor) Update(msg core.Msg) core.Cmd {
 		e.handleMouse(m)
 	}
 	return nil
+}
+
+// InsertChip inserts a chip at the current cursor position.
+func (e *Editor) InsertChip(chip *Chip) ChipPosition {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.chips.InsertChip(e.row, e.col, chip)
+}
+
+// InsertChipAt inserts a chip at a specific buffer position.
+func (e *Editor) InsertChipAt(row, col int64, chip *Chip) ChipPosition {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.chips.InsertChip(row, col, chip)
+}
+
+// RemoveChipAt removes a chip from the buffer position. Returns true if found.
+func (e *Editor) RemoveChipAt(row, col int64) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.chips.RemoveChipAt(row, col)
+}
+
+// Chips returns a copy of the current chip positions.
+func (e *Editor) Chips() []ChipPosition {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	cp := make([]ChipPosition, len(e.chips.chips))
+	copy(cp, e.chips.chips)
+	return cp
 }

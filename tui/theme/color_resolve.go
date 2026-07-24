@@ -16,6 +16,8 @@ const (
 	ColorModeTruecolor ColorMode = iota + 1
 	// ColorMode256 maps hex to the nearest xterm 256-color index.
 	ColorMode256
+	// ColorModeBasic maps hex to the nearest 16-color ANSI index (3x/4x or 9x/10x).
+	ColorModeBasic
 )
 
 // DetectColorMode mirrors common heuristics (similar to pi-mono coding-agent).
@@ -28,7 +30,7 @@ func DetectColorMode() ColorMode {
 	}
 	term := os.Getenv("TERM")
 	if term == "dumb" || term == "" || term == "linux" {
-		return ColorMode256
+		return ColorModeBasic
 	}
 	if os.Getenv("TERM_PROGRAM") == "Apple_Terminal" {
 		return ColorMode256
@@ -175,6 +177,11 @@ func FgParams(value string, mode ColorMode) string {
 	if mode == ColorModeTruecolor {
 		return fmt.Sprintf("38;2;%d;%d;%d", r, g, b)
 	}
+	if mode == ColorModeBasic {
+		// Determine polarity: in practice color_resolve doesn't know isDarkBg
+		// at the per-call level. Default dark=true since most themes are dark.
+		return FgParams16(value, true)
+	}
 	idx := RGBTo256(r, g, b)
 	return fmt.Sprintf("38;5;%d", idx)
 }
@@ -194,6 +201,9 @@ func BgParams(value string, mode ColorMode) string {
 	}
 	if mode == ColorModeTruecolor {
 		return fmt.Sprintf("48;2;%d;%d;%d", r, g, b)
+	}
+	if mode == ColorModeBasic {
+		return BgParams16(value, true)
 	}
 	idx := RGBTo256(r, g, b)
 	return fmt.Sprintf("48;5;%d", idx)

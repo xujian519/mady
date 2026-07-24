@@ -132,6 +132,8 @@ func (t *TUI) renderFrame() {
 
 	if first || prevW != cols {
 		// Full repaint: write every row from top to bottom.
+		// Always hide cursor during full repaint to avoid flicker while
+		// rows are being redrawn. Stateful cursor visibility is restored below.
 		buf.WriteString("\x1b[?25l")
 		buf.WriteString("\x1b[H")
 		buf.WriteString("\x1b[0J")
@@ -147,7 +149,12 @@ func (t *TUI) renderFrame() {
 	} else {
 		// Differential repaint: emit only the changed cell segments. This
 		// reduces terminal output bandwidth compared to rewriting whole rows.
-		buf.WriteString("\x1b[?25l")
+		// Hide cursor during the repaint only when it was previously visible,
+		// since the diff writes move the cursor via MoveTo. If already hidden
+		// from a prior frame, skip the hide to preserve the blink timer.
+		if t.lastCursor.visible || t.lastCursor.first {
+			buf.WriteString("\x1b[?25l")
+		}
 		diff := core.DiffFrame(prev, rows)
 		for _, d := range diff {
 			if d.RawContent != "" {
@@ -174,12 +181,31 @@ func (t *TUI) renderFrame() {
 		}
 	}
 
-	if cursorRow >= 0 {
-		fmt.Fprintf(&buf, "\x1b[%d;%dH", cursorRow+1, cursorCol+1)
-		buf.WriteString("\x1b[?25h")
-	} else {
-		buf.WriteString("\x1b[?25l")
+	// Stateful cursor placement: only emit Show/Hide and MoveTo when the
+	// desired state differs from the previous frame. This preserves the
+	// terminal's cursor blink timer — constant re-hide/reset every frame
+	// prevents the blink cycle from completing.
+	wantVisible := cursorRow >= 0
+	wantRow := cursorRow
+	wantCol := cursorCol
+
+	if wantVisible != t.lastCursor.visible {
+		// Visibility transition: emit Show/Hide.
+		if wantVisible {
+			fmt.Fprintf(&buf, "\x1b[%d;%dH\x1b[?25h", wantRow+1, wantCol+1)
+		} else {
+			buf.WriteString("\x1b[?25l")
+		}
+	} else if wantVisible && (wantRow != t.lastCursor.row || wantCol != t.lastCursor.col) {
+		// Already visible but position changed: reposition without Show/Hide.
+		fmt.Fprintf(&buf, "\x1b[%d;%dH", wantRow+1, wantCol+1)
 	}
+	// No change: zero cursor commands emitted — blink timer undisturbed.
+
+	t.lastCursor.visible = wantVisible
+	t.lastCursor.row = wantRow
+	t.lastCursor.col = wantCol
+	t.lastCursor.first = false
 
 	// Re-enable auto-wrap after the frame render.
 	buf.WriteString("\x1b[?7h")

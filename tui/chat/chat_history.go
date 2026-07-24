@@ -202,6 +202,10 @@ type ChatHistory struct {
 	// Guarded by mu.
 	renderTimer *time.Timer
 
+	// scrollbar configuration for the visual scrollbar on the right edge.
+	sbEnabled bool
+	sbWidth   int64
+
 	// firstDirtyIdx tracks the lowest message index that changed since the
 	// last renderAll. When > 0, all messages before this index are guaranteed
 	// unchanged (same text, same collapsed state). The incremental render fast
@@ -268,6 +272,17 @@ func (h *ChatHistory) SetOnCopy(fn func(text string)) {
 	h.mu.Lock()
 	h.onCopy = fn
 	h.mu.Unlock()
+}
+
+// SetScrollbarEnabled enables or disables the visual scrollbar on the right edge.
+func (h *ChatHistory) SetScrollbarEnabled(enabled bool) {
+	h.mu.Lock()
+	h.sbEnabled = enabled
+	if enabled && h.sbWidth == 0 {
+		h.sbWidth = 1 // default: 1 column
+	}
+	h.mu.Unlock()
+	h.invalidate()
 }
 
 // SetMaxRows clamps the visible viewport.

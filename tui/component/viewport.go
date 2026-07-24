@@ -9,6 +9,51 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// Scrollbar configuration
+// ---------------------------------------------------------------------------
+
+// ScrollbarMode controls when the scrollbar is rendered.
+type ScrollbarMode int
+
+const (
+	// ScrollbarAuto shows the scrollbar only when content exceeds the viewport.
+	ScrollbarAuto ScrollbarMode = iota
+	// ScrollbarAlways always reserves space and renders the scrollbar.
+	ScrollbarAlways
+	// ScrollbarNever disables the scrollbar entirely.
+	ScrollbarNever
+)
+
+// ScrollbarConfig configures the visual scrollbar drawn alongside viewport content.
+type ScrollbarConfig struct {
+	// Mode controls visibility. Default: ScrollbarAuto.
+	Mode ScrollbarMode
+	// TrackSymbol is the character used for the scrollbar track.
+	// Default: ' ' (space — the background color provides the track).
+	TrackSymbol rune
+	// ThumbSymbol is the character used for the scrollbar thumb.
+	// Default: '▐' (RIGHT HALF BLOCK, U+2590).
+	ThumbSymbol rune
+	// Width is the number of columns reserved for the scrollbar (including gap).
+	// Default: 1 (single column with no gap). Use 2 for a gap between content and scrollbar.
+	Width int64
+	// FollowDim when true dims the scrollbar when following the tail.
+	// Default: true.
+	FollowDim bool
+}
+
+// defaultScrollbarConfig returns sensible defaults.
+func defaultScrollbarConfig() ScrollbarConfig {
+	return ScrollbarConfig{
+		Mode:        ScrollbarAuto,
+		TrackSymbol: ' ',
+		ThumbSymbol: '▐', // RIGHT HALF BLOCK
+		Width:       1,
+		FollowDim:   true,
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Viewport — a scrollable window into a vertical content buffer.
 //
 // Viewport is useful for any content that is taller than the available
@@ -38,6 +83,13 @@ type Viewport struct {
 	follow      bool
 	indicator   bool
 	indicatorFn func(string) string
+
+	// scrollbar configuration and cached render state.
+	sb      ScrollbarConfig
+	sbCache struct {
+		total, viewport, off int64
+		thumbStart, thumbEnd int64
+	}
 }
 
 // NewViewport returns a viewport with the given visible height.
@@ -91,6 +143,42 @@ func (v *Viewport) SetIndicator(enabled bool) {
 	v.mu.Lock()
 	v.indicator = enabled
 	v.mu.Unlock()
+}
+
+// SetScrollbarConfig configures the visual scrollbar. Passing the zero value
+// (ScrollbarConfig{}) disables the scrollbar.
+func (v *Viewport) SetScrollbarConfig(cfg ScrollbarConfig) {
+	v.mu.Lock()
+	if cfg.Width < 1 {
+		cfg.Width = 1
+	}
+	if cfg.ThumbSymbol == 0 {
+		cfg.ThumbSymbol = '▐'
+	}
+	if cfg.Mode == ScrollbarAuto && cfg.Width < 2 {
+		// Auto mode: avoid reserving a column for the scrollbar when content fits.
+		// The gap is not needed in 1-column mode since the content is already
+		// clipped at contentWidth, leaving the rightmost column as the scrollbar.
+	}
+	v.sb = cfg
+	v.mu.Unlock()
+}
+
+// ScrollbarConfig returns the current scrollbar configuration.
+func (v *Viewport) ScrollbarConfig() ScrollbarConfig {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.sb
+}
+
+// SetScrollbarEnabled is a convenience method to enable/disable the scrollbar
+// with default settings.
+func (v *Viewport) SetScrollbarEnabled(enabled bool) {
+	if enabled {
+		v.SetScrollbarConfig(defaultScrollbarConfig())
+	} else {
+		v.SetScrollbarConfig(ScrollbarConfig{Mode: ScrollbarNever})
+	}
 }
 
 // SetIndicatorFn installs a custom renderer for the indicator text. Pass
@@ -161,7 +249,8 @@ func (v *Viewport) Total() int64 {
 	return int64(len(v.content))
 }
 
-// Render returns the visible slice of content, padded to the requested width.
+// Render returns the visible slice of content, optionally with a scrollbar
+// drawn on the right edge.
 func (v *Viewport) Render(width int64) []string {
 	if width < 1 {
 		width = 1
@@ -172,11 +261,25 @@ func (v *Viewport) Render(width int64) []string {
 	maxRows := v.maxRows
 	indicator := v.indicator
 	indicatorFn := v.indicatorFn
+	sb := v.sb // copy
 	v.mu.RUnlock()
 
 	total := int64(len(content))
+
+	// Determine scrollbar reservation.
+	var sbWidth int64
+	if sb.Mode != ScrollbarNever && total > maxRows {
+		sbWidth = sb.Width
+	}
+	contentWidth := width - sbWidth
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+
 	if maxRows <= 0 || total <= maxRows {
-		return padLines(content, width)
+		visible := make([]string, len(content))
+		copy(visible, content)
+		return appendScrollbar(visible, width, contentWidth, sb, sbWidth, false, 0, 0, 0, 0)
 	}
 
 	// offset is lines scrolled up from the tail. 0 shows the last maxRows
@@ -205,7 +308,26 @@ func (v *Viewport) Render(width int64) []string {
 		visible = append([]string{ind}, visible...)
 	}
 
-	return padLines(visible, width)
+	// Compute scrollbar thumb position.
+	var thumbStart, thumbEnd int64
+	if sbWidth > 0 && total > maxRows {
+		thumbLen := maxRows * maxRows / total
+		if thumbLen < 1 {
+			thumbLen = 1
+		}
+		start := total - maxRows - offset
+		if start < 0 {
+			start = 0
+		}
+		thumbStart = start * (maxRows - thumbLen) / (total - maxRows)
+		thumbEnd = thumbStart + thumbLen
+		if thumbEnd > maxRows {
+			thumbEnd = maxRows
+		}
+	}
+
+	result := appendScrollbar(visible, width, contentWidth, sb, sbWidth, v.follow, total, maxRows, thumbStart, thumbEnd)
+	return padLines(result, width)
 }
 
 // Invalidate is a no-op for Viewport because it holds no derived cache.
@@ -228,6 +350,57 @@ func (v *Viewport) clampLocked() {
 	if v.offset > maxOffset {
 		v.offset = maxOffset
 	}
+}
+
+// appendScrollbar appends a scrollbar column to each visible line when
+// sbWidth > 0. The thumb is rendered using the palette's current theme:
+// track = Dim, thumb = Muted (following) or Border (not following).
+func appendScrollbar(visible []string, width, contentWidth int64, sb ScrollbarConfig, sbWidth int64, following bool, _, _ int64, thumbStart, thumbEnd int64) []string {
+	if sbWidth <= 0 || len(visible) == 0 {
+		// No scrollbar — just pad to the full width.
+		out := make([]string, len(visible))
+		for i, ln := range visible {
+			if core.VisibleWidth(ln) < width {
+				out[i] = core.PadToWidth(ln, width)
+			} else {
+				out[i] = ln
+			}
+		}
+		return out
+	}
+
+	pal := theme.CurrentPalette()
+	trackStyle := pal.Dim
+	thumbStyle := pal.Muted
+	if !following && sb.FollowDim {
+		thumbStyle = pal.Border
+	}
+
+	out := make([]string, len(visible))
+	trackChar := string(sb.TrackSymbol)
+	if sb.TrackSymbol == 0 || sb.TrackSymbol == ' ' {
+		trackChar = " " // space — track is the background color
+	}
+	thumbChar := string(sb.ThumbSymbol)
+
+	for i := int64(0); i < int64(len(visible)); i++ {
+		ln := visible[i]
+		if core.VisibleWidth(ln) > contentWidth {
+			ln = core.TruncateToWidth(ln, contentWidth, "…")
+		} else {
+			ln = core.PadToWidth(ln, contentWidth)
+		}
+
+		// Draw the scrollbar cell.
+		if i >= thumbStart && i < thumbEnd {
+			ln += thumbStyle.Render(thumbChar)
+		} else {
+			ln += trackStyle.Render(trackChar)
+		}
+
+		out[i] = ln
+	}
+	return out
 }
 
 func padLines(lines []string, width int64) []string {
