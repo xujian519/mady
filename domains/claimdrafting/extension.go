@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/graph"
 )
 
 // ExtensionName 是 claimdrafting 扩展的名称。
@@ -20,19 +21,34 @@ var (
 
 // Extension 实现 agentcore.Extension 和 ToolProvider 接口，
 // 将权利要求撰写功能注册为 Agent 可用的工具。
+//
+// 引擎层使用 8 节点 Pregel 图编排撰写流程（load_input → classify_features
+// → draft_primary → draft_parallel → draft_dependents → validate → score
+// → finalize），替代传统的串行 Builder 调用。
 type Extension struct {
 	mu      sync.RWMutex
 	engine  *RuleEngine
 	scorer  *ClaimScorer
-	drafter *LLMDrafter // 可选，通过 SetDrafter 注入
+	drafter *LLMDrafter                // 可选，通过 SetDrafter 注入
+	graph   *graph.CompiledPregelGraph // 预编译的 Pregel 图
 }
 
 // NewExtension 创建一个 claimdrafting 扩展实例。
 // engine 为共享的规则引擎实例（所有工具调用复用同一引擎）。
+// 创建时预编译 8 节点 Pregel 图，后续所有 draft_claims 调用通过图执行完成。
 func NewExtension(engine *RuleEngine) *Extension {
+	if engine == nil {
+		panic("claimdrafting: NewExtension 的 engine 参数不能为 nil")
+	}
+	scorer := NewClaimScorer(engine)
+	g, err := BuildClaimGraph(engine, scorer)
+	if err != nil {
+		panic("claimdrafting: 构建 Pregel 图失败: " + err.Error())
+	}
 	return &Extension{
 		engine: engine,
-		scorer: NewClaimScorer(engine),
+		scorer: scorer,
+		graph:  g,
 	}
 }
 
@@ -121,29 +137,37 @@ func (e *Extension) handleDraftClaims(ctx context.Context, args json.RawMessage)
 		TechDomain: domain,
 	}
 
-	// 优先使用 drafter（LLM 增强），降级到纯规则引擎 Builder。
+	// 优先使用 drafter（LLM 增强），否则使用 Pregel 图执行。
 	// drafter 内部在 provider 不可用时也会自行降级到 Builder。
 	var output *DraftOutput
-	var err error
 	if d := e.Drafter(); d != nil {
+		var err error
 		output, err = d.DraftFromScratch(input)
-	} else {
-		builder := NewClaimBuilder(domain, "")
-		output, err = builder.Build(input)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("draft_claims: 撰写失败: %w", err)
-	}
 
-	// 通过扩展的引擎进行二次验证
-	if e.engine != nil {
-		allClaims := output.Claims.Claims()
-		violations := e.engine.Validate(allClaims, input)
-		for _, v := range violations {
-			if v.Severity == SeverityWarning || v.Severity == SeverityInfo {
-				output.Warnings = append(output.Warnings, "["+v.RuleName+"] "+v.Message)
+		// drafter 路径保留二次验证（LLM 输出可能不合规）
+		if err == nil && e.engine != nil && output.Claims != nil {
+			allClaims := output.Claims.Claims()
+			violations := e.engine.Validate(allClaims, input)
+			for _, v := range violations {
+				if v.Severity == SeverityWarning || v.Severity == SeverityInfo {
+					output.Warnings = append(output.Warnings, "["+v.RuleName+"] "+v.Message)
+				}
 			}
 		}
+		if err != nil {
+			return nil, fmt.Errorf("draft_claims: 撰写失败: %w", err)
+		}
+	} else {
+		state := graph.PregelState{StateKeyInput: &input}
+		result, gErr := e.graph.Run(ctx, state)
+		if gErr != nil {
+			return nil, fmt.Errorf("draft_claims: 图执行失败: %w", gErr)
+		}
+		out, ok := result[StateKeyOutput].(*DraftOutput)
+		if !ok || out == nil {
+			return nil, fmt.Errorf("draft_claims: 图执行未产生输出")
+		}
+		output = out
 	}
 
 	return output, nil

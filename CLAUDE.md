@@ -119,8 +119,7 @@ mady/
 ├── docs/             # 文档（ADRs、OpenAPI 规范、设计文档、评审报告）
 ├── filequeue/        # 文件队列
 ├── fuzzy/            # 模糊匹配
-├── prompt/           # 提示词模板加载器
-├── prompt-templates/ # 提示词模板库（20 个 curated 模板）
+├── prompt/           # 提示词模板加载器 + 内置模板库（prompt/templates/）
 ├── protocol/         # JSON-RPC 协议原语
 ├── plugins/          # 专利工作流插件（novelty-analysis / infringement-check / oa-response）
 ├── styles/           # 文档风格指南 YAML（patent-standard / legal-standard / chat-friendly / assistant-neutral）

@@ -1,5 +1,127 @@
 # AI 变更记录
 
+## 2026-07-24: prompt-templates 接线 — Phase 3（模板引用解析）
+
+### 背景
+Phase 2 已将 `prompt.PromptStore` 注入 `frameworkContext` 与 `domains`。Phase 3 提供 `prompt://<name>` 引用语法的解析能力，使内联 system prompt 可以无缝替换为模板库中的模板。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `pkg/agentconfig/resolve.go` | 新增：`ResolveSystemPrompt` / `ResolveSystemPromptStrict` + `PromptTemplateStore` 接口；`system_prompt: "prompt://name"` 解析为对应模板的 `system_prompt` |
+| `pkg/agentconfig/resolve_test.go` | 新增：内联保留、模板解析、缺失回退、nil store、strict 模式等测试 |
+| `domains/prompt_store.go` | 新增 `ResolveSystemPrompt(raw string) string` 便捷函数，基于已注入的全局 `PromptStore` |
+| `domains/prompt_store_test.go` | 新增：内联保留、模板解析、缺失回退测试 |
+
+### 设计决策
+- **无字段侵入**：不新增 `agentconfig.Config` 字段，复用现有 `SystemPrompt` 字符串；以 URI 前缀区分模板引用与内联文本。
+- **安全降级**：模板未找到或 Store 未注入时，原样返回原始字符串，避免启动或运行时崩溃。
+- **接口隔离**：`PromptTemplateStore` 接口让 `pkg/agentconfig` 测试无需构造完整 `PromptStore`。
+
+### 验证结果
+- `go build ./...`：通过 ✅
+- `go test -race ./prompt/... ./pkg/agentconfig/... ./domains/...`：通过 ✅
+- `golangci-lint run ./prompt/... ./pkg/agentconfig/... ./domains/...`：通过 ✅
+
+### 下一步
+Phase 4.1：迁移工作流节点内联 prompt（`workflows/patent/oa_response.go`、`disclosure/novelty.go`、`disclosure/keywords.go`）。
+
+---
+
+## 2026-07-24: prompt-templates 接线 — Phase 2（框架注入）
+
+### 背景
+Phase 1 已建立 `prompt.PromptStore` 和 `//go:embed` 加载能力，但 Store 尚未被任何运行时入口持有。Phase 2 将 Store 注入三个入口（tui/serve/acp）共享的 `frameworkContext`，并通过 `domains.SetupPromptStore` 暴露给领域层。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `cmd/mady/framework.go` | `frameworkContext` 新增 `PromptStore *prompt.PromptStore`；`initReasoningAndTemplates` 中创建 `prompt.NewPromptStore` 并调用 `domains.SetupPromptStore` |
+| `domains/prompt_store.go` | 新增：`globalPromptStore` + `SetupPromptStore` + `PromptStore()` getter |
+
+### 设计决策
+- **注入位置**：与 `doctmpl.NewTemplateStore` 并列放在 `initReasoningAndTemplates`，因为二者都是"模板类资源"的初始化。
+- **用户覆盖目录**：`$MADY_HOME/prompt-templates/`，与 `doc-templates/` 对称。
+- **启动失败降级**：加载失败仅打印警告，不影响启动；上层使用 `prompt://` 时若未找到模板会回退到内联提示词。
+- **全局 getter 模式**：与 `domains.GetPatentRetriever` / `SetupDocTemplateStore` 保持一致，领域层无需持有 `frameworkContext`。
+
+### 验证结果
+- `go build ./...`：通过 ✅
+- `go test -race ./...`：通过 ✅
+- `golangci-lint run ./prompt/... ./cmd/mady/... ./domains/...`：通过 ✅
+
+### 下一步
+Phase 3：在 `pkg/agentconfig` 中支持 `system_prompt: "prompt://<name>"` 引用语法，并在 Agent 构建前解析。
+
+---
+
+## 2026-07-24: prompt-templates 接线 — Phase 1（Store + Embed + 目录迁移）
+
+### 背景
+`prompt/` 包已提供模板加载与渲染 API，`prompt-templates/` 目录已存放 20 个 curated JSON 模板，但两者从未被任何代码引用，处于"数据沉睡"状态。本阶段为全接线计划的第一阶段，目标是建立可嵌入二进制、可被运行时消费、支持用户覆盖的 PromptTemplate Store。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `prompt/templates/` | 从仓库根 `prompt-templates/` 移入 `prompt/` 包内，保持子目录结构不变 |
+| `prompt/embed.go` | 新增：`//go:embed templates/*.json templates/**/*.json`，将 20 个模板编译进二进制 |
+| `prompt/store.go` | 新增：`PromptStore`（线程安全）+ `NewPromptStore(userRoots...)`，支持内置模板 + `$MADY_HOME/prompt-templates/` 用户覆盖 |
+| `prompt/loader.go` | 新增 `LoadPromptsFromFS(fsys fs.FS, root string)`；抽离 `unmarshalPrompt` 供磁盘与 embed 加载复用；更新包注释 |
+| `prompt/store_test.go` | 新增：嵌入加载、用户覆盖、并发读、触发词匹配、List/Index 等测试 |
+| `CLAUDE.md` / `README.md` / `architecture.html` | 更新目录结构引用：`prompt-templates/` → `prompt/templates/` |
+
+### 设计决策
+- **目录迁移**：遵循 `agentcore/manifests/` 与 `domains/doctmpl/templates/` 的既有惯例——"哪个包消费数据，数据就放在哪个包下"，从而可直接使用 `go:embed`。
+- **覆盖语义**：先加载内置模板，再叠加 `$MADY_HOME/prompt-templates/` 中的用户模板；同名模板用户优先。
+- **向后兼容**：`prompt` 包原有 API（`LoadPrompts` / `ResolvePrompt` / `FindPromptBy*`）保持不变，新增 Store 不破坏现有调用方。
+
+### 验证结果
+- `go build ./prompt/...`：通过 ✅
+- `go test -race ./prompt/...`：通过 ✅
+
+### 下一步
+Phase 2：在 `cmd/mady/framework.go` 的 `initReasoningAndTemplates` 中创建并注入 `PromptStore`。
+
+---
+
+## 2026-07-24: claimdrafting Pregel 图 — 8 节点编排替代串行 Builder
+
+### 背景
+权利要求起草（`domains/claimdrafting`）之前只有串行 `ClaimBuilder.Build()` 五步法（特征分类→独立→从属→验证），没有独立 Pregel 工作流，与 `domains/specdrafting` 的 12 节点 Pregel 图架构不对称。用户选了路线 A：在 `domains/claimdrafting/` 内增 Pregel 图。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `domains/claimdrafting/types.go` | 追加 9 个 `StateKey*` 常量（Pregel 状态键）和 `timestamp()` 辅助函数 |
+| `domains/claimdrafting/graph.go` | **新建** — `BuildClaimGraph(engine, scorer) *CompiledPregelGraph`，8 节点 Pregel 图（load_input→classify_features→draft_primary→draft_parallel→draft_dependents→validate→score→finalize） |
+| `domains/claimdrafting/nodes.go` | **新建** — 8 个节点实现 + `stateHasSkip`/`extractInput`/`collectAllClaims`/`buildClaimSet` 辅助 |
+| `domains/claimdrafting/extension.go` | `Extension` 新增 `graph` 字段，`NewExtension` 预编译图（engine 不可为 nil），`handleDraftClaims` 无 drafter 时改走 `graph.Run()` |
+
+### 设计决策
+- **架构对标 specdrafting**：完全相同模式（`BuildClaimGraph` → `AddNode/AddEdge` → `Compile` → `Run`），注入共享 `builder`/`engine`/`scorer` 闭包给节点
+- **节点职责拆分**：`buildIndependentClaims` 中的策略分支拆为 `draft_primary`（主权要）+ `draft_parallel`（并列权要），前者总是执行，后者在 `StrategyProductOnly` 时跳过
+- **8 节点 vs specdrafting 12 节点**：claimdrafting 不需要说明书的多章节节点，按五步法自然映射为 5 个起草节点 + 3 个辅助节点（load/validate/score/finalize），最少化但职责完整
+- **drafter 路径不变**：`LLMDrafter.DraftFromScratch` 仍使用内部 `builder.Build()` 做降级输出，不受 Pregel 图影响
+- **向后兼容**：工具签名、输入参数、输出结构不变；`handleDraftClaims` 的 drafter/非 drafter 双路径保留
+
+### Code Review 修复
+
+| 问题 | 所在 | 修复 |
+|------|------|------|
+| `finalizeNode` 重复 warnings | `nodes.go:301-307` | 移除第二个 violations 循环（`ScoreReport.Violations` 已是完整来源） |
+| `validateNode` 的 `engine.Validate` 结果仅被 `scoreNode` 消费 | `nodes.go:229-231` | 改 `violations :=` 为 `_ =`（验证仍执行，结果不再写 state） |
+| graph 路径 `err` 变量始终 nil | `extension.go:143,169` | 将 `var err` 移入 drafter 分支内，移除图路径的 `if err != nil` 死码 |
+
+### 验证结果
+- `go build ./...`：通过 ✅
+- `go vet ./domains/claimdrafting/...`：通过 ✅
+- `go test ./domains/claimdrafting/...`：20 tests PASS ✅
+- `go test ./domains/specdrafting/...`：通过 ✅
+
 ## 2026-07-24: 跨案件写作习惯复用 — styles 接线 + memory UserID 修复
 
 ### 背景
@@ -3546,7 +3668,7 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 |---|------|------|
 | 1 | **MCP Install CLI** | `mcp/install.go` + `cmd/mady/mcp_install.go`：`mady mcp-install <agent>` 一键将 Mady 的 ACP 服务端接入 Claude Code / Codex / Cursor / Gemini CLI / GitHub Copilot 等编码 Agent |
 | 2 | **SKILL.md 扩展字段** | `skill/skill.go` 新增 `MadyExtension` 结构体（mode/guardrail_level/approval_required/inputs/example_prompt/capabilities/handoff_allowed），`skill/frontmatter.go` 新增 YAML 解析，4 个现有 SKILL.md 已添加 `mady:` 扩展段 |
-| 3 | **提示词模板库** | `prompt-templates/` 目录含 16 个 curated 模板（检索/分析/撰写/OA/交底书/法律），`prompt/loader.go` 提供 `LoadPrompts` / `ResolvePrompt` / `FindPromptByTrigger` / `FindPromptByName` API |
+| 3 | **提示词模板库** | `prompt/templates/` 目录含 20 个 curated 模板（检索/分析/撰写/OA/交底书/法律），通过 `//go:embed` 编译进二进制；`prompt/loader.go` 提供 `LoadPrompts` / `LoadPromptsFromFS` / `ResolvePrompt` / `FindPromptByTrigger` / `FindPromptByName` API，`prompt/store.go` 提供 `PromptStore` 运行时缓存与覆盖机制 |
 
 ### 技术细节
 - MCP Install 复用已有 `MCPServerConfig` / `MCPConfigFile` 类型，支持 `--list` / `--print` / `--uninstall`

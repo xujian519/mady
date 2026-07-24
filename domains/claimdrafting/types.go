@@ -3,6 +3,7 @@ package claimdrafting
 import (
 	"strconv"
 	"strings"
+	"time"
 )
 
 // =============================================================================
@@ -203,6 +204,27 @@ var DimensionWeights = map[string]float64{
 // =============================================================================
 // 帮助函数
 // =============================================================================
+
+// =============================================================================
+// Pregel State Keys
+// =============================================================================
+
+const (
+	StateKeyInput      = "claim_input"
+	StateKeyDomain     = "claim_domain"
+	StateKeyEssential  = "claim_essential"
+	StateKeyOptional   = "claim_optional"
+	StateKeyPrimary    = "claim_primary"
+	StateKeyParallels  = "claim_parallels"
+	StateKeyDependents = "claim_dependents"
+	StateKeyOutput     = "claim_output"
+	StateKeyScore      = "claim_score"
+)
+
+// timestamp 返回当前 UTC 时间戳。
+func timestamp() string {
+	return time.Now().UTC().Format(time.RFC3339)
+}
 
 // String renders the claim in standard Chinese patent format.
 func (c Claim) String() string {

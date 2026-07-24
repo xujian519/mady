@@ -36,6 +36,7 @@ import (
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/lawcite"
 	"github.com/xujian519/mady/pkg/util"
+	"github.com/xujian519/mady/prompt"
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/retrieval/domain"
 	rsqlite "github.com/xujian519/mady/retrieval/domain/sqlite"
@@ -95,6 +96,9 @@ type frameworkContext struct {
 	Provider     agentcore.Provider
 	// MadyHome 是应用数据根目录（~/.mady），所有可写子资源从此派生。
 	MadyHome string
+	// PromptStore 是提示词模板仓库（内置 + 用户覆盖），供 Agent / 工作流节点解析
+	// prompt://<name> 模板引用。
+	PromptStore *prompt.PromptStore
 	// WorkspaceDir 是解析后的 workspace 绝对路径（~/.mady/workspace 或 $WORKSPACE_DIR）。
 	WorkspaceDir string
 	// ManifestDir 是外部 manifest 覆盖目录（~/.mady/manifests 或 $MANIFEST_DIR），可为 ""。
@@ -623,6 +627,18 @@ func initReasoningAndTemplates(fc *frameworkContext) {
 		fmt.Fprintf(os.Stderr, "doctmpl: 加载模板仓库失败: %v（模板工具不可用）\n", err)
 	} else {
 		domains.SetupDocTemplateStore(store)
+	}
+
+	// Prompt 模板仓库：go:embed 内置 + $MADY_HOME/prompt-templates/ 用户覆盖。
+	// 失败时仅打印警告，不影响启动；上层使用 prompt://<name> 引用模板时若
+	// 未找到会回退到内联提示词。
+	promptDir := filepath.Join(fc.MadyHome, "prompt-templates")
+	fc.PromptStore, err = prompt.NewPromptStore(promptDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "prompt: 加载模板仓库失败: %v（prompt:// 模板引用不可用）\n", err)
+	} else {
+		domains.SetupPromptStore(fc.PromptStore)
+		fmt.Fprintf(os.Stderr, "prompt: 已加载 %d 个提示词模板\n", fc.PromptStore.Count())
 	}
 
 	approvalDB := filepath.Join(fc.WorkspaceDir, "approvals.db")

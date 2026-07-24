@@ -537,7 +537,7 @@ type Principle struct {
 | `styles/*.yaml` | WritingPattern 中提取的 Dos/Donts 可以作为风格指南的补充成分 |
 | `domains/reasoning/syllogism.go` | WritingPattern 可以指导 Agent 如何构建三段论的每一个前提 |
 | `domains/reasoning/five_step_runner.go` | WritingPattern 在 Stage 4（执行）阶段注入 |
-| `prompt-templates/*.json` | WritingPattern 可以作为模板中的 writing_guidance 字段 |
+| `prompt/templates/**/*.json` | WritingPattern 可以作为模板中的 writing_guidance 字段 |
 | `knowledge/graph/` | WritingPattern 节点 + APPLIES_TO 边连接到适用案例 |
 
 ### 4.3 任务清单

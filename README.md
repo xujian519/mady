@@ -181,7 +181,7 @@ go get github.com/xujian519/mady/agentcore
     │ graph/ session/ skill/ store/ workflow/  │
     │ knowledge/ retrieval/ psychological/     │
     │ disclosure/ memory/ filequeue/ fuzzy/    │
-    │ prompt/ prompt-templates/ styles/        │
+    │ prompt/ styles/ doc-templates/           │
     │ plugins/ doc-templates/ mcp/ session/    │
     └──────────────────────────────────────────┘
                            │

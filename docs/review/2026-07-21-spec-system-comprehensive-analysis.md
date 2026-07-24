@@ -67,7 +67,7 @@
 | E4 | `domains/writing/seed-patterns/*.yaml` (10 份) | 写作规范 | 专利撰写模式定义 |
 | E5 | `skils/domain/SKILL.md` (7 份) | 技能规范 | 技能文件定义规范 |
 | E6 | `doc-templates/**/*.md` (20 份) | 文档模板 | 领域文档模板 |
-| E7 | `prompt-templates/**/*.json` (20 份) | 提示词规范 | 领域提示词模板 |
+| E7 | `prompt/templates/**/*.json` (20 份) | 提示词规范 | 领域提示词模板 |
 | E8 | `manifests/*.json` (3 份) | 配置规范 | Agent 领域配置定义 |
 
 ### F 层级六：审核与评估文档

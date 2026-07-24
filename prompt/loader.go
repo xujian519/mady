@@ -5,13 +5,14 @@ package prompt
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
 // PromptTemplate is a curated prompt template loaded from a JSON file in
-// the prompt-templates/ directory. Each template describes a reusable
+// the prompt/templates/ directory. Each template describes a reusable
 // system + user prompt pair with trigger keywords and variable placeholders.
 type PromptTemplate struct {
 	Name        string   `json:"name"`
@@ -164,14 +165,58 @@ func loadPromptFile(path string) (*PromptTemplate, error) {
 		return nil, err
 	}
 	var tmpl PromptTemplate
-	if err := json.Unmarshal(data, &tmpl); err != nil {
+	if err := unmarshalPrompt(data, &tmpl); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
+	return &tmpl, nil
+}
+
+// unmarshalPrompt parses a single prompt template from JSON and applies
+// the same validation used by both disk and embed.FS loaders.
+func unmarshalPrompt(data []byte, tmpl *PromptTemplate) error {
+	if err := json.Unmarshal(data, tmpl); err != nil {
+		return err
+	}
 	if tmpl.Name == "" {
-		return nil, fmt.Errorf("%s: missing name", path)
+		return fmt.Errorf("missing name")
 	}
 	if tmpl.SystemPrompt == "" {
-		return nil, fmt.Errorf("%s: missing system_prompt", path)
+		return fmt.Errorf("missing system_prompt")
 	}
-	return &tmpl, nil
+	return nil
+}
+
+// LoadPromptsFromFS reads all prompt templates from an fs.FS rooted at root.
+// It reuses the same parsing rules as LoadPrompts. Templates with duplicate
+// names keep the first one found.
+func LoadPromptsFromFS(fsys fs.FS, root string) ([]PromptTemplate, error) {
+	var all []PromptTemplate
+	seen := make(map[string]bool)
+
+	err := fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || filepath.Ext(path) != ".json" {
+			return nil
+		}
+		data, err := fs.ReadFile(fsys, path)
+		if err != nil {
+			return fmt.Errorf("prompt-template %s: %w", path, err)
+		}
+		var tmpl PromptTemplate
+		if err := unmarshalPrompt(data, &tmpl); err != nil {
+			return fmt.Errorf("prompt-template %s: %w", path, err)
+		}
+		if seen[tmpl.Name] {
+			return nil // first wins
+		}
+		seen[tmpl.Name] = true
+		all = append(all, tmpl)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return all, nil
 }
