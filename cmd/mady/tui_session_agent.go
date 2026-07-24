@@ -11,6 +11,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/tui/agentadapter"
+	"github.com/xujian519/mady/tui/chat"
 )
 
 // ErrorSeverity classifies agent runtime errors for user-facing display.
@@ -165,6 +166,21 @@ func (s *tuiSession) initializeAgentAsync() {
 			if err := newAgent.LoadState(loadCtx, s.currentThreadID); err != nil {
 				if !errors.Is(err, os.ErrNotExist) {
 					log.Printf("[mady] agent: 恢复上次会话失败（以空状态继续）: %v", err)
+				}
+			} else {
+				// 成功恢复上次会话后，将历史消息回放到 ChatHistory，
+				// 使用户在重启后能看到之前的对话记录。
+				for _, msg := range newAgent.State().Messages() {
+					switch msg.Role {
+					case agentcore.RoleUser:
+						s.app.History().Append(chat.ChatMessage{Role: chat.RoleUser, Text: msg.Content})
+					case agentcore.RoleAssistant:
+						s.app.History().Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: msg.Content})
+					case agentcore.RoleSystem:
+						s.app.History().Append(chat.ChatMessage{Role: chat.RoleSystem, Text: msg.Content})
+					case agentcore.RoleTool:
+						s.app.History().Append(chat.ChatMessage{Role: chat.RoleTool, Text: msg.Content})
+					}
 				}
 			}
 			cancel()
