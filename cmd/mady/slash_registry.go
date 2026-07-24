@@ -31,6 +31,95 @@ import (
 	"github.com/xujian519/mady/tui/core"
 )
 
+// SlashArgProvider is an AutocompleteProvider that suggests command arguments
+// when the cursor is after a complete slash command (e.g. "/theme ").
+// It implements FullInputProvider to access the full input buffer.
+type SlashArgProvider struct {
+	registry *Registry
+}
+
+// NewSlashArgProvider creates a provider that reads command args from the registry.
+func NewSlashArgProvider(r *Registry) *SlashArgProvider {
+	return &SlashArgProvider{registry: r}
+}
+
+// Trigger returns "" (always-active provider).
+func (p *SlashArgProvider) Trigger() string { return "" }
+
+// Complete returns empty suggestions; use CompleteWithFull instead.
+func (p *SlashArgProvider) Complete(_ string) []core.Suggestion { return nil }
+
+// CompleteWithFull returns argument suggestions when the buffer contains a
+// completed slash command at the cursor position.
+func (p *SlashArgProvider) CompleteWithFull(token string, fullValue string, cursorPos int64) []core.Suggestion {
+	if len(fullValue) == 0 {
+		return nil
+	}
+	runes := []rune(fullValue)
+	if cursorPos < 0 || cursorPos > int64(len(runes)) {
+		return nil
+	}
+	// Must start with "/" to be a slash command context
+	if len(runes) == 0 || runes[0] != '/' {
+		return nil
+	}
+	// Find the end of the command name: position of space before cursor
+	// Using strings.LastIndexByte for clarity and robustness.
+	spaceIdx := -1
+	end := int(cursorPos)
+	if end > len(runes) {
+		end = len(runes)
+	}
+	for i := end - 1; i >= 0; i-- {
+		if runes[i] == ' ' {
+			spaceIdx = i
+			break
+		}
+	}
+	// We need at least "/name " prefix
+	if spaceIdx < 1 || runes[spaceIdx] != ' ' {
+		return nil
+	}
+	// Extract command name: "/name " → "name" (trim trailing spaces just in case)
+	cmdName := strings.TrimRight(string(runes[1:spaceIdx]), " ")
+	if cmdName == "" {
+		return nil
+	}
+	// Look up the command
+	for _, c := range p.registry.cmds {
+		if len(c.Args) == 0 {
+			continue
+		}
+		if c.Name == cmdName {
+			return filterSuggestions(c, token)
+		}
+		for _, alias := range c.Aliases {
+			if alias == cmdName {
+				return filterSuggestions(c, token)
+			}
+		}
+	}
+	return nil
+}
+
+// filterSuggestions builds a filtered suggestion list from a command's Args,
+// matching suggestions whose Value has the given token as a prefix.
+func filterSuggestions(c SlashCommand, token string) []core.Suggestion {
+	out := make([]core.Suggestion, 0, len(c.Args))
+	for _, arg := range c.Args {
+		if token != "" && !strings.HasPrefix(strings.ToLower(arg.Value), strings.ToLower(token)) {
+			continue
+		}
+		out = append(out, core.Suggestion{
+			Label:       arg.Value,
+			InsertText:  arg.Value,
+			Description: arg.Description,
+			GroupLabel:  c.Category,
+		})
+	}
+	return out
+}
+
 // slashCtx is passed to every Handler. It carries the session (for state +
 // agent rebuild) and the full input line. Handlers must not assume the input
 // has been validated beyond the Match check.
@@ -41,6 +130,14 @@ type slashCtx struct {
 
 // slashHandler executes one slash command.
 type slashHandler func(ctx slashCtx)
+
+// ArgSuggestion describes a possible sub-command argument for autocomplete.
+type ArgSuggestion struct {
+	// Value is the argument text (e.g. "light", "on", "default").
+	Value string
+	// Description explains what this argument does (e.g. "浅色主题").
+	Description string
+}
 
 // SlashCommand describes one registered slash command.
 type SlashCommand struct {
@@ -64,6 +161,9 @@ type SlashCommand struct {
 	// Suggestions uses "/" + Name. Set this for commands whose trigger token
 	// is not exactly "/" + Name (e.g. "/skill:" whose Name is "skill").
 	SuggestText string
+	// Args lists sub-command arguments for inline autocomplete.
+	// When non-empty, typing "/name " will show these as completions.
+	Args []ArgSuggestion
 }
 
 // availableBool wraps a legacy func(s *tuiSession) bool into the new
@@ -235,6 +335,12 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Desc:     "查看或修改推理模式",
 		Match:    prefixMatch("thinking"),
 		Handler:  func(ctx slashCtx) { s.handleThinkingCommand(ctx.input) },
+		Args: []ArgSuggestion{
+			{Value: "default", Description: "默认推理显示（完整思考过程）"},
+			{Value: "summarized", Description: "摘要模式（压缩思考过程）"},
+			{Value: "omitted", Description: "隐藏模式（不显示思考过程）"},
+			{Value: "reset", Description: "恢复默认配置"},
+		},
 	})
 	r.Register(SlashCommand{
 		Name:     "theme",
@@ -242,6 +348,10 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Desc:     "切换主题",
 		Match:    prefixMatch("theme"),
 		Handler:  func(ctx slashCtx) { s.handleThemeCommand(ctx.input) },
+		Args: []ArgSuggestion{
+			{Value: "light", Description: "浅色主题"},
+			{Value: "dark", Description: "深色主题"},
+		},
 	})
 	r.Register(SlashCommand{
 		Name:        "skill",
@@ -402,6 +512,11 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Desc:     "切换审核关卡（关键内容人工确认）",
 		Match:    exactMatch("review"),
 		Handler:  func(ctx slashCtx) { s.handleReviewCommandEx(parseSlashSubcommand(ctx.input, "review")) },
+		Args: []ArgSuggestion{
+			{Value: "on", Description: "开启审核关卡"},
+			{Value: "off", Description: "关闭审核关卡"},
+			{Value: "status", Description: "查看当前审核状态"},
+		},
 	})
 	r.Register(SlashCommand{
 		Name:     "approve",
@@ -447,6 +562,11 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Desc:     "切换计划模式（高质量推理）",
 		Match:    exactMatch("plan"),
 		Handler:  func(ctx slashCtx) { s.handlePlanCommandEx(parseSlashSubcommand(ctx.input, "plan")) },
+		Args: []ArgSuggestion{
+			{Value: "on", Description: "开启计划模式"},
+			{Value: "off", Description: "关闭计划模式"},
+			{Value: "status", Description: "查看当前模式状态"},
+		},
 	})
 	r.Register(SlashCommand{
 		Name:     "cmd",
@@ -469,6 +589,9 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 			} else {
 				s.openSettings()
 			}
+		},
+		Args: []ArgSuggestion{
+			{Value: "reset", Description: "重置所有设置为默认值"},
 		},
 	})
 	r.Register(SlashCommand{

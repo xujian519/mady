@@ -168,9 +168,18 @@ func (s *tuiSession) handleSubmit(input string) {
 			}
 			s.app.PrintSystem(fmt.Sprintf("未知命令: %s — 你是不是想输入 %s？",
 				trimmed, strings.Join(quoted, " 或 ")))
-		} else {
-			s.app.PrintSystem(fmt.Sprintf("未知命令: %s（输入 / 查看可用命令）", trimmed))
+			// 建议数量少时直接提示即可，多时打开命令中心便于浏览
+			if len(suggestions) <= 2 {
+				return
+			}
 		}
+		// 打开命令中心并预填错误命令名，让用户筛选/浏览所有可用命令
+		filter := strings.TrimPrefix(trimmed, "/")
+		if sp := strings.IndexByte(filter, ' '); sp >= 0 {
+			filter = filter[:sp]
+		}
+		s.app.PrintSystem(fmt.Sprintf("已打开命令中心 — 输入「%s」搜索类似命令", filter))
+		s.openCommandCenter(filter)
 		return
 	}
 	s.submitInput(trimmed)

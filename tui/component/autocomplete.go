@@ -215,7 +215,12 @@ func (a *Autocomplete) Refresh(value string, cursorPos int64) {
 		a.mu.Unlock()
 		return
 	}
-	suggestions := trigger.Complete(token)
+	var suggestions []core.Suggestion
+	if fip, ok := trigger.(core.FullInputProvider); ok {
+		suggestions = fip.CompleteWithFull(token, a.value, a.cursorPos)
+	} else {
+		suggestions = trigger.Complete(token)
+	}
 	items := make([]SelectItem, len(suggestions))
 	for i, s := range suggestions {
 		items[i] = SelectItem{

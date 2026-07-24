@@ -187,6 +187,7 @@ func runTui(ctx context.Context) {
 				TriggerStr:  "/",
 				Suggestions: slashSuggestions,
 			},
+			NewSlashArgProvider(s.slashReg),
 		},
 		OnSubmit: func(_ context.Context, input string) {
 			s.handleSubmit(input)

@@ -132,7 +132,8 @@ func (s *tuiSession) applySettingEntry(e component.SettingEntry) {
 
 // openCommandCenter builds a CommandCenter from the slash registry and opens
 // it as a focused, dimmed overlay. Use /cmd or Ctrl+P to invoke.
-func (s *tuiSession) openCommandCenter() {
+// filter is an optional initial search term (empty = no pre-filter).
+func (s *tuiSession) openCommandCenter(filter ...string) {
 	items := s.buildCommandItems()
 	cc := component.NewCommandCenter(items)
 	cc.OnExecute(func(item component.CommandItem) {
@@ -142,6 +143,11 @@ func (s *tuiSession) openCommandCenter() {
 	cc.OnClose(func() {
 		// Overlay close handled by the overlay system
 	})
+
+	// Pre-fill search filter when provided (e.g. from a misspelled slash command)
+	if len(filter) > 0 && filter[0] != "" {
+		cc.SetFilter(filter[0])
+	}
 
 	box := component.NewBox()
 	box.SetBorder(component.BorderRounded)
@@ -175,14 +181,53 @@ func (s *tuiSession) buildCommandItems() []component.CommandItem {
 		if cmd.Usage != "" {
 			label = cmd.Usage
 		}
+
+		// 为模式/开关类命令填充当前状态
+		status := s.resolveCommandStatus(cmd.Name)
 		items = append(items, component.CommandItem{
 			Name:        cmd.Name,
 			Label:       label,
 			Category:    cat,
 			Description: cmd.Desc,
+			Status:      status,
 			Available:   avail,
 			Reason:      reason,
 		})
 	}
 	return items
+}
+
+// resolveCommandStatus 返回命令的当前状态文本（用于命令中心展示）。
+func (s *tuiSession) resolveCommandStatus(name string) string {
+	switch name {
+	case "plan":
+		if s.isPlanMode() {
+			return "开启"
+		}
+		return "关闭"
+	case "review":
+		if s.isReviewMode() {
+			return "开启"
+		}
+		return "关闭"
+	case "thinking":
+		cfg := s.thinkingConfig()
+		if cfg == nil || cfg.Display == "" || cfg.Display == agentcore.ThinkingDisplayDefault {
+			return "默认"
+		}
+		switch cfg.Display {
+		case agentcore.ThinkingDisplaySummarized:
+			return "摘要"
+		case agentcore.ThinkingDisplayOmitted:
+			return "隐藏"
+		default:
+			return "默认"
+		}
+	case "theme":
+		if s.themeName() == "dark" {
+			return "深色"
+		}
+		return "浅色"
+	}
+	return ""
 }

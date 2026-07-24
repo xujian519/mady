@@ -154,6 +154,15 @@ type AutocompleteProvider interface {
 	Complete(token string) []Suggestion
 }
 
+// FullInputProvider is an optional extension to AutocompleteProvider that
+// provides the full input buffer for context-aware completion (e.g. sub-command
+// arguments). Providers implementing this interface are called with the full
+// input instead of just the token.
+type FullInputProvider interface {
+	AutocompleteProvider
+	CompleteWithFull(token, fullValue string, cursorPos int64) []Suggestion
+}
+
 // ---------------------------------------------------------------------------
 // Small helpers for component authors.
 // ---------------------------------------------------------------------------

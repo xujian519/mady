@@ -214,6 +214,17 @@ func (c *CommandCenter) processKey(data string) {
 	}
 }
 
+// SetFilter sets the search filter and re-applies filtering.
+// Useful for pre-filling the command center with a search term (e.g. from a
+// misspelled slash command).
+func (c *CommandCenter) SetFilter(s string) {
+	c.mu.Lock()
+	c.filter = s
+	c.applyFilterLocked()
+	c.cursor = 0
+	c.mu.Unlock()
+}
+
 func (c *CommandCenter) applyFilterLocked() {
 	if c.filter == "" {
 		c.filtered = c.items
