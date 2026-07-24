@@ -28,16 +28,9 @@ type SQLiteApprovalStore struct {
 // during writes. If the file does not exist it is created with the full
 // schema.
 func NewApprovalStore(dbPath string) (*SQLiteApprovalStore, error) {
-	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", dbPath)
-	db, err := sql.Open("sqlite", dsn)
+	db, err := openDB(dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("approval/sqlite: open %s: %w", dbPath, err)
-	}
-	db.SetMaxOpenConns(4)
-
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("approval/sqlite: ping %s: %w", dbPath, err)
+		return nil, fmt.Errorf("approval/sqlite: %w", err)
 	}
 
 	s := &SQLiteApprovalStore{db: db}

@@ -28,16 +28,9 @@ type SQLiteGraphCheckpointStore struct {
 // NewGraphCheckpointStore opens or creates a checkpoint database at the
 // given path. WAL mode for safe concurrent reads during writes.
 func NewGraphCheckpointStore(dbPath string) (*SQLiteGraphCheckpointStore, error) {
-	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", dbPath)
-	db, err := sql.Open("sqlite", dsn)
+	db, err := openDB(dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("graph-checkpoint/sqlite: open %s: %w", dbPath, err)
-	}
-	db.SetMaxOpenConns(4)
-
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("graph-checkpoint/sqlite: ping %s: %w", dbPath, err)
+		return nil, fmt.Errorf("graph-checkpoint/sqlite: %w", err)
 	}
 
 	s := &SQLiteGraphCheckpointStore{db: db}

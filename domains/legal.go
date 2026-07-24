@@ -131,13 +131,13 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 		NewApprovalGate(ApprovalConfig{
 			RequireApprovalFor: guardrails.ApprovalKeywordsFor("legal"),
 		},
-			WithDeferredPersist(DeferredPersistHandler{
-				CommitAll: func() {
+			WithDeferredPersist(&DeferredPersistFuncs{
+				CommitFn: func() {
 					for _, idx := range legalDQ.Pending() {
 						legalDQ.Commit(idx)
 					}
 				},
-				DiscardAll: func() {
+				DiscardFn: func() {
 					for _, idx := range legalDQ.Pending() {
 						legalDQ.Discard(idx)
 					}

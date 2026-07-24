@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"time"
 )
 
 // EventLoggerStore is the persistence interface that EventLogger uses to
@@ -103,18 +102,21 @@ func (el *EventLogger) loop() {
 	}
 }
 
-// Close unregisters the EventBus handler, drains pending events
-// (with a timeout), and closes the store.
+// Close unregisters the EventBus handler, closes the channel to signal
+// the loop to finish, and closes the underlying store.
+// Safe to call multiple times.
 func (el *EventLogger) Close() {
 	if el.cancel != nil {
 		el.cancel()
+		el.cancel = nil
 	}
-	// Wait for the loop to finish, with a timeout.
-	select {
-	case <-el.done:
-	case <-time.After(3 * time.Second):
-		log.Printf("[WARN] event_logger: close timeout, some events may be lost")
+	if !el.started {
+		return
 	}
+	el.started = false
+	close(el.ch)
+	// Wait for the loop to finish.
+	<-el.done
 	_ = el.store.Close()
 }
 

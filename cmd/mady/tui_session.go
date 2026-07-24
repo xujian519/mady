@@ -612,38 +612,51 @@ func (s *tuiSession) handleSettingsReset() {
 	}
 }
 
-// --- Approval store ---
+// --- Store factories ---
 
-func (s *tuiSession) openApprovalStore() (domains.ApprovalStore, error) {
+// dbPath 在 WorkspaceDir 下生成指定名称的数据库文件路径。
+// 所有 open*Store 工厂函数应使用此方法消除重复的 base 解析和 MkdirAll。
+func (s *tuiSession) dbPath(name string) (string, error) {
 	base := s.fc.WorkspaceDir
 	if base == "" {
 		base = filepath.Join(os.TempDir(), "mady")
 	}
 	if err := os.MkdirAll(base, 0o755); err != nil {
-		return nil, fmt.Errorf("approval store: mkdir %s: %w", base, err)
+		return "", fmt.Errorf("db path: mkdir %s: %w", base, err)
 	}
-	dbPath := filepath.Join(base, "approvals.db")
-	store, err := sqlitestore.NewApprovalStore(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("approval store: open %s: %w", dbPath, err)
-	}
-	return store, nil
+	return filepath.Join(base, name), nil
 }
 
-// openPendingStore 返回同一 approval DB 文件的 PendingStore 视图。
-// SQLiteApprovalStore 同时实现了 ApprovalStore 和 PendingStore，
-// 两者共享数据库连接以确保 Respond 方法的事务原子性。
-func (s *tuiSession) openPendingStore() (domains.PendingStore, error) {
-	base := s.fc.WorkspaceDir
-	if base == "" {
-		base = filepath.Join(os.TempDir(), "mady")
-	}
-	dbPath := filepath.Join(base, "approvals.db")
-	store, err := sqlitestore.NewApprovalStore(dbPath)
+func (s *tuiSession) openApprovalStore() (domains.ApprovalStore, error) {
+	p, err := s.dbPath("approvals.db")
 	if err != nil {
-		return nil, fmt.Errorf("pending store: open %s: %w", dbPath, err)
+		return nil, fmt.Errorf("approval store: %w", err)
 	}
-	return store, nil
+	return sqlitestore.NewApprovalStore(p)
+}
+
+func (s *tuiSession) openPendingStore() (domains.PendingStore, error) {
+	p, err := s.dbPath("approvals.db")
+	if err != nil {
+		return nil, fmt.Errorf("pending store: %w", err)
+	}
+	return sqlitestore.NewApprovalStore(p)
+}
+
+func (s *tuiSession) openGraphCheckpointStore() (*sqlitestore.SQLiteGraphCheckpointStore, error) {
+	p, err := s.dbPath("graph_checkpoints.db")
+	if err != nil {
+		return nil, fmt.Errorf("graph checkpoint: %w", err)
+	}
+	return sqlitestore.NewGraphCheckpointStore(p)
+}
+
+func (s *tuiSession) openEventStore() (*sqlitestore.SQLEventStore, error) {
+	p, err := s.dbPath("events.db")
+	if err != nil {
+		return nil, fmt.Errorf("event store: %w", err)
+	}
+	return sqlitestore.NewEventStore(p)
 }
 
 // startEventLogger creates and starts an EventLogger for the given agent.
@@ -667,8 +680,7 @@ func (s *tuiSession) startEventLogger(agent *agentcore.Agent) {
 }
 
 // recoverPendingApprovals 在启动时检查是否有当前会话的待审批请求，
-// 如有则恢复到 ApprovalGate 的运行时缓存中，使 /approve 和 /reject
-// 无需重新触发模型即可正常工作。
+// 恢复最新的一个到 ApprovalGate 的运行时缓存中。
 func (s *tuiSession) recoverPendingApprovals(ctx context.Context) {
 	if s.pendingStore == nil || s.approvalGate == nil || s.currentThreadID == "" {
 		return
@@ -678,31 +690,16 @@ func (s *tuiSession) recoverPendingApprovals(ctx context.Context) {
 		log.Printf("[WARN] approval: recover pending: %v", err)
 		return
 	}
-	for _, p := range pendings {
-		// Only restore the most recent pending for this session.
-		s.approvalGate.RestorePending(p)
-		log.Printf("[INFO] approval: restored pending %s (keyword: %s)", p.ID, p.TriggerKeyword)
-		return // one pending per session is the common case
+	if len(pendings) == 0 {
+		return
 	}
-}
-
-// openGraphCheckpointStore 打开 SQLite 图检查点存储。
-// 供 PregelCheckpointer / InterruptableGraph 在有向图执行时使用。
-// 返回错误时调用方应回退到 graph.NewMemoryCheckpointStore()。
-func (s *tuiSession) openGraphCheckpointStore() (*sqlitestore.SQLiteGraphCheckpointStore, error) {
-	base := s.fc.WorkspaceDir
-	if base == "" {
-		base = filepath.Join(os.TempDir(), "mady")
+	if len(pendings) > 1 {
+		log.Printf("[WARN] approval: %d pending for session %s, restoring most recent",
+			len(pendings), s.currentThreadID)
 	}
-	if err := os.MkdirAll(base, 0o755); err != nil {
-		return nil, fmt.Errorf("graph checkpoint: mkdir %s: %w", base, err)
-	}
-	dbPath := filepath.Join(base, "graph_checkpoints.db")
-	store, err := sqlitestore.NewGraphCheckpointStore(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("graph checkpoint: open %s: %w", dbPath, err)
-	}
-	return store, nil
+	latest := pendings[len(pendings)-1]
+	s.approvalGate.RestorePending(latest)
+	log.Printf("[INFO] approval: restored pending %s (keyword: %s)", latest.ID, latest.TriggerKeyword)
 }
 
 // startPendingExpirer 后台定期扫描过期待审批请求。
@@ -736,23 +733,6 @@ func (s *tuiSession) startPendingExpirer(ctx context.Context) {
 			}
 		}
 	}()
-}
-
-// openEventStore 打开 SQLite 事件存储，供 EventLogger 持久化 Agent 生命周期事件。
-func (s *tuiSession) openEventStore() (*sqlitestore.SQLEventStore, error) {
-	base := s.fc.WorkspaceDir
-	if base == "" {
-		base = filepath.Join(os.TempDir(), "mady")
-	}
-	if err := os.MkdirAll(base, 0o755); err != nil {
-		return nil, fmt.Errorf("event store: mkdir %s: %w", base, err)
-	}
-	dbPath := filepath.Join(base, "events.db")
-	store, err := sqlitestore.NewEventStore(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("event store: open %s: %w", dbPath, err)
-	}
-	return store, nil
 }
 
 // openWorkflowCheckpointStore 打开 SQLite 工作流检查点存储。

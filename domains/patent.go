@@ -330,13 +330,13 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		NewApprovalGate(ApprovalConfig{
 			RequireApprovalFor: guardrails.ApprovalKeywordsFor("patent"),
 		},
-			WithDeferredPersist(DeferredPersistHandler{
-				CommitAll: func() {
+			WithDeferredPersist(&DeferredPersistFuncs{
+				CommitFn: func() {
 					for _, idx := range patentDQ.Pending() {
 						patentDQ.Commit(idx)
 					}
 				},
-				DiscardAll: func() {
+				DiscardFn: func() {
 					for _, idx := range patentDQ.Pending() {
 						patentDQ.Discard(idx)
 					}
