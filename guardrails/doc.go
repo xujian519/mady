@@ -18,7 +18,7 @@
 //
 //	// Strict guardrail for patent domain with custom disclaimer
 //	hook := guardrails.New(guardrails.LevelStrict,
-//	    guardrails.WithDisclaimer(guardrails.DisclaimerPatent),
+//	    guardrails.WithDisclaimer(guardrails.Disclaimer(guardrails.LevelStrict)),
 //	    guardrails.WithApproval([]string{"专利结论", "侵权判断"}),
 //	)
 //

@@ -85,8 +85,7 @@ func (a *Agent) checkpointTurnEnd(ctx context.Context, turn int64) error {
 // termination via TerminateResult; otherwise it returns "" and the error.
 func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string, error) {
 	// Lifecycle: BeforeToolExecution
-	// Pre-allocate results so hooks (including deprecatedHookAdapter) can
-	// pre-populate blocked tool results for per-tool blocking.
+	// Pre-allocate results so lifecycle hooks can pre-populate blocked tool
 	results := make([]ToolResult, len(calls))
 	if lc := a.lifecycle(); lc != nil {
 		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: a.state.Turn()}
@@ -143,8 +142,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 		}
 	}
 
-	// Lifecycle: AfterToolExecution (also handles deprecated
-	// AfterToolCall/PostProcessResults via deprecatedHookAdapter).
+	// Lifecycle: AfterToolExecution.
 	if lc := a.lifecycle(); lc != nil {
 		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: a.state.Turn()}
 		tec := &ToolExecutionContext{ToolCalls: calls, Results: results}

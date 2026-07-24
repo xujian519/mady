@@ -6,44 +6,20 @@ import "github.com/xujian519/mady/pkg/i18n"
 // Each disclaimer is designed to be appended to AI-generated output that
 // contains risk-triggering content.
 //
-// Deprecated: 使用 i18n.T() 替代硬编码常量。新代码应调用 Disclaimer() / ShortDisclaimer() 函数。
+// For new code, prefer Disclaimer() / ShortDisclaimer() which select text by guardrail Level rather than by domain string.
 const (
 	// DisclaimerPatent — patent agent / IP domain disclaimer.
-	//
-	// Deprecated: 使用 i18n.T("guardrail.disclaimer.patent")。
 	DisclaimerPatent = "本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。"
 
 	// DisclaimerLegal — legal domain disclaimer.
-	//
-	// Deprecated: 使用 i18n.T("guardrail.disclaimer.legal")。
 	DisclaimerLegal = "本分析由 AI 辅助生成，不构成正式法律意见。法律判断和决策应由具备执业资格的律师确认。"
 
 	// DisclaimerGeneric — generic professional disclaimer.
-	//
-	// Deprecated: 使用 i18n.T("guardrail.disclaimer.generic")。
 	DisclaimerGeneric = "本回复由 AI 辅助生成，仅供参考，不构成专业建议。如有疑问，请咨询相关领域的专业人士。"
 
 	// DisclaimerAssistant — assistant domain disclaimer for task execution outputs.
-	//
-	// Deprecated: 使用 i18n.T("guardrail.disclaimer.assistant")。
 	DisclaimerAssistant = "本结果由 AI 辅助生成，请在使用前进行人工审核。涉及专业领域（专利、法律）的判断请咨询对应专业人士。"
 )
-
-// DisclaimerFor returns the appropriate disclaimer for a domain string.
-//
-// Deprecated: 使用 Disclaimer() 替代，该函数按 Level 而非 domain 区分。
-func DisclaimerFor(domain string) string {
-	switch domain {
-	case "patent":
-		return DisclaimerPatent
-	case "legal":
-		return DisclaimerLegal
-	case "assistant":
-		return DisclaimerAssistant
-	default:
-		return DisclaimerGeneric
-	}
-}
 
 // Disclaimer 返回给定护栏等级的免责声明文本。
 func Disclaimer(level Level) string {
