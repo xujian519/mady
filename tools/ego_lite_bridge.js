@@ -19,6 +19,14 @@ rl.on('line', async (line) => {
   }
 });
 
+rl.on('close', async () => {
+  if (currentTask) {
+    try { await completeTaskSpace(currentTask.id, { keep: true }); } catch {}
+  }
+  process.exit(0);
+});
+process.on('SIGTERM', () => rl.close());
+
 function respond(id, ok, result, error) {
   const out = { id, ok };
   if (ok) { out.result = result; } else { out.error = error; }
@@ -33,7 +41,7 @@ async function dispatch(method, params) {
       currentTask = await useOrCreateTaskSpace(params.name);
       return { taskId: currentTask.taskId, id: currentTask.id };
     case 'navigate':
-      await openOrReuseTab(params.url, { wait: true, timeout: params.timeout || 20 });
+      await openOrReuseTab(params.url, { wait: true, timeout: params.timeout ?? 20 });
       return await snapshotText();
     case 'snapshotText':
       return await snapshotText(params);
@@ -53,7 +61,7 @@ async function dispatch(method, params) {
       await pressKey(params.key);
       return `Pressed key: ${params.key}`;
     case 'evaluateJS':
-      return await js(String.raw`${params.expression}`);
+      return await js(params.expression);
     case 'pageInfo':
       return await pageInfo();
     case 'handoffTaskSpace':
