@@ -281,6 +281,8 @@ func TestGuardrailDisclaimerInjection(t *testing.T) {
 			agentcore.NewIFaceLifecycleHook(guardrails.New(
 				guardrails.WithLevel(guardrails.LevelStandard),
 				guardrails.WithDisclaimer(guardrails.DisclaimerAssistant),
+				guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("assistant")),
+				guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
 			)),
 		},
 	}
