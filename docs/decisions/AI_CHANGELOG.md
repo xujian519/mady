@@ -1,5 +1,63 @@
 # AI 变更记录
 
+## 2026-07-24: AgentToolchain — 专利工作流编排系统（含 Code Review 修复）
+
+### 背景
+Mady 拥有 10+ 个专业专利工作流工具（Pregel 图引擎），但存在三个断层：(1) LLM 倾向手写而非调用工具（已修复）；(2) 各工具独立平铺，无串联机制；(3) YAML 编排文件定义了完整流程但 LLM 不会自动遵循。用户期望：有工具时优先调用工具，五步工作法为降级方案，多工作流协同完成一项任务（如 OA 答复可能调用 26.3/创造性/新颖性分析）。
+
+### 设计方案
+借鉴 Eino Chain + Semantic Kernel Planner 模式，创建 `AgentToolchain` 编排系统：将 YAML 编排变为可执行的 `OrchestrationManifest`，通过 `run_orchestration` 工具一次调用串联多个领域工具，条件分支根据 OA 驳回类型动态决定调用哪些子工具。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `agentcore/orchestration.go` | **新建** | `OrchestrationManifest` / `OrchestrationStep` / `ConditionFunc` / `OrchestrationState` / `OrchestrationResult` 核心类型 |
+| `agentcore/orchestration_executor.go` | **新建** | `OrchestrationExecutor` — 按步骤顺序调用 `Agent.InvokeTool`，支持 Condition 条件跳过、Optional 容错 |
+| `agentcore/orchestration_test.go` | **新建** | 5 个单元测试：类型定义、条件函数、顺序执行、条件跳过、可选步骤失败容错 |
+| `domains/orchestration_bridge.go` | **新建** | YAML 编排 → `OrchestrationManifest` 编译器，定义 4 个编排：`oa_response`（OA 答复，含 enablement/inventiveness/novelty 条件分支+validate_amendment+analyze_slop）、`patent_drafting`（检索→权利要求→说明书→校验）、`re_examination`（复审）、`invalidation`（无效宣告）。含条件函数（hasEnablementGround/hasInventivenessGround 等） |
+| `domains/orchestration_tools.go` | **新建** | `run_orchestration` 工具注册 + `handleRunOrchestration` 逻辑。使用闭包捕获 Agent（无全局变量），使用 `stateMappers` 调度表替代 God Switch |
+| `domains/patent.go` | **修改** | System Prompt 新增「工具链优先原则」章节 + 五步工作法降为「降级方案」 |
+| `cmd/mady/tui_session_agent.go` | **修改** | Agent 创建后 `RegisterTools(NewOrchestrationTool(newAgent))` 注册编排工具 |
+
+### Code Review 修复（第二轮）
+
+P0 级：
+- **生命周期竞争**：`globalOrchAgent` 全局变量替换为闭包捕获，`NewOrchestrationTool(agent)` 在 Agent 创建后立即注册，消除 `rebuildAgent` 期间的 use-after-free 风险
+
+P0 级：
+- **God Switch**：`buildOrchestrationState` 中 13 路 switch 替换为 `stateMappers` 调度表（`map[string]stateMapperFunc`），新增工具只需添加一个 mapper 条目
+
+P1 级：
+- **无意义条件**：移除 `hasAmendmentNeeded`（始终返回 true），`validate_amendment` 改为无条件步骤
+- **去重标注**：`containsAnyKeyword` 添加 TODO 标注，待与 `domains/case_classifier.go` 和 `domains/evidence/engine.go` 中的重复实现合并
+
+P2 级：
+- **日志覆盖**：`json.Marshal` 错误添加 `slog.Warn` 日志，不再静默吞掉
+- **文档对齐**：`buildOAResponseManifest` 注释中的步骤序号与代码保持一致
+
+### 架构
+
+```
+Patent Agent (LLM)
+  ├── run_orchestration("oa_response")    ← 优先调用
+  │     ├── parse_office_action           (解析OA)
+  │     ├── [条件] analyze_enablement      (26.3?)
+  │     ├── [条件] analyze_inventiveness   (创造性?)
+  │     ├── [条件] analyze_patent_novelty  (新颖性?)
+  │     ├── get_article_framework         (法条框架)
+  │     ├── validate_amendment            (A33检查)
+  │     ├── draft_oa_response             (起草答复书)
+  │     └── analyze_slop                  (套话检查)
+  ├── run_orchestration("patent_drafting")
+  ├── run_orchestration("re_examination")
+  ├── run_orchestration("invalidation")
+  └── [fallback] run_five_step_workflow
+```
+
+### 影响
+从 TUI 发起专利事务时，LLM 调用 `run_orchestration`（一次调用）即可执行完整工作流，而非手动逐个调用 5-10 个工具。条件分支自动判断是否需要调用 `analyze_enablement`/`analyze_inventiveness`/`analyze_patent_novelty`。`validate_amendment`（A33 修改合规检查）作为 OA 答复工具链的内置步骤，自动执行。`rebuildAgent` 时不再有生命周期竞争风险。
+
 ## 2026-07-24: 专利撰写路由修复 — System Prompt 显式指定 draft_claims / draft_specification
 
 ### 背景

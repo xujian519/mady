@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/tui/agentadapter"
 )
 
@@ -152,6 +153,7 @@ func (s *tuiSession) initializeAgentAsync() {
 		}()
 
 		newAgent = agentcore.New(s.buildAgentConfig())
+		newAgent.RegisterTools(domains.NewOrchestrationTool(newAgent))
 		prev, ok := s.swapCurrentAgent(newAgent)
 		if !ok {
 			newAgent.Close()
@@ -187,6 +189,7 @@ func (s *tuiSession) rebuildAgent() {
 	}()
 
 	newAgent = agentcore.New(s.buildAgentConfig())
+	newAgent.RegisterTools(domains.NewOrchestrationTool(newAgent))
 	prev, ok := s.swapCurrentAgent(newAgent)
 	if !ok {
 		newAgent.Close()
