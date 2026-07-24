@@ -69,7 +69,7 @@ func (e *Extension) Tools() []*agentcore.Tool {
 	return []*agentcore.Tool{
 		{
 			Name:        "draft_specification",
-			Description: "根据技术交底书撰写符合中国专利法要求的完整专利说明书，包含技术领域、背景技术、发明/实用新型内容、附图说明和具体实施方式。支持发明和实用新型两种专利类型，自动适配机械/电学/化学/软件四大技术领域。",
+			Description: "根据技术交底书撰写符合中国专利法要求的完整专利说明书。当用户要求撰写说明书、写专利申请文件时，必须调用此工具，严禁自行手写说明书文本。包含技术领域、背景技术、发明/实用新型内容、附图说明和具体实施方式。支持发明和实用新型两种专利类型，自动适配机械/电学/化学/软件四大技术领域。",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

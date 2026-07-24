@@ -1,5 +1,21 @@
 # AI 变更记录
 
+## 2026-07-24: 专利撰写路由修复 — System Prompt 显式指定 draft_claims / draft_specification
+
+### 背景
+专利 Agent 的 System Prompt 在 Step 4（执行）中只提到 `patent_lookup` 工具，未显式告知 LLM 撰写权利要求和说明书时必须使用 `draft_claims` / `draft_specification` 工具。导致 LLM 倾向于直接手写文本，完全绕过了 claimdrafting（8 节点 Pregel 图 + 规则校验）和 specdrafting（12 节点 Pregel 图 + 16 条校验）工作流。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `domains/patent.go` | System Prompt Step 4：从"分析权利要求、生成文书"改为"撰写权利要求时，必须调用 draft_claims 工具（禁止手写）；撰写说明书时，必须调用 draft_specification 工具（禁止手写）" |
+| `domains/claimdrafting/extension.go` | draft_claims 工具描述新增"当用户要求撰写权利要求、写权利要求书时，必须调用此工具，严禁自行手写权利要求文本" |
+| `domains/specdrafting/extension.go` | draft_specification 工具描述新增"当用户要求撰写说明书、写专利申请文件时，必须调用此工具，严禁自行手写说明书文本" |
+
+### 影响
+从 TUI 发起专利撰写时，LLM 将在 System Prompt 和工具描述的双重指引下优先调用结构化工作流工具，而不是直接输出文本。
+
 ## 2026-07-24: 结构化任务管理 — Plantask 工具集 + TUI TodoPanel
 
 ### 背景

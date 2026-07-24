@@ -588,6 +588,7 @@ const (
 	BackendFirecrawl    BrowserBackendType = "firecrawl"
 	BackendLightpanda   BrowserBackendType = "lightpanda"
 	BackendAgentBrowser BrowserBackendType = "agent_browser"
+	BackendEgoLite      BrowserBackendType = "egolite"
 )
 
 type BrowserConfig struct {

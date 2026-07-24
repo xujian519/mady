@@ -80,7 +80,7 @@ func (e *Extension) Tools() []*agentcore.Tool {
 	return []*agentcore.Tool{
 		{
 			Name:        "draft_claims",
-			Description: "根据技术交底书撰写符合中国专利法要求的权利要求书。输入技术特征、问题和效果，输出结构化的独立权利要求和从属权利要求。",
+			Description: "根据技术交底书撰写符合中国专利法要求的权利要求书。当用户要求撰写权利要求、写权利要求书时，必须调用此工具，严禁自行手写权利要求文本。输入技术特征、问题和效果，输出结构化的独立权利要求和从属权利要求。",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
