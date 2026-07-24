@@ -61,7 +61,11 @@ func (d DefaultVisionOperations) Download(ctx context.Context, url string) ([]by
 		return nil, "", fmt.Errorf("invalid URL: must start with http:// or https://")
 	}
 
-	resp, err := d.client().Do(mustNewGetRequest(ctx, url))
+	req, err := newGetRequest(ctx, url)
+	if err != nil {
+		return nil, "", err
+	}
+	resp, err := d.client().Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("download failed: %w", err)
 	}
@@ -87,13 +91,13 @@ func (d DefaultVisionOperations) Download(ctx context.Context, url string) ([]by
 	return data, mimeType, nil
 }
 
-// mustNewGetRequest 构造带 ctx 的 GET 请求；URL 已经过调用方校验，不会失败。
-func mustNewGetRequest(ctx context.Context, url string) *http.Request {
+// newGetRequest 构造带 ctx 的 GET 请求。
+func newGetRequest(ctx context.Context, url string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		panic(fmt.Sprintf("invalid image URL %q: %v", url, err))
+		return nil, fmt.Errorf("invalid image URL %q: %w", url, err)
 	}
-	return req
+	return req, nil
 }
 
 // errVisionNotConfigured 在未配置任何视觉能力时返回，明确告知配置方式——

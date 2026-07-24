@@ -1,0 +1,58 @@
+<h2>专利类型覆盖范围</h2>
+<p class="subtitle">发明/实用新型与外观设计的侵权判定规则有本质差异</p>
+
+<div class="section">
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">发明 / 实用新型</div>
+      <div class="mockup-body" style="font-size:13px;line-height:1.8">
+        ✅ 全面覆盖原则（全部技术特征规则）<br>
+        ✅ 等同原则（手段/功能/效果三要素）<br>
+        ✅ 禁止反悔原则<br>
+        ✅ 捐献规则<br>
+        ✅ 现有技术抗辩<br>
+        ✅ 先用权抗辩<br>
+        ✅ 间接侵权（共同侵权）<br>
+        ✅ 标准必要专利 SEP 特殊规则<br>
+        <br>
+        判断主体：<strong>所属领域普通技术人员</strong>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">外观设计</div>
+      <div class="mockup-body" style="font-size:13px;line-height:1.8">
+        ✅ 整体视觉效果综合判断<br>
+        ✅ 相同或相近种类产品限定<br>
+        ❌ 无等同原则（无权利要求书）<br>
+        ❌ 无禁止反悔原则<br>
+        ❌ 现有设计抗辩<br>
+        ❌ 技术功能性特征排除<br>
+        <br>
+        判断主体：<strong>一般消费者</strong><br>
+        <span style="color:var(--text-secondary)">不考虑来源混淆（区别于商标）</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>判定逻辑差异巨大，是否一期同时覆盖？</h3>
+  <p style="margin:8px 0">两者的 Pregel 图拓扑、节点提示词、JSON Schema 均不同。外观设计本质上是另一套判定体系。</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="both" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>一期同时覆盖（推荐）</h3>
+      <p>通过 PatentType 参数区分，图拓扑通过条件路由分叉。类型定义中统一抽象</p>
+    </div>
+  </div>
+  <div class="option" data-choice="invention-first" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>先发明/新型，后续加外观</h3>
+      <p>Phase 1 只做发明和实用新型，外观设计作为 Phase 2 独立迭代</p>
+    </div>
+  </div>
+</div>

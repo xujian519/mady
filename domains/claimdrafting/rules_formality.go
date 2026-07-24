@@ -377,8 +377,9 @@ func (r *formalityDependentOrderingRule) Check(claims []Claim, _ DraftInput) []V
 	}
 	for _, d := range deps {
 		for _, ref := range d.DependsOn {
-			if refIdx, ok := depOrder[ref]; ok && depOrder[d.Number] < refIdx {
-				// 从属引用了在后面出现的从属 → 非典型但合法
+			if refIdx, ok := depOrder[ref]; !ok || depOrder[d.Number] >= refIdx {
+				// 从属引用正常或在前面出现的从属 → 合法
+				continue
 			}
 		}
 	}

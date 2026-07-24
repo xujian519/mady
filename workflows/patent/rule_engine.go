@@ -15,6 +15,7 @@
 package patent
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -50,11 +51,15 @@ const (
 type CheckType string
 
 const (
-	CheckNovelty       CheckType = "patent_novelty"
-	CheckInventiveness CheckType = "patent_inventiveness"
-	CheckInfringement  CheckType = "patent_infringement"
-	CheckDisclosure    CheckType = "patent_disclosure"
-	CheckClaimAnalysis CheckType = "patent_claim_analysis"
+	CheckNovelty          CheckType = "patent_novelty"
+	CheckInventiveness    CheckType = "patent_inventiveness"
+	CheckInfringement     CheckType = "patent_infringement"
+	CheckDisclosure       CheckType = "patent_disclosure"
+	CheckClaimAnalysis    CheckType = "patent_claim_analysis"
+	CheckDesignComparison CheckType = "patent_design_comparison"
+	CheckPublicAccess     CheckType = "patent_public_access"
+	CheckAmendmentScope   CheckType = "patent_amendment_scope"
+	CheckSubjectMatter    CheckType = "patent_subject_matter"
 )
 
 // CheckRule is a single deterministic rule in the patent rule engine.
@@ -75,7 +80,9 @@ type CheckRule struct {
 	StepElements     [][]string // CheckInventiveness: 3 steps, any match per step
 	RequiredAspects  []string   // CheckDisclosure: all must match
 	Dimensions       []string   // CheckClaimAnalysis: dimensions to verify
+	PathElements     [][]string // reasoning path step completeness (any CheckType)
 	SingleComparison bool       // CheckNovelty: enforce single-comparison principle
+	DependsOn        []string   // rule IDs that must also be checked first
 	FixSuggestion    string
 }
 
@@ -186,22 +193,47 @@ func Aggregate(results []RuleCheckResult) Verdict {
 }
 
 // evaluateRule dispatches to the type-specific checker and returns
-// (passed, detailMessage).
+// (passed, detailMessage). After type-specific checking it validates
+// PathElements (reasoning step completeness) if the rule defines them.
 func evaluateRule(rule CheckRule, text string) (bool, string) {
+	var passed bool
+	var detail string
+
 	switch rule.CheckType {
 	case CheckNovelty:
-		return checkNovelty(text, rule)
+		passed, detail = checkNovelty(text, rule)
 	case CheckInventiveness:
-		return checkInventiveness(text, rule)
+		passed, detail = checkInventiveness(text, rule)
 	case CheckInfringement:
-		return checkInfringement(text, rule)
+		passed, detail = checkInfringement(text, rule)
 	case CheckDisclosure:
-		return checkDisclosure(text, rule)
+		passed, detail = checkDisclosure(text, rule)
 	case CheckClaimAnalysis:
-		return checkClaimAnalysis(text, rule)
+		passed, detail = checkClaimAnalysis(text, rule)
+	case CheckDesignComparison:
+		passed, detail = checkDesignComparison(text, rule)
+	case CheckPublicAccess:
+		passed, detail = checkPublicAccess(text, rule)
+	case CheckAmendmentScope:
+		passed, detail = checkAmendmentScope(text, rule)
+	case CheckSubjectMatter:
+		passed, detail = checkSubjectMatter(text, rule)
 	default:
-		return true, ""
+		passed = true
 	}
+
+	if !passed {
+		return false, detail
+	}
+
+	// Post-processing: validate reasoning path step completeness.
+	if len(rule.PathElements) > 0 {
+		pathOk, pathDetail := checkReasoningPath(text, rule)
+		if !pathOk {
+			return false, pathDetail
+		}
+	}
+	return true, ""
 }
 
 func checkNovelty(text string, rule CheckRule) (bool, string) {
@@ -257,6 +289,46 @@ func checkClaimAnalysis(text string, rule CheckRule) (bool, string) {
 	return true, ""
 }
 
+func checkDesignComparison(text string, rule CheckRule) (bool, string) {
+	if !matchKeywordsAll(text, rule.RequiredElements) {
+		return false, "外观设计对比分析缺少必要要素（如整体视觉效果、产品种类认定）"
+	}
+	return true, ""
+}
+
+func checkPublicAccess(text string, rule CheckRule) (bool, string) {
+	if !matchKeywordsAll(text, rule.RequiredElements) {
+		return false, "公开方式判断缺少必要要素（如公开方式认定、公开日核实）"
+	}
+	return true, ""
+}
+
+func checkAmendmentScope(text string, rule CheckRule) (bool, string) {
+	if !matchKeywordsAll(text, rule.RequiredElements) {
+		return false, "修改超范围分析缺少必要要素（如原申请文件范围、直接且毫无疑义的确定）"
+	}
+	return true, ""
+}
+
+func checkSubjectMatter(text string, rule CheckRule) (bool, string) {
+	if !matchKeywordsAll(text, rule.RequiredElements) {
+		return false, "保护客体分析缺少必要要素（如技术方案认定、排除客体分析）"
+	}
+	return true, ""
+}
+
+// checkReasoningPath validates that all reasoning path steps are present in text.
+// Each PathElements[i] is a set of keywords for step i — at least one keyword from
+// each step must be affirmatively matched for the path to be complete.
+func checkReasoningPath(text string, rule CheckRule) (bool, string) {
+	for i, step := range rule.PathElements {
+		if !matchKeywordsAny(text, step) {
+			return false, fmt.Sprintf("推理路径步骤%d不完整，缺少关键词：%s", i+1, strings.Join(step, "/"))
+		}
+	}
+	return true, ""
+}
+
 // ----------------------------------------------------------------------------
 // Keyword matching utilities (ported from keyword-utils.ts)
 // ----------------------------------------------------------------------------
@@ -271,7 +343,7 @@ var synonymMap = map[string][]string{
 	"充分公开": {"公开充分", "能够实现", "enablement"},
 	"三步法":  {"最接近的现有技术", "区别技术特征", "技术启示"},
 	"单独对比": {"单独对比原则", "一一对比"},
-	"公知常识": {"惯用技术手段", "常规设计", "common knowledge"},
+	"公知常识": {"惯用技术手段", "常规设计", "common knowledge", "well-known"},
 	// Infringement domain terms.
 	"全面覆盖": {"全部技术特征", "逐一比对", "全覆盖原则"},
 	"等同":   {"等同替换", "等同侵权", "基本相同的手段", "基本相同的功能", "基本相同的效果"},
@@ -280,12 +352,43 @@ var synonymMap = map[string][]string{
 	"技术特征": {"技术特征分解", "权项特征", "limitation"},
 	// Invalidation domain terms.
 	"无效宣告": {"无效请求", "宣告无效", "invalidation"},
-	"组合动机": {"结合启示", "有动机结合", "技术结合启示"},
+	"组合动机": {"结合启示", "有动机结合", "技术结合启示", "技术启示"},
 	"优先权日": {"优先权", "申请日", "filing date"},
 	// Reexamination domain terms.
 	"复审":   {"复审请求", "驳回复审", "reexamination"},
 	"程序违法": {"程序错误", "违反法定程序"},
 	"新证据":  {"补充证据", "新提交的证据"},
+	// Design comparison terms (外观设计).
+	"外观设计":   {"工业设计", "design", "industrial design", "外观"},
+	"整体视觉效果": {"视觉效果", "整体外观", "整体视觉", "overall visual effect"},
+	"产品种类":   {"产品类别", "产品类型", "相似种类", "同类产品"},
+	// Public access terms (公开方式).
+	"出版物公开": {"公开出版", "论文", "期刊", "杂志", "书籍"},
+	"使用公开":  {"公开使用", "销售公开", "展出", "公开实施"},
+	"互联网公开": {"网络公开", "在线公开", "网页公开", "网站公开"},
+	"公开方式":  {"公开途径", "公开形式", "公开类型"},
+	// Amendment scope terms (修改超范围).
+	"修改超范围":   {"超出原范围", "增加新内容", "超范围修改", "amendment beyond scope", "超范围"},
+	"直接且毫无疑义": {"直接毫无疑义", "直接确定", "原申请文件"},
+	// Subject matter terms (保护客体).
+	"技术方案":   {"技术方案本身", "technical solution"},
+	"保护客体":   {"可专利主题", "patentable subject matter", "授权客体"},
+	"智力活动规则": {"智力活动的规则", "数学方法", "商业规则", "mental activity", "抽象思想"},
+	"疾病诊断方法": {"诊断方法", "治疗方法", "手术方法"},
+	"科学发现":   {"科学发现", "自然规律", "自然法则", "natural law"},
+	// Reasoning pattern terms (推理模式).
+	"预料不到":     {"预料不到的技术效果", "出乎意料", "surprising", "unexpected"},
+	"用途限定":     {"用途特征", "用途限定", "use limitation"},
+	"实验数据":     {"实验数据", "实施例", "实验例", "药效数据"},
+	"最接近的现有技术": {"最接近对比文件", "最接近的对比文件"},
+	"抵触申请":     {"在先申请在后公开", "conflicting application"},
+	"功能性限定":    {"功能限定", "功能性特征", "functional limitation"},
+	"实用性":      {"工业实用性", "产业应用", "industrial applicability"},
+	"积极效果":     {"有益效果", "positive effect", "技术效果"},
+	"本领域技术人员":  {"所属领域技术人员", "person skilled in the art"},
+	"能够实现":     {"可实施", "enablement", "能够制造", "能够使用"},
+	"显而易见":     {"obvious", "显而易见性", "非显而易见"},
+	"转让":       {"transfer", "assign", "assignment"},
 }
 
 // negationPatterns detect negated mentions within a context window.
@@ -388,6 +491,11 @@ func DefaultPatentRules() []CheckRule {
 	rules = append(rules, InfringementRules()...)
 	rules = append(rules, InvalidationRules()...)
 	rules = append(rules, ReexaminationRules()...)
+	rules = append(rules, ReasoningPatternRules()...)
+	rules = append(rules, DesignRules()...)
+	rules = append(rules, SubjectMatterRules()...)
+	rules = append(rules, PublicAccessRules()...)
+	rules = append(rules, PriorityRules()...)
 	return rules
 }
 
@@ -455,7 +563,7 @@ func InventivenessRules() []CheckRule {
 			Level:            LevelShould,
 			Severity:         SeverityMajor,
 			Message:          "创造性分析未明确实际解决的技术问题",
-			CheckType:        CheckNovelty,
+			CheckType:        CheckInventiveness,
 			RequiredElements: []string{"区别技术特征"},
 			Domain:           "patent_inventiveness",
 			FixSuggestion:    "基于区别技术特征，确定发明相对于最接近现有技术实际解决的技术问题",
@@ -640,6 +748,295 @@ func DisclosureRules() []CheckRule {
 			Dimensions:    []string{"essential_features", "consistency"},
 			Domain:        "patent_claims",
 			FixSuggestion: "核对独立权利要求是否包含全部必要技术特征",
+		},
+	}
+}
+
+// ReasoningPatternRules returns check rules derived from the 18 standardized
+// reasoning patterns. Each pattern encodes a canonical reasoning template from
+// the patent re-examination knowledge base. Rules use PathElements for step-
+// based verification and span creativity, novelty, claims, and other categories.
+func ReasoningPatternRules() []CheckRule {
+	patterns := AllPatterns()
+	var rules []CheckRule
+	for _, p := range patterns {
+		rules = append(rules, p.CheckRules...)
+	}
+	return rules
+}
+
+// DesignRules returns rules for design patent comparison (外观设计对比).
+// Covers overall visual effect comparison, product category determination,
+// design feature identification, direct copy evaluation, and multi-design
+// comparison framework.
+func DesignRules() []CheckRule {
+	return []CheckRule{
+		{
+			ID:               "DESIGN-01",
+			Name:             "外观设计整体视觉效果对比",
+			Description:      "外观设计对比应以整体视觉效果为准，综合判断是否构成相同或近似",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "外观设计对比缺少整体视觉效果分析",
+			CheckType:        CheckDesignComparison,
+			RequiredElements: []string{"外观设计", "整体视觉效果"},
+			Domain:           "patent_design",
+			FixSuggestion:    "以整体视觉效果为准进行外观设计对比，判断是否构成相同或近似",
+		},
+		{
+			ID:               "DESIGN-02",
+			Name:             "外观设计产品种类认定",
+			Description:      "外观设计对比应在相同或相近种类的产品之间进行",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未明确认定产品种类是否相同或相近",
+			CheckType:        CheckDesignComparison,
+			RequiredElements: []string{"产品种类"},
+			Domain:           "patent_design",
+			FixSuggestion:    "根据产品用途、功能、销售渠道等因素认定产品种类是否相同或相近",
+		},
+		{
+			ID:               "DESIGN-03",
+			Name:             "外观设计设计特征识别",
+			Description:      "应识别外观设计的设计特征，区分创新设计部分与惯常设计",
+			Level:            LevelQuality,
+			Severity:         SeverityMinor,
+			Message:          "未充分识别外观设计的设计特征",
+			CheckType:        CheckDesignComparison,
+			RequiredElements: []string{"设计特征"},
+			Domain:           "patent_design",
+			FixSuggestion:    "识别外观设计中区别于现有设计的创新设计特征",
+		},
+		{
+			ID:               "DESIGN-04",
+			Name:             "外观设计直接模仿判断",
+			Description:      "判断外观设计是否构成直接模仿或仅存在局部细微差异",
+			Level:            LevelQuality,
+			Severity:         SeverityMinor,
+			Message:          "未分析外观设计是否构成直接模仿",
+			CheckType:        CheckDesignComparison,
+			RequiredElements: []string{"直接模仿", "局部差异"},
+			Domain:           "patent_design",
+			FixSuggestion:    "判断局部差异是否对整体视觉效果产生显著影响",
+		},
+		{
+			ID:               "DESIGN-05",
+			Name:             "外观设计多设计对比框架",
+			Description:      "涉及多项外观设计时，应逐项对比并明确各设计对象的对比结果",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "多设计对比未逐项分析",
+			CheckType:        CheckDesignComparison,
+			RequiredElements: []string{"逐项对比", "外观设计"},
+			Domain:           "patent_design",
+			FixSuggestion:    "逐项对比每项外观设计与对比设计的整体视觉效果",
+		},
+	}
+}
+
+// SubjectMatterRules returns rules for patent subject matter eligibility analysis
+// under Article 2 of Chinese Patent Law (专利法第2条). Covers technical solution
+// definition, technical problem, technical means, non-patentable subject matter
+// exclusion, and technical effect evaluation.
+func SubjectMatterRules() []CheckRule {
+	return []CheckRule{
+		{
+			ID:               "SUBJECT-01",
+			Name:             "技术方案构成审查",
+			Description:      "保护客体应是利用自然规律解决技术问题的技术方案",
+			Level:            LevelMust,
+			Severity:         SeverityCritical,
+			Message:          "未充分论证要求保护的主题是否构成技术方案",
+			CheckType:        CheckSubjectMatter,
+			RequiredElements: []string{"技术方案", "自然规律"},
+			Domain:           "patent_examination",
+			FixSuggestion:    "论证该主题是否利用自然规律、解决技术问题、产生技术效果",
+		},
+		{
+			ID:               "SUBJECT-02",
+			Name:             "技术问题认定",
+			Description:      "技术方案应解决明确的技术问题",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未明确技术方案解决的技术问题",
+			CheckType:        CheckSubjectMatter,
+			RequiredElements: []string{"技术问题"},
+			Domain:           "patent_examination",
+			FixSuggestion:    "明确技术方案所要解决的技术问题",
+		},
+		{
+			ID:               "SUBJECT-03",
+			Name:             "技术手段审查",
+			Description:      "技术方案应采用技术手段实现技术问题的解决",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未充分分析技术方案所采用的技术手段",
+			CheckType:        CheckSubjectMatter,
+			RequiredElements: []string{"技术手段"},
+			Domain:           "patent_examination",
+			FixSuggestion:    "说明技术方案采用了哪些技术手段来解决技术问题",
+		},
+		{
+			ID:               "SUBJECT-04",
+			Name:             "非可专利客体排除",
+			Description:      "排除科学发现、智力活动规则、疾病诊断治疗方法、原子核变换方法",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未逐一排除非可专利客体",
+			CheckType:        CheckSubjectMatter,
+			RequiredElements: []string{"科学发现", "智力活动规则"},
+			Domain:           "patent_examination",
+			FixSuggestion:    "逐项排除科学发现、智力活动规则、疾病诊断治疗方法、原子核变换方法",
+		},
+		{
+			ID:               "SUBJECT-05",
+			Name:             "技术效果分析",
+			Description:      "技术方案应产生与解决的技术问题相对应的技术效果",
+			Level:            LevelQuality,
+			Severity:         SeverityMinor,
+			Message:          "未分析技术方案的技术效果",
+			CheckType:        CheckSubjectMatter,
+			RequiredElements: []string{"技术效果"},
+			Domain:           "patent_examination",
+			FixSuggestion:    "说明技术方案所产生的技术效果与解决的技术问题之间的对应关系",
+		},
+	}
+}
+
+// PublicAccessRules returns rules for determining how prior art was made
+// available to the public (公开方式判断). Covers publication disclosure,
+// public use disclosure, internet disclosure, publication date verification,
+// and confidentiality obligation analysis.
+func PublicAccessRules() []CheckRule {
+	return []CheckRule{
+		{
+			ID:               "PUBACC-01",
+			Name:             "出版物公开认定",
+			Description:      "判断现有技术是否通过出版物方式公开（论文/期刊/书籍）",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未充分认定是否构成出版物公开",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"出版物公开"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "确认出版物是否在申请日前出版发行，公众能否获知",
+		},
+		{
+			ID:               "PUBACC-02",
+			Name:             "使用公开认定",
+			Description:      "判断现有技术是否通过使用方式公开（销售/展出/公开实施）",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未充分认定是否构成使用公开",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"使用公开"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "确认使用行为是否在申请日前使技术内容为公众所知",
+		},
+		{
+			ID:               "PUBACC-03",
+			Name:             "互联网公开认定",
+			Description:      "判断现有技术是否通过互联网方式公开（网页/在线公开）",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未充分认定是否构成互联网公开",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"互联网公开"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "确认网页公开日的确定方式及公众能否通过互联网获知",
+		},
+		{
+			ID:               "PUBACC-04",
+			Name:             "公开日核实",
+			Description:      "核实现有技术的公开日是否早于申请日或优先权日",
+			Level:            LevelMust,
+			Severity:         SeverityCritical,
+			Message:          "未核实现有技术的公开日是否早于申请日",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"公开日", "申请日"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "核实每份现有技术的公开日是否早于涉案专利的申请日或有效优先权日",
+		},
+		{
+			ID:               "PUBACC-05",
+			Name:             "保密义务分析",
+			Description:      "判断技术内容在公开日之前是否处于保密状态",
+			Level:            LevelQuality,
+			Severity:         SeverityMinor,
+			Message:          "未分析技术内容是否处于保密状态",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"保密", "保密义务"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "确认技术内容在公开日之前是否存在明示或默示的保密义务",
+		},
+	}
+}
+
+// PriorityRules returns rules for priority date determination and analysis
+// (优先权规则). Covers priority date determination, priority transfer review,
+// priority claim validity, priority date comparison, and partial priority
+// handling.
+func PriorityRules() []CheckRule {
+	return []CheckRule{
+		{
+			ID:               "PRIORITY-01",
+			Name:             "优先权日认定",
+			Description:      "确认专利申请的优先权日及其法律效力",
+			Level:            LevelMust,
+			Severity:         SeverityCritical,
+			Message:          "未准确认定优先权日",
+			CheckType:        CheckNovelty,
+			RequiredElements: []string{"优先权日", "优先权"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "确认优先权主张的依据和优先权日的准确日期",
+		},
+		{
+			ID:               "PRIORITY-02",
+			Name:             "优先权转让审查",
+			Description:      "优先权人变更应在申请日前完成转让手续",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未审查优先权转让的程序合规性",
+			CheckType:        CheckAmendmentScope,
+			RequiredElements: []string{"优先权", "转让"},
+			Domain:           "patent_amendment",
+			FixSuggestion:    "确认优先权转让是否在申请日前完成，手续是否完整",
+		},
+		{
+			ID:               "PRIORITY-03",
+			Name:             "优先权主张有效性",
+			Description:      "优先权主张应符合形式条件和实质条件",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未充分审查优先权主张的有效性",
+			CheckType:        CheckNovelty,
+			RequiredElements: []string{"优先权", "有效性"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "审查优先权主张是否符合形式条件和实质条件（在先申请是否相同主题）",
+		},
+		{
+			ID:               "PRIORITY-04",
+			Name:             "优先权日与申请日对比",
+			Description:      "以有效的优先权日作为现有技术判断的时间基准",
+			Level:            LevelMust,
+			Severity:         SeverityCritical,
+			Message:          "未以有效的优先权日作为现有技术判断的时间基准",
+			CheckType:        CheckNovelty,
+			RequiredElements: []string{"优先权日", "申请日", "现有技术"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "确认优先权有效后，以优先权日作为判断现有技术的时间基准",
+		},
+		{
+			ID:               "PRIORITY-05",
+			Name:             "部分优先权处理",
+			Description:      "同一申请中包含多项优先权时，应区分不同优先权对应的事项",
+			Level:            LevelQuality,
+			Severity:         SeverityMinor,
+			Message:          "未分析部分优先权的适用性",
+			CheckType:        CheckNovelty,
+			RequiredElements: []string{"部分优先权", "多项优先权"},
+			Domain:           "patent_novelty",
+			FixSuggestion:    "逐项确定各技术方案对应的优先权日，区分部分优先权和多项优先权",
 		},
 	}
 }

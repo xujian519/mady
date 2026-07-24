@@ -53,7 +53,18 @@ type RuleEngineSource interface {
 	MatchRules(ctx context.Context, caseType string, queryCtx map[string]string) ([]RetrievedRule, error)
 }
 
-// MultiSourceRetriever queries up to four rule sources in parallel and
+// IPCStandardSource queries IPC-based examination standards (宝宸知识库 cards).
+// This is an optional knowledge source that provides IPC field × legal article
+// examination practice summaries for the reasoning framework.
+type IPCStandardSource interface {
+	// MatchByIPC returns examination standards matching the given IPC section
+	// (e.g. "G" for physics/computing) and optional legal article. Returns
+	// results as RetrievedRules so they integrate seamlessly with the existing
+	// Stage ② rule acquisition pipeline.
+	MatchByIPC(ctx context.Context, ipcSection, article string, queryCtx map[string]string) ([]RetrievedRule, error)
+}
+
+// MultiSourceRetriever queries up to five rule sources in parallel and
 // aggregates the results according to the Manifest. It can optionally
 // extract workflow topology from the knowledge graph for plan generation.
 type MultiSourceRetriever struct {
@@ -61,6 +72,7 @@ type MultiSourceRetriever struct {
 	vectorStore RuleVectorStore
 	skillReader RuleSkillReader
 	ruleEngine  RuleEngineSource
+	ipcSource   IPCStandardSource  // optional — IPC 审查标准
 	topologyExt *TopologyExtractor // optional — enables topology extraction
 }
 
@@ -80,6 +92,14 @@ func NewMultiSourceRetriever(walker *ReasoningWalker, vs RuleVectorStore, sr Rul
 // WorkflowSteps from the knowledge graph for the requested case type.
 func (r *MultiSourceRetriever) WithTopologyExtractor(ext *TopologyExtractor) *MultiSourceRetriever {
 	r.topologyExt = ext
+	return r
+}
+
+// WithIPCSource attaches an IPC examination standards source. When set,
+// the retriever can query IPC standards as part of Stage ② rule acquisition.
+// This is optional and does not affect existing sources.
+func (r *MultiSourceRetriever) WithIPCSource(src IPCStandardSource) *MultiSourceRetriever {
+	r.ipcSource = src
 	return r
 }
 
@@ -169,6 +189,8 @@ func (r *MultiSourceRetriever) querySource(ctx context.Context, src RuleSourceCf
 		return r.querySkill(ctx, src)
 	case RuleSourceRules:
 		return r.queryRules(ctx, src, queryCtx)
+	case RuleSourceIPC:
+		return r.queryIPC(ctx, src, queryCtx)
 	default:
 		return nil, fmt.Errorf("unknown rule source: %s", src.Source)
 	}
@@ -185,6 +207,35 @@ func (r *MultiSourceRetriever) queryRules(ctx context.Context, src RuleSourceCfg
 	rules, err := r.ruleEngine.MatchRules(ctx, caseType, queryCtx)
 	if err != nil {
 		return nil, fmt.Errorf("deterministic rules: %w", err)
+	}
+	maxPerSource := src.MaxPerSource
+	if maxPerSource > 0 && len(rules) > maxPerSource {
+		rules = rules[:maxPerSource]
+	}
+	return rules, nil
+}
+
+// queryIPC fetches IPC examination standards. The source uses the tech_field
+// from query context to determine which IPC section(s) to query, and the
+// case_type to infer the relevant legal article. When the IPC source is not
+// configured, it returns nil (not an error), making it a purely optional source.
+func (r *MultiSourceRetriever) queryIPC(ctx context.Context, src RuleSourceCfg, queryCtx map[string]string) ([]RetrievedRule, error) {
+	if r.ipcSource == nil {
+		return nil, nil
+	}
+
+	// Derive IPC section from tech_field if available; otherwise use "ALL".
+	ipcSection := queryCtx["tech_field"]
+	if ipcSection == "" {
+		ipcSection = "ALL"
+	}
+
+	// Derive legal article from case_type.
+	article := caseTypeToArticle(queryCtx["case_type"])
+
+	rules, err := r.ipcSource.MatchByIPC(ctx, ipcSection, article, queryCtx)
+	if err != nil {
+		return nil, fmt.Errorf("IPC standards: %w", err)
 	}
 	maxPerSource := src.MaxPerSource
 	if maxPerSource > 0 && len(rules) > maxPerSource {
@@ -344,4 +395,22 @@ func deduplicateRules(rules []RetrievedRule) []RetrievedRule {
 		}
 	}
 	return deduped
+}
+
+// caseTypeToArticle maps a CaseType to the most likely legal article ID for
+// IPC standards matching. This enables the IPC source to pre-filter standards
+// by the relevant patent law article without requiring explicit article input.
+func caseTypeToArticle(caseType string) string {
+	switch CaseType(caseType) {
+	case CaseNoveltySearch, CasePatentability:
+		return "patent-law-a22.2"
+	case CaseRejection, CaseReexamination, CaseInvalidation:
+		return "patent-law-a22.3"
+	case CaseDrafting:
+		return "patent-law-a26.3"
+	case CaseOAResponse:
+		return "patent-law-a22.3"
+	default:
+		return ""
+	}
 }

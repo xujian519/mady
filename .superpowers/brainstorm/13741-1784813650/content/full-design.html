@@ -1,0 +1,90 @@
+<h2>专利侵权判定模块 — 完整设计</h2>
+<p class="subtitle"><code>domains/infringement/</code> | 统一图 + 视角参数 | L1-L4 全覆盖 | 发明/新型优先</p>
+
+<div class="section">
+  <h3>📁 模块文件结构</h3>
+  <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">
+    <tr style="background:var(--surface2)"><th style="padding:6px;text-align:left">文件</th><th style="padding:6px;text-align:left">职责</th><th style="padding:6px;text-align:center">对标</th></tr>
+    <tr><td style="padding:6px"><code>doc.go</code></td><td style="padding:6px">包文档</td><td style="padding:6px;text-align:center">标配</td></tr>
+    <tr style="background:var(--surface2)"><td style="padding:6px"><code>types.go</code></td><td style="padding:6px">Input/Output/Perspective/PatentType/StepResult 类型定义</td><td style="padding:6px;text-align:center">inventiveness</td></tr>
+    <tr><td style="padding:6px"><code>framework.go</code></td><td style="padding:6px">法条判断框架文本（ArticleFrameworkProvider 接口）</td><td style="padding:6px;text-align:center">inventiveness</td></tr>
+    <tr style="background:var(--surface2)"><td style="padding:6px"><code>graph.go</code></td><td style="padding:6px">Pregel 子图构建 + 10节点拓扑 + StateSchema</td><td style="padding:6px;text-align:center">inventiveness</td></tr>
+    <tr><td style="padding:6px"><code>nodes.go</code></td><td style="padding:6px">LLM Agent 节点（提示词 + JSON Schema + parse函数）</td><td style="padding:6px;text-align:center">inventiveness</td></tr>
+    <tr style="background:var(--surface2)"><td style="padding:6px"><code>tool.go</code></td><td style="padding:6px">agentcore.Tool 包装 + NewInfringementTool()</td><td style="padding:6px;text-align:center">inventiveness</td></tr>
+    <tr><td style="padding:6px"><code>scorer.go</code></td><td style="padding:6px">侵权可能性评分器（多维度加权）</td><td style="padding:6px;text-align:center">claimdrafting</td></tr>
+    <tr style="background:var(--surface2)"><td style="padding:6px"><code>rules.go</code></td><td style="padding:6px">侵权判定规则引擎（Rule接口 + Engine）</td><td style="padding:6px;text-align:center">claimdrafting</td></tr>
+    <tr><td style="padding:6px"><code>knowledge.go</code></td><td style="padding:6px">KnowledgeRetriever 接口 + 审查指南 / 类案检索增强</td><td style="padding:6px;text-align:center">enablement</td></tr>
+    <tr style="background:var(--surface2)"><td style="padding:6px"><code>infringement_test.go</code></td><td style="padding:6px">单元测试 + 端到端测试 + 典型案例</td><td style="padding:6px;text-align:center">标配</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>🕸️ Pregel 图拓扑（10节点）</h3>
+  <div style="background:var(--surface2);border-radius:8px;padding:16px;margin:12px 0;font-family:monospace;font-size:12px;line-height:2">
+    <strong>load_input</strong> — 守卫：验证输入 + 设置 perspective / patent_type<br>
+    &nbsp;&nbsp;↓<br>
+    <strong>claim_scope</strong> — L1: 权利要求解释，确定保护范围（内部/外部证据）<br>
+    &nbsp;&nbsp;↓<br>
+    <strong>feature_decomposition</strong> — L1: 技术特征分解（权利要求 + 被控产品）<br>
+    &nbsp;&nbsp;↓<br>
+    <strong>literal_infringement</strong> — L1: 全面覆盖原则逐特征比对<br>
+    &nbsp;&nbsp;↓<br>
+    <strong>equivalence</strong> — L1: 等同原则（手段/功能/效果）+ 禁止反悔 + 捐献规则<br>
+    &nbsp;&nbsp;↓<br>
+    <strong>infringement_verdict</strong> — L1: 综合判定结论（含置信度）<br>
+    &nbsp;&nbsp;↓<br>
+    <strong>defense_review</strong> — L2: 抗辩体系审查（现有技术/先用权/合法来源/权利用尽/权利冲突）<br>
+    &nbsp;&nbsp;↓<br>
+    <strong>remedy_assessment</strong> — L3: 救济评估（损害赔偿四层递进 + 禁令五要素）<br>
+    &nbsp;&nbsp;↓<br>
+    <strong>strategy</strong> — L4: 策略建议（诉讼/应诉/管辖/和解/无效宣告）<br>
+    &nbsp;&nbsp;↓<br>
+    <strong>conclude</strong> — 输出格式化（含免责声明 + 法律引用核验）
+  </div>
+  <p style="font-size:12px;color:var(--text-secondary)">视角差异通过 <code>Perspective</code> 参数注入每个节点的 System Prompt，而非条件路由分叉。</p>
+</div>
+
+<div class="section">
+  <h3>🔀 双视角行为差异（关键节点示例）</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header" style="background:var(--accent)">原告视角 (PerspectivePatentee)</div>
+      <div class="mockup-body" style="font-size:11px;line-height:1.5">
+        <strong>literal_infringement:</strong> 论证每个特征如何被覆盖<br>
+        <strong>equivalence:</strong> 主张等同适用，反驳禁止反悔<br>
+        <strong>defense_review:</strong> 预判对方可能抗辩 + 弱点分析<br>
+        <strong>remedy_assessment:</strong> 最大化赔偿模型 / 禁令申请策略<br>
+        <strong>strategy:</strong> 管辖选择 / 证据保全 / 临时禁令时机
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header" style="background:var(--red)">被告视角 (PerspectiveDefendant)</div>
+      <div class="mockup-body" style="font-size:11px;line-height:1.5">
+        <strong>literal_infringement:</strong> 寻找缺失特征，论证不相同<br>
+        <strong>equivalence:</strong> 主张不满足三要素，援引禁止反悔/捐献<br>
+        <strong>defense_review:</strong> 构建多层级抗辩策略（主攻+备用）<br>
+        <strong>remedy_assessment:</strong> 风险敞口量化 / 专利贡献率抗辩<br>
+        <strong>strategy:</strong> 无效宣告路径 / 诉讼中止 / 和解谈判
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🔗 与现有系统的集成点</h3>
+  <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px">
+    <tr style="background:var(--surface2)"><th style="padding:6px;text-align:left">集成目标</th><th style="padding:6px;text-align:left">方式</th></tr>
+    <tr><td style="padding:6px"><code>domains/rules/data/articles/</code></td><td style="padding:6px">新增 <code>patent-law-infringement.yaml</code>（侵权判定框架）</td></tr>
+    <tr style="background:var(--surface2)"><td style="padding:6px"><code>domains/rules/data/rules/</code></td><td style="padding:6px">新增 <code>infringement-rules.yaml</code>（侵权判定规则 ~15条）</td></tr>
+    <tr><td style="padding:6px"><code>domains/rules/data/orchestrations/</code></td><td style="padding:6px">新增 <code>infringement-analysis.yaml</code>（事务编排）</td></tr>
+    <tr style="background:var(--surface2)"><td style="padding:6px"><code>domains/router.go</code></td><td style="padding:6px">Registration function in patent agent tool set</td></tr>
+    <tr><td style="padding:6px"><code>guardrails/citation_table.go</code></td><td style="padding:6px">新增侵权判定相关法条的主题映射（A11/A62/A65/A66/A69/A70）</td></tr>
+    <tr style="background:var(--surface2)"><td style="padding:6px"><code>knowledge/store.go</code></td><td style="padding:6px">种子数据扩充（侵权判定相关法条+典型案例要点）</td></tr>
+    <tr><td style="padding:6px"><code>workflows/patent/</code></td><td style="padding:6px">废弃旧 infringement.go，保留其他 workflow（novelty/debate等）</td></tr>
+    <tr style="background:var(--surface2)"><td style="padding:6px"><code>styles/patent-standard.yaml</code></td><td style="padding:6px">新增侵权场景的反模式（如"必然侵权"→"存在较高侵权风险"）</td></tr>
+  </table>
+</div>
+
+<div class="section" style="margin-top:24px;padding-top:16px;border-top:2px solid var(--surface2)">
+  <p style="font-size:14px">以上是完整设计总览。请检查模块结构、图拓扑和集成方案，有任何调整想法吗？</p>
+</div>

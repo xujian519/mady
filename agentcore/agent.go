@@ -11,14 +11,6 @@ import (
 
 const defaultMaxTurns = 20
 
-// ToolCallOverride controls how a loop-level BeforeToolCall can block or replace
-// the execution of a tool call.
-type ToolCallOverride struct {
-	Block   bool   // if true, skip execution
-	Result  string // result to use when blocked (empty = default error message)
-	IsError bool   // whether the override result should be treated as an error
-}
-
 // Config defines the parameters for constructing an Agent.
 //
 // Config is composed of embedded sub-configs that group related fields:
@@ -76,22 +68,6 @@ type Config struct {
 	// If nil, DefaultConvertToLLM is used which strips custom types.
 	ConvertToLLM ConvertToLLMFunc
 
-	// Deprecated: use Lifecycle.BeforeToolExecution instead. This hook is
-	// auto-adapted to the Lifecycle chain in New() for backward compatibility.
-	// Will be removed in v0.6.0.
-	BeforeToolCall func(ctx context.Context, tc ToolCall) *ToolCallOverride
-
-	// Deprecated: use Lifecycle.AfterToolExecution instead. This hook is
-	// auto-adapted to the Lifecycle chain in New() for backward compatibility.
-	// Will be removed in v0.6.0.
-	AfterToolCall func(ctx context.Context, tc ToolCall, result *ToolResult) *ToolResult
-
-	// Deprecated: use Lifecycle.AfterToolExecution instead (it receives the
-	// full Results slice and can modify it in-place). This hook is auto-adapted
-	// to the Lifecycle chain in New() for backward compatibility.
-	// Will be removed in v0.6.0.
-	PostProcessResults func(ctx context.Context, calls []ToolCall, results []ToolResult) []ToolResult
-
 	// Extensions are registered during New() and contribute tools, hooks, etc.
 	Extensions []Extension
 
@@ -143,16 +119,6 @@ func New(cfg Config) *Agent {
 	unknownHandler := cfg.UnknownToolHandler
 	if unknownHandler == nil {
 		unknownHandler = DynamicUnknownToolHandler(reg)
-	}
-
-	// Adapt deprecated BeforeToolCall/AfterToolCall/PostProcessResults to Lifecycle hooks.
-	if cfg.BeforeToolCall != nil || cfg.AfterToolCall != nil || cfg.PostProcessResults != nil {
-		adapter := &deprecatedHookAdapter{
-			beforeToolCall:     cfg.BeforeToolCall,
-			afterToolCall:      cfg.AfterToolCall,
-			postProcessResults: cfg.PostProcessResults,
-		}
-		cfg.Lifecycle = appendLifecycleHook(cfg.Lifecycle, adapter)
 	}
 
 	engineReg := NewEngineRegistry()

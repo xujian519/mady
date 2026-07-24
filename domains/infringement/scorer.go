@@ -12,12 +12,12 @@ type InfringementScorer struct {
 
 // defaultWeights is the pre-allocated static weighting scheme, shared across all scorers.
 var defaultWeights = map[string]float64{
-	"literal_match":     0.25, // more literal matches → higher infringement
-	"equivalence":       0.20, // more equivalents → higher infringement
-	"estoppel_risk":     0.10, // inverted: estoppel applied → lower infringement
-	"dedication_risk":   0.05, // inverted: dedication applied → lower infringement
-	"defense_strength":  0.20, // inverted: strong defenses → lower infringement
-	"remedy_exposure":   0.10, // post-infringement, informational
+	"literal_match":      0.25, // more literal matches → higher infringement
+	"equivalence":        0.20, // more equivalents → higher infringement
+	"estoppel_risk":      0.10, // inverted: estoppel applied → lower infringement
+	"dedication_risk":    0.05, // inverted: dedication applied → lower infringement
+	"defense_strength":   0.20, // inverted: strong defenses → lower infringement
+	"remedy_exposure":    0.10, // post-infringement, informational
 	"strategy_viability": 0.10, // informational, neutral
 }
 
@@ -42,12 +42,12 @@ type ScoreResult struct {
 // Score computes weighted scores from the analysis output.
 func (s *InfringementScorer) Score(output *InfringementOutput) *ScoreResult {
 	dim := map[string]float64{
-		"literal_match":     s.scoreLiteralMatch(output),
-		"equivalence":       s.scoreEquivalence(output),
-		"estoppel_risk":     s.calcEstoppelImpact(output),
-		"dedication_risk":   s.calcDedicationImpact(output),
-		"defense_strength":  s.calcDefenseImpact(output),
-		"remedy_exposure":   s.calcRemedyExposure(output),
+		"literal_match":      s.scoreLiteralMatch(output),
+		"equivalence":        s.scoreEquivalence(output),
+		"estoppel_risk":      s.calcEstoppelImpact(output),
+		"dedication_risk":    s.calcDedicationImpact(output),
+		"defense_strength":   s.calcDefenseImpact(output),
+		"remedy_exposure":    s.calcRemedyExposure(output),
 		"strategy_viability": s.scoreStrategy(output),
 	}
 	var composite float64

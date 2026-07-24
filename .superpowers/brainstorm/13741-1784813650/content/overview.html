@@ -1,0 +1,96 @@
+<h2>专利侵权判定模块 — 现状与设计方向</h2>
+<p class="subtitle">基于 Wiki 知识库 + 项目代码的深度分析结果</p>
+
+<div class="section">
+  <h3>📦 项目中已有的侵权相关代码</h3>
+  <table style="width:100%;border-collapse:collapse;margin:12px 0">
+    <tr style="background:var(--surface2)">
+      <th style="padding:8px;text-align:left">位置</th>
+      <th style="padding:8px;text-align:left">内容</th>
+      <th style="padding:8px;text-align:left">局限</th>
+    </tr>
+    <tr>
+      <td style="padding:8px"><code>workflows/patent/infringement.go</code></td>
+      <td style="padding:8px">6节点 Pregel 侵权分析图</td>
+      <td style="padding:8px">朴素特征匹配（子字符串），偏中性</td>
+    </tr>
+    <tr style="background:var(--surface2)">
+      <td style="padding:8px"><code>workflows/patent/rule_engine.go</code></td>
+      <td style="padding:8px">4条侵权规则（全面覆盖/等同/禁止反悔/捐献）</td>
+      <td style="padding:8px">仅文本模式匹配，无深度法律推理</td>
+    </tr>
+    <tr>
+      <td style="padding:8px"><code>plugins/patent/infringement-check/</code></td>
+      <td style="padding:8px">侵权比对插件 + 7-stage pipeline</td>
+      <td style="padding:8px">SKILL.md 提示词驱动，无结构化引擎</td>
+    </tr>
+    <tr style="background:var(--surface2)">
+      <td style="padding:8px"><code>doc-templates/legal/infringement-analysis.md</code></td>
+      <td style="padding:8px">五段式侵权分析文档模板</td>
+      <td style="padding:8px">纯模板，无判定逻辑</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>🎯 拟建设计：<code>domains/infringement/</code> 模块</h3>
+  <p>对标 <code>domains/inventiveness/</code>（创造性判断），构建完整的领域 Agent 模块</p>
+
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">原告视角 (Patentee/Plaintiff)</div>
+      <div class="mockup-body" style="font-size:13px;line-height:1.6">
+        <strong>1. 权利基础审查</strong><br>
+        → 专利权有效性 / 保护范围确定<br>
+        <strong>2. 侵权事实举证</strong><br>
+        → 全面覆盖比对 / 等同认定<br>
+        <strong>3. 诉讼策略建议</strong><br>
+        → 管辖选择 / 证据保全 / 临时禁令<br>
+        <strong>4. 损害赔偿计算</strong><br>
+        → 四层递进模型 / 合理开支
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">被告视角 (Accused/Defendant)</div>
+      <div class="mockup-body" style="font-size:13px;line-height:1.6">
+        <strong>1. 不侵权抗辩</strong><br>
+        → 特征缺失 / 不相同不等同<br>
+        <strong>2. 法定抗辩事由</strong><br>
+        → 现有技术 / 先用权 / 合法来源 / 权利用尽<br>
+        <strong>3. 专利效力挑战</strong><br>
+        → 无效宣告 / 诉讼中止策略<br>
+        <strong>4. 赔偿抗辩</strong><br>
+        → 专利贡献率 / 合法来源免责
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>❓ 第一个关键问题：与现有代码的关系</h3>
+  <p>项目中 <code>workflows/patent/infringement.go</code> 已有侵权分析 Pregel 图，新的 <code>domains/infringement/</code> 模块应该如何定位？</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>完全替代</h3>
+      <p>新模块取代 workflows/patent/ 中的旧实现，统一到 domains/ 架构下</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>互补增强</h3>
+      <p>保留原 workflow（快速原型），新模块提供深度法律推理引擎，两者共存</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>分层定位</h3>
+      <p>workflows/ 作为轻量工具层，domains/infringement/ 作为重量级 Agent 层，通过 tool 桥接</p>
+    </div>
+  </div>
+</div>

@@ -408,8 +408,10 @@ func (r *limitationPeriodRule) Name() string { return "limitation-period-check" 
 func (r *limitationPeriodRule) Description() string {
 	return "验证诉讼时效：自得知或应知侵权行为之日起3年（2020修正,专利法第74条）"
 }
-func (r *limitationPeriodRule) LegalBasis() string { return "专利法 第74条（2020修正,民法典第188条）" }
-func (r *limitationPeriodRule) Severity() string   { return SeverityShould }
+func (r *limitationPeriodRule) LegalBasis() string {
+	return "专利法 第74条（2020修正,民法典第188条）"
+}
+func (r *limitationPeriodRule) Severity() string { return SeverityShould }
 
 func (r *limitationPeriodRule) Check(ctx context.Context, input *RuleCheckInput) (*RuleCheckResult, error) {
 	return &RuleCheckResult{

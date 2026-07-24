@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xujian519/mady/domains/ipc"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/retrieval/domain"
 )
@@ -219,12 +220,31 @@ func newSearchNode(retriever domain.DomainRetriever) graph.PregelNode {
 
 // analyzeNode performs feature-by-feature comparison between the invention
 // and retrieved prior art. It produces a structured comparison result.
+// IPC classification is automatically performed to inject domain-specific
+// analysis hints for novelty and inventiveness assessment.
 func analyzeNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 	features, _ := state[StateFeatures].([]string)
 	priorArt, _ := state[StatePriorArt].([]string)
+	input := state.GetString(StateInput)
+
+	// IPC 分类识别——从发明描述中自动判定技术领域
+	ipcSection, ipcConfidence := ipc.Classify(input)
 
 	var comparison strings.Builder
 	comparison.WriteString("## 技术特征比对分析\n\n")
+
+	// IPC 技术领域信息
+	comparison.WriteString("### 技术领域\n\n")
+	fmt.Fprintf(&comparison, "- IPC 大类：%s（%s）\n", ipcSection, ipcSection.SectionOf())
+	fmt.Fprintf(&comparison, "- 分类置信度：%.0f%%\n\n", ipcConfidence*100)
+
+	// 领域特化提示——如果置信度较高，注入针对性的审查要点
+	if ipc.IsHighConfidence(ipcConfidence) {
+		if hints := ipc.GetNoveltyHints(ipcSection); hints != "" {
+			comparison.WriteString(hints)
+			comparison.WriteString("\n")
+		}
+	}
 
 	if len(features) == 0 {
 		comparison.WriteString("未识别到明确的技术特征。\n")
@@ -250,6 +270,7 @@ func analyzeNode(ctx context.Context, state graph.PregelState) (graph.PregelStat
 		StateComparison: comparison.String(),
 		StateFeatures:   features,
 		StatePriorArt:   priorArt,
+		StateInput:      input,
 	}, nil
 }
 

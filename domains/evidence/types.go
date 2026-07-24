@@ -10,25 +10,29 @@ import (
 type EvidenceType string
 
 const (
-	EvTypeGeneral         EvidenceType = "general"
-	EvTypeForeignLang     EvidenceType = "foreign_language"
-	EvTypeOverseas        EvidenceType = "overseas"
-	EvTypeElectronic      EvidenceType = "electronic"
-	EvTypeWitness         EvidenceType = "witness_testimony"
-	EvTypeExpert          EvidenceType = "expert_opinion"
-	EvTypeCommonKnowledge EvidenceType = "common_knowledge"
-	EvTypeNotarial        EvidenceType = "notarial_certificate"
-	EvTypeBurden          EvidenceType = "burden_of_proof"
-	EvTypeStandard        EvidenceType = "standard_of_proof"
-	EvTypePriorArtDate    EvidenceType = "prior_art_date"
-	EvTypeProcedural      EvidenceType = "procedural"
+	EvTypeGeneral             EvidenceType = "general"
+	EvTypeForeignLang         EvidenceType = "foreign_language"
+	EvTypeOverseas            EvidenceType = "overseas"
+	EvTypeElectronic          EvidenceType = "electronic"
+	EvTypeWitness             EvidenceType = "witness_testimony"
+	EvTypeExpert              EvidenceType = "expert_opinion"
+	EvTypeCommonKnowledge     EvidenceType = "common_knowledge"
+	EvTypeNotarial            EvidenceType = "notarial_certificate"
+	EvTypeBurden              EvidenceType = "burden_of_proof"
+	EvTypeStandard            EvidenceType = "standard_of_proof"
+	EvTypePriorArtDate        EvidenceType = "prior_art_date"
+	EvTypeProcedural          EvidenceType = "procedural"
+	EvTypeInternetPublication EvidenceType = "internet_publication" // 互联网公开
+	EvTypePublicUse           EvidenceType = "public_use"           // 使用公开
+	EvTypeDesignComparison    EvidenceType = "design_comparison"    // 设计对比证据
 )
 
 func (t EvidenceType) Valid() bool {
 	switch t {
 	case EvTypeGeneral, EvTypeForeignLang, EvTypeOverseas, EvTypeElectronic,
 		EvTypeWitness, EvTypeExpert, EvTypeCommonKnowledge, EvTypeNotarial,
-		EvTypeBurden, EvTypeStandard, EvTypePriorArtDate, EvTypeProcedural:
+		EvTypeBurden, EvTypeStandard, EvTypePriorArtDate, EvTypeProcedural,
+		EvTypeInternetPublication, EvTypePublicUse, EvTypeDesignComparison:
 		return true
 	default:
 		return false
@@ -121,6 +125,73 @@ type DimensionJudgment struct {
 	Reasoning string  `json:"reasoning"`
 }
 
+// DateReliability 表示日期确定的可靠程度。
+type DateReliability string
+
+const (
+	RelHigh   DateReliability = "high"
+	RelMedium DateReliability = "medium"
+	RelLow    DateReliability = "low"
+)
+
+// DateSourceType 表示日期来源的类型。
+type DateSourceType string
+
+const (
+	SrcExactPage      DateSourceType = "exact_page_date"     // 页面明确标注的日期
+	SrcHttpHeader     DateSourceType = "http_header"         // HTTP 响应头中的日期
+	SrcWaybackMachine DateSourceType = "wayback_machine"     // Wayback Machine 记录
+	SrcDomainReg      DateSourceType = "domain_registration" // 域名注册日期
+	SrcClaimed        DateSourceType = "claimed_date"        // 主张方声称的日期
+	SrcInferred       DateSourceType = "inferred"            // 根据上下文推断
+)
+
+// ContentIntegrityStatus 表示互联网证据内容完整性状态。
+type ContentIntegrityStatus string
+
+const (
+	IntegrityVerified   ContentIntegrityStatus = "verified"   // 内容完整性已验证
+	IntegrityPartial    ContentIntegrityStatus = "partial"    // 部分可验证
+	IntegrityUnverified ContentIntegrityStatus = "unverified" // 无法验证完整性
+)
+
+// PublicIntent 表示互联网公开的公开意图。
+type PublicIntent string
+
+const (
+	IntentPublic     PublicIntent = "public"     // 对公众开放
+	IntentRestricted PublicIntent = "restricted" // 受限制访问（收费/注册墙）
+)
+
+// FourElementsResult 表示使用公开四要件的检查结果。
+type FourElementsResult struct {
+	TimeElement   ElementResult `json:"time_element"`   // 公开时间
+	PlaceElement  ElementResult `json:"place_element"`  // 公开地点
+	MethodElement ElementResult `json:"method_element"` // 公开方式
+	Accessibility ElementResult `json:"accessibility"`  // 公众可获取性
+}
+
+// AllMet 检查四要件是否全部满足。
+func (f *FourElementsResult) AllMet() bool {
+	return f != nil && f.TimeElement.Met && f.PlaceElement.Met &&
+		f.MethodElement.Met && f.Accessibility.Met
+}
+
+// OverallScore 计算四要件综合评分（0-1）。
+func (f *FourElementsResult) OverallScore() float64 {
+	if f == nil {
+		return 0
+	}
+	return (f.TimeElement.Score + f.PlaceElement.Score +
+		f.MethodElement.Score + f.Accessibility.Score) / 4
+}
+
+type ElementResult struct {
+	Met    bool    `json:"met"`
+	Score  float64 `json:"score"`
+	Detail string  `json:"detail"`
+}
+
 type TypeSpecificJudgment struct {
 	EvidenceType        EvidenceType       `json:"evidence_type"`
 	PlatformCredibility *CredibilityLevel  `json:"platform_credibility,omitempty"`
@@ -130,14 +201,24 @@ type TypeSpecificJudgment struct {
 	WitnessCredibility  string             `json:"witness_credibility,omitempty"`
 	DateDetermination   *DateDetermination `json:"date_determination,omitempty"`
 	DeadlineStatus      string             `json:"deadline_status,omitempty"`
+	// 互联网公开专用字段
+	ContentIntegrity ContentIntegrityStatus `json:"content_integrity,omitempty"` // 内容完整性
+	PublicIntent     PublicIntent           `json:"public_intent,omitempty"`     // 公开意图
+	PlatformCategory string                 `json:"platform_category,omitempty"` // 平台分类
+	// 使用公开专用字段
+	FourElementsCheck *FourElementsResult `json:"four_elements_check,omitempty"` // 四要件检查
+	BurdenDifficulty  string              `json:"burden_difficulty,omitempty"`   // 举证难度
+	ChainIntegrity    string              `json:"chain_integrity,omitempty"`     // 证据链完整性
 }
 
 type DateDetermination struct {
-	SourceDate string `json:"source_date"`
-	Determined string `json:"determined"`
-	Method     string `json:"method"`
-	IsPriorArt bool   `json:"is_prior_art"`
-	FilingDate string `json:"filing_date"`
+	SourceDate  string          `json:"source_date"`
+	Determined  string          `json:"determined"`
+	Method      string          `json:"method"`
+	IsPriorArt  bool            `json:"is_prior_art"`
+	FilingDate  string          `json:"filing_date"`
+	Reliability DateReliability `json:"reliability,omitempty"`
+	SourceType  DateSourceType  `json:"source_type,omitempty"`
 }
 
 type JudgmentIssue struct {

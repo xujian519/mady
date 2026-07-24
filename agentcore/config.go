@@ -399,16 +399,6 @@ func WithConvertToLLM(fn ConvertToLLMFunc) ConfigOption {
 	return func(c *Config) { c.ConvertToLLM = fn }
 }
 
-// WithBeforeToolCall sets the before-tool-call hook.
-func WithBeforeToolCall(fn func(ctx context.Context, tc ToolCall) *ToolCallOverride) ConfigOption {
-	return func(c *Config) { c.BeforeToolCall = fn }
-}
-
-// WithAfterToolCall sets the after-tool-call hook.
-func WithAfterToolCall(fn func(ctx context.Context, tc ToolCall, result *ToolResult) *ToolResult) ConfigOption {
-	return func(c *Config) { c.AfterToolCall = fn }
-}
-
 // WithValidateArguments enables JSON Schema validation of tool arguments.
 func WithValidateArguments(enabled bool) ConfigOption {
 	return func(c *Config) { c.ValidateArguments = enabled }

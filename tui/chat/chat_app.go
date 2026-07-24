@@ -119,9 +119,10 @@ type chatModel struct {
 	// Initialized to StateInitializing at ChatApp creation.
 	state AppState
 
-	// Running, StreamID, ActiveTools are retained as compatibility shims
-	// during the progressive refactor. New code should read/write state.
-	// TODO(sprint-2): remove these after all handlers use Transition().
+	// Running, StreamID, ActiveTools are retained as compatibility shims.
+	// StreamID and ActiveTools still carry runtime state that the FSM state
+	// alone does not capture (stream identity, tool-lifetime tracking).
+	// Revisit after FSM is extended to cover these concerns.
 
 	// Token accounting for the StatusBar indicator. usagePrompt/Completion
 	// accumulate across turns within one agent run; turnStarted is set on
@@ -615,9 +616,9 @@ func (a *ChatApp) PrintWelcome(provider, model, mode, project string) {
 	type cmdPair struct{ left, right string }
 	pairs := []cmdPair{
 		{"/help  快捷键指南", "/clear 开始新对话"},
-		{"/review 审核关卡",      "/plan  计划/行动模式"},
+		{"/review 审核关卡", "/plan  计划/行动模式"},
 		{"/theme  切换深色/浅色", "/thinking 推理显示"},
-		{"/settings 设置面板",     ""},
+		{"/settings 设置面板", ""},
 	}
 
 	if contentW >= 60 {

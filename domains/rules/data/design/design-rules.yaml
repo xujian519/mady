@@ -1,0 +1,117 @@
+rules:
+  - ruleId: "design-overall-comparison"
+    name: "外观设计整体视觉效果对比四步法"
+    description: >
+      外观设计近似判断须遵循四步法：确定设计特征→对比整体视觉效果→
+      判断是否构成近似→结论。这是外观设计对比分析的基础框架。
+    legalBasis: "专利法第23条第1款、审查指南第四部分第五章"
+    domain: design_comparison
+    severity: critical
+    action: block
+    check:
+      type: patent_design_comparison
+      method: overall_comparison_four_step
+      principles:
+        - "判断主体为一般消费者（而非本领域技术人员）"
+        - "以整体视觉效果为判断对象（而非局部特征）"
+        - "综合判断多项设计特征对整体视觉效果的贡献"
+        - "容易观察到的部位和设计要点具有更大权重"
+      requirements:
+        - "确定设计特征"
+        - "对比整体视觉效果"
+        - "判断是否构成近似"
+        - "整体观察综合判断"
+      notes:
+        - "不得将外观设计分解为局部特征进行单独对比"
+        - "不得以发明/实用新型的三步法代替整体观察方法"
+
+  - ruleId: "design-space-determination"
+    name: "外观设计设计空间认定"
+    description: >
+      设计空间大小影响近似判断的尺度。设计空间大时，一般消费者对设计差异
+      的敏感度较低，相近似的判断尺度较为宽松；设计空间小时，一般消费者
+      对设计差异更为敏感，判断尺度较为严格。
+    legalBasis: "审查指南第四部分第五章第5.2.4节"
+    domain: design_comparison
+    severity: major
+    action: review
+    check:
+      type: patent_design_comparison
+      method: design_space_analysis
+      principles:
+        - "设计空间受产品功能、技术规范、国家标准等因素的限制"
+        - "设计空间越大，细微差异越可能不构成近似"
+        - "设计空间越小，细微差异越可能构成明显区别"
+      assessment:
+        space_large: "设计空间大→宽松判断，一般消费者对差异不敏感"
+        space_medium: "设计空间适中→正常判断"
+        space_small: "设计空间小→严格判断，一般消费者对差异敏感"
+      scope:
+        - "必须在分析中明确指明该产品类别的设计空间等级"
+        - "须论证设计空间等级的认定依据"
+
+  - ruleId: "design-common-design-exclusion"
+    name: "外观设计惯常设计排除"
+    description: >
+      惯常设计（通用设计、常见设计）在近似判断中不予考虑。分析时应先识别
+      并排除该产品类别中的惯常设计，仅在非惯常设计部分进行整体视觉效果对比。
+    legalBasis: "审查指南第四部分第五章第5.2.4节"
+    domain: design_comparison
+    severity: major
+    action: review
+    check:
+      type: patent_design_comparison
+      method: common_design_exclusion
+      principles:
+        - "惯常设计是指该产品类别中广为流行的设计特征"
+        - "惯常设计的认定须以该产品类别的一般消费者为判断主体"
+        - "被认定为惯常设计的特征在近似判断中不予考虑"
+        - "排除惯常设计后，剩余设计特征仍须进行整体观察综合判断"
+      conditions:
+        - "须明确列出哪些设计特征属于惯常设计并说明理由"
+        - "不得因排除惯常设计而直接认定不近似"
+      examples:
+        - "茶杯的圆形开口属于茶杯类产品的惯常设计"
+        - "手机的矩形轮廓属于手机类产品的惯常设计"
+
+  - ruleId: "design-gui-special"
+    name: "图形用户界面（GUI）外观设计特殊规则"
+    description: >
+      GUI外观设计具有特殊审查规则。除整体观察综合判断的一般原则外，
+      还须考虑界面布局、交互方式、动态变化过程、GUI与产品的关联关系等特殊要素。
+    legalBasis: "审查指南第三部分第三章第6.1节、第四部分第五章第8节"
+    domain: design_comparison
+    severity: major
+    action: review
+    check:
+      type: patent_design_comparison
+      method: gui_special_analysis
+      principles:
+        - "GUI外观设计保护的是界面本身而非所依托的硬件产品"
+        - "交互方式和动态变化过程是GUI设计的重要组成部分"
+        - "GUI的惯常设计（如标准图标、通用布局）应在对比中排除"
+      scope:
+        - "界面布局和交互方式的整体视觉效果"
+        - "动态变化过程对整体视觉印象的影响"
+        - "GUI画面与产品的关联关系"
+        - "GUI领域的惯常设计特征"
+
+  - ruleId: "design-combination-transformation"
+    name: "外观设计组合与转用判断"
+    description: >
+      将现有设计特征组合或将现有设计转用于其他产品类别时，应评估
+      组合/转用后的整体视觉效果是否对一般消费者产生明显区别。
+    legalBasis: "审查指南第四部分第五章第5.2.3节"
+    domain: design_comparison
+    severity: minor
+    action: warn
+    check:
+      type: patent_design_comparison
+      method: combination_transformation
+      principles:
+        - "将现有设计特征进行组合，若组合后的整体视觉效果无明显区别→构成近似"
+        - "将现有设计转用于其他产品类别，若转用后的整体视觉效果无实质性差异→构成近似"
+        - "组合/转用不是当然的保护性抗辩，须基于整体视觉效果判断"
+      conditions:
+        - "组合创新须评估各设计特征在组合后的整体效果是否产生1+1>2的视觉差异"
+        - "转用判断须考虑原产品类别与转用产品类别的关联程度"

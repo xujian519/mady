@@ -26,16 +26,16 @@ func BuildGraph(
 	pg := graph.NewPregelGraph()
 
 	nodes := map[string]graph.PregelNode{
-		"load_input":             loadInputNode(),
-		"claim_scope":            claimScopeNode(provider, frameworkProvider),
-		"feature_decomposition":  featureDecompositionNode(provider),
-		"literal_infringement":   literalInfringementNode(provider),
-		"equivalence":            equivalenceNode(provider, frameworkProvider),
-		"infringement_verdict":   infringementVerdictNode(provider),
-		"defense_review":         defenseReviewNode(provider, frameworkProvider),
-		"remedy_assessment":      remedyAssessmentNode(provider, frameworkProvider),
-		"strategy":               strategyNode(provider),
-		"conclude":               concludeNode(),
+		"load_input":            loadInputNode(),
+		"claim_scope":           claimScopeNode(provider, frameworkProvider),
+		"feature_decomposition": featureDecompositionNode(provider),
+		"literal_infringement":  literalInfringementNode(provider),
+		"equivalence":           equivalenceNode(provider, frameworkProvider),
+		"infringement_verdict":  infringementVerdictNode(provider),
+		"defense_review":        defenseReviewNode(provider, frameworkProvider),
+		"remedy_assessment":     remedyAssessmentNode(provider, frameworkProvider),
+		"strategy":              strategyNode(provider),
+		"conclude":              concludeNode(),
 	}
 
 	for name, node := range nodes {

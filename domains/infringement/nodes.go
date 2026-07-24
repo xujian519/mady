@@ -448,7 +448,7 @@ func featureDecompSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"claim_features":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"product_features":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"product_features": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		},
 		"required": []string{"claim_features", "product_features"},
 	}
@@ -472,10 +472,10 @@ func equivalenceSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"equivalent_features": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{"claim_feature": map[string]any{"type": "string"}, "product_feature": map[string]any{"type": "string"}, "same_means": map[string]any{"type": "boolean"}, "same_function": map[string]any{"type": "boolean"}, "same_effect": map[string]any{"type": "boolean"}, "non_obviousness": map[string]any{"type": "boolean"}, "is_equivalent": map[string]any{"type": "boolean"}, "reasoning": map[string]any{"type": "string"}}}},
-			"estoppel_applied":   map[string]any{"type": "boolean"},
-			"estoppel_details":   map[string]any{"type": "string"},
-			"dedication_applied": map[string]any{"type": "boolean"},
-			"dedication_details": map[string]any{"type": "string"},
+			"estoppel_applied":    map[string]any{"type": "boolean"},
+			"estoppel_details":    map[string]any{"type": "string"},
+			"dedication_applied":  map[string]any{"type": "boolean"},
+			"dedication_details":  map[string]any{"type": "string"},
 		},
 		"required": []string{"equivalent_features", "estoppel_applied"},
 	}

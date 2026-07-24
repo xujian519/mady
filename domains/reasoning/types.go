@@ -6,18 +6,20 @@ import "time"
 type CaseType string
 
 const (
-	CaseNoveltySearch CaseType = "novelty_search"
-	CasePatentability CaseType = "patentability"
-	CaseDrafting      CaseType = "drafting"
-	CaseOAResponse    CaseType = "oa_response"
-	CaseRejection     CaseType = "rejection_response"
-	CaseReexamination CaseType = "reexamination"
-	CaseInvalidation  CaseType = "invalidation"
-	CaseInfringement  CaseType = "infringement"
-	CaseFTO           CaseType = "fto"
-	CaseValidity      CaseType = "validity"
-	CaseLegalStatus   CaseType = "legal_status"
-	CaseGeneralLegal  CaseType = "general_legal"
+	CaseNoveltySearch      CaseType = "novelty_search"
+	CasePatentability      CaseType = "patentability"
+	CaseDrafting           CaseType = "drafting"
+	CaseOAResponse         CaseType = "oa_response"
+	CaseRejection          CaseType = "rejection_response"
+	CaseReexamination      CaseType = "reexamination"
+	CaseInvalidation       CaseType = "invalidation"
+	CaseInfringement       CaseType = "infringement"
+	CaseDesignInvalidation CaseType = "design_invalidation"
+	CaseDesignInfringement CaseType = "design_infringement"
+	CaseFTO                CaseType = "fto"
+	CaseValidity           CaseType = "validity"
+	CaseLegalStatus        CaseType = "legal_status"
+	CaseGeneralLegal       CaseType = "general_legal"
 )
 
 // FactCollectorID identifies which collector produced a fact (Stage ①).
@@ -207,6 +209,7 @@ const (
 	RuleSourceVector RuleSource = "vector_db"           // 向量数据库
 	RuleSourceSkill  RuleSource = "skill_md"            // SKILL.md 规则文档
 	RuleSourceRules  RuleSource = "deterministic_rules" // 确定性规则引擎（domains/rules YAML）
+	RuleSourceIPC    RuleSource = "ipc_standards"       // IPC 审查标准（宝宸知识库）
 )
 
 // RetrievedRule is the Stage ② output — a RuleConstraint enriched with

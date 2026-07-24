@@ -20,8 +20,12 @@ package patent
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
+	"github.com/xujian519/mady/domains/ipc"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/retrieval/domain"
 )
@@ -300,14 +304,30 @@ func newGatherEvidenceNodeWithRetriever(retriever domain.DomainRetriever) graph.
 
 // analyzeGroundsNode performs per-ground invalidation analysis. Each ground is
 // analyzed independently (per Chinese patent law requirement). The rule engine
-// validates the analysis for completeness.
+// validates the analysis for completeness. IPC classification is automatically
+// performed to inject domain-specific analysis hints.
 func analyzeGroundsNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 	grounds, _ := state[InvStateGrounds].([]InvGround)
 	evidence, _ := state[InvStateEvidence].([]string)
 	claims, _ := state[InvStateClaimTree].([]InvClaimNode)
 
+	// IPC 分类识别——从专利文本中自动判定技术领域
+	inputText := state.GetString(InvStateInput)
+	ipcSection, ipcConfidence := ipc.Classify(inputText)
+
 	var analysis strings.Builder
 	analysis.WriteString("## 无效理由逐项分析\n\n")
+
+	// IPC 技术领域信息
+	analysis.WriteString("### 技术领域识别\n\n")
+	fmt.Fprintf(&analysis, "- IPC 大类：%s（%s）\n", ipcSection, ipcSection.SectionOf())
+	fmt.Fprintf(&analysis, "- 分类置信度：%.0f%%\n", ipcConfidence*100)
+	if ipc.IsHighConfidence(ipcConfidence) {
+		analysis.WriteString("- 分类结果可信，以下将应用领域特化分析规则。\n")
+	} else {
+		analysis.WriteString("- 分类置信度较低，以下以通用规则为主，领域特化规则仅供参考。\n")
+	}
+	analysis.WriteString("\n")
 
 	// List identified grounds.
 	analysis.WriteString("### 无效理由概述\n\n")
@@ -335,7 +355,7 @@ func analyzeGroundsNode(ctx context.Context, state graph.PregelState) (graph.Pre
 	// Per-ground analysis — each must be independent.
 	for _, g := range grounds {
 		fmt.Fprintf(&analysis, "### %s\n\n", g.Description)
-		writeGroundAnalysis(&analysis, g, claims)
+		writeGroundAnalysis(&analysis, g, claims, ipcSection)
 	}
 
 	// Run rule engine check.
@@ -368,7 +388,8 @@ func analyzeGroundsNode(ctx context.Context, state graph.PregelState) (graph.Pre
 }
 
 // writeGroundAnalysis writes the analysis section for a single invalidation ground.
-func writeGroundAnalysis(b *strings.Builder, g InvGround, claims []InvClaimNode) {
+// The ipcSection parameter enables domain-specific analysis hints.
+func writeGroundAnalysis(b *strings.Builder, g InvGround, claims []InvClaimNode, ipcSection ipc.IPCSection) {
 	switch g.Type {
 	case GroundNovelty:
 		b.WriteString("**法律依据**：专利法第22条第2款——新颖性\n\n")
@@ -377,6 +398,11 @@ func writeGroundAnalysis(b *strings.Builder, g InvGround, claims []InvClaimNode)
 		b.WriteString("- 论证对比文件是否公开了权利要求的**全部**技术特征\n")
 		b.WriteString("- 若任一技术特征未被对比文件公开，则该权利要求具备新颖性\n\n")
 		b.WriteString("> ⚠️ 注意：不得将多份对比文件结合后进行新颖性判断\n\n")
+		// Append IPC-specific novelty hints.
+		if hint := ipc.GetNoveltyHints(ipcSection); hint != "" {
+			b.WriteString(hint)
+			b.WriteString("\n")
+		}
 
 	case GroundInventiveness:
 		b.WriteString("**法律依据**：专利法第22条第3款——创造性\n\n")
@@ -385,6 +411,11 @@ func writeGroundAnalysis(b *strings.Builder, g InvGround, claims []InvClaimNode)
 		b.WriteString("2. 确定区别技术特征及实际解决的技术问题\n")
 		b.WriteString("3. 判断要求保护的发明对本领域技术人员是否显而易见\n\n")
 		b.WriteString("> ⚠️ 多篇对比文件组合时，须论证**组合动机/技术启示**\n\n")
+		// Append IPC-specific inventiveness hints.
+		if hint := ipc.GetInventivenessHints(ipcSection); hint != "" {
+			b.WriteString(hint)
+			b.WriteString("\n")
+		}
 
 	case GroundDisclosure:
 		b.WriteString("**法律依据**：专利法第26条第3款——充分公开\n\n")
@@ -445,6 +476,8 @@ func invConcludeNode(ctx context.Context, state graph.PregelState) (graph.Pregel
 	report.WriteString(ruleCheck)
 
 	// Conclusion.
+	report.WriteString(FormatStrategySection(grounds))
+
 	report.WriteString("\n## 审查结论\n\n")
 	report.WriteString("基于上述逐项分析：\n")
 	report.WriteString("- 各无效理由应**独立**评估，不得以「综合来看」代替逐条分析\n")
@@ -561,5 +594,69 @@ func BuildInvalidationGraphWithOpts(opts ...InvGraphOption) (*graph.CompiledPreg
 		}
 	}
 
+	return g.Compile("parse_patent", 15)
+}
+
+// yamlDiscoveryStage is a helper struct for parsing the discoveryStages section
+// from an orchestration YAML file within BuildInvalidationGraphFromYAML.
+type yamlDiscoveryStage struct {
+	Name        string   `yaml:"name"`
+	Goal        string   `yaml:"goal"`
+	Suggestions []string `yaml:"suggestions"`
+}
+
+// yamlOrchestration is a helper struct for parsing orchestration YAML files
+// within BuildInvalidationGraphFromYAML.
+type yamlOrchestration struct {
+	DiscoveryStages []yamlDiscoveryStage `yaml:"discoveryStages"`
+}
+
+// BuildInvalidationGraphFromYAML constructs the invalidation analysis Pregel graph
+// with suggestions injected from a YAML orchestration file.
+func BuildInvalidationGraphFromYAML(yamlPath string) (*graph.CompiledPregelGraph, error) {
+	data, err := os.ReadFile(yamlPath)
+	if err != nil {
+		return nil, fmt.Errorf("read orchestration YAML %s: %w", yamlPath, err)
+	}
+	var orch yamlOrchestration
+	if err := yaml.Unmarshal(data, &orch); err != nil {
+		return nil, fmt.Errorf("unmarshal orchestration: %w", err)
+	}
+	var suggestions strings.Builder
+	suggestions.WriteString("\n### 编排建议\n\n")
+	suggestions.WriteString("以下建议来自无效宣告事务编排模板：\n\n")
+	for _, stage := range orch.DiscoveryStages {
+		suggestions.WriteString(fmt.Sprintf("**阶段：%s**（目标：%s）\n", stage.Name, stage.Goal))
+		for _, s := range stage.Suggestions {
+			suggestions.WriteString(fmt.Sprintf("- %s\n", s))
+		}
+		suggestions.WriteString("\n")
+	}
+	suggestionText := suggestions.String()
+	originalAnalyze := analyzeGroundsNode
+	enhancedAnalyze := func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+		out, err := originalAnalyze(ctx, state)
+		if err != nil {
+			return nil, err
+		}
+		existing := out.GetString(InvStateAnalysis)
+		if existing != "" {
+			out[InvStateAnalysis] = suggestionText + "\n" + existing
+		}
+		return out, nil
+	}
+	g := graph.NewPregelGraph()
+	_ = g.AddNode("parse_patent", parsePatentNode)
+	_ = g.AddNode("identify_grounds", identifyGroundsNode)
+	_ = g.AddNode("analyze_grounds", enhancedAnalyze)
+	_ = g.AddNode("conclude", invConcludeNode)
+	for _, edge := range [][2]string{
+		{"parse_patent", "identify_grounds"},
+		{"identify_grounds", "analyze_grounds"},
+		{"analyze_grounds", "conclude"},
+		{"conclude", graph.PregelEnd},
+	} {
+		_ = g.AddEdge(edge[0], edge[1])
+	}
 	return g.Compile("parse_patent", 15)
 }

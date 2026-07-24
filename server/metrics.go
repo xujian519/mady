@@ -110,16 +110,16 @@ func (e *ExpvarMetricsRecorder) HandleMetrics(mux *http.ServeMux) {
 		w.WriteHeader(http.StatusOK)
 
 		now := time.Now().Unix()
-		w.Write([]byte("# HELP http_requests_total Total number of HTTP requests\n"))                                                     //nolint:errcheck
-		w.Write([]byte("# TYPE http_requests_total counter\n"))                                                                           //nolint:errcheck
-		w.Write([]byte("http_requests_total " + strconv.FormatInt(e.requestCount.Value(), 10) + " " + strconv.FormatInt(now, 10) + "\n")) //nolint:errcheck
+		w.Write([]byte("# HELP http_requests_total Total number of HTTP requests\n"))
+		w.Write([]byte("# TYPE http_requests_total counter\n"))
+		w.Write([]byte("http_requests_total " + strconv.FormatInt(e.requestCount.Value(), 10) + " " + strconv.FormatInt(now, 10) + "\n"))
 
-		w.Write([]byte("# HELP http_request_errors_total Total number of HTTP 5xx errors\n"))                                                    //nolint:errcheck
-		w.Write([]byte("# TYPE http_request_errors_total counter\n"))                                                                            //nolint:errcheck
-		w.Write([]byte("http_request_errors_total " + strconv.FormatInt(e.requestErrors.Value(), 10) + " " + strconv.FormatInt(now, 10) + "\n")) //nolint:errcheck
+		w.Write([]byte("# HELP http_request_errors_total Total number of HTTP 5xx errors\n"))
+		w.Write([]byte("# TYPE http_request_errors_total counter\n"))
+		w.Write([]byte("http_request_errors_total " + strconv.FormatInt(e.requestErrors.Value(), 10) + " " + strconv.FormatInt(now, 10) + "\n"))
 
-		w.Write([]byte("# HELP http_active_connections Current number of active connections\n"))          //nolint:errcheck
-		w.Write([]byte("# TYPE http_active_connections gauge\n"))                                         //nolint:errcheck
-		w.Write([]byte("http_active_connections " + strconv.FormatInt(e.activeConns.Value(), 10) + "\n")) //nolint:errcheck
+		w.Write([]byte("# HELP http_active_connections Current number of active connections\n"))
+		w.Write([]byte("# TYPE http_active_connections gauge\n"))
+		w.Write([]byte("http_active_connections " + strconv.FormatInt(e.activeConns.Value(), 10) + "\n"))
 	})
 }

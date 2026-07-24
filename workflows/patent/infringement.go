@@ -1,9 +1,9 @@
 // Package patent provides patent-related analysis workflows.
 //
-// Deprecated: The infringement analysis workflow (this file) has been superseded
-// by domains/infringement/. Use domains/infringement.NewInfringementTool() for
-// comprehensive infringement analysis with dual-perspective support (plaintiff/defendant)
-// and four-layer coverage (determination, defenses, remedies, strategy).
+// The infringement workflow in this file is a lightweight deterministic
+// engine used by CLI commands (/infringement slash, mady patent infringement).
+// For LLM-enhanced multi-perspective analysis (patentee + defendant with
+// four-layer coverage) use domains/infringement.NewInfringementTool().
 //
 // The remaining workflows (novelty, debate, OA response, etc.) are still active.
 //

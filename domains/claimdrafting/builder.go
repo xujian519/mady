@@ -216,12 +216,13 @@ func (b *ClaimBuilder) buildPharmaUse(input DraftInput, domain TechDomain, prima
 			qualifiers = append(qualifiers, formatFeatureDesc(f))
 		}
 	}
-	characterized := ""
-	if len(qualifiers) > 0 {
+	var characterized string
+	switch {
+	case len(qualifiers) > 0:
 		characterized = strings.Join(qualifiers, "；")
-	} else if len(input.Effects) > 0 {
+	case len(input.Effects) > 0:
 		characterized = "所述药物用于" + input.Effects[0]
-	} else {
+	default:
 		characterized = "[待确定：药物用途的进一步限定]"
 	}
 

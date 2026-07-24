@@ -114,6 +114,7 @@ func formatAmendmentAnalysis(result *amendment.CheckResult, timingCheck string, 
 
 	// 基本信息
 	b.WriteString("## 基本信息\n")
+	//nolint:gosec // 中文业务标签，非硬编码凭据
 	modTypeLabel := map[string]string{
 		"active": "主动修改", "passive": "被动修改（审查意见答复）", "ex_officio": "依职权修改",
 	}

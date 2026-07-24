@@ -1,0 +1,88 @@
+<h2>模块深度边界 — 四层范围选择</h2>
+<p class="subtitle">从核心判定到诉讼策略，每扩展一层都增加显著复杂度</p>
+
+<div class="section">
+  <table style="width:100%;border-collapse:collapse">
+    <tr style="background:var(--surface2)">
+      <th style="padding:10px;text-align:center;width:60px">层级</th>
+      <th style="padding:10px;text-align:left">内容</th>
+      <th style="padding:10px;text-align:center;width:100px">复杂度</th>
+      <th style="padding:10px;text-align:center;width:80px">对标模块</th>
+    </tr>
+    <tr>
+      <td style="padding:10px;text-align:center;background:var(--accent);color:white;border-radius:4px 0 0 0"><strong>L1</strong></td>
+      <td style="padding:10px">
+        <strong>核心侵权判定</strong><br>
+        <span style="font-size:13px;color:var(--text-secondary)">权利要求解释 → 全面覆盖 → 等同原则 → 禁止反悔/捐献 → 结论</span>
+      </td>
+      <td style="padding:10px;text-align:center">⭐⭐</td>
+      <td style="padding:10px;text-align:center;font-size:13px"><code>inventiveness</code><br>7文件/6节点</td>
+    </tr>
+    <tr style="background:var(--surface2)">
+      <td style="padding:10px;text-align:center;background:var(--yellow);color:white"><strong>L2</strong></td>
+      <td style="padding:10px">
+        <strong>+ 抗辩体系</strong><br>
+        <span style="font-size:13px;color:var(--text-secondary)">现有技术抗辩 / 先用权 / 合法来源 / 权利用尽 / 权利冲突 / 专利权滥用</span>
+      </td>
+      <td style="padding:10px;text-align:center">⭐⭐⭐</td>
+      <td style="padding:10px;text-align:center;font-size:13px"><code>evidence</code><br>12文件/6维度</td>
+    </tr>
+    <tr>
+      <td style="padding:10px;text-align:center;background:var(--orange);color:white"><strong>L3</strong></td>
+      <td style="padding:10px">
+        <strong>+ 救济措施</strong><br>
+        <span style="font-size:13px;color:var(--text-secondary)">损害赔偿（四层递进）/ 临时禁令五要素 / 永久禁令 / 惩罚性赔偿</span>
+      </td>
+      <td style="padding:10px;text-align:center">⭐⭐⭐⭐</td>
+      <td style="padding:10px;text-align:center;font-size:13px">需新建<br>独立子模块</td>
+    </tr>
+    <tr style="background:var(--surface2)">
+      <td style="padding:10px;text-align:center;background:var(--red);color:white"><strong>L4</strong></td>
+      <td style="padding:10px">
+        <strong>+ 诉讼策略</strong><br>
+        <span style="font-size:13px;color:var(--text-secondary)">管辖分析 / 证据保全 / 诉讼中止策略 / 和解评估 / 确认不侵权之诉</span>
+      </td>
+      <td style="padding:10px;text-align:center">⭐⭐⭐⭐⭐</td>
+      <td style="padding:10px;text-align:center;font-size:13px">需大量<br>新建代码</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>推荐：L1+L2 作为 Phase 1，L3 作为 Phase 2</h3>
+  <p style="margin:8px 0">L1（核心判定）+ L2（抗辩体系）是侵权模块的最小完整闭环——既覆盖原告主张路径，也覆盖被告抗辩路径。这与 Wiki 知识库中"侵权判定四步法"的核心逻辑完全对应。L3（救济）和 L4（策略）逻辑相对独立，适合后续迭代。</p>
+  <div style="background:var(--surface2);border-radius:8px;padding:16px;margin:12px 0;font-size:13px;line-height:1.6">
+    <strong>Phase 1 范围（本期）:</strong><br>
+    &nbsp;&nbsp;✅ 核心判定：全面覆盖 + 等同原则 + 禁止反悔 + 捐献规则<br>
+    &nbsp;&nbsp;✅ 抗辩体系：现有技术 / 先用权 / 合法来源 / 权利用尽 / 权利冲突<br>
+    &nbsp;&nbsp;✅ 双视角：原告主张路径 + 被告抗辩路径<br>
+    <br>
+    <strong>Phase 2 范围（后续）:</strong><br>
+    &nbsp;&nbsp;🔜 损害赔偿计算、禁令分析、惩罚性赔偿<br>
+    &nbsp;&nbsp;🔜 诉讼策略建议
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="l1l2" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>L1+L2（推荐）</h3>
+      <p>核心判定 + 抗辩体系，最小完整闭环，对标 inventiveness+evidence 模式</p>
+    </div>
+  </div>
+  <div class="option" data-choice="l1" onclick="toggleSelect(this)">
+    <div class="letter">L1</div>
+    <div class="content">
+      <h3>仅 L1</h3>
+      <p>只做核心侵权判定，不含抗辩。最快交付但缺少被告视角的完整性</p>
+    </div>
+  </div>
+  <div class="option" data-choice="l1l2l3" onclick="toggleSelect(this)">
+    <div class="letter">L3</div>
+    <div class="content">
+      <h3>L1+L2+L3</h3>
+      <p>一期全做，含救济措施。范围较大，交付周期显著增加</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,84 @@
+<h2>原告/被告双视角 — 架构方案对比</h2>
+<p class="subtitle">三种实现双视角判定的架构模式，各有不同的适用场景</p>
+
+<div class="section">
+  <h3>方案 A：统一图 + 视角参数（推荐）</h3>
+  <p style="margin:8px 0">单个 Pregel 图，以 <code>Perspective</code> 参数控制节点行为。原告和被告走同一拓扑，但每个节点的提示词和分析逻辑随视角切换。</p>
+  <div style="background:var(--surface2);border-radius:8px;padding:16px;margin:12px 0;font-family:monospace;font-size:13px;line-height:1.8">
+    load_input → <strong>claim_scope</strong> → <strong>feature_mapping</strong> → <strong>literal_infringement</strong><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↘ <strong>equivalence</strong> → <strong>estoppel_check</strong> → <strong>defense_review</strong> → <strong>remedy</strong> → conclude<br>
+    <br>
+    <span style="color:var(--accent)">perspective=plaintiff</span> → 各节点侧重"主张侵权成立的论证路径"<br>
+    <span style="color:var(--red)">perspective=defendant</span> → 各节点侧重"抗辩与规避的论证路径"
+  </div>
+  <div class="pros-cons">
+    <div class="pros"><h4>优势</h4><ul><li>代码量最小，维护成本低</li><li>拓扑一致保证判定连贯性</li><li>与 inventiveness/enablement 模式完全对齐</li></ul></div>
+    <div class="cons"><h4>劣势</h4><ul><li>节点提示词需要同时维护两套逻辑</li><li>部分节点（如 remedy）对原告/被告差异较大</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案 B：双图并行</h3>
+  <p style="margin:8px 0">两套独立的 Pregel 图，分别构建原告分析图和被告分析图，可独立调用或对比输出。</p>
+  <div class="split">
+    <div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px">
+      <strong>plaintiff_graph:</strong><br>
+      claim_scope → feature_mapping<br>
+      → literal_match → equivalence<br>
+      → infringement_conclusion<br>
+      → damage_calculation<br>
+      → remedy_strategy
+    </div>
+    <div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px">
+      <strong>defendant_graph:</strong><br>
+      claim_scope → feature_mapping<br>
+      → non_infringement_args<br>
+      → prior_art_defense<br>
+      → other_defenses<br>
+      → invalidity_strategy<br>
+      → risk_assessment
+    </div>
+  </div>
+  <div class="pros-cons">
+    <div class="pros"><h4>优势</h4><ul><li>各自独立，提示词精准聚焦</li><li>可并行执行，效率高</li></ul></div>
+    <div class="cons"><h4>劣势</h4><ul><li>代码量大（两份 graph + nodes）</li><li>共享节点（如 claim_scope）需重复实现</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案 C：分层模型 — 核心判定层 + 视角策略层</h3>
+  <p style="margin:8px 0">底层为中立的核心侵权判定图，上层是两个视角策略 Agent，各自消费同一判定结果并从不同角度解读。</p>
+  <div style="background:var(--surface2);border-radius:8px;padding:16px;margin:12px 0;font-family:monospace;font-size:13px">
+    <strong>Layer 1 (核心判定):</strong> claim_scope → feature_mapping → literal → equivalence → estoppel → verdict<br>
+    <strong>Layer 2a (原告策略):</strong> verdict + 原告参数 → infringement_strength / damage_model / injunction_feasibility<br>
+    <strong>Layer 2b (被告策略):</strong> verdict + 被告参数 → defense_viability / invalidity_route / risk_exposure
+  </div>
+  <div class="pros-cons">
+    <div class="pros"><h4>优势</h4><ul><li>核心判定中立客观，可复用</li><li>视角层独立演化，互不干扰</li></ul></div>
+    <div class="cons"><h4>劣势</h4><ul><li>三层结构增加复杂度</li><li>项目中无类似先例</li></ul></div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>统一图 + 视角参数（推荐）</h3>
+      <p>单图双模式，代码最简，与现有领域模块模式一致</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>双图并行</h3>
+      <p>独立图独立逻辑，最灵活但代码量翻倍</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>分层模型</h3>
+      <p>核心中立判定 + 上层视角策略，最解耦但架构最复杂</p>
+    </div>
+  </div>
+</div>

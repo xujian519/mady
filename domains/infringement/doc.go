@@ -41,7 +41,7 @@
 //   - knowledge/store.go: seed data enrichment
 //   - styles/patent-standard.yaml: infringement anti-patterns
 //
-// Replaces:
+// Supplements:
 //
-//	workflows/patent/infringement.go (deprecated)
+//	workflows/patent/infringement.go — CLI deterministic engine, this module provides LLM-enhanced multi-perspective analysis for Agent use.
 package infringement

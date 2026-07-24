@@ -295,7 +295,8 @@ func NewInfringementTool() *agentcore.Tool {
 
 // NewReexaminationTool 创建 draft_reexamination_request 工具，
 // 封装专利驳回复审请求书起草 Pregel 图。
-func NewReexaminationTool() *agentcore.Tool {
+// 支持通过 ReexamGraphOption 启用口审准备等可选功能。
+func NewReexaminationTool(opts ...ReexamGraphOption) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name:        "draft_reexamination_request",
 		Description: "根据驳回决定书起草复审请求书：解析驳回决定要素（文号/日期/驳回理由/对比文件），逐条生成复审论证骨架并经规则引擎校验完整性。",
@@ -321,7 +322,7 @@ func NewReexaminationTool() *agentcore.Tool {
 				return agentcore.NewFailureResult("输入为空", "驳回决定书文本不能为空"), nil
 			}
 
-			compiled, err := BuildReexaminationGraph()
+			compiled, err := BuildReexaminationGraph(opts...)
 			if err != nil {
 				return agentcore.NewFailureResult("引擎初始化失败",
 					"复审请求书起草功能暂时不可用，请稍后重试。"), nil
