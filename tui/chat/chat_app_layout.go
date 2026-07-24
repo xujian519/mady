@@ -231,7 +231,7 @@ func hasSelection(l *chatLayout) bool {
 }
 
 func isPrimaryShortcutMod(mods terminal.Modifier) bool {
-	return mods&terminal.ModCtrl != 0 || mods&terminal.ModSuper != 0 || mods&terminal.ModMeta != 0
+	return mods&terminal.ModSuper != 0 || mods&terminal.ModMeta != 0
 }
 
 func isCopyShortcut(k terminal.Key) bool {
@@ -283,7 +283,8 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 				name := strings.ToLower(k.Name)
 				switch name {
 				case "v":
-					if isPrimaryShortcutMod(k.Mods) &&
+					// Ctrl+Alt+V / ⌘+Alt+V: image paste (any primary modifier + Alt).
+					if k.Mods&(terminal.ModCtrl|terminal.ModSuper|terminal.ModMeta) != 0 &&
 						k.Mods&terminal.ModAlt != 0 {
 						if l.app.cfg.OnImagePaste != nil {
 							l.app.cfg.OnImagePaste()
@@ -346,13 +347,18 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 						return nil
 					}
 				case "c", "insert":
+					// Ctrl+C: interrupt only (never copy).
+					// ⌘+C (Super/Meta) is the universal copy shortcut.
+					if name == "c" && k.Mods&terminal.ModCtrl != 0 &&
+						k.Mods&terminal.ModSuper == 0 && k.Mods&terminal.ModMeta == 0 {
+						if l.app.cfg.OnInterrupt != nil && l.app.isRunning() {
+							l.app.cfg.OnInterrupt()
+						}
+						return nil
+					}
 					if isCopyShortcut(k) {
 						if hasSelection(l) {
 							doCopy(l)
-							return nil
-						}
-						if k.Mods&terminal.ModCtrl != 0 && l.app.cfg.OnInterrupt != nil && l.app.isRunning() {
-							l.app.cfg.OnInterrupt()
 							return nil
 						}
 						doCopy(l)

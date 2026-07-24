@@ -5196,3 +5196,30 @@ Mady TUI 斜杠命令系统与主流产品（Claude Code、VS Code Command Palet
 
 ### Code Review
 5 维度（line-by-line/cross-file/removed-behavior/Go-pitfalls/altitude-conventions）覆盖评审，修复 4 项 bug：尾随空格阻断补全、token 忽略无前缀过滤、多空格 cmdName 含尾随空格、重复代码提取 filterSuggestions
+
+## 2026-07-25: TUI 方向键冲突修复 + Ctrl+C 快捷键语义修正
+
+### 背景
+两个 bug：
+
+**Bug 1（方向键双重定义）：** 输入 `/` 触发斜杠命令弹出列表（Autocomplete）后，按 `↑`/`↓` 方向键会同时触发编辑器输入历史上翻/下翻（`historyPrev`/`historyNext`）和 Autocomplete 列表选择导航。根因有两层：(a) `tui.editor.cursorUp` 与 `tui.select.up` 默认绑定到同一物理键 `up`；(b) `Editor.processKeys` 的 switch case 将 `historyPrev()` 检查放在 `isAutocompleteActive()` 之前。
+
+**Bug 2（Ctrl+C 误为复制）：** `Ctrl+C` 被 `isPrimaryShortcutMod` 认定为"主要快捷键修饰键"，导致有选区时复制选区、无选区且 Agent 无运行时复制最后一条消息，而不是符合终端惯例的中断（interrupt）。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `tui/component/editor_edit.go` | **修改** | `cursorUp`/`cursorDown` switch case 顺序：`isAutocompleteActive()` 优先于 `historyPrev()`/`historyNext()` |
+| `tui/chat/chat_app_layout.go` | **修改** | `isPrimaryShortcutMod` 移除 `ModCtrl`；`case "c"` 新增独立 `Ctrl+C` 中断分支；图片粘贴改为显式检查 `ModCtrl\|ModSuper\|ModMeta` |
+| `tui/chat/chat_app_test.go` | **修改** | `TestCtrlCPrefersCopyOverInterrupt` → `TestCtrlCInterruptsNeverCopy` + 新增 `TestCmdCCopiesSelection`；`TestIsPrimaryShortcutMod` 的 `ctrl` case want=false；`TestIsCopyShortcut` 的 `ctrl c` case want=false |
+
+### 设计决策
+- **`isAutocompleteActive()` 优先于 `historyPrev()`**：Autocomplete 弹出时，方向键应唯一地导航建议列表。输入历史仍可通过 `cursorUp`/`cursorDown` 在无弹出时使用。
+- **`Ctrl+C` 仅中断不复制**：遵循终端行业惯例（ETX 信号）；复制快捷键统一为 `⌘+C`（Super+C / Meta+C）。
+- **`Ctrl+Insert` 仍保留为复制**：这是终端传统快捷键，不受 `isPrimaryShortcutMod` 影响（它在 `isCopyShortcut` 中独立检查）。
+
+### 影响
+- `/` 斜杠命令和 `@file:` 文件选择器弹出时，`↑`/`↓` 正确导航建议列表，不再意外加载输入历史。
+- `Ctrl+C` 在 Agent 运行时中断、无运行时无操作；不再复制选区或消息。
+- `⌘+C`（Super+C）仍然是通用复制快捷键。

@@ -211,7 +211,7 @@ func TestChatAppBusyIdle(t *testing.T) {
 	}
 }
 
-func TestCtrlCPrefersCopyOverInterrupt(t *testing.T) {
+func TestCtrlCInterruptsNeverCopy(t *testing.T) {
 	var interrupted bool
 	app, _ := newTestChatApp(t, ChatAppConfig{
 		OnInterrupt: func() { interrupted = true },
@@ -227,22 +227,34 @@ func TestCtrlCPrefersCopyOverInterrupt(t *testing.T) {
 		t.Fatalf("setup: expected editor selection %q, got %q", "hello", app.editor.GetSelectedText())
 	}
 
-	// Mirrors the real TUI dispatch order (tui.go processMsg): the focused
-	// component (the editor) receives every KeyMsg first, and non-focused
-	// children (chatLayout, which owns the Ctrl/Cmd+C handling) receive it
-	// afterward. A prior bug cleared the editor's mouse-drag selection
-	// unconditionally on every keystroke it saw — including Ctrl+C itself —
-	// so by the time chatLayout's handler ran, the selection was already
-	// gone and nothing got copied.
+	// Ctrl+C should interrupt (not copy) even when selection exists.
 	keyMsg := core.KeyMsg{Data: "\x03"} // Ctrl+C
 	app.editor.Update(keyMsg)
 	app.layout.Update(keyMsg)
 
-	if interrupted {
-		t.Fatalf("expected Ctrl+C to copy the active selection instead of interrupting")
+	if !interrupted {
+		t.Fatalf("expected Ctrl+C to interrupt the running agent, not copy")
 	}
+}
+
+func TestCmdCCopiesSelection(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	app.editor.Update(core.KeyMsg{Data: "hello"})
+	app.editor.Render(40)
+	app.editor.Update(core.MouseMsg{Action: core.MousePress, Row: 0, Col: 2})
+	app.editor.Update(core.MouseMsg{Action: core.MouseMotion, Row: 0, Col: 7})
+	app.editor.Update(core.MouseMsg{Action: core.MouseRelease, Row: 0, Col: 7})
 	if app.editor.GetSelectedText() != "hello" {
-		t.Fatalf("expected selection to remain visible after copy (matching standard clipboard UX), got %q", app.editor.GetSelectedText())
+		t.Fatalf("setup: expected editor selection %q, got %q", "hello", app.editor.GetSelectedText())
+	}
+
+	// Kitty CSI-u encoding for Cmd+C (Super+C): should copy the selection.
+	keyMsg := core.KeyMsg{Data: "\x1b[99;9u"} // Cmd+C in Kitty protocol
+	app.editor.Update(keyMsg)
+	app.layout.Update(keyMsg)
+
+	if app.editor.GetSelectedText() != "hello" {
+		t.Fatalf("expected selection to remain visible after Cmd+C copy, got %q", app.editor.GetSelectedText())
 	}
 }
 
@@ -582,7 +594,7 @@ func TestIsPrimaryShortcutMod(t *testing.T) {
 		mods terminal.Modifier
 		want bool
 	}{
-		{name: "ctrl", mods: terminal.ModCtrl, want: true},
+		{name: "ctrl", mods: terminal.ModCtrl, want: false},
 		{name: "super", mods: terminal.ModSuper, want: true},
 		{name: "meta", mods: terminal.ModMeta, want: true},
 		{name: "none", mods: terminal.ModNone, want: false},
@@ -607,7 +619,7 @@ func TestIsCopyShortcut(t *testing.T) {
 		{name: "cmd lowercase c", key: terminal.Key{Name: "c", Mods: terminal.ModSuper}, want: true},
 		{name: "cmd uppercase C", key: terminal.Key{Name: "C", Mods: terminal.ModSuper | terminal.ModShift}, want: true},
 		{name: "meta uppercase C", key: terminal.Key{Name: "C", Mods: terminal.ModMeta | terminal.ModShift}, want: true},
-		{name: "ctrl c", key: terminal.Key{Name: "c", Mods: terminal.ModCtrl}, want: true},
+		{name: "ctrl c", key: terminal.Key{Name: "c", Mods: terminal.ModCtrl}, want: false},
 		{name: "ctrl insert", key: terminal.Key{Name: "insert", Mods: terminal.ModCtrl}, want: true},
 		{name: "plain y", key: terminal.Key{Name: "y", Mods: terminal.ModNone}, want: false},
 		{name: "plain c", key: terminal.Key{Name: "c", Mods: terminal.ModNone}, want: false},
