@@ -155,15 +155,15 @@ func FormatAsContext(standards []IPCStandard) string {
 	var b strings.Builder
 	b.WriteString("## IPC 审查标准参考\n\n")
 	for _, s := range standards {
-		b.WriteString(fmt.Sprintf("### %s\n", s.Name))
-		b.WriteString(fmt.Sprintf("- 法律条款：%s\n", s.Article))
-		b.WriteString(fmt.Sprintf("- IPC：%s (%s)\n", s.IPCDetail, s.IPCSection))
-		b.WriteString(fmt.Sprintf("- 来源：%s\n", s.Source))
+		fmt.Fprintf(&b, "### %s\n", s.Name)
+		fmt.Fprintf(&b, "- 法律条款：%s\n", s.Article)
+		fmt.Fprintf(&b, "- IPC：%s (%s)\n", s.IPCDetail, s.IPCSection)
+		fmt.Fprintf(&b, "- 来源：%s\n", s.Source)
 		if len(s.KeyPoints) > 0 {
 			b.WriteString("- 审查要点：\n")
 			for _, kp := range s.KeyPoints {
 				if kp != "" {
-					b.WriteString(fmt.Sprintf("  - %s\n", kp))
+					fmt.Fprintf(&b, "  - %s\n", kp)
 				}
 			}
 		}
@@ -171,10 +171,10 @@ func FormatAsContext(standards []IPCStandard) string {
 			b.WriteString("- 实务提示：\n")
 			for i, t := range s.Tips {
 				if i >= 3 {
-					b.WriteString(fmt.Sprintf("  - ...等 %d 条提示\n", len(s.Tips)))
+					fmt.Fprintf(&b, "  - ...等 %d 条提示\n", len(s.Tips))
 					break
 				}
-				b.WriteString(fmt.Sprintf("  - %s\n", t))
+				fmt.Fprintf(&b, "  - %s\n", t)
 			}
 		}
 		b.WriteString("\n")
