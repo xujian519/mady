@@ -1,5 +1,109 @@
 # AI 变更记录
 
+## 2026-07-24: prompt-templates 接线 — Phase 5（暴露模板目录工具与 CLI）
+
+### 背景
+前序阶段已完成 `prompt/templates/` 目录、`prompt.PromptStore`、模板解析与内联 prompt 迁移。Phase 5 将模板仓库暴露给用户和 Agent，支持浏览可用模板。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `prompt/tool.go` | 新建 `list_prompts` Agent 工具，按 category/domain/query 筛选并返回模板摘要 |
+| `cmd/mady/util.go` | 新建 `mady util list-prompts` 子命令，打印人类可读的模板目录 |
+| `cmd/mady/util_test.go` | 新建：捕获 stdout 测试 `runListPrompts` |
+| `cmd/mady/main.go` | 新增 `case "util":` 分支与 usage 说明 |
+| `domains/patent.go` | `BuildProjectAgent` 调用 `injectPromptTools(&cfg)` 注册 `list_prompts` |
+| `domains/legal.go` | `BuildLegalAgent` 调用 `injectPromptTools(&cfg)` 注册 `list_prompts` |
+| `domains/prompt_store.go` | 新增 `injectPromptTools`：在全局 PromptStore 存在时注入 `list_prompts` 工具 |
+
+### 设计决策
+- **工具与 CLI 分离**：Agent 工具返回结构化 JSON，便于 LLM 消费；CLI 返回文本表格，便于人类查看。
+- **不强制依赖完整框架**：`mady util` 子命令独立加载 `prompt.PromptStore`，不需要 `frameworkContext`，方便在任意目录快速查看模板列表。
+- **按领域注册工具**：仅在 `patent` / `legal` 领域 Agent 显式注册 `list_prompts`，避免向所有 Agent 暴露无关工具；后续可在 `domains/chat.go` 等更多领域按需注入。
+- **敏感路径**：本次未改动 `guardrails/guardian/` 等安全敏感文件；`domains/patent.go` 与 `domains/legal.go` 仅增加一行 `injectPromptTools(&cfg)` 调用，不影响原有 WorkingDir 或路由白名单逻辑。
+
+### 验证结果
+- `go build ./...`：通过 ✅
+- `cd tools && go build ./...`：通过 ✅
+- `go test -race ./...`：通过 ✅
+- `go vet ./...`：通过 ✅
+- `golangci-lint run`：通过 ✅（0 issues）
+
+---
+
+## 2026-07-24: prompt-templates 接线 — Phase 4.2（基础设施内联 prompt 迁移）
+
+### 背景
+Phase 4.1 已迁移 3 个工作流节点内联 prompt。Phase 4.2 将记忆、评估、Guardian 等基础设施模块中的内联 system prompt 迁移到模板库，完成核心内联提示词的集中管理。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `prompt/templates/memory/fact-extraction.json` | 新建：记忆事实提取（structured output 模式） |
+| `prompt/templates/memory/fact-extraction-fallback.json` | 新建：记忆事实提取（纯文本回退模式） |
+| `prompt/templates/memory/session-summary.json` | 新建：会话记忆汇总 |
+| `prompt/templates/memory/dedup-decision.json` | 新建：记忆去重判定 |
+| `prompt/templates/evaluate/llm-judge.json` | 新建：LLM 评分裁判 |
+| `prompt/templates/guardian/patent-legal-policy.json` | 新建：Guardian 专利/法律安全策略 |
+| `memory/extractor_llm.go` | `extractionSystemPrompt` / `extractionFallbackPrompt` 改为常量兜底 + `prompt.ResolveSystemPromptOr` |
+| `memory/session_summarizer.go` | `summarySystemPrompt` 改为常量兜底 + 模板解析 |
+| `memory/dedup_llm.go` | `dedupSystemPrompt` 改为常量兜底 + 模板解析 |
+| `evaluate/llm_judge.go` | `DefaultLLMJudgePrompt` 改为未导出 `defaultLLMJudgePromptFallback` + 模板解析；同步更新 `evaluate/reflection.go` 注释 |
+| `guardrails/guardian/guardian.go` | `NewSession` 默认 Policy 通过模板解析获取，保留 `PatentLegalPolicy` 作为兜底 |
+| `prompt/store.go` | `ResolveSystemPromptOr` 已在前序阶段提供 |
+
+### 设计决策
+- **敏感路径处理**：`guardrails/guardian/guardian.go` 属于 Guardian AI 熔断器（敏感路径）。本次改动仅将硬编码 Policy 字符串改为"模板解析 + 原字符串兜底"，未修改风险分级、判定逻辑或熔断器行为；Policy 内容保持不变。
+- **基础设施层不反向依赖 domains**：`memory` / `evaluate` / `guardian` 直接 import `prompt` 包，使用 `prompt.SetDefaultStore` 注册的全局默认 Store。
+- **保持 API 兼容**：`guardrails/guardian` 的 `PatentLegalPolicy` 公共常量继续保留作为兜底；`evaluate` 的 `DefaultLLMJudgePrompt` 改为未导出，但它在包外无直接使用（grep 仅发现注释引用）。
+
+### 验证结果
+- `go build ./...`：通过 ✅
+- `go test -race ./memory/... ./evaluate/... ./guardrails/... ./prompt/... ./cmd/mady/... ./domains/... ./pkg/agentconfig/... ./workflows/patent/... ./disclosure/...`：通过 ✅
+- `golangci-lint run ...`：通过 ✅
+
+### 下一步
+Phase 5（可选）：暴露 `list_prompts` 工具或 `mady util list-prompts` CLI，让用户/Agent 可以浏览可用模板。
+
+---
+
+## 2026-07-24: prompt-templates 接线 — Phase 4.1（工作流节点内联 prompt 迁移）
+
+### 背景
+Phase 3 已提供 `prompt://<name>` 解析能力，但尚未有实际调用方。Phase 4.1 将 3 个高频工作流节点的内联 system prompt 迁移到模板库，实现集中管理。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `prompt/templates/workflow/oa-response-enhance.json` | 新建：OA 答复增强节点的 system prompt |
+| `prompt/templates/disclosure/novelty-analysis.json` | 新建：新颖性 batch 分析 system prompt |
+| `prompt/templates/disclosure/novelty-per-feature.json` | 新建：新颖性 per-feature 分析 system prompt |
+| `prompt/templates/disclosure/keyword-extraction.json` | 新建：检索关键词生成 system prompt |
+| `workflows/patent/oa_response.go` | SystemPrompt 改为 `prompt.ResolveSystemPromptOr("prompt://oa-response-enhance", 内联兜底)` |
+| `disclosure/novelty.go` | `buildNoveltyPrompt` / `buildPerFeatureNoveltyPrompt` 改为常量兜底 + `prompt.ResolveSystemPromptOr`；新增 `prompt` import |
+| `disclosure/keywords.go` | 内联 system prompt 改为 `prompt.ResolveSystemPromptOr(...)` + 常量兜底 |
+| `prompt/store.go` | 新增 `ResolveSystemPromptOr(raw, fallback string)` 便捷函数 |
+| `domains/prompt_store.go` | 新增 `ResolveSystemPromptOr` 包装 |
+| `domains/prompt_store_test.go` | 补充 `ResolveSystemPromptOr` 缺失模板回退测试 |
+
+### 设计决策
+- **避免层间循环依赖**：`disclosure` 属于基础设施层，不反向 import `domains`；通过 `prompt.SetDefaultStore` + `prompt.ResolveSystemPromptOr` 解析模板。
+- **保留内联兜底**：每个迁移点保留原始字符串常量作为 fallback，模板缺失时行为与旧代码完全一致。
+- **模板命名空间**：工作流节点用 `workflow/oa-response-enhance`，disclosure 用 `disclosure-*` 前缀，避免与 `analysis/novelty.json` 等通用模板混淆。
+
+### 验证结果
+- `go build ./...`：通过 ✅
+- `go test -race ./workflows/patent/... ./disclosure/... ./prompt/... ./cmd/mady/... ./domains/... ./pkg/agentconfig/...`：通过 ✅
+- `golangci-lint run ...`：通过 ✅
+
+### 下一步
+Phase 4.2（可选）：评估是否迁移 `memory/*`、`evaluate/llm_judge.go`、`guardrails/guardian/guardian.go` 中的内联 prompt。其中 `guardian.go` 属敏感路径，需人工审阅。
+
+---
+
 ## 2026-07-24: prompt-templates 接线 — Phase 3（模板引用解析）
 
 ### 背景

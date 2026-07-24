@@ -1,6 +1,10 @@
 // Package workflow 提供工作流编排原语，包括 Pipeline（顺序执行）、
 // Parallel（并行执行）和 Router（条件路由），支持构建复杂的任务执行管线。
 //
+// 注意：当前包尚未被项目中的任何模块接入。
+// Pipeline/Parallel/Router 是为通用编排预留的基础原语，
+// 在 PER（Planner-Executor-Reflector-Reviewer）等模式有具体使用场景时激活。
+//
 // 核心原语：
 //   - Pipeline: 将多个步骤串行编排，前一步输出作为后一步输入
 //   - Parallel: 并行执行多个步骤，等待全部完成后聚合结果

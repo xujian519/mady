@@ -6,6 +6,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/tools"
+	"github.com/xujian519/mady/workflows/legal"
 )
 
 // LegalAgentConfig builds the legal domain Agent configuration.
@@ -70,6 +71,9 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 			tools.ToolProcess,
 		},
 		MaxBytes: 100 * 1024,
+		ExtraTools: []*agentcore.Tool{
+			legal.NewLegalComparisonTool(),
+		},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)
 
@@ -80,6 +84,7 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	// comparison tools as PatentAgent, via the shared injectDraftingTool.
 	injectDraftingTool(&cfg)
 	injectDocTemplateTools(&cfg)
+	injectPromptTools(&cfg)
 
 	// 知识库扩展：为法律 Agent 提供 search_knowledge / search_laws 工具，
 	// 使其能检索本地知识库中的法律法规、司法解释和案例。

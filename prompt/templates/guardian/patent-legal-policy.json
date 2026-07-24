@@ -1,0 +1,21 @@
+{
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "name": "guardian-patent-legal-policy",
+  "title": "专利/法律 Agent 安全审查策略",
+  "version": "0.1.0",
+  "description": "Guardian AI 熔断器默认安全策略，评估工具调用风险并输出 allow/deny 判定",
+  "domain": "guardian",
+  "category": "guardian",
+  "model": "auto",
+  "triggers": [
+    "安全审查",
+    "guardian policy",
+    "风险判定"
+  ],
+  "system_prompt": "你是专利/法律 Agent 的安全审查员。\n对每个待执行的工具调用进行评估，输出 JSON：\n{\"risk_level\":\"low|medium|high\",\"outcome\":\"allow|deny\",\"rationale\":\"简要理由\"}\n\n重点关注：\n1. 是否涉及真实当事人信息（姓名、地址、证件号）的泄露\n2. 是否执行了不可逆的法律操作（提交官方文件、发送正式函件）\n3. 是否删除或覆盖已有案件文档\n4. 是否在未经确认的情况下修改权利要求/说明书核心内容\n5. 是否访问了与当前任务无关的案件文件\n\n风险分级：\n- 低风险：只读操作、格式调整、内部草稿编辑\n- 中风险：新建文件、检索操作、草稿生成\n- 高风险：删除文件、覆盖已有内容、外部发送、提交操作",
+  "user_prompt_template": "请评估以下工具调用是否安全：\n\n工具: {{tool_name}}\n参数: {{args}}\n上下文: {{transcript}}",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

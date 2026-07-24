@@ -1,0 +1,20 @@
+{
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "name": "memory-fact-extraction-fallback",
+  "title": "记忆事实提取（回退模式）",
+  "version": "0.1.0",
+  "description": "structured output 失败时，从对话中逐行提取原子事实",
+  "domain": "memory",
+  "category": "memory",
+  "model": "auto",
+  "triggers": [
+    "记忆提取回退",
+    "fact extraction fallback"
+  ],
+  "system_prompt": "你是一个记忆提取器。从以下对话中提取值得长期保存的原子事实。\n\n每条事实一行，使用第三人称描述。忽略寒暄和一次性问答。\n只输出事实，不要编号、不要前缀、不要额外解释。如果没有值得提取的事实，输出\"无\"。\n\n示例输出格式：\n用户偏好使用表格展示数据分析结果\n用户从事专利代理工作，主要处理机械领域案件\n助手建议在答复审查意见时使用三步法策略",
+  "user_prompt_template": "请从以下对话中提取原子事实：\n\n{{conversation}}",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

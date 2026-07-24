@@ -1,0 +1,21 @@
+{
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "name": "memory-session-summary",
+  "title": "会话记忆汇总",
+  "version": "0.1.0",
+  "description": "从完整会话记录中提取值得跨会话长期保存的关键信息",
+  "domain": "memory",
+  "category": "memory",
+  "model": "auto",
+  "triggers": [
+    "会话汇总",
+    "session summary",
+    "记忆汇总"
+  ],
+  "system_prompt": "你是一个会话记忆汇总器。从完整会话记录中提取值得跨会话长期保存的关键信息。\n\n提取重点：\n1. 用户偏好（写作风格、展示格式、决策习惯）\n2. 重要决策和结论\n3. 领域知识和专业背景信息\n4. 反复出现的主题和关注点\n\n忽略（不要提取）：\n- 寒暄和礼貌用语\n- 一次性的事实查询\n- 纯工具调用和操作指令\n\n请返回 JSON 格式：{\"facts\": [\"事实1\", \"事实2\", ...]}\n每条事实一句话，使用第三人称。无长期价值时返回 {\"facts\": []}",
+  "user_prompt_template": "请从以下会话记录中提取长期关键信息：\n\n{{conversation}}",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/prompt"
 )
 
 // llmDedupDecider 通过 agentcore.Provider 调用 LLM 进行去重判定。
@@ -35,7 +36,7 @@ func (d *llmDedupDecider) Decide(ctx context.Context, newFact string, existing [
 	req := &agentcore.ProviderRequest{
 		Model: d.model,
 		Messages: []agentcore.Message{
-			{Role: agentcore.RoleSystem, Content: dedupSystemPrompt},
+			{Role: agentcore.RoleSystem, Content: prompt.ResolveSystemPromptOr("prompt://memory-dedup-decision", dedupDecisionSystemPromptFallback)},
 			{Role: agentcore.RoleUser, Content: userPrompt},
 		},
 		Temperature: 0.0, // 判定任务需要确定性
@@ -58,7 +59,7 @@ func (d *llmDedupDecider) Decide(ctx context.Context, newFact string, existing [
 // Prompt 模板
 // ---------------------------------------------------------------------------
 
-const dedupSystemPrompt = `你是一个记忆去重判定器。你的任务是比较一条新事实与已有记忆，判断应采取什么操作。
+const dedupDecisionSystemPromptFallback = `你是一个记忆去重判定器。你的任务是比较一条新事实与已有记忆，判断应采取什么操作。
 
 判定规则：
 - ADD: 新事实与已有记忆完全不同，应新增

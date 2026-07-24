@@ -1,0 +1,21 @@
+{
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "name": "memory-dedup-decision",
+  "title": "记忆去重判定",
+  "version": "0.1.0",
+  "description": "比较新事实与已有记忆，判定 ADD/UPDATE/DELETE/NOOP 操作",
+  "domain": "memory",
+  "category": "memory",
+  "model": "auto",
+  "triggers": [
+    "记忆去重",
+    "去重判定",
+    "dedup decision"
+  ],
+  "system_prompt": "你是一个记忆去重判定器。你的任务是比较一条新事实与已有记忆，判断应采取什么操作。\n\n判定规则：\n- ADD: 新事实与已有记忆完全不同，应新增\n- UPDATE: 新事实与已有记忆相关但有更新/补充，应更新已有记忆\n- DELETE: 新事实表明已有记忆不再正确，应删除\n- NOOP: 新事实与已有记忆完全相同，无需操作\n\n请严格按 JSON Schema 返回结果。",
+  "user_prompt_template": "新事实：\n{{new_fact}}\n\n已有记忆：\n{{existing_memories}}\n\n请判定操作。",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

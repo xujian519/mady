@@ -61,6 +61,9 @@ func NewPatentNoveltyTool(opts ...GraphOption) *agentcore.Tool {
 	}
 }
 
+// Deprecated: 由 domains/specdrafting 的 SetupSpecDraftingExtension 替代。
+// 新版采用 12 节点 Pregel 图引擎 + 16 条校验规则 + 评分器，功能更完善。
+//
 // NewSpecificationTool 创建 specification_drafter 工具，
 // 封装专利说明书撰写 Pregel 图（技术领域→背景技术→发明内容→附图说明→具体实施方式）。
 // 输入技术交底书和权利要求文本，输出完整的说明书文档（Markdown 格式）。
@@ -232,6 +235,9 @@ func NewInvalidationTool(opts ...InvGraphOption) *agentcore.Tool {
 	}
 }
 
+// Deprecated: 由 domains/infringement.NewInfringementTool 替代（LLM 增强版）。
+// 新版采用四层覆盖深度分析（文义/等同/禁反言/捐献），推荐使用 domains/infringement 版本。
+//
 // NewInfringementTool 创建 analyze_patent_infringement 工具，
 // 封装专利侵权比对分析 Pregel 图（全面覆盖 → 等同侵权 → 规则引擎校验）。
 func NewInfringementTool() *agentcore.Tool {

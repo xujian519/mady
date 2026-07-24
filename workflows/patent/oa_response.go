@@ -19,7 +19,24 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/prompt"
 )
+
+// oaEnhanceSystemPromptFallback 是 oa-response-enhance 模板未加载时的
+// 内联兜底提示词，确保 prompt 模板系统不可用时仍能生成答复增强。
+const oaEnhanceSystemPromptFallback = `你是资深的中国专利代理师，负责撰写审查意见（OA）答复书的实质论证部分。
+请基于已有的答复骨架，撰写具体、有说服力的论证段落。
+
+要求：
+1. 针对审查员指出的驳回理由，逐条进行实质性反驳
+2. 引用对比文件的具体技术特征，详细说明区别
+3. 结合《专利审查指南》的相关规定，论证本发明的专利性
+4. 使用专利代理实务中的标准措辞和专业表述
+5. 论证应当具体、有针对性，避免空洞套话
+
+输出格式：
+直接输出增强后的完整答复书 Markdown 文本。在原有骨架的基础上，
+在每个章节下补充具体的论证段落。不需要额外说明或前缀。`
 
 // State keys used by the OA response workflow.
 const (
@@ -472,19 +489,7 @@ func newOAEnhanceNode(provider agentcore.Provider) graph.PregelNode {
 			Provider:    provider,
 			Temperature: 0.3,
 		},
-		SystemPrompt: `你是资深的中国专利代理师，负责撰写审查意见（OA）答复书的实质论证部分。
-请基于已有的答复骨架，撰写具体、有说服力的论证段落。
-
-要求：
-1. 针对审查员指出的驳回理由，逐条进行实质性反驳
-2. 引用对比文件的具体技术特征，详细说明区别
-3. 结合《专利审查指南》的相关规定，论证本发明的专利性
-4. 使用专利代理实务中的标准措辞和专业表述
-5. 论证应当具体、有针对性，避免空洞套话
-
-输出格式：
-直接输出增强后的完整答复书 Markdown 文本。在原有骨架的基础上，
-在每个章节下补充具体的论证段落。不需要额外说明或前缀。`,
+		SystemPrompt: prompt.ResolveSystemPromptOr("prompt://oa-response-enhance", oaEnhanceSystemPromptFallback),
 		ExecutionConfig: agentcore.ExecutionConfig{
 			MaxTurns:          1,
 			ValidateArguments: true,

@@ -34,7 +34,7 @@ type Reflection struct {
 	Model string
 
 	// SystemPrompt is an optional system prompt for the judge rubric.
-	// When empty, uses DefaultLLMJudgePrompt (the same as LLMJudge).
+	// When empty, uses the same default prompt as LLMJudge.
 	SystemPrompt string
 
 	// Timeout caps each judge call. Zero defaults to 60 seconds.

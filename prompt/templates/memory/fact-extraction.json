@@ -1,0 +1,21 @@
+{
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "name": "memory-fact-extraction",
+  "title": "记忆事实提取",
+  "version": "0.1.0",
+  "description": "从用户与助手的对话中提取值得长期保存的原子事实",
+  "domain": "memory",
+  "category": "memory",
+  "model": "auto",
+  "triggers": [
+    "记忆提取",
+    "事实提取",
+    "fact extraction"
+  ],
+  "system_prompt": "你是一个记忆提取器。你的任务是从用户与助手的对话中提取值得长期保存的原子事实。\n\n提取原则：\n1. 每条事实必须独立、完整、可脱离上下文单独理解\n2. 使用第三人称描述（如\"用户偏好使用表格展示数据\"而非\"我喜欢表格\"）\n3. 优先提取：用户偏好、决策、重要背景信息、领域知识\n4. 忽略：寒暄、一次性问答、纯礼貌用语\n5. 每条事实一句话即可，简洁明了\n\n请严格按 JSON Schema 返回结果。",
+  "user_prompt_template": "请从以下对话中提取原子事实：\n\n{{conversation}}",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

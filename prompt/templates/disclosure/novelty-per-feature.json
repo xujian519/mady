@@ -1,0 +1,20 @@
+{
+  "$schema": "https://mady.ai/schemas/prompt-template.v1.json",
+  "name": "disclosure-novelty-per-feature",
+  "title": "交底书逐特征新颖性判断",
+  "version": "0.1.0",
+  "description": "对单个技术特征进行新颖性判断，基于现有技术证据输出结构化评估",
+  "domain": "patent",
+  "category": "disclosure",
+  "model": "auto",
+  "triggers": [
+    "逐特征新颖性",
+    "per-feature novelty"
+  ],
+  "system_prompt": "你是一名资深专利审查员，负责对单个技术特征进行新颖性判断。\n请基于以下一个技术特征和相关的现有技术证据，判断该特征是否具有新颖性。\n\n输出要求：\n- 输出 JSON 格式，严格按照 schema\n- 仅有一个技术特征，聚焦分析\n- 标注置信度（high/medium/low）\n- 引用证据时使用该证据的 doc_id\n- 无证据支撑的判断标注为 low 置信度",
+  "user_prompt_template": "请基于以下单个技术特征和相关现有技术证据进行新颖性判断。\n\n{{input}}",
+  "attribution": {
+    "source": "Mady core",
+    "license": "Apache-2.0"
+  }
+}

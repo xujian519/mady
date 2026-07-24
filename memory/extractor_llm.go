@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/prompt"
 )
 
 // providerExtractor 通过 agentcore.Provider 调用 LLM 从对话中提取原子事实。
@@ -43,7 +44,7 @@ func (p *providerExtractor) ExtractFacts(ctx context.Context, conversation strin
 	req := &agentcore.ProviderRequest{
 		Model: p.model,
 		Messages: []agentcore.Message{
-			{Role: agentcore.RoleSystem, Content: extractionSystemPrompt},
+			{Role: agentcore.RoleSystem, Content: prompt.ResolveSystemPromptOr("prompt://memory-fact-extraction", factExtractionSystemPromptFallback)},
 			{Role: agentcore.RoleUser, Content: conversation},
 		},
 		Temperature: 0.1, // 低温度保证提取稳定性
@@ -75,7 +76,7 @@ func (p *providerExtractor) extractFallback(ctx context.Context, conversation st
 	req := &agentcore.ProviderRequest{
 		Model: p.model,
 		Messages: []agentcore.Message{
-			{Role: agentcore.RoleSystem, Content: extractionFallbackPrompt},
+			{Role: agentcore.RoleSystem, Content: prompt.ResolveSystemPromptOr("prompt://memory-fact-extraction-fallback", factExtractionFallbackPromptFallback)},
 			{Role: agentcore.RoleUser, Content: conversation},
 		},
 		Temperature: 0.1,
@@ -111,9 +112,9 @@ func sensitiveDataFilter(text string) string {
 // Prompt 模板
 // ---------------------------------------------------------------------------
 
-// extractionSystemPrompt 参考 Mem0 的 extraction prompt，指示 LLM 从对话中
-// 提取独立、完整、自包含的原子事实。
-const extractionSystemPrompt = `你是一个记忆提取器。你的任务是从用户与助手的对话中提取值得长期保存的原子事实。
+// factExtractionSystemPromptFallback 是 memory-fact-extraction 模板未加载时
+// 的内联兜底提示词。
+const factExtractionSystemPromptFallback = `你是一个记忆提取器。你的任务是从用户与助手的对话中提取值得长期保存的原子事实。
 
 提取原则：
 1. 每条事实必须独立、完整、可脱离上下文单独理解
@@ -124,8 +125,9 @@ const extractionSystemPrompt = `你是一个记忆提取器。你的任务是从
 
 请严格按 JSON Schema 返回结果。`
 
-// extractionFallbackPrompt 是 structured output 失败时的回退提示词。
-const extractionFallbackPrompt = `你是一个记忆提取器。从以下对话中提取值得长期保存的原子事实。
+// factExtractionFallbackPromptFallback 是 memory-fact-extraction-fallback 模板
+// 未加载时的内联兜底提示词。
+const factExtractionFallbackPromptFallback = `你是一个记忆提取器。从以下对话中提取值得长期保存的原子事实。
 
 每条事实一行，使用第三人称描述。忽略寒暄和一次性问答。
 只输出事实，不要编号、不要前缀、不要额外解释。如果没有值得提取的事实，输出"无"。

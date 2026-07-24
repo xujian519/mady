@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/prompt"
 )
 
 // SessionSummarizer 在会话结束时从 Session 层记忆中提取值得长期保存的关键事实。
@@ -39,7 +40,7 @@ func (s *SessionSummarizer) Summarize(ctx context.Context, sessionMemories []Mem
 	req := &agentcore.ProviderRequest{
 		Model: s.model,
 		Messages: []agentcore.Message{
-			{Role: agentcore.RoleSystem, Content: summarySystemPrompt},
+			{Role: agentcore.RoleSystem, Content: prompt.ResolveSystemPromptOr("prompt://memory-session-summary", sessionSummarySystemPromptFallback)},
 			{Role: agentcore.RoleUser, Content: conversationText},
 		},
 		Temperature: 0.1,
@@ -122,7 +123,7 @@ func parseFactsFromLines(content string) []ExtractedFact {
 // Prompt
 // ---------------------------------------------------------------------------
 
-const summarySystemPrompt = `你是一个会话记忆汇总器。从完整会话记录中提取值得跨会话长期保存的关键信息。
+const sessionSummarySystemPromptFallback = `你是一个会话记忆汇总器。从完整会话记录中提取值得跨会话长期保存的关键信息。
 
 提取重点：
 1. 用户偏好（写作风格、展示格式、决策习惯）

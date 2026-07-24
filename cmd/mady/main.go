@@ -74,6 +74,8 @@ func main() {
 		}
 	case "patent":
 		runPatentCLI(ctx, os.Args)
+	case "util":
+		runUtil(ctx, os.Args[2:])
 	case "-h", "--help", "help":
 		printUsage()
 	default:
@@ -103,6 +105,7 @@ Commands:
         Use --list to show, --remove <path> to delete.
   eval  Run evaluation benchmarks (static or live) and generate reports.
   patent  Patent analysis CLI: novelty analysis, OA response drafting.
+  util    Utility commands (list-prompts, etc.).
   help  Show this help message.
 
 Configuration (environment variables):

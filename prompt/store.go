@@ -134,6 +134,8 @@ func (s *PromptStore) Count() int {
 	return len(s.templates)
 }
 
+const promptTemplatePrefix = "prompt://"
+
 // Index returns a human-readable index of all templates in the store,
 // grouped by category.
 func (s *PromptStore) Index() string {
@@ -141,4 +143,52 @@ func (s *PromptStore) Index() string {
 	defer s.mu.RUnlock()
 
 	return PromptIndex(s.templates)
+}
+
+// cannot receive an instance via dependency injection. It is set once at
+// startup by SetDefaultStore.
+var defaultStore *PromptStore
+
+// SetDefaultStore registers a global PromptStore. Packages without access to
+// the framework context can call ResolveSystemPrompt to resolve prompt://
+// references against this store.
+func SetDefaultStore(store *PromptStore) {
+	defaultStore = store
+}
+
+// DefaultStore returns the globally registered PromptStore, or nil if none.
+func DefaultStore() *PromptStore {
+	return defaultStore
+}
+
+// ResolveSystemPrompt interprets a raw system prompt value. If it starts with
+// "prompt://<name>", the named template's system_prompt field is returned.
+// Otherwise the raw value is returned unchanged. When the template is not
+// found or the default store is nil, the raw value is returned as a safe
+// fallback.
+func ResolveSystemPrompt(raw string) string {
+	if defaultStore == nil || !strings.HasPrefix(raw, promptTemplatePrefix) {
+		return raw
+	}
+
+	name := strings.TrimSpace(strings.TrimPrefix(raw, promptTemplatePrefix))
+	if name == "" {
+		return raw
+	}
+
+	resolved, ok := defaultStore.Resolve(name, nil)
+	if !ok {
+		return raw
+	}
+	return resolved.SystemPrompt
+}
+
+// ResolveSystemPromptOr is like ResolveSystemPrompt but returns fallback when
+// the referenced template cannot be resolved or the default store is nil.
+func ResolveSystemPromptOr(raw, fallback string) string {
+	resolved := ResolveSystemPrompt(raw)
+	if resolved == raw && strings.HasPrefix(raw, promptTemplatePrefix) {
+		return fallback
+	}
+	return resolved
 }

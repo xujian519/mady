@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/prompt"
 )
 
 // Pre-compiled regexes for parseLLMJudgeScore hot path.
@@ -38,7 +39,7 @@ type LLMJudge struct {
 	Model string
 
 	// SystemPrompt is an optional system prompt that establishes the judge's
-	// persona and rubric. When empty, DefaultLLMJudgePrompt is used.
+	// persona and rubric. When empty, the default LLM judge prompt is used.
 	SystemPrompt string
 
 	// Timeout caps each judge call. Zero defaults to 60 seconds.
@@ -61,8 +62,9 @@ type LLMJudge struct {
 	Samples int
 }
 
-// DefaultLLMJudgePrompt is the default system prompt used by LLMJudge.
-const DefaultLLMJudgePrompt = `你是一名资深的专利代理人和专利审查专家，负责评估 AI 对专利代理人考试实务题的作答质量。
+// defaultLLMJudgePromptFallback is the default system prompt used by LLMJudge
+// when the evaluate-llm-judge template is not available.
+const defaultLLMJudgePromptFallback = `你是一名资深的专利代理人和专利审查专家，负责评估 AI 对专利代理人考试实务题的作答质量。
 
 请从以下三个维度对“预测答案”与“参考答案”进行比较评分，每项均为 0 到 1 之间的小数：
 1. conclusion：核心法律结论、判断（如新颖性/创造性/单一性/保护客体等）是否与参考答案一致。
@@ -116,7 +118,7 @@ func (j LLMJudge) Compute(prediction, reference string) float64 {
 func (j LLMJudge) computeOnce(prediction, reference string) float64 {
 	systemPrompt := j.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = DefaultLLMJudgePrompt
+		systemPrompt = prompt.ResolveSystemPromptOr("prompt://evaluate-llm-judge", defaultLLMJudgePromptFallback)
 	}
 
 	userPrompt := fmt.Sprintf(`参考答案：

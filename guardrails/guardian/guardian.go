@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/prompt"
 )
 
 // Session is a long-lived Guardian reviewer that uses a dedicated Provider
@@ -38,7 +39,7 @@ type Config struct {
 // NewSession creates a Guardian session with the given configuration.
 func NewSession(cfg Config) *Session {
 	if cfg.Policy == "" {
-		cfg.Policy = PatentLegalPolicy
+		cfg.Policy = prompt.ResolveSystemPromptOr("prompt://guardian-patent-legal-policy", PatentLegalPolicy)
 	}
 	return &Session{
 		provider: cfg.Provider,

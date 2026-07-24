@@ -8,7 +8,20 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/prompt"
 )
+
+// keywordExtractionSystemPromptFallback 是 disclosure-keyword-extraction 模板
+// 未加载时的内联兜底提示词。
+const keywordExtractionSystemPromptFallback = `你是一个专利检索关键词生成助手。根据技术交底书分析摘要，生成检索关键词。
+
+要求：
+- 生成 5-15 个关键词，覆盖技术问题、技术特征、技术效果的核心概念
+- 关键词应包含上位概念和下位概念
+- 适当包含同义词和近义词以扩大检索覆盖面
+- 输出 JSON 格式：{ "keywords": ["关键词1", "关键词2", ...] }
+- 每个关键词应当简洁（2-8 个字）
+- 避免过于宽泛的常规词汇`
 
 // =============================================================================
 // KeywordGenerator — 检索关键词生成器（Phase 2: LLM 混合模式）
@@ -72,17 +85,7 @@ func (g *KeywordGenerator) llmGenerate(ctx context.Context, ext *ExtractionResul
 		}
 	}
 
-	systemPrompt := strings.Join([]string{
-		"你是一个专利检索关键词生成助手。根据技术交底书分析摘要，生成检索关键词。",
-		"",
-		"要求：",
-		"- 生成 5-15 个关键词，覆盖技术问题、技术特征、技术效果的核心概念",
-		"- 关键词应包含上位概念和下位概念",
-		"- 适当包含同义词和近义词以扩大检索覆盖面",
-		"- 输出 JSON 格式：{ \"keywords\": [\"关键词1\", \"关键词2\", ...] }",
-		"- 每个关键词应当简洁（2-8 个字）",
-		"- 避免过于宽泛的常规词汇",
-	}, " ")
+	systemPrompt := prompt.ResolveSystemPromptOr("prompt://disclosure-keyword-extraction", keywordExtractionSystemPromptFallback)
 
 	req := &agentcore.ProviderRequest{
 		Model: g.model,
