@@ -254,8 +254,13 @@ func (h *ChatHistory) Render(width int64) []string {
 	} else {
 		// Pad every line to full width so the TUI diff engine's \x1b[2K
 		// never leaves a partial column that could bleed into the next line.
+		// Also truncate lines exceeding width to prevent visual overflow into
+		// the editor/input area below the chat history.
 		for i, ln := range visible {
-			if core.VisibleWidth(ln) < width {
+			vw := core.VisibleWidth(ln)
+			if vw > width {
+				visible[i] = core.TruncateToWidth(ln, width, "…")
+			} else {
 				visible[i] = core.PadToWidth(ln, width)
 			}
 		}

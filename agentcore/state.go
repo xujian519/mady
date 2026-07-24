@@ -53,8 +53,13 @@ func isValidTransition(from, to Status) bool {
 		return to == StatusRunning
 	case StatusRunning:
 		return to == StatusFinished || to == StatusError || to == StatusInterrupted
-	case StatusFinished, StatusError:
-		return false // terminal states
+	case StatusFinished:
+		// Agent 设计为可跨多次 Run() 调用复用，允许结束状态重新进入运行。
+		return to == StatusRunning
+	case StatusError:
+		// 与 StatusFinished 一样允许重新进入运行——可恢复的错误（如瞬态 API 故障）
+		// 可以通过重试解决，不必重建 Agent 实例。
+		return to == StatusRunning
 	case StatusInterrupted:
 		return to == StatusRunning // resume allowed
 	}

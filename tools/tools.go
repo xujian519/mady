@@ -226,9 +226,15 @@ func (e *Extension) WithVision(provider agentcore.Provider, model string) {
 }
 
 // Init initializes the extension and registers all tools with the agent.
+// After registration, tools listed in DisableTools are explicitly unregistered.
+// This ensures domain-level DisableTools work even when a previous extension
+// (e.g. buildBaseTools) already registered those tools in the shared Registry.
 func (e *Extension) Init(_ context.Context, agent *agentcore.Agent) error {
 	e.tools = BuildTools(e.config)
 	agent.RegisterTools(e.tools...)
+	if len(e.config.DisableTools) > 0 {
+		agent.UnregisterTools(e.config.DisableTools...)
+	}
 	return nil
 }
 

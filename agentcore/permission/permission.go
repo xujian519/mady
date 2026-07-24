@@ -3,6 +3,8 @@ package permission
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/xujian519/mady/tools"
 )
 
 // Decision is the outcome of evaluating a tool call against policy rules.
@@ -51,10 +53,13 @@ func DefaultPolicy() Policy {
 
 // ProjectAgentPolicy returns a policy suitable for project-linked agents:
 //   - read/ls/grep/find/glob/view → Allow (read-only)
-//   - write_file/edit → Ask (requires confirmation)
-//   - bash/delete/move/process/execute_code → Deny (destructive)
+//   - git_status/git_diff/git_log → Allow (read-only, no side effects)
+//   - write_file/edit/delete/move → Ask (requires confirmation)
+//   - bash/process/execute_code/browser/computer_use → Ask (risky, user decides)
+//   - all others → Ask (conservative fallback)
 //   - all others → Ask (conservative fallback)
 //
+// 没有工具被无条件拒绝（Deny）——每个工具调用都可以通过用户确认放行。
 // Policy 决策顺序: Deny > Ask > Allow > fallback。
 // 回退时只读工具自动 Allow，写入工具回退到 Mode（默认 Ask）。
 func ProjectAgentPolicy() Policy {
@@ -67,17 +72,24 @@ func ProjectAgentPolicy() Policy {
 			{Tool: "find"},
 			{Tool: "glob"},
 			{Tool: "view"},
+			// 只读 Git 工具 — 无副作用，自动放行
+			{Tool: tools.ToolGitStatus},
+			{Tool: tools.ToolGitDiff},
+			{Tool: tools.ToolGitLog},
 		},
 		Ask: []Rule{
+			// 文件写入工具
 			{Tool: "write_file"},
 			{Tool: "edit"},
-		},
-		Deny: []Rule{
-			{Tool: "bash"},
 			{Tool: "delete"},
 			{Tool: "move"},
-			{Tool: "process"},
-			{Tool: "execute_code"},
+			// 危险执行工具
+			{Tool: tools.ToolBash},
+			{Tool: tools.ToolProcess},
+			{Tool: tools.ToolExecuteCode},
+			// 浏览器/桌面控制
+			{Tool: tools.ToolBrowser},
+			{Tool: tools.ToolComputerUse},
 		},
 	}
 }

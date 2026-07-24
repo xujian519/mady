@@ -475,7 +475,7 @@ func initWorkspace(fc *frameworkContext) {
 }
 
 // buildBaseTools 为所有 Agent 注册基础文件工具和网络工具。
-// 危险工具（bash/git/browser/execute_code/process/computer_use）默认关闭。
+// 危险工具通过 PermissionExtension 的 Ask 策略向用户确认后运行。
 func buildBaseTools(fc *frameworkContext) {
 	toolWorkingDir := fc.BaseConfig.ProjectDir
 	if toolWorkingDir == "" {
@@ -483,10 +483,6 @@ func buildBaseTools(fc *frameworkContext) {
 	}
 	baseTools := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir: toolWorkingDir,
-		DisableTools: []string{
-			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
-			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolProcess, tools.ToolComputerUse,
-		},
 	})
 	// 编辑安全网：在写入工具（edit/write_file/delete 等）执行前自动记录文件快照，
 	// 支持按用户轮回退。仅追踪编辑工具变更，bash 副作用不追踪。

@@ -207,21 +207,29 @@ func TestProjectAgentPolicy(t *testing.T) {
 		{"edit tool", "edit", nil, false, DecisionAsk},
 		{"write_file tool", "write_file", nil, false, DecisionAsk},
 
-		// Deny: destructive tools
-		{"bash tool", "bash", nil, false, DecisionDeny},
-		{"delete tool", "delete", nil, false, DecisionDeny},
-		{"move tool", "move", nil, false, DecisionDeny},
-		{"process tool", "process", nil, false, DecisionDeny},
-		{"execute_code tool", "execute_code", nil, false, DecisionDeny},
+		// Ask: risky tools (user confirms before execution)
+		{"bash tool", "bash", nil, false, DecisionAsk},
+		{"delete tool", "delete", nil, false, DecisionAsk},
+		{"move tool", "move", nil, false, DecisionAsk},
+		{"process tool", "process", nil, false, DecisionAsk},
+		{"execute_code tool", "execute_code", nil, false, DecisionAsk},
+		{"browser tool", "browser", nil, false, DecisionAsk},
+		{"computer_use tool", "computer_use", nil, false, DecisionAsk},
+
+		// Allow: read-only git tools (no side effects)
+		{"git_status tool", "git_status", nil, true, DecisionAllow},
+		{"git_diff tool", "git_diff", nil, true, DecisionAllow},
+		{"git_log tool", "git_log", nil, true, DecisionAllow},
 
 		// Fallback: unlisted read-only tool → Allow
 		{"unlisted read-only", "web_search", nil, true, DecisionAllow},
 
-		// Fallback: unlisted writer → Ask (Mode=DecisionAsk)
-		{"unlisted writer", "browser", nil, false, DecisionAsk},
+		// Fallback: unlisted non-readonly tool → Ask (Mode=DecisionAsk)
+		{"unlisted non-readonly", "nonexistent_tool", nil, false, DecisionAsk},
 
-		// Deny is not sensitive to readOnly flag (deny overrides everything)
-		{"deny even if readOnly", "bash", nil, true, DecisionDeny},
+		// Ask: risky tools ask even when readOnly (Ask rules override readOnly default Allow)
+		{"ask even if readOnly", "bash", nil, true, DecisionAsk},
+		{"computer_use readOnly", "computer_use", nil, true, DecisionAsk},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

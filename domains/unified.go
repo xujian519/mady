@@ -89,11 +89,10 @@ func UnifiedAgentConfig(base agentcore.Config) agentcore.Config {
 		ComputerUse: true,
 		MaxBytes:    100 * 1024,
 		MaxLines:    5000,
-		DisableTools: []string{
-			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
-			tools.ToolBrowser, tools.ToolExecuteCode,
-			tools.ToolProcess,
-		},
+		// 安全策略由入口层（TUI/serve/ACP）注入的 PermissionExtension 管理。
+		// 此处不再硬编码 DisableTools，确保所有工具对 Agent 可见。
+		// TUI：PermissionExtension(ProjectAgentPolicy, TUIChannelApprover) → Ask
+		// serve：PermissionExtension(DenyPolicy, AlwaysDenyApprover)    → Deny
 	})
 
 	// 心理引擎 — 轻量模式：VAD/OCC 语气调整，不做认知扭曲诊断。
