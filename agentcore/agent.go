@@ -46,6 +46,14 @@ type Config struct {
 	// Checkpoint optional durable snapshots per thread (see CheckpointSettings).
 	Checkpoint *CheckpointSettings
 
+	// SessionID 是当前对话会话标识，供 LifecycleHook（如 ApprovalGate）在
+	// 持久化审批记录时关联到正确会话。空字符串时表示无会话上下文。
+	SessionID string
+
+	// CaseID 是当前案件标识，供 LifecycleHook 在持久化审批记录时关联案件。
+	// 空字符串时表示无案件上下文。
+	CaseID string
+
 	Handoffs []HandoffConfig // optional: sub-agents reachable via handoff
 	Tracer   Tracer          // optional: distributed tracing
 
@@ -219,6 +227,10 @@ func (a *Agent) SetEventBus(bus *EventBus) {
 	a.ownsEventBus = false
 }
 
+// EventBus returns the agent's event bus for registering external handlers
+// (e.g. EventLogger, custom listeners).
+func (a *Agent) EventBus() *EventBus { return a.eventBus }
+
 // --- state access ---
 
 // ConfigError returns the validation error from config validation (if any).
@@ -295,6 +307,18 @@ func (a *Agent) lifecycle() LifecycleHook {
 	lc := a.config.Lifecycle
 	a.configMu.RUnlock()
 	return lc
+}
+
+// newRunContext 创建填充了会话/案件上下文的 AgentRunContext。
+// SessionID 和 CaseID 从 Config 自动传播，LifecycleHook 无需自行查找。
+func (a *Agent) newRunContext(input string, messages []Message, turn int64) *AgentRunContext {
+	a.configMu.RLock()
+	sid, cid := a.config.SessionID, a.config.CaseID
+	a.configMu.RUnlock()
+	return &AgentRunContext{
+		Agent: a, Input: input, Messages: messages, Turn: turn,
+		SessionID: sid, CaseID: cid,
+	}
 }
 
 func (a *Agent) transformContext() func(ctx context.Context, msgs []Message) []Message {

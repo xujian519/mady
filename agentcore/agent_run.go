@@ -52,7 +52,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 
 	// Lifecycle: BeforeAgentRun
 	if lc := a.lifecycle(); lc != nil {
-		arc := &AgentRunContext{Agent: a, Input: input, Messages: a.state.Messages()}
+		arc := a.newRunContext(input, a.state.Messages(), 0)
 		if err := lc.BeforeAgentRun(ctx, arc); err != nil {
 			span.RecordError(err)
 			return "", WrapNodeError(err, "lifecycle:before_agent_run")
@@ -67,7 +67,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 
 	// Lifecycle: AfterAgentRun
 	if lc := a.lifecycle(); lc != nil {
-		arc := &AgentRunContext{Agent: a, Input: input, Messages: a.state.Messages()}
+		arc := a.newRunContext(input, a.state.Messages(), 0)
 		lc.AfterAgentRun(ctx, arc, output, err)
 	}
 

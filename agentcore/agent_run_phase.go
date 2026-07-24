@@ -28,7 +28,7 @@ func (a *Agent) runPreTurn(ctx context.Context, loopStartTurn, turn int64) error
 		}
 	}
 	if lc := a.lifecycle(); lc != nil {
-		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+		arc := a.newRunContext("", a.state.Messages(), turn)
 		if err := lc.BeforeTurn(ctx, arc); err != nil {
 			return a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle before_turn failed", err)
 		}
@@ -60,7 +60,7 @@ func (a *Agent) runModelTurn(ctx context.Context, turn int64) (*ProviderResponse
 	}
 
 	if lc := a.lifecycle(); lc != nil {
-		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+		arc := a.newRunContext("", a.state.Messages(), turn)
 		mcc := &ModelCallContext{Request: req}
 		if lcErr := lc.BeforeModelCall(ctx, arc, mcc); lcErr != nil {
 			return nil, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle before_model_call failed", lcErr)
@@ -83,7 +83,7 @@ func (a *Agent) runAfterModelCall(ctx context.Context, turn int64, resp *Provide
 	if lc == nil {
 		return false
 	}
-	arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+	arc := a.newRunContext("", a.state.Messages(), turn)
 	mcc := &ModelCallContext{Request: nil, Response: resp}
 	lc.AfterModelCall(ctx, arc, mcc)
 	if mcc.Err == nil {
@@ -172,7 +172,7 @@ func (a *Agent) failLoop(ctx context.Context, ctxTag, description string, err er
 func (a *Agent) endTurn(ctx context.Context, turn int64, usage TokenUsage, hadToolCalls bool) error {
 	a.emit(&TurnEndEvent{baseEvent: newBase(EventTurnEnd), Turn: turn, Usage: usage})
 	if lc := a.lifecycle(); lc != nil {
-		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: turn}
+		arc := a.newRunContext("", a.state.Messages(), turn)
 		lc.AfterTurn(ctx, arc, TurnInfo{HadToolCalls: hadToolCalls})
 	}
 	if err := a.checkpointTurnEnd(ctx, turn); err != nil {

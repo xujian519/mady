@@ -165,7 +165,7 @@ func (a *Agent) ForceCompactWithTopic(ctx context.Context, focusTopic string) er
 		// Lifecycle: BeforeCompactionPersist — let hooks inspect/modify the
 		// compacted messages before they replace the agent's state.
 		if lc := a.lifecycle(); lc != nil {
-			arc := &AgentRunContext{Agent: a, Input: focusTopic, Messages: newMsgs}
+			arc := a.newRunContext(focusTopic, newMsgs, a.state.Turn())
 			newMsgs, err = lc.BeforeCompactionPersist(ctx, arc, newMsgs)
 			if err != nil {
 				return err
@@ -175,7 +175,7 @@ func (a *Agent) ForceCompactWithTopic(ctx context.Context, focusTopic string) er
 		// Lifecycle: AfterCompactionPersist — notify hooks that compaction
 		// messages are now the active state.
 		if lc := a.lifecycle(); lc != nil {
-			arc := &AgentRunContext{Agent: a, Input: focusTopic, Messages: newMsgs}
+			arc := a.newRunContext(focusTopic, newMsgs, a.state.Turn())
 			lc.AfterCompactionPersist(ctx, arc, newMsgs)
 		}
 	}

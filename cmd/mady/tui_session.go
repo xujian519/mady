@@ -73,6 +73,13 @@ type tuiSession struct {
 
 	// Approval gate state
 	approvalGate *domains.ApprovalGate
+	pendingStore domains.PendingStore
+
+	// Graph checkpoint store (SQLite-backed, for Pregel/DAG graph persistence)
+	graphCheckpointStore *sqlitestore.SQLiteGraphCheckpointStore
+
+	// Event logger (SQLite-backed, persists lifecycle events for audit trail)
+	eventLogger *agentcore.EventLogger
 
 	// toolApprover is the interactive tool-call approval controller.
 	toolApprover *permission.TUIChannelApprover
@@ -619,6 +626,131 @@ func (s *tuiSession) openApprovalStore() (domains.ApprovalStore, error) {
 	store, err := sqlitestore.NewApprovalStore(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("approval store: open %s: %w", dbPath, err)
+	}
+	return store, nil
+}
+
+// openPendingStore 返回同一 approval DB 文件的 PendingStore 视图。
+// SQLiteApprovalStore 同时实现了 ApprovalStore 和 PendingStore，
+// 两者共享数据库连接以确保 Respond 方法的事务原子性。
+func (s *tuiSession) openPendingStore() (domains.PendingStore, error) {
+	base := s.fc.WorkspaceDir
+	if base == "" {
+		base = filepath.Join(os.TempDir(), "mady")
+	}
+	dbPath := filepath.Join(base, "approvals.db")
+	store, err := sqlitestore.NewApprovalStore(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("pending store: open %s: %w", dbPath, err)
+	}
+	return store, nil
+}
+
+// startEventLogger creates and starts an EventLogger for the given agent.
+// If the event store cannot be opened, the logger is silently skipped.
+// Previous eventLogger is closed before replacement.
+func (s *tuiSession) startEventLogger(agent *agentcore.Agent) {
+	// Close previous logger if any.
+	if s.eventLogger != nil {
+		s.eventLogger.Close()
+		s.eventLogger = nil
+	}
+	store, err := s.openEventStore()
+	if err != nil {
+		log.Printf("[INFO] event store: unavailable (skipping event logging): %v", err)
+		return
+	}
+	el := agentcore.NewEventLogger(store)
+	el.Start(agent.EventBus())
+	s.eventLogger = el
+	log.Printf("[INFO] event logger: started")
+}
+
+// recoverPendingApprovals 在启动时检查是否有当前会话的待审批请求，
+// 如有则恢复到 ApprovalGate 的运行时缓存中，使 /approve 和 /reject
+// 无需重新触发模型即可正常工作。
+func (s *tuiSession) recoverPendingApprovals(ctx context.Context) {
+	if s.pendingStore == nil || s.approvalGate == nil || s.currentThreadID == "" {
+		return
+	}
+	pendings, err := s.pendingStore.ListPendingBySession(ctx, s.currentThreadID)
+	if err != nil {
+		log.Printf("[WARN] approval: recover pending: %v", err)
+		return
+	}
+	for _, p := range pendings {
+		// Only restore the most recent pending for this session.
+		s.approvalGate.RestorePending(p)
+		log.Printf("[INFO] approval: restored pending %s (keyword: %s)", p.ID, p.TriggerKeyword)
+		return // one pending per session is the common case
+	}
+}
+
+// openGraphCheckpointStore 打开 SQLite 图检查点存储。
+// 供 PregelCheckpointer / InterruptableGraph 在有向图执行时使用。
+// 返回错误时调用方应回退到 graph.NewMemoryCheckpointStore()。
+func (s *tuiSession) openGraphCheckpointStore() (*sqlitestore.SQLiteGraphCheckpointStore, error) {
+	base := s.fc.WorkspaceDir
+	if base == "" {
+		base = filepath.Join(os.TempDir(), "mady")
+	}
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return nil, fmt.Errorf("graph checkpoint: mkdir %s: %w", base, err)
+	}
+	dbPath := filepath.Join(base, "graph_checkpoints.db")
+	store, err := sqlitestore.NewGraphCheckpointStore(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("graph checkpoint: open %s: %w", dbPath, err)
+	}
+	return store, nil
+}
+
+// startPendingExpirer 后台定期扫描过期待审批请求。
+// 每 5 分钟检查一次 pending_approvals 表中已超时的行，将其标记为 expired。
+// 启动时立刻执行一次，清理进程宕机期间积压的超时记录。
+func (s *tuiSession) startPendingExpirer(ctx context.Context) {
+	if s.pendingStore == nil {
+		return
+	}
+	// Fire once immediately to clean up any backlog.
+	if n, err := s.pendingStore.ExpirePending(ctx); err != nil {
+		log.Printf("[WARN] approval: initial expire: %v", err)
+	} else if n > 0 {
+		log.Printf("[INFO] approval: expired %d pending approvals (backlog)", n)
+	}
+
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				n, err := s.pendingStore.ExpirePending(ctx)
+				if err != nil {
+					log.Printf("[WARN] approval: expire scan: %v", err)
+				} else if n > 0 {
+					log.Printf("[INFO] approval: expired %d pending approvals", n)
+				}
+			}
+		}
+	}()
+}
+
+// openEventStore 打开 SQLite 事件存储，供 EventLogger 持久化 Agent 生命周期事件。
+func (s *tuiSession) openEventStore() (*sqlitestore.SQLEventStore, error) {
+	base := s.fc.WorkspaceDir
+	if base == "" {
+		base = filepath.Join(os.TempDir(), "mady")
+	}
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return nil, fmt.Errorf("event store: mkdir %s: %w", base, err)
+	}
+	dbPath := filepath.Join(base, "events.db")
+	store, err := sqlitestore.NewEventStore(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("event store: open %s: %w", dbPath, err)
 	}
 	return store, nil
 }

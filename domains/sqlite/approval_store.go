@@ -65,6 +65,21 @@ func (s *SQLiteApprovalStore) initSchema(ctx context.Context) error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_approval_session ON approval_records(session_id);
 		CREATE INDEX IF NOT EXISTS idx_approval_case   ON approval_records(case_id);
+
+		CREATE TABLE IF NOT EXISTS pending_approvals (
+			id              TEXT PRIMARY KEY,
+			session_id      TEXT NOT NULL DEFAULT '',
+			case_id         TEXT NOT NULL DEFAULT '',
+			trigger_keyword TEXT NOT NULL DEFAULT '',
+			original_output TEXT NOT NULL DEFAULT '',
+			tool_calls_json TEXT NOT NULL DEFAULT '[]',
+			status          TEXT NOT NULL DEFAULT 'pending',
+			created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+			expires_at      TEXT,
+			responded_at    TEXT
+		);
+		CREATE INDEX IF NOT EXISTS idx_pending_session ON pending_approvals(session_id);
+		CREATE INDEX IF NOT EXISTS idx_pending_status  ON pending_approvals(status);
 	`)
 	return err
 }
@@ -177,6 +192,195 @@ func (s *SQLiteApprovalStore) Close() error {
 	return nil
 }
 
+// ---------------------------------------------------------------------------
+// PendingStore implementation
+// ---------------------------------------------------------------------------
+
+// pendingRow 映射 pending_approvals 表的行。
+type pendingRow struct {
+	ID             string  `json:"id"`
+	SessionID      string  `json:"session_id"`
+	CaseID         string  `json:"case_id"`
+	TriggerKeyword string  `json:"trigger_keyword"`
+	OriginalOutput string  `json:"original_output"`
+	ToolCallsJSON  string  `json:"tool_calls_json"`
+	Status         string  `json:"status"`
+	CreatedAt      string  `json:"created_at"`
+	ExpiresAt      *string `json:"expires_at"`
+	RespondedAt    *string `json:"responded_at"`
+}
+
+func (s *SQLiteApprovalStore) SavePending(ctx context.Context, p domains.PendingApproval) error {
+	var expiresAt *string
+	if p.ExpiresAt != nil {
+		v := p.ExpiresAt.Format(time.RFC3339)
+		expiresAt = &v
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT OR REPLACE INTO pending_approvals
+			(id, session_id, case_id, trigger_keyword, original_output, tool_calls_json, status, created_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, p.ID, p.SessionID, p.CaseID, p.TriggerKeyword, p.OriginalOutput,
+		p.ToolCallsJSON, string(p.Status), p.CreatedAt.Format(time.RFC3339), expiresAt)
+	if err != nil {
+		return fmt.Errorf("pending/sqlite: save: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteApprovalStore) LoadPending(ctx context.Context, id string) (*domains.PendingApproval, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, session_id, case_id, trigger_keyword, original_output,
+		        tool_calls_json, status, created_at, expires_at, responded_at
+		 FROM pending_approvals WHERE id = ?`, id)
+	var pr pendingRow
+	if err := row.Scan(&pr.ID, &pr.SessionID, &pr.CaseID, &pr.TriggerKeyword,
+		&pr.OriginalOutput, &pr.ToolCallsJSON, &pr.Status, &pr.CreatedAt,
+		&pr.ExpiresAt, &pr.RespondedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("pending/sqlite: load: %w", err)
+	}
+	return rowToPending(pr), nil
+}
+
+func (s *SQLiteApprovalStore) ListPending(ctx context.Context) ([]domains.PendingApproval, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, session_id, case_id, trigger_keyword, original_output,
+		        tool_calls_json, status, created_at, expires_at, responded_at
+		 FROM pending_approvals WHERE status = 'pending' ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("pending/sqlite: list pending: %w", err)
+	}
+	defer rows.Close()
+
+	var out []domains.PendingApproval
+	for rows.Next() {
+		var pr pendingRow
+		if err := rows.Scan(&pr.ID, &pr.SessionID, &pr.CaseID, &pr.TriggerKeyword,
+			&pr.OriginalOutput, &pr.ToolCallsJSON, &pr.Status, &pr.CreatedAt,
+			&pr.ExpiresAt, &pr.RespondedAt); err != nil {
+			return nil, fmt.Errorf("pending/sqlite: scan: %w", err)
+		}
+		out = append(out, *rowToPending(pr))
+	}
+	return out, rows.Err()
+}
+
+func (s *SQLiteApprovalStore) ListPendingBySession(ctx context.Context, sessionID string) ([]domains.PendingApproval, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, session_id, case_id, trigger_keyword, original_output,
+		        tool_calls_json, status, created_at, expires_at, responded_at
+		 FROM pending_approvals WHERE session_id = ? AND status = 'pending' ORDER BY created_at ASC`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("pending/sqlite: list by session: %w", err)
+	}
+	defer rows.Close()
+
+	var out []domains.PendingApproval
+	for rows.Next() {
+		var pr pendingRow
+		if err := rows.Scan(&pr.ID, &pr.SessionID, &pr.CaseID, &pr.TriggerKeyword,
+			&pr.OriginalOutput, &pr.ToolCallsJSON, &pr.Status, &pr.CreatedAt,
+			&pr.ExpiresAt, &pr.RespondedAt); err != nil {
+			return nil, fmt.Errorf("pending/sqlite: scan: %w", err)
+		}
+		out = append(out, *rowToPending(pr))
+	}
+	return out, rows.Err()
+}
+
+func (s *SQLiteApprovalStore) DeletePending(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM pending_approvals WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("pending/sqlite: delete: %w", err)
+	}
+	return nil
+}
+
+// Respond atomically marks a pending request as responded and inserts the
+// approval record in a single transaction, preventing state splitting.
+func (s *SQLiteApprovalStore) Respond(ctx context.Context, id string, record domains.ApprovalRecord) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("pending/sqlite: respond begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// 1) Mark pending as responded.
+	now := time.Now().Format(time.RFC3339)
+	res, err := tx.ExecContext(ctx,
+		`UPDATE pending_approvals SET status = 'responded', responded_at = ? WHERE id = ? AND status = 'pending'`,
+		now, id)
+	if err != nil {
+		return fmt.Errorf("pending/sqlite: respond update: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	// n == 0 is not an error here: the pending may have been already responded
+	// (duplicate /approve call). The approval record write below still proceeds.
+	_ = n
+
+	// 2) Insert approval record.
+	data, err := marshalRecord(record)
+	if err != nil {
+		return fmt.Errorf("pending/sqlite: marshal: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+		INSERT OR REPLACE INTO approval_records (id, session_id, case_id, trigger_keyword, decision, data)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, record.ID, record.SessionID, record.CaseID,
+		record.TriggerKeyword, string(record.Decision), string(data))
+	if err != nil {
+		return fmt.Errorf("pending/sqlite: insert record: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLiteApprovalStore) ExpirePending(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE pending_approvals
+		SET status = 'expired', responded_at = datetime('now')
+		WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at < datetime('now')
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("pending/sqlite: expire: %w", err)
+	}
+	return res.RowsAffected()
+}
+
+// rowToPending converts a database row to a domain PendingApproval.
+func rowToPending(pr pendingRow) *domains.PendingApproval {
+	createdAt, _ := time.Parse(time.RFC3339, pr.CreatedAt)
+	var expiresAt *time.Time
+	if pr.ExpiresAt != nil {
+		t, err := time.Parse(time.RFC3339, *pr.ExpiresAt)
+		if err == nil {
+			expiresAt = &t
+		}
+	}
+	var respondedAt *time.Time
+	if pr.RespondedAt != nil {
+		t, err := time.Parse(time.RFC3339, *pr.RespondedAt)
+		if err == nil {
+			respondedAt = &t
+		}
+	}
+	return &domains.PendingApproval{
+		ID:             pr.ID,
+		SessionID:      pr.SessionID,
+		CaseID:         pr.CaseID,
+		TriggerKeyword: pr.TriggerKeyword,
+		OriginalOutput: pr.OriginalOutput,
+		ToolCallsJSON:  pr.ToolCallsJSON,
+		Status:         domains.PendingStatus(pr.Status),
+		CreatedAt:      createdAt,
+		ExpiresAt:      expiresAt,
+		RespondedAt:    respondedAt,
+	}
+}
+
 // --- JSON serialization ---
 
 type approvalRecordJSON struct {
@@ -235,8 +439,9 @@ func unmarshalRecord(data []byte) (domains.ApprovalRecord, error) {
 // --- store.CaseStore ---
 
 var (
-	_ store.CaseStore = (*SQLiteApprovalStore)(nil)
-	_ store.Closer    = (*SQLiteApprovalStore)(nil)
+	_ store.CaseStore      = (*SQLiteApprovalStore)(nil)
+	_ store.Closer         = (*SQLiteApprovalStore)(nil)
+	_ domains.PendingStore = (*SQLiteApprovalStore)(nil)
 )
 
 // CaseID returns "" since this store serves all cases.

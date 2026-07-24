@@ -28,6 +28,11 @@ type AgentRunContext struct {
 	Input    string
 	Messages []Message
 	Turn     int64
+
+	// SessionID 和 CaseID 从 Agent.Config 传播而来，供 LifecycleHook
+	// （如 ApprovalGate）获取会话/案件上下文。
+	SessionID string
+	CaseID    string
 }
 
 // ModelCallContext carries context for model call hooks.

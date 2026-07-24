@@ -310,6 +310,10 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, newCitationGate(DomainPatent, ""))
 
 	// Guardrail: LevelStrict with patent disclaimer + approval gate.
+	// Create a shared DeferredPersistQueue so suppressed messages are
+	// not silently dropped — they are either committed (on approval) or
+	// discarded (on rejection) when the human responds.
+	patentDQ := guardrails.NewDeferredPersistQueue()
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelStrict),
@@ -317,6 +321,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("patent")),
 			guardrails.WithApproval(guardrails.ApprovalKeywordsFor("patent")),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
+			guardrails.WithDeferredQueue(patentDQ),
 		)),
 	)
 
@@ -324,7 +329,20 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		NewApprovalGate(ApprovalConfig{
 			RequireApprovalFor: guardrails.ApprovalKeywordsFor("patent"),
-		}),
+		},
+			WithDeferredPersist(DeferredPersistHandler{
+				CommitAll: func() {
+					for _, idx := range patentDQ.Pending() {
+						patentDQ.Commit(idx)
+					}
+				},
+				DiscardAll: func() {
+					for _, idx := range patentDQ.Pending() {
+						patentDQ.Discard(idx)
+					}
+				},
+			}),
+		),
 	)
 
 	return cfg

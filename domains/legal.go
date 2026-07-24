@@ -114,6 +114,7 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	)
 
 	// Guardrail: LevelStrict with legal disclaimer + approval gate.
+	legalDQ := guardrails.NewDeferredPersistQueue()
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		agentcore.NewIFaceLifecycleHook(guardrails.New(
 			guardrails.WithLevel(guardrails.LevelStrict),
@@ -121,6 +122,7 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("legal")),
 			guardrails.WithApproval(guardrails.ApprovalKeywordsFor("legal")),
 			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
+			guardrails.WithDeferredQueue(legalDQ),
 		)),
 	)
 
@@ -128,7 +130,20 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		NewApprovalGate(ApprovalConfig{
 			RequireApprovalFor: guardrails.ApprovalKeywordsFor("legal"),
-		}),
+		},
+			WithDeferredPersist(DeferredPersistHandler{
+				CommitAll: func() {
+					for _, idx := range legalDQ.Pending() {
+						legalDQ.Commit(idx)
+					}
+				},
+				DiscardAll: func() {
+					for _, idx := range legalDQ.Pending() {
+						legalDQ.Discard(idx)
+					}
+				},
+			}),
+		),
 	)
 
 	return cfg

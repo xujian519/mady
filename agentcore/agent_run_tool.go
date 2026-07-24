@@ -43,7 +43,7 @@ func isToolPermanentlyUnavailable(err error) bool {
 // AfterMessagePersist hooks. ReplaceMessages (compaction) bypasses this.
 func (a *Agent) persistMessage(ctx context.Context, m Message) error {
 	if lc := a.lifecycle(); lc != nil {
-		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: a.state.Turn()}
+		arc := a.newRunContext("", a.state.Messages(), a.state.Turn())
 		cp := m
 		if err := lc.BeforeMessagePersist(ctx, arc, &cp); err != nil {
 			return err
@@ -52,7 +52,7 @@ func (a *Agent) persistMessage(ctx context.Context, m Message) error {
 	}
 	a.state.AddMessage(m)
 	if lc := a.lifecycle(); lc != nil {
-		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: a.state.Turn()}
+		arc := a.newRunContext("", a.state.Messages(), a.state.Turn())
 		lc.AfterMessagePersist(ctx, arc, m)
 	}
 	return nil
@@ -88,7 +88,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 	// Pre-allocate results so lifecycle hooks can pre-populate blocked tool
 	results := make([]ToolResult, len(calls))
 	if lc := a.lifecycle(); lc != nil {
-		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: a.state.Turn()}
+		arc := a.newRunContext("", a.state.Messages(), a.state.Turn())
 		tec := &ToolExecutionContext{ToolCalls: calls, Results: results}
 		if err := lc.BeforeToolExecution(ctx, arc, tec); err != nil {
 			for _, tc := range calls {
@@ -144,7 +144,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string,
 
 	// Lifecycle: AfterToolExecution.
 	if lc := a.lifecycle(); lc != nil {
-		arc := &AgentRunContext{Agent: a, Messages: a.state.Messages(), Turn: a.state.Turn()}
+		arc := a.newRunContext("", a.state.Messages(), a.state.Turn())
 		tec := &ToolExecutionContext{ToolCalls: calls, Results: results}
 		lc.AfterToolExecution(ctx, arc, tec)
 		results = tec.Results

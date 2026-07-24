@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/user"
@@ -81,7 +82,14 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 		base.Extensions = append(base.Extensions,
 			permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))
 	}
-	return s.extendConfig(domains.UnifiedAgentConfig(base))
+	cfg := s.extendConfig(domains.UnifiedAgentConfig(base))
+
+	// Propagate session/case context for LifecycleHook persistence.
+	cfg.SessionID = s.currentThreadID
+	if s.currentProject != nil {
+		cfg.CaseID = s.currentProject.ProjectID
+	}
+	return cfg
 }
 
 // applyPlanModeThinking 在计划模式下将 Thinking 级别提升至最高。
@@ -183,14 +191,42 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 		// are recorded for AdoptionRate evaluation (roadmap P3). Falls back to
 		// in-memory store if the SQLite store cannot be opened.
 		if store, err := s.openApprovalStore(); err == nil {
-			gate = domains.NewApprovalGate(domains.DefaultApprovalConfig(), domains.WithApprovalStore(store))
+			// Also open PendingStore (same DB file) for crash recovery.
+			pstore, perr := s.openPendingStore()
+			if perr == nil {
+				s.pendingStore = pstore
+				gate = domains.NewApprovalGate(
+					domains.DefaultApprovalConfig(),
+					domains.WithApprovalStore(store),
+					domains.WithPendingStore(pstore),
+				)
+			} else {
+				log.Printf("[WARN] approval: pending store unavailable: %v", perr)
+				gate = domains.NewApprovalGate(domains.DefaultApprovalConfig(), domains.WithApprovalStore(store))
+			}
 		} else {
+			log.Printf("[WARN] approval: SQLite store unavailable: %v", err)
 			gate = domains.NewApprovalGate(domains.DefaultApprovalConfig(), domains.WithApprovalStore(domains.NewMemoryApprovalStore()))
 		}
 		s.approvalGate = gate
 		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, gate)
+
+		// Recover pending approvals from the previous session.
+		s.recoverPendingApprovals(context.Background())
+		// Start background expiration scanner for pending approvals.
+		s.startPendingExpirer(context.Background())
 	} else {
 		s.approvalGate = nil
+		s.pendingStore = nil
+	}
+
+	// Initialize SQLite-backed graph checkpoint store (optional, best-effort).
+	if gcp, err := s.openGraphCheckpointStore(); err == nil {
+		s.graphCheckpointStore = gcp
+		log.Printf("[INFO] graph checkpoint store: ready")
+	} else {
+		s.graphCheckpointStore = nil
+		log.Printf("[INFO] graph checkpoint store: unavailable (using memory fallback): %v", err)
 	}
 
 	for _, ext := range cfg.Extensions {

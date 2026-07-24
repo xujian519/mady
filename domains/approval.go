@@ -3,6 +3,7 @@ package domains
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -31,12 +32,19 @@ import (
 type ApprovalGate struct {
 	agentcore.BaseLifecycleHook
 	config ApprovalConfig
-	store  ApprovalStore // optional; set via WithApprovalStore
+	store  ApprovalStore // optional; persists audit records via RecordDecision
+	pstore PendingStore  // optional; persists pending state for crash recovery
+
+	// deferredPersist handles Commit/Discard of guardrails-deferred messages.
+	deferredPersist DeferredPersistHandler
 
 	// lastTriggeredOutput holds the most recent Agent output that triggered
 	// the approval gate. It is consumed (and cleared) by RecordDecision so
 	// that /approve or /reject records exactly the output the human reviewed.
 	lastTriggeredOutput string
+	// lastPendingID records the most recent pending_approvals row ID.
+	// RecordDecision uses it to atomically respond to the pending request.
+	lastPendingID string
 }
 
 // ApprovalConfig controls when and how the approval gate triggers.
@@ -52,6 +60,11 @@ type ApprovalConfig struct {
 	// SkipIfNoTools indicates whether to skip the gate if the output
 	// doesn't involve tool calls (purely informational).
 	SkipIfNoTools bool
+
+	// DefaultExpiry 是审批请求的默认超时时间，0 表示永不超时。
+	// 设置了此值后，每次触发审批门会令 pending 记录带上 expires_at 时间戳，
+	// 后台扫描协程会定时检查并自动过期。
+	DefaultExpiry time.Duration
 }
 
 // DefaultApprovalConfig returns a sensible default for patent/legal domains.
@@ -64,6 +77,7 @@ func DefaultApprovalConfig() ApprovalConfig {
 		},
 		TimeoutMsg:    "此步骤需要人工审核确认。请检查以下内容后回复'确认'继续，或提供修改意见。",
 		SkipIfNoTools: false,
+		DefaultExpiry: 24 * time.Hour,
 	}
 }
 
@@ -86,7 +100,7 @@ func NewApprovalGate(config ApprovalConfig, opts ...func(*ApprovalGate)) *Approv
 // It checks if the model's output triggers human approval and, if so,
 // sends a steer message to the agent and emits an approval prompt event
 // so the TUI can render an approval card with /approve and /reject actions.
-func (g *ApprovalGate) AfterModelCall(_ context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {
+func (g *ApprovalGate) AfterModelCall(ctx context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {
 	if mcc == nil || mcc.Response == nil || mcc.Err != nil {
 		return
 	}
@@ -104,6 +118,29 @@ func (g *ApprovalGate) AfterModelCall(_ context.Context, arc *agentcore.AgentRun
 	// Save the triggered output so RecordDecision can persist it when the
 	// human operator issues /approve or /reject.
 	g.lastTriggeredOutput = mcc.Response.Content
+
+	// Persist pending approval request for crash recovery.
+	if g.pstore != nil {
+		pending := PendingApproval{
+			ID:             fmt.Sprintf("pend_%d", time.Now().UnixNano()),
+			SessionID:      arc.SessionID,
+			CaseID:         arc.CaseID,
+			TriggerKeyword: g.matchedKeyword(mcc.Response.Content),
+			OriginalOutput: mcc.Response.Content,
+			Status:         PendingStatusPending,
+			CreatedAt:      time.Now(),
+		}
+		// Set expiry if configured.
+		if g.config.DefaultExpiry > 0 {
+			t := time.Now().Add(g.config.DefaultExpiry)
+			pending.ExpiresAt = &t
+		}
+		if err := g.pstore.SavePending(ctx, pending); err != nil {
+			log.Printf("[WARN] approval: save pending: %v", err)
+		} else {
+			g.lastPendingID = pending.ID
+		}
+	}
 
 	// Inject the approval prompt so the model sees it on the next turn.
 	steerMsg := g.buildApprovalMessage(mcc.Response.Content)
@@ -129,6 +166,17 @@ func (g *ApprovalGate) needsApproval(content string) bool {
 		}
 	}
 	return false
+}
+
+// matchedKeyword returns the first trigger keyword found in content,
+// or empty string if none match.
+func (g *ApprovalGate) matchedKeyword(content string) string {
+	for _, keyword := range g.config.RequireApprovalFor {
+		if strings.Contains(content, keyword) {
+			return keyword
+		}
+	}
+	return ""
 }
 
 // buildApprovalMessage constructs the human-readable approval prompt.
@@ -251,15 +299,55 @@ func (s *MemoryApprovalStore) ListByCase(_ context.Context, caseID string) ([]Ap
 
 // WithApprovalStore attaches an ApprovalStore to the gate so that
 // RecordDecision calls are persisted. Without a store, RecordDecision
-// is a no-op.
+// is a no-op for audit records.
 func WithApprovalStore(store ApprovalStore) func(*ApprovalGate) {
 	return func(g *ApprovalGate) { g.store = store }
+}
+
+// WithPendingStore attaches a PendingStore so that AfterModelCall persists
+// the pending approval request. Without it, pending state is held only in
+// memory (lastTriggeredOutput) and is lost on process restart.
+func WithPendingStore(pstore PendingStore) func(*ApprovalGate) {
+	return func(g *ApprovalGate) { g.pstore = pstore }
+}
+
+// RestorePending restores a pending approval request from persistent storage.
+// Called at TUI/Server startup to recover the gate's runtime state when a
+// prior session was interrupted before the human could respond.
+// If the pending request's session matches the current agent session, the
+// gate's lastTriggeredOutput is restored so that /approve and /reject
+// work correctly without re-triggering the model.
+func (g *ApprovalGate) RestorePending(p PendingApproval) {
+	g.lastTriggeredOutput = p.OriginalOutput
+	g.lastPendingID = p.ID
+}
+
+// DeferredPersistHandler wraps Commit/Discard callbacks for the guardrails
+// DeferredPersistQueue. ApprovalGate calls these when the human decides
+// on a gated output, avoiding a direct import of the guardrails package.
+type DeferredPersistHandler struct {
+	// CommitAll is called when the human approves; implementations should
+	// flush all deferred messages to persistent storage.
+	CommitAll func()
+	// DiscardAll is called when the human rejects; implementations should
+	// drop all deferred messages.
+	DiscardAll func()
+}
+
+// WithDeferredPersist attaches a DeferredPersistHandler so that
+// RecordDecision triggers CommitAll or DiscardAll based on the verdict.
+func WithDeferredPersist(h DeferredPersistHandler) func(*ApprovalGate) {
+	return func(g *ApprovalGate) { g.deferredPersist = h }
 }
 
 // RecordDecision creates and persists an ApprovalRecord. It should be
 // called by the TUI /review handler (or any human-in-the-loop entry point)
 // after the operator has decided on a gated output. If no store is
 // configured the call is silently ignored.
+//
+// If a PendingStore is attached and lastPendingID is set, the pending
+// record is atomically responded and the approval record is persisted
+// in a single operation, preventing state splitting.
 func (g *ApprovalGate) RecordDecision(
 	ctx context.Context,
 	sessionID, caseID, triggerKeyword, originalOutput string,
@@ -271,11 +359,49 @@ func (g *ApprovalGate) RecordDecision(
 		originalOutput = g.lastTriggeredOutput
 	}
 	g.lastTriggeredOutput = "" // consume
-	return RecordApprovalDecision(
-		ctx, g.store,
-		sessionID, caseID, triggerKeyword, originalOutput,
-		decision, modifiedOutput, feedback,
-	)
+
+	// Build the approval record.
+	record := ApprovalRecord{
+		ID:             fmt.Sprintf("appr_%d_%s", time.Now().UnixNano(), sessionID),
+		SessionID:      sessionID,
+		CaseID:         caseID,
+		Timestamp:      time.Now(),
+		TriggerKeyword: triggerKeyword,
+		OriginalOutput: originalOutput,
+		Decision:       decision,
+		ModifiedOutput: modifiedOutput,
+		Feedback:       feedback,
+		State:          DecisionToState(decision),
+	}
+
+	// Prefer atomic Respond (pending → responded + approval record in one tx).
+	if g.pstore != nil && g.lastPendingID != "" {
+		if err := g.pstore.Respond(ctx, g.lastPendingID, record); err != nil {
+			log.Printf("[WARN] approval: respond pending %s: %v", g.lastPendingID, err)
+			// Fall back to write approval record directly.
+			if g.store != nil {
+				_ = g.store.Save(ctx, record)
+			}
+		}
+		g.lastPendingID = ""
+	} else if g.store != nil {
+		return g.store.Save(ctx, record)
+	}
+
+	// Handle guardrails-deferred messages based on the human verdict.
+	if g.deferredPersist.CommitAll != nil || g.deferredPersist.DiscardAll != nil {
+		switch decision {
+		case DecisionAdopted, DecisionModified:
+			if g.deferredPersist.CommitAll != nil {
+				g.deferredPersist.CommitAll()
+			}
+		case DecisionRejected:
+			if g.deferredPersist.DiscardAll != nil {
+				g.deferredPersist.DiscardAll()
+			}
+		}
+	}
+	return nil
 }
 
 // RecordApprovalDecision 在不挂载 ApprovalGate 实例的人工决策入口（如 Server
@@ -320,4 +446,58 @@ func DecisionToState(d ApprovalDecision) ApprovalState {
 	default:
 		return StateNone
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Pending Approval Store — 进程重启后恢复待审批状态
+// ---------------------------------------------------------------------------
+
+// PendingStatus 表示待审批请求的当前状态。
+type PendingStatus string
+
+const (
+	PendingStatusPending   PendingStatus = "pending"
+	PendingStatusResponded PendingStatus = "responded"
+	PendingStatusExpired   PendingStatus = "expired"
+)
+
+// PendingApproval 记录一次 ApprovalGate 触发后、人工响应前的活动审批请求。
+// 与 ApprovalRecord（已决审计日志）不同，PendingApproval 的生命周期是：
+// 创建 → 等待人工决策 → 决策后转为 ApprovalRecord 并删除/标记为已响应。
+type PendingApproval struct {
+	ID             string        // 唯一标识
+	SessionID      string        // 触发审批的 Agent 会话
+	CaseID         string        // 可选案件标识
+	TriggerKeyword string        // 触发审批门的关键词
+	OriginalOutput string        // 触发时的 AI 输出全文
+	ToolCallsJSON  string        // 关联工具调用的 JSON 序列化
+	Status         PendingStatus // pending / responded / expired
+	CreatedAt      time.Time
+	ExpiresAt      *time.Time // 可选超时时间
+	RespondedAt    *time.Time // 响应时间
+}
+
+// PendingStore 管理活动审批请求的持久化。
+// 与 ApprovalStore（审计日志，只增不删）不同，PendingStore 需要
+// 响应后删除或标记，以维持"当前有哪些待审批"的查询准确。
+type PendingStore interface {
+	// SavePending 创建或更新待审批请求。
+	SavePending(ctx context.Context, p PendingApproval) error
+	// LoadPending 加载一个待审批请求。
+	LoadPending(ctx context.Context, id string) (*PendingApproval, error)
+	// ListPending 列出所有状态为 pending 的请求（启动时恢复用）。
+	ListPending(ctx context.Context) ([]PendingApproval, error)
+	// ListPendingBySession 列出某会话的待审批请求。
+	ListPendingBySession(ctx context.Context, sessionID string) ([]PendingApproval, error)
+	// DeletePending 删除（已响应或取消的）待审批请求。
+	DeletePending(ctx context.Context, id string) error
+	// Respond 原子地将待审批标记为已响应并写入审批记录。
+	// 即：pending_approvals.status = 'responded' + approval_records INSERT。
+	// 保证两者不分裂（同一事务）。
+	Respond(ctx context.Context, id string, record ApprovalRecord) error
+	// ExpirePending 将超时的待审批请求标记为 expired，
+	// 返回实际过期的行数。
+	ExpirePending(ctx context.Context) (int64, error)
+	// Close 释放底层资源。
+	Close() error
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/xujian519/mady/agentcore"
 	iface "github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/pkg/csync"
 )
@@ -69,6 +70,12 @@ type Config struct {
 
 	// TimeoutMsg is shown when waiting for human approval.
 	TimeoutMsg string
+
+	// DeferredQueue is the DeferredPersistQueue used to store messages
+	// that are suppressed from persistence pending human approval.
+	// When set, the AfterModelCall hook automatically stores suppressed
+	// content into this queue when SuppressPersist is set to true.
+	DeferredQueue *DeferredPersistQueue
 }
 
 // Option is a functional option for configuring a guardrail.
@@ -88,6 +95,12 @@ func WithApproval(kw []string) Option { return func(c *Config) { c.ApprovalKeywo
 
 // WithBlockedPhrases sets phrases that are always blocked.
 func WithBlockedPhrases(p []string) Option { return func(c *Config) { c.BlockedPhrases = p } }
+
+// WithDeferredQueue attaches a DeferredPersistQueue so that suppressed
+// messages are stored in the queue instead of silently dropped.
+func WithDeferredQueue(q *DeferredPersistQueue) Option {
+	return func(c *Config) { c.DeferredQueue = q }
+}
 
 // New creates a guardrail LifecycleHook with the given options.
 func New(opts ...Option) iface.LifecycleHook {
@@ -137,6 +150,15 @@ func (g *guardrail) AfterModelCall(_ context.Context, _ *iface.AgentRunContext, 
 	if g.config.Level >= LevelStrict && len(g.config.ApprovalKeywords) > 0 {
 		if g.hasApprovalKeyword(content) {
 			mcc.SuppressPersist = true
+
+			// Store the suppressed content in the deferred queue for later
+			// Commit (on approval) or Discard (on rejection).
+			if q := g.config.DeferredQueue; q != nil {
+				q.Store(0 /* single message per turn */, agentcore.Message{
+					Role:    agentcore.RoleAssistant,
+					Content: content,
+				})
+			}
 		}
 	}
 }

@@ -112,6 +112,13 @@ func (s *tuiSession) shutdownAgent() *agentcore.Agent {
 	defer s.agentMu.Unlock()
 	s.shuttingDown = true
 	s.agentInitInFlight = false
+
+	// Close the event logger bound to this agent.
+	if s.eventLogger != nil {
+		s.eventLogger.Close()
+		s.eventLogger = nil
+	}
+
 	prev := s.currentAgent
 	s.currentAgent = nil
 	return prev
@@ -157,6 +164,7 @@ func (s *tuiSession) initializeAgentAsync() {
 		}()
 
 		newAgent = agentcore.New(s.buildAgentConfig())
+		s.startEventLogger(newAgent)
 
 		// Load previous session state if available (cross-session persistence).
 		// 首次启动时 session 文件不存在是正常情况，静默跳过。
@@ -222,6 +230,7 @@ func (s *tuiSession) rebuildAgent() {
 	}()
 
 	newAgent = agentcore.New(s.buildAgentConfig())
+	s.startEventLogger(newAgent)
 	newAgent.RegisterTools(domains.NewOrchestrationTool(newAgent))
 	prev, ok := s.swapCurrentAgent(newAgent)
 	if !ok {
