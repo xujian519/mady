@@ -351,7 +351,7 @@ func loadManifests(fc *frameworkContext) {
 }
 
 // discoverSkills 扫描多路径 SKILL.md 并注册到 BaseConfig。
-// 优先级：$SKILL_DIR > $HOME/.agent > $PWD/.agent > ~/.mady/skills > ~/.agents/skills。
+// 优先级：$SKILL_DIR > $HOME/.agent > $PWD/{.agent,skills} > ~/.mady/skills > ~/.agents/skills。
 func discoverSkills(fc *frameworkContext) {
 	var skillPaths []string
 	if sd := os.Getenv("SKILL_DIR"); sd != "" {
@@ -361,7 +361,7 @@ func discoverSkills(fc *frameworkContext) {
 		skillPaths = append(skillPaths, filepath.Join(homeDir, ".agent"))
 	}
 	if cwd, err := os.Getwd(); err == nil {
-		skillPaths = append(skillPaths, filepath.Join(cwd, ".agent"))
+		skillPaths = append(skillPaths, filepath.Join(cwd, ".agent"), filepath.Join(cwd, "skills"))
 	}
 	if fc.MadyHome != "" {
 		skillPaths = append(skillPaths, filepath.Join(fc.MadyHome, "skills"))
@@ -620,6 +620,14 @@ func initReasoningAndTemplates(fc *frameworkContext) {
 	// provider 可用时启用 LLM 逐节点撰写；不可用时降级为纯规则引擎模板填充。
 	domains.SetupClaimDraftingExtension(fc.Provider, agentconfig.DefaultModel())
 	domains.SetupSpecDraftingExtension(fc.Provider)
+
+	// 规则引擎扩展 + 写作模式扩展：使所有 Agent 拥有 query_rules /
+	// query_writing_patterns 和 list_writing_patterns 工具。
+	// 规则引擎已在前序步骤通过 fc.RuleEngine 加载（可能为 nil）。
+	domains.SetupRulesExtension(fc.RuleEngine)
+	if patternStore := loadWritingPatterns(fc.MadyHome); patternStore != nil {
+		domains.SetupWritingExtension(patternStore)
+	}
 
 	userTmplDir := filepath.Join(fc.MadyHome, "doc-templates")
 	store, err := doctmpl.NewTemplateStore(userTmplDir)

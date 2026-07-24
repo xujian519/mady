@@ -84,6 +84,8 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 	// comparison tools as PatentAgent, via the shared injectDraftingTool.
 	injectDraftingTool(&cfg)
 	injectDocTemplateTools(&cfg)
+	injectRulesTools(&cfg)
+	injectWritingTools(&cfg)
 	injectPromptTools(&cfg)
 
 	// 知识库扩展：为法律 Agent 提供 search_knowledge / search_laws 工具，

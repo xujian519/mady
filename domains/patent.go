@@ -13,7 +13,9 @@ import (
 	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/domains/novelty"
 	"github.com/xujian519/mady/domains/reasoning"
+	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/domains/specdrafting"
+	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/retrieval/domain"
 	"github.com/xujian519/mady/tools"
@@ -85,6 +87,14 @@ var globalClaimDraftingExt agentcore.Extension
 // + 16 条校验规则 + 评分器）。
 var globalSpecDraftingExt agentcore.Extension
 
+// globalRuleExt 是规则引擎扩展的全局实例，由 SetupRulesExtension 在启动期注入。
+// PatentAgentConfig / LegalAgentConfig 将其注册到 Extensions 中，使 Agent 拥有 query_rules 工具。
+var globalRuleExt agentcore.Extension
+
+// globalWritingExt 是写作模式扩展的全局实例，由 SetupWritingExtension 在启动期注入。
+// PatentAgentConfig / LegalAgentConfig 将其注册到 Extensions 中，使 Agent 拥有 query_writing_patterns 工具。
+var globalWritingExt agentcore.Extension
+
 // SetupClaimDraftingExtension 在启动期构造并注入权利要求撰写扩展。
 // provider 非 nil 时启用 LLM 增强（通过 ProviderAdapter 桥接）。
 // 必须在任何 Agent 创建前调用。
@@ -132,6 +142,22 @@ func SetupDocTemplateStore(store *doctmpl.TemplateStore) {
 	globalTemplateStore = store
 }
 
+// SetupRulesExtension 在启动期注入规则引擎扩展实例。
+// engine 为 nil 时静默跳过，不影响现有行为。
+func SetupRulesExtension(engine *rules.Engine) {
+	if engine != nil {
+		globalRuleExt = rules.NewExtension(engine)
+	}
+}
+
+// SetupWritingExtension 在启动期注入写作模式扩展实例。
+// store 为 nil 时静默跳过。
+func SetupWritingExtension(store *writing.PatternStore) {
+	if store != nil {
+		globalWritingExt = writing.NewExtension(store)
+	}
+}
+
 // injectDocTemplateTools 向 Agent 配置注册文档模板相关工具。
 func injectDocTemplateTools(cfg *agentcore.Config) {
 	if globalTemplateStore != nil {
@@ -139,6 +165,20 @@ func injectDocTemplateTools(cfg *agentcore.Config) {
 			doctmpl.NewListDocTemplatesTool(globalTemplateStore),
 			doctmpl.NewRenderDocTemplateTool(globalTemplateStore),
 		)
+	}
+}
+
+// injectRulesTools 向 Agent 配置注册 query_rules 工具。
+func injectRulesTools(cfg *agentcore.Config) {
+	if globalRuleExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalRuleExt)
+	}
+}
+
+// injectWritingTools 向 Agent 配置注册 query_writing_patterns 和 list_writing_patterns 工具。
+func injectWritingTools(cfg *agentcore.Config) {
+	if globalWritingExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalWritingExt)
 	}
 }
 
@@ -337,6 +377,17 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	if base.Engine == "" {
 		cfg.Engine = "chunked"
 	}
+
+	// DoomLoop: 死循环检测器，监控工具调用循环、重复文本、空结果等异常。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
+
+	// ReasoningStrategy: 项目级别 Agent 同样需要结构化推理策略。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		agentcore.NewReasoningStrategyRouter(
+			agentcore.NewDefaultClassifier(),
+			agentcore.NewDefaultStrategySelector(),
+		),
+	)
 
 	// 法条引用核验 Gate（P1b）：案件答案同样纳入引用核验。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
