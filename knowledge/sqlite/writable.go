@@ -3,7 +3,6 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/xujian519/mady/pkg/vecbytes"
 
 	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
@@ -223,7 +224,7 @@ func (w *WritableStore) AddDocument(ctx context.Context, docID, title, content s
 		if len(vec) != w.dim {
 			return fmt.Errorf("vector dim mismatch at chunk %d: got %d, want %d", i, len(vec), w.dim)
 		}
-		blob := float32ToBytes(vec)
+		blob := vecbytes.FloatsToBytes(vec)
 		norm := vecNorm(vec)
 
 		res, err := tx.Exec(
@@ -373,7 +374,7 @@ func (w *WritableStore) vectorSearch(queryVec []float32, topK int) ([]retrieval.
 		if err := rows.Scan(&chunkID, &docID, &vecBlob, &norm); err != nil {
 			return nil, fmt.Errorf("writable vector scan: %w", err)
 		}
-		vec := bytesToFloat32(vecBlob)
+		vec := vecbytes.BytesToFloats(vecBlob)
 		if len(vec) != w.dim || norm == 0 {
 			continue
 		}
@@ -451,15 +452,6 @@ func (w *WritableStore) Close() error {
 		return nil
 	}
 	return w.db.Close()
-}
-
-// float32ToBytes encodes a float32 slice as a little-endian BLOB.
-func float32ToBytes(vec []float32) []byte {
-	buf := make([]byte, len(vec)*4)
-	for i, v := range vec {
-		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(v))
-	}
-	return buf
 }
 
 // vecNorm computes the L2 norm of a float32 vector.

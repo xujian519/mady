@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/xujian519/mady/pkg/vecbytes"
 )
 
 // testEmbedder implements retrieval.Embedder for testing. It produces
@@ -264,11 +266,11 @@ func TestWritableStore_HashString(t *testing.T) {
 
 func TestFloat32ToBytesRoundTrip(t *testing.T) {
 	original := []float32{1.0, -2.5, 3.14, 0.0, math.Float32frombits(0x80000000)}
-	blob := float32ToBytes(original)
+	blob := vecbytes.FloatsToBytes(original)
 	if len(blob) != len(original)*4 {
 		t.Fatalf("blob length = %d, want %d", len(blob), len(original)*4)
 	}
-	decoded := bytesToFloat32(blob)
+	decoded := vecbytes.BytesToFloats(blob)
 	for i, v := range original {
 		if v != decoded[i] {
 			t.Errorf("round-trip mismatch at %d: got %v, want %v", i, decoded[i], v)

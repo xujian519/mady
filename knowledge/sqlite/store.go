@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"database/sql"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -10,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/xujian519/mady/pkg/vecbytes"
 
 	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
@@ -341,7 +342,7 @@ func (s *SQLiteStore) vectorSearchSQLParallel(queryVec []float32, topK int) ([]r
 				if err := rows.Scan(&chunkID, &vecBlob, &norm); err != nil {
 					continue
 				}
-				vec := bytesToFloat32(vecBlob)
+				vec := vecbytes.BytesToFloats(vecBlob)
 				if len(vec) != len(queryVec) {
 					continue
 				}
@@ -744,7 +745,7 @@ func (s *SQLiteStore) SampleVector() []float32 {
 	if err != nil || len(blob) == 0 {
 		return nil
 	}
-	return bytesToFloat32(blob)
+	return vecbytes.BytesToFloats(blob)
 }
 
 // EmbeddingDim returns the detected embedding dimension.
@@ -776,15 +777,4 @@ func (s *SQLiteStore) Stats() StoreStats {
 	// platforms when embeddings exceed ~500K (int32 max ≈ 2.1B).
 	st.VectorMemoryMB = float64(st.Embeddings) * float64(st.Dim) * 4 / 1024 / 1024
 	return st
-}
-
-// bytesToFloat32 decodes a little-endian float32 BLOB into a slice.
-func bytesToFloat32(b []byte) []float32 {
-	count := len(b) / 4
-	vec := make([]float32, count)
-	for i := 0; i < count; i++ {
-		bits := binary.LittleEndian.Uint32(b[i*4 : i*4+4])
-		vec[i] = math.Float32frombits(bits)
-	}
-	return vec
 }

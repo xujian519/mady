@@ -61,68 +61,6 @@ func NewPatentNoveltyTool(opts ...GraphOption) *agentcore.Tool {
 	}
 }
 
-// Deprecated: 由 domains/specdrafting 的 SetupSpecDraftingExtension 替代。
-// 新版采用 12 节点 Pregel 图引擎 + 16 条校验规则 + 评分器，功能更完善。
-//
-// NewSpecificationTool 创建 specification_drafter 工具，
-// 封装专利说明书撰写 Pregel 图（技术领域→背景技术→发明内容→附图说明→具体实施方式）。
-// 输入技术交底书和权利要求文本，输出完整的说明书文档（Markdown 格式）。
-func NewSpecificationTool() *agentcore.Tool {
-	return &agentcore.Tool{
-		Name:        "specification_drafter",
-		Description: "根据技术交底书和权利要求撰写完整的专利说明书，包含技术领域、背景技术、发明内容、附图说明和具体实施方式五个标准章节。",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"disclosure": map[string]any{
-					"type":        "string",
-					"description": "技术交底书内容，描述发明的技术问题、技术方案和有益效果",
-				},
-				"claims": map[string]any{
-					"type":        "string",
-					"description": "权利要求文本（可选），用于填充发明内容部分的技术方案描述",
-				},
-			},
-			"required":             []string{"disclosure"},
-			"additionalProperties": false,
-		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-			var p struct {
-				Disclosure string `json:"disclosure"`
-				Claims     string `json:"claims"`
-			}
-			if err := json.Unmarshal(args, &p); err != nil {
-				return agentcore.NewFailureResult("参数解析失败", "技术交底书文本格式错误"), nil
-			}
-			if p.Disclosure == "" {
-				return agentcore.NewFailureResult("输入为空", "技术交底书内容不能为空"), nil
-			}
-
-			compiled, err := BuildSpecificationGraph()
-			if err != nil {
-				return agentcore.NewFailureResult("撰写引擎初始化失败",
-					"说明书撰写功能暂时不可用，请稍后重试。"), nil
-			}
-
-			state, err := compiled.Run(ctx, graph.PregelState{
-				StateSpecDisclosure: p.Disclosure,
-				StateSpecClaims:     p.Claims,
-			})
-			if err != nil {
-				return agentcore.NewFailureResult("撰写执行失败",
-					"说明书撰写出现错误。"), nil
-			}
-
-			output := state.GetString(StateSpecOutput)
-			if output == "" {
-				return agentcore.NewFailureResult("结果为空", "撰写完成但未能生成输出。"), nil
-			}
-
-			return agentcore.NewHandoffResult("说明书撰写完成", output), nil
-		},
-	}
-}
-
 // NewDebateTool 创建 examiner_debate 工具，
 // 封装审查员-代理人模拟辩论 Pregel 图（3 轮审查意见 + 答复往复）。
 // 输入权利要求文本和技术交底书，输出模拟辩论记录和答复策略建议。
@@ -231,70 +169,6 @@ func NewInvalidationTool(opts ...InvGraphOption) *agentcore.Tool {
 			}
 
 			return agentcore.NewHandoffResult("专利无效宣告分析完成", output), nil
-		},
-	}
-}
-
-// Deprecated: 由 domains/infringement.NewInfringementTool 替代（LLM 增强版）。
-// 新版采用四层覆盖深度分析（文义/等同/禁反言/捐献），推荐使用 domains/infringement 版本。
-//
-// NewInfringementTool 创建 analyze_patent_infringement 工具，
-// 封装专利侵权比对分析 Pregel 图（全面覆盖 → 等同侵权 → 规则引擎校验）。
-func NewInfringementTool() *agentcore.Tool {
-	return &agentcore.Tool{
-		Name:        "analyze_patent_infringement",
-		Description: "对专利侵权进行比对分析：输入专利权利要求和被控侵权方案，分解技术特征并进行全面覆盖（字面侵权）和等同侵权分析，经规则引擎校验完整性后输出结构化报告。",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"patent_claims": map[string]any{
-					"type":        "string",
-					"description": "专利权利要求文本",
-				},
-				"accused_product": map[string]any{
-					"type":        "string",
-					"description": "被控侵权产品/方法的技术描述",
-				},
-			},
-			"required":             []string{"patent_claims", "accused_product"},
-			"additionalProperties": false,
-		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-			var p struct {
-				Claims  string `json:"patent_claims"`
-				Product string `json:"accused_product"`
-			}
-			if err := json.Unmarshal(args, &p); err != nil {
-				return agentcore.NewFailureResult("参数解析失败", "参数格式错误"), nil
-			}
-			if p.Claims == "" {
-				return agentcore.NewFailureResult("输入为空", "权利要求文本不能为空"), nil
-			}
-			if p.Product == "" {
-				return agentcore.NewFailureResult("输入为空", "被控侵权方案描述不能为空"), nil
-			}
-
-			compiled, err := BuildInfringementGraph()
-			if err != nil {
-				return agentcore.NewFailureResult("分析引擎初始化失败",
-					"专利侵权分析功能暂时不可用，请稍后重试。"), nil
-			}
-
-			state, err := compiled.Run(ctx, graph.PregelState{
-				InfStatePatentClaims:   p.Claims,
-				InfStateAccusedProduct: p.Product,
-			})
-			if err != nil {
-				return agentcore.NewFailureResult("分析执行失败",
-					"专利侵权分析出现错误。"), nil
-			}
-
-			output := state.GetString(InfStateOutput)
-			if output == "" {
-				return agentcore.NewFailureResult("结果为空", "分析完成但未能生成输出。"), nil
-			}
-
-			return agentcore.NewHandoffResult("专利侵权分析完成", output), nil
 		},
 	}
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
+	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
@@ -249,6 +250,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			inventiveness.NewInventivenessTool(inventiveness.WithProvider(base.Provider)),
 			novelty.NewNoveltyTool(novelty.WithProvider(base.Provider)),
 			design.NewDesignInvalidationTool(),
+			disclosure.NewDisclosureTool(base.Provider),
 		},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt)

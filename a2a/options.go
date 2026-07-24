@@ -3,6 +3,9 @@ package a2a
 import (
 	"log/slog"
 	"time"
+
+	"github.com/xujian519/mady/a2a/pool"
+	"github.com/xujian519/mady/a2a/registry"
 )
 
 // ServerOption configures a Server.
@@ -57,5 +60,15 @@ func WithMaxEventHistory(perTask, total int) ServerOption {
 	return func(s *Server) {
 		s.maxHistoryLen = perTask
 		s.maxTotalHist = total
+	}
+}
+
+// WithFederation 启用 A2A 联邦网络支持：注入 Agent 注册表和心跳健康池。
+// pool 会在 NewServer 时自动启动后台健康检查，在 Shutdown 时停止。
+// 传 nil 则不启用联邦功能（默认行为，向后兼容）。
+func WithFederation(reg registry.Registry, p *pool.Pool) ServerOption {
+	return func(s *Server) {
+		s.federationRegistry = reg
+		s.federationPool = p
 	}
 }

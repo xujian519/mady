@@ -1,6 +1,103 @@
 # AI 变更记录
 
-## 2026-07-24: prompt-templates 接线 — Phase 5（暴露模板目录工具与 CLI）
+## 2026-07-24: B 档高价值接线 — guardian/tracing/evidence/disclosure
+
+### 背景
+原始 B 档计划中的 4 项高价值未接线模块（实现完整、设计合理、只差装配代码）。本次全部激活。
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `cmd/mady/framework.go` | 注入 `evidence.NewExtension()` 到 BaseConfig.Extensions（全局工具调用审计账本） |
+| `cmd/mady/framework.go` | 新增 `MADY_TRACING=stdout` 条件启用 OTel 追踪 + frameworkContext.TracerFlush 字段 |
+| `cmd/mady/framework.go` | 新增 `MADY_GUARDIAN=1` 条件启用 AI 安全审查熔断器 + frameworkContext.GuardianExt 字段 |
+| `domains/patent.go` | ExtraTools 新增 `disclosure.NewDisclosureTool(base.Provider)`，11 节点 Pregel 管线对 Agent 可见 |
+
+### 设计决策
+- **evidence 默认启用**：审计账本是无副作用的只读记录（BeforeTurn 重置 + AfterToolExecution 记录 Receipt），对所有 Agent 透明接入。
+- **tracing 条件启用**：OTel 追踪通过 `MADY_TRACING=stdout` 环境变量控制，默认关闭（零开销）。启用后 Agent 执行的每个阶段生成 span。
+- **guardian 条件启用**：AI 安全审查每次非只读工具调用会触发额外 LLM 调用，通过 `MADY_GUARDIAN=1` 显式启用。内置熔断器在连续拒绝时自动放行，防止 Guardian 故障阻塞工作流。
+- **disclosure 默认注册**：11 节点交底书分析 Pregel 管线是 PatentAgent 的核心能力，直接加入 ExtraTools 列表。
+
+### 安全敏感路径
+- `guardrails/guardian/` 接线涉及安全边界（AI 熔断器），采用条件启用（默认关闭）避免影响生产稳定性。
+- `disclosure` 工具注册到 `domains/patent.go` PatentAgentConfig.ExtraTools，不影响 WorkingDir 沙箱或路由白名单。
+
+### 验证结果
+- `go build ./...`：通过 ✅
+- `go vet ./...`：通过 ✅
+- `go test ./...`：80 包全部通过 ✅
+
+---
+
+## 2026-07-24: 孤儿代码清理 + 未接线模块激活
+
+### 背景
+通过 3 个并行 explore 子代理 + codegraph 调用图分析 + 全量 grep 验证，发现 14 个完全孤儿包（零外部导入者）和 7 处已接线包内的死代码。本次处理用户确认的 A 档（删除废弃代码）和 B 档（接线已实现但未装配的扩展）。
+
+### 改动清单
+
+**A 档：删除废弃代码（6 项）**
+
+| 操作 | 目标 | 理由 |
+|------|------|------|
+| 删除整个包 | `filequeue/` | 从未被任何代码导入 |
+| 删除整个包 | `agentcore/cache/` | doc.go 自承认"存储未实现" |
+| 删除整个包 | `workflow/` | Pipeline/Parallel/Router 被 Pregel + Handoff 双重替代 |
+| 删除整个文件 | `domains/graph.go` | BuildDomainGraph 被 Handoff 替代（零外部调用） |
+| 删除函数 | `workflows/patent/tool.go` NewSpecificationTool | Deprecated，被 specdrafting 替代 |
+| 删除函数 | `workflows/patent/tool.go` NewInfringementTool | Deprecated，被 domains/infringement 替代 |
+
+**B 档：接线未装配扩展（3 项）**
+
+| 文件 | 改动 |
+|------|------|
+| `cmd/mady/framework.go` | 新增 `filecheckpoint.NewExtension()` 注入到 BaseConfig.Extensions，提供编辑前快照安全网 |
+| `cmd/mady/framework.go` | 新增 `planmode.NewExtension()` 注入到 BaseConfig.Extensions + frameworkContext.PlanModeExt 引用（默认不激活，零开销） |
+| `a2a/options.go` | 新增 `WithFederation(reg, pool)` ServerOption |
+| `a2a/server.go` | 新增 federationRegistry/federationPool 字段、pool 生命周期管理（Start/Shutdown）、`/federation/agents` 端点 |
+
+### 设计决策
+- **filecheckpoint 默认启用**：编辑安全网是无副作用的只读快照，对所有 Agent 透明接入，不需要配置开关。
+- **planmode 默认不激活**：通过 `atomic.Bool` 控制开关，不激活时零开销。frameworkContext 存储 PlanModeExt 引用，TUI 后续可通过 Activate/Deactivate 控制开关。
+- **a2a 联邦向后兼容**：WithFederation 传 nil 时不启用联邦功能（默认行为），已有 server 代码无需修改。
+- **infringement.go 保留**：子代理报告说"被 domains/infringement 替代"，但 `BuildInfringementGraph()` 仍被 `cmd/mady/tui_session.go:805` 和 `cmd/mady/patent.go:281` 调用，删除会破坏编译。
+
+### 暂缓项（C 档重构）
+- **protocol/jsonrpc 统一**：a2a 的 `Result any` 与 protocol/jsonrpc 的 `Result json.RawMessage` 不兼容，`Code int` vs `int64` 差异，直接替换会改变协议序列化行为。需独立设计迁移方案。
+- **retrieval/internal 复用**：Go internal 包机制限制 knowledge/memory 无法导入 retrieval/internal，需先移到公共位置（如 pkg/vecbytes/）。
+
+### 验证结果
+- `go build ./...`：通过 ✅
+- `cd tools && go build ./...`：通过 ✅
+- `cd tui && go build ./...`：通过 ✅
+- `go test ./...`：全部通过 ✅
+- `go vet ./...`：通过 ✅
+
+### C 档：重构统一（2 项）
+
+**C-1：浮点编码统一 → pkg/vecbytes/**
+
+| 文件 | 改动 |
+|------|------|
+| `pkg/vecbytes/vecbytes.go` | 新建公共包，提供 `FloatsToBytes` / `BytesToFloats` |
+| `pkg/vecbytes/vecbytes_test.go` | 新建测试 |
+| `knowledge/sqlite/store.go` | 删除 `bytesToFloat32`，改用 `vecbytes.BytesToFloats` |
+| `knowledge/sqlite/writable.go` | 删除 `float32ToBytes`，改用 `vecbytes.FloatsToBytes` |
+| `knowledge/sqlite/writable_test.go` | 测试改用 `vecbytes` |
+| `memory/sqlite_store.go` | 删除 `floatsToBytes` / `bytesToFloats`，改用 `vecbytes` |
+| `retrieval/internal/` | 删除整个孤儿包（浮点编码 + L2Norm/TopKByScore/RRFScore 全部未使用） |
+
+**C-2：删除 protocol/jsonrpc 孤儿包**
+
+| 文件 | 改动 |
+|------|------|
+| `protocol/jsonrpc/` | 删除整个目录（36 行孤儿包，a2a/acp 各自维护 JSON-RPC 类型且工作正常） |
+
+### 设计决策（C 档）
+- **vecbytes 提取而非保留 internal**：`retrieval/internal` 受 Go internal 包机制限制，knowledge/memory 无法导入。提取到 `pkg/vecbytes/` 后三方复用同一实现，消除 3 处重复编码逻辑。
+- **protocol/jsonrpc 删除而非统一**：a2a 的 `Result any` 与 acp 的 `Result json.RawMessage` 存在本质差异，`Code int` vs `int64`、`ID` json tag 也不一致。真正统一需修改两个协议层的序列化行为，风险过高。删除孤儿包是最安全的选择，a2a/acp 保持各自副本。
 
 ### 背景
 前序阶段已完成 `prompt/templates/` 目录、`prompt.PromptStore`、模板解析与内联 prompt 迁移。Phase 5 将模板仓库暴露给用户和 Agent，支持浏览可用模板。

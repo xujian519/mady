@@ -18,6 +18,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/agentcore/evidence"
+	"github.com/xujian519/mady/agentcore/filecheckpoint"
+	"github.com/xujian519/mady/agentcore/planmode"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/reasoning"
@@ -25,6 +28,7 @@ import (
 	"github.com/xujian519/mady/domains/rules"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/guardrails"
+	"github.com/xujian519/mady/guardrails/guardian"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
@@ -42,6 +46,7 @@ import (
 	rsqlite "github.com/xujian519/mady/retrieval/domain/sqlite"
 	"github.com/xujian519/mady/skill"
 	"github.com/xujian519/mady/tools"
+	"github.com/xujian519/mady/tracing"
 )
 
 // pluginToolExtension wraps a single *agentcore.Tool into an Extension
@@ -125,6 +130,14 @@ type frameworkContext struct {
 	CompilerDBPath string
 	// SessionSummarizer 是会话关闭时的异步汇总器。为 nil 时跳过汇总。
 	SessionSummarizer *memory.SessionSummarizer
+	// PlanModeExt 是计划模式扩展引用，默认不激活（零开销）。
+	// TUI 可通过此引用调用 Activate/Deactivate 切换计划模式。
+	PlanModeExt *planmode.PlanModeExtension
+	// TracerFlush 是 tracing 的刷新函数（启用时非 nil），进程退出前应调用。
+	TracerFlush func(context.Context) error
+	// GuardianExt 是 AI 安全审查扩展引用（MADY_GUARDIAN=1 时启用）。
+	// 拦截非只读工具调用进行 AI 审查，内置熔断器防止过度延迟。
+	GuardianExt *guardian.GuardianExtension
 
 	// Deferred 持有后台延迟初始化任务集。非 TUI 入口（serve/acp）保持 nil。
 	// TUI 在 app.Start() 后调用 fc.Deferred.StartAll() 执行它们。
@@ -201,6 +214,24 @@ func setupFrameworkContext(ctx context.Context, cmdName string) *frameworkContex
 			BaseDelayMs: 1000,
 			MaxDelayMs:  15000,
 		},
+	}
+
+	// OpenTelemetry 分布式追踪：通过 MADY_TRACING=stdout 或 MADY_TRACING=otlp 条件启用。
+	// 默认关闭（零开销）。启用后 Agent 执行的每个阶段会生成 span。
+	if tracingMode := os.Getenv("MADY_TRACING"); tracingMode != "" {
+		switch tracingMode {
+		case "stdout":
+			tracer, flushFn, err := tracing.NewStdoutTracer("mady")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "tracing: 初始化 stdout tracer 失败: %v\n", err)
+			} else {
+				fc.BaseConfig.Tracer = tracer
+				fc.TracerFlush = flushFn
+				fmt.Fprintf(os.Stderr, "tracing: stdout tracer 已启用\n")
+			}
+		default:
+			fmt.Fprintf(os.Stderr, "tracing: 未知模式 %q（支持: stdout）\n", tracingMode)
+		}
 	}
 
 	// Manifest 加载（go:embed 为主 + 可选目录扫描）：轻量快速，保持同步。
@@ -456,7 +487,35 @@ func buildBaseTools(fc *frameworkContext) {
 			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolProcess, tools.ToolComputerUse,
 		},
 	})
-	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, baseTools)
+	// 编辑安全网：在写入工具（edit/write_file/delete 等）执行前自动记录文件快照，
+	// 支持按用户轮回退。仅追踪编辑工具变更，bash 副作用不追踪。
+	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions,
+		baseTools,
+		filecheckpoint.NewExtension(toolWorkingDir),
+	)
+
+	// 计划模式门控：默认不激活（零开销），TUI 可通过 fc.PlanModeExt 控制开关。
+	// 激活后阻止写入工具，仅允许只读操作（研究/分析阶段使用）。
+	// 工具调用证据账本：自动记录每次工具调用的 Receipt（BeforeTurn 重置，
+	// AfterToolExecution 记录），供审计和 HandoffResult 证据包裹使用。
+	fc.PlanModeExt = planmode.NewExtension(planmode.Policy{})
+	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions,
+		fc.PlanModeExt,
+		evidence.NewExtension(),
+	)
+
+	// Guardian AI 安全审查（MADY_GUARDIAN=1 条件启用）：拦截非只读工具调用，
+	// 使用独立 Provider 会话进行安全审查。内置熔断器在连续拒绝时自动放行，
+	// 防止 Guardian 故障阻塞正常工作流。
+	if os.Getenv("MADY_GUARDIAN") == "1" && fc.Provider != nil {
+		session := guardian.NewSession(guardian.Config{
+			Provider: fc.Provider,
+			Model:    agentconfig.DefaultModel(),
+		})
+		fc.GuardianExt = guardian.NewExtension(session)
+		fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, fc.GuardianExt)
+		fmt.Fprintf(os.Stderr, "guardian: AI 安全审查已启用（熔断器保护）\n")
+	}
 }
 
 // initPlugins 从 plugins/ 目录发现并加载工作流插件。

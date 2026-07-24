@@ -3,15 +3,14 @@ package memory
 import (
 	"context"
 	"database/sql"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
+	"github.com/xujian519/mady/pkg/vecbytes"
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/store"
 )
@@ -132,7 +131,7 @@ func (s *SQLiteMemoryStore) Remember(ctx context.Context, content string, scope 
 	var embVal any
 	if s.embedder != nil {
 		if vecs, err := s.embedder.Embed(ctx, []string{content}); err == nil && len(vecs) > 0 {
-			embVal = floatsToBytes(vecs[0])
+			embVal = vecbytes.FloatsToBytes(vecs[0])
 		}
 	}
 
@@ -213,7 +212,7 @@ func (s *SQLiteMemoryStore) RememberBatch(ctx context.Context, entries []MemoryE
 
 		var embVal any
 		if len(e.Embedding) > 0 {
-			embVal = floatsToBytes(e.Embedding)
+			embVal = vecbytes.FloatsToBytes(e.Embedding)
 		}
 
 		_, err := stmt.ExecContext(ctx,
@@ -544,7 +543,7 @@ func scanEntry(sc scanner) (MemoryEntry, error) {
 	entry.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updatedAt)
 	entry.LastAccess, _ = time.Parse(time.RFC3339Nano, lastAccess)
 	if len(embBlob) > 0 {
-		entry.Embedding = bytesToFloats(embBlob)
+		entry.Embedding = vecbytes.BytesToFloats(embBlob)
 	}
 	// Metadata 列在 schema 中未强制 JSON 约束，历史数据可能含 null/坏值。
 	// 此处与上方 time.Parse 的处理保持一致：best-effort 解析，损坏时降级为
@@ -624,25 +623,6 @@ func buildWhereClause(filter MemoryFilter) (string, []any) {
 		return "", nil
 	}
 	return "WHERE " + strings.Join(clauses, " AND "), args
-}
-
-func floatsToBytes(floats []float32) []byte {
-	buf := make([]byte, 4*len(floats))
-	for i, f := range floats {
-		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(f))
-	}
-	return buf
-}
-
-func bytesToFloats(b []byte) []float32 {
-	if len(b)%4 != 0 || len(b) == 0 {
-		return nil
-	}
-	floats := make([]float32, len(b)/4)
-	for i := range floats {
-		floats[i] = math.Float32frombits(binary.LittleEndian.Uint32(b[i*4:]))
-	}
-	return floats
 }
 
 // 编译时检查

@@ -10,6 +10,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/xujian519/mady/a2a/pool"
+	"github.com/xujian519/mady/a2a/registry"
 )
 
 type contextKey string
@@ -91,6 +94,10 @@ type Server struct {
 	maxRequestBody int64
 	taskTimeout    time.Duration
 	requestTimeout time.Duration
+
+	// 联邦网络支持（通过 WithFederation 启用，默认 nil 向后兼容）。
+	federationRegistry registry.Registry
+	federationPool     *pool.Pool
 }
 
 // CORSConfig configures cross-origin resource sharing.
@@ -129,6 +136,12 @@ func NewServer(handler AgentHandler, opts ...ServerOption) *Server {
 	if s.taskTTL > 0 {
 		s.startCleanup()
 	}
+
+	// 启动联邦心跳池（如果通过 WithFederation 配置了）。
+	if s.federationPool != nil {
+		s.federationPool.Start(context.Background())
+	}
+
 	return s
 }
 
@@ -139,6 +152,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/", s.handleJSONRPC)
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/ws", s.handleWebSocket)
+
+	// 联邦端点：仅当通过 WithFederation 启用时注册。
+	if s.federationRegistry != nil {
+		mux.HandleFunc("/federation/agents", s.handleFederationAgents)
+	}
 
 	h := withAuth(withCORS(mux, s.cors), s.auth)
 	if s.rateLimiter != nil {
@@ -155,6 +173,11 @@ func (s *Server) ListenAndServe(addr string) error {
 
 // Shutdown gracefully shuts down the server and closes all subscriptions.
 func (s *Server) Shutdown(ctx context.Context) error {
+	// 停止联邦心跳池（如果启用了）。
+	if s.federationPool != nil {
+		s.federationPool.Stop()
+	}
+
 	if s.cleanupTicker != nil {
 		s.cleanupTicker.Stop()
 		close(s.cleanupStop)
@@ -193,6 +216,23 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// handleFederationAgents 返回联邦注册表中已知的 Agent 列表。
+// 如果启用了心跳池，仅返回通过健康检查的存活 Agent。
+func (s *Server) handleFederationAgents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var agents []*registry.Registration
+	if s.federationPool != nil {
+		agents = s.federationPool.Alive()
+	} else if s.federationRegistry != nil {
+		agents = s.federationRegistry.List()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(agents)
 }
 
 func (s *Server) handleAgentCard(w http.ResponseWriter, r *http.Request) {
