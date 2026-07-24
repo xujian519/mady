@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -149,6 +150,7 @@ type BrowserSession struct {
 	supervisor     *CDPSupervisor
 	recorder       *CDPRecorder
 	refMapper      *RefMapper
+	egoLiteManager *EgoLiteManager
 }
 
 type BrowserManager struct {
@@ -159,6 +161,7 @@ type BrowserManager struct {
 	camofoxClient          *CamofoxClient
 	lightpandaMgr          *LightpandaManager
 	agentBrowserMgr        *AgentBrowserManager
+	egoLiteMgr             *EgoLiteManager
 	fallbackCloudProviders []browserproviders.CloudBrowserProvider
 	activeSession          string
 
@@ -195,6 +198,13 @@ func NewBrowserManager(cfg *BrowserConfig) *BrowserManager {
 		mgr.lightpandaMgr = NewLightpandaManager()
 	case BackendAgentBrowser:
 		mgr.agentBrowserMgr = NewAgentBrowserManager()
+	case BackendEgoLite:
+		var err error
+		mgr.egoLiteMgr, err = NewEgoLiteManager(cfg.EgoLiteTaskName)
+		if err != nil {
+			slog.Warn("egolite: create manager failed, falling back to local", "err", err)
+			backend = BackendLocal
+		}
 	}
 
 	if backend == BackendAgentBrowser {
@@ -333,6 +343,10 @@ func (bm *BrowserManager) CreateSession(ctx context.Context, sessionID string, t
 		err = bm.createCloudSession(ctx, session)
 	case BackendAgentBrowser:
 		err = bm.createAgentBrowserSession(ctx, session)
+	case BackendEgoLite:
+		if bm.egoLiteMgr != nil {
+			session.egoLiteManager = bm.egoLiteMgr
+		}
 	case BackendLocal:
 		err = bm.createLocalSession(ctx, session)
 	default:
@@ -738,6 +752,10 @@ func (bm *BrowserManager) CloseAll() {
 
 	for _, session := range sessions {
 		bm.closeSessionResources(session, true)
+	}
+
+	if bm.egoLiteMgr != nil {
+		bm.egoLiteMgr.Close()
 	}
 
 	if bm.agentBrowserMgr != nil {

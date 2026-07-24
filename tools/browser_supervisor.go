@@ -611,6 +611,9 @@ type BrowserConfig struct {
 	ViewportWidth       int
 	ViewportHeight      int
 	AgentBrowserEnabled bool
+	// EgoLite 配置
+	EgoLiteEnabled  bool
+	EgoLiteTaskName string
 }
 
 func (c *BrowserConfig) defaults() {
@@ -629,6 +632,9 @@ func (c *BrowserConfig) defaults() {
 }
 
 func DetectBackend(cfg *BrowserConfig) BrowserBackendType {
+	if cfg.EgoLiteEnabled {
+		return BackendEgoLite
+	}
 	if cfg.CDPURL != "" {
 		return BackendCDP
 	}
