@@ -429,16 +429,6 @@ func isAllRunesDigits(rs []rune) bool {
 	return true
 }
 
-// isAllDigits 检查字符串是否全部为 ASCII 数字字符。
-func isAllDigits(s string) bool {
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return len(s) > 0
-}
-
 // isBeforeFilingBool 判断公开日期是否在申请日之前（返回 bool）。
 func isBeforeFilingBool(pubDate, filingDate string) bool {
 	if pubDate == "" || filingDate == "" {

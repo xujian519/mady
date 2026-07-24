@@ -626,9 +626,9 @@ func BuildInvalidationGraphFromYAML(yamlPath string) (*graph.CompiledPregelGraph
 	suggestions.WriteString("\n### 编排建议\n\n")
 	suggestions.WriteString("以下建议来自无效宣告事务编排模板：\n\n")
 	for _, stage := range orch.DiscoveryStages {
-		suggestions.WriteString(fmt.Sprintf("**阶段：%s**（目标：%s）\n", stage.Name, stage.Goal))
+		fmt.Fprintf(&suggestions, "**阶段：%s**（目标：%s）\n", stage.Name, stage.Goal)
 		for _, s := range stage.Suggestions {
-			suggestions.WriteString(fmt.Sprintf("- %s\n", s))
+			fmt.Fprintf(&suggestions, "- %s\n", s)
 		}
 		suggestions.WriteString("\n")
 	}

@@ -1,6 +1,7 @@
 package patent
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -306,7 +307,7 @@ func TestInvConcludeNode_IncludesStrategySection(t *testing.T) {
 	}
 
 	state := buildMinimalStateForConclude(grounds)
-	out, err := invConcludeNode(nil, state)
+	out, err := invConcludeNode(context.Background(), state)
 	if err != nil {
 		t.Fatalf("invConcludeNode: %v", err)
 	}

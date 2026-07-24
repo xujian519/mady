@@ -235,11 +235,11 @@ func FormatStrategySection(grounds []InvGround) string {
 
 	for i, g := range grounds {
 		advice := GetStrategyAdvice(string(g.Type), "")
-		b.WriteString(fmt.Sprintf("**%d. %s**\n\n", i+1, g.Description))
-		b.WriteString(fmt.Sprintf("- 统计：%s\n", advice.Stat))
-		b.WriteString(fmt.Sprintf("- 概率：%s\n", advice.Probability))
-		b.WriteString(fmt.Sprintf("- 建议：%s\n", advice.Recommendation))
-		b.WriteString(fmt.Sprintf("- 来源：%s\n\n", advice.Source))
+		fmt.Fprintf(&b, "**%d. %s**\n\n", i+1, g.Description)
+		fmt.Fprintf(&b, "- 统计：%s\n", advice.Stat)
+		fmt.Fprintf(&b, "- 概率：%s\n", advice.Probability)
+		fmt.Fprintf(&b, "- 建议：%s\n", advice.Recommendation)
+		fmt.Fprintf(&b, "- 来源：%s\n\n", advice.Source)
 	}
 
 	// Append reasoning pattern statistics for inventiveness grounds.
@@ -258,8 +258,8 @@ func FormatStrategySection(grounds []InvGround) string {
 			if ps, ok := reasoningPatternStats[pid]; ok {
 				freqPct := ps.Frequency * 100
 				ratePct := ps.InvalidationRate * 100
-				b.WriteString(fmt.Sprintf("| %s | %.1f%% | %.1f%% | %d 件 |\n",
-					ps.Description, freqPct, ratePct, ps.TotalCases))
+				fmt.Fprintf(&b, "| %s | %.1f%% | %.1f%% | %d 件 |\n",
+					ps.Description, freqPct, ratePct, ps.TotalCases)
 			}
 		}
 		b.WriteString("\n")
