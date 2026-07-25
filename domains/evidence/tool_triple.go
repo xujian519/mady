@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/xujian519/mady/agentcore"
 	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
@@ -40,10 +41,6 @@ func newTripleTool(engine *DefaultEngine) *agentcore.Tool {
 					"type":        "string",
 					"description": "证据原文摘录",
 				},
-				"scenario": map[string]any{
-					"type":        "string",
-					"description": "使用场景：patent_invalidation / patent_infringement / novelty_challenge / inventiveness / disclosure / priority",
-				},
 			},
 			"required":             []string{"snippet"},
 			"additionalProperties": false,
@@ -56,7 +53,6 @@ func newTripleTool(engine *DefaultEngine) *agentcore.Tool {
 type tripleArgs struct {
 	SourceURI string `json:"source_uri"`
 	Snippet   string `json:"snippet"`
-	Scenario  string `json:"scenario"`
 }
 
 func (t *tripleTool) Run(ctx context.Context, args json.RawMessage) (any, error) {
@@ -69,7 +65,7 @@ func (t *tripleTool) Run(ctx context.Context, args json.RawMessage) (any, error)
 	}
 
 	span := agentcore_evidence.EvidenceSpan{
-		ID:        "tool_input",
+		ID:        fmt.Sprintf("triple_%d", time.Now().UnixNano()),
 		SourceURI: p.SourceURI,
 		Snippet:   p.Snippet,
 	}
@@ -85,9 +81,9 @@ func (t *tripleTool) Run(ctx context.Context, args json.RawMessage) (any, error)
 // judgmentToMap 将 EvidenceJudgment 转换为便于 LLM 消费的 map。
 func judgmentToMap(j *EvidenceJudgment) map[string]any {
 	m := map[string]any{
-		"overall":    j.OverallScore,
-		"confidence": j.Confidence,
-		"reasoning":  j.Reasoning,
+		"overall_score": j.OverallScore,
+		"confidence":    j.Confidence,
+		"reasoning":     j.Reasoning,
 	}
 
 	if j.RelevanceJudgment != nil {

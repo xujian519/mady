@@ -53,15 +53,23 @@ func TestJudgeTripleTool_Success(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected map[string]any, got %T", result)
 	}
-	for _, key := range []string{"relevance", "legality", "authenticity", "overall", "reasoning"} {
+	for _, key := range []string{"relevance", "legality", "authenticity", "overall_score", "reasoning"} {
 		if _, ok := m[key]; !ok {
 			t.Errorf("missing key %q in result", key)
 		}
 	}
-	if overall, ok := m["overall"].(float64); ok {
+	if overall, ok := m["overall_score"].(float64); ok {
 		if overall < 0 || overall > 1 {
 			t.Errorf("overall %f outside [0,1]", overall)
 		}
+	}
+
+	// Verify semantic content
+	if confidence, ok := m["confidence"].(float64); !ok || confidence <= 0 {
+		t.Errorf("expected positive confidence, got %v", m["confidence"])
+	}
+	if reasoning, ok := m["reasoning"].(string); !ok || reasoning == "" {
+		t.Error("expected non-empty reasoning")
 	}
 }
 
