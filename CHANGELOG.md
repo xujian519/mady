@@ -7,6 +7,62 @@
 本文件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，
 版本号遵循 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-07-26 — Sprint 1
+
+### Added
+
+- **Evidence 证据判断模块** (`domains/evidence/`) — 5 个工具（judge_triple/check_burden/assess_standard/detect_conflict/judge_type_specific），支持证据的三性判断、举证责任、证明标准、冲突检测和类型化评价。含 `mady evidence` CLI 子命令（5 个子命令）、HTTP REST API 端点（`/v1/evidence/*`）、EvidenceDomainExtension 注册框架，集成到无效宣告和侵权比对工作流。
+
+- **AgentToolchain 专利工作流编排** (`agentcore/orchestration*.go`) — OrchestrationManifest/OrchestrationExecutor，`run_orchestration` 工具，4 个 YAML 编排（oa_response/patent_drafting/re_examination/invalidation），支持条件分支和可选步骤容错。
+
+- **Plantask 结构化任务管理** (`agentcore/tasklist/`) — 4 个 Task 工具（task_create/task_get/task_update/task_list），FileStore 原子写入持久化，TUI TodoPanel（Ctrl+T 快捷键切换），事件驱动的实时更新。
+
+- **EgoLite 浏览器集成** (`tools/ego_lite*.go`) — 第 7 个浏览器后端 BackendEgoLite，JSON-RPC bridge（17 方法），EgoLiteManager 子进程生命周期管理，handoff/task_spaces 两个独立工作流工具，`MADY_EGOLITE=1` 条件启用。
+
+- **PDF 质量升级** — headless Chrome 引擎渲染（chromedp PrintToPDF），AutoPDFRenderer 优雅降级架构（Chrome 不可用回退 gopdf），Pandoc convert_document 工具启用。
+
+- **Prompt 模板库全接线**（5 个阶段） — Phase 1 Store+Embed，Phase 2 框架注入，Phase 3 引用解析，Phase 4.1 工作流节点迁移，Phase 4.2 基础设施迁移，Phase 5 list_prompts 工具+CLI。
+
+- **跨案件写作习惯复用** — styles 用户目录接线（`$MADY_HOME/styles`），memory UserID 稳定化（`$MADY_USER_ID > 系统用户名 > default`）。
+
+- **Claimdrafting Pregel 图** — 8 节点 Pregel 图（load_input→classify_features→draft_primary→draft_parallel→draft_dependents→validate→score→finalize），对标 specdrafting 12 节点架构。
+
+- **HITL 增强** — OrchestrationExecutor 中断支持（Pending/Checkpoint/Timeout），HITL 触点全留痕。
+
+- **MCP 协议版本向下兼容** — stdio 客户端 version 协商从同月匹配改为字符串字典序，server≤client 静默、server>client 告警。
+
+- **Skill name 校验放宽** — 不再强求 skill name 等于父目录名，消除 5 条内置 skill 启动警告。
+
+- **TUI 会话按 CWD 分区** — 会话目录按 SHA-256 hash 分区存储，不同项目目录的会话不再混合。
+
+- **TUI 回复重复修复** — Content/ReasoningContent 事件 kind 分离 + delta 去重。
+
+- **TUI 输出防溢出** — renderFrame/Flex 双层从顶部裁剪保护输入区。
+
+- **TUI 滚动增强** — 修复 PageUp/PageDown 大小写 bug + Alt+↑/↓ + End 键。
+
+- **Agent 运行时审阅修复**（56 项） — P0 并发修复、P1 安全加固、P2 结构简化、P3 可维护性。
+
+- **B 档高价值接线** — guardian（MADY_GUARDIAN=1）、tracing（MADY_TRACING=stdout）、evidence、disclosure 默认接线。
+
+- **孤儿代码清理** — 删除 filequeue/、workflow/、agentcore/cache/、protocol/jsonrpc/ 等废弃包和函数。
+
+- **vecbytes 公共包** — 从 retrieval/internal 提取到 pkg/vecbytes/，消除 3 处重复浮点编码逻辑。
+
+- **创造性模块三期优化**（12 项任务） — 提示词增强、节点拓扑扩展（新增实验数据节点）、精度精化。
+
+### Fixed
+
+- 修复 TUI 方向键冲突和 Ctrl+C 快捷键语义
+- 修复 Provider delta 重复/累积与 Content/ReasoningContent kind 错误
+- 修复 TUI 启动日志的误报警告（MCP 版本、skill name、扩展注册）
+- 修复 OrchestrationExecutor 递归深度限制（DefaultMaxOrchestrationDepth=8）
+
+### Changed
+
+- 重构代码：删除废弃包和函数（filequeue/workflow/cache/jsonrpc）
+- 文档目录迁移：prompt-templates/ → prompt/templates/
+
 ## [0.3.0] - 2026-07-11 — 内部预览版
 
 ### Added
@@ -110,6 +166,7 @@
 - **示例应用**：cli-chat（TUI 聊天）、tui-demo、a2a-client/server、wiki-import、provider-compat
 - **GitHub Actions CI**：go vet + build + test
 
+[0.4.0]: https://github.com/xujian519/mady/releases/tag/v0.4.0
 [0.3.0]: https://github.com/xujian519/mady/releases/tag/v0.3.0
 [0.2.0]: https://github.com/xujian519/mady/releases/tag/v0.2.0
 [0.1.0]: https://github.com/xujian519/mady/releases/tag/v0.1.0

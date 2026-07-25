@@ -171,3 +171,43 @@ ResumeFromCheckpoint + SetConfirmedRules 续跑 Stage③-⑤。
 | Disclosure (交底书) | 2 | `doc-templates/disclosure/` |
 
 通过 `go:embed` 编进二进制，用户可在 `$MADY_HOME/doc-templates/` 覆盖或新增。
+
+## 8. 专利工作流编排 (AgentToolchain)
+
+Mady 的 AgentToolchain 编排系统通过 `run_orchestration` 工具一次串联多个领域工具。
+
+**编排清单：**
+| 编排名称 | 说明 | 步骤 | 触发方式 |
+|----------|------|:----:|----------|
+| oa_response | OA答复全流程 | 8步（含条件分支） | run_orchestration("oa_response") |
+| patent_drafting | 专利撰写全流程 | 5步 | run_orchestration("patent_drafting") |
+| re_examination | 复审请求 | 4步 | run_orchestration("re_examination") |
+| invalidation | 无效宣告 | 4步 | run_orchestration("invalidation") |
+
+**oa_response 编排流程：**
+```
+parse_office_action (解析OA)
+  → [条件] analyze_enablement (26.3判断)
+  → [条件] analyze_inventiveness (创造性判断)
+  → [条件] analyze_patent_novelty (新颖性分析)
+  → get_article_framework (法条框架)
+  → validate_amendment (A33校验)
+  → draft_oa_response (起草答复书)
+  → analyze_slop (套话检查)
+```
+
+条件分支根据 OA 驳回类型自动判断。Patent Agent System Prompt 优先调用编排工具，五步工作法降为降级方案。
+
+## 9. 证据判断工作流
+
+通过 `mady evidence` CLI 或 EvidenceDomainExtension 的 5 个工具触发。
+
+| 工作流 | 触发方式 | 说明 |
+|--------|----------|------|
+| 证据三性判断 | judge_triple 工具 | 真实性/合法性/关联性三维度自动评判 |
+| 举证责任查询 | check_burden 工具 | 举证责任分配规则查询 |
+| 证明标准评估 | assess_standard 工具 | 各证明标准适用场景评估 |
+| 证据冲突检测 | detect_conflict 工具 | 多份证据间的矛盾判定 |
+| 类型化证据评价 | judge_type_specific 工具 | 按证据类型的专门评价规则 |
+
+5 个工具已集成到无效宣告和侵权比对工作流中。

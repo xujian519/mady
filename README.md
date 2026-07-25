@@ -29,6 +29,7 @@
 - 推理策略编排：3 级复杂度 × 6 种策略路由 ✅
 - 协议安全：ACP 认证 / A2A Origin 校验 / MCP 配置信任 / Agent 池引用计数 ✅
 - 视觉分析真实化：接入多模态模型，no-op 占位清理 ✅
+- Evidence 证据判断：三性/举证责任/证明标准/冲突检测/类型化评价 5 个工具 + CLI + HTTP API ✅
 
 **明确不做**（维护模式，仅修严重 bug）：
 - 新通信协议（A2A/A2UI/AGUI/ACP 已足够）
@@ -98,6 +99,8 @@ mady acp           # ACP 协议服务器（编辑器集成）
 mady eval          # 评估套件运行器（--suite --format --mode）
 mady mcp-install   # 将 Mady 安装到编码 Agent（Claude Code / Codex 等）
 mady trust-mcp     # 信任 MCP 配置文件（SHA-256 记录到 trusted-mcp.json）
+mady evidence      # 证据判断 CLI（judge/burden/standard/conflict/type）
+mady util          # 实用工具（list-prompts）
 ```
 
 > mady 的 4 个内置领域 manifest（chat/assistant/patent/legal）已通过 `go:embed`
@@ -145,6 +148,10 @@ mady trust-mcp     # 信任 MCP 配置文件（SHA-256 记录到 trusted-mcp.jso
 | `MADY_VISION_MODEL` | — | 视觉分析模型 |
 | `MADY_VISION_API_KEY` | — | 视觉分析 API 密钥 |
 | `MADY_VISION_BASE_URL` | — | 视觉分析 API 基础 URL |
+| `MADY_GUARDIAN` | 未设置 | 设为 `1` 启用 AI 安全审查熔断器 |
+| `MADY_TRACING` | 未设置 | 设为 `stdout` 启用 OpenTelemetry 追踪 |
+| `MADY_EGOLITE` | 未设置 | 设为 `1` 启用 EgoLite 浏览器集成 |
+| `MADY_USER_ID` | 系统用户名 | 稳定用户身份标识（跨案件写作习惯复用） |
 
 ### 作为库使用
 
@@ -166,23 +173,25 @@ go get github.com/xujian519/mady/agentcore
            ┌────────▼─────────────────────────┐
            │     agentcore                    │  ← 核心 Agent 运行时
            │  (doomloop / reasoning_strategy  │     (Atom/Plugin/Hook/Extension/Planning)
-           │   / atom / plugin / evaluate)    │
+           │   / atom / plugin / evaluate /   │     TaskList / Orchestration)
+           │   tasklist / orchestration*)     │
            └──┬────┬──────┬───────┬──────────┘
               │    │      │       │
     ┌─────────▼┐ ┌─▼──┐ ┌─▼────┐ ┌▼──────────┐
     │ Provider │ │Tool│ │Domain│ │ Guardrails│
     │ chatcompt│ │sys │ │ chat │ │ Citation  │
     │smartroute│ │MCP │ │assist│ │ Gate      │
-    │ adapter  │ │    │ │patent│ │ Guardian  │
-    └──────────┘ └────┘ │ legal│ └───────────┘
-                        └──┬───┘
+    │ adapter  │ │ego │ │patent│ │ Guardian  │
+    └──────────┘ │lite│ │ legal│ └───────────┘
+                 │    │ │evidence
+                 └────┘ └──┬───┘
     ┌───────────────────────▼──────────────────┐
     │ infrastructure                           │
-    │ graph/ session/ skill/ store/ workflow/  │
+    │ graph/ session/ skill/ store/            │
     │ knowledge/ retrieval/ psychological/     │
-    │ disclosure/ memory/ filequeue/ fuzzy/    │
+    │ disclosure/ memory/ fuzzy/               │
     │ prompt/ styles/ doc-templates/           │
-    │ plugins/ doc-templates/ mcp/ session/    │
+    │ plugins/ mcp/                            │
     └──────────────────────────────────────────┘
                            │
               ┌────────────▼────────────┐
@@ -241,10 +250,18 @@ AgentPool 管理案件 Agent 生命周期，空闲 30 分钟自动释放。
 | **新颖性/侵权/OA 插件** | `plugins/patent/` 注册 | 可组合 pipeline stages 引用语义 atom（search/extract/compare/reasoning/approval-gate） |
 | **文档模板解析** | `doc-templates/` 模板库 | Markdown + `{{variable}}` 语法，按 category 分组（claims/specification/oa-response/disclosure） |
 | **Agent 适配器** | `mady mcp-install <agent>` | 一键将 Mady 的 ACP 服务接入 Claude Code / Codex / Cursor / Gemini CLI / GitHub Copilot |
+| **证据三性判断** | `judge_triple` 工具或 `mady evidence judge` | 证据真实性/合法性/关联性三维度自动评判 |
+| **举证责任查询** | `check_burden` 工具或 `mady evidence burden` | 举证责任分配规则查询 |
+| **证明标准评估** | `assess_standard` 工具或 `mady evidence standard` | 各证明标准适用场景评估 |
+| **证据冲突检测** | `detect_conflict` 工具或 `mady evidence conflict` | 多份证据间的矛盾判定 |
+| **类型化证据评价** | `judge_type_specific` 工具或 `mady evidence type` | 按证据类型的专门评价规则 |
+| **专利工作流编排** | `run_orchestration` 工具 | 一次调用串联多个工具，4 个编排：OA答复/撰写/复审/无效 |
 
 ### Agent 主循环
 
 `Agent` 执行 LLM-工具循环，支持可配置的最大轮次、自动上下文压缩和指数退避重试。
+`OrchestrationExecutor` 在此循环之上提供工作流编排能力，按 YAML 编排顺序调用多个领域工具，
+支持条件分支和可选步骤容错。
 
 ```go
 agent := agentcore.New(agentcore.Config{
@@ -276,6 +293,7 @@ tool := &agentcore.Tool{
 ### 内置工具扩展
 
 `mady` 内置了完整的 `tools` 包，提供文件系统、Shell、搜索、浏览器和代码执行工具，以单一可插拔 `Extension` 形式提供。
+浏览器工具支持 7 种后端（含 EgoLite 浏览器自动化，通过 `MADY_EGOLITE=1` 启用）。
 
 ```go
 import "github.com/xujian519/mady/tools"
@@ -577,16 +595,20 @@ agent := agentcore.New(agentcore.Config{Extensions: []agentcore.Extension{&MyExt
 | 工具集 | `tools/` | 35 内置工具（文件/Shell/搜索/浏览器/代码执行/Git） |
 | 规则引擎 | `domains/rules/` | YAML 规则查询 + OA 解析 + 反套话分析（opt-in） |
 | MCP 桥接 | `mcp/` | 将外部 MCP 服务器桥接为 Tool |
+| 证据判断 | `domains/evidence/` | 5 个证据工具（三性/举证责任/证明标准/冲突/类型化评价） |
 | 心理引擎 | `psychological/` | 7 阶段心理分析管道 |
 | A2A 远程 Handoff | `a2a/` | 将远程 A2A Agent 注册为 Handoff 目标 |
 | 证据账本 | `agentcore/evidence/` | 工具调用证据 Receipt/Ledger（opt-in） |
 | 文件检查点 | `agentcore/filecheckpoint/` | 文件级快照与回退（opt-in） |
 | 权限门控 | `agentcore/permission/` | 细粒度 Allow/Ask/Deny（opt-in） |
 | 计划模式 | `agentcore/planmode/` | /plan 工具门控（opt-in） |
+| 任务管理 | `agentcore/tasklist/` | 4 个 Task 工具（创建/查询/更新/列表），TodoPanel |
+| 工作流编排 | `agentcore/` | `run_orchestration` 工具 + 4 个 YAML 编排 |
 | Guardian AI | `guardrails/guardian/` | AI 安全审查子 Agent + 熔断器（opt-in） |
 | 评估框架 | `agentcore/evaluate/` | RAGAS 风格评估（opt-in） |
 | 追踪 | `agentcore/tracing/` | OpenTelemetry 追踪（opt-in） |
 | 长期记忆 | `memory/` | 记忆持久化 + 策略学习编译器 |
+| EgoLite 浏览器 | `tools/` | 第 7 浏览器后端 + handoff/task_spaces 工具 |
 
 ## 许可证
 

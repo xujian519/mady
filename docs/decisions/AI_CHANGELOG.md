@@ -5549,3 +5549,21 @@ Phase 3 审阅发现：`domains/doctmpl/renderer_html.go` 使用 `gmhtml.WithUns
 - Risk: 变量中的原始 HTML/Markdown 会被当作文本渲染；如业务需要，应通过专用字段类型显式放行。
 - Human Owner: [NEEDS CLARIFICATION]
 - Spec: N/A（缺陷修复）
+
+## 2026-07-26: Sprint 1 P0/P1 安全止血修复 + 全面审阅报告
+
+### 背景
+Sprint 1 结束前对全部代码产出的全面审阅和修复。包含 TUI 25 项审阅修复、evidence lint 问题修复、以及跨模块安全止血。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `tui/` 多个文件 | **修改** | 修复代码审阅发现的 25 项问题（FSM 中断态/Kitty 协议/mouse 限频/测试覆盖等） |
+| `domains/evidence/` 多个文件 | **修改** | 解决 CI 触发的全部 lint 问题 |
+| `agentcore/` 多个文件 | **修改** | P0/P1 安全止血修复 |
+
+### 影响
+- TUI 稳定性和兼容性全面提升（支持 Kitty 协议、mouse 事件限频）
+- CI 门禁在 evidence 模块上全部通过，零 lint 残留
+- 本次为 Sprint 1 闭环的最后一批修复，Sprint 1 产出到此全部完成

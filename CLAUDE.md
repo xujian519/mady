@@ -9,7 +9,7 @@
 
 - **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` 子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 1081 个 Go 源文件（732 非测试 + 349 测试），~240K 行代码
+- 1100+ 个 Go 源文件（~750 非测试 + ~350 测试），~250K 行代码
 
 ## 构建与测试
 
@@ -39,6 +39,7 @@ mady/
 │   ├── iface/        #   接口抽象层（Agent/Extension/Lifecycle/Provider/Event 契约）
 │   ├── permission/   #   细粒度权限门控（Allow/Ask/Deny）
 │   ├── planmode/     #   计划模式工具门控
+│   ├── tasklist/    #   结构化任务管理（4 工具 + FileStore 持久化）
 │   ├── atom.go       #   Pipeline Atoms（可组合原子操作）
 │   ├── plugin.go     #   插件系统（plugin.json + SKILL.md）
 │   ├── reasoning_strategy.go  # 推理策略编排（6 种策略）
@@ -52,10 +53,10 @@ mady/
 ├── doomloop/         # 死循环检测器（6 种探测器，LifecycleHook 实现）
 ├── domains/          # 领域 Agent 配置 + 推理引擎 + 专利分析模块
 │   ├── claimdrafting/#   权利要求书撰写（LLM 增强撰写 + 6 类规则引擎 + 评分器）
-│   ├── doctmpl/      #   文档模板库（Markdown + YAML frontmatter）
 │   ├── domainconfig/ #   统一领域配置（YAML/JSON 加载 + 校验）
-│   ├── enablement/   #   26.3 充分公开判断（图引擎 + 领域规则 + 知识库联动）
 │   ├── evidence/     #   专利证据判断规则引擎（三性/类型/举证责任/证明标准/日期/可信度）
+│   ├── doctmpl/      #   文档模板库（Markdown + YAML frontmatter）
+│   ├── enablement/   #   26.3 充分公开判断（图引擎 + 领域规则 + 知识库联动）
 │   ├── inventiveness/#   创造性判断图引擎（四轮迭代优化 + 审查模拟）
 │   ├── reasoning/    #   事实黑板、三段论、多跳遍历、五步工作法、规划编译器、拓扑驱动泛化
 │   │   ├── collector/#     上下文收集与路由
@@ -114,7 +115,7 @@ mady/
 ├── benchmark/        # 性能基准测试
 ├── evaluate/         # 评估框架（RAGAS 风格，benchmark 跑批 + CLI 引擎 + 校准）
 ├── integration/      # 端到端集成测试（含 doomloop/chain/drafting/guardrails/handoff）
-├── cmd/mady/         # 统一入口（mady tui | mady serve | mady acp | mady eval | mady mcp-install | mady trust-mcp | mady trust-knowledge | mady patent）
+├── cmd/mady/         # 统一入口（mady tui | mady serve | mady acp | mady eval | mady evidence | mady mcp-install | mady trust-mcp | mady trust-knowledge | mady util | mady patent）
 ├── example/          # 示例应用（9 个）
 ├── docs/             # 文档（ADRs、OpenAPI 规范、设计文档、评审报告）
 ├── filequeue/        # 文件队列
@@ -217,6 +218,7 @@ Router (mady-router)
 | 添加新领域 | `domains/` 下创建配置 → 实现 System Prompt → `domains/router.go` 注册 → `skills/` 添加 SKILL.md |
 | 添加新技能 | `skills/<domain>/` 下创建 `SKILL.md` → YAML frontmatter → `mady:` 扩展段 |
 | 注册新插件 | `plugins/<name>/` 下创建 `plugin.json` + `SKILL.md` |
+| 添加新证据规则 | `domains/evidence/` 下创建规则 → `extension.go` 注册 → 编写测试 |
 | 添加文档模板 | `doc-templates/<category>/` 下创建 Markdown 文件（`{{variable}}` 语法） |
 | 运行入口程序 | `mady tui`（或 `mady serve`、`mady acp`、`mady eval`） |
 

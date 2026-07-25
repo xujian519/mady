@@ -6,12 +6,19 @@
 ## 项目概览
 
 Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于专利/法律专业领域智能体。
-核心分层：agentcore（内核，含 doomloop/reasoning_strategy/atom/plugin/evaluate）
+核心分层：agentcore（内核，含 doomloop/reasoning_strategy/atom/plugin/evaluate/tasklist）
 → 领域扩展层（psychological/guardrails/knowledge/retrieval/domains/{claimdrafting,specdrafting,enablement,inventiveness,evidence}/rules/doctmpl）
+    domains/evidence/ — 专利证据判断规则引擎（三性/类型/举证责任/证明标准/日期/可信度）
 → 基础设施层（graph/workflow/session/store/memory/disclosure/fuzzy/filequeue/prompt）
+→ 通用工具库（pkg/{util,csync,i18n,lawcite,agentconfig,vecbytes}）
 → 协议与接口层（A2A/A2UI/AGUI/ACP/Server/MCP/TUI）
 → 应用入口（cmd/mady, example/）。
-1081 个 Go 源文件（732 非测试 + 349 测试），~240K 行代码。
+1203 个 Go 源文件（811 非测试 + 392 测试），~274K 行代码。
+
+> 文件计数更新时间：2026-07-26。如需获取最新计数，请执行：
+> ```bash
+> find . -name '*.go' | wc -l && find . -name '*_test.go' | wc -l
+> ```
 
 ## 构建与测试
 
@@ -22,6 +29,12 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 - 日常快速验证：`make all`（vet + build + test，不含 race）
 - 常用快捷命令见 `Makefile`：`make verify`、`make all`、`make test-race`、
   `make lint`、`make build-mady`、`make run-mady`（TUI 入口 `cmd/mady/`）
+
+  `mady` 子命令（入口 `cmd/mady/`）：
+  - `mady eval` — 评估套件运行器（--suite --format --mode）
+  - `mady evidence` — 证据判断 CLI（judge/burden/standard/conflict/type 五子命令）
+  - `mady util` — 实用工具（list-prompts 列出可用模板）
+  - `mady mcp-install` — 将 Mady 安装到编码 Agent
 
 ### ⚠️ 多模块工作区（重要 gotcha）
 

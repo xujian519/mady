@@ -73,6 +73,35 @@
 | get_article_framework | read | `statute` | 获取法条框架 |
 | get_orchestration | read | `case_type` | 获取审查意见编排 |
 
+## 证据判断工具
+
+| 工具 | 分类 | 关键参数 | 说明 |
+|------|------|----------|------|
+| judge_triple | read | evidence, attributes | 证据三性（真实性/合法性/关联性）审查 |
+| check_burden | read | issue_type, party | 举证责任分配查询 |
+| assess_standard | read | issue_type, jurisdiction | 证明标准适用评估 |
+| detect_conflict | read | evidences | 多份证据间的矛盾判定 |
+| judge_type_specific | read | evidence_type, evidence | 按证据类型的专门评价 |
+
+## 编排与任务工具
+
+| 工具 | 分类 | 关键参数 | 说明 |
+|------|------|----------|------|
+| run_orchestration | command | name, state | 执行 YAML 工作流编排（OA答复/撰写/复审/无效） |
+| task_create | write | title, description, priority | 创建结构化任务 |
+| task_get | read | id | 查询单个任务详情 |
+| task_update | write | id, status, priority | 更新任务状态/优先级 |
+| task_list | read | status, limit | 列出所有任务 |
+
+## EgoLite 与文档工具
+
+| 工具 | 分类 | 关键参数 | 说明 |
+|------|------|----------|------|
+| ego_lite_handoff | command | action, task_name | EgoLite 浏览器控制权交接 |
+| ego_lite_task_spaces | command | action, space | EgoLite 任务空间管理 |
+| convert_document | command | input_path, output_format | Pandoc 文档格式互转 |
+| list_prompts | read | category, domain | 列出可用 prompt 模板 |
+
 ---
 
-> 最后更新: 2026-07-18 | 审计来源: docs/decisions/reasonix-analysis.md §9 P2
+> 最后更新: 2026-07-26 | 审计来源: docs/decisions/reasonix-analysis.md §9 P2
