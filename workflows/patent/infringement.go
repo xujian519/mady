@@ -45,8 +45,8 @@ const (
 	InfStateOutput          = "inf_output"           // final output text
 
 	// New evidence integration state keys.
-	InfStateEvidence          = "inf_evidence"            // []agentcore_evidence.EvidenceSpan
-	InfStateEvidenceJudgments = "inf_evidence_judgments"  // []evidence.EvidenceJudgment
+	InfStateEvidence          = "inf_evidence"           // []agentcore_evidence.EvidenceSpan
+	InfStateEvidenceJudgments = "inf_evidence_judgments" // []evidence.EvidenceJudgment
 )
 
 // =============================================================================

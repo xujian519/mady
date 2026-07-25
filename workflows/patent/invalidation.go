@@ -564,7 +564,7 @@ func filterEvidenceNode(ctx context.Context, state graph.PregelState) (graph.Pre
 		return out, nil
 	}
 
-	evidenceRaw, _ := state[InvStateEvidence]
+	evidenceRaw := state[InvStateEvidence]
 	spans, _ := evidenceRaw.([]agentcore_evidence.EvidenceSpan)
 
 	judgmentBySpanID := make(map[string]evidence.EvidenceJudgment)

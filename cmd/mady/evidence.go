@@ -42,19 +42,24 @@ func runEvidenceCLI(args []string) {
 	}
 
 	var input io.Reader
+	var openedFile *os.File
 	if filePath != "" {
 		f, err := os.Open(filePath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "无法打开文件: %v\n", err)
 			os.Exit(1)
 		}
-		defer f.Close()
+		openedFile = f
 		input = f
 	} else {
 		input = os.Stdin
 	}
 
-	os.Exit(runEvidenceAction(action, input, os.Stdout, os.Stderr))
+	exitCode := runEvidenceAction(action, input, os.Stdout, os.Stderr)
+	if openedFile != nil {
+		openedFile.Close()
+	}
+	os.Exit(exitCode)
 }
 
 func runEvidenceAction(action string, input io.Reader, stdout, stderr io.Writer) int {
@@ -113,7 +118,7 @@ func execTriple(engine *evidence.DefaultEngine, data []byte, stdout, stderr io.W
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
-	enc.Encode(cliJudgmentToMap(judgment))
+	_ = enc.Encode(cliJudgmentToMap(judgment))
 	return 0
 }
 
@@ -132,7 +137,7 @@ func execBurden(data []byte, stdout, stderr io.Writer) int {
 	result := evidence.DetermineBurden(evidence.BurdenScenario(args.Scenario), nil)
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]any{
+	_ = enc.Encode(map[string]any{
 		"holder": result.BurdenHolder, "standard": result.Standard,
 		"has_shifted": result.HasShifted, "shift_reason": result.ShiftReason,
 		"reasoning": result.Reasoning,
@@ -158,7 +163,7 @@ func execStandard(data []byte, stdout, stderr io.Writer) int {
 	result := evidence.AssessProofStandard(evidence.StandardOfProof(args.Standard), args.SupportingCount, args.TotalCount, args.Gaps)
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]any{
+	_ = enc.Encode(map[string]any{
 		"met": result.Met, "standard": result.Standard, "confidence": result.Confidence,
 		"supporting_count": result.SupportingCount, "contradicting_count": result.ContradictingCount,
 		"reasoning": result.Reasoning, "gaps": result.Gaps,
@@ -201,7 +206,7 @@ func execConflict(data []byte, stdout, stderr io.Writer) int {
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]any{"conflicts": out})
+	_ = enc.Encode(map[string]any{"conflicts": out})
 	return 0
 }
 
@@ -225,12 +230,12 @@ func execTypeSpecific(engine *evidence.DefaultEngine, data []byte, stdout, stder
 	}
 	ts := judgment.TypeSpecificJudgment
 	if ts == nil {
-		json.NewEncoder(stdout).Encode(map[string]any{"note": "无类型特定判断结果"})
+		_ = json.NewEncoder(stdout).Encode(map[string]any{"note": "无类型特定判断结果"})
 		return 0
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
-	enc.Encode(cliTypeSpecificToMap(ts))
+	_ = enc.Encode(cliTypeSpecificToMap(ts))
 	return 0
 }
 

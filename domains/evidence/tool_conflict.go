@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
 	"github.com/xujian519/mady/agentcore"
+	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
 )
 
 const ConflictToolName = "detect_conflict"
