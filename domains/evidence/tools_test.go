@@ -176,3 +176,45 @@ func TestAssessStandardTool_EmptyTotal(t *testing.T) {
 		t.Errorf("expected met=false for zero total, got %v", m["met"])
 	}
 }
+
+func TestDetectConflictTool_DirectionConflict(t *testing.T) {
+	tool := newConflictTool(nil)
+	args := `{"claims":[{"claim_id":"特征A","supporting":["ev1"],"contradicting":["ev2"]},{"claim_id":"特征B","supporting":["ev3"],"contradicting":[]}]}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	conflicts := m["conflicts"].([]map[string]any)
+	if len(conflicts) < 1 {
+		t.Fatal("expected at least 1 conflict")
+	}
+}
+
+func TestDetectConflictTool_NoConflict(t *testing.T) {
+	tool := newConflictTool(nil)
+	args := `{"claims":[{"claim_id":"特征C","supporting":["ev4"],"contradicting":[]}]}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	conflicts := m["conflicts"].([]map[string]any)
+	if len(conflicts) != 0 {
+		t.Errorf("expected 0 conflicts, got %d", len(conflicts))
+	}
+}
+
+func TestDetectConflictTool_EmptyClaims(t *testing.T) {
+	tool := newConflictTool(nil)
+	args := `{"claims":[]}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	conflicts := m["conflicts"].([]map[string]any)
+	if len(conflicts) != 0 {
+		t.Errorf("expected 0 conflicts, got %d", len(conflicts))
+	}
+}
