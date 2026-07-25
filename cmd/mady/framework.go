@@ -24,6 +24,7 @@ import (
 	"github.com/xujian519/mady/agentcore/tasklist"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/doctmpl"
+	domainEvidence "github.com/xujian519/mady/domains/evidence"
 	"github.com/xujian519/mady/domains/reasoning"
 	reasoningwiring "github.com/xujian519/mady/domains/reasoning/wiring"
 	"github.com/xujian519/mady/domains/rules"
@@ -499,13 +500,14 @@ func buildBaseTools(fc *frameworkContext) {
 	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions,
 		fc.PlanModeExt,
 		evidence.NewExtension(),
+		domainEvidence.NewDomainExtension(nil),
 	)
 
 	// 结构化任务管理：注入 task_create/task_get/task_update/task_list 四个工具，
 	// 让 LLM 在复杂多步骤任务中自管理待办清单。task_get/task_list 为只读（planmode 下可用），
 	// task_create/task_update 有副作用（planmode 下被门控）。持久化到 sessions 目录下。
 	if taskDir, err := util.ResolveDataDir("sessions"); err == nil {
-		taskDir = filepath.Join(taskDir, "tasks")
+		taskDir = tasklistDirForCWD(taskDir, fc.BaseConfig.ProjectDir)
 		if taskExt, err := tasklist.NewExtension(taskDir); err == nil {
 			fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, taskExt)
 		}
@@ -534,6 +536,16 @@ func buildBaseTools(fc *frameworkContext) {
 		fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, fc.GuardianExt)
 		fmt.Fprintf(os.Stderr, "guardian: AI 安全审查已启用（熔断器保护）\n")
 	}
+}
+
+// tasklistDirForCWD 按启动工作目录对 tasklist 存储目录分区。
+// 与 probeSessionDir 的 by-cwd 分区策略保持一致：不同 project 目录启动时
+// task 文件物理隔离，防止一个 workspace 枚举/读写另一个 workspace 的任务。
+func tasklistDirForCWD(baseDir, cwd string) string {
+	if cwd == "" {
+		return filepath.Join(baseDir, "tasks")
+	}
+	return filepath.Join(baseDir, "by-cwd", cwdPartitionName(cwd), "tasks")
 }
 
 // initPlugins 从 plugins/ 目录发现并加载工作流插件。
