@@ -72,6 +72,8 @@ func main() {
 			fmt.Fprintln(os.Stderr, "eval:", err)
 			os.Exit(1)
 		}
+	case "evidence":
+		runEvidenceCLI(os.Args[2:])
 	case "patent":
 		runPatentCLI(ctx, os.Args)
 	case "util":
