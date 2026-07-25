@@ -218,3 +218,43 @@ func TestDetectConflictTool_EmptyClaims(t *testing.T) {
 		t.Errorf("expected 0 conflicts, got %d", len(conflicts))
 	}
 }
+
+func TestJudgeTypeSpecificTool_InternetPublic(t *testing.T) {
+	engine := NewEngine(nil)
+	tool := newTypeSpecificTool(engine)
+	// Use web_pub: prefix to infer internet_publication type
+	args := `{"source_uri":"web_pub:https://example.com/product-page"}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	et, _ := m["evidence_type"].(string)
+	if et != string(EvTypeInternetPublication) {
+		t.Errorf("expected evidence_type=%q, got %q", EvTypeInternetPublication, et)
+	}
+}
+
+func TestJudgeTypeSpecificTool_Patent(t *testing.T) {
+	engine := NewEngine(nil)
+	tool := newTypeSpecificTool(engine)
+	args := `{"source_uri":"patent:CN12345678A"}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if _, ok := m["evidence_type"]; !ok {
+		t.Error("missing evidence_type")
+	}
+}
+
+func TestJudgeTypeSpecificTool_EmptyURI(t *testing.T) {
+	engine := NewEngine(nil)
+	tool := newTypeSpecificTool(engine)
+	args := `{"source_uri":""}`
+	_, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err == nil {
+		t.Fatal("expected error for empty source_uri")
+	}
+}
