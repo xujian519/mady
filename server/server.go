@@ -90,6 +90,10 @@ type Server struct {
 	metrics MetricsRecorder
 
 	maxRequestBodyBytes atomic.Int64
+
+	// evidenceTasks 管理异步证据判断任务的状态和结果。
+	evidenceTasks   map[string]*evidenceTask
+	evidenceTasksMu sync.Mutex
 }
 
 // CORSConfig 配置 HTTP 跨域资源共享策略。
@@ -112,6 +116,7 @@ func New(cfg agentcore.Config) *Server {
 		inventivenessResults: csync.NewMap[string, *inventiveness.InventivenessResult](),
 		enablementResults:    csync.NewMap[string, *enablement.EnablementResult](),
 		metrics:              NopMetricsRecorder{},
+		evidenceTasks:        make(map[string]*evidenceTask),
 	}
 	s.maxRequestBodyBytes.Store(defaultMaxRequestBodyBytes)
 	return s
@@ -257,6 +262,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/disclosure/analyze/{task_id}", s.handleDisclosureStatus)
 	mux.HandleFunc("GET /v1/disclosure/analyze/{task_id}/stream", s.handleDisclosureStream)
 	mux.HandleFunc("POST /v1/disclosure/analyze/{task_id}/review", s.handleDisclosureReview)
+
+	// Evidence API
+	mux.HandleFunc("POST /v1/evidence/judge", s.handleEvidenceJudge)
+	mux.HandleFunc("POST /v1/evidence/judge/batch", s.handleEvidenceJudgeBatch)
+	mux.HandleFunc("GET /v1/evidence/judge/{task_id}", s.handleEvidenceJudgeStatus)
+	mux.HandleFunc("GET /v1/evidence/burden/{scenario}", s.handleEvidenceBurden)
+	mux.HandleFunc("GET /v1/evidence/standard/{standard}", s.handleEvidenceStandard)
+	mux.HandleFunc("POST /v1/evidence/conflict", s.handleEvidenceConflict)
 
 	// Threads API
 	registerAPIRoute(mux, "POST /api/threads", http.HandlerFunc(s.handleCreateThread))
