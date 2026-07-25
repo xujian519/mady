@@ -170,10 +170,7 @@ func (e *MemoryExtension) OnSessionClose(ctx context.Context) {
 
 		// 4. 可选清理 Session 层
 		if e.manager.cfg.CleanupSessionOnClose {
-			_ = e.manager.store.ForgetAll(summaryCtx, MemoryFilter{
-				SessionID: e.scope.SessionID,
-				Layer:     LayerSession,
-			})
+			_ = e.manager.store.ForgetAll(summaryCtx, e.scope.AsFilter(0).WithLayer(LayerSession))
 		}
 	}()
 }
@@ -199,7 +196,7 @@ func (e *MemoryExtension) Provide(ctx context.Context, input agentcore.BuildInpu
 		query = e.emotionAwareQuery(query, emotion)
 	}
 
-	filter := MemoryFilter{UserID: e.scope.UserID, TopK: e.cfg.TopK}
+	filter := e.scope.AsFilter(e.cfg.TopK)
 	results, err := e.manager.Search(ctx, query, filter)
 	if err != nil || len(results) == 0 {
 		return nil, nil
@@ -245,10 +242,7 @@ func (e *MemoryExtension) TransformContext(ctx context.Context, msgs []agentcore
 	}
 
 	// 检索相关记忆
-	filter := MemoryFilter{
-		UserID: e.scope.UserID,
-		TopK:   e.cfg.TopK,
-	}
+	filter := e.scope.AsFilter(e.cfg.TopK)
 	results, err := e.manager.Search(ctx, query, filter)
 	if err != nil || len(results) == 0 {
 		return msgs

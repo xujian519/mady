@@ -1,5 +1,30 @@
 # AI 变更记录
 
+## 2026-07-25: OrchestrationExecutor 增加递归深度限制（R10-F1）
+
+### 背景
+`run_orchestration` 工具内部通过 `OrchestrationExecutor.Run` 顺序调用领域工具；若某个工具再次触发 `run_orchestration`（或开发者手动在工具中嵌套调用 executor），会形成无界递归。之前 executor 没有任何深度计数或上限，存在栈溢出和不可控级联调用的风险。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `agentcore/orchestration_executor.go` | **修改** | 新增 `DefaultMaxOrchestrationDepth = 8` 常量；新增 `orchestrationDepthKey` 与 `OrchestrationDepthFromContext` / `WithOrchestrationDepth`；`OrchestrationExecutor` 增加 `maxDepth` 字段 |
+| `agentcore/orchestration_executor.go` | **新增函数** | `NewOrchestrationExecutorWithMaxDepth(agent, maxDepth)`：允许自定义递归上限；`maxDepth <= 0` 时回退到默认值 |
+| `agentcore/orchestration_executor.go` | **修改** | `Run` 开头从 context 读取当前深度并 +1，超过 `maxDepth` 时立即返回 `ErrDepthExceeded`；否则把新深度写回 context 再调用 `Agent.InvokeTool`，使嵌套 executor 能感知层级 |
+| `agentcore/orchestration_executor_test.go` | **新增测试** | 4 个测试覆盖：单层编排通过、嵌套在限制内通过、嵌套超出限制失败、默认深度 8 能终止自递归 |
+
+### 设计决策
+- **独立 depth key**：使用单独的 `orchestrationDepthKey`，与 `RunSequentialAgentsWithDepth` 的 delegation depth key 解耦，避免两种预算互相干扰。
+- **默认值 8**：与既有 `DefaultMaxDelegationDepth` 对齐，足以覆盖正常专利事务编排（OA 答复/复审/无效/撰写最多 5-8 步），同时能拦截异常递归。
+- **在 `Run` 入口统一拦截**：深度判断放在执行任何步骤之前，越界即失败，不依赖具体哪个步骤触发嵌套。
+- **错误语义**：返回 `ErrDepthExceeded` 并包装为 `NodeError`（path 含 `orchestration` 和 manifest ID），方便入口层识别并给出用户友好提示。
+
+### 影响
+- `run_orchestration` 及其嵌套调用现在受 8 层深度保护，异常自调用将在越界时被明确拒绝而不是无限递归。
+- 现有单层/非递归编排行为不变；`NewOrchestrationExecutor` 默认使用 8 层上限，不需要调用方修改代码。
+- 如需调整上限，可改用 `NewOrchestrationExecutorWithMaxDepth`。
+
 ## 2026-07-25: MCP stdio 客户端协议版本协商改为向下兼容
 
 ### 背景
@@ -5271,3 +5296,256 @@ Mady TUI 斜杠命令系统与主流产品（Claude Code、VS Code Command Palet
 - `/` 斜杠命令和 `@file:` 文件选择器弹出时，`↑`/`↓` 正确导航建议列表，不再意外加载输入历史。
 - `Ctrl+C` 在 Agent 运行时中断、无运行时无操作；不再复制选区或消息。
 - `⌘+C`（Super+C）仍然是通用复制快捷键。
+
+## 2026-07-25: 审阅决策 — LLM outbound 数据统一 PII redaction 层
+
+### 背景
+Phase 4 隐私专项（R16）梳理出 22 条用户/案件数据送外站 LLM Provider 的出站路径。除 memory/extractor_llm.go 对凭证做了有限正则过滤外，其余路径（Agent 主循环、上下文压缩、会话摘要、Embedding、Handoff 摘要、领域分类器等）均无 PII 脱敏。
+
+### 改动清单
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| （待实施） | 新增 | 设计并落地统一 outbound redaction 接口 |
+| `agentcore/agent_provider.go` | 修改 | provider 调用前应用 redactor |
+| `memory/session_summarizer.go` | 修改 | 摘要前 redact |
+| `agentcore/compaction.go` | 修改 | 压缩前 redact |
+| `retrieval/embedding.go` | 修改 | Embedding 前 redact |
+
+### 设计决策
+- **在 provider 请求对象层做 redaction**，而非在 UI 或消息拼接层，确保所有上层路径（聊天、压缩、记忆、分类、Guardian）自动受益。
+- **默认 redact 范围**：当事人姓名、身份证号、电话、地址、邮箱、案件号、专利公开号、API Key/密码/JWT。
+- **提供可配置白名单**：允许高级用户通过环境变量声明“本域数据可出域到指定 Provider”，默认关闭。
+- 不采用“每个调用点各自过滤”的方案，维护成本高且易遗漏。
+
+### 影响
+- 所有 LLM outbound 路径对 PII 的泄露面从“几乎无防护”下降到“统一过滤”。
+- 需要新增配置文档与 redaction 单测。
+
+- Decision: 建立统一的 outbound PII redaction 层，默认启用，作用于所有 provider 请求。
+- Reason: 22 条分散路径各自脱敏不可维护，汇聚点拦截最符合“克制/去繁就简”。
+- Risk: redaction 可能影响极少数需要原始案件号的提示词效果，需通过白名单机制回退。
+- Human Owner: [NEEDS CLARIFICATION]
+- Spec: docs/specs/pii-redaction/ (待创建)
+
+## 2026-07-25: 审阅决策 — memory 与 tasklist 按 workspace 隔离
+
+### 背景
+Phase 4 隔离回归（R17）发现：
+1. `memory.db` 是全局单库，且 `MemoryExtension` 检索只按 `UserID` 过滤，导致同一用户在不同项目间的记忆互相注入。
+2. `tasklist` 任务文件写入全局目录 `~/.mady/sessions/tasks`，使用顺序数字 ID，任何 workspace 可枚举/读写其他 workspace 的任务。
+
+### 改动清单
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `memory/extension.go` | 修改 | `MemoryFilter` 增加 `ProjectID`/`SessionID` |
+| `memory/tools.go` | 修改 | `handleRecall` 使用全维度 filter |
+| `cmd/mady/framework.go` | 修改 | tasklist 目录改为按 workspace 分区 |
+| `agentcore/tasklist/filestore.go` | 修改 | 支持按 workspace 分目录 + ID 命名空间隔离 |
+
+### 设计决策
+- **memory 保留全局单库**，但查询层强制使用 `UserID + ProjectID + SessionID` 四维过滤；不改为按 project 分库以避免大量小 SQLite 文件。
+- **tasklist 按 workspace 分目录**，路径复用 TUI CWD 分区逻辑（`~/.mady/sessions/by-cwd/<hash>/tasks`）或 `WorkspaceDir/projects/<projectID>/tasks`。
+- `LayerUser` 若需要跨项目用户偏好，应显式设计为仅按 `UserID`；`LayerSession/LayerLongTerm` 严格绑定 project/session。
+
+### 影响
+- 同一用户在不同案件/项目之间不再意外共享长期记忆和任务。
+- 需要迁移现有全局 tasklist 文件或声明兼容性策略。
+
+- Decision: memory 保留全局单库但查询层强制多维过滤；tasklist 按 workspace 物理分区。
+- Reason: 法律/专利场景必须满足 workspace 最小权限；分库会引入大量小 DB，filter 方案对 memory 更轻量。
+- Risk: 现有全局 tasklist 文件需要一次性迁移；迁移脚本遗漏会导致旧任务不可见。
+- Human Owner: [NEEDS CLARIFICATION]
+- Spec: docs/specs/workspace-isolation/ (待创建)
+
+## 2026-07-25: 审阅决策 — evidence 模块死代码处置
+
+### 背景
+Phase 2 深审（R8）确认 `domains/evidence/` 约 3400 行源文件无任何外部 import（`grep -R 'domains/evidence' --include='*.go' .` 仅命中自身测试），整个模块为死代码。其 rule DSL 被解析但从未执行，且存在证明标准（clear_and_convincing / 高度盖然性）三重矛盾。
+
+### 改动清单
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `domains/evidence/` | 删除 或 标注 deprecated | 需先确认无其他引用 |
+| `domains/router.go` | 检查 | 移除可能的注册残留 |
+| `docs/decisions/` | 新增 | 记录删除决策 |
+
+### 设计决策
+- 优先**整模块删除**（而非修复），因为 3400 行死代码持续增加维护负担、测试成本、依赖混淆。
+- 删除前需再次全仓 grep（含 tools 子模块和未提交文件）确认零引用。
+- 若未来需要专利证据规则引擎，从 Git 历史或备份恢复成本低于持续维护死代码。
+
+### 影响
+- 构建/测试时间略微下降；代码库清晰。
+- 历史专利证据规则 DSL 不再保留；相关测试一并删除。
+
+- Decision: `domains/evidence/` 当前在仓库快照中零外部引用，但项目负责人在其他窗口进行集成；**暂缓删除，待集成完成后再做最终处置**。
+- Reason: 避免审阅结论与正在进行的集成工作冲突；保留模块并做引用审计更符合当前上下文。
+- Risk: 集成窗口若长期未合入，死代码仍持续产生维护成本；需设定明确的再评估时间点。
+- Human Owner: [NEEDS CLARIFICATION]
+- Spec: N/A（清理性决策）
+
+## 2026-07-25: 审阅决策 — AI_CHANGELOG 格式修订为四段式 + 强制三字段
+
+### 背景
+Phase 3 规范检查（R15）发现：CONTRIBUTING.md 要求 AI_CHANGELOG 使用 `Decision/Reason/Risk/Human Owner/Spec` 五字段，但 135 条历史记录 100% 使用 `背景/改动清单/设计决策/影响` 四段式，且 Human Owner（0.7%）和 Risk（0.0%）字段几乎完全缺失。
+
+### 改动清单
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `CONTRIBUTING.md` | 修改 | 更新 AI_CHANGELOG 模板，承认四段式 + 三字段占位 |
+| `docs/decisions/AI_CHANGELOG.md` | 新增 5 条 | 本次审阅的 5 条记录作为新格式示范 |
+
+### 设计决策
+- **不让实践屈就文档**：不要求补齐 134 条历史记录的 5 字段（成本极高、质量存疑），而是修订文档以匹配实际格式。
+- **保留中文四段式**（背景/改动清单/设计决策/影响），因其信息密度高、团队已熟练使用。
+- **在四段式末尾强制追加三字段**：`- Decision`、`- Reason`、`- Risk`、`- Human Owner`、`- Spec`（其中 Reason 可与“设计决策”合并，Risk 必须显式标注“无已知风险”或具体风险）。
+
+### 影响
+- 后续 AI 参与的功能变更都有可追溯的人工负责人和风险字段。
+- 历史记录仍缺乏 HO/Risk，审计受限；但这是可接受的迁移成本。
+
+- Decision: 修订 AI_CHANGELOG 规范为四段式 + 强制 Decision/Reason/Risk/Human Owner/Spec 字段，不要求回填历史。
+- Reason: 文档规范与 135 条实践记录严重脱节；回填历史成本过高且无明确责任人。
+- Risk: 历史审计仍缺失 HO/Risk；可通过 docs/decisions/phase4-backlog.md 等审阅产物部分弥补。
+- Human Owner: [NEEDS CLARIFICATION]
+- Spec: N/A（流程规范修订）
+
+## 2026-07-25: 审阅决策 — OrchestrationExecutor 增加递归深度限制
+
+### 背景
+Phase 3（R10）发现 `agentcore/orchestration_executor.go` 的 `Run` 方法通过 `InvokeTool` 调用工具后把结果写回 `state`，再让 Agent 继续下一轮决策，形成隐式递归循环。该模式与历史 handoff #P1 栈溢出教训相似：无深度限制时，错误或恶意提示可导致无限递归。
+
+### 改动清单
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `agentcore/orchestration_executor.go` | 修改 | `Run` 方法增加 `depth` 或 `maxSteps` 限制 |
+| `agentcore/orchestration_executor_test.go` | 新增 | 超深度/循环场景单测 |
+| `agentcore/orchestration.go` 或配置 | 修改 | 暴露 `MaxSteps` 配置项 |
+
+### 设计决策
+- 在 `Run` 入口传递 `WithDepth(ctx, depth+1)` 或使用内部计数器，超过阈值返回结构化错误（而非 panic）。
+- 默认值 50 步（可配置），既满足常见多步编排，又能在异常时 fail-fast。
+- 不依赖 Agent 层 `MaxTurns` 间接限制，因为编排循环可能在一个 turn 内完成多步。
+
+### 影响
+- 避免编排器死循环导致的栈溢出或 API 费用失控。
+- 需要补测试和文档。
+
+- Decision: 为 OrchestrationExecutor.Run 增加显式递归/步骤深度限制。
+- Reason: 历史 handoff #P1 已证明无界递归会导致栈溢出；编排器是同一模式的重复。
+- Risk: 合法的长流程编排可能触发阈值；通过配置项 + 清晰错误信息规避。
+- Human Owner: [NEEDS CLARIFICATION]
+- Spec: docs/specs/orchestration-depth-limit/ (待创建)
+
+## 2026-07-25: 修复 memory 跨 workspace 记忆泄漏（R17-02）
+
+### 背景
+Phase 4 隐私专项发现：`memory.db` 是全局单库，但 `MemoryExtension` 在 `Provide`、`TransformContext`、`recall` 工具、去重、偏好加载等路径中只按 `UserID` 构造 `MemoryFilter`，导致同一用户在不同 project/session 间的记忆互相注入。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `memory/types.go` | **新增** | `MemoryScope.AsFilter(topK int) MemoryFilter` 与 `MemoryFilter.WithLayer(layer)` |
+| `memory/extension.go` | **修改** | `Provide`、`TransformContext` 改用 `e.scope.AsFilter(e.cfg.TopK)`；`OnSessionClose` 的 `ForgetAll` 也使用全作用域过滤 |
+| `memory/tools.go` | **修改** | `recall` 工具改用 `scope.AsFilter(p.Limit)` |
+| `memory/dedup.go` | **修改** | `Deduplicate` 检索相似记忆改用 `scope.AsFilter(3).WithLayer(layer)` |
+| `memory/preference.go` | **修改** | `LoadUserPreferences` 改用 `scope.AsFilter(50).WithLayer(LayerUser)` |
+| `memory/integration_test.go` | **新增** | `TestMemoryProjectScopeIsolation` 覆盖 TransformContext / Provide / recall 三条路径的跨 project 隔离 |
+
+### 设计决策
+- 在 `MemoryScope` 上增加 `AsFilter` 方法，把 user_id/agent_id/session_id/project_id 四维一次性映射为 `MemoryFilter`，避免各调用点再次漏填字段。
+- 保留全局单库架构，通过行级过滤实现 workspace 隔离；不改为按 project 分库（避免大量小 SQLite 文件）。
+- `LayerUser` 当前与项目绑定写入 `ProjectID`，因此偏好也按项目隔离；若未来需要跨项目用户偏好，应显式在写入 `LayerUser` 时把 `ProjectID` 置空。
+
+### 影响
+- 同一用户在不同案件/项目之间不再意外共享长期记忆、会话记忆和工具召回结果。
+- 所有 memory 调用点统一通过 `AsFilter` 构造过滤器，降低未来新增字段时再次遗漏的风险。
+
+- Decision: 通过 `MemoryScope.AsFilter` 强制四维过滤，修复 memory 跨 workspace 泄漏。
+- Reason: 全局单库 + 查询层四维过滤是成本最低的隔离方案，符合“去繁就简”。
+- Risk: `LayerUser` 偏好从“按用户跨项目”变为“按项目隔离”；如需跨项目偏好需后续显式设计。
+- Human Owner: [NEEDS CLARIFICATION]
+- Spec: N/A（缺陷修复）
+
+## 2026-07-25: 修复 tasklist 全局目录跨 workspace 任务泄漏（R17-11）
+
+### 背景
+Phase 4 隔离回归发现：`cmd/mady/framework.go` 初始化 tasklist 扩展时使用全局目录 `~/.mady/sessions/tasks`，且 ID 为顺序数字，导致不同 workspace 的任务文件共存于同一目录，可被枚举/读写。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `cmd/mady/framework.go` | **修改** | tasklist 目录改为 `~/.mady/sessions/by-cwd/<cwd-hash>/tasks`，复用现有 `cwdPartitionName` |
+| `cmd/mady/framework_test.go` | **新增** | `TestTasklistDirForCWDPartitionsByCWD` 验证不同 cwd 得到不同分区、空 cwd 回退旧路径 |
+
+### 设计决策
+- 复用 TUI session 已有的 `by-cwd` 分区策略，路径构造与 `probeSessionDir` 保持一致。
+- 不修改 `agentcore/tasklist/filestore.go` 的 ID 生成逻辑；分区后不同 workspace 的 ID 命名空间自然隔离。
+- 空 cwd 时回退到未分区旧路径，保持边缘场景兼容。
+
+### 影响
+- 不同 project 目录启动的 mady 实例写入不同 tasklist 分区，无法互相枚举任务。
+- 旧全局目录中的任务不会自动迁移；本次修复后新任务进入分区目录。
+
+- Decision: tasklist 持久化按启动 CWD hash 分区，复用现有 `by-cwd` 机制。
+- Reason: 最小改动，与 session 分区策略一致；不改动 tasklist 内部逻辑。
+- Risk: 旧全局任务对新分区不可见；如需迁移需单独脚本。
+- Human Owner: [NEEDS CLARIFICATION]
+- Spec: N/A（缺陷修复）
+
+## 2026-07-25: 修复 Session Summarizer 出站敏感凭据未脱敏（R16-03）
+
+### 背景
+Phase 4 隐私专项发现：`memory/session_summarizer.go` 把完整会话历史直接发送给 LLM Provider 做摘要，未调用任何敏感数据过滤；密码、API Key、JWT 等凭据会原样出域。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `memory/extractor_llm.go` | **修改** | 将 `sensitiveDataFilter` 导出为 `SensitiveDataFilter` |
+| `memory/session_summarizer.go` | **修改** | 在 `buildConversationText` 之后、`provider.Complete` 之前调用 `SensitiveDataFilter` |
+| `memory/session_summarizer_test.go` | **新增** | `TestSessionSummarizer_RedactsSensitiveData` 验证 `api_key=sk-xxx` 被掩码为 `api_key: ***` |
+
+### 设计决策
+- 复用 `memory/extractor_llm.go` 已有的凭据过滤正则，不引入新规则，避免两套规则不一致。
+- 脱敏位置选在会话文本拼接完成后、Provider 请求构造前，覆盖 Summarize 单一路径。
+- 这是 Sprint 2 统一 PII redaction 层之前的过渡止血；未来由 `PIIRedactionHook` 统一接管后，本处过滤可作为冗余防护保留。
+
+### 影响
+- Session Summarizer  outbound 凭据泄露面被关闭。
+- 被掩码后的文本送入 LLM 做摘要，模型仍能理解“用户提供了 API Key”这一语义，但不会看到真实密钥。
+
+- Decision: Session Summarizer 复用 `SensitiveDataFilter` 在摘要前过滤凭据。
+- Reason: 快速止血；复用现有规则避免重复实现。
+- Risk: 过滤范围仅限凭据（password/api_key/secret/token/JWT），姓名、案件号等非凭据 PII 仍可能出域；后续由统一 redaction 层解决。
+- Human Owner: [NEEDS CLARIFICATION]
+- Spec: N/A（缺陷修复）
+
+## 2026-07-25: 修复 PDF/HTML 文档模板变量 HTML 注入（R13-1）
+
+### 背景
+Phase 3 审阅发现：`domains/doctmpl/renderer_html.go` 使用 `gmhtml.WithUnsafe()` 渲染 Markdown，这意味着 LLM 控制的模板变量若含 `<script>` 等 HTML 标签会被原样透传到最终 HTML 并注入 headless Chrome，形成 XSS/任意代码执行面。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `domains/doctmpl/store.go` | **修改** | `Render` 方法在调用 `ValidatedResolve` 前对所有变量值做 `html.EscapeString` |
+| `domains/doctmpl/store_test.go` | **新增** | `TestStoreRender_VariablesAreHTMLEscaped` 验证 `<script>alert('xss')</script>` 变量不会原样出现在 HTML 中 |
+
+### 设计决策
+- 在变量进入 Markdown 解析器之前转义，是最小且有效的拦截点；模板本身的 Markdown/HTML 不受影响。
+- 保留 `WithUnsafe()`，因为模板作者是可信的（内嵌/用户模板），只需对 LLM 控制的变量做防御。
+- 变量中的 Markdown 语法（如 `**bold**`）会被转义为字面量，这是可接受的安全-语义权衡；如需在变量中支持 Markdown，应作为显式功能单独设计。
+
+### 影响
+- LLM 生成的恶意 HTML 变量无法再注入到 PDF/HTML 输出中。
+- 现有正常文本变量行为不变（纯文本正常显示）。
+
+- Decision: 在 `store.Render` 中对模板变量做 HTML 实体转义，阻断注入链。
+- Reason: 最小改动，直接修复 LLM 控制变量注入 `WithUnsafe()`  goldmark 输出。
+- Risk: 变量中的原始 HTML/Markdown 会被当作文本渲染；如业务需要，应通过专用字段类型显式放行。
+- Human Owner: [NEEDS CLARIFICATION]
+- Spec: N/A（缺陷修复）

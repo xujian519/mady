@@ -151,10 +151,7 @@ func handleRecall(ctx context.Context, manager *Manager, scope MemoryScope, args
 		p.Limit = 5
 	}
 
-	filter := MemoryFilter{
-		UserID: scope.UserID,
-		TopK:   p.Limit,
-	}
+	filter := scope.AsFilter(p.Limit)
 	results, err := manager.Search(ctx, p.Query, filter)
 	if err != nil {
 		return fmt.Sprintf("搜索失败: %v", err), nil

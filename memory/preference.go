@@ -55,11 +55,7 @@ func LoadUserPreferences(ctx context.Context, store MemoryStore, scope MemorySco
 		query = "用户偏好 类别 " + category
 	}
 
-	filter := MemoryFilter{
-		UserID: scope.UserID,
-		Layer:  LayerUser,
-		TopK:   50,
-	}
+	filter := scope.AsFilter(50).WithLayer(LayerUser)
 
 	results, err := store.Recall(ctx, query, filter)
 	if err != nil {

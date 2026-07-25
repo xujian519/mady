@@ -3,6 +3,7 @@ package doctmpl
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"strings"
 	"sync"
@@ -147,7 +148,12 @@ func (s *TemplateStore) Render(name string, vars map[string]string, format Outpu
 			name, format, tmpl.SupportedFormats)
 	}
 
-	resolved := ValidatedResolve(tmpl, vars).Output
+	// 对模板变量做 HTML 实体转义，防止 LLM 控制的变量注入到 goldmark WithUnsafe() 输出中。
+	escapedVars := make(map[string]string, len(vars))
+	for k, v := range vars {
+		escapedVars[k] = html.EscapeString(v)
+	}
+	resolved := ValidatedResolve(tmpl, escapedVars).Output
 	return s.renderers.Render(format, resolved, meta)
 }
 

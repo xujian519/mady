@@ -127,3 +127,45 @@ func TestTemplateStore_DocIndex(t *testing.T) {
 		t.Error("missing claims in index")
 	}
 }
+
+// TestStoreRender_VariablesAreHTMLEscaped 验证 HTML 输出中模板变量值被 HTML 实体转义。
+// 注入包含 <script> 标签的变量值，确认不会原样出现在 HTML 中（XSS 防护）。
+// 这是 R13-1 的回归测试：LLM 控制模板变量时阻断注入链。
+func TestStoreRender_VariablesAreHTMLEscaped(t *testing.T) {
+	store, err := NewTemplateStore()
+	if err != nil {
+		t.Fatalf("NewTemplateStore failed: %v", err)
+	}
+
+	// 注入一个测试模板，使用 {{payload}} 变量。
+	tmpl := DocTemplate{
+		Name:             "__html_injection_test__",
+		Category:         "disclosure",
+		Domain:           "patent",
+		Language:         "zh-CN",
+		Title:            "HTML 注入测试",
+		Body:             "# 发明名称\n\n{{payload}}",
+		SupportedFormats: []OutputFormat{FormatHTML},
+		VarSchema: NewVarSchema([]VarDefinition{
+			{Name: "payload", Required: true},
+		}),
+	}
+	store.mu.Lock()
+	store.add(&tmpl)
+	store.mu.Unlock()
+
+	malicious := `<script>alert('xss')</script>`
+	out, err := store.Render(tmpl.Name, map[string]string{"payload": malicious}, FormatHTML, RenderMeta{})
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	html := string(out)
+	if strings.Contains(html, malicious) {
+		t.Fatalf("malicious variable value rendered raw in HTML: %s", html)
+	}
+	// 实体转义后的文本应出现在输出中。
+	if !strings.Contains(html, "&lt;script&gt;") {
+		t.Fatalf("expected escaped script tag in HTML, got: %s", html)
+	}
+}

@@ -142,3 +142,72 @@ func searchStr(s, sub string) bool {
 	}
 	return false
 }
+
+// TestMemoryProjectScopeIsolation 验证项目级作用域隔离：
+// 同一用户在不同 project/session 之间不能通过 TransformContext / Provide / recall 工具看到对方记忆。
+func TestMemoryProjectScopeIsolation(t *testing.T) {
+	ctx := context.Background()
+	store := memory.NewInMemoryStore()
+	mgr := memory.NewManager(store, nil, nil, memory.DefaultManagerConfig())
+
+	scopeA := memory.MemoryScope{UserID: "user1", AgentID: "mady-agent", SessionID: "session_a", ProjectID: "project_a"}
+	scopeB := memory.MemoryScope{UserID: "user1", AgentID: "mady-agent", SessionID: "session_b", ProjectID: "project_b"}
+
+	// 在项目 A 存入一条长期记忆
+	_, err := mgr.Remember(ctx, "项目A的保密技术方案", scopeA, memory.LayerLongTerm, nil)
+	if err != nil {
+		t.Fatalf("Remember failed: %v", err)
+	}
+
+	// 使用项目 B 的扩展调用 TransformContext
+	extCfg := memory.DefaultExtensionConfig()
+	extCfg.AutoExtract = false
+	extB := memory.NewExtension(mgr, scopeB, extCfg)
+
+	msgs := []agentcore.Message{
+		{Role: agentcore.RoleSystem, Content: "你是助手"},
+		{Role: agentcore.RoleUser, Content: "我们的技术方案是什么？"},
+	}
+	result := extB.TransformContext(ctx, msgs)
+
+	for _, m := range result {
+		if m.Role == agentcore.RoleSystem && searchStr(m.Content, "项目A") {
+			t.Fatal("project_b extension should not see project_a memories via TransformContext")
+		}
+	}
+
+	// 使用项目 B 的扩展调用 Provide（ContextBuilder 路径）
+	input := agentcore.BuildInput{
+		Messages:      msgs,
+		ContextWindow: 128000,
+	}
+	provided, err := extB.Provide(ctx, input, agentcore.DefaultLayerConfig(agentcore.LayerMemory))
+	if err != nil {
+		t.Fatalf("Provide failed: %v", err)
+	}
+	for _, m := range provided {
+		if m.Role == agentcore.RoleSystem && searchStr(m.Content, "项目A") {
+			t.Fatal("project_b extension should not see project_a memories via Provide")
+		}
+	}
+
+	// 使用项目 B 的 recall 工具
+	tools := extB.Tools()
+	var recall *agentcore.Tool
+	for _, tool := range tools {
+		if tool.Name == "recall" {
+			recall = tool
+			break
+		}
+	}
+	if recall == nil {
+		t.Fatal("recall tool not found")
+	}
+	resp, err := recall.Func(ctx, []byte(`{"query":"技术方案"}`))
+	if err != nil {
+		t.Fatalf("recall failed: %v", err)
+	}
+	if s, ok := resp.(string); ok && searchStr(s, "项目A") {
+		t.Fatal("project_b recall tool should not see project_a memories")
+	}
+}

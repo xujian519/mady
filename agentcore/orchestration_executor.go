@@ -8,6 +8,34 @@ import (
 	"strings"
 )
 
+// DefaultMaxOrchestrationDepth caps how deeply orchestrations may nest
+// (e.g., run_orchestration calling run_orchestration). A value of 8 matches
+// the default delegation-depth budget used by sequential agent chaining.
+const DefaultMaxOrchestrationDepth = 8
+
+// orchestrationDepthKey is the context key carrying the current orchestration
+// nesting depth. It is intentionally separate from the delegation depth key
+// used by RunSequentialAgentsWithDepth so the two budgets can be enforced
+// independently.
+type orchestrationDepthKey struct{}
+
+// OrchestrationDepthFromContext returns the orchestration nesting depth stored
+// in ctx, or 0 when unset. Depth increases by one each time an orchestration
+// executor begins a new Run.
+func OrchestrationDepthFromContext(ctx context.Context) int {
+	if d, ok := ctx.Value(orchestrationDepthKey{}).(int); ok {
+		return d
+	}
+	return 0
+}
+
+// WithOrchestrationDepth returns a copy of ctx carrying the given orchestration
+// nesting depth. Used by OrchestrationExecutor.Run to propagate depth to
+// nested tool invocations.
+func WithOrchestrationDepth(ctx context.Context, depth int) context.Context {
+	return context.WithValue(ctx, orchestrationDepthKey{}, depth)
+}
+
 // OrchestrationExecutor runs an OrchestrationManifest by sequentially
 // invoking each step's tool through the provided Agent.
 //
@@ -22,13 +50,21 @@ import (
 //   - Tolerates failures on Optional steps without aborting.
 //   - Produces an OrchestrationResult with per-step outputs and a summary.
 type OrchestrationExecutor struct {
-	agent *Agent
+	agent    *Agent
+	maxDepth int
 }
 
 // NewOrchestrationExecutor creates an executor bound to the given Agent.
-// The Agent provides tool lookup and invocation.
+// The Agent provides tool lookup and invocation. The executor uses
+// DefaultMaxOrchestrationDepth to bound nested orchestration recursion.
 func NewOrchestrationExecutor(agent *Agent) *OrchestrationExecutor {
-	return &OrchestrationExecutor{agent: agent}
+	return NewOrchestrationExecutorWithMaxDepth(agent, DefaultMaxOrchestrationDepth)
+}
+
+// NewOrchestrationExecutorWithMaxDepth creates an executor with a custom
+// recursion limit. maxDepth <= 0 disables the limit.
+func NewOrchestrationExecutorWithMaxDepth(agent *Agent, maxDepth int) *OrchestrationExecutor {
+	return &OrchestrationExecutor{agent: agent, maxDepth: maxDepth}
 }
 
 // Run executes the orchestration against the initial state.
@@ -58,6 +94,19 @@ func (e *OrchestrationExecutor) Run(ctx context.Context, m *OrchestrationManifes
 
 	var summaryLines []string
 	summaryLines = append(summaryLines, fmt.Sprintf("## %s\n", m.Name))
+
+	// Enforce orchestration nesting depth before running any steps.
+	// maxDepth <= 0 disables the check (unlimited).
+	depth := OrchestrationDepthFromContext(ctx) + 1
+	maxDepth := e.maxDepth
+	if maxDepth > 0 && depth > maxDepth {
+		msg := fmt.Sprintf("编排 %q 递归深度 %d 超过上限 %d", m.ID, depth, maxDepth)
+		summaryLines = append(summaryLines, fmt.Sprintf("- ❌ **%s**: %s", m.Name, msg))
+		result.Success = false
+		result.Summary = strings.Join(summaryLines, "\n")
+		return result, NewNodeError(msg, ErrDepthExceeded, "orchestration", m.ID)
+	}
+	ctx = WithOrchestrationDepth(ctx, depth)
 
 	for _, step := range m.Steps {
 		// Condition check: skip if predicate says false.

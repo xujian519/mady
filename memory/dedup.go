@@ -81,12 +81,7 @@ func (m *Manager) Deduplicate(ctx context.Context, content string, scope MemoryS
 	cfg := m.dedupCfg
 
 	// 1. 检索相似记忆
-	filter := MemoryFilter{
-		UserID:  scope.UserID,
-		AgentID: scope.AgentID,
-		Layer:   layer,
-		TopK:    3,
-	}
+	filter := scope.AsFilter(3).WithLayer(layer)
 	results, err := m.store.Recall(ctx, content, filter)
 	if err != nil {
 		return DedupResult{}, fmt.Errorf("memory: dedup recall: %w", err)

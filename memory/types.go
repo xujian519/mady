@@ -36,6 +36,18 @@ func (s MemoryScope) IsEmpty() bool {
 	return s.UserID == "" && s.AgentID == "" && s.SessionID == "" && s.ProjectID == ""
 }
 
+// AsFilter 将当前作用域转换为默认 MemoryFilter，保留 UserID / AgentID / SessionID / ProjectID。
+// TopK 由调用方传入；Layer 保持空值（表示所有层）。
+func (s MemoryScope) AsFilter(topK int) MemoryFilter {
+	return MemoryFilter{
+		UserID:    s.UserID,
+		AgentID:   s.AgentID,
+		SessionID: s.SessionID,
+		ProjectID: s.ProjectID,
+		TopK:      topK,
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Layer — 记忆分层
 // ---------------------------------------------------------------------------
@@ -147,6 +159,12 @@ func (f MemoryFilter) EffectiveTopK() int {
 		return 100
 	}
 	return f.TopK
+}
+
+// WithLayer 返回设置了指定 Layer 的副本，用于在作用域过滤基础上再按层过滤。
+func (f MemoryFilter) WithLayer(layer MemoryLayer) MemoryFilter {
+	f.Layer = layer
+	return f
 }
 
 // ---------------------------------------------------------------------------

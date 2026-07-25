@@ -37,6 +37,9 @@ func (s *SessionSummarizer) Summarize(ctx context.Context, sessionMemories []Mem
 		return nil, nil
 	}
 
+	// 在送出 LLM 摘要前过滤敏感凭据。
+	conversationText = SensitiveDataFilter(conversationText)
+
 	req := &agentcore.ProviderRequest{
 		Model: s.model,
 		Messages: []agentcore.Message{
