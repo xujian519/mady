@@ -1198,7 +1198,7 @@ func TestServerSkillRegistryEndpoints(t *testing.T) {
 			},
 			SelectedSkills: []string{"planner"},
 			SkillDiagnostics: []skill.Diagnostic{
-				{Path: "/skills/debugger/SKILL.md", Message: "name does not match parent directory"},
+				{Path: "/skills/debugger/SKILL.md", Message: "name contains invalid characters (must be lowercase a-z, 0-9, hyphens only)"},
 				{Path: "/skills/planner/SKILL.md", Message: "description exceeds 1024 characters (1100)"},
 			},
 		},

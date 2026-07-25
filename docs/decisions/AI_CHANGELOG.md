@@ -1,5 +1,53 @@
 # AI 变更记录
 
+## 2026-07-25: MCP stdio 客户端协议版本协商改为向下兼容
+
+### 背景
+工作日志（`~/.mady/logs/mady.log`）每次启动对 6 个外部 MCP 服务器（professional-router、gemma4-multimodal、codegraph、web-search-prime、zread、web-reader）各报一条 `mcp: server protocol version mismatch`（共 18/18 次启动）。客户端硬编码 `protocolVersion = "2025-11-25"`，外部服务端均返回 `2024-11-05`（旧版）。
+
+根因分析：`mcp/client.go:202` 的版本协商用的是"同月前缀匹配"（`HasPrefix(server, client[:7])`，即要求服务端必须是 `2025-11-XX`），既不是向下兼容也不是向上兼容，且与原注释"服务端版本 ≥ 客户端版本即视为兼容"的描述自相矛盾。同仓库的 HTTP 客户端（`mcp/http.go:210-212`）早已实现"无条件接受服务端版本"的协商策略，stdio 客户端与之不一致。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `mcp/client.go` | **修改** | 版本协商从 `!strings.HasPrefix(server, client[:7])` 改为 `server > client`；告警语义从"版本不一致"改为"服务端比客户端新（客户端可能过时）"；向下兼容（服务端旧版或同版）与服务端未返回版本时均静默 |
+
+### 设计决策
+- **向下兼容静默 + 向上告警**：MCP 协议版本协商的本质是服务端声明能力、客户端适配。服务端旧版（`2024-11-05` < `2025-11-25`）客户端完全支持，告警纯属噪音；仅当服务端比客户端新（可能引入客户端不认的特性）时才告警，提示升级客户端——这才是版本协商的真正价值。
+- **字符串字典序 = 日期序**：MCP 版本号固定 `YYYY-MM-DD` 格式且零填充，字符串比较等价于日期比较，无需引入时间解析。
+- **与 HTTP 客户端的差异**：HTTP 客户端（`http.go`）完全静默；本 stdio 客户端保留"向上告警"更严谨，两者都比原来的"同月匹配"更合理。
+- **不抽函数、不补单测**：逻辑为一行字符串比较，注释已充分说明策略，内联实现最易读；现有 `client_test.go` 的 mock 服务端返回同版本，改后测试套件全过，未破坏既有行为。
+
+### 影响
+- 6 个返回 `2024-11-05` 的外部 MCP 服务器启动时不再各刷一条版本不匹配警告；未来若服务端升级到比 `2025-11-25` 更新的协议版本，仍会告警提示客户端跟进。
+- `tools/desktop/mcp_client.go:79` 是另一处独立硬编码（`"protocolVersion": "2024-11-05"`，桌面控制用的 MCP 客户端），不在本次范围。
+
+## 2026-07-25: 放宽 skill name 校验——不再强求等于父目录名
+
+### 背景
+工作日志（`~/.mady/logs/mady.log`）每次启动报 5 条 `name "X" does not match parent directory "Y"` 警告，涉及内置 skill `patent/`→`patent-agent`、`legal/`→`legal-advisor`、`enablement/`→`enablement-evaluation`、`disclosure/`→`disclosure-analysis`、`chat/`→`chat-assistant`。
+
+根因分析：SKILL.md 的 `name` 字段是**语义身份标识**，需与 Agent 名 / manifest / handoff 白名单对齐（如 `patent-agent` 被 `domains/patent.go`、`agentcore/manifests/patent.json`、`plugins/patent/*/plugin.json` 的 `handoff_targets` 深度硬引用）；而父目录名只是文件组织手段。校验规则 `name == parentDir` 把两者强行耦合，产生误报。`skill.Name` 经 `skill.FindByName` 作为调用 ID、兼做 `Load()` 去重键——这些都不依赖目录名。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `skill/frontmatter.go` | **修改** | `validateSkill` 删除 `name != parentDir` 检查（4 行）；保留长度/字符集/连字符位置/描述长度等其他校验；加注释说明 name 是语义身份 |
+| `skill/skill_test.go` | **修改** | `TestLoad_WarnsOnSpecValidationIssues` 去掉 `parentWarn` 断言，目录名 `MismatchDir`→`BadName` 让测试自洽（`Invalid--Name-` 仍触发 charset/hyphen/longDesc 三项校验） |
+| `skill/skill_test.go` | **新增测试** | `TestLoad_NameNeedNotMatchDirectory`：name 合法但≠目录名时零警告，固化新行为 |
+| `server/server_test.go` | **修改** | skill 诊断透传 fixture 的 message 从已删除的 `"name does not match parent directory"` 换为仍存在的 `"name contains invalid characters"`（该 fixture 为人造数据、不经真实 Load，仅断言数量=2，换文案不破坏断言） |
+
+### 设计决策
+- **选放宽校验而非对齐目录**：对齐目录需连带改 manifest、`domains/*.go` 的 `cfg.Name`、3 个 `plugin.json` 的 `handoff_targets` 等几十处敏感引用，任一漏改将导致 handoff 白名单失效、Agent 找不到；且 `patent`/`legal`/`chat` 短名作为 Agent 身份语义不如 `patent-agent` 清晰。
+- **保留其他 name 格式校验**：长度上限、`^[a-z0-9-]+$` 字符集、首尾/连续连字符禁令仍生效，仍能拦截真正的笔误（如 `Patnet-agent`、`-foo`、`foo--bar`）。
+- **不触及敏感路径**：本次改动文件均不在 `scripts/check-sensitive-paths.sh` 清单内。
+
+### 影响
+- 内置 5 个 skill 启动时不再刷 5 条误报警告；用户自定义 skill 的 name 也可与目录名不同，命名更灵活。
+- `skill.Name` 作为调用 ID / 去重键的行为不变，向后兼容。
+
 ## 2026-07-25: TUI 会话持久化按当前工作目录隔离
 
 ### 背景

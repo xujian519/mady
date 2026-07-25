@@ -68,13 +68,10 @@ func loadSkillFile(path string) (*Skill, []Diagnostic, error) {
 
 func validateSkill(item Skill) []Diagnostic {
 	var diagnostics []Diagnostic
-	parentDir := filepath.Base(item.BaseDir)
-	if item.Name != parentDir {
-		diagnostics = append(diagnostics, Diagnostic{
-			Path:    item.FilePath,
-			Message: fmt.Sprintf("name %q does not match parent directory %q", item.Name, parentDir),
-		})
-	}
+	// Note: skill name is a semantic identity (it aligns with the Agent /
+	// handoff target name, e.g. "patent-agent"), while the parent directory
+	// is only a filesystem organization concern. The two are intentionally
+	// allowed to differ, so we do NOT enforce name == parentDir here.
 	if len(item.Name) > maxSkillNameLength {
 		diagnostics = append(diagnostics, Diagnostic{
 			Path:    item.FilePath,

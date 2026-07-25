@@ -98,7 +98,7 @@ func TestParseCommand(t *testing.T) {
 
 func TestLoad_WarnsOnSpecValidationIssues(t *testing.T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, "MismatchDir")
+	dir := filepath.Join(root, "BadName")
 	longDescription := strings.Repeat("x", maxSkillDescriptionLength+1)
 	mustWriteSkill(t, filepath.Join(dir, "SKILL.md"), `---
 name: Invalid--Name-
@@ -113,11 +113,9 @@ Body`)
 	if len(skills) != 1 {
 		t.Fatalf("skills len = %d", len(skills))
 	}
-	var parentWarn, charsetWarn, hyphenWarn, longDescWarn bool
+	var charsetWarn, hyphenWarn, longDescWarn bool
 	for _, diag := range diagnostics {
 		switch {
-		case strings.Contains(diag.Message, "does not match parent directory"):
-			parentWarn = true
 		case strings.Contains(diag.Message, "invalid characters"):
 			charsetWarn = true
 		case strings.Contains(diag.Message, "start or end with a hyphen"),
@@ -127,8 +125,36 @@ Body`)
 			longDescWarn = true
 		}
 	}
-	if !parentWarn || !charsetWarn || !hyphenWarn || !longDescWarn {
+	if !charsetWarn || !hyphenWarn || !longDescWarn {
 		t.Fatalf("diagnostics = %#v", diagnostics)
+	}
+}
+
+// TestLoad_NameNeedNotMatchDirectory verifies that a skill whose name differs
+// from its parent directory (but is otherwise valid) loads without warnings.
+// Skill name is a semantic identity aligned with Agent / handoff target names
+// (e.g. "patent-agent" living in skills/patent/), so it must not be coupled to
+// the filesystem directory name.
+func TestLoad_NameNeedNotMatchDirectory(t *testing.T) {
+	root := t.TempDir()
+	// Directory is "patent" but name is the Agent identity "patent-agent".
+	mustWriteSkill(t, filepath.Join(root, "patent", "SKILL.md"), `---
+name: patent-agent
+description: Patent domain skill whose name intentionally differs from its dir
+---
+Body`)
+
+	skills, diagnostics, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skills) != 1 || skills[0].Name != "patent-agent" {
+		t.Fatalf("skills = %#v", skills)
+	}
+	for _, diag := range diagnostics {
+		if strings.Contains(diag.Message, "does not match parent directory") {
+			t.Fatalf("unexpected name/dir mismatch diagnostic: %s", diag.Message)
+		}
 	}
 }
 

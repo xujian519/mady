@@ -196,11 +196,13 @@ func (c *Client) initialize(ctx context.Context) error {
 	if err := c.call(ctx, "initialize", params, &result); err != nil {
 		return fmt.Errorf("mcp initialize: %w", err)
 	}
-	// 核验服务端协议版本兼容性。MCP 使用字符串版本号通常为 "YYYY-MM-DD" 格式，
-	// 此处做前缀匹配：服务端版本 ≥ 客户端版本（按字符串前缀顺序）即视为兼容。
-	// 如果服务器未返回 protocolVersion（旧版或非标准实现），不阻塞但记录警告。
-	if result.ProtocolVersion != "" && !strings.HasPrefix(result.ProtocolVersion, protocolVersion[:7]) {
-		slog.Warn("mcp: server protocol version mismatch", "server", result.ProtocolVersion, "client", protocolVersion)
+	// 核验服务端协议版本兼容性。MCP 版本号为 "YYYY-MM-DD" 格式，字符串字典
+	// 序即日期序。客户端按向下兼容策略适配服务端：服务端版本不高于客户端时
+	// 视为兼容、静默；仅当服务端版本比客户端更新（可能引入客户端不认的新
+	// 特性）时告警，提示升级客户端。服务端未返回 protocolVersion（旧版或非
+	// 标准实现）同样不阻塞、不告警。
+	if result.ProtocolVersion != "" && result.ProtocolVersion > protocolVersion {
+		slog.Warn("mcp: server protocol version newer than client; some features may be unsupported", "server", result.ProtocolVersion, "client", protocolVersion)
 	}
 	caps, err := decodeCapabilities(result.Capabilities)
 	if err != nil {
