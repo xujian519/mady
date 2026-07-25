@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"strings"
 
+	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
+	"github.com/xujian519/mady/domains/evidence"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -41,6 +43,10 @@ const (
 	InfStateRuleVerdict     = "inf_rule_verdict"     // aggregate verdict
 	InfStateConclusion      = "inf_conclusion"       // final conclusion
 	InfStateOutput          = "inf_output"           // final output text
+
+	// New evidence integration state keys.
+	InfStateEvidence          = "inf_evidence"            // []agentcore_evidence.EvidenceSpan
+	InfStateEvidenceJudgments = "inf_evidence_judgments"  // []evidence.EvidenceJudgment
 )
 
 // =============================================================================
@@ -263,6 +269,73 @@ func infConcludeNode(ctx context.Context, state graph.PregelState) (graph.Pregel
 }
 
 // =============================================================================
+// Evidence Integration Nodes
+// =============================================================================
+
+// collectEvidenceNode builds evidence records from claim features.
+func collectEvidenceNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+	out := copyInfBaseState(state)
+
+	features, ok := state[InfStateClaimFeatures].([]string)
+	if !ok || len(features) == 0 {
+		out[InfStateEvidence] = []agentcore_evidence.EvidenceSpan{}
+		return out, nil
+	}
+
+	spans := make([]agentcore_evidence.EvidenceSpan, len(features))
+	for i, feat := range features {
+		spans[i] = agentcore_evidence.EvidenceSpan{
+			ID: fmt.Sprintf("inf_feat_%d", i), Snippet: feat,
+			Direction: agentcore_evidence.DirectionNeutral,
+			ClaimRefs: []string{fmt.Sprintf("feature_%d", i)},
+		}
+	}
+	out[InfStateEvidence] = spans
+	return out, nil
+}
+
+// infJudgeEvidenceNode performs triple-attribute review on infringement evidence.
+func infJudgeEvidenceNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+	out := copyInfBaseState(state)
+
+	evidenceRaw, ok := state[InfStateEvidence]
+	if !ok {
+		out[InfStateEvidenceJudgments] = []evidence.EvidenceJudgment{}
+		return out, nil
+	}
+
+	spans, ok := evidenceRaw.([]agentcore_evidence.EvidenceSpan)
+	if !ok || len(spans) == 0 {
+		out[InfStateEvidenceJudgments] = []evidence.EvidenceJudgment{}
+		return out, nil
+	}
+
+	engine := evidence.NewEngine(nil)
+	judgments := make([]evidence.EvidenceJudgment, 0, len(spans))
+	for _, span := range spans {
+		j, err := engine.Judge(span)
+		if err != nil {
+			continue
+		}
+		judgments = append(judgments, *j)
+	}
+	out[InfStateEvidenceJudgments] = judgments
+	return out, nil
+}
+
+// copyInfBaseState copies infringement base state fields forward.
+func copyInfBaseState(state graph.PregelState) graph.PregelState {
+	out := graph.PregelState{}
+	for _, key := range []string{InfStatePatentClaims, InfStateAccusedProduct,
+		InfStateClaimFeatures, InfStateProductFeatures, InfStateEvidence, InfStateEvidenceJudgments} {
+		if v, ok := state[key]; ok {
+			out[key] = v
+		}
+	}
+	return out
+}
+
+// =============================================================================
 // Graph Builder
 // =============================================================================
 
@@ -270,7 +343,7 @@ func infConcludeNode(ctx context.Context, state graph.PregelState) (graph.Pregel
 //
 // Graph structure:
 //
-//	parse_claims → parse_product → full_coverage → equivalence → rule_check → conclude → __end__
+//	parse_claims → parse_product → collect_evidence → inf_judge_evidence → full_coverage → equivalence → rule_check → conclude → __end__
 func BuildInfringementGraph() (*graph.CompiledPregelGraph, error) {
 	g := graph.NewPregelGraph()
 
@@ -293,9 +366,18 @@ func BuildInfringementGraph() (*graph.CompiledPregelGraph, error) {
 		return nil, err
 	}
 
+	if err := g.AddNode("collect_evidence", collectEvidenceNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("inf_judge_evidence", infJudgeEvidenceNode); err != nil {
+		return nil, err
+	}
+
 	edges := [][2]string{
 		{"parse_claims", "parse_product"},
-		{"parse_product", "full_coverage"},
+		{"parse_product", "collect_evidence"},
+		{"collect_evidence", "inf_judge_evidence"},
+		{"inf_judge_evidence", "full_coverage"},
 		{"full_coverage", "equivalence"},
 		{"equivalence", "rule_check"},
 		{"rule_check", "conclude"},

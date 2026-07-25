@@ -25,6 +25,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
+	"github.com/xujian519/mady/domains/evidence"
 	"github.com/xujian519/mady/domains/ipc"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/retrieval/domain"
@@ -42,6 +44,11 @@ const (
 	InvStateRuleVerdict = "inv_rule_verdict" // aggregate verdict
 	InvStateConclusion  = "inv_conclusion"   // final conclusion
 	InvStateOutput      = "inv_output"       // final output text
+
+	// New evidence integration state keys.
+	InvStateEvidenceJudgments = "inv_evidence_judgments" // []evidence.EvidenceJudgment
+	InvStateValidEvidence     = "inv_valid_evidence"     // []agentcore_evidence.EvidenceSpan
+	InvStateConflicts         = "inv_conflicts"          // []agentcore_evidence.Conflict
 )
 
 // InvalidationGroundType identifies the legal basis for invalidation.
@@ -507,6 +514,114 @@ func invConcludeNode(ctx context.Context, state graph.PregelState) (graph.Pregel
 }
 
 // =============================================================================
+// Evidence Integration Nodes
+// =============================================================================
+
+// judgeEvidenceNode performs triple-attribute review on gathered evidence.
+func judgeEvidenceNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+	out := copyInvBaseState(state)
+
+	evidenceRaw, ok := state[InvStateEvidence]
+	if !ok {
+		graph.MarkDegraded(out, InvStateEvidenceJudgments, []evidence.EvidenceJudgment{},
+			graph.DegradationNotImplemented, "证据检索未完成，跳过证据判断")
+		return out, nil
+	}
+
+	spans, ok := evidenceRaw.([]agentcore_evidence.EvidenceSpan)
+	if !ok || len(spans) == 0 {
+		out[InvStateEvidenceJudgments] = []evidence.EvidenceJudgment{}
+		return out, nil
+	}
+
+	engine := evidence.NewEngine(nil)
+	judgments := make([]evidence.EvidenceJudgment, 0, len(spans))
+	for _, span := range spans {
+		j, err := engine.Judge(span)
+		if err != nil {
+			continue
+		}
+		judgments = append(judgments, *j)
+	}
+	out[InvStateEvidenceJudgments] = judgments
+	return out, nil
+}
+
+// filterEvidenceNode filters evidence with overall_score < 0.5.
+func filterEvidenceNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+	out := copyInvBaseState(state)
+
+	judgmentsRaw, ok := state[InvStateEvidenceJudgments]
+	if !ok {
+		graph.MarkDegraded(out, InvStateValidEvidence, []agentcore_evidence.EvidenceSpan{},
+			graph.DegradationNotImplemented, "证据判断尚未完成，跳过证据过滤")
+		return out, nil
+	}
+
+	judgments, ok := judgmentsRaw.([]evidence.EvidenceJudgment)
+	if !ok {
+		out[InvStateValidEvidence] = []agentcore_evidence.EvidenceSpan{}
+		return out, nil
+	}
+
+	evidenceRaw, _ := state[InvStateEvidence]
+	spans, _ := evidenceRaw.([]agentcore_evidence.EvidenceSpan)
+
+	judgmentBySpanID := make(map[string]evidence.EvidenceJudgment)
+	for _, j := range judgments {
+		judgmentBySpanID[j.SpanID] = j
+	}
+
+	var valid []agentcore_evidence.EvidenceSpan
+	for _, span := range spans {
+		if j, ok := judgmentBySpanID[span.ID]; ok && j.OverallScore >= 0.5 {
+			valid = append(valid, span)
+		}
+	}
+	out[InvStateValidEvidence] = valid
+	return out, nil
+}
+
+// detectConflictNode detects conflicts among valid evidence.
+func detectConflictNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+	out := copyInvBaseState(state)
+
+	validRaw, ok := state[InvStateValidEvidence]
+	if !ok {
+		out[InvStateConflicts] = []agentcore_evidence.Conflict{}
+		return out, nil
+	}
+
+	spans, ok := validRaw.([]agentcore_evidence.EvidenceSpan)
+	if !ok || len(spans) == 0 {
+		out[InvStateConflicts] = []agentcore_evidence.Conflict{}
+		return out, nil
+	}
+
+	cb := agentcore_evidence.NewClaimBinding()
+	for _, span := range spans {
+		cb.RegisterSpan(span)
+	}
+
+	detector := agentcore_evidence.NewConflictDetector(cb)
+	conflicts := detector.Detect()
+	out[InvStateConflicts] = conflicts
+	return out, nil
+}
+
+// copyInvBaseState copies invalidation base state fields forward.
+func copyInvBaseState(state graph.PregelState) graph.PregelState {
+	out := graph.PregelState{}
+	for _, key := range []string{InvStateInput, InvStateClaims, InvStateGrounds, InvStateClaimTree,
+		InvStateEvidence, InvStateEvidenceJudgments, InvStateValidEvidence, InvStateConflicts} {
+		if v, ok := state[key]; ok {
+			out[key] = v
+		}
+	}
+	return out
+}
+
+// =============================================================================
 // Graph Builder
 // =============================================================================
 
@@ -563,10 +678,19 @@ func BuildInvalidationGraphWithOpts(opts ...InvGraphOption) (*graph.CompiledPreg
 		return nil, err
 	}
 
-	// Conditionally insert evidence gathering node.
+	// Conditionally insert evidence gathering node and evidence integration nodes.
 	hasRetriever := cfg.retriever != nil
 	if hasRetriever {
 		if err := g.AddNode("gather_evidence", newGatherEvidenceNodeWithRetriever(cfg.retriever)); err != nil {
+			return nil, err
+		}
+		if err := g.AddNode("judge_evidence", judgeEvidenceNode); err != nil {
+			return nil, err
+		}
+		if err := g.AddNode("filter_evidence", filterEvidenceNode); err != nil {
+			return nil, err
+		}
+		if err := g.AddNode("detect_conflict", detectConflictNode); err != nil {
 			return nil, err
 		}
 	}
@@ -578,7 +702,10 @@ func BuildInvalidationGraphWithOpts(opts ...InvGraphOption) (*graph.CompiledPreg
 	if hasRetriever {
 		edges = append(edges, [][2]string{
 			{"identify_grounds", "gather_evidence"},
-			{"gather_evidence", "analyze_grounds"},
+			{"gather_evidence", "judge_evidence"},
+			{"judge_evidence", "filter_evidence"},
+			{"filter_evidence", "detect_conflict"},
+			{"detect_conflict", "analyze_grounds"},
 		}...)
 	} else {
 		edges = append(edges, [2]string{"identify_grounds", "analyze_grounds"})
