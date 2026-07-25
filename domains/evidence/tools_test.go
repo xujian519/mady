@@ -93,3 +93,47 @@ func TestJudgeTripleTool_InvalidJSON(t *testing.T) {
 		t.Fatal("expected error for invalid JSON")
 	}
 }
+
+func TestCheckBurdenTool_ValidScenario(t *testing.T) {
+	tool := newBurdenTool()
+
+	args := `{"scenario":"patent_invalidation"}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map[string]any, got %T", result)
+	}
+	if m["holder"] != "请求人" {
+		t.Errorf("expected holder 请求人, got %v", m["holder"])
+	}
+	if m["standard"] != "优势证据" {
+		t.Errorf("expected standard 优势证据, got %v", m["standard"])
+	}
+}
+
+func TestCheckBurdenTool_InvalidScenario(t *testing.T) {
+	tool := newBurdenTool()
+
+	args := `{"scenario":"nonexistent"}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["holder"] != "主张方" {
+		t.Errorf("expected fallback holder 主张方, got %v", m["holder"])
+	}
+}
+
+func TestCheckBurdenTool_MissingScenario(t *testing.T) {
+	tool := newBurdenTool()
+
+	args := `{}`
+	_, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err == nil {
+		t.Fatal("expected error for missing scenario")
+	}
+}

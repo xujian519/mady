@@ -2,7 +2,6 @@ package evidence
 
 import "github.com/xujian519/mady/agentcore"
 
-func newBurdenTool() *agentcore.Tool   { return &agentcore.Tool{Name: "check_burden"} }
 func newStandardTool() *agentcore.Tool { return &agentcore.Tool{Name: "assess_standard"} }
 func newConflictTool(engine *DefaultEngine) *agentcore.Tool {
 	return &agentcore.Tool{Name: "detect_conflict"}
