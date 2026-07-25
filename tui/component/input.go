@@ -39,6 +39,8 @@ type Input struct {
 	paddingX    int64
 	placeText   string
 
+	selectedBg string // ANSI background sequence for text selection (set from theme)
+
 	killRing   []string
 	killIndex  int64
 	lastKillOp bool // whether the last op added to the kill ring (for yank-pop)
@@ -75,6 +77,10 @@ func (i *Input) SetPromptFn(fn func(string) string) { i.mu.Lock(); i.promptFn = 
 
 // SetTextFn installs an optional style function for the typed text.
 func (i *Input) SetTextFn(fn func(string) string) { i.mu.Lock(); i.textFn = fn; i.mu.Unlock() }
+
+// SetSelectedBg sets the ANSI background-color escape sequence used for
+// text selection highlighting. Empty string falls back to default blue.
+func (i *Input) SetSelectedBg(bg string) { i.mu.Lock(); i.selectedBg = bg; i.mu.Unlock() }
 
 // SetPlaceholder sets a dim placeholder rendered when value is empty.
 func (i *Input) SetPlaceholder(s string) { i.mu.Lock(); i.placeText = s; i.mu.Unlock() }
@@ -211,7 +217,7 @@ func (i *Input) Render(width int64) []string {
 			displayed = i.textFn(displayed)
 		}
 		if i.allSelected && visible.Text != "" {
-			displayed = "\x1b[48;5;33m" + core.StripAnsi(displayed) + "\x1b[0m"
+			displayed = i.selBg() + core.StripAnsi(displayed) + "\x1b[0m"
 		}
 		body = core.PadToWidth(displayed, avail)
 
@@ -229,6 +235,15 @@ func (i *Input) Render(width int64) []string {
 
 	line := pad + prompt + body
 	return []string{line}
+}
+
+// selBg returns the ANSI background-color sequence for selected text.
+// Returns the theme-provided sequence, or defaults to blue (256-color index 33).
+func (i *Input) selBg() string {
+	if i.selectedBg != "" {
+		return i.selectedBg
+	}
+	return "\x1b[48;5;33m"
 }
 
 // Invalidate is a no-op for Input (no cache).

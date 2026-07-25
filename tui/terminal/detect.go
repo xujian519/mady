@@ -179,7 +179,6 @@ type TerminalContext struct {
 	kittyKeyboardSkipReason string
 	hasOSC8Hyperlinks       bool
 	osc8SkipReason          string
-	hasOSC52Clipboard       bool
 	shiftEnterAvailable     bool
 	ctrlDotOK               bool
 }
@@ -740,8 +739,7 @@ func computeOSC8Hyperlinks(tc *TerminalContext, _ map[string]string) {
 		}
 	}
 
-	switch tc.Multiplexer {
-	case MuxScreen:
+	if tc.Multiplexer == MuxScreen {
 		tc.hasOSC8Hyperlinks = false
 		tc.osc8SkipReason = "screen"
 		return

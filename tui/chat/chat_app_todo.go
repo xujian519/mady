@@ -81,8 +81,8 @@ func taskToTodoItem(t *TaskInfo) component.TodoItem {
 	return component.TodoItem{
 		ID:       t.ID,
 		Content:  t.Subject,
-		Status:   string(t.Status),
-		Priority: string(t.Priority),
+		Status:   t.Status,
+		Priority: t.Priority,
 	}
 }
 

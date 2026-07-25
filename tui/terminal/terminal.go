@@ -295,7 +295,7 @@ func (t *ProcessTerminal) Context() *TerminalContext {
 // alternate screen mode").
 //
 // IMPORTANT: flag changes must go through SetKittyKeyboardFlags, which
-// synchronises the global flags for decodeKittyU. Direct writes to
+// synchronizes the global flags for decodeKittyU. Direct writes to
 // t.kittyFlags followed by PushKittyKeyboard would re-negotiate the terminal
 // without updating the parser, causing parameter layout mismatches.
 //
@@ -392,9 +392,9 @@ func (t *ProcessTerminal) shouldEnableKittyKbdLocked() bool {
 }
 
 // TerminalSupportsKittyKeyboard returns true when the current terminal is
-// known to implement (a subset of) the Kitty keyboard protocol. This is a
-// less accurate check than TerminalContext; prefer CurrentTerminalContext()
-// for new code. Kept for backwards compatibility.
+// known to implement (a subset of) the Kitty keyboard protocol.
+//
+// Deprecated: Use CurrentTerminalContext().SupportsKittyKeyboard() instead.
 func TerminalSupportsKittyKeyboard() bool {
 	term := os.Getenv("TERM")
 	termProgram := os.Getenv("TERM_PROGRAM")

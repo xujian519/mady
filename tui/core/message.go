@@ -16,18 +16,26 @@ type MsgBase struct{}
 
 func (MsgBase) MsgMarker() {}
 
+// KeyMsg carries a single key-press event. The Data field contains the raw
+// terminal input bytes; use terminal.ParseKeys / MatchesKey to interpret it.
 type KeyMsg struct {
 	Data string
 }
 
 func (KeyMsg) MsgMarker() {}
 
+// PasteMsg carries text pasted via the bracketed paste mechanism (CSI 2004).
+// The TUI engine wraps paste content in this type so components can
+// distinguish typed input from bulk paste and handle it efficiently.
 type PasteMsg struct {
 	Text string
 }
 
 func (PasteMsg) MsgMarker() {}
 
+// WindowSizeMsg is emitted when the terminal is resized (SIGWINCH).
+// Width and Height are the new terminal dimensions in columns and rows.
+// The TUI engine automatically invalidates all components on resize.
 type WindowSizeMsg struct {
 	Width  int64
 	Height int64
@@ -35,12 +43,16 @@ type WindowSizeMsg struct {
 
 func (WindowSizeMsg) MsgMarker() {}
 
+// TickMsg is emitted by a Tick Cmd after a duration delay.
+// The Time field records when the tick fired.
 type TickMsg struct {
 	Time time.Time
 }
 
 func (TickMsg) MsgMarker() {}
 
+// QuitMsg signals the TUI to shut down. It is typically produced by Ctrl+C
+// or by calling core.Quit() from within a component's Update method.
 type QuitMsg struct{}
 
 func (QuitMsg) MsgMarker() {}
@@ -56,16 +68,20 @@ type PanicMsg struct {
 
 func (PanicMsg) MsgMarker() {}
 
+// MouseAction describes the type of a mouse event.
 type MouseAction int64
 
 const (
-	MousePress MouseAction = iota
-	MouseRelease
-	MouseWheelUp
-	MouseWheelDown
-	MouseMotion
+	MousePress     MouseAction = iota // button pressed
+	MouseRelease                      // button released
+	MouseWheelUp                      // wheel scrolled up
+	MouseWheelDown                    // wheel scrolled down
+	MouseMotion                       // pointer moved (requires SGR mouse tracking)
 )
 
+// MouseMsg carries a terminal mouse event. Coordinates are 0-based
+// (Row 0 = top of terminal, Col 0 = leftmost column). Button identifies
+// which button was pressed/released (1=left, 2=middle, 3=right, 4=release).
 type MouseMsg struct {
 	Action MouseAction
 	Row    int64
@@ -78,14 +94,28 @@ type MouseMsg struct {
 
 func (MouseMsg) MsgMarker() {}
 
+// BatchMsg aggregates multiple Cmd results into one message. It is produced
+// by the Batch() helper and handled by the TUI event loop, which dispatches
+// each Cmd result as a separate message.
 type BatchMsg []Cmd
 
 func (BatchMsg) MsgMarker() {}
 
+// SequenceMessage carries an ordered list of Cmds. It is produced by the
+// Sequence() helper; the event loop executes them in order, waiting for each
+// to complete before starting the next.
 type SequenceMessage []Cmd
 
 func (SequenceMessage) MsgMarker() {}
 
+// Cmd is a function that performs an asynchronous side effect and returns
+// a Msg. Cmds are returned from Update() and executed in a separate
+// goroutine by the TUI event loop. The returned Msg is delivered back to
+// Update() on the event-loop goroutine.
+//
+// IMPORTANT: Cmd must NOT block on the event-loop goroutine (e.g., sending
+// on msgCh directly) as this causes a deadlock. All goroutine management
+// is handled by Batch/Sequence and the TUI engine.
 type Cmd func() Msg
 
 func Batch(cmds ...Cmd) Cmd {

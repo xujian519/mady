@@ -1,5 +1,7 @@
 package theme
 
+import "github.com/xujian519/mady/tui/internal"
+
 // quantize.go — Color quantization engine for terminals with limited color
 // support. Provides RGB-to-16 and theme-level quantization.
 //
@@ -109,10 +111,10 @@ func FgParams16(hex string, isDarkBg bool) string {
 	}
 	if idx >= 8 {
 		// Bright variants: ANSI 90-97
-		return "9" + itoa(int64(idx-8))
+		return "9" + internal.ITOA(int64(idx-8))
 	}
 	// Normal variants: ANSI 30-37
-	return "3" + itoa(int64(idx))
+	return "3" + internal.ITOA(int64(idx))
 }
 
 // BgParams16 returns the SGR parameter string for a 16-color background.
@@ -124,31 +126,23 @@ func BgParams16(hex string, isDarkBg bool) string {
 	}
 	if idx >= 8 {
 		// Bright bg: ANSI 100-107
-		return "10" + itoa(int64(idx-8))
+		return "10" + internal.ITOA(int64(idx-8))
 	}
 	// Normal bg: ANSI 40-47
-	return "4" + itoa(int64(idx))
-}
-
-// itoa is a minimal int64-to-string without strconv import.
-// Duplicated from terminal/ansi.go to keep this package self-contained.
-func itoa(n int64) string {
-	if n == 0 {
-		return "0"
-	}
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(buf[i:])
+	return "4" + internal.ITOA(int64(idx))
 }
 
 // QuantizeTheme applies color quantization to a SemanticTheme based on the
-// given ColorLevel. Returns a new SemanticTheme with all hex colors resolved
-// to the closest available color at the target level.
+// given ColorLevel.
+//
+// NOTE: This function is currently a no-op — all quantization is handled
+// downstream at render time by color_resolve.go (FgParams/BgParams call
+// RGBTo256/QuantizeRGBTo16 on hex values). The SemanticTheme itself stores
+// unmodified hex strings regardless of the target ColorLevel.
+//
+// This function exists as a pre-quantization extension point for future
+// optimizations (e.g., caching pre-quantized palette copies). Until then,
+// it returns the input pointer unchanged.
 func QuantizeTheme(sem *SemanticTheme, level ColorLevel, isDarkBg bool) *SemanticTheme {
 	if level == ColorLevelTrueColor {
 		return sem
@@ -159,17 +153,12 @@ func QuantizeTheme(sem *SemanticTheme, level ColorLevel, isDarkBg bool) *Semanti
 	return quantizeThemeBasic(sem, isDarkBg)
 }
 
+// quantizeTheme256 is a no-op: 256-color quantization happens at render time.
 func quantizeTheme256(sem *SemanticTheme) *SemanticTheme {
-	// 256-color quantization is handled downstream at render time by
-	// color_resolve.go (FgParams/BgParams call RGBTo256 on hex values).
-	// The SemanticTheme itself stores unmodified hex strings; no
-	// transformation needed at this level.
 	return sem
 }
 
+// quantizeThemeBasic is a no-op: 16-color quantization happens at render time.
 func quantizeThemeBasic(sem *SemanticTheme, _ bool) *SemanticTheme {
-	// 16-color quantization happens at the FgParams/BgParams render level
-	// where isDarkBg and ColorLevel are available. The SemanticTheme holds
-	// unmodified hex values; the render path calls QuantizeRGBTo16 on demand.
 	return sem
 }

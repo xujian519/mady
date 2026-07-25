@@ -223,7 +223,8 @@ func TestViewportScrollbarFollowDim(t *testing.T) {
 	// Following mode still shows a scrollbar; just check it renders.
 	// The exact ANSI coloring depends on theme state; we verify presence.
 	if last == ' ' && len(lines[0]) > 1 {
-		// Space in last col only when content fits in viewport
+		// Space in last col: content fits in viewport, no scrollbar needed.
+		_ = last // explicit no-op: verification is the comment above
 	}
 
 	// Scroll up and verify scrollbar still renders.

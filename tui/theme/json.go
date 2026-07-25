@@ -121,6 +121,10 @@ func applyColorKey(t *SemanticTheme, key, col string) {
 		t.Dim = col
 	case "text":
 		t.Text = col
+	case "system":
+		t.System = col
+	case "assistantText":
+		t.AssistantText = col
 	case "thinkingText":
 		t.ThinkingText = col
 	case "userMessageText":
@@ -173,6 +177,11 @@ func applyColorKey(t *SemanticTheme, key, col string) {
 		t.SyntaxOperator = col
 	case "syntaxPunctuation":
 		t.SyntaxPunctuation = col
+
+	case "loaderSpinner":
+		t.LoaderSpinner = col
+	case "progressBar":
+		t.ProgressBar = col
 
 	// Phase 1 新增 token：背景层次与证据/置信度
 	case "background":

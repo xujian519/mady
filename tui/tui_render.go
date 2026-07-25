@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 
 	core "github.com/xujian519/mady/tui/core"
+	terminal "github.com/xujian519/mady/tui/terminal"
 )
 
 // RequestRender coalesces repeated calls into a single frame.
@@ -119,29 +120,20 @@ func (t *TUI) renderFrame() {
 	}
 
 	// Disable auto-wrap (DECAWM) for the duration of the frame render.
-	// VisibleWidth (which drives truncation/padding) treats East-Asian
-	// Ambiguous chars (—, →, ★, …) as width 1, but CJK-capable terminals
-	// on macOS often render them as width 2. When a history line contains
-	// such a character, the terminal sees the line as wider than cols and
-	// wraps the last column to the next row. If that next row (e.g. the
-	// editor top border) is unchanged, the diff engine skips it, and the
-	// wrapped character overwrites its first cell — visible as a "gap" at
-	// the left edge of the border. With DECAWM off, excess characters are
-	// silently dropped at the right margin instead of wrapping.
 	buf.WriteString("\x1b[?7l")
 
 	if first || prevW != cols {
 		// Full repaint: write every row from top to bottom.
 		// Always hide cursor during full repaint to avoid flicker while
 		// rows are being redrawn. Stateful cursor visibility is restored below.
-		buf.WriteString("\x1b[?25l")
-		buf.WriteString("\x1b[H")
-		buf.WriteString("\x1b[0J")
+		buf.WriteString(terminal.HideCursor())
+		buf.WriteString(terminal.CursorHome())
+		buf.WriteString(terminal.ClearFromCursorDown())
 		for i, r := range rows {
 			buf.WriteString(core.SerializeRow(r))
 			// SerializeRow emits its own reset when needed, but a trailing
 			// reset guarantees no style leaks across lines.
-			buf.WriteString("\x1b[0m")
+			buf.WriteString(terminal.Reset)
 			if i < len(rows)-1 {
 				buf.WriteString("\r\n")
 			}
@@ -153,7 +145,7 @@ func (t *TUI) renderFrame() {
 		// since the diff writes move the cursor via MoveTo. If already hidden
 		// from a prior frame, skip the hide to preserve the blink timer.
 		if t.lastCursor.visible || t.lastCursor.first {
-			buf.WriteString("\x1b[?25l")
+			buf.WriteString(terminal.HideCursor())
 		}
 		diff := core.DiffFrame(prev, rows)
 		for _, d := range diff {
@@ -161,23 +153,23 @@ func (t *TUI) renderFrame() {
 				// Raw rows lack cell structure — fall back to a full-row
 				// rewrite. Reset style first because the SGR state after a
 				// cursor move is unknown.
-				fmt.Fprintf(&buf, "\x1b[%d;1H\x1b[0m", d.Row+1)
+				buf.WriteString(terminal.CursorPosition(d.Row+1, 1) + terminal.Reset)
 				buf.WriteString(d.RawContent)
 				continue
 			}
 			for _, seg := range d.Segments {
-				fmt.Fprintf(&buf, "\x1b[%d;%dH", d.Row+1, seg.StartCol+1)
+				buf.WriteString(terminal.CursorPosition(d.Row+1, seg.StartCol+1))
 				buf.WriteString(core.SerializeRowSegment(seg.Cells, seg.AfterStyle))
 			}
 			if d.ClearTail {
-				fmt.Fprintf(&buf, "\x1b[%d;%dH", d.Row+1, d.TailStart+1)
-				buf.WriteString("\x1b[0K")
-				buf.WriteString("\x1b[0m")
+				buf.WriteString(terminal.CursorPosition(d.Row+1, d.TailStart+1))
+				buf.WriteString(terminal.ClearToEndOfLine())
+				buf.WriteString(terminal.Reset)
 			}
 		}
 		if len(rows) < len(prev) {
-			fmt.Fprintf(&buf, "\x1b[%d;1H", len(rows)+1)
-			buf.WriteString("\x1b[0J")
+			buf.WriteString(terminal.CursorPosition(int64(len(rows)+1), 1))
+			buf.WriteString(terminal.ClearFromCursorDown())
 		}
 	}
 
@@ -192,13 +184,13 @@ func (t *TUI) renderFrame() {
 	if wantVisible != t.lastCursor.visible {
 		// Visibility transition: emit Show/Hide.
 		if wantVisible {
-			fmt.Fprintf(&buf, "\x1b[%d;%dH\x1b[?25h", wantRow+1, wantCol+1)
+			buf.WriteString(terminal.CursorPosition(wantRow+1, wantCol+1) + terminal.ShowCursor())
 		} else {
-			buf.WriteString("\x1b[?25l")
+			buf.WriteString(terminal.HideCursor())
 		}
 	} else if wantVisible && (wantRow != t.lastCursor.row || wantCol != t.lastCursor.col) {
 		// Already visible but position changed: reposition without Show/Hide.
-		fmt.Fprintf(&buf, "\x1b[%d;%dH", wantRow+1, wantCol+1)
+		buf.WriteString(terminal.CursorPosition(wantRow+1, wantCol+1))
 	}
 	// No change: zero cursor commands emitted — blink timer undisturbed.
 

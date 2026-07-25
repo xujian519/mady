@@ -18,6 +18,12 @@ import "github.com/xujian519/mady/tui/internal/csync"
 // ---------------------------------------------------------------------------
 
 // Component is the core interface every renderable element implements.
+//
+// Render is called from the TUI's rendering goroutine. Components must be
+// safe for concurrent access: Render may execute outside the TUI lock, and
+// may be called concurrently with Update or other component methods.
+// Components should either use their own synchronization (mutex, atomic) or
+// operate on immutable snapshots captured at Render entry.
 type Component interface {
 	Render(width int64) []string
 	Invalidate()

@@ -14,6 +14,7 @@ type Palette struct {
 	Dim, Bold, Handoff, Code, CodeBlock, Usage              Style
 	Accent, Muted, BorderMuted, Border, BorderAccent        Style
 	SelectHighlight, SelectDescription                      Style
+	SelectionBg                                             Style
 	SettingsKey, SettingsValueSelected                      Style
 	LoaderSpinner, ProgressPrompt, ProgressCompletion       Style
 	Thinking                                                Style
@@ -147,6 +148,15 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 		p.SelectHighlight = NewStyle().Fg(BrightCyan).Bold()
 	}
 	p.SelectDescription = p.Dim
+
+	selBg := sem.SelectedBg
+	if selBg == "" {
+		selBg = "#3366ff"
+	}
+	p.SelectionBg = NewStyle().WithBgParams(BgParams(selBg, mode))
+	if BgParams(selBg, mode) == "" {
+		p.SelectionBg = NewStyle().Bg(Blue)
+	}
 
 	p.SettingsKey = fg(sem.Accent).Bold()
 	if FgParams(sem.Accent, mode) == "" {

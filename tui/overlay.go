@@ -51,11 +51,11 @@ func hexToCoreColor(hex string) core.Color {
 			c := h[i*2+j]
 			switch {
 			case c >= '0' && c <= '9':
-				v = v*16 + uint8(c-'0')
+				v = v*16 + (c - '0')
 			case c >= 'a' && c <= 'f':
-				v = v*16 + uint8(c-'a'+10)
+				v = v*16 + (c - 'a' + 10)
 			case c >= 'A' && c <= 'F':
-				v = v*16 + uint8(c-'A'+10)
+				v = v*16 + (c - 'A' + 10)
 			default:
 				return core.Palette(235) // non-hex char → fallback
 			}

@@ -296,13 +296,13 @@ func (e *Editor) Render(width int64) []string {
 		hasChipsInSeg := len(rowChips) > 0
 		switch {
 		case e.allSelected && bodyText != "":
-			bodyText = "\x1b[48;5;33m" + core.StripAnsi(bodyText) + "\x1b[0m"
+			bodyText = e.selBg() + core.StripAnsi(bodyText) + "\x1b[0m"
 		case hasSel && !hasChipsInSeg:
 			if from, to, ok := selRangeInSegment(v.hardRow, segStart, segLen, selStart, selEnd); ok && from < to {
 				before := textFn(string(segRunes[:from]))
 				sel := core.StripAnsi(textFn(string(segRunes[from:to])))
 				afterVal := textFn(string(segRunes[to:]))
-				bodyText = before + "\x1b[48;5;33m" + sel + "\x1b[0m" + afterVal
+				bodyText = before + e.selBg() + sel + "\x1b[0m" + afterVal
 			}
 		}
 
@@ -344,6 +344,15 @@ func (e *Editor) Render(width int64) []string {
 
 	e.lastVisuals = rowsMeta
 	return out
+}
+
+// selBg returns the ANSI background-color sequence for selected text.
+// Returns the theme-provided sequence, or defaults to blue (256-color index 33).
+func (e *Editor) selBg() string {
+	if e.selectedBg != "" {
+		return e.selectedBg
+	}
+	return "\x1b[48;5;33m"
 }
 
 // selRangeInSegment computes the selected rune range [from, to) within a

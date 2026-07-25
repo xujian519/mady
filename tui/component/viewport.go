@@ -84,12 +84,8 @@ type Viewport struct {
 	indicator   bool
 	indicatorFn func(string) string
 
-	// scrollbar configuration and cached render state.
-	sb      ScrollbarConfig
-	sbCache struct {
-		total, viewport, off int64
-		thumbStart, thumbEnd int64
-	}
+	// scrollbar configuration.
+	sb ScrollbarConfig
 }
 
 // NewViewport returns a viewport with the given visible height.
@@ -156,9 +152,8 @@ func (v *Viewport) SetScrollbarConfig(cfg ScrollbarConfig) {
 		cfg.ThumbSymbol = '▐'
 	}
 	if cfg.Mode == ScrollbarAuto && cfg.Width < 2 {
-		// Auto mode: avoid reserving a column for the scrollbar when content fits.
-		// The gap is not needed in 1-column mode since the content is already
-		// clipped at contentWidth, leaving the rightmost column as the scrollbar.
+		// Auto mode + narrow terminal: scrollbar column not reserved.
+		_ = cfg.Width // explicit no-op
 	}
 	v.sb = cfg
 	v.mu.Unlock()

@@ -271,6 +271,7 @@ func newChatEditor(cfg ChatAppConfig, km *terminal.KeybindingsManager) *componen
 	editor.SetFocusIndicator("")
 	editor.SetPlaceholder("输入消息…（/ 查看命令）")
 	editor.SetPlaceholderFn(func(s string) string { return theme.CurrentPalette().Dim.Render(s) })
+	editor.SetSelectedBg(theme.CurrentPalette().SelectionBg.Render(""))
 	return editor
 }
 

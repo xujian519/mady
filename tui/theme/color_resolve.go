@@ -21,6 +21,8 @@ const (
 )
 
 // DetectColorMode mirrors common heuristics (similar to pi-mono coding-agent).
+// When terminal context has been initialized, this delegates to the more
+// accurate terminal-brand-based detection in terminal.CurrentTerminalContext.
 func DetectColorMode() ColorMode {
 	if os.Getenv("COLORTERM") == "truecolor" || os.Getenv("COLORTERM") == "24bit" {
 		return ColorModeTruecolor

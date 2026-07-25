@@ -2,6 +2,10 @@ package component
 
 // ---------------------------------------------------------------------------
 // Built-in language specs
+//
+// This file defines the built-in language specifications for the syntax
+// highlighter: tokenization rules for Go, Bash, JSON, YAML, Markdown, and
+// other common languages used in Agent output.
 // ---------------------------------------------------------------------------
 
 func ensureDefaultLanguages() {

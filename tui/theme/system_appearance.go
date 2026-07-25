@@ -119,6 +119,12 @@ func detectMacOSAppearance() (SystemAppearance, error) {
 	cmd := exec.Command("defaults", "read", "-g", "AppleInterfaceStyle")
 	out, err := cmd.Output()
 	if err != nil {
+		// On macOS Light mode, AppleInterfaceStyle key does not exist
+		// and defaults read exits with code 1. Distinguish this from
+		// the command being missing entirely (e.g. on Linux).
+		if _, ok := err.(*exec.ExitError); ok {
+			return AppearanceLight, nil
+		}
 		return AppearanceUnknown, err // propagate so Linux detection runs
 	}
 	if strings.Contains(strings.ToLower(string(out)), "dark") {

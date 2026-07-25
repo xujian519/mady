@@ -348,7 +348,6 @@ func decodeKittyU(seq, params string) Key {
 	// Associated text (flag 16) — the remaining payload.
 	if flags&16 != 0 {
 		textStr = rest2
-		rest2 = ""
 	}
 
 	code := parseUint(codeStr)

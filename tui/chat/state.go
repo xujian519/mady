@@ -282,6 +282,11 @@ func EventKindFor(e ChatEvent) eventKind {
 		return evtAutoRetry
 	case AgentInterruptChatEvent:
 		return evtInterrupt
+	case ApprovalPromptChatEvent:
+		return evtApprovalRequest
+	case TaskCreatedChatEvent, TaskUpdatedChatEvent:
+		// Task events do not drive FSM state transitions.
+		return evtUnknown
 	}
 	// Unknown events map to evtUnknown, for which Transition has no case —
 	// it returns the current state unchanged (a genuine no-op). Returning

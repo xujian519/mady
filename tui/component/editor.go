@@ -77,6 +77,8 @@ type Editor struct {
 	km             *terminal.KeybindingsManager
 	chips          chipState // parallel chip model for inline tokens
 
+	selectedBg string // ANSI background sequence for text selection (set from theme)
+
 	killRing  []string
 	killIndex int64
 	lastKill  bool
@@ -165,6 +167,12 @@ func (e *Editor) SetPromptFn(fn func(string) string) { e.mu.Lock(); e.promptFn =
 
 // SetTextFn styles the body text.
 func (e *Editor) SetTextFn(fn func(string) string) { e.mu.Lock(); e.textFn = fn; e.mu.Unlock() }
+
+// SetSelectedBg sets the ANSI background-color escape sequence used for
+// text selection highlighting. Callers should supply the result of
+// theme.CurrentPalette().SelectedBg.Render("") to use the theme color,
+// or an empty string to fall back to the default blue background.
+func (e *Editor) SetSelectedBg(bg string) { e.mu.Lock(); e.selectedBg = bg; e.mu.Unlock() }
 
 // SetPlaceholder sets text shown when empty & unfocused.
 func (e *Editor) SetPlaceholder(s string) { e.mu.Lock(); e.placeText = s; e.mu.Unlock() }

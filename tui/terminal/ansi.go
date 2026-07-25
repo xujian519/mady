@@ -34,6 +34,20 @@ func RestoreCursor() string { return Esc + "u" }
 func HideCursor() string { return Esc + "?25l" }
 func ShowCursor() string { return Esc + "?25h" }
 
+// ClearFromCursorDown clears from the cursor to the end of the screen.
+func ClearFromCursorDown() string { return Esc + "0J" }
+
+// CursorHome returns "ESC[H" — move cursor to row 1, column 1.
+func CursorHome() string { return Esc + "H" }
+
+// CursorPosition returns "ESC[row;colH" — absolute cursor positioning (CUP).
+func CursorPosition(row, col int64) string {
+	return Esc + itoa(row) + ";" + itoa(col) + "H"
+}
+
+// ClearToEndOfLine clears from cursor to end of line.
+func ClearToEndOfLine() string { return Esc + "0K" }
+
 // escn formats "ESC<n>Suffix" (e.g. "ESC[5A" for cursor up 5).
 func escn(suffix string, n int64) string {
 	if n <= 0 {

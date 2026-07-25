@@ -38,15 +38,23 @@ func StartSemanticThemeWatcher(path string, poll time.Duration, onReload func())
 				}
 				mt := st.ModTime().UnixNano()
 				if lastMtime < 0 {
-					_ = LoadSemanticThemeFromFile(path, ColorModeFromEnv())
+					if err := LoadSemanticThemeFromFile(path, ColorModeFromEnv()); err != nil {
+						slog.Error("theme: initial load failed", "path", path, "error", err)
+					}
 					lastMtime = mt
 					continue
 				}
 				if mt == lastMtime {
 					continue
 				}
+				// Only update lastMtime on successful reload so that a
+				// transient error (e.g. atomic-write in progress) does not
+				// permanently skip the file.
+				if err := LoadSemanticThemeFromFile(path, ColorModeFromEnv()); err != nil {
+					slog.Error("theme: reload failed, will retry", "path", path, "error", err)
+					continue
+				}
 				lastMtime = mt
-				_ = LoadSemanticThemeFromFile(path, ColorModeFromEnv())
 				if onReload != nil {
 					onReload()
 				}
