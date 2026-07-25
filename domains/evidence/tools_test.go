@@ -137,3 +137,42 @@ func TestCheckBurdenTool_MissingScenario(t *testing.T) {
 		t.Fatal("expected error for missing scenario")
 	}
 }
+
+func TestAssessStandardTool_Met(t *testing.T) {
+	tool := newStandardTool()
+	args := `{"standard":"preponderance","supporting_count":7,"total_count":10}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["met"] != true {
+		t.Errorf("expected met=true, got %v", m["met"])
+	}
+}
+
+func TestAssessStandardTool_NotMet(t *testing.T) {
+	tool := newStandardTool()
+	args := `{"standard":"high_probability","supporting_count":3,"total_count":10}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["met"] != false {
+		t.Errorf("expected met=false, got %v", m["met"])
+	}
+}
+
+func TestAssessStandardTool_EmptyTotal(t *testing.T) {
+	tool := newStandardTool()
+	args := `{"standard":"high_probability","supporting_count":0,"total_count":0}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["met"] != false {
+		t.Errorf("expected met=false for zero total, got %v", m["met"])
+	}
+}
