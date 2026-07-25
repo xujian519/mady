@@ -2,6 +2,7 @@ package evidence
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 )
 
@@ -36,5 +37,51 @@ func TestEvidenceDomainExtension_Tools(t *testing.T) {
 		if !names[name] {
 			t.Errorf("missing tool: %s", name)
 		}
+	}
+}
+
+func TestJudgeTripleTool_Success(t *testing.T) {
+	engine := NewEngine(nil)
+	tool := newTripleTool(engine)
+
+	args := `{"source_uri":"patent:CN12345678A","snippet":"权利要求1公开了一种图像识别方法"}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map[string]any, got %T", result)
+	}
+	for _, key := range []string{"relevance", "legality", "authenticity", "overall", "reasoning"} {
+		if _, ok := m[key]; !ok {
+			t.Errorf("missing key %q in result", key)
+		}
+	}
+	if overall, ok := m["overall"].(float64); ok {
+		if overall < 0 || overall > 1 {
+			t.Errorf("overall %f outside [0,1]", overall)
+		}
+	}
+}
+
+func TestJudgeTripleTool_MissingSnippet(t *testing.T) {
+	engine := NewEngine(nil)
+	tool := newTripleTool(engine)
+
+	args := `{"source_uri":"patent:CN12345678A"}`
+	_, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err == nil {
+		t.Fatal("expected error for missing snippet")
+	}
+}
+
+func TestJudgeTripleTool_InvalidJSON(t *testing.T) {
+	engine := NewEngine(nil)
+	tool := newTripleTool(engine)
+
+	_, err := tool.Func(context.Background(), json.RawMessage(`{bad json}`))
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
 	}
 }
