@@ -1,5 +1,53 @@
 # AI 变更记录
 
+## 2026-07-27: ToolResultBudget 代码审查修复 — CJK 正确性 + 并发安全 + 资源泄漏
+
+### 背景
+代码审查发现 Phase 7 的 ToolResultBudget 存在 4 个问题：1 个正确性 bug（CJK 截断）、
+1 个并发竞态（rootDirResolved 无锁写入）、1 个资源泄漏（临时目录无限累积）、
+1 个 trivial 清理（min 函数遮蔽内建）。全部修复。
+
+### 修复内容
+
+#### F1: CJK 截断 bug + 复用 canonical helper (`tool_result_budget.go`)
+- **问题**：`buildSummary` 用字节索引切片（`content[:head]`），在 CJK 内容上切断
+  多字节字符产生无效 UTF-8（已验证：`"你好世界"[:5]` = `"你\xe5\xa5"` 无效）。
+- **同时发现**：`buildSummary` 是已有 canonical helper `SnipMessageContent`
+  （`context_engine_tiered.go:383`）的劣质重实现——后者已做 rune 安全截断。
+- **修复**：删除整个 `buildSummary` 逻辑，改为复用 `SnipMessageContent` + 追加落盘
+  元数据。同时修复 CJK bug + 删除 ~15 行重复代码 + 与 TieredEngine 行为一致。
+- **语义变更**：`HeadChars`/`TailChars` 从字节语义变为 rune 语义（与
+  `SnipMessageContent` / `snipThresholdsForRole` 对齐），注释已更新。
+
+#### F2: 并发竞态 — rootDirResolved 无锁写入 (`tool_result_budget.go`)
+- **问题**：`resolveDir()` 对 `rootDirResolved` 字段无同步写入，文档声称线程安全
+  但实际存在 data race（`-race` 会报）。
+- **修复**：改用 `sync.Once` 保护 `resolveDir`，目录创建精确执行一次。`rootDir`
+  和 `resolveErr` 在 Once 完成后稳定，并发读安全。
+
+#### F3: 资源泄漏 — 临时目录无限累积 (`tool_result_budget.go`)
+- **问题**：`RootDir` 为空时 `os.MkdirTemp` 创建临时目录，永不删除。每个会话/
+  Agent 实例创建一个 `mady-offload-XXXXX`，随时间无限累积。
+- **修复**：移除临时目录回退。`RootDir` 为空时返回错误，`MaybeOffload` 降级为
+  inline（保留原内容不变）。组件注册到生产路径时必须提供受管理的 `RootDir`
+  （如 `$MADY_HOME/offload/`）。
+
+#### F4: min() 遮蔽内建 (`tool_result_budget_test.go`)
+- **问题**：测试文件定义了 `func min(a, b int)` 并用 `//nolint:revive` 压制告警，
+  而 Go 1.26 内建 `min` 已可用。
+- **修复**：删除自定义函数 + nolint，直接用内建。
+
+### 测试变更
+- 新增 `TestMaybeOffload_CJKContent_RuneSafeSummary`：验证 CJK 落盘后摘要有效 UTF-8
+- 新增 `TestMaybeOffload_ConcurrentSafe`：20 goroutine 并发落盘同一内容，验证
+  sync.Once 保护 + 内容寻址幂等（`-race` 通过）
+- 重命名 `TestMaybeOffload_EmptyRootDir_UsesTempDir` → `_InlineFallback`：
+  验证空 RootDir 不创建临时目录、降级 inline
+- 删除自定义 `min` 函数
+- `make verify` 全绿：lint + build + race（84s），含 `-race` 并发测试
+
+---
+
 ## 2026-07-27: ToolResultBudget — 超大工具结果落盘 + 摘要替换（PilotDeck 架构引入 第七阶段）
 
 ### 背景

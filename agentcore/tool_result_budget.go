@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // This file implements ToolResultBudget — a disk-offload manager for large
@@ -34,13 +35,18 @@ type ToolResultBudgetConfig struct {
 	// Threshold is the minimum content length (bytes) that triggers offload.
 	// Results shorter than this stay inline. Default 8192 (8KB).
 	Threshold int
-	// HeadChars / TailChars are the sizes of the head and tail snippets kept
-	// in the summary. Default 1500 each (~3KB summary total).
+	// HeadChars / TailChars are the sizes of the head and tail snippets
+	// (in RUNES, not bytes) kept in the summary. Reuses SnipMessageContent
+	// for rune-safe truncation that never splits multi-byte UTF-8 characters.
+	// Default 1500 each.
 	HeadChars int
 	TailChars int
 	// RootDir is the directory where offloaded content is stored. Each
 	// offload writes one file named by a SHA-256 of the content. The
-	// directory is created lazily. Empty → os.MkdirTemp("", "mady-offload").
+	// directory is created lazily on first offload. REQUIRED: when empty,
+	// offload is disabled (content stays inline) to avoid leaking temp dirs.
+	// Callers integrating into a runtime should set this to a managed path
+	// (e.g. $MADY_HOME/offload/) with a cleanup strategy.
 	RootDir string
 }
 
@@ -55,17 +61,22 @@ func DefaultToolResultBudgetConfig() ToolResultBudgetConfig {
 
 // ToolResultBudget offloads large tool results to disk, replacing them in the
 // conversation context with a head+tail summary and a retrieval handle.
-// It is safe for concurrent use: the config is immutable after construction;
-// disk writes use content-addressed filenames (SHA-256) so concurrent
-// offloads of identical content are idempotent.
+//
+// It is safe for concurrent use: the config is immutable after construction,
+// and the offload directory is resolved exactly once via sync.Once. Disk
+// writes use content-addressed filenames (SHA-256) so concurrent offloads of
+// identical content are idempotent.
 type ToolResultBudget struct {
 	BaseLifecycleHook
 	cfg ToolResultBudgetConfig
 
-	// rootDirResolved is the actual directory used (RootDir or a temp dir).
-	// Resolved lazily on first offload so the temp dir is only created when
-	// actually needed (zero disk footprint when nothing overflows).
-	rootDirResolved string
+	// resolveOnce ensures the offload directory is created at most once,
+	// even under concurrent MaybeOffload calls. rootDir holds the resolved
+	// path; resolveErr holds any creation error. Both are stable after the
+	// first resolveDir call returns.
+	resolveOnce sync.Once
+	rootDir     string
+	resolveErr  error
 }
 
 // NewToolResultBudget constructs a budget manager. Zero-value fields in cfg
@@ -144,25 +155,22 @@ func (b *ToolResultBudget) AfterToolExecution(_ context.Context, _ *AgentRunCont
 	}
 }
 
-// resolveDir returns the offload directory, creating it lazily.
+// resolveDir returns the offload directory, creating it exactly once. Returns
+// an error when RootDir is empty (offload disabled) or directory creation
+// fails. Thread-safe via sync.Once.
 func (b *ToolResultBudget) resolveDir() (string, error) {
-	if b.rootDirResolved != "" {
-		return b.rootDirResolved, nil
-	}
-	dir := b.cfg.RootDir
-	if dir == "" {
-		tmp, err := os.MkdirTemp("", "mady-offload-*")
-		if err != nil {
-			return "", fmt.Errorf("tool_result_budget: mkdir temp: %w", err)
+	b.resolveOnce.Do(func() {
+		if b.cfg.RootDir == "" {
+			b.resolveErr = fmt.Errorf("tool_result_budget: RootDir is empty (offload disabled; set RootDir to enable)")
+			return
 		}
-		b.rootDirResolved = tmp
-		return tmp, nil
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("tool_result_budget: mkdir %s: %w", dir, err)
-	}
-	b.rootDirResolved = dir
-	return dir, nil
+		if err := os.MkdirAll(b.cfg.RootDir, 0o755); err != nil {
+			b.resolveErr = fmt.Errorf("tool_result_budget: mkdir %s: %w", b.cfg.RootDir, err)
+			return
+		}
+		b.rootDir = b.cfg.RootDir
+	})
+	return b.rootDir, b.resolveErr
 }
 
 // writeOffload writes content to a content-addressed file (SHA-256) and
@@ -181,20 +189,13 @@ func (b *ToolResultBudget) writeOffload(dir, content string) (string, error) {
 	return path, nil
 }
 
-// buildSummary constructs the in-context replacement: head snippet, an
-// elision marker with byte count, tail snippet, and a retrieval handle.
+// buildSummary constructs the in-context replacement by reusing the canonical
+// SnipMessageContent for rune-safe head+tail truncation (never splits
+// multi-byte UTF-8 — critical for CJK patent/legal content), then appending
+// the offload metadata so the model knows the full content is recoverable.
 func (b *ToolResultBudget) buildSummary(toolName, content, handle string) string {
-	head := b.cfg.HeadChars
-	tail := b.cfg.TailChars
-	if head > len(content) {
-		head = len(content)
-	}
-	if tail > len(content)-head {
-		tail = len(content) - head
-	}
-	headSnippet := content[:head]
-	tailSnippet := content[len(content)-tail:]
-	omitted := len(content) - head - tail
-	return fmt.Sprintf("%s\n\n...[tool_result_budget: 已省略 %d 字节，完整结果已落盘]\n[offload handle: %s]\n[tool: %s]\n\n...%s",
-		headSnippet, omitted, handle, toolName, tailSnippet)
+	snipped := SnipMessageContent(content, b.cfg.HeadChars, b.cfg.TailChars)
+	return snipped + fmt.Sprintf(
+		"\n[tool_result_budget: 完整结果已落盘 | handle: %s | tool: %s]",
+		handle, toolName)
 }

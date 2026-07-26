@@ -5,13 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"unicode/utf8"
 )
 
 // --- construction & defaults ---
 
 func TestNewToolResultBudget_Defaults(t *testing.T) {
-	b := NewToolResultBudget(ToolResultBudgetConfig{})
+	b := NewToolResultBudget(ToolResultBudgetConfig{RootDir: t.TempDir()})
 	if b.cfg.Threshold != 8192 {
 		t.Errorf("default Threshold: got %d, want 8192", b.cfg.Threshold)
 	}
@@ -69,15 +71,41 @@ func TestMaybeOffload_AboveThreshold_Offloaded(t *testing.T) {
 	if out.Handle == "" {
 		t.Error("Handle should be set when offloaded")
 	}
-	// Summary must contain head + tail + omission marker.
+	// Summary must contain head + tail + omission marker + offload metadata.
 	if !strings.HasPrefix(out.Summary, strings.Repeat("x", 10)) {
 		t.Error("summary should start with head snippet")
 	}
-	if !strings.Contains(out.Summary, "已省略") {
-		t.Error("summary should contain omission marker")
+	if !strings.Contains(out.Summary, "已截断") {
+		t.Error("summary should contain SnipMessageContent's truncation marker")
 	}
-	if !strings.Contains(out.Summary, "offload handle:") {
-		t.Error("summary should contain retrieval handle reference")
+	if !strings.Contains(out.Summary, "tool_result_budget") {
+		t.Error("summary should contain offload metadata")
+	}
+	if !strings.Contains(out.Summary, "handle:") {
+		t.Error("summary should contain retrieval handle")
+	}
+}
+
+// --- CJK rune-safe truncation (F1 fix) ---
+
+func TestMaybeOffload_CJKContent_RuneSafeSummary(t *testing.T) {
+	dir := t.TempDir()
+	b := NewToolResultBudget(ToolResultBudgetConfig{
+		Threshold: 30, // 低阈值触发 CJK 落盘
+		HeadChars: 3,
+		TailChars: 3,
+		RootDir:   dir,
+	})
+	// 每个汉字 3 字节 UTF-8，5 个汉字 = 15 字节 < 30 阈值不会触发。
+	// 用 12 个汉字 = 36 字节 > 30 触发。
+	content := strings.Repeat("你好世界", 3) // 12 rune, 36 bytes
+	out := b.MaybeOffload("read_file", content)
+	if !out.Offloaded {
+		t.Fatal("expected offload for CJK content above threshold")
+	}
+	// 摘要必须是有效 UTF-8（不能在多字节字符中间切断）。
+	if !utf8.ValidString(out.Summary) {
+		t.Errorf("summary must be valid UTF-8, got invalid string: %q", out.Summary)
 	}
 }
 
@@ -122,20 +150,65 @@ func TestMaybeOffload_Idempotent_SameContent(t *testing.T) {
 	}
 }
 
-// --- temp dir fallback when RootDir empty ---
+// --- empty RootDir: disabled, content stays inline (F3 fix) ---
 
-func TestMaybeOffload_EmptyRootDir_UsesTempDir(t *testing.T) {
+func TestMaybeOffload_EmptyRootDir_InlineFallback(t *testing.T) {
 	b := NewToolResultBudget(ToolResultBudgetConfig{
 		Threshold: 50,
-		// RootDir intentionally empty
+		// RootDir intentionally empty → offload disabled.
 	})
-	content := strings.Repeat("temp-", 20)
+	content := strings.Repeat("big-", 30)
 	out := b.MaybeOffload("read", content)
-	if !out.Offloaded {
-		t.Fatal("expected offload even with empty RootDir")
+	if out.Offloaded {
+		t.Error("empty RootDir should disable offload (no temp dir leak)")
 	}
-	if _, err := os.Stat(out.Handle); err != nil {
-		t.Errorf("temp offload file should exist: %v", err)
+	if out.Summary != "" || out.Handle != "" {
+		t.Errorf("expected empty OffloadResult when RootDir is empty, got %+v", out)
+	}
+	// 确保没有创建临时目录。
+	if b.rootDir != "" {
+		t.Errorf("rootDir should be empty when RootDir is empty, got %q", b.rootDir)
+	}
+}
+
+// --- concurrent offload safety (F2 fix) ---
+
+func TestMaybeOffload_ConcurrentSafe(t *testing.T) {
+	dir := t.TempDir()
+	b := NewToolResultBudget(ToolResultBudgetConfig{
+		Threshold: 50,
+		HeadChars: 5,
+		TailChars: 5,
+		RootDir:   dir,
+	})
+	content := strings.Repeat("concurrent-", 20)
+
+	var wg sync.WaitGroup
+	handles := make([]string, 20)
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			out := b.MaybeOffload("read", content)
+			handles[idx] = out.Handle
+		}(i)
+	}
+	wg.Wait()
+
+	// All goroutines must get the same handle (content-addressed + sync.Once).
+	first := handles[0]
+	if first == "" {
+		t.Fatal("expected offload to succeed")
+	}
+	for i, h := range handles {
+		if h != first {
+			t.Errorf("goroutine %d: handle %q != first %q (race in resolveDir?)", i, h, first)
+		}
+	}
+	// Only one file on disk.
+	files, _ := filepath.Glob(filepath.Join(dir, "*.txt"))
+	if len(files) != 1 {
+		t.Errorf("expected 1 file after concurrent offload, got %d", len(files))
 	}
 }
 
@@ -161,8 +234,8 @@ func TestAfterToolExecution_OffloadsLargeResults(t *testing.T) {
 	if tec.Results[0].Result == original {
 		t.Error("large result should be replaced with summary")
 	}
-	if !strings.Contains(tec.Results[0].Result, "已省略") {
-		t.Error("large result should contain omission marker")
+	if !strings.Contains(tec.Results[0].Result, "tool_result_budget") {
+		t.Error("large result should contain offload metadata")
 	}
 	// Small result should be untouched.
 	if tec.Results[1].Result != "small" {
@@ -171,7 +244,7 @@ func TestAfterToolExecution_OffloadsLargeResults(t *testing.T) {
 }
 
 func TestAfterToolExecution_NilTEC_NoPanic(t *testing.T) {
-	b := NewToolResultBudget(ToolResultBudgetConfig{Threshold: 10})
+	b := NewToolResultBudget(ToolResultBudgetConfig{Threshold: 10, RootDir: t.TempDir()})
 	b.AfterToolExecution(context.Background(), &AgentRunContext{}, nil)
 }
 
@@ -210,19 +283,12 @@ func TestBuildSummary_ContainsHeadTailHandleTool(t *testing.T) {
 	}
 	s := out.Summary
 	if !strings.HasPrefix(s, "HEADMMMM") {
-		t.Errorf("summary should start with head 8 chars, got prefix %q", s[:min(8, len(s))])
+		t.Errorf("summary should start with head 8 runes, got prefix %q", s[:min(8, len(s))])
 	}
 	if !strings.Contains(s, "MMMMTAIL") {
 		t.Error("summary should contain tail snippet")
 	}
-	if !strings.Contains(s, "[tool: grep]") {
+	if !strings.Contains(s, "tool: grep") {
 		t.Error("summary should record tool name")
 	}
-}
-
-func min(a, b int) int { //nolint:revive // test helper
-	if a < b {
-		return a
-	}
-	return b
 }
