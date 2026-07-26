@@ -1,5 +1,55 @@
 # AI 变更记录
 
+## 2026-07-27: ToolResultBudget — 超大工具结果落盘 + 摘要替换（PilotDeck 架构引入 第七阶段）
+
+### 背景
+Mady 已有三层工具结果的上下文内处理，均为有损截断：
+1. 工具层 `MaxBytes=50KB` / `MaxLines=2000` 硬截断
+2. TieredEngine snip（0.6 比例）：保留头尾，中间省略
+3. TieredEngine prune（0.8 比例）：整个替换为占位符
+
+PilotDeck 的 `ToolResultBudget` 提供第四种选项——**保留完整内容**：落盘到磁盘，
+上下文只留头尾摘要 + 检索句柄。本阶段引入此设计，作为与 TokenBudgetManager
+互补的上下文膨胀控制手段。
+
+### 引入的设计（来自 PilotDeck `context/budget/ToolResultBudget`）
+
+#### ToolResultBudget (`agentcore/tool_result_budget.go` + `_test.go`)
+- **阈值触发落盘**：工具结果超过 `Threshold`（默认 8192 字节）时，完整内容写入
+  内容寻址文件（SHA-256 命名，相同内容幂等），上下文替换为头尾摘要 + 句柄。
+- **摘要结构**：`[头片段] ...[已省略 N 字节，完整结果已落盘] [offload handle: 路径]
+  [tool: 工具名] ... [尾片段]`。保留足够上下文供多数轮次使用。
+- **LifecycleHook 接入**：实现 `AfterToolExecution`，在工具结果产生后、持久化进
+  消息流**之前**介入，原地替换 `tec.Results[i].Result`。不需要改动 agent 循环。
+- **错误结果跳过**：带 `Err` 的结果不落盘（错误消息本就短，模型需要看到）。
+- **配置**：`ToolResultBudgetConfig{Threshold, HeadChars, TailChars, RootDir}`，
+  零值回退默认。`RootDir` 空 → `os.MkdirTemp`（零磁盘足迹，仅在真正溢出时创建）。
+
+### 关键设计决策
+- **本阶段只交付组件，不自动注册**：ToolResultBudget 作为可用 LifecycleHook，
+  注册到 Gateway/Config 留后续阶段（避免本阶段爆破半径超标）。注册方式简单：
+  `appendLifecycle(cfg.Lifecycle, NewToolResultBudget(cfg))`。
+- **摘要而非全文回填**：完整内容落盘后，上下文只留摘要。回填工具（模型按句柄
+  读回完整内容）留后续阶段——当前 TieredEngine 的 snip/prune 也是有损的，
+  ToolResultBudget 的头尾摘要已比 prune 的纯占位符保留更多信息。
+- **内容寻址幂等**：相同工具结果产生相同文件名（SHA-256），并发落盘与重复
+  落盘均安全（`os.Stat` 检查存在性，已存在则跳过写入）。
+
+### 测试
+- `agentcore/tool_result_budget_test.go`：11 个测试
+  - 构造默认值/自定义配置/低于阈值不落盘/高于阈值落盘+摘要
+  - 磁盘内容匹配/幂等（相同内容同句柄同文件）/空 RootDir 用临时目录
+  - AfterToolExecution 落盘大结果保留小结果/nil TEC 不 panic/跳过错误结果
+  - 摘要结构（头尾片段 + 句柄 + 工具名）
+- `make verify` 全绿：lint + build + race，三模块无回归
+
+### 不在本阶段范围
+- **回填工具**：模型按句柄读回完整内容的专用工具（如 `read_offload`）。
+- **自动注册到 Config/Gateway**：需要设计配置开关与目录策略。
+- **与 TieredEngine 联动**：snip/prune 触发时优先检查是否已落盘。
+
+---
+
 ## 2026-07-27: 候选链配置入口 — 环境变量 + 配置文件启用模型回退（PilotDeck 架构引入 第六阶段）
 
 ### 背景
