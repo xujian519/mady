@@ -74,10 +74,6 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tiendc/go-deepcopy v1.7.2 h1:Ut2yYR7W9tWjTQitganoIue4UGxZwCcJy3orjrrIj44=
 github.com/tiendc/go-deepcopy v1.7.2/go.mod h1:4bKjNC2r7boYOkD2IOuZpYjmlDdzjbpTRyCx+goBCJQ=
-github.com/xujian519/mady/tools v0.0.0-20260711000742-56d5e1c6ad94 h1:NBWyCe3/rg/dJ4KQASaUIZcWs3CX9f57lW5uBiLHD/g=
-github.com/xujian519/mady/tools v0.0.0-20260711000742-56d5e1c6ad94/go.mod h1:WWH4e1mx7aFX0Uq6NA+qdJ1TRGOilGUXT7YCXxVv6LE=
-github.com/xujian519/mady/tui v0.0.0-20260721162033-d76ce4144d96 h1:wWk1bE7Mw7M7iFBXrH2tHU5O0pryN5WND25Zj1ZsStc=
-github.com/xujian519/mady/tui v0.0.0-20260721162033-d76ce4144d96/go.mod h1:WI0/YFRaPs7w9fjOK6SbDvaI1G8tm2g9xbu9UM5FoI4=
 github.com/xuri/efp v0.0.1 h1:fws5Rv3myXyYni8uwj2qKjVaRP30PdjeYe2Y6FDsCL8=
 github.com/xuri/efp v0.0.1/go.mod h1:ybY/Jr0T0GTCnYjKqmdwxyxn2BQf2RcQIIvex5QldPI=
 github.com/xuri/excelize/v2 v2.11.0 h1:HxaEFl6sRN2+8J5a8HaKq+0M4FsjBGMnWWtjOCPSG88=
