@@ -39,6 +39,8 @@ import (
 	"syscall"
 
 	_ "github.com/joho/godotenv/autoload" // 自动加载 .env 文件（如有）
+
+	_ "github.com/xujian519/mady/provider/adapter"
 )
 
 func main() {

@@ -1,14 +1,14 @@
 // Package iface provides the core interface contracts for the Mady agent runtime.
 //
-// These interfaces define the boundaries between agentcore and its consumers.
-// External modules (guardrails, knowledge, memory, server, tui, etc.) should
-// depend on these interfaces rather than on agentcore concrete types.
+// These interfaces define the boundaries between agentcore and its consumers
+// (guardrails, server, etc.). External modules should depend on these interfaces
+// rather than on agentcore concrete types.
 //
-// Design principles:
-//   - Each interface has ≤5 methods (Interface Segregation Principle)
-//   - Interfaces export only methods, no structs
-//   - Package-level dependencies go through iface, not agentcore
-//   - All methods accept context.Context as first parameter
+// # 当前提供的契约
+//
+//   - Event / EventBus: 事件发布与订阅
+//   - AgentRunner: Agent 运行抽象（Run / Continue / Resume / Close）
+//   - LifecycleHook: 生命周期拦截点（窄视图）
 //
 // # 接口收缩策略（Narrow View Strategy）
 //
@@ -44,8 +44,10 @@
 // tool arguments and results) should depend on agentcore directly rather than
 // going through iface.
 //
-// Usage:
+// # 历史说明
 //
-//	var runner iface.AgentRunner = agentcore.New(cfg)
-//	output, err := runner.Run(ctx, "user input")
+// 本包曾定义 iface.Extension / ToolProvider / ContextProvider / Store /
+// ChatProvider / AgentContext 接口（2026-07-22 创建），作为扩展系统的
+// 窄视图抽象。由于几乎所有扩展都需要完整上下文（工具参数、Message 引用等），
+// 这些接口从未被实现，已于 2026-07-26 移除。扩展系统直接使用 agentcore.* 接口。
 package iface
