@@ -1,5 +1,23 @@
 # AI 变更记录
 
+## 2026-07-26: CI/CD 修复 — Makefile 子-shell 泄漏 + LAYERS.md 同步
+
+### 背景
+commit 36baca8 / 6e2e7c5 的 CI 因 verify-tui-layers job 失败而变红。
+本地 make verify 同样报错。根因为 Makefile shell 作用域 bug + 新文件未同步到
+LAYERS.md。
+
+### 变更
+
+#### Makefile lint: cd 子-shell 包裹
+lint 目标中 `cd tools && golangci-lint run ./...` 后续的 `cd tui && ...` 因
+shell 目录泄漏（cwd 已变 tools/）而查找 `tools/tui/` 目录。修复：用 `(cd X && cmd)`
+子-shell 包裹，cd 仅影响子 shell 进程。
+
+#### LAYERS.md: 文件计数同步
+新增 theme/a11y_themes.go（143行）和 component/confidence_bar.go（77行）后
+LAYERS.md 未更新。修复：计数 105→107，添加目录树条目。
+
 ## 2026-07-26: Sprint 3 全部完成 — T3.2~T3.15 共 11 项
 
 ### 背景
