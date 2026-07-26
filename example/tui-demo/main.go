@@ -177,7 +177,7 @@ func (m *miniInput) HandleInput(data string) {
 		return
 	}
 
-	for _, k := range terminal.ParseKeys(data) {
+	for _, k := range terminal.ParseKeys(data, 0) {
 		if k.IsPrintable() {
 			m.mu.Lock()
 			m.value = append(m.value, k.Rune)

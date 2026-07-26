@@ -53,7 +53,7 @@ func ParseLine(s string) Row {
 	}
 
 	// Cell-parseable. Walk the string maintaining the running style.
-	var cells []Cell
+	cells := make([]Cell, 0, len(s)) // pre-alloc to reduce append reallocs
 	var cursorCol = -1
 	style := DefaultStyle
 

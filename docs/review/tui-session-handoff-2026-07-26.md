@@ -18,8 +18,9 @@
 | `1f1d860` | Sprint 1 | T1.1–T1.5（5 项 Critical） | 16 | +1967/-27 |
 | `abe880e` | Sprint 2 batch 1 | T2.3, T2.7–T2.10（5 项） | 8 | +225/-6 |
 | `7873b19` | Sprint 2 batch 2 | T2.1, T2.2, T2.11–T2.13（5 项） | 8 | +1840/-101 |
+| *(本次)* | Sprint 2 T2.6 | OnDebug overlay（1 项） | 6 | +275/-8 |
 
-**合计**：24/25 项任务完成，31 个文件，+4032/-134 行。
+**合计**：25/25 项任务完成，37 个文件，~+4300/-135 行。
 
 ### 1.2 已修复问题清单
 
@@ -50,6 +51,7 @@
 - T2.11 (M-1)：session_selector 回调加 ctx + Close()，消除 goroutine 泄漏
 - T2.12 (M-2)：stdio 持锁 I/O 修复 — flushLine/render 返回字符串，写入移到锁外
 - T2.13 (M-3)：theme watcher panic 后 5s 退避重启
+- T2.6 (H-1)：OnDebug debug overlay — 新建 DebugOverlay 组件，暴露 FPS/队列/FSM 状态/内存/事件日志，ctrl+shift+d 切换
 
 ### 1.3 当前质量基线
 
@@ -59,7 +61,7 @@ go build ./... (tui + root)            → 通过
 go vet ./... (tui)                     → 通过
 go test -race -count=1 ./... (tui)     → 11 包全绿
 go test -race -count=10 ./terminal/    → 连续 10 次全绿（C-1 已修）
-bash tui/scripts/verify_layers.sh      → ✅ 102 文件一致
+bash tui/scripts/verify_layers.sh      → ✅ 104 文件一致
 agentadapter 覆盖率                     → 100%
 editor_edit.go 核心函数覆盖率           → 91-100%
 ```
@@ -68,30 +70,10 @@ editor_edit.go 核心函数覆盖率           → 91-100%
 
 ## 二、剩余任务
 
-### 2.1 Sprint 2 未完成（1 项）
+### 2.1 Sprint 2 全部完成 ✅
 
-#### T2.6：实现 OnDebug overlay（H-1 死代码 + 可观测性）
-
-- **预估**：1 天
-- **风险**：中（新组件 + 集成）
-- **详细卡片**：见 `docs/review/tui-optimization-plan-2026-07-26.md` 第 528-548 行
-
-**需求**：
-- 新建 `tui/component/debug_overlay.go`（debug 面板组件）
-- 修改 `tui/tui_input.go:262`（wire `OnDebug` 回调，当前是空 if 块）
-- 修改 `tui/tui.go`（暴露 FPS/队列深度统计）
-
-**功能**：`ctrl+shift+d` 切换 debug overlay，显示：
-- FPS（帧率）
-- `msgCh` 队列深度
-- 最近 N 条事件
-- 当前 ChatApp FSM 状态
-- 内存分配统计
-
-**关键上下文**：
-- `tui_input.go` 中已有 `OnDebug` 的空回调位置（grep `OnDebug` 定位）
-- 参考 `component/review_gate.go` / `component/command_center.go` 的 overlay 组件模式
-- overlay 通过 `tui.PushOverlay()` 挂载
+T2.6（OnDebug overlay）已于 2026-07-26 完成，见 `docs/decisions/AI_CHANGELOG.md`。
+Sprint 2 总计 25/25 项任务全部完成。
 
 ### 2.2 Sprint 3（13 项，1-3 月长期）
 
@@ -99,7 +81,7 @@ editor_edit.go 核心函数覆盖率           → 91-100%
 
 | ID | 标题 | 预估 | 优先级 |
 |----|------|------|--------|
-| T3.1 | Overlay CoW（深拷贝优化，25μs/248KB → 接近零） | 3-5 天 | 高 |
+| T3.1 | Overlay CoW（深拷贝优化，25μs/248KB → 已修复） | ✅ 已完成 | 高 |
 | T3.2 | 错误分层（terminal/network/logical 三层） | 2-3 天 | 中 |
 | T3.3 | 渲染预算监控（frame > 16ms 告警） | 1 天 | 中 |
 | T3.4 | Markdown 块缓存持久化 | 2 天 | 中 |
@@ -204,18 +186,18 @@ cd tui && go build ./... && go vet ./... && go test -race -count=1 ./... && gola
 
 ### 5.3 第三步：选择继续方向
 
-**选项 A：完成 T2.6（OnDebug overlay）**
-- 工作量：1 天
-- 收益：补全 Sprint 2，消除 H-1 死代码
-- 详见计划文档第 528-548 行
+**选项 A：继续 Sprint 3 性能优化**
+- T3.2 错误分层（terminal/network/logical 三层）— 2-3 天
+- T3.4 Markdown 块缓存持久化 — 2 天
+- **下一步推荐**：T3.2 — 已有隐式分层，显式化工作量可控
 
-**选项 B：开始 Sprint 3 性能优化**
-- 从 T3.1（Overlay CoW）开始 — 最大性能债务
-- 或从 T3.16（LAYERS.md 妥协文档，1h）开始 — 快速热身
+**选项 B：Sprint 3 架构改进**
+- T3.5+T3.17 ParseKeys 根治（移除全局 `kittyFlagsGlobal`）— 2-3 天
+- T3.16 LAYERS.md "已知架构妥协"文档段 — 1h
 
 **选项 C：运行完整 Benchmark 建立性能基线**
 - 参考 `docs/review/tui-dimension3-performance-2026-07-26.md` 的 benchmark 方法
-- 为 Sprint 3 的优化效果建立对比基准
+- 为后续 Sprint 3 优化效果建立对比基准
 
 ### 5.4 注意事项
 

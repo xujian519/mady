@@ -3,6 +3,8 @@ package theme
 import (
 	"strings"
 	"testing"
+
+	"github.com/xujian519/mady/tui/terminal"
 )
 
 func TestFgParamsTruecolor(t *testing.T) {
@@ -28,11 +30,15 @@ func TestRGBTo256GrayscalePreference(t *testing.T) {
 }
 
 func TestDetectColorModeAppleTerminal(t *testing.T) {
+	terminal.ResetTerminalContext()
 	t.Setenv("COLORTERM", "")
 	t.Setenv("WT_SESSION", "")
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("TERM_PROGRAM", "Apple_Terminal")
+	// Apple_Terminal is detected by the TerminalContext brand system and
+	// is not in the truecolor positive list, so DetectColorMode falls back
+	// to the Apple_Terminal → ColorMode256 heuristic.
 	if m := DetectColorMode(); m != ColorMode256 {
-		t.Fatalf("Apple_Terminal should force 256, got %v", m)
+		t.Fatalf("Apple_Terminal should report 256, got %v", m)
 	}
 }

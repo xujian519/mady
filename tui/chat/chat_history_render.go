@@ -124,6 +124,9 @@ func (h *ChatHistory) Render(width int64) []string {
 		// sets dirty=true and firstDirtyIdx, ensuring the next Render
 		// cycle rebuilds those messages with current text.
 		h.msgCache = localCache
+		// Cap cache size: evict oldest non-pending entries beyond the limit.
+		// Pending messages (with active blockCache) are exempt from eviction.
+		h.evictCacheEntriesLocked()
 		h.cachedAll = rendered
 		h.cachedMsgRanges = ranges
 		// If no concurrent mutation set dirty=true during Phase 2,

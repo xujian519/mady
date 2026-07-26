@@ -664,5 +664,21 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Handler:  func(ctx slashCtx) { _ = s.app.Stop() },
 	})
 
+	// 会话管理命令。
+	r.Register(SlashCommand{
+		Name:     "session",
+		Category: "manage",
+		Desc:     "查看/命名当前会话（/session <名称>）",
+		Match:    exactMatch("session"),
+		Handler:  func(ctx slashCtx) { s.handleSessionNameCommand(ctx.input) },
+	})
+	r.Register(SlashCommand{
+		Name:     "sessions",
+		Category: "manage",
+		Desc:     "列出所有已保存的会话",
+		Match:    exactMatch("sessions"),
+		Handler:  func(ctx slashCtx) { s.handleSessionsCommand() },
+	})
+
 	return r
 }

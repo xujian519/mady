@@ -6,6 +6,11 @@ import (
 )
 
 func TestTerminalSupportsKittyKeyboard_Detection(t *testing.T) {
+	// Reset the cached terminal context before each sub-test so env
+	// isolation via t.Setenv has effect. Without this, the
+	// once-initialized context from an earlier sub-test (or a prior
+	// test in the suite) would be reused and env changes ignored.
+	reset := func() { ResetTerminalContext() }
 	tests := []struct {
 		name  string
 		setup func(t *testing.T)
@@ -21,13 +26,11 @@ func TestTerminalSupportsKittyKeyboard_Detection(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "ghostty TERM",
+			name: "ghostty TERM_PROGRAM",
 			setup: func(t *testing.T) {
 				t.Setenv("KITTY_WINDOW_ID", "")
-				t.Setenv("TERM", "xterm-ghostty")
-				t.Setenv("TERM_PROGRAM", "")
-				t.Setenv("GHOSTTY_RESOURCES_DIR", "")
-				t.Setenv("FOOT_VERSION", "")
+				t.Setenv("TERM", "")
+				t.Setenv("TERM_PROGRAM", "ghostty")
 			},
 			want: true,
 		},
@@ -37,8 +40,6 @@ func TestTerminalSupportsKittyKeyboard_Detection(t *testing.T) {
 				t.Setenv("KITTY_WINDOW_ID", "")
 				t.Setenv("TERM", "xterm-256color")
 				t.Setenv("TERM_PROGRAM", "Apple_Terminal")
-				t.Setenv("GHOSTTY_RESOURCES_DIR", "")
-				t.Setenv("FOOT_VERSION", "")
 			},
 			want: false,
 		},
@@ -46,7 +47,9 @@ func TestTerminalSupportsKittyKeyboard_Detection(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.setup(t)
-			if got := TerminalSupportsKittyKeyboard(); got != tc.want {
+			reset() // clear cached context so env changes take effect
+			ok, _ := CurrentTerminalContext().SupportsKittyKeyboard()
+			if got := ok; got != tc.want {
 				t.Fatalf("got=%v want=%v", got, tc.want)
 			}
 		})
@@ -54,13 +57,8 @@ func TestTerminalSupportsKittyKeyboard_Detection(t *testing.T) {
 }
 
 func TestProcessTerminalKittyKbdMode(t *testing.T) {
-	// SetKittyKeyboardFlags writes to the package-global kittyFlagsGlobal
-	// (via SetKittyKeyboardFlagsFromTerminal). Reset it after this test so
-	// subsequent ParseKeys-based tests (TestKittyAlternateKeyAndText, etc.)
-	// are not polluted by the flag values set here. (C-1 fix)
-	t.Cleanup(func() {
-		SetKittyKeyboardFlagsFromTerminal(0)
-	})
+	// SetKittyKeyboardFlags no longer writes to a package global —
+	// flags are stored on the ProcessTerminal instance. No cleanup needed.
 
 	tm := NewProcessTerminal()
 	tm.SetKittyKeyboardMode("on")

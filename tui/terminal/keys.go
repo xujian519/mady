@@ -108,11 +108,13 @@ func (k Key) IsRepeat() bool { return k.Event == KeyRepeat }
 // It is safe to call with partial data — trailing incomplete escapes are
 // returned as raw keys and should typically be combined with the next chunk
 // by the caller (StdinBuffer handles this).
-func ParseKeys(data string) []Key {
+//
+// flags is the Kitty keyboard protocol flags bitmask (0 = default/compat).
+func ParseKeys(data string, flags int64) []Key {
 	var out []Key
 	i := 0
 	for i < len(data) {
-		k, adv := parseOne(data, i)
+		k, adv := parseOne(data, i, flags)
 		if adv <= 0 {
 			break
 		}
@@ -122,7 +124,7 @@ func ParseKeys(data string) []Key {
 	return out
 }
 
-func parseOne(s string, i int) (Key, int) {
+func parseOne(s string, i int, flags int64) (Key, int) {
 	if i >= len(s) {
 		return Key{}, 0
 	}
@@ -140,7 +142,7 @@ func parseOne(s string, i int) (Key, int) {
 	next := s[i+1]
 	switch next {
 	case '[':
-		return parseCSI(s, i)
+		return parseCSI(s, i, flags)
 	case 'O':
 		if i+2 < len(s) {
 			return parseSS3(s, i)
@@ -201,7 +203,7 @@ func parsePlain(s string, i int) (Key, int) {
 
 // parseCSI handles ESC '[' sequences: arrow keys, F1-F12, Home/End/PageUp/Down,
 // Insert, Delete, bracketed paste markers, and the Kitty CSI u format.
-func parseCSI(s string, i int) (Key, int) {
+func parseCSI(s string, i int, flags int64) (Key, int) {
 	// Find the final byte (0x40..0x7E) to determine sequence length.
 	j := i + 2
 	for j < len(s) {
@@ -210,7 +212,7 @@ func parseCSI(s string, i int) (Key, int) {
 			seq := s[i : j+1]
 			final := b
 			params := s[i+2 : j]
-			return decodeCSI(seq, params, final), j + 1 - i
+			return decodeCSI(seq, params, final, flags), j + 1 - i
 		}
 		j++
 	}
@@ -246,7 +248,7 @@ func parseSS3(s string, i int) (Key, int) {
 	return Key{Raw: raw}, 3
 }
 
-func decodeCSI(seq, params string, final byte) Key {
+func decodeCSI(seq, params string, final byte, flags int64) Key {
 	switch final {
 	case 'A', 'B', 'C', 'D', 'H', 'F':
 		mods := ModNone
@@ -294,7 +296,7 @@ func decodeCSI(seq, params string, final byte) Key {
 		return Key{Raw: seq}
 
 	case 'u':
-		return decodeKittyU(seq, params)
+		return decodeKittyU(seq, params, flags)
 	}
 	return Key{Raw: seq}
 }
@@ -303,16 +305,11 @@ func decodeCSI(seq, params string, final byte) Key {
 // The parameter positions depend on which Kitty keyboard flags (1/2/4/8/16)
 // were negotiated. Without flag context, the parser cannot tell whether the
 // third parameter is an event type, an alternate key, or associated text.
-// We use kittyActiveFlags() (set via SetKittyKeyboardFlagsFromTerminal) to
-// determine the layout. When flags are unknown (0), we fall back to a greedy
-// parser that assumes all fields (code;mods;event;alt;text) are present, since
-// the terminal was not yet negotiated — this backwards-compatible default
-// ensures pre-negotiation key events are still parsed correctly.
-// Callers should ensure SetKittyKeyboardFlags is called before Start.
-func decodeKittyU(seq, params string) Key {
+// flags is the negotiated bitmask (0 = default/compat: assume all fields
+// present). Callers should obtain flags from the Terminal instance.
+func decodeKittyU(seq, params string, flags int64) Key {
 	codeStr, rest := splitTwo(params, ";")
 	modStr, rest2 := splitTwo(rest, ";")
-	flags := kittyActiveFlags()
 
 	// Consume positional parameters from rest2 according to negotiated flags.
 	// Layout: code ; mods [; event] [; alt] [; text] u
@@ -432,9 +429,23 @@ func parseUint(s string) int64 {
 
 // MatchesKey reports whether any key event in `data` matches the KeyID `id`
 // (e.g. "ctrl+c", "enter", "shift+tab").
+// Uses flags=0 (default/compat mode) for the Kitty protocol parser.
 func MatchesKey(data string, id KeyID) bool {
 	want := parseKeyID(id)
-	for _, k := range ParseKeys(data) {
+	for _, k := range ParseKeys(data, 0) {
+		if keysEqual(k, want) {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchesKeyWithFlags is like MatchesKey but passes the given Kitty keyboard
+// flags to the parser. Callers that have access to the terminal's negotiated
+// flags should use this to correctly decode CSI u sequences.
+func MatchesKeyWithFlags(data string, id KeyID, flags int64) bool {
+	want := parseKeyID(id)
+	for _, k := range ParseKeys(data, flags) {
 		if keysEqual(k, want) {
 			return true
 		}
@@ -516,22 +527,6 @@ func SetKittyProtocolActive(on bool) {
 
 // IsKittyProtocolActive returns the current Kitty protocol state.
 func IsKittyProtocolActive() bool { return atomic.LoadInt64(&kittyActive) == 1 }
-
-// kittyFlagsGlobal stores the currently negotiated Kitty keyboard protocol
-// flags (bitmask of 1|2|4|8|16). Used by decodeKittyU to determine which
-// positional parameters are present in CSI u sequences.
-var kittyFlagsGlobal int64
-
-// SetKittyKeyboardFlagsFromTerminal stores the negotiated Kitty keyboard flags
-// so the CSI-u parser can interpret positional parameters correctly without
-// needing to pass flags through the parse chain.
-func SetKittyKeyboardFlagsFromTerminal(flags int64) {
-	atomic.StoreInt64(&kittyFlagsGlobal, flags)
-}
-
-// kittyActiveFlags returns the currently negotiated flags. Safe to call
-// from any goroutine.
-func kittyActiveFlags() int64 { return atomic.LoadInt64(&kittyFlagsGlobal) }
 
 // percentDecode decodes a percent-encoded string from the Kitty keyboard
 // protocol's associated text field (flag 16). The text parameter contains

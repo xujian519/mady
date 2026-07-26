@@ -242,26 +242,34 @@ func NewBottomRightOverlay(c core.Component, width, height int64) *Overlay {
 // the result is left in cell form for the renderer to diff and serialize.
 // This eliminates the wide-char truncation and style-loss bugs that the
 // previous string-level spliceOverlay had (see cell.go commentary).
+//
+// IMPORTANT: composeOverlays mutates `base` in place via copy-on-write.
+// Rows that are dimmed or spliced get their Cells slice replaced with a
+// private copy; rows that are untouched keep their original Cells. Callers
+// must not assume base is unmodified after this call.
 func composeOverlays(base []core.Row, overlays []*Overlay, cols, rows int64) []core.Row {
 	if len(overlays) == 0 {
 		return base
 	}
-	// Deep-copy the caller's base: dimBackgroundRows / spliceOverlayRows
-	// mutate cell contents in place. Without this copy we'd corrupt the
-	// caller's slice — and in tests, any reused base would accumulate
-	// overlay artifacts across calls.
-	clone := make([]core.Row, len(base))
-	for i, r := range base {
-		clone[i] = r
-		if r.Cells != nil {
-			clone[i].Cells = make([]core.Cell, len(r.Cells))
-			copy(clone[i].Cells, r.Cells)
+
+	// CoW tracker: avoid deep-copying the entire base frame upfront.
+	// Rows are deep-copied lazily, just before their first in-place mutation.
+	// This cuts per-frame allocs from 61 to ~N+1 (where N = overlay rows).
+	modified := make([]bool, len(base))
+	cowRow := func(i int) {
+		if i >= len(modified) || modified[i] || base[i].Cells == nil {
+			return
 		}
+		cells := make([]core.Cell, len(base[i].Cells))
+		copy(cells, base[i].Cells)
+		base[i].Cells = cells
+		modified[i] = true
 	}
-	base = clone
+
 	// Ensure we have at least `rows` lines so bottom-anchored overlays land.
 	for int64(len(base)) < rows {
 		base = append(base, blankRow(cols))
+		modified = append(modified, false) // fresh blank rows: never shared
 	}
 
 	// If any overlay dims the background, pad every (non-raw) base row out to
@@ -294,11 +302,28 @@ func composeOverlays(base []core.Row, overlays []*Overlay, cols, rows int64) []c
 				}
 				continue
 			}
+			preLen := len(base[i].Cells)
 			base[i] = core.PadRow(base[i], cols, core.DefaultStyle)
+			if len(base[i].Cells) != preLen {
+				// PadRow allocated fresh cells when the row was shorter than
+				// cols; mark modified so cowRow skips this row.
+				modified[i] = true
+			}
 		}
 	}
 
 	// Apply dimming for overlays that request it.
+	if dims {
+		// dimBackgroundRows mutates cells in place. Ensure every non-raw row
+		// has private cells before mutation. Rows that PadRow padded above
+		// (shortened by the PadRow check len(cells) != preLen comparison)
+		// already have fresh cells and are skipped by cowRow.
+		for i := range base {
+			if !base[i].IsRaw() {
+				cowRow(i)
+			}
+		}
+	}
 	for _, ov := range overlays {
 		if ov == nil || !ov.DimBackground {
 			continue
@@ -348,6 +373,12 @@ func composeOverlays(base []core.Row, overlays []*Overlay, cols, rows int64) []c
 		origin := resolveOverlayOrigin(ov, cols, rows, w, h)
 		ov.renderedRow = origin.row
 		ov.renderedCol = origin.col
+		// CoW rows that spliceOverlayRows will mutate in place.
+		// If dims=true, all rows were already copied above (cowRow no-op).
+		// If dims=false, only overlay rows get copied — the big win.
+		for r := origin.row; r < origin.row+h && r < int64(len(base)); r++ {
+			cowRow(int(r))
+		}
 		base = spliceOverlayRows(base, content, origin.row, origin.col, cols)
 	}
 	return base

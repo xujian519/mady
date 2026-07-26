@@ -67,6 +67,12 @@ func (t *TUI) Start() error {
 		t.term.PushKittyKeyboard()
 	}
 
+	// Capture the terminal's negotiated Kitty keyboard flags so they can be
+	// stamped on every KeyMsg for downstream CSI u parsing.
+	if kf, ok := t.term.(interface{ KittyFlags() int64 }); ok {
+		t.kittyFlags = kf.KittyFlags()
+	}
+
 	t.enableMouse(t.options.MouseMode)
 
 	go t.eventLoop()

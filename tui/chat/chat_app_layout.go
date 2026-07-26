@@ -279,7 +279,7 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 				upd.Update(editorAdjusted)
 			}
 		case core.KeyMsg:
-			for _, k := range terminal.ParseKeys(m.Data) {
+			for _, k := range terminal.ParseKeys(m.Data, m.KittyFlags) {
 				name := strings.ToLower(k.Name)
 				switch name {
 				case "v":

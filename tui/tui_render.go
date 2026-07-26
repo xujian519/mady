@@ -9,7 +9,9 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sync/atomic"
+	"time"
 
 	core "github.com/xujian519/mady/tui/core"
 	terminal "github.com/xujian519/mady/tui/terminal"
@@ -25,6 +27,7 @@ func (t *TUI) RequestRender() {
 }
 
 func (t *TUI) renderFrame() {
+	renderStart := time.Now() // for budget monitoring
 	cols, _ := t.term.Size()
 	if cols <= 0 {
 		cols = 80
@@ -163,6 +166,7 @@ func (t *TUI) renderFrame() {
 			for _, seg := range d.Segments {
 				buf.WriteString(terminal.CursorPosition(d.Row+1, seg.StartCol+1))
 				buf.WriteString(core.SerializeRowSegment(seg.Cells, seg.AfterStyle))
+				core.PutDiffCells(seg.Cells)
 			}
 			if d.ClearTail {
 				buf.WriteString(terminal.CursorPosition(d.Row+1, d.TailStart+1))
@@ -218,6 +222,46 @@ func (t *TUI) renderFrame() {
 	t.prevRaw = rawLines
 	t.prevWidth = cols
 	t.firstFrame = false
+
+	// Record frame timestamp in a circular buffer for FPS computation.
+	// O(1) insert — no shift-copy. frameHead points at the oldest entry.
+	now := time.Now()
+	c := debugFrameCap
+	if c < 2 {
+		c = 2
+	}
+	idx := (t.frameHead + t.frameRingCount) % c
+	t.frameStamps[idx] = now
+	if t.frameRingCount >= c {
+		t.frameHead = (t.frameHead + 1) % c
+	} else {
+		t.frameRingCount++
+	}
+
+	// Compute FPS from the oldest to newest timestamp in the ring.
+	n := t.frameRingCount
+	if n >= 2 {
+		oldest := t.frameStamps[t.frameHead]
+		newest := t.frameStamps[(t.frameHead+n-1)%c]
+		window := newest.Sub(oldest)
+		if window > 0 {
+			t.lastFPS = float64(n-1) / window.Seconds()
+		}
+	}
+
+	// Measure render duration and count budget violations (>16ms).
+	t.lastRenderDur = time.Since(renderStart)
+	if t.lastRenderDur > 16*time.Millisecond {
+		t.slowFrameCount++
+	}
+
+	// Sample memory stats every ~100 frames (approx 1-2s at 60fps).
+	t.frameTotal++
+	if t.frameTotal%100 == 0 {
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		t.lastAlloc = m.Alloc
+	}
 	t.mu.Unlock()
 }
 

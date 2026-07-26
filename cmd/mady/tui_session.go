@@ -405,6 +405,7 @@ func (s *tuiSession) handleDeadlineCommand() {
 func (s *tuiSession) handleClearCommand() {
 	if s.agentStore != nil {
 		s.currentThreadID = fmt.Sprintf("tui-%d", time.Now().UnixNano())
+		s.persistActiveSession()
 	}
 	s.rebuildAgent()
 	s.app.History().Clear()
@@ -432,6 +433,7 @@ func (s *tuiSession) handleBranchCommand() {
 	}
 	oldID := s.currentThreadID
 	s.currentThreadID = branched.Info.ID
+	s.persistActiveSession()
 	s.rebuildAgent()
 	s.app.History().Clear()
 	for _, msg := range branched.Messages {
@@ -447,16 +449,86 @@ func (s *tuiSession) handleBranchCommand() {
 
 func (s *tuiSession) handleSaveCommand() {
 	if s.agentStore != nil {
+		s.persistActiveSession()
 		threads, _ := s.agentStore.ListThreads(context.Background())
-		msg := fmt.Sprintf("✅ 会话已自动保存到 %s（当前线程: %s", s.sessionDir, s.currentThreadID)
+		msg := fmt.Sprintf("✅ 已自动保存（当前线程: %s", s.currentThreadID)
 		if len(threads) > 0 {
 			msg += fmt.Sprintf("，共 %d 个线程", len(threads))
 		}
 		msg += "）"
 		s.app.PrintSystem(msg)
 	} else {
-		s.app.PrintSystem("⚠ 会话持久化未启用（session 目录创建失败）")
+		s.app.PrintSystem("⚠ 会话持久化未启用")
 	}
+}
+
+// persistActiveSession saves the current thread ID to settings so it can be
+// restored on next TUI startup. Errors are non-critical and silently ignored.
+func (s *tuiSession) persistActiveSession() {
+	if s.store != nil && s.currentThreadID != "" {
+		_ = s.store.Set(SettingKeyLastSession, s.currentThreadID, SettingsScopeGlobal)
+	}
+}
+
+// handleSessionNameCommand assigns or displays the current session name.
+// The EntrySessionInfo entry type already exists in the session store but
+// has no TUI command to write it. This fills that gap.
+func (s *tuiSession) handleSessionNameCommand(input string) {
+	name := strings.TrimSpace(strings.TrimPrefix(input, "/session"))
+	name = strings.TrimSpace(name)
+	if name == "" {
+		// Show current session info.
+		s.app.PrintSystem(fmt.Sprintf("当前线程: %s（在 %s）", s.currentThreadID, s.sessionDir))
+		return
+	}
+	if s.agentStore == nil {
+		s.app.PrintSystem("会话持久化未启用")
+		return
+	}
+	// Store session name via the agent store.
+	if err := s.agentStore.SetThreadName(context.Background(), s.currentThreadID, name); err != nil {
+		s.app.PrintError(fmt.Errorf("保存会话名失败: %w", err))
+		return
+	}
+	s.app.PrintSystem(fmt.Sprintf("✅ 当前线程已命名为: %s", name))
+}
+
+// handleSessionsCommand lists all stored sessions with their IDs, names,
+// message counts, and last-updated timestamps.
+func (s *tuiSession) handleSessionsCommand() {
+	if s.agentStore == nil {
+		s.app.PrintSystem("会话持久化未启用")
+		return
+	}
+	ctx := context.Background()
+	threads, err := s.agentStore.ListThreads(ctx)
+	if err != nil {
+		s.app.PrintError(fmt.Errorf("读取会话列表失败: %w", err))
+		return
+	}
+	if len(threads) == 0 {
+		s.app.PrintSystem("无已保存的会话")
+		return
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "📋 会话列表（共 %d 个）：\n", len(threads))
+	for _, t := range threads {
+		mark := " "
+		if t.ID == s.currentThreadID {
+			mark = "→"
+		}
+		name := t.Name
+		if name == "" {
+			name = t.ID
+			if len(name) > 20 {
+				name = name[:20] + "…"
+			}
+		}
+		fmt.Fprintf(&b, "  %s %s (%d 条消息, %s)\n",
+			mark, name, t.MessageCount, t.UpdatedAt.Format("01-02 15:04"))
+	}
+	b.WriteString("\n使用 /session <名称> 为当前线程命名")
+	s.app.PrintSystem(b.String())
 }
 
 func (s *tuiSession) handleCopyCommand() {

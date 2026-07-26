@@ -30,14 +30,15 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 103 source files (+ 51 test files) across 9 packages.
+> Auto-verified: 105 source files (+ 51 test files) across 9 packages.
 > Last sync: 2026-07-26.
 
 ```
 tui/
-├── core/                  # Layer 0 — Foundation (13 source files)
+├── core/                  # Layer 0 — Foundation (14 source files)
 │   ├── component.go       # Component/Updatable/Focusable interfaces, Container, CURSOR_MARKER
 │   ├── message.go         # Msg/Cmd types, Batch/Sequence/Quit, MsgBase
+│   ├── errors.go          # Three-layer error model: TermError/NetError/LogicError
 │   ├── width.go           # East-Asian width, truncation, padding, wrapping
 │   ├── runeutil.go        # Shared rune utilities (CellWidthOfRunes, SliceRunesByCells, etc.)
 │   ├── fuzzy_match.go     # Fuzzy matching utilities
@@ -75,7 +76,7 @@ tui/
 │   ├── system_appearance.go # macOS NSAppearance dark/light detection
 │   └── theme_registry.go  # Theme registry: built-in + user theme registration
 │
-├── component/             # Layer 4 — Components (36 source files)
+├── component/             # Layer 4 — Components (37 source files)
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
 │   ├── text.go            # Text, TruncatedText
@@ -101,6 +102,7 @@ tui/
 │   ├── review_gate.go     # ReviewGate overlay: structured review checklist (577 lines)
 │   ├── session_selector.go # SessionSelector: session list with fuzzy filter (545 lines)
 │   ├── command_center.go  # CommandCenter: Ctrl+P command palette overlay
+│   ├── debug_overlay.go   # DebugOverlay: ctrl+shift+d diagnostic panel (FPS, queue, events)
 │   ├── skill_center.go    # SkillCenter: skill list and management overlay
 │   ├── system_status.go   # SystemStatus: system-mode display overlay
 │   ├── todo_panel.go      # TodoPanel: task tracking panel
@@ -338,3 +340,25 @@ helper files, following the same sibling-file pattern as the Editor subsystem:
 
 An explicit FSM (`state.go`, 249 lines) decouples interaction states from the
 imperative event handlers in `chat_app_stream.go` / `chat_app_tool.go`.
+
+---
+
+## Known Architectural Compromises
+
+### tui (L3) → chat (L5) Dependency
+
+The root `tui` package imports `tui/chat` (L5) via `chat_bridge.go` to
+provide the `NewChatApp` convenience constructor. This is an upward dependency
+(L3 → L5) that technically violates the strict layering rule.
+
+**Why it exists**: `NewChatApp` creates both a `TUI` engine and a `ChatApp`
+wired together via the `tuiAppHost` adapter. Moving this to `chat` would
+break the public API (`tui.NewChatApp` is used by `cmd/mady` and `example/`).
+
+**Why we accept it**: The dependency is isolated to a single file
+(`chat_bridge.go`) with a well-designed adapter pattern. The cycle is broken
+at the interface level (`chat.AppHost`). The cost of reversing it (1-2 weeks,
+breaking API change) outweighs the benefit for an internal-only module.
+
+**When to revisit**: If TUI is ever extracted as a standalone library for
+external consumption, this dependency must be reversed first.

@@ -256,20 +256,20 @@ func (i *Input) Invalidate() {}
 func (i *Input) Update(msg core.Msg) core.Cmd {
 	switch m := msg.(type) {
 	case core.KeyMsg:
-		i.processKeys(m.Data)
+		i.processKeys(m.Data, m.KittyFlags)
 	case core.PasteMsg:
-		i.processKeys(m.Text)
+		i.processKeys(m.Text, 0)
 	case core.WindowSizeMsg:
 		i.Invalidate()
 	}
 	return nil
 }
 
-func (i *Input) processKeys(data string) {
+func (i *Input) processKeys(data string, kittyFlags int64) {
 	km := i.km
 
 	// Parse multiple events in one feed (e.g. pasted text).
-	keys := terminal.ParseKeys(data)
+	keys := terminal.ParseKeys(data, kittyFlags)
 	if len(keys) == 0 {
 		return
 	}

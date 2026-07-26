@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/xujian519/mady/tui/terminal"
 )
 
 // ColorMode selects how hex colors are encoded for the terminal.
@@ -21,15 +23,20 @@ const (
 )
 
 // DetectColorMode mirrors common heuristics (similar to pi-mono coding-agent).
-// When terminal context has been initialized, this delegates to the more
-// accurate terminal-brand-based detection in terminal.CurrentTerminalContext.
+// The truecolor check is delegated to terminal.CurrentTerminalContext for
+// consistent brand-based detection across the module; 256/Basic fallback
+// uses legacy env-var heuristics.
 func DetectColorMode() ColorMode {
-	if os.Getenv("COLORTERM") == "truecolor" || os.Getenv("COLORTERM") == "24bit" {
+	// Delegate truecolor detection to the terminal brand-based system, which
+	// has a more complete detection table (VTE versions, SSH multiplexers,
+	// Windows Terminal, etc.). If the terminal context hasn't been initialized
+	// yet, DetectTerminalContext lazy-initializes it.
+	ok, _ := terminal.CurrentTerminalContext().HasTrueColor()
+	if ok {
 		return ColorModeTruecolor
 	}
-	if os.Getenv("WT_SESSION") != "" {
-		return ColorModeTruecolor
-	}
+
+	// Fallback for 256-color / basic detection.
 	term := os.Getenv("TERM")
 	if term == "dumb" || term == "" || term == "linux" {
 		return ColorModeBasic

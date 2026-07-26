@@ -140,9 +140,13 @@ func (t *ProcessTerminal) SetKittyKeyboardFlags(flags int64) {
 		slog.Default().Warn("Kitty keyboard flag 8 enabled: may break CJK IME candidate-window positioning; see comment at SetKittyKeyboardFlags")
 	}
 	t.kittyFlags = flags
-	// Sync the global flags so decodeKittyU can determine which positional
-	// parameters are present in CSI u sequences.
-	SetKittyKeyboardFlagsFromTerminal(flags)
+}
+
+// KittyFlags returns the negotiated Kitty keyboard protocol flags bitmask.
+func (t *ProcessTerminal) KittyFlags() int64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.kittyFlags
 }
 
 // Start enters raw mode, enables bracketed paste, and begins pumping input.
@@ -391,30 +395,6 @@ func (t *ProcessTerminal) shouldEnableKittyKbdLocked() bool {
 		ok, _ := CurrentTerminalContext().SupportsKittyKeyboard()
 		return ok
 	}
-}
-
-// TerminalSupportsKittyKeyboard returns true when the current terminal is
-// known to implement (a subset of) the Kitty keyboard protocol.
-func TerminalSupportsKittyKeyboard() bool {
-	term := os.Getenv("TERM")
-	termProgram := os.Getenv("TERM_PROGRAM")
-	switch {
-	case os.Getenv("KITTY_WINDOW_ID") != "":
-		return true
-	case term == "xterm-kitty", term == "xterm-ghostty":
-		return true
-	case termProgram == "WezTerm", termProgram == "ghostty":
-		return true
-	case os.Getenv("GHOSTTY_RESOURCES_DIR") != "":
-		return true
-	case os.Getenv("FOOT_VERSION") != "":
-		return true
-	case os.Getenv("ALACRITTY_WINDOW_ID") != "":
-		return true
-	case term == "alacritty":
-		return true
-	}
-	return false
 }
 
 // ---------------------------------------------------------------------------

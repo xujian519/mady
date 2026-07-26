@@ -13,8 +13,8 @@ import (
 	"github.com/xujian519/mady/tui/terminal"
 )
 
-func (e *Editor) processKeys(data string) {
-	keys := terminal.ParseKeys(data)
+func (e *Editor) processKeys(data string, kittyFlags int64) {
+	keys := terminal.ParseKeys(data, kittyFlags)
 	if len(keys) == 0 {
 		return
 	}

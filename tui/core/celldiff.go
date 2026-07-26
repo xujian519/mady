@@ -1,5 +1,40 @@
 package core
 
+import "sync"
+
+// diffCellPool caches short Cell slices used by DiffCells for segment
+// copies. The slices are small (typically 1-20 cells) and short-lived;
+// pooling reduces GC pressure from per-frame segment allocations.
+var diffCellPool = sync.Pool{
+	New: func() any {
+		cells := make([]Cell, 0, 32)
+		return &cells
+	},
+}
+
+// getDiffCells borrows a Cell slice with capacity cap from the pool.
+func getDiffCells(cap int) []Cell {
+	if cap > 32 {
+		return make([]Cell, cap)
+	}
+	ptr := diffCellPool.Get().(*[]Cell)
+	cells := *ptr
+	if cap > len(cells) {
+		// Reset length but keep backing array for capacity up to 32.
+		return cells[:cap]
+	}
+	return cells[:cap]
+}
+
+// PutDiffCells returns a Cell slice to the pool. The slice must have been
+// obtained from getDiffCells and must not be used again after calling put.
+func PutDiffCells(cells []Cell) {
+	// Only return slices with capacities we can reuse.
+	if cap(cells) <= 32 {
+		diffCellPool.Put(&cells)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Cell-level frame diff.
 //
@@ -184,7 +219,7 @@ func DiffCells(old, new Row) RowCellDiff {
 		after = new.Cells[end].Style
 	}
 
-	cells := make([]Cell, end-l)
+	cells := getDiffCells(end - l)
 	copy(cells, new.Cells[l:end])
 
 	var diff RowCellDiff

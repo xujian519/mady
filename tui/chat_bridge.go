@@ -2,8 +2,10 @@ package tui
 
 import (
 	"sync"
+	"time"
 
 	"github.com/xujian519/mady/tui/chat"
+	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/terminal"
 )
 
@@ -37,8 +39,52 @@ func NewChatApp(cfg chat.ChatAppConfig) *chat.ChatApp {
 	}
 	chatApp := chat.NewChatAppWithHost(cfg, host)
 	chatApp.SetHost(host)
+
+	// Wire the debug overlay toggle (ctrl+shift+d).
+	var debugOverlay *Overlay
+	app.OnDebug = func() {
+		if debugOverlay != nil {
+			// Toggle off: remove the overlay and nil the reference.
+			app.RemoveOverlay(debugOverlay)
+			debugOverlay = nil
+			return
+		}
+		// Toggle on: construct the debug overlay.
+		tuiSrc := &tuiDebugSource{t: app}
+		appSrc := &chatDebugSource{a: chatApp}
+		d := component.NewDebugOverlay(tuiSrc, appSrc)
+		d.SetOnClose(func() {
+			app.RemoveOverlay(debugOverlay)
+			debugOverlay = nil
+		})
+		debugOverlay = NewCenteredOverlay(d, 60, 60)
+		debugOverlay.Focus = true
+		debugOverlay.DimBackground = true
+		app.PushOverlay(debugOverlay)
+	}
+
 	return chatApp
 }
+
+// tuiDebugSource adapts *TUI to component.DebugTUISource.
+type tuiDebugSource struct {
+	t *TUI
+}
+
+func (s *tuiDebugSource) MsgQueueDepth() int            { return s.t.MsgQueueDepth() }
+func (s *tuiDebugSource) FrameStats() float64           { return s.t.FrameStats() }
+func (s *tuiDebugSource) RecentEvents() []string        { return s.t.RecentEvents() }
+func (s *tuiDebugSource) DebugAlloc() uint64            { return s.t.DebugAlloc() }
+func (s *tuiDebugSource) TotalMsgCount() uint64         { return s.t.TotalMsgCount() }
+func (s *tuiDebugSource) RenderDuration() time.Duration { return s.t.RenderDuration() }
+func (s *tuiDebugSource) SlowFrameCount() uint64        { return s.t.SlowFrameCount() }
+
+// chatDebugSource adapts *chat.ChatApp to component.DebugAppSource.
+type chatDebugSource struct {
+	a *chat.ChatApp
+}
+
+func (s *chatDebugSource) State() interface{ String() string } { return s.a.State() }
 
 type tuiAppHost struct {
 	*TUI

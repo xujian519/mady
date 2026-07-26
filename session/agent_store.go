@@ -220,6 +220,16 @@ func (s *AgentStore) CreateThread(ctx context.Context) (*ThreadSnapshot, error) 
 	}, nil
 }
 
+// SetThreadName sets the display name for a thread by appending a
+// session_info entry. Returns an error if the thread does not exist.
+func (s *AgentStore) SetThreadName(ctx context.Context, key, name string) error {
+	mgr, err := s.sessions.Open(ctx, key)
+	if err != nil {
+		return fmt.Errorf("open thread %q: %w", key, err)
+	}
+	return mgr.SetSessionName(ctx, name)
+}
+
 // BranchThread creates a new thread from an existing thread. If entryID is empty,
 // it branches from the current leaf; otherwise it branches from the given entry.
 func (s *AgentStore) BranchThread(ctx context.Context, key, entryID string) (*ThreadSnapshot, error) {

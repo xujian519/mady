@@ -28,10 +28,11 @@ const (
 
 // Known setting keys and their default values.
 const (
-	SettingKeyTheme    = "theme"
-	SettingKeyPlan     = "plan"
-	SettingKeyReview   = "review"
-	SettingKeyThinking = "thinking"
+	SettingKeyTheme       = "theme"
+	SettingKeyPlan        = "plan"
+	SettingKeyReview      = "review"
+	SettingKeyThinking    = "thinking"
+	SettingKeyLastSession = "last_session"
 
 	DefaultTheme    = "light"
 	DefaultPlan     = "off"
@@ -45,6 +46,7 @@ var defaultValues = map[string]string{
 	SettingKeyPlan:     DefaultPlan,
 	SettingKeyReview:   DefaultReview,
 	SettingKeyThinking: DefaultThinking,
+	// last_session has no default — empty string means "no stored session"
 }
 
 // validValues maps each setting key to its set of accepted values.
@@ -53,6 +55,7 @@ var validValues = map[string][]string{
 	SettingKeyPlan:     {"on", "off"},
 	SettingKeyReview:   {"on", "off"},
 	SettingKeyThinking: {"default", "summarized", "omitted"},
+	// last_session is free-form; validated at runtime by the session store.
 }
 
 // SettingsStore is the single source of truth for all TUI settings.
@@ -138,6 +141,10 @@ func (s *SettingsStore) validate(key, value string) error {
 	valid, ok := validValues[key]
 	if !ok {
 		return fmt.Errorf("settings: unknown key %q", key)
+	}
+	// last_session is free-form — any non-empty value is accepted.
+	if key == SettingKeyLastSession {
+		return nil
 	}
 	for _, v := range valid {
 		if v == value {

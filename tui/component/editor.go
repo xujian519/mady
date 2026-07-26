@@ -379,7 +379,7 @@ func (e *Editor) Invalidate() {}
 func (e *Editor) Update(msg core.Msg) core.Cmd {
 	switch m := msg.(type) {
 	case core.KeyMsg:
-		e.processKeys(m.Data)
+		e.processKeys(m.Data, m.KittyFlags)
 		// After processing keys, return any pending paste Cmd that was
 		// stored by handlePaste. The TUI event loop will execute it in a
 		// goroutine (non-blocking), and when the clipboard read completes,

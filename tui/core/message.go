@@ -18,8 +18,11 @@ func (MsgBase) MsgMarker() {}
 
 // KeyMsg carries a single key-press event. The Data field contains the raw
 // terminal input bytes; use terminal.ParseKeys / MatchesKey to interpret it.
+// KittyFlags carries the negotiated Kitty keyboard protocol flags so
+// downstream parsers can decode CSI u sequences correctly.
 type KeyMsg struct {
-	Data string
+	Data       string
+	KittyFlags int64
 }
 
 func (KeyMsg) MsgMarker() {}

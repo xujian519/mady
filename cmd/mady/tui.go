@@ -141,6 +141,25 @@ func runTui(ctx context.Context) error {
 		}
 	}
 
+	// 恢复上次活跃会话：从 settings 读取 last_session，验证线程仍存在。
+	if agentStore != nil {
+		lastID := s.store.Get(SettingKeyLastSession)
+		if lastID != "" {
+			listCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			threads, err := agentStore.ListThreads(listCtx)
+			cancel()
+			if err != nil {
+				slog.Default().Debug("restore last session: ListThreads failed", "err", err)
+			}
+			for _, t := range threads {
+				if t.ID == lastID {
+					s.currentThreadID = lastID
+					break
+				}
+			}
+		}
+	}
+
 	// 从 store 读取持久化的主题并应用（首次启动使用 mady-dark 默认值）。
 	// 直接调 SetSemanticTheme 而不是 handleThemeCommand，因为此时 s.app 尚未初始化。
 	applyStoredTheme(s)

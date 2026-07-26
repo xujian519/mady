@@ -187,6 +187,11 @@ type TUI struct {
 	// OnDebug is invoked for ctrl+shift+d (if the terminal sends that chord).
 	OnDebug func()
 
+	// kittyFlags captures the negotiated Kitty keyboard protocol flags from
+	// the terminal at startup, so onKey can stamp them on every KeyMsg for
+	// downstream CSI u parsing.
+	kittyFlags int64
+
 	// mouseThrottle guards MouseMotion events from flooding the event loop.
 	// Trackpad scrolling can produce 60+ motion events per second; we coalesce
 	// them to at most one per ~33ms (~30fps) to avoid saturating msgCh and
@@ -202,6 +207,83 @@ type TUI struct {
 		row, col int64
 		first    bool // true before first frame emits cursor
 	}
+
+	// debugMetrics accumulates runtime diagnostics for the ctrl+shift+d
+	// debug overlay. All fields are accessed under t.mu.
+	frameStamps    [debugFrameCap]time.Time // circular buffer of frame timestamps
+	frameHead      int                      // index of oldest entry in frameStamps
+	frameRingCount int                      // valid entries in ring (capped at debugFrameCap)
+	frameTotal     uint64                   // total frames rendered (for periodic sampling)
+	msgCount       uint64                   // total messages processed (incremented in processMsg)
+	lastAlloc      uint64                   // last sampled heap allocation (bytes)
+	lastFPS        float64                  // last computed FPS, updated each frame
+	lastRenderDur  time.Duration            // most recent frame render duration
+	slowFrameCount uint64                   // frames exceeding 16ms budget
+	eventLog       [debugEventCap]string    // ring buffer of recent event descriptions
+	eventLogIdx    int                      // next write index in eventLog ring
+}
+
+// Metrics constants for the debug overlay.
+const (
+	debugFrameCap = 120 // ~2s ring at 60fps
+	debugEventCap = 32  // recent event ring capacity
+)
+
+// MsgQueueDepth returns the current number of pending messages in msgCh.
+func (t *TUI) MsgQueueDepth() int {
+	return len(t.msgCh)
+}
+
+// FrameStats returns the current FPS computed from frame timestamps.
+func (t *TUI) FrameStats() float64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastFPS
+}
+
+// RecentEvents returns a copy of the event-log ring buffer (most recent last).
+func (t *TUI) RecentEvents() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	n := len(t.eventLog)
+	out := make([]string, 0, n)
+	// Walk the ring from oldest to newest.
+	for i := 0; i < n; i++ {
+		idx := (t.eventLogIdx + i) % n
+		if t.eventLog[idx] != "" {
+			out = append(out, t.eventLog[idx])
+		}
+	}
+	return out
+}
+
+// DebugAlloc returns the last sampled heap allocation in bytes.
+func (t *TUI) DebugAlloc() uint64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastAlloc
+}
+
+// TotalMsgCount returns the total number of messages processed.
+func (t *TUI) TotalMsgCount() uint64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.msgCount
+}
+
+// RenderDuration returns the most recent frame render duration.
+func (t *TUI) RenderDuration() time.Duration {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastRenderDur
+}
+
+// SlowFrameCount returns the total number of frames that exceeded the 16ms
+// rendering budget since the TUI was created.
+func (t *TUI) SlowFrameCount() uint64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.slowFrameCount
 }
 
 // NewTUI constructs a TUI bound to term. It accepts an optional TUIOptions

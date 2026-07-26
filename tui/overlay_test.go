@@ -507,3 +507,74 @@ func TestOverlayMouseOutsideTranslate(t *testing.T) {
 		t.Fatalf("expected absolute coords for outside click: want (%d,%d), got (%d,%d)", 20, 50, ev.Row, ev.Col)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Benchmarks: composeOverlays allocs before/after CoW optimization
+// ---------------------------------------------------------------------------
+
+// BenchmarkOverlayComposeNoDim measures allocs for the common case: a centered
+// overlay WITHOUT dim background. Expected: ~N+1 allocs (N = overlay rows).
+func BenchmarkOverlayComposeNoDim(b *testing.B) {
+	// Prepare base rows once (outside timed loop) so only composeOverlays
+	// allocations are counted. stringRows uses ParseLine → high alloc count
+	// that would otherwise dominate the measurement.
+	base := stringRows(60, 80)
+	ov := NewCenteredOverlay(&lineComp{lines: []string{"HELLO", "WORLD"}}, 40, 20)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		// Shallow-copy base so composeOverlays sees fresh references each
+		// iteration (as in the production path where children change each
+		// frame). CoW should still avoid deep-copying most rows.
+		rows := make([]core.Row, len(base))
+		copy(rows, base)
+		_ = composeOverlays(rows, []*Overlay{ov}, 80, 60)
+	}
+}
+
+// BenchmarkOverlayComposeWithDim measures allocs for a dim-background overlay.
+// Expected: comparable to baseline (dim touches all rows).
+func BenchmarkOverlayComposeWithDim(b *testing.B) {
+	base := stringRows(60, 80)
+	ov := &Overlay{
+		Anchor:   AnchorCenter,
+		PercentX: 50, PercentY: 50,
+		Width:         OverlaySize{Value: 40, Percent: true, Min: 10},
+		Height:        OverlaySize{Value: 40, Percent: true, Min: 3},
+		DimBackground: true,
+		Content:       &lineComp{lines: []string{"HELLO", "WORLD", "THIRD"}},
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		rows := make([]core.Row, len(base))
+		copy(rows, base)
+		_ = composeOverlays(rows, []*Overlay{ov}, 80, 60)
+	}
+}
+
+// BenchmarkOverlayComposeMultipleOverlays measures allocs with 2 overlays
+// stacked (no dim). Tests the CoW benefit when multiple overlays touch
+// different row ranges.
+func BenchmarkOverlayComposeMultipleOverlays(b *testing.B) {
+	base := stringRows(60, 80)
+	ov1 := &Overlay{
+		UseAbsolute: true, Anchor: AnchorTopLeft,
+		Row: 0, Col: 0,
+		Width: OverlaySize{Value: 40}, Height: OverlaySize{Value: 5},
+		Content: &lineComp{lines: []string{"AAAA", "BBBB", "CCCC", "DDDD", "EEEE"}},
+	}
+	ov2 := &Overlay{
+		UseAbsolute: true, Anchor: AnchorTopLeft,
+		Row: 10, Col: 20,
+		Width: OverlaySize{Value: 30}, Height: OverlaySize{Value: 3},
+		Content: &lineComp{lines: []string{"XXXX", "YYYY", "ZZZZ"}},
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		rows := make([]core.Row, len(base))
+		copy(rows, base)
+		_ = composeOverlays(rows, []*Overlay{ov1, ov2}, 80, 60)
+	}
+}

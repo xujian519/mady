@@ -1,5 +1,180 @@
 # AI 变更记录
 
+## 2026-07-26: T3.5+T3.17 ParseKeys 根治 — 移除全局 kittyFlagsGlobal + T3.16 LAYERS.md 妥协文档
+
+### 背景
+Sprint 1 用方案 A（测试 cleanup）临时修复 Kitty 全局状态污染。Sprint 3 实施方案 B
+根治：移除 `terminal/keys.go` 的 `var kittyFlagsGlobal int64`，将 flags 通过函数
+参数传递。T3.16 同步更新 LAYERS.md 记录已知架构妥协。
+
+### T3.5+T3.17 改动
+
+| 文件 | 改动 |
+|------|------|
+| `tui/terminal/keys.go` | 移除 `kittyFlagsGlobal` + `SetKittyKeyboardFlagsFromTerminal` + `kittyActiveFlags()`；`ParseKeys(data, flags int64)`；`decodeKittyU(seq, params, flags)`；`parseOne`/`parseCSI`/`decodeCSI` 贯穿 flags；`MatchesKey` 内部传 0（保持 25+ 调用方不变）；新增 `MatchesKeyWithFlags` |
+| `tui/core/message.go` | `KeyMsg` 新增 `KittyFlags int64` 字段 |
+| `tui/tui.go` | TUI 新增 `kittyFlags int64` 字段 |
+| `tui/tui_lifecycle.go` | `Start()` 中通过类型断言捕获 `ProcessTerminal.KittyFlags()` |
+| `tui/tui_input.go` | `onKey` 创建 KeyMsg 时写入 `t.kittyFlags` |
+| `tui/terminal/terminal.go` | 移除 `SetKittyKeyboardFlagsFromTerminal(flags)` 调用；新增 `KittyFlags() int64` getter |
+| `tui/terminal/terminal_kitty_test.go` | 移除 `t.Cleanup` 中对已删除函数的调用 |
+| `tui/component/input.go` | `processKeys(data, kittyFlags)` + Update 中传 `m.KittyFlags` |
+| `tui/component/editor_edit.go` | `processKeys(data, kittyFlags)` |
+| `tui/component/editor.go` | Update 传 `m.KittyFlags` |
+| `tui/component/evidence_overlay.go` | `ParseKeys(m.Data, m.KittyFlags)` |
+| `tui/chat/chat_app_layout.go` | `ParseKeys(m.Data, m.KittyFlags)` |
+| `tui/terminal/keys_test.go` | 3 处 `ParseKeys("...", 0)` |
+| `example/tui-demo/main.go` | `ParseKeys(data, 0)` |
+
+### T3.16 改动
+
+| 文件 | 改动 |
+|------|------|
+| `tui/LAYERS.md` | 新增 "Known Architectural Compromises" 章节，记录 tui (L3)→chat (L5) 向上依赖及其原因/何时重新审视；同步文件计数 103→105 |
+
+### 验证结果
+- `cd tui && go build ./...` 通过
+- `cd tui && go test -race -count=1 ./...` 11 包全绿
+- `golangci-lint run ./tui/...` 0 issues
+- `bash verify_layers.sh` 105 文件一致
+- `go build ./...`（根模块 + tools）通过
+
+### 设计决策
+- **MatchesKey 不改变签名**：25+ 调用方全部更新代价过高；内部传 flags=0 回退到向后兼容模式
+- **Flags 通过 KeyMsg 传播**：`onKey` 在 TUI 中将 terminal flags 写入 KeyMsg.KittyFlags，组件层从 KeyMsg 提取。干净的数据流，避免在组件链中传递额外参数
+- **ProcessTerminal.KittyFlags() getter**：未加到 Terminal 接口（避免所有实现都要提供），用类型断言读取
+- **Notable**: 测试 `TestProcessTerminalKittyKbdMode` 不再需要 cleanup 重置全局状态，验证了根治成功
+
+---
+
+### 背景
+长会话中 msgCache（`map[string]cachedMessage`）随消息数线性增长，无上限约束。
+性能报告显示每消息的 blockCache 约 9.5μs/条，数百条消息累积后内存占用可观。
+Finalize 虽已通过 PatchMessage → invalidateMessageLocked 删除 msgCache 条目，
+但未做容量控制。
+
+### 改动
+
+| 文件 | 改动 |
+|------|------|
+| `tui/chat/chat_history.go` | ChatHistory 新增 `maxCacheEntries int` 字段（默认 200）；新增 `evictCacheEntriesLocked()` 方法，按 message index 升序踢出最旧的非 Pending 条目的缓存行；Finalize 注释更新 |
+| `tui/chat/chat_history_render.go` | Render Phase 3 merge 中 `h.msgCache = localCache` 后调用 `h.evictCacheEntriesLocked()` |
+| `tui/core/errors_test.go` | 新增 TestLogicError_WithoutErr / TestTermError_ErrorsIsDirect / TestNetError_ErrorsIsSentinel |
+
+### 验证结果
+- `cd tui && go test -race -count=1 ./...` 11 包全绿
+- `golangci-lint run ./tui/...` 0 issues
+- `bash verify_layers.sh` 105 文件一致
+
+### 设计决策
+- **按 index 排序非 Pending 条目的 eviction**：messages 数组按添加顺序排列，index 小的更旧（更可能已滚出视口）。Pending 消息持有活跃的 blockCache，跳过踢出
+- **maxCacheEntries=200**：假设平均消息 50 行 × 80 cols = ~100KB 渲染行，200 条 ≈ 20MB。大消息（Markdown 长文档）约 0.5MB/条时，200 条 ≈ 100MB，仍在可控范围
+- **Render 后 evict 而非 Render 前**：确保当前帧需要渲染的消息都有缓存，避免因 eviction 导致同一帧内重复渲染
+- **不持久化到磁盘**：msgCache 中的渲染行依赖 terminal width 和 theme，写入 session store 会引入视图状态与数据存储的耦合，暂不实现
+
+---
+
+### 背景
+审阅报告 H-2 发现：TUI 模块零使用 `errors.Is/As`，所有错误用 `errors.New()` 或 `fmt.Errorf()`
+创建，无统一分类。调用方无法区分 terminal 层（termios/ANSI/raw mode）、network 层（剪贴板/MCP）
+和 logical 层（主题解析/校验）的错误来源。
+
+### 改动
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `tui/core/errors.go` | **新建** | 三层错误类型：`TermError` / `NetError` / `LogicError`，均实现 `Unwrap()` 支持 `errors.Is/As` |
+| `tui/terminal/terminal.go` | 修改 | 5 处 `fmt.Errorf("tui: ...: %w", err)` → `&TermError{Op: "get_termios|set_termios|set_nonblock|restore_termios|virtual_terminal", Err: ...}` |
+| `tui/terminal/terminal_other.go` | 修改 | 2 处 `errors.New("tui: raw mode not implemented")` → `&TermError{Op: "raw_mode"}` |
+| `tui/theme/json.go` | 修改 | 1 处 `fmt.Errorf("vars.%s: %w")` → `&LogicError{Op: "theme_vars"}` |
+| `tui/theme/theme_registry.go` | 修改 | 1 处 `fmt.Errorf("theme ... not found")` → `&LogicError{Op: "theme_lookup"}` |
+| `tui/chat/clipboard.go` | 修改 | 5 处 `fmt.Errorf()`→ `&NetError{Op: "clipboard|clipboard_read"}` |
+| `tui/component/image.go` | 修改 | 1 处 `fmt.Errorf("tui: decode image: %w")`→ `&LogicError{Op: "image_decode"}` |
+| `tui/core/errors_test.go` | **新建** | 11 个测试：Error() 格式、Unwrap 链、errors.Is/As 提取、sentinel 匹配 |
+
+### 验证结果
+- `cd tui && go test -race -count=1 ./...` 11 包全绿
+- `golangci-lint run ./tui/...` 0 issues
+- `go vet ./tui/...` 通过
+
+### 设计决策
+- **Op string 而非 int 枚举**：更灵活，不需要中心注册表；Op 值在实际使用中自然形成约定。
+- **没有在 core 加 ErrMsg 消息类型**：审阅报告提议的 `ErrMsg`（平行于 PanicMsg）暂不实现，
+  因为 event loop 的错误路由需求不紧迫；三层错误类型已满足 errors.Is/As 匹配需要
+- **terminal_darwin/linux 不修改**：这两文件返回 `syscall.Errno`（原生 error），
+  TermError 包装在 terminal.go 的调用处完成，无需分裂职责。
+
+---
+
+### 背景
+性能审阅（维度 3）报告 composeOverlays 每帧全量 deep-copy 60 行（25μs / 248KB / 61 allocs），
+是渲染管线中最大的单次分配源。常见的无遮罩 overlay（autocomplete/keyhelp）并不需要全量复制——
+只有 overlay 实际覆盖的行才需要 deep-copy。
+
+### 改动
+
+| 文件 | 改动 |
+|------|------|
+| `tui/overlay.go` | `composeOverlays` 移除全量 upfront deep-copy，替换为 CoW（Copy-on-Write）追踪器 `modified []bool` + `cowRow(i)` 惰性深拷贝 |
+| `tui/overlay.go` | 在 `dimBackgroundRows` 前对全部非 raw 行执行 cowRow；在 `spliceOverlayRows` 前仅对 overlay 覆盖行执行 cowRow |
+| `tui/overlay.go` | PadRow 循环记录 `modified[i]=true`（PadRow 创建了新 cells 时），使后续 cowRow 跳过已私有化的行 |
+| `tui/overlay_test.go` | 新增 3 个 benchmark：`BenchmarkOverlayComposeNoDim` / `WithDim` / `MultipleOverlays` |
+
+### 验证结果
+```
+BenchmarkOverlayComposeNoDim-14          93 allocs/op   16μs   (旧 full copy: ~129 allocs)
+BenchmarkOverlayComposeWithDim-14       214 allocs/op   61μs   (无退化：dim 仍触及全部行)
+BenchmarkOverlayComposeMultipleOverlays  75 allocs/op   13μs   (2 overlay × 8 行)
+```
+- `cd tui && go test -race -count=1 ./...` 11 包全绿
+- `golangci-lint run ./tui/...` 0 issues
+- `bash tui/scripts/verify_layers.sh` 104 文件一致
+- `go build ./...` 通过
+
+### 设计决策
+- **CoW 仅在无遮罩场景有收益**：DimBackground=false 时只复制 overlay 行（~N+1 allocs vs 61）；
+  DimBackground=true 时 PadRow 已创建 cells 的行跳过 CoW，但未 padding 的行仍需复制（同旧代码）。
+- **不修改 dimBackgroundRows / spliceOverlayRows**：CoW 在调用前完成，被调用函数保持纯 in-place 语义。
+- **PadRow 返回原行时不标 modified**：用 `len(cells) != preLen` 检测 PadRow 是否真正分配了新 cells，
+  避免 cowRow 重复拷贝 PadRow 已私有化的行。
+- **benchmark 用 shallow copy 隔离 composeOverlays 测试**：base 行在循环外准备一次，循环内 shallow copy
+  + composeOverlays 调用，排除 ParseLine（~24 allocs/行）的干扰。
+
+---
+
+### 背景
+TUI 审阅优化计划 Sprint 2 共 13 项任务（T2.1–T2.13），前 12 项已在 7873b19 完成，
+T2.6（OnDebug overlay，H-1 死代码 + 可观测性）因 1 天工作量被推迟。本次实现。
+
+### 改动清单
+
+| 任务 | 文件 | 说明 |
+|------|------|------|
+| **T2.6** 帧时序追踪 | `tui/tui.go` | TUI 新增 `frameTimestamps` 环型缓冲区（容量 120）、`eventLog` 环型缓冲区（容量 32）、`msgCount`/`lastAlloc`/`lastFPS` 字段；新增 `MsgQueueDepth()`/`FrameStats()`/`RecentEvents()`/`DebugAlloc()`/`TotalMsgCount()` 访问方法 |
+| **T2.6** 帧渲染记录 | `tui/tui_render.go` | `renderFrame` 末尾记录帧时间戳并计算 FPS（最近 1 秒内帧率）；每 100 帧采样 `runtime.ReadMemStats` |
+| **T2.6** 事件日志记录 | `tui/tui_input.go` | `processMsg` 末尾新增 `logEvent(msg)`，记录事件类型到环型缓冲区；高频事件（TickMsg/WindowSizeMsg）做节流 |
+| **T2.6** FSM 状态暴露 | `tui/chat/chat_app.go` | ChatApp 新增 `State() AppState` 方法（加锁读取 `model.state`） |
+| **T2.6** DebugOverlay 组件 | `tui/component/debug_overlay.go` | 新建组件：FPS（色调标记 <30fps 红色 / <55fps 白色 / ≥55fps 强调色）、msgCh 队列深度、总消息数、ChatApp FSM 状态、堆内存分配、事件环型日志（↑↓ 翻页，最多 20 条可见）、Escape 关闭。每 500ms 自动刷新 |
+| **T2.6** OnDebug 接线 | `tui/chat_bridge.go` | NewChatApp 中设置 `app.OnDebug` 回调，按 ctrl+shift+d 切换 DebugOverlay 面板（居中 60%/60%，聚焦，带背景遮罩） |
+| **T2.6** 层清单同步 | `tui/LAYERS.md` | 新增 `debug_overlay.go` 条目，文件计数 36→37 |
+
+### 验证结果
+- `cd tui && go build ./...` 通过
+- `cd tui && go vet ./...` 通过
+- `cd tui && go test -race -count=1 ./...` 11 包全绿
+- `golangci-lint run ./tui/...` 0 issues
+- `bash tui/scripts/verify_layers.sh` ✅ 104 文件一致
+- 根模块 `go build ./...` 通过
+
+### 设计决策
+- **DebugOverlay 用接口解耦**：定义 `DebugTUISource`/`DebugAppSource` 小接口（各 5/1 方法），组件层不依赖 TUI/chat 的具体类型，保持层间隔离
+- **500ms 刷新 vs 每帧刷新**：使用 `core.Tick` 响应式刷新，避免每帧重复读取 `runtime.ReadMemStats`（会有 STW 暂停）和锁开销；首次 Update 触发 100ms 初始延迟后再进入 500ms 周期
+- **FPS 计算窗口 1 秒**：环型缓冲区容量 120（60fps 下约 2s），计算窗口内首尾时间差除以前进帧数，平滑抗突发
+- **事件日志节流**：TickMsg 每 10 次记录一次，WindowSizeMsg 约每秒记录一次，避免环型缓冲区被高频事件填满
+- **用 MsgBase 嵌入满足 Msg 接口**：`debugTick` 嵌入 `core.MsgBase`，无需手写 `MsgMarker()`，与 TUI 内其他 Msg 类型模式一致
+
+---
+
 ## 2026-07-26: TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）
 
 ### 背景

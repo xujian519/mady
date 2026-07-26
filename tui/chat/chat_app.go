@@ -545,6 +545,13 @@ func (a *ChatApp) MarkAgentReady() {
 	a.layout.updateJudgmentView()
 }
 
+// State returns the current FSM state of the ChatApp.
+func (a *ChatApp) State() AppState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.model.state
+}
+
 // MarkAgentFailed signals that agent initialization hit a terminal error and
 // transitions the FSM to StateFailed. Called from initializeAgentAsync's
 // error recovery path so the UI reflects the failed state.

@@ -24,6 +24,10 @@ func (t *TUI) processMsg(msg core.Msg) {
 		return
 	}
 
+	t.mu.Lock()
+	t.msgCount++
+	t.mu.Unlock()
+
 	switch m := msg.(type) {
 	case core.BatchMsg:
 		// Run every Cmd concurrently — each result Msg flows back into the
@@ -167,7 +171,40 @@ func (t *TUI) processMsg(msg core.Msg) {
 	// otherwise) was already updated above, so no further dispatch to
 	// non-focused overlays is needed here.
 
+	// Log event type for debug overlay (avoid flooding with frequent events).
+	t.logEvent(msg)
+
 	t.RequestRender()
+}
+
+// logEvent records a summary of the given message in the debug event ring.
+// High-frequency events (MouseMotion, WindowSize, TickMsg) are thinned to
+// avoid flooding the ring buffer.
+func (t *TUI) logEvent(msg core.Msg) {
+	label := fmt.Sprintf("%T", msg)
+	// Strip package prefix for readability: "chat.AgentStartChatEvent" → "AgentStartChatEvent".
+	if idx := strings.LastIndex(label, "."); idx >= 0 && len(label) > idx+1 {
+		label = label[idx+1:]
+	}
+
+	// Throttle high-frequency events.
+	switch msg.(type) {
+	case core.TickMsg:
+		// Log TickMsg only every 10th message.
+		if t.msgCount%10 != 0 {
+			return
+		}
+	case core.WindowSizeMsg:
+		// Thin resize events: only log every 120th message.
+		if t.msgCount%120 != 0 {
+			return
+		}
+	}
+
+	t.mu.Lock()
+	t.eventLog[t.eventLogIdx] = label
+	t.eventLogIdx = (t.eventLogIdx + 1) % len(t.eventLog)
+	t.mu.Unlock()
 }
 
 func (t *TUI) execCmd(cmd core.Cmd) {
@@ -255,7 +292,7 @@ func (t *TUI) onKey(data string) {
 		t.OnDebug()
 		return
 	}
-	t.SendMsg(core.KeyMsg{Data: data})
+	t.SendMsg(core.KeyMsg{Data: data, KittyFlags: t.kittyFlags})
 }
 
 func (t *TUI) onPaste(text string) {

@@ -76,6 +76,10 @@ func SerializeRowSegment(cells []Cell, afterStyle Style) string {
 		return RenderSGR(DefaultStyle, afterStyle)
 	}
 	var b strings.Builder
+	// Always emit a leading reset — the terminal's SGR state at the cursor
+	// position is indeterminate (prior segments on this row may have left it
+	// in any style). See tui/tui_render.go: the diff renderer emits segments
+	// with cursor-positioning between them, but cursor moves do not reset SGR.
 	b.WriteString("\x1b[0m")
 	prev := DefaultStyle
 	for i := 0; i < len(cells); i++ {

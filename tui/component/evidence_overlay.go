@@ -204,7 +204,7 @@ func (e *EvidenceOverlay) Render(width int64) []string {
 // Update handles keyboard input for scrolling and closing.
 func (e *EvidenceOverlay) Update(msg core.Msg) core.Cmd {
 	if m, ok := msg.(core.KeyMsg); ok {
-		for _, k := range terminal.ParseKeys(m.Data) {
+		for _, k := range terminal.ParseKeys(m.Data, m.KittyFlags) {
 			switch strings.ToLower(k.Name) {
 			case "escape":
 				if e.onClose != nil {

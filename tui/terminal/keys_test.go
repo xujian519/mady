@@ -50,7 +50,7 @@ func TestKittyAlternateKeyAndText(t *testing.T) {
 	// Kitty CSI u with alternate key (flag 4) and associated text (flag 16):
 	// ESC [ code ; mods ; event ; alt_key ; text u
 	//   code=97 (a), mods=2 (shift), event=1 (press), alt=65 (A), text=41 (hex for "A")
-	keys := ParseKeys("\x1b[97;2;1;65;%41u")
+	keys := ParseKeys("\x1b[97;2;1;65;%41u", 0)
 	if len(keys) != 1 {
 		t.Fatalf("expected 1 key, got %d", len(keys))
 	}
@@ -75,7 +75,7 @@ func TestKittyAlternateKeyAndText(t *testing.T) {
 func TestKittyTextPercentDecode(t *testing.T) {
 	// Percent-encoded text: "%48%65%6c%6c%6f" = ASCII "Hello"
 	// Sequence: code=104('h'), no-mods(1), press(1), alt=0, text=%48%65%6c%6c%6f
-	keys := ParseKeys("\x1b[104;1;1;0;%48%49%21u")
+	keys := ParseKeys("\x1b[104;1;1;0;%48%49%21u", 0)
 	if len(keys) != 1 {
 		t.Fatalf("expected 1 key, got %d", len(keys))
 	}
@@ -89,7 +89,7 @@ func TestKittyTextPercentDecode(t *testing.T) {
 }
 
 func TestParseKeysPrintable(t *testing.T) {
-	keys := ParseKeys("hi中")
+	keys := ParseKeys("hi中", 0)
 	if len(keys) != 3 {
 		t.Fatalf("want 3 keys, got %d", len(keys))
 	}

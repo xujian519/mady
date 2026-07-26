@@ -166,7 +166,11 @@ type ChatHistory struct {
 	// msgCache maps message ID to its rendered lines at the current width.
 	// It is cleared on width changes and on any global style change; single
 	// messages are invalidated on PatchMessage/AppendDelta.
-	msgCache map[string]cachedMessage
+	// To prevent unbounded memory growth in long sessions, the cache is
+	// capped at maxCacheEntries; excess entries for the oldest non-pending
+	// messages are evicted after each render cycle.
+	msgCache        map[string]cachedMessage
+	maxCacheEntries int
 
 	// optional invalidate callback (usually TUI.RequestRender).
 	onInvalidate func()
@@ -232,6 +236,7 @@ func NewChatHistory() *ChatHistory {
 		dirty:             true,
 		expandedGroups:    make(map[int]bool),
 		msgCache:          make(map[string]cachedMessage),
+		maxCacheEntries:   200,
 		reasoningRenderer: HiddenReasoningRenderer{},
 	}
 }
@@ -525,7 +530,8 @@ func (h *ChatHistory) applyDeltaLocked(m *ChatMessage, delta, kind string) bool 
 	return true
 }
 
-// Finalize clears the Pending flag on the given id.
+// Finalize clears the Pending flag on the given id and releases the
+// per-block render cache so the blockCache can be GC'd promptly.
 func (h *ChatHistory) Finalize(id string) {
 	h.PatchMessage(id, func(m *ChatMessage) {
 		if m.Pending {
@@ -587,6 +593,32 @@ func (h *ChatHistory) clearMsgCacheLocked() {
 // must hold mu.
 func (h *ChatHistory) invalidateMessageLocked(id string) {
 	delete(h.msgCache, id)
+}
+
+// evictCacheEntriesLocked removes cached lines for the oldest non-pending
+// messages when the cache exceeds maxCacheEntries. Pending messages (still
+// streaming, holding a blockCache) are exempt from eviction. Called during
+// the Render merge phase under h.mu.
+func (h *ChatHistory) evictCacheEntriesLocked() {
+	if h.maxCacheEntries <= 0 || len(h.msgCache) <= h.maxCacheEntries {
+		return
+	}
+	excess := len(h.msgCache) - h.maxCacheEntries
+	// Messages are stored in insertion order; iterating forward visits
+	// oldest first. Delete cached entries until we're back under the cap.
+	for i := range h.messages {
+		if excess <= 0 {
+			break
+		}
+		m := &h.messages[i]
+		if m.Pending {
+			continue
+		}
+		if _, ok := h.msgCache[m.ID]; ok {
+			delete(h.msgCache, m.ID)
+			excess--
+		}
+	}
 }
 
 // Messages returns a snapshot of the transcript.
