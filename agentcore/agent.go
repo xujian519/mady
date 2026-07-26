@@ -302,6 +302,13 @@ func (a *Agent) SetThinkingConfig(tc *ThinkingConfig) {
 
 func (a *Agent) State() *AgentState { return a.state }
 
+// lifecycle 返回当前配置的 LifecycleHook。
+// 每次调用执行一次 configMu.RLock→RUnlock。在 runLoop 执行期间 configMu
+// 无写锁竞争（配置在运行时仅通过 SetThinkingConfig 等外部入口变更，不会
+// 在循环中触发），单次锁开销约 25–50 ns，与 LLM 秒级延迟相比可忽略。
+// 有意保留 RWMutex 而非原子指针：配置在生命周期外可能热更新，
+// RLock 提供了语义正确的并发契约。
+
 func (a *Agent) lifecycle() LifecycleHook {
 	a.configMu.RLock()
 	lc := a.config.Lifecycle

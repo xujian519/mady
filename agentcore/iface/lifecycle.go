@@ -66,7 +66,17 @@ type TurnInfo struct {
 // =============================================================================
 
 // LifecycleHook 提供 agent 执行各阶段的拦截点。
-// 注意：此接口与 agentcore.LifecycleHook 保持同步。
+//
+// 注意：此接口是 agentcore.LifecycleHook 的降采样收缩视图（narrow view），
+// 并非完全同步。为了不向 iface 层暴露 agentcore 内部类型
+// （*Message、[]Message、*ProviderRequest 等），以下方法在签名上做了有意收缩
+// （适配层 ifaceLifecycleHookAdapter 已在 iface_adapter.go 中处理）：
+//
+//	BeforeMessagePersist:     agentcore(msg *Message) → iface(无 msg)
+//	AfterMessagePersist:      agentcore(msg Message)  → iface(无 msg)
+//	BeforeCompactionPersist:  agentcore(msgs []Message, 返回 []Message) → iface(无 msgs, 仅 error)
+//	AfterCompactionPersist:   agentcore(msgs []Message) → iface(无 msgs)
+//
 // 新增方法时请同步更新 iface_adapter.go 中的 ifaceLifecycleHookAdapter。
 type LifecycleHook interface {
 	BeforeAgentRun(ctx context.Context, arc *AgentRunContext) error
