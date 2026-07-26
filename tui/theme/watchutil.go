@@ -33,10 +33,8 @@ func runWithRestart(ctx context.Context, name string, fn func()) {
 		}()
 		// Check whether the watcher was canceled while fn was running
 		// (or during the backoff). If so, stop; otherwise restart.
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return
-		default:
 		}
 	}
 }

@@ -130,7 +130,7 @@ func (b *StdinBuffer) OnMouse(fn func(msg core.MouseMsg)) {
 //
 // This is a var (not const) so tests can override it with a small value to
 // exercise the cap without paying the O(n) scan cost of consumeKeyEvents on
-// a megabyte of incomplete escapes.
+// a megabyte of incomplete escapes. Production code should never modify it.
 var maxBufferBytes = 1 << 20 // 1 MiB
 
 // Feed appends raw bytes and drains any complete events.
