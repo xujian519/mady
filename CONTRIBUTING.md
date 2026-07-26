@@ -16,7 +16,7 @@ git clone https://github.com/xujian519/mady.git
 cd mady
 ```
 
-Mady 是一个 Go 多模块项目，使用 `go.work` 链接根模块和 `tools/` 子模块：
+Mady 是一个 Go 多模块项目，使用 `go.work` 链接根模块、`tools/` 和 `tui/` 三个子模块：
 
 ```bash
 # go.work 已包含在仓库中，直接使用即可
@@ -35,10 +35,13 @@ make build
 go build ./...
 ```
 
-> **注意**：Mady 是 `go.work` 多模块结构。根目录执行 `go build ./...` 不会覆盖 `tools/` 子模块。
-> 除非使用 Makefile，否则需要单独 `cd tools && go build ./...`。
+> **注意**：Mady 是 `go.work` 多模块结构（root + tools + tui）。根目录执行 `go build ./...` 不会覆盖 `tools/` 或 `tui/` 子模块。
+> 除非使用 Makefile，否则需要单独 `cd <模块> && go build ./...</`。
 
 ### 运行测试
+
+> **注意**：`make verify`/`make test` 已同时覆盖 root + tools + tui 三个模块。
+> 裸 `go test ./...` 只跑根模块，如需跑 tools 或 tui 须 `cd tools && go test ./...` 或 `cd tui && go test ./...`。
 
 ```bash
 # 提交前标准（推荐）：lint + build + race 测试，覆盖根模块 + tools/

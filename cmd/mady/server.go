@@ -78,19 +78,18 @@ func openEvalStore(evalDB string) (*knowledge.EvalStore, error) {
 }
 
 // runServer launches the HTTP/SSE API server with multi-domain routing.
-func runServer(ctx context.Context) {
-	fs := flag.NewFlagSet("mady serve", flag.ExitOnError)
+func runServer(ctx context.Context) error {
+	fs := flag.NewFlagSet("mady serve", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
 	addr := fs.String("addr", ":8080", "listen address")
 	tlsCert := fs.String("tls-cert", "", "TLS 证书文件路径（与 -tls-key 同时提供时启用 HTTPS）")
 	tlsKey := fs.String("tls-key", "", "TLS 私钥文件路径（与 -tls-cert 同时提供时启用 HTTPS）")
 	if err := fs.Parse(os.Args[2:]); err != nil {
-		fmt.Fprintf(os.Stderr, "flag: %v\n", err)
-		return
+		return fmt.Errorf("server: %w", err)
 	}
 	// 仅提供其一属于配置错误，直接 fail-fast，避免静默降级为明文 HTTP。
 	if (*tlsCert == "") != (*tlsKey == "") {
-		fmt.Fprintln(os.Stderr, "server: -tls-cert 与 -tls-key 必须同时提供")
-		return
+		return fmt.Errorf("server: -tls-cert 与 -tls-key 必须同时提供")
 	}
 
 	fc := setupFrameworkContext(ctx, "serve")
@@ -265,12 +264,12 @@ func runServer(ctx context.Context) {
 	if *tlsCert != "" {
 		err := srv.ListenAndServeTLS(*addr, *tlsCert, *tlsKey)
 		if err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(os.Stderr, "server: %v\n", err)
+			return fmt.Errorf("server: %w", err)
 		}
-		return
+		return nil
 	}
 	if err := srv.ListenAndServe(*addr); err != nil && err != http.ErrServerClosed {
-		fmt.Fprintf(os.Stderr, "server: %v\n", err)
-		return
+		return fmt.Errorf("server: %w", err)
 	}
+	return nil
 }

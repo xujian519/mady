@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -221,6 +222,11 @@ type ProcessToolConfig struct {
 	Registry   *ProcessRegistry
 	MaxBytes   int64
 	MaxLines   int64
+	// DangerousPatterns 是 shell 注入模式列表。匹配任意模式则拒绝执行。
+	// 为 nil 时使用 DefaultDangerousPatterns()。设为空切片以完全禁用。
+	//
+	// 这是纵深防御措施。主要安全边界是 Sandbox + DisableTools 机制。
+	DangerousPatterns []string
 }
 
 func (c *ProcessToolConfig) defaults() {
@@ -320,6 +326,19 @@ func NewProcessTool(cwd string, cfg *ProcessToolConfig) *agentcore.Tool {
 func handleSpawn(cfg *ProcessToolConfig, cwd string, input ProcessToolInput) (any, error) {
 	if input.Command == "" {
 		return resultErrf("command is required for spawn")
+	}
+
+	// 执行前校验危险模式（纵深防御，与 bash 工具一致）。
+	patterns := cfg.DangerousPatterns
+	if patterns == nil {
+		patterns = DefaultDangerousPatterns()
+	}
+	for _, pat := range patterns {
+		if matched, err := regexp.MatchString(pat, input.Command); err != nil {
+			return resultErrf("command rejected: invalid pattern %q: %w", pat, err)
+		} else if matched {
+			return resultErrf("command rejected: contains dangerous pattern %q", pat)
+		}
 	}
 
 	entry, err := cfg.Operations.Spawn(input.Command, cwd)

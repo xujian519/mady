@@ -266,7 +266,9 @@ func (fi *FileIndex) Refresh(ctx context.Context) error {
 				SELECT rowid FROM file_records WHERE path = ?)`, path); err != nil {
 				slog.Error("fileindex: fts5 delete error on remove", "err", err)
 			}
-			_, _ = fi.db.ExecContext(ctx, `DELETE FROM file_records WHERE path = ?`, path)
+			if _, err := fi.db.ExecContext(ctx, `DELETE FROM file_records WHERE path = ?`, path); err != nil {
+				slog.Warn("fileindex: main record delete error on remove", "err", err)
+			}
 		}
 	}
 

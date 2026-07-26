@@ -85,28 +85,33 @@ func mergeExtractionsNode() graph.PregelNode {
 	}
 }
 
+// mergeFromState 是 mergeProblems/Features/Effects 的泛型辅助函数：
+// 从 state[key] 读取 JSON 字符串，验证并解析为目标类型 T，nil 表示跳过。
+func mergeFromState[T any](state graph.PregelState, key string) *T {
+	raw, _ := state[key].(string)
+	if raw == "" {
+		return nil
+	}
+	var parsed T
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return nil
+	}
+	return &parsed
+}
+
 // mergeProblemsFromState 从 StateKeyExtractProblem 读取并解析问题列表。
 func mergeProblemsFromState(ext *ExtractionResult, state graph.PregelState) {
-	raw, _ := state[StateKeyExtractProblem].(string)
-	if raw == "" {
-		// 兼容 struct 类型（测试中可能直接存储）
-		return
-	}
-	if !json.Valid([]byte(raw)) {
-		return
-	}
-
-	var parsed struct {
+	type problemsResponse struct {
 		Problems []struct {
 			ID         string  `json:"id"`
 			Text       string  `json:"text"`
 			Confidence float64 `json:"confidence"`
 		} `json:"problems"`
 	}
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+	parsed := mergeFromState[problemsResponse](state, StateKeyExtractProblem)
+	if parsed == nil {
 		return
 	}
-
 	for _, p := range parsed.Problems {
 		ext.Problems = append(ext.Problems, p.Text)
 		ext.PFETriples = append(ext.PFETriples, PFETriple{
@@ -118,15 +123,7 @@ func mergeProblemsFromState(ext *ExtractionResult, state graph.PregelState) {
 
 // mergeFeaturesFromState 从 StateKeyExtractFeatures 读取并解析特征列表。
 func mergeFeaturesFromState(ext *ExtractionResult, state graph.PregelState) {
-	raw, _ := state[StateKeyExtractFeatures].(string)
-	if raw == "" {
-		return
-	}
-	if !json.Valid([]byte(raw)) {
-		return
-	}
-
-	var parsed struct {
+	type featuresResponse struct {
 		Features []struct {
 			ID             string   `json:"id"`
 			Description    string   `json:"description"`
@@ -138,10 +135,10 @@ func mergeFeaturesFromState(ext *ExtractionResult, state graph.PregelState) {
 			Solves         []string `json:"solves"`
 		} `json:"features"`
 	}
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+	parsed := mergeFromState[featuresResponse](state, StateKeyExtractFeatures)
+	if parsed == nil {
 		return
 	}
-
 	for _, f := range parsed.Features {
 		feature := TechFeature{
 			ID:             f.ID,
@@ -167,15 +164,7 @@ func mergeFeaturesFromState(ext *ExtractionResult, state graph.PregelState) {
 
 // mergeEffectsFromState 从 StateKeyExtractEffects 读取并解析效果列表。
 func mergeEffectsFromState(ext *ExtractionResult, state graph.PregelState) {
-	raw, _ := state[StateKeyExtractEffects].(string)
-	if raw == "" {
-		return
-	}
-	if !json.Valid([]byte(raw)) {
-		return
-	}
-
-	var parsed struct {
+	type effectsResponse struct {
 		Effects []struct {
 			ID         string   `json:"id"`
 			Text       string   `json:"text"`
@@ -183,10 +172,10 @@ func mergeEffectsFromState(ext *ExtractionResult, state graph.PregelState) {
 			Confidence float64  `json:"confidence"`
 		} `json:"effects"`
 	}
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+	parsed := mergeFromState[effectsResponse](state, StateKeyExtractEffects)
+	if parsed == nil {
 		return
 	}
-
 	for _, e := range parsed.Effects {
 		// 检查当前 effect 是否匹配任一 PFE 三元组
 		matched := false

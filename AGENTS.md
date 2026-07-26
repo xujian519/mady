@@ -9,11 +9,11 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 核心分层：agentcore（内核，含 doomloop/reasoning_strategy/atom/plugin/evaluate/tasklist）
 → 领域扩展层（psychological/guardrails/knowledge/retrieval/domains/{claimdrafting,specdrafting,enablement,inventiveness,evidence}/rules/doctmpl）
     domains/evidence/ — 专利证据判断规则引擎（三性/类型/举证责任/证明标准/日期/可信度）
-→ 基础设施层（graph/workflow/session/store/memory/disclosure/fuzzy/filequeue/prompt）
+→ 基础设施层（graph/workflow/session/store/memory/disclosure/fuzzy/prompt）
 → 通用工具库（pkg/{util,csync,i18n,lawcite,agentconfig,vecbytes}）
 → 协议与接口层（A2A/A2UI/AGUI/ACP/Server/MCP/TUI）
 → 应用入口（cmd/mady, example/）。
-1203 个 Go 源文件（811 非测试 + 392 测试），~274K 行代码。
+1207 个 Go 源文件（809 非测试 + 398 测试），~274K 行代码。
 
 > 文件计数更新时间：2026-07-26。如需获取最新计数，请执行：
 > ```bash
@@ -38,11 +38,11 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 
 ### ⚠️ 多模块工作区（重要 gotcha）
 
-本仓库是 `go.work` 多模块结构：根模块 `.` + 独立子模块 `./tools`（各有自己的 `go.mod`）。
-- 根目录执行 `go build/test/vet ./...` **不会**覆盖 `tools/` 模块
-- 根模块通过 `replace github.com/xujian519/mady => ../` 引用 tools，反之亦然
-- 对 `tools/` 的改动须单独 `cd tools && go build ./... && go test ./...`，
-  或用 `make lint` / `make fmt`（Makefile 已封装 `cd tools && ...` 分支）
+本仓库是 `go.work` 多模块结构：根模块 `.` + 独立子模块 `./tools` + `./tui`（各有自己的 `go.mod`）。
+- 根目录执行 `go build/test/vet ./...` **不会**覆盖 `tools/` 和 `tui/` 模块
+- 根模块通过 `replace github.com/xujian519/mady => ../` 引用 tools/tui，反之亦然
+- 对 `tools/` 或 `tui/` 的改动须单独 `cd <模块> && go build ./... && go test ./...`，
+  或用 `make lint` / `make fmt`（Makefile 已封装各模块分支）
 
 ### 提交规范
 

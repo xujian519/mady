@@ -95,7 +95,7 @@ func (h *searchHandler) Execute(ctx context.Context, state PipelineState, provid
 		MaxResults: maxResults,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("search: search failed: %v", err)
+		return nil, fmt.Errorf("search: search failed: %w", err)
 	}
 
 	out := make(PipelineState)

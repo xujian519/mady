@@ -23,11 +23,6 @@ type NodePolicy struct {
 	SideEffect bool
 }
 
-// RetryPolicy 已废弃，保留向后兼容。新代码使用 NodePolicy。
-//
-// Deprecated: 使用 NodePolicy。
-type RetryPolicy = NodePolicy
-
 const defaultRetryDelay = 100 * time.Millisecond
 
 // safeExecute 执行 PregelNode 并恢复 panic。

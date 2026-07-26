@@ -1,6 +1,8 @@
 package sqlite
 
 import (
+	"log/slog"
+
 	"database/sql"
 	"errors"
 	"fmt"
@@ -24,6 +26,7 @@ import (
 // by pre-built SQLite databases that share the same data model as Mady's
 // in-memory Store and GraphStore.
 type SQLiteStore struct {
+	mu        sync.Mutex
 	db        *sql.DB      // knowledge.db — documents, chunks, FTS, embeddings, KG
 	lawsDB    *sql.DB      // laws-full.db — 9 121 laws with full text
 	kgDB      *sql.DB      // patent_kg.db — 116 K nodes / 484 K edges
@@ -82,12 +85,20 @@ func (s *SQLiteStore) HasVectorIndex() bool {
 
 // OpenLawsDB opens laws-full.db for law full-text search.
 func (s *SQLiteStore) OpenLawsDB(path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	dsn := fmt.Sprintf("file:%s?mode=ro&_pragma=busy_timeout(5000)", path)
 	lawsDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return fmt.Errorf("open laws-full.db: %w", err)
 	}
 	lawsDB.SetMaxOpenConns(1)
+	// 关闭旧连接（防止重复调用 OpenLawsDB 泄漏句柄）。
+	if s.lawsDB != nil {
+		if cerr := s.lawsDB.Close(); cerr != nil {
+			slog.Warn("knowledge/sqlite: close previous lawsDB", "err", cerr)
+		}
+	}
 	s.lawsDB = lawsDB
 
 	// Detect whether the law_fts (FTS5) table exists.
@@ -105,12 +116,20 @@ func (s *SQLiteStore) HasLawFTS() bool { return s.hasLawFTS }
 
 // OpenPatentKGDB opens patent_kg.db for supplementary graph queries.
 func (s *SQLiteStore) OpenPatentKGdb(path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	dsn := fmt.Sprintf("file:%s?mode=ro&_pragma=busy_timeout(5000)", path)
 	kgDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return fmt.Errorf("open patent_kg.db: %w", err)
 	}
 	kgDB.SetMaxOpenConns(1)
+	// 关闭旧连接（防止重复调用 OpenPatentKGdb 泄漏句柄）。
+	if s.kgDB != nil {
+		if cerr := s.kgDB.Close(); cerr != nil {
+			slog.Warn("knowledge/sqlite: close previous patent_kg.db", "err", cerr)
+		}
+	}
 	s.kgDB = kgDB
 	return nil
 }

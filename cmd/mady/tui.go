@@ -53,11 +53,10 @@ func loadWritingPatterns(madyHome string) *writing.PatternStore {
 // runTui launches the interactive terminal chat.
 //
 // 统一 Agent 模式（UnifiedAgent）：内置工具集 + Invisible Handoff 到专利/法律领域。
-func runTui(ctx context.Context) {
+func runTui(ctx context.Context) error {
 	fs := flag.NewFlagSet("mady tui", flag.ExitOnError)
 	if err := fs.Parse(os.Args[2:]); err != nil {
-		fmt.Fprintf(os.Stderr, "mady tui: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("mady tui: %w", err)
 	}
 
 	fc := setupFrameworkContext(ctx, "tui")
@@ -233,8 +232,7 @@ func runTui(ctx context.Context) {
 
 	// 先启动 TUI 渲染，再在后台初始化 Agent 和延迟任务。
 	if err := app.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
-		return
+		return fmt.Errorf("tui: %w", err)
 	}
 	// TUI 已进入 alternate screen 模式；此后所有 stderr 输出都会泄漏
 	// 到 TUI 显示区。重定向 log/slog/os.Stderr 到日志文件以阻止泄漏。
@@ -264,6 +262,7 @@ func runTui(ctx context.Context) {
 	if fc.Deferred != nil && fc.Deferred.HasErrors() {
 		log.Printf("[mady] deferred init errors:\n%s", fc.Deferred.ErrorSummary())
 	}
+	return nil
 }
 
 // applyStoredTheme reads the persisted theme from the store and applies it to

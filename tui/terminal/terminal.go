@@ -393,8 +393,6 @@ func (t *ProcessTerminal) shouldEnableKittyKbdLocked() bool {
 
 // TerminalSupportsKittyKeyboard returns true when the current terminal is
 // known to implement (a subset of) the Kitty keyboard protocol.
-//
-// Deprecated: Use CurrentTerminalContext().SupportsKittyKeyboard() instead.
 func TerminalSupportsKittyKeyboard() bool {
 	term := os.Getenv("TERM")
 	termProgram := os.Getenv("TERM_PROGRAM")

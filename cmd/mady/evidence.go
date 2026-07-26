@@ -11,24 +11,9 @@ import (
 	"github.com/xujian519/mady/domains/evidence"
 )
 
-const evidenceUsage = `用法: mady evidence <action> [--file <path>]
-
-Actions:
-  triple        证据三性审查（关联性/合法性/真实性）
-  burden        举证责任查询
-  standard      证明标准评估
-  conflict      证据冲突检测
-  type-specific 类型特定判断
-
-输入方式:
-  echo '{"source_uri":"...","snippet":"..."}' | mady evidence triple
-  mady evidence triple --file evidence.json
-`
-
-func runEvidenceCLI(args []string) {
+func runEvidenceCLI(args []string) error {
 	if len(args) == 0 {
-		fmt.Fprint(os.Stderr, evidenceUsage)
-		os.Exit(2)
+		return fmt.Errorf("evidence: missing action (use -h for help)")
 	}
 
 	action := args[0]
@@ -46,8 +31,7 @@ func runEvidenceCLI(args []string) {
 	if filePath != "" {
 		f, err := os.Open(filePath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "无法打开文件: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("evidence: 无法打开文件: %w", err)
 		}
 		openedFile = f
 		input = f
@@ -59,7 +43,10 @@ func runEvidenceCLI(args []string) {
 	if openedFile != nil {
 		openedFile.Close()
 	}
-	os.Exit(exitCode)
+	if exitCode != 0 {
+		return fmt.Errorf("evidence: action %s failed", action)
+	}
+	return nil
 }
 
 func runEvidenceAction(action string, input io.Reader, stdout, stderr io.Writer) int {

@@ -19,59 +19,54 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
-func runTrustKnowledge(args []string) {
+func runTrustKnowledge(args []string) error {
 	if len(args) == 0 {
 		printTrustKnowledgeUsage()
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: missing path argument")
 	}
 
 	switch args[0] {
 	case "-h", "--help":
 		printTrustKnowledgeUsage()
-		return
+		return nil
 	case "--list", "-l":
-		listTrustKnowledge()
+		return listTrustKnowledge()
 	case "--remove", "-r":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "error: --remove requires a path argument")
-			os.Exit(1)
+			return fmt.Errorf("trust-knowledge: --remove requires a path argument")
 		}
-		removeTrustKnowledge(args[1])
+		return removeTrustKnowledge(args[1])
 	default:
-		addTrustKnowledge(args[0])
+		return addTrustKnowledge(args[0])
 	}
 }
 
-func addTrustKnowledge(path string) {
+func addTrustKnowledge(path string) error {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: cannot resolve path %q: %v\n", path, err)
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: cannot resolve path %q: %w", path, err)
 	}
 
 	// Verify directory exists
 	if info, err := os.Stat(abs); err != nil {
-		fmt.Fprintf(os.Stderr, "error: path not found: %s\n", abs)
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: path not found: %s", abs)
 	} else if !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "error: path is not a directory: %s\n", abs)
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: path is not a directory: %s", abs)
 	}
 
 	if err := util.AddKnowledgeDir(abs); err != nil {
-		fmt.Fprintf(os.Stderr, "error: failed to save config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: failed to save config: %w", err)
 	}
 
 	fmt.Printf("✓ 已添加知识库路径到只读白名单: %s\n", abs)
 	fmt.Println("  重启 mady 后生效，或通过 KNOWLEDGE_DIRS 环境变量即时覆盖。")
+	return nil
 }
 
-func listTrustKnowledge() {
+func listTrustKnowledge() error {
 	cfg, err := util.LoadSandboxConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: cannot load config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: cannot load config: %w", err)
 	}
 
 	fmt.Println("沙箱只读白名单 (AllowRead):")
@@ -116,19 +111,18 @@ func listTrustKnowledge() {
 	} else {
 		fmt.Printf("  %s （自动）\n", filepath.Join(os.TempDir(), "mady"))
 	}
+	return nil
 }
 
-func removeTrustKnowledge(path string) {
+func removeTrustKnowledge(path string) error {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: cannot resolve path %q: %v\n", path, err)
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: cannot resolve path %q: %w", path, err)
 	}
 
 	cfg, err := util.LoadSandboxConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: cannot load config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: cannot load config: %w", err)
 	}
 
 	found := false
@@ -142,17 +136,16 @@ func removeTrustKnowledge(path string) {
 	}
 
 	if !found {
-		fmt.Fprintf(os.Stderr, "路径不在白名单中: %s\n", abs)
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: 路径不在白名单中: %s", abs)
 	}
 
 	cfg.AllowRead = filtered
 	if err := util.SaveSandboxConfig(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "error: failed to save config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("trust-knowledge: failed to save config: %w", err)
 	}
 
 	fmt.Printf("✓ 已从白名单移除: %s\n", abs)
+	return nil
 }
 
 func printTrustKnowledgeUsage() {

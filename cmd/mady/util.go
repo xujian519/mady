@@ -13,28 +13,19 @@ import (
 // runUtil dispatches utility subcommands that do not need a full framework
 // context. Currently supports:
 //   - list-prompts: print the catalog of built-in + user prompt templates.
-func runUtil(ctx context.Context, args []string) {
+func runUtil(ctx context.Context, args []string) error {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: mady util <subcommand>")
-		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "Subcommands:")
-		fmt.Fprintln(os.Stderr, "  list-prompts  列出可用的提示词模板")
-		os.Exit(2)
+		fmt.Fprintln(os.Stderr, "usage: mady util <subcommand>\n\nSubcommands:\n  list-prompts  列出可用的提示词模板")
+		return fmt.Errorf("util: missing subcommand")
 	}
 
 	switch args[0] {
 	case "list-prompts":
-		if err := runListPrompts(); err != nil {
-			fmt.Fprintf(os.Stderr, "list-prompts: %v\n", err)
-			os.Exit(1)
-		}
+		return runListPrompts()
 	default:
-		fmt.Fprintf(os.Stderr, "unknown util subcommand %q\n\n", args[0])
-		fmt.Fprintln(os.Stderr, "usage: mady util <subcommand>")
-		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "Subcommands:")
-		fmt.Fprintln(os.Stderr, "  list-prompts  列出可用的提示词模板")
-		os.Exit(2)
+		fmt.Fprintln(os.Stderr, "usage: mady util <subcommand>\n\nSubcommands:\n  list-prompts  列出可用的提示词模板")
+
+		return fmt.Errorf("util: unknown subcommand %q", args[0])
 	}
 }
 

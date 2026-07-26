@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unicode"
@@ -58,11 +59,12 @@ func (d DefaultBashOperations) Exec(command string, cwd string, env map[string]s
 
 	// Set up timeout.
 	var timer *time.Timer
+	var killedByTimeout atomic.Bool
 	if timeoutSecs != nil && *timeoutSecs > 0 {
 		timer = time.AfterFunc(time.Duration(*timeoutSecs)*time.Second, func() {
 			if cmd.Process != nil {
-				// Best-effort cleanup; the command may have already exited.
 				_ = killProcessTree(cmd.Process.Pid)
+				killedByTimeout.Store(true)
 			}
 		})
 	}
@@ -92,6 +94,12 @@ func (d DefaultBashOperations) Exec(command string, cwd string, env map[string]s
 	}
 
 	err = cmd.Wait()
+	// 超时标志仅在进程被信号终止时才使用；
+	// 如果进程在超时时刻自行退出，err == nil 则正常返回退出码。
+	if err != nil && killedByTimeout.Load() {
+		// Process was terminated by timeout.
+		return -1, fmt.Errorf("process killed after timeout %ds", *timeoutSecs)
+	}
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return exitErr.ExitCode(), nil
@@ -255,7 +263,9 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 				patterns = DefaultDangerousPatterns()
 			}
 			for _, pat := range patterns {
-				if matched, _ := regexp.MatchString(pat, input.Command); matched {
+				if matched, err := regexp.MatchString(pat, input.Command); err != nil {
+					return resultErrf("command rejected: invalid pattern %q: %w", pat, err)
+				} else if matched {
 					return resultErrf("command rejected: contains dangerous pattern %q", pat)
 				}
 			}
@@ -288,6 +298,7 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 						tempFilePath = tempFile.Name()
 						for _, c := range chunks {
 							if _, werr := tempFile.Write(c); werr != nil {
+								_ = os.Remove(tempFile.Name())
 								tempFile.Close()
 								tempFile = nil
 								tempFilePath = ""
@@ -298,6 +309,7 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 				}
 				if tempFile != nil {
 					if _, werr := tempFile.Write(data); werr != nil {
+						_ = os.Remove(tempFile.Name())
 						tempFile.Close()
 						tempFile = nil
 					}
@@ -322,11 +334,10 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 			}
 
 			// Schedule delayed cleanup of temp file (agent may reference it).
+			// Uses time.After for simplicity; goroutine exits when the process dies.
 			if tempFilePath != "" {
 				go func(path string) {
-					timer := time.NewTimer(10 * time.Minute)
-					defer timer.Stop()
-					<-timer.C
+					<-time.After(10 * time.Minute)
 					os.Remove(path)
 				}(tempFilePath)
 			}
@@ -371,13 +382,13 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 				}
 			}
 
+			if err != nil {
+				return resultErrf("command failed: %w", err)
+			}
+
 			if exitCode != 0 {
 				resultText += fmt.Sprintf("\n\nCommand exited with code %d", exitCode)
 				return result(resultText, details)
-			}
-
-			if err != nil {
-				return resultErrf("command failed: %w", err)
 			}
 
 			return result(resultText, details)

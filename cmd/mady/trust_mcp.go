@@ -13,7 +13,7 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
-func runTrustMCP(_ []string) {
+func runTrustMCP(_ []string) error {
 	// 默认信任当前目录的 .mcp.json；也可显式指定配置文件路径。
 	path := ".mcp.json"
 	if len(os.Args) > 2 {
@@ -21,22 +21,19 @@ func runTrustMCP(_ []string) {
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "trust-mcp: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("trust-mcp: %w", err)
 	}
 	if _, err := os.Stat(abs); err != nil {
-		fmt.Fprintf(os.Stderr, "trust-mcp: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("trust-mcp: %w", err)
 	}
 
 	madyHome, err := util.MadyHome()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "trust-mcp: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("trust-mcp: %w", err)
 	}
 	if err := mcp.TrustMCPConfigFile(abs, madyHome); err != nil {
-		fmt.Fprintf(os.Stderr, "trust-mcp: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("trust-mcp: %w", err)
 	}
 	fmt.Printf("已信任 MCP 配置：%s\n（内容变化后需重新执行本命令）\n", abs)
+	return nil
 }

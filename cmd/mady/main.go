@@ -1,6 +1,6 @@
 // Command mady is the unified entry point for the Mady agent framework.
 //
-// It exposes eight subcommands:
+// It exposes ten subcommands:
 //
 //	mady tui   — interactive terminal chat (default)
 //	mady serve — HTTP/SSE API server with multi-domain routing
@@ -9,7 +9,9 @@
 //	mady trust-knowledge — manage sandbox read-only whitelist for knowledge bases
 //	mady mcp-install — wire Mady as an MCP server into coding agents (e.g. claude)
 //	mady eval  — run evaluation benchmarks (static or live) and generate reports
+//	mady evidence — evidence judgment CLI
 //	mady patent — patent analysis CLI (novelty analysis, OA response drafting)
+//	mady util  — utility tools (list-prompts, etc.)
 //	mady help  — show usage help
 //
 // All configuration is via environment variables (see package agentconfig):
@@ -43,6 +45,15 @@ import (
 	_ "github.com/xujian519/mady/provider/adapter"
 )
 
+// commitHash and buildTime are injected via -ldflags at build time
+// (see LDFLAGS in Makefile). Default to "unknown" for dev builds.
+//
+//nolint:unused // set via ldflags at build time (see Makefile LDFLAGS)
+var commitHash = "unknown"
+
+//nolint:unused // set via ldflags
+var buildTime = "unknown"
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -55,31 +66,55 @@ func main() {
 
 	switch os.Args[1] {
 	case "tui":
-		runTui(ctx)
+		if err := runTui(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, "mady:", err)
+			os.Exit(1)
+		}
 	case "serve":
-		runServer(ctx)
+		if err := runServer(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	case "acp":
-		runAcp(ctx)
+		if err := runAcp(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, "mady:", err)
+			os.Exit(1)
+		}
 	case "trust-mcp":
-		runTrustMCP(os.Args)
+		if err := runTrustMCP(os.Args); err != nil {
+			fmt.Fprintln(os.Stderr, "mady:", err)
+			os.Exit(1)
+		}
 	case "trust-knowledge":
-		runTrustKnowledge(os.Args[2:])
+		if err := runTrustKnowledge(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "mady:", err)
+			os.Exit(1)
+		}
 	case "mcp-install":
 		if err := runMCPInstall(ctx, os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, "mcp-install:", err)
+			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
 	case "eval":
 		if err := runEval(ctx, os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, "eval:", err)
+			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
 	case "evidence":
-		runEvidenceCLI(os.Args[2:])
+		if err := runEvidenceCLI(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "mady:", err)
+			os.Exit(1)
+		}
 	case "patent":
-		runPatentCLI(ctx, os.Args)
+		if err := runPatentCLI(ctx, os.Args); err != nil {
+			fmt.Fprintln(os.Stderr, "mady:", err)
+			os.Exit(1)
+		}
 	case "util":
-		runUtil(ctx, os.Args[2:])
+		if err := runUtil(ctx, os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "mady:", err)
+			os.Exit(1)
+		}
 	case "-h", "--help", "help":
 		printUsage()
 	default:

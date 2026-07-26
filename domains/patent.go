@@ -2,6 +2,7 @@ package domains
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
@@ -102,7 +103,11 @@ var globalWritingExt agentcore.Extension
 func SetupClaimDraftingExtension(provider agentcore.Provider, model string) {
 	engine := claimdrafting.NewRuleEngine()
 	claimdrafting.RegisterDefaultRules(engine)
-	ext := claimdrafting.NewExtension(engine)
+	ext, err := claimdrafting.NewExtension(engine)
+	if err != nil {
+		slog.Error("claimdrafting: 创建扩展失败", "err", err)
+		return
+	}
 	if provider != nil {
 		adapter := claimdrafting.NewProviderAdapter(provider, model)
 		// Pass a default builder so drafter's fallback path doesn't NPE.

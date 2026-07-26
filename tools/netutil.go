@@ -51,6 +51,7 @@ func safeDialControl(network, address string, _ syscall.RawConn) error {
 // supplied URLs to prevent access to internal/private network ranges.
 func newSSRFSafeTransport() *http.Transport {
 	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout: 10 * time.Second,
 			Control: safeDialControl,

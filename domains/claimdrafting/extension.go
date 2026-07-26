@@ -36,20 +36,20 @@ type Extension struct {
 // NewExtension 创建一个 claimdrafting 扩展实例。
 // engine 为共享的规则引擎实例（所有工具调用复用同一引擎）。
 // 创建时预编译 8 节点 Pregel 图，后续所有 draft_claims 调用通过图执行完成。
-func NewExtension(engine *RuleEngine) *Extension {
+func NewExtension(engine *RuleEngine) (*Extension, error) {
 	if engine == nil {
-		panic("claimdrafting: NewExtension 的 engine 参数不能为 nil")
+		return nil, fmt.Errorf("claimdrafting: NewExtension 的 engine 参数不能为 nil")
 	}
 	scorer := NewClaimScorer(engine)
 	g, err := BuildClaimGraph(engine, scorer)
 	if err != nil {
-		panic("claimdrafting: 构建 Pregel 图失败: " + err.Error())
+		return nil, fmt.Errorf("claimdrafting: 构建 Pregel 图失败: %w", err)
 	}
 	return &Extension{
 		engine: engine,
 		scorer: scorer,
 		graph:  g,
-	}
+	}, nil
 }
 
 // SetDrafter 设置 LLM 撰写器（可选）。

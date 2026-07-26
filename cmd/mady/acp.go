@@ -15,11 +15,11 @@ import (
 	"github.com/xujian519/mady/pkg/agentconfig"
 )
 
-func runAcp(ctx context.Context) {
-	fs := flag.NewFlagSet("mady acp", flag.ExitOnError)
+func runAcp(ctx context.Context) error {
+	fs := flag.NewFlagSet("mady acp", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
 	if err := fs.Parse(os.Args[2:]); err != nil {
-		fmt.Fprintf(os.Stderr, "mady acp: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("mady acp: %w", err)
 	}
 
 	fc := setupFrameworkContext(ctx, "acp")
@@ -56,7 +56,7 @@ func runAcp(ctx context.Context) {
 
 	err := acp.RunServer(ctx, opts)
 	if err != nil && err != context.Canceled {
-		fmt.Fprintf(os.Stderr, "mady acp: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("mady acp: %w", err)
 	}
+	return nil
 }

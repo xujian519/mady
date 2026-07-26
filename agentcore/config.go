@@ -373,11 +373,6 @@ func WithExtensions(exts ...Extension) ConfigOption {
 
 // WithLifecycle sets the lifecycle hook.
 //
-// Deprecated: prefer WithLifecycleObservers for new code.
-func WithLifecycle(hook LifecycleHook) ConfigOption {
-	return func(c *Config) { c.Lifecycle = hook }
-}
-
 // WithLifecycleObservers adds one or more observer interfaces as lifecycle hooks.
 // Each argument should implement one of AgentRunObserver, TurnObserver,
 // ModelCallObserver, ToolCallObserver, or MessagePersistObserver.

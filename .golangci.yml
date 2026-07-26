@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.25"
+  go: "1.26"
 output:
   formats:
     text:
@@ -160,10 +160,12 @@ linters:
           - gosec
         path: tools/
         text: G204|G702|G703
-      # SA1019: LifecycleHook 已标记 Deprecated，过渡期仍大量使用
+      # SA1019: LifecycleHook / Plan / IsRetryable 等 Deprecated API 在过渡期大量使用。
+      # 范围限定为已知受影响路径，而非全局禁用，以便新增废弃 API 时能被检出。
       - linters:
           - staticcheck
         text: SA1019
+        path: agentcore/|acp/|cmd/mady/|doomloop/|example/cli-chat/|memory/|psychological/|knowledge/extension\.go|domains/(lifecycle\.go|citation_wiring\.go|router\.go|patent\.go)
     paths:
       - third_party$
       - builtin$

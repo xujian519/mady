@@ -83,12 +83,16 @@ func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...
 		if err := ext.Init(ctx, agent); err != nil {
 			agent.configErr = fmt.Errorf("extension registration failed: %w", err)
 			// 逆序 Dispose 已成功 Init 的扩展，释放资源。
+			// 注意：复制后释放锁再 Dispose，避免在持有 r.mu 时调用外部 Dispose
+			// 可能获取 agent.configMu（与正常路径 lock 顺序相反 → 死锁风险）。
 			r.mu.Lock()
-			for i := len(r.extensions) - 1; i >= 0; i-- {
-				_ = r.extensions[i].Dispose()
-			}
+			exts := make([]Extension, len(r.extensions))
+			copy(exts, r.extensions)
 			r.extensions = nil
 			r.mu.Unlock()
+			for i := len(exts) - 1; i >= 0; i-- {
+				_ = exts[i].Dispose()
+			}
 			return err
 		}
 

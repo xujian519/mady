@@ -561,7 +561,7 @@ func TestE2E_StepNameIncrement(t *testing.T) {
 
 func TestE2E_A2UIStream(t *testing.T) {
 	provider := &streamingTextProvider{}
-	cfg := testConfigWithOptions(provider, true, agentcore.WithLifecycle(&a2uiEmitterHook{}))
+	cfg := testConfigWithOptions(provider, true, agentcore.WithLifecycleObservers(&a2uiEmitterHook{}))
 	h := agui.NewHandler(cfg)
 
 	body := `{"messages":[{"role":"user","content":"hello"}]}`

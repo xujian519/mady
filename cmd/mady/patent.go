@@ -16,29 +16,28 @@ import (
 //
 //	mady patent novelty [<description> | -f <file>] [-o <file>]
 //	mady patent oa [<oa_text> | -f <file>] [-o <file>]
-func runPatentCLI(ctx context.Context, args []string) {
+func runPatentCLI(ctx context.Context, args []string) error {
 	if len(args) < 3 {
 		printPatentUsage()
-		os.Exit(2)
+		return fmt.Errorf("patent: missing subcommand (novelty/oa/invalidation/infringement/reexamination)")
 	}
 
 	subcommand := args[2]
 	subArgs := args[3:]
 	switch subcommand {
 	case "novelty":
-		runPatentNovelty(ctx, subArgs)
+		return runPatentNovelty(ctx, subArgs)
 	case "oa":
-		runPatentOA(ctx, subArgs)
+		return runPatentOA(ctx, subArgs)
 	case "invalidation":
-		runPatentInvalidation(ctx, subArgs)
+		return runPatentInvalidation(ctx, subArgs)
 	case "infringement":
-		runPatentInfringement(ctx, subArgs)
+		return runPatentInfringement(ctx, subArgs)
 	case "reexamination":
-		runPatentReexamination(ctx, subArgs)
+		return runPatentReexamination(ctx, subArgs)
 	default:
-		fmt.Fprintf(os.Stderr, "unknown patent subcommand %q\n\n", subcommand)
 		printPatentUsage()
-		os.Exit(2)
+		return fmt.Errorf("patent: unknown subcommand %q", subcommand)
 	}
 }
 
@@ -84,24 +83,25 @@ Examples:
 
 // parseCLIArgs 解析 CLI 参数，返回 (input, outputFile)。
 // -f <file> 从文件读取输入；-o <file> 指定输出文件；其余视为直接输入文本。
-func parseCLIArgs(args []string) (input, outputFile string) {
+func parseCLIArgs(args []string) (input, outputFile string, err error) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "-f":
-			if i+1 < len(args) {
-				data, err := os.ReadFile(args[i+1])
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "读取文件失败: %v\n", err)
-					os.Exit(1)
-				}
-				input = string(data)
-				i++ // skip the next arg (filename)
+			if i+1 >= len(args) {
+				return "", "", fmt.Errorf("patent: -f 需要文件名参数")
 			}
+			data, rerr := os.ReadFile(args[i+1])
+			if rerr != nil {
+				return "", "", fmt.Errorf("读取文件失败: %w", rerr)
+			}
+			input = string(data)
+			i++ // skip the next arg (filename)
 		case "-o":
-			if i+1 < len(args) {
-				outputFile = args[i+1]
-				i++ // skip the next arg (filename)
+			if i+1 >= len(args) {
+				return "", "", fmt.Errorf("patent: -o 需要文件名参数")
 			}
+			outputFile = args[i+1]
+			i++ // skip the next arg (filename)
 		default:
 			// First non-flag argument is treated as direct input text.
 			if input == "" {
@@ -112,138 +112,129 @@ func parseCLIArgs(args []string) (input, outputFile string) {
 	return
 }
 
-func runPatentNovelty(ctx context.Context, args []string) {
-	input, outputFile := parseCLIArgs(args)
-
+func runPatentNovelty(ctx context.Context, args []string) error {
+	input, outputFile, err := parseCLIArgs(args)
+	if err != nil {
+		return fmt.Errorf("patent novelty: %w", err)
+	}
 	if input == "" {
-		fmt.Fprintln(os.Stderr, "请提供发明描述、使用 -f <file> 从文件读取，或使用 -h 查看帮助")
 		printPatentUsage()
-		os.Exit(2)
+		return fmt.Errorf("patent novelty: 请提供发明描述或使用 -f <file>")
 	}
 
 	opts := []patent.GraphOption{}
 	if retriever := domains.GetPatentRetriever(); retriever != nil {
 		opts = append(opts, patent.WithRetriever(retriever))
 	}
-	compiled, err := patent.BuildNoveltyGraphWithRulesWithOpts(opts...)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "分析引擎初始化失败: %v\n", err)
-		os.Exit(1)
+	compiled, cerr := patent.BuildNoveltyGraphWithRulesWithOpts(opts...)
+	if cerr != nil {
+		return fmt.Errorf("patent novelty: 分析引擎初始化失败: %w", cerr)
 	}
 
-	state, err := compiled.Run(ctx, graph.PregelState{
+	state, rerr := compiled.Run(ctx, graph.PregelState{
 		patent.StateInput: input,
 	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "分析执行失败: %v\n", err)
-		os.Exit(1)
+	if rerr != nil {
+		return fmt.Errorf("patent novelty: 分析执行失败: %w", rerr)
 	}
 
 	output := state.GetString(patent.StateOutput)
 	if output == "" {
-		fmt.Fprintln(os.Stderr, "分析完成但未能生成输出")
-		os.Exit(1)
+		return fmt.Errorf("patent novelty: 分析完成但未能生成输出")
 	}
 
-	// 输出结果：写入文件或 stdout。
 	if outputFile != "" {
-		if err := patent.SaveNoveltyReport(output, outputFile); err != nil {
-			fmt.Fprintf(os.Stderr, "保存报告失败: %v\n", err)
-			os.Exit(1)
+		if serr := patent.SaveNoveltyReport(output, outputFile); serr != nil {
+			return fmt.Errorf("patent novelty: 保存报告失败: %w", serr)
 		}
 		fmt.Fprintf(os.Stderr, "报告已保存到: %s\n", outputFile)
 	} else {
 		fmt.Println(output)
 	}
+	return nil
 }
 
-func runPatentOA(ctx context.Context, args []string) {
-	input, outputFile := parseCLIArgs(args)
-
-	if input == "" {
-		fmt.Fprintln(os.Stderr, "请提供 OA 通知书文本、使用 -f <file> 从文件读取，或使用 -h 查看帮助")
-		printPatentUsage()
-		os.Exit(2)
-	}
-
-	compiled, err := patent.BuildOAResponseGraph()
+func runPatentOA(ctx context.Context, args []string) error {
+	input, outputFile, err := parseCLIArgs(args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "OA 答复引擎初始化失败: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("patent oa: %w", err)
+	}
+	if input == "" {
+		printPatentUsage()
+		return fmt.Errorf("patent oa: 请提供 OA 通知书文本或使用 -f <file>")
 	}
 
-	state, err := compiled.Run(ctx, graph.PregelState{
+	compiled, cerr := patent.BuildOAResponseGraph()
+	if cerr != nil {
+		return fmt.Errorf("patent oa: OA 答复引擎初始化失败: %w", cerr)
+	}
+
+	state, rerr := compiled.Run(ctx, graph.PregelState{
 		patent.OAStateInput: input,
 	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "OA 答复生成失败: %v\n", err)
-		os.Exit(1)
+	if rerr != nil {
+		return fmt.Errorf("patent oa: OA 答复生成失败: %w", rerr)
 	}
 
 	output := state.GetString(patent.OAStateOutput)
 	if output == "" {
-		fmt.Fprintln(os.Stderr, "OA 答复生成完成但未能生成输出")
-		os.Exit(1)
+		return fmt.Errorf("patent oa: OA 答复生成完成但未能生成输出")
 	}
 
-	// 输出结果：写入文件或 stdout。
 	if outputFile != "" {
-		if err := patent.SaveOAResponse(output, outputFile); err != nil {
-			fmt.Fprintf(os.Stderr, "保存答复书失败: %v\n", err)
-			os.Exit(1)
+		if serr := patent.SaveOAResponse(output, outputFile); serr != nil {
+			return fmt.Errorf("patent oa: 保存答复书失败: %w", serr)
 		}
 		fmt.Fprintf(os.Stderr, "答复书已保存到: %s\n", outputFile)
 	} else {
 		fmt.Println(output)
 	}
+	return nil
 }
 
-func runPatentInvalidation(ctx context.Context, args []string) {
-	input, outputFile := parseCLIArgs(args)
-
+func runPatentInvalidation(ctx context.Context, args []string) error {
+	input, outputFile, err := parseCLIArgs(args)
+	if err != nil {
+		return fmt.Errorf("patent invalidation: %w", err)
+	}
 	if input == "" {
-		fmt.Fprintln(os.Stderr, "请提供权利要求文本、使用 -f <file> 从文件读取，或使用 -h 查看帮助")
 		printPatentUsage()
-		os.Exit(2)
+		return fmt.Errorf("patent invalidation: 请提供权利要求文本或使用 -f <file>")
 	}
 
 	opts := []patent.InvGraphOption{}
 	if retriever := domains.GetPatentRetriever(); retriever != nil {
 		opts = append(opts, patent.WithInvRetriever(retriever))
 	}
-	compiled, err := patent.BuildInvalidationGraphWithOpts(opts...)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "无效宣告分析引擎初始化失败: %v\n", err)
-		os.Exit(1)
+	compiled, cerr := patent.BuildInvalidationGraphWithOpts(opts...)
+	if cerr != nil {
+		return fmt.Errorf("patent invalidation: 分析引擎初始化失败: %w", cerr)
 	}
 
-	state, err := compiled.Run(ctx, graph.PregelState{
+	state, rerr := compiled.Run(ctx, graph.PregelState{
 		patent.InvStateInput: input,
 	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "分析执行失败: %v\n", err)
-		os.Exit(1)
+	if rerr != nil {
+		return fmt.Errorf("patent invalidation: 分析执行失败: %w", rerr)
 	}
 
 	output := state.GetString(patent.InvStateOutput)
 	if output == "" {
-		fmt.Fprintln(os.Stderr, "分析完成但未能生成输出")
-		os.Exit(1)
+		return fmt.Errorf("patent invalidation: 分析完成但未能生成输出")
 	}
 
 	if outputFile != "" {
-		if err := patent.SaveNoveltyReport(output, outputFile); err != nil {
-			fmt.Fprintf(os.Stderr, "保存报告失败: %v\n", err)
-			os.Exit(1)
+		if serr := patent.SaveNoveltyReport(output, outputFile); serr != nil {
+			return fmt.Errorf("patent invalidation: 保存报告失败: %w", serr)
 		}
 		fmt.Fprintf(os.Stderr, "无效宣告分析报告已保存到: %s\n", outputFile)
 	} else {
 		fmt.Println(output)
 	}
+	return nil
 }
 
-func runPatentInfringement(ctx context.Context, args []string) {
-	// infringement requires two arguments: patent claims and accused product
+func runPatentInfringement(ctx context.Context, args []string) error {
 	outputFile := ""
 	var positional []string
 	for i := 0; i < len(args); i++ {
@@ -254,98 +245,91 @@ func runPatentInfringement(ctx context.Context, args []string) {
 				i++
 			}
 		case "-f":
-			if i+1 < len(args) {
-				data, err := os.ReadFile(args[i+1])
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "读取文件失败: %v\n", err)
-					os.Exit(1)
-				}
-				positional = append(positional, string(data))
-				i++
+			if i+1 >= len(args) {
+				return fmt.Errorf("patent infringement: -f 需要文件名参数")
 			}
+			data, rerr := os.ReadFile(args[i+1])
+			if rerr != nil {
+				return fmt.Errorf("patent infringement: 读取文件失败: %w", rerr)
+			}
+			positional = append(positional, string(data))
+			i++
 		default:
 			positional = append(positional, args[i])
 		}
 	}
 
 	if len(positional) < 2 {
-		fmt.Fprintln(os.Stderr, "侵权比对分析需要两个参数：专利权利要求文本 和 被控侵权方案描述")
-		fmt.Fprintln(os.Stderr, "用法: mady patent infringement <patent_claims> <accused_product> [-o <file>]")
-		fmt.Fprintln(os.Stderr, "      mady patent infringement -f claims.txt -f product.txt")
-		os.Exit(2)
+		printPatentUsage()
+		return fmt.Errorf("patent infringement: 需要两个参数：专利权利要求文本 和 被控侵权方案描述")
 	}
 
 	claimsText := positional[0]
 	productText := positional[1]
 
-	compiled, err := patent.BuildInfringementGraph()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "侵权分析引擎初始化失败: %v\n", err)
-		os.Exit(1)
+	compiled, cerr := patent.BuildInfringementGraph()
+	if cerr != nil {
+		return fmt.Errorf("patent infringement: 分析引擎初始化失败: %w", cerr)
 	}
 
-	state, err := compiled.Run(ctx, graph.PregelState{
+	state, rerr := compiled.Run(ctx, graph.PregelState{
 		patent.InfStatePatentClaims:   claimsText,
 		patent.InfStateAccusedProduct: productText,
 	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "侵权分析执行失败: %v\n", err)
-		os.Exit(1)
+	if rerr != nil {
+		return fmt.Errorf("patent infringement: 分析执行失败: %w", rerr)
 	}
 
 	output := state.GetString(patent.InfStateOutput)
 	if output == "" {
-		fmt.Fprintln(os.Stderr, "分析完成但未能生成输出")
-		os.Exit(1)
+		return fmt.Errorf("patent infringement: 分析完成但未能生成输出")
 	}
 
 	if outputFile != "" {
-		if err := patent.SaveNoveltyReport(output, outputFile); err != nil {
-			fmt.Fprintf(os.Stderr, "保存报告失败: %v\n", err)
-			os.Exit(1)
+		if serr := patent.SaveNoveltyReport(output, outputFile); serr != nil {
+			return fmt.Errorf("patent infringement: 保存报告失败: %w", serr)
 		}
 		fmt.Fprintf(os.Stderr, "侵权分析报告已保存到: %s\n", outputFile)
 	} else {
 		fmt.Println(output)
 	}
+	return nil
 }
 
-func runPatentReexamination(ctx context.Context, args []string) {
-	input, outputFile := parseCLIArgs(args)
-
-	if input == "" {
-		fmt.Fprintln(os.Stderr, "请提供驳回决定书文本、使用 -f <file> 从文件读取，或使用 -h 查看帮助")
-		printPatentUsage()
-		os.Exit(2)
-	}
-
-	compiled, err := patent.BuildReexaminationGraph()
+func runPatentReexamination(ctx context.Context, args []string) error {
+	input, outputFile, err := parseCLIArgs(args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "复审请求书引擎初始化失败: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("patent reexamination: %w", err)
+	}
+	if input == "" {
+		printPatentUsage()
+		return fmt.Errorf("patent reexamination: 请提供驳回决定书文本或使用 -f <file>")
 	}
 
-	state, err := compiled.Run(ctx, graph.PregelState{
+	compiled, cerr := patent.BuildReexaminationGraph()
+	if cerr != nil {
+		return fmt.Errorf("patent reexamination: 复审请求书引擎初始化失败: %w", cerr)
+	}
+
+	state, rerr := compiled.Run(ctx, graph.PregelState{
 		patent.ReexamStateInput: input,
 	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "复审请求书起草失败: %v\n", err)
-		os.Exit(1)
+	if rerr != nil {
+		return fmt.Errorf("patent reexamination: 复审请求书起草失败: %w", rerr)
 	}
 
 	output := state.GetString(patent.ReexamStateOutput)
 	if output == "" {
-		fmt.Fprintln(os.Stderr, "起草完成但未能生成输出")
-		os.Exit(1)
+		return fmt.Errorf("patent reexamination: 起草完成但未能生成输出")
 	}
 
 	if outputFile != "" {
-		if err := patent.SaveNoveltyReport(output, outputFile); err != nil {
-			fmt.Fprintf(os.Stderr, "保存报告失败: %v\n", err)
-			os.Exit(1)
+		if serr := patent.SaveNoveltyReport(output, outputFile); serr != nil {
+			return fmt.Errorf("patent reexamination: 保存报告失败: %w", serr)
 		}
 		fmt.Fprintf(os.Stderr, "复审请求书已保存到: %s\n", outputFile)
 	} else {
 		fmt.Println(output)
 	}
+	return nil
 }

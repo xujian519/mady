@@ -145,5 +145,5 @@ func searchWithFallbackChain(client *http.Client, query string, count int, cfg *
 }
 
 func newSearchHTTPClient() *http.Client {
-	return &http.Client{Timeout: 20 * time.Second}
+	return newSSRFSafeHTTPClient(20 * time.Second)
 }
