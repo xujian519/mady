@@ -166,6 +166,7 @@ func (s *tuiSession) buildCommandItems() []component.CommandItem {
 		"case":     "📋 案件",
 		"settings": "🔧 设置",
 		"general":  "📌 通用",
+		"inspect":  "🔍 查看",
 	}
 	var items []component.CommandItem
 	for _, cmd := range s.slashReg.cmds {

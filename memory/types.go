@@ -220,6 +220,10 @@ type ListOptions struct {
 	Limit  int  `json:"limit"`
 	Offset int  `json:"offset"`
 	Asc    bool `json:"asc"` // true = 按创建时间升序，false = 降序
+
+	// UserID 可选的 scope 过滤：非空时仅返回 scope.UserID 匹配的条目。
+	// 用于在存储层完成跨用户隔离，避免调用方客户端过滤（既是性能优化也是安全边界）。
+	UserID string `json:"user_id,omitempty"`
 }
 
 // MemoryStats 是存储引擎的统计信息。

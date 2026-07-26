@@ -320,6 +320,26 @@ func parseSlashSubcommand(input, cmdName string) string {
 	return rest
 }
 
+// parseSlashRest extracts everything after the command name's first space,
+// preserving multi-word arguments (unlike parseSlashSubcommand which takes
+// only the first token).
+// Example: parseSlashRest("/memory 用户偏好 深色", "memory") → "用户偏好 深色"
+// Example: parseSlashRest("/memory", "memory") → ""
+func parseSlashRest(input, cmdName string) string {
+	prefix := "/" + cmdName
+	if !strings.HasPrefix(input, prefix) {
+		return ""
+	}
+	// rest 形如 " args..." 或 ""（无参数）。不 TrimSpace，保留分隔空格作为边界。
+	rest := input[len(prefix):]
+	sp := strings.IndexByte(rest, ' ')
+	if sp < 0 {
+		// 没有空格 → input 恰好是 "/cmdName"，无参数
+		return ""
+	}
+	return strings.TrimSpace(rest[sp+1:])
+}
+
 // buildSlashRegistry registers every// buildSlashRegistry registers every TUI slash command. Order matters: more
 // specific prefix commands (thinking, theme, case, skill:) must be registered
 // before the generic fallback so Lookup short-circuits correctly — mirroring
@@ -430,6 +450,48 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 				"  /reexamination <驳回决定>  — 复审请求书起草\n" +
 				"\n也可以直接在对话中输入自然语言描述需求，AI会自动调用分析工具。")
 		},
+	})
+
+	// === Inspect 类命令：查看后端已注入但此前对用户不可见的能力 ===
+	// 这些子系统在 framework.go 启动时已装配，本组命令提供 TUI 直接查看入口。
+	// 参数解析统一走 parseSlashSubcommand / parseSlashRest，与其他命令一致。
+	r.Register(SlashCommand{
+		Name:     "ledger",
+		Category: "inspect",
+		Desc:     "查看本轮工具调用证据账本（Receipt 列表）",
+		Usage:    "/ledger",
+		Risk:     "none",
+		Match:    exactMatch("ledger"),
+		Handler:  func(ctx slashCtx) { s.handleLedgerCommand() },
+	})
+	r.Register(SlashCommand{
+		Name:     "snapshots",
+		Category: "inspect",
+		Desc:     "列出文件快照历史（每轮写入工具前的文件状态）",
+		Usage:    "/snapshots",
+		Risk:     "none",
+		Match:    exactMatch("snapshots"),
+		Handler:  func(ctx slashCtx) { s.handleSnapshotsCommand() },
+	})
+	r.Register(SlashCommand{
+		Name:     "undo",
+		Category: "inspect",
+		Desc:     "回退到指定轮的文件状态（仅对 edit/write_file 等追踪工具生效）",
+		Usage:    "/undo <轮号>",
+		Examples: []string{"/undo 3"},
+		Risk:     "medium",
+		Match:    exactMatch("undo"),
+		Handler:  func(ctx slashCtx) { s.handleUndoCommand(parseSlashSubcommand(ctx.input, "undo")) },
+	})
+	r.Register(SlashCommand{
+		Name:     "memory",
+		Category: "inspect",
+		Desc:     "查看长期记忆（跨 User/Session/LongTerm 三层）",
+		Usage:    "/memory [关键词]",
+		Examples: []string{"/memory", "/memory 偏好深色主题"},
+		Risk:     "none",
+		Match:    prefixMatch("memory"),
+		Handler:  func(ctx slashCtx) { s.handleMemoryCommand(parseSlashRest(ctx.input, "memory")) },
 	})
 
 	r.Register(SlashCommand{

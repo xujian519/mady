@@ -184,9 +184,27 @@ func TestStore_RestoreAndTrim(t *testing.T) {
 	fs.files["/f.go"] = []byte("v2")
 	s.EndTurn()
 
-	_ = s.RestoreAndTrim(1)
+	meta, err := s.RestoreAndTrim(1)
+	if err != nil {
+		t.Fatalf("RestoreAndTrim: %v", err)
+	}
 	if len(s.List()) != 1 {
 		t.Errorf("List()=%d want 1 after trim", len(s.List()))
+	}
+	// 验证返回的 Meta 包含被回退轮的信息
+	if meta.Turn != 1 {
+		t.Errorf("meta.Turn=%d want 1", meta.Turn)
+	}
+	if meta.Prompt != "t1" {
+		t.Errorf("meta.Prompt=%q want %q", meta.Prompt, "t1")
+	}
+	if len(meta.Paths) != 1 || meta.Paths[0] != "/f.go" {
+		t.Errorf("meta.Paths=%v want [/f.go]", meta.Paths)
+	}
+
+	// 回退到不存在的轮应返回错误
+	if _, err := s.RestoreAndTrim(99); err == nil {
+		t.Error("expected error for nonexistent turn")
 	}
 }
 

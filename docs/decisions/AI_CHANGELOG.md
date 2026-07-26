@@ -1,5 +1,113 @@
 # AI 变更记录
 
+## 2026-07-26: 严格代码审查后的质量修复（B1/B2/I1-I4）
+
+### 背景
+对前一条记录（TUI 补齐 inspect 命令）执行 `/code-review`（strict 模式）后，
+发现 1 个阻断性正确性 bug（B1）、1 个重写已有 helper 的架构违规（B2）、
+3 个结构性问题（I1/I2/I3）和 1 个一致性问题（I4）。本次按审查意见全面修复。
+
+### 改动清单
+
+| 问题 | 文件 | 修复 |
+|------|------|------|
+| **B1** UTF-8 截断 bug | `cmd/mady/tui_session_inspect.go` | 抽取 `truncateRunes(s, maxRunes)` 按 rune 截断；替换原 4 处 `s[:N]+"..."` byte 切片（中英混排时必产生无效 UTF-8）。新增 8 子用例回归测试 `TestTruncateRunes_UTF8Safety` |
+| **B2** 重写 `parseSlashSubcommand` | `cmd/mady/slash_registry.go` + `tui_session_inspect.go` | 新增 `parseSlashRest(input, cmdName)` helper（保留多词参数）；handler 签名改为接收已解析参数，与其他 slash 命令（`/plan`/`/review`）一致；删除 inspect 文件内的两个 bespoke parser |
+| **I1** RestoreAndTrim 双 walk | `agentcore/filecheckpoint/store.go` | `RestoreAndTrim(turn) error` → `RestoreAndTrim(turn) (Meta, error)`，返回被回退轮的 Meta，消除调用方为取 Prompt/Paths 的第二次遍历 |
+| **I2** sentinel 判定 | `cmd/mady/tui_session_inspect.go` | 旧代码 `if targetPaths == nil && targetPrompt == ""` 在"轮存在但 prompt 和 paths 都空"时误判为找不到；随 I1 一并消除——现在由 `RestoreAndTrim` 返回 error 明确区分 |
+| **I3** memory scope 客户端过滤 | `memory/types.go` + `memory/store.go` + `memory/sqlite_store.go` | `ListOptions` 增加 `UserID` 字段；`InMemoryStore.List` 在迭代时过滤；`SQLiteMemoryStore.List` 下推到 SQL `WHERE user_id = ?`。架构边界修复：scope 过滤属于存储层职责，不应在 TUI handler 做 |
+| **I4** timeout 不一致 | `cmd/mady/tui_session_inspect.go` | 移除 `handleMemoryCommand` 的 5s `context.WithTimeout`，统一用 `s.ctx`。in-memory 操作不需 timeout；SQLite 有自己的 context 取消机制；与其他三个 inspect handler 一致 |
+
+### 设计决策
+
+- **B1 选 rune 截断而非 `core.TruncateToWidth`**：`TruncateToWidth` 是终端显示宽度感知（CJK=2 cells），
+  语义是"适配 N 列终端"；这里的需求是"限制对话消息长度"，按 rune 数更直观。helper 保持 file-local
+  避免引入 `tui/core` 依赖（inspect 文件目前只依赖 memory）。
+- **B2 新增 `parseSlashRest` 而非扩 `parseSlashSubcommand`**：两者语义不同（首 token vs 全部参数），
+  分开命名更清晰。`/memory` 需要多词参数（"用户偏好 深色"），`/undo` 只需单 token（"3"），
+  注册处分别选用合适的 helper。
+- **I1 改签名而非新增方法**：`RestoreAndTrim` 仅有两个调用方（inspect + test），改签名安全。
+  新增 `RestoreAndTrimMeta` 会让 API 表面膨胀；旧签名 `error` 无法表达"成功并返回 Meta"。
+- **I3 下推到 SQL 而非客户端过滤**：既是性能优化（减少传输），也是安全边界（存储层强制隔离，
+  避免任何调用方遗忘过滤）。`UserID` 字段为可选（空字符串=不过滤），向后兼容。
+
+### 验证结果
+- `go build ./...` 通过
+- `go vet ./...` 通过
+- `go test -race ./cmd/mady/... ./memory/... ./agentcore/filecheckpoint/...` 全过
+- 新增/加强测试：
+  - `TestTruncateRunes_UTF8Safety`（8 子用例，B1 回归）
+  - `TestParseSlashRest`（7 用例，B2 回归）
+  - `TestHandleUndoCommand_Success`（覆盖 I1 新返回值）
+  - `TestHandleMemoryCommand_WithData` 加强：写入其他用户记忆，断言不泄漏（I3 回归）
+  - `TestHandleMemoryCommand_Search`（覆盖 query 非空路径）
+  - `TestStore_RestoreAndTrim` 加强：验证返回的 Meta 字段 + 不存在轮返回 error
+
+### 未在本次范围（记录为后续重构机会）
+
+**M1: frameworkContext 字段膨胀**。当前 `EvidenceExt`/`FileCheckpointExt`/`PlanModeExt`/`GuardianExt`
+四个字段沿用"每加一个 TUI 可见的扩展就加一个字段"模式。更优雅的做法是在 frameworkContext 提供
+通用查询 `ExtensionByName(name) agentcore.Extension`，可清除全部四个字段。但这是独立的重构，
+影响现有 PlanModeExt/GuardianExt 所有调用方，不在本次 P0 缺口补齐范围。
+
+## 2026-07-26: TUI 补齐 evidence/filecheckpoint/memory 三个查看入口（P0 缺口）
+
+### 背景
+分析 TUI 与后端能力匹配度时发现：`evidence ledger`、`filecheckpoint`、`memory` 三个子系统
+在 `framework.go` 启动时已注入 `BaseConfig.Extensions`，但 TUI 此前**没有任何查看入口**——
+它们在 Agent 内部工作（LLM 可调用），但用户无法直接查看状态、历史或手动操作（如回退快照、
+查账本）。这是"匹配度约 60%"结论中最严重的一类缺口。
+
+本次同时修复 CLAUDE.md / README.md 等文档中关于 `IntegratedChatConfig` /
+`MADY_ROUTER_MODE` / `MADY_SINGLE_AGENT` 的过时描述（v0.4.0 起已被 `UnifiedAgentConfig`
+替代，见本日志第 1119-1127 行）。
+
+### 改动清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `cmd/mady/framework.go` | **修改** | `frameworkContext` 新增 `EvidenceExt` / `FileCheckpointExt` 两个字段；`buildBaseTools` 中把原本直接 append 的扩展实例先存到 fc 上再 append（与 PlanModeExt / GuardianExt 模式一致） |
+| `cmd/mady/tui_session_inspect.go` | **新增** | 4 个 inspect handler：`handleLedgerCommand`（/ledger 查看本轮工具证据）、`handleSnapshotsCommand`（/snapshots 列出文件快照）、`handleUndoCommand`（/undo [turn] 回退文件状态）、`handleMemoryCommand`（/memory 跨三层查看记忆） |
+| `cmd/mady/slash_registry.go` | **修改** | 注册 4 个 inspect 类 slash 命令；新增 "inspect" category |
+| `cmd/mady/settings_panel.go` | **修改** | `buildCommandItems` 的 categoryNames 添加 "🔍 查看" 中文显示名 |
+| `cmd/mady/tui_session_inspect_test.go` | **新增测试** | 11 个单元测试覆盖：空数据提示、有数据渲染、扩展未注入降级、/undo 参数校验、/memory 跨层检索、层名显示 |
+| `CLAUDE.md` / `README.md` / `docs/manifest-guide.md` / `docs/chat-assistant-architecture.md` | **修改** | 修复 `IntegratedChatConfig` / `MADY_ROUTER_MODE` / `MADY_SINGLE_AGENT` 过时描述，改为 `UnifiedAgentConfig` 单一入口；同步修复 Handoff 流程图（移除 `transfer_to_chat` / `transfer_to_assistant`）、"4 个领域 manifest"→"3 个"（chat 已合并）等连带过时点 |
+| `CHANGELOG.md` | **修改** | 在 [0.4.0] 段落 Changed 下追加"架构简化"条目，正式声明废弃 `IntegratedChatConfig` / `MADY_ROUTER_MODE` / `MADY_SINGLE_AGENT` 及 manifest 由 4 个精简为 3 个 |
+
+### 设计决策
+- **扩展引用保存在 frameworkContext 而非 tuiSession**：与现有 `PlanModeExt` / `GuardianExt` 模式
+  一致。这些扩展在 `buildBaseTools`（`setupFrameworkContext`）中只创建一次，`rebuildAgent`
+  时复用同一实例，因此引用稳定。tuiSession 已通过 `s.fc` 访问，无需污染其字段。
+- **/ledger 反映"当前轮"而非全局**：`evidence.Ledger` 在 `BeforeTurn` 时被 `Reset`，这是设计
+  如此（per-turn 证据账本）。`/ledger` 因此只显示本轮已执行的工具调用，用户需在工具执行后
+  立即查看。文档中已说明这一行为。
+- **/undo 使用 RestoreAndTrim 而非 Restore**：`RestoreAndTrim` 原子执行 restore + trim（持锁
+  全程），避免 `Restore` 释放锁期间并发 `BeginTurn` 导致 trim 漏掉新快照的 TOCTOU 问题。
+  操作不可逆（快照已裁剪），但用户已显式触发且影响范围会清晰打印。
+- **/memory 跨三层但按 UserID 过滤**：使用 `memory.ValidLayers()` 遍历 User/Session/LongTerm，
+  但按 `stableUserID()` 过滤避免跨用户泄漏。无参数时按时间倒序浏览，有参数时走语义检索
+  （`SearchAllLayers`）。
+- **只读命令零副作用，/undo 显式触发**：前三个命令（ledger/snapshots/memory）纯只读；
+  `/undo` 虽涉及文件写入，但属于用户显式触发（与 git reset 不同），执行后打印影响范围即可，
+  不强制二次确认。
+
+### 涉及敏感路径
+- **不涉及** AGENTS.md 列出的任何敏感路径（handoff/guardrails/tools/path.go 等）。
+- `framework.go` 不在敏感路径清单中；`filecheckpoint.Store.RestoreAndTrim` 是用户显式触发的
+  文件回退，路径安全由 `isPathSafe` + `isWithinRoot` 既有机制保障（防 `..` 逃逸）。
+
+### 验证结果
+- `go build ./...` 通过
+- `go vet ./...` 通过
+- `go test ./cmd/mady/... ./agentcore/evidence/... ./agentcore/filecheckpoint/... ./memory/...` 全过
+- 新增 11 个单元测试全部通过
+
+### 后续工作（未在本次范围）
+本次只补齐 P0 的"可见性"缺口。分析报告中标记的 P1-P2 项仍待处理：
+- SkillCenter / SessionSelector 孤儿组件接入（需桥接 `EventSkillLoaded` 等事件）
+- EvidenceOverlay 数据源填充（当前 `[e]` 键打开但永远空）
+- permission 工具授权从文字 y/n 升级为模态卡片
+
 ## 2026-07-25: OrchestrationExecutor 增加递归深度限制（R10-F1）
 
 ### 背景

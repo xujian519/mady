@@ -7,9 +7,9 @@
 
 ## 技术栈
 
-- **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` 子模块）
+- **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` + `./tui` 三个子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 1100+ 个 Go 源文件（~750 非测试 + ~350 测试），~250K 行代码
+- 1200+ 个 Go 源文件（~810 非测试 + ~400 测试），~274K 行代码
 
 ## 构建与测试
 
@@ -31,8 +31,8 @@ cd tools && go test ./...
 
 ```
 mady/
-├── agentcore/        # 核心 Agent 运行时（65 源 + 44 测试，根目录）
-│   ├── cache/        #   缓存抽象
+├── agentcore/        # 核心 Agent 运行时（105 源 + 66 测试，根目录）
+│   ├── concurrency/  #   并发原语
 │   ├── concurrency/  #   并发原语
 │   ├── evidence/     #   工具调用证据账本（Receipt/Ledger/Claim Binding）
 │   ├── filecheckpoint/ # 文件级快照与回退
@@ -49,7 +49,7 @@ mady/
 ├── a2ui/             # Agent-to-UI 声明式协议 v0.9.1
 ├── acp/              # Agent 通信协议（JSON-RPC + 认证）
 ├── agui/             # Agent GUI 事件协议（SSE）
-├── disclosure/       # 技术交底书分析管线（11 节点 Pregel，含 review_gate 主动中断）
+├── disclosure/       # 技术交底书分析管线（13 节点 Pregel，含 review_gate 主动中断）
 ├── doomloop/         # 死循环检测器（6 种探测器，LifecycleHook 实现）
 ├── domains/          # 领域 Agent 配置 + 推理引擎 + 专利分析模块
 │   ├── claimdrafting/#   权利要求书撰写（LLM 增强撰写 + 6 类规则引擎 + 评分器）
@@ -95,7 +95,7 @@ mady/
 ├── skill/            # SKILL.md 解析器（含 MadyExtension 扩展字段）
 ├── skills/           # 内置技能定义（chat/patent/legal/disclosure）
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块，65 源 + 20 测试）
+├── tools/            # 内置工具扩展（独立子模块，69 源 + 23 测试）
 │   ├── computer_use*.go  # 桌面控制（macOS/Linux/Windows 三平台 + SOM）
 │   ├── browser_*.go      # 浏览器自动化（stealth/session/recorder/supervisor）
 │   └── browser_providers/# 浏览器提供商抽象
@@ -110,19 +110,19 @@ mady/
 │   ├── stdio/        #   Layer 6: 过程式 I/O
 │   ├── agentadapter/ #   Layer 7: Agent 适配器
 │   └── layout/       #   Layer 0 扩展：布局原语（仅依赖 core）
-├── workflow/         # 工作流原语（Pipeline/Parallel/Router）
+├── workflows/        # 工作流原语（Pipeline/Parallel/Router）
 ├── workflows/        # 领域工作流（legal/patent/autoresearch；专利含无效宣告/侵权比对/复审请求）
 ├── benchmark/        # 性能基准测试
 ├── evaluate/         # 评估框架（RAGAS 风格，benchmark 跑批 + CLI 引擎 + 校准）
 ├── integration/      # 端到端集成测试（含 doomloop/chain/drafting/guardrails/handoff）
 ├── cmd/mady/         # 统一入口（mady tui | mady serve | mady acp | mady eval | mady evidence | mady mcp-install | mady trust-mcp | mady trust-knowledge | mady util | mady patent）
-├── example/          # 示例应用（9 个）
+├── example/          # 示例应用（10 个）
 ├── docs/             # 文档（ADRs、OpenAPI 规范、设计文档、评审报告）
-├── filequeue/        # 文件队列
 ├── fuzzy/            # 模糊匹配
 ├── prompt/           # 提示词模板加载器 + 内置模板库（prompt/templates/）
 ├── protocol/         # JSON-RPC 协议原语
 ├── plugins/          # 专利工作流插件（novelty-analysis / infringement-check / oa-response）
+├── pluginsys/         # 插件系统加载器（manifest 解析与初始化）
 ├── styles/           # 文档风格指南 YAML（patent-standard / legal-standard / chat-friendly / assistant-neutral）
 ├── doc-templates/    # 文档模板库（claims / specification / oa-response / disclosure / legal）
 ├── manifests/        # 外部 manifest 示例
@@ -131,7 +131,8 @@ mady/
 │   ├── csync/        #   并发同步原语
 │   ├── i18n/         #   国际化（zh-CN / en-US，护栏与通用文案翻译）
 │   ├── lawcite/      #   法条引用解析与归一化（中文数字+条/款/项/之N）
-│   └── util/         #   路径解析、沙箱配置等通用工具
+│   ├── util/         #   路径解析、沙箱配置等通用工具
+│   └── vecbytes/     #   向量字节编码
 ```
 
 ## 架构概要
@@ -146,13 +147,12 @@ mady/
         提供者层   工具层(85源)    扩展层    领域扩展层
                  \      |       /         /
          基础设施层：graph/ session/ skill/ prompt/ store/
-                     disclosure/ memory/ filequeue/ fuzzy/
+                     disclosure/ memory/ fuzzy/
                      knowledge/ retrieval/ benchmark/ integration/
-                     filequeue/
                                    |
                     TUI 层：8-layer Elm 架构（含 layout 层）
                                    |
-                    应用入口：cmd/mady（8 子命令） server/  example/
+                    应用入口：cmd/mady（10 子命令） server/  example/
 ```
 
 ## 设计约定
@@ -173,19 +173,22 @@ mady/
 
 ## Handoff 交接机制
 
-Router Agent（`mady-router`）通过 `HandoffDelegate` 模式将任务委派给领域 Agent：
+统一 Agent（`mady-agent`，由 `UnifiedAgentConfig` 构建）根据用户意图，通过 `HandoffDelegate` 模式将专业任务委派给子 Agent：
 
 ```
-Router (mady-router)
-  ├── transfer_to_chat       → Chat Agent      (日常聊天)
-  ├── transfer_to_assistant  → Assistant Agent (任务执行)
+mady-agent (UnifiedAgentConfig)
   ├── transfer_to_patent     → Patent Agent    (专利分析)
   └── transfer_to_legal      → Legal Agent     (法律分析)
 ```
 
-**Invisible Handoff（v0.3.0 新增）：** `IntegratedChatConfig` 将 Chat Agent 作为统一对话界面，
-内部通过 Invisible Handoff 无缝委派专业任务——不向用户显示 `transfer_to_*` 工具调用和交接公告。
-入口 `cmd/mady/main.go` 默认使用集成模式（`MADY_ROUTER_MODE=1` 回退传统 Router，`MADY_SINGLE_AGENT=1` 回退单 Agent）。
+**Invisible Handoff（v0.3.0 引入，v0.4.0 简化）：** `UnifiedAgentConfig`（`domains/unified.go`）
+是当前唯一入口，融合原 Chat/Assistant/Router 三者为单一 `mady-agent`。统一 Agent 根据用户
+意图自动调用 `transfer_to_patent` / `transfer_to_legal`，通过 Invisible Handoff 无缝委派专业
+任务——不向用户显示 `transfer_to_*` 工具调用和交接公告。
+
+> 历史说明：v0.3.0 曾用 `IntegratedChatConfig` + `MADY_ROUTER_MODE` / `MADY_SINGLE_AGENT`
+> 环境变量切换三种模式。v0.4.0 起这些已被删除，统一为 `UnifiedAgentConfig` 单一路径
+> （见 `docs/decisions/AI_CHANGELOG.md` 第 1119-1127 行）。
 
 **核心组件：**
 

@@ -98,8 +98,8 @@ v0 使用关键词分类 + LLMClassifier 回退的「分层级联」策略：
 7. ✅ **专利/法律工作流 Tool 封装** — `analyze_patent_novelty` / `compare_legal_cases`
 8. ✅ **错误类型体系** — RetryableError / FatalError / HandoffError / GuardrailError
 9. ✅ **措辞规范** — `docs/tone-style-guide.md`，禁用绝对化表述
-10. ✅ **Invisible Handoff**（v0.3.0）— Chat Agent 作为统一对话界面（`IntegratedChatConfig`），根据意图自动无缝委派给专业 Agent，用户无需感知路由切换
-11. ✅ **Embed Manifest**（v0.3.0）— 4 个领域 JSON 通过 `go:embed` 编进二进制，`MadyHome()` 统一路径解析，任意目录开箱即用
+10. ✅ **Invisible Handoff**（v0.3.0 引入，v0.4.0 简化）— 统一 Agent（`UnifiedAgentConfig`）作为单一对话界面，根据意图自动无缝委派给专业 Agent，用户无需感知路由切换
+11. ✅ **Embed Manifest**（v0.3.0 引入，v0.4.0 精简为 3 个）— 3 个领域 JSON（assistant/patent/legal）通过 `go:embed` 编进二进制，`MadyHome()` 统一路径解析，任意目录开箱即用
 12. ✅ **Reasonix 扩展包**（v0.3.0）— Evidence Ledger / File Checkpoint / Permission / PlanMode / Guardian AI / Evaluate / Tracing / Memory Compiler / 四级渐进式压缩
 
 ## 下季度候选
@@ -115,8 +115,8 @@ v0 使用关键词分类 + LLMClassifier 回退的「分层级联」策略：
 
 以下为本文档撰写时计划的后续迭代，已落地：
 
-1. ✅ **Invisible Handoff**（v0.3.0）— Chat Agent 作为统一对话界面（`IntegratedChatConfig`），根据意图自动无缝委派给专业 Agent，用户无需感知路由切换
-2. ✅ **Embed Manifest**（v0.3.0）— 4 个领域 JSON 通过 `go:embed` 编进二进制，`MadyHome()` 统一路径解析，任意目录开箱即用
+1. ✅ **Invisible Handoff**（v0.3.0 引入，v0.4.0 简化）— 统一 Agent（`UnifiedAgentConfig`）作为单一对话界面，根据意图自动无缝委派给专业 Agent，用户无需感知路由切换
+2. ✅ **Embed Manifest**（v0.3.0 引入，v0.4.0 精简为 3 个）— 3 个领域 JSON（assistant/patent/legal）通过 `go:embed` 编进二进制，`MadyHome()` 统一路径解析，任意目录开箱即用
 3. ✅ **Reasonix 扩展包**（v0.3.0）— Evidence Ledger / File Checkpoint / Permission / PlanMode / Guardian AI / Evaluate / Tracing / Memory Compiler / 四级渐进式压缩
 4. ✅ **SQLite 知识读取层**（v0.3.0）— `knowledge/sqlite/` 纯 Go 无 CGO，FTS5 全文 + 向量余弦 + 法律全文搜索
 5. ✅ **RRF 混合检索**（v0.3.0）— `retrieval/hybrid.go` Reciprocal Rank Fusion，FTS + Vector 融合

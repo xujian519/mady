@@ -389,10 +389,21 @@ func (s *SQLiteMemoryStore) List(ctx context.Context, layer MemoryLayer, opts Li
 		limit = 20
 	}
 
-	rows, err := s.db.QueryContext(ctx,
-		selectColumns+` FROM memories WHERE layer = ? ORDER BY created_at `+order+` LIMIT ? OFFSET ?`,
-		string(layer), limit, opts.Offset,
+	// UserID 非空时下推到 SQL WHERE 子句，在存储层完成 scope 过滤。
+	// 既是性能优化（减少传输和客户端过滤），也是安全边界（避免跨用户泄漏）。
+	var (
+		query string
+		args  []any
 	)
+	if opts.UserID != "" {
+		query = selectColumns + ` FROM memories WHERE layer = ? AND user_id = ? ORDER BY created_at ` + order + ` LIMIT ? OFFSET ?`
+		args = []any{string(layer), opts.UserID, limit, opts.Offset}
+	} else {
+		query = selectColumns + ` FROM memories WHERE layer = ? ORDER BY created_at ` + order + ` LIMIT ? OFFSET ?`
+		args = []any{string(layer), limit, opts.Offset}
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("memory/sqlite: list: %w", err)
 	}

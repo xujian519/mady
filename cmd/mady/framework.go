@@ -141,6 +141,14 @@ type frameworkContext struct {
 	// 拦截非只读工具调用进行 AI 审查，内置熔断器防止过度延迟。
 	GuardianExt *guardian.GuardianExtension
 
+	// EvidenceExt 是工具调用证据账本扩展引用。
+	// 供 TUI /ledger 命令直接读取当前轮的 Receipt 列表（无需经过事件桥）。
+	EvidenceExt *evidence.EvidenceExtension
+
+	// FileCheckpointExt 是文件快照扩展引用。
+	// 供 TUI /snapshots 列出历史快照、/undo [turn] 回退到指定轮的文件状态。
+	FileCheckpointExt *filecheckpoint.FileCheckpointExtension
+
 	// Deferred 持有后台延迟初始化任务集。非 TUI 入口（serve/acp）保持 nil。
 	// TUI 在 app.Start() 后调用 fc.Deferred.StartAll() 执行它们。
 	Deferred *DeferredInit
@@ -487,19 +495,23 @@ func buildBaseTools(fc *frameworkContext) {
 	})
 	// 编辑安全网：在写入工具（edit/write_file/delete 等）执行前自动记录文件快照，
 	// 支持按用户轮回退。仅追踪编辑工具变更，bash 副作用不追踪。
+	// 保存到 fc.FileCheckpointExt 供 TUI /snapshots 与 /undo 直接访问 Store。
+	fc.FileCheckpointExt = filecheckpoint.NewExtension(toolWorkingDir)
 	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions,
 		baseTools,
-		filecheckpoint.NewExtension(toolWorkingDir),
+		fc.FileCheckpointExt,
 	)
 
 	// 计划模式门控：默认不激活（零开销），TUI 可通过 fc.PlanModeExt 控制开关。
 	// 激活后阻止写入工具，仅允许只读操作（研究/分析阶段使用）。
 	// 工具调用证据账本：自动记录每次工具调用的 Receipt（BeforeTurn 重置，
 	// AfterToolExecution 记录），供审计和 HandoffResult 证据包裹使用。
+	// 保存到 fc.EvidenceExt 供 TUI /ledger 直接读取当前轮证据。
 	fc.PlanModeExt = planmode.NewExtension(planmode.Policy{})
+	fc.EvidenceExt = evidence.NewExtension()
 	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions,
 		fc.PlanModeExt,
-		evidence.NewExtension(),
+		fc.EvidenceExt,
 		domainEvidence.NewDomainExtension(nil),
 	)
 

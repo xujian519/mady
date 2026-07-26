@@ -482,6 +482,10 @@ func (s *InMemoryStore) List(ctx context.Context, layer MemoryLayer, opts ListOp
 	entries := make([]MemoryEntry, 0, len(set))
 	for id := range set {
 		if e, ok := s.entries[id]; ok {
+			// UserID scope 过滤（存储层完成，避免调用方客户端过滤）
+			if opts.UserID != "" && e.Scope.UserID != opts.UserID {
+				continue
+			}
 			entries = append(entries, e.Clone())
 		}
 	}

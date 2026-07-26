@@ -176,7 +176,10 @@ func (s *Store) restoreFile(f FileSnap) error {
 // BeginTurn by holding the store lock for the whole operation: previously
 // Restore released the lock while doing file IO, so a concurrent BeginTurn
 // could append a checkpoint that the subsequent trim would then drop.
-func (s *Store) RestoreAndTrim(turn int64) error {
+//
+// 返回被回退轮的 Meta（含 Prompt/Paths 等用户可见信息），供调用方做 UX 提示，
+// 避免调用方为取这些信息再次遍历 s.done（与内部 walk 重复）。
+func (s *Store) RestoreAndTrim(turn int64) (Meta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -191,7 +194,7 @@ func (s *Store) RestoreAndTrim(turn int64) error {
 		}
 	}
 	if target == nil {
-		return fmt.Errorf("no checkpoint for turn %d", turn)
+		return Meta{}, fmt.Errorf("no checkpoint for turn %d", turn)
 	}
 
 	// Restore files (restoreFile does not take s.mu, so holding the lock
@@ -199,11 +202,17 @@ func (s *Store) RestoreAndTrim(turn int64) error {
 	// atomicity of restore+trim).
 	for _, f := range target.Files {
 		if err := s.restoreFile(f); err != nil {
-			return fmt.Errorf("restore %s: %w", f.Path, err)
+			return Meta{}, fmt.Errorf("restore %s: %w", f.Path, err)
 		}
 	}
 	s.done = keep
-	return nil
+
+	// 构造 Meta 返回（与 List() 的提取逻辑一致，但单次不走额外锁）
+	meta := Meta{Turn: target.Turn, Time: target.Time, Prompt: target.Prompt}
+	for _, f := range target.Files {
+		meta.Paths = append(meta.Paths, f.Path)
+	}
+	return meta, nil
 }
 
 // SortedPaths returns the distinct file paths touched in the current turn.

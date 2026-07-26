@@ -62,6 +62,9 @@
 
 - 重构代码：删除废弃包和函数（filequeue/workflow/cache/jsonrpc）
 - 文档目录迁移：prompt-templates/ → prompt/templates/
+- **架构简化**：删除 `IntegratedChatConfig` / `MADY_ROUTER_MODE` / `MADY_SINGLE_AGENT`，
+  统一为 `UnifiedAgentConfig` 单一入口（融合原 Chat/Assistant/Router 三者为 `mady-agent`）。
+  Chat Agent 不再作为独立 manifest 存在，内置 manifest 由 4 个精简为 3 个（assistant/patent/legal）。
 
 ## [0.3.0] - 2026-07-11 — 内部预览版
 

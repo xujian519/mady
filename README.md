@@ -120,8 +120,6 @@ mady util          # 实用工具（list-prompts）
 | `WORKSPACE_DIR` | `$MADY_HOME/workspace` | Workspace 根目录 |
 | `SESSION_DIR` | `$MADY_HOME/sessions` | 会话持久化目录（仅 serve） |
 | `SKILL_DIR` | `$MADY_HOME/skills` | 外部技能覆盖目录 |
-| `MADY_SINGLE_AGENT` | 未设置 | 设为 `1` 强制 TUI 单 Agent 模式 |
-| `MADY_ROUTER_MODE` | 未设置 | 设为 `1` 回退传统 Router 模式（默认集成模式） |
 | `MADY_ACP_TOKEN` | — | ACP 协议认证令牌 |
 | `MADY_MCP_TRUST_CWD` | 未设置 | 设为 `1` 信任 cwd 的 .mcp.json（无需显式 trust-mcp） |
 | `MADY_SKIP_MCP_DISCOVERY` | 未设置 | 设为 `1` 跳过 MCP 配置发现 |
@@ -218,20 +216,21 @@ go get github.com/xujian519/mady/agentcore
 }
 ```
 
-4 个内置领域 manifest（chat/assistant/patent/legal）通过 `go:embed` 编进二进制。自定义 manifest 放入 `~/.mady/manifests/` 即可覆盖或扩展（无需重编译）。见 [docs/manifest-guide.md](docs/manifest-guide.md)。
+3 个内置领域 manifest（assistant/patent/legal）通过 `go:embed` 编进二进制。自定义 manifest 放入 `~/.mady/manifests/` 即可覆盖或扩展（无需重编译）。见 [docs/manifest-guide.md](docs/manifest-guide.md)。
 
-### 领域路由（Router）
+### 领域路由（Invisible Handoff）
 
-Router Agent（`mady-router`）通过 `HandoffDelegate` 模式将任务委派给领域 Agent：
+统一 Agent（`mady-agent`）作为单一对话界面，根据用户意图通过 Invisible Handoff 无缝委派专业任务：
 
 ```
-mady-router
-  ├── transfer_to_chat-agent      日常聊天
-  ├── transfer_to_assistant-agent 工具密集型任务
-  ├── transfer_to_patent-agent    专利分析
-  ├── transfer_to_legal-advisor   法律查询
-  └── transfer_to_project-{id}    案件专属 Agent（动态注册）
+mady-agent (UnifiedAgentConfig)
+  ├── transfer_to_patent     专利分析（专利检索、权利要求分析、新颖性比对）
+  ├── transfer_to_legal      法律查询（法条检索、判例检索、法律分析）
+  └── transfer_to_project-{id} 案件专属 Agent（动态注册）
 ```
+
+> 历史说明：v0.3.0 曾用独立的 `mady-router` + `transfer_to_chat` / `transfer_to_assistant` 三 Agent 模式。
+> v0.4.0 起合并为 `UnifiedAgentConfig` 单一入口，Chat/Assistant/Router 三者融合为 `mady-agent`。
 
 ### 案件管理（ProjectRegistry）
 

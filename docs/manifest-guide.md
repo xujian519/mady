@@ -64,7 +64,7 @@ Agent Manifest 是 Mady 的声明式 Agent 注册机制。通过编写 JSON 格�
 ## 启动方式
 
 ```bash
-# 内置 4 个领域 manifest 始终可用，无需任何外部文件
+# 内置 3 个领域 manifest 始终可用，无需任何外部文件
 mady serve
 mady tui
 
@@ -73,12 +73,12 @@ MANIFEST_DIR=/path/to/manifests mady serve
 # 或通过 MADY_HOME 统一管理
 MADY_HOME=/path/to/madyhome mady serve
 
-# TUI 模式（自动启用多域路由）
+# TUI 模式（统一 Agent，自动 Invisible Handoff 到专业领域）
 mady tui
-
-# 强制单 Agent 模式绕过 Manifest
-MADY_SINGLE_AGENT=1 mady tui
 ```
+
+> **注意**：历史版本曾支持 `MADY_SINGLE_AGENT=1` 强制单 Agent 模式。v0.4.0 起
+> 统一为 `UnifiedAgentConfig` 单一入口，该环境变量已失效。
 
 ## 注意事项
 
