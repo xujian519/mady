@@ -7,7 +7,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 | 0 Foundation | `tui/core` | Basic types, interfaces, rune utilities, cell-level rendering model (Cell/Row/DiffRows/SGR), fuzzy match, SpinnerStyle | None (only stdlib) |
 | 0 Layout | `tui/layout` | Declarative layout primitives (Flex) — pure data over `core.Component`, no theming/agentcore | Layer 0 |
 | 1 Terminal I/O | `tui/terminal` | Terminal abstraction, key parsing, input buffer, ANSI builders | Layer 0 |
-| 2 Theming | `tui/theme` | Palette, semantic theme, JSON loading, file watch, Style | Layer 0, 1 |
+| 2 Theming | `tui/theme` | Palette, semantic theme, a11y theme, JSON loading, file watch, Style | Layer 0, 1 |
 | 3 Engine | `tui` (root) | TUI container, event loop, overlay system, focus stack, ChatApp bridge | Layer 0–2, chat |
 | 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels) — 35 source files | Layer 0–2, fuzzy |
 | 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 14 source files | Layer 0–2, 4 |
@@ -30,7 +30,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 105 source files (+ 51 test files) across 9 packages.
+> Auto-verified: 107 source files (+ 51 test files) across 9 packages.
 > Last sync: 2026-07-26.
 
 ```
@@ -62,7 +62,8 @@ tui/
 │   ├── terminal_linux.go  # Linux termios
 │   └── terminal_other.go # Fallback for other OSes
 │
-├── theme/                 # Layer 2 — Theming (12 source files)
+├── theme/                 # Layer 2 — Theming (13 source files)
+│   ├── a11y_themes.go     # Accessibility theme definitions (high-contrast, color-blind safe)
 │   ├── style.go           # ANSI Style, Color, Attr, symbols, box-drawing, cursor helpers
 │   ├── color_resolve.go   # Color mode detection, RGB-to-256
 │   ├── semantic_theme.go  # SemanticTheme struct + defaults (light/dark)
@@ -76,7 +77,7 @@ tui/
 │   ├── system_appearance.go # macOS NSAppearance dark/light detection
 │   └── theme_registry.go  # Theme registry: built-in + user theme registration
 │
-├── component/             # Layer 4 — Components (37 source files)
+├── component/             # Layer 4 — Components (38 source files)
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
 │   ├── text.go            # Text, TruncatedText
@@ -95,6 +96,7 @@ tui/
 │   ├── domain.go          # DomainMessage / DomainAction professional card data models
 │   ├── evidence_card.go   # Evidence card: source attribution, direction, collapsible snippet
 │   ├── conclusion_card.go # Conclusion card: confidence bar, evidence counts, classification
+│   ├── confidence_bar.go  # Confidence-level bar visualization component
 │   ├── approval_card.go   # Approval gate card renderer
 │   ├── tool_card.go       # Tool-call result card: left-bar + title + collapsible content
 │   ├── evidence_overlay.go # EvidenceOverlay: scrollable knowledge source display

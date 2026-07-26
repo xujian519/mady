@@ -147,8 +147,8 @@ lint: vet
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run ./...; \
 		echo "---"; \
-		cd tools && golangci-lint run ./...; \
-		cd tui && golangci-lint run ./...; \
+		(cd tools && golangci-lint run ./...); \
+		(cd tui && golangci-lint run ./...); \
 	else \
 		echo "golangci-lint not installed. Run: make install-lint"; \
 	fi
