@@ -90,6 +90,14 @@ type Gateway struct {
 	// complexity mapping is used.
 	Reasoning *ReasoningRouter
 
+	// StrategySelector, when non-nil with StrategyHintInjection=true,
+	// appends a reasoning strategy hint (e.g. StepByStep) to the request's
+	// system message — the same behavior as ReasoningStrategyRouter, but
+	// driven by the single classification Gateway already performed rather
+	// than a second Classify call. This lets Gateway fully replace
+	// ReasoningStrategyRouter without losing strategy injection.
+	StrategySelector *StrategySelector
+
 	// Efforts is Gateway's own complexity→effort map, consulted when
 	// Reasoning is nil. Leave nil for the default Low/Medium/High mapping.
 	Efforts map[Complexity]ThinkingEffort
@@ -173,6 +181,9 @@ func (g *Gateway) BeforeModelCall(_ context.Context, arc *AgentRunContext, mcc *
 				setGatewayThinkingBudget(mcc.Request, b)
 			}
 		}
+		// Strategy hint injection — reuses d.Complexity (no second Classify),
+		// so Gateway replaces ReasoningStrategyRouter without behavioral loss.
+		g.injectStrategyHint(mcc.Request, d.Complexity)
 	}
 
 	g.mu.Lock()
@@ -294,4 +305,36 @@ func setGatewayThinkingBudget(req *ProviderRequest, budget int64) {
 		req.Thinking = &ThinkingConfig{}
 	}
 	req.Thinking.Budget = budget
+}
+
+// injectStrategyHint appends the strategy hint for the given complexity to
+// the request's system message, cloning the messages slice first to avoid
+// mutating the slice captured by other observers. This is the Gateway-side
+// equivalent of ReasoningStrategyRouter's injection, reusing the already-
+// classified complexity instead of calling Classify a second time.
+func (g *Gateway) injectStrategyHint(req *ProviderRequest, c Complexity) {
+	if g.StrategySelector == nil || !g.StrategySelector.StrategyHintInjection {
+		return
+	}
+	hint := g.StrategySelector.StrategyHint(c)
+	if hint == "" {
+		return
+	}
+	orig := req.Messages
+	cloned := make([]Message, len(orig))
+	for i, msg := range orig {
+		cloned[i] = msg.Clone()
+	}
+	injected := false
+	for i, msg := range cloned {
+		if msg.Role == RoleSystem {
+			cloned[i].Content = msg.Content + hint
+			injected = true
+			break
+		}
+	}
+	if !injected {
+		cloned = append([]Message{{Role: RoleSystem, Content: strings.TrimSpace(hint)}}, cloned...)
+	}
+	req.Messages = cloned
 }

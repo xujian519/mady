@@ -1,5 +1,66 @@
 # AI 变更记录
 
+## 2026-07-27: Gateway 接线 UnifiedAgentConfig + 吸收策略注入（PilotDeck 架构引入 第四阶段）
+
+### 背景
+第三阶段交付了 Gateway 组件本身，但未接入运行时——它是「可用但未运行」的状态。
+本阶段完成接线，让 Gateway 真正驱动每轮决策。
+
+接线暴露出一个职责重叠：`UnifiedAgentConfig` 原注册的是 `ReasoningStrategyRouter`
+（非裸 `ReasoningRouter`），它除 effort/budget 外还承担**策略 hint 注入**（往系统消息
+追加 StepByStep / StructuredAnalysis 等框架提示），且其 `BeforeModelCall` 内部调用了
+**两次 Classify**（一次设 effort，一次选策略）。若直接用 Gateway 替换，会丢失策略注入；
+若并存注册，则每轮分类次数从 2 变成 3。
+
+### 引入的设计
+
+#### Gateway 吸收策略注入职责 (`agentcore/gateway.go`)
+- 新增 `StrategySelector *StrategySelector` 字段：非 nil 且 `StrategyHintInjection=true`
+  时，在 `BeforeModelCall` 决策完成后，把策略 hint 追加到请求的系统消息。
+- **复用已分类结果**：注入用 `d.Complexity`（Gateway 已分类一次），不再二次 Classify。
+- 移植了 `ReasoningStrategyRouter.injectStrategyHint` 的克隆-追加逻辑（含无系统消息时
+  前插的 fallback），行为字节级对齐。
+
+#### UnifiedAgentConfig 接线 (`domains/unified.go`)
+- **移除** `NewReasoningStrategyRouter` 注册，**替换为** Gateway 装配：
+  - `Classifier = NewDefaultClassifier()`（唯一分类源）
+  - `Reasoning = NewReasoningRouter(nil)`（提供 effort/budget map）
+  - `StrategySelector = NewDefaultStrategySelector()`（保留策略注入）
+  - `Fallback = NewFallbackRouter(FallbackConfig{}, nil, nil)`（候选链空，结构就位）
+  - `BudgetManager` 仅在 `ContextWindow > 0` 时配置（向后兼容）
+  - `ToolDefinitions` 把 `cfg.Tools` 映射为 `[]ToolDefinition` 纳入预算估算
+- `cfg.FallbackRouter = gateway.Fallback`：Config 字段与 Gateway 持有同一实例，
+  供 `callModelWithFallback` 在主模型失败时走回退链。
+
+### 关键设计决策
+- **候选链默认空（安全 no-op）**：Mady 是单模型架构（`base.Model` 是唯一主模型），
+  `unified.go` 不知道用户的 provider 部署里有哪些备选模型。空候选链下 `SelectModel`
+  返回空字符串，Gateway 保留 `mcc.Request.Model` 不变——结构就位，等用户按需配置
+  `gateway.Fallback.Config.Candidates` 即立即生效。
+- **不自动注入 agent.go Config 字段**：Gateway 通过 `appendLifecycle` 注册为
+  LifecycleHook，不需要新增 Config 字段；`cfg.FallbackRouter` 复用既有字段。
+- **patent.go / legal.go 的 ReasoningStrategyRouter 暂不动**：本阶段聚焦 unified 入口，
+  patent×2/legal 共 4 处的 `ReasoningStrategyRouter` 保留原样（它们是 handoff 子 Agent
+  的配置，不影响 unified 主 Agent）。统一为 Gateway 留待后续阶段，避免爆破半径超标。
+
+### 测试
+- `domains/unified_gateway_test.go`：8 个接线验证测试
+  - Gateway 已注入 Lifecycle（Reasoning/StrategySelector 齐备）
+  - 不再有裸 ReasoningStrategyRouter（避免双触发）
+  - FallbackRouter 已接入且 Config 字段同实例（候选链空时安全 no-op）
+  - 候选链配置后立即生效（选中主模型）
+  - ContextWindow>0 时预算钳制在 blocking 触发（effort→Low）
+  - ContextWindow=0 时不配置 BudgetManager（向后兼容）
+  - 策略 hint 注入经 Gateway 保留（追加到系统消息，不替换）
+  - 每轮只分类一次（跨 effort/模型/策略全部职责）
+- `make verify` 全绿：lint + build + race，root + tools + tui 三模块无回归
+
+### 不在本阶段范围
+- **patent/legal 子 Agent 的 Gateway 统一**：4 处 ReasoningStrategyRouter 待后续迁移。
+- **候选链配置入口**：需设计用户侧配置方式（环境变量/配置文件/CallConfig），单列阶段。
+
+---
+
 ## 2026-07-27: Gateway — 统一编排三件套为单一决策入口（PilotDeck 架构引入 第三阶段）
 
 ### 背景

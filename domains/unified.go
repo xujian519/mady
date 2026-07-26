@@ -49,14 +49,32 @@ func UnifiedAgentConfig(base agentcore.Config) agentcore.Config {
 	// DoomLoop: 死循环检测器。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
 
-	// ReasoningStrategy: 根据问题复杂度动态调整推理 effort/budget，
-	// 并在系统提示中注入策略提示（如 StepByStep / StructuredAnalysis）。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewReasoningStrategyRouter(
-			agentcore.NewDefaultClassifier(),
-			agentcore.NewDefaultStrategySelector(),
-		),
-	)
+	// Gateway (PilotDeck 风格统一决策入口): 一次分类同时驱动
+	//   - 推理 effort/budget（原 ReasoningRouter 职责）
+	//   - 策略 hint 注入到系统消息（原 ReasoningStrategyRouter 职责）
+	//   - 模型回退链选择（FallbackRouter，候选链由调用方按需配置）
+	//   - token 预算评估与 blocking 钳制（TokenBudgetManager）
+	// 替换此前单独注册的 ReasoningStrategyRouter，消除每轮两次 Classify。
+	// 接入契约：注册 Gateway 后不得再单独注册 ReasoningRouter /
+	// ReasoningStrategyRouter / FallbackRouter，否则会重复分类与重复健康计数。
+	gateway := agentcore.NewGateway(agentcore.NewDefaultClassifier())
+	gateway.Reasoning = agentcore.NewReasoningRouter(nil) // effort/budget map
+	gateway.StrategySelector = agentcore.NewDefaultStrategySelector()
+	gateway.Fallback = agentcore.NewFallbackRouter(agentcore.FallbackConfig{}, nil, nil)
+	if cfg.ContextWindow > 0 {
+		gateway.BudgetManager = agentcore.NewTokenBudgetManager(agentcore.DefaultBudgetConfig())
+		gateway.ContextWindow = cfg.ContextWindow
+		// 静态工具定义纳入预算估算（Tool → ToolDefinition）。
+		defs := make([]agentcore.ToolDefinition, 0, len(cfg.Tools))
+		for _, t := range cfg.Tools {
+			if t != nil {
+				defs = append(defs, t.Definition())
+			}
+		}
+		gateway.ToolDefinitions = defs
+	}
+	cfg.FallbackRouter = gateway.Fallback // 供 callModelWithFallback 使用
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, gateway)
 
 	// Guardrail: LevelLight — 统一使用轻量护栏。
 	// 安全防护未来通过人机协作和 plan 模式替代。
