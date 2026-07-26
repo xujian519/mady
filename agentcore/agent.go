@@ -85,8 +85,18 @@ type Config struct {
 
 	// FallbackRouter routes to alternative models when the primary fails.
 	// When non-nil, callModelWithFallback iterates through the fallback chain
-	// defined per complexity level.
+	// defined per complexity level. Gateway sets this field when it creates
+	// the FallbackRouter internally; callers normally leave it nil and let
+	// newDefaultGateway populate it.
 	FallbackRouter *FallbackRouter
+
+	// FallbackConfig is pure data describing the fallback candidate chains
+	// per complexity. When non-nil, newDefaultGateway uses it to construct
+	// the FallbackRouter with real candidates; nil → empty candidates
+	// (safe no-op, the model from the request is kept).
+	// This decouples configuration (data) from the router instance that
+	// Gateway owns.
+	FallbackConfig *FallbackConfig
 }
 
 // Agent is the core runtime that orchestrates LLM calls and tool execution.

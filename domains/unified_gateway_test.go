@@ -316,3 +316,38 @@ func TestBuildProjectAgent_GatewayWired(t *testing.T) {
 	cfg := BuildProjectAgent(rec, base)
 	assertGatewayWired(t, cfg, "BuildProjectAgent")
 }
+
+// --- 候选链配置注入（Phase 6） ---
+
+func TestNewDefaultGateway_FallbackConfigFromCfg(t *testing.T) {
+	// 模拟 cmd/mady/framework.go 的 loadFallbackConfig 注入：
+	// cfg.FallbackConfig 非 nil 时，Gateway 的 FallbackRouter 应使用真实候选。
+	cfg := agentcore.Config{}
+	cfg.FallbackConfig = &agentcore.FallbackConfig{
+		Candidates: map[agentcore.Complexity][]string{
+			agentcore.ComplexityHigh: {"strong-model", "backup-model"},
+		},
+		StickySession: true,
+	}
+	g := newDefaultGateway(cfg)
+	if g.Fallback == nil {
+		t.Fatal("Fallback not configured")
+	}
+	if !g.Fallback.Config.StickySession {
+		t.Error("StickySession not propagated")
+	}
+	sel := g.Fallback.SelectModel(agentcore.ComplexityHigh)
+	if sel != "strong-model" {
+		t.Errorf("expected strong-model from candidates, got %q", sel)
+	}
+}
+
+func TestNewDefaultGateway_NilFallbackConfig_EmptyCandidates(t *testing.T) {
+	// cfg.FallbackConfig 为 nil 时，候选链为空（安全 no-op）。
+	cfg := agentcore.Config{}
+	g := newDefaultGateway(cfg)
+	sel := g.Fallback.SelectModel(agentcore.ComplexityHigh)
+	if sel != "" {
+		t.Errorf("nil FallbackConfig should yield empty selection, got %q", sel)
+	}
+}

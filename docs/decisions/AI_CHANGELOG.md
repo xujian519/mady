@@ -1,5 +1,66 @@
 # AI 变更记录
 
+## 2026-07-27: 候选链配置入口 — 环境变量 + 配置文件启用模型回退（PilotDeck 架构引入 第六阶段）
+
+### 背景
+前五阶段 Gateway 已在全领域接线，但 FallbackRouter 的候选模型链始终为空（安全 no-op）。
+用户无法配置备选模型，模型回退能力处于「结构就位、未启用」状态。本阶段补齐配置入口。
+
+### 引入的设计
+
+#### 配置层 (`pkg/agentconfig/config.go` + `load.go`)
+- 新增 `Fallback` 配置结构：`StickySession bool` + `Candidates map[string][]string`
+  （key 为 "low"/"medium"/"high"）。
+- YAML 配置文件示例：
+  ```yaml
+  fallback:
+    sticky_session: true
+    candidates:
+      low: ["gpt-4o-mini", "deepseek-v4-flash"]
+      high: ["claude-3.5-sonnet", "deepseek-v4-pro"]
+  ```
+- 环境变量等价形式：`FALLBACK_CANDIDATES_LOW` / `_MEDIUM` / `_HIGH`（逗号分隔）+
+  `FALLBACK_STICKY_SESSION`。环境变量与配置文件通过既有 `Merge` 机制叠加。
+- `Config.Merge` 新增 Fallback 合并逻辑（环境变量优先）。
+
+#### 内核配置字段 (`agentcore/agent.go`)
+- `Config` 新增 `FallbackConfig *FallbackConfig` 字段（纯数据，非实例）。
+- 这解耦了配置（数据）与 Gateway 拥有的 FallbackRouter 实例：
+  `newDefaultGateway` 读取 `cfg.FallbackConfig` 决定候选链。
+
+#### Gateway 消费 (`domains/lifecycle.go`)
+- `newDefaultGateway` 读取 `cfg.FallbackConfig`：非 nil 时用真实候选构造 FallbackRouter，
+  nil → 空候选（现状，安全 no-op）。调用点签名不变。
+
+#### 入口注入 (`cmd/mady/framework.go`)
+- 新增 `loadFallbackConfig()`：从 `agentconfig.LoadOrDefault()` 读取，做
+  string→agentcore.Complexity 映射（low/medium/high），注入 `BaseConfig.FallbackConfig`。
+- 未知 complexity key 静默忽略（前向兼容）。
+
+### 关键设计决策
+- **配置数据 vs 实例分离**：`Config.FallbackConfig`（数据）与 `Config.FallbackRouter`
+  （Gateway 创建的实例）分离。Gateway 读数据造实例，cmd/mady 只填数据，职责清晰。
+- **agentconfig 不依赖 agentcore**：转换逻辑（string→Complexity）放在 cmd/mady 消费层，
+  保持 pkg/agentconfig 的分层纯净（仅注释引用 agentcore）。
+- **环境变量命名遵循既有惯例**：大写 + 下划线（与 MODEL/CONTEXT_WINDOW 等一致）。
+
+### 测试
+- `pkg/agentconfig/load_test.go`：4 个测试（环境变量解析/YAML 解析/无 env 返回 nil/Merge）
+- `domains/unified_gateway_test.go`：2 个测试（FallbackConfig 注入后候选链生效/nil 时空候选）
+- `make verify` 全绿：lint + build + race，三模块无回归
+
+### 使用示例
+```bash
+# 环境变量方式
+export FALLBACK_CANDIDATES_HIGH="claude-3.5-sonnet,deepseek-v4-pro,gpt-4o"
+export FALLBACK_STICKY_SESSION=true
+
+# 或配置文件方式（MADY_CONFIG=config.yaml）
+mady tui
+```
+
+---
+
 ## 2026-07-27: patent/legal/project 子 Agent 统一迁移到 Gateway（PilotDeck 架构引入 第五阶段）
 
 ### 背景

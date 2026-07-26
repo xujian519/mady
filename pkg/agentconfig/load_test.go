@@ -137,3 +137,85 @@ func TestLoadOrDefault_NoEnv(t *testing.T) {
 		t.Fatal("expected non-nil config")
 	}
 }
+
+// --- Fallback candidate chain config (Phase 6) ---
+
+func TestFromEnv_FallbackCandidates(t *testing.T) {
+	t.Setenv("FALLBACK_CANDIDATES_LOW", "gpt-4o-mini, deepseek-v4-flash")
+	t.Setenv("FALLBACK_CANDIDATES_HIGH", "claude-3.5-sonnet")
+	t.Setenv("FALLBACK_STICKY_SESSION", "true")
+
+	cfg := agentconfig.FromEnv()
+	if cfg.Fallback == nil {
+		t.Fatal("expected Fallback config from env")
+	}
+	if !cfg.Fallback.StickySession {
+		t.Error("StickySession should be true")
+	}
+	if got := cfg.Fallback.Candidates["low"]; len(got) != 2 || got[0] != "gpt-4o-mini" || got[1] != "deepseek-v4-flash" {
+		t.Errorf("low candidates mismatch: %v", got)
+	}
+	if got := cfg.Fallback.Candidates["high"]; len(got) != 1 || got[0] != "claude-3.5-sonnet" {
+		t.Errorf("high candidates mismatch: %v", got)
+	}
+	if _, ok := cfg.Fallback.Candidates["medium"]; ok {
+		t.Error("medium should not be set")
+	}
+}
+
+func TestFromEnv_NoFallbackEnv_ReturnsNil(t *testing.T) {
+	// 确保没有 fallback 环境变量时 Fallback 为 nil（安全 no-op）。
+	t.Setenv("FALLBACK_CANDIDATES_LOW", "")
+	t.Setenv("FALLBACK_CANDIDATES_HIGH", "")
+	t.Setenv("FALLBACK_STICKY_SESSION", "")
+	cfg := agentconfig.FromEnv()
+	if cfg.Fallback != nil {
+		t.Errorf("expected nil Fallback when no env set, got %+v", cfg.Fallback)
+	}
+}
+
+func TestLoadConfig_FallbackYAML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := `
+fallback:
+  sticky_session: true
+  candidates:
+    low: ["gpt-4o-mini", "deepseek-v4-flash"]
+    medium: ["deepseek-v4-pro"]
+    high: ["claude-3.5-sonnet", "deepseek-v4-pro", "gpt-4o"]
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := agentconfig.LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Fallback == nil {
+		t.Fatal("expected Fallback from YAML")
+	}
+	if !cfg.Fallback.StickySession {
+		t.Error("StickySession should be true")
+	}
+	if len(cfg.Fallback.Candidates["high"]) != 3 {
+		t.Errorf("high candidates len: got %d, want 3", len(cfg.Fallback.Candidates["high"]))
+	}
+}
+
+func TestConfig_Merge_Fallback(t *testing.T) {
+	base := &agentconfig.Config{}
+	other := &agentconfig.Config{
+		Fallback: &agentconfig.Fallback{
+			StickySession: true,
+			Candidates:    map[string][]string{"low": {"m1"}},
+		},
+	}
+	base.Merge(other)
+	if base.Fallback == nil {
+		t.Fatal("Merge should copy Fallback")
+	}
+	if !base.Fallback.StickySession {
+		t.Error("StickySession not merged")
+	}
+}

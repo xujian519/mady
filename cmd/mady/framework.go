@@ -226,6 +226,13 @@ func setupFrameworkContext(ctx context.Context, cmdName string) *frameworkContex
 		},
 	}
 
+	// 模型级联回退候选链：从 agentconfig（环境变量 FALLBACK_CANDIDATES_*
+	// 或配置文件 fallback.candidates）读取，注入 BaseConfig 供
+	// newDefaultGateway 构造 FallbackRouter。未配置时为 nil（安全 no-op）。
+	if fbCfg := loadFallbackConfig(); fbCfg != nil {
+		fc.BaseConfig.FallbackConfig = fbCfg
+	}
+
 	// OpenTelemetry 分布式追踪：通过 MADY_TRACING=stdout 或 MADY_TRACING=otlp 条件启用。
 	// 默认关闭（零开销）。启用后 Agent 执行的每个阶段会生成 span。
 	if tracingMode := os.Getenv("MADY_TRACING"); tracingMode != "" {
@@ -885,6 +892,45 @@ func agentThinking(cfg *agentconfig.ThinkingConfig) *agentcore.ThinkingConfig {
 		Display:         agentcore.ThinkingDisplay(cfg.Display),
 		Effort:          agentcore.ThinkingEffort(cfg.Effort),
 		Budget:          cfg.Budget,
+	}
+}
+
+// loadFallbackConfig 从 agentconfig（环境变量或 MADY_CONFIG 配置文件）读取
+// 模型级联回退候选链，转换为 agentcore.FallbackConfig。未配置时返回 nil
+// （newDefaultGateway 用空候选链构造 FallbackRouter，安全 no-op）。
+//
+// 复杂度字符串 → agentcore.Complexity 映射：
+//
+//	"low" → ComplexityLow, "medium" → ComplexityMedium, "high" → ComplexityHigh
+//
+// 未知 key 静默忽略（前向兼容未来新增等级）。
+func loadFallbackConfig() *agentcore.FallbackConfig {
+	ac := agentconfig.LoadOrDefault()
+	if ac.Fallback == nil || len(ac.Fallback.Candidates) == 0 {
+		return nil
+	}
+	candidates := make(map[agentcore.Complexity][]string, len(ac.Fallback.Candidates))
+	for level, models := range ac.Fallback.Candidates {
+		var c agentcore.Complexity
+		switch strings.ToLower(level) {
+		case "low":
+			c = agentcore.ComplexityLow
+		case "medium":
+			c = agentcore.ComplexityMedium
+		case "high":
+			c = agentcore.ComplexityHigh
+		default:
+			slog.Debug("framework: ignoring unknown fallback complexity level", "level", level)
+			continue
+		}
+		candidates[c] = models
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	return &agentcore.FallbackConfig{
+		Candidates:    candidates,
+		StickySession: ac.Fallback.StickySession,
 	}
 }
 

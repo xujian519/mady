@@ -114,7 +114,37 @@ func FromEnv() *Config {
 		cfg.SkillPaths = splitEnvList(v)
 	}
 
+	// Fallback candidate chains: FALLBACK_CANDIDATES_LOW / _MEDIUM / _HIGH.
+	// Each is a comma-separated model list; the first is the primary model.
+	fb := fromEnvFallback()
+	if fb != nil {
+		cfg.Fallback = fb
+	}
+
 	return cfg
+}
+
+// fromEnvFallback reads FALLBACK_CANDIDATES_LOW / _MEDIUM / _HIGH and
+// FALLBACK_STICKY_SESSION. Returns nil when no fallback env var is set.
+func fromEnvFallback() *Fallback {
+	var fb Fallback
+	hasCandidates := false
+	for _, level := range []string{"low", "medium", "high"} {
+		if v := os.Getenv("FALLBACK_CANDIDATES_" + strings.ToUpper(level)); v != "" {
+			if fb.Candidates == nil {
+				fb.Candidates = make(map[string][]string)
+			}
+			fb.Candidates[level] = splitEnvList(v)
+			hasCandidates = true
+		}
+	}
+	if v := os.Getenv("FALLBACK_STICKY_SESSION"); v != "" {
+		fb.StickySession = v == "true" || v == "1" || v == "yes"
+	}
+	if !hasCandidates && !fb.StickySession {
+		return nil
+	}
+	return &fb
 }
 
 // EnvOverride 将环境变量中的值覆盖到 Config 上。

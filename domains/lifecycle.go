@@ -36,7 +36,12 @@ func newDefaultGateway(cfg agentcore.Config) *agentcore.Gateway {
 	gateway := agentcore.NewGateway(agentcore.NewDefaultClassifier())
 	gateway.Reasoning = agentcore.NewReasoningRouter(nil) // effort/budget map
 	gateway.StrategySelector = agentcore.NewDefaultStrategySelector()
-	gateway.Fallback = agentcore.NewFallbackRouter(agentcore.FallbackConfig{}, nil, nil)
+	// 候选链：cfg.FallbackConfig 非 nil 时用真实候选，否则空（安全 no-op）。
+	fbCfg := agentcore.FallbackConfig{}
+	if cfg.FallbackConfig != nil {
+		fbCfg = *cfg.FallbackConfig
+	}
+	gateway.Fallback = agentcore.NewFallbackRouter(fbCfg, nil, nil)
 	if cfg.ContextWindow > 0 {
 		gateway.BudgetManager = agentcore.NewTokenBudgetManager(agentcore.DefaultBudgetConfig())
 		gateway.ContextWindow = cfg.ContextWindow

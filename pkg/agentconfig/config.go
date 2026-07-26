@@ -94,6 +94,32 @@ type Config struct {
 
 	// SkillPaths 是技能目录路径列表，支持热重载。
 	SkillPaths []string `json:"skill_paths,omitempty" yaml:"skill_paths,omitempty"`
+
+	// Fallback 是模型级联回退配置（候选模型链 + sticky 模式）。
+	// 对应 agentcore.FallbackConfig，由 newDefaultGateway 消费。
+	Fallback *Fallback `json:"fallback,omitempty" yaml:"fallback,omitempty"`
+}
+
+// Fallback 描述按复杂度等级的候选模型链。
+//
+// 配置文件示例（YAML）：
+//
+//	fallback:
+//	  sticky_session: true
+//	  candidates:
+//	    low: ["gpt-4o-mini", "deepseek-v4-flash"]
+//	    medium: ["deepseek-v4-pro", "gpt-4o"]
+//	    high: ["claude-3.5-sonnet", "deepseek-v4-pro"]
+//
+// 环境变量等价形式：FALLBACK_CANDIDATES_LOW / _MEDIUM / _HIGH（逗号分隔）。
+type Fallback struct {
+	// StickySession 启用后，同一会话内首次选择的模型将持续使用，
+	// 仅在模型降级时切换。
+	StickySession bool `json:"sticky_session,omitempty" yaml:"sticky_session,omitempty"`
+
+	// Candidates 按复杂度等级（low/medium/high）映射到候选模型列表。
+	// 第一个元素为主模型，后续为回退模型。
+	Candidates map[string][]string `json:"candidates,omitempty" yaml:"candidates,omitempty"`
 }
 
 // Thinking 是扩展思考/推理的配置。
@@ -198,5 +224,8 @@ func (c *Config) Merge(other *Config) {
 	}
 	if other.SkillPaths != nil {
 		c.SkillPaths = other.SkillPaths
+	}
+	if other.Fallback != nil {
+		c.Fallback = other.Fallback
 	}
 }
