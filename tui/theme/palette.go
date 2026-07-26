@@ -28,6 +28,9 @@ type Palette struct {
 
 var atomicPalette atomic.Pointer[Palette]
 
+// CurrentPalette returns the active Palette, initializing it from the default
+// semantic theme + detected color mode on first call. Thread-safe via
+// atomic.Pointer; subsequent SetSemanticTheme calls replace it.
 func CurrentPalette() *Palette {
 	p := atomicPalette.Load()
 	if p == nil {

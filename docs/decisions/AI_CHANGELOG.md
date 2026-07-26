@@ -1,5 +1,41 @@
 # AI 变更记录
 
+## 2026-07-26: TUI 模块 Sprint 0 Quick-win 基线修复（T0.1–T0.8）
+
+### 背景
+基于 TUI 全方位审阅（`docs/review/tui-full-audit-2026-07-26.md`，综合 6.1/10）
+与优化计划（`docs/review/tui-optimization-plan-2026-07-26.md`），执行 Sprint 0
+的 8 项零风险机械修复，建立代码健康基线。所有任务独立、无依赖、可单独提交。
+
+### 改动清单
+
+| 任务 | 文件 | 改动 |
+|------|------|------|
+| **T0.1+T0.7** itoa 去重 | `tui/core/sgr.go`、`tui/terminal/ansi.go`、`tui/theme/quantize.go`、`tui/internal/conv.go`（删除） | 消除 3 处重复 `itoa` 实现，统一替换为 `strconv.FormatInt`（stdlib 自带 small-string 优化，对小整数 0-255 零分配，比手写循环更快）。删除 `internal/conv.go` 的 `ITOA` 包装 |
+| **T0.2** 测试隔离 | `tui/theme/global_test.go` | `os.Setenv`/`os.Unsetenv` + 手动 `Cleanup` → `t.Setenv`（框架自动恢复，杜绝跨测试环境污染） |
+| **T0.3** 文档同步 | `tui/LAYERS.md` | 修正 stdio 依赖矩阵（Layer 0,2 → Layer 0,1,2，spinner.go 导入 terminal）；更新文件计数（90+40 → 101+50）；补全 terminal/theme/component/chat 缺失文件清单；添加 internal/ 目录说明。`verify_layers.sh` 验证通过 |
+| **T0.4** 无障碍修复 | `tui/theme/semantic_theme.go` | `Border` 与 `BorderMuted` 原为同色 `#1D3B52`（视觉无法区分），现拆分：Border=`#2A4A63`（主边框），BorderMuted=`#152A3D`（弱化边框） |
+| **T0.5** 死代码清理 | `tui/component/viewport.go` | 删除空 if 块 `if cfg.Mode == ScrollbarAuto && cfg.Width < 2 { _ = cfg.Width }`（无实际操作） |
+| **T0.6** Godoc 补充 | `tui/theme/style.go`、`tui/theme/palette.go`、`tui/stdio/progress.go`、`tui/stdio/renderer.go`、`tui/stdio/spinner.go` | 为 ~25 个高曝光导出符号补充文档：Color/Attr 类型、NewStyle/Fg/Bg/Bold/Render 方法、CurrentPalette、NewProgressBar/NewRenderer/NewSpinner 构造器、各 Set* 方法 |
+| **T0.8** 并发安全 | `tui/theme/style.go` | `var colorOverride *bool` → `var colorOverride atomic.Pointer[bool]`（消除 ForceColor 写入与 ColorEnabled 读取之间的 data race）。API 不变 |
+
+### 验证结果
+- `cd tui && go build ./...` 通过
+- `cd tui && go vet ./...` 通过
+- `cd tui && go test -race -count=1 ./...` 全过（11 个包全绿）
+- `golangci-lint run ./tui/...` 0 issues
+- `cd tui && bash scripts/verify_layers.sh` ✅ in sync (100 files)
+- 根模块 `go build ./...` 通过（tui replace 指向正常）
+- `theme`/`component` 包 `-race -count=5` 通过（验证 T0.2/T0.8 并发安全）
+- 注：`terminal` 包 `-count=5` 仍有 Kitty 全局状态污染失败（预存 C-1 bug，Sprint 1 修复）
+
+### 设计决策
+- **T0.1+T0.7 合并执行**：两者紧耦合（T0.7 依赖 T0.1），合并后直接用 `strconv.FormatInt` 替换所有调用，一次达到最终状态，避免中间状态的 `conv.ITOA` 临时桥接
+- **T0.2 空值用 `t.Setenv(..., "")`**：`DetectTerminalBackground` 对空字符串和未设置处理一致（都返回 "dark"），无需模拟 unset 状态
+- **T0.8 用 `atomic.Pointer[bool]` 而非 `atomic.Bool`**：保留三态语义（nil=自动检测 / &true=强制开 / &false=强制关），API 完全兼容
+
+---
+
 ## 2026-07-26: 严格代码审查后的质量修复（B1/B2/I1-I4）
 
 ### 背景

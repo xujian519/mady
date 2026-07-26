@@ -24,6 +24,9 @@ type ProgressBar struct {
 	started time.Time
 }
 
+// NewProgressBar creates a ProgressBar with the given total value and bar
+// width (in characters). Output goes to os.Stdout with the loader-spinner
+// style from the current palette. Width defaults to 40 if ≤ 0.
 func NewProgressBar(total, width int64) *ProgressBar {
 	if width <= 0 {
 		width = 40
@@ -37,6 +40,8 @@ func NewProgressBar(total, width int64) *ProgressBar {
 	}
 }
 
+// SetLabel updates the text label shown beside the bar. SetStyle overrides the
+// bar's Style. SetWriter redirects output (default os.Stdout).
 func (p *ProgressBar) SetLabel(label string)  { p.mu.Lock(); p.label = label; p.mu.Unlock() }
 func (p *ProgressBar) SetStyle(s theme.Style) { p.mu.Lock(); p.style = s; p.mu.Unlock() }
 func (p *ProgressBar) SetWriter(w io.Writer)  { p.mu.Lock(); p.writer = w; p.mu.Unlock() }

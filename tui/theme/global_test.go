@@ -1,7 +1,6 @@
 package theme
 
 import (
-	"os"
 	"testing"
 )
 
@@ -35,19 +34,10 @@ func TestDefaultSemanticForTerminal(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			prev := os.Getenv("COLORFGBG")
-			if tc.fgbg == "" {
-				os.Unsetenv("COLORFGBG")
-			} else {
-				os.Setenv("COLORFGBG", tc.fgbg)
-			}
-			t.Cleanup(func() {
-				if prev == "" {
-					os.Unsetenv("COLORFGBG")
-				} else {
-					os.Setenv("COLORFGBG", prev)
-				}
-			})
+			// t.Setenv sets the var and auto-restores the previous value at
+			// test end, replacing the manual os.Setenv/Unsetenv + Cleanup.
+			// An empty value is equivalent to unset for DetectTerminalBackground.
+			t.Setenv("COLORFGBG", tc.fgbg)
 
 			sem := DefaultSemanticForTerminal()
 			if sem == nil {

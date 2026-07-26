@@ -151,10 +151,6 @@ func (v *Viewport) SetScrollbarConfig(cfg ScrollbarConfig) {
 	if cfg.ThumbSymbol == 0 {
 		cfg.ThumbSymbol = '▐'
 	}
-	if cfg.Mode == ScrollbarAuto && cfg.Width < 2 {
-		// Auto mode + narrow terminal: scrollbar column not reserved.
-		_ = cfg.Width // explicit no-op
-	}
 	v.sb = cfg
 	v.mu.Unlock()
 }

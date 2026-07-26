@@ -23,10 +23,13 @@ type Renderer struct {
 	totalChars  int64
 }
 
+// NewRenderer creates a Renderer writing to os.Stdout. Use SetWriter to
+// redirect output.
 func NewRenderer() *Renderer {
 	return &Renderer{writer: os.Stdout}
 }
 
+// SetWriter changes the output writer (thread-safe).
 func (r *Renderer) SetWriter(w io.Writer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

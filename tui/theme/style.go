@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 
 	"github.com/xujian519/mady/tui/terminal"
 )
@@ -19,8 +20,12 @@ const (
 	Reset = terminal.Reset
 )
 
+// Color represents an SGR foreground color code (30–37 normal, 90–97 bright,
+// 39 = default). It maps directly to the numeric parameter in an SGR sequence.
 type Color int64
 
+// Standard and bright ANSI foreground colors. Default (39) uses the terminal's
+// default foreground.
 const (
 	Black   Color = 30
 	Red     Color = 31
@@ -42,8 +47,11 @@ const (
 	BrightWhite   Color = 97
 )
 
+// Attr represents a text attribute (SGR code). Values follow the ANSI SGR
+// specification (1 = bold, 2 = dim, etc.).
 type Attr int64
 
+// Text attributes usable in Style.Attrs. Values are SGR attribute codes.
 const (
 	Bold      Attr = 1
 	Dim       Attr = 2
@@ -63,8 +71,11 @@ type Style struct {
 	bgParams string // e.g. "48;2;r;g;b"
 }
 
+// NewStyle returns a Style with default foreground and background (no attrs).
 func NewStyle() Style { return Style{fg: Default, bg: Default} }
 
+// Fg sets the foreground color from the basic ANSI palette (30–37/90–97).
+// For truecolor or 256-color, use WithFgParams instead.
 func (s Style) Fg(c Color) Style {
 	s.fg = c
 	s.fgParams = ""
@@ -78,6 +89,9 @@ func (s Style) WithFgParams(csiParams string) Style {
 	return s
 }
 
+// Bg sets the background color from the basic ANSI palette. The Color value
+// is internally shifted by +10 (30→40, etc.). For truecolor/256-color, use
+// WithBgParams.
 func (s Style) Bg(c Color) Style {
 	s.bg = c + 10
 	s.bgParams = ""
@@ -90,12 +104,18 @@ func (s Style) WithBgParams(csiParams string) Style {
 	s.bg = Default
 	return s
 }
+
+// Attribute setters — each appends the corresponding SGR attribute and
+// returns the modified Style (immutable builder pattern).
 func (s Style) Bold() Style      { s.attrs = append(s.attrs, Bold); return s }
 func (s Style) Dim() Style       { s.attrs = append(s.attrs, Dim); return s }
 func (s Style) Italic() Style    { s.attrs = append(s.attrs, Italic); return s }
 func (s Style) Underline() Style { s.attrs = append(s.attrs, Underline); return s }
 func (s Style) Strike() Style    { s.attrs = append(s.attrs, Strike); return s }
 
+// Render wraps text with the SGR escape sequence for this Style and appends
+// a reset. If color is disabled (NO_COLOR / dumb terminal), text is returned
+// unchanged.
 func (s Style) Render(text string) string {
 	if !ColorEnabled() {
 		return text
@@ -124,13 +144,26 @@ func (s Style) Render(text string) string {
 // Color detection
 // ---------------------------------------------------------------------------
 
-var colorOverride *bool
+// colorOverride is a tri-state flag: nil means auto-detect from environment,
+// non-nil forces color enabled/disabled. Uses atomic.Pointer for thread-safe
+// concurrent reads (ColorEnabled runs in the render loop) and writes
+// (ForceColor may be called from any goroutine).
+var colorOverride atomic.Pointer[bool]
 
-func ForceColor(enabled bool) { colorOverride = &enabled }
+// ForceColor overrides color detection: enabled=true forces colors on,
+// enabled=false forces colors off. Subsequent ColorEnabled calls honor
+// the override until the next ForceColor call.
+func ForceColor(enabled bool) {
+	e := enabled
+	colorOverride.Store(&e)
+}
 
+// ColorEnabled reports whether ANSI color output should be emitted. When
+// ForceColor has been called, it returns the forced value; otherwise it
+// auto-detects from NO_COLOR / FORCE_COLOR / TERM / stdout TTY status.
 func ColorEnabled() bool {
-	if colorOverride != nil {
-		return *colorOverride
+	if v := colorOverride.Load(); v != nil {
+		return *v
 	}
 	if os.Getenv("NO_COLOR") != "" {
 		return false

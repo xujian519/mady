@@ -125,9 +125,9 @@ func DefaultMadyDark() *SemanticTheme {
 
 		// 品牌冷色系：Logo 深空蓝 + 青蓝光弧
 		Accent:       "#38C8F4",
-		Border:       "#1D3B52",
+		Border:       "#2A4A63",
 		BorderAccent: "#5DDCFF",
-		BorderMuted:  "#1D3B52",
+		BorderMuted:  "#152A3D",
 		Success:      "#52D6A0",
 		Error:        "#F17878",
 		Warning:      "#D7B65C",

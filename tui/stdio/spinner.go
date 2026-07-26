@@ -25,6 +25,8 @@ type Spinner struct {
 	doneCh  chan struct{}
 }
 
+// NewSpinner creates a Spinner with the given animation style. Output goes to
+// os.Stdout with the loader-spinner color from the current palette.
 func NewSpinner(style core.SpinnerStyle) *Spinner {
 	return &Spinner{
 		style:  style,
@@ -33,24 +35,30 @@ func NewSpinner(style core.SpinnerStyle) *Spinner {
 	}
 }
 
+// SetMessage updates the spinner's label text. SetColor overrides the spinner
+// Style. SetWriter redirects output (default os.Stdout). All are thread-safe.
 func (s *Spinner) SetMessage(msg string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.message = msg
 }
 
+// SetColor overrides the spinner's color Style.
 func (s *Spinner) SetColor(c theme.Style) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.color = c
 }
 
+// SetWriter redirects spinner output.
 func (s *Spinner) SetWriter(w io.Writer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writer = w
 }
 
+// Start begins the animation goroutine, displaying the given message.
+// Calling Start while already running is a no-op.
 func (s *Spinner) Start(message string) {
 	s.mu.Lock()
 	if s.running {
@@ -66,6 +74,8 @@ func (s *Spinner) Start(message string) {
 	go s.animate()
 }
 
+// Stop halts the animation and clears the spinner line. Safe to call when
+// not running (no-op).
 func (s *Spinner) Stop() {
 	s.mu.Lock()
 	if !s.running {
@@ -80,17 +90,20 @@ func (s *Spinner) Stop() {
 	fmt.Fprint(s.writer, "\r"+terminal.ClearLine())
 }
 
+// StopWith halts the spinner and prints finalMessage on the cleared line.
 func (s *Spinner) StopWith(finalMessage string) {
 	s.Stop()
 	fmt.Fprintln(s.writer, finalMessage)
 }
 
+// StopSuccess halts the spinner and prints a check-marked success message.
 func (s *Spinner) StopSuccess(msg string) {
 	s.Stop()
 	pal := theme.CurrentPalette()
 	fmt.Fprintln(s.writer, pal.Success.Render(theme.SymbolCheck)+" "+msg)
 }
 
+// StopFail halts the spinner and prints a cross-marked failure message.
 func (s *Spinner) StopFail(msg string) {
 	s.Stop()
 	pal := theme.CurrentPalette()

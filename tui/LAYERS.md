@@ -11,7 +11,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 | 3 Engine | `tui` (root) | TUI container, event loop, overlay system, focus stack, ChatApp bridge | Layer 0–2, chat |
 | 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels) — 35 source files | Layer 0–2, fuzzy |
 | 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 14 source files | Layer 0–2, 4 |
-| 6 Stdio | `tui/stdio` | Procedural stdout/stdin tools (Spinner, Renderer, ProgressBar, LineReader, layout) | Layer 0, 2 |
+| 6 Stdio | `tui/stdio` | Procedural stdout/stdin tools (Spinner, Renderer, ProgressBar, LineReader, layout) | Layer 0, 1, 2 |
 | 7 Adapter | `tui/agentadapter` | Agentcore → chat event conversion, BindAgent convenience | Layer 5, agentcore |
 
 > `tui/layout` 在编号上归入 Layer 0（仅依赖 `tui/core`，不依赖 theming/agentcore），
@@ -20,7 +20,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 ## Rules
 
 - Higher layers may import lower layers; lower layers MUST NOT import higher layers.
-- `tui/stdio` depends on Layer 0 and Layer 2 only; it MUST NOT depend on Layer 3–5.
+- `tui/stdio` depends on Layer 0, 1, and 2 (core + terminal + theme); it MUST NOT depend on Layer 3–5.
 - `tui/chat` depends on Layer 0–2 and 4 only; it does NOT depend on `tui/stdio` (stdio tools are for procedural stdout/stdin apps, not for the TUI chat app).
 - `tui/chat` does NOT import `agentcore`. All agentcore integration is in `tui/agentadapter`.
 - `tui/chat` uses `AppHost` interface instead of directly referencing `*TUI`, breaking the cycle.
@@ -30,8 +30,8 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 90 source files (+ 40 test files) across 8 packages.
-> Last sync: 2026-07-21.
+> Auto-verified: 101 source files (+ 50 test files) across 9 packages.
+> Last sync: 2026-07-26.
 
 ```
 tui/
@@ -48,26 +48,31 @@ tui/
 │   ├── cellrender.go      # Row → ANSI string serializer (SerializeRow)
 │   └── sgr.go             # SGR state machine: ParseSGR/BuildSGR, permissive parameter parsing
 │
-├── terminal/              # Layer 1 — Terminal I/O (8 source files)
+├── terminal/              # Layer 1 — Terminal I/O (9 source files)
 │   ├── keys.go            # Key parsing, MatchesKey, Kitty protocol, KeyID
 │   ├── keybindings.go     # KeybindingsManager, DefaultKeybindings, KeybindingDef
 │   ├── stdin_buffer.go    # StdinBuffer for reassembling fragmented input
 │   ├── terminal.go        # Terminal interface, ProcessTerminal, VirtualTerminal
 │   ├── ansi.go            # ANSI escape sequence builders (pure functions, no I/O)
+│   ├── detect.go          # Terminal capability detection (color level, kitty, etc.)
 │   ├── terminal_darwin.go # macOS termios
 │   ├── terminal_linux.go  # Linux termios
 │   └── terminal_other.go # Fallback for other OSes
 │
-├── theme/                 # Layer 2 — Theming (7 source files)
+├── theme/                 # Layer 2 — Theming (11 source files)
 │   ├── style.go           # ANSI Style, Color, Attr, symbols, box-drawing, cursor helpers
 │   ├── color_resolve.go   # Color mode detection, RGB-to-256
 │   ├── semantic_theme.go  # SemanticTheme struct + defaults (light/dark)
 │   ├── palette.go         # Palette struct, CurrentPalette(), BuildPalette, SyncPaletteGlobals
 │   ├── global.go          # SetSemanticTheme, InitThemeFromEnv, SetOnSemanticThemeChange
 │   ├── json.go            # JSON theme parsing (vars/colors + variable references)
-│   └── watch.go           # File-watch hot-reload for themes (mtime polling)
+│   ├── watch.go           # File-watch hot-reload for themes (mtime polling)
+│   ├── aliases.go         # Color alias resolution (name → hex mapping)
+│   ├── quantize.go        # Color quantization engine (RGB→16 ANSI, theme-level)
+│   ├── system_appearance.go # macOS NSAppearance dark/light detection
+│   └── theme_registry.go  # Theme registry: built-in + user theme registration
 │
-├── component/             # Layer 4 — Components (35 source files)
+├── component/             # Layer 4 — Components (36 source files)
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
 │   ├── text.go            # Text, TruncatedText
@@ -102,6 +107,7 @@ tui/
 │   ├── syntax_tokenizer.go # Tokenizer for syntax highlighting
 │   │
 │   ├── editor.go          # Editor subsystem — core struct & interface (392 lines)
+│   ├── editor_chip.go     # Editor — inline chips (completion hints, annotations)
 │   ├── editor_edit.go     # Editor — key dispatch & editing primitives (553 lines)
 │   ├── editor_render.go   # Editor — rendering & mouse hit-testing (324 lines)
 │   ├── editor_history.go  # Editor — undo/redo stack & input recall (182 lines)
@@ -111,11 +117,12 @@ tui/
 │   ├── flex.go            # Flex declarative layout (main-axis size policies, 506 lines)
 │   └── layout.go          # Layout helpers
 │
-├── chat/                  # Layer 5 — Application (14 source files)
+├── chat/                  # Layer 5 — Application (15 source files)
 │   ├── chat_app.go        # ChatApp struct, constructor, public API (1060 lines)
 │   ├── chat_app_layout.go # chatLayout root Component + input router (582 lines)
 │   ├── chat_app_stream.go # ChatApp streaming lifecycle handlers (submit/delta/end/error)
 │   ├── chat_app_tool.go   # ChatApp tool-call/handoff/turn/compaction handlers
+│   ├── chat_app_todo.go   # ChatApp todo-list panel integration handlers
 │   ├── chat_history.go    # ChatHistory scrollable transcript component (566 lines)
 │   ├── chat_history_render.go        # ChatHistory rendering pipeline (viewport, separators)
 │   ├── chat_history_render_message.go # Per-message rendering (role dispatch, card router)
@@ -137,6 +144,11 @@ tui/
 │   ├── linereader.go      # Blocking stdin helper, Confirm, PromptSelect
 │   └── layout.go          # Box-drawing and layout helpers (moved from theme)
 │
+├── internal/              # Internal helpers (not exported, used by sibling packages)
+│   ├── csync/slice.go     # Concurrent slice helpers
+│   └── fuzzy/fuzzy.go     # Shared fuzzy matching primitives
+│
+├── doc.go                 # Package doc for the root `tui` package
 ├── tui.go                 # Layer 3 — TUI container, types, constructor (271 lines)
 ├── tui_loop.go            # Layer 3 — eventLoop (lifecycle/render/input junction)
 ├── tui_lifecycle.go       # Layer 3 — Start/Stop/Quit/Done/Context/Tick/Every

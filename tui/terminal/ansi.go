@@ -1,5 +1,7 @@
 package terminal
 
+import "strconv"
+
 // ---------------------------------------------------------------------------
 // ANSI escape sequence builders
 //
@@ -42,7 +44,7 @@ func CursorHome() string { return Esc + "H" }
 
 // CursorPosition returns "ESC[row;colH" — absolute cursor positioning (CUP).
 func CursorPosition(row, col int64) string {
-	return Esc + itoa(row) + ";" + itoa(col) + "H"
+	return Esc + strconv.FormatInt(row, 10) + ";" + strconv.FormatInt(col, 10) + "H"
 }
 
 // ClearToEndOfLine clears from cursor to end of line.
@@ -53,20 +55,5 @@ func escn(suffix string, n int64) string {
 	if n <= 0 {
 		return ""
 	}
-	return Esc + itoa(n) + suffix
-}
-
-// itoa converts int64 to string without strconv dependency.
-func itoa(n int64) string {
-	if n == 0 {
-		return "0"
-	}
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(buf[i:])
+	return Esc + strconv.FormatInt(n, 10) + suffix
 }

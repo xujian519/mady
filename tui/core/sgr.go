@@ -1,6 +1,9 @@
 package core
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // ---------------------------------------------------------------------------
 // SGR (Select Graphic Rendition) state machine.
@@ -392,10 +395,10 @@ func fgCode(c Color) string {
 		return "39"
 	}
 	if c.IsPalette() {
-		return "38;5;" + itoa(int(c.PaletteIndex()))
+		return "38;5;" + strconv.FormatInt(int64(c.PaletteIndex()), 10)
 	}
 	r, g, b := c.RGBComponents()
-	return "38;2;" + itoa(int(r)) + ";" + itoa(int(g)) + ";" + itoa(int(b))
+	return "38;2;" + strconv.FormatInt(int64(r), 10) + ";" + strconv.FormatInt(int64(g), 10) + ";" + strconv.FormatInt(int64(b), 10)
 }
 
 func bgCode(c Color) string {
@@ -403,22 +406,8 @@ func bgCode(c Color) string {
 		return "49"
 	}
 	if c.IsPalette() {
-		return "48;5;" + itoa(int(c.PaletteIndex()))
+		return "48;5;" + strconv.FormatInt(int64(c.PaletteIndex()), 10)
 	}
 	r, g, b := c.RGBComponents()
-	return "48;2;" + itoa(int(r)) + ";" + itoa(int(g)) + ";" + itoa(int(b))
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var buf [12]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(buf[i:])
+	return "48;2;" + strconv.FormatInt(int64(r), 10) + ";" + strconv.FormatInt(int64(g), 10) + ";" + strconv.FormatInt(int64(b), 10)
 }

@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/xujian519/mady/tui/internal"
+import "strconv"
 
 // quantize.go — Color quantization engine for terminals with limited color
 // support. Provides RGB-to-16 and theme-level quantization.
@@ -111,10 +111,10 @@ func FgParams16(hex string, isDarkBg bool) string {
 	}
 	if idx >= 8 {
 		// Bright variants: ANSI 90-97
-		return "9" + internal.ITOA(int64(idx-8))
+		return "9" + strconv.FormatInt(int64(idx-8), 10)
 	}
 	// Normal variants: ANSI 30-37
-	return "3" + internal.ITOA(int64(idx))
+	return "3" + strconv.FormatInt(int64(idx), 10)
 }
 
 // BgParams16 returns the SGR parameter string for a 16-color background.
@@ -126,10 +126,10 @@ func BgParams16(hex string, isDarkBg bool) string {
 	}
 	if idx >= 8 {
 		// Bright bg: ANSI 100-107
-		return "10" + internal.ITOA(int64(idx-8))
+		return "10" + strconv.FormatInt(int64(idx-8), 10)
 	}
 	// Normal bg: ANSI 40-47
-	return "4" + internal.ITOA(int64(idx))
+	return "4" + strconv.FormatInt(int64(idx), 10)
 }
 
 // QuantizeTheme applies color quantization to a SemanticTheme based on the
