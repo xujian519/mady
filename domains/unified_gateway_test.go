@@ -265,3 +265,54 @@ func (c *countingClassifierDomains) Classify(input string, messages []agentcore.
 	c.onCall()
 	return c.inner.Classify(input, messages)
 }
+
+// --- patent / legal / project 子 Agent 也迁移到 Gateway ---
+
+// assertGatewayWired 是 patent/legal/project 共用的断言：Gateway 已注入、
+// StrategySelector 齐备、无裸 ReasoningStrategyRouter、FallbackRouter 同实例。
+func assertGatewayWired(t *testing.T, cfg agentcore.Config, label string) {
+	t.Helper()
+	g := findGateway(t, cfg.Lifecycle)
+	if g == nil {
+		t.Fatalf("%s: Gateway 未注入 Lifecycle", label)
+	}
+	if g.StrategySelector == nil || !g.StrategySelector.StrategyHintInjection {
+		t.Errorf("%s: StrategySelector 未配置或未启用注入", label)
+	}
+	if g.Fallback == nil {
+		t.Errorf("%s: Fallback 未配置", label)
+	}
+	if cfg.FallbackRouter == nil || cfg.FallbackRouter != g.Fallback {
+		t.Errorf("%s: cfg.FallbackRouter 未指向 Gateway.Fallback（回退链断链）", label)
+	}
+	// 无裸 ReasoningStrategyRouter（避免与 Gateway 双触发）。
+	if chain, ok := cfg.Lifecycle.(agentcore.LifecycleChain); ok {
+		for _, h := range chain {
+			if _, ok := h.(*agentcore.ReasoningStrategyRouter); ok {
+				t.Errorf("%s: 仍存在裸 ReasoningStrategyRouter", label)
+			}
+		}
+	}
+}
+
+func TestPatentAgentConfig_GatewayWired(t *testing.T) {
+	base := agentcore.Config{}
+	base.Provider = &mockProvider{}
+	cfg := PatentAgentConfig(base)
+	assertGatewayWired(t, cfg, "PatentAgentConfig")
+}
+
+func TestLegalAgentConfig_GatewayWired(t *testing.T) {
+	base := agentcore.Config{}
+	base.Provider = &mockProvider{}
+	cfg := LegalAgentConfig(base)
+	assertGatewayWired(t, cfg, "LegalAgentConfig")
+}
+
+func TestBuildProjectAgent_GatewayWired(t *testing.T) {
+	base := agentcore.Config{}
+	base.Provider = &mockProvider{}
+	rec := ProjectRecord{ProjectID: "test-project", Alias: "测试案件"}
+	cfg := BuildProjectAgent(rec, base)
+	assertGatewayWired(t, cfg, "BuildProjectAgent")
+}

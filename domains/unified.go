@@ -57,22 +57,7 @@ func UnifiedAgentConfig(base agentcore.Config) agentcore.Config {
 	// 替换此前单独注册的 ReasoningStrategyRouter，消除每轮两次 Classify。
 	// 接入契约：注册 Gateway 后不得再单独注册 ReasoningRouter /
 	// ReasoningStrategyRouter / FallbackRouter，否则会重复分类与重复健康计数。
-	gateway := agentcore.NewGateway(agentcore.NewDefaultClassifier())
-	gateway.Reasoning = agentcore.NewReasoningRouter(nil) // effort/budget map
-	gateway.StrategySelector = agentcore.NewDefaultStrategySelector()
-	gateway.Fallback = agentcore.NewFallbackRouter(agentcore.FallbackConfig{}, nil, nil)
-	if cfg.ContextWindow > 0 {
-		gateway.BudgetManager = agentcore.NewTokenBudgetManager(agentcore.DefaultBudgetConfig())
-		gateway.ContextWindow = cfg.ContextWindow
-		// 静态工具定义纳入预算估算（Tool → ToolDefinition）。
-		defs := make([]agentcore.ToolDefinition, 0, len(cfg.Tools))
-		for _, t := range cfg.Tools {
-			if t != nil {
-				defs = append(defs, t.Definition())
-			}
-		}
-		gateway.ToolDefinitions = defs
-	}
+	gateway := newDefaultGateway(cfg)
 	cfg.FallbackRouter = gateway.Fallback // 供 callModelWithFallback 使用
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, gateway)
 

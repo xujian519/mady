@@ -100,12 +100,10 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 
 	// ReasoningStrategy: 法律分析需要结构化推理（三段论/法律适用），
 	// 根据问题复杂度自动选择推理策略，注入 strategy hint。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewReasoningStrategyRouter(
-			agentcore.NewDefaultClassifier(),
-			agentcore.NewDefaultStrategySelector(),
-		),
-	)
+	// Gateway 统一决策入口：一次分类驱动 effort/策略/模型回退/预算钳制。
+	legalGateway := newDefaultGateway(cfg)
+	cfg.FallbackRouter = legalGateway.Fallback
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, legalGateway)
 
 	// 法条引用核验 Gate（P1b）：R1 存在性 + R2 交叉匹配，命中疑点追加存疑提示。
 	// P1b 阶段统一按 Standard 处置；Strict 的 SuppressPersist + ApprovalGate 联动留待 P2。

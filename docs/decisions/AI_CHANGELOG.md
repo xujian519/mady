@@ -1,5 +1,45 @@
 # AI 变更记录
 
+## 2026-07-27: patent/legal/project 子 Agent 统一迁移到 Gateway（PilotDeck 架构引入 第五阶段）
+
+### 背景
+第四阶段完成了 unified 主 Agent（`mady-agent`）的 Gateway 接线，但 patent/legal/project
+三个 handoff 子 Agent 仍各自注册裸 `ReasoningStrategyRouter`，每轮两次 Classify。本阶段把
+剩余 4 处（patent×2 + legal×1 + unified 复用）全部迁移到 Gateway，实现全领域决策入口统一。
+
+### 引入的设计
+
+#### 共享装配 helper (`domains/lifecycle.go`)
+- 新增 `newDefaultGateway(cfg agentcore.Config) *agentcore.Gateway`：抽取 unified.go 的
+  Gateway 装配逻辑为领域共享 helper，与 `defaultDoomLoopHook` 并列。
+- 配置统一：Classifier（唯一分类源）+ Reasoning（effort/budget map）+ StrategySelector
+  （策略注入）+ Fallback（候选链空，安全 no-op）+ BudgetManager（仅 ContextWindow>0 时）。
+- 调用方负责 `appendLifecycle` 注册 + `cfg.FallbackRouter` 赋值。
+
+#### 四处调用点迁移
+- `domains/unified.go`：改为复用 `newDefaultGateway(cfg)`，消除重复装配代码。
+- `domains/patent.go` × 2（`PatentAgentConfig` + `BuildProjectAgent`）：替换为 Gateway。
+- `domains/legal.go` × 1（`LegalAgentConfig`）：替换为 Gateway。
+- 迁移后 `domains/` 非测试代码中 `NewReasoningStrategyRouter` 调用归零。
+
+### 关键设计决策
+- **helper 而非 Config 字段**：Gateway 通过 `appendLifecycle` 注册，不需要新增 Config 字段；
+  helper 返回 `*Gateway` 让调用方保留对实例的引用（赋给 `cfg.FallbackRouter`）。
+- **子 Agent 无 ContextWindow → 无 BudgetManager**：patent/legal/project 三个子 Agent 均未设置
+  `ContextWindow`，helper 自动跳过 BudgetManager 配置（与 unified 行为一致，向后兼容）。
+- **候选链仍默认空**：全领域一致，留待候选链配置入口（下一阶段）启用。
+
+### 测试
+- `domains/unified_gateway_test.go` 追加 3 个接线测试（共享 `assertGatewayWired` 断言）：
+  - `TestPatentAgentConfig_GatewayWired`
+  - `TestLegalAgentConfig_GatewayWired`
+  - `TestBuildProjectAgent_GatewayWired`
+- 每个断言：Gateway 已注入、StrategySelector 齐备、无裸 ReasoningStrategyRouter、
+  cfg.FallbackRouter 指向 Gateway.Fallback 同实例。
+- `make verify` 全绿：lint + build + race，三模块无回归。
+
+---
+
 ## 2026-07-27: Gateway 接线 UnifiedAgentConfig + 吸收策略注入（PilotDeck 架构引入 第四阶段）
 
 ### 背景

@@ -302,12 +302,10 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 
 	// ReasoningStrategy: 专利分析通常需要结构化分析或验证式推理，
 	// 因此注入策略提示，根据问题复杂度自动选择合适推理方式。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewReasoningStrategyRouter(
-			agentcore.NewDefaultClassifier(),
-			agentcore.NewDefaultStrategySelector(),
-		),
-	)
+	// Gateway 统一决策入口：一次分类驱动 effort/策略/模型回退/预算钳制。
+	patentGateway := newDefaultGateway(cfg)
+	cfg.FallbackRouter = patentGateway.Fallback
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, patentGateway)
 
 	// 法条引用核验 Gate（P2b Strict）：命中疑点追加存疑提示 +
 	// citation_verify 留痕 + SuppressPersist（未人工复核不入库）。
@@ -420,12 +418,10 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
 
 	// ReasoningStrategy: 项目级别 Agent 同样需要结构化推理策略。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewReasoningStrategyRouter(
-			agentcore.NewDefaultClassifier(),
-			agentcore.NewDefaultStrategySelector(),
-		),
-	)
+	// Gateway 统一决策入口：一次分类驱动 effort/策略/模型回退/预算钳制。
+	projectGateway := newDefaultGateway(cfg)
+	cfg.FallbackRouter = projectGateway.Fallback
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, projectGateway)
 
 	// 法条引用核验 Gate（P1b）：案件答案同样纳入引用核验。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
