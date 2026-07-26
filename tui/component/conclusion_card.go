@@ -53,7 +53,8 @@ func RenderConclusionCard(msg *DomainMessage, t ConclusionCardTheme, width int64
 	lines = append(lines, core.PadToWidth(head, width))
 
 	// Confidence bar (10-cell)
-	confBar := renderConfidenceBar(msg.Confidence, t, width)
+	colors := &ConfidenceBarColors{High: t.HighConf, Medium: t.MediumConf, Low: t.LowConf}
+	confBar := RenderConfidenceBar(msg.Confidence, colors, width, false)
 	lines = append(lines, confBar)
 
 	// Evidence summary
@@ -74,31 +75,4 @@ func RenderConclusionCard(msg *DomainMessage, t ConclusionCardTheme, width int64
 	}
 
 	return lines
-}
-
-// renderConfidenceBar draws a 10-cell ASCII confidence bar colored by level.
-func renderConfidenceBar(conf float64, t ConclusionCardTheme, width int64) string {
-	const cells = 10
-	pct := int(conf * 100)
-	if pct < 0 {
-		pct = 0
-	}
-	if pct > 100 {
-		pct = 100
-	}
-	filled := (pct * cells) / 100
-
-	var barColor func(string) string
-	switch {
-	case pct >= 67:
-		barColor = t.HighConf
-	case pct >= 34:
-		barColor = t.MediumConf
-	default:
-		barColor = t.LowConf
-	}
-
-	bar := "  置信度: " + barColor(strings.Repeat("█", filled)+strings.Repeat("░", cells-filled))
-	bar += " " + fmt.Sprintf("%d%%", pct)
-	return core.PadToWidth(bar, width)
 }

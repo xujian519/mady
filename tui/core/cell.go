@@ -98,10 +98,17 @@ func (s Style) Equal(o Style) bool {
 // with Width=2; the right cell is a continuation with Rune=0 and Width=0.
 // This layout makes column access O(1): row[col] is always the cell at that
 // visible column.
+// Cell represents one character cell in a terminal grid row.
+//
+// Optimisation: Combining is a pointer to a slice (`*[]rune`) so that the
+// Cell struct itself stays small (Combining is nil for the vast majority of
+// cells — combining characters are rare in patent/law text). This
+// dramatically reduces copying costs in DiffFrame and other hot paths where
+// large numbers of Cell values are moved.
 type Cell struct {
-	Rune      rune   // primary rune; 0 if this is a wide-char continuation
-	Combining []rune // trailing combining marks (width 0) attached to Rune
-	Width     int8   // 1 (narrow), 2 (wide), 0 (continuation of a wide char)
+	Rune      rune    // primary rune; 0 if this is a wide-char continuation
+	Combining *[]rune // trailing combining marks (width 0) attached to Rune; nil if none
+	Width     int8    // 1 (narrow), 2 (wide), 0 (continuation of a wide char)
 	Style     Style
 }
 
@@ -113,11 +120,22 @@ func EqualCell(a, b Cell) bool {
 	if a.Width != b.Width || a.Rune != b.Rune || !a.Style.Equal(b.Style) {
 		return false
 	}
-	if len(a.Combining) != len(b.Combining) {
+	// Compare combining marks (pointer-to-slice).
+	var aLen, bLen int
+	if a.Combining != nil {
+		aLen = len(*a.Combining)
+	}
+	if b.Combining != nil {
+		bLen = len(*b.Combining)
+	}
+	if aLen != bLen {
 		return false
 	}
-	for i := range a.Combining {
-		if a.Combining[i] != b.Combining[i] {
+	if aLen == 0 {
+		return true
+	}
+	for i := range *a.Combining {
+		if (*a.Combining)[i] != (*b.Combining)[i] {
 			return false
 		}
 	}

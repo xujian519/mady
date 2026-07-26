@@ -53,7 +53,14 @@ func ParseLine(s string) Row {
 	}
 
 	// Cell-parseable. Walk the string maintaining the running style.
-	cells := make([]Cell, 0, len(s)) // pre-alloc to reduce append reallocs
+	// Heuristic pre-allocation: bytes/2 is a reasonable lower bound on cell
+	// count (ASCII=1 byte/cell, CJK=3 bytes/2-wide cell, ANSI=0-width).
+	// Minimum 64 ensures small lines don't start near-zero.
+	est := len(s) / 2
+	if est < 64 {
+		est = 64
+	}
+	cells := make([]Cell, 0, est)
 	var cursorCol = -1
 	style := DefaultStyle
 
@@ -93,7 +100,10 @@ func ParseLine(s string) Row {
 			for idx > 0 && cells[idx].IsContinuation() {
 				idx--
 			}
-			cells[idx].Combining = append(cells[idx].Combining, r)
+			if cells[idx].Combining == nil {
+				cells[idx].Combining = new([]rune)
+			}
+			*cells[idx].Combining = append(*cells[idx].Combining, r)
 		case rw == 2:
 			cells = append(cells,
 				Cell{Rune: r, Width: 2, Style: style},

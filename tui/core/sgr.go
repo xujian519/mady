@@ -44,25 +44,32 @@ import (
 // ParseSGR parses the parameter list of an SGR sequence (without the
 // leading "ESC [" or trailing "m") and applies the resulting style changes
 // to base, returning the new style.
+//
+// Optimisation: single-pass parsing walks the string extracting integer
+// codes separated by ';' or ':', avoiding intermediate string allocations
+// from strings.ReplaceAll + strings.Split. Most SGR sequences have <8
+// parameters, so the initial capacity is sized accordingly.
 func ParseSGR(params string, base Style) Style {
 	out := base
 	if params == "" {
 		// ESC[m is equivalent to ESC[0m.
 		return DefaultStyle
 	}
-	// Normalise ':' to ';' so we can split on a single delimiter. The colon
-	// form (ITU T.416) is semantically richer but the subset we accept
-	// (38:5:n and 38:2:r:g:b) maps cleanly to the semicolon form.
-	normalised := strings.ReplaceAll(params, ":", ";")
-	parts := strings.Split(normalised, ";")
-	nums := make([]int, 0, len(parts))
-	for _, p := range parts {
-		if p == "" {
-			nums = append(nums, 0)
-			continue
+	nums := make([]int, 0, 8)
+	i := 0
+	for i <= len(params) {
+		// Scan to the next separator (';' or ':') or end of string.
+		j := i
+		for j < len(params) && params[j] != ';' && params[j] != ':' {
+			j++
 		}
-		n := atoiSafe(p)
-		nums = append(nums, n)
+		segment := params[i:j]
+		if segment == "" {
+			nums = append(nums, 0)
+		} else {
+			nums = append(nums, atoiSafe(segment))
+		}
+		i = j + 1
 	}
 	applySGR(nums, &out)
 	return out

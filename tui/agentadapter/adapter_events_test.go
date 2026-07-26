@@ -562,7 +562,7 @@ func TestBindAgent_UnknownChatType(t *testing.T) {
 	BindAgent(sub, agent)
 
 	rec := &recorder{}
-	sub.sub.On(chat.ChatEventType("bogus_event"), rec.handle())
+	sub.sub.On(chat.ChatEventType(99), rec.handle())
 
 	// Emitting a real agentcore event must not reach the bogus handler.
 	emitAndWait(t, agent, agentcore.NewTurnStartEvent(1))

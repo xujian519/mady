@@ -415,7 +415,8 @@ func (g *ReviewGate) renderLocked(width int64) []string {
 
 	// Confidence bar
 	if g.confidence >= 0 {
-		confBar := renderGateConfidenceBar(g.confidence, t, width)
+		colors := &ConfidenceBarColors{High: t.Success, Medium: t.Warning, Low: t.Danger}
+		confBar := RenderConfidenceBar(g.confidence, colors, width, true)
 		out = append(out, confBar)
 	}
 
@@ -537,41 +538,4 @@ func (g *ReviewGate) renderLocked(width int64) []string {
 	out = append(out, core.PadToWidth(finalLine, width))
 
 	return out
-}
-
-// renderGateConfidenceBar draws a 10-cell confidence bar for the review gate.
-func renderGateConfidenceBar(conf float64, t ReviewGateTheme, width int64) string {
-	const cells = 10
-	pct := int(conf * 100)
-	if pct < 0 {
-		pct = 0
-	}
-	if pct > 100 {
-		pct = 100
-	}
-	filled := (pct * cells) / 100
-
-	var barColor func(string) string
-	switch {
-	case pct >= 67:
-		barColor = t.Success
-	case pct >= 34:
-		barColor = t.Warning
-	default:
-		barColor = t.Danger
-	}
-
-	var level string
-	switch {
-	case pct >= 67:
-		level = "高"
-	case pct >= 34:
-		level = "中"
-	default:
-		level = "低"
-	}
-
-	bar := "  置信度: " + barColor(strings.Repeat("█", filled)+strings.Repeat("░", cells-filled))
-	bar += fmt.Sprintf(" %d%% (%s)", pct, level)
-	return core.PadToWidth(bar, width)
 }

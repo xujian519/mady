@@ -87,7 +87,7 @@ tui/
 │   ├── selectlist.go      # Selectable list with fuzzy filter
 │   ├── statusbar.go       # StatusBar
 │   ├── settings.go        # Settings panel
-│   ├── image.go           # Kitty/Sixel/iTerm2 image display
+│   ├── image.go           # Kitty/iTerm2/HalfBlock/ASCII image display
 │   ├── viewport.go        # Scrollable viewport wrapper for large content
 │   ├── table.go           # Tabular data rendering component
 │   ├── fuzzy_provider.go  # FuzzyContentProvider, NormalizeForMatch, SubstringFuzzyFilter
@@ -167,104 +167,20 @@ tui/
 
 ## Key Design Decisions
 
-### No Re-exports
+This section has been extracted into a formal Architecture Decision Record.
+See [`docs/decisions/tui-layers-architecture.md`](../docs/decisions/tui-layers-architecture.md)
+for the complete list of 10 design decisions:
 
-The root `tui` package does NOT re-export sub-package types. Since the library
-has not been published yet, there is no backward-compatibility constraint.
-All consumers import the specific sub-package they need:
-
-```go
-import (
-    core "github.com/xujian519/mady/tui/core"
-    "github.com/xujian519/mady/tui/terminal"
-    "github.com/xujian519/mady/tui/theme"
-    "github.com/xujian519/mady/tui/component"
-    "github.com/xujian519/mady/tui/chat"
-    "github.com/xujian519/mady/tui/agentadapter"
-    "github.com/xujian519/mady/tui"
-)
-```
-
-The root `tui` package exports only the `TUI` engine, `Overlay`, and the
-`NewChatApp` convenience constructor.
-
-### stdio vs component: Two Rendering Models
-
-The TUI module has two parallel rendering models:
-
-1. **TUI Engine** (Layer 3–5): Elm-architecture, differential rendering, `Component` interface.
-   Components render into string arrays, the engine diffs and writes only changes.
-   Used by `ChatApp`.
-
-2. **stdio** (Layer 6): Procedural stdout/stdin, `\r` overwriting, `fmt.Fprint`.
-   No component model, no differential rendering. Used by standalone scripts/examples
-   that want plain stdout output without the TUI engine.
-
-Both share `core.SpinnerStyle` (animation frame data) and `theme` (styling), but
-operate on fundamentally different I/O models. The name `stdio` makes this
-distinct — these tools work on raw stdin/stdout, not through the TUI engine.
-
-### SpinnerStyle in Core
-
-`SpinnerStyle` is a pure data type (animation frames + interval) with no
-rendering dependency. It lives in `core` because both `component.Loader`
-(TUI component) and `stdio.Spinner` (procedural spinner) need it. Putting it
-in either consumer would force the other to import upwards.
-
-### FuzzyContentProvider in Component
-
-`FuzzyContentProvider` implements `core.AutocompleteProvider` and is a
-component-level concept (an autocomplete data source). It was previously in
-`util/fuzzy_bridge.go`, but since `util` has been reclassified as `stdio`
-(procedural I/O tools), the provider belongs in `component` alongside
-`StaticProvider` and `FilePathProvider`.
-
-### Circular Dependency Break: AppHost Interface
-
-`ChatApp` (in `tui/chat`) originally held a `*TUI` pointer, creating a cycle:
-`chat` → `tui` (root) → `chat` (via re-exports).
-
-Solution: `chat.AppHost` interface abstracts the operations ChatApp needs
-(`Start`, `Stop`, `AddChild`, `Focus`, `RequestRender`, `PushOverlay`,
-`RemoveOverlay`, `TerminalSize`). The root `tui` package provides a
-`tuiAppHost` adapter that wraps `*TUI`, living in `chat_bridge.go`.
-
-### Circular Dependency Break: Loader Callback
-
-`Loader` (in `tui/component`) originally held a `*TUI` pointer to call
-`RequestRender()`. Replaced with a `func()` callback injected at construction
-time: `NewLoader(onRequestRender func(), message string)`.
-
-### Decoupling: agentadapter Package
-
-`tui/chat` does NOT import `agentcore`. Instead, `chat` defines its own event
-types (`ChatEvent`, `ChatEventType`) and subscription interfaces (`Subscriber`,
-`EventSubscriber`). The `tui/agentadapter` package provides `BindAgent()` which
-converts `agentcore.Agent` events into `chat.ChatEvent` values and registers
-them via the `Subscriber` interface. This keeps `chat` reusable without
-agentcore and allows other event sources to integrate via the same interface.
-
-### Internal Types Unexported
-
-Types that are implementation details of `chat` are unexported:
-`chatModel`, `chatLayout`, `chatAppendMsg`, `chatUpdateMsg`, `chatDeltaMsg`,
-`chatFinalizeMsg`, `chatClearMsg`, `chatScrollMsg`. Only the public API types
-(`ChatApp`, `ChatAppConfig`, `ChatHistory`, `ChatMessage`,
-event types, interfaces) are exported.
-
-### Msg Interface: MsgMarker() Method
-
-`core.Msg` uses an exported `MsgMarker()` method instead of unexported `msg()`,
-allowing external packages (e.g. `chat`) to implement the interface and use
-type switches across package boundaries. External types can also embed
-`core.MsgBase` for zero-effort compliance.
-
-### Suggestion & AutocompleteProvider in Core
-
-These interface/struct types live in `core` because multiple packages implement
-`AutocompleteProvider` and return `Suggestion` values (`component.StaticProvider`,
-`component.FuzzyContentProvider`, etc.). Placing them in `core` avoids upward
-dependencies that would violate the layer ordering.
+1. [No Re-exports](../docs/decisions/tui-layers-architecture.md#决策-1不重导出no-re-exports)
+2. [Two Rendering Models (stdio vs Component)](../docs/decisions/tui-layers-architecture.md#决策-2两套渲染模型stdio-vs-component)
+3. [SpinnerStyle in Core](../docs/decisions/tui-layers-architecture.md#决策-3spinnerstyle-放在-core)
+4. [FuzzyContentProvider in Component](../docs/decisions/tui-layers-architecture.md#决策-4fuzzycontentprovider-在-component)
+5. [Circular Dependency Break: AppHost Interface](../docs/decisions/tui-layers-architecture.md#决策-5循环依赖中断--apphost-接口)
+6. [Circular Dependency Break: Loader Callback](../docs/decisions/tui-layers-architecture.md#决策-6循环依赖中断--loader-回调)
+7. [Decoupling: agentadapter Package](../docs/decisions/tui-layers-architecture.md#决策-7解耦--agentadapter-包)
+8. [Internal Types Unexported](../docs/decisions/tui-layers-architecture.md#决策-8内部类型不导出)
+9. [Msg Interface: Exported MsgMarker()](../docs/decisions/tui-layers-architecture.md#决策-9msg-接口使用导出-msgmarker)
+10. [Suggestion & AutocompleteProvider in Core](../docs/decisions/tui-layers-architecture.md#决策-10suggestion-和-autocompleteprovider-在-core)
 
 ### Cell-Level Rendering Model (core/cell*.go + sgr.go)
 

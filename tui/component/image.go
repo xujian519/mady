@@ -27,6 +27,9 @@ import (
 //   - Unicode half-block fallback (▀) — works on every modern truecolor tty.
 //   - ASCII fallback — monochrome weighted characters (no color).
 //
+// Note: Sixel is not supported. The Kitty protocol provides superior
+// quality and broader terminal support than Sixel on modern terminals.
+//
 // resampling is a simple nearest-neighbor implementation.
 // ---------------------------------------------------------------------------
 

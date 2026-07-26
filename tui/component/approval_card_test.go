@@ -5,21 +5,7 @@ import (
 	"testing"
 )
 
-// testApprovalTheme returns a simple ApprovalCardTheme for testing.
-func testApprovalTheme() ApprovalCardTheme {
-	id := func(s string) string { return s }
-	return ApprovalCardTheme{
-		Title:         id,
-		Border:        id,
-		Warning:       id,
-		Dim:           id,
-		Action:        id,
-		Body:          id,
-		MarkdownTheme: DefaultMarkdownTheme(),
-	}
-}
-
-func TestRenderApprovalConfBar(t *testing.T) {
+func TestRenderConfidenceBarNoColor(t *testing.T) {
 	tests := []struct {
 		name       string
 		confidence float64
@@ -37,17 +23,70 @@ func TestRenderApprovalConfBar(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tm := testApprovalTheme()
-			got := renderApprovalConfBar(tt.confidence, tm, tt.width)
+			got := RenderConfidenceBar(tt.confidence, nil, tt.width, false)
 			if !strings.Contains(got, tt.wantPct) {
-				t.Errorf("renderApprovalConfBar(%v) = %q, want containing %q",
-					tt.confidence, got, tt.wantPct)
+				t.Errorf("RenderConfidenceBar(%v, nil, %d, false) = %q, want containing %q",
+					tt.confidence, tt.width, got, tt.wantPct)
 			}
 			// Verify the bar characters are present
 			if !strings.Contains(got, "█") && !strings.Contains(got, "░") {
 				t.Errorf("bar should contain block characters: %q", got)
 			}
 		})
+	}
+}
+
+func TestRenderConfidenceBarColored(t *testing.T) {
+	id := func(s string) string { return "<" + s + ">" }
+	colors := &ConfidenceBarColors{High: id, Medium: id, Low: id}
+
+	tests := []struct {
+		name       string
+		confidence float64
+		showLevel  bool
+		wantSubstr string
+	}{
+		{"high confidence, no level", 0.9, false, "90%"},
+		{"medium confidence, with level", 0.5, true, "50% (中)"},
+		{"low confidence, with level", 0.2, true, "20% (低)"},
+		{"high confidence, with level", 0.9, true, "90% (高)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RenderConfidenceBar(tt.confidence, colors, 40, tt.showLevel)
+			if !strings.Contains(got, tt.wantSubstr) {
+				t.Errorf("RenderConfidenceBar(%v, colored, 40, %v) = %q, want containing %q",
+					tt.confidence, tt.showLevel, got, tt.wantSubstr)
+			}
+			// Verify styling wrapper
+			if !strings.Contains(got, "<") || !strings.Contains(got, ">") {
+				t.Errorf("colored bar should contain style wrappers: %q", got)
+			}
+		})
+	}
+}
+
+func TestRenderConfidenceBarNoColorEmptyColors(t *testing.T) {
+	// Even with a non-nil ConfidenceBarColors, nil color functions
+	// should not panic and should render the same as uncolored.
+	colors := &ConfidenceBarColors{}
+	got := RenderConfidenceBar(0.5, colors, 40, false)
+	if !strings.Contains(got, "50%") || !strings.Contains(got, "█") {
+		t.Errorf("uncolored empty colors bar: %q", got)
+	}
+}
+
+// testApprovalTheme returns a simple ApprovalCardTheme for testing.
+func testApprovalTheme() ApprovalCardTheme {
+	id := func(s string) string { return s }
+	return ApprovalCardTheme{
+		Title:         id,
+		Border:        id,
+		Warning:       id,
+		Dim:           id,
+		Action:        id,
+		Body:          id,
+		MarkdownTheme: DefaultMarkdownTheme(),
 	}
 }
 

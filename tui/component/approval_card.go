@@ -56,7 +56,7 @@ func RenderApprovalCard(msg *DomainMessage, t ApprovalCardTheme, width int64) []
 	}
 
 	// Confidence bar + evidence summary divider
-	confBar := renderApprovalConfBar(msg.Confidence, t, width)
+	confBar := RenderConfidenceBar(msg.Confidence, nil, width, false)
 	lines = append(lines, confBar, dashDivider)
 	supportN := msg.SupportingSpans()
 	counterN := msg.ContradictingSpans()
@@ -86,21 +86,4 @@ func RenderApprovalCard(msg *DomainMessage, t ApprovalCardTheme, width int64) []
 
 	lines = append(lines, divider)
 	return lines
-}
-
-func renderApprovalConfBar(conf float64, t ApprovalCardTheme, width int64) string {
-	const cells = 10
-	pct := int(conf * 100)
-	if pct < 0 {
-		pct = 0
-	}
-	if pct > 100 {
-		pct = 100
-	}
-	filled := (pct * cells) / 100
-
-	bar := fmt.Sprintf("  置信度: %s %d%%",
-		strings.Repeat("█", filled)+strings.Repeat("░", cells-filled),
-		pct)
-	return core.PadToWidth(bar, width)
 }

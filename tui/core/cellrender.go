@@ -53,8 +53,10 @@ func SerializeRow(row Row) string {
 		if c.Rune != 0 {
 			b.WriteRune(c.Rune)
 		}
-		for _, m := range c.Combining {
-			b.WriteRune(m)
+		if c.Combining != nil {
+			for _, m := range *c.Combining {
+				b.WriteRune(m)
+			}
 		}
 	}
 	if activeNonDefault {
@@ -96,8 +98,10 @@ func SerializeRowSegment(cells []Cell, afterStyle Style) string {
 		if c.Rune != 0 {
 			b.WriteRune(c.Rune)
 		}
-		for _, m := range c.Combining {
-			b.WriteRune(m)
+		if c.Combining != nil {
+			for _, m := range *c.Combining {
+				b.WriteRune(m)
+			}
 		}
 	}
 	if !afterStyle.Equal(prev) {

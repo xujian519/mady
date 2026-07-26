@@ -209,7 +209,7 @@ func TestParseLineCombiningMark(t *testing.T) {
 	if row.Cells[0].Rune != 'e' {
 		t.Fatalf("base rune = %q, want 'e'", row.Cells[0].Rune)
 	}
-	if len(row.Cells[0].Combining) != 1 || row.Cells[0].Combining[0] != 0x0301 {
+	if row.Cells[0].Combining == nil || len(*row.Cells[0].Combining) != 1 || (*row.Cells[0].Combining)[0] != 0x0301 {
 		t.Fatalf("combining = %v, want [U+0301]", row.Cells[0].Combining)
 	}
 	if row.VisibleWidth() != 1 {

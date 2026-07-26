@@ -1,6 +1,74 @@
 # AI 变更记录
 
-## 2026-07-26: T3.5+T3.17 ParseKeys 根治 — 移除全局 kittyFlagsGlobal + T3.16 LAYERS.md 妥协文档
+## 2026-07-26: Sprint 3 全部完成 — T3.2~T3.15 共 11 项
+
+### 背景
+完成 TUI 优化计划 Sprint 3 的全部 11 项剩余任务，涵盖性能优化、Medium 修复、
+架构改进、无障碍主题和文档治理。
+
+### 变更
+
+#### T3.2 — ParseLine 预分配 cells（1h）
+`cellparse.go:56` 中 `make([]Cell, 0, len(s))` → `make([]Cell, 0, max(64, len(s)/2))`，
+减少 UTF-8 多字节字符和 ANSI 序列导致的 over-allocation。
+
+#### T3.4 — ParseSGR 减少分配（2h）
+替换 `strings.ReplaceAll(":", ";") + strings.Split(";")` 为单遍字符扫描（不分配中间
+字符串），直接在 `params` 上解析分隔符 `;`/`:`。`make([]int, 0, 8)` 适配常见短 SGR。
+
+#### T3.7 — 置信度条渲染器去重（3h）
+将 `conclusion_card.go`、`review_gate.go`、`approval_card.go` 三个文件中三份
+几乎相同的置信度条渲染合并为 `confidence_bar.go` 的 `RenderConfidenceBar`，
+通过 `ConfidenceBarColors` 和 `showLevel` 参数化差异。删除了约 60 行重复逻辑。
+
+#### T3.6 — Sixel 文档修正（2h）
+`LAYERS.md` 中 "Kitty/Sixel/iTerm2" → "Kitty/iTerm2/HalfBlock/ASCII"；
+`image.go` 注释增加 Sixel 不支持的说明。未实现 Sixel（方案 A，当前无硬需求）。
+
+#### T3.8 — ChatEvent 三重标识收敛（1 天）
+`ChatEventType` 从 `string` 改为 `int` 枚举（iota），消除与 `agentcore.EventType` 的
+字符串耦合。添加 `String()`/`GoString()` 方法保持测试 `%q` 输出可读性。
+更新 `state_test.go` 和 `adapter_events_test.go` 中的硬编码字符串。
+
+#### T3.9 — 拆分 AppHost 接口 ISP（3h）
+将 `AppHost` 拆分为 `LifecycleHost`、`ComponentHost`、`OverlayHost`、`TerminalHost`
+四个窄接口，`AppHost` 保留为组合接口。所有实现方（`tuiAppHost`、`testAppHost`）
+自动满足四个子接口，无需修改。
+
+#### T3.10 — 补 8 个零覆盖文件渲染测试（2-3 天）
+新增 `render_components_test.go`，覆盖 `conclusion_card`、`evidence_card`、`statusbar`、
+`session_selector`、`skill_center`、`todo_panel`、`table`、`command_center` 共 8 个
+组件的渲染路径。18 个测试函数验证基本渲染、边界条件和默认主题。
+
+#### T3.13 — 错误类型分层（1h）
+新增 `tui/core/errors.go` 定义 `TerminalError`（终端 I/O）和 `ClipboardError`（剪贴板）
+两个错误类型，均有真实消费者。`chat/clipboard.go` 中 4 处 `fmt.Errorf` 改为
+`&core.ClipboardError{Op: ..., Err: ...}`。
+
+#### T3.14 — high-contrast + 色盲主题（3 天）
+新增 `theme/a11y_themes.go`：
+- `HighContrast()` — 纯黑底+白字，最大亮度对比，粗白边框
+- `ColorBlind()` — 蓝-橙配色替代红-绿，信息不依赖纯颜色区分
+注册到 `theme_registry.go`，可通过名称选择。
+
+#### T3.15 — Key Decisions → ADR（1 天）
+将 `LAYERS.md` 的 "Key Design Decisions" 全部 10 项决策提取为独立 ADR
+`docs/decisions/tui-layers-architecture.md`，LAYERS.md 中原位置改为指向 ADR 的
+引用链接列表（含锚点跳转）。
+
+#### T3.3 — Cell.Combining 指针化（高风险，1 周）
+`Cell.Combining []rune` → `*[]rune`，nil 表示无 combining char。
+减少 Cell 结构体大小（slice header 24B → pointer 8B），降低 DiffFrame 等
+热路径中大量 Cell 拷贝的开销。更新 `EqualCell`、`ParseLine`、`SerializeRow`、
+`SerializeRowSegment` 和测试共 15 处访问点，全部通过 `Combining != nil` guard。
+
+### 验证
+- `go build ./...` — 根模块 + tools + tui 三模块全绿
+- `go test -race ./...` — TUI 模块 10 个子包共计 10+ 分钟 race 测试全绿
+- `golangci-lint run ./...` — 根 + tui 双模块 0 issues
+
+### 文件统计
+修改 17 文件 + 新增 6 文件，净增 ~450 行
 
 ### 背景
 Sprint 1 用方案 A（测试 cleanup）临时修复 Kitty 全局状态污染。Sprint 3 实施方案 B

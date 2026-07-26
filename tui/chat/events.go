@@ -14,27 +14,60 @@ type Subscriber interface {
 	Subscribe(sub EventSubscriber)
 }
 
-type ChatEventType string
+// ChatEventType 是聊天事件的类型标识符（int 枚举）。
+type ChatEventType int
 
 const (
-	ChatEventAgentStart      ChatEventType = "agent_start"
-	ChatEventAgentEnd        ChatEventType = "agent_end"
-	ChatEventAgentError      ChatEventType = "agent_error"
-	ChatEventTurnStart       ChatEventType = "turn_start"
-	ChatEventTurnEnd         ChatEventType = "turn_end"
-	ChatEventMessageDelta    ChatEventType = "message_delta"
-	ChatEventToolCallStart   ChatEventType = "tool_call_start"
-	ChatEventToolCallEnd     ChatEventType = "tool_call_end"
-	ChatEventHandoffStart    ChatEventType = "handoff_start"
-	ChatEventHandoffEnd      ChatEventType = "handoff_end"
-	ChatEventCompactionStart ChatEventType = "compaction_start"
-	ChatEventCompactionEnd   ChatEventType = "compaction_end"
-	ChatEventAutoRetry       ChatEventType = "auto_retry"
-	ChatEventAgentInterrupt  ChatEventType = "agent_interrupt"
-	ChatEventApprovalPrompt  ChatEventType = "approval_prompt"
-	ChatEventTaskCreated     ChatEventType = "task_created"
-	ChatEventTaskUpdated     ChatEventType = "task_updated"
+	ChatEventAgentStart ChatEventType = iota
+	ChatEventAgentEnd
+	ChatEventAgentError
+	ChatEventTurnStart
+	ChatEventTurnEnd
+	ChatEventMessageDelta
+	ChatEventToolCallStart
+	ChatEventToolCallEnd
+	ChatEventHandoffStart
+	ChatEventHandoffEnd
+	ChatEventCompactionStart
+	ChatEventCompactionEnd
+	ChatEventAutoRetry
+	ChatEventAgentInterrupt
+	ChatEventApprovalPrompt
+	ChatEventTaskCreated
+	ChatEventTaskUpdated
 )
+
+// chatEventTypeNames maps ChatEventType to descriptive strings for
+// debugging and formatted output (e.g. test %q, log %v).
+var chatEventTypeNames = map[ChatEventType]string{
+	ChatEventAgentStart:      "agent_start",
+	ChatEventAgentEnd:        "agent_end",
+	ChatEventAgentError:      "agent_error",
+	ChatEventTurnStart:       "turn_start",
+	ChatEventTurnEnd:         "turn_end",
+	ChatEventMessageDelta:    "message_delta",
+	ChatEventToolCallStart:   "tool_call_start",
+	ChatEventToolCallEnd:     "tool_call_end",
+	ChatEventHandoffStart:    "handoff_start",
+	ChatEventHandoffEnd:      "handoff_end",
+	ChatEventCompactionStart: "compaction_start",
+	ChatEventCompactionEnd:   "compaction_end",
+	ChatEventAutoRetry:       "auto_retry",
+	ChatEventAgentInterrupt:  "agent_interrupt",
+	ChatEventApprovalPrompt:  "approval_prompt",
+	ChatEventTaskCreated:     "task_created",
+	ChatEventTaskUpdated:     "task_updated",
+}
+
+func (t ChatEventType) String() string {
+	if name, ok := chatEventTypeNames[t]; ok {
+		return name
+	}
+	return "unknown"
+}
+
+// GoString implements fmt.GoStringer for test output compatibility.
+func (t ChatEventType) GoString() string { return t.String() }
 
 type ChatEvent interface {
 	ChatEventKind() ChatEventType

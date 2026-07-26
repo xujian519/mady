@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/xujian519/mady/tui/core"
 )
 
 // CopyToClipboard writes text to the system clipboard.
@@ -33,12 +35,12 @@ func copyNative(text string) error {
 		} else if p, _ := exec.LookPath("xsel"); p != "" {
 			cmd = exec.Command("xsel", "--clipboard", "--input")
 		} else {
-			return fmt.Errorf("no clipboard command found")
+			return &core.ClipboardError{Op: "copy", Err: fmt.Errorf("no clipboard command found")}
 		}
 	case "windows":
 		cmd = exec.Command("clip.exe")
 	default:
-		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+		return &core.ClipboardError{Op: "copy", Err: fmt.Errorf("unsupported platform: %s", runtime.GOOS)}
 	}
 	cmd.Stdin = strings.NewReader(text)
 	return cmd.Run()
@@ -87,16 +89,16 @@ func readNative() (string, error) {
 		} else if p, _ := exec.LookPath("xsel"); p != "" {
 			cmd = exec.Command("xsel", "--clipboard", "--output")
 		} else {
-			return "", fmt.Errorf("no clipboard command found")
+			return "", &core.ClipboardError{Op: "paste", Err: fmt.Errorf("no clipboard command found")}
 		}
 	case "windows":
 		cmd = exec.Command("powershell", "-command", "Get-Clipboard")
 	default:
-		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+		return "", &core.ClipboardError{Op: "paste", Err: fmt.Errorf("unsupported platform: %s", runtime.GOOS)}
 	}
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("read clipboard: %w", err)
+		return "", &core.ClipboardError{Op: "paste", Err: fmt.Errorf("read clipboard: %w", err)}
 	}
 	return strings.TrimRight(string(out), "\n\r"), nil
 }

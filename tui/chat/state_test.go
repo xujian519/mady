@@ -114,7 +114,7 @@ func TestEventKindForUnknownIsNoOp(t *testing.T) {
 
 type unknownTestEvent struct{}
 
-func (unknownTestEvent) ChatEventKind() ChatEventType { return "unknown-test-event" }
+func (unknownTestEvent) ChatEventKind() ChatEventType { return ChatEventAgentStart }
 
 func TestAppStateString(t *testing.T) {
 	want := map[AppState]string{

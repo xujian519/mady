@@ -38,6 +38,8 @@ func init() {
 	registerBuiltin("tokyo-night", "Tokyo Night", true, tokyoNightFactory)
 	registerBuiltin("rose-pine-moon", "Rose Pine Moon", true, rosePineMoonFactory)
 	registerBuiltin("grok-night", "Grok Night", true, grokNightFactory)
+	registerBuiltin("high-contrast", "High Contrast", true, HighContrast)
+	registerBuiltin("colorblind", "Color Blind", false, ColorBlind)
 	// Auto is a meta-theme that resolves to dark or light based on system appearance.
 	// Not registered via registerBuiltin because it delegates to one of the concrete themes.
 	registerBuiltin("auto", "Auto (follow system)", true, autoThemeFactory)
