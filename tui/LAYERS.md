@@ -30,12 +30,12 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 101 source files (+ 50 test files) across 9 packages.
+> Auto-verified: 103 source files (+ 51 test files) across 9 packages.
 > Last sync: 2026-07-26.
 
 ```
 tui/
-├── core/                  # Layer 0 — Foundation (11 source files)
+├── core/                  # Layer 0 — Foundation (13 source files)
 │   ├── component.go       # Component/Updatable/Focusable interfaces, Container, CURSOR_MARKER
 │   ├── message.go         # Msg/Cmd types, Batch/Sequence/Quit, MsgBase
 │   ├── width.go           # East-Asian width, truncation, padding, wrapping
@@ -46,7 +46,9 @@ tui/
 │   ├── celldiff.go        # Cell-level frame diff (DiffRows), stricter than string diff
 │   ├── cellparse.go       # string → Row parser (ANSI escape → Cell grid)
 │   ├── cellrender.go      # Row → ANSI string serializer (SerializeRow)
-│   └── sgr.go             # SGR state machine: ParseSGR/BuildSGR, permissive parameter parsing
+│   ├── sgr.go             # SGR state machine: ParseSGR/BuildSGR, permissive parameter parsing
+│   ├── sanitize.go        # SanitizeRawContent: strips dangerous escape sequences from raw output
+│   └── stack.go           # CaptureStack: goroutine stack trace for PanicMsg diagnostics
 │
 ├── terminal/              # Layer 1 — Terminal I/O (9 source files)
 │   ├── keys.go            # Key parsing, MatchesKey, Kitty protocol, KeyID

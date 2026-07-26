@@ -66,9 +66,9 @@
 //		"os"
 //		"os/signal"
 //
-//		core "github.com/xujian519/mady/tui/core"
-//		"github.com/xujian519/mady/tui/terminal"
 //		"github.com/xujian519/mady/tui"
+//		"github.com/xujian519/mady/tui/component"
+//		"github.com/xujian519/mady/tui/terminal"
 //	)
 //
 //	func main() {
@@ -76,11 +76,11 @@
 //		defer cancel()
 //
 //		// Create the TUI engine.
-//		term := terminal.ProcessTerminal()
-//		app := tui.New(term)
+//		term := terminal.NewProcessTerminal()
+//		app := tui.NewTUI(term)
 //
 //		// Add a simple text component as the root.
-//		hello := core.NewText("Hello, TUI!")
+//		hello := component.NewText("Hello, TUI!")
 //		app.AddChild(hello)
 //		app.Focus(hello)
 //

@@ -249,7 +249,9 @@ func (t *ProcessTerminal) Stop() error {
 	_, _ = t.out.WriteString("\x1b[?25h") // ensure cursor is visible
 
 	if savedValid && saved != nil {
-		_ = setTermios(t.in.Fd(), saved)
+		if err := setTermios(t.in.Fd(), saved); err != nil {
+			return fmt.Errorf("tui: restore termios: %w", err)
+		}
 	}
 	return nil
 }

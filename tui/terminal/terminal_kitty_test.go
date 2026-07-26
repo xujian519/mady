@@ -54,6 +54,14 @@ func TestTerminalSupportsKittyKeyboard_Detection(t *testing.T) {
 }
 
 func TestProcessTerminalKittyKbdMode(t *testing.T) {
+	// SetKittyKeyboardFlags writes to the package-global kittyFlagsGlobal
+	// (via SetKittyKeyboardFlagsFromTerminal). Reset it after this test so
+	// subsequent ParseKeys-based tests (TestKittyAlternateKeyAndText, etc.)
+	// are not polluted by the flag values set here. (C-1 fix)
+	t.Cleanup(func() {
+		SetKittyKeyboardFlagsFromTerminal(0)
+	})
+
 	tm := NewProcessTerminal()
 	tm.SetKittyKeyboardMode("on")
 	if tm.enableKittyKeyboard != kittyKbdForceOn {

@@ -70,21 +70,29 @@ func TestRenderFrameCellDiffRawRow(t *testing.T) {
 	app := NewTUI(vt, TUIOptions{DisableSynchronizedOutput: true})
 	defer app.Stop()
 
-	comp := &staticComponent{lines: []string{"\x1b]0;title A\x07"}}
+	// Content with OSC title injection triggers Raw fallback (non-SGR escape).
+	// The sanitizer should strip the OSC sequence but preserve visible text.
+	comp := &staticComponent{lines: []string{"\x1b[31mred\x1b[0m \x1b]0;title A\x07"}}
 	app.AddChild(comp)
 
 	app.renderFrame()
 	vt.ResetOutput()
 
-	comp.lines = []string{"\x1b]0;title B\x07"}
+	comp.lines = []string{"\x1b[31mred\x1b[0m \x1b]0;title B\x07"}
 	app.renderFrame()
 
 	out := vt.OutputString()
-	if !strings.Contains(out, "title B") {
-		t.Fatalf("expected raw row rewrite to emit new title, got %q", out)
-	}
+	// Raw row rewrite should still emit cursor positioning.
 	if !strings.Contains(out, "\x1b[1;1H") {
 		t.Fatalf("expected cursor move to column 1 for raw row rewrite, got %q", out)
+	}
+	// SGR + visible text should survive sanitization.
+	if !strings.Contains(out, "\x1b[31mred\x1b[0m") {
+		t.Fatalf("SGR and visible text should survive sanitization, got %q", out)
+	}
+	// OSC title injection should be stripped.
+	if strings.Contains(out, "title B") {
+		t.Fatalf("OSC 0 title should be sanitized from raw row, got %q", out)
 	}
 }
 

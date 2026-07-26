@@ -153,8 +153,11 @@ func (t *TUI) renderFrame() {
 				// Raw rows lack cell structure — fall back to a full-row
 				// rewrite. Reset style first because the SGR state after a
 				// cursor move is unknown.
+				// Sanitize to strip dangerous escape sequences (OSC/DCS/APC/
+				// non-SGR CSI) that could inject hyperlinks, title changes,
+				// or terminal mode switches from LLM-generated content.
 				buf.WriteString(terminal.CursorPosition(d.Row+1, 1) + terminal.Reset)
-				buf.WriteString(d.RawContent)
+				buf.WriteString(core.SanitizeRawContent(d.RawContent))
 				continue
 			}
 			for _, seg := range d.Segments {

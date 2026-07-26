@@ -8,7 +8,6 @@ package tui
 import (
 	"fmt"
 	"log/slog"
-	"runtime"
 	"strings"
 	"time"
 
@@ -58,7 +57,7 @@ func (t *TUI) processMsg(msg core.Msg) {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					t.SendMsg(core.PanicMsg{Err: r, Stack: captureStack(), CmdIndex: 0})
+					t.SendMsg(core.PanicMsg{Err: r, Stack: core.CaptureStack(), CmdIndex: 0})
 				}
 			}()
 			result := first()
@@ -184,7 +183,7 @@ func (t *TUI) execCmdIndexed(cmd core.Cmd, idx int) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			t.sendMsgSafe(core.PanicMsg{Err: r, Stack: captureStack(), CmdIndex: idx})
+			t.sendMsgSafe(core.PanicMsg{Err: r, Stack: core.CaptureStack(), CmdIndex: idx})
 		}
 	}()
 	msg := cmd()
@@ -215,13 +214,6 @@ func (t *TUI) sendMsgSafe(msg core.Msg) {
 	case t.msgCh <- msg:
 	case <-t.doneCh:
 	}
-}
-
-// captureStack returns a truncated stack trace for panic diagnostics.
-func captureStack() string {
-	buf := make([]byte, 4096)
-	n := runtime.Stack(buf, false)
-	return string(buf[:n])
 }
 
 // SendMsg enqueues a message for processing by the event loop.

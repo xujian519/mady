@@ -20,9 +20,13 @@ import "strings"
 // ---------------------------------------------------------------------------
 
 // SerializeRow converts a Row to an ANSI string.
+// SerializeRow converts a Row into an ANSI string suitable for terminal
+// output. For Raw rows (non-cell-structured content, e.g. LLM output with
+// unrepresentable escape sequences), the content is sanitized to strip
+// dangerous escape sequences (OSC/DCS/APC/non-SGR CSI) before emission.
 func SerializeRow(row Row) string {
 	if row.IsRaw() {
-		return row.Raw
+		return SanitizeRawContent(row.Raw)
 	}
 	if len(row.Cells) == 0 {
 		return ""

@@ -1,5 +1,52 @@
 # AI 变更记录
 
+## 2026-07-26: TUI 模块 Sprint 1 Critical 修复（T1.1–T1.5）
+
+### 背景
+基于 TUI 审阅优化计划执行 Sprint 1，修复 5 个阻断级 Critical 问题。
+每个问题涉及不同的安全/正确性维度，独立修复并验证。
+
+### 改动清单
+
+| 任务 | 关联 | 文件 | 改动 |
+|------|------|------|------|
+| **T1.1** C-1 Kitty 全局状态污染 | 测试确定性 | `tui/terminal/terminal_kitty_test.go` | `TestProcessTerminalKittyKbdMode` 添加 `t.Cleanup(func(){ SetKittyKeyboardFlagsFromTerminal(0) })`，重置全局 `kittyFlagsGlobal`。`-race -count=10` 从间歇失败变为连续 10 次全绿 |
+| **T1.2** C-2 termios 错误吞没 | 终端安全 | `tui/terminal/terminal.go:250` | `_ = setTermios(...)` → `if err := setTermios(...); err != nil { return fmt.Errorf(...) }`。Stop() 现在正确传播 termios 恢复失败 |
+| **T1.3** C-3 PanicMsg 丢堆栈 | 可诊断性 | 新建 `tui/core/stack.go`，改 `tui/core/message.go`、`tui/tui_input.go` | `captureStack()` 从 tui 根包提升为 `core.CaptureStack()`（导出），PanicMsg.Stack 从 `""` 改为 `CaptureStack()`。测试日志已确认 stack 正确填充 |
+| **T1.4** C-5 doc.go 示例不可编译 | 新人上手 | `tui/doc.go` | 修正 3 处 API：`ProcessTerminal()`→`NewProcessTerminal()`、`tui.New()`→`tui.NewTUI()`、`core.NewText()`→`component.NewText()` + import 调整 |
+| **T1.5** C-4 LLM ANSI 注入 | 安全关键 | 新建 `tui/core/sanitize.go`+`sanitize_test.go`，改 `tui/core/cellrender.go`、`tui/tui_render.go`、`celldiff_integration_test.go` | 新增 `SanitizeRawContent()` 白名单清洗层：仅保留 SGR + CursorMarker，剥离 OSC/DCS/APC/非 SGR CSI。集成到渲染全帧路径（SerializeRow）和差分路径（RawContent 写入点）。13 个针对性测试覆盖 OSC8 超链接/OSC0 标题/OSC52 剪贴板/DCS/Kitty APC/DEC 私有模式/光标移动等注入向量 |
+
+### 安全影响分析（T1.5）
+
+**修复前**：LLM 输出中的 ANSI 转义序列通过 Raw 行路径直接写入 stdout，可注入：
+- OSC 8 超链接（`file://` 钓鱼）
+- OSC 0 终端标题篡改
+- OSC 52 剪贴板写入（数据外泄）
+- DEC 私有模式 `?1049h`（切换备用屏幕，界面劫持）
+- DCS 设备查询（终端指纹）
+
+**修复后**：严格白名单策略，仅允许 SGR（颜色/样式）和 CursorMarker（光标定位），其余一律剥离。双层防御：
+1. `SerializeRow` 在全帧渲染时清洗 Raw 行
+2. `tui_render.go` 在差分渲染时显式调用 `SanitizeRawContent`
+
+### 验证结果
+- `cd tui && go build ./...` 通过
+- `cd tui && go vet ./...` 通过
+- `cd tui && go test -race -count=1 ./...` 11 包全绿
+- `cd tui && go test -race -count=10 ./terminal/` 连续 10 次通过（C-1 确认修复）
+- `golangci-lint run ./tui/...` 0 issues
+- `cd tui && bash scripts/verify_layers.sh` ✅ 102 文件一致
+- 根模块 `go build ./...` 通过
+- `core/sanitize_test.go` 13 个注入向量测试全绿
+
+### 设计决策
+- **T1.1 用方案 A（测试 cleanup）而非方案 B（根治全局状态）**：方案 A 30 分钟零风险，方案 B 改变 `ParseKeys` 公共 API（2-3 小时，影响所有调用方）。方案 B 保留为 Sprint 3 的 T3.5/T3.17
+- **T1.3 提升到 core 而非新建独立包**：`CaptureStack` 仅 5 行，独立包过重；放在 core 与 `PanicMsg` 同包，消除循环依赖
+- **T1.5 渲染时清洗而非解析时**：单一控制点（SerializeRow + RawContent 写入），不改变解析行为，易于测试和维护。双层防御确保即使一条路径被绕过，另一条仍有效
+- **T1.5 白名单而非黑名单**：安全关键场景必须用白名单——黑名单只能覆盖已知威胁，白名单默认拒绝一切未知
+
+---
+
 ## 2026-07-26: TUI 模块 Sprint 0 Quick-win 基线修复（T0.1–T0.8）
 
 ### 背景

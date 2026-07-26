@@ -185,7 +185,7 @@ func WithContext(ctx context.Context, cmd Cmd) Cmd {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					done <- PanicMsg{Err: r, Stack: ""}
+					done <- PanicMsg{Err: r, Stack: CaptureStack()}
 				}
 			}()
 			done <- cmd()
