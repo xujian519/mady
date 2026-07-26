@@ -49,40 +49,54 @@ func (p *ProgressBar) SetWriter(w io.Writer)  { p.mu.Lock(); p.writer = w; p.mu.
 // Set updates the current progress value and re-renders.
 func (p *ProgressBar) Set(value int64) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	p.current = value
 	if p.current > p.total {
 		p.current = p.total
 	}
-	p.render()
+	output := p.renderLocked()
+	w := p.writer
+	p.mu.Unlock()
+
+	if output != "" {
+		fmt.Fprint(w, output)
+	}
 }
 
 // Increment adds delta to the current progress.
 func (p *ProgressBar) Increment(delta int64) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	p.current += delta
 	if p.current > p.total {
 		p.current = p.total
 	}
-	p.render()
+	output := p.renderLocked()
+	w := p.writer
+	p.mu.Unlock()
+
+	if output != "" {
+		fmt.Fprint(w, output)
+	}
 }
 
 // Done renders the final state and moves to a new line.
 func (p *ProgressBar) Done() {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	p.current = p.total
-	p.render()
-	fmt.Fprintln(p.writer)
+	output := p.renderLocked()
+	w := p.writer
+	p.mu.Unlock()
+
+	if output != "" {
+		fmt.Fprint(w, output)
+	}
+	fmt.Fprintln(w)
 }
 
-func (p *ProgressBar) render() {
+// renderLocked builds the progress bar output string. Must be called with
+// p.mu held; caller writes the result outside the lock.
+func (p *ProgressBar) renderLocked() string {
 	if p.total <= 0 {
-		return
+		return ""
 	}
 
 	pal := theme.CurrentPalette()
@@ -105,7 +119,7 @@ func (p *ProgressBar) render() {
 		label = p.label + " "
 	}
 
-	fmt.Fprintf(p.writer, "\r%s%s %s %s",
+	return fmt.Sprintf("\r%s%s %s %s",
 		label,
 		bar,
 		pal.Bold.Render(fmt.Sprintf("%3d%%", pct)),

@@ -1,5 +1,44 @@
 # AI 变更记录
 
+## 2026-07-26: TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）
+
+### 背景
+基于 TUI 审阅优化计划执行 Sprint 2，覆盖 5 项测试补全（阶段 2a）和 8 项 High/Medium 修复（阶段 2b）。
+除 T2.6（OnDebug overlay，1 天工作量）外全部完成。
+
+### 改动清单
+
+**阶段 2a：测试补全**
+
+| 任务 | 文件 | 覆盖率提升 |
+|------|------|-----------|
+| **T2.1** agentadapter 事件映射 | `tui/agentadapter/adapter_events_test.go`（新建） | 14.9% → **100%**（17 种事件 × 23 正向 + 23 类型守卫 + 12 parseReviewGateData + 3 taskToInfo + 4 convertUsage） |
+| **T2.2** editor 核心编辑函数 | `tui/component/editor_edit_test.go`（新建） | 7 个函数从 0% → **91-100%**（moveCursor/moveWord/deleteForward/deleteWordBackward/deleteWordForward/deleteToLineStart/deleteToLineEnd，70+ 子测试） |
+| **T2.3** terminal/ansi.go | `tui/terminal/ansi_test.go`（新建） | 9 个测试组 + 1 个 fuzz（380 万次执行无 panic） |
+
+**阶段 2b：High/Medium 修复**
+
+| 任务 | 关联 | 文件 | 改动 |
+|------|------|------|------|
+| **T2.7** H-3 | 选中色硬编码 | `editor_render.go`、`input.go` | `selBg()` 从主题 `SelectionBg` 读取 fallback，删除硬编码 `48;5;33` |
+| **T2.8** H-4 | stdin OOM 风险 | `stdin_buffer.go` | `Feed()` 添加 1MiB 容量上限，超限时重置缓冲区 |
+| **T2.9** H-5 | API 陷阱 | `tui.go` | `NewTUIWithOptions` 标记 Deprecated，明确 NewTUI 为唯一推荐构造函数 |
+| **T2.10** H-8 | 文档漂移 | `ci.yml`、`Makefile` | 添加 `verify-tui-layers` CI job + `make verify-layers` 目标 |
+| **T2.11** M-1 | goroutine 泄漏 | `session_selector.go` | 添加内部 ctx + Close() 方法，4 处回调 goroutine 改为受 ctx 控制 |
+| **T2.12** M-2 | 持锁 I/O | `stdio/renderer.go`、`stdio/progress.go` | flushLine/render 改为返回字符串，fmt.Fprint 移到锁外 |
+| **T2.13** M-3 | watcher 永久死亡 | `theme/watch.go`、`theme/system_appearance.go` | panic 后 5s 退避重启（for + 内层 recover），不再一次性退出 |
+
+### 验证结果
+- `cd tui && go build ./...` 通过
+- `cd tui && go vet ./...` 通过
+- `cd tui && go test -race -count=1 ./...` 11 包全绿
+- `golangci-lint run ./tui/...` 0 issues
+- 根模块 `go build ./...` 通过
+- agentadapter 覆盖率 14.9% → 100%
+- editor_edit.go 7 个核心函数覆盖率 0% → 91-100%
+
+---
+
 ## 2026-07-26: TUI 模块 Sprint 1 Critical 修复（T1.1–T1.5）
 
 ### 背景

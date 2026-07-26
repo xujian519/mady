@@ -39,27 +39,36 @@ func (r *Renderer) SetWriter(w io.Writer) {
 // WriteChunk processes an incremental text chunk (streaming delta).
 // It detects markdown code fences and applies syntax-aware styling.
 func (r *Renderer) WriteChunk(chunk string) {
+	var output strings.Builder
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	for _, ch := range chunk {
 		r.totalChars++
 		r.lineBuffer += string(ch)
 
 		if ch == '\n' {
-			r.flushLine()
-			continue
+			output.WriteString(r.flushLineLocked())
 		}
+	}
+	w := r.writer
+	r.mu.Unlock()
+
+	if output.Len() > 0 {
+		fmt.Fprint(w, output.String())
 	}
 }
 
 // Flush writes any remaining buffered content.
 func (r *Renderer) Flush() {
+	var output string
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if r.lineBuffer != "" {
-		r.flushLine()
+		output = r.flushLineLocked()
+	}
+	w := r.writer
+	r.mu.Unlock()
+
+	if output != "" {
+		fmt.Fprint(w, output)
 	}
 }
 
@@ -74,7 +83,10 @@ func (r *Renderer) Reset() {
 	r.totalChars = 0
 }
 
-func (r *Renderer) flushLine() {
+// flushLineLocked renders the current line buffer and resets it.
+// Must be called with r.mu held. Returns the styled output string
+// (caller writes it to the writer outside the lock).
+func (r *Renderer) flushLineLocked() string {
 	pal := theme.CurrentPalette()
 	line := r.lineBuffer
 	r.lineBuffer = ""
@@ -83,30 +95,26 @@ func (r *Renderer) flushLine() {
 
 	if strings.HasPrefix(trimmed, "```") {
 		if r.inCodeBlock {
-			fmt.Fprint(r.writer, pal.CodeBlock.Render(trimmed)+"\n")
 			r.inCodeBlock = false
 			r.codeLang = ""
-		} else {
-			r.inCodeBlock = true
-			r.codeLang = strings.TrimPrefix(trimmed, "```")
-			var label string
-			if r.codeLang != "" {
-				label = pal.CodeBlock.Render("```") + pal.Dim.Render(r.codeLang)
-			} else {
-				label = pal.CodeBlock.Render(trimmed)
-			}
-			fmt.Fprint(r.writer, label+"\n")
+			return pal.CodeBlock.Render(trimmed) + "\n"
 		}
-		return
+		r.inCodeBlock = true
+		r.codeLang = strings.TrimPrefix(trimmed, "```")
+		var label string
+		if r.codeLang != "" {
+			label = pal.CodeBlock.Render("```") + pal.Dim.Render(r.codeLang)
+		} else {
+			label = pal.CodeBlock.Render(trimmed)
+		}
+		return label + "\n"
 	}
 
 	if r.inCodeBlock {
-		fmt.Fprint(r.writer, pal.Code.Render(line))
-		return
+		return pal.Code.Render(line)
 	}
 
-	styled := r.styleMarkdownLine(line)
-	fmt.Fprint(r.writer, styled)
+	return r.styleMarkdownLine(line)
 }
 
 func (r *Renderer) styleMarkdownLine(line string) string {

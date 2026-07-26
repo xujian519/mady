@@ -12,6 +12,7 @@ package component
 // overlay when the user requests a session switch.
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -48,6 +49,11 @@ type SessionSelector struct {
 	height   int
 	km       *terminal.KeybindingsManager
 	table    *Table
+
+	// ctx is canceled by Close, preventing leaked callback goroutines
+	// after the selector is removed from the overlay stack.
+	ctx      context.Context
+	cancelFn context.CancelFunc
 
 	renameMode bool
 	renameBuf  string
@@ -150,11 +156,36 @@ func NewSessionSelector() *SessionSelector {
 			return name + label
 		}},
 	})
+	ctx, cancel := context.WithCancel(context.Background())
 	return &SessionSelector{
-		theme: DefaultSessionSelectorTheme(),
-		km:    km,
-		table: tbl,
+		theme:    DefaultSessionSelectorTheme(),
+		km:       km,
+		table:    tbl,
+		ctx:      ctx,
+		cancelFn: cancel,
 	}
+}
+
+// Close cancels any pending callback goroutines. Should be called when the
+// selector is removed from the overlay stack to prevent goroutine leaks.
+func (s *SessionSelector) Close() {
+	if s.cancelFn != nil {
+		s.cancelFn()
+	}
+}
+
+// goCallback starts fn in a new goroutine that is suppressed if the selector
+// has been closed (ctx canceled). This prevents callbacks from firing after
+// the user has dismissed the selector.
+func (s *SessionSelector) goCallback(fn func()) {
+	go func() {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+			fn()
+		}
+	}()
 }
 
 // SetTitle sets the title.
@@ -343,7 +374,9 @@ func (s *SessionSelector) handleRenameInput(data string) {
 		buf := s.renameBuf
 		s.mu.RUnlock()
 		if buf != "" && s.onRename != nil {
-			go s.onRename(item, buf)
+			item := item
+			buf := buf
+			s.goCallback(func() { s.onRename(item, buf) })
 		}
 		s.endRename()
 		return
@@ -395,7 +428,8 @@ func (s *SessionSelector) confirm() {
 	fn := s.onSelect
 	s.mu.RUnlock()
 	if len(items) > 0 && sel >= 0 && sel < len(items) && fn != nil {
-		go fn(items[sel])
+		item := items[sel]
+		s.goCallback(func() { fn(item) })
 	}
 }
 
@@ -404,7 +438,7 @@ func (s *SessionSelector) cancel() {
 	fn := s.onCancel
 	s.mu.RUnlock()
 	if fn != nil {
-		go fn()
+		s.goCallback(fn)
 	}
 }
 
@@ -417,7 +451,8 @@ func (s *SessionSelector) confirmDelete() {
 	if sel < 0 || sel >= len(items) || fn == nil {
 		return
 	}
-	go fn(items[sel])
+	item := items[sel]
+	s.goCallback(func() { fn(item) })
 }
 
 // Render draws the session selector.
