@@ -63,6 +63,16 @@ jobs:
       - name: Run architecture boundary checks
         run: go-arch-lint check
 
+  verify-tui-layers:
+    runs-on: ubuntu-latest
+    name: verify-tui-layers
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify TUI LAYERS.md is in sync
+        working-directory: tui
+        run: bash scripts/verify_layers.sh
+
   eval:
     runs-on: ubuntu-latest
     name: eval-benchmark

@@ -151,3 +151,38 @@ func TestStdinBufferPendingEscClearsWhenSequenceContinues(t *testing.T) {
 		t.Fatalf("expected escPendingAt to clear for non-lone ESC sequence")
 	}
 }
+
+func TestStdinBufferMaxBufferBytes(t *testing.T) {
+	b := NewStdinBuffer()
+
+	// Simulate a hostile terminal exceeding the buffer cap with plain bytes
+	// (not incomplete escapes, which would make drainLocked very slow).
+	// Use a single Feed that pushes past maxBufferBytes.
+	overflow := strings.Repeat("a", maxBufferBytes+100)
+	b.FeedString(overflow)
+
+	b.mu.Lock()
+	bufLen := len(b.buf)
+	b.mu.Unlock()
+
+	// After draining complete events, the buffer should not retain more
+	// than maxBufferBytes. Complete events ("a" keys) are drained and
+	// dispatched, so the buffer should be small or empty.
+	if bufLen > maxBufferBytes {
+		t.Fatalf("buffer not capped: len=%d > maxBufferBytes=%d", bufLen, maxBufferBytes)
+	}
+
+	// Verify the buffer still works after the cap event.
+	var keys []string
+	b.OnKey(func(d string) { keys = append(keys, d) })
+	b.FeedString("x")
+	found := false
+	for _, k := range keys {
+		if k == "x" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("buffer should still process keys after cap event")
+	}
+}

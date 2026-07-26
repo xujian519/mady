@@ -132,6 +132,11 @@ check-arch:
 		scripts/check-arch-boundaries.sh; \
 	fi
 
+# verify-layers checks that tui/LAYERS.md directory listing matches the
+# actual files on disk. Run after adding/removing/renaming any .go file in tui/.
+verify-layers:
+	@cd tui && bash scripts/verify_layers.sh
+
 # --- Lint ---
 vet:
 	$(GO) vet $(GOFLAGS) ./...

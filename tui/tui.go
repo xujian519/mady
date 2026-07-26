@@ -204,8 +204,14 @@ type TUI struct {
 	}
 }
 
-// NewTUI constructs a TUI bound to term.
-// Accepts either the legacy TUIOptions struct or the new functional options.
+// NewTUI constructs a TUI bound to term. It accepts an optional TUIOptions
+// struct for configuration. This is the primary constructor — external
+// callers should always use NewTUI.
+//
+// Example:
+//
+//	app := tui.NewTUI(term)                              // defaults
+//	app := tui.NewTUI(term, tui.TUIOptions{AltScreen: true}) // customized
 func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 	var o TUIOptions
 	if len(opts) > 0 {
@@ -237,6 +243,10 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 }
 
 // NewTUIWithOptions constructs a TUI using functional options.
+//
+// Deprecated: Use [NewTUI] instead. NewTUI accepts the same functional
+// options via the TUIOptions struct. This function exists only for backward
+// compatibility and will be removed in a future release.
 func NewTUIWithOptions(term terminal.Terminal, opts ...TUIOption) *TUI {
 	var o TUIOptions
 	for _, opt := range opts {

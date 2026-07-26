@@ -122,9 +122,21 @@ func (b *StdinBuffer) OnMouse(fn func(msg core.MouseMsg)) {
 	b.mu.Unlock()
 }
 
+// maxBufferBytes caps the non-paste input buffer. If a malfunctioning or
+// hostile terminal sends a continuous stream of incomplete escape sequences
+// (each leaving the parser waiting for a terminator), the buffer would grow
+// without bound. This cap drops the accumulated bytes and starts fresh,
+// preventing OOM. 1 MiB is far above any legitimate key sequence.
+const maxBufferBytes = 1 << 20 // 1 MiB
+
 // Feed appends raw bytes and drains any complete events.
 func (b *StdinBuffer) Feed(data []byte) {
 	b.mu.Lock()
+	// Guard against unbounded buffer growth from incomplete escape sequences.
+	if len(b.buf)+len(data) > maxBufferBytes {
+		b.buf = nil
+		b.escPendingAt = time.Time{}
+	}
 	b.buf = append(b.buf, data...)
 	keys, pastes, mice := b.drainLocked()
 	onKey := b.onKey

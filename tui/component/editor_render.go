@@ -347,12 +347,16 @@ func (e *Editor) Render(width int64) []string {
 }
 
 // selBg returns the ANSI background-color sequence for selected text.
-// Returns the theme-provided sequence, or defaults to blue (256-color index 33).
+// Uses the explicit override if set, otherwise falls back to the theme's
+// SelectionBg style. If neither is available, uses a plain blue default.
 func (e *Editor) selBg() string {
 	if e.selectedBg != "" {
 		return e.selectedBg
 	}
-	return "\x1b[48;5;33m"
+	if bg := theme.CurrentPalette().SelectionBg.Render(""); bg != "" {
+		return bg
+	}
+	return "\x1b[44m" // plain blue fallback
 }
 
 // selRangeInSegment computes the selected rune range [from, to) within a
