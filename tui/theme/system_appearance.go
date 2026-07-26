@@ -9,9 +9,7 @@ package theme
 
 import (
 	"context"
-	"log/slog"
 	"os/exec"
-	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -63,50 +61,32 @@ func WatchSystemAppearance(ctx context.Context, poll time.Duration, onChanged fu
 	appMu.Lock()
 	lastAppearance = DetectSystemAppearance()
 	appMu.Unlock()
-	go func() {
-		// Outer loop: restart after panic with a backoff.
+	go runWithRestart(ctx, "system-appearance-watcher", func() {
+		t := time.NewTicker(poll)
+		defer t.Stop()
 		for {
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						slog.Error("theme: system appearance watcher panicked, will restart after backoff",
-							"err", r, "stack", string(debug.Stack()))
-						time.Sleep(5 * time.Second)
-					}
-				}()
-				t := time.NewTicker(poll)
-				defer t.Stop()
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-t.C:
-						current, err := detectAppearance()
-						if err != nil {
-							// Detection failed (e.g., defaults command not available).
-							// Don't change state; try again next cycle.
-							continue
-						}
-						appMu.Lock()
-						changed := current != lastAppearance
-						if changed {
-							lastAppearance = current
-						}
-						appMu.Unlock()
-						if changed && onChanged != nil {
-							onChanged(current)
-						}
-					}
-				}
-			}()
-			// Check if the watcher was canceled before restarting.
 			select {
 			case <-ctx.Done():
 				return
-			default:
+			case <-t.C:
+				current, err := detectAppearance()
+				if err != nil {
+					// Detection failed (e.g., defaults command not available).
+					// Don't change state; try again next cycle.
+					continue
+				}
+				appMu.Lock()
+				changed := current != lastAppearance
+				if changed {
+					lastAppearance = current
+				}
+				appMu.Unlock()
+				if changed && onChanged != nil {
+					onChanged(current)
+				}
 			}
 		}
-	}()
+	})
 	return cancel
 }
 

@@ -61,7 +61,7 @@ tui/
 │   ├── terminal_linux.go  # Linux termios
 │   └── terminal_other.go # Fallback for other OSes
 │
-├── theme/                 # Layer 2 — Theming (11 source files)
+├── theme/                 # Layer 2 — Theming (12 source files)
 │   ├── style.go           # ANSI Style, Color, Attr, symbols, box-drawing, cursor helpers
 │   ├── color_resolve.go   # Color mode detection, RGB-to-256
 │   ├── semantic_theme.go  # SemanticTheme struct + defaults (light/dark)
@@ -69,6 +69,7 @@ tui/
 │   ├── global.go          # SetSemanticTheme, InitThemeFromEnv, SetOnSemanticThemeChange
 │   ├── json.go            # JSON theme parsing (vars/colors + variable references)
 │   ├── watch.go           # File-watch hot-reload for themes (mtime polling)
+│   ├── watchutil.go       # runWithRestart: shared panic-recovery for watchers
 │   ├── aliases.go         # Color alias resolution (name → hex mapping)
 │   ├── quantize.go        # Color quantization engine (RGB→16 ANSI, theme-level)
 │   ├── system_appearance.go # macOS NSAppearance dark/light detection

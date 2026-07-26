@@ -127,7 +127,11 @@ func (b *StdinBuffer) OnMouse(fn func(msg core.MouseMsg)) {
 // (each leaving the parser waiting for a terminator), the buffer would grow
 // without bound. This cap drops the accumulated bytes and starts fresh,
 // preventing OOM. 1 MiB is far above any legitimate key sequence.
-const maxBufferBytes = 1 << 20 // 1 MiB
+//
+// This is a var (not const) so tests can override it with a small value to
+// exercise the cap without paying the O(n) scan cost of consumeKeyEvents on
+// a megabyte of incomplete escapes.
+var maxBufferBytes = 1 << 20 // 1 MiB
 
 // Feed appends raw bytes and drains any complete events.
 func (b *StdinBuffer) Feed(data []byte) {

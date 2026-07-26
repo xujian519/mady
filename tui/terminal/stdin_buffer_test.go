@@ -153,26 +153,36 @@ func TestStdinBufferPendingEscClearsWhenSequenceContinues(t *testing.T) {
 }
 
 func TestStdinBufferMaxBufferBytes(t *testing.T) {
+	// Use a small cap so the test runs fast. Without this override,
+	// exercising the real threat (incomplete escapes accumulating) would
+	// require feeding 1 MiB of "\x1b[" and waiting ~36s while
+	// consumeKeyEvents scans every byte on each Feed call.
+	orig := maxBufferBytes
+	maxBufferBytes = 50
+	t.Cleanup(func() { maxBufferBytes = orig })
+
 	b := NewStdinBuffer()
 
-	// Simulate a hostile terminal exceeding the buffer cap with plain bytes
-	// (not incomplete escapes, which would make drainLocked very slow).
-	// Use a single Feed that pushes past maxBufferBytes.
-	overflow := strings.Repeat("a", maxBufferBytes+100)
-	b.FeedString(overflow)
+	// Feed incomplete escape sequences in small chunks. Each "\x1b[" is an
+	// incomplete CSI that consumeKeyEvents cannot drain, so they accumulate
+	// in b.buf. Without the cap, this would grow unbounded.
+	for i := 0; i < 30; i++ {
+		b.FeedString("\x1b[") // 2 bytes each = 60 bytes total, exceeds cap of 50
+	}
 
 	b.mu.Lock()
 	bufLen := len(b.buf)
 	b.mu.Unlock()
 
-	// After draining complete events, the buffer should not retain more
-	// than maxBufferBytes. Complete events ("a" keys) are drained and
-	// dispatched, so the buffer should be small or empty.
+	// The cap triggers when accumulated + new data exceeds the limit,
+	// resetting b.buf to nil before appending the current chunk. So the
+	// buffer never holds more than ~cap bytes of incomplete escapes.
 	if bufLen > maxBufferBytes {
-		t.Fatalf("buffer not capped: len=%d > maxBufferBytes=%d", bufLen, maxBufferBytes)
+		t.Fatalf("buffer exceeded cap after accumulation: len=%d, cap=%d", bufLen, maxBufferBytes)
 	}
 
-	// Verify the buffer still works after the cap event.
+	// Verify the buffer still works after the cap event — a normal key
+	// should still be processed correctly.
 	var keys []string
 	b.OnKey(func(d string) { keys = append(keys, d) })
 	b.FeedString("x")
@@ -183,6 +193,6 @@ func TestStdinBufferMaxBufferBytes(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("buffer should still process keys after cap event")
+		t.Fatalf("buffer should still process keys after cap reset")
 	}
 }

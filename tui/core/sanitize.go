@@ -46,11 +46,16 @@ func SanitizeRawContent(s string) string {
 // isAllowedRawEscape reports whether an escape sequence is safe to emit in
 // raw content. Only SGR (color/style) and CursorMarker pass the whitelist.
 func isAllowedRawEscape(seq string) bool {
-	if isSGRSequence(seq, 0, len(seq)) {
+	if isSGR(seq) {
 		return true
 	}
-	if seq == CursorMarker {
-		return true
-	}
-	return false
+	return seq == CursorMarker
+}
+
+// isSGR reports whether seq is a complete SGR escape sequence (ESC[...m).
+// It checks the three structural invariants directly rather than delegating
+// to the substring-oriented isSGRSequence helper, which expects a position
+// offset within a larger string.
+func isSGR(seq string) bool {
+	return len(seq) >= 3 && seq[0] == 0x1B && seq[1] == '[' && seq[len(seq)-1] == 'm'
 }
