@@ -55,7 +55,7 @@ func (p *BrowserUseProvider) CreateSession(taskID string) (map[string]string, er
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body
 		return nil, fmt.Errorf("browser_use API error %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -101,7 +101,7 @@ func (p *BrowserUseProvider) CloseSession(sessionID string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body
 		return fmt.Errorf("browser_use close error %d: %s", resp.StatusCode, string(body))
 	}
 

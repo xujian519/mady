@@ -148,9 +148,15 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 		ThreadID: s.currentThreadID,
 	}
 	// currentProject 由 detectCaseFromCWD 确保始终非空（匹配已知案件或自动从 CWD 创建）。
-	cfg.WorkspaceDir = s.currentProject.RootPath
-	cfg.ProjectDir = s.currentProject.RootPath
-	cfg.SystemPrompt += formatProjectContext(s.currentProject, s.currentProjectMeta)
+	// 回退保护：在 currentProject 尚未就绪（如测试中或启动早期）时安全跳过。
+	if s.currentProject != nil {
+		cfg.WorkspaceDir = s.currentProject.RootPath
+		cfg.ProjectDir = s.currentProject.RootPath
+		cfg.SystemPrompt += formatProjectContext(s.currentProject, s.currentProjectMeta)
+	} else {
+		cfg.WorkspaceDir = "."
+		cfg.ProjectDir = "."
+	}
 
 	retriever := buildReasoningRetriever(s.fc)
 	var llmClient reasoning.LlmClient

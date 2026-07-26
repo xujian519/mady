@@ -76,7 +76,7 @@ mady/
 ├── prompt/           # 提示词管理
 ├── protocol/         # JSON-RPC 协议原语
 ├── provider/         # LLM 提供者实现
-├── psychological/    # 心理引擎（VAD/OCC/EMA/SDT/CBT）
+├── psychological/    # 心理引擎（VAD 情绪空间模型）
 ├── retrieval/        # 检索基础设施（关键词/BM25/向量/RRF）
 ├── server/           # HTTP 服务器
 ├── session/          # 会话管理
@@ -93,17 +93,21 @@ mady/
 │   ├── chat/         #   聊天应用 (Layer 5)
 │   ├── stdio/        #   过程式 I/O (Layer 6)
 │   └── agentadapter/ #   Agent 适配器 (Layer 7)
-├── workflow/         # 工作流原语
-├── workflows/        # 领域工作流
-├── disclosure/       # 技术交底书分析管线（10 节点 Pregel）
+├── workflows/        # 工作流原语 + 领域工作流
+│   ├── patent/       #   专利工作流（无效宣告/侵权比对/OA 答复/复审请求）
+│   ├── legal/        #   法律工作流
+│   ├── design/       #   外观设计工作流
+│   └── autoresearch/ #   自动研究工作流
+├── disclosure/       # 技术交底书分析管线（13 节点 Pregel）
+├── pluginsys/        # 插件系统加载器（manifest 解析与初始化）
 ├── memory/           # 长期记忆系统 + 策略学习型记忆编译器
-├── filequeue/        # 文件队列基础设施
 ├── fuzzy/            # 模糊搜索
 ├── benchmark/        # 性能基准测试
 ├── integration/      # 端到端集成测试（5 条核心链路）
 ├── pkg/
 │   ├── agentconfig/  #   统一 Provider/Model 配置层
-│   └── util/         #   路径解析等通用工具
+│   ├── util/         #   路径解析等通用工具
+│   └── vecbytes/     #   向量字节编码
 ├── example/          # 示例应用
 └── docs/             # 文档
 ```
@@ -126,7 +130,7 @@ mady/
                                              memory/
                   \      |       /         /
           基础设施层：graph/ session/ skill/ prompt/ store/ mcp/ knowledge/graph
-                          disclosure/ memory/ filequeue/ fuzzy/ benchmark/ integration/
+                          disclosure/ memory/ fuzzy/ benchmark/ integration/
                                    |
                     TUI 层：8-layer Elm 架构
                                    |

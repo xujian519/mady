@@ -9,7 +9,7 @@
 
 - **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` + `./tui` 三个子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 1200+ 个 Go 源文件（~810 非测试 + ~400 测试），~274K 行代码
+- 1200+ 个 Go 源文件（~820 非测试 + ~400 测试），~281K 行代码
 
 ## 构建与测试
 
@@ -81,7 +81,7 @@ mady/
 ├── mcp/              # MCP 客户端（stdio + HTTP/SSE）
 ├── memory/           # 长期记忆系统（三层模型）
 │   └── compiler/     #   策略学习型记忆编译器（时间衰减置信度、质量加权、持久化）
-├── psychological/    # 心理引擎（VAD/OCC/EMA/SDT/CBT）
+├── psychological/    # 心理引擎（VAD 情绪空间模型）
 ├── provider/         # LLM 接入层
 │   ├── adapter/      #   Agent 适配器模式（Claude Code / Codex CLI）
 │   ├── chatcompat/   #   OpenAI Chat Completions 兼容

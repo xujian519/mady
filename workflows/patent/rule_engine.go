@@ -18,10 +18,13 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/xujian519/mady/domains/rules"
 )
 
 // Severity describes how serious a rule violation is for reporting purposes.
-type Severity string
+// Defined in domains/rules/types.go; aliased here for local convenience.
+type Severity = rules.Severity
 
 const (
 	SeverityCritical Severity = "critical"

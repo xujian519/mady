@@ -317,7 +317,7 @@ func (c *CamofoxClient) Screenshot(taskID string) ([]byte, error) {
 		return nil, fmt.Errorf("screenshot returned status %d", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 50<<20)) // 50MB max screenshot
 	if err != nil {
 		return nil, fmt.Errorf("failed to read screenshot: %w", err)
 	}
@@ -406,7 +406,7 @@ func (c *CamofoxClient) doJSON(method string, path string, body map[string]any) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body
 		return nil, fmt.Errorf("camofox API error %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 

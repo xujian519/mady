@@ -1,6 +1,6 @@
 // Command mady is the unified entry point for the Mady agent framework.
 //
-// It exposes ten subcommands:
+// It exposes several subcommands:
 //
 //	mady tui   — interactive terminal chat (default)
 //	mady serve — HTTP/SSE API server with multi-domain routing
