@@ -1,5 +1,156 @@
 # AI 变更记录
 
+## 2026-07-27: Gateway — 统一编排三件套为单一决策入口（PilotDeck 架构引入 第三阶段）
+
+### 背景
+PilotDeck 架构引入前两阶段（FallbackRouter + ProviderHealthTracker、TokenBudgetManager）
+各自落地后，三个决策组件以**独立生命周期钩子**身份运行，暴露两个失协调问题：
+
+- **重复分类**：`ReasoningRouter` 与 `FallbackRouter` 各自在 `BeforeModelCall` 里调用
+  `Classifier.Classify`——同一轮次分类两次（各持一个 Classifier 实例，潜在不一致）。
+- **决策割裂**：没有任何一处同时看到「预算状态 + 复杂度 + 模型健康度」来做出连贯决策。
+  例如预算进入 blocking 时，本应降低推理 effort（避免在已近溢出的上下文上继续烧推理
+  token），但三个组件各自为政，无人据此调整策略。
+
+本阶段引入 Gateway——PilotDeck 风格的**单一决策入口**，收口三件套。
+
+### 引入的设计（来自 PilotDeck `Gateway`）
+
+#### Gateway (`agentcore/gateway.go` + `gateway_test.go`)
+- **统一决策** `GatewayDecision{Turn, Complexity, Budget, Model, Effort, BudgetClamp, Reason}`：
+  一次分类、一次预算评估、一次模型选择，产出可观测的单一决策记录。
+- **只分类一次**：Gateway 持有唯一 Classifier，分类结果同时驱动模型选择（FallbackRouter）
+  与 effort 映射（ReasoningRouter），消除重复分类。
+- **预算驱动策略（核心价值）**：当预算状态为 `BudgetBlocking`（padded ≥0.95）时，Gateway
+  主动把推理 effort **钳制为 Low**（`BudgetClamp=true`），并跳过 ReasoningRouter 的
+  per-complexity token budget（Low effort + 大 thinking budget 语义矛盾）。这是 TieredEngine
+  压缩（snip 0.6 已应更早触发）之后的**安全后备**。
+- **组合而非替换**：模型选择委托 `FallbackRouter.SelectModel`（新增分类无关入口），
+  effort/budget 策略读 `ReasoningRouter.Efforts/Budgets`（同包公开字段）或 Gateway 自带 map。
+- **LifecycleHook 实现**：`BeforeModelCall` 应用决策到 `mcc.Request`（model + effort + budget），
+  `AfterModelCall` 委托 FallbackRouter 记录健康（复用 `SelectModel` 缓存的 `lastModel`）。
+- **可观测**：`Decision` 回调 + `LastDecision()`（线程安全）+ blocking 时 `slog.Info` 追踪。
+
+#### FallbackRouter 分类无关入口 (`fallback_router.go`)
+- 新增 `SelectModel(c Complexity) string`：跳过分类直接选模型并更新 sticky/lastComplexity/
+  lastModel 状态。供 Gateway 在已分类后调用，避免重复分类。**纯增量，非破坏**。
+
+### 接入契约（重要）
+Gateway 自身实现 `LifecycleHook`。启用时，调用方**注册 Gateway 替代**单独注册
+FallbackRouter / ReasoningRouter——Gateway 内部持有并驱动它们。同时注册两者会导致
+重复分类与重复健康计数。本阶段**未自动注入** `agent.go`（避免与手动注册的 router
+双触发，保持爆破半径最小）；接线由调用方（如 `UnifiedAgentConfig`）在后续阶段完成。
+
+### 测试
+- Gateway: 22 个测试函数（构造默认/只分类一次/跨关注点单分类/无预算零值/预算OK不钳制/
+  预算Blocking钳制/模型选择/无Fallback空模型/无候选空模型/effort来自Reasoning/
+  effort来自Gateway map/effort默认映射/BeforeModelCall应用model+effort/应用reasoning budget/
+  钳制跳过budget/nil request不panic/nil mcc不panic/AfterModelCall委托健康/无Fallback不panic/
+  LastDecision线程安全/Decision回调/Decide纯函数不修改arc）
+- `make verify` 全绿：lint + build + race，覆盖 root + tools + tui 三模块，无回归
+
+### 不在本阶段范围
+- **Gateway 接线进 agent.go Config**：自动注入与手动注册 router 的去重逻辑需谨慎设计，
+  单列后续阶段（避免本阶段爆破半径超 3-5 文件约束）。
+- **ToolResultBudget**（超大工具结果落盘 + 引用块）：PilotDeck P2 增项，仍待后续。
+
+---
+
+## 2026-07-27: TokenBudgetManager — 主动 token 预算 + 漂移容忍压缩触发（PilotDeck 架构引入 第二阶段）
+
+### 背景
+PilotDeck 架构引入第一阶段（FallbackRouter + ProviderHealthTracker）完成后，对照
+PilotDeck `context/budget/` 与 Mady 现有上下文基础设施进行差距分析：
+
+- **估算算法**：Mady 已有 chars/4 + CJK 校正的启发式估算（`token.go`），适配中文
+  专利/法律场景，Go 生态无轻量 tiktoken，**不替换**。
+- **漂移容忍**：Mady **缺失** —— 启发式会低估真实分词器计数（尤以 CJK/代码/JSON
+  混合内容为甚），导致按裸估算触发压缩时已接近真实溢出。
+- **预算状态机**：Mady **缺失** —— 无统一 ok/warning/blocking 结构化视图供编排层
+  （Agent 循环、生命周期钩子）消费。
+
+本阶段补齐后两项，复用现有估算启发式，不重造轮子。
+
+### 引入的设计（来自 PilotDeck `context/budget/TokenBudgetManager`）
+
+#### TokenBudgetManager (`agentcore/token_budget.go` + `token_budget_test.go`)
+- **漂移容忍 padding 因子**：`Pad(raw) = ceil(raw * 4/3)`，为启发式与真实分词器之间
+  的漂移预留 ~33% 余量。可配置分子/分母，默认 4/3（与 PilotDeck 一致）。
+- **结构化预算快照** `BudgetSnapshot`：Tokens / PaddedTokens / MaxContextTokens /
+  Ratio / PaddedRatio / WarningRatio / BlockingRatio / State。
+- **三态预算机** `BudgetState`：OK（<0.8）/ Warning（≥0.8）/ Blocking（≥0.95）。
+  **关键设计决策**：State 由 **PaddedRatio**（漂移容忍上界）派生，而非裸 Ratio —— 使
+  Mady 在真实溢出前预警，而非在启发式追上之后。
+- **配置** `BudgetConfig`：所有字段零值回退默认（`NewTokenBudgetManager(BudgetConfig{})`
+  安全），构造器自动填充非法值（≤0 的分母等）。
+- 14 个测试覆盖：默认值/padding 精确值/自定义因子/非法因子防御/三态边界/自定义阈值/
+  零窗口/工具定义开销/CJK padding/空消息/状态派生自 padded。
+
+#### TieredEngine 可选集成 (`context_engine_tiered.go`)
+- `SetBudgetManager(m)`：可选安装预算管理器。**未安装时行为字节级不变**（向后兼容）。
+- `ShouldCompact`：安装后改用漂移容忍的 padded 比例作触发决策 —— 对 CJK/代码密集
+  对话，在启发式尚未追上时即触发压缩，避免真实溢出。
+- `BudgetSnapshot(msgs, toolDefs, window)`：暴露消费状态供可观测性（Agent 循环可据此
+  向用户发出"上下文即将达上限"提示，或供 FallbackRouter 做上下文感知路由）。
+
+### 关键语义澄清（测试中发现并固化的设计边界）
+TieredEngine 的压缩触发带（snip 0.6 / prune 0.8 / force 0.9）与 BudgetManager 的
+预警带（warning 0.8 / blocking 0.95）**有意分离**，服务不同受众：
+- snip 0.6 → 内部"开始压缩省空间"（早干预）
+- warning 0.8 → 面向用户"上下文快满了"
+- blocking 0.95 → 硬上限迫近
+
+因此 padded 比例 0.667 时：ShouldCompact 触发（≥0.6 snip）但 BudgetSnapshot.State
+仍是 OK（<0.8 warning）。两者协同而非耦合。
+
+### 测试
+- TokenBudgetManager: 14 个测试（默认值/padding/三态/自定义/防御/CJK）
+- TieredEngine 集成: 3 个测试（漂移容忍触发/无管理器零值快照/现有 ShouldCompact 不回归）
+- `make verify` 全绿：lint + build + race，覆盖 root + tools + tui 三模块，无回归
+
+### 不在本阶段范围
+- `ToolResultBudget`（超大工具结果落盘 + 引用块）：PilotDeck 的 `context/budget/ToolResultBudget`，
+  涉及消息/块模型改造，Mady 的 TieredEngine 已有 snip/prune 内联处理大工具结果，
+  落盘外置为 P2 增项，单列阶段处理。
+
+---
+
+## 2026-07-26: FallbackRouter — 模型级联回退 + ProviderHealthTracker（PilotDeck 架构引入）
+
+### 背景
+对清华/OpenBMB 开源的 PilotDeck 进行了完整的架构分析与对比，识别出六大值得引入的设计。
+以「智能路由 Fallback 链」为切入点，实现了 PilotDeck 中 ProviderHealthTracker +
+Smart Router Fallback Chain 两个核心设计，作为 PilotDeck 架构引入的第一阶段。
+
+### 引入的设计（来自 PilotDeck）
+
+#### ProviderHealthTracker (`agentcore/provider_health.go` + `provider_health_test.go`)
+- 模型级健康状态追踪（连续失败次数、总调用/失败统计、降级状态）
+- 自动降级：连续失败超过阈值 `ConsecutiveFailThreshold`（默认 3 次）后进入降级期
+- 不可重试错误（认证失败/模型不存在等）立即触发降级
+- 自动恢复：降级期过期（默认 30s）后自动恢复；或通过 `SuccessRecoveryCount`（默认 2 次）
+  连续成功快速恢复
+- 线程安全（sync.RWMutex），支持快照查询和详细记录查询
+
+#### FallbackRouter (`agentcore/fallback_router.go` + `fallback_router_test.go`)
+- 按复杂度等级（Low/Medium/High）定义候选模型链
+- BeforeModelCall：健康感知的模型选择——跳过已降级模型，选第一个健康候选
+- StickySession 模式：同一会话内保持模型选择一致性，仅在模型降级时切换
+- NextFallback：主模型重试耗尽后返回链中下一候选（供 callModelWithFallback 使用）
+- tryFallbackChain：Agent 调用路径中的级联回退逻辑（callModelWithFallback 增强）
+- AfterModelCall：双向健康记录（成功/失败），兼容 mcc.Request=nil 场景
+
+#### Agent Config 集成 (`agent.go`, `agent_run_phase.go`)
+- `Config.FallbackRouter` 字段，非侵入式可插拔
+- `callModelWithFallback` 增加 fallback 链支持：主模型失败 → 压缩重试 → fallback 链
+- 与现有 `ReasoningRouter` / `ReasoningStrategyRouter` 正交可组合
+
+### 测试
+- ProviderHealthTracker: 15 个测试（初始化/成功/降级/不可重试/恢复/多模型/快照/配置）
+- FallbackRouter: 14 个测试（模型选择/健康回退/全降级兜底/NextFallback链/Reset/
+  StickySession/AfterModelCall双向记录/熔断/Nil配置安全/Agent Config集成）
+- 全部通过，无现有测试回归
+
 ## 2026-07-26: CI/CD 修复 — Makefile 子-shell 泄漏 + LAYERS.md 同步
 
 ### 背景

@@ -109,7 +109,13 @@ func (a *Agent) runAfterModelCall(ctx context.Context, turn int64, resp *Provide
 	return true
 }
 
-// callModelWithFallback 调用 Provider，按 Context Overflow 触发一次压缩重试。
+// callModelWithFallback 调用 Provider，依次尝试：
+//  1. Context Overflow → 压缩后重试一次
+//  2. Fallback 链 → 主模型失败后尝试回退模型
+//  3. 所有候选均失败 → 返回最终错误
+//
+// 健康记录由 AfterModelCall 生命周期钩子统一处理（唯一记录点），
+// 避免与 callModelWithFallback / tryFallbackChain 重复计数。
 func (a *Agent) callModelWithFallback(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error) {
 	resp, err := a.callProviderWithRetry(ctx, req)
 	if err != nil {
@@ -120,11 +126,53 @@ func (a *Agent) callModelWithFallback(ctx context.Context, req *ProviderRequest)
 				resp, err = a.callProviderWithRetry(ctx, req)
 			}
 		}
+		// Fallback chain: when retries exhausted, try the next model candidate
+		if err != nil && a.config.FallbackRouter != nil {
+			resp, err = a.tryFallbackChain(ctx, req, err)
+		}
 		if err != nil {
 			return nil, err
 		}
 	}
 	return resp, nil
+}
+
+// tryFallbackChain 尝试回退链中的下一模型，直到成功或链耗尽。
+// 健康记录通过 FallbackRouter.RecordFallbackResult 委托处理，
+// 不直接访问 HealthTracker。
+func (a *Agent) tryFallbackChain(ctx context.Context, req *ProviderRequest, lastErr error) (*ProviderResponse, error) {
+	fr := a.config.FallbackRouter
+	currentModel := req.Model
+
+	// 记录主模型的失败
+	fr.RecordFallbackResult(currentModel, lastErr)
+
+	for {
+		nextModel := fr.NextFallback(currentModel)
+		if nextModel == "" {
+			return nil, lastErr
+		}
+
+		slog.Info("fallback_router: trying fallback model",
+			"from", currentModel,
+			"to", nextModel,
+		)
+
+		req.Model = nextModel
+		resp, err := a.callProviderWithRetry(ctx, req)
+		if err == nil {
+			// 成功由 AfterModelCall 统一记录，这里不重复计数。
+			// 关键：同步 lastModel 缓存，确保 AfterModelCall 的健康记录
+			// 归因于实际工作的 fallback 模型而非 BeforeModelCall 选中的主模型。
+			fr.lastModel = nextModel
+			return resp, nil
+		}
+
+		// 回退模型也失败——记录失败，继续尝试下一个
+		fr.RecordFallbackResult(nextModel, err)
+		currentModel = nextModel
+		lastErr = err
+	}
 }
 
 // guardTruncation 检测模型输出是否被 max_tokens 截断且包含无效工具调用参数。

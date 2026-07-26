@@ -161,6 +161,59 @@ func TestTieredEngine_ShouldCompact(t *testing.T) {
 	}
 }
 
+// TestTieredEngine_BudgetManager_DriftTolerantTrigger verifies the core value
+// of the TokenBudgetManager integration: with a manager installed, ShouldCompact
+// fires on the drift-tolerant PADDED estimate, so CJK/code-heavy conversations
+// (where the chars/4 heuristic underestimates) compact before real overflow.
+func TestTieredEngine_BudgetManager_DriftTolerantTrigger(t *testing.T) {
+	// Content sized so raw ratio = 0.5 (below snip 0.6) but padded
+	// ratio ≈ 0.667 (>= snip 0.6): the budget-aware trigger fires earlier.
+	// 1969 ASCII chars → EstimateTokens 493 → msg 497 → EstimateMessagesTokens 500.
+	content := strings.Repeat("a", 1969)
+	msgs := []Message{{Role: RoleUser, Content: content}}
+	const window = 1000
+
+	// Legacy (no budget manager): raw ratio 0.5 < 0.6 → no compaction.
+	e := NewTieredEngine(ContextEngineConfig{ContextWindow: window})
+	if e.ShouldCompact(msgs, nil, window) {
+		t.Fatal("legacy engine should NOT compact at raw ratio 0.5 (< snip 0.6)")
+	}
+
+	// With budget manager: padded ratio 0.667 >= 0.6 → compaction fires.
+	// Budget management is a TieredEngine-specific capability, so we
+	// type-assert off the ContextEngine interface returned by the factory.
+	te := e.(*TieredEngine)
+	te.SetBudgetManager(NewTokenBudgetManager(DefaultBudgetConfig()))
+	if !te.ShouldCompact(msgs, nil, window) {
+		t.Fatal("budget-aware engine SHOULD compact at padded ratio 0.667 (>= snip 0.6)")
+	}
+
+	// BudgetSnapshot exposes the consumption state for observability.
+	// NOTE: the budget manager's warning/blocking bands (0.8/0.95) are
+	// independent of TieredEngine's snip trigger (0.6). At padded ratio
+	// 0.667 the snapshot is still BudgetOK (it is snip-worthy, not yet
+	// warning-worthy) — the two thresholds serve different audiences
+	// (internal compaction vs. user-facing "context nearly full").
+	snap := te.BudgetSnapshot(msgs, nil, window)
+	if snap.PaddedRatio < 0.6 {
+		t.Fatalf("PaddedRatio = %v, want >= 0.6 (snip-trigger band)", snap.PaddedRatio)
+	}
+	if snap.State != BudgetOK {
+		t.Fatalf("State = %v, want BudgetOK at padded ratio 0.667 (< warning 0.8)", snap.State)
+	}
+}
+
+// TestTieredEngine_BudgetSnapshot_NoManager confirms the accessor returns a
+// zero-value snapshot (rather than panicking) when no manager is installed.
+func TestTieredEngine_BudgetSnapshot_NoManager(t *testing.T) {
+	e := NewTieredEngine(ContextEngineConfig{ContextWindow: 1000})
+	te := e.(*TieredEngine)
+	snap := te.BudgetSnapshot([]Message{{Role: RoleUser, Content: "hi"}}, nil, 1000)
+	if snap != (BudgetSnapshot{}) {
+		t.Fatalf("BudgetSnapshot without manager should be zero-value, got %+v", snap)
+	}
+}
+
 func TestTieredEngine_OnSessionLifecycle(t *testing.T) {
 	e := NewTieredEngine(ContextEngineConfig{ContextWindow: 10000})
 

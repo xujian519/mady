@@ -82,6 +82,11 @@ type Config struct {
 	// Lifecycle hooks intercept every stage of agent execution.
 	// Multiple hooks are composed via LifecycleChain.
 	Lifecycle LifecycleHook
+
+	// FallbackRouter routes to alternative models when the primary fails.
+	// When non-nil, callModelWithFallback iterates through the fallback chain
+	// defined per complexity level.
+	FallbackRouter *FallbackRouter
 }
 
 // Agent is the core runtime that orchestrates LLM calls and tool execution.

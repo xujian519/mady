@@ -53,6 +53,12 @@ type TieredEngine struct {
 	compressionCnt int64
 	lastSavingsPct float64
 
+	// budget is an optional TokenBudgetManager that, when set, makes
+	// ShouldCompact use a drift-tolerant padded token estimate for its
+	// trigger decision (see ShouldCompact). nil → legacy raw-estimate
+	// behavior, unchanged.
+	budget *TokenBudgetManager
+
 	// Tracks which messages have already been snipped/pruned to avoid
 	// re-processing. Keyed by message index in the original slice.
 	//
@@ -139,15 +145,24 @@ func (e *TieredEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition, 
 	}
 	estimated := EstimateMessagesTokens(msgs) + EstimateToolDefinitionsTokens(toolDefs)
 	ratio := float64(estimated) / float64(contextWindow)
-	if ratio >= 0.5 && ratio < e.snipRatio {
+	// When a budget manager is configured, decide on its drift-tolerant
+	// padded estimate so compaction fires before real provider overflow
+	// rather than after the chars/4 heuristic catches up — this matters
+	// most for CJK-heavy and code-heavy conversations where the heuristic
+	// underestimates real token counts. nil → ratio is used as-is.
+	decisionRatio := ratio
+	if e.budget != nil {
+		decisionRatio = float64(e.budget.Pad(estimated)) / float64(contextWindow)
+	}
+	if decisionRatio >= 0.5 && decisionRatio < e.snipRatio {
 		slog.Warn("tiered: context usage entering soft-notice phase",
-			"usage_pct", int(ratio*100),
+			"usage_pct", int(decisionRatio*100),
 			"threshold_pct", int(e.snipRatio*100),
 			"estimated_tokens", estimated,
 			"context_window", contextWindow,
 		)
 	}
-	return ratio >= e.snipRatio
+	return decisionRatio >= e.snipRatio
 }
 
 func (e *TieredEngine) Compress(ctx context.Context, msgs []Message, focusTopic string) ([]Message, int64, error) {
@@ -342,6 +357,24 @@ func (e *TieredEngine) TierLevel(msgs []Message, contextWindow int64) string {
 	default:
 		return "none"
 	}
+}
+
+// SetBudgetManager installs an optional TokenBudgetManager. Once set,
+// ShouldCompact decides on the manager's drift-tolerant padded estimate
+// instead of the raw chars/4 estimate. Passing nil reverts to legacy
+// behavior. Safe to call before the first turn; not synchronized — install
+// during engine construction (see ContextEngineConfig wiring).
+func (e *TieredEngine) SetBudgetManager(m *TokenBudgetManager) { e.budget = m }
+
+// BudgetSnapshot returns the current budget evaluation against the given
+// window, or a zero-value BudgetSnapshot when no manager is installed.
+// Callers (agent loop, lifecycle hooks) use this to surface near-limit
+// warnings to the user or feed routing decisions.
+func (e *TieredEngine) BudgetSnapshot(msgs []Message, toolDefs []ToolDefinition, contextWindow int64) BudgetSnapshot {
+	if e.budget == nil {
+		return BudgetSnapshot{}
+	}
+	return e.budget.Evaluate(msgs, toolDefs, contextWindow)
 }
 
 // SnipMessageContent truncates content to head+tail with a marker.
