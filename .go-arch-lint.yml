@@ -90,6 +90,8 @@ components:
     in: ./example/**
   cmd:
     in: ./cmd/**
+  desktop:
+    in: ./desktop/**
   pkg:
     in: ./pkg/**
   scripts:
@@ -540,4 +542,6 @@ deps:
   tui_agentadapter:
     anyProjectDeps: true
   tui_root:
+    anyProjectDeps: true
+  desktop:
     anyProjectDeps: true

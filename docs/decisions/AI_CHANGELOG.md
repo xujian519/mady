@@ -1,5 +1,20 @@
 # AI 变更记录
 
+## 2026-07-27: 修复 CI check-arch 持续失败 — desktop 模块未在架构配置中注册
+
+### 问题
+最近 5 次 CI 运行（#312-#316）`check-arch` 作业全部失败。原因是 `desktop/` 目录
+（Wails 独立 Go 模块）的 5 个 Go 文件未在 `.go-arch-lint.yml` 中注册组件，
+`go-arch-lint` 报 "not attached to any component in archfile"。
+
+### 修复
+- `.go-arch-lint.yml` components 段新增 `desktop: in: ./desktop/**`
+- deps 段新增 `desktop: anyProjectDeps: true`（desktop 是独立模块，通过 `replace` 引用主模块包）
+
+### 验证
+- `go-arch-lint check` → OK, No warnings found
+- `make all`（vet + build + test 四模块）→ 全量通过
+
 ## 2026-07-27: 废弃 LifecycleHook → Observer 接口迁移 + 注册架构修复
 
 ### 状态
