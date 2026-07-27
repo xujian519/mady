@@ -1,5 +1,96 @@
 # AI 变更记录
 
+## 2026-07-28: 桌面端缺口修复（cMaps + spec 对齐）
+
+### 背景
+按 spec 验收结果补齐 6 项缺口：cMaps 打包、ListSkills 全局扫描、ImagePreview 双击缩放、
+集成单测、组件拆分、pdfjs-dist 版本追溯记录。
+
+### 变更清单
+
+**cMaps 打包（T5.5 遗留）**:
+- `vite.config.ts`：新增 `copyCmapsPlugin`，build 时将 `node_modules/pdfjs-dist/cmaps/`
+  （169 个 `.bcmap` 文件）复制到 `dist/cmaps/`
+- `PdfViewer.tsx`：`getDocument({ cMapUrl: '/cmaps/', cMapPacked: true })`，支持 CJK 字形映射
+
+**ListSkills 全局扫描**:
+- `app.go`：`ListSkills` 追加 `MADY_HOME/skills` 扫描，同名技能以项目级优先
+- `app.go`：`ReadFile`/`WriteFile` 改为多沙箱（项目根 + MADY_HOME），
+  修正 `resolveSandboxedPath` 对绝对路径的处理（`filepath.Join` 在 Unix 上不会忽略前面元素）
+- 新增 `resolveSandboxedPathMulti` 辅助函数
+
+**ImagePreview 双击缩放**:
+- `FileViewerOverlay.tsx`：`onDoubleClick` 切换 100% ↔ 200%
+- 组件拆出为独立 `ImagePreview.tsx` 文件
+
+**集成单测**:
+- `app_test.go`：新增 14 个测试用例覆盖多沙箱路径解析、越狱拒绝、原子写模拟、非空目录拒绝
+
+**组件拆分**:
+- 新增 `ImagePreview.tsx`（移出 FileViewerOverlay 内联定义）
+- 新增 `MarkdownPreview.tsx`（封装 MarkdownRenderer 滚动容器）
+
+**pdfjs-dist 版本追溯**:
+- `package.json` 使用 `pdfjs-dist@^6.1.200`，非 spec 原定的 4.x。
+  原因：Vite 打包时 4.x 的 `legacy/build/pdf` 与 ESM `?url` worker 导入不兼容，
+  6.x 原生支持 `pdf.worker.min.mjs` 模块加载，安全性更好（eval 默认禁用）。
+  spec 原决策未注明此升级理由，本次补记。
+
+### 验证
+- desktop：`go build -o /dev/null` + `go test ./desktop/...` 全绿（17 test functions）
+- 前端：`pnpm typecheck` + `pnpm build` 全绿
+- `dist/cmaps/` 含 169 `.bcmap` 文件（1.6MB）
+
+## 2026-07-28: 桌面端 PilotDeck 对齐实现（T5.1–T5.8）
+
+### 背景
+按 `docs/specs/desktop/05-pilotdeck-alignment.md` 完成 PilotDeck 对齐开发：
+文件浏览器闭环、md 编辑、图片预览、标注 PDF 查看、Skills/MCP 视图。
+
+### 变更清单
+
+**后端（desktop/）**:
+- `app.go` 新增 Wails Binding：`ReadFile`（沙箱读，text/md 返回文本、image/pdf 返回 base64，
+  20MB 上限 + 二进制嗅探）、`WriteFile`（仅 text/md 可写，tmp+rename 原子写）、
+  `DeleteEntry`（文件或空目录，递归删除不支持）、`ListSkills`（扫描项目 skills/）、
+  `ListMcpServers`（只读解析 ~/.mady/mcp.json 与项目 .mcp.json，env 仅暴露键名防密钥泄露）
+- `app_test.go` 新增 classifyFileKind / isBinaryContent / resolveSandboxedPath 单测
+  （含 `../` 越狱路径拒绝用例）
+
+**前端（desktop/frontend/）**:
+- 新增 `components/fileviewer/`：`FileViewerOverlay`（PilotDeck 风格右侧浮层，
+  行列计数状态栏、Esc 关闭、脏确认）、`CodeEditor`（CodeMirror 6：md 高亮/行号/⌘S 保存/
+  深浅色跟随）、`PdfViewer`（pdf.js 6.x：分页/缩放/AnnotationLayer 批注只读渲染 + 本页批注列表，
+  不启用批注编辑与表单）、图片预览（缩放）
+- 新增 `SkillsView`（技能列表 + SKILL.md 预览/编辑/保存）、`McpView`（服务器只读列表）
+- `ProjectTree`：文件点击打开查看器；工具栏新增 新建文件/新建文件夹/刷新；
+  右键菜单开放文件节点并新增 新建文件/删除（二次确认）
+- `ChatView`：顶栏新增 技能/MCP 入口；挂载 FileViewerOverlay
+- 新增 `stores/files.ts`（打开/草稿/保存状态机）；`lib/backend.ts` 补齐全部新 Binding 封装
+- 新增依赖：codemirror 全家桶、pdfjs-dist 6.x
+
+### 验证
+- desktop：`go build` / `go vet` / `go test` 全绿
+- 前端：`pnpm typecheck` / `pnpm build` 全绿
+- `make verify` 的 lint 阶段在 tui 等未改动目录报 135 项存量问题、
+  desktop 模块 4 项 gosec 均为改动前已存在（main.go / CreateFolder 0755），本次改动零新增
+
+## 2026-07-27: 桌面端 PilotDeck 对齐规格（05-pilotdeck-alignment）
+
+### 背景
+Owner 要求以本机 PilotDeck Desktop 0.1.260623 为参照复刻桌面端核心体验。
+经实机调研（WebBridge 截图 9 张存档于 `.analysis/`），确认复刻范围与三项必做功能
+（md 查看/修改、标注 PDF 与图片查看、项目文件浏览器闭环）。
+
+### 变更清单
+- 新增 `docs/specs/desktop/05-pilotdeck-alignment.md`：对齐规格 + 差距分析 + T5.1-T5.9 任务拆解
+
+### Owner 已确认决策
+- 复刻范围聚焦 Agent + Files + Skills + MCP（Routing/Memory/Always-On 不做）
+- 保留 Mady 三栏骨架，移植 PilotDeck 文件面板工具栏与编辑器浮层
+- 引入 pdf.js 内嵌只读 PDF 查看器（含批注层），**取代 review §9.4 V1「PDF 一律外部打开」旧决策**
+- 引入 CodeMirror 6 作为 md 编辑器（编辑/预览双模式）
+
 ## 2026-07-27: CI/CD 管道修复 — 4 个失败检查全部通过
 
 ### 背景

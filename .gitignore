@@ -100,3 +100,4 @@ graphify-out/
 # --- Qoder repowiki (auto-generated knowledge base cache) ---
 .qoder/
 a2ui-demo
+.analysis/

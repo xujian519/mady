@@ -143,6 +143,75 @@ export async function renameFolder(oldPath: string, newName: string): Promise<vo
   return callBinding<void>('main/App', 'RenameFolder', oldPath, newName)
 }
 
+/** 文件内容种类：文本 / Markdown / 图片 / PDF。 */
+export type FileKind = 'text' | 'md' | 'image' | 'pdf'
+
+/** 文件内容（ReadFile 返回）。 */
+export interface FileContent {
+  name: string
+  path: string
+  kind: FileKind
+  /** kind=text/md 时的 UTF-8 内容。 */
+  text?: string
+  /** kind=image/pdf 时的 base64 内容。 */
+  data?: string
+  mime?: string
+  size: number
+}
+
+/**
+ * 读取项目沙箱内的文件内容。
+ * 文本/Markdown 返回 text；图片/PDF 返回 base64 data。
+ */
+export async function readFile(relPath: string): Promise<FileContent> {
+  return callBinding<FileContent>('main/App', 'ReadFile', relPath)
+}
+
+/**
+ * 将文本内容写入项目沙箱内的文件（仅 text/md 类可写）。
+ */
+export async function writeFile(relPath: string, content: string): Promise<void> {
+  return callBinding<void>('main/App', 'WriteFile', relPath, content)
+}
+
+// ── Skills / MCP（T5.6 / T5.7） ─────────────────────
+
+/** 技能概要。 */
+export interface SkillEntry {
+  name: string
+  description: string
+  /** SKILL.md 相对项目根的路径。 */
+  path: string
+}
+
+/** 扫描项目 skills/ 目录。 */
+export async function listSkills(): Promise<SkillEntry[]> {
+  return callBinding<SkillEntry[]>('main/App', 'ListSkills')
+}
+
+/** MCP 服务器概要（只读，env 仅含键名）。 */
+export interface McpServerEntry {
+  name: string
+  type: string
+  command?: string
+  args?: string[]
+  url?: string
+  envKeys?: string[]
+  source: string
+}
+
+/** 列出已配置的 MCP 服务器（只读）。 */
+export async function listMcpServers(): Promise<McpServerEntry[]> {
+  return callBinding<McpServerEntry[]>('main/App', 'ListMcpServers')
+}
+
+/**
+ * 删除项目沙箱内的文件或空目录。
+ */
+export async function deleteEntry(relPath: string): Promise<void> {
+  return callBinding<void>('main/App', 'DeleteEntry', relPath)
+}
+
 // ── Window State ────────────────────────────────────
 
 /**

@@ -30,10 +30,13 @@ import { ContextIndicator } from './ContextIndicator'
 import { StatusBar } from './StatusBar'
 import { ToolCard } from './ToolCard'
 import { DocumentViewer, type DocViewerFile } from './DocumentViewer'
+import { FileViewerOverlay } from './fileviewer/FileViewerOverlay'
 import { SettingsPanel } from './SettingsPanel'
 import { KnowledgeView } from './KnowledgeView'
 import { TemplatesView } from './TemplatesView'
-import { Sparkles, PanelRightOpen, Brain, Database, FileText } from 'lucide-react'
+import { SkillsView } from './SkillsView'
+import { McpView } from './McpView'
+import { Sparkles, PanelRightOpen, Brain, Database, FileText, Server, Zap } from 'lucide-react'
 
 // ── 虚拟列表项类型 ────────────────────────────────
 
@@ -117,6 +120,8 @@ export const ChatView: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [showKnowledge, setShowKnowledge] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showSkills, setShowSkills] = useState(false)
+  const [showMcp, setShowMcp] = useState(false)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -261,6 +266,20 @@ export const ChatView: React.FC = () => {
             {!isFocusMode && (
               <div className="flex items-center gap-1">
                 <button
+                  onClick={() => setShowSkills(true)}
+                  className="p-1.5 rounded text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary transition-colors"
+                  title="技能"
+                >
+                  <Zap size={14} />
+                </button>
+                <button
+                  onClick={() => setShowMcp(true)}
+                  className="p-1.5 rounded text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary transition-colors"
+                  title="MCP 服务器"
+                >
+                  <Server size={14} />
+                </button>
+                <button
                   onClick={() => setShowKnowledge(true)}
                   className="p-1.5 rounded text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary transition-colors"
                   title="知识库"
@@ -343,6 +362,9 @@ export const ChatView: React.FC = () => {
           />
         )}
 
+        {/* 文件查看器浮层（PilotDeck 对齐） */}
+        <FileViewerOverlay />
+
         {/* KnowledgeView 覆盖层 */}
         {showKnowledge && (
           <KnowledgeView onClose={() => setShowKnowledge(false)} />
@@ -351,6 +373,16 @@ export const ChatView: React.FC = () => {
         {/* TemplatesView 覆盖层 */}
         {showTemplates && (
           <TemplatesView onClose={() => setShowTemplates(false)} />
+        )}
+
+        {/* SkillsView 覆盖层 */}
+        {showSkills && (
+          <SkillsView onClose={() => setShowSkills(false)} />
+        )}
+
+        {/* McpView 覆盖层 */}
+        {showMcp && (
+          <McpView onClose={() => setShowMcp(false)} />
         )}
 
         {/* Settings 覆盖层 */}

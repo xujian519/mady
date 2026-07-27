@@ -6,11 +6,15 @@ package main
 // 生命周期由 Wails 框架管理：OnStartup → (Chat/Cancel/... 任意序列) → OnShutdown。
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,10 +23,13 @@ import (
 	"github.com/xujian519/mady/a2ui"
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agui"
+	"github.com/xujian519/mady/mcp"
 	madyserver "github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
+	"github.com/xujian519/mady/skill"
 
 	"github.com/xujian519/mady/pkg/framework"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // App 是桌面端顶层应用结构体，持有内嵌的 server 实例。
@@ -398,6 +405,389 @@ type FileEntry struct {
 	IsDir   bool   `json:"isDir"`
 	Size    int64  `json:"size"`
 	ModTime int64  `json:"modTime"`
+}
+
+// --- 文件内容读取（T5.1，PilotDeck 对齐） ---
+
+// maxReadFileSize 是 ReadFile 允许读取的单文件上限（20MB）。
+const maxReadFileSize = 20 << 20
+
+// FileContent 描述一个已读出的文件内容。
+// 文本类（text/md）通过 Text 返回 UTF-8 内容；
+// 二进制类（image/pdf）通过 Data 返回 base64 编码内容。
+type FileContent struct {
+	Name string `json:"name"`           // 文件名
+	Path string `json:"path"`           // 相对项目根的路径
+	Kind string `json:"kind"`           // text | md | image | pdf
+	Text string `json:"text,omitempty"` // kind=text/md 时的内容
+	Data string `json:"data,omitempty"` // kind=image/pdf 时的 base64 内容
+	Mime string `json:"mime,omitempty"` // image/png、application/pdf 等
+	Size int64  `json:"size"`
+}
+
+// classifyFileKind 按扩展名归类文件类型。
+// svg 按图片处理（前端 <img> 渲染）；未知扩展名默认 text，
+// 由 ReadFile 在读出后做二进制嗅探兜底。
+func classifyFileKind(name string) (kind, mime string) {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".md", ".markdown":
+		return "md", "text/markdown"
+	case ".pdf":
+		return "pdf", "application/pdf"
+	case ".png":
+		return "image", "image/png"
+	case ".jpg", ".jpeg":
+		return "image", "image/jpeg"
+	case ".gif":
+		return "image", "image/gif"
+	case ".webp":
+		return "image", "image/webp"
+	case ".svg":
+		return "image", "image/svg+xml"
+	case ".bmp":
+		return "image", "image/bmp"
+	case ".ico":
+		return "image", "image/x-icon"
+	default:
+		return "text", "text/plain"
+	}
+}
+
+// isBinaryContent 嗅探内容是否为二进制（前 8KB 内含 NUL 字节即判定）。
+func isBinaryContent(data []byte) bool {
+	const sniffLen = 8192
+	n := len(data)
+	if n > sniffLen {
+		n = sniffLen
+	}
+	return bytes.Contains(data[:n], []byte{0})
+}
+
+// resolveSandboxedPath 将路径解析为沙箱内的绝对路径。
+// relPath 可以是相对路径（相对于 sandboxRoot）或绝对路径。
+// 越狱路径返回错误。
+func resolveSandboxedPath(relPath, sandboxRoot string) (string, error) {
+	if relPath == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	abs := relPath
+	if !filepath.IsAbs(relPath) {
+		abs = filepath.Join(sandboxRoot, relPath)
+	}
+	if !isPathWithinSandbox(abs, sandboxRoot) {
+		return "", fmt.Errorf("path escape detected: %s is outside %s", abs, sandboxRoot)
+	}
+	return abs, nil
+}
+
+// resolveSandboxedPathMulti 尝试将 relPath 解析为沙箱内的绝对路径。
+// 先在 sandboxRoots[0]（项目根）中解析，失败后依次尝试后续沙箱根（如 MADY_HOME）。
+// 全部失败时返回组合错误。
+func resolveSandboxedPathMulti(relPath string, sandboxRoots ...string) (string, error) {
+	if relPath == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	var errs []string
+	for _, root := range sandboxRoots {
+		abs, err := resolveSandboxedPath(relPath, root)
+		if err == nil {
+			return abs, nil
+		}
+		errs = append(errs, err.Error())
+	}
+	return "", fmt.Errorf("path not allowed: %s", strings.Join(errs, "; "))
+}
+
+// ReadFile 读取项目沙箱或 MADY_HOME 沙箱内的文件内容。
+// relPath 是相对于项目根目录的路径（项目文件）或相对/绝对路径（全局技能文件）。
+// 文本/Markdown 返回 Text；图片/PDF 返回 base64 编码的 Data。
+// 其他二进制文件返回错误，不向前端暴露原始字节。
+func (a *App) ReadFile(relPath string) (*FileContent, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+
+	cwd, err := a.resolveProjectDir()
+	if err != nil {
+		return nil, fmt.Errorf("ReadFile: %w", err)
+	}
+
+	roots := []string{cwd}
+	if home, err := util.MadyHome(); err == nil && home != cwd {
+		roots = append(roots, home)
+	}
+
+	abs, err := resolveSandboxedPathMulti(relPath, roots...)
+	if err != nil {
+		return nil, fmt.Errorf("ReadFile: %w", err)
+	}
+
+	info, err := os.Stat(abs)
+	if err != nil {
+		return nil, fmt.Errorf("ReadFile: %w", err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("ReadFile: %s is a directory", relPath)
+	}
+	if info.Size() > maxReadFileSize {
+		return nil, fmt.Errorf("ReadFile: file too large (%d bytes, limit %d)", info.Size(), maxReadFileSize)
+	}
+
+	raw, err := os.ReadFile(abs) //nolint:gosec // 路径已过沙箱校验
+	if err != nil {
+		return nil, fmt.Errorf("ReadFile: %w", err)
+	}
+
+	kind, mime := classifyFileKind(info.Name())
+	fc := &FileContent{
+		Name: info.Name(),
+		Path: relPath,
+		Kind: kind,
+		Mime: mime,
+		Size: info.Size(),
+	}
+
+	switch kind {
+	case "text", "md":
+		if kind == "text" && isBinaryContent(raw) {
+			return nil, fmt.Errorf("ReadFile: %s appears to be a binary file", relPath)
+		}
+		fc.Text = string(raw)
+	case "image", "pdf":
+		fc.Data = base64.StdEncoding.EncodeToString(raw)
+	}
+	return fc, nil
+}
+
+// maxWriteFileSize 是 WriteFile 允许写入的内容上限（20MB）。
+const maxWriteFileSize = 20 << 20
+
+// WriteFile 将文本内容写入项目沙箱或 MADY_HOME 沙箱内的文件。
+// 仅允许写入 text/md 类文件（按扩展名判定），图片/PDF 等二进制不可写。
+// 采用临时文件 + rename 的原子写策略，避免写一半留下损坏文件。
+func (a *App) WriteFile(relPath, content string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if len(content) > maxWriteFileSize {
+		return fmt.Errorf("WriteFile: content too large (%d bytes, limit %d)", len(content), maxWriteFileSize)
+	}
+
+	kind, _ := classifyFileKind(relPath)
+	if kind != "text" && kind != "md" {
+		return fmt.Errorf("WriteFile: %s is not a writable text file", relPath)
+	}
+
+	cwd, err := a.resolveProjectDir()
+	if err != nil {
+		return fmt.Errorf("WriteFile: %w", err)
+	}
+
+	roots := []string{cwd}
+	if home, err := util.MadyHome(); err == nil && home != cwd {
+		roots = append(roots, home)
+	}
+
+	abs, err := resolveSandboxedPathMulti(relPath, roots...)
+	if err != nil {
+		return fmt.Errorf("WriteFile: %w", err)
+	}
+	// 原子写：同目录临时文件 + rename
+	tmp, err := os.CreateTemp(filepath.Dir(abs), ".mady-write-*")
+	if err != nil {
+		return fmt.Errorf("WriteFile: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	if _, err := tmp.WriteString(content); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("WriteFile: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("WriteFile: %w", err)
+	}
+	if err := os.Chmod(tmpName, 0600); err != nil {
+		return fmt.Errorf("WriteFile: %w", err)
+	}
+	if err := os.Rename(tmpName, abs); err != nil {
+		return fmt.Errorf("WriteFile: %w", err)
+	}
+	log.Printf("[mady-desktop] wrote file: %s (%d bytes)", abs, len(content))
+	return nil
+}
+
+// --- 文件删除（T5.8，PilotDeck 对齐） ---
+
+// DeleteEntry 删除项目沙箱内的文件或空目录。
+// 目录必须为空才允许删除（递归删除本期不支持）。
+func (a *App) DeleteEntry(relPath string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+
+	cwd, err := a.resolveProjectDir()
+	if err != nil {
+		return fmt.Errorf("DeleteEntry: %w", err)
+	}
+
+	abs, err := resolveSandboxedPath(relPath, cwd)
+	if err != nil {
+		return fmt.Errorf("DeleteEntry: %w", err)
+	}
+
+	info, err := os.Stat(abs)
+	if err != nil {
+		return fmt.Errorf("DeleteEntry: %w", err)
+	}
+
+	if info.IsDir() {
+		entries, err := os.ReadDir(abs)
+		if err != nil {
+			return fmt.Errorf("DeleteEntry: %w", err)
+		}
+		if len(entries) > 0 {
+			return fmt.Errorf("DeleteEntry: directory %s is not empty", relPath)
+		}
+	}
+
+	if err := os.Remove(abs); err != nil {
+		return fmt.Errorf("DeleteEntry: %w", err)
+	}
+	log.Printf("[mady-desktop] deleted: %s", abs)
+	return nil
+}
+
+// --- 技能管理（T5.6，PilotDeck 对齐） ---
+
+// SkillEntry 是一个已发现技能的概要信息。
+type SkillEntry struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// Path 是 SKILL.md 相对项目根的路径，可直接用于 ReadFile/WriteFile。
+	Path string `json:"path"`
+}
+
+// ListSkills 扫描项目 skills/ 与 MADY_HOME/skills 目录，返回发现的技能列表。
+// 项目技能优先，全局技能按名称去重（同名以项目技能为准）。
+// 未找到 skills 目录时返回空列表（不视为错误）。
+func (a *App) ListSkills() ([]SkillEntry, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+
+	cwd, err := a.resolveProjectDir()
+	if err != nil {
+		return nil, fmt.Errorf("ListSkills: %w", err)
+	}
+
+	type scanned struct {
+		root string
+		dir  string
+	}
+	dirs := []scanned{{root: cwd, dir: filepath.Join(cwd, "skills")}}
+	if home, err := util.MadyHome(); err == nil && home != cwd {
+		dirs = append(dirs, scanned{root: home, dir: filepath.Join(home, "skills")})
+	}
+
+	seen := make(map[string]bool)
+	var result []SkillEntry
+
+	for _, d := range dirs {
+		if _, err := os.Stat(d.dir); os.IsNotExist(err) {
+			continue
+		}
+		skills, _, err := skill.Load(d.dir)
+		if err != nil {
+			continue
+		}
+		for _, s := range skills {
+			if seen[s.Name] {
+				continue
+			}
+			seen[s.Name] = true
+			rel, err := filepath.Rel(d.root, s.FilePath)
+			if err != nil {
+				continue
+			}
+			result = append(result, SkillEntry{
+				Name:        s.Name,
+				Description: s.Description,
+				Path:        filepath.ToSlash(rel),
+			})
+		}
+	}
+
+	if result == nil {
+		return []SkillEntry{}, nil
+	}
+	return result, nil
+}
+
+// --- MCP 服务器管理（T5.7，PilotDeck 对齐，只读） ---
+
+// McpServerEntry 是一个已配置 MCP 服务器的只读概要。
+// Env 仅暴露键名，不返回值，防止 API Key 泄露到前端。
+type McpServerEntry struct {
+	Name    string   `json:"name"`
+	Type    string   `json:"type"` // stdio | http
+	Command string   `json:"command,omitempty"`
+	Args    []string `json:"args,omitempty"`
+	URL     string   `json:"url,omitempty"`
+	EnvKeys []string `json:"envKeys,omitempty"`
+	// Source 是来源配置文件（~/.mady/mcp.json 或项目 .mcp.json）。
+	Source string `json:"source"`
+}
+
+// ListMcpServers 返回已配置的 MCP 服务器列表（只读）。
+// 扫描 ~/.mady/mcp.json 与项目 .mcp.json，不触碰信任存储写路径。
+// 项目 .mcp.json 的来源不受信，仅作展示（实际执行仍需信任校验）。
+func (a *App) ListMcpServers() ([]McpServerEntry, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+
+	var result []McpServerEntry
+	collect := func(path, source string) {
+		cfg, err := mcp.LoadMCPConfig(path)
+		if err != nil {
+			return // 文件不存在或解析失败：跳过（best-effort 展示）
+		}
+		for name, srv := range cfg.MCPServers {
+			typ := srv.Type
+			if typ == "" {
+				typ = "stdio"
+			}
+			envKeys := make([]string, 0, len(srv.Env))
+			for k := range srv.Env {
+				envKeys = append(envKeys, k)
+			}
+			sort.Strings(envKeys)
+			result = append(result, McpServerEntry{
+				Name:    name,
+				Type:    typ,
+				Command: srv.Command,
+				Args:    srv.Args,
+				URL:     srv.URL,
+				EnvKeys: envKeys,
+				Source:  source,
+			})
+		}
+	}
+
+	if home, err := util.MadyHome(); err == nil {
+		collect(filepath.Join(home, "mcp.json"), "global")
+	}
+
+	if cwd, err := a.resolveProjectDir(); err == nil {
+		collect(filepath.Join(cwd, ".mcp.json"), "project")
+	}
+
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	if result == nil {
+		result = []McpServerEntry{}
+	}
+	return result, nil
 }
 
 // --- 内部辅助 ---

@@ -30,9 +30,14 @@ import {
   AlertCircle,
   Plus,
   Pencil,
+  FilePlus,
+  FolderPlus,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react'
-import { listDirectory, createFolder, renameFolder } from '@/lib/backend'
+import { listDirectory, createFolder, renameFolder, deleteEntry, writeFile } from '@/lib/backend'
 import type { FileEntry } from '@/lib/backend'
+import { useFilesStore } from '@/stores/files'
 
 // ── Types ─────────────────────────────────────────
 
@@ -56,9 +61,9 @@ interface ContextMenuState {
 
 /** 内联编辑状态。 */
 interface EditingState {
-  /** 编辑所在节点的 path（create 时为父节点 path，rename 时为节点自身 path）。 */
+  /** 编辑所在节点的 path（create/create-file 时为父节点 path，rename 时为节点自身 path；根目录为 ''）。 */
   path: string
-  type: 'create' | 'rename'
+  type: 'create' | 'create-file' | 'rename'
 }
 
 type TreeAction =
@@ -68,6 +73,8 @@ type TreeAction =
   | { type: 'SET_CHILDREN'; path: string; entries: FileEntry[] }
   | { type: 'SET_ERROR'; path: string; message: string }
   | { type: 'ADD_CHILD'; parentPath: string; name: string; fullPath: string }
+  | { type: 'ADD_FILE_CHILD'; parentPath: string; name: string }
+  | { type: 'REMOVE_NODE'; path: string }
   | { type: 'RENAME'; path: string; newName: string }
 
 // ── Helpers ───────────────────────────────────────
@@ -139,28 +146,55 @@ function treeReducer(state: TreeNode[], action: TreeAction): TreeNode[] {
         error: action.message,
       }))
 
-    case 'ADD_CHILD':
+    case 'ADD_CHILD': {
+      const newDir: TreeNode = {
+        path: action.fullPath,
+        name: action.name,
+        isDir: true,
+        expanded: false,
+        loading: false,
+        error: null,
+        children: [],
+      }
+      // 根目录新建：parentPath 为 ''
+      if (action.parentPath === '') {
+        if (state.some((c) => c.name === action.name)) return state
+        return [...state, newDir]
+      }
       return updateNode(state, action.parentPath, (n) => {
         if (!n.isDir) return n
         const exists = n.children.some((c) => c.name === action.name)
         if (exists) return n
-        return {
-          ...n,
-          expanded: true,
-          children: [
-            ...n.children,
-            {
-              path: action.fullPath,
-              name: action.name,
-              isDir: true,
-              expanded: false,
-              loading: false,
-              error: null,
-              children: [],
-            },
-          ],
-        }
+        return { ...n, expanded: true, children: [...n.children, newDir] }
       })
+    }
+
+    case 'ADD_FILE_CHILD': {
+      const parentPath = action.parentPath
+      const fullPath = parentPath ? `${parentPath}/${action.name}` : action.name
+      const newFile: TreeNode = {
+        path: fullPath,
+        name: action.name,
+        isDir: false,
+        expanded: false,
+        loading: false,
+        error: null,
+        children: [],
+      }
+      if (parentPath === '') {
+        if (state.some((c) => c.name === action.name)) return state
+        return [...state, newFile]
+      }
+      return updateNode(state, parentPath, (n) => {
+        if (!n.isDir) return n
+        const exists = n.children.some((c) => c.name === action.name)
+        if (exists) return n
+        return { ...n, expanded: true, children: [...n.children, newFile] }
+      })
+    }
+
+    case 'REMOVE_NODE':
+      return removeNode(state, action.path)
 
     case 'RENAME':
       return updateNode(state, action.path, (n) => ({
@@ -172,6 +206,15 @@ function treeReducer(state: TreeNode[], action: TreeAction): TreeNode[] {
     default:
       return state
   }
+}
+
+/** 按 path 从树中移除节点（不变处共享引用）。 */
+function removeNode(nodes: TreeNode[], path: string): TreeNode[] {
+  return nodes
+    .filter((n) => n.path !== path)
+    .map((n) =>
+      n.children.length > 0 ? { ...n, children: removeNode(n.children, path) } : n,
+    )
 }
 
 /** 排序：目录在前，之后按名称字母序。 */
@@ -189,6 +232,8 @@ interface TreeNodeRowProps {
   depth: number
   onToggle: (path: string) => void
   onContextMenu: (e: React.MouseEvent, node: TreeNode) => void
+  /** 文件节点点击：打开查看器。 */
+  onOpenFile: (path: string) => void
   /** 当前是否正处于 rename 编辑状态（只有匹配时显示 input）。 */
   renaming: boolean
   onFinishRename: (path: string, value: string) => void
@@ -200,6 +245,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = ({
   depth,
   onToggle,
   onContextMenu,
+  onOpenFile,
   renaming,
   onFinishRename,
   onCancelEdit,
@@ -239,6 +285,9 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = ({
   return (
     <div
       onContextMenu={(e) => onContextMenu(e, node)}
+      onClick={() => {
+        if (!node.isDir && !renaming) onOpenFile(node.path)
+      }}
       className="group flex items-center gap-1 px-2 py-0.5 rounded-md cursor-pointer hover:bg-mady-bg-primary text-mady-ui text-mady-text-primary transition-colors"
       style={{ paddingLeft: `${12 + depth * 14}px` }}
     >
@@ -298,29 +347,26 @@ export const ProjectTree: React.FC = () => {
   const [editing, setEditing] = useState<EditingState | null>(null)
   const createInputRef = useRef<HTMLInputElement>(null)
 
-  // ── 初始加载 ──────────────────────────────────────
+  // ── 根目录加载（初始 + 刷新） ──────────────────────
 
-  useEffect(() => {
-    let cancelled = false
+  const loadRoot = useCallback(() => {
     setRootLoading(true)
     setRootError(null)
 
     listDirectory('')
       .then((entries) => {
-        if (cancelled) return
         dispatch({ type: 'SET_ROOT', nodes: sortEntries(entries).map((e) => fileEntryToNode(e, '')) })
         setRootLoading(false)
       })
       .catch((err: unknown) => {
-        if (cancelled) return
         setRootError(err instanceof Error ? err.message : String(err))
         setRootLoading(false)
       })
-
-    return () => {
-      cancelled = true
-    }
   }, [])
+
+  useEffect(() => {
+    loadRoot()
+  }, [loadRoot])
 
   // ── 右键菜单：点击外部关闭 ─────────────────────────
 
@@ -341,7 +387,7 @@ export const ProjectTree: React.FC = () => {
   // ── 新建输入框自动聚焦 ────────────────────────────
 
   useEffect(() => {
-    if (editing?.type === 'create' && createInputRef.current) {
+    if ((editing?.type === 'create' || editing?.type === 'create-file') && createInputRef.current) {
       createInputRef.current.focus()
     }
   }, [editing])
@@ -376,7 +422,6 @@ export const ProjectTree: React.FC = () => {
   )
 
   const handleContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
-    if (!node.isDir) return
     // 编辑进行中时不显示菜单
     if (editing) return
     e.preventDefault()
@@ -390,10 +435,30 @@ export const ProjectTree: React.FC = () => {
     setContextMenu(null)
   }, [contextMenu])
 
+  const handleCreateFile = useCallback(() => {
+    if (!contextMenu) return
+    setEditing({ path: contextMenu.node.path, type: 'create-file' })
+    setContextMenu(null)
+  }, [contextMenu])
+
   const handleRenameFolder = useCallback(() => {
     if (!contextMenu) return
     setEditing({ path: contextMenu.node.path, type: 'rename' })
     setContextMenu(null)
+  }, [contextMenu])
+
+  /** 删除文件或空目录（二次确认）。 */
+  const handleDelete = useCallback(() => {
+    if (!contextMenu) return
+    const node = contextMenu.node
+    setContextMenu(null)
+    const label = node.isDir ? '文件夹（须为空）' : '文件'
+    if (!window.confirm(`确定删除${label}「${node.name}」？此操作不可撤销。`)) return
+    deleteEntry(node.path)
+      .then(() => dispatch({ type: 'REMOVE_NODE', path: node.path }))
+      .catch((err: unknown) => {
+        window.alert(err instanceof Error ? err.message : String(err))
+      })
   }, [contextMenu])
 
   /** 完成编辑（新建文件夹或重命名）。 */
@@ -406,10 +471,19 @@ export const ProjectTree: React.FC = () => {
       }
 
       if (editing?.type === 'create') {
-        // path 是父节点路径
+        // path 是父节点路径（'' 表示根目录）
         try {
           const fullPath = await createFolder(path, trimmed)
           dispatch({ type: 'ADD_CHILD', parentPath: path, name: trimmed, fullPath })
+        } catch {
+          // 静默失败
+        }
+      } else if (editing?.type === 'create-file') {
+        // 写入空文件即完成创建
+        const fullPath = path ? `${path}/${trimmed}` : trimmed
+        try {
+          await writeFile(fullPath, '')
+          dispatch({ type: 'ADD_FILE_CHILD', parentPath: path, name: trimmed })
         } catch {
           // 静默失败
         }
@@ -431,12 +505,18 @@ export const ProjectTree: React.FC = () => {
     setEditing(null)
   }, [])
 
+  /** 文件点击：在查看器浮层中打开。 */
+  const handleOpenFile = useCallback((path: string) => {
+    void useFilesStore.getState().openFile(path)
+  }, [])
+
   // ── 递归渲染 ──────────────────────────────────────
 
   const renderNodes = (nodes: TreeNode[], depth: number): React.ReactNode[] => {
     return nodes.flatMap((node) => {
       const isRenaming = editing?.path === node.path && editing?.type === 'rename'
-      const isCreatingHere = editing?.path === node.path && editing?.type === 'create'
+      const isCreatingHere =
+        editing?.path === node.path && (editing?.type === 'create' || editing?.type === 'create-file')
 
       const rows: React.ReactNode[] = [
         <TreeNodeRow
@@ -445,24 +525,30 @@ export const ProjectTree: React.FC = () => {
           depth={depth}
           onToggle={handleToggle}
           onContextMenu={handleContextMenu}
+          onOpenFile={handleOpenFile}
           renaming={isRenaming}
           onFinishRename={handleFinishEdit}
           onCancelEdit={handleCancelEdit}
         />,
       ]
 
-      // 新建文件夹的内联输入框（紧跟父节点之后）
+      // 新建文件夹/文件的内联输入框（紧跟父节点之后）
       if (isCreatingHere) {
+        const isFile = editing?.type === 'create-file'
         rows.push(
           <div
             key={`${node.path}--create`}
             className="flex items-center gap-1 px-2 py-0.5"
             style={{ paddingLeft: `${12 + (depth + 1) * 14}px` }}
           >
-            <Folder size={14} className="text-mady-accent shrink-0" />
+            {isFile ? (
+              <File size={14} className="text-mady-accent shrink-0" />
+            ) : (
+              <Folder size={14} className="text-mady-accent shrink-0" />
+            )}
             <input
               ref={createInputRef}
-              placeholder="文件夹名称"
+              placeholder={isFile ? '文件名称（如 notes.md）' : '文件夹名称'}
               defaultValue=""
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -496,12 +582,62 @@ export const ProjectTree: React.FC = () => {
 
   return (
     <div className="select-none">
-      {/* 头部 */}
-      <div className="px-3 py-2 border-b border-mady-separator">
+      {/* 头部 + 工具栏 */}
+      <div className="px-3 py-2 border-b border-mady-separator flex items-center justify-between">
         <span className="text-mady-caption font-medium text-mady-text-secondary uppercase tracking-wider">
           项目文件
         </span>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => setEditing({ path: '', type: 'create-file' })}
+            className="p-1 rounded hover:bg-mady-bg-primary text-mady-text-tertiary transition-colors"
+            title="新建文件"
+          >
+            <FilePlus size={13} />
+          </button>
+          <button
+            onClick={() => setEditing({ path: '', type: 'create' })}
+            className="p-1 rounded hover:bg-mady-bg-primary text-mady-text-tertiary transition-colors"
+            title="新建文件夹"
+          >
+            <FolderPlus size={13} />
+          </button>
+          <button
+            onClick={loadRoot}
+            className="p-1 rounded hover:bg-mady-bg-primary text-mady-text-tertiary transition-colors"
+            title="刷新"
+          >
+            <RefreshCw size={12} />
+          </button>
+        </div>
       </div>
+
+      {/* 根级新建输入框 */}
+      {editing && editing.path === '' && (editing.type === 'create' || editing.type === 'create-file') && (
+        <div className="flex items-center gap-1 px-2 py-1 border-b border-mady-separator/50" style={{ paddingLeft: '12px' }}>
+          {editing.type === 'create-file' ? (
+            <File size={14} className="text-mady-accent shrink-0" />
+          ) : (
+            <Folder size={14} className="text-mady-accent shrink-0" />
+          )}
+          <input
+            ref={createInputRef}
+            placeholder={editing.type === 'create-file' ? '文件名称（如 notes.md）' : '文件夹名称'}
+            defaultValue=""
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleFinishEdit('', e.currentTarget.value)
+              } else if (e.key === 'Escape') {
+                handleCancelEdit()
+              }
+            }}
+            onBlur={(e) => {
+              if (!e.target.value.trim()) setEditing(null)
+            }}
+            className="flex-1 min-w-0 bg-mady-bg-primary border border-mady-accent rounded px-1 py-0.5 text-mady-ui text-mady-text-primary outline-none"
+          />
+        </div>
+      )}
 
       {/* 树区域 */}
       <div className="overflow-y-auto py-1" style={{ maxHeight: 'calc(100vh - 280px)' }}>
@@ -539,19 +675,37 @@ export const ProjectTree: React.FC = () => {
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={handleCreateFolder}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-mady-ui text-mady-text-primary hover:bg-mady-accent-soft transition-colors text-left"
-          >
-            <Plus size={12} className="text-mady-text-tertiary" />
-            新建文件夹
-          </button>
+          {contextMenu.node.isDir && (
+            <>
+              <button
+                onClick={handleCreateFile}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-mady-ui text-mady-text-primary hover:bg-mady-accent-soft transition-colors text-left"
+              >
+                <FilePlus size={12} className="text-mady-text-tertiary" />
+                新建文件
+              </button>
+              <button
+                onClick={handleCreateFolder}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-mady-ui text-mady-text-primary hover:bg-mady-accent-soft transition-colors text-left"
+              >
+                <Plus size={12} className="text-mady-text-tertiary" />
+                新建文件夹
+              </button>
+            </>
+          )}
           <button
             onClick={handleRenameFolder}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-mady-ui text-mady-text-primary hover:bg-mady-accent-soft transition-colors text-left"
           >
             <Pencil size={12} className="text-mady-text-tertiary" />
             重命名
+          </button>
+          <button
+            onClick={handleDelete}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-mady-ui text-mady-danger hover:bg-mady-danger/10 transition-colors text-left"
+          >
+            <Trash2 size={12} />
+            删除
           </button>
         </div>
       )}
