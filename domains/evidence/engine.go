@@ -70,6 +70,8 @@ func (e *DefaultEngine) evaluateTypeSpecific(span agentcore_evidence.EvidenceSpa
 	case EvTypeElectronic:
 		cred := PlatformCredibility(cleanEvidenceURI(span.SourceURI))
 		ts.PlatformCredibility = &cred
+		score := CredibilityToScore(cred)
+		ts.CredibilityScore = &score
 	case EvTypeForeignLang:
 		ts.TranslationStatus = "unknown"
 	case EvTypeOverseas:
@@ -92,6 +94,8 @@ func (e *DefaultEngine) evaluateTypeSpecific(span agentcore_evidence.EvidenceSpa
 		cleanedURI := cleanEvidenceURI(span.SourceURI)
 		cred := PlatformCredibility(cleanedURI)
 		ts.PlatformCredibility = &cred
+		score := CredibilityToScore(cred)
+		ts.CredibilityScore = &score
 		// 平台分类
 		ts.PlatformCategory = classifyInternetPlatform(span.SourceURI)
 		// 内容完整性检查
@@ -215,6 +219,7 @@ func (e *DefaultEngine) GetRulesByType(evType EvidenceType) []EvidenceRule {
 }
 
 // computeOverallScore 综合三个维度的评分，支持从 YAML 加载权重。
+// 当证据涉及电子或互联网公开类型时，平台可信度分数作为修正系数纳入总分。
 func (e *DefaultEngine) computeOverallScore(j *EvidenceJudgment) float64 {
 	weights := map[string]float64{"relevance": 0.3, "legality": 0.3, "authenticity": 0.4}
 	rules := e.index.GetRulesByType(EvTypeGeneral)
@@ -244,7 +249,16 @@ func (e *DefaultEngine) computeOverallScore(j *EvidenceJudgment) float64 {
 	if weightSum == 0 {
 		return 0.5
 	}
-	return total / weightSum
+	base := total / weightSum
+
+	// 可信度修正：对电子/互联网公开类证据，根据平台可信度分数微调总分。
+	// 修正系数 = 0.9 + 0.2 * credScore，范围 [0.95, 1.09]。
+	// 政府/学术平台 (0.95) → 微升，社交/未知平台 (0.25) → 微降。
+	if ts := j.TypeSpecificJudgment; ts != nil && ts.CredibilityScore != nil {
+		modifier := 0.9 + 0.2*(*ts.CredibilityScore)
+		base *= modifier
+	}
+	return base
 }
 
 // buildReasoning 生成判断推理过程说明。
@@ -263,11 +277,17 @@ func (e *DefaultEngine) buildReasoning(j *EvidenceJudgment, evType EvidenceType)
 		switch evType {
 		case EvTypeInternetPublication:
 			ts := j.TypeSpecificJudgment
-			parts = append(parts, fmt.Sprintf("类型检查[互联网公开]: 日期=%s, 可信度=%s, 完整性=%s, 意图=%s",
+			parts = append(parts, fmt.Sprintf("类型检查[互联网公开]: 日期=%s, 可信度=%s(%.2f), 完整性=%s, 意图=%s",
 				ts.DateDeterminationString(),
 				ts.PlatformCredibilityString(),
+				credibilityScoreOrDefault(ts.CredibilityScore),
 				ts.ContentIntegrity,
 				ts.PublicIntent))
+		case EvTypeElectronic:
+			ts := j.TypeSpecificJudgment
+			parts = append(parts, fmt.Sprintf("类型检查[电子证据]: 可信度=%s(%.2f)",
+				ts.PlatformCredibilityString(),
+				credibilityScoreOrDefault(ts.CredibilityScore)))
 		case EvTypePublicUse:
 			ts := j.TypeSpecificJudgment
 			result := ts.FourElementsCheck
@@ -766,4 +786,12 @@ func containsAny(s string, keywords []string) bool {
 		}
 	}
 	return false
+}
+
+// credibilityScoreOrDefault 返回可信度分数，为 nil 时返回 0。
+func credibilityScoreOrDefault(s *float64) float64 {
+	if s == nil {
+		return 0
+	}
+	return *s
 }

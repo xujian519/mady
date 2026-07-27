@@ -19,6 +19,7 @@ import (
 	"github.com/xujian519/mady/agentcore/filecheckpoint"
 	"github.com/xujian519/mady/agentcore/planmode"
 	"github.com/xujian519/mady/agentcore/tasklist"
+	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/doctmpl"
 	domainEvidence "github.com/xujian519/mady/domains/evidence"
@@ -133,6 +134,16 @@ func (CaseFileReader) ReadText(path string) string {
 		return ""
 	}
 	return string(data)
+}
+
+// docxRendererAdapter 适配 doctmpl.Renderer 的 Render(md, meta) 签名
+// 到 disclosure.DOCXConverter 的 Render(md) 签名，忽略 meta 参数。
+type docxRendererAdapter struct {
+	docx doctmpl.Renderer
+}
+
+func (a docxRendererAdapter) Render(markdownBody string) ([]byte, error) {
+	return a.docx.Render(markdownBody, doctmpl.RenderMeta{})
 }
 
 const startupMCPDiscoveryTimeout = 1500 * time.Millisecond
@@ -475,12 +486,21 @@ func BuildBaseTools(fc *Context) {
 		fc.PlanModeExt,
 		fc.EvidenceExt,
 		domainEvidence.NewDomainExtension(nil),
+		domains.NewDeadlineCalculatorExtension(),
 	)
 
 	if taskDir, err := util.ResolveDataDir("sessions"); err == nil {
 		taskDir = TasklistDirForCWD(taskDir, fc.BaseConfig.ProjectDir)
 		if taskExt, err := tasklist.NewExtension(taskDir); err == nil {
 			fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, taskExt)
+		}
+	}
+
+	// 审计日志扩展：当 MADY_HOME 可用时启用（可通过空 MadyHome 禁用）。
+	if auditBase, err := util.MadyHome(); err == nil {
+		if auditExt, err := domains.NewAuditExtension(auditBase, "mady-agent"); err == nil && auditExt != nil {
+			fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, auditExt)
+			slog.Info("审计日志已启用", "base", auditBase)
 		}
 	}
 
@@ -660,6 +680,13 @@ func InitReasoningAndTemplates(fc *Context) {
 		slog.Error("加载模板仓库失败，模板工具不可用", "error", err)
 	} else {
 		domains.SetupDocTemplateStore(store)
+
+		// 将 doctmpl 的 DOCX 渲染器注入 disclosure 包的 DOCX 导出接口，
+		// 使技术交底书分析报告等文档具备 DOCX 格式输出能力。
+		if docxRenderer, ok := store.RendererRegistry().Get(doctmpl.FormatDOCX); ok {
+			disclosure.SetDOCXConverter(docxRendererAdapter{docx: docxRenderer})
+			slog.Info("DOCX 导出渲染器已接入 disclosure 包")
+		}
 	}
 
 	promptDir := filepath.Join(fc.MadyHome, "prompt-templates")
@@ -744,8 +771,10 @@ func BuildReasoningRetriever(fc *Context) *reasoning.MultiSourceRetriever {
 		return nil
 	}
 	var walker *reasoning.ReasoningWalker
+	var kgAdapter *kgwgraph.ReasoningStoreAdapter
 	if fc.KnowledgeGraph != nil {
 		adapter := kgwgraph.NewReasoningStoreAdapter(fc.KnowledgeGraph)
+		kgAdapter = adapter
 		walker = reasoning.NewReasoningWalker(adapter, nil)
 	}
 	var vs reasoning.RuleVectorStore
@@ -760,7 +789,24 @@ func BuildReasoningRetriever(fc *Context) *reasoning.MultiSourceRetriever {
 	if fc.RuleEngine != nil {
 		re = reasoningwiring.NewRuleEngineAdapter(fc.RuleEngine)
 	}
-	return reasoning.NewMultiSourceRetriever(walker, vs, sr, re)
+	retriever := reasoning.NewMultiSourceRetriever(walker, vs, sr, re)
+
+	// 连接 IPC 审查标准源：使 retriever 在 Stage ② 规则获取中能查询 IPC 分类对应的审查标准。
+	if ipcAdapter, err := reasoning.NewIPCStandardAdapter(); err == nil {
+		retriever.WithIPCSource(ipcAdapter)
+		slog.Info("IPC 审查标准源已接入推理检索器")
+	} else {
+		slog.Debug("IPC 审查标准源不可用，跳过", "error", err)
+	}
+
+	// 连接知识图谱拓扑提取器：使 retriever 在 Stage ② 中可以通过 KG 拓扑生成排序后的工作流步骤。
+	if kgAdapter != nil {
+		topoExt := reasoning.NewTopologyExtractor(kgAdapter)
+		retriever.WithTopologyExtractor(topoExt)
+		slog.Info("知识图谱拓扑提取器已接入推理检索器")
+	}
+
+	return retriever
 }
 
 // ExtSlice wraps a single Extension into a slice, returning nil for nil input.

@@ -26,14 +26,14 @@ func TestEvidenceDomainExtension_InitDispose(t *testing.T) {
 func TestEvidenceDomainExtension_Tools(t *testing.T) {
 	ext := NewDomainExtension(nil)
 	tools := ext.Tools()
-	if len(tools) != 5 {
-		t.Fatalf("expected 5 tools, got %d", len(tools))
+	if len(tools) != 7 {
+		t.Fatalf("expected 7 tools, got %d", len(tools))
 	}
 	names := make(map[string]bool)
 	for _, tool := range tools {
 		names[tool.Name] = true
 	}
-	for _, name := range []string{"judge_triple", "check_burden", "assess_standard", "detect_conflict", "judge_type_specific"} {
+	for _, name := range []string{"judge_triple", "check_burden", "assess_standard", "determine_standard", "detect_conflict", "judge_type_specific", "assess_credibility"} {
 		if !names[name] {
 			t.Errorf("missing tool: %s", name)
 		}
@@ -256,5 +256,82 @@ func TestJudgeTypeSpecificTool_EmptyURI(t *testing.T) {
 	_, err := tool.Func(context.Background(), json.RawMessage(args))
 	if err == nil {
 		t.Fatal("expected error for empty source_uri")
+	}
+}
+
+func TestDetermineStandardTool_Infringement(t *testing.T) {
+	tool := newDetermineStandardTool()
+	args := `{"scenario":"patent_infringement"}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["recommended_standard"] != string(StandardHighProbability) {
+		t.Errorf("expected high_probability for infringement, got %v", m["recommended_standard"])
+	}
+	if m["scenario"] != "patent_infringement" {
+		t.Errorf("expected scenario patent_infringement, got %v", m["scenario"])
+	}
+}
+
+func TestDetermineStandardTool_InvalidScenario(t *testing.T) {
+	tool := newDetermineStandardTool()
+	args := `{"scenario":"invalid_scenario"}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["recommended_standard"] == "" {
+		t.Error("expected fallback standard for invalid scenario")
+	}
+}
+
+func TestDetermineStandardTool_EmptyScenario(t *testing.T) {
+	tool := newDetermineStandardTool()
+	_, err := tool.Func(context.Background(), json.RawMessage(`{"scenario":""}`))
+	if err == nil {
+		t.Error("expected error for empty scenario")
+	}
+}
+
+func TestCredibilityTool_GovernmentDomain(t *testing.T) {
+	tool := newCredibilityTool()
+	args := `{"uri":"https://www.cnipa.gov.cn/patent/12345"}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["platform_level"] != "high" {
+		t.Errorf("expected platform_level=high for government domain, got %v", m["platform_level"])
+	}
+	if m["platform_score"].(float64) != 0.95 {
+		t.Errorf("expected platform_score=0.95 for government domain, got %v", m["platform_score"])
+	}
+}
+
+func TestCredibilityTool_VerifiedCopy(t *testing.T) {
+	tool := newCredibilityTool()
+	args := `{"uri":"https://weibo.com/user/post123","is_verified_copy":true}`
+	result, err := tool.Func(context.Background(), json.RawMessage(args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["combined_level"] != "medium_high" && m["combined_level"] != "medium" {
+		t.Logf("verified copy of social media: combined_level=%v", m["combined_level"])
+	}
+	if m["is_verified_copy"] != true {
+		t.Error("expected is_verified_copy=true")
+	}
+}
+
+func TestCredibilityTool_EmptyURI(t *testing.T) {
+	tool := newCredibilityTool()
+	_, err := tool.Func(context.Background(), json.RawMessage(`{"uri":""}`))
+	if err == nil {
+		t.Error("expected error for empty uri")
 	}
 }

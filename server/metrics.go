@@ -105,7 +105,12 @@ func (e *ExpvarMetricsRecorder) ActiveConnections(n int) {
 // HandleMetrics 注册一个简单的 /metrics 端点，
 // 返回 Prometheus 风格的纯文本指标（可使用 expvar 数据源）。
 func (e *ExpvarMetricsRecorder) HandleMetrics(mux *http.ServeMux) {
-	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /metrics", e.MetricsHandler())
+}
+
+// MetricsHandler 返回 /metrics 的 http.Handler，用于自动注册到 Server mux。
+func (e *ExpvarMetricsRecorder) MetricsHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/guardrails"
+	"github.com/xujian519/mady/psychological"
 	"github.com/xujian519/mady/tools"
 	"github.com/xujian519/mady/workflows/legal"
 )
@@ -75,7 +76,10 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 			legal.NewLegalComparisonTool(),
 		},
 	})
-	cfg.Extensions = append(cfg.Extensions, toolExt)
+	cfg.Extensions = append(cfg.Extensions, toolExt,
+		// 心理引擎 — 法律领域：VAD/OCC 语气调整 + 认知扭曲诊断（法律分析需要完整心理评估）。
+		psychological.NewExtension(LegalPsychConfig()),
+	)
 
 	// Chunked context engine for long legal documents.
 	cfg.Engine = "chunked"

@@ -98,9 +98,9 @@ func UnifiedAgentConfig(base agentcore.Config) agentcore.Config {
 		// serve：PermissionExtension(DenyPolicy, AlwaysDenyApprover)    → Deny
 	})
 
-	// 心理引擎 — 轻量模式：VAD/OCC 语气调整，不做认知扭曲诊断。
+	// 心理引擎 — 统一模式：VAD/OCC 语气调整，不做认知扭曲诊断（Chat/Assistant 场景）。
 	cfg.Extensions = append(cfg.Extensions, toolExt, psychological.NewExtension(
-		psychological.Config{SkipDistortionDetection: true},
+		ChatPsychConfig(),
 	))
 
 	// 注册专业领域 Handoff（Patent/Legal），标记为不可见。

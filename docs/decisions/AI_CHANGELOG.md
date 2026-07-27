@@ -1,5 +1,50 @@
 # AI 变更记录
 
+## 2026-07-27: 四子系统死代码接入 — 可信度管线/审计扩展/期限工具/指标端点
+
+### 状态
+4 项技术债务接入任务全部完成，`make all`（vet + build + test）全量通过。
+
+### 接入清单
+
+| 子系统 | 死代码函数 | 接入方式 | 修改范围 |
+|--------|-----------|---------|---------|
+| evidence/credibility.go | `CredibilityToScore`, `AssessElectronicEvidence` | 引擎管线集成 + 新工具 | types.go, engine.go, extension.go, tool_credibility.go (新), tools_test.go |
+| domains/audit.go | `NewAuditLogger`, `AuditLogger.Log`, `NewEncryptor`, `DefaultRetentionConfig` | AuditExtension (AgentRunObserver + ToolCallObserver + MessagePersistObserver) | audit_extension.go (新), setup.go |
+| domains/deadline_calculator.go | `CalculatePatentDeadlines`, `FormatDeadlineReport`, `SummarizeDeadlines`, `SerializeDeadlineSummary` | DeadlineCalculatorExtension (ToolProvider) | deadline_extension.go (新), setup.go |
+| server/metrics.go | `NewExpvarMetricsRecorder`, `HandleMetrics` | 自动注册 `GET /metrics`，`MADY_METRICS=1` 环境变量启用 | metrics.go, server.go, cmd/mady/server.go |
+
+### 新增文件
+- `domains/evidence/tool_credibility.go` — `assess_credibility` 工具
+- `domains/audit_extension.go` — `AuditExtension`（Observer 模式）
+- `domains/deadline_extension.go` — `DeadlineCalculatorExtension`（ToolProvider 模式）
+
+### 接入详情
+
+**P1-1 credibility：**
+- `TypeSpecificJudgment` 新增 `CredibilityScore *float64` 字段
+- `evaluateTypeSpecific` 对电子/互联网公开证据自动计算可信度分数
+- `computeOverallScore` 将可信度作为修正系数（0.9~1.1）纳入总分
+- 新建 `assess_credibility` 工具暴露 `AssessElectronicEvidence`
+
+**P2-1 audit：**
+- `AuditExtension` 实现 `AgentRunObserver` / `ToolCallObserver` / `MessagePersistObserver`
+- 通过 ExtensionRegistry 的 observer auto-detection 自动注册
+- 写入 `$MADY_HOME/audit/audit-YYYY-MM-DD.jsonl`，敏感参数仅记录名称
+
+**P2-2 metrics：**
+- `ExpvarMetricsRecorder` 新增 `MetricsHandler() http.Handler` 方法
+- `Server.Handler()` 自动检测并注册 `GET /metrics` 端点
+- `cmd/mady/server.go` 通过 `MADY_METRICS=1` 环境变量控制注入
+
+**P2-3 deadline：**
+- `DeadlineCalculatorExtension` 实现 `ToolProvider`，暴露 `calculate_patent_deadlines` 工具
+- 支持 Markdown 和 JSON 两种输出格式，中英文专利类型输入
+
+### 回归验证
+- `go build ./...` ✅ — `make all` ✅ (vet + build + test 全模块通过)
+- `golangci-lint run ./domains/... ./pkg/framework/... ./server/... ./cmd/mady/...` ✅
+
 ## 2026-07-27: Code Review 修复 — Cancel threadID / 删除死代码 / 沙箱校验 / 重复抽取
 
 ### 状态

@@ -51,6 +51,7 @@ type FiveStepRunnerConfig struct {
 	// implemented as an InterruptError carrying the retrieved rule count, so the
 	// tool layer can save a checkpoint and let the user confirm.
 	RequireRuleConfirmation bool
+	TopologyExtractor       *TopologyExtractor // optional — enables KG topology path
 	CaseID                  string
 	CaseType                CaseType
 	TechField               string
@@ -60,6 +61,9 @@ type FiveStepRunnerConfig struct {
 func NewFiveStepRunner(cfg FiveStepRunnerConfig) *FiveStepRunner {
 	if cfg.Planner == nil {
 		cfg.Planner = NewPlanner(nil)
+	}
+	if cfg.TopologyExtractor != nil {
+		cfg.Planner = cfg.Planner.WithTopologyExtractor(cfg.TopologyExtractor)
 	}
 	r := &FiveStepRunner{
 		planner:             cfg.Planner,

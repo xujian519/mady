@@ -19,6 +19,7 @@ import (
 	"github.com/xujian519/mady/domains/specdrafting"
 	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/guardrails"
+	"github.com/xujian519/mady/psychological"
 	"github.com/xujian519/mady/retrieval/domain"
 	"github.com/xujian519/mady/tools"
 	"github.com/xujian519/mady/workflows/design"
@@ -270,7 +271,10 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			disclosure.NewDisclosureTool(base.Provider),
 		},
 	})
-	cfg.Extensions = append(cfg.Extensions, toolExt)
+	cfg.Extensions = append(cfg.Extensions, toolExt,
+		// 心理引擎 — 专利领域：VAD/OCC 语气调整 + 认知扭曲诊断（专利分析需要完整心理评估）。
+		psychological.NewExtension(PatentPsychConfig()),
+	)
 
 	injectDraftingTool(&cfg)
 	injectDocTemplateTools(&cfg)

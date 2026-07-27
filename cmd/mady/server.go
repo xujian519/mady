@@ -154,6 +154,13 @@ func runServer(ctx context.Context) error {
 
 	srv := server.New(cfg)
 
+	// 指标记录：MADY_METRICS=1 时启用 expvar 指标端点。
+	if os.Getenv("MADY_METRICS") == "1" {
+		metricsRec := server.NewExpvarMetricsRecorder()
+		srv.SetMetricsRecorder(metricsRec)
+		log.Println("metrics: HTTP 指标已启用，GET /metrics 可查询")
+	}
+
 	// 审批留痕：disclosure 复核端点等 HITL 触点的人工决策（采纳/修改/拒绝）
 	// 持久化到 SQLite，与 TUI 共用同一 approvals.db，供 P3 专家盲测与采纳率
 	// 统计使用。打开失败仅降级为端点 503，不影响其余服务。

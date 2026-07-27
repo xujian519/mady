@@ -292,6 +292,11 @@ func (s *Server) Handler() http.Handler {
 	// AG-UI 事件流（不添加版本化，保持独立路径）
 	mux.Handle("/agui/{path}", s.aguiHandler())
 
+	// 指标端点：当 MetricsRecorder 支持 MetricsHandler 时自动注册。
+	if mh, ok := s.metrics.(interface{ MetricsHandler() http.Handler }); ok {
+		mux.Handle("GET /metrics", mh.MetricsHandler())
+	}
+
 	// 构建中间件链：loggingMiddleware 包裹所有非 /agui/ 处理逻辑
 	// /agui/ 是 SSE 长连接，不适合请求日志。
 	h := withCORS(mux, s.cors)

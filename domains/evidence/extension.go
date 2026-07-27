@@ -33,7 +33,9 @@ func (e *EvidenceDomainExtension) Tools() []*agentcore.Tool {
 		newTripleTool(e.engine),
 		newBurdenTool(),
 		newStandardTool(),
+		newDetermineStandardTool(),
 		newConflictTool(e.engine),
 		newTypeSpecificTool(e.engine),
+		newCredibilityTool(),
 	}
 }

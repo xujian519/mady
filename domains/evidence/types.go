@@ -205,6 +205,8 @@ type TypeSpecificJudgment struct {
 	ContentIntegrity ContentIntegrityStatus `json:"content_integrity,omitempty"` // 内容完整性
 	PublicIntent     PublicIntent           `json:"public_intent,omitempty"`     // 公开意图
 	PlatformCategory string                 `json:"platform_category,omitempty"` // 平台分类
+	// 可信度分数（0-1），由 CredibilityToScore 在类型评估时计算
+	CredibilityScore *float64 `json:"credibility_score,omitempty"`
 	// 使用公开专用字段
 	FourElementsCheck *FourElementsResult `json:"four_elements_check,omitempty"` // 四要件检查
 	BurdenDifficulty  string              `json:"burden_difficulty,omitempty"`   // 举证难度

@@ -21,9 +21,12 @@ const (
 // EnsureCaseWorkspace 在指定案卷目录下创建 .mady/ 工作区子目录。
 // 如果已存在则幂等返回。返回 .mady/ 的完整路径。
 func EnsureCaseWorkspace(caseRootPath string) (string, error) {
+	if IsCaseWorkspace(caseRootPath) {
+		return filepath.Join(caseRootPath, util.AppDirName), nil
+	}
 	madyDir := filepath.Join(caseRootPath, util.AppDirName)
 	for _, sub := range []string{MadyCheckpoints, MadyDrafts, MadyAnalysis} {
-		if err := os.MkdirAll(filepath.Join(madyDir, sub), 0o755); err != nil {
+		if err := os.MkdirAll(CaseWorkspacePath(caseRootPath, sub), 0o755); err != nil {
 			return "", fmt.Errorf("case workspace: create %s: %w", sub, err)
 		}
 	}
