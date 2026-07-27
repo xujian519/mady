@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -29,7 +31,14 @@ type App struct {
 	ctx    context.Context
 	server *madyserver.Server
 	fc     *framework.Context
-	runs   sync.Map // runId -> context.CancelFunc
+	runs   sync.Map // runId -> *runInfo
+}
+
+// runInfo 记录一次 Chat 会话的运行状态。
+type runInfo struct {
+	cancel   context.CancelFunc
+	threadID string
+	runID    string
 }
 
 // NewApp 创建一个未初始化的 App 实例。
@@ -67,8 +76,8 @@ func (a *App) shutdown(_ context.Context) {
 
 	// 取消所有正在运行的 chat
 	a.runs.Range(func(key, value any) bool {
-		if cancel, ok := value.(context.CancelFunc); ok {
-			cancel()
+		if info, ok := value.(*runInfo); ok && info.cancel != nil {
+			info.cancel()
 		}
 		a.runs.Delete(key)
 		return true
@@ -99,7 +108,11 @@ func (a *App) Chat(req madyserver.ChatRequest) (string, error) {
 
 	runID := generateRunID()
 	ctx, cancel := context.WithCancel(a.ctx)
-	a.runs.Store(runID, cancel)
+	a.runs.Store(runID, &runInfo{
+		cancel:   cancel,
+		threadID: req.ThreadID,
+		runID:    runID,
+	})
 
 	// 每条 chat 创建一个 AGUI converter，携带线程和 run 标识
 	converter := agui.NewConverter(req.ThreadID, runID)
@@ -128,24 +141,39 @@ func (a *App) Chat(req madyserver.ChatRequest) (string, error) {
 }
 
 // Cancel 取消指定 runId 的 chat 流。
-// 通过 context cancel 终止 server.Chat 内部循环。
+// 通过 context cancel 终止 server.Chat 内部循环，
+// 同时通过 server 层向 agent 发射 interrupt 信号实现优雅中断。
 func (a *App) Cancel(runID string) error {
 	val, ok := a.runs.Load(runID)
 	if !ok {
 		return errRunNotFound(runID)
 	}
-	if cancel, ok := val.(context.CancelFunc); ok {
-		cancel()
-		a.runs.Delete(runID)
-		log.Printf("[mady-desktop] canceled run %s", runID)
+	info, ok := val.(*runInfo)
+	if !ok {
+		return fmt.Errorf("Cancel: invalid run info for %s", runID)
 	}
+	if info.cancel != nil {
+		info.cancel()
+	}
+	// 使用正确的 threadID 通知 server 层发射 agent interrupt
+	a.server.Cancel(info.threadID)
+	a.runs.Delete(runID)
+	log.Printf("[mady-desktop] canceled run %s (thread %s)", runID, info.threadID)
 	return nil
 }
 
 // SendAction 将用户在 A2UI surface 上触发的 action 回传给 agent。
+// surfaceID 标识来源 surface，action 包含具体的交互信息（按钮点击、表单提交等）。
 func (a *App) SendAction(surfaceID string, action *a2ui.ClientAction) error {
 	if err := a.ready(); err != nil {
 		return err
+	}
+	if action == nil {
+		return fmt.Errorf("SendAction: action is required")
+	}
+	// 确保 timestamp 不为空
+	if action.Timestamp == "" {
+		action.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	}
 	return a.server.SendAction(surfaceID, action)
 }
@@ -204,6 +232,163 @@ func (a *App) Health() (HealthInfo, error) {
 		return HealthInfo{}, err
 	}
 	return a.server.Health(), nil
+}
+
+// --- 项目树操作（T3.2b） ---
+
+// resolveProjectDir 返回当前可用的项目根目录。
+// 优先使用 ProjectDir（由 CWD 解析），回退到 WorkspaceDir。
+func (a *App) resolveProjectDir() (string, error) {
+	cwd := a.fc.BaseConfig.ProjectDir
+	if cwd == "" {
+		cwd = a.fc.BaseConfig.WorkspaceDir
+	}
+	if cwd == "" {
+		return "", fmt.Errorf("no working directory available")
+	}
+	return cwd, nil
+}
+
+// isPathWithinSandbox 检查 target 是否位于 sandboxRoot 之下。
+// 防止路径穿越攻击（path traversal）。
+func isPathWithinSandbox(target, sandboxRoot string) bool {
+	cleanTarget, err := filepath.Abs(target)
+	if err != nil {
+		return false
+	}
+	cleanRoot, err := filepath.Abs(sandboxRoot)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(cleanRoot, cleanTarget)
+	if err != nil {
+		return false
+	}
+	// rel 以 ".." 开头说明 target 在 sandboxRoot 之外
+	return len(rel) < 2 || rel[:2] != ".."
+}
+
+// CreateFolder 在指定父目录下创建子文件夹。
+// parentPath 是相对于项目根目录的路径，空字符串表示根目录。
+// folderName 为要创建的文件夹名称。
+// 操作经过沙箱路径校验，越狱路径将被拒绝。
+func (a *App) CreateFolder(parentPath, folderName string) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	if folderName == "" {
+		return "", fmt.Errorf("CreateFolder: folderName is required")
+	}
+
+	cwd, err := a.resolveProjectDir()
+	if err != nil {
+		return "", fmt.Errorf("CreateFolder: %w", err)
+	}
+
+	targetDir := cwd
+	if parentPath != "" {
+		targetDir = filepath.Join(cwd, parentPath)
+	}
+
+	newDir := filepath.Join(targetDir, folderName)
+
+	// 沙箱边界校验
+	if !isPathWithinSandbox(newDir, cwd) {
+		return "", fmt.Errorf("CreateFolder: path escape detected: %s is outside %s", newDir, cwd)
+	}
+
+	if err := os.MkdirAll(newDir, 0755); err != nil {
+		return "", fmt.Errorf("CreateFolder: %w", err)
+	}
+	log.Printf("[mady-desktop] created folder: %s", newDir)
+	return newDir, nil
+}
+
+// RenameFolder 重命名指定路径的文件夹。
+// oldPath 为当前完整路径（相对于项目根），
+// newName 为新文件夹名称。
+// 操作经过沙箱路径校验，越狱路径将被拒绝。
+func (a *App) RenameFolder(oldPath, newName string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if oldPath == "" || newName == "" {
+		return fmt.Errorf("RenameFolder: oldPath and newName are required")
+	}
+
+	cwd, err := a.resolveProjectDir()
+	if err != nil {
+		return fmt.Errorf("RenameFolder: %w", err)
+	}
+
+	oldDir := filepath.Join(cwd, oldPath)
+	parentDir := filepath.Dir(oldDir)
+	newDir := filepath.Join(parentDir, newName)
+
+	// 沙箱边界校验
+	if !isPathWithinSandbox(oldDir, cwd) {
+		return fmt.Errorf("RenameFolder: path escape detected: %s is outside %s", oldDir, cwd)
+	}
+	if !isPathWithinSandbox(newDir, cwd) {
+		return fmt.Errorf("RenameFolder: path escape detected: %s is outside %s", newDir, cwd)
+	}
+
+	if err := os.Rename(oldDir, newDir); err != nil {
+		return fmt.Errorf("RenameFolder: %w", err)
+	}
+	log.Printf("[mady-desktop] renamed folder: %s → %s", oldDir, newDir)
+	return nil
+}
+
+// ListDirectory 返回指定路径下的文件和文件夹列表。
+// relPath 是相对于项目根目录的路径，空字符串表示根目录。
+func (a *App) ListDirectory(relPath string) ([]FileEntry, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+
+	cwd, err := a.resolveProjectDir()
+	if err != nil {
+		return nil, fmt.Errorf("ListDirectory: %w", err)
+	}
+
+	targetDir := cwd
+	if relPath != "" {
+		targetDir = filepath.Join(cwd, relPath)
+	}
+
+	// 沙箱边界校验（ListDirectory 也需校验，防止读越狱路径）
+	if !isPathWithinSandbox(targetDir, cwd) {
+		return nil, fmt.Errorf("ListDirectory: path escape detected: %s is outside %s", targetDir, cwd)
+	}
+
+	entries, err := os.ReadDir(targetDir)
+	if err != nil {
+		return nil, fmt.Errorf("ListDirectory: %w", err)
+	}
+
+	var result []FileEntry
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		result = append(result, FileEntry{
+			Name:    e.Name(),
+			IsDir:   e.IsDir(),
+			Size:    info.Size(),
+			ModTime: info.ModTime().Unix(),
+		})
+	}
+	return result, nil
+}
+
+// FileEntry 是文件系统条目的概要信息。
+type FileEntry struct {
+	Name    string `json:"name"`
+	IsDir   bool   `json:"isDir"`
+	Size    int64  `json:"size"`
+	ModTime int64  `json:"modTime"`
 }
 
 // --- 内部辅助 ---

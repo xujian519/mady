@@ -124,23 +124,86 @@ func (s *Server) DeleteThread(ctx context.Context, key string) error {
 	return store.Delete(ctx, key)
 }
 
+// Cancel 取消指定 threadID 对应 agent 的正在执行的 chat 流。
+// 通过 agent 事件总线发射 AgentInterruptEvent，agent.Run 循环会
+// 检测此信号并进行优雅中断（保存状态后返回）。
+// threadID 来自 ChatRequest.ThreadID（桌面端在前端 Chat 调用时自动生成）。
+func (s *Server) Cancel(threadID string) {
+	if threadID == "" {
+		return
+	}
+	reason := &agentcore.InterruptReason{
+		Reason: "user_canceled",
+		Data:   map[string]any{"source": "desktop"},
+	}
+	s.poolMu.Lock()
+	cached, ok := s.agentPool.Load(threadID)
+	s.poolMu.Unlock()
+	if ok {
+		entry := cached.(*poolEntry)
+		slog.Info("server.Cancel: emitting interrupt event", "threadID", threadID)
+		entry.agent.Emit(agentcore.NewAgentInterruptEvent("mady-agent", reason))
+	}
+}
+
 // SendAction 将客户端 A2UI action 投递给当前会话的 agent。
 //
-// TODO(T2.4): 完整实现 A2UI ClientMessage 投递闭环。
-// 当前为占位实现，返回 nil（desktop 端的动作先通过 Chat 内建事件
-// 通道传递，由 agent 的 A2UI binding 自行消费）。
+// 通过 surfaceID（格式 "surface_<threadID>"）提取 threadID 并在池中查找 agent，
+// 将 ClientAction 包装为 A2UIEvent 通过 agent 事件总线投递。
+//
+// 注意：当前 agent 侧尚未注册 A2UIEvent 入站处理器来消费此事件，
+// 因此 SendAction 投递的事件目前仅到达事件总线，不会被 agent 执行循环处理。
+// TODO: agent 侧需注册 EventA2UI 监听器解析 ClientAction 并注入 agent 上下文。
 func (s *Server) SendAction(surfaceID string, action *a2ui.ClientAction) error {
 	if action == nil {
 		return fmt.Errorf("server.SendAction: action is required")
 	}
-	slog.Debug("server.SendAction: received (placeholder)",
+	if surfaceID == "" {
+		return fmt.Errorf("server.SendAction: surfaceID is required")
+	}
+
+	slog.Debug("server.SendAction: delivering action to agent",
 		"surfaceID", surfaceID,
 		"action", action.Name,
 	)
-	// TODO(T2.4): 将 action 转发到 agent 的 A2UI ClientMessage 通道。
-	// 当前 agent 通过 agent.binding_a2a 上的 HandleClientMessage 接收，
-	// 需要先通过 threadID 找到当前 agent entry。
+
+	// 从 surfaceID 格式 "surface_<threadID>" 中提取 threadID
+	threadID := extractThreadID(surfaceID)
+	if threadID == "" {
+		return fmt.Errorf("server.SendAction: cannot extract threadID from surfaceID %s", surfaceID)
+	}
+
+	s.poolMu.Lock()
+	cached, ok := s.agentPool.Load(threadID)
+	s.poolMu.Unlock()
+	if !ok {
+		return fmt.Errorf("server.SendAction: no active agent for thread %s", threadID)
+	}
+	entry := cached.(*poolEntry)
+
+	// 将 ClientAction 包装为 A2UIEvent 通过 agent 事件总线投递。
+	// agent 侧收到此事件后可解析出 ClientMessage 并处理 action。
+	// 当前阶段：仅送达事件总线，agent 侧处理尚未实现。
+	cm := a2ui.ClientMessage{Action: action}
+	payload := map[string]any{
+		"kind":    "client_action",
+		"action":  cm,
+		"surface": surfaceID,
+	}
+	entry.agent.Emit(agentcore.NewA2UIEvent(payload))
+	slog.Info("server.SendAction: delivered to agent event bus",
+		"surfaceID", surfaceID, "threadID", threadID, "action", action.Name,
+	)
 	return nil
+}
+
+// extractThreadID 从 surfaceID 格式 "surface_<threadID>" 中提取 threadID。
+func extractThreadID(surfaceID string) string {
+	const prefix = "surface_"
+	if len(surfaceID) > len(prefix) && surfaceID[:len(prefix)] == prefix {
+		return surfaceID[len(prefix):]
+	}
+	return ""
 }
 
 // HealthInfo 是桌面端健康检查的响应结构。

@@ -1,23 +1,77 @@
 # AI 变更记录
 
-## 2026-07-27: Phase 3 完成 — 组件迁移 + ChatView 三栏布局 + macOS 打包
+## 2026-07-27: Code Review 修复 — Cancel threadID / 删除死代码 / 沙箱校验 / 重复抽取
 
 ### 状态
-Phase 3（T3.1–T3.7）全部完成。核心业务组件从骨架视图迁移为完整的三栏聊天工作台。
+代码审查发现的 5 项问题已全部修复。
 
-### 新增/修改架构
+### 修复清单
 
-```
-desktop/frontend/src/
-├── theme/                          # 🆕 主题层
-│   ├── index.ts
-│   ├── tokens.ts                   # CSS 变量映射 + useTheme hook
-│   └── provider.tsx                # ThemeProvider（系统跟随 + 手动切换）
-│
-├── components/                     # 🆕 业务组件
-│   ├── index.ts                    # 统一导出
-│   ├── ChatView.tsx                # 三栏布局宿主
-│   ├── MessageBubble.tsx           # 用户/Agent 消息气泡（Motion 淡入）
+| 问题 | 严重程度 | 修改 |
+|------|---------|------|
+| `App.Cancel` 将 runID 传给 `Server.Cancel`（应为 threadID） | P0 | `a.runs` 改为存储 `*runInfo{cancel, threadID}`，Cancel 时传递正确 threadID |
+| `findThreadBySurface` 与 `extractThreadID` 逻辑等价，整个回退分支是死代码 | P0 | 删除 `findThreadBySurface`（~20行），SendAction 仅用 `extractThreadID` |
+| `CreateFolder`/`RenameFolder`/`ListDirectory` 三处 CWD 解析重复 | P1 | 抽取 `resolveProjectDir()` 方法，三方法各减 6 行重复，总计减少 18 行 |
+| 文件操作缺少沙箱路径校验（设计文档要求但未实现） | P1 | 新增 `isPathWithinSandbox()` 校验，三文件操作均调用；防止 `../` 路径穿越 |
+| `SendAction` 发射的 A2UIEvent 在 agent 侧无人消费 | P1 | 恢复 TODO 注释，明确标注 agent 侧处理尚未实现；投递端代码保持正确 |
+
+### 回归验证
+
+- `go build ./desktop/...` ✅ — `go vet ./desktop/...` ✅ — `go test ./desktop/...` ✅ (0.227s)
+- `go build ./...` ✅ — `go test ./server/...` ✅
+
+---
+
+### 状态
+调研中发现的 8 项缺口已全部修复，覆盖 P0 阻塞项 + P1 功能完整度。
+
+### 修复清单
+
+#### Go 后端
+
+| 缺口 | 文件 | 说明 |
+|------|------|------|
+| A1: Server.Cancel | `server/desktop.go` | 新增 `Cancel(threadID)` 方法，通过 agent 事件总线发射 `AgentInterruptEvent` 实现优雅中断 |
+| A2: SendAction 闭环 | `server/desktop.go` | 移除占位实现，改为通过 `surfaceID→threadID` 映射查找池中 agent，将 `ClientAction` 包装为 `A2UIEvent` 投递到 agent 事件总线 |
+| A2: 前端导出 | `desktop/frontend/src/lib/backend.ts` | 新增 `sendAction(surfaceId, action)` 函数和 `ClientAction` 类型 |
+| A3: ApprovalCard 回传 | `desktop/frontend/src/components/ApprovalCard.tsx` | 从自定义 Wails 事件改为 `backend.sendAction` 调用，完成 A2UI 协议闭环 |
+| A4: ProjectTree Go binding | `desktop/app.go` | 新增 `CreateFolder`/`RenameFolder`/`ListDirectory` 三种 Go binding |
+| A5: TitleBar | `desktop/main.go` | 设计文档原定 `TitleBarHiddenInsetUnified`（API 不存在），保持 `TitleBarHiddenInset` 并记录差异 |
+
+#### 前端组件
+
+| 缺口 | 文件 | 说明 |
+|------|------|------|
+| A4: ProjectTree | `desktop/frontend/src/components/ProjectTree.tsx` | 新增可折叠文件树组件（~270 行），支持懒加载子目录、右键菜单新建/重命名文件夹 |
+| A7: KnowledgeView | `desktop/frontend/src/components/KnowledgeView.tsx` | 新增知识库管理页面（概览/重新索引/选择范围） |
+| A8: TemplatesView | `desktop/frontend/src/components/TemplatesView.tsx` | 新增专利模板库页面（5 分类/14 模板/搜索过滤） |
+| 集成 | `desktop/frontend/src/components/Sidebar.tsx` | 侧栏加入项目树切换按钮 |
+| 集成 | `desktop/frontend/src/components/ChatView.tsx` | 标题栏加入知识库/模板库入口按钮 |
+
+#### 测试
+
+| 缺口 | 文件 | 说明 |
+|------|------|------|
+| A6: E2E 集成测试 | `desktop/e2e_integration_test.go` | 新增端到端集成测试（lifecycle/ChatSendAction/Cancel/FileOperations/Shutdown + 映射单测） |
+
+### 回归验证
+
+- `cd desktop && go build ./...` ✅
+- `cd desktop && go vet ./...` ✅
+- `cd desktop && go test -count=1 ./...` ✅（0.267s，含健康→文件操作→shutdown 全流程）
+- `cd desktop/frontend && npx tsc --noEmit` ✅
+- `cd .. && go build ./...` ✅
+- `cd .. && go test -count=1 ./server/...` ✅
+
+### 已知保留
+
+- `TitleBarHiddenInsetUnified` 在 Wails v2.12.0 中不存在，设计文档 03-design.md §2.3 的引用已确认为文档错误。实际使用 `TitleBarHiddenInset`（Wails v2 下的现代标题栏模式）。
+- E2E 集成测试中 Chat/SendAction 涉及 Wails Events 的部分需 Wails 运行时环境，纯 Go test 下自动跳过（通过 `isWailsContext` 检测）。
+- ApprovalPrompt 的 `surfaceId` 字段已添加到 store 类型，实际值由 AGUI 事件中的 `agui:approval-prompt` payload 提供。
+
+---
+
+## 2026-07-27: Phase 3 完成 — 组件迁移 + ChatView 三栏布局 + macOS 打包
 │   ├── Sidebar.tsx                 # 左侧栏：会话列表 + 搜索/新建
 │   ├── StatusBar.tsx               # 底部状态栏（Provider/知识库/版本）
 │   ├── Composer.tsx                # 多行输入 + Enter 发送

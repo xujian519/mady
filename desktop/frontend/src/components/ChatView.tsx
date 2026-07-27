@@ -23,7 +23,9 @@ import { ToolCard } from './ToolCard'
 import { ApprovalCard } from './ApprovalCard'
 import { DocumentViewer, type DocViewerFile } from './DocumentViewer'
 import { SettingsPanel } from './SettingsPanel'
-import { Sparkles, PanelRightOpen, Brain } from 'lucide-react'
+import { KnowledgeView } from './KnowledgeView'
+import { TemplatesView } from './TemplatesView'
+import { Sparkles, PanelRightOpen, Brain, Database, FileText } from 'lucide-react'
 
 export const ChatView: React.FC = () => {
   // 高频变更：用 useShallow 避免无关状态变化触发重渲染
@@ -41,6 +43,8 @@ export const ChatView: React.FC = () => {
   const [showDocViewer, setShowDocViewer] = useState(false)
   const [docFile, setDocFile] = useState<DocViewerFile | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showKnowledge, setShowKnowledge] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -95,6 +99,20 @@ export const ChatView: React.FC = () => {
               )}
             </div>
             <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowKnowledge(true)}
+                className="p-1.5 rounded text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary transition-colors"
+                title="知识库"
+              >
+                <Database size={14} />
+              </button>
+              <button
+                onClick={() => setShowTemplates(true)}
+                className="p-1.5 rounded text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary transition-colors"
+                title="模板库"
+              >
+                <FileText size={14} />
+              </button>
               <button
                 onClick={() => setShowDocViewer(!showDocViewer)}
                 className={`p-1.5 rounded text-mady-ui transition-colors ${
@@ -207,6 +225,16 @@ export const ChatView: React.FC = () => {
               setDocFile(null)
             }}
           />
+        )}
+
+        {/* KnowledgeView 覆盖层 */}
+        {showKnowledge && (
+          <KnowledgeView onClose={() => setShowKnowledge(false)} />
+        )}
+
+        {/* TemplatesView 覆盖层 */}
+        {showTemplates && (
+          <TemplatesView onClose={() => setShowTemplates(false)} />
         )}
 
         {/* Settings 覆盖层 */}

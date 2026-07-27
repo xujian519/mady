@@ -54,6 +54,7 @@ export interface ApprovalPrompt {
   title: string
   description?: string
   options?: ApprovalOption[]
+  surfaceId?: string
 }
 
 export interface ApprovalOption {

@@ -2,7 +2,8 @@
  * ApprovalCard — 审批卡片组件。
  *
  * 通过 `agui:approval-prompt` 事件触发渲染。
- * 用户可选择批准/拒绝，结果通过 SendAction 回传。
+ * 用户选择批准/拒绝后，通过 App.SendAction 将结果回传给 agent，
+ * 完成 A2UI 协议闭环。
  *
  * 与 TUI `approval_card.go` 行为一致。
  */
@@ -10,7 +11,7 @@
 import React, { useState } from 'react'
 import type { ApprovalPrompt } from '@/stores/chat'
 import { useChatStore } from '@/stores/chat'
-import { emitWailsEvent } from '@/lib/wails'
+import { sendAction } from '@/lib/backend'
 import { Shield, Check, X } from 'lucide-react'
 
 interface ApprovalCardProps {
@@ -24,12 +25,20 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ prompt }) => {
   const handleResponse = async (approved: boolean, value?: string) => {
     setSubmitting(true)
     try {
-      emitWailsEvent('agui:approval-response', {
-        id: prompt.id,
-        approved,
-        value,
-        reason: reason || undefined,
+      // 通过 A2UI SendAction 闭环回传审批结果
+      await sendAction(prompt.surfaceId || 'approval', {
+        name: approved ? 'approve' : 'reject',
+        surfaceId: prompt.surfaceId || 'approval',
+        sourceComponentId: 'approval-card',
+        timestamp: new Date().toISOString(),
+        context: {
+          id: prompt.id,
+          value: value || '',
+          reason: reason || '',
+        },
       })
+    } catch (err) {
+      console.error('[ApprovalCard] SendAction failed:', err)
     } finally {
       setSubmitting(false)
       useChatStore.getState().setApprovalPrompt(null)

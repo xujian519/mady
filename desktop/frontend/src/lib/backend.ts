@@ -30,11 +30,28 @@ export interface ThreadSummary {
   messageN: number
 }
 
+/** 文件系统条目（来自 ListDirectory binding）。 */
+export interface FileEntry {
+  name: string
+  isDir: boolean
+  size: number
+  modTime: number
+}
+
 export interface HealthInfo {
   provider: string
   model: string
   version: string
   uptime: string
+}
+
+/** A2UI ClientAction — 用户在 A2UI surface 上触发的交互。 */
+export interface ClientAction {
+  name: string
+  surfaceId: string
+  sourceComponentId: string
+  timestamp: string
+  context?: Record<string, unknown>
 }
 
 // ── Thread ────────────────────────────────────────
@@ -70,6 +87,14 @@ export async function cancelChat(runId: string): Promise<void> {
   return callBinding<void>('main/App', 'Cancel', runId)
 }
 
+/**
+ * 发送 A2UI 客户端动作（按钮点击、表单提交等）到 agent。
+ * surfaceId 标识 action 来源的 A2UI surface。
+ */
+export async function sendAction(surfaceId: string, action: ClientAction): Promise<void> {
+  return callBinding<void>('main/App', 'SendAction', surfaceId, action)
+}
+
 // ── Threads ───────────────────────────────────────
 
 /**
@@ -91,6 +116,31 @@ export async function getThread(key: string): Promise<ThreadSnapshot> {
  */
 export async function deleteThread(key: string): Promise<void> {
   return callBinding<void>('main/App', 'DeleteThread', key)
+}
+
+// ── File System ────────────────────────────────────
+
+/**
+ * 列出指定相对路径下的文件/文件夹条目。
+ * relPath 为空字符串时列出项目根目录。
+ */
+export async function listDirectory(relPath?: string): Promise<FileEntry[]> {
+  return callBinding<FileEntry[]>('main/App', 'ListDirectory', relPath ?? '')
+}
+
+/**
+ * 在 parentPath 下创建名为 folderName 的新文件夹。
+ * 返回创建后的完整路径。
+ */
+export async function createFolder(parentPath: string, folderName: string): Promise<string> {
+  return callBinding<string>('main/App', 'CreateFolder', parentPath, folderName)
+}
+
+/**
+ * 将 oldPath 重命名为 newName（仅文件名部分）。
+ */
+export async function renameFolder(oldPath: string, newName: string): Promise<void> {
+  return callBinding<void>('main/App', 'RenameFolder', oldPath, newName)
 }
 
 // ── Health ────────────────────────────────────────

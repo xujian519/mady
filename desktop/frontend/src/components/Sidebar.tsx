@@ -12,8 +12,9 @@
 import React, { useState, useMemo } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { ThreadItem } from './ThreadItem'
+import { ProjectTree } from './ProjectTree'
 import { deleteThread } from '@/lib/backend'
-import { Plus, Search, Settings } from 'lucide-react'
+import { Plus, Search, Settings, FolderTree } from 'lucide-react'
 
 interface SidebarProps {
   onNewChat: () => void
@@ -24,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat, onSettings }) => {
   const threads = useChatStore((s) => s.threads)
   const threadId = useChatStore((s) => s.threadId)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showProjectTree, setShowProjectTree] = useState(false)
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return threads
@@ -48,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat, onSettings }) => {
 
   return (
     <aside className="w-60 h-full flex flex-col bg-mady-bg-secondary border-r border-mady-separator select-none">
-      {/* 顶部：新建 + 搜索 */}
+      {/* 顶部：新建 + 搜索 + 项目树切换 */}
       <div className="p-3 space-y-2 border-b border-mady-separator">
         <button
           onClick={onNewChat}
@@ -68,7 +70,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat, onSettings }) => {
             className="w-full pl-7 pr-3 py-1.5 rounded-lg bg-mady-bg-primary border border-mady-border text-mady-ui text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent transition-colors"
           />
         </div>
+
+        <button
+          onClick={() => setShowProjectTree(!showProjectTree)}
+          className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-mady-ui transition-colors ${
+            showProjectTree
+              ? 'bg-mady-accent-soft text-mady-accent'
+              : 'text-mady-text-secondary hover:bg-mady-bg-primary'
+          }`}
+        >
+          <FolderTree size={14} />
+          项目文件
+        </button>
       </div>
+
+      {/* 项目树 */}
+      {showProjectTree && (
+        <div className="border-b border-mady-separator max-h-48 overflow-y-auto">
+          <ProjectTree />
+        </div>
+      )}
 
       {/* 会话列表 */}
       <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
