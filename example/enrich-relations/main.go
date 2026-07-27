@@ -1,3 +1,4 @@
+// Command enrich-relations adds relation types to an existing knowledge graph index.
 package main
 
 import (
@@ -121,7 +122,7 @@ func main() {
 	indexPath := filepath.Join(wikiPath, "card-index.json")
 	fmt.Printf("📂 卡片索引: %s\n\n", indexPath)
 
-	data, err := os.ReadFile(indexPath)
+	data, err := os.ReadFile(indexPath) //nolint:gosec // indexPath = filepath.Join(wikiPath, "card-index.json")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ 读取失败: %v\n", err)
 		os.Exit(1)
@@ -144,7 +145,7 @@ func main() {
 
 	backupPath := filepath.Join(wikiPath,
 		fmt.Sprintf("card-index.json.bak.%s", time.Now().Format("20060102-150405")))
-	if err := os.WriteFile(backupPath, data, 0644); err != nil {
+	if err := os.WriteFile(backupPath, data, 0600); err != nil { //nolint:gosec // path from filepath.Join, example code
 		fmt.Fprintf(os.Stderr, "⚠️  备份失败: %v\n", err)
 	} else {
 		fmt.Printf("💾 备份: %s\n", backupPath)
@@ -159,7 +160,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "❌ 序列化失败: %v\n", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(indexPath, out, 0644); err != nil {
+	if err := os.WriteFile(indexPath, out, 0600); err != nil { //nolint:gosec // path from filepath.Join, example code
 		fmt.Fprintf(os.Stderr, "❌ 写入失败: %v\n", err)
 		os.Exit(1)
 	}
@@ -186,7 +187,7 @@ func main() {
 		name  string
 		count int
 	}
-	var concepts []cv
+	concepts := make([]cv, 0, len(idx.ConceptIndex))
 	for c, ids := range idx.ConceptIndex {
 		concepts = append(concepts, cv{c, len(ids)})
 	}

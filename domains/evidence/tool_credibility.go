@@ -8,6 +8,8 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// CredibilityToolName is the agent-visible name of the assess_credibility tool.
+//
 //nolint:gosec // 工具名称和描述不是硬编码凭据
 const CredibilityToolName = "assess_credibility"
 

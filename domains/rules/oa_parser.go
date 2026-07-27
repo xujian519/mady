@@ -11,6 +11,7 @@ import (
 // OaRejectionType classifies the rejection category found in an Office Action.
 type OaRejectionType string
 
+// Office Action rejection type constants.
 const (
 	OaNovelty       OaRejectionType = "novelty"
 	OaInventiveness OaRejectionType = "inventiveness"

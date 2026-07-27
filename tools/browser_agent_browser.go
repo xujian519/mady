@@ -102,10 +102,10 @@ func (m *AgentBrowserManager) EnsureSession(ctx context.Context, taskID string) 
 	}
 
 	socketDir := m.sessionSocketDir(taskID)
-	os.MkdirAll(socketDir, 0700)
+	_ = os.MkdirAll(socketDir, 0700)
 
 	ownerPIDPath := filepath.Join(socketDir, "owner_pid")
-	os.WriteFile(ownerPIDPath, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0600)
+	_ = os.WriteFile(ownerPIDPath, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0600)
 
 	session := &AgentBrowserSession{
 		TaskID:    taskID,
@@ -145,8 +145,8 @@ func (m *AgentBrowserManager) StopSession(taskID string) {
 	}
 
 	// Send close command to agent-browser daemon
-	m.runABCommand(taskID, "close", nil, 5*time.Second)
-	os.RemoveAll(session.SocketDir)
+	_, _ = m.runABCommand(taskID, "close", nil, 5*time.Second)
+	_ = os.RemoveAll(session.SocketDir)
 }
 
 func (m *AgentBrowserManager) RunCommand(taskID string, command string, args []string, timeout time.Duration) (*AgentBrowserResult, error) {

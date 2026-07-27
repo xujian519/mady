@@ -209,7 +209,7 @@ func main() {
 		fmt.Println("start tui:", err)
 		return
 	}
-	defer app.Stop()
+	defer func() { _ = app.Stop() }()
 
 	<-app.Done()
 	fmt.Println("\n(tui-demo exited cleanly)")

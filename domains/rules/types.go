@@ -9,6 +9,7 @@ import (
 // Severity rates how critical a rule is.
 type Severity string
 
+// Severity level constants.
 const (
 	SeverityCritical Severity = "critical"
 	SeverityMajor    Severity = "major"
@@ -18,6 +19,7 @@ const (
 // Action defines what should happen when a rule check fails.
 type Action string
 
+// Action type constants.
 const (
 	ActionBlock  Action = "block"
 	ActionReview Action = "review"

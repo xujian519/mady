@@ -155,33 +155,56 @@ type LifecycleHook interface {
 // only the hooks they care about.
 type BaseLifecycleHook struct{}
 
-func (BaseLifecycleHook) BeforeAgentRun(_ context.Context, _ *AgentRunContext) error             { return nil }
+// BeforeAgentRun is called once when the agent starts, before any processing.
+func (BaseLifecycleHook) BeforeAgentRun(_ context.Context, _ *AgentRunContext) error { return nil }
+
+// AfterAgentRun is called once when the agent finishes (success or error).
 func (BaseLifecycleHook) AfterAgentRun(_ context.Context, _ *AgentRunContext, _ string, _ error) {}
+
+// BeforeModelCall is called before each LLM call.
 func (BaseLifecycleHook) BeforeModelCall(_ context.Context, _ *AgentRunContext, _ *ModelCallContext) error {
 	return nil
 }
+
+// AfterModelCall is called after each LLM call.
 func (BaseLifecycleHook) AfterModelCall(_ context.Context, _ *AgentRunContext, _ *ModelCallContext) {}
+
+// BeforeToolExecution is called before tool calls are dispatched.
 func (BaseLifecycleHook) BeforeToolExecution(_ context.Context, _ *AgentRunContext, _ *ToolExecutionContext) error {
 	return nil
 }
+
+// AfterToolExecution is called after all tool calls in a turn complete.
 func (BaseLifecycleHook) AfterToolExecution(_ context.Context, _ *AgentRunContext, _ *ToolExecutionContext) {
 }
 
-func (BaseLifecycleHook) BeforeTurn(_ context.Context, _ *AgentRunContext) error      { return nil }
+// BeforeTurn runs once per inner-loop iteration after compaction/steering injection.
+func (BaseLifecycleHook) BeforeTurn(_ context.Context, _ *AgentRunContext) error { return nil }
+
+// AfterTurn runs once after TurnEnd for that iteration.
 func (BaseLifecycleHook) AfterTurn(_ context.Context, _ *AgentRunContext, _ TurnInfo) {}
+
+// BeforeMessagePersist runs before a message is appended to state.
 func (BaseLifecycleHook) BeforeMessagePersist(_ context.Context, _ *AgentRunContext, _ *Message) error {
 	return nil
 }
+
+// AfterMessagePersist runs after a message was stored.
 func (BaseLifecycleHook) AfterMessagePersist(_ context.Context, _ *AgentRunContext, _ Message) {}
+
+// BeforeCompactionPersist runs before ReplaceMessages during compaction.
 func (BaseLifecycleHook) BeforeCompactionPersist(_ context.Context, _ *AgentRunContext, msgs []Message) ([]Message, error) {
 	return msgs, nil
 }
+
+// AfterCompactionPersist runs after ReplaceMessages during compaction.
 func (BaseLifecycleHook) AfterCompactionPersist(_ context.Context, _ *AgentRunContext, _ []Message) {}
 
 // LifecycleChain composes multiple LifecycleHooks into one.
 // Hooks are called in order; AfterXxx hooks are called in reverse order.
 type LifecycleChain []LifecycleHook
 
+// BeforeAgentRun calls BeforeAgentRun on each hook in order. Returns the first error.
 func (lc LifecycleChain) BeforeAgentRun(ctx context.Context, arc *AgentRunContext) error {
 	for _, h := range lc {
 		if err := h.BeforeAgentRun(ctx, arc); err != nil {
@@ -191,12 +214,14 @@ func (lc LifecycleChain) BeforeAgentRun(ctx context.Context, arc *AgentRunContex
 	return nil
 }
 
+// AfterAgentRun calls AfterAgentRun on each hook in reverse order.
 func (lc LifecycleChain) AfterAgentRun(ctx context.Context, arc *AgentRunContext, output string, err error) {
 	for i := len(lc) - 1; i >= 0; i-- {
 		lc[i].AfterAgentRun(ctx, arc, output, err)
 	}
 }
 
+// BeforeModelCall calls BeforeModelCall on each hook in order. Returns the first error.
 func (lc LifecycleChain) BeforeModelCall(ctx context.Context, arc *AgentRunContext, mcc *ModelCallContext) error {
 	for _, h := range lc {
 		if err := h.BeforeModelCall(ctx, arc, mcc); err != nil {
@@ -206,12 +231,14 @@ func (lc LifecycleChain) BeforeModelCall(ctx context.Context, arc *AgentRunConte
 	return nil
 }
 
+// AfterModelCall calls AfterModelCall on each hook in reverse order.
 func (lc LifecycleChain) AfterModelCall(ctx context.Context, arc *AgentRunContext, mcc *ModelCallContext) {
 	for i := len(lc) - 1; i >= 0; i-- {
 		lc[i].AfterModelCall(ctx, arc, mcc)
 	}
 }
 
+// BeforeToolExecution calls BeforeToolExecution on each hook in order. Returns the first error.
 func (lc LifecycleChain) BeforeToolExecution(ctx context.Context, arc *AgentRunContext, tec *ToolExecutionContext) error {
 	for _, h := range lc {
 		if err := h.BeforeToolExecution(ctx, arc, tec); err != nil {
@@ -221,12 +248,14 @@ func (lc LifecycleChain) BeforeToolExecution(ctx context.Context, arc *AgentRunC
 	return nil
 }
 
+// AfterToolExecution calls AfterToolExecution on each hook in reverse order.
 func (lc LifecycleChain) AfterToolExecution(ctx context.Context, arc *AgentRunContext, tec *ToolExecutionContext) {
 	for i := len(lc) - 1; i >= 0; i-- {
 		lc[i].AfterToolExecution(ctx, arc, tec)
 	}
 }
 
+// BeforeTurn calls BeforeTurn on each hook in order. Returns the first error.
 func (lc LifecycleChain) BeforeTurn(ctx context.Context, arc *AgentRunContext) error {
 	for _, h := range lc {
 		if err := h.BeforeTurn(ctx, arc); err != nil {
@@ -236,12 +265,14 @@ func (lc LifecycleChain) BeforeTurn(ctx context.Context, arc *AgentRunContext) e
 	return nil
 }
 
+// AfterTurn calls AfterTurn on each hook in reverse order.
 func (lc LifecycleChain) AfterTurn(ctx context.Context, arc *AgentRunContext, info TurnInfo) {
 	for i := len(lc) - 1; i >= 0; i-- {
 		lc[i].AfterTurn(ctx, arc, info)
 	}
 }
 
+// BeforeMessagePersist calls BeforeMessagePersist on each hook in order. Returns the first error.
 func (lc LifecycleChain) BeforeMessagePersist(ctx context.Context, arc *AgentRunContext, msg *Message) error {
 	for _, h := range lc {
 		if err := h.BeforeMessagePersist(ctx, arc, msg); err != nil {
@@ -251,12 +282,15 @@ func (lc LifecycleChain) BeforeMessagePersist(ctx context.Context, arc *AgentRun
 	return nil
 }
 
+// AfterMessagePersist calls AfterMessagePersist on each hook in reverse order.
 func (lc LifecycleChain) AfterMessagePersist(ctx context.Context, arc *AgentRunContext, msg Message) {
 	for i := len(lc) - 1; i >= 0; i-- {
 		lc[i].AfterMessagePersist(ctx, arc, msg)
 	}
 }
 
+// BeforeCompactionPersist calls BeforeCompactionPersist on each hook in order.
+// Each hook may modify the message slice; the first error short-circuits.
 func (lc LifecycleChain) BeforeCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) ([]Message, error) {
 	var err error
 	for _, h := range lc {
@@ -268,6 +302,7 @@ func (lc LifecycleChain) BeforeCompactionPersist(ctx context.Context, arc *Agent
 	return msgs, nil
 }
 
+// AfterCompactionPersist calls AfterCompactionPersist on each hook in reverse order.
 func (lc LifecycleChain) AfterCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) {
 	for i := len(lc) - 1; i >= 0; i-- {
 		lc[i].AfterCompactionPersist(ctx, arc, msgs)

@@ -299,7 +299,7 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 						for _, c := range chunks {
 							if _, werr := tempFile.Write(c); werr != nil {
 								_ = os.Remove(tempFile.Name())
-								tempFile.Close()
+								_ = tempFile.Close()
 								tempFile = nil
 								tempFilePath = ""
 								break
@@ -310,7 +310,7 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 				if tempFile != nil {
 					if _, werr := tempFile.Write(data); werr != nil {
 						_ = os.Remove(tempFile.Name())
-						tempFile.Close()
+						_ = tempFile.Close()
 						tempFile = nil
 					}
 				}
@@ -330,7 +330,7 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 			exitCode, err := cfg.Operations.Exec(input.Command, cwd, nil, input.Timeout, onData)
 
 			if tempFile != nil {
-				tempFile.Close()
+				_ = tempFile.Close()
 			}
 
 			// Schedule delayed cleanup of temp file (agent may reference it).
@@ -338,7 +338,7 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 			if tempFilePath != "" {
 				go func(path string) {
 					<-time.After(10 * time.Minute)
-					os.Remove(path)
+					_ = os.Remove(path)
 				}(tempFilePath)
 			}
 

@@ -48,7 +48,7 @@ func NewStore() *Store {
 
 // LoadDocument loads a document from a file path into the store.
 func (s *Store) LoadDocument(domain, docID, filePath string) error {
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) //nolint:gosec // filePath is from caller's trusted domain/doc directory
 	if err != nil {
 		return fmt.Errorf("knowledge: load %s: %w", docID, err)
 	}

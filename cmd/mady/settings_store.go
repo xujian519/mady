@@ -178,7 +178,7 @@ func (s *SettingsStore) saveLocked() error {
 		return nil
 	}
 	dir := filepath.Dir(s.filePath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(s.global, "", "  ")

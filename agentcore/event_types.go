@@ -13,11 +13,17 @@ import (
 // EventType 是 Agent 生命周期事件类型的字符串别名。
 type EventType string
 
+// EventType values for the agent lifecycle state machine.
 const (
-	EventAgentStart      EventType = "agent_start"
-	EventAgentEnd        EventType = "agent_end"
-	EventAgentError      EventType = "agent_error"
-	EventSkillLoaded     EventType = "skill_loaded"
+	// EventAgentStart is emitted when the agent begins execution.
+	EventAgentStart EventType = "agent_start"
+	// EventAgentEnd is emitted when the agent finishes execution.
+	EventAgentEnd EventType = "agent_end"
+	// EventAgentError is emitted when the agent encounters an error.
+	EventAgentError EventType = "agent_error"
+	// EventSkillLoaded is emitted when a skill is loaded.
+	EventSkillLoaded EventType = "skill_loaded"
+	// EventSkillsReloaded is emitted when skills are reloaded.
 	EventSkillsReloaded  EventType = "skills_reloaded"
 	EventTurnStart       EventType = "turn_start"
 	EventTurnEnd         EventType = "turn_end"
@@ -130,6 +136,7 @@ type SkillsReloadedEvent struct {
 	RemovedDiagnostics []skill.Diagnostic `json:"removed_diagnostics,omitempty"`
 }
 
+// NewSkillsReloadedEvent creates a SkillsReloadedEvent with the given reload details.
 func NewSkillsReloadedEvent(
 	skillPaths []string,
 	totalSkills, visibleSkills, hiddenSkills, diagnosticsCount int,
@@ -320,6 +327,7 @@ func NewApprovalPromptEvent(agentName, content string, toolCalls []ToolCall) *Ap
 
 // --- JSON serialization for events with error fields ---
 
+// MarshalJSON serializes the error event, converting the error to a string.
 func (e AgentErrorEvent) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type      EventType `json:"type"`
@@ -329,6 +337,7 @@ func (e AgentErrorEvent) MarshalJSON() ([]byte, error) {
 	}{e.Kind, e.At, util.ErrorString(e.Err), errorType(e.Err)})
 }
 
+// UnmarshalJSON deserializes the error event, reconstructing error from type/string.
 func (e *AgentErrorEvent) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Type      EventType `json:"type"`
@@ -347,6 +356,7 @@ func (e *AgentErrorEvent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON serializes the tool call end event.
 func (e ToolCallEndEvent) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type       EventType     `json:"type"`
@@ -360,6 +370,7 @@ func (e ToolCallEndEvent) MarshalJSON() ([]byte, error) {
 	}{e.Kind, e.At, e.ToolCallID, e.ToolName, e.Result, e.Duration, util.ErrorString(e.Err), errorType(e.Err)})
 }
 
+// UnmarshalJSON deserializes the tool call end event.
 func (e *ToolCallEndEvent) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Type       EventType     `json:"type"`
@@ -386,6 +397,7 @@ func (e *ToolCallEndEvent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON serializes the handoff end event.
 func (e HandoffEndEvent) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type        EventType     `json:"type"`
@@ -399,6 +411,7 @@ func (e HandoffEndEvent) MarshalJSON() ([]byte, error) {
 	}{e.Kind, e.At, e.TargetAgent, e.Output, e.Duration, e.Invisible, util.ErrorString(e.Err), errorType(e.Err)})
 }
 
+// UnmarshalJSON deserializes the handoff end event.
 func (e *HandoffEndEvent) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Type        EventType     `json:"type"`
@@ -425,6 +438,7 @@ func (e *HandoffEndEvent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON serializes the auto-retry event.
 func (e AutoRetryEvent) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type       EventType     `json:"type"`
@@ -437,6 +451,7 @@ func (e AutoRetryEvent) MarshalJSON() ([]byte, error) {
 	}{e.Kind, e.At, e.Attempt, e.MaxRetries, e.Delay, util.ErrorString(e.Err), errorType(e.Err)})
 }
 
+// UnmarshalJSON deserializes the auto-retry event.
 func (e *AutoRetryEvent) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Type       EventType     `json:"type"`

@@ -135,6 +135,7 @@ type parsedConclusion struct {
 // State Key 常量
 // =============================================================================
 
+// StateKeyNoveltyInput is the Pregel state key for the novelty analysis input.
 const (
 	StateKeyNoveltyInput  = "novelty_input"
 	StateKeyNoveltyResult = "novelty_result"

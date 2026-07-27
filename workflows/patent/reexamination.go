@@ -28,7 +28,7 @@ const (
 	ReexamStateInput        = "reexam_input"         // original rejection decision text
 	ReexamStateDecisionInfo = "reexam_decision_info" // parsed decision metadata
 	ReexamStateGrounds      = "reexam_grounds"       // []ReexamGround: classified rejection grounds
-	ReexamStatePatentType   = "reexam_patent_type"   // "invention" or "utility_model"
+	ReexamStatePatentType   = "reexam_patent_type"   // reexamInvention or reexamUtilityModel
 	ReexamStateDraft        = "reexam_draft"         // draft request text
 	ReexamStateRuleCheck    = "reexam_rule_check"    // rule engine report
 	ReexamStateRuleVerdict  = "reexam_rule_verdict"  // aggregate verdict
@@ -37,16 +37,32 @@ const (
 	ReexamStateOralPrep     = "reexam_oral_prep"     // 口审准备内容
 )
 
+// Reexamination workflow node and value constants.
+const (
+	reexamUtilityModel = "utility_model"
+	reexamDraftRequest = "draft_request"
+	reexamRuleCheck    = "rule_check"
+	reexamConclude     = "conclude"
+	reexamInvention    = "invention"
+	reexamArt22P2      = "专利法第22条第2款"
+)
+
 // ReexamGroundType identifies the type of rejection ground in the decision.
 type ReexamGroundType string
 
 const (
-	ReexamGroundNovelty       ReexamGroundType = "novelty"
+	// ReexamGroundNovelty indicates a novelty-based rejection ground.
+	ReexamGroundNovelty ReexamGroundType = "novelty"
+	// ReexamGroundInventiveness indicates an inventiveness-based rejection ground.
 	ReexamGroundInventiveness ReexamGroundType = "inventiveness"
-	ReexamGroundDisclosure    ReexamGroundType = "disclosure"
-	ReexamGroundClarity       ReexamGroundType = "clarity"
-	ReexamGroundAmendment     ReexamGroundType = "amendment"
-	ReexamGroundSubject       ReexamGroundType = "subject" // 实用新型客体 (Art. 2.3)
+	// ReexamGroundDisclosure indicates an insufficient disclosure rejection ground.
+	ReexamGroundDisclosure ReexamGroundType = "disclosure"
+	// ReexamGroundClarity indicates a claim clarity rejection ground.
+	ReexamGroundClarity ReexamGroundType = "clarity"
+	// ReexamGroundAmendment indicates an amendment beyond scope rejection ground.
+	ReexamGroundAmendment ReexamGroundType = "amendment"
+	// ReexamGroundSubject indicates a subject matter eligibility rejection ground (Art. 2.3).
+	ReexamGroundSubject ReexamGroundType = "subject"
 )
 
 // ReexamDecisionInfo holds metadata extracted from the rejection decision.
@@ -118,7 +134,7 @@ func reexamClassifyGroundsNode(ctx context.Context, state graph.PregelState) (gr
 	patentType := state.GetString(ReexamStatePatentType)
 
 	// For utility models, filter out inventiveness (not examined in UM).
-	if patentType == "utility_model" {
+	if patentType == reexamUtilityModel {
 		var filtered []ReexamGround
 		for _, g := range grounds {
 			if g.Type != ReexamGroundInventiveness {
@@ -134,7 +150,7 @@ func reexamClassifyGroundsNode(ctx context.Context, state graph.PregelState) (gr
 	if len(grounds) == 0 {
 		grounds = []ReexamGround{{
 			Type:        ReexamGroundNovelty,
-			Article:     "专利法第22条第2款",
+			Article:     reexamArt22P2,
 			Description: "新颖性缺陷（默认分析维度）",
 		}}
 	}
@@ -564,7 +580,7 @@ func BuildReexaminationGraph(opts ...ReexamGraphOption) (*graph.CompiledPregelGr
 	if err := g.AddNode("classify_grounds", reexamClassifyGroundsNode); err != nil {
 		return nil, err
 	}
-	if err := g.AddNode("draft_request", reexamDraftNode); err != nil {
+	if err := g.AddNode(reexamDraftRequest, reexamDraftNode); err != nil {
 		return nil, err
 	}
 
@@ -575,29 +591,29 @@ func BuildReexaminationGraph(opts ...ReexamGraphOption) (*graph.CompiledPregelGr
 		}
 	}
 
-	if err := g.AddNode("rule_check", reexamRuleCheckNode); err != nil {
+	if err := g.AddNode(reexamRuleCheck, reexamRuleCheckNode); err != nil {
 		return nil, err
 	}
-	if err := g.AddNode("conclude", reexamConcludeNode); err != nil {
+	if err := g.AddNode(reexamConclude, reexamConcludeNode); err != nil {
 		return nil, err
 	}
 
 	// Build edges.
 	edges := [][2]string{
 		{"parse_decision", "classify_grounds"},
-		{"classify_grounds", "draft_request"},
+		{"classify_grounds", reexamDraftRequest},
 	}
 	if cfg.oralHearing {
 		edges = append(edges, [][2]string{
-			{"draft_request", "oral_hearing_prep"},
-			{"oral_hearing_prep", "rule_check"},
+			{reexamDraftRequest, "oral_hearing_prep"},
+			{"oral_hearing_prep", reexamRuleCheck},
 		}...)
 	} else {
-		edges = append(edges, [2]string{"draft_request", "rule_check"})
+		edges = append(edges, [2]string{reexamDraftRequest, reexamRuleCheck})
 	}
 	edges = append(edges, [][2]string{
-		{"rule_check", "conclude"},
-		{"conclude", graph.PregelEnd},
+		{reexamRuleCheck, reexamConclude},
+		{reexamConclude, graph.PregelEnd},
 	}...)
 
 	for _, edge := range edges {
@@ -682,21 +698,21 @@ func extractAfterPrefix(line string, prefixes ...string) string {
 // reexaminationGroundRules is the pattern table for reexamination ground
 // identification. Includes utility-model-specific subject-matter ground.
 var reexaminationGroundRules = []groundPattern{
-	{TypeKey: string(ReexamGroundNovelty), Article: "专利法第22条第2款",
+	{TypeKey: string(ReexamGroundNovelty), Article: reexamArt22P2,
 		Desc:     "新颖性缺陷",
-		Patterns: []string{"22条第2款", "22.2", "新颖性", "不具备新颖"}},
+		Patterns: []string{"22条第2款", "22.2", termNovelty, "不具备新颖"}},
 	{TypeKey: string(ReexamGroundInventiveness), Article: "专利法第22条第3款",
 		Desc:     "创造性缺陷",
-		Patterns: []string{"22条第3款", "22.3", "创造性", "不具备创造", "显而易见"}},
+		Patterns: []string{"22条第3款", "22.3", termInventiveness, "不具备创造", termObvious}},
 	{TypeKey: string(ReexamGroundDisclosure), Article: "专利法第26条第3款",
 		Desc:     "公开不充分",
-		Patterns: []string{"26条第3款", "26.3", "公开充分", "充分公开", "能够实现"}},
+		Patterns: []string{"26条第3款", "26.3", termSufficientDisclosurePub, termSufficientDisclosure, termEnable}},
 	{TypeKey: string(ReexamGroundClarity), Article: "专利法第26条第4款",
 		Desc:     "权利要求不清楚/不支持",
 		Patterns: []string{"26条第4款", "26.4", "清楚", "不支持"}},
 	{TypeKey: string(ReexamGroundAmendment), Article: "专利法第33条",
-		Desc:     "修改超范围",
-		Patterns: []string{"第33条", "A33", "修改超范围", "超出原"}},
+		Desc:     termAmendmentExceed,
+		Patterns: []string{"第33条", "A33", termAmendmentExceed, "超出原"}},
 	{TypeKey: string(ReexamGroundSubject), Article: "专利法第2条第3款",
 		Desc:     "实用新型客体缺陷",
 		Patterns: []string{"第2条第3款", "2.3", "客体", "不属于实用新型"}},
@@ -717,7 +733,7 @@ func identifyReexaminationGrounds(text string) []ReexamGround {
 	if len(grounds) == 0 {
 		grounds = append(grounds, ReexamGround{
 			Type:        ReexamGroundNovelty,
-			Article:     "专利法第22条第2款",
+			Article:     reexamArt22P2,
 			Description: "新颖性缺陷（默认分析维度）",
 		})
 	}
@@ -729,26 +745,26 @@ func identifyReexaminationGrounds(text string) []ReexamGround {
 func detectPatentType(text string, grounds []ReexamGround) string {
 	lower := strings.ToLower(text)
 	if strings.Contains(lower, "实用新型") {
-		return "utility_model"
+		return reexamUtilityModel
 	}
 	if strings.Contains(lower, "发明") {
-		return "invention"
+		return reexamInvention
 	}
 	// If subject matter ground present, likely utility model.
 	for _, g := range grounds {
 		if g.Type == ReexamGroundSubject {
-			return "utility_model"
+			return reexamUtilityModel
 		}
 	}
-	return "invention"
+	return reexamInvention
 }
 
 // patentTypeLabel returns a human-readable label for the patent type.
 func patentTypeLabel(t string) string {
 	switch t {
-	case "utility_model":
+	case reexamUtilityModel:
 		return "实用新型"
-	case "invention":
+	case reexamInvention:
 		return "发明"
 	default:
 		return t

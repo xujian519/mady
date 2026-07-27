@@ -9,17 +9,22 @@ import (
 type RiskLevel string
 
 const (
-	RiskLow    RiskLevel = "low"
+	// RiskLow indicates minimal or no risk in the tool call.
+	RiskLow RiskLevel = "low"
+	// RiskMedium indicates moderate risk requiring attention.
 	RiskMedium RiskLevel = "medium"
-	RiskHigh   RiskLevel = "high"
+	// RiskHigh indicates significant risk that likely warrants denial.
+	RiskHigh RiskLevel = "high"
 )
 
 // Outcome is the Guardian's verdict on a tool call.
 type Outcome string
 
 const (
+	// OutcomeAllow means the Guardian has approved the tool call.
 	OutcomeAllow Outcome = "allow"
-	OutcomeDeny  Outcome = "deny"
+	// OutcomeDeny means the Guardian has rejected the tool call.
+	OutcomeDeny Outcome = "deny"
 )
 
 // Assessment is the structured result of a Guardian review.

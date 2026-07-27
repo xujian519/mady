@@ -10,10 +10,14 @@ import (
 type BudgetDimension string
 
 const (
-	BudgetDimTokens    BudgetDimension = "tokens"
-	BudgetDimCalls     BudgetDimension = "model_calls"
+	// BudgetDimTokens identifies total token consumption.
+	BudgetDimTokens BudgetDimension = "tokens"
+	// BudgetDimCalls identifies the number of model calls.
+	BudgetDimCalls BudgetDimension = "model_calls"
+	// BudgetDimToolCalls identifies the number of tool invocations.
 	BudgetDimToolCalls BudgetDimension = "tool_calls"
-	BudgetDimDuration  BudgetDimension = "duration"
+	// BudgetDimDuration identifies wall-clock elapsed time.
+	BudgetDimDuration BudgetDimension = "duration"
 )
 
 // Budget sets per-run cost limits. A zero value on any field means that

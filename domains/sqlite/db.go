@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -16,8 +17,8 @@ func openDB(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open %s: %w", dbPath, err)
 	}
 	db.SetMaxOpenConns(4)
-	if err := db.Ping(); err != nil {
-		db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("ping %s: %w", dbPath, err)
 	}
 	return db, nil

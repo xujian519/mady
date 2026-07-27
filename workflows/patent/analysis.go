@@ -321,16 +321,32 @@ func BuildNoveltyGraphWithOpts(opts ...GraphOption) (*graph.CompiledPregelGraph,
 	}
 	g := graph.NewPregelGraph()
 
-	g.AddNode("parse", parseNode)
-	g.AddNode("search", newSearchNode(cfg.retriever))
-	g.AddNode("analyze", analyzeNode)
-	g.AddNode("conclude", concludeNode)
+	if err := g.AddNode("parse", parseNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("search", newSearchNode(cfg.retriever)); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("analyze", analyzeNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("conclude", concludeNode); err != nil {
+		return nil, err
+	}
 
 	// Linear flow: parse → search → analyze → conclude → end.
-	g.AddEdge("parse", "search")
-	g.AddEdge("search", "analyze")
-	g.AddEdge("analyze", "conclude")
-	g.AddEdge("conclude", graph.PregelEnd)
+	if err := g.AddEdge("parse", "search"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("search", "analyze"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("analyze", "conclude"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("conclude", graph.PregelEnd); err != nil {
+		return nil, err
+	}
 
 	return g.Compile("parse", 10) // max 10 supersteps
 }
@@ -469,29 +485,55 @@ func BuildNoveltyGraphWithRulesWithOpts(opts ...GraphOption) (*graph.CompiledPre
 	}
 	g := graph.NewPregelGraph()
 
-	g.AddNode("parse", parseNode)
-	g.AddNode("search", newSearchNode(cfg.retriever))
-	g.AddNode("analyze", analyzeNode)
-	g.AddNode("rule_check", ruleCheckNode)
-	g.AddNode("conclude", concludeWithRulesNode)
+	if err := g.AddNode("parse", parseNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("search", newSearchNode(cfg.retriever)); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("analyze", analyzeNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("rule_check", ruleCheckNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("conclude", concludeWithRulesNode); err != nil {
+		return nil, err
+	}
 
 	// Conditionally add risk_scan node.
 	hasScanner := cfg.scanner != nil
 	if hasScanner {
-		g.AddNode("risk_scan", newRiskScanNode(cfg.scanner))
+		if err := g.AddNode("risk_scan", newRiskScanNode(cfg.scanner)); err != nil {
+			return nil, err
+		}
 	}
 
 	// Build edges — risk_scan is inserted between rule_check and conclude.
-	g.AddEdge("parse", "search")
-	g.AddEdge("search", "analyze")
-	g.AddEdge("analyze", "rule_check")
-	if hasScanner {
-		g.AddEdge("rule_check", "risk_scan")
-		g.AddEdge("risk_scan", "conclude")
-	} else {
-		g.AddEdge("rule_check", "conclude")
+	if err := g.AddEdge("parse", "search"); err != nil {
+		return nil, err
 	}
-	g.AddEdge("conclude", graph.PregelEnd)
+	if err := g.AddEdge("search", "analyze"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("analyze", "rule_check"); err != nil {
+		return nil, err
+	}
+	if hasScanner {
+		if err := g.AddEdge("rule_check", "risk_scan"); err != nil {
+			return nil, err
+		}
+		if err := g.AddEdge("risk_scan", "conclude"); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := g.AddEdge("rule_check", "conclude"); err != nil {
+			return nil, err
+		}
+	}
+	if err := g.AddEdge("conclude", graph.PregelEnd); err != nil {
+		return nil, err
+	}
 
 	return g.Compile("parse", 10)
 }

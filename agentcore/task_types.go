@@ -88,7 +88,7 @@ func (t *Task) Clone() *Task {
 	return &cp
 }
 
-// PriorityOrder 返回优先级的数值用于排序（越大越优先）。
+// Order returns the numeric priority value for sorting (higher is more urgent).
 func (p TaskPriority) Order() int {
 	switch p {
 	case TaskPriorityUrgent:

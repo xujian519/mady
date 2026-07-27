@@ -18,6 +18,7 @@ import (
 // AuditAction describes the type of operation being audited.
 type AuditAction string
 
+// Audit action type constants.
 const (
 	AuditAccess       AuditAction = "access"        // 查看案件数据
 	AuditModify       AuditAction = "modify"        // 修改案件数据
@@ -82,10 +83,10 @@ func (l *AuditLogger) rotateIfNeededAt(now time.Time) error {
 		return nil
 	}
 	if l.file != nil {
-		l.file.Close()
+		_ = l.file.Close()
 	}
 	path := filepath.Join(l.dir, "audit-"+today+".jsonl")
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) //nolint:gosec // path is filepath.Join(l.dir, "audit-"+today+".jsonl")
 	if err != nil {
 		return err
 	}

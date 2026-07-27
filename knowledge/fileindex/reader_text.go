@@ -10,7 +10,7 @@ import (
 // readText reads a plain text file (txt, md, go, etc.). This is the cheapest
 // extraction path — just read the file and return its entire content.
 func (fr *FileReader) readText(_ context.Context, path string) (*FileReadResult, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from file index, validated by caller
 	if err != nil {
 		return nil, fmt.Errorf("读取文件失败: %w", err)
 	}

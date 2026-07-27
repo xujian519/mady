@@ -28,13 +28,14 @@ import (
 )
 
 func preflightWritableSQLitePath(dbPath string) error {
+	dbPath = filepath.Clean(dbPath)
 	dir := filepath.Dir(dbPath)
 	if err := util.EnsureDir(dir); err != nil {
 		return fmt.Errorf("prepare db dir: %w", err)
 	}
 
 	probePath := filepath.Join(dir, fmt.Sprintf(".mady-write-probe-%d.tmp", time.Now().UnixNano()))
-	probeFile, err := os.OpenFile(probePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	probeFile, err := os.OpenFile(probePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // path is filepath.Clean'd from dir of dbPath
 	if err != nil {
 		return fmt.Errorf("probe db dir writable: %w", err)
 	}
@@ -52,7 +53,7 @@ func preflightWritableSQLitePath(dbPath string) error {
 	}
 
 	if _, err := os.Stat(dbPath); err == nil {
-		dbFile, openErr := os.OpenFile(dbPath, os.O_RDWR, 0)
+		dbFile, openErr := os.OpenFile(dbPath, os.O_RDWR, 0) //nolint:gosec // path is filepath.Clean'd
 		if openErr != nil {
 			return fmt.Errorf("open existing db read-write: %w", openErr)
 		}
@@ -258,7 +259,7 @@ func runServer(ctx context.Context) error {
 	}
 
 	// Graceful shutdown on context cancellation.
-	go func() {
+	go func() { //nolint:gosec // background goroutine with no request context
 		<-ctx.Done()
 		log.Println("shutting down server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -66,27 +66,50 @@ type LifecycleHook interface {
 	AfterCompactionPersist(ctx context.Context, arc *AgentRunContext)
 }
 
-// BaseLifecycleHook 提供所有方法的 no-op 默认实现。
+// BaseLifecycleHook provides no-op default implementations for all LifecycleHook methods.
 type BaseLifecycleHook struct{}
 
-func (BaseLifecycleHook) BeforeAgentRun(_ context.Context, _ *AgentRunContext) error             { return nil }
+// BeforeAgentRun is called before the agent starts a run. Default: no-op.
+func (BaseLifecycleHook) BeforeAgentRun(_ context.Context, _ *AgentRunContext) error { return nil }
+
+// AfterAgentRun is called after the agent finishes a run. Default: no-op.
 func (BaseLifecycleHook) AfterAgentRun(_ context.Context, _ *AgentRunContext, _ string, _ error) {}
-func (BaseLifecycleHook) BeforeTurn(_ context.Context, _ *AgentRunContext) error                 { return nil }
-func (BaseLifecycleHook) AfterTurn(_ context.Context, _ *AgentRunContext, _ TurnInfo)            {}
+
+// BeforeTurn is called before each agent turn. Default: no-op.
+func (BaseLifecycleHook) BeforeTurn(_ context.Context, _ *AgentRunContext) error { return nil }
+
+// AfterTurn is called after each agent turn. Default: no-op.
+func (BaseLifecycleHook) AfterTurn(_ context.Context, _ *AgentRunContext, _ TurnInfo) {}
+
+// BeforeModelCall is called before a model invocation. Default: no-op.
 func (BaseLifecycleHook) BeforeModelCall(_ context.Context, _ *AgentRunContext, _ *ModelCallContext) error {
 	return nil
 }
+
+// AfterModelCall is called after a model invocation completes. Default: no-op.
 func (BaseLifecycleHook) AfterModelCall(_ context.Context, _ *AgentRunContext, _ *ModelCallContext) {}
+
+// BeforeToolExecution is called before a tool is executed. Default: no-op.
 func (BaseLifecycleHook) BeforeToolExecution(_ context.Context, _ *AgentRunContext, _ *ToolExecutionContext) error {
 	return nil
 }
+
+// AfterToolExecution is called after a tool execution completes. Default: no-op.
 func (BaseLifecycleHook) AfterToolExecution(_ context.Context, _ *AgentRunContext, _ *ToolExecutionContext) {
 }
+
+// BeforeMessagePersist is called before messages are persisted. Default: no-op.
 func (BaseLifecycleHook) BeforeMessagePersist(_ context.Context, _ *AgentRunContext) error {
 	return nil
 }
+
+// AfterMessagePersist is called after messages are persisted. Default: no-op.
 func (BaseLifecycleHook) AfterMessagePersist(_ context.Context, _ *AgentRunContext) {}
+
+// BeforeCompactionPersist is called before compaction data is persisted. Default: no-op.
 func (BaseLifecycleHook) BeforeCompactionPersist(_ context.Context, _ *AgentRunContext) error {
 	return nil
 }
+
+// AfterCompactionPersist is called after compaction data is persisted. Default: no-op.
 func (BaseLifecycleHook) AfterCompactionPersist(_ context.Context, _ *AgentRunContext) {}

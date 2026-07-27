@@ -118,24 +118,24 @@ func setupTestDir(t *testing.T) string {
 	}
 	// rules/ 子目录
 	rulesDir := filepath.Join(dir, "rules")
-	if err := os.MkdirAll(rulesDir, 0755); err != nil {
+	if err := os.MkdirAll(rulesDir, 0755); err != nil { //nolint:gosec // test dir
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(rulesDir, "sub-rules.yaml"), []byte(testRulesSubdirYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(rulesDir, "sub-rules.yaml"), []byte(testRulesSubdirYAML), 0644); err != nil { //nolint:gosec // test file
 		t.Fatal(err)
 	}
 	artDir := filepath.Join(dir, "articles")
-	if err := os.MkdirAll(artDir, 0755); err != nil {
+	if err := os.MkdirAll(artDir, 0755); err != nil { //nolint:gosec // test dir
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(artDir, "A22.2-novelty.yaml"), []byte(testArticleYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(artDir, "A22.2-novelty.yaml"), []byte(testArticleYAML), 0644); err != nil { //nolint:gosec // test file
 		t.Fatal(err)
 	}
 	orchDir := filepath.Join(dir, "orchestrations")
-	if err := os.MkdirAll(orchDir, 0755); err != nil {
+	if err := os.MkdirAll(orchDir, 0755); err != nil { //nolint:gosec // test dir
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(orchDir, "invalidation.yaml"), []byte(testOrchestrationYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(orchDir, "invalidation.yaml"), []byte(testOrchestrationYAML), 0644); err != nil { //nolint:gosec // test file
 		t.Fatal(err)
 	}
 	return dir

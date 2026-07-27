@@ -51,6 +51,7 @@ func NewMemoryCheckpointSaver() *MemoryCheckpointSaver {
 	return &MemoryCheckpointSaver{byThread: make(map[string][]memoryCP)}
 }
 
+// Append stores a snapshot for threadID and returns a monotonically increasing sequence number.
 func (m *MemoryCheckpointSaver) Append(ctx context.Context, threadID string, snap StateSnapshot) (int64, error) {
 	if threadID == "" {
 		threadID = "default"
@@ -76,6 +77,7 @@ func (m *MemoryCheckpointSaver) Append(ctx context.Context, threadID string, sna
 	return seq, nil
 }
 
+// Latest returns the most recent snapshot and its sequence number for the given thread.
 func (m *MemoryCheckpointSaver) Latest(ctx context.Context, threadID string) (StateSnapshot, int64, error) {
 	if threadID == "" {
 		threadID = "default"

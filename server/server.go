@@ -214,12 +214,21 @@ func (s *Server) limitedBody(w http.ResponseWriter, r *http.Request) io.Reader {
 	return http.MaxBytesReader(w, r.Body, limit)
 }
 
+// On registers an event handler for a specific event type.
 func (s *Server) On(t iface.EventType, h iface.EventHandler) func() {
 	return s.eventBus.On(t, h)
 }
+
+// OnAll registers a handler for all event types.
 func (s *Server) OnAll(h iface.EventHandler) func() { return s.eventBus.OnAll(h) }
-func (s *Server) EmitEvent(e iface.Event)           { s.eventBus.Emit(e) }
-func (s *Server) EventBus() iface.EventBus          { return s.eventBus }
+
+// EmitEvent emits an event to the event bus.
+func (s *Server) EmitEvent(e iface.Event) { s.eventBus.Emit(e) }
+
+// EventBus returns the underlying event bus instance.
+func (s *Server) EventBus() iface.EventBus { return s.eventBus }
+
+// Close shuts down the event bus and evicts all pool entries.
 func (s *Server) Close() {
 	s.eventBus.Close()
 	// 摘除全部池化 entry：空闲的立即 Close，仍在使用中的标记 evicted，
@@ -308,6 +317,7 @@ func (s *Server) aguiHandler() http.Handler {
 	return agui.NewHandler(s.snapshotConfig())
 }
 
+// ListenAndServe starts the HTTP server on the given address.
 func (s *Server) ListenAndServe(addr string) error {
 	handler := s.Handler()
 	s.srv.Store(&http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second})
@@ -322,6 +332,7 @@ func (s *Server) ListenAndServeTLS(addr, certFile, keyFile string) error {
 	return s.srv.Load().ListenAndServeTLS(certFile, keyFile)
 }
 
+// Shutdown gracefully stops the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.Close()
 	httpSrv := s.srv.Load()

@@ -75,7 +75,7 @@ func BuildLawArticleIndex(wikiLegalDir string) (*LawArticleIndex, error) {
 
 // indexFile 解析单个拆分文件，把其中的 H3 法条标题并入索引。
 func (idx *LawArticleIndex) indexFile(path string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk over law index dir
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}

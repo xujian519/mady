@@ -42,6 +42,7 @@ func EnvOrDefault(key, fallback string) string {
 	return fallback
 }
 
+// ValidateKey checks that a key is a non-empty, single path segment (not ".", "..", or containing "/").
 func ValidateKey(key string) error {
 	if key == "" {
 		return fmt.Errorf("key must not be empty")

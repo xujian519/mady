@@ -24,9 +24,12 @@ import (
 type CheckMethod string
 
 const (
-	CheckMethodRules    CheckMethod = "rules"     // deterministic only
-	CheckMethodLLMJudge CheckMethod = "llm_judge" // semantic only (no rule issues)
-	CheckMethodHybrid   CheckMethod = "hybrid"    // both tracks contributed
+	// CheckMethodRules indicates the deterministic rule track only.
+	CheckMethodRules CheckMethod = "rules"
+	// CheckMethodLLMJudge indicates the semantic LLM track only.
+	CheckMethodLLMJudge CheckMethod = "llm_judge"
+	// CheckMethodHybrid indicates both tracks contributed.
+	CheckMethodHybrid CheckMethod = "hybrid"
 )
 
 // CheckIssue is a single problem found during checking.
@@ -139,7 +142,7 @@ func (c *Checker) shouldTriggerLlm(ruleVerdict Verdict, ruleResults []RuleCheckR
 }
 
 func (c *Checker) buildRuleOnlyResult(results []RuleCheckResult, verdict Verdict, stepID string) *CheckerResult {
-	var issues []CheckIssue
+	issues := make([]CheckIssue, 0, len(results))
 	for _, r := range results {
 		issues = append(issues, CheckIssue{
 			Severity:    r.Severity,
@@ -165,7 +168,7 @@ func (c *Checker) mergeVerdicts(
 	stepID string,
 ) *CheckerResult {
 	// Merge issues from both tracks.
-	var merged []CheckIssue
+	merged := make([]CheckIssue, 0, len(ruleResults)+len(llmReasons))
 	for _, r := range ruleResults {
 		merged = append(merged, CheckIssue{
 			Severity:    r.Severity,

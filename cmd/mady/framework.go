@@ -50,7 +50,7 @@ func (caseFileReader) ReadText(path string) string {
 	if result, err := reader.ReadProjectFile(context.Background(), filepath.Base(path)); err == nil {
 		return result.Content
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk or filepath.Join of CWD
 	if err != nil {
 		return ""
 	}
@@ -65,16 +65,22 @@ func buildReasoningRetriever(fc *frameworkContext) *reasoning.MultiSourceRetriev
 }
 
 // buildCitationSource 委托到 framework.BuildCitationSource。
+//
+//nolint:unused // used in stage2_wiring_test.go
 func buildCitationSource(wikiRoot string) guardrails.CitationSource {
 	return framework.BuildCitationSource(wikiRoot)
 }
 
 // loadKnowledgeBackend 委托到 framework.LoadKnowledgeBackend。
+//
+//nolint:unused // used in stage2_wiring_test.go
 func loadKnowledgeBackend(madyHome string) (knowledge.KnowledgeBackend, string) {
 	return framework.LoadKnowledgeBackend(madyHome)
 }
 
 // resolveWikiRoot 委托到 framework.ResolveWikiRoot。
+//
+//nolint:unused // used in stage2_wiring_test.go
 func resolveWikiRoot(madyHome string) string {
 	return framework.ResolveWikiRoot(madyHome)
 }
@@ -95,6 +101,8 @@ func agentThinking(cfg *agentconfig.ThinkingConfig) *agentcore.ThinkingConfig {
 }
 
 // tasklistDirForCWD 委托到 framework.tasklistDirForCWD。
+//
+//nolint:unused // used in framework_test.go
 func tasklistDirForCWD(baseDir, cwd string) string {
 	return framework.TasklistDirForCWD(baseDir, cwd)
 }

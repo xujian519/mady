@@ -9,6 +9,7 @@ import "strings"
 // TechDomain 标识技术领域类型。
 type TechDomain string
 
+// Technology domain constants for enablement analysis.
 const (
 	DomainGeneral    TechDomain = "general"    // 通用/未确定
 	DomainChemical   TechDomain = "chemical"   // 化学/医药

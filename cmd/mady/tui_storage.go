@@ -50,10 +50,10 @@ func resolveBaseSessionDir(envDir, madyHome string) (string, bool, error) {
 // writeCWDMapping records the original working directory inside the partition
 // so users can identify which directory belongs to which project.
 func writeCWDMapping(sessionDir, cwd string) error {
-	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+	if err := os.MkdirAll(sessionDir, 0o750); err != nil { //nolint:gosec // path from filepath.Join over resolved dir
 		return err
 	}
-	return os.WriteFile(filepath.Join(sessionDir, ".cwd"), []byte(cwd+"\n"), 0o600)
+	return os.WriteFile(filepath.Join(sessionDir, ".cwd"), []byte(cwd+"\n"), 0o600) //nolint:gosec // path from filepath.Join over resolved dir
 }
 
 // probeSessionDir 检测 session 持久化目录的可写性。
@@ -83,7 +83,7 @@ func probeSessionDir(envDir, madyHome, workspaceDir, cwd string) StorageProbeRes
 	r.Path = sessionDir
 
 	// 尝试创建目录（不存在时创建）并写入测试文件。
-	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+	if err := os.MkdirAll(sessionDir, 0o750); err != nil { //nolint:gosec // path from filepath.Join over resolved dir
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("mkdir %s: %v", sessionDir, err)
 		r.UserMessage = "会话持久化未启用，当前为仅内存模式（无法创建会话目录）"
@@ -97,14 +97,14 @@ func probeSessionDir(envDir, madyHome, workspaceDir, cwd string) StorageProbeRes
 
 	// 写探针：尝试创建临时文件。
 	testFile := filepath.Join(sessionDir, ".mady-write-test")
-	if err := os.WriteFile(testFile, []byte{}, 0o600); err != nil {
+	if err := os.WriteFile(testFile, []byte{}, 0o600); err != nil { //nolint:gosec // path via filepath.Join over resolved dir
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("write test to %s: %v", sessionDir, err)
 		r.UserMessage = "会话持久化未启用，当前为仅内存模式（会话目录不可写）"
-		_ = os.Remove(testFile)
+		_ = os.Remove(testFile) //nolint:gosec // path via filepath.Join over resolved dir
 		return r
 	}
-	_ = os.Remove(testFile)
+	_ = os.Remove(testFile) //nolint:gosec // path via filepath.Join over resolved dir
 
 	r.Unavailable = false
 	r.Message = ""
@@ -120,7 +120,7 @@ func probeSettingsStore(homeDir string) StorageProbeResult {
 	r.Path = settingsPath
 
 	// 目录不一定存在，先尝试创建。
-	if err := os.MkdirAll(settingsDir, 0o755); err != nil {
+	if err := os.MkdirAll(settingsDir, 0o750); err != nil {
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("mkdir settings dir: %v", err)
 		r.UserMessage = "设置持久化未启用，部分设置将在重启后丢失"
@@ -130,7 +130,7 @@ func probeSettingsStore(homeDir string) StorageProbeResult {
 	// 如果文件已存在，检查可读写性。
 	if _, err := os.Stat(settingsPath); err == nil {
 		// 尝试打开以确认权限。
-		f, err := os.OpenFile(settingsPath, os.O_RDWR, 0o600)
+		f, err := os.OpenFile(settingsPath, os.O_RDWR, 0o600) //nolint:gosec // settingsPath is filepath.Join(settingsDir, "settings.json")
 		if err != nil {
 			r.Unavailable = true
 			r.Message = fmt.Sprintf("open settings: %v", err)
@@ -166,7 +166,7 @@ func probeApprovalStore(workspaceDir, madyHome string) StorageProbeResult {
 	r.Path = dbPath
 
 	// 确保父目录存在。
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+	if err := os.MkdirAll(baseDir, 0o750); err != nil {
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("mkdir approval dir: %v", err)
 		r.UserMessage = "审批留痕未落盘（无法创建审批数据库目录）"
@@ -213,6 +213,8 @@ func storageDegradationTag(probes []StorageProbeResult) string {
 }
 
 // storageDegradationMessages 从探针结果中提取所有面向用户的降级提示。
+//
+//nolint:unused // used in tui_storage_test.go
 func storageDegradationMessages(probes []StorageProbeResult) []string {
 	var msgs []string
 	for _, p := range probes {

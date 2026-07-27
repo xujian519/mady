@@ -8,6 +8,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// BurdenToolName is the agent-visible name of the check_burden tool.
 const BurdenToolName = "check_burden"
 
 const burdenToolDesc = `查询特定场景下的举证责任分配规则。

@@ -411,7 +411,7 @@ func (s *InMemoryStore) RecallWithBudget(ctx context.Context, query string, filt
 }
 
 // Get 按 ID 获取单条记忆。
-func (s *InMemoryStore) Get(ctx context.Context, id string) (*MemoryEntry, error) {
+func (s *InMemoryStore) Get(_ context.Context, id string) (*MemoryEntry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -424,7 +424,7 @@ func (s *InMemoryStore) Get(ctx context.Context, id string) (*MemoryEntry, error
 }
 
 // Update 更新记忆内容。
-func (s *InMemoryStore) Update(ctx context.Context, id string, content string) error {
+func (s *InMemoryStore) Update(_ context.Context, id string, content string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -438,7 +438,7 @@ func (s *InMemoryStore) Update(ctx context.Context, id string, content string) e
 }
 
 // Forget 按 ID 删除。
-func (s *InMemoryStore) Forget(ctx context.Context, id string) error {
+func (s *InMemoryStore) Forget(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -454,7 +454,7 @@ func (s *InMemoryStore) Forget(ctx context.Context, id string) error {
 }
 
 // ForgetAll 按过滤条件批量删除。
-func (s *InMemoryStore) ForgetAll(ctx context.Context, filter MemoryFilter) error {
+func (s *InMemoryStore) ForgetAll(_ context.Context, filter MemoryFilter) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -470,7 +470,7 @@ func (s *InMemoryStore) ForgetAll(ctx context.Context, filter MemoryFilter) erro
 }
 
 // List 按层分页列出记忆。
-func (s *InMemoryStore) List(ctx context.Context, layer MemoryLayer, opts ListOptions) ([]MemoryEntry, error) {
+func (s *InMemoryStore) List(_ context.Context, layer MemoryLayer, opts ListOptions) ([]MemoryEntry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -511,7 +511,7 @@ func (s *InMemoryStore) List(ctx context.Context, layer MemoryLayer, opts ListOp
 }
 
 // Prune 清理低衰减/低重要性记忆。
-func (s *InMemoryStore) Prune(ctx context.Context, layer MemoryLayer, threshold float64) (int64, error) {
+func (s *InMemoryStore) Prune(_ context.Context, layer MemoryLayer, threshold float64) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -542,7 +542,7 @@ func (s *InMemoryStore) Prune(ctx context.Context, layer MemoryLayer, threshold 
 }
 
 // Stats 返回统计信息。
-func (s *InMemoryStore) Stats(ctx context.Context) MemoryStats {
+func (s *InMemoryStore) Stats(_ context.Context) MemoryStats {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

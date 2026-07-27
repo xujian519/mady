@@ -66,7 +66,7 @@ func SelectStrategy(goal string, strategies []Strategy, explorationRate int, rng
 // SelectStrategy (no decay applied).
 func SelectStrategyWithDecay(goal string, strategies []Strategy, explorationRate int, decayCfg DecayConfig, rng *rand.Rand) StrategyPick {
 	if rng == nil {
-		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+		rng = rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // non-security: ε-greedy strategy exploration
 	}
 
 	// Filter matching strategies

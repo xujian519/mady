@@ -10,6 +10,7 @@ import (
 // SlopGroup categorizes a phrase-level slop rule.
 type SlopGroup string
 
+// Slop group constants.
 const (
 	GroupFiller      SlopGroup = "filler"
 	GroupQualifier   SlopGroup = "qualifier"
@@ -40,6 +41,7 @@ type SlopChange struct {
 // StructureIssueType classifies a structural-level defect.
 type StructureIssueType string
 
+// Structure issue type constants.
 const (
 	IssueEmptyThreeStep StructureIssueType = "empty_three_step"
 	IssueFakeComparison StructureIssueType = "fake_comparison"
@@ -94,7 +96,7 @@ var groupLabels = map[SlopGroup]string{
 	GroupAdvisory:    "免责堆叠",
 }
 
-var typeLabels = map[StructureIssueType]string{
+var typeLabels = map[StructureIssueType]string{ //nolint:gosec // classification labels, not credentials
 	IssueEmptyThreeStep: "假三步法",
 	IssueFakeComparison: "假对比表",
 	IssueBinaryTurn:     "假转折",
@@ -439,9 +441,9 @@ func AnalyzeSlop(text string) SlopAnalysis {
 func FormatSlopAnalysis(a SlopAnalysis) string {
 	var lines []string
 
-	passText := "❌ 需修订"
+	passText := "❌ 需修订" //nolint:gosec // report text, not credentials
 	if a.Score.Passed {
-		passText = "✅ 通过"
+		passText = "✅ 通过" //nolint:gosec // report text, not credentials
 	}
 
 	lines = append(lines,

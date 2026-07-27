@@ -31,26 +31,22 @@ func ParseRule(s string) (Rule, error) {
 		return Rule{Tool: s}, nil
 	}
 
-	close := strings.LastIndexByte(s, ')')
-	if close == -1 || close < open {
+	closing := strings.LastIndexByte(s, ')')
+	if closing == -1 || closing < open {
 		return Rule{}, fmt.Errorf("malformed rule %q: missing closing ')'", s)
 	}
 
 	tool := strings.TrimSpace(s[:open])
-	spec := s[open+1 : close]
+	spec := s[open+1 : closing]
 	if tool == "" {
 		return Rule{}, fmt.Errorf("malformed rule %q: empty tool name", s)
 	}
 	return Rule{Tool: tool, Specifier: spec}, nil
 }
 
-// MustParseRule is like ParseRule but panics on error. For tests and constants.
-func MustParseRule(s string) Rule {
-	r, err := ParseRule(s)
-	if err != nil {
-		panic(err)
-	}
-	return r
+// MustParseRule is like ParseRule but returns an error instead of panicking.
+func MustParseRule(s string) (Rule, error) {
+	return ParseRule(s)
 }
 
 // Matches reports whether the rule applies to the given tool call.

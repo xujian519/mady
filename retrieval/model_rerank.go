@@ -158,7 +158,7 @@ func (r *ModelReranker) RerankWithQuery(ctx context.Context, query string, resul
 		slog.Warn("model_rerank: http request failed", "error", err)
 		return results
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))

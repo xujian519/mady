@@ -1,3 +1,5 @@
+// Package psychological provides a VAD (Valence-Arousal-Dominance) emotion space engine
+// for analyzing user sentiment and adapting agent dialogue strategies accordingly.
 package psychological
 
 import (

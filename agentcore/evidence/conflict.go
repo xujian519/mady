@@ -53,9 +53,11 @@ func (cd *ConflictDetector) Detect() []Conflict {
 	if cd.binding == nil {
 		return nil
 	}
-	var conflicts []Conflict
-	conflicts = append(conflicts, cd.checkDirectionConflicts()...)
-	conflicts = append(conflicts, cd.checkSourceConflicts()...)
+	dc := cd.checkDirectionConflicts()
+	sc := cd.checkSourceConflicts()
+	conflicts := make([]Conflict, 0, len(dc)+len(sc))
+	conflicts = append(conflicts, dc...)
+	conflicts = append(conflicts, sc...)
 	return conflicts
 }
 

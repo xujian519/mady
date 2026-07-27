@@ -50,7 +50,7 @@ func (c *HTTPClient) callOnce(ctx context.Context, method string, params any, ou
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rpcResp, err := c.decodeHTTPRPCResponse(ctx, resp.Body, resp.Header.Get("Content-Type"), id)
 	if err != nil {
@@ -96,24 +96,24 @@ func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool
 		return nil, fmt.Errorf("mcp http request: %w", err)
 	}
 	if expectResponse && resp.StatusCode == http.StatusNotFound && requestIncludesSession(msg) {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, sessionExpiredError{sessionID: sessionID}
 	}
 	if expectResponse {
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, fmt.Errorf("mcp http status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 		}
 		return resp, nil
 	}
 	if resp.StatusCode == http.StatusNotFound && requestIncludesSession(msg) {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, sessionExpiredError{sessionID: sessionID}
 	}
 	if resp.StatusCode != http.StatusAccepted && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("mcp notify status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return resp, nil
@@ -164,7 +164,7 @@ func (c *HTTPClient) callInitialize(ctx context.Context, params any, out any) (h
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var rpcResp rpcResponse
 	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
@@ -190,6 +190,6 @@ func (c *HTTPClient) notifyInitialize(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return nil
 }

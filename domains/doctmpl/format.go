@@ -3,6 +3,7 @@ package doctmpl
 // OutputFormat represents the target file format for a rendered document.
 type OutputFormat string
 
+// Output format constants for document rendering.
 const (
 	FormatMarkdown OutputFormat = "markdown" // .md — 对话内预览、版本控制
 	FormatDOCX     OutputFormat = "docx"     // .docx — 提交专利局、客户交付

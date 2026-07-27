@@ -129,11 +129,13 @@ type toolBridge interface {
 	CallTool(ctx context.Context, name string, arguments map[string]any) (*ToolResult, error)
 }
 
+// NewStdioClient creates a new MCP client over stdio transport and
+// performs the MCP initialize handshake.
 func NewStdioClient(ctx context.Context, cfg StdioConfig) (*Client, error) {
 	if strings.TrimSpace(cfg.Command) == "" {
 		return nil, fmt.Errorf("mcp: command is required")
 	}
-	cmd := exec.CommandContext(ctx, cfg.Command, cfg.Args...)
+	cmd := exec.CommandContext(ctx, cfg.Command, cfg.Args...) //nolint:gosec // MCP runs user-configured commands by design
 	if cfg.Dir != "" {
 		cmd.Dir = cfg.Dir
 	}
@@ -212,6 +214,7 @@ func (c *Client) initialize(ctx context.Context) error {
 	return c.notify("notifications/initialized", nil)
 }
 
+// ListTools retrieves the full list of tools from the MCP server.
 func (c *Client) ListTools(ctx context.Context) ([]Tool, error) {
 	var out []Tool
 	cursor := ""
@@ -232,6 +235,7 @@ func (c *Client) ListTools(ctx context.Context) ([]Tool, error) {
 	}
 }
 
+// CallTool invokes a tool on the MCP server with the given arguments.
 func (c *Client) CallTool(ctx context.Context, name string, arguments map[string]any) (*ToolResult, error) {
 	if arguments == nil {
 		arguments = map[string]any{}
@@ -246,10 +250,12 @@ func (c *Client) CallTool(ctx context.Context, name string, arguments map[string
 	return &result, nil
 }
 
+// AgentTools converts MCP tools to agentcore Tool definitions.
 func (c *Client) AgentTools(ctx context.Context) ([]*agentcore.Tool, error) {
 	return agentToolsFor(ctx, c.cfg.ToolPrefix, c)
 }
 
+// Close shuts down the MCP client, closing pipes and waiting for the process to exit.
 func (c *Client) Close() error {
 	c.mu.Lock()
 	if c.closed {

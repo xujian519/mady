@@ -10,6 +10,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// ExtensionName is the registration name for the writing extension.
 const ExtensionName = "writing"
 
 // Extension adapts the Skill Distillation system as an agentcore Extension.
@@ -41,9 +42,14 @@ var (
 	_ agentcore.ToolProvider = (*Extension)(nil)
 )
 
-func (e *Extension) Name() string                                     { return ExtensionName }
+// Name returns the extension identifier.
+func (e *Extension) Name() string { return ExtensionName }
+
+// Init initializes the writing extension — currently a no-op.
 func (e *Extension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
-func (e *Extension) Dispose() error                                   { return nil }
+
+// Dispose cleans up the writing extension — currently a no-op.
+func (e *Extension) Dispose() error { return nil }
 
 // Tools registers writing-related tools.
 func (e *Extension) Tools() []*agentcore.Tool {

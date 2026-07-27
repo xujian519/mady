@@ -7,6 +7,12 @@
 *.dylib
 cli-chat
 wiki-import
+a2ui-demo
+a2a-client
+a2a-server
+build-wiki-index
+enrich-relations
+tui-demo
 build/
 dist/
 

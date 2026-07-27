@@ -99,14 +99,14 @@ func NewCaseIndex(dbPath string) (*CaseIndex, error) {
 	}
 	db.SetMaxOpenConns(4)
 
-	if err := db.Ping(); err != nil {
-		db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("case_index: ping %s: %w", dbPath, err)
 	}
 
 	ci := &CaseIndex{db: db}
 	if err := ci.initSchema(context.Background()); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("case_index: init schema: %w", err)
 	}
 	return ci, nil
@@ -334,7 +334,7 @@ func (ci *CaseIndex) GetPaths(ctx context.Context, caseID string) ([]CasePath, e
 	if err != nil {
 		return nil, fmt.Errorf("case_index: get paths: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var paths []CasePath
 	for rows.Next() {
@@ -362,7 +362,7 @@ func (ci *CaseIndex) FindByPath(ctx context.Context, absPath string) ([]CaseReco
 	if err != nil {
 		return nil, fmt.Errorf("case_index: find by path: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var cases []CaseRecord
 	for rows.Next() {
@@ -405,7 +405,7 @@ func (ci *CaseIndex) GetDocuments(ctx context.Context, caseID string) ([]CaseDoc
 	if err != nil {
 		return nil, fmt.Errorf("case_index: get docs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var docs []CaseDocument
 	for rows.Next() {
@@ -460,7 +460,7 @@ func (ci *CaseIndex) GetEvents(ctx context.Context, caseID string) ([]CaseEvent,
 	if err != nil {
 		return nil, fmt.Errorf("case_index: get events: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var events []CaseEvent
 	for rows.Next() {
@@ -614,7 +614,7 @@ func (ci *CaseIndex) SearchCases(ctx context.Context, q CaseSearchQuery) ([]Case
 	if err != nil {
 		return nil, fmt.Errorf("case_index: search: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var cases []CaseRecord
 	for rows.Next() {
@@ -640,7 +640,7 @@ func (ci *CaseIndex) searchByFTS(ctx context.Context, text string) ([]CaseRecord
 	if err != nil {
 		return nil, fmt.Errorf("case_index: fts search: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var cases []CaseRecord
 	for rows.Next() {

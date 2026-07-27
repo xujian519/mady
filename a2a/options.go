@@ -11,14 +11,20 @@ import (
 // ServerOption configures a Server.
 type ServerOption func(*Server)
 
+// WithLogger sets the logger for the A2A server.
+// WithLogger sets the server's logger.
 func WithLogger(logger *slog.Logger) ServerOption {
 	return func(s *Server) { s.logger = logger }
 }
 
+// WithTaskTTL sets the time-to-live duration for completed tasks before eviction.
+// WithTaskTTL sets the time-to-live for completed tasks before cleanup.
 func WithTaskTTL(ttl time.Duration) ServerOption {
 	return func(s *Server) { s.taskTTL = ttl }
 }
 
+// WithRateLimiter sets the rate limiter for incoming requests.
+// WithRateLimiter sets the rate limiter for the server.
 func WithRateLimiter(limiter *RateLimiter) ServerOption {
 	return func(s *Server) { s.rateLimiter = limiter }
 }
@@ -29,6 +35,8 @@ func WithAllowedOrigins(origins ...string) ServerOption {
 	return func(s *Server) { s.allowedOrigins = append(s.allowedOrigins, origins...) }
 }
 
+// WithSessionManager enables session management with the given task TTL.
+// WithSessionManager enables session management with the given TTL.
 func WithSessionManager(ttl time.Duration) ServerOption {
 	return func(s *Server) {
 		s.sessionMgr = NewSessionManager()
@@ -36,26 +44,38 @@ func WithSessionManager(ttl time.Duration) ServerOption {
 	}
 }
 
+// WithCORS sets the CORS configuration for the A2A server.
+// WithCORS sets the CORS configuration for the server.
 func WithCORS(cfg CORSConfig) ServerOption {
 	return func(s *Server) { s.cors = cfg }
 }
 
+// WithAuth sets the authentication configuration for the A2A server.
+// WithAuth sets the authentication configuration for the server.
 func WithAuth(cfg AuthConfig) ServerOption {
 	return func(s *Server) { s.auth = cfg }
 }
 
+// WithMaxRequestBody sets the maximum request body size in bytes.
+// WithMaxRequestBody sets the maximum request body size in bytes.
 func WithMaxRequestBody(n int64) ServerOption {
 	return func(s *Server) { s.maxRequestBody = n }
 }
 
+// WithTaskTimeout sets the default timeout for task execution.
+// WithTaskTimeout sets the default timeout for individual task execution.
 func WithTaskTimeout(d time.Duration) ServerOption {
 	return func(s *Server) { s.taskTimeout = d }
 }
 
+// WithRequestTimeout sets the HTTP request timeout.
+// WithRequestTimeout sets the default timeout for HTTP requests.
 func WithRequestTimeout(d time.Duration) ServerOption {
 	return func(s *Server) { s.requestTimeout = d }
 }
 
+// WithMaxEventHistory sets the maximum number of events retained per task and total.
+// WithMaxEventHistory sets the maximum event history per task and total across tasks.
 func WithMaxEventHistory(perTask, total int) ServerOption {
 	return func(s *Server) {
 		s.maxHistoryLen = perTask

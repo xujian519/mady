@@ -41,11 +41,8 @@ const (
 	defaultTaskTimeout    = 5 * time.Minute
 )
 
-// ---------------------------------------------------------------------------
 // AgentHandler is the interface that agents must implement to be exposed
 // via the A2A protocol.
-// ---------------------------------------------------------------------------
-
 type AgentHandler interface {
 	Card() AgentCard
 	SendTask(ctx context.Context, req SendTaskRequest) (*Task, error)
@@ -56,10 +53,15 @@ type AgentHandler interface {
 	GetPushNotification(ctx context.Context, taskID string) (*PushNotificationConfig, error)
 }
 
+// TaskUpdatePublisher publishes task update events to subscribers.
 type TaskUpdatePublisher interface {
 	PublishTaskUpdate(taskID string, ev *TaskUpdateEvent)
 }
 
+// StreamingHandler is an optional interface for handlers that support streaming
+// task updates via the TaskUpdatePublisher.
+// StreamingHandler is an optional interface that agent handlers can implement
+// to receive the task update publisher for streaming support.
 type StreamingHandler interface {
 	SetUpdatePublisher(TaskUpdatePublisher)
 }
@@ -215,7 +217,9 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		s.logger.Warn("health encode failed", "error", err)
+	}
 }
 
 // handleFederationAgents 返回联邦注册表中已知的 Agent 列表。
@@ -232,6 +236,7 @@ func (s *Server) handleFederationAgents(w http.ResponseWriter, r *http.Request) 
 		agents = s.federationRegistry.List()
 	}
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errchkjson // Registration contains time.Time (HeartbeatAt); safe to encode
 	_ = json.NewEncoder(w).Encode(agents)
 }
 
@@ -242,6 +247,7 @@ func (s *Server) handleAgentCard(w http.ResponseWriter, r *http.Request) {
 	}
 	card := s.handler.Card()
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errchkjson // AgentCard has a map[string]any field (Skills[].Parameters)
 	_ = json.NewEncoder(w).Encode(card)
 }
 

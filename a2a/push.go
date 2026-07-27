@@ -157,7 +157,7 @@ func (n *PushNotifier) Notify(ctx context.Context, cfg *PushNotificationConfig, 
 			timer.Stop()
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, bytes.NewReader(body)) //nolint:gosec // A2A push URL is user-configured by design
 		if err != nil {
 			return fmt.Errorf("create push request: %w", err)
 		}
@@ -170,14 +170,14 @@ func (n *PushNotifier) Notify(ctx context.Context, cfg *PushNotificationConfig, 
 			req.Header.Set(k, v)
 		}
 
-		resp, err := n.client.Do(req)
+		resp, err := n.client.Do(req) //nolint:gosec // A2A push URL is user-configured by design
 		if err != nil {
 			lastErr = fmt.Errorf("send push notification: %w", err)
 			continue
 		}
 
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		if resp.StatusCode >= 400 {
 			lastErr = fmt.Errorf("push webhook returned %d: %s", resp.StatusCode, string(respBody))

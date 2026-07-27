@@ -133,7 +133,7 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 	})
 	defer unregister()
 
-	fmt.Fprint(w, ": connected\n\n")
+	_, _ = fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
 	for {
 		select {

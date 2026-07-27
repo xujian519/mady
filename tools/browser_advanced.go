@@ -86,7 +86,7 @@ func (r *OrphanReaper) ReapOrphans() (int, error) {
 		}
 
 		var ownerPID int
-		fmt.Sscanf(strings.TrimSpace(string(pidData)), "%d", &ownerPID)
+		_, _ = fmt.Sscanf(strings.TrimSpace(string(pidData)), "%d", &ownerPID)
 
 		if ownerPID > 0 && isProcessAlive(ownerPID) {
 			continue
@@ -95,13 +95,13 @@ func (r *OrphanReaper) ReapOrphans() (int, error) {
 		daemonPIDPath := filepath.Join(dirPath, "daemon_pid")
 		if daemonPIDData, err := os.ReadFile(daemonPIDPath); err == nil {
 			var daemonPID int
-			fmt.Sscanf(strings.TrimSpace(string(daemonPIDData)), "%d", &daemonPID)
+			_, _ = fmt.Sscanf(strings.TrimSpace(string(daemonPIDData)), "%d", &daemonPID)
 			if daemonPID > 0 {
 				killProcess(daemonPID)
 			}
 		}
 
-		os.RemoveAll(dirPath)
+		_ = os.RemoveAll(dirPath)
 		reaped++
 	}
 
@@ -124,12 +124,12 @@ func killProcess(pid int) {
 	if err != nil {
 		return
 	}
-	proc.Signal(syscall.SIGTERM)
+	_ = proc.Signal(syscall.SIGTERM)
 
 	time.Sleep(2 * time.Second)
 
 	if isProcessAlive(pid) {
-		proc.Signal(syscall.SIGKILL)
+		_ = proc.Signal(syscall.SIGKILL)
 	}
 }
 

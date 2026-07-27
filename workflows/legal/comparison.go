@@ -150,6 +150,8 @@ func newCaseSearchNode(searcher CaseSearcher) graph.PregelNode {
 
 // caseSearchNode is retained for backward compatibility — it delegates to
 // newCaseSearchNode(nil) which produces the degraded behavior.
+//
+//nolint:unused // used in comparison_test.go; production code uses rc.caseSearchNode (method)
 func caseSearchNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 	return newCaseSearchNode(nil)(ctx, state)
 }
@@ -262,15 +264,31 @@ func BuildComparisonGraphWithOpts(opts ...LegalGraphOption) (*graph.CompiledPreg
 	}
 	g := graph.NewPregelGraph()
 
-	g.AddNode("statute", statuteNode)
-	g.AddNode("case_search", newCaseSearchNode(cfg.searcher))
-	g.AddNode("compare", compareNode)
-	g.AddNode("conclude", concludeNode)
+	if err := g.AddNode("statute", statuteNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("case_search", newCaseSearchNode(cfg.searcher)); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("compare", compareNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("conclude", concludeNode); err != nil {
+		return nil, err
+	}
 
-	g.AddEdge("statute", "case_search")
-	g.AddEdge("case_search", "compare")
-	g.AddEdge("compare", "conclude")
-	g.AddEdge("conclude", graph.PregelEnd)
+	if err := g.AddEdge("statute", "case_search"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("case_search", "compare"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("compare", "conclude"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("conclude", graph.PregelEnd); err != nil {
+		return nil, err
+	}
 
 	return g.Compile("statute", 10)
 }
@@ -302,14 +320,30 @@ func BuildComparisonGraphWithReasoning(caseID string, caseType CaseType, opts ..
 	rc := &reasoningContext{bb: bb, searcher: cfg.searcher}
 
 	g := graph.NewPregelGraph()
-	g.AddNode("statute", rc.statuteNode)
-	g.AddNode("case_search", rc.caseSearchNode)
-	g.AddNode("compare", rc.compareNode)
-	g.AddNode("conclude", rc.concludeNode)
-	g.AddEdge("statute", "case_search")
-	g.AddEdge("case_search", "compare")
-	g.AddEdge("compare", "conclude")
-	g.AddEdge("conclude", graph.PregelEnd)
+	if err := g.AddNode("statute", rc.statuteNode); err != nil {
+		return nil, nil, err
+	}
+	if err := g.AddNode("case_search", rc.caseSearchNode); err != nil {
+		return nil, nil, err
+	}
+	if err := g.AddNode("compare", rc.compareNode); err != nil {
+		return nil, nil, err
+	}
+	if err := g.AddNode("conclude", rc.concludeNode); err != nil {
+		return nil, nil, err
+	}
+	if err := g.AddEdge("statute", "case_search"); err != nil {
+		return nil, nil, err
+	}
+	if err := g.AddEdge("case_search", "compare"); err != nil {
+		return nil, nil, err
+	}
+	if err := g.AddEdge("compare", "conclude"); err != nil {
+		return nil, nil, err
+	}
+	if err := g.AddEdge("conclude", graph.PregelEnd); err != nil {
+		return nil, nil, err
+	}
 
 	compiled, err := g.Compile("statute", 10)
 	if err != nil {

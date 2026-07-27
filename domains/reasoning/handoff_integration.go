@@ -221,7 +221,7 @@ func joinLines(lines []string) string {
 func NewWorkflowRunner(caseID string, caseType CaseType, techField string, retriever *MultiSourceRetriever, llm LlmClient) *FiveStepRunner {
 	planner := NewPlanner(llm)
 	for _, v := range DefaultManifests() {
-		v := v
+
 		plan := v.Stage4.ToPlan(v.CaseType)
 		planner.RegisterTemplate(v.CaseType, PlanIntentChain, *plan)
 	}
@@ -238,7 +238,6 @@ func NewWorkflowRunner(caseID string, caseType CaseType, techField string, retri
 	if manifest == nil {
 		for _, m := range DefaultManifests() {
 			if m.CaseType == caseType {
-				m := m
 				manifest = m
 				break
 			}

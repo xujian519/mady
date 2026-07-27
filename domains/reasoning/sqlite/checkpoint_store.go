@@ -20,8 +20,8 @@ var (
 	_ store.Closer              = (*SQLiteCheckpointStore)(nil)
 )
 
-// Each checkpoint is stored as a JSON blob with indexed metadata columns
-// for efficient case-level queries.
+// SQLiteCheckpointStore persists reasoning workflow checkpoints as JSON blobs
+// in SQLite, with indexed metadata columns for efficient case-level queries.
 type SQLiteCheckpointStore struct {
 	db *sql.DB
 }
@@ -38,14 +38,14 @@ func NewCheckpointStore(dbPath string) (*SQLiteCheckpointStore, error) {
 	}
 	db.SetMaxOpenConns(4)
 
-	if err := db.Ping(); err != nil {
-		db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("reasoning/sqlite: ping %s: %w", dbPath, err)
 	}
 
 	s := &SQLiteCheckpointStore{db: db}
 	if err := s.initSchema(context.Background()); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("reasoning/sqlite: init schema: %w", err)
 	}
 	return s, nil
@@ -131,7 +131,7 @@ func (s *SQLiteCheckpointStore) ListByCase(ctx context.Context, caseID string) (
 	if err != nil {
 		return nil, fmt.Errorf("reasoning/sqlite: list by case: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var ids []string
 	for rows.Next() {

@@ -12,10 +12,13 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// APIProtocol selects the OpenAI API protocol variant.
 type APIProtocol string
 
 const (
-	APIProtocolChat      APIProtocol = ""
+	// APIProtocolChat selects the Chat Completions API (/v1/chat/completions).
+	APIProtocolChat APIProtocol = ""
+	// APIProtocolResponses selects the Responses API (/v1/responses).
 	APIProtocolResponses APIProtocol = "responses"
 )
 
@@ -122,6 +125,7 @@ type responsesStreamEvent struct {
 	Usage  *responsesUsage `json:"usage,omitempty"`
 }
 
+// ToResponsesInput converts agentcore messages to the Responses API input format.
 func ToResponsesInput(msgs []agentcore.Message) any {
 	if len(msgs) == 1 && msgs[0].Role == agentcore.RoleUser && msgs[0].ToolCallID == "" && len(msgs[0].ToolCalls) == 0 {
 		if len(msgs[0].Blocks) == 0 {
@@ -205,6 +209,7 @@ func ToResponsesInput(msgs []agentcore.Message) any {
 	return items
 }
 
+// ToResponsesTools converts tool definitions to the Responses API wire format.
 func ToResponsesTools(defs []agentcore.ToolDefinition) []responsesTool {
 	if len(defs) == 0 {
 		return nil
@@ -223,6 +228,7 @@ func ToResponsesTools(defs []agentcore.ToolDefinition) []responsesTool {
 	return out
 }
 
+// ToResponsesTextFormat converts ResponseFormat to the Responses API text config.
 func ToResponsesTextFormat(format *agentcore.ResponseFormat) *responsesTextConfig {
 	if format == nil {
 		return nil
@@ -252,7 +258,7 @@ func (p *Provider) completeResponses(ctx context.Context, req *agentcore.Provide
 	if err != nil {
 		return nil, err
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	if httpResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(httpResp.Body, 4096))
@@ -286,14 +292,21 @@ func (p *Provider) streamResponses(ctx context.Context, req *agentcore.ProviderR
 
 	if httpResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(httpResp.Body, 4096))
-		httpResp.Body.Close()
+		_ = httpResp.Body.Close()
 		return nil, fmt.Errorf("responses api error (status %d): %s", httpResp.StatusCode, formatError(body))
 	}
 
-	ch := make(chan agentcore.StreamDelta, 64)
+	return p.readResponsesStream(ctx, httpResp), nil
+}
 
+// readResponsesStream reads an SSE stream for the Responses API from
+// httpResp.Body, sending StreamDelta values to the returned channel.
+// It takes ownership of httpResp and closes its body when the stream is
+// fully consumed.
+func (p *Provider) readResponsesStream(ctx context.Context, httpResp *http.Response) <-chan agentcore.StreamDelta {
+	ch := make(chan agentcore.StreamDelta, 64)
 	go func() {
-		defer httpResp.Body.Close()
+		defer func() { _ = httpResp.Body.Close() }()
 		defer close(ch)
 
 		var currentFunctionCall struct {
@@ -404,8 +417,7 @@ func (p *Provider) streamResponses(ctx context.Context, req *agentcore.ProviderR
 			}
 		}
 	}()
-
-	return ch, nil
+	return ch
 }
 
 func (p *Provider) buildResponsesRequest(req *agentcore.ProviderRequest, msgs []agentcore.Message, stream bool) responsesRequest {

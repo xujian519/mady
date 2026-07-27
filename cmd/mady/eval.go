@@ -181,7 +181,7 @@ func runEvalBaseline(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("打开 eval.db 失败: %w", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	stats, err := store.QueryStats(ctx, sinceTime, untilTime)
 	if err != nil {

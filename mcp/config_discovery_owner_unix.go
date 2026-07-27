@@ -11,7 +11,7 @@ import (
 // current process's UID. Used to reject untrusted .mcp.json files in
 // shared directories.
 func isOwnedByCurrentUser(path string) bool {
-	info, err := os.Stat(path)
+	info, err := os.Stat(path) //nolint:gosec // path validated by caller before reaching here
 	if err != nil {
 		return true // file doesn't exist — not a security risk
 	}
@@ -19,5 +19,5 @@ func isOwnedByCurrentUser(path string) bool {
 	if !ok {
 		return false
 	}
-	return stat.Uid == uint32(os.Getuid())
+	return stat.Uid == uint32(os.Getuid()) //nolint:gosec // G115: UID range is always uint32-safe
 }

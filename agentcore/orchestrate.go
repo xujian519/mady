@@ -62,8 +62,8 @@ func (b *MessageBus) DroppedMessages() int64 {
 
 // Subscribe returns a receive-only channel for topic with buffer cap, and
 // cancel removes the subscription and closes the channel.
-func (b *MessageBus) Subscribe(topic string, cap int) (recv <-chan Message, cancel func()) {
-	ch := make(chan Message, cap)
+func (b *MessageBus) Subscribe(topic string, bufCap int) (recv <-chan Message, cancel func()) {
+	ch := make(chan Message, bufCap)
 	b.mu.Lock()
 	b.subs[topic] = append(b.subs[topic], ch)
 	b.mu.Unlock()
@@ -87,7 +87,7 @@ func (b *MessageBus) Subscribe(topic string, cap int) (recv <-chan Message, canc
 	return ch, cancel
 }
 
-// SequentialAgentStep runs one agent after another, passing the previous
+// RunSequentialAgents runs one agent after another, passing the previous
 // agent's final output as the next agent's user message (unless empty).
 func RunSequentialAgents(ctx context.Context, agents []*Agent, user string) (string, error) {
 	return RunSequentialAgentsWithDepth(ctx, agents, user, DefaultMaxDelegationDepth)

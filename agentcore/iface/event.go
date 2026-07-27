@@ -37,10 +37,17 @@ type SimpleEvent struct {
 	payload any
 }
 
+// NewEvent creates a new SimpleEvent with the given type and payload.
+// NewEvent creates a new SimpleEvent with the given type and payload.
 func NewEvent(typ EventType, payload any) SimpleEvent {
 	return SimpleEvent{typ: typ, at: time.Now(), payload: payload}
 }
 
+// Type returns the event type.
 func (e SimpleEvent) Type() EventType { return e.typ }
+
+// Time returns the timestamp when the event was created.
 func (e SimpleEvent) Time() time.Time { return e.at }
-func (e SimpleEvent) Payload() any    { return e.payload }
+
+// Payload returns the event payload.
+func (e SimpleEvent) Payload() any { return e.payload }

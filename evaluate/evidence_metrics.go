@@ -13,6 +13,7 @@ type EvidenceJudgmentAccuracy struct {
 	CorrectJudgments int
 }
 
+// Name returns "evidence_judgment_accuracy".
 func (m *EvidenceJudgmentAccuracy) Name() string {
 	return "evidence_judgment_accuracy"
 }
@@ -43,6 +44,8 @@ type EvidenceTypeCoverage struct {
 	AllTypes     []string
 }
 
+// NewEvidenceTypeCoverage creates an EvidenceTypeCoverage with the default
+// set of all 12 evidence types.
 func NewEvidenceTypeCoverage() *EvidenceTypeCoverage {
 	return &EvidenceTypeCoverage{
 		AllTypes: []string{
@@ -54,6 +57,7 @@ func NewEvidenceTypeCoverage() *EvidenceTypeCoverage {
 	}
 }
 
+// Name returns "evidence_type_coverage".
 func (m *EvidenceTypeCoverage) Name() string {
 	return "evidence_type_coverage"
 }
@@ -89,6 +93,9 @@ type EvidenceReasoningCompleteness struct {
 	FoundSections []string
 }
 
+// NewEvidenceReasoningCompleteness creates an EvidenceReasoningCompleteness with
+// default required sections covering relevance, legality, authenticity,
+// type-specific assessment, burden analysis, standard of proof, and conclusion.
 func NewEvidenceReasoningCompleteness() *EvidenceReasoningCompleteness {
 	return &EvidenceReasoningCompleteness{
 		RequiredSections: []string{
@@ -103,6 +110,7 @@ func NewEvidenceReasoningCompleteness() *EvidenceReasoningCompleteness {
 	}
 }
 
+// Name returns "evidence_reasoning_completeness".
 func (m *EvidenceReasoningCompleteness) Name() string {
 	return "evidence_reasoning_completeness"
 }

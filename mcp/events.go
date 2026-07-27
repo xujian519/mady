@@ -62,8 +62,11 @@ type CapabilitiesUpdatedEvent struct {
 	Capabilities ServerCapabilities `json:"capabilities"`
 }
 
+// EventKind returns the event type identifier.
 func (e CapabilitiesUpdatedEvent) EventKind() agentcore.EventType { return EventMCPCapabilitiesUpdated }
-func (e CapabilitiesUpdatedEvent) EventTime() time.Time           { return e.At }
+
+// EventTime returns the timestamp of the event.
+func (e CapabilitiesUpdatedEvent) EventTime() time.Time { return e.At }
 
 // ToolsRefreshedEvent reports the before/after tool names visible through an extension.
 type ToolsRefreshedEvent struct {
@@ -74,8 +77,11 @@ type ToolsRefreshedEvent struct {
 	NewTools  []string  `json:"new_tools"`
 }
 
+// EventKind returns the event type identifier.
 func (e ToolsRefreshedEvent) EventKind() agentcore.EventType { return EventMCPToolsRefreshed }
-func (e ToolsRefreshedEvent) EventTime() time.Time           { return e.At }
+
+// EventTime returns the timestamp of the event.
+func (e ToolsRefreshedEvent) EventTime() time.Time { return e.At }
 
 // TransportErrorEvent reports a transport/runtime failure with enough context for observability.
 type TransportErrorEvent struct {
@@ -91,8 +97,11 @@ type TransportErrorEvent struct {
 	Recoverable bool      `json:"recoverable,omitempty"`
 }
 
+// EventKind returns the event type identifier.
 func (e TransportErrorEvent) EventKind() agentcore.EventType { return EventMCPTransportError }
-func (e TransportErrorEvent) EventTime() time.Time           { return e.At }
+
+// EventTime returns the timestamp of the event.
+func (e TransportErrorEvent) EventTime() time.Time { return e.At }
 
 // ReconnectEvent reports the lifecycle of reconnect/reinitialize attempts.
 type ReconnectEvent struct {
@@ -108,8 +117,11 @@ type ReconnectEvent struct {
 	Error          string    `json:"error,omitempty"`
 }
 
+// EventKind returns the event type identifier.
 func (e ReconnectEvent) EventKind() agentcore.EventType { return EventMCPReconnect }
-func (e ReconnectEvent) EventTime() time.Time           { return e.At }
+
+// EventTime returns the timestamp of the event.
+func (e ReconnectEvent) EventTime() time.Time { return e.At }
 
 // RefreshEvent reports tool refresh scheduler lifecycle state.
 type RefreshEvent struct {
@@ -123,5 +135,8 @@ type RefreshEvent struct {
 	InFlight  bool      `json:"in_flight,omitempty"`
 }
 
+// EventKind returns the event type identifier.
 func (e RefreshEvent) EventKind() agentcore.EventType { return EventMCPRefresh }
-func (e RefreshEvent) EventTime() time.Time           { return e.At }
+
+// EventTime returns the timestamp of the event.
+func (e RefreshEvent) EventTime() time.Time { return e.At }

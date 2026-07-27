@@ -37,16 +37,16 @@ func (m *Manager) persistEntry(entry Entry) error {
 	if err != nil {
 		return fmt.Errorf("marshal entry: %w", err)
 	}
-	f, err := os.OpenFile(m.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(m.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open session file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
 		return fmt.Errorf("lock session file: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
 
 	if _, err := f.Write(append(data, '\n')); err != nil {
 		return fmt.Errorf("write entry: %w", err)
@@ -66,16 +66,16 @@ func (m *Manager) flushAll() error {
 // flushAllLocked writes the complete session to disk without acquiring m.mu.
 // The caller must hold m.mu (read or write lock).
 func (m *Manager) flushAllLocked() error {
-	f, err := os.OpenFile(m.filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	f, err := os.OpenFile(m.filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("create session file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
 		return fmt.Errorf("lock session file: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
 
 	headerData, err := json.Marshal(m.header)
 	if err != nil {
@@ -151,6 +151,7 @@ func migrateV2ToV3(entries []Entry) {
 						}
 					}
 
+					//nolint:errchkjson // raw is map[string]any (dynamic migration data)
 					updated, _ := json.Marshal(raw)
 					entries[i].Data = updated
 				}
@@ -167,6 +168,7 @@ func migrateV3ToV4(entries []Entry) {
 			if json.Unmarshal(entries[i].Data, &msg) == nil {
 				if role, ok := msg["role"].(string); ok && role == "hookMessage" {
 					msg["role"] = "custom"
+					//nolint:errchkjson // msg is map[string]any (dynamic migration data)
 					updated, _ := json.Marshal(msg)
 					entries[i].Data = updated
 				}
@@ -186,6 +188,7 @@ type lockEntry struct {
 	mu *sync.RWMutex
 }
 
+// FileStore implements the Store interface with JSONL file persistence.
 type FileStore struct {
 	dir      string
 	locks    map[string]*list.Element // id → LRU list element
@@ -209,8 +212,9 @@ func WithMaxLocks(n int) FileStoreOption {
 	return func(fs *FileStore) { fs.maxLocks = n }
 }
 
+// NewFileStore creates a FileStore rooted at the specified directory.
 func NewFileStore(dir string, opts ...FileStoreOption) (*FileStore, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("create session directory: %w", err)
 	}
 	fs := &FileStore{
@@ -257,6 +261,7 @@ func (s *FileStore) path(sessionID string) string {
 	return filepath.Join(s.dir, sessionID+".jsonl")
 }
 
+// Create creates a new session with the given options.
 func (s *FileStore) Create(_ context.Context, opts CreateOptions) (*Manager, error) {
 	if opts.ID == "" {
 		opts.ID = generateID()
@@ -282,7 +287,10 @@ func (s *FileStore) Create(_ context.Context, opts CreateOptions) (*Manager, err
 	mgr := newManager(header, filePath, persist)
 
 	if persist {
-		headerData, _ := json.Marshal(header)
+		headerData, err := json.Marshal(header)
+		if err != nil {
+			return nil, fmt.Errorf("marshal session header: %w", err)
+		}
 		if err := os.WriteFile(filePath, append(headerData, '\n'), 0o600); err != nil {
 			return nil, fmt.Errorf("write session header: %w", err)
 		}
@@ -292,6 +300,7 @@ func (s *FileStore) Create(_ context.Context, opts CreateOptions) (*Manager, err
 	return mgr, nil
 }
 
+// Open opens an existing session by ID and loads its entries.
 func (s *FileStore) Open(_ context.Context, sessionID string) (*Manager, error) {
 	if err := util.ValidateKey(sessionID); err != nil {
 		return nil, err
@@ -304,7 +313,7 @@ func (s *FileStore) Open(_ context.Context, sessionID string) (*Manager, error) 
 	if err != nil {
 		return nil, fmt.Errorf("open session file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 10*1024*1024)
@@ -404,6 +413,7 @@ func (s *FileStore) Open(_ context.Context, sessionID string) (*Manager, error) 
 	return mgr, nil
 }
 
+// List returns all session infos in the store directory.
 func (s *FileStore) List(_ context.Context) ([]Info, error) {
 	dirEntries, err := os.ReadDir(s.dir)
 	if err != nil {
@@ -427,6 +437,7 @@ func (s *FileStore) List(_ context.Context) ([]Info, error) {
 	return sessions, nil
 }
 
+// Delete removes a session file by ID.
 func (s *FileStore) Delete(_ context.Context, sessionID string) error {
 	if err := util.ValidateKey(sessionID); err != nil {
 		return err
@@ -458,6 +469,7 @@ func (s *FileStore) lockCleanup(sessionID string) {
 	s.locksMu.Unlock()
 }
 
+// Has checks whether a session exists by ID.
 func (s *FileStore) Has(_ context.Context, sessionID string) (bool, error) {
 	if err := util.ValidateKey(sessionID); err != nil {
 		return false, err
@@ -483,7 +495,7 @@ func (s *FileStore) readInfo(sessionID string) Info {
 	if err != nil {
 		return info
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	fi, err := f.Stat()
 	if err == nil {

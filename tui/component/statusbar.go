@@ -205,7 +205,7 @@ func (s *StatusBar) Update(msg core.Msg) core.Cmd {
 func formatDuration(d time.Duration) string {
 	d = d.Round(time.Second)
 	m := d / time.Minute
-	d -= m * time.Minute
+	d = d % time.Minute
 	s := d / time.Second
 	if m > 0 {
 		return fmt.Sprintf("%dm%ds", m, s)

@@ -35,7 +35,7 @@ func (fr *FileReader) readDocx(_ context.Context, path string) (*FileReadResult,
 	if err != nil {
 		return nil, fmt.Errorf("打开 docx 文件失败: %w", err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	// Extract text from the main document body.
 	bodyText := extractDocxBodyText(r.File)
@@ -94,7 +94,7 @@ func extractDocxBodyText(files []*zip.File) string {
 			}
 
 			data, err := io.ReadAll(rc)
-			rc.Close()
+			_ = rc.Close()
 			if err != nil {
 				return ""
 			}
@@ -145,7 +145,7 @@ func readDocxXMLFile(f *zip.File) string {
 	if err != nil {
 		return ""
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	data, err := io.ReadAll(rc)
 	if err != nil {

@@ -13,6 +13,8 @@ type rulesDoc struct {
 	Rules []EvidenceRule `yaml:"rules"`
 }
 
+// RuleIndex is a thread-safe, indexed registry of evidence rules.
+// It maps rules by ID and by EvidenceType for efficient lookup.
 type RuleIndex struct {
 	mu     sync.RWMutex
 	byID   map[string]EvidenceRule
@@ -20,6 +22,7 @@ type RuleIndex struct {
 	all    []EvidenceRule
 }
 
+// NewRuleIndex creates an empty, ready-to-use RuleIndex.
 func NewRuleIndex() *RuleIndex {
 	return &RuleIndex{
 		byID:   make(map[string]EvidenceRule),
@@ -27,14 +30,16 @@ func NewRuleIndex() *RuleIndex {
 	}
 }
 
+// LoadYAML reads and loads evidence rules from a YAML file at the given path.
 func (idx *RuleIndex) LoadYAML(path string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from caller (usually filepath.Walk over rules dir)
 	if err != nil {
 		return fmt.Errorf("读取证据规则文件失败 %s: %w", path, err)
 	}
 	return idx.LoadBytes(data)
 }
 
+// LoadBytes parses YAML data and populates the index with the loaded rules.
 func (idx *RuleIndex) LoadBytes(data []byte) error {
 	var doc rulesDoc
 	if err := yaml.Unmarshal(data, &doc); err != nil {
@@ -68,6 +73,7 @@ func (idx *RuleIndex) LoadBytes(data []byte) error {
 	return nil
 }
 
+// GetRule retrieves a single rule by its rule ID.
 func (idx *RuleIndex) GetRule(ruleID string) (EvidenceRule, bool) {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()
@@ -75,6 +81,8 @@ func (idx *RuleIndex) GetRule(ruleID string) (EvidenceRule, bool) {
 	return r, ok
 }
 
+// GetRulesByType returns all rules matching the given evidence type,
+// including general-purpose rules (EvTypeGeneral).
 func (idx *RuleIndex) GetRulesByType(evType EvidenceType) []EvidenceRule {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()
@@ -85,6 +93,7 @@ func (idx *RuleIndex) GetRulesByType(evType EvidenceType) []EvidenceRule {
 	return rules
 }
 
+// AllRules returns a snapshot of all loaded rules.
 func (idx *RuleIndex) AllRules() []EvidenceRule {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()
@@ -93,6 +102,7 @@ func (idx *RuleIndex) AllRules() []EvidenceRule {
 	return out
 }
 
+// Count returns the total number of loaded rules.
 func (idx *RuleIndex) Count() int {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()

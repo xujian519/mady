@@ -207,18 +207,18 @@ func (c *HTTPClient) resumeSSE(ctx context.Context, lastEventID string) (*http.R
 		return nil, fmt.Errorf("mcp resume request: %w", err)
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		sessionID, _ := c.sessionState()
 		return nil, sessionExpiredError{sessionID: sessionID}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("mcp resume status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if !strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("mcp resume expected text/event-stream, got %q: %s", resp.Header.Get("Content-Type"), strings.TrimSpace(string(body)))
 	}
 	return resp, nil

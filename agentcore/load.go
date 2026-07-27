@@ -8,16 +8,20 @@ import (
 	"github.com/xujian519/mady/skill"
 )
 
+// ThreadConfigProvider provides per-thread configuration overrides.
 type ThreadConfigProvider interface {
 	GetThreadConfig(ctx context.Context, threadID string) (*CallConfig, bool, error)
 }
 
+// LoadAgentOptions holds optional parameters for LoadAgent.
 type LoadAgentOptions struct {
 	ThreadID          string
 	CallCfg           *CallConfig
 	ThreadCfgProvider ThreadConfigProvider
 }
 
+// LoadAgent creates an Agent from the given config and options, resolving
+// thread-specific overrides and restoring any saved state.
 func LoadAgent(ctx context.Context, cfg Config, opts LoadAgentOptions) (*Agent, error) {
 	effective := &CallConfig{
 		Model:          cfg.Model,

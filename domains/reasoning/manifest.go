@@ -147,7 +147,7 @@ func (s *WorkflowManifestStore) LoadDir(dir string) error {
 }
 
 func (s *WorkflowManifestStore) loadFile(path string) (*WorkflowManifest, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk over workflow manifests dir
 	if err != nil {
 		return nil, err
 	}

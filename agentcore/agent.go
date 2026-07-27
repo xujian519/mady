@@ -122,6 +122,8 @@ type Agent struct {
 	intentCache   map[string]intentCacheEntry
 }
 
+// New creates an Agent with the given configuration, registering tools,
+// extensions, and setting up the context engine and executor.
 func New(cfg Config) *Agent {
 	if cfg.MaxTurns <= 0 {
 		cfg.MaxTurns = defaultMaxTurns
@@ -226,9 +228,16 @@ func New(cfg Config) *Agent {
 
 // --- event subscriptions ---
 
+// On subscribes to events of the given type. Returns an unregister function.
 func (a *Agent) On(t EventType, h EventHandler) func() { return a.eventBus.On(t, h) }
-func (a *Agent) OnAll(h EventHandler) func()           { return a.eventBus.OnAll(h) }
-func (a *Agent) EmitEvent(e Event)                     { a.eventBus.Emit(e) }
+
+// OnAll subscribes to all events. Returns an unregister function.
+func (a *Agent) OnAll(h EventHandler) func() { return a.eventBus.OnAll(h) }
+
+// EmitEvent dispatches an event to the agent's event bus.
+func (a *Agent) EmitEvent(e Event) { a.eventBus.Emit(e) }
+
+// EmitExtensionSnapshots emits snapshot events from all registered extensions.
 func (a *Agent) EmitExtensionSnapshots() {
 	for _, e := range a.extensions.SnapshotEvents() {
 		a.eventBus.Emit(e)
@@ -253,6 +262,7 @@ func (a *Agent) EventBus() *EventBus { return a.eventBus }
 // New() to check configuration before calling Run().
 func (a *Agent) ConfigError() error { return a.configErr }
 
+// Config returns a shallow copy of the agent's configuration, safe for concurrent access.
 func (a *Agent) Config() Config {
 	a.configMu.RLock()
 	defer a.configMu.RUnlock()
@@ -315,6 +325,7 @@ func (a *Agent) SetThinkingConfig(tc *ThinkingConfig) {
 	a.config.Thinking = tc
 }
 
+// State returns the agent's mutable conversation state.
 func (a *Agent) State() *AgentState { return a.state }
 
 // lifecycle 返回当前配置的 LifecycleHook。
@@ -367,9 +378,16 @@ func (a *Agent) systemPrompt() string {
 
 // --- tool hot-reload ---
 
-func (a *Agent) RegisterTools(tools ...*Tool)      { a.registry.Register(tools...) }
-func (a *Agent) UnregisterTools(names ...string)   { a.registry.Unregister(names...) }
-func (a *Agent) ToolNames() []string               { return a.registry.Names() }
+// RegisterTools adds one or more tools to the agent's registry at runtime.
+func (a *Agent) RegisterTools(tools ...*Tool) { a.registry.Register(tools...) }
+
+// UnregisterTools removes one or more tools from the agent's registry by name.
+func (a *Agent) UnregisterTools(names ...string) { a.registry.Unregister(names...) }
+
+// ToolNames returns the names of all registered tools.
+func (a *Agent) ToolNames() []string { return a.registry.Names() }
+
+// GetTool returns a tool by name, or false if not found.
 func (a *Agent) GetTool(name string) (*Tool, bool) { return a.registry.Get(name) }
 
 // InvokeTool runs a single named tool through the exact same hook pipeline
@@ -413,6 +431,7 @@ func (a *Agent) FollowUp(msg Message) {
 
 // --- extensions ---
 
+// ExtensionNames returns the names of all registered extensions.
 func (a *Agent) ExtensionNames() []string { return a.extensions.Names() }
 
 // Emit dispatches an event to the agent's event bus for TUI/SSE subscribers.

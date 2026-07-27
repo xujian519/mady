@@ -24,20 +24,20 @@ import (
 	"github.com/xujian519/mady/session"
 )
 
-// req：复用 server.ChatRequest，Stream 字段由桌面端内部固定忽略。
-// onEvent：每次 agent 产生事件时回调（在 agent 事件总线的 goroutine 中
-// 调用，调用方不应阻塞）。
+// Chat runs a synchronous agent conversation. It reuses server.ChatRequest
+// (Stream field is ignored internally). onEvent is called for every agent
+// event on the agent event bus goroutine — callers must not block.
 //
-// 内部逻辑：
-//  1. ensureThreadID — 空 threadID 自动创建新线程
-//  2. loadAgent — 从池中借用或新建 agent
-//  3. agent.OnAll(onEvent) — 注册实时事件回调（含 Extension Snapshots）
-//  4. agent.Run — 执行对话
-//  5. saveAgentState — 持久化会话状态
-//  6. releaseAgent — 归还 agent 到池
+// Internal flow:
+//  1. ensureThreadID — auto-create thread on empty threadID
+//  2. loadAgent — borrow or create agent from pool
+//  3. agent.OnAll(onEvent) — register real-time event callback (including Extension Snapshots)
+//  4. agent.Run — run the conversation
+//  5. saveAgentState — persist session state
+//  6. releaseAgent — return agent to pool
 //
-// 调用方负责在 onEvent 中将 agentcore.Event 转换为 AGUI 事件
-// （使用 agui.Convert），并在 Chat 结束后 emit agui:done。
+// Callers are responsible for converting agentcore.Event to AGUI events in
+// onEvent (via agui.Convert), and emitting agui:done after Chat returns.
 func (s *Server) Chat(ctx context.Context, req ChatRequest, onEvent func(agentcore.Event)) (output string, err error) {
 	if req.Message == "" {
 		return "", fmt.Errorf("server.Chat: message is required")

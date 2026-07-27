@@ -3,6 +3,7 @@ package ipc
 // IPCSection 是 IPC 八大类（A-H）的类型定义。
 type IPCSection string
 
+// IPC section constants (A-H).
 const (
 	IPCA IPCSection = "A" // 人类生活必需（Human Necessities）
 	IPCB IPCSection = "B" // 作业/运输（Operations & Transport）

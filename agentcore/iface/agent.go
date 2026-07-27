@@ -6,14 +6,19 @@ import "context"
 // Agent 运行状态与核心接口
 // =============================================================================
 
-// AgentStatus 表示 Agent 的运行状态。
+// AgentStatus represents the runtime status of an agent.
 type AgentStatus string
 
 const (
-	StatusIdle        AgentStatus = "idle"
-	StatusRunning     AgentStatus = "running"
-	StatusFinished    AgentStatus = "finished"
-	StatusError       AgentStatus = "error"
+	// StatusIdle indicates the agent is not currently running.
+	StatusIdle AgentStatus = "idle"
+	// StatusRunning indicates the agent is currently executing.
+	StatusRunning AgentStatus = "running"
+	// StatusFinished indicates the agent has completed execution successfully.
+	StatusFinished AgentStatus = "finished"
+	// StatusError indicates the agent encountered an error during execution.
+	StatusError AgentStatus = "error"
+	// StatusInterrupted indicates the agent was interrupted before completion.
 	StatusInterrupted AgentStatus = "interrupted"
 )
 

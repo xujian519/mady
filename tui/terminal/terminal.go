@@ -200,7 +200,7 @@ func (t *ProcessTerminal) Start(onInput func(data []byte), onResize func()) erro
 	_, _ = t.out.WriteString("\x1b[?2004h") // enable bracketed paste
 
 	if t.shouldEnableKittyKbdLocked() {
-		fmt.Fprintf(t.out, "\x1b[>%du", t.kittyFlags)
+		_, _ = fmt.Fprintf(t.out, "\x1b[>%du", t.kittyFlags)
 		t.kittyKbdOn = true
 		SetKittyProtocolActive(true)
 	}
@@ -277,13 +277,13 @@ func (t *ProcessTerminal) ClearFromCursor() { _, _ = t.out.WriteString("\x1b[0J"
 func (t *ProcessTerminal) ClearScreen()     { _, _ = t.out.WriteString("\x1b[2J\x1b[H") }
 func (t *ProcessTerminal) MoveBy(lines int64) {
 	if lines < 0 {
-		fmt.Fprintf(t.out, "\x1b[%dA", -lines)
+		_, _ = fmt.Fprintf(t.out, "\x1b[%dA", -lines)
 	} else if lines > 0 {
-		fmt.Fprintf(t.out, "\x1b[%dB", lines)
+		_, _ = fmt.Fprintf(t.out, "\x1b[%dB", lines)
 	}
 }
 func (t *ProcessTerminal) MoveTo(row, col int64) {
-	fmt.Fprintf(t.out, "\x1b[%d;%dH", row, col)
+	_, _ = fmt.Fprintf(t.out, "\x1b[%d;%dH", row, col)
 }
 
 // Context returns the cached terminal context for the session.
@@ -314,7 +314,7 @@ func (t *ProcessTerminal) PushKittyKeyboard() {
 		t.mu.Unlock()
 		return
 	}
-	fmt.Fprintf(t.out, "\x1b[>%du", t.kittyFlags)
+	_, _ = fmt.Fprintf(t.out, "\x1b[>%du", t.kittyFlags)
 	t.kittyKbdOn = true
 	t.mu.Unlock()
 	SetKittyProtocolActive(true)

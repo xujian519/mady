@@ -103,17 +103,18 @@ type Context struct {
 	Deferred          *DeferredInit
 }
 
-// caseFileReader implements domains.FileContentReader by wrapping fileindex.FileReader
+// CaseFileReader implements domains.FileContentReader by wrapping fileindex.FileReader
 // with an os.ReadFile fallback.
 type CaseFileReader struct{}
 
+// ReadText reads the text content of a file, first trying fileindex then falling back to os.ReadFile.
 func (CaseFileReader) ReadText(path string) string {
 	dir := filepath.Dir(path)
 	reader := fileindex.NewFileReader(dir)
 	if result, err := reader.ReadProjectFile(context.Background(), filepath.Base(path)); err == nil {
 		return result.Content
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk or filepath.Join of CWD
 	if err != nil {
 		return ""
 	}
@@ -404,7 +405,7 @@ func DiscoverMCP(ctx context.Context, fc *Context) {
 		slog.Warn("MCP", "warning", w)
 	}
 	if len(mcpExts) > 0 {
-		var names []string
+		names := make([]string, 0, len(mcpExts))
 		for _, ext := range mcpExts {
 			names = append(names, ext.Name())
 		}
@@ -502,7 +503,7 @@ func BuildBaseTools(fc *Context) {
 	}
 }
 
-// tasklistDirForCWD 按启动工作目录对 tasklist 存储目录分区。
+// TasklistDirForCWD returns the tasklist storage directory partitioned by the current working directory.
 func TasklistDirForCWD(baseDir, cwd string) string {
 	if cwd == "" {
 		return filepath.Join(baseDir, "tasks")
@@ -691,7 +692,7 @@ func InitReasoningAndTemplates(fc *Context) {
 func loadWorkflowManifests(madyHome string) {
 	workflowDir := filepath.Join(madyHome, "workflows")
 
-	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+	if err := os.MkdirAll(workflowDir, 0o750); err != nil {
 		slog.Warn("无法创建 workflow manifest 目录，使用内置默认值", "dir", workflowDir, "error", err)
 		return
 	}
@@ -876,7 +877,16 @@ func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 	embedder := BuildEmbedder()
 	backend, knowledgeDBPath := LoadKnowledgeBackend(madyHome)
 	if backend != nil {
-		ext := knowledge.NewExtension(nil, nil, "patent", knowledge.DefaultKnowledgeExtConfig())
+		ext := knowledge.NewExtension(nil, nil, "patent", knowledge.KnowledgeExtConfig{
+			Enabled:    true,
+			ExposeTool: true,
+			RetrievalConfig: retrieval.RetrievalConfig{
+				TopK:          5,
+				MaxChars:      4000,
+				TriggerPolicy: retrieval.TriggerSmart,
+				Prefix:        "以下是从知识库中检索到的相关法条、判例和审查指南。请在回答时优先参考这些信息，并核实引用的法条编号与检索结果一致：\n",
+			},
+		})
 		ext.WithBackend(backend, embedder)
 		if reranker := BuildReranker(); reranker != nil {
 			ext.WithReranker(reranker)
@@ -936,12 +946,7 @@ func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 			}
 		}
 
-		hook := ext.BackendHook(retrieval.RetrievalConfig{ //nolint:staticcheck // legacy backend hook retained for backward compat
-			TopK:          5,
-			MaxChars:      4000,
-			TriggerPolicy: retrieval.TriggerSmart,
-			Prefix:        "以下是从知识库中检索到的相关法条、判例和审查指南。请在回答时优先参考这些信息，并核实引用的法条编号与检索结果一致：\n",
-		})
+		hook := ext.LifecycleHook()
 		if hook != nil {
 			return nil, hook, ext, backend
 		}
@@ -1069,7 +1074,7 @@ func openWritableStore(madyHome string, embedder retrieval.Embedder, knowledgeDB
 	}
 	if dir := filepath.Dir(userDBPath); dir != "" {
 		dir = filepath.Clean(dir)
-		if err := os.MkdirAll(dir, 0o755); err != nil { // #nosec G703 -- cleaned above
+		if err := os.MkdirAll(dir, 0o750); err != nil { // #nosec G703 -- cleaned above
 			slog.Error("knowledge: user.db dir create failed", "error", err)
 			return nil
 		}

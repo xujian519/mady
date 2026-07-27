@@ -180,7 +180,7 @@ func RunServer(ctx context.Context, opts RunOptions) error {
 		opts.Logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	}
 
-	if err := os.MkdirAll(opts.HomeDir, 0o755); err != nil {
+	if err := os.MkdirAll(opts.HomeDir, 0o750); err != nil {
 		return fmt.Errorf("acp: create home dir: %w", err)
 	}
 
@@ -198,7 +198,7 @@ func RunServer(ctx context.Context, opts RunOptions) error {
 		ApprovalStore:  opts.ApprovalStore,
 		Logger:         opts.Logger,
 		// 允许 ACP 客户端（如 Zed）声明文件系统读写能力。
-		// 本地编辑器场景下 FS 能力本质安全，且 ACPFileSystem 通过编辑器路由文件操作
+		// 本地编辑器场景下 FS 能力本质安全，且 FileSystem 通过编辑器路由文件操作
 		// 而非直接访问磁盘，已是安全增强。
 		AllowedFSCapabilities: map[string]bool{
 			"FS.ReadTextFile":  true,

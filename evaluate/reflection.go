@@ -41,6 +41,7 @@ type Reflection struct {
 	Timeout time.Duration
 }
 
+// Name returns "reflection".
 func (m Reflection) Name() string { return "reflection" }
 
 // Pre-compiled regexps for numeric score extraction.
@@ -220,6 +221,7 @@ type RubricJudge struct {
 	Temperature float64
 }
 
+// Name returns "rubric_judge".
 func (m RubricJudge) Name() string { return "rubric_judge" }
 
 // Compute scores a prediction against a reference using the configured rubric.

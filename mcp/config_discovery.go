@@ -15,6 +15,8 @@ import (
 
 // MCPServerConfig represents a single MCP server entry in a config file.
 // Follows the Claude Desktop / Claude Code config format.
+//
+//nolint:revive // stutter: mcp.MCPServerConfig is intentional for clarity
 type MCPServerConfig struct {
 	Command string            `json:"command,omitempty"` // stdio: executable
 	Args    []string          `json:"args,omitempty"`    // stdio: arguments
@@ -26,6 +28,8 @@ type MCPServerConfig struct {
 
 // MCPConfigFile represents the top-level MCP config file structure.
 // Compatible with Claude Desktop mcpServers format.
+//
+//nolint:revive // stutter: mcp.MCPConfigFile is intentional for clarity
 type MCPConfigFile struct {
 	MCPServers map[string]MCPServerConfig `json:"mcpServers"`
 }
@@ -47,7 +51,7 @@ func WithDiscoveryTimeout(ctx context.Context, timeout time.Duration) context.Co
 
 // LoadMCPConfig reads and parses an MCP config JSON file.
 func LoadMCPConfig(path string) (*MCPConfigFile, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from caller, typically filepath.Walk over config dirs
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +129,7 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 		// 2) 文件内容须已通过信任校验（防克隆的恶意仓库借 .mcp.json 静默执行命令）。
 		// $MCP_CONFIG / ~/.mady/mcp.json / ~/.claude.json 是显式用户意图来源，不受影响。
 		if cfgPath == cwdConfigPath {
-			if _, err := os.Stat(cfgPath); err != nil {
+			if _, err := os.Stat(cfgPath); err != nil { //nolint:gosec // path from config file resolution, ownership/trust validated
 				continue // 不存在：与既往行为一致，静默跳过
 			}
 			if !isOwnedByCurrentUser(cfgPath) {

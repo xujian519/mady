@@ -33,6 +33,7 @@ type sessionExpiredError struct {
 func (e sessionExpiredError) Error() string { return errSessionExpired.Error() }
 func (e sessionExpiredError) Unwrap() error { return errSessionExpired }
 
+// HTTPConfig configures an MCP HTTP/SSE client.
 type HTTPConfig struct {
 	Name                string
 	Endpoint            string
@@ -49,6 +50,7 @@ type HTTPConfig struct {
 	Discovery           DiscoveryConfig
 }
 
+// HTTPClient is an MCP client that communicates over HTTP/SSE transport.
 type HTTPClient struct {
 	cfg               HTTPConfig
 	httpClient        *http.Client
@@ -69,6 +71,7 @@ type HTTPClient struct {
 	notificationHooks []func(context.Context, string, json.RawMessage) error
 }
 
+// HTTPExtension is an agentcore.Extension that wraps an HTTP MCP client.
 type HTTPExtension struct {
 	name              string
 	cfg               HTTPConfig
@@ -82,6 +85,7 @@ type HTTPExtension struct {
 	refreshPending    bool
 }
 
+// NewHTTPClient creates a new MCP HTTP client and performs the initialize handshake.
 func NewHTTPClient(ctx context.Context, cfg HTTPConfig) (*HTTPClient, error) {
 	if strings.TrimSpace(cfg.Endpoint) == "" {
 		return nil, fmt.Errorf("mcp: endpoint is required")
@@ -112,6 +116,7 @@ func NewHTTPClient(ctx context.Context, cfg HTTPConfig) (*HTTPClient, error) {
 	return c, nil
 }
 
+// NewHTTPExtension creates a new HTTPExtension wrapping an HTTP MCP client.
 func NewHTTPExtension(ctx context.Context, cfg HTTPConfig) (*HTTPExtension, error) {
 	client, err := NewHTTPClient(ctx, cfg)
 	if err != nil {
@@ -134,38 +139,49 @@ func NewHTTPExtension(ctx context.Context, cfg HTTPConfig) (*HTTPExtension, erro
 	}, nil
 }
 
+// Name returns the extension name.
 func (e *HTTPExtension) Name() string { return e.name }
-func (e *HTTPExtension) Init(ctx context.Context, agent *agentcore.Agent) error {
+
+// Init initializes the HTTP extension with the agent.
+func (e *HTTPExtension) Init(_ context.Context, agent *agentcore.Agent) error {
 	e.agent = agent
 	e.toolNames = toolNames(e.tools)
 	if e.client != nil {
 		e.client.SetEventSink(agent.EmitEvent)
-		e.client.AddNotificationHook(func(ctx context.Context, method string, params json.RawMessage) error {
+		e.client.AddNotificationHook(func(_ context.Context, method string, _ json.RawMessage) error {
 			if method != "notifications/tools/list_changed" || !e.client.SupportsToolListChanged() {
 				return nil
 			}
 			e.scheduleRefresh()
 			return nil
 		})
-		e.client.AddCapabilityHook(func(ctx context.Context, caps ServerCapabilities) {
+		e.client.AddCapabilityHook(func(_ context.Context, caps ServerCapabilities) {
 			e.emitCapabilitiesEvent(caps)
 		})
 		e.emitCapabilitiesEvent(e.client.Capabilities())
 	}
 	return nil
 }
+
+// Client returns the underlying HTTPClient.
 func (e *HTTPExtension) Client() *HTTPClient { return e.client }
+
+// Dispose cleans up the HTTP extension, closing the underlying client.
 func (e *HTTPExtension) Dispose() error {
 	if e.client == nil {
 		return nil
 	}
 	return e.client.Close()
 }
+
+// Tools returns the agent tools exposed by this extension.
 func (e *HTTPExtension) Tools() []*agentcore.Tool {
 	e.refreshMu.Lock()
 	defer e.refreshMu.Unlock()
 	return append([]*agentcore.Tool(nil), e.tools...)
 }
+
+// SnapshotEvents returns the current capability snapshot as events.
 func (e *HTTPExtension) SnapshotEvents() []agentcore.Event {
 	if e.client == nil {
 		return nil
@@ -221,6 +237,7 @@ func (c *HTTPClient) initializeSession(ctx context.Context) error {
 	return c.notifyInitialize(ctx)
 }
 
+// ListTools retrieves the full list of tools from the MCP server.
 func (c *HTTPClient) ListTools(ctx context.Context) ([]Tool, error) {
 	var out []Tool
 	cursor := ""
@@ -241,6 +258,7 @@ func (c *HTTPClient) ListTools(ctx context.Context) ([]Tool, error) {
 	}
 }
 
+// CallTool invokes a tool on the MCP server with the given arguments.
 func (c *HTTPClient) CallTool(ctx context.Context, name string, arguments map[string]any) (*ToolResult, error) {
 	if arguments == nil {
 		arguments = map[string]any{}
@@ -255,10 +273,12 @@ func (c *HTTPClient) CallTool(ctx context.Context, name string, arguments map[st
 	return &result, nil
 }
 
+// AgentTools converts MCP tools to agentcore Tool definitions.
 func (c *HTTPClient) AgentTools(ctx context.Context) ([]*agentcore.Tool, error) {
 	return agentToolsFor(ctx, c.cfg.ToolPrefix, c)
 }
 
+// Close shuts down the HTTP MCP client, terminating the server session.
 func (c *HTTPClient) Close() error {
 	if !c.closed.CompareAndSwap(false, true) {
 		return nil
@@ -294,7 +314,7 @@ func (c *HTTPClient) Close() error {
 	if err != nil {
 		return nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return nil
 }
 

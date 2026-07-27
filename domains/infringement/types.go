@@ -17,6 +17,7 @@ package infringement
 // Perspective defines whose standpoint the analysis adopts.
 type Perspective string
 
+// Analysis perspective constants.
 const (
 	PerspectivePatentee  Perspective = "patentee"  // 专利权人/原告
 	PerspectiveDefendant Perspective = "defendant" // 被控侵权人/被告
@@ -27,6 +28,7 @@ const (
 // will be handled in a future iteration.
 type PatentType string
 
+// Patent type constants.
 const (
 	PatentTypeInvention    PatentType = "invention"
 	PatentTypeUtilityModel PatentType = "utility_model"

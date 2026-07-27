@@ -124,7 +124,7 @@ func (r *MultiSourceRetriever) Retrieve(ctx context.Context, manifest RuleRetrie
 	)
 
 	for _, src := range manifest.Sources {
-		src := src // capture
+		// capture
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

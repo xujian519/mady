@@ -59,7 +59,7 @@ func (e *RuleEngine) Rules() []SpecRule {
 func (e *RuleEngine) Validate(spec *SpecOutput, input SpecInput) []Violation {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	var all []Violation
+	all := make([]Violation, 0, len(e.rules))
 	for _, rule := range e.rules {
 		all = append(all, rule.Check(spec, input)...)
 	}

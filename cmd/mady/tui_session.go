@@ -379,7 +379,7 @@ func (s *tuiSession) closeFileResources() {
 		s.currentFileWatcher = nil
 	}
 	if s.currentFileIndex != nil {
-		s.currentFileIndex.Close()
+		_ = s.currentFileIndex.Close()
 		s.currentFileIndex = nil
 		s.fileIndexExt.SetFileIndex(nil)
 	}
@@ -564,7 +564,7 @@ func (s *tuiSession) handleExportCommand(trimmed string) {
 		if s.fc.MadyHome != "" {
 			exportDir = filepath.Join(s.fc.MadyHome, "exports")
 		}
-		_ = os.MkdirAll(exportDir, 0o755)
+		_ = os.MkdirAll(exportDir, 0o750)
 		exportPath = filepath.Join(exportDir, fmt.Sprintf("export-%s.md", time.Now().Format("20060102-150405")))
 	}
 	exportContent := formatExportMarkdown(msgs, s.currentThreadID, s.currentProject)
@@ -693,7 +693,7 @@ func (s *tuiSession) dbPath(name string) (string, error) {
 	if base == "" {
 		base = filepath.Join(os.TempDir(), "mady")
 	}
-	if err := os.MkdirAll(base, 0o755); err != nil {
+	if err := os.MkdirAll(base, 0o750); err != nil {
 		return "", fmt.Errorf("db path: mkdir %s: %w", base, err)
 	}
 	return filepath.Join(base, name), nil
@@ -815,7 +815,7 @@ func (s *tuiSession) openWorkflowCheckpointStore() (reasoning.CheckpointStore, e
 	if base == "" {
 		base = filepath.Join(os.TempDir(), "mady")
 	}
-	if err := os.MkdirAll(base, 0o755); err != nil {
+	if err := os.MkdirAll(base, 0o750); err != nil {
 		return nil, fmt.Errorf("workflow checkpoint: mkdir %s: %w", base, err)
 	}
 	dbPath := filepath.Join(base, "workflow_checkpoints.db")

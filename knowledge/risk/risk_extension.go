@@ -34,9 +34,14 @@ var (
 	_ agentcore.SystemPromptProvider = (*Extension)(nil)
 )
 
-func (e *Extension) Name() string                                     { return ExtensionName }
+// Name returns the risk extension identifier.
+func (e *Extension) Name() string { return ExtensionName }
+
+// Init performs no-op initialization.
 func (e *Extension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
-func (e *Extension) Dispose() error                                   { return nil }
+
+// Dispose performs no-op cleanup.
+func (e *Extension) Dispose() error { return nil }
 
 // SystemPromptSuffix injects a hint about available risk tools.
 func (e *Extension) SystemPromptSuffix() string {

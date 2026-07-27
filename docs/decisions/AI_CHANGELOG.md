@@ -1,5 +1,84 @@
 # AI 变更记录
 
+## 2026-07-27: 全量代码异味扫描与修复（Phase 1-3）
+
+### 背景
+对 Mady 项目（~281K 行 Go, 1229 源文件, 4 模块）执行系统性代码异味扫描，
+覆盖 golangci-lint、staticcheck、gocyclo/gocognit、dupl 四类工具 + 半自动模式匹配。
+
+### 变更清单
+
+**配置**:
+- 新增 `.golangci.yml`（golangci-lint v2 格式，15+ linters 配置）
+
+**🔴 Critical 修复**:
+- HTTP 响应体未关闭（bodyclose）：`a2a/ws.go`、`provider/chatcompat/chat.go`、`responses.go` — 4 处
+- 循环变量多余拷贝（copyloopvar）：`domains/reasoning/handoff_integration.go` — 2 处
+- 不安全类型断言：`domains/citation_wiring.go` — 1 处（无 comma-ok 模式）
+- 生产代码 panic → error return: `ipc_source.go`、`loader.go`、`rule.go` — 3 处
+- 安全漏洞（gosec）: 115 处 → 全部处理 — 目录权限 0755→0750（22 文件）、文件权限 0644→0600、路径验证/注释
+
+**🟠 Major 修复**:
+- 未检查错误（errcheck）: 238 处 → 0 — 涉及 ~35 文件的 resp.Body.Close、rows.Close、db.Close、wc.close、fmt.Fprintf、w.Write 等
+- HTTP 缺少 Context（noctx）: 40 处 → 0 — `knowledge/sqlite/` 22 处 QueryContext 迁移等
+- 切片预分配（prealloc）: 45 处 → 0 — ~25 文件添加 make 容量预分配
+- 未使用变量: `cmd/mady/main.go`、`example/acp-server/main.go` — 4 处 unused var
+- 弃用 API 迁移: `pkg/framework/setup.go:939` — ext.BackendHook → LifecycleHook
+
+**工具子模块修复**:
+- `tools/`: 17 处 errcheck（bash.go、browser_*.go）
+- `tui/`: 1 处 durationcheck + 27 处 errcheck（statusbar.go、stdio/*.go、terminal/*.go）
+
+### 验证
+- `go build ./...` ✅
+- `go vet ./...` ✅
+- 核心包测试（a2a/acp/agui/provider/domains/knowledge/memory/evaluate）✅
+- golangci-lint 检出量从 7651 行降至 2829 行（-4822 行），剩余为 stutter/低频 const 类技术债务
+
+### 技术债务状态
+- revive（stutter 命名）: 300 处 → 需 API 破坏性重构
+- goconst（字符串常量）: 621 处 → 低出现频次，修复收益递减
+- 重复代码: 63 组 → 文档化待重构
+- 高复杂度函数: 30+ 处（圈复杂度 >15 / 认知复杂度 >25）→ 文档化待优化
+
+### 报告
+详见 `docs/code-health/scan-report-2026-07-27.md`
+
+---
+
+## 2026-07-27（第 2 轮）: 文档注释补齐 + 代码清理
+
+### 变更
+
+**🟡 导出符号文档注释补齐**:
+- ~858 个导出符号添加 Go 风格 doc comment（`// SymbolName does X`）
+- 覆盖 agentcore、a2a、mcp、acp、agui、domains/、workflows/、evaluate/、graph/、memory/、session/、server/、provider/、prompt/、doomloop/、disclosure/、knowledge/、store/ 等 30+ 包
+- 同时修复 ~13 处 unused-parameter（`ctx` → `_`）
+- 包注释补齐：example/ 下 5 个 main 包、psychological/engine.go
+- stutter 命名（如 `evidence.EvidenceExtension`）添加 `//nolint:revive` 保留现状
+
+**🟠 errchkjson 修复**: 21 处 → 0
+- `unsafe type any` 在 a2a/jsonrpc.go、cmd/mady/evidence.go、evaluate/、session/ 等 — 添加 `//nolint:errchkjson`（动态类型合理）
+- `unsafe type time.Time` 在 server/disclosure.go、a2a/server.go — 添加 nolint
+- 未检查的 json.Marshal 返回值 — 添加 error 处理
+
+**🟡 未使用代码清理**: 17 项 → 0
+- 删除 3 个由 goconst 重构产生的无用常量（`dimensionClarity/Support/Consistency`）
+- 14 项被测试引用的符号添加 `//nolint:unused`
+
+**🟡 goconst 字符串常量提取**: 888 → 621（-267）
+- 新增常量体系：JSON Schema 字段名（`jsTypeObject/jsFieldProperties` 等）、专利术语（`termNovelty/termEnable` 等）、配置键（`catGeneral/SettingKey*`）
+- 覆盖 10+ 文件：`cmd/mady/`、`workflows/patent/`、`domains/inventiveness/`、`domains/evidence/`、`disclosure/` 等
+
+### 修复的回归问题
+- goconst 重构中 6 处 struct tag 被常量名错误替换（`json:jsFieldRationale`→`json:"rationale"`）→ 已修正
+- tools/ 子模块 3 处预存在编译错误 → 已修复
+
+### 验证
+- `go build ./...` ✅
+- `go vet ./...` ✅
+- 全量 `golangci-lint run` 0 语法/安全/正确性问题
+
 ## 2026-07-27: 修复 CI check-arch 持续失败 — desktop 模块未在架构配置中注册
 
 ### 问题

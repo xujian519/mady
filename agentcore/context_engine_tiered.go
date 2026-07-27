@@ -104,13 +104,16 @@ func NewTieredEngine(cfg ContextEngineConfig) ContextEngine {
 	return e
 }
 
+// Name returns the engine identifier.
 func (e *TieredEngine) Name() string { return "tiered" }
 
+// OnSessionStart initializes per-session state.
 func (e *TieredEngine) OnSessionStart(ctx context.Context, model string, contextLength int64) {
 	e.contextLength = contextLength
 	e.compressor.OnSessionStart(ctx, model, contextLength)
 }
 
+// OnSessionReset clears all per-session state.
 func (e *TieredEngine) OnSessionReset() {
 	e.mu.Lock()
 	e.compressionCnt = 0
@@ -119,14 +122,17 @@ func (e *TieredEngine) OnSessionReset() {
 	e.compressor.OnSessionReset()
 }
 
+// OnSessionEnd is called at session termination.
 func (e *TieredEngine) OnSessionEnd() {
 	e.compressor.OnSessionEnd()
 }
 
+// UpdateFromResponse is a no-op for the tiered engine.
 func (e *TieredEngine) UpdateFromResponse(usage TokenUsage) {
 	e.compressor.UpdateFromResponse(usage)
 }
 
+// ShouldCompact returns true if compaction should fire this turn.
 func (e *TieredEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition, contextWindow int64) bool {
 	if contextWindow <= 0 {
 		return false
@@ -165,6 +171,7 @@ func (e *TieredEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition, 
 	return decisionRatio >= e.snipRatio
 }
 
+// Compress applies tiered compaction to reduce token usage.
 func (e *TieredEngine) Compress(ctx context.Context, msgs []Message, focusTopic string) ([]Message, int64, error) {
 	if len(msgs) <= 3 {
 		return msgs, 0, nil
@@ -314,26 +321,32 @@ func (e *TieredEngine) updateSavings(saved, original int64) {
 	}
 }
 
+// GetToolSchemas returns nil — the tiered engine does not expose additional tools.
 func (e *TieredEngine) GetToolSchemas() []ToolDefinition { return nil }
 
+// ContextLength returns the model's context window size.
 func (e *TieredEngine) ContextLength() int64 { return e.contextLength }
 
+// ThresholdTokens returns the token count at which compression triggers.
 func (e *TieredEngine) ThresholdTokens() int64 {
 	return int64(float64(e.contextLength) * e.snipRatio)
 }
 
+// CompressionCount returns the number of successful compressions.
 func (e *TieredEngine) CompressionCount() int64 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.compressionCnt
 }
 
+// LastSavingsPct returns the savings percentage of the last compression.
 func (e *TieredEngine) LastSavingsPct() float64 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.lastSavingsPct
 }
 
+// CheckFeasibility validates that the compression model can handle summarization.
 func (e *TieredEngine) CheckFeasibility(mainModelContextLength int64) string {
 	return e.compressor.CheckFeasibility(mainModelContextLength)
 }

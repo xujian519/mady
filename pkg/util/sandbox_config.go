@@ -35,7 +35,7 @@ func LoadSandboxConfig() (*SandboxConfig, error) {
 // 整个应用拒绝启动。
 func LoadSandboxConfigFromPath(path string) (*SandboxConfig, error) {
 	cfg := &SandboxConfig{}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from caller (typically filepath.Join(madyHome, "config.yaml"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, nil // 合法：配置文件尚未创建
@@ -71,7 +71,7 @@ func SaveSandboxConfig(cfg *SandboxConfig) error {
 func SaveSandboxConfigToPath(path string, cfg *SandboxConfig) error {
 	// 读取已有配置，保留非 sandbox 段。
 	existing := make(map[string]any)
-	if data, err := os.ReadFile(path); err == nil {
+	if data, err := os.ReadFile(path); err == nil { //nolint:gosec // path is from caller (typically filepath.Join(madyHome, "config.yaml"))
 		if err := yaml.Unmarshal(data, &existing); err != nil {
 			slog.Warn("sandbox: existing config parse failed, will overwrite", "path", path, "err", err)
 		}

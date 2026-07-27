@@ -8,6 +8,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// Converter translates agentcore events into AGUI protocol events.
 type Converter struct {
 	threadID            string
 	runID               string
@@ -79,6 +80,7 @@ func baseEvent(typ EventType, t time.Time) BaseEvent {
 	}
 }
 
+// RunStarted creates a RunStartedEvent for the current run.
 func (c *Converter) RunStarted(t time.Time) RunStartedEvent {
 	return RunStartedEvent{
 		BaseEvent:   baseEvent(EventRunStarted, t),
@@ -88,6 +90,7 @@ func (c *Converter) RunStarted(t time.Time) RunStartedEvent {
 	}
 }
 
+// RunFinished creates a RunFinishedEvent for a normal completion.
 func (c *Converter) RunFinished(t time.Time) RunFinishedEvent {
 	return RunFinishedEvent{
 		BaseEvent: baseEvent(EventRunFinished, t),
@@ -96,6 +99,7 @@ func (c *Converter) RunFinished(t time.Time) RunFinishedEvent {
 	}
 }
 
+// RunFinishedWithInterrupts creates a RunFinishedEvent with interrupt outcomes.
 func (c *Converter) RunFinishedWithInterrupts(t time.Time, interrupts []Interrupt) RunFinishedEvent {
 	return RunFinishedEvent{
 		BaseEvent: baseEvent(EventRunFinished, t),
@@ -108,6 +112,7 @@ func (c *Converter) RunFinishedWithInterrupts(t time.Time, interrupts []Interrup
 	}
 }
 
+// RunFinishedWithSuccess creates a RunFinishedEvent with a successful outcome.
 func (c *Converter) RunFinishedWithSuccess(t time.Time, result any) RunFinishedEvent {
 	return RunFinishedEvent{
 		BaseEvent: baseEvent(EventRunFinished, t),
@@ -118,6 +123,7 @@ func (c *Converter) RunFinishedWithSuccess(t time.Time, result any) RunFinishedE
 	}
 }
 
+// RunError creates a RunErrorEvent for an error.
 func (c *Converter) RunError(t time.Time, err error) RunErrorEvent {
 	msg := "unknown error"
 	if err != nil {
@@ -131,6 +137,7 @@ func (c *Converter) RunError(t time.Time, err error) RunErrorEvent {
 	}
 }
 
+// CloseMessage closes the active text message and returns the end event.
 func (c *Converter) CloseMessage(t time.Time) []any {
 	prevID, _ := c.activeMsgID.Load().(string)
 	if prevID == "" {
@@ -144,6 +151,7 @@ func (c *Converter) CloseMessage(t time.Time) []any {
 	}}
 }
 
+// CloseThinking closes the active thinking block and returns the end events.
 func (c *Converter) CloseThinking(t time.Time) []any {
 	prevID, _ := c.activeThinkingID.Load().(string)
 	if prevID == "" {
@@ -168,7 +176,7 @@ func (c *Converter) CloseThinking(t time.Time) []any {
 }
 
 func (c *Converter) closeAll(t time.Time) []any {
-	var events []any
+	events := make([]any, 0, 2)
 	if tail := c.CloseMessage(t); tail != nil {
 		events = append(events, tail...)
 	}
@@ -178,6 +186,7 @@ func (c *Converter) closeAll(t time.Time) []any {
 	return events
 }
 
+// StateSnapshot creates a StateSnapshotEvent with the given state.
 func (c *Converter) StateSnapshot(t time.Time, state any) StateSnapshotEvent {
 	return StateSnapshotEvent{
 		BaseEvent: baseEvent(EventStateSnapshot, t),
@@ -185,6 +194,7 @@ func (c *Converter) StateSnapshot(t time.Time, state any) StateSnapshotEvent {
 	}
 }
 
+// StateDelta creates a StateDeltaEvent with JSON patch operations.
 func (c *Converter) StateDelta(t time.Time, ops []jsonPatchOp) StateDeltaEvent {
 	return StateDeltaEvent{
 		BaseEvent: baseEvent(EventStateDelta, t),
@@ -217,6 +227,7 @@ func (c *Converter) buildContextUsage(t time.Time) ContextUsageEvent {
 	}
 }
 
+// Convert translates an agentcore event into one or more AGUI events.
 func (c *Converter) Convert(e agentcore.Event) []any {
 	switch ev := e.(type) {
 	case agentcore.AgentStartEvent:
@@ -225,38 +236,44 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 		return []any{c.RunStarted(ev.EventTime())}
 
 	case agentcore.AgentEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.RunFinishedWithSuccess(ev.EventTime(), ev.Output))
 		return events
 	case *agentcore.AgentEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.RunFinishedWithSuccess(ev.EventTime(), ev.Output))
 		return events
 
 	case agentcore.AgentErrorEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.RunError(ev.EventTime(), ev.Err))
 		return events
 	case *agentcore.AgentErrorEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.RunError(ev.EventTime(), ev.Err))
 		return events
 
 	case agentcore.TurnStartEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, StepStartedEvent{
 			BaseEvent: baseEvent(EventStepStarted, ev.EventTime()),
 			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
 		})
 		return events
 	case *agentcore.TurnStartEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, StepStartedEvent{
 			BaseEvent: baseEvent(EventStepStarted, ev.EventTime()),
 			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
@@ -264,8 +281,9 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 		return events
 
 	case agentcore.TurnEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+2)
+		events = append(events, closeEvents...)
 		events = append(events, StepFinishedEvent{
 			BaseEvent: baseEvent(EventStepFinished, ev.EventTime()),
 			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
@@ -276,8 +294,9 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 		}
 		return events
 	case *agentcore.TurnEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+2)
+		events = append(events, closeEvents...)
 		events = append(events, StepFinishedEvent{
 			BaseEvent: baseEvent(EventStepFinished, ev.EventTime()),
 			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
@@ -294,79 +313,93 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 		return c.convertMessageDelta(ev.EventTime(), ev.Delta, ev.Kind)
 
 	case agentcore.ToolCallStartEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+2)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertToolCallStart(ev.EventTime(), ev.ToolCall)...)
 		return events
 	case *agentcore.ToolCallStartEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+2)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertToolCallStart(ev.EventTime(), ev.ToolCall)...)
 		return events
 
 	case agentcore.ToolCallEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+2)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertToolCallEnd(ev.EventTime(), ev.ToolCallID, ev.ToolName, ev.Result, ev.Err)...)
 		return events
 	case *agentcore.ToolCallEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+2)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertToolCallEnd(ev.EventTime(), ev.ToolCallID, ev.ToolName, ev.Result, ev.Err)...)
 		return events
 
 	case agentcore.HandoffStartEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertHandoffStart(ev)...)
 		return events
 	case *agentcore.HandoffStartEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertHandoffStart(*ev)...)
 		return events
 
 	case agentcore.HandoffEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertHandoffEnd(ev)...)
 		return events
 	case *agentcore.HandoffEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertHandoffEnd(*ev)...)
 		return events
 
 	case agentcore.CompactionStartEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertCompactionStart(ev)...)
 		return events
 	case *agentcore.CompactionStartEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertCompactionStart(*ev)...)
 		return events
 
 	case agentcore.CompactionEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertCompactionEnd(ev)...)
 		return events
 	case *agentcore.CompactionEndEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertCompactionEnd(*ev)...)
 		return events
 
 	case agentcore.AutoRetryEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertAutoRetry(ev)...)
 		return events
 	case *agentcore.AutoRetryEvent:
-		var events []any
-		events = append(events, c.closeAll(ev.EventTime())...)
+		closeEvents := c.closeAll(ev.EventTime())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, c.convertAutoRetry(*ev)...)
 		return events
 
@@ -378,8 +411,9 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 		}}
 
 	default:
-		var events []any
-		events = append(events, c.closeAll(time.Now())...)
+		closeEvents := c.closeAll(time.Now())
+		events := make([]any, 0, len(closeEvents)+1)
+		events = append(events, closeEvents...)
 		events = append(events, CustomEvent{
 			BaseEvent: baseEvent(EventCustom, time.Now()),
 			Name:      string(e.EventKind()),
@@ -476,13 +510,12 @@ func (c *Converter) convertToolCallStart(t time.Time, tc agentcore.ToolCall) []a
 	}
 }
 
-func (c *Converter) convertToolCallEnd(t time.Time, toolCallID, toolName, result string, err error) []any {
-	events := []any{
-		ToolCallEndEvent{
-			BaseEvent:  baseEvent(EventToolCallEnd, t),
-			ToolCallID: toolCallID,
-		},
-	}
+func (c *Converter) convertToolCallEnd(t time.Time, toolCallID, _ string, result string, err error) []any {
+	events := make([]any, 0, 2)
+	events = append(events, ToolCallEndEvent{
+		BaseEvent:  baseEvent(EventToolCallEnd, t),
+		ToolCallID: toolCallID,
+	})
 	if err != nil {
 		result = err.Error()
 	}
@@ -573,6 +606,7 @@ func (c *Converter) convertAutoRetry(ev agentcore.AutoRetryEvent) []any {
 	}
 }
 
+// MessagesFromAgent converts agentcore messages to AGUI messages.
 func MessagesFromAgent(msgs []agentcore.Message) []Message {
 	out := make([]Message, 0, len(msgs))
 	for _, m := range msgs {
@@ -615,6 +649,7 @@ func convertRole(r agentcore.Role) MessageRole {
 	}
 }
 
+// CapabilitiesFromConfig builds AgentCapabilities from an agentcore config.
 func CapabilitiesFromConfig(cfg agentcore.Config) AgentCapabilities {
 	caps := AgentCapabilities{
 		Identity: &IdentityCapabilities{

@@ -86,7 +86,7 @@ func (c *Catalog) T(key string, args ...any) string {
 //	  zh-CN: "你好"
 //	  en-US: "Hello"
 func (c *Catalog) LoadYAML(path string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from caller (controlled YAML translation files)
 	if err != nil {
 		return fmt.Errorf("i18n: 读取翻译文件失败 %s: %w", path, err)
 	}

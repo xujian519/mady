@@ -8,6 +8,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// DetermineStandardToolName is the agent-visible name of the determine_standard tool.
 const DetermineStandardToolName = "determine_standard"
 
 const determineStandardToolDesc = `根据举证场景确定应当适用的证明标准。

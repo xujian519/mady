@@ -116,6 +116,7 @@ type Executor struct {
 	chain    ExecuteFunc
 }
 
+// NewExecutor creates a new Executor with the given registry and optional configuration.
 func NewExecutor(registry *Registry, cfg ...ExecutorConfig) *Executor {
 	var config ExecutorConfig
 	if len(cfg) > 0 {

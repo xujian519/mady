@@ -7,6 +7,14 @@ import (
 	"github.com/xujian519/mady/graph"
 )
 
+// extract schema field and value constants.
+const (
+	fieldText          = "text"
+	jsNumber           = "number"
+	enumKnown          = "known"
+	promptTitleRequire = "要求："
+)
+
 // extractionType 区分三个提取 Agent。
 type extractionType string
 
@@ -30,7 +38,7 @@ func buildExtractionConfig(provider agentcore.Provider, extType extractionType) 
 	cfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Name:        "disclosure-extract-" + string(extType),
-			Model:       "default",
+			Model:       modelDefault,
 			Provider:    provider,
 			Temperature: 0.3, // 非零温度允许重试时产生不同输出
 		},
@@ -61,7 +69,7 @@ func buildExtractionPrompt(extType extractionType) string {
 	case extractProblems:
 		return base + strings.Join([]string{
 			"【任务】提取所有需要解决的技术问题。",
-			"要求：",
+			promptTitleRequire,
 			"  1. 每条技术问题用简洁的一句话描述",
 			"  2. 技术问题应从「背景技术」或「要解决的技术问题」章节提取",
 			"  3. 按问题的重要性排序",
@@ -70,7 +78,7 @@ func buildExtractionPrompt(extType extractionType) string {
 	case extractFeatures:
 		return base + strings.Join([]string{
 			"【任务】提取所有技术特征，按「最小技术单元」粒度拆分。",
-			"要求：",
+			promptTitleRequire,
 			"  1. 每个特征是不可再分的原子技术手段",
 			"  2. 分类为：structure（结构）/ method（方法/工艺）/ parameter（参数）/ material（材料）",
 			"  3. 标注该特征在现有技术中是否为已知：known / unknown / partial",
@@ -81,7 +89,7 @@ func buildExtractionPrompt(extType extractionType) string {
 	case extractEffects:
 		return base + strings.Join([]string{
 			"【任务】提取所有有益技术效果。",
-			"要求：",
+			promptTitleRequire,
 			"  1. 每条技术效果用一句话描述",
 			"  2. 技术效果应从「有益效果」或「发明内容」章节提取",
 			"  3. 按效果的直接性和重要性排序",
@@ -98,89 +106,89 @@ func buildExtractionSchema(extType extractionType) map[string]any {
 	switch extType {
 	case extractProblems:
 		return map[string]any{
-			"type": "object",
-			"properties": map[string]any{
+			jsType: jsObject,
+			jsProperties: map[string]any{
 				"problems": map[string]any{
-					"type": "array",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"id":         map[string]any{"type": "string"},
-							"text":       map[string]any{"type": "string"},
-							"confidence": map[string]any{"type": "number"},
+					jsType: jsArray,
+					jsItems: map[string]any{
+						jsType: jsObject,
+						jsProperties: map[string]any{
+							"id":                   map[string]any{jsType: jsString},
+							fieldText:              map[string]any{jsType: jsString},
+							noveltyFieldConfidence: map[string]any{jsType: jsNumber},
 						},
-						"required":             []string{"id", "text", "confidence"},
-						"additionalProperties": false,
+						jsRequired:             []string{"id", fieldText, noveltyFieldConfidence},
+						jsAdditionalProperties: false,
 					},
 				},
 			},
-			"required":             []string{"problems"},
-			"additionalProperties": false,
+			jsRequired:             []string{"problems"},
+			jsAdditionalProperties: false,
 		}
 
 	case extractFeatures:
 		return map[string]any{
-			"type": "object",
-			"properties": map[string]any{
+			jsType: jsObject,
+			jsProperties: map[string]any{
 				"features": map[string]any{
-					"type": "array",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"id":          map[string]any{"type": "string"},
-							"description": map[string]any{"type": "string"},
+					jsType: jsArray,
+					jsItems: map[string]any{
+						jsType: jsObject,
+						jsProperties: map[string]any{
+							"id":          map[string]any{jsType: jsString},
+							jsDescription: map[string]any{jsType: jsString},
 							"category": map[string]any{
-								"type": "string",
-								"enum": []string{"structure", "method", "parameter", "material"},
+								jsType: jsString,
+								jsEnum: []string{"structure", "method", "parameter", "material"},
 							},
-							"function": map[string]any{"type": "string"},
+							"function": map[string]any{jsType: jsString},
 							"prior_art_status": map[string]any{
-								"type": "string",
-								"enum": []string{"known", "unknown", "partial"},
+								jsType: jsString,
+								jsEnum: []string{enumKnown, "unknown", coveragePartial},
 							},
 							"importance": map[string]any{
-								"type": "string",
-								"enum": []string{"high", "medium", "low"},
+								jsType: jsString,
+								jsEnum: []string{confHigh, confMedium, confLow},
 							},
-							"confidence": map[string]any{"type": "number"},
+							noveltyFieldConfidence: map[string]any{jsType: jsNumber},
 							"solves": map[string]any{
-								"type":  "array",
-								"items": map[string]any{"type": "string"},
+								jsType:  jsArray,
+								jsItems: map[string]any{jsType: jsString},
 							},
 						},
-						"required":             []string{"id", "description", "category"},
-						"additionalProperties": false,
+						jsRequired:             []string{"id", jsDescription, "category"},
+						jsAdditionalProperties: false,
 					},
 				},
 			},
-			"required":             []string{"features"},
-			"additionalProperties": false,
+			jsRequired:             []string{"features"},
+			jsAdditionalProperties: false,
 		}
 
 	case extractEffects:
 		return map[string]any{
-			"type": "object",
-			"properties": map[string]any{
+			jsType: jsObject,
+			jsProperties: map[string]any{
 				"effects": map[string]any{
-					"type": "array",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"id":   map[string]any{"type": "string"},
-							"text": map[string]any{"type": "string"},
+					jsType: jsArray,
+					jsItems: map[string]any{
+						jsType: jsObject,
+						jsProperties: map[string]any{
+							"id":      map[string]any{jsType: jsString},
+							fieldText: map[string]any{jsType: jsString},
 							"from": map[string]any{
-								"type":  "array",
-								"items": map[string]any{"type": "string"},
+								jsType:  jsArray,
+								jsItems: map[string]any{jsType: jsString},
 							},
-							"confidence": map[string]any{"type": "number"},
+							noveltyFieldConfidence: map[string]any{jsType: jsNumber},
 						},
-						"required":             []string{"id", "text", "confidence"},
-						"additionalProperties": false,
+						jsRequired:             []string{"id", fieldText, noveltyFieldConfidence},
+						jsAdditionalProperties: false,
 					},
 				},
 			},
-			"required":             []string{"effects"},
-			"additionalProperties": false,
+			jsRequired:             []string{"effects"},
+			jsAdditionalProperties: false,
 		}
 	}
 

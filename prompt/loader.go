@@ -160,7 +160,7 @@ func PromptIndex(templates []PromptTemplate) string {
 }
 
 func loadPromptFile(path string) (*PromptTemplate, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk over templates dir
 	if err != nil {
 		return nil, err
 	}

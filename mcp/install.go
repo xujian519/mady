@@ -105,7 +105,7 @@ func agentConfigPaths(agent string) []string {
 // detected agents. The result always includes all known agents; the
 // Installed field indicates which ones were found.
 func DetectAgents() []AgentInfo {
-	var out []AgentInfo
+	out := make([]AgentInfo, 0, len(knownAgents))
 	for _, ka := range knownAgents {
 		info := AgentInfo{
 			Name:        ka.Name,
@@ -293,7 +293,7 @@ func loadOrCreateConfig(path string) (*MCPConfigFile, error) {
 // creating parent directories if needed.
 func writeMCPConfig(path string, cfg *MCPConfigFile) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(cfg, "", "  ")

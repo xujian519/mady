@@ -250,7 +250,7 @@ func formatExportMarkdown(msgs []chat.ChatMessage, threadID string, project *dom
 // tokens so the caller can surface them; a missing file is not an error.
 func loadKeymapOverrides(madyHome string, km *terminal.KeybindingsManager) []string {
 	path := filepath.Join(madyHome, "keymap.json")
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is filepath.Join(madyHome, "keymap.json") — controlled
 	if err != nil {
 		// A missing file is the common case (no keymap customization) —
 		// stay silent. But a present-but-unreadable file (permissions, IO

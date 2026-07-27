@@ -10,6 +10,7 @@ import (
 	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
 )
 
+// TypeSpecificToolName is the agent-visible name of the judge_type_specific tool.
 const TypeSpecificToolName = "judge_type_specific"
 
 const typeSpecificToolDesc = `根据证据类型进行专门检查，包括：

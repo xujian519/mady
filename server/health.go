@@ -66,7 +66,8 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 func handleHealthFast(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(healthResponse{
+	//nolint:errchkjson // healthResponse.Checks is map[string]any (dynamic)
+	_ = json.NewEncoder(w).Encode(healthResponse{
 		Status: "ok",
 		Time:   time.Now().UTC().Format(time.RFC3339),
 	})

@@ -9,6 +9,22 @@ import (
 	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
 )
 
+// Commonly repeated string constants.
+const (
+	judgmentRelevance       = "relevance"
+	judgmentCritical        = "critical"
+	judgmentAuthenticity    = "authenticity"
+	burdenClaimant          = "claimant"
+	evUnknown               = "unknown"
+	cnPreponderance         = "优势证据"
+	cnHighProbability       = "高度盖然性"
+	standardClearConvincing = "clear_and_convincing"
+	judgmentLegality        = "legality"
+	judgmentLevelHigh       = "high"
+	judgmentLevelMediumHigh = "medium_high"
+	judgmentLevelLow        = "low"
+)
+
 // DefaultEngine 使用 RuleIndex 的默认证据判断引擎。
 type DefaultEngine struct {
 	index *RuleIndex
@@ -51,13 +67,13 @@ func (e *DefaultEngine) evaluateTripleAttributes(span agentcore_evidence.Evidenc
 	// 标记已发现的问题
 	var issues []JudgmentIssue
 	if judgment.RelevanceJudgment != nil && judgment.RelevanceJudgment.Score < 0.5 {
-		issues = append(issues, JudgmentIssue{Type: "relevance", Description: "相关性不足", Severity: "major"})
+		issues = append(issues, JudgmentIssue{Type: judgmentRelevance, Description: "相关性不足", Severity: "major"})
 	}
 	if judgment.LegalityJudgment != nil && judgment.LegalityJudgment.Score < 0.5 {
-		issues = append(issues, JudgmentIssue{Type: "legality", Description: "合法性存疑", Severity: "critical"})
+		issues = append(issues, JudgmentIssue{Type: judgmentLegality, Description: "合法性存疑", Severity: judgmentCritical})
 	}
 	if judgment.AuthenticityJudgment != nil && judgment.AuthenticityJudgment.Score < 0.3 {
-		issues = append(issues, JudgmentIssue{Type: "authenticity", Description: "真实性无法确认", Severity: "critical"})
+		issues = append(issues, JudgmentIssue{Type: judgmentAuthenticity, Description: "真实性无法确认", Severity: judgmentCritical})
 	}
 	judgment.FlaggedIssues = issues
 }
@@ -73,7 +89,7 @@ func (e *DefaultEngine) evaluateTypeSpecific(span agentcore_evidence.EvidenceSpa
 		score := CredibilityToScore(cred)
 		ts.CredibilityScore = &score
 	case EvTypeForeignLang:
-		ts.TranslationStatus = "unknown"
+		ts.TranslationStatus = evUnknown
 	case EvTypeOverseas:
 		if span.ContentHash != "" {
 			cred := CredHigh
@@ -131,22 +147,22 @@ func (e *DefaultEngine) BatchJudge(spans []agentcore_evidence.EvidenceSpan) ([]*
 
 // AssessBurdenOfProof 评估举证责任分配。
 func (e *DefaultEngine) AssessBurdenOfProof(caseType string, context map[string]string) (*BurdenDetermination, error) {
-	det := &BurdenDetermination{Standard: "preponderance"}
+	det := &BurdenDetermination{Standard: string(StandardPreponderance)}
 	switch strings.ToLower(caseType) {
 	case "invalidation", "invalidity", "无效":
-		det.BurdenHolder = "claimant"
+		det.BurdenHolder = burdenClaimant
 		det.Reasoning = "无效宣告程序中，请求人对其主张承担举证责任"
 	case "infringement", "侵权":
-		det.BurdenHolder = "claimant"
-		det.Standard = "clear_and_convincing"
+		det.BurdenHolder = burdenClaimant
+		det.Standard = standardClearConvincing
 		det.Reasoning = "侵权诉讼中，权利人对其主张承担举证责任"
 	case "new_product_method", "新产品制造方法":
-		det.BurdenHolder = "claimant"
+		det.BurdenHolder = burdenClaimant
 		det.HasShifted = true
 		det.ShiftReason = "新产品制造方法举证责任倒置"
 		det.Reasoning = "权利人须先证明：1) 产品为新产品；2) 被诉产品与依专利方法制造的产品为同样产品。证明后举证责任转移至被诉侵权人"
 	default:
-		det.BurdenHolder = "claimant"
+		det.BurdenHolder = burdenClaimant
 		det.Reasoning = "适用谁主张谁举证原则"
 	}
 	if context != nil {
@@ -186,9 +202,9 @@ func (e *DefaultEngine) AssessProofStandard(judgments []*EvidenceJudgment, stand
 	}
 
 	switch standard {
-	case "preponderance", "优势证据":
+	case "preponderance", cnPreponderance:
 		result.Met = supporting > contradicting && result.Confidence >= 0.5
-	case "clear_and_convincing", "高度盖然性":
+	case standardClearConvincing, cnHighProbability:
 		result.Met = result.Confidence >= 0.7 && supporting > contradicting*2
 	default:
 		result.Met = result.Confidence >= 0.5
@@ -221,7 +237,7 @@ func (e *DefaultEngine) GetRulesByType(evType EvidenceType) []EvidenceRule {
 // computeOverallScore 综合三个维度的评分，支持从 YAML 加载权重。
 // 当证据涉及电子或互联网公开类型时，平台可信度分数作为修正系数纳入总分。
 func (e *DefaultEngine) computeOverallScore(j *EvidenceJudgment) float64 {
-	weights := map[string]float64{"relevance": 0.3, "legality": 0.3, "authenticity": 0.4}
+	weights := map[string]float64{judgmentRelevance: 0.3, judgmentLegality: 0.3, judgmentAuthenticity: 0.4}
 	rules := e.index.GetRulesByType(EvTypeGeneral)
 	for _, rule := range rules {
 		if rule.EvidenceAssessment != nil {
@@ -237,9 +253,9 @@ func (e *DefaultEngine) computeOverallScore(j *EvidenceJudgment) float64 {
 		judgment *DimensionJudgment
 		weight   float64
 	}{
-		{j.RelevanceJudgment, weights["relevance"]},
-		{j.LegalityJudgment, weights["legality"]},
-		{j.AuthenticityJudgment, weights["authenticity"]},
+		{j.RelevanceJudgment, weights[judgmentRelevance]},
+		{j.LegalityJudgment, weights[judgmentLegality]},
+		{j.AuthenticityJudgment, weights[judgmentAuthenticity]},
 	} {
 		if dim.judgment != nil {
 			total += dim.judgment.Score * dim.weight
@@ -346,7 +362,7 @@ func inferEvidenceType(uri string) EvidenceType {
 
 // evaluateRelevance 评估证据相关性（包级辅助函数）。
 func evaluateRelevance(span agentcore_evidence.EvidenceSpan) *DimensionJudgment {
-	j := &DimensionJudgment{Dimension: "relevance"}
+	j := &DimensionJudgment{Dimension: judgmentRelevance}
 	score := 0.5
 	if span.SourceURI != "" {
 		score += 0.1
@@ -366,13 +382,13 @@ func evaluateRelevance(span agentcore_evidence.EvidenceSpan) *DimensionJudgment 
 	j.Score = score
 	switch {
 	case score >= 0.85:
-		j.Level = "high"
+		j.Level = judgmentLevelHigh
 	case score >= 0.65:
-		j.Level = "medium_high"
+		j.Level = judgmentLevelMediumHigh
 	case score >= 0.45:
 		j.Level = "medium"
 	default:
-		j.Level = "low"
+		j.Level = judgmentLevelLow
 	}
 	j.Reasoning = "相关性评估完成"
 	return j
@@ -380,7 +396,7 @@ func evaluateRelevance(span agentcore_evidence.EvidenceSpan) *DimensionJudgment 
 
 // evaluateLegality 评估证据合法性（包级辅助函数）。
 func evaluateLegality(span agentcore_evidence.EvidenceSpan) *DimensionJudgment {
-	j := &DimensionJudgment{Dimension: "legality"}
+	j := &DimensionJudgment{Dimension: judgmentLegality}
 	score := 0.7
 	if span.SourceURI == "" {
 		score -= 0.2
@@ -397,11 +413,11 @@ func evaluateLegality(span agentcore_evidence.EvidenceSpan) *DimensionJudgment {
 	j.Score = score
 	switch {
 	case score >= 0.85:
-		j.Level = "high"
+		j.Level = judgmentLevelHigh
 	case score >= 0.65:
-		j.Level = "medium_high"
+		j.Level = judgmentLevelMediumHigh
 	default:
-		j.Level = "low"
+		j.Level = judgmentLevelLow
 	}
 	j.Reasoning = "合法性评估完成"
 	return j
@@ -409,7 +425,7 @@ func evaluateLegality(span agentcore_evidence.EvidenceSpan) *DimensionJudgment {
 
 // evaluateAuthenticity 评估证据真实性（包级辅助函数）。
 func evaluateAuthenticity(span agentcore_evidence.EvidenceSpan) *DimensionJudgment {
-	j := &DimensionJudgment{Dimension: "authenticity"}
+	j := &DimensionJudgment{Dimension: judgmentAuthenticity}
 	score := 0.5
 	if span.ContentHash != "" {
 		score += 0.3
@@ -423,11 +439,11 @@ func evaluateAuthenticity(span agentcore_evidence.EvidenceSpan) *DimensionJudgme
 	j.Score = score
 	switch {
 	case score >= 0.85:
-		j.Level = "high"
+		j.Level = judgmentLevelHigh
 	case score >= 0.65:
-		j.Level = "medium_high"
+		j.Level = judgmentLevelMediumHigh
 	default:
-		j.Level = "low"
+		j.Level = judgmentLevelLow
 	}
 	j.Reasoning = "真实性评估完成"
 	return j

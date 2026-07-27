@@ -369,6 +369,8 @@ func (p *Planner) buildFallbackPlan(bb *FactBlackboard, intent PlanIntent) *Plan
 }
 
 // defaultPatentPlanTemplates returns the built-in Plan templates for patent scenarios.
+//
+//nolint:unused // used in phase1_test.go, phase2_test.go, phase3_test.go, phase5_test.go, confirmation_gate_test.go
 func defaultPatentPlanTemplates() map[string]Plan {
 	tpl := make(map[string]Plan)
 

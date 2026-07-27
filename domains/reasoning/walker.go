@@ -9,15 +9,18 @@ import (
 	"github.com/xujian519/mady/graph"
 )
 
-// 从 graph 包（L1 基础设施层）重新导出知识图谱类型。
-// domains/reasoning 和 knowledge/graph 均通过这些基础设施层类型解耦，
-// 避免跨 L2 相互依赖。
-type (
-	KgNode              = graph.KgNode
-	KgEdge              = graph.KgEdge
-	KgNodeDetail        = graph.KgNodeDetail
-	KnowledgeGraphStore = graph.KnowledgeGraphStore
-)
+// KgNode is re-exported from the graph package (L1 infrastructure layer).
+// Both domains/reasoning and knowledge/graph use these types to avoid cross-L2 coupling.
+type KgNode = graph.KgNode
+
+// KgEdge is re-exported from the graph package.
+type KgEdge = graph.KgEdge
+
+// KgNodeDetail is re-exported from the graph package.
+type KgNodeDetail = graph.KgNodeDetail
+
+// KnowledgeGraphStore is re-exported from the graph package.
+type KnowledgeGraphStore = graph.KnowledgeGraphStore
 
 // LlmMessage is a single chat message for the LlmClient interface.
 type LlmMessage struct {

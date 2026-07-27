@@ -59,7 +59,7 @@ func EnsureDir(dir string) error {
 	if dir == "" {
 		return nil
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("ensure dir %q: %w", dir, err)
 	}
 	return nil

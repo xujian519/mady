@@ -35,11 +35,11 @@ func NewApprovalStore(dbPath string) (*SQLiteApprovalStore, error) {
 
 	s := &SQLiteApprovalStore{db: db}
 	if err := s.initSchema(context.Background()); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("approval/sqlite: init schema: %w", err)
 	}
 	if err := s.probeWritable(context.Background()); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("approval/sqlite: write probe: %w", err)
 	}
 	return s, nil
@@ -123,7 +123,7 @@ func (s *SQLiteApprovalStore) List(ctx context.Context, sessionID string) ([]dom
 	if err != nil {
 		return nil, fmt.Errorf("approval/sqlite: list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var records []domains.ApprovalRecord
 	for rows.Next() {
@@ -149,7 +149,7 @@ func (s *SQLiteApprovalStore) ListByCase(ctx context.Context, caseID string) ([]
 	if err != nil {
 		return nil, fmt.Errorf("approval/sqlite: list by case: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var records []domains.ApprovalRecord
 	for rows.Next() {
@@ -203,6 +203,7 @@ type pendingRow struct {
 	RespondedAt    *string `json:"responded_at"`
 }
 
+// SavePending persists a pending approval request to the database.
 func (s *SQLiteApprovalStore) SavePending(ctx context.Context, p domains.PendingApproval) error {
 	var expiresAt *string
 	if p.ExpiresAt != nil {
@@ -221,6 +222,7 @@ func (s *SQLiteApprovalStore) SavePending(ctx context.Context, p domains.Pending
 	return nil
 }
 
+// LoadPending retrieves a pending approval request by its ID.
 func (s *SQLiteApprovalStore) LoadPending(ctx context.Context, id string) (*domains.PendingApproval, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, session_id, case_id, trigger_keyword, original_output,
@@ -238,6 +240,7 @@ func (s *SQLiteApprovalStore) LoadPending(ctx context.Context, id string) (*doma
 	return rowToPending(pr), nil
 }
 
+// ListPending returns all pending approval requests ordered by creation time.
 func (s *SQLiteApprovalStore) ListPending(ctx context.Context) ([]domains.PendingApproval, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, session_id, case_id, trigger_keyword, original_output,
@@ -246,7 +249,7 @@ func (s *SQLiteApprovalStore) ListPending(ctx context.Context) ([]domains.Pendin
 	if err != nil {
 		return nil, fmt.Errorf("pending/sqlite: list pending: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []domains.PendingApproval
 	for rows.Next() {
@@ -261,6 +264,7 @@ func (s *SQLiteApprovalStore) ListPending(ctx context.Context) ([]domains.Pendin
 	return out, rows.Err()
 }
 
+// ListPendingBySession returns pending approval requests for a specific session.
 func (s *SQLiteApprovalStore) ListPendingBySession(ctx context.Context, sessionID string) ([]domains.PendingApproval, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, session_id, case_id, trigger_keyword, original_output,
@@ -269,7 +273,7 @@ func (s *SQLiteApprovalStore) ListPendingBySession(ctx context.Context, sessionI
 	if err != nil {
 		return nil, fmt.Errorf("pending/sqlite: list by session: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []domains.PendingApproval
 	for rows.Next() {
@@ -284,6 +288,7 @@ func (s *SQLiteApprovalStore) ListPendingBySession(ctx context.Context, sessionI
 	return out, rows.Err()
 }
 
+// DeletePending removes a pending approval request by its ID.
 func (s *SQLiteApprovalStore) DeletePending(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM pending_approvals WHERE id = ?`, id)
 	if err != nil {
@@ -331,6 +336,7 @@ func (s *SQLiteApprovalStore) Respond(ctx context.Context, id string, record dom
 	return tx.Commit()
 }
 
+// ExpirePending marks all expired pending requests as expired based on their expiry time.
 func (s *SQLiteApprovalStore) ExpirePending(ctx context.Context) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE pending_approvals

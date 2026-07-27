@@ -42,7 +42,9 @@ func SetupCitationWiring(w CitationWiring) {
 // （S1 静态表 + 不留痕），保证 scripts/ 等不走装配侧的调用方行为不变。
 func currentCitationWiring() CitationWiring {
 	if v := citationWiring.Load(); v != nil {
-		return v.(CitationWiring)
+		if cw, ok := v.(CitationWiring); ok {
+			return cw
+		}
 	}
 	return CitationWiring{}
 }

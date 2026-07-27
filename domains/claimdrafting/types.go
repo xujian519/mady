@@ -11,6 +11,7 @@ import (
 // TechDomain 枚举技术领域，用于选择领域特定的撰写规则和模板。
 type TechDomain string
 
+// Technology domain constants.
 const (
 	DomainMechanical TechDomain = "mechanical" // 机械领域：零部件+配置关系+联系形式
 	DomainElectrical TechDomain = "electrical" // 电路领域：元器件+导线连接+电回路+功能
@@ -26,6 +27,7 @@ const (
 // ClaimType 区分专利权利要求的法律范畴。
 type ClaimType string
 
+// Claim type constants.
 const (
 	ClaimTypeProduct ClaimType = "product" // 产品权利要求（装置/设备/系统/组合物）
 	ClaimTypeMethod  ClaimType = "method"  // 方法权利要求（制造/使用/处理方法）
@@ -34,6 +36,7 @@ const (
 // ClaimStrategy 定义权利要求书的撰写策略，控制独立权利要求的数量与类型布局。
 type ClaimStrategy string
 
+// Claim strategy constants.
 const (
 	StrategyProductOnly             ClaimStrategy = "product_only"
 	StrategyProductAndMethod        ClaimStrategy = "product_and_method"
@@ -154,6 +157,7 @@ type DraftOutput struct {
 // Severity 表示违规的严重程度。
 type Severity string
 
+// Severity level constants.
 const (
 	SeverityError   Severity = "error"   // 严重违法（如多项从属互引）
 	SeverityWarning Severity = "warning" // 潜在风险（如使用不确定用语）
@@ -192,7 +196,7 @@ const (
 	DimScope     = "scope"     // 保护范围合理性（多层次布局+上位概括）
 )
 
-// 维度权重
+// DimensionWeights defines the scoring weights for each quality dimension.
 var DimensionWeights = map[string]float64{
 	DimClarity:   0.25,
 	DimSupport:   0.25,
@@ -209,6 +213,7 @@ var DimensionWeights = map[string]float64{
 // Pregel State Keys
 // =============================================================================
 
+// Pregel state key constants for the claim drafting graph.
 const (
 	StateKeyInput      = "claim_input"
 	StateKeyDomain     = "claim_domain"

@@ -60,6 +60,7 @@ type Principle struct {
 // PatternCategory 定义了 WritingPattern 的预定义分类。
 type PatternCategory string
 
+// Pattern category constants.
 const (
 	CatOAInventiveness PatternCategory = "oa_inventiveness" // OA 答复-创造性
 	CatOANovelty       PatternCategory = "oa_novelty"       // OA 答复-新颖性

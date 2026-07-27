@@ -9,6 +9,8 @@ import "github.com/xujian519/mady/pkg/framework"
 type DeferredInit = framework.DeferredInit
 
 // newDeferredInit 委托到 framework.NewDeferredInit。
+//
+//nolint:unused // used in tui_storage_test.go
 func newDeferredInit() *DeferredInit {
 	return framework.NewDeferredInit()
 }

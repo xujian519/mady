@@ -20,6 +20,8 @@ const ExtensionName = "memory"
 //   - 通过 TransformContextProvider 在每次 LLM 调用前注入记忆上下文
 //   - 通过 LifecycleProvider 在 AfterModelCall 时自动提取新记忆
 //   - 通过 ToolProvider 暴露 remember/recall/forget 工具（Letta 风格的自我编辑）
+//
+//nolint:revive // stutter: memory.MemoryExtension is intentional for clarity
 type MemoryExtension struct {
 	manager *Manager
 	scope   MemoryScope
@@ -108,15 +110,19 @@ var (
 // Extension 接口
 // ---------------------------------------------------------------------------
 
+// Name returns the memory extension identifier.
 func (e *MemoryExtension) Name() string { return ExtensionName }
 
-func (e *MemoryExtension) Init(ctx context.Context, agent *agentcore.Agent) error {
+// Init performs no-op initialization for the memory extension.
+func (e *MemoryExtension) Init(_ context.Context, _ *agentcore.Agent) error {
 	if !e.cfg.Enabled {
 		return nil
 	}
 	return nil
 }
 
+// Dispose triggers async summarization on session close and cleans up
+// the memory manager.
 func (e *MemoryExtension) Dispose() error {
 	// 会话关闭时触发异步汇总（借鉴 Letta Sleep-time Agent）
 	if e.summarizer != nil {
@@ -137,12 +143,12 @@ func (e *MemoryExtension) SetSummarizer(s *SessionSummarizer) {
 // 如果配置了 summarizer 且 Manager 启用了 CleanupSessionOnClose，
 // 则从 Session 层提取长期事实并存入 LongTerm 层。
 // 汇总在 goroutine 中异步执行，不阻塞会话关闭流程。
-func (e *MemoryExtension) OnSessionClose(ctx context.Context) {
+func (e *MemoryExtension) OnSessionClose(_ context.Context) {
 	if e.summarizer == nil || e.manager == nil {
 		return
 	}
 
-	go func() {
+	go func() { //nolint:gosec // G118: background goroutine with no request context
 		// 使用带超时的 context，防止 LLM 调用永久挂起导致 goroutine 泄漏
 		summaryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -179,8 +185,11 @@ func (e *MemoryExtension) OnSessionClose(ctx context.Context) {
 // LayerProvider — ContextBuilder 集成
 // ---------------------------------------------------------------------------
 
+// Layer returns the memory context layer identifier.
 func (e *MemoryExtension) Layer() agentcore.ContextLayer { return agentcore.LayerMemory }
 
+// Provide retrieves relevant memories and injects them as system messages
+// into the agent's context.
 func (e *MemoryExtension) Provide(ctx context.Context, input agentcore.BuildInput, _ agentcore.LayerConfig) ([]agentcore.Message, error) {
 	if !e.cfg.Enabled || e.manager == nil {
 		return nil, nil
@@ -230,6 +239,8 @@ func (e *MemoryExtension) emotionAwareQuery(query string, ec emotionContext) str
 // TransformContextProvider — 预 LLM 记忆注入
 // ---------------------------------------------------------------------------
 
+// TransformContext retrieves relevant memories and injects them as system
+// messages before the LLM call.
 func (e *MemoryExtension) TransformContext(ctx context.Context, msgs []agentcore.Message) []agentcore.Message {
 	if !e.cfg.Enabled || e.manager == nil || len(msgs) == 0 {
 		return msgs
@@ -275,6 +286,8 @@ func (e *MemoryExtension) TransformContext(ctx context.Context, msgs []agentcore
 // LifecycleProvider — 自动记忆提取
 // ---------------------------------------------------------------------------
 
+// LifecycleHook returns a lifecycle hook that performs automatic memory
+// extraction after each model response.
 func (e *MemoryExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:staticcheck
 	return agentcore.ObserversToHook(&memoryLifecycleHook{ext: e})
 }
@@ -291,7 +304,7 @@ func (h *memoryLifecycleHook) BeforeModelCall(_ context.Context, _ *agentcore.Ag
 	return nil
 }
 
-func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {
+func (h *memoryLifecycleHook) AfterModelCall(_ context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {
 	if !h.ext.cfg.AutoExtract || h.ext.manager == nil {
 		return
 	}
@@ -313,7 +326,7 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 	emotion := extractEmotionContext(arc.Messages)
 
 	// 异步提取记忆（不阻塞主流程）
-	go func() {
+	go func() { //nolint:gosec // G118: background goroutine with no request context
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("memory: panic in RememberFromTurn", "err", r)
@@ -331,6 +344,7 @@ func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore
 // ToolProvider — 记忆工具
 // ---------------------------------------------------------------------------
 
+// Tools returns the tool definitions for memory management (retrieve, store).
 func (e *MemoryExtension) Tools() []*agentcore.Tool {
 	if !e.cfg.ExposeTools {
 		return nil

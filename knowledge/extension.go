@@ -36,8 +36,11 @@ type WritableBackend interface {
 	AddDocument(ctx context.Context, docID, title, content string) error
 }
 
+// ExtensionName is the unique identifier for the knowledge extension.
 const ExtensionName = "knowledge"
 
+// GraphEnhancer expands retrieval results with similar cases and citation
+// chains from the knowledge graph.
 type GraphEnhancer interface {
 	Enhance(seeds []retrieval.ScoredChunk) any
 }
@@ -62,6 +65,10 @@ type LawRecord struct {
 // Implementations typically delegate to knowledge/sqlite.SQLiteStore.SearchLaws.
 type LawSearcher func(keyword string, topK int) ([]LawRecord, error)
 
+// KnowledgeExtension integrates knowledge retrieval into the agent lifecycle.
+// It supports both in-memory keyword search and SQLite-backed FTS+vector RRF
+// fusion, with optional graph enhancement, cross-encoder reranking, and law
+// search capabilities.
 type KnowledgeExtension struct {
 	agentcore.BaseLifecycleHook
 	store         *Store
@@ -147,6 +154,7 @@ func (e *KnowledgeExtension) WithLawSearcher(fn LawSearcher) *KnowledgeExtension
 	return e
 }
 
+// KnowledgeExtConfig configures the knowledge extension behaviour.
 type KnowledgeExtConfig struct {
 	Enabled         bool                      `json:"enabled"`
 	Domain          string                    `json:"domain"`
@@ -154,6 +162,8 @@ type KnowledgeExtConfig struct {
 	RetrievalConfig retrieval.RetrievalConfig `json:"-"`
 }
 
+// DefaultKnowledgeExtConfig returns a default configuration with knowledge
+// retrieval enabled and the tool exposed.
 func DefaultKnowledgeExtConfig() KnowledgeExtConfig {
 	return KnowledgeExtConfig{
 		Enabled:         true,
@@ -162,6 +172,8 @@ func DefaultKnowledgeExtConfig() KnowledgeExtConfig {
 	}
 }
 
+// NewExtension creates a KnowledgeExtension with the given store, graph
+// enhancer, domain, and configuration.
 func NewExtension(store *Store, g GraphEnhancer, domain string, cfg KnowledgeExtConfig) *KnowledgeExtension {
 	if cfg.RetrievalConfig.TopK <= 0 {
 		cfg.RetrievalConfig = retrieval.DefaultRetrievalConfig()
@@ -197,10 +209,16 @@ var (
 	_ agentcore.TransformContextProvider = (*KnowledgeExtension)(nil)
 )
 
-func (e *KnowledgeExtension) Name() string                                     { return ExtensionName }
-func (e *KnowledgeExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
-func (e *KnowledgeExtension) Dispose() error                                   { return nil }
+// Name returns the extension identifier.
+func (e *KnowledgeExtension) Name() string { return ExtensionName }
 
+// Init performs no-op initialization for the knowledge extension.
+func (e *KnowledgeExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
+
+// Dispose performs no-op cleanup for the knowledge extension.
+func (e *KnowledgeExtension) Dispose() error { return nil }
+
+// LifecycleHook returns the retrieval lifecycle hook (backend or in-memory).
 func (e *KnowledgeExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:staticcheck
 	if e.backend != nil {
 		h := NewBackendRetrievalHook(e, e.cfg.RetrievalConfig)
@@ -230,10 +248,14 @@ func (e *KnowledgeExtension) BackendHook(cfg retrieval.RetrievalConfig) agentcor
 	return h
 }
 
+// TransformContext is a pass-through; the knowledge extension does not modify
+// the message context.
 func (e *KnowledgeExtension) TransformContext(_ context.Context, msgs []agentcore.Message) []agentcore.Message {
 	return msgs
 }
 
+// Tools returns the list of tools exposed by the knowledge extension
+// (search_knowledge, optionally search_laws and add_document).
 func (e *KnowledgeExtension) Tools() []*agentcore.Tool {
 	if !e.cfg.ExposeTool {
 		return nil
@@ -567,8 +589,11 @@ func formatToolResults(results []retrieval.ScoredChunk) string {
 	return b.String()
 }
 
+// Layer returns the context layer identifier for knowledge retrieval.
 func (e *KnowledgeExtension) Layer() agentcore.ContextLayer { return agentcore.LayerKnowledge }
 
+// Provide injects knowledge context as system messages into the agent's
+// message list. It retrieves chunks relevant to the last user message.
 func (e *KnowledgeExtension) Provide(ctx context.Context, input agentcore.BuildInput, _ agentcore.LayerConfig) ([]agentcore.Message, error) {
 	if !e.cfg.Enabled {
 		return nil, nil

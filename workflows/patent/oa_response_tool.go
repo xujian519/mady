@@ -8,6 +8,17 @@ import (
 	"github.com/xujian519/mady/graph"
 )
 
+// JSON Schema field constants used in tool parameter schemas.
+const (
+	schemaType                 = "type"
+	schemaString               = "string"
+	schemaObject               = "object"
+	schemaProperties           = "properties"
+	schemaDescription          = "description"
+	schemaRequired             = "required"
+	schemaAdditionalProperties = "additionalProperties"
+)
+
 // NewOAResponseTool creates the draft_oa_response tool that wraps the OA
 // response Pregel graph for use by the Patent Agent.
 //
@@ -23,19 +34,19 @@ func NewOAResponseTool(opts ...OAGraphOption) *agentcore.Tool {
 输出包含：权利要求修改对照表、答复策略建议、对比文件分析、法律依据引用。
 如有 LLM 增强配置，将在确定性骨架基础上自动生成实质性论证段落。`,
 		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
+			schemaType: schemaObject,
+			schemaProperties: map[string]any{
 				"oa_text": map[string]any{
-					"type":        "string",
-					"description": "审查意见通知书全文文本（支持中文）",
+					schemaType:        schemaString,
+					schemaDescription: "审查意见通知书全文文本（支持中文）",
 				},
 				"claim_text": map[string]any{
-					"type":        "string",
-					"description": "当前权利要求书文本（可选，用于更精确的权利要求分析）",
+					schemaType:        schemaString,
+					schemaDescription: "当前权利要求书文本（可选，用于更精确的权利要求分析）",
 				},
 			},
-			"required":             []string{"oa_text"},
-			"additionalProperties": false,
+			schemaRequired:             []string{"oa_text"},
+			schemaAdditionalProperties: false,
 		},
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
 			var p struct {

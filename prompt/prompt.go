@@ -14,22 +14,26 @@ type Template struct {
 	Strict   bool
 }
 
+// New creates a Template from the given raw template string.
 func New(tmpl string) *Template {
 	return &Template{Raw: tmpl}
 }
 
+// WithDefaults returns a copy of the template with default variable values.
 func (t *Template) WithDefaults(defaults map[string]string) *Template {
 	cp := *t
 	cp.Defaults = defaults
 	return &cp
 }
 
+// WithStrict returns a copy of the template that errors on undefined variables.
 func (t *Template) WithStrict() *Template {
 	cp := *t
 	cp.Strict = true
 	return &cp
 }
 
+// Render substitutes {{variable}} placeholders and returns the result.
 func (t *Template) Render(vars map[string]string) (string, error) {
 	result := t.Raw
 	merged := make(map[string]string)

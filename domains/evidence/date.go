@@ -446,7 +446,8 @@ func isBeforeFilingBool(pubDate, filingDate string) bool {
 }
 
 // isBeforeFilingDate 判断公开日期是否在申请日之前。
-// 使用 validCount 风格命名以保持一致。
+//
+//nolint:unused // used in date_test.go
 func isBeforeFilingDate(pubDate, filingDate string) (bool, string) {
 	if pubDate == "" || filingDate == "" {
 		return false, "日期不能为空"

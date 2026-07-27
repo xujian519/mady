@@ -23,9 +23,10 @@ import (
 
 // commitHash / buildTime are injected via -ldflags at release build time.
 var (
-	commitHash = "unknown" //nolint:unused // ldflags
-	buildTime  = "unknown" //nolint:unused // ldflags
+	commitHash = "unknown" // set via ldflags at build time
+	buildTime  = "unknown" // set via ldflags at build time
 )
+var _, _ = commitHash, buildTime
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

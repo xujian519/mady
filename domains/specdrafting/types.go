@@ -13,6 +13,7 @@ import (
 // PatentType 区分发明专利与实用新型。
 type PatentType string
 
+// Patent type constants.
 const (
 	PatentTypeInvention    PatentType = "invention"     // 发明专利
 	PatentTypeUtilityModel PatentType = "utility_model" // 实用新型专利
@@ -21,6 +22,7 @@ const (
 // TechDomain 枚举技术领域，用于领域自适应撰写策略。
 type TechDomain string
 
+// Technology domain constants.
 const (
 	DomainMechanical TechDomain = "mechanical" // 机械领域
 	DomainElectrical TechDomain = "electrical" // 电学/电路领域
@@ -32,6 +34,7 @@ const (
 // SpecSectionName 标识说明书的标准章节。
 type SpecSectionName string
 
+// Section name constants.
 const (
 	SecTitle      SpecSectionName = "title"      // 发明/实用新型名称
 	SecTechField  SpecSectionName = "tech_field" // 技术领域
@@ -54,6 +57,7 @@ var requiredSections = []SpecSectionName{
 // Severity 表示违规的严重程度（复用 claimdrafting 的模式）。
 type Severity string
 
+// Severity level constants.
 const (
 	SeverityError   Severity = "error"   // 严重违法
 	SeverityWarning Severity = "warning" // 潜在风险
@@ -177,6 +181,7 @@ var SpecDimensionWeights = map[string]float64{
 // Pregel State Keys
 // =============================================================================
 
+// Pregel state key constants for the specification drafting graph.
 const (
 	StateKeyInput      = "spec_input"
 	StateKeyDomain     = "spec_domain"

@@ -13,6 +13,26 @@ import (
 	"github.com/xujian519/mady/graph"
 )
 
+// JSON Schema constants.
+const (
+	jsTypeObject       = "object"
+	jsTypeString       = "string"
+	jsTypeArray        = "array"
+	jsTypeBoolean      = "boolean"
+	jsTypeNumber       = "number"
+	jsFieldProperties  = "properties"
+	jsFieldRequired    = "required"
+	jsFieldLiteral     = "literal"
+	jsFieldEquivalence = "equivalence"
+	jsFieldTimeline    = "timeline"
+	jsValHigh          = "high"
+	jsValLow           = "low"
+	jsFieldType        = "type"
+	jsFieldEnum        = "enum"
+	jsFieldItems       = "items"
+	jsValMedium        = "medium"
+)
+
 // newInfringementAgent creates a uniformly-configured Agent node.
 // All LLM nodes share Temperature=0.1 and MaxTurns=1.
 func newInfringementAgent(provider agentcore.Provider, name, prompt string, schema map[string]any) *agentcore.Agent {
@@ -433,117 +453,117 @@ func strategyNode(provider agentcore.Provider) graph.PregelNode {
 
 func claimScopeSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"interpreted_scope":      map[string]any{"type": "string"},
-			"key_terms":              map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{"term": map[string]any{"type": "string"}, "interpretation": map[string]any{"type": "string"}, "evidence_source": map[string]any{"type": "string", "enum": []string{"intrinsic", "extrinsic"}}}}},
-			"disclaimers_identified": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"interpreted_scope":      map[string]any{jsFieldType: jsTypeString},
+			"key_terms":              map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeObject, jsFieldProperties: map[string]any{"term": map[string]any{jsFieldType: jsTypeString}, "interpretation": map[string]any{jsFieldType: jsTypeString}, "evidence_source": map[string]any{jsFieldType: jsTypeString, jsFieldEnum: []string{"intrinsic", "extrinsic"}}}}},
+			"disclaimers_identified": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}},
 		},
-		"required": []string{"interpreted_scope", "key_terms"},
+		jsFieldRequired: []string{"interpreted_scope", "key_terms"},
 	}
 }
 
 func featureDecompSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"claim_features":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"product_features": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"claim_features":   map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}},
+			"product_features": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}},
 		},
-		"required": []string{"claim_features", "product_features"},
+		jsFieldRequired: []string{"claim_features", "product_features"},
 	}
 }
 
 func literalSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"all_elements_met": map[string]any{"type": "boolean"},
-			"feature_mapping":  map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{"claim_feature": map[string]any{"type": "string"}, "product_feature": map[string]any{"type": "string"}, "match_type": map[string]any{"type": "string", "enum": []string{"literal", "equivalent", "missing"}}, "match_reasoning": map[string]any{"type": "string"}}}},
-			"missing_features": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"extra_features":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"all_elements_met": map[string]any{jsFieldType: jsTypeBoolean},
+			"feature_mapping":  map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeObject, jsFieldProperties: map[string]any{"claim_feature": map[string]any{jsFieldType: jsTypeString}, "product_feature": map[string]any{jsFieldType: jsTypeString}, "match_type": map[string]any{jsFieldType: jsTypeString, jsFieldEnum: []string{jsFieldLiteral, "equivalent", "missing"}}, "match_reasoning": map[string]any{jsFieldType: jsTypeString}}}},
+			"missing_features": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}},
+			"extra_features":   map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}},
 		},
-		"required": []string{"all_elements_met", "feature_mapping"},
+		jsFieldRequired: []string{"all_elements_met", "feature_mapping"},
 	}
 }
 
 func equivalenceSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"equivalent_features": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{"claim_feature": map[string]any{"type": "string"}, "product_feature": map[string]any{"type": "string"}, "same_means": map[string]any{"type": "boolean"}, "same_function": map[string]any{"type": "boolean"}, "same_effect": map[string]any{"type": "boolean"}, "non_obviousness": map[string]any{"type": "boolean"}, "is_equivalent": map[string]any{"type": "boolean"}, "reasoning": map[string]any{"type": "string"}}}},
-			"estoppel_applied":    map[string]any{"type": "boolean"},
-			"estoppel_details":    map[string]any{"type": "string"},
-			"dedication_applied":  map[string]any{"type": "boolean"},
-			"dedication_details":  map[string]any{"type": "string"},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"equivalent_features": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeObject, jsFieldProperties: map[string]any{"claim_feature": map[string]any{jsFieldType: jsTypeString}, "product_feature": map[string]any{jsFieldType: jsTypeString}, "same_means": map[string]any{jsFieldType: jsTypeBoolean}, "same_function": map[string]any{jsFieldType: jsTypeBoolean}, "same_effect": map[string]any{jsFieldType: jsTypeBoolean}, "non_obviousness": map[string]any{jsFieldType: jsTypeBoolean}, "is_equivalent": map[string]any{jsFieldType: jsTypeBoolean}, "reasoning": map[string]any{jsFieldType: jsTypeString}}}},
+			"estoppel_applied":    map[string]any{jsFieldType: jsTypeBoolean},
+			"estoppel_details":    map[string]any{jsFieldType: jsTypeString},
+			"dedication_applied":  map[string]any{jsFieldType: jsTypeBoolean},
+			"dedication_details":  map[string]any{jsFieldType: jsTypeString},
 		},
-		"required": []string{"equivalent_features", "estoppel_applied"},
+		jsFieldRequired: []string{"equivalent_features", "estoppel_applied"},
 	}
 }
 
 func verdictSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"conclusion":   map[string]any{"type": "string", "enum": []string{"infringed", "not_infringed", "uncertain"}},
-			"likelihood":   map[string]any{"type": "number", "minimum": 0, "maximum": 1},
-			"basis":        map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"literal", "equivalence"}}},
-			"key_findings": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"risk_level":   map[string]any{"type": "string", "enum": []string{"high", "medium", "low"}},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"conclusion":   map[string]any{jsFieldType: jsTypeString, jsFieldEnum: []string{"infringed", "not_infringed", "uncertain"}},
+			"likelihood":   map[string]any{jsFieldType: jsTypeNumber, "minimum": 0, "maximum": 1},
+			"basis":        map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString, jsFieldEnum: []string{jsFieldLiteral, jsFieldEquivalence}}},
+			"key_findings": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}},
+			"risk_level":   map[string]any{jsFieldType: jsTypeString, jsFieldEnum: []string{jsValHigh, jsValMedium, jsValLow}},
 		},
-		"required": []string{"conclusion", "likelihood", "basis", "key_findings", "risk_level"},
+		jsFieldRequired: []string{"conclusion", "likelihood", "basis", "key_findings", "risk_level"},
 	}
 }
 
 func defenseSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"defenses": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{"defense_type": map[string]any{"type": "string"}, "applicable": map[string]any{"type": "boolean"}, "viability_rating": map[string]any{"type": "string", "enum": []string{"high", "medium", "low", "none"}}, "analysis": map[string]any{"type": "string"}, "evidence_needed": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "legal_basis": map[string]any{"type": "string"}}}},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"defenses": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeObject, jsFieldProperties: map[string]any{"defense_type": map[string]any{jsFieldType: jsTypeString}, "applicable": map[string]any{jsFieldType: jsTypeBoolean}, "viability_rating": map[string]any{jsFieldType: jsTypeString, jsFieldEnum: []string{jsValHigh, jsValMedium, jsValLow, "none"}}, "analysis": map[string]any{jsFieldType: jsTypeString}, "evidence_needed": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}}, "legal_basis": map[string]any{jsFieldType: jsTypeString}}}},
 		},
-		"required": []string{"defenses"},
+		jsFieldRequired: []string{"defenses"},
 	}
 }
 
 func remedySchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
 			"damage_estimate":     damageEstimateSchema(),
 			"injunction_analysis": injunctionAnalysisSchema(),
 			"punitive_risk":       punitiveRiskSchema(),
 		},
-		"required": []string{"damage_estimate", "injunction_analysis"},
+		jsFieldRequired: []string{"damage_estimate", "injunction_analysis"},
 	}
 }
 
 func damageEstimateSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"method":            map[string]any{"type": "string"},
-			"estimated_amount":  map[string]any{"type": "number"},
-			"range_low":         map[string]any{"type": "number"},
-			"range_high":        map[string]any{"type": "number"},
-			"calculation_basis": map[string]any{"type": "string"},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"method":            map[string]any{jsFieldType: jsTypeString},
+			"estimated_amount":  map[string]any{jsFieldType: jsTypeNumber},
+			"range_low":         map[string]any{jsFieldType: jsTypeNumber},
+			"range_high":        map[string]any{jsFieldType: jsTypeNumber},
+			"calculation_basis": map[string]any{jsFieldType: jsTypeString},
 		},
 	}
 }
 
 func injunctionAnalysisSchema() map[string]any {
 	injunctionFactorsSchema := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"likelihood_of_success": map[string]any{"type": "string"},
-			"irreparable_harm":      map[string]any{"type": "string"},
-			"balance_of_hardships":  map[string]any{"type": "string"},
-			"public_interest":       map[string]any{"type": "string"},
-			"bond_required":         map[string]any{"type": "number"},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"likelihood_of_success": map[string]any{jsFieldType: jsTypeString},
+			"irreparable_harm":      map[string]any{jsFieldType: jsTypeString},
+			"balance_of_hardships":  map[string]any{jsFieldType: jsTypeString},
+			"public_interest":       map[string]any{jsFieldType: jsTypeString},
+			"bond_required":         map[string]any{jsFieldType: jsTypeNumber},
 		},
 	}
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
 			"preliminary_injunction": injunctionFactorsSchema,
 			"permanent_injunction":   injunctionFactorsSchema,
 		},
@@ -552,27 +572,27 @@ func injunctionAnalysisSchema() map[string]any {
 
 func punitiveRiskSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"willfulness":     map[string]any{"type": "string"},
-			"multiplier_low":  map[string]any{"type": "number"},
-			"multiplier_high": map[string]any{"type": "number"},
-			"analysis":        map[string]any{"type": "string"},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"willfulness":     map[string]any{jsFieldType: jsTypeString},
+			"multiplier_low":  map[string]any{jsFieldType: jsTypeNumber},
+			"multiplier_high": map[string]any{jsFieldType: jsTypeNumber},
+			"analysis":        map[string]any{jsFieldType: jsTypeString},
 		},
 	}
 }
 
 func strategySchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"recommended_actions":   map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{"action": map[string]any{"type": "string"}, "priority": map[string]any{"type": "string", "enum": []string{"immediate", "short_term", "long_term"}}, "rationale": map[string]any{"type": "string"}, "risk_level": map[string]any{"type": "string"}}}},
-			"jurisdiction_analysis": map[string]any{"type": "object", "properties": map[string]any{"recommended_venues": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "rationale": map[string]any{"type": "string"}}},
-			"timeline":              map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{"event": map[string]any{"type": "string"}, "timeframe": map[string]any{"type": "string"}, "criticality": map[string]any{"type": "string"}}}},
-			"settlement_assessment": map[string]any{"type": "object", "properties": map[string]any{"recommendation": map[string]any{"type": "string"}, "range_low": map[string]any{"type": "number"}, "range_high": map[string]any{"type": "number"}, "key_factors": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}}},
-			"invalidation_route":    map[string]any{"type": "object", "properties": map[string]any{"grounds": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "prior_art_refs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "success_chance": map[string]any{"type": "string"}, "timeline": map[string]any{"type": "string"}}},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"recommended_actions":   map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeObject, jsFieldProperties: map[string]any{"action": map[string]any{jsFieldType: jsTypeString}, "priority": map[string]any{jsFieldType: jsTypeString, jsFieldEnum: []string{"immediate", "short_term", "long_term"}}, "rationale": map[string]any{jsFieldType: jsTypeString}, "risk_level": map[string]any{jsFieldType: jsTypeString}}}},
+			"jurisdiction_analysis": map[string]any{jsFieldType: jsTypeObject, jsFieldProperties: map[string]any{"recommended_venues": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}}, "rationale": map[string]any{jsFieldType: jsTypeString}}},
+			jsFieldTimeline:         map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeObject, jsFieldProperties: map[string]any{"event": map[string]any{jsFieldType: jsTypeString}, "timeframe": map[string]any{jsFieldType: jsTypeString}, "criticality": map[string]any{jsFieldType: jsTypeString}}}},
+			"settlement_assessment": map[string]any{jsFieldType: jsTypeObject, jsFieldProperties: map[string]any{"recommendation": map[string]any{jsFieldType: jsTypeString}, "range_low": map[string]any{jsFieldType: jsTypeNumber}, "range_high": map[string]any{jsFieldType: jsTypeNumber}, "key_factors": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}}}},
+			"invalidation_route":    map[string]any{jsFieldType: jsTypeObject, jsFieldProperties: map[string]any{"grounds": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}}, "prior_art_refs": map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}}, "success_chance": map[string]any{jsFieldType: jsTypeString}, jsFieldTimeline: map[string]any{jsFieldType: jsTypeString}}},
 		},
-		"required": []string{"recommended_actions", "timeline"},
+		jsFieldRequired: []string{"recommended_actions", jsFieldTimeline},
 	}
 }
 

@@ -21,11 +21,16 @@ type Envelope struct {
 type MessageKind string
 
 const (
-	KindCreateSurface    MessageKind = "createSurface"
+	// KindCreateSurface identifies an Envelope that creates a new surface.
+	KindCreateSurface MessageKind = "createSurface"
+	// KindUpdateComponents identifies an Envelope that updates surface components.
 	KindUpdateComponents MessageKind = "updateComponents"
-	KindUpdateDataModel  MessageKind = "updateDataModel"
-	KindDeleteSurface    MessageKind = "deleteSurface"
-	KindUnknown          MessageKind = ""
+	// KindUpdateDataModel identifies an Envelope that updates the data model.
+	KindUpdateDataModel MessageKind = "updateDataModel"
+	// KindDeleteSurface identifies an Envelope that deletes a surface.
+	KindDeleteSurface MessageKind = "deleteSurface"
+	// KindUnknown is the zero value returned by Kind() for an empty envelope.
+	KindUnknown MessageKind = ""
 )
 
 // Kind reports which message body the envelope carries. It returns KindUnknown

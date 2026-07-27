@@ -15,6 +15,58 @@ import (
 	"github.com/xujian519/mady/prompt"
 )
 
+// JSON Schema field constants used across novelty schema construction.
+const (
+	jsType                 = "type"
+	jsString               = "string"
+	jsObject               = "object"
+	jsArray                = "array"
+	jsProperties           = "properties"
+	jsDescription          = "description"
+	jsRequired             = "required"
+	jsEnum                 = "enum"
+	jsItems                = "items"
+	jsAdditionalProperties = "additionalProperties"
+)
+
+// novelty schema field name constants.
+const (
+	noveltyFieldFeatureID          = "feature_id"
+	noveltyFieldNoveltyStatus      = "novelty_status"
+	noveltyFieldConfidence         = "confidence"
+	noveltyFieldReasoning          = "reasoning"
+	noveltyFieldSimilarPriorArt    = "similar_prior_art"
+	noveltyFieldCitedEvidenceIDs   = "cited_evidence_ids"
+	noveltyFieldConclusion         = "conclusion"
+	noveltyFieldFeatureAssessments = "feature_assessments"
+	noveltyFieldOverallConfidence  = "overall_confidence"
+)
+
+// novelty status value constants.
+const (
+	noveltyStatusLikelyNovel   = "likely_novel"
+	noveltyStatusPossiblyKnown = "possibly_known"
+	noveltyStatusLikelyKnown   = "likely_known"
+	noveltyStatusUnclear       = "unclear"
+)
+
+// confidence level constants.
+const (
+	confHigh   = "high"
+	confMedium = "medium"
+	confLow    = "low"
+)
+
+// model config constants.
+const modelDefault = "default"
+
+// coverage status constants.
+const (
+	coverageNone    = "none"
+	coveragePartial = "partial"
+	coverageFull    = "full"
+)
+
 // getMaxParallelism 返回 per-feature LLM 调用的最大并行度。
 // 环境变量 MADY_NOVELTY_PARALLEL 可覆盖默认值 3。
 func getMaxParallelism() int {
@@ -35,7 +87,7 @@ func noveltyNode(provider agentcore.Provider) graph.PregelNode {
 	batchCfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Name:        "disclosure-novelty",
-			Model:       "default",
+			Model:       modelDefault,
 			Provider:    provider,
 			Temperature: 0.2,
 		},
@@ -48,7 +100,7 @@ func noveltyNode(provider agentcore.Provider) graph.PregelNode {
 	perFeatureCfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Name:        "disclosure-novelty-per-feature",
-			Model:       "default",
+			Model:       modelDefault,
 			Provider:    provider,
 			Temperature: 0.2,
 		},
@@ -296,8 +348,8 @@ func validateCitedEvidenceIDs(assessment FeatureAssessment, evidence []EvidenceC
 
 	if invalidCount > 0 {
 		assessment.Reasoning += fmt.Sprintf(" [注：%d 个引用证据 ID 未在检索结果中找到，已剔除]", invalidCount)
-		if assessment.Confidence == "high" {
-			assessment.Confidence = "medium" // 降置信度
+		if assessment.Confidence == confHigh {
+			assessment.Confidence = confMedium // 降置信度
 		}
 	}
 	return assessment
@@ -310,11 +362,11 @@ func aggregateNoveltyResult(assessments []FeatureAssessment, state graph.PregelS
 
 	coverage, _ := state[StateKeyEvidenceCoverage].(string)
 	switch coverage {
-	case "none":
+	case coverageNone:
 		b.WriteString("⚠️ **未基于外部现有技术语料**：本次评估无可用证据，结论仅供参考，需人工核实。\n\n")
-	case "partial":
+	case coveragePartial:
 		b.WriteString("📎 **部分基于外部语料**：证据覆盖不完整，部分判断可能缺乏比对依据。\n\n")
-	case "full":
+	case coverageFull:
 		b.WriteString("✅ **基于外部现有技术语料比对**\n\n")
 	}
 
@@ -335,9 +387,9 @@ func aggregateNoveltyResult(assessments []FeatureAssessment, state graph.PregelS
 		b.WriteString("\n")
 
 		switch fa.NoveltyStatus {
-		case "likely_novel":
+		case noveltyStatusLikelyNovel:
 			novelCount++
-		case "possibly_known", "likely_known":
+		case noveltyStatusPossiblyKnown, noveltyStatusLikelyKnown:
 			knownCount++
 		default:
 			unclearCount++
@@ -364,18 +416,18 @@ func aggregateNoveltyResult(assessments []FeatureAssessment, state graph.PregelS
 	b.WriteString("\n**结论**: " + conclusion + "\n")
 
 	// 整体置信度取最低
-	overallConf := "high"
+	overallConf := confHigh
 	for _, fa := range assessments {
 		switch fa.Confidence {
-		case "low":
-			overallConf = "low"
-		case "medium":
-			if overallConf != "low" {
-				overallConf = "medium"
+		case confLow:
+			overallConf = confLow
+		case confMedium:
+			if overallConf != confLow {
+				overallConf = confMedium
 			}
 		default:
-			if overallConf == "high" {
-				overallConf = "medium"
+			if overallConf == confHigh {
+				overallConf = confMedium
 			}
 		}
 	}
@@ -413,24 +465,24 @@ var perFeatureSchemaOnce sync.Once
 func perFeatureSchema() map[string]any {
 	perFeatureSchemaOnce.Do(func() {
 		perFeatureSchemaCache = map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"feature_id":     map[string]any{"type": "string"},
-				"novelty_status": map[string]any{"type": "string", "enum": []string{"likely_novel", "possibly_known", "likely_known", "unclear"}},
-				"confidence":     map[string]any{"type": "string", "enum": []string{"high", "medium", "low"}},
-				"reasoning":      map[string]any{"type": "string"},
-				"similar_prior_art": map[string]any{
-					"type":        "string",
-					"description": "相似现有技术描述（如有）",
+			jsType: jsObject,
+			jsProperties: map[string]any{
+				noveltyFieldFeatureID:     map[string]any{jsType: jsString},
+				noveltyFieldNoveltyStatus: map[string]any{jsType: jsString, jsEnum: []string{noveltyStatusLikelyNovel, noveltyStatusPossiblyKnown, noveltyStatusLikelyKnown, noveltyStatusUnclear}},
+				noveltyFieldConfidence:    map[string]any{jsType: jsString, jsEnum: []string{confHigh, confMedium, confLow}},
+				noveltyFieldReasoning:     map[string]any{jsType: jsString},
+				noveltyFieldSimilarPriorArt: map[string]any{
+					jsType:        jsString,
+					jsDescription: "相似现有技术描述（如有）",
 				},
-				"cited_evidence_ids": map[string]any{
-					"type":        "array",
-					"items":       map[string]any{"type": "string"},
-					"description": "引用的证据 doc_id（来自提供的证据列表）",
+				noveltyFieldCitedEvidenceIDs: map[string]any{
+					jsType:        jsArray,
+					jsItems:       map[string]any{jsType: jsString},
+					jsDescription: "引用的证据 doc_id（来自提供的证据列表）",
 				},
 			},
-			"required":             []string{"feature_id", "novelty_status", "confidence", "reasoning"},
-			"additionalProperties": false,
+			jsRequired:             []string{noveltyFieldFeatureID, noveltyFieldNoveltyStatus, noveltyFieldConfidence, noveltyFieldReasoning},
+			jsAdditionalProperties: false,
 		}
 	})
 	return perFeatureSchemaCache
@@ -473,8 +525,8 @@ func parsePerFeatureOutput(output string, featureID string) FeatureAssessment {
 	if jsonStr == "" {
 		return FeatureAssessment{
 			FeatureID:     featureID,
-			NoveltyStatus: "unclear",
-			Confidence:    "low",
+			NoveltyStatus: noveltyStatusUnclear,
+			Confidence:    confLow,
 			Reasoning:     "LLM 输出解析失败，无法判断",
 		}
 	}
@@ -490,8 +542,8 @@ func parsePerFeatureOutput(output string, featureID string) FeatureAssessment {
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
 		return FeatureAssessment{
 			FeatureID:     featureID,
-			NoveltyStatus: "unclear",
-			Confidence:    "low",
+			NoveltyStatus: noveltyStatusUnclear,
+			Confidence:    confLow,
 			Reasoning:     fmt.Sprintf("JSON 解析错误: %v", err),
 		}
 	}
@@ -501,10 +553,10 @@ func parsePerFeatureOutput(output string, featureID string) FeatureAssessment {
 		parsed.FeatureID = featureID
 	}
 	if parsed.NoveltyStatus == "" {
-		parsed.NoveltyStatus = "unclear"
+		parsed.NoveltyStatus = noveltyStatusUnclear
 	}
 	if parsed.Confidence == "" {
-		parsed.Confidence = "low"
+		parsed.Confidence = confLow
 	}
 
 	return FeatureAssessment{
@@ -521,7 +573,7 @@ func parsePerFeatureOutput(output string, featureID string) FeatureAssessment {
 // 以便 LLM 在无证据时明确说明"无法基于外部语料判断"。
 func extractEvidenceForPrompt(state graph.PregelState) string {
 	coverage, _ := state[StateKeyEvidenceCoverage].(string)
-	if coverage == "none" {
+	if coverage == coverageNone {
 		return "（无可用现有技术证据——无法基于外部语料判断，请在结论中说明此限制）"
 	}
 	raw, ok := state[StateKeyEvidence]
@@ -551,37 +603,37 @@ var noveltySchemaOnce sync.Once
 func noveltySchema() map[string]any {
 	noveltySchemaOnce.Do(func() {
 		noveltySchemaCache = map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"conclusion": map[string]any{
-					"type":        "string",
-					"description": "整体新颖性判断结论",
+			jsType: jsObject,
+			jsProperties: map[string]any{
+				noveltyFieldConclusion: map[string]any{
+					jsType:        jsString,
+					jsDescription: "整体新颖性判断结论",
 				},
-				"feature_assessments": map[string]any{
-					"type": "array",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"feature_id":        map[string]any{"type": "string"},
-							"novelty_status":    map[string]any{"type": "string", "enum": []string{"likely_novel", "possibly_known", "likely_known", "unclear"}},
-							"confidence":        map[string]any{"type": "string", "enum": []string{"high", "medium", "low"}},
-							"reasoning":         map[string]any{"type": "string"},
-							"similar_prior_art": map[string]any{"type": "string"},
-							"cited_evidence_ids": map[string]any{
-								"type":        "array",
-								"items":       map[string]any{"type": "string"},
-								"description": "引用的现有技术证据 doc_id 列表（来自 prompt 中的证据列表）。无证据时为空数组。",
+				noveltyFieldFeatureAssessments: map[string]any{
+					jsType: jsArray,
+					jsItems: map[string]any{
+						jsType: jsObject,
+						jsProperties: map[string]any{
+							noveltyFieldFeatureID:       map[string]any{jsType: jsString},
+							noveltyFieldNoveltyStatus:   map[string]any{jsType: jsString, jsEnum: []string{noveltyStatusLikelyNovel, noveltyStatusPossiblyKnown, noveltyStatusLikelyKnown, noveltyStatusUnclear}},
+							noveltyFieldConfidence:      map[string]any{jsType: jsString, jsEnum: []string{confHigh, confMedium, confLow}},
+							noveltyFieldReasoning:       map[string]any{jsType: jsString},
+							noveltyFieldSimilarPriorArt: map[string]any{jsType: jsString},
+							noveltyFieldCitedEvidenceIDs: map[string]any{
+								jsType:        jsArray,
+								jsItems:       map[string]any{jsType: jsString},
+								jsDescription: "引用的现有技术证据 doc_id 列表（来自 prompt 中的证据列表）。无证据时为空数组。",
 							},
 						},
-						"required": []string{"feature_id", "novelty_status", "confidence", "reasoning"},
+						jsRequired: []string{noveltyFieldFeatureID, noveltyFieldNoveltyStatus, noveltyFieldConfidence, noveltyFieldReasoning},
 					},
 				},
-				"overall_confidence": map[string]any{
-					"type": "string",
-					"enum": []string{"high", "medium", "low"},
+				noveltyFieldOverallConfidence: map[string]any{
+					jsType: jsString,
+					jsEnum: []string{confHigh, confMedium, confLow},
 				},
 			},
-			"required": []string{"conclusion", "feature_assessments", "overall_confidence"},
+			jsRequired: []string{noveltyFieldConclusion, noveltyFieldFeatureAssessments, noveltyFieldOverallConfidence},
 		}
 	})
 	return noveltySchemaCache
@@ -627,11 +679,11 @@ func parseNoveltyOutput(output string, state graph.PregelState) *NoveltyResult {
 	// 反映证据覆盖状态，让人工审阅者知道判断是否基于真实语料。
 	coverage, _ := state[StateKeyEvidenceCoverage].(string)
 	switch coverage {
-	case "none":
+	case coverageNone:
 		b.WriteString("⚠️ **未基于外部现有技术语料**：本次评估无可用证据，结论仅供参考，需人工核实。\n\n")
-	case "partial":
+	case coveragePartial:
 		b.WriteString("📎 **部分基于外部语料**：证据覆盖不完整，部分判断可能缺乏比对依据。\n\n")
-	case "full":
+	case coverageFull:
 		b.WriteString("✅ **基于外部现有技术语料比对**\n\n")
 	}
 

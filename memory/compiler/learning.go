@@ -49,7 +49,7 @@ func NewCompiler(cfg Config) *Compiler {
 		explorationRate: cfg.ExplorationRate,
 		maxTraces:       cfg.MaxTraces,
 		decayCfg:        cfg.DecayConfig,
-		rng:             rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:             rand.New(rand.NewSource(time.Now().UnixNano())), //nolint:gosec // non-security: ε-greedy strategy exploration
 	}
 }
 
@@ -180,6 +180,7 @@ type Stats struct {
 	FailureTraces   int
 }
 
+// Stats returns a snapshot of the compiler's aggregated statistics.
 func (c *Compiler) Stats() Stats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -235,7 +236,7 @@ func (c *Compiler) Save(path string) error {
 		return fmt.Errorf("compiler: write %s: %w", tmpPath, err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath) // cleanup
+		_ = os.Remove(tmpPath) // cleanup
 		return fmt.Errorf("compiler: rename %s -> %s: %w", tmpPath, path, err)
 	}
 	return nil
@@ -246,7 +247,7 @@ func (c *Compiler) Save(path string) error {
 // unconditionally call Load on startup. Existing in-memory strategies are
 // replaced by the loaded data.
 func (c *Compiler) Load(path string) error {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // path is from caller (typically filepath.Join(madyHome, "compiler.json"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil // no saved state, start fresh

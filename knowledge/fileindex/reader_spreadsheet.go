@@ -43,11 +43,11 @@ func (fr *FileReader) readSpreadsheet(ctx context.Context, path string) (*FileRe
 
 // readCSV reads a CSV file and formats it as text.
 func (fr *FileReader) readCSV(ctx context.Context, path string) (*FileReadResult, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // path is from file index, validated by caller
 	if err != nil {
 		return nil, fmt.Errorf("打开 CSV 文件失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Detect encoding by reading the first few bytes (for BOM).
 	reader := bufio.NewReader(f)
@@ -124,7 +124,7 @@ func (fr *FileReader) readXLSX(ctx context.Context, path string) (*FileReadResul
 	if err != nil {
 		return nil, fmt.Errorf("打开 XLSX 文件失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sheets := f.GetSheetList()
 	if len(sheets) == 0 {

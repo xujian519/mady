@@ -43,8 +43,10 @@ type ToolCallJSON struct {
 	Arguments map[string]any `json:"arguments"`
 }
 
+// Name returns "tool_accuracy".
 func (m ToolAccuracy) Name() string { return "tool_accuracy" }
 
+// Compute evaluates tool call fidelity against an expected sequence.
 func (m ToolAccuracy) Compute(prediction, reference string) float64 {
 	predCalls := parseToolCalls(prediction)
 	refCalls := parseToolCalls(reference)
@@ -159,7 +161,9 @@ func valuesMatch(expected, actual any, strict bool) bool {
 		return fmt.Sprintf("%T(%v)", expected, expected) == fmt.Sprintf("%T(%v)", actual, actual)
 	}
 	// Non-strict: compare JSON representations for tolerance.
+	//nolint:errchkjson // expected is any, deliberately
 	ej, _ := json.Marshal(expected)
+	//nolint:errchkjson // actual is any, deliberately
 	aj, _ := json.Marshal(actual)
 	return bytes.Equal(ej, aj)
 }
@@ -285,6 +289,7 @@ func NormalizeToolCalls(s string) string {
 		}
 		return fmt.Sprintf("%v", calls[i].Arguments) < fmt.Sprintf("%v", calls[j].Arguments)
 	})
+	//nolint:errchkjson // ToolCallJSON.Arguments is map[string]any
 	data, _ := json.Marshal(calls)
 	return string(data)
 }

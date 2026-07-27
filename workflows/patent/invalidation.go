@@ -55,11 +55,16 @@ const (
 type InvalidationGroundType string
 
 const (
-	GroundNovelty       InvalidationGroundType = "A22.2_novelty"
+	// GroundNovelty corresponds to Article 22.2 (lack of novelty).
+	GroundNovelty InvalidationGroundType = "A22.2_novelty"
+	// GroundInventiveness corresponds to Article 22.3 (lack of inventive step).
 	GroundInventiveness InvalidationGroundType = "A22.3_inventiveness"
-	GroundDisclosure    InvalidationGroundType = "A26.3_disclosure"
-	GroundClaimClarity  InvalidationGroundType = "A26.4_clarity"
-	GroundAmendment     InvalidationGroundType = "A33_amendment"
+	// GroundDisclosure corresponds to Article 26.3 (insufficient disclosure).
+	GroundDisclosure InvalidationGroundType = "A26.3_disclosure"
+	// GroundClaimClarity corresponds to Article 26.4 (unclear claims).
+	GroundClaimClarity InvalidationGroundType = "A26.4_clarity"
+	// GroundAmendment corresponds to Article 33 (amendment beyond original disclosure).
+	GroundAmendment InvalidationGroundType = "A33_amendment"
 )
 
 // InvClaimNode represents a single parsed claim from the target patent.
@@ -159,23 +164,23 @@ func extractClaimsFromText(text string) []InvClaimNode {
 var invalidationGroundRules = []groundPattern{
 	{TypeKey: string(GroundNovelty), Article: "专利法第22条第2款",
 		Desc:     "新颖性无效（不具备新颖性）",
-		Patterns: []string{"22条第2款", "22.2", "新颖性", "不具备新颖"}},
+		Patterns: []string{"22条第2款", "22.2", termNovelty, "不具备新颖"}},
 	{TypeKey: string(GroundInventiveness), Article: "专利法第22条第3款",
 		Desc:     "创造性无效（不具备创造性）",
-		Patterns: []string{"22条第3款", "22.3", "创造性", "不具备创造"}},
+		Patterns: []string{"22条第3款", "22.3", termInventiveness, "不具备创造"}},
 	{TypeKey: string(GroundDisclosure), Article: "专利法第26条第3款",
 		Desc:     "公开不充分无效",
-		Patterns: []string{"26条第3款", "26.3", "公开充分", "充分公开", "能够实现"}},
+		Patterns: []string{"26条第3款", "26.3", "公开充分", termSufficientDisclosure, "能够实现"}},
 	{TypeKey: string(GroundClaimClarity), Article: "专利法第26条第4款",
 		Desc:     "权利要求不清楚/得不到支持无效",
 		Patterns: []string{"26条第4款", "26.4", "清楚", "支持"}},
 	{TypeKey: string(GroundAmendment), Article: "专利法第33条",
 		Desc:     "修改超范围无效",
-		Patterns: []string{"第33条", "A33", "修改超范围", "超出原"}},
+		Patterns: []string{"第33条", "A33", termAmendmentExceed, "超出原"}},
 }
 
 // identifyInvalidationGrounds scans the input text for invalidation ground
-// references (e.g. "第22条第2款", "A22.2", "新颖性", "创造性", "公开充分").
+// references (e.g. "第22条第2款", "A22.2", termNovelty, termInventiveness, "公开充分").
 func identifyInvalidationGrounds(text string) []InvGround {
 	matched := scanGrounds(text, invalidationGroundRules)
 	var grounds []InvGround
@@ -741,7 +746,7 @@ type yamlOrchestration struct {
 // BuildInvalidationGraphFromYAML constructs the invalidation analysis Pregel graph
 // with suggestions injected from a YAML orchestration file.
 func BuildInvalidationGraphFromYAML(yamlPath string) (*graph.CompiledPregelGraph, error) {
-	data, err := os.ReadFile(yamlPath)
+	data, err := os.ReadFile(yamlPath) //nolint:gosec // yamlPath is from caller (typically filepath.Join to rules/orchestrations dir)
 	if err != nil {
 		return nil, fmt.Errorf("read orchestration YAML %s: %w", yamlPath, err)
 	}

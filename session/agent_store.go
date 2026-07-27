@@ -62,6 +62,7 @@ func NewAgentStore(sessions *FileStore, cwd string) *AgentStore {
 	return &AgentStore{sessions: sessions, cwd: cwd}
 }
 
+// Save persists an agent state snapshot into the session store.
 func (s *AgentStore) Save(ctx context.Context, key string, snap agentcore.StateSnapshot) error {
 	mgr, err := s.openOrCreate(ctx, key)
 	if err != nil {
@@ -98,6 +99,7 @@ func (s *AgentStore) Save(ctx context.Context, key string, snap agentcore.StateS
 	return nil
 }
 
+// Load retrieves an agent state snapshot from the session store.
 func (s *AgentStore) Load(ctx context.Context, key string) (agentcore.StateSnapshot, error) {
 	mgr, err := s.sessions.Open(ctx, key)
 	if err != nil {
@@ -121,14 +123,17 @@ func (s *AgentStore) Load(ctx context.Context, key string) (agentcore.StateSnaps
 	return snap, nil
 }
 
+// Delete removes an agent session by key.
 func (s *AgentStore) Delete(ctx context.Context, key string) error {
 	return s.sessions.Delete(ctx, key)
 }
 
+// Has checks whether an agent session exists by key.
 func (s *AgentStore) Has(ctx context.Context, key string) (bool, error) {
 	return s.sessions.Has(ctx, key)
 }
 
+// List returns all agent session keys.
 func (s *AgentStore) List(ctx context.Context) ([]string, error) {
 	info, err := s.sessions.List(ctx)
 	if err != nil {

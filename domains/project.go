@@ -69,7 +69,10 @@ type Deadline struct {
 const (
 	registryFileName = "registry.json"
 	metaFileName     = "meta.json"
+)
 
+// Project status constants.
+const (
 	StatusActive      = "active"
 	StatusArchived    = "archived"
 	StatusUnreachable = "unreachable"
@@ -242,7 +245,7 @@ func (r *ProjectRegistry) projectDir(projectID string) string {
 // SaveMeta 保存案件元数据到 workspace/projects/{projectID}/meta.json。
 func (r *ProjectRegistry) SaveMeta(projectID string, meta *ProjectMeta) error {
 	dir := r.projectDir(projectID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("创建案件数据目录: %w", err)
 	}
 
@@ -262,14 +265,14 @@ func (r *ProjectRegistry) SaveMeta(projectID string, meta *ProjectMeta) error {
 func (r *ProjectRegistry) LoadMeta(projectID string) (*ProjectMeta, error) {
 	path := filepath.Join(r.projectDir(projectID), metaFileName)
 
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // filepath.Join(r.projectDir, metaFileName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("meta 不存在: %s", projectID)
 		}
 		return nil, fmt.Errorf("打开 meta: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	data, err := io.ReadAll(f)
 	if err != nil {
@@ -294,14 +297,14 @@ func (r *ProjectRegistry) registryPath() string {
 func (r *ProjectRegistry) load() error {
 	path := r.registryPath()
 
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // path = filepath.Join(r.baseDir, registryFileName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil // 文件不存在 = 空注册表
 		}
 		return fmt.Errorf("打开 registry: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	data, err := io.ReadAll(f)
 	if err != nil {
@@ -324,7 +327,7 @@ func (r *ProjectRegistry) load() error {
 
 // persistLocked 写入 registry.json（调用者持有锁）。
 func (r *ProjectRegistry) persistLocked() error {
-	if err := os.MkdirAll(r.baseDir, 0o755); err != nil {
+	if err := os.MkdirAll(r.baseDir, 0o750); err != nil {
 		return fmt.Errorf("创建 registry 目录: %w", err)
 	}
 

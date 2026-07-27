@@ -311,7 +311,7 @@ func (c *CamofoxClient) Screenshot(taskID string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("screenshot failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("screenshot returned status %d", resp.StatusCode)
@@ -369,7 +369,7 @@ func (c *CamofoxClient) GetVNCURL() string {
 	if err != nil {
 		return ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var health map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&health); err != nil {
@@ -403,7 +403,7 @@ func (c *CamofoxClient) doJSON(method string, path string, body map[string]any) 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body

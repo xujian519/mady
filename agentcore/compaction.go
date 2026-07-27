@@ -30,8 +30,10 @@ const compactionSummaryEndMarker = "\n\n--- 上下文摘要结束 — " +
 
 const prunedToolPlaceholder = "[旧工具输出已清除以节省上下文空间]"
 
+//nolint:unused // used indirectly via contentLengthForBudget in compaction_test.go
 const charsPerToken = 4
 
+//nolint:unused // used by contentLengthForBudget in compaction_test.go
 const imageCharEquivalent = imageTokenEstimate * charsPerToken
 
 const minSummaryTokens = 2000
@@ -86,6 +88,7 @@ func newCompactionState() *compactionState {
 	}
 }
 
+//nolint:unused // used in compaction_test.go
 func contentLengthForBudget(rawContent any) int64 {
 	switch c := rawContent.(type) {
 	case string:

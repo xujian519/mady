@@ -5,6 +5,7 @@ import "time"
 // CaseType identifies a patent/legal business-process transaction type.
 type CaseType string
 
+// Predefined case/business-process type constants.
 const (
 	CaseNoveltySearch      CaseType = "novelty_search"
 	CasePatentability      CaseType = "patentability"
@@ -25,6 +26,7 @@ const (
 // FactCollectorID identifies which collector produced a fact (Stage ①).
 type FactCollectorID string
 
+// Collector ID constants.
 const (
 	CollectorUserInput FactCollectorID = "user_input" // 用户输入提取
 	CollectorDocuments FactCollectorID = "documents"  // 文档解析
@@ -35,6 +37,7 @@ const (
 // FactCategory groups facts for filtering (Stage ① → Stage ③).
 type FactCategory string
 
+// Fact category constants.
 const (
 	FactCategoryTechnical  FactCategory = "technical"  // 技术特征
 	FactCategoryLegal      FactCategory = "legal"      // 法律要件
@@ -63,6 +66,7 @@ func (f FactEntry) IsDiscarded() bool { return f.DiscardedAt != "" }
 // Requirement is the enforcement level of a rule constraint.
 type Requirement string
 
+// Requirement level constants.
 const (
 	ReqMust   Requirement = "must"
 	ReqShould Requirement = "should"
@@ -81,6 +85,7 @@ type RuleConstraint struct {
 // RuleConfirmation records the human operator's verdict on a retrieved rule.
 type RuleConfirmation string
 
+// Rule confirmation status constants.
 const (
 	RuleConfirmed RuleConfirmation = "confirmed" // adopted verbatim
 	RuleModified  RuleConfirmation = "modified"  // adopted with edits
@@ -167,6 +172,7 @@ type ArticleStepResult struct {
 // ConfidenceLevel rates the reliability of an article judgment.
 type ConfidenceLevel string
 
+// Confidence level constants.
 const (
 	ConfidenceHigh   ConfidenceLevel = "high"
 	ConfidenceMedium ConfidenceLevel = "medium"
@@ -204,6 +210,7 @@ type ExecutionPlan struct {
 // RuleSource identifies which retrieval source produced a rule (Stage ②).
 type RuleSource string
 
+// Rule source constants.
 const (
 	RuleSourceKG     RuleSource = "knowledge_graph"     // 知识图谱
 	RuleSourceVector RuleSource = "vector_db"           // 向量数据库
@@ -226,6 +233,7 @@ type RetrievedRule struct {
 // StrategyType defines how a PlanStep is executed (Stage ④).
 type StrategyType string
 
+// Strategy type constants.
 const (
 	StrategyReact           StrategyType = "react"
 	StrategyChain           StrategyType = "chain"
@@ -238,6 +246,7 @@ const (
 // keep the domains/reasoning layer free of knowledge/graph import cycles.
 type WorkflowRelation string
 
+// Workflow relation type constants.
 const (
 	WorkflowRelCites     WorkflowRelation = "CITES"      // 引用法条 — 必须检查的实体要求
 	WorkflowRelApplies   WorkflowRelation = "APPLIES"    // 适用 — 需要案例对比/正反方辩论
@@ -290,6 +299,7 @@ type WorkflowTopology struct {
 // PlanIntent describes the cognitive mode of a Plan (Stage ③).
 type PlanIntent string
 
+// Plan intent constants.
 const (
 	PlanIntentSimple          PlanIntent = "simple"           // 单步，模板驱动
 	PlanIntentChain           PlanIntent = "chain"            // 多步链式，模板驱动

@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// Status represents the lifecycle state of an agent.
 type Status string
 
 // Status values for the Agent lifecycle state machine.
@@ -28,16 +29,19 @@ type AgentState struct {
 	interrupt      *InterruptReason
 }
 
+// NewState creates a new AgentState with the initial status set to idle.
 func NewState() *AgentState {
 	return &AgentState{status: StatusIdle}
 }
 
+// Status returns the current lifecycle status of the agent.
 func (s *AgentState) Status() Status {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.status
 }
 
+// SetStatus transitions the agent to the given status, logging illegal transitions.
 func (s *AgentState) SetStatus(st Status) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -66,6 +70,7 @@ func isValidTransition(from, to Status) bool {
 	return false
 }
 
+// Messages returns a deep-copied slice of all conversation messages.
 func (s *AgentState) Messages() []Message {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -90,6 +95,8 @@ func (s *AgentState) messagesReadOnly() []Message {
 	return cp
 }
 
+// AddMessage appends a message to the conversation, or replaces an existing
+// message with a matching non-empty ID.
 func (s *AgentState) AddMessage(m Message) {
 	m = m.Clone()
 	s.mu.Lock()
@@ -130,12 +137,14 @@ func (s *AgentState) ReplaceMessages(msgs []Message) {
 	}
 }
 
+// Turn returns the current turn number.
 func (s *AgentState) Turn() int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.turn
 }
 
+// NextTurn increments the turn counter and returns the new value.
 func (s *AgentState) NextTurn() int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -143,12 +152,14 @@ func (s *AgentState) NextTurn() int64 {
 	return s.turn
 }
 
+// SetPendingHandoff stores a pending handoff for transfer-mode delegation.
 func (s *AgentState) SetPendingHandoff(h *PendingHandoff) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pendingHandoff = h
 }
 
+// PendingHandoff returns a copy of the pending handoff, or nil if none.
 func (s *AgentState) PendingHandoff() *PendingHandoff {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -159,6 +170,7 @@ func (s *AgentState) PendingHandoff() *PendingHandoff {
 	return &cp
 }
 
+// ClearPendingHandoff removes any pending handoff from the state.
 func (s *AgentState) ClearPendingHandoff() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -181,7 +193,7 @@ func (s *AgentState) TotalUsage() TokenUsage {
 	return s.totalUsage
 }
 
-// Snapshot serializes the current state for persistence / resume.
+// StateSnapshot is a serializable snapshot of the agent's state for persistence and resume.
 type StateSnapshot struct {
 	Status          Status           `json:"status"`
 	Messages        []Message        `json:"messages"`
@@ -190,6 +202,7 @@ type StateSnapshot struct {
 	InterruptReason *InterruptReason `json:"interrupt_reason,omitempty"`
 }
 
+// Snapshot captures the current agent state as a serializable StateSnapshot.
 func (s *AgentState) Snapshot() StateSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -211,6 +224,7 @@ func (s *AgentState) Snapshot() StateSnapshot {
 	}
 }
 
+// Restore replaces the current agent state with the given snapshot.
 func (s *AgentState) Restore(snap StateSnapshot) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -259,10 +273,12 @@ func (s *AgentState) ClearInterruptReason() {
 	s.interrupt = nil
 }
 
+// MarshalJSON serializes the agent state as a JSON snapshot.
 func (s *AgentState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.Snapshot())
 }
 
+// UnmarshalJSON deserializes the agent state from a JSON snapshot.
 func (s *AgentState) UnmarshalJSON(data []byte) error {
 	var snap StateSnapshot
 	if err := json.Unmarshal(data, &snap); err != nil {

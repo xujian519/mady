@@ -12,15 +12,18 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// Handler serves AGUI protocol requests over HTTP/SSE.
 type Handler struct {
 	mu     sync.RWMutex
 	config agentcore.Config
 }
 
+// NewHandler creates a new AGUI Handler with the given base configuration.
 func NewHandler(cfg agentcore.Config) *Handler {
 	return &Handler{config: cfg}
 }
 
+// UpdateConfig atomically replaces the handler's agent configuration.
 func (h *Handler) UpdateConfig(cfg agentcore.Config) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -44,7 +47,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) handleCapabilities(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleCapabilities(w http.ResponseWriter, _ *http.Request) {
 	cfg := h.snapshotConfig()
 	caps := CapabilitiesFromConfig(cfg)
 	writeJSON(w, http.StatusOK, caps)
@@ -138,7 +141,7 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	// 在每个 turn 结束后发射状态快照，使前端能追踪 Agent 状态变化。
 	// Snapshot() 内部持有 RLock，线程安全。
-	unregisterSnap := agent.On(agentcore.EventTurnEnd, func(e agentcore.Event) {
+	unregisterSnap := agent.On(agentcore.EventTurnEnd, func(_ agentcore.Event) {
 		snap := agent.State().Snapshot()
 		mu.Lock()
 		writeSSE(w, flusher, string(EventStateSnapshot),
@@ -216,11 +219,11 @@ func writeSSE(w http.ResponseWriter, flusher http.Flusher, eventType string, dat
 	payload, marshalErr := json.Marshal(data)
 	if marshalErr != nil {
 		slog.Default().Warn("agui: writeSSE marshal failed", "err", marshalErr)
-		fmt.Fprintf(w, "event: %s\ndata: {}\n\n", eventType)
+		_, _ = fmt.Fprintf(w, "event: %s\ndata: {}\n\n", eventType)
 		flusher.Flush()
 		return
 	}
-	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, payload)
+	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, payload)
 	flusher.Flush()
 }
 

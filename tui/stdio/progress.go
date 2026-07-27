@@ -58,7 +58,7 @@ func (p *ProgressBar) Set(value int64) {
 	p.mu.Unlock()
 
 	if output != "" {
-		fmt.Fprint(w, output)
+		_, _ = fmt.Fprint(w, output)
 	}
 }
 
@@ -74,7 +74,7 @@ func (p *ProgressBar) Increment(delta int64) {
 	p.mu.Unlock()
 
 	if output != "" {
-		fmt.Fprint(w, output)
+		_, _ = fmt.Fprint(w, output)
 	}
 }
 
@@ -87,9 +87,9 @@ func (p *ProgressBar) Done() {
 	p.mu.Unlock()
 
 	if output != "" {
-		fmt.Fprint(w, output)
+		_, _ = fmt.Fprint(w, output)
 	}
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 }
 
 // renderLocked builds the progress bar output string. Must be called with
@@ -148,7 +148,7 @@ func (d *TokenUsageDisplay) SetWriter(w io.Writer) { d.writer = w }
 
 // Render displays the token usage in a compact format.
 func (d *TokenUsageDisplay) Render(prompt, completion, total int64) {
-	fmt.Fprintln(d.writer, d.style.Render(
+	_, _ = fmt.Fprintln(d.writer, d.style.Render(
 		fmt.Sprintf("[token usage: prompt=%d tokens, completion=%d tokens, total=%d tokens]", prompt, completion, total),
 	))
 }
@@ -189,7 +189,7 @@ func (d *TokenUsageDisplay) RenderDetailed(prompt, completion, total int64, mode
 		lines = append(lines, fmt.Sprintf("Speed: %.1f tok/s (%s)", tokPerSec, dur.Round(time.Millisecond)))
 	}
 
-	fmt.Fprintln(d.writer, RenderBox("Token Usage", strings.Join(lines, "\n"), maxWidth+4))
+	_, _ = fmt.Fprintln(d.writer, RenderBox("Token Usage", strings.Join(lines, "\n"), maxWidth+4))
 }
 
 // ---------------------------------------------------------------------------

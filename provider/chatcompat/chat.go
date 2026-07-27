@@ -17,6 +17,7 @@ import (
 
 const defaultBaseURL = "https://api.openai.com/v1"
 
+// Config configures the Chat Completions provider.
 type Config struct {
 	APIKey  string
 	BaseURL string
@@ -62,6 +63,7 @@ type Provider struct {
 	client *http.Client
 }
 
+// New creates a Chat Completions provider with the given configuration.
 func New(cfg Config) *Provider {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = defaultBaseURL
@@ -213,6 +215,7 @@ type chunkFunctionCall struct {
 
 // --- type conversion helpers ---
 
+// ToMessages converts agentcore messages to Chat Completions wire format.
 func ToMessages(msgs []agentcore.Message) []chatMessage {
 	out := make([]chatMessage, len(msgs))
 	for i, m := range msgs {
@@ -248,6 +251,8 @@ func ToMessages(msgs []agentcore.Message) []chatMessage {
 	return out
 }
 
+// MessageContent converts a message's content into the Chat Completions wire
+// format, handling multi-block content with text and image parts.
 func MessageContent(m agentcore.Message) any {
 	if len(m.Blocks) == 0 {
 		return m.Content
@@ -281,6 +286,7 @@ func MessageContent(m agentcore.Message) any {
 	return parts
 }
 
+// ToTools converts agentcore tool definitions to Chat Completions wire format.
 func ToTools(defs []agentcore.ToolDefinition) []chatTool {
 	if len(defs) == 0 {
 		return nil
@@ -301,6 +307,7 @@ func ToTools(defs []agentcore.ToolDefinition) []chatTool {
 
 // --- Provider interface implementation ---
 
+// Complete sends a synchronous Chat Completions request and returns the response.
 func (p *Provider) Complete(ctx context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
 	if p.config.Protocol == APIProtocolResponses {
 		return p.completeResponses(ctx, req)
@@ -311,7 +318,7 @@ func (p *Provider) Complete(ctx context.Context, req *agentcore.ProviderRequest)
 	if err != nil {
 		return nil, err
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	if httpResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(httpResp.Body, 4096))
@@ -361,6 +368,7 @@ func (p *Provider) Complete(ctx context.Context, req *agentcore.ProviderRequest)
 	return resp, nil
 }
 
+// Stream sends a streaming Chat Completions request and returns a channel of deltas.
 func (p *Provider) Stream(ctx context.Context, req *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
 	if p.config.Protocol == APIProtocolResponses {
 		return p.streamResponses(ctx, req)
@@ -374,14 +382,20 @@ func (p *Provider) Stream(ctx context.Context, req *agentcore.ProviderRequest) (
 
 	if httpResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(httpResp.Body, 4096))
-		httpResp.Body.Close()
+		_ = httpResp.Body.Close()
 		return nil, fmt.Errorf("api error (status %d): %s", httpResp.StatusCode, formatError(body))
 	}
 
-	ch := make(chan agentcore.StreamDelta, 64)
+	return p.readSSEStream(ctx, httpResp), nil
+}
 
+// readSSEStream reads an SSE stream from httpResp.Body, sending StreamDelta
+// values to the returned channel. It takes ownership of httpResp and closes
+// its body when the stream is fully consumed.
+func (p *Provider) readSSEStream(ctx context.Context, httpResp *http.Response) <-chan agentcore.StreamDelta {
+	ch := make(chan agentcore.StreamDelta, 64)
 	go func() {
-		defer httpResp.Body.Close()
+		defer func() { _ = httpResp.Body.Close() }()
 		defer close(ch)
 
 		scanner := bufio.NewScanner(httpResp.Body)
@@ -456,8 +470,7 @@ func (p *Provider) Stream(ctx context.Context, req *agentcore.ProviderRequest) (
 			}
 		}
 	}()
-
-	return ch, nil
+	return ch
 }
 
 // --- internal helpers ---
@@ -546,6 +559,7 @@ func shouldOmitResponseFormat(baseURL string, format *agentcore.ResponseFormat) 
 	return strings.Contains(base, "api.deepseek.com")
 }
 
+// ToResponseFormat converts agentcore ResponseFormat to Chat Completions wire format.
 func ToResponseFormat(format *agentcore.ResponseFormat) *chatResponseFormat {
 	if format == nil {
 		return nil
@@ -562,6 +576,7 @@ func ToResponseFormat(format *agentcore.ResponseFormat) *chatResponseFormat {
 	return out
 }
 
+// TextBlocks creates a single text content block from a string.
 func TextBlocks(text string) []agentcore.ContentBlock {
 	if text == "" {
 		return nil

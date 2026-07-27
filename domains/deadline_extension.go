@@ -24,10 +24,16 @@ func NewDeadlineCalculatorExtension() *DeadlineCalculatorExtension {
 	return &DeadlineCalculatorExtension{}
 }
 
-func (e *DeadlineCalculatorExtension) Name() string                                     { return deadlineExtName }
-func (e *DeadlineCalculatorExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
-func (e *DeadlineCalculatorExtension) Dispose() error                                   { return nil }
+// Name returns the extension identifier.
+func (e *DeadlineCalculatorExtension) Name() string { return deadlineExtName }
 
+// Init initializes the deadline calculator extension — currently a no-op.
+func (e *DeadlineCalculatorExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
+
+// Dispose cleans up the deadline calculator extension — currently a no-op.
+func (e *DeadlineCalculatorExtension) Dispose() error { return nil }
+
+// Tools returns the deadline calculation tool for agent use.
 func (e *DeadlineCalculatorExtension) Tools() []*agentcore.Tool {
 	return []*agentcore.Tool{
 		deadlineTool(),

@@ -42,6 +42,7 @@ func (s *sessionState) Cancel() {
 	}
 }
 
+// SessionManager manages ACP session lifecycle (create, load, fork, list, cleanup).
 type SessionManager struct {
 	sessions *csync.Map[string, *sessionState]
 
@@ -52,6 +53,7 @@ type SessionManager struct {
 	logger       *slog.Logger
 }
 
+// SessionManagerConfig configures a SessionManager.
 type SessionManagerConfig struct {
 	AgentFactory AgentFactory
 	SessionStore SessionStore
@@ -59,6 +61,7 @@ type SessionManagerConfig struct {
 	Logger       *slog.Logger
 }
 
+// NewSessionManager creates a new SessionManager and restores persisted sessions.
 func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -79,6 +82,9 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 	return sm
 }
 
+// CreateSession creates a new agent session with the given working directory.
+//
+//nolint:revive // intentionally returns unexported sessionState
 func (sm *SessionManager) CreateSession(ctx context.Context, cwd, sessionID string) (*sessionState, error) {
 	if cwd == "" {
 		cwd = "."
@@ -125,11 +131,17 @@ func (sm *SessionManager) CreateSession(ctx context.Context, cwd, sessionID stri
 	return state, nil
 }
 
+// GetSession returns the session state for the given session ID, or nil.
+//
+//nolint:revive // intentionally returns unexported sessionState
 func (sm *SessionManager) GetSession(sessionID string) *sessionState {
 	state, _ := sm.sessions.Get(sessionID)
 	return state
 }
 
+// UpdateCWD updates the working directory for a session and returns its state.
+//
+//nolint:revive // intentionally returns unexported sessionState
 func (sm *SessionManager) UpdateCWD(sessionID, cwd string) *sessionState {
 	state := sm.GetSession(sessionID)
 	if state == nil {
@@ -144,6 +156,7 @@ func (sm *SessionManager) UpdateCWD(sessionID, cwd string) *sessionState {
 	return state
 }
 
+// UpdateModel changes the model for a session and persists the update.
 func (sm *SessionManager) UpdateModel(sessionID, model string) error {
 	state := sm.GetSession(sessionID)
 	if state == nil {
@@ -154,6 +167,7 @@ func (sm *SessionManager) UpdateModel(sessionID, model string) error {
 	return nil
 }
 
+// UpdateMode changes the execution mode for a session and persists the update.
 func (sm *SessionManager) UpdateMode(sessionID, mode string) error {
 	state := sm.GetSession(sessionID)
 	if state == nil {
@@ -164,6 +178,7 @@ func (sm *SessionManager) UpdateMode(sessionID, mode string) error {
 	return nil
 }
 
+// SetRunning marks a session as running and stores the cancel function.
 func (sm *SessionManager) SetRunning(sessionID string, cancel context.CancelFunc) {
 	state, ok := sm.sessions.Get(sessionID)
 	if !ok {
@@ -175,6 +190,7 @@ func (sm *SessionManager) SetRunning(sessionID string, cancel context.CancelFunc
 	state.mu.Unlock()
 }
 
+// SetIdle marks a session as idle and clears its cancel function.
 func (sm *SessionManager) SetIdle(sessionID string) {
 	state, ok := sm.sessions.Get(sessionID)
 	if !ok {
@@ -186,6 +202,9 @@ func (sm *SessionManager) SetIdle(sessionID string) {
 	state.mu.Unlock()
 }
 
+// ForkSession creates a new session as a fork of an existing session.
+//
+//nolint:revive // intentionally returns unexported sessionState
 func (sm *SessionManager) ForkSession(ctx context.Context, sessionID, cwd string) (*sessionState, error) {
 	original := sm.GetSession(sessionID)
 	if original == nil {
@@ -201,6 +220,7 @@ func (sm *SessionManager) ForkSession(ctx context.Context, sessionID, cwd string
 	return state, nil
 }
 
+// ListSessions returns session info for all sessions matching the CWD filter.
 func (sm *SessionManager) ListSessions(cwd string) []SessionInfo {
 	sessions := sm.sessions.Copy()
 
@@ -219,6 +239,9 @@ func (sm *SessionManager) ListSessions(cwd string) []SessionInfo {
 	return result
 }
 
+// RestoreSession restores a session from persisted metadata.
+//
+//nolint:revive // intentionally returns unexported sessionState
 func (sm *SessionManager) RestoreSession(ctx context.Context, sessionID string) (*sessionState, error) {
 	if state, ok := sm.sessions.Get(sessionID); ok {
 		return state, nil
@@ -247,6 +270,7 @@ func (sm *SessionManager) RestoreSession(ctx context.Context, sessionID string) 
 	return state, nil
 }
 
+// Cleanup cancels all running sessions and removes them from the manager.
 func (sm *SessionManager) Cleanup() {
 	sessions := sm.sessions.Copy()
 	for id, state := range sessions {
@@ -302,14 +326,15 @@ func (n *noopStore) LoadSessionMeta(sessionID string) (SessionMeta, error) {
 	return SessionMeta{}, fmt.Errorf("session %s not found", sessionID)
 }
 
-func (n *noopStore) SaveSessionMeta(meta SessionMeta) error {
+func (n *noopStore) SaveSessionMeta(_ SessionMeta) error {
 	return nil
 }
 
-func (n *noopStore) ListSessions(cwd string) []SessionMeta {
+func (n *noopStore) ListSessions(_ string) []SessionMeta {
 	return nil
 }
 
+// EnsureHomeDir resolves and creates the ACP home directory.
 func EnsureHomeDir(homeDir string) (string, error) {
 	if homeDir == "" {
 		var err error
@@ -319,7 +344,7 @@ func EnsureHomeDir(homeDir string) (string, error) {
 		}
 		homeDir = filepath.Join(homeDir, ".acp-agent")
 	}
-	if err := os.MkdirAll(homeDir, 0755); err != nil {
+	if err := os.MkdirAll(homeDir, 0o750); err != nil {
 		return "", fmt.Errorf("create home dir: %w", err)
 	}
 	return homeDir, nil
@@ -418,6 +443,7 @@ func parseToolArgs(raw string) map[string]any {
 	return args
 }
 
+// ToolKind maps a tool name to a category label for ACP display.
 func ToolKind(name string) string {
 	kinds := map[string]string{
 		"read_file":          "read",
@@ -453,6 +479,7 @@ func ToolKind(name string) string {
 	return "other"
 }
 
+// BuildToolTitle builds a human-readable title for a tool call.
 func BuildToolTitle(name string, args map[string]any) string {
 	switch name {
 	case "terminal":

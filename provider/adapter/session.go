@@ -28,7 +28,7 @@ func newCLISession(ctx context.Context, bin, subcmd string, cfg SpawnConfig) (Ag
 	}
 	args = append(args, cfg.ExtraArgs...)
 
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := exec.CommandContext(ctx, bin, args...) //nolint:gosec // safe: hardcoded binary name from adapter config ("claude"/"codex")
 	if cfg.WorkingDir != "" {
 		cmd.Dir = cfg.WorkingDir
 	}

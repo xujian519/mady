@@ -39,7 +39,7 @@ func NewRemoteHandoffExtension(agents []RemoteHandoffConfig) *RemoteHandoffExten
 func (e *RemoteHandoffExtension) Name() string { return "remote-handoff" }
 
 // Init implements agentcore.Extension.
-func (e *RemoteHandoffExtension) Init(ctx context.Context, agent *agentcore.Agent) error {
+func (e *RemoteHandoffExtension) Init(_ context.Context, agent *agentcore.Agent) error {
 	for _, cfg := range e.agents {
 		tool := e.createRemoteHandoffTool(cfg)
 		agent.RegisterTools(tool)
@@ -123,7 +123,7 @@ func NewRemoteHandoffStreamExtension(agents []RemoteHandoffStreamConfig) *Remote
 func (e *RemoteHandoffStreamExtension) Name() string { return "remote-handoff-stream" }
 
 // Init implements agentcore.Extension.
-func (e *RemoteHandoffStreamExtension) Init(ctx context.Context, agent *agentcore.Agent) error {
+func (e *RemoteHandoffStreamExtension) Init(_ context.Context, agent *agentcore.Agent) error {
 	for _, cfg := range e.agents {
 		tool := e.createStreamHandoffTool(cfg)
 		agent.RegisterTools(tool)
@@ -166,7 +166,7 @@ func (e *RemoteHandoffStreamExtension) createStreamHandoffTool(cfg RemoteHandoff
 			if err != nil {
 				return nil, fmt.Errorf("stream task to %q: %w", cfg.Name, err)
 			}
-			defer stream.Close()
+			defer func() { _ = stream.Close() }()
 
 			var finalResult string
 			for {
@@ -318,6 +318,8 @@ func (a *AgentAdapter) CancelTask(ctx context.Context, req CancelTaskRequest) (*
 	return a.handler.CancelTask(ctx, req)
 }
 
+// QueryTasks implements AgentHandler.
+// QueryTasks implements AgentHandler.
 func (a *AgentAdapter) QueryTasks(ctx context.Context, req QueryTasksRequest) (*QueryTasksResult, error) {
 	return a.handler.QueryTasks(ctx, req)
 }
@@ -332,10 +334,14 @@ func (a *AgentAdapter) GetPushNotification(ctx context.Context, taskID string) (
 	return a.handler.GetPushNotification(ctx, taskID)
 }
 
+// SetUpdatePublisher delegates to the underlying handler's SetUpdatePublisher.
+// SetUpdatePublisher sets the task update publisher for the adapter's handler.
 func (a *AgentAdapter) SetUpdatePublisher(p TaskUpdatePublisher) {
 	a.handler.SetUpdatePublisher(p)
 }
 
+// SetInputRequiredPredicate delegates to the underlying handler's SetInputRequiredPredicate.
+// SetInputRequiredPredicate sets the function that determines if input is required.
 func (a *AgentAdapter) SetInputRequiredPredicate(fn func(output string) bool) {
 	a.handler.SetInputRequiredPredicate(fn)
 }

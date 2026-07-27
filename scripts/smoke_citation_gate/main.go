@@ -53,7 +53,7 @@ func envInt(key string, def int64) int64 {
 
 // verifyFile 离线核验既有文本文件（SMOKE_FILE 模式）。
 func verifyFile(file string) {
-	data, err := os.ReadFile(file) //#nosec G703 -- 冒烟工具按用户显式指定的 SMOKE_FILE 路径读取，属预期行为
+	data, err := os.ReadFile(file) //nolint:gosec // SMOKE_FILE is user-specified but intentional for dev tool
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取失败 %s: %v\n", file, err)
 		os.Exit(1)

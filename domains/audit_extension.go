@@ -48,8 +48,10 @@ func NewAuditExtension(baseDir string, projectID string) (*AuditExtension, error
 	}, nil
 }
 
+// Name returns the extension identifier.
 func (e *AuditExtension) Name() string { return auditExtName }
 
+// Init initializes the audit extension with the given agent context.
 func (e *AuditExtension) Init(_ context.Context, _ *agentcore.Agent) error {
 	if e.logger != nil {
 		slog.Info("审计扩展已初始化", "project", e.projectID)
@@ -57,6 +59,7 @@ func (e *AuditExtension) Init(_ context.Context, _ *agentcore.Agent) error {
 	return nil
 }
 
+// Dispose cleans up the audit logger, flushing and closing the underlying writer.
 func (e *AuditExtension) Dispose() error {
 	if e.logger != nil {
 		return e.logger.Close()
@@ -71,6 +74,7 @@ func (e *AuditExtension) AuditEnabled() bool {
 
 // ---------- AgentRunObserver ----------
 
+// AfterAgentRun logs the completion of an agent run to the audit trail.
 func (e *AuditExtension) AfterAgentRun(ctx context.Context, arc *agentcore.AgentRunContext, output string, err error) {
 	if !e.AuditEnabled() {
 		return
@@ -82,12 +86,14 @@ func (e *AuditExtension) AfterAgentRun(ctx context.Context, arc *agentcore.Agent
 	e.logger.Log(AuditAccess, projectID, "agent", description, success, details)
 }
 
+// BeforeAgentRun is a no-op hook that satisfies the extension interface.
 func (e *AuditExtension) BeforeAgentRun(_ context.Context, _ *agentcore.AgentRunContext) error {
 	return nil
 }
 
 // ---------- ToolCallObserver ----------
 
+// AfterToolExecution logs tool call details to the audit trail.
 func (e *AuditExtension) AfterToolExecution(ctx context.Context, arc *agentcore.AgentRunContext, tec *agentcore.ToolExecutionContext) {
 	if !e.AuditEnabled() || len(tec.ToolCalls) == 0 {
 		return
@@ -106,12 +112,14 @@ func (e *AuditExtension) AfterToolExecution(ctx context.Context, arc *agentcore.
 	}
 }
 
+// BeforeToolExecution is a no-op hook that satisfies the extension interface.
 func (e *AuditExtension) BeforeToolExecution(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.ToolExecutionContext) error {
 	return nil
 }
 
 // ---------- MessagePersistObserver ----------
 
+// AfterMessagePersist logs message persistence events to the audit trail.
 func (e *AuditExtension) AfterMessagePersist(ctx context.Context, arc *agentcore.AgentRunContext, msg agentcore.Message) {
 	if !e.AuditEnabled() {
 		return
@@ -123,6 +131,7 @@ func (e *AuditExtension) AfterMessagePersist(ctx context.Context, arc *agentcore
 	e.logger.Log(AuditModify, projectID, "agent", description, true, details)
 }
 
+// BeforeMessagePersist is a no-op hook that satisfies the extension interface.
 func (e *AuditExtension) BeforeMessagePersist(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.Message) error {
 	return nil
 }

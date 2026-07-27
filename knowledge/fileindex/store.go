@@ -40,12 +40,18 @@ import (
 type FileCategory string
 
 const (
-	CategoryTextDoc     FileCategory = "text_doc"
-	CategoryImage       FileCategory = "image"
-	CategoryAudio       FileCategory = "audio"
+	// CategoryTextDoc identifies plain text document files.
+	CategoryTextDoc FileCategory = "text_doc"
+	// CategoryImage identifies image files.
+	CategoryImage FileCategory = "image"
+	// CategoryAudio identifies audio files.
+	CategoryAudio FileCategory = "audio"
+	// CategorySpreadsheet identifies spreadsheet files.
 	CategorySpreadsheet FileCategory = "spreadsheet"
-	CategoryPdf         FileCategory = "pdf"
-	CategoryUnknown     FileCategory = "unknown"
+	// CategoryPdf identifies PDF files.
+	CategoryPdf FileCategory = "pdf"
+	// CategoryUnknown identifies files with unrecognized extensions.
+	CategoryUnknown FileCategory = "unknown"
 )
 
 // FileRecord is a cheaply indexed file entry in the project folder.
@@ -100,7 +106,7 @@ func OpenFileIndex(dir, dbPath string) (*FileIndex, error) {
 
 	fi := &FileIndex{db: db, dir: absDir, rrf: retrieval.NewRRFFuser()}
 	if err := fi.initSchema(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return fi, nil
@@ -116,7 +122,7 @@ func (fi *FileIndex) Dir() string { return fi.dir }
 
 // initSchema creates the file_records table and FTS5 index.
 func (fi *FileIndex) initSchema() error {
-	_, err := fi.db.Exec(`
+	_, err := fi.db.ExecContext(context.Background(), `
 		CREATE TABLE IF NOT EXISTS file_records (
 			path         TEXT PRIMARY KEY,
 			category     TEXT NOT NULL DEFAULT 'unknown',
@@ -161,13 +167,13 @@ func (fi *FileIndex) Refresh(ctx context.Context) error {
 		var modAt string
 		if err := rows.Scan(&r.Path, (*string)(&r.Category), &r.SizeBytes, &modAt,
 			&r.PreviewText, &r.Indexed, &r.Checksum); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return fmt.Errorf("fileindex: scan: %w", err)
 		}
 		r.ModifiedAt, _ = time.Parse(time.RFC3339, modAt)
 		existing[r.Path] = r
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("fileindex: rows iteration error: %w", err)
 	}
@@ -403,7 +409,7 @@ func (fi *FileIndex) recentFiles(ctx context.Context, topK int) ([]FileCandidate
 	if err != nil {
 		return nil, fmt.Errorf("fileindex: recent files: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []FileCandidate
 	for rows.Next() {
@@ -428,7 +434,7 @@ func (fi *FileIndex) loadAllRecordsLocked(ctx context.Context) ([]FileRecord, er
 	if err != nil {
 		return nil, fmt.Errorf("fileindex: load all: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var records []FileRecord
 	for rows.Next() {
@@ -473,7 +479,7 @@ func (fi *FileIndex) ftsSearchLocked(ctx context.Context, query string, allRecor
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// Build a set of valid paths for filtering.
 	validPaths := make(map[string]bool, len(allRecords))
@@ -632,11 +638,11 @@ func extractPreview(path string, cat FileCategory) string {
 	switch cat {
 	case CategoryTextDoc, CategoryPdf, CategorySpreadsheet:
 		// Read only first 512 bytes to avoid loading large files into memory.
-		f, err := os.Open(path)
+		f, err := os.Open(path) //nolint:gosec // path is from fileindex watcher, validated absolute path
 		if err != nil {
 			return filepath.Base(path)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		var buf [512]byte
 		n, _ := io.ReadFull(f, buf[:])
 		if n == 0 {
@@ -658,11 +664,11 @@ func extractPreview(path string, cat FileCategory) string {
 // quickChecksum returns a base64 string using a fast sampling approach:
 // first 4KB + mod time, avoiding full-file reads for large files.
 func quickChecksum(path string, info os.FileInfo) string {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // path is from file walk
 	if err != nil {
 		return fmt.Sprintf("%d_%d", info.Size(), info.ModTime().UnixNano())
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	var buf [4096]byte
 	n, _ := io.ReadFull(f, buf[:])
 	if n == 0 {

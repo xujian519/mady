@@ -18,7 +18,7 @@ import (
 
 // UploadFile reads a local file and returns a FilePart with base64-encoded content.
 func UploadFile(path string) (*FilePart, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path)) //nolint:gosec // caller-supplied upload path is by design
 	if err != nil {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
@@ -86,7 +86,7 @@ func DownloadFileFromURI(ctx context.Context, uri string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download %s: %d", uri, resp.StatusCode)

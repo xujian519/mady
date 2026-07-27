@@ -80,7 +80,7 @@ func runTui(ctx context.Context) error {
 
 	// === 存储预检（Sprint 1B） ===
 	// 在构建 tuiSession 前完成所有存储探测，结果写入 s.storageProbes。
-	var storageProbes []StorageProbeResult
+	storageProbes := make([]StorageProbeResult, 0, 3)
 
 	// Session 持久化探针
 	sessionDir := os.Getenv("SESSION_DIR")
@@ -277,7 +277,7 @@ func runTui(ctx context.Context) error {
 		}
 	}
 	if fc.CaseIndex != nil {
-		fc.CaseIndex.Close()
+		_ = fc.CaseIndex.Close()
 	}
 
 	// 后台延迟任务如果有错误，汇总输出到日志（TUI 已关闭，用户可查看）。
@@ -339,13 +339,13 @@ func redirectStderrToFile(madyHome string) func() {
 	}
 
 	logsDir := filepath.Join(madyHome, "logs")
-	if err := os.MkdirAll(logsDir, 0755); err != nil {
+	if err := os.MkdirAll(logsDir, 0o750); err != nil {
 		log.Printf("logs: cannot create %s: %v (stderr not redirected)", logsDir, err)
 		return func() {}
 	}
 
 	logPath := filepath.Join(logsDir, "mady.log")
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) //nolint:gosec // path is filepath.Join(madyHome, "logs", "mady.log")
 	if err != nil {
 		log.Printf("logs: cannot open %s: %v (stderr not redirected)", logPath, err)
 		return func() {}
@@ -360,7 +360,7 @@ func redirectStderrToFile(madyHome string) func() {
 
 	// 记录日志重定向信息到文件
 	now := time.Now().Format("2006-01-02 15:04:05")
-	fmt.Fprintf(logFile, "\n--- mady tui started at %s ---\n", now)
+	_, _ = fmt.Fprintf(logFile, "\n--- mady tui started at %s ---\n", now)
 
 	return func() {
 		// TUI 已退出 alternate screen，恢复原始 stderr 输出
@@ -369,6 +369,6 @@ func redirectStderrToFile(madyHome string) func() {
 		slog.SetDefault(slog.New(slog.NewTextHandler(origStderr, &slog.HandlerOptions{
 			Level: slog.LevelInfo,
 		})))
-		logFile.Close()
+		_ = logFile.Close()
 	}
 }

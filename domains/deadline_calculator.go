@@ -11,6 +11,7 @@ import (
 // DeadlineType categorizes a patent lifecycle deadline.
 type DeadlineType string
 
+// Patent deadline type constants.
 const (
 	DeadlineOAResponse      DeadlineType = "oa_response"      // 答复审查意见
 	DeadlinePriorityClaim   DeadlineType = "priority_claim"   // 优先权期限

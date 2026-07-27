@@ -50,6 +50,8 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{tasks: make(map[string]*agentcore.Task)}
 }
 
+// Create saves a new task in memory. Returns an error if the task already exists.
+// Create stores a new task. The task ID must already be set.
 func (m *MemoryStore) Create(_ context.Context, t *agentcore.Task) error {
 	if t.ID == "" {
 		return fmt.Errorf("tasklist: task ID is empty")
@@ -63,6 +65,8 @@ func (m *MemoryStore) Create(_ context.Context, t *agentcore.Task) error {
 	return nil
 }
 
+// Get retrieves a cloned task by ID. Returns an error if not found.
+// Get reads a single task by ID. Returns an error if not found.
 func (m *MemoryStore) Get(_ context.Context, id string) (*agentcore.Task, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -73,6 +77,8 @@ func (m *MemoryStore) Get(_ context.Context, id string) (*agentcore.Task, error)
 	return t.Clone(), nil
 }
 
+// Update overwrites an existing task in memory. Returns an error if not found.
+// Update overwrites an existing task. Returns an error if not found.
 func (m *MemoryStore) Update(_ context.Context, t *agentcore.Task) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -83,6 +89,8 @@ func (m *MemoryStore) Update(_ context.Context, t *agentcore.Task) error {
 	return nil
 }
 
+// UpdateFunc atomically reads, mutates, and writes back a task within the store lock.
+// UpdateFunc atomically reads-modifies-writes a single task under the store lock.
 func (m *MemoryStore) UpdateFunc(_ context.Context, id string, mutate func(*agentcore.Task) error) (*agentcore.Task, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -99,6 +107,8 @@ func (m *MemoryStore) UpdateFunc(_ context.Context, id string, mutate func(*agen
 	return working.Clone(), nil
 }
 
+// List returns all non-archived tasks (or all if includeArchived is true), sorted.
+// List returns tasks sorted by priority descending and ID ascending.
 func (m *MemoryStore) List(_ context.Context, includeArchived bool) ([]*agentcore.Task, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -113,6 +123,8 @@ func (m *MemoryStore) List(_ context.Context, includeArchived bool) ([]*agentcor
 	return result, nil
 }
 
+// Delete removes a task by ID from memory. Returns an error if not found.
+// Delete removes a task by ID (for internal cleanup).
 func (m *MemoryStore) Delete(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -123,6 +135,8 @@ func (m *MemoryStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+// NextID returns the next monotonically increasing task ID.
+// NextID returns the next monotonically increasing task ID.
 func (m *MemoryStore) NextID(_ context.Context) (string, error) {
 	id := m.nextID.Add(1)
 	return fmt.Sprintf("%d", id), nil

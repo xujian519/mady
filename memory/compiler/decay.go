@@ -6,9 +6,12 @@ import "time"
 type Quality string
 
 const (
-	QualityHigh   Quality = "HIGH_SIGNAL"
+	// QualityHigh indicates a high-signal trace or memory.
+	QualityHigh Quality = "HIGH_SIGNAL"
+	// QualityMedium indicates a medium-signal trace or memory.
 	QualityMedium Quality = "MEDIUM_SIGNAL"
-	QualityNoise  Quality = "NOISE"
+	// QualityNoise indicates a trace or memory with negligible signal.
+	QualityNoise Quality = "NOISE"
 )
 
 // ClassifyQuality determines the quality of an execution outcome based on

@@ -31,6 +31,27 @@ import (
 	"github.com/xujian519/mady/tui/core"
 )
 
+// Slash command category labels.
+const (
+	catGeneral  = "general"
+	catMode     = "mode"
+	catSettings = "settings"
+	catCase     = "case"
+	catSession  = "session"
+	catInspect  = "inspect"
+)
+
+// Slash command risk levels.
+const riskNone = "none"
+
+// Common slash command argument values.
+const (
+	valSummarized = "summarized"
+	valOmitted    = "omitted"
+	valReset      = "reset"
+	valDark       = "dark"
+)
+
 // SlashArgProvider is an AutocompleteProvider that suggests command arguments
 // when the cursor is after a complete slash command (e.g. "/theme ").
 // It implements FullInputProvider to access the full input buffer.
@@ -350,32 +371,32 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	multiDomain := availableBool(func(s *tuiSession) bool { return true }) // 统一模式后始终可用
 
 	r.Register(SlashCommand{
-		Name:     "thinking",
-		Category: "mode",
+		Name:     SettingKeyThinking,
+		Category: catMode,
 		Desc:     "查看或修改推理模式",
-		Match:    prefixMatch("thinking"),
+		Match:    prefixMatch(SettingKeyThinking),
 		Handler:  func(ctx slashCtx) { s.handleThinkingCommand(ctx.input) },
 		Args: []ArgSuggestion{
-			{Value: "default", Description: "默认推理显示（完整思考过程）"},
-			{Value: "summarized", Description: "摘要模式（压缩思考过程）"},
-			{Value: "omitted", Description: "隐藏模式（不显示思考过程）"},
-			{Value: "reset", Description: "恢复默认配置"},
+			{Value: DefaultThinking, Description: "默认推理显示（完整思考过程）"},
+			{Value: valSummarized, Description: "摘要模式（压缩思考过程）"},
+			{Value: valOmitted, Description: "隐藏模式（不显示思考过程）"},
+			{Value: valReset, Description: "恢复默认配置"},
 		},
 	})
 	r.Register(SlashCommand{
-		Name:     "theme",
-		Category: "settings",
+		Name:     SettingKeyTheme,
+		Category: catSettings,
 		Desc:     "切换主题",
-		Match:    prefixMatch("theme"),
+		Match:    prefixMatch(SettingKeyTheme),
 		Handler:  func(ctx slashCtx) { s.handleThemeCommand(ctx.input) },
 		Args: []ArgSuggestion{
-			{Value: "light", Description: "浅色主题"},
-			{Value: "dark", Description: "深色主题"},
+			{Value: DefaultTheme, Description: "浅色主题"},
+			{Value: valDark, Description: "深色主题"},
 		},
 	})
 	r.Register(SlashCommand{
 		Name:        "skill",
-		Category:    "general",
+		Category:    catGeneral,
 		Desc:        "显式调用技能",
 		Match:       prefixMatch("skill:"),
 		SuggestText: "/skill:",
@@ -387,57 +408,57 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	// 专利分析快捷命令：直接运行 Pregel 工作流，绕过 LLM 意图分类。
 	r.Register(SlashCommand{
 		Name:     "novelty",
-		Category: "case",
+		Category: catCase,
 		Desc:     "新颖性/创造性分析：对发明进行技术特征提取、现有技术检索和规则引擎检查",
 		Usage:    "/novelty <发明描述>",
 		Examples: []string{`/novelty "一种基于深度学习的图像识别方法，包括卷积神经网络..."`},
-		Risk:     "none",
+		Risk:     riskNone,
 		Match:    exactMatch("novelty"),
 		Handler:  func(ctx slashCtx) { s.handleNoveltySlash(ctx) },
 	})
 	r.Register(SlashCommand{
 		Name:     "oa",
-		Category: "case",
+		Category: catCase,
 		Desc:     "审查意见（OA）答复起草：分析通知书文本，生成答复书骨架",
 		Usage:    "/oa <OA通知书文本>",
 		Examples: []string{`/oa "审查员认为权利要求1不具备新颖性..."`},
-		Risk:     "none",
+		Risk:     riskNone,
 		Match:    exactMatch("oa"),
 		Handler:  func(ctx slashCtx) { s.handleOASlash(ctx) },
 	})
 	r.Register(SlashCommand{
 		Name:     "invalidation",
-		Category: "case",
+		Category: catCase,
 		Desc:     "专利无效宣告分析：识别无效理由，逐项生成论证骨架",
 		Usage:    "/invalidation <权利要求文本>",
 		Examples: []string{`/invalidation "1. 一种图像处理方法..."`},
-		Risk:     "none",
+		Risk:     riskNone,
 		Match:    exactMatch("invalidation"),
 		Handler:  func(ctx slashCtx) { s.handleInvalidationSlash(ctx) },
 	})
 	r.Register(SlashCommand{
 		Name:     "infringement",
-		Category: "case",
+		Category: catCase,
 		Desc:     "专利侵权比对分析：全面覆盖（字面侵权）+ 等同侵权分析",
 		Usage:    "/infringement <权利要求文本> | <被控侵权方案>",
 		Examples: []string{`/infringement 1. 一种装置包括A和B。 | 被控产品包含A和C`},
-		Risk:     "none",
+		Risk:     riskNone,
 		Match:    exactMatch("infringement"),
 		Handler:  func(ctx slashCtx) { s.handleInfringementSlash(ctx) },
 	})
 	r.Register(SlashCommand{
 		Name:     "reexamination",
-		Category: "case",
+		Category: catCase,
 		Desc:     "驳回复审请求书起草：解析驳回决定，生成复审请求书骨架",
 		Usage:    "/reexamination <驳回决定书文本>",
 		Examples: []string{`/reexamination "驳回决定编号：2024-001..."`},
-		Risk:     "none",
+		Risk:     riskNone,
 		Match:    exactMatch("reexamination"),
 		Handler:  func(ctx slashCtx) { s.handleReexaminationSlash(ctx) },
 	})
 	r.Register(SlashCommand{
 		Name:     "patent",
-		Category: "case",
+		Category: catCase,
 		Desc:     "专利分析工具帮助",
 		Usage:    "/patent",
 		Match:    exactMatch("patent"),
@@ -457,25 +478,25 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	// 参数解析统一走 parseSlashSubcommand / parseSlashRest，与其他命令一致。
 	r.Register(SlashCommand{
 		Name:     "ledger",
-		Category: "inspect",
+		Category: catInspect,
 		Desc:     "查看本轮工具调用证据账本（Receipt 列表）",
 		Usage:    "/ledger",
-		Risk:     "none",
+		Risk:     riskNone,
 		Match:    exactMatch("ledger"),
 		Handler:  func(ctx slashCtx) { s.handleLedgerCommand() },
 	})
 	r.Register(SlashCommand{
 		Name:     "snapshots",
-		Category: "inspect",
+		Category: catInspect,
 		Desc:     "列出文件快照历史（每轮写入工具前的文件状态）",
 		Usage:    "/snapshots",
-		Risk:     "none",
+		Risk:     riskNone,
 		Match:    exactMatch("snapshots"),
 		Handler:  func(ctx slashCtx) { s.handleSnapshotsCommand() },
 	})
 	r.Register(SlashCommand{
 		Name:     "undo",
-		Category: "inspect",
+		Category: catInspect,
 		Desc:     "回退到指定轮的文件状态（仅对 edit/write_file 等追踪工具生效）",
 		Usage:    "/undo <轮号>",
 		Examples: []string{"/undo 3"},
@@ -485,20 +506,20 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	})
 	r.Register(SlashCommand{
 		Name:     "memory",
-		Category: "inspect",
+		Category: catInspect,
 		Desc:     "查看长期记忆（跨 User/Session/LongTerm 三层）",
 		Usage:    "/memory [关键词]",
 		Examples: []string{"/memory", "/memory 偏好深色主题"},
-		Risk:     "none",
+		Risk:     riskNone,
 		Match:    prefixMatch("memory"),
 		Handler:  func(ctx slashCtx) { s.handleMemoryCommand(parseSlashRest(ctx.input, "memory")) },
 	})
 
 	r.Register(SlashCommand{
-		Name:      "mode",
-		Category:  "general",
+		Name:      catMode,
+		Category:  catGeneral,
 		Desc:      "显示当前 Agent 模式",
-		Match:     exactMatch("mode"),
+		Match:     exactMatch(catMode),
 		Available: multiDomain,
 		Handler: func(ctx slashCtx) {
 			agent, initializing, initErr := s.agentStatus()
@@ -519,7 +540,7 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	})
 	r.Register(SlashCommand{
 		Name:     "deadline",
-		Category: "case",
+		Category: catCase,
 		Desc:     "显示当前案件期限",
 		Match:    exactMatch("deadline"),
 		Handler:  func(ctx slashCtx) { s.handleDeadlineCommand() },
@@ -527,14 +548,14 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 
 	r.Register(SlashCommand{
 		Name:     "help",
-		Category: "general",
+		Category: catGeneral,
 		Desc:     "显示快捷键",
 		Match:    exactMatch("help"),
 		Handler:  func(ctx slashCtx) { s.app.ToggleKeyHelp() },
 	})
 	r.Register(SlashCommand{
 		Name:     "clear",
-		Category: "session",
+		Category: catSession,
 		Aliases:  []string{"new"},
 		Desc:     "开始新对话",
 		Match:    exactMatch("clear", "new"),
@@ -542,47 +563,47 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	})
 	r.Register(SlashCommand{
 		Name:     "branch",
-		Category: "session",
+		Category: catSession,
 		Desc:     "从当前对话创建分支",
 		Match:    exactMatch("branch"),
 		Handler:  func(ctx slashCtx) { s.handleBranchCommand() },
 	})
 	r.Register(SlashCommand{
 		Name:     "save",
-		Category: "session",
+		Category: catSession,
 		Desc:     "显示会话保存信息",
 		Match:    exactMatch("save"),
 		Handler:  func(ctx slashCtx) { s.handleSaveCommand() },
 	})
 	r.Register(SlashCommand{
 		Name:     "copy",
-		Category: "general",
+		Category: catGeneral,
 		Desc:     "复制最后一条回复",
 		Match:    exactMatch("copy"),
 		Handler:  func(ctx slashCtx) { s.handleCopyCommand() },
 	})
 	r.Register(SlashCommand{
 		Name:     "export",
-		Category: "session",
+		Category: catSession,
 		Desc:     "导出当前对话为 Markdown",
 		Match:    exactMatch("export"),
 		Handler:  func(ctx slashCtx) { s.handleExportCommand(ctx.input) },
 	})
 	r.Register(SlashCommand{
-		Name:     "review",
-		Category: "mode",
+		Name:     SettingKeyReview,
+		Category: catMode,
 		Desc:     "切换审核关卡（关键内容人工确认）",
-		Match:    exactMatch("review"),
-		Handler:  func(ctx slashCtx) { s.handleReviewCommandEx(parseSlashSubcommand(ctx.input, "review")) },
+		Match:    exactMatch(SettingKeyReview),
+		Handler:  func(ctx slashCtx) { s.handleReviewCommandEx(parseSlashSubcommand(ctx.input, SettingKeyReview)) },
 		Args: []ArgSuggestion{
 			{Value: "on", Description: "开启审核关卡"},
-			{Value: "off", Description: "关闭审核关卡"},
+			{Value: DefaultPlan, Description: "关闭审核关卡"},
 			{Value: "status", Description: "查看当前审核状态"},
 		},
 	})
 	r.Register(SlashCommand{
 		Name:     "approve",
-		Category: "mode",
+		Category: catMode,
 		Desc:     "确认AI输出，继续执行（审核模式下）",
 		Match:    exactMatch("approve"),
 		Handler: func(ctx slashCtx) {
@@ -605,7 +626,7 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	})
 	r.Register(SlashCommand{
 		Name:     "reject",
-		Category: "mode",
+		Category: catMode,
 		Desc:     "拒绝AI输出，请求修改（审核模式下）",
 		Match:    exactMatch("reject"),
 		Handler: func(ctx slashCtx) {
@@ -619,46 +640,46 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		},
 	})
 	r.Register(SlashCommand{
-		Name:     "plan",
-		Category: "mode",
+		Name:     SettingKeyPlan,
+		Category: catMode,
 		Desc:     "切换计划模式（高质量推理）",
-		Match:    exactMatch("plan"),
-		Handler:  func(ctx slashCtx) { s.handlePlanCommandEx(parseSlashSubcommand(ctx.input, "plan")) },
+		Match:    exactMatch(SettingKeyPlan),
+		Handler:  func(ctx slashCtx) { s.handlePlanCommandEx(parseSlashSubcommand(ctx.input, SettingKeyPlan)) },
 		Args: []ArgSuggestion{
 			{Value: "on", Description: "开启计划模式"},
-			{Value: "off", Description: "关闭计划模式"},
+			{Value: DefaultPlan, Description: "关闭计划模式"},
 			{Value: "status", Description: "查看当前模式状态"},
 		},
 	})
 	r.Register(SlashCommand{
 		Name:     "cmd",
 		Desc:     "打开命令中心（搜索并执行所有命令）",
-		Category: "general",
+		Category: catGeneral,
 		Usage:    "/cmd",
 		Match:    exactMatch("cmd"),
 		Handler:  func(ctx slashCtx) { s.openCommandCenter() },
 	})
 
 	r.Register(SlashCommand{
-		Name:     "settings",
-		Category: "settings",
+		Name:     catSettings,
+		Category: catSettings,
 		Desc:     "打开设置面板",
-		Match:    exactMatch("settings"),
+		Match:    exactMatch(catSettings),
 		Handler: func(ctx slashCtx) {
-			sub := parseSlashSubcommand(ctx.input, "settings")
-			if sub == "reset" {
+			sub := parseSlashSubcommand(ctx.input, catSettings)
+			if sub == valReset {
 				s.handleSettingsReset()
 			} else {
 				s.openSettings()
 			}
 		},
 		Args: []ArgSuggestion{
-			{Value: "reset", Description: "重置所有设置为默认值"},
+			{Value: valReset, Description: "重置所有设置为默认值"},
 		},
 	})
 	r.Register(SlashCommand{
 		Name:     "quit",
-		Category: "general",
+		Category: catGeneral,
 		Desc:     "退出",
 		Match:    func(input string) bool { return input == "/quit" || input == "exit" },
 		Handler:  func(ctx slashCtx) { _ = s.app.Stop() },
@@ -666,10 +687,10 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 
 	// 会话管理命令。
 	r.Register(SlashCommand{
-		Name:     "session",
+		Name:     catSession,
 		Category: "manage",
 		Desc:     "查看/命名当前会话（/session <名称>）",
-		Match:    exactMatch("session"),
+		Match:    exactMatch(catSession),
 		Handler:  func(ctx slashCtx) { s.handleSessionNameCommand(ctx.input) },
 	})
 	r.Register(SlashCommand{

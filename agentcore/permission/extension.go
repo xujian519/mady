@@ -13,8 +13,8 @@ import (
 const ExtensionName = "permission"
 
 // PermissionExtension gates tool execution with rule-based access control.
-// It registers as a Middleware positioned early in the chain so that
-// cheap deny decisions avoid downstream overhead (e.g. AI guardian review).
+//
+//nolint:revive // stutter: permission.PermissionExtension is intentional for clarity
 type PermissionExtension struct {
 	// policy and agent are immutable after construction/Init.
 	policy Policy

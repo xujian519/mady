@@ -9,9 +9,13 @@ package legal
 type CaseType string
 
 const (
+	// CaseInvalidation represents a patent invalidation case type.
 	CaseInvalidation CaseType = "invalidation"
+	// CaseInfringement represents a patent infringement case type.
 	CaseInfringement CaseType = "infringement"
-	CaseNovelty      CaseType = "novelty"
+	// CaseNovelty represents a novelty analysis case type.
+	CaseNovelty CaseType = "novelty"
+	// CaseGeneralLegal represents a general legal analysis case type.
 	CaseGeneralLegal CaseType = "general_legal"
 )
 

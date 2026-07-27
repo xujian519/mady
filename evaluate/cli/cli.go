@@ -21,9 +21,14 @@ import (
 type OutputFormat string
 
 const (
-	FormatTable    OutputFormat = "table"
-	FormatJSON     OutputFormat = "json"
+	// FormatTable outputs the evaluation report in table format.
+	FormatTable OutputFormat = "table"
+	// FormatJSON outputs the evaluation report in JSON format.
+	FormatJSON OutputFormat = "json"
+	// FormatMarkdown outputs the evaluation report in Markdown format.
 	FormatMarkdown OutputFormat = "markdown"
+	// FormatEnhanced outputs an enhanced report with trend comparison and
+	// detailed analysis.
 	FormatEnhanced OutputFormat = "enhanced"
 )
 
@@ -31,8 +36,10 @@ const (
 type RunMode string
 
 const (
+	// ModeStatic runs evaluation against precomputed predictions.
 	ModeStatic RunMode = "static"
-	ModeLive   RunMode = "live"
+	// ModeLive runs evaluation by calling an LLM provider.
+	ModeLive RunMode = "live"
 )
 
 // EvalCLI 是评估 CLI 的配置和引擎。

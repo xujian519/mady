@@ -289,7 +289,12 @@ func (s StructuredCompactionSummary) ToReadableSummary() string {
 
 // MarshalJSONMetadata stores the structured summary on message metadata.
 func (s StructuredCompactionSummary) MarshalJSONMetadata() map[string]any {
-	raw, _ := json.Marshal(s)
+	raw, err := json.Marshal(s)
+	if err != nil {
+		return map[string]any{
+			"structured_compaction_error": err.Error(),
+		}
+	}
 	return map[string]any{
 		"structured_compaction": json.RawMessage(raw),
 	}

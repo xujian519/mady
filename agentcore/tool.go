@@ -100,10 +100,12 @@ type Registry struct {
 	tools map[string]*Tool
 }
 
+// NewRegistry creates an empty tool registry.
 func NewRegistry() *Registry {
 	return &Registry{tools: make(map[string]*Tool)}
 }
 
+// Register adds one or more tools to the registry.
 func (r *Registry) Register(tools ...*Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -112,6 +114,7 @@ func (r *Registry) Register(tools ...*Tool) {
 	}
 }
 
+// Get returns a tool by name, or false if not found.
 func (r *Registry) Get(name string) (*Tool, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -119,6 +122,7 @@ func (r *Registry) Get(name string) (*Tool, bool) {
 	return t, ok
 }
 
+// Definitions returns all registered tool definitions, sorted by name.
 func (r *Registry) Definitions() []ToolDefinition {
 	r.mu.RLock()
 	tools := make([]*Tool, 0, len(r.tools))
@@ -137,6 +141,7 @@ func (r *Registry) Definitions() []ToolDefinition {
 	return defs
 }
 
+// Unregister removes one or more tools from the registry by name.
 func (r *Registry) Unregister(names ...string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -145,12 +150,14 @@ func (r *Registry) Unregister(names ...string) {
 	}
 }
 
+// Count returns the number of registered tools.
 func (r *Registry) Count() int64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return int64(len(r.tools))
 }
 
+// Names returns all registered tool names, sorted alphabetically.
 func (r *Registry) Names() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

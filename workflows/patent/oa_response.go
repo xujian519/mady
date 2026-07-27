@@ -84,7 +84,7 @@ func parseOANode(ctx context.Context, state graph.PregelState) (graph.PregelStat
 // extractExaminerArguments extracts the examiner's reasoning sentences from
 // the OA text by splitting on common argument markers.
 func extractExaminerArguments(text string) []string {
-	markers := []string{"审查员认为", "对比文件", "本领域技术人员", "因此", "所以", "综上"}
+	markers := []string{"审查员认为", termPriorArtDoc, "本领域技术人员", "因此", "所以", "综上"}
 	var args []string
 	lower := strings.ToLower(text)
 
@@ -624,7 +624,7 @@ type OARuleRetriever interface {
 // OALawArticle is a single law/guideline provision relevant to a rejection type.
 type OALawArticle struct {
 	ArticleRef string // e.g. "专利法第22条第3款"
-	Title      string // e.g. "创造性"
+	Title      string // e.g. termInventiveness
 	Content    string // provision text or guideline excerpt
 	Source     string // e.g. "专利法", "审查指南第二部分第四章"
 }

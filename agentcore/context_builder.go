@@ -12,11 +12,16 @@ import (
 type ContextLayer string
 
 const (
-	LayerSystem    ContextLayer = "system"    // 系统提示词（Static 段）
-	LayerTools     ContextLayer = "tools"     // 工具定义
+	// LayerSystem identifies the system prompt layer.
+	LayerSystem ContextLayer = "system" // 系统提示词（Static 段）
+	// LayerTools identifies the tool definitions layer.
+	LayerTools ContextLayer = "tools" // 工具定义
+	// LayerKnowledge identifies the knowledge base context layer.
 	LayerKnowledge ContextLayer = "knowledge" // 知识库上下文
-	LayerMemory    ContextLayer = "memory"    // 记忆上下文
-	LayerHistory   ContextLayer = "history"   // 对话历史
+	// LayerMemory identifies the memory context layer.
+	LayerMemory ContextLayer = "memory" // 记忆上下文
+	// LayerHistory identifies the conversation history layer.
+	LayerHistory ContextLayer = "history" // 对话历史
 )
 
 // ValidContextLayers 是所有支持的上下文层。
@@ -31,9 +36,13 @@ var ValidContextLayers = []ContextLayer{LayerSystem, LayerTools, LayerKnowledge,
 type InjectMode string
 
 const (
-	InjectAlways    InjectMode = "always"     // 每轮都注入（当前默认行为）
-	InjectPerTurn   InjectMode = "per_turn"   // 每轮重新生成（如工具定义变化）
-	InjectOnDemand  InjectMode = "on_demand"  // 仅在模型或用户明确触发时注入
+	// InjectAlways injects the layer content every turn.
+	InjectAlways InjectMode = "always" // 每轮都注入（当前默认行为）
+	// InjectPerTurn regenerates the layer content every turn.
+	InjectPerTurn InjectMode = "per_turn" // 每轮重新生成（如工具定义变化）
+	// InjectOnDemand injects only when the model or user explicitly triggers it.
+	InjectOnDemand InjectMode = "on_demand" // 仅在模型或用户明确触发时注入
+	// InjectByTrigger injects based on conditional triggering (e.g. complexity gating).
 	InjectByTrigger InjectMode = "by_trigger" // 条件判定触发（如复杂度门控）
 )
 

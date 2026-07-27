@@ -144,11 +144,9 @@ func TestLoader_EmptyCases(t *testing.T) {
 	}
 }
 
-func TestLoader_MustLoad_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic from MustLoad with nonexistent path")
-		}
-	}()
-	MustLoad(&Loader{}, "nonexistent_path_xyz.json")
+func TestLoader_MustLoad_Error(t *testing.T) {
+	_, err := MustLoad(&Loader{}, "nonexistent_path_xyz.json")
+	if err == nil {
+		t.Error("expected error from MustLoad with nonexistent path")
+	}
 }

@@ -216,7 +216,7 @@ func (s *PatternStore) LoadSeedDir(dir string) (int, error) {
 
 // loadSeedFile loads a single YAML seed pattern file.
 func (s *PatternStore) loadSeedFile(path string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk over patterns dir
 	if err != nil {
 		return err
 	}

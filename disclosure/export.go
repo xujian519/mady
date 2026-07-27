@@ -2,6 +2,7 @@ package disclosure
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,8 +24,10 @@ func SetDOCXConverter(c DOCXConverter) { defaultDOCXConverter = c }
 type ExportFormat string
 
 const (
+	// FormatMarkdown outputs the report in Markdown format.
 	FormatMarkdown ExportFormat = "markdown"
-	FormatDOCX     ExportFormat = "docx"
+	// FormatDOCX outputs the report in DOCX format.
+	FormatDOCX ExportFormat = "docx"
 )
 
 // ExportReport 将分析报告导出为指定格式。
@@ -38,7 +41,7 @@ func ExportReport(report *AnalysisReport, format ExportFormat) ([]byte, error) {
 		return []byte(md), nil
 
 	case FormatDOCX:
-		docx, err := convertToDOCX(md)
+		docx, err := convertToDOCX(context.Background(), md)
 		if err != nil {
 			return nil, fmt.Errorf("DOCX conversion: %w", err)
 		}
@@ -182,7 +185,7 @@ func buildMarkdownReport(report *AnalysisReport) string {
 // convertToDOCX 将 Markdown 文本转换为 DOCX 格式。
 // 优先使用已注入的纯 Go 渲染器（无外部依赖）；
 // 失败时降级到 pandoc（若已安装）作为备选，确保兼容已有环境。
-func convertToDOCX(markdown string) ([]byte, error) {
+func convertToDOCX(ctx context.Context, markdown string) ([]byte, error) {
 	if defaultDOCXConverter != nil {
 		if data, err := defaultDOCXConverter.Render(markdown); err == nil && len(data) > 0 {
 			return data, nil
@@ -190,14 +193,14 @@ func convertToDOCX(markdown string) ([]byte, error) {
 	}
 	// 降级：尝试 pandoc（如已安装）。
 	if _, lerr := exec.LookPath("pandoc"); lerr == nil {
-		return convertToDOCXViaPandoc(markdown)
+		return convertToDOCXViaPandoc(ctx, markdown)
 	}
 	return nil, fmt.Errorf("DOCX 生成失败：纯 Go 渲染器出错，且未安装 pandoc 备选工具")
 }
 
 // convertToDOCXViaPandoc 通过外部 pandoc 进程转换 DOCX（备选方案）。
-func convertToDOCXViaPandoc(markdown string) ([]byte, error) {
-	cmd := exec.Command("pandoc", "-f", "markdown", "-t", "docx", "--from=gfm")
+func convertToDOCXViaPandoc(ctx context.Context, markdown string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "pandoc", "-f", "markdown", "-t", "docx", "--from=gfm")
 	cmd.Stdin = strings.NewReader(markdown)
 	var out bytes.Buffer
 	var stderr bytes.Buffer

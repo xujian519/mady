@@ -153,7 +153,7 @@ func (h *EvalHook) AfterModelCall(_ context.Context, arc *agentcore.AgentRunCont
 	}
 }
 
-// evalResultEvent wraps an EvalResult as an agentcore.Event.
+// EventTypeEvalResult is the event type used to wrap an EvalResult as an agentcore.Event.
 const EventTypeEvalResult agentcore.EventType = "eval_result"
 
 type evalResultEvent struct {

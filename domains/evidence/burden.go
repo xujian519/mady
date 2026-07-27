@@ -3,6 +3,7 @@ package evidence
 // BurdenScenario 描述举证责任分配的场景。
 type BurdenScenario string
 
+// Predefined burden-of-proof scenario constants.
 const (
 	BurdenScenarioPatentInvalidation BurdenScenario = "patent_invalidation" // 专利无效宣告
 	BurdenScenarioPatentInfringement BurdenScenario = "patent_infringement" // 专利侵权

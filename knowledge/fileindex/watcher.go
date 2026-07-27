@@ -93,7 +93,7 @@ func (fw *FileWatcher) Start(ctx context.Context) error {
 
 	rootDir := fw.index.Dir()
 	if err := fw.addDirTree(w, rootDir); err != nil {
-		w.Close()
+		_ = w.Close()
 		// Fall back to polling instead of failing entirely (graceful degradation).
 		slog.Warn("filewatcher: add watch failed, falling back to polling", "dir", rootDir, "err", err)
 		fw.mu.Unlock()
@@ -130,7 +130,7 @@ func (fw *FileWatcher) Stop() {
 	isRunning := fw.running
 
 	if isRunning && fw.watcher != nil {
-		fw.watcher.Close()
+		_ = fw.watcher.Close()
 	}
 	fw.running = false
 	fw.addedDirs = make(map[string]bool)

@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"log/slog"
 
 	"database/sql"
@@ -45,17 +46,17 @@ func NewSQLiteStore(knowledgeDBPath string) (*SQLiteStore, error) {
 	}
 	db.SetMaxOpenConns(2) // read-only; limit connections
 
-	if err := db.Ping(); err != nil {
-		db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("ping knowledge.db: %w", err)
 	}
 
 	// Detect embedding dimension from stored vectors.
 	dim := 1024
 	var vecLen int
-	row := db.QueryRow("SELECT length(vector) FROM embeddings LIMIT 1")
+	row := db.QueryRowContext(context.Background(), "SELECT length(vector) FROM embeddings LIMIT 1")
 	if err := row.Scan(&vecLen); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("detect embedding dimension: %w", err)
 	}
 	if vecLen > 0 {
@@ -102,7 +103,7 @@ func (s *SQLiteStore) OpenLawsDB(path string) error {
 	s.lawsDB = lawsDB
 
 	// Detect whether the law_fts (FTS5) table exists.
-	row := lawsDB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='law_fts'")
+	row := lawsDB.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='law_fts'")
 	var ftsCount int
 	if err := row.Scan(&ftsCount); err == nil && ftsCount > 0 {
 		s.hasLawFTS = true
@@ -114,7 +115,7 @@ func (s *SQLiteStore) OpenLawsDB(path string) error {
 // FTS5 virtual table for fast BM25-ranked search.
 func (s *SQLiteStore) HasLawFTS() bool { return s.hasLawFTS }
 
-// OpenPatentKGDB opens patent_kg.db for supplementary graph queries.
+// OpenPatentKGdb opens patent_kg.db for supplementary graph queries.
 func (s *SQLiteStore) OpenPatentKGdb(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -174,11 +175,11 @@ func (s *SQLiteStore) FTSSearch(query string, topK int) ([]retrieval.ScoredChunk
 		WHERE docs_fts MATCH ?
 		ORDER BY score
 		LIMIT ?`
-	rows, err := s.db.Query(sqlQuery, ftsQuery, topK)
+	rows, err := s.db.QueryContext(context.Background(), sqlQuery, ftsQuery, topK)
 	if err != nil {
 		return nil, fmt.Errorf("fts search: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []retrieval.ScoredChunk
 	for rows.Next() {
@@ -223,7 +224,7 @@ func (s *SQLiteStore) GetChunksByDocID(docID string, limit int) ([]retrieval.Sco
 	if limit <= 0 {
 		limit = 10
 	}
-	rows, err := s.db.Query(`
+	rows, err := s.db.QueryContext(context.Background(), `
 		SELECT id, document_id, chunk_index, heading, content
 		FROM chunks
 		WHERE document_id = ?
@@ -232,7 +233,7 @@ func (s *SQLiteStore) GetChunksByDocID(docID string, limit int) ([]retrieval.Sco
 	if err != nil {
 		return nil, fmt.Errorf("get chunks by docID: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []retrieval.ScoredChunk
 	for rows.Next() {
@@ -289,7 +290,7 @@ func (s *SQLiteStore) vectorSearchSQLParallel(queryVec []float32, topK int) ([]r
 	// Determine max ID for range partitioning — using MAX(id) instead of
 	// COUNT(*) so that gaps from deletions don't cause tail rows to be missed.
 	var maxID int
-	if err := s.db.QueryRow("SELECT COALESCE(MAX(id), 0) FROM embeddings").Scan(&maxID); err != nil {
+	if err := s.db.QueryRowContext(context.Background(), "SELECT COALESCE(MAX(id), 0) FROM embeddings").Scan(&maxID); err != nil {
 		return nil, fmt.Errorf("vector sql max id: %w", err)
 	}
 	if maxID == 0 {
@@ -343,7 +344,7 @@ func (s *SQLiteStore) vectorSearchSQLParallel(queryVec []float32, topK int) ([]r
 			defer wg.Done()
 			localTop := make([]candidate, 0, topK)
 
-			rows, err := s.db.Query(`
+			rows, err := s.db.QueryContext(context.Background(), `
 				SELECT e.chunk_id, e.vector, e.norm
 				FROM embeddings e
 				WHERE e.id >= ? AND e.id < ?
@@ -352,7 +353,7 @@ func (s *SQLiteStore) vectorSearchSQLParallel(queryVec []float32, topK int) ([]r
 				results <- workerResult{err: fmt.Errorf("worker [%d,%d): %w", sID, eID, err)}
 				return
 			}
-			defer rows.Close()
+			defer func() { _ = rows.Close() }()
 
 			for rows.Next() {
 				var chunkID int
@@ -486,7 +487,7 @@ func (s *SQLiteStore) getChunk(chunkID int) (*retrieval.Chunk, error) {
 	var id int
 	var docID, heading, content string
 	var chunkIdx int
-	err := s.db.QueryRow(`
+	err := s.db.QueryRowContext(context.Background(), `
 		SELECT id, document_id, chunk_index, heading, content
 		FROM chunks WHERE id = ?`, chunkID).Scan(&id, &docID, &chunkIdx, &heading, &content)
 	if err != nil {
@@ -544,16 +545,16 @@ func (s *SQLiteStore) getChunksBatchImpl(ids []int) (map[int]*retrieval.Chunk, e
 		args[i] = id
 	}
 
-	query := fmt.Sprintf(
+	query := fmt.Sprintf( //nolint:gosec // safe: only ? placeholders for IN clause
 		"SELECT id, document_id, chunk_index, heading, content FROM chunks WHERE id IN (%s)",
 		strings.Join(placeholders, ","),
 	)
 
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.QueryContext(context.Background(), query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("getChunksBatch: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := make(map[int]*retrieval.Chunk, len(ids))
 	for rows.Next() {
@@ -584,7 +585,7 @@ func (s *SQLiteStore) LoadGraph() (*graph.GraphStore, error) {
 	gs := graph.NewGraphStore()
 
 	// Load nodes.
-	nodeRows, err := s.db.Query(`
+	nodeRows, err := s.db.QueryContext(context.Background(), `
 		SELECT id, node_type, name, title, content, domain, source,
 		       full_ref, chapter, article_number, law_refs,
 		       priority, authority_weight, level_in_hierarchy
@@ -592,7 +593,7 @@ func (s *SQLiteStore) LoadGraph() (*graph.GraphStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load graph nodes: %w", err)
 	}
-	defer nodeRows.Close()
+	defer func() { _ = nodeRows.Close() }()
 
 	nodeCount := 0
 	for nodeRows.Next() {
@@ -630,13 +631,13 @@ func (s *SQLiteStore) LoadGraph() (*graph.GraphStore, error) {
 	}
 
 	// Load edges.
-	edgeRows, err := s.db.Query(`
+	edgeRows, err := s.db.QueryContext(context.Background(), `
 		SELECT source_id, target_id, relation, weight, evidence
 		FROM kg_edges`)
 	if err != nil {
 		return nil, fmt.Errorf("load graph edges: %w", err)
 	}
-	defer edgeRows.Close()
+	defer func() { _ = edgeRows.Close() }()
 
 	edgeCount := 0
 	for edgeRows.Next() {
@@ -685,7 +686,7 @@ func (s *SQLiteStore) searchLawsFTS(keyword string, topK int) ([]LawRecord, erro
 	// Wrap query in double quotes for FTS5 phrase matching. The trigram
 	// tokenizer handles CJK text by splitting into 3-character n-grams.
 	ftsQuery := `"` + strings.ReplaceAll(keyword, `"`, `""`) + `"`
-	rows, err := s.lawsDB.Query(`
+	rows, err := s.lawsDB.QueryContext(context.Background(), `
 		SELECT l.id, l.level, l.name, l.subtitle, l.content,
 		       c.name AS category_name
 		FROM law_fts
@@ -697,7 +698,7 @@ func (s *SQLiteStore) searchLawsFTS(keyword string, topK int) ([]LawRecord, erro
 	if err != nil {
 		return nil, fmt.Errorf("laws fts search: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []LawRecord
 	for rows.Next() {
@@ -718,7 +719,7 @@ func (s *SQLiteStore) searchLawsFTS(keyword string, topK int) ([]LawRecord, erro
 func (s *SQLiteStore) searchLawsLike(keyword string, topK int) ([]LawRecord, error) {
 	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(keyword)
 	pattern := "%" + escaped + "%"
-	rows, err := s.lawsDB.Query(`
+	rows, err := s.lawsDB.QueryContext(context.Background(), `
 		SELECT l.id, l.level, l.name, l.subtitle, l.content,
 		       c.name AS category_name
 		FROM law l
@@ -729,7 +730,7 @@ func (s *SQLiteStore) searchLawsLike(keyword string, topK int) ([]LawRecord, err
 	if err != nil {
 		return nil, fmt.Errorf("laws like search: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []LawRecord
 	for rows.Next() {
@@ -760,7 +761,7 @@ type LawRecord struct {
 // depending on an external embedding service.
 func (s *SQLiteStore) SampleVector() []float32 {
 	var blob []byte
-	err := s.db.QueryRow("SELECT vector FROM embeddings LIMIT 1").Scan(&blob)
+	err := s.db.QueryRowContext(context.Background(), "SELECT vector FROM embeddings LIMIT 1").Scan(&blob)
 	if err != nil || len(blob) == 0 {
 		return nil
 	}
@@ -782,11 +783,11 @@ type StoreStats struct {
 // Stats queries the database for aggregate statistics.
 func (s *SQLiteStore) Stats() StoreStats {
 	var st StoreStats
-	_ = s.db.QueryRow("SELECT COUNT(*) FROM documents").Scan(&st.Documents)
-	_ = s.db.QueryRow("SELECT COUNT(*) FROM chunks").Scan(&st.Chunks)
-	_ = s.db.QueryRow("SELECT COUNT(*) FROM embeddings").Scan(&st.Embeddings)
+	_ = s.db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM documents").Scan(&st.Documents)
+	_ = s.db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM chunks").Scan(&st.Chunks)
+	_ = s.db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM embeddings").Scan(&st.Embeddings)
 	var blobLen int
-	_ = s.db.QueryRow("SELECT LENGTH(vector) FROM embeddings LIMIT 1").Scan(&blobLen)
+	_ = s.db.QueryRowContext(context.Background(), "SELECT LENGTH(vector) FROM embeddings LIMIT 1").Scan(&blobLen)
 	if blobLen > 0 {
 		st.Dim = blobLen / 4
 	} else {

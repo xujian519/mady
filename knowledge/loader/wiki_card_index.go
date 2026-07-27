@@ -32,7 +32,7 @@ type CardIndex struct {
 // LoadCardIndex reads and parses card-index.json from the wiki root.
 func LoadCardIndex(wikiPath string) (*CardIndex, error) {
 	indexPath := filepath.Join(wikiPath, "card-index.json")
-	data, err := os.ReadFile(indexPath)
+	data, err := os.ReadFile(indexPath) //nolint:gosec // indexPath = filepath.Join(wikiPath, "card-index.json")
 	if err != nil {
 		return nil, fmt.Errorf("wiki: read card-index.json: %w", err)
 	}

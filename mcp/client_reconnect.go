@@ -71,7 +71,7 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	}
 
 	// Spawn new subprocess
-	cmd := exec.Command(c.cfg.Command, c.cfg.Args...)
+	cmd := exec.CommandContext(ctx, c.cfg.Command, c.cfg.Args...) //nolint:gosec // MCP runs user-configured commands by design
 	if c.cfg.Dir != "" {
 		cmd.Dir = c.cfg.Dir
 	}
@@ -218,7 +218,7 @@ func (c *Client) handleServerMessage(ctx context.Context, line string, methodRaw
 	return c.respondToServerRequest(ctx, reqID, result, handlerErr)
 }
 
-func (c *Client) respondToServerRequest(ctx context.Context, id any, result any, handlerErr error) error {
+func (c *Client) respondToServerRequest(_ context.Context, id any, result any, handlerErr error) error {
 	msg := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      id,
@@ -244,6 +244,7 @@ func (c *Client) reportAsyncError(operation, reason string, err error, recoverab
 	}
 }
 
+// AddNotificationHook registers a handler for MCP notifications from the server.
 func (c *Client) AddNotificationHook(h func(context.Context, string, json.RawMessage) error) {
 	if h == nil {
 		return
@@ -259,6 +260,7 @@ func (c *Client) notificationHookSnapshot() []func(context.Context, string, json
 	return append([]func(context.Context, string, json.RawMessage) error(nil), c.notificationHooks...)
 }
 
+// SetEventSink sets the runtime event sink for emitting MCP transport events.
 func (c *Client) SetEventSink(emit func(agentcore.Event)) {
 	c.eventSink.Set(emit)
 }

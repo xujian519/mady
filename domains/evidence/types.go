@@ -9,6 +9,7 @@ import (
 // EvidenceType 对证据判断规则所适用的证据类型进行分类。
 type EvidenceType string
 
+// Evidence type constants.
 const (
 	EvTypeGeneral             EvidenceType = "general"
 	EvTypeForeignLang         EvidenceType = "foreign_language"
@@ -27,6 +28,7 @@ const (
 	EvTypeDesignComparison    EvidenceType = "design_comparison"    // 设计对比证据
 )
 
+// Valid reports whether the evidence type is a recognized value.
 func (t EvidenceType) Valid() bool {
 	switch t {
 	case EvTypeGeneral, EvTypeForeignLang, EvTypeOverseas, EvTypeElectronic,
@@ -39,8 +41,10 @@ func (t EvidenceType) Valid() bool {
 	}
 }
 
+// CredibilityLevel rates the credibility of an evidence item or source.
 type CredibilityLevel string
 
+// Credibility level constants.
 const (
 	CredHigh       CredibilityLevel = "high"
 	CredMediumHigh CredibilityLevel = "medium_high"
@@ -48,8 +52,10 @@ const (
 	CredLow        CredibilityLevel = "low"
 )
 
+// AssessmentType defines the scoring methodology for a rule dimension.
 type AssessmentType string
 
+// Assessment type constants.
 const (
 	AssessTripleAttr  AssessmentType = "triple-attribute"
 	AssessBinary      AssessmentType = "binary"
@@ -59,6 +65,8 @@ const (
 	AssessConditional AssessmentType = "conditional"
 )
 
+// EvidenceRule describes a single evidence judgment rule, its
+// legal basis, severity, and assessment methodology.
 type EvidenceRule struct {
 	RuleID             string              `yaml:"ruleId" json:"rule_id"`
 	Name               string              `yaml:"name" json:"name"`
@@ -72,6 +80,8 @@ type EvidenceRule struct {
 	EvidenceAssessment *EvidenceAssessment `yaml:"evidenceAssessment,omitempty" json:"evidence_assessment,omitempty"`
 }
 
+// RuleCheck defines the check logic for an evidence rule, including
+// the check type, method, and applicable principles.
 type RuleCheck struct {
 	Type       string   `yaml:"type" json:"type"`
 	Method     string   `yaml:"method" json:"method"`
@@ -80,6 +90,8 @@ type RuleCheck struct {
 	Conditions []string `yaml:"conditions,omitempty" json:"conditions,omitempty"`
 }
 
+// EvidenceAssessment configures the assessment methodology, dimensions,
+// platform credibility, and any exemptions for a rule.
 type EvidenceAssessment struct {
 	AssessmentType      AssessmentType        `yaml:"assessmentType" json:"assessment_type"`
 	Dimensions          []AssessmentDimension `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
@@ -88,23 +100,29 @@ type EvidenceAssessment struct {
 	Conditions          map[string]string     `yaml:"conditions,omitempty" json:"conditions,omitempty"`
 }
 
+// AssessmentDimension defines one dimension within an evidence assessment,
+// with its weight and allowed score levels.
 type AssessmentDimension struct {
 	Name   string       `yaml:"name" json:"name"`
 	Weight float64      `yaml:"weight" json:"weight"`
 	Levels []ScoreLevel `yaml:"levels" json:"levels"`
 }
 
+// ScoreLevel defines one score band within a scoring dimension.
 type ScoreLevel struct {
 	Value       string  `yaml:"value" json:"value"`
 	Score       float64 `yaml:"score" json:"score"`
 	Description string  `yaml:"description,omitempty" json:"description,omitempty"`
 }
 
+// ScoreLabel maps a numeric score to a human-readable label.
 type ScoreLabel struct {
 	Score float64 `yaml:"score" json:"score"`
 	Label string  `yaml:"label" json:"label"`
 }
 
+// EvidenceJudgment is the complete evaluation result for one evidence span,
+// covering relevance, legality, authenticity, and type-specific dimensions.
 type EvidenceJudgment struct {
 	SpanID               string                `json:"span_id"`
 	RelevanceJudgment    *DimensionJudgment    `json:"relevance_judgment,omitempty"`
@@ -118,6 +136,8 @@ type EvidenceJudgment struct {
 	EvaluatedAt          time.Time             `json:"evaluated_at"`
 }
 
+// DimensionJudgment stores the evaluation result for a single dimension
+// (e.g. relevance, legality, authenticity).
 type DimensionJudgment struct {
 	Dimension string  `json:"dimension"`
 	Score     float64 `json:"score"`
@@ -128,6 +148,7 @@ type DimensionJudgment struct {
 // DateReliability 表示日期确定的可靠程度。
 type DateReliability string
 
+// Date reliability constants.
 const (
 	RelHigh   DateReliability = "high"
 	RelMedium DateReliability = "medium"
@@ -137,6 +158,7 @@ const (
 // DateSourceType 表示日期来源的类型。
 type DateSourceType string
 
+// Date source type constants.
 const (
 	SrcExactPage      DateSourceType = "exact_page_date"     // 页面明确标注的日期
 	SrcHTTPHeader     DateSourceType = "http_header"         // HTTP 响应头中的日期
@@ -149,6 +171,7 @@ const (
 // ContentIntegrityStatus 表示互联网证据内容完整性状态。
 type ContentIntegrityStatus string
 
+// Content integrity status constants.
 const (
 	IntegrityVerified   ContentIntegrityStatus = "verified"   // 内容完整性已验证
 	IntegrityPartial    ContentIntegrityStatus = "partial"    // 部分可验证
@@ -158,6 +181,7 @@ const (
 // PublicIntent 表示互联网公开的公开意图。
 type PublicIntent string
 
+// Public intent constants.
 const (
 	IntentPublic     PublicIntent = "public"     // 对公众开放
 	IntentRestricted PublicIntent = "restricted" // 受限制访问（收费/注册墙）
@@ -186,12 +210,16 @@ func (f *FourElementsResult) OverallScore() float64 {
 		f.MethodElement.Score + f.Accessibility.Score) / 4
 }
 
+// ElementResult records the single-element outcome of a four-elements check,
+// indicating whether the element is met and at what score.
 type ElementResult struct {
 	Met    bool    `json:"met"`
 	Score  float64 `json:"score"`
 	Detail string  `json:"detail"`
 }
 
+// TypeSpecificJudgment captures evidence-type-specific evaluation fields,
+// such as platform credibility, translation status, and content integrity.
 type TypeSpecificJudgment struct {
 	EvidenceType        EvidenceType       `json:"evidence_type"`
 	PlatformCredibility *CredibilityLevel  `json:"platform_credibility,omitempty"`
@@ -213,6 +241,8 @@ type TypeSpecificJudgment struct {
 	ChainIntegrity    string              `json:"chain_integrity,omitempty"`     // 证据链完整性
 }
 
+// DateDetermination records the determined date for an evidence item,
+// including the method used and reliability assessment.
 type DateDetermination struct {
 	SourceDate  string          `json:"source_date"`
 	Determined  string          `json:"determined"`
@@ -223,12 +253,15 @@ type DateDetermination struct {
 	SourceType  DateSourceType  `json:"source_type,omitempty"`
 }
 
+// JudgmentIssue records a flagged issue discovered during evidence evaluation.
 type JudgmentIssue struct {
 	Type        string `json:"type"`
 	Description string `json:"description"`
 	Severity    string `json:"severity"`
 }
 
+// BurdenDetermination records the outcome of a burden-of-proof analysis,
+// identifying who bears the burden and whether it has shifted.
 type BurdenDetermination struct {
 	BurdenHolder string `json:"burden_holder"`
 	Standard     string `json:"standard"`
@@ -237,6 +270,8 @@ type BurdenDetermination struct {
 	Reasoning    string `json:"reasoning"`
 }
 
+// ProofStandardResult records whether a given standard of proof has been met,
+// along with supporting and contradicting evidence counts.
 type ProofStandardResult struct {
 	Met                bool     `json:"met"`
 	Standard           string   `json:"standard"`
@@ -247,6 +282,8 @@ type ProofStandardResult struct {
 	Gaps               []string `json:"gaps,omitempty"`
 }
 
+// EvidenceJudgmentEngine defines the interface for judging evidence spans
+// and assessing burden of proof, proof standards, and rules.
 type EvidenceJudgmentEngine interface {
 	Judge(span agentcore_evidence.EvidenceSpan) (*EvidenceJudgment, error)
 	BatchJudge(spans []agentcore_evidence.EvidenceSpan) ([]*EvidenceJudgment, error)

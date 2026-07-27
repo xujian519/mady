@@ -57,7 +57,18 @@ func LiveEvaluator(judge agentcore.Provider, model string) *evaluate.Evaluator {
 // registeredCases 汇总所有已注册的 benchmark 数据集。
 // 新数据集应在此追加。
 func registeredCases() []evaluate.TestCase {
-	var cases []evaluate.TestCase
+	cases := make([]evaluate.TestCase, 0,
+		len(PatentExamCases)+
+			len(PatentExamRealA2Cases)+
+			len(PatentExamRealA22Cases)+
+			len(PatentExamRealA26Cases)+
+			len(PatentExamRealA26_3Cases)+
+			len(PatentExamRealA31Cases)+
+			len(PatentExamRealA33Cases)+
+			len(PatentExamRealR42Cases)+
+			len(InvalidationDecisionCases)+
+			len(DesignInvalidationCases),
+	)
 	cases = append(cases, PatentExamCases...)
 	cases = append(cases, PatentExamRealA2Cases...)
 	cases = append(cases, PatentExamRealA22Cases...)

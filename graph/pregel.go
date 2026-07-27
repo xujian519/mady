@@ -12,6 +12,7 @@ import (
 // PregelState is the shared mutable state passed between Pregel nodes.
 type PregelState map[string]any
 
+// Clone returns a deep copy of the PregelState.
 func (s PregelState) Clone() PregelState {
 	cp := make(PregelState, len(s))
 	for k, v := range s {
@@ -76,11 +77,16 @@ func deepCopyValue(v any) any {
 	return v
 }
 
+// GetString returns the string value for a key, or empty string if the key
+// is missing or the value is not a string.
 func (s PregelState) GetString(key string) string {
 	v, _ := s[key].(string)
 	return v
 }
 
+// GetMessages returns the slice value for a key, supporting both []any and
+// typed slices (e.g. []agentcore.Message) via reflection. Returns nil when
+// the key is missing or the value is not a slice.
 func (s PregelState) GetMessages(key string) []any {
 	raw, ok := s[key]
 	if !ok {
@@ -102,6 +108,8 @@ func (s PregelState) GetMessages(key string) []any {
 	return nil
 }
 
+// PregelEnd is the reserved terminal node sentinel value. Edges to PregelEnd
+// cause the graph to return immediately without scheduling further nodes.
 const PregelEnd = "__end__"
 
 // PregelStep adapts a CompiledPregelGraph to the Step interface,
@@ -115,16 +123,28 @@ type PregelStep struct {
 	Graph *CompiledPregelGraph
 }
 
+// Run executes the PregelStep as a Step interface, reading the input from
+// PregelState["input"] and writing the output to PregelState["output"].
 func (ps *PregelStep) Run(ctx context.Context, input string) (string, error) {
 	return ps.Graph.RunString(ctx, input)
 }
 
 var _ Step = (*PregelStep)(nil)
 
+// PregelNode is a single processing step in a Pregel graph. It receives the
+// current shared state and returns an updated state fragment that is merged
+// back deterministically.
 type PregelNode func(ctx context.Context, state PregelState) (PregelState, error)
 
+// PregelEdgeRouter is a dynamic edge router that decides which nodes to
+// activate next based on the current state. It returns a list of target
+// node names.
 type PregelEdgeRouter func(ctx context.Context, state PregelState) []string
 
+// PregelGraph is a directed graph of PregelNode steps with support for
+// static edges, conditional routing, node-level policies, and configurable
+// state merge schemas. Use NewPregelGraph to create, then Compile to produce
+// a CompiledPregelGraph for execution.
 type PregelGraph struct {
 	nodes            map[string]PregelNode
 	edges            map[string][]string
@@ -133,6 +153,7 @@ type PregelGraph struct {
 	schema           *StateSchema          // 编译时传递到 CompiledPregelGraph
 }
 
+// NewPregelGraph creates a new empty Pregel graph with no nodes or edges.
 func NewPregelGraph() *PregelGraph {
 	return &PregelGraph{
 		nodes:            make(map[string]PregelNode),
@@ -141,6 +162,7 @@ func NewPregelGraph() *PregelGraph {
 	}
 }
 
+// AddNode registers a named node in the graph. Names must not be PregelEnd.
 func (pg *PregelGraph) AddNode(name string, node PregelNode) error {
 	if name == PregelEnd {
 		return fmt.Errorf("pregel: %q is a reserved name", PregelEnd)
@@ -152,6 +174,8 @@ func (pg *PregelGraph) AddNode(name string, node PregelNode) error {
 	return nil
 }
 
+// AddEdge adds a static edge from one node to another. The target may be
+// PregelEnd to signal termination.
 func (pg *PregelGraph) AddEdge(from, to string) error {
 	if _, ok := pg.nodes[from]; !ok {
 		return fmt.Errorf("pregel: unknown source node %q", from)
@@ -165,6 +189,8 @@ func (pg *PregelGraph) AddEdge(from, to string) error {
 	return nil
 }
 
+// SetConditionalEdge replaces the outgoing edges of a node with a dynamic
+// router function that decides targets at runtime based on the current state.
 func (pg *PregelGraph) SetConditionalEdge(from string, router PregelEdgeRouter) error {
 	if _, ok := pg.nodes[from]; !ok {
 		return fmt.Errorf("pregel: unknown source node %q", from)
@@ -191,6 +217,9 @@ func (pg *PregelGraph) SetNodePolicy(name string, policy NodePolicy) error {
 	return nil
 }
 
+// CompiledPregelGraph is the immutable, ready-to-execute form of a PregelGraph.
+// It is created by calling PregelGraph.Compile and contains a frozen snapshot
+// of the node policies and schema. Run it repeatedly to execute the graph.
 type CompiledPregelGraph struct {
 	pg       *PregelGraph
 	entry    string
@@ -200,6 +229,10 @@ type CompiledPregelGraph struct {
 	nodePolicies map[string]NodePolicy // 编译时从 PregelGraph 复制
 }
 
+// Compile validates the graph and produces an immutable compiled instance
+// ready for execution. The entryNode specifies the first node to execute.
+// An optional maxSteps parameter limits the number of sequential steps
+// (defaults to 100).
 func (pg *PregelGraph) Compile(entryNode string, maxSteps ...int64) (*CompiledPregelGraph, error) {
 	if _, ok := pg.nodes[entryNode]; !ok {
 		return nil, fmt.Errorf("pregel: entry node %q not found", entryNode)
@@ -225,6 +258,10 @@ func (pg *PregelGraph) Compile(entryNode string, maxSteps ...int64) (*CompiledPr
 	}, nil
 }
 
+// Run executes the compiled Pregel graph starting from the initial state.
+// Nodes at the same depth level are executed in parallel, and their outputs
+// are merged using the configured StateSchema (or last-write-wins by
+// alphabetical node name when Schema is nil).
 func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (PregelState, error) {
 	state := initial.Clone()
 	active := []string{cpg.entry}
@@ -314,6 +351,8 @@ func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (P
 	return state, nil
 }
 
+// RunString is a convenience wrapper around Run that places the input in
+// PregelState["input"] and extracts the result from PregelState["output"].
 func (cpg *CompiledPregelGraph) RunString(ctx context.Context, input string) (string, error) {
 	initial := PregelState{"input": input}
 	final, err := cpg.Run(ctx, initial)
@@ -329,10 +368,15 @@ type PregelCheckpointer struct {
 	store CheckpointStore
 }
 
+// NewPregelCheckpointer creates a PregelCheckpointer backed by the given
+// CheckpointStore.
 func NewPregelCheckpointer(cpg *CompiledPregelGraph, store CheckpointStore) *PregelCheckpointer {
 	return &PregelCheckpointer{graph: cpg, store: store}
 }
 
+// RunWithCheckpoints executes the Pregel graph with checkpointing. A checkpoint
+// is saved before each node execution, allowing the graph to be resumed from
+// the last saved state if interrupted.
 func (pc *PregelCheckpointer) RunWithCheckpoints(ctx context.Context, initial PregelState, graphID string) (PregelState, error) {
 	state := initial.Clone()
 	active := []string{pc.graph.entry}

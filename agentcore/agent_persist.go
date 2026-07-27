@@ -64,6 +64,7 @@ func (a *Agent) Close() {
 
 // --- persistence ---
 
+// SaveState persists the current agent state snapshot under the given key.
 func (a *Agent) SaveState(ctx context.Context, key string) error {
 	if a.config.Store == nil {
 		return fmt.Errorf("未配置持久化存储")
@@ -71,6 +72,7 @@ func (a *Agent) SaveState(ctx context.Context, key string) error {
 	return a.config.Store.Save(ctx, key, a.state.Snapshot())
 }
 
+// LoadState restores the agent state from a previously saved snapshot.
 func (a *Agent) LoadState(ctx context.Context, key string) error {
 	if a.config.Store == nil {
 		return fmt.Errorf("未配置持久化存储")
@@ -138,10 +140,12 @@ func (a *Agent) maybeCompact(ctx context.Context) error {
 	return a.ForceCompact(ctx)
 }
 
+// ForceCompact triggers context compaction unconditionally.
 func (a *Agent) ForceCompact(ctx context.Context) error {
 	return a.ForceCompactWithTopic(ctx, "")
 }
 
+// ForceCompactWithTopic triggers context compaction with an optional focus topic.
 func (a *Agent) ForceCompactWithTopic(ctx context.Context, focusTopic string) error {
 	if a.contextEngine == nil {
 		return nil

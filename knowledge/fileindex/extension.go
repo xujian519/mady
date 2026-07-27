@@ -75,9 +75,14 @@ func (e *Extension) workingDir() string {
 // agentcore.Extension interface
 // ---------------------------------------------------------------------------
 
-func (e *Extension) Name() string                                           { return "fileindex" }
+// Name returns the fileindex extension identifier.
+func (e *Extension) Name() string { return "fileindex" }
+
+// Init performs no-op initialization.
 func (e *Extension) Init(ctx context.Context, agent *agentcore.Agent) error { return nil }
-func (e *Extension) Dispose() error                                         { return nil }
+
+// Dispose performs no-op cleanup.
+func (e *Extension) Dispose() error { return nil }
 
 // Tools implements ToolProvider.
 func (e *Extension) Tools() []*agentcore.Tool {

@@ -12,7 +12,8 @@ import (
 const ExtensionName = "planmode"
 
 // PlanModeExtension gates tool execution when plan mode is active.
-// When inactive, it adds zero overhead — the lifecycle hook returns immediately.
+//
+//nolint:revive // stutter: planmode.PlanModeExtension is intentional for clarity
 type PlanModeExtension struct {
 	policy Policy
 	active atomic.Bool

@@ -33,25 +33,31 @@ func NewTruncateEngine(cfg ContextEngineConfig) ContextEngine {
 	}
 }
 
+// Name returns the engine identifier.
 func (e *TruncateEngine) Name() string {
 	return "truncate"
 }
 
-func (e *TruncateEngine) OnSessionStart(ctx context.Context, model string, contextLength int64) {
+// OnSessionStart initializes per-session state.
+func (e *TruncateEngine) OnSessionStart(_ context.Context, _ string, contextLength int64) {
 	e.contextLength = contextLength
 	if e.thresholdPercent > 0 {
 		e.thresholdTokens = int64(float64(contextLength) * e.thresholdPercent)
 	}
 }
 
+// OnSessionReset clears all per-session state.
 func (e *TruncateEngine) OnSessionReset() {
 	e.compressionCnt = 0
 }
 
+// OnSessionEnd is called at session termination.
 func (e *TruncateEngine) OnSessionEnd() {}
 
-func (e *TruncateEngine) UpdateFromResponse(usage TokenUsage) {}
+// UpdateFromResponse is a no-op for the truncate engine.
+func (e *TruncateEngine) UpdateFromResponse(_ TokenUsage) {}
 
+// ShouldCompact returns true if compaction should fire this turn.
 func (e *TruncateEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition, contextWindow int64) bool {
 	if contextWindow <= 0 {
 		return false
@@ -69,7 +75,8 @@ func (e *TruncateEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition
 	return estimated > triggerThreshold
 }
 
-func (e *TruncateEngine) Compress(ctx context.Context, msgs []Message, focusTopic string) ([]Message, int64, error) {
+// Compress truncates the message list to fit within the context window.
+func (e *TruncateEngine) Compress(_ context.Context, msgs []Message, _ string) ([]Message, int64, error) {
 	if len(msgs) <= 3 {
 		return msgs, 0, nil
 	}
@@ -143,26 +150,32 @@ func (e *TruncateEngine) Compress(ctx context.Context, msgs []Message, focusTopi
 	return result, saved, nil
 }
 
+// GetToolSchemas returns nil — the truncate engine does not expose additional tools.
 func (e *TruncateEngine) GetToolSchemas() []ToolDefinition {
 	return nil
 }
 
+// ContextLength returns the model's context window size.
 func (e *TruncateEngine) ContextLength() int64 {
 	return e.contextLength
 }
 
+// ThresholdTokens returns the token count at which truncation triggers.
 func (e *TruncateEngine) ThresholdTokens() int64 {
 	return e.thresholdTokens
 }
 
+// CompressionCount returns the number of successful compressions.
 func (e *TruncateEngine) CompressionCount() int64 {
 	return e.compressionCnt
 }
 
+// LastSavingsPct returns the savings percentage of the last compression.
 func (e *TruncateEngine) LastSavingsPct() float64 {
 	return 0
 }
 
-func (e *TruncateEngine) CheckFeasibility(mainModelContextLength int64) string {
+// CheckFeasibility validates that the compression model can handle summarization.
+func (e *TruncateEngine) CheckFeasibility(_ int64) string {
 	return ""
 }

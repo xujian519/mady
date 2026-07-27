@@ -42,7 +42,7 @@ func (e *Extension) SystemPromptSuffix() string {
 }
 
 // TransformContext 实现 TransformContextProvider — 分析用户消息并注入心理上下文
-func (e *Extension) TransformContext(ctx context.Context, msgs []agentcore.Message) []agentcore.Message {
+func (e *Extension) TransformContext(_ context.Context, msgs []agentcore.Message) []agentcore.Message {
 	lastUserIdx := -1
 	for i := len(msgs) - 1; i >= 0; i-- {
 		if msgs[i].Role == agentcore.RoleUser {

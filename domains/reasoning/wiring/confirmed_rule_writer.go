@@ -51,7 +51,7 @@ func (w *ConfirmedRuleWriter) Write(caseID, caseType, techField string, rs reaso
 	if w == nil || w.dir == "" {
 		return "", fmt.Errorf("confirmed rule writer: no directory configured")
 	}
-	if err := os.MkdirAll(w.dir, 0o755); err != nil {
+	if err := os.MkdirAll(w.dir, 0o750); err != nil {
 		return "", fmt.Errorf("confirmed rule writer: mkdir: %w", err)
 	}
 
@@ -103,7 +103,7 @@ func (w *ConfirmedRuleWriter) List() ([]string, error) {
 
 // Load reads one historical confirmed-rule record by path.
 func (w *ConfirmedRuleWriter) Load(path string) (confirmedRuleRecord, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from caller, typically filepath.Join(w.dir, ...)
 	if err != nil {
 		return confirmedRuleRecord{}, fmt.Errorf("confirmed rule writer: load: %w", err)
 	}

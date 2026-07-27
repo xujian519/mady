@@ -18,11 +18,17 @@ import (
 type DetectorID string
 
 const (
-	DetectorToolCallLoop      DetectorID = "tool_call_loop"
-	DetectorTextRepetition    DetectorID = "text_repetition"
-	DetectorCycle             DetectorID = "cycle"
-	DetectorEmptyResult       DetectorID = "empty_result"
-	DetectorCircuitBreaker    DetectorID = "circuit_breaker"
+	// DetectorToolCallLoop identifies the tool-call loop detector.
+	DetectorToolCallLoop DetectorID = "tool_call_loop"
+	// DetectorTextRepetition identifies the text repetition detector.
+	DetectorTextRepetition DetectorID = "text_repetition"
+	// DetectorCycle identifies the execution cycle detector.
+	DetectorCycle DetectorID = "cycle"
+	// DetectorEmptyResult identifies the empty result detector.
+	DetectorEmptyResult DetectorID = "empty_result"
+	// DetectorCircuitBreaker identifies the circuit breaker detector.
+	DetectorCircuitBreaker DetectorID = "circuit_breaker"
+	// DetectorCompactionBreaker identifies the compaction breaker detector.
 	DetectorCompactionBreaker DetectorID = "compaction_breaker"
 )
 
@@ -88,12 +94,25 @@ func DefaultConfig() Config {
 // Option is a functional option for New.
 type Option func(*Config)
 
-func WithToolCallLoop(n int) Option       { return func(c *Config) { c.ToolCallLoopMax = n } }
-func WithTextRepetition(n int) Option     { return func(c *Config) { c.TextRepetitionMinRepeat = n } }
-func WithCycleLength(n int) Option        { return func(c *Config) { c.CycleLength = n } }
-func WithEmptyResultMax(n int) Option     { return func(c *Config) { c.EmptyResultMax = n } }
-func WithCircuitBreaker(n int) Option     { return func(c *Config) { c.CircuitBreakerMax = n } }
-func WithCompactionMax(n int) Option      { return func(c *Config) { c.CompactionMax = n } }
+// WithToolCallLoop sets the maximum identical tool calls before triggering.
+func WithToolCallLoop(n int) Option { return func(c *Config) { c.ToolCallLoopMax = n } }
+
+// WithTextRepetition sets the minimum consecutive repeated text blocks before triggering.
+func WithTextRepetition(n int) Option { return func(c *Config) { c.TextRepetitionMinRepeat = n } }
+
+// WithCycleLength sets the minimum cycle length to detect.
+func WithCycleLength(n int) Option { return func(c *Config) { c.CycleLength = n } }
+
+// WithEmptyResultMax sets the maximum consecutive empty tool results before triggering.
+func WithEmptyResultMax(n int) Option { return func(c *Config) { c.EmptyResultMax = n } }
+
+// WithCircuitBreaker sets the maximum total tool calls before triggering.
+func WithCircuitBreaker(n int) Option { return func(c *Config) { c.CircuitBreakerMax = n } }
+
+// WithCompactionMax sets the maximum consecutive compaction summaries without progress.
+func WithCompactionMax(n int) Option { return func(c *Config) { c.CompactionMax = n } }
+
+// WithOnSignal sets a callback function invoked when any detector fires.
 func WithOnSignal(fn func(Signal)) Option { return func(c *Config) { c.OnSignal = fn } }
 
 // ============================================================================

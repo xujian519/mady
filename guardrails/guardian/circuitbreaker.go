@@ -84,7 +84,7 @@ func (cb *CircuitBreaker) Reset() {
 	cb.tripped = false
 }
 
-// Stats returns current breaker statistics.
+// BreakerStats holds current circuit breaker statistics.
 type BreakerStats struct {
 	TotalReviews       int
 	TotalDenials       int
@@ -92,6 +92,7 @@ type BreakerStats struct {
 	Tripped            bool
 }
 
+// Stats returns current circuit breaker statistics.
 func (cb *CircuitBreaker) Stats() BreakerStats {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()

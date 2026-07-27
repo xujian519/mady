@@ -49,7 +49,7 @@ func (s *tuiSession) openSettings() {
 func (s *tuiSession) buildSettingEntries() []component.SettingEntry {
 	// Theme entry reflects the current palette name.
 	themeCur := int64(0)
-	if s.themeName() == "dark" {
+	if s.themeName() == valDark {
 		themeCur = 0 // dark (品牌冷色)
 	} else {
 		themeCur = 1 // light
@@ -76,35 +76,35 @@ func (s *tuiSession) buildSettingEntries() []component.SettingEntry {
 	}
 	return []component.SettingEntry{
 		{
-			Key: "theme", Label: "主题",
+			Key: SettingKeyTheme, Label: "主题",
 			Options: []component.SettingOption{
-				{Value: "dark", Label: "深色"},
-				{Value: "light", Label: "浅色"},
+				{Value: valDark, Label: "深色"},
+				{Value: DefaultTheme, Label: "浅色"},
 			},
 			Current: themeCur,
 		},
 		{
-			Key: "plan", Label: "计划模式",
+			Key: SettingKeyPlan, Label: "计划模式",
 			Options: []component.SettingOption{
-				{Value: "off", Label: "关闭"},
+				{Value: DefaultPlan, Label: "关闭"},
 				{Value: "on", Label: "开启"},
 			},
 			Current: planCur,
 		},
 		{
-			Key: "review", Label: "审核关卡",
+			Key: SettingKeyReview, Label: "审核关卡",
 			Options: []component.SettingOption{
-				{Value: "off", Label: "关闭"},
+				{Value: DefaultPlan, Label: "关闭"},
 				{Value: "on", Label: "开启"},
 			},
 			Current: reviewCur,
 		},
 		{
-			Key: "thinking", Label: "推理显示",
+			Key: SettingKeyThinking, Label: "推理显示",
 			Options: []component.SettingOption{
-				{Value: "default", Label: "默认"},
-				{Value: "summarized", Label: "摘要"},
-				{Value: "omitted", Label: "隐藏"},
+				{Value: DefaultThinking, Label: "默认"},
+				{Value: valSummarized, Label: "摘要"},
+				{Value: valOmitted, Label: "隐藏"},
 			},
 			Current: thinkingCur,
 		},
@@ -119,13 +119,13 @@ func (s *tuiSession) applySettingEntry(e component.SettingEntry) {
 	// 直接通过子命令 handler 应用设置，handler 内部负责写入 store 并重建 agent。
 	// 注意：不要在 handler 之前写 store，否则 handler 的幂等检查会误判"已在目标状态"而跳过重建。
 	switch e.Key {
-	case "theme":
+	case SettingKeyTheme:
 		s.handleThemeCommand("/theme " + val)
-	case "plan":
+	case SettingKeyPlan:
 		s.handlePlanCommandEx(val) // "on" or "off" — idempotent
-	case "review":
+	case SettingKeyReview:
 		s.handleReviewCommandEx(val) // "on" or "off" — idempotent
-	case "thinking":
+	case SettingKeyThinking:
 		s.handleThinkingCommand("/thinking " + val)
 	}
 }
@@ -170,14 +170,14 @@ func (s *tuiSession) openCommandCenter(filter ...string) {
 // buildCommandItems converts slash registry commands to CommandItems.
 func (s *tuiSession) buildCommandItems() []component.CommandItem {
 	categoryNames := map[string]string{
-		"mode":     "⚙ 模式",
-		"session":  "📂 会话",
-		"case":     "📋 案件",
-		"settings": "🔧 设置",
-		"general":  "📌 通用",
-		"inspect":  "🔍 查看",
+		catMode:     "⚙ 模式",
+		catSession:  "📂 会话",
+		catCase:     "📋 案件",
+		catSettings: "🔧 设置",
+		catGeneral:  "📌 通用",
+		catInspect:  "🔍 查看",
 	}
-	var items []component.CommandItem
+	items := make([]component.CommandItem, 0, len(s.slashReg.cmds))
 	for _, cmd := range s.slashReg.cmds {
 		avail, reason := true, ""
 		if cmd.Available != nil {
@@ -210,17 +210,17 @@ func (s *tuiSession) buildCommandItems() []component.CommandItem {
 // resolveCommandStatus 返回命令的当前状态文本（用于命令中心展示）。
 func (s *tuiSession) resolveCommandStatus(name string) string {
 	switch name {
-	case "plan":
+	case SettingKeyPlan:
 		if s.isPlanMode() {
 			return "开启"
 		}
 		return "关闭"
-	case "review":
+	case SettingKeyReview:
 		if s.isReviewMode() {
 			return "开启"
 		}
 		return "关闭"
-	case "thinking":
+	case SettingKeyThinking:
 		cfg := s.thinkingConfig()
 		if cfg == nil || cfg.Display == "" || cfg.Display == agentcore.ThinkingDisplayDefault {
 			return "默认"
@@ -233,8 +233,8 @@ func (s *tuiSession) resolveCommandStatus(name string) string {
 		default:
 			return "默认"
 		}
-	case "theme":
-		if s.themeName() == "dark" {
+	case SettingKeyTheme:
+		if s.themeName() == valDark {
 			return "深色"
 		}
 		return "浅色"

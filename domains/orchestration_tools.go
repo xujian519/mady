@@ -30,6 +30,16 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// JSON Schema field constants.
+const (
+	jsType        = "type"
+	jsString      = "string"
+	jsObject      = "object"
+	jsProperties  = "properties"
+	jsDescription = "description"
+	jsRequired    = "required"
+)
+
 // =============================================================================
 // Tool Registration
 // =============================================================================
@@ -60,34 +70,34 @@ func NewOrchestrationTool(a *agentcore.Agent) *agentcore.Tool {
 		Name:        RunOrchestrationToolName,
 		Description: RunOrchestrationToolDesc,
 		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
+			jsType: jsObject,
+			jsProperties: map[string]any{
 				"case_type": map[string]any{
-					"type":        "string",
-					"description": "事务类型：oa_response（审查意见答复）/ re_examination（复审）/ invalidation（无效宣告）/ patent_drafting（专利撰写）",
+					jsType:        jsString,
+					jsDescription: "事务类型：oa_response（审查意见答复）/ re_examination（复审）/ invalidation（无效宣告）/ patent_drafting（专利撰写）",
 				},
 				"oa_text": map[string]any{
-					"type":        "string",
-					"description": "审查意见通知书/驳回决定全文（OA/复审时必填）",
+					jsType:        jsString,
+					jsDescription: "审查意见通知书/驳回决定全文（OA/复审时必填）",
 				},
 				"claims_text": map[string]any{
-					"type":        "string",
-					"description": "当前权利要求书文本（修改前）",
+					jsType:        jsString,
+					jsDescription: "当前权利要求书文本（修改前）",
 				},
 				"spec_text": map[string]any{
-					"type":        "string",
-					"description": "当前说明书文本（修改前）",
+					jsType:        jsString,
+					jsDescription: "当前说明书文本（修改前）",
 				},
 				"disclosure_text": map[string]any{
-					"type":        "string",
-					"description": "技术交底书内容（撰写专利时必填）",
+					jsType:        jsString,
+					jsDescription: "技术交底书内容（撰写专利时必填）",
 				},
 				"tech_domain": map[string]any{
-					"type":        "string",
-					"description": "技术领域：mechanical / electrical / chemical / software / general",
+					jsType:        jsString,
+					jsDescription: "技术领域：mechanical / electrical / chemical / software / general",
 				},
 			},
-			"required": []string{"case_type"},
+			jsRequired: []string{"case_type"},
 		},
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
 			return handleRunOrchestration(ctx, args, a)

@@ -28,8 +28,10 @@ type JudgeConsistency struct {
 	MinOverlap float64
 }
 
+// Name returns "judge_consistency".
 func (JudgeConsistency) Name() string { return "judge_consistency" }
 
+// Compute returns 1.0 when prediction agrees with reference, 0.0 otherwise.
 func (j JudgeConsistency) Compute(prediction, reference string) float64 {
 	if j.Judge != nil {
 		if j.Judge(prediction, reference) {

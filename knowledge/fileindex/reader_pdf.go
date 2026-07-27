@@ -28,7 +28,7 @@ func (fr *FileReader) readPDF(ctx context.Context, path string) (*FileReadResult
 	}
 
 	// Run pdftotext to extract text.
-	cmd := exec.CommandContext(ctx, pdftotextPath, "-nopgbrk", "-enc", "UTF-8", path, "-")
+	cmd := exec.CommandContext(ctx, pdftotextPath, "-nopgbrk", "-enc", "UTF-8", path, "-") //nolint:gosec // safe: lookpath-resolved binary + known args
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

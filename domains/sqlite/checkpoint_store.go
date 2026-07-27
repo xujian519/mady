@@ -35,7 +35,7 @@ func NewGraphCheckpointStore(dbPath string) (*SQLiteGraphCheckpointStore, error)
 
 	s := &SQLiteGraphCheckpointStore{db: db}
 	if err := s.initSchema(context.Background()); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("graph-checkpoint/sqlite: init schema: %w", err)
 	}
 	return s, nil
@@ -129,7 +129,7 @@ func (s *SQLiteGraphCheckpointStore) List(ctx context.Context, graphID string) (
 	if err != nil {
 		return nil, fmt.Errorf("graph-checkpoint/sqlite: list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []graph.Checkpoint
 	for rows.Next() {
@@ -182,10 +182,16 @@ var (
 	_ store.Closer          = (*SQLiteGraphCheckpointStore)(nil)
 )
 
+// CaseID returns an empty string — the graph-level store is not case-specific.
 func (s *SQLiteGraphCheckpointStore) CaseID() string { return "" }
-func (s *SQLiteGraphCheckpointStore) RunID() string  { return "" }
-func (s *SQLiteGraphCheckpointStore) Version() int   { return 1 }
 
+// RunID returns an empty string — the graph-level store is not run-specific.
+func (s *SQLiteGraphCheckpointStore) RunID() string { return "" }
+
+// Version returns the schema version (currently 1).
+func (s *SQLiteGraphCheckpointStore) Version() int { return 1 }
+
+// Migrate applies any pending schema migrations to the checkpoint store.
 func (s *SQLiteGraphCheckpointStore) Migrate(ctx context.Context) (int, error) {
 	if err := s.initSchema(ctx); err != nil {
 		return 0, fmt.Errorf("graph-checkpoint migrate: %w", err)

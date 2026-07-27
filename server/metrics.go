@@ -20,8 +20,11 @@ type MetricsRecorder interface {
 // NopMetricsRecorder 是 MetricsRecorder 的空实现，所有方法均为 no-op。
 type NopMetricsRecorder struct{}
 
+// RequestDuration is a no-op implementation of MetricsRecorder.RequestDuration.
 func (NopMetricsRecorder) RequestDuration(string, string, int, float64) {}
-func (NopMetricsRecorder) ActiveConnections(int)                        {}
+
+// ActiveConnections is a no-op implementation of MetricsRecorder.ActiveConnections.
+func (NopMetricsRecorder) ActiveConnections(int) {}
 
 // ExpvarMetricsRecorder 是基于 go 标准库 expvar 包的 MetricsRecorder 实现。
 // 通过 expvar 自动注册的 /debug/vars 端点暴露指标，零外部依赖。
@@ -115,16 +118,16 @@ func (e *ExpvarMetricsRecorder) MetricsHandler() http.Handler {
 		w.WriteHeader(http.StatusOK)
 
 		now := time.Now().Unix()
-		w.Write([]byte("# HELP http_requests_total Total number of HTTP requests\n"))
-		w.Write([]byte("# TYPE http_requests_total counter\n"))
-		w.Write([]byte("http_requests_total " + strconv.FormatInt(e.requestCount.Value(), 10) + " " + strconv.FormatInt(now, 10) + "\n"))
+		_, _ = w.Write([]byte("# HELP http_requests_total Total number of HTTP requests\n"))
+		_, _ = w.Write([]byte("# TYPE http_requests_total counter\n"))
+		_, _ = w.Write([]byte("http_requests_total " + strconv.FormatInt(e.requestCount.Value(), 10) + " " + strconv.FormatInt(now, 10) + "\n"))
 
-		w.Write([]byte("# HELP http_request_errors_total Total number of HTTP 5xx errors\n"))
-		w.Write([]byte("# TYPE http_request_errors_total counter\n"))
-		w.Write([]byte("http_request_errors_total " + strconv.FormatInt(e.requestErrors.Value(), 10) + " " + strconv.FormatInt(now, 10) + "\n"))
+		_, _ = w.Write([]byte("# HELP http_request_errors_total Total number of HTTP 5xx errors\n"))
+		_, _ = w.Write([]byte("# TYPE http_request_errors_total counter\n"))
+		_, _ = w.Write([]byte("http_request_errors_total " + strconv.FormatInt(e.requestErrors.Value(), 10) + " " + strconv.FormatInt(now, 10) + "\n"))
 
-		w.Write([]byte("# HELP http_active_connections Current number of active connections\n"))
-		w.Write([]byte("# TYPE http_active_connections gauge\n"))
-		w.Write([]byte("http_active_connections " + strconv.FormatInt(e.activeConns.Value(), 10) + "\n"))
+		_, _ = w.Write([]byte("# HELP http_active_connections Current number of active connections\n"))
+		_, _ = w.Write([]byte("# TYPE http_active_connections gauge\n"))
+		_, _ = w.Write([]byte("http_active_connections " + strconv.FormatInt(e.activeConns.Value(), 10) + "\n"))
 	})
 }

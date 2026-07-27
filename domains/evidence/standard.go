@@ -3,6 +3,7 @@ package evidence
 // StandardOfProof 描述证明标准等级。
 type StandardOfProof string
 
+// Evidence proof-standard constants.
 const (
 	StandardBeyondReasonableDoubt StandardOfProof = "beyond_reasonable_doubt" // 排除合理怀疑
 	StandardHighProbability       StandardOfProof = "high_probability"        // 高度盖然性

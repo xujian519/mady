@@ -25,6 +25,7 @@ import "fmt"
 //	expired ←─── 以上任意状态均可超时过期
 type ApprovalState string
 
+// Lifecycle states for the approval system.
 const (
 	StateNone            ApprovalState = ""
 	StateDrafted         ApprovalState = "drafted"

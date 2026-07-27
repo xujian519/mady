@@ -7,6 +7,7 @@ package amendment
 // ModType 表示专利申请文件修改的类型。
 type ModType string
 
+// Modification mode constants.
 const (
 	ModActive    ModType = "active"     // 主动修改（实审请求时/进入实审3个月内）
 	ModPassive   ModType = "passive"    // 被动修改（针对审查意见通知书）

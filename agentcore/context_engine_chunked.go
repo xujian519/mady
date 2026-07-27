@@ -44,26 +44,32 @@ func NewChunkedEngine(cfg ContextEngineConfig) ContextEngine {
 	}
 }
 
+// Name returns the engine identifier.
 func (e *ChunkedContextEngine) Name() string { return chunkedEngineName }
 
+// OnSessionStart initializes per-session state with model and context window info.
 func (e *ChunkedContextEngine) OnSessionStart(ctx context.Context, model string, contextLength int64) {
 	e.base.OnSessionStart(ctx, model, contextLength)
 	e.protectedIndices = make(map[int]bool)
 }
 
+// OnSessionReset clears all per-session state.
 func (e *ChunkedContextEngine) OnSessionReset() {
 	e.base.OnSessionReset()
 	e.protectedIndices = make(map[int]bool)
 }
 
+// OnSessionEnd is called at session termination.
 func (e *ChunkedContextEngine) OnSessionEnd() {
 	e.base.OnSessionEnd()
 }
 
+// UpdateFromResponse updates tracked token usage. Delegates to base engine.
 func (e *ChunkedContextEngine) UpdateFromResponse(usage TokenUsage) {
 	e.base.UpdateFromResponse(usage)
 }
 
+// ShouldCompact returns true if compaction should fire this turn. Delegates to base engine.
 func (e *ChunkedContextEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition, contextWindow int64) bool {
 	return e.base.ShouldCompact(msgs, toolDefs, contextWindow)
 }
@@ -182,26 +188,32 @@ func (e *ChunkedContextEngine) rebuildProtection(msgs []Message) {
 
 // --- Passthrough methods ---
 
+// GetToolSchemas returns tool schemas from the base engine.
 func (e *ChunkedContextEngine) GetToolSchemas() []ToolDefinition {
 	return e.base.GetToolSchemas()
 }
 
+// ContextLength returns the model's context window size.
 func (e *ChunkedContextEngine) ContextLength() int64 {
 	return e.base.ContextLength()
 }
 
+// ThresholdTokens returns the token count at which compression triggers.
 func (e *ChunkedContextEngine) ThresholdTokens() int64 {
 	return e.base.ThresholdTokens()
 }
 
+// CompressionCount returns the number of successful compressions.
 func (e *ChunkedContextEngine) CompressionCount() int64 {
 	return e.base.CompressionCount()
 }
 
+// LastSavingsPct returns the savings percentage of the last compression.
 func (e *ChunkedContextEngine) LastSavingsPct() float64 {
 	return e.base.LastSavingsPct()
 }
 
+// CheckFeasibility validates that the compression model can handle summarization.
 func (e *ChunkedContextEngine) CheckFeasibility(mainModelContextLength int64) string {
 	return e.base.CheckFeasibility(mainModelContextLength)
 }

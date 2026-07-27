@@ -10,6 +10,7 @@ import (
 // VarType is the data type of a template variable.
 type VarType string
 
+// Template variable type constants.
 const (
 	VarString    VarType = "string"    // 单行字符串（默认）
 	VarMultiline VarType = "multiline" // 多行文本

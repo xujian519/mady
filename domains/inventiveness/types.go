@@ -32,6 +32,7 @@ type PFETriple struct {
 // 发明类型常量
 // =============================================================================
 
+// Invention type constants.
 const (
 	InventionTypeGeneric       = ""               // 通用（默认，不指定类型）
 	InventionTypePioneering    = "pioneering"     // 开拓性发明：技术史上无先例的全新方案
@@ -67,6 +68,7 @@ type InventivenessInput struct {
 // 显著的进步类型常量
 // =============================================================================
 
+// Progress type constants for technical advancement evaluation.
 const (
 	ProgressTypeEffectImprove = "effect_improve" // 效果改善型：与现有技术相比具有更好的技术效果
 	ProgressTypeDifferentPath = "different_path" // 异途同归型：提供技术构思不同的技术方案，效果基本达到现有技术水平

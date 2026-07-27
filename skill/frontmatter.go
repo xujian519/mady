@@ -21,7 +21,7 @@ func loadSkillFile(path string) (*Skill, []Diagnostic, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	body, err := os.ReadFile(abs)
+	body, err := os.ReadFile(abs) //nolint:gosec // path is from filepath.Walk over skills dir, Abs'd
 	if err != nil {
 		return nil, nil, err
 	}

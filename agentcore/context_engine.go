@@ -208,11 +208,13 @@ func NewCompressorEngine(cfg ContextEngineConfig) ContextEngine {
 	}
 }
 
+// Name returns the engine identifier.
 func (e *CompressorEngine) Name() string {
 	return "compressor"
 }
 
-func (e *CompressorEngine) OnSessionStart(ctx context.Context, model string, contextLength int64) {
+// OnSessionStart initializes per-session state with model and context window info.
+func (e *CompressorEngine) OnSessionStart(_ context.Context, model string, contextLength int64) {
 	e.model = model
 	e.contextLength = contextLength
 	if e.thresholdPercent > 0 {
@@ -220,25 +222,28 @@ func (e *CompressorEngine) OnSessionStart(ctx context.Context, model string, con
 	}
 }
 
+// OnSessionReset clears all per-session compaction state.
 func (e *CompressorEngine) OnSessionReset() {
 	e.state = newCompactionState()
 	e.compressionCnt.Store(0)
 }
 
-func (e *CompressorEngine) OnSessionEnd() {
-}
+// OnSessionEnd is called at session termination. No-op for the compressor engine.
+func (e *CompressorEngine) OnSessionEnd() {}
 
 // UpdateFromResponse is a no-op. The compressor engine currently relies
 // entirely on heuristic token estimation. This method exists to satisfy
 // the ContextEngine interface and is reserved for future calibration
 // against real provider usage data.
-func (e *CompressorEngine) UpdateFromResponse(usage TokenUsage) {
+func (e *CompressorEngine) UpdateFromResponse(_ TokenUsage) {
 }
 
+// ShouldCompact returns true if compaction should fire this turn.
 func (e *CompressorEngine) ShouldCompact(msgs []Message, toolDefs []ToolDefinition, contextWindow int64) bool {
 	return shouldCompact(msgs, toolDefs, contextWindow, 0, e.thresholdPercent, e.autoCompactLimit, e.state)
 }
 
+// Compress compacts the message list via LLM summarization.
 func (e *CompressorEngine) Compress(ctx context.Context, msgs []Message, focusTopic string) ([]Message, int64, error) {
 	displayTokens := EstimateMessagesTokens(msgs)
 
@@ -293,22 +298,25 @@ func (e *CompressorEngine) compressionProvider() Provider {
 	return e.provider
 }
 
-func (e *CompressorEngine) GetToolSchemas() []ToolDefinition {
-	return nil
-}
+// GetToolSchemas returns nil — the compressor does not expose additional tools.
+func (e *CompressorEngine) GetToolSchemas() []ToolDefinition { return nil }
 
+// ContextLength returns the model's context window size.
 func (e *CompressorEngine) ContextLength() int64 {
 	return e.contextLength
 }
 
+// ThresholdTokens returns the token count at which compression triggers.
 func (e *CompressorEngine) ThresholdTokens() int64 {
 	return e.thresholdTokens
 }
 
+// CompressionCount returns the number of successful compressions.
 func (e *CompressorEngine) CompressionCount() int64 {
 	return e.compressionCnt.Load()
 }
 
+// LastSavingsPct returns the savings percentage of the last compression.
 func (e *CompressorEngine) LastSavingsPct() float64 {
 	if e.state == nil {
 		return 0

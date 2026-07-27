@@ -80,6 +80,7 @@ func thinkingConfigEqual(a, b *ThinkingConfig) bool {
 		a.Budget == b.Budget
 }
 
+// ThinkingDisplay controls how provider reasoning/thinking content is surfaced.
 type ThinkingDisplay string
 
 // ThinkingDisplay values control how provider reasoning/thinking content is surfaced.
@@ -89,6 +90,7 @@ const (
 	ThinkingDisplayOmitted    ThinkingDisplay = "omitted"
 )
 
+// ThinkingEffort specifies how much reasoning effort the provider should spend.
 type ThinkingEffort string
 
 // ThinkingEffort values specify how much reasoning effort the provider should spend.
@@ -149,6 +151,7 @@ func (c *ThinkingConfig) NormalizedDisplay() ThinkingDisplay {
 	return ThinkingDisplayOmitted
 }
 
+// CloneThinkingConfig returns a deep copy of the thinking configuration.
 func CloneThinkingConfig(c *ThinkingConfig) *ThinkingConfig {
 	if c == nil {
 		return nil
@@ -157,6 +160,7 @@ func CloneThinkingConfig(c *ThinkingConfig) *ThinkingConfig {
 	return &cp
 }
 
+// CloneResponseFormat returns a deep copy of the response format.
 func CloneResponseFormat(f *ResponseFormat) *ResponseFormat {
 	if f == nil {
 		return nil
@@ -169,6 +173,7 @@ func CloneResponseFormat(f *ResponseFormat) *ResponseFormat {
 	return &cp
 }
 
+// CloneCallConfig returns a deep copy of the call configuration.
 func CloneCallConfig(c *CallConfig) *CallConfig {
 	if c == nil {
 		return nil
@@ -181,6 +186,7 @@ func CloneCallConfig(c *CallConfig) *CallConfig {
 	}
 }
 
+// CloneStringSlice returns a copy of the string slice with empty entries removed.
 func CloneStringSlice(values []string) []string {
 	if len(values) == 0 {
 		return nil
@@ -226,6 +232,7 @@ func MergeCallConfig(base, override *CallConfig) *CallConfig {
 	return out
 }
 
+// ResponseFormatType specifies the expected LLM response structure.
 type ResponseFormatType string
 
 // ResponseFormatType values specify the expected LLM response structure.

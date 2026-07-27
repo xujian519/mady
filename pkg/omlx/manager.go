@@ -62,12 +62,12 @@ func (m *Manager) IsRunning() bool {
 	if m.apiKey == "" {
 		return false
 	}
-	return m.checkHealth() == nil
+	return m.checkHealth(context.Background()) == nil
 }
 
 // checkHealth performs a single health check request.
-func (m *Manager) checkHealth() error {
-	req, err := http.NewRequest(http.MethodGet, m.healthURL, nil) // #nosec G704 — localhost only
+func (m *Manager) checkHealth(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, m.healthURL, nil) // #nosec G704 — localhost only
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (m *Manager) checkHealth() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// Drain body to allow connection reuse.
 	_, _ = io.Copy(io.Discard, resp.Body)
 
@@ -121,7 +121,7 @@ func (m *Manager) Start(ctx context.Context) error {
 		"--port", fmt.Sprintf("%d", m.port),
 		"--api-key", m.apiKey,
 	}
-	cmd := exec.CommandContext(ctx, path, args...)
+	cmd := exec.CommandContext(ctx, path, args...) //nolint:gosec // safe: lookpath-resolved omlx binary
 
 	// Capture stderr for diagnostics in case of startup failure.
 	stderr, err := cmd.StderrPipe()
@@ -156,7 +156,7 @@ func (m *Manager) Start(ctx context.Context) error {
 				}
 				return
 			case <-tick.C:
-				if err := m.checkHealth(); err == nil {
+				if err := m.checkHealth(ctx); err == nil {
 					ready <- nil
 					return
 				}
@@ -228,7 +228,7 @@ func (m *Manager) EnsureRunning(ctx context.Context) {
 	}
 
 	// Fast path: already running.
-	if m.checkHealth() == nil {
+	if m.checkHealth(ctx) == nil {
 		slog.Debug("omlx: 嵌入服务已在运行", "url", m.healthURL)
 		return
 	}

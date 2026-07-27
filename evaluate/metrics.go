@@ -12,9 +12,6 @@ import (
 // Metric scores a single prediction against a reference answer, returning a
 // value in [0,1] where 1 is best. Implementations must be deterministic for a
 // given (prediction, reference) pair so that results are reproducible.
-// Metric scores a single prediction against a reference answer, returning a
-// value in [0,1] where 1 is best. Implementations must be deterministic for a
-// given (prediction, reference) pair so that results are reproducible.
 type Metric interface {
 	// Name is the metric identifier used in reports and aggregate maps.
 	Name() string
@@ -29,12 +26,18 @@ type CitationAwareMetric interface {
 	// required citations instead of any default set at construction time.
 	WithCitations(citations []string) Metric
 }
+
+// MetricFunc implements Metric via a function field, useful for inline metric
+// definitions or test stubs.
 type MetricFunc struct {
 	MetricName string
 	Run        func(prediction, reference string) float64
 }
 
-func (m MetricFunc) Name() string                { return m.MetricName }
+// Name returns the metric identifier.
+func (m MetricFunc) Name() string { return m.MetricName }
+
+// Compute delegates to the Run function field.
 func (m MetricFunc) Compute(p, r string) float64 { return m.Run(p, r) }
 
 // ============================================================================
@@ -47,8 +50,11 @@ type ExactMatch struct {
 	CaseSensitive bool
 }
 
+// Name returns "exact_match".
 func (m ExactMatch) Name() string { return "exact_match" }
 
+// Compute returns 1 when prediction equals reference (after optional
+// case-folding and whitespace trimming), 0 otherwise.
 func (m ExactMatch) Compute(prediction, reference string) float64 {
 	p := strings.TrimSpace(prediction)
 	r := strings.TrimSpace(reference)
@@ -71,8 +77,10 @@ func (m ExactMatch) Compute(prediction, reference string) float64 {
 // Chinese and English text without an external tokenizer.
 type F1Score struct{}
 
+// Name returns "f1".
 func (F1Score) Name() string { return "f1" }
 
+// Compute returns the token-level F1 score between prediction and reference.
 func (F1Score) Compute(prediction, reference string) float64 {
 	predTokens := tokenize(prediction)
 	refTokens := tokenize(reference)
@@ -120,8 +128,10 @@ type KeywordRecall struct {
 	Keywords []string
 }
 
+// Name returns "keyword_recall".
 func (m KeywordRecall) Name() string { return "keyword_recall" }
 
+// Compute returns the fraction of keywords present in the prediction.
 func (m KeywordRecall) Compute(prediction, reference string) float64 {
 	keywords := m.Keywords
 	if len(keywords) == 0 {
@@ -153,6 +163,7 @@ type CitationCompleteness struct {
 	Required []string
 }
 
+// Name returns "citation_completeness".
 func (m CitationCompleteness) Name() string { return "citation_completeness" }
 
 // WithCitations returns a new CitationCompleteness using the per-case citations.
@@ -161,6 +172,8 @@ func (m CitationCompleteness) WithCitations(citations []string) Metric {
 	return m
 }
 
+// Compute returns the fraction of required citations found in the prediction.
+// Returns 1 when no citations are required.
 func (m CitationCompleteness) Compute(prediction, _ string) float64 {
 	if len(m.Required) == 0 {
 		return 1
@@ -309,8 +322,10 @@ func getCitationVerifier() CitationVerifier {
 // SetCitationVerifier 注入真实实现（如 guardrails.VerifyCitations 经类型适配后）。
 type CitationValidity struct{}
 
+// Name returns "citation_validity".
 func (m CitationValidity) Name() string { return "citation_validity" }
 
+// Compute returns the fraction of verifiable citations that are valid.
 func (m CitationValidity) Compute(prediction, _ string) float64 {
 	report := getCitationVerifier()(prediction)
 	verifiable := report.Total - report.Unknown - report.Unverifiable
@@ -338,8 +353,10 @@ func DefaultLengthScore() LengthScore {
 	return LengthScore{Min: 50, Ideal: 500, Max: 3000}
 }
 
+// Name returns "length_score".
 func (m LengthScore) Name() string { return "length_score" }
 
+// Compute returns a triangular score based on rune length within [Min, Max].
 func (m LengthScore) Compute(prediction, _ string) float64 {
 	n := runeLen(prediction)
 	min := m.Min
@@ -451,6 +468,7 @@ type EvidenceGroundedness struct {
 	ValidEvidence []string
 }
 
+// Name returns "evidence_groundedness".
 func (m EvidenceGroundedness) Name() string { return "evidence_groundedness" }
 
 // WithCitations returns a new EvidenceGroundedness using the per-case valid
@@ -496,6 +514,7 @@ type RuleComplianceCompleteness struct {
 	Required []string
 }
 
+// Name returns "rule_compliance_completeness".
 func (m RuleComplianceCompleteness) Name() string { return "rule_compliance_completeness" }
 
 // WithCitations returns a new RuleComplianceCompleteness using the per-case

@@ -400,7 +400,7 @@ func bindChatEditorEvents(a *ChatApp, editor *component.Editor, history *ChatHis
 		if a.cfg.OnQuit != nil {
 			a.cfg.OnQuit()
 		}
-		a.Stop()
+		_ = a.Stop()
 	})
 
 	history.SetOnCopy(func(text string) {

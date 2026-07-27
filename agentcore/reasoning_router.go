@@ -11,8 +11,11 @@ import (
 type Complexity int
 
 const (
+	// ComplexityLow represents a simple, straightforward turn.
 	ComplexityLow Complexity = iota
+	// ComplexityMedium represents a turn requiring moderate reasoning effort.
 	ComplexityMedium
+	// ComplexityHigh represents a turn requiring deep reasoning effort.
 	ComplexityHigh
 )
 

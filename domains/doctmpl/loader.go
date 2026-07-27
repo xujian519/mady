@@ -186,7 +186,7 @@ func loadDocFile(path string) (*DocTemplate, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(abs)
+	data, err := os.ReadFile(abs) //nolint:gosec // path is from filepath.Walk over template dir
 	if err != nil {
 		return nil, err
 	}

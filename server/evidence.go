@@ -279,7 +279,7 @@ func judgmentToAPIMap(j *evidence.EvidenceJudgment) map[string]any {
 		}
 		m["type_specific"] = tsMap
 	}
-	var issues []map[string]string
+	issues := make([]map[string]string, 0, len(j.FlaggedIssues))
 	for _, issue := range j.FlaggedIssues {
 		issues = append(issues, map[string]string{"type": issue.Type, "description": issue.Description, "severity": issue.Severity})
 	}

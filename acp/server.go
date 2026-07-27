@@ -32,6 +32,7 @@ import (
 // Utilities: extractPromptContent, validateClientCapabilities, ...
 // ---------------------------------------------------------------------------
 
+// Server implements the ACP protocol over stdio transport.
 type Server struct {
 	sessionMgr *SessionManager
 	agentInfo  AgentInfo
@@ -67,6 +68,7 @@ type acpResponse struct {
 	err    error
 }
 
+// ServerConfig configures an ACP Server instance.
 type ServerConfig struct {
 	SessionManager *SessionManager
 	AgentInfo      AgentInfo
@@ -86,6 +88,7 @@ type ServerConfig struct {
 // ---------------------------------------------------------------------------
 // Server construction
 
+// NewServer creates a new ACP Server with the given configuration.
 func NewServer(cfg ServerConfig) *Server {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -127,6 +130,7 @@ func isTimeoutError(err error) bool {
 	return false
 }
 
+// Run starts the ACP server loop, reading JSON-RPC requests from stdin.
 func (s *Server) Run(ctx context.Context) error {
 	s.logger.Info("ACP server starting on stdio")
 
@@ -141,7 +145,7 @@ func (s *Server) Run(ctx context.Context) error {
 		// ReadBytes doesn't block forever on a partial line. If the
 		// underlying reader doesn't support deadlines, this is a no-op.
 		if f, ok := s.rawReader.(interface{ SetReadDeadline(t time.Time) error }); ok {
-			f.SetReadDeadline(time.Now().Add(5 * time.Minute))
+			_ = f.SetReadDeadline(time.Now().Add(5 * time.Minute))
 		}
 
 		line, err := s.reader.ReadBytes('\n')
@@ -346,7 +350,7 @@ func (s *Server) WriteTextFile(sessionID, path string, content []byte) error {
 	return err
 }
 
-// sessionFS adapts the server's fs methods to the per-session ACPFileSystem.
+// sessionFS adapts the server's fs methods to the per-session FileSystem.
 type sessionFS struct {
 	server    *Server
 	sessionID string
@@ -382,7 +386,7 @@ func (s *Server) writeResponse(id any, result any) {
 		return
 	}
 	s.writerMu.Lock()
-	fmt.Fprintf(s.writer, "%s\n", data)
+	_, _ = fmt.Fprintf(s.writer, "%s\n", data)
 	s.writerMu.Unlock()
 }
 
@@ -403,7 +407,7 @@ func (s *Server) writeNotification(method string, params any) {
 		return
 	}
 	s.writerMu.Lock()
-	fmt.Fprintf(s.writer, "%s\n", data)
+	_, _ = fmt.Fprintf(s.writer, "%s\n", data)
 	s.writerMu.Unlock()
 }
 
@@ -423,7 +427,7 @@ func (s *Server) writeError(id any, code int, message string, data any) {
 		return
 	}
 	s.writerMu.Lock()
-	fmt.Fprintf(s.writer, "%s\n", respData)
+	_, _ = fmt.Fprintf(s.writer, "%s\n", respData)
 	s.writerMu.Unlock()
 }
 
@@ -901,7 +905,7 @@ func (s *Server) buildModeState() *SessionModeState {
 	}
 }
 
-func (s *Server) sendNotification(sessionID string, method string, params any) {
+func (s *Server) sendNotification(_ string, method string, params any) {
 	s.writeNotification(method, params)
 }
 

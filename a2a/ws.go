@@ -108,9 +108,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
@@ -148,13 +148,13 @@ func (s *Server) checkWSAuth(key, token string) bool {
 }
 
 func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
-	defer wc.close()
+	defer func() { _ = wc.close() }()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
 	for {
-		wc.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = wc.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		_, message, err := wc.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
@@ -170,7 +170,7 @@ func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 				ID:      nil,
 				Error:   &JSONRPCError{Code: JSONRPCParseError, Message: err.Error()},
 			}); werr != nil {
-				wc.close()
+				_ = wc.close()
 				return
 			}
 			continue
@@ -188,7 +188,7 @@ func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 		case "tasks/subscribe":
 			if !s.handler.Card().Capabilities.Streaming {
 				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorUnsupportedOperation, Message: "streaming not supported"}}); err != nil {
-					wc.close()
+					_ = wc.close()
 					return
 				}
 				continue
@@ -197,7 +197,7 @@ func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 		case "tasks/resubscribe":
 			if !s.handler.Card().Capabilities.Streaming {
 				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorUnsupportedOperation, Message: "streaming not supported"}}); err != nil {
-					wc.close()
+					_ = wc.close()
 					return
 				}
 				continue
@@ -206,7 +206,7 @@ func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 		case "tasks/pushNotification/set":
 			if !s.handler.Card().Capabilities.PushNotifications {
 				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorPushNotSupported, Message: "push notifications not supported"}}); err != nil {
-					wc.close()
+					_ = wc.close()
 					return
 				}
 				continue
@@ -215,7 +215,7 @@ func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 		case "tasks/pushNotification/get":
 			if !s.handler.Card().Capabilities.PushNotifications {
 				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorPushNotSupported, Message: "push notifications not supported"}}); err != nil {
-					wc.close()
+					_ = wc.close()
 					return
 				}
 				continue
@@ -227,7 +227,7 @@ func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 				ID:      req.ID,
 				Error:   &JSONRPCError{Code: JSONRPCMethodNotFound, Message: "method not found: " + req.Method},
 			}); err != nil {
-				wc.close()
+				_ = wc.close()
 				return
 			}
 		}
@@ -238,7 +238,7 @@ func (s *Server) handleWSSendTask(ctx context.Context, wc *wsConn, req JSONRPCRe
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -249,7 +249,7 @@ func (s *Server) handleWSSendTask(ctx context.Context, wc *wsConn, req JSONRPCRe
 		requestedModes := ExtractInputModes(params.Message)
 		if err := ValidateInputModes(requestedModes, card.DefaultInputModes); err != nil {
 			if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorContentTypeNotSupported, Message: err.Error()}}); err != nil {
-				wc.close()
+				_ = wc.close()
 				return
 			}
 			return
@@ -259,7 +259,7 @@ func (s *Server) handleWSSendTask(ctx context.Context, wc *wsConn, req JSONRPCRe
 	task, err := s.handler.SendTask(ctx, params)
 	if err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -270,7 +270,7 @@ func (s *Server) handleWSSendTask(ctx context.Context, wc *wsConn, req JSONRPCRe
 		s.sessionMgr.AddTask(task.SessionID, task.ID)
 	}
 	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task}); err != nil {
-		wc.close()
+		_ = wc.close()
 		return
 	}
 }
@@ -279,7 +279,7 @@ func (s *Server) handleWSGetTask(ctx context.Context, wc *wsConn, req JSONRPCReq
 	var params GetTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -288,14 +288,14 @@ func (s *Server) handleWSGetTask(ctx context.Context, wc *wsConn, req JSONRPCReq
 	task, err := s.handler.GetTask(ctx, params)
 	if err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorTaskNotFound, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
 	}
 
 	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task}); err != nil {
-		wc.close()
+		_ = wc.close()
 		return
 	}
 }
@@ -304,7 +304,7 @@ func (s *Server) handleWSCancelTask(ctx context.Context, wc *wsConn, req JSONRPC
 	var params CancelTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -313,7 +313,7 @@ func (s *Server) handleWSCancelTask(ctx context.Context, wc *wsConn, req JSONRPC
 	task, err := s.handler.CancelTask(ctx, params)
 	if err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorTaskNotCancelable, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -321,7 +321,7 @@ func (s *Server) handleWSCancelTask(ctx context.Context, wc *wsConn, req JSONRPC
 
 	s.recordTask(task)
 	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task}); err != nil {
-		wc.close()
+		_ = wc.close()
 		return
 	}
 }
@@ -330,7 +330,7 @@ func (s *Server) handleWSQueryTasks(ctx context.Context, wc *wsConn, req JSONRPC
 	var params QueryTasksRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -339,14 +339,14 @@ func (s *Server) handleWSQueryTasks(ctx context.Context, wc *wsConn, req JSONRPC
 	result, err := s.handler.QueryTasks(ctx, params)
 	if err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
 	}
 
 	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: result}); err != nil {
-		wc.close()
+		_ = wc.close()
 		return
 	}
 }
@@ -355,7 +355,7 @@ func (s *Server) handleWSSetPushNotification(ctx context.Context, wc *wsConn, re
 	var params SetPushNotificationRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -363,14 +363,14 @@ func (s *Server) handleWSSetPushNotification(ctx context.Context, wc *wsConn, re
 
 	if err := s.handler.SetPushNotification(ctx, params); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
 	}
 
 	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: nil}); err != nil {
-		wc.close()
+		_ = wc.close()
 		return
 	}
 }
@@ -379,7 +379,7 @@ func (s *Server) handleWSGetPushNotification(ctx context.Context, wc *wsConn, re
 	var params GetTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -388,23 +388,23 @@ func (s *Server) handleWSGetPushNotification(ctx context.Context, wc *wsConn, re
 	cfg, err := s.handler.GetPushNotification(ctx, params.ID)
 	if err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
 	}
 
 	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: cfg}); err != nil {
-		wc.close()
+		_ = wc.close()
 		return
 	}
 }
 
-func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCRequest, cancel context.CancelFunc) {
+func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCRequest, _ context.CancelFunc) {
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -415,7 +415,7 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 		requestedModes := ExtractInputModes(params.Message)
 		if err := ValidateInputModes(requestedModes, card.DefaultInputModes); err != nil {
 			if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorContentTypeNotSupported, Message: err.Error()}}); err != nil {
-				wc.close()
+				_ = wc.close()
 				return
 			}
 			return
@@ -451,7 +451,7 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 		case r := <-resultCh:
 			if r.err != nil {
 				if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: r.err.Error()}}); err != nil {
-					wc.close()
+					_ = wc.close()
 					return
 				}
 				return
@@ -462,7 +462,7 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 			}
 			final := isTerminalState(r.task.State) || r.task.State == TaskStateInputRequired
 			if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: r.task}); err != nil {
-				wc.close()
+				_ = wc.close()
 				return
 			}
 			if final {
@@ -484,7 +484,7 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 				return
 			}
 			if err := wc.writeJSON(ev); err != nil {
-				wc.close()
+				_ = wc.close()
 				return
 			}
 			if ev.Final {
@@ -500,7 +500,7 @@ func (s *Server) handleWSResubscribe(ctx context.Context, wc *wsConn, req JSONRP
 	}
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -508,7 +508,7 @@ func (s *Server) handleWSResubscribe(ctx context.Context, wc *wsConn, req JSONRP
 
 	if _, err := s.handler.GetTask(ctx, GetTaskRequest{ID: params.ID}); err != nil {
 		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: fmt.Sprintf("task %q not found", params.ID)}}); err != nil {
-			wc.close()
+			_ = wc.close()
 			return
 		}
 		return
@@ -567,7 +567,7 @@ func (s *Server) wsForwardEvents(ctx context.Context, wc *wsConn, ch chan *TaskU
 				return
 			}
 			if err := wc.writeJSON(ev); err != nil {
-				wc.close()
+				_ = wc.close()
 				return
 			}
 			if ev.Final {
@@ -581,6 +581,9 @@ func (s *Server) wsForwardEvents(ctx context.Context, wc *wsConn, ch chan *TaskU
 // WebSocket Client
 // ---------------------------------------------------------------------------
 
+// WSClient is a WebSocket client for the A2A protocol, supporting task updates
+// and JSON-RPC communication with the agent server.
+// WSClient is an A2A WebSocket client for connecting to remote agents.
 type WSClient struct {
 	baseURL    string
 	httpClient *http.Client
@@ -590,6 +593,8 @@ type WSClient struct {
 	maxRetries int
 }
 
+// NewWSClient creates a new WebSocket client connected to the given base URL.
+// NewWSClient creates a new A2A WebSocket client with the given base URL.
 func NewWSClient(baseURL string) *WSClient {
 	return &WSClient{
 		baseURL:    baseURL,
@@ -599,21 +604,29 @@ func NewWSClient(baseURL string) *WSClient {
 	}
 }
 
+// WithAPIKey sets the API key for authentication and returns the client for chaining.
+// WithAPIKey sets the API key for authentication.
 func (c *WSClient) WithAPIKey(key string) *WSClient {
 	c.apiKey = key
 	return c
 }
 
+// WithBearer sets the bearer token for authentication and returns the client for chaining.
+// WithBearer sets the bearer token for authentication.
 func (c *WSClient) WithBearer(token string) *WSClient {
 	c.bearer = token
 	return c
 }
 
+// WithMaxRetries sets the maximum number of reconnection retries and returns the client for chaining.
+// WithMaxRetries sets the maximum number of reconnection retries.
 func (c *WSClient) WithMaxRetries(n int) *WSClient {
 	c.maxRetries = n
 	return c
 }
 
+// WSConnection is an active WebSocket connection that can send and receive A2A messages.
+// WSConnection represents an active WebSocket connection to an A2A agent.
 type WSConnection struct {
 	conn   *websocket.Conn
 	mu     sync.Mutex
@@ -628,6 +641,8 @@ type WSConnection struct {
 	retryNum int
 }
 
+// Connect establishes a WebSocket connection to the A2A server and returns the connection.
+// Connect establishes a WebSocket connection to the A2A agent.
 func (c *WSClient) Connect(ctx context.Context) (*WSConnection, error) {
 	u := c.baseURL
 	if strings.HasPrefix(u, "http") {
@@ -645,7 +660,10 @@ func (c *WSClient) Connect(ctx context.Context) (*WSConnection, error) {
 		reqHeader.Set("Authorization", "Bearer "+c.bearer)
 	}
 
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, u, reqHeader)
+	conn, httpResp, err := websocket.DefaultDialer.DialContext(ctx, u, reqHeader)
+	if httpResp != nil && httpResp.Body != nil {
+		_ = httpResp.Body.Close()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("websocket dial: %w", err)
 	}
@@ -668,9 +686,9 @@ func (c *WSConnection) readLoop() {
 	defer close(c.ch)
 	defer c.cancel()
 
-	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.conn.SetPingHandler(func(appData string) error {
-		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return c.conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(10*time.Second))
 	})
 
@@ -681,7 +699,7 @@ func (c *WSConnection) readLoop() {
 		default:
 		}
 
-		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if c.tryReconnect() {
@@ -776,7 +794,10 @@ func (c *WSConnection) tryReconnect() bool {
 		reqHeader.Set("Authorization", "Bearer "+c.client.bearer)
 	}
 
-	conn, _, err := websocket.DefaultDialer.DialContext(c.ctx, u, reqHeader)
+	conn, httpResp, err := websocket.DefaultDialer.DialContext(c.ctx, u, reqHeader)
+	if httpResp != nil && httpResp.Body != nil {
+		_ = httpResp.Body.Close()
+	}
 	if err != nil {
 		return false
 	}
@@ -784,7 +805,7 @@ func (c *WSConnection) tryReconnect() bool {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
-		conn.Close()
+		_ = conn.Close()
 		return false
 	}
 	oldConn := c.conn
@@ -797,16 +818,18 @@ func (c *WSConnection) tryReconnect() bool {
 	// gorilla/websocket supports concurrent read+write, but the
 	// old conn's ReadMessage has already returned an error so its
 	// read loop will not touch it again.
-	oldConn.Close()
+	_ = oldConn.Close()
 
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	conn.SetPingHandler(func(appData string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(10*time.Second))
 	})
 	return true
 }
 
+// SendRequest sends a JSON-RPC request over the WebSocket connection.
+// SendRequest sends a JSON-RPC request over the WebSocket connection.
 func (c *WSConnection) SendRequest(method string, params any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -830,17 +853,23 @@ func (c *WSConnection) SendRequest(method string, params any) error {
 	return c.conn.WriteJSON(req)
 }
 
+// Recv receives the next task update event from the WebSocket connection.
+// Recv receives the next task update event from the WebSocket connection.
 func (c *WSConnection) Recv() (*TaskUpdateEvent, bool) {
 	ev, ok := <-c.ch
 	return ev, ok
 }
 
+// Err returns any error that occurred on the WebSocket connection.
+// Err returns any error that occurred during the connection lifecycle.
 func (c *WSConnection) Err() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.err
 }
 
+// Close gracefully closes the WebSocket connection with a normal closure code.
+// Close closes the WebSocket connection gracefully.
 func (c *WSConnection) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

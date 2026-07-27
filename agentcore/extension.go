@@ -68,6 +68,7 @@ type ExtensionRegistry struct {
 	extensions []Extension
 }
 
+// NewExtensionRegistry creates an empty extension registry.
 func NewExtensionRegistry() *ExtensionRegistry {
 	return &ExtensionRegistry{}
 }

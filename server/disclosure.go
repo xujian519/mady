@@ -497,7 +497,7 @@ func (s *Server) handleDisclosureStream(w http.ResponseWriter, r *http.Request) 
 
 	writeSSE := func(format string, args ...any) {
 		writeMu.Lock()
-		fmt.Fprintf(w, format, args...)
+		_, _ = fmt.Fprintf(w, format, args...)
 		flusher.Flush()
 		writeMu.Unlock()
 	}
@@ -533,6 +533,7 @@ func (s *Server) handleDisclosureStream(w http.ResponseWriter, r *http.Request) 
 				resp.Enablement = en
 			}
 
+			//nolint:errchkjson // DisclosureTaskStatus contains nested time.Time fields (safe)
 			payload, _ := json.Marshal(resp)
 			writeSSE("event: done\ndata: %s\n\n", payload)
 			return
@@ -545,6 +546,7 @@ func (s *Server) handleDisclosureStream(w http.ResponseWriter, r *http.Request) 
 			}
 			task.mu.RUnlock()
 
+			//nolint:errchkjson // DisclosureTaskStatus contains nested time.Time fields (safe)
 			payload, _ := json.Marshal(resp)
 			writeSSE("event: progress\ndata: %s\n\n", payload)
 		}

@@ -108,7 +108,7 @@ func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ stri
 		}
 
 		// Read file.
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk over wiki dir
 		if err != nil {
 			stats.SkippedError++
 			if len(stats.Errors) < 10 {

@@ -68,8 +68,8 @@ func OpenWritable(path string, embedder retrieval.Embedder, knowledgeDBPath stri
 	}
 	db.SetMaxOpenConns(4)
 
-	if err := db.Ping(); err != nil {
-		db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("ping writable db: %w", err)
 	}
 
@@ -83,7 +83,7 @@ func OpenWritable(path string, embedder retrieval.Embedder, knowledgeDBPath stri
 
 	w := &WritableStore{db: db, dim: dim, embedder: embedder}
 	if err := w.initSchema(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return w, nil
@@ -92,7 +92,7 @@ func OpenWritable(path string, embedder retrieval.Embedder, knowledgeDBPath stri
 // initSchema creates tables if they do not exist. Idempotent — safe to call
 // on an already-initialized database.
 func (w *WritableStore) initSchema() error {
-	_, err := w.db.Exec(`
+	_, err := w.db.ExecContext(context.Background(), `
 		CREATE TABLE IF NOT EXISTS documents (
 			id            TEXT PRIMARY KEY,
 			source        TEXT NOT NULL,
@@ -199,18 +199,18 @@ func (w *WritableStore) AddDocument(ctx context.Context, docID, title, content s
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	// Replace existing document with the same ID.
-	if _, err := tx.Exec(`DELETE FROM embeddings WHERE document_id = ?`, docID); err != nil {
+	if _, err := tx.ExecContext(context.Background(), `DELETE FROM embeddings WHERE document_id = ?`, docID); err != nil {
 		return fmt.Errorf("delete old embeddings: %w", err)
 	}
-	if _, err := tx.Exec(`DELETE FROM chunks WHERE document_id = ?`, docID); err != nil {
+	if _, err := tx.ExecContext(context.Background(), `DELETE FROM chunks WHERE document_id = ?`, docID); err != nil {
 		return fmt.Errorf("delete old chunks: %w", err)
 	}
-	if _, err := tx.Exec(`DELETE FROM documents WHERE id = ?`, docID); err != nil {
+	if _, err := tx.ExecContext(context.Background(), `DELETE FROM documents WHERE id = ?`, docID); err != nil {
 		return fmt.Errorf("delete old document: %w", err)
 	}
 
 	// Insert document.
-	if _, err := tx.Exec(
+	if _, err := tx.ExecContext(context.Background(),
 		`INSERT INTO documents (id, source, doc_type, domain, title, content_hash, indexed_at, char_count, chunk_count) VALUES (?,?,?,?,?,?,?,?,?)`,
 		docID, "user", "document", "patent", title, hashString(content), now, len(content), len(chunks),
 	); err != nil {
@@ -227,7 +227,7 @@ func (w *WritableStore) AddDocument(ctx context.Context, docID, title, content s
 		blob := vecbytes.FloatsToBytes(vec)
 		norm := vecNorm(vec)
 
-		res, err := tx.Exec(
+		res, err := tx.ExecContext(context.Background(),
 			`INSERT INTO chunks (document_id, chunk_index, chunk_type, heading, content, char_count) VALUES (?,?,?,?,?,?)`,
 			docID, chunk.Position, "section", "", chunk.Content, len(chunk.Content),
 		)
@@ -239,14 +239,14 @@ func (w *WritableStore) AddDocument(ctx context.Context, docID, title, content s
 			return fmt.Errorf("last insert id chunk %d: %w", i, err)
 		}
 
-		if _, err := tx.Exec(
+		if _, err := tx.ExecContext(context.Background(),
 			`INSERT INTO embeddings (chunk_id, document_id, vector, model, dim, norm, indexed_at) VALUES (?,?,?,?,?,?,?)`,
 			chunkID, docID, blob, modelName, w.dim, norm, now,
 		); err != nil {
 			return fmt.Errorf("insert embedding %d: %w", i, err)
 		}
 
-		if _, err := tx.Exec(
+		if _, err := tx.ExecContext(context.Background(),
 			`INSERT INTO docs_fts (content, heading, document_id, chunk_id) VALUES (?,?,?,?)`,
 			chunk.Content, "", docID, chunkID,
 		); err != nil {
@@ -299,7 +299,7 @@ func (w *WritableStore) Search(ctx context.Context, query string, topK int) ([]r
 // ftsSearch performs BM25 full-text search against the user database.
 func (w *WritableStore) ftsSearch(query string, topK int) ([]retrieval.ScoredChunk, error) {
 	ftsQuery := `"` + strings.ReplaceAll(query, `"`, `""`) + `"`
-	rows, err := w.db.Query(`
+	rows, err := w.db.QueryContext(context.Background(), `
 		SELECT c.id, c.document_id, c.chunk_index, c.content,
 		       bm25(docs_fts) AS score
 		FROM docs_fts
@@ -310,7 +310,7 @@ func (w *WritableStore) ftsSearch(query string, topK int) ([]retrieval.ScoredChu
 	if err != nil {
 		return nil, fmt.Errorf("writable fts: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []retrieval.ScoredChunk
 	for rows.Next() {
@@ -360,11 +360,11 @@ func (w *WritableStore) vectorSearch(queryVec []float32, topK int) ([]retrieval.
 	}
 	top := make([]candidate, 0, topK+1)
 
-	rows, err := w.db.Query(`SELECT chunk_id, document_id, vector, norm FROM embeddings`)
+	rows, err := w.db.QueryContext(context.Background(), `SELECT chunk_id, document_id, vector, norm FROM embeddings`)
 	if err != nil {
 		return nil, fmt.Errorf("writable vector query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var chunkID int
@@ -428,7 +428,7 @@ func (w *WritableStore) getChunk(chunkID int) (*retrieval.Chunk, error) {
 	var id int
 	var docID, content string
 	var chunkIdx int
-	err := w.db.QueryRow(
+	err := w.db.QueryRowContext(context.Background(),
 		`SELECT id, document_id, chunk_index, content FROM chunks WHERE id = ?`, chunkID,
 	).Scan(&id, &docID, &chunkIdx, &content)
 	if err != nil {

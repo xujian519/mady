@@ -192,18 +192,21 @@ func (m *MultiModelNodeBuilder) BuildReActThink(step PlanStep, bb *FactBlackboar
 	}
 }
 
+// BuildReActAct creates a PregelNode that executes an action step using ReAct.
 func (m *MultiModelNodeBuilder) BuildReActAct(step PlanStep, bb *FactBlackboard) PregelNode {
 	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		return m.selectBuilder(state).BuildReActAct(step, bb)(ctx, state)
 	}
 }
 
+// BuildReActObserve creates a PregelNode that runs an observation step using ReAct.
 func (m *MultiModelNodeBuilder) BuildReActObserve(step PlanStep, bb *FactBlackboard) PregelNode {
 	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		return m.selectBuilder(state).BuildReActObserve(step, bb)(ctx, state)
 	}
 }
 
+// BuildArbitratedJudgeNode creates a PregelNode that uses multi-LLM arbitration.
 func (m *MultiModelNodeBuilder) BuildArbitratedJudgeNode(step PlanStep, bb *FactBlackboard, cfg *ArbitrationConfig) PregelNode {
 	return func(ctx context.Context, state PregelState) (PregelState, error) {
 		return m.selectBuilder(state).BuildArbitratedJudgeNode(step, bb, cfg)(ctx, state)

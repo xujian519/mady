@@ -23,6 +23,17 @@ func TestDecision_String(t *testing.T) {
 	}
 }
 
+// mustParseRule is a test helper that panics on error, so test call sites
+// remain concise.
+func mustParseRule(t testing.TB, s string) Rule {
+	t.Helper()
+	r, err := MustParseRule(s)
+	if err != nil {
+		t.Fatalf("MustParseRule(%q) unexpected error: %v", s, err)
+	}
+	return r
+}
+
 func TestParseRule(t *testing.T) {
 	tests := []struct {
 		input   string
@@ -71,11 +82,11 @@ func TestRule_Matches(t *testing.T) {
 		{"no specifier matches all", Rule{Tool: "Edit"}, "Edit", editArgs, true},
 		{"wrong tool", Rule{Tool: "Edit"}, "Delete", editArgs, false},
 		{"case insensitive tool", Rule{Tool: "edit"}, "Edit", editArgs, true},
-		{"glob path match", MustParseRule("Edit(docs/**)"), "Edit", editArgs, true},
-		{"glob path no match", MustParseRule("Edit(src/**)"), "Edit", editArgs, false},
-		{"bash command prefix", MustParseRule("Bash(go test:*)"), "Bash", bashArgs, true},
-		{"bash wrong command", MustParseRule("Bash(rm:*)"), "Bash", bashArgs, false},
-		{"nil args with specifier", MustParseRule("Edit(docs/**)"), "Edit", nil, false},
+		{"glob path match", mustParseRule(t, "Edit(docs/**)"), "Edit", editArgs, true},
+		{"glob path no match", mustParseRule(t, "Edit(src/**)"), "Edit", editArgs, false},
+		{"bash command prefix", mustParseRule(t, "Bash(go test:*)"), "Bash", bashArgs, true},
+		{"bash wrong command", mustParseRule(t, "Bash(rm:*)"), "Bash", bashArgs, false},
+		{"nil args with specifier", mustParseRule(t, "Edit(docs/**)"), "Edit", nil, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -88,9 +99,9 @@ func TestRule_Matches(t *testing.T) {
 }
 
 func TestPolicy_Decide(t *testing.T) {
-	denyRule := MustParseRule("Delete")
-	allowReadRule := MustParseRule("Read")
-	askBashRule := MustParseRule("Bash")
+	denyRule := mustParseRule(t, "Delete")
+	allowReadRule := mustParseRule(t, "Read")
+	askBashRule := mustParseRule(t, "Bash")
 	editArgs, _ := json.Marshal(map[string]any{"path": "/tmp/test.go"})
 	readArgs, _ := json.Marshal(map[string]any{"path": "/tmp/test.go"})
 

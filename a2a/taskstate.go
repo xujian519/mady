@@ -189,6 +189,8 @@ func (s *Server) recordTask(task *Task) {
 	}
 }
 
+// PublishTaskUpdate pushes a task update event to all SSE subscribers for the given task.
+// PublishTaskUpdate sends a task update event to all subscribers of the given task.
 func (s *Server) PublishTaskUpdate(taskID string, ev *TaskUpdateEvent) {
 	ts := s.getTaskState(taskID)
 	ts.mu.Lock()

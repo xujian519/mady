@@ -30,6 +30,7 @@ type DimensionScores struct {
 // Rating is the user's evaluation level.
 type Rating string
 
+// Rating level constants.
 const (
 	RatingExcellent        Rating = "excellent"
 	RatingGood             Rating = "good"

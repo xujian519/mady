@@ -16,6 +16,8 @@ const ExtensionName = "compiler"
 //
 //   - BeforeTurn: selects a strategy and injects guidance into context
 //   - AfterTurn: records the outcome and updates statistics
+//
+//nolint:revive // stutter: compiler.CompilerExtension is intentional for clarity
 type CompilerExtension struct {
 	compiler *Compiler
 	agent    *agentcore.Agent

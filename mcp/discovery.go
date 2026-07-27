@@ -11,18 +11,21 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// Icon describes an icon resource for MCP resources and prompts.
 type Icon struct {
 	Src      string   `json:"src"`
 	MIMEType string   `json:"mimeType,omitempty"`
 	Sizes    []string `json:"sizes,omitempty"`
 }
 
+// Annotations carries optional metadata annotations for MCP resources.
 type Annotations struct {
 	Audience     []string `json:"audience,omitempty"`
 	Priority     float64  `json:"priority,omitempty"`
 	LastModified string   `json:"lastModified,omitempty"`
 }
 
+// Resource describes an MCP resource available from the server.
 type Resource struct {
 	URI         string       `json:"uri"`
 	Name        string       `json:"name"`
@@ -34,6 +37,7 @@ type Resource struct {
 	Annotations *Annotations `json:"annotations,omitempty"`
 }
 
+// ResourceTemplate describes a URI template pattern for MCP resources.
 type ResourceTemplate struct {
 	URITemplate string       `json:"uriTemplate"`
 	Name        string       `json:"name"`
@@ -44,10 +48,12 @@ type ResourceTemplate struct {
 	Annotations *Annotations `json:"annotations,omitempty"`
 }
 
+// ReadResourceResult contains the content returned from reading a resource.
 type ReadResourceResult struct {
 	Contents []EmbeddedResource `json:"contents"`
 }
 
+// Prompt describes an MCP prompt template available from the server.
 type Prompt struct {
 	Name        string           `json:"name"`
 	Title       string           `json:"title,omitempty"`
@@ -56,22 +62,26 @@ type Prompt struct {
 	Icons       []Icon           `json:"icons,omitempty"`
 }
 
+// PromptArgument describes a parameter accepted by a prompt template.
 type PromptArgument struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Required    bool   `json:"required,omitempty"`
 }
 
+// PromptResult contains the result of rendering a prompt template.
 type PromptResult struct {
 	Description string          `json:"description,omitempty"`
 	Messages    []PromptMessage `json:"messages"`
 }
 
+// PromptMessage represents a single message within a prompt result.
 type PromptMessage struct {
 	Role    string        `json:"role"`
 	Content PromptContent `json:"content"`
 }
 
+// PromptContent holds the content body of a prompt message.
 type PromptContent struct {
 	Type        string            `json:"type"`
 	Text        string            `json:"text,omitempty"`
@@ -98,6 +108,7 @@ type promptListResult struct {
 
 type discoveryRPC func(ctx context.Context, method string, params any, out any) error
 
+// DiscoveryClient is the interface for MCP resource and prompt discovery operations.
 type DiscoveryClient interface {
 	ListResources(ctx context.Context) ([]Resource, error)
 	ReadResource(ctx context.Context, uri string) (*ReadResourceResult, error)
@@ -108,6 +119,7 @@ type DiscoveryClient interface {
 	GetPrompt(ctx context.Context, name string, arguments map[string]any) (*PromptResult, error)
 }
 
+// DiscoveryToolConfig configures how discovery tools are exposed to the agent.
 type DiscoveryToolConfig struct {
 	Name             string
 	ToolPrefix       string
@@ -115,11 +127,14 @@ type DiscoveryToolConfig struct {
 	IncludePrompts   bool
 }
 
+// DiscoveryExtension is an agentcore.Extension that exposes MCP resource
+// and prompt discovery tools to the agent.
 type DiscoveryExtension struct {
 	name  string
 	tools []*agentcore.Tool
 }
 
+// DiscoveryConfig configures async discovery event handlers.
 type DiscoveryConfig struct {
 	ResourceUpdatedHandler      func(context.Context, string, *ReadResourceResult)
 	ResourcesListChangedHandler func(context.Context)
@@ -143,6 +158,7 @@ type discoveryState struct {
 	subscribedResources     map[string]struct{}
 }
 
+// NewDiscoveryExtension creates a new DiscoveryExtension from a DiscoveryClient.
 func NewDiscoveryExtension(client DiscoveryClient, cfg DiscoveryToolConfig) (*DiscoveryExtension, error) {
 	if client == nil {
 		return nil, fmt.Errorf("mcp: discovery client is required")
@@ -164,23 +180,34 @@ func NewDiscoveryExtension(client DiscoveryClient, cfg DiscoveryToolConfig) (*Di
 	return &DiscoveryExtension{name: name, tools: tools}, nil
 }
 
-func (e *DiscoveryExtension) Name() string                                           { return e.name }
-func (e *DiscoveryExtension) Init(ctx context.Context, agent *agentcore.Agent) error { return nil }
-func (e *DiscoveryExtension) Dispose() error                                         { return nil }
-func (e *DiscoveryExtension) Tools() []*agentcore.Tool                               { return e.tools }
+// Name returns the extension name.
+func (e *DiscoveryExtension) Name() string { return e.name }
 
+// Init initializes the discovery extension with the agent.
+func (e *DiscoveryExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
+
+// Dispose cleans up the discovery extension.
+func (e *DiscoveryExtension) Dispose() error { return nil }
+
+// Tools returns the agent tools exposed by this extension.
+func (e *DiscoveryExtension) Tools() []*agentcore.Tool { return e.tools }
+
+// ListResources returns all resources from the MCP server.
 func (c *Client) ListResources(ctx context.Context) ([]Resource, error) {
 	return listResources(ctx, c.discovery, c.invokeDiscovery)
 }
 
+// ReadResource reads a resource by URI from the MCP server.
 func (c *Client) ReadResource(ctx context.Context, uri string) (*ReadResourceResult, error) {
 	return readResource(ctx, c.discovery, c.invokeDiscovery, uri)
 }
 
+// ListResourceTemplates returns all resource templates from the MCP server.
 func (c *Client) ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error) {
 	return listResourceTemplates(ctx, c.discovery, c.invokeDiscovery)
 }
 
+// SubscribeResource subscribes to updates for a resource URI.
 func (c *Client) SubscribeResource(ctx context.Context, uri string) error {
 	if !c.SupportsResourceSubscribe() {
 		return fmt.Errorf("mcp: server does not advertise resources.subscribe")
@@ -188,6 +215,7 @@ func (c *Client) SubscribeResource(ctx context.Context, uri string) error {
 	return subscribeResource(ctx, c.discovery, c.invokeDiscovery, uri)
 }
 
+// UnsubscribeResource unsubscribes from updates for a resource URI.
 func (c *Client) UnsubscribeResource(ctx context.Context, uri string) error {
 	if !c.SupportsResourceSubscribe() {
 		return fmt.Errorf("mcp: server does not advertise resources.subscribe")
@@ -195,26 +223,32 @@ func (c *Client) UnsubscribeResource(ctx context.Context, uri string) error {
 	return unsubscribeResource(ctx, c.discovery, c.invokeDiscovery, uri)
 }
 
+// ListPrompts returns all prompts from the MCP server.
 func (c *Client) ListPrompts(ctx context.Context) ([]Prompt, error) {
 	return listPrompts(ctx, c.discovery, c.invokeDiscovery)
 }
 
+// GetPrompt retrieves a prompt by name with optional arguments.
 func (c *Client) GetPrompt(ctx context.Context, name string, arguments map[string]any) (*PromptResult, error) {
 	return getPrompt(ctx, c.discovery, c.invokeDiscovery, name, arguments)
 }
 
+// ListResources returns all resources from the MCP server.
 func (c *HTTPClient) ListResources(ctx context.Context) ([]Resource, error) {
 	return listResources(ctx, c.discovery, c.invokeDiscovery)
 }
 
+// ReadResource reads a resource by URI from the MCP server.
 func (c *HTTPClient) ReadResource(ctx context.Context, uri string) (*ReadResourceResult, error) {
 	return readResource(ctx, c.discovery, c.invokeDiscovery, uri)
 }
 
+// ListResourceTemplates returns all resource templates from the MCP server.
 func (c *HTTPClient) ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error) {
 	return listResourceTemplates(ctx, c.discovery, c.invokeDiscovery)
 }
 
+// SubscribeResource subscribes to updates for a resource URI.
 func (c *HTTPClient) SubscribeResource(ctx context.Context, uri string) error {
 	if !c.SupportsResourceSubscribe() {
 		return fmt.Errorf("mcp: server does not advertise resources.subscribe")
@@ -222,6 +256,7 @@ func (c *HTTPClient) SubscribeResource(ctx context.Context, uri string) error {
 	return subscribeResource(ctx, c.discovery, c.invokeDiscovery, uri)
 }
 
+// UnsubscribeResource unsubscribes from updates for a resource URI.
 func (c *HTTPClient) UnsubscribeResource(ctx context.Context, uri string) error {
 	if !c.SupportsResourceSubscribe() {
 		return fmt.Errorf("mcp: server does not advertise resources.subscribe")
@@ -229,10 +264,12 @@ func (c *HTTPClient) UnsubscribeResource(ctx context.Context, uri string) error 
 	return unsubscribeResource(ctx, c.discovery, c.invokeDiscovery, uri)
 }
 
+// ListPrompts returns all prompts from the MCP server.
 func (c *HTTPClient) ListPrompts(ctx context.Context) ([]Prompt, error) {
 	return listPrompts(ctx, c.discovery, c.invokeDiscovery)
 }
 
+// GetPrompt retrieves a prompt by name with optional arguments.
 func (c *HTTPClient) GetPrompt(ctx context.Context, name string, arguments map[string]any) (*PromptResult, error) {
 	return getPrompt(ctx, c.discovery, c.invokeDiscovery, name, arguments)
 }
@@ -372,6 +409,7 @@ func unsubscribeResource(ctx context.Context, state *discoveryState, rpc discove
 	return nil
 }
 
+// AgentMessages converts prompt messages to agentcore messages.
 func (r PromptResult) AgentMessages() []agentcore.Message {
 	out := make([]agentcore.Message, 0, len(r.Messages))
 	for _, msg := range r.Messages {
@@ -380,6 +418,7 @@ func (r PromptResult) AgentMessages() []agentcore.Message {
 	return out
 }
 
+// AgentMessage converts a prompt message to an agentcore message.
 func (m PromptMessage) AgentMessage() agentcore.Message {
 	out := agentcore.Message{}
 	switch m.Role {
@@ -421,7 +460,7 @@ func discoveryResourceTools(client DiscoveryClient, prefix string) []*agentcore.
 				"properties":           map[string]any{},
 				"additionalProperties": false,
 			},
-			Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+			Func: func(ctx context.Context, _ json.RawMessage) (any, error) {
 				resources, err := client.ListResources(ctx)
 				if err != nil {
 					return nil, err
@@ -437,7 +476,7 @@ func discoveryResourceTools(client DiscoveryClient, prefix string) []*agentcore.
 				"properties":           map[string]any{},
 				"additionalProperties": false,
 			},
-			Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+			Func: func(ctx context.Context, _ json.RawMessage) (any, error) {
 				templates, err := client.ListResourceTemplates(ctx)
 				if err != nil {
 					return nil, err
@@ -527,7 +566,7 @@ func discoveryPromptTools(client DiscoveryClient, prefix string) []*agentcore.To
 				"properties":           map[string]any{},
 				"additionalProperties": false,
 			},
-			Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+			Func: func(ctx context.Context, _ json.RawMessage) (any, error) {
 				prompts, err := client.ListPrompts(ctx)
 				if err != nil {
 					return nil, err

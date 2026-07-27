@@ -85,7 +85,7 @@ func (t *TUI) processMsg(msg core.Msg) {
 			"stack", m.Stack,
 		)
 	case core.QuitMsg:
-		t.Stop()
+		_ = t.Stop()
 		return
 	}
 

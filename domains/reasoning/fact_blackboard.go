@@ -350,6 +350,7 @@ type factBlackboardJSON struct {
 	ConfirmedRules   *ConfirmedRuleSet          `json:"confirmed_rules,omitempty"`
 }
 
+// MarshalJSON implements json.Marshaler for FactBlackboard with proper locking.
 func (b *FactBlackboard) MarshalJSON() ([]byte, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -374,6 +375,7 @@ func (b *FactBlackboard) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON implements json.Unmarshaler for FactBlackboard with proper locking.
 func (b *FactBlackboard) UnmarshalJSON(data []byte) error {
 	var s factBlackboardJSON
 	if err := json.Unmarshal(data, &s); err != nil {

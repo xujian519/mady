@@ -2,13 +2,13 @@ package evidence
 
 import "time"
 
-// EvidenceSpan is a locatable piece of evidence sourced from a tool call,
-// document read, or retrieval operation. It provides the provenance chain
-// from a claim back to its original source.
+// EvidenceSpan is a locatable piece of evidence sourced from a tool call.
 //
 // Every professional conclusion produced by the agent should be backed by
 // one or more EvidenceSpans. An unbacked conclusion is explicitly flagged
 // as "无证据支持" rather than presented as fact.
+//
+//nolint:revive // stutter: evidence.EvidenceSpan is intentional for clarity
 type EvidenceSpan struct {
 	// ID is a unique identifier for this evidence span.
 	ID string `json:"id"`
@@ -52,12 +52,17 @@ type EvidenceSpan struct {
 }
 
 // EvidenceDirection describes the relationship between evidence and a claim.
+//
+//nolint:revive // stutter: evidence.EvidenceDirection is intentional for clarity
 type EvidenceDirection string
 
 const (
-	DirectionSupporting    EvidenceDirection = "supporting"
+	// DirectionSupporting indicates the evidence supports the claim.
+	DirectionSupporting EvidenceDirection = "supporting"
+	// DirectionContradicting indicates the evidence contradicts the claim.
 	DirectionContradicting EvidenceDirection = "contradicting"
-	DirectionNeutral       EvidenceDirection = "neutral"
+	// DirectionNeutral indicates the evidence is neutral toward the claim.
+	DirectionNeutral EvidenceDirection = "neutral"
 )
 
 // Valid returns true if the direction is a known value.

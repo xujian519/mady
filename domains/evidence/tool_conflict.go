@@ -9,6 +9,7 @@ import (
 	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
 )
 
+// ConflictToolName is the agent-visible name of the detect_conflict tool.
 const ConflictToolName = "detect_conflict"
 
 const conflictToolDesc = `检测多条证据之间的冲突关系，包括方向冲突（同一主张同时有支持和反对证据）和来源冲突（同一来源内含矛盾内容）。`

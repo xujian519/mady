@@ -11,23 +11,34 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// CurrentVersion is the current session file format version.
 const CurrentVersion int64 = 4
 
 // ---------------------------------------------------------------------------
 // Entry types — mirrors the session-manager.ts entry taxonomy
 // ---------------------------------------------------------------------------
 
+// EntryType classifies a session entry in the JSONL file.
 type EntryType string
 
 const (
-	EntryHeader        EntryType = "session"
-	EntryMessage       EntryType = "message"
-	EntrySessionInfo   EntryType = "session_info"
-	EntryModelChange   EntryType = "model_change"
-	EntryCompaction    EntryType = "compaction"
+	// EntryHeader marks the first entry in a session file.
+	EntryHeader EntryType = "session"
+	// EntryMessage marks an entry containing a conversation message.
+	EntryMessage EntryType = "message"
+	// EntrySessionInfo marks an entry with session metadata.
+	EntrySessionInfo EntryType = "session_info"
+	// EntryModelChange marks an entry recording a model change event.
+	EntryModelChange EntryType = "model_change"
+	// EntryCompaction marks an entry recording a session compaction event.
+	EntryCompaction EntryType = "compaction"
+	// EntryBranchSummary marks an entry with a branch summary.
 	EntryBranchSummary EntryType = "branch_summary"
-	EntryLabel         EntryType = "label"
-	EntryCustom        EntryType = "custom"
+	// EntryLabel marks an entry with a user-assigned label.
+	EntryLabel EntryType = "label"
+	// EntryCustom marks an entry with arbitrary custom data.
+	EntryCustom EntryType = "custom"
+	// EntryCustomMessage marks an entry with a custom message format.
 	EntryCustomMessage EntryType = "custom_message"
 )
 
@@ -92,6 +103,7 @@ type Info struct {
 // Store interface
 // ---------------------------------------------------------------------------
 
+// Store defines the interface for session persistence operations.
 type Store interface {
 	Create(ctx context.Context, opts CreateOptions) (*Manager, error)
 	Open(ctx context.Context, sessionID string) (*Manager, error)
@@ -102,6 +114,7 @@ type Store interface {
 // Compile-time check: FileStore satisfies Store.
 var _ Store = (*FileStore)(nil)
 
+// CreateOptions configures the creation of a new session.
 type CreateOptions struct {
 	ID            string
 	Cwd           string
@@ -113,6 +126,7 @@ type CreateOptions struct {
 // Manager — the heart: manages one session's lifecycle (append-only tree)
 // ---------------------------------------------------------------------------
 
+// Manager manages the lifecycle of a single session (append-only tree).
 type Manager struct {
 	header  Header
 	entries []Entry

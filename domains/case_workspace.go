@@ -26,7 +26,7 @@ func EnsureCaseWorkspace(caseRootPath string) (string, error) {
 	}
 	madyDir := filepath.Join(caseRootPath, util.AppDirName)
 	for _, sub := range []string{MadyCheckpoints, MadyDrafts, MadyAnalysis} {
-		if err := os.MkdirAll(CaseWorkspacePath(caseRootPath, sub), 0o755); err != nil {
+		if err := os.MkdirAll(CaseWorkspacePath(caseRootPath, sub), 0o750); err != nil {
 			return "", fmt.Errorf("case workspace: create %s: %w", sub, err)
 		}
 	}

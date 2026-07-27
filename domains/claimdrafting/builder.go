@@ -68,7 +68,7 @@ func (b *ClaimBuilder) Build(input DraftInput) (*DraftOutput, error) {
 	// 步骤5：撰写从属权利要求
 	depClaims := b.buildDependents(indClaims, input, optional)
 
-	var allClaims []Claim
+	allClaims := make([]Claim, 0, len(indClaims)+len(depClaims))
 	allClaims = append(allClaims, indClaims...)
 	allClaims = append(allClaims, depClaims...)
 
@@ -455,7 +455,6 @@ func (b *ClaimBuilder) buildCharacterized(_ DraftInput, essential []Feature) str
 //	类型2（前序限定）：中等重要性的特征 → 引用独立权利要求
 //	类型3（递进链）：低重要性或细节性特征 → 引用前一项从属权利要求（形成引用链）
 func (b *ClaimBuilder) buildDependents(indClaims []Claim, input DraftInput, optional []Feature) []Claim {
-	var deps []Claim
 	claimNum := len(indClaims) + 1 // start after independent claims
 	primaryInd := indClaims[0]
 
@@ -477,6 +476,8 @@ func (b *ClaimBuilder) buildDependents(indClaims []Claim, input DraftInput, opti
 			tier2 = append(tier2, f)
 		}
 	}
+
+	deps := make([]Claim, 0, len(tier1)+len(tier2))
 
 	// 类型1：直接引用独立权利要求（tier1 特征）
 	for _, f := range tier1 {

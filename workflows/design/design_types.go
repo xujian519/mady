@@ -46,9 +46,12 @@ const (
 type DesignSpaceLevel string
 
 const (
-	DesignSpaceLarge  DesignSpaceLevel = "大" // 设计空间大，近似判断尺度较宽松
-	DesignSpaceMedium DesignSpaceLevel = "中" // 设计空间中等
-	DesignSpaceSmall  DesignSpaceLevel = "小" // 设计空间小，近似判断尺度较严格
+	// DesignSpaceLarge indicates large design freedom, with more lenient similarity judgment.
+	DesignSpaceLarge DesignSpaceLevel = "大"
+	// DesignSpaceMedium indicates medium design freedom.
+	DesignSpaceMedium DesignSpaceLevel = "中"
+	// DesignSpaceSmall indicates limited design freedom, with stricter similarity judgment.
+	DesignSpaceSmall DesignSpaceLevel = "小"
 )
 
 // DesignPatentInfo describes the target design patent for analysis.

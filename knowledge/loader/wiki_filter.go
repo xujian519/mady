@@ -97,7 +97,7 @@ func (f *WikiFilter) ContentTooShort(content string) bool {
 	return len([]rune(content)) < minChars
 }
 
-// SplitFragmentName checks if a file name matches the split-fragment pattern
+// IsSplitFragment checks if a file name matches the split-fragment pattern
 // with repeated markers like (1)(1)(1) indicating excessive splitting.
 func IsSplitFragment(path string) bool {
 	name := filepath.Base(path)

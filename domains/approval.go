@@ -345,11 +345,14 @@ type DeferredPersistFuncs struct {
 	DiscardFn func()
 }
 
+// CommitDeferred executes the commit callback, finalizing any deferred persistence.
 func (f *DeferredPersistFuncs) CommitDeferred() {
 	if f.CommitFn != nil {
 		f.CommitFn()
 	}
 }
+
+// DiscardDeferred executes the discard callback, aborting any deferred persistence.
 func (f *DeferredPersistFuncs) DiscardDeferred() {
 	if f.DiscardFn != nil {
 		f.DiscardFn()

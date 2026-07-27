@@ -20,11 +20,17 @@ type FileSystem interface {
 // OSFileSystem is the default FileSystem backed by the local disk.
 type OSFileSystem struct{}
 
-func (OSFileSystem) ReadFile(path string) ([]byte, error)  { return os.ReadFile(path) }
+// ReadFile reads the file at the given path.
+func (OSFileSystem) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) } //nolint:gosec
+// Stat returns file info for the given path.
 func (OSFileSystem) Stat(path string) (os.FileInfo, error) { return os.Stat(path) }
+
+// WriteFile writes data to the file at the given path.
 func (OSFileSystem) WriteFile(path string, content []byte) error {
 	return os.WriteFile(path, content, 0600)
 }
+
+// Remove deletes the file at the given path.
 func (OSFileSystem) Remove(path string) error { return os.Remove(path) }
 
 // Store holds a session's checkpoints in memory. All methods are safe for
@@ -215,7 +221,7 @@ func (s *Store) RestoreAndTrim(turn int64) (Meta, error) {
 	return meta, nil
 }
 
-// SortedPaths returns the distinct file paths touched in the current turn.
+// CurrentTurnPaths returns the distinct file paths touched in the current turn.
 func (s *Store) CurrentTurnPaths() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

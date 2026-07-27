@@ -187,12 +187,12 @@ func (a *ifaceLifecycleHookAdapter) AfterToolExecution(ctx context.Context, arc 
 	a.inner.AfterToolExecution(ctx, ifaceARC, ifaceTEC)
 }
 
-func (a *ifaceLifecycleHookAdapter) BeforeMessagePersist(ctx context.Context, arc *AgentRunContext, msg *Message) error {
+func (a *ifaceLifecycleHookAdapter) BeforeMessagePersist(ctx context.Context, arc *AgentRunContext, _ *Message) error {
 	ifaceARC := &iface.AgentRunContext{Input: arc.Input, TurnCount: arc.Turn}
 	return a.inner.BeforeMessagePersist(ctx, ifaceARC)
 }
 
-func (a *ifaceLifecycleHookAdapter) AfterMessagePersist(ctx context.Context, arc *AgentRunContext, msg Message) {
+func (a *ifaceLifecycleHookAdapter) AfterMessagePersist(ctx context.Context, arc *AgentRunContext, _ Message) {
 	ifaceARC := &iface.AgentRunContext{Input: arc.Input, TurnCount: arc.Turn}
 	a.inner.AfterMessagePersist(ctx, ifaceARC)
 }
@@ -203,7 +203,7 @@ func (a *ifaceLifecycleHookAdapter) BeforeCompactionPersist(ctx context.Context,
 	return msgs, err
 }
 
-func (a *ifaceLifecycleHookAdapter) AfterCompactionPersist(ctx context.Context, arc *AgentRunContext, msgs []Message) {
+func (a *ifaceLifecycleHookAdapter) AfterCompactionPersist(ctx context.Context, arc *AgentRunContext, _ []Message) {
 	ifaceARC := &iface.AgentRunContext{Input: arc.Input, TurnCount: arc.Turn}
 	a.inner.AfterCompactionPersist(ctx, ifaceARC)
 }

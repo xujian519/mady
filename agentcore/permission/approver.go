@@ -17,6 +17,7 @@ type Approver interface {
 // Use this when there is no TTY or user interaction is not available.
 type NonInteractiveApprover struct{}
 
+// Approve returns DecisionAllow for any request (autonomous mode).
 func (NonInteractiveApprover) Approve(_ context.Context, _ string, _ json.RawMessage) Decision {
 	return DecisionAllow
 }
@@ -24,6 +25,7 @@ func (NonInteractiveApprover) Approve(_ context.Context, _ string, _ json.RawMes
 // AlwaysDenyApprover denies Ask decisions. Useful for testing and strict modes.
 type AlwaysDenyApprover struct{}
 
+// Approve returns DecisionDeny for any request (strict mode).
 func (AlwaysDenyApprover) Approve(_ context.Context, _ string, _ json.RawMessage) Decision {
 	return DecisionDeny
 }
@@ -31,6 +33,7 @@ func (AlwaysDenyApprover) Approve(_ context.Context, _ string, _ json.RawMessage
 // FuncApprover wraps a function to implement Approver.
 type FuncApprover func(ctx context.Context, toolName string, args json.RawMessage) Decision
 
+// Approve delegates to the wrapped function.
 func (f FuncApprover) Approve(ctx context.Context, toolName string, args json.RawMessage) Decision {
 	return f(ctx, toolName, args)
 }

@@ -74,6 +74,7 @@ const defaultLLMJudgePromptFallback = `你是一名资深的专利代理人和�
 请只输出一个 JSON 对象，不要输出任何解释或 markdown 代码块。格式如下：
 {"conclusion": 0.8, "reasoning": 0.6, "citation": 0.7}`
 
+// Name returns "llm_judge".
 func (LLMJudge) Name() string { return "llm_judge" }
 
 // Compute returns a score in [0,1] by asking the configured judge model to
@@ -327,8 +328,10 @@ type SemanticSimilarity struct {
 	Model string
 }
 
+// Name returns "semantic_similarity".
 func (SemanticSimilarity) Name() string { return "semantic_similarity" }
 
+// Compute returns the semantic similarity score using an LLM judge.
 func (m SemanticSimilarity) Compute(prediction, reference string) float64 {
 	judge := LLMJudge{
 		Judge:     m.Judge,

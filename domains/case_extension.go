@@ -26,7 +26,7 @@ type FileContentReader interface {
 type defaultFileReader struct{}
 
 func (defaultFileReader) ReadText(path string) string {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // fallback reader for internal case files
 	if err != nil {
 		return ""
 	}
@@ -49,9 +49,14 @@ func NewCaseExtension(index *CaseIndex, cwd string, reader FileContentReader) *C
 	return &CaseExtension{index: index, reader: reader, cwd: cwd}
 }
 
-func (e *CaseExtension) Name() string                                     { return "case-manager" }
+// Name returns the extension identifier.
+func (e *CaseExtension) Name() string { return "case-manager" }
+
+// Init initializes the case extension — currently a no-op.
 func (e *CaseExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
-func (e *CaseExtension) Dispose() error                                   { return nil }
+
+// Dispose cleans up the case extension — currently a no-op.
+func (e *CaseExtension) Dispose() error { return nil }
 
 // Tools 返回 AI 内部工具集。
 func (e *CaseExtension) Tools() []*agentcore.Tool {

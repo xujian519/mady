@@ -17,6 +17,8 @@ import (
 // DefaultAgentHandler bridges agentcore.Agent to A2A protocol.
 // ---------------------------------------------------------------------------
 
+// DefaultAgentHandler is the standard A2A AgentHandler implementation that wraps
+// an agentcore.Agent, manages task lifecycle, and handles push notifications.
 type DefaultAgentHandler struct {
 	card        AgentCard
 	agent       *agentcore.Agent
@@ -44,6 +46,9 @@ type DefaultAgentHandler struct {
 // or canceled) are evicted first; in-flight tasks are never evicted.
 const defaultMaxTasks = 10000
 
+// NewDefaultAgentHandler creates a new DefaultAgentHandler with the given agent card,
+// agentcore.Agent instance, and agent configuration.
+// NewDefaultAgentHandler creates a DefaultAgentHandler wrapping the given A2A agent card and agentcore Agent.
 func NewDefaultAgentHandler(card AgentCard, agent *agentcore.Agent, cfg agentcore.Config) *DefaultAgentHandler {
 	return &DefaultAgentHandler{
 		card:        card,
@@ -109,6 +114,9 @@ func (h *DefaultAgentHandler) evictOldTasksLocked() {
 	}
 }
 
+// SetMaxConcurrency sets the maximum number of concurrent task executions.
+// Values <= 0 reset to the default (10). Not safe for concurrent use with SendTask.
+// SetMaxConcurrency sets the maximum number of concurrent task executions.
 func (h *DefaultAgentHandler) SetMaxConcurrency(n int) {
 	// Not safe for concurrent use with runAgent — call before any SendTask.
 	if n <= 0 {
@@ -117,20 +125,30 @@ func (h *DefaultAgentHandler) SetMaxConcurrency(n int) {
 	h.execSem = make(chan struct{}, n)
 }
 
+// SetTaskTimeout sets the per-task execution timeout.
+// SetTaskTimeout sets the timeout for each task execution.
 func (h *DefaultAgentHandler) SetTaskTimeout(d time.Duration) {
 	h.taskTimeout = d
 }
 
+// SetUpdatePublisher sets the publisher for task update events sent over SSE.
+// SetUpdatePublisher sets the task update publisher for streaming events.
 func (h *DefaultAgentHandler) SetUpdatePublisher(p TaskUpdatePublisher) {
 	h.publisher = p
 }
 
+// SetInputRequiredPredicate sets the function that determines when human input is required.
+// SetInputRequiredPredicate sets the function that determines if a task requires user input.
 func (h *DefaultAgentHandler) SetInputRequiredPredicate(fn func(output string) bool) {
 	h.inputRequired = fn
 }
 
+// Card returns the agent card describing this handler's capabilities.
+// Card returns the agent card describing this handler's capabilities.
 func (h *DefaultAgentHandler) Card() AgentCard { return h.card }
 
+// SendTask processes a task request by running the agent and streaming updates.
+// SendTask handles task creation and execution via the A2A protocol.
 func (h *DefaultAgentHandler) SendTask(ctx context.Context, req SendTaskRequest) (*Task, error) {
 	h.tasksMu.RLock()
 	existingTask, exists := h.tasks[req.ID]
@@ -367,7 +385,7 @@ func (h *DefaultAgentHandler) notify(task *Task) {
 }
 
 // GetTask implements AgentHandler.
-func (h *DefaultAgentHandler) GetTask(ctx context.Context, req GetTaskRequest) (*Task, error) {
+func (h *DefaultAgentHandler) GetTask(_ context.Context, req GetTaskRequest) (*Task, error) {
 	h.tasksMu.RLock()
 	defer h.tasksMu.RUnlock()
 
@@ -385,7 +403,7 @@ func (h *DefaultAgentHandler) GetTask(ctx context.Context, req GetTaskRequest) (
 }
 
 // CancelTask implements AgentHandler.
-func (h *DefaultAgentHandler) CancelTask(ctx context.Context, req CancelTaskRequest) (*Task, error) {
+func (h *DefaultAgentHandler) CancelTask(_ context.Context, req CancelTaskRequest) (*Task, error) {
 	h.tasksMu.Lock()
 
 	task, ok := h.tasks[req.ID]
@@ -421,7 +439,7 @@ func (h *DefaultAgentHandler) CancelTask(ctx context.Context, req CancelTaskRequ
 }
 
 // QueryTasks implements AgentHandler.
-func (h *DefaultAgentHandler) QueryTasks(ctx context.Context, req QueryTasksRequest) (*QueryTasksResult, error) {
+func (h *DefaultAgentHandler) QueryTasks(_ context.Context, req QueryTasksRequest) (*QueryTasksResult, error) {
 	h.tasksMu.RLock()
 	defer h.tasksMu.RUnlock()
 
@@ -460,7 +478,7 @@ func (h *DefaultAgentHandler) QueryTasks(ctx context.Context, req QueryTasksRequ
 }
 
 // SetPushNotification implements AgentHandler.
-func (h *DefaultAgentHandler) SetPushNotification(ctx context.Context, req SetPushNotificationRequest) error {
+func (h *DefaultAgentHandler) SetPushNotification(_ context.Context, req SetPushNotificationRequest) error {
 	h.pushMu.Lock()
 	defer h.pushMu.Unlock()
 	h.pushCfg[req.ID] = &req.Config
@@ -468,7 +486,7 @@ func (h *DefaultAgentHandler) SetPushNotification(ctx context.Context, req SetPu
 }
 
 // GetPushNotification implements AgentHandler.
-func (h *DefaultAgentHandler) GetPushNotification(ctx context.Context, taskID string) (*PushNotificationConfig, error) {
+func (h *DefaultAgentHandler) GetPushNotification(_ context.Context, taskID string) (*PushNotificationConfig, error) {
 	h.pushMu.RLock()
 	defer h.pushMu.RUnlock()
 	cfg, ok := h.pushCfg[taskID]

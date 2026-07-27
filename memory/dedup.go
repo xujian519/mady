@@ -9,10 +9,14 @@ import (
 type DedupAction string
 
 const (
-	DedupAdd    DedupAction = "add"    // 新增一条独立记忆
+	// DedupAdd indicates adding a new independent memory entry.
+	DedupAdd DedupAction = "add" // 新增一条独立记忆
+	// DedupUpdate indicates updating an existing memory entry.
 	DedupUpdate DedupAction = "update" // 更新已有记忆内容
+	// DedupDelete indicates deleting an existing memory entry.
 	DedupDelete DedupAction = "delete" // 删除已有记忆（新信息表明旧信息不再正确）
-	DedupNoop   DedupAction = "noop"   // 无操作（新信息与已有记忆完全相同）
+	// DedupNoop indicates no action (new content is identical to existing memory).
+	DedupNoop DedupAction = "noop" // 无操作（新信息与已有记忆完全相同）
 )
 
 // DedupResult 是去重判定的结果。

@@ -29,11 +29,11 @@ var examinerObjections = []struct {
 	Topic   string
 	Pattern string
 }{
-	{"新颖性", "与对比文件1相比，权利要求1的技术方案不具备新颖性，因为对比文件1公开了"},
-	{"创造性", "权利要求1相对于对比文件1和对比文件2的结合不具备创造性，因为本领域技术人员有动机将"},
+	{termNovelty, "与对比文件1相比，权利要求1的技术方案不具备新颖性，因为对比文件1公开了"},
+	{termInventiveness, "权利要求1相对于对比文件1和对比文件2的结合不具备创造性，因为本领域技术人员有动机将"},
 	{"清楚性", "权利要求中使用的术语未在说明书中明确定义，导致保护范围不清楚，违反第26条第4款"},
 	{"支持性", "权利要求概括的范围得不到说明书的支持，说明书中仅公开了该方案的特定实施例"},
-	{"修改超范围", "申请人对权利要求的修改超出了原申请文件记载的范围，违反第33条规定"},
+	{termAmendmentExceed, "申请人对权利要求的修改超出了原申请文件记载的范围，违反第33条规定"},
 	{"必要技术特征", "独立权利要求缺少解决技术问题的必要技术特征，不符合第21条第2款规定"},
 }
 
@@ -220,17 +220,37 @@ func debateSummaryNode(ctx context.Context, state graph.PregelState) (graph.Preg
 func BuildDebateGraph() (*graph.CompiledPregelGraph, error) {
 	g := graph.NewPregelGraph()
 
-	g.AddNode("init", debateInitNode)
-	g.AddNode("round1", debateRoundNode(0))
-	g.AddNode("round2", debateRoundNode(1))
-	g.AddNode("round3", debateRoundNode(2))
-	g.AddNode("summarize", debateSummaryNode)
+	if err := g.AddNode("init", debateInitNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("round1", debateRoundNode(0)); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("round2", debateRoundNode(1)); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("round3", debateRoundNode(2)); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("summarize", debateSummaryNode); err != nil {
+		return nil, err
+	}
 
-	g.AddEdge("init", "round1")
-	g.AddEdge("round1", "round2")
-	g.AddEdge("round2", "round3")
-	g.AddEdge("round3", "summarize")
-	g.AddEdge("summarize", graph.PregelEnd)
+	if err := g.AddEdge("init", "round1"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("round1", "round2"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("round2", "round3"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("round3", "summarize"); err != nil {
+		return nil, err
+	}
+	if err := g.AddEdge("summarize", graph.PregelEnd); err != nil {
+		return nil, err
+	}
 
 	return g.Compile("init", 8)
 }

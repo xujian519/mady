@@ -27,9 +27,10 @@ type CheckpointStore interface {
 	Delete(ctx context.Context, id string) error
 }
 
+// ErrInterrupt is returned when execution is paused by an interrupt config.
 var ErrInterrupt = fmt.Errorf("execution interrupted")
 
-// InterruptConfig configures interrupt behavior for a node.
+// InterruptConfig controls whether execution pauses before or after a node runs.
 type InterruptConfig struct {
 	Before bool
 	After  bool
@@ -45,6 +46,8 @@ type InterruptableGraph struct {
 	nodeOutputs map[string]string
 }
 
+// NewInterruptableGraph creates an InterruptableGraph wrapping the given
+// compiled graph with checkpoint support.
 func NewInterruptableGraph(cg *CompiledGraph, store CheckpointStore) *InterruptableGraph {
 	return &InterruptableGraph{
 		graph:      cg,
@@ -53,11 +56,14 @@ func NewInterruptableGraph(cg *CompiledGraph, store CheckpointStore) *Interrupta
 	}
 }
 
+// SetInterrupt registers an interrupt config for a specific node. When Before
+// is true, execution pauses before the node runs; when After is true, execution
+// pauses after the node completes.
 func (ig *InterruptableGraph) SetInterrupt(nodeName string, cfg InterruptConfig) {
 	ig.interrupts[nodeName] = cfg
 }
 
-// InterruptResult is returned when execution is paused.
+// InterruptResult is returned when execution is paused by an interrupt config.
 type InterruptResult struct {
 	CheckpointID string
 	NodeName     string
@@ -65,6 +71,9 @@ type InterruptResult struct {
 	Output       string
 }
 
+// Run executes the DAG from the initial input, returning terminal output,
+// an interrupt result if execution was paused, or an error. This is the
+// primary entry point starting from scratch.
 func (ig *InterruptableGraph) Run(ctx context.Context, input string) (string, *InterruptResult, error) {
 	ig.mu.Lock()
 	ig.nodeOutputs = make(map[string]string)
@@ -73,6 +82,9 @@ func (ig *InterruptableGraph) Run(ctx context.Context, input string) (string, *I
 	return ig.runFrom(ctx, input, 0, nil)
 }
 
+// Resume continues execution from a saved checkpoint, restoring node outputs
+// and the step index from the checkpoint state. If input is empty, the last
+// input from the checkpoint is reused.
 func (ig *InterruptableGraph) Resume(ctx context.Context, checkpointID string, input string) (string, *InterruptResult, error) {
 	cp, err := ig.store.Load(ctx, checkpointID)
 	if err != nil {
@@ -232,17 +244,18 @@ func (ig *InterruptableGraph) saveCheckpoint(ctx context.Context, nodeName, phas
 	}, nil
 }
 
-// --- In-memory checkpoint store ---
-
+// MemoryCheckpointStore is an in-memory implementation of CheckpointStore.
 type MemoryCheckpointStore struct {
 	mu          sync.RWMutex
 	checkpoints map[string]Checkpoint
 }
 
+// NewMemoryCheckpointStore creates an empty in-memory checkpoint store.
 func NewMemoryCheckpointStore() *MemoryCheckpointStore {
 	return &MemoryCheckpointStore{checkpoints: make(map[string]Checkpoint)}
 }
 
+// Save persists a checkpoint to the in-memory store.
 func (s *MemoryCheckpointStore) Save(_ context.Context, cp Checkpoint) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -250,6 +263,7 @@ func (s *MemoryCheckpointStore) Save(_ context.Context, cp Checkpoint) error {
 	return nil
 }
 
+// Load retrieves a checkpoint by ID from the in-memory store.
 func (s *MemoryCheckpointStore) Load(_ context.Context, id string) (*Checkpoint, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -260,6 +274,8 @@ func (s *MemoryCheckpointStore) Load(_ context.Context, id string) (*Checkpoint,
 	return &cp, nil
 }
 
+// List returns all checkpoints for a given graphID. Pass an empty graphID
+// to list all checkpoints regardless of graph.
 func (s *MemoryCheckpointStore) List(_ context.Context, graphID string) ([]Checkpoint, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -273,6 +289,7 @@ func (s *MemoryCheckpointStore) List(_ context.Context, graphID string) ([]Check
 	return result, nil
 }
 
+// Delete removes a checkpoint by ID from the in-memory store.
 func (s *MemoryCheckpointStore) Delete(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

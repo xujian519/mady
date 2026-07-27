@@ -91,11 +91,11 @@ func (r *SkillRuleReader) ReadRules(ctx context.Context, domain string) ([]reaso
 // parseCard reads one .md file and extracts the H1 title, the "- key: value"
 // metadata block, and the body following the "## 卡片内容" marker.
 func parseCard(path string) (*patentCard, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // path is from filepath.Walk over skill card dir
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	card := &patentCard{Quality: 0.5}
 	scanner := bufio.NewScanner(f)

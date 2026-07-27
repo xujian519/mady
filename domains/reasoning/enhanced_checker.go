@@ -186,7 +186,7 @@ func (c *EnhancedSyllogismChecker) checkEvidentiarySufficiency(ctx context.Conte
 
 // buildSyllogisms constructs syllogisms from the plan's UsedFacts/UsedRules.
 func (c *EnhancedSyllogismChecker) buildSyllogisms(bb *FactBlackboard, plan *Plan) []Syllogism {
-	var syllogisms []Syllogism
+	syllogisms := make([]Syllogism, 0, len(plan.Steps))
 
 	for i, step := range plan.Steps {
 		// Use the first fact and first rule as premises (simplified).

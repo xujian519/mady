@@ -15,19 +15,26 @@ import (
 type Severity string
 
 const (
-	SeverityHigh   Severity = "high"
+	// SeverityHigh indicates a critical risk requiring immediate review.
+	SeverityHigh Severity = "high"
+	// SeverityMedium indicates a moderate risk requiring attention.
 	SeverityMedium Severity = "medium"
-	SeverityLow    Severity = "low"
+	// SeverityLow indicates a minor risk for informational purposes.
+	SeverityLow Severity = "low"
 )
 
 // RiskType categorizes a risk signal by the kind of issue detected.
 type RiskType string
 
 const (
+	// RiskFeatureCombination indicates a risk from the combination of multiple features.
 	RiskFeatureCombination RiskType = "feature_combination" // 特征组合风险
-	RiskClaimScope         RiskType = "claim_scope"         // 保护范围风险
-	RiskTermAmbiguity      RiskType = "term_ambiguity"      // 术语不清楚
-	RiskSupport            RiskType = "support"             // 得不到说明书支持
+	// RiskClaimScope indicates a risk related to the scope of patent claims.
+	RiskClaimScope RiskType = "claim_scope" // 保护范围风险
+	// RiskTermAmbiguity indicates a risk from ambiguous terminology.
+	RiskTermAmbiguity RiskType = "term_ambiguity" // 术语不清楚
+	// RiskSupport indicates a risk from lack of support by the description.
+	RiskSupport RiskType = "support" // 得不到说明书支持
 )
 
 // RiskSignal is a single risk finding from the scanner.

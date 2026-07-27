@@ -1,3 +1,4 @@
+// Command build-wiki-index scans markdown files for wiki links and builds a concept index.
 package main
 
 import (
@@ -25,7 +26,7 @@ type wikiConceptIndex struct {
 }
 
 // extractConceptsFromFile returns the H1 title and all [[wikilinks]] from a markdown file.
-func extractConceptsFromFile(content, filePath string) (title string, wikilinks []string) {
+func extractConceptsFromFile(content, _ string) (title string, wikilinks []string) {
 	if match := reH1.FindStringSubmatch(content); len(match) >= 2 {
 		title = strings.TrimSpace(match[1])
 	}
@@ -63,19 +64,19 @@ func main() {
 	var totalFiles int
 	for _, subDir := range []string{"Wiki", "cards"} {
 		root := filepath.Join(wikiPath, subDir)
-		info, err := os.Stat(root)
+		info, err := os.Stat(root) //nolint:gosec // path from filepath.Join, example code
 		if err != nil || !info.IsDir() {
 			fmt.Printf("⚠️  跳过: %s (不存在)\n", root)
 			continue
 		}
 
-		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error { //nolint:gosec // path from filepath.Join, example code
 			if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".md") {
 				return nil
 			}
 
 			relPath, _ := filepath.Rel(wikiPath, path)
-			data, err := os.ReadFile(path)
+			data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk over wiki dir
 			if err != nil {
 				return nil
 			}
@@ -120,7 +121,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "❌ 序列化失败: %v\n", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+	if err := os.WriteFile(outputPath, data, 0600); err != nil { //nolint:gosec // path from filepath.Join, example code
 		fmt.Fprintf(os.Stderr, "❌ 写入失败: %v\n", err)
 		os.Exit(1)
 	}
@@ -136,7 +137,7 @@ func main() {
 		concept string
 		count   int
 	}
-	var sorted []kv
+	sorted := make([]kv, 0, len(index.ConceptIndex))
 	for c, paths := range index.ConceptIndex {
 		sorted = append(sorted, kv{c, len(paths)})
 	}

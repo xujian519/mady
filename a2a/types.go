@@ -64,12 +64,18 @@ type AgentSkill struct {
 type TaskState string
 
 const (
-	TaskStateSubmitted     TaskState = "submitted"
-	TaskStateWorking       TaskState = "working"
+	// TaskStateSubmitted indicates the task has been received but not yet started.
+	TaskStateSubmitted TaskState = "submitted"
+	// TaskStateWorking indicates the task is currently being processed.
+	TaskStateWorking TaskState = "working"
+	// TaskStateInputRequired indicates the task is waiting for human input.
 	TaskStateInputRequired TaskState = "input-required"
-	TaskStateCompleted     TaskState = "completed"
-	TaskStateFailed        TaskState = "failed"
-	TaskStateCanceled      TaskState = "canceled"
+	// TaskStateCompleted indicates the task has finished successfully.
+	TaskStateCompleted TaskState = "completed"
+	// TaskStateFailed indicates the task finished with an error.
+	TaskStateFailed TaskState = "failed"
+	// TaskStateCanceled indicates the task was canceled before completion.
+	TaskStateCanceled TaskState = "canceled"
 )
 
 // Task is the fundamental unit of work managed by A2A.
@@ -97,7 +103,9 @@ type TaskStatus struct {
 type Role string
 
 const (
-	RoleUser  Role = "user"
+	// RoleUser indicates the message was sent by the human user.
+	RoleUser Role = "user"
+	// RoleAgent indicates the message was sent by the agent.
 	RoleAgent Role = "agent"
 )
 
@@ -111,8 +119,11 @@ type Message struct {
 type PartType string
 
 const (
+	// PartTypeText represents a text content part.
 	PartTypeText PartType = "text"
+	// PartTypeFile represents a file content part.
 	PartTypeFile PartType = "file"
+	// PartTypeData represents a structured data content part.
 	PartTypeData PartType = "data"
 )
 

@@ -206,7 +206,7 @@ func collectAllClaims(state graph.PregelState) []Claim {
 	parallels, _ := state[StateKeyParallels].([]Claim)
 	dependents, _ := state[StateKeyDependents].([]Claim)
 
-	var all []Claim
+	all := make([]Claim, 0, 1+len(parallels)+len(dependents))
 	all = append(all, primary)
 	all = append(all, parallels...)
 	all = append(all, dependents...)

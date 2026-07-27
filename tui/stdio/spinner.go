@@ -87,27 +87,27 @@ func (s *Spinner) Stop() {
 	s.mu.Unlock()
 	<-s.doneCh
 
-	fmt.Fprint(s.writer, "\r"+terminal.ClearLine())
+	_, _ = fmt.Fprint(s.writer, "\r"+terminal.ClearLine())
 }
 
 // StopWith halts the spinner and prints finalMessage on the cleared line.
 func (s *Spinner) StopWith(finalMessage string) {
 	s.Stop()
-	fmt.Fprintln(s.writer, finalMessage)
+	_, _ = fmt.Fprintln(s.writer, finalMessage)
 }
 
 // StopSuccess halts the spinner and prints a check-marked success message.
 func (s *Spinner) StopSuccess(msg string) {
 	s.Stop()
 	pal := theme.CurrentPalette()
-	fmt.Fprintln(s.writer, pal.Success.Render(theme.SymbolCheck)+" "+msg)
+	_, _ = fmt.Fprintln(s.writer, pal.Success.Render(theme.SymbolCheck)+" "+msg)
 }
 
 // StopFail halts the spinner and prints a cross-marked failure message.
 func (s *Spinner) StopFail(msg string) {
 	s.Stop()
 	pal := theme.CurrentPalette()
-	fmt.Fprintln(s.writer, pal.Error.Render(theme.SymbolCross)+" "+msg)
+	_, _ = fmt.Fprintln(s.writer, pal.Error.Render(theme.SymbolCross)+" "+msg)
 }
 
 func (s *Spinner) animate() {
@@ -117,8 +117,8 @@ func (s *Spinner) animate() {
 	ticker := time.NewTicker(s.style.Interval)
 	defer ticker.Stop()
 
-	fmt.Fprint(s.writer, terminal.HideCursor())
-	defer fmt.Fprint(s.writer, terminal.ShowCursor())
+	_, _ = fmt.Fprint(s.writer, terminal.HideCursor())
+	defer func() { _, _ = fmt.Fprint(s.writer, terminal.ShowCursor()) }()
 
 	for {
 		s.mu.Lock()
@@ -126,7 +126,7 @@ func (s *Spinner) animate() {
 		msg := s.message
 		s.mu.Unlock()
 
-		fmt.Fprintf(s.writer, "\r%s %s %s", terminal.ClearLine(), frame, msg)
+		_, _ = fmt.Fprintf(s.writer, "\r%s %s %s", terminal.ClearLine(), frame, msg)
 		idx++
 
 		select {

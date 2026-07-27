@@ -18,6 +18,8 @@ type llmDedupDecider struct {
 }
 
 // NewLLMDedupDecider 创建一个基于 LLM 的去重判定器。
+//
+//nolint:revive // intentionally returns unexported llmDedupDecider
 func NewLLMDedupDecider(provider agentcore.Provider, model string) *llmDedupDecider {
 	if model == "" {
 		model = "default"

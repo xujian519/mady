@@ -10,6 +10,7 @@ import (
 	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
 )
 
+// TripleToolName is the agent-visible name of the judge_triple tool.
 const TripleToolName = "judge_triple"
 
 const tripleToolDesc = `对单条证据进行三性审查（关联性、合法性、真实性），返回逐项评分和综合判断。
@@ -108,7 +109,7 @@ func judgmentToMap(j *EvidenceJudgment) map[string]any {
 		}
 	}
 
-	var issues []map[string]string
+	issues := make([]map[string]string, 0, len(j.FlaggedIssues))
 	for _, issue := range j.FlaggedIssues {
 		issues = append(issues, map[string]string{
 			"type":        issue.Type,

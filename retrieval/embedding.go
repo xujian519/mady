@@ -100,7 +100,7 @@ func (e *APIEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, e
 	if err != nil {
 		return nil, fmt.Errorf("embed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

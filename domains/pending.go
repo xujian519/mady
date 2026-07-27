@@ -12,6 +12,7 @@ import (
 // PendingStatus 表示待审批请求的当前状态。
 type PendingStatus string
 
+// Pending status constants.
 const (
 	PendingStatusPending   PendingStatus = "pending"
 	PendingStatusResponded PendingStatus = "responded"

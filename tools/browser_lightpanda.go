@@ -144,7 +144,7 @@ func extractPortFromCDPURL(url string) int {
 		return 0
 	}
 	var port int
-	fmt.Sscanf(matches[1], "%d", &port)
+	_, _ = fmt.Sscanf(matches[1], "%d", &port)
 	return port
 }
 

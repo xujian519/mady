@@ -24,7 +24,7 @@ func (t *TUI) eventLoop() {
 			// losing it to a secondary panic.
 			func() {
 				defer func() { _ = recover() }()
-				t.Stop()
+				_ = t.Stop()
 			}()
 			panic(r) // re-panic after cleanup so the stack trace still shows
 		}

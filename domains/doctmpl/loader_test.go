@@ -9,7 +9,7 @@ import (
 
 func TestLoadDocTemplates(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "claims"), 0o755)
+	os.MkdirAll(filepath.Join(root, "claims"), 0o755) //nolint:gosec // test dir
 	os.WriteFile(filepath.Join(root, "claims", "method.md"), []byte(`---
 name: method-claim
 title: 方法权利要求
@@ -22,9 +22,9 @@ domain: patent
 一种{{method_name}}方法，其特征在于，包括以下步骤：
 步骤1：{{step_1}}；
 步骤2：{{step_2}}。
-`), 0o644)
+`), 0o644) //nolint:gosec // test file
 
-	os.MkdirAll(filepath.Join(root, "spec"), 0o755)
+	os.MkdirAll(filepath.Join(root, "spec"), 0o755) //nolint:gosec // test dir
 	os.WriteFile(filepath.Join(root, "spec", "mechanical.md"), []byte(`---
 name: mechanical-spec
 title: 机械领域说明书
@@ -39,8 +39,7 @@ domain: patent
 
 ## 背景技术
 {{background}}
-`), 0o644)
-
+`), 0o644) //nolint:gosec // test file
 	templates, err := LoadDocTemplates(root)
 	if err != nil {
 		t.Fatal(err)

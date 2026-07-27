@@ -17,15 +17,15 @@ type GraphBuilder interface {
 	SetConditionalEdge(from string, router PregelEdgeRouter) error
 }
 
-// PregelNode, PregelState and PregelEdgeRouter are aliases of the
-// infrastructure graph types. Aliases keep the domain API compatible with the
-// concrete implementation while avoiding the need for domain-layer
-// redefinitions.
-type (
-	PregelNode       = graph.PregelNode
-	PregelState      = graph.PregelState
-	PregelEdgeRouter = graph.PregelEdgeRouter
-)
+// PregelNode is an alias of graph.PregelNode, keeping the domain API
+// compatible with the concrete graph implementation.
+type PregelNode = graph.PregelNode
+
+// PregelState is an alias of graph.PregelState.
+type PregelState = graph.PregelState
+
+// PregelEdgeRouter is an alias of graph.PregelEdgeRouter.
+type PregelEdgeRouter = graph.PregelEdgeRouter
 
 // GraphRunner is the minimal interface required to execute a compiled Pregel
 // graph from the domain layer. *graph.CompiledPregelGraph satisfies it.

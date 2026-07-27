@@ -36,11 +36,16 @@ type EmotionProfile struct {
 type DialogueStrategy string
 
 const (
-	StrategyEmpathetic   DialogueStrategy = "empathetic"   // 共情
+	// StrategyEmpathetic uses a warm, empathetic tone suited for negative emotions.
+	StrategyEmpathetic DialogueStrategy = "empathetic" // 共情
+	// StrategyProfessional uses a restrained, professional tone.
 	StrategyProfessional DialogueStrategy = "professional" // 专业克制
-	StrategyEncouraging  DialogueStrategy = "encouraging"  // 鼓励
-	StrategyNeutral      DialogueStrategy = "neutral"      // 中性
-	StrategyCalming      DialogueStrategy = "calming"      // 安抚
+	// StrategyEncouraging uses an uplifting, encouraging tone.
+	StrategyEncouraging DialogueStrategy = "encouraging" // 鼓励
+	// StrategyNeutral uses a balanced, neutral tone.
+	StrategyNeutral DialogueStrategy = "neutral" // 中性
+	// StrategyCalming uses a soothing, calming tone for high-arousal emotions.
+	StrategyCalming DialogueStrategy = "calming" // 安抚
 )
 
 // StrategyMatch 策略匹配结果

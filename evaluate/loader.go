@@ -8,10 +8,8 @@ import (
 	"strings"
 )
 
-// LoadTestCases reads one or more JSON fixture files from the specified path
-// (a single file or a directory) and returns parsed TestCase values.
-//
-// Each JSON fixture file contains an object with a "cases" array:
+// Loader reads test case fixtures from JSON files. Each file contains a
+// "cases" array described by LoadTestCases:
 //
 //	{
 //	  "suite": "tool_accuracy",
@@ -93,7 +91,7 @@ func (l *Loader) LoadDir(dirPath string) (map[string][]TestCase, error) {
 // contain a single FixtureFile object or a JSON array of FixtureFile objects.
 func (l *Loader) LoadFile(filePath string) (map[string][]TestCase, error) {
 	resolved := l.resolve(filePath)
-	data, err := os.ReadFile(resolved)
+	data, err := os.ReadFile(resolved) //nolint:gosec // path resolved from relative or absolute filePath
 	if err != nil {
 		return nil, fmt.Errorf("loader: 读取 %s 失败: %w", filePath, err)
 	}
@@ -172,23 +170,23 @@ func (l *Loader) resolve(path string) string {
 	return filepath.Join(base, path)
 }
 
-// MustLoad is a convenience helper that loads test cases and panics on error.
-// Useful in test helpers and benchmark initialization.
-func MustLoad(loader *Loader, path string) []TestCase {
+// MustLoad loads test cases from a path (directory or file). It returns an error
+// instead of panicking. Useful in test helpers and benchmark initialization.
+func MustLoad(loader *Loader, path string) ([]TestCase, error) {
 	var cases []TestCase
 	// Try as directory first.
 	if result, err := loader.LoadDir(path); err == nil {
 		for _, cc := range result {
 			cases = append(cases, cc...)
 		}
-		return cases
+		return cases, nil
 	}
 	// Try as file.
 	if result, err := loader.LoadFile(path); err == nil {
 		for _, cc := range result {
 			cases = append(cases, cc...)
 		}
-		return cases
+		return cases, nil
 	}
-	panic(fmt.Sprintf("loader: 无法加载 %s", path))
+	return nil, fmt.Errorf("loader: 无法加载 %s", path)
 }

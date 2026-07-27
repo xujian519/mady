@@ -1,3 +1,4 @@
+// Command a2a-client connects to an A2A server and sends a demonstration message.
 package main
 
 import (
@@ -130,7 +131,7 @@ func sendStreaming(ctx context.Context, client *a2a.Client, taskID, message stri
 	if err != nil {
 		return err
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	fmt.Printf("Task ID: %s\n", taskID)
 	fmt.Println("Streaming updates:")

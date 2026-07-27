@@ -6,9 +6,13 @@ import "time"
 type Outcome string
 
 const (
+	// OutcomeSuccess indicates a turn that completed successfully.
 	OutcomeSuccess Outcome = "success"
+	// OutcomeFailure indicates a turn that ended in error.
 	OutcomeFailure Outcome = "failure"
+	// OutcomePartial indicates a turn with partial completion.
 	OutcomePartial Outcome = "partial"
+	// OutcomeAborted indicates a turn that was aborted before completion.
 	OutcomeAborted Outcome = "aborted"
 )
 

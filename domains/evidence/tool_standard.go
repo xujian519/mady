@@ -8,7 +8,25 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+// StandardToolName is the agent-visible name of the assess_standard tool.
 const StandardToolName = "assess_standard"
+
+// JSON Schema constants for tool_standard.go.
+const (
+	jsTypeObject           = "object"
+	jsTypeString           = "string"
+	jsTypeArray            = "array"
+	jsFieldProperties      = "properties"
+	jsFieldRequired        = "required"
+	jsFieldStandard        = "standard"
+	jsFieldAdditional      = "additionalProperties"
+	jsFieldMet             = "met"
+	jsFieldReasoning       = "reasoning"
+	jsFieldType            = "type"
+	jsFieldEnum            = "enum"
+	jsFieldSupportingCount = "supporting_count"
+	jsFieldItems           = "items"
+)
 
 const standardToolDesc = `评估已有证据是否达到指定证明标准。
 
@@ -27,18 +45,18 @@ func newStandardTool() *agentcore.Tool {
 		Name:        StandardToolName,
 		Description: standardToolDesc,
 		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"standard": map[string]any{
-					"type": "string",
-					"enum": []string{"beyond_reasonable_doubt", "high_probability", "preponderance", "substantial_evidence", "prima_facie"},
+			jsFieldType: jsTypeObject,
+			jsFieldProperties: map[string]any{
+				jsFieldStandard: map[string]any{
+					jsFieldType: jsTypeString,
+					jsFieldEnum: []string{"beyond_reasonable_doubt", "high_probability", "preponderance", "substantial_evidence", "prima_facie"},
 				},
-				"supporting_count": map[string]any{"type": "integer"},
-				"total_count":      map[string]any{"type": "integer"},
-				"gaps":             map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+				jsFieldSupportingCount: map[string]any{jsFieldType: "integer"},
+				"total_count":          map[string]any{jsFieldType: "integer"},
+				"gaps":                 map[string]any{jsFieldType: jsTypeArray, jsFieldItems: map[string]any{jsFieldType: jsTypeString}},
 			},
-			"required":             []string{"standard", "supporting_count", "total_count"},
-			"additionalProperties": false,
+			jsFieldRequired:   []string{jsFieldStandard, jsFieldSupportingCount, "total_count"},
+			jsFieldAdditional: false,
 		},
 		Func:     t.Run,
 		ReadOnly: true,
@@ -64,12 +82,12 @@ func (t *standardTool) Run(_ context.Context, args json.RawMessage) (any, error)
 	result := AssessProofStandard(StandardOfProof(p.Standard), p.SupportingCount, p.TotalCount, p.Gaps)
 
 	return map[string]any{
-		"met":                 result.Met,
-		"standard":            result.Standard,
-		"confidence":          result.Confidence,
-		"supporting_count":    result.SupportingCount,
-		"contradicting_count": result.ContradictingCount,
-		"reasoning":           result.Reasoning,
-		"gaps":                result.Gaps,
+		jsFieldMet:             result.Met,
+		jsFieldStandard:        result.Standard,
+		"confidence":           result.Confidence,
+		jsFieldSupportingCount: result.SupportingCount,
+		"contradicting_count":  result.ContradictingCount,
+		jsFieldReasoning:       result.Reasoning,
+		"gaps":                 result.Gaps,
 	}, nil
 }

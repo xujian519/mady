@@ -12,6 +12,7 @@ import (
 // RunMode selects how a legal case should be processed.
 type RunMode string
 
+// Patent workflow run mode constants.
 const (
 	ModeDirect       RunMode = "direct"
 	ModeJudgment     RunMode = "judgment"

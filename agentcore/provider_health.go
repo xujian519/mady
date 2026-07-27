@@ -71,7 +71,9 @@ func (h *ProviderHealth) IsHealthy() bool {
 type HealthStatus int
 
 const (
+	// HealthStatusHealthy indicates the model is operating normally.
 	HealthStatusHealthy HealthStatus = iota
+	// HealthStatusDegraded indicates the model is in a degraded/down state.
 	HealthStatusDegraded
 )
 

@@ -53,7 +53,7 @@ func (r *Renderer) WriteChunk(chunk string) {
 	r.mu.Unlock()
 
 	if output.Len() > 0 {
-		fmt.Fprint(w, output.String())
+		_, _ = fmt.Fprint(w, output.String())
 	}
 }
 
@@ -68,7 +68,7 @@ func (r *Renderer) Flush() {
 	r.mu.Unlock()
 
 	if output != "" {
-		fmt.Fprint(w, output)
+		_, _ = fmt.Fprint(w, output)
 	}
 }
 

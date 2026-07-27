@@ -16,13 +16,17 @@ type SnapshotStore struct {
 	dir string
 }
 
+// NewSnapshotStore creates a SnapshotStore rooted at the given directory.
+// The directory is created (with 0o750 permissions) if it does not exist.
 func NewSnapshotStore(dir string) (*SnapshotStore, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("create store directory: %w", err)
 	}
 	return &SnapshotStore{dir: dir}, nil
 }
 
+// Save persists a state snapshot to a JSON file under the configured directory.
+// Writes are atomic: data is first written to a .tmp file, then renamed.
 func (fs *SnapshotStore) Save(_ context.Context, key string, snap agentcore.StateSnapshot) error {
 	if err := util.ValidateKey(key); err != nil {
 		return err
@@ -41,6 +45,7 @@ func (fs *SnapshotStore) Save(_ context.Context, key string, snap agentcore.Stat
 	return nil
 }
 
+// Load reads and deserializes a state snapshot by key.
 func (fs *SnapshotStore) Load(_ context.Context, key string) (agentcore.StateSnapshot, error) {
 	if err := util.ValidateKey(key); err != nil {
 		return agentcore.StateSnapshot{}, err
@@ -56,6 +61,8 @@ func (fs *SnapshotStore) Load(_ context.Context, key string) (agentcore.StateSna
 	return snap, nil
 }
 
+// Delete removes a state snapshot file by key. No error is returned if the
+// file does not exist.
 func (fs *SnapshotStore) Delete(_ context.Context, key string) error {
 	if err := util.ValidateKey(key); err != nil {
 		return err
@@ -66,6 +73,8 @@ func (fs *SnapshotStore) Delete(_ context.Context, key string) error {
 	return nil
 }
 
+// List returns all snapshot keys (without the .json extension) stored in the
+// configured directory.
 func (fs *SnapshotStore) List(_ context.Context) ([]string, error) {
 	entries, err := os.ReadDir(fs.dir)
 	if err != nil {
@@ -81,6 +90,7 @@ func (fs *SnapshotStore) List(_ context.Context) ([]string, error) {
 	return keys, nil
 }
 
+// Has checks whether a snapshot file exists for the given key.
 func (fs *SnapshotStore) Has(_ context.Context, key string) (bool, error) {
 	if err := util.ValidateKey(key); err != nil {
 		return false, err

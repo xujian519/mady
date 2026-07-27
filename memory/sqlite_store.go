@@ -59,8 +59,8 @@ func NewSQLiteMemoryStore(dbPath string, opts ...SQLiteOption) (*SQLiteMemorySto
 	}
 	db.SetMaxOpenConns(4)
 
-	if err := db.Ping(); err != nil {
-		db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("memory/sqlite: ping %s: %w", dbPath, err)
 	}
 
@@ -74,7 +74,7 @@ func NewSQLiteMemoryStore(dbPath string, opts ...SQLiteOption) (*SQLiteMemorySto
 	}
 
 	if err := s.initSchema(context.Background()); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("memory/sqlite: init schema: %w", err)
 	}
 
@@ -175,7 +175,7 @@ func (s *SQLiteMemoryStore) RememberBatch(ctx context.Context, entries []MemoryE
 	if err != nil {
 		return fmt.Errorf("memory/sqlite: prepare: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	for i := range entries {
 		e := &entries[i]
@@ -367,7 +367,7 @@ func (s *SQLiteMemoryStore) Forget(ctx context.Context, id string) error {
 // ForgetAll 按过滤条件批量删除。
 func (s *SQLiteMemoryStore) ForgetAll(ctx context.Context, filter MemoryFilter) error {
 	where, args := buildWhereClause(filter)
-	_, err := s.db.ExecContext(ctx, `DELETE FROM memories `+where, args...)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM memories `+where, args...) //nolint:gosec // safe: where clause uses ? placeholders
 	if err != nil {
 		return fmt.Errorf("memory/sqlite: forget_all: %w", err)
 	}
@@ -407,7 +407,7 @@ func (s *SQLiteMemoryStore) List(ctx context.Context, layer MemoryLayer, opts Li
 	if err != nil {
 		return nil, fmt.Errorf("memory/sqlite: list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []MemoryEntry
 	for rows.Next() {
@@ -432,7 +432,7 @@ func (s *SQLiteMemoryStore) Prune(ctx context.Context, layer MemoryLayer, thresh
 	if err != nil {
 		return 0, fmt.Errorf("memory/sqlite: prune query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	now := s.now()
 	var toDelete []string
@@ -461,7 +461,7 @@ func (s *SQLiteMemoryStore) Prune(ctx context.Context, layer MemoryLayer, thresh
 		args[i] = id
 	}
 	res, err := s.db.ExecContext(ctx,
-		`DELETE FROM memories WHERE id IN (`+strings.Join(placeholders, ",")+`)`,
+		`DELETE FROM memories WHERE id IN (`+strings.Join(placeholders, ",")+`)`, //nolint:gosec // safe: IN clause uses ? placeholders
 		args...,
 	)
 	if err != nil {
@@ -504,7 +504,7 @@ func (s *SQLiteMemoryStore) BuildBM25Index(ctx context.Context) (*BM25Index, err
 	if err != nil {
 		return nil, fmt.Errorf("memory/sqlite: build bm25: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	index := NewBM25Index(DefaultBM25Config())
 	for rows.Next() {
@@ -567,14 +567,14 @@ func scanEntry(sc scanner) (MemoryEntry, error) {
 
 func (s *SQLiteMemoryStore) queryCandidates(ctx context.Context, filter MemoryFilter, limit int) ([]MemoryEntry, error) {
 	where, args := buildWhereClause(filter)
-	query := selectColumns + ` FROM memories ` + where + ` LIMIT ?`
+	query := selectColumns + ` FROM memories ` + where + ` LIMIT ?` //nolint:gosec // safe: where clause uses ? placeholders
 	args = append(args, limit)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("memory/sqlite: query candidates: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []MemoryEntry
 	for rows.Next() {
@@ -599,7 +599,7 @@ func (s *SQLiteMemoryStore) updateAccessStats(ctx context.Context, ids []string,
 		args = append(args, id)
 	}
 	_, _ = s.db.ExecContext(ctx,
-		`UPDATE memories SET last_access = ?, access_count = access_count + 1 WHERE id IN (`+
+		`UPDATE memories SET last_access = ?, access_count = access_count + 1 WHERE id IN (`+ //nolint:gosec // safe: IN clause uses ? placeholders
 			strings.Join(placeholders, ",")+`)`,
 		args...,
 	)

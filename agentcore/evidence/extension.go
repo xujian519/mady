@@ -9,15 +9,9 @@ import (
 // ExtensionName is the registration name for the evidence extension.
 const ExtensionName = "evidence"
 
-// EvidenceExtension auto-registers a Ledger into the agent lifecycle:
-//   - BeforeTurn: Reset the ledger for a fresh turn.
-//   - AfterToolExecution: Record each tool call as a Receipt.
+// EvidenceExtension auto-registers a Ledger into the agent lifecycle.
 //
-// It implements TurnObserver and ToolCallObserver directly, which are
-// auto-detected by agentcore.ExtensionRegistry.Register.
-//
-// The Ledger is accessed directly via the extension's Ledger() method
-// rather than through context.Context.
+//nolint:revive // stutter: evidence.EvidenceExtension is intentional for clarity
 type EvidenceExtension struct {
 	ledger *Ledger
 	agent  *agentcore.Agent
@@ -54,7 +48,7 @@ func (e *EvidenceExtension) Dispose() error { return nil }
 // ---------------------------------------------------------------------------
 
 // BeforeTurn resets the ledger at the start of each turn.
-func (e *EvidenceExtension) BeforeTurn(_ context.Context, arc *agentcore.AgentRunContext) error {
+func (e *EvidenceExtension) BeforeTurn(_ context.Context, _ *agentcore.AgentRunContext) error {
 	e.ledger.Reset()
 	return nil
 }

@@ -45,7 +45,7 @@ func main() {
 
 	totalFail := 0
 	for _, layer := range layers {
-		data, err := os.ReadFile(filepath.Join(tmp, layer.file))
+		data, err := os.ReadFile(filepath.Join(tmp, layer.file)) //nolint:gosec // controlled script path
 		if err != nil {
 			fmt.Printf("== %s：跳过（缓存不存在 %v）\n", layer.name, err)
 			continue

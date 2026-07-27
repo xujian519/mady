@@ -12,6 +12,7 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
+// ExtensionName is the registration name for the rules extension.
 const ExtensionName = "rules"
 
 // =============================================================================
@@ -184,10 +185,16 @@ func NewExtension(engine *Engine) *RulesExtension {
 	return &RulesExtension{engine: engine}
 }
 
-func (e *RulesExtension) Name() string                                     { return ExtensionName }
-func (e *RulesExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
-func (e *RulesExtension) Dispose() error                                   { return nil }
+// Name returns the extension identifier.
+func (e *RulesExtension) Name() string { return ExtensionName }
 
+// Init initializes the rules extension — currently a no-op.
+func (e *RulesExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
+
+// Dispose cleans up the rules extension — currently a no-op.
+func (e *RulesExtension) Dispose() error { return nil }
+
+// SystemPromptSuffix returns a system prompt suffix listing loaded rules.
 func (e *RulesExtension) SystemPromptSuffix() string {
 	if e.engine == nil {
 		return ""
@@ -215,6 +222,7 @@ func (e *RulesExtension) SystemPromptSuffix() string {
 	return b.String()
 }
 
+// TransformContext returns messages unchanged — this extension does not modify context.
 func (e *RulesExtension) TransformContext(_ context.Context, msgs []agentcore.Message) []agentcore.Message {
 	return msgs
 }

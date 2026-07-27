@@ -44,6 +44,7 @@ type EventBus struct {
 	panicCount atomic.Uint64
 }
 
+// NewEventBus creates an empty event bus ready for subscriptions.
 func NewEventBus() *EventBus {
 	eb := &EventBus{
 		drainTimeout: 5 * time.Second,

@@ -159,7 +159,7 @@ func (c *HTTPClient) listenServerStreamOnce(ctx context.Context, lastEventID str
 	if err != nil {
 		return sseStreamState{}, fmt.Errorf("mcp server stream request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		sessionID, _ := c.sessionState()
 		return sseStreamState{}, sessionExpiredError{sessionID: sessionID}
@@ -253,7 +253,7 @@ func (c *HTTPClient) respondToServerRequest(ctx context.Context, id any, result 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return nil
 }
 
@@ -266,6 +266,7 @@ func (c *HTTPClient) reportAsyncError(err error) {
 	}
 }
 
+// AddNotificationHook registers a handler for MCP notifications from the server.
 func (c *HTTPClient) AddNotificationHook(h func(context.Context, string, json.RawMessage) error) {
 	if h == nil {
 		return
@@ -281,6 +282,7 @@ func (c *HTTPClient) notificationHookSnapshot() []func(context.Context, string, 
 	return append([]func(context.Context, string, json.RawMessage) error(nil), c.notificationHooks...)
 }
 
+// SetEventSink sets the runtime event sink for emitting MCP transport events.
 func (c *HTTPClient) SetEventSink(emit func(agentcore.Event)) {
 	c.eventSink.Set(emit)
 }

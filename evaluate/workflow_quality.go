@@ -43,8 +43,10 @@ const (
 	WorkflowAny        = "any"        // Router: any order, any subset
 )
 
+// Name returns "workflow_quality".
 func (m WorkflowQuality) Name() string { return "workflow_quality" }
 
+// Compute evaluates execution trace fidelity against an expected plan.
 func (m WorkflowQuality) Compute(prediction, reference string) float64 {
 	predSteps := parseWorkflowSteps(prediction)
 	refSteps := parseWorkflowSteps(reference)

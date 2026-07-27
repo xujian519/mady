@@ -35,15 +35,24 @@ func ExtractReportFromState(state graph.PregelState) *AnalysisReport {
 type DocSection string
 
 const (
-	SecTitle       DocSection = "invention_title"    // 发明名称
-	SecTechField   DocSection = "technical_field"    // 技术领域
-	SecBackground  DocSection = "background"         // 背景技术
-	SecContent     DocSection = "content"            // 发明内容
-	SecProblem     DocSection = "technical_problem"  // 要解决的技术问题
-	SecSolution    DocSection = "technical_solution" // 技术方案
-	SecEffect      DocSection = "beneficial_effect"  // 有益效果
-	SecEmbodiments DocSection = "embodiments"        // 具体实施方式
-	SecDrawings    DocSection = "drawings"           // 附图说明
+	// SecTitle identifies the invention title section.
+	SecTitle DocSection = "invention_title" // 发明名称
+	// SecTechField identifies the technical field section.
+	SecTechField DocSection = "technical_field" // 技术领域
+	// SecBackground identifies the background section.
+	SecBackground DocSection = "background" // 背景技术
+	// SecContent identifies the invention content section.
+	SecContent DocSection = "content" // 发明内容
+	// SecProblem identifies the technical problem section.
+	SecProblem DocSection = "technical_problem" // 要解决的技术问题
+	// SecSolution identifies the technical solution section.
+	SecSolution DocSection = "technical_solution" // 技术方案
+	// SecEffect identifies the beneficial effect section.
+	SecEffect DocSection = "beneficial_effect" // 有益效果
+	// SecEmbodiments identifies the embodiments section.
+	SecEmbodiments DocSection = "embodiments" // 具体实施方式
+	// SecDrawings identifies the drawings description section.
+	SecDrawings DocSection = "drawings" // 附图说明
 )
 
 // sectionPatterns 按优先级排列的章节标题关键词，用于分段匹配。
@@ -78,10 +87,14 @@ type DisclosureDoc struct {
 type TechFeatureCategory string
 
 const (
+	// CatStructure identifies a structural feature category.
 	CatStructure TechFeatureCategory = "structure" // 结构特征
-	CatMethod    TechFeatureCategory = "method"    // 方法/工艺特征
+	// CatMethod identifies a method/process feature category.
+	CatMethod TechFeatureCategory = "method" // 方法/工艺特征
+	// CatParameter identifies a parameter feature category.
 	CatParameter TechFeatureCategory = "parameter" // 参数特征
-	CatMaterial  TechFeatureCategory = "material"  // 材料特征
+	// CatMaterial identifies a material feature category.
+	CatMaterial TechFeatureCategory = "material" // 材料特征
 )
 
 // TechFeature 是一个最小技术单元——不可再分的原子技术手段。
@@ -167,8 +180,11 @@ type AnalysisReport struct {
 // PregelState 键值常量
 // =============================================================================
 
+// PregelState key constants for disclosure analysis pipeline nodes.
 const (
-	StateKeyInput            = "input"
+	// StateKeyInput is the PregelState key for the input document.
+	StateKeyInput = "input"
+	// StateKeyOutput is the PregelState key for the final output.
 	StateKeyOutput           = "output"
 	StateKeyDoc              = "document"
 	StateKeyExtractProblem   = "extract_problem_output"  // 问题提取 Agent 的原始输出

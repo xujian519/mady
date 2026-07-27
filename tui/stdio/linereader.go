@@ -63,7 +63,7 @@ func NewLineReader(cfg LineReaderConfig) *LineReader {
 // ReadLine displays the prompt and reads one line of input.
 // Returns ("", false) on EOF.
 func (r *LineReader) ReadLine() (string, bool) {
-	fmt.Fprint(r.config.Writer, r.config.Prompt)
+	_, _ = fmt.Fprint(r.config.Writer, r.config.Prompt)
 	if !r.scanner.Scan() {
 		return "", false
 	}
@@ -78,7 +78,7 @@ func (r *LineReader) ReadLine() (string, bool) {
 // ReadMultiLine reads input that may span multiple lines.
 // A blank line or EOF terminates input. Returns the joined string.
 func (r *LineReader) ReadMultiLine() (string, bool) {
-	fmt.Fprint(r.config.Writer, r.config.Prompt)
+	_, _ = fmt.Fprint(r.config.Writer, r.config.Prompt)
 	var lines []string
 	first := true
 
@@ -96,7 +96,7 @@ func (r *LineReader) ReadMultiLine() (string, bool) {
 		}
 		trimmed := strings.TrimSuffix(strings.TrimSpace(line), "\\")
 		lines[len(lines)-1] = trimmed
-		fmt.Fprint(r.config.Writer, "... ")
+		_, _ = fmt.Fprint(r.config.Writer, "... ")
 	}
 
 	if len(lines) == 0 && !r.scanner.Scan() {

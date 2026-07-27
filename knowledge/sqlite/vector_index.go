@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"container/heap"
+	"context"
 	"fmt"
 	"runtime"
 	"sort"
@@ -52,18 +53,18 @@ func (h *minVectorHeap) Pop() any {
 // will use the in-memory index instead of querying SQLite per-batch.
 func (s *SQLiteStore) PreloadVectorIndex() (*VectorIndex, error) {
 	var count int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM embeddings").Scan(&count); err != nil {
+	if err := s.db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM embeddings").Scan(&count); err != nil {
 		return nil, fmt.Errorf("count embeddings: %w", err)
 	}
 	if count == 0 {
 		return nil, fmt.Errorf("no embeddings in database")
 	}
 
-	rows, err := s.db.Query(`SELECT chunk_id, document_id, vector FROM embeddings ORDER BY id`)
+	rows, err := s.db.QueryContext(context.Background(), `SELECT chunk_id, document_id, vector FROM embeddings ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("preload vectors query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	idx := &VectorIndex{
 		vectors:  make([]float32, 0, count*s.dim),
@@ -87,7 +88,7 @@ func (s *SQLiteStore) PreloadVectorIndex() (*VectorIndex, error) {
 		}
 		// Zero-copy BLOB→[]float32 via unsafe, then append (which copies
 		// into the pre-allocated flat slice via runtime.memmove).
-		vec := unsafe.Slice((*float32)(unsafe.Pointer(&vecBlob[0])), floatCount)
+		vec := unsafe.Slice((*float32)(unsafe.Pointer(&vecBlob[0])), floatCount) //nolint:gosec // performance: zero-copy vector byte decoding
 		idx.vectors = append(idx.vectors, vec...)
 		idx.chunkIDs = append(idx.chunkIDs, chunkID)
 		idx.docIDs = append(idx.docIDs, docID)

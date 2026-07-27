@@ -1,3 +1,4 @@
+// Command a2a-server runs a minimal A2A (Agent-to-Agent) demonstration server.
 package main
 
 import (
@@ -17,13 +18,13 @@ import (
 // stubProvider is a minimal provider for demonstration purposes.
 type stubProvider struct{}
 
-func (stubProvider) Complete(ctx context.Context, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+func (stubProvider) Complete(_ context.Context, _ *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
 	return &agentcore.ProviderResponse{
 		Content: "Hello! I'm a demo A2A agent.",
 	}, nil
 }
 
-func (stubProvider) Stream(ctx context.Context, req *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
+func (stubProvider) Stream(_ context.Context, _ *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
 	ch := make(chan agentcore.StreamDelta, 1)
 	ch <- agentcore.StreamDelta{Content: "Hello! I'm a demo A2A agent."}
 	close(ch)
@@ -79,8 +80,8 @@ func main() {
 	handler := a2a.NewDefaultAgentHandler(card, agent, cfg)
 	server := a2a.NewServer(handler)
 
-	log.Printf("A2A server starting on :%s", port)
-	log.Printf("Agent Card: http://localhost:%s/.well-known/agent.json", port)
+	log.Printf("A2A server starting on :%s", port)                             //nolint:gosec // example code
+	log.Printf("Agent Card: http://localhost:%s/.well-known/agent.json", port) //nolint:gosec // example code
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

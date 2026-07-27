@@ -24,6 +24,8 @@ type providerExtractor struct {
 
 // NewProviderExtractor 创建一个基于 agentcore.Provider 的事实提取器。
 // provider 和 model 均不能为空。
+//
+//nolint:revive // intentionally returns unexported providerExtractor
 func NewProviderExtractor(provider agentcore.Provider, model string) *providerExtractor {
 	if model == "" {
 		model = "default"

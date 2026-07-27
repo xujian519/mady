@@ -43,7 +43,7 @@ func NewEvalStore(cfg EvalStoreConfig) (*EvalStore, error) {
 
 	store := &EvalStore{db: db}
 	if err := store.migrate(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("eval store: migrate: %w", err)
 	}
 	return store, nil
@@ -51,7 +51,7 @@ func NewEvalStore(cfg EvalStoreConfig) (*EvalStore, error) {
 
 // migrate 自动创建表结构。
 func (s *EvalStore) migrate() error {
-	_, err := s.db.Exec(`
+	_, err := s.db.ExecContext(context.Background(), `
 		CREATE TABLE IF NOT EXISTS eval_results (
 			id                INTEGER PRIMARY KEY AUTOINCREMENT,
 			turn              INTEGER NOT NULL DEFAULT 0,
@@ -111,7 +111,7 @@ func (s *EvalStore) QueryByThreshold(ctx context.Context, minFaithfulness float6
 	if err != nil {
 		return nil, fmt.Errorf("eval store: query threshold: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []EvalResult
 	for rows.Next() {

@@ -26,6 +26,25 @@ const (
 	stateKeyStep4      = "step4_significant_progress"
 )
 
+// JSON Schema constants.
+const (
+	jsTypeObject               = "object"
+	jsTypeString               = "string"
+	jsTypeArray                = "array"
+	jsTypeBoolean              = "boolean"
+	jsFieldProperties          = "properties"
+	jsFieldRequired            = "required"
+	jsFieldItems               = "items"
+	jsFieldEnum                = "enum"
+	jsFieldRationale           = "rationale"
+	jsFieldConfidence          = "confidence"
+	jsValHigh                  = "high"
+	jsValLow                   = "low"
+	jsValMedium                = "medium"
+	jsFieldType                = "type"
+	jsFieldSignificantProgress = "has_significant_progress"
+)
+
 // =============================================================================
 // 节点实现
 // =============================================================================
@@ -523,94 +542,94 @@ func generateConclusionNode(provider agentcore.Provider) graph.PregelNode {
 // step1Schema 三步法第 1 步的 JSON Schema。
 func step1Schema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"closest_prior_art": map[string]any{"type": "string"},
-			"selection_reason":  map[string]any{"type": "string"},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"closest_prior_art": map[string]any{jsFieldType: jsTypeString},
+			"selection_reason":  map[string]any{jsFieldType: jsTypeString},
 		},
-		"required": []string{"closest_prior_art", "selection_reason"},
+		jsFieldRequired: []string{"closest_prior_art", "selection_reason"},
 	}
 }
 
 // step2Schema 三步法第 2 步的 JSON Schema。
 func step2Schema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
 			"distinguishing_features": map[string]any{
-				"type":  "array",
-				"items": map[string]any{"type": "string"},
+				jsFieldType:  jsTypeArray,
+				jsFieldItems: map[string]any{jsFieldType: jsTypeString},
 			},
 			"non_contributing_features": map[string]any{
-				"type":  "array",
-				"items": map[string]any{"type": "string"},
+				jsFieldType:  jsTypeArray,
+				jsFieldItems: map[string]any{jsFieldType: jsTypeString},
 			},
 			"tech_effects": map[string]any{
-				"type":  "array",
-				"items": map[string]any{"type": "string"},
+				jsFieldType:  jsTypeArray,
+				jsFieldItems: map[string]any{jsFieldType: jsTypeString},
 			},
-			"actual_tech_problem": map[string]any{"type": "string"},
+			"actual_tech_problem": map[string]any{jsFieldType: jsTypeString},
 		},
-		"required": []string{"distinguishing_features", "actual_tech_problem"},
+		jsFieldRequired: []string{"distinguishing_features", "actual_tech_problem"},
 	}
 }
 
 // step3Schema 三步法第 3 步的 JSON Schema（扩展版：五种情形+反向教导+跨领域）。
 func step3Schema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"technical_suggestion": map[string]any{"type": "boolean"},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"technical_suggestion": map[string]any{jsFieldType: jsTypeBoolean},
 			"suggestion_type": map[string]any{
-				"type": "string",
-				"enum": []string{"common_knowledge", "same_doc", "other_doc", "functional_equivalent", "universal_need"},
+				jsFieldType: jsTypeString,
+				jsFieldEnum: []string{"common_knowledge", "same_doc", "other_doc", "functional_equivalent", "universal_need"},
 			},
-			"has_reverse_teaching": map[string]any{"type": "boolean"},
-			"is_cross_domain":      map[string]any{"type": "boolean"},
-			"rationale":            map[string]any{"type": "string"},
-			"confidence": map[string]any{
-				"type": "string",
-				"enum": []string{"high", "medium", "low"},
+			"has_reverse_teaching": map[string]any{jsFieldType: jsTypeBoolean},
+			"is_cross_domain":      map[string]any{jsFieldType: jsTypeBoolean},
+			jsFieldRationale:       map[string]any{jsFieldType: jsTypeString},
+			jsFieldConfidence: map[string]any{
+				jsFieldType: jsTypeString,
+				jsFieldEnum: []string{jsValHigh, jsValMedium, jsValLow},
 			},
 		},
-		"required": []string{"technical_suggestion", "rationale", "confidence"},
+		jsFieldRequired: []string{"technical_suggestion", jsFieldRationale, jsFieldConfidence},
 	}
 }
 
 // step4Schema 显著的进步判断的 JSON Schema。
 func step4Schema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"has_significant_progress": map[string]any{"type": "boolean"},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			jsFieldSignificantProgress: map[string]any{jsFieldType: jsTypeBoolean},
 			"progress_type": map[string]any{
-				"type": "string",
-				"enum": []string{"effect_improve", "different_path", "trend_leading", "tradeoff"},
+				jsFieldType: jsTypeString,
+				jsFieldEnum: []string{"effect_improve", "different_path", "trend_leading", "tradeoff"},
 			},
-			"rationale": map[string]any{"type": "string"},
+			jsFieldRationale: map[string]any{jsFieldType: jsTypeString},
 		},
-		"required": []string{"has_significant_progress", "rationale"},
+		jsFieldRequired: []string{jsFieldSignificantProgress, jsFieldRationale},
 	}
 }
 
 // conclusionSchema 最终结论的 JSON Schema（扩展版：含 has_significant_progress）。
 func conclusionSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"conclusion":               map[string]any{"type": "string"},
-			"is_inventive":             map[string]any{"type": "boolean"},
-			"has_significant_progress": map[string]any{"type": "boolean"},
-			"confidence": map[string]any{
-				"type": "string",
-				"enum": []string{"high", "medium", "low"},
+		jsFieldType: jsTypeObject,
+		jsFieldProperties: map[string]any{
+			"conclusion":               map[string]any{jsFieldType: jsTypeString},
+			"is_inventive":             map[string]any{jsFieldType: jsTypeBoolean},
+			jsFieldSignificantProgress: map[string]any{jsFieldType: jsTypeBoolean},
+			jsFieldConfidence: map[string]any{
+				jsFieldType: jsTypeString,
+				jsFieldEnum: []string{jsValHigh, jsValMedium, jsValLow},
 			},
 			"aux_factors": map[string]any{
-				"type":  "array",
-				"items": map[string]any{"type": "string"},
+				jsFieldType:  jsTypeArray,
+				jsFieldItems: map[string]any{jsFieldType: jsTypeString},
 			},
 		},
-		"required": []string{"conclusion", "is_inventive", "has_significant_progress", "confidence"},
+		jsFieldRequired: []string{"conclusion", "is_inventive", jsFieldSignificantProgress, jsFieldConfidence},
 	}
 }
 
@@ -695,9 +714,9 @@ func parseStep3(output string) Step3Result {
 	r.Rationale = parsed.Rationale
 	r.Confidence = parsed.Confidence
 	switch r.Confidence {
-	case "high", "medium", "low":
+	case jsValHigh, jsValMedium, jsValLow:
 	default:
-		r.Confidence = "medium"
+		r.Confidence = jsValMedium
 	}
 	return r
 }
@@ -733,7 +752,7 @@ func parseConclusion(output string) parsedConclusion {
 	if jsonStr == "" {
 		return parsedConclusion{
 			Conclusion: output,
-			Confidence: "medium",
+			Confidence: jsValMedium,
 		}
 	}
 
@@ -741,14 +760,14 @@ func parseConclusion(output string) parsedConclusion {
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
 		return parsedConclusion{
 			Conclusion: output,
-			Confidence: "medium",
+			Confidence: jsValMedium,
 		}
 	}
 
 	switch parsed.Confidence {
-	case "high", "medium", "low":
+	case jsValHigh, jsValMedium, jsValLow:
 	default:
-		parsed.Confidence = "medium"
+		parsed.Confidence = jsValMedium
 	}
 
 	return parsed

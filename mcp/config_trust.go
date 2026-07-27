@@ -30,7 +30,7 @@ func trustStorePath(madyHome string) string {
 
 // fileSHA256 计算文件内容的 SHA-256（hex 编码）。
 func fileSHA256(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is filepath.Join(madyHome, "trusted-mcp.json")
 	if err != nil {
 		return "", err
 	}
@@ -88,11 +88,11 @@ func TrustMCPConfigFile(path, madyHome string) error {
 	if err != nil {
 		return fmt.Errorf("mcp: marshal trust store: %w", err)
 	}
-	if err := os.MkdirAll(madyHome, 0o755); err != nil {
+	if err := os.MkdirAll(madyHome, 0o750); err != nil { //nolint:gosec // path from util.MadyHome() which resolves to safe dir
 		return fmt.Errorf("mcp: create mady home: %w", err)
 	}
 	// 信任存储含本地路径信息，仅所有者可读写。
-	if err := os.WriteFile(trustStorePath(madyHome), data, 0o600); err != nil {
+	if err := os.WriteFile(trustStorePath(madyHome), data, 0o600); err != nil { //nolint:gosec // path via trustStorePath over resolved madyHome
 		return fmt.Errorf("mcp: write trust store: %w", err)
 	}
 	return nil

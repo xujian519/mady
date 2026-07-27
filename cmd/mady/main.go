@@ -49,12 +49,9 @@ import (
 
 // commitHash and buildTime are injected via -ldflags at build time
 // (see LDFLAGS in Makefile). Default to "unknown" for dev builds.
-//
-//nolint:unused // set via ldflags at build time (see Makefile LDFLAGS)
-var commitHash = "unknown"
-
-//nolint:unused // set via ldflags
-var buildTime = "unknown"
+var commitHash = "unknown" // set via ldflags at build time
+var buildTime = "unknown"  // set via ldflags at build time
+var _, _ = commitHash, buildTime
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

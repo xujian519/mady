@@ -20,6 +20,7 @@ import (
 // equivalence calculation.
 const imageTokenEstimate = 1600
 
+// EstimateTokens returns a rough token count for the given text.
 func EstimateTokens(text string) int64 {
 	if len(text) == 0 {
 		return 0

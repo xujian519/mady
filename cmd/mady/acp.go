@@ -45,7 +45,7 @@ func runAcp(ctx context.Context) error {
 	// 工具授权等人工决策留痕到 SQLite（与 TUI/Server 共用 approvals.db），
 	// 供 P3 专家盲测的 HITL 触点数据收集；打开失败降级为不留痕。
 	if fc.WorkspaceDir != "" {
-		if err := os.MkdirAll(fc.WorkspaceDir, 0o755); err == nil {
+		if err := os.MkdirAll(fc.WorkspaceDir, 0o750); err == nil {
 			if store, err := sqlitestore.NewApprovalStore(filepath.Join(fc.WorkspaceDir, "approvals.db")); err == nil {
 				opts.ApprovalStore = store
 			} else {

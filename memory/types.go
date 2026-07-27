@@ -24,6 +24,8 @@ import (
 
 // MemoryScope 标识一条记忆属于谁。
 // 借鉴 Mem0 的 user_id / agent_id / app_id / run_id 四维正交模型。
+//
+//nolint:revive // stutter: memory.MemoryScope is intentional for clarity
 type MemoryScope struct {
 	UserID    string `json:"user_id,omitempty"`    // 用户标识（跨会话持久）
 	AgentID   string `json:"agent_id,omitempty"`   // Agent 角色/标识
@@ -53,11 +55,16 @@ func (s MemoryScope) AsFilter(topK int) MemoryFilter {
 // ---------------------------------------------------------------------------
 
 // MemoryLayer 标识记忆的持久层级。
+//
+//nolint:revive // stutter: memory.MemoryLayer is intentional for clarity
 type MemoryLayer string
 
 const (
-	LayerUser     MemoryLayer = "user"      // 跨会话用户偏好/背景（持久）
-	LayerSession  MemoryLayer = "session"   // 当前会话关键上下文（会话级）
+	// LayerUser identifies cross-session user preference/background memory.
+	LayerUser MemoryLayer = "user" // 跨会话用户偏好/背景（持久）
+	// LayerSession identifies current-session key context memory.
+	LayerSession MemoryLayer = "session" // 当前会话关键上下文（会话级）
+	// LayerLongTerm identifies cross-session persistent fact/knowledge memory.
 	LayerLongTerm MemoryLayer = "long_term" // 跨会话持久事实/知识（持久）
 )
 
@@ -81,6 +88,8 @@ func (l MemoryLayer) IsValid() bool {
 // ---------------------------------------------------------------------------
 
 // MemoryEntry 是一条完整的记忆记录。
+//
+//nolint:revive // stutter: memory.MemoryEntry is intentional for clarity
 type MemoryEntry struct {
 	ID        string      `json:"id"`
 	Scope     MemoryScope `json:"scope"`
@@ -139,6 +148,8 @@ type ScoredMemory struct {
 // ---------------------------------------------------------------------------
 
 // MemoryFilter 用于约束记忆检索的范围。
+//
+//nolint:revive // stutter: memory.MemoryFilter is intentional for clarity
 type MemoryFilter struct {
 	UserID    string      `json:"user_id,omitempty"`
 	AgentID   string      `json:"agent_id,omitempty"`
@@ -227,6 +238,8 @@ type ListOptions struct {
 }
 
 // MemoryStats 是存储引擎的统计信息。
+//
+//nolint:revive // stutter: memory.MemoryStats is intentional for clarity
 type MemoryStats struct {
 	TotalEntries int64 `json:"total_entries"`
 	UserCount    int64 `json:"user_count"`
@@ -235,6 +248,8 @@ type MemoryStats struct {
 }
 
 // MemoryStore 是所有记忆后端的统一接口。
+//
+//nolint:revive // stutter: memory.MemoryStore is intentional for clarity
 type MemoryStore interface {
 	// Remember 存入一条记忆。如果 content 为空则跳过。
 	// 返回记忆 ID。实现在存入前应自动计算 importance。

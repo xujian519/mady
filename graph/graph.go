@@ -59,6 +59,7 @@ type Graph struct {
 	condEdges   map[string]condRouter // conditional edges: from → {route, targets}
 }
 
+// NewGraph creates a new empty DAG execution engine.
 func NewGraph() *Graph {
 	return &Graph{
 		nodes:       make(map[string]Step),
@@ -68,6 +69,8 @@ func NewGraph() *Graph {
 	}
 }
 
+// AddNode registers a standard Step node in the graph. Returns an error if a
+// node with the same name already exists.
 func (g *Graph) AddNode(name string, step Step) error {
 	if g.nodeExists(name) {
 		return fmt.Errorf("graph: duplicate node %q", name)
@@ -97,6 +100,8 @@ func (g *Graph) nodeExists(name string) bool {
 	return false
 }
 
+// AddEdge adds a directed edge from one node to another. Both nodes must
+// already exist in the graph. A topological order is derived at Compile time.
 func (g *Graph) AddEdge(from, to string) error {
 	if !g.nodeExists(from) {
 		return fmt.Errorf("graph: unknown source node %q", from)
@@ -108,6 +113,9 @@ func (g *Graph) AddEdge(from, to string) error {
 	return nil
 }
 
+// AddConditionalEdge adds a conditional edge from a node. The routing function
+// receives the node's output and returns the next target node name from the
+// targets list. The route result must be one of the specified targets.
 func (g *Graph) AddConditionalEdge(from string, route func(ctx context.Context, output string) string, targets []string) error {
 	if !g.nodeExists(from) {
 		return fmt.Errorf("graph: unknown source node %q", from)
@@ -146,6 +154,9 @@ type CompiledGraph struct {
 	CondEdges   map[string]condRouter // conditional routing from → {route, targets}
 }
 
+// Compile validates the graph and produces an immutable CompiledGraph. The
+// EntryNode in opts must exist. MaxSteps defaults to 100. A topological sort
+// is performed and independent layers are recorded for parallel execution.
 func (g *Graph) Compile(opts CompileOptions) (*CompiledGraph, error) {
 	if opts.EntryNode == "" {
 		return nil, fmt.Errorf("graph: EntryNode is required")
@@ -384,7 +395,7 @@ func FindTerminalOutput(nodes map[string]Step, edges map[string][]string, output
 		}
 	}
 	sort.Strings(names)
-	var parts []string
+	parts := make([]string, 0, len(names))
 	for _, name := range names {
 		parts = append(parts, outputs[name])
 	}

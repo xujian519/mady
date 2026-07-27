@@ -8,6 +8,8 @@ import "github.com/xujian519/mady/evaluate"
 // 版权说明：本测试集仅抽取已公开考试题目中的问题与官方参考答案要点，
 // 用于内部 Agent 能力评测，不随仓库分发原始 PDF。
 
+// PatentExamRealR42Cases contains test cases for patent examination guideline
+// Article R42 from the 2007-2019 patent agent qualification exam.
 var PatentExamRealR42Cases = []evaluate.TestCase{
 	{
 		ID:     "patent_exam_2008_r42_01",

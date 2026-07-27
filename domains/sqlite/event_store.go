@@ -41,7 +41,7 @@ func NewEventStore(dbPath string) (*SQLEventStore, error) {
 
 	s := &SQLEventStore{db: db}
 	if err := s.initSchema(context.Background()); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("event/sqlite: init schema: %w", err)
 	}
 	return s, nil
@@ -88,7 +88,7 @@ func (s *SQLEventStore) ListBySession(ctx context.Context, sessionID string, lim
 	if err != nil {
 		return nil, fmt.Errorf("event/sqlite: list by session: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanEvents(rows)
 }
 
@@ -105,7 +105,7 @@ func (s *SQLEventStore) ListByType(ctx context.Context, eventType string, limit 
 	if err != nil {
 		return nil, fmt.Errorf("event/sqlite: list by type: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanEvents(rows)
 }
 
@@ -150,10 +150,16 @@ var (
 	_ store.Closer = (*SQLEventStore)(nil)
 )
 
+// CaseID returns an empty string — the event store is not case-specific.
 func (s *SQLEventStore) CaseID() string { return "" }
-func (s *SQLEventStore) RunID() string  { return "" }
-func (s *SQLEventStore) Version() int   { return 1 }
 
+// RunID returns an empty string — the event store is not run-specific.
+func (s *SQLEventStore) RunID() string { return "" }
+
+// Version returns the schema version (currently 1).
+func (s *SQLEventStore) Version() int { return 1 }
+
+// Migrate applies any pending schema migrations to the event store.
 func (s *SQLEventStore) Migrate(ctx context.Context) (int, error) {
 	if err := s.initSchema(ctx); err != nil {
 		return 0, fmt.Errorf("event migrate: %w", err)

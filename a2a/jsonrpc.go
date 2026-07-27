@@ -7,12 +7,14 @@ import (
 
 func writeJSONRPCResult(w http.ResponseWriter, id any, result any) {
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errchkjson // result is deliberately any (dynamic agent output)
 	_ = json.NewEncoder(w).Encode(JSONRPCResponse{JSONRPC: "2.0", ID: id, Result: result})
 }
 
 func writeJSONRPCError(w http.ResponseWriter, id any, code int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	//nolint:errchkjson // id is deliberately any
 	_ = json.NewEncoder(w).Encode(JSONRPCResponse{
 		JSONRPC: "2.0",
 		ID:      id,

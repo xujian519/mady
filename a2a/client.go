@@ -116,7 +116,7 @@ func (c *Client) GetAgentCard(ctx context.Context) (*AgentCard, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -186,7 +186,7 @@ func (c *Client) SendTaskSubscribe(ctx context.Context, req SendTaskRequest) (*T
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		httpResp.Body.Close()
+		_ = httpResp.Body.Close()
 		return nil, fmt.Errorf("sse: %d", httpResp.StatusCode)
 	}
 
@@ -339,7 +339,7 @@ func (c *Client) resubscribe(ctx context.Context, taskID, lastEventID string) (*
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		httpResp.Body.Close()
+		_ = httpResp.Body.Close()
 		return nil, fmt.Errorf("sse: %d", httpResp.StatusCode)
 	}
 
@@ -408,7 +408,7 @@ func (c *Client) call(ctx context.Context, method string, params any) (*JSONRPCR
 
 		if resp.StatusCode != http.StatusOK {
 			respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			lastErr = fmt.Errorf("http %d: %s", resp.StatusCode, string(respBody))
 			if isRetryableStatus(resp.StatusCode) {
 				continue
@@ -421,7 +421,7 @@ func (c *Client) call(ctx context.Context, method string, params any) (*JSONRPCR
 		// Drain any remaining bytes so the connection can be reused
 		// (keep-alive). json.Decoder may stop after the JSON value.
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if decErr != nil {
 			return nil, fmt.Errorf("decode response: %w", decErr)
 		}
@@ -531,7 +531,7 @@ func (s *TaskStream) Close() error {
 
 func (s *TaskStream) readLoop() {
 	defer close(s.ch)
-	defer s.body.Close()
+	defer func() { _ = s.body.Close() }()
 
 	for {
 		decoder := NewSSEDecoder(s.body)
@@ -602,7 +602,7 @@ func (s *TaskStream) tryReconnect() bool {
 	attempt := s.retryNum
 	s.mu.Unlock()
 
-	s.body.Close()
+	_ = s.body.Close()
 
 	backoff := time.Duration(500<<min(attempt-1, 5)) * time.Millisecond
 	if backoff > 30*time.Second {
@@ -645,7 +645,7 @@ func (s *TaskStream) tryReconnect() bool {
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		httpResp.Body.Close()
+		_ = httpResp.Body.Close()
 		return false
 	}
 

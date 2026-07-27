@@ -277,7 +277,7 @@ func (s *GraphStore) SaveToFile(path string) error {
 // LoadFromFile restores a graph from a JSON file produced by SaveToFile.
 // It replaces any existing content in the store.
 func (s *GraphStore) LoadFromFile(path string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is from caller; GraphStore controls its own data dir
 	if err != nil {
 		return fmt.Errorf("graph: read %s: %w", path, err)
 	}

@@ -22,9 +22,9 @@ var writerTools = map[string]bool{
 	"move":       true,
 }
 
-// FileCheckpointExtension integrates file-level checkpointing into the agent
-// lifecycle. It snapshots files before writer tools modify them, enabling
-// one-click rewind to any previous turn.
+// FileCheckpointExtension integrates file-level checkpointing into the agent lifecycle.
+//
+//nolint:revive // stutter: filecheckpoint.FileCheckpointExtension is intentional for clarity
 type FileCheckpointExtension struct {
 	store *Store
 }

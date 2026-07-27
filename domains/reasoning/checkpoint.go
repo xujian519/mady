@@ -42,11 +42,13 @@ func NewMemoryCheckpointStore() *MemoryCheckpointStore {
 	return &MemoryCheckpointStore{}
 }
 
+// Save persists a checkpoint to the in-memory store keyed by its CheckpointID.
 func (s *MemoryCheckpointStore) Save(ctx context.Context, cp *StageCheckpoint) error {
 	s.checkpoints.Set(cp.CheckpointID, cp)
 	return nil
 }
 
+// Load retrieves a checkpoint by its ID from the in-memory store.
 func (s *MemoryCheckpointStore) Load(ctx context.Context, checkpointID string) (*StageCheckpoint, error) {
 	cp, ok := s.checkpoints.Get(checkpointID)
 	if !ok {
@@ -55,6 +57,7 @@ func (s *MemoryCheckpointStore) Load(ctx context.Context, checkpointID string) (
 	return cp, nil
 }
 
+// Delete removes a checkpoint by its ID from the in-memory store.
 func (s *MemoryCheckpointStore) Delete(ctx context.Context, checkpointID string) error {
 	s.checkpoints.Del(checkpointID)
 	return nil

@@ -164,7 +164,7 @@ func (b *ToolResultBudget) resolveDir() (string, error) {
 			b.resolveErr = fmt.Errorf("tool_result_budget: RootDir is empty (offload disabled; set RootDir to enable)")
 			return
 		}
-		if err := os.MkdirAll(b.cfg.RootDir, 0o755); err != nil {
+		if err := os.MkdirAll(b.cfg.RootDir, 0o750); err != nil {
 			b.resolveErr = fmt.Errorf("tool_result_budget: mkdir %s: %w", b.cfg.RootDir, err)
 			return
 		}

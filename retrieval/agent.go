@@ -70,10 +70,14 @@ type RetrievalConfig struct {
 type TriggerPolicy string
 
 const (
-	TriggerAlways   TriggerPolicy = "always"    // 每轮都检索（默认）
-	TriggerSmart    TriggerPolicy = "smart"     // 按复杂度门控（复用 ReasoningRouter）
-	TriggerFirstN   TriggerPolicy = "first_n"   // 仅前 N 轮
-	TriggerOnDemand TriggerPolicy = "on_demand" // 仅通过工具触发
+	// TriggerAlways triggers retrieval on every turn (default).
+	TriggerAlways TriggerPolicy = "always"
+	// TriggerSmart gates retrieval by complexity (reusing ReasoningRouter).
+	TriggerSmart TriggerPolicy = "smart"
+	// TriggerFirstN triggers retrieval only for the first N turns.
+	TriggerFirstN TriggerPolicy = "first_n"
+	// TriggerOnDemand triggers retrieval only via explicit tool invocation.
+	TriggerOnDemand TriggerPolicy = "on_demand"
 )
 
 // ComplexityClassifier wraps agentcore.ComplexityClassifier to avoid a hard import.

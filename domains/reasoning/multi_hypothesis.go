@@ -32,6 +32,8 @@ const (
 )
 
 // authorityMap maps Requirement to authority weight for evidence scoring.
+//
+//nolint:unused // used by computeEvidenceScore which is used in phase4_test.go
 var authorityMap = map[Requirement]float64{
 	ReqMust:   1.0,
 	ReqShould: 0.7,
@@ -278,6 +280,8 @@ func stateGetStringSlice(state PregelState, key string) []string {
 //	score = Σ(rule_authority × fact_confidence × chain_depth_weight)
 //
 // where chain_depth_weight = sqrt(len(facts)+len(rules)) / sqrt(maxChain).
+//
+//nolint:unused // used in phase4_test.go
 func computeEvidenceScore(arg Argument, bb *FactBlackboard) float64 {
 	if bb == nil {
 		return 0.5

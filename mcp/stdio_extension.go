@@ -26,6 +26,7 @@ type StdioExtension struct {
 	refreshPending    bool
 }
 
+// NewStdioExtension creates a new StdioExtension wrapping an MCP stdio client.
 func NewStdioExtension(ctx context.Context, cfg StdioConfig) (*StdioExtension, error) {
 	client, err := NewStdioClient(ctx, cfg)
 	if err != nil {
@@ -48,38 +49,49 @@ func NewStdioExtension(ctx context.Context, cfg StdioConfig) (*StdioExtension, e
 	}, nil
 }
 
+// Name returns the extension name.
 func (e *StdioExtension) Name() string { return e.name }
-func (e *StdioExtension) Init(ctx context.Context, agent *agentcore.Agent) error {
+
+// Init initializes the stdio extension with the agent.
+func (e *StdioExtension) Init(_ context.Context, agent *agentcore.Agent) error {
 	e.agent = agent
 	e.toolNames = toolNames(e.tools)
 	if e.client != nil {
 		e.client.SetEventSink(agent.EmitEvent)
-		e.client.AddNotificationHook(func(ctx context.Context, method string, params json.RawMessage) error {
+		e.client.AddNotificationHook(func(_ context.Context, method string, _ json.RawMessage) error {
 			if method != "notifications/tools/list_changed" || !e.client.SupportsToolListChanged() {
 				return nil
 			}
 			e.scheduleRefresh()
 			return nil
 		})
-		e.client.AddCapabilityHook(func(ctx context.Context, caps ServerCapabilities) {
+		e.client.AddCapabilityHook(func(_ context.Context, caps ServerCapabilities) {
 			e.emitCapabilitiesEvent(caps)
 		})
 		e.emitCapabilitiesEvent(e.client.Capabilities())
 	}
 	return nil
 }
+
+// Client returns the underlying MCP stdio Client.
 func (e *StdioExtension) Client() *Client { return e.client }
+
+// Dispose cleans up the stdio extension, closing the underlying client.
 func (e *StdioExtension) Dispose() error {
 	if e.client == nil {
 		return nil
 	}
 	return e.client.Close()
 }
+
+// Tools returns the agent tools exposed by this extension.
 func (e *StdioExtension) Tools() []*agentcore.Tool {
 	e.refreshMu.Lock()
 	defer e.refreshMu.Unlock()
 	return append([]*agentcore.Tool(nil), e.tools...)
 }
+
+// SnapshotEvents returns the current capability snapshot as events.
 func (e *StdioExtension) SnapshotEvents() []agentcore.Event {
 	if e.client == nil {
 		return nil

@@ -101,6 +101,7 @@ type CitationSourceFuncs struct {
 	MaxArticleFunc func(s lawcite.Statute) int
 }
 
+// Topics delegates to TopicsFunc if non-nil, otherwise returns nil, false.
 func (f CitationSourceFuncs) Topics(s lawcite.Statute, article int) ([]string, bool) {
 	if f.TopicsFunc == nil {
 		return nil, false
@@ -108,6 +109,7 @@ func (f CitationSourceFuncs) Topics(s lawcite.Statute, article int) ([]string, b
 	return f.TopicsFunc(s, article)
 }
 
+// MaxArticle delegates to MaxArticleFunc if non-nil, otherwise returns 0.
 func (f CitationSourceFuncs) MaxArticle(s lawcite.Statute) int {
 	if f.MaxArticleFunc == nil {
 		return 0

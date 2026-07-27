@@ -15,6 +15,8 @@ const ExtensionName = "guardian"
 // GuardianExtension wraps a Guardian Session as an agentcore Extension.
 // It registers as a Middleware that intercepts non-read-only tool calls
 // for AI safety review.
+//
+//nolint:revive // stutter: guardian.GuardianExtension is intentional for clarity
 type GuardianExtension struct {
 	session *Session
 	agent   *agentcore.Agent

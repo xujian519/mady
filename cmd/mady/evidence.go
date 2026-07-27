@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
@@ -29,7 +30,7 @@ func runEvidenceCLI(args []string) error {
 	var input io.Reader
 	var openedFile *os.File
 	if filePath != "" {
-		f, err := os.Open(filePath)
+		f, err := os.Open(filepath.Clean(filePath))
 		if err != nil {
 			return fmt.Errorf("evidence: 无法打开文件: %w", err)
 		}
@@ -41,7 +42,7 @@ func runEvidenceCLI(args []string) error {
 
 	exitCode := runEvidenceAction(action, input, os.Stdout, os.Stderr)
 	if openedFile != nil {
-		openedFile.Close()
+		_ = openedFile.Close()
 	}
 	if exitCode != 0 {
 		return fmt.Errorf("evidence: action %s failed", action)
@@ -52,12 +53,12 @@ func runEvidenceCLI(args []string) error {
 func runEvidenceAction(action string, input io.Reader, stdout, stderr io.Writer) int {
 	data, err := io.ReadAll(input)
 	if err != nil {
-		fmt.Fprintf(stderr, "读取输入失败: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "读取输入失败: %v\n", err)
 		return 1
 	}
 	data = []byte(strings.TrimSpace(string(data)))
 	if len(data) == 0 {
-		fmt.Fprintf(stderr, "输入为空\n")
+		_, _ = fmt.Fprintf(stderr, "输入为空\n")
 		return 1
 	}
 
@@ -75,7 +76,7 @@ func runEvidenceAction(action string, input io.Reader, stdout, stderr io.Writer)
 	case "type-specific":
 		return execTypeSpecific(engine, data, stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "未知 action: %s\n可用: triple, burden, standard, conflict, type-specific\n", action)
+		_, _ = fmt.Fprintf(stderr, "未知 action: %s\n可用: triple, burden, standard, conflict, type-specific\n", action)
 		return 1
 	}
 }
@@ -86,11 +87,11 @@ func execTriple(engine *evidence.DefaultEngine, data []byte, stdout, stderr io.W
 		Snippet   string `json:"snippet"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
-		fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
 	if args.Snippet == "" {
-		fmt.Fprintln(stderr, "缺少必填字段: snippet")
+		_, _ = fmt.Fprintln(stderr, "缺少必填字段: snippet")
 		return 1
 	}
 	span := agentcore_evidence.EvidenceSpan{
@@ -100,11 +101,12 @@ func execTriple(engine *evidence.DefaultEngine, data []byte, stdout, stderr io.W
 	}
 	judgment, err := engine.Judge(span)
 	if err != nil {
-		fmt.Fprintf(stderr, "判断失败: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "判断失败: %v\n", err)
 		return 1
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
+	//nolint:errchkjson // cliJudgmentToMap returns map[string]any (dynamic)
 	_ = enc.Encode(cliJudgmentToMap(judgment))
 	return 0
 }
@@ -114,16 +116,17 @@ func execBurden(data []byte, stdout, stderr io.Writer) int {
 		Scenario string `json:"scenario"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
-		fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
 	if args.Scenario == "" {
-		fmt.Fprintln(stderr, "缺少必填字段: scenario")
+		_, _ = fmt.Fprintln(stderr, "缺少必填字段: scenario")
 		return 1
 	}
 	result := evidence.DetermineBurden(evidence.BurdenScenario(args.Scenario), nil)
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
+	//nolint:errchkjson // map[string]any is inherently dynamic
 	_ = enc.Encode(map[string]any{
 		"holder": result.BurdenHolder, "standard": result.Standard,
 		"has_shifted": result.HasShifted, "shift_reason": result.ShiftReason,
@@ -140,16 +143,17 @@ func execStandard(data []byte, stdout, stderr io.Writer) int {
 		Gaps            []string `json:"gaps"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
-		fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
 	if args.Standard == "" {
-		fmt.Fprintln(stderr, "缺少必填字段: standard")
+		_, _ = fmt.Fprintln(stderr, "缺少必填字段: standard")
 		return 1
 	}
 	result := evidence.AssessProofStandard(evidence.StandardOfProof(args.Standard), args.SupportingCount, args.TotalCount, args.Gaps)
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
+	//nolint:errchkjson // map[string]any is inherently dynamic
 	_ = enc.Encode(map[string]any{
 		"met": result.Met, "standard": result.Standard, "confidence": result.Confidence,
 		"supporting_count": result.SupportingCount, "contradicting_count": result.ContradictingCount,
@@ -167,7 +171,7 @@ func execConflict(data []byte, stdout, stderr io.Writer) int {
 		} `json:"claims"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
-		fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
 	cb := agentcore_evidence.NewClaimBinding()
@@ -193,6 +197,7 @@ func execConflict(data []byte, stdout, stderr io.Writer) int {
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
+	//nolint:errchkjson // map[string]any is inherently dynamic
 	_ = enc.Encode(map[string]any{"conflicts": out})
 	return 0
 }
@@ -202,26 +207,28 @@ func execTypeSpecific(engine *evidence.DefaultEngine, data []byte, stdout, stder
 		SourceURI string `json:"source_uri"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
-		fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
 	if args.SourceURI == "" {
-		fmt.Fprintln(stderr, "缺少必填字段: source_uri")
+		_, _ = fmt.Fprintln(stderr, "缺少必填字段: source_uri")
 		return 1
 	}
 	span := agentcore_evidence.EvidenceSpan{ID: "cli_type_input", SourceURI: args.SourceURI}
 	judgment, err := engine.Judge(span)
 	if err != nil {
-		fmt.Fprintf(stderr, "判断失败: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "判断失败: %v\n", err)
 		return 1
 	}
 	ts := judgment.TypeSpecificJudgment
 	if ts == nil {
+		//nolint:errchkjson // map[string]any is inherently dynamic
 		_ = json.NewEncoder(stdout).Encode(map[string]any{"note": "无类型特定判断结果"})
 		return 0
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
+	//nolint:errchkjson // cliTypeSpecificToMap returns map[string]any (dynamic)
 	_ = enc.Encode(cliTypeSpecificToMap(ts))
 	return 0
 }
@@ -237,7 +244,7 @@ func cliJudgmentToMap(j *evidence.EvidenceJudgment) map[string]any {
 	if j.AuthenticityJudgment != nil {
 		m["authenticity"] = map[string]any{"score": j.AuthenticityJudgment.Score, "level": j.AuthenticityJudgment.Level, "reasoning": j.AuthenticityJudgment.Reasoning}
 	}
-	var issues []map[string]string
+	issues := make([]map[string]string, 0, len(j.FlaggedIssues))
 	for _, issue := range j.FlaggedIssues {
 		issues = append(issues, map[string]string{"type": issue.Type, "description": issue.Description, "severity": issue.Severity})
 	}

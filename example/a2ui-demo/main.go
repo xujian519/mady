@@ -101,6 +101,7 @@ func demoAGUIBinding() {
 	fmt.Printf("AG-UI 事件名称: %s\n", customEv.Name)
 	fmt.Printf("AG-UI 事件值类型: %T\n", customEv.Value)
 
+	//nolint:errchkjson // customEv.Value may be float64
 	data, _ := json.MarshalIndent(customEv, "", "  ")
 	fmt.Println("AG-UI CustomEvent JSON:")
 	fmt.Println(string(data))
