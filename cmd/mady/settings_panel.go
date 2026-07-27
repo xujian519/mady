@@ -136,12 +136,21 @@ func (s *tuiSession) applySettingEntry(e component.SettingEntry) {
 func (s *tuiSession) openCommandCenter(filter ...string) {
 	items := s.buildCommandItems()
 	cc := component.NewCommandCenter(items)
+
+	// Track overlay handle so OnExecute / OnClose can close it.
+	var ov chat.OverlayRef
 	cc.OnExecute(func(item component.CommandItem) {
+		// Close overlay first so the UI is ready before the command runs.
+		if ov != nil {
+			s.app.CloseOverlay(ov)
+		}
 		s.app.PrintSystem("▸ " + item.Label)
 		s.handleSubmit(item.Label)
 	})
 	cc.OnClose(func() {
-		// Overlay close handled by the overlay system
+		if ov != nil {
+			s.app.CloseOverlay(ov)
+		}
 	})
 
 	// Pre-fill search filter when provided (e.g. from a misspelled slash command)
@@ -155,7 +164,7 @@ func (s *tuiSession) openCommandCenter(filter ...string) {
 	box.SetPadding(1, 1)
 	box.AddChild(cc)
 
-	_ = s.app.OpenOverlay(box, chat.OverlayOpts{WidthPct: 70, HeightPct: 60, Dim: true, Category: chat.OverlayCatReview})
+	ov = s.app.OpenOverlay(box, chat.OverlayOpts{WidthPct: 70, HeightPct: 60, Dim: true, Category: chat.OverlayCatReview})
 }
 
 // buildCommandItems converts slash registry commands to CommandItems.

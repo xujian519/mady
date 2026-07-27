@@ -194,7 +194,7 @@ func (c *CommandCenter) processKey(data string) {
 				c.mu.Lock()
 			}
 		}
-	case c.km.Matches(data, "tui.editor.cancel"):
+	case c.km.Matches(data, "tui.select.cancel"):
 		if c.onClose != nil {
 			c.mu.Unlock()
 			c.onClose()
