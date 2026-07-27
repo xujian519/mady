@@ -20,8 +20,8 @@ type PlanModeExtension struct {
 }
 
 var (
-	_ agentcore.Extension         = (*PlanModeExtension)(nil)
-	_ agentcore.LifecycleProvider = (*PlanModeExtension)(nil)
+	_ agentcore.Extension        = (*PlanModeExtension)(nil)
+	_ agentcore.ToolCallObserver = (*PlanModeExtension)(nil)
 )
 
 // NewExtension creates a plan mode extension with the given policy.
@@ -50,35 +50,29 @@ func (e *PlanModeExtension) Deactivate() { e.active.Store(false) }
 // IsActive reports whether plan mode is currently active.
 func (e *PlanModeExtension) IsActive() bool { return e.active.Load() }
 
-// LifecycleHook implements agentcore.LifecycleProvider.
-func (e *PlanModeExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:staticcheck
-	return agentcore.ObserversToHook(&planModeHook{ext: e})
+// ---------------------------------------------------------------------------
+// ToolCallObserver implementation — auto-detected by agentcore.Register
+// ---------------------------------------------------------------------------
+
+// AfterToolExecution is a no-op required by the ToolCallObserver interface.
+func (e *PlanModeExtension) AfterToolExecution(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.ToolExecutionContext) {
 }
 
-type planModeHook struct {
-	ext *PlanModeExtension
-}
-
-// Compile-time interface assertion.
-var _ agentcore.ToolCallObserver = (*planModeHook)(nil)
-
-func (h *planModeHook) AfterToolExecution(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.ToolExecutionContext) {
-}
-
-func (h *planModeHook) BeforeToolExecution(_ context.Context, _ *agentcore.AgentRunContext, tec *agentcore.ToolExecutionContext) error {
-	if !h.ext.active.Load() {
+// BeforeToolExecution gates tool execution when plan mode is active.
+func (e *PlanModeExtension) BeforeToolExecution(_ context.Context, _ *agentcore.AgentRunContext, tec *agentcore.ToolExecutionContext) error {
+	if !e.active.Load() {
 		return nil
 	}
 
 	for i, tc := range tec.ToolCalls {
 		readOnly := false
-		if h.ext.agent != nil {
-			if tool, ok := h.ext.agent.GetTool(tc.Name); ok {
+		if e.agent != nil {
+			if tool, ok := e.agent.GetTool(tc.Name); ok {
 				readOnly = agentcore.ToolReadOnly(tool, json.RawMessage(tc.Arguments))
 			}
 		}
 
-		decision := h.ext.policy.Decide(tc.Name, readOnly, json.RawMessage(tc.Arguments))
+		decision := e.policy.Decide(tc.Name, readOnly, json.RawMessage(tc.Arguments))
 		if decision.Blocked && i < len(tec.Results) {
 			tec.Results[i] = agentcore.ToolResult{
 				ToolCallID: tc.ID,

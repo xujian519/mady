@@ -132,14 +132,11 @@ func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...
 		if lp, ok := ext.(LifecycleProvider); ok {
 			agent.config.Lifecycle = appendLifecycleHook(agent.config.Lifecycle, lp.LifecycleHook())
 		}
-		// Observer 接口独立检查（不因 LifecycleProvider 的实现而跳过）。
-		// 但如果扩展已实现至少一个已知的 provider 接口（ToolProvider 等），
-		// 就不再 probe observer——扩展已通过 provider 模型明确了贡献路径，
-		// 避免对正常扩展打出误导性 [WARN] ObserversToHook: ignoring unsupported type。
-		if !isKnownProvider(ext) {
-			if hook := ObserversToHook(ext); hook != nil {
-				agent.config.Lifecycle = appendLifecycleHook(agent.config.Lifecycle, hook)
-			}
+		// Always probe for Observer interfaces silently.
+		// wrapObserver returns nil for non-observer extensions,
+		// so this is a safe no-op for extensions that don't implement any.
+		if hook := wrapObserver(ext); hook != nil {
+			agent.config.Lifecycle = appendLifecycleHook(agent.config.Lifecycle, hook)
 		}
 		agent.configMu.Unlock()
 
@@ -183,20 +180,6 @@ func (r *ExtensionRegistry) Dispose() error {
 	}
 	r.extensions = nil
 	return errors.Join(errs...)
-}
-
-// isKnownProvider reports whether ext implements at least one of the known
-// provider interfaces (ToolProvider, HookProvider, etc.). Used in Register to
-// avoid probing extensions for observer interfaces that have already declared
-// their capability path through the provider model.
-func isKnownProvider(ext Extension) bool {
-	switch ext.(type) {
-	case ToolProvider, HookProvider, MiddlewareProvider,
-		SystemPromptProvider, TransformContextProvider, LifecycleProvider,
-		EventSnapshotProvider:
-		return true
-	}
-	return false
 }
 
 // Names returns the names of all registered extensions.

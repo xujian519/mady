@@ -7,36 +7,16 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
-// 本文件中的 hook 测试传递 nil 作为 *agentcore.AgentRunContext 参数是
-// 有意的：当前 planModeHook 的实现不依赖 ARC 中的任何字段（它只检查
-// h.ext.active 和 h.ext.agent），传入 nil 验证了 nil-ARC 保护的可靠性。
-// 如果未来 hook 需要从 ARC 读取数据，请为这些测试提供真实的 ARC。
+// 本文件中的测试传递 nil 作为 *agentcore.AgentRunContext 参数是
+// 有意的：当前 PlanModeExtension 的 Observer 实现不依赖 ARC 中的
+// 任何字段（它只检查 e.active 和 e.agent），传入 nil 验证了 nil-ARC
+// 保护的可靠性。如果未来需要从 ARC 读取数据，请为这些测试提供真实的 ARC。
 
 // ---------------------------------------------------------------------------
-// PlanModeExtension.LifecycleHook
+// ToolCallObserver: BeforeToolExecution — table-driven behavior tests
 // ---------------------------------------------------------------------------
 
-func TestPlanModeExtension_LifecycleHook(t *testing.T) {
-	ext := NewExtension(Policy{})
-	hook := ext.LifecycleHook()
-	if hook == nil {
-		t.Fatal("expected non-nil LifecycleHook")
-	}
-}
-
-func TestPlanModeExtension_LifecycleHook_ReturnsPlanModeHook(t *testing.T) {
-	ext := NewExtension(Policy{})
-	hook := ext.LifecycleHook()
-	if hook == nil {
-		t.Fatalf("expected non-nil LifecycleHook from planmode extension")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// planModeHook.BeforeToolExecution — table-driven behavior tests
-// ---------------------------------------------------------------------------
-
-func TestPlanModeHook_BeforeToolExecution(t *testing.T) {
+func TestPlanMode_BeforeToolExecution(t *testing.T) {
 	tests := []struct {
 		name      string
 		toolName  string
@@ -93,7 +73,6 @@ func TestPlanModeHook_BeforeToolExecution(t *testing.T) {
 				ext.Activate()
 				ext.Deactivate()
 			}
-			hook := ext.LifecycleHook()
 
 			results := make([]agentcore.ToolResult, 1)
 			tec := &agentcore.ToolExecutionContext{
@@ -103,7 +82,7 @@ func TestPlanModeHook_BeforeToolExecution(t *testing.T) {
 				Results: results,
 			}
 
-			hook.BeforeToolExecution(context.Background(), nil, tec)
+			ext.BeforeToolExecution(context.Background(), nil, tec)
 
 			if tt.wantBlock && tec.Results[0].ToolCallID != tt.toolID {
 				t.Errorf("expected blocked tool to have ToolCallID=%q, got %q",
@@ -118,13 +97,12 @@ func TestPlanModeHook_BeforeToolExecution(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// planModeHook.BeforeToolExecution — nil / edge cases
+// ToolCallObserver: BeforeToolExecution — nil / edge cases
 // ---------------------------------------------------------------------------
 
-func TestPlanModeHook_BeforeToolExecution_NilOrEmptyCalls(t *testing.T) {
+func TestPlanMode_BeforeToolExecution_NilOrEmptyCalls(t *testing.T) {
 	ext := NewExtension(Policy{})
 	ext.Activate()
-	hook := ext.LifecycleHook()
 
 	t.Run("nil ToolCalls and nil Results", func(t *testing.T) {
 		tec := &agentcore.ToolExecutionContext{
@@ -132,7 +110,7 @@ func TestPlanModeHook_BeforeToolExecution_NilOrEmptyCalls(t *testing.T) {
 			Results:   nil,
 		}
 		// Must not panic.
-		hook.BeforeToolExecution(context.Background(), nil, tec)
+		ext.BeforeToolExecution(context.Background(), nil, tec)
 	})
 
 	t.Run("nil Results with non-nil ToolCalls", func(t *testing.T) {
@@ -143,14 +121,13 @@ func TestPlanModeHook_BeforeToolExecution_NilOrEmptyCalls(t *testing.T) {
 			Results: nil,
 		}
 		// Must not panic when Results is nil/short.
-		hook.BeforeToolExecution(context.Background(), nil, tec)
+		ext.BeforeToolExecution(context.Background(), nil, tec)
 	})
 }
 
-func TestPlanModeHook_BeforeToolExecution_NilAgent(t *testing.T) {
+func TestPlanMode_BeforeToolExecution_NilAgent(t *testing.T) {
 	ext := &PlanModeExtension{policy: Policy{}, agent: nil}
 	ext.Activate()
-	hook := ext.LifecycleHook()
 
 	results := make([]agentcore.ToolResult, 1)
 	tec := &agentcore.ToolExecutionContext{
@@ -161,7 +138,7 @@ func TestPlanModeHook_BeforeToolExecution_NilAgent(t *testing.T) {
 	}
 
 	// Must not panic when agent is nil (ToolReadOnly lookup is skipped).
-	hook.BeforeToolExecution(context.Background(), nil, tec)
+	ext.BeforeToolExecution(context.Background(), nil, tec)
 	if tec.Results[0].ToolCallID != "call_1" {
 		t.Fatal("expected writer to be blocked even with nil agent")
 	}

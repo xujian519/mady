@@ -8,38 +8,17 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
-// 本文件中的 hook 测试传递 nil 作为 *agentcore.AgentRunContext 参数是
-// 有意的：当前 evidenceHook 的实现不依赖 ARC 中的任何字段（它只访问
-// h.ext.ledger 和 tec），传入 nil 验证了 nil-ARC 保护的可靠性。
-// 如果未来 hook 需要从 ARC 读取数据，请为这些测试提供真实的 ARC。
+// 本文件中的测试传递 nil 作为 *agentcore.AgentRunContext 参数是
+// 有意的：当前 EvidenceExtension 的 Observer 实现不依赖 ARC 中的
+// 任何字段（它只访问 e.ledger 和 tec），传入 nil 验证了 nil-ARC
+// 保护的可靠性。如果未来需要从 ARC 读取数据，请为这些测试提供真实的 ARC。
 
 // ---------------------------------------------------------------------------
-// EvidenceExtension.LifecycleHook
+// TurnObserver: BeforeTurn
 // ---------------------------------------------------------------------------
 
-func TestEvidenceExtension_LifecycleHook(t *testing.T) {
+func TestEvidence_BeforeTurn_ResetsLedger(t *testing.T) {
 	ext := NewExtension()
-	hook := ext.LifecycleHook()
-	if hook == nil {
-		t.Fatal("expected non-nil LifecycleHook")
-	}
-}
-
-func TestEvidenceExtension_LifecycleHook_ReturnsEvidenceHook(t *testing.T) {
-	ext := NewExtension()
-	hook := ext.LifecycleHook()
-	if hook == nil {
-		t.Fatal("expected non-nil LifecycleHook from evidence extension")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// evidenceHook.BeforeTurn
-// ---------------------------------------------------------------------------
-
-func TestEvidenceHook_BeforeTurn_ResetsLedger(t *testing.T) {
-	ext := NewExtension()
-	hook := ext.LifecycleHook()
 
 	// Record a receipt first.
 	ext.ledger.Record(Receipt{ToolName: "test_tool"})
@@ -48,18 +27,17 @@ func TestEvidenceHook_BeforeTurn_ResetsLedger(t *testing.T) {
 	}
 
 	// BeforeTurn should reset the ledger.
-	hook.BeforeTurn(context.Background(), &agentcore.AgentRunContext{Turn: 1})
+	ext.BeforeTurn(context.Background(), &agentcore.AgentRunContext{Turn: 1})
 	if ext.ledger.Len() != 0 {
 		t.Fatalf("expected ledger to be empty after BeforeTurn, got %d", ext.ledger.Len())
 	}
 }
 
-func TestEvidenceHook_BeforeTurn_AcceptsNilARC(t *testing.T) {
+func TestEvidence_BeforeTurn_AcceptsNilARC(t *testing.T) {
 	ext := NewExtension()
-	hook := ext.LifecycleHook()
 
 	// Must not panic.
-	hook.BeforeTurn(context.Background(), nil)
+	ext.BeforeTurn(context.Background(), nil)
 
 	// Ledger should still be empty.
 	if ext.ledger.Len() != 0 {
@@ -68,12 +46,11 @@ func TestEvidenceHook_BeforeTurn_AcceptsNilARC(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// evidenceHook.AfterToolExecution
+// ToolCallObserver: AfterToolExecution
 // ---------------------------------------------------------------------------
 
-func TestEvidenceHook_AfterToolExecution_RecordsReceipts(t *testing.T) {
+func TestEvidence_AfterToolExecution_RecordsReceipts(t *testing.T) {
 	ext := NewExtension()
-	hook := ext.LifecycleHook()
 
 	tec := &agentcore.ToolExecutionContext{
 		ToolCalls: []agentcore.ToolCall{
@@ -86,7 +63,7 @@ func TestEvidenceHook_AfterToolExecution_RecordsReceipts(t *testing.T) {
 		},
 	}
 
-	hook.AfterToolExecution(context.Background(), nil, tec)
+	ext.AfterToolExecution(context.Background(), nil, tec)
 
 	if ext.ledger.Len() != 2 {
 		t.Fatalf("expected 2 receipts, got %d", ext.ledger.Len())
@@ -107,9 +84,8 @@ func TestEvidenceHook_AfterToolExecution_RecordsReceipts(t *testing.T) {
 	}
 }
 
-func TestEvidenceHook_AfterToolExecution_RecordsFailure(t *testing.T) {
+func TestEvidence_AfterToolExecution_RecordsFailure(t *testing.T) {
 	ext := NewExtension()
-	hook := ext.LifecycleHook()
 
 	tec := &agentcore.ToolExecutionContext{
 		ToolCalls: []agentcore.ToolCall{
@@ -120,7 +96,7 @@ func TestEvidenceHook_AfterToolExecution_RecordsFailure(t *testing.T) {
 		},
 	}
 
-	hook.AfterToolExecution(context.Background(), nil, tec)
+	ext.AfterToolExecution(context.Background(), nil, tec)
 
 	snap := ext.ledger.Snapshot()
 	if len(snap) != 1 {
@@ -131,27 +107,25 @@ func TestEvidenceHook_AfterToolExecution_RecordsFailure(t *testing.T) {
 	}
 }
 
-func TestEvidenceHook_AfterToolExecution_NilTEC(t *testing.T) {
+func TestEvidence_AfterToolExecution_NilTEC(t *testing.T) {
 	ext := NewExtension()
-	hook := ext.LifecycleHook()
 
 	// Must not panic.
-	hook.AfterToolExecution(context.Background(), nil, nil)
+	ext.AfterToolExecution(context.Background(), nil, nil)
 }
 
-func TestEvidenceHook_AfterToolExecution_NilLedger(t *testing.T) {
-	hook := &evidenceHook{ext: &EvidenceExtension{ledger: nil}}
+func TestEvidence_AfterToolExecution_NilLedger(t *testing.T) {
+	ext := &EvidenceExtension{ledger: nil}
 
 	// Must not panic.
-	hook.AfterToolExecution(context.Background(), nil, &agentcore.ToolExecutionContext{
+	ext.AfterToolExecution(context.Background(), nil, &agentcore.ToolExecutionContext{
 		ToolCalls: []agentcore.ToolCall{{Name: "test"}},
 		Results:   []agentcore.ToolResult{{Result: "ok"}},
 	})
 }
 
-func TestEvidenceHook_AfterToolExecution_MismatchedLengths(t *testing.T) {
+func TestEvidence_AfterToolExecution_MismatchedLengths(t *testing.T) {
 	ext := NewExtension()
-	hook := ext.LifecycleHook()
 
 	// More ToolCalls than Results — should not panic, the hook guards with
 	// `i < len(tec.Results)`.
@@ -165,7 +139,7 @@ func TestEvidenceHook_AfterToolExecution_MismatchedLengths(t *testing.T) {
 		},
 	}
 
-	hook.AfterToolExecution(context.Background(), nil, tec)
+	ext.AfterToolExecution(context.Background(), nil, tec)
 	if ext.ledger.Len() != 2 {
 		t.Fatalf("expected 2 receipts (missing result uses zero value), got %d", ext.ledger.Len())
 	}

@@ -1,6 +1,63 @@
 # AI 变更记录
 
-## 2026-07-27: 废弃 LifecycleHook → Observer 接口迁移（SA1019 清理）
+## 2026-07-27: 废弃 LifecycleHook → Observer 接口迁移 + 注册架构修复
+
+### 状态
+7 个 Hook 结构体从 `agentcore.LifecycleHook`（嵌入 `BaseLifecycleHook`）迁移为细粒度 Observer 接口。
+同时修复核心注册架构：`EvidenceExtension` 和 `PlanModeExtension` 现在通过 Observer 自检测路径注册，
+完全消除 `LifecycleHook` 依赖。`make verify`（lint + build + test-race）全量通过。
+
+### 注册架构修复（agentcore/extension.go）
+- 将 `LifecycleProvider` 从 `isKnownProvider` 中移除（Observer 是其替代路径）
+- Register 路径改为始终通过 `wrapObserver(ext)` 静默检测 Observer 接口，
+  不再需要 `isKnownProvider` 守卫（消除了 WARN 日志顾虑，因 wrapObserver 静默返回 nil）
+- 删除废弃的 `isKnownProvider` 函数（原功能由 Reflect-based 类型断言取代）
+
+### 迁移清单
+
+| 类型 | 文件 | 原模式 | 新模式 | Observer 角色 |
+|------|------|--------|--------|--------------|
+| evidenceHook | `agentcore/evidence/extension.go` | BaseLifecycleHook → BeforeTurn + AfterToolExecution | 直接放 EvidenceExtension 上 | TurnObserver + ToolCallObserver |
+| planModeHook | `agentcore/planmode/extension.go` | BaseLifecycleHook → BeforeToolExecution | 直接放 PlanModeExtension 上 | ToolCallObserver |
+| checkpointHook | `agentcore/filecheckpoint/extension.go` | BaseLifecycleHook → BeforeTurn + AfterTurn | 保持 hook 结构体（见注1） | TurnObserver |
+| compilerHook | `memory/compiler/extension.go` | BaseLifecycleHook → BeforeTurn + AfterTurn | 保持 hook 结构体（见注1） | TurnObserver |
+| memoryLifecycleHook | `memory/extension.go` | BaseLifecycleHook → AfterModelCall | 保持 hook 结构体（见注1） | ModelCallObserver |
+| doomLoopHook | `doomloop/doomloop.go` | BaseLifecycleHook → 三角色 | 保持钩子结构体（非 Extension） | AgentRun + ModelCall + ToolCall |
+| psychologicalHook | `psychological/hook.go` | BaseLifecycleHook → BeforeAgentRun | 保持钩子结构体（非 Extension） | AgentRunObserver |
+
+注1：这些 Extension 还实现了 ToolProvider/HookProvider 等其他已知 Provider，
+已被 `isKnownProvider` 匹配，Observer 自检测不适用。通过 LifecycleProvider 路径 + ObserversToHook 保持注册。
+
+### 消除的 nolint
+- `agentcore/evidence/extension.go:50` — 已删除 LifecycleHook() 方法
+- `agentcore/planmode/extension.go:54` — 已删除 LifecycleHook() 方法
+- `agentcore/extension.go:186-200` — 已删除 isKnownProvider（不再需要）
+
+### 保留的 nolint（API 兼容性必需）
+- `acp/server_app.go:38` — `RunOptions.Lifecycle` 字段
+- `domains/citation_wiring.go:55` — `newCitationGate()` 返回类型
+- `domains/lifecycle.go:11` — `defaultDoomLoopHook()` 返回类型
+- `domains/router.go:166` — `appendLifecycle()` 包装函数
+- `doomloop/doomloop.go:147` — `AsHook()` 返回类型
+- `knowledge/extension.go:188` — `KnowledgeExtension.LifecycleHook()` 返回类型
+- `psychological/hook.go:20` — `NewLifecycleHook()` 返回类型
+- `agentcore/filecheckpoint/extension.go:75` — 多 Provider 扩展，保留 LifecycleProvider 路径
+- `memory/compiler/extension.go:65` — 同上
+- `memory/extension.go:278` — 同上
+- `pkg/framework/setup.go` — 3 处（已有）
+
+### 测试更新
+- `agentcore/evidence/extension_test.go` — 全量重写：删除 LifecycleHook() 测试，
+  改为直接调用 `ext.BeforeTurn()` / `ext.AfterToolExecution()`
+- `agentcore/planmode/extension_test.go` — 同上，改为直接调用 `ext.BeforeToolExecution()`
+
+### 回归验证
+- `golangci-lint run` — 0 issues ✅
+- `go build ./...` + `cd tools && go build ./...` + `cd tui && go build ./...` ✅
+- `go test -race -count=1 ./...` + tools + tui — 全包通过 ✅
+- 架构边界检查 — 25/25 通过 ✅
+
+---
 
 ### 状态
 7 个 Hook 结构体从 `agentcore.LifecycleHook`（嵌入 `BaseLifecycleHook`）迁移为细粒度 Observer 接口，9 处纯类型引用加 `//nolint:staticcheck` 标记。`make verify`（lint + build + test-race）全量通过。
