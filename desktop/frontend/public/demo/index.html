@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mady 桌面端 — 页面展示</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f2f2f7;
+    --text: #1c1c1e;
+    --text2: rgba(0,0,0,0.55);
+    --accent: #5856d6;
+    --card: #ffffff;
+    --sep: rgba(0,0,0,0.08);
+  }
+  body {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 40px;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+  .subtitle { color: var(--text2); font-size: 14px; margin-bottom: 32px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    border: 1px solid var(--sep);
+    overflow: hidden;
+    transition: box-shadow 0.2s, transform 0.15s;
+  }
+  .card:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.08); transform: translateY(-2px); }
+  .card-preview { height: 200px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+  .card-preview iframe { width: 100%; height: 100%; border: none; }
+  .card-body { padding: 20px; }
+  .card-body h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .card-body p { font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 16px; }
+  .card-body .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tag { font-size: 11px; padding: 3px 8px; border-radius: 6px; background: rgba(88,86,214,0.08); color: var(--accent); font-weight: 500; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 20px; border-radius: 10px;
+    background: var(--accent); color: white;
+    text-decoration: none; font-size: 13px; font-weight: 500;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.9; }
+
+  .preview-placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #f5f5ff 0%, #e8e8f7 100%);
+    font-size: 40px;
+  }
+</style>
+</head>
+<body>
+  <h1>Mady 桌面端</h1>
+  <p class="subtitle">Phase 3 页面展示 — 三个核心视图的独立 HTML 演示</p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-preview"><iframe src="empty-state.html"></iframe></div>
+      <div class="card-body">
+        <h3>空状态欢迎页</h3>
+        <p>新会话的起始页面，包含品牌标识、欢迎文案和 4 个快速入口（AI 撰写 / OA 答复 / 专利检索 / 自由对话）。左侧为会话列表侧栏，底部为状态栏。</p>
+        <div class="tags"><span class="tag">Sidebar</span><span class="tag">Composer</span><span class="tag">Quick Starts</span><span class="tag">StatusBar</span></div>
+        <a class="btn" href="empty-state.html" target="_blank">打开</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-preview"><iframe src="chat-workspace.html"></iframe></div>
+      <div class="card-body">
+        <h3>聊天工作台</h3>
+        <p>核心三栏布局：左侧会话列表 + 中间消息流 + 右侧文档预览。包含用户/Agent 消息气泡、ToolCard 工具调用卡片、ConclusionCard 结论卡片、ConfidenceBar 置信度条、Thinking 思考折叠面板、ApprovalCard 审批卡片、Composer 输入框。</p>
+        <div class="tags"><span class="tag">MessageBubble</span><span class="tag">ToolCard</span><span class="tag">ConclusionCard</span><span class="tag">ApprovalCard</span><span class="tag">DocumentViewer</span></div>
+        <a class="btn" href="chat-workspace.html" target="_blank">打开</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-preview"><iframe src="settings.html"></iframe></div>
+      <div class="card-body">
+        <h3>设置面板</h3>
+        <p>浮动覆盖层，包含三个分区：外观（亮色/深色/跟随系统）、AI 服务（默认 Provider/模型）、关于（版本/构建/A2UI 协议/许可）。</p>
+        <div class="tags"><span class="tag">ThemeProvider</span><span class="tag">SettingsPanel</span><span class="tag">Modal</span></div>
+        <a class="btn" href="settings.html" target="_blank">打开</a>
+      </div>
+    </div>
+  </div>
+
+  <p style="margin-top:40px;font-size:12px;color:var(--text2);text-align:center;">
+    设计令牌对齐 Apple HIG · Mady 品牌色 systemIndigo · Tailwind v4 @theme 语义颜色
+  </p>
+</body>
+</html>

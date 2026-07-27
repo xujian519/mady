@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/* ============================================================
+ * Mady 桌面端 Design Tokens
+ *
+ * 对齐 02-spec.md §5 主题与设计令牌。
+ * Apple HIG 语义化颜色 + Mady 品牌紫/橙色。
+ * ============================================================ */
+
+@theme {
+  /* ---- 背景层级（Surfaces） ---- */
+  --color-mady-bg-primary: #ffffff;
+  --color-mady-bg-secondary: #f2f2f7;
+  --color-mady-bg-tertiary: #ffffff;
+
+  /* ---- 文字层级（Labels） ---- */
+  --color-mady-text-primary: #000000;
+  --color-mady-text-secondary: rgba(0, 0, 0, 0.55);
+  --color-mady-text-tertiary: rgba(0, 0, 0, 0.25);
+  --color-mady-text-link: #007aff;
+
+  /* ---- 强调色（Mady 品牌） ---- */
+  --color-mady-accent: #5856d6;          /* systemIndigo */
+  --color-mady-accent-hover: #4b4ac4;
+  --color-mady-accent-soft: rgba(88, 86, 214, 0.08);
+  --color-mady-accent-glow: rgba(88, 86, 214, 0.18);
+  --color-mady-accent-secondary: #f56600; /* 品牌橙色（极低频） */
+
+  /* ---- 语义色 ---- */
+  --color-mady-danger: #ff3b30;
+  --color-mady-success: #34c759;
+  --color-mady-warning: #ff9500;
+  --color-mady-info: #007aff;
+
+  /* ---- 分割线 ---- */
+  --color-mady-separator: rgba(0, 0, 0, 0.10);
+  --color-mady-border: rgba(0, 0, 0, 0.10);
+
+  /* ---- 圆角 ---- */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  /* ---- 字号 ---- */
+  --font-size-mady-caption: 11px;
+  --font-size-mady-small: 12px;
+  --font-size-mady-ui: 13px;
+  --font-size-mady-body: 14px;
+  --font-size-mady-heading: 17px;
+  --font-size-mady-h1: 22px;
+
+  /* ---- 字体 ---- */
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+}
+
+/* 深色模式覆盖 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-mady-bg-primary: #000000;
+    --color-mady-bg-secondary: #1c1c1e;
+    --color-mady-bg-tertiary: #2c2c2e;
+    --color-mady-text-primary: #ffffff;
+    --color-mady-text-secondary: rgba(255, 255, 255, 0.55);
+    --color-mady-text-tertiary: rgba(255, 255, 255, 0.25);
+    --color-mady-text-link: #0a84ff;
+    --color-mady-accent: #5e5ce6;
+    --color-mady-accent-hover: #6e6cf0;
+    --color-mady-accent-soft: rgba(94, 92, 230, 0.12);
+    --color-mady-accent-glow: rgba(94, 92, 230, 0.22);
+    --color-mady-danger: #ff453a;
+    --color-mady-success: #30d158;
+    --color-mady-warning: #ff9f0a;
+    --color-mady-info: #0a84ff;
+    --color-mady-separator: rgba(255, 255, 255, 0.10);
+    --color-mady-border: rgba(255, 255, 255, 0.10);
+  }
+}
+
+/* ---- 基础重置 ---- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-mady-ui);
+  color: var(--color-mady-text-primary);
+  background: var(--color-mady-bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- 滚动条（macOS 风格） ---- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-mady-separator);
+  border-radius: var(--radius-sm);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-mady-text-tertiary);
+}
+
+/* ---- macOS 标题栏拖拽区 ---- */
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.titlebar-drag-region > * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}

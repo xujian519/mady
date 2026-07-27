@@ -54,10 +54,11 @@ func registerAPIRoute(mux *http.ServeMux, pattern string, handler http.Handler) 
 
 // Server exposes an Agent as an HTTP/SSE API.
 type Server struct {
-	config   *csync.Value[agentcore.Config]
-	eventBus iface.EventBus
-	cors     CORSConfig
-	srv      atomic.Pointer[http.Server]
+	config    *csync.Value[agentcore.Config]
+	eventBus  iface.EventBus
+	cors      CORSConfig
+	srv       atomic.Pointer[http.Server]
+	createdAt time.Time // 记录 Server 创建时刻，供 Health().uptime 使用
 
 	agentPool  sync.Map // threadID -> *poolEntry; cached agents for reuse (refcounted)
 	poolMu     sync.Mutex
@@ -113,6 +114,7 @@ func New(cfg agentcore.Config) *Server {
 		config:               csync.NewValue(cfg),
 		eventBus:             agentcore.NewIFaceEventBus(agentcore.NewEventBus()),
 		poolLimit:            64,
+		createdAt:            time.Now(),
 		inventivenessResults: csync.NewMap[string, *inventiveness.InventivenessResult](),
 		enablementResults:    csync.NewMap[string, *enablement.EnablementResult](),
 		metrics:              NopMetricsRecorder{},

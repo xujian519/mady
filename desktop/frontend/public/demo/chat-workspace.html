@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mady — 聊天工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --mady-bg-primary: #ffffff;
+    --mady-bg-secondary: #f2f2f7;
+    --mady-bg-tertiary: #ffffff;
+    --mady-text-primary: #000000;
+    --mady-text-secondary: rgba(0,0,0,0.55);
+    --mady-text-tertiary: rgba(0,0,0,0.25);
+    --mady-text-link: #007aff;
+    --mady-accent: #5856d6;
+    --mady-accent-hover: #4b4ac4;
+    --mady-accent-soft: rgba(88,86,214,0.08);
+    --mady-accent-glow: rgba(88,86,214,0.18);
+    --mady-danger: #ff3b30;
+    --mady-success: #34c759;
+    --mady-warning: #ff9500;
+    --mady-info: #007aff;
+    --mady-separator: rgba(0,0,0,0.10);
+    --mady-border: rgba(0,0,0,0.10);
+    --font-sans: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --mady-bg-primary: #000000;
+      --mady-bg-secondary: #1c1c1e;
+      --mady-bg-tertiary: #2c2c2e;
+      --mady-text-primary: #ffffff;
+      --mady-text-secondary: rgba(255,255,255,0.55);
+      --mady-text-tertiary: rgba(255,255,255,0.25);
+      --mady-text-link: #0a84ff;
+      --mady-accent: #5e5ce6;
+      --mady-accent-hover: #6e6cf0;
+      --mady-accent-soft: rgba(94,92,230,0.12);
+      --mady-danger: #ff453a;
+      --mady-success: #30d158;
+      --mady-warning: #ff9f0a;
+      --mady-separator: rgba(255,255,255,0.10);
+      --mady-border: rgba(255,255,255,0.10);
+    }
+  }
+  html, body { height: 100%; width: 100%; overflow: hidden; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--mady-bg-primary);
+    color: var(--mady-text-primary);
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column;
+  }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--mady-separator); border-radius: var(--radius-sm); }
+
+  .app { display: flex; flex-direction: column; height: 100%; }
+  .body { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { width: 240px; background: var(--mady-bg-secondary); border-right: 1px solid var(--mady-separator); display: flex; flex-direction: column; user-select: none; }
+  .sidebar-top { padding: 12px; border-bottom: 1px solid var(--mady-separator); }
+  .btn-new { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-md); background: var(--mady-accent); color: white; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .btn-new:hover { background: var(--mady-accent-hover); }
+  .search-box { position: relative; margin-top: 8px; }
+  .search-box input { width: 100%; padding: 6px 10px 6px 28px; border: 1px solid var(--mady-border); border-radius: var(--radius-md); background: var(--mady-bg-primary); color: var(--mady-text-primary); font-size: 12px; outline: none; }
+  .search-box input:focus { border-color: var(--mady-accent); }
+  .search-box input::placeholder { color: var(--mady-text-tertiary); }
+  .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--mady-text-tertiary); }
+
+  .sidebar-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-md); background: transparent; color: var(--mady-text-primary); font-size: 12px; cursor: pointer; transition: background 0.1s; text-align: left; }
+  .sidebar-item:hover { background: var(--mady-bg-secondary); }
+  .sidebar-item.active { background: var(--mady-accent-soft); color: var(--mady-accent); }
+  .sidebar-item .icon { opacity: 0.5; flex-shrink: 0; }
+  .sidebar-item .count { color: var(--mady-text-tertiary); font-size: 11px; margin-left: auto; }
+
+  .btn-settings { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-md); background: transparent; color: var(--mady-text-secondary); font-size: 12px; cursor: pointer; transition: background 0.1s; }
+  .btn-settings:hover { background: var(--mady-bg-primary); }
+  .sidebar-bottom { padding: 8px; border-top: 1px solid var(--mady-separator); }
+  .sidebar-nav { flex: 1; overflow-y: auto; padding: 8px; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  .header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--mady-separator); background: rgba(242,242,247,0.5); backdrop-filter: blur(8px); -webkit-app-region: drag; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-left h1 { font-size: 13px; font-weight: 500; }
+  .header-tag { font-size: 11px; color: var(--mady-text-tertiary); }
+  .header-right { display: flex; align-items: center; gap: 4px; }
+  .btn-icon { padding: 6px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--mady-text-secondary); cursor: pointer; font-size: 13px; transition: background 0.1s; display: flex; align-items: center; justify-content: center; }
+  .btn-icon:hover { background: var(--mady-bg-secondary); }
+  .btn-icon.active { background: var(--mady-accent-soft); color: var(--mady-accent); }
+
+  /* Messages */
+  .content { flex: 1; overflow-y: auto; }
+  .messages { max-width: 736px; margin: 0 auto; padding: 16px 0; }
+
+  .msg { display: flex; gap: 12px; padding: 12px 16px; }
+  .msg.reverse { flex-direction: row-reverse; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; }
+  .avatar.user { background: var(--mady-accent-soft); color: var(--mady-accent); }
+  .avatar.agent { background: var(--mady-accent); color: white; }
+  .bubble { max-width: 75%; min-width: 0; }
+  .bubble-content { border-radius: 16px; padding: 10px 16px; font-size: 14px; line-height: 1.6; }
+  .bubble-content.user { background: var(--mady-accent); color: white; border-top-right-radius: 6px; }
+  .bubble-content.agent { background: var(--mady-bg-secondary); color: var(--mady-text-primary); border: 1px solid var(--mady-separator); border-top-left-radius: 6px; }
+  .bubble-time { margin-top: 4px; padding: 0 4px; font-size: 11px; color: var(--mady-text-tertiary); }
+  .msg.reverse .bubble-time { text-align: right; }
+
+  /* Markdown 渲染样式 */
+  .md p { margin-bottom: 8px; }
+  .md h1, .md h2, .md h3, .md h4 { margin: 16px 0 6px; }
+  .md h1 { font-size: 22px; font-weight: 600; }
+  .md h2 { font-size: 17px; font-weight: 600; }
+  .md h3 { font-size: 14px; font-weight: 600; }
+  .md ul, .md ol { padding-left: 20px; margin-bottom: 8px; }
+  .md li { margin-bottom: 4px; }
+  .md code { background: var(--mady-bg-tertiary); padding: 1px 5px; border-radius: 4px; font-size: 12px; font-family: var(--font-mono); }
+  .md pre { background: var(--mady-bg-tertiary); border-radius: var(--radius-md); padding: 12px; overflow-x: auto; margin-bottom: 8px; }
+  .md pre code { background: none; padding: 0; }
+  .md blockquote { border-left: 2px solid var(--mady-accent); padding-left: 12px; color: var(--mady-text-secondary); font-style: italic; margin-bottom: 8px; }
+  .md a { color: var(--mady-text-link); text-decoration: underline; }
+  .md hr { border: none; border-top: 1px solid var(--mady-separator); margin: 12px 0; }
+  .md strong { font-weight: 600; }
+  .md em { font-style: italic; }
+
+  /* Thinking 折叠面板 */
+  .thinking-panel { max-width: 75%; padding: 8px 16px; }
+  .thinking-summary { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--mady-text-secondary); cursor: pointer; user-select: none; }
+  .thinking-summary:hover { color: var(--mady-text-primary); }
+  .thinking-dots { display: flex; gap: 3px; margin-left: 4px; }
+  .thinking-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--mady-accent); animation: bounce 1.4s infinite ease-in-out; }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.16s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.32s; }
+  @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+  .thinking-body { margin-top: 8px; font-size: 13px; color: var(--mady-text-secondary); background: var(--mady-bg-secondary); border-radius: var(--radius-md); padding: 12px; white-space: pre-wrap; line-height: 1.5; }
+
+  /* ToolCard */
+  .toolcard { max-width: 75%; border-radius: 12px; border: 1px solid var(--mady-accent-soft); background: rgba(88,86,214,0.04); padding: 10px 12px; margin: 8px 16px; }
+  .toolcard-header { display: flex; align-items: center; gap: 8px; }
+  .toolcard-name { font-size: 12px; font-family: var(--font-mono); color: var(--mady-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .toolcard-icon { flex-shrink: 0; }
+  .toolcard-body { margin-top: 8px; font-size: 12px; }
+  .toolcard-body .label { font-size: 11px; color: var(--mady-text-tertiary); }
+  .toolcard-body pre { margin-top: 2px; background: rgba(0,0,0,0.03); border-radius: var(--radius-sm); padding: 6px 8px; font-family: var(--font-mono); color: var(--mady-text-secondary); white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+
+  /* ConclusionCard */
+  .conclusion-card { max-width: 75%; border-radius: 12px; border: 1px solid var(--mady-accent-soft); background: rgba(88,86,214,0.03); padding: 12px 16px; margin: 8px 16px; }
+  .conclusion-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .conclusion-title { font-size: 13px; font-weight: 500; }
+
+  /* ConfidenceBar */
+  .conf-bar { margin: 8px 0; }
+  .conf-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
+  .conf-track { height: 6px; border-radius: 3px; background: var(--mady-bg-tertiary); overflow: hidden; }
+  .conf-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease-out; }
+  .conf-fill.high { background: var(--mady-success); }
+  .conf-fill.medium { background: var(--mady-warning); }
+  .conf-fill.low { background: var(--mady-danger); }
+  .conf-desc { font-size: 11px; color: var(--mady-text-tertiary); margin-top: 4px; }
+
+  .conclusion-sources { border-top: 1px solid var(--mady-separator); padding-top: 8px; margin-top: 8px; }
+  .conclusion-sources .src-label { font-size: 11px; color: var(--mady-text-tertiary); margin-bottom: 4px; }
+  .conclusion-sources a { font-size: 11px; color: var(--mady-text-link); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .conclusion-sources a:hover { text-decoration: underline; }
+
+  /* ApprovalCard */
+  .approval-card { max-width: 75%; border-radius: 12px; border: 1px solid rgba(255,149,0,0.3); background: rgba(255,149,0,0.04); padding: 12px 16px; margin: 8px 16px; }
+  .approval-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .approval-header .icon { color: var(--mady-warning); }
+  .approval-title { font-size: 13px; font-weight: 500; }
+  .approval-desc { font-size: 14px; color: var(--mady-text-secondary); margin-bottom: 12px; }
+  .approval-reason { width: 100%; border-radius: var(--radius-md); padding: 8px 12px; background: var(--mady-bg-primary); border: 1px solid var(--mady-border); color: var(--mady-text-primary); font-size: 14px; font-family: var(--font-sans); resize: none; outline: none; margin-bottom: 12px; }
+  .approval-reason:focus { border-color: var(--mady-accent); }
+  .approval-btns { display: flex; gap: 8px; }
+  .btn-approve, .btn-reject { display: flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: var(--radius-md); border: none; color: white; font-size: 12px; cursor: pointer; transition: opacity 0.15s; }
+  .btn-approve { background: var(--mady-success); }
+  .btn-reject { background: var(--mady-danger); }
+  .btn-approve:hover, .btn-reject:hover { opacity: 0.9; }
+
+  /* Error */
+  .error-msg { max-width: 75%; margin: 8px 16px; padding: 12px 16px; border-radius: 12px; background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.2); color: var(--mady-danger); font-size: 14px; }
+
+  /* Composer */
+  .composer { border-top: 1px solid var(--mady-separator); background: var(--mady-bg-primary); padding: 12px 16px; }
+  .composer-inner { max-width: 736px; margin: 0 auto; display: flex; align-items: flex-end; gap: 8px; }
+  .composer-input { flex: 1; border-radius: 12px; padding: 10px 16px; background: var(--mady-bg-secondary); border: 1px solid var(--mady-border); color: var(--mady-text-primary); font-size: 14px; font-family: var(--font-sans); resize: none; outline: none; min-height: 40px; line-height: 1.5; }
+  .composer-input:focus { border-color: var(--mady-accent); }
+  .composer-input::placeholder { color: var(--mady-text-tertiary); }
+  .composer-input:disabled { opacity: 0.5; }
+  .btn-send { width: 36px; height: 36px; border-radius: 12px; border: none; display: flex; align-items: center; justify-content: center; background: var(--mady-bg-secondary); color: var(--mady-text-tertiary); cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+  .btn-send.active { background: var(--mady-accent); color: white; }
+  .btn-send.active:hover { background: var(--mady-accent-hover); }
+
+  /* StatusBar */
+  .statusbar { height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: var(--mady-bg-secondary); border-top: 1px solid var(--mady-separator); font-size: 11px; color: var(--mady-text-secondary); user-select: none; }
+  .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .status-dot.running { background: var(--mady-success); }
+  .sep { color: var(--mady-separator); }
+
+  /* Right Panel (DocumentViewer) */
+  .right-panel { width: 384px; background: var(--mady-bg-secondary); border-left: 1px solid var(--mady-separator); display: flex; flex-direction: column; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--mady-separator); }
+  .panel-header .file-icon { color: var(--mady-accent); flex-shrink: 0; }
+  .panel-header .file-name { font-size: 12px; color: var(--mady-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-left: 8px; }
+  .panel-header .btn-close { padding: 4px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--mady-text-secondary); cursor: pointer; }
+  .panel-header .btn-close:hover { background: var(--mady-bg-primary); }
+  .panel-body { flex: 1; overflow-y: auto; padding: 16px; font-size: 13px; line-height: 1.6; color: var(--mady-text-primary); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="body">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <button class="btn-new">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新对话
+        </button>
+        <div class="search-box">
+          <span class="search-icon">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </span>
+          <input type="text" placeholder="搜索会话…">
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="sidebar-item active"><span class="icon">💬</span><span>CN202310123456</span><span class="count">5</span></button>
+        <button class="sidebar-item"><span class="icon">💬</span><span>OA 答复分析 - 华为</span><span class="count">3</span></button>
+        <button class="sidebar-item"><span class="icon">💬</span><span>侵权比对方案</span><span class="count">8</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button class="btn-settings">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          设置
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="header">
+        <div class="header-left">
+          <h1>Mady</h1>
+          <span class="header-tag">会话</span>
+        </div>
+        <div class="header-right">
+          <button class="btn-icon active" title="文档预览">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="messages">
+          <!-- 用户消息 -->
+          <div class="msg reverse">
+            <div class="avatar user">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="bubble">
+              <div class="bubble-content user">分析这件对比文件相对于独立权利要求1的新颖性</div>
+              <div class="bubble-time">10:32</div>
+            </div>
+          </div>
+
+          <!-- Agent 消息（含 Markdown） -->
+          <div class="msg">
+            <div class="avatar agent">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="bubble">
+              <div class="bubble-content agent">
+                <div class="md">
+                  <p>根据分析，对比文件D1（CN103456789A）公开了权利要求1的大部分技术特征。以下是逐要素比对：</p>
+                  <h3>要素比对表</h3>
+                  <p><strong>权利要求1：</strong>一种数据处理方法，包括：</p>
+                  <ul>
+                    <li><strong>A.</strong> 获取输入数据 → D1 [0023] 公开"接收用户输入指令"</li>
+                    <li><strong>B.</strong> 对数据进行预处理 → D1 [0035] 公开"对输入数据进行格式校验"</li>
+                    <li><strong>C.</strong> 将预处理后的数据输入神经网络模型 → <mark>D1 [0041] 公开了"将数据输入统计模型"，但未明确提到神经网络</mark></li>
+                  </ul>
+                  <p>结论：<strong>要素A和B已被D1公开</strong>，要素C存在差异。</p>
+                </div>
+              </div>
+              <div class="bubble-time">10:33</div>
+            </div>
+          </div>
+
+          <!-- ToolCard: 分析工具 -->
+          <div class="toolcard">
+            <div class="toolcard-header">
+              <span class="toolcard-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+              </span>
+              <span class="toolcard-name">analyze_novelty</span>
+              <span class="toolcard-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--mady-success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </span>
+            </div>
+            <div class="toolcard-body">
+              <div><span class="label">参数</span>
+                <pre>{
+  "claim": 1,
+  "reference": "CN103456789A"
+}</pre>
+              </div>
+              <div style="margin-top:8px;"><span class="label">结果</span>
+                <pre>要素A匹配 ✓ | 要素B匹配 ✓ | 要素C部分匹配 ⚠️</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agent 继续回答 -->
+          <div class="msg">
+            <div class="avatar agent">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="bubble">
+              <div class="bubble-content agent">
+                <div class="md">
+                  <p>需要进一步检索确认D1是否隐含公开了神经网络模型，或者是否存在其他对比文件公开该特征。</p>
+                  <p>建议：</p>
+                  <ol>
+                    <li>对D1中"统计模型"的实施方式做更深入检索</li>
+                    <li>检索D2-D5是否存在明确公开"神经网络"的对比文件</li>
+                  </ol>
+                  <blockquote>注：上述分析基于现有检索结果，结论置信度为中，建议人工复核D1说明书第[0041]-[0055]段。</blockquote>
+                </div>
+              </div>
+              <div class="bubble-time">10:35</div>
+            </div>
+          </div>
+
+          <!-- Thinking 折叠面板（流式） -->
+          <div class="thinking-panel">
+            <details open>
+              <summary class="thinking-summary">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--mady-accent)" stroke-width="2"><path d="M12 18h.01"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg>
+                <span>思考中…</span>
+                <span class="thinking-dots"><span></span><span></span><span></span></span>
+              </summary>
+              <div class="thinking-body">正在检索专利数据库，比对权利要求1的要素分解与D1的实施例对应关系。已完成要素A和要素B的匹配，正在分析要素C与D1[0041]段的语义关联…</div>
+            </details>
+          </div>
+
+          <!-- ToolCard: 正在运行的搜索 -->
+          <div class="toolcard" style="border-color:rgba(88,86,214,0.3);background:rgba(88,86,214,0.06);">
+            <div class="toolcard-header">
+              <span class="toolcard-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </span>
+              <span class="toolcard-name">patent_search</span>
+              <span class="toolcard-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--mady-accent)" stroke-width="2"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+              </span>
+            </div>
+            <div class="toolcard-body">
+              <div><span class="label">参数</span>
+                <pre>{
+  "keywords": ["神经网络", "深度学习", "数据处理"],
+  "limit": 5
+}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- ConclusionCard -->
+          <div class="conclusion-card">
+            <div class="conclusion-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mady-accent)" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>
+              <span class="conclusion-title">新颖性分析结论</span>
+            </div>
+            <div class="md" style="font-size:14px;margin-bottom:12px;">
+              <p><strong>对比文件D1</strong> 相对于 <strong>权利要求1</strong>：</p>
+              <ul>
+                <li><strong>要素A+B</strong>：已被D1公开，<span style="color:var(--mady-danger);">不具备新颖性</span></li>
+                <li><strong>要素C</strong>：D1未明确公开，<span style="color:var(--mady-success);">具备新颖性</span></li>
+              </ul>
+            </div>
+            <div class="conf-bar">
+              <div class="conf-label">
+                <span style="color:var(--mady-text-secondary);">可信度评估</span>
+                <span style="color:var(--mady-warning);font-weight:500;">中 · 72%</span>
+              </div>
+              <div class="conf-track">
+                <div class="conf-fill medium" style="width:72%;"></div>
+              </div>
+              <div class="conf-desc">基于当前检索结果，建议人工复核D1说明书全文</div>
+            </div>
+            <div class="conclusion-sources">
+              <div class="src-label">参考来源</div>
+              <a href="#">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                CN103456789A — 一种数据处理方法及系统
+              </a>
+            </div>
+          </div>
+
+          <!-- 新消息：用户继续提问 -->
+          <div class="msg reverse" style="margin-top:12px;">
+            <div class="avatar user">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="bubble">
+              <div class="bubble-content user">帮我生成这份结论的正式报告</div>
+              <div class="bubble-time">10:38</div>
+            </div>
+          </div>
+
+          <!-- Agent 流式输出（打字机效果 Demo） -->
+          <div class="msg">
+            <div class="avatar agent">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="bubble">
+              <div class="bubble-content agent">
+                <div class="md">
+                  <p>好的，正在为您生成<strong>新颖性分析报告</strong>。报告将包含以下内容：</p>
+                  <ol>
+                    <li>案件背景与技术领域</li>
+                    <li>权利要求1的要素分解</li>
+                    <li>与对比文件D1的逐要素比对</li>
+                    <li>初步结论与建议</li>
+                  </ol>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+                  <span style="font-size:11px;color:var(--mady-text-tertiary);">正在生成…</span>
+                  <span class="thinking-dots" style="display:inline-flex;">
+                    <span style="display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--mady-accent);animation:bounce 1.4s infinite;"></span>
+                    <span style="display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--mady-accent);animation:bounce 1.4s infinite;animation-delay:0.16s;"></span>
+                    <span style="display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--mady-accent);animation:bounce 1.4s infinite;animation-delay:0.32s;"></span>
+                  </span>
+                </div>
+              </div>
+              <div class="bubble-time">10:38</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Composer -->
+      <div class="composer">
+        <div class="composer-inner">
+          <textarea class="composer-input" rows="1" placeholder="输入消息…（Enter 发送，Shift+Enter 换行）" disabled></textarea>
+          <button class="btn-send active">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel: Document Viewer -->
+    <aside class="right-panel">
+      <div class="panel-header">
+        <div style="display:flex;align-items:center;min-width:0;flex:1;">
+          <svg class="file-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span class="file-name">CN103456789A.html</span>
+        </div>
+        <button class="btn-close">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="panel-body">
+        <div class="md">
+          <h2 style="font-size:15px;">一种数据处理方法及系统</h2>
+          <p style="color:var(--mady-text-secondary);margin-bottom:16px;">公开号：CN103456789A · 申请日：2018.06.15</p>
+          <h3>权利要求1</h3>
+          <p>一种数据处理方法，其特征在于，包括以下步骤：</p>
+          <p style="padding-left:16px;border-left:2px solid var(--mady-accent);margin:8px 0;">
+            步骤S1：获取输入数据；<br>
+            步骤S2：对所述输入数据进行格式校验和标准化处理；<br>
+            步骤S3：将处理后的数据输入至预先训练的模型进行分析；<br>
+            步骤S4：输出分析结果。
+          </p>
+          <h3>[0023] 数据获取</h3>
+          <p>"系统通过用户接口接收输入指令，所述指令包含待处理的数据…"</p>
+          <h3>[0035] 数据预处理</h3>
+          <p>"对接收到的数据进行格式校验，去除异常值，并将数据标准化为统一格式。"</p>
+          <h3>[0041] 模型分析</h3>
+          <p>"将预处理后的数据输入统计分析模型，所述模型基于历史数据训练得到…"</p>
+          <p style="color:var(--mady-text-tertiary);font-size:12px;margin-top:16px;padding-top:12px;border-top:1px solid var(--mady-separator);">共 4 页 · 仅展示关键段落</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- StatusBar -->
+  <footer class="statusbar">
+    <div class="statusbar-left">
+      <span style="display:flex;align-items:center;gap:6px;">
+        <span class="status-dot running"></span>
+        运行中
+      </span>
+      <span class="sep">|</span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/></svg>
+        deepseek / v4-pro
+      </span>
+    </div>
+    <div class="statusbar-right">
+      <span style="display:flex;align-items:center;gap:4px;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 18h.01"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg>
+        知识库
+      </span>
+      <span class="sep">|</span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        v0.1.0
+      </span>
+    </div>
+  </footer>
+</div>
+</body>
+</html>

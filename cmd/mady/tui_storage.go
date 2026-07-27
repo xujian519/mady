@@ -6,8 +6,6 @@ package main
 // 降级提示（而非仅 log.Printf 静默降级）。
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,14 +45,6 @@ func resolveBaseSessionDir(envDir, madyHome string) (string, bool, error) {
 		return "", false, err
 	}
 	return dir, false, nil
-}
-
-// cwdPartitionName returns a short, filesystem-safe identifier for a working
-// directory. It uses the first 16 hex chars of SHA-256 so names are stable
-// across restarts and avoid special-character issues on any platform.
-func cwdPartitionName(cwd string) string {
-	sum := sha256.Sum256([]byte(cwd))
-	return hex.EncodeToString(sum[:])[:16]
 }
 
 // writeCWDMapping records the original working directory inside the partition

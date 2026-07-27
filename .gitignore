@@ -30,6 +30,8 @@ vendor/
 .zcode/
 .crush/
 .nuo/
+.claude/
+.reasonix/
 
 # --- OS ---
 .DS_Store

@@ -609,6 +609,87 @@ agent := agentcore.New(agentcore.Config{Extensions: []agentcore.Extension{&MyExt
 | 长期记忆 | `memory/` | 记忆持久化 + 策略学习编译器 |
 | EgoLite 浏览器 | `tools/` | 第 7 浏览器后端 + handoff/task_spaces 工具 |
 
+## 桌面端（phase 3 组件迁移阶段）
+
+Mady 桌面端是 Wails v2 单进程应用，内嵌现有 Go 后端，前端用 React + shadcn/ui 渲染 A2UI 声明式界面。
+
+**目录结构**：
+
+```
+desktop/
+├── go.mod                  # Go 模块（Wails v2.12.0）
+├── main.go                 # Wails 骨架入口（macOS TitleBarHiddenInset）
+├── app.go                  # App 结构体与 Wails Binding 方法
+├── types.go                # 类型别名（预留）
+├── app_test.go             # 单元测试（事件映射、工具函数）
+├── build/                  # macOS 打包图标 + Info.plist（T3.7）
+│   ├── Info.plist          # Bundle 元信息
+│   ├── appicon.png         # 应用图标
+│   └── AppIcon.appiconset/ # 完整 macOS iconset
+└── frontend/               # React 前端
+    ├── package.json        # React 18 + Vite 5.4 + Tailwind v4
+    ├── index.html          # Vite 入口
+    ├── vite.config.ts      # Vite 配置
+    ├── tsconfig.json       # TypeScript 配置
+    ├── src/
+    │   ├── main.tsx        # React 入口
+    │   ├── app/App.tsx     # 根组件（ThemeProvider + ChatView）
+    │   ├── agui-bridge/    # AGUI → Wails Events 桥接
+    │   ├── a2ui-renderer/  # 🏆 A2UI v0.9.1 → React 渲染器（18 组件 + 15 函数）
+    │   ├── components/     # 🆕 业务组件（ChatView/Sidebar/ToolCard/ApprovalCard/等）
+    │   ├── theme/          # 🆕 主题层（ThemeProvider + useTheme hook）
+    │   ├── stores/         # Zustand + TanStack Query
+    │   ├── lib/            # 工具（wails.ts, backend.ts）
+    │   └── styles/         # Tailwind v4 globals.css
+    └── wailsjs/            # Wails CLI 生成桩（开发期占位）
+```
+
+**开发命令**：
+
+```bash
+# Go 模块
+cd desktop && go build ./...
+
+# 前端
+cd desktop/frontend && pnpm install && pnpm build
+
+# 桌面端测试
+make desktop-test
+
+# A2UI 渲染器端到端测试（Playwright）
+cd desktop/frontend && pnpm test:e2e
+
+# 启动桌面窗口（需 Wails CLI）
+make desktop-run
+
+# 构建 macOS 通用二进制 .app + .dmg
+make desktop-dmg
+
+# 完整构建
+make build
+```
+
+**状态**：phase 1（骨架）+ phase 2（A2UI 渲染器）+ phase 3（组件迁移）已完成。
+- ✅ Wails 模块初始化 + `go.work` 集成
+- ✅ `pkg/framework` 装配逻辑提取
+- ✅ `server.Chat()` 非 HTTP 公开 API
+- ✅ App 结构体（Chat/Cancel/Health/Thread 方法）
+- ✅ React + Vite + Tailwind v4 前端骨架
+- ✅ AGUI → Wails Events 事件桥
+- ✅ TanStack Query 会话管理 hooks
+- ✅ A2UI 渲染器：SurfaceStore + CatalogRegistry + JSON Pointer
+- ✅ 18 个标准组件 + 15 个内置函数 + Dynamic 值解析
+- ✅ SurfaceStore ↔ agui-bridge 对接
+- ✅ 开发期结构校验 + Playwright e2e + Go 集成测试
+- ✅ ThemeProvider + 深浅色模式（T3.5）
+- ✅ ChatView 三栏布局 + Sidebar + StatusBar + Composer（T3.1）
+- ✅ MessageBubble（Markdown 渲染 + Motion 淡入）+ DocumentViewer（T3.1）
+- ✅ ToolCard + Invisible Handoff 过滤（T3.2）
+- ✅ ApprovalCard + agui:approval-prompt 事件对接（T3.3）
+- ✅ ConclusionCard + ConfidenceBar（T3.4）
+- ✅ SettingsPanel + localStorage 持久化（T3.6）
+- ✅ macOS 打包：Info.plist + appicon + Wails 集成（T3.7）
+
 ## 许可证
 
 [MIT](LICENSE)

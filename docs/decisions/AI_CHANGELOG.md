@@ -1,5 +1,122 @@
 # AI 变更记录
 
+## 2026-07-27: Phase 3 完成 — 组件迁移 + ChatView 三栏布局 + macOS 打包
+
+### 状态
+Phase 3（T3.1–T3.7）全部完成。核心业务组件从骨架视图迁移为完整的三栏聊天工作台。
+
+### 新增/修改架构
+
+```
+desktop/frontend/src/
+├── theme/                          # 🆕 主题层
+│   ├── index.ts
+│   ├── tokens.ts                   # CSS 变量映射 + useTheme hook
+│   └── provider.tsx                # ThemeProvider（系统跟随 + 手动切换）
+│
+├── components/                     # 🆕 业务组件
+│   ├── index.ts                    # 统一导出
+│   ├── ChatView.tsx                # 三栏布局宿主
+│   ├── MessageBubble.tsx           # 用户/Agent 消息气泡（Motion 淡入）
+│   ├── Sidebar.tsx                 # 左侧栏：会话列表 + 搜索/新建
+│   ├── StatusBar.tsx               # 底部状态栏（Provider/知识库/版本）
+│   ├── Composer.tsx                # 多行输入 + Enter 发送
+│   ├── ToolCard.tsx                # 工具调用卡片（含 handoff 过滤）
+│   ├── ApprovalCard.tsx            # 审批卡片（批准/拒绝 → Wails Events）
+│   ├── ConclusionCard.tsx          # 结论卡片（Markdown + 置信度 + 来源）
+│   ├── ConfidenceBar.tsx           # 置信度可视化（高/中/低）
+│   ├── MarkdownRenderer.tsx        # 轻量级 Markdown → React 渲染器
+│   ├── ThreadItem.tsx              # 会话列表单项
+│   ├── DocumentViewer.tsx          # 分屏文档预览（HTML 内嵌 / PDF 外部打开）
+│   └── SettingsPanel.tsx           # 设置覆盖层（主题/Provider/模型/关于）
+│
+├── stores/
+│   └── chat.ts                     # [重构] 增加 messages[] + sendMessage + approvalPrompt
+│   └── settings.ts                 # 🆕 设置持久化（zustand/persist）
+├── agui-bridge/
+│   └── reducer.ts                  # [修改] approval-prompt case 填充 + sendMessage 集成
+└── app/
+    └── App.tsx                     # [重构] 骨架屏 → ThemeProvider + ChatView
+```
+
+### 关键设计要点
+
+1. **三栏布局**：Sidebar（左 240px）+ Chat Main（弹性）+ DocumentViewer（右 384px 可选），通过 `showSidebar`/`showDocViewer` 状态切换显隐。
+2. **消息历史持久化**：`chatStore.messages: Message[]` 跨轮次保持，`finishTurn()` 将当前 output/thinking 提交为 agent message，`sendMessage()` 乐观添加用户消息并调用 `backend.chat`。
+3. **Invisible Handoff 红线**：`ToolCard` 对 `transfer_to_*` / `handoff_to_*` 前缀的工具不渲染，保持 handoff 透明。
+4. **ThemeProvider**：支持 `light`/`dark`/`system` 三种模式，通过 `matchMedia('prefers-color-scheme: dark')` 监听系统变化，`localStorage` 持久化。
+5. **MarkdownRenderer**：纯 React 实现（无外部库），支持标题/粗体/斜体/行内代码/代码块/列表/链接/引用块/分割线，与 goldmark 子集一致。
+6. **SettingsPanel**：主题切换立即生效；Provider/Model 写入 localStorage，切换时提示"下一轮对话生效"。
+7. **macOS 打包**：`Info.plist`（Bundle ID `com.mady.desktop`，最小系统 13.0）+ appicon + `make desktop-dmg`（`wails build -platform darwin/universal`，ad-hoc 签名）。
+
+### 文件统计
+- 新增 15 个 TS/TSX 文件（组件/theme/store）
+- 修改 4 个 TS/TSX 文件（chat store/reducer/App.tsx）
+- 新增 1 个 Info.plist
+- 修改 2 个文档（README.md/AI_CHANGELOG.md）+ 1 个 Makefile
+- 前端构建：1948 模块 → 321KB JS + 27KB CSS（含 lucide-react + framer-motion）
+
+### 验证
+- `tsc --noEmit` ✅ | `pnpm build` ✅
+- `cd desktop && go build ./...` ✅
+- `make build`（4 模块）✅
+
+### 未纳入本阶段
+- T3.2b ProjectTree（可读写文件树）：需 `app.go` 新增 Go binding + 沙箱校验，独立 PR
+- T3.8 集成 e2e 测试（端到端启动 → chat → surface → 审批 → 关闭）：需完整 Wails 环境
+- T3.9 KnowledgeView（知识库管理）+ T3.10 TemplatesView（模板库）：P1 扩展，非 MVP 阻塞
+
+---
+
+## 2026-07-27: Phase 2 完成 — A2UI 渲染器（33 TS 文件 + 6 Go e2e 测试）
+
+### 状态
+Phase 2（T2.1–T2.8，A2UI v0.9.1 → React 完整渲染器）全部完成。
+
+### 新增架构
+
+```
+desktop/frontend/src/a2ui-renderer/
+├── index.ts          — 统一导出入口
+├── store.ts          — SurfaceStore + 全部线格式类型（对齐 a2ui/surface.go）
+├── catalog.ts        — CatalogRegistry + BasicCatalog（18 组件 + 15 函数，对齐 a2ui/catalog.go）
+├── datamodel.ts      — JSON Pointer RFC 6901（对齐 a2ui/datamodel.go）
+├── dynamic.ts        — Dynamic 值解析（call→path→literal，对齐 a2ui/dynamic.go）
+├── validate.ts       — Envelope + SurfaceTree 结构校验
+├── child-refs.ts     — 子组件引用解析
+├── theme.ts          — Theme → Tailwind 类名转换
+├── a2ui-store.ts     — Zustand 响应式封装（供 reducer + React 消费）
+├── renderer.tsx      — A2UISurface 递归树渲染器
+├── registry.tsx      — 20 组件注册表 + UnknownComponent 占位
+├── components/       — 18 个 A2UI 标准组件（Text/Icon/Row/Column/List/Card/Divider/Button/TextField/Tabs/Modal/Image/CheckBox/ChoicePicker/Video/AudioPlayer/DateTimeInput/Slider）
+└── functions/        — 15 个内置函数（format.ts + validate.ts）
+```
+
+### 关键设计要点
+
+1. **SurfaceStore 双端对齐**：TS 版 SurfaceStore 的 4 种 envelope 操作（createSurface/updateComponents/updateDataModel/deleteSurface）与 Go 端语义 1:1 对齐。
+2. **Dynamic 解析顺序**：`classifyDynamic` 的识别顺序（call → 仅 path → literal）与 Go `UnmarshalJSON` 一致。
+3. **WeakMap 绑定缓存**：`resolveBind` 使用 WeakMap 缓存 data model 查询结果，`_applyDataModel` 更新后自动 `clearBindCache`。
+4. **线格式转换**：`_applyComponents` 中对每个组件调用 `componentFromFlat`，将 JSON 中的 `"component"` 键正确映射为 `type`。
+5. **Zustand 响应式封装**：`a2ui-store.ts` 将 SurfaceStore 包装为 Zustand store，`agui-bridge/reducer.ts` 的 `case 'a2ui'` 通过 `useA2UIStore.getState().applyEnvelope(payload)` 对接。
+
+### 测试
+- `desktop/a2ui_e2e_test.go`：6 个 Go e2e 测试（4 种 envelope 各 1 + 完整生命周期序列 + 荷载无损验证）
+- `desktop/frontend/e2e/a2ui.spec.ts`：4 个 Playwright 测试（冒烟 + createSurface + updateComponents + updateDataModel）
+- `playwright.config.ts`：Chromium + WebKit 双项目配置
+
+### 验证
+- `tsc --noEmit` ✅ | `pnpm build`（94 模块 → 181KB）✅
+- `go test -count=1 ./...`（25 测试）✅ | `go build ./...` ✅
+- `go vet ./...` ✅ | `go build ./desktop` ✅
+
+### 代码审查修复（同日）
+审阅发现 3 个 P0 问题并全部修复：
+- P0-1：reducer `case 'a2ui'` 从 TODO 注释改为调用 `SurfaceStore.apply()`
+- P0-2：`_applyComponents` 改用 `componentFromFlat` 转换线格式
+- P0-3：`_applyDataModel` 更新后调用 `clearBindCache`
+- 附加修复：空 surfaceId 防护、Text 类型安全、Playwright 完整测试、Go 序列测试补全
+
 ## 2026-07-27: A2UI / AGUI 全量质量审阅 + 修复
 
 ### 审阅概览

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mady — 设置</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --mady-bg-primary: #ffffff;
+    --mady-bg-secondary: #f2f2f7;
+    --mady-bg-tertiary: #ffffff;
+    --mady-text-primary: #000000;
+    --mady-text-secondary: rgba(0,0,0,0.55);
+    --mady-text-tertiary: rgba(0,0,0,0.25);
+    --mady-text-link: #007aff;
+    --mady-accent: #5856d6;
+    --mady-accent-hover: #4b4ac4;
+    --mady-accent-soft: rgba(88,86,214,0.08);
+    --mady-danger: #ff3b30;
+    --mady-success: #34c759;
+    --mady-warning: #ff9500;
+    --mady-separator: rgba(0,0,0,0.10);
+    --mady-border: rgba(0,0,0,0.10);
+    --font-sans: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+  }
+  html, body { height: 100%; width: 100%; }
+  body {
+    font-family: var(--font-sans);
+    background: rgba(0,0,0,0.2);
+    backdrop-filter: blur(4px);
+    -webkit-font-smoothing: antialiased;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .modal {
+    width: 480px; max-height: 80vh;
+    background: var(--mady-bg-primary);
+    border-radius: 16px;
+    border: 1px solid var(--mady-separator);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.08);
+    overflow-y: auto;
+    display: flex; flex-direction: column;
+  }
+
+  /* 头部 */
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--mady-separator);
+  }
+  .modal-header h2 { font-size: 17px; font-weight: 600; }
+  .btn-close {
+    width: 28px; height: 28px; border-radius: var(--radius-md);
+    border: none; background: transparent; color: var(--mady-text-secondary);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s;
+  }
+  .btn-close:hover { background: var(--mady-bg-secondary); }
+
+  /* 内容 */
+  .modal-body { padding: 20px; }
+  .section { margin-bottom: 24px; }
+  .section:last-child { margin-bottom: 0; }
+  .section-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 500; margin-bottom: 12px;
+  }
+
+  /* 主题切换按钮组 */
+  .theme-group { display: flex; gap: 8px; }
+  .theme-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: var(--radius-md);
+    border: 1px solid var(--mady-border);
+    background: var(--mady-bg-secondary);
+    color: var(--mady-text-secondary);
+    font-size: 12px; font-family: var(--font-sans);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .theme-btn:hover { border-color: var(--mady-accent); }
+  .theme-btn.active {
+    background: var(--mady-accent); color: white; border-color: var(--mady-accent);
+  }
+
+  /* 表单 */
+  .field-group { display: flex; flex-direction: column; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--mady-text-secondary);
+  }
+  .field input {
+    padding: 8px 12px; border-radius: var(--radius-md);
+    border: 1px solid var(--mady-border);
+    background: var(--mady-bg-secondary);
+    color: var(--mady-text-primary);
+    font-size: 14px; font-family: var(--font-sans);
+    outline: none; transition: border-color 0.15s;
+  }
+  .field input:focus { border-color: var(--mady-accent); }
+  .field input::placeholder { color: var(--mady-text-tertiary); }
+  .field-hint { font-size: 11px; color: var(--mady-text-tertiary); margin-top: 4px; }
+
+  /* 关于 */
+  .about-box {
+    background: var(--mady-bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 12px;
+  }
+  .about-row {
+    display: flex; justify-content: space-between;
+    padding: 4px 0;
+    font-size: 12px; color: var(--mady-text-secondary);
+  }
+  .about-row .value { color: var(--mady-text-primary); }
+  .about-row .mono { font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+<div class="modal">
+  <!-- Header -->
+  <div class="modal-header">
+    <h2>设置</h2>
+    <button class="btn-close">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <!-- Body -->
+  <div class="modal-body">
+    <!-- 外观 -->
+    <section class="section">
+      <div class="section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--mady-accent)" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        外观
+      </div>
+      <div class="theme-group">
+        <button class="theme-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+          亮色
+        </button>
+        <button class="theme-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          深色
+        </button>
+        <button class="theme-btn active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          跟随系统
+        </button>
+      </div>
+    </section>
+
+    <!-- AI 服务 -->
+    <section class="section">
+      <div class="section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--mady-accent)" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/></svg>
+        AI 服务
+      </div>
+      <div class="field-group">
+        <div class="field">
+          <label>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+            默认 Provider
+          </label>
+          <input type="text" value="openai" placeholder="如 openai, anthropic">
+        </div>
+        <div class="field">
+          <label>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+            默认模型
+          </label>
+          <input type="text" value="gpt-4o" placeholder="如 gpt-4o, claude-3-opus">
+        </div>
+        <p class="field-hint">Provider/Model 切换将在下一轮对话中生效</p>
+      </div>
+    </section>
+
+    <!-- 关于 -->
+    <section class="section">
+      <div class="section-title">
+        <span style="width:20px;height:20px;border-radius:50%;background:var(--mady-accent);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700;">M</span>
+        关于
+      </div>
+      <div class="about-box">
+        <div class="about-row"><span>版本</span><span class="value">0.1.0</span></div>
+        <div class="about-row"><span>构建</span><span class="value mono">desktop</span></div>
+        <div class="about-row"><span>A2UI 协议</span><span class="value mono">v0.9.1</span></div>
+        <div class="about-row" style="border-top:1px solid var(--mady-separator);margin-top:4px;padding-top:8px;">
+          <span>许可</span>
+          <span class="value">MIT</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

@@ -17,6 +17,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
+	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/pkg/agentconfig"
@@ -66,9 +67,11 @@ func runTui(ctx context.Context) error {
 	}
 
 	// 写作模式扩展：本地独立加载，不依赖延迟队列。
+	// 同时设置全局写作扩展（供 domains 层使用）和本地引用（注入 Agent 配置）。
 	var writingExt agentcore.Extension
 	if patternStore := loadWritingPatterns(fc.MadyHome); patternStore != nil {
 		writingExt = writing.NewExtension(patternStore)
+		domains.SetupWritingExtension(patternStore)
 	}
 
 	// 复用 setupFrameworkContext 已构建的 Provider，避免重复调用 agentconfig.BuildProvider()。
