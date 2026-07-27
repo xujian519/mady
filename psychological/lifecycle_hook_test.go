@@ -9,100 +9,70 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// NewLifecycleHook
+// Extension.TransformContext — 替代旧 NewLifecycleHook 路径
 // ---------------------------------------------------------------------------
 
-func TestNewLifecycleHook_ReturnsNonNil(t *testing.T) {
-	hook := NewLifecycleHook(Config{})
-	if hook == nil {
-		t.Fatal("expected non-nil LifecycleHook")
-	}
-}
+func TestExtension_TransformContext_InjectsSystemMessage(t *testing.T) {
+	ext := NewExtension(Config{SkipDistortionDetection: true})
 
-func TestNewLifecycleHook_ReturnsPsychologicalHook(t *testing.T) {
-	hook := NewLifecycleHook(Config{})
-	if hook == nil {
-		t.Fatalf("expected non-nil LifecycleHook from psychological extension")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// psychologicalHook.BeforeAgentRun
-// ---------------------------------------------------------------------------
-
-func TestPsychologicalHook_BeforeAgentRun_InjectsSystemMessage(t *testing.T) {
-	hook := NewLifecycleHook(Config{SkipDistortionDetection: true})
-
-	arc := &agentcore.AgentRunContext{
-		Input:    "我今天心情不太好，这个案子总是被驳回",
-		Messages: []agentcore.Message{},
+	msgs := []agentcore.Message{
+		{Role: agentcore.RoleUser, Content: "我今天心情不太好，这个案子总是被驳回"},
 	}
 
-	err := hook.BeforeAgentRun(context.Background(), arc)
-	if err != nil {
-		t.Fatalf("BeforeAgentRun returned error: %v", err)
+	result := ext.TransformContext(context.Background(), msgs)
+
+	// TransformContext 在最后一条用户消息之前插入心理分析系统消息
+	if len(result) < 2 {
+		t.Fatalf("expected at least 2 messages after TransformContext, got %d", len(result))
 	}
 
-	// Should have wrapped the input with psychological system messages.
-	if len(arc.Messages) == 0 {
-		t.Fatal("expected at least one message after BeforeAgentRun")
+	// 系统消息应在用户消息之前
+	if result[0].Role != agentcore.RoleSystem {
+		t.Fatalf("expected first message role=system, got %q", result[0].Role)
 	}
-
-	// The first message should be a system message with psychological context.
-	if arc.Messages[0].Role != agentcore.RoleSystem {
-		t.Fatalf("expected first message role=system, got %q", arc.Messages[0].Role)
-	}
-	if arc.Messages[0].Content == "" {
+	if result[0].Content == "" {
 		t.Fatal("expected non-empty system message content")
 	}
 }
 
-func TestPsychologicalHook_BeforeAgentRun_EmptyInput(t *testing.T) {
-	hook := NewLifecycleHook(Config{})
+func TestExtension_TransformContext_EmptyInput(t *testing.T) {
+	ext := NewExtension(Config{})
 
-	arc := &agentcore.AgentRunContext{
-		Input:    "",
-		Messages: []agentcore.Message{},
+	msgs := []agentcore.Message{
+		{Role: agentcore.RoleUser, Content: ""},
 	}
 
-	// Empty input should not cause an error or panic.
-	err := hook.BeforeAgentRun(context.Background(), arc)
-	if err != nil {
-		t.Fatalf("BeforeAgentRun with empty input: %v", err)
-	}
-	if len(arc.Messages) != 0 {
-		t.Fatal("expected no messages injected for empty input")
+	result := ext.TransformContext(context.Background(), msgs)
+
+	// 空输入应不注入，返回原消息
+	if len(result) != 1 {
+		t.Fatalf("expected 1 message for empty input, got %d", len(result))
 	}
 }
 
-func TestPsychologicalHook_BeforeAgentRun_NilARC(t *testing.T) {
-	hook := NewLifecycleHook(Config{})
+func TestExtension_TransformContext_EmptyMessages(t *testing.T) {
+	ext := NewExtension(Config{})
 
-	// Must not panic.
-	err := hook.BeforeAgentRun(context.Background(), nil)
-	if err != nil {
-		t.Fatalf("BeforeAgentRun with nil ARC: %v", err)
+	result := ext.TransformContext(context.Background(), nil)
+
+	if len(result) != 0 {
+		t.Fatal("expected no messages for empty input")
 	}
 }
 
-func TestPsychologicalHook_BeforeAgentRun_NegativeInput_ProducesEmpatheticStrategy(t *testing.T) {
-	hook := NewLifecycleHook(Config{SkipDistortionDetection: true})
+func TestExtension_TransformContext_NegativeInput_ProducesEmpatheticStrategy(t *testing.T) {
+	ext := NewExtension(Config{SkipDistortionDetection: true})
 
-	arc := &agentcore.AgentRunContext{
-		Input:    "这太让人失望了，老是驳回我的意见，我真的很担心很害怕！",
-		Messages: []agentcore.Message{},
+	msgs := []agentcore.Message{
+		{Role: agentcore.RoleUser, Content: "这太让人失望了，老是驳回我的意见，我真的很担心很害怕！"},
 	}
 
-	err := hook.BeforeAgentRun(context.Background(), arc)
-	if err != nil {
-		t.Fatalf("BeforeAgentRun returned error: %v", err)
-	}
+	result := ext.TransformContext(context.Background(), msgs)
 
-	// Verify the system message contains empathetic-related content.
-	if len(arc.Messages) == 0 {
-		t.Fatal("expected messages after BeforeAgentRun")
+	if len(result) < 2 {
+		t.Fatal("expected messages after TransformContext")
 	}
-	content := arc.Messages[0].Content
+	content := result[0].Content
 	if content == "" {
 		t.Fatal("expected non-empty system message content")
 	}
@@ -111,27 +81,57 @@ func TestPsychologicalHook_BeforeAgentRun_NegativeInput_ProducesEmpatheticStrate
 	}
 }
 
-func TestPsychologicalHook_BeforeAgentRun_PreservesExistingMessages(t *testing.T) {
-	hook := NewLifecycleHook(Config{SkipDistortionDetection: true})
+func TestExtension_TransformContext_PreservesExistingMessages(t *testing.T) {
+	ext := NewExtension(Config{SkipDistortionDetection: true})
 
 	existingMsg := agentcore.Message{Role: agentcore.RoleSystem, Content: "existing system prompt"}
-	arc := &agentcore.AgentRunContext{
-		Input:    "帮我分析一下这篇专利",
-		Messages: []agentcore.Message{existingMsg},
+	msgs := []agentcore.Message{
+		existingMsg,
+		{Role: agentcore.RoleUser, Content: "帮我分析一下这篇专利"},
 	}
 
-	err := hook.BeforeAgentRun(context.Background(), arc)
-	if err != nil {
-		t.Fatalf("BeforeAgentRun returned error: %v", err)
+	result := ext.TransformContext(context.Background(), msgs)
+
+	// 心理上下文在最后一条用户消息前注入，所以总消息数 = 原有 + 1
+	if len(result) != 3 {
+		t.Fatalf("expected 3 messages (original system + injected + user), got %d", len(result))
 	}
 
-	// The psychological context should be prepended before existing messages,
-	// so total message count should be original + 1.
-	if len(arc.Messages) != 2 {
-		t.Fatalf("expected 2 messages (injected + original), got %d", len(arc.Messages))
+	// 检查原有系统消息和用户消息是否保留
+	foundExisting := false
+	foundUser := false
+	for _, msg := range result {
+		if msg.Content == "existing system prompt" {
+			foundExisting = true
+		}
+		if msg.Content == "帮我分析一下这篇专利" {
+			foundUser = true
+		}
 	}
-	// Original message should still be present.
-	if arc.Messages[1].Content != "existing system prompt" {
-		t.Fatalf("original message content preserved, got %q", arc.Messages[1].Content)
+	if !foundExisting {
+		t.Fatal("existing system message was lost")
+	}
+	if !foundUser {
+		t.Fatal("user message was lost")
+	}
+}
+
+func TestExtension_TransformContext_DuplicateInput_NotDoubleInjected(t *testing.T) {
+	ext := NewExtension(Config{SkipDistortionDetection: true})
+
+	msgs := []agentcore.Message{
+		{Role: agentcore.RoleUser, Content: "重复输入测试"},
+	}
+
+	// 第一次调用：应注入
+	result1 := ext.TransformContext(context.Background(), msgs)
+	if len(result1) < 2 {
+		t.Fatal("expected injection on first call")
+	}
+
+	// 第二次相同输入：不应重复注入
+	result2 := ext.TransformContext(context.Background(), msgs)
+	if len(result2) != 1 {
+		t.Fatalf("expected no duplicate injection, got %d messages", len(result2))
 	}
 }

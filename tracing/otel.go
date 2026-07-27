@@ -95,13 +95,6 @@ func toKV(a agentcore.SpanAttribute) attribute.KeyValue {
 	}
 }
 
-// NewFromTracerProvider builds an agentcore.Tracer from an existing OTel
-// TracerProvider. Use this when you manage your own provider/exporter
-// (e.g. OTLP exporter to a collector).
-func NewFromTracerProvider(tp trace.TracerProvider, name string) agentcore.Tracer {
-	return &otelTracer{tracer: tp.Tracer(name)}
-}
-
 // NewStdoutTracer creates a fully-configured agentcore.Tracer that pretty-prints
 // spans to stdout. It returns the tracer and a shutdown function that must be
 // called (typically via defer) to flush pending spans before exit.

@@ -142,8 +142,11 @@ Commands:
   trust-knowledge <path>  Add a directory to the sandbox read-only whitelist
         so file tools can access knowledge bases outside WorkingDir.
         Use --list to show, --remove <path> to delete.
+  evidence  Evidence judgment CLI: triple, burden, standard, type-specific
+        analysis, conflict detection, type-specific evidence judgment.
   eval  Run evaluation benchmarks (static or live) and generate reports.
-  patent  Patent analysis CLI: novelty analysis, OA response drafting.
+  patent  Patent analysis CLI: novelty, OA response, invalidation,
+        infringement, reexamination.
   util    Utility commands (list-prompts, etc.).
   help  Show this help message.
 

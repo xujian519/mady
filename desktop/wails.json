@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Mady",
+  "outputfilename": "Mady",
+  "frontend:install": "pnpm install",
+  "frontend:build": "pnpm build",
+  "frontend:dev:watcher": "vite dev",
+  "frontend:dev:serverUrl": "http://localhost:5173",
+  "author": {
+    "name": "Mady",
+    "email": "dev@mady.ai"
+  },
+  "info": {
+    "companyName": "Mady",
+    "productName": "Mady",
+    "productVersion": "0.1.0",
+    "copyright": "© 2026 Mady. All rights reserved.",
+    "comments": "Mady Desktop Application"
+  }
+}

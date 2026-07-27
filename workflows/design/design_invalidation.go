@@ -440,16 +440,6 @@ func WithDesignRetriever(r domain.DomainRetriever) DesignGraphOption {
 	return func(c *designGraphConfig) { c.retriever = r }
 }
 
-// BuildDesignInvalidationGraph constructs a Pregel graph for design patent
-// invalidation analysis.
-//
-// Graph structure:
-//
-//	parse_design → identify_design_grounds → compare_overall_visual → conclude → __end__
-func BuildDesignInvalidationGraph() (*graph.CompiledPregelGraph, error) {
-	return BuildDesignInvalidationGraphWithOpts()
-}
-
 // BuildDesignInvalidationGraphWithOpts constructs the design invalidation
 // Pregel graph with optional dependency injection.
 func BuildDesignInvalidationGraphWithOpts(opts ...DesignGraphOption) (*graph.CompiledPregelGraph, error) {

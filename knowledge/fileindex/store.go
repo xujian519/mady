@@ -74,7 +74,7 @@ type FileCandidate struct {
 type FileIndex struct {
 	db  *sql.DB
 	dir string // project RootPath (absolute)
-	mu  sync.Mutex
+	mu  sync.RWMutex
 
 	rrf *retrieval.RRFFuser
 }
@@ -289,9 +289,9 @@ func (fi *FileIndex) Search(ctx context.Context, query string, topK int) ([]File
 		return fi.recentFiles(ctx, topK)
 	}
 
-	fi.mu.Lock()
+	fi.mu.RLock()
 	allRecords, err := fi.loadAllRecordsLocked(ctx)
-	fi.mu.Unlock()
+	fi.mu.RUnlock()
 	if err != nil {
 		return nil, err
 	}
@@ -394,8 +394,8 @@ func (fi *FileIndex) Search(ctx context.Context, query string, topK int) ([]File
 
 // recentFiles returns the most recently modified files.
 func (fi *FileIndex) recentFiles(ctx context.Context, topK int) ([]FileCandidate, error) {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	fi.mu.RLock()
+	defer fi.mu.RUnlock()
 
 	rows, err := fi.db.QueryContext(ctx,
 		`SELECT path, category, size_bytes, modified_at, preview_text

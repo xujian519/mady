@@ -88,17 +88,6 @@ func TestErrExceedMaxSteps(t *testing.T) {
 	}
 }
 
-func TestDefaultUnknownToolHandler(t *testing.T) {
-	handler := DefaultUnknownToolHandler([]string{"tool_a", "tool_b"})
-	result, err := handler(nil, ToolCall{Name: "nonexistent"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result != `错误: 工具 "nonexistent" 不存在。可用工具: tool_a, tool_b` {
-		t.Fatalf("unexpected result: %s", result)
-	}
-}
-
 type mockRegistry struct{}
 
 func (m *mockRegistry) Names() []string {

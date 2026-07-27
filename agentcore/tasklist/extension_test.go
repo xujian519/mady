@@ -9,17 +9,55 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
-// --- Extension lifecycle tests ---
-
-func TestExtension_Name(t *testing.T) {
-	ext := NewExtensionWithStore(NewMemoryStore())
+// TestNewExtension_FileStore verifies that NewExtension creates the base
+// directory and returns a working Extension.
+func TestNewExtension_FileStore(t *testing.T) {
+	dir := t.TempDir()
+	ext, err := NewExtension(dir)
+	if err != nil {
+		t.Fatalf("NewExtension failed: %v", err)
+	}
 	if ext.Name() != ExtensionName {
 		t.Errorf("Name = %q, want %q", ext.Name(), ExtensionName)
 	}
+
+	// Verify directory was created
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Errorf("base dir not created: %v", err)
+	}
 }
 
+// TestNewExtension_EmptyDir verifies that NewExtension rejects an empty
+// base directory.
+func TestNewExtension_EmptyDir(t *testing.T) {
+	if _, err := NewExtension(""); err == nil {
+		t.Fatal("expected error for empty baseDir")
+	}
+}
+
+// TestExtension_InitDispose verifies the extension lifecycle methods.
+func TestExtension_InitDispose(t *testing.T) {
+	dir := t.TempDir()
+	ext, err := NewExtension(dir)
+	if err != nil {
+		t.Fatalf("NewExtension failed: %v", err)
+	}
+	if err := ext.Init(context.Background(), nil); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	if err := ext.Dispose(); err != nil {
+		t.Fatalf("Dispose failed: %v", err)
+	}
+}
+
+// TestExtension_ToolsCount verifies the extension provides the expected
+// set of task management tools.
 func TestExtension_ToolsCount(t *testing.T) {
-	ext := NewExtensionWithStore(NewMemoryStore())
+	dir := t.TempDir()
+	ext, err := NewExtension(dir)
+	if err != nil {
+		t.Fatalf("NewExtension failed: %v", err)
+	}
 	tools := ext.Tools()
 	if len(tools) != 4 {
 		t.Fatalf("expected 4 tools, got %d", len(tools))
@@ -35,31 +73,42 @@ func TestExtension_ToolsCount(t *testing.T) {
 	}
 }
 
-func TestExtension_InitDispose(t *testing.T) {
-	ext := NewExtensionWithStore(NewMemoryStore())
-	if err := ext.Init(context.Background(), nil); err != nil {
-		t.Fatalf("Init failed: %v", err)
-	}
-	if err := ext.Dispose(); err != nil {
-		t.Fatalf("Dispose failed: %v", err)
-	}
-}
-
+// TestExtension_SnapshotEvents_Empty verifies SnapshotEvents returns an
+// empty slice when no tasks exist.
 func TestExtension_SnapshotEvents_Empty(t *testing.T) {
-	ext := NewExtensionWithStore(NewMemoryStore())
+	dir := t.TempDir()
+	ext, err := NewExtension(dir)
+	if err != nil {
+		t.Fatalf("NewExtension failed: %v", err)
+	}
 	events := ext.SnapshotEvents()
 	if len(events) != 0 {
 		t.Fatalf("expected 0 events, got %d", len(events))
 	}
 }
 
+// TestExtension_SnapshotEvents_WithTasks verifies that tasks stored in the
+// underlying FileStore are reflected in SnapshotEvents.
 func TestExtension_SnapshotEvents_WithTasks(t *testing.T) {
-	store := NewMemoryStore()
-	ctx := context.Background()
-	store.Create(ctx, &agentcore.Task{ID: "1", Subject: "Task A", Status: agentcore.TaskPending})
-	store.Create(ctx, &agentcore.Task{ID: "2", Subject: "Task B", Status: agentcore.TaskInProgress})
+	dir := t.TempDir()
+	ext, err := NewExtension(dir)
+	if err != nil {
+		t.Fatalf("NewExtension failed: %v", err)
+	}
 
-	ext := NewExtensionWithStore(store)
+	// Create tasks directly through the store.
+	store, err := NewFileStore(dir)
+	if err != nil {
+		t.Fatalf("NewFileStore failed: %v", err)
+	}
+	ctx := context.Background()
+	if err := store.Create(ctx, &agentcore.Task{ID: "1", Subject: "Task A", Status: agentcore.TaskPending}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if err := store.Create(ctx, &agentcore.Task{ID: "2", Subject: "Task B", Status: agentcore.TaskInProgress}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
 	events := ext.SnapshotEvents()
 	if len(events) != 2 {
 		t.Fatalf("expected 2 events, got %d", len(events))
@@ -71,30 +120,7 @@ func TestExtension_SnapshotEvents_WithTasks(t *testing.T) {
 	}
 }
 
-func TestNewExtension_FileStore(t *testing.T) {
-	dir := t.TempDir()
-	ext, err := NewExtension(dir)
-	if err != nil {
-		t.Fatalf("NewExtension failed: %v", err)
-	}
-	if ext.Name() != ExtensionName {
-		t.Errorf("Name = %q", ext.Name())
-	}
-
-	// Verify directory was created
-	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		t.Errorf("base dir not created: %v", err)
-	}
-}
-
-func TestNewExtension_EmptyDir(t *testing.T) {
-	if _, err := NewExtension(""); err == nil {
-		t.Fatal("expected error for empty baseDir")
-	}
-}
-
-// --- FileStore tests ---
-
+// TestFileStore_CreateAndGet verifies basic CRUD operations.
 func TestFileStore_CreateAndGet(t *testing.T) {
 	dir := t.TempDir()
 	store, err := NewFileStore(dir)
@@ -122,6 +148,8 @@ func TestFileStore_CreateAndGet(t *testing.T) {
 	}
 }
 
+// TestFileStore_NextID_Persists verifies that counter persists across store
+// instances.
 func TestFileStore_NextID_Persists(t *testing.T) {
 	dir := t.TempDir()
 	ctx := context.Background()
@@ -133,7 +161,6 @@ func TestFileStore_NextID_Persists(t *testing.T) {
 		t.Fatalf("IDs = %q, %q; want 1, 2", id1, id2)
 	}
 
-	// Recreate store — should resume from persisted counter
 	store2, _ := NewFileStore(dir)
 	id3, _ := store2.NextID(ctx)
 	if id3 != "3" {
@@ -141,57 +168,70 @@ func TestFileStore_NextID_Persists(t *testing.T) {
 	}
 }
 
+// TestFileStore_NextID_InfersFromFiles verifies that NextID correctly infers
+// the next ID from existing task files.
 func TestFileStore_NextID_InfersFromFiles(t *testing.T) {
 	dir := t.TempDir()
 	ctx := context.Background()
 
-	// Pre-create task files without .nextid
-	task1 := &agentcore.Task{ID: "5", Subject: "Existing", Status: agentcore.TaskPending}
+	// Pre-create task files
 	data := []byte(`{"id":"5","subject":"Existing","status":"pending","priority":"normal"}`)
-	os.WriteFile(filepath.Join(dir, "5.json"), data, 0644)
+	if err := os.WriteFile(filepath.Join(dir, "5.json"), data, 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 	// Also write a non-task file that should be ignored
-	os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("ignore"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("ignore"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 
 	store, _ := NewFileStore(dir)
 	id, _ := store.NextID(ctx)
 	if id != "6" {
 		t.Errorf("inferred ID = %q, want 6", id)
 	}
-
-	_ = task1 // keep linter happy
 }
 
+// TestFileStore_UpdateAndDelete verifies update and delete operations.
 func TestFileStore_UpdateAndDelete(t *testing.T) {
 	dir := t.TempDir()
 	store, _ := NewFileStore(dir)
 	ctx := context.Background()
 
-	store.Create(ctx, &agentcore.Task{ID: "1", Subject: "Original", Status: agentcore.TaskPending})
+	if err := store.Create(ctx, &agentcore.Task{ID: "1", Subject: "Original", Status: agentcore.TaskPending}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
 
-	// Update
 	task, _ := store.Get(ctx, "1")
 	task.Subject = "Updated"
-	store.Update(ctx, task)
+	if err := store.Update(ctx, task); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
 	got, _ := store.Get(ctx, "1")
 	if got.Subject != "Updated" {
 		t.Errorf("subject = %q, want Updated", got.Subject)
 	}
 
-	// Delete
-	store.Delete(ctx, "1")
+	if err := store.Delete(ctx, "1"); err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
 	if _, err := store.Get(ctx, "1"); err == nil {
 		t.Error("expected error after delete")
 	}
 }
 
+// TestFileStore_List verifies listing with archive filtering.
 func TestFileStore_List(t *testing.T) {
 	dir := t.TempDir()
 	store, _ := NewFileStore(dir)
 	ctx := context.Background()
 
-	store.Create(ctx, &agentcore.Task{ID: "1", Subject: "A", Status: agentcore.TaskPending, Priority: agentcore.TaskPriorityLow})
-	store.Create(ctx, &agentcore.Task{ID: "2", Subject: "B", Status: agentcore.TaskArchived, Priority: agentcore.TaskPriorityNormal})
+	if err := store.Create(ctx, &agentcore.Task{ID: "1", Subject: "A", Status: agentcore.TaskPending, Priority: agentcore.TaskPriorityLow}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if err := store.Create(ctx, &agentcore.Task{ID: "2", Subject: "B", Status: agentcore.TaskArchived, Priority: agentcore.TaskPriorityNormal}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
 
 	// Default excludes archived
 	tasks, _ := store.List(ctx, false)
@@ -206,31 +246,7 @@ func TestFileStore_List(t *testing.T) {
 	}
 }
 
-func TestTaskClone_DeepCopy(t *testing.T) {
-	original := &agentcore.Task{
-		ID:       "1",
-		Blocks:   []string{"2", "3"},
-		Metadata: map[string]any{"key": "value"},
-	}
-	clone := original.Clone()
-
-	clone.Blocks[0] = "999"
-	clone.Metadata["key"] = "mutated"
-
-	if original.Blocks[0] != "2" {
-		t.Error("Clone did not deep-copy Blocks")
-	}
-	if original.Metadata["key"] != "value" {
-		t.Error("Clone did not deep-copy Metadata")
-	}
-}
-
-func TestTaskClone_Nil(t *testing.T) {
-	if nil != (*agentcore.Task)(nil).Clone() {
-		t.Error("Clone of nil should return nil")
-	}
-}
-
+// TestPriorityOrder verifies the priority ordering.
 func TestPriorityOrder(t *testing.T) {
 	tests := []struct {
 		p    agentcore.TaskPriority
@@ -249,11 +265,14 @@ func TestPriorityOrder(t *testing.T) {
 	}
 }
 
+// TestFileStore_UpdateFunc verifies atomic read-modify-write.
 func TestFileStore_UpdateFunc(t *testing.T) {
 	dir := t.TempDir()
 	store, _ := NewFileStore(dir)
 	ctx := context.Background()
-	store.Create(ctx, &agentcore.Task{ID: "1", Subject: "Original", Status: agentcore.TaskPending})
+	if err := store.Create(ctx, &agentcore.Task{ID: "1", Subject: "Original", Status: agentcore.TaskPending}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
 
 	result, err := store.UpdateFunc(ctx, "1", func(task *agentcore.Task) error {
 		task.Subject = "Updated"
@@ -273,6 +292,7 @@ func TestFileStore_UpdateFunc(t *testing.T) {
 	}
 }
 
+// TestFileStore_UpdateFunc_NotFound verifies error on unknown task.
 func TestFileStore_UpdateFunc_NotFound(t *testing.T) {
 	dir := t.TempDir()
 	store, _ := NewFileStore(dir)

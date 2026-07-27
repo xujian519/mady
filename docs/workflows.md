@@ -211,3 +211,47 @@ parse_office_action (解析OA)
 | 类型化证据评价 | judge_type_specific 工具 | 按证据类型的专门评价规则 |
 
 5 个工具已集成到无效宣告和侵权比对工作流中。
+
+## 10. Plugin 系统与 Pregel 双路径说明
+
+Mady 的工作流提供 **两条执行路径**，覆盖不同的使用场景：
+
+### Pregel 图路径（主力路径）
+
+**入口：** `analyze_patent_*` 系列工具（Patent Agent 的 ExtraTools 注册）
+
+**实现：** `workflows/patent/`、`workflows/design/`、`workflows/legal/` 中的 Pregel 图构建器
+
+| 特征 | 说明 |
+|------|------|
+| 执行引擎 | `graph.PregelGraph.Run()` — BSP 超步并发 |
+| 节点类型 | 确定性规则引擎 + 图算法 + LLM 节点 |
+| 可控性 | 高 — 分支、重试、退化标记、核对点 |
+| 适用场景 | 批量分析、NPE 快速筛查、确定性结论需求 |
+| 注册方式 | `PatentAgentConfig` ExtraTools 直接注册 |
+
+### Plugin 路径（LLM 驱动路径）
+
+**入口：** `run_plugin` 工具（由 `pkg/framework.InitPlugins` 注入 BaseConfig）
+
+**定义：** `plugins/patent/*/plugin.json`（YAML 清单定义原子链）
+
+| 特征 | 说明 |
+|------|------|
+| 执行引擎 | `PipelineExecutor` — 按顺序调度 StageHandler |
+| 节点类型 | LLM 驱动的 StageHandler（search/extract/compare/reasoning/approval-gate） |
+| 灵活性 | 高 — 每次 stage 调用 LLM，可处理非结构化输入 |
+| 适用场景 | 需要语义理解的复杂分析、快速原型探索 |
+| 注册方式 | `PluginsManager.RunPluginTool()` 扩展注入 |
+
+### 执行路径选择指南
+
+| 条件 | 推荐路径 |
+|------|---------|
+| 输入格式固定（如 OA 文本、权利要求） | Pregel 路径 |
+| 需要精确复现/审计 | Pregel 路径 |
+| 输入语义模糊、需 LLM 理解 | Plugin 路径 |
+| 第三方扩展、未在核心库中 | Plugin 路径 |
+| 高吞吐量 | Pregel 路径 |
+
+> **注意：** `plugins/patent/` 下的 3 个插件（novelty-analysis/infringement-check/oa-response）与 Pregel 图功能重叠，是两条技术路径的并存设计。新工作流的开发优先选择 Pregel 图路径。

@@ -312,7 +312,6 @@ type PlanStep struct {
 	Order          int            `json:"order"`
 	Description    string         `json:"description"`
 	Strategy       StrategyType   `json:"strategy"` // react | chain | multi_hypothesis
-	ToolName       string         `json:"tool_name,omitempty"`
 	ToolInput      map[string]any `json:"tool_input,omitempty"`
 	ExpectedOutput string         `json:"expected_output"`
 	DependsOn      []string       `json:"depends_on,omitempty"`     // 前置 StepID 列表

@@ -79,6 +79,20 @@ func SetupKnowledgeExtension(ext agentcore.Extension) {
 	globalKnowledgeExt = ext
 }
 
+// globalInfringementKR 是侵权分析知识检索器的全局实例，由
+// SetupInfringementKnowledgeRetriever 在启动期注入（通过 framework 层适配）。
+// 检索器提供审查指南、类案和法律条文的检索能力，增强侵权分析的准确性。
+// 当知识库不可用时为 nil，侵权分析降级为纯 LLM 知识。
+var globalInfringementKR infringement.KnowledgeRetriever
+
+// SetupInfringementKnowledgeRetriever 在启动期注入侵权分析知识检索器实例。
+// kr 由 pkg/framework.NewInfringementKnowledgeRetriever 从知识库扩展适配生成。
+// kr 为 nil 时静默跳过，不影响现有行为。
+// 必须在任何 Agent 创建前调用。
+func SetupInfringementKnowledgeRetriever(kr infringement.KnowledgeRetriever) {
+	globalInfringementKR = kr
+}
+
 // globalClaimDraftingExt 是权利要求撰写扩展的全局实例，由 SetupClaimDraftingExtension
 // 在启动期注入。PatentAgentConfig 将其注册到 Extensions 中，使 Patent Agent
 // 拥有 draft_claims 工具（五步法 builder + 规则引擎校验 + 可选 LLM 增强）。
@@ -237,7 +251,8 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	allowRead, allowWrite := BuildSandboxAllowLists()
 
 	// infringement tool returns (tool, error) — capture error before slice literal.
-	infTool, _ := infringement.NewInfringementTool(base.Provider, nil, nil)
+	// globalInfringementKR 由 framework.Setup → SetupInfringementKnowledgeRetriever 注入。
+	infTool, _ := infringement.NewInfringementTool(base.Provider, nil, globalInfringementKR)
 
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir:     workingDir,

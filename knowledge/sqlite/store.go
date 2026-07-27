@@ -92,7 +92,7 @@ func (s *SQLiteStore) OpenLawsDB(path string) error {
 	if err != nil {
 		return fmt.Errorf("open laws-full.db: %w", err)
 	}
-	lawsDB.SetMaxOpenConns(1)
+	lawsDB.SetMaxOpenConns(2)
 	// 关闭旧连接（防止重复调用 OpenLawsDB 泄漏句柄）。
 	if s.lawsDB != nil {
 		if cerr := s.lawsDB.Close(); cerr != nil {
@@ -123,7 +123,7 @@ func (s *SQLiteStore) OpenPatentKGdb(path string) error {
 	if err != nil {
 		return fmt.Errorf("open patent_kg.db: %w", err)
 	}
-	kgDB.SetMaxOpenConns(1)
+	kgDB.SetMaxOpenConns(2)
 	// 关闭旧连接（防止重复调用 OpenPatentKGdb 泄漏句柄）。
 	if s.kgDB != nil {
 		if cerr := s.kgDB.Close(); cerr != nil {

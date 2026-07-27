@@ -3,66 +3,10 @@ package agentcore
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/xujian519/mady/agentcore/iface"
 )
-
-// =============================================================================
-// iface.AgentRunner 适配器
-// =============================================================================
-
-type agentRunnerAdapter struct {
-	inner *Agent
-}
-
-// NewAgentRunner 将 *Agent 包装为 iface.AgentRunner。
-func NewAgentRunner(a *Agent) iface.AgentRunner {
-	if a == nil {
-		return nil
-	}
-	return &agentRunnerAdapter{inner: a}
-}
-
-func (a *agentRunnerAdapter) Run(ctx context.Context, input string) (string, error) {
-	return a.inner.Run(ctx, input)
-}
-
-func (a *agentRunnerAdapter) Continue(ctx context.Context) (string, error) {
-	return a.inner.Continue(ctx)
-}
-
-func (a *agentRunnerAdapter) Resume(ctx context.Context, interruptData map[string]any) (string, error) {
-	if len(interruptData) > 0 {
-		slog.Warn("iface_adapter: Resume interruptData is not forwarded to agentcore Agent")
-	}
-	return a.inner.Resume(ctx)
-}
-
-func (a *agentRunnerAdapter) Close() {
-	a.inner.Close()
-}
-
-func (a *agentRunnerAdapter) State() iface.AgentState {
-	s := a.inner.State()
-	st := s.Status()
-	status := iface.StatusIdle
-	switch st {
-	case StatusRunning:
-		status = iface.StatusRunning
-	case StatusFinished:
-		status = iface.StatusFinished
-	case StatusError:
-		status = iface.StatusError
-	case StatusInterrupted:
-		status = iface.StatusInterrupted
-	}
-	return iface.AgentState{
-		Status:    status,
-		TurnCount: s.Turn(),
-	}
-}
 
 // =============================================================================
 // iface.EventBus 适配器

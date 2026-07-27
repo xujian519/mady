@@ -55,16 +55,6 @@ var ErrExceedMaxSteps = fmt.Errorf("超出最大执行步数")
 // This is the recommended way to handle LLM "hallucinated" tool names gracefully.
 type UnknownToolHandler func(ctx context.Context, tc ToolCall) (string, error)
 
-// DefaultUnknownToolHandler returns an error message listing available tools.
-func DefaultUnknownToolHandler(availableNames []string) UnknownToolHandler {
-	return func(_ context.Context, tc ToolCall) (string, error) {
-		return fmt.Sprintf(
-			"错误: 工具 %q 不存在。可用工具: %s",
-			tc.Name, strings.Join(availableNames, ", "),
-		), nil
-	}
-}
-
 // DynamicUnknownToolHandler returns an error message listing the registry's
 // current tool names, which is useful when tools can be hot-reloaded.
 func DynamicUnknownToolHandler(registry interface{ Names() []string }) UnknownToolHandler {

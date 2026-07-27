@@ -71,20 +71,6 @@ func Find(content, search string) (start int64, end int64, found bool) {
 	return int64(origStart), int64(origEnd), true
 }
 
-// Replace replaces the first occurrence of oldText with newText using fuzzy matching.
-func Replace(content, oldText, newText string) (string, bool) {
-	if strings.Contains(content, oldText) {
-		return strings.Replace(content, oldText, newText, 1), true
-	}
-
-	start, end, found := Find(content, oldText)
-	if !found {
-		return content, false
-	}
-
-	return content[:start] + newText + content[end:], true
-}
-
 // mapNormalizedOffset converts a byte offset in the normalized string back to
 // the corresponding byte offset in the original string. Because normalization
 // may remove characters (e.g. '\r') or change byte lengths (e.g. folding a

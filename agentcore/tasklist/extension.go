@@ -42,12 +42,6 @@ func NewExtension(baseDir string) (*Extension, error) {
 	return &Extension{store: store}, nil
 }
 
-// NewExtensionWithStore 创建一个使用自定义 Store 的任务管理扩展。
-// 用于测试（MemoryStore）或自定义存储后端。
-func NewExtensionWithStore(store Store) *Extension {
-	return &Extension{store: store}
-}
-
 // Name 实现 agentcore.Extension。
 func (e *Extension) Name() string { return ExtensionName }
 

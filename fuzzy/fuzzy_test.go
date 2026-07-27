@@ -1,8 +1,6 @@
 package fuzzy
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestNormalizeForMatch(t *testing.T) {
 	tests := []struct {
@@ -12,11 +10,11 @@ func TestNormalizeForMatch(t *testing.T) {
 		{"hello", "hello"},
 		{"  spaced  ", "  spaced"},
 		{"smart'quote", "smart'quote"},
-		{"\u2018curly\u2019", "'curly'"},
-		{"\u201Cdouble\u201D", `"double"`},
-		{"\u2013dash\u2014", "-dash-"},
+		{"‘curly’", "'curly'"},
+		{"“double”", `"double"`},
+		{"–dash—", "-dash-"},
 		{"line1\nline2  ", "line1\nline2"},
-		{"\u00A0nbsp", " nbsp"},
+		{" nbsp", " nbsp"},
 		{"\rskip", "skip"},
 	}
 	for _, tc := range tests {
@@ -38,64 +36,71 @@ func TestFind(t *testing.T) {
 
 	// no match
 	if _, _, found := Find(content, "purple"); found {
-		t.Error("Find no-match: should be false")
+		t.Error("Find: purple should not match")
 	}
 
-	// normalized match with smart quotes
-	content2 := "He said \u201Chello\u201D world"
-	start, end, found = Find(content2, `"hello"`)
-	if !found || content2[start:end] != "\u201Chello\u201D" {
-		t.Errorf("Find normalized quotes: got %d,%d,%v", start, end, found)
-	}
-}
-
-func TestReplace(t *testing.T) {
-	// exact replace
-	result, ok := Replace("hello world", "world", "there")
-	if !ok || result != "hello there" {
-		t.Errorf("Replace exact: got %q, %v", result, ok)
+	// normalized match: curly quotes
+	curlyContent := "The “quick” brown fox"
+	start, end, found = Find(curlyContent, "\"quick\"")
+	if !found || curlyContent[start:end] != "“quick”" {
+		t.Errorf("Find normalized: got %d,%d,%v", start, end, found)
 	}
 
-	// fuzzy replace with normalized quote
-	result, ok = Replace("smart\u2019quote", "'quote", "replaced")
-	if !ok || result != "smartreplaced" {
-		t.Errorf("Replace fuzzy: got %q, want %q", result, "smartreplaced")
+	// empty search: Index returns 0 (empty string matches at position 0)
+	start, end, found = Find(content, "")
+	if !found {
+		t.Error("Find: empty search should match at position 0")
+	}
+	if start != 0 || end != 0 {
+		t.Errorf("Find empty: got %d,%d", start, end)
 	}
 
-	// no match
-	result, ok = Replace("hello", "xyz", "abc")
-	if ok || result != "hello" {
-		t.Errorf("Replace no-match: got %q, %v", result, ok)
+	// case sensitive
+	if _, _, found := Find(content, "BROWN"); found {
+		t.Error("Find: case sensitive match should not find uppercase")
 	}
 }
 
 func TestLevenshteinDistance(t *testing.T) {
 	tests := []struct {
 		a, b string
-		dist int64
+		want int64
 	}{
 		{"", "", 0},
 		{"a", "", 1},
 		{"", "a", 1},
 		{"abc", "abc", 0},
 		{"kitten", "sitting", 3},
-		{"abc", "xyz", 3},
-		{"hello", "HELLO", 5}, // case-sensitive
+		{"sitting", "kitten", 3},
+		{"abc", "def", 3},
 	}
 	for _, tc := range tests {
 		got := LevenshteinDistance(tc.a, tc.b)
-		if got != tc.dist {
-			t.Errorf("LevenshteinDistance(%q, %q) = %d, want %d", tc.a, tc.b, got, tc.dist)
+		if got != tc.want {
+			t.Errorf("LevenshteinDistance(%q, %q) = %d, want %d", tc.a, tc.b, got, tc.want)
 		}
 	}
 }
 
 func TestMapNormalizedOffset(t *testing.T) {
-	original := "hello\r\nworld"
-	normalized := NormalizeForMatch(original)
-	// "hello\nworld"
-	offset := mapNormalizedOffset(original, normalized, 7) // after "hello\nw"
-	if offset != 8 {                                       // original has \r so "hello\r\nw" = 8
-		t.Errorf("mapNormalizedOffset: got %d, want %d", offset, 8)
+	tests := []struct {
+		name       string
+		original   string
+		normalized string
+		normOffset int
+		want       int
+	}{
+		{"simple", "hello", "hello", 2, 2},
+		{"skip CR", "a\rb", "ab", 1, 1},      // '\r' stripped before 'b' is reached; offset maps to 'a'+'\r' position
+		{"curly quote", "“hi", "\"hi", 1, 3}, // curly quote folded to 1-byte '"', original is 3 bytes
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := mapNormalizedOffset(tc.original, tc.normalized, tc.normOffset)
+			if got != tc.want {
+				t.Errorf("mapNormalizedOffset(%q, %q, %d) = %d, want %d",
+					tc.original, tc.normalized, tc.normOffset, got, tc.want)
+			}
+		})
 	}
 }

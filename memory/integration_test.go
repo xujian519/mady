@@ -91,49 +91,6 @@ func TestMemorySessionScope(t *testing.T) {
 	// 这是正确的隔离行为：明确指定 SessionID 时只返回该会话的记忆
 }
 
-// TestContextBuilderWithMemoryProvider 验证 ContextBuilder + Memory LayerProvider 集成。
-func TestContextBuilderWithMemoryProvider(t *testing.T) {
-	ctx := context.Background()
-	store := memory.NewInMemoryStore()
-	mgr := memory.NewManager(store, nil, nil, memory.DefaultManagerConfig())
-	scope := memory.MemoryScope{UserID: "integration_test"}
-	mgr.Remember(ctx, "用户是专利代理人", scope, memory.LayerUser, nil)
-
-	// 创建 ContextBuilder
-	cfg := agentcore.DefaultContextBuilderConfig()
-	cfg.Enabled = true
-	cfg.DefaultLayerConfigs[agentcore.LayerMemory] = agentcore.DefaultLayerConfig(agentcore.LayerMemory)
-
-	ext := memory.NewExtension(mgr, scope, memory.DefaultExtensionConfig())
-	cfg.Providers = append(cfg.Providers, ext)
-
-	builder := agentcore.NewDefaultContextBuilder(cfg)
-	input := agentcore.BuildInput{
-		Messages: []agentcore.Message{
-			{Role: agentcore.RoleSystem, Content: "你是助手"},
-			{Role: agentcore.RoleUser, Content: "我的职业是什么？"},
-		},
-		ContextWindow: 128000,
-	}
-
-	output := builder.Build(ctx, input)
-	if len(output.Messages) <= 2 {
-		t.Fatal("expected builder to produce more than input messages")
-	}
-
-	// 验证记忆层注入
-	found := false
-	for _, m := range output.Messages {
-		if m.Role == agentcore.RoleSystem && searchStr(m.Content, "专利代理人") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatal("expected memory about patent agent to be in built context")
-	}
-}
-
 func searchStr(s, sub string) bool {
 	for i := 0; i <= len(s)-len(sub); i++ {
 		if s[i:i+len(sub)] == sub {

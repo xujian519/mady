@@ -131,19 +131,6 @@ func NewRetrievalHook(chunks []Chunk, config RetrievalConfig) *RetrievalHook {
 	}
 }
 
-// NewRetrievalHookWithSearcher creates a RetrievalHook with a custom Searcher and Reranker.
-func NewRetrievalHookWithSearcher(searcher Searcher, reranker Reranker, chunks []Chunk, config RetrievalConfig) *RetrievalHook {
-	if config.TopK <= 0 {
-		config = DefaultRetrievalConfig()
-	}
-	return &RetrievalHook{
-		searcher: searcher,
-		reranker: reranker,
-		chunks:   chunks,
-		config:   config,
-	}
-}
-
 // UpdateChunks replaces the document chunk set at runtime.
 func (h *RetrievalHook) UpdateChunks(chunks []Chunk) {
 	h.chunks = chunks

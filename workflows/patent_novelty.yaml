@@ -49,7 +49,6 @@ workflow_manifest:
       - order: 2
         description: "检索现有技术文献"
         strategy: "react"
-        tool_name: "search_prior_art"
       - order: 3
         description: "逐项对比技术特征与现有技术"
         strategy: "chain"

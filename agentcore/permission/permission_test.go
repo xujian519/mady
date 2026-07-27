@@ -114,12 +114,12 @@ func TestPolicy_Decide(t *testing.T) {
 		},
 		{
 			"readOnly fallback to allow",
-			DefaultPolicy(),
+			Policy{Mode: DecisionAsk},
 			"Read", true, readArgs, DecisionAllow,
 		},
 		{
 			"writer fallback to ask (default mode)",
-			DefaultPolicy(),
+			Policy{Mode: DecisionAsk},
 			"Edit", false, editArgs, DecisionAsk,
 		},
 		{

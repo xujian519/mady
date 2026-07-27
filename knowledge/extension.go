@@ -407,37 +407,61 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 		candidateK = 20
 	}
 
-	var lists [][]retrieval.ScoredChunk
+	var (
+		mu    sync.Mutex
+		lists [][]retrieval.ScoredChunk
+		wg    sync.WaitGroup
+	)
 
 	// Lane 1: knowledge.db FTS (BM25).
-	if ftsResults, err := e.backend.FTSSearch(query, candidateK); err == nil && len(ftsResults) > 0 {
-		lists = append(lists, ftsResults)
-	} else if err != nil {
-		slog.Error("knowledge: FTS search error", "err", err)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if ftsResults, err := e.backend.FTSSearch(query, candidateK); err == nil && len(ftsResults) > 0 {
+			mu.Lock()
+			lists = append(lists, ftsResults)
+			mu.Unlock()
+		} else if err != nil {
+			slog.Error("knowledge: FTS search error", "err", err)
+		}
+	}()
 
 	// Lane 2: knowledge.db vector (cosine similarity).
 	if e.embedder != nil {
-		vecs, err := e.embedder.Embed(ctx, []string{query})
-		if err == nil && len(vecs) > 0 && len(vecs[0]) > 0 {
-			if vecResults, vErr := e.backend.VectorSearch(vecs[0], candidateK); vErr == nil && len(vecResults) > 0 {
-				lists = append(lists, vecResults)
-			} else if vErr != nil {
-				slog.Error("knowledge: vector search error", "err", vErr)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			vecs, err := e.embedder.Embed(ctx, []string{query})
+			if err == nil && len(vecs) > 0 && len(vecs[0]) > 0 {
+				if vecResults, vErr := e.backend.VectorSearch(vecs[0], candidateK); vErr == nil && len(vecResults) > 0 {
+					mu.Lock()
+					lists = append(lists, vecResults)
+					mu.Unlock()
+				} else if vErr != nil {
+					slog.Error("knowledge: vector search error", "err", vErr)
+				}
+			} else if err != nil {
+				slog.Error("knowledge: embed error", "err", err)
 			}
-		} else if err != nil {
-			slog.Error("knowledge: embed error", "err", err)
-		}
+		}()
 	}
 
 	// Lane 3: user.db (FTS + Vector RRF, self-contained).
 	if e.writable != nil {
-		if userResults, err := e.writable.Search(ctx, query, candidateK); err == nil && len(userResults) > 0 {
-			lists = append(lists, userResults)
-		} else if err != nil {
-			slog.Error("knowledge: user store search error", "err", err)
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if userResults, err := e.writable.Search(ctx, query, candidateK); err == nil && len(userResults) > 0 {
+				mu.Lock()
+				lists = append(lists, userResults)
+				mu.Unlock()
+			} else if err != nil {
+				slog.Error("knowledge: user store search error", "err", err)
+			}
+		}()
 	}
+
+	wg.Wait()
 
 	if len(lists) == 0 {
 		return nil

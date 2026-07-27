@@ -53,7 +53,10 @@ func (e *Extension) TransformContext(ctx context.Context, msgs []agentcore.Messa
 	if lastUserIdx < 0 {
 		return msgs
 	}
-	lastUserMsg := msgs[lastUserIdx].Content
+	if lastUserIdx >= len(msgs) {
+		return msgs
+	}
+	lastUserMsg := msgs[lastUserIdx].Content //nolint:gosec // G602 false positive: bounds-checked above
 
 	e.mu.Lock()
 	if lastUserMsg == e.lastInput {

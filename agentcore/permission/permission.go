@@ -43,14 +43,6 @@ type Policy struct {
 	Deny  []Rule
 }
 
-// DefaultPolicy returns a conservative policy:
-//   - read-only tools → Allow
-//   - writer tools → Ask
-//   - no explicit deny rules
-func DefaultPolicy() Policy {
-	return Policy{Mode: DecisionAsk}
-}
-
 // ProjectAgentPolicy returns a policy suitable for project-linked agents:
 //   - read/ls/grep/find/glob/view → Allow (read-only)
 //   - git_status/git_diff/git_log → Allow (read-only, no side effects)

@@ -3,7 +3,7 @@ module github.com/xujian519/mady/desktop
 go 1.26
 
 require (
-	github.com/wailsapp/wails/v2 v2.12.0
+	github.com/wailsapp/wails/v2 v2.13.0
 	github.com/xujian519/mady v0.0.0
 )
 
