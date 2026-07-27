@@ -113,6 +113,21 @@ func NewRetrievalHook(chunks []Chunk, config RetrievalConfig) *RetrievalHook {
 		searcher = NewKeywordSearcher()
 	}
 
+	// Lazy-build inverted index for large chunk sets (≥200 chunks).
+	// This converts the keyword path from O(N) full scan to O(term_postings),
+	// significantly reducing query latency for knowledge bases.
+	if len(chunks) >= 200 {
+		idx := BuildInvertedIndex(chunks)
+		switch s := searcher.(type) {
+		case *KeywordSearcher:
+			s.SetIndex(idx)
+		case *HybridSearcher:
+			if kw, ok := s.KeywordSearcher.(*KeywordSearcher); ok {
+				kw.SetIndex(idx)
+			}
+		}
+	}
+
 	// Auto-inject DefaultClassifier when TriggerSmart is used without one.
 	if config.TriggerPolicy == TriggerSmart && config.ComplexityClassifier == nil {
 		config.ComplexityClassifier = agentcore.NewDefaultClassifier()

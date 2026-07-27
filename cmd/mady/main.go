@@ -37,11 +37,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 
 	_ "github.com/joho/godotenv/autoload" // 自动加载 .env 文件（如有）
 
+	"github.com/xujian519/mady/pkg/omlx"
 	_ "github.com/xujian519/mady/provider/adapter"
 )
 
@@ -115,6 +117,8 @@ func main() {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
+	case "start-embeddings", "stop-embeddings", "status-embeddings":
+		runEmbeddingsCLI(ctx, os.Args[1])
 	case "-h", "--help", "help":
 		printUsage()
 	default:
@@ -148,6 +152,9 @@ Commands:
   patent  Patent analysis CLI: novelty, OA response, invalidation,
         infringement, reexamination.
   util    Utility commands (list-prompts, etc.).
+  start-embeddings  Start the oMLX embedding/reranking server.
+  stop-embeddings   Stop the oMLX embedding/reranking server.
+  status-embeddings Check the oMLX embedding/reranking server status.
   help  Show this help message.
 
 Configuration (environment variables):
@@ -161,4 +168,58 @@ Examples:
   mady eval --suite p2a --mode static
   mady eval --case patent_exam_2009_a22_01 --format json
   mady eval --format enhanced --baseline baseline.json --suite p2a --mode static`)
+}
+
+// runEmbeddingsCLI handles start-embeddings / stop-embeddings / status-embeddings.
+func runEmbeddingsCLI(ctx context.Context, cmd string) {
+	apiKey := os.Getenv("OMLX_API_KEY")
+	if apiKey == "" {
+		fmt.Fprintln(os.Stderr, "mady: OMLX_API_KEY 未设置，嵌入服务不可用")
+		fmt.Fprintln(os.Stderr, "  提示: 在 .env 文件中设置 OMLX_API_KEY=your_key")
+		os.Exit(1)
+	}
+
+	mgr := omlx.NewManager(8000, apiKey)
+
+	switch cmd {
+	case "start-embeddings":
+		fmt.Fprintln(os.Stderr, "正在启动 oMLX 嵌入服务...")
+		if err := mgr.Start(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "mady: 启动失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, "oMLX 嵌入服务已启动（http://127.0.0.1:8000）")
+		// 阻塞等待退出信号（前台模式运行）。
+		<-ctx.Done()
+		_ = mgr.Stop()
+		fmt.Fprintln(os.Stderr, "\noMLX 嵌入服务已停止")
+
+	case "stop-embeddings":
+		if mgr.IsRunning() {
+			if err := mgr.Stop(); err != nil {
+				fmt.Fprintf(os.Stderr, "mady: 停止失败: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Fprintln(os.Stderr, "oMLX 嵌入服务已停止")
+		} else {
+			// Try omlx stop command directly for background-managed instances.
+			stopCmd := exec.CommandContext(ctx, "omlx", "stop")
+			if output, err := stopCmd.CombinedOutput(); err != nil {
+				fmt.Fprintln(os.Stderr, "oMLX 嵌入服务未在运行")
+			} else {
+				fmt.Fprint(os.Stderr, string(output))
+			}
+		}
+
+	case "status-embeddings":
+		if mgr.IsRunning() {
+			fmt.Fprintln(os.Stderr, "oMLX 嵌入服务: 运行中 (http://127.0.0.1:8000)")
+		} else {
+			if _, err := exec.LookPath("omlx"); err != nil {
+				fmt.Fprintln(os.Stderr, "oMLX 嵌入服务: 未安装 (brew install omlx)")
+			} else {
+				fmt.Fprintln(os.Stderr, "oMLX 嵌入服务: 未运行 (mady start-embeddings)")
+			}
+		}
+	}
 }

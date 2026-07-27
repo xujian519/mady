@@ -69,7 +69,18 @@ func (h *BackendRetrievalHook) BeforeModelCall(ctx context.Context, arc *agentco
 		return nil
 	}
 
-	results := h.ext.search(ctx, query, h.config.TopK)
+	// TopK 自适应提升：当 EvalHook 检测到连续低忠实度时，
+	// KnowledgeExtension.topKBoost 被设置为 true，此处动态提升 TopK
+	// 以提供更多检索候选。提升上限为原始值的 2 倍，不超过 15。
+	topK := h.config.TopK
+	if h.ext.topKBoost.Load() && topK < 15 {
+		topK *= 2
+		if topK > 15 {
+			topK = 15
+		}
+	}
+
+	results := h.ext.search(ctx, query, topK)
 	if len(results) == 0 {
 		return nil
 	}

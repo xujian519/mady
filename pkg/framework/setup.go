@@ -28,6 +28,7 @@ import (
 	reasoningwiring "github.com/xujian519/mady/domains/reasoning/wiring"
 	"github.com/xujian519/mady/domains/rules"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
+	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/guardrails/guardian"
 	"github.com/xujian519/mady/knowledge"
@@ -100,24 +101,6 @@ type Context struct {
 	EvidenceExt       *evidence.EvidenceExtension
 	FileCheckpointExt *filecheckpoint.FileCheckpointExtension
 	Deferred          *DeferredInit
-}
-
-// pluginToolExtension wraps a single *agentcore.Tool into an Extension.
-type pluginToolExtension struct {
-	agentcore.BaseLifecycleHook
-	tool *agentcore.Tool
-}
-
-func (e *pluginToolExtension) Name() string { return "plugin-tool" }
-func (e *pluginToolExtension) Init(_ context.Context, _ *agentcore.Agent) error {
-	return nil
-}
-func (e *pluginToolExtension) Dispose() error { return nil }
-func (e *pluginToolExtension) BuildTools() []*agentcore.Tool {
-	if e.tool == nil {
-		return nil
-	}
-	return []*agentcore.Tool{e.tool}
 }
 
 // caseFileReader implements domains.FileContentReader by wrapping fileindex.FileReader
@@ -311,11 +294,6 @@ func registerDeferredTasks(ctx context.Context, fc *Context) {
 		return nil
 	})
 
-	fc.Deferred.Add("plugins", func() error {
-		InitPlugins(fc)
-		return nil
-	})
-
 	fc.Deferred.Add("memory", func() error {
 		InitMemorySystem(fc)
 		return nil
@@ -341,7 +319,6 @@ func executeSyncRemaining(ctx context.Context, fc *Context) {
 	DiscoverMCP(ctx, fc)
 	InitWorkspace(fc)
 	BuildBaseTools(fc)
-	InitPlugins(fc)
 	InitMemorySystem(fc)
 	InitReasoningAndTemplates(fc)
 }
@@ -533,34 +510,6 @@ func TasklistDirForCWD(baseDir, cwd string) string {
 	return filepath.Join(baseDir, "by-cwd", CwdPartitionName(cwd), "tasks")
 }
 
-// InitPlugins 从 plugins/ 目录发现并加载工作流插件。
-func InitPlugins(fc *Context) {
-	pluginSearchDirs := []string{}
-	if cwd, err := os.Getwd(); err == nil {
-		pluginSearchDirs = append(pluginSearchDirs, filepath.Join(cwd, "plugins"))
-	}
-	if fc.MadyHome != "" {
-		pluginSearchDirs = append(pluginSearchDirs, filepath.Join(fc.MadyHome, "plugins"))
-	}
-	pluginManager, err := agentcore.NewPluginManager(fc.Provider, nil, pluginSearchDirs...)
-	if err != nil {
-		slog.Error("初始化插件管理器失败，run_plugin 工具不可用", "error", err)
-		return
-	}
-	plugins := pluginManager.Plugins()
-	if len(plugins) > 0 {
-		var names []string
-		for _, p := range plugins {
-			names = append(names, p.Name)
-		}
-		slog.Info("已加载插件", "count", len(plugins), "names", strings.Join(names, ", "))
-		pluginTool := pluginManager.RunPluginTool()
-		fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, &pluginToolExtension{tool: pluginTool})
-	} else {
-		slog.Info("未发现任何插件", "search_dirs", fmt.Sprintf("%v", pluginSearchDirs))
-	}
-}
-
 // InitMemorySystem 初始化长期记忆系统。
 func InitMemorySystem(fc *Context) {
 	memoryDB := filepath.Join(fc.MadyHome, "memory.db")
@@ -678,6 +627,23 @@ func InitReasoningAndTemplates(fc *Context) {
 
 	domains.SetupClaimDraftingExtension(fc.Provider, agentconfig.DefaultModel())
 	domains.SetupSpecDraftingExtension(fc.Provider)
+
+	// 写作模式扩展：加载种子模式文件，注入 Agent 配置。
+	writingStore := writing.NewPatternStore()
+	if fc.MadyHome != "" {
+		seedDirs := []string{
+			filepath.Join(fc.MadyHome, "knowledge", "seed-patterns"),
+			filepath.Join("domains", "writing", "seed-patterns"),
+		}
+		for _, dir := range seedDirs {
+			count, err := writingStore.LoadSeedDir(dir)
+			if err == nil && count > 0 {
+				slog.Info("writing: loaded seed pattern files", "dir", dir, "count", count)
+				break
+			}
+		}
+	}
+	domains.SetupWritingExtension(writingStore)
 
 	domains.SetupRulesExtension(fc.RuleEngine)
 

@@ -3,6 +3,7 @@ package knowledge
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 	"unicode"
@@ -19,10 +20,22 @@ import (
 //   - ContextPrecision: 检索结果中是否有噪声（防止上下文污染）
 //
 // Phase 3 实现启发式评分；Phase 4+ 将接入 LLM 评分器。
+//
+// 反馈闭环（v2）：当连续 3 次评估的 Faithfulness < 0.6 时，通过
+// onLowFaith 回调通知调用方提高下一轮检索的 TopK。
 type EvalHook struct {
 	agentcore.BaseLifecycleHook
 
 	cfg EvalConfig
+
+	// lowFaithCount 是连续低忠实度评估的计数（0 = 正常）。
+	// 达到 3 时触发 TopK 自适应提升。
+	lowFaithCount int
+
+	// onLowFaith 是可选的回调函数，在连续低忠实度达到阈值时调用。
+	// true = 启动 TopK 提升，false = 恢复原始 TopK。
+	// nil 时不启用反馈闭环。
+	onLowFaith func(enable bool)
 }
 
 // EvalConfig 控制 EvalHook 的行为。
@@ -59,6 +72,12 @@ func NewEvalHook(cfg EvalConfig) *EvalHook {
 	return &EvalHook{cfg: cfg}
 }
 
+// NewEvalHookWithExt 创建带回调的评估钩子，启用 TopK 自适应反馈闭环。
+// fn 在连续低忠实度时被调用：true = 启动 TopK 提升，false = 恢复。
+func NewEvalHookWithExt(cfg EvalConfig, fn func(bool)) *EvalHook {
+	return &EvalHook{cfg: cfg, onLowFaith: fn}
+}
+
 // EvalResult 单次评估的结果。
 type EvalResult struct {
 	Turn             int64    `json:"turn"`
@@ -73,6 +92,7 @@ type EvalResult struct {
 }
 
 // AfterModelCall 在每次模型调用后评估质量。
+// 同时跟踪连续低忠实度次数，触发 TopK 自适应反馈。
 func (h *EvalHook) AfterModelCall(_ context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {
 	if !h.cfg.Enabled || arc == nil || mcc == nil || mcc.Request == nil || mcc.Response == nil {
 		return
@@ -105,6 +125,24 @@ func (h *EvalHook) AfterModelCall(_ context.Context, arc *agentcore.AgentRunCont
 	// 检查警告
 	if result.FaithlessnessWarning() != "" {
 		result.Warnings = append(result.Warnings, result.FaithlessnessWarning())
+	}
+
+	// --- TopK 自适应反馈闭环 ---
+	// 连续低忠实度（Faithfulness < 0.6 且 > 0）累计计数，
+	// 达到 3 次后通过 onLowFaith 回调提升下一轮 TopK。
+	if h.onLowFaith != nil {
+		if result.Faithfulness > 0 && result.Faithfulness < 0.6 {
+			h.lowFaithCount++
+			if h.lowFaithCount >= 3 {
+				h.onLowFaith(true)
+				slog.Warn("eval: 连续低忠实度 ≥3 次，触发 TopK 自适应提升",
+					"faithfulness", result.Faithfulness, "count", h.lowFaithCount)
+			}
+		} else if h.lowFaithCount > 0 {
+			// 恢复：一旦评估质量回升，重置计数器并关闭提升。
+			h.lowFaithCount = 0
+			h.onLowFaith(false)
+		}
 	}
 
 	if h.cfg.LogResults {

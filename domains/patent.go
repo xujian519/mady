@@ -294,6 +294,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	injectDraftingTool(&cfg)
 	injectDocTemplateTools(&cfg)
 	injectPromptTools(&cfg)
+	injectWritingTools(&cfg)
 
 	// 知识库扩展：为专利 Agent 提供 search_knowledge / search_laws 工具，
 	// 使其能检索本地知识库中的法律法规、司法解释和案例。
@@ -410,6 +411,7 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	injectDraftingTool(&cfg)
 	injectDocTemplateTools(&cfg)
 	injectPromptTools(&cfg)
+	injectWritingTools(&cfg)
 
 	// 知识库扩展：使项目级 Agent 具备 search_knowledge / search_laws 工具，
 	// 能检索本地知识库中的法律法规、司法解释和案例。

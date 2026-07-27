@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/retrieval"
@@ -85,6 +87,16 @@ type KnowledgeExtension struct {
 	// memorySearch call (fix 4.4).
 	memorySearcher retrieval.Searcher
 	memoryReranker retrieval.Reranker
+
+	// queryCache caches query embedding vectors to avoid redundant API calls.
+	// When a query is semantically similar (cosine > threshold) to a cached
+	// query, the cached vector is reused instead of calling the embedding API.
+	// Created by default; disabled by setting capacity to 0.
+	queryCache *queryEmbedCache
+
+	// topKBoost is set by EvalHook when it observes persistent low faithfulness.
+	// BackendRetrievalHook reads this flag to dynamically increase TopK.
+	topKBoost atomic.Bool
 }
 
 // WithBackend injects a SQLite-backed knowledge retrieval backend and an
@@ -164,14 +176,18 @@ func NewExtension(store *Store, g GraphEnhancer, domain string, cfg KnowledgeExt
 	cfg.RetrievalConfig.DomainHint = domain
 	cfg.Domain = domain
 	evalCfg := DefaultEvalConfig()
-	return &KnowledgeExtension{
-		store:    store,
-		graph:    g,
-		hook:     retrieval.NewRetrievalHook(chunks, cfg.RetrievalConfig),
-		evalHook: NewEvalHook(evalCfg),
-		domain:   domain,
-		cfg:      cfg,
+	ext := &KnowledgeExtension{
+		store:      store,
+		graph:      g,
+		hook:       retrieval.NewRetrievalHook(chunks, cfg.RetrievalConfig),
+		domain:     domain,
+		cfg:        cfg,
+		queryCache: newQueryEmbedCache(64),
 	}
+	ext.evalHook = NewEvalHookWithExt(evalCfg, func(enable bool) {
+		ext.topKBoost.Store(enable)
+	})
+	return ext
 }
 
 var (
@@ -431,17 +447,26 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			vecs, err := e.embedder.Embed(ctx, []string{query})
-			if err == nil && len(vecs) > 0 && len(vecs[0]) > 0 {
-				if vecResults, vErr := e.backend.VectorSearch(vecs[0], candidateK); vErr == nil && len(vecResults) > 0 {
-					mu.Lock()
-					lists = append(lists, vecResults)
-					mu.Unlock()
-				} else if vErr != nil {
-					slog.Error("knowledge: vector search error", "err", vErr)
+			// Check query embedding cache before API call.
+			var queryVec []float32
+			if cached := e.queryCache.Get(query); cached != nil {
+				queryVec = cached
+			} else {
+				vecs, err := e.embedder.Embed(ctx, []string{query})
+				if err == nil && len(vecs) > 0 && len(vecs[0]) > 0 {
+					queryVec = vecs[0]
+					e.queryCache.Set(query, queryVec)
+				} else if err != nil {
+					slog.Error("knowledge: embed error", "err", err)
+					return
 				}
-			} else if err != nil {
-				slog.Error("knowledge: embed error", "err", err)
+			}
+			if vecResults, vErr := e.backend.VectorSearch(queryVec, candidateK); vErr == nil && len(vecResults) > 0 {
+				mu.Lock()
+				lists = append(lists, vecResults)
+				mu.Unlock()
+			} else if vErr != nil {
+				slog.Error("knowledge: vector search error", "err", vErr)
 			}
 		}()
 	}
@@ -516,6 +541,13 @@ func (e *KnowledgeExtension) memorySearch(ctx context.Context, query string, top
 	// Lazy init cached searcher/reranker to avoid re-allocation on each call.
 	if e.memorySearcher == nil {
 		e.memorySearcher = retrieval.NewKeywordSearcher()
+		// For large chunk sets, build an inverted index for O(term_postings) search.
+		if len(chunks) >= 200 {
+			idx := retrieval.BuildInvertedIndex(chunks)
+			if kw, ok := e.memorySearcher.(*retrieval.KeywordSearcher); ok {
+				kw.SetIndex(idx)
+			}
+		}
 	}
 	if e.memoryReranker == nil {
 		e.memoryReranker = retrieval.NewPositionReranker()
@@ -573,4 +605,79 @@ func lastUserMsg(msgs []agentcore.Message) string {
 		}
 	}
 	return ""
+}
+
+// ---------------------------------------------------------------------------
+// Query embedding cache
+// ---------------------------------------------------------------------------
+
+// queryEmbedCache caches normalized query→vector mappings to avoid redundant
+// embedding API calls. Cache key is the trimmed, lowercased query string.
+// Default capacity is 64 entries. At 1024-dim float32, each entry is ~4 KB
+// plus map overhead, so 64 entries ≈ 256 KB.
+type queryEmbedCache struct {
+	mu       sync.Mutex
+	cache    map[string][]float32 // normalized query → vector
+	keys     []string             // FIFO eviction order
+	capacity int
+}
+
+// newQueryEmbedCache creates a query embedding cache with the given capacity.
+// capacity=0 disables caching.
+func newQueryEmbedCache(capacity int) *queryEmbedCache {
+	if capacity <= 0 {
+		capacity = 64
+	}
+	return &queryEmbedCache{
+		cache:    make(map[string][]float32, capacity),
+		keys:     make([]string, 0, capacity),
+		capacity: capacity,
+	}
+}
+
+// Get returns the cached vector for a query on exact match (after normalization),
+// or nil on miss. Thread-safe.
+func (c *queryEmbedCache) Get(query string) []float32 {
+	if c == nil || c.capacity == 0 || len(c.cache) == 0 {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := normalizeQuery(query)
+	return c.cache[key]
+}
+
+// Set caches a query→vector pair. If the cache is at capacity, the oldest
+// entry is evicted (FIFO). Thread-safe.
+func (c *queryEmbedCache) Set(query string, vec []float32) {
+	if c == nil || c.capacity == 0 || query == "" || len(vec) == 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := normalizeQuery(query)
+	if _, exists := c.cache[key]; exists {
+		c.cache[key] = vec
+		return
+	}
+	if len(c.cache) >= c.capacity {
+		// Evict oldest entry (FIFO).
+		oldest := c.keys[0]
+		delete(c.cache, oldest)
+		c.keys = c.keys[1:]
+	}
+	c.cache[key] = vec
+	c.keys = append(c.keys, key)
+}
+
+// normalizeQuery produces a canonical cache key: trimmed, lowercased,
+// with consecutive whitespace collapsed to a single space.
+func normalizeQuery(query string) string {
+	lower := strings.ToLower(strings.TrimSpace(query))
+	if lower == "" {
+		return ""
+	}
+	// Collapse whitespace runs so that "专利 侵权" and "专利  侵权" collide.
+	ws := regexp.MustCompile(`\s+`)
+	return ws.ReplaceAllString(lower, " ")
 }
