@@ -1,7 +1,6 @@
 package agui
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -64,10 +63,6 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
 	cfg := h.snapshotConfig()
 	threadID := input.ThreadID
 	if threadID == "" {
@@ -76,22 +71,6 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 	runID := input.RunID
 	if runID == "" {
 		runID = generateID("run")
-	}
-
-	if threadID != "" && cfg.Store != nil {
-		hasState, err := cfg.Store.Has(r.Context(), threadID)
-		if err == nil && hasState {
-			agent := agentcore.New(cfg)
-			if err := agent.LoadState(r.Context(), threadID); err == nil {
-				msgs := agent.State().Messages()
-				snapshot := MessagesSnapshotEvent{
-					BaseEvent: baseEvent(EventMessagesSnapshot, time.Now()),
-					Messages:  MessagesFromAgent(msgs),
-				}
-				writeSSE(w, flusher, string(EventMessagesSnapshot), snapshot)
-				agent.Close()
-			}
-		}
 	}
 
 	callCfg := callConfigFromInput(input)
@@ -105,6 +84,26 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer agent.Close()
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	if threadID != "" && cfg.Store != nil {
+		hasState, err := cfg.Store.Has(r.Context(), threadID)
+		if err == nil && hasState {
+			snapAgent := agentcore.New(cfg)
+			if err := snapAgent.LoadState(r.Context(), threadID); err == nil {
+				msgs := snapAgent.State().Messages()
+				snapshot := MessagesSnapshotEvent{
+					BaseEvent: baseEvent(EventMessagesSnapshot, time.Now()),
+					Messages:  MessagesFromAgent(msgs),
+				}
+				writeSSE(w, flusher, string(EventMessagesSnapshot), snapshot)
+				snapAgent.Close()
+			}
+		}
+	}
 
 	converter := NewConverterWithParent(threadID, runID, input.ParentRunID)
 
@@ -189,6 +188,12 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// callConfigFromInput extracts per-call configuration from the AGUI input.
+// Currently only checks whether Tools or State were provided (which would
+// indicate a per-call override is expected), but CallConfig does not yet
+// support injecting per-call tools — that requires a future extension to
+// CallConfig or a separate agent API. input.State is already handled
+// directly by handleRun via SSE StateSnapshot events.
 func callConfigFromInput(input RunAgentInput) *agentcore.CallConfig {
 	if input.Tools == nil && input.State == nil {
 		return nil
@@ -197,27 +202,14 @@ func callConfigFromInput(input RunAgentInput) *agentcore.CallConfig {
 }
 
 func threadCfgProviderFromConfig(cfg agentcore.Config) agentcore.ThreadConfigProvider {
-	type provider interface {
-		GetThreadConfig(ctx context.Context, threadID string) (*agentcore.CallConfig, bool, error)
-	}
 	if cfg.Store == nil {
 		return nil
 	}
-	p, ok := cfg.Store.(provider)
+	p, ok := cfg.Store.(agentcore.ThreadConfigProvider)
 	if !ok {
 		return nil
 	}
-	return threadConfigProvider{p}
-}
-
-type threadConfigProvider struct {
-	inner interface {
-		GetThreadConfig(ctx context.Context, threadID string) (*agentcore.CallConfig, bool, error)
-	}
-}
-
-func (t threadConfigProvider) GetThreadConfig(ctx context.Context, threadID string) (*agentcore.CallConfig, bool, error) {
-	return t.inner.GetThreadConfig(ctx, threadID)
+	return p
 }
 
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, eventType string, data any) {

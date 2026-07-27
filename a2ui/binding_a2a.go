@@ -2,10 +2,15 @@ package a2ui
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/xujian519/mady/a2a"
 )
+
+// ErrInvalidA2UIEnvelope is returned when a data part carries the A2UI media
+// type but its content is not a valid A2UI envelope.
+var ErrInvalidA2UIEnvelope = errors.New("a2ui: invalid A2UI envelope in data part")
 
 // A2AExtensionURI identifies the A2UI extension to the A2A protocol. Agents that
 // emit A2UI advertise this URI in their A2A AgentCard.
@@ -42,7 +47,11 @@ func DataPartToEnvelope(p a2a.Part) (env Envelope, ok bool, err error) {
 	}
 	parsed, err := ParseEnvelope(raw)
 	if err != nil {
-		// Not an A2UI envelope; treat as non-match rather than a hard error.
+		// If the MIME type is explicitly A2UI, report the malformed envelope.
+		// Otherwise treat as a non-match (unknown format).
+		if p.Data.MIMEType == MIMEType {
+			return Envelope{}, false, fmt.Errorf("%w: %v", ErrInvalidA2UIEnvelope, err)
+		}
 		return Envelope{}, false, nil
 	}
 	return parsed, true, nil

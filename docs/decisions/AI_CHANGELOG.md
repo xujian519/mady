@@ -1,5 +1,109 @@
 # AI 变更记录
 
+## 2026-07-27: A2UI / AGUI 全量质量审阅 + 修复
+
+### 审阅概览
+对 `a2ui/`（~3,900 行）和 `agui/`（~3,700 行，含 TS 客户端）进行了 5 阶段、8 维度的全量质量审阅。
+
+### 关键发现
+- **综合评分 7.1/10**，8 维度评分 6.5~8.0，总体良好但存在 2 个 P0 阻塞性问题和 7 个 P1 高风险问题
+- **P0**: (1) LoadAgent 失败时 Content-Type 冲突（SSE vs JSON），(2) agent.Run 错误时不发 RUN_ERROR
+- **P1**: SystemPrompt 通过 Capabilities GET 暴露、callConfigFromInput 是 stub、envelopeToMap 错误静默忽略、AGUI 测试覆盖率仅 77.7%
+- **亮点**: A2UI 100% 测试覆盖率 ✅，双 A2UI 处理路径经分析为设计如此（非 bug），并发模式整体安全
+- 详细报告见 `docs/decisions/a2ui-agui-review-report.md`
+
+### 修复执行（同日）
+修复按 6 轮计划执行，修改 5 个文件（+65/-34 行）：
+1. **T1.1/T1.2 (P0)**: `agui/handler.go` — 将 LoadAgent 移到 SSE header 之前；agent.Run 失败时发送 RUN_ERROR
+2. **T2.1 (P1)**: `agui/converter.go` — SystemPrompt 从 Capabilities 端点脱敏（改用 cfg.Name）
+3. **T2.2 (P1)**: `agui/handler.go` — callConfigFromInput 添加文档注释标记已知架构限制
+4. **T3.1 (P1)**: `agui/converter.go` — thinking delta 复用首次 msgID（新增 `activeThinkingMsgID` 字段）
+5. **T3.2 (P1)**: `a2ui/binding_a2a.go` — 新增 `ErrInvalidA2UIEnvelope` 区分"非 A2UI"和"A2UI 格式错误"
+6. **T3.3 (P1)**: `a2ui/binding_agentcore.go` — envelopeToMap 错误记录 slog.Warn
+7. **T5.2 (P2)**: `agui/handler.go` — 消除 `threadCfgProviderFromConfig` 鸭子类型（直接引用 `agentcore.ThreadConfigProvider`）
+8. **测试**: `a2ui/a2ui_test.go` — 更新已有测试验证新行为，新增 `TestDataPartToEnvelopeEmptyMIME`
+验证：go vet ✅, go build ✅, go test -race ✅, A2UI 覆盖率 99.6%, TS 编译 ✅
+
+## 2026-07-27: Mady 桌面端 Spec 四阶段文档起草（Wails + React）
+
+### 背景
+项目已有完整的 A2UI v0.9.1 声明式 UI 协议（`a2ui/`）、AGUI SSE 事件流（`agui/`）、
+HTTP/SSE Server（`server.Handler()`），但缺一个面向桌面端的渲染出口——当前 UI 通道
+仅有 TUI。专利/法律专业用户对工具的"第一印象"决定采用率，需要精致的原生桌面体验。
+
+经与 Owner 研究确认四个核心决策点：
+1. 后端集成方式：**Wails 内嵌**（直接 import server/agentcore，单进程单二进制）
+2. UI 渲染策略：**A2UI → React 声明式渲染器**（复用协议资产，Agent 改 UI 无需前端改代码）
+3. 前端框架：**React 18 + shadcn/ui + Tailwind v4 + Motion**（Linear/Vercel/Arc 同款美学）
+4. 目标平台：**macOS 先行**，Windows/Linux 预留
+
+### 变更内容（设计阶段，无代码改动）
+- 新增 `docs/specs/desktop/` 目录及四阶段文档：
+  - `01-proposal.md` — 背景、目标、成功标准（AC-1~AC-7）、约束、风险
+  - `02-spec.md` — 数据流、后端接口契约（App 方法集）、A2UI 渲染器规格（18 组件 + 15 函数映射表）、验证规则、待澄清问题（Q1~Q6）
+  - `03-design.md` — 桌面/前端框架对比决策、模块边界（新增 `./desktop` 第 4 工作区模块）、事件透传机制（Wails Events 替代 SSE）、美学设计（Linear/Raycast 对标）、安全考量（Invisible Handoff 前端契约）
+  - `04-tasks.md` — 阶段 1-3 任务拆解（T1.1~T3.8），每任务标注文件范围/验收/风险/审查等级（L1-L4），含依赖图与验收检查清单
+- 更新 `docs/specs/README.md` 索引表，登记 desktop spec
+
+### 关键决策记录
+| 决策 | 选择 | 否决项 | 理由 |
+|------|------|--------|------|
+| 桌面框架 | Wails v2 | Tauri v2 / Electron / Fyne | Go 原生，零生态扩张，契合"克制"哲学 |
+| 前端框架 | React 18 + shadcn/ui | Svelte 5 / Vue 3 | 专业美学参考最多，A2UI 渲染器实现最成熟 |
+| 后端集成 | 内嵌 import | sidecar | 单进程无 IPC 序列化开销 |
+| SSE 桥 | Wails Events | EventSource | 绕过 WebView 跨域/缓冲问题 |
+
+### 安全影响
+- **不修改任何安全敏感路径**（handoff.go/path.go/permission 等）
+- 新增前端安全契约：Invisible Handoff 事件（`transfer_to_*`）前端必须静默，不渲染交接卡片
+- A2UI 协议本身不执行任意代码（声明式），渲染器对 `openUrl` 做 http(s) 协议白名单拦截
+- Wails Binding 仅暴露 Chat/Threads/SendAction/Health 等方法，**不暴露**文件系统/进程/exec
+
+### 待 Owner 决策（进入实现前）
+- Q1 品牌强调色是否沿用 TUI 色板
+- Q2 macOS App Bundle ID / 应用名
+- Q3 图标设计来源
+- Q6 Wails 版本锁定策略（Go 1.26 兼容性）
+
+### 状态
+设计草案，待人工 Sign-off 后进入 T1.1 实现。
+
+---
+
+## 2026-07-27: Mady 桌面端 Spec 第二轮决策澄清（Apple HIG + 图标 + 打包）
+
+### 背景
+基于 `docs/specs/desktop/01-proposal.md` 的六项待澄清问题，Owner 给出全部决策。
+
+### 决策结果
+
+| 问题 | 决策 |
+|------|------|
+| Q1 品牌色 | 按 Apple HIG 重新设计，**不沿用 TUI 色板**；主 accent 为 `systemIndigo`，呼应 YunPat-Ai 图标深紫；橙色作为品牌点缀色极低频使用 |
+| Q2 Bundle ID / 应用名 | `com.mady.desktop` / `Mady` |
+| Q3 图标来源 | 复用 `YunPat-Ai/App/Assets.xcassets/AppIcon.appiconset`；已复制到 `desktop/build/appicon.png`（1024×1024）及完整 iconset |
+| Q4 自动更新 | **暂时不做**，阶段 5 再评估 |
+| Q5 托盘 / Dock badge | **暂时不做**，阶段 3 预留 |
+| Q6 Wails 版本 | 锁定 v2 最新稳定 tag；构建前验证 Go 1.26 兼容性，不兼容则临时降 `go.mod` 到 1.24 |
+
+### 文档变更
+- `docs/specs/desktop/02-spec.md`：重写 §5 主题令牌，按 Apple HIG 给出完整语义化色板（背景/标签/强调/语义/分割线）、材质（vibrancy）、字体、圆角、图标规范
+- `docs/specs/desktop/03-design.md`：重写 §4 美学设计，明确"原生专业工具"定位、Apple HIG 色彩纪律、材质层次、SF Symbols、动画规范
+- `docs/specs/desktop/04-tasks.md`：移除 Q1/Q3/Q6 相关 `[NEEDS CLARIFICATION]` 标记，图标来源和色彩决策落地到 T1.1/T3.5/T3.7
+- `docs/specs/desktop/01-proposal.md`：§7 下一步更新为已澄清
+- 新增 `desktop/build/appicon.png`（1024×1024）及 `desktop/build/AppIcon.appiconset/`（完整 macOS iconset）
+
+### 品牌色彩说明
+YunPat-Ai 图标为紫/橙抽象图形：
+- **深紫（Indigo）** 成为 Mady 桌面端主 accent，占据 90% 以上强调场景，体现专业、可信
+- **橙色** 严格限制为点缀：仅用于最高置信度结论徽标、品牌 moments（启动/关于页）、"新增" badge
+- 该比例参考 Apple 自身产品：accent 色主导 UI，品牌色仅出现在通知等少数场景
+
+### 状态
+六项问题全部澄清；设计草案进入待 Owner 最终 Sign-off 状态。
+
+---
+
 ## 2026-07-27: ToolResultBudget 代码审查修复 — CJK 正确性 + 并发安全 + 资源泄漏
 
 ### 背景

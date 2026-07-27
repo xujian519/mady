@@ -437,6 +437,9 @@ func TestCapabilitiesFromConfig(t *testing.T) {
 	if caps.Identity.Name != "test-agent" {
 		t.Errorf("expected 'test-agent', got %s", caps.Identity.Name)
 	}
+	if caps.Identity.Description != "test-agent" {
+		t.Errorf("expected Identity.Description to match Name 'test-agent', got %q", caps.Identity.Description)
+	}
 	if !caps.Transport.Streaming {
 		t.Error("expected streaming to be true")
 	}

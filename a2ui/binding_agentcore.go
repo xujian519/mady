@@ -1,6 +1,8 @@
 package a2ui
 
 import (
+	"log/slog"
+
 	"github.com/xujian519/mady/agentcore"
 )
 
@@ -13,6 +15,10 @@ func ToAgentCoreEvent(env Envelope) *agentcore.A2UIEvent {
 	}
 	// envelopeToMap serializes the struct to a generic map so the event bus
 	// can carry it without depending on a2ui types. See binding_a2a.go.
-	m, _ := envelopeToMap(env)
+	m, err := envelopeToMap(env)
+	if err != nil {
+		slog.Default().Warn("a2ui: envelopeToMap failed", "err", err)
+		m = map[string]any{"error": err.Error(), "version": env.Version}
+	}
 	return agentcore.NewA2UIEvent(m)
 }

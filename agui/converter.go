@@ -9,14 +9,15 @@ import (
 )
 
 type Converter struct {
-	threadID         string
-	runID            string
-	parentRunID      string
-	msgSeq           atomic.Int64
-	thinkingSeq      atomic.Int64
-	activeMsgID      atomic.Value
-	activeMsgRole    atomic.Value
-	activeThinkingID atomic.Value
+	threadID            string
+	runID               string
+	parentRunID         string
+	msgSeq              atomic.Int64
+	thinkingSeq         atomic.Int64
+	activeMsgID         atomic.Value
+	activeMsgRole       atomic.Value
+	activeThinkingID    atomic.Value
+	activeThinkingMsgID atomic.Value
 }
 
 func NewConverter(threadID, runID string) *Converter {
@@ -27,6 +28,7 @@ func NewConverter(threadID, runID string) *Converter {
 	c.activeMsgID.Store("")
 	c.activeMsgRole.Store("")
 	c.activeThinkingID.Store("")
+	c.activeThinkingMsgID.Store("")
 	return c
 }
 
@@ -39,6 +41,7 @@ func NewConverterWithParent(threadID, runID, parentRunID string) *Converter {
 	c.activeMsgID.Store("")
 	c.activeMsgRole.Store("")
 	c.activeThinkingID.Store("")
+	c.activeThinkingMsgID.Store("")
 	return c
 }
 
@@ -131,11 +134,22 @@ func (c *Converter) CloseThinking(t time.Time) []any {
 	if prevID == "" {
 		return nil
 	}
+	msgID, _ := c.activeThinkingMsgID.Load().(string)
 	c.activeThinkingID.Store("")
-	return []any{ThinkingEndEvent{
+	c.activeThinkingMsgID.Store("")
+	var events []any
+	if msgID != "" {
+		events = append(events, ThinkingTextMessageEndEvent{
+			BaseEvent:  baseEvent(EventThinkingTextMessageEnd, t),
+			ThinkingID: prevID,
+			MessageID:  msgID,
+		})
+	}
+	events = append(events, ThinkingEndEvent{
 		BaseEvent:  baseEvent(EventThinkingEnd, t),
 		ThinkingID: prevID,
-	}}
+	})
+	return events
 }
 
 func (c *Converter) closeAll(t time.Time) []any {
@@ -368,6 +382,7 @@ func (c *Converter) convertThinkingDelta(t time.Time, delta string) []any {
 		thinkingID := c.nextThinkingID()
 		msgID := c.nextMsgID()
 		c.activeThinkingID.Store(thinkingID)
+		c.activeThinkingMsgID.Store(msgID)
 		return []any{
 			ThinkingStartEvent{
 				BaseEvent:  baseEvent(EventThinkingStart, t),
@@ -386,7 +401,10 @@ func (c *Converter) convertThinkingDelta(t time.Time, delta string) []any {
 			},
 		}
 	}
-	msgID := fmt.Sprintf("thinking_msg_%d", c.msgSeq.Add(1))
+	msgID, _ := c.activeThinkingMsgID.Load().(string)
+	if msgID == "" {
+		msgID = c.nextMsgID()
+	}
 	return []any{ThinkingTextMessageContentEvent{
 		BaseEvent:  baseEvent(EventThinkingTextMessageContent, t),
 		ThinkingID: prevID,
@@ -554,7 +572,7 @@ func CapabilitiesFromConfig(cfg agentcore.Config) AgentCapabilities {
 		Identity: &IdentityCapabilities{
 			Name:        cfg.Name,
 			Type:        "mady",
-			Description: cfg.SystemPrompt,
+			Description: cfg.Name,
 		},
 		Transport: &TransportCapabilities{
 			Streaming: true,

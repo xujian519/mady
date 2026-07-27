@@ -849,14 +849,17 @@ func TestBindingA2AErrorPaths(t *testing.T) {
 		t.Fatal("expected error from unmarshalable data")
 	}
 
-	// DataPartToEnvelope with body-level parse error (no body, no version).
-	// This should return ok=false, err=nil since it looks like non-A2UI content.
+	// DataPartToEnvelope with body-level parse error (no body, no version)
+	// but explicit A2UI MIME type — should report ErrInvalidA2UIEnvelope.
 	_, ok, err = DataPartToEnvelope(a2a.Part{
 		Type: a2a.PartTypeData,
 		Data: &a2a.DataPart{MIMEType: MIMEType, Data: map[string]any{"invalid": "data"}},
 	})
-	if ok || err != nil {
-		t.Fatalf("expected ok=false, err=nil for non-A2UI content, got ok=%v err=%v", ok, err)
+	if ok {
+		t.Fatalf("expected ok=false for invalid A2UI envelope, got ok=true")
+	}
+	if err == nil || !errors.Is(err, ErrInvalidA2UIEnvelope) {
+		t.Fatalf("expected ErrInvalidA2UIEnvelope, got %v", err)
 	}
 
 	// EnvelopesToMessage error (unserializable value in component).
@@ -1573,8 +1576,11 @@ func TestDataPartToEnvelopeStructuralError(t *testing.T) {
 		Data: &a2a.DataPart{MIMEType: MIMEType, Data: map[string]any{"key": "val"}},
 	}
 	_, ok, err := DataPartToEnvelope(part)
-	if ok || err != nil {
-		t.Fatalf("expected ok=false err=nil for non-A2UI content, got ok=%v err=%v", ok, err)
+	if ok {
+		t.Fatalf("expected ok=false for non-A2UI envelope, got ok=true")
+	}
+	if err == nil || !errors.Is(err, ErrInvalidA2UIEnvelope) {
+		t.Fatalf("expected ErrInvalidA2UIEnvelope, got %v", err)
 	}
 }
 
@@ -1834,16 +1840,30 @@ func TestToAgentCoreEventVersionFill(t *testing.T) {
 	}
 }
 
-func TestToAgentCoreEventMarshalError(t *testing.T) {
-	// An envelope that cannot be marshaled should still produce a valid event
-	// with an error field in the envelope.
+func TestToAgentCoreEventHappyPath(t *testing.T) {
+	// A normal envelope should produce a valid A2UIEvent with all fields intact.
+	// envelopeToMap always succeeds for serializable Envelope structs, so the
+	// error fallback path (added for defense-in-depth) is not reachable here.
 	env := Envelope{CreateSurface: &CreateSurface{SurfaceID: "s", CatalogID: BasicCatalogID}}
-	// Force a cycle that cant marshal by setting a self-referencing circular value.
-	// Note: The Envelope struct doesnt have any circular references, so marshal
-	// always succeeds. This test verifies that the happy path handles it gracefully.
 	ae := ToAgentCoreEvent(env)
 	if ae == nil || ae.Envelope == nil {
 		t.Fatal("expected valid event even on edge case")
+	}
+}
+
+func TestDataPartToEnvelopeEmptyMIME(t *testing.T) {
+	// Empty MIME type with non-A2UI content should return ok=false, err=nil
+	// (treated as non-match, not a hard error).
+	part := a2a.Part{
+		Type: a2a.PartTypeData,
+		Data: &a2a.DataPart{MIMEType: "", Data: map[string]any{"key": "val"}},
+	}
+	_, ok, err := DataPartToEnvelope(part)
+	if ok {
+		t.Fatalf("expected ok=false for empty MIME, got ok=true")
+	}
+	if err != nil {
+		t.Fatalf("expected err=nil for empty MIME, got %v", err)
 	}
 }
 
