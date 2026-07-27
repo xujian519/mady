@@ -324,19 +324,6 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 	return t
 }
 
-// NewTUIWithOptions constructs a TUI using functional options.
-//
-// Deprecated: Use [NewTUI] instead. NewTUI accepts the same functional
-// options via the TUIOptions struct. This function exists only for backward
-// compatibility and will be removed in a future release.
-func NewTUIWithOptions(term terminal.Terminal, opts ...TUIOption) *TUI {
-	var o TUIOptions
-	for _, opt := range opts {
-		opt(&o)
-	}
-	return NewTUI(term, o)
-}
-
 // ---------------------------------------------------------------------------
 // Children
 // ---------------------------------------------------------------------------

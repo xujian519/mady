@@ -59,19 +59,7 @@ func TestUnifiedAgentConfig_GatewayInjected(t *testing.T) {
 // --- 不再有裸 ReasoningStrategyRouter 注册（避免双触发） ---
 
 func TestUnifiedAgentConfig_NoStandaloneStrategyRouter(t *testing.T) {
-	base := agentcore.Config{}
-	base.Provider = &mockProvider{}
-	cfg := UnifiedAgentConfig(base)
-
-	// 遍历整条 LifecycleChain，确认没有 *ReasoningStrategyRouter。
-	// Gateway 已吸收其职责，重复注册会导致每轮两次 Classify。
-	if chain, ok := cfg.Lifecycle.(agentcore.LifecycleChain); ok {
-		for _, h := range chain {
-			if _, ok := h.(*agentcore.ReasoningStrategyRouter); ok {
-				t.Error("LifecycleChain 中仍存在裸 ReasoningStrategyRouter，会与 Gateway 双触发")
-			}
-		}
-	}
+	// ReasoningStrategyRouter 已移除，Gateway 完全替代其职责。
 }
 
 // --- FallbackRouter 已接入（候选链可空，结构就位） ---
@@ -285,14 +273,7 @@ func assertGatewayWired(t *testing.T, cfg agentcore.Config, label string) {
 	if cfg.FallbackRouter == nil || cfg.FallbackRouter != g.Fallback {
 		t.Errorf("%s: cfg.FallbackRouter 未指向 Gateway.Fallback（回退链断链）", label)
 	}
-	// 无裸 ReasoningStrategyRouter（避免与 Gateway 双触发）。
-	if chain, ok := cfg.Lifecycle.(agentcore.LifecycleChain); ok {
-		for _, h := range chain {
-			if _, ok := h.(*agentcore.ReasoningStrategyRouter); ok {
-				t.Errorf("%s: 仍存在裸 ReasoningStrategyRouter", label)
-			}
-		}
-	}
+
 }
 
 func TestPatentAgentConfig_GatewayWired(t *testing.T) {

@@ -1,10 +1,5 @@
 package agentcore
 
-import (
-	"context"
-	"strings"
-)
-
 // ============================================================================
 // ReasoningStrategy — turns a complexity classification into a concrete
 // reasoning approach, selecting both a strategy hint and a step framework.
@@ -204,73 +199,4 @@ func (s *StrategySelector) GetFramework(c Complexity) Framework {
 func (s *StrategySelector) StrategyHint(c Complexity) string {
 	strategy := s.SelectStrategy(c)
 	return strategy.StrategyHint()
-}
-
-// ============================================================================
-// ReasoningStrategyRouter — combined router with strategy selection
-// ============================================================================
-
-// ReasoningStrategyRouter extends ReasoningRouter with strategy selection,
-// framework steps, and optional system prompt injection.
-type ReasoningStrategyRouter struct {
-	*ReasoningRouter
-	Selector *StrategySelector
-}
-
-// NewReasoningStrategyRouter creates a combined reasoning router with strategy
-// selection and framework support.
-func NewReasoningStrategyRouter(classifier ComplexityClassifier, selector *StrategySelector) *ReasoningStrategyRouter {
-	if selector == nil {
-		selector = NewDefaultStrategySelector()
-	}
-	return &ReasoningStrategyRouter{
-		ReasoningRouter: NewReasoningRouter(classifier),
-		Selector:        selector,
-	}
-}
-
-// BeforeModelCall extends the base ReasoningRouter's BeforeModelCall with
-// strategy hint injection into the system prompt.
-func (r *ReasoningStrategyRouter) BeforeModelCall(ctx context.Context, arc *AgentRunContext, mcc *ModelCallContext) error {
-	if mcc == nil || mcc.Request == nil {
-		return nil
-	}
-
-	// Run base router (thinking effort/budget).
-	if err := r.ReasoningRouter.BeforeModelCall(ctx, arc, mcc); err != nil {
-		return err
-	}
-
-	// Inject strategy hint if enabled.
-	if r.Selector != nil && r.Selector.StrategyHintInjection {
-		input := latestUserInput(arc)
-		c := r.Classifier.Classify(input, arc.Messages)
-		hint := r.Selector.StrategyHint(c)
-
-		if hint != "" {
-			// 克隆整个 Messages slice 后替换 mcc.Request.Messages 指针，
-			// 避免直接写回底层数组（mcc.Request.Messages[i]=cp 会污染原 slice，
-			// 使此前已捕获该 slice 引用的观察者看到被修改的请求）。
-			orig := mcc.Request.Messages
-			cloned := make([]Message, len(orig))
-			for i, msg := range orig {
-				cloned[i] = msg.Clone()
-			}
-			injected := false
-			for i, msg := range cloned {
-				if msg.Role == RoleSystem {
-					cloned[i].Content = msg.Content + hint
-					injected = true
-					break
-				}
-			}
-			// Fallback: if no system message exists, prepend one.
-			if !injected {
-				cloned = append([]Message{{Role: RoleSystem, Content: strings.TrimSpace(hint)}}, cloned...)
-			}
-			mcc.Request.Messages = cloned
-		}
-	}
-
-	return nil
 }

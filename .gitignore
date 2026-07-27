@@ -18,6 +18,12 @@ dist/
 vendor/
 *.coverprofile
 
+# --- Runtime artifacts ---
+sessions/*.jsonl
+.session-memory
+.session-memory-shm
+.session-memory-wal
+
 # --- IDE & editors ---
 .idea/
 .vscode/

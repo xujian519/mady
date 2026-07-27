@@ -7,6 +7,20 @@ before:
     - go mod tidy
 
 builds:
+  - id: mady
+    main: ./cmd/mady/main.go
+    binary: mady
+    ldflags:
+      - -s -w -X main.commitHash={{.ShortCommit}} -X main.buildTime={{.Timestamp}}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+
   - id: cli-chat
     main: ./example/cli-chat/main.go
     binary: cli-chat

@@ -176,6 +176,45 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
+  desktop:
+    runs-on: macos-latest
+    name: desktop
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: go vet
+        working-directory: desktop
+        run: go vet ./...
+
+      - name: go build
+        working-directory: desktop
+        run: go build ./...
+
+      - name: go test
+        working-directory: desktop
+        run: go test -count=1 -coverprofile=coverage.out ./...
+
+      - name: go test (race)
+        working-directory: desktop
+        run: go test -race -count=1 ./...
+
+  example-build:
+    runs-on: ubuntu-latest
+    name: example-build
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: go build (all examples)
+        run: go build ./example/...
+
   integration:
     runs-on: ubuntu-latest
     name: integration

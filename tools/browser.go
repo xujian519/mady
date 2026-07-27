@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// BrowserToolConfig 统一浏览器工具的配置，供 NewBrowserTool（browser_tool.go）
-// 与各 action 的遗留单工具构造函数（browser_legacy.go）共享使用。
+// BrowserToolConfig 统一浏览器工具的配置，供 NewBrowserTool 及浏览器子模块共享使用。
 type BrowserToolConfig struct {
 	Headless            bool
 	AllowPrivate        bool

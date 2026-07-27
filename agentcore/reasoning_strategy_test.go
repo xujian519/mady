@@ -1,7 +1,6 @@
 package agentcore
 
 import (
-	"context"
 	"testing"
 )
 
@@ -108,60 +107,6 @@ func TestStrategySelector_NilMap(t *testing.T) {
 	s := &StrategySelector{}
 	if got := s.SelectStrategy(ComplexityHigh); got != StrategyDefault {
 		t.Errorf("expected default for nil map, got %v", got)
-	}
-}
-
-func TestNewReasoningStrategyRouter(t *testing.T) {
-	classifier := NewDefaultClassifier()
-	router := NewReasoningStrategyRouter(classifier, nil)
-	if router == nil {
-		t.Fatal("expected non-nil router")
-	}
-	if router.Selector == nil {
-		t.Error("expected default selector when nil is passed")
-	}
-	if router.ReasoningRouter == nil {
-		t.Error("expected reasoning router")
-	}
-}
-
-func TestReasoningStrategyRouter_BeforeModelCall(t *testing.T) {
-	classifier := NewDefaultClassifier()
-	selector := NewDefaultStrategySelector()
-	router := NewReasoningStrategyRouter(classifier, selector)
-
-	// Create a model call context with a request containing a system message.
-	mcc := &ModelCallContext{
-		Request: &ProviderRequest{
-			Messages: []Message{
-				{Role: RoleSystem, Content: "你是一个专利助手。"},
-				{Role: RoleUser, Content: "分析专利CN12345的新颖性"},
-			},
-		},
-	}
-	arc := &AgentRunContext{
-		Input: "分析专利CN12345的新颖性",
-		Messages: []Message{
-			{Role: RoleUser, Content: "分析专利CN12345的新颖性"},
-		},
-	}
-
-	if err := router.BeforeModelCall(context.TODO(), arc, mcc); err != nil {
-		t.Fatalf("BeforeModelCall failed: %v", err)
-	}
-
-	// The system message should now have a strategy hint appended.
-	sysMsg := mcc.Request.Messages[0]
-	if len(sysMsg.Content) <= len("你是一个专利助手。") {
-		t.Error("expected strategy hint to be appended to system message")
-	}
-}
-
-func TestReasoningStrategyRouter_NilMCC(t *testing.T) {
-	classifier := NewDefaultClassifier()
-	router := NewReasoningStrategyRouter(classifier, nil)
-	if err := router.BeforeModelCall(context.TODO(), nil, nil); err != nil {
-		t.Errorf("expected no error for nil mcc, got %v", err)
 	}
 }
 
