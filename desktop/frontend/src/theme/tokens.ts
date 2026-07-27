@@ -22,6 +22,9 @@ import { createContext, useContext } from 'react'
 /** 用户选择的模式。 */
 export type ThemeMode = 'light' | 'dark' | 'system'
 
+/** 主题包 ID。 */
+export type ThemePackId = 'professional' | 'focus-blue' | 'paper-warm' | 'slate'
+
 /** 解析后的实际模式（始终是 light 或 dark）。 */
 export type ResolvedTheme = 'light' | 'dark'
 
@@ -36,6 +39,10 @@ export interface ThemeContextValue {
   resolved: ResolvedTheme
   /** 是否为暗色模式（便捷判断）。 */
   isDark: boolean
+  /** 当前主题包 ID。 */
+  themePack: ThemePackId
+  /** 设置主题包。 */
+  setThemePack: (pack: ThemePackId) => void
 }
 
 export const ThemeContext = createContext<ThemeContextValue>({
@@ -43,6 +50,8 @@ export const ThemeContext = createContext<ThemeContextValue>({
   setMode: () => {},
   resolved: 'light',
   isDark: false,
+  themePack: 'professional',
+  setThemePack: () => {},
 })
 
 /** 获取当前主题上下文。 */

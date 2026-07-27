@@ -86,6 +86,16 @@ function handleDone() {
   store.finishTurn()
 }
 
+function handleContextUsage(payload: AguiEventPayload) {
+  const store = useChatStore.getState()
+  // ContextUsageEvent fields: usagePercent, tokenUsage.totalTokens, contextWindow
+  const percent = payload.usagePercent ?? 0
+  const tokenUsage = payload.tokenUsage ?? {}
+  const totalTokens = tokenUsage.totalTokens ?? 0
+  const contextWindow = payload.contextWindow ?? 128000
+  store.setContextUsage(percent, totalTokens, contextWindow)
+}
+
 // ── 主分发器 ──────────────────────────────────────
 
 const HANDLERS: Record<string, (payload: AguiEventPayload) => void> = {
@@ -98,6 +108,7 @@ const HANDLERS: Record<string, (payload: AguiEventPayload) => void> = {
   a2ui: handleA2UI,
   'approval-prompt': handleApprovalPrompt,
   done: handleDone,
+  'context-usage': handleContextUsage,
 }
 
 /**

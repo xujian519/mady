@@ -12,13 +12,17 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { type ThemeMode } from '@/theme/tokens'
+import { type ThemeMode, type ThemePackId } from '@/theme/tokens'
 
 // ── Types ─────────────────────────────────────────
 
 export interface SettingsState {
   /** 主题模式。 */
   themeMode: ThemeMode
+  /** 主题包 ID。 */
+  themePack: ThemePackId
+  /** 布局模式。 */
+  layout: LayoutMode
   /** 默认 Provider。 */
   provider: string
   /** 默认模型。 */
@@ -32,10 +36,15 @@ interface SettingsActions {
   reset: () => void
 }
 
+/** 布局模式。 */
+export type LayoutMode = 'standard' | 'focus'
+
 export type SettingsStore = SettingsState & SettingsActions
 
 const DEFAULTS: SettingsState = {
   themeMode: 'system',
+  themePack: 'professional',
+  layout: 'standard',
   provider: '',
   model: '',
 }

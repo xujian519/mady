@@ -25,6 +25,7 @@ const (
 	EventMessagesSnapshot           EventType = "MESSAGES_SNAPSHOT"
 	EventCustom                     EventType = "CUSTOM"
 	EventRaw                        EventType = "RAW"
+	EventContextUsage               EventType = "CONTEXT_USAGE"
 )
 
 type BaseEvent struct {
@@ -128,6 +129,19 @@ type ThinkingTextMessageEndEvent struct {
 type ThinkingEndEvent struct {
 	BaseEvent
 	ThinkingID string `json:"thinkingId"`
+}
+
+// ContextUsageEvent 报告当前上下文窗口使用情况。
+// 在每次 TurnEnd 时由 Converter 自动发出。
+type ContextUsageEvent struct {
+	BaseEvent
+	TokenUsage struct {
+		PromptTokens     int64 `json:"promptTokens"`
+		CompletionTokens int64 `json:"completionTokens"`
+		TotalTokens      int64 `json:"totalTokens"`
+	} `json:"tokenUsage"`
+	ContextWindow int64   `json:"contextWindow"`
+	UsagePercent  float64 `json:"usagePercent"`
 }
 
 type ToolCallStartEvent struct {

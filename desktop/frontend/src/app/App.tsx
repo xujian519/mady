@@ -18,12 +18,44 @@ import { useChatStore } from '@/stores/chat'
 import { subscribeAguiEvents } from '@/agui-bridge/client'
 import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
 import { ThemeProvider } from '@/theme/provider'
+import { useTheme } from '@/theme/tokens'
+import type { ThemePackId } from '@/theme/tokens'
 import { ChatView } from '@/components/ChatView'
+import { saveWindowState } from '@/lib/backend'
 
 /** 是否启用测试 API（__mady 全局接口）。生产构建默认为 false。 */
 const ENABLE_TEST_API = import.meta.env.VITE_ENABLE_TEST_API === 'true'
 
+function ThemeEventListener({ children }: { children: React.ReactNode }) {
+  const { setThemePack } = useTheme()
+
+  useEffect(() => {
+    const handleThemePack = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      // 尝试匹配内置主题包 ID
+      const validPacks: ThemePackId[] = ['professional', 'focus-blue', 'paper-warm', 'slate']
+      const match = validPacks.find((p) => detail === p || detail === p.replace('-', ' '))
+      if (match) {
+        setThemePack(match)
+      }
+    }
+    window.addEventListener('mady:set-theme-pack', handleThemePack)
+    return () => window.removeEventListener('mady:set-theme-pack', handleThemePack)
+  }, [setThemePack])
+
+  return <>{children}</>
+}
+
 function App() {
+  // 窗口关闭前保存几何信息
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveWindowState(window.innerWidth, window.innerHeight).catch(() => {})
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [])
+
   useEffect(() => {
     // 订阅 AGUI 事件流
     const unsubscribe = subscribeAguiEvents()
@@ -56,7 +88,9 @@ function App() {
 
   return (
     <ThemeProvider>
-      <ChatView />
+      <ThemeEventListener>
+        <ChatView />
+      </ThemeEventListener>
     </ThemeProvider>
   )
 }

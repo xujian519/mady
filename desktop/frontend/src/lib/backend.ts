@@ -143,6 +143,15 @@ export async function renameFolder(oldPath: string, newName: string): Promise<vo
   return callBinding<void>('main/App', 'RenameFolder', oldPath, newName)
 }
 
+// ── Window State ────────────────────────────────────
+
+/**
+ * 保存窗口几何信息。
+ */
+export async function saveWindowState(width: number, height: number): Promise<void> {
+  return callBinding<void>('main/App', 'SaveWindowState', width, height)
+}
+
 // ── Health ────────────────────────────────────────
 
 /**

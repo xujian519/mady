@@ -21,6 +21,7 @@
  */
 
 import React, { useMemo } from 'react'
+import { CodeBlock } from './CodeBlock'
 
 interface MarkdownRendererProps {
   content: string
@@ -108,12 +109,12 @@ function renderMarkdown(content: string): React.ReactNode[] {
   function flushCodeBlock() {
     if (codeLines.length > 0) {
       elements.push(
-        <pre key={`code-${elements.length}`} className="bg-mady-bg-tertiary rounded-lg p-3 overflow-x-auto text-mady-small font-mono">
-          {codeLang && (
-            <div className="text-mady-text-tertiary text-mady-caption mb-1">{codeLang}</div>
-          )}
-          <code>{codeLines.join('\n')}</code>
-        </pre>
+        <CodeBlock
+          key={`code-${elements.length}`}
+          code={codeLines.join('\n')}
+          language={codeLang || undefined}
+          showLineNumbers={codeLines.length > 5}
+        />
       )
       codeLines = []
       codeLang = ''

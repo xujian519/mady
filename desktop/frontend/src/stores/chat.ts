@@ -46,6 +46,12 @@ interface ChatState {
   threads: ThreadSummary[]
   /** 审批提示（T3.3）。 */
   approvalPrompt: ApprovalPrompt | null
+  /** 上下文窗口使用率（0-100）。 */
+  contextUsagePercent: number | null
+  /** 累计 Token 使用量。 */
+  contextTotalTokens: number | null
+  /** 模型上下文窗口大小（Token 数）。 */
+  contextWindow: number | null
 }
 
 /** 审批提示负载（来自 agui:approval-prompt）。 */
@@ -87,6 +93,8 @@ interface ChatActions {
   setThreads: (threads: ThreadSummary[]) => void
   /** 设置审批提示（T3.3）。 */
   setApprovalPrompt: (p: ApprovalPrompt | null) => void
+  /** 更新上下文使用率。 */
+  setContextUsage: (percent: number, totalTokens: number, contextWindow: number) => void
 }
 
 export type ChatStore = ChatState & ChatActions
@@ -109,6 +117,9 @@ export const initialState: ChatState = {
   toolCallBuffer: null,
   threads: [],
   approvalPrompt: null,
+  contextUsagePercent: null,
+  contextTotalTokens: null,
+  contextWindow: null,
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -205,4 +216,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   setThreads: (threads) => set({ threads }),
 
   setApprovalPrompt: (p) => set({ approvalPrompt: p }),
+
+  setContextUsage: (percent, totalTokens, contextWindow) =>
+    set({
+      contextUsagePercent: percent,
+      contextTotalTokens: totalTokens,
+      contextWindow,
+    }),
 }))

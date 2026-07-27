@@ -18,12 +18,21 @@ type Converter struct {
 	activeMsgRole       atomic.Value
 	activeThinkingID    atomic.Value
 	activeThinkingMsgID atomic.Value
+	contextWindow       int64
+	totalTokens         int64
 }
 
-func NewConverter(threadID, runID string) *Converter {
+// NewConverter 创建 AGUI 事件转换器。contextWindow 为模型上下文窗口大小（token），
+// 设为 0 时默认使用 128K（用于缓存未配置场景）。
+func NewConverter(threadID, runID string, contextWindow ...int64) *Converter {
+	cw := int64(128000)
+	if len(contextWindow) > 0 && contextWindow[0] > 0 {
+		cw = contextWindow[0]
+	}
 	c := &Converter{
-		threadID: threadID,
-		runID:    runID,
+		threadID:      threadID,
+		runID:         runID,
+		contextWindow: cw,
 	}
 	c.activeMsgID.Store("")
 	c.activeMsgRole.Store("")
@@ -32,11 +41,17 @@ func NewConverter(threadID, runID string) *Converter {
 	return c
 }
 
-func NewConverterWithParent(threadID, runID, parentRunID string) *Converter {
+// NewConverterWithParent 创建带父 run ID 的转换器。
+func NewConverterWithParent(threadID, runID, parentRunID string, contextWindow ...int64) *Converter {
+	cw := int64(128000)
+	if len(contextWindow) > 0 && contextWindow[0] > 0 {
+		cw = contextWindow[0]
+	}
 	c := &Converter{
-		threadID:    threadID,
-		runID:       runID,
-		parentRunID: parentRunID,
+		threadID:      threadID,
+		runID:         runID,
+		parentRunID:   parentRunID,
+		contextWindow: cw,
 	}
 	c.activeMsgID.Store("")
 	c.activeMsgRole.Store("")
@@ -177,6 +192,31 @@ func (c *Converter) StateDelta(t time.Time, ops []jsonPatchOp) StateDeltaEvent {
 	}
 }
 
+// accumulateUsage 累加本轮 Token 用量到 totalTokens。
+func (c *Converter) accumulateUsage(usage agentcore.TokenUsage, _ time.Time) {
+	c.totalTokens += usage.TotalTokens
+}
+
+// buildContextUsage 构造 CONTEXT_USAGE 事件。
+func (c *Converter) buildContextUsage(t time.Time) ContextUsageEvent {
+	percent := float64(0)
+	if c.contextWindow > 0 {
+		percent = float64(c.totalTokens) / float64(c.contextWindow) * 100
+	}
+	return ContextUsageEvent{
+		BaseEvent:     baseEvent(EventContextUsage, t),
+		ContextWindow: c.contextWindow,
+		UsagePercent:  percent,
+		TokenUsage: struct {
+			PromptTokens     int64 `json:"promptTokens"`
+			CompletionTokens int64 `json:"completionTokens"`
+			TotalTokens      int64 `json:"totalTokens"`
+		}{
+			TotalTokens: c.totalTokens,
+		},
+	}
+}
+
 func (c *Converter) Convert(e agentcore.Event) []any {
 	switch ev := e.(type) {
 	case agentcore.AgentStartEvent:
@@ -230,6 +270,10 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 			BaseEvent: baseEvent(EventStepFinished, ev.EventTime()),
 			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
 		})
+		c.accumulateUsage(ev.Usage, ev.EventTime())
+		if c.totalTokens > 0 {
+			events = append(events, c.buildContextUsage(ev.EventTime()))
+		}
 		return events
 	case *agentcore.TurnEndEvent:
 		var events []any
@@ -238,6 +282,10 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 			BaseEvent: baseEvent(EventStepFinished, ev.EventTime()),
 			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
 		})
+		c.accumulateUsage(ev.Usage, ev.EventTime())
+		if c.totalTokens > 0 {
+			events = append(events, c.buildContextUsage(ev.EventTime()))
+		}
 		return events
 
 	case agentcore.MessageDeltaEvent:

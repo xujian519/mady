@@ -226,6 +226,15 @@ func (a *App) DeleteThread(key string) error {
 // HealthInfo 返回运行时健康检查信息。
 type HealthInfo = madyserver.HealthInfo
 
+// SaveWindowState 持久化窗口几何信息，供前端 beforeunload 时调用。
+func (a *App) SaveWindowState(width, height int) {
+	if width < 400 || height < 300 {
+		return
+	}
+	saveWindowState(windowState{Width: width, Height: height})
+	log.Printf("[mady-desktop] saved window state: %dx%d", width, height)
+}
+
 // Health 返回桌面端运行时健康信息。
 func (a *App) Health() (HealthInfo, error) {
 	if err := a.ready(); err != nil {
@@ -444,8 +453,6 @@ func eventTypeOf(ev any) agui.EventType {
 	}
 	return agui.EventRaw
 }
-
-// --- 辅助函数 ---
 
 // generateRunID 生成唯一的 run 标识符。
 func generateRunID() string {

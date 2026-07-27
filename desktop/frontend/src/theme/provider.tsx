@@ -1,65 +1,85 @@
 /**
  * ThemeProvider — 主题上下文提供者。
  *
- * 支持三种模式：
- *   - light: 强制亮色
- *   - dark: 强制暗色
- *   - system: 跟随系统偏好（通过 matchMedia 监听）
+ * 支持三种模式 + 主题包：
+ *   - 模式: light / dark / system（跟随系统）
+ *   - 主题包: professional / focus-blue / paper-warm / slate
  *
- * 用法：
- * ```tsx
- * <ThemeProvider>
- *   <App />
- * </ThemeProvider>
- * ```
+ * 主题包通过动态 `<style id="mady-theme-pack">` 注入 CSS 变量覆盖。
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import { ThemeContext, type ThemeMode } from './tokens'
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { ThemeContext, type ThemeMode, type ThemePackId } from './tokens'
+import { getThemePack, buildThemePackCSS } from './packs'
 
-// ── localStorage Key ──────────────────────────────
+// ── localStorage Keys ─────────────────────────────
 
-const STORAGE_KEY = 'mady-theme-mode'
+const MODE_KEY = 'mady-theme-mode'
+const PACK_KEY = 'mady-theme-pack'
 
 // ── 工具函数 ──────────────────────────────────────
 
-/** 从 localStorage 读取保存的主题模式，无则返回 system。 */
 function loadMode(): ThemeMode {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(MODE_KEY)
     if (raw === 'light' || raw === 'dark' || raw === 'system') return raw
-  } catch {
-    // localStorage 不可用（SSR/隐私模式）
-  }
+  } catch { /* ignore */ }
   return 'system'
 }
 
-/** 保存主题模式到 localStorage。 */
 function saveMode(mode: ThemeMode): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, mode)
-  } catch {
-    // 静默失败
-  }
+  try { localStorage.setItem(MODE_KEY, mode) } catch { /* ignore */ }
 }
 
-/** 查询系统深色模式偏好。 */
+function loadPack(): ThemePackId {
+  try {
+    const raw = localStorage.getItem(PACK_KEY)
+    if (raw === 'professional' || raw === 'focus-blue' || raw === 'paper-warm' || raw === 'slate') {
+      return raw as ThemePackId
+    }
+  } catch { /* ignore */ }
+  return 'professional'
+}
+
+function savePack(pack: ThemePackId): void {
+  try { localStorage.setItem(PACK_KEY, pack) } catch { /* ignore */ }
+}
+
 function querySystemDark(): boolean {
   if (typeof window === 'undefined') return false
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-/** 根据 mode 和系统偏好解析实际主题。 */
 function resolveMode(mode: ThemeMode): boolean {
   if (mode === 'dark') return true
   if (mode === 'light') return false
   return querySystemDark()
 }
 
+// ── CSS 变量注入 ──────────────────────────────────
+
+/**
+ * 在 `<head>` 中维护一个 `<style id="mady-theme-pack">` 元素，
+ * 用于运行时覆盖 Tailwind CSS 变量。
+ */
+function applyThemePackCSS(packId: ThemePackId, isDark: boolean): void {
+  const pack = getThemePack(packId)
+  const css = `:root {\n${buildThemePackCSS(pack, isDark)}\n}`
+
+  let style = document.getElementById('mady-theme-pack') as HTMLStyleElement | null
+  if (!style) {
+    style = document.createElement('style')
+    style.id = 'mady-theme-pack'
+    document.head.appendChild(style)
+  }
+  style.textContent = css
+}
+
 // ── Provider ──────────────────────────────────────
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(() => loadMode())
+  const [packId, setPackId] = useState<ThemePackId>(() => loadPack())
 
   // 保存到 localStorage
   const setMode = useCallback((m: ThemeMode) => {
@@ -67,25 +87,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     saveMode(m)
   }, [])
 
-  // 解析后的暗色标志
+  const setThemePack = useCallback((p: ThemePackId) => {
+    setPackId(p)
+    savePack(p)
+  }, [])
+
+  // 暗色标志解析
   const [isDark, setIsDark] = useState(() => resolveMode(mode))
 
   useEffect(() => {
-    // 当前解析结果
     const update = () => setIsDark(resolveMode(mode))
-
-    // 如果是 system 模式，监听系统偏好变化
     if (mode === 'system') {
       const mq = window.matchMedia('(prefers-color-scheme: dark)')
       mq.addEventListener('change', update)
       update()
       return () => mq.removeEventListener('change', update)
     }
-
     update()
   }, [mode])
 
-  // 将 resolved 主题写入 <html> 的 class 和 data-theme 属性
+  // 写入 <html> class + data-theme
   useEffect(() => {
     const root = document.documentElement
     if (isDark) {
@@ -97,14 +118,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isDark])
 
+  // 应用主题包 CSS 变量覆盖
+  const prevPackRef = useRef(packId)
+  const prevDarkRef = useRef(isDark)
+  useEffect(() => {
+    if (packId === prevPackRef.current && isDark === prevDarkRef.current) return
+    prevPackRef.current = packId
+    prevDarkRef.current = isDark
+    applyThemePackCSS(packId, isDark)
+  }, [packId, isDark])
+
+  // 首次挂载时始终应用（可能和上次会话不同）
+  useEffect(() => {
+    applyThemePackCSS(packId, isDark)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const value = useMemo(
     () => ({
       mode,
       setMode,
       resolved: isDark ? 'dark' as const : 'light' as const,
       isDark,
+      themePack: packId,
+      setThemePack,
     }),
-    [mode, setMode, isDark],
+    [mode, setMode, isDark, packId, setThemePack],
   )
 
   return (

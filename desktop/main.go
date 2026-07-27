@@ -5,7 +5,10 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -16,13 +19,71 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// windowState 保存窗口几何信息。
+type windowState struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+	X      int `json:"x,omitempty"`
+	Y      int `json:"y,omitempty"`
+}
+
+func windowStatePath() string {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Join(cacheDir, "mady")
+	_ = os.MkdirAll(dir, 0755)
+	return filepath.Join(dir, "window_state.json")
+}
+
+func loadWindowState() *windowState {
+	p := windowStatePath()
+	if p == "" {
+		return nil
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return nil
+	}
+	var ws windowState
+	if err := json.Unmarshal(data, &ws); err != nil {
+		return nil
+	}
+	if ws.Width < 400 || ws.Height < 300 {
+		return nil
+	}
+	return &ws
+}
+
+func saveWindowState(ws windowState) {
+	p := windowStatePath()
+	if p == "" {
+		return
+	}
+	data, err := json.Marshal(ws)
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(p, data, 0644)
+}
+
 func main() {
 	app := NewApp()
 
+	// 加载上次窗口状态
+	ws := loadWindowState()
+	width := 1200
+	height := 800
+	if ws != nil {
+		width = ws.Width
+		height = ws.Height
+	}
+
 	err := wails.Run(&options.App{
 		Title:     "Mady",
-		Width:     1200,
-		Height:    800,
+		Width:     width,
+		Height:    height,
 		MinWidth:  900,
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{
@@ -36,7 +97,6 @@ func main() {
 			Appearance:           mac.DefaultAppearance,
 			WindowIsTranslucent:  false,
 			WebviewIsTransparent: false,
-			// TODO(T3.7): 接入 About / Preferences 菜单项
 		},
 	})
 
