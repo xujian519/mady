@@ -205,11 +205,11 @@ func chunkToDocument(c retrieval.ScoredChunk, score float64) domain.DomainDocume
 // in the result set. A zero max (all-zero scores) yields uniform 0 so
 // downstream code can treat 0 as "no signal"; any positive score maps to
 // (0,1]. This keeps relative ordering intact for RRF fusion.
-func normalizeScore(raw, max float64) float64 {
-	if max <= 0 {
+func normalizeScore(raw, maxVal float64) float64 {
+	if maxVal <= 0 {
 		return 0
 	}
-	s := raw / max
+	s := raw / maxVal
 	if math.IsNaN(s) || math.IsInf(s, 0) {
 		return 0
 	}

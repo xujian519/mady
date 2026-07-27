@@ -108,9 +108,9 @@ func (a *IPCStandardAdapter) MatchByIPC(_ context.Context, ipcSection, article s
 
 	// Apply max-per-source limit from query context.
 	if maxStr := queryCtx["max_rules"]; maxStr != "" {
-		var max int
-		if _, err := fmt.Sscanf(maxStr, "%d", &max); err == nil && max > 0 && len(rules) > max {
-			rules = rules[:max]
+		var maxCount int
+		if _, err := fmt.Sscanf(maxStr, "%d", &maxCount); err == nil && maxCount > 0 && len(rules) > maxCount {
+			rules = rules[:maxCount]
 		}
 	}
 

@@ -1,4 +1,4 @@
-// Dual-track checker — combines the deterministic rule engine with an optional
+// Package patent — dual-track checker that combines the deterministic rule engine with an optional
 // semantic LLM-judge track.
 //
 // Flow (ported from @nuo/legal-bus CheckerAgent.ts + CheckRuleEngine.ts):

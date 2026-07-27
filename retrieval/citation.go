@@ -1,4 +1,4 @@
-// Citation tracker — provenance tracking and rendering for retrieved items.
+// Package retrieval — provenance tracking and rendering for retrieved items.
 //
 // Ported from @nuo/knowledge citation-tracker.ts. Provides structured citation
 // metadata, grouped citation chains, and conflict detection across sources of

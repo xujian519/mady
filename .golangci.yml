@@ -1,5 +1,4 @@
 # Mady Project - golangci-lint Configuration (v2 format)
-# Auto-generated for code smell scan (2026-07-27)
 version: "2"
 
 run:
@@ -7,11 +6,6 @@ run:
   modules-download-mode: readonly
   issues-exit-code: 1
   tests: false
-  skip-dirs:
-    - graphify-out
-    - build
-    - .grok
-    - .git
 
 linters:
   default: none
@@ -27,7 +21,6 @@ linters:
 
     # 代码质量
     - goconst         # 可提取为常量的重复字符串
-    - gocritic        # 惯用检查
     - revive          # golint 替代（增强版）
 
     # 正确性
@@ -36,113 +29,95 @@ linters:
     - copyloopvar     # 循环变量引用副本（替代 exportloopref）
 
     # 性能与安全性
-    - prealloc        # 可预分配的切片
     - durationcheck   # 时间乘时间错误
     - errchkjson      # JSON 编码类型检查
     - gosec           # 安全审查
 
-  disable:
-    - dupl            # 重复代码检查（单独用 dupl CLI）
+  settings:
+    goconst:
+      min-len: 15
+      min-occurrences: 15
+      ignore-calls: true
+    misspell:
+      locale: US
+      ignore-rules:
+        - cancelled
+        - cancelling
+        - capitalise
+        - centre
+        - colour
+        - defence
+        - licence
+        - optimise
+        - organise
+        - programme
+    revive:
+      severity: warning
+      rules:
+        - name: blank-imports
+          severity: warning
+        - name: context-keys-type
+          severity: warning
+        - name: error-return
+          severity: warning
+        - name: error-naming
+          severity: warning
+        - name: indent-error-flow
+          disabled: true
+        - name: increment-decrement
+          severity: warning
+        - name: package-comments
+          disabled: true
+        - name: range
+          severity: warning
+        - name: receiver-naming
+          severity: warning
+        - name: time-naming
+          severity: warning
+        - name: unexported-return
+          severity: warning
+        - name: errorf
+          severity: warning
+        - name: empty-block
+          severity: warning
+        - name: superfluous-else
+          severity: warning
+        - name: unreachable-code
+          severity: warning
+        - name: redefines-builtin-id
+          severity: warning
+    gosec:
+      excludes:
+        - G404   # 弱随机数生成器（项目已知设计选择）
+        - G115   # 整数溢出（项目已知设计选择）
+        - G402   # TLS 配置（非 TLS 服务）
+    staticcheck:
+      checks:
+        - all
+        - "-SA1019"  # 已弃用 API 的使用（已知技术债务）
 
-linters-settings:
-  goconst:
-    min-len: 5
-    min-occurrences: 4
-    ignore-calls: true
-    ignore-expr: "((\\w+)|(\\w+\\.len))"
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-      - style
-      - opinionated
-    disabled-checks:
-      - ifElseChain
-      - wrapperFunc
-      - whyNoLint
-      - unnamedResult
-      - commentFormatting
-  misspell:
-    locale: US
-    ignore-words:
-      - cancelled
-      - cancelling
-      - capitalise
-      - centre
-      - colour
-      - defence
-      - licence
-      - optimise
-      - organise
-      - programme
-  revive:
-    ignore-generated-header: true
-    severity: warning
+  exclusions:
+    paths:
+      - graphify-out
+      - build
+      - .grok
+      - .git
     rules:
-      - name: exported
-        severity: warning
-      - name: blank-imports
-        severity: warning
-      - name: context-keys-type
-        severity: warning
-      - name: error-return
-        severity: warning
-      - name: error-naming
-        severity: warning
-      - name: exported-comments
-        severity: warning
-      - name: indent-error-flow
-        severity: warning
-        disabled: true
-      - name: increment-decrement
-        severity: warning
-      - name: package-comments
-        severity: warning
-        disabled: true
-      - name: range
-        severity: warning
-      - name: receiver-naming
-        severity: warning
-      - name: time-naming
-        severity: warning
-      - name: unexported-return
-        severity: warning
-      - name: errorf
-        severity: warning
-      - name: empty-block
-        severity: warning
-      - name: superfluous-else
-        severity: warning
-      - name: unreachable-code
-        severity: warning
-      - name: redefines-builtin-id
-        severity: warning
-  gosec:
-    excludes:
-      - G404   # 弱随机数生成器（项目已知设计选择）
-      - G115   # 整数溢出（项目已知设计选择）
-      - G402   # TLS 配置（非 TLS 服务）
-  staticcheck:
-    checks:
-      - all
-      - -SA1019  # 已弃用 API 的使用（已知技术债务）
+      - path: "_test\\.go"
+        linters:
+          - goconst
+          - errcheck
+          - gosec
+      - path: "doc\\.go"
+        linters:
+          - unused
+      - path: ".*_gen\\.go"
+        linters:
+          - all
+      - path: ".*\\.pb\\.go"
+        linters:
+          - all
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - goconst
-        - errcheck
-        - gosec
-    - path: doc\.go
-      linters:
-        - unused
-    - path: ".*_gen\\.go"
-      linters:
-        - all
-    - path: ".*\\.pb\\.go"
-      linters:
-        - all

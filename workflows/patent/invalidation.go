@@ -239,6 +239,8 @@ func identifyGroundsNode(ctx context.Context, state graph.PregelState) (graph.Pr
 // gatherEvidenceNode retrieves prior-art evidence for the invalidation grounds.
 // With a retriever injected, it performs real prior-art search.
 // Without a retriever, it marks degradation and returns empty evidence.
+//
+//nolint:unused // used by invalidation_test.go
 func gatherEvidenceNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 	claims := state.GetString(InvStateClaims)
 	grounds, _ := state[InvStateGrounds].([]InvGround)

@@ -1,4 +1,4 @@
-// Track-conflict resolution for the dual-track checker.
+// Package patent — track-conflict resolution for the dual-track checker.
 //
 // When the deterministic rule track and the semantic LLM track disagree on a
 // verdict, a conflict arises. This package-level logic decides the final

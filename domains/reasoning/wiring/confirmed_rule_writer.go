@@ -101,6 +101,7 @@ func (w *ConfirmedRuleWriter) List() ([]string, error) {
 	return out, nil
 }
 
+//nolint:revive // unexported-return: confirmedRuleRecord is internal
 // Load reads one historical confirmed-rule record by path.
 func (w *ConfirmedRuleWriter) Load(path string) (confirmedRuleRecord, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path is from caller, typically filepath.Join(w.dir, ...)

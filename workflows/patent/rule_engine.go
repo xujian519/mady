@@ -1,4 +1,4 @@
-// Rule engine for patent analysis — deterministic track of the dual-track checker.
+// Package patent — rule engine for patent analysis, deterministic track of the dual-track checker.
 //
 // This engine performs keyword/synonym-based checks against Chinese patent law
 // requirements (novelty, inventiveness three-step method, disclosure sufficiency,

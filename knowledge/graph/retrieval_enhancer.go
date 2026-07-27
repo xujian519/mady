@@ -1,4 +1,4 @@
-// Graph-enhanced retrieval — expands retrieval results using knowledge-graph
+// Package graph — expanded retrieval results using knowledge-graph
 // relationships (similar cases, citation chains for shared statutes).
 //
 // The enhancer sits after the base retrieval step: given a set of seed

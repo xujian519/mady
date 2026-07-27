@@ -326,10 +326,10 @@ func tokenizeEval(text string) []string {
 	return tokens
 }
 
-func truncate(s string, max int) string {
+func truncate(s string, maxLen int) string {
 	runes := []rune(s)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return s
 	}
-	return string(runes[:max]) + "..."
+	return string(runes[:maxLen]) + "..."
 }

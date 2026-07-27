@@ -199,12 +199,12 @@ func extractClaimTerms(claims []string) []string {
 	return result
 }
 
-func truncStr(s string, max int) string {
+func truncStr(s string, maxLen int) string {
 	runes := []rune(s)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return s
 	}
-	return string(runes[:max])
+	return string(runes[:maxLen])
 }
 
 // =============================================================================

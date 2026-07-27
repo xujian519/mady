@@ -359,24 +359,24 @@ func (m LengthScore) Name() string { return "length_score" }
 // Compute returns a triangular score based on rune length within [Min, Max].
 func (m LengthScore) Compute(prediction, _ string) float64 {
 	n := runeLen(prediction)
-	min := m.Min
-	if min <= 0 {
-		min = 50
+	minVal := m.Min
+	if minVal <= 0 {
+		minVal = 50
 	}
 	ideal := m.Ideal
 	if ideal <= 0 {
 		ideal = 500
 	}
-	max := m.Max
-	if max <= 0 {
-		max = 3000
+	maxVal := m.Max
+	if maxVal <= 0 {
+		maxVal = 3000
 	}
-	if n < min {
-		return float64(n) / float64(min)
+	if n < minVal {
+		return float64(n) / float64(minVal)
 	}
-	if n > max {
-		excess := n - max
-		decayWindow := max / 2
+	if n > maxVal {
+		excess := n - maxVal
+		decayWindow := maxVal / 2
 		if decayWindow <= 0 {
 			return 0
 		}
@@ -387,9 +387,9 @@ func (m LengthScore) Compute(prediction, _ string) float64 {
 		return score
 	}
 	if n <= ideal {
-		return float64(n-min) / float64(ideal-min)
+		return float64(n-minVal) / float64(ideal-minVal)
 	}
-	return float64(max-n) / float64(max-ideal)
+	return float64(maxVal-n) / float64(maxVal-ideal)
 }
 
 // ============================================================================

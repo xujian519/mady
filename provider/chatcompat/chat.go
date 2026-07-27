@@ -215,6 +215,7 @@ type chunkFunctionCall struct {
 
 // --- type conversion helpers ---
 
+//nolint:revive // unexported-return: chatMessage is internal
 // ToMessages converts agentcore messages to Chat Completions wire format.
 func ToMessages(msgs []agentcore.Message) []chatMessage {
 	out := make([]chatMessage, len(msgs))
@@ -286,6 +287,7 @@ func MessageContent(m agentcore.Message) any {
 	return parts
 }
 
+//nolint:revive // unexported-return: chatTool is internal
 // ToTools converts agentcore tool definitions to Chat Completions wire format.
 func ToTools(defs []agentcore.ToolDefinition) []chatTool {
 	if len(defs) == 0 {
@@ -559,6 +561,7 @@ func shouldOmitResponseFormat(baseURL string, format *agentcore.ResponseFormat) 
 	return strings.Contains(base, "api.deepseek.com")
 }
 
+//nolint:revive // unexported-return: chatResponseFormat is internal
 // ToResponseFormat converts agentcore ResponseFormat to Chat Completions wire format.
 func ToResponseFormat(format *agentcore.ResponseFormat) *chatResponseFormat {
 	if format == nil {

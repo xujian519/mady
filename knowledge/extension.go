@@ -154,7 +154,7 @@ func (e *KnowledgeExtension) WithLawSearcher(fn LawSearcher) *KnowledgeExtension
 	return e
 }
 
-// KnowledgeExtConfig configures the knowledge extension behaviour.
+// KnowledgeExtConfig configures the knowledge extension behavior.
 type KnowledgeExtConfig struct {
 	Enabled         bool                      `json:"enabled"`
 	Domain          string                    `json:"domain"`

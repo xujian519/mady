@@ -78,12 +78,8 @@ components:
     in: ./skill/**
   fuzzy:
     in: ./fuzzy/**
-  pluginsys:
-    in: ./pluginsys/**
   prompt:
     in: ./prompt/**
-  benchmark:
-    in: ./benchmark/**
   integration:
     in: ./integration/**
   example:
@@ -126,9 +122,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -170,9 +164,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -214,9 +206,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -249,9 +239,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -285,9 +273,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -320,9 +306,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -356,9 +340,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -391,9 +373,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -426,9 +406,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -461,9 +439,7 @@ deps:
       - store
       - skill
       - fuzzy
-      - pluginsys
       - prompt
-      - benchmark
       - integration
       - example
       - cmd
@@ -511,11 +487,7 @@ deps:
     anyProjectDeps: true
   fuzzy:
     anyProjectDeps: true
-  pluginsys:
-    anyProjectDeps: true
   prompt:
-    anyProjectDeps: true
-  benchmark:
     anyProjectDeps: true
   integration:
     anyProjectDeps: true
