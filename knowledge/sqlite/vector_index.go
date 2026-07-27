@@ -110,6 +110,7 @@ func (s *SQLiteStore) PreloadVectorIndex() (*VectorIndex, error) {
 //
 // Each worker maintains a min-heap of size topK (instead of allocating the
 // entire shard), reducing per-query allocations from O(N/workers) to O(K).
+//
 //nolint:revive // unexported-return: vectorMatch is internal
 func (idx *VectorIndex) Search(queryVec []float32, topK int) []vectorMatch {
 	if topK <= 0 {

@@ -186,6 +186,10 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Ensure frontend/dist exists (go:embed prerequisite)
+        working-directory: desktop
+        run: mkdir -p frontend/dist
+
       - name: go vet
         working-directory: desktop
         run: go vet ./...

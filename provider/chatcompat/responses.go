@@ -209,8 +209,9 @@ func ToResponsesInput(msgs []agentcore.Message) any {
 	return items
 }
 
-//nolint:revive // unexported-return: responsesTool is internal
 // ToResponsesTools converts tool definitions to the Responses API wire format.
+//
+//nolint:revive // unexported-return: responsesTool is internal
 func ToResponsesTools(defs []agentcore.ToolDefinition) []responsesTool {
 	if len(defs) == 0 {
 		return nil
@@ -229,8 +230,9 @@ func ToResponsesTools(defs []agentcore.ToolDefinition) []responsesTool {
 	return out
 }
 
-//nolint:revive // unexported-return: responsesTextConfig is internal
 // ToResponsesTextFormat converts ResponseFormat to the Responses API text config.
+//
+//nolint:revive // unexported-return: responsesTextConfig is internal
 func ToResponsesTextFormat(format *agentcore.ResponseFormat) *responsesTextConfig {
 	if format == nil {
 		return nil

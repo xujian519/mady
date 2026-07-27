@@ -1,0 +1,18 @@
+# Mady Tools - golangci-lint Configuration (v2 format)
+# 工具子模块仅启用最基础的正确性检查。
+# 更严格的 lint 规则将在后续逐步启用。
+version: "2"
+
+run:
+  timeout: 3m
+  tests: false
+
+linters:
+  default: none
+  enable:
+    - govet
+    - ineffassign
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
