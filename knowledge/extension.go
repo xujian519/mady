@@ -185,7 +185,7 @@ func (e *KnowledgeExtension) Name() string                                     {
 func (e *KnowledgeExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
 func (e *KnowledgeExtension) Dispose() error                                   { return nil }
 
-func (e *KnowledgeExtension) LifecycleHook() agentcore.LifecycleHook {
+func (e *KnowledgeExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:staticcheck
 	if e.backend != nil {
 		h := NewBackendRetrievalHook(e, e.cfg.RetrievalConfig)
 		if e.evalHook != nil {

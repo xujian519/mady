@@ -1,5 +1,57 @@
 # AI 变更记录
 
+## 2026-07-27: 废弃 LifecycleHook → Observer 接口迁移（SA1019 清理）
+
+### 状态
+7 个 Hook 结构体从 `agentcore.LifecycleHook`（嵌入 `BaseLifecycleHook`）迁移为细粒度 Observer 接口，9 处纯类型引用加 `//nolint:staticcheck` 标记。`make verify`（lint + build + test-race）全量通过。
+
+### 迁移清单
+
+| 类型 | 文件 | 原模式 | 新模式 | Observer 角色 |
+|------|------|--------|--------|--------------|
+| evidenceHook | `agentcore/evidence/extension.go` | BaseLifecycleHook → BeforeTurn + AfterToolExecution | TurnObserver + ToolCallObserver | BeforeTurn/AfterTurn, BeforeToolExec/AfterToolExec |
+| checkpointHook | `agentcore/filecheckpoint/extension.go` | BaseLifecycleHook → BeforeTurn + AfterTurn | TurnObserver | BeforeTurn/AfterTurn |
+| planModeHook | `agentcore/planmode/extension.go` | BaseLifecycleHook → BeforeToolExecution | ToolCallObserver | BeforeToolExec/AfterToolExec |
+| compilerHook | `memory/compiler/extension.go` | BaseLifecycleHook → BeforeTurn + AfterTurn | TurnObserver | BeforeTurn/AfterTurn |
+| memoryLifecycleHook | `memory/extension.go` | BaseLifecycleHook → AfterModelCall | ModelCallObserver | BeforeModelCall/AfterModelCall |
+| doomLoopHook | `doomloop/doomloop.go` | BaseLifecycleHook → BeforeAgentRun + AfterModelCall + AfterToolExecution | AgentRunObserver + ModelCallObserver + ToolCallObserver | 三角色六方法 |
+| psychologicalHook | `psychological/hook.go` | BaseLifecycleHook → BeforeAgentRun | AgentRunObserver | BeforeAgentRun/AfterAgentRun |
+
+### 添加 nolint 的文件（API 兼容性必需）
+- `acp/server_app.go:38` — `RunOptions.Lifecycle` 字段类型
+- `domains/citation_wiring.go:55` — `newCitationGate()` 返回类型
+- `domains/lifecycle.go:11` — `defaultDoomLoopHook()` 返回类型
+- `domains/router.go:166` — `appendLifecycle()` 包装函数
+- `doomloop/doomloop.go:147` — `AsHook()` 返回类型
+- `knowledge/extension.go:188` — `KnowledgeExtension.LifecycleHook()` 返回类型
+- `example/cli-chat/main.go:42` — `loadWikiStore()` 返回类型
+- `psychological/hook.go:20` — `NewLifecycleHook()` 返回类型
+- `agentcore/evidence/extension.go:50` — `EvidenceExtension.LifecycleHook()` 返回类型
+- `agentcore/filecheckpoint/extension.go:75` — `FileCheckpointExtension.LifecycleHook()` 返回类型
+- `agentcore/planmode/extension.go:54` — `PlanModeExtension.LifecycleHook()` 返回类型
+- `memory/compiler/extension.go:65` — `CompilerExtension.LifecycleHook()` 返回类型
+- `memory/extension.go:278` — `MemoryExtension.LifecycleHook()` 返回类型
+- `pkg/framework/setup.go` — 3 处（已有 nolint，无需新增）
+
+（注：`pkg/framework/setup.go` 已有 `//nolint:staticcheck` 标记，未重复修改）
+
+### 测试更新
+6 个测试文件因 `ObserversToHook` 包装导致类型断言不可达而更新：
+- `agentcore/evidence/extension_test.go`
+- `agentcore/filecheckpoint/extension_test.go`
+- `agentcore/planmode/extension_test.go`
+- `memory/compiler/extension_lifecycle_test.go`
+- `memory/lifecycle_hook_test.go`
+- `psychological/lifecycle_hook_test.go`
+
+### 回归验证
+- `golangci-lint run` — 0 issues ✅
+- `go build ./...` + `cd tools && go build ./...` + `cd tui && go build ./...` ✅
+- `go test -race -count=1 ./...` + tools + tui — 全包通过 ✅
+- 架构边界检查 — 25/25 通过 ✅
+
+---
+
 ## 2026-07-27: 四子系统死代码接入 — 可信度管线/审计扩展/期限工具/指标端点
 
 ### 状态

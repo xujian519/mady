@@ -275,14 +275,20 @@ func (e *MemoryExtension) TransformContext(ctx context.Context, msgs []agentcore
 // LifecycleProvider — 自动记忆提取
 // ---------------------------------------------------------------------------
 
-func (e *MemoryExtension) LifecycleHook() agentcore.LifecycleHook {
-	return &memoryLifecycleHook{ext: e}
+func (e *MemoryExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:staticcheck
+	return agentcore.ObserversToHook(&memoryLifecycleHook{ext: e})
 }
 
-// memoryLifecycleHook 嵌入 BaseLifecycleHook，只覆写相关方法。
+// memoryLifecycleHook only overrides AfterModelCall.
 type memoryLifecycleHook struct {
-	agentcore.BaseLifecycleHook
 	ext *MemoryExtension
+}
+
+// Compile-time interface assertion.
+var _ agentcore.ModelCallObserver = (*memoryLifecycleHook)(nil)
+
+func (h *memoryLifecycleHook) BeforeModelCall(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.ModelCallContext) error {
+	return nil
 }
 
 func (h *memoryLifecycleHook) AfterModelCall(ctx context.Context, arc *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) {

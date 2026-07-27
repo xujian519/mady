@@ -35,7 +35,7 @@ type RunOptions struct {
 	ContextWindow int64
 	// Lifecycle 注入知识检索等生命周期钩子（如 Wiki RAG）。
 	// 为 nil 时不注入任何钩子，保持裸 LLM 对话。
-	Lifecycle agentcore.LifecycleHook
+	Lifecycle agentcore.LifecycleHook //nolint:staticcheck
 	// Extensions 注入知识扩展等可选能力（如 search_knowledge / add_document 工具）。
 	Extensions []agentcore.Extension
 	// AuthProvider 配置 ACP 认证；为 nil 时不校验认证（仅本地开发，

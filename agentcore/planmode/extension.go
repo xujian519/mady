@@ -51,13 +51,18 @@ func (e *PlanModeExtension) Deactivate() { e.active.Store(false) }
 func (e *PlanModeExtension) IsActive() bool { return e.active.Load() }
 
 // LifecycleHook implements agentcore.LifecycleProvider.
-func (e *PlanModeExtension) LifecycleHook() agentcore.LifecycleHook {
-	return &planModeHook{ext: e}
+func (e *PlanModeExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:staticcheck
+	return agentcore.ObserversToHook(&planModeHook{ext: e})
 }
 
 type planModeHook struct {
-	agentcore.BaseLifecycleHook
 	ext *PlanModeExtension
+}
+
+// Compile-time interface assertion.
+var _ agentcore.ToolCallObserver = (*planModeHook)(nil)
+
+func (h *planModeHook) AfterToolExecution(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.ToolExecutionContext) {
 }
 
 func (h *planModeHook) BeforeToolExecution(_ context.Context, _ *agentcore.AgentRunContext, tec *agentcore.ToolExecutionContext) error {

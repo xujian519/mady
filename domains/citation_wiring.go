@@ -52,7 +52,7 @@ func currentCitationWiring() CitationWiring {
 // （未人工复核的输出不写入会话存储）。
 // sessionID/caseID 是留痕归属：静态域传域名（DomainPatent/DomainLegal），
 // 案件 Agent 传 Agent 名与案件号（ListByCase 可按案件查待审）。
-func newCitationGate(sessionID, caseID string) agentcore.LifecycleHook {
+func newCitationGate(sessionID, caseID string) agentcore.LifecycleHook { //nolint:staticcheck
 	w := currentCitationWiring()
 	return agentcore.NewIFaceLifecycleHook(guardrails.NewCitationGate(
 		guardrails.WithCitationGateLevel(guardrails.LevelStrict),

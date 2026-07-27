@@ -163,7 +163,7 @@ func buildRouterSystemPrompt(manifests []agentcore.AgentManifest) string {
 }
 
 // appendLifecycle composes lifecycle hooks safely (delegates to agentcore.AppendLifecycle).
-func appendLifecycle(existing, next agentcore.LifecycleHook) agentcore.LifecycleHook {
+func appendLifecycle(existing, next agentcore.LifecycleHook) agentcore.LifecycleHook { //nolint:staticcheck
 	return agentcore.AppendLifecycle(existing, next)
 }
 

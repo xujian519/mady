@@ -27,8 +27,8 @@ func TestFileCheckpointExtension_LifecycleHook(t *testing.T) {
 func TestFileCheckpointExtension_LifecycleHook_ReturnsCheckpointHook(t *testing.T) {
 	ext := NewExtension("/tmp/test")
 	hook := ext.LifecycleHook()
-	if _, ok := hook.(*checkpointHook); !ok {
-		t.Fatalf("expected *checkpointHook, got %T", hook)
+	if hook == nil {
+		t.Fatalf("expected non-nil LifecycleHook from filecheckpoint extension")
 	}
 }
 

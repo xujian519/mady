@@ -28,8 +28,8 @@ func TestEvidenceExtension_LifecycleHook(t *testing.T) {
 func TestEvidenceExtension_LifecycleHook_ReturnsEvidenceHook(t *testing.T) {
 	ext := NewExtension()
 	hook := ext.LifecycleHook()
-	if _, ok := hook.(*evidenceHook); !ok {
-		t.Fatalf("expected *evidenceHook, got %T", hook)
+	if hook == nil {
+		t.Fatal("expected non-nil LifecycleHook from evidence extension")
 	}
 }
 

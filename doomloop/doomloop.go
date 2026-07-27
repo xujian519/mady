@@ -144,8 +144,8 @@ func New(opts ...Option) *DoomLoop {
 }
 
 // AsHook returns a LifecycleHook that monitors the agent runtime.
-func (dl *DoomLoop) AsHook() agentcore.LifecycleHook {
-	return &doomLoopHook{parent: dl}
+func (dl *DoomLoop) AsHook() agentcore.LifecycleHook { //nolint:staticcheck
+	return agentcore.ObserversToHook(&doomLoopHook{parent: dl})
 }
 
 // Signals returns all signals emitted so far.
@@ -182,12 +182,25 @@ func (dl *DoomLoop) emitSignal(s Signal) {
 // ============================================================================
 
 type doomLoopHook struct {
-	agentcore.BaseLifecycleHook
 	parent *DoomLoop
 }
 
+// Compile-time interface assertions.
+var (
+	_ agentcore.AgentRunObserver  = (*doomLoopHook)(nil)
+	_ agentcore.ModelCallObserver = (*doomLoopHook)(nil)
+	_ agentcore.ToolCallObserver  = (*doomLoopHook)(nil)
+)
+
 func (h *doomLoopHook) BeforeAgentRun(_ context.Context, arc *agentcore.AgentRunContext) error {
 	h.parent.Reset()
+	return nil
+}
+
+func (h *doomLoopHook) AfterAgentRun(_ context.Context, _ *agentcore.AgentRunContext, _ string, _ error) {
+}
+
+func (h *doomLoopHook) BeforeModelCall(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.ModelCallContext) error {
 	return nil
 }
 
@@ -213,6 +226,10 @@ func (h *doomLoopHook) AfterModelCall(_ context.Context, _ *agentcore.AgentRunCo
 	for _, s := range pending {
 		dl.emitSignal(s)
 	}
+}
+
+func (h *doomLoopHook) BeforeToolExecution(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.ToolExecutionContext) error {
+	return nil
 }
 
 func (h *doomLoopHook) AfterToolExecution(_ context.Context, _ *agentcore.AgentRunContext, tec *agentcore.ToolExecutionContext) {

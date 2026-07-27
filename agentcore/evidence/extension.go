@@ -47,24 +47,36 @@ func (e *EvidenceExtension) Dispose() error { return nil }
 
 // LifecycleHook implements agentcore.LifecycleProvider, returning a hook that
 // resets the ledger per turn and records receipts after each tool execution.
-func (e *EvidenceExtension) LifecycleHook() agentcore.LifecycleHook {
-	return &evidenceHook{ext: e}
+func (e *EvidenceExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:staticcheck
+	return agentcore.ObserversToHook(&evidenceHook{ext: e})
 }
 
 type evidenceHook struct {
-	agentcore.BaseLifecycleHook
 	ext *EvidenceExtension
 }
+
+// Compile-time interface assertions.
+var (
+	_ agentcore.TurnObserver     = (*evidenceHook)(nil)
+	_ agentcore.ToolCallObserver = (*evidenceHook)(nil)
+)
 
 func (h *evidenceHook) BeforeTurn(_ context.Context, arc *agentcore.AgentRunContext) error {
 	h.ext.ledger.Reset()
 	return nil
 }
 
+func (h *evidenceHook) AfterTurn(_ context.Context, _ *agentcore.AgentRunContext, _ agentcore.TurnInfo) {
+}
+
 // 注意：此前此处有一个 BeforeModelCall 实现，注释声称"把 ledger 注入 context"，
 // 但 LifecycleHook.BeforeModelCall 签名返回 error、无法修改 ctx，实际函数体仅
 // `_ = h.ext.agent` 什么也没注入，是死代码。已删除。
 // ledger 通过 EvidenceExtension 实例直接访问（h.ext.ledger），无需 context 注入。
+
+func (h *evidenceHook) BeforeToolExecution(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.ToolExecutionContext) error {
+	return nil
+}
 
 func (h *evidenceHook) AfterToolExecution(_ context.Context, _ *agentcore.AgentRunContext, tec *agentcore.ToolExecutionContext) {
 	if h.ext.ledger == nil || tec == nil {

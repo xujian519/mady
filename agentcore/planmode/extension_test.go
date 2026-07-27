@@ -27,8 +27,8 @@ func TestPlanModeExtension_LifecycleHook(t *testing.T) {
 func TestPlanModeExtension_LifecycleHook_ReturnsPlanModeHook(t *testing.T) {
 	ext := NewExtension(Policy{})
 	hook := ext.LifecycleHook()
-	if _, ok := hook.(*planModeHook); !ok {
-		t.Fatalf("expected *planModeHook, got %T", hook)
+	if hook == nil {
+		t.Fatalf("expected non-nil LifecycleHook from planmode extension")
 	}
 }
 

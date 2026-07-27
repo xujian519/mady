@@ -72,8 +72,8 @@ func (e *FileCheckpointExtension) AfterHooks() []agentcore.AfterHook {
 }
 
 // LifecycleHook implements agentcore.LifecycleProvider.
-func (e *FileCheckpointExtension) LifecycleHook() agentcore.LifecycleHook {
-	return &checkpointHook{ext: e}
+func (e *FileCheckpointExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:staticcheck
+	return agentcore.ObserversToHook(&checkpointHook{ext: e})
 }
 
 func (e *FileCheckpointExtension) beforeWriteHook(_ context.Context, hc *agentcore.HookContext) error {
@@ -110,9 +110,11 @@ func (e *FileCheckpointExtension) beforeWriteHook(_ context.Context, hc *agentco
 }
 
 type checkpointHook struct {
-	agentcore.BaseLifecycleHook
 	ext *FileCheckpointExtension
 }
+
+// Compile-time interface assertion.
+var _ agentcore.TurnObserver = (*checkpointHook)(nil)
 
 func (h *checkpointHook) BeforeTurn(_ context.Context, arc *agentcore.AgentRunContext) error {
 	if arc == nil {

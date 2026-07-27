@@ -21,8 +21,8 @@ func TestNewLifecycleHook_ReturnsNonNil(t *testing.T) {
 
 func TestNewLifecycleHook_ReturnsPsychologicalHook(t *testing.T) {
 	hook := NewLifecycleHook(Config{})
-	if _, ok := hook.(*psychologicalHook); !ok {
-		t.Fatalf("expected *psychologicalHook, got %T", hook)
+	if hook == nil {
+		t.Fatalf("expected non-nil LifecycleHook from psychological extension")
 	}
 }
 

@@ -62,14 +62,16 @@ func (e *CompilerExtension) SystemPromptSuffix() string {
 }
 
 // LifecycleHook implements LifecycleProvider.
-func (e *CompilerExtension) LifecycleHook() agentcore.LifecycleHook {
-	return &compilerHook{ext: e}
+func (e *CompilerExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:staticcheck
+	return agentcore.ObserversToHook(&compilerHook{ext: e})
 }
 
 type compilerHook struct {
-	agentcore.BaseLifecycleHook
 	ext *CompilerExtension
 }
+
+// Compile-time interface assertion.
+var _ agentcore.TurnObserver = (*compilerHook)(nil)
 
 func (h *compilerHook) BeforeTurn(_ context.Context, arc *agentcore.AgentRunContext) error {
 	guidance, strategyID := h.ext.compiler.StartTurn(arc.Input)
