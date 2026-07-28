@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xujian519/mady/domains/workflows/patent"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/retrieval/domain"
-	"github.com/xujian519/mady/workflows/patent"
 )
 
 // State keys used by the design patent invalidation workflow.

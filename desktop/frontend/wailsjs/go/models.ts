@@ -275,6 +275,26 @@ export namespace main {
 	        this.model = source["model"];
 	    }
 	}
+	export class DocTemplateEntry {
+	    name: string;
+	    category: string;
+	    categoryLabel: string;
+	    description: string;
+	    content: string;
+
+	    static createFrom(source: any = {}) {
+	        return new DocTemplateEntry(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.category = source["category"];
+	        this.categoryLabel = source["categoryLabel"];
+	        this.description = source["description"];
+	        this.content = source["content"];
+	    }
+	}
 	export class FileContent {
 	    name: string;
 	    path: string;
@@ -315,6 +335,26 @@ export namespace main {
 	        this.isDir = source["isDir"];
 	        this.size = source["size"];
 	        this.modTime = source["modTime"];
+	    }
+	}
+	export class KnowledgeStatus {
+	    docCount: number;
+	    indexSizeMB: number;
+	    lastUpdated: string;
+	    sourceDirs: string[];
+	    isIndexing: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new KnowledgeStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.docCount = source["docCount"];
+	        this.indexSizeMB = source["indexSizeMB"];
+	        this.lastUpdated = source["lastUpdated"];
+	        this.sourceDirs = source["sourceDirs"];
+	        this.isIndexing = source["isIndexing"];
 	    }
 	}
 	export class McpServerEntry {

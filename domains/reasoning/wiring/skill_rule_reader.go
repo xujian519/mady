@@ -13,6 +13,10 @@ import (
 )
 
 // SkillRuleReader reads rule-like experiential knowledge from Obsidian
+// patent-cards (e.g. wiki/patent-cards/*.md). Despite the "Skill" name, this
+// is a distinct concept from the core skill.Skill (SKILL.md agent instructions):
+// it reads patent practice experience cards as reasoning.RetrievedRule entries
+// used by the reasoning engine's MultiSourceRetriever.
 // patent-cards and adapts them as a reasoning RuleSkillReader. It is the
 // third rule-acquisition source in Stage ② (获取规则), corresponding to the
 // "Wiki 实务经验补充" authority tier in design-rule-acquisition-stage.md.

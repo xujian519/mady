@@ -31,8 +31,8 @@ import (
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/skill"
 
+	"github.com/xujian519/mady/bootstrap"
 	"github.com/xujian519/mady/pkg/agentconfig"
-	"github.com/xujian519/mady/pkg/framework"
 	"github.com/xujian519/mady/pkg/util"
 )
 
@@ -41,7 +41,7 @@ import (
 type App struct {
 	ctx    context.Context
 	server *madyserver.Server
-	fc     *framework.Context
+	fc     *bootstrap.Context
 	runs   sync.Map // runId -> *runInfo
 
 	// aiMu 保护 aiProvider/aiModel（Q9 全局 AI 设置，读写并发安全）。
@@ -118,7 +118,7 @@ func (a *App) startup(ctx context.Context) {
 	a.aiModel = model
 	a.aiMu.Unlock()
 
-	fc := &framework.Context{
+	fc := &bootstrap.Context{
 		Provider: provider,
 		MadyHome: madyHome,
 	}
@@ -147,7 +147,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	// 模型级联回退候选链。
-	if fbCfg := framework.LoadFallbackConfig(); fbCfg != nil {
+	if fbCfg := bootstrap.LoadFallbackConfig(); fbCfg != nil {
 		fc.BaseConfig.FallbackConfig = fbCfg
 	}
 
@@ -157,15 +157,15 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	// Manifest 加载。
-	framework.LoadManifests(fc)
+	bootstrap.LoadManifests(fc)
 
 	// 工作区初始化（文件操作的前提）。
 	a.emitInitProgress("正在初始化工作区...")
-	framework.InitWorkspace(fc)
+	bootstrap.InitWorkspace(fc)
 
 	// 基础工具扩展（文件读写/删除/项目树等桌面端 Wails Binding
 	// 所依赖的 sandbox 工具链）。
-	framework.BuildBaseTools(fc)
+	bootstrap.BuildBaseTools(fc)
 
 	// 保存 fc 引用供后续阶段使用。
 	a.fc = fc
@@ -183,7 +183,7 @@ func (a *App) startup(ctx context.Context) {
 
 // initDeferred 在后台 goroutine 中完成重型初始化，通过 Wails Events
 // 向前端发射进度文案。
-func (a *App) initDeferred(ctx context.Context, fc *framework.Context) {
+func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[mady-desktop] PANIC in deferred init: %v", r)
@@ -204,11 +204,11 @@ func (a *App) initDeferred(ctx context.Context, fc *framework.Context) {
 	log.Println("[mady-desktop] startup: phase 2 — deferred init starting")
 
 	a.emitInitProgress("正在加载知识库...")
-	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = framework.LoadWikiStore(fc.MadyHome)
+	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = bootstrap.LoadWikiStore(fc.MadyHome)
 	if fc.KnowledgeBackend != nil {
 		log.Printf("[mady-desktop] wiki store loaded (backend: %v)", fc.KnowledgeBackend)
 	}
-	fc.WikiRoot = framework.ResolveWikiRoot(fc.MadyHome)
+	fc.WikiRoot = bootstrap.ResolveWikiRoot(fc.MadyHome)
 
 	a.emitInitProgress("正在加载规则引擎...")
 	if engine, err := rules.LoadEngineFromMadyHome(); err != nil {
@@ -218,14 +218,14 @@ func (a *App) initDeferred(ctx context.Context, fc *framework.Context) {
 	}
 
 	a.emitInitProgress("正在发现技能和 MCP 服务...")
-	framework.DiscoverSkills(fc)
-	framework.DiscoverMCP(ctx, fc)
+	bootstrap.DiscoverSkills(fc)
+	bootstrap.DiscoverMCP(ctx, fc)
 
 	a.emitInitProgress("正在初始化记忆系统...")
-	framework.InitMemorySystem(fc)
+	bootstrap.InitMemorySystem(fc)
 
 	a.emitInitProgress("正在加载推理引擎...")
-	framework.InitReasoningAndTemplates(fc)
+	bootstrap.InitReasoningAndTemplates(fc)
 
 	// 所有延迟初始化完成后创建内嵌 server，确保 Config 包含完整 Extensions/AvailableSkills。
 	a.server = madyserver.New(fc.BaseConfig)
@@ -980,9 +980,18 @@ type SkillEntry struct {
 	Path string `json:"path"`
 }
 
-// ListSkills 扫描项目 skills/ 与 MADY_HOME/skills 目录，返回发现的技能列表。
-// 项目技能优先，全局技能按名称去重（同名以项目技能为准）。
-// 未找到 skills 目录时返回空列表（不视为错误）。
+// ListSkills 扫描所有技能发现路径，返回发现的技能列表。
+// 项目本地技能优先，全局技能按名称去重（同名以项目本地为准）。
+// 未找到任何技能时返回空列表（不视为错误）。
+//
+// 扫描路径与 bootstrap.DiscoverSkills 保持一致：
+//   - SKILL_DIR 环境变量
+//   - ~/.agent/
+//   - $PWD/.agent/
+//   - $PWD/skills/
+//   - $PWD/plugins/
+//   - $MADY_HOME/skills/
+//   - ~/.agents/skills/
 func (a *App) ListSkills() ([]SkillEntry, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
@@ -993,13 +1002,40 @@ func (a *App) ListSkills() ([]SkillEntry, error) {
 		return nil, fmt.Errorf("ListSkills: %w", err)
 	}
 
+	homeDir, _ := os.UserHomeDir()
+	madyHome, _ := util.MadyHome()
+
 	type scanned struct {
 		root string
 		dir  string
 	}
-	dirs := []scanned{{root: cwd, dir: filepath.Join(cwd, "skills")}}
-	if home, err := util.MadyHome(); err == nil && home != cwd {
-		dirs = append(dirs, scanned{root: home, dir: filepath.Join(home, "skills")})
+	dirs := []scanned{}
+
+	// 1. SKILL_DIR 环境变量
+	if env := os.Getenv("SKILL_DIR"); env != "" {
+		for _, p := range filepath.SplitList(env) {
+			if p != "" {
+				dirs = append(dirs, scanned{root: p, dir: p})
+			}
+		}
+	}
+	// 2. ~/.agent/
+	if homeDir != "" {
+		dirs = append(dirs, scanned{root: homeDir, dir: filepath.Join(homeDir, ".agent")})
+	}
+	// 3. $PWD/.agent/
+	dirs = append(dirs, scanned{root: cwd, dir: filepath.Join(cwd, ".agent")})
+	// 4. $PWD/skills/
+	dirs = append(dirs, scanned{root: cwd, dir: filepath.Join(cwd, "skills")})
+	// 4b. $PWD/plugins/ (插件 SKILL.md)
+	dirs = append(dirs, scanned{root: cwd, dir: filepath.Join(cwd, "plugins")})
+	// 5. $MADY_HOME/skills/
+	if madyHome != "" && madyHome != cwd {
+		dirs = append(dirs, scanned{root: madyHome, dir: filepath.Join(madyHome, "skills")})
+	}
+	// 6. ~/.agents/skills/
+	if homeDir != "" {
+		dirs = append(dirs, scanned{root: homeDir, dir: filepath.Join(homeDir, ".agents", "skills")})
 	}
 
 	seen := make(map[string]bool)
@@ -1018,14 +1054,22 @@ func (a *App) ListSkills() ([]SkillEntry, error) {
 				continue
 			}
 			seen[s.Name] = true
-			rel, err := filepath.Rel(d.root, s.FilePath)
-			if err != nil {
-				continue
+			var entryPath string
+			if d.root == cwd {
+				rel, err := filepath.Rel(cwd, s.FilePath)
+				if err != nil {
+					log.Printf("ListSkills: filepath.Rel(%q, %q) failed: %v", cwd, s.FilePath, err)
+					entryPath = filepath.ToSlash(s.FilePath)
+				} else {
+					entryPath = filepath.ToSlash(rel)
+				}
+			} else {
+				entryPath = filepath.ToSlash(s.FilePath)
 			}
 			result = append(result, SkillEntry{
 				Name:        s.Name,
 				Description: s.Description,
-				Path:        filepath.ToSlash(rel),
+				Path:        entryPath,
 			})
 		}
 	}

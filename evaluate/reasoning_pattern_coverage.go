@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xujian519/mady/workflows/patent"
+	"github.com/xujian519/mady/domains/workflows/patent"
 )
 
 // ReasoningPatternCoverageReport 是推理模式规则覆盖率评估的报告结果。

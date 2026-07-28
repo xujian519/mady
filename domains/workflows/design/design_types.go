@@ -24,7 +24,7 @@
 package design
 
 import (
-	"github.com/xujian519/mady/workflows/patent"
+	"github.com/xujian519/mady/domains/workflows/patent"
 )
 
 // DesignInvalidationGroundType identifies the legal basis for design patent invalidation.

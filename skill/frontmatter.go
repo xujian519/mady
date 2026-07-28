@@ -32,6 +32,7 @@ func loadSkillFile(path string) (*Skill, []Diagnostic, error) {
 		FilePath:               abs,
 		BaseDir:                filepath.Dir(abs),
 		Body:                   "",
+		Domain:                 strings.TrimSpace(frontmatter["domain"]),
 		License:                strings.TrimSpace(frontmatter["license"]),
 		Compatibility:          strings.TrimSpace(frontmatter["compatibility"]),
 		AllowedTools:           parseList(frontmatter["allowed-tools"]),

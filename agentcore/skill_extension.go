@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/xujian519/mady/skill"
 )
@@ -17,6 +18,7 @@ type skillExtension struct {
 	BaseLifecycleHook
 	agent    *Agent
 	skills   []skill.Skill
+	mu       sync.RWMutex // protects selected
 	selected []string
 }
 
@@ -45,7 +47,9 @@ func (e *skillExtension) SystemPromptSuffix() string {
 
 // SetSelected updates the set of selected skills at runtime.
 func (e *skillExtension) SetSelected(selected []string) {
+	e.mu.Lock()
 	e.selected = selected
+	e.mu.Unlock()
 }
 
 // BeforeModelCall filters tool definitions based on active skills' AllowedTools.
@@ -55,7 +59,9 @@ func (e *skillExtension) BeforeModelCall(_ context.Context, _ *AgentRunContext, 
 		return nil
 	}
 
+	e.mu.RLock()
 	active, _ := skill.ResolveSelection(e.skills, e.selected)
+	e.mu.RUnlock()
 	if len(active) == 0 {
 		return nil
 	}
@@ -91,7 +97,10 @@ func (e *skillExtension) BeforeModelCall(_ context.Context, _ *AgentRunContext, 
 
 func (e *skillExtension) TransformContext(_ context.Context, msgs []Message) []Message {
 	out := make([]Message, 0, len(msgs)+1)
-	if selected, _ := skill.ResolveSelection(e.skills, e.selected); len(selected) > 0 {
+	e.mu.RLock()
+	selected, _ := skill.ResolveSelection(e.skills, e.selected)
+	e.mu.RUnlock()
+	if len(selected) > 0 {
 		out = append(out, Message{
 			Role:    RoleSystem,
 			Content: skill.ActivePrompt(selected),
@@ -129,6 +138,12 @@ func (e *skillExtension) AfterModelCall(_ context.Context, arc *AgentRunContext,
 	}
 	e.emitSkillLoaded(item, skillMetadataSourceModel, cmd.Args)
 
+	// Defensive nil guards: arc and arc.Agent must be non-nil before
+	// accessing Messages or calling FollowUp. In production these are always
+	// set by the lifecycle hook dispatcher; nil can occur in tests.
+	if arc == nil || arc.Agent == nil {
+		return
+	}
 	if loadedSkillNames(arc.Messages)[item.Name] {
 		arc.Agent.FollowUp(Message{
 			Role:    RoleSystem,

@@ -24,9 +24,11 @@ Mady 是一个面向专利/法律专业人士的智能 Agent 平台。系统需�
                    \       |
                     基础设施层：graph/ session/ skill/ prompt/ store/
                                 knowledge/ retrieval/ disclosure/ memory/
-                                filequeue/ fuzzy/ benchmark/ integration/
+                                fuzzy/ tracing/ evaluate/ doomloop/
+                                pkg/
                                    |
-                   领域层：domains/ (chat | patent | legal)
+                   领域层：domains/ (chat | patent | legal |
+                            workflows/patent | workflows/legal | workflows/design)
                                    |
                    心理层：psychological/
 ```

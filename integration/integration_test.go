@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xujian519/mady/domains/workflows/legal"
+	"github.com/xujian519/mady/domains/workflows/patent"
 	"github.com/xujian519/mady/evaluate"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/knowledge"
 	kgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/tracing"
-	"github.com/xujian519/mady/workflows/legal"
-	"github.com/xujian519/mady/workflows/patent"
 )
 
 // TestLegalSyllogismE2E exercises the full legal reasoning pipeline:

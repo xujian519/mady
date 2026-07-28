@@ -8,7 +8,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agui"
-	"github.com/xujian519/mady/pkg/framework"
+	"github.com/xujian519/mady/bootstrap"
 )
 
 func TestToKebabCase_RunStarted(t *testing.T) {
@@ -641,7 +641,7 @@ func TestSetAISettings_RequiresInput(t *testing.T) {
 func TestSetAISettings_ModelOnly(t *testing.T) {
 	dir := t.TempDir()
 	app := &App{
-		fc:         &framework.Context{MadyHome: dir},
+		fc:         &bootstrap.Context{MadyHome: dir},
 		aiProvider: "deepseek",
 		aiModel:    "deepseek-v4-flash",
 	}
@@ -676,7 +676,7 @@ func TestSetAISettings_ProviderWithoutKey(t *testing.T) {
 
 	dir := t.TempDir()
 	app := &App{
-		fc:         &framework.Context{MadyHome: dir},
+		fc:         &bootstrap.Context{MadyHome: dir},
 		aiProvider: "deepseek",
 		aiModel:    "deepseek-v4-flash",
 	}

@@ -33,7 +33,7 @@
 | `ChunkDocument` | `ChunkDocument(docID, text string, opts ChunkOptions) []Chunk` | chunk.go:40 |
 | `RetrievalHook` | `NewRetrievalHook(...)`　`BeforeModelCall(...)` — LifecycleHook | agent.go:99-157 |
 | `domain.DomainRetriever`（interface） | `Search(ctx, query DomainQuery) (*DomainResults, error)`　`GetDocument(...)`　`SourceName() string` | domain/base.go:25-35 |
-| `domain.ImportToStore` | `func ImportToStore(store *knowledge.Store, results *DomainResults, domainName string) (int, error)` | domain/base.go:86 |
+| `domain.ImportToStore` | `func ImportToStore(store StoreWriter, results *DomainResults, domainName string) (int, error)` | domain/base.go:86 |
 
 注意：`Searcher` 系接口操作的是内存中的 `[]Chunk`，真正的持久化查询（FTS5+向量余弦）在 `knowledge/sqlite` 层，其对外签名尚未核对，需在实现前补齐（见第五节开放问题）。
 

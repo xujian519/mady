@@ -1,11 +1,20 @@
 ---
 name: novelty-analysis
 description: 专利新颖性分析插件。检索现有技术，逐项对比技术特征，生成新颖性判断结论。
+allowed_tools:
+  - web_search
+  - web_fetch
+  - read
+  - write_file
+  - bash
+  - grep
+  - find
 
 mady:
   mode: patent
   guardrail_level: standard
   approval_required: true
+  example_prompt: "Analyze the novelty of claims in patent CN109690000A"
   example_prompt_zh: "分析专利 CN109690000A 的权利要求新颖性"
   capabilities:
     - patent_search
@@ -42,7 +51,7 @@ mady:
 
 ### 第 5 步：人工确认
 - 分析结论必须经过 approval_gate 人工审阅
-- 附带免责声明：「本分析由 AI 辅助生成，不构成正式法律意见」
+- **本分析由 AI 辅助生成，不构成正式法律意见。新颖性判断应由具备资质的专利代理人或律师确认。**
 
 ## 关键原则
 - 坚持单独对比原则

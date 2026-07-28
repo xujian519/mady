@@ -17,6 +17,7 @@ import (
 	"github.com/xujian519/mady/domains/reasoning"
 	reasoningsqlite "github.com/xujian519/mady/domains/reasoning/sqlite"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
+	"github.com/xujian519/mady/domains/workflows/patent"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/memory"
 	"github.com/xujian519/mady/pkg/util"
@@ -24,7 +25,6 @@ import (
 	"github.com/xujian519/mady/tui/chat"
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
-	"github.com/xujian519/mady/workflows/patent"
 
 	// graph 包用于 PregelState 构建（斜杠命令直接调用工作流）
 	"github.com/xujian519/mady/graph"

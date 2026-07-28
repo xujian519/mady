@@ -4,10 +4,10 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/workflows/legal"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/psychological"
 	"github.com/xujian519/mady/tools"
-	"github.com/xujian519/mady/workflows/legal"
 )
 
 // LegalAgentConfig builds the legal domain Agent configuration.

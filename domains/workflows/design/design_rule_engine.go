@@ -3,7 +3,7 @@ package design
 import (
 	"strings"
 
-	"github.com/xujian519/mady/workflows/patent"
+	"github.com/xujian519/mady/domains/workflows/patent"
 )
 
 // DesignRuleEngine wraps a patent.RuleEngine with design-specific evaluation logic.

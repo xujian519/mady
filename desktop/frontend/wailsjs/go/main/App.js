@@ -26,6 +26,10 @@ export function GetAISettings() {
   return window['go']['main']['App']['GetAISettings']();
 }
 
+export function GetKnowledgeStatus() {
+  return window['go']['main']['App']['GetKnowledgeStatus']();
+}
+
 export function GetThread(arg1) {
   return window['go']['main']['App']['GetThread'](arg1);
 }
@@ -36,6 +40,10 @@ export function Health() {
 
 export function ListDirectory(arg1) {
   return window['go']['main']['App']['ListDirectory'](arg1);
+}
+
+export function ListDocTemplates() {
+  return window['go']['main']['App']['ListDocTemplates']();
 }
 
 export function ListMcpServers() {

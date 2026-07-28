@@ -3,7 +3,7 @@ package legal_test
 import (
 	"testing"
 
-	"github.com/xujian519/mady/workflows/legal"
+	"github.com/xujian519/mady/domains/workflows/legal"
 )
 
 func TestNewLegalComparisonTool(t *testing.T) {

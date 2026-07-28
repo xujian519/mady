@@ -2,11 +2,24 @@ package agentcore
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/skill"
 )
+
+// mockAgent implements a minimal Agent-like struct with a FollowUp method
+// for testing AfterModelCall without initializing a full Agent.
+type mockAgent struct {
+	followUps []Message
+}
+
+func (a *mockAgent) FollowUp(msg Message) {
+	a.followUps = append(a.followUps, msg)
+}
+
+var _ interface{ FollowUp(Message) } = (*mockAgent)(nil)
 
 type modelSelectSkillProvider struct {
 	requests []*ProviderRequest
@@ -354,5 +367,160 @@ func TestAgentRun_ModelSelectedSkillTriggersSecondTurn(t *testing.T) {
 	}
 	if len(loaded) != 1 || loaded[0].SkillName != "planner" || loaded[0].Source != skillMetadataSourceModel {
 		t.Fatalf("loaded events = %#v", loaded)
+	}
+}
+
+func TestAfterModelCall_EarlyReturns(t *testing.T) {
+	ext := &skillExtension{
+		skills: []skill.Skill{
+			{Name: "planner", Description: "Plans work", Body: "Plan."},
+		},
+		selected: []string{"planner"},
+	}
+
+	// 1. nil mcc should not panic
+	ext.AfterModelCall(context.Background(), &AgentRunContext{}, nil)
+
+	// 2. nil Response should return immediately
+	ext.AfterModelCall(context.Background(), &AgentRunContext{}, &ModelCallContext{
+		Request:  &ProviderRequest{},
+		Response: nil,
+	})
+
+	// 3. Err != nil should return immediately
+	ext.AfterModelCall(context.Background(), &AgentRunContext{}, &ModelCallContext{
+		Request:  &ProviderRequest{},
+		Response: &ProviderResponse{Content: "/skill:planner"},
+		Err:      fmt.Errorf("test error"),
+	})
+
+	// 4. ToolCalls > 0 should return immediately (model chose tools, not skills)
+	ext.AfterModelCall(context.Background(), &AgentRunContext{}, &ModelCallContext{
+		Request: &ProviderRequest{},
+		Response: &ProviderResponse{
+			Content:   "/skill:planner",
+			ToolCalls: []ToolCall{{ID: "call_1", Name: "web_search"}},
+		},
+	})
+
+	// All of the above should complete without panic or side effects
+}
+
+func TestAfterModelCall_DisableModelInvocation(t *testing.T) {
+	ext := &skillExtension{
+		skills: []skill.Skill{
+			{
+				Name:                   "secret-tool",
+				Description:            "Should not be model-invokable",
+				Body:                   "Secret.",
+				DisableModelInvocation: true,
+			},
+		},
+		selected: nil,
+	}
+
+	// Model outputs /skill:secret-tool but the skill has DisableModelInvocation=true.
+	// The AfterModelCall should return early without clearing the response content
+	// or triggering any side effect on the arc.
+	arc := &AgentRunContext{}
+	resp := &ProviderResponse{Content: "/skill:secret-tool"}
+	ext.AfterModelCall(context.Background(), arc, &ModelCallContext{
+		Request:  &ProviderRequest{},
+		Response: resp,
+	})
+	// Verify response content was NOT cleared (early return preserves it)
+	if resp.Content != "/skill:secret-tool" {
+		t.Errorf("response content should be preserved when DisableModelInvocation=true, got %q", resp.Content)
+	}
+	// Verify no FollowUp messages were triggered (arc.Messages unchanged)
+	if len(arc.Messages) != 0 {
+		t.Errorf("expected no messages added to arc, got %d", len(arc.Messages))
+	}
+}
+
+func TestAfterModelCall_NonSkillContent(t *testing.T) {
+	ext := &skillExtension{
+		skills: []skill.Skill{
+			{Name: "planner", Description: "Plans work", Body: "Plan carefully."},
+		},
+	}
+	// Model outputs regular content (not /skill: command) — should not panic
+	ext.AfterModelCall(context.Background(), &AgentRunContext{}, &ModelCallContext{
+		Request:  &ProviderRequest{},
+		Response: &ProviderResponse{Content: "I will help you plan."},
+	})
+	// No FollowUp should have been triggered
+}
+
+func TestLoadedSkillNames_Dedup(t *testing.T) {
+	msgs := []Message{
+		{
+			Role:    RoleSystem,
+			Content: "You are a helpful assistant.",
+			Metadata: map[string]any{
+				skillMetadataNameKey:   "planner",
+				skillMetadataSourceKey: skillMetadataSourceModel,
+			},
+		},
+		{
+			Role:    RoleUser,
+			Content: "help me plan",
+		},
+		{
+			Role:    RoleAssistant,
+			Content: "Sure!",
+		},
+	}
+
+	names := loadedSkillNames(msgs)
+	if len(names) != 1 || !names["planner"] {
+		t.Errorf("expected {planner: true}, got %v", names)
+	}
+}
+
+func TestLoadedSkillNames_SkipsNonModelSelection(t *testing.T) {
+	msgs := []Message{
+		{
+			Role: RoleSystem,
+			Metadata: map[string]any{
+				skillMetadataNameKey:   "debugger",
+				skillMetadataSourceKey: "explicit_command", // user-triggered, not model_selection
+			},
+		},
+		{
+			Role: RoleSystem,
+			Metadata: map[string]any{
+				skillMetadataNameKey:   "planner",
+				skillMetadataSourceKey: skillMetadataSourceModel,
+			},
+		},
+	}
+
+	names := loadedSkillNames(msgs)
+	if len(names) != 1 || !names["planner"] {
+		t.Errorf("expected only model-selected {planner: true}, got %v", names)
+	}
+}
+
+func TestLoadedSkillNames_EmptyMessages(t *testing.T) {
+	names := loadedSkillNames(nil)
+	if len(names) != 0 {
+		t.Errorf("expected empty map, got %v", names)
+	}
+
+	names = loadedSkillNames([]Message{})
+	if len(names) != 0 {
+		t.Errorf("expected empty map for empty slice, got %v", names)
+	}
+}
+
+func TestLoadedSkillNames_SkipsMessagesWithoutMetadata(t *testing.T) {
+	msgs := []Message{
+		{Role: RoleUser, Content: "hello"},
+		{Role: RoleAssistant, Content: "hi"},
+	}
+	names := loadedSkillNames(msgs)
+	if len(names) != 0 {
+		t.Errorf("expected empty map, got %v", names)
 	}
 }

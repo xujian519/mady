@@ -7,9 +7,11 @@
 
 Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于专利/法律专业领域智能体。
 核心分层：agentcore（内核，含 doomloop/reasoning_strategy/atom/plugin/evaluate/tasklist）
-→ 领域扩展层（psychological/guardrails/knowledge/retrieval/domains/{claimdrafting,specdrafting,enablement,inventiveness,evidence}/rules/doctmpl）
+→ 领域扩展层（psychological/guardrails/knowledge/retrieval/domains/{claimdrafting,specdrafting,enablement,inventiveness,evidence,workflows}/rules/doctmpl）
     domains/evidence/ — 专利证据判断规则引擎（三性/类型/举证责任/证明标准/日期/可信度）
-→ 基础设施层（graph/workflow/session/store/memory/disclosure/fuzzy/prompt）
+    domains/workflows/ — 领域工作流（patent/legal/design）
+→ 基础设施层（graph/session/store/memory/disclosure/fuzzy/prompt/skill/tracing/
+    knowledge/retrieval/evaluate/doomloop）
 → 通用工具库（pkg/{util,csync,i18n,lawcite,agentconfig,vecbytes}）
 → 协议与接口层（A2A/A2UI/AGUI/ACP/Server/MCP/TUI）
 → 应用入口（cmd/mady, example/）。

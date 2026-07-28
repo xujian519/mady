@@ -19,6 +19,12 @@ type MadyExtension struct {
 	ExamplePromptZh  string      `yaml:"example_prompt_zh"`
 	Capabilities     []string    `yaml:"capabilities"`
 	HandoffAllowed   bool        `yaml:"handoff_allowed"`
+	// Keywords for intent routing / trigger matching (e.g. "26.3", "充分公开").
+	Keywords []string `yaml:"keywords"`
+	// ArticleID associates this skill with a specific legal article (e.g. "patent-law-a26.3").
+	ArticleID string `yaml:"article_id"`
+	// Tool declares the default domain tool for this skill (e.g. "evaluate_enablement").
+	Tool string `yaml:"tool"`
 }
 
 // MadyInput describes a typed input field for a skill, intended for
@@ -43,6 +49,8 @@ type Skill struct {
 	Body          string
 	License       string
 	Compatibility string
+	// Domain categorizes this skill's field (e.g. "patent", "legal", "chat").
+	Domain string
 	// AllowedTools restricts which tools this skill may use. Currently enforced
 	// only by the PTC sandbox (tools/execute_code_ptc.go). Agent-level tool
 	// filtering based on this field is not yet implemented.

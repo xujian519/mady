@@ -28,6 +28,7 @@ import (
 
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/fuzzy"
+	"github.com/xujian519/mady/skill"
 	"github.com/xujian519/mady/tui/core"
 )
 
@@ -397,11 +398,40 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	r.Register(SlashCommand{
 		Name:        "skill",
 		Category:    catGeneral,
-		Desc:        "显式调用技能",
+		Desc:        "显式调用技能（/skill:name [参数]）或列出可用技能",
+		Usage:       "/skill:<技能名称> [参数]",
+		Examples:    []string{"/skill:patent-agent", "/skill:patent-agent 分析权利要求"},
 		Match:       prefixMatch("skill:"),
 		SuggestText: "/skill:",
 		Handler: func(ctx slashCtx) {
-			s.app.PrintSystem("mady tui 简化版未加载技能，请使用 example/cli-chat 配合 SKILL_DIRS")
+			cmd, ok := skill.ParseCommand(ctx.input)
+			if !ok || cmd.Name == "" {
+				skills := s.fc.BaseConfig.AvailableSkills
+				if len(skills) == 0 {
+					s.app.PrintSystem("⚠ 当前没有可用的技能。\n" +
+						"技能扫描路径：SKILL_DIR 环境变量、~/.agent、.agent/、skills/、~/.mady/skills/、~/.agents/skills/\n" +
+						"请确保在上述路径中存在有效的 SKILL.md 文件。")
+					return
+				}
+				var b strings.Builder
+				fmt.Fprintf(&b, "📋 可用技能（共 %d 个）：\n", len(skills))
+				for _, sk := range skills {
+					fmt.Fprintf(&b, "  /skill:%s  — %s\n", sk.Name, sk.Description)
+				}
+				b.WriteString("\n用法: /skill:<名称> [参数]\n")
+				b.WriteString("示例: /skill:patent-agent 分析权利要求1的新颖性")
+				s.app.PrintSystem(b.String())
+				return
+			}
+			if _, found := skill.FindByName(s.fc.BaseConfig.AvailableSkills, cmd.Name); !found {
+				names := make([]string, 0, len(s.fc.BaseConfig.AvailableSkills))
+				for _, sk := range s.fc.BaseConfig.AvailableSkills {
+					names = append(names, sk.Name)
+				}
+				s.app.PrintSystem(fmt.Sprintf("⚠ 技能 %q 未找到。可用技能：%s", cmd.Name, strings.Join(names, ", ")))
+				return
+			}
+			s.submitInput(ctx.input)
 		},
 	})
 
@@ -660,6 +690,15 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Handler:  func(ctx slashCtx) { s.openCommandCenter() },
 	})
 
+	r.Register(SlashCommand{
+		Name:     "skills",
+		Category: catGeneral,
+		Desc:     "打开技能中心，浏览和管理可用技能",
+		Usage:    "/skills",
+		Examples: []string{"/skills"},
+		Match:    exactMatch("skills"),
+		Handler:  func(ctx slashCtx) { s.openSkillCenter() },
+	})
 	r.Register(SlashCommand{
 		Name:     catSettings,
 		Category: catSettings,

@@ -17,13 +17,13 @@ import (
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/domains/specdrafting"
+	"github.com/xujian519/mady/domains/workflows/design"
+	"github.com/xujian519/mady/domains/workflows/patent"
 	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/psychological"
 	"github.com/xujian519/mady/retrieval/domain"
 	"github.com/xujian519/mady/tools"
-	"github.com/xujian519/mady/workflows/design"
-	"github.com/xujian519/mady/workflows/patent"
 )
 
 // globalDraftingRunner 是 FiveStepRunner 的全局实例，由 SetupPatentDraftingEngine

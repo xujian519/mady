@@ -17,11 +17,15 @@ export function DeleteThread(arg1:string):Promise<void>;
 
 export function GetAISettings():Promise<main.AISettings>;
 
+export function GetKnowledgeStatus():Promise<main.KnowledgeStatus>;
+
 export function GetThread(arg1:string):Promise<session.ThreadSnapshot>;
 
 export function Health():Promise<server.HealthInfo>;
 
 export function ListDirectory(arg1:string):Promise<Array<main.FileEntry>>;
+
+export function ListDocTemplates():Promise<Array<main.DocTemplateEntry>>;
 
 export function ListMcpServers():Promise<Array<main.McpServerEntry>>;
 

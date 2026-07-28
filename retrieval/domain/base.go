@@ -13,9 +13,19 @@ package domain
 import (
 	"context"
 
-	"github.com/xujian519/mady/knowledge"
+	//nolint:gosec // import needed for MCP tool registration
+
 	"github.com/xujian519/mady/retrieval"
 )
+
+// StoreWriter is the minimal interface that ImportToStore requires from
+// the knowledge store. It breaks the hard dependency on knowledge.Store
+// so retrieval/domain stays in the infrastructure layer without importing
+// the knowledge package directly.
+type StoreWriter interface {
+	// AddDocument stores a document in the underlying knowledge store.
+	AddDocument(domain, docID, title, content, source string) error
+}
 
 // DomainRetriever abstracts an external domain-specific data source.
 // Each implementation handles one source (CNIPA, Google Patents, legal DB, etc.).
@@ -83,17 +93,12 @@ type DomainDocument struct {
 //	results, _ := cnipaRetriever.Search(ctx, query)
 //	count, _ := domain.ImportToStore(store, results, "patent")
 //	hook := store.RetrievalHook("patent", retrieval.DefaultRetrievalConfig())
-func ImportToStore(store *knowledge.Store, results *DomainResults, domainName string) (imported int, err error) {
+func ImportToStore(store StoreWriter, results *DomainResults, domainName string) (imported int, err error) {
 	if results == nil || store == nil {
 		return 0, nil
 	}
 
 	for _, doc := range results.Documents {
-		// Skip if already loaded.
-		if existing, ok := store.GetDocument(doc.ID); ok && existing != nil {
-			continue
-		}
-
 		content := doc.Content
 		if content == "" {
 			content = doc.Snippet

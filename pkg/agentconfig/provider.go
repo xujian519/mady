@@ -17,24 +17,18 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/provider/chatcompat"
 )
 
 // BuildProvider reads PROVIDER / API_KEY / BASE_URL from the environment and
-// returns a chatcompat provider wired to the correct backend. Provider-specific
+// returns an agentcore.Provider wired to the correct backend. Provider-specific
 // fallback keys (DEEPSEEK_API_KEY, ZHIPU_API_KEY, KIMI_API_KEY) are honored.
 // Returns an error when no API key is configured.
 //
 // Returns a non-nil provider on success (never (nil, nil)).
-// Callers that need the agentcore.Provider interface can assign the result:
-//
-//	var p agentcore.Provider = chatProvider
-//
-// Note: assigning a nil *chatcompat.Provider to agentcore.Provider produces
-// a non-nil interface value (Go nil-concrete vs nil-interface pitfall).
-// The contract above prevents this.
-func BuildProvider() (*chatcompat.Provider, error) {
+func BuildProvider() (agentcore.Provider, error) {
 	providerType := util.EnvOrDefault("PROVIDER", "deepseek")
 
 	apiKey := os.Getenv("API_KEY")

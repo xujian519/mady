@@ -3,7 +3,7 @@ package design
 import (
 	"testing"
 
-	"github.com/xujian519/mady/workflows/patent"
+	"github.com/xujian519/mady/domains/workflows/patent"
 )
 
 func TestNewDesignRuleEngine(t *testing.T) {

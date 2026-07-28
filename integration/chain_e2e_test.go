@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/workflows/legal"
+	"github.com/xujian519/mady/domains/workflows/patent"
 	"github.com/xujian519/mady/graph"
-	"github.com/xujian519/mady/workflows/legal"
-	"github.com/xujian519/mady/workflows/patent"
 )
 
 // ──────────────────────────────────────────────

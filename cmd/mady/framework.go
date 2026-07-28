@@ -1,7 +1,7 @@
 package main
 
-// 本文件是 pkg/framework.Context 的类型别名与 shim 函数层。
-// 所有共享装配逻辑已迁移到 pkg/framework/，此处仅保留薄兼容层
+// 本文件是 bootstrap.Context 的类型别名与 shim 函数层。
+// 所有共享装配逻辑已迁移到 bootstrap/，此处仅保留薄兼容层
 // 供 cmd/mady 下其他文件以 package main 标识符引用。
 
 import (
@@ -11,25 +11,25 @@ import (
 	"path/filepath"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/bootstrap"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/pkg/agentconfig"
-	"github.com/xujian519/mady/pkg/framework"
 	"github.com/xujian519/mady/pkg/util"
 )
 
-// frameworkContext 是 framework.Context 的类型别名，保持向后兼容。
-type frameworkContext = framework.Context
+// frameworkContext 是 bootstrap.Context 的类型别名，保持向后兼容。
+type frameworkContext = bootstrap.Context
 
-// setupFrameworkContext 是 framework.Setup 的薄封装，兼容现有调用方。
+// setupFrameworkContext 是 bootstrap.Setup 的薄封装，兼容现有调用方。
 func setupFrameworkContext(ctx context.Context, cmdName string) *frameworkContext {
-	mode := framework.ModeDeferred
+	mode := bootstrap.ModeDeferred
 	if cmdName != "tui" {
-		mode = framework.ModeSync
+		mode = bootstrap.ModeSync
 	}
-	fc, err := framework.Setup(ctx, framework.Options{
+	fc, err := bootstrap.Setup(ctx, bootstrap.Options{
 		Mode:    mode,
 		CmdName: cmdName,
 	})
@@ -60,50 +60,50 @@ func (caseFileReader) ReadText(path string) string {
 
 // 以下 shim 函数保持 cmd/mady 其他文件的无缝编译。
 
-// buildReasoningRetriever 委托到 framework.BuildReasoningRetriever。
+// buildReasoningRetriever 委托到 bootstrap.BuildReasoningRetriever。
 func buildReasoningRetriever(fc *frameworkContext) *reasoning.MultiSourceRetriever {
-	return framework.BuildReasoningRetriever(fc)
+	return bootstrap.BuildReasoningRetriever(fc)
 }
 
-// buildCitationSource 委托到 framework.BuildCitationSource。
+// buildCitationSource 委托到 bootstrap.BuildCitationSource。
 //
 //nolint:unused // used in stage2_wiring_test.go
 func buildCitationSource(wikiRoot string) guardrails.CitationSource {
-	return framework.BuildCitationSource(wikiRoot)
+	return bootstrap.BuildCitationSource(wikiRoot)
 }
 
-// loadKnowledgeBackend 委托到 framework.LoadKnowledgeBackend。
+// loadKnowledgeBackend 委托到 bootstrap.LoadKnowledgeBackend。
 //
 //nolint:unused // used in stage2_wiring_test.go
 func loadKnowledgeBackend(madyHome string) (knowledge.KnowledgeBackend, string) {
-	return framework.LoadKnowledgeBackend(madyHome)
+	return bootstrap.LoadKnowledgeBackend(madyHome)
 }
 
-// resolveWikiRoot 委托到 framework.ResolveWikiRoot。
+// resolveWikiRoot 委托到 bootstrap.ResolveWikiRoot。
 //
 //nolint:unused // used in stage2_wiring_test.go
 func resolveWikiRoot(madyHome string) string {
-	return framework.ResolveWikiRoot(madyHome)
+	return bootstrap.ResolveWikiRoot(madyHome)
 }
 
-// cwdPartitionName 委托到 framework.CwdPartitionName。
+// cwdPartitionName 委托到 bootstrap.CwdPartitionName。
 func cwdPartitionName(cwd string) string {
-	return framework.CwdPartitionName(cwd)
+	return bootstrap.CwdPartitionName(cwd)
 }
 
-// extSlice 委托到 framework.ExtSlice。
+// extSlice 委托到 bootstrap.ExtSlice。
 func extSlice(ext agentcore.Extension) []agentcore.Extension {
-	return framework.ExtSlice(ext)
+	return bootstrap.ExtSlice(ext)
 }
 
-// agentThinking 委托到 framework.AgentThinking。
+// agentThinking 委托到 bootstrap.AgentThinking。
 func agentThinking(cfg *agentconfig.ThinkingConfig) *agentcore.ThinkingConfig {
-	return framework.AgentThinking(cfg)
+	return bootstrap.AgentThinking(cfg)
 }
 
-// tasklistDirForCWD 委托到 framework.tasklistDirForCWD。
+// tasklistDirForCWD 委托到 bootstrap.TasklistDirForCWD。
 //
-//nolint:unused // used in framework_test.go
+//nolint:unused // used in cmd/mady/framework_test.go
 func tasklistDirForCWD(baseDir, cwd string) string {
-	return framework.TasklistDirForCWD(baseDir, cwd)
+	return bootstrap.TasklistDirForCWD(baseDir, cwd)
 }

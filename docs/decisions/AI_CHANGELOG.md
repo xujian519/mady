@@ -7706,3 +7706,30 @@ Sprint 1 结束前对全部代码产出的全面审阅和修复。包含 TUI 25 
 
 ### 未解决/待后端
 - C08 模型列表真实数据（后端 model/list 端点）
+
+## 2026-07-28: 基础设施层全量质量审阅与架构违规修复
+
+### 修复的架构违规
+1. **`pkg/agentconfig` → `provider/chatcompat` 违规**：`BuildProvider()` 返回类型从 `*chatcompat.Provider` 改为 `agentcore.Provider` 接口，消除配置层对具体提供者的硬依赖。
+2. **`pkg/framework` 定位违规**：全局装配器从 `pkg/`（通用工具库）物理移至根目录 `bootstrap/` 包。`pkg/framework/` 仅保留纯工具 `DeferredInit`（无外部依赖）。
+3. **`workflows/patent/legal/design` 越层违规**：将 `workflows/patent/`、`workflows/legal/`、`workflows/design/` 物理移入 `domains/workflows/`，使其从基础设施层正确定位为领域层代码。
+4. **`retrieval/domain` → `knowledge` 逆依赖**：通过引入 `StoreWriter` 接口打破 `retrieval/domain/base.go` 对 `knowledge.Store` 的硬依赖，消除双向耦合风险。
+
+### 已完成的质量审阅
+- **阶段 1**：架构分层违规全面修复（4 处）
+- **阶段 2**：API 完整性审计（14 组件全部 ST1020 合规）、接口抽象审计、外部依赖最小化（仅 3 个外部包）
+- **阶段 3**：测试完备性审核（SKILL.md 格式、integration 构建标签、边界测试覆盖）
+- **阶段 4**：运行时安全审计（goroutine/context/文件沙箱/panic 检查，均无严重问题）
+- **阶段 5**：文档更新（AGENTS.md 基础设施层清单同步、ADR-0001 架构图更新）
+
+### 已知遗留问题（技术债务）
+- `evaluate` 仍引用 `domains/workflows/patent`（基础设施→领域层，评估框架对领域工作流的固有依赖）
+- `knowledge` 和 `evaluate` 混合使用标准 `log` 和 `log/slog`（建议逐步迁移至 slog）
+- `memory/extension.go`、`disclosure/`、`knowledge/extension.go` 使用 goroutine 但无显式泄漏测试（-race 覆盖基本安全）
+
+### 验证
+- `go build ./...` — 通过
+- `go vet ./...` — 通过
+- `go test ./...` — 通过
+- `go test -race ./pkg/agentconfig/... ./bootstrap/... ./pkg/framework/... ./domains/workflows/... ./retrieval/domain/...` — 通过
+- `make all`（vet + build + test，4 模块） — 通过

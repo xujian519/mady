@@ -1,11 +1,20 @@
 ---
 name: infringement-check
 description: 专利侵权比对分析插件。确定保护范围，逐项对比技术特征，评估侵权风险。
+allowed_tools:
+  - web_search
+  - web_fetch
+  - read
+  - write_file
+  - bash
+  - grep
+  - find
 
 mady:
   mode: patent
   guardrail_level: strict
   approval_required: true
+  example_prompt: "Compare whether product X falls within the scope of patent CN109690000A"
   example_prompt_zh: "比对产品 X 是否落入专利 CN109690000A 的保护范围"
   capabilities:
     - patent_search
@@ -46,4 +55,4 @@ mady:
 ## 重要提示
 - 侵权结论必须经过专利律师确认
 - 不提供诉讼策略建议
-- 附带免责声明
+- **本分析由 AI 辅助生成，不构成正式法律意见。侵权判定应由具备资质的专利代理人或律师确认。**

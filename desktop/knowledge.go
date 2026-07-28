@@ -29,8 +29,13 @@ type KnowledgeStatus struct {
 // 同时统计 laws/wiki 源目录中的文档文件数量。
 func (a *App) GetKnowledgeStatus() KnowledgeStatus {
 	madyHome, err := util.MadyHome()
-	if err != nil {
-		return KnowledgeStatus{}
+	if err != nil || madyHome == "" {
+		// 回退到应用启动时已设置的 fc.MadyHome
+		if a.fc != nil && a.fc.MadyHome != "" {
+			madyHome = a.fc.MadyHome
+		} else {
+			return KnowledgeStatus{}
+		}
 	}
 
 	kbDir := filepath.Join(madyHome, "knowledge")
@@ -40,7 +45,7 @@ func (a *App) GetKnowledgeStatus() KnowledgeStatus {
 	}
 
 	// 检查是否存在 knowledge SQLite 索引文件
-	indexPath := filepath.Join(kbDir, "index.db")
+	indexPath := filepath.Join(kbDir, "knowledge.db")
 	var docCount int
 	var indexSizeMB int
 	var lastUpdated string

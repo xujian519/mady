@@ -3,7 +3,7 @@ package patent_test
 import (
 	"testing"
 
-	"github.com/xujian519/mady/workflows/patent"
+	"github.com/xujian519/mady/domains/workflows/patent"
 )
 
 func TestNewPatentNoveltyTool(t *testing.T) {

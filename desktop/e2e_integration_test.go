@@ -3,7 +3,7 @@ package main
 // e2e_integration_test.go — 桌面端端到端集成测试。
 //
 // 测试流程（需要完整 Wails 运行环境）：
-//   1. 启动 App（通过 framework.Setup）
+//   1. 启动 App（通过 bootstrap.Setup）
 //   2. 调用 Chat 发起对话
 //   3. 验证收到 agui:* 事件
 //   4. 调用 SendAction
@@ -22,7 +22,7 @@ import (
 
 	"github.com/xujian519/mady/a2ui"
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/pkg/framework"
+	"github.com/xujian519/mady/bootstrap"
 	madyserver "github.com/xujian519/mady/server"
 )
 
@@ -40,13 +40,13 @@ func TestDesktopAppLifecycle(t *testing.T) {
 	t.Setenv("MADY_HOME", t.TempDir())
 
 	// 1. 初始化 framework
-	fc, err := framework.Setup(ctx, framework.Options{
-		Mode:    framework.ModeSync,
+	fc, err := bootstrap.Setup(ctx, bootstrap.Options{
+		Mode:    bootstrap.ModeSync,
 		CmdName: "desktop-test",
 	})
 	if err != nil {
 		// 无 Provider 配置时跳过完整生命周期测试
-		t.Skipf("framework.Setup failed (SKIP - no provider config): %v", err)
+		t.Skipf("bootstrap.Setup failed (SKIP - no provider config): %v", err)
 	}
 
 	// 2. 构造 App 并模拟 startup

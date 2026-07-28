@@ -1,5 +1,7 @@
-// Package framework 提供所有 mady 入口（tui/serve/acp/desktop）共享的装配逻辑。
-package framework
+// Package bootstrap 提供所有 mady 入口（tui/serve/acp/desktop）共享的装配逻辑。
+// 注意：bootstrap 是全局装配器，已知会跨层引用 domains/mcp/guardrails 等上层包。
+// 这是设计上接受的"必要之恶"，不应被其他基础设施层包导入。
+package bootstrap
 
 import (
 	"context"
@@ -40,6 +42,7 @@ import (
 	"github.com/xujian519/mady/memory"
 	"github.com/xujian519/mady/memory/compiler"
 	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/pkg/framework"
 	"github.com/xujian519/mady/pkg/lawcite"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/prompt"
@@ -100,7 +103,7 @@ type Context struct {
 	GuardianExt       *guardian.GuardianExtension
 	EvidenceExt       *evidence.EvidenceExtension
 	FileCheckpointExt *filecheckpoint.FileCheckpointExtension
-	Deferred          *DeferredInit
+	Deferred          *framework.DeferredInit
 }
 
 // CaseFileReader implements domains.FileContentReader by wrapping fileindex.FileReader
@@ -243,7 +246,7 @@ func Setup(ctx context.Context, opts Options) (*Context, error) {
 	deferBackground := (opts.Mode == ModeDeferred)
 
 	if deferBackground {
-		fc.Deferred = NewDeferredInit()
+		fc.Deferred = framework.NewDeferredInit()
 		registerDeferredTasks(ctx, fc)
 	} else {
 		executeSyncRemaining(ctx, fc)
@@ -362,13 +365,13 @@ func LoadManifests(fc *Context) {
 func DiscoverSkills(fc *Context) {
 	var skillPaths []string
 	if sd := os.Getenv("SKILL_DIR"); sd != "" {
-		skillPaths = append(skillPaths, sd)
+		skillPaths = append(skillPaths, filepath.SplitList(sd)...)
 	}
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		skillPaths = append(skillPaths, filepath.Join(homeDir, ".agent"))
 	}
 	if cwd, err := os.Getwd(); err == nil {
-		skillPaths = append(skillPaths, filepath.Join(cwd, ".agent"), filepath.Join(cwd, "skills"))
+		skillPaths = append(skillPaths, filepath.Join(cwd, ".agent"), filepath.Join(cwd, "skills"), filepath.Join(cwd, "plugins"))
 	}
 	if fc.MadyHome != "" {
 		skillPaths = append(skillPaths, filepath.Join(fc.MadyHome, "skills"))

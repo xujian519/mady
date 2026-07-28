@@ -7,6 +7,11 @@ import (
 
 // SkillCompiler compiles WritingPatterns into agent-injectable instruction blocks.
 //
+// Despite the "Skill" name, this is a distinct concept from the core
+// skill.Skill (SKILL.md agent instructions): it compiles patent composition
+// patterns (stored in PatternStore) into <writing_skills> XML blocks for the
+// agent's system prompt.
+//
 // In v1, the output is returned as structured text that agents can query via
 // the query_writing_patterns tool. System prompt injection is deferred until
 // the pattern library matures (≥30 patterns, ≥50 user feedback ratings).

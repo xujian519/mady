@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/workflows/patent"
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/pkg/util"
-	"github.com/xujian519/mady/workflows/patent"
 )
 
 // runPatentCLI dispatches `mady patent <subcommand> [args...]`.

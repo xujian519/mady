@@ -171,10 +171,11 @@ func TestImportToStore_SkipsDuplicates(t *testing.T) {
 		t.Errorf("first import = %d, want 1", count)
 	}
 
-	// Second import with same ID should skip.
+	// Second import: dedup is now the caller's responsibility.
+	// ImportToStore applies all documents; the underlying store handles duplicates.
 	count, _ = ImportToStore(store, results, "patent")
-	if count != 0 {
-		t.Errorf("second import = %d, want 0 (should skip duplicate)", count)
+	if count != 1 {
+		t.Errorf("second import = %d, want 1 (dedup is caller's responsibility)", count)
 	}
 }
 

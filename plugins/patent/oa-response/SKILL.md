@@ -1,11 +1,20 @@
 ---
 name: oa-response
 description: 审查意见答复插件。分析审查意见，制定答复策略，撰写意见陈述书和权利要求修改对照页。
+allowed_tools:
+  - web_search
+  - web_fetch
+  - read
+  - write_file
+  - bash
+  - grep
+  - find
 
 mady:
   mode: patent
   guardrail_level: strict
   approval_required: true
+  example_prompt: "Draft an office action response for patent CN202310000001"
   example_prompt_zh: "针对专利 CN202310000001 的审查意见通知书撰写答复"
   capabilities:
     - reasoning
@@ -49,4 +58,4 @@ mady:
 ## 重要提示
 - 答复书必须经专利代理人审阅后方可提交
 - 不得擅自缩小超出必要限度的保护范围
-- 附带免责声明
+- **本分析由 AI 辅助生成，不构成正式法律意见。答复文件提交前应由具备资质的专利代理人或律师确认。**
