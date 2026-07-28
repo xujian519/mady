@@ -53,23 +53,22 @@ type HTTPConfig struct {
 
 // HTTPClient is an MCP client that communicates over HTTP/SSE transport.
 type HTTPClient struct {
-	cfg               HTTPConfig
-	httpClient        *http.Client
-	sessionID         string
-	negotiatedProto   string
-	nextID            atomic.Int64
-	closed            atomic.Bool
-	initMu            sync.Mutex
-	stateMu           sync.RWMutex
-	bgCtx             context.Context
-	bgCancel          context.CancelFunc
-	streamDone        chan struct{}
-	streamStarted     bool
-	discovery         *discoveryState
-	capState          *capabilityState
-	eventSink         runtimeEventSink
-	hooksMu           sync.RWMutex
-	notificationHooks []func(context.Context, string, json.RawMessage) error
+	cfg             HTTPConfig
+	httpClient      *http.Client
+	sessionID       string
+	negotiatedProto string
+	nextID          atomic.Int64
+	closed          atomic.Bool
+	initMu          sync.Mutex
+	stateMu         sync.RWMutex
+	bgCtx           context.Context
+	bgCancel        context.CancelFunc
+	streamDone      chan struct{}
+	streamStarted   bool
+	discovery       *discoveryState
+	capState        *capabilityState
+	eventSink       runtimeEventSink
+	hooks           hookSet
 }
 
 // HTTPExtension is an agentcore.Extension that wraps an HTTP MCP client.
@@ -93,7 +92,7 @@ func NewHTTPClient(ctx context.Context, cfg HTTPConfig) (*HTTPClient, error) {
 	}
 	httpClient := cfg.Client
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 30 * time.Second}
+		httpClient = &http.Client{Timeout: defaultRequestTimeout}
 	}
 	bgCtx, bgCancel := context.WithCancel(context.Background())
 	c := &HTTPClient{
@@ -102,17 +101,21 @@ func NewHTTPClient(ctx context.Context, cfg HTTPConfig) (*HTTPClient, error) {
 		negotiatedProto: protocolVersion,
 		bgCtx:           bgCtx,
 		bgCancel:        bgCancel,
-		streamDone:      make(chan struct{}),
+		streamDone:      closedChan(), // 默认已关闭；EnableServerStream 时替换为 open channel
 		discovery:       newDiscoveryState(cfg.Discovery),
 		capState:        newCapabilityState(),
+	}
+	if cfg.EnableServerStream {
+		// 初始化前替换为 open channel——initializeSession 内部会调用
+		// ensureServerStream，它依赖 streamDone 作为 runServerStream
+		// 的信号 channel（defer close）。
+		c.streamDone = make(chan struct{})
 	}
 	if err := c.initializeSession(ctx); err != nil {
 		return nil, err
 	}
 	if cfg.EnableServerStream {
 		c.ensureServerStream()
-	} else {
-		close(c.streamDone)
 	}
 	return c, nil
 }
@@ -291,6 +294,10 @@ func (c *HTTPClient) Close() error {
 	defer c.initMu.Unlock()
 	c.stateMu.Lock()
 	if !c.streamStarted {
+		// streamDone defaults to closedChan(). When EnableServerStream was
+		// true but ensureServerStream never started (shouldRunServerStream
+		// returned false), streamDone may still be an open channel that needs
+		// closing so the wait below returns immediately.
 		select {
 		case <-c.streamDone:
 		default:
@@ -353,6 +360,14 @@ func (c *HTTPClient) ensureServerStream() {
 
 func (c *HTTPClient) extensionName() string {
 	return util.DefaultString(c.cfg.Name, "mcp-http")
+}
+
+// closedChan returns a channel that is already closed, usable as a no-op
+// sentinel in select statements.
+func closedChan() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
 }
 
 var _ agentcore.Extension = (*HTTPExtension)(nil)

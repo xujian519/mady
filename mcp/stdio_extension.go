@@ -12,7 +12,7 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
-// StdioExtension 是 MCP stdio 扩展的抽象层，包装 Client 实例。
+// StdioExtension is an agentcore.Extension that wraps a stdio MCP client.
 type StdioExtension struct {
 	name              string
 	cfg               StdioConfig
@@ -122,14 +122,14 @@ func decodeArguments(args json.RawMessage) (map[string]any, error) {
 	}
 	var decoded any
 	if err := json.Unmarshal(args, &decoded); err != nil {
-		return nil, fmt.Errorf("mcp decode arguments: %w", err)
+		return nil, fmt.Errorf("mcp: decode arguments: %w", err)
 	}
 	if decoded == nil {
 		return map[string]any{}, nil
 	}
 	m, ok := decoded.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("mcp tool arguments must be a JSON object")
+		return nil, fmt.Errorf("mcp: tool arguments must be a JSON object")
 	}
 	return m, nil
 }

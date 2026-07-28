@@ -9,12 +9,14 @@ import (
 )
 
 func (c *Client) call(ctx context.Context, method string, params any, out any) error {
-	return c.callWithRetry(ctx, method, params, out, 3)
+	return c.callWithRetry(ctx, method, params, out, defaultRetryCount)
 }
 
 func (c *Client) callWithRetry(ctx context.Context, method string, params any, out any, retriesLeft int) error {
 	if ctx == nil {
-		ctx = context.Background()
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), defaultRequestTimeout)
+		defer cancel()
 	}
 	if c.cfg.RequestTimeout > 0 {
 		var cancel context.CancelFunc
@@ -48,7 +50,7 @@ func (c *Client) callWithRetry(ctx context.Context, method string, params any, o
 		if errors.Is(err, errClientClosed) && retriesLeft > 0 && c.tryReconnect(ctx) {
 			return c.callWithRetry(ctx, method, params, out, retriesLeft-1)
 		}
-		return fmt.Errorf("mcp %s: write: %w", method, err)
+		return fmt.Errorf("mcp: %s: write: %w", method, err)
 	}
 
 	select {
@@ -61,13 +63,13 @@ func (c *Client) callWithRetry(ctx context.Context, method string, params any, o
 			return err
 		}
 		if resp.Error != nil {
-			return fmt.Errorf("mcp %s: %s", method, resp.Error.Message)
+			return fmt.Errorf("mcp: %s: %s", method, resp.Error.Message)
 		}
 		if out == nil || len(resp.Result) == 0 {
 			return nil
 		}
 		if err := json.Unmarshal(resp.Result, out); err != nil {
-			return fmt.Errorf("mcp %s decode result: %w", method, err)
+			return fmt.Errorf("mcp: %s decode result: %w", method, err)
 		}
 		return nil
 	case <-ctx.Done():
@@ -95,7 +97,7 @@ func (c *Client) notify(method string, params any) error {
 func (c *Client) writeMessage(msg any) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
-		return fmt.Errorf("mcp marshal request: %w", err)
+		return fmt.Errorf("mcp: marshal request: %w", err)
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()

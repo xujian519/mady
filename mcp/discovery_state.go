@@ -152,7 +152,7 @@ func promptCacheKey(name string, arguments map[string]any) (string, error) {
 	}
 	data, err := json.Marshal(arguments)
 	if err != nil {
-		return "", fmt.Errorf("mcp encode prompt cache key: %w", err)
+		return "", fmt.Errorf("mcp: encode prompt cache key: %w", err)
 	}
 	return name + "\x00" + string(data), nil
 }

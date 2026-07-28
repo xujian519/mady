@@ -147,7 +147,7 @@ func (c *HTTPClient) runServerStream() {
 func (c *HTTPClient) listenServerStreamOnce(ctx context.Context, lastEventID string) (sseStreamState, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.Endpoint, nil)
 	if err != nil {
-		return sseStreamState{}, fmt.Errorf("mcp create server stream request: %w", err)
+		return sseStreamState{}, fmt.Errorf("mcp: create server stream request: %w", err)
 	}
 	req.Header.Set("Accept", "text/event-stream")
 	if lastEventID != "" {
@@ -157,7 +157,7 @@ func (c *HTTPClient) listenServerStreamOnce(ctx context.Context, lastEventID str
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return sseStreamState{}, fmt.Errorf("mcp server stream request: %w", err)
+		return sseStreamState{}, fmt.Errorf("mcp: server stream request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
@@ -169,11 +169,11 @@ func (c *HTTPClient) listenServerStreamOnce(ctx context.Context, lastEventID str
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-		return sseStreamState{}, fmt.Errorf("mcp server stream status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return sseStreamState{}, fmt.Errorf("mcp: server stream status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if !strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-		return sseStreamState{}, fmt.Errorf("mcp server stream expected text/event-stream, got %q: %s", resp.Header.Get("Content-Type"), strings.TrimSpace(string(body)))
+		return sseStreamState{}, fmt.Errorf("mcp: server stream expected text/event-stream, got %q: %s", resp.Header.Get("Content-Type"), strings.TrimSpace(string(body)))
 	}
 
 	return consumeSSEStream(resp.Body, func(evt sseEvent) (bool, error) {
@@ -209,7 +209,7 @@ func (c *HTTPClient) handleServerSSEEvent(ctx context.Context, evt sseEvent) err
 		if err := c.handleDiscoveryNotification(ctx, method, params); err != nil {
 			return err
 		}
-		for _, hook := range c.notificationHookSnapshot() {
+		for _, hook := range c.hooks.snapshot() {
 			if err := hook(ctx, method, params); err != nil {
 				return err
 			}
@@ -237,18 +237,7 @@ func (c *HTTPClient) handleServerSSEEvent(ctx context.Context, evt sseEvent) err
 }
 
 func (c *HTTPClient) respondToServerRequest(ctx context.Context, id any, result any, handlerErr error) error {
-	msg := map[string]any{
-		"jsonrpc": "2.0",
-		"id":      id,
-	}
-	if handlerErr != nil {
-		msg["error"] = map[string]any{
-			"code":    -32601,
-			"message": handlerErr.Error(),
-		}
-	} else {
-		msg["result"] = result
-	}
+	msg := buildJSONRPCResponse(id, result, handlerErr)
 	resp, err := c.doJSONRPC(ctx, msg, false)
 	if err != nil {
 		return err
@@ -268,18 +257,7 @@ func (c *HTTPClient) reportAsyncError(err error) {
 
 // AddNotificationHook registers a handler for MCP notifications from the server.
 func (c *HTTPClient) AddNotificationHook(h func(context.Context, string, json.RawMessage) error) {
-	if h == nil {
-		return
-	}
-	c.hooksMu.Lock()
-	defer c.hooksMu.Unlock()
-	c.notificationHooks = append(c.notificationHooks, h)
-}
-
-func (c *HTTPClient) notificationHookSnapshot() []func(context.Context, string, json.RawMessage) error {
-	c.hooksMu.RLock()
-	defer c.hooksMu.RUnlock()
-	return append([]func(context.Context, string, json.RawMessage) error(nil), c.notificationHooks...)
+	c.hooks.add(h)
 }
 
 // SetEventSink sets the runtime event sink for emitting MCP transport events.

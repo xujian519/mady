@@ -123,6 +123,10 @@ func scheduleRefresh(
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("mcp: tools refresh goroutine panicked", "err", r, "stack", string(debug.Stack()))
+				mu.Lock()
+				*inFlight = false
+				*pending = false
+				mu.Unlock()
 			}
 		}()
 		for {

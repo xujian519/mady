@@ -36,7 +36,7 @@ func (c *HTTPClient) decodeSSERPCResponse(ctx context.Context, body io.Reader, e
 	state.merge(nextState)
 	for {
 		if state.lastEventID == "" {
-			return nil, fmt.Errorf("mcp sse stream ended before response %q", expectedID)
+			return nil, fmt.Errorf("mcp: sse stream ended before response %q", expectedID)
 		}
 		if err := sleepContext(ctx, state.retry); err != nil {
 			return nil, err
@@ -77,7 +77,7 @@ func readSSERPCResponse(body io.Reader, expectedID string) (*rpcResponse, sseStr
 
 func consumeSSEStream(body io.Reader, handler func(sseEvent) (bool, error)) (sseStreamState, error) {
 	scanner := bufio.NewScanner(body)
-	scanner.Buffer(make([]byte, 1024*1024), 10*1024*1024)
+	scanner.Buffer(make([]byte, scannerInitialBuf), scannerMaxBuf)
 
 	var evt sseEvent
 	var state sseStreamState
@@ -199,7 +199,7 @@ func splitSSEField(line string) (string, string) {
 func (c *HTTPClient) resumeSSE(ctx context.Context, lastEventID string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.Endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("mcp create resume request: %w", err)
+		return nil, fmt.Errorf("mcp: create resume request: %w", err)
 	}
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set(headerLastEventID, lastEventID)
@@ -207,7 +207,7 @@ func (c *HTTPClient) resumeSSE(ctx context.Context, lastEventID string) (*http.R
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("mcp resume request: %w", err)
+		return nil, fmt.Errorf("mcp: resume request: %w", err)
 	}
 	if resp.StatusCode == http.StatusNotFound {
 		if err := resp.Body.Close(); err != nil {
@@ -221,14 +221,14 @@ func (c *HTTPClient) resumeSSE(ctx context.Context, lastEventID string) (*http.R
 		if err := resp.Body.Close(); err != nil {
 			slog.Warn("MCP: close error response body", "err", err)
 		}
-		return nil, fmt.Errorf("mcp resume status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("mcp: resume status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if !strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		if err := resp.Body.Close(); err != nil {
 			slog.Warn("MCP: close invalid content-type response body", "err", err)
 		}
-		return nil, fmt.Errorf("mcp resume expected text/event-stream, got %q: %s", resp.Header.Get("Content-Type"), strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("mcp: resume expected text/event-stream, got %q: %s", resp.Header.Get("Content-Type"), strings.TrimSpace(string(body)))
 	}
 	return resp, nil
 }

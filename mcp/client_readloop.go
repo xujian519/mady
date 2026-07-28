@@ -15,11 +15,11 @@ func (c *Client) readLoop() {
 	defer func() {
 		if r := recover(); r != nil {
 			c.reportAsyncError("read_loop", "panic",
-				fmt.Errorf("readLoop panic: %v\n%s", r, debug.Stack()), true)
+				fmt.Errorf("readLoop panic: %v\n%s", r, debug.Stack()), false)
 		}
 	}()
 	scanner := bufio.NewScanner(c.stdout)
-	scanner.Buffer(make([]byte, 1024*1024), 10*1024*1024)
+	scanner.Buffer(make([]byte, scannerInitialBuf), scannerMaxBuf)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -92,7 +92,7 @@ func (c *Client) readLoop() {
 
 func (c *Client) captureStderr(r io.Reader) {
 	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 16*1024), 1024*1024)
+	scanner.Buffer(make([]byte, stderrInitialBuf), stderrMaxBuf)
 	for scanner.Scan() {
 		c.mu.Lock()
 		c.appendStderrLine(scanner.Text())

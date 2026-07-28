@@ -30,7 +30,9 @@ func (c *HTTPClient) call(ctx context.Context, method string, params any, out an
 
 func (c *HTTPClient) callOnce(ctx context.Context, method string, params any, out any) (http.Header, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), defaultRequestTimeout)
+		defer cancel()
 	}
 	if c.cfg.RequestTimeout > 0 {
 		var cancel context.CancelFunc
@@ -54,14 +56,14 @@ func (c *HTTPClient) callOnce(ctx context.Context, method string, params any, ou
 
 	rpcResp, err := c.decodeHTTPRPCResponse(ctx, resp.Body, resp.Header.Get("Content-Type"), id)
 	if err != nil {
-		return resp.Header, fmt.Errorf("mcp %s decode response: %w", method, err)
+		return resp.Header, fmt.Errorf("mcp: %s decode response: %w", method, err)
 	}
 	if rpcResp.Error != nil {
-		return resp.Header, fmt.Errorf("mcp %s: %s", method, rpcResp.Error.Message)
+		return resp.Header, fmt.Errorf("mcp: %s: %s", method, rpcResp.Error.Message)
 	}
 	if out != nil && len(rpcResp.Result) > 0 {
 		if err := json.Unmarshal(rpcResp.Result, out); err != nil {
-			return resp.Header, fmt.Errorf("mcp %s decode result: %w", method, err)
+			return resp.Header, fmt.Errorf("mcp: %s decode result: %w", method, err)
 		}
 	}
 	return resp.Header, nil
@@ -76,11 +78,11 @@ func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool
 	defer cancel()
 	data, err := json.Marshal(msg)
 	if err != nil {
-		return nil, fmt.Errorf("mcp marshal request: %w", err)
+		return nil, fmt.Errorf("mcp: marshal request: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.Endpoint, bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("mcp create request: %w", err)
+		return nil, fmt.Errorf("mcp: create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if expectResponse {
@@ -93,7 +95,7 @@ func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("mcp http request: %w", err)
+		return nil, fmt.Errorf("mcp: http request: %w", err)
 	}
 	if expectResponse && resp.StatusCode == http.StatusNotFound && requestIncludesSession(msg) {
 		_ = resp.Body.Close()
@@ -103,7 +105,7 @@ func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 			_ = resp.Body.Close()
-			return nil, fmt.Errorf("mcp http status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+			return nil, fmt.Errorf("mcp: http status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 		}
 		return resp, nil
 	}
@@ -114,7 +116,7 @@ func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool
 	if resp.StatusCode != http.StatusAccepted && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		_ = resp.Body.Close()
-		return nil, fmt.Errorf("mcp notify status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("mcp: notify status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return resp, nil
 }
@@ -168,14 +170,14 @@ func (c *HTTPClient) callInitialize(ctx context.Context, params any, out any) (h
 
 	var rpcResp rpcResponse
 	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
-		return resp.Header, fmt.Errorf("mcp initialize decode response: %w", err)
+		return resp.Header, fmt.Errorf("mcp: initialize decode response: %w", err)
 	}
 	if rpcResp.Error != nil {
-		return resp.Header, fmt.Errorf("mcp initialize: %s", rpcResp.Error.Message)
+		return resp.Header, fmt.Errorf("mcp: initialize: %s", rpcResp.Error.Message)
 	}
 	if out != nil && len(rpcResp.Result) > 0 {
 		if err := json.Unmarshal(rpcResp.Result, out); err != nil {
-			return resp.Header, fmt.Errorf("mcp initialize decode result: %w", err)
+			return resp.Header, fmt.Errorf("mcp: initialize decode result: %w", err)
 		}
 	}
 	return resp.Header, nil

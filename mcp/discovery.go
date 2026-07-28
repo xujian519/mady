@@ -636,7 +636,7 @@ func handleDiscoveryNotification(
 		}
 		if len(params) > 0 && string(params) != "null" {
 			if err := json.Unmarshal(params, &in); err != nil {
-				return fmt.Errorf("mcp decode resources updated params: %w", err)
+				return fmt.Errorf("mcp: decode resources updated params: %w", err)
 			}
 		}
 		if in.URI == "" {
@@ -670,13 +670,17 @@ func (c *Client) refreshResourceAsync(uri string) {
 				slog.Error("mcp: discovery goroutine panicked", "err", r, "stack", string(debug.Stack()))
 			}
 		}()
-		result, err := readResource(context.Background(), c.discovery, c.invokeDiscovery, uri)
-		if err != nil && c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-			c.discovery.cfg.AsyncRefreshErrorHandler(context.Background(), err)
+		result, err := readResource(c.bgCtx, c.discovery, c.invokeDiscovery, uri)
+		if err != nil {
+			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			} else {
+				slog.Warn("mcp: async resource refresh failed", "uri", uri, "err", err)
+			}
 			return
 		}
 		if c.discovery.cfg.ResourceUpdatedHandler != nil {
-			c.discovery.cfg.ResourceUpdatedHandler(context.Background(), uri, result)
+			c.discovery.cfg.ResourceUpdatedHandler(c.bgCtx, uri, result)
 		}
 	}()
 }
@@ -688,12 +692,20 @@ func (c *Client) refreshResourcesListAsync() {
 				slog.Error("mcp: discovery goroutine panicked", "err", r, "stack", string(debug.Stack()))
 			}
 		}()
-		if _, err := listResources(context.Background(), c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.cfg.AsyncRefreshErrorHandler(context.Background(), err)
+		if _, err := listResources(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
+			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			} else {
+				slog.Warn("mcp: async resources list refresh failed", "err", err)
+			}
 			return
 		}
-		if _, err := listResourceTemplates(context.Background(), c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.cfg.AsyncRefreshErrorHandler(context.Background(), err)
+		if _, err := listResourceTemplates(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
+			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			} else {
+				slog.Warn("mcp: async resource templates list refresh failed", "err", err)
+			}
 		}
 	}()
 }
@@ -705,8 +717,12 @@ func (c *Client) refreshPromptsListAsync() {
 				slog.Error("mcp: discovery goroutine panicked", "err", r, "stack", string(debug.Stack()))
 			}
 		}()
-		if _, err := listPrompts(context.Background(), c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.cfg.AsyncRefreshErrorHandler(context.Background(), err)
+		if _, err := listPrompts(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
+			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			} else {
+				slog.Warn("mcp: async prompts list refresh failed", "err", err)
+			}
 		}
 	}()
 }
@@ -719,8 +735,12 @@ func (c *HTTPClient) refreshResourceAsync(uri string) {
 			}
 		}()
 		result, err := readResource(c.bgCtx, c.discovery, c.invokeDiscovery, uri)
-		if err != nil && c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-			c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+		if err != nil {
+			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			} else {
+				slog.Warn("mcp: async resource refresh failed", "uri", uri, "err", err)
+			}
 			return
 		}
 		if c.discovery.cfg.ResourceUpdatedHandler != nil {
@@ -737,11 +757,19 @@ func (c *HTTPClient) refreshResourcesListAsync() {
 			}
 		}()
 		if _, err := listResources(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			} else {
+				slog.Warn("mcp: async resources list refresh failed", "err", err)
+			}
 			return
 		}
 		if _, err := listResourceTemplates(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			} else {
+				slog.Warn("mcp: async resource templates list refresh failed", "err", err)
+			}
 		}
 	}()
 }
@@ -754,7 +782,11 @@ func (c *HTTPClient) refreshPromptsListAsync() {
 			}
 		}()
 		if _, err := listPrompts(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
+				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			} else {
+				slog.Warn("mcp: async prompts list refresh failed", "err", err)
+			}
 		}
 	}()
 }

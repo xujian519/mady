@@ -38,7 +38,7 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 		return false
 	}
 	// If we already have a working connection (readLoop is running), don't reconnect
-	if !c.isConnectionDeadLocked() {
+	if !c.isConnectionDead() {
 		c.mu.Unlock()
 		return true // connection is fine
 	}
@@ -145,16 +145,28 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 		_ = stdin.Close()
 		_ = stdout.Close()
 		_ = stderr.Close()
-		// 异步回收子进程，避免 reconnect 阻塞，但给一个超时避免无限泄漏。
+		// 异步回收子进程，避免 reconnect 阻塞。
+		// stdin/stdout/stderr 已关闭，进程应退出，cmd.Wait 应快速返回。
+		// 加超时防止子进程挂死：超时后 kill 进程，确保 Wait 返回。
 		go func() {
-			done := make(chan error, 1)
-			go func() { done <- cmd.Wait() }()
-			timer := time.NewTimer(5 * time.Second)
-			defer timer.Stop()
+			killTimer := time.NewTimer(reconnectInitWaitTimeout)
+			defer killTimer.Stop()
+			waitDone := make(chan struct{})
+			go func() {
+				cmd.Wait() //nolint:errcheck,gosec // cleanup-only; process stdin/stdout/stderr already closed
+				close(waitDone)
+			}()
 			select {
-			case <-done:
-			case <-timer.C:
-				slog.Warn("mcp client: cmd.Wait did not return after reconnect cleanup")
+			case <-waitDone:
+			case <-killTimer.C:
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				select {
+				case <-waitDone:
+				case <-time.After(reconnectKillWaitTimeout):
+					slog.Warn("mcp: client: cmd.Wait did not return after kill")
+				}
 			}
 		}()
 		c.emitReconnectEvent(ReconnectPhaseFailed, "initialize_failed", c.reconnectAttempts, err)
@@ -167,7 +179,7 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	return true
 }
 
-func (c *Client) isConnectionDeadLocked() bool {
+func (c *Client) isConnectionDead() bool {
 	return c.readErr != nil
 }
 
@@ -178,11 +190,11 @@ func (c *Client) stdoutContext() context.Context {
 func (c *Client) handleServerMessage(ctx context.Context, line string, methodRaw json.RawMessage, idRaw json.RawMessage) error {
 	var method string
 	if err := json.Unmarshal(methodRaw, &method); err != nil {
-		return fmt.Errorf("mcp unmarshal method: %w", err)
+		return fmt.Errorf("mcp: unmarshal method: %w", err)
 	}
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(line), &envelope); err != nil {
-		return fmt.Errorf("mcp unmarshal envelope: %w", err)
+		return fmt.Errorf("mcp: unmarshal envelope: %w", err)
 	}
 	params := envelope["params"]
 	if len(params) == 0 {
@@ -192,7 +204,7 @@ func (c *Client) handleServerMessage(ctx context.Context, line string, methodRaw
 		if err := c.handleDiscoveryNotification(ctx, method, params); err != nil {
 			c.reportAsyncError("notification", method, err, true)
 		}
-		for _, hook := range c.notificationHookSnapshot() {
+		for _, hook := range c.hooks.snapshot() {
 			if err := hook(ctx, method, params); err != nil {
 				c.reportAsyncError("notification", method, err, true)
 			}
@@ -206,7 +218,7 @@ func (c *Client) handleServerMessage(ctx context.Context, line string, methodRaw
 	}
 	var reqID any
 	if err := json.Unmarshal(idRaw, &reqID); err != nil {
-		return fmt.Errorf("mcp unmarshal request id: %w", err)
+		return fmt.Errorf("mcp: unmarshal request id: %w", err)
 	}
 	var result any
 	var handlerErr error
@@ -218,20 +230,26 @@ func (c *Client) handleServerMessage(ctx context.Context, line string, methodRaw
 	return c.respondToServerRequest(ctx, reqID, result, handlerErr)
 }
 
-func (c *Client) respondToServerRequest(_ context.Context, id any, result any, handlerErr error) error {
+func (c *Client) respondToServerRequest(ctx context.Context, id any, result any, handlerErr error) error {
+	return c.writeMessage(buildJSONRPCResponse(id, result, handlerErr))
+}
+
+// buildJSONRPCResponse constructs a JSON-RPC 2.0 response message, shared by
+// both stdio and HTTP transports to avoid duplication.
+func buildJSONRPCResponse(id any, result any, handlerErr error) map[string]any {
 	msg := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      id,
 	}
 	if handlerErr != nil {
 		msg["error"] = map[string]any{
-			"code":    -32601,
+			"code":    jsonRPCMethodNotFound,
 			"message": handlerErr.Error(),
 		}
 	} else {
 		msg["result"] = result
 	}
-	return c.writeMessage(msg)
+	return msg
 }
 
 func (c *Client) reportAsyncError(operation, reason string, err error, recoverable bool) {
@@ -246,18 +264,7 @@ func (c *Client) reportAsyncError(operation, reason string, err error, recoverab
 
 // AddNotificationHook registers a handler for MCP notifications from the server.
 func (c *Client) AddNotificationHook(h func(context.Context, string, json.RawMessage) error) {
-	if h == nil {
-		return
-	}
-	c.hooksMu.Lock()
-	defer c.hooksMu.Unlock()
-	c.notificationHooks = append(c.notificationHooks, h)
-}
-
-func (c *Client) notificationHookSnapshot() []func(context.Context, string, json.RawMessage) error {
-	c.hooksMu.RLock()
-	defer c.hooksMu.RUnlock()
-	return append([]func(context.Context, string, json.RawMessage) error(nil), c.notificationHooks...)
+	c.hooks.add(h)
 }
 
 // SetEventSink sets the runtime event sink for emitting MCP transport events.

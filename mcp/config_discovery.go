@@ -250,12 +250,18 @@ func createStdioExtension(ctx context.Context, name string, cfg MCPServerConfig)
 	}
 	// Guard against misbehaving stdio servers that never respond: default a
 	// request timeout so a single hung server cannot block mady startup.
+	// Uses the discovery timeout from context/env (default 3s), with a sane
+	// minimum of 2s for even the slowest npx bootstrap.
+	timeout := discoveryTimeout(ctx)
+	if timeout < 2*time.Second {
+		timeout = 15 * time.Second // fallback to reasonable default
+	}
 	return NewStdioExtension(ctx, StdioConfig{
 		Name:           name,
 		Command:        cfg.Command,
 		Args:           cfg.Args,
 		Env:            env,
-		RequestTimeout: 15 * time.Second,
+		RequestTimeout: timeout,
 	})
 }
 

@@ -973,7 +973,7 @@ func TestStdioClient_ReconnectBackoffReset(t *testing.T) {
 		t.Fatalf("expected backoff=%v before reconnect, got %v", maxReconnectBackoff, client.reconnectBackoff)
 	}
 
-	// 通过关闭管道来触发 isConnectionDeadLocked() 返回 true
+	// 通过关闭管道来触发 isConnectionDead() 返回 true
 	client.mu.Lock()
 	client.readErr = io.EOF
 	client.mu.Unlock()

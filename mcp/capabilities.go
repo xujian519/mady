@@ -141,7 +141,7 @@ func decodeCapabilities(raw json.RawMessage) (ServerCapabilities, error) {
 	}
 	var caps ServerCapabilities
 	if err := json.Unmarshal(raw, &caps); err != nil {
-		return ServerCapabilities{}, fmt.Errorf("mcp decode capabilities: %w", err)
+		return ServerCapabilities{}, fmt.Errorf("mcp: decode capabilities: %w", err)
 	}
 	return caps, nil
 }

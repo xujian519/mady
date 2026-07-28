@@ -20,6 +20,53 @@ import (
 const protocolVersion = "2025-11-25"
 const stderrContextMaxBytes = 4 * 1024
 
+const (
+	// defaultRequestTimeout is used when ctx is nil or RequestTimeout is unset.
+	defaultRequestTimeout = 30 * time.Second
+	// defaultRetryCount is the maximum number of RPC retry attempts.
+	defaultRetryCount = 3
+	// closeWaitTimeout is the grace period to wait for a child process to exit
+	// during Close(), before sending SIGKILL.
+	closeWaitTimeout = 2 * time.Second
+	// reconnectInitWaitTimeout is the wait for cmd.Wait after a failed initialize.
+	reconnectInitWaitTimeout = 5 * time.Second
+	// reconnectKillWaitTimeout is the wait after Process.Kill during reconnect cleanup.
+	reconnectKillWaitTimeout = time.Second
+
+	// Scanner buffer sizes for read loops.
+	scannerInitialBuf = 1024 * 1024      // 1 MiB
+	scannerMaxBuf     = 10 * 1024 * 1024 // 10 MiB
+	stderrInitialBuf  = 16 * 1024        // 16 KiB
+	stderrMaxBuf      = 1024 * 1024      // 1 MiB
+
+	// jsonRPCMethodNotFound is the JSON-RPC standard error code for unknown methods.
+	jsonRPCMethodNotFound = -32601
+)
+
+// hookSet manages a thread-safe list of notification/event hook callbacks,
+// shared by both stdio Client and HTTPClient to avoid code duplication.
+type hookSet struct {
+	mu    sync.RWMutex
+	hooks []func(context.Context, string, json.RawMessage) error
+}
+
+// add registers a notification hook if non-nil.
+func (s *hookSet) add(h func(context.Context, string, json.RawMessage) error) {
+	if h == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hooks = append(s.hooks, h)
+}
+
+// snapshot returns a copy of the current hook list for iteration.
+func (s *hookSet) snapshot() []func(context.Context, string, json.RawMessage) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return append([]func(context.Context, string, json.RawMessage) error(nil), s.hooks...)
+}
+
 // StdioConfig 配置 MCP stdio 传输方式。
 type StdioConfig struct {
 	Name                string
@@ -37,7 +84,7 @@ type StdioConfig struct {
 	Discovery           DiscoveryConfig
 }
 
-// Client 是 MCP 协议的客户端实现，支持 stdio 和 HTTP/SSE 传输。
+// Client 是 MCP 协议的客户端实现，支持 stdio 传输方式。
 type Client struct {
 	cfg    StdioConfig
 	cmd    *exec.Cmd
@@ -52,14 +99,15 @@ type Client struct {
 	closeCh chan struct{}
 	readErr error
 
-	nextID            atomic.Int64
-	errBuf            bytes.Buffer
-	discovery         *discoveryState
-	capState          *capabilityState
-	eventSink         runtimeEventSink
-	hooksMu           sync.RWMutex
-	notificationHooks []func(context.Context, string, json.RawMessage) error
+	nextID    atomic.Int64
+	errBuf    bytes.Buffer
+	discovery *discoveryState
+	capState  *capabilityState
+	eventSink runtimeEventSink
+	hooks     hookSet
 
+	bgCtx             context.Context
+	bgCancel          context.CancelFunc
 	reconnectMu       sync.Mutex
 	reconnectBackoff  time.Duration
 	reconnectAttempts int // 连续重连失败累计次数
@@ -162,6 +210,7 @@ func NewStdioClient(ctx context.Context, cfg StdioConfig) (*Client, error) {
 		return nil, fmt.Errorf("mcp: start server: %w", err)
 	}
 
+	bgCtx, bgCancel := context.WithCancel(context.Background())
 	c := &Client{
 		cfg:       cfg,
 		cmd:       cmd,
@@ -170,6 +219,8 @@ func NewStdioClient(ctx context.Context, cfg StdioConfig) (*Client, error) {
 		stderr:    stderr,
 		pending:   make(map[string]chan rpcResponse),
 		closeCh:   make(chan struct{}),
+		bgCtx:     bgCtx,
+		bgCancel:  bgCancel,
 		discovery: newDiscoveryState(cfg.Discovery),
 		capState:  newCapabilityState(),
 	}
@@ -198,7 +249,7 @@ func (c *Client) initialize(ctx context.Context) error {
 		Capabilities    json.RawMessage `json:"capabilities"`
 	}
 	if err := c.call(ctx, "initialize", params, &result); err != nil {
-		return fmt.Errorf("mcp initialize: %w", err)
+		return fmt.Errorf("mcp: initialize: %w", err)
 	}
 	// 核验服务端协议版本兼容性。MCP 版本号为 "YYYY-MM-DD" 格式，字符串字典
 	// 序即日期序。客户端按向下兼容策略适配服务端：服务端版本不高于客户端时
@@ -210,7 +261,7 @@ func (c *Client) initialize(ctx context.Context) error {
 	}
 	caps, err := decodeCapabilities(result.Capabilities)
 	if err != nil {
-		return fmt.Errorf("mcp decode capabilities: %w", err)
+		return fmt.Errorf("mcp: decode capabilities: %w", err)
 	}
 	c.capState.set(ctx, caps)
 	return c.notify("notifications/initialized", nil)
@@ -266,6 +317,7 @@ func (c *Client) Close() error {
 	}
 	c.closed = true
 	close(c.closeCh)
+	c.bgCancel()
 	for id, ch := range c.pending {
 		delete(c.pending, id)
 		close(ch)
@@ -295,7 +347,7 @@ func (c *Client) Close() error {
 	go func() {
 		waitDone <- c.cmd.Wait()
 	}()
-	timer := time.NewTimer(2 * time.Second)
+	timer := time.NewTimer(closeWaitTimeout)
 	defer timer.Stop()
 	select {
 	case err := <-waitDone:
@@ -311,10 +363,10 @@ func (c *Client) Close() error {
 	// log and abandon rather than block callers indefinitely.
 	if c.cmd.Process != nil {
 		if err := killProcessTree(c.cmd.Process.Pid); err != nil {
-			slog.Warn("mcp client: kill process tree failed", "err", err)
+			slog.Warn("mcp: client: kill process tree failed", "err", err)
 		}
 	}
-	killTimer := time.NewTimer(2 * time.Second)
+	killTimer := time.NewTimer(closeWaitTimeout)
 	defer killTimer.Stop()
 	select {
 	case err := <-waitDone:
@@ -322,7 +374,7 @@ func (c *Client) Close() error {
 			return err
 		}
 	case <-killTimer.C:
-		slog.Warn("mcp client: cmd.Wait did not return after kill, goroutine may leak")
+		slog.Warn("mcp: client: cmd.Wait did not return after kill, goroutine may leak")
 	}
 	return nil
 }

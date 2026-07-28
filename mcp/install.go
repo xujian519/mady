@@ -1,5 +1,3 @@
-// Package mcp provides MCP client capabilities plus install helpers that
-// wire Mady as an MCP server into external coding agents.
 package mcp
 
 import (
@@ -68,9 +66,12 @@ var knownAgents = []struct {
 }
 
 // agentConfigPaths returns a list of common config-file locations for a
-// given coding agent.
+// given coding agent. Returns nil when the home directory cannot be resolved.
 func agentConfigPaths(agent string) []string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
 	var paths []string
 	switch agent {
 	case "claude":
