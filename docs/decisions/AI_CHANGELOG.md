@@ -1,5 +1,44 @@
 # AI 变更记录
 
+## 2026-07-28: 修复 TUI 滚动会话记录失效（alt screen 下滚轮被翻译为方向键）
+
+### 背景
+现象：TUI 会话中鼠标滚轮上下翻动会话记录无效。根因是 DEC 1007
+（alternate scroll mode）未被禁用。入口 `cmd/mady/tui.go` 启用了
+`AltScreen: true` + `MouseMode: "auto"`，而 `tui/tui_input.go` 的
+`enableMouse` 只发 `?1002h ?1006h`，从无 `?1007l`（`tui/tui.go:70`
+注释承诺禁用 1007，但全项目无实际实现）。
+
+DEC 1007 在多数终端（Terminal.app / iTerm2 / GNOME Terminal / xterm）
+默认开启。在 alternate screen buffer 中开启时，终端会拦截滚轮事件并
+翻译成 ↑/↓ 方向键序列，而非上报鼠标事件。于是滚轮事件走不到
+`ChatHistory.handleMouse` 的 `MouseWheelUp/Down` 分支；而 `chatLayout`
+的裸 ↑/↓ 又不滚动 history（仅 `Alt+↑/↓`、`PgUp/PgDn` 滚动），方向键
+最终被 `Editor` 当光标移动吞掉——表现为滚轮失效、且光标可能乱跳。
+
+### 变更清单
+- **`tui/tui_input.go`**：
+  - `enableMouse`：`sgr`/`x11` 模式在开 mouse 追踪前先发 `\x1b[?1007l`
+    （禁用 alternate scroll），迫使终端把滚轮作为真实鼠标事件上报；
+  - `disableMouse`：禁用 mouse 追踪后发 `\x1b[?1007h` 恢复终端默认滚轮
+    行为（顺序与 enable 相反）。对不实现 1007 的终端，set/reset 是
+    no-op，安全。
+- **`tui/tui_mouse_mode_test.go`**（新增）：5 个测试覆盖 sgr/auto/on/x11
+  四种模式启用时均含 `?1007l`、SGR 三序列顺序正确、Stop 时含 `?1007h`
+  且其在 mouse 追踪关闭之后、`off` 模式不发任何 1007 序列。
+
+### 验证
+- `cd tui && go build ./...` 通过
+- `cd tui && go vet ./...` 通过
+- `cd tui && go test ./...` 全绿（含 5 个新测试）
+
+### 风险
+- `tui/tui_input.go` 不在敏感路径表内，不触发 sensitive-paths gate。
+- 仅新增一个业界标准 DEC 私有模式序列，向后兼容；不影响已正确工作
+  的终端（kitty 部分配置默认关 1007，行为不变）。
+
+---
+
 ## 2026-07-28: 技术债务清理（死代码删除 + framework 测试补全）
 
 ### 背景

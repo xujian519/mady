@@ -336,29 +336,33 @@ func (t *TUI) enableMouse(mode string) {
 	t.outMu.Lock()
 	t.mouseMode = mode
 	t.outMu.Unlock()
+	// Order matters: disable alternate scroll mode (?1007l) BEFORE enabling
+	// mouse tracking. DEC 1007 (alternate scroll mode) is on by default in
+	// most terminals (Terminal.app, iTerm2, GNOME Terminal, xterm). While it
+	// is active inside the alternate screen buffer, the terminal intercepts
+	// wheel events and translates them into ↑/↓ key sequences instead of
+	// reporting them as mouse events — so the wheel never reaches
+	// ChatHistory.handleMouse and scrolling the transcript appears broken
+	// (the stray arrow keys either do nothing or move the editor cursor).
+	// Disabling 1007 forces real wheel events through. On terminals that
+	// don't implement 1007 the set/reset is a no-op, so this is safe.
+	//
+	// ?1002h (button-event tracking) reports press, motion AND release
+	// events, giving the TUI full mouse-drag visibility for smooth text
+	// selection in the Editor and ChatHistory (which implement their own
+	// handleMouse and handle MousePress/MouseMotion/MouseRelease). The
+	// trade-off is that it disables the terminal's OS-level native
+	// drag-to-select — acceptable because the TUI renders its own selection
+	// highlight and copies via ⌘+C (Editor) or right-click (ChatHistory).
+	// Do NOT use ?1000h (basic click) for SGR mode: it reports only press
+	// events, starving MouseMotion handlers and breaking selection.
 	switch mode {
 	case "sgr":
-		// Enable SGR positioning (?1006h) + button-event tracking (?1002h).
-		//
-		// ?1002h (button-event tracking) reports press, motion AND release
-		// events. This gives the TUI full mouse-drag visibility so that
-		// both the Editor and ChatHistory components can implement smooth
-		// text selection via their own handleMouse() methods — which
-		// already handle MousePress/MouseMotion/MouseRelease correctly.
-		//
-		// The downside is that ?1002h prevents the terminal emulator's
-		// OS-level native text selection (drag-to-select). We accept this
-		// trade-off because:
-		//   a) The TUI renders its own selection highlight (ANSI bg).
-		//   b) Selected text is copyable via ⌘+C (Editor) or right-click
-		//      (ChatHistory), both of which feed the system clipboard.
-		//
-		// Do NOT use ?1000h (basic click tracking) here — it only reports
-		// press events, starving MouseMotion handlers in both the Editor
-		// and ChatHistory, which makes the TUI's own selection unusable.
-		_, _ = t.term.Write([]byte("\x1b[?1002h\x1b[?1006h"))
+		// ?1007l disable alt scroll · ?1002h button-event tracking · ?1006h SGR positioning.
+		_, _ = t.term.Write([]byte("\x1b[?1007l\x1b[?1002h\x1b[?1006h"))
 	case "x11":
-		_, _ = t.term.Write([]byte("\x1b[?1000h"))
+		// ?1007l disable alt scroll · ?1000h basic click tracking.
+		_, _ = t.term.Write([]byte("\x1b[?1007l\x1b[?1000h"))
 	}
 }
 
@@ -370,10 +374,13 @@ func (t *TUI) disableMouse() {
 	if mode == "" {
 		return
 	}
+	// Reverse order of enableMouse: disable mouse tracking FIRST, then
+	// re-enable alternate scroll mode (?1007h) so the terminal's default
+	// wheel behavior (native scrollback in the main screen) is restored.
 	switch mode {
 	case "sgr":
-		_, _ = t.term.Write([]byte("\x1b[?1006l\x1b[?1002l"))
+		_, _ = t.term.Write([]byte("\x1b[?1006l\x1b[?1002l\x1b[?1007h"))
 	case "x11":
-		_, _ = t.term.Write([]byte("\x1b[?1000l"))
+		_, _ = t.term.Write([]byte("\x1b[?1000l\x1b[?1007h"))
 	}
 }
