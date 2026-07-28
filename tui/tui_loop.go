@@ -40,11 +40,26 @@ func (t *TUI) eventLoop() {
 		case msg := <-t.msgCh:
 			t.processMsg(msg)
 		case <-t.tickCh:
+			t.flushPendingMotion()
 		case <-ticker.C:
+			t.flushPendingMotion()
 		}
 		if atomic.SwapInt64(&t.renderRequested, 0) == 0 {
 			continue
 		}
 		t.renderFrame()
 	}
+}
+
+// flushPendingMotion delivers the most recently coalesced MouseMotion event
+// (if any) to the event loop. Called on every ticker/tick boundary so that
+// the final drag position from a burst of throttled motion events reaches
+// the component, keeping text-selection endpoints accurate.
+func (t *TUI) flushPendingMotion() {
+	if t.pendingMotion == nil {
+		return
+	}
+	msg := *t.pendingMotion
+	t.pendingMotion = nil
+	t.SendMsg(msg)
 }

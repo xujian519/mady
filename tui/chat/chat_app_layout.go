@@ -68,6 +68,9 @@ type chatLayout struct {
 	// computed by the most recent Render call. Used to translate MouseMsg
 	// screen coordinates into the editor's own row space (see Update).
 	editorTop int64
+	// mainFlex holds the most recently rendered Flex, used for mouse
+	// hit-testing. Populated in Render; nil before the first render.
+	mainFlex *layout.Flex
 }
 
 type textSelectionComponent interface {
@@ -159,18 +162,21 @@ func (l *chatLayout) Render(width int64) []string {
 	l.lastRows = rows
 
 	// Build and render the main flex.
-	mainFlex := layout.NewFlex(layout.DirectionVertical)
-	mainFlex.Bounds = &fixedBounds{width: width, height: rows}
-	hIdx, eIdx := l.buildFlex(mainFlex)
+	flex := layout.NewFlex(layout.DirectionVertical)
+	flex.Bounds = &fixedBounds{width: width, height: rows}
+	hIdx, eIdx := l.buildFlex(flex)
 
-	out := mainFlex.Render(width)
+	out := flex.Render(width)
+
+	// Store the rendered flex for mouse hit-testing (see HitTest / Update).
+	l.mainFlex = flex
 
 	// Extract layout metadata from the rendered flex.
 	if hIdx >= 0 {
-		l.headerHeight = int(mainFlex.ChildRect(hIdx).Height)
+		l.headerHeight = int(flex.ChildRect(hIdx).Height)
 	}
 	if eIdx >= 0 {
-		l.editorTop = mainFlex.ChildRect(eIdx).Row
+		l.editorTop = flex.ChildRect(eIdx).Row
 	}
 	return out
 }
@@ -184,6 +190,17 @@ func (b *fixedBounds) TerminalSize() (cols, rows int64) {
 }
 
 func (l *chatLayout) Invalidate() {}
+
+// HitTest implements core.MouseTarget by delegating to the most recently
+// rendered Flex. This allows the TUI's processMsg to route MouseMsg events
+// directly to the child at (row, col) with local coordinates, bypassing
+// the manual offset math in Update.
+func (l *chatLayout) HitTest(row, col int64) (core.Component, core.Rect, bool) {
+	if l.mainFlex == nil {
+		return nil, core.Rect{}, false
+	}
+	return l.mainFlex.HitTest(row, col)
+}
 
 func doCopy(l *chatLayout) {
 	// Copy editor selection first.
@@ -263,11 +280,60 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 	if l.history != nil {
 		switch m := msg.(type) {
 		case core.MouseMsg:
-			// Right-click (Button 2) → copy selected text.
+			// Right-click (Button 2) → copy selected text. This is a
+			// cross-component concern (checks both editor and history for
+			// selections), so it stays in the layout container.
 			if m.Action == core.MouseRelease && m.Button == 2 {
 				doCopy(l)
 				return nil
 			}
+			// Hit-test routing: use the Flex's computed child Rects to find
+			// which component the mouse event landed on, translate the
+			// coordinate to that component's local space, and deliver only
+			// to that component. This replaces the previous manual
+			// headerHeight / editorTop offset arithmetic.
+			//
+			// After delivery, check MouseConsumed: if the hit component
+			// consumed the event, stop. Otherwise let other components try
+			// (backward-compatible fallthrough).
+			if l.mainFlex != nil {
+				if child, rect, hit := l.mainFlex.HitTest(m.Row, m.Col); hit {
+					local := m
+					local.Row -= rect.Row
+					local.Col -= rect.Col
+					if u, ok := child.(core.Updatable); ok {
+						u.Update(local)
+					}
+					// If the component consumed the event, we're done.
+					if mc, ok := child.(core.MouseConsumer); ok && mc.MouseConsumed() {
+						return nil
+					}
+					// Not consumed — try the other interactive component.
+					// This handles edge cases like a press landing on a
+					// non-content row of history (mouseConsumed=false) where
+					// the editor might still want to process it.
+					if child != l.history && l.history != nil {
+						histAdjusted := m
+						histAdjusted.Row -= int64(l.headerHeight)
+						if histAdjusted.Row >= 0 {
+							l.history.Update(histAdjusted)
+						}
+					}
+					if child != l.editor {
+						if upd, ok := l.editor.(core.Updatable); ok {
+							editorAdjusted := m
+							editorAdjusted.Row -= l.editorTop + 1
+							upd.Update(editorAdjusted)
+						}
+					}
+					return nil
+				}
+				// No child hit by HitTest (e.g. event outside all Rects) —
+				// fall through to the legacy broadcast path below.
+			}
+			// Legacy fallback (pre-HitTest): deliver to both components with
+			// manual offsets. Kept as a safety net for the first frame
+			// before mainFlex is populated.
 			adjusted := m
 			adjusted.Row -= int64(l.headerHeight)
 			if adjusted.Row >= 0 {

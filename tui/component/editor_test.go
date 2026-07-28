@@ -199,6 +199,45 @@ func TestEditorCopyNoSelection(t *testing.T) {
 	}
 }
 
+// TestEditorMouseConsumed verifies that MouseConsumed returns true when the
+// mouse event is within editor bounds, and false when outside.
+func TestEditorMouseConsumed(t *testing.T) {
+	e := NewEditor(nil)
+	e.SetFocused(true)
+	e.Update(core.KeyMsg{Data: "hello"})
+	e.Render(40)
+
+	// Press within bounds → consumed.
+	e.Update(core.MouseMsg{Action: core.MousePress, Row: 0, Col: 2})
+	if !e.MouseConsumed() {
+		t.Error("press within bounds should be consumed")
+	}
+
+	// Motion while dragging → consumed.
+	e.Update(core.MouseMsg{Action: core.MouseMotion, Row: 0, Col: 5})
+	if !e.MouseConsumed() {
+		t.Error("motion during drag should be consumed")
+	}
+
+	// Release → consumed.
+	e.Update(core.MouseMsg{Action: core.MouseRelease, Row: 0, Col: 5})
+	if !e.MouseConsumed() {
+		t.Error("release during drag should be consumed")
+	}
+
+	// Motion without active drag → NOT consumed.
+	e.Update(core.MouseMsg{Action: core.MouseMotion, Row: 0, Col: 3})
+	if e.MouseConsumed() {
+		t.Error("motion without active drag should not be consumed")
+	}
+
+	// Press outside content (row far below) → NOT consumed.
+	e.Update(core.MouseMsg{Action: core.MousePress, Row: 100, Col: 0})
+	if e.MouseConsumed() {
+		t.Error("press outside bounds should not be consumed")
+	}
+}
+
 // TestEditorInsertText verifies insertText correctly inserts text at the
 // cursor position, handling newlines.
 func TestEditorInsertText(t *testing.T) {

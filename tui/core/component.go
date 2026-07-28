@@ -82,6 +82,54 @@ type WantsKeyRelease interface {
 }
 
 // ---------------------------------------------------------------------------
+// Mouse routing interfaces
+// ---------------------------------------------------------------------------
+
+// Rect is a screen rectangle in row/col coordinates. It is the basis for
+// mouse hit-testing: layout containers compute one Rect per child during
+// Render and use it to translate absolute mouse coordinates into local space.
+type Rect struct {
+	Row, Col      int64
+	Width, Height int64
+}
+
+// Contains reports whether (row, col) falls within this Rect (inclusive of
+// the top-left corner, exclusive of the bottom-right).
+func (r Rect) Contains(row, col int64) bool {
+	return row >= r.Row && row < r.Row+r.Height &&
+		col >= r.Col && col < r.Col+r.Width
+}
+
+// MouseTarget is implemented by layout containers that track the screen
+// rectangles of their children. The TUI's mouse router queries HitTest to
+// perform precise routing: only the child whose Rect contains the mouse
+// coordinate receives the MouseMsg (translated to local space), instead of
+// broadcasting to every child.
+//
+// This replaces the manual row-offset arithmetic previously hard-coded in
+// container Update methods (e.g. chatLayout).
+type MouseTarget interface {
+	// HitTest returns the child component at (row, col), the child's
+	// absolute screen Rect, and true when the coordinate hits a child.
+	HitTest(row, col int64) (child Component, rect Rect, ok bool)
+}
+
+// MouseConsumer is implemented by components that want to signal when a
+// MouseMsg has been fully handled and should not propagate further. When a
+// component sets its consumed flag during Update(MouseMsg), the container
+// stops dispatching that event to other children.
+//
+// Components that do NOT implement this interface are assumed to never
+// consume (backward compatible — events continue to propagate).
+//
+// Usage: the component sets an internal field during Update(MouseMsg) and
+// MouseConsumed() returns its value. Both calls happen on the event-loop
+// goroutine, so no synchronization is needed for the field.
+type MouseConsumer interface {
+	MouseConsumed() bool
+}
+
+// ---------------------------------------------------------------------------
 // Container — the canonical composite Component.
 // ---------------------------------------------------------------------------
 

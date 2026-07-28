@@ -199,6 +199,15 @@ type TUI struct {
 	mouseThrottle *time.Ticker
 	mouseLast     time.Time
 
+	// pendingMotion holds the most recent MouseMotion event that was
+	// coalesced (throttled) instead of dispatched immediately. The event
+	// loop flushes it on the next ticker tick so the final drag position
+	// is never lost — this is a merge, not a drop. nil when no motion is
+	// pending. Accessed only from the event-loop goroutine (onMouse +
+	// eventLoop both run there: onMouse is called from the stdin read
+	// callback, which runs on the event loop after Stop wiring).
+	pendingMotion *core.MouseMsg
+
 	// lastCursor tracks the cursor state emitted in the previous frame.
 	// renderFrame compares against it to avoid redundant ShowCursor/HideCursor
 	// and MoveTo commands — cursor blink timers are no longer reset every frame.

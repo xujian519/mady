@@ -217,6 +217,12 @@ type ChatHistory struct {
 	sbEnabled bool
 	sbWidth   int64
 
+	// mouseConsumed is set by handleMouse to indicate the last MouseMsg was
+	// handled (scroll, toggle, selection drag). The layout container checks
+	// MouseConsumed() to decide whether to stop forwarding the event to other
+	// children. Reset to false at the start of every handleMouse call.
+	mouseConsumed bool
+
 	// firstDirtyIdx tracks the lowest message index that changed since the
 	// last renderAll. When > 0, all messages before this index are guaranteed
 	// unchanged (same text, same collapsed state). The incremental render fast
@@ -662,4 +668,13 @@ func (h *ChatHistory) invalidate() {
 		cb()
 	})
 	h.mu.Unlock()
+}
+
+// MouseConsumed implements core.MouseConsumer. It reports whether the most
+// recent MouseMsg was handled by handleMouse (scroll, toggle, selection).
+// The layout container uses this to stop forwarding the event to siblings.
+func (h *ChatHistory) MouseConsumed() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.mouseConsumed
 }

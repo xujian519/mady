@@ -75,16 +75,21 @@ func (PanicMsg) MsgMarker() {}
 type MouseAction int64
 
 const (
-	MousePress     MouseAction = iota // button pressed
-	MouseRelease                      // button released
-	MouseWheelUp                      // wheel scrolled up
-	MouseWheelDown                    // wheel scrolled down
-	MouseMotion                       // pointer moved (requires SGR mouse tracking)
+	MousePress         MouseAction = iota // button pressed
+	MouseRelease                          // button released
+	MouseWheelUp                          // wheel scrolled up
+	MouseWheelDown                        // wheel scrolled down
+	MouseWheelLeft                        // wheel scrolled left (horizontal)
+	MouseWheelRight                       // wheel scrolled right (horizontal)
+	MouseMotion                           // pointer moved (requires SGR mouse tracking)
+	MouseBackButton                       // side "back" button (button 8)
+	MouseForwardButton                    // side "forward" button (button 9)
 )
 
 // MouseMsg carries a terminal mouse event. Coordinates are 0-based
 // (Row 0 = top of terminal, Col 0 = leftmost column). Button identifies
-// which button was pressed/released (1=left, 2=middle, 3=right, 4=release).
+// which button was pressed/released (1=left, 2=middle, 3=right, 8=back,
+// 9=forward).
 type MouseMsg struct {
 	Action MouseAction
 	Row    int64

@@ -109,6 +109,10 @@ type Editor struct {
 	// keys for input history navigation. When it returns true, history navigation
 	// is skipped so the autocomplete's SelectList can handle the key instead.
 	autocompleteActiveCheck func() bool
+
+	// mouseConsumed reports whether the most recent MouseMsg was handled by
+	// handleMouse (click/drag within editor bounds). Implements core.MouseConsumer.
+	mouseConsumed bool
 }
 
 type editorSnapshot struct {

@@ -183,10 +183,32 @@ const EscFlushDelay = 50 * time.Millisecond
 // so the common case is responsive, and a background goroutine started by
 // NewStdinBuffer calls it independently of the render loop, so a lone ESC
 // still fires even when the render loop is blocked in a long Update.
+//
+// When the Kitty keyboard protocol is active (with disambiguate flag 1),
+// a lone ESC is unambiguous: every key arrives wrapped in CSI u, so ESC
+// cannot be the start of a multi-byte escape. In that case we flush
+// immediately with zero delay, eliminating the 50ms latency that would
+// otherwise make ESC feel sluggish on Kitty-class terminals.
 func (b *StdinBuffer) FlushEsc() {
 	b.mu.Lock()
 	pending := len(b.buf) == 1 && b.buf[0] == 0x1B
-	if !pending || b.escPendingAt.IsZero() || time.Since(b.escPendingAt) < EscFlushDelay {
+	if !pending {
+		b.mu.Unlock()
+		return
+	}
+	// Kitty protocol active: ESC is unambiguous, flush immediately.
+	if IsKittyProtocolActive() {
+		b.buf = nil
+		b.escPendingAt = time.Time{}
+		onKey := b.onKey
+		b.mu.Unlock()
+		if onKey != nil {
+			onKey("\x1b")
+		}
+		return
+	}
+	// Legacy mode: respect the 50ms delay to disambiguate from CSI sequences.
+	if b.escPendingAt.IsZero() || time.Since(b.escPendingAt) < EscFlushDelay {
 		b.mu.Unlock()
 		return
 	}
@@ -234,6 +256,17 @@ func (b *StdinBuffer) drainLocked() (keys []string, pastes []string, mice []core
 
 	for {
 		b.updateEscPendingLocked()
+
+		// Kitty keyboard protocol: a lone ESC is unambiguous (every key
+		// arrives CSI u-wrapped), so emit it immediately with zero delay.
+		// This eliminates the 50ms EscFlushDelay latency on Kitty-class
+		// terminals. updateEscPendingLocked already cleared escPendingAt
+		// for this case; we just need to extract the byte.
+		if len(b.buf) == 1 && b.buf[0] == 0x1B && IsKittyProtocolActive() {
+			keys = append(keys, "\x1b")
+			b.buf = nil
+			return
+		}
 
 		if len(b.buf) == 0 {
 			return
@@ -318,9 +351,18 @@ func (b *StdinBuffer) drainLocked() (keys []string, pastes []string, mice []core
 
 // updateEscPendingLocked maintains escPendingAt according to current buffer
 // state. A lone ESC byte starts/keeps a pending timer; any other state clears
-// it.
+// it. When the Kitty keyboard protocol is active, a lone ESC is unambiguous
+// (every key arrives CSI u-wrapped), so it is promoted to a key event
+// immediately with zero delay.
 func (b *StdinBuffer) updateEscPendingLocked() {
 	if len(b.buf) == 1 && b.buf[0] == 0x1B {
+		if IsKittyProtocolActive() {
+			// Kitty protocol: ESC is unambiguous, flush now via escPendingAt
+			// sentinel. The caller (drainLocked) checks this and emits the
+			// key directly so there's zero latency.
+			b.escPendingAt = time.Time{}
+			return
+		}
 		if b.escPendingAt.IsZero() {
 			b.escPendingAt = time.Now()
 		}
@@ -481,14 +523,28 @@ func parseX11Mouse(cb int, cx, cy int64) core.MouseMsg {
 
 	button := cb & 0x03
 	switch {
-	case cb&0x40 != 0:
+	case cb&0x40 != 0: // wheel motion (bit 6)
 		switch button {
 		case 0:
 			m.Action = core.MouseWheelUp
 		case 1:
 			m.Action = core.MouseWheelDown
+		case 2:
+			m.Action = core.MouseWheelLeft
+		case 3:
+			m.Action = core.MouseWheelRight
 		}
-	case cb&0x20 != 0:
+	case cb&0x80 != 0: // extended buttons (bit 7): buttons 8-11
+		m.Action = core.MousePress
+		switch button {
+		case 0:
+			m.Action = core.MouseBackButton
+			m.Button = 8
+		case 1:
+			m.Action = core.MouseForwardButton
+			m.Button = 9
+		}
+	case cb&0x20 != 0: // motion (bit 5)
 		m.Action = core.MouseMotion
 		m.Button = int64(button)
 	default:
@@ -526,14 +582,28 @@ func parseSGRMouse(seq string) (core.MouseMsg, bool) {
 
 	button := cb & 0x03
 	switch {
-	case cb&0x40 != 0:
+	case cb&0x80 != 0: // extended buttons (bit 7): buttons 8-11
+		m.Action = core.MousePress
+		switch button {
+		case 0:
+			m.Action = core.MouseBackButton
+			m.Button = 8
+		case 1:
+			m.Action = core.MouseForwardButton
+			m.Button = 9
+		}
+	case cb&0x40 != 0: // wheel motion (bit 6)
 		switch button {
 		case 0:
 			m.Action = core.MouseWheelUp
 		case 1:
 			m.Action = core.MouseWheelDown
+		case 2:
+			m.Action = core.MouseWheelLeft
+		case 3:
+			m.Action = core.MouseWheelRight
 		}
-	case cb&0x20 != 0:
+	case cb&0x20 != 0: // motion (bit 5)
 		m.Action = core.MouseMotion
 		m.Button = int64(button)
 	default:

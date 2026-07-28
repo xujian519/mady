@@ -1,5 +1,182 @@
 # AI 变更记录
 
+## 2026-07-28: 桌面端 G2 修复 — A2UI 渲染器 Vitest 黄金对照测试（Go↔TS 漂移护栏）
+
+### 背景
+桌面端差距分析的缺口 G2：`desktop/frontend/src/a2ui-renderer/` 是 Go `a2ui/`
+包的 TypeScript 移植（SurfaceStore / JSON Pointer 数据模型 / Dynamic 解析 /
+validate / 14 个内置函数），但前端没有任何单元测试——Go 端 `a2ui/a2ui_test.go`
+的用例在 TS 侧没有对应护栏，G3 修复过的 `updateDataModel` value 键存在性漂移
+（remove vs set）这类问题只能靠人工对读发现。
+
+### 变更清单
+- **`desktop/frontend/package.json`**：新增 `test`（vitest run）/ `test:watch`
+  脚本；devDependency 引入 vitest（先装 4.1.10，因其要求 Vite ≥6 而项目锁在
+  Vite 5.4，降为 ^3.2.0，实装 3.2.7）。
+- **`desktop/frontend/vitest.config.ts`**（新增）：独立单测配置，只配 `@` alias
+  与 node environment，不复用 vite.config.ts（避免 vitest 自带 vite 与
+  React/Tailwind/pdfjs 构建插件的版本耦合）。
+- **`src/a2ui-renderer/__tests__/datamodel.golden.test.ts`**（21 例）：移植
+  TestDataModelPointerEngine（set 嵌套 / 整根替换 / `-` append / remove key /
+  数组 remove 置 undefined / 不可变更新）与 TestPointerEscaping（`~0`/`~1`
+  往返、joinPointer 空 token 返回根）。
+- **`src/a2ui-renderer/__tests__/store.golden.test.ts`**（16 例）：移植
+  TestSurfaceStoreLifecycle（update 先于 create 抛 SurfaceNotFoundError、重复
+  create 抛 SurfaceExistsError、delete unknown 为 no-op）、
+  TestClientDataModelCollection（只聚合 sendDataModel=true）、
+  TestUpdateDataModelRemoveVsSet（value 键省略=删除、`"value":null`=显式设值、
+  valueSet 兼容字段、path 省略整根置 null——G3 修复点的回归护栏）、
+  TestChildListMarshaling（静态数组 vs `{path, componentId}` 模板）及
+  componentFromFlat / envelopeKind 线格式用例。
+- **`src/a2ui-renderer/__tests__/dynamic.golden.test.ts`**（17 例）：移植
+  TestDynamicMarshaling 的识别顺序（call → 仅 path 单键 → literal；数组不判
+  bind/call；path 带额外键为 literal）及 resolveDynamic/resolveBind 缓存/
+  callFunction 未注册 warn 路径。
+- **`src/a2ui-renderer/__tests__/validate.golden.test.ts`**（11 例）：移植
+  TestValidateEnvelope（createSurface 双空=2 错、未知组件类型含 "unknown
+  component"、合法=0 错）、TestValidateSurfaceTree（缺 root 含 `no "root"`、
+  dangling 含 "undefined component"）、TestValidateDetectsCycle（直接自引用
+  与间接环均含 "circular reference"）。
+- **`src/a2ui-renderer/__tests__/functions.test.ts`**（15 例）：functionRegistry
+  恰好 14 个 BasicCatalog 函数；format 5 个与 validation 9 个的重点路径；
+  openUrl 安全拦截（javascript:/file:/data: 协议 warn + undefined）。
+- **`src/components/ToolCard.tsx`**：`isHandoffTool` 加 `export`（纯逻辑导出，
+  组件行为不变）。
+- **`src/components/__tests__/toolcard.test.ts`**（6 例）：Invisible Handoff
+  红线双层防护——invisible=true 一律过滤、`transfer_to_`/`handoff_to_` 前缀
+  过滤、前缀必须在开头、普通工具不过滤。
+
+### 验证
+- `pnpm test`：6 个测试文件 86 例全部通过（vitest 3.2.7）。
+- `pnpm typecheck` / `pnpm build`：通过。
+- `pnpm exec playwright test --project=chromium`：e2e 9/9 通过（无回归）。
+- `cd desktop && go build ./... && go test ./...`：通过。
+
+## 2026-07-28: TUI 鼠标路由架构升级（方案 2 hit-test + 方案 4 事件消费）
+
+### 背景
+差距分析中识别出的两个结构性问题：(1) `chatLayout.Update` 用手动行偏移
+（headerHeight/editorTop）逐一分发鼠标事件给 history 和 editor，每个新组件
+都要改这段 switch；(2) `processMsg` 把每个 MouseMsg 广播给所有子组件，即使
+组件不在点击区域也收到事件，造成性能浪费和潜在冲突。
+
+### 变更清单
+
+**方案 2：通用 hit-test 鼠标路由**
+- **`tui/core/component.go`**：新增 `Rect` 类型（含 `Contains` 方法）和
+  `MouseTarget` 可选接口（`HitTest(row, col) → (child, rect, ok)`）。
+  遵循既有可选接口惯例（同 `Focusable`/`Sizer`/`WantsKeyRelease`），
+  不修改 `Component`/`Updatable` 核心接口。
+- **`tui/layout/layout.go`**：`Rect` 改为 `core.Rect` 的类型别名，
+  向后兼容所有现有引用。
+- **`tui/layout/flex.go`**：实现 `HitTest` 方法——逆序遍历 `rects`，
+  返回第一个包含 (row,col) 的子组件及其屏幕 Rect。
+- **`tui/chat/chat_app_layout.go`**：
+  - 新增 `mainFlex *layout.Flex` 字段，在 Render 中存储最近渲染的 Flex；
+  - 实现 `HitTest`（委托给 mainFlex），使 chatLayout 成为 MouseTarget；
+  - MouseMsg 路由从手动偏移改为 `mainFlex.HitTest`：命中组件收到
+    本地坐标的事件，未命中则走 legacy fallback。
+- **`tui/layout/hittest_test.go`**（新增）：5 个测试覆盖垂直/水平布局的
+  hit-test 命中、越界、渲染前调用、Rect.Contains 边界。
+
+**方案 4：鼠标事件消费/冒泡**
+- **`tui/core/component.go`**：新增 `MouseConsumer` 可选接口
+  （`MouseConsumed() bool`）。组件在 `Update(MouseMsg)` 内部设置消费标志，
+  容器检查后停止向其他子组件广播。
+- **`tui/chat/chat_history.go`**：ChatHistory 实现 `MouseConsumer`——
+  新增 `mouseConsumed` 字段 + `MouseConsumed()` 方法。
+- **`tui/chat/chat_history_input.go`**：`handleMouse` 默认设 consumed=true，
+  仅在"未处理事件"路径（motion 不在拖拽中、release 无前序 press、
+  press 落在内容外）设为 false。
+- **`tui/component/editor.go` + `editor_render.go`**：Editor 实现
+  `MouseConsumer`——新增字段 + 方法，`handleMouse` 在事件落在编辑器
+  渲染区域内时设 consumed=true，否则 false。
+- **`tui/chat/chat_app_layout.go`**：hit-test 路由后检查
+  `MouseConsumed()`，若消费则停止转发。
+- **`tui/tui_input.go`**：`processMsg` 非焦点子组件广播循环中，若子组件
+  消费了 MouseMsg 则 `break` 停止广播。
+- **`tui/component/editor_test.go`**：新增 `TestEditorMouseConsumed`
+  验证 5 种场景的消费/不消费判定。
+
+### Code Review 修正
+- **`tui/tui_input.go`**：`onMouse` 的 motion 节流逻辑提取为
+  `onThrottledMotion` 方法，4 路 exit 降为 2 路线性 flow。
+- **`tui/terminal/mouse_test.go`**：本地 `itoa` helper 替换为
+  `strconv.Itoa`。
+- **`tui/chat/chat_history_input.go`**：添加 TODO 注释说明
+  "默认 true"模式的防御性风险。
+
+### 验证
+- `cd tui && go build ./...` 通过
+- `cd tui && go vet ./...` 通过
+- `cd tui && go test ./...` 全绿（含 6 个新测试）
+- `go build ./cmd/mady/...` 通过（根模块入口）
+- `gofmt` 全部清洁
+
+### 架构影响
+此前鼠标事件传播模型：`processMsg → 所有子组件 Update → chatLayout 手动
+偏移到 history+editor（两个都收到）`。现在：`processMsg → MouseTarget
+hit-test 精确定位 → 命中组件收到本地坐标 → 若 MouseConsumed 则停止 →
+否则 legacy fallback`。对齐了 Textual 的精确命中 + 事件冒泡模型。
+
+---
+
+## 2026-07-28: TUI 鼠标/键盘输入子系统增强（差距分析方案 1/3/6）
+
+### 背景
+深度对比 TUI 输入子系统与业界优秀框架（Bubble Tea/ratatui/Textual/
+crossterm）后，发现鼠标事件模型过于贫乏、Motion 节流会丢弃末帧、
+ESC 延迟在 Kitty 协议下不必要。本批次实施优先级最高的三项改进。
+
+### 变更清单
+
+**方案 1：鼠标事件模型扩展（对齐 crossterm）**
+- **`tui/core/message.go`**：`MouseAction` 枚举从 5 种扩展到 9 种，新增
+  `MouseWheelLeft`/`MouseWheelRight`（水平滚轮）、`MouseBackButton`/
+  `MouseForwardButton`（侧键 button 8/9）；`MouseMsg.Button` 注释更新
+  覆盖 8=back、9=forward。
+- **`tui/terminal/stdin_buffer.go`**：`parseSGRMouse` 和 `parseX11Mouse`
+  switch 增加 wheel button 2/3 → 水平滚轮分支；增加 bit 7（0x80）
+  扩展按钮分支 → 侧键 8/9。此前这些事件被静默丢弃（Action 留零值
+  触发 MousePress 误处理）。
+- **`tui/chat/chat_history_input.go`**：`handleMouse` 增加
+  `MouseWheelLeft/Right` case，消费事件刷新手势状态（垂直历史暂无
+  水平滚动需求）。
+- **`tui/terminal/mouse_test.go`**（新增）：6 个测试覆盖 SGR/X11 两种
+  编码下四方向滚轮、扩展侧键、标准按钮回归。
+
+**方案 3：Motion 合并代替丢弃（修复拖拽末帧丢失）**
+- **`tui/tui.go`**：新增 `pendingMotion *core.MouseMsg` 字段。
+- **`tui/tui_input.go`**：`onMouse` 节流分支从 `return`（丢弃）改为
+  暂存到 `pendingMotion`；非 motion 事件到达时先 flush 暂存的 motion。
+  后经 code review 重构为独立 `onThrottledMotion` 方法。
+- **`tui/tui_loop.go`**：`eventLoop` 的 ticker/tick 分支调用
+  `flushPendingMotion`，确保被节流的末帧 motion 在下个周期补发。
+  此前快速拖拽的最后一个位置可能被丢弃，导致选区终点不准。
+
+**方案 6：Kitty 协议下跳过 ESC timeout（ESC 延迟 50ms→0ms）**
+- **`tui/terminal/stdin_buffer.go`**：`drainLocked` 在
+  `IsKittyProtocolActive()` 为 true 时，lone ESC 直接作为 key 输出
+  （零延迟）；`FlushEsc` 同步增加 Kitty 协议检查。Kitty 协议的
+  disambiguate flag 使每个按键都有 CSI u 包装，ESC 不再有歧义，
+  无需 50ms 等待。此前 Kitty 终端上 ESC 仍有可感知延迟。
+
+### 验证
+- `cd tui && go build ./...` 通过
+- `cd tui && go vet ./...` 通过
+- `cd tui && go test ./...` 全绿（含 6 个新测试）
+- `go build ./cmd/mady/...` 通过（根模块入口）
+- `gofmt` 全部清洁
+
+### 风险
+- 无敏感路径改动。`MouseAction` 枚举新增值追加在末尾，不影响现有
+  switch 分支的序号（Go iota 零值仍为 MousePress）。
+- Motion 合并策略仅影响 MouseMotion 事件流，非 motion 事件路径不变。
+- ESC 即时 flush 仅在 `IsKittyProtocolActive()` 时生效，legacy 终端
+  行为不变。
+
+---
+
 ## 2026-07-28: 修复 TUI 滚动会话记录失效（alt screen 下滚轮被翻译为方向键）
 
 ### 背景

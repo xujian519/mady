@@ -20,10 +20,15 @@ func (e *Editor) handleMouse(m core.MouseMsg) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	// Default: event routed to editor, mark consumed unless it falls outside
+	// our rendered area (see early returns below).
+	e.mouseConsumed = true
+
 	switch m.Action {
 	case core.MousePress:
 		row, col, ok := e.hitTestLocked(m.Row, m.Col)
 		if !ok {
+			e.mouseConsumed = false // click outside content rows
 			return
 		}
 		e.allSelected = false
@@ -33,6 +38,7 @@ func (e *Editor) handleMouse(m core.MouseMsg) {
 		e.selEnd = e.selStart
 	case core.MouseMotion:
 		if !e.selDragging {
+			e.mouseConsumed = false // motion without active drag
 			return
 		}
 		if row, col, ok := e.hitTestLocked(m.Row, m.Col); ok {
@@ -40,6 +46,7 @@ func (e *Editor) handleMouse(m core.MouseMsg) {
 		}
 	case core.MouseRelease:
 		if !e.selDragging {
+			e.mouseConsumed = false // release without preceding press
 			return
 		}
 		e.selDragging = false
@@ -47,6 +54,14 @@ func (e *Editor) handleMouse(m core.MouseMsg) {
 			e.selActive = false
 		}
 	}
+}
+
+// MouseConsumed implements core.MouseConsumer. It reports whether the most
+// recent MouseMsg was handled by handleMouse (click/drag within bounds).
+func (e *Editor) MouseConsumed() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.mouseConsumed
 }
 
 // hitTestLocked translates a screen (row, col) coordinate — as delivered in

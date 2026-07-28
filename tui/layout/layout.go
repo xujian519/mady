@@ -59,10 +59,9 @@ type Child struct {
 }
 
 // Rect describes a child's assigned screen rectangle.
-type Rect struct {
-	Row, Col      int64
-	Width, Height int64
-}
+// This is an alias for core.Rect so that layout consumers can use either
+// type interchangeably without a cross-package conversion.
+type Rect = core.Rect
 
 // Natural returns a Child that consumes its natural height.
 func Natural(c core.Component) Child {

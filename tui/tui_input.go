@@ -162,6 +162,14 @@ func (t *TUI) processMsg(msg core.Msg) {
 						"duration", d,
 					)
 				}
+				// Mouse consumption: if this child consumed the MouseMsg,
+				// stop broadcasting to remaining siblings. This prevents
+				// every component from processing the same mouse event.
+				if _, isMouse := msg.(core.MouseMsg); isMouse {
+					if mc, ok := child.(core.MouseConsumer); ok && mc.MouseConsumed() {
+						break
+					}
+				}
 			}
 		}
 	}
@@ -300,24 +308,49 @@ func (t *TUI) onPaste(text string) {
 }
 
 func (t *TUI) onMouse(msg core.MouseMsg) {
-	// Throttle MouseMotion events: trackpad scrolling can produce 60+ events
-	// per second. We drain the throttle ticker channel and compare wall time
-	// to keep the effective rate at ~30fps. Non-motion events pass through.
 	if msg.Action == core.MouseMotion && t.mouseThrottle != nil {
-		select {
-		case <-t.mouseThrottle.C:
-			t.mouseLast = time.Now()
-		default:
-			// Ticker channel empty → events arriving faster than throttle rate.
-			// Accept if at least mouseThrottlePeriod (~33ms) has passed since the
-			// last accepted event (secondary time guard so a slow-ticking ticker
-			// doesn't starve
-			// motion entirely when the consumer is lagging).
-			if time.Since(t.mouseLast) < mouseThrottlePeriod {
-				return
-			}
-			t.mouseLast = time.Now()
+		t.onThrottledMotion(msg)
+		return
+	}
+	// Non-motion events flush any pending coalesced motion first, so a
+	// press/release right after a drag burst sees the correct final position.
+	if t.pendingMotion != nil {
+		flushed := *t.pendingMotion
+		t.pendingMotion = nil
+		t.SendMsg(flushed)
+	}
+	t.SendMsg(msg)
+}
+
+// onThrottledMotion implements the MouseMotion throttle/coalesce logic.
+//
+// Trackpad scrolling can produce 60+ motion events per second. We drain the
+// throttle ticker channel and compare wall time to keep the effective rate at
+// ~30fps. Events arriving faster than the throttle rate are stored in
+// pendingMotion instead of dropped; the event loop flushes the pending motion
+// on the next ticker tick, so the final drag position is never lost
+// (merge, not drop). This keeps text-selection endpoints accurate during fast
+// drags.
+//
+// Caller: onMouse — only when msg.Action == MouseMotion and mouseThrottle != nil.
+func (t *TUI) onThrottledMotion(msg core.MouseMsg) {
+	select {
+	case <-t.mouseThrottle.C:
+		t.mouseLast = time.Now()
+		t.pendingMotion = nil // consumed a tick, send directly
+	default:
+		// Ticker channel empty → events arriving faster than throttle rate.
+		// Accept if at least mouseThrottlePeriod (~33ms) has passed since the
+		// last accepted event (secondary time guard so a slow-ticking ticker
+		// doesn't starve motion entirely when the consumer is lagging).
+		if time.Since(t.mouseLast) < mouseThrottlePeriod {
+			// Throttle: remember as pending. The next ticker tick will
+			// flush this so the final position is never lost.
+			t.pendingMotion = &msg
+			return
 		}
+		t.mouseLast = time.Now()
+		t.pendingMotion = nil
 	}
 	t.SendMsg(msg)
 }

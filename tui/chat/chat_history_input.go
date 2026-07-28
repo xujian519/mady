@@ -77,6 +77,14 @@ func (h *ChatHistory) Update(msg core.Msg) core.Cmd {
 func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 	h.mu.Lock()
 
+	// Default: the event was routed to this component, so it is consumed.
+	// Set false only on paths that genuinely ignore the event (e.g. motion
+	// outside an active drag, a press that maps to no line).
+	//
+	// TODO: switch to explicit "default false, set consumed=true on handled
+	// paths" to avoid accidental consumption of unhandled events when new
+	// mouse actions are added in the future.
+	h.mouseConsumed = true
 	needInvalidate := false
 
 	switch m.Action {
@@ -87,6 +95,11 @@ func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 	case core.MouseWheelDown:
 		h.lastWheelAt = time.Now()
 		h.scrollByLocked(-3)
+		needInvalidate = true
+	case core.MouseWheelLeft, core.MouseWheelRight:
+		// Horizontal wheel: consume to update gesture tracking but no
+		// horizontal scroll yet (ChatHistory is vertical-only).
+		h.lastWheelAt = time.Now()
 		needInvalidate = true
 	case core.MousePress:
 		// Scrollbar click: when scrollbar is enabled and the click lands on the
@@ -123,6 +136,7 @@ func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 		// Left button press: check if clicking on thinking header to toggle collapse
 		absLine := h.viewportRowToAbsoluteLocked(m.Row)
 		if absLine < 0 {
+			h.mouseConsumed = false // click outside any content
 			h.mu.Unlock()
 			return
 		}
@@ -161,6 +175,10 @@ func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 				h.dirty = true // force re-render to update selection highlight
 				needInvalidate = true
 			}
+		} else {
+			// Motion outside an active drag — nothing to do, let the event
+			// propagate to siblings (e.g. editor).
+			h.mouseConsumed = false
 		}
 	case core.MouseRelease:
 		if h.suppressGesture {
@@ -175,6 +193,9 @@ func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 			}
 			h.dirty = true // force re-render for final selection state
 			needInvalidate = true
+		} else {
+			// Release without a preceding press in this component — ignore.
+			h.mouseConsumed = false
 		}
 	}
 

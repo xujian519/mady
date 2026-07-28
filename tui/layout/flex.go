@@ -48,6 +48,30 @@ func (f *Flex) ChildRect(i int) Rect {
 	return f.rects[i]
 }
 
+// HitTest implements core.MouseTarget. It walks children in reverse order
+// (topmost visual layer first — later children render on top in horizontal
+// mode, and in vertical mode the last child is at the bottom so iteration
+// order does not affect hit resolution since rects don't overlap) and
+// returns the first whose Rect contains (row, col).
+//
+// Returns (nil, Rect{}, false) when no child's Rect contains the coordinate.
+// The caller (typically the TUI mouse router) uses the returned Rect to
+// translate the MouseMsg from absolute screen coordinates to the child's
+// local coordinate space.
+func (f *Flex) HitTest(row, col int64) (core.Component, core.Rect, bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	for i := len(f.rects) - 1; i >= 0; i-- {
+		r := f.rects[i]
+		if r.Contains(row, col) {
+			if i < len(f.Children) && f.Children[i].Component != nil {
+				return f.Children[i].Component, core.Rect(r), true
+			}
+		}
+	}
+	return nil, core.Rect{}, false
+}
+
 // Render implements core.Component.
 func (f *Flex) Render(width int64) []string {
 	f.mu.Lock()
