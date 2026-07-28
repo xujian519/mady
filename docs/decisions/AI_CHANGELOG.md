@@ -1,5 +1,34 @@
 # AI 变更记录
 
+## 2026-07-28: 技术债务清理（死代码删除 + framework 测试补全）
+
+### 背景
+系统化探查项目技术债务后执行清理。`BackendHook` 方法已标注 Deprecated 且全仓库
+零生产调用者（仅测试在为死代码维护覆盖）；`pkg/framework`（1318 行核心装配逻辑）
+此前完全无测试覆盖。
+
+### 变更清单
+- **删除死代码 BackendHook**：`knowledge/extension.go` 移除 deprecated 的 `BackendHook()`
+  方法（生产路径已迁移至 `LifecycleHook()`）。同步删除 `backend_hook_test.go`、
+  `extension_test.go`、`extension_lifecycle_test.go` 中仅针对 BackendHook 的 5 个测试；
+  保留 `NewBackendRetrievalHook` 的行为测试（覆盖不变）。
+- **补全 pkg/framework 测试**：新增 `framework_test.go`，覆盖 DeferredInit 并发原语
+  （全部成功/部分失败/幂等启动/启动后立即执行/取消跳过/空任务）及纯函数
+  （CwdPartitionName 确定性、TasklistDirForCWD 路径分区、ExtSlice nil 边界、
+  AgentThinking 字段映射），共 12 个测试，含 -race 验证。
+
+### 评估结论（未执行）
+- Deprecated API（GlobalBefore/GlobalAfter、ExecutionPlan、LifecycleHook interface）
+  均标注 v0.6.0 移除，且深度耦合 agentcore 核心/推理逻辑/全项目抽象，现执行
+  违反"小炸弹"原则，遵循既定 v0.6.0 路线图推迟。
+- `server/desktop.go` TODO 为未完成 feature（agent 侧 A2UIEvent 入站处理器），
+  非技术债务，待产品确认。
+
+### 验证
+- `go build ./...` + `go vet ./...`（根模块）通过
+- `go test ./...`（根模块 76 包）全绿
+- `golangci-lint run ./...` 0 issues
+
 ## 2026-07-28: TUI 输出截断修复（scrollbar 宽度错配 + 代码块软换行）
 
 ### 背景

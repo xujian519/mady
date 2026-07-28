@@ -39,27 +39,6 @@ func (m *mockEmbedder) Dimensions() int {
 	return 1024
 }
 
-func TestBackendHook_NilWhenNoBackend(t *testing.T) {
-	ext := NewExtension(nil, nil, "test", DefaultKnowledgeExtConfig())
-	hook := ext.BackendHook(retrieval.DefaultRetrievalConfig())
-	if hook != nil {
-		t.Fatal("expected nil hook when no backend configured")
-	}
-}
-
-func TestBackendHook_NonNilWithBackend(t *testing.T) {
-	ext := NewExtension(nil, nil, "test", DefaultKnowledgeExtConfig())
-	ext.WithBackend(&mockBackend{
-		ftsResults: []retrieval.ScoredChunk{
-			{Chunk: retrieval.Chunk{Content: "test", DocID: "d1"}, Score: 0.9},
-		},
-	}, nil)
-	hook := ext.BackendHook(retrieval.DefaultRetrievalConfig())
-	if hook == nil {
-		t.Fatal("expected non-nil hook with backend configured")
-	}
-}
-
 func TestBackendHook_InjectsContext(t *testing.T) {
 	ext := NewExtension(nil, nil, "test", DefaultKnowledgeExtConfig())
 	ext.WithBackend(&mockBackend{

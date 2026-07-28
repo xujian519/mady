@@ -230,24 +230,6 @@ func (e *KnowledgeExtension) LifecycleHook() agentcore.LifecycleHook { //nolint:
 	return e.hook
 }
 
-// BackendHook returns a LifecycleHook that performs retrieval via the
-// configured backend (SQLite FTS + vector RRF fusion).
-//
-// Deprecated: Use LifecycleHook() instead, which automatically returns the
-// appropriate hook (BackendRetrievalHook when backend is configured,
-// RetrievalHook otherwise). This method is retained for backward compatibility.
-// Returns nil if no backend is configured.
-func (e *KnowledgeExtension) BackendHook(cfg retrieval.RetrievalConfig) agentcore.LifecycleHook {
-	if e.backend == nil {
-		return nil
-	}
-	h := NewBackendRetrievalHook(e, cfg)
-	if e.evalHook != nil {
-		return agentcore.AppendLifecycle(h, e.evalHook)
-	}
-	return h
-}
-
 // TransformContext is a pass-through; the knowledge extension does not modify
 // the message context.
 func (e *KnowledgeExtension) TransformContext(_ context.Context, msgs []agentcore.Message) []agentcore.Message {

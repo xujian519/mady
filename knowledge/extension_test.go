@@ -270,21 +270,6 @@ func TestExtension_BackendHookWithGraph(t *testing.T) {
 	}
 }
 
-func TestExtension_BackendHookNilHookWithWritableOnly(t *testing.T) {
-	// BackendHook should return nil when there's no backend (only writable).
-	ext := NewExtension(nil, nil, "test", DefaultKnowledgeExtConfig())
-	ext.WithWritableStore(&mockWritable{
-		searchResults: []retrieval.ScoredChunk{
-			{Chunk: retrieval.Chunk{Content: "user doc", DocID: "u1"}, Score: 0.8},
-		},
-	})
-
-	hook := ext.BackendHook(retrieval.DefaultRetrievalConfig())
-	if hook != nil {
-		t.Error("expected nil hook without backend, even with writable store")
-	}
-}
-
 // ---------------------------------------------------------------------------
 // KnowledgeExtension tool tests
 // ---------------------------------------------------------------------------

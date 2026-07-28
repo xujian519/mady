@@ -87,63 +87,6 @@ func TestKnowledgeExtension_LifecycleHook(t *testing.T) {
 	}
 }
 
-func TestKnowledgeExtension_BackendHook_NilWithoutBackend(t *testing.T) {
-	ext := NewExtension(nil, nil, "patent", DefaultKnowledgeExtConfig())
-
-	hook := ext.BackendHook(retrieval.DefaultRetrievalConfig())
-	if hook != nil {
-		t.Error("expected nil BackendHook when no backend configured")
-	}
-}
-
-func TestKnowledgeExtension_BackendHook_WithBackend(t *testing.T) {
-	ext := NewExtension(nil, nil, "patent", DefaultKnowledgeExtConfig())
-	ext.WithBackend(&mockBackend{
-		ftsResults: []retrieval.ScoredChunk{
-			{Chunk: retrieval.Chunk{Content: "专利法第22条", DocID: "patent_law"}, Score: 0.95},
-		},
-	}, nil)
-
-	cfg := retrieval.DefaultRetrievalConfig()
-	hook := ext.BackendHook(cfg)
-	if hook == nil {
-		t.Fatal("expected non-nil BackendHook when backend is configured")
-	}
-
-	// Verify the hook works by calling BeforeModelCall.
-	req := &agentcore.ProviderRequest{
-		Messages: []agentcore.Message{
-			{Role: agentcore.RoleUser, Content: "什么是新颖性"},
-		},
-	}
-	arc := &agentcore.AgentRunContext{
-		Messages: []agentcore.Message{
-			{Role: agentcore.RoleUser, Content: "什么是新颖性"},
-		},
-	}
-	mcc := &agentcore.ModelCallContext{Request: req}
-
-	if err := hook.BeforeModelCall(context.Background(), arc, mcc); err != nil {
-		t.Fatalf("BeforeModelCall failed: %v", err)
-	}
-}
-
-func TestKnowledgeExtension_BackendHook_WithWritableOnly(t *testing.T) {
-	// BackendHook should still return nil when only writable store is configured
-	// (no backend).
-	ext := NewExtension(nil, nil, "test", DefaultKnowledgeExtConfig())
-	ext.WithWritableStore(&mockWritable{
-		searchResults: []retrieval.ScoredChunk{
-			{Chunk: retrieval.Chunk{Content: "user doc", DocID: "u1"}, Score: 0.8},
-		},
-	})
-
-	hook := ext.BackendHook(retrieval.DefaultRetrievalConfig())
-	if hook != nil {
-		t.Error("expected nil hook without backend, even with writable store")
-	}
-}
-
 // ---------------------------------------------------------------------------
 // ToolProvider 注册验证
 // ---------------------------------------------------------------------------
