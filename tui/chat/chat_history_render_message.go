@@ -189,11 +189,9 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		bar := theme.ErrorStyle.Render("▌ ")
 		return h.renderMarkdownRole(m.Text, bar, width, theme)
 	case RoleDivider:
-		ch := theme.DividerChar
-		if ch == "" {
-			ch = "─"
-		}
-		return []string{theme.DimStyle.Render(strings.Repeat(ch, int(width)))}
+		// Consistent with the ▌ bar language used by all message roles.
+		bar := theme.DimStyle.Render("▌")
+		return []string{bar}
 	default:
 		return core.WrapAnsi(m.Text, width)
 	}
