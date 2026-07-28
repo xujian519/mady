@@ -416,6 +416,7 @@ func TestParseClaimsFromLLM_DomainCarryOver(t *testing.T) {
 
 // TestIntegration_ErrorCases 用知识库中的常见错误案例反向验证规则引擎的捕获能力。
 // 注意：这些测试直接构造含错误的claim输入，验证规则是否能检测到，而非测试Builder输出。
+// 数据来源 ref: testdata/error-cases.json（内联版本，避免文件加载依赖 cwd）。
 func TestIntegration_ErrorCases(t *testing.T) {
 	engine := NewRuleEngine()
 	RegisterDefaultRules(engine)
@@ -514,6 +515,38 @@ func TestIntegration_ErrorCases(t *testing.T) {
 				violationText += " [" + v.RuleName + "]" + v.Message
 			}
 			t.Errorf("预期 forbidden-words 规则触发，但未找到。实际违规: %s", violationText)
+		}
+	})
+
+	t.Run("主题名称不当_含宣传用语", func(t *testing.T) {
+		// 模拟：主题名称中包含GCQ型、高效等不当用语
+		claims := []Claim{
+			{Number: 1, ClaimType: ClaimTypeProduct, Kind: "independent",
+				Preamble:      "一种GCQ型高效节能空气净化器",
+				Characterized: "包括HEPA过滤网和风机"},
+		}
+		input := DraftInput{
+			Title: "一种GCQ型高效节能空气净化器",
+			Features: []Feature{
+				{ID: "f1", Description: "HEPA过滤网", Category: "structure", Importance: "high"},
+				{ID: "f2", Description: "风机", Category: "structure", Importance: "high"},
+			},
+			PFETriples: []PFETriple{{ID: "t1", Problem: "净化效率低", FeatureIDs: []string{"f1", "f2"}}},
+		}
+		violations := engine.Validate(claims, input)
+		found := false
+		for _, v := range violations {
+			if strings.Contains(v.Message, "发明名称") || strings.Contains(v.Message, "标题") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			violationText := ""
+			for _, v := range violations {
+				violationText += " [" + v.RuleName + "]" + v.Message
+			}
+			t.Errorf("预期标题格式规则触发，但未找到。实际违规: %s", violationText)
 		}
 	})
 }
