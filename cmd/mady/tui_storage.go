@@ -8,6 +8,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,7 +94,9 @@ func probeSessionDir(envDir, madyHome, workspaceDir, cwd string) StorageProbeRes
 
 	// 记录原始工作目录，方便用户识别项目对应的存储分区。
 	if !explicit && cwd != "" {
-		_ = writeCWDMapping(sessionDir, cwd)
+		if err := writeCWDMapping(sessionDir, cwd); err != nil {
+			slog.Warn("tui: write CWD mapping", "err", err)
+		}
 	}
 
 	// 写探针：尝试创建临时文件。
@@ -102,10 +105,14 @@ func probeSessionDir(envDir, madyHome, workspaceDir, cwd string) StorageProbeRes
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("write test to %s: %v", sessionDir, err)
 		r.UserMessage = "会话持久化未启用，当前为仅内存模式（会话目录不可写）"
-		_ = os.Remove(testFile) //nolint:gosec // path via filepath.Join over resolved dir
+		if err := os.Remove(testFile); err != nil { //nolint:gosec // path via filepath.Join over resolved dir
+			slog.Warn("tui: remove test file (error path)", "err", err)
+		}
 		return r
 	}
-	_ = os.Remove(testFile) //nolint:gosec // path via filepath.Join over resolved dir
+	if err := os.Remove(testFile); err != nil { //nolint:gosec // path via filepath.Join over resolved dir
+		slog.Warn("tui: remove test file", "err", err)
+	}
 
 	r.Unavailable = false
 	r.Message = ""
@@ -187,7 +194,9 @@ func probeApprovalStore(workspaceDir, madyHome string) StorageProbeResult {
 		_ = os.Remove(testFile)
 		return r
 	}
-	_ = os.Remove(testFile)
+	if err := os.Remove(testFile); err != nil {
+		slog.Warn("tui: remove approval test file", "err", err)
+	}
 
 	r.Unavailable = false
 	return r

@@ -79,13 +79,15 @@ func (t *TUI) processMsg(msg core.Msg) {
 		}
 		return
 	case core.PanicMsg:
-		slog.Default().Error("cmd panic recovered",
+		slog.Error("cmd panic recovered",
 			"err", m.Err,
 			"cmdIndex", m.CmdIndex,
 			"stack", m.Stack,
 		)
 	case core.QuitMsg:
-		_ = t.Stop()
+		if err := t.Stop(); err != nil {
+			slog.Warn("tui: stop failed on QuitMsg", "err", err)
+		}
 		return
 	}
 
@@ -121,7 +123,7 @@ func (t *TUI) processMsg(msg core.Msg) {
 				go t.execCmd(cmd)
 			}
 			if d := time.Since(start); d > 50*time.Millisecond {
-				slog.Default().Warn("slow Update in processMsg",
+				slog.Warn("slow Update in processMsg",
 					"component", fmt.Sprintf("%T", focused),
 					"msg", fmt.Sprintf("%T", msg),
 					"duration", d,
@@ -156,7 +158,7 @@ func (t *TUI) processMsg(msg core.Msg) {
 					go t.execCmd(cmd)
 				}
 				if d := time.Since(start); d > 50*time.Millisecond {
-					slog.Default().Warn("slow Update in child component",
+					slog.Warn("slow Update in child component",
 						"component", fmt.Sprintf("%T", child),
 						"msg", fmt.Sprintf("%T", msg),
 						"duration", d,

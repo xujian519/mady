@@ -176,7 +176,9 @@ func (e *MemoryExtension) OnSessionClose(_ context.Context) {
 
 		// 4. 可选清理 Session 层
 		if e.manager.cfg.CleanupSessionOnClose {
-			_ = e.manager.store.ForgetAll(summaryCtx, e.scope.AsFilter(0).WithLayer(LayerSession))
+			if err := e.manager.store.ForgetAll(summaryCtx, e.scope.AsFilter(0).WithLayer(LayerSession)); err != nil {
+				slog.Warn("memory: forget session layer failed", "err", err)
+			}
 		}
 	}()
 }

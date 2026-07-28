@@ -145,7 +145,9 @@ func (s *Server) Run(ctx context.Context) error {
 		// ReadBytes doesn't block forever on a partial line. If the
 		// underlying reader doesn't support deadlines, this is a no-op.
 		if f, ok := s.rawReader.(interface{ SetReadDeadline(t time.Time) error }); ok {
-			_ = f.SetReadDeadline(time.Now().Add(5 * time.Minute))
+			if err := f.SetReadDeadline(time.Now().Add(5 * time.Minute)); err != nil {
+				slog.Warn("ACP: set read deadline on stdin", "err", err)
+			}
 		}
 
 		line, err := s.reader.ReadBytes('\n')

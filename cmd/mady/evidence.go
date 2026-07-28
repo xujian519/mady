@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -110,7 +111,9 @@ func execTriple(engine *evidence.DefaultEngine, data []byte, stdout, stderr io.W
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	//nolint:errchkjson // cliJudgmentToMap returns map[string]any (dynamic)
-	_ = enc.Encode(cliJudgmentToMap(judgment))
+	if err := enc.Encode(cliJudgmentToMap(judgment)); err != nil {
+		slog.Warn("evidence: encode judgment", "err", err)
+	}
 	return 0
 }
 
@@ -130,11 +133,13 @@ func execBurden(data []byte, stdout, stderr io.Writer) int {
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	//nolint:errchkjson // map[string]any is inherently dynamic
-	_ = enc.Encode(map[string]any{
+	if err := enc.Encode(map[string]any{
 		"holder": result.BurdenHolder, "standard": result.Standard,
 		"has_shifted": result.HasShifted, "shift_reason": result.ShiftReason,
 		"reasoning": result.Reasoning,
-	})
+	}); err != nil {
+		slog.Warn("evidence: encode burden result", "err", err)
+	}
 	return 0
 }
 
@@ -157,11 +162,13 @@ func execStandard(data []byte, stdout, stderr io.Writer) int {
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	//nolint:errchkjson // map[string]any is inherently dynamic
-	_ = enc.Encode(map[string]any{
+	if err := enc.Encode(map[string]any{
 		"met": result.Met, "standard": result.Standard, "confidence": result.Confidence,
 		"supporting_count": result.SupportingCount, "contradicting_count": result.ContradictingCount,
 		"reasoning": result.Reasoning, "gaps": result.Gaps,
-	})
+	}); err != nil {
+		slog.Warn("evidence: encode standard result", "err", err)
+	}
 	return 0
 }
 
@@ -201,7 +208,9 @@ func execConflict(data []byte, stdout, stderr io.Writer) int {
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	//nolint:errchkjson // map[string]any is inherently dynamic
-	_ = enc.Encode(map[string]any{"conflicts": out})
+	if err := enc.Encode(map[string]any{"conflicts": out}); err != nil {
+		slog.Warn("evidence: encode conflict result", "err", err)
+	}
 	return 0
 }
 
@@ -226,13 +235,17 @@ func execTypeSpecific(engine *evidence.DefaultEngine, data []byte, stdout, stder
 	ts := judgment.TypeSpecificJudgment
 	if ts == nil {
 		//nolint:errchkjson // map[string]any is inherently dynamic
-		_ = json.NewEncoder(stdout).Encode(map[string]any{"note": "无类型特定判断结果"})
+		if err := json.NewEncoder(stdout).Encode(map[string]any{"note": "无类型特定判断结果"}); err != nil {
+			slog.Warn("evidence: encode type-specific judgment note", "err", err)
+		}
 		return 0
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	//nolint:errchkjson // cliTypeSpecificToMap returns map[string]any (dynamic)
-	_ = enc.Encode(cliTypeSpecificToMap(ts))
+	if err := enc.Encode(cliTypeSpecificToMap(ts)); err != nil {
+		slog.Warn("evidence: encode type-specific result", "err", err)
+	}
 	return 0
 }
 

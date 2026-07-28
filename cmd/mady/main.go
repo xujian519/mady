@@ -36,6 +36,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -188,7 +189,9 @@ func runEmbeddingsCLI(ctx context.Context, cmd string) {
 		fmt.Fprintln(os.Stderr, "oMLX 嵌入服务已启动（http://127.0.0.1:8000）")
 		// 阻塞等待退出信号（前台模式运行）。
 		<-ctx.Done()
-		_ = mgr.Stop()
+		if err := mgr.Stop(); err != nil {
+			slog.Warn("mady: embed-server stop error", "err", err)
+		}
 		fmt.Fprintln(os.Stderr, "\noMLX 嵌入服务已停止")
 
 	case "stop-embeddings":

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -67,8 +68,10 @@ func handleHealthFast(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	//nolint:errchkjson // healthResponse.Checks is map[string]any (dynamic)
-	_ = json.NewEncoder(w).Encode(healthResponse{
+	if err := json.NewEncoder(w).Encode(healthResponse{
 		Status: "ok",
 		Time:   time.Now().UTC().Format(time.RFC3339),
-	})
+	}); err != nil {
+		slog.Warn("health: fast health check encode failed", "err", err)
+	}
 }

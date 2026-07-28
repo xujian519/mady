@@ -1,5 +1,4 @@
 //go:build darwin
-// +build darwin
 
 package main
 
@@ -7,6 +6,7 @@ import (
 	"embed"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -33,7 +33,9 @@ func windowStatePath() string {
 		return ""
 	}
 	dir := filepath.Join(cacheDir, "mady")
-	_ = os.MkdirAll(dir, 0755)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Warn("mady-desktop: mkdir failed", "err", err)
+	}
 	return filepath.Join(dir, "window_state.json")
 }
 
@@ -65,7 +67,9 @@ func saveWindowState(ws windowState) {
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(p, data, 0644)
+	if err := os.WriteFile(p, data, 0644); err != nil {
+		slog.Warn("mady-desktop: save window state failed", "err", err)
+	}
 }
 
 func main() {

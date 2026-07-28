@@ -6,17 +6,21 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // cliSession wraps an exec.Cmd as an AgentSession for CLI-based agents
 // (Claude Code, Codex, etc.) that communicate via stdin/stdout.
 type cliSession struct {
-	cmd       *exec.Cmd
-	stdin     *bufio.Writer
-	stdout    *bufio.Scanner
-	stderrBuf *bytes.Buffer // captured stderr for diagnostics on failure
+	cmd        *exec.Cmd
+	stdin      *bufio.Writer
+	stdout     *bufio.Scanner
+	stderrBuf  *bytes.Buffer // captured stderr for diagnostics on failure
+	stderrPipe io.Closer     // closed on Close() to unblock the stderr copy goroutine
+	stderrDone chan struct{} // closed when the stderr copy goroutine exits
 }
 
 // newCLISession launches a CLI agent process and returns a session wrapping it.
@@ -61,15 +65,20 @@ func newCLISession(ctx context.Context, bin, subcmd string, cfg SpawnConfig) (Ag
 	scanner.Buffer(make([]byte, 1024*1024), 10*1024*1024)
 
 	var stderrBuf bytes.Buffer
+	stderrDone := make(chan struct{})
 	go func() {
+		defer close(stderrDone)
+		// stderrPipe is closed explicitly in Close(), unblocking io.Copy.
 		_, _ = io.Copy(&stderrBuf, stderrPipe)
 	}()
 
 	return &cliSession{
-		cmd:       cmd,
-		stdin:     bufio.NewWriter(stdinPipe),
-		stdout:    scanner,
-		stderrBuf: &stderrBuf,
+		cmd:        cmd,
+		stdin:      bufio.NewWriter(stdinPipe),
+		stdout:     scanner,
+		stderrBuf:  &stderrBuf,
+		stderrPipe: stderrPipe,
+		stderrDone: stderrDone,
 	}, nil
 }
 
@@ -97,8 +106,9 @@ func (s *cliSession) Send(ctx context.Context, input string) (string, error) {
 	return strings.TrimSpace(output.String()), nil
 }
 
-// Stream sends input and streams output line by line. Callers must drain the
-// channel to completion; otherwise the underlying goroutine leaks.
+// Stream sends input and streams output line by line.
+// The returned channel must be drained to completion; otherwise the
+// underlying goroutine may leak until the process exits.
 func (s *cliSession) Stream(ctx context.Context, input string) (<-chan StreamChunk, error) {
 	if _, err := s.stdin.WriteString(input + "\n"); err != nil {
 		return nil, fmt.Errorf("write stdin: %w", err)
@@ -107,32 +117,70 @@ func (s *cliSession) Stream(ctx context.Context, input string) (<-chan StreamChu
 		return nil, fmt.Errorf("flush stdin: %w", err)
 	}
 
-	ch := make(chan StreamChunk, 16)
+	ch := make(chan StreamChunk, 4)
 	go func() {
 		defer close(ch)
 		for s.stdout.Scan() {
+			// Check context cancellation between each scanned line.
+			// Scan() itself may block, but process exit (via Close)
+			// closes the pipe and unblocks it.
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			// Prioritize graceful send; if the receiver falls behind or
+			// stops reading, drain into a short timeout to prevent the
+			// goroutine from leaking indefinitely.
 			select {
 			case ch <- StreamChunk{Content: s.stdout.Text()}:
 			case <-ctx.Done():
-				ch <- StreamChunk{Error: ctx.Err()}
+				return
+			case <-time.After(10 * time.Second):
+				// Receiver stalled for 10s — treat as dead connection.
 				return
 			}
 		}
 		if err := s.stdout.Err(); err != nil {
-			ch <- StreamChunk{Error: fmt.Errorf("scan stdout: %w (stderr: %s)", err, s.stderrBuf.String())}
+			select {
+			case ch <- StreamChunk{Error: fmt.Errorf("scan stdout: %w (stderr: %s)", err, s.stderrBuf.String())}:
+			case <-ctx.Done():
+			case <-time.After(10 * time.Second):
+			}
 		} else {
-			ch <- StreamChunk{Done: true}
+			select {
+			case ch <- StreamChunk{Done: true}:
+			case <-ctx.Done():
+			case <-time.After(10 * time.Second):
+			}
 		}
 	}()
 	return ch, nil
 }
 
-// Close kills the agent process and releases all OS resources (including
-// the process descriptor via Wait).
+// Close kills the agent process, waits for the stderr copy goroutine to
+// finish, and releases all OS resources (including the process descriptor
+// via Wait).
 func (s *cliSession) Close() error {
+	// Close stderrPipe first to unblock the stderr copy goroutine.
+	if s.stderrPipe != nil {
+		if err := s.stderrPipe.Close(); err != nil {
+			slog.Warn("session: close stderr pipe", "err", err)
+		}
+	}
+
+	// Wait for the stderr copy goroutine to finish, with a safety timeout.
+	select {
+	case <-s.stderrDone:
+	case <-time.After(5 * time.Second):
+		slog.Warn("session: stderr copy did not finish within 5s")
+	}
+
 	if s.cmd.Process == nil {
 		return nil
 	}
+
 	killErr := s.cmd.Process.Kill()
 	waitErr := s.cmd.Wait()
 	// Return the first error; Wait error after successful Kill is expected

@@ -18,6 +18,8 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
+const sessionFileExt = ".jsonl"
+
 // ---------------------------------------------------------------------------
 // Persistence (lazy flush)
 // ---------------------------------------------------------------------------
@@ -258,7 +260,7 @@ func (s *FileStore) sessionLock(id string) *sync.RWMutex {
 }
 
 func (s *FileStore) path(sessionID string) string {
-	return filepath.Join(s.dir, sessionID+".jsonl")
+	return filepath.Join(s.dir, sessionID+sessionFileExt)
 }
 
 // Create creates a new session with the given options.
@@ -422,10 +424,10 @@ func (s *FileStore) List(_ context.Context) ([]Info, error) {
 
 	var sessions []Info
 	for _, de := range dirEntries {
-		if de.IsDir() || !strings.HasSuffix(de.Name(), ".jsonl") {
+		if de.IsDir() || !strings.HasSuffix(de.Name(), sessionFileExt) {
 			continue
 		}
-		name := strings.TrimSuffix(de.Name(), ".jsonl")
+		name := strings.TrimSuffix(de.Name(), sessionFileExt)
 		info := s.readInfo(name)
 		sessions = append(sessions, info)
 	}

@@ -151,9 +151,9 @@ func (s *Server) Cancel(threadID string) {
 // 通过 surfaceID（格式 "surface_<threadID>"）提取 threadID 并在池中查找 agent，
 // 将 ClientAction 包装为 A2UIEvent 通过 agent 事件总线投递。
 //
-// 注意：当前 agent 侧尚未注册 A2UIEvent 入站处理器来消费此事件，
-// 因此 SendAction 投递的事件目前仅到达事件总线，不会被 agent 执行循环处理。
-// TODO: agent 侧需注册 EventA2UI 监听器解析 ClientAction 并注入 agent 上下文。
+// Agent 侧目前尚未注册 A2UIEvent 入站处理器来消费此事件。
+// 投递的事件仅到达事件总线，不会被 agent 执行循环处理。
+// 这是已知限制（跟踪见 docs/known-limitations.md）。
 func (s *Server) SendAction(surfaceID string, action *a2ui.ClientAction) error {
 	if action == nil {
 		return fmt.Errorf("server.SendAction: action is required")

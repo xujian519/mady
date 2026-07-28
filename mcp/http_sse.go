@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,7 +46,9 @@ func (c *HTTPClient) decodeSSERPCResponse(ctx context.Context, body io.Reader, e
 			return nil, err
 		}
 		resp, nextState, readErr := readSSERPCResponse(resumeResp.Body, expectedID)
-		_ = resumeResp.Body.Close()
+		if err := resumeResp.Body.Close(); err != nil {
+			slog.Warn("MCP: close resume response body", "err", err)
+		}
 		if readErr != nil {
 			return nil, readErr
 		}
@@ -207,18 +210,24 @@ func (c *HTTPClient) resumeSSE(ctx context.Context, lastEventID string) (*http.R
 		return nil, fmt.Errorf("mcp resume request: %w", err)
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		_ = resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			slog.Warn("MCP: close 404 response body", "err", err)
+		}
 		sessionID, _ := c.sessionState()
 		return nil, sessionExpiredError{sessionID: sessionID}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-		_ = resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			slog.Warn("MCP: close error response body", "err", err)
+		}
 		return nil, fmt.Errorf("mcp resume status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if !strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-		_ = resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			slog.Warn("MCP: close invalid content-type response body", "err", err)
+		}
 		return nil, fmt.Errorf("mcp resume expected text/event-stream, got %q: %s", resp.Header.Get("Content-Type"), strings.TrimSpace(string(body)))
 	}
 	return resp, nil

@@ -77,26 +77,25 @@ func (h *ChatHistory) Update(msg core.Msg) core.Cmd {
 func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 	h.mu.Lock()
 
-	// Default: the event was routed to this component, so it is consumed.
-	// Set false only on paths that genuinely ignore the event (e.g. motion
-	// outside an active drag, a press that maps to no line).
-	//
-	// TODO: switch to explicit "default false, set consumed=true on handled
-	// paths" to avoid accidental consumption of unhandled events when new
-	// mouse actions are added in the future.
-	h.mouseConsumed = true
+	// Default: event not consumed. Each handled path explicitly sets
+	// mouseConsumed = true to avoid accidentally consuming unhandled events
+	// when new mouse actions are added in the future.
+	h.mouseConsumed = false
 	needInvalidate := false
 
 	switch m.Action {
 	case core.MouseWheelUp:
+		h.mouseConsumed = true
 		h.lastWheelAt = time.Now()
 		h.scrollByLocked(3)
 		needInvalidate = true
 	case core.MouseWheelDown:
+		h.mouseConsumed = true
 		h.lastWheelAt = time.Now()
 		h.scrollByLocked(-3)
 		needInvalidate = true
 	case core.MouseWheelLeft, core.MouseWheelRight:
+		h.mouseConsumed = true
 		// Horizontal wheel: consume to update gesture tracking but no
 		// horizontal scroll yet (ChatHistory is vertical-only).
 		h.lastWheelAt = time.Now()
@@ -164,6 +163,7 @@ func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 		h.selEnd = selectionPos{line: absLine, col: mappedCol}
 		// Don't trigger render yet — selection is empty and invisible until drag motion.
 	case core.MouseMotion:
+		h.mouseConsumed = true
 		if h.suppressGesture {
 			break
 		}
@@ -175,12 +175,11 @@ func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 				h.dirty = true // force re-render to update selection highlight
 				needInvalidate = true
 			}
-		} else {
-			// Motion outside an active drag — nothing to do, let the event
-			// propagate to siblings (e.g. editor).
-			h.mouseConsumed = false
 		}
+		// Motion outside an active drag falls through to the default
+		// mouseConsumed=false, letting the event propagate to siblings.
 	case core.MouseRelease:
+		h.mouseConsumed = true
 		if h.suppressGesture {
 			h.suppressGesture = false
 			break
@@ -193,10 +192,9 @@ func (h *ChatHistory) handleMouse(m core.MouseMsg) {
 			}
 			h.dirty = true // force re-render for final selection state
 			needInvalidate = true
-		} else {
-			// Release without a preceding press in this component — ignore.
-			h.mouseConsumed = false
 		}
+		// Release without a preceding press falls through to the default
+		// mouseConsumed=false, letting the event propagate to siblings.
 	}
 
 	h.mu.Unlock()

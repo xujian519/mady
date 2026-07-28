@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -289,11 +290,15 @@ func (m *Manager) LogStats(ctx context.Context) {
 	stats := m.Stats(ctx)
 	total := stats.TotalEntries
 	if total == 0 {
-		fmt.Printf("[memory] 存储为空\n")
+		slog.InfoContext(ctx, "memory store is empty")
 		return
 	}
-	fmt.Printf("[memory] 统计概要: 总计 %d 条 | User %d | Session %d | LongTerm %d\n",
-		total, stats.UserCount, stats.SessionCount, stats.LongTermCnt)
+	slog.InfoContext(ctx, "memory stats",
+		"total", total,
+		"user", stats.UserCount,
+		"session", stats.SessionCount,
+		"long_term", stats.LongTermCnt,
+	)
 }
 
 // Close 关闭管理器并释放资源。

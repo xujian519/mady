@@ -7,6 +7,7 @@ package tui
 // its own file because it does not belong to any single one of those domains.
 
 import (
+	"log/slog"
 	"sync/atomic"
 	"time"
 )
@@ -24,7 +25,9 @@ func (t *TUI) eventLoop() {
 			// losing it to a secondary panic.
 			func() {
 				defer func() { _ = recover() }()
-				_ = t.Stop()
+				if err := t.Stop(); err != nil {
+					slog.Warn("tui: stop failed in panic recovery", "err", err)
+				}
 			}()
 			panic(r) // re-panic after cleanup so the stack trace still shows
 		}

@@ -174,7 +174,9 @@ func (m *Manager) Start(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		m.cmd = nil
-		_ = cmd.Process.Kill()
+		if err := cmd.Process.Kill(); err != nil {
+			slog.Warn("oMLX: kill process on context cancel", "err", err)
+		}
 		return ctx.Err()
 	}
 }
@@ -241,14 +243,6 @@ func (m *Manager) EnsureRunning(ctx context.Context) {
 			"hint", "brew install omlx && omlx serve --port 8000",
 		)
 	}
-}
-
-// Cmd returns the underlying exec.Cmd, if the process was started by this
-// Manager. Used for diagnostics only.
-func (m *Manager) Cmd() *exec.Cmd {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.cmd
 }
 
 // softKill is the signal used for graceful shutdown.

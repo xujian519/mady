@@ -250,7 +250,7 @@ func (t *TodoPanel) toggleSelected() {
 	}
 }
 
-// Invalidate is a no-op.
+// Invalidate implements core.Component, clearing cached rendering state.
 func (t *TodoPanel) Invalidate() {}
 
 // Render draws the TODO panel.

@@ -339,10 +339,11 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 			}
 
 			// Schedule delayed cleanup of temp file (agent may reference it).
-			// Uses time.After for simplicity; goroutine exits when the process dies.
+			// Uses time.NewTimer so the timer can be stopped early if needed.
 			if tempFilePath != "" {
 				go func(path string) {
-					<-time.After(10 * time.Minute)
+					timer := time.NewTimer(10 * time.Minute)
+					<-timer.C
 					_ = os.Remove(path)
 				}(tempFilePath)
 			}

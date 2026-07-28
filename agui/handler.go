@@ -179,7 +179,9 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	_, runErr := agent.Run(r.Context(), message)
 	if threadID != "" && cfg.Store != nil {
-		_ = agent.SaveState(r.Context(), threadID)
+		if err := agent.SaveState(r.Context(), threadID); err != nil {
+			slog.Warn("agui: save state failed", "err", err)
+		}
 	}
 
 	if runErr != nil {
@@ -218,7 +220,7 @@ func threadCfgProviderFromConfig(cfg agentcore.Config) agentcore.ThreadConfigPro
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, eventType string, data any) {
 	payload, marshalErr := json.Marshal(data)
 	if marshalErr != nil {
-		slog.Default().Warn("agui: writeSSE marshal failed", "err", marshalErr)
+		slog.Warn("agui: writeSSE marshal failed", "err", marshalErr)
 		_, _ = fmt.Fprintf(w, "event: %s\ndata: {}\n\n", eventType)
 		flusher.Flush()
 		return
@@ -231,7 +233,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.Default().Warn("agui: writeJSON failed", "err", err)
+		slog.Warn("agui: writeJSON failed", "err", err)
 	}
 }
 

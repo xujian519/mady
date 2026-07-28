@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/pkg/util"
@@ -15,6 +16,11 @@ import (
 type SnapshotStore struct {
 	dir string
 }
+
+const (
+	jsonExt = ".json"
+	tmpExt  = ".tmp"
+)
 
 // NewSnapshotStore creates a SnapshotStore rooted at the given directory.
 // The directory is created (with 0o750 permissions) if it does not exist.
@@ -35,7 +41,7 @@ func (fs *SnapshotStore) Save(_ context.Context, key string, snap agentcore.Stat
 	if err != nil {
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
-	tmp := fs.path(key) + ".tmp"
+	tmp := fs.path(key) + tmpExt
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("write snapshot: %w", err)
 	}
@@ -82,9 +88,8 @@ func (fs *SnapshotStore) List(_ context.Context) ([]string, error) {
 	}
 	var keys []string
 	for _, e := range entries {
-		if !e.IsDir() && filepath.Ext(e.Name()) == ".json" {
-			name := e.Name()
-			keys = append(keys, name[:len(name)-5])
+		if !e.IsDir() && filepath.Ext(e.Name()) == jsonExt {
+			keys = append(keys, strings.TrimSuffix(e.Name(), jsonExt))
 		}
 	}
 	return keys, nil

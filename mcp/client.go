@@ -176,7 +176,9 @@ func NewStdioClient(ctx context.Context, cfg StdioConfig) (*Client, error) {
 	go c.readLoop()
 	go c.captureStderr(stderr)
 	if err := c.initialize(ctx); err != nil {
-		_ = c.Close()
+		if err := c.Close(); err != nil {
+			slog.Warn("MCP: close client on init failure", "err", err)
+		}
 		return nil, err
 	}
 	return c, nil
@@ -274,13 +276,19 @@ func (c *Client) Close() error {
 	// when the child process spawned grand-children that keep the pipes open
 	// after the direct child exits, preventing cmd.Wait() from hanging forever.
 	if c.stdin != nil {
-		_ = c.stdin.Close()
+		if err := c.stdin.Close(); err != nil {
+			slog.Warn("MCP: close stdin pipe", "err", err)
+		}
 	}
 	if c.stdout != nil {
-		_ = c.stdout.Close()
+		if err := c.stdout.Close(); err != nil {
+			slog.Warn("MCP: close stdout pipe", "err", err)
+		}
 	}
 	if c.stderr != nil {
-		_ = c.stderr.Close()
+		if err := c.stderr.Close(); err != nil {
+			slog.Warn("MCP: close stderr pipe", "err", err)
+		}
 	}
 
 	waitDone := make(chan error, 1)

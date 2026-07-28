@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"sort"
 	"strings"
@@ -634,9 +635,10 @@ func (s *InMemoryStore) maybeWarnCapacity(entryCount int) {
 	for _, threshold := range capacityWarnThresholds {
 		if entryCount >= threshold && threshold > warned {
 			s.capacityWarned.Store(int64(threshold))
-			fmt.Printf("[memory] InMemoryStore: 条目数已达 %d，可能影响性能。"+
-				"建议切换至 SQLiteMemoryStore 或在适当时机调用 Prune() 清理低价值记忆\n",
-				entryCount)
+			slog.Warn("InMemoryStore: capacity threshold reached",
+				"entries", entryCount,
+				"threshold", threshold,
+			)
 			return
 		}
 	}

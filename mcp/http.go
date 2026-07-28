@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -124,7 +125,9 @@ func NewHTTPExtension(ctx context.Context, cfg HTTPConfig) (*HTTPExtension, erro
 	}
 	tools, err := client.AgentTools(ctx)
 	if err != nil {
-		_ = client.Close()
+		if closeErr := client.Close(); closeErr != nil {
+			slog.Warn("mcp: close client after AgentTools error", "closeErr", closeErr)
+		}
 		return nil, err
 	}
 	name := cfg.Name

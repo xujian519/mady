@@ -1,5 +1,85 @@
 # AI 变更记录
 
+## 2026-07-28: 全量技术债务清理（14 项修复计划，11 项完成）
+
+### 背景
+首次系统性的全量技术债务扫描，涵盖 1229 个 Go 源文件（~281K 行代码）。
+采用 5 路并行代码分析 + Codegraph 符号图 + 静态扫描 + 编译/lint 验证的
+多维分析方法。共发现 14 项技术债务问题，按四阶段修复。
+
+### 变更清单（按优先级排列）
+
+#### P0 — 功能正确性（已修复）
+- **依赖锁定**：运行 `go work vendor` 锁死所有依赖版本，确保 CI 和新机器
+  构建不受未来日期伪版本影响（`chromedp/cdproto` / `go-json-experiment/json`）
+- **`provider/adapter/session.go` — goroutine 泄漏修复**：
+  - `io.Copy` stderr goroutine：保存 `stderrPipe` 引用，`Close()` 时显式
+    关闭以解除阻塞；增加 `done` channel 模式
+  - `Stream()` goroutine：在 `stdout.Scan` 之间插入 `select{ctx.Done()}`
+    检查，支持 context 取消退出
+- **~20 处错误静默丢弃修复**：`desktop/main.go`（MkdirAll / WriteFile）、
+  `agui/handler.go`（SaveState）、`pkg/omlx/manager.go`（Kill）、
+  `acp/server.go`（SetReadDeadline）、`server/health.go`（Encode）、
+  `cmd/mady/`（evidence.go/tui.go/tui_storage.go 共 13 处）、
+  `tui/tui_loop.go` / `tui_input.go`、`mcp/http.go` / `http_sse.go` / `client.go`、
+  `memory/extension.go`
+  修改模式：IO/持久化 → `slog.Error` 或 `fmt.Errorf` 包装并返回；
+  Close/Stop/Kill → `slog.Warn` 记录不影响清理流程
+
+#### P1 — 架构/维护性（已修复）
+- **`store/` 死接口代码删除**：删除 `document.go`（39 行）、`vector.go`（27 行）、
+  `graph.go`（36 行）三个无引用接口文件（`DocumentStore` / `VectorStore` /
+  `GraphStore` 及其关联类型），保留活跃的 `Closer` 接口
+- **`server/desktop.go` TODO 处理**：`SendAction` 的 TODO 注释替换为显式的
+  已知限制说明，引用 `docs/known-limitations.md` 作为跟踪
+- **`tui/chat/chat_history_input.go` TODO 处理**：完成 mouseConsumed 默认值
+  重构（`default true → default false`），所有处理路径显式标注消费状态
+
+#### P2 — 代码整洁度（已修复）
+- **`memory/manager.go` / `store.go`**：`fmt.Printf` 日志迁移为 `slog.Info/Warn`
+- **未使用导出函数删除**：删除 `pkg/omlx/manager.go` 中 `Manager.Cmd()`（无处调用）
+- **文件扩展名字面量 → 常量**：
+  - `store/file.go`：`.json` / `.tmp` 提取为 `jsonExt` / `tmpExt`
+  - `session/session_store.go`：`.jsonl` 提取为 `sessionFileExt`
+- **`desktop/main.go`**：删除残留的旧式 `// +build darwin` 编译标签
+
+#### P3 — 优化项（已修复）
+- **`tui/theme/theme_registry.go`**：`context.TODO()` → `context.Background()`
+- **`tools/bash.go`**：`time.After` → `time.NewTimer` 支持提早停止
+
+### 代码审查跟进（2026-07-28 第二轮）
+代码审查发现 6 项改进需求，全部修复：
+
+- **`provider/adapter/session.go` — `Close()` 同步 stderr goroutine**：
+  新增 `stderrDone chan struct{}`，`Close()` 时等待 goroutine 完成后再返回，
+  并增加 5s 超时保护。修复 `_ = stderrPipe.Close()`（改为 `slog.Warn` 记录）
+- **`provider/adapter/session.go` — Stream goroutine 加固**：
+  增加 `time.After(10s)` 非阻塞发送超时，防止 receiver 停止 drain 时 goroutine
+  永久泄漏；channel buffer 从 16 减至 4（降低背压延迟）
+- **`tui/chat/chat_history_input.go` — 删除空操作 else 分支**：
+  默认值从 `true` 改为 `false` 后，`else { mouseConsumed = false }` 是冗余赋值，
+  已删除并加注释说明默认传播行为
+- **全项目 slog API 统一**：6 个文件中 `slog.Default().Warn/Debug/Error` →
+  `slog.Warn/Debug/Error`（`agui/handler.go`, `memory/extension.go`,
+  `memory/store.go`, `tui/tui_input.go`, `tui/tui_loop.go`, `cmd/mady/tui.go`）
+- **`server/desktop.go` TODO 引用**：从 `AI_CHANGELOG.md` 改为新建的
+  `docs/known-limitations.md` 集中跟踪已知限制
+- **新建 `docs/known-limitations.md`**：集中记录代码中已知功能缺口，
+  避免分散在 TODO 注释或 changelog 中
+
+### 未完成（归档为待办，不适合本次批量修复）
+- **`pkg/framework/setup.go` 补充测试**（876 行装配代码需独立 session）
+- **fuzzy 重复代码合并**（跨模块复制，需架构评审）
+- **`session/session_manager_test.go` 拆分**（800 行长测试文件）
+
+### 验证结果
+- `go build ./...` ✅ 零错误
+- `go vet ./...` ✅ 零告警
+- `golangci-lint run` ✅ 零 Issues
+- `go work vendor` ✅ 依赖锁定完成
+
+---
+
 ## 2026-07-28: 桌面端 G4 修复 — 设计系统对齐 spec §5（令牌补全 + vibrancy 材质 + 动效/对比无障碍）
 
 ### 背景

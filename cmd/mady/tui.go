@@ -153,7 +153,7 @@ func runTui(ctx context.Context) error {
 			threads, err := agentStore.ListThreads(listCtx)
 			cancel()
 			if err != nil {
-				slog.Default().Debug("restore last session: ListThreads failed", "err", err)
+				slog.Debug("restore last session: ListThreads failed", "err", err)
 			}
 			for _, t := range threads {
 				if t.ID == lastID {
@@ -193,7 +193,9 @@ func runTui(ctx context.Context) error {
 		},
 		OnQuit: func() {
 			if app != nil {
-				_ = app.Stop()
+				if err := app.Stop(); err != nil {
+					slog.Warn("tui: stop app on quit", "err", err)
+				}
 			}
 		},
 		Providers: []core.AutocompleteProvider{
@@ -278,7 +280,9 @@ func runTui(ctx context.Context) error {
 		}
 	}
 	if fc.CaseIndex != nil {
-		_ = fc.CaseIndex.Close()
+		if err := fc.CaseIndex.Close(); err != nil {
+			slog.Warn("tui: close case index", "err", err)
+		}
 	}
 
 	// 后台延迟任务如果有错误，汇总输出到日志（TUI 已关闭，用户可查看）。

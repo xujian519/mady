@@ -250,7 +250,7 @@ func SetThemeByName(name string) error {
 // between MadyDark and MadyLight when the OS theme changes and the current
 // active theme is "auto". Returns a cancel function.
 func StartAutoThemeWatcher() func() {
-	return WatchSystemAppearance(context.TODO(), 0, func(a SystemAppearance) {
+	return WatchSystemAppearance(context.Background(), 0, func(a SystemAppearance) {
 		_ = a
 		ApplyThemeByName("auto")
 	})
