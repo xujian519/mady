@@ -1056,3 +1056,136 @@ func TestAllFrameworks_NonEmpty(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// evaluateExperimentalDataNode tests
+// =============================================================================
+
+func TestEvaluateExperimentalData_NoDataSkipped(t *testing.T) {
+	// When ExperimentalData is nil, node should skip and set experiment key to empty.
+	state := graph.PregelState{
+		StateKeyInput: &InventivenessInput{
+			EvidenceCoverage: "full",
+			Features:         []TechFeature{{ID: "f1", Description: "test"}},
+		},
+	}
+	state, err := evaluateExperimentalDataNode()(nil, state)
+	if err != nil {
+		t.Fatalf("evaluateExperimentalDataNode returned error: %v", err)
+	}
+	val, ok := state[stateKeyExperiment]
+	if !ok {
+		t.Fatal("expected stateKeyExperiment in state")
+	}
+	if val.(string) != "" {
+		t.Error("expected empty experiment data string when input has no ExperimentalData")
+	}
+}
+
+func TestEvaluateExperimentalData_WithOriginalData(t *testing.T) {
+	input := &InventivenessInput{
+		EvidenceCoverage: "full",
+		Features:         []TechFeature{{ID: "f1", Description: "test"}},
+		ExperimentalData: &ExperimentalData{
+			HasOriginalData:   true,
+			HasSupplementData: false,
+			DataSummary:       "化合物A的溶解率提高了30%",
+			ComparisonType:    "structure",
+		},
+	}
+	state := graph.PregelState{StateKeyInput: input}
+	state, err := evaluateExperimentalDataNode()(nil, state)
+	if err != nil {
+		t.Fatalf("evaluateExperimentalDataNode returned error: %v", err)
+	}
+
+	report, ok := state[stateKeyExperiment].(string)
+	if !ok {
+		t.Fatal("expected string in stateKeyExperiment")
+	}
+
+	// Should contain original data markers and not supplement markers.
+	if !strings.Contains(report, "✅") {
+		t.Error("expected original data checkmark when HasOriginalData=true")
+	}
+	if strings.Contains(report, "⚠️") {
+		t.Error("expected no warning when HasSupplementData=false")
+	}
+	if !strings.Contains(report, "化合物A") {
+		t.Error("expected data summary in report")
+	}
+	if !strings.Contains(report, "structure") {
+		t.Error("expected comparison type in report")
+	}
+}
+
+func TestEvaluateExperimentalData_WithSupplementData(t *testing.T) {
+	input := &InventivenessInput{
+		EvidenceCoverage: "full",
+		ExperimentalData: &ExperimentalData{
+			HasOriginalData:   false,
+			HasSupplementData: true,
+		},
+	}
+	state := graph.PregelState{StateKeyInput: input}
+	state, err := evaluateExperimentalDataNode()(nil, state)
+	if err != nil {
+		t.Fatalf("evaluateExperimentalDataNode returned error: %v", err)
+	}
+
+	report, ok := state[stateKeyExperiment].(string)
+	if !ok {
+		t.Fatal("expected string in stateKeyExperiment")
+	}
+
+	// Should contain supplement warning but no original data checkmark.
+	if !strings.Contains(report, "⚠️") {
+		t.Error("expected supplement warning when HasSupplementData=true")
+	}
+	if !strings.Contains(report, "申请日后补充实验数据") {
+		t.Error("expected supplement data mention")
+	}
+	if strings.Contains(report, "✅") {
+		t.Error("expected no checkmark when HasOriginalData=false")
+	}
+}
+
+func TestEvaluateExperimentalData_NilInput(t *testing.T) {
+	// Edge case: input key present but value is nil.
+	state := graph.PregelState{StateKeyInput: (*InventivenessInput)(nil)}
+	state, err := evaluateExperimentalDataNode()(nil, state)
+	if err != nil {
+		t.Fatalf("evaluateExperimentalDataNode returned error: %v", err)
+	}
+	val, ok := state[stateKeyExperiment]
+	if !ok {
+		t.Fatal("expected stateKeyExperiment in state")
+	}
+	if val.(string) != "" {
+		t.Error("expected empty experiment data string for nil input")
+	}
+}
+
+func TestEvaluateExperimentalData_SkipPropagation(t *testing.T) {
+	// When state has skip flag, node should short-circuit.
+	state := graph.PregelState{
+		StateKeyResult: &InventivenessResult{Skipped: true},
+		StateKeyInput: &InventivenessInput{
+			EvidenceCoverage: "full",
+			ExperimentalData: &ExperimentalData{
+				HasOriginalData:   true,
+				HasSupplementData: false,
+			},
+		},
+	}
+	// If not skipped, the ExperimentalData would produce a report.
+	// But with skip, it should return without writing to stateKeyExperiment.
+	state, err := evaluateExperimentalDataNode()(nil, state)
+	if err != nil {
+		t.Fatalf("evaluateExperimentalDataNode returned error: %v", err)
+	}
+	// stateKeyExperiment should not be set when skipped.
+	if _, ok := state[stateKeyExperiment]; ok {
+		t.Error("expected stateKeyExperiment NOT set when state is skipped")
+	}
+}

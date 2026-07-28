@@ -1,5 +1,18 @@
 # AI 变更记录
 
+## 2026-07-27: `domains/inventiveness/` 全量质量审阅
+
+审阅范围：全部 8 个源文件（~128K 代码，60+ 测试），构建/测试/vet 全部通过。
+
+核心发现：
+- **架构**：独立 Pregel 子图设计精良，通过 ArticleFrameworkProvider 接口解耦 domains/rules，支持 nil 降级 ✅
+- **提示词工程**：模块最强维度，Step 2/3/Conclusion 提示词覆盖技术问题层次分析、发明构思比对、改进动机三维度等法理细节 ✅
+- **测试覆盖**：60+ 条测试，0 flaky，覆盖图编译/输入校验/状态管理/parse/buildResult/Schema/框架适配器/参数解析/集成全流程 ✅
+- **中风险 1 项**：`buildResult()` 默认分支可能覆写 LLM 判断
+- **低风险 5 项**：`evaluateExperimentalDataNode` 无测试覆盖；parse 函数 JSON 失败静默丢失数据；`NewInventivenessToolFromReport` 使用 `context.Background()`；`stringsJoin` 命名易混淆；Step 1 提示词偏短
+
+详细审阅报告见 `domains/inventiveness/REVIEW_REPORT.md`
+
 ## 2026-07-28: 桌面端截图问题修复与项目管理功能
 
 ### 修复问题

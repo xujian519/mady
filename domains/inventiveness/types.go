@@ -148,10 +148,12 @@ type InventivenessResult struct {
 }
 
 // parsedConclusion 是最终结论的 LLM 输出解析结构。
+// parseOK 标记 JSON 是否成功解析，用于 buildResult 判断是否信任 LLM 判断。
 type parsedConclusion struct {
 	Conclusion             string   `json:"conclusion"`
 	IsInventive            bool     `json:"is_inventive"`
 	HasSignificantProgress bool     `json:"has_significant_progress"` // 是否具有显著的进步
 	Confidence             string   `json:"confidence"`
 	AuxFactors             []string `json:"aux_factors"`
+	parseOK                bool     // JSON 解析成功标记
 }

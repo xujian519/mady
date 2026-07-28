@@ -101,7 +101,14 @@ func step1ClosestPriorArtNode(provider agentcore.Provider) graph.PregelNode {
 		prompt += personSkilledDefinition() + "\n\n"
 		prompt += "从以下现有技术证据中，确定与目标技术方案最接近的一篇对比文件。\n"
 		prompt += "最接近的现有技术是指与目标方案技术领域相同、要解决的技术问题最接近、"
-		prompt += "或技术特征最多的现有技术文献。\n\n"
+		prompt += "或技术特征最多的现有技术文献。\n"
+		prompt += "**选取优先级规则**（按权重从高到低考虑）：\n"
+		prompt += "1. 技术领域相同优先于仅相似领域\n"
+		prompt += "2. 技术领域相同的前提下，选择公开技术特征最多的文献\n"
+		prompt += "3. 技术特征数量相当时，选择要解决的技术问题最接近的文献\n"
+		prompt += "4. 技术问题也相当时，选择技术效果最接近的文献\n"
+		prompt += "5. 跨领域选取：仅当同一/相似领域内无适格文献时，才考虑跨领域选取，并说明跨领域理由\n"
+		prompt += "注意：选取后应简要说明所选文献在各优先级维度上的符合情况。\n\n"
 		if typeGuidance := inventionTypeGuidance(input.InventionType); typeGuidance != "" {
 			prompt += typeGuidance + "\n\n"
 		}
@@ -666,6 +673,7 @@ func parseStep2(output string) Step2Result {
 	r := Step2Result{}
 	jsonStr := extractJSON(output)
 	if jsonStr == "" {
+		r.ActualTechProblem = output
 		return r
 	}
 
@@ -676,6 +684,7 @@ func parseStep2(output string) Step2Result {
 		ActualTechProblem       string   `json:"actual_tech_problem"`
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+		r.ActualTechProblem = output
 		return r
 	}
 
@@ -765,6 +774,8 @@ func parseConclusion(output string) parsedConclusion {
 		}
 	}
 
+	parsed.parseOK = true
+
 	switch parsed.Confidence {
 	case jsValHigh, jsValMedium, jsValLow:
 	default:
@@ -803,16 +814,13 @@ func buildResult(step1, step2, step3, step4, conclusion string) *InventivenessRe
 	result.AuxFactors = cc.AuxFactors
 
 	// 核心结论逻辑：IsInventive = NonObvious AND HasSignificantProgress
-	// 优先使用 LLM conclusion 节点的综合判断，其次使用 Step3 + Step4 的计算结果
-	switch {
-	case cc.IsInventive:
-		// LLM 综合判断为具备创造性
-		result.IsInventive = true
-	case cc.HasSignificantProgress:
-		// LLM 认定有显著进步，但综合判断 is_inventive=false（可能因非显而易见性不成立等因素否决）
-		result.IsInventive = false
-	default:
-		// 默认逻辑：非显而易见 AND 有显著进步 → 具备创造性
+	// 优先使用 LLM conclusion 节点的综合判断（parseOK=true），
+	// 仅在 LLM 输出解析失败时使用 Step3 + Step4 的计算结果作为兜底。
+	if cc.parseOK {
+		// LLM 综合判断优先——无论 is_inventive=true 还是 false 都信任
+		result.IsInventive = cc.IsInventive
+	} else {
+		// LLM 输出解析失败（非 JSON 或 JSON 格式错误），兜底使用计算逻辑
 		result.IsInventive = !result.Step3.TechnicalSuggestion && result.Step4.HasSignificantProgress
 	}
 

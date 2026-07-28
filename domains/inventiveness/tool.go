@@ -35,7 +35,7 @@ func NewInventivenessTool(opts ...InventivenessOption) *agentcore.Tool {
 
 	return &agentcore.Tool{
 		Name: "evaluate_inventiveness",
-		Description: stringsJoin(
+		Description: spaceJoin(
 			"评估技术方案是否具备专利法第22条第3款规定的创造性。",
 			"基于现有技术证据和技术特征，通过三步法判断：",
 			"确定最接近现有技术→确定区别特征和实际技术问题→判断技术启示。",
@@ -234,7 +234,7 @@ func parseInventivenessArgs(args json.RawMessage) *InventivenessInput {
 
 // NewInventivenessToolFromReport 从 disclosure 报告构造评估输入并执行创造性评估。
 // 这是一个便捷函数，供需要从 disclosure.AnalysisReport 直接创建输入的场景使用。
-func NewInventivenessToolFromReport(provider agentcore.Provider, report *disclosure.AnalysisReport, evidence []disclosure.EvidenceChunk, coverage string) (*InventivenessResult, error) {
+func NewInventivenessToolFromReport(ctx context.Context, provider agentcore.Provider, report *disclosure.AnalysisReport, evidence []disclosure.EvidenceChunk, coverage string) (*InventivenessResult, error) {
 	if provider == nil {
 		return nil, fmt.Errorf("inventiveness: provider is nil")
 	}
@@ -293,7 +293,7 @@ func NewInventivenessToolFromReport(provider agentcore.Provider, report *disclos
 	state[StateKeyInput] = input
 
 	// 使用带超时的 context，防止 LLM API 挂起时 goroutine 永久泄漏。
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	state, runErr := compiled.Run(timeoutCtx, state)
 
@@ -305,8 +305,8 @@ func NewInventivenessToolFromReport(provider agentcore.Provider, report *disclos
 	return nil, runErr
 }
 
-// stringsJoin 用空格拼接字符串。
-func stringsJoin(s ...string) string {
+// spaceJoin 用空格拼接字符串。
+func spaceJoin(s ...string) string {
 	var b strings.Builder
 	for i, str := range s {
 		if i > 0 {
