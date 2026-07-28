@@ -135,30 +135,23 @@ func (s *StatusBar) Render(width int64) []string {
 	if s.running {
 		elapsed := time.Since(s.start)
 		left.WriteString(p.LoaderSpinner.Render(theme.SymbolThinking + " " + formatDuration(elapsed)))
-		// Streaming rate indicator, shown only while running and when a rate
-		// has been observed (tokPerSec > 0). Kept compact so narrow terminals
-		// are not crowded off the status bar.
-		if s.tokPerSec > 0 {
-			left.WriteString(" " + p.Accent.Render(fmt.Sprintf("⚡ %s", formatTokenRate(s.tokPerSec))))
+		// Streaming rate indicator — compact, only on wide terminals.
+		if s.tokPerSec > 0 && width > 100 {
+			left.WriteString(" " + p.Dim.Render(fmt.Sprintf("%s/s", formatTokenRate(s.tokPerSec))))
 		}
 	} else if s.agent != "" {
 		left.WriteString(p.Dim.Render(theme.SymbolCheck + " " + s.agent))
 	}
 
-	// Phase 4: case name, pending review count, save state
+	// Right cluster: case name + pending count (compact).
 	if s.caseName != "" {
-		left.WriteString(p.Dim.Render(" 📁 " + s.caseName))
+		right.WriteString(" " + p.Dim.Render(s.caseName))
 	}
 	if s.pendingCount > 0 {
-		left.WriteString(p.Accent.Render(fmt.Sprintf(" ⚖ %d待确认", s.pendingCount)))
+		right.WriteString(" " + p.Accent.Render(fmt.Sprintf("⚖%d", s.pendingCount)))
 	}
-	if s.persisted {
-		left.WriteString(p.Success.Render(" 💾"))
-	}
-
-	// Context-window occupancy bar, prepended to the right cluster.
-	// inline bar colored by load (green < 70%, amber < 90%, red otherwise).
-	if s.ctxTotal > 0 && s.ctxUsed >= 0 {
+	// Context bar — only on wide terminals; it's diagnostic, not primary.
+	if s.ctxTotal > 0 && s.ctxUsed >= 0 && width > 120 {
 		right.WriteString(" " + renderContextBar(s.ctxUsed, s.ctxTotal, p))
 	}
 
