@@ -89,7 +89,6 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 	case RoleAssistant:
 		// Collapsed assistant messages (e.g. collapsed diffs)
 		if m.Collapsed && m.Text != "" {
-			// Show first line as summary + expand hint
 			firstLine := m.Text
 			if idx := strings.IndexByte(firstLine, '\n'); idx > 0 {
 				firstLine = firstLine[:idx]
@@ -97,10 +96,17 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			if len(firstLine) > 200 {
 				firstLine = firstLine[:197] + "..."
 			}
-			head := theme.ToolBorder.Render("▌") + " " + theme.DimStyle.Render(firstLine)
+			bar := theme.AssistantStyle.Render("▌ ")
+			head := bar + theme.DimStyle.Render(firstLine)
 			lines := core.WrapAnsi(head, width)
-			lines = append(lines, theme.DimStyle.Render("  ▸ expand"))
+			lines = append(lines, "  "+theme.DimStyle.Render("▸ expand"))
 			return lines
+		}
+
+		bar := theme.DimStyle.Render("▌ ")
+		innerWidth := width - 2
+		if innerWidth < 1 {
+			innerWidth = 1
 		}
 
 		var allLines []string
@@ -110,7 +116,10 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		// legacy Show/Mode policy; custom renderers can draw reasoning
 		// anywhere (sidebar, overlay, etc.).
 		if h.reasoningRenderer != nil {
-			if rendered := h.reasoningRenderer.RenderThinking(m, width); len(rendered) > 0 {
+			if rendered := h.reasoningRenderer.RenderThinking(m, innerWidth); len(rendered) > 0 {
+				for i := range rendered {
+					rendered[i] = bar + rendered[i]
+				}
 				allLines = append(allLines, rendered...)
 			}
 		}
@@ -121,15 +130,18 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		if m.Text != "" {
 			var lines []string
 			if mdCache != nil {
-				lines = component.RenderMarkdownIncremental(m.Text, width, theme.MarkdownTheme, mdCache)
+				lines = component.RenderMarkdownIncremental(m.Text, innerWidth, theme.MarkdownTheme, mdCache)
 			} else {
 				md := component.NewMarkdown(m.Text)
 				md.SetTheme(theme.MarkdownTheme)
-				lines = md.Render(width)
+				lines = md.Render(innerWidth)
+			}
+			for i := range lines {
+				lines[i] = bar + lines[i]
 			}
 			if m.Pending {
 				if len(lines) == 0 {
-					lines = []string{theme.DimStyle.Render("…")}
+					lines = []string{bar + theme.DimStyle.Render("…")}
 				} else {
 					last := lines[len(lines)-1]
 					lines[len(lines)-1] = last + theme.UserStyle.Render("▊")
@@ -137,9 +149,8 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			}
 			allLines = append(allLines, lines...)
 		} else if len(m.ThinkingSegments) > 0 && m.Pending {
-			// Only thinking, no text yet, show cursor
 			if len(allLines) == 0 {
-				allLines = []string{theme.DimStyle.Render("…")}
+				allLines = []string{bar + theme.DimStyle.Render("…")}
 			} else {
 				last := allLines[len(allLines)-1]
 				allLines[len(allLines)-1] = last + theme.ThinkingStyle.Render("▊")
@@ -147,7 +158,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		}
 
 		if len(allLines) == 0 {
-			allLines = []string{theme.DimStyle.Render("…")}
+			allLines = []string{bar}
 		}
 		return allLines
 	case RoleSystem:

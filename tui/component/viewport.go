@@ -361,18 +361,18 @@ func appendScrollbar(visible []string, width, contentWidth int64, sb ScrollbarCo
 	}
 
 	pal := theme.CurrentPalette()
-	trackStyle := pal.Dim
-	thumbStyle := pal.Muted
+	// Background-only scrollbar: track uses surface background, thumb uses
+	// raised surface. No visible character — the color difference alone
+	// indicates position. This is visually quieter than ▐ / ░ symbols.
+	trackStyle := pal.SurfaceBg
+	thumbStyle := pal.SurfaceRaisedBg
 	if !following && sb.FollowDim {
-		thumbStyle = pal.Border
+		thumbStyle = pal.SurfaceBg
 	}
 
 	out := make([]string, len(visible))
-	trackChar := string(sb.TrackSymbol)
-	if sb.TrackSymbol == 0 || sb.TrackSymbol == ' ' {
-		trackChar = " " // space — track is the background color
-	}
-	thumbChar := string(sb.ThumbSymbol)
+	trackChar := " "
+	thumbChar := " "
 
 	for i := int64(0); i < int64(len(visible)); i++ {
 		ln := visible[i]

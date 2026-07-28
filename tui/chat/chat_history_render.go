@@ -255,10 +255,10 @@ func (h *ChatHistory) Render(width int64) []string {
 		}
 
 		pal := theme.CurrentPalette()
-		trackStyle := pal.Dim.Render(" ")
-		thumbStyle := pal.Muted.Render("▐")
+		trackStyle := pal.SurfaceBg.Render(" ")
+		thumbStyle := pal.SurfaceRaisedBg.Render(" ")
 		if !follow {
-			thumbStyle = pal.Border.Render("▐")
+			thumbStyle = pal.SurfaceBg.Render(" ")
 		}
 
 		for i := int64(0); i < int64(len(visible)); i++ {

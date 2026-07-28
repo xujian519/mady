@@ -172,23 +172,18 @@ func TestViewportScrollbarVisible(t *testing.T) {
 	if len(lines) == 0 {
 		t.Fatal("expected rendered lines")
 	}
-	// In following mode, the scrollbar track is dimmed, but the visible rows
-	// may or may not have the thumb. At minimum, there should be non-space
-	// content (since the scrollbar uses '▐' for thumb or space for track).
-	// When following (offset=0), the thumb is at the bottom.
-	// Check that the line is not plain padded text.
-	hasScrollbar := false
-	for _, ln := range lines {
-		if len(ln) > 0 {
-			c := ln[len(ln)-1]
-			if c != ' ' && c != '\n' {
-				hasScrollbar = true
-				break
-			}
+	// In following mode, scrollbar uses background color for track and thumb.
+	// Verify the scrollbar column is reserved: each line should have contentWidth
+	// plus the sbWidth scrollbar column.
+	contentWidth := int64(79) // width(80) - sbWidth(1)
+	for i, ln := range lines {
+		// Backround-only scrollbar: all lines have the same byte length
+		// since they're padded to the full width. Verify the scrollbar
+		// column exists by checking len >= contentWidth + 1.
+		if len(ln) != int(contentWidth+1) && len(ln) != 0 {
+			t.Errorf("line %d: expected length %d (content %d + scrollbar 1), got %d",
+				i, contentWidth+1, contentWidth, len(ln))
 		}
-	}
-	if !hasScrollbar {
-		t.Error("expected at least one scrollbar thumb character")
 	}
 }
 
@@ -199,11 +194,12 @@ func TestViewportScrollbarScrolledUp(t *testing.T) {
 	v.ScrollBy(2) // Scroll to top
 	lines := v.Render(80)
 	// Scrolled up: thumb should be at the top of the scrollbar.
-	if len(lines) > 0 {
-		// Top line should have a non-space last character (the thumb).
-		c := lines[0][len(lines[0])-1]
-		if c == ' ' {
-			t.Errorf("expected thumb at top when scrolled up, got space")
+	// Background-only scrollbar means all lines have same character count.
+	// Verify each line is padded to the expected full width (content + scrollbar).
+	expectedWidth := 80
+	for i, ln := range lines {
+		if len(ln) != expectedWidth {
+			t.Errorf("line %d: expected width %d, got %d", i, expectedWidth, len(ln))
 		}
 	}
 }

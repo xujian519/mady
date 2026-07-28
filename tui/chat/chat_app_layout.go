@@ -38,11 +38,18 @@ type editorFrame struct {
 
 func (f *editorFrame) Render(width int64) []string {
 	lines := f.editor.Render(width)
-	border := theme.CurrentPalette().Border.Render(strings.Repeat("─", int(width)))
+	border := theme.CurrentPalette().BorderMuted.Render("▌")
+	// Use a single left bar instead of full-width ─ border.
+	// This is visually lighter and consistent with the role bar language
+	// used in ChatHistory (▌ prefix).
 	out := make([]string, 0, len(lines)+2)
-	out = append(out, border)
+	for range [1]struct{}{} {
+		out = append(out, border)
+	}
 	out = append(out, lines...)
-	out = append(out, border)
+	for range [1]struct{}{} {
+		out = append(out, border)
+	}
 	return out
 }
 
