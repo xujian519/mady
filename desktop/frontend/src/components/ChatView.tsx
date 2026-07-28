@@ -329,59 +329,75 @@ export const ChatView: React.FC = () => {
         <main className="flex-1 flex flex-col min-w-0">
           {/* 标题栏（红绿灯区 + 视图切换） */}
           <header className={`titlebar-drag-region h-[var(--mady-titlebar-height)] flex items-center justify-between px-4 border-b border-mady-separator mady-material ${isFocusMode ? 'justify-center' : ''}`}>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               {!showSidebar && (
                 <button
                   onClick={() => setShowSidebar(true)}
-                  className="p-1 rounded hover:bg-mady-bg-secondary text-mady-text-secondary"
+                  className="p-1 rounded-md hover:bg-mady-bg-secondary text-mady-text-secondary transition-colors"
                   title="显示侧栏"
                 >
                   <PanelRightOpen size={15} />
                 </button>
               )}
-              <h1 className="text-mady-ui font-medium text-mady-text-primary">Mady</h1>
+              {/* 品牌标识 */}
+              <div className="flex items-center gap-1.5">
+                <div
+                  className="w-5 h-5 rounded-md flex items-center justify-center"
+                  style={{ background: 'linear-gradient(135deg, var(--color-mady-accent) 0%, var(--color-mady-accent-tertiary) 100%)' }}
+                >
+                  <span className="text-white text-[9px] font-bold">M</span>
+                </div>
+                <h1 className="text-mady-ui font-semibold text-mady-text-primary">Mady</h1>
+              </div>
               {threadId && (
-                <span className="text-mady-caption text-mady-text-tertiary">
-                  会话
-                </span>
+                <>
+                  <span className="text-mady-text-quaternary">/</span>
+                  <span className="text-mady-caption text-mady-text-tertiary">
+                    会话
+                  </span>
+                </>
               )}
             </div>
             {!isFocusMode && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
+                {/* 功能视图组 */}
                 <button
                   onClick={() => setShowSkills(true)}
-                  className="p-1.5 rounded text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary transition-colors"
+                  className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
                   title="技能"
                 >
                   <Zap size={14} />
                 </button>
                 <button
                   onClick={() => setShowMcp(true)}
-                  className="p-1.5 rounded text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary transition-colors"
+                  className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
                   title="MCP 服务器"
                 >
                   <Server size={14} />
                 </button>
                 <button
                   onClick={() => setShowKnowledge(true)}
-                  className="p-1.5 rounded text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary transition-colors"
+                  className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
                   title="知识库"
                 >
                   <Database size={14} />
                 </button>
                 <button
                   onClick={() => setShowTemplates(true)}
-                  className="p-1.5 rounded text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary transition-colors"
+                  className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
                   title="模板库"
                 >
                   <FileText size={14} />
                 </button>
+                {/* 分组分隔线 */}
+                <div className="w-px h-4 bg-mady-separator mx-1" />
+                {/* 面板切换组 */}
                 <button
                   onClick={() => setShowDocViewer(!showDocViewer)}
-                  className={`p-1.5 rounded text-mady-ui transition-colors ${
+                  className={`p-1.5 rounded-md text-mady-ui transition-all duration-150 ${
                     showDocViewer
                       ? 'bg-mady-accent-soft text-mady-accent'
-                      : 'text-mady-text-secondary hover:bg-mady-bg-secondary'
+                      : 'text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary'
                   }`}
                   title="文档预览"
                 >
@@ -396,14 +412,49 @@ export const ChatView: React.FC = () => {
             {!showContent ? (
               /* 空状态 */
               <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-md px-6">
-                  <div className="w-12 h-12 rounded-2xl bg-mady-accent-soft flex items-center justify-center mx-auto mb-4">
-                    <Sparkles size={24} className="text-mady-accent" />
+                <div className="text-center max-w-md px-6 relative">
+                  {/* 背景装饰光晕 */}
+                  <div
+                    className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                  >
+                    <div
+                      className="w-48 h-48 rounded-full opacity-8 blur-3xl"
+                      style={{ background: 'var(--color-mady-accent)' }}
+                    />
                   </div>
-                  <h2 className="text-mady-heading font-semibold mb-2">开始新对话</h2>
-                  <p className="text-mady-text-secondary text-mady-body mb-6">
+
+                  {/* 图标组合 */}
+                  <div className="relative z-10 mb-6 flex items-center justify-center">
+                    <div
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+                      style={{
+                        background: 'linear-gradient(135deg, var(--color-mady-accent) 0%, var(--color-mady-accent-tertiary) 100%)',
+                        boxShadow: '0 8px 24px var(--color-mady-accent-glow)',
+                      }}
+                    >
+                      <Sparkles size={28} className="text-white" />
+                    </div>
+                  </div>
+
+                  <h2 className="text-mady-h1 font-semibold mb-2 relative z-10">开始新对话</h2>
+                  <p className="text-mady-text-secondary text-mady-body mb-8 relative z-10">
                     与 Mady 助手交流，获取专利分析与法律问题解答
                   </p>
+
+                  {/* 快捷引导 */}
+                  <div className="flex flex-wrap gap-2 justify-center relative z-10">
+                    {['专利新颖性分析', '权利要求撰写', 'OA 答复策略'].map((hint) => (
+                      <button
+                        key={hint}
+                        onClick={() => {
+                          useChatStore.getState().sendMessage(hint)
+                        }}
+                        className="px-3 py-1.5 rounded-lg text-mady-small text-mady-text-secondary bg-mady-bg-secondary border border-mady-border hover:border-mady-accent/30 hover:text-mady-accent transition-all duration-150"
+                      >
+                        {hint}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (

@@ -12,18 +12,18 @@ import React from 'react'
 import { useChatStore } from '@/stores/chat'
 import { Brain } from 'lucide-react'
 
-/** 获取进度条颜色 CSS 类。 */
-function usageColor(percent: number): string {
-  if (percent >= 80) return 'bg-red-500'
-  if (percent >= 50) return 'bg-amber-500'
-  return 'bg-emerald-500'
+/** 获取进度条背景色（使用语义 token）。 */
+function usageBarColor(percent: number): string {
+  if (percent >= 80) return 'bg-mady-danger'
+  if (percent >= 50) return 'bg-mady-warning'
+  return 'bg-mady-success'
 }
 
-/** 获取文本颜色 CSS 类。 */
+/** 获取文本颜色（使用语义 token）。 */
 function usageTextColor(percent: number): string {
-  if (percent >= 80) return 'text-red-500'
-  if (percent >= 50) return 'text-amber-500'
-  return 'text-emerald-500'
+  if (percent >= 80) return 'text-mady-danger'
+  if (percent >= 50) return 'text-mady-warning'
+  return 'text-mady-success'
 }
 
 export const ContextIndicator: React.FC = () => {
@@ -37,7 +37,7 @@ export const ContextIndicator: React.FC = () => {
   }
 
   const pct = Math.min(usagePercent, 100)
-  const barColor = usageColor(pct)
+  const barColor = usageBarColor(pct)
   const textColor = usageTextColor(pct)
   const totalLabel = formatToken(totalTokens)
   const limitLabel = formatToken(contextWindow)
@@ -52,7 +52,10 @@ export const ContextIndicator: React.FC = () => {
         <div className="flex-1 h-1.5 rounded-full bg-mady-bg-secondary overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-            style={{ width: `${pct}%` }}
+            style={{
+              width: `${pct}%`,
+              boxShadow: pct >= 80 ? '0 0 8px var(--color-mady-danger)' : 'none',
+            }}
           />
         </div>
 

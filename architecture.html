@@ -14,14 +14,14 @@
   --fg:         #0f172a;
   --muted:      #64748b;
   --border:     #e2e8f0;
-  --accent:     #2563eb;
-  --accent-bg:  #eff6ff;
-  --nav-bg:     #1e293b;
+  --accent:     #5856d6;
+  --accent-bg:  #f0f0ff;
+  --nav-bg:     #2e1065;
 
   --c-external:   #6366f1;
   --c-external-bg:#eef2ff;
-  --c-core:       #2563eb;
-  --c-core-bg:    #eff6ff;
+  --c-core:       #5856d6;
+  --c-core-bg:    #f0f0ff;
   --c-domain:     #0d9488;
   --c-domain-bg:  #f0fdfa;
   --c-infra:      #d97706;
@@ -44,7 +44,7 @@
   --radius-lg: 16px;
   --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
   --shadow-md: 0 4px 12px rgba(0,0,0,.06);
-  --shadow-lg: 0 8px 24px rgba(0,0,0,.08);
+  --shadow-lg: 0 8px 24px rgba(88,86,214,.10);
 
   --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
   --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
@@ -583,10 +583,10 @@ body {
     <p class="subtitle">github.com/xujian519/mady · 中观风格智能体框架</p>
     <div class="stats">
       <span class="stat"><span class="dot" style="background:var(--c-core)"></span> Go 1.26</span>
-      <span class="stat"><span class="dot" style="background:var(--c-domain)"></span> 871 Go 源文件 (含 293 测试)</span>
-      <span class="stat"><span class="dot" style="background:var(--c-infra)"></span> ~185K 行代码</span>
-      <span class="stat"><span class="dot" style="background:#8b5cf6"></span> 15,565 符号 · 19,628 边</span>
-      <span class="stat"><span class="dot" style="background:#f59e0b"></span> 多模块 (go.work)</span>
+      <span class="stat"><span class="dot" style="background:var(--c-domain)"></span> 1193 Go 源文件 (含 396 测试)</span>
+      <span class="stat"><span class="dot" style="background:var(--c-infra)"></span> ~278K 行代码</span>
+      <span class="stat"><span class="dot" style="background:#8b5cf6"></span> 4 子模块 (go.work)</span>
+      <span class="stat"><span class="dot" style="background:#f59e0b"></span> 820 非测试 · 797 生产源文件</span>
     </div>
   </header>
 
@@ -637,7 +637,7 @@ body {
     <div class="layer-label">
       <span class="bar" style="background:var(--c-core)"></span>
       <h2>核心引擎层</h2>
-      <span class="count">agentcore · 110+ 源文件 + 12 子模块</span>
+      <span class="count">agentcore · 100 源文件 + 64 测试 + 8 子模块</span>
     </div>
     <div class="core-area">
 
@@ -649,7 +649,7 @@ body {
         </div>
         <div class="card tui-card">
           <div class="card-name">tui/</div>
-          <div class="card-desc">8 层 Elm 风格架构 + 布局层</div>
+          <div class="card-desc">8 层 Elm 风格架构 + 布局层 · 独立子模块 (tui/go.mod)</div>
           <div class="tui-layers">
             <div class="tui-row"><span class="idx">8</span> layout — 布局原语</div>
             <div class="tui-row"><span class="idx">7</span> agentadapter — Agent→Chat 适配</div>
@@ -660,6 +660,7 @@ body {
             <div class="tui-row"><span class="idx">2</span> theme — 语义调色板 + 品牌主题</div>
             <div class="tui-row"><span class="idx">1</span> terminal — 终端 I/O (keymap.json)</div>
             <div class="tui-row"><span class="idx">0</span> core — Component 接口</div>
+            <div class="tui-row"><span class="idx">—</span> internal — 内部工具 (csync/fuzzy)</div>
           </div>
         </div>
       </div>
@@ -699,16 +700,14 @@ body {
 
         <div style="font-size:11px;color:var(--muted);margin:8px 0 5px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;">子模块</div>
         <div class="sub-row">
-          <span class="chip chip-interface">cache/</span>
           <span class="chip chip-interface">concurrency/</span>
-          <span class="chip chip-interface">doomloop/</span>
           <span class="chip chip-interface">evidence/</span>
-          <span class="chip chip-interface">evaluate/</span>
           <span class="chip chip-interface">filecheckpoint/</span>
+          <span class="chip chip-interface">iface/</span>
+          <span class="chip chip-interface">manifests/</span>
           <span class="chip chip-interface">permission/</span>
           <span class="chip chip-interface">planmode/</span>
-          <span class="chip chip-interface">tracing/</span>
-          <span class="chip chip-interface">manifests/</span>
+          <span class="chip chip-interface">tasklist/</span>
         </div>
 
         <div style="font-size:11px;color:var(--muted);margin:8px 0 5px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;">基础设施接口</div>
@@ -735,10 +734,6 @@ body {
         <div class="card provider-card">
           <div class="card-name">chatcompat/</div>
           <div class="card-desc">OpenAI Compat 适配层<br>DeepSeek / GLM / Kimi / Qwen</div>
-        </div>
-        <div class="card provider-card">
-          <div class="card-name">smartrouter/</div>
-          <div class="card-desc">智能模型路由<br>Task + Priority 调度</div>
         </div>
         <div class="card provider-card">
           <div class="card-name">adapter/</div>
@@ -780,16 +775,44 @@ body {
     <div class="layer-label">
       <span class="bar" style="background:var(--c-domain)"></span>
       <h2>领域扩展层</h2>
-      <span class="count">10+ 领域模块</span>
+      <span class="count">14+ 领域模块</span>
     </div>
     <div class="card-grid grid-5">
       <div class="card domain">
         <div class="card-name">disclosure/</div>
-        <div class="card-desc">技术交底书分析管线 · 11 节点 Pregel 图</div>
+        <div class="card-desc">技术交底书分析管线 · 13 节点 Pregel 图</div>
       </div>
       <div class="card domain">
         <div class="card-name">domains/</div>
         <div class="card-desc">领域配置 + 推理引擎 · 可插拔领域适配</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">domains/evidence/</div>
+        <div class="card-desc">专利证据规则引擎 · 三性/类型/举证责任</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">domains/claimdrafting/</div>
+        <div class="card-desc">权利要求书撰写 · LLM + 6 类规则引擎</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">domains/specdrafting/</div>
+        <div class="card-desc">说明书撰写 · 12 节点 Pregel 图</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">domains/enablement/</div>
+        <div class="card-desc">26.3 充分公开判断 · 图引擎</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">domains/inventiveness/</div>
+        <div class="card-desc">创造性判断图引擎 · 四轮迭代</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">domains/novelty/</div>
+        <div class="card-desc">新颖性分析 · 图引擎管线</div>
+      </div>
+      <div class="card domain">
+        <div class="card-name">domains/infringement/</div>
+        <div class="card-desc">侵权分析 · 图引擎 + 评分器</div>
       </div>
       <div class="card domain">
         <div class="card-name">psychological/</div>
@@ -813,15 +836,7 @@ body {
       </div>
       <div class="card domain">
         <div class="card-name">workflows/</div>
-        <div class="card-desc">Legal/Patent 领域工作流模板</div>
-      </div>
-      <div class="card domain">
-        <div class="card-name">mcp/</div>
-        <div class="card-desc">MCP 客户端 · stdio + HTTP/SSE · 发现/信任/安装</div>
-      </div>
-      <div class="card domain">
-        <div class="card-name">plugins/</div>
-        <div class="card-desc">专利工作流插件 · novelty/infringement/oa</div>
+        <div class="card-desc">Legal/Patent/Design 领域工作流模板</div>
       </div>
     </div>
   </section>
@@ -838,7 +853,7 @@ body {
     <div class="layer-label">
       <span class="bar" style="background:var(--c-infra)"></span>
       <h2>基础设施层</h2>
-      <span class="count">15+ 基础组件</span>
+      <span class="count">18+ 基础组件</span>
     </div>
     <div class="card-grid grid-5">
       <div class="card infra"><div class="card-name">graph/</div><div class="card-desc">DAG + Pregel 迭代计算 + 状态快照</div></div>
@@ -847,15 +862,18 @@ body {
       <div class="card infra"><div class="card-name">skill/</div><div class="card-desc">SKILL.md 解析器（MadyExtension 扩展字段）</div></div>
       <div class="card infra"><div class="card-name">prompt/</div><div class="card-desc">模板化 Prompt 管理与渲染</div></div>
       <div class="card infra"><div class="card-name">store/</div><div class="card-desc">SnapshotStore 快照存储</div></div>
-      <div class="card infra"><div class="card-name">filequeue/</div><div class="card-desc">Mutex Queue 文件队列</div></div>
-      <div class="card infra"><div class="card-name">fuzzy/</div><div class="card-desc">Fuzzy Match 模糊匹配引擎</div></div>
+      <div class="card infra"><div class="card-name">evaluate/</div><div class="card-desc">评估框架 · RAGAS 风格基准 + CLI</div></div>
+      <div class="card infra"><div class="card-name">tracing/</div><div class="card-desc">OpenTelemetry 分布式追踪</div></div>
       <div class="card infra"><div class="card-name">pkg/</div><div class="card-desc">agentconfig · csync · lawcite · util</div></div>
       <div class="card infra"><div class="card-name">protocol/</div><div class="card-desc">JSON-RPC 协议原语</div></div>
       <div class="card infra"><div class="card-name">prompt/templates/</div><div class="card-desc">内置 curated 提示词模板（go:embed）</div></div>
       <div class="card infra"><div class="card-name">styles/</div><div class="card-desc">文档风格指南 YAML（4 套默认风格）</div></div>
       <div class="card infra"><div class="card-name">doc-templates/</div><div class="card-desc">专利文档模板（claims/specification/oa）</div></div>
+      <div class="card infra"><div class="card-name">skills/</div><div class="card-desc">内置技能定义（chat/patent/legal/disclosure）</div></div>
+      <div class="card infra"><div class="card-name">scripts/</div><div class="card-desc">构建检查脚本 · 敏感路径检测</div></div>
       <div class="card infra"><div class="card-name">integration/</div><div class="card-desc">端到端集成测试（doomloop/chain/drafting）</div></div>
       <div class="card infra"><div class="card-name">benchmark/</div><div class="card-desc">性能基准测试</div></div>
+      <div class="card infra"><div class="card-name">doomloop/</div><div class="card-desc">死循环检测器 · 6 种探测器</div></div>
     </div>
   </section>
 
@@ -871,10 +889,10 @@ body {
     <div class="layer-label">
       <span class="bar" style="background:var(--c-app)"></span>
       <h2>应用入口</h2>
-      <span class="count">4 个入口 + 7 个示例</span>
+      <span class="count">4 入口 + 7 示例 + desktop 模块</span>
     </div>
     <div class="card-grid grid-4" style="max-width:800px;margin:0 auto;">
-      <div class="card app"><div class="card-name">cmd/mady</div><div class="card-desc">统一 CLI 入口 · mady tui/serve/acp/eval/mcp-install/trust-mcp</div></div>
+      <div class="card app"><div class="card-name">cmd/mady</div><div class="card-desc">统一 CLI 入口 · tui/serve/acp/eval/evidence/patent/trust-mcp/trust-knowledge/util/mcp-install</div></div>
       <div class="card app"><div class="card-name">server/</div><div class="card-desc">HTTP/SSE API Server（Agent 池 + 引用计数保护）</div></div>
       <div class="card app"><div class="card-name">example/</div><div class="card-desc">7 个示例应用（A2A/A2UI/ACP/TUI 等）</div></div>
       <div class="card app"><div class="card-name">tools/go.mod</div><div class="card-desc">独立子模块 · browser/computer_use 等</div></div>
@@ -956,9 +974,9 @@ body {
       <rect x="60" y="150" width="240" height="100" rx="10" fill="var(--c-tui-bg)" stroke="var(--c-tui)" stroke-width="1.2"/>
       <text x="180" y="172" text-anchor="middle" font-size="11" font-weight="600" fill="var(--c-tui)">TUI 终端界面</text>
       <text x="80" y="190" font-size="9" fill="var(--c-tui)" opacity="0.7">tui/core → tui/terminal → tui/theme</text>
-      <text x="80" y="206" font-size="9" fill="var(--c-tui)" opacity="0.7">→ tui/component → tui/chat</text>
+      <text x="80" y="206" font-size="9" fill="var(--c-tui)" opacity="0.7">→ tui/internal → tui/component → tui/chat</text>
       <text x="80" y="222" font-size="9" fill="var(--c-tui)" opacity="0.7">→ tui/stdio → tui/agentadapter</text>
-      <text x="80" y="238" font-size="9" fill="var(--c-tui)" opacity="0.7">→ tui/layout</text>
+      <text x="80" y="238" font-size="9" fill="var(--c-tui)" opacity="0.7">→ tui/layout · 独立子模块 tui/go.mod</text>
 
       <!-- ======== Layer 4: 核心引擎 agentcore ======== -->
       <rect x="320" y="150" width="720" height="100" rx="10" fill="var(--c-core-bg)" stroke="var(--c-core)" stroke-width="2"/>
@@ -979,16 +997,14 @@ body {
       <text x="685" y="222" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">Atom/Pipeline</text>
       <rect x="760" y="208" width="130" height="20" rx="4" fill="var(--c-core)" opacity="0.1"/>
       <text x="825" y="222" text-anchor="middle" font-size="9" fill="var(--c-core)" font-weight="500">Provider 抽象</text>
-      <text x="340" y="240" font-size="9" fill="var(--muted)">子模块: cache/ concurrency/ doomloop/ evidence/ evaluate/ filecheckpoint/</text>
-      <text x="340" y="245" font-size="9" fill="var(--muted)">permission/ planmode/ tracing/ manifests/</text>
+      <text x="340" y="240" font-size="9" fill="var(--muted)">子模块: concurrency/ evidence/ filecheckpoint/ iface/ manifests/</text>
+      <text x="340" y="245" font-size="9" fill="var(--muted)">permission/ planmode/ tasklist/</text>
 
       <!-- ======== Layer 5: Provider + Tools ======== -->
       <rect x="60" y="280" width="980" height="60" rx="10" fill="var(--c-provider-bg)" stroke="var(--c-provider)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
       <text x="80" y="298" font-size="9" fill="var(--c-provider)" font-weight="600">Provider + 工具层</text>
       <rect x="80" y="306" width="130" height="22" rx="4" fill="white" stroke="var(--c-provider)" stroke-width="1"/>
       <text x="145" y="321" text-anchor="middle" font-size="10" fill="var(--c-provider)">chatcompat/</text>
-      <rect x="220" y="306" width="130" height="22" rx="4" fill="white" stroke="var(--c-provider)" stroke-width="1"/>
-      <text x="285" y="321" text-anchor="middle" font-size="10" fill="var(--c-provider)">smartrouter/</text>
       <rect x="360" y="306" width="130" height="22" rx="4" fill="white" stroke="var(--c-provider)" stroke-width="1"/>
       <text x="425" y="321" text-anchor="middle" font-size="10" fill="var(--c-provider)">adapter/</text>
       <rect x="500" y="306" width="200" height="22" rx="4" fill="white" stroke="var(--c-tool)" stroke-width="1"/>
@@ -1015,8 +1031,8 @@ body {
       <text x="380" y="441" text-anchor="middle" font-size="10" fill="var(--c-domain)">workflows/ + plugins/</text>
       <rect x="500" y="426" width="180" height="22" rx="4" fill="white" stroke="var(--c-disclosure)" stroke-width="1"/>
       <text x="590" y="441" text-anchor="middle" font-size="10" fill="var(--c-disclosure)">citation_gate/ (双级核验)</text>
-      <text x="80" y="466" font-size="9" fill="var(--muted)">domains/ 子模块: doctmpl/ reasoning/ collector/ sqlite/ wiring/ rules/</text>
-      <text x="80" y="478" font-size="9" fill="var(--muted)">knowledge/ 子模块: fileindex/ graph/ loader/ sqlite/</text>
+      <text x="80" y="466" font-size="9" fill="var(--muted)">domains/ 子模块: evidence/ claimdrafting/ specdrafting/ enablement/ inventiveness/ novelty/</text>
+      <text x="80" y="478" font-size="9" fill="var(--muted)">infringement/ amendment/ ipc/ writing/ doctmpl/ reasoning/ rules/ sqlite/</text>
 
       <!-- ======== Layer 7: 基础设施层 ======== -->
       <rect x="60" y="520" width="980" height="100" rx="10" fill="var(--c-infra-bg)" stroke="var(--c-infra)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
@@ -1148,6 +1164,21 @@ body {
         <td class="mod-name">mcp/</td>
         <td>agentcore</td>
         <td>cmd/mady, agentcore</td>
+      </tr>
+      <tr>
+        <td class="mod-name">evaluate/</td>
+        <td>agentcore, provider/chatcompat, retrieval/</td>
+        <td>cmd/mady</td>
+      </tr>
+      <tr>
+        <td class="mod-name">doomloop/</td>
+        <td>agentcore, tracing/</td>
+        <td>agentcore (via LifecycleHook)</td>
+      </tr>
+      <tr>
+        <td class="mod-name">tracing/</td>
+        <td>（无 Mady 内部依赖）</td>
+        <td>agentcore, doomloop/</td>
       </tr>
       <tr>
         <td class="mod-name">agentcore</td>
@@ -1391,15 +1422,15 @@ BeforeAgentRun
     </tbody>
   </table>
 
-  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;"><strong>Router Agent 委派流向（domains/router.go）：</strong></p>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;"><strong>统一 Agent 委派流向（domains/unified.go）：</strong></p>
 
   <div class="lifecycle">
-Router (mady-router)
-  <span class="sep">→</span> transfer_to_chat       <span class="sep">→</span> Chat Agent (日常聊天)
-  <span class="sep">→</span> transfer_to_assistant  <span class="sep">→</span> Assistant Agent (任务执行)
+mady-agent (UnifiedAgentConfig)
   <span class="sep">→</span> transfer_to_patent     <span class="sep">→</span> Patent Agent (专利分析)
   <span class="sep">→</span> transfer_to_legal      <span class="sep">→</span> Legal Agent (法律分析)
   </div>
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">交接方式采用 <strong>Invisible Handoff</strong>（v0.3.0 引入）：子 Agent 事件不转发到事件总线，UI 无切换痕迹。用户感知不到 Agent 切换，只看到不断续的专业回答。</p>
 
   <section class="section-title">推理策略路由</section>
 
@@ -1496,7 +1527,7 @@ Router (mady-router)
 
   <section class="section-title">1. Disclosure 交底书分析管线</section>
 
-  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">disclosure/ 实现了 11 节点 Pregel 图，逐节点处理技术交底书。管线由 <code>BuildDisclosureAnalysisGraphWithOpts</code> 构建：</p>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">disclosure/ 实现了 13 节点 Pregel 图，逐节点处理技术交底书。管线由 <code>BuildDisclosureAnalysisGraphWithOpts</code> 构建：</p>
 
   <div class="pipeline">
     <span class="node">preprocess</span>
@@ -1505,9 +1536,13 @@ Router (mady-router)
     <span class="arrow">→</span>
     <span class="node">merge_extractions</span>
     <span class="arrow">→</span>
+    <span class="node">groundedness_filter</span>
+    <span class="arrow">→</span>
     <span class="node cond">check_consistency</span>
     <span class="arrow">↕</span>
     <span class="node">extract_features</span>
+    <span class="arrow">→</span>
+    <span class="node">extract_effects</span>
     <span class="arrow">→</span>
     <span class="node">generate_keywords</span>
     <span class="arrow">→</span>
@@ -1524,7 +1559,7 @@ Router (mady-router)
     <span class="node end">__end__</span>
   </div>
 
-  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">实际上前三个提取节点并行执行：</p>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">实际上前三个提取节点并行执行，合并后再进入 groundedness_filter：</p>
 
   <div class="pipeline">
     <span class="node">preprocess</span>
@@ -1536,6 +1571,8 @@ Router (mady-router)
     <span class="node" style="background:var(--c-domain-bg);color:var(--c-domain);border-color:rgba(13,148,136,.2);">extract_effects</span>
     <span class="arrow">→</span>
     <span class="node">merge_extractions</span>
+    <span class="arrow">→</span>
+    <span class="node">groundedness_filter</span>
   </div>
 
   <p style="font-size:13px;color:var(--muted);margin-bottom:10px;"><strong>关键节点说明：</strong></p>
@@ -1550,6 +1587,7 @@ Router (mady-router)
       <tr><td class="mod-name">extract_features</td><td>Agent 包装</td><td>提取技术特征（功能/类别/重要性）</td></tr>
       <tr><td class="mod-name">extract_effects</td><td>Agent 包装</td><td>提取技术效果和有益效果</td></tr>
       <tr><td class="mod-name">merge_extractions</td><td>合并节点</td><td>合并三个 Agent 输出，构建 PFE 三元组交叉引用</td></tr>
+      <tr><td class="mod-name">groundedness_filter</td><td>Agent 包装</td><td>基于性依据评估过滤提取结果，去除无文本支撑的幻觉内容</td></tr>
       <tr><td class="mod-name">check_consistency</td><td><strong>条件节点</strong></td><td>一致性校验 → 不通过则注入 retry_feedback 回退到提取节点</td></tr>
       <tr><td class="mod-name">generate_keywords</td><td>纯函数</td><td>从提取结果生成检索关键词</td></tr>
       <tr><td class="mod-name">retrieve_prior_art</td><td>检索器</td><td>专利检索（支持可选的 DomainRetriever 注入）</td></tr>
@@ -1654,18 +1692,18 @@ Router (mady-router)
 
   <div class="lifecycle">
 <span class="phase">TUI</span> / <span class="phase">Server</span> / <span class="phase">A2A</span> / <span class="phase">MCP</span>   ← 用户输入
-  <span class="sep">→</span> <strong>Router Agent</strong> (domains/router.go)
+  <span class="sep">→</span> <strong>mady-agent</strong> (domains/unified.go — UnifiedAgentConfig)
   <span class="sep">→</span> 分类用户意图 (domains/classifier.go)
   <span class="sep">→</span> 调用 transfer_to_* 工具
   <span class="sep">→</span> <strong>HandoffContext</strong> 构建 (提取意图/实体/最近消息)
   <span class="sep">→</span> <strong>SafeHandoff</strong> 白名单校验 (isHandoffAllowed)
-  <span class="sep">→</span> <strong>领域 Agent</strong> (Chat / Assistant / Patent / Legal)
+  <span class="sep">→</span> <strong>领域 Agent</strong> (Patent / Legal / 直接 LLM 回答)
     <span class="sep">→</span> <span class="hook">LifecycleHook 链</span>
     <span class="sep">→</span> <strong>ReasoningRouter</strong> 分类复杂度 → 注入策略
-    <span class="sep">→</span> <strong>Provider</strong> (chatcompat / smartrouter)
+    <span class="sep">→</span> <strong>Provider</strong> (chatcompat)
     <span class="sep">→</span> <span class="hook">Guardrails</span> + <span class="hook">CitationGate</span> 核验
     <span class="sep">→</span> 返回结果
-  <span class="sep">→</span> <strong>HandoffResult</strong> 包装返回
+  <span class="sep">→</span> <strong>HandoffResult</strong> 包装返回（Invisible Handoff 不显示交接痕迹）
   <span class="sep">→</span> TUI / Server 渲染输出
   </div>
 
@@ -1687,7 +1725,7 @@ Router (mady-router)
     <div class="card-detail" style="border-top-color:var(--c-disclosure);">
       <div class="cd-name" style="color:var(--c-disclosure)">disclosure/</div>
       <div class="cd-path">技术交底书分析管线</div>
-      <div class="cd-desc">11 节点 Pregel 图 + 条件回退 + review_gate 主动中断。含提取/合并/一致性校验/检索/新颖性检查/报告生成/权利要求撰写。</div>
+      <div class="cd-desc">13 节点 Pregel 图 + 条件回退 + review_gate 主动中断。含提取/合并/一致性校验/检索/新颖性检查/报告生成/权利要求撰写。</div>
       <div class="cd-tags">
         <span class="cd-tag">Pregel 图</span>
         <span class="cd-tag">Agent 包装</span>
@@ -1699,10 +1737,10 @@ Router (mady-router)
     <div class="card-detail" style="border-top-color:var(--c-domain);">
       <div class="cd-name" style="color:var(--c-domain)">domains/</div>
       <div class="cd-path">领域配置 + 推理引擎</div>
-      <div class="cd-desc">Router Agent 路由、Chat/Assistant/Patent/Legal 领域配置、ApprovalGate 审批门、Classifier 意图分类、Graph 知识图挂载、Style 文档风格、Project 项目管理、Audit 审计跟踪。</div>
+      <div class="cd-desc">UnifiedAgentConfig（统一入口）、Patent/Legal 领域 Agent、ApprovalGate 审批门、Classifier 意图分类、Graph 知识图挂载、Style 文档风格、Project 项目管理、Audit 审计跟踪。Invisible Handoff 委派子 Agent。</div>
       <div class="cd-tags">
-        <span class="cd-tag">4 领域 Agent</span>
-        <span class="cd-tag">Handoff 委派</span>
+        <span class="cd-tag">统一 Agent</span>
+        <span class="cd-tag">Invisible Handoff</span>
         <span class="cd-tag">审批门</span>
         <span class="cd-tag">风格指南</span>
       </div>
@@ -1739,6 +1777,62 @@ Router (mady-router)
         <span class="cd-tag">模板引擎</span>
         <span class="cd-tag">YAML frontmatter</span>
       </div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/evidence/</div>
+      <div class="cd-path">专利证据规则引擎</div>
+      <div class="cd-desc">三性/类型/举证责任/证明标准/日期/可信度六大规则引擎，用于专利无效/侵权证据链评估。</div>
+      <div class="cd-tags"><span class="cd-tag">证据规则</span><span class="cd-tag">三性判断</span></div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/claimdrafting/</div>
+      <div class="cd-path">权利要求书撰写</div>
+      <div class="cd-desc">LLM 增强撰写 + 6 类规则引擎（支持范围/新颖性/单一性/支持/清晰/功能性）+ 评分器。含独立图引擎管线。</div>
+      <div class="cd-tags"><span class="cd-tag">撰写</span><span class="cd-tag">规则引擎</span><span class="cd-tag">评分</span></div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/specdrafting/</div>
+      <div class="cd-path">说明书撰写</div>
+      <div class="cd-desc">12 节点 Pregel 图 + 规则引擎 + 评分器，自动化说明书各章节撰写。</div>
+      <div class="cd-tags"><span class="cd-tag">Pregel 图</span><span class="cd-tag">撰写</span></div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/enablement/</div>
+      <div class="cd-path">26.3 充分公开判断</div>
+      <div class="cd-desc">图引擎 + 领域规则 + 知识库联动，判断说明书是否符合充分公开要求。</div>
+      <div class="cd-tags"><span class="cd-tag">充分公开</span><span class="cd-tag">图引擎</span></div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/inventiveness/</div>
+      <div class="cd-path">创造性判断图引擎</div>
+      <div class="cd-desc">四轮迭代优化 + 审查模拟，基于三步法评估发明创造性。</div>
+      <div class="cd-tags"><span class="cd-tag">创造性</span><span class="cd-tag">三步法</span></div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/novelty/</div>
+      <div class="cd-path">新颖性分析图引擎</div>
+      <div class="cd-desc">基于图引擎的新颖性分析管线，支持四项对比分析。</div>
+      <div class="cd-tags"><span class="cd-tag">新颖性</span><span class="cd-tag">图引擎</span></div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/infringement/</div>
+      <div class="cd-path">侵权分析图引擎</div>
+      <div class="cd-desc">图引擎 + 评分器 + 知识库，支持等同侵权/全面覆盖分析。</div>
+      <div class="cd-tags"><span class="cd-tag">侵权</span><span class="cd-tag">等同原则</span></div>
+    </div>
+
+    <div class="card-detail" style="border-top-color:var(--c-domain);">
+      <div class="cd-name" style="color:var(--c-domain)">domains/writing/</div>
+      <div class="cd-path">撰写质量评估套件</div>
+      <div class="cd-desc">撰写质量评估器 + 模式存储 + 技能编译器，含 seed-patterns 种子模式库。</div>
+      <div class="cd-tags"><span class="cd-tag">质量评估</span><span class="cd-tag">模式库</span></div>
     </div>
 
     <div class="card-detail" style="border-top-color:var(--c-memory);">
@@ -1816,7 +1910,7 @@ Router (mady-router)
     <div class="card-detail" style="border-top-color:var(--c-domain);">
       <div class="cd-name" style="color:var(--c-domain)">workflows/</div>
       <div class="cd-path">领域工作流</div>
-      <div class="cd-desc">Legal 法律分析工作流、Patent 专利分析工作流、AutoResearch 自动研究工作流。</div>
+      <div class="cd-desc">Legal 法律分析工作流（三段论推理比较）、Patent 专利分析工作流（新颖性/无效/侵权/OA答复）、Design 外观设计无效宣告工作流。</div>
       <div class="cd-tags">
         <span class="cd-tag">工作流</span>
         <span class="cd-tag">领域模板</span>
@@ -1845,12 +1939,6 @@ Router (mady-router)
       <div class="cd-tags"><span class="cd-tag">API 兼容</span></div>
     </div>
     <div class="card-detail" style="border-top-color:var(--c-provider);">
-      <div class="cd-name" style="color:var(--c-provider)">provider/smartrouter/</div>
-      <div class="cd-path">智能模型路由</div>
-      <div class="cd-desc">按 Task + Priority 调度模型，选择性调用大/小模型以优化成本。</div>
-      <div class="cd-tags"><span class="cd-tag">模型路由</span></div>
-    </div>
-    <div class="card-detail" style="border-top-color:var(--c-provider);">
       <div class="cd-name" style="color:var(--c-provider)">provider/adapter/</div>
       <div class="cd-path">Agent 适配器</div>
       <div class="cd-desc">适配 Claude Code / Codex CLI 等外部 Agent 协议，实现互操作。</div>
@@ -1858,8 +1946,8 @@ Router (mady-router)
     </div>
     <div class="card-detail" style="border-top-color:var(--c-tool);">
       <div class="cd-name" style="color:var(--c-tool)">tools/（独立子模块）</div>
-      <div class="cd-path">tools/go.mod · ~60 源文件</div>
-      <div class="cd-desc">内置工具集：browser（浏览器自动化 + stealth + session）、computer_use（桌面控制三平台 + SOM）、bash（沙箱/非沙箱）、web_search/fetch、MCP bridge。browser_providers/ 抽象（Browserbase/Firecrawl/BrowserUse）。</div>
+      <div class="cd-path">tools/go.mod · 69 源文件 + 23 测试</div>
+      <div class="cd-desc">69 源文件 + 23 测试 · 独立子模块 (tools/go.mod)。内置工具集：browser（浏览器自动化 + stealth + session）、computer_use（桌面控制三平台 + SOM）、bash（沙箱/非沙箱）、web_search/fetch、git、MCP bridge。browserproviders/ 抽象（Browserbase/Firecrawl/BrowserUse）、desktop/ 模块。</div>
       <div class="cd-tags"><span class="cd-tag">浏览器</span><span class="cd-tag">桌面控制</span><span class="cd-tag">Web</span></div>
     </div>
   </div>
@@ -1912,6 +2000,7 @@ Router (mady-router)
       <div class="cd-name" style="color:var(--c-infra)">graph/</div>
       <div class="cd-path">DAG + Pregel 图计算引擎</div>
       <div class="cd-desc">DAG 有向无环图 + Pregel 迭代计算 + State 状态管理 + Checkpoint 快照检查点。支持条件边（ConditionalEdge）和并行节点。</div>
+      <div class="cd-tags"><span class="cd-tag">图引擎</span><span class="cd-tag">Pregel</span></div>
     </div>
     <div class="card-detail" style="border-top-color:var(--c-infra);">
       <div class="cd-name" style="color:var(--c-infra)">session/</div>
@@ -1931,7 +2020,7 @@ Router (mady-router)
     <div class="card-detail" style="border-top-color:var(--c-infra);">
       <div class="cd-name" style="color:var(--c-infra)">prompt/</div>
       <div class="cd-path">提示词模板加载器</div>
-      <div class="cd-desc">加载 + 渲染提示词模板，支持变量插值。</div>
+      <div class="cd-desc">加载 + 渲染提示词模板，支持变量插值。内嵌 go:embed 模板库。</div>
     </div>
     <div class="card-detail" style="border-top-color:var(--c-infra);">
       <div class="cd-name" style="color:var(--c-infra)">store/</div>
@@ -1939,14 +2028,22 @@ Router (mady-router)
       <div class="cd-desc">SnapshotStore 快照存储，支持 Agent 状态持久化与恢复。</div>
     </div>
     <div class="card-detail" style="border-top-color:var(--c-infra);">
-      <div class="cd-name" style="color:var(--c-infra)">filequeue/</div>
-      <div class="cd-path">文件队列</div>
-      <div class="cd-desc">基于互斥锁的持久化队列，支持异步任务处理。</div>
+      <div class="cd-name" style="color:var(--c-infra)">evaluate/</div>
+      <div class="cd-path">评估框架</div>
+      <div class="cd-desc">RAGAS 风格评估体系 + benchmark 跑批 + CLI 引擎 + 校准模块。支持静态/动态两种评估模式。</div>
+      <div class="cd-tags"><span class="cd-tag">评估</span><span class="cd-tag">基准</span><span class="cd-tag">CLI</span></div>
     </div>
     <div class="card-detail" style="border-top-color:var(--c-infra);">
-      <div class="cd-name" style="color:var(--c-infra)">fuzzy/</div>
-      <div class="cd-path">模糊匹配</div>
-      <div class="cd-desc">Fuzzy Match 引擎，支持近似字符串匹配。</div>
+      <div class="cd-name" style="color:var(--c-infra)">tracing/</div>
+      <div class="cd-path">分布式追踪</div>
+      <div class="cd-desc">OpenTelemetry 分布式追踪，支持 span 注入与链路追踪。</div>
+      <div class="cd-tags"><span class="cd-tag">OpenTelemetry</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">doomloop/</div>
+      <div class="cd-path">死循环检测器</div>
+      <div class="cd-desc">6 种探测器（重复/循环/Token 震荡/上下文膨胀/停滞/发散），LifecycleHook 实现。</div>
+      <div class="cd-tags"><span class="cd-tag">死循环</span><span class="cd-tag">LifecycleHook</span></div>
     </div>
     <div class="card-detail" style="border-top-color:var(--c-infra);">
       <div class="cd-name" style="color:var(--c-infra)">pkg/</div>
@@ -1974,6 +2071,18 @@ Router (mady-router)
       <div class="cd-desc">claims（权利要求书）/ specification（说明书）/ oa-response（审查意见答复）/ disclosure（交底书）。</div>
     </div>
     <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">skills/</div>
+      <div class="cd-path">内置技能定义</div>
+      <div class="cd-desc">chat（通用对话）/ patent（专利分析）/ legal（法律分析）/ disclosure（交底书分析）SKILL.md。</div>
+      <div class="cd-tags"><span class="cd-tag">技能</span><span class="cd-tag">SKILL.md</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
+      <div class="cd-name" style="color:var(--c-infra)">scripts/</div>
+      <div class="cd-path">构建检查脚本</div>
+      <div class="cd-desc">check-sensitive-paths.sh（敏感路径检测）、check-arch-boundaries.sh（架构边界检查）、golangci-lint wrapper。</div>
+      <div class="cd-tags"><span class="cd-tag">CI</span><span class="cd-tag">安全</span></div>
+    </div>
+    <div class="card-detail" style="border-top-color:var(--c-infra);">
       <div class="cd-name" style="color:var(--c-infra)">integration/</div>
       <div class="cd-path">端到端集成测试</div>
       <div class="cd-desc">doomloop（死循环检测）/ chain（链式调用）/ drafting（撰写）/ guardrails（护栏）/ handoff（交接）E2E 测试。</div>
@@ -1991,7 +2100,7 @@ Router (mady-router)
     <div class="card-detail" style="border-top-color:var(--c-app);">
       <div class="cd-name" style="color:var(--c-app)">cmd/mady/</div>
       <div class="cd-path">统一 CLI 入口</div>
-      <div class="cd-desc">mady tui（终端界面）| mady serve（HTTP 服务）| mady acp（ACP 服务）| mady eval（评估）| mady mcp-install（MCP 安装）| mady trust-mcp（MCP 信任管理）。</div>
+      <div class="cd-desc">mady tui（终端界面）| mady serve（HTTP 服务）| mady acp（ACP 服务）| mady eval（评估）| mady evidence（证据判断）| mady patent（专利分析）| mady trust-mcp（MCP 信任管理）| mady trust-knowledge（知识库白名单）| mady mcp-install（MCP 安装）| mady util（实用工具）</div>
     </div>
     <div class="card-detail" style="border-top-color:var(--c-app);">
       <div class="cd-name" style="color:var(--c-app)">example/</div>
@@ -2003,14 +2112,14 @@ Router (mady-router)
   <section class="legend">
     <h3>文件概要</h3>
     <div class="legend-grid">
-      <div class="legend-item">Go 源文件: 871 (含 293 测试)</div>
+      <div class="legend-item">Go 源文件: 1,193 (含 396 测试)</div>
       <div class="legend-item">接口定义: 168</div>
       <div class="legend-item">结构体: 1,396</div>
       <div class="legend-item">函数/方法: 7,962</div>
       <div class="legend-item">常量: 963</div>
       <div class="legend-item">变量: 342</div>
       <div class="legend-item">外部依赖: gorilla/websocket / sqlite（modernc）/ OTel / yaml.v3</div>
-      <div class="legend-item">多模块: go.work（根 + tools 子模块）</div>
+      <div class="legend-item">多模块: go.work（根 + tools + tui + desktop）</div>
     </div>
   </section>
 

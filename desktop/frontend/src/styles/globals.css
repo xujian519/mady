@@ -126,7 +126,7 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ---- 滚动条（macOS 风格） ---- */
+/* ---- 滚动条（macOS 风格，悬浮渐显） ---- */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -137,9 +137,24 @@ html, body, #root {
 ::-webkit-scrollbar-thumb {
   background: var(--color-mady-separator);
   border-radius: var(--radius-sm);
+  transition: background 0.2s ease;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-mady-text-tertiary);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 全局过渡基线（按钮、链接等交互元素） */
+button,
+a,
+input,
+textarea,
+select {
+  transition-property: background-color, border-color, color, box-shadow, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
 }
 
 /* ---- macOS 标题栏拖拽区 ---- */

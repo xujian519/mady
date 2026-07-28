@@ -64,33 +64,49 @@ export function SplashScreen() {
     <div
       className={`
         fixed inset-0 z-50 flex flex-col items-center justify-center
-        bg-white dark:bg-gray-950
+        bg-mady-bg-primary
         transition-opacity duration-500 ease-in-out
         ${fadingOut ? 'opacity-0' : 'opacity-100'}
       `}
     >
+      {/* 背景光晕装饰 */}
+      <div
+        className="absolute w-64 h-64 rounded-full opacity-20 blur-3xl pointer-events-none"
+        style={{ background: 'var(--color-mady-accent)' }}
+      />
+
       {/* Logo / 品牌标识 */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center">
-          <span className="text-white text-lg font-bold">M</span>
+      <div className="flex items-center gap-3 mb-8 relative z-10">
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-mady-accent) 0%, var(--color-mady-accent-tertiary) 100%)',
+            boxShadow: '0 8px 24px var(--color-mady-accent-glow)',
+          }}
+        >
+          <span className="text-white text-xl font-bold tracking-tight">M</span>
         </div>
-        <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
+        <h1 className="text-3xl font-semibold text-mady-text-primary tracking-tight">
           Mady
         </h1>
       </div>
 
       {/* 进度文案 */}
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 h-5 text-center transition-all duration-300">
+      <p className="text-sm text-mady-text-secondary mb-6 h-5 text-center transition-all duration-300 relative z-10">
         {progress}
       </p>
 
-      {/* 加载指示器 */}
-      <div className="flex items-center gap-1.5">
+      {/* 加载指示器 — 波形脉冲 */}
+      <div className="flex items-center gap-1.5 relative z-10">
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="w-2 h-2 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-bounce"
-            style={{ animationDelay: `${i * 0.15}s`, animationDuration: '0.8s' }}
+            className="w-1.5 h-1.5 rounded-full animate-bounce"
+            style={{
+              backgroundColor: 'var(--color-mady-accent)',
+              animationDelay: `${i * 0.15}s`,
+              animationDuration: '0.8s',
+            }}
           />
         ))}
       </div>

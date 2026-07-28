@@ -249,7 +249,7 @@ export const Composer: React.FC = () => {
 
         {/* 输入区域 */}
         <div className="flex items-end gap-2">
-          <div className="flex-1 relative">
+          <div className="flex-1 relative group">
             <textarea
               ref={inputRef}
               value={text}
@@ -267,9 +267,11 @@ export const Composer: React.FC = () => {
                 text-mady-body text-mady-text-primary
                 placeholder-mady-text-tertiary
                 outline-none
-                transition-colors duration-150
-                focus:border-mady-accent focus:ring-1 focus:ring-mady-accent/30
+                transition-all duration-200
+                focus:border-mady-accent focus:ring-2 focus:ring-mady-accent/20
+                focus:bg-mady-bg-primary
                 disabled:opacity-50
+                group-hover:border-mady-text-quaternary
               `}
             />
           </div>
@@ -279,9 +281,9 @@ export const Composer: React.FC = () => {
             disabled={!canSend}
             className={`
               shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
-              transition-all duration-150
+              transition-all duration-200
               ${canSend
-                ? 'bg-mady-accent text-white hover:bg-mady-accent-hover shadow-sm'
+                ? 'bg-mady-accent text-white hover:bg-mady-accent-hover shadow-md hover:shadow-lg hover:scale-105 active:scale-95'
                 : 'bg-mady-bg-secondary text-mady-text-tertiary border border-mady-border'
               }
               disabled:cursor-not-allowed

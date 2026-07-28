@@ -29,26 +29,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className={`flex gap-3 px-4 py-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+      className={`flex gap-3 px-4 py-3 rounded-lg transition-colors duration-150 ${isUser ? 'flex-row-reverse hover:bg-mady-bg-secondary/50' : 'flex-row hover:bg-mady-bg-secondary/50'}`}
     >
       {/* 头像 */}
       <div
         className={`
           shrink-0 w-8 h-8 rounded-full flex items-center justify-center
           ${isUser
-            ? 'bg-mady-accent-soft text-mady-accent'
-            : 'bg-mady-accent text-white'
+            ? 'text-mady-accent'
+            : 'text-white'
           }
         `}
+        style={
+          isUser
+            ? { background: 'var(--color-mady-accent-soft)' }
+            : { background: 'linear-gradient(135deg, var(--color-mady-accent) 0%, var(--color-mady-accent-tertiary) 100%)' }
+        }
       >
         {isUser ? <User size={14} /> : <Bot size={14} />}
       </div>
 
       {/* 气泡主体 */}
-      <div className={`max-w-[75%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
+      <div className={`max-w-[75%] min-w-0 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
         <div
           className={`
-            rounded-2xl px-4 py-2.5 text-mady-body leading-relaxed
+            rounded-2xl px-4 py-2.5 text-mady-body leading-relaxed transition-shadow duration-150
             ${isUser
               ? 'bg-mady-accent text-white rounded-tr-md'
               : 'bg-mady-bg-secondary text-mady-text-primary rounded-tl-md border border-mady-separator'
@@ -62,8 +67,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           )}
         </div>
 
-        {/* 时间戳 */}
-        <div className="flex items-center gap-2 mt-1 px-1">
+        {/* 时间戳 + 流式指示器 */}
+        <div className={`flex items-center gap-2 mt-1 px-1 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
           <span className="text-mady-text-tertiary text-mady-caption">
             {formatTime(message.timestamp)}
           </span>
