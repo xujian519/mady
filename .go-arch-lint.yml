@@ -98,6 +98,9 @@ components:
 # 依赖规则
 # 未在此列出的组件默认可导入任何项目组件（anyProjectDeps: true）
 deps:
+  # bootstrap 是全局装配器，需要导入所有层级的包
+  bootstrap:
+    anyProjectDeps: true
   # agentcore 不得导入 domains, server, tui
   agentcore:
     mayDependOn:
