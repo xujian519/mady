@@ -63,6 +63,7 @@ func (a *ChatApp) onAgentStart(e ChatEvent) {
 	a.model.turnStarted = time.Now()
 	// Clear judgment summary so stale data from a previous run doesn't leak.
 	a.model.judgmentSummary = JudgmentSummary{}
+	a.model.toolSeq = 0
 	a.mu.Unlock()
 	a.Busy("thinking...")
 	a.layout.updateJudgmentView()

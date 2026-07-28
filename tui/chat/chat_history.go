@@ -54,6 +54,10 @@ type ChatMessage struct {
 	Duration  time.Duration // optional — displayed after Meta.
 	Collapsed bool          // when true, tool output shows summary; click to expand.
 
+	// Seq is a sequence number for ordered display (e.g. tool call order).
+	// 0 means no number displayed.
+	Seq int
+
 	// DomainMsg 承载结构化专业产出（证据/结论/审批）。
 	// 非空时 renderMessage 路由到对应的卡片组件渲染。
 	DomainMsg *component.DomainMessage
@@ -238,6 +242,8 @@ func NewChatHistory() *ChatHistory {
 		msgCache:          make(map[string]cachedMessage),
 		maxCacheEntries:   200,
 		reasoningRenderer: HiddenReasoningRenderer{},
+		sbEnabled:         true, // 默认启用滚动条，用户可 Alt+B 关闭
+		sbWidth:           1,
 	}
 }
 

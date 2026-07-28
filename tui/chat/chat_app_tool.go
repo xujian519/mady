@@ -25,9 +25,11 @@ func (a *ChatApp) onToolStart(e ChatEvent) {
 		return
 	}
 	a.mu.Lock()
+	a.model.toolSeq++
 	a.model.ActiveTools[tc.ToolCall.ID] = time.Now()
 	a.model.state = Transition(a.model.state, evtToolStart)
 	a.finalizeStreamLocked()
+	toolSeq := a.model.toolSeq
 	a.mu.Unlock()
 	a.layout.updateJudgmentView()
 	a.history.Append(ChatMessage{
@@ -35,6 +37,7 @@ func (a *ChatApp) onToolStart(e ChatEvent) {
 		Role: RoleTool,
 		Meta: tc.ToolCall.Name,
 		Text: theme.CurrentPalette().Dim.Render("..."),
+		Seq:  int(toolSeq),
 	})
 }
 
@@ -59,8 +62,8 @@ func (a *ChatApp) onToolEnd(e ChatEvent) {
 	}
 	if tc.Err != nil {
 		errMsg := tc.Err.Error()
-		if core.VisibleWidth(errMsg) > 180 {
-			errMsg = core.TruncateToWidth(errMsg, 177, "...")
+		if core.VisibleWidth(errMsg) > 400 {
+			errMsg = core.TruncateToWidth(errMsg, 397, "...")
 		}
 		status = theme.CurrentPalette().Error.Render(theme.SymbolCross + " failed: " + errMsg)
 	}

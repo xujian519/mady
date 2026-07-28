@@ -42,11 +42,7 @@ loadWailsRuntime()
  */
 export function listenToWailsEvent(eventName: string, callback: (...args: any[]) => void): () => void {
   if (eventsOn) {
-    eventsOn(eventName, callback)
-    return () => {
-      // Wails 的 EventsOn 返回 unregister 函数
-      // 此处保留接口；实际清除依赖 Wails 的 EventsOff
-    }
+    return eventsOn(eventName, callback)
   }
   return () => {}
 }

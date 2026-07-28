@@ -13,7 +13,7 @@
  *   供 Playwright/Cypress E2E 测试使用。
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { subscribeAguiEvents } from '@/agui-bridge/client'
 import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
@@ -48,7 +48,7 @@ function ThemeEventListener({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  const [ready, setReady] = useState(useChatStore.getState().ready)
+  const ready = useChatStore((s) => s.ready)
 
   // 窗口关闭前保存几何信息
   useEffect(() => {
@@ -63,14 +63,8 @@ function App() {
     // 订阅 AGUI 事件流
     const unsubscribe = subscribeAguiEvents()
 
-    // 监听 store.ready 变化
-    const unsubReady = useChatStore.subscribe((state) => {
-      if (state.ready) setReady(true)
-    })
-
     return () => {
       unsubscribe()
-      unsubReady()
     }
   }, [])
 

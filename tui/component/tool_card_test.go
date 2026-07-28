@@ -58,11 +58,11 @@ func TestToolCardCollapsedSummary(t *testing.T) {
 
 func TestToolCardLongStatusTruncatedInCollapsed(t *testing.T) {
 	theme := testToolCardTheme()
-	long := strings.Repeat("x", 200)
+	long := strings.Repeat("x", 350)
 	lines := RenderToolCard(ToolCardConfig{
 		Name: "t", Status: long, Collapsed: true,
 	}, theme, 400)
-	// Collapsed summary truncates to 117 + "...".
+	// Collapsed summary truncates to 297 + "...".
 	if !strings.Contains(lines[0], "...") {
 		t.Errorf("long status should be truncated with ...: %q", lines[0])
 	}

@@ -637,7 +637,7 @@ func renderTable(rows []string, width int64, t MarkdownTheme) []string {
 					idx = i
 				}
 			}
-			if colW[idx] <= 3 {
+			if colW[idx] <= 5 {
 				break
 			}
 			colW[idx]--
@@ -700,11 +700,23 @@ func defaultMarkdownTheme() MarkdownTheme {
 	p := apitheme.CurrentPalette()
 	sem := p.Semantic
 	mode := p.Mode
-	h := func(s string) string {
+	h1 := func(s string) string {
+		return apitheme.SemStyle(sem.MdHeading, mode).Bold().Underline().Render(s)
+	}
+	h23 := func(s string) string {
 		return apitheme.SemStyle(sem.MdHeading, mode).Bold().Render(s)
 	}
+	h4 := func(s string) string {
+		return apitheme.SemStyle(sem.MdHeading, mode).Render(s)
+	}
+	h5 := func(s string) string {
+		return apitheme.SemStyle(sem.MdHeading, mode).Dim().Render(s)
+	}
+	h6 := func(s string) string {
+		return apitheme.SemStyle(sem.MdHeading, mode).Dim().Render(s)
+	}
 	return MarkdownTheme{
-		HeadingFn:     [6]func(string) string{h, h, h, h, h, h},
+		HeadingFn:     [6]func(string) string{h1, h23, h23, h4, h5, h6},
 		EmphasisFn:    apitheme.NewStyle().Italic().Render,
 		StrongFn:      apitheme.NewStyle().Bold().Render,
 		StrikeFn:      apitheme.NewStyle().Strike().Render,

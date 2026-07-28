@@ -95,8 +95,8 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			if idx := strings.IndexByte(firstLine, '\n'); idx > 0 {
 				firstLine = firstLine[:idx]
 			}
-			if len(firstLine) > 80 {
-				firstLine = firstLine[:77] + "..."
+			if len(firstLine) > 200 {
+				firstLine = firstLine[:197] + "..."
 			}
 			head := theme.ToolBorder.Render("▌") + " " + theme.DimStyle.Render(firstLine)
 			lines := core.WrapAnsi(head, width)
@@ -170,6 +170,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		}
 		return component.RenderToolCard(component.ToolCardConfig{
 			Name:      m.Meta,
+			Seq:       m.Seq,
 			Status:    m.Text,
 			Duration:  m.Duration,
 			Collapsed: m.Collapsed,

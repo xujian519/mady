@@ -161,6 +161,10 @@ type chatModel struct {
 	// populated during agent execution (approval prompts, interrupts) and
 	// cleared on agent start.
 	judgmentSummary JudgmentSummary
+
+	// toolSeq is a per-run counter for tool call sequence numbers.
+	// Reset on agent start, incremented on each tool call.
+	toolSeq int64
 }
 
 type ChatApp struct {

@@ -81,7 +81,10 @@ func (a *App) startup(ctx context.Context) {
 
 	provider, err := agentconfig.BuildProvider()
 	if err != nil {
-		log.Fatalf("[mady-desktop] provider setup failed: %v", err)
+		log.Printf("[mady-desktop] provider setup failed: %v", err)
+		a.emitInitProgress("引擎初始化失败: " + err.Error())
+		runtime.EventsEmit(ctx, "mady:init-error", err.Error())
+		return
 	}
 	model := agentconfig.DefaultModel()
 
@@ -140,11 +143,9 @@ func (a *App) startup(ctx context.Context) {
 	// 所依赖的 sandbox 工具链）。
 	framework.BuildBaseTools(fc)
 
-	// 构造内嵌 server — chat 自此可用。
-	a.server = madyserver.New(fc.BaseConfig)
+	// 保存 fc 引用供后续阶段使用。
 	a.fc = fc
 	log.Printf("[mady-desktop] core ready: madyHome=%s, workspace=%s", fc.MadyHome, fc.WorkspaceDir)
-	a.emitInitProgress("引擎就绪，可以开始对话")
 
 	// == 阶段 2：重型初始化（后台） ==
 	//
@@ -158,14 +159,38 @@ func (a *App) startup(ctx context.Context) {
 // initDeferred 在后台 goroutine 中完成重型初始化，通过 Wails Events
 // 向前端发射进度文案。
 func (a *App) initDeferred(ctx context.Context, fc *framework.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[mady-desktop] PANIC in deferred init: %v", r)
+			// 使用 x/slog 记录结构化日志后，仍确保 init-done 发出以避免前端挂死。
+			a.emitInitProgress("初始化异常: 部分功能不可用")
+			runtime.EventsEmit(ctx, "mady:init-done", map[string]bool{"ready": false})
+		}
+	}()
+
+	// 检查上下文是否已被取消（窗口提前关闭）。
+	select {
+	case <-ctx.Done():
+		log.Printf("[mady-desktop] deferred init canceled: %v", ctx.Err())
+		return
+	default:
+	}
+
 	log.Println("[mady-desktop] startup: phase 2 — deferred init starting")
 
 	a.emitInitProgress("正在加载知识库...")
 	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = framework.LoadWikiStore(fc.MadyHome)
+	if fc.KnowledgeBackend != nil {
+		log.Printf("[mady-desktop] wiki store loaded (backend: %v)", fc.KnowledgeBackend)
+	}
 	fc.WikiRoot = framework.ResolveWikiRoot(fc.MadyHome)
 
 	a.emitInitProgress("正在加载规则引擎...")
-	fc.RuleEngine, _ = rules.LoadEngineFromMadyHome()
+	if engine, err := rules.LoadEngineFromMadyHome(); err != nil {
+		log.Printf("[mady-desktop] rule engine load failed: %v", err)
+	} else {
+		fc.RuleEngine = engine
+	}
 
 	a.emitInitProgress("正在发现技能和 MCP 服务...")
 	framework.DiscoverSkills(fc)
@@ -177,6 +202,8 @@ func (a *App) initDeferred(ctx context.Context, fc *framework.Context) {
 	a.emitInitProgress("正在加载推理引擎...")
 	framework.InitReasoningAndTemplates(fc)
 
+	// 所有延迟初始化完成后创建内嵌 server，确保 Config 包含完整 Extensions/AvailableSkills。
+	a.server = madyserver.New(fc.BaseConfig)
 	log.Println("[mady-desktop] deferred init complete")
 	a.emitInitProgress("就绪")
 	runtime.EventsEmit(ctx, "mady:init-done", map[string]bool{"ready": true})

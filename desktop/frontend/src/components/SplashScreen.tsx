@@ -5,7 +5,7 @@
  * 收到 mady:init-done 后淡出并展示主界面。
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { listenToWailsEvent } from '@/lib/wails'
 import { useChatStore } from '@/stores/chat'
 
@@ -13,10 +13,15 @@ export function SplashScreen() {
   const [visible, setVisible] = useState(true)
   const [progress, setProgress] = useState('正在初始化引擎...')
   const [fadingOut, setFadingOut] = useState(false)
+  const doneRef = useRef(false)
+  const fadingOutRef = useRef(false)
 
   const handleDone = useCallback(() => {
+    if (doneRef.current) return // 去重守卫：即使收到重复事件也仅触发一次
+    doneRef.current = true
     setProgress('就绪')
     setFadingOut(true)
+    fadingOutRef.current = true
     // 淡出动画后隐藏
     setTimeout(() => {
       setVisible(false)
@@ -33,9 +38,10 @@ export function SplashScreen() {
     // 订阅初始化完成
     const unsubDone = listenToWailsEvent('mady:init-done', handleDone)
 
-    // 兜底：5 秒后自动关闭（防止事件丢失导致永远卡在加载界面）
+    // 兜底：15 秒后自动关闭（防止事件丢失导致永远卡在加载界面）
+    // 使用 fadingOutRef 避免 fadingOut 闭包过期
     const timeout = setTimeout(() => {
-      if (!fadingOut) handleDone()
+      if (!fadingOutRef.current) handleDone()
     }, 15000)
 
     return () => {
@@ -43,7 +49,7 @@ export function SplashScreen() {
       unsubDone()
       clearTimeout(timeout)
     }
-  }, [handleDone, fadingOut])
+  }, [handleDone])
 
   // 兜底：如果后端已快速就绪（store.ready 为 true），直接隐藏
   useEffect(() => {

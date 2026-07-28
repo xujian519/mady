@@ -191,9 +191,16 @@ func (h *ChatHistory) Render(width int64) []string {
 	}
 	visible := all[start:end]
 
-	// Add scroll indicator when not auto-following
+	// Add scroll indicator when not auto-following.
+	// Shows position context: visible range and percentage through the content,
+	// so the user knows where they are in the conversation history.
 	if !follow && end < int64(len(all)) {
-		indicator := h.theme.DimStyle.Render(fmt.Sprintf("^ %d more lines — End to follow", int64(len(all))-end))
+		totalLines := int64(len(all))
+		percent := int64(0)
+		if totalLines > 0 {
+			percent = start * 100 / totalLines
+		}
+		indicator := h.theme.DimStyle.Render(fmt.Sprintf("▲ %d/%d (%d%%) — End to follow", start, totalLines, percent))
 		// Drop last visible line to keep within maxRows, prevent pushing
 		// status bar off-screen.
 		if int64(len(visible)) >= maxRows && len(visible) > 0 {
@@ -257,13 +264,12 @@ func (h *ChatHistory) Render(width int64) []string {
 	} else {
 		// Pad every line to full width so the TUI diff engine's \x1b[2K
 		// never leaves a partial column that could bleed into the next line.
-		// Also truncate lines exceeding width to prevent visual overflow into
-		// the editor/input area below the chat history.
+		// Lines exceeding width are NOT truncated — the terminal wraps them
+		// naturally. This ensures long content (code diffs, wide tables,
+		// CJK text) is accessible even when the terminal is narrower than
+		// the content.
 		for i, ln := range visible {
-			vw := core.VisibleWidth(ln)
-			if vw > width {
-				visible[i] = core.TruncateToWidth(ln, width, "…")
-			} else {
+			if core.VisibleWidth(ln) < width {
 				visible[i] = core.PadToWidth(ln, width)
 			}
 		}
@@ -507,17 +513,47 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 }
 
 // renderMessageSeparator 在两条连续消息之间插入视觉分隔符。
-// 返回空行列表（可能含分隔线），调用方直接 append 到输出 buffer。
+// 返回行列表（可能含分隔线），调用方直接 append 到输出 buffer。
+//
+// 视觉层次（从粗到细）：
+//
+//	───（全宽） — User↔Assistant 切换，或 Tool↔Assistant 切换
+//	···（半宽） — Tool↔Tool 连续工具调用
+//	···（1/4宽）— 其他连续同角色消息
 func (h *ChatHistory) renderMessageSeparator(prev, curr ChatMessage, width int64, theme ChatHistoryTheme) []string {
 	switch {
+	// User / Assistant 角色切换：全宽分隔线
 	case (prev.Role == RoleUser && curr.Role == RoleAssistant) ||
 		(prev.Role == RoleAssistant && curr.Role == RoleUser):
 		sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
 		return []string{"", sep, ""}
+
+	// Tool → Assistant（工具执行完毕开始输出）：全宽分隔线
+	case prev.Role == RoleTool && curr.Role == RoleAssistant:
+		sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
+		return []string{"", sep, ""}
+
+	// Tool ↔ Tool 连续工具调用：半宽细分隔线
+	case prev.Role == RoleTool && curr.Role == RoleTool:
+		half := int64(int(width) / 2)
+		if half < 1 {
+			half = 1
+		}
+		sep := theme.DimStyle.Render(strings.Repeat("·", int(half)))
+		return []string{"", sep, ""}
+
+	// Tool → 其他角色：单空行
 	case prev.Role == RoleTool || curr.Role == RoleTool:
-		return nil
+		return []string{""}
+
+	// 其他连续同角色消息：四分之一宽细分隔线
 	default:
-		return []string{"", ""}
+		qtr := int64(int(width) / 4)
+		if qtr < 1 {
+			qtr = 1
+		}
+		sep := theme.DimStyle.Render(strings.Repeat("·", int(qtr)))
+		return []string{"", sep, ""}
 	}
 }
 

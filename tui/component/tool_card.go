@@ -54,6 +54,8 @@ type ToolCardConfig struct {
 	// Collapsed controls whether the body is shown. When true, only a
 	// one-line summary "[+] <name> <status>" is rendered.
 	Collapsed bool
+	// Seq is the tool call sequence number. 0 means no number displayed.
+	Seq int
 }
 
 // RenderToolCard renders cfg to width using theme, returning the lines.
@@ -63,6 +65,10 @@ func RenderToolCard(cfg ToolCardConfig, theme ToolCardTheme, width int64) []stri
 	meta := ""
 	if cfg.Duration > 0 {
 		meta = " " + theme.Dim(fmt.Sprintf("(%s)", cfg.Duration.Round(time.Millisecond)))
+	}
+	seqStr := ""
+	if cfg.Seq > 0 {
+		seqStr = fmt.Sprintf("[%d] ", cfg.Seq)
 	}
 
 	barColor := theme.Border
@@ -75,14 +81,14 @@ func RenderToolCard(cfg ToolCardConfig, theme ToolCardTheme, width int64) []stri
 
 	if cfg.Collapsed {
 		summary := cfg.Status
-		if len(summary) > 120 {
-			summary = summary[:117] + "..."
+		if len(summary) > 300 {
+			summary = summary[:297] + "..."
 		}
 		head := bar + " [+] " + theme.Title(cfg.Name) + " " + theme.Dim(summary)
 		return core.WrapAnsi(head, width)
 	}
 
-	head := bar + " " + theme.Title(cfg.Name) + " " + cfg.Status + meta
+	head := bar + " " + seqStr + theme.Title(cfg.Name) + " " + cfg.Status + meta
 	lines := core.WrapAnsi(head, width)
 
 	if cfg.DiffText != "" {
