@@ -442,7 +442,16 @@ func renderFenceBlock(lang string, codeLines []string, width int64, theme Markdo
 		if cl == "" {
 			continue
 		}
-		out = append(out, core.PadToWidth("  "+cl, width))
+		line := "  " + cl
+		if core.VisibleWidth(line) > width {
+			// 超宽代码行软换行，确保内容完整显示而非被上层视口或
+			// 引擎的 normalizeLine 截断为省略号（丢失代码末尾）。
+			for _, w := range core.WrapAnsi(line, width) {
+				out = append(out, core.PadToWidth(w, width))
+			}
+		} else {
+			out = append(out, core.PadToWidth(line, width))
+		}
 	}
 	return out
 }

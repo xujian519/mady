@@ -82,9 +82,19 @@ func (h *ChatHistory) Render(width int64) []string {
 		width = 1
 	}
 	h.mu.Lock()
+	// 当 scrollbar 启用时，内容渲染宽度预留 sbWidth 列给滚动条。
+	// 否则 Markdown 按 width 换行后的每行都比可用宽度多 1 列，被视口
+	// 判定为超宽并截断为省略号，导致每行末尾丢失字符（长文本尤甚）。
+	renderWidth := width
+	if h.sbEnabled && h.sbWidth > 0 {
+		renderWidth = width - h.sbWidth
+		if renderWidth < 1 {
+			renderWidth = 1
+		}
+	}
 	wasDirty := h.dirty
-	if h.cachedWidth != width {
-		h.cachedWidth = width
+	if h.cachedWidth != renderWidth {
+		h.cachedWidth = renderWidth
 		h.clearMsgCacheLocked()
 		h.firstDirtyIdx = 0
 		h.dirty = true
@@ -112,7 +122,7 @@ func (h *ChatHistory) Render(width int64) []string {
 
 		// Phase 2: expensive rendering without holding h.mu.
 		// AppendDelta can process new deltas concurrently.
-		rendered, ranges := h.renderAllFromSnapshot(snap, width, localCache)
+		rendered, ranges := h.renderAllFromSnapshot(snap, renderWidth, localCache)
 
 		// Phase 3: merge results back under lock.
 		h.mu.Lock()

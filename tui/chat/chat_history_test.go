@@ -59,6 +59,29 @@ func TestChatHistoryViewportClipping(t *testing.T) {
 	}
 }
 
+// TestChatHistoryScrollbarNoEllipsisTruncation 是 scrollbar 宽度错配的回归测试。
+// 修复前：Markdown 按全宽 width 换行，但 scrollbar 占 1 列后视口可用宽度为
+// width-1，导致每行末尾被截断为省略号（长文本尤甚）。
+// 修复后：渲染预留 sbWidth，行宽不再超出可用宽度。
+func TestChatHistoryScrollbarNoEllipsisTruncation(t *testing.T) {
+	h := NewChatHistory() // 默认 sbEnabled=true, sbWidth=1
+
+	// 构造超过 maxRows 的长中文消息，确保触发 scrollbar 截断分支。
+	longText := strings.Repeat("中文测试内容", 20) // 120 个汉字
+	h.Append(ChatMessage{Role: RoleAssistant, Text: longText})
+	h.SetMaxRows(3)
+
+	lines := h.Render(20)
+	if int64(len(lines)) != 3 {
+		t.Fatalf("expected 3 visible rows, got %d", len(lines))
+	}
+	for i, ln := range lines {
+		if strings.Contains(ln, "…") {
+			t.Errorf("line %d truncated with ellipsis (scrollbar width mismatch): %q", i, ln)
+		}
+	}
+}
+
 func TestChatHistoryScroll(t *testing.T) {
 	h := NewChatHistory()
 	for i := 0; i < 30; i++ {

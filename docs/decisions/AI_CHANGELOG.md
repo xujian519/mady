@@ -1,5 +1,37 @@
 # AI 变更记录
 
+## 2026-07-28: TUI 输出截断修复（scrollbar 宽度错配 + 代码块软换行）
+
+### 背景
+实际测试中 TUI 输出存在严重截断问题：长文本每行末尾被截断为省略号，
+关键信息丢失。根因是跨三层的设计冲突：
+1. ChatHistory 视口 scrollbar 占用 1 列，但 Markdown 渲染器仍按终端全宽换行，
+   导致每行比可用宽度多 1 列，被视口截断为 `…`（影响所有内容，不限于代码）
+2. 代码块渲染不软换行（PadToWidth 对超宽行直接返回原样），超宽行被引擎层
+   normalizeLine 截断为 `…`
+3. renderFrame 禁用终端自动换行（DECAWM off）+ normalizeLine 兜底截断，
+   与视口层"让终端自然换行"的假设冲突
+
+### 变更清单
+
+**修复 #1：scrollbar 宽度错配（最高优先级）**:
+- `tui/chat/chat_history_render.go`：`Render` 方法在 scrollbar 启用时
+  将渲染宽度预留 `sbWidth` 列（`renderWidth = width - sbWidth`），
+  使 Markdown 换行宽度与视口可用宽度一致，消除每行末尾省略号截断
+
+**修复 #2：代码块软换行**:
+- `tui/component/markdown.go`：`renderFenceBlock` 对超宽代码行调用
+  `core.WrapAnsi` 软换行，不再依赖上层兜底截断；每行 PadToWidth 补齐
+
+### 验证
+- `go build ./...`（tui 子模块）通过
+- `go test -race ./...`（tui 子模块全量）全绿
+- 新增回归测试：
+  - `TestChatHistoryScrollbarNoEllipsisTruncation`：长中文消息 + scrollbar 不截断
+  - `TestRenderFenceBlockSoftWrap`：超宽代码行软换行、内容完整
+- `TestRenderMarkdownEquivalenceGolden`（等价性金标准）不受影响
+- `go vet ./...` 通过；golangci-lint 无新增问题
+
 ## 2026-07-28: 桌面端缺口修复（cMaps + spec 对齐）
 
 ### 背景
