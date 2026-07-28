@@ -92,6 +92,8 @@ components:
     in: ./pkg/**
   scripts:
     in: ./scripts/**
+  bootstrap:
+    in: ./bootstrap/**
 
 # 依赖规则
 # 未在此列出的组件默认可导入任何项目组件（anyProjectDeps: true）
