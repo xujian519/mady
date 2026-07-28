@@ -1,5 +1,49 @@
 # AI 变更记录
 
+## 2026-07-28: 桌面端 G4 修复 — 设计系统对齐 spec §5（令牌补全 + vibrancy 材质 + 动效/对比无障碍）
+
+### 背景
+桌面端差距分析的缺口 G4：`globals.css` 的设计令牌与 `docs/specs/desktop/02-spec.md`
+§5 存在漂移——缺 grouped 背景、材质、四级文字、品牌深紫、强分割线等 9 项令牌；
+vibrancy 材质（spec §5.3）完全没有实现（标题栏用 ad-hoc 的
+`bg-mady-bg-secondary/50 backdrop-blur-sm` 凑数）；`prefers-reduced-motion` 与
+`prefers-contrast: more` 两个系统无障碍设置无任何响应；侧栏宽度 240px、标题栏
+高度 40px 与 spec 的 260px/38px 不符。
+
+### 变更清单
+- **`desktop/frontend/src/styles/globals.css`**：
+  - 补全 spec §5.2 令牌（light + dark 双套）：`--color-mady-bg-grouped`、
+    `--color-mady-bg-grouped-secondary`、`--color-mady-bg-material`、
+    `--color-mady-text-quaternary`、`--color-mady-accent-tertiary`、
+    `--color-mady-separator-strong`，以及 `accent-secondary` 的深色值 `#FF7A1A`；
+  - 新增阴影令牌 `--shadow-mady-popover` / `--shadow-mady-tooltip`
+    （深色模式透明度减半，遵循 HIG 明度对比原则）；
+  - 新增布局常量 `--mady-sidebar-width: 260px` / `--mady-context-width: 320px` /
+    `--mady-titlebar-height: 38px`（spec §5.2.6）；
+  - 新增 `.mady-material` 材质类（`blur(20px) saturate(180%)`，近似
+    NSVisualEffectView，spec §5.3）；
+  - 新增 `@media (prefers-reduced-motion: reduce)`：材质降级为纯色背景取消
+    blur（spec §5.3 末注），并全局压缩 CSS 过渡/动画时长；
+  - 新增 `@media (prefers-contrast: more)`：边框/分割线加深（spec §5.6 无障碍）。
+- **`desktop/frontend/src/main.tsx`**：引入 `MotionConfig reducedMotion="user"`，
+  framer-motion 动画跟随系统「减弱动态效果」自动降级。
+- **`Sidebar.tsx`**：背景改为 `mady-material`，宽度 `w-60`(240px) 改为
+  `w-[var(--mady-sidebar-width)]`(260px)。
+- **`ChatView.tsx`**：标题栏 ad-hoc 半透明背景替换为 `mady-material`，高度
+  `h-10`(40px) 改为 `h-[var(--mady-titlebar-height)]`(38px)。
+- **`SlashCommandMenu.tsx`**：浮层改为 `mady-material` + `shadow-mady-popover`
+  （spec §5.3 menu 材质区域）。
+
+### 说明
+- spec §5.3 明确选择「CSS backdrop-filter 近似」而非原生 NSVisualEffectView，
+  故 `desktop/main.go` 的 `WindowIsTranslucent: false` 保持不变。
+- 品牌橙色使用场景限制（spec §5.2.3 注）为文案约束，无代码改动。
+
+### 验证
+- `pnpm typecheck` / `pnpm build`：通过。
+- `pnpm test`：86/86 通过（无回归）。
+- `pnpm exec playwright test --project=chromium`：e2e 9/9 通过（无回归）。
+
 ## 2026-07-28: 桌面端 G2 修复 — A2UI 渲染器 Vitest 黄金对照测试（Go↔TS 漂移护栏）
 
 ### 背景
@@ -121,6 +165,62 @@ hit-test 精确定位 → 命中组件收到本地坐标 → 若 MouseConsumed �
 
 ---
 
+## 2026-07-28: 桌面端 AGUI 事件订阅补全（缺口 G3 修复）+ e2e 体系修复
+
+### 背景
+深度核查发现桌面端事件覆盖缺口（G3）：Go 端按 02-spec §1.2 映射表 emit 约 20 类
+`agui:*` 事件，但前端 `agui-bridge/client.ts` 只订阅 9 类，导致进度指示器、
+上下文压缩提示、自动重试提示、ToolCard 参数/结果填充、ContextIndicator 数据源
+全部失效。搭建 e2e 验证链路时又发现整套 Playwright 套件自始无法运行（三个
+叠加的存量 bug，见下）。
+
+### 变更清单
+
+**事件订阅补全（G3 主体）**:
+- `agui-bridge/client.ts`：订阅列表 9 → 17 类，新增 `tool-call-args`、
+  `tool-call-result`、`step-started/finished`、`compaction-start/end`、
+  `auto-retry`、`context-usage`；`text-message-start/end` 与
+  `thinking-start/end` 有意不订阅（累加器模型已覆盖，注释说明）。
+- `agui-bridge/reducer.ts`：新增 8 个 handler（工具参数增量/结果、步骤进度、
+  压缩、重试）；**修复 toolCallName 字段名 bug**——Go 端 `ToolCallStartEvent`
+  的 JSON 键是 `toolCallName`，原代码读 `toolName`/`name`，工具名从未显示。
+- `stores/chat.ts`：新增 `currentStep`/`stepCount`/`compaction`/`retryNotice`
+  状态与对应 actions；`appendToken` 收到正常 token 自动清除重试提示；
+  `sendMessage`/`finishTurn` 正确重置瞬态。
+- `components/ChatView.tsx`：新增 3 类 TranscriptItem（步骤进度指示器、
+  重试提示、压缩提示），含 token 格式化与步骤计数展示。
+
+**A2UI wire 格式漂移修复（意外发现的真实 bug）**:
+- `a2ui-renderer/store.ts`：`_applyDataModel` 原以 `m.valueSet ?? false` 判断
+  value 是否存在，但 Go 端 wire 格式（`a2ui/message.go` MarshalJSON）从不携带
+  `valueSet` 键——**后端下发的所有 updateDataModel 都被当作删除操作**。
+  改为键存在性判断（`hasOwnProperty('value')`），`valueSet` 仅作兼容保留。
+
+**e2e 体系修复（三个叠加的存量 bug）**:
+1. `lib/wails.ts`：`listenToWailsEvent`/`emitWailsEvent` 只判断模块是否加载，
+   未判断 Wails 宿主——wailsjs 已提交在仓库中，纯浏览器下调用真实
+   `EventsOn` 访问 `window.runtime` 崩溃，整个 React 树卸载白屏。
+   新增 `isWailsHost()` 门控（`window.runtime` 存在性）。
+2. `vite.config.ts`：新增 `devCspPlugin`（仅 `apply: 'serve'`）——
+   index.html 的 `script-src 'self'` CSP 会拦截 Vite dev 注入的内联
+   react-refresh preamble，生产 CSP 保持严格不变。
+3. `playwright.config.ts`：webServer 命令补 `env VITE_ENABLE_TEST_API=true`
+   （该变量此前全仓库无任何地方设置，`__mady` 测试接口从未启用）。
+- `app/App.tsx`：`__mady` 测试接口扩展 `agui.dispatch`/`agui.getChatState`。
+- `e2e/a2ui.spec.ts`：修复 `Ready` 文案断言（应用中不存在该文案）、
+  `BASIC_CATALOG` Node↔浏览器上下文跨域引用（改为参数注入）。
+
+**测试**:
+- 新增 `e2e/agui-events.spec.ts`（5 个用例）：tool-call-args/result 填充、
+  步骤进度、压缩提示、auto-retry 自动清除、context-usage。
+- 全套 e2e（a2ui 4 + agui-events 5）**9/9 通过**（chromium），为该套件
+  首次全绿。
+
+### 验证
+- `pnpm exec playwright test --project=chromium`：9/9 通过
+- `pnpm typecheck` + `pnpm build` 通过
+- `go test ./...`（desktop 模块）全绿（本轮无 Go 改动，回归确认）
+
 ## 2026-07-28: TUI 鼠标/键盘输入子系统增强（差距分析方案 1/3/6）
 
 ### 背景
@@ -215,6 +315,47 @@ DEC 1007 在多数终端（Terminal.app / iTerm2 / GNOME Terminal / xterm）
   的终端（kitty 部分配置默认关 1007，行为不变）。
 
 ---
+
+## 2026-07-28: 桌面端 Provider/Model 切换闭环（T3.6 缺口 G1 修复）
+
+### 背景
+桌面端深度核查发现 T3.6 设置面板半完成：`SettingsPanel` 的 Provider/Model
+变更只写 localStorage，无后端 Binding 写入全局配置，切换实际不生效（Toast
+也仅为 console.info 占位），违反 02-spec Q9「全局切换 + 新会话生效」验收标准。
+
+### 变更清单
+- **`server/desktop.go`**：新增 `SwitchModel(provider, model, contextWindow)` 公开
+  方法，通过 `csync.Value.Set` 更新 server 全局配置；仅影响后续新建 agent，
+  已池化会话 agent 保持原有配置（Q9 语义的核心保障）。
+- **`desktop/app.go`**：
+  - 新增 `GetAISettings` / `SetAISettings` Wails Binding；`SetAISettings`
+    持久化到 `~/.mady/desktop-settings.json`（原子写 tmp+rename，0600），
+    运行时同步更新 `framework.Context.BaseConfig` 与 server 全局配置；
+  - Provider 切换依据目标 Provider 的 API Key 重建 Provider 实例，失败时
+    返回错误且不变更任何状态（PROVIDER 环境变量回滚、不持久化）；
+  - `startup` 启动顺序调整：MadyHome 解析前置，加载 desktop-settings.json
+    覆盖环境默认值后再 BuildProvider/DefaultModel，重启后用户选择仍生效。
+- **前端**：
+  - `lib/backend.ts`：新增 `AISettings` 类型与 `getAISettings`/`setAISettings`；
+  - `SettingsPanel.tsx`：AI 服务区改为本地编辑态 + 「保存」按钮，挂载时从
+    `GetAISettings` 同步真相源；新增 framer-motion Toast（成功/失败反馈，
+    3s 自动消失），替换原 console.info 占位；
+  - `stores/settings.ts`：移除 console.info 占位，注释明确 store 降级为
+    UI 缓存（真相源在后端）；
+  - `wails generate module` 重新生成绑定（Wails CLI v2.13.0）。
+- **测试**：
+  - `desktop/app_test.go` 新增 5 个测试：持久化 round-trip（含 tmp 残留检查）、
+    缺失/非法文件容错、空参数拒绝、Model 单改（状态/上下文/持久化三重断言）、
+    Provider 无 Key 失败（状态不变 + 环境变量回滚 + 未持久化）；
+  - `server/server_test.go` 新增 `TestServerSwitchModel`：模型/上下文窗口切换
+    与空参数 no-op。
+
+### 验证
+- `go build ./...` + `go vet ./...`（desktop 模块）通过
+- `go test -race ./...`（desktop）全绿；`go test ./...`（server）全绿
+- `golangci-lint run`：server 0 issues；desktop 仅剩 4 项改动前已存在的
+  gosec（main.go ×3 / CreateFolder 0755），本次零新增
+- 前端 `pnpm typecheck` + `pnpm build` 通过
 
 ## 2026-07-28: 技术债务清理（死代码删除 + framework 测试补全）
 
