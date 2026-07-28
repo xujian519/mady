@@ -2,11 +2,12 @@ package evidence
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"sync"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/xujian519/mady/pkg/util"
 )
 
 type rulesDoc struct {
@@ -32,7 +33,7 @@ func NewRuleIndex() *RuleIndex {
 
 // LoadYAML reads and loads evidence rules from a YAML file at the given path.
 func (idx *RuleIndex) LoadYAML(path string) error {
-	data, err := os.ReadFile(path) //nolint:gosec // path is from caller (usually filepath.Walk over rules dir)
+	data, err := util.ReadFile(path) // path is from caller (usually filepath.Walk over rules dir)
 	if err != nil {
 		return fmt.Errorf("读取证据规则文件失败 %s: %w", path, err)
 	}

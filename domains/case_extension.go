@@ -26,7 +26,7 @@ type FileContentReader interface {
 type defaultFileReader struct{}
 
 func (defaultFileReader) ReadText(path string) string {
-	data, err := os.ReadFile(path) //nolint:gosec // fallback reader for internal case files
+	data, err := util.ReadFile(path) // fallback reader for internal case files
 	if err != nil {
 		return ""
 	}

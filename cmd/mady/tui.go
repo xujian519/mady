@@ -21,6 +21,7 @@ import (
 	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/tui"
 	"github.com/xujian519/mady/tui/chat"
@@ -339,13 +340,13 @@ func redirectStderrToFile(madyHome string) func() {
 	}
 
 	logsDir := filepath.Join(madyHome, "logs")
-	if err := os.MkdirAll(logsDir, 0o750); err != nil {
+	if err := os.MkdirAll(logsDir, util.DefaultDirPerm); err != nil {
 		log.Printf("logs: cannot create %s: %v (stderr not redirected)", logsDir, err)
 		return func() {}
 	}
 
 	logPath := filepath.Join(logsDir, "mady.log")
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) //nolint:gosec // path is filepath.Join(madyHome, "logs", "mady.log")
+	logFile, err := util.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, util.DefaultFilePerm) // path is filepath.Join(madyHome, "logs", "mady.log")
 	if err != nil {
 		log.Printf("logs: cannot open %s: %v (stderr not redirected)", logPath, err)
 		return func() {}
@@ -369,6 +370,8 @@ func redirectStderrToFile(madyHome string) func() {
 		slog.SetDefault(slog.New(slog.NewTextHandler(origStderr, &slog.HandlerOptions{
 			Level: slog.LevelInfo,
 		})))
-		_ = logFile.Close()
+		if err := logFile.Close(); err != nil {
+			log.Printf("close log file: %v", err)
+		}
 	}
 }

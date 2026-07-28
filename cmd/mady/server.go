@@ -35,12 +35,14 @@ func preflightWritableSQLitePath(dbPath string) error {
 	}
 
 	probePath := filepath.Join(dir, fmt.Sprintf(".mady-write-probe-%d.tmp", time.Now().UnixNano()))
-	probeFile, err := os.OpenFile(probePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // path is filepath.Clean'd from dir of dbPath
+	probeFile, err := util.OpenFile(probePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, util.DefaultFilePerm) // path is filepath.Clean'd from dir of dbPath
 	if err != nil {
 		return fmt.Errorf("probe db dir writable: %w", err)
 	}
 	if _, err := probeFile.WriteString("probe"); err != nil {
-		_ = probeFile.Close()
+		if cerr := probeFile.Close(); cerr != nil {
+			log.Printf("close probe file: %v", cerr)
+		}
 		_ = os.Remove(probePath)
 		return fmt.Errorf("probe db dir write: %w", err)
 	}
@@ -53,7 +55,7 @@ func preflightWritableSQLitePath(dbPath string) error {
 	}
 
 	if _, err := os.Stat(dbPath); err == nil {
-		dbFile, openErr := os.OpenFile(dbPath, os.O_RDWR, 0) //nolint:gosec // path is filepath.Clean'd
+		dbFile, openErr := util.OpenFile(dbPath, os.O_RDWR, 0) // path is filepath.Clean'd
 		if openErr != nil {
 			return fmt.Errorf("open existing db read-write: %w", openErr)
 		}

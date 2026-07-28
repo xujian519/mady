@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // WorkflowManifest defines the complete five-step workflow for a case type.
@@ -147,7 +149,7 @@ func (s *WorkflowManifestStore) LoadDir(dir string) error {
 }
 
 func (s *WorkflowManifestStore) loadFile(path string) (*WorkflowManifest, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk over workflow manifests dir
+	data, err := util.ReadFile(path) // path is from filepath.Walk over workflow manifests dir
 	if err != nil {
 		return nil, err
 	}

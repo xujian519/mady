@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // AuditAction describes the type of operation being audited.
@@ -86,7 +88,7 @@ func (l *AuditLogger) rotateIfNeededAt(now time.Time) error {
 		_ = l.file.Close()
 	}
 	path := filepath.Join(l.dir, "audit-"+today+".jsonl")
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) //nolint:gosec // path is filepath.Join(l.dir, "audit-"+today+".jsonl")
+	f, err := util.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) // path is filepath.Join(l.dir, "audit-"+today+".jsonl")
 	if err != nil {
 		return err
 	}

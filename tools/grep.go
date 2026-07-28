@@ -52,7 +52,7 @@ func (c *GrepToolConfig) defaults() {
 		c.Operations = DefaultGrepOperations{}
 	}
 	if c.MaxBytes <= 0 {
-		c.MaxBytes = 50 * 1024
+		c.MaxBytes = DefaultMaxBytes
 	}
 	if c.MaxLineLength <= 0 {
 		c.MaxLineLength = 500

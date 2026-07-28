@@ -45,7 +45,7 @@ func (c *LsToolConfig) defaults() {
 		c.Operations = DefaultLsOperations{}
 	}
 	if c.MaxBytes <= 0 {
-		c.MaxBytes = 50 * 1024
+		c.MaxBytes = DefaultMaxBytes
 	}
 	if c.Limit <= 0 {
 		c.Limit = 500

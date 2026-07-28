@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // DocTemplate is one parsed document template.
@@ -186,7 +188,7 @@ func loadDocFile(path string) (*DocTemplate, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(abs) //nolint:gosec // path is from filepath.Walk over template dir
+	data, err := util.ReadFile(abs) // path is from filepath.Walk over template dir
 	if err != nil {
 		return nil, err
 	}

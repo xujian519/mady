@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // RuleSet is the complete collection of loaded rules, article frameworks,
@@ -112,7 +114,7 @@ func LoadFromDir(dir string) (*RuleSet, error) {
 }
 
 func (rs *RuleSet) loadRuleFile(path string) error {
-	data, err := os.ReadFile(path) //nolint:gosec // from filepath.Walk over rules dir
+	data, err := util.ReadFile(path) // from filepath.Walk over rules dir
 	if err != nil {
 		return err
 	}
@@ -125,7 +127,7 @@ func (rs *RuleSet) loadRuleFile(path string) error {
 }
 
 func (rs *RuleSet) loadArticle(path string) error {
-	data, err := os.ReadFile(path) //nolint:gosec // from filepath.Walk over articles dir
+	data, err := util.ReadFile(path) // from filepath.Walk over articles dir
 	if err != nil {
 		return err
 	}
@@ -138,7 +140,7 @@ func (rs *RuleSet) loadArticle(path string) error {
 }
 
 func (rs *RuleSet) loadOrchestration(path string) error {
-	data, err := os.ReadFile(path) //nolint:gosec // from filepath.Walk over orchestrations dir
+	data, err := util.ReadFile(path) // from filepath.Walk over orchestrations dir
 	if err != nil {
 		return err
 	}
@@ -151,7 +153,7 @@ func (rs *RuleSet) loadOrchestration(path string) error {
 }
 
 func (rs *RuleSet) loadReflection(path string) error {
-	data, err := os.ReadFile(path) //nolint:gosec // from filepath.Walk over reflections dir
+	data, err := util.ReadFile(path) // from filepath.Walk over reflections dir
 	if err != nil {
 		return err
 	}

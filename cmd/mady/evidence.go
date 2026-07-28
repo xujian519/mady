@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +43,9 @@ func runEvidenceCLI(args []string) error {
 
 	exitCode := runEvidenceAction(action, input, os.Stdout, os.Stderr)
 	if openedFile != nil {
-		_ = openedFile.Close()
+		if err := openedFile.Close(); err != nil {
+			log.Printf("close evidence file: %v", err)
+		}
 	}
 	if exitCode != 0 {
 		return fmt.Errorf("evidence: action %s failed", action)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // =============================================================================
@@ -1027,13 +1028,6 @@ func confidenceCalibration() string {
 	}, "\n")
 }
 
-// extractJSON 从文本中提取第一个 JSON 对象字符串。
 func extractJSON(text string) string {
-	text = strings.TrimSpace(text)
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start >= 0 && end > start {
-		return text[start : end+1]
-	}
-	return ""
+	return util.ExtractJSONSimple(text)
 }

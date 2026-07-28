@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/domains/reasoning"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // ConfirmedRuleWriter persists human-confirmed rule sets to disk so that
@@ -105,7 +106,7 @@ func (w *ConfirmedRuleWriter) List() ([]string, error) {
 //
 //nolint:revive // unexported-return: confirmedRuleRecord is internal
 func (w *ConfirmedRuleWriter) Load(path string) (confirmedRuleRecord, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path is from caller, typically filepath.Join(w.dir, ...)
+	data, err := util.ReadFile(path) // path is from caller, typically filepath.Join(w.dir, ...)
 	if err != nil {
 		return confirmedRuleRecord{}, fmt.Errorf("confirmed rule writer: load: %w", err)
 	}

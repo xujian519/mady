@@ -17,6 +17,7 @@ import (
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/framework"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // frameworkContext 是 framework.Context 的类型别名，保持向后兼容。
@@ -50,7 +51,7 @@ func (caseFileReader) ReadText(path string) string {
 	if result, err := reader.ReadProjectFile(context.Background(), filepath.Base(path)); err == nil {
 		return result.Content
 	}
-	data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk or filepath.Join of CWD
+	data, err := util.ReadFile(path) // path is from filepath.Walk or filepath.Join of CWD
 	if err != nil {
 		return ""
 	}

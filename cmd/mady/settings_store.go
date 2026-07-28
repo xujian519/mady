@@ -16,6 +16,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // SettingsScope indicates whether a setting applies globally or per-session.
@@ -178,7 +180,7 @@ func (s *SettingsStore) saveLocked() error {
 		return nil
 	}
 	dir := filepath.Dir(s.filePath)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, util.DefaultDirPerm); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(s.global, "", "  ")
@@ -186,7 +188,7 @@ func (s *SettingsStore) saveLocked() error {
 		return err
 	}
 	tmp := s.filePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	if err := os.WriteFile(tmp, data, util.DefaultFilePerm); err != nil {
 		return err
 	}
 	return os.Rename(tmp, s.filePath)

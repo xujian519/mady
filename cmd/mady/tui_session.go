@@ -19,6 +19,7 @@ import (
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	"github.com/xujian519/mady/memory"
+	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/tui/chat"
 	"github.com/xujian519/mady/tui/core"
@@ -379,7 +380,9 @@ func (s *tuiSession) closeFileResources() {
 		s.currentFileWatcher = nil
 	}
 	if s.currentFileIndex != nil {
-		_ = s.currentFileIndex.Close()
+		if err := s.currentFileIndex.Close(); err != nil {
+			log.Printf("close FileIndex: %v", err)
+		}
 		s.currentFileIndex = nil
 		s.fileIndexExt.SetFileIndex(nil)
 	}
@@ -564,11 +567,11 @@ func (s *tuiSession) handleExportCommand(trimmed string) {
 		if s.fc.MadyHome != "" {
 			exportDir = filepath.Join(s.fc.MadyHome, "exports")
 		}
-		_ = os.MkdirAll(exportDir, 0o750)
+		_ = os.MkdirAll(exportDir, util.DefaultDirPerm)
 		exportPath = filepath.Join(exportDir, fmt.Sprintf("export-%s.md", time.Now().Format("20060102-150405")))
 	}
 	exportContent := formatExportMarkdown(msgs, s.currentThreadID, s.currentProject)
-	if err := os.WriteFile(exportPath, []byte(exportContent), 0o600); err != nil {
+	if err := os.WriteFile(exportPath, []byte(exportContent), util.DefaultFilePerm); err != nil {
 		s.app.PrintError(fmt.Errorf("导出失败: %w", err))
 		return
 	}
@@ -693,7 +696,7 @@ func (s *tuiSession) dbPath(name string) (string, error) {
 	if base == "" {
 		base = filepath.Join(os.TempDir(), "mady")
 	}
-	if err := os.MkdirAll(base, 0o750); err != nil {
+	if err := os.MkdirAll(base, util.DefaultDirPerm); err != nil {
 		return "", fmt.Errorf("db path: mkdir %s: %w", base, err)
 	}
 	return filepath.Join(base, name), nil
@@ -815,7 +818,7 @@ func (s *tuiSession) openWorkflowCheckpointStore() (reasoning.CheckpointStore, e
 	if base == "" {
 		base = filepath.Join(os.TempDir(), "mady")
 	}
-	if err := os.MkdirAll(base, 0o750); err != nil {
+	if err := os.MkdirAll(base, util.DefaultDirPerm); err != nil {
 		return nil, fmt.Errorf("workflow checkpoint: mkdir %s: %w", base, err)
 	}
 	dbPath := filepath.Join(base, "workflow_checkpoints.db")

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -299,7 +300,9 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 						for _, c := range chunks {
 							if _, werr := tempFile.Write(c); werr != nil {
 								_ = os.Remove(tempFile.Name())
-								_ = tempFile.Close()
+								if cerr := tempFile.Close(); cerr != nil {
+									log.Printf("close temp log file: %v", cerr)
+								}
 								tempFile = nil
 								tempFilePath = ""
 								break
@@ -310,7 +313,9 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 				if tempFile != nil {
 					if _, werr := tempFile.Write(data); werr != nil {
 						_ = os.Remove(tempFile.Name())
-						_ = tempFile.Close()
+						if cerr := tempFile.Close(); cerr != nil {
+							log.Printf("close temp log file: %v", cerr)
+						}
 						tempFile = nil
 					}
 				}

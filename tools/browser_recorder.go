@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -126,7 +127,9 @@ func (r *CDPRecorder) StopRecording() (string, error) {
 	r.isRecording = false
 
 	if r.webmFile != nil {
-		r.webmFile.Close()
+		if err := r.webmFile.Close(); err != nil {
+			log.Printf("close webm file: %v", err)
+		}
 	}
 
 	outputPath := r.webmFile.Name()

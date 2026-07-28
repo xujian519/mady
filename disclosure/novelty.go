@@ -12,6 +12,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/prompt"
 )
 
@@ -717,28 +718,5 @@ func parseNoveltyOutput(output string, state graph.PregelState) *NoveltyResult {
 // 优先尝试从 markdown 代码块 ```json ... ``` 内提取，失败后再回退到
 // 首 { 到末 } 的简单匹配（避免 LLM 输出中的花括号导致捕获非 JSON 内容）。
 func extractJSON(text string) string {
-	text = strings.TrimSpace(text)
-
-	// 优先从 ```json ... ``` 代码块提取
-	const jsonFence = "```json"
-	const fenceEnd = "```"
-	if idx := strings.Index(text, jsonFence); idx >= 0 {
-		rest := text[idx+len(jsonFence):]
-		if end := strings.Index(rest, fenceEnd); end >= 0 {
-			block := strings.TrimSpace(rest[:end])
-			start := strings.Index(block, "{")
-			end := strings.LastIndex(block, "}")
-			if start >= 0 && end > start {
-				return block[start : end+1]
-			}
-		}
-	}
-
-	// 回退：首 { 到末 }
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start >= 0 && end > start {
-		return text[start : end+1]
-	}
-	return ""
+	return util.ExtractJSON(text)
 }

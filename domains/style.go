@@ -2,12 +2,12 @@ package domains
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/xujian519/mady/domains/doctmpl"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // DocumentStyle is a machine-readable writing style guide for Mady agents.
@@ -70,7 +70,7 @@ type OutputConventionsSection struct {
 
 // LoadStyle reads a DocumentStyle from a YAML file.
 func LoadStyle(path string) (*DocumentStyle, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path is from caller (usually filepath.Join to styles dir)
+	data, err := util.ReadFile(path) // path is from caller (usually filepath.Join to styles dir)
 	if err != nil {
 		return nil, fmt.Errorf("style: read %s: %w", path, err)
 	}

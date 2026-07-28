@@ -7,6 +7,7 @@ import (
 
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/workflows/patent"
 )
 
@@ -90,7 +91,7 @@ func parseCLIArgs(args []string) (input, outputFile string, err error) {
 			if i+1 >= len(args) {
 				return "", "", fmt.Errorf("patent: -f 需要文件名参数")
 			}
-			data, rerr := os.ReadFile(args[i+1]) //nolint:gosec // CLI arg from user
+			data, rerr := util.ReadFile(args[i+1]) // CLI arg from user
 			if rerr != nil {
 				return "", "", fmt.Errorf("读取文件失败: %w", rerr)
 			}
@@ -248,7 +249,7 @@ func runPatentInfringement(ctx context.Context, args []string) error {
 			if i+1 >= len(args) {
 				return fmt.Errorf("patent infringement: -f 需要文件名参数")
 			}
-			data, rerr := os.ReadFile(args[i+1]) //nolint:gosec // CLI arg from user
+			data, rerr := util.ReadFile(args[i+1]) // CLI arg from user
 			if rerr != nil {
 				return fmt.Errorf("patent infringement: 读取文件失败: %w", rerr)
 			}

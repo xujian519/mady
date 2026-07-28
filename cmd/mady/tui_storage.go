@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,10 +51,10 @@ func resolveBaseSessionDir(envDir, madyHome string) (string, bool, error) {
 // writeCWDMapping records the original working directory inside the partition
 // so users can identify which directory belongs to which project.
 func writeCWDMapping(sessionDir, cwd string) error {
-	if err := os.MkdirAll(sessionDir, 0o750); err != nil { //nolint:gosec // path from filepath.Join over resolved dir
+	if err := os.MkdirAll(sessionDir, util.DefaultDirPerm); err != nil { //nolint:gosec // path from filepath.Join over resolved dir
 		return err
 	}
-	return os.WriteFile(filepath.Join(sessionDir, ".cwd"), []byte(cwd+"\n"), 0o600) //nolint:gosec // path from filepath.Join over resolved dir
+	return util.WriteFile(filepath.Join(sessionDir, ".cwd"), []byte(cwd+"\n"), util.DefaultFilePerm) // path from filepath.Join over resolved dir
 }
 
 // probeSessionDir 检测 session 持久化目录的可写性。
@@ -83,7 +84,7 @@ func probeSessionDir(envDir, madyHome, workspaceDir, cwd string) StorageProbeRes
 	r.Path = sessionDir
 
 	// 尝试创建目录（不存在时创建）并写入测试文件。
-	if err := os.MkdirAll(sessionDir, 0o750); err != nil { //nolint:gosec // path from filepath.Join over resolved dir
+	if err := os.MkdirAll(sessionDir, util.DefaultDirPerm); err != nil { //nolint:gosec // path from filepath.Join over resolved dir
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("mkdir %s: %v", sessionDir, err)
 		r.UserMessage = "会话持久化未启用，当前为仅内存模式（无法创建会话目录）"
@@ -97,7 +98,7 @@ func probeSessionDir(envDir, madyHome, workspaceDir, cwd string) StorageProbeRes
 
 	// 写探针：尝试创建临时文件。
 	testFile := filepath.Join(sessionDir, ".mady-write-test")
-	if err := os.WriteFile(testFile, []byte{}, 0o600); err != nil { //nolint:gosec // path via filepath.Join over resolved dir
+	if err := util.WriteFile(testFile, []byte{}, util.DefaultFilePerm); err != nil { // path via filepath.Join over resolved dir
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("write test to %s: %v", sessionDir, err)
 		r.UserMessage = "会话持久化未启用，当前为仅内存模式（会话目录不可写）"
@@ -120,7 +121,7 @@ func probeSettingsStore(homeDir string) StorageProbeResult {
 	r.Path = settingsPath
 
 	// 目录不一定存在，先尝试创建。
-	if err := os.MkdirAll(settingsDir, 0o750); err != nil {
+	if err := os.MkdirAll(settingsDir, util.DefaultDirPerm); err != nil {
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("mkdir settings dir: %v", err)
 		r.UserMessage = "设置持久化未启用，部分设置将在重启后丢失"
@@ -130,14 +131,16 @@ func probeSettingsStore(homeDir string) StorageProbeResult {
 	// 如果文件已存在，检查可读写性。
 	if _, err := os.Stat(settingsPath); err == nil {
 		// 尝试打开以确认权限。
-		f, err := os.OpenFile(settingsPath, os.O_RDWR, 0o600) //nolint:gosec // settingsPath is filepath.Join(settingsDir, "settings.json")
+		f, err := util.OpenFile(settingsPath, os.O_RDWR, util.DefaultFilePerm) // settingsPath is filepath.Join(settingsDir, "settings.json")
 		if err != nil {
 			r.Unavailable = true
 			r.Message = fmt.Sprintf("open settings: %v", err)
 			r.UserMessage = "设置文件不可写，部分设置将在重启后丢失"
 			return r
 		}
-		_ = f.Close()
+		if err := f.Close(); err != nil {
+			log.Printf("close settings file: %v", err)
+		}
 	} else if !os.IsNotExist(err) {
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("stat settings: %v", err)
@@ -166,7 +169,7 @@ func probeApprovalStore(workspaceDir, madyHome string) StorageProbeResult {
 	r.Path = dbPath
 
 	// 确保父目录存在。
-	if err := os.MkdirAll(baseDir, 0o750); err != nil {
+	if err := os.MkdirAll(baseDir, util.DefaultDirPerm); err != nil {
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("mkdir approval dir: %v", err)
 		r.UserMessage = "审批留痕未落盘（无法创建审批数据库目录）"
@@ -177,7 +180,7 @@ func probeApprovalStore(workspaceDir, madyHome string) StorageProbeResult {
 	// 这里只做目录级别的写检测，真正的 SQLite open 在 runTui 的
 	// openApprovalStore() 中进行。
 	testFile := filepath.Join(baseDir, ".mady-approval-test")
-	if err := os.WriteFile(testFile, []byte{}, 0o600); err != nil {
+	if err := os.WriteFile(testFile, []byte{}, util.DefaultFilePerm); err != nil {
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("write test to %s: %v", baseDir, err)
 		r.UserMessage = "审批留痕未落盘（审批数据目录不可写）"

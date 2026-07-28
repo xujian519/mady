@@ -8,6 +8,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/graph"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // =============================================================================
@@ -765,13 +766,7 @@ func parseConclusion(output string) parsedConclusion {
 
 // extractJSON 从文本中提取第一个 JSON 对象。
 func extractJSON(text string) string {
-	text = strings.TrimSpace(text)
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start >= 0 && end > start {
-		return text[start : end+1]
-	}
-	return ""
+	return util.ExtractJSONSimple(text)
 }
 
 // truncateText 截断文本到指定长度（rune 安全）。

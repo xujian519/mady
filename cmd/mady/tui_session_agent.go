@@ -139,6 +139,28 @@ func (s *tuiSession) agentUnavailableMessage() string {
 	return "Agent 尚未就绪，请稍候…"
 }
 
+// activateAgent registers tools, atomic-swaps the agent into the session,
+// binds to the TUI, and emits extension snapshots. It is the shared teardown
+// and activation sequence used by initializeAgentAsync and rebuildAgent.
+// Returns false when the session is shutting down (caller should close agent).
+//
+// Callers must hold s.runMu (write lock) and have already called
+// agentcore.New + startEventLogger on the agent before calling this.
+func (s *tuiSession) activateAgent(newAgent *agentcore.Agent) bool {
+	newAgent.RegisterTools(domains.NewOrchestrationTool(newAgent))
+	prev, ok := s.swapCurrentAgent(newAgent)
+	if !ok {
+		newAgent.Close()
+		return false
+	}
+	if prev != nil {
+		prev.Close()
+	}
+	agentadapter.BindAgent(s.app, newAgent)
+	newAgent.EmitExtensionSnapshots()
+	return true
+}
+
 // initializeAgentAsync 在后台 goroutine 中初始化 Agent，不阻塞 TUI 启动。
 // 初始化完成后通过 MarkAgentReady 通知 FSM 从 StateInitializing 切换到 StateIdle。
 func (s *tuiSession) initializeAgentAsync() {
@@ -157,14 +179,12 @@ func (s *tuiSession) initializeAgentAsync() {
 				log.Printf("[mady] %v", err)
 				if s.setAgentInitError(err) {
 					s.app.PrintSystem("Agent 初始化失败，请查看日志后重试当前操作。")
-					// 通知 FSM 切换到失败状态，使 JudgmentView 反映终止态。
 					s.app.MarkAgentFailed()
 				}
 			}
 		}()
 
 		newAgent = agentcore.New(s.buildAgentConfig())
-		s.startEventLogger(newAgent)
 
 		// Load previous session state if available (cross-session persistence).
 		// 首次启动时 session 文件不存在是正常情况，静默跳过。
@@ -194,17 +214,11 @@ func (s *tuiSession) initializeAgentAsync() {
 			cancel()
 		}
 
-		newAgent.RegisterTools(domains.NewOrchestrationTool(newAgent))
-		prev, ok := s.swapCurrentAgent(newAgent)
-		if !ok {
-			newAgent.Close()
+		s.startEventLogger(newAgent)
+		if !s.activateAgent(newAgent) {
 			return
 		}
-		if prev != nil {
-			prev.Close()
-		}
-		agentadapter.BindAgent(s.app, newAgent)
-		newAgent.EmitExtensionSnapshots()
+
 		// 通知 FSM: 初始化完成，StateInitializing → StateIdle。
 		s.app.MarkAgentReady()
 	}()
@@ -231,17 +245,7 @@ func (s *tuiSession) rebuildAgent() {
 
 	newAgent = agentcore.New(s.buildAgentConfig())
 	s.startEventLogger(newAgent)
-	newAgent.RegisterTools(domains.NewOrchestrationTool(newAgent))
-	prev, ok := s.swapCurrentAgent(newAgent)
-	if !ok {
-		newAgent.Close()
-		return
-	}
-	if prev != nil {
-		prev.Close()
-	}
-	agentadapter.BindAgent(s.app, newAgent)
-	newAgent.EmitExtensionSnapshots()
+	s.activateAgent(newAgent)
 }
 
 // submitInput sends user input to the current agent asynchronously.
