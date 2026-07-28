@@ -261,6 +261,30 @@ export namespace agentcore {
 
 export namespace main {
 
+	export class FileContent {
+	    name: string;
+	    path: string;
+	    kind: string;
+	    text?: string;
+	    data?: string;
+	    mime?: string;
+	    size: number;
+
+	    static createFrom(source: any = {}) {
+	        return new FileContent(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.path = source["path"];
+	        this.kind = source["kind"];
+	        this.text = source["text"];
+	        this.data = source["data"];
+	        this.mime = source["mime"];
+	        this.size = source["size"];
+	    }
+	}
 	export class FileEntry {
 	    name: string;
 	    isDir: boolean;
@@ -277,6 +301,46 @@ export namespace main {
 	        this.isDir = source["isDir"];
 	        this.size = source["size"];
 	        this.modTime = source["modTime"];
+	    }
+	}
+	export class McpServerEntry {
+	    name: string;
+	    type: string;
+	    command?: string;
+	    args?: string[];
+	    url?: string;
+	    envKeys?: string[];
+	    source: string;
+
+	    static createFrom(source: any = {}) {
+	        return new McpServerEntry(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.command = source["command"];
+	        this.args = source["args"];
+	        this.url = source["url"];
+	        this.envKeys = source["envKeys"];
+	        this.source = source["source"];
+	    }
+	}
+	export class SkillEntry {
+	    name: string;
+	    description: string;
+	    path: string;
+
+	    static createFrom(source: any = {}) {
+	        return new SkillEntry(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.path = source["path"];
 	    }
 	}
 	export class ThreadSummary {

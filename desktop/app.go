@@ -23,11 +23,14 @@ import (
 	"github.com/xujian519/mady/a2ui"
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agui"
+	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/mcp"
 	madyserver "github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/skill"
 
+	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/framework"
 	"github.com/xujian519/mady/pkg/util"
 )
@@ -54,27 +57,129 @@ func NewApp() *App {
 	return &App{}
 }
 
-// startup 在 Wails 窗口就绪后调用。在此完成所有重型初始化：
-// 1. 运行 framework.Setup（Provider / 知识库 / 扩展等）
-// 2. 构造 server.Server 实例
-// 3. 注入必要的扩展（approval store 等）
+// emitInitProgress 通过 Wails Events 向前端发射初始化进度消息。
+func (a *App) emitInitProgress(msg string) {
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "mady:init-progress", msg)
+	}
+}
+
+// startup 在 Wails 窗口就绪后调用。
+//
+// 启动分两阶段：
+//
+//	阶段 1（同步）— 仅初始化 chat 和文件操作必需的核心部件，完成后 chat 即可用。
+//	阶段 2（后台）— 知识库、规则引擎、记忆系统、推理引擎等重型初始化在后台完成。
+//
+// 前端通过 mady:init-progress 事件接收进度文案，通过 mady:init-done 得知就绪。
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	log.Println("[mady-desktop] startup: framework initializing")
+	log.Println("[mady-desktop] startup: framework initializing (phase 1 — core)")
+	a.emitInitProgress("正在初始化引擎...")
 
-	fc, err := framework.Setup(ctx, framework.Options{
-		Mode:    framework.ModeSync,
-		CmdName: "desktop",
-	})
+	// == 阶段 1：核心初始化（同步） ==
+
+	provider, err := agentconfig.BuildProvider()
 	if err != nil {
-		log.Fatalf("[mady-desktop] framework setup failed: %v", err)
+		log.Fatalf("[mady-desktop] provider setup failed: %v", err)
 	}
-	a.fc = fc
-	log.Printf("[mady-desktop] framework ready: madyHome=%s", fc.MadyHome)
+	model := agentconfig.DefaultModel()
 
-	// 构造内嵌 server
+	madyHome, err := util.MadyHome()
+	if err != nil {
+		log.Printf("[mady-desktop] MadyHome unavailable: %v", err)
+		madyHome = ""
+	}
+
+	fc := &framework.Context{
+		Provider: provider,
+		MadyHome: madyHome,
+	}
+	fc.BaseConfig = agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:      "mady-router",
+			Model:     model,
+			Provider:  provider,
+			Streaming: true,
+		},
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns:          25,
+			ExecutionMode:     agentcore.ModeSerial,
+			ValidateArguments: true,
+		},
+		CompactionConfig: agentcore.CompactionConfig{
+			ContextWindow:    agentconfig.ResolveContextWindow(model),
+			ReserveTokens:    32000,
+			KeepRecentTokens: 4000,
+		},
+		RetryConfig: &agentcore.RetryConfig{
+			MaxRetries:  3,
+			BaseDelayMs: 1000,
+			MaxDelayMs:  15000,
+		},
+	}
+
+	// 模型级联回退候选链。
+	if fbCfg := framework.LoadFallbackConfig(); fbCfg != nil {
+		fc.BaseConfig.FallbackConfig = fbCfg
+	}
+
+	// 用户自定义风格目录。
+	if fc.MadyHome != "" {
+		domains.AddStylePath(filepath.Join(fc.MadyHome, "styles"))
+	}
+
+	// Manifest 加载。
+	framework.LoadManifests(fc)
+
+	// 工作区初始化（文件操作的前提）。
+	a.emitInitProgress("正在初始化工作区...")
+	framework.InitWorkspace(fc)
+
+	// 基础工具扩展（文件读写/删除/项目树等桌面端 Wails Binding
+	// 所依赖的 sandbox 工具链）。
+	framework.BuildBaseTools(fc)
+
+	// 构造内嵌 server — chat 自此可用。
 	a.server = madyserver.New(fc.BaseConfig)
-	log.Println("[mady-desktop] server initialized")
+	a.fc = fc
+	log.Printf("[mady-desktop] core ready: madyHome=%s, workspace=%s", fc.MadyHome, fc.WorkspaceDir)
+	a.emitInitProgress("引擎就绪，可以开始对话")
+
+	// == 阶段 2：重型初始化（后台） ==
+	//
+	// 知识库（SQLite + 向量）、规则引擎（YAML）、记忆系统（SQLite + BM25）、
+	// 推理引擎等工作区级初始化在后台完成后，完整功能才可用。
+	// 不阻塞窗口交互。
+
+	go a.initDeferred(ctx, fc)
+}
+
+// initDeferred 在后台 goroutine 中完成重型初始化，通过 Wails Events
+// 向前端发射进度文案。
+func (a *App) initDeferred(ctx context.Context, fc *framework.Context) {
+	log.Println("[mady-desktop] startup: phase 2 — deferred init starting")
+
+	a.emitInitProgress("正在加载知识库...")
+	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = framework.LoadWikiStore(fc.MadyHome)
+	fc.WikiRoot = framework.ResolveWikiRoot(fc.MadyHome)
+
+	a.emitInitProgress("正在加载规则引擎...")
+	fc.RuleEngine, _ = rules.LoadEngineFromMadyHome()
+
+	a.emitInitProgress("正在发现技能和 MCP 服务...")
+	framework.DiscoverSkills(fc)
+	framework.DiscoverMCP(ctx, fc)
+
+	a.emitInitProgress("正在初始化记忆系统...")
+	framework.InitMemorySystem(fc)
+
+	a.emitInitProgress("正在加载推理引擎...")
+	framework.InitReasoningAndTemplates(fc)
+
+	log.Println("[mady-desktop] deferred init complete")
+	a.emitInitProgress("就绪")
+	runtime.EventsEmit(ctx, "mady:init-done", map[string]bool{"ready": true})
 }
 
 // shutdown 在 Wails 窗口关闭前调用。优雅关闭 server，取消所有运行中的 chat。

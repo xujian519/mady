@@ -11,6 +11,8 @@ export function Chat(arg1:server.ChatRequest):Promise<string>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<string>;
 
+export function DeleteEntry(arg1:string):Promise<void>;
+
 export function DeleteThread(arg1:string):Promise<void>;
 
 export function GetThread(arg1:string):Promise<session.ThreadSnapshot>;
@@ -19,10 +21,18 @@ export function Health():Promise<server.HealthInfo>;
 
 export function ListDirectory(arg1:string):Promise<Array<main.FileEntry>>;
 
+export function ListMcpServers():Promise<Array<main.McpServerEntry>>;
+
+export function ListSkills():Promise<Array<main.SkillEntry>>;
+
 export function ListThreads():Promise<Array<main.ThreadSummary>>;
+
+export function ReadFile(arg1:string):Promise<main.FileContent>;
 
 export function RenameFolder(arg1:string,arg2:string):Promise<void>;
 
 export function SaveWindowState(arg1:number,arg2:number):Promise<void>;
 
 export function SendAction(arg1:string,arg2:a2ui.ClientAction):Promise<void>;
+
+export function WriteFile(arg1:string,arg2:string):Promise<void>;

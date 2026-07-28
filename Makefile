@@ -104,6 +104,11 @@ desktop-test-race:
 desktop-dmg:
 	cd desktop && wails build -platform darwin/universal -o Mady.app
 
+# 快速单架构构建（arm64），比 universal 快约 2 倍，文件小 50%。
+# 开发迭代时使用，发版仍用 desktop-dmg（universal）。
+desktop-build-quick:
+	cd desktop && wails build -platform darwin/arm64
+
 # disclosure smoke 验证最小 happy path：analyze -> awaiting_review -> review -> export
 test-disclosure-smoke:
 	$(GO) test $(GOFLAGS) -count=1 -run TestDisclosureHappyPathSmoke ./server

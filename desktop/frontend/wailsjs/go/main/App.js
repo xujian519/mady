@@ -14,6 +14,10 @@ export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
 
+export function DeleteEntry(arg1) {
+  return window['go']['main']['App']['DeleteEntry'](arg1);
+}
+
 export function DeleteThread(arg1) {
   return window['go']['main']['App']['DeleteThread'](arg1);
 }
@@ -30,8 +34,20 @@ export function ListDirectory(arg1) {
   return window['go']['main']['App']['ListDirectory'](arg1);
 }
 
+export function ListMcpServers() {
+  return window['go']['main']['App']['ListMcpServers']();
+}
+
+export function ListSkills() {
+  return window['go']['main']['App']['ListSkills']();
+}
+
 export function ListThreads() {
   return window['go']['main']['App']['ListThreads']();
+}
+
+export function ReadFile(arg1) {
+  return window['go']['main']['App']['ReadFile'](arg1);
 }
 
 export function RenameFolder(arg1, arg2) {
@@ -44,4 +60,8 @@ export function SaveWindowState(arg1, arg2) {
 
 export function SendAction(arg1, arg2) {
   return window['go']['main']['App']['SendAction'](arg1, arg2);
+}
+
+export function WriteFile(arg1, arg2) {
+  return window['go']['main']['App']['WriteFile'](arg1, arg2);
 }

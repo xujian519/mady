@@ -2,18 +2,18 @@
  * App — Mady 桌面端根组件。
  *
  * 架构：
+ *   SplashScreen（加载层，启动时显示）
  *   ThemeProvider
- *     └── ChatView（三栏布局）
- *     └── StatusBar（由 ChatView 内部渲染）
+ *     └── ChatView（主界面，初始化完成后显示）
  *
- * 启动时自动订阅 AGUI 事件流。
+ * 启动时自动订阅 AGUI 事件流和 mady:init-* 初始化事件。
  *
  * 测试接口门控：
  *   生产构建中可通过 VITE_ENABLE_TEST_API=true 环境变量启用，
  *   供 Playwright/Cypress E2E 测试使用。
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { subscribeAguiEvents } from '@/agui-bridge/client'
 import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
@@ -21,6 +21,7 @@ import { ThemeProvider } from '@/theme/provider'
 import { useTheme } from '@/theme/tokens'
 import type { ThemePackId } from '@/theme/tokens'
 import { ChatView } from '@/components/ChatView'
+import { SplashScreen } from '@/components/SplashScreen'
 import { saveWindowState } from '@/lib/backend'
 
 /** 是否启用测试 API（__mady 全局接口）。生产构建默认为 false。 */
@@ -47,6 +48,8 @@ function ThemeEventListener({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const [ready, setReady] = useState(useChatStore.getState().ready)
+
   // 窗口关闭前保存几何信息
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -60,11 +63,14 @@ function App() {
     // 订阅 AGUI 事件流
     const unsubscribe = subscribeAguiEvents()
 
-    // 标记就绪
-    useChatStore.setState({ ready: true })
+    // 监听 store.ready 变化
+    const unsubReady = useChatStore.subscribe((state) => {
+      if (state.ready) setReady(true)
+    })
 
     return () => {
       unsubscribe()
+      unsubReady()
     }
   }, [])
 
@@ -87,11 +93,14 @@ function App() {
   }, [])
 
   return (
-    <ThemeProvider>
-      <ThemeEventListener>
-        <ChatView />
-      </ThemeEventListener>
-    </ThemeProvider>
+    <>
+      {!ready && <SplashScreen />}
+      <ThemeProvider>
+        <ThemeEventListener>
+          <ChatView />
+        </ThemeEventListener>
+      </ThemeProvider>
+    </>
   )
 }
 
