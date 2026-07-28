@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"os/exec"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/xujian519/mady/tui/core"
 )
+
+var clipboardCtx = context.Background()
 
 // CopyToClipboard writes text to the system clipboard.
 // It tries native tools first (pbcopy/xclip/clip), then falls back to OSC 52
@@ -28,17 +31,17 @@ func copyNative(text string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("pbcopy")
+		cmd = exec.CommandContext(clipboardCtx, "pbcopy")
 	case "linux":
 		if p, _ := exec.LookPath("xclip"); p != "" {
-			cmd = exec.Command("xclip", "-selection", "clipboard")
+			cmd = exec.CommandContext(clipboardCtx, "xclip", "-selection", "clipboard")
 		} else if p, _ := exec.LookPath("xsel"); p != "" {
-			cmd = exec.Command("xsel", "--clipboard", "--input")
+			cmd = exec.CommandContext(clipboardCtx, "xsel", "--clipboard", "--input")
 		} else {
 			return &core.ClipboardError{Op: "copy", Err: fmt.Errorf("no clipboard command found")}
 		}
 	case "windows":
-		cmd = exec.Command("clip.exe")
+		cmd = exec.CommandContext(clipboardCtx, "clip.exe")
 	default:
 		return &core.ClipboardError{Op: "copy", Err: fmt.Errorf("unsupported platform: %s", runtime.GOOS)}
 	}
@@ -82,17 +85,17 @@ func readNative() (string, error) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("pbpaste")
+		cmd = exec.CommandContext(clipboardCtx, "pbpaste")
 	case "linux":
 		if p, _ := exec.LookPath("xclip"); p != "" {
-			cmd = exec.Command("xclip", "-selection", "clipboard", "-o")
+			cmd = exec.CommandContext(clipboardCtx, "xclip", "-selection", "clipboard", "-o")
 		} else if p, _ := exec.LookPath("xsel"); p != "" {
-			cmd = exec.Command("xsel", "--clipboard", "--output")
+			cmd = exec.CommandContext(clipboardCtx, "xsel", "--clipboard", "--output")
 		} else {
 			return "", &core.ClipboardError{Op: "paste", Err: fmt.Errorf("no clipboard command found")}
 		}
 	case "windows":
-		cmd = exec.Command("powershell", "-command", "Get-Clipboard")
+		cmd = exec.CommandContext(clipboardCtx, "powershell", "-command", "Get-Clipboard")
 	default:
 		return "", &core.ClipboardError{Op: "paste", Err: fmt.Errorf("unsupported platform: %s", runtime.GOOS)}
 	}

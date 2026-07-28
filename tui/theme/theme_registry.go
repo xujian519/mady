@@ -1,9 +1,6 @@
+// Package theme provides theming including semantic colors, named theme registry,
+// JSON theme loading, hot-reload watching, and system appearance detection.
 package theme
-
-// theme_registry.go — Named theme registry.
-//
-// Provides a registry of built-in themes with methods for listing
-// and applying themes by name. Thread-safe for concurrent reads.
 
 import (
 	"context"

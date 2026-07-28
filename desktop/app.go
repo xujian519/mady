@@ -599,7 +599,7 @@ func (a *App) CreateFolder(parentPath, folderName string) (string, error) {
 		return "", fmt.Errorf("CreateFolder: path escape detected: %s is outside %s", newDir, cwd)
 	}
 
-	if err := os.MkdirAll(newDir, 0755); err != nil {
+	if err := os.MkdirAll(newDir, 0750); err != nil {
 		return "", fmt.Errorf("CreateFolder: %w", err)
 	}
 	log.Printf("[mady-desktop] created folder: %s", newDir)

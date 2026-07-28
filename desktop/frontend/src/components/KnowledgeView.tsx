@@ -3,21 +3,20 @@
  *
  * 功能：
  * 1. 知识库状态概览（文档数/索引大小/更新时间/源目录）
- * 2. 重新索引按钮 + 进度条（模拟 3 秒完成）
+ * 2. 重新索引按钮 + 进度指示
  * 3. 索引范围选择（专利法/审查指南/判例/自定义）
+ * 数据从后端 knowledge 子系统加载。
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { Database, RefreshCw, CheckCircle2, Folder, X } from 'lucide-react'
+import { Database, RefreshCw, CheckCircle2, Folder, X, Loader } from 'lucide-react'
+import { getKnowledgeStatus, type KnowledgeStatus } from '@/lib/backend'
 
 interface KnowledgeViewProps {
   onClose: () => void
 }
 
 type IndexStatus = 'idle' | 'indexing' | 'done'
-
-/** 知识源目录（用于展示）。 */
-const SOURCE_DIRECTORIES = ['~/.mady/knowledge/laws', '~/.mady/knowledge/wiki']
 
 /** 索引范围选项。 */
 const SCOPE_OPTIONS = [
@@ -30,10 +29,32 @@ const SCOPE_OPTIONS = [
 export const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onClose }) => {
   const [indexStatus, setIndexStatus] = useState<IndexStatus>('idle')
   const [progress, setProgress] = useState(0)
+  const [data, setData] = useState<KnowledgeStatus | null>(null)
+  const [loading, setLoading] = useState(true)
   const [checked, setChecked] = useState<Set<string>>(
     () => new Set(SCOPE_OPTIONS.map((o) => o.key)),
   )
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // 从后端加载知识库状态
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getKnowledgeStatus()
+      .then((ks) => {
+        if (!cancelled) {
+          setData(ks)
+          setLoading(false)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData(null)
+          setLoading(false)
+        }
+      })
+    return () => { cancelled = true }
+  }, [])
 
   // 清理定时器
   useEffect(() => {
@@ -94,39 +115,56 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onClose }) => {
           {/* ── 知识库概览 ───────────────────────── */}
           <section>
             <h3 className="text-mady-ui font-medium text-mady-text-primary mb-3">知识库概览</h3>
-            <div className="grid grid-cols-3 gap-2">
-              {/* 文档数 */}
-              <div className="bg-mady-bg-secondary rounded-lg p-3">
-                <p className="text-mady-caption text-mady-text-tertiary mb-0.5">文档</p>
-                <p className="text-mady-body font-semibold text-mady-text-primary">1,247 份</p>
+            {loading ? (
+              <div className="flex items-center justify-center py-8 text-mady-text-tertiary">
+                <Loader size={16} className="mr-2 animate-spin" />
+                <span className="text-mady-ui">加载中...</span>
               </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  {/* 文档数 */}
+                  <div className="bg-mady-bg-secondary rounded-lg p-3">
+                    <p className="text-mady-caption text-mady-text-tertiary mb-0.5">文档</p>
+                    <p className="text-mady-body font-semibold text-mady-text-primary">
+                      {data ? `${data.docCount.toLocaleString()} 份` : '未知'}
+                    </p>
+                  </div>
 
-              {/* 索引大小 */}
-              <div className="bg-mady-bg-secondary rounded-lg p-3">
-                <p className="text-mady-caption text-mady-text-tertiary mb-0.5">索引大小</p>
-                <p className="text-mady-body font-semibold text-mady-text-primary">156 MB</p>
-              </div>
+                  {/* 索引大小 */}
+                  <div className="bg-mady-bg-secondary rounded-lg p-3">
+                    <p className="text-mady-caption text-mady-text-tertiary mb-0.5">索引大小</p>
+                    <p className="text-mady-body font-semibold text-mady-text-primary">
+                      {data ? `${data.indexSizeMB} MB` : '未知'}
+                    </p>
+                  </div>
 
-              {/* 最后更新 */}
-              <div className="bg-mady-bg-secondary rounded-lg p-3">
-                <p className="text-mady-caption text-mady-text-tertiary mb-0.5">最后更新</p>
-                <p className="text-mady-body font-semibold text-mady-text-primary">2026-07-27 14:30</p>
-              </div>
-            </div>
-
-            {/* 源目录 */}
-            <div className="mt-2 bg-mady-bg-secondary rounded-lg p-3 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-mady-caption text-mady-text-tertiary">
-                <Folder size={11} />
-                <span>源目录</span>
-              </div>
-              {SOURCE_DIRECTORIES.map((dir) => (
-                <div key={dir} className="flex items-center gap-2 text-mady-small text-mady-text-secondary font-mono">
-                  <span className="w-1.5 h-1.5 rounded-full bg-mady-accent-soft shrink-0" />
-                  {dir}
+                  {/* 最后更新 */}
+                  <div className="bg-mady-bg-secondary rounded-lg p-3">
+                    <p className="text-mady-caption text-mady-text-tertiary mb-0.5">最后更新</p>
+                    <p className="text-mady-body font-semibold text-mady-text-primary">
+                      {data?.lastUpdated || '无'}
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
+
+                {/* 源目录 */}
+                {data && data.sourceDirs.length > 0 && (
+                  <div className="mt-2 bg-mady-bg-secondary rounded-lg p-3 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-mady-caption text-mady-text-tertiary">
+                      <Folder size={11} />
+                      <span>源目录</span>
+                    </div>
+                    {data.sourceDirs.map((dir) => (
+                      <div key={dir} className="flex items-center gap-2 text-mady-small text-mady-text-secondary font-mono">
+                        <span className="w-1.5 h-1.5 rounded-full bg-mady-accent-soft shrink-0" />
+                        {dir}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </section>
 
           {/* ── 重新索引 ─────────────────────────── */}

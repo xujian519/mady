@@ -13,7 +13,7 @@ import React, { useState, useMemo } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { ThreadItem } from './ThreadItem'
 import { ProjectTree } from './ProjectTree'
-import { deleteThread } from '@/lib/backend'
+import { deleteThread, getThread } from '@/lib/backend'
 import { Plus, Search, Settings, FolderTree } from 'lucide-react'
 
 interface SidebarProps {
@@ -35,7 +35,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat, onSettings }) => {
 
   const handleSelect = async (key: string) => {
     useChatStore.setState({ threadId: key })
-    // TODO: 加载会话消息
+    try {
+      const snapshot = await getThread(key)
+      if (snapshot?.messages) {
+        useChatStore.setState({
+          messages: snapshot.messages as any[],
+        })
+      }
+    } catch {
+      // 后端未就绪时静默失败，消息列表保持当前状态
+    }
   }
 
   const handleDelete = async (key: string) => {

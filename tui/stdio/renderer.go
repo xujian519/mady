@@ -1,3 +1,5 @@
+// Package stdio provides procedural I/O utilities for non-TUI modes:
+// progress bars, spinners, line readers, and markdown stdout rendering.
 package stdio
 
 import (

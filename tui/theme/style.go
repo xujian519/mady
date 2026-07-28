@@ -105,13 +105,20 @@ func (s Style) WithBgParams(csiParams string) Style {
 	return s
 }
 
-// Attribute setters — each appends the corresponding SGR attribute and
-// returns the modified Style (immutable builder pattern).
-func (s Style) Bold() Style      { s.attrs = append(s.attrs, Bold); return s }
-func (s Style) Dim() Style       { s.attrs = append(s.attrs, Dim); return s }
-func (s Style) Italic() Style    { s.attrs = append(s.attrs, Italic); return s }
+// Bold returns a new Style with the bold attribute set.
+func (s Style) Bold() Style { s.attrs = append(s.attrs, Bold); return s }
+
+// Dim returns a new Style with the dim attribute set.
+func (s Style) Dim() Style { s.attrs = append(s.attrs, Dim); return s }
+
+// Italic returns a new Style with the italic attribute set.
+func (s Style) Italic() Style { s.attrs = append(s.attrs, Italic); return s }
+
+// Underline returns a new Style with the underline attribute set.
 func (s Style) Underline() Style { s.attrs = append(s.attrs, Underline); return s }
-func (s Style) Strike() Style    { s.attrs = append(s.attrs, Strike); return s }
+
+// Strike returns a new Style with the strikethrough attribute set.
+func (s Style) Strike() Style { s.attrs = append(s.attrs, Strike); return s }
 
 // Render wraps text with the SGR escape sequence for this Style and appends
 // a reset. If color is disabled (NO_COLOR / dumb terminal), text is returned

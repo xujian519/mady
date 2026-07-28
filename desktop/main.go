@@ -33,7 +33,7 @@ func windowStatePath() string {
 		return ""
 	}
 	dir := filepath.Join(cacheDir, "mady")
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		slog.Warn("mady-desktop: mkdir failed", "err", err)
 	}
 	return filepath.Join(dir, "window_state.json")
@@ -44,7 +44,7 @@ func loadWindowState() *windowState {
 	if p == "" {
 		return nil
 	}
-	data, err := os.ReadFile(p)
+	data, err := os.ReadFile(filepath.Clean(p))
 	if err != nil {
 		return nil
 	}
@@ -67,7 +67,7 @@ func saveWindowState(ws windowState) {
 	if err != nil {
 		return
 	}
-	if err := os.WriteFile(p, data, 0644); err != nil {
+	if err := os.WriteFile(p, data, 0600); err != nil {
 		slog.Warn("mady-desktop: save window state failed", "err", err)
 	}
 }

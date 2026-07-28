@@ -1,12 +1,5 @@
 package theme
 
-// system_appearance.go — System dark/light appearance detection.
-//
-// Polls the OS for dark/light mode on macOS (defaults read) and Linux
-// (gsettings). Detected changes trigger the registered onChanged callback,
-// which the theme system uses to switch between dark and light themes when
-// the "auto" theme is active.
-
 import (
 	"context"
 	"os/exec"

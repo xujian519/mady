@@ -9,6 +9,7 @@ import (
 	"github.com/xujian519/mady/tui/core"
 )
 
+// nolint:unused // used by tests in chat_history_test.go
 func (h *ChatHistory) applySelectionHighlightLocked(lines []string, width int64) {
 	total := int64(len(lines))
 	if total == 0 || h.maxRows <= 0 {

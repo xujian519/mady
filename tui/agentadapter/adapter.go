@@ -1,3 +1,5 @@
+// Package agentadapter bridges agentcore event streams to the TUI chat layer,
+// converting 18 agent event types into ChatEvent messages.
 package agentadapter
 
 import (

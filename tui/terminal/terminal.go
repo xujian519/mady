@@ -1,3 +1,6 @@
+// Package terminal provides terminal I/O abstraction with platform-specific
+// implementations for raw mode, key parsing (including Kitty protocol),
+// mouse tracking, and terminal capability detection.
 package terminal
 
 import (

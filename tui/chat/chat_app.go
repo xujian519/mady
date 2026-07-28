@@ -1,15 +1,12 @@
-package chat
-
-// This file defines the ChatApp: the AppHost/OverlayRef interfaces it talks
-// to, ChatAppConfig, the chatModel state it guards, the constructor, accessors,
-// and the mutation façade (Print*/Busy/Idle/UpdateStatusBar). It also owns the
-// key-help overlay (ToggleKeyHelp/CloseKeyHelp + overlayHandle) since that is
-// ChatApp-level overlay state rather than layout.
+// Package chat provides the ChatApp — the main application layer that owns
+// the chat model, chat history, editor, overlays, tool panels, and the
+// explicit FSM-driven lifecycle for streaming, tool calls, and compaction.
 //
 // Event handlers are split by domain:
 //   - chat_app_stream.go — editor submit, agent start/delta/end/error
 //   - chat_app_tool.go   — tool calls, handoffs, turns, retry, compaction
 //   - chat_app_layout.go — the chatLayout root component + input routing
+package chat
 
 import (
 	"context"

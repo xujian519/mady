@@ -1,7 +1,7 @@
+// Package component provides composable TUI widgets including editor,
+// markdown renderer, table, viewport, status bar, auto-complete,
+// syntax highlighter, tool cards, overlays, and more.
 package component
-
-// approval_card.go renders a human-review approval gate card with confidence,
-// evidence summary, and available actions (/approve, /reject).
 
 import (
 	"fmt"

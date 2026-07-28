@@ -1,3 +1,5 @@
+// Package layout provides a Flex-box declarative layout engine with
+// 7 size policies (Natural, Fixed, Min, Max, Fill, Percent, Shrinkable).
 package layout
 
 import (
@@ -65,7 +67,7 @@ func (f *Flex) HitTest(row, col int64) (core.Component, core.Rect, bool) {
 		r := f.rects[i]
 		if r.Contains(row, col) {
 			if i < len(f.Children) && f.Children[i].Component != nil {
-				return f.Children[i].Component, core.Rect(r), true
+				return f.Children[i].Component, r, true
 			}
 		}
 	}

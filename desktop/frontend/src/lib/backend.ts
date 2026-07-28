@@ -253,3 +253,35 @@ export async function getAISettings(): Promise<AISettings> {
 export async function setAISettings(settings: AISettings): Promise<void> {
   return callBinding<void>('main/App', 'SetAISettings', settings)
 }
+
+// ── 文档模板库 ──────────────────────────────────────
+
+/** 文档模板条目。 */
+export interface DocTemplateEntry {
+  name: string
+  category: string
+  categoryLabel: string
+  description: string
+  content: string
+}
+
+/** 扫描 doc-templates/ 目录，返回所有模板。 */
+export async function listDocTemplates(): Promise<DocTemplateEntry[]> {
+  return callBinding<DocTemplateEntry[]>('main/App', 'ListDocTemplates')
+}
+
+// ── 知识库管理 ──────────────────────────────────────
+
+/** 知识库状态概览。 */
+export interface KnowledgeStatus {
+  docCount: number
+  indexSizeMB: number
+  lastUpdated: string
+  sourceDirs: string[]
+  isIndexing: boolean
+}
+
+/** 获取知识库状态概览。 */
+export async function getKnowledgeStatus(): Promise<KnowledgeStatus> {
+  return callBinding<KnowledgeStatus>('main/App', 'GetKnowledgeStatus')
+}

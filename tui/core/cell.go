@@ -1,8 +1,7 @@
+// Package core defines the foundational types and interfaces for the TUI:
+// Component interface, Cell/Row model, message types, SGR parsing, and diff engine.
 package core
 
-// ---------------------------------------------------------------------------
-// Cell-level rendering model.
-//
 // The cell model converts a rendered string into a 2D grid of Cells, where
 // each Cell carries an absolute Style (fg/bg/attrs). This eliminates two
 // classes of bugs the string model has:
