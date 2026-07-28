@@ -19,6 +19,8 @@ type CitationSource interface {
 	MaxArticle(s lawcite.Statute) int
 }
 
+var _ CitationSource = (*staticTableSource)(nil)
+
 // staticTableSource 是 S1 内嵌静态主题表实现（citation_table.go）。
 type staticTableSource struct{}
 
@@ -96,6 +98,8 @@ func (c compositeSource) MaxArticle(s lawcite.Statute) int {
 
 // CitationSourceFuncs 函数适配器：把普通函数包装成 CitationSource。
 // 供 knowledge/loader 的 S2 索引在不 import guardrails 的情况下被装配侧接入。
+var _ CitationSource = (*CitationSourceFuncs)(nil)
+
 type CitationSourceFuncs struct {
 	TopicsFunc     func(s lawcite.Statute, article int) ([]string, bool)
 	MaxArticleFunc func(s lawcite.Statute) int

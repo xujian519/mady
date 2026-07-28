@@ -1,0 +1,8 @@
+{
+  "name": "patent-agent",
+  "domain": "patent",
+  "description": "专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对、专利申请文书。",
+  "guardrail_level": "strict",
+  "handoff_targets": ["chat-agent", "assistant-agent"],
+  "knowledge_domain": "patent"
+}

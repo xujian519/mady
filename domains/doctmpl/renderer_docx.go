@@ -10,6 +10,8 @@ import (
 // DOCXRenderer 渲染 Markdown 为 DOCX（纯 Go，标准库 zip+xml，零外部依赖）。
 // 支持标题（六级）、段落、无序列表、表格（首行表头加粗）、行内加粗与等宽字体。
 // 不依赖 pandoc 或任何 Office 库，适合无外部工具的部署环境。
+var _ Renderer = (*DOCXRenderer)(nil)
+
 type DOCXRenderer struct{}
 
 // Format 返回 FormatDOCX。

@@ -23,6 +23,8 @@ type Searcher interface {
 	Search(ctx context.Context, query string, chunks []Chunk, topK int) []ScoredChunk
 }
 
+var _ Searcher = (*KeywordSearcher)(nil)
+
 // KeywordSearcher implements Searcher using regex + keyword matching
 // with TF-IDF-like scoring. This is the MVP implementation requiring
 // zero external dependencies.

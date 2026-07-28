@@ -14,6 +14,8 @@ import (
 
 // HTMLRenderer renders Markdown to a standalone HTML document.
 // Uses goldmark (CommonMark + GFM) for robust Markdown parsing.
+var _ Renderer = (*HTMLRenderer)(nil)
+
 type HTMLRenderer struct{}
 
 // Format returns FormatHTML.

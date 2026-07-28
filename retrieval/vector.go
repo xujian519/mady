@@ -15,6 +15,8 @@ import (
 // under the metadata key "embedding". The VectorSearcher extracts the
 // query embedding (typically via an Embedder), computes cosine similarity
 // against every chunk's embedding, and returns top-K results.
+var _ Searcher = (*VectorSearcher)(nil)
+
 type VectorSearcher struct {
 	// Embedder computes the query embedding at search time.
 	Embedder Embedder

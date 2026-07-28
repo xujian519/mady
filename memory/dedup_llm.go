@@ -12,6 +12,8 @@ import (
 
 // llmDedupDecider 通过 agentcore.Provider 调用 LLM 进行去重判定。
 // 参考 Mem0 的 ADD/UPDATE/DELETE/NOOP 判定逻辑。
+var _ DedupDecider = (*llmDedupDecider)(nil)
+
 type llmDedupDecider struct {
 	provider agentcore.Provider
 	model    string

@@ -6,6 +6,8 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+var _ Provider = (*ProviderAdapter)(nil)
+
 // ProviderAdapter 将 agentcore.Provider 适配为 claimdrafting.Provider 接口。
 //
 // claimdrafting 的 LLMDrafter 使用简化的 Complete(prompt) → (string, error) 接口，

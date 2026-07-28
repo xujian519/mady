@@ -520,7 +520,7 @@ func TestIntegration_ErrorCases(t *testing.T) {
 
 	t.Run("主题名称不当_含宣传用语", func(t *testing.T) {
 		// 模拟：主题名称中包含GCQ型、高效等不当用语。
-		// 注意：标题格式校验规则尚未实现，本测试暂跳过。
+		// 标题格式校验规则尚未实现，暂跳过。数据来源: testdata/error-cases.json
 		t.Skip("标题格式规则待实现后补全断言")
 		claims := []Claim{
 			{Number: 1, ClaimType: ClaimTypeProduct, Kind: "independent",

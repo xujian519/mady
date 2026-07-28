@@ -17,6 +17,8 @@ import (
 // FactExtractorLLM 接口签名（接收 conversation 字符串，返回事实列表）与
 // agentcore.Provider 接口签名（接收 ProviderRequest，返回 ProviderResponse）不同，
 // providerExtractor 负责桥接两者的差异。
+var _ FactExtractorLLM = (*providerExtractor)(nil)
+
 type providerExtractor struct {
 	provider agentcore.Provider
 	model    string

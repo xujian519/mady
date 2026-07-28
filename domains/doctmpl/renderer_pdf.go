@@ -12,6 +12,8 @@ import (
 // 中文支持依赖嵌入系统 TTF/TTC 中文字体；自动搜索常见路径，也可通过
 // FontPath 显式指定。找不到合适字体时返回错误并提示安装字体——此时
 // 可降级使用 DOCX/Markdown 渲染器。
+var _ Renderer = (*PDFRenderer)(nil)
+
 type PDFRenderer struct {
 	// FontPath 可选：指定 TTF/TTC 字体文件路径，覆盖自动搜索。
 	FontPath string

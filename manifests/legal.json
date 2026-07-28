@@ -1,0 +1,8 @@
+{
+  "name": "legal-advisor",
+  "domain": "legal",
+  "description": "法律咨询与研究。处理法条检索、判例检索、法律分析、法律文书生成。",
+  "guardrail_level": "strict",
+  "handoff_targets": ["chat-agent", "assistant-agent"],
+  "knowledge_domain": "legal"
+}

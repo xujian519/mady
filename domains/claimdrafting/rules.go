@@ -93,8 +93,6 @@ func (e *RuleEngine) ValidateAndGroup(claims []Claim, input DraftInput) (errors,
 // 基础规则实现（公共功能）
 // =============================================================================
 
-
-
 // baseRule 提供 ClaimRule 实现的公用字段。
 type baseRule struct {
 	name        string

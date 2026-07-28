@@ -4,6 +4,8 @@ import "strings"
 
 // MarkdownRenderer is the simplest renderer: it passes through Markdown
 // content with optional metadata and disclaimer injection.
+var _ Renderer = (*MarkdownRenderer)(nil)
+
 type MarkdownRenderer struct{}
 
 // Format returns FormatMarkdown.

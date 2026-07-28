@@ -16,6 +16,8 @@ type Reranker interface {
 // Earlier chunks (introduction, abstract) often contain more salient information
 // and receive a position bonus. This is particularly useful for patent and
 // legal documents where key claims or holdings appear early.
+var _ Reranker = (*PositionReranker)(nil)
+
 type PositionReranker struct {
 	// PositionWeight controls how much position affects the final score.
 	// 0 = no effect, 1.0 = strong position bias (default: 0.3).
