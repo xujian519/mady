@@ -22,6 +22,8 @@ type FileContentReader interface {
 	ReadText(path string) string
 }
 
+var _ FileContentReader = (*defaultFileReader)(nil)
+
 // defaultFileReader is the fallback FileContentReader using os.ReadFile.
 type defaultFileReader struct{}
 

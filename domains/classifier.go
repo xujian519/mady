@@ -53,6 +53,8 @@ const DefaultClassificationThreshold = 0.7
 
 // --- KeywordClassifier ---
 
+var _ IntentClassifier = (*KeywordClassifier)(nil)
+
 // KeywordClassifier classifies intent using keyword matching.
 // It delegates to the existing ClassifyIntent function.
 type KeywordClassifier struct{}
@@ -84,6 +86,8 @@ type LLMClassifier struct {
 	// keywordFallback is used when LLM classification fails or has low confidence.
 	keywordFallback *KeywordClassifier
 }
+
+var _ IntentClassifier = (*LLMClassifier)(nil)
 
 // NewLLMClassifier creates an LLMClassifier with sensible defaults.
 func NewLLMClassifier(provider agentcore.Provider) *LLMClassifier {

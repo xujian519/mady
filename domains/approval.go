@@ -258,6 +258,8 @@ type ApprovalStore interface {
 	ListByCase(ctx context.Context, caseID string) ([]ApprovalRecord, error)
 }
 
+var _ ApprovalStore = (*MemoryApprovalStore)(nil)
+
 // MemoryApprovalStore is an in-memory ApprovalStore for testing and
 // single-session use. Data is lost on process exit.
 type MemoryApprovalStore struct {
@@ -336,6 +338,8 @@ type DeferredPersistManager interface {
 func WithDeferredPersist(m DeferredPersistManager) func(*ApprovalGate) {
 	return func(g *ApprovalGate) { g.deferredPersist = m }
 }
+
+var _ DeferredPersistManager = (*DeferredPersistFuncs)(nil)
 
 // DeferredPersistFuncs implements DeferredPersistManager with function fields,
 // for use at call sites that hold a *guardrails.DeferredPersistQueue reference
