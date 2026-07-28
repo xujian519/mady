@@ -85,8 +85,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 	switch m.Role {
 	case RoleUser:
 		bar := theme.UserStyle.Render("▌ ")
-		body := bar + theme.UserStyle.Render(m.Text)
-		return core.WrapAnsi(body, width)
+		return h.renderMarkdownRole(m.Text, bar, width, theme)
 	case RoleAssistant:
 		// Collapsed assistant messages (e.g. collapsed diffs)
 		if m.Collapsed && m.Text != "" {
@@ -153,7 +152,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		return allLines
 	case RoleSystem:
 		bar := theme.ToolBorder.Render("▌ ")
-		return core.WrapAnsi(bar+theme.SystemStyle.Render(m.Text), width)
+		return h.renderMarkdownRole(m.Text, bar, width, theme)
 	case RoleTool:
 		// Tool results are rendered via the shared ToolCard component so the
 		// collapsed/expanded treatment stays consistent with diffs and future
@@ -177,7 +176,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		}, tcTheme, width)
 	case RoleError:
 		bar := theme.ErrorStyle.Render("▌ ")
-		return core.WrapAnsi(bar+theme.ErrorStyle.Render(m.Text), width)
+		return h.renderMarkdownRole(m.Text, bar, width, theme)
 	case RoleDivider:
 		ch := theme.DividerChar
 		if ch == "" {
@@ -187,4 +186,27 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 	default:
 		return core.WrapAnsi(m.Text, width)
 	}
+}
+
+// renderMarkdownRole renders message text as Markdown and prefixes each line
+// with a role-specific bar (e.g. "▌ "). The inner width accounts for the
+// prefix so content aligns correctly within the available space.
+func (h *ChatHistory) renderMarkdownRole(text, bar string, width int64, theme ChatHistoryTheme) []string {
+	if text == "" {
+		return []string{bar}
+	}
+	innerWidth := width - core.VisibleWidth(bar)
+	if innerWidth < 1 {
+		innerWidth = 1
+	}
+	md := component.NewMarkdown(text)
+	md.SetTheme(theme.MarkdownTheme)
+	lines := md.Render(innerWidth)
+	for i := range lines {
+		lines[i] = bar + lines[i]
+	}
+	if len(lines) == 0 {
+		lines = []string{bar}
+	}
+	return lines
 }

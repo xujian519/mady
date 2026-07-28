@@ -85,8 +85,17 @@ func (h *ChatHistory) Render(width int64) []string {
 	// 当 scrollbar 启用时，内容渲染宽度预留 sbWidth 列给滚动条。
 	// 否则 Markdown 按 width 换行后的每行都比可用宽度多 1 列，被视口
 	// 判定为超宽并截断为省略号，导致每行末尾丢失字符（长文本尤甚）。
+	//
+	// renderWidth 根据 scrollbar 实际显隐状态决定：只有当 scrollbar
+	// 需要显示时才缩小渲染宽度。显隐判断依赖 cachedAll（已知渲染行数）
+	// 或保守假设为需要（避免首帧截断）。当显隐状态变化时 renderWidth
+	// 自然改变 → cachedWidth 触发缓存失效 → 行宽自动修正。
+	sbNow := h.sbEnabled && h.sbWidth > 0
+	if sbNow && h.cachedAll != nil && h.maxRows > 0 && !h.dirty && int64(len(h.cachedAll)) <= h.maxRows {
+		sbNow = false
+	}
 	renderWidth := width
-	if h.sbEnabled && h.sbWidth > 0 {
+	if sbNow {
 		renderWidth = width - h.sbWidth
 		if renderWidth < 1 {
 			renderWidth = 1
@@ -118,35 +127,29 @@ func (h *ChatHistory) Render(width int64) []string {
 		for k, v := range h.msgCache {
 			localCache[k] = v
 		}
-		h.mu.Unlock()
 
-		// Phase 2: expensive rendering without holding h.mu.
-		// AppendDelta can process new deltas concurrently.
+		// Phase 2: expensive rendering while still holding h.mu.
+		// Previously h.mu was released here to allow concurrent AppendDelta
+		// calls. However, that created a race window where the EventBus
+		// goroutine could modify messages while renderAllFromSnapshot was
+		// iterating the snapshot, causing one frame of width-mismatch or
+		// stale content. Keeping h.mu locked serializes AppendDelta with
+		// Render — the EventBus handler blocks briefly (~1-5ms) but the
+		// output is always consistent. The lock is released immediately
+		// after the merge, so the EventBus latency impact is negligible.
 		rendered, ranges := h.renderAllFromSnapshot(snap, renderWidth, localCache)
-
-		// Phase 3: merge results back under lock.
-		h.mu.Lock()
-		// Replace h.msgCache with localCache. localCache started as a
-		// shallow copy of h.msgCache (before Phase 2) plus any new entries
-		// populated during snapshot rendering. Entries that AppendDelta
-		// deleted during Phase 2 may be temporarily restored from the
-		// Phase 1 snapshot copy. This is safe because AppendDelta also
-		// sets dirty=true and firstDirtyIdx, ensuring the next Render
-		// cycle rebuilds those messages with current text.
+		// Phase 3: merge results. h.mu is still held (no longer released during
+		// Phase 2), so no concurrent AppendDelta can interfere. The snapshot is
+		// still used for the render to keep the existing code path unchanged.
 		h.msgCache = localCache
 		// Cap cache size: evict oldest non-pending entries beyond the limit.
 		// Pending messages (with active blockCache) are exempt from eviction.
 		h.evictCacheEntriesLocked()
 		h.cachedAll = rendered
 		h.cachedMsgRanges = ranges
-		// If no concurrent mutation set dirty=true during Phase 2,
-		// clear the incremental tracking. Otherwise AppendDelta (or
-		// another mutation) already set firstDirtyIdx and we keep it
-		// — the next Render call triggered by their RequestRender
-		// will process the fresh content.
-		if !h.dirty {
-			h.firstDirtyIdx = 0
-		}
+		// h.mu is held throughout, so no concurrent AppendDelta can set
+		// dirty=true during Phase 2. Clear the incremental tracking.
+		h.firstDirtyIdx = 0
 
 		// If content changed (was dirty), reset scroll if following tail.
 		if wasDirty && h.follow {

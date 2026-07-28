@@ -82,6 +82,38 @@ func TestChatHistoryScrollbarNoEllipsisTruncation(t *testing.T) {
 	}
 }
 
+// TestChatHistoryScrollbarTransition 是 scrollbar 显隐切换的回归测试。
+// 修复前：内容从未超出 maxRows 变为超出时，cachedAll 在 width 宽度下渲染，
+// 但 scrollbar 后处理截断到 contentWidth=width-sbWidth，导致每行末尾出现 "…"。
+// 修复后：renderWidth 根据实际 scrollbar 显隐动态决定，切换时 cachedWidth
+// 自然触发缓存失效，行宽始终匹配。
+func TestChatHistoryScrollbarTransition(t *testing.T) {
+	h := NewChatHistory() // 默认 sbEnabled=true, sbWidth=1
+	h.SetMaxRows(3)
+
+	// 第一阶段：内容可容纳，无 scrollbar
+	h.Append(ChatMessage{Role: RoleAssistant, Text: "短文本"})
+	lines1 := h.Render(20)
+	for i, ln := range lines1 {
+		if strings.Contains(ln, "…") {
+			t.Errorf("phase 1 line %d should not be truncated: %q", i, ln)
+		}
+	}
+
+	// 第二阶段：追加长文本，内容超出 maxRows → scrollbar 出现
+	longText := strings.Repeat("中文测试内容", 20)
+	h.Append(ChatMessage{Role: RoleAssistant, Text: longText})
+	lines2 := h.Render(20)
+	if int64(len(lines2)) != 3 {
+		t.Fatalf("expected 3 visible rows after transition, got %d", len(lines2))
+	}
+	for i, ln := range lines2 {
+		if strings.Contains(ln, "…") {
+			t.Errorf("phase 2 line %d truncated after scrollbar appears: %q", i, ln)
+		}
+	}
+}
+
 func TestChatHistoryScroll(t *testing.T) {
 	h := NewChatHistory()
 	for i := 0; i < 30; i++ {
