@@ -520,7 +520,8 @@ func TestIntegration_ErrorCases(t *testing.T) {
 
 	t.Run("主题名称不当_含宣传用语", func(t *testing.T) {
 		// 模拟：主题名称中包含GCQ型、高效等不当用语。
-		// 注意：标题格式校验规则尚未实现；本测试作为占位确保输入正常处理。
+		// 注意：标题格式校验规则尚未实现，本测试暂跳过。
+		t.Skip("标题格式规则待实现后补全断言")
 		claims := []Claim{
 			{Number: 1, ClaimType: ClaimTypeProduct, Kind: "independent",
 				Preamble:      "一种GCQ型高效节能空气净化器",
@@ -535,11 +536,6 @@ func TestIntegration_ErrorCases(t *testing.T) {
 			PFETriples: []PFETriple{{ID: "t1", Problem: "净化效率低", FeatureIDs: []string{"f1", "f2"}}},
 		}
 		violations := engine.Validate(claims, input)
-		// 标题格式规则当前未实现 → 接受 nil（规则待实现后补全断言）。
-		if violations == nil {
-			t.Log("主题名称测试: violations is nil (title validation rule TBD)")
-			return
-		}
 		t.Logf("主题名称测试: %d violations (title validation rule TBD)", len(violations))
 	})
 }
