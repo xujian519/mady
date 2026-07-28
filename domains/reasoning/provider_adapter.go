@@ -7,6 +7,8 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+var _ LlmClient = (*providerLlmClient)(nil)
+
 // providerLlmClient adapts an agentcore.Provider to the LlmClient interface
 // used by the EnhancedSyllogismChecker for Level 2 (logical consistency) and
 // Level 3 (evidentiary sufficiency) validation.

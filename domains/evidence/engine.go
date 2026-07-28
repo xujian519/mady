@@ -25,6 +25,8 @@ const (
 	judgmentLevelLow        = "low"
 )
 
+var _ EvidenceJudgmentEngine = (*DefaultEngine)(nil)
+
 // DefaultEngine 使用 RuleIndex 的默认证据判断引擎。
 type DefaultEngine struct {
 	index *RuleIndex

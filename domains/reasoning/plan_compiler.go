@@ -44,6 +44,8 @@ type NodeBuilder interface {
 	BuildArbitratedJudgeNode(step PlanStep, bb *FactBlackboard, cfg *ArbitrationConfig) PregelNode
 }
 
+var _ NodeBuilder = (*noopNodeBuilder)(nil)
+
 // noopNodeBuilder returns pass-through nodes for testing.
 type noopNodeBuilder struct{}
 

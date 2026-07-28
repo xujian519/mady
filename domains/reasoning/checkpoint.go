@@ -32,6 +32,8 @@ type CheckpointStore interface {
 	Delete(ctx context.Context, checkpointID string) error
 }
 
+var _ CheckpointStore = (*MemoryCheckpointStore)(nil)
+
 // MemoryCheckpointStore is an in-memory implementation for testing.
 type MemoryCheckpointStore struct {
 	checkpoints csync.Map[string, *StageCheckpoint]
