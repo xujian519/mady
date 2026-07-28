@@ -244,6 +244,11 @@ select {
   app-region: no-drag;
 }
 
+/* macOS 交通灯安全边距：为标题栏内容预留红绿灯区域 */
+.mac-titlebar-safe {
+  padding-left: 80px;
+}
+
 /* ============================================================
  * 材质（Vibrancy）— spec §5.3
  *

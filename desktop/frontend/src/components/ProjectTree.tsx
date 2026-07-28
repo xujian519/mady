@@ -22,6 +22,7 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import {
   Folder,
+  FolderOpen,
   File,
   FileText,
   ChevronRight,
@@ -38,6 +39,7 @@ import {
 import { listDirectory, createFolder, renameFolder, deleteEntry, writeFile } from '@/lib/backend'
 import type { FileEntry } from '@/lib/backend'
 import { useFilesStore } from '@/stores/files'
+import { useProjectStore, type ProjectInfo } from '@/stores/project'
 
 // ── Types ─────────────────────────────────────────
 
@@ -345,7 +347,24 @@ export const ProjectTree: React.FC = () => {
   const [rootError, setRootError] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [editing, setEditing] = useState<EditingState | null>(null)
+  const [showNewProject, setShowNewProject] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
   const createInputRef = useRef<HTMLInputElement>(null)
+  const newProjectInputRef = useRef<HTMLInputElement>(null)
+
+  // 项目状态
+  const projectCurrent = useProjectStore((s) => s.current)
+  const projectProjects = useProjectStore((s) => s.projects)
+  const projectLoading = useProjectStore((s) => s.loading)
+  const projectError = useProjectStore((s) => s.error)
+  const loadProjects = useProjectStore((s) => s.load)
+  const createProjectFolder = useProjectStore((s) => s.createProjectFolder)
+  const selectProjectFolder = useProjectStore((s) => s.selectProjectFolder)
+  const switchProject = useProjectStore((s) => s.switchProject)
+
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
 
   // ── 根目录加载（初始 + 刷新） ──────────────────────
 
@@ -391,6 +410,12 @@ export const ProjectTree: React.FC = () => {
       createInputRef.current.focus()
     }
   }, [editing])
+
+  useEffect(() => {
+    if (showNewProject && newProjectInputRef.current) {
+      newProjectInputRef.current.focus()
+    }
+  }, [showNewProject])
 
   // ── Handlers ──────────────────────────────────────
 
@@ -582,7 +607,116 @@ export const ProjectTree: React.FC = () => {
 
   return (
     <div className="select-none">
-      {/* 头部 + 工具栏 */}
+      {/* 项目选择器 */}
+      <div className="px-3 py-2 border-b border-mady-separator">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-mady-caption font-medium text-mady-text-secondary uppercase tracking-wider">
+            当前项目
+          </span>
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={selectProjectFolder}
+              className="p-1 rounded hover:bg-mady-bg-primary text-mady-text-tertiary transition-colors"
+              title="打开现有文件夹作为项目"
+            >
+              <FolderOpen size={13} />
+            </button>
+            <button
+              onClick={() => {
+                setShowNewProject(true)
+                setNewProjectName('')
+              }}
+              className="p-1 rounded hover:bg-mady-bg-primary text-mady-text-tertiary transition-colors"
+              title="新建项目文件夹"
+            >
+              <FolderPlus size={13} />
+            </button>
+            <button
+              onClick={loadProjects}
+              className="p-1 rounded hover:bg-mady-bg-primary text-mady-text-tertiary transition-colors"
+              title="刷新"
+            >
+              <RefreshCw size={12} className={projectLoading ? 'animate-spin' : ''} />
+            </button>
+          </div>
+        </div>
+
+        {projectError && (
+          <div className="text-mady-caption text-mady-danger mb-1.5">
+            {projectError}
+          </div>
+        )}
+
+        {projectCurrent ? (
+          <div className="flex items-center gap-1.5 text-mady-ui text-mady-text-primary" title={projectCurrent.path}>
+            <Folder size={14} className="text-mady-accent shrink-0" />
+            <span className="truncate flex-1">{projectCurrent.alias || projectCurrent.path}</span>
+          </div>
+        ) : (
+          <div className="text-mady-caption text-mady-text-tertiary">
+            未选择项目
+          </div>
+        )}
+
+        {/* 新建项目输入框 */}
+        {showNewProject && (
+          <div className="mt-1.5 flex items-center gap-1">
+            <input
+              ref={newProjectInputRef}
+              type="text"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              placeholder="项目名称"
+              className="flex-1 min-w-0 bg-mady-bg-primary border border-mady-accent rounded px-2 py-0.5 text-mady-ui text-mady-text-primary outline-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newProjectName.trim()) {
+                  createProjectFolder(newProjectName.trim())
+                } else if (e.key === 'Escape') {
+                  setShowNewProject(false)
+                }
+              }}
+              onBlur={() => {
+                if (!newProjectName.trim()) setShowNewProject(false)
+              }}
+            />
+            <button
+              onClick={() => createProjectFolder(newProjectName.trim())}
+              disabled={!newProjectName.trim()}
+              className="px-2 py-0.5 rounded text-mady-caption bg-mady-accent text-white disabled:opacity-50"
+            >
+              创建
+            </button>
+          </div>
+        )}
+
+        {/* 最近项目列表 */}
+        {projectProjects.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-mady-separator/50">
+            <div className="text-mady-caption text-mady-text-tertiary mb-1">
+              最近项目
+            </div>
+            <div className="space-y-0.5 max-h-32 overflow-y-auto">
+              {projectProjects.map((p: ProjectInfo) => (
+                <button
+                  key={p.id}
+                  onClick={() => switchProject(p.id)}
+                  className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-left text-mady-ui transition-colors ${
+                    p.id === projectCurrent?.id
+                      ? 'bg-mady-accent-soft text-mady-accent'
+                      : 'text-mady-text-secondary hover:bg-mady-bg-primary hover:text-mady-text-primary'
+                  }`}
+                  title={p.path}
+                >
+                  <Folder size={12} className="shrink-0" />
+                  <span className="truncate flex-1">{p.alias || p.path}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 文件树头部 + 工具栏 */}
       <div className="px-3 py-2 border-b border-mady-separator flex items-center justify-between">
         <span className="text-mady-caption font-medium text-mady-text-secondary uppercase tracking-wider">
           项目文件

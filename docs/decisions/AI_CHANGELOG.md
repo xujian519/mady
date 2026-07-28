@@ -1,5 +1,22 @@
 # AI 变更记录
 
+## 2026-07-28: 桌面端截图问题修复与项目管理功能
+
+### 修复问题
+- **Wails 绑定不可用**：`desktop/frontend/src/lib/backend.ts` 改为优先使用 Wails 注入的 `window.go`，打包后不再依赖 `wailsjs` 生成模块的动态导入。
+- **标题栏/交通灯对齐**：`desktop/frontend/src/components/ChatView.tsx` 将标题栏提到全宽，并新增 `mac-titlebar-safe` 边距；`desktop/frontend/src/styles/globals.css` 增加 80px 交通灯安全区。
+- **重复状态栏**：移除 `AgentFooter`，仅保留 `StatusBar`，消除“三个就绪/两个底边”。
+- **项目打开/新建**：新增 `desktop/project.go`，实现 `ListProjects/GetCurrentProject/SelectProjectFolder/CreateProjectFolder/SwitchProject` 等 Wails Binding；启动时自动恢复上次项目。
+
+### 新增前端能力
+- `desktop/frontend/src/stores/project.ts`：项目状态管理。
+- `desktop/frontend/src/components/ProjectTree.tsx`：项目选择器 UI，支持“打开现有文件夹”和“新建项目文件夹”。
+- `desktop/app.go`：`desktop-settings.json` 增加 `last_project_id`，保存 AI 设置时不覆盖该字段。
+
+### 验证
+- 前端：`pnpm run typecheck`、`pnpm run build`、`pnpm run test` 全部通过。
+- 后端：`go build .`、`go test ./...` 通过。
+
 ## 2026-07-28: 全量技术债务清理（14 项修复计划，11 项完成）
 
 ### 背景

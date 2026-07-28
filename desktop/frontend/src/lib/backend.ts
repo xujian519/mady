@@ -2,23 +2,60 @@
  * 后端服务层。
  *
  * 封装对 Wails Go Binding 的调用，提供类型安全的 API。
- * 开发期（wailsjs 不可用）回退到 mock 实现。
+ * 生产环境优先使用 Wails 注入的 `window.go` 全局对象；
+ * 开发期/浏览器回退到动态导入生成的 `wailsjs` 模块。
  */
 
+declare global {
+  interface Window {
+    /** Wails 运行时注入的 Go binding 根对象。 */
+    go?: Record<string, any>
+  }
+}
+
+/** 是否在真实的 Wails 宿主中运行。 */
+function isWailsHost(): boolean {
+  return typeof window !== 'undefined' && !!window.go
+}
+
 /**
- * 动态导入 Wails Go binding 并执行方法。
- * 开发期返回 mock 数据。
+ * 解析 Wails Go binding 方法。
+ * 优先从 `window.go.<module>.<method>` 读取；
+ * 若不存在（开发期/浏览器预览），回退到动态导入 `wailsjs/go/<module>`。
  */
-async function callBinding<T>(module: string, method: string, ...args: unknown[]): Promise<T> {
+async function resolveBinding(
+  module: string,
+  method: string,
+): Promise<(...args: unknown[]) => Promise<unknown>> {
+  if (isWailsHost()) {
+    const parts = module.split('/')
+    let target: any = window.go
+    for (const part of parts) {
+      target = target?.[part]
+    }
+    if (typeof target?.[method] === 'function') {
+      return target[method].bind(target)
+    }
+  }
+
+  // 开发期/非 Wails 环境：回退到生成的 wailsjs 模块
   try {
     const mod = await import(/* @vite-ignore */ `../../wailsjs/go/${module}`)
     if (typeof mod[method] === 'function') {
-      return (await mod[method](...args)) as T
+      return mod[method]
     }
   } catch {
-    // wailsjs 未生成：开发期/CI 环境
+    // wailsjs 未生成
   }
   throw new Error(`Wails binding unavailable: ${module}.${method}`)
+}
+
+/**
+ * 调用 Wails Go binding 方法。
+ */
+async function callBinding<T>(module: string, method: string, ...args: unknown[]): Promise<T> {
+  const fn = await resolveBinding(module, method)
+  return (await fn(...args)) as T
 }
 
 // ── Types ─────────────────────────────────────────
@@ -43,6 +80,15 @@ export interface HealthInfo {
   model: string
   version: string
   uptime: string
+}
+
+/** 已注册项目摘要。 */
+export interface ProjectInfo {
+  id: string
+  alias: string
+  path: string
+  status: string
+  lastAccessed: string
 }
 
 /** A2UI ClientAction — 用户在 A2UI surface 上触发的交互。 */
@@ -284,4 +330,31 @@ export interface KnowledgeStatus {
 /** 获取知识库状态概览。 */
 export async function getKnowledgeStatus(): Promise<KnowledgeStatus> {
   return callBinding<KnowledgeStatus>('main/App', 'GetKnowledgeStatus')
+}
+
+// ── 项目管理 ──────────────────────────────────────
+
+/** 列出已注册的项目。 */
+export async function listProjects(): Promise<ProjectInfo[]> {
+  return callBinding<ProjectInfo[]>('main/App', 'ListProjects')
+}
+
+/** 获取当前生效的项目。 */
+export async function getCurrentProject(): Promise<ProjectInfo | null> {
+  return callBinding<ProjectInfo>('main/App', 'GetCurrentProject')
+}
+
+/** 打开系统文件夹选择对话框，将选中目录注册为项目并切换。 */
+export async function selectProjectFolder(): Promise<ProjectInfo> {
+  return callBinding<ProjectInfo>('main/App', 'SelectProjectFolder')
+}
+
+/** 在 workspace/projects 下新建文件夹并注册为项目。 */
+export async function createProjectFolder(name: string): Promise<ProjectInfo> {
+  return callBinding<ProjectInfo>('main/App', 'CreateProjectFolder', name)
+}
+
+/** 切换到指定 ID 的项目。 */
+export async function switchProject(projectID: string): Promise<void> {
+  return callBinding<void>('main/App', 'SwitchProject', projectID)
 }

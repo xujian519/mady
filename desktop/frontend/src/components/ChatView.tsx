@@ -2,14 +2,14 @@
  * ChatView — 主聊天视图（三栏布局），支持虚拟化消息列表。
  *
  * 布局结构：
- * ┌──────────────────────────────────────────────┐
- * │ Sidebar  │  Chat Main         │ Context Panel │
- * │ 会话列表  │  消息流（虚拟化）   │ 文档预览      │
- * │          │  ToolCard          │              │
- * │          │  Composer          │              │
- * └──────────────────────────────────────────────┘
- * │ StatusBar                                     │
- * └──────────────────────────────────────────────┘
+ * ┌─────────────────────────────────────────────────────┐
+ * │ TitleBar（全宽标题栏，含交通灯安全区）              │
+ * ├──────────┬──────────────────────────┬─────────────┤
+ * │ Sidebar  │ Chat Main                │ Context Panel│
+ * │ 会话/项目 │  消息流 / Composer        │ 文档预览      │
+ * └──────────┴──────────────────────────┴─────────────┘
+ * │ StatusBar                                           │
+ * └─────────────────────────────────────────────────────┘
  *
  * 虚拟化策略：
  * - 已完成的所有 past-messages 参与虚拟化
@@ -29,7 +29,6 @@ import { Sidebar } from './Sidebar'
 import { MessageBubble } from './MessageBubble'
 import { DecisionSurface } from './DecisionSurface'
 import { ContextIndicator } from './ContextIndicator'
-import { AgentFooter } from './AgentFooter'
 import { StatusBar } from './StatusBar'
 import { ToolCard } from './ToolCard'
 import { DocumentViewer, type DocViewerFile } from './DocumentViewer'
@@ -310,6 +309,90 @@ export const ChatView: React.FC = () => {
 
   return (
     <div className={`h-screen w-screen flex flex-col bg-mady-bg-primary text-mady-text-primary select-none ${isFocusMode ? 'layout-focus' : ''}`}>
+      {/* 全宽标题栏：对齐 macOS 交通灯，内容左侧缩进避免重叠 */}
+      <header className="titlebar-drag-region mac-titlebar-safe h-[var(--mady-titlebar-height)] flex items-center justify-between px-4 border-b border-mady-separator mady-material">
+        <div className="flex items-center gap-2.5">
+          {!showSidebar && !isFocusMode && (
+            <button
+              onClick={() => setShowSidebar(true)}
+              className="p-1 rounded-md hover:bg-mady-bg-secondary text-mady-text-secondary transition-colors"
+              title="显示侧栏"
+            >
+              <PanelRightOpen size={15} />
+            </button>
+          )}
+          {/* 品牌标识 */}
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-5 h-5 rounded-md flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, var(--color-mady-accent) 0%, var(--color-mady-accent-tertiary) 100%)' }}
+            >
+              <span className="text-white text-[9px] font-bold">M</span>
+            </div>
+            <h1 className="text-mady-ui font-semibold text-mady-text-primary">Mady</h1>
+          </div>
+          {threadId && (
+            <>
+              <span className="text-mady-text-quaternary">/</span>
+              <span className="text-mady-caption text-mady-text-tertiary">
+                会话
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* UsageStrip：用量条（C09） */}
+        <UsageStrip />
+
+        {!isFocusMode && (
+          <div className="flex items-center gap-0.5">
+            {/* 功能视图组 */}
+            <button
+              onClick={() => setShowSkills(true)}
+              className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
+              title="技能"
+            >
+              <Zap size={14} />
+            </button>
+            <button
+              onClick={() => setShowMcp(true)}
+              className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
+              title="MCP 服务器"
+            >
+              <Server size={14} />
+            </button>
+            <button
+              onClick={() => setShowKnowledge(true)}
+              className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
+              title="知识库"
+            >
+              <Database size={14} />
+            </button>
+            <button
+              onClick={() => setShowTemplates(true)}
+              className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
+              title="模板库"
+            >
+              <FileText size={14} />
+            </button>
+            {/* 分组分隔线 */}
+            <div className="w-px h-4 bg-mady-separator mx-1" />
+            {/* 面板切换组 */}
+            <button
+              onClick={() => setShowDocViewer(!showDocViewer)}
+              className={`p-1.5 rounded-md text-mady-ui transition-all duration-150 ${
+                showDocViewer
+                  ? 'bg-mady-accent-soft text-mady-accent'
+                  : 'text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary'
+              }`}
+              title="文档预览"
+            >
+              <PanelRightOpen size={14} />
+            </button>
+          </div>
+        )}
+      </header>
+
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
         {showSidebar && !isFocusMode && (
@@ -318,90 +401,6 @@ export const ChatView: React.FC = () => {
 
         {/* Chat Main */}
         <main className="flex-1 flex flex-col min-w-0">
-          {/* 标题栏（红绿灯区 + 视图切换） */}
-          <header className={`titlebar-drag-region h-[var(--mady-titlebar-height)] flex items-center justify-between px-4 border-b border-mady-separator mady-material ${isFocusMode ? 'justify-center' : ''}`}>
-            <div className="flex items-center gap-2.5">
-              {!showSidebar && (
-                <button
-                  onClick={() => setShowSidebar(true)}
-                  className="p-1 rounded-md hover:bg-mady-bg-secondary text-mady-text-secondary transition-colors"
-                  title="显示侧栏"
-                >
-                  <PanelRightOpen size={15} />
-                </button>
-              )}
-              {/* 品牌标识 */}
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="w-5 h-5 rounded-md flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg, var(--color-mady-accent) 0%, var(--color-mady-accent-tertiary) 100%)' }}
-                >
-                  <span className="text-white text-[9px] font-bold">M</span>
-                </div>
-                <h1 className="text-mady-ui font-semibold text-mady-text-primary">Mady</h1>
-              </div>
-              {threadId && (
-                <>
-                  <span className="text-mady-text-quaternary">/</span>
-                  <span className="text-mady-caption text-mady-text-tertiary">
-                    会话
-                  </span>
-                </>
-              )}
-            </div>
-
-            {/* UsageStrip：用量条（C09） */}
-            <UsageStrip />
-
-            {!isFocusMode && (
-              <div className="flex items-center gap-0.5">
-                {/* 功能视图组 */}
-                <button
-                  onClick={() => setShowSkills(true)}
-                  className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
-                  title="技能"
-                >
-                  <Zap size={14} />
-                </button>
-                <button
-                  onClick={() => setShowMcp(true)}
-                  className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
-                  title="MCP 服务器"
-                >
-                  <Server size={14} />
-                </button>
-                <button
-                  onClick={() => setShowKnowledge(true)}
-                  className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
-                  title="知识库"
-                >
-                  <Database size={14} />
-                </button>
-                <button
-                  onClick={() => setShowTemplates(true)}
-                  className="p-1.5 rounded-md text-mady-ui text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary transition-all duration-150"
-                  title="模板库"
-                >
-                  <FileText size={14} />
-                </button>
-                {/* 分组分隔线 */}
-                <div className="w-px h-4 bg-mady-separator mx-1" />
-                {/* 面板切换组 */}
-                <button
-                  onClick={() => setShowDocViewer(!showDocViewer)}
-                  className={`p-1.5 rounded-md text-mady-ui transition-all duration-150 ${
-                    showDocViewer
-                      ? 'bg-mady-accent-soft text-mady-accent'
-                      : 'text-mady-text-secondary hover:bg-mady-bg-secondary hover:text-mady-text-primary'
-                  }`}
-                  title="文档预览"
-                >
-                  <PanelRightOpen size={14} />
-                </button>
-              </div>
-            )}
-          </header>
-
           {/* 消息列表（虚拟化） */}
           <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
             {!showContent ? (
@@ -519,9 +518,6 @@ export const ChatView: React.FC = () => {
           <SettingsPanel onClose={() => setShowSettings(false)} />
         )}
       </div>
-
-      {/* AgentFooter：对齐设计规范第9.5章，Composer 与 StatusBar 之间 */}
-      <AgentFooter />
 
       {/* StatusBar */}
       <StatusBar />

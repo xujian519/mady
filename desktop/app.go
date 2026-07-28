@@ -169,7 +169,8 @@ func (a *App) startup(ctx context.Context) {
 
 	// 保存 fc 引用供后续阶段使用。
 	a.fc = fc
-	log.Printf("[mady-desktop] core ready: madyHome=%s, workspace=%s", fc.MadyHome, fc.WorkspaceDir)
+	a.applyLastProject(saved)
+	log.Printf("[mady-desktop] core ready: madyHome=%s, workspace=%s, project=%s", fc.MadyHome, fc.WorkspaceDir, fc.BaseConfig.ProjectDir)
 
 	// == 阶段 2：重型初始化（后台） ==
 	//
@@ -412,8 +413,9 @@ func (a *App) Health() (HealthInfo, error) {
 // 持久化到 ~/.mady/desktop-settings.json；运行时切换仅对后续新建会话
 // 生效，已有会话保持原有模型（Q9 语义）。
 type AISettings struct {
-	Provider string `json:"provider,omitempty"`
-	Model    string `json:"model,omitempty"`
+	Provider      string `json:"provider,omitempty"`
+	Model         string `json:"model,omitempty"`
+	LastProjectID string `json:"last_project_id,omitempty"`
 }
 
 // aiSettingsPath 返回桌面端设置文件路径。
@@ -460,6 +462,26 @@ func (a *App) resolveMadyHome() string {
 		return ""
 	}
 	return home
+}
+
+// applyLastProject 在启动时恢复上次使用的项目。
+// 如果 LastProjectID 存在且对应案件目录仍可用，则将其设为当前 ProjectDir。
+func (a *App) applyLastProject(saved AISettings) {
+	if saved.LastProjectID == "" || a.fc == nil || a.fc.ProjectRegistry == nil {
+		return
+	}
+	rec, ok := a.fc.ProjectRegistry.Lookup(saved.LastProjectID)
+	if !ok {
+		log.Printf("[mady-desktop] last project %q not found in registry", saved.LastProjectID)
+		return
+	}
+	if err := domains.ValidateProjectPath(rec.RootPath); err != nil {
+		log.Printf("[mady-desktop] last project %q path %s unreachable: %v", rec.ProjectID, rec.RootPath, err)
+		return
+	}
+	a.fc.BaseConfig.ProjectDir = rec.RootPath
+	a.fc.ProjectRegistry.Touch(rec.ProjectID)
+	log.Printf("[mady-desktop] restored last project: %s (%s)", rec.Alias, rec.RootPath)
 }
 
 // GetAISettings 返回当前生效的 Provider/Model，供设置面板展示。
@@ -510,8 +532,12 @@ func (a *App) SetAISettings(s AISettings) error {
 	}
 
 	// 持久化（原子写）；失败时不变更运行时状态。
+	// 保留已有的 last_project_id，避免 AI 设置保存覆盖项目状态。
 	if home := a.resolveMadyHome(); home != "" {
-		if err := saveAISettingsTo(aiSettingsPath(home), AISettings{Provider: newProvider, Model: newModel}); err != nil {
+		saved := loadAISettingsFrom(aiSettingsPath(home))
+		saved.Provider = newProvider
+		saved.Model = newModel
+		if err := saveAISettingsTo(aiSettingsPath(home), saved); err != nil {
 			return fmt.Errorf("SetAISettings: 保存配置失败: %w", err)
 		}
 	}
