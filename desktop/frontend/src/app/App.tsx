@@ -16,6 +16,7 @@
 import { useEffect } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { subscribeAguiEvents } from '@/agui-bridge/client'
+import { aguiReducer } from '@/agui-bridge/reducer'
 import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
 import { ThemeProvider } from '@/theme/provider'
 import { useTheme } from '@/theme/tokens'
@@ -76,6 +77,22 @@ function App() {
         a2ui: {
           applyEnvelope: a2ui.applyEnvelope,
           getSurface: a2ui.getSurface,
+        },
+        agui: {
+          /** 直接分发 AGUI 事件到 reducer（模拟 Wails Events 注入）。 */
+          dispatch: (name: string, payload: unknown) => aguiReducer(name, payload),
+          /** 读取 chat store 的关键运行状态（供事件流断言）。 */
+          getChatState: () => {
+            const s = useChatStore.getState()
+            return {
+              toolCalls: s.toolCalls,
+              currentStep: s.currentStep,
+              stepCount: s.stepCount,
+              compaction: s.compaction,
+              retryNotice: s.retryNotice,
+              contextUsagePercent: s.contextUsagePercent,
+            }
+          },
         },
       }
     }

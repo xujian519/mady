@@ -229,3 +229,27 @@ export async function saveWindowState(width: number, height: number): Promise<vo
 export async function health(): Promise<HealthInfo> {
   return callBinding<HealthInfo>('main/App', 'Health')
 }
+
+// ── AI Settings（Q9：全局切换 + 新会话生效） ──────────
+
+/** AI 服务设置（Provider/Model），持久化于 ~/.mady/desktop-settings.json。 */
+export interface AISettings {
+  provider: string
+  model: string
+}
+
+/**
+ * 读取当前生效的 Provider/Model。
+ */
+export async function getAISettings(): Promise<AISettings> {
+  return callBinding<AISettings>('main/App', 'GetAISettings')
+}
+
+/**
+ * 切换全局 Provider/Model。
+ * 仅对后续新建会话生效；已有会话保持原有模型。
+ * Provider 切换失败（API Key 缺失等）时抛出错误，后端状态不变。
+ */
+export async function setAISettings(settings: AISettings): Promise<void> {
+  return callBinding<void>('main/App', 'SetAISettings', settings)
+}

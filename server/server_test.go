@@ -2330,3 +2330,27 @@ func messagesContain(t *testing.T, msgs []agentcore.Message, needle string) bool
 	}
 	return false
 }
+
+func TestServerSwitchModel(t *testing.T) {
+	srv := New(agentcore.Config{
+		ModelConfig:      agentcore.ModelConfig{Model: "deepseek-v4-flash"},
+		CompactionConfig: agentcore.CompactionConfig{ContextWindow: 1_000_000},
+	})
+
+	// 仅切换模型 + 上下文窗口
+	srv.SwitchModel(nil, "glm-5.2", 256_000)
+	cfg := srv.snapshotConfig()
+	if cfg.Model != "glm-5.2" {
+		t.Errorf("Model = %q, want glm-5.2", cfg.Model)
+	}
+	if cfg.CompactionConfig.ContextWindow != 256_000 {
+		t.Errorf("ContextWindow = %d, want 256000", cfg.CompactionConfig.ContextWindow)
+	}
+
+	// 空参数为 no-op（保持现有配置）
+	srv.SwitchModel(nil, "", 0)
+	cfg = srv.snapshotConfig()
+	if cfg.Model != "glm-5.2" || cfg.CompactionConfig.ContextWindow != 256_000 {
+		t.Errorf("empty args should be no-op, got model=%q ctx=%d", cfg.Model, cfg.CompactionConfig.ContextWindow)
+	}
+}

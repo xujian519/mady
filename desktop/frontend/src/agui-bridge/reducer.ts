@@ -38,7 +38,8 @@ function handleThinkingDelta(payload: AguiEventPayload) {
 function handleToolCallStart(payload: AguiEventPayload) {
   const tc: ToolCall = {
     id: payload.toolCallId ?? payload.id ?? '',
-    name: payload.toolName ?? payload.name ?? '',
+    // Go 端 ToolCallStartEvent 的 JSON 字段为 toolCallName
+    name: payload.toolCallName ?? payload.toolName ?? payload.name ?? '',
     args: '',
     status: 'running',
     invisible: payload.invisible === true,
@@ -46,6 +47,68 @@ function handleToolCallStart(payload: AguiEventPayload) {
   const store = useChatStore.getState()
   store.setToolCallBuffer(tc)
   store.addToolCall(tc)
+}
+
+/** tool-call-args：流式填充 ToolCard 参数（增量追加）。 */
+function handleToolCallArgs(payload: AguiEventPayload) {
+  const id = payload.toolCallId ?? ''
+  const delta = payload.delta ?? ''
+  if (!id || !delta) return
+  const store = useChatStore.getState()
+  store.appendToolCallArgs(id, delta)
+  // 同步缓冲区，保证 tool-call-end 合并时参数完整
+  const buf = useChatStore.getState().toolCallBuffer
+  if (buf && buf.id === id) {
+    store.setToolCallBuffer({ ...buf, args: buf.args + delta })
+  }
+}
+
+/** tool-call-result：显示工具调用结果（Go 端在 tool-call-end 后立即发出）。 */
+function handleToolCallResult(payload: AguiEventPayload) {
+  const id = payload.toolCallId ?? ''
+  if (!id) return
+  useChatStore.getState().updateToolCall(id, { result: payload.content ?? '' })
+}
+
+/** step-started：进度指示器（多步 turn 场景）。 */
+function handleStepStarted(payload: AguiEventPayload) {
+  useChatStore.getState().setStep(payload.stepName ?? '')
+}
+
+/** step-finished：收起进度指示器。 */
+function handleStepFinished() {
+  useChatStore.getState().finishStep()
+}
+
+/** compaction-start：上下文压缩提示（CustomEvent，payload.value 携带数据）。 */
+function handleCompactionStart(payload: AguiEventPayload) {
+  const v = payload.value ?? {}
+  useChatStore.getState().setCompaction({
+    active: true,
+    tokensBefore: v.tokens_before,
+  })
+}
+
+/** compaction-end：压缩完成摘要（保留展示至下一轮）。 */
+function handleCompactionEnd(payload: AguiEventPayload) {
+  const v = payload.value ?? {}
+  useChatStore.getState().setCompaction({
+    active: false,
+    tokensBefore: v.tokens_before,
+    tokensAfter: v.tokens_after,
+    messagesCut: v.messages_cut,
+    durationMs: v.duration_ms,
+  })
+}
+
+/** auto-retry：自动重试提示（CustomEvent，收到后续 token 时自动清除）。 */
+function handleAutoRetry(payload: AguiEventPayload) {
+  const v = payload.value ?? {}
+  useChatStore.getState().setRetryNotice({
+    attempt: v.attempt ?? 0,
+    maxRetries: v.max_retries ?? 0,
+    delayMs: v.delay_ms ?? 0,
+  })
 }
 
 function handleToolCallEnd(payload: AguiEventPayload) {
@@ -103,7 +166,14 @@ const HANDLERS: Record<string, (payload: AguiEventPayload) => void> = {
   'message-delta': handleMessageDelta,
   'thinking-delta': handleThinkingDelta,
   'tool-call-start': handleToolCallStart,
+  'tool-call-args': handleToolCallArgs,
   'tool-call-end': handleToolCallEnd,
+  'tool-call-result': handleToolCallResult,
+  'step-started': handleStepStarted,
+  'step-finished': handleStepFinished,
+  'compaction-start': handleCompactionStart,
+  'compaction-end': handleCompactionEnd,
+  'auto-retry': handleAutoRetry,
   error: handleError,
   a2ui: handleA2UI,
   'approval-prompt': handleApprovalPrompt,
@@ -113,6 +183,10 @@ const HANDLERS: Record<string, (payload: AguiEventPayload) => void> = {
 
 /**
  * AGUI 事件类型 → Store action 映射。
+ *
+ * 有意不订阅的事件（当前累加器模型已覆盖，订阅后无消费者）：
+ * - text-message-start/end：消息边界由 finishTurn 统一提交
+ * - thinking-start/end：思考区块由 thinking 累加器 + running 状态驱动
  */
 export function aguiReducer(eventName: string, payload: AguiEventPayload) {
   const handler = HANDLERS[eventName]

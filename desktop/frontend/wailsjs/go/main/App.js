@@ -22,6 +22,10 @@ export function DeleteThread(arg1) {
   return window['go']['main']['App']['DeleteThread'](arg1);
 }
 
+export function GetAISettings() {
+  return window['go']['main']['App']['GetAISettings']();
+}
+
 export function GetThread(arg1) {
   return window['go']['main']['App']['GetThread'](arg1);
 }
@@ -60,6 +64,10 @@ export function SaveWindowState(arg1, arg2) {
 
 export function SendAction(arg1, arg2) {
   return window['go']['main']['App']['SendAction'](arg1, arg2);
+}
+
+export function SetAISettings(arg1) {
+  return window['go']['main']['App']['SetAISettings'](arg1);
 }
 
 export function WriteFile(arg1, arg2) {

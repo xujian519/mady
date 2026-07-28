@@ -19,8 +19,26 @@ function copyCmapsPlugin() {
   }
 }
 
+/**
+ * dev server 专用：放宽 CSP script-src 允许内联脚本。
+ * Vite dev 模式会注入内联 react-refresh preamble，
+ * 生产构建的 CSP（script-src 'self'）保持不变。
+ */
+function devCspPlugin() {
+  return {
+    name: 'dev-csp',
+    apply: 'serve' as const,
+    transformIndexHtml(html: string) {
+      return html.replace(
+        "script-src 'self'",
+        "script-src 'self' 'unsafe-inline'",
+      )
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), copyCmapsPlugin()],
+  plugins: [react(), tailwindcss(), copyCmapsPlugin(), devCspPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

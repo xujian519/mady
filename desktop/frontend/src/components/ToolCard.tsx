@@ -26,7 +26,7 @@ import { Wrench, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight } from
 const HANDOFF_PREFIXES = ['transfer_to_', 'handoff_to_']
 
 /** 判断是否为 handoff 工具。双层防护：优先 invisible 字段，其次前缀匹配。 */
-function isHandoffTool(tc: ToolCall): boolean {
+export function isHandoffTool(tc: ToolCall): boolean {
   if (tc.invisible) return true
   return HANDOFF_PREFIXES.some((p) => tc.name.startsWith(p))
 }

@@ -21,6 +21,23 @@ export interface Message {
   timestamp: number
 }
 
+/** 上下文压缩提示（agui:compaction-start/end）。 */
+export interface CompactionNotice {
+  /** 压缩是否正在进行中。 */
+  active: boolean
+  tokensBefore?: number
+  tokensAfter?: number
+  messagesCut?: number
+  durationMs?: number
+}
+
+/** 自动重试提示（agui:auto-retry）。 */
+export interface RetryNotice {
+  attempt: number
+  maxRetries: number
+  delayMs: number
+}
+
 interface ChatState {
   /** 应用是否已完成初始化并准备就绪 */
   ready: boolean
@@ -52,6 +69,14 @@ interface ChatState {
   contextTotalTokens: number | null
   /** 模型上下文窗口大小（Token 数）。 */
   contextWindow: number | null
+  /** 当前执行的步骤名（agui:step-started，形如 turn_N）。 */
+  currentStep: string | null
+  /** 当前轮已开始的步骤计数。 */
+  stepCount: number
+  /** 上下文压缩提示（进行中或最近一次完成）。 */
+  compaction: CompactionNotice | null
+  /** 自动重试提示（收到后续 token 或轮次结束时清除）。 */
+  retryNotice: RetryNotice | null
 }
 
 /** 审批提示负载（来自 agui:approval-prompt）。 */
@@ -95,6 +120,16 @@ interface ChatActions {
   setApprovalPrompt: (p: ApprovalPrompt | null) => void
   /** 更新上下文使用率。 */
   setContextUsage: (percent: number, totalTokens: number, contextWindow: number) => void
+  /** 步骤开始（进度指示器）。 */
+  setStep: (name: string) => void
+  /** 步骤结束（收起进度指示器）。 */
+  finishStep: () => void
+  /** 设置上下文压缩提示。 */
+  setCompaction: (n: CompactionNotice) => void
+  /** 设置/清除自动重试提示。 */
+  setRetryNotice: (n: RetryNotice | null) => void
+  /** 追加工具调用参数（agui:tool-call-args 流式增量）。 */
+  appendToolCallArgs: (id: string, delta: string) => void
 }
 
 export type ChatStore = ChatState & ChatActions
@@ -120,6 +155,10 @@ export const initialState: ChatState = {
   contextUsagePercent: null,
   contextTotalTokens: null,
   contextWindow: null,
+  currentStep: null,
+  stepCount: 0,
+  compaction: null,
+  retryNotice: null,
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -151,6 +190,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       toolCalls: [],
       error: null,
       running: true,
+      currentStep: null,
+      stepCount: 0,
+      compaction: null,
+      retryNotice: null,
     }))
 
     try {
@@ -166,7 +209,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
   },
 
-  appendToken: (delta) => set((s) => ({ output: s.output + delta })),
+  appendToken: (delta) =>
+    set((s) => ({
+      output: s.output + delta,
+      // 收到正常 token 说明重试已恢复，清除重试提示
+      retryNotice: null,
+    })),
 
   appendThinking: (delta) => set((s) => ({ thinking: s.thinking + delta })),
 
@@ -210,6 +258,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       thinking: '',
       toolCalls: [],
       toolCallBuffer: null,
+      currentStep: null,
+      retryNotice: null,
     }))
   },
 
@@ -223,4 +273,20 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       contextTotalTokens: totalTokens,
       contextWindow,
     }),
+
+  setStep: (name) =>
+    set((s) => ({ currentStep: name, stepCount: s.stepCount + 1 })),
+
+  finishStep: () => set({ currentStep: null }),
+
+  setCompaction: (n) => set({ compaction: n }),
+
+  setRetryNotice: (n) => set({ retryNotice: n }),
+
+  appendToolCallArgs: (id, delta) =>
+    set((s) => ({
+      toolCalls: s.toolCalls.map((t) =>
+        t.id === id ? { ...t, args: t.args + delta } : t,
+      ),
+    })),
 }))

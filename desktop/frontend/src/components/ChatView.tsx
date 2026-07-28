@@ -22,7 +22,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useShallow } from 'zustand/react/shallow'
 import { useChatStore, initialState } from '@/stores/chat'
 import { useSettingsStore, type LayoutMode } from '@/stores/settings'
-import type { Message, ToolCall } from '@/stores/chat'
+import type { Message, ToolCall, CompactionNotice, RetryNotice } from '@/stores/chat'
 import { Sidebar } from './Sidebar'
 import { MessageBubble } from './MessageBubble'
 import { DecisionSurface } from './DecisionSurface'
@@ -36,15 +36,31 @@ import { KnowledgeView } from './KnowledgeView'
 import { TemplatesView } from './TemplatesView'
 import { SkillsView } from './SkillsView'
 import { McpView } from './McpView'
-import { Sparkles, PanelRightOpen, Brain, Database, FileText, Server, Zap } from 'lucide-react'
+import { Sparkles, PanelRightOpen, Brain, Database, FileText, Server, Zap, Loader2, RefreshCw, Scissors } from 'lucide-react'
 
 // ── 虚拟列表项类型 ────────────────────────────────
+
+/** 步骤名美化：turn_N → 推理第 N 步。 */
+function formatStepName(step: string): string {
+  const m = /^turn_(\d+)$/.exec(step)
+  if (m) return `推理与工具调用进行中`
+  return step
+}
+
+/** Token 数量格式化：12500 → 12.5k。 */
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+  return String(n)
+}
 
 type TranscriptItem =
   | { kind: 'message'; message: Message; index: number }
   | { kind: 'streaming-output'; output: string }
   | { kind: 'streaming-thinking'; thinking: string }
   | { kind: 'tool-calls'; toolCalls: ToolCall[] }
+  | { kind: 'step-indicator'; step: string; count: number }
+  | { kind: 'retry-notice'; notice: RetryNotice }
+  | { kind: 'compaction-notice'; notice: CompactionNotice }
   | { kind: 'error'; error: string }
 
 /** 根据消息内容估算行数，用于动态高度预估。 */
@@ -68,6 +84,10 @@ function itemHeight(item: TranscriptItem): number {
       return Math.min(200, 40 + estimateLines(item.thinking) * 22)
     case 'tool-calls':
       return item.toolCalls.length * 80 + 24
+    case 'step-indicator':
+    case 'retry-notice':
+    case 'compaction-notice':
+      return 36
     case 'error':
       return 60
   }
@@ -111,6 +131,10 @@ export const ChatView: React.FC = () => {
   const running = useChatStore((s) => s.running)
   const thinking = useChatStore((s) => s.thinking)
   const threadId = useChatStore((s) => s.threadId)
+  const currentStep = useChatStore((s) => s.currentStep)
+  const stepCount = useChatStore((s) => s.stepCount)
+  const compaction = useChatStore((s) => s.compaction)
+  const retryNotice = useChatStore((s) => s.retryNotice)
   const layout = useSettingsStore((s) => s.layout as LayoutMode)
 
   const isFocusMode = layout === 'focus'
@@ -155,12 +179,22 @@ export const ChatView: React.FC = () => {
     if (toolCalls.length > 0) {
       result.push({ kind: 'tool-calls', toolCalls })
     }
+    // 运行状态指示：步骤进度 / 自动重试 / 上下文压缩
+    if (running && currentStep) {
+      result.push({ kind: 'step-indicator', step: currentStep, count: stepCount })
+    }
+    if (running && retryNotice) {
+      result.push({ kind: 'retry-notice', notice: retryNotice })
+    }
+    if (compaction) {
+      result.push({ kind: 'compaction-notice', notice: compaction })
+    }
     if (error) {
       result.push({ kind: 'error', error })
     }
 
     return result
-  }, [messages, output, thinking, running, toolCalls, error])
+  }, [messages, output, thinking, running, toolCalls, error, currentStep, stepCount, compaction, retryNotice])
 
   // ── 虚拟化器 ────────────────────────────────────
 
@@ -221,6 +255,55 @@ export const ChatView: React.FC = () => {
             ))}
           </div>
         )
+      case 'step-indicator':
+        return (
+          <div key="step-indicator" className="px-4 py-1.5">
+            <div className="flex items-center gap-2 text-mady-caption text-mady-text-secondary">
+              <Loader2 size={12} className="animate-spin text-mady-accent" />
+              <span>
+                {formatStepName(item.step)}
+                {item.count > 1 && ` · 第 ${item.count} 步`}
+              </span>
+            </div>
+          </div>
+        )
+      case 'retry-notice':
+        return (
+          <div key="retry-notice" className="px-4 py-1.5">
+            <div className="flex items-center gap-2 text-mady-caption text-mady-warning">
+              <RefreshCw size={12} className="animate-spin" />
+              <span>
+                请求失败，{Math.round(item.notice.delayMs / 1000)}s 后自动重试
+                （第 {item.notice.attempt}/{item.notice.maxRetries} 次）…
+              </span>
+            </div>
+          </div>
+        )
+      case 'compaction-notice':
+        return (
+          <div key="compaction-notice" className="px-4 py-1.5">
+            <div className="flex items-center gap-2 text-mady-caption text-mady-text-tertiary">
+              <Scissors size={12} />
+              {item.notice.active ? (
+                <span>
+                  正在压缩上下文
+                  {item.notice.tokensBefore
+                    ? `（约 ${formatTokens(item.notice.tokensBefore)} tokens）`
+                    : ''}
+                  …
+                </span>
+              ) : (
+                <span>
+                  上下文已压缩
+                  {item.notice.tokensBefore != null && item.notice.tokensAfter != null
+                    ? `：${formatTokens(item.notice.tokensBefore)} → ${formatTokens(item.notice.tokensAfter)} tokens`
+                    : ''}
+                  {item.notice.messagesCut ? `，裁剪 ${item.notice.messagesCut} 条历史消息` : ''}
+                </span>
+              )}
+            </div>
+          </div>
+        )
       case 'error':
         return (
           <div key="error" className="px-4 py-2">
@@ -245,7 +328,7 @@ export const ChatView: React.FC = () => {
         {/* Chat Main */}
         <main className="flex-1 flex flex-col min-w-0">
           {/* 标题栏（红绿灯区 + 视图切换） */}
-          <header className={`titlebar-drag-region h-10 flex items-center justify-between px-4 border-b border-mady-separator bg-mady-bg-secondary/50 backdrop-blur-sm ${isFocusMode ? 'justify-center' : ''}`}>
+          <header className={`titlebar-drag-region h-[var(--mady-titlebar-height)] flex items-center justify-between px-4 border-b border-mady-separator mady-material ${isFocusMode ? 'justify-center' : ''}`}>
             <div className="flex items-center gap-3">
               {!showSidebar && (
                 <button

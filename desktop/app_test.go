@@ -8,6 +8,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agui"
+	"github.com/xujian519/mady/pkg/framework"
 )
 
 func TestToKebabCase_RunStarted(t *testing.T) {
@@ -589,5 +590,112 @@ func TestSandboxChain_FileTooLarge(t *testing.T) {
 	largeSize := maxSize + 1
 	if largeSize <= maxSize {
 		t.Error("size check should detect large files")
+	}
+}
+
+// --- AI 服务设置（Q9） ---
+
+func TestAISettingsPersistence_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := aiSettingsPath(dir)
+
+	want := AISettings{Provider: "kimi", Model: "kimi-k2.6"}
+	if err := saveAISettingsTo(path, want); err != nil {
+		t.Fatalf("saveAISettingsTo: %v", err)
+	}
+	got := loadAISettingsFrom(path)
+	if got != want {
+		t.Errorf("round trip mismatch: got %+v, want %+v", got, want)
+	}
+	// 原子写不应残留 tmp 文件
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf("tmp file should not exist after atomic rename")
+	}
+}
+
+func TestLoadAISettingsFrom_MissingOrInvalid(t *testing.T) {
+	dir := t.TempDir()
+
+	// 文件不存在 → 零值，不视为错误
+	if got := loadAISettingsFrom(aiSettingsPath(dir)); got != (AISettings{}) {
+		t.Errorf("missing file should yield zero AISettings, got %+v", got)
+	}
+
+	// 非法 JSON → 零值，不视为错误
+	bad := aiSettingsPath(dir)
+	if err := os.WriteFile(bad, []byte("{oops"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := loadAISettingsFrom(bad); got != (AISettings{}) {
+		t.Errorf("invalid JSON should yield zero AISettings, got %+v", got)
+	}
+}
+
+func TestSetAISettings_RequiresInput(t *testing.T) {
+	app := &App{}
+	if err := app.SetAISettings(AISettings{}); err == nil {
+		t.Error("empty AISettings should be rejected")
+	}
+}
+
+func TestSetAISettings_ModelOnly(t *testing.T) {
+	dir := t.TempDir()
+	app := &App{
+		fc:         &framework.Context{MadyHome: dir},
+		aiProvider: "deepseek",
+		aiModel:    "deepseek-v4-flash",
+	}
+
+	if err := app.SetAISettings(AISettings{Model: "deepseek-v4-pro"}); err != nil {
+		t.Fatalf("SetAISettings: %v", err)
+	}
+
+	// 运行时状态更新
+	if app.aiModel != "deepseek-v4-pro" {
+		t.Errorf("aiModel = %q, want deepseek-v4-pro", app.aiModel)
+	}
+	if app.aiProvider != "deepseek" {
+		t.Errorf("aiProvider = %q, want deepseek (unchanged)", app.aiProvider)
+	}
+	// framework 上下文同步更新
+	if app.fc.BaseConfig.ModelConfig.Model != "deepseek-v4-pro" {
+		t.Errorf("BaseConfig model = %q, want deepseek-v4-pro", app.fc.BaseConfig.ModelConfig.Model)
+	}
+	// 持久化生效
+	got := loadAISettingsFrom(aiSettingsPath(dir))
+	if got.Provider != "deepseek" || got.Model != "deepseek-v4-pro" {
+		t.Errorf("persisted settings = %+v, want {deepseek deepseek-v4-pro}", got)
+	}
+}
+
+func TestSetAISettings_ProviderWithoutKey(t *testing.T) {
+	// 清空所有相关 API Key，确保 BuildProvider 必然失败
+	t.Setenv("PROVIDER", "deepseek")
+	t.Setenv("API_KEY", "")
+	t.Setenv("ZHIPU_API_KEY", "")
+
+	dir := t.TempDir()
+	app := &App{
+		fc:         &framework.Context{MadyHome: dir},
+		aiProvider: "deepseek",
+		aiModel:    "deepseek-v4-flash",
+	}
+
+	err := app.SetAISettings(AISettings{Provider: "zhipu"})
+	if err == nil {
+		t.Fatal("provider switch without API key should fail")
+	}
+
+	// 失败时状态完全不变
+	if app.aiProvider != "deepseek" || app.aiModel != "deepseek-v4-flash" {
+		t.Errorf("state mutated on failure: provider=%q model=%q", app.aiProvider, app.aiModel)
+	}
+	// 环境变量已回滚
+	if got := os.Getenv("PROVIDER"); got == "zhipu" {
+		t.Error("PROVIDER env should be rolled back on failure")
+	}
+	// 未持久化
+	if got := loadAISettingsFrom(aiSettingsPath(dir)); got != (AISettings{}) {
+		t.Errorf("nothing should be persisted on failure, got %+v", got)
 	}
 }

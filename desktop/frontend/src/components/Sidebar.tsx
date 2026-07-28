@@ -49,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat, onSettings }) => {
   }
 
   return (
-    <aside className="w-60 h-full flex flex-col bg-mady-bg-secondary border-r border-mady-separator select-none">
+    <aside className="w-[var(--mady-sidebar-width)] h-full flex flex-col mady-material border-r border-mady-separator select-none">
       {/* 顶部：新建 + 搜索 + 项目树切换 */}
       <div className="p-3 space-y-2 border-b border-mady-separator">
         <button

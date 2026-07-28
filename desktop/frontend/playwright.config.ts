@@ -22,7 +22,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm dev',
+    // VITE_ENABLE_TEST_API 启用 window.__mady 测试接口（e2e 注入事件/envelope）。
+    // 用 env 显式传值，避免依赖 shell 的 VAR=val 前缀语法。
+    command: 'env VITE_ENABLE_TEST_API=true pnpm dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

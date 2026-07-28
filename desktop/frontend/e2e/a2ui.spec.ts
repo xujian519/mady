@@ -12,10 +12,10 @@ import { test, expect } from '@playwright/test'
 // ── 辅助函数 ───────────────────────────────────────
 
 async function waitForApp(page: import('@playwright/test').Page) {
-  await page.waitForFunction(() => {
-    const el = document.querySelector('main')
-    return el?.textContent?.includes('Ready')
-  }, { timeout: 10_000 })
+  // 等待 React 应用挂载（头部标题渲染即视为可用）。
+  // 不等待后端就绪事件：dev 模式无 Wails 后端，
+  // 且 __mady 测试接口在挂载时立即可用。
+  await page.waitForSelector('h1', { timeout: 10_000 })
 }
 
 async function getA2UI(page: import('@playwright/test').Page) {
@@ -56,8 +56,9 @@ function makeUpdateDataModel(surfaceId: string, path: string, value: any) {
 test('应用启动冒烟测试', async ({ page }) => {
   await page.goto('/')
   await waitForApp(page)
-  await expect(page.locator('h1')).toHaveText('Mady')
-  await expect(page.locator('main p')).toContainText('Ready')
+  await expect(page.locator('h1').first()).toHaveText('Mady')
+  // React 主界面已渲染（三栏布局的 main 区域存在）
+  await expect(page.locator('main')).toBeVisible()
 })
 
 // ── 测试 2：createSurface 创建 surface ─────────────
@@ -67,11 +68,11 @@ test('createSurface 创建 A2UI surface', async ({ page }) => {
   await waitForApp(page)
   await getA2UI(page)
 
-  const applied = await page.evaluate(() => {
+  const applied = await page.evaluate((catalog) => {
     const a2ui = (window as any).__mady.a2ui
     const env = {
       version: 'v0.9.1',
-      createSurface: { surfaceId: 'test', catalogId: BASIC_CATALOG },
+      createSurface: { surfaceId: 'test', catalogId: catalog },
     }
     try {
       a2ui.applyEnvelope(env)
@@ -80,7 +81,7 @@ test('createSurface 创建 A2UI surface', async ({ page }) => {
     } catch (e: any) {
       return { error: e.message }
     }
-  })
+  }, BASIC_CATALOG)
 
   expect(applied).toEqual({ id: 'test', catalogId: BASIC_CATALOG })
 })
@@ -92,13 +93,13 @@ test('updateComponents 后 root 组件正确', async ({ page }) => {
   await waitForApp(page)
   await getA2UI(page)
 
-  const result = await page.evaluate(() => {
+  const result = await page.evaluate((catalog) => {
     const a2ui = (window as any).__mady.a2ui
 
     // 创建 surface
     a2ui.applyEnvelope({
       version: 'v0.9.1',
-      createSurface: { surfaceId: 'demo', catalogId: BASIC_CATALOG },
+      createSurface: { surfaceId: 'demo', catalogId: catalog },
     })
 
     // 添加组件
@@ -128,7 +129,7 @@ test('updateComponents 后 root 组件正确', async ({ page }) => {
       txt1Type: txt1.type,
       txt1Content: txt1.props.content,
     }
-  })
+  }, BASIC_CATALOG)
 
   expect(result).toEqual({
     rootType: 'Column',
@@ -144,12 +145,12 @@ test('updateDataModel 更新 data model', async ({ page }) => {
   await waitForApp(page)
   await getA2UI(page)
 
-  const result = await page.evaluate(() => {
+  const result = await page.evaluate((catalog) => {
     const a2ui = (window as any).__mady.a2ui
 
     a2ui.applyEnvelope({
       version: 'v0.9.1',
-      createSurface: { surfaceId: 'dm', catalogId: BASIC_CATALOG, sendDataModel: true },
+      createSurface: { surfaceId: 'dm', catalogId: catalog, sendDataModel: true },
     })
 
     a2ui.applyEnvelope({
@@ -160,7 +161,7 @@ test('updateDataModel 更新 data model', async ({ page }) => {
     const srf = a2ui.getSurface('dm')
     if (!srf) return { error: 'surface not found' }
     return { name: (srf.dataModel as any)?.user?.name }
-  })
+  }, BASIC_CATALOG)
 
   expect(result).toEqual({ name: 'Alice' })
 })

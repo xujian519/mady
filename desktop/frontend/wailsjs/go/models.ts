@@ -261,6 +261,20 @@ export namespace agentcore {
 
 export namespace main {
 
+	export class AISettings {
+	    provider?: string;
+	    model?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AISettings(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
+	        this.model = source["model"];
+	    }
+	}
 	export class FileContent {
 	    name: string;
 	    path: string;

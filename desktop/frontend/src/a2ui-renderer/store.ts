@@ -78,7 +78,11 @@ export interface UpdateDataModel {
   surfaceId: string
   path?: string
   value?: unknown
-  /** 标记 value 是否在 JSON 中出现过（区分 null vs 省略）。 */
+  /**
+   * 标记 value 是否在 JSON 中出现过（区分 null vs 省略）。
+   * 注意：Go 端 wire 格式不携带此键（见 a2ui/message.go MarshalJSON），
+   * "value 是否出现" 以键存在性判断；此字段仅为兼容保留。
+   */
   valueSet?: boolean
 }
 
@@ -326,7 +330,9 @@ export class SurfaceStore {
     const srf = this._surfaces.get(m.surfaceId)
     if (!srf) throw new SurfaceNotFoundError(m.surfaceId)
     const path = m.path ?? ''
-    const hasValue = m.valueSet ?? false
+    // 对齐 Go 端 wire 格式（a2ui/message.go）：value 键存在即视为 set，
+    // 省略即视为 remove；valueSet 仅为兼容旧调用方保留。
+    const hasValue = m.valueSet ?? Object.prototype.hasOwnProperty.call(m, 'value')
     srf.dataModel = applyUpdate(srf.dataModel, path, m.value, hasValue)
     // 清除绑定缓存，确保下一次 resolveBind 读取最新 data model
     clearBindCache(srf.dataModel)

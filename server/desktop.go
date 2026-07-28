@@ -235,3 +235,22 @@ func (s *Server) uptime() string {
 	}
 	return time.Since(s.createdAt).Truncate(time.Second).String()
 }
+
+// SwitchModel 切换全局默认模型，可选同时更换 Provider 与上下文窗口。
+// 仅影响后续新建的 agent（新会话）；已池化的会话 agent 保持原有配置
+// 不变，符合桌面端 Q9「全局切换 + 新会话生效」语义。
+// provider 为 nil 表示保持现有 Provider；model 为空表示保持现有模型；
+// contextWindow <= 0 表示保持现有上下文窗口。
+func (s *Server) SwitchModel(provider agentcore.Provider, model string, contextWindow int64) {
+	cfg := s.config.Get()
+	if provider != nil {
+		cfg.Provider = provider
+	}
+	if model != "" {
+		cfg.Model = model
+	}
+	if contextWindow > 0 {
+		cfg.ContextWindow = contextWindow
+	}
+	s.config.Set(cfg)
+}

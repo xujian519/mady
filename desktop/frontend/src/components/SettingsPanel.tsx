@@ -11,15 +11,77 @@ import React from 'react'
 import { useSettingsStore } from '@/stores/settings'
 import { useTheme } from '@/theme/tokens'
 import type { ThemeMode } from '@/theme/tokens'
-import { X, Sun, Moon, Monitor, Server, Cpu } from 'lucide-react'
+import { getAISettings, setAISettings } from '@/lib/backend'
+import { AnimatePresence, motion } from 'framer-motion'
+import { X, Sun, Moon, Monitor, Server, Cpu, Check, AlertCircle } from 'lucide-react'
 
 interface SettingsPanelProps {
   onClose: () => void
 }
 
+/** Toast 通知。 */
+interface Toast {
+  kind: 'success' | 'error'
+  message: string
+}
+
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const settings = useSettingsStore()
   const { setMode } = useTheme()
+
+  // AI 服务：本地编辑态（保存前不影响后端）
+  const [provider, setProvider] = React.useState(settings.provider)
+  const [model, setModel] = React.useState(settings.model)
+  const [saving, setSaving] = React.useState(false)
+  const [toast, setToast] = React.useState<Toast | null>(null)
+
+  // 挂载时从后端读取当前生效的 Provider/Model（真相源在后端）
+  React.useEffect(() => {
+    getAISettings()
+      .then((s) => {
+        setProvider(s.provider)
+        setModel(s.model)
+        settings.update({ provider: s.provider, model: s.model })
+      })
+      .catch(() => {
+        // 后端未就绪（初始化中）：保留本地编辑态，用户仍可保存触发重试
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Toast 自动消失
+  React.useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(timer)
+  }, [toast])
+
+  const aiDirty =
+    (provider !== '' && provider !== settings.provider) ||
+    (model !== '' && model !== settings.model)
+
+  const handleSaveAI = async () => {
+    if (saving || !aiDirty) return
+    setSaving(true)
+    const effective = {
+      provider: provider || settings.provider,
+      model: model || settings.model,
+    }
+    try {
+      await setAISettings(effective)
+      settings.update(effective)
+      setProvider(effective.provider)
+      setModel(effective.model)
+      setToast({ kind: 'success', message: '已保存，切换将在下一轮新会话中生效' })
+    } catch (err) {
+      setToast({
+        kind: 'error',
+        message: err instanceof Error ? err.message : '保存失败，请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const themeOptions: { value: ThemeMode; label: string; icon: React.ReactNode }[] = [
     { value: 'light', label: '亮色', icon: <Sun size={14} /> },
@@ -88,9 +150,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 </label>
                 <input
                   type="text"
-                  value={settings.provider}
-                  onChange={(e) => settings.update({ provider: e.target.value })}
-                  placeholder="如 openai, anthropic"
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value)}
+                  placeholder="如 deepseek, kimi, zhipu"
                   className="w-full rounded-lg px-3 py-2 bg-mady-bg-secondary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent"
                 />
               </div>
@@ -102,16 +164,31 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 </label>
                 <input
                   type="text"
-                  value={settings.model}
-                  onChange={(e) => settings.update({ model: e.target.value })}
-                  placeholder="如 gpt-4o, claude-3-opus"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="如 deepseek-v4-flash, kimi-k2.6"
                   className="w-full rounded-lg px-3 py-2 bg-mady-bg-secondary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent"
                 />
               </div>
 
-              <p className="text-mady-caption text-mady-text-tertiary">
-                Provider/Model 切换将在下一轮对话中生效
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-mady-caption text-mady-text-tertiary">
+                  切换仅对新建会话生效，已有会话保持原有模型
+                </p>
+                <button
+                  onClick={handleSaveAI}
+                  disabled={!aiDirty || saving}
+                  className={`
+                    px-3 py-1.5 rounded-lg text-mady-small transition-colors
+                    ${aiDirty && !saving
+                      ? 'bg-mady-accent text-white hover:bg-mady-accent-hover'
+                      : 'bg-mady-bg-secondary text-mady-text-tertiary cursor-not-allowed'
+                    }
+                  `}
+                >
+                  {saving ? '保存中…' : '保存'}
+                </button>
+              </div>
             </div>
           </section>
 
@@ -138,6 +215,34 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
           </section>
         </div>
       </div>
+
+      {/* Toast 通知（T3.6：切换结果反馈） */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.16, ease: 'easeOut' }}
+            className={`
+              fixed bottom-6 left-1/2 -translate-x-1/2 z-[60]
+              flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg
+              text-mady-small border
+              ${toast.kind === 'success'
+                ? 'bg-mady-bg-primary text-mady-text-primary border-mady-separator'
+                : 'bg-mady-bg-primary text-mady-danger border-mady-danger/30'
+              }
+            `}
+          >
+            {toast.kind === 'success' ? (
+              <Check size={14} className="text-mady-success" />
+            ) : (
+              <AlertCircle size={14} className="text-mady-danger" />
+            )}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

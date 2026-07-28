@@ -38,20 +38,29 @@ async function loadWailsRuntime() {
 loadWailsRuntime()
 
 /**
- * 订阅 Wails 事件。在生产环境绑定 EventsOn，开发期 noop。
+ * 是否运行在 Wails 宿主中。
+ * 生成代码内部直接访问 window.runtime / window.go，
+ * 纯浏览器（pnpm dev / e2e）中该对象不存在，必须回避真实绑定。
+ */
+function isWailsHost(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).runtime
+}
+
+/**
+ * 订阅 Wails 事件。在 Wails 宿主中绑定 EventsOn，纯浏览器环境 noop。
  */
 export function listenToWailsEvent(eventName: string, callback: (...args: any[]) => void): () => void {
-  if (eventsOn) {
+  if (eventsOn && isWailsHost()) {
     return eventsOn(eventName, callback)
   }
   return () => {}
 }
 
 /**
- * 通过 Wails Events 向后端发送事件。在生产环境绑定 EventsEmit，开发期 noop。
+ * 通过 Wails Events 向后端发送事件。在 Wails 宿主中绑定 EventsEmit，纯浏览器环境 noop。
  */
 export function emitWailsEvent(eventName: string, data?: any) {
-  if (eventsEmit) {
+  if (eventsEmit && isWailsHost()) {
     eventsEmit(eventName, data)
   }
 }

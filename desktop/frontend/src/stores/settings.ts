@@ -1,13 +1,14 @@
 /**
- * 设置 Zustand Store — 持久化到 localStorage。
+ * 设置 Zustand Store — 持久化到 localStorage（UI 缓存）。
  *
  * 存储：
  * - 主题模式（light / dark / system）
  * - Provider 选择
  * - 模型选择
  *
- * Provider/Model 切换写入全局配置（复用 pkg/agentconfig），
- * 仅新会话生效。切换时弹 Toast 提示。
+ * 注意：Provider/Model 的真相源是后端（~/.mady/desktop-settings.json，
+ * 通过 SetAISettings binding 写入）。本 store 仅作为 UI 缓存与即时回显，
+ * 挂载时由 SettingsPanel 从 GetAISettings 同步。
  */
 
 import { create } from 'zustand'
@@ -56,11 +57,6 @@ export const useSettingsStore = create<SettingsStore>()(
 
       update: (partial) => {
         set(partial)
-
-        // Provider/Model 切换时提示（在生产环境可改为 Toast）
-        if (partial.provider || partial.model) {
-          console.info('[settings] Provider/Model 变更将在下一轮对话中生效')
-        }
       },
 
       reset: () => set(DEFAULTS),
