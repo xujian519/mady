@@ -44,7 +44,7 @@ function tokenize(code: string, _lang: string): HighlightToken[][] {
       // 行注释（// 或 #）
       const commentMatch = remaining.match(/^(\/\/|#).*/)
       if (commentMatch) {
-        tokens.push({ text: remaining, className: 'text-green-500/70 italic' })
+        tokens.push({ text: remaining, className: 'text-mady-text-tertiary italic' })
         remaining = ''
         continue
       }
@@ -52,7 +52,7 @@ function tokenize(code: string, _lang: string): HighlightToken[][] {
       // 字符串（双引号、单引号、反引号）
       const strMatch = remaining.match(/^("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/)
       if (strMatch) {
-        tokens.push({ text: strMatch[1], className: 'text-orange-500' })
+        tokens.push({ text: strMatch[1], className: 'text-mady-warning' })
         remaining = remaining.slice(strMatch[1].length)
         continue
       }
@@ -60,7 +60,7 @@ function tokenize(code: string, _lang: string): HighlightToken[][] {
       // 数字
       const numMatch = remaining.match(/^(\b\d+(?:\.\d+)?\b)/)
       if (numMatch) {
-        tokens.push({ text: numMatch[1], className: 'text-blue-500' })
+        tokens.push({ text: numMatch[1], className: 'text-mady-info' })
         remaining = remaining.slice(numMatch[1].length)
         continue
       }
@@ -84,7 +84,7 @@ function tokenize(code: string, _lang: string): HighlightToken[][] {
       ]
       const kwMatch = remaining.match(new RegExp(`^\\b(${keywords.join('|')})\\b`))
       if (kwMatch) {
-        tokens.push({ text: kwMatch[1], className: 'text-purple-500 font-medium' })
+        tokens.push({ text: kwMatch[1], className: 'text-mady-accent font-medium' })
         remaining = remaining.slice(kwMatch[1].length)
         continue
       }

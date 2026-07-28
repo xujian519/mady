@@ -153,7 +153,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   value={provider}
                   onChange={(e) => setProvider(e.target.value)}
                   placeholder="如 deepseek, kimi, zhipu"
-                  className="w-full rounded-lg px-3 py-2 bg-mady-bg-secondary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent"
+                  className="w-full rounded-lg px-3 py-2 bg-mady-bg-secondary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent focus:ring-2 focus:ring-mady-accent/20 transition-all duration-150"
                 />
               </div>
 
@@ -167,7 +167,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                   placeholder="如 deepseek-v4-flash, kimi-k2.6"
-                  className="w-full rounded-lg px-3 py-2 bg-mady-bg-secondary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent"
+                  className="w-full rounded-lg px-3 py-2 bg-mady-bg-secondary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent focus:ring-2 focus:ring-mady-accent/20 transition-all duration-150"
                 />
               </div>
 
@@ -226,11 +226,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             transition={{ duration: 0.16, ease: 'easeOut' }}
             className={`
               fixed bottom-6 left-1/2 -translate-x-1/2 z-[60]
-              flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg
+              flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg backdrop-blur-xl
               text-mady-small border
               ${toast.kind === 'success'
-                ? 'bg-mady-bg-primary text-mady-text-primary border-mady-separator'
-                : 'bg-mady-bg-primary text-mady-danger border-mady-danger/30'
+                ? 'bg-mady-bg-material text-mady-text-primary border-mady-separator'
+                : 'bg-mady-bg-material text-mady-danger border-mady-danger/30'
               }
             `}
           >

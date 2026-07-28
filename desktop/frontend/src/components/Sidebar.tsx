@@ -54,7 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat, onSettings }) => {
       <div className="p-3 space-y-2 border-b border-mady-separator">
         <button
           onClick={onNewChat}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-mady-accent text-white text-mady-ui font-medium hover:bg-mady-accent-hover transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-mady-accent to-mady-accent-hover text-white text-mady-ui font-medium shadow-sm hover:shadow-md hover:from-mady-accent-hover hover:to-mady-accent transition-all duration-200"
         >
           <Plus size={14} />
           新对话
@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat, onSettings }) => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="搜索会话…"
-            className="w-full pl-7 pr-3 py-1.5 rounded-lg bg-mady-bg-primary border border-mady-border text-mady-ui text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent transition-colors"
+            className="w-full pl-7 pr-3 py-1.5 rounded-lg bg-mady-bg-primary border border-mady-border text-mady-ui text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent focus:ring-1 focus:ring-mady-accent/30 transition-all duration-150"
           />
         </div>
 

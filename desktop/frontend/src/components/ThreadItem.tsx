@@ -34,7 +34,7 @@ export const ThreadItem: React.FC<ThreadItemProps> = ({
         }
       `}
     >
-      <MessageSquare size={14} className="shrink-0 opacity-50" />
+      <MessageSquare size={14} className="shrink-0 text-mady-text-tertiary" />
       <span className="truncate flex-1">{thread.title || '新会话'}</span>
       <span className="text-mady-text-tertiary text-mady-caption shrink-0">
         {thread.messageN}

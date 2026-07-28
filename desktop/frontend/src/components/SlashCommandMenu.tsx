@@ -65,10 +65,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  ui:      'text-blue-400',
-  domain:  'text-emerald-400',
-  mode:    'text-purple-400',
-  session: 'text-amber-400',
+  ui:      'text-mady-info',
+  domain:  'text-mady-success',
+  mode:    'text-mady-accent',
+  session: 'text-mady-warning',
 }
 
 // ── 组件 ──────────────────────────────────────────

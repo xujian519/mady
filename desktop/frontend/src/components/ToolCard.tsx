@@ -94,7 +94,7 @@ export const ToolCard: React.FC<ToolCardProps> = ({ toolCall }) => {
           {toolCall.args && (
             <div>
               <span className="text-mady-text-tertiary text-mady-caption">参数</span>
-              <pre className="mt-0.5 bg-mady-bg-primary/50 rounded-lg p-2 font-mono text-mady-text-secondary whitespace-pre-wrap break-words">
+              <pre className="mt-0.5 bg-mady-bg-primary/50 rounded-lg p-2 font-mono text-mady-text-secondary whitespace-pre-wrap break-words max-h-48 overflow-y-auto border border-mady-border/30">
                 {toolCall.args}
               </pre>
             </div>
@@ -103,7 +103,7 @@ export const ToolCard: React.FC<ToolCardProps> = ({ toolCall }) => {
           {(isDone && toolCall.result) && (
             <div>
               <span className="text-mady-text-tertiary text-mady-caption">结果</span>
-              <pre className="mt-0.5 bg-mady-bg-primary/50 rounded-lg p-2 font-mono text-mady-text-secondary whitespace-pre-wrap break-words">
+              <pre className="mt-0.5 bg-mady-bg-primary/50 rounded-lg p-2 font-mono text-mady-text-secondary whitespace-pre-wrap break-words max-h-48 overflow-y-auto border border-mady-border/30">
                 {toolCall.result}
               </pre>
             </div>
