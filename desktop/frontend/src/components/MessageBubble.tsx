@@ -1,20 +1,23 @@
 /**
- * MessageBubble — 消息气泡组件。
+ * MessageBubble — 消息气泡组件（像素级对齐设计规范 C02/C03）。
  *
- * 支持用户消息和 Agent 消息两种角色。
- * Agent 消息支持 Markdown 渲染。
- * 使用 Motion 实现淡入动画。
+ * UserBubble (C02) 规范：
+ *   不对称圆角 12px 4px 12px 12px，max-width 85%，右对齐
+ *   背景 rgba(88,86,214,0.12) → --color-mady-bg-bubble-user
+ *
+ * AgentBlock (C03) 规范：
+ *   不对称圆角 12px 12px 12px 4px，max-width 92%，左对齐
+ *   流式时左侧 2px 品牌紫边框 + 光标 step 闪烁 1s
  */
 
 import React from 'react'
 import { motion } from 'framer-motion'
 import type { Message } from '@/stores/chat'
-import { Bot, User } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
 interface MessageBubbleProps {
   message: Message
-  /** 是否为流式输出的最后一条（"正在思考"指示器）。 */
+  /** 是否为流式输出的最后一条。 */
   isStreaming?: boolean
 }
 
@@ -29,57 +32,40 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className={`flex gap-3 px-4 py-3 rounded-lg transition-colors duration-150 ${isUser ? 'flex-row-reverse hover:bg-mady-bg-secondary/50' : 'flex-row hover:bg-mady-bg-secondary/50'}`}
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'} px-4 py-1.5`}
     >
-      {/* 头像 */}
       <div
         className={`
-          shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+          min-w-0
           ${isUser
-            ? 'text-mady-accent'
-            : 'text-white'
+            ? 'max-w-[85%] px-3.5 py-2.5'
+            : 'max-w-[92%] px-3.5 py-2.5'
           }
+          ${isUser
+            ? 'rounded-[12px_4px_12px_12px] bg-mady-bg-bubble-user'
+            : 'rounded-[12px_12px_12px_4px] bg-mady-bg-bubble-agent'
+          }
+          text-mady-body leading-relaxed text-mady-text-primary transition-shadow duration-150
+          ${isUser ? '' : isStreaming ? 'border-l-2 border-mady-accent' : 'border-l-2 border-transparent'}
         `}
-        style={
-          isUser
-            ? { background: 'var(--color-mady-accent-soft)' }
-            : { background: 'linear-gradient(135deg, var(--color-mady-accent) 0%, var(--color-mady-accent-tertiary) 100%)' }
-        }
       >
-        {isUser ? <User size={14} /> : <Bot size={14} />}
+        {isUser ? (
+          <p className="whitespace-pre-wrap">{message.content}</p>
+        ) : (
+          <MarkdownRenderer content={message.content} />
+        )}
+
+        {/* 流式光标（仅 Agent 流式时显示） */}
+        {isStreaming && !isUser && (
+          <span className="streaming-cursor" />
+        )}
       </div>
 
-      {/* 气泡主体 */}
-      <div className={`max-w-[75%] min-w-0 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
-        <div
-          className={`
-            rounded-2xl px-4 py-2.5 text-mady-body leading-relaxed transition-shadow duration-150
-            ${isUser
-              ? 'bg-mady-accent text-white rounded-tr-md'
-              : 'bg-mady-bg-secondary text-mady-text-primary rounded-tl-md border border-mady-separator'
-            }
-          `}
-        >
-          {isUser ? (
-            <p className="whitespace-pre-wrap">{message.content}</p>
-          ) : (
-            <MarkdownRenderer content={message.content} />
-          )}
-        </div>
-
-        {/* 时间戳 + 流式指示器 */}
-        <div className={`flex items-center gap-2 mt-1 px-1 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-          <span className="text-mady-text-tertiary text-mady-caption">
-            {formatTime(message.timestamp)}
-          </span>
-          {isStreaming && (
-            <span className="flex gap-0.5">
-              <span className="w-1 h-1 rounded-full bg-mady-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-1 h-1 rounded-full bg-mady-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-1 h-1 rounded-full bg-mady-accent animate-bounce" style={{ animationDelay: '300ms' }} />
-            </span>
-          )}
-        </div>
+      {/* 时间戳 */}
+      <div className={`self-end mb-1 ${isUser ? 'mr-2' : 'ml-2'}`}>
+        <span className="text-mady-text-tertiary text-mady-caption">
+          {formatTime(message.timestamp)}
+        </span>
       </div>
     </motion.div>
   )

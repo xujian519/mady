@@ -5,10 +5,13 @@
  * - 主题模式（light / dark / system）
  * - Provider 选择
  * - 模型选择
+ * - 推理设置（modelId / reasoningEffort / contextWindow / temperature）
  *
  * 注意：Provider/Model 的真相源是后端（~/.mady/desktop-settings.json，
  * 通过 SetAISettings binding 写入）。本 store 仅作为 UI 缓存与即时回显，
  * 挂载时由 SettingsPanel 从 GetAISettings 同步。
+ *
+ * 推理设置暂为纯前端状态（无后端端点），通过 localStorage 持久化。
  */
 
 import { create } from 'zustand'
@@ -28,6 +31,14 @@ export interface SettingsState {
   provider: string
   /** 默认模型。 */
   model: string
+  /** 选中的模型 ID（ModelSettings 用）。 */
+  modelId: string
+  /** 推理力度。 */
+  reasoningEffort: 'low' | 'medium' | 'high' | 'max'
+  /** 上下文窗口尺寸。 */
+  contextWindow: string
+  /** 温度。 */
+  temperature: number
 }
 
 interface SettingsActions {
@@ -48,6 +59,10 @@ const DEFAULTS: SettingsState = {
   layout: 'standard',
   provider: '',
   model: '',
+  modelId: 'deepseek-v4',
+  reasoningEffort: 'medium',
+  contextWindow: '128K',
+  temperature: 0.7,
 }
 
 export const useSettingsStore = create<SettingsStore>()(

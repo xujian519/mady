@@ -7636,3 +7636,56 @@ Sprint 1 结束前对全部代码产出的全面审阅和修复。包含 TUI 25 
 ### 影响
 - `make all`（vet + build + test）根模块 + tools + tui + desktop 全部通过
 - 所有修改均为零行为变化的重构
+
+## 2026-07-28: 桌面端像素级设计对齐 — Codex C 系列全部组件对标完成
+
+### 背景
+本次变更完成了桌面端与 `codex-desktop-pixel-perfect-design-spec.md`（v2.1）的
+全量像素级对齐。覆盖 P0 tokens → P2 布局 → 全部 C 系列组件（C01-C12）。
+
+### 变更清单
+
+**Token 层（P0 — globals.css ~60 个变量）**:
+- 暖色调替换：`--color-mady-bg-primary` #FFFFFF→#F5F2EE, Dark #000000→#1C1A18
+- 实色文字：`text-secondary` rgba→#6B6560, `text-tertiary` rgba→#A39E98
+- 品牌色统一：`text-link` #007aff→#5e5ce6, `success` #34c759→#5856d6
+- 新增 35+ 个缺失 token（bg-sidebar/bg-composer/bg-hover/bg-active/bg-overlay/
+  selection-bg/connection-*/mcp-*/shadow-*/radius-*/duration-*/ease-*）
+- 布局常量对齐：`--mady-statusbar-height: 40px`, `--mady-context-width: 380px`
+
+**主题包（packs.ts）**:
+- `professional` 主题包更新：暖色系实色，匹配 spec §5.1 值
+- 品牌恒定色（connection/mcp/success/link）不纳入 ThemePackVars（正确设计）
+
+**布局层（P2）**:
+- StatusBar: h-7→h-10 (28px→40px), 连接状态色 token 化, 模型芯片 pill 样式
+- AgentFooter: 新建 32px 组件, 连接状态圆点+模型 Badge, 嵌入 ChatView
+- 文档常量：`--mady-context-width: 380px`（规范值）
+
+**组件层（C01-C12）**:
+- C01 Sidebar: Tab 切换（会话/项目/文件）+ 40px header + 选中色 `bg-mady-bg-active`
+- C02 MessageBubble (UserBubble): 不对称圆角 `12px 4px 12px 12px`, 紫透明背景,
+  85% max-width, 右对齐, 去头像
+- C03 AgentBlock: 左边框 `2px solid accent`, 流式光标 step 闪烁, 92% max-width,
+  去头像
+- C04 ToolCard: 圆角 8px, 标题行 36px, 展开/收起 chevron 动画, max-h 300px
+- C05 ApprovalDialog: ✅ 已有
+- C06 McpServersSettings: 新建组件, 服务器列表/状态/envKey 展示
+- C07 SettingsNav: 整合到 SettingsPanel 分区结构
+- C08 ModelSettings: 新建组件 — 48px Pill 选择器(radius/2xl 16px), 推理力度
+  Segmented(低/中/高/极高), 上下文窗口 Dropdown(32K-1M), 温度 Slider(0-2 .1),
+  mock 模型数据(后端就绪替换 API)
+- C09 UsageStrip: 新建组件, 四色级进度条, 读取 contextUsage
+- C10 Composer: ✅ 已有 slash palette
+- C11 ReasoningBlock: 新建折叠块, 灰色 italic 摘要, 150ms chevron 动画
+- C12 AgentFooter: 见布局层
+
+### 新增文件
+- `desktop/frontend/src/components/AgentFooter.tsx`
+- `desktop/frontend/src/components/ReasoningBlock.tsx`
+- `desktop/frontend/src/components/UsageStrip.tsx`
+- `desktop/frontend/src/components/McpServersSettings.tsx`
+- `desktop/frontend/src/components/ModelSettings.tsx`
+
+### 未解决/待后端
+- C08 模型列表真实数据（后端 model/list 端点）

@@ -3,105 +3,166 @@
 /* ============================================================
  * Mady 桌面端 Design Tokens
  *
- * 对齐 02-spec.md §5 主题与设计令牌。
- * Apple HIG 语义化颜色 + Mady 品牌紫/橙色。
+ * 对齐 codex-desktop-pixel-perfect-design-spec.md v2.1。
+ * Apple HIG 语义化颜色 + Mady 品牌紫。
  * ============================================================ */
 
 @theme {
   /* ---- 背景层级（Surfaces） ---- */
-  --color-mady-bg-primary: #ffffff;
-  --color-mady-bg-secondary: #f2f2f7;
-  --color-mady-bg-tertiary: #ffffff;
-  --color-mady-bg-grouped: #f2f2f7;
-  --color-mady-bg-grouped-secondary: #ffffff;
-  --color-mady-bg-material: rgba(255, 255, 255, 0.72);
+  --color-mady-bg-primary: #F5F2EE;          /* 暖米灰，非纯白 */
+  --color-mady-bg-secondary: #FAF8F5;        /* 面板底色 */
+  --color-mady-bg-tertiary: #FFFFFF;          /* 弹出层/输入框 */
+  --color-mady-bg-grouped: #FAF8F5;
+  --color-mady-bg-grouped-secondary: #FFFFFF;
+  --color-mady-bg-material: rgba(245, 242, 238, 0.72);
+  --color-mady-bg-sidebar: rgba(245, 242, 238, 0.72); /* 侧栏毛玻璃 */
+  --color-mady-bg-sidebar-solid: #F0EDE8;    /* 侧栏非玻璃态备用 */
+  --color-mady-bg-hover: rgba(0, 0, 0, 0.04);  /* 列表项/按钮 hover */
+  --color-mady-bg-active: rgba(88, 86, 214, 0.08); /* 选中项背景 */
+  --color-mady-bg-overlay: rgba(0, 0, 0, 0.48);   /* 模态框遮罩 */
+  --color-mady-bg-composer: #FFFFFF;            /* 输入区背景 */
+  --color-mady-bg-bubble-user: rgba(88, 86, 214, 0.12); /* 用户气泡品牌紫透 */
+  --color-mady-bg-bubble-agent: rgba(0, 0, 0, 0.02);   /* Agent 气泡极淡灰 */
 
   /* ---- 文字层级（Labels） ---- */
-  --color-mady-text-primary: #000000;
-  --color-mady-text-secondary: rgba(0, 0, 0, 0.55);
-  --color-mady-text-tertiary: rgba(0, 0, 0, 0.25);
+  --color-mady-text-primary: #1A1814;          /* 暖黑 */
+  --color-mady-text-secondary: #6B6560;        /* 说明文字 */
+  --color-mady-text-tertiary: #A39E98;         /* 占位符/时间戳 */
   --color-mady-text-quaternary: rgba(0, 0, 0, 0.10);
-  --color-mady-text-link: #007aff;
+  --color-mady-text-link: #5e5ce6;             /* 品牌紫链接 */
+  --color-mady-text-inverse: #FFFFFF;           /* 按钮反白文字 */
+  --color-mady-selection-bg: rgba(88, 86, 214, 0.25); /* 文字选中高亮 */
 
-  /* ---- 强调色（Mady 品牌） ---- */
-  --color-mady-accent: #5856d6;          /* systemIndigo */
+  /* ---- 强调色（Mady 品牌紫） ---- */
+  --color-mady-accent: #5856d6;               /* systemIndigo */
   --color-mady-accent-hover: #4b4ac4;
   --color-mady-accent-soft: rgba(88, 86, 214, 0.08);
   --color-mady-accent-glow: rgba(88, 86, 214, 0.18);
-  --color-mady-accent-secondary: #f56600; /* 品牌橙色（极低频） */
-  --color-mady-accent-tertiary: #2e1065;  /* 品牌深紫（加载/空状态插画） */
+  --color-mady-accent-secondary: #f56600;     /* 品牌橙色（极低频） */
+  --color-mady-accent-tertiary: #2e1065;      /* 品牌深紫 */
 
-  /* ---- 语义色 ---- */
+  /* ---- 语义色（成功/警告/错误/信息） ---- */
   --color-mady-danger: #ff3b30;
-  --color-mady-success: #34c759;
+  --color-mady-success: #5856d6;              /* 品牌紫，非绿色 */
   --color-mady-warning: #ff9500;
   --color-mady-info: #007aff;
 
+  /* ---- 连接状态色 ---- */
+  --color-mady-connection-connected: #5856d6;
+  --color-mady-connection-connecting: #ff9500;
+  --color-mady-connection-disconnected: #ff3b30;
+
+  /* ---- MCP 服务器状态色 ---- */
+  --color-mady-mcp-starting: #ff9500;
+  --color-mady-mcp-ready: #5856d6;
+  --color-mady-mcp-failed: #ff3b30;
+  --color-mady-mcp-cancelled: #A39E98;
+
   /* ---- 分割线 ---- */
-  --color-mady-separator: rgba(0, 0, 0, 0.10);
+  --color-mady-separator: rgba(0, 0, 0, 0.08);  /* 规范值 */
   --color-mady-separator-strong: #c6c6c8;
-  --color-mady-border: rgba(0, 0, 0, 0.10);
+  --color-mady-border: rgba(0, 0, 0, 0.08);     /* 规范值 */
 
-  /* ---- 阴影（深色模式透明度减半，见下） ---- */
-  --shadow-mady-popover: 0 4px 24px rgba(0, 0, 0, 0.15);
-  --shadow-mady-tooltip: 0 2px 12px rgba(0, 0, 0, 0.12);
+  /* ---- 阴影（4 级 Elevation） ---- */
+  --shadow-mady-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-mady-floating: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-mady-modal: 0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-mady-drag: 0 16px 48px rgba(0,0,0,0.16), 0 8px 24px rgba(0,0,0,0.08);
 
-  /* ---- 圆角 ---- */
+  /* ---- 圆角（9 级系统） ---- */
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 10px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-full: 50%;
 
-  /* ---- 字号 ---- */
+  /* ---- 字号（11 级阶梯） ---- */
   --font-size-mady-caption: 11px;
   --font-size-mady-small: 12px;
   --font-size-mady-ui: 13px;
   --font-size-mady-body: 14px;
+  --font-size-mady-h3: 14px;
+  --font-size-mady-h2: 16px;
   --font-size-mady-heading: 17px;
-  --font-size-mady-h1: 22px;
+  --font-size-mady-h1: 20px;                    /* 规范 20px（非 22px） */
 
   /* ---- 字体 ---- */
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text",
     system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+
+  /* ---- 动画时长（Duration） ---- */
+  --duration-fast: 100ms;
+  --duration-normal: 150ms;
+  --duration-slow: 250ms;
+  --duration-slower: 350ms;
+  --duration-stream: 1000ms;
+
+  /* ---- 缓动函数（Easing） ---- */
+  --ease-spring: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ease-step: steps(2);
 }
 
-/* ---- 布局常量（spec §5.2.6，非 Tailwind 命名空间） ---- */
+/* ---- 布局常量 ---- */
 :root {
-  --mady-sidebar-width: 260px;   /* 侧栏默认宽度，可拖拽 200~400px */
-  --mady-context-width: 320px;   /* 右侧面板默认宽度 */
-  --mady-titlebar-height: 38px;  /* macOS 标题栏高度 */
+  --mady-sidebar-width: 260px;
+  --mady-context-width: 380px;     /* 规范 380px（非 320px） */
+  --mady-titlebar-height: 40px;    /* 规范 40px（非 38px） */
+  --mady-statusbar-height: 40px;   /* 规范 40px */
+  --mady-settings-nav-width: 200px;
 }
 
 /* 深色模式覆盖 */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-mady-bg-primary: #000000;
-    --color-mady-bg-secondary: #1c1c1e;
-    --color-mady-bg-tertiary: #2c2c2e;
-    --color-mady-bg-grouped: #000000;
-    --color-mady-bg-grouped-secondary: #1c1c1e;
-    --color-mady-bg-material: rgba(30, 30, 30, 0.72);
-    --color-mady-text-primary: #ffffff;
-    --color-mady-text-secondary: rgba(255, 255, 255, 0.55);
-    --color-mady-text-tertiary: rgba(255, 255, 255, 0.25);
+    --color-mady-bg-primary: #1C1A18;             /* 暖深灰 */
+    --color-mady-bg-secondary: #1A1816;
+    --color-mady-bg-tertiary: #252320;
+    --color-mady-bg-grouped: #1A1816;
+    --color-mady-bg-grouped-secondary: #252320;
+    --color-mady-bg-material: rgba(26, 24, 22, 0.72);
+    --color-mady-bg-sidebar: rgba(26, 24, 22, 0.85);
+    --color-mady-bg-sidebar-solid: #1A1816;
+    --color-mady-bg-hover: rgba(255, 255, 255, 0.06);
+    --color-mady-bg-active: rgba(88, 86, 214, 0.12);
+    --color-mady-bg-overlay: rgba(0, 0, 0, 0.64);
+    --color-mady-bg-composer: #252320;
+    --color-mady-bg-bubble-user: rgba(88, 86, 214, 0.08); /* 暗色下透明度降低 */
+    --color-mady-bg-bubble-agent: rgba(255, 255, 255, 0.02); /* 暗色下极淡白 */
+    --color-mady-text-primary: #F0EDE8;           /* 暖白 */
+    --color-mady-text-secondary: #8A8580;
+    --color-mady-text-tertiary: #6B6560;
     --color-mady-text-quaternary: rgba(255, 255, 255, 0.10);
-    --color-mady-text-link: #0a84ff;
-    --color-mady-accent: #5e5ce6;
+    --color-mady-text-link: #6e6cf0;
+    --color-mady-text-inverse: #1A1814;
+    --color-mady-selection-bg: rgba(94, 92, 230, 0.30);
+    --color-mady-accent: #4b4ac4;
     --color-mady-accent-hover: #6e6cf0;
     --color-mady-accent-soft: rgba(94, 92, 230, 0.12);
     --color-mady-accent-glow: rgba(94, 92, 230, 0.22);
     --color-mady-accent-secondary: #ff7a1a;
     --color-mady-accent-tertiary: #4c1d95;
     --color-mady-danger: #ff453a;
-    --color-mady-success: #30d158;
+    --color-mady-success: #4b4ac4;                /* 品牌紫暗色 */
     --color-mady-warning: #ff9f0a;
     --color-mady-info: #0a84ff;
-    --color-mady-separator: rgba(255, 255, 255, 0.10);
+    --color-mady-connection-connected: #4b4ac4;
+    --color-mady-connection-connecting: #ff9f0a;
+    --color-mady-connection-disconnected: #ff453a;
+    --color-mady-mcp-starting: #ff9f0a;
+    --color-mady-mcp-ready: #4b4ac4;
+    --color-mady-mcp-failed: #ff453a;
+    --color-mady-mcp-cancelled: #6B6560;
+    --color-mady-separator: rgba(255, 255, 255, 0.08);
     --color-mady-separator-strong: #38383a;
-    --color-mady-border: rgba(255, 255, 255, 0.10);
-    /* HIG：深度通过明度对比表达，深色下阴影透明度减半 */
-    --shadow-mady-popover: 0 4px 24px rgba(0, 0, 0, 0.075);
-    --shadow-mady-tooltip: 0 2px 12px rgba(0, 0, 0, 0.06);
+    --color-mady-border: rgba(255, 255, 255, 0.08);
+    --shadow-mady-card: 0 1px 3px rgba(0,0,0,0.24), 0 1px 2px rgba(0,0,0,0.12);
+    --shadow-mady-floating: 0 4px 12px rgba(0,0,0,0.24), 0 2px 4px rgba(0,0,0,0.12);
+    --shadow-mady-modal: 0 12px 40px rgba(0,0,0,0.32), 0 4px 12px rgba(0,0,0,0.16);
+    --shadow-mady-drag: 0 16px 48px rgba(0,0,0,0.40), 0 8px 24px rgba(0,0,0,0.20);
   }
 }
 
@@ -144,6 +205,22 @@ html, body, #root {
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* ---- 流式光标（对应设计规范 §6.3.6） ---- */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background-color: var(--color-mady-accent-hover);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: cursor-blink 1s steps(2) infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 /* 全局过渡基线（按钮、链接等交互元素） */

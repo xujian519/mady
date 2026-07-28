@@ -23,10 +23,13 @@ import { useShallow } from 'zustand/react/shallow'
 import { useChatStore, initialState } from '@/stores/chat'
 import { useSettingsStore, type LayoutMode } from '@/stores/settings'
 import type { Message, ToolCall, CompactionNotice, RetryNotice } from '@/stores/chat'
+import { ReasoningBlock } from './ReasoningBlock'
+import { UsageStrip } from './UsageStrip'
 import { Sidebar } from './Sidebar'
 import { MessageBubble } from './MessageBubble'
 import { DecisionSurface } from './DecisionSurface'
 import { ContextIndicator } from './ContextIndicator'
+import { AgentFooter } from './AgentFooter'
 import { StatusBar } from './StatusBar'
 import { ToolCard } from './ToolCard'
 import { DocumentViewer, type DocViewerFile } from './DocumentViewer'
@@ -36,7 +39,7 @@ import { KnowledgeView } from './KnowledgeView'
 import { TemplatesView } from './TemplatesView'
 import { SkillsView } from './SkillsView'
 import { McpView } from './McpView'
-import { Sparkles, PanelRightOpen, Brain, Database, FileText, Server, Zap, Loader2, RefreshCw, Scissors } from 'lucide-react'
+import { Sparkles, PanelRightOpen, Database, FileText, Server, Zap, Loader2, RefreshCw, Scissors } from 'lucide-react'
 
 // ── 虚拟列表项类型 ────────────────────────────────
 
@@ -230,22 +233,10 @@ export const ChatView: React.FC = () => {
         )
       case 'streaming-thinking':
         return (
-          <div key="thinking" className="px-4 py-2 max-w-[75%]">
-            <details className="group" open>
-              <summary className="flex items-center gap-1.5 text-mady-caption text-mady-text-secondary cursor-pointer hover:text-mady-text-primary transition-colors select-none">
-                <Brain size={12} className="text-mady-accent" />
-                <span>思考中…</span>
-                <span className="flex gap-0.5 ml-1">
-                  <span className="w-1 h-1 rounded-full bg-mady-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1 h-1 rounded-full bg-mady-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1 h-1 rounded-full bg-mady-accent animate-bounce" style={{ animationDelay: '300ms' }} />
-                </span>
-              </summary>
-              <div className="mt-2 text-mady-small text-mady-text-secondary bg-mady-bg-secondary rounded-lg p-3 whitespace-pre-wrap">
-                {item.thinking}
-              </div>
-            </details>
-          </div>
+          <ReasoningBlock
+            key="thinking"
+            content={item.thinking}
+          />
         )
       case 'tool-calls':
         return (
@@ -358,6 +349,10 @@ export const ChatView: React.FC = () => {
                 </>
               )}
             </div>
+
+            {/* UsageStrip：用量条（C09） */}
+            <UsageStrip />
+
             {!isFocusMode && (
               <div className="flex items-center gap-0.5">
                 {/* 功能视图组 */}
@@ -524,6 +519,9 @@ export const ChatView: React.FC = () => {
           <SettingsPanel onClose={() => setShowSettings(false)} />
         )}
       </div>
+
+      {/* AgentFooter：对齐设计规范第9.5章，Composer 与 StatusBar 之间 */}
+      <AgentFooter />
 
       {/* StatusBar */}
       <StatusBar />

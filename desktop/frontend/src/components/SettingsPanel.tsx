@@ -14,6 +14,8 @@ import type { ThemeMode } from '@/theme/tokens'
 import { getAISettings, setAISettings } from '@/lib/backend'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X, Sun, Moon, Monitor, Server, Cpu, Check, AlertCircle } from 'lucide-react'
+import { McpServersSettings } from './McpServersSettings'
+import { ModelSettings } from './ModelSettings'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -191,6 +193,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
               </div>
             </div>
           </section>
+
+          {/* 模型与推理（C08） */}
+          <div className="border-t border-mady-separator pt-4">
+            <ModelSettings />
+          </div>
+
+          {/* MCP 服务器（C06） */}
+          <div className="border-t border-mady-separator pt-4">
+            <McpServersSettings />
+          </div>
 
           {/* 关于 */}
           <section>

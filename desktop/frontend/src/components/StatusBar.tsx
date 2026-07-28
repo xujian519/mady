@@ -1,11 +1,10 @@
 /**
- * StatusBar — 底部状态栏。
+ * StatusBar — 底部状态栏（对齐设计规范）。
  *
- * 显示：
- * - Provider / 模型名称
- * - 知识库状态
- * - 应用版本
- * - Agent 运行状态
+ * 规范定义：高度 40px，三区布局。
+ *   左区: ConnectionChip（状态圆点 + 文字）
+ *   中区: UsageMeter / ModelChip（模型徽章）
+ *   右区: 知识库状态 + 版本
  */
 
 import React, { useEffect, useState } from 'react'
@@ -29,48 +28,53 @@ export const StatusBar: React.FC = () => {
       .finally(() => setLoading(false))
   }, [ready])
 
+  // 连接状态
+  const connColor = running
+    ? 'text-mady-connection-connected'
+    : ready
+      ? 'text-mady-text-tertiary'
+      : 'text-mady-connection-connecting'
+  const connLabel = running ? '运行中' : ready ? '就绪' : '初始化…'
+
   return (
-    <footer className="h-7 flex items-center justify-between px-3 bg-mady-bg-secondary border-t border-mady-separator text-mady-caption text-mady-text-secondary select-none">
-      {/* 左侧：运行状态 + Provider */}
+    <footer className="h-10 flex items-center justify-between px-4 bg-mady-bg-secondary border-t border-mady-separator text-mady-caption text-mady-text-secondary select-none">
+      {/* 左区：连接状态芯片（ConnectionChip） */}
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-1.5">
-          <Circle
-            size={7}
-            className={running ? 'text-mady-success' : ready ? 'text-mady-text-tertiary' : 'text-mady-warning'}
-            fill="currentColor"
-          />
-          <span>{running ? '运行中' : ready ? '就绪' : '初始化…'}</span>
+          <Circle size={8} className={connColor} fill="currentColor" />
+          <span className="text-mady-small font-medium">{connLabel}</span>
         </span>
+      </div>
 
+      {/* 中区：模型芯片（ModelChip） */}
+      <div className="flex items-center gap-3">
         {loading && (
-          <Loader2 size={10} className="animate-spin text-mady-text-tertiary" />
+          <Loader2 size={12} className="animate-spin text-mady-text-tertiary" />
         )}
-
         {info && (
-          <>
-            <span className="text-mady-separator">|</span>
-            <span className="flex items-center gap-1">
-              <Server size={10} />
-              {info.provider ?? '—'}
-              {info.model && <span className="text-mady-text-tertiary">/ {info.model}</span>}
-            </span>
-          </>
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-mady-bg-hover text-mady-caption text-mady-text-secondary">
+            <Server size={11} />
+            <span className="font-medium">{info.provider ?? '—'}</span>
+            {info.model && (
+              <>
+                <span className="text-mady-text-tertiary">·</span>
+                <span>{info.model}</span>
+              </>
+            )}
+          </span>
         )}
       </div>
 
-      {/* 右侧：知识库 + 版本 */}
+      {/* 右区：知识库 + 版本 */}
       <div className="flex items-center gap-3">
         {info && (
-          <>
-            <span className="flex items-center gap-1">
-              <Brain size={10} />
-              知识库
-            </span>
-            <span className="text-mady-separator">|</span>
-          </>
+          <span className="flex items-center gap-1.5">
+            <Brain size={11} />
+            知识库
+          </span>
         )}
-        <span className="flex items-center gap-1">
-          <Package size={10} />
+        <span className="flex items-center gap-1.5">
+          <Package size={11} />
           v{info?.version ?? '0.1.0'}
         </span>
       </div>

@@ -1,28 +1,20 @@
 /**
- * ToolCard — 工具调用卡片。
+ * ToolCard — 工具调用卡片（像素级对齐设计规范 C04）。
  *
- * 在消息流中渲染工具调用状态。
+ * 规范：
+ *   圆角 8px（radius-lg），标题行 36px
+ *   状态流：pending → spinner → 品牌紫 → done/fail
+ *   展开/收起动画：height 250ms spring + chevron 旋转 150ms ease
+ *   内容区最大 300px，超出可滚动
+ *
  * 遵循 Invisible Handoff 契约：不渲染 handoff 工具。
- *
- * 过滤逻辑（双层防护）：
- *   1. 优先检查 toolCall.invisible 字段（Go 端 AGUI 事件携带）
- *   2. 其次检查名称前缀黑名单（防御性 fallback，与 Go handoff.go 同步）
- *
- * 状态流：
- *   running → completed / error
- *
- * 收展行为：
- *   - 默认展开（显示参数和结果）
- *   - 完成后可折叠
  */
 
 import React, { useState } from 'react'
 import type { ToolCall } from '@/stores/chat'
-import { Wrench, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Wrench, CheckCircle, XCircle, Loader2, ChevronRight } from 'lucide-react'
 
 // ── Handoff 工具名称前缀（Invisible Handoff 红线） ──
-// 与 Go 端 handoff.go 的 isHandoffAllowed 保持同步。
-// 新增 handoff 工具时须同时更新此前缀列表。
 const HANDOFF_PREFIXES = ['transfer_to_', 'handoff_to_']
 
 /** 判断是否为 handoff 工具。双层防护：优先 invisible 字段，其次前缀匹配。 */
@@ -40,10 +32,8 @@ interface ToolCardProps {
 export const ToolCard: React.FC<ToolCardProps> = ({ toolCall }) => {
   const [expanded, setExpanded] = useState(true)
 
-  // Invisible Handoff: 过滤 handoff 工具
-  if (isHandoffTool(toolCall)) {
-    return null
-  }
+  // Invisible Handoff
+  if (isHandoffTool(toolCall)) return null
 
   const isRunning = toolCall.status === 'running'
   const isError = toolCall.status === 'error'
@@ -55,63 +45,81 @@ export const ToolCard: React.FC<ToolCardProps> = ({ toolCall }) => {
       ? <XCircle size={14} className="text-mady-danger" />
       : <CheckCircle size={14} className="text-mady-success" />
 
-  const statusBg = isRunning
-    ? 'border-mady-accent/30 bg-mady-accent-soft/50'
+  const cardBorder = isRunning
+    ? 'border-mady-accent/30'
     : isError
-      ? 'border-mady-danger/30 bg-mady-danger/5'
-      : 'border-mady-border bg-mady-bg-secondary'
+      ? 'border-mady-danger/30'
+      : 'border-mady-border'
+
+  const cardBg = isRunning
+    ? 'bg-mady-accent-soft/50'
+    : isError
+      ? 'bg-mady-danger/5'
+      : 'bg-mady-bg-secondary'
 
   return (
     <div
       className={`
-        rounded-xl border px-3 py-2.5 transition-colors duration-200
-        max-w-[75%] ${statusBg}
+        rounded-lg border max-w-[85%] ${cardBorder} ${cardBg}
+        transition-colors duration-150
       `}
     >
-      {/* 头部：图标 + 工具名 + 状态 + 折叠按钮 */}
-      <div className="flex items-center gap-2">
-        <Wrench size={13} className="text-mady-text-secondary shrink-0" />
+      {/* 头部：标题行（固定 36px） */}
+      <div
+        className="flex items-center gap-2 h-9 px-2.5 cursor-pointer select-none"
+        onClick={() => (isDone || isError) && setExpanded(!expanded)}
+      >
+        <Wrench size={14} className="text-mady-text-secondary shrink-0" />
 
-        <span className="text-mady-ui font-mono text-mady-text-primary truncate flex-1">
+        <span className="text-mady-small font-mono font-medium text-mady-text-primary truncate flex-1">
           {toolCall.name}
         </span>
 
-        {statusIcon}
-
-        {(isDone || isError) && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="p-0.5 rounded hover:bg-mady-bg-primary text-mady-text-tertiary"
-          >
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          </button>
-        )}
+        {/* 状态指示器 */}
+        <div className="flex items-center gap-1">
+          {statusIcon}
+          {(isDone || isError) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
+              className="p-0.5 rounded hover:bg-mady-bg-primary text-mady-text-tertiary transition-colors duration-150"
+              aria-label={expanded ? '收起' : '展开'}
+            >
+              <div
+                className="transition-transform duration-150 ease-in-out"
+                style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              >
+                <ChevronRight size={12} />
+              </div>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* 展开内容：参数 + 结果 */}
+      {/* 展开内容区 */}
       {expanded && (
-        <div className="mt-2 space-y-1.5 text-mady-small">
+        <div className="border-t border-mady-border/50 px-3 py-2 space-y-2 max-h-[300px] overflow-y-auto">
           {toolCall.args && (
-            <div>
+            <div className="text-mady-small">
               <span className="text-mady-text-tertiary text-mady-caption">参数</span>
-              <pre className="mt-0.5 bg-mady-bg-primary/50 rounded-lg p-2 font-mono text-mady-text-secondary whitespace-pre-wrap break-words max-h-48 overflow-y-auto border border-mady-border/30">
+              <pre className="mt-0.5 bg-mady-bg-primary/50 rounded-md p-2 font-mono text-mady-text-secondary whitespace-pre-wrap break-words border border-mady-border/30">
                 {toolCall.args}
               </pre>
             </div>
           )}
 
-          {(isDone && toolCall.result) && (
-            <div>
+          {isDone && toolCall.result && (
+            <div className="text-mady-small">
               <span className="text-mady-text-tertiary text-mady-caption">结果</span>
-              <pre className="mt-0.5 bg-mady-bg-primary/50 rounded-lg p-2 font-mono text-mady-text-secondary whitespace-pre-wrap break-words max-h-48 overflow-y-auto border border-mady-border/30">
+              <pre className="mt-0.5 bg-mady-bg-primary/50 rounded-md p-2 font-mono text-mady-text-secondary whitespace-pre-wrap break-words border border-mady-border/30">
                 {toolCall.result}
               </pre>
             </div>
           )}
 
           {isError && (
-            <div className="text-mady-danger text-mady-ui">
-              {toolCall.result || '工具调用失败'}
+            <div className="flex items-center gap-1.5 text-mady-danger text-mady-ui">
+              <XCircle size={12} />
+              <span>{toolCall.result || '工具调用失败'}</span>
             </div>
           )}
         </div>

@@ -155,7 +155,7 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
   const flatList = useMemo(() => filtered, [filtered])
 
   return (
-    <div className="mb-2 rounded-xl border border-mady-border mady-material shadow-mady-popover overflow-hidden max-h-72">
+    <div className="mb-2 rounded-xl border border-mady-border mady-material shadow-mady-floating overflow-hidden max-h-72">
       <div ref={listRef} className="overflow-y-auto py-1">
         {grouped.map(([category, cmds]) => (
           <div key={category}>
