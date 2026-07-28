@@ -78,6 +78,15 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 		Streaming: true,
 	}
 	s.applyPlanModeThinking(&base)
+	// 同步 PlanModeExtension 激活状态：根据设置启用/禁用工具门控。
+	// 避免代理在计划模式外被误阻断，或在计划模式内被漏放过。
+	if s.fc.PlanModeExt != nil {
+		if s.isPlanMode() {
+			s.fc.PlanModeExt.Activate()
+		} else {
+			s.fc.PlanModeExt.Deactivate()
+		}
+	}
 	if s.toolApprover != nil {
 		base.Extensions = append(base.Extensions,
 			permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))

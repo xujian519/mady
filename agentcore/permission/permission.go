@@ -43,44 +43,23 @@ type Policy struct {
 	Deny  []Rule
 }
 
-// ProjectAgentPolicy returns a policy suitable for project-linked agents:
-//   - read/ls/grep/find/glob/view → Allow (read-only)
-//   - git_status/git_diff/git_log → Allow (read-only, no side effects)
-//   - write_file/edit/delete/move → Ask (requires confirmation)
-//   - bash/process/execute_code/browser/computer_use → Ask (risky, user decides)
-//   - all others → Ask (conservative fallback)
-//   - all others → Ask (conservative fallback)
+// ProjectAgentPolicy returns a policy suitable for project-linked agents.
 //
-// 没有工具被无条件拒绝（Deny）——每个工具调用都可以通过用户确认放行。
-// Policy 决策顺序: Deny > Ask > Allow > fallback。
-// 回退时只读工具自动 Allow，写入工具回退到 Mode（默认 Ask）。
+// The policy minimizes permission requests — only truly dangerous operations
+// (arbitrary command/code execution, desktop control) require user approval.
+// All other tools, including file editing and deletion, are auto-allowed.
+//
+//   - bash/execute_code/computer_use → Ask (user must confirm)
+//   - all other tools → Allow (no approval needed)
+//
+// 回退规则: 只读工具自动 Allow；非只读工具回退到 Mode（默认 Allow）。
 func ProjectAgentPolicy() Policy {
 	return Policy{
-		Mode: DecisionAsk,
-		Allow: []Rule{
-			{Tool: "read"},
-			{Tool: "ls"},
-			{Tool: "grep"},
-			{Tool: "find"},
-			{Tool: "glob"},
-			{Tool: "view"},
-			// 只读 Git 工具 — 无副作用，自动放行
-			{Tool: tools.ToolGitStatus},
-			{Tool: tools.ToolGitDiff},
-			{Tool: tools.ToolGitLog},
-		},
+		Mode: DecisionAllow,
 		Ask: []Rule{
-			// 文件写入工具
-			{Tool: "write_file"},
-			{Tool: "edit"},
-			{Tool: "delete"},
-			{Tool: "move"},
-			// 危险执行工具
+			// 任意命令执行/代码执行/桌面控制 —— 仅此三项需要交互确认
 			{Tool: tools.ToolBash},
-			{Tool: tools.ToolProcess},
 			{Tool: tools.ToolExecuteCode},
-			// 浏览器/桌面控制
-			{Tool: tools.ToolBrowser},
 			{Tool: tools.ToolComputerUse},
 		},
 	}

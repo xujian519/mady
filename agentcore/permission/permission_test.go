@@ -206,40 +206,36 @@ func TestProjectAgentPolicy(t *testing.T) {
 		readOnly bool
 		want     Decision
 	}{
-		// Allow: read-only tools
+		// Allow: any tool not in the Ask list auto-allows (Mode=Allow)
 		{"read tool", "read", nil, true, DecisionAllow},
 		{"ls tool", "ls", nil, true, DecisionAllow},
 		{"grep tool", "grep", nil, true, DecisionAllow},
 		{"find tool", "find", nil, true, DecisionAllow},
 		{"glob tool", "glob", nil, true, DecisionAllow},
 		{"view tool", "view", nil, true, DecisionAllow},
+		{"edit tool", "edit", nil, false, DecisionAllow},
+		{"write_file tool", "write_file", nil, false, DecisionAllow},
+		{"delete tool", "delete", nil, false, DecisionAllow},
+		{"move tool", "move", nil, false, DecisionAllow},
+		{"process tool", "process", nil, false, DecisionAllow},
+		{"browser tool", "browser", nil, false, DecisionAllow},
 
-		// Ask: write tools
-		{"edit tool", "edit", nil, false, DecisionAsk},
-		{"write_file tool", "write_file", nil, false, DecisionAsk},
-
-		// Ask: risky tools (user confirms before execution)
+		// Ask: only truly dangerous operations
 		{"bash tool", "bash", nil, false, DecisionAsk},
-		{"delete tool", "delete", nil, false, DecisionAsk},
-		{"move tool", "move", nil, false, DecisionAsk},
-		{"process tool", "process", nil, false, DecisionAsk},
 		{"execute_code tool", "execute_code", nil, false, DecisionAsk},
-		{"browser tool", "browser", nil, false, DecisionAsk},
 		{"computer_use tool", "computer_use", nil, false, DecisionAsk},
 
-		// Allow: read-only git tools (no side effects)
+		// Allow: git tools and other non-listed tools (Mode=Allow)
 		{"git_status tool", "git_status", nil, true, DecisionAllow},
 		{"git_diff tool", "git_diff", nil, true, DecisionAllow},
 		{"git_log tool", "git_log", nil, true, DecisionAllow},
 
-		// Fallback: unlisted read-only tool → Allow
+		// Fallback: unlisted tool → Allow (Mode=DecisionAllow)
 		{"unlisted read-only", "web_search", nil, true, DecisionAllow},
+		{"unlisted non-readonly", "nonexistent_tool", nil, false, DecisionAllow},
 
-		// Fallback: unlisted non-readonly tool → Ask (Mode=DecisionAsk)
-		{"unlisted non-readonly", "nonexistent_tool", nil, false, DecisionAsk},
-
-		// Ask: risky tools ask even when readOnly (Ask rules override readOnly default Allow)
-		{"ask even if readOnly", "bash", nil, true, DecisionAsk},
+		// Ask rules override readOnly default Allow
+		{"bash even if readOnly", "bash", nil, true, DecisionAsk},
 		{"computer_use readOnly", "computer_use", nil, true, DecisionAsk},
 	}
 	for _, tt := range tests {
