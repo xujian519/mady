@@ -245,6 +245,14 @@ func (m *Manager) EnsureRunning(ctx context.Context) {
 	}
 }
 
+// Cmd returns the underlying exec.Cmd, if the process was started by this
+// Manager. Used for diagnostics only.
+func (m *Manager) Cmd() *exec.Cmd {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cmd
+}
+
 // softKill is the signal used for graceful shutdown.
 // On Unix, SIGTERM; on Windows, os.Kill (no SIGTERM support).
 var softKill = osSignal()

@@ -23,8 +23,6 @@ type Searcher interface {
 	Search(ctx context.Context, query string, chunks []Chunk, topK int) []ScoredChunk
 }
 
-var _ Searcher = (*KeywordSearcher)(nil)
-
 // KeywordSearcher implements Searcher using regex + keyword matching
 // with TF-IDF-like scoring. This is the MVP implementation requiring
 // zero external dependencies.
@@ -163,9 +161,11 @@ func indexTokens(content string) []string {
 					tokens = append(tokens, gram)
 				}
 			}
-		} else if !seen[p] {
-			seen[p] = true
-			tokens = append(tokens, p)
+		} else {
+			if !seen[p] {
+				seen[p] = true
+				tokens = append(tokens, p)
+			}
 		}
 	}
 	return tokens

@@ -299,6 +299,11 @@ func registerDeferredTasks(ctx context.Context, fc *Context) {
 		return nil
 	})
 
+	fc.Deferred.Add("plugins", func() error {
+		InitPlugins(fc)
+		return nil
+	})
+
 	fc.Deferred.Add("memory", func() error {
 		InitMemorySystem(fc)
 		return nil
@@ -513,6 +518,12 @@ func TasklistDirForCWD(baseDir, cwd string) string {
 		return filepath.Join(baseDir, "tasks")
 	}
 	return filepath.Join(baseDir, "by-cwd", CwdPartitionName(cwd), "tasks")
+}
+
+// InitPlugins 从 plugins/ 目录发现并加载工作流插件。
+func InitPlugins(fc *Context) {
+	// 插件功能暂未完成，跳过初始化。
+	_ = fc
 }
 
 // InitMemorySystem 初始化长期记忆系统。
