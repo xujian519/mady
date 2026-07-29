@@ -36,6 +36,7 @@ import (
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
+	"github.com/xujian519/mady/knowledge/knowledgeinit"
 	"github.com/xujian519/mady/knowledge/loader"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/mcp"
@@ -622,6 +623,14 @@ func InitReasoningAndTemplates(fc *Context) {
 	domains.SetupPatentRetriever(patentRetriever)
 
 	domains.SetupKnowledgeExtension(fc.KnowledgeExt)
+
+	// 加载本地专利知识库（data/knowledge/ 下的 Markdown 文件）。
+	// 静默跳过不存在的文件。
+	if fc.WikiStore != nil {
+		if err := knowledgeinit.InitPatentKnowledge(fc.WikiStore); err != nil {
+			slog.Warn("patent knowledge init", "error", err)
+		}
+	}
 
 	// 侵权分析知识检索器：从 KnowledgeExtension 适配为 infringement.KnowledgeRetriever。
 	// 当 KnowledgeExt 不可用时为 nil，侵权分析降级为纯 LLM 知识。

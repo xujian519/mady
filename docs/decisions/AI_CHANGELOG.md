@@ -7990,3 +7990,43 @@ Mady 缺少本地 OCR 能力（仅依赖云端多模态 LLM 的 `vision_analyze`
 - `go vet ./...` — 通过
 - `go test -race ./...` — 通过（`TestFindToolBasic` 为已有 flaky test，与 OCR 无关）
 - pkg/ocr 包尚无独立测试（后续待补）
+
+## 2026-07-29: feat(patent-quality) 专利事务质量闭环全体系交付
+
+### 根因分析
+对比 XiaoNuo Agent 发现 Mady 在 6 个维度存在差距：在线检索、质量闭环、知识库、Worker 体系、规则引擎、架构哲学。
+用户确认检索可通过外部 skill 解决，其余 5 个方向执行了改进计划。
+
+### 交付清单（5 Batch / 18 新文件 / ~3385 行）
+
+**Batch 1 — 端到端质量闭环基础**
+- `tools/patent_eval.go`: 专利自动评估工具，5 种模式
+- `skills/patent/references/{claim,spec,oa-response}-checklist.md`: 三份逐项检查清单
+- `skills/patent/SKILL.md`: 增强（质量门禁流程 + Tier A 条款）
+
+**Batch 2 — Checker 子系统 + Benchmark 扩充**
+- `domains/checker/{catalog,verdict,dispatch,extension}.go`: Catalog + VerdictAggregator + Dispatch + Extension
+- `evaluate/benchmark/patent_exam_extended.go`: 45 新案例，总数 55
+
+**Batch 3 — Worker 体系**
+- `agentcore/worker/{contract,catalog,registry,register}.go`: Worker 契约 + 注册 + 11 个默认 Worker
+- 3 个单元测试
+
+**Batch 4 — 本地知识库**
+- `data/knowledge/README.md` + `knowledge/knowledgeinit/knowledgeinit.go`
+
+**Batch 5 — 规则引擎升级**
+- `domains/rules/evaluate.go`: Check.Evaluate 方法（4 种类型）
+
+**集成**
+- `domains/patent.go`: patent_eval 工具 + checker 扩展注册
+- `bootstrap/setup.go`: knowledgeinit 启动时加载
+
+### Review 修复（2 轮）
+1. Composition 错误不再静默吞掉 + numeric 范围格式错误返回 failed
+2. Numeric map 分支解析失败返回 false + composition 空结果除零守卫
+
+### 验证
+- `go build ./...` — 通过
+- `go vet ./domains/rules/...` — 通过
+- `go test ./agentcore/worker/` — 3/3 通过

@@ -8,6 +8,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/disclosure"
+	"github.com/xujian519/mady/domains/checker"
 	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
@@ -284,6 +285,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			novelty.NewNoveltyTool(novelty.WithProvider(base.Provider)),
 			design.NewDesignInvalidationTool(),
 			disclosure.NewDisclosureTool(base.Provider),
+			tools.NewPatentEvalTool(nil),
 		},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt,
@@ -307,6 +309,9 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	if globalClaimDraftingExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalClaimDraftingExt)
 	}
+
+	// Checker 复核扩展：提供 suggest_checkers / run_checker_review 工具。
+	cfg.Extensions = append(cfg.Extensions, checker.NewExtension(nil))
 
 	// 说明书撰写扩展（specdrafting）：12 节点 Pregel 图引擎 + 16 条校验规则 + 评分器，
 	// 替代旧的 workflows/patent.NewSpecificationTool（简单 workflow 版）。
@@ -423,6 +428,9 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	if globalClaimDraftingExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalClaimDraftingExt)
 	}
+
+	// Checker 复核扩展：提供 suggest_checkers / run_checker_review 工具。
+	cfg.Extensions = append(cfg.Extensions, checker.NewExtension(nil))
 
 	// 说明书撰写扩展（specdrafting）：12 节点 Pregel 图引擎 + 16 条校验规则 + 评分器，
 	// 替代旧的 workflows/patent.NewSpecificationTool（简单 workflow 版）。
