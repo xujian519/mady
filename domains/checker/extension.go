@@ -77,7 +77,7 @@ func (e *Extension) SystemPromptSuffix() string {
 	b.WriteString("3. 最后用 `run_checker_review` 执行复核\n\n")
 	b.WriteString("可用检查器：\n")
 	for _, entry := range e.catalog.List() {
-		b.WriteString(fmt.Sprintf("- **%s** (%s): %s\n", entry.RoleID, entry.Name, entry.Description))
+		fmt.Fprintf(&b, "- **%s** (%s): %s\n", entry.RoleID, entry.Name, entry.Description)
 	}
 	return b.String()
 }
@@ -113,18 +113,18 @@ func (e *Extension) newSuggestCheckersTool() *agentcore.Tool {
 			}
 
 			var b strings.Builder
-			b.WriteString(fmt.Sprintf("匹配到 %d 个检查器：\n\n", len(entries)))
+			fmt.Fprintf(&b, "匹配到 %d 个检查器：\n\n", len(entries))
 			for _, entry := range entries {
-				b.WriteString(fmt.Sprintf("**%s** (%s)\n", entry.RoleID, entry.Name))
-				b.WriteString(fmt.Sprintf("  - 描述: %s\n", entry.Description))
-				if entry.InvokesAfter != nil && len(entry.InvokesAfter) > 0 {
-					b.WriteString(fmt.Sprintf("  - 在以下步骤后执行: %s\n", strings.Join(entry.InvokesAfter, ", ")))
+				fmt.Fprintf(&b, "**%s** (%s)\n", entry.RoleID, entry.Name)
+				fmt.Fprintf(&b, "  - 描述: %s\n", entry.Description)
+				if len(entry.InvokesAfter) > 0 {
+					fmt.Fprintf(&b, "  - 在以下步骤后执行: %s\n", strings.Join(entry.InvokesAfter, ", "))
 				}
 				hitl := "否"
 				if entry.HITLCheckpoint {
 					hitl = "是（需要人工确认）"
 				}
-				b.WriteString(fmt.Sprintf("  - 需要人工审批: %s\n", hitl))
+				fmt.Fprintf(&b, "  - 需要人工审批: %s\n", hitl)
 				b.WriteString("\n")
 			}
 			b.WriteString("使用 `run_checker_review(role_id=\"<检查器ID>\", content=\"<文件内容>\")` 执行复核。")
@@ -186,7 +186,7 @@ func (e *Extension) newRunCheckerReviewTool() *agentcore.Tool {
 func formatAllCheckers(entries []CheckerEntry) string {
 	var b strings.Builder
 	for _, e := range entries {
-		b.WriteString(fmt.Sprintf("- %s: %s\n", e.RoleID, e.Name))
+		fmt.Fprintf(&b, "- %s: %s\n", e.RoleID, e.Name)
 	}
 	return b.String()
 }

@@ -246,6 +246,15 @@ func (c *PlanCompiler) CompilePlanToGraph(plan *Plan, bb *FactBlackboard) (*grap
 	for _, info := range built {
 		terminalSet[info.terminal] = true
 	}
+	// Determine the maximum Order among plan steps, used below to
+	// avoid adding PregelEnd to non-terminal parallel-out steps.
+	maxOrder := 0
+	for _, s := range plan.Steps {
+		if s.Order > maxOrder {
+			maxOrder = s.Order
+		}
+	}
+
 	for _, step := range plan.Steps {
 		stepID := step.ID
 		if stepID == "" {
@@ -269,6 +278,13 @@ func (c *PlanCompiler) CompilePlanToGraph(plan *Plan, bb *FactBlackboard) (*grap
 			}
 		}
 		if !hasOutgoing {
+			// For steps without DependsOn (fan-out parallel), only the last step
+			// by Order gets a PregelEnd edge. Otherwise the Pregel engine
+			// terminates the whole graph immediately upon encountering PregelEnd
+			// from the entry node, before sibling/parallel steps execute.
+			if len(step.DependsOn) == 0 && step.Order < maxOrder {
+				continue
+			}
 			_ = g.AddEdge(info.terminal, graph.PregelEnd)
 		}
 	}
