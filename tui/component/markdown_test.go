@@ -15,7 +15,9 @@ func TestMarkdownHeadingsAndCode(t *testing.T) {
 	if !strings.Contains(joined, "Title") {
 		t.Fatalf("missing title: %s", joined)
 	}
-	if !strings.Contains(joined, "fmt.Println") {
+	// Check for code content. Glamour's chroma highlights individual tokens
+	// with ANSI codes, so "fmt.Println" is split into "fmt" + "." + "Println".
+	if !strings.Contains(joined, "fmt") || !strings.Contains(joined, "Println") {
 		t.Fatalf("missing code body: %s", joined)
 	}
 }

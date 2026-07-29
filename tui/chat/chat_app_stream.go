@@ -28,12 +28,31 @@ func (a *ChatApp) onEditorSubmit(value string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// Check whether the agent is currently streaming. If so, queue the input
+	// for later delivery instead of submitting immediately.
+	isStreaming := a.model.state == StateStreaming ||
+		a.model.state == StateToolRunning ||
+		a.model.state == StateCompacting
 	a.mu.Unlock()
 
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return
 	}
+
+	// Expand paste placeholders from the stored pastedTexts map.
+	trimmed = a.expandPastePlaceholders(trimmed)
+
+	if isStreaming {
+		// Queue for later delivery — the user can keep typing without
+		// waiting for the current turn to finish.
+		a.mu.Lock()
+		a.model.queuedInput = append(a.model.queuedInput, trimmed)
+		a.mu.Unlock()
+		a.host.RequestRender()
+		return
+	}
+
 	// PrintUser / PushInputHistory / SetValue operate on history and editor
 	// components, which own their own internal locks — they do not touch
 	// ChatApp.model, so holding ChatApp.mu here is unnecessary and would
@@ -99,6 +118,8 @@ func (a *ChatApp) onAgentError(e ChatEvent) {
 	a.Idle()
 	a.layout.updateJudgmentView()
 	a.PrintError(ev.Err)
+	// Flush any input queued while the agent was streaming.
+	a.flushQueuedInput()
 }
 
 func (a *ChatApp) onAgentEnd(e ChatEvent) {
@@ -111,6 +132,8 @@ func (a *ChatApp) onAgentEnd(e ChatEvent) {
 	a.mu.Unlock()
 	a.Idle()
 	a.layout.updateJudgmentView()
+	// Flush any input queued while the agent was streaming.
+	a.flushQueuedInput()
 }
 
 // onAgentInterrupt handles an agent pausing for human review. It finalizes

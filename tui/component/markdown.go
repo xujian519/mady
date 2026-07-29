@@ -77,9 +77,10 @@ type Markdown struct {
 	source string
 	theme  MarkdownTheme
 
-	cacheWidth int64
-	cacheLines []string
-	dirty      bool
+	cacheWidth     int64
+	cacheLines     []string
+	dirty          bool
+	hasCustomTheme bool // true 时使用自定义渲染器以尊重主题
 }
 
 // NewMarkdown creates a Markdown component.
@@ -99,18 +100,31 @@ func (m *Markdown) SetSource(s string) {
 func (m *Markdown) SetTheme(t MarkdownTheme) {
 	m.mu.Lock()
 	m.theme = mergeMarkdownTheme(t)
+	m.hasCustomTheme = true
 	m.dirty = true
 	m.mu.Unlock()
 }
 
 // Render produces lines wrapped to the given width.
+// Uses glamour for rendering when available, falling back to the custom
+// renderer if glamour initialization fails.
 func (m *Markdown) Render(width int64) []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.dirty && m.cacheWidth == width && m.cacheLines != nil {
 		return m.cacheLines
 	}
-	lines := renderMarkdown(m.source, width, m.theme)
+	var lines []string
+	if m.hasCustomTheme {
+		// 自定义主题：使用自定义渲染器以完整尊重 MarkdownTheme 设置。
+		lines = renderMarkdown(m.source, width, m.theme)
+	} else {
+		// 默认主题：优先使用 glamour（质量更高），失败时回退自定义渲染器。
+		lines = renderWithGlamour(m.source, width)
+		if lines == nil {
+			lines = renderMarkdown(m.source, width, m.theme)
+		}
+	}
 	m.cacheLines = lines
 	m.cacheWidth = width
 	m.dirty = false

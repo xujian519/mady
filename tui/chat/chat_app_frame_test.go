@@ -35,9 +35,12 @@ func TestChatAppFullFrameStructure(t *testing.T) {
 	}
 	joined := strings.Join(frame, "\n")
 
+	// Note: glamour's chroma splits text across ANSI spans, so multi-word
+	// strings may not appear contiguously. Check individual words instead.
 	checks := []struct{ name, want string }{
 		{"title in header", "mady-test"},
-		{"user message text", "hello world"},
+		{"user message text", "hello"},
+		{"user message word", "world"},
 		{"assistant streamed text", "streamed reply"},
 		{"editor top border", "─"},
 		{"status bar mode", "mady-test"},

@@ -10,6 +10,7 @@ package chat
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/xujian519/mady/tui/component"
@@ -130,6 +131,12 @@ func (l *chatLayout) buildFlex(flex *layout.Flex) (headerIndex, editorIndex int)
 	}
 	if l.loader != nil && l.loader.IsRunning() {
 		flex.AddChild(layout.Natural(l.loader))
+	}
+	// Queued input indicator: show the count of messages buffered while
+	// the agent was streaming. Inputs are flushed on stream end.
+	if qc := l.app.QueuedInputCount(); qc > 0 {
+		qText := fmt.Sprintf("待发送：%d 条消息（排队中）", qc)
+		flex.AddChild(layout.Natural(component.NewText(theme.CurrentPalette().Dim.Render(qText))))
 	}
 	ef := &editorFrame{editor: l.editor}
 	editorIndex = len(flex.Children)
@@ -371,6 +378,32 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 						return nil
 					}
 				case "escape":
+					// Double-Esc guard: first Esc during streaming shows a hint,
+					// second Esc within escInterruptWindow actually interrupts.
+					// This prevents accidental interruptions from vim muscle memory.
+					if l.app != nil {
+						state := l.app.State()
+						if state == StateStreaming || state == StateToolRunning || state == StateCompacting {
+							// 持锁完成 lastEscAt 的读-判-写周期，避免竞态。
+							l.app.mu.Lock()
+							lastEsc := l.app.lastEscAt
+							isDoubleEsc := !lastEsc.IsZero() && time.Since(lastEsc) < escInterruptWindow
+							if isDoubleEsc {
+								l.app.lastEscAt = time.Time{}
+							} else {
+								l.app.lastEscAt = time.Now()
+							}
+							l.app.mu.Unlock()
+							if isDoubleEsc {
+								if l.app.cfg.OnInterrupt != nil {
+									l.app.cfg.OnInterrupt()
+								}
+								return nil
+							}
+							l.app.PrintSystem("再次按 Esc 可中断当前操作")
+							return nil
+						}
+					}
 					if l.ac != nil && l.ac.Active() {
 						l.ac.Hide()
 						value := l.app.editor.GetValue()

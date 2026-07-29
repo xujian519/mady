@@ -4,22 +4,23 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 
 	"github.com/xujian519/mady/tui/core"
+	"github.com/xujian519/mady/tui/terminal"
 )
 
 var clipboardCtx = context.Background()
 
 // isSSHSession reports whether the current session is a remote SSH connection.
-// In SSH sessions, native clipboard tools (pbcopy/xclip/clip) operate on the
-// remote machine's clipboard, which is useless — OSC 52 escape sequences must
-// be used instead to write to the client machine's clipboard.
+// Delegates to the terminal package's cached detection, which checks
+// SSH_TTY, SSH_CONNECTION, and SSH_CLIENT exactly once at startup.
+// 在 SSH 会话中，原生剪贴板工具（pbcopy/xclip/clip）操作的是服务端
+// 剪贴板（无用），必须使用 OSC 52 转义序列写入客户端剪贴板。
 func isSSHSession() bool {
-	return os.Getenv("SSH_TTY") != "" || os.Getenv("SSH_CONNECTION") != ""
+	return terminal.CurrentTerminalContext().IsSSH
 }
 
 // CopyToClipboard writes text to the system clipboard.

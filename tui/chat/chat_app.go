@@ -162,6 +162,20 @@ type chatModel struct {
 	// toolSeq is a per-run counter for tool call sequence numbers.
 	// Reset on agent start, incremented on each tool call.
 	toolSeq int64
+
+	// queuedInput buffers user input entered while the assistant is still
+	// streaming. When streaming ends (onAgentEnd/onAgentError), the queue
+	// is flushed and inputs are submitted in FIFO order. This lets users
+	// type ahead without waiting for the current turn to finish.
+	queuedInput []string
+
+	// pastedTexts stores full text content for oversized pastes. When a user
+	// pastes text exceeding pasteThreshold, the full text is stored here and
+	// a compact placeholder is inserted into the editor. On submit, placeholders
+	// are expanded back to the original text. Entries are garbage-collected
+	// after successful submission.
+	pastedTexts map[int]string
+	nextPasteID int
 }
 
 type ChatApp struct {
@@ -259,6 +273,7 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 		model: chatModel{
 			state:       StateInitializing,
 			ActiveTools: make(map[string]time.Time),
+			pastedTexts: make(map[int]string),
 		},
 	}
 
@@ -404,6 +419,11 @@ func bindChatEditorEvents(a *ChatApp, editor *component.Editor, history *ChatHis
 				a.host.RequestRender()
 				return nil
 			}
+			// Check for oversized paste: store as placeholder.
+			lines := strings.Count(text, "\n")
+			if len(text) > pasteThresholdChars || lines > pasteThresholdLines {
+				return a.handlePastePlaceholder(text)
+			}
 			return core.PasteMsg{Text: text}
 		}
 	})
@@ -504,6 +524,11 @@ func (a *ChatApp) isRunning() bool {
 // users coming from vim/neovim who reflexively press Esc.
 const escInterruptWindow = 1 * time.Second
 
+// Paste thresholds for the placeholder system. Pastes exceeding either
+// threshold are stored separately and replaced with a compact placeholder.
+const pasteThresholdChars = 800
+const pasteThresholdLines = 2
+
 // ToggleMousePassthrough toggles between TUI mouse tracking and native terminal
 // mouse handling. When passthrough is enabled, the terminal's native text
 // selection and right-click menu work; when disabled, the TUI captures mouse
@@ -513,12 +538,18 @@ func (a *ChatApp) ToggleMousePassthrough() {
 	a.mu.Lock()
 	a.mousePassthrough = !a.mousePassthrough
 	pass := a.mousePassthrough
+	// 保存初始鼠标模式，用于从 passthrough 恢复。
+	// 如果 a.cfg.MouseMode 为空/off，用 "sgr" 作为默认。
+	origMode := a.cfg.MouseMode
+	if origMode == "" || origMode == "off" {
+		origMode = "sgr"
+	}
 	a.mu.Unlock()
 
 	if pass {
 		a.host.DisableMouse()
 	} else {
-		a.host.EnableMouse("sgr")
+		a.host.EnableMouse(origMode)
 	}
 	a.host.RequestRender()
 }
@@ -612,6 +643,13 @@ func (a *ChatApp) State() AppState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.model.state
+}
+
+// QueuedInputCount returns the number of inputs queued during streaming.
+func (a *ChatApp) QueuedInputCount() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return len(a.model.queuedInput)
 }
 
 // MarkAgentFailed signals that agent initialization hit a terminal error and
@@ -1049,5 +1087,98 @@ func (a *ChatApp) finalizeStreamLocked() {
 	a.model.StreamID = ""
 	if id != "" {
 		a.history.Finalize(id)
+	}
+}
+
+// handlePastePlaceholder stores a large paste text and returns a PasteMsg
+// with a compact placeholder. The placeholder is expanded back to the full
+// text when the editor value is submitted (see expandPastePlaceholders).
+func (a *ChatApp) handlePastePlaceholder(text string) core.Msg {
+	a.mu.Lock()
+	id := a.model.nextPasteID
+	a.model.nextPasteID++
+	a.model.pastedTexts[id] = text
+	textLen := len(text)
+	a.mu.Unlock()
+
+	a.PrintSystem(fmt.Sprintf("📋 已粘贴大文本 #%d（%d 字符）", id, textLen))
+
+	lineCount := strings.Count(text, "\n")
+	placeholder := fmt.Sprintf("[Pasted text #%d +%d lines]", id, lineCount)
+	return core.PasteMsg{Text: placeholder}
+}
+
+// expandPastePlaceholders scans the input text for placeholder markers
+// ([Pasted text #N +M lines]) and replaces them with the stored full text.
+// Returns the expanded text and cleans up referenced entries. Placeholders
+// for unknown IDs are left as-is (defensive).
+func (a *ChatApp) expandPastePlaceholders(input string) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	prefix := "[Pasted text #"
+	suffix := "]"
+	result := input
+	for {
+		start := strings.Index(result, prefix)
+		if start < 0 {
+			break
+		}
+		end := strings.Index(result[start:], suffix)
+		if end < 0 {
+			break
+		}
+		marker := result[start : start+end+len(suffix)]
+		// Parse ID from "[Pasted text #N +M lines]"
+		idStr := strings.TrimPrefix(marker, prefix)
+		spaceIdx := strings.Index(idStr, " ")
+		if spaceIdx < 0 {
+			break
+		}
+		idStr = idStr[:spaceIdx] // just the numeric ID
+		var id int
+		if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+			break
+		}
+		fullText, exists := a.model.pastedTexts[id]
+		if exists {
+			result = strings.Replace(result, marker, fullText, 1)
+			delete(a.model.pastedTexts, id)
+		} else {
+			// Unknown reference: leave the placeholder as-is.
+			result = strings.Replace(result, marker, marker+"(expired)", 1)
+		}
+	}
+	return result
+}
+
+// flushQueuedInput submits all inputs queued during streaming in FIFO order.
+// Each input goes through the normal submit path (PrintUser → OnSubmit).
+// Called from onAgentEnd and onAgentError after finalizing the stream.
+func (a *ChatApp) flushQueuedInput() {
+	a.mu.Lock()
+	queue := a.model.queuedInput
+	a.model.queuedInput = nil
+	// 循环不变式在 cfg 构造后恒定，在循环外加载。
+	onSubmit := a.cfg.OnSubmit
+	ctx := a.cfg.Context
+	a.mu.Unlock()
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	for _, input := range queue {
+		trimmed := strings.TrimSpace(input)
+		if trimmed == "" {
+			continue
+		}
+		a.PrintUser(trimmed)
+		a.host.RequestRender()
+		a.editor.PushInputHistory(trimmed)
+		a.editor.SetValue("")
+		if onSubmit != nil {
+			onSubmit(ctx, trimmed)
+		}
 	}
 }
