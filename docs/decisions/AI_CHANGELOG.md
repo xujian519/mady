@@ -1,5 +1,24 @@
 # AI 变更记录
 
+## 2026-07-29: fix(ci) 修复 CI 三个失败点（lint / mod-tidy / integration）
+
+### 问题
+CI 检查 3 个任务失败：
+1. **lint**: `domains/checker/extension.go` 中 8 个 staticcheck 问题（7x QF1012 `WriteString(fmt.Sprintf(...))`、1x S1009 多余 nil 检查）
+2. **mod-tidy**: `tools/go.sum` 缺少 9 个 indirect 依赖条目（`modernc.org/sqlite` 等）
+3. **integration**: `TestDrafting_WorkflowTool` 因 Pregel 图过早终止失败，仅输出步骤 1 后跳至校验报告
+
+### 修复
+- `domains/checker/extension.go`：`b.WriteString(fmt.Sprintf(...))` → `fmt.Fprintf(&b, ...)`，移除多余 nil 检查
+- `tools/go.sum`：`go mod tidy` 补全 9 个缺失的 indirect 依赖条目
+- `domains/reasoning/plan_compiler.go`：terminal-to-PregelEnd 逻辑中，没有 `DependsOn` 的并行步骤仅最后一步（最高 Order）添加 `PregelEnd` 边，防止 Pregel 引擎提前终止整图
+
+### 提交
+- de3f0aa fix(ci): 修复 CI 3 个失败点 — lint / mod-tidy / integration test
+- 远程 CI 全部通过（14 jobs: 13 success + 1 skipped）
+
+---
+
 ## 2026-07-29: fix(ci) 修复 CI 构建失败（OCR 跨平台编译 + mod-tidy + LAYERS.md）
 
 ### 问题
