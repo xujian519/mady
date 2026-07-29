@@ -24,6 +24,8 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("agentcore: empty input in Run()")
 	}
 
+	a.todopad.Reset()
+
 	ctx, span := a.tracer().Start(ctx, "agent.run",
 		Attr("agent.name", a.config.Name),
 		Attr("agent.model", a.config.Model),

@@ -180,6 +180,7 @@ type Agent struct {
 	// cross-agent cache pollution in multi-agent setups.
 	intentCacheMu sync.Mutex
 	intentCache   map[string]intentCacheEntry
+	todopad       *TodoPad // lightweight ordered scratchpad, reset per Run()
 }
 
 // New creates an Agent with the given configuration, registering tools,
@@ -256,9 +257,15 @@ func New(cfg Config) *Agent {
 		extensions:    NewExtensionRegistry(),
 		contextEngine: ctxEngine,
 		engineReg:     engineReg,
+		todopad:       NewTodoPad(),
 	}
 
 	a.registerHandoffs()
+	a.RegisterTools(
+		newTodoSetupTool(a.todopad),
+		newTodoTickTool(a.todopad),
+		newTodoListTool(a.todopad),
+	)
 
 	if len(cfg.AvailableSkills) > 0 {
 		cfg.Extensions = append(cfg.Extensions, NewSkillExtension(cfg.AvailableSkills, cfg.SelectedSkills))

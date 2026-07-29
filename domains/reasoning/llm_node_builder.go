@@ -213,6 +213,20 @@ func (m *MultiModelNodeBuilder) BuildArbitratedJudgeNode(step PlanStep, bb *Fact
 	}
 }
 
+// BuildSubAgentNode creates a node that delegates to a sub-agent.
+// When no dedicated SubAgentFactory is configured in the PlanCompiler,
+// this falls back to chain-like LLM analysis.
+func (b *LLMNodeBuilder) BuildSubAgentNode(step PlanStep, bb *FactBlackboard) PregelNode {
+	return b.BuildChainNode(step, bb)
+}
+
+// BuildSubAgentNode delegates to the inner builder selected at runtime.
+func (m *MultiModelNodeBuilder) BuildSubAgentNode(step PlanStep, bb *FactBlackboard) PregelNode {
+	return func(ctx context.Context, state PregelState) (PregelState, error) {
+		return m.selectBuilder(state).BuildSubAgentNode(step, bb)(ctx, state)
+	}
+}
+
 // BuildArbitratedJudgeNode creates a node that uses multi-LLM arbitration.
 // When cfg is nil or has no judges, falls back to deterministic judge logic.
 // Each judge uses its configured model via b.clientFor(j.Model) — if no client

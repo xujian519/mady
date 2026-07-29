@@ -238,6 +238,7 @@ const (
 	StrategyReact           StrategyType = "react"
 	StrategyChain           StrategyType = "chain"
 	StrategyMultiHypothesis StrategyType = "multi_hypothesis"
+	StrategySubAgent        StrategyType = "sub_agent"
 )
 
 // WorkflowRelation describes the edge relation type that connects a workflow
@@ -319,9 +320,10 @@ type PlanHypothesis struct {
 
 // PlanStep is one action in a Plan — replaces ExecutionPlanStep for new code.
 type PlanStep struct {
+	ID             string         `json:"id,omitempty"`
 	Order          int            `json:"order"`
 	Description    string         `json:"description"`
-	Strategy       StrategyType   `json:"strategy"` // react | chain | multi_hypothesis
+	Strategy       StrategyType   `json:"strategy"` // react | chain | multi_hypothesis | sub_agent
 	ToolInput      map[string]any `json:"tool_input,omitempty"`
 	ExpectedOutput string         `json:"expected_output"`
 	DependsOn      []string       `json:"depends_on,omitempty"`     // 前置 StepID 列表
