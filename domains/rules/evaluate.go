@@ -169,8 +169,14 @@ func (c *Check) evaluateComposition(text string) (*CheckResult, error) {
 
 	results := make([]*CheckResult, 0, len(subChecks))
 	var allDetails []string
+	subType := "presence"
+	if t, ok := c.Extra["check_type"]; ok {
+		if s, ok := t.(string); ok {
+			subType = s
+		}
+	}
 	for _, sc := range subChecks {
-		subCheck := &Check{Type: "presence", Rules: []string{sc}}
+		subCheck := &Check{Type: subType, Rules: []string{sc}}
 		r, err := subCheck.evaluatePresence(text)
 		if err != nil {
 			allDetails = append(allDetails, fmt.Sprintf("子检查 %q 执行失败: %v", sc, err))
