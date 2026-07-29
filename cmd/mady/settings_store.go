@@ -35,11 +35,15 @@ const (
 	SettingKeyReview      = "review"
 	SettingKeyThinking    = "thinking"
 	SettingKeyLastSession = "last_session"
+	SettingKeyProvider    = "provider"
+	SettingKeyModel       = "model"
 
 	DefaultTheme    = "light"
 	DefaultPlan     = "off"
 	DefaultReview   = "off"
 	DefaultThinking = "default"
+	DefaultProvider = "deepseek"
+	DefaultModel    = "deepseek-v4-flash"
 )
 
 // defaultValues maps each setting key to its factory-default value.
@@ -48,6 +52,8 @@ var defaultValues = map[string]string{
 	SettingKeyPlan:     DefaultPlan,
 	SettingKeyReview:   DefaultReview,
 	SettingKeyThinking: DefaultThinking,
+	SettingKeyProvider: DefaultProvider,
+	SettingKeyModel:    DefaultModel,
 	// last_session has no default — empty string means "no stored session"
 }
 
@@ -58,6 +64,7 @@ var validValues = map[string][]string{
 	SettingKeyReview:   {"on", "off"},
 	SettingKeyThinking: {"default", "summarized", "omitted"},
 	// last_session is free-form; validated at runtime by the session store.
+	// provider and model are free-form; validated by the TUI at runtime.
 }
 
 // SettingsStore is the single source of truth for all TUI settings.
@@ -140,13 +147,13 @@ func (s *SettingsStore) Export() map[string]string {
 
 // validate checks that the key is known and the value is accepted.
 func (s *SettingsStore) validate(key, value string) error {
+	// Free-form keys: last_session, provider, model — any non-empty value accepted.
+	if key == SettingKeyLastSession || key == SettingKeyProvider || key == SettingKeyModel {
+		return nil
+	}
 	valid, ok := validValues[key]
 	if !ok {
 		return fmt.Errorf("settings: unknown key %q", key)
-	}
-	// last_session is free-form — any non-empty value is accepted.
-	if key == SettingKeyLastSession {
-		return nil
 	}
 	for _, v := range valid {
 		if v == value {

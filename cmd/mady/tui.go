@@ -168,6 +168,27 @@ func runTui(ctx context.Context) error {
 	// 直接调 SetSemanticTheme 而不是 handleThemeCommand，因为此时 s.app 尚未初始化。
 	applyStoredTheme(s)
 
+	// 从 store 读取持久化的 Provider/Model 设置。
+	// 此时 s.app 尚未初始化，直接更新字段值。
+	if savedProvider := s.store.Get(SettingKeyProvider); savedProvider != "" && savedProvider != s.providerName {
+		if p, err := agentconfig.BuildProviderFor(savedProvider); err == nil {
+			s.provider = p
+			s.providerName = savedProvider
+			if defModel := agentconfig.DefaultModelForProvider(savedProvider); defModel != "" {
+				s.model = defModel
+				s.normalModel = defModel
+			}
+		} else {
+			log.Printf("restore provider %q: %v", savedProvider, err)
+		}
+	}
+	if savedModel := s.store.Get(SettingKeyModel); savedModel != "" && savedModel != s.model {
+		if s.providerName == "generic" || modelBelongsToProvider(savedModel, s.providerName) {
+			s.model = savedModel
+			s.normalModel = savedModel
+		}
+	}
+
 	// Build the slash registry once; both handleSubmit and the autocomplete
 	// menu read from it (single source of truth, no dual switch).
 	s.slashReg = s.buildSlashRegistry()
@@ -378,4 +399,15 @@ func redirectStderrToFile(madyHome string) func() {
 			log.Printf("close log file: %v", err)
 		}
 	}
+}
+
+// modelBelongsToProvider 检查 modelName 是否属于 providerName 的模型列表。
+func modelBelongsToProvider(modelName, providerName string) bool {
+	models := agentconfig.ModelsForProvider(providerName)
+	for _, m := range models {
+		if m.Name == modelName {
+			return true
+		}
+	}
+	return false
 }

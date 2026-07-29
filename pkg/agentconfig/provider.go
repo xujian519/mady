@@ -30,7 +30,17 @@ import (
 // Returns a non-nil provider on success (never (nil, nil)).
 func BuildProvider() (agentcore.Provider, error) {
 	providerType := util.EnvOrDefault("PROVIDER", "deepseek")
+	return BuildProviderFor(providerType)
+}
 
+// BuildProviderFor 为指定 provider 构建 agentcore.Provider。
+// providerType 为 "deepseek" / "zhipu" / "kimi" / "generic"。
+// 从环境变量读取对应的 API Key（DEEPSEEK_API_KEY / ZHIPU_API_KEY / KIMI_API_KEY 等）。
+// 返回 (provider, error)。error 表示 API Key 未配置。
+//
+// 与 BuildProvider() 的区别：provider 类型由参数指定，而非从环境变量读取。
+// 用于运行时切换 Provider（TUI 设置面板 / /provider 命令）。
+func BuildProviderFor(providerType string) (agentcore.Provider, error) {
 	apiKey := os.Getenv("API_KEY")
 	baseURL := os.Getenv("BASE_URL")
 

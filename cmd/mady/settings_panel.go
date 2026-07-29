@@ -7,7 +7,10 @@ package main
 // close + apply.
 
 import (
+	"fmt"
+
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/tui/chat"
 	"github.com/xujian519/mady/tui/component"
 )
@@ -26,11 +29,7 @@ func (s *tuiSession) openSettings() {
 	box.SetPadding(1, 1)
 	box.AddChild(settings)
 
-	// Track the overlay handle so OnSubmit/OnCancel can close it.
 	var ov chat.OverlayRef
-	// OnChange: apply immediately via store, which guarantees idempotent writes.
-	// SettingsList.submitOrCycle (Enter) fires both OnChange and OnSubmit;
-	// re-applying via the store is safe (same value = no-op).
 	settings.OnChange(func(e component.SettingEntry) { s.applySettingEntry(e) })
 	settings.OnSubmit(func(_ component.SettingEntry) {
 		if ov != nil {
@@ -47,24 +46,20 @@ func (s *tuiSession) openSettings() {
 
 // buildSettingEntries derives the current setting values from session state.
 func (s *tuiSession) buildSettingEntries() []component.SettingEntry {
-	// Theme entry reflects the current palette name.
 	themeCur := int64(0)
 	if s.themeName() == valDark {
-		themeCur = 0 // dark (品牌冷色)
+		themeCur = 0
 	} else {
-		themeCur = 1 // light
+		themeCur = 1
 	}
-	// Plan mode: 0=off, 1=on.
 	var planCur int64
 	if s.isPlanMode() {
 		planCur = 1
 	}
-	// Review mode: 0=off, 1=on.
 	var reviewCur int64
 	if s.isReviewMode() {
 		reviewCur = 1
 	}
-	// Thinking: 0=default, 1=summarized, 2=omitted.
 	thinkingCur := int64(0)
 	if s.thinkingConfig() != nil {
 		switch s.thinkingConfig().Display {
@@ -74,6 +69,25 @@ func (s *tuiSession) buildSettingEntries() []component.SettingEntry {
 			thinkingCur = 2
 		}
 	}
+
+	allProviders := agentconfig.ProviderCatalog()
+	providerCur := int64(0)
+	for i, p := range allProviders {
+		if p.Name == s.providerName {
+			providerCur = int64(i)
+			break
+		}
+	}
+
+	models := agentconfig.ModelsForProvider(s.providerName)
+	modelCur := int64(0)
+	for i, m := range models {
+		if m.Name == s.model {
+			modelCur = int64(i)
+			break
+		}
+	}
+
 	return []component.SettingEntry{
 		{
 			Key: SettingKeyTheme, Label: "主题",
@@ -94,7 +108,7 @@ func (s *tuiSession) buildSettingEntries() []component.SettingEntry {
 		{
 			Key: SettingKeyReview, Label: "审核关卡",
 			Options: []component.SettingOption{
-				{Value: DefaultPlan, Label: "关闭"},
+				{Value: DefaultReview, Label: "关闭"},
 				{Value: "on", Label: "开启"},
 			},
 			Current: reviewCur,
@@ -108,39 +122,77 @@ func (s *tuiSession) buildSettingEntries() []component.SettingEntry {
 			},
 			Current: thinkingCur,
 		},
+		{
+			Key: SettingKeyProvider, Label: "模型提供方",
+			Options: buildProviderOptions(),
+			Current: providerCur,
+		},
+		{
+			Key: SettingKeyModel, Label: "模型",
+			Options: buildModelOptions(s.providerName),
+			Current: modelCur,
+		},
 	}
+}
+
+func buildProviderOptions() []component.SettingOption {
+	var opts []component.SettingOption
+	for _, p := range agentconfig.ProviderCatalog() {
+		opts = append(opts, component.SettingOption{Value: p.Name, Label: p.Label})
+	}
+	return opts
+}
+
+func buildModelOptions(providerName string) []component.SettingOption {
+	models := agentconfig.ModelsForProvider(providerName)
+	var opts []component.SettingOption
+	for _, m := range models {
+		opts = append(opts, component.SettingOption{Value: m.Name, Label: m.Label})
+	}
+	if len(opts) == 0 {
+		opts = []component.SettingOption{{Value: "", Label: "(无可用模型)"}}
+	}
+	return opts
 }
 
 // applySettingEntry reacts to a settings change by delegating to the
 // existing slash-command handlers, so the panel and the command line stay in
 // sync (single behavior, two entry points).
 func (s *tuiSession) applySettingEntry(e component.SettingEntry) {
+	if e.Current < 0 || e.Current >= int64(len(e.Options)) {
+		return // 边界检查：无有效选项
+	}
 	val := e.Options[e.Current].Value
-	// 直接通过子命令 handler 应用设置，handler 内部负责写入 store 并重建 agent。
-	// 注意：不要在 handler 之前写 store，否则 handler 的幂等检查会误判"已在目标状态"而跳过重建。
 	switch e.Key {
 	case SettingKeyTheme:
 		s.handleThemeCommand("/theme " + val)
 	case SettingKeyPlan:
-		s.handlePlanCommandEx(val) // "on" or "off" — idempotent
+		s.handlePlanCommandEx(val)
 	case SettingKeyReview:
-		s.handleReviewCommandEx(val) // "on" or "off" — idempotent
+		s.handleReviewCommandEx(val)
 	case SettingKeyThinking:
 		s.handleThinkingCommand("/thinking " + val)
+	case SettingKeyProvider:
+		if err := s.switchProvider(val); err != nil {
+			s.app.PrintError(fmt.Errorf("切换 Provider 失败: %w\n请确认 API Key 已通过环境变量配置", err))
+		}
+	case SettingKeyModel:
+		if err := s.switchModel(val); err != nil {
+			s.app.PrintError(fmt.Errorf("切换模型失败: %w", err))
+		}
+	default:
+		// 未知设置键，静默忽略（未来扩展安全兜底）
 	}
 }
 
 // openCommandCenter builds a CommandCenter from the slash registry and opens
 // it as a focused, dimmed overlay. Use /cmd or Ctrl+P to invoke.
-// filter is an optional initial search term (empty = no pre-filter).
 func (s *tuiSession) openCommandCenter(filter ...string) {
 	items := s.buildCommandItems()
 	cc := component.NewCommandCenter(items)
 
-	// Track overlay handle so OnExecute / OnClose can close it.
 	var ov chat.OverlayRef
 	cc.OnExecute(func(item component.CommandItem) {
-		// Close overlay first so the UI is ready before the command runs.
 		if ov != nil {
 			s.app.CloseOverlay(ov)
 		}
@@ -153,7 +205,6 @@ func (s *tuiSession) openCommandCenter(filter ...string) {
 		}
 	})
 
-	// Pre-fill search filter when provided (e.g. from a misspelled slash command)
 	if len(filter) > 0 && filter[0] != "" {
 		cc.SetFilter(filter[0])
 	}
@@ -167,7 +218,6 @@ func (s *tuiSession) openCommandCenter(filter ...string) {
 	ov = s.app.OpenOverlay(box, chat.OverlayOpts{WidthPct: 70, HeightPct: 60, Dim: true, Category: chat.OverlayCatReview})
 }
 
-// buildCommandItems converts slash registry commands to CommandItems.
 func (s *tuiSession) buildCommandItems() []component.CommandItem {
 	categoryNames := map[string]string{
 		catMode:     "⚙ 模式",
@@ -191,23 +241,16 @@ func (s *tuiSession) buildCommandItems() []component.CommandItem {
 		if cmd.Usage != "" {
 			label = cmd.Usage
 		}
-
-		// 为模式/开关类命令填充当前状态
 		status := s.resolveCommandStatus(cmd.Name)
 		items = append(items, component.CommandItem{
-			Name:        cmd.Name,
-			Label:       label,
-			Category:    cat,
-			Description: cmd.Desc,
-			Status:      status,
-			Available:   avail,
-			Reason:      reason,
+			Name: cmd.Name, Label: label, Category: cat,
+			Description: cmd.Desc, Status: status,
+			Available: avail, Reason: reason,
 		})
 	}
 	return items
 }
 
-// resolveCommandStatus 返回命令的当前状态文本（用于命令中心展示）。
 func (s *tuiSession) resolveCommandStatus(name string) string {
 	switch name {
 	case SettingKeyPlan:
@@ -238,6 +281,63 @@ func (s *tuiSession) resolveCommandStatus(name string) string {
 			return "深色"
 		}
 		return "浅色"
+	case SettingKeyProvider:
+		return agentconfig.ProviderNameLabel(s.providerName)
+	case SettingKeyModel:
+		return s.model
 	}
 	return ""
+}
+
+// openModelPicker 打开模型浏览器 overlay，使用 SelectList 模糊搜索。
+func (s *tuiSession) openModelPicker() {
+	items := buildModelSelectItems(s.providerName)
+	picker := component.NewSelectList(items)
+	picker.SetMaxVisible(12)
+
+	box := component.NewBox()
+	box.SetBorder(component.BorderRounded)
+	box.SetTitle("模型选择 — 输入关键词筛选 · Enter 确认 · Esc 取消")
+	box.SetPadding(1, 1)
+	box.AddChild(picker)
+
+	var ov chat.OverlayRef
+	picker.OnSelect(func(item component.SelectItem) {
+		if ov != nil {
+			s.app.CloseOverlay(ov)
+		}
+		if err := s.switchModel(item.Value); err != nil {
+			s.app.PrintError(fmt.Errorf("切换模型失败: %w", err))
+			return
+		}
+		s.app.PrintSystem("🤖 已切换模型: " + s.normalModel)
+	})
+	picker.OnCancel(func() {
+		if ov != nil {
+			s.app.CloseOverlay(ov)
+		}
+	})
+
+	ov = s.app.OpenOverlay(box, chat.OverlayOpts{WidthPct: 60, HeightPct: 60, Dim: true, Category: chat.OverlayCatReview})
+}
+
+func buildModelSelectItems(providerName string) []component.SelectItem {
+	var items []component.SelectItem
+	models := agentconfig.ModelsForProvider(providerName)
+	if len(models) > 0 {
+		for _, m := range models {
+			items = append(items, component.SelectItem{
+				Value: m.Name, Label: m.Label,
+				Description: m.Description,
+				Group:       m.Group,
+			})
+		}
+	}
+	if len(items) == 0 {
+		items = append(items, component.SelectItem{
+			Value: "", Label: "(无可选模型)",
+			Description: "该 Provider 当前无可用模型",
+		})
+	}
+	return items
 }

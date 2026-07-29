@@ -717,6 +717,27 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		},
 	})
 	r.Register(SlashCommand{
+		Name:     "provider",
+		Category: catSettings,
+		Desc:     "查看或切换 LLM 提供方",
+		Match:    exactMatch("provider"),
+		Handler:  func(ctx slashCtx) { s.handleProviderCommand(ctx.input) },
+		Args: []ArgSuggestion{
+			{Value: "status", Description: "查看当前 Provider"},
+			{Value: "list", Description: "列出所有可用 Provider"},
+		},
+	})
+	r.Register(SlashCommand{
+		Name:     "model",
+		Category: catSettings,
+		Desc:     "查看或切换 LLM 模型",
+		Match:    exactMatch("model"),
+		Handler:  func(ctx slashCtx) { s.handleModelCommand(ctx.input) },
+		Args: []ArgSuggestion{
+			{Value: "list", Description: "列出所有可用模型"},
+		},
+	})
+	r.Register(SlashCommand{
 		Name:     "quit",
 		Category: catGeneral,
 		Desc:     "退出",
