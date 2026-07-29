@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -13,10 +14,25 @@ import (
 
 var clipboardCtx = context.Background()
 
+// isSSHSession reports whether the current session is a remote SSH connection.
+// In SSH sessions, native clipboard tools (pbcopy/xclip/clip) operate on the
+// remote machine's clipboard, which is useless — OSC 52 escape sequences must
+// be used instead to write to the client machine's clipboard.
+func isSSHSession() bool {
+	return os.Getenv("SSH_TTY") != "" || os.Getenv("SSH_CONNECTION") != ""
+}
+
 // CopyToClipboard writes text to the system clipboard.
 // It tries native tools first (pbcopy/xclip/clip), then falls back to OSC 52
 // for terminals that support it (iTerm2, Terminal.app, Kitty, WezTerm, Ghostty, VS Code, etc).
+// In SSH sessions, native tools are skipped and OSC 52 is used directly.
 func CopyToClipboard(text string) error {
+	// In SSH sessions, skip native clipboard (which would write to the remote
+	// machine) and use OSC 52 to reach the client's clipboard directly.
+	if isSSHSession() {
+		return copyOSC52(text)
+	}
+
 	// Try native platform tools first.
 	err := copyNative(text)
 	if err == nil {

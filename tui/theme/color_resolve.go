@@ -50,24 +50,73 @@ func DetectColorMode() ColorMode {
 	return ColorModeTruecolor
 }
 
-// DetectTerminalBackground returns "dark" or "light" from COLORFGBG when possible.
+// DetectTerminalBackground returns "dark" or "light" using terminal environment
+// heuristics. Detection sources in priority order:
+//
+//  1. COLORFGBG env var (standard in xterm, VTE, iTerm2, WezTerm).
+//     The second field is the background color index; indices < 8 indicate a
+//     dark background, >= 8 indicate light.
+//
+//  2. DARK_BACKGROUND env var (set by VS Code and some tmux configs).
+//     Any value (including empty) signals dark; absent means "not known".
+//
+//  3. COLORTERM env var with value "truecolor" (common in modern terminals).
+//     White-listed terminals are assumed dark (the most common config).
+//
+//  4. TERM_PROGRAM environment (Apple_Terminal, vscode, tmux, etc.).
+//
+//  5. Falls back to "dark" (the safe default — most terminal themes are dark).
 func DetectTerminalBackground() string {
+	// 1. COLORFGBG: standard xterm/VTE env var with explicit bg index.
 	fgbg := os.Getenv("COLORFGBG")
-	if fgbg == "" {
+	if fgbg != "" {
+		parts := strings.Split(fgbg, ";")
+		if len(parts) >= 2 {
+			bg, err := strconv.Atoi(parts[1])
+			if err == nil {
+				if bg < 8 {
+					return "dark"
+				}
+				return "light"
+			}
+		}
+	}
+
+	// 2. DARK_BACKGROUND: set by VS Code and some terminal multiplexers.
+	if _, ok := os.LookupEnv("DARK_BACKGROUND"); ok {
 		return "dark"
 	}
-	parts := strings.Split(fgbg, ";")
-	if len(parts) < 2 {
+
+	// 3. COLORTERM truecolor: detect common light-terminal brands.
+	// Most TERM_PROGRAM values that set COLORTERM=truecolor default to dark,
+	// but Apple_Terminal defaults to light (Pro theme is opt-in).
+	if os.Getenv("COLORTERM") == "truecolor" {
+		switch os.Getenv("TERM_PROGRAM") {
+		case "Apple_Terminal":
+			// Terminal.app defaults to light; check for known-dark overrides:
+			// "Pro" profile name. This is a heuristic — not all dark themes
+			// contain "pro", but it covers the most common case.
+			if profile := os.Getenv("TERM_PROFILE"); strings.Contains(strings.ToLower(profile), "pro") ||
+				strings.Contains(strings.ToLower(profile), "dark") {
+				return "dark"
+			}
+			return "light"
+		case "vscode", "tmux":
+			return "dark"
+		}
+		// Most truecolor-capable terminals default dark.
 		return "dark"
 	}
-	bg, err := strconv.Atoi(parts[1])
-	if err != nil {
+
+	// 4. TERM_PROGRAM-based heuristics for terminals that don't set COLORFGBG.
+	switch os.Getenv("TERM_PROGRAM") {
+	case "Apple_Terminal":
+		return "light"
+	case "vscode", "ghostty", "kitty", "alacritty", "foot", "wezterm":
 		return "dark"
 	}
-	if bg < 8 {
-		return "dark"
-	}
-	return "light"
+
+	return "dark"
 }
 
 func hexToRGB(hex string) (r, g, b int64, ok bool) {

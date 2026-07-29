@@ -355,6 +355,12 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 			for _, k := range terminal.ParseKeys(m.Data, m.KittyFlags) {
 				name := strings.ToLower(k.Name)
 				switch name {
+				case "f2":
+					// F2: toggle mouse passthrough between TUI mouse
+					// tracking (scroll/click routing) and native
+					// terminal handling (OS-level text selection).
+					l.app.ToggleMousePassthrough()
+					return nil
 				case "v":
 					// Ctrl+Alt+V / ⌘+Alt+V: image paste (any primary modifier + Alt).
 					if k.Mods&(terminal.ModCtrl|terminal.ModSuper|terminal.ModMeta) != 0 &&

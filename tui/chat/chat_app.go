@@ -210,6 +210,16 @@ type ChatApp struct {
 	// can restore it after Busy() temporarily sets "Ctrl+C to interrupt".
 	defaultPlaceholder string
 
+	// mousePassthrough tracks whether mouse passthrough mode is active.
+	// In passthrough mode, the TUI's mouse reporting is disabled so the
+	// terminal's native text selection works. Toggle with F2.
+	mousePassthrough bool
+
+	// lastEscAt records the timestamp of the most recent Esc key press.
+	// Used by the double-Esc guard: the first Esc during streaming shows a
+	// hint, the second within escInterruptWindow actually interrupts.
+	lastEscAt time.Time
+
 	skipRefresh bool // suppress autocomplete re-activation after applying a suggestion
 }
 
@@ -486,6 +496,31 @@ func (a *ChatApp) isRunning() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.model.Running
+}
+
+// escInterruptWindow is the time window for double-Esc interrupt detection.
+// The first Esc during streaming sets a hint; the second within this window
+// triggers the actual interrupt. This prevents accidental interruptions by
+// users coming from vim/neovim who reflexively press Esc.
+const escInterruptWindow = 1 * time.Second
+
+// ToggleMousePassthrough toggles between TUI mouse tracking and native terminal
+// mouse handling. When passthrough is enabled, the terminal's native text
+// selection and right-click menu work; when disabled, the TUI captures mouse
+// events for its own scroll/click routing. State is tracked on ChatApp so the
+// status bar or layout can reflect the current mode.
+func (a *ChatApp) ToggleMousePassthrough() {
+	a.mu.Lock()
+	a.mousePassthrough = !a.mousePassthrough
+	pass := a.mousePassthrough
+	a.mu.Unlock()
+
+	if pass {
+		a.host.DisableMouse()
+	} else {
+		a.host.EnableMouse("sgr")
+	}
+	a.host.RequestRender()
 }
 
 func (a *ChatApp) Subscribe(sub EventSubscriber) {

@@ -115,6 +115,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
+	case "ocr":
+		if err := runOCRCLI(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "mady:", err)
+			os.Exit(1)
+		}
 	case "start-embeddings", "stop-embeddings", "status-embeddings":
 		runEmbeddingsCLI(ctx, os.Args[1])
 	case "-h", "--help", "help":
@@ -150,6 +155,7 @@ Commands:
   patent  Patent analysis CLI: novelty, OA response, invalidation,
         infringement, reexamination.
   util    Utility commands (list-prompts, etc.).
+  ocr     Local OCR CLI: recognize (rec), ensure, status.
   start-embeddings  Start the oMLX embedding/reranking server.
   stop-embeddings   Stop the oMLX embedding/reranking server.
   status-embeddings Check the oMLX embedding/reranking server status.
