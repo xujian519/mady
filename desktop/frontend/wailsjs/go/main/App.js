@@ -14,6 +14,10 @@ export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
 
+export function CreateProjectFolder(arg1) {
+  return window['go']['main']['App']['CreateProjectFolder'](arg1);
+}
+
 export function DeleteEntry(arg1) {
   return window['go']['main']['App']['DeleteEntry'](arg1);
 }
@@ -24,6 +28,10 @@ export function DeleteThread(arg1) {
 
 export function GetAISettings() {
   return window['go']['main']['App']['GetAISettings']();
+}
+
+export function GetCurrentProject() {
+  return window['go']['main']['App']['GetCurrentProject']();
 }
 
 export function GetKnowledgeStatus() {
@@ -50,6 +58,14 @@ export function ListMcpServers() {
   return window['go']['main']['App']['ListMcpServers']();
 }
 
+export function ListModels() {
+  return window['go']['main']['App']['ListModels']();
+}
+
+export function ListProjects() {
+  return window['go']['main']['App']['ListProjects']();
+}
+
 export function ListSkills() {
   return window['go']['main']['App']['ListSkills']();
 }
@@ -70,12 +86,20 @@ export function SaveWindowState(arg1, arg2) {
   return window['go']['main']['App']['SaveWindowState'](arg1, arg2);
 }
 
+export function SelectProjectFolder() {
+  return window['go']['main']['App']['SelectProjectFolder']();
+}
+
 export function SendAction(arg1, arg2) {
   return window['go']['main']['App']['SendAction'](arg1, arg2);
 }
 
 export function SetAISettings(arg1) {
   return window['go']['main']['App']['SetAISettings'](arg1);
+}
+
+export function SwitchProject(arg1) {
+  return window['go']['main']['App']['SwitchProject'](arg1);
 }
 
 export function WriteFile(arg1, arg2) {

@@ -11,11 +11,15 @@ export function Chat(arg1:server.ChatRequest):Promise<string>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<string>;
 
+export function CreateProjectFolder(arg1:string):Promise<main.ProjectInfo>;
+
 export function DeleteEntry(arg1:string):Promise<void>;
 
 export function DeleteThread(arg1:string):Promise<void>;
 
 export function GetAISettings():Promise<main.AISettings>;
+
+export function GetCurrentProject():Promise<main.ProjectInfo>;
 
 export function GetKnowledgeStatus():Promise<main.KnowledgeStatus>;
 
@@ -29,6 +33,10 @@ export function ListDocTemplates():Promise<Array<main.DocTemplateEntry>>;
 
 export function ListMcpServers():Promise<Array<main.McpServerEntry>>;
 
+export function ListModels():Promise<Array<main.ModelEntry>>;
+
+export function ListProjects():Promise<Array<main.ProjectInfo>>;
+
 export function ListSkills():Promise<Array<main.SkillEntry>>;
 
 export function ListThreads():Promise<Array<main.ThreadSummary>>;
@@ -39,8 +47,12 @@ export function RenameFolder(arg1:string,arg2:string):Promise<void>;
 
 export function SaveWindowState(arg1:number,arg2:number):Promise<void>;
 
+export function SelectProjectFolder():Promise<main.ProjectInfo>;
+
 export function SendAction(arg1:string,arg2:a2ui.ClientAction):Promise<void>;
 
 export function SetAISettings(arg1:main.AISettings):Promise<void>;
+
+export function SwitchProject(arg1:string):Promise<void>;
 
 export function WriteFile(arg1:string,arg2:string):Promise<void>;
