@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -239,37 +238,12 @@ func NewComputerUseTool(cfg *ComputerUseToolConfig) *agentcore.Tool {
 
 			// Approval for destructive actions
 			if isDestructiveAction(input.Action) {
-				approvalMu.Lock()
-				if approvalMode == approvalOnce && approvalSeen[input.Action] {
-					approvalMu.Unlock()
-					return nil, fmt.Errorf("BLOCKED by approval mode (once). Set COMPUTER_USE_APPROVAL=session or none to allow more")
+				approved, err := awaitApproval(input.Action)
+				if err != nil {
+					return nil, err
 				}
-				if approvalMode == approvalOnce || approvalMode == approvalSession {
-					if !approvalSeen[input.Action] {
-						approvalMu.Unlock()
-						fmt.Fprintf(os.Stderr, "\n⚠️  COMPUTER_USE: %s — approve? [y/N/session/always] ", input.Action)
-						var resp string
-						fmt.Scanln(&resp)
-						resp = strings.ToLower(strings.TrimSpace(resp))
-						approvalMu.Lock()
-						switch resp {
-						case "y", "yes":
-							// approve once (already tracked by the fact we don't mark session)
-						case "session":
-							approvalMode = approvalSession
-						case "always":
-							approvalMode = approvalNone
-						default:
-							approvalMu.Unlock()
-							return nil, fmt.Errorf("DENIED by user")
-						}
-						approvalSeen[input.Action] = true
-						approvalMu.Unlock()
-					} else {
-						approvalMu.Unlock()
-					}
-				} else {
-					approvalMu.Unlock()
+				if !approved {
+					return nil, fmt.Errorf("DENIED by user")
 				}
 			}
 

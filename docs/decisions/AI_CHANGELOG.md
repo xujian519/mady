@@ -1,5 +1,67 @@
 # AI 变更记录
 
+## 2026-07-29: fix(ci) 修复 CI 构建失败（OCR 跨平台编译 + mod-tidy + LAYERS.md）
+
+### 问题
+CI 检查 7 个任务失败：
+1. **example-build**: `pkg/ocr/` 中 `ortLibName` 等常量仅在 `darwin && arm64` 下定义，Linux amd64 CI 无法编译
+2. **lint**: 同上，golangci-lint 因编译错误而失败
+3. **integration / eval-benchmark**: 级联于构建失败
+4. **verify-tui-layers**: `tui/LAYERS.md` 未包含新增的 `markdown_glamour.go`
+5. **mod-tidy**: go.mod/go.sum 未同步（`onnxruntime_purego` 依赖及新增的 glamour 间接依赖缺失）
+6. **test (tools) / desktop**: 超时而非功能性失败
+
+### 修复
+- 新增 `pkg/ocr/ort_linux_amd64.go`、`ort_linux_arm64.go`、`ort_unsupported.go` 三个平台文件定义 ORT 常量
+- 更新 `tui/LAYERS.md` 添加 `markdown_glamour.go` 条目并同步文件计数
+- 三个模块分别运行 `go mod tidy` 更新 go.mod/go.sum
+
+## 2026-07-29: fix(tools/desktop) 深度排查修复 computer_use 模块 6 个 bug
+
+### 背景
+用户直觉认为 computer_use 模块有很大问题。深度分析发现运行时关键路径存在功能性 Bug。
+
+### P0 — macOS osascript 回退后端 scroll/key 崩溃
+**根因**: `fallbackScroll` 和 `osaKeyImpl` 中 AppleScript `keystroke page up` 语法错误——`page up` 是双 token 常量，AppleScript 解析为语法错误。
+**修复**:
+- 新增 macOS 虚拟键码常量 `osaPageUp=116` / `osaPageDown=121`
+- `fallbackScroll` osascript 分支改用 `key code 116/121` 代替 `keystroke page up/down`
+- 提取 `osaSendKeyScript` 函数，双字及以上键名自动走 `key code`，单字常量仍走 `keystroke`
+
+### P1 — 审批流程 TOCTOU 竞态
+**根因**: 原代码在交互式审批时先释放 `approvalMu`（等待 stdin），再重获——两 goroutine 可同时通过检查。
+**修复**: 提取 `awaitApproval(action)` 函数，全程持有 `approvalMu`（`defer Unlock`），`fmt.Scanln` 期间自然也持锁。因单用户桌面场景，阻塞其他破坏性操作是可接受的正确性保证。
+
+### P2 — `initApprovalMode()` data race
+**根因**: 在 `approvalMu` 保护之外写入 `approvalMode` / `approvalSeen`，而 `Func` 在其保护下读取。
+**修复**: 新增 `approvalInitMu sync.Mutex` 保护 `initApprovalMode()` 的写入序列。
+
+### P2 — `mcp_client.go` stderr 丢弃 + 进程死亡无检测
+**根因**: `cmd.Stderr = nil` 丢失调试信息；`readLoop` 无法感知进程崩溃，60s 超时后才能恢复。
+**修复**:
+- 改为 `cmd.StderrPipe()` 并在 goroutine 中用 `io.Copy(io.Discard, stderr)` 排空
+- 新增 `exited chan struct{}` + `exitErr`，`cmd.Wait()` goroutine 在进程退出时关闭 channel
+- `readLoop` 增加 `<-c.exited` 路径，进程死亡时关闭所有 pending channel 唤醒 caller
+- `call()` 前置检查 `c.exited` 避免写入已死进程
+
+### P2 — `winCapture` base64 decode 错误忽略
+**根因**: `base64.StdEncoding.Decode` 的错误被 `_` 忽略，无效 base64 产生垃圾数据。
+**修复**: 改用 `base64.StdEncoding.DecodeString` 并检查错误。
+
+### 修改文件
+- `tools/desktop/computer_use_macos.go` — AppleScript 键码修复 + `osaSendKeyScript` 提取
+- `tools/desktop/computer_use.go` — 删除废弃字符串 import
+- `tools/desktop/computer_use_safety.go` — `awaitApproval` 函数 + `approvalInitMu`
+- `tools/desktop/mcp_client.go` — stderr 捕获 + 进程死亡检测
+- `tools/desktop/computer_use_win.go` — base64 decode 错误处理
+
+### 验证
+- `go build ./tools/desktop/` — 通过
+- `go vet ./tools/desktop/` — 通过
+- `go test -race -v -count=1 ./tools/desktop/` — 17/17 测试通过，无 data race
+- `go build ./...` — 全项目无编译错误
+
+
 ## 2026-07-27: `domains/inventiveness/` 全量质量审阅
 
 审阅范围：全部 8 个源文件（~128K 代码，60+ 测试），构建/测试/vet 全部通过。

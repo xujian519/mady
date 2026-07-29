@@ -20,6 +20,11 @@ type mcpClient struct {
 	nextID  int64
 	closeMu sync.Mutex
 	closed  bool
+
+	// exited 在子进程退出时关闭，用于 readLoop 检测进程死亡。
+	exited chan struct{}
+	// exitErr 记录子进程 Wait() 返回的错误，进程死亡后 call() 可读取。
+	exitErr error
 }
 
 type mcpRequest struct {
@@ -51,7 +56,10 @@ func newMCPClient(ctx context.Context, binary string, arg ...string) (*mcpClient
 	if err != nil {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
-	cmd.Stderr = nil
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("stderr pipe: %w", err)
+	}
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", binary, err)
@@ -62,8 +70,20 @@ func newMCPClient(ctx context.Context, binary string, arg ...string) (*mcpClient
 		stdin:   stdin,
 		scanner: bufio.NewScanner(stdout),
 		pending: make(map[int64]chan<- mcpResponse),
+		exited:  make(chan struct{}),
 	}
 	c.scanner.Buffer(nil, 10*1024*1024)
+
+	// drain stderr 防止进程因 pipe buffer 满而阻塞
+	go func() {
+		io.Copy(io.Discard, stderr)
+	}()
+
+	// 进程死亡监控：readLoop 可借此检测下游已死
+	go func() {
+		c.exitErr = c.cmd.Wait()
+		close(c.exited)
+	}()
 
 	go c.readLoop()
 
@@ -98,6 +118,13 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]a
 }
 
 func (c *mcpClient) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	// Check if process already died
+	select {
+	case <-c.exited:
+		return nil, fmt.Errorf("MCP client process exited: %v", c.exitErr)
+	default:
+	}
+
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -145,7 +172,11 @@ func (c *mcpClient) call(ctx context.Context, method string, params any) (json.R
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
-	case resp := <-ch:
+	case resp, ok := <-ch:
+		if !ok {
+			// channel closed = process died
+			return nil, fmt.Errorf("MCP client process exited: %v", c.exitErr)
+		}
 		if resp.Error != nil {
 			return nil, fmt.Errorf("MCP error %d: %s", resp.Error.Code, resp.Error.Message)
 		}
@@ -161,27 +192,47 @@ func (c *mcpClient) call(ctx context.Context, method string, params any) (json.R
 }
 
 func (c *mcpClient) readLoop() {
-	for c.scanner.Scan() {
-		line := c.scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
+	scannerDone := make(chan struct{})
+	go func() {
+		defer close(scannerDone)
+		for c.scanner.Scan() {
+			line := c.scanner.Bytes()
+			if len(line) == 0 {
+				continue
+			}
 
-		var resp mcpResponse
-		if err := json.Unmarshal(line, &resp); err != nil {
-			continue
-		}
+			var resp mcpResponse
+			if err := json.Unmarshal(line, &resp); err != nil {
+				continue
+			}
 
-		c.mu.Lock()
-		ch, ok := c.pending[resp.ID]
-		c.mu.Unlock()
-		if ok {
-			select {
-			case ch <- resp:
-			default:
+			c.mu.Lock()
+			ch, ok := c.pending[resp.ID]
+			c.mu.Unlock()
+			if ok {
+				select {
+				case ch <- resp:
+				default:
+				}
 			}
 		}
+	}()
+
+	// 等待扫描器结束或进程死亡
+	select {
+	case <-scannerDone:
+		// normal exit: stdout closed
+	case <-c.exited:
+		// process died: wake up any pending callers
 	}
+
+	// 进程已死：关闭所有等待中的 caller
+	c.mu.Lock()
+	for id, ch := range c.pending {
+		close(ch)
+		delete(c.pending, id)
+	}
+	c.mu.Unlock()
 }
 
 func (c *mcpClient) Close() {

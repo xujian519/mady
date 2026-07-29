@@ -15,6 +15,12 @@ import (
 	"time"
 )
 
+// macOS 虚拟键码常量（用于 AppleScript key code 命令）
+const (
+	osaPageUp   = 116
+	osaPageDown = 121
+)
+
 func fallbackInfo() (any, error) {
 	info, err := osaExec(`tell application "System Events"
 		set screenRes to bounds of window of desktop
@@ -196,6 +202,30 @@ func cliclickKeyImpl(keys string) (string, error) {
 	return fmt.Sprintf("Pressed via cliclick: %s", keys), nil
 }
 
+var osaKeyCodeMap = map[string]int{
+	"page up":   osaPageUp,
+	"page down": osaPageDown,
+}
+
+// osaSendKeyScript 生成 AppleScript key code 或 keystroke 命令。
+// 单字常量用 keystroke（如 return/delete/up），双字及以上用 key code
+// （如 page up — keystroke page up 在 AppleScript 中是语法错误）。
+func osaSendKeyScript(key string, modifiers []string) string {
+	if code, ok := osaKeyCodeMap[key]; ok {
+		if len(modifiers) > 0 {
+			return fmt.Sprintf(
+				`tell app "System Events" to key code %d using {%s}`,
+				code, strings.Join(modifiers, ", "),
+			)
+		}
+		return fmt.Sprintf(`tell app "System Events" to key code %d`, code)
+	}
+	if len(modifiers) > 0 {
+		return fmt.Sprintf(`tell app "System Events" to keystroke %s using {%s}`, key, strings.Join(modifiers, ", "))
+	}
+	return fmt.Sprintf(`tell app "System Events" to keystroke %s`, key)
+}
+
 func osaKeyImpl(keys string) (string, error) {
 	parts := strings.Split(keys, "+")
 	var modifiers []string
@@ -217,11 +247,11 @@ func osaKeyImpl(keys string) (string, error) {
 	var script string
 	switch {
 	case len(modifiers) > 0 && isNamedKey:
-		script = fmt.Sprintf(`tell app "System Events" to keystroke %s using {%s}`, key, strings.Join(modifiers, ", "))
+		script = osaSendKeyScript(key, modifiers)
 	case len(modifiers) > 0:
 		script = fmt.Sprintf(`tell app "System Events" to keystroke "%s" using {%s}`, key, strings.Join(modifiers, ", "))
 	case isNamedKey:
-		script = fmt.Sprintf(`tell app "System Events" to keystroke %s`, key)
+		script = osaSendKeyScript(key, nil)
 	default:
 		script = fmt.Sprintf(`tell app "System Events" to keystroke "%s"`, key)
 	}
@@ -251,20 +281,26 @@ func fallbackScroll(backend cuBackend, direction string, amount int) (string, er
 	}
 
 	repeat := max(1, amount/3)
-	var keyName string
+	// AppleScript keystroke 支持单字常量（up/down/left/right），
+	// 但 page up / page down 是双 token 无法解析，必须用 key code。
+	var scrollCmd string
 	switch direction {
 	case "up":
-		keyName = "page up"
+		scrollCmd = fmt.Sprintf("key code %d", osaPageUp)
+		for i := 1; i < repeat; i++ {
+			scrollCmd += fmt.Sprintf("\nkey code %d", osaPageUp)
+		}
 	case "down":
-		keyName = "page down"
+		scrollCmd = fmt.Sprintf("key code %d", osaPageDown)
+		for i := 1; i < repeat; i++ {
+			scrollCmd += fmt.Sprintf("\nkey code %d", osaPageDown)
+		}
 	case "left":
-		keyName = "left"
+		scrollCmd = fmt.Sprintf("repeat %d times\nkeystroke left\nend repeat", repeat)
 	case "right":
-		keyName = "right"
+		scrollCmd = fmt.Sprintf("repeat %d times\nkeystroke right\nend repeat", repeat)
 	}
-	if _, err := osaExec(fmt.Sprintf(`tell app "System Events" to repeat %d times
-		keystroke %s
-	end repeat`, repeat, keyName)); err != nil {
+	if _, err := osaExec(fmt.Sprintf(`tell app "System Events" to %s`, scrollCmd)); err != nil {
 		return "", fmt.Errorf("scroll: %w", err)
 	}
 	return fmt.Sprintf("Scrolled %s via osascript", direction), nil

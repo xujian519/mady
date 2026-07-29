@@ -51,9 +51,10 @@ $g.Dispose()
 	b64 := strings.TrimSpace(out)
 
 	desc := "powershell"
-	raw := make([]byte, base64.StdEncoding.DecodedLen(len(b64)))
-	n, _ := base64.StdEncoding.Decode(raw, []byte(b64))
-	data := raw[:n]
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, fmt.Errorf("powershell screenshot: decode base64: %w", err)
+	}
 
 	if appName != "" {
 		boundsOut, err := pwshExec(boundsScript)

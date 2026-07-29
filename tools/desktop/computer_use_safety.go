@@ -109,12 +109,15 @@ const (
 )
 
 var (
-	approvalMode approvalLevel
-	approvalSeen map[string]bool
-	approvalMu   sync.Mutex
+	approvalMode   approvalLevel
+	approvalSeen   map[string]bool
+	approvalMu     sync.Mutex
+	approvalInitMu sync.Mutex
 )
 
 func initApprovalMode() {
+	approvalInitMu.Lock()
+	defer approvalInitMu.Unlock()
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("COMPUTER_USE_APPROVAL")))
 	switch mode {
 	case "once":
@@ -136,4 +139,46 @@ func isDestructiveAction(action string) bool {
 		return true
 	}
 	return false
+}
+
+// awaitApproval 检查破坏性操作是否需要审批并等待用户确认。
+// 返回 (true, nil) = 已批准；false = 拒绝；error = 阻塞错误。
+// 处理并发安全的 TOCTOU：即使两 goroutine 同时进入，也只会提示一次。
+func awaitApproval(action string) (bool, error) {
+	approvalMu.Lock()
+	defer approvalMu.Unlock()
+
+	switch approvalMode {
+	case approvalNone:
+		return true, nil
+	case approvalOnce:
+		if approvalSeen[action] {
+			return false, fmt.Errorf("BLOCKED by approval mode (once). Set COMPUTER_USE_APPROVAL=session or none to allow more")
+		}
+	case approvalSession:
+		if approvalSeen[action] {
+			return true, nil
+		}
+	}
+
+	// 首次提示用户（持锁状态：不会有两个 goroutine 同时进入此段）
+	fmt.Fprintf(os.Stderr, "\n⚠️  COMPUTER_USE: %s — approve? [y/N/session/always] ", action)
+	var resp string
+	fmt.Scanln(&resp)
+	resp = strings.ToLower(strings.TrimSpace(resp))
+
+	switch resp {
+	case "y", "yes":
+		approvalSeen[action] = true
+		return true, nil
+	case "session":
+		approvalMode = approvalSession
+		approvalSeen[action] = true
+		return true, nil
+	case "always":
+		approvalMode = approvalNone
+		return true, nil
+	default:
+		return false, nil
+	}
 }
