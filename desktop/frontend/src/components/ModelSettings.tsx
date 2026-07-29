@@ -16,6 +16,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import { ChevronDown, Cpu, Thermometer, SlidersHorizontal, Brain } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useSettingsStore } from '@/stores/settings'
+import { listModels } from '@/lib/backend'
+import type { ModelInfo } from '@/lib/backend'
 
 // ── 类型 ──────────────────────────────────────────
 
@@ -28,80 +30,65 @@ interface ModelOption {
   reasoningLabel: string
 }
 
-/**
- * 获取可用模型列表。
- *
- * 当前返回 mock 数据。后端 model/list 端点就绪后，替换为：
- *   export async function fetchModels(): Promise<ModelOption[]> {
- *     const res = await callBinding(...)
- *     return res.map(...)
- *   }
- */
-function fetchModels(): ModelOption[] {
-  return [
-    {
-      id: 'gpt-5.2',
-      name: 'GPT-5.2',
-      provider: 'OpenAI',
-      group: 'recommended',
-      capabilities: ['256K 上下文', '多模态', '深度推理'],
-      reasoningLabel: '高',
-    },
-    {
-      id: 'gpt-5.1',
-      name: 'GPT-5.1',
-      provider: 'OpenAI',
-      group: 'recommended',
-      capabilities: ['128K 上下文', '多模态'],
-      reasoningLabel: '中',
-    },
-    {
-      id: 'deepseek-v4',
-      name: 'DeepSeek V4',
-      provider: 'DeepSeek',
-      group: 'recommended',
-      capabilities: ['1M 上下文', '代码优化'],
-      reasoningLabel: '极高',
-    },
-    {
-      id: 'kimi-k3',
-      name: 'Kimi K3',
-      provider: 'Moonshot',
-      group: 'all',
-      capabilities: ['128K 上下文', '文件分析'],
-      reasoningLabel: '中',
-    },
-    {
-      id: 'claude-5',
-      name: 'Claude 5',
-      provider: 'Anthropic',
-      group: 'all',
-      capabilities: ['200K 上下文', '多模态', '安全'],
-      reasoningLabel: '高',
-    },
-  ]
-}
-
-const ALL_MODELS = fetchModels()
-
-const EFFORT_OPTIONS = [
-  { value: 'low', label: '低' },
-  { value: 'medium', label: '中' },
-  { value: 'high', label: '高' },
-  { value: 'max', label: '极高' },
-] as const
-
-const CONTEXT_OPTIONS = ['32K', '64K', '128K', '256K', '1M'] as const
-
 // ── Component ─────────────────────────────────────
 
 export const ModelSettings: React.FC = () => {
   const store = useSettingsStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [models, setModels] = useState<ModelOption[]>([])
+  const [_loading, _setLoading] = useState(true)
+  const [_error, _setError] = useState<string | null>(null)
 
-  // 从 store 读取当前模型，按 id 匹配
-  const selectedModel = ALL_MODELS.find((m) => m.id === store.modelId) ?? ALL_MODELS[0]
+  // 从后端加载模型列表
+  useEffect(() => {
+    let cancelled = false
+    _setLoading(true)
+    _setError(null)
+    listModels()
+      .then((list: ModelInfo[]) => {
+        if (cancelled) return
+        const opts: ModelOption[] = list.map((m, i) => ({
+          id: m.id,
+          name: m.name,
+          provider: m.provider,
+          // 第一个模型标记为推荐，其余为全部
+          group: i === 0 ? 'recommended' as const : 'all' as const,
+          capabilities: [`${m.contextWindow > 0 ? `${m.contextWindow/1024}K` : '默认'} 上下文`],
+          reasoningLabel: '—',
+        }))
+        // 如果后端返回为空，使用一个占位
+        if (opts.length === 0) {
+          opts.push({
+            id: store.modelId || 'default',
+            name: store.modelId || '默认模型',
+            provider: 'local',
+            group: 'recommended',
+            capabilities: [],
+            reasoningLabel: '—',
+          })
+        }
+        setModels(opts)
+        _setLoading(false)
+      })
+      .catch((err: Error) => {
+        if (cancelled) return
+        console.error('[ModelSettings] listModels failed:', err)
+        _setError('无法加载模型列表')
+        _setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [store.modelId])
+
+  // 从 models 匹配当前模型，取第一个或占位
+  const selectedModel = models.find((m) => m.id === store.modelId) ?? models[0] ?? {
+    id: 'default',
+    name: '默认模型',
+    provider: '',
+    group: 'recommended' as const,
+    capabilities: [],
+    reasoningLabel: '—',
+  }
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -115,8 +102,17 @@ export const ModelSettings: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [dropdownOpen])
 
-  const recommended = ALL_MODELS.filter((m) => m.group === 'recommended')
-  const allOthers = ALL_MODELS.filter((m) => m.group === 'all')
+  const recommended = models.filter((m) => m.group === 'recommended')
+  const allOthers = models.filter((m) => m.group === 'all')
+
+  const EFFORT_OPTIONS = [
+    { value: 'low', label: '低' },
+    { value: 'medium', label: '中' },
+    { value: 'high', label: '高' },
+    { value: 'max', label: '极高' },
+  ] as const
+
+  const CONTEXT_OPTIONS = ['32K', '64K', '128K', '256K', '1M'] as const
 
   return (
     <section>

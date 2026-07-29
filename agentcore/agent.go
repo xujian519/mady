@@ -99,6 +99,65 @@ type Config struct {
 	FallbackConfig *FallbackConfig
 }
 
+// A2UIAction represents a user action from the A2UI protocol (e.g. approval
+// approve/reject, button click). It is intentionally decoupled from the a2ui
+// package to keep agentcore dependency-free. Server.desktop.go converts
+// *a2ui.ClientAction to *A2UIAction before delivering via A2UIPromise.
+type A2UIAction struct {
+	Name    string
+	Context map[string]any
+}
+
+// A2UIPromise provides goroutine-safe one-shot delivery of an A2UI action
+// from the SendAction caller (a UI goroutine) to the agent run loop.
+//
+// Usage:
+//
+//	promise := NewA2UIPromise()
+//	agent.SetA2UIPromise(promise)
+//	// ... on some UI event:
+//	promise.Set(action)
+//	// ... agent's runPreTurn calls promise.TryGet() — returns once.
+//
+// TryGet returns the action exactly once (the second call returns nil),
+// preventing the same action from being processed in multiple turns.
+type A2UIPromise struct {
+	mu       sync.Mutex
+	action   *A2UIAction
+	consumed bool
+}
+
+// NewA2UIPromise creates a promise ready for Set/TryGet.
+func NewA2UIPromise() *A2UIPromise {
+	return &A2UIPromise{}
+}
+
+// Set delivers an action to the promise. Idempotent: the first Set wins,
+// subsequent calls are silently ignored.
+func (p *A2UIPromise) Set(action *A2UIAction) {
+	if action == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.action != nil {
+		return // first Set wins
+	}
+	p.action = action
+}
+
+// TryGet returns the action if one has been Set and not yet consumed.
+// Consumed actions are never returned again.
+func (p *A2UIPromise) TryGet() *A2UIAction {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.consumed || p.action == nil {
+		return nil
+	}
+	p.consumed = true
+	return p.action
+}
+
 // Agent is the core runtime that orchestrates LLM calls and tool execution.
 type Agent struct {
 	config        Config
@@ -115,6 +174,7 @@ type Agent struct {
 	contextEngine ContextEngine
 	engineReg     *EngineRegistry
 	interrupted   atomic.Pointer[InterruptReason]
+	a2uiPromise   *A2UIPromise // optional, set by desktop/adapter for UI→agent action delivery
 	// intentCacheMu + intentCache provide a per-Agent LLM intent summary
 	// cache. Previously this was a package-level global, which caused
 	// cross-agent cache pollution in multi-agent setups.
@@ -254,6 +314,22 @@ func (a *Agent) SetEventBus(bus *EventBus) {
 // EventBus returns the agent's event bus for registering external handlers
 // (e.g. EventLogger, custom listeners).
 func (a *Agent) EventBus() *EventBus { return a.eventBus }
+
+// SetA2UIPromise installs an A2UIPromise so that A2UI actions (e.g. approval
+// decisions, button clicks) can be delivered from UI goroutines to the agent's
+// run loop. Pass nil to clear a previously installed promise.
+// A2UIPromise is an opt-in mechanism: the TUI path does not set it, so the
+// agent's runPreTurn simply skips the nil check with zero overhead.
+func (a *Agent) SetA2UIPromise(p *A2UIPromise) { a.a2uiPromise = p }
+
+// SetA2UIAction delivers a user action from the A2UI protocol into the agent's
+// promise. The action is consumed by consumePendingA2UIActions during the next
+// runPreTurn. If no promise is installed this is a no-op (safe for TUI path).
+func (a *Agent) SetA2UIAction(action *A2UIAction) {
+	if a.a2uiPromise != nil {
+		a.a2uiPromise.Set(action)
+	}
+}
 
 // --- state access ---
 

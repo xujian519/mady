@@ -38,6 +38,15 @@ export interface RetryNotice {
   delayMs: number
 }
 
+/** 任务项（来自 agentcore/tasklist）。 */
+export interface TaskItem {
+  id: string
+  subject: string
+  status: 'pending' | 'in_progress' | 'completed'
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+  activeForm?: string
+}
+
 interface ChatState {
   /** 应用是否已完成初始化并准备就绪 */
   ready: boolean
@@ -77,6 +86,8 @@ interface ChatState {
   compaction: CompactionNotice | null
   /** 自动重试提示（收到后续 token 或轮次结束时清除）。 */
   retryNotice: RetryNotice | null
+  /** 渲染中的待办任务列表（来自 agentcore/tasklist）。 */
+  tasks: TaskItem[]
 }
 
 /** 审批提示负载（来自 agui:approval-prompt）。 */
@@ -130,6 +141,12 @@ interface ChatActions {
   setRetryNotice: (n: RetryNotice | null) => void
   /** 追加工具调用参数（agui:tool-call-args 流式增量）。 */
   appendToolCallArgs: (id: string, delta: string) => void
+  /** 添加或更新待办任务（来自 agentcore/tasklist 事件）。 */
+  upsertTask: (task: TaskItem) => void
+  /** 批量设置任务列表（用于初始加载）。 */
+  setTasks: (tasks: TaskItem[]) => void
+  /** 清除所有任务（会话切换时）。 */
+  clearTasks: () => void
 }
 
 export type ChatStore = ChatState & ChatActions
@@ -159,6 +176,7 @@ export const initialState: ChatState = {
   stepCount: 0,
   compaction: null,
   retryNotice: null,
+  tasks: [],
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -289,4 +307,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         t.id === id ? { ...t, args: t.args + delta } : t,
       ),
     })),
+
+  upsertTask: (task) =>
+    set((s) => {
+      const idx = s.tasks.findIndex((t) => t.id === task.id)
+      if (idx >= 0) {
+        const updated = [...s.tasks]
+        updated[idx] = { ...updated[idx], ...task }
+        return { tasks: updated }
+      }
+      return { tasks: [...s.tasks, task] }
+    }),
+
+  setTasks: (tasks) => set({ tasks }),
+
+  clearTasks: () => set({ tasks: [] }),
 }))

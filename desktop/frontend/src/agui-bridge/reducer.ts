@@ -7,7 +7,7 @@
  * 的 payload 就是 AGUI 事件结构本身（如 RunStartedEvent 的 JSON）。
  */
 
-import { useChatStore, type ToolCall } from '@/stores/chat'
+import { useChatStore, type ToolCall, type TaskItem } from '@/stores/chat'
 import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
 
 /**
@@ -159,6 +159,38 @@ function handleContextUsage(payload: AguiEventPayload) {
   store.setContextUsage(percent, totalTokens, contextWindow)
 }
 
+/** task-created：新待办任务创建（来自 agentcore/tasklist extension）。 */
+function handleTaskCreated(payload: AguiEventPayload) {
+  // payload 是 CustomEvent.Value，内嵌 TaskCreatedEvent.
+  // TaskCreatedEvent 结构：{ task: { id, subject, status, priority, activeForm } }
+  const taskRaw = payload.task ?? payload
+  if (!taskRaw?.id) return
+  const task: TaskItem = {
+    id: String(taskRaw.id),
+    subject: String(taskRaw.subject ?? ''),
+    status: (taskRaw.status ?? 'pending') as TaskItem['status'],
+    priority: (taskRaw.priority ?? 'normal') as TaskItem['priority'],
+    activeForm: taskRaw.activeForm ?? undefined,
+  }
+  useChatStore.getState().upsertTask(task)
+}
+
+/** task-updated：待办任务状态变更。 */
+function handleTaskUpdated(payload: AguiEventPayload) {
+  // payload 是 CustomEvent.Value，内嵌 TaskUpdatedEvent.
+  // TaskUpdatedEvent 结构：{ task: { id, subject, status, ... }, newStatus }
+  const taskRaw = payload.task ?? payload
+  if (!taskRaw?.id) return
+  const task: TaskItem = {
+    id: String(taskRaw.id),
+    subject: String(taskRaw.subject ?? ''),
+    status: (taskRaw.status ?? 'pending') as TaskItem['status'],
+    priority: (taskRaw.priority ?? 'normal') as TaskItem['priority'],
+    activeForm: taskRaw.activeForm ?? undefined,
+  }
+  useChatStore.getState().upsertTask(task)
+}
+
 // ── 主分发器 ──────────────────────────────────────
 
 const HANDLERS: Record<string, (payload: AguiEventPayload) => void> = {
@@ -179,6 +211,8 @@ const HANDLERS: Record<string, (payload: AguiEventPayload) => void> = {
   'approval-prompt': handleApprovalPrompt,
   done: handleDone,
   'context-usage': handleContextUsage,
+  'task-created': handleTaskCreated,
+  'task-updated': handleTaskUpdated,
 }
 
 /**

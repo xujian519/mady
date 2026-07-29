@@ -76,6 +76,7 @@ export const CSS_VARS = {
   textInverse: '--color-mady-text-inverse',
   textLink: '--color-mady-text-link',
   selectionBg: '--color-mady-selection-bg',
+  focusRing: '--focus-ring',
   accent: '--color-mady-accent',
   accentHover: '--color-mady-accent-hover',
   accentSoft: '--color-mady-accent-soft',

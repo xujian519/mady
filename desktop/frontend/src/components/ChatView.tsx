@@ -31,6 +31,7 @@ import { DecisionSurface } from './DecisionSurface'
 import { ContextIndicator } from './ContextIndicator'
 import { StatusBar } from './StatusBar'
 import { ToolCard } from './ToolCard'
+import { TodoDock } from './TodoDock'
 import { DocumentViewer, type DocViewerFile } from './DocumentViewer'
 import { FileViewerOverlay } from './fileviewer/FileViewerOverlay'
 import { SettingsPanel } from './SettingsPanel'
@@ -38,6 +39,8 @@ import { KnowledgeView } from './KnowledgeView'
 import { TemplatesView } from './TemplatesView'
 import { SkillsView } from './SkillsView'
 import { McpView } from './McpView'
+import { CommandPalette } from './CommandPalette'
+import { buildCommands } from '@/stores/commands'
 import { Sparkles, PanelRightOpen, Database, FileText, Server, Zap, Loader2, RefreshCw, Scissors } from 'lucide-react'
 
 // ── 虚拟列表项类型 ────────────────────────────────
@@ -148,8 +151,21 @@ export const ChatView: React.FC = () => {
   const [showTemplates, setShowTemplates] = useState(false)
   const [showSkills, setShowSkills] = useState(false)
   const [showMcp, setShowMcp] = useState(false)
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // ⌘K 快捷键切换命令面板
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowCommandPalette((v) => !v)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   const handleNewChat = () => {
     useChatStore.setState({ ...initialState, ready: true, threads: useChatStore.getState().threads })
@@ -517,7 +533,35 @@ export const ChatView: React.FC = () => {
         {showSettings && (
           <SettingsPanel onClose={() => setShowSettings(false)} />
         )}
+
+        {/* CommandPalette — ⌘K 命令面板 */}
+        <CommandPalette
+          open={showCommandPalette}
+          onClose={() => setShowCommandPalette(false)}
+          commands={buildCommands({
+            toggleSettings: () => setShowSettings(true),
+            toggleSidebar: () => setShowSidebar((v) => !v),
+            setTheme: (mode) => {
+              document.documentElement.setAttribute('data-theme', mode)
+            },
+            clearChat: () => {
+              useChatStore.setState({ ...initialState, ready: true, threads: useChatStore.getState().threads })
+            },
+            exportChat: () => {
+              // 由 MessageBubble 等组件实现的导出功能
+            },
+            toggleFocusMode: () => {
+              useSettingsStore.getState().update({ layout: 'focus' as LayoutMode })
+            },
+            openTemplate: (_name: string) => {
+              setShowTemplates(true)
+            },
+          })}
+        />
       </div>
+
+      {/* TodoDock — 底部待办坞 */}
+      <TodoDock />
 
       {/* StatusBar */}
       <StatusBar />

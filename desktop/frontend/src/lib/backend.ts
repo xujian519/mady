@@ -300,6 +300,24 @@ export async function setAISettings(settings: AISettings): Promise<void> {
   return callBinding<void>('main/App', 'SetAISettings', settings)
 }
 
+// ── 模型列表 ────────────────────────────────────────
+
+/** 可用模型信息。 */
+export interface ModelInfo {
+  id: string
+  name: string
+  provider: string
+  contextWindow: number
+}
+
+/**
+ * 获取当前可用的模型列表。
+ * 替代之前的 mock 数据。
+ */
+export async function listModels(): Promise<ModelInfo[]> {
+  return callBinding<ModelInfo[]>('main/App', 'ListModels')
+}
+
 // ── 文档模板库 ──────────────────────────────────────
 
 /** 文档模板条目。 */

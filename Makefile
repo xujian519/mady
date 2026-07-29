@@ -101,6 +101,12 @@ desktop-test:
 desktop-test-race:
 	cd desktop && $(GO) test $(GOFLAGS) -race -count=1 ./...
 
+# Playwright E2E tests (requires running Wails dev server).
+# Start `make desktop-run` in one terminal, then run this.
+# See desktop/frontend/e2e/ for test specs.
+desktop-test-e2e:
+	cd desktop/frontend && npx playwright test --config=playwright.config.ts
+
 desktop-dmg:
 	cd desktop && wails build -platform darwin/universal -o Mady.app
 

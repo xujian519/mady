@@ -38,6 +38,13 @@ func (a *Agent) runPreTurn(ctx context.Context, loopStartTurn, turn int64) error
 		a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
 		return err
 	}
+	// 消费 A2UI 入站事件（Promise 模式）。
+	// 桌面端通过 SendAction → SetA2UIAction 写入的 action 在此被消费，
+	// 转换为 follow-up 消息后持久化到对话状态，让 agent 在下一轮 LLM
+	// 调用前感知到 UI 操作（如审批通过/拒绝）。
+	if err := a.consumePendingA2UIActions(ctx, turn); err != nil {
+		return a.failLoop(ctx, fmt.Sprintf("turn:%d|a2ui", turn), "a2ui action consumption failed", err)
+	}
 	a.emit(&TurnStartEvent{baseEvent: newBase(EventTurnStart), Turn: turn})
 	return nil
 }
@@ -227,6 +234,43 @@ func (a *Agent) endTurn(ctx context.Context, turn int64, usage TokenUsage, hadTo
 		a.state.SetStatus(StatusError)
 		a.emit(&AgentErrorEvent{baseEvent: newBase(EventAgentError), Err: err})
 		return err
+	}
+	return nil
+}
+
+// consumePendingA2UIActions checks for a pending A2UI action delivered via
+// A2UIPromise (desktop SendAction → agent.SetA2UIAction) and, if one exists,
+// persists it as a user message into the conversation state so the agent
+// observes the UI action in the next LLM call.
+//
+// Supported action names:
+//   - "approve" / "reject" — persisted with the context payload as rationale
+//   - any other name — persisted as a generic "用户操作" message
+//
+// No-op when no promise is installed (safe for the TUI path where the agent
+// has no A2UIPromise), or when no action is pending.
+func (a *Agent) consumePendingA2UIActions(ctx context.Context, turn int64) error {
+	if a.a2uiPromise == nil {
+		return nil
+	}
+	action := a.a2uiPromise.TryGet()
+	if action == nil {
+		return nil
+	}
+
+	var content string
+	switch action.Name {
+	case "approve":
+		content = fmt.Sprintf("审批已通过。附加信息: %v", action.Context)
+	case "reject":
+		content = fmt.Sprintf("审批已被拒绝。附加信息: %v", action.Context)
+	default:
+		content = fmt.Sprintf("用户操作: %s — %v", action.Name, action.Context)
+	}
+
+	msg := Message{Role: RoleUser, Content: content}
+	if err := a.persistMessage(ctx, msg); err != nil {
+		return fmt.Errorf("consumePendingA2UIActions: persist action message: %w", err)
 	}
 	return nil
 }

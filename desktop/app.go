@@ -387,6 +387,36 @@ func (a *App) DeleteThread(key string) error {
 	return a.server.DeleteThread(a.ctx, key)
 }
 
+// ModelEntry 是可用模型的 Wails Binding 返回类型。
+type ModelEntry struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Provider      string `json:"provider"`
+	ContextWindow int64  `json:"contextWindow"`
+}
+
+// ListModels 返回当前可用的模型列表。
+// 从 server 配置中读取，前端模型选择器使用此数据。
+func (a *App) ListModels() ([]ModelEntry, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	models, err := a.server.ListModels(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]ModelEntry, len(models))
+	for i, m := range models {
+		entries[i] = ModelEntry{
+			ID:            m.ID,
+			Name:          m.Name,
+			Provider:      m.Provider,
+			ContextWindow: m.ContextWindow,
+		}
+	}
+	return entries, nil
+}
+
 // HealthInfo 返回运行时健康检查信息。
 type HealthInfo = madyserver.HealthInfo
 

@@ -149,11 +149,11 @@ func (s *Server) Cancel(threadID string) {
 // SendAction 将客户端 A2UI action 投递给当前会话的 agent。
 //
 // 通过 surfaceID（格式 "surface_<threadID>"）提取 threadID 并在池中查找 agent，
-// 将 ClientAction 包装为 A2UIEvent 通过 agent 事件总线投递。
+// 将 ClientAction 转换为 agentcore.A2UIAction 通过 A2UIPromise 投递。
 //
-// Agent 侧目前尚未注册 A2UIEvent 入站处理器来消费此事件。
-// 投递的事件仅到达事件总线，不会被 agent 执行循环处理。
-// 这是已知限制（跟踪见 docs/known-limitations.md）。
+// Agent 在下一轮 runPreTurn 中消费该 action 并注入为 follow-up 消息。
+// 相比旧方案（通过事件总线 Emit A2UIEvent），A2UIPromise 是独占消费模式：
+// 同一 action 只消费一次，不会在多个轮次中重复注入。
 func (s *Server) SendAction(surfaceID string, action *a2ui.ClientAction) error {
 	if action == nil {
 		return fmt.Errorf("server.SendAction: action is required")
@@ -181,17 +181,17 @@ func (s *Server) SendAction(surfaceID string, action *a2ui.ClientAction) error {
 	}
 	entry := cached.(*poolEntry)
 
-	// 将 ClientAction 包装为 A2UIEvent 通过 agent 事件总线投递。
-	// agent 侧收到此事件后可解析出 ClientMessage 并处理 action。
-	// 当前阶段：仅送达事件总线，agent 侧处理尚未实现。
-	cm := a2ui.ClientMessage{Action: action}
-	payload := map[string]any{
-		"kind":    "client_action",
-		"action":  cm,
-		"surface": surfaceID,
+	// 将 a2ui.ClientAction 转换为 agentcore.A2UIAction 并通过
+	// A2UIPromise 投递。agent 在下一轮 runPreTurn 的
+	// consumePendingA2UIActions 中消费此 action。
+	// 相比旧方案（Emit A2UIEvent 到事件总线），Promise 模式保证
+	// action 恰好被消费一次，不依赖事件总线的广播语义。
+	coreAction := &agentcore.A2UIAction{
+		Name:    action.Name,
+		Context: action.Context,
 	}
-	entry.agent.Emit(agentcore.NewA2UIEvent(payload))
-	slog.Info("server.SendAction: delivered to agent event bus",
+	entry.agent.SetA2UIAction(coreAction)
+	slog.Info("server.SendAction: delivered via A2UIPromise",
 		"surfaceID", surfaceID, "threadID", threadID, "action", action.Name,
 	)
 	return nil
@@ -212,6 +212,30 @@ type HealthInfo struct {
 	Model    string `json:"model"`
 	Version  string `json:"version"`
 	Uptime   string `json:"uptime"`
+}
+
+// ModelInfo 描述一个可用模型及其 Provider。
+type ModelInfo struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Provider      string `json:"provider"`
+	ContextWindow int64  `json:"contextWindow"`
+}
+
+// ListModels 返回当前可用的模型列表。
+// 模型数据从 Server 配置中读取，返回当前模型作为第一个元素。
+// 后续可扩展为从 Provider 动态查询（当 Provider 实现 ModelLister 接口时）。
+func (s *Server) ListModels(_ context.Context) ([]ModelInfo, error) {
+	cfg := s.config.Get()
+	models := []ModelInfo{
+		{
+			ID:            cfg.Model,
+			Name:          cfg.Model,
+			Provider:      fmt.Sprintf("%T", cfg.Provider),
+			ContextWindow: cfg.ContextWindow,
+		},
+	}
+	return models, nil
 }
 
 // Health 返回运行时健康信息。

@@ -7746,3 +7746,145 @@ Sprint 1 结束前对全部代码产出的全面审阅和修复。包含 TUI 25 
 - `go test ./...` — 通过
 - `go test -race ./pkg/agentconfig/... ./bootstrap/... ./pkg/framework/... ./domains/workflows/... ./retrieval/domain/...` — 通过
 - `make all`（vet + build + test，4 模块） — 通过
+
+---
+
+## 2026-07-29: 桌面端第一波闭环实现（A2UIPromise + ListModels + 工程加固）
+
+### 背景
+按桌面端下一阶段计划（`docs/plans/desktop-next-development-plan.md`）执行第一波「闭环真实化」任务。
+
+### 变更清单
+
+**W1-T1: A2UIEvent 入站处理器（A2UIPromise 模式）**（L3，已人审）
+- `agentcore/agent.go`：新增 `A2UIAction` 与 `A2UIPromise` 类型。`A2UIPromise` 提供 goroutine-safe 的 once-delivery 语义——`Set` 写一次、`TryGet` 读一次。新增 `SetA2UIPromise(p)` / `SetA2UIAction(action)` 方法，opt-in 机制（TUI 路径不设 promise，零开销）。
+- `agentcore/agent_run_phase.go`：在 `runPreTurn` 末尾（`BeforeTurn` hook 之后、`TurnStartEvent` 之前）调用 `consumePendingA2UIActions`，将 A2UI action 转换为 user 消息持久化到对话状态。支持 `approve`/`reject`/default 三种 action name。
+- `server/desktop.go:SendAction`：从通过 `agent.Emit(NewA2UIEvent(payload))` 投递到事件总线，改为通过 `entry.agent.SetA2UIAction(coreAction)` 写入 A2UIPromise。去除了不必要的 `a2ui.ClientMessage` 包装和 `A2UIEvent` 负载构造。
+
+**W1-T2: SendAction 全链路验证**
+- `agentcore/event_test.go`：新增 7 个 A2UIPromise 测试（基本/单次消费/Nil 忽略/先到先赢/并发安全/Agent 空 promise no-op/Agent 带 promise 投递）。
+- `server/desktop_test.go`（新增）：5 个测试（SendAction 交付验证/无 agent 报错/nil action 报错/空 surfaceID 报错/extractThreadID 用例）。
+
+**W1-T3: Server.ListModels + mock 替换**
+- `server/desktop.go`：新增 `ModelInfo` 类型与 `ListModels(ctx) ([]ModelInfo, error)` 方法，从 server 配置聚合返回。
+- `desktop/app.go`：新增 `ModelEntry` 类型与 `ListModels() ([]ModelEntry, error)` Wails Binding。
+- `desktop/frontend/src/lib/backend.ts`：新增 `ModelInfo` 类型与 `listModels()` 函数。
+- `desktop/frontend/src/components/ModelSettings.tsx`：删除 5 个 mock 模型（GPT-5.2/DeepSeek V4/Kimi K3/Claude 5），改为 `useEffect` 调用 `backend.listModels()` 动态加载。加载/错误状态预留（`_loading`/`_error`）。
+
+**W1-T4: Playwright E2E 纳入 make desktop-test**
+- `Makefile`：新增 `desktop-test-e2e` 目标，调用 `npx playwright test`。
+
+**W1-T5: Vite manualChunks 拆包**
+- `desktop/frontend/vite.config.ts`：配置 `rollupOptions.output.manualChunks`，将 `pdfjs-dist` 和 `@codemirror/*` 拆分为独立 chunk，降低主 entry 体积。
+
+### 验证
+- `go test -race -count=1 ./agentcore/...` — 全包通过 ✅
+- `go test -race -count=1 ./server/...` — 全包通过 ✅
+- `go vet ./server/... ./desktop/...` — 通过 ✅
+- `go build ./...` — 通过（根模块 + tools + tui 四模块）✅
+- `desktop/frontend npx tsc --noEmit` — 通过 ✅
+
+---
+
+## 2026-07-29: 桌面端第二波 W2-T1 — TodoDock 底部待办坞
+
+### 背景
+按桌面端下一阶段计划执行第二波「领域差异化」。`agentcore/tasklist/` 已有完整任务管理系统（4 个工具 + 持久化），TUI 已有 TodoPanel，但桌面端缺乏任务可视化。
+
+### 变更清单
+
+**前端事件流（AGUI 自动转发）**
+- 桌面端通过 `agui.Convert()` 的 `default` 分支自动将 `TaskCreatedEvent`/`TaskUpdatedEvent` 转译为 `CustomEvent{Name: "task-created"/"task-updated"}`，再经 `mapAguiEventToWailsName` 映射为 `agui:task-created`/`agui:task-updated` Wails 事件。前端无需额外对接——**TodoDock 仅需在 reducer 中注册 handler 即可接收任务事件**。
+
+**store 状态**
+- `desktop/frontend/src/stores/chat.ts`：新增 `TaskItem` 接口（id/subject/status/priority/activeForm）、`tasks: TaskItem[]` 状态、`upsertTask/setTasks/clearTasks` 三个 action。
+
+**Reducer**
+- `desktop/frontend/src/agui-bridge/reducer.ts`：新增 `handleTaskCreated`/`handleTaskUpdated` 处理器，解析 payload.task 中的 `{id, subject, status, priority, activeForm}` 并调用 `upsertTask`。
+
+**TodoDock 组件**
+- `desktop/frontend/src/components/TodoDock.tsx`（新增，~120 行）：可折叠底部面板。折叠态显示「N 个任务 · M 进行中」摘要行；展开态显示任务列表。支持优先级排序（urgent > high > normal > low with `in_progress` 优先）、activeForm 进度文案优先于 subject。空任务列表自动隐藏。
+- `desktop/frontend/src/components/index.ts`：导出 TodoDock。
+- `desktop/frontend/src/components/__tests__/TodoDock.test.tsx`（新增，6 个测试）：空状态隐藏、摘要行渲染、展开/折叠、activeForm 显示、排序正确性。
+
+**ChatView 集成**
+- `desktop/frontend/src/components/ChatView.tsx`：在消息主区域和 StatusBar 之间渲染 `<TodoDock />`。
+
+**依赖新增**
+- `package.json`：新增 `@testing-library/react`、`@testing-library/jest-dom`、`jsdom` 开发依赖，用于 React 组件测试。
+
+### 设计决策
+- **不添加后端 ListTasks binding**：任务数据已通过 AGUI 事件流自动送达前端（Extension snapshot events + task_created/updated 事件），无需额外 Wails binding。仅在会话切换时需 `clearTasks`。
+- **AGUI 事件匹配**：TaskCreatedEvent 的 EventKind() = "task_created"，经 toKebabCase → "task-created"。前端 reducer 注册 `'task-created'` 和 `'task-updated'` 事件名。
+
+### 验证
+- `pnpm typecheck` — 通过（零警告）
+- `pnpm test` — 92/92 通过（7 测试文件，含 6 个 TodoDock 新用例）
+- `pnpm build` — 通过
+- Go 后端无改动（本任务全为前端）
+
+---
+
+## 2026-07-29: 桌面端第二波 W2-T2 — CommandPalette ⌘K 命令面板
+
+### 变更清单
+
+**命令注册表**
+- `desktop/frontend/src/stores/commands.ts`（新增）：`PaletteCommand` 类型与 `buildCommands()` 工厂函数。
+  聚合 5 分类命令：导航（新建会话/切换侧栏/专注模式）、模板（权利要求书/说明书/OA 答复函）、
+  操作（清除上下文/导出/设置/浅色模式/深色模式）、斜杠命令。命令回调通过 ChatView 注入。
+
+**CommandPalette 组件**
+- `desktop/frontend/src/components/CommandPalette.tsx`（新增，~150 行）：
+  - 560px 宽度面板，52px 搜索框，毛玻璃背景 + backdrop-blur-xl
+  - 模糊搜索匹配 title/keywords/id
+  - 分类分组 + 按顺序排序（导航→命令→模板→操作）
+  - ↑↓ 键盘导航 + Enter 执行 + Escape 关闭
+  - 半透明遮罩背景（bg-black/48）
+  - 快捷键提示显示在命令行右侧
+
+**⌘K 全局快捷键**
+- `desktop/frontend/src/components/ChatView.tsx`：新增 `showCommandPalette` 状态 + `useEffect` 监听
+  `(metaKey||ctrlKey) + k` 快捷键。渲染 `<CommandPalette>` 在 overlay 区域，通过 `buildCommands`
+  注入 toggleSettings/toggleSidebar/setTheme/clearChat/exportChat/openTemplate 等回调。
+
+**测试**
+- `desktop/frontend/src/components/__tests__/CommandPalette.test.tsx`（新增，8 个测试）：
+  空态/命令渲染/分类标签/模糊过滤（title+keyword）/点击执行/Escape 关闭/无匹配提示。
+  使用 `@testing-library/user-event` 代替 `fireEvent` 以更真实模拟用户交互。
+  隔离性问题通过在 `beforeEach/afterEach` 中调用 `cleanup()` 解决。
+
+**依赖新增**
+- `package.json`：新增 `@testing-library/user-event`（用于更真实的用户交互模拟）。
+
+### 验证
+- `pnpm typecheck` — 通过（零警告）
+- `pnpm test` — **100/100 通过**（8 测试文件）
+- `pnpm build` — 通过
+
+---
+
+## 2026-07-29: 桌面端第三波 — P2 Token 补齐 + 视觉/发布评估
+
+### W3-T1 — P2 Token 补齐
+- `desktop/frontend/src/styles/globals.css`：新增 `--focus-ring` CSS 变量（light: `0 0 0 2px rgba(88,86,214,0.3)`, dark: `0 0 0 2px rgba(94,92,230,0.4)`）。
+  MCP 四色（`--color-mady-mcp-starting/ready/failed/cancelled`）、连接三色（`--connection-connected/connecting/disconnected`）、selection 背景（`--color-mady-selection-bg`）已在先前令牌补全工作中实现。
+- `desktop/frontend/src/theme/tokens.ts`：新增 `focusRing: '--focus-ring'` 引用。
+
+### W3-T2 — 视觉走查评估
+按 `desktop-design-development-basis.md` §4 走查表确认所有 C01-C12 组件均已实现并集成（组件状态见 `docs/plans/desktop-next-development-plan.md`）。
+像素级对比需真机截图 vs 设计规范逐项比对，建议发布前安排一次人工视觉走查。
+
+### W3-T3 — macOS 公证评估
+- **ad-hoc 签名**：`make desktop-dmg` 使用 `wails build -platform darwin/universal` + ad-hoc codesign ✅
+- **公证依赖**：需要 Xcode 16+ `notarytool` + Apple Developer $99/年 账号
+- **降级方案**：无开发者账号时用户需 `xattr -cr Mady.app` 解除隔离
+
+### W3-T4 — Windows 适配评估
+- 标题栏/字体/快捷键：已通过条件编译预留
+- `GOOS=windows go build ./desktop/...` 构建通过
+
+### 验证
+- `pnpm typecheck` — 通过（零警告）
+- `pnpm test` — 100/100 通过
+- `pnpm build` — 通过

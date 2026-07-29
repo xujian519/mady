@@ -53,5 +53,24 @@ export default defineConfig({
     emptyOutDir: true,
     // 禁用 sourcemap 缩小二进制体积
     sourcemap: false,
+    // 拆分大块：pdf.js (~3MB) 和 CodeMirror (~500KB) 各自独立 chunk，
+    // 避免单 entry 超过 500KB 拖慢首屏加载。
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          pdfjs: ['pdfjs-dist'],
+          codemirror: [
+            '@codemirror/view',
+            '@codemirror/state',
+            '@codemirror/language',
+            '@codemirror/commands',
+            '@codemirror/autocomplete',
+            '@codemirror/search',
+            '@codemirror/lang-json',
+            '@codemirror/lang-markdown',
+          ],
+        },
+      },
+    },
   },
 })

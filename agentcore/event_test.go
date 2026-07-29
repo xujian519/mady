@@ -760,3 +760,164 @@ func TestEventBus_DrainTimeout_AfterCloseReturnsQuickly(t *testing.T) {
 		t.Fatalf("Drain after Close took %v, expected quick return", elapsed)
 	}
 }
+
+// --- A2UIPromise 单元测试 ---
+
+// mockProvider is a minimal Provider implementation for A2UIPromise tests.
+type mockProvider struct {
+	responses []string
+	turn      int
+}
+
+func (p *mockProvider) Complete(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error) {
+	var content string
+	if p.turn < len(p.responses) {
+		content = p.responses[p.turn]
+		p.turn++
+	} else {
+		content = "ok"
+	}
+	return &ProviderResponse{Content: content}, nil
+}
+
+func (p *mockProvider) Stream(ctx context.Context, req *ProviderRequest) (<-chan StreamDelta, error) {
+	ch := make(chan StreamDelta, 1)
+	ch <- StreamDelta{Done: true}
+	close(ch)
+	return ch, nil
+}
+
+func TestA2UIPromise_Basic(t *testing.T) {
+	p := NewA2UIPromise()
+
+	// Initially nil
+	if got := p.TryGet(); got != nil {
+		t.Fatalf("TryGet on empty promise = %v, want nil", got)
+	}
+
+	// Set and get
+	action := &A2UIAction{Name: "approve", Context: map[string]any{"id": "123"}}
+	p.Set(action)
+
+	got := p.TryGet()
+	if got == nil {
+		t.Fatal("TryGet after Set returned nil, want action")
+	}
+	if got.Name != "approve" {
+		t.Fatalf("Name = %q, want %q", got.Name, "approve")
+	}
+	if got.Context["id"] != "123" {
+		t.Fatalf("Context[\"id\"] = %v, want %v", got.Context["id"], "123")
+	}
+}
+
+func TestA2UIPromise_ConsumedOnce(t *testing.T) {
+	p := NewA2UIPromise()
+
+	p.Set(&A2UIAction{Name: "reject"})
+
+	// First call returns the action
+	if got := p.TryGet(); got == nil || got.Name != "reject" {
+		t.Fatal("first TryGet should return the action")
+	}
+
+	// Second call returns nil (consumed)
+	if got := p.TryGet(); got != nil {
+		t.Fatal("second TryGet should return nil (consumed)")
+	}
+
+	// Setting again after consumption — first Set wins, but consumed flag
+	// is already true, so TryGet still returns nil.
+	p.Set(&A2UIAction{Name: "approve"})
+	if got := p.TryGet(); got != nil {
+		t.Fatal("TryGet after consumed+re-Set should still return nil")
+	}
+}
+
+func TestA2UIPromise_SetNilIgnored(t *testing.T) {
+	p := NewA2UIPromise()
+
+	// Set nil should be a no-op
+	p.Set(nil)
+	if got := p.TryGet(); got != nil {
+		t.Fatal("Set(nil) should not make TryGet return a value")
+	}
+}
+
+func TestA2UIPromise_FirstSetWins(t *testing.T) {
+	p := NewA2UIPromise()
+
+	p.Set(&A2UIAction{Name: "first"})
+	p.Set(&A2UIAction{Name: "second"}) // should be ignored
+
+	got := p.TryGet()
+	if got == nil {
+		t.Fatal("TryGet should return the first action")
+	}
+	if got.Name != "first" {
+		t.Fatalf("Name = %q, want %q (first Set should win)", got.Name, "first")
+	}
+}
+
+func TestA2UIPromise_ConcurrentAccess(t *testing.T) {
+	// Verify that Set and TryGet are safe under concurrent goroutines.
+	p := NewA2UIPromise()
+
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 10; i++ {
+			p.Set(&A2UIAction{Name: "approve"})
+		}
+		close(done)
+	}()
+
+	go func() {
+		for i := 0; i < 10; i++ {
+			p.TryGet()
+		}
+	}()
+
+	<-done
+	// No panic means the mutex protected us. Good enough for a race test.
+}
+
+func TestAgent_SetA2UIAction_NoPromiseNoOp(t *testing.T) {
+	// Agent without A2UIPromise — SetA2UIAction must be a safe no-op.
+	agent := New(Config{
+		ModelConfig: ModelConfig{
+			Model: "test-model",
+			Provider: &mockProvider{
+				responses: []string{"ok"},
+			},
+		},
+	})
+	defer agent.EventBus().Close()
+
+	// This must not panic
+	agent.SetA2UIAction(&A2UIAction{Name: "approve"})
+}
+
+func TestAgent_SetA2UIAction_WithPromiseDelivers(t *testing.T) {
+	agent := New(Config{
+		ModelConfig: ModelConfig{
+			Model: "test-model",
+			Provider: &mockProvider{
+				responses: []string{"ok"},
+			},
+		},
+	})
+	defer agent.EventBus().Close()
+
+	promise := NewA2UIPromise()
+	agent.SetA2UIPromise(promise)
+
+	agent.SetA2UIAction(&A2UIAction{Name: "approve", Context: map[string]any{"id": "t-1"}})
+
+	got := promise.TryGet()
+	if got == nil {
+		t.Fatal("promise.TryGet returned nil after SetA2UIAction")
+	}
+	if got.Name != "approve" {
+		t.Fatalf("Name = %q, want %q", got.Name, "approve")
+	}
+}
