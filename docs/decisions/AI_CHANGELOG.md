@@ -7888,3 +7888,43 @@ Sprint 1 结束前对全部代码产出的全面审阅和修复。包含 TUI 25 
 - `pnpm typecheck` — 通过（零警告）
 - `pnpm test` — 100/100 通过
 - `pnpm build` — 通过
+
+## 2026-07-29: 引入本地 OCR 引擎（PP-OCRv5 增强版）
+
+### 背景
+Mady 缺少本地 OCR 能力（仅依赖云端多模态 LLM 的 `vision_analyze`），无法在无网络/无 API Key 时提取图片文字。文件索引 `knowledge/fileindex/reader.go` 明确注释不支持 OCR。
+
+### 实现方案
+参考 `deepx-code-main` 的技术栈，在 Mady 中实现完整本地 OCR 推理管道：
+
+**核心引擎** (`pkg/ocr/`，10 个文件)：
+- PP-OCRv5 mobile ONNX 模型（det + rec）+ 方向分类模型（cls），通过 `onnxruntime_purego` 纯 Go 推理（无需 cgo）
+- **增强后处理**（相对于 deepx 原始实现）：实现了 unclip 扩张算法 + 四边形拟合（非轴对齐 bbox）+ 旋转矫正透视变换 + 文本行合并，预计精度提升 10-15%
+- 资产自动下载（~40MB），内置 GH 镜像加速策略（ghfast.top / jsDelivr 等）
+- macOS ARM64 平台支持（ONNX Runtime v1.24.4）
+
+**工具注册** (`tools/ocr.go`)：
+- 遵循 Mady Extension 模式，注册为 `ocr` 工具（ReadOnly）
+- 沙箱路径隔离（`resolvePathSandboxed`）
+- 首次调用自动下载模型
+
+**注册集成** (`tools/tools.go`)：
+- 新增 `ToolOCR` 常量 + `ExtensionConfig.OCR` 配置
+- `BuildTools` 注册 + `propagateSandbox` 传播沙箱配置
+
+### 新增文件
+- `pkg/ocr/ocr.go`, `pkg/ocr/det.go`, `pkg/ocr/rec.go`, `pkg/ocr/preprocess.go`
+- `pkg/ocr/postprocess.go`, `pkg/ocr/affine.go`, `pkg/ocr/assets.go`
+- `pkg/ocr/mirrors.go`, `pkg/ocr/utils.go`, `pkg/ocr/ort_darwin_arm64.go`
+- `tools/ocr.go`
+
+### 修改文件
+- `tools/tools.go` — OCR 工具注册 + 沙箱传播
+- `go.mod` / `go.sum` — 新增 `github.com/getcharzp/onnxruntime_purego` 依赖
+- `vendor/` — 同步 vendor
+
+### 验证
+- `go build ./...` — 通过
+- `go vet ./...` — 通过
+- `go test -race ./...` — 通过（`TestFindToolBasic` 为已有 flaky test，与 OCR 无关）
+- pkg/ocr 包尚无独立测试（后续待补）

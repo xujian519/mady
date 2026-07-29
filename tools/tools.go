@@ -35,6 +35,7 @@ const (
 	ToolProcess     = "process"
 	ToolVision      = "vision_analyze"
 	ToolPandoc      = "convert_document"
+	ToolOCR         = "ocr"
 )
 
 // ComputerUseToolConfig is a type alias for backward compatibility.
@@ -121,6 +122,9 @@ type ExtensionConfig struct {
 	Pandoc *PandocToolConfig
 	// NuoPatentPath defaults to PATH-based resolution ("nuo-patent" or "npx nuo-patent").
 	// PatentTool configures patent lookup/download tools via nuo-patent CLI.
+
+	// OCR configures the OCR tool. If nil, default local OCR is used.
+	OCR *OCRToolConfig
 
 	// ExecuteCode configures the execute_code tool. If nil, a default configuration is used.
 	ExecuteCode *ExecuteCodeToolConfig
@@ -306,6 +310,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	}
 	addTool(NewProcessTool(cfg.WorkingDir, cfg.Process))
 	addTool(readOnly(NewVisionTool(cfg.WorkingDir, cfg.Vision)))
+	addTool(readOnly(NewOCRTool(cfg.OCR)))
 	addTool(readOnly(NewViewTool(cfg.WorkingDir, cfg.View)))
 	addTool(readOnly(NewGlobTool(cfg.WorkingDir, cfg.Glob)))
 	addTool(NewDeleteTool(cfg.WorkingDir, cfg.Delete))
@@ -417,6 +422,12 @@ func propagateSandbox(cfg *ExtensionConfig) {
 		cfg.Vision = &VisionToolConfig{}
 	}
 	cfg.Vision.Sandbox = sbx
+
+	if cfg.OCR == nil {
+		cfg.OCR = &OCRToolConfig{}
+	}
+	cfg.OCR.Sandbox = sbx
+	cfg.OCR.WorkingDir = cfg.WorkingDir
 
 	// Pandoc: propagate WorkingDir so resolvePath enforces sandbox boundaries.
 	// Without this, WorkingDir stays empty and path checks are silently skipped.
