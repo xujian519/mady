@@ -86,10 +86,13 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 				return resultErrf("invalid arguments: %w", err)
 			}
 
-			resolved, err := resolvePathSandboxed(input.Path, cwd, cfg.Sandbox)
+			f, err := OpenSandboxed(input.Path, cfg.Sandbox)
 			if err != nil {
 				return resultErrf("%w", err)
 			}
+			defer f.Close()
+			resolved := f.Name()
+
 			// When sandbox is enabled, pin the resolved inode to detect
 			// symlink swaps between validation and the actual operation.
 			if cfg.Sandbox.Enabled {
@@ -123,10 +126,10 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 					if entry.IsDir() {
 						name += "/"
 					}
-					info, _ := entry.Info()
+					inf, _ := entry.Info()
 					size := ""
-					if info != nil && !entry.IsDir() {
-						size = fmt.Sprintf("  (%s)", FormatSize(info.Size()))
+					if inf != nil && !entry.IsDir() {
+						size = fmt.Sprintf("  (%s)", FormatSize(inf.Size()))
 					}
 					fmt.Fprintf(&sb, "  %s%s\n", name, size)
 				}
@@ -138,7 +141,7 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
 				return resultErrf("failed to read file: %w", err)
 			}
 
-			if isImageFile(resolved, data) {
+			if isImageFile(f.Name(), data) {
 				return resultErrf("Cannot read %q (this model does not support image input). Inform the user.", input.Path)
 			}
 

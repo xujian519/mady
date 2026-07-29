@@ -281,3 +281,13 @@ func verifyOpenedInode(f *os.File, path string) error {
 	}
 	return nil
 }
+
+// OpenSandboxedFile resolves path against the sandbox, opens it with the given
+// flags and permissions, and returns the *os.File pinned to the validated inode.
+func OpenSandboxedFile(path string, sbx WorkingDirSandbox, flag int, perm os.FileMode) (*os.File, error) {
+	resolved, err := resolvePathSandboxed(path, sbx.WorkingDir, sbx)
+	if err != nil {
+		return nil, err
+	}
+	return os.OpenFile(resolved, flag, perm)
+}

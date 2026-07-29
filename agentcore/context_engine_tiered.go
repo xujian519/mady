@@ -304,6 +304,9 @@ func (e *TieredEngine) findTailBoundary(msgs []Message) int {
 
 	accum := int64(0)
 	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == RoleSystem {
+			continue
+		}
 		msgTokens := EstimateMessageTokens(msgs[i])
 		if accum+msgTokens > tailBudget && accum > 0 {
 			return i + 1

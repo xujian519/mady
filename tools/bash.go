@@ -163,6 +163,11 @@ func sanitizeBinaryOutput(text string) string {
 }
 
 // BashToolConfig configures the bash tool.
+// NOTE: Unlike file tools, bash does NOT implement sandbox path enforcement.
+// The Sandbox field exists on file tools (read/write/edit etc.) for path-level
+// sandboxing, but bash executes arbitrary shell commands — no path restriction
+// is possible at the shell level. Process-level sandboxing (seccomp, sandbox-exec)
+// must be configured externally if required.
 type BashToolConfig struct {
 	Operations BashOperations
 	MaxBytes   int64
