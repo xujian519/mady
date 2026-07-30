@@ -171,7 +171,7 @@ func (f *Footer) Render(width int64) []string {
 	line := strings.Join(parts, " · ")
 
 	// If the rendered line exceeds width, trim from the right.
-	if core.VisibleWidth(line) > int64(width) {
+	if core.VisibleWidth(line) > width {
 		// Fall back to minimal: just show [?] help
 		if len(visible) > 1 {
 			item := visible[0].Items[0]

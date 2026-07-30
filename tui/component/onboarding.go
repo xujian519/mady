@@ -54,9 +54,13 @@ func (w *FirstRunWizard) Dismiss() {
 	w.mu.Lock()
 	w.visible = false
 	w.dismissed = true
+	fn := w.onDismiss
+	renderFn := w.onRender
 	w.mu.Unlock()
-	w.requestRender()
-	if fn := w.onDismiss; fn != nil {
+	if renderFn != nil {
+		renderFn()
+	}
+	if fn != nil {
 		fn()
 	}
 }
@@ -82,15 +86,6 @@ func (w *FirstRunWizard) SetOnRequestRender(fn func()) {
 	w.mu.Unlock()
 }
 
-func (w *FirstRunWizard) requestRender() {
-	w.mu.RLock()
-	fn := w.onRender
-	w.mu.RUnlock()
-	if fn != nil {
-		fn()
-	}
-}
-
 func (w *FirstRunWizard) Invalidate() {}
 
 func (w *FirstRunWizard) Render(width int64) []string {
@@ -107,10 +102,6 @@ func (w *FirstRunWizard) Render(width int64) []string {
 	}
 
 	pal := theme.CurrentPalette()
-	innerW := width - 4 // 2-char padding on each side
-	if innerW < 1 {
-		innerW = 1
-	}
 
 	var lines []string
 	pad := func(s string) string {

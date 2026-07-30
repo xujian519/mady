@@ -99,6 +99,11 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
 	}
 
+	// 证据判断扩展：使法律 Agent 拥有证据三性审查、举证责任查询等工具。
+	if globalEvidenceExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
+	}
+
 	// DoomLoop: 死循环检测器。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
 

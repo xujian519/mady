@@ -355,8 +355,6 @@ var _ core.Component = (*KeyHelp)(nil)
 // joinKeyIDs joins KeyID values into a readable display string.
 func joinKeyIDs(keys []terminal.KeyID) string {
 	strs := make([]string, len(keys))
-	for i, k := range keys {
-		strs[i] = string(k)
-	}
+	copy(strs, keys)
 	return strings.Join(strs, " / ")
 }

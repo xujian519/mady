@@ -954,7 +954,11 @@ func (s *tuiSession) handleOASlash(ctx slashCtx) {
 		"用法: /oa <OA通知书文本>\n"+
 			"示例: /oa \"审查员认为权利要求1不具备专利法第22条第2款规定的新颖性\"",
 		func(input string) (string, error) {
-			compiled, err := patent.BuildOAResponseGraph()
+			var oaOpts []patent.OAGraphOption
+			if s.fc.Provider != nil {
+				oaOpts = append(oaOpts, patent.WithOAProvider(s.fc.Provider))
+			}
+			compiled, err := patent.BuildOAResponseGraphWithOpts(oaOpts...)
 			if err != nil {
 				return "", fmt.Errorf("OA 答复引擎初始化失败: %w", err)
 			}

@@ -14,6 +14,7 @@ import (
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/doctmpl"
+	domainEvidence "github.com/xujian519/mady/domains/evidence"
 	"github.com/xujian519/mady/domains/reasoning"
 	reasoningwiring "github.com/xujian519/mady/domains/reasoning/wiring"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
@@ -89,6 +90,10 @@ func InitReasoningAndTemplates(fc *Context) {
 	domains.SetupWritingExtension(writingStore)
 
 	domains.SetupRulesExtension(fc.RuleEngine)
+
+	// 证据判断扩展：将 EvidenceDomainExtension 注入 Agent 配置。
+	// ext 为 nil 时静默跳过，使 Agent 仍然可以正常启动。
+	domains.SetupEvidenceExtension(domainEvidence.NewDomainExtension(nil))
 
 	userTmplDir := filepath.Join(fc.MadyHome, "doc-templates")
 	store, err := doctmpl.NewTemplateStore(userTmplDir)

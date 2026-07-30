@@ -96,6 +96,19 @@ func SetupInfringementKnowledgeRetriever(kr infringement.KnowledgeRetriever) {
 	globalInfringementKR = kr
 }
 
+// globalEvidenceExt 是证据判断扩展的全局实例，由 SetupEvidenceExtension
+// 在启动期注入。PatentAgentConfig 和 LegalAgentConfig 将其注册到 Extensions 中，
+// 使 Agent 拥有证据三性审查、举证责任查询、证明标准评估等工具。
+var globalEvidenceExt agentcore.Extension
+
+// SetupEvidenceExtension 在启动期注入证据判断扩展实例，
+// 使 PatentAgentConfig 和 LegalAgentConfig 可以将证据判断工具注册到 Agent 中。
+// ext 为 nil 时静默跳过，不影响现有行为。
+// 必须在任何 Agent 创建前调用。
+func SetupEvidenceExtension(ext agentcore.Extension) {
+	globalEvidenceExt = ext
+}
+
 // globalClaimDraftingExt 是权利要求撰写扩展的全局实例，由 SetupClaimDraftingExtension
 // 在启动期注入。PatentAgentConfig 将其注册到 Extensions 中，使 Patent Agent
 // 拥有 draft_claims 工具（五步法 builder + 规则引擎校验 + 可选 LLM 增强）。
@@ -280,7 +293,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		MaxBytes: 100 * 1024,
 		ExtraTools: []*agentcore.Tool{
 			patent.NewPatentNoveltyTool(patent.WithRetriever(globalPatentRetriever)),
-			patent.NewOAResponseTool(),
+			patent.NewOAResponseTool(patent.WithOAProvider(base.Provider)),
 			patent.NewDebateTool(),
 			patent.NewInvalidationTool(patent.WithInvRetriever(globalPatentRetriever)),
 			infTool,
@@ -302,12 +315,18 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	injectDocTemplateTools(&cfg)
 	injectPromptTools(&cfg)
 	injectWritingTools(&cfg)
+	injectRulesTools(&cfg)
 
 	// 知识库扩展：为专利 Agent 提供 search_knowledge / search_laws 工具，
 	// 使其能检索本地知识库中的法律法规、司法解释和案例。
 	// 之前仅在会话级 extendConfig 注入到顶层 Chat Agent，Handoff 子 Agent 无法获得。
 	if globalKnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
+	}
+
+	// 证据判断扩展：使专利 Agent 拥有证据三性审查、举证责任查询、证明标准评估等工具。
+	if globalEvidenceExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
 	}
 
 	// 权利要求书撰写扩展（claimdrafting）：五步法 builder + 六类规则校验 + 可选 LLM 增强。
@@ -323,6 +342,11 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	if globalSpecDraftingExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalSpecDraftingExt)
 	}
+
+	// Orchestration 扩展：使 PatentAgent 拥有 run_orchestration 工具。
+	// 此扩展在 Init 阶段捕获 Agent 引用并注册工具（见 orchestration_extension.go），
+	// 确保 handoff 子 Agent 也能调用 run_orchestration 编排链。
+	cfg.Extensions = append(cfg.Extensions, &OrchestrationExtension{})
 
 	// Chunked context engine for long patent documents.
 	cfg.Engine = "chunked"
@@ -440,11 +464,17 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	injectDocTemplateTools(&cfg)
 	injectPromptTools(&cfg)
 	injectWritingTools(&cfg)
+	injectRulesTools(&cfg)
 
 	// 知识库扩展：使项目级 Agent 具备 search_knowledge / search_laws 工具，
 	// 能检索本地知识库中的法律法规、司法解释和案例。
 	if globalKnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
+	}
+
+	// 证据判断扩展：使专利 Agent 拥有证据三性审查、举证责任查询、证明标准评估等工具。
+	if globalEvidenceExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
 	}
 
 	// 权利要求书撰写扩展（claimdrafting）：五步法 builder + 六类规则校验 + 可选 LLM 增强。
@@ -460,6 +490,11 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 	if globalSpecDraftingExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalSpecDraftingExt)
 	}
+
+	// Orchestration 扩展：使 PatentAgent 拥有 run_orchestration 工具。
+	// 此扩展在 Init 阶段捕获 Agent 引用并注册工具（见 orchestration_extension.go），
+	// 确保 handoff 子 Agent 也能调用 run_orchestration 编排链。
+	cfg.Extensions = append(cfg.Extensions, &OrchestrationExtension{})
 
 	// Chunked context engine for long patent/legal documents.
 	if base.Engine == "" {
