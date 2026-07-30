@@ -8,8 +8,20 @@ import (
 	"github.com/xujian519/mady/tui/core"
 )
 
+// newTestLoader creates a Loader whose onRequestRender sends on the returned
+// channel, so tests can wait for renders instead of sleeping.
+func newTestLoader(msg string) (*Loader, <-chan struct{}) {
+	ch := make(chan struct{}, 64)
+	return NewLoader(func() {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}, msg), ch
+}
+
 func TestLoaderLifecycle(t *testing.T) {
-	l := NewLoader(nil, "loading")
+	l, rendered := newTestLoader("loading")
 	if l == nil {
 		t.Fatal("NewLoader returned nil")
 	}
@@ -22,8 +34,13 @@ func TestLoaderLifecycle(t *testing.T) {
 		t.Fatal("loader should be running after Start")
 	}
 
-	// Give animate() a chance to tick at least once.
-	time.Sleep(120 * time.Millisecond)
+	// Wait for at least one animation frame.
+	select {
+	case <-rendered:
+		// OK
+	case <-time.After(time.Second):
+		t.Fatal("loader did not produce a frame within timeout")
+	}
 
 	lines := l.Render(40)
 	if len(lines) != 1 {
@@ -48,7 +65,7 @@ func TestLoaderLifecycle(t *testing.T) {
 }
 
 func TestLoaderDoubleStartStop(t *testing.T) {
-	l := NewLoader(nil, "x")
+	l, _ := newTestLoader("x")
 	l.Start()
 	l.Start() // should be no-op
 	if !l.IsRunning() {
@@ -62,30 +79,44 @@ func TestLoaderDoubleStartStop(t *testing.T) {
 }
 
 func TestLoaderSetMessage(t *testing.T) {
-	l := NewLoader(nil, "old")
+	l, rendered := newTestLoader("old")
 	l.Start()
+
+	// Wait for initial render.
+	select {
+	case <-rendered:
+	case <-time.After(time.Second):
+		t.Fatal("no initial render")
+	}
+
 	l.SetMessage("new")
-	// Render should eventually contain the new message.
-	var found bool
-	for i := 0; i < 20; i++ {
-		lines := l.Render(40)
-		if strings.Contains(lines[0], "new") {
-			found = true
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+	// SetMessage triggers onRequestRender; wait for it.
+	select {
+	case <-rendered:
+	case <-time.After(time.Second):
+		t.Fatal("no render after SetMessage")
+	}
+
+	// Render should now contain the new message.
+	lines := l.Render(40)
+	if !strings.Contains(lines[0], "new") {
+		t.Fatalf("SetMessage did not update rendered output: %q", lines[0])
 	}
 	l.Stop()
-	if !found {
-		t.Fatal("SetMessage did not update rendered output")
-	}
 }
 
 func TestLoaderSetStyle(t *testing.T) {
-	l := NewLoader(nil, "x")
+	l, rendered := newTestLoader("x")
 	l.SetStyle(core.SpinnerLine)
 	l.Start()
-	time.Sleep(120 * time.Millisecond)
+
+	// Wait for at least one animation frame.
+	select {
+	case <-rendered:
+	case <-time.After(time.Second):
+		t.Fatal("loader did not produce a frame within timeout")
+	}
+
 	lines := l.Render(40)
 	l.Stop()
 	if len(lines) != 1 {

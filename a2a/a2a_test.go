@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -1106,15 +1107,20 @@ func TestServer_TaskTTLCleanup(t *testing.T) {
 	}
 
 	// Wait for TTL cleanup to purge the task.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	deadline := time.After(2 * time.Second)
+	for {
 		server.taskStatesMu.RLock()
 		_, exists = server.taskStates["ttl-task"]
 		server.taskStatesMu.RUnlock()
 		if !exists {
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-deadline:
+			t.Fatal("task state was not purged within TTL timeout")
+		default:
+		}
+		runtime.Gosched()
 	}
 
 	server.taskStatesMu.RLock()

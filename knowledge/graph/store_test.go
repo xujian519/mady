@@ -2,6 +2,7 @@ package graph
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -186,8 +187,17 @@ func TestGraphCache_Invalidate(t *testing.T) {
 func TestGraphCache_TTL(t *testing.T) {
 	c := NewGraphCache(100, 10*time.Millisecond)
 	c.PutNodeDetail("x", &GraphNodeDetail{Node: &GraphNode{ID: "x"}})
-	time.Sleep(20 * time.Millisecond)
-	if c.GetNodeDetail("x") != nil {
-		t.Fatal("cache entry should expire after TTL")
+	// 轮询等待 TTL 过期，不 sleep
+	deadline := time.After(time.Second)
+	for {
+		if c.GetNodeDetail("x") == nil {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("cache entry did not expire within timeout")
+		default:
+		}
+		runtime.Gosched()
 	}
 }

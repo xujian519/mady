@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -90,25 +91,42 @@ func TestStartStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.Start(ctx)
 
-	// Wait for some check cycles to run
-	time.Sleep(100 * time.Millisecond)
+	// Wait for eviction (Alive==0 due to consecutive failures).
+	deadline := time.After(time.Second)
+	for {
+		if alive := p.Alive(); len(alive) == 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("agent was not evicted within timeout")
+		default:
+		}
+		runtime.Gosched()
+	}
 	cancel()
 	p.Stop()
-
-	// After stop, agent should have been evicted due to consecutive failures
-	if alive := p.Alive(); len(alive) != 0 {
-		t.Errorf("expected 0 alive after stop+eviction, got %d", len(alive))
-	}
 
 	// Re-join and restart
 	p.Join(reg)
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	p.Start(ctx2)
-	time.Sleep(30 * time.Millisecond)
 
-	if alive := p.Alive(); len(alive) != 1 {
-		t.Errorf("expected 1 alive after restart, got %d", len(alive))
+	// Wait for agent to be alive after restart.
+	deadline = time.After(time.Second)
+	for {
+		if alive := p.Alive(); len(alive) == 1 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("agent did not become alive after restart")
+		default:
+		}
+		runtime.Gosched()
 	}
+	cancel2()
+	p.Stop()
 
 	cancel2()
 	p.Stop()
@@ -225,9 +243,19 @@ func TestConsecutiveFailuresManually(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.Start(ctx)
 
-	// Wait enough time for multiple check cycles
-	time.Sleep(60 * time.Millisecond)
-
+	// Wait for check cycles to evict the agent (TTL=3, interval=10ms).
+	deadline := time.After(time.Second)
+	for {
+		if alive := p.Alive(); len(alive) == 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("agent was not evicted after consecutive failures within timeout")
+		default:
+		}
+		runtime.Gosched()
+	}
 	cancel()
 	p.Stop()
 

@@ -21,7 +21,7 @@ import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
 import { ThemeProvider } from '@/theme/provider'
 import { useTheme } from '@/theme/tokens'
 import type { ThemePackId } from '@/theme/tokens'
-import { ChatView } from '@/components/ChatView'
+import { ChatView } from '@/components/chat/ChatView'
 import { SplashScreen } from '@/components/SplashScreen'
 import { saveWindowState } from '@/lib/backend'
 

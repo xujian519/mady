@@ -3,9 +3,27 @@ package permission
 import (
 	"context"
 	"encoding/json"
+	"runtime"
 	"testing"
 	"time"
 )
+
+// waitPending blocks until a TUIChannelApprover has a pending request or timeout elapses.
+// Uses runtime.Gosched() to yield CPU while waiting — no time.Sleep involved.
+func waitPending(a *TUIChannelApprover, timeout time.Duration) *ApprovalRequest {
+	deadline := time.After(timeout)
+	for {
+		select {
+		case <-deadline:
+			return a.PollPending()
+		default:
+		}
+		if req := a.PollPending(); req != nil {
+			return req
+		}
+		runtime.Gosched()
+	}
+}
 
 func TestDecision_String(t *testing.T) {
 	tests := []struct {
@@ -266,14 +284,7 @@ func TestTUIChannelApprover(t *testing.T) {
 	}()
 
 	// Wait for the pending request.
-	var req *ApprovalRequest
-	for i := 0; i < 200; i++ {
-		req = a.PollPending()
-		if req != nil {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
+	req := waitPending(a, time.Second)
 	if req == nil {
 		t.Fatal("expected pending request, got nil")
 	}
@@ -298,13 +309,7 @@ func TestTUIChannelApprover(t *testing.T) {
 		done <- a.Approve(ctx, "Delete", args)
 	}()
 	var req2 *ApprovalRequest
-	for i := 0; i < 200; i++ {
-		req2 = a.PollPending()
-		if req2 != nil {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
+	req2 = waitPending(a, time.Second)
 	if req2 == nil {
 		t.Fatal("expected pending request (deny test), got nil")
 	}
@@ -319,14 +324,7 @@ func TestTUIChannelApprover(t *testing.T) {
 	go func() {
 		done <- a.Approve(ctx2, "Edit", args)
 	}()
-	req2 = nil
-	for i := 0; i < 200; i++ {
-		req2 = a.PollPending()
-		if req2 != nil {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
+	req2 = waitPending(a, time.Second)
 	if req2 == nil {
 		t.Fatal("expected pending request (cancel test), got nil")
 	}

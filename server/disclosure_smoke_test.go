@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -146,8 +147,8 @@ func mustSmokeJSON(v any) string {
 
 func waitForDisclosureTask(t *testing.T, srv *Server, taskID string, want string) DisclosureTaskStatus {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
+	deadline := time.After(5 * time.Second)
+	for {
 		req := httptest.NewRequest(http.MethodGet, "/v1/disclosure/analyze/"+taskID, nil)
 		rec := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(rec, req)
@@ -164,10 +165,13 @@ func waitForDisclosureTask(t *testing.T, srv *Server, taskID string, want string
 		if status.Status == "failed" {
 			t.Fatalf("task failed unexpectedly: %s", status.Error)
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for disclosure task to reach %q", want)
+		default:
+		}
+		runtime.Gosched()
 	}
-	t.Fatalf("timed out waiting for disclosure task to reach %q", want)
-	return DisclosureTaskStatus{}
 }
 
 func TestDisclosureHappyPathSmoke(t *testing.T) {

@@ -62,7 +62,7 @@ func TestEgoLiteManagerSendTimeout(t *testing.T) {
 
 	deadCtx, deadCancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer deadCancel()
-	time.Sleep(1 * time.Millisecond)
+	<-deadCtx.Done() // wait for immediate context expiry
 	_, err := mgr.Send(deadCtx, "ping", nil)
 	if err == nil {
 		t.Error("expected timeout error from expired context")

@@ -1,6 +1,7 @@
 package agentcore
 
 import (
+	"runtime"
 	"testing"
 	"time"
 )
@@ -184,9 +185,17 @@ func TestHealthTracker_DegradeDurationExpiry(t *testing.T) {
 	if ht.IsHealthy("model-x") {
 		t.Fatal("model should be degraded immediately after failure")
 	}
-	// 等待降级期过后
-	time.Sleep(5 * time.Millisecond)
-	if !ht.IsHealthy("model-x") {
-		t.Fatal("model should recover after degrade duration expires")
+	// 等待降级期过后（轮询，不 sleep）
+	deadline := time.After(time.Second)
+	for {
+		if ht.IsHealthy("model-x") {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("model did not recover within timeout")
+		default:
+		}
+		runtime.Gosched()
 	}
 }

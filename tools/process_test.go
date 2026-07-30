@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -90,16 +91,21 @@ func TestProcessToolWait(t *testing.T) {
 	}
 	procID := content[start : start+end]
 
-	// Wait for process to complete by polling registry status.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	// Poll for process completion.
+	deadline := time.After(2 * time.Second)
+	for {
 		if entry, ok := registry.Get(procID); ok {
 			status, _, _ := ops.Poll(entry)
 			if status != "running" {
 				break
 			}
 		}
-		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-deadline:
+			t.Fatal("process did not complete within timeout")
+		default:
+		}
+		runtime.Gosched()
 	}
 
 	// Check status.
@@ -212,12 +218,17 @@ func TestProcessToolFileOutput(t *testing.T) {
 	}
 
 	// Wait for output file to be created by polling.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	deadline := time.After(2 * time.Second)
+	for {
 		if _, err := os.Stat(outputFile); err == nil {
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-deadline:
+			t.Fatal("output file was not created within timeout")
+		default:
+		}
+		runtime.Gosched()
 	}
 
 	// Verify file was created.

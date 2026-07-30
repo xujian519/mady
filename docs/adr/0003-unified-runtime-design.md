@@ -1,7 +1,8 @@
 # ADR-0003: 统一运行时（Unified Runtime）设计
 
-- **状态**：Proposed
+- **状态**：Deferred
 - **日期**：2026-07-21
+- **延期原因**：ADR 定义的 ExecutionPlan/UnifiedRuntime 接口尚无实现代码，且现有推理管线（FiveStepRunner、Pregel）运行稳定。保留设计作为架构参考，待工作流收敛需求明确后再启动实现。下次评估日期：2026-10-31。
 - **决策者**：Mady Authors + AI 协作
 - **影响范围**：`graph/`, `workflow/`, `agentcore/`, `domains/reasoning/`
 - **前置**：[ADR-0002: DAG + Pregel 双模式设计](./0002-graph-engine-design.md)

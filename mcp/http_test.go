@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -199,8 +200,8 @@ func TestHTTPExtension_HotReloadsToolsOnListChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	deadline := time.After(2 * time.Second)
+	for {
 		names := agent.ToolNames()
 		hasEcho := false
 		hasReverse := false
@@ -215,9 +216,13 @@ func TestHTTPExtension_HotReloadsToolsOnListChanged(t *testing.T) {
 		if hasReverse && !hasEcho {
 			return
 		}
-		time.Sleep(20 * time.Millisecond)
+		select {
+		case <-deadline:
+			t.Fatalf("tool names after hot reload = %#v", agent.ToolNames())
+		default:
+		}
+		runtime.Gosched()
 	}
-	t.Fatalf("tool names after hot reload = %#v", agent.ToolNames())
 }
 
 func TestHTTPClient_DiscoveryNotificationsRefreshCaches(t *testing.T) {

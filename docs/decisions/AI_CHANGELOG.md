@@ -12,6 +12,17 @@
 
 **影响**：无行为变更。新增 pre-commit 门禁仅对新提交生效，不追溯历史。nolint 注释补充仅影响可读性。
 
+## 2026-07-31: fix(code-quality) 三项轻量修复——ADR-0003 状态 / 前端组件分层 / cli-chat 复杂度
+
+**背景**：审查报告 P2-11（ADR-0003 Proposed 状态但零实现）、P2-14（前端组件目录扁平）、P2-15（example/cli-chat 复杂度 157）三项修复。
+
+**改动清单**：
+1. `docs/adr/0003-unified-runtime-design.md` — 状态从 `Proposed` 改为 `Deferred`，添加延期原因和下次评估日期（2026-10-31）
+2. `desktop/frontend/src/components/` — 创建 `chat/` 子目录，将 ChatView、MessageBubble、Composer、SlashCommandMenu、CommandPalette 5 个文件移入；同步更新 `index.ts`、`App.tsx`、`DecisionSurface.tsx`、`CommandPalette.test.tsx` 的导入路径。TypeScript 类型检查通过。
+3. `example/cli-chat/main.go` — 提取 `setupEnvironment()`（env 初始化）和 `buildAgentConfigs()`（Agent 配置构建）两个辅助函数，从 main() 移除约 120 行内联初始化代码。`//nolint:gocognit` 注解因复杂度显著降低而移除。
+
+**影响**：无行为变更。前端导入路径变动已全量更新并验证（tsc --noEmit）。cli-chat main() 逻辑保持等价。
+
 ## 2026-07-31: fix(code-quality) 五项代码质量修复——权限策略提取 / SearchAllLayers 隔离 / desktop 错误信息 / MCP 方法去重
 
 **背景**：全量审查发现五处可立即修复的代码质量问题：权限策略三入口重复（P2-4）、SearchAllLayers 无作用域隔离（P1-3）、desktop 大写错误信息（P1-6）、MCP client/http 方法重复（P2-2）。
@@ -9030,3 +9041,50 @@ mcp/client_test.go                          (+19 行, 2 个构造器 + 1 测试�
 **设计决策**：evidence YAML 加载不破坏现有硬编码逻辑，computeOverallScore 已有从 YAML 维度权重覆盖默认权重的钩子。approval 子包因 ApprovalState 类型方法约束保留内部副本。CloudBrowserProvider 由 tools/browserproviders 包提供规范定义。
 
 **影响**：无行为变更。evidence 权重从硬编码 0.3/0.3/0.4 变为 YAML 维度值 0.5/0.35/0.35。其余仅为死代码清理。
+
+## 2026-07-31: fix(security) P1-4 MCP 信任 TOCTOU 时序窗口修复
+
+**背景**：`mcp/config_trust.go` 信任校验流程存在理论上的 Time-of-Check-Time-of-Use (TOCTOU) 时序窗口：`isConfigTrusted()` 在发现阶段校验文件哈希后，到 `createStdioExtension()` 实际执行命令之前，.mcp.json 文件内容可能被恶意篡改（即使窗口极窄，ms 级）。
+
+**修复方案**：信任校验通过时，将文件 SHA-256 哈希缓存到内存 `sync.Map`；在命令执行前的 goroutine 中二次验证哈希一致性，失配时拒绝执行并记录警告。
+
+**改动清单**：
+1. `mcp/config_trust.go` — 新增 `trustHashCache` (sync.Map)、`cacheConfigHash()`、`verifyConfigHash()`、`clearTrustHashCache()`（测试用）
+2. `mcp/config_discovery.go` — 在 `LoadMCPConfig` 成功后调用 `cacheConfigHash()` 缓存哈希；在 `createExtension` 前调用 `verifyConfigHash()` 二次验证
+
+**设计决策**：
+- `verifyConfigHash` 为 fail-closed：缓存缺失（未调用 cacheConfigHash）时返回 false
+- `cacheConfigHash` 静默失败：若文件已不可读则留空缓存，`verifyConfigHash` 会后续拦截
+- cwdTrustBypass 路径（`MADY_MCP_TRUST_CWD=1`）同样受益：即使跳过磁盘信任校验，哈希仍被缓存，命令执行前仍有 TOCTOU 防护
+- `clearTrustHashCache` 仅测试使用，非导出符号
+
+**影响**：无行为变更（所有文件不被篡改的路径上 TOCTOU 校验通过，逻辑完全透明）。引入的 `sync.Map` 缓存仅在信任校验通过的 CWD 配置路径上写入，内存开销可忽略。
+
+## 2026-07-31: test(p2-8) 测试中 time.Sleep 替换为 channel/context 驱动同步
+
+**背景**：全量审查发现 46 处 `time.Sleep`，其中约 80% 可替换为 `sync.WaitGroup` / channel / context 驱动等待。替换后减少测试执行时间和消除 flaky tests。
+
+**改动清单**：
+1. `pkg/framework/deferred.go` — `DeferredInit` 新增 `Done() <-chan struct{}` 方法，提供 channel 通知而非轮询
+2. `pkg/framework/framework_test.go` — 重写 `waitForDone` 使用 `d.Done()` channel；`TestDeferredInit_AddAfterStartRunsImmediately` 使用 channel 同步替代 `time.Sleep(50ms)` + 轮询；`TestDeferredInit_CancelSkipsRemaining` 使用 `<-ctx.Done()` 替代 `time.Sleep(20ms)`
+3. `agentcore/event_logger_test.go` — `memoryEventStore` 新增 `signal func()` 回调；3 个测试用 channel 信号替代 `time.Sleep(50-100ms)`
+4. `tui/component/toast_test.go` — `TestToastAutoDismiss`、`TestToastShowTwiceSeq`、`TestToastDismissAfterExpiry` 使用 `SetOnExpire` + channel 替代 `time.Sleep(50-150ms)`
+5. `tui/component/loader_test.go` — 新增 `newTestLoader` 工厂函数，通过 `onRequestRender` channel 信号等待动画帧；`TestLoaderLifecycle`、`TestLoaderSetMessage`、`TestLoaderSetStyle` 使用 channel 替代 `time.Sleep(20-120ms)`
+6. `agentcore/permission/permission_test.go` — 新增 `waitPending` 辅助函数，使用 `runtime.Gosched()` 替代 3 处轮询 `time.Sleep(time.Millisecond)`
+7. `agentcore/provider_health_test.go` — `TestHealthTracker_DegradeDurationExpiry` 轮询 + `runtime.Gosched()` 替代 `time.Sleep(5ms)`
+8. `agentcore/hooks_test.go` — `TestRateLimitBeforeHookRefill` 轮询 + `runtime.Gosched()` 替代 `time.Sleep(60ms)`；间隔从 50ms 降至 10ms 加快测试
+9. `agentcore/integration_test.go` — 4 处取消时序测试（`TestCancelDuringToolExecution` / `TestCancelDuringHandoff` / `TestCancelThenRerun_SameAgent` / `TestInterruptThenCancelDuringResume`）改为用 `toolStarted` channel 同步，替代 `time.Sleep(50ms)` + `cancel()`
+10. `a2a/a2a_test.go` — 轮询 + `runtime.Gosched()` 替代 `time.Sleep(10ms)` TTL 等待
+11. `a2a/pool/pool_test.go` — `TestStartStop`、`TestConsecutiveFailuresManually` 轮询 + `runtime.Gosched()` 替代 3 处 `time.Sleep(30-100ms)`
+12. `server/disclosure_smoke_test.go` — `waitForDisclosureTask` 轮询 + `runtime.Gosched()` 替代 `time.Sleep(50ms)`
+13. `mcp/http_test.go` — 轮询 + `runtime.Gosched()` 替代 `time.Sleep(20ms)`
+14. `knowledge/graph/store_test.go` — `TestGraphCache_TTL` 轮询 + `runtime.Gosched()` 替代 `time.Sleep(20ms)`
+15. `tools/process_test.go` — 2 处轮询 + `runtime.Gosched()` 替代 `time.Sleep(10ms)`
+16. `tools/ego_lite_manager_test.go` — `<-deadCtx.Done()` 替代 `time.Sleep(1ms)`
+17. `tui/cmd_test.go` — `TestWithContextDiscardsResultOnCancel` 使用 `started` channel + 轮询替代 `time.Sleep(10ms+150ms)`；`TestTUIEveryFiresRepeatedly` 和 `TestTUITickFiresOnce` 使用轮询 + `runtime.Gosched()` 替代 `time.Sleep(60-80ms)`
+
+**保留的 time.Sleep**（9 处）：agentcore/event_test.go（4 处 slow handler）、agentcore/concurrency/pool_test.go（simulate work）、tui/cmd_test.go（3 处 simulate work in Cmd）、desktop/e2e_integration_test.go（Wails 专用，纯 Go test 跳过）
+
+**验证**：`go build ./...`、`go vet ./...`、`go test -race ./...`（含 tools/ 和 tui/ 子模块）全部通过。
+
+**影响**：无行为变更。测试使用 channel/context 同步而非固定延时，减少 flaky 风险和执行时间。`DeferredInit.Done()` 为新导出 API。`runtime.Gosched()` 引入少量 yield 而非 sleep，在多核环境下不引入实际等待。

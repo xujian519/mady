@@ -155,6 +155,11 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 			warnings = append(warnings, fmt.Errorf("mcp: %s: %w", cfgPath, err))
 			continue
 		}
+		// C7 TOCTOU 防护：信任校验通过后缓存文件哈希，
+		// 供后续 verifyConfigHash 在命令执行前二次验证。
+		if cfgPath == cwdConfigPath {
+			cacheConfigHash(cfgPath)
+		}
 		if len(cfg.MCPServers) == 0 {
 			continue
 		}
@@ -181,6 +186,17 @@ func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Ex
 		wg.Add(1)
 		go func(e serverEntry) {
 			defer wg.Done()
+			// C7 TOCTOU 防护：命令执行前二次验证配置文件哈希未被篡改。
+			// trustHashCache 在信任校验通过时已由 cacheConfigHash 写入，
+			// 若文件内容在信任校验后、命令执行前被篡改，此处 hash 对比将失配。
+			if e.path == cwdConfigPath && !verifyConfigHash(e.path) {
+				mu.Lock()
+				warnings = append(warnings, fmt.Errorf(
+					"mcp: rejecting %q from %s — config file hash changed since trust verification (TOCTOU)",
+					e.name, e.path))
+				mu.Unlock()
+				return
+			}
 			ext, err := createExtension(discCtx, e.name, e.cfg)
 			mu.Lock()
 			if err != nil {

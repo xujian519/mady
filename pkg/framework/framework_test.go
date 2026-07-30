@@ -9,16 +9,15 @@ import (
 	"time"
 )
 
-// waitForDone polls IsDone until true or the timeout elapses.
+// waitForDone blocks until the DeferredInit finishes or the timeout elapses.
+// Uses the Done() channel instead of polling.
 func waitForDone(d *DeferredInit, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if d.IsDone() {
-			return true
-		}
-		time.Sleep(time.Millisecond)
+	select {
+	case <-d.Done():
+		return true
+	case <-time.After(timeout):
+		return d.IsDone()
 	}
-	return d.IsDone()
 }
 
 // ---------------------------------------------------------------------------
@@ -99,18 +98,23 @@ func TestDeferredInit_IdempotentStart(t *testing.T) {
 func TestDeferredInit_AddAfterStartRunsImmediately(t *testing.T) {
 	d := NewDeferredInit()
 	var ran atomic.Bool
+
+	started := make(chan struct{})
+	release := make(chan struct{})
 	d.Add("blocker", func() error {
-		time.Sleep(50 * time.Millisecond) // ensure StartAll has begun but not finished
+		close(started) // signal the test that the goroutine has begun executing tasks
+		<-release      // block until the test releases us
 		return nil
 	})
 	d.StartAll(context.Background())
 
-	// Wait until the runner has started, then add a late task.
-	for !d.HasStarted() {
-		time.Sleep(time.Millisecond)
-	}
+	<-started // wait for the runner goroutine to start the blocker
+
+	// Add a task after StartAll — it should run immediately (not queued).
 	d.Add("late", func() error { ran.Store(true); return nil })
-	waitForDone(d, time.Second)
+	close(release) // unblock the blocker so it can finish
+
+	<-d.Done()
 
 	if !ran.Load() {
 		t.Fatal("task added after StartAll should execute immediately")
@@ -123,15 +127,15 @@ func TestDeferredInit_AddAfterStartRunsImmediately(t *testing.T) {
 func TestDeferredInit_CancelSkipsRemaining(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	d := NewDeferredInit()
-	// "slow" cancels the context from within, so "after" observes ctx.Done.
+	// "slow" cancels the context from within and waits for ctx.Done().
 	d.Add("slow", func() error {
 		cancel()
-		time.Sleep(20 * time.Millisecond)
-		return nil
+		<-ctx.Done() // block until context is canceled (simulates slow work)
+		return ctx.Err()
 	})
 	d.Add("after", func() error { return errors.New("should not run") })
 	d.StartAll(ctx)
-	waitForDone(d, time.Second)
+	<-d.Done()
 
 	errs := d.Errors()
 	if errs["after"] == "should not run" {

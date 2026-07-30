@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -40,7 +41,7 @@ func TestRateLimitBeforeHook(t *testing.T) {
 }
 
 func TestRateLimitBeforeHookRefill(t *testing.T) {
-	hook := RateLimitBeforeHook(1, 50*time.Millisecond)
+	hook := RateLimitBeforeHook(1, 10*time.Millisecond)
 
 	if err := hook(nil, &HookContext{State: &AgentState{}}); err != nil {
 		t.Fatal("expected first call to succeed")
@@ -50,10 +51,18 @@ func TestRateLimitBeforeHookRefill(t *testing.T) {
 		t.Fatal("expected second call to fail")
 	}
 
-	// Wait for refill
-	time.Sleep(60 * time.Millisecond)
-	if err := hook(nil, &HookContext{State: &AgentState{}}); err != nil {
-		t.Fatal("expected call after refill to succeed")
+	// Wait for refill (poll with short interval, no bare sleep).
+	deadline := time.After(time.Second)
+	for {
+		if err := hook(nil, &HookContext{State: &AgentState{}}); err == nil {
+			break // token was refilled
+		}
+		select {
+		case <-deadline:
+			t.Fatal("token was not refilled within timeout")
+		default:
+		}
+		runtime.Gosched()
 	}
 }
 

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -263,7 +264,9 @@ func TestWithContextDiscardsResultOnCancel(t *testing.T) {
 	defer tui.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
 	slowCmd := func() core.Msg {
+		close(started)
 		time.Sleep(100 * time.Millisecond)
 		return markerMsg{99} // should be discarded
 	}
@@ -272,12 +275,26 @@ func TestWithContextDiscardsResultOnCancel(t *testing.T) {
 	comp.setNextCmd(core.WithContext(ctx, slowCmd))
 	tui.SendMsg(core.KeyMsg{Data: "x"})
 
-	// Cancel almost immediately — the Cmd is still sleeping.
-	time.Sleep(10 * time.Millisecond)
+	// Wait for the Cmd to start executing, then cancel.
+	<-started
 	cancel()
 
-	// Wait past the Cmd's sleep so it completes; verify no markerMsg arrived.
-	time.Sleep(150 * time.Millisecond)
+	// Poll past the Cmd's sleep to verify no markerMsg arrived.
+	deadline := time.After(200 * time.Millisecond)
+	for {
+		for _, m := range comp.msgs() {
+			if mm, ok := m.(markerMsg); ok && mm.id == 99 {
+				t.Fatalf("canceled Cmd's result leaked through")
+			}
+		}
+		select {
+		case <-deadline:
+			goto done
+		default:
+		}
+		runtime.Gosched()
+	}
+done:
 
 	for _, m := range comp.msgs() {
 		if mm, ok := m.(markerMsg); ok && mm.id == 99 {
@@ -355,10 +372,21 @@ func TestTUIEveryFiresRepeatedly(t *testing.T) {
 	// Stop the TUI and verify no more ticks arrive.
 	tui.Stop()
 	countAtStop := atomic.LoadInt32(&ticks)
-	time.Sleep(80 * time.Millisecond)
-	if got := atomic.LoadInt32(&ticks); got > countAtStop {
-		t.Fatalf("ticks continued after Stop: %d -> %d", countAtStop, got)
+
+	// Poll to ensure no additional ticks fire after Stop.
+	deadline = time.After(100 * time.Millisecond)
+	for {
+		if got := atomic.LoadInt32(&ticks); got > countAtStop {
+			t.Fatalf("ticks continued after Stop: %d -> %d", countAtStop, got)
+		}
+		select {
+		case <-deadline:
+			goto doneEvery
+		default:
+		}
+		runtime.Gosched()
 	}
+doneEvery:
 }
 
 // TickMarkerMsg distinguishes TUI.Every ticks from other Msgs in the recorder.
@@ -396,11 +424,20 @@ func TestTUITickFiresOnce(t *testing.T) {
 		}
 	}
 
-	// Wait a bit more to ensure it doesn't fire again (one-shot, not periodic).
-	time.Sleep(60 * time.Millisecond)
-	if got := atomic.LoadInt32(&fired); got != 1 {
-		t.Fatalf("Tick fired %d times, expected 1", got)
+	// Poll to ensure it doesn't fire again (one-shot, not periodic).
+	deadline = time.After(100 * time.Millisecond)
+	for {
+		if got := atomic.LoadInt32(&fired); got != 1 {
+			t.Fatalf("Tick fired %d times, expected 1", got)
+		}
+		select {
+		case <-deadline:
+			goto doneTick
+		default:
+		}
+		runtime.Gosched()
 	}
+doneTick:
 }
 
 // --- TUI.Context cancellation on Stop test --------------------------------

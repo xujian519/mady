@@ -25,10 +25,17 @@ func TestToastShowDismiss(t *testing.T) {
 func TestToastAutoDismiss(t *testing.T) {
 	t.Parallel()
 	toast := NewToast(50 * time.Millisecond)
+	expired := make(chan struct{}, 1)
+	toast.SetOnExpire(func() { expired <- struct{}{} })
 	toast.Show("auto", ToastInfo)
-	time.Sleep(100 * time.Millisecond)
+	select {
+	case <-expired:
+		// OK — auto-dismissed
+	case <-time.After(time.Second):
+		t.Fatal("toast did not auto-dismiss within timeout")
+	}
 	if toast.IsActive() {
-		t.Fatal("toast should auto-dismiss after duration")
+		t.Fatal("toast should not be active after auto-dismiss")
 	}
 }
 
@@ -37,6 +44,8 @@ func TestToastShowTwiceSeq(t *testing.T) {
 	// Rapid successive Show() calls: the first goroutine should not
 	// dismiss the second toast (seq counter protection).
 	toast := NewToast(100 * time.Millisecond)
+	expired := make(chan struct{}, 1)
+	toast.SetOnExpire(func() { expired <- struct{}{} })
 	toast.Show("first", ToastInfo)
 	toast.Show("second", ToastSuccess)
 	// The toast should show "second" (the latest message)
@@ -47,8 +56,13 @@ func TestToastShowTwiceSeq(t *testing.T) {
 	if !strings.Contains(lines[0], "second") {
 		t.Fatalf("expected 'second' in toast, got %q", lines[0])
 	}
-	// Wait and verify the second toast auto-dismisses
-	time.Sleep(150 * time.Millisecond)
+	// Wait for the second toast to auto-dismiss.
+	select {
+	case <-expired:
+		// OK
+	case <-time.After(time.Second):
+		t.Fatal("second toast did not auto-dismiss within timeout")
+	}
 	if toast.IsActive() {
 		t.Fatal("toast should auto-dismiss after second Show")
 	}
@@ -57,9 +71,15 @@ func TestToastShowTwiceSeq(t *testing.T) {
 func TestToastDismissAfterExpiry(t *testing.T) {
 	t.Parallel()
 	toast := NewToast(20 * time.Millisecond)
+	expired := make(chan struct{}, 1)
+	toast.SetOnExpire(func() { expired <- struct{}{} })
 	toast.Show("quick", ToastInfo)
-	// Expired goroutine calling Dismiss should be a no-op
-	time.Sleep(50 * time.Millisecond)
+	select {
+	case <-expired:
+		// OK — auto-dismissed
+	case <-time.After(time.Second):
+		t.Fatal("toast did not auto-dismiss within timeout")
+	}
 	toast.Dismiss() // no-op, already inactive
 	if toast.IsActive() {
 		t.Fatal("toast should be inactive after auto-dismiss")

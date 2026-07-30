@@ -13,7 +13,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import type { Message } from '@/stores/chat'
-import { MarkdownRenderer } from './MarkdownRenderer'
+import { MarkdownRenderer } from '../MarkdownRenderer'
 
 interface MessageBubbleProps {
   message: Message

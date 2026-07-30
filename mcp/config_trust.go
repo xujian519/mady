@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // trustStoreFile 是 trusted-mcp.json 的磁盘格式。
@@ -127,4 +128,33 @@ func isConfigTrusted(path, madyHome string) bool {
 // MADY_MCP_TRUST_CWD=1 是开发逃生门：信任任意 $PWD/.mcp.json。
 func cwdTrustBypassed() bool {
 	return os.Getenv("MADY_MCP_TRUST_CWD") == "1"
+}
+
+// trustHashCache 缓存已验证的配置文件 SHA-256 哈希，用于 TOCTOU 防护。
+// key: 配置文件绝对路径（filepath.Clean），value: hex(SHA-256(file))。
+var trustHashCache sync.Map
+
+// cacheConfigHash 记录配置文件当前内容哈希到内存缓存。
+// 信任校验通过后调用，供后续 verifyConfigHash 比对。
+func cacheConfigHash(path string) {
+	hash, err := fileSHA256(path)
+	if err != nil {
+		return // 静默失败：verifyConfigHash 也会失败，一样安全
+	}
+	trustHashCache.Store(filepath.Clean(path), hash)
+}
+
+// verifyConfigHash 校验配置文件当前内容哈希是否与缓存值一致。
+// 用于信任校验后、命令执行前的二次验证，防止 TOCTOU 时序攻击。
+// 缓存值缺失（未调用 cacheConfigHash）时返回 false（fail-closed）。
+func verifyConfigHash(path string) bool {
+	cached, ok := trustHashCache.Load(filepath.Clean(path))
+	if !ok {
+		return false
+	}
+	current, err := fileSHA256(path)
+	if err != nil {
+		return false
+	}
+	return current == cached.(string)
 }

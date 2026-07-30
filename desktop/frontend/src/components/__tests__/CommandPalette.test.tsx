@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { CommandPalette } from '@/components/CommandPalette'
+import { CommandPalette } from '@/components/chat/CommandPalette'
 import type { PaletteCommand } from '@/stores/commands'
 
 function makeCmds(overrides?: Partial<PaletteCommand>[]): PaletteCommand[] {

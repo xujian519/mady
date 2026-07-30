@@ -27,12 +27,25 @@ type DeferredInit struct {
 	started bool
 	done    bool
 	errors  map[string]string // task name → error message
+	doneCh  chan struct{}     // 关闭时表示所有任务执行完毕
+}
+
+// Done 返回一个 channel，所有延迟初始化任务执行完毕后关闭。
+// 配合 select 可用于无轮询等待。
+func (d *DeferredInit) Done() <-chan struct{} {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.doneCh == nil {
+		d.doneCh = make(chan struct{})
+	}
+	return d.doneCh
 }
 
 // NewDeferredInit 创建一个空的 DeferredInit。
 func NewDeferredInit() *DeferredInit {
 	return &DeferredInit{
 		errors: make(map[string]string),
+		doneCh: make(chan struct{}),
 	}
 }
 
@@ -71,6 +84,8 @@ func (d *DeferredInit) StartAll(ctx context.Context) {
 	d.mu.Unlock()
 
 	go func() {
+		defer close(d.doneCh)
+
 		for _, t := range tasks {
 			select {
 			case <-ctx.Done():

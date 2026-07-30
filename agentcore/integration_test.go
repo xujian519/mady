@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 // ──────────────────────────────────────────────
@@ -15,6 +14,27 @@ import (
 
 func TestCancelDuringToolExecution(t *testing.T) {
 	done := make(chan struct{})
+	toolStarted := make(chan struct{})
+	tool := &Tool{
+		Name:        "slow_tool",
+		Description: "Tool that blocks until signaled",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			"required": []any{"input"},
+		},
+		Func: func(ctx context.Context, _ json.RawMessage) (any, error) {
+			close(toolStarted)
+			select {
+			case <-done:
+				return "done", nil
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		},
+	}
 	agent := New(Config{
 		ModelConfig: ModelConfig{
 			Name:     "cancel_tool",
@@ -24,12 +44,12 @@ func TestCancelDuringToolExecution(t *testing.T) {
 		ExecutionConfig: ExecutionConfig{
 			MaxTurns: 10,
 		},
-		Tools: []*Tool{slowTool(done)},
+		Tools: []*Tool{tool},
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(50 * time.Millisecond)
+		<-toolStarted
 		cancel()
 	}()
 
@@ -45,6 +65,28 @@ func TestCancelDuringToolExecution(t *testing.T) {
 
 func TestCancelDuringHandoff(t *testing.T) {
 	childDone := make(chan struct{})
+	childStarted := make(chan struct{})
+
+	childTool := &Tool{
+		Name:        "slow_tool",
+		Description: "Tool that blocks until signaled",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			"required": []any{"input"},
+		},
+		Func: func(ctx context.Context, _ json.RawMessage) (any, error) {
+			close(childStarted)
+			select {
+			case <-childDone:
+				return "done", nil
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		},
+	}
 
 	parent := New(Config{
 		ModelConfig: ModelConfig{
@@ -69,7 +111,7 @@ func TestCancelDuringHandoff(t *testing.T) {
 					ExecutionConfig: ExecutionConfig{
 						MaxTurns: 10,
 					},
-					Tools: []*Tool{slowTool(childDone)},
+					Tools: []*Tool{childTool},
 				},
 				AllowedSources: []string{"parent"},
 			},
@@ -78,7 +120,7 @@ func TestCancelDuringHandoff(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(50 * time.Millisecond)
+		<-childStarted
 		cancel()
 	}()
 
@@ -94,6 +136,27 @@ func TestCancelDuringHandoff(t *testing.T) {
 
 func TestCancelThenRerun_SameAgent(t *testing.T) {
 	done := make(chan struct{})
+	toolStarted := make(chan struct{})
+	tool := &Tool{
+		Name:        "slow_tool",
+		Description: "Tool that blocks until signaled",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			"required": []any{"input"},
+		},
+		Func: func(ctx context.Context, _ json.RawMessage) (any, error) {
+			close(toolStarted)
+			select {
+			case <-done:
+				return "done", nil
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		},
+	}
 	agent := New(Config{
 		ModelConfig: ModelConfig{
 			Name:     "rerun_test",
@@ -103,12 +166,12 @@ func TestCancelThenRerun_SameAgent(t *testing.T) {
 		ExecutionConfig: ExecutionConfig{
 			MaxTurns: 10,
 		},
-		Tools: []*Tool{slowTool(done)},
+		Tools: []*Tool{tool},
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(50 * time.Millisecond)
+		<-toolStarted
 		cancel()
 	}()
 
@@ -658,7 +721,27 @@ func TestInterruptData(t *testing.T) {
 
 func TestInterruptThenCancelDuringResume(t *testing.T) {
 	done := make(chan struct{})
-	tool := slowTool(done)
+	toolStarted := make(chan struct{})
+	tool := &Tool{
+		Name:        "slow_tool",
+		Description: "Tool that blocks until signaled",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			"required": []any{"input"},
+		},
+		Func: func(ctx context.Context, _ json.RawMessage) (any, error) {
+			close(toolStarted)
+			select {
+			case <-done:
+				return "done", nil
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		},
+	}
 	agent := New(Config{
 		ModelConfig: ModelConfig{
 			Name:     "cancel_resume",
@@ -684,7 +767,7 @@ func TestInterruptThenCancelDuringResume(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(50 * time.Millisecond)
+		<-toolStarted
 		cancel()
 	}()
 

@@ -10,7 +10,7 @@
 import React from 'react'
 import { useChatStore } from '@/stores/chat'
 import { ApprovalCard } from './ApprovalCard'
-import { Composer } from './Composer'
+import { Composer } from './chat/Composer'
 
 // ── 优先级排序 ────────────────────────────────────
 
