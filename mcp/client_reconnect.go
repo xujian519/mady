@@ -149,6 +149,11 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 		// stdin/stdout/stderr 已关闭，进程应退出，cmd.Wait 应快速返回。
 		// 加超时防止子进程挂死：超时后 kill 进程，确保 Wait 返回。
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("[PANIC] mcp: reconnect cleanup panicked", "panic", r)
+				}
+			}()
 			killTimer := time.NewTimer(reconnectInitWaitTimeout)
 			defer killTimer.Stop()
 			waitDone := make(chan struct{})
@@ -230,7 +235,7 @@ func (c *Client) handleServerMessage(ctx context.Context, line string, methodRaw
 	return c.respondToServerRequest(ctx, reqID, result, handlerErr)
 }
 
-func (c *Client) respondToServerRequest(ctx context.Context, id any, result any, handlerErr error) error {
+func (c *Client) respondToServerRequest(_ context.Context, id any, result any, handlerErr error) error {
 	return c.writeMessage(buildJSONRPCResponse(id, result, handlerErr))
 }
 

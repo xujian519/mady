@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"reflect"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -290,6 +292,11 @@ func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (P
 			wg.Add(1)
 			go func(nodeName string, nodeFn PregelNode) {
 				defer wg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("[PANIC] pregel: node %q panicked: %v\n%s", nodeName, r, debug.Stack())
+					}
+				}()
 				snapshot := state.Clone()
 				policy, hasPolicy := cpg.nodePolicies[nodeName]
 				var policyPtr *NodePolicy

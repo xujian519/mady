@@ -1,7 +1,9 @@
 package tools
 
 import (
+	"log"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -31,6 +33,11 @@ func initDefaultBrowserManager() {
 
 		reaper := NewOrphanReaper()
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[PANIC] browser_manager: orphan reaper panicked: %v\n%s", r, debug.Stack())
+				}
+			}()
 			reaper.ReapOrphans() //nolint:gosec // G104: cleanup-only; orphan reaper runs in background goroutine
 		}()
 	})

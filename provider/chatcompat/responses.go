@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"runtime/debug"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
@@ -278,7 +280,7 @@ func (p *Provider) completeResponses(ctx context.Context, req *agentcore.Provide
 		return nil, fmt.Errorf("responses api error: %s: %s", resp.Error.Code, resp.Error.Message)
 	}
 
-	return p.convertResponsesOutput(&resp, req)
+	return p.convertResponsesOutput(&resp, req), nil
 }
 
 func (p *Provider) streamResponses(ctx context.Context, req *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
@@ -310,6 +312,11 @@ func (p *Provider) streamResponses(ctx context.Context, req *agentcore.ProviderR
 func (p *Provider) readResponsesStream(ctx context.Context, httpResp *http.Response) <-chan agentcore.StreamDelta {
 	ch := make(chan agentcore.StreamDelta, 64)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[PANIC] readResponsesStream: panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		defer func() { _ = httpResp.Body.Close() }()
 		defer close(ch)
 
@@ -458,7 +465,7 @@ func (p *Provider) buildResponsesRequest(req *agentcore.ProviderRequest, msgs []
 	return rr
 }
 
-func (p *Provider) convertResponsesOutput(resp *responsesResponse, req *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+func (p *Provider) convertResponsesOutput(resp *responsesResponse, req *agentcore.ProviderRequest) *agentcore.ProviderResponse {
 	out := &agentcore.ProviderResponse{}
 
 	if resp.Usage != nil {
@@ -497,5 +504,5 @@ func (p *Provider) convertResponsesOutput(resp *responsesResponse, req *agentcor
 	}
 
 	out.Structured = agentcore.ExtractStructuredContent(out.Content, req.ResponseFormat)
-	return out, nil
+	return out
 }

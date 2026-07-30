@@ -571,6 +571,11 @@ func InitMemorySystem(fc *Context) {
 		// BM25 索引构建在后台异步完成，避免阻塞启动流程。
 		// 用户可在索引完成前先使用纯稠密检索或关键词检索。
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("[PANIC] bootstrap: BM25 index build panicked", "panic", r)
+				}
+			}()
 			bmCtx, bmCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer bmCancel()
 			if bm25Idx, err := sqliteStore.BuildBM25Index(bmCtx); err == nil {

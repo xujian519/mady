@@ -3,6 +3,8 @@ package graph
 import (
 	"context"
 	"fmt"
+	"log"
+	"runtime/debug"
 	"sort"
 	"sync"
 )
@@ -301,6 +303,11 @@ func (cg *CompiledGraph) Run(ctx context.Context, input string) (string, error) 
 			wg.Add(1)
 			go func(nodeName, nodeIn string) {
 				defer wg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("[PANIC] graph: node %q panicked: %v\n%s", nodeName, r, debug.Stack())
+					}
+				}()
 				step := cg.getNode(nodeName)
 				out, err := step.Run(ctx, nodeIn)
 				mu.Lock()

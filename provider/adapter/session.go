@@ -67,6 +67,11 @@ func newCLISession(ctx context.Context, bin, subcmd string, cfg SpawnConfig) (Ag
 	var stderrBuf bytes.Buffer
 	stderrDone := make(chan struct{})
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("[PANIC] session: stderr copy panicked", "panic", r)
+			}
+		}()
 		defer close(stderrDone)
 		// stderrPipe is closed explicitly in Close(), unblocking io.Copy.
 		_, _ = io.Copy(&stderrBuf, stderrPipe)
@@ -119,6 +124,11 @@ func (s *cliSession) Stream(ctx context.Context, input string) (<-chan StreamChu
 
 	ch := make(chan StreamChunk, 4)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("[PANIC] session: stdout scanner panicked", "panic", r)
+			}
+		}()
 		defer close(ch)
 		for s.stdout.Scan() {
 			// Check context cancellation between each scanned line.

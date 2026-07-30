@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -362,6 +364,11 @@ func (e *Executor) executeParallel(ctx context.Context, calls []ToolCall, state 
 		wg.Add(1)
 		go func(idx int, call ToolCall) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[PANIC] executor: tool call %q panicked: %v\n%s", call.Name, r, debug.Stack())
+				}
+			}()
 
 			// Defensive slot tracking: pool.Release is only called if Acquire
 			// succeeded, protecting against future code that might panic or

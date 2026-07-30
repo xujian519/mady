@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -399,6 +401,11 @@ func (p *Provider) Stream(ctx context.Context, req *agentcore.ProviderRequest) (
 func (p *Provider) readSSEStream(ctx context.Context, httpResp *http.Response) <-chan agentcore.StreamDelta {
 	ch := make(chan agentcore.StreamDelta, 64)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[PANIC] readSSEStream: panicked: %v\n%s", r, debug.Stack())
+			}
+		}()
 		defer func() { _ = httpResp.Body.Close() }()
 		defer close(ch)
 
