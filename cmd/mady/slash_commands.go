@@ -176,11 +176,11 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	r.Register(SlashCommand{
 		Name:     "ledger",
 		Category: catInspect,
-		Desc:     "查看本轮工具调用证据账本（Receipt 列表）",
+		Desc:     "查看本轮工具调用证据账本（可视化面板）",
 		Usage:    "/ledger",
 		Risk:     riskNone,
 		Match:    exactMatch("ledger"),
-		Handler:  func(ctx slashCtx) { s.handleLedgerCommand() },
+		Handler:  func(ctx slashCtx) { s.openEvidenceOverlay("") },
 	})
 	r.Register(SlashCommand{
 		Name:     "snapshots",
@@ -210,6 +210,72 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Risk:     riskNone,
 		Match:    prefixMatch("memory"),
 		Handler:  func(ctx slashCtx) { s.handleMemoryCommand(parseSlashRest(ctx.input, "memory")) },
+	})
+	// 证据面板 overlay
+	r.Register(SlashCommand{
+		Name:     "evidence",
+		Category: catInspect,
+		Desc:     "查看引用证据详情（工具调用账本或知识检索结果）",
+		Usage:    "/evidence [查询关键词]",
+		Examples: []string{"/evidence", "/evidence 专利法第22条"},
+		Risk:     riskNone,
+		Match:    prefixMatch("evidence"),
+		Handler: func(ctx slashCtx) {
+			query := parseSlashRest(ctx.input, "evidence")
+			s.openEvidenceOverlay(query)
+		},
+	})
+	// 系统态 overlay
+	r.Register(SlashCommand{
+		Name:     "status",
+		Category: catInspect,
+		Desc:     "查看系统态 — 运行模式、事件、影响",
+		Usage:    "/status",
+		Risk:     riskNone,
+		Match:    exactMatch("status"),
+		Handler:  func(ctx slashCtx) { s.openSystemStatus() },
+	})
+	// 知识库检索
+	r.Register(SlashCommand{
+		Name:     "knowledge",
+		Category: catInspect,
+		Desc:     "检索知识库（FTS 全文搜索）",
+		Usage:    "/knowledge <关键词>",
+		Examples: []string{"/knowledge 专利法第22条", "/knowledge 创造性判断"},
+		Risk:     riskNone,
+		Match:    prefixMatch("knowledge"),
+		Handler:  func(ctx slashCtx) { s.handleKnowledgeCommand(parseSlashRest(ctx.input, "knowledge")) },
+	})
+	// MCP 服务器管理
+	r.Register(SlashCommand{
+		Name:     "mcp",
+		Category: catInspect,
+		Desc:     "查看已注册的 MCP 服务器",
+		Usage:    "/mcp",
+		Risk:     riskNone,
+		Match:    exactMatch("mcp"),
+		Handler:  func(ctx slashCtx) { s.handleMCPCommand(parseSlashSubcommand(ctx.input, "mcp")) },
+	})
+	// 提示词模板浏览
+	r.Register(SlashCommand{
+		Name:     "prompt",
+		Category: catInspect,
+		Desc:     "浏览提示词模板",
+		Usage:    "/prompt [list|<模板名>]",
+		Examples: []string{"/prompt list", "/prompt patent-analysis"},
+		Risk:     riskNone,
+		Match:    prefixMatch("prompt"),
+		Handler:  func(ctx slashCtx) { s.handlePromptCommand(parseSlashRest(ctx.input, "prompt")) },
+	})
+	// 证据领域规则状态
+	r.Register(SlashCommand{
+		Name:     "evidence-domain",
+		Category: catInspect,
+		Desc:     "查看证据判断规则引擎状态",
+		Usage:    "/evidence-domain",
+		Risk:     riskNone,
+		Match:    exactMatch("evidence-domain"),
+		Handler:  func(ctx slashCtx) { s.handleEvidenceDomainCommand(parseSlashSubcommand(ctx.input, "evidence-domain")) },
 	})
 
 	r.Register(SlashCommand{
@@ -423,9 +489,10 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 	r.Register(SlashCommand{
 		Name:     "sessions",
 		Category: "manage",
-		Desc:     "列出所有已保存的会话",
+		Desc:     "管理已保存的会话（选择/切换/重命名/删除）",
+		Usage:    "/sessions",
 		Match:    exactMatch("sessions"),
-		Handler:  func(ctx slashCtx) { s.handleSessionsCommand() },
+		Handler:  func(ctx slashCtx) { s.openSessionSelector() },
 	})
 
 	return r

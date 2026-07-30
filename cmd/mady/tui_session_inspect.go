@@ -52,7 +52,7 @@ func truncateRunes(s string, maxRunes int) string {
 // 数据源：evidence.Extension.Ledger().Snapshot()。Ledger 在每次 BeforeTurn 时
 // 被 Reset，因此 /ledger 反映的是"本轮已执行的工具调用"。若本轮尚无工具调用，
 // 提示用户先发起一轮对话。
-func (s *tuiSession) handleLedgerCommand() {
+func (s *tuiSession) handleLedgerCommand() { //nolint:unused // kept for test coverage; replaced by EvidenceOverlay
 	if s.fc == nil || s.fc.EvidenceExt == nil {
 		s.app.PrintSystem("⚠️ 证据账本未启用（EvidenceExt 未注入）")
 		return

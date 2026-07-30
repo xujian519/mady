@@ -498,7 +498,7 @@ func (s *tuiSession) handleSessionNameCommand(input string) {
 
 // handleSessionsCommand lists all stored sessions with their IDs, names,
 // message counts, and last-updated timestamps.
-func (s *tuiSession) handleSessionsCommand() {
+func (s *tuiSession) handleSessionsCommand() { //nolint:unused // kept for test coverage; replaced by interactive selector
 	if s.agentStore == nil {
 		s.app.PrintSystem("会话持久化未启用")
 		return

@@ -35,6 +35,9 @@ const (
 	ChatEventApprovalPrompt
 	ChatEventTaskCreated
 	ChatEventTaskUpdated
+	ChatEventSkillLoaded
+	ChatEventSkillsReloaded
+	ChatEventA2UI
 )
 
 // chatEventTypeNames maps ChatEventType to descriptive strings for
@@ -57,6 +60,9 @@ var chatEventTypeNames = map[ChatEventType]string{
 	ChatEventApprovalPrompt:  "approval_prompt",
 	ChatEventTaskCreated:     "task_created",
 	ChatEventTaskUpdated:     "task_updated",
+	ChatEventSkillLoaded:     "skill_loaded",
+	ChatEventSkillsReloaded:  "skills_reloaded",
+	ChatEventA2UI:            "a2ui",
 }
 
 func (t ChatEventType) String() string {
@@ -255,3 +261,36 @@ type TaskUpdatedChatEvent struct {
 }
 
 func (TaskUpdatedChatEvent) ChatEventKind() ChatEventType { return ChatEventTaskUpdated }
+
+// SkillLoadedChatEvent is emitted when a skill is loaded.
+// tui/chat does not import agentcore; this is the projection layer.
+type SkillLoadedChatEvent struct {
+	SkillName string
+	Path      string
+	Source    string
+	Arguments string
+}
+
+func (SkillLoadedChatEvent) ChatEventKind() ChatEventType { return ChatEventSkillLoaded }
+
+// SkillsReloadedChatEvent is emitted when skills are hot-reloaded.
+type SkillsReloadedChatEvent struct {
+	SkillPaths       []string
+	TotalSkills      int
+	VisibleSkills    int
+	HiddenSkills     int
+	DiagnosticsCount int
+	AddedSkills      []string
+	RemovedSkills    []string
+	UpdatedSkills    []string
+}
+
+func (SkillsReloadedChatEvent) ChatEventKind() ChatEventType { return ChatEventSkillsReloaded }
+
+// A2UIChatEvent carries the A2UI envelope map, used by the TUI to render
+// declarative UI components (surfaces, dynamic bindings, etc.).
+type A2UIChatEvent struct {
+	Envelope map[string]any
+}
+
+func (A2UIChatEvent) ChatEventKind() ChatEventType { return ChatEventA2UI }
