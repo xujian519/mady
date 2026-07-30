@@ -173,5 +173,60 @@ func DefaultWorkers() []Definition {
 			AllowedTools: []string{"read", "patent_eval"},
 			TriggersHITL: true,
 		},
+		// ===== 新增：对应现有领域工作流的 Worker =====
+		// Reasoning Tier
+		{
+			Name:         "patent-infringement-analyzer",
+			Tier:         TierReasoning,
+			Description:  "全面覆盖原则+等同原则判断专利侵权：输入权利要求与被控侵权产品描述，输出逐特征比对表和侵权分析结论。对应 domains/infringement/。",
+			Inputs:       []Input{{Path: "data/cases/{caseId}/claims.md"}, {Path: "data/cases/{caseId}/accused-product.md"}},
+			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/infringement-analysis.md", Format: "markdown", ContractLevel: ContractHard}},
+			AllowedTools: []string{"read", "grep"},
+			TriggersHITL: true,
+		},
+		{
+			Name:         "patent-invalidation-analyzer",
+			Tier:         TierReasoning,
+			Description:  "无效宣告分析：输入目标专利权利要求，识别无效理由（A22.2/A22.3/A26.3/A26.4/A33），逐项生成无效论证骨架。对应 domains/workflows/patent/invalidation.go。",
+			Inputs:       []Input{{Path: "data/cases/{caseId}/patent-claims.md"}},
+			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/invalidation-analysis.md", Format: "markdown", ContractLevel: ContractHard}},
+			AllowedTools: []string{"read", "grep"},
+			TriggersHITL: true,
+		},
+		{
+			Name:         "patent-debate-simulator",
+			Tier:         TierReasoning,
+			Description:  "模拟审查员与代理人之间的审查意见辩论：输入权利要求，生成3轮审查意见+代理人答复往复。对应 domains/workflows/patent/debate.go。",
+			Inputs:       []Input{{Path: "data/cases/{caseId}/claims.md"}, {Path: "data/cases/{caseId}/disclosure/*.{md,txt,pdf}", Optional: true}},
+			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/debate-transcript.md", Format: "markdown", ContractLevel: ContractHard}},
+			AllowedTools: []string{"read"},
+		},
+		// Work Tier
+		{
+			Name:         "patent-reexamination-drafter",
+			Tier:         TierWork,
+			Description:  "起草驳回复审请求书：解析驳回决定要素（文号/日期/理由/对比文件），逐条生成复审论证。对应 domains/workflows/patent/reexamination.go。",
+			Inputs:       []Input{{Path: "data/cases/{caseId}/rejection-decision.md"}},
+			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/reexamination-request.md", Format: "markdown", ContractLevel: ContractHard}},
+			AllowedTools: []string{"read", "grep"},
+			TriggersHITL: true,
+		},
+		// Domain Tier
+		{
+			Name:         "legal-case-comparator",
+			Tier:         TierDomain,
+			Description:  "法律案例比较分析：输入案件事实，检索适用法条与相似判例，生成三段论推理分析报告。对应 domains/workflows/legal/comparison.go。",
+			Inputs:       []Input{{Path: "data/cases/{caseId}/case-facts.md"}},
+			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/legal-comparison.md", Format: "markdown", ContractLevel: ContractHard}},
+			AllowedTools: []string{"read", "web_search"},
+		},
+		{
+			Name:         "patent-claim-formality-checker",
+			Tier:         TierChecker,
+			Description:  "权利要求形式规范审查：依赖关系、引用基础、术语一致性、PCT/SB8格式。对应 domains/claimdrafting/rules_formality.go。",
+			Inputs:       []Input{{Path: "data/cases/{caseId}/outputs/claims.md"}},
+			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/formality-check-report.md", Format: "markdown", ContractLevel: ContractSoft}},
+			AllowedTools: []string{"read", "patent_eval"},
+		},
 	}
 }

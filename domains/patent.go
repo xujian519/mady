@@ -1,12 +1,14 @@
 package domains
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
+	"github.com/xujian519/mady/agentcore/worker"
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains/checker"
 	"github.com/xujian519/mady/domains/claimdrafting"
@@ -375,6 +377,24 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			}),
 		),
 	)
+
+	// Worker-driven tool registration (MADY_WORKER_ENABLED=1 gate).
+	// 将 DefaultWorkers 中 Reasoning + Domain + Checker 层的 Worker 注册为 Agent 工具。
+	// 默认使用 LLM 模式（需要 Provider）；Work 层（写作类）暂由专用 drafting extension 覆盖。
+	if base.Provider != nil {
+		llmClient := reasoning.NewLlmClientFromProvider(base.Provider, base.Model)
+		if llmClient != nil {
+			// 适配 reasoning.LlmClient → worker 的 LLM 函数签名
+			llmFn := func(ctx context.Context, prompt string) (string, error) {
+				return llmClient.Chat(ctx, []reasoning.LlmMessage{
+					{Role: "user", Content: prompt},
+				})
+			}
+			cfg.Extensions = append(cfg.Extensions,
+				worker.RegisterDefaultLLMWorkers(llmFn),
+			)
+		}
+	}
 
 	return cfg
 }

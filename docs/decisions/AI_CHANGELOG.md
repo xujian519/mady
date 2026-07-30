@@ -1,5 +1,44 @@
 # AI 变更记录
 
+## 2026-07-30: feat(worker) Worker 引擎从声明式目录变为可执行（4 Phase / 8 文件）
+
+### 问题
+`agentcore/worker/` 定义了 11 个 Worker 的契约（输入/输出/工具白名单/质量门），但没有任何代码执行它们。Pregel 图和 FiveStepRunner 直接作为 `agentcore.Tool` 注册，与 Worker 目录完全脱节。
+
+### 根因
+缺少一个从 `worker.Definition → 可执行 PregelNode/Tool` 的适配层。Worker 是纯声明式元数据，没有运行时的调度/执行/校验机制。
+
+### 修复
+**Phase 1 — Worker 执行内核：**
+- 新增 `executor.go`：`Executor` 将 `worker.Definition` 编译为 `graph.PregelNode`，支持三种执行模式（LLM 函数、Pregel 子图、Agent 工具）
+- 外层包裹契约校验：执行前检查 Inputs 就绪、执行后检查 Outputs 产生，校验失败写入 `DegradationMark` 而非中断图执行
+- 新增 `executor_test.go`：14 个测试覆盖三种模式、输入/输出校验、串联执行、nil handler 降级
+
+**Phase 2 — Worker-to-Tool 适配器：**
+- 新增 `tool.go`：`AsTool()` 将 Executor 包装为 `agentcore.Tool`，从 Inputs 自动构建 JSON Schema，注册到 Agent 工具列表
+- 补充 `catalog.go`：新增 6 个 Worker 定义（infringement/invalidation/debate/reexamination/legal-comparison/formality-checker），使目录完整反映领域能力（17 个 Worker）
+
+**Phase 3 — Patent Agent 集成：**
+- 重写 `register.go`：新增 `RegisterWorkersAsToolsExtension()` + `RegisterDefaultLLMWorkers()`，通过 `agentcore.Extension` 机制在 Agent Init 时注册 Worker 工具
+- 环境变量 `MADY_WORKER_ENABLED=1` 门控，零风险渐进启用
+- `domains/patent.go`：在 `PatentAgentConfig` 末尾注入 Worker Extension，自动适配 `reasoning.LlmClient` 到 Worker 的函数签名
+
+**Phase 4 — 运行时监控：**
+- 新增 `monitor.go` + `monitor_test.go`：`Monitor` 采集 Worker 执行记录（耗时/成功率/契约违反/降级次数），支持聚合统计、P99 计算、可选 Tracing 回调
+
+### 变更文件
+```
+agentcore/worker/executor.go       (+350 行, 新增)
+agentcore/worker/executor_test.go  (+470 行, 新增)
+agentcore/worker/tool.go           (+155 行, 新增)
+agentcore/worker/tool_test.go      (+310 行, 新增)
+agentcore/worker/monitor.go        (+215 行, 新增)
+agentcore/worker/monitor_test.go   (+165 行, 新增)
+agentcore/worker/register.go       (+140 行, 重写)
+agentcore/worker/catalog.go        (+70 行, 补充 6 个 Worker)
+domains/patent.go                  (+20 行, 注入 Worker Extension)
+```
+
 ## 2026-07-30: fix(tui) 彻底修复 TUI 三大排版问题（删除 glamour + 重写 Markdown 渲染器）
 
 ### 问题
