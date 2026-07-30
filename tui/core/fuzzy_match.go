@@ -150,3 +150,110 @@ func isBoundary(runes []rune, i int) bool {
 	}
 	return false
 }
+
+// ---------------------------------------------------------------------------
+// Content-normalization functions (moved from internal/fuzzy to avoid
+// duplicating the file in a separate package).
+// ---------------------------------------------------------------------------
+
+// NormalizeForMatch normalizes text for fuzzy comparison.
+func NormalizeForMatch(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+
+	lines := strings.Split(normalizeChars(s), "\n")
+	for i, line := range lines {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(strings.TrimRightFunc(line, unicode.IsSpace))
+	}
+	return b.String()
+}
+
+func normalizeChars(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch r {
+		case '‘', '’', '‚', '‛':
+			b.WriteByte('\'')
+		case '“', '”', '„', '‟':
+			b.WriteByte('"')
+		case '–', '—', '―':
+			b.WriteByte('-')
+		case ' ', ' ', ' ', ' ', ' ', ' ',
+			' ', ' ', ' ', ' ', ' ', ' ',
+			' ', ' ', '　':
+			b.WriteByte(' ')
+		case '\r':
+			// skip
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// Find attempts to locate search within content using exact then normalized matching.
+// The returned start and end are byte offsets into the original content string,
+// suitable for content[start:end] slicing.
+func Find(content, search string) (start int64, end int64, found bool) {
+	if idx := strings.Index(content, search); idx >= 0 {
+		return int64(idx), int64(idx + len(search)), true
+	}
+
+	normContent := NormalizeForMatch(content)
+	normSearch := NormalizeForMatch(search)
+	if normSearch == "" {
+		return 0, 0, false
+	}
+
+	idx := strings.Index(normContent, normSearch)
+	if idx < 0 {
+		return 0, 0, false
+	}
+
+	origStart := mapNormalizedOffset(content, normContent, idx)
+	origEnd := mapNormalizedOffset(content, normContent, idx+len(normSearch))
+
+	return int64(origStart), int64(origEnd), true
+}
+
+// mapNormalizedOffset converts a byte offset in the normalized string back to
+// the corresponding byte offset in the original string.
+func mapNormalizedOffset(original, normalized string, normOffset int) int {
+	oi := 0
+	ni := 0
+	origRunes := []rune(original)
+	normRunes := []rune(normalized)
+
+	origIdx := 0
+	normIdx := 0
+
+	for origIdx < len(origRunes) && normIdx < len(normRunes) {
+		if ni >= normOffset {
+			break
+		}
+
+		origR := origRunes[origIdx]
+		normR := normRunes[normIdx]
+
+		origRuneLen := len(string(origR))
+		normRuneLen := len(string(normR))
+
+		if origR == '\r' {
+			oi += origRuneLen
+			origIdx++
+			continue
+		}
+
+		_ = normR
+		oi += origRuneLen
+		ni += normRuneLen
+		origIdx++
+		normIdx++
+	}
+
+	return oi
+}

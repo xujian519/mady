@@ -479,6 +479,24 @@ func TestChatHistoryAppendDeltaRejectsCumulativeContent(t *testing.T) {
 	}
 }
 
+func TestChatHistoryAppendDeltaRejectsReemittedSuffix(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "Hello, world")
+	// Simulate provider re-sending a chunk already at the tail.
+	h.AppendDelta(id, "world")
+	h.AppendDelta(id, "!")
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
+	}
+	// "world" was already a suffix of "Hello, world" - it should be rejected.
+	// "!" is new - it should be appended.
+	if got, want := msgs[0].Text, "Hello, world!"; got != want {
+		t.Fatalf("suffix dedup failed: text=%q want=%q", got, want)
+	}
+}
+
 // TestChatHistoryStickToBottomHint verifies the "↓ N new — End to follow"
 // hint appears when the user scrolls up and new content arrives, and that
 // returning to the tail clears it.

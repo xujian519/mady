@@ -133,119 +133,152 @@ const (
 func Transition(s AppState, e eventKind) AppState {
 	switch s {
 	case StateInitializing:
-		switch e {
-		case evtAgentReady:
-			return StateIdle
-		case evtAgentStart:
-			return StateStreaming
-		case evtAgentError:
-			return StateFailed
-		case evtApprovalRequest:
-			return StateAwaitingConfirm
-		case evtInterrupt:
-			return StateInterrupted
-		}
-		return s
-
+		return transitionFromInitializing(e)
 	case StateIdle:
-		if e == evtAgentStart {
-			return StateStreaming
-		}
-		if e == evtApprovalRequest {
-			return StateAwaitingConfirm
-		}
-		if e == evtInterrupt {
-			return StateInterrupted
-		}
-		return s
-
+		return transitionFromIdle(e)
 	case StateStreaming:
-		switch e {
-		case evtToolStart:
-			return StateToolRunning
-		case evtCompactionStart:
-			return StateCompacting
-		case evtApprovalRequest:
-			return StateAwaitingConfirm
-		case evtAgentEnd, evtAgentError:
-			return StateIdle
-		case evtMessageDelta, evtTurnEnd, evtHandoffStart, evtHandoffEnd:
-			return StateStreaming
-		case evtInterrupt:
-			return StateInterrupted
-		}
-		return s
-
+		return transitionFromStreaming(e)
 	case StateToolRunning:
-		switch e {
-		case evtToolEnd:
-			return StateStreaming
-		case evtCompactionStart:
-			return StateCompacting
-		case evtApprovalRequest:
-			return StateAwaitingConfirm
-		case evtAgentEnd, evtAgentError:
-			return StateIdle
-		case evtInterrupt:
-			return StateInterrupted
-		}
-		return s
-
+		return transitionFromToolRunning(e)
 	case StateCompacting:
-		if e == evtCompactionEnd {
-			return StateStreaming
-		}
-		if e == evtAgentEnd || e == evtAgentError {
-			return StateIdle
-		}
-		if e == evtApprovalRequest {
-			return StateAwaitingConfirm
-		}
-		if e == evtInterrupt {
-			return StateInterrupted
-		}
-		return s
-
+		return transitionFromCompacting(e)
 	case StateAwaitingConfirm:
-		if e == evtApprovalDecision {
-			return StateStreaming
-		}
-		if e == evtAgentEnd || e == evtAgentError {
-			return StateIdle
-		}
-		if e == evtInterrupt {
-			return StateInterrupted
-		}
-		return s
-
+		return transitionFromAwaitingConfirm(e)
 	case StateFailed:
-		if e == evtAgentReady {
-			return StateIdle
-		}
-		if e == evtAgentStart {
-			return StateStreaming
-		}
-		if e == evtApprovalRequest {
-			return StateAwaitingConfirm
-		}
-		return s
-
+		return transitionFromFailed(e)
 	case StateInterrupted:
-		if e == evtApprovalDecision {
-			return StateStreaming
-		}
-		if e == evtAgentEnd || e == evtAgentError || e == evtAgentReady {
-			return StateIdle
-		}
-		if e == evtApprovalRequest {
-			return StateAwaitingConfirm
-		}
-		if e == evtAgentStart {
-			return StateStreaming
-		}
-		return s
+		return transitionFromInterrupted(e)
 	}
 	return s
+}
+
+// transitionFromInitializing handles events when the FSM is in StateInitializing.
+func transitionFromInitializing(e eventKind) AppState {
+	switch e {
+	case evtAgentReady:
+		return StateIdle
+	case evtAgentStart:
+		return StateStreaming
+	case evtAgentError:
+		return StateFailed
+	case evtApprovalRequest:
+		return StateAwaitingConfirm
+	case evtInterrupt:
+		return StateInterrupted
+	}
+	return StateInitializing
+}
+
+// transitionFromIdle handles events when the FSM is in StateIdle.
+func transitionFromIdle(e eventKind) AppState {
+	if e == evtAgentStart {
+		return StateStreaming
+	}
+	if e == evtApprovalRequest {
+		return StateAwaitingConfirm
+	}
+	if e == evtInterrupt {
+		return StateInterrupted
+	}
+	return StateIdle
+}
+
+// transitionFromStreaming handles events when the FSM is in StateStreaming.
+func transitionFromStreaming(e eventKind) AppState {
+	switch e {
+	case evtToolStart:
+		return StateToolRunning
+	case evtCompactionStart:
+		return StateCompacting
+	case evtApprovalRequest:
+		return StateAwaitingConfirm
+	case evtAgentEnd, evtAgentError:
+		return StateIdle
+	case evtMessageDelta, evtTurnEnd, evtHandoffStart, evtHandoffEnd:
+		return StateStreaming
+	case evtInterrupt:
+		return StateInterrupted
+	}
+	return StateStreaming
+}
+
+// transitionFromToolRunning handles events when the FSM is in StateToolRunning.
+func transitionFromToolRunning(e eventKind) AppState {
+	switch e {
+	case evtToolEnd:
+		return StateStreaming
+	case evtCompactionStart:
+		return StateCompacting
+	case evtApprovalRequest:
+		return StateAwaitingConfirm
+	case evtAgentEnd, evtAgentError:
+		return StateIdle
+	case evtInterrupt:
+		return StateInterrupted
+	}
+	return StateToolRunning
+}
+
+// transitionFromCompacting handles events when the FSM is in StateCompacting.
+func transitionFromCompacting(e eventKind) AppState {
+	if e == evtCompactionEnd {
+		return StateStreaming
+	}
+	if e == evtAgentEnd || e == evtAgentError {
+		return StateIdle
+	}
+	if e == evtApprovalRequest {
+		return StateAwaitingConfirm
+	}
+	if e == evtInterrupt {
+		return StateInterrupted
+	}
+	return StateCompacting
+}
+
+// transitionFromAwaitingConfirm handles events when the FSM is in StateAwaitingConfirm.
+func transitionFromAwaitingConfirm(e eventKind) AppState {
+	if e == evtApprovalDecision {
+		return StateStreaming
+	}
+	if e == evtAgentEnd || e == evtAgentError {
+		return StateIdle
+	}
+	if e == evtInterrupt {
+		return StateInterrupted
+	}
+	return StateAwaitingConfirm
+}
+
+// transitionFromFailed handles events when the FSM is in StateFailed.
+func transitionFromFailed(e eventKind) AppState {
+	if e == evtAgentReady {
+		return StateIdle
+	}
+	if e == evtAgentStart {
+		return StateStreaming
+	}
+	if e == evtApprovalRequest {
+		return StateAwaitingConfirm
+	}
+	return StateFailed
+}
+
+// transitionFromInterrupted handles events when the FSM is in StateInterrupted.
+func transitionFromInterrupted(e eventKind) AppState {
+	if e == evtApprovalDecision {
+		return StateStreaming
+	}
+	if e == evtAgentEnd || e == evtAgentError || e == evtAgentReady {
+		return StateIdle
+	}
+	if e == evtApprovalRequest {
+		return StateAwaitingConfirm
+	}
+	if e == evtAgentStart {
+		return StateStreaming
+	}
+	return StateInterrupted
 }
 
 // EventKindFor maps a ChatEvent to its FSM eventKind. This is the bridge

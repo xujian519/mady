@@ -130,58 +130,72 @@ func (e *Editor) Render(width int64) []string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	pad := repeatSpace(e.padX)
-	firstPrompt := e.promptFirst
-	contPrompt := e.promptCont
-	promptFn := e.promptFn
-	textFn := e.textFn
-	placeText := e.placeText
-	placeFn := e.placeFn
+	pad, firstPrompt, contPrompt, innerWidth, contInner, promptWFirst, promptWCont := e.renderSetup(width)
 
-	if promptFn == nil {
-		promptFn = func(s string) string { return s }
-	}
-	if textFn == nil {
-		textFn = func(s string) string { return s }
-	}
-	if placeFn == nil {
-		placeFn = theme.CurrentPalette().Dim.Render
+	// Empty + unfocused = placeholder.
+	if len(e.lines) == 1 && len(e.lines[0]) == 0 && !e.focused && e.placeText != "" {
+		return e.renderPlaceholder(width, pad, firstPrompt, innerWidth)
 	}
 
-	promptWFirst := core.VisibleWidth(firstPrompt)
-	promptWCont := core.VisibleWidth(contPrompt)
-	innerWidth := width - e.padX - promptWFirst
-	if innerWidth < 1 {
-		innerWidth = 1
-	}
-	contInner := width - e.padX - promptWCont
-	if contInner < 1 {
-		contInner = 1
-	}
-
-	// Cache layout metrics so mouse events arriving between renders can be
-	// translated back into logical (row, col) buffer positions.
+	// Cache layout metrics for mouse hit-testing.
 	e.lastPadX = e.padX
 	e.lastPromptWFirst = promptWFirst
 	e.lastPromptWCont = promptWCont
 
-	// Empty + unfocused = placeholder.
-	if len(e.lines) == 1 && len(e.lines[0]) == 0 && !e.focused && placeText != "" {
-		e.lastVisuals = nil
-		line := pad + promptFn(firstPrompt) + placeFn(core.TruncateToWidth(placeText, innerWidth, "…"))
-		out := []string{core.PadToWidth(line, width)}
-		for int64(len(out)) < e.minRows {
-			out = append(out, core.PadToWidth("", width))
-		}
-		return out
-	}
+	visuals := e.buildVisuals(innerWidth, contInner)
+	cursorV, cursorCol := e.computeCursorVisual(visuals)
+	selStart, selEnd, hasSel := e.normalizedSelectionLocked()
+	chipByRow := e.collectChips()
 
-	type visual struct {
-		text       string
-		isFirstSeg bool
-		hardRow    int64
-		colOffset  int64 // rune offset within hard row at which this segment starts
+	out, rowsMeta := e.renderSegments(width, visuals, innerWidth, contInner, cursorV, cursorCol, selStart, selEnd, hasSel, chipByRow, pad, firstPrompt, contPrompt)
+	out, rowsMeta = e.applyGrowthPolicy(out, rowsMeta, cursorV, width, pad, firstPrompt, e.promptFn)
+	out = e.applyFocusIndicator(out)
+
+	e.lastVisuals = rowsMeta
+	return out
+}
+
+// renderSetup extracts rendering configuration from the editor state.
+// The caller must ensure promptFn, textFn, placeFn are non-nil (set in
+// NewEditor / setter methods) — this function never mutates the struct.
+func (e *Editor) renderSetup(width int64) (pad, firstPrompt, contPrompt string, innerWidth, contInner int64, promptWFirst, promptWCont int64) {
+	pad = repeatSpace(e.padX)
+	firstPrompt = e.promptFirst
+	contPrompt = e.promptCont
+
+	promptWFirst = core.VisibleWidth(firstPrompt)
+	promptWCont = core.VisibleWidth(contPrompt)
+	innerWidth = width - e.padX - promptWFirst
+	if innerWidth < 1 {
+		innerWidth = 1
 	}
+	contInner = width - e.padX - promptWCont
+	if contInner < 1 {
+		contInner = 1
+	}
+	return
+}
+
+// renderPlaceholder returns the empty-editor placeholder view.
+func (e *Editor) renderPlaceholder(width int64, pad, firstPrompt string, innerWidth int64) []string {
+	e.lastVisuals = nil
+	line := pad + e.promptFn(firstPrompt) + e.placeFn(core.TruncateToWidth(e.placeText, innerWidth, "\u2026"))
+	out := []string{core.PadToWidth(line, width)}
+	for int64(len(out)) < e.minRows {
+		out = append(out, core.PadToWidth("", width))
+	}
+	return out
+}
+
+type visual struct {
+	text       string
+	isFirstSeg bool
+	hardRow    int64
+	colOffset  int64 // rune offset within hard row at which this segment starts
+}
+
+// buildVisuals soft-wraps the editor buffer into visual segments.
+func (e *Editor) buildVisuals(innerWidth, contInner int64) []visual {
 	var visuals []visual
 	for i, ln := range e.lines {
 		if len(ln) == 0 {
@@ -197,7 +211,6 @@ func (e *Editor) Render(width int64) []string {
 			}
 			slice := core.SliceRunesByCells(ln, core.CellWidthOfRunes(ln, 0, offset), core.CellWidthOfRunes(ln, 0, offset)+w)
 			if slice.EndR == slice.StartR {
-				// cannot fit any rune (edge case) — just take 1 rune
 				slice.StartR = offset
 				if offset < int64(len(ln)) {
 					slice.EndR = offset + 1
@@ -214,34 +227,33 @@ func (e *Editor) Render(width int64) []string {
 			first = false
 		}
 	}
+	return visuals
+}
 
-	// Compute cursor visual row/col.
-	var cursorV, cursorCol int64 = -1, -1
-	if e.focused {
-		for vi, v := range visuals {
-			if v.hardRow != e.row {
-				continue
-			}
-			segLen := int64(len([]rune(v.text)))
-			segEnd := v.colOffset + segLen
-			if e.col >= v.colOffset && e.col <= segEnd {
-				cursorV = int64(vi)
-				cursorCol = core.CellWidthOfRunes(e.lines[e.row], v.colOffset, e.col)
-				break
-			}
+// computeCursorVisual finds the cursor's visual row index and column.
+func (e *Editor) computeCursorVisual(visuals []visual) (cursorV int64, cursorCol int64) {
+	cursorV = -1
+	cursorCol = -1
+	if !e.focused {
+		return
+	}
+	for vi, v := range visuals {
+		if v.hardRow != e.row {
+			continue
+		}
+		segLen := int64(len([]rune(v.text)))
+		segEnd := v.colOffset + segLen
+		if e.col >= v.colOffset && e.col <= segEnd {
+			cursorV = int64(vi)
+			cursorCol = core.CellWidthOfRunes(e.lines[e.row], v.colOffset, e.col)
+			break
 		}
 	}
+	return
+}
 
-	selStart, selEnd, hasSel := e.normalizedSelectionLocked()
-
-	// Collect chips by hard row for interleaved rendering.
-	// Chips render as inline styled elements at their buffer positions.
-	// Multiple chips per row are rendered in position order, and
-	// text between chips passes through textFn for styling.
-	type chipInfo struct {
-		pos  int64
-		text string
-	}
+// collectChips groups chips by their hard row for interleaved rendering.
+func (e *Editor) collectChips() map[int64][]chipInfo {
 	chipByRow := make(map[int64][]chipInfo)
 	for _, cp := range e.chips.chips {
 		if cp.Chip == nil || cp.Chip.Display == "" {
@@ -251,7 +263,17 @@ func (e *Editor) Render(width int64) []string {
 		styled := theme.CurrentPalette().Accent.Render(theme.CurrentPalette().Surface.Render(display))
 		chipByRow[cp.HardRow] = append(chipByRow[cp.HardRow], chipInfo{cp.RuneStart, styled})
 	}
+	return chipByRow
+}
 
+type chipInfo struct {
+	pos  int64
+	text string
+}
+
+// renderSegments builds the output lines from visual segments with
+// prompt, chip interleaving, selection highlighting, and cursor marker.
+func (e *Editor) renderSegments(width int64, visuals []visual, innerWidth, contInner int64, cursorV, cursorCol int64, selStart, selEnd editorSelPos, hasSel bool, chipByRow map[int64][]chipInfo, pad, firstPrompt, contPrompt string) ([]string, []editorVisualRow) {
 	var out []string
 	rowsMeta := make([]editorVisualRow, 0, len(visuals))
 	for idx, v := range visuals {
@@ -272,92 +294,106 @@ func (e *Editor) Render(width int64) []string {
 			isFirstSeg: v.isFirstSeg,
 		})
 
-		// Build body with chips interleaved. Standard text goes
-		// through textFn; chips retain their own styling.
 		rowChips := chipByRow[v.hardRow]
-		var bodyText string
-		if len(rowChips) == 0 {
-			bodyText = textFn(v.text)
-		} else {
-			cursor := segStart
-			for _, cr := range rowChips {
-				if cr.pos < segStart || cr.pos > segEnd {
-					continue
-				}
-				beforeIdx := cr.pos - segStart
-				if beforeIdx > int64(len(segRunes)) {
-					beforeIdx = int64(len(segRunes))
-				}
-				if beforeIdx < 0 {
-					beforeIdx = 0
-				}
-				if cursor < cr.pos {
-					bodyText += textFn(string(segRunes[cursor-segStart : beforeIdx]))
-				}
-				bodyText += cr.text
-				cursor = cr.pos
-			}
-			if cursor < segEnd {
-				bodyText += textFn(string(segRunes[cursor-segStart:]))
-			}
-		}
-
-		// Apply selection highlighting on top.
-		// IMPORTANT: when chips are present in this segment, skip per-rune
-		// selection rebuild (the hasSel branch replaces bodyText from raw
-		// segRunes, discarding chip interleaving). allSelected is safe
-		// because it wraps the already-interleaved bodyText in a uniform
-		// background, preserving chip text (though capsule styling is lost).
-		hasChipsInSeg := len(rowChips) > 0
-		switch {
-		case e.allSelected && bodyText != "":
-			bodyText = e.selBg() + core.StripAnsi(bodyText) + "\x1b[0m"
-		case hasSel && !hasChipsInSeg:
-			if from, to, ok := selRangeInSegment(v.hardRow, segStart, segLen, selStart, selEnd); ok && from < to {
-				before := textFn(string(segRunes[:from]))
-				sel := core.StripAnsi(textFn(string(segRunes[from:to])))
-				afterVal := textFn(string(segRunes[to:]))
-				bodyText = before + e.selBg() + sel + "\x1b[0m" + afterVal
-			}
-		}
+		bodyText := e.renderSegmentBody(v.text, segRunes, segStart, segEnd, segLen, rowChips, hasSel, selStart, selEnd, v.hardRow)
 
 		body := core.PadToWidth(bodyText, innerW)
 		if int64(idx) == cursorV {
-			body = core.InsertMarker(body, cursorCol)
+			e.addCursorMarker(&body, cursorCol)
 		}
-		line := pad + promptFn(prompt) + body
+		line := pad + e.promptFn(prompt) + body
 		out = append(out, core.PadToWidth(line, width))
 	}
-	// Growth policy.
+	return out, rowsMeta
+}
+
+// renderSegmentBody applies text styling, chip interleaving, and selection.
+func (e *Editor) renderSegmentBody(text string, segRunes []rune, segStart, segEnd, segLen int64, rowChips []chipInfo, hasSel bool, selStart, selEnd editorSelPos, segHardRow int64) string {
+	if len(rowChips) == 0 {
+		bodyText := e.textFn(text)
+		bodyText = e.applySelectionToSegment(bodyText, segRunes, segStart, segLen, hasSel, selStart, selEnd, false, segHardRow)
+		return bodyText
+	}
+	// Interleave chips into the text.
+	var bodyText string
+	cursor := segStart
+	for _, cr := range rowChips {
+		if cr.pos < segStart || cr.pos > segEnd {
+			continue
+		}
+		beforeIdx := cr.pos - segStart
+		if beforeIdx > int64(len(segRunes)) {
+			beforeIdx = int64(len(segRunes))
+		}
+		if beforeIdx < 0 {
+			beforeIdx = 0
+		}
+		if cursor < cr.pos {
+			bodyText += e.textFn(string(segRunes[cursor-segStart : beforeIdx]))
+		}
+		bodyText += cr.text
+		cursor = cr.pos
+	}
+	if cursor < segEnd {
+		bodyText += e.textFn(string(segRunes[cursor-segStart:]))
+	}
+	bodyText = e.applySelectionToSegment(bodyText, segRunes, segStart, segLen, hasSel, selStart, selEnd, len(rowChips) > 0, segHardRow)
+	return bodyText
+}
+
+// applySelectionToSegment wraps the selected portion of a segment with background color.
+func (e *Editor) applySelectionToSegment(bodyText string, segRunes []rune, segStart, segLen int64, hasSel bool, selStart, selEnd editorSelPos, hasChips bool, segHardRow int64) string {
+	switch {
+	case e.allSelected && bodyText != "":
+		return e.selBg() + core.StripAnsi(bodyText) + "\x1b[0m"
+	case hasSel && !hasChips:
+		if from, to, ok := selRangeInSegment(segHardRow, segStart, segLen, selStart, selEnd); ok && from < to {
+			before := e.textFn(string(segRunes[:from]))
+			sel := core.StripAnsi(e.textFn(string(segRunes[from:to])))
+			afterVal := e.textFn(string(segRunes[to:]))
+			return before + e.selBg() + sel + "\x1b[0m" + afterVal
+		}
+	}
+	return bodyText
+}
+
+// addCursorMarker inserts the CURSOR_MARKER into body at col.
+func (e *Editor) addCursorMarker(body *string, col int64) {
+	*body = core.InsertMarker(*body, col)
+}
+
+// applyGrowthPolicy ensures the output meets minRows and respects maxRows,
+// keeping the cursor visible when truncating.
+func (e *Editor) applyGrowthPolicy(out []string, rowsMeta []editorVisualRow, cursorV int64, width int64, pad, firstPrompt string, promptFn func(string) string) ([]string, []editorVisualRow) {
+	// Growth: pad to minRows with prompt prefix (matching original behavior).
 	for int64(len(out)) < e.minRows {
-		emptyPrompt := firstPrompt
-		emptyInner := innerWidth
-		emptyPad := pad
-		body := core.PadToWidth("", emptyInner)
-		line := emptyPad + promptFn(emptyPrompt) + body
+		body := core.PadToWidth("", width-int64(len(pad))-core.VisibleWidth(firstPrompt))
+		line := pad + promptFn(firstPrompt) + body
 		out = append(out, core.PadToWidth(line, width))
 		rowsMeta = append(rowsMeta, editorVisualRow{hardRow: -1})
 	}
-	if int64(len(out)) > e.maxRows {
-		// Keep the segment containing the cursor visible; drop leading rows.
-		if cursorV >= e.maxRows {
-			drop := cursorV - e.maxRows + 1
-			out = out[drop:]
-			rowsMeta = rowsMeta[drop:]
-		} else {
-			out = out[:e.maxRows]
-			rowsMeta = rowsMeta[:e.maxRows]
-		}
+	// Clamp to maxRows, keeping cursor visible.
+	if len(out) == 0 {
+		return out, rowsMeta
 	}
-
-	if e.focused && e.focusIndicator != "" {
-		if len(out) > 0 {
-			last := len(out) - 1
-			out[last] = e.focusIndicator + out[last]
-		}
+	if int64(len(out)) > e.maxRows && cursorV >= e.maxRows {
+		drop := cursorV - e.maxRows + 1
+		out = out[drop:]
+		rowsMeta = rowsMeta[drop:]
+	} else if int64(len(out)) > e.maxRows {
+		out = out[:e.maxRows]
+		rowsMeta = rowsMeta[:e.maxRows]
 	}
+	return out, rowsMeta
+}
 
-	e.lastVisuals = rowsMeta
+// applyFocusIndicator prepends the focus indicator to the last line.
+func (e *Editor) applyFocusIndicator(out []string) []string {
+	if !e.focused || e.focusIndicator == "" || len(out) == 0 {
+		return out
+	}
+	last := len(out) - 1
+	out[last] = e.focusIndicator + out[last]
 	return out
 }
 

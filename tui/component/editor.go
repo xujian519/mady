@@ -17,6 +17,7 @@ import (
 
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/terminal"
+	"github.com/xujian519/mady/tui/theme"
 )
 
 // ---------------------------------------------------------------------------
@@ -151,6 +152,9 @@ func NewEditor(km *terminal.KeybindingsManager) *Editor {
 		maxRows:           10,
 		promptFirst:       "> ",
 		promptCont:        "  ",
+		promptFn:          func(s string) string { return s },
+		textFn:            func(s string) string { return s },
+		placeFn:           theme.CurrentPalette().Dim.Render,
 		km:                km,
 		historyMax:        200,
 		inputHistoryMax:   1000,

@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	core "github.com/xujian519/mady/tui/core"
-	"github.com/xujian519/mady/tui/internal/fuzzy"
 )
 
 // ---------------------------------------------------------------------------
@@ -23,16 +22,16 @@ import (
 //     matched excerpt.
 // ---------------------------------------------------------------------------
 
-// NormalizeForMatch re-exports fuzzy.NormalizeForMatch so TUI consumers
-// don't have to import the fuzzy package directly.
-func NormalizeForMatch(s string) string { return fuzzy.NormalizeForMatch(s) }
+// NormalizeForMatch re-exports core.NormalizeForMatch so TUI consumers
+// don't have to import the core package directly.
+func NormalizeForMatch(s string) string { return core.NormalizeForMatch(s) }
 
 // SubstringFuzzyMatch reports whether `query` appears inside `candidate`
 // after normalising both sides (trailing whitespace collapsed, smart
 // punctuation replaced with ASCII, etc.). Returns the matched byte range
 // and ok=true on success.
 func SubstringFuzzyMatch(candidate, query string) (start, end int64, ok bool) {
-	return fuzzy.Find(candidate, query)
+	return core.Find(candidate, query)
 }
 
 // SubstringFuzzyFilter filters candidates that contain `query` under the
@@ -45,7 +44,7 @@ func SubstringFuzzyFilter(query string, candidates []string) []string {
 	}
 	var out []string
 	for _, c := range candidates {
-		if _, _, ok := fuzzy.Find(c, query); ok {
+		if _, _, ok := core.Find(c, query); ok {
 			out = append(out, c)
 		}
 	}
@@ -98,7 +97,7 @@ func (p *FuzzyContentProvider) Complete(token string) []core.Suggestion {
 	}
 	var out []core.Suggestion
 	for _, e := range p.Entries {
-		start, end, ok := fuzzy.Find(e.Body, token)
+		start, end, ok := core.Find(e.Body, token)
 		if !ok {
 			continue
 		}

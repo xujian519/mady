@@ -82,25 +82,7 @@ func (h *ChatHistory) Render(width int64) []string {
 		width = 1
 	}
 	h.mu.Lock()
-	// 当 scrollbar 启用时，内容渲染宽度预留 sbWidth 列给滚动条。
-	// 否则 Markdown 按 width 换行后的每行都比可用宽度多 1 列，被视口
-	// 判定为超宽并截断为省略号，导致每行末尾丢失字符（长文本尤甚）。
-	//
-	// renderWidth 根据 scrollbar 实际显隐状态决定：只有当 scrollbar
-	// 需要显示时才缩小渲染宽度。显隐判断依赖 cachedAll（已知渲染行数）
-	// 或保守假设为需要（避免首帧截断）。当显隐状态变化时 renderWidth
-	// 自然改变 → cachedWidth 触发缓存失效 → 行宽自动修正。
-	sbNow := h.sbEnabled && h.sbWidth > 0
-	if sbNow && h.cachedAll != nil && h.maxRows > 0 && !h.dirty && int64(len(h.cachedAll)) <= h.maxRows {
-		sbNow = false
-	}
-	renderWidth := width
-	if sbNow {
-		renderWidth = width - h.sbWidth
-		if renderWidth < 1 {
-			renderWidth = 1
-		}
-	}
+	renderWidth, sbNow := h.computeRenderWidth(width)
 	wasDirty := h.dirty
 	if h.cachedWidth != renderWidth {
 		h.cachedWidth = renderWidth
@@ -113,49 +95,23 @@ func (h *ChatHistory) Render(width int64) []string {
 
 	var all []string
 	if needRender {
-		// Phase 1: snapshot mutable state under lock.
-		// Reset dirty BEFORE releasing the lock so Phase 3 can detect
-		// whether AppendDelta set it during Phase 2. If h.dirty is still
-		// false at merge time, no concurrent mutations happened and we can
-		// safely clear firstDirtyIdx. If true, AppendDelta set it and we
-		// must preserve both flags for the next render cycle.
 		h.dirty = false
 		snap := h.captureSnapshot()
-		// Shallow-copy the msgCache map so the snapshot render can use
-		// existing cached entries and populate new ones locally.
 		localCache := make(map[string]cachedMessage, len(h.msgCache))
 		for k, v := range h.msgCache {
 			localCache[k] = v
 		}
 
-		// Phase 2: expensive rendering while still holding h.mu.
-		// Previously h.mu was released here to allow concurrent AppendDelta
-		// calls. However, that created a race window where the EventBus
-		// goroutine could modify messages while renderAllFromSnapshot was
-		// iterating the snapshot, causing one frame of width-mismatch or
-		// stale content. Keeping h.mu locked serializes AppendDelta with
-		// Render — the EventBus handler blocks briefly (~1-5ms) but the
-		// output is always consistent. The lock is released immediately
-		// after the merge, so the EventBus latency impact is negligible.
 		rendered, ranges := h.renderAllFromSnapshot(snap, renderWidth, localCache)
-		// Phase 3: merge results. h.mu is still held (no longer released during
-		// Phase 2), so no concurrent AppendDelta can interfere. The snapshot is
-		// still used for the render to keep the existing code path unchanged.
 		h.msgCache = localCache
-		// Cap cache size: evict oldest non-pending entries beyond the limit.
-		// Pending messages (with active blockCache) are exempt from eviction.
 		h.evictCacheEntriesLocked()
 		h.cachedAll = rendered
 		h.cachedMsgRanges = ranges
-		// h.mu is held throughout, so no concurrent AppendDelta can set
-		// dirty=true during Phase 2. Clear the incremental tracking.
 		h.firstDirtyIdx = 0
 
-		// If content changed (was dirty), reset scroll if following tail.
 		if wasDirty && h.follow {
 			h.offset = 0
 		}
-		// Also clamp if old offset is now past the content end.
 		if len(h.cachedAll) > 0 && h.offset > 0 {
 			maxLines := int64(len(h.cachedAll))
 			if maxLines > h.maxRows && h.maxRows > 0 && h.offset > maxLines-h.maxRows {
@@ -172,19 +128,10 @@ func (h *ChatHistory) Render(width int64) []string {
 		all = h.cachedAll
 	}
 
-	// Refresh the tail anchor whenever the viewport is at the tail so that,
-	// once the user scrolls up, tailAnchorLen freezes and Render can compute
-	// how many new lines have arrived since.
 	if h.follow {
 		h.tailAnchorLen = int64(len(all))
 	}
-	newSinceAnchor := int64(0)
-	if !h.follow && h.tailAnchorLen > 0 {
-		newSinceAnchor = int64(len(all)) - h.tailAnchorLen
-		if newSinceAnchor < 0 {
-			newSinceAnchor = 0
-		}
-	}
+	newSinceAnchor := h.computeNewSinceAnchor(all)
 	maxRows := h.maxRows
 	offset := h.offset
 	follow := h.follow
@@ -193,6 +140,46 @@ func (h *ChatHistory) Render(width int64) []string {
 	if maxRows <= 0 || int64(len(all)) <= maxRows {
 		return all
 	}
+
+	visible := h.extractViewport(all, maxRows, offset)
+	visible = h.addScrollIndicator(visible, all, maxRows, offset, follow)
+	visible = h.addStickToBottomHint(visible, all, maxRows, follow, newSinceAnchor)
+	visible = h.drawScrollbar(visible, width, all, maxRows, follow)
+	visible = h.padToWidth(visible, width, maxRows, sbNow, h.sbWidth)
+	return visible
+}
+
+// computeRenderWidth determines the content width accounting for scrollbar.
+func (h *ChatHistory) computeRenderWidth(width int64) (renderWidth int64, sbNow bool) {
+	sbNow = h.sbEnabled && h.sbWidth > 0
+	if sbNow && h.cachedAll != nil && h.maxRows > 0 && !h.dirty && int64(len(h.cachedAll)) <= h.maxRows {
+		sbNow = false
+	}
+	renderWidth = width
+	if sbNow {
+		renderWidth = width - h.sbWidth
+		if renderWidth < 1 {
+			renderWidth = 1
+		}
+	}
+	return
+}
+
+// computeNewSinceAnchor returns how many new lines have arrived since
+// the tail anchor was frozen (when the user last scrolled up).
+func (h *ChatHistory) computeNewSinceAnchor(all []string) int64 {
+	if !h.follow && h.tailAnchorLen > 0 {
+		n := int64(len(all)) - h.tailAnchorLen
+		if n < 0 {
+			return 0
+		}
+		return n
+	}
+	return 0
+}
+
+// extractViewport returns the visible slice of all lines clipped to maxRows.
+func (h *ChatHistory) extractViewport(all []string, maxRows int64, offset int64) []string {
 	end := int64(len(all)) - offset
 	if end > int64(len(all)) {
 		end = int64(len(all))
@@ -202,92 +189,104 @@ func (h *ChatHistory) Render(width int64) []string {
 		start = 0
 		end = maxRows
 	}
-	visible := all[start:end]
+	return all[start:end]
+}
 
-	// Add scroll indicator when not auto-following.
-	// Shows position context: visible range and percentage through the content,
-	// so the user knows where they are in the conversation history.
-	if !follow && end < int64(len(all)) {
-		totalLines := int64(len(all))
-		percent := int64(0)
-		if totalLines > 0 {
-			percent = start * 100 / totalLines
-		}
-		indicator := h.theme.DimStyle.Render(fmt.Sprintf("▲ %d/%d (%d%%) — End to follow", start, totalLines, percent))
-		// Drop last visible line to keep within maxRows, prevent pushing
-		// status bar off-screen.
-		if int64(len(visible)) >= maxRows && len(visible) > 0 {
-			visible = visible[:len(visible)-1]
-		}
-		visible = append([]string{indicator}, visible...)
+// addScrollIndicator prepends a scroll-position indicator when not following.
+func (h *ChatHistory) addScrollIndicator(visible []string, all []string, maxRows int64, offset int64, follow bool) []string {
+	if follow {
+		return visible
+	}
+	visibleEnd := int64(len(all)) - offset
+	if visibleEnd >= int64(len(all)) {
+		return visible
+	}
+	totalLines := int64(len(all))
+	visibleStart := visibleEnd - maxRows
+	if visibleStart < 0 {
+		visibleStart = 0
+	}
+	percent := int64(0)
+	if totalLines > 0 {
+		percent = visibleStart * 100 / totalLines
+	}
+	indicator := h.theme.DimStyle.Render(fmt.Sprintf("\u25b2 %d/%d (%d%%) \u2014 End to follow", visibleStart, totalLines, percent))
+	if int64(len(visible)) >= maxRows && len(visible) > 0 {
+		visible = visible[:len(visible)-1]
+	}
+	return append([]string{indicator}, visible...)
+}
+
+// addStickToBottomHint appends a "N new" hint when not following and new content arrived.
+func (h *ChatHistory) addStickToBottomHint(visible []string, all []string, maxRows int64, follow bool, newSinceAnchor int64) []string {
+	if follow || newSinceAnchor <= 0 {
+		return visible
+	}
+	hint := h.theme.SuccessStyle.Render(fmt.Sprintf("\u2193 %d new \u2014 End to follow", newSinceAnchor))
+	if int64(len(visible)) >= maxRows && len(visible) > 0 {
+		visible = visible[:len(visible)-1]
+	}
+	return append(visible, hint)
+}
+
+// drawScrollbar renders a scrollbar on the right edge when content overflows.
+func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string, maxRows int64, follow bool) []string {
+	if !h.sbEnabled || h.sbWidth <= 0 || int64(len(all)) <= maxRows {
+		return visible
+	}
+	contentWidth := width - h.sbWidth
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+	total := int64(len(all))
+	thumbLen := maxRows * maxRows / total
+	if thumbLen < 1 {
+		thumbLen = 1
+	}
+	start := int64(len(all)) - maxRows - h.offset
+	if start < 0 {
+		start = 0
+	}
+	thumbOff := start * (maxRows - thumbLen) / (total - maxRows)
+	thumbEnd := thumbOff + thumbLen
+	if thumbEnd > maxRows {
+		thumbEnd = maxRows
 	}
 
-	// Stick-to-bottom hint: when the user scrolled up and new streaming
-	// content arrived since, surface a "↓ N new" footer so they know there's
-	// fresh output to jump to. Placed at the bottom of the visible window.
-	if !follow && newSinceAnchor > 0 {
-		hint := h.theme.SuccessStyle.Render(fmt.Sprintf("↓ %d new — End to follow", newSinceAnchor))
-		if int64(len(visible)) >= maxRows && len(visible) > 0 {
-			visible = visible[:len(visible)-1]
-		}
-		visible = append(visible, hint)
+	pal := theme.CurrentPalette()
+	trackStyle := pal.SurfaceBg.Render(" ")
+	thumbStyle := pal.SurfaceRaisedBg.Render(" ")
+	if !follow {
+		thumbStyle = pal.SurfaceBg.Render(" ")
 	}
 
-	// Draw scrollbar on the right edge when enabled and content overflows.
-	if h.sbEnabled && h.sbWidth > 0 && int64(len(all)) > maxRows {
-		contentWidth := width - h.sbWidth
-		if contentWidth < 1 {
-			contentWidth = 1
+	for i := int64(0); i < int64(len(visible)); i++ {
+		ln := visible[i]
+		if core.VisibleWidth(ln) > contentWidth {
+			ln = core.TruncateToWidth(ln, contentWidth, "\u2026")
+		} else {
+			ln = core.PadToWidth(ln, contentWidth)
 		}
-		total := int64(len(all))
-		thumbLen := maxRows * maxRows / total
-		if thumbLen < 1 {
-			thumbLen = 1
-		}
-		start := end - maxRows
-		if start < 0 {
-			start = 0
-		}
-		thumbOff := start * (maxRows - thumbLen) / (total - maxRows)
-		thumbEnd := thumbOff + thumbLen
-		if thumbEnd > maxRows {
-			thumbEnd = maxRows
-		}
-
-		pal := theme.CurrentPalette()
-		trackStyle := pal.SurfaceBg.Render(" ")
-		thumbStyle := pal.SurfaceRaisedBg.Render(" ")
-		if !follow {
-			thumbStyle = pal.SurfaceBg.Render(" ")
-		}
-
-		for i := int64(0); i < int64(len(visible)); i++ {
-			ln := visible[i]
-			if core.VisibleWidth(ln) > contentWidth {
-				ln = core.TruncateToWidth(ln, contentWidth, "…")
-			} else {
-				ln = core.PadToWidth(ln, contentWidth)
-			}
-			if i >= thumbOff && i < thumbEnd {
-				visible[i] = ln + thumbStyle
-			} else {
-				visible[i] = ln + trackStyle
-			}
-		}
-	} else {
-		// Pad every line to full width so the TUI diff engine's \x1b[2K
-		// never leaves a partial column that could bleed into the next line.
-		// Lines exceeding width are NOT truncated — the terminal wraps them
-		// naturally. This ensures long content (code diffs, wide tables,
-		// CJK text) is accessible even when the terminal is narrower than
-		// the content.
-		for i, ln := range visible {
-			if core.VisibleWidth(ln) < width {
-				visible[i] = core.PadToWidth(ln, width)
-			}
+		if i >= thumbOff && i < thumbEnd {
+			visible[i] = ln + thumbStyle
+		} else {
+			visible[i] = ln + trackStyle
 		}
 	}
+	return visible
+}
 
+// padToWidth pads every line to full width so the TUI diff engine never
+// leaves a partial column. This is the fallback when scrollbar is off.
+func (h *ChatHistory) padToWidth(visible []string, width int64, maxRows int64, sbNow bool, sbWidth int64) []string {
+	if sbNow {
+		return visible
+	}
+	for i, ln := range visible {
+		if core.VisibleWidth(ln) < width {
+			visible[i] = core.PadToWidth(ln, width)
+		}
+	}
 	return visible
 }
 

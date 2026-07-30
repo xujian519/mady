@@ -120,6 +120,20 @@ func (s Style) Underline() Style { s.attrs = append(s.attrs, Underline); return 
 // Strike returns a new Style with the strikethrough attribute set.
 func (s Style) Strike() Style { s.attrs = append(s.attrs, Strike); return s }
 
+// BgStrip returns the raw background SGR escape sequence for this Style
+// (e.g. "\x1b[48;2;22;76;99m"), or "" if no background is set.
+// Unlike Render(), this ignores ColorEnabled() because callers need the raw
+// ANSI sequence for theme string construction that is later parsed by core.
+func (s Style) BgStrip() string {
+	if s.bgParams != "" {
+		return Esc + s.bgParams + "m"
+	}
+	if s.bg != Default {
+		return Esc + fmt.Sprintf("%d", s.bg) + "m"
+	}
+	return ""
+}
+
 // Render wraps text with the SGR escape sequence for this Style and appends
 // a reset. If color is disabled (NO_COLOR / dumb terminal), text is returned
 // unchanged.

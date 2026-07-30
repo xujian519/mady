@@ -7,6 +7,7 @@ package chat
 
 import (
 	"github.com/xujian519/mady/tui/core"
+	"github.com/xujian519/mady/tui/theme"
 )
 
 // nolint:unused // used by tests in chat_history_test.go
@@ -49,7 +50,7 @@ func (h *ChatHistory) applySelectionHighlightLocked(lines []string, width int64)
 
 	selBg := h.theme.SelectedBg
 	if selBg == "" {
-		selBg = "\x1b[48;5;33m"
+		selBg = selectionBgFallback()
 	}
 	selStyle := core.ParseLine(selBg + " " + "\x1b[0m")
 	if selStyle.IsRaw() || len(selStyle.Cells) == 0 {
@@ -155,7 +156,7 @@ func (h *ChatHistory) applySelectionHighlightSnapshot(lines []string, width int6
 
 	selBg := h.theme.SelectedBg
 	if selBg == "" {
-		selBg = "\x1b[48;5;33m"
+		selBg = selectionBgFallback()
 	}
 	selStyle := core.ParseLine(selBg + " " + "\x1b[0m")
 	if selStyle.IsRaw() || len(selStyle.Cells) == 0 {
@@ -222,4 +223,17 @@ func (h *ChatHistory) applySelectionHighlightSnapshot(lines []string, width int6
 		highlighted := core.SerializeRow(row)
 		lines[i] = core.PadToWidth(core.TruncateToWidth(highlighted, lineWidth, ""), lineWidth)
 	}
+}
+
+// selectionBgFallback returns the background SGR sequence for selection
+// highlighting derived from the current palette, falling back to a safe
+// ANSI 256-color blue if the palette is unavailable.
+func selectionBgFallback() string {
+	p := theme.CurrentPalette()
+	if p != nil {
+		if bg := p.SelectionBg.BgStrip(); bg != "" {
+			return bg
+		}
+	}
+	return "\x1b[48;5;33m"
 }

@@ -277,209 +277,242 @@ func isCopyShortcut(k terminal.Key) bool {
 }
 
 func (l *chatLayout) Update(msg core.Msg) core.Cmd {
+	// Handle global messages that don't depend on l.history.
+	// If consumed (e.g. image paste), skip all further processing.
+	if l.handleGlobalMsg(msg) {
+		return nil
+	}
+
+	if l.history == nil {
+		return l.updateRemaining(msg)
+	}
+
+	// Delegate to type-specific handlers. The handlers do NOT return a Cmd
+	// for the TUI engine — all side effects happen inline. The consumed flag
+	// prevents consumed keys from reaching the autocomplete popup (which has
+	// its own key handling that would conflict).
+	var consumed bool
+	switch m := msg.(type) {
+	case core.MouseMsg:
+		l.handleMouseMsg(m)
+	case core.KeyMsg:
+		consumed = l.handleKeyMsg(m)
+	}
+
+	// Autocomplete gets a chance to process the event only when no handler
+	// consumed it (original Update behavior — consumed keys returned nil
+	// before reaching the AC update at the bottom of the function).
+	if !consumed && l.ac != nil && l.ac.Active() {
+		if _, ok := msg.(core.KeyMsg); ok {
+			l.ac.Update(msg)
+		}
+	}
+	return l.updateRemaining(msg)
+}
+
+// handleGlobalMsg processes WindowSizeMsg and PasteMsg — events that don't
+// require l.history or user interaction routing.
+// Returns true if the message was fully consumed (no further processing needed).
+func (l *chatLayout) handleGlobalMsg(msg core.Msg) bool {
 	switch m := msg.(type) {
 	case core.WindowSizeMsg:
 		l.lastRows = m.Height
 		l.recalcMaxRows(m.Width, m.Height)
 	case core.PasteMsg:
-		// Image paste detection: when clipboard has an image, the terminal
-		// sends empty/short text.  Let the caller hook pasteImageFn.
 		if m.Text == "" || (len(m.Text) < 4 && m.Text == "\r") {
 			if l.app.cfg.OnImagePaste != nil {
 				l.app.cfg.OnImagePaste()
-				return nil
 			}
+			return true // image paste consumed, no further processing
 		}
 	}
-	if l.history != nil {
-		switch m := msg.(type) {
-		case core.MouseMsg:
-			// Right-click (Button 2) → copy selected text. This is a
-			// cross-component concern (checks both editor and history for
-			// selections), so it stays in the layout container.
-			if m.Action == core.MouseRelease && m.Button == 2 {
-				doCopy(l)
-				return nil
+	return false
+}
+
+// handleMouseMsg routes mouse events through HitTest or legacy fallback.
+func (l *chatLayout) handleMouseMsg(m core.MouseMsg) {
+	if m.Action == core.MouseRelease && m.Button == 2 {
+		doCopy(l)
+		return
+	}
+	if l.mainFlex != nil {
+		if child, rect, hit := l.mainFlex.HitTest(m.Row, m.Col); hit {
+			local := m
+			local.Row -= rect.Row
+			local.Col -= rect.Col
+			if u, ok := child.(core.Updatable); ok {
+				u.Update(local)
 			}
-			// Hit-test routing: use the Flex's computed child Rects to find
-			// which component the mouse event landed on, translate the
-			// coordinate to that component's local space, and deliver only
-			// to that component. This replaces the previous manual
-			// headerHeight / editorTop offset arithmetic.
-			//
-			// After delivery, check MouseConsumed: if the hit component
-			// consumed the event, stop. Otherwise let other components try
-			// (backward-compatible fallthrough).
-			if l.mainFlex != nil {
-				if child, rect, hit := l.mainFlex.HitTest(m.Row, m.Col); hit {
-					local := m
-					local.Row -= rect.Row
-					local.Col -= rect.Col
-					if u, ok := child.(core.Updatable); ok {
-						u.Update(local)
-					}
-					// If the component consumed the event, we're done.
-					if mc, ok := child.(core.MouseConsumer); ok && mc.MouseConsumed() {
-						return nil
-					}
-					// Not consumed — try the other interactive component.
-					// This handles edge cases like a press landing on a
-					// non-content row of history (mouseConsumed=false) where
-					// the editor might still want to process it.
-					if child != l.history && l.history != nil {
-						histAdjusted := m
-						histAdjusted.Row -= int64(l.headerHeight)
-						if histAdjusted.Row >= 0 {
-							l.history.Update(histAdjusted)
-						}
-					}
-					if child != l.editor {
-						if upd, ok := l.editor.(core.Updatable); ok {
-							editorAdjusted := m
-							editorAdjusted.Row -= l.editorTop + 1
-							upd.Update(editorAdjusted)
-						}
-					}
-					return nil
-				}
-				// No child hit by HitTest (e.g. event outside all Rects) —
-				// fall through to the legacy broadcast path below.
+			if mc, ok := child.(core.MouseConsumer); ok && mc.MouseConsumed() {
+				return
 			}
-			// Legacy fallback (pre-HitTest): deliver to both components with
-			// manual offsets. Kept as a safety net for the first frame
-			// before mainFlex is populated.
-			adjusted := m
-			adjusted.Row -= int64(l.headerHeight)
-			if adjusted.Row >= 0 {
-				l.history.Update(adjusted)
-			}
-			if upd, ok := l.editor.(core.Updatable); ok {
-				editorAdjusted := m
-				editorAdjusted.Row -= l.editorTop + 1
-				upd.Update(editorAdjusted)
-			}
-		case core.KeyMsg:
-			for _, k := range terminal.ParseKeys(m.Data, m.KittyFlags) {
-				name := strings.ToLower(k.Name)
-				switch name {
-				case "f2":
-					// F2: toggle mouse passthrough between TUI mouse
-					// tracking (scroll/click routing) and native
-					// terminal handling (OS-level text selection).
-					l.app.ToggleMousePassthrough()
-					return nil
-				case "v":
-					// Ctrl+Alt+V / ⌘+Alt+V: image paste (any primary modifier + Alt).
-					if k.Mods&(terminal.ModCtrl|terminal.ModSuper|terminal.ModMeta) != 0 &&
-						k.Mods&terminal.ModAlt != 0 {
-						if l.app.cfg.OnImagePaste != nil {
-							l.app.cfg.OnImagePaste()
-						}
-						return nil
-					}
-				case "escape":
-					// Double-Esc guard: first Esc during streaming shows a hint,
-					// second Esc within escInterruptWindow actually interrupts.
-					// This prevents accidental interruptions from vim muscle memory.
-					if l.app != nil {
-						state := l.app.State()
-						if state == StateStreaming || state == StateToolRunning || state == StateCompacting {
-							// 持锁完成 lastEscAt 的读-判-写周期，避免竞态。
-							l.app.mu.Lock()
-							lastEsc := l.app.lastEscAt
-							isDoubleEsc := !lastEsc.IsZero() && time.Since(lastEsc) < escInterruptWindow
-							if isDoubleEsc {
-								l.app.lastEscAt = time.Time{}
-							} else {
-								l.app.lastEscAt = time.Now()
-							}
-							l.app.mu.Unlock()
-							if isDoubleEsc {
-								if l.app.cfg.OnInterrupt != nil {
-									l.app.cfg.OnInterrupt()
-								}
-								return nil
-							}
-							l.app.PrintSystem("再次按 Esc 可中断当前操作")
-							return nil
-						}
-					}
-					if l.ac != nil && l.ac.Active() {
-						l.ac.Hide()
-						value := l.app.editor.GetValue()
-						if (strings.HasPrefix(value, "@file:") || strings.HasPrefix(value, "@folder:")) &&
-							len(value) > len("@file:") {
-							newValue := popLastPathSegment(value)
-							l.app.editor.SetValue(newValue)
-							l.app.skipRefresh = false
-							l.ac.Refresh(newValue, int64(len(newValue)))
-						}
-						return nil
-					}
-				case "pageup":
-					l.history.ScrollBy(l.history.MaxRows())
-				case "pagedown":
-					l.history.ScrollBy(-l.history.MaxRows())
-				case "up":
-					if k.Mods&terminal.ModAlt != 0 {
-						l.history.ScrollBy(1)
-					}
-				case "down":
-					if k.Mods&terminal.ModAlt != 0 {
-						l.history.ScrollBy(-1)
-					}
-				case "end":
-					l.history.FollowTail()
-				case "s":
-					// Bare [s] opens system status overlay when the judgment
-					// view is expanded (awaiting_review / blocked) — the user
-					// can see the [s] action hint and is typically reviewing,
-					// not composing input. The key also reaches the editor;
-					// a stray "s" character is harmless.
-					if l.judgmentView != nil && l.judgmentView.IsExpanded() {
-						mode := "normal"
-						if jm := l.judgmentView.Mode(); jm != "" {
-							mode = jm
-						}
-						l.app.OpenSystemStatus(buildSystemStatusData(l.app, mode))
-						return nil
-					}
-				case "e":
-					// Bare [e] opens evidence details overlay when the
-					// judgment view is expanded. Shows retrieved knowledge
-					// sources (law articles, judgments) used in the analysis.
-					if l.judgmentView != nil && l.judgmentView.IsExpanded() {
-						l.app.OpenEvidenceOverlay(EvidenceOverlayData{})
-						return nil
-					}
-				case "t":
-					// Ctrl+T toggles the task list (TodoPanel) overlay.
-					if k.Mods&terminal.ModCtrl != 0 {
-						l.app.ToggleTodoPanel()
-						return nil
-					}
-				case "c", "insert":
-					// Ctrl+C: interrupt only (never copy).
-					// ⌘+C (Super/Meta) is the universal copy shortcut.
-					if name == "c" && k.Mods&terminal.ModCtrl != 0 &&
-						k.Mods&terminal.ModSuper == 0 && k.Mods&terminal.ModMeta == 0 {
-						if l.app.cfg.OnInterrupt != nil && l.app.isRunning() {
-							l.app.cfg.OnInterrupt()
-						}
-						return nil
-					}
-					if isCopyShortcut(k) {
-						if hasSelection(l) {
-							doCopy(l)
-							return nil
-						}
-						doCopy(l)
-						return nil
-					}
-				}
-			}
+			l.deliverMouseToOthers(child, m)
+			return
 		}
 	}
+	l.legacyMouseFallback(m)
+}
+
+// deliverMouseToOthers sends the mouse event to the history and/or editor
+// when the primary HitTest target did not consume it.
+func (l *chatLayout) deliverMouseToOthers(child core.Component, m core.MouseMsg) {
+	if child != l.history && l.history != nil {
+		histAdjusted := m
+		histAdjusted.Row -= int64(l.headerHeight)
+		if histAdjusted.Row >= 0 {
+			l.history.Update(histAdjusted)
+		}
+	}
+	if child != l.editor {
+		if upd, ok := l.editor.(core.Updatable); ok {
+			editorAdjusted := m
+			editorAdjusted.Row -= l.editorTop + 1
+			upd.Update(editorAdjusted)
+		}
+	}
+}
+
+// legacyMouseFallback is the pre-HitTest broadcast path, kept as a safety
+// net for the first frame before mainFlex is populated.
+func (l *chatLayout) legacyMouseFallback(m core.MouseMsg) {
+	adjusted := m
+	adjusted.Row -= int64(l.headerHeight)
+	if adjusted.Row >= 0 {
+		l.history.Update(adjusted)
+	}
+	if upd, ok := l.editor.(core.Updatable); ok {
+		editorAdjusted := m
+		editorAdjusted.Row -= l.editorTop + 1
+		upd.Update(editorAdjusted)
+	}
+}
+
+// handleKeyMsg dispatches key events for the chat layout.
+// Returns true if at least one key was consumed.
+func (l *chatLayout) handleKeyMsg(m core.KeyMsg) bool {
+	for _, k := range terminal.ParseKeys(m.Data, m.KittyFlags) {
+		if l.dispatchKey(k) {
+			return true
+		}
+	}
+	return false
+}
+
+// dispatchKey handles a single parsed key.
+// Returns true if the key was consumed; false to continue iteration.
+func (l *chatLayout) dispatchKey(k terminal.Key) bool {
+	name := strings.ToLower(k.Name)
+	switch name {
+	case "f2":
+		l.app.ToggleMousePassthrough()
+		return true
+	case "v":
+		if k.Mods&(terminal.ModCtrl|terminal.ModSuper|terminal.ModMeta) != 0 &&
+			k.Mods&terminal.ModAlt != 0 {
+			if l.app.cfg.OnImagePaste != nil {
+				l.app.cfg.OnImagePaste()
+			}
+			return true
+		}
+	case "escape":
+		return l.handleEscapeKey(k)
+	case "pageup":
+		l.history.ScrollBy(l.history.MaxRows())
+	case "pagedown":
+		l.history.ScrollBy(-l.history.MaxRows())
+	case "up":
+		if k.Mods&terminal.ModAlt != 0 {
+			l.history.ScrollBy(1)
+		}
+	case "down":
+		if k.Mods&terminal.ModAlt != 0 {
+			l.history.ScrollBy(-1)
+		}
+	case "end":
+		l.history.FollowTail()
+	case "s":
+		if l.judgmentView != nil && l.judgmentView.IsExpanded() {
+			mode := "normal"
+			if jm := l.judgmentView.Mode(); jm != "" {
+				mode = jm
+			}
+			l.app.OpenSystemStatus(buildSystemStatusData(l.app, mode))
+			return true
+		}
+	case "e":
+		if l.judgmentView != nil && l.judgmentView.IsExpanded() {
+			l.app.OpenEvidenceOverlay(EvidenceOverlayData{})
+			return true
+		}
+	case "t":
+		if k.Mods&terminal.ModCtrl != 0 {
+			l.app.ToggleTodoPanel()
+			return true
+		}
+	case "c", "insert":
+		return l.handleCopyOrInterrupt(k, name)
+	}
+	return false
+}
+
+// handleEscapeKey implements the double-escape guard and autocomplete pop.
+func (l *chatLayout) handleEscapeKey(k terminal.Key) bool {
+	if l.app != nil {
+		state := l.app.State()
+		if state == StateStreaming || state == StateToolRunning || state == StateCompacting {
+			l.app.mu.Lock()
+			lastEsc := l.app.lastEscAt
+			isDoubleEsc := !lastEsc.IsZero() && time.Since(lastEsc) < escInterruptWindow
+			if isDoubleEsc {
+				l.app.lastEscAt = time.Time{}
+			} else {
+				l.app.lastEscAt = time.Now()
+			}
+			l.app.mu.Unlock()
+			if isDoubleEsc {
+				if l.app.cfg.OnInterrupt != nil {
+					l.app.cfg.OnInterrupt()
+				}
+				return true
+			}
+			l.app.PrintSystem("\u518d\u6b21\u6309 Esc \u53ef\u4e2d\u65ad\u5f53\u524d\u64cd\u4f5c")
+			return true
+		}
+	}
+	if l.app != nil && l.ac != nil && l.ac.Active() {
+		l.ac.Hide()
+		value := l.app.editor.GetValue()
+		if (strings.HasPrefix(value, "@file:") || strings.HasPrefix(value, "@folder:")) &&
+			len(value) > len("@file:") {
+			newValue := popLastPathSegment(value)
+			l.app.editor.SetValue(newValue)
+			l.app.skipRefresh = false
+			l.ac.Refresh(newValue, int64(len(newValue)))
+		}
+		return true
+	}
+	return false
+}
+
+// handleCopyOrInterrupt handles Ctrl+C (interrupt) and copy shortcuts.
+func (l *chatLayout) handleCopyOrInterrupt(k terminal.Key, name string) bool {
+	if name == "c" && k.Mods&terminal.ModCtrl != 0 &&
+		k.Mods&terminal.ModSuper == 0 && k.Mods&terminal.ModMeta == 0 {
+		if l.app.cfg.OnInterrupt != nil && l.app.isRunning() {
+			l.app.cfg.OnInterrupt()
+		}
+		return true
+	}
+	if isCopyShortcut(k) {
+		doCopy(l)
+		return true
+	}
+	return false
+}
+
+// updateRemaining handles status bar and autocomplete updates after other
+// message processing is complete.
+func (l *chatLayout) updateRemaining(msg core.Msg) core.Cmd {
 	if l.statusBar != nil {
 		l.statusBar.Update(msg)
 	}

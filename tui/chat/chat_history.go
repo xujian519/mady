@@ -117,7 +117,7 @@ func DefaultChatHistoryTheme() ChatHistoryTheme {
 		DividerChar:     "─",
 		DimStyle:        pal.Dim,
 		ThinkingStyle:   pal.Thinking,
-		SelectedBg:      "\x1b[48;5;33m",
+		SelectedBg:      pal.SelectionBg.BgStrip(),
 		MarkdownTheme:   component.DefaultMarkdownTheme(),
 	}
 }
