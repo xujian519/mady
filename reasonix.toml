@@ -53,7 +53,7 @@ enabled = true   # language server tools; servers launch lazily when used
 # Readers always default to allow. Precedence: deny > ask > allow > fallback.
 # Rules are "Tool" or "Tool(specifier)"; e.g. Bash(go test:*), Edit(src/**).
 mode  = "ask"
-# deny = ["Bash(rm -rf*)", "Bash(git push*)"]   # hard-blocked in every mode
+deny = ["Bash(rm -rf*)", "Bash(git push*)"]   # hard-blocked in every mode
 allow = ["task", "Edit(src/**)",
   # Git read-only
   "Bash(cd /Users/xujian/projects/Mady && git status)",
@@ -61,7 +61,7 @@ allow = ["task", "Edit(src/**)",
   "Bash(cd /Users/xujian/projects/Mady && git remote -v)",
   "Bash(cd /Users/xujian/projects/Mady && git diff --stat)",
   "Bash(cd /Users/xujian/projects/Mady && git ls-remote origin HEAD 2>/dev/null && echo \"---\" && git rev-parse HEAD)",
-  "Bash(cd /Users/xujian/projects/Mady && git stash && go test -tags integration -count=1 -run TestDrafting_WorkflowTool ./integration/... 2>&1 | tail -5)",
+  # "Bash(cd /Users/xujian/projects/Mady && git stash && go test -tags integration -count=1 -run TestDrafting_WorkflowTool ./integration/... 2>&1 | tail -5)",
   # Build & test
   "Bash(cd /Users/xujian/projects/Mady && go build ./... 2>&1 | tail -5)",
   "Bash(cd /Users/xujian/projects/Mady && go build ./... && go build ./example/... && echo \"build OK\")",
@@ -69,7 +69,6 @@ allow = ["task", "Edit(src/**)",
   "Bash(cd /Users/xujian/projects/Mady && go test -count=1 -v ./evaluate/benchmark/ -run 'TestEvalSuite_' 2>&1 | head -40)",
   "Bash(cd /Users/xujian/projects/Mady && go test -tags integration -count=1 ./integration/... 2>&1 | tail -20)",
   "Bash(cd /Users/xujian/projects/Mady && go test -tags integration -count=1 -v ./integration/... 2>&1 | head -80)",
-  "Bash(cd /Users/xujian/projects/Mady && make verify 2>&1 | tail -80)",
   "Bash(cd /Users/xujian/projects/Mady && make verify 2>&1)",
   "Bash(cd /Users/xujian/projects/Mady && go mod tidy -diff 2>&1)",
   "Bash(cd /Users/xujian/projects/Mady && go mod tidy 2>&1)",
