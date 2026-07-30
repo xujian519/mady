@@ -52,7 +52,7 @@ func TestDesktopAppLifecycle(t *testing.T) {
 	// 2. 构造 App 并模拟 startup
 	app := NewApp()
 	app.fc = fc
-	app.server = madyserver.New(fc.BaseConfig)
+	app.server = madyserver.New(buildDesktopAgentConfig(fc))
 	app.ctx = context.Background()
 
 	// 3. 验证 App 就绪

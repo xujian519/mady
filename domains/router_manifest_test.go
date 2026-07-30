@@ -140,11 +140,11 @@ func TestRouterConfigFromManifests_HandoffConfig(t *testing.T) {
 	if h.Mode != agentcore.HandoffDelegate {
 		t.Errorf("expected HandoffDelegate mode, got %v", h.Mode)
 	}
-	// AllowedSources 包含 mady-router, chat-agent, mady-agent
-	if len(h.AllowedSources) != 3 {
-		t.Errorf("expected 3 AllowedSources, got %d: %v", len(h.AllowedSources), h.AllowedSources)
+	// AllowedSources 包含 mady-router 和 mady-agent
+	if len(h.AllowedSources) != 2 {
+		t.Errorf("expected 2 AllowedSources, got %d: %v", len(h.AllowedSources), h.AllowedSources)
 	}
-	for _, want := range []string{"mady-router", "chat-agent", "mady-agent"} {
+	for _, want := range []string{"mady-router", "mady-agent"} {
 		found := false
 		for _, got := range h.AllowedSources {
 			if got == want {

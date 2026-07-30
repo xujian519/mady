@@ -70,6 +70,13 @@ func UnifiedAgentConfig(base agentcore.Config) agentcore.Config {
 		)),
 	)
 
+	// 法条引用核验 Gate（LevelStandard）：R1 存在性 + R2 交叉匹配，
+	// 命中疑点追加存疑提示。统一 Agent 作为用户入口层也需要引用核验，
+	// 防止直接回答法条相关问题时不经过 Handoff 子 Agent。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		agentcore.NewIFaceLifecycleHook(guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard))),
+	)
+
 	// 工具扩展 — 沿用 Assistant Agent 的完整配置。
 	// WorkingDir 从 base.ProjectDir 透传，回退到 base.WorkspaceDir。
 	// SandboxEnabled=true 确保文件操作被限制在项目目录内。

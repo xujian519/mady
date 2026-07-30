@@ -23,6 +23,7 @@ import (
 
 	"github.com/xujian519/mady/a2ui"
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/agui"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/rules"
@@ -30,6 +31,7 @@ import (
 	madyserver "github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/skill"
+	"github.com/xujian519/mady/tools"
 
 	"github.com/xujian519/mady/bootstrap"
 	"github.com/xujian519/mady/pkg/agentconfig"
@@ -220,10 +222,11 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 	}
 
 	// === 步骤 0：立即创建 Server + 通知前端就绪 ===
-	// 此时 fc.BaseConfig 只有 Phase 1 的核心扩展（工具链/工作区）。
+	// 使用 UnifiedAgentConfig 包装基础配置，确保专利/法律 handoff、
+	// doomloop、gateway、guardrails 等专业能力从第一阶段就可用。
 	// 后续重型初始化通过 SyncConfig 将知识库/MCP/记忆等扩展注入 server。
 	t0 := time.Now()
-	a.server = madyserver.New(fc.BaseConfig)
+	a.server = madyserver.New(buildDesktopAgentConfig(fc))
 	log.Printf("[mady-desktop] server created in %v — frontend now interactive", time.Since(t0))
 	a.emitInitProgress("就绪")
 	runtime.EventsEmit(ctx, "mady:init-done", map[string]bool{"ready": true, "degraded": true})
@@ -264,11 +267,37 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 	// 将 Phase 2 新增的扩展（知识库/MCP/技能/记忆编译器/推理引擎等）
 	// 同步到 server，使后续新建的会话获得完整能力。
 	tEnd := time.Now()
-	a.server.SyncConfig(fc.BaseConfig)
+	a.server.SyncConfig(buildDesktopAgentConfig(fc))
 	log.Printf("[timing] SyncConfig: %v | total phase 2: %v", time.Since(tEnd), time.Since(t0))
 
 	log.Printf("[mady-desktop] deferred init complete: phase 2 took %v", time.Since(t0))
 	log.Println("[mady-desktop] startup: deferred init complete — all capabilities available")
+}
+
+// buildDesktopAgentConfig 为桌面端构造统一 Agent 配置。
+// 与 server 入口保持一致：启用 handoff/doomloop/gateway/guardrails/专业工具链，
+// 并对无交互场景默认拒绝危险工具（bash/process/execute_code/browser/computer_use）。
+func buildDesktopAgentConfig(fc *bootstrap.Context) agentcore.Config {
+	cfg := domains.UnifiedAgentConfig(fc.BaseConfig)
+	cfg.Extensions = append(cfg.Extensions,
+		permission.NewExtension(permission.Policy{
+			Mode: permission.DecisionAllow,
+			Deny: []permission.Rule{
+				{Tool: tools.ToolBash},
+				{Tool: tools.ToolProcess},
+				{Tool: tools.ToolExecuteCode},
+				{Tool: tools.ToolBrowser},
+				{Tool: tools.ToolComputerUse},
+			},
+		}, permission.AlwaysDenyApprover{}),
+	)
+	if fc.KnowledgeExt != nil {
+		cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
+	}
+	if fc.WikiHook != nil {
+		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
+	}
+	return cfg
 }
 
 // shutdown 在 Wails 窗口关闭前调用。优雅关闭 server，取消所有运行中的 chat。

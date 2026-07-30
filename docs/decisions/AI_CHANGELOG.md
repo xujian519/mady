@@ -1,5 +1,60 @@
 # AI 变更记录
 
+## 2026-07-30: fix(frontend) 修复 Desktop 与 ACP 前端的工作流/loop/graph 断链（5 文件）
+
+### 问题
+全面审查发现 **Desktop（Wails）和 ACP（`mady acp`）两个前端入口存在严重断链**：
+- 未调用 `domains.UnifiedAgentConfig`，导致 handoff（专利/法律路由）、doomloop 死循环检测、Gateway（推理/预算/回退）、guardrails、psychological、专业工具链全部缺失。
+- Desktop 直接使用裸 `fc.BaseConfig` 创建 `madyserver.Server`，聊天只能调用基础文件工具，无法执行专利分析、技术交底书分析、权利要求/说明书撰写等专业工作流。
+- ACP 的 `RunOptions` 只注入 `Lifecycle` 和 `Extensions`，`agentcore.Config.Handoffs` 等关键字段未设置。
+- TUI 中 `run_five_step_workflow` 工具仅在 `currentProjectMeta.MatterType != ""` 时才注入，普通项目上下文下工作流入口被静默隐藏。
+
+### 根因
+入口层装配逻辑不一致：
+- `cmd/mady/server.go` 已正确使用 `domains.UnifiedAgentConfig(fc.BaseConfig)`。
+- `desktop/app.go` 和 `cmd/mady/acp.go` 为追求两阶段启动速度，绕过了统一 Agent 装配，只手工拼接了部分扩展。
+- ACP 的 `acp.RunOptions` 没有提供传入完整预装配 `agentcore.Config` 的字段。
+- TUI 的 `applyPersistence` 对工作流工具的注入条件过严。
+
+### 修复
+
+**1. `desktop/app.go` — Desktop 入口使用统一 Agent 配置**
+- 新增 `buildDesktopAgentConfig()`：以 `domains.UnifiedAgentConfig(fc.BaseConfig)` 为基础，追加无交互场景的危险工具拒绝策略（bash/process/execute_code/browser/computer_use → AlwaysDeny），并注入 KnowledgeExt / WikiHook。
+- 阶段 0 创建 Server 和阶段 2 `SyncConfig` 均改用该配置，确保专业能力和安全策略从第一阶段就可用。
+
+**2. `cmd/mady/acp.go` + `acp/server_app.go` — ACP 入口支持预装配 Config**
+- `acp.RunOptions` 新增 `BaseConfig agentcore.Config` 字段，允许调用方传入 `UnifiedAgentConfig`。
+- `acp/server_app.go:buildAgentConfig()` 在 `BaseConfig.Provider != nil` 时以其为基础，仅覆盖 model/prompt/turns 等 ACP 专属字段，保留 handoff/doomloop/gateway/guardrails/专业工具链。
+- `cmd/mady/acp.go` 构造 `domains.UnifiedAgentConfig(fc.BaseConfig)` 并传入 `BaseConfig`，同时追加无交互危险工具拒绝策略和 KnowledgeExt / WikiHook。
+
+**3. `cmd/mady/tui_session_config.go` — 放宽 TUI 五步工作流注入条件**
+- `run_five_step_workflow` 工具改为：只要存在 `currentProject` 即注入。
+- `MatterType` 为空时默认使用 `reasoning.CasePatentability`，避免普通项目没有工作流入口。
+
+**4. `desktop/e2e_integration_test.go` — 对齐测试与实际启动路径**
+- 将测试中的 `madyserver.New(fc.BaseConfig)` 改为 `madyserver.New(buildDesktopAgentConfig(fc))`，避免测试掩盖断链。
+
+### 变更文件
+```
+desktop/app.go                    (+34 行, 新增 buildDesktopAgentConfig)
+cmd/mady/acp.go                   (+22 行, 使用 UnifiedAgentConfig)
+acp/server_app.go                 (+25 行, 新增 BaseConfig 字段与装配逻辑)
+cmd/mady/tui_session_config.go    (+6/-2 行, 放宽工作流注入条件)
+desktop/e2e_integration_test.go    (+1/-1 行, 对齐测试)
+```
+
+### 验证
+```bash
+go build ./cmd/mady/... ./acp/...
+go test ./acp/... ./cmd/mady/...
+cd desktop && go build ./... && go test ./...
+```
+全部通过。
+
+### 待增强（非断链）
+- Pregel graph 节点级进度、Doomloop 非 Fatal 信号暂无专用事件类型，前端只能看到整体 `tool_call_start/end` 和 `agent_error`。
+- 如需更细粒度的 workflow/graph 状态面板，需在 graph/doomloop 层设计无依赖的回调接口，并在 agentadapter 中映射为 TUI/AGUI 事件。
+
 ## 2026-07-30: feat(worker) Worker 引擎从声明式目录变为可执行（4 Phase / 8 文件）
 
 ### 问题

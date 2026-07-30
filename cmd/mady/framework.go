@@ -91,11 +91,6 @@ func cwdPartitionName(cwd string) string {
 	return bootstrap.CwdPartitionName(cwd)
 }
 
-// extSlice 委托到 bootstrap.ExtSlice。
-func extSlice(ext agentcore.Extension) []agentcore.Extension {
-	return bootstrap.ExtSlice(ext)
-}
-
 // agentThinking 委托到 bootstrap.AgentThinking。
 func agentThinking(cfg *agentconfig.ThinkingConfig) *agentcore.ThinkingConfig {
 	return bootstrap.AgentThinking(cfg)

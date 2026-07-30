@@ -172,11 +172,15 @@ func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 	if s.provider != nil {
 		llmClient = reasoning.NewLlmClientFromProvider(s.provider, s.model)
 	}
-	// 仅在已有领域元数据时才注入五步推理工作流工具
-	if s.currentProjectMeta != nil && s.currentProjectMeta.MatterType != "" {
+	// 为当前项目注入五步推理工作流工具（存在项目上下文即可，MatterType 决定具体 CaseType）。
+	if s.currentProject != nil {
+		caseType := reasoning.CasePatentability
+		if s.currentProjectMeta != nil && s.currentProjectMeta.MatterType != "" {
+			caseType = mapMatterTypeToCaseType(s.currentProjectMeta)
+		}
 		runner := reasoning.NewWorkflowRunner(
 			s.currentProject.ProjectID,
-			mapMatterTypeToCaseType(s.currentProjectMeta),
+			caseType,
 			s.currentProject.Domain,
 			retriever,
 			llmClient,

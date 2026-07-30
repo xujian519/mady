@@ -71,8 +71,8 @@ func ClassifyIntent(input string) string {
 // 供 UnifiedAgentConfig 和 RouterConfigFromManifests 共享使用。
 // 不包含 chat/assistant（已合并进 UnifiedAgent）。
 //
-// AllowedSources 包含 "mady-router"（遗留 Router 委派）、"chat-agent"
-// （遗留集成模式委派）和 "mady-agent"（统一 Agent 委派），三者都是受信任的调度入口。
+// AllowedSources 包含 "mady-router"（遗留 Router 委派）和 "mady-agent"
+// （统一 Agent 委派），两者都是受信任的调度入口。
 // 扩展此白名单需要安全审阅。不包含 "*" 通配符，防止未授权 Agent 触发专业领域委派。
 func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig {
 	return []agentcore.HandoffConfig{
@@ -81,7 +81,7 @@ func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig
 			Description:    "专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对。",
 			Mode:           agentcore.HandoffDelegate,
 			AgentConfig:    PatentAgentConfig(base),
-			AllowedSources: []string{"mady-router", "chat-agent", "mady-agent"},
+			AllowedSources: []string{"mady-router", "mady-agent"},
 			FallbackMsg:    "专利分析功能暂时不可用，建议稍后重试或联系专业代理人。",
 		},
 		{
@@ -89,7 +89,7 @@ func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig
 			Description:    "法律咨询与研究。处理法条检索、判例检索、法律分析。",
 			Mode:           agentcore.HandoffDelegate,
 			AgentConfig:    LegalAgentConfig(base),
-			AllowedSources: []string{"mady-router", "chat-agent", "mady-agent"},
+			AllowedSources: []string{"mady-router", "mady-agent"},
 			FallbackMsg:    "法律分析功能暂时不可用，建议稍后重试或咨询专业律师。",
 		},
 	}
@@ -134,7 +134,7 @@ func RouterConfigFromManifests(base agentcore.Config, manifests []agentcore.Agen
 			Description:    m.Description,
 			Mode:           agentcore.HandoffDelegate,
 			AgentConfig:    factory(base),
-			AllowedSources: []string{"mady-router", "chat-agent", "mady-agent"}, // 与 ProfessionalHandoffConfigs 对齐，不使用通配符
+			AllowedSources: []string{"mady-router", "mady-agent"}, // 与 ProfessionalHandoffConfigs 对齐，不使用通配符
 			FallbackMsg:    fmt.Sprintf("%s 功能暂时不可用，请稍后再试。", m.Description),
 		})
 	}

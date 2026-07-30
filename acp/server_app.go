@@ -38,6 +38,9 @@ type RunOptions struct {
 	Lifecycle agentcore.LifecycleHook //nolint:staticcheck
 	// Extensions 注入知识扩展等可选能力（如 search_knowledge / add_document 工具）。
 	Extensions []agentcore.Extension
+	// BaseConfig 允许调用方传入预装配的 agentcore.Config（如 UnifiedAgentConfig）。
+	// 非空时 buildAgentConfig 会以此为基础，仅覆盖 model/prompt/turns 等 ACP 专属字段。
+	BaseConfig agentcore.Config
 	// AuthProvider 配置 ACP 认证；为 nil 时不校验认证（仅本地开发，
 	// 启动时输出警告）。配置后客户端须先 authenticate 才能调用会话方法。
 	AuthProvider AuthProvider
@@ -108,6 +111,13 @@ func (f *acpAgentFactory) AvailableModes() []SessionMode {
 }
 
 func buildAgentConfig(opts RunOptions, model string) agentcore.Config {
+	var cfg agentcore.Config
+	// 如果调用方提供了预装配配置（如 UnifiedAgentConfig），以其为基础，
+	// 保留 handoff/guardrails/doomloop/专业工具链等能力。
+	if opts.BaseConfig.Provider != nil {
+		cfg = opts.BaseConfig
+	}
+
 	// Resolve context window: explicit override takes priority, otherwise
 	// auto-resolve based on model name (e.g. deepseek-v4 → 1M).
 	ctxWindow := opts.ContextWindow
@@ -118,38 +128,45 @@ func buildAgentConfig(opts RunOptions, model string) agentcore.Config {
 	if maxTurns <= 0 {
 		maxTurns = 25
 	}
+
+	// 应用 ACP 专属覆盖，同时保留 BaseConfig 已注入的扩展/钩子。
+	cfg.ModelConfig = agentcore.ModelConfig{
+		Name:      "mady-acp",
+		Model:     model,
+		Provider:  opts.Provider,
+		Thinking:  opts.Thinking,
+		Streaming: true,
+	}
+	cfg.CompactionConfig = agentcore.CompactionConfig{
+		ContextWindow:    ctxWindow,
+		ReserveTokens:    32000,
+		KeepRecentTokens: 4000,
+	}
+	cfg.ExecutionConfig = agentcore.ExecutionConfig{
+		MaxTurns:          int64(maxTurns),
+		ExecutionMode:     agentcore.ModeSerial,
+		Concurrency:       5,
+		ValidateArguments: true,
+	}
+	cfg.RetryConfig = &agentcore.RetryConfig{
+		MaxRetries:  3,
+		BaseDelayMs: 1000,
+		MaxDelayMs:  15000,
+	}
+
 	prompt := opts.SystemPrompt
 	if prompt == "" {
 		prompt = defaultACPSystemPrompt
 	}
-	return agentcore.Config{
-		ModelConfig: agentcore.ModelConfig{
-			Name:      "mady-acp",
-			Model:     model,
-			Provider:  opts.Provider,
-			Thinking:  opts.Thinking,
-			Streaming: true,
-		},
-		SystemPrompt: prompt,
-		ExecutionConfig: agentcore.ExecutionConfig{
-			MaxTurns:          int64(maxTurns),
-			ExecutionMode:     agentcore.ModeSerial,
-			Concurrency:       5,
-			ValidateArguments: true,
-		},
-		CompactionConfig: agentcore.CompactionConfig{
-			ContextWindow:    ctxWindow,
-			ReserveTokens:    32000,
-			KeepRecentTokens: 4000,
-		},
-		RetryConfig: &agentcore.RetryConfig{
-			MaxRetries:  3,
-			BaseDelayMs: 1000,
-			MaxDelayMs:  15000,
-		},
-		Lifecycle:  opts.Lifecycle,
-		Extensions: opts.Extensions,
+	cfg.SystemPrompt = prompt
+
+	// 追加调用方显式传入的 lifecycle/extensions（向后兼容）。
+	if opts.Lifecycle != nil {
+		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, opts.Lifecycle)
 	}
+	cfg.Extensions = append(cfg.Extensions, opts.Extensions...)
+
+	return cfg
 }
 
 // RunServer assembles an AgentFactory + SessionManager + ACP Server from the
