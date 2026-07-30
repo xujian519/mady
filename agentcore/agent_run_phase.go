@@ -42,7 +42,7 @@ func (a *Agent) runPreTurn(ctx context.Context, loopStartTurn, turn int64) error
 	// 桌面端通过 SendAction → SetA2UIAction 写入的 action 在此被消费，
 	// 转换为 follow-up 消息后持久化到对话状态，让 agent 在下一轮 LLM
 	// 调用前感知到 UI 操作（如审批通过/拒绝）。
-	if err := a.consumePendingA2UIActions(ctx, turn); err != nil {
+	if err := a.consumePendingA2UIActions(ctx); err != nil {
 		return a.failLoop(ctx, fmt.Sprintf("turn:%d|a2ui", turn), "a2ui action consumption failed", err)
 	}
 	a.emit(&TurnStartEvent{baseEvent: newBase(EventTurnStart), Turn: turn})
@@ -249,7 +249,7 @@ func (a *Agent) endTurn(ctx context.Context, turn int64, usage TokenUsage, hadTo
 //
 // No-op when no promise is installed (safe for the TUI path where the agent
 // has no A2UIPromise), or when no action is pending.
-func (a *Agent) consumePendingA2UIActions(ctx context.Context, turn int64) error {
+func (a *Agent) consumePendingA2UIActions(ctx context.Context) error {
 	if a.a2uiPromise == nil {
 		return nil
 	}
