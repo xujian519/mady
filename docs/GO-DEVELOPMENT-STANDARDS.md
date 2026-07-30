@@ -6,8 +6,53 @@
 
 ---
 
+## 0. AI 编程快速参考（必读）
+
+> **AI 编码助手在每次生成 Go 代码前应逐项检查本节。** 本节是第 1-13 章中可机械执行的硬约束的提取，目标是让 AI 在不知道完整文档的情况下也能减少违规。
+
+### 0.1 必须遵守（违反即错误）
+
+| # | 规则 | 检查方式 |
+|---|------|---------|
+| 1 | **所有 error 必须检查** — 禁止 `_` 忽略 error | `go vet` 部分覆盖，人工 review |
+| 2 | **禁止 `import .`（dot import）** — 包括测试文件 | `golangci-lint` |
+| 3 | **禁止 `init()` 中 panic** — 用 `log.Printf` + stderr | 人工 review |
+| 4 | **禁止 `common/`、`utils/`、`base/` 等通用包** — 按领域语义命名 | `golangci-lint` 可配规则 |
+| 5 | **import 必须三组排序**：stdlib → 第三方 → `github.com/xujian519/mady/*`，组间空行 | `goimports -local github.com/xujian519/mady` |
+| 6 | **错误信息小写开头，不加标点** — `fmt.Errorf("...: %w", err)` 会拼接 | 人工 review |
+| 7 | **goroutine 必须知道如何退出** — 通过 `context.Context` 或 `<-done` 管理生命周期 | `go vet` 部分覆盖 |
+| 8 | **每个导出符号必须注释** — 格式 `// SymbolName 中文描述。` | `golangci-lint`（revive 规则） |
+| 9 | **嵌入配置变更** — 配置用 `Config` 嵌入子配置，提供 `Validate()`，在 `New()` 中校验 | 架构一致性，人工 review |
+| 10 | **Mutex 使用 `sync.RWMutex`** — 读多用 RLock，写用 Lock，命名 `xxxMu` | 人工 review |
+
+### 0.2 AI 高频违规模式（特别警惕）
+
+| 违规模式 | 说明 | 正确做法 |
+|---------|------|---------|
+| **幻觉 API** | 编造不存在的标准库或第三方函数 | 有疑问时 `grep -rn "函数名" --include="*.go"` 确认存在 |
+| **重复造轮子** | 不使用已有抽象（`LifecycleHook`、`Extension`、`Pregel` 节点、`NodeError` 包装） | 先查 `agentcore/` 和 `graph/` 的导出符号 |
+| **风格漂移** | 同一文件混用不同错误包装风格、命名习惯 | 读目标文件前 50 行，匹配已有风格 |
+| **过度工程化** | 为简单场景引入新接口、泛型、第三方库 | 先用标准库 + 已有抽象，3 次以上再抽象 |
+| **忽略 Context** | 函数不传 `context.Context`，goroutine 不响应取消 | 所有 I/O/LLM 调用第一个参数是 `ctx context.Context` |
+| **测试缺失** | 只写实现不写测试 | 每个导出函数至少一个 `_test.go` 表格驱动用例 |
+
+### 0.3 提交前自检清单
+
+```bash
+# AI 在完成代码修改后，必须运行以下命令确认无误：
+go build ./...            # 构建通过
+cd tools && go build ./... && cd ..  # 子模块通过
+go vet ./...              # 无警告
+go test -race ./...       # 测试通过（含竞态检测）
+```
+
+> 详细说明见第 1-13 章。本节为硬约束提炼，与正文冲突时以本节为准。
+
+---
+
 ## 目录
 
+0. [AI 编程快速参考（必读）](#0-ai-编程快速参考必读)
 1. [项目结构与模块组织](#1-项目结构与模块组织)
 2. [包设计与命名](#2-包设计与命名)
 3. [代码风格与格式化](#3-代码风格与格式化)
@@ -28,18 +73,28 @@
 
 ### 1.1 多模块布局
 
-Mady 使用 Go 1.26 多模块（`go.work`），根模块 + `./tools` 子模块：
+Mady 使用 Go 1.26 多模块（`go.work`），根模块 + 3 个子模块：
 
 ```go
 // go.work
-go 1.26.0
+go 1.26
+
 use (
     .
+    ./desktop
     ./tools
+    ./tui
 )
 ```
 
-> **何时拆分子模块**：当一组包与主项目生命周期不同、或需要独立版本号、或被外部复用。工具层（`tools/`）作为独立子模块，可以从外部导入。
+| 模块 | 用途 |
+|------|------|
+| `.`（根模块） | 核心引擎、领域逻辑、服务端 |
+| `./desktop` | 桌面应用 |
+| `./tools` | 内置工具扩展（可被外部 `go get` 导入） |
+| `./tui` | 终端 UI（8 层 Elm 架构） |
+
+> **何时拆分子模块**：当一组包与主项目生命周期不同、或需要独立版本号、或被外部复用。
 
 ### 1.2 目录约定
 
@@ -76,7 +131,7 @@ Mady 8 层架构，严格单向依赖：
                     ↓
                核心引擎层：agentcore
              ↙     ↓       ↘        ↘
-        提供者层  工具层(60)  扩展层    领域扩展层
+        提供者层  工具层(71)  扩展层    领域扩展层
              ↘     ↓       ↙        ↙
              基础设施层：graph/ session/ skill/ prompt/ store/
                       mcp/ knowledge/ retrieval/ disclosure/ memory/ ...
@@ -312,7 +367,7 @@ type NodeError struct {
 配套检查函数：
 
 ```go
-func IsRetryable(err error) bool
+func IsRetryableError(err error) bool
 func IsFatal(err error) bool
 func IsHandoffError(err error) bool
 func IsGuardrailError(err error) bool
@@ -351,7 +406,7 @@ func WrapNodeError(err error, pathSegment string) error
 var ErrExceedMaxSteps = fmt.Errorf("超出最大执行步数")
 
 // 类型断言判断
-func IsRetryable(err error) bool {
+func IsRetryableError(err error) bool {
     if err == nil { return false }
     _, ok := err.(*RetryableError)
     return ok
@@ -585,8 +640,7 @@ func (p *Pool[T]) Go(fn func() T) <-chan T {
 ### 7.1 测试文件组织
 
 - 测试文件与源文件同包（`package agentcore`），使用 `_test.go` 后缀。
-- 集成测试使用单独的 `package agentcore_test`（external test package）。
-- 测试辅助函数放 `testhelpers_test.go`（不对外导出）。
+- 测试辅助函数放 `testhelpers_test.go`（不对外导出），内部使用 `t.Helper()` 标记。
 - 服务/提供者的 stub 实现直接写在测试文件顶部。
 
 ### 7.2 表格驱动测试
@@ -625,7 +679,7 @@ func (p *stubProvider) Complete(ctx context.Context, req *ProviderRequest) (*Pro
     if p.callCount > len(p.responses) {
         return &ProviderResponse{Content: "final answer"}, nil
     }
-    return &ProviderProviderResponse{
+    return &ProviderResponse{
         Content: p.responses[p.callCount-1],
     }, nil
 }
@@ -780,7 +834,7 @@ func (a *Agent) Config() Config {
 
 ### 9.1 Go Modules
 
-- 最小依赖原则。Mady 核心依赖仅 4 个（`gorilla/websocket`、`modernc.org/sqlite`、`gopkg.in/yaml.v3`、OpenTelemetry）。
+- 最小依赖原则。Mady 核心依赖以标准库为主，第三方依赖严格控制（`gorilla/websocket`、`modernc.org/sqlite`、`gopkg.in/yaml.v3`、OpenTelemetry 等约 18 个直接依赖）。
 - 间接依赖通过 go.mod 自动管理，不要手动添加。
 
 ### 9.2 版本管理

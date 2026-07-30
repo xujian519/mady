@@ -170,6 +170,7 @@ mady/
   - 日常对话中不提及中观/佛教出处
 - **DocumentStyle**：`domains/style.go` 以 YAML 定义领域风格指南（tone/voice/anti_patterns/citation/disclaimers），`styles/` 目录 4 套默认风格
 - **Spec-Driven**：新功能按 proposal → spec → design → tasks 四阶段文档进行（详见 `docs/specs/`）
+- **Go 编码规范**：所有 Go 代码必须遵守 `docs/GO-DEVELOPMENT-STANDARDS.md`，AI 编码前必读第 0 章硬约束清单
 
 ## Handoff 交接机制
 
