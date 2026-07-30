@@ -269,14 +269,14 @@ func SetupPatentRoleConfig(path string) {
 
 // applyRoleConfig 将角色配置应用到 Agent 配置。
 // 如果 roleID 指定的角色存在且已注册，则：
-//   - 非零 Temperature 覆盖 cfg.ModelConfig.Temperature
-//   - 非零 MaxTokens 覆盖 cfg.ModelConfig.MaxTokens
+//   - 非零 Temperature 覆盖 cfg.Temperature
+//   - 非零 MaxTokens 覆盖 cfg.MaxTokens
 //   - SystemPrompt 追加到 cfg.SystemPrompt 末尾
 //
 // 注意：工具域过滤（DisableTools）不由本函数处理，因 DisableTools 位于
 // tools.ExtensionConfig 而非 agentcore.Config。请在创建工具扩展时调用
 // RoleToolFilter 获取禁用列表并合并到 ExtensionConfig.DisableTools 中。
-func applyRoleConfig(cfg *agentcore.Config, roleID string) {
+func applyRoleConfig(cfg *agentcore.Config, roleID string) { //nolint:unused // 预留角色配置注入点，后续 BuildPatentAgent 会调用
 	if roleID == "" {
 		return
 	}
@@ -287,14 +287,14 @@ func applyRoleConfig(cfg *agentcore.Config, roleID string) {
 
 	// 应用 Temperature 覆盖。
 	if roleCfg.Temperature != 0 {
-		cfg.ModelConfig.Temperature = roleCfg.Temperature
+		cfg.Temperature = roleCfg.Temperature
 		slog.Debug("patent: 角色 Temperature 已应用",
 			"role", roleID, "temperature", roleCfg.Temperature)
 	}
 
 	// 应用 MaxTokens 覆盖。
 	if roleCfg.MaxTokens > 0 {
-		cfg.ModelConfig.MaxTokens = roleCfg.MaxTokens
+		cfg.MaxTokens = roleCfg.MaxTokens
 		slog.Debug("patent: 角色 MaxTokens 已应用",
 			"role", roleID, "max_tokens", roleCfg.MaxTokens)
 	}

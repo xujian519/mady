@@ -123,7 +123,7 @@ type RoleSet map[string]RoleConfig
 // 顶层也可以有无 roles 包裹的扁平形式（与 BCIP 一致），
 // 但推荐使用 roles 命名空间以避免与全局配置冲突。
 func NewRoleSet(path string) (RoleSet, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // 路径来自框架配置文件，非用户输入
 	if err != nil {
 		return nil, fmt.Errorf("agentconfig: read role file %s: %w", path, err)
 	}

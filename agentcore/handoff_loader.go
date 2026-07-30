@@ -108,7 +108,7 @@ func (s *HandoffRoleStore) Load() error {
 				continue
 			}
 			fullPath := filepath.Join(dir, entry.Name())
-			data, err := os.ReadFile(fullPath)
+			data, err := os.ReadFile(fullPath) //nolint:gosec // 路径来自框架配置目录，非用户输入
 			if err != nil {
 				return fmt.Errorf("handoff role store: read %s: %w", fullPath, err)
 			}

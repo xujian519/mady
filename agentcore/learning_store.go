@@ -260,7 +260,7 @@ func (ls *LearningStore) SaveToFile(path string) error {
 
 // LoadFromFile 从 JSON 文件加载反馈数据。
 func (ls *LearningStore) LoadFromFile(path string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // 路径来自框架内部存储，非用户输入
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil

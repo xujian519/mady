@@ -80,7 +80,7 @@ func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool
 	if err != nil {
 		return nil, fmt.Errorf("mcp: marshal request: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.Endpoint, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.Endpoint, bytes.NewReader(data)) //nolint:gosec // c.cfg.Endpoint 由用户配置，SSRF 是预期行为
 	if err != nil {
 		return nil, fmt.Errorf("mcp: create request: %w", err)
 	}
@@ -93,7 +93,7 @@ func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool
 	sessionID, negotiatedProto := c.sessionState()
 	c.applyHeadersWithState(req, !isInitializeRequest(msg), !isInitializeRequest(msg), sessionID, negotiatedProto)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req) //nolint:gosec // 同上，MCP 端点由用户配置
 	if err != nil {
 		return nil, fmt.Errorf("mcp: http request: %w", err)
 	}

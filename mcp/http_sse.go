@@ -197,7 +197,7 @@ func splitSSEField(line string) (string, string) {
 }
 
 func (c *HTTPClient) resumeSSE(ctx context.Context, lastEventID string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.Endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.Endpoint, nil) //nolint:gosec // MCP 端点由用户配置
 	if err != nil {
 		return nil, fmt.Errorf("mcp: create resume request: %w", err)
 	}
@@ -205,7 +205,7 @@ func (c *HTTPClient) resumeSSE(ctx context.Context, lastEventID string) (*http.R
 	req.Header.Set(headerLastEventID, lastEventID)
 	c.applyHeaders(req, true, true)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req) //nolint:gosec // 同上
 	if err != nil {
 		return nil, fmt.Errorf("mcp: resume request: %w", err)
 	}
