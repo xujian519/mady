@@ -187,6 +187,9 @@ func TestStdioClient_ReportAsyncErrorEmitsTransportEvent(t *testing.T) {
 }
 
 func TestStdioClient_DiscoveryNotificationsRefreshCaches(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping MCP process-based test in short mode")
+	}
 	updatedCh := make(chan *ReadResourceResult, 1)
 	resourceListChangedCh := make(chan struct{}, 1)
 	promptListChangedCh := make(chan struct{}, 1)
@@ -752,6 +755,9 @@ func reverseString(v string) string {
 
 func newTestClient(t *testing.T) *Client {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping MCP process-based test in short mode")
+	}
 	client, err := NewStdioClient(context.Background(), StdioConfig{
 		Command:       os.Args[0],
 		Args:          []string{"-test.run=TestMCPHelperProcess", "--"},
@@ -768,6 +774,9 @@ func newTestClient(t *testing.T) *Client {
 
 func newTestExtension(t *testing.T) *StdioExtension {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping MCP process-based test in short mode")
+	}
 	ext, err := NewStdioExtension(context.Background(), StdioConfig{
 		Name:          "mcp-test",
 		Command:       os.Args[0],

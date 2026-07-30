@@ -56,6 +56,9 @@ func TestPatentDomainRetriever_NilReceiverSearch(t *testing.T) {
 }
 
 func TestPatentDomainRetriever_Search_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 	store := realStore(t)
 	r := NewPatentDomainRetriever(store)
 
@@ -106,6 +109,9 @@ func TestPatentDomainRetriever_Search_Integration(t *testing.T) {
 }
 
 func TestPatentDomainRetriever_GetDocument_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 	store := realStore(t)
 	r := NewPatentDomainRetriever(store)
 

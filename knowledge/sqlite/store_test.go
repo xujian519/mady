@@ -20,6 +20,9 @@ func testDBPath(t *testing.T) string {
 }
 
 func TestFTSSearch(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping FTS integration test in short mode")
+	}
 	store, err := NewSQLiteStore(testDBPath(t))
 	if err != nil {
 		t.Fatal(err)
@@ -40,6 +43,9 @@ func TestFTSSearch(t *testing.T) {
 }
 
 func TestLoadGraph(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping LoadGraph integration test in short mode")
+	}
 	store, err := NewSQLiteStore(testDBPath(t))
 	if err != nil {
 		t.Fatal(err)
@@ -60,6 +66,9 @@ func TestLoadGraph(t *testing.T) {
 }
 
 func TestSearchLaws(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping SearchLaws integration test in short mode")
+	}
 	store, err := NewSQLiteStore(testDBPath(t))
 	if err != nil {
 		t.Fatal(err)
