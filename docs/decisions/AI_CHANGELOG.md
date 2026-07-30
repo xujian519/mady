@@ -8658,3 +8658,40 @@ workflows/workflow.go                   (±40 行, Validate 补缺 + Kahn 拓扑
 workflows/workflow_test.go              (新增, 24 测试)
 workflows/templates_test.go             (新增, 10 测试)
 ```
+
+## 2026-07-30: fix(checker) 第三轮修复——Checker 包全面测试 + 双端通配符 bug（2 文件）
+
+### 问题
+1. `domains/checker/` — 4 个生产文件、0 个测试文件
+2. `catalog.go: matchArtifact` — 不支持 `*text*` 双端通配符模式，
+   `*novelty*` 无法匹配 `novelty-analysis.md`、`*侵权*` 无法匹配含中文的文件路径
+
+### 修复
+
+**1. `domains/checker/checker_test.go`（新增）— 35 个测试用例**
+- Catalog（Register/Get/Replace/List 返回副本/Suggest 通配符/DefaultCatalog）
+- matchArtifact（精确/后缀/前缀/双端/空/全通配）
+- Dispatch（RegisterHandler/SuggestCheckers/RunChecker 未注册/无 handler/有 handler/RunAllMatching）
+- VerdictAggregator（空/全通过/需修订主导/阻塞主导/问题去重）
+- FormatVerdict/ParseVerdict/FormatReviewPrompt
+- Extension（Name/RegisterHandler/Init/Dispose/Tools/SystemPromptSuffix）
+
+**2. `domains/checker/catalog.go` — matchArtifact 修复**
+- 新增双端 `*...*` 分支：当 pattern 以 `*` 开头且以 `*` 结尾时，
+  使用 `strings.Contains` 做子串匹配
+- 添加 `"strings"` import
+
+### 验证
+```
+go build ./... ✓
+go vet ./... ✓
+go test -race -count=1 ./... ✓ (全通过, 0 FAIL)
+go test -race ./tools/... ✓
+go test -race ./tui/... ✓
+```
+
+### 变更文件
+```
+domains/checker/catalog.go           (+15 行, matchArtifact 双端通配符 + import)
+domains/checker/checker_test.go      (新增, 35 测试, 653 行)
+```
