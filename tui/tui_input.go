@@ -28,6 +28,30 @@ func (t *TUI) processMsg(msg core.Msg) {
 	t.msgCount++
 	t.mu.Unlock()
 
+	// Debounce rapid WindowSizeMsg events: coalesce multiple resize events
+	// within 100ms into a single update. This prevents layout thrashing
+	// when the user drags a tmux pane border or quickly resizes a window.
+	if _, ok := msg.(core.WindowSizeMsg); ok {
+		// Stop any pending debounce timer. If the old timer has already
+		// fired (Stop returns false), the callback is either running or
+		// about to run with the stale msg copy from its closure — that's
+		// harmless because the callback only calls SendMsg which is a
+		// channel send on msgCh, and the event loop will process it
+		// alongside any newer resize event.
+		if old := t.resizeThrottle.timer.Load(); old != nil {
+			old.Stop()
+		}
+		// Copy to local variable so the AfterFunc closure reads from
+		// this copy, not from the struct field (which may be overwritten
+		// by a subsequent resize event).
+		pendingMsg := msg.(core.WindowSizeMsg)
+		timer := time.AfterFunc(100*time.Millisecond, func() {
+			t.SendMsg(pendingMsg)
+		})
+		t.resizeThrottle.timer.Store(timer)
+		return // don't process intermediate resize events
+	}
+
 	switch m := msg.(type) {
 	case core.BatchMsg:
 		// Run every Cmd concurrently — each result Msg flows back into the

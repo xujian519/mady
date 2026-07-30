@@ -217,6 +217,18 @@ type TUI struct {
 		first    bool // true before first frame emits cursor
 	}
 
+	// resizeThrottle guards against rapid SIGWINCH events. Terminal multiplexer
+	// resize operations (tmux pane resize, window split drag) can produce 10+
+	// resize events in under 100ms. The throttle coalesces them so only the
+	// last resize within the window triggers a re-render.
+	//
+	// timer is accessed from two goroutines: processMsg (event loop) writes
+	// it, and Stop (any goroutine) reads it to cancel pending timers. Both
+	// use atomic.Load/Store to avoid a data race.
+	resizeThrottle struct {
+		timer atomic.Pointer[time.Timer] // 100ms debounce timer; nil when idle
+	}
+
 	// debugMetrics accumulates runtime diagnostics for the ctrl+shift+d
 	// debug overlay. All fields are accessed under t.mu.
 	frameStamps    [debugFrameCap]time.Time // circular buffer of frame timestamps
@@ -311,6 +323,15 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 	if o.TickInterval <= 0 {
 		o.TickInterval = 8 * time.Millisecond
 	}
+
+	// In CI environments, disable interactive features that depend on a
+	// real terminal — synchronized output, mouse capture, and alt screen
+	// are all meaningless or harmful in a CI log.
+	if terminal.IsCIEnvironment() {
+		o.DisableSynchronizedOutput = true
+		o.AltScreen = false
+		o.MouseMode = "off"
+	}
 	km := o.Keybindings
 	if km == nil {
 		km = terminal.GetGlobalKeybindings()
@@ -348,13 +369,17 @@ func (t *TUI) AddChild(c core.Component) {
 	t.RequestRender()
 }
 
-// RemoveChild removes the first occurrence of c.
+// RemoveChild removes the first occurrence of c. If c implements Disposable,
+// Dispose is called after removal so the component can release resources.
 func (t *TUI) RemoveChild(c core.Component) bool {
 	t.mu.Lock()
 	for i, ch := range t.children {
 		if ch == c {
 			t.children = append(t.children[:i], t.children[i+1:]...)
 			t.mu.Unlock()
+			if d, ok := c.(core.Disposable); ok {
+				d.Dispose()
+			}
 			t.RequestRender()
 			return true
 		}

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -353,5 +354,131 @@ func TestProcessMsg_DoesNotBroadcastToNonFocusedOverlays(t *testing.T) {
 	}
 	if background.count != 0 {
 		t.Fatalf("background overlay received duplicated key event, count = %d", background.count)
+	}
+}
+
+// disposableComponent implements core.Component and core.Disposable for
+// testing the Disposable integration.
+type disposableComponent struct {
+	core.Component
+	disposed chan struct{}
+}
+
+func (d *disposableComponent) Render(int64) []string { return nil }
+func (d *disposableComponent) Invalidate()           {}
+func (d *disposableComponent) Dispose() {
+	select {
+	case d.disposed <- struct{}{}:
+	default:
+	}
+}
+
+// TestStopDisposesChildren verifies that Stop calls Dispose on child
+// components that implement core.Disposable.
+func TestStopDisposesChildren(t *testing.T) {
+	vt := terminal.NewVirtualTerminal(80, 24)
+	app := NewTUI(vt, TUIOptions{})
+	defer app.Stop()
+
+	disposed := make(chan struct{}, 1)
+	comp := &disposableComponent{disposed: disposed}
+	app.AddChild(comp)
+	app.Start()
+
+	if err := app.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+
+	select {
+	case <-disposed:
+	case <-time.After(time.Second):
+		t.Fatal("Dispose was not called on Stop (timeout)")
+	}
+}
+
+// TestRemoveChildDisposes verifies that RemoveChild calls Dispose on the
+// removed child if it implements core.Disposable.
+func TestRemoveChildDisposes(t *testing.T) {
+	vt := terminal.NewVirtualTerminal(80, 24)
+	app := NewTUI(vt, TUIOptions{})
+
+	disposed := make(chan struct{}, 1)
+	comp := &disposableComponent{disposed: disposed}
+	app.AddChild(comp)
+	app.Start()
+
+	if !app.RemoveChild(comp) {
+		t.Fatal("RemoveChild returned false")
+	}
+
+	select {
+	case <-disposed:
+	case <-time.After(time.Second):
+		t.Fatal("Dispose was not called on RemoveChild (timeout)")
+	}
+
+	app.Stop()
+}
+
+// TestNonDisposableChildrenNotAffected verifies that Stop does not panic or
+// fail when children do NOT implement Disposable.
+func TestNonDisposableChildrenNotAffected(t *testing.T) {
+	vt := terminal.NewVirtualTerminal(80, 24)
+	app := NewTUI(vt, TUIOptions{})
+
+	comp := &keyCounterComponent{}
+	app.AddChild(comp)
+	app.Start()
+
+	if err := app.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+}
+
+// TestRenderResizeHint verifies that renderFrame shows a resize hint when
+// the terminal is too narrow (<80 columns).
+func TestRenderResizeHint(t *testing.T) {
+	vt := terminal.NewVirtualTerminal(60, 24) // too narrow: 60 < 80
+	app := NewTUI(vt, TUIOptions{})
+
+	// The terminal is only 60 cols wide — renderFrame should show the hint.
+	app.renderFrame()
+
+	out := vt.OutputString()
+	if !strings.Contains(out, "Terminal too narrow") {
+		t.Fatalf("expected resize hint in output, got %q", out)
+	}
+	if !strings.Contains(out, "60") {
+		t.Fatalf("expected current width (60) in hint, got %q", out)
+	}
+}
+
+// TestRenderResizeHintRecovery verifies that normal rendering resumes after
+// the terminal is resized to a sufficient width.
+func TestRenderResizeHintRecovery(t *testing.T) {
+	vt := terminal.NewVirtualTerminal(60, 24) // starts narrow
+	app := NewTUI(vt, TUIOptions{})
+
+	comp := &staticComponent{lines: []string{"normal content"}}
+	app.AddChild(comp)
+
+	// First render at 60 cols — should show hint.
+	app.renderFrame()
+	out := vt.OutputString()
+	if !strings.Contains(out, "Terminal too narrow") {
+		t.Fatalf("expected hint at 60 cols, got %q", out)
+	}
+
+	// Reset output, resize to 100 cols, and re-render — should show normal
+	// content without the hint.
+	vt.ResetOutput()
+	vt.Resize(100, 24)
+	app.renderFrame()
+	out = vt.OutputString()
+	if strings.Contains(out, "Terminal too narrow") {
+		t.Fatalf("hint should disappear after resize to 100 cols, got %q", out)
+	}
+	if !strings.Contains(out, "normal content") {
+		t.Fatalf("expected normal content after resize, got %q", out)
 	}
 }

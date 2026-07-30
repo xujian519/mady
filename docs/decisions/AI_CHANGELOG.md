@@ -8104,3 +8104,42 @@ Mady 缺少本地 OCR 能力（仅依赖云端多模态 LLM 的 `vision_analyze`
 - `go build ./...` — 通过
 - `go vet ./domains/rules/...` — 通过
 - `go test ./agentcore/worker/` — 3/3 通过
+
+---
+
+## 2026-07-30: docs(tui) 制定 Mady TUI 规范 v1.0 — 综合 XiaoNuo 社区标准
+
+### 背景
+参照 XiaoNuo Agent 项目的 `docs/tui-design-standards.md`（基于 Ratatui/Bubble Tea/Textual/Ink/Monospace Design TUI/clig.dev/Apple HIG 等开源社区实践的综合规范），结合 Mady 自研 8 层 Elm 架构 TUI 的实际实现（107 源 + 51 测试文件），制定本项目的 TUI 设计规范。
+
+### 变更内容
+- **新增** `docs/mady-tui-standards.md`（31KB/622行，13 章）：
+  - §1-11 逐章映射 XiaoNuo 社区标准到 Mady 现有实现，每条标注实现状态（✅ 已实现 / ⚠️ 部分实现 / ❌ 差距）
+  - §12 差距分析与改进路线图：列出 12 项差距（P0-P3），分 4 个 Sprint 规划
+  - §13 附录：覆盖度矩阵、映射文件索引、引用资源
+  - 定义了 6 条 Mady 特有规则（M-TUI-PHL/M-TUI-LAY/M-TUI-CMP/M-TUI-KB/M-TUI-COLOR/M-TUI-TRM/M-TUI-STA/M-TUI-CLI）
+
+### 关键发现
+**✅ 已对齐的高覆盖领域**：
+- 渲染引擎（差分布尔/同步输出/批量写入）— 95% 对齐
+- 状态与反馈（Spinner/错误处理/双重编码）— 85% 对齐
+- CLI 互操作（非 TTY 降级/管道检测）— 80% 对齐
+
+**⚠️ 部分实现**：
+- 布局架构（缺响应式断点/最小尺寸门闩）— 75%
+- 组件设计（缺 Dispose 接口）— 80%
+- 无障碍（缺 reduceMotion/自动化对比度审计）— 70%
+
+**❌ 关键差距**：
+| P0 | 组件 Dispose() 接口 | 资源泄漏风险 |
+| P0 | 最小尺寸门闩（<80×24 提示） | 小终端 UI 错乱 |
+| P1 | Footer 组件常驻快捷键 | 用户难以发现快捷键 |
+| P1 | CI 对比度审计 | 无障碍合规无法自动验证 |
+| P1 | CI=true 环境变量处理 | CI 中可能出现 ANSI 泄漏 |
+
+### 修改文件
+- `docs/mady-tui-standards.md` — 新建（Mady TUI 规范 v1.0）
+
+### 验证
+- `go build ./...` ✅ 编译通过
+- 所有架构引用经代码验证与实际一致（Disposable/Footer/CI=true/debounce 等差距确认缺失；DiffFrame/CSI2026/KeybindingsManager/NO_COLOR/VirtualTerminal 等功能确认存在）

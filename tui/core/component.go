@@ -58,6 +58,20 @@ type Updatable interface {
 	Update(msg Msg) Cmd
 }
 
+// Disposable is an optional interface that components implement to release
+// resources when they are removed from the TUI or when the TUI stops.
+//
+// Resources include running goroutines, timers, tickers, file watchers,
+// network connections, and event subscriptions. Dispose is called exactly
+// once per component — either from TUI.RemoveChild or from TUI.Stop on
+// every remaining child.
+//
+// After Dispose returns, the component MUST NOT be reused. Callers that
+// need a fresh component should construct a new one.
+type Disposable interface {
+	Dispose()
+}
+
 // Focusable marks a component that can hold a visible hardware cursor
 // (needed for IME candidate-window positioning with CJK input methods).
 //

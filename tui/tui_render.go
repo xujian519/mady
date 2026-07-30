@@ -4,6 +4,13 @@ package tui
 // requests, renderFrame composes children rows + overlays into a cell grid,
 // emits a differential (or full) frame wrapped in CSI 2026 synchronized
 // output, and normalizeLine clamps a component line to the terminal width.
+//
+// Minimum terminal size:
+//   - Below 80 columns or 24 rows the terminal is too small for the TUI
+//     layout. renderFrame detects this and displays a resize hint instead
+//     of the normal UI.
+//   - When the terminal is resized back to ≥80×24, normal rendering resumes
+//     automatically on the next frame.
 
 import (
 	"bytes"
@@ -28,7 +35,16 @@ func (t *TUI) RequestRender() {
 
 func (t *TUI) renderFrame() {
 	renderStart := time.Now() // for budget monitoring
-	cols, _ := t.term.Size()
+
+	// Minimum terminal size gate: below 80×24 the layout does not fit.
+	// Show a resize hint instead of garbled content. Normal rendering
+	// resumes automatically on the next frame after resize.
+	termCols, _ := t.term.Size()
+	if termCols < minTermCols {
+		t.renderResizeHint(termCols, 24) // assume 24 rows for hint layout
+		return
+	}
+	cols := termCols
 	if cols <= 0 {
 		cols = 80
 	}
@@ -85,11 +101,11 @@ func (t *TUI) renderFrame() {
 	overlays := make([]*Overlay, len(t.overlays))
 	copy(overlays, t.overlays)
 	t.mu.Unlock()
-	_, termRows := t.term.Size()
-	if termRows <= 0 {
-		termRows = int64(len(rows))
+	_, termRows2 := t.term.Size()
+	if termRows2 <= 0 {
+		termRows2 = int64(len(rows))
 	}
-	rows = composeOverlays(rows, overlays, cols, termRows)
+	rows = composeOverlays(rows, overlays, cols, termRows2)
 
 	// Safety net: clip the total output to termRows. Even though the Flex
 	// layout should always produce exactly termRows lines, any mismatch
@@ -99,9 +115,9 @@ func (t *TUI) renderFrame() {
 	// Clipping from the top keeps the editor and status bar visible at the
 	// bottom where the user is typing. A debug log is emitted when clipping
 	// fires so layout bugs can be diagnosed even if the user doesn't notice.
-	if int64(len(rows)) > termRows {
-		slog.Debug("render frame clipped", "got", len(rows), "max", termRows)
-		rows = rows[len(rows)-int(termRows):]
+	if int64(len(rows)) > termRows2 {
+		slog.Debug("render frame clipped", "got", len(rows), "max", termRows2)
+		rows = rows[len(rows)-int(termRows2):]
 	}
 
 	// Locate the IME cursor marker across all rows. ParseLine already strips
@@ -271,6 +287,77 @@ func (t *TUI) renderFrame() {
 
 // normalizeLine ensures a single component-rendered line fits within `cols`.
 // It truncates with ellipsis and preserves ANSI styles across the cut.
+// ---------------------------------------------------------------------------
+// Minimum terminal size
+// ---------------------------------------------------------------------------
+
+// minTermCols defines the minimum terminal width for the TUI.
+// Below this value, a resize hint is shown instead of the normal UI.
+// Row height is not checked — terminals naturally scroll content
+// vertically, and many valid use cases (embedded terminals, panes)
+// may have fewer than 24 rows.
+const minTermCols int64 = 80
+
+// renderResizeHint displays a centered, boxed resize hint when the terminal
+// is too small for the TUI layout. Pure text-only rendering (no components,
+// no cell grid) — guaranteed to work at any terminal size.
+func (t *TUI) renderResizeHint(cols, rows int64) {
+	var buf bytes.Buffer
+	buf.WriteString("\x1b[?25l") // hide cursor
+	buf.WriteString("\x1b[H")    // cursor home
+	buf.WriteString("\x1b[J")    // clear below
+
+	// Build the hint message.
+	hint := fmt.Sprintf("Terminal too narrow  |  Min: %d cols  |  Current: %d cols",
+		minTermCols, cols)
+	hintCN := "终端窗口太小，请放大以继续使用"
+
+	// Use a simple box.
+	boxWidth := len(hint) + 4
+	if boxWidth < 50 {
+		boxWidth = 50
+	}
+	topY := rows / 2
+	textY := topY + 1
+	hintCNY := textY + 1
+	botY := hintCNY + 1
+	leftX := (cols - int64(boxWidth)) / 2
+	if leftX < 0 {
+		leftX = 0
+	}
+
+	// Top border
+	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH╔", topY+1, leftX+1))
+	for i := int64(2); i < int64(boxWidth); i++ {
+		buf.WriteString("═")
+	}
+	buf.WriteString("╗")
+
+	// Chinese hint
+	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH║  %-*s  ║", hintCNY+1, leftX+1, boxWidth-6, hintCN))
+	// English hint
+	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH║  %-*s  ║", textY+1, leftX+1, boxWidth-6, hint))
+	// Bottom border
+	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH╚", botY+1, leftX+1))
+	for i := int64(2); i < int64(boxWidth); i++ {
+		buf.WriteString("═")
+	}
+	buf.WriteString("╝")
+
+	// Move cursor out of the way and show it.
+	buf.WriteString(fmt.Sprintf("\x1b[%d;1H", botY+2))
+	buf.WriteString("\x1b[?25h") // show cursor
+
+	if _, err := t.term.Write(buf.Bytes()); err != nil {
+		slog.Default().Debug("resize hint write failed", "error", err)
+	}
+
+	// Mark as first frame so normal rendering does a full clear on return.
+	t.mu.Lock()
+	t.firstFrame = true
+	t.mu.Unlock()
+}
+
 func normalizeLine(line string, cols int64) string {
 	if core.VisibleWidth(line) <= cols {
 		return line

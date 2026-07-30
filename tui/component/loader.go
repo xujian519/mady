@@ -104,6 +104,11 @@ func (l *Loader) Stop() {
 	l.onRequestRender()
 }
 
+// Dispose implements core.Disposable. It stops the loader animation and
+// releases the animation goroutine. After Dispose, the loader MUST NOT
+// be reused.
+func (l *Loader) Dispose() { l.Stop() }
+
 // IsRunning reports whether the loader animation is active.
 func (l *Loader) IsRunning() bool {
 	l.mu.RLock()

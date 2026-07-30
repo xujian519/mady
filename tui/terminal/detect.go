@@ -267,6 +267,24 @@ func (tc *TerminalContext) KittyKeyboardSkipReason() string {
 }
 
 // ---------------------------------------------------------------------------
+// CI detection
+// ---------------------------------------------------------------------------
+
+// IsCIEnvironment reports whether the process is running inside a CI system.
+// CI environments have no real terminal — TUI features like alternate screen,
+// mouse capture, and synchronized output are either unavailable or pointless.
+//
+// Detection is based on well-known CI environment variables.
+// See https://docs.github.com/en/actions/learn-github-actions/variables
+func IsCIEnvironment() bool {
+	return os.Getenv("CI") == "true" ||
+		os.Getenv("GITHUB_ACTIONS") == "true" ||
+		os.Getenv("GITLAB_CI") == "true" ||
+		os.Getenv("JENKINS_HOME") != "" ||
+		os.Getenv("TF_BUILD") == "true"
+}
+
+// ---------------------------------------------------------------------------
 // Env collection (pure, injectable)
 // ---------------------------------------------------------------------------
 

@@ -329,6 +329,12 @@ func (l *chatLayout) handleKeyMsg(m core.KeyMsg) bool {
 // Returns true if the key was consumed; false to continue iteration.
 func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 	name := strings.ToLower(k.Name)
+
+	// When search is active, route all printable characters to search.
+	if l.history.SearchMode() {
+		return l.dispatchSearchKey(k)
+	}
+
 	switch name {
 	case "f2":
 		l.app.ToggleMousePassthrough()
@@ -376,8 +382,61 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 			l.app.ToggleTodoPanel()
 			return true
 		}
+	case "slash":
+		l.history.SearchActivate()
+		if l.app.host != nil {
+			l.app.host.RequestRender()
+		}
+		return true
 	case "c", "insert":
 		return l.handleCopyOrInterrupt(k, name)
+	}
+	return false
+}
+
+// dispatchSearchKey handles key events while search mode is active.
+// All printable characters are appended to the search query; navigation
+// keys (n/N, Esc, Enter, Backspace) control search mode behavior.
+func (l *chatLayout) dispatchSearchKey(k terminal.Key) bool {
+	name := strings.ToLower(k.Name)
+	reqRender := func() {
+		if l.app.host != nil {
+			l.app.host.RequestRender()
+		}
+	}
+	switch name {
+	case "escape":
+		l.history.SearchDeactivate()
+		reqRender()
+		return true
+	case "enter":
+		l.history.SearchDeactivate()
+		reqRender()
+		return true
+	case "n":
+		if k.Mods&terminal.ModShift == 0 {
+			l.history.SearchNext()
+		} else {
+			l.history.SearchPrev()
+		}
+		reqRender()
+		return true
+	case "backspace":
+		if len(l.history.SearchQuery()) == 0 {
+			// Empty query + Backspace = exit search mode.
+			l.history.SearchDeactivate()
+		} else {
+			l.history.SearchBackspace()
+		}
+		reqRender()
+		return true
+	default:
+		// Only single printable characters (no modifiers) feed the search.
+		if len(name) == 1 && k.Mods == 0 {
+			l.history.SearchAppend(rune(name[0]))
+			reqRender()
+			return true
+		}
 	}
 	return false
 }

@@ -130,6 +130,25 @@ func (t *TUI) Stop() error {
 		t.cancel()
 	}
 
+	// Dispose all children that implement Disposable. This ensures any
+	// goroutines, timers, or other resources held by child components are
+	// released when the TUI shuts down, preventing resource leaks.
+	t.mu.Lock()
+	for _, c := range t.children {
+		if d, ok := c.(core.Disposable); ok {
+			d.Dispose()
+		}
+	}
+	t.mu.Unlock()
+
+	// Stop the resize throttle timer so its AfterFunc callback doesn't fire
+	// after Stop has completed. The callback calls SendMsg which is guarded
+	// by the stopped flag, but stopping the timer avoids an unnecessary
+	// goroutine wakeup.
+	if old := t.resizeThrottle.timer.Load(); old != nil {
+		old.Stop()
+	}
+
 	// Stop the mouse-throttle ticker to prevent a goroutine leak from the
 	// ticker's internal goroutine. The ticker is created in NewTUI and lives
 	// for the full TUI lifetime unconditionally (not just while mouse is

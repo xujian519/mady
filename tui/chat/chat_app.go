@@ -258,6 +258,8 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 		statusBar.SetMode(cfg.Title)
 	}
 
+	footer := component.NewFooter()
+
 	chatApp := &ChatApp{
 		cfg:                cfg,
 		host:               cfg.Host,
@@ -280,6 +282,7 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 	chatApp.header = newChatHeader(cfg)
 	chatApp.ac = newChatAutocomplete(cfg, chatApp)
 	chatApp.layout = newChatLayout(cfg, chatApp, history, editor, loader, statusBar)
+	chatApp.SetFooter(footer)
 	chatApp.todoPanel.SetDataProvider(chatApp.collectTodoItems)
 	if chatApp.host != nil {
 		chatApp.todoPanel.SetOnInvalidate(chatApp.host.RequestRender)
