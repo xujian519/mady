@@ -9,7 +9,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 | 1 Terminal I/O | `tui/terminal` | Terminal abstraction, key parsing, input buffer, ANSI builders | Layer 0 |
 | 2 Theming | `tui/theme` | Palette, semantic theme, a11y theme, JSON loading, file watch, Style | Layer 0, 1 |
 | 3 Engine | `tui` (root) | TUI container, event loop, overlay system, focus stack, ChatApp bridge | Layer 0–2, chat |
-| 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels) — 35 source files | Layer 0–2, fuzzy |
+| 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels, toast, onboarding) — 37 source files | Layer 0–2, fuzzy |
 | 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 14 source files | Layer 0–2, 4 |
 | 6 Stdio | `tui/stdio` | Procedural stdout/stdin tools (Spinner, Renderer, ProgressBar, LineReader, layout) | Layer 0, 1, 2 |
 | 7 Adapter | `tui/agentadapter` | Agentcore → chat event conversion, BindAgent convenience | Layer 5, agentcore |
@@ -30,7 +30,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 110 source files (+ 63 test files) across 10 packages.
+> Auto-verified: 112 source files (+ 64 test files) across 10 packages.
 > Last sync: 2026-07-30.
 
 ```
@@ -77,7 +77,7 @@ tui/
 │   ├── system_appearance.go # macOS NSAppearance dark/light detection
 │   └── theme_registry.go  # Theme registry: built-in + user theme registration
 │
-├── component/             # Layer 4 — Components (38 source files)
+├── component/             # Layer 4 — Components (40 source files)
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
 │   ├── text.go            # Text, TruncatedText
@@ -109,6 +109,8 @@ tui/
 │   ├── skill_center.go    # SkillCenter: skill list and management overlay
 │   ├── system_status.go   # SystemStatus: system-mode display overlay
 │   ├── todo_panel.go      # TodoPanel: task tracking panel
+│   ├── toast.go           # Toast: transient notification bar with auto-dismiss
+│   ├── onboarding.go      # FirstRunWizard: welcome guide for first-time users
 │   │
 │   ├── syntax.go          # Syntax highlighter core (entry point, 313 lines)
 │   ├── syntax_langs.go    # Built-in language specs (Go, Bash, JSON, YAML, etc.)
