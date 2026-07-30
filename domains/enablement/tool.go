@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/disclosure"
+	"github.com/xujian519/mady/domains/iface"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -257,9 +257,9 @@ func stringsJoin(s ...string) string {
 	return b.String()
 }
 
-// NewEnablementToolFromReport 从 disclosure 报告构造评估输入并执行评估。
-// 这是一个便捷函数，供需要从 disclosure.AnalysisReport 直接创建输入的场景使用。
-func NewEnablementToolFromReport(provider agentcore.Provider, report *disclosure.AnalysisReport) (*EnablementResult, error) {
+// NewEnablementToolFromReport 从 iface 报告构造评估输入并执行评估。
+// 这是一个便捷函数，供需要从 iface.AnalysisReport 直接创建输入的场景使用。
+func NewEnablementToolFromReport(provider agentcore.Provider, report *iface.AnalysisReport) (*EnablementResult, error) {
 	if provider == nil {
 		return nil, nil
 	}
@@ -270,7 +270,7 @@ func NewEnablementToolFromReport(provider agentcore.Provider, report *disclosure
 			input.Features = append(input.Features, TechFeature{
 				ID:          f.ID,
 				Description: f.Description,
-				Category:    string(f.Category),
+				Category:    f.Category,
 				Function:    f.Function,
 				Importance:  f.Importance,
 			})
@@ -294,7 +294,7 @@ func NewEnablementToolFromReport(provider agentcore.Provider, report *disclosure
 		input.HasDrawings = report.Document.HasDrawings
 		input.DocSections = make(map[string]string)
 		for section, content := range report.Document.Sections {
-			input.DocSections[string(section)] = content
+			input.DocSections[section] = content
 		}
 	}
 

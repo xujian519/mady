@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/disclosure"
+	"github.com/xujian519/mady/domains/iface"
 )
 
 // ExtensionName 是 specdrafting 扩展的名称。
@@ -196,7 +196,7 @@ func (e *Extension) handleValidateSpecification(ctx context.Context, args json.R
 // buildInputFromParams 从工具参数构造 SpecInput。
 func buildInputFromParams(rawDisc string, extraction json.RawMessage, patentType PatentType, domain TechDomain, hasDrawings bool, claims []string) *SpecInput {
 	if len(extraction) > 0 {
-		var ext disclosure.ExtractionResult
+		var ext iface.ExtractionResult
 		if err := json.Unmarshal(extraction, &ext); err == nil {
 			input := SpecInputFromExtraction(&ext, patentType, hasDrawings, claims)
 			input.TechDomain = domain

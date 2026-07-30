@@ -9,11 +9,11 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/agentcore/worker"
-	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains/checker"
 	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
+	"github.com/xujian519/mady/domains/iface"
 	"github.com/xujian519/mady/domains/infringement"
 	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/domains/novelty"
@@ -358,6 +358,24 @@ func domainInList(domain string, list []string) bool {
 	return false
 }
 
+// disclosureToolFactory 是 analyze_disclosure 工具的构造函数。
+// 由 bootstrap 层通过 SetDisclosureToolFactory 注入，避免 domains 根包直接导入 disclosure。
+var disclosureToolFactory iface.DisclosureToolFactory
+
+// SetDisclosureToolFactory 注入 disclosure 工具构造函数。
+// 必须在 PatentAgentConfig 之前调用，通常在 bootstrap 阶段完成。
+func SetDisclosureToolFactory(f iface.DisclosureToolFactory) {
+	disclosureToolFactory = f
+}
+
+// disclosureToolFactoryOrDefault 返回工厂创建的 disclosure 工具，工厂未设置时返回 nil。
+func disclosureToolFactoryOrDefault(provider agentcore.Provider) *agentcore.Tool {
+	if disclosureToolFactory != nil {
+		return disclosureToolFactory(provider)
+	}
+	return nil
+}
+
 // PatentAgentConfig builds the patent domain Agent configuration.
 //
 // toolExt 是调用方已装配好的工具扩展，通过被动注入传入。
@@ -428,7 +446,7 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		inventiveness.NewInventivenessTool(inventiveness.WithProvider(base.Provider)),
 		novelty.NewNoveltyTool(novelty.WithProvider(base.Provider)),
 		design.NewDesignInvalidationTool(),
-		disclosure.NewDisclosureTool(base.Provider),
+		disclosureToolFactoryOrDefault(base.Provider),
 		globalPatentEvalTool,
 		provisions.NewResolveDomainWorkersTool(""),
 	})...)

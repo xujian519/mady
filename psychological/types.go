@@ -75,7 +75,7 @@ type PipelineMetadata struct {
 
 // PipelineConfig 管道运行配置
 type PipelineConfig struct {
-	SkipDistortionDetection bool
+	SkipDistortionDetection bool // TODO: 待需求驱动实现 — 当前引擎无认知偏差检测逻辑，此字段暂无行为效果
 }
 
 // ============================================================================
@@ -84,5 +84,5 @@ type PipelineConfig struct {
 
 // Config 心理引擎配置
 type Config struct {
-	SkipDistortionDetection bool
+	SkipDistortionDetection bool // TODO: 待需求驱动实现 — 当前引擎无认知偏差检测逻辑，此字段暂无行为效果
 }

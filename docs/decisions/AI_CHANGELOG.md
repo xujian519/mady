@@ -1,5 +1,44 @@
 # AI 变更记录
 
+## 2026-07-31: refactor(domains) P0-2 Domain→Infrastructure 接口隔离 — disclosure 依赖移除
+
+**背景**：domain 子包（enablement/inventiveness/specdrafting）及 domains 根包直接导入 `disclosure` 包，违反分层架构的依赖倒置原则（Domain 层不得 import Infrastructure 层的具体实现）。根据 `AGENTS.md` 编码规范，"Domain 层不得 import Infrastructure 层的具体实现，只能依赖接口"。第 1 批聚焦 disclosure（最高频的导入源）。
+
+**改动清单**：
+1. `domains/iface/disclosure.go` — **新建** `domains/iface/` 内部包，定义 disclosure 的领域安全值类型（`TechFeature`/`PFETriple`/`ExtractionResult`/`DisclosureDoc`/`NoveltyResult`/`AnalysisReport`/`EvidenceChunk`），仅含 domain 层实际使用的字段，避免暴露 disclosure 包内部结构。同时定义 `DisclosureToolFactory` 函数类型用于工具装配
+2. `domains/specdrafting/types.go` — `SpecInputFromExtraction` 签名改为接受 `*iface.ExtractionResult`，移除 `disclosure` 导入
+3. `domains/specdrafting/extension.go` — `buildInputFromParams` 内部 JSON 反序列化改为 `iface.ExtractionResult`，移除 `disclosure` 导入
+4. `domains/enablement/tool.go` — `NewEnablementToolFromReport` 签名改为接受 `*iface.AnalysisReport`，移除 `disclosure` 导入
+5. `domains/inventiveness/tool.go` — `NewInventivenessToolFromReport` 签名改为接受 `*iface.AnalysisReport` 和 `[]iface.EvidenceChunk`，移除 `disclosure` 导入
+6. `domains/patent.go` — 添加包级 `disclosureToolFactory` 变量 + `SetDisclosureToolFactory` 设置函数 + `disclosureToolFactoryOrDefault` nil 安全调用，移除 `disclosure` 直接导入
+7. `bootstrap/disclosure_adapter.go` — **新建**，通过 `init()` 注入 `disclosure.NewDisclosureTool` 到 `domains.SetDisclosureToolFactory`
+
+**设计决策**：
+- 值类型（struct DTO）而非行为接口：domain 包仅消费 disclosure 的**数据**（字段读取+JSON反序列化），不调用其方法，因此使用 struct 值类型比行为接口更简洁
+- 工厂通过 bootstrap `init()` 注入，测试环境无工厂时自动跳过（nil 保护），不破坏测试
+- `patent.go` 作为装配层使用工厂模式而非直接导入，保持装配灵活性
+- 第 1 批仅处理 disclosure，prompt/doomloop/store/evaluate/knowledge/graph 等后续批次处理
+
+**影响**：无行为变更。3 个公开函数（`SpecInputFromExtraction`/`NewEnablementToolFromReport`/`NewInventivenessToolFromReport`）参数类型从 disclosure 具体类型变为 iface 值类型，外部调用方需传递 iface 类型或通过适配层转换。bootstrap 包新增 `init()` 自动完成工厂注入。`make verify`（lint+build+test-race）全部通过。
+
+## 2026-07-31: feat(security) P0-1 LLM 出站 PII 脱敏 — Provider 包装器模式
+
+**背景**：LLM 请求通过 Provider 层发送到外部 API 时，用户消息中的结构化 PII（身份证号、手机号、银行卡号、电子邮箱）以明文传输。虽然 Provider 使用 HTTPS 加密传输，但敏感数据在到达外部 API 前缺乏一层主动脱敏屏障，违反最小权限原则。
+
+**改动清单**：
+1. `provider/sanitizer/patterns.go` — 新增 PII 脱敏规则引擎，含 4 类规则（身份证号/手机号/银行卡号/电子邮箱），支持按序号区分的唯一占位符 `[**身份证号#1**]` 以保证多值场景下正确还原
+2. `provider/sanitizer/sanitizer.go` — 新增 `SanitizingProvider` 包装器，实现 `agentcore.Provider` 接口（Complete/Stream 双方法），请求脱敏后转发、响应反脱敏后返回。Stream 模式每块独立还原
+3. `provider/sanitizer/patterns_test.go` — 22 个表格驱动测试：覆盖 4 类 PII 精确匹配、无效格式忽略、多值场景、Complete/Stream 集成、Block 文本脱敏、nil 请求保护、Stream 逐块还原
+4. `bootstrap/setup.go` — Provider 创建后立即通过 `sanitizer.New(provider)` 包装（`fc.Provider` 和 `BaseConfig.ModelConfig.Provider` 均使用包装后实例）
+
+**设计决策**：
+- 默认开启，不提供关闭选项（安全规范最小权限原则）
+- 仅对结构化 PII 做精确正则匹配，不做 NLP 级别姓名/地址识别（误杀风险高）
+- 使用唯一编号占位符（`[**类别#N**]`），确保同一请求内同类型多个 PII 值被正确独立还原
+- 响应反脱敏仅还原已知占位符，未注册的占位符保持原样（安全不误改）
+
+**影响**：所有通过 `bootstrap.Setup()` 初始化的入口（TUI/serve/ACP/desktop）自动获得 PII 脱敏保护。直接使用 `chatcompat.New()` 的测试和脚本不受影响。新增包无外部依赖。
+
 ## 2026-07-31: fix(lint/docs) 三项代码质量修复 — AI_CHANGELOG 门禁 / nolint 注释 / README 错误
 
 **背景**：全量审查发现的三类代码质量问题：AI_CHANGELOG 格式合规率 0% (P0-4)、65 处 nolint:gocognit 缺少原因注释 (P2-6)、README.md 6 处目录/引用错误 (P1-8)。
@@ -9125,3 +9164,17 @@ Phase 1 将 8 个不依赖 framework shim 非导出符号的子命令提取到 `
 **验证**：`go build ./cmd/mady/...`、`go build ./...`、`go vet ./...`、`go test ./cmd/mady/...`（含 `./cmd/mady/subcmd/...`）全部通过。
 
 **影响**：无行为变更。`trust-mcp` 子命令参数解析从直接读 `os.Args` 改为接受函数参数（行为等价）。剩余 2 个子命令（`acp`、`server`）仍留在 `package main`，因依赖 `setupFrameworkContext`、`buildUnifiedToolExt` 等非导出符号，需后续 Phase 通过回调/接口解耦后迁移。
+
+## 2026-07-31: fix(psychological) P1-9 psychological 完整性修复 — 清理占位符、如实记录能力范围
+
+**背景**：`psychological` 包的 `SkipDistortionDetection` 字段在配置类型（`PipelineConfig`、`Config`）、领域配置函数（`domains/psychological_config.go` 4 个函数）和 `extension.go` 中反复传递，但引擎 `ExecuteFullPipeline` 内 `_ = config` 完全忽略它，没有任何代码路径读取或产生行为差异。这是纯占位符。
+
+**改动清单**：
+1. `psychological/doc.go` — **新建**包级文档，如实列出已实现能力（关键词 VAD 情绪检测、5 种策略匹配、Extension 集成）和未实现能力（认知偏差检测、完整 VAD 空间），标注不适用的临床场景
+2. `psychological/types.go` — 两处 `SkipDistortionDetection` 字段后添加 `// TODO: 待需求驱动实现` 注释，说明当前引擎无认知偏差检测逻辑
+3. `psychological/extension.go` — `TransformContext` 中传递 `SkipDistortionDetection` 处添加 TODO 注释
+4. `domains/psychological_config.go` — 4 个配置函数（Chat/Assistant/Patent/LegalPsychConfig）各添加注释，说明该字段是待实现占位符
+
+**验证**：`go build ./psychological/...`、`go vet ./psychological/...`、`go test -race ./psychological/...`、`go build ./domains/...` 全部通过。
+
+**影响**：无行为变更。`SkipDistortionDetection` 仍保留为配置字段，但已标注为 TODO 占位符，避免后续开发者误以为有实际行为效果。

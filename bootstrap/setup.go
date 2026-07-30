@@ -39,6 +39,7 @@ import (
 	"github.com/xujian519/mady/pkg/lawcite"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/prompt"
+	"github.com/xujian519/mady/provider/sanitizer"
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/skill"
 	"github.com/xujian519/mady/tools"
@@ -167,6 +168,10 @@ func Setup(ctx context.Context, opts Options) (*Context, error) {
 	if err != nil {
 		return nil, fmt.Errorf("构建 Provider 失败: %w", err)
 	}
+	// PII 脱敏包装：所有发往 LLM 的请求自动脱敏，响应自动还原。
+	provider = sanitizer.New(provider)
+	slog.Info("PII 脱敏已启用（出站：身份证号/手机号/银行卡号/电子邮箱）")
+
 	model := agentconfig.DefaultModel()
 
 	madyHome, err := util.MadyHome()

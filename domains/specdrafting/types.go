@@ -3,7 +3,7 @@ package specdrafting
 import (
 	"time"
 
-	"github.com/xujian519/mady/disclosure"
+	"github.com/xujian519/mady/domains/iface"
 )
 
 // =============================================================================
@@ -87,7 +87,7 @@ type SpecPFETriple struct {
 }
 
 // SpecInput 是说明书撰写的完整输入数据。
-// 通过 SpecInputFromExtraction 从 disclosure.ExtractionResult 转换而来。
+// 通过 SpecInputFromExtraction 从 iface.ExtractionResult 转换而来。
 type SpecInput struct {
 	Title       string            `json:"title"`                  // 发明/实用新型名称
 	PatentType  PatentType        `json:"patent_type"`            // 发明或实用新型
@@ -200,9 +200,9 @@ const (
 // 输入转换
 // =============================================================================
 
-// SpecInputFromExtraction 将 disclosure.ExtractionResult 转换为 SpecInput。
+// SpecInputFromExtraction 将 iface.ExtractionResult 转换为 SpecInput。
 // 这是本模块与 disclosure 管线的标准集成入口。
-func SpecInputFromExtraction(ext *disclosure.ExtractionResult, patentType PatentType, hasDrawings bool, claims []string) *SpecInput {
+func SpecInputFromExtraction(ext *iface.ExtractionResult, patentType PatentType, hasDrawings bool, claims []string) *SpecInput {
 	input := &SpecInput{
 		PatentType:  patentType,
 		HasDrawings: hasDrawings,
@@ -223,7 +223,7 @@ func SpecInputFromExtraction(ext *disclosure.ExtractionResult, patentType Patent
 		input.Features = append(input.Features, SpecFeature{
 			ID:          f.ID,
 			Description: f.Description,
-			Category:    string(f.Category),
+			Category:    f.Category,
 			Function:    f.Function,
 			Importance:  f.Importance,
 			PriorStatus: f.PriorArtStatus,

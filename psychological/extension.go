@@ -67,7 +67,7 @@ func (e *Extension) TransformContext(_ context.Context, msgs []agentcore.Message
 	e.mu.Unlock()
 
 	result := ExecuteFullPipeline(lastUserMsg, &PipelineConfig{
-		SkipDistortionDetection: e.config.SkipDistortionDetection,
+		SkipDistortionDetection: e.config.SkipDistortionDetection, // TODO: 占位符传递 — 认知偏差检测尚未实现，引擎忽略此字段
 	})
 
 	contextBlock := BuildContextBlock(result)

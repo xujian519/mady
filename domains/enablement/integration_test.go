@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/xujian519/mady/disclosure"
+	"github.com/xujian519/mady/domains/iface"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -15,7 +15,7 @@ import (
 
 // buildEnablementInputFromReport mirrors server/enablement_events.go logic
 // to verify the transformation without depending on the server package.
-func buildEnablementInputFromReport(report *disclosure.AnalysisReport, evidenceCoverage string) *EnablementInput {
+func buildEnablementInputFromReport(report *iface.AnalysisReport, evidenceCoverage string) *EnablementInput {
 	cover := evidenceCoverage
 	if cover == "" {
 		cover = "partial"
@@ -32,7 +32,7 @@ func buildEnablementInputFromReport(report *disclosure.AnalysisReport, evidenceC
 		input.Features = append(input.Features, TechFeature{
 			ID:          f.ID,
 			Description: f.Description,
-			Category:    string(f.Category),
+			Category:    f.Category,
 			Function:    f.Function,
 			Importance:  f.Importance,
 		})
@@ -52,7 +52,7 @@ func buildEnablementInputFromReport(report *disclosure.AnalysisReport, evidenceC
 		input.HasDrawings = report.Document.HasDrawings
 		input.DocSections = make(map[string]string)
 		for section, content := range report.Document.Sections {
-			input.DocSections[string(section)] = content
+			input.DocSections[section] = content
 		}
 	}
 
@@ -64,30 +64,26 @@ func buildEnablementInputFromReport(report *disclosure.AnalysisReport, evidenceC
 
 func TestIntegration_DisclosureReportToEnablementInput(t *testing.T) {
 	// Simulate a complete disclosure report with all fields populated.
-	report := &disclosure.AnalysisReport{
-		ID: "test-report-001",
-		Document: &disclosure.DisclosureDoc{
-			ID:          "doc-001",
-			Title:       "一种自动清洁滤网装置",
-			Format:      "markdown",
+	report := &iface.AnalysisReport{
+		Document: &iface.DisclosureDoc{
 			HasDrawings: true,
-			Sections: map[disclosure.DocSection]string{
-				disclosure.SecTechField:   "本实用新型涉及过滤设备技术领域",
-				disclosure.SecBackground:  "现有滤网需要人工拆卸清洗，费时费力",
-				disclosure.SecContent:     "本实用新型提供一种自动清洁滤网装置",
-				disclosure.SecEmbodiments: "如图1所示，装置包括壳体(1)、滤网(2)、刮板(3)、电机(4)",
-				disclosure.SecDrawings:    "图1为装置结构示意图",
+			Sections: map[string]string{
+				"tech_field": "本实用新型涉及过滤设备技术领域",
+				"background": "现有滤网需要人工拆卸清洗，费时费力",
+				"content":    "本实用新型提供一种自动清洁滤网装置",
+				"embodiment": "如图1所示，装置包括壳体(1)、滤网(2)、刮板(3)、电机(4)",
+				"drawings":   "图1为装置结构示意图",
 			},
 		},
-		Extraction: &disclosure.ExtractionResult{
+		Extraction: &iface.ExtractionResult{
 			Problems: []string{"现有滤网需要人工拆卸清洗，费时费力"},
-			Features: []disclosure.TechFeature{
-				{ID: "f1", Description: "壳体", Category: disclosure.CatStructure, Function: "容纳组件", Importance: "high"},
-				{ID: "f2", Description: "滤网", Category: disclosure.CatStructure, Function: "过滤", Importance: "high"},
-				{ID: "f3", Description: "电机驱动刮板往复运动", Category: disclosure.CatMethod, Function: "自动清洁", Importance: "high"},
+			Features: []iface.TechFeature{
+				{ID: "f1", Description: "壳体", Category: "structure", Function: "容纳组件", Importance: "high"},
+				{ID: "f2", Description: "滤网", Category: "structure", Function: "过滤", Importance: "high"},
+				{ID: "f3", Description: "电机驱动刮板往复运动", Category: "method", Function: "自动清洁", Importance: "high"},
 			},
 			Effects: []string{"实现自动清洁滤网，无需人工拆卸"},
-			PFETriples: []disclosure.PFETriple{
+			PFETriples: []iface.PFETriple{
 				{ID: "t1", Problem: "现有滤网需要人工拆卸清洗", FeatureIDs: []string{"f1", "f2", "f3"}, Effect: "实现自动清洁"},
 			},
 		},
@@ -142,8 +138,7 @@ func TestIntegration_NilReport(t *testing.T) {
 }
 
 func TestIntegration_NilExtraction(t *testing.T) {
-	report := &disclosure.AnalysisReport{
-		ID:         "test-002",
+	report := &iface.AnalysisReport{
 		Extraction: nil,
 	}
 	input := buildEnablementInputFromReport(report, "partial")
@@ -156,11 +151,10 @@ func TestIntegration_NilExtraction(t *testing.T) {
 }
 
 func TestIntegration_EmptyExtraction(t *testing.T) {
-	report := &disclosure.AnalysisReport{
-		ID: "test-003",
-		Extraction: &disclosure.ExtractionResult{
-			Features:   []disclosure.TechFeature{},
-			PFETriples: []disclosure.PFETriple{},
+	report := &iface.AnalysisReport{
+		Extraction: &iface.ExtractionResult{
+			Features:   []iface.TechFeature{},
+			PFETriples: []iface.PFETriple{},
 			Problems:   []string{},
 			Effects:    []string{},
 		},
@@ -184,22 +178,19 @@ func TestIntegration_EmptyExtraction(t *testing.T) {
 
 func TestIntegration_RoundTripWithMockGraph(t *testing.T) {
 	// Test full round-trip: report → input → graph → result.
-	report := &disclosure.AnalysisReport{
-		ID: "test-roundtrip",
-		Document: &disclosure.DisclosureDoc{
-			ID:    "doc-r1",
-			Title: "测试专利",
-			Sections: map[disclosure.DocSection]string{
-				disclosure.SecTechField: "测试技术领域",
+	report := &iface.AnalysisReport{
+		Document: &iface.DisclosureDoc{
+			Sections: map[string]string{
+				"tech_field": "测试技术领域",
 			},
 		},
-		Extraction: &disclosure.ExtractionResult{
+		Extraction: &iface.ExtractionResult{
 			Problems: []string{"测试问题"},
-			Features: []disclosure.TechFeature{
-				{ID: "f1", Description: "测试特征", Category: disclosure.CatStructure, Function: "测试功能", Importance: "high"},
+			Features: []iface.TechFeature{
+				{ID: "f1", Description: "测试特征", Category: "structure", Function: "测试功能", Importance: "high"},
 			},
 			Effects: []string{"测试效果"},
-			PFETriples: []disclosure.PFETriple{
+			PFETriples: []iface.PFETriple{
 				{ID: "t1", Problem: "测试问题", FeatureIDs: []string{"f1"}, Effect: "测试效果"},
 			},
 		},

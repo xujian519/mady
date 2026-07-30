@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/disclosure"
+	"github.com/xujian519/mady/domains/iface"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -232,9 +232,9 @@ func parseInventivenessArgs(args json.RawMessage) *InventivenessInput {
 	return input
 }
 
-// NewInventivenessToolFromReport 从 disclosure 报告构造评估输入并执行创造性评估。
-// 这是一个便捷函数，供需要从 disclosure.AnalysisReport 直接创建输入的场景使用。
-func NewInventivenessToolFromReport(ctx context.Context, provider agentcore.Provider, report *disclosure.AnalysisReport, evidence []disclosure.EvidenceChunk, coverage string) (*InventivenessResult, error) {
+// NewInventivenessToolFromReport 从 iface 报告构造评估输入并执行创造性评估。
+// 这是一个便捷函数，供需要从 iface.AnalysisReport 直接创建输入的场景使用。
+func NewInventivenessToolFromReport(ctx context.Context, provider agentcore.Provider, report *iface.AnalysisReport, evidence []iface.EvidenceChunk, coverage string) (*InventivenessResult, error) {
 	if provider == nil {
 		return nil, fmt.Errorf("inventiveness: provider is nil")
 	}
@@ -260,7 +260,7 @@ func NewInventivenessToolFromReport(ctx context.Context, provider agentcore.Prov
 			input.Features = append(input.Features, TechFeature{
 				ID:          f.ID,
 				Description: f.Description,
-				Category:    string(f.Category),
+				Category:    f.Category,
 				Function:    f.Function,
 				Importance:  f.Importance,
 			})
