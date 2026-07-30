@@ -1,6 +1,5 @@
 # Mady Tools - golangci-lint Configuration (v2 format)
-# 工具子模块仅启用最基础的正确性检查。
-# 更严格的 lint 规则将在后续逐步启用。
+# 与根模块 .golangci.yml 对标，逐步收紧。已修复项启用，待修复项标记。
 version: "2"
 
 run:
@@ -10,8 +9,66 @@ run:
 linters:
   default: none
   enable:
-    - govet
-    - ineffassign
+    # 基础正确性（对标根模块）
+    - govet           # go vet
+    - ineffassign     # 无效赋值
+    - errcheck        # 未处理错误
+    - staticcheck     # 静态分析
+    - unused          # 未使用代码
+
+    # 代码质量（对标根模块）
+    - revive          # golint 替代
+    - misspell        # 拼写检查
+    - unconvert       # 不必要类型转换
+
+    # 正确性
+    - copyloopvar     # 循环变量复制
+    - durationcheck   # 时间运算检查
+
+  settings:
+    revive:
+      severity: warning
+      rules:
+        - name: blank-imports
+          severity: warning
+        - name: context-keys-type
+          severity: warning
+        - name: error-return
+          severity: warning
+        - name: error-naming
+          severity: warning
+        - name: range
+          severity: warning
+        - name: receiver-naming
+          severity: warning
+        - name: time-naming
+          severity: warning
+        - name: unexported-return
+          severity: warning
+        - name: errorf
+          severity: warning
+        - name: empty-block
+          severity: warning
+        - name: superfluous-else
+          severity: warning
+        - name: unreachable-code
+          severity: warning
+        - name: redefines-builtin-id
+          severity: warning
+    misspell:
+      locale: US
+
+  exclusions:
+    paths:
+      - graphify-out
+      - build
+      - .grok
+      - .git
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+          - revive
 
 issues:
   max-issues-per-linter: 0

@@ -21,19 +21,19 @@ import (
 
 // BashOperations defines pluggable operations for the bash tool.
 type BashOperations interface {
-	Exec(command string, cwd string, env map[string]string, timeoutSecs *int, onData func(data []byte)) (int, error)
+	Exec(ctx context.Context, command string, cwd string, env map[string]string, timeoutSecs *int, onData func(data []byte)) (int, error)
 }
 
 // DefaultBashOperations uses the local shell.
 type DefaultBashOperations struct{}
 
-func (d DefaultBashOperations) Exec(command string, cwd string, env map[string]string, timeoutSecs *int, onData func(data []byte)) (int, error) {
+func (d DefaultBashOperations) Exec(ctx context.Context, command string, cwd string, env map[string]string, timeoutSecs *int, onData func(data []byte)) (int, error) {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/sh"
 	}
 
-	cmd := exec.Command(shell, "-c", command)
+	cmd := exec.CommandContext(ctx, shell, "-c", command)
 	cmd.Dir = cwd
 	// Setpgid creates a new process group so killProcessTree(-pgid) only
 	// affects this command's children, preventing PID-reuse collateral damage.
@@ -198,6 +198,22 @@ type BashToolConfig struct {
 	DangerousPatterns []string
 }
 
+// Validate checks that the bash tool configuration is valid.
+func (c BashToolConfig) Validate() error {
+	if c.MaxBytes <= 0 {
+		return fmt.Errorf("MaxBytes must be positive, got %d", c.MaxBytes)
+	}
+	if c.MaxLines <= 0 {
+		return fmt.Errorf("MaxLines must be positive, got %d", c.MaxLines)
+	}
+	for _, p := range c.DangerousPatterns {
+		if _, err := regexp.Compile(p); err != nil {
+			return fmt.Errorf("invalid dangerous pattern %q: %w", p, err)
+		}
+	}
+	return nil
+}
+
 // DefaultDangerousPatterns returns the built-in set of patterns that block
 // the most common shell injection vectors.
 func DefaultDangerousPatterns() []string {
@@ -337,7 +353,7 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 				}
 			}
 
-			exitCode, err := cfg.Operations.Exec(input.Command, cwd, nil, input.Timeout, onData)
+			exitCode, err := cfg.Operations.Exec(ctx, input.Command, cwd, nil, input.Timeout, onData)
 
 			if tempFile != nil {
 				_ = tempFile.Close()

@@ -162,6 +162,14 @@ type KnowledgeExtConfig struct {
 	RetrievalConfig retrieval.RetrievalConfig `json:"-"`
 }
 
+// Validate checks that the knowledge extension configuration is valid.
+func (c KnowledgeExtConfig) Validate() error {
+	if c.RetrievalConfig.TopK <= 0 {
+		c.RetrievalConfig.TopK = 10
+	}
+	return nil
+}
+
 // DefaultKnowledgeExtConfig returns a default configuration with knowledge
 // retrieval enabled and the tool exposed.
 func DefaultKnowledgeExtConfig() KnowledgeExtConfig {

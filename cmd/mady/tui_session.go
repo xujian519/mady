@@ -345,7 +345,7 @@ func (s *tuiSession) loadCaseContext(rec *domains.CaseRecord) string {
 func (s *tuiSession) switchToProject(matched *domains.ProjectRecord) string {
 	s.closeFileResources()
 
-	meta, err := s.fc.ProjectRegistry.LoadMeta(matched.ProjectID)
+	meta, err := s.fc.ProjectRegistry.LoadMeta(s.ctx, matched.ProjectID)
 	if err != nil {
 		meta = nil
 	}

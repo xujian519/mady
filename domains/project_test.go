@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +23,7 @@ func TestProjectRegistry_RegisterAndLookup(t *testing.T) {
 		RootPath:  tmpDir,
 	}
 
-	if err := reg.Register(rec); err != nil {
+	if err := reg.Register(context.Background(), rec); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 
@@ -52,7 +53,7 @@ func TestProjectRegistry_RegisterInvalidPath(t *testing.T) {
 		RootPath:  "/nonexistent/path/xyz789",
 	}
 
-	if err := reg.Register(rec); err == nil {
+	if err := reg.Register(context.Background(), rec); err == nil {
 		t.Fatal("expected error for invalid RootPath")
 	}
 }
@@ -66,10 +67,10 @@ func TestProjectRegistry_DuplicateRootPath(t *testing.T) {
 	r1 := ProjectRecord{ProjectID: "proj_001", Domain: DomainPatent, Alias: "案件一", RootPath: tmpDir}
 	r2 := ProjectRecord{ProjectID: "proj_002", Domain: DomainLegal, Alias: "案件二", RootPath: tmpDir}
 
-	if err := reg.Register(r1); err != nil {
+	if err := reg.Register(context.Background(), r1); err != nil {
 		t.Fatalf("first register: %v", err)
 	}
-	if err := reg.Register(r2); err == nil {
+	if err := reg.Register(context.Background(), r2); err == nil {
 		t.Fatal("expected error for duplicate RootPath")
 	}
 }
@@ -80,7 +81,7 @@ func TestProjectRegistry_PersistenceAcrossInstances(t *testing.T) {
 
 	reg1, _ := NewProjectRegistry(dir)
 	rec := ProjectRecord{ProjectID: "proj_persist", Domain: DomainPatent, Alias: "持久化测试", RootPath: tmpDir}
-	if err := reg1.Register(rec); err != nil {
+	if err := reg1.Register(context.Background(), rec); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 
@@ -105,9 +106,9 @@ func TestProjectRegistry_Delete(t *testing.T) {
 
 	reg, _ := NewProjectRegistry(dir)
 	rec := ProjectRecord{ProjectID: "proj_del", Domain: DomainPatent, RootPath: tmpDir}
-	reg.Register(rec)
+	reg.Register(context.Background(), rec)
 
-	if err := reg.Delete("proj_del"); err != nil {
+	if err := reg.Delete(context.Background(), "proj_del"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	if _, ok := reg.Lookup("proj_del"); ok {
@@ -121,8 +122,8 @@ func TestProjectRegistry_List(t *testing.T) {
 	dir2 := t.TempDir()
 
 	reg, _ := NewProjectRegistry(dir)
-	reg.Register(ProjectRecord{ProjectID: "proj_a", Domain: DomainPatent, RootPath: dir1})
-	reg.Register(ProjectRecord{ProjectID: "proj_b", Domain: DomainLegal, RootPath: dir2})
+	reg.Register(context.Background(), ProjectRecord{ProjectID: "proj_a", Domain: DomainPatent, RootPath: dir1})
+	reg.Register(context.Background(), ProjectRecord{ProjectID: "proj_b", Domain: DomainLegal, RootPath: dir2})
 
 	all := reg.List()
 	if len(all) != 2 {
@@ -135,10 +136,10 @@ func TestProjectRegistry_Touch(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	reg, _ := NewProjectRegistry(dir)
-	reg.Register(ProjectRecord{ProjectID: "proj_touch", Domain: DomainPatent, RootPath: tmpDir})
+	reg.Register(context.Background(), ProjectRecord{ProjectID: "proj_touch", Domain: DomainPatent, RootPath: tmpDir})
 
 	before, _ := reg.Lookup("proj_touch")
-	reg.Touch("proj_touch")
+	reg.Touch(context.Background(), "proj_touch")
 	after, _ := reg.Lookup("proj_touch")
 
 	if !after.LastAccessed.After(before.LastAccessed) {
@@ -151,9 +152,9 @@ func TestProjectRegistry_RefreshStatus_Active(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	reg, _ := NewProjectRegistry(dir)
-	reg.Register(ProjectRecord{ProjectID: "proj_active", Domain: DomainPatent, RootPath: tmpDir})
+	reg.Register(context.Background(), ProjectRecord{ProjectID: "proj_active", Domain: DomainPatent, RootPath: tmpDir})
 
-	reg.RefreshStatus()
+	reg.RefreshStatus(context.Background())
 
 	rec, _ := reg.Lookup("proj_active")
 	if rec.Status != "active" {
@@ -167,7 +168,7 @@ func TestProjectRegistry_SaveAndLoadMeta(t *testing.T) {
 
 	reg, _ := NewProjectRegistry(dir)
 	rec := ProjectRecord{ProjectID: "proj_meta", Domain: DomainPatent, RootPath: tmpDir}
-	reg.Register(rec)
+	reg.Register(context.Background(), rec)
 
 	meta := &ProjectMeta{
 		ProjectID:  "proj_meta",
@@ -179,11 +180,11 @@ func TestProjectRegistry_SaveAndLoadMeta(t *testing.T) {
 		Status:     "active",
 	}
 
-	if err := reg.SaveMeta("proj_meta", meta); err != nil {
+	if err := reg.SaveMeta(context.Background(), "proj_meta", meta); err != nil {
 		t.Fatalf("SaveMeta: %v", err)
 	}
 
-	loaded, err := reg.LoadMeta("proj_meta")
+	loaded, err := reg.LoadMeta(context.Background(), "proj_meta")
 	if err != nil {
 		t.Fatalf("LoadMeta: %v", err)
 	}
@@ -199,9 +200,9 @@ func TestProjectRegistry_MetaDoesNotExist(t *testing.T) {
 	dir := t.TempDir()
 
 	reg, _ := NewProjectRegistry(dir)
-	reg.Register(ProjectRecord{ProjectID: "proj_nometa", Domain: DomainPatent, RootPath: t.TempDir()})
+	reg.Register(context.Background(), ProjectRecord{ProjectID: "proj_nometa", Domain: DomainPatent, RootPath: t.TempDir()})
 
-	_, err := reg.LoadMeta("proj_nometa")
+	_, err := reg.LoadMeta(context.Background(), "proj_nometa")
 	if err == nil {
 		t.Fatal("expected error for missing meta")
 	}

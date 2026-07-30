@@ -13,13 +13,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/xujian519/mady/agentcore"
-
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/xujian519/mady/agentcore"
 )
 
 // Compile-time interface checks.

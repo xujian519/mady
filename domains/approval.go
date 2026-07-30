@@ -67,6 +67,14 @@ type ApprovalConfig struct {
 	DefaultExpiry time.Duration
 }
 
+// Validate checks that the approval configuration is valid.
+func (c ApprovalConfig) Validate() error {
+	if c.DefaultExpiry < 0 {
+		return fmt.Errorf("DefaultExpiry must be non-negative, got %v", c.DefaultExpiry)
+	}
+	return nil
+}
+
 // DefaultApprovalConfig returns a sensible default for patent/legal domains.
 func DefaultApprovalConfig() ApprovalConfig {
 	return ApprovalConfig{

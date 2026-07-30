@@ -158,6 +158,12 @@ func runPerFeatureNovelty(ctx context.Context, state graph.PregelState,
 		sem <- struct{}{}
 		go func(idx int, feature TechFeature) {
 			defer func() { <-sem }()
+			select {
+			case <-ctx.Done():
+				results[idx] = featureResult{Err: ctx.Err()}
+				return
+			default:
+			}
 			topK := selectTopEvidence(feature, evidence, 3)
 			input := buildNoveltyInputPerFeature(state, feature, topK)
 

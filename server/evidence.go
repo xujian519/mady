@@ -94,10 +94,18 @@ func (s *Server) handleEvidenceJudge(w http.ResponseWriter, r *http.Request) {
 	s.evidenceTasks[task.ID] = task
 	s.evidenceTasksMu.Unlock()
 
+	ctx := r.Context()
 	go func() {
 		task.mu.Lock()
 		task.Status = "running"
 		task.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			task.markFailed(ctx.Err())
+			return
+		default:
+		}
 
 		engine := evidence.NewEngine(nil)
 		span := agentcore_evidence.EvidenceSpan{
@@ -156,10 +164,18 @@ func (s *Server) handleEvidenceJudgeBatch(w http.ResponseWriter, r *http.Request
 	s.evidenceTasks[task.ID] = task
 	s.evidenceTasksMu.Unlock()
 
+	ctx := r.Context()
 	go func() {
 		task.mu.Lock()
 		task.Status = "running"
 		task.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			task.markFailed(ctx.Err())
+			return
+		default:
+		}
 
 		engine := evidence.NewEngine(nil)
 		results := make([]*evidence.EvidenceJudgment, len(req.Items))

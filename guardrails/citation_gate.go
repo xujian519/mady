@@ -83,6 +83,11 @@ type CitationGateConfig struct {
 	Source CitationSource
 }
 
+// Validate checks that the citation gate configuration is valid.
+func (c CitationGateConfig) Validate() error {
+	return nil // Level and Source are validated at construction time
+}
+
 // CitationGateOption 是 CitationGate 的函数式选项。
 type CitationGateOption func(*CitationGateConfig)
 

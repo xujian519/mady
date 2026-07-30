@@ -48,7 +48,7 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 		return nil, fmt.Errorf("ListProjects: 项目注册表未初始化")
 	}
 
-	a.fc.ProjectRegistry.RefreshStatus()
+	a.fc.ProjectRegistry.RefreshStatus(a.ctx)
 
 	recs := a.fc.ProjectRegistry.List()
 	// 按 LastAccessed 倒序，零值放最后
@@ -211,7 +211,7 @@ func (a *App) registerAndSwitch(rootPath string) (ProjectInfo, error) {
 		Domain:    domains.DomainPatent,
 		Status:    domains.StatusActive,
 	}
-	if err := a.fc.ProjectRegistry.Register(rec); err != nil {
+	if err := a.fc.ProjectRegistry.Register(a.ctx, rec); err != nil {
 		return ProjectInfo{}, fmt.Errorf("registerAndSwitch: %w", err)
 	}
 

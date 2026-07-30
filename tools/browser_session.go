@@ -78,7 +78,7 @@ func containsSecretInURL(rawURL string) bool {
 
 func validateURL(rawURL string, allowPrivate bool) (*url.URL, error) {
 	if rawURL == "" {
-		return nil, fmt.Errorf("URL cannot be empty")
+		return nil, fmt.Errorf("url cannot be empty")
 	}
 
 	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
@@ -95,7 +95,7 @@ func validateURL(rawURL string, allowPrivate bool) (*url.URL, error) {
 	}
 
 	if containsSecretInURL(rawURL) {
-		return nil, fmt.Errorf("URL appears to contain secrets in query parameters")
+		return nil, fmt.Errorf("url appears to contain secrets in query parameters")
 	}
 
 	if isMetadataEndpoint(parsed.Hostname()) {
@@ -267,7 +267,7 @@ func (bm *BrowserManager) GetActiveSession(fallbackSessionID string) (*BrowserSe
 }
 
 // ErrNoActiveBrowserSession is returned when no browser session is active.
-var ErrNoActiveBrowserSession = fmt.Errorf("no active browser session. Call browser_navigate first")
+var ErrNoActiveBrowserSession = fmt.Errorf("no active browser session: call browser_navigate first")
 
 // RequireActiveSession returns the active browser session or an error if none exists.
 // It replaces the repeated DefaultBrowserManager().GetActiveSession("default") + error pattern.
@@ -386,7 +386,7 @@ func (bm *BrowserManager) createCDPSession(ctx context.Context, session *Browser
 	session.backendType = BackendCDP
 	session.cdpURL = bm.config.CDPURL
 	if session.cdpURL == "" {
-		return fmt.Errorf("CDP URL is required")
+		return fmt.Errorf("cdp url is required")
 	}
 
 	allocCtx, allocCancel := chromedp.NewRemoteAllocator(ctx, session.cdpURL)
@@ -400,7 +400,7 @@ func (bm *BrowserManager) createCDPSession(ctx context.Context, session *Browser
 	if bm.config.DialogPolicy != "" {
 		supervisor := NewCDPSupervisor(bm.config.CDPURL, session.sessionID, bm.config.DialogPolicy, bm.config.DialogTimeout)
 		if err := supervisor.Start(ctx); err != nil {
-			return fmt.Errorf("CDP supervisor failed: %w", err)
+			return fmt.Errorf("cdp supervisor failed: %w", err)
 		}
 		session.supervisor = supervisor
 	}

@@ -34,7 +34,7 @@ type mockBashOps struct {
 	execFunc func(command, cwd string, env map[string]string, timeoutSecs *int, onData func([]byte)) (int, error)
 }
 
-func (m *mockBashOps) Exec(command, cwd string, env map[string]string, timeoutSecs *int, onData func([]byte)) (int, error) {
+func (m *mockBashOps) Exec(_ context.Context, command, cwd string, env map[string]string, timeoutSecs *int, onData func([]byte)) (int, error) {
 	return m.execFunc(command, cwd, env, timeoutSecs, onData)
 }
 

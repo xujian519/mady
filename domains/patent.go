@@ -253,7 +253,10 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 
 	// infringement tool returns (tool, error) — capture error before slice literal.
 	// globalInfringementKR 由 framework.Setup → SetupInfringementKnowledgeRetriever 注入。
-	infTool, _ := infringement.NewInfringementTool(base.Provider, nil, globalInfringementKR)
+	infTool, infErr := infringement.NewInfringementTool(base.Provider, nil, globalInfringementKR)
+	if infErr != nil {
+		slog.Warn("patent: infringement tool not available, skipping", "err", infErr)
+	}
 
 	toolExt := tools.NewExtension(tools.ExtensionConfig{
 		WorkingDir:     workingDir,

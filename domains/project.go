@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -119,7 +120,7 @@ func NewProjectRegistryOrEmpty(baseDir string) *ProjectRegistry {
 }
 
 // Register 注册一个新案件。如果 RootPath 已存在则更新记录。
-func (r *ProjectRegistry) Register(rec ProjectRecord) error {
+func (r *ProjectRegistry) Register(ctx context.Context, rec ProjectRecord) error {
 	if err := ValidateProjectPath(rec.RootPath); err != nil {
 		return fmt.Errorf("案件目录校验失败: %w", err)
 	}
@@ -168,7 +169,7 @@ func (r *ProjectRegistry) List() []ProjectRecord {
 }
 
 // Delete 删除一条案件记录。不会触碰用户的物理文件夹。
-func (r *ProjectRegistry) Delete(projectID string) error {
+func (r *ProjectRegistry) Delete(ctx context.Context, projectID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -181,7 +182,7 @@ func (r *ProjectRegistry) Delete(projectID string) error {
 }
 
 // Touch 更新案件最后访问时间。
-func (r *ProjectRegistry) Touch(projectID string) {
+func (r *ProjectRegistry) Touch(ctx context.Context, projectID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if rec, ok := r.records[projectID]; ok {
@@ -192,7 +193,7 @@ func (r *ProjectRegistry) Touch(projectID string) {
 }
 
 // RefreshStatus 检查所有案件的 RootPath 可用性，更新 Status。
-func (r *ProjectRegistry) RefreshStatus() {
+func (r *ProjectRegistry) RefreshStatus(ctx context.Context) {
 	// Collect paths under lock, validate outside lock (I/O), then update under lock.
 	r.mu.Lock()
 	type pathCheck struct {
@@ -243,7 +244,7 @@ func (r *ProjectRegistry) projectDir(projectID string) string {
 }
 
 // SaveMeta 保存案件元数据到 workspace/projects/{projectID}/meta.json。
-func (r *ProjectRegistry) SaveMeta(projectID string, meta *ProjectMeta) error {
+func (r *ProjectRegistry) SaveMeta(ctx context.Context, projectID string, meta *ProjectMeta) error {
 	dir := r.projectDir(projectID)
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("创建案件数据目录: %w", err)
@@ -262,7 +263,7 @@ func (r *ProjectRegistry) SaveMeta(projectID string, meta *ProjectMeta) error {
 }
 
 // LoadMeta 加载案件元数据。
-func (r *ProjectRegistry) LoadMeta(projectID string) (*ProjectMeta, error) {
+func (r *ProjectRegistry) LoadMeta(ctx context.Context, projectID string) (*ProjectMeta, error) {
 	path := filepath.Join(r.projectDir(projectID), metaFileName)
 
 	f, err := os.Open(path) //nolint:gosec // filepath.Join(r.projectDir, metaFileName)

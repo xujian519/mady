@@ -83,14 +83,14 @@ type RetryableError struct {
 
 func (e *RetryableError) Error() string {
 	if e.Err != nil {
-		return fmt.Sprintf("%s 临时失败: %s (%v)", e.Op, e.Details, e.Err)
+		return fmt.Sprintf("%s temporary failure: %s (%v)", e.Op, e.Details, e.Err)
 	}
-	return fmt.Sprintf("%s 临时失败: %s", e.Op, e.Details)
+	return fmt.Sprintf("%s temporary failure: %s", e.Op, e.Details)
 }
 
 func (e *RetryableError) Unwrap() error { return e.Err }
 
-// NewRetryableError 创建一个可重试错误。
+// NewRetryableError creates a retryable error.
 func NewRetryableError(op, details string, err error) error {
 	return &RetryableError{Op: op, Details: details, Err: err}
 }
@@ -104,14 +104,14 @@ type FatalError struct {
 
 func (e *FatalError) Error() string {
 	if e.Err != nil {
-		return fmt.Sprintf("%s 致命错误: %s (%v)", e.Op, e.Details, e.Err)
+		return fmt.Sprintf("%s fatal error: %s (%v)", e.Op, e.Details, e.Err)
 	}
-	return fmt.Sprintf("%s 致命错误: %s", e.Op, e.Details)
+	return fmt.Sprintf("%s fatal error: %s", e.Op, e.Details)
 }
 
 func (e *FatalError) Unwrap() error { return e.Err }
 
-// NewFatalError 创建一个致命错误。
+// NewFatalError creates a fatal error.
 func NewFatalError(op, details string, err error) error {
 	return &FatalError{Op: op, Details: details, Err: err}
 }

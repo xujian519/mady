@@ -510,7 +510,7 @@ func (a *App) applyLastProject(saved AISettings) {
 		return
 	}
 	a.fc.BaseConfig.ProjectDir = rec.RootPath
-	a.fc.ProjectRegistry.Touch(rec.ProjectID)
+	a.fc.ProjectRegistry.Touch(a.ctx, rec.ProjectID)
 	log.Printf("[mady-desktop] restored last project: %s (%s)", rec.Alias, rec.RootPath)
 }
 
