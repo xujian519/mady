@@ -11,6 +11,8 @@ import (
 // NewPatentNoveltyTool 创建 analyze_patent_novelty 工具，
 // 封装专利新颖性分析 Pregel 图（含规则引擎检查）。
 // 支持通过 GraphOption 注入检索器等可选依赖。
+//
+//nolint:dupl // Patent novelty/invalidation/reexam tools follow the same pattern intentionally
 func NewPatentNoveltyTool(opts ...GraphOption) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name:        "analyze_patent_novelty",
@@ -123,6 +125,8 @@ func NewDebateTool() *agentcore.Tool {
 // NewInvalidationTool 创建 analyze_patent_invalidation 工具，
 // 封装专利无效宣告分析 Pregel 图。
 // 支持通过 InvGraphOption 注入检索器等可选依赖。
+//
+//nolint:dupl // Patent novelty/invalidation/reexam tools follow the same pattern intentionally
 func NewInvalidationTool(opts ...InvGraphOption) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name:        "analyze_patent_invalidation",
@@ -176,6 +180,8 @@ func NewInvalidationTool(opts ...InvGraphOption) *agentcore.Tool {
 // NewReexaminationTool 创建 draft_reexamination_request 工具，
 // 封装专利驳回复审请求书起草 Pregel 图。
 // 支持通过 ReexamGraphOption 启用口审准备等可选功能。
+//
+//nolint:dupl // Patent novelty/invalidation/reexam tools follow the same pattern intentionally
 func NewReexaminationTool(opts ...ReexamGraphOption) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name:        "draft_reexamination_request",

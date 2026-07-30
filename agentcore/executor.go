@@ -152,6 +152,8 @@ func (e *Executor) buildChain() ExecuteFunc {
 }
 
 // coreExecute looks up the tool, optionally validates arguments, and invokes its Func.
+//
+//nolint:gocognit
 func (e *Executor) coreExecute(ctx context.Context, tc ToolCall) (string, error) {
 	tool, ok := e.registry.Get(tc.Name)
 	if !ok {

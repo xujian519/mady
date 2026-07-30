@@ -57,6 +57,8 @@ func collectKeywordsFromExtraction(ext *ExtractionResult) []string {
 // 回退到本函数。retrieval/ 与 knowledge/graph/ 已接入 chat agent 和
 // reasoning Stage ② 规则召回——见
 // docs/specs/design-prior-art-retrieval-stage.md 的 retrieve_prior_art 设计。
+//
+//nolint:gocognit
 func assessNoveltyFromState(state graph.PregelState) *NoveltyResult {
 	// Collect available data.
 	var features []TechFeature
@@ -261,6 +263,8 @@ func buildReportPrompt() string {
 }
 
 // buildReportInput 从 PregelState 构建报告生成的输入。
+//
+//nolint:gocognit
 func buildReportInput(state graph.PregelState) string {
 	var sb strings.Builder
 

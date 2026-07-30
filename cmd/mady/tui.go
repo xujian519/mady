@@ -55,6 +55,8 @@ func loadWritingPatterns(madyHome string) *writing.PatternStore {
 // runTui launches the interactive terminal chat.
 //
 // 统一 Agent 模式（UnifiedAgent）：内置工具集 + Invisible Handoff 到专利/法律领域。
+//
+//nolint:gocognit // pre-existing high complexity
 func runTui(ctx context.Context) error {
 	fs := flag.NewFlagSet("mady tui", flag.ExitOnError)
 	if err := fs.Parse(os.Args[2:]); err != nil {

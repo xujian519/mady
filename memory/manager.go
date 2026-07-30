@@ -117,6 +117,8 @@ func (m *Manager) RememberFromTurn(ctx context.Context, userInput, assistantOutp
 }
 
 // RememberFromTurnWithEmotion 从一轮对话中提取记忆并附加情绪上下文标注。
+//
+//nolint:gocognit
 func (m *Manager) rememberFromTurnWithEmotion(ctx context.Context, userInput, assistantOutput string, scope MemoryScope, ec emotionContext) ([]string, error) {
 	if userInput == "" && assistantOutput == "" {
 		return nil, nil

@@ -113,6 +113,7 @@ func parseCLIArgs(args []string) (input, outputFile string, err error) {
 	return
 }
 
+//nolint:dupl // Patent CLI run functions follow the same parse→build→run→output pattern
 func runPatentNovelty(ctx context.Context, args []string) error {
 	input, outputFile, err := parseCLIArgs(args)
 	if err != nil {
@@ -155,6 +156,7 @@ func runPatentNovelty(ctx context.Context, args []string) error {
 	return nil
 }
 
+//nolint:dupl // Patent CLI run functions follow the same parse→build→run→output pattern
 func runPatentOA(ctx context.Context, args []string) error {
 	input, outputFile, err := parseCLIArgs(args)
 	if err != nil {
@@ -193,6 +195,7 @@ func runPatentOA(ctx context.Context, args []string) error {
 	return nil
 }
 
+//nolint:dupl // Patent CLI run functions follow the same parse→build→run→output pattern
 func runPatentInvalidation(ctx context.Context, args []string) error {
 	input, outputFile, err := parseCLIArgs(args)
 	if err != nil {
@@ -297,6 +300,7 @@ func runPatentInfringement(ctx context.Context, args []string) error {
 	return nil
 }
 
+//nolint:dupl // Patent CLI run functions follow the same parse→build→run→output pattern
 func runPatentReexamination(ctx context.Context, args []string) error {
 	input, outputFile, err := parseCLIArgs(args)
 	if err != nil {

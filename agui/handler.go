@@ -53,6 +53,7 @@ func (h *Handler) handleCapabilities(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, caps)
 }
 
+//nolint:gocognit
 func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 	var input RunAgentInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {

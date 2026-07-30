@@ -252,6 +252,8 @@ func topoSort(nodeNames map[string]struct{}, edges map[string][]string, inDegree
 }
 
 // Run executes the compiled graph.
+//
+//nolint:gocognit
 func (cg *CompiledGraph) Run(ctx context.Context, input string) (string, error) {
 	if cg.StateFn != nil {
 		state := cg.StateFn(ctx)

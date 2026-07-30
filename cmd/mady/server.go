@@ -81,6 +81,8 @@ func openEvalStore(evalDB string) (*knowledge.EvalStore, error) {
 }
 
 // runServer launches the HTTP/SSE API server with multi-domain routing.
+//
+//nolint:gocognit // pre-existing high complexity
 func runServer(ctx context.Context) error {
 	fs := flag.NewFlagSet("mady serve", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

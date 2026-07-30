@@ -77,6 +77,7 @@ func (s *Server) handleDeleteThread(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+//nolint:dupl // Thread config/thinking handlers follow the same REST boilerplate by design
 func (s *Server) handleGetThreadConfig(w http.ResponseWriter, r *http.Request) {
 	ts, ok := s.threadStore()
 	if !ok {
@@ -117,6 +118,7 @@ func (s *Server) handlePutThreadConfig(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+//nolint:dupl // Thread config/thinking handlers follow the same REST boilerplate by design
 func (s *Server) handleGetThreadThinking(w http.ResponseWriter, r *http.Request) {
 	ts, ok := s.threadStore()
 	if !ok {

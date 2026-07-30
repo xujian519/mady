@@ -1,3 +1,5 @@
+// Package citation provides citation wiring and integration points between the guardrails
+// citation system and domain-level agent configurations.
 package citation
 
 import (

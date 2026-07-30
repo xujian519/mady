@@ -1,3 +1,5 @@
+// Package audit provides audit trail and logging capabilities for domain-level agent
+// operations, supporting encrypted audit entries and extension-based integration.
 package audit
 
 import (

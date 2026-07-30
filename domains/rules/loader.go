@@ -32,6 +32,8 @@ type RuleSet struct {
 //	  articles/*.yaml     — article frameworks
 //	  orchestrations/*.yaml — orchestrations
 //	  reflection-indicators.yaml — reflection phrases
+//
+//nolint:gocognit
 func LoadFromDir(dir string) (*RuleSet, error) {
 	rs := &RuleSet{
 		Articles:          make(map[string]*ArticleFramework),

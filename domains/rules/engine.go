@@ -292,6 +292,7 @@ func (e *RulesExtension) Tools() []*agentcore.Tool {
 				return e.handleOrchestration(args)
 			},
 		},
+		//nolint:dupl // intentional: each rule tool has the same JSON schema pattern
 		{
 			Name:        "parse_office_action",
 			Description: "解析审查意见通知书文本，提取驳回类型（新颖性/创造性/清楚/支持/充分公开/保护范围/形式）、引用的对比文献、受影响的权利要求编号。",
@@ -356,6 +357,7 @@ func (e *RulesExtension) Tools() []*agentcore.Tool {
 				return e.handleValidateAmendment(args)
 			},
 		},
+		//nolint:dupl // intentional: each rule tool has the same JSON schema pattern
 		{
 			Name:        "analyze_slop",
 			Description: "反AI套话润色分析。三层检测：短语替换（填充词/空泛修饰/元叙述等）→结构缺陷（假三步法/假对比表/假转折等）→50分制评分+交付前快检。",

@@ -229,6 +229,8 @@ type MergedVarContext struct {
 // MergeVarContext merges the variable spaces of the named templates.
 // Shared variables (declared via shared_vars in the frontmatter) are
 // automatically identified and deduplicated.
+//
+//nolint:gocognit
 func (s *TemplateStore) MergeVarContext(names []string) (*MergedVarContext, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

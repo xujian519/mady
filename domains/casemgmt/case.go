@@ -1,3 +1,5 @@
+// Package casemgmt provides case management primitives for patent/legal domain agents,
+// including case lifecycle, workspace synchronization, file indexing, and case classification.
 package casemgmt
 
 import (

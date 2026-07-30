@@ -85,6 +85,7 @@ func (a *Agent) callProvider(ctx context.Context, req *ProviderRequest) (*Provid
 	return resp, err
 }
 
+//nolint:gocognit
 func (a *Agent) runStreaming(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error) {
 	ch, err := a.config.Provider.Stream(ctx, req)
 	if err != nil {

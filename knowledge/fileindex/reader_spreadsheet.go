@@ -119,7 +119,9 @@ func (fr *FileReader) readCSV(path string) (*FileReadResult, error) {
 
 // readXLSX 用 excelize（纯 Go 库）读取 .xlsx 文件，按 sheet 转 markdown 表格。
 // 多 sheet 时每个表前加三级标题；单 sheet 不加标题以保持与 CSV 输出一致。
-func (fr *FileReader) readXLSX(ctx context.Context, path string) (*FileReadResult, error) {
+//
+//nolint:gocognit
+func (fr *FileReader) readXLSX(_ context.Context, path string) (*FileReadResult, error) {
 	f, err := excelize.OpenFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("打开 XLSX 文件失败: %w", err)

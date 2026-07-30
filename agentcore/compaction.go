@@ -180,6 +180,7 @@ func findTailCutByTokens(msgs []Message, headProtect int64, tailTokenBudget int6
 	return alignBoundaryForward(msgs, tailStart)
 }
 
+//nolint:gocognit
 func pruneOldToolResults(msgs []Message, protectTailCount int) ([]Message, int) {
 	if len(msgs) == 0 {
 		return msgs, 0
@@ -288,6 +289,7 @@ type CompactionParams struct {
 	IneffectiveCooldown time.Duration
 }
 
+//nolint:gocognit
 func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 	provider := p.Provider
 	model := p.Model

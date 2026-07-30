@@ -28,6 +28,7 @@ func (c *Client) emitReconnectEvent(phase, reason string, attempt int, err error
 	c.emitRuntimeEvent(evt)
 }
 
+//nolint:gocognit
 func (c *Client) tryReconnect(ctx context.Context) bool {
 	c.reconnectMu.Lock()
 	defer c.reconnectMu.Unlock()

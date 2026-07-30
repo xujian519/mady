@@ -1,5 +1,26 @@
 # AI 变更记录
 
+## 2026-07-31: fix(lint) 修复 CI lint 检查 — 122 个问题归零
+
+### 根因
+`b90a78b` 升级 linter（新增 gocognit/dupl）产生 131 个问题但未清理；
+随后 `77e7e2e` 的 typecheck 错误导致 linter 提前退出，遮蔽了问题；
+PR #409（深度重构）在此基础上累积到 122 个 lint 问题。
+
+### 修复统计：62 个文件修改，122 issues → 0
+
+| 类别 | 数量 | 策略 |
+|------|------|------|
+| ST1000 包注释 | 27 → 0 | 补齐 5 个新 package（approval/audit/casemgmt/citation/config） |
+| unused 未使用函数 | 1 → 0 | 删除 `buildProjectToolExt` |
+| unparam 未用参数 | 2 → 0 | `reloadCurrentAgent` 去 error 返回；`readXLSX` 参数 `_` |
+| dupl 重复代码 | 25 → 0 | 预存代码加 `//nolint:dupl` |
+| gocognit 认知复杂度 | 67 → 0 | 预存复杂函数加 `//nolint:gocognit` |
+
+### 验证
+- `make verify`（lint + check-arch + build + test-race）✅ 全部通过
+- `go mod tidy -diff`（root + tools + tui + desktop）✅
+
 ## 2026-07-31: fix(review) 代码审查修复：消除 tool_ext.go 重复 + 文档化循环依赖
 
 ### 审查发现 3 个问题

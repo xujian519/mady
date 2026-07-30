@@ -480,6 +480,8 @@ func ToolKind(name string) string {
 }
 
 // BuildToolTitle builds a human-readable title for a tool call.
+//
+//nolint:gocognit
 func BuildToolTitle(name string, args map[string]any) string {
 	switch name {
 	case "terminal":

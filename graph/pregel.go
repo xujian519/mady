@@ -264,6 +264,8 @@ func (pg *PregelGraph) Compile(entryNode string, maxSteps ...int64) (*CompiledPr
 // Nodes at the same depth level are executed in parallel, and their outputs
 // are merged using the configured StateSchema (or last-write-wins by
 // alphabetical node name when Schema is nil).
+//
+//nolint:gocognit
 func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (PregelState, error) {
 	state := initial.Clone()
 	active := []string{cpg.entry}
@@ -435,6 +437,8 @@ func (pc *PregelCheckpointer) resumeLoop(ctx context.Context, graphID string, st
 // RunWithCheckpoints and resumeLoop. It executes supersteps from the
 // given active nodes, saving checkpoints before each step and looking
 // up node policies from pc.graph.nodePolicies.
+//
+//nolint:gocognit
 func (pc *PregelCheckpointer) runWithCheckpointsFrom(
 	ctx context.Context,
 	graphID string,

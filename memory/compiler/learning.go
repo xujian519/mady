@@ -93,6 +93,8 @@ func (c *Compiler) StartTurn(goal string) (guidance string, strategyID string) {
 // FinishTurn records the execution outcome and updates strategy statistics.
 // Trace signal quality (ClassifyQuality) affects the weight of the update:
 // HIGH_SIGNAL traces count fully, MEDIUM_SIGNAL count as 0.5, NOISE is skipped.
+//
+//nolint:gocognit
 func (c *Compiler) FinishTurn(trace ExecutionTrace) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

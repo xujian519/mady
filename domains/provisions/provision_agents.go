@@ -69,6 +69,8 @@ func BuildProvisionSystemPrompt(entry *ProvisionManifestEntry) string {
 }
 
 // ProvisionToHandoff 将一条 Manifest 条目转换为 HandoffConfig。
+//
+//nolint:dupl // ProvisionToHandoff and ReasoningToHandoff share the same HandoffConfig boilerplate
 func ProvisionToHandoff(entry *ProvisionManifestEntry, base agentcore.Config) agentcore.HandoffConfig {
 	cfg := base
 	cfg.Name = entry.Worker

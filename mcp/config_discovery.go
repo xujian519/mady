@@ -77,6 +77,8 @@ func LoadMCPConfig(path string) (*MCPConfigFile, error) {
 //
 // Returns the list of successfully created extensions and any non-fatal
 // warnings (e.g. parse errors for optional config files).
+//
+//nolint:gocognit
 func DiscoverMCPExtensions(ctx context.Context, madyHome string) ([]agentcore.Extension, []error) {
 	// Fast path for ACP/Zed integration: the editor passes MCP servers via
 	// session/new params, and scanning local configs (especially .claude.json)

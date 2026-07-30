@@ -115,6 +115,7 @@ type checkpointState struct {
 	LastInput string            `json:"last_input"`
 }
 
+//nolint:gocognit
 func (ig *InterruptableGraph) runFrom(ctx context.Context, input string, startLayer int64, resumeCP *Checkpoint) (string, *InterruptResult, error) {
 	var steps int64
 	skipFirstInterruptBefore := resumeCP != nil

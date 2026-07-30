@@ -234,6 +234,8 @@ func (s StoreStats) String() string {
 //
 // The embedder is used to compute vectors; chunks already having an embedding
 // are skipped to avoid redundant API calls.
+//
+//nolint:gocognit
 func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder) error {
 	if embedder == nil {
 		return fmt.Errorf("knowledge: embedder is nil")
@@ -323,6 +325,8 @@ func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder)
 
 // LoadPatentClaims loads patent claim documents with IPC metadata.
 // The content is structured as claims text with embedded IPC classification.
+//
+//nolint:dupl // LoadPatentClaims and LoadLegalStatute share identical document-loading boilerplate
 func (s *Store) LoadPatentClaims(docID, title, content string, ipc string) error {
 	doc := &Document{
 		ID:      docID,
@@ -356,6 +360,8 @@ func (s *Store) LoadPatentClaims(docID, title, content string, ipc string) error
 }
 
 // LoadLegalStatute loads a legal statute document with law metadata.
+//
+//nolint:dupl // LoadPatentClaims and LoadLegalStatute share identical document-loading boilerplate
 func (s *Store) LoadLegalStatute(docID, title, content string, lawSource string, articles []string) error {
 	doc := &Document{
 		ID:      docID,

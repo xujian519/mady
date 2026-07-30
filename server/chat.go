@@ -92,6 +92,7 @@ func (s *Server) handleStreamChat(w http.ResponseWriter, r *http.Request, req Ch
 	// mutex + atomic for lock-free reads from the handler path.
 	var dead atomic.Bool
 	var mu sync.Mutex
+	//nolint:dupl // SSE write helper is intentionally duplicated across handlers (same pattern)
 	writeSSE := func(eventType string, data any) {
 		if dead.Load() {
 			return

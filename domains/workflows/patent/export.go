@@ -14,6 +14,8 @@ import (
 
 // ExportNoveltyReport 将新颖性分析报告（已渲染的 Markdown 文本）导出为完整文件。
 // 返回带文件头的标准 Markdown 字节流。
+//
+//nolint:dupl // ExportNoveltyReport and ExportOAResponse share identical wrapper boilerplate
 func ExportNoveltyReport(output string) ([]byte, error) {
 	if output == "" {
 		return nil, fmt.Errorf("patent: empty novelty report")
@@ -41,6 +43,8 @@ func ExportNoveltyReport(output string) ([]byte, error) {
 
 // ExportOAResponse 将 OA 答复书（已渲染的 Markdown 文本）导出为完整文件。
 // 返回带文件头的标准 Markdown 字节流。
+//
+//nolint:dupl // ExportNoveltyReport and ExportOAResponse share identical wrapper boilerplate
 func ExportOAResponse(output string) ([]byte, error) {
 	if output == "" {
 		return nil, fmt.Errorf("patent: empty OA response")

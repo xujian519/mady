@@ -92,6 +92,7 @@ func ApplyUpdate(model any, path string, value any, hasValue bool) (any, error) 
 	return applyTokens(model, tokens, value, hasValue)
 }
 
+//nolint:gocognit
 func applyTokens(node any, tokens []string, value any, hasValue bool) (any, error) {
 	key := tokens[0]
 	last := len(tokens) == 1

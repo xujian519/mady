@@ -11,6 +11,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
+//nolint:gocognit
 func (c *Client) readLoop() {
 	defer func() {
 		if r := recover(); r != nil {

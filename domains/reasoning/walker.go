@@ -167,6 +167,8 @@ func (w *ReasoningWalker) Walk(ctx context.Context, in ReasoningWalkInput) (Reas
 }
 
 // CollectAll gathers rule constraints across all fact-category strategies.
+//
+//nolint:gocognit
 func (w *ReasoningWalker) CollectAll(ctx context.Context, in CollectAllInput) (CollectAllResult, error) {
 	if len(in.Facts) == 0 || w.store == nil {
 		return CollectAllResult{Constraints: []RuleConstraint{}, Coverage: 0, Gaps: []string{}}, nil

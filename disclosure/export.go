@@ -53,6 +53,8 @@ func ExportReport(report *AnalysisReport, format ExportFormat) ([]byte, error) {
 }
 
 // buildMarkdownReport 构建 Markdown 格式的分析报告。
+//
+//nolint:gocognit
 func buildMarkdownReport(report *AnalysisReport) string {
 	var b strings.Builder
 	if report == nil {

@@ -140,6 +140,8 @@ func (w *WritableStore) initSchema() error {
 //
 // The call is serialized by a mutex to ensure transaction integrity. Reads
 // from other goroutines are not blocked (WAL mode allows concurrent readers).
+//
+//nolint:gocognit
 func (w *WritableStore) AddDocument(ctx context.Context, docID, title, content string) (retErr error) {
 	if docID == "" {
 		return errors.New("writable: docID must not be empty")
@@ -339,6 +341,8 @@ func (w *WritableStore) ftsSearch(query string, topK int) ([]retrieval.ScoredChu
 // vectorSearch performs brute-force cosine similarity search against the
 // user database embeddings. User databases are expected to be small, so
 // no in-memory index is built.
+//
+//nolint:gocognit
 func (w *WritableStore) vectorSearch(queryVec []float32, topK int) ([]retrieval.ScoredChunk, error) {
 	if len(queryVec) != w.dim {
 		return nil, fmt.Errorf("vector dim mismatch: got %d, want %d", len(queryVec), w.dim)

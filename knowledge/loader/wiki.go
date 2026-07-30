@@ -83,6 +83,8 @@ func (l *WikiLoader) ImportWiki() (*WikiImportStats, error) {
 }
 
 // importDirectory walks a directory tree and imports .md files.
+//
+//nolint:gocognit
 func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ string) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

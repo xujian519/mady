@@ -429,6 +429,8 @@ func (e *KnowledgeExtension) search(ctx context.Context, query string, topK int)
 // backendSearch performs FTS + vector RRF fusion via the SQLite backend.
 // When a writable user store is configured, a third lane (user documents)
 // is added to the RRF fusion.
+//
+//nolint:gocognit
 func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, topK int) []retrieval.ScoredChunk {
 	candidateK := topK * 2
 	if candidateK < 20 {

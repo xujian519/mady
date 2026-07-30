@@ -115,6 +115,8 @@ func (s *SQLiteApprovalStore) Save(ctx context.Context, record domains.ApprovalR
 }
 
 // List returns all records for the given session, oldest first.
+//
+//nolint:dupl // List and ListByCase share identical iteration boilerplate
 func (s *SQLiteApprovalStore) List(ctx context.Context, sessionID string) ([]domains.ApprovalRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT data FROM approval_records WHERE session_id = ? ORDER BY created_at ASC`,
@@ -141,6 +143,8 @@ func (s *SQLiteApprovalStore) List(ctx context.Context, sessionID string) ([]dom
 }
 
 // ListByCase returns all records for the given case ID, oldest first.
+//
+//nolint:dupl // List and ListByCase share identical iteration boilerplate
 func (s *SQLiteApprovalStore) ListByCase(ctx context.Context, caseID string) ([]domains.ApprovalRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT data FROM approval_records WHERE case_id = ? ORDER BY created_at ASC`,

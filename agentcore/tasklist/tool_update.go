@@ -78,6 +78,8 @@ type taskUpdateArgs struct {
 //   - 依赖关系的反向写入（addBlockedBy/addBlocks）各自通过独立 UpdateFunc 原子完成。
 //     验证全部在写入前完成——只有所有校验通过才开始写入。
 //   - 主任务的 Blocks/BlockedBy 字段在同一 UpdateFunc 中与状态等一起写入。
+//
+//nolint:gocognit
 func (t *taskUpdateTool) Run(ctx context.Context, args json.RawMessage) (any, error) {
 	var p taskUpdateArgs
 	if err := json.Unmarshal(args, &p); err != nil {

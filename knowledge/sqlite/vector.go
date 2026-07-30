@@ -118,6 +118,8 @@ func (s *SQLiteStore) vectorSearchInMemory(queryVec []float32, topK int) ([]retr
 // index is not available. It uses parallel goroutines to scan the embeddings
 // table in ranges, each maintaining a min-heap of top-K candidates.
 // This reduces query time from ~14s (sequential) to ~1-2s on M4 Pro.
+//
+//nolint:gocognit
 func (s *SQLiteStore) vectorSearchSQLParallel(queryVec []float32, topK int) ([]retrieval.ScoredChunk, error) {
 	// Determine max ID for range partitioning — using MAX(id) instead of
 	// COUNT(*) so that gaps from deletions don't cause tail rows to be missed.

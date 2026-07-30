@@ -240,7 +240,7 @@ func identifyGroundsNode(ctx context.Context, state graph.PregelState) (graph.Pr
 // With a retriever injected, it performs real prior-art search.
 // Without a retriever, it marks degradation and returns empty evidence.
 //
-//nolint:unused // used by invalidation_test.go
+//nolint:unused,unparam // used by invalidation_test.go; Pregel node signature requires error return
 func gatherEvidenceNode(_ context.Context, state graph.PregelState) (graph.PregelState, error) {
 	claims := state.GetString(InvStateClaims)
 	grounds, _ := state[InvStateGrounds].([]InvGround)

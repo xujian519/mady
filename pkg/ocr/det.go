@@ -136,6 +136,7 @@ func dist(a, b image.Point) int {
 	return int(math.Sqrt(float64(dx*dx + dy*dy)))
 }
 
+//nolint:gocognit
 func segmentationToQuads(prob []float32, w, h int, thresh float32) []Quad {
 	if len(prob) < w*h {
 		return nil

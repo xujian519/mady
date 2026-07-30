@@ -23,6 +23,8 @@ import (
 
 // openSessionSelector opens the SessionSelector overlay for interactive session
 // management. It replaces the old text-only /sessions output.
+//
+//nolint:gocognit
 func (s *tuiSession) openSessionSelector() {
 	if s.agentStore == nil {
 		s.app.PrintSystem("⚠ 会话持久化未启用")

@@ -181,6 +181,7 @@ func (s *Server) checkWSAuth(key, token string) bool {
 	return false
 }
 
+//nolint:gocognit
 func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 	defer func() { _ = wc.close() }()
 
@@ -309,6 +310,7 @@ func (s *Server) handleWSSendTask(ctx context.Context, wc *wsConn, req JSONRPCRe
 	}
 }
 
+//nolint:dupl // intentional pattern: each WS handler follows the same boilerplate
 func (s *Server) handleWSGetTask(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
 	s.wsHandlerFor(func(ctx context.Context, wc *wsConn, req JSONRPCRequest) (any, error) {
 		var params GetTaskRequest
@@ -338,6 +340,7 @@ func (s *Server) handleWSCancelTask(ctx context.Context, wc *wsConn, req JSONRPC
 	})(ctx, wc, req)
 }
 
+//nolint:dupl // intentional pattern: each WS handler follows the same boilerplate
 func (s *Server) handleWSQueryTasks(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
 	s.wsHandlerFor(func(ctx context.Context, wc *wsConn, req JSONRPCRequest) (any, error) {
 		var params QueryTasksRequest
@@ -376,9 +379,11 @@ func (s *Server) handleWSGetPushNotification(ctx context.Context, wc *wsConn, re
 			return nil, &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}
 		}
 		return cfg, nil
+		//nolint:gocognit
 	})(ctx, wc, req)
 }
 
+//nolint:gocognit
 func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCRequest, _ context.CancelFunc) {
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {

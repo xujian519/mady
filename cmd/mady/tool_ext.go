@@ -65,12 +65,3 @@ func buildLegalToolExt(fc *frameworkContext) agentcore.Extension {
 	}
 	return tools.NewExtension(cfg)
 }
-
-// buildProjectToolExt 为项目级 Agent 构建工具扩展（有限文件集）。
-func buildProjectToolExt(fc *frameworkContext, rootPath string) agentcore.Extension {
-	cfg := baseToolConfig(fc)
-	cfg.WorkingDir = rootPath
-	cfg.EnabledTools = []string{"read", "write_file", "edit", "grep", "find", "glob", "ls"}
-	cfg.Pandoc = tools.PandocToolConfigDefaults()
-	return tools.NewExtension(cfg)
-}

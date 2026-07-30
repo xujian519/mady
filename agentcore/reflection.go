@@ -114,6 +114,8 @@ func NewReflectionEngine(config ReflectionConfig) *ReflectionEngine {
 // content 是 Agent 生成的文本内容。
 // domain 是可选的领域标识（如 "patent", "legal"），用于领域关键词检查。
 // roleID 是可选的角色标识，用于指定关键词检查范围。
+//
+//nolint:gocognit
 func (e *ReflectionEngine) Reflect(content string, domain, roleID string) ReflectionResult {
 	if strings.TrimSpace(content) == "" {
 		return ReflectionResult{

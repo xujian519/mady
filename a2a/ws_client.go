@@ -114,6 +114,7 @@ func (c *WSClient) Connect(ctx context.Context) (*WSConnection, error) {
 	return wsc, nil
 }
 
+//nolint:gocognit
 func (c *WSConnection) readLoop() {
 	defer close(c.ch)
 	defer c.cancel()

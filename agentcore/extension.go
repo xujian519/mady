@@ -79,6 +79,8 @@ func NewExtensionRegistry() *ExtensionRegistry {
 // 以释放已申请的资源（goroutine、文件句柄、订阅等），避免泄漏。
 // 注意：已写入 agent.config 的 Tools/Hooks/Middleware 等不回滚
 // （调用方在 Register 失败后通常丢弃该 agent）。
+//
+//nolint:gocognit
 func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...Extension) error {
 	for _, ext := range exts {
 		if err := ext.Init(ctx, agent); err != nil {

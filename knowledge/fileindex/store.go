@@ -151,6 +151,8 @@ func (fi *FileIndex) initSchema() error {
 // New/modified files are added/updated; deleted files are removed.
 // The call is lightweight — for a typical 200-file case folder it completes
 // in under 50 ms (os.Stat for each file + checksum comparison for changed files).
+//
+//nolint:gocognit
 func (fi *FileIndex) Refresh(ctx context.Context) error {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()

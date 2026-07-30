@@ -1,3 +1,5 @@
+// Package approval provides approval workflow management for patent/legal domain agents,
+// including approval state machine, pending review tracking, and lifecycle hooks.
 package approval
 
 import (

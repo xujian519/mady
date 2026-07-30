@@ -43,6 +43,8 @@ func (s *tuiSession) runSingleInputSlashWorkflow(
 
 // handleNoveltySlash 处理 /novelty <描述> 斜杠命令——直接运行新颖性分析 Pregel 图，
 // 绕过 LLM 意图分类，结果输出到聊天面板并经 AgentStore 持久化。
+//
+//nolint:dupl // Slash handlers follow the same runSingleInputSlashWorkflow pattern intentionally
 func (s *tuiSession) handleNoveltySlash(ctx slashCtx) {
 	s.runSingleInputSlashWorkflow(ctx, "novelty",
 		"用法: /novelty <发明描述>\n"+
@@ -67,6 +69,8 @@ func (s *tuiSession) handleNoveltySlash(ctx slashCtx) {
 }
 
 // handleOASlash 处理 /oa <OA通知书文本> 斜杠命令——直接运行 OA 答复起草 Pregel 图。
+//
+//nolint:dupl // Slash handlers follow the same runSingleInputSlashWorkflow pattern intentionally
 func (s *tuiSession) handleOASlash(ctx slashCtx) {
 	s.runSingleInputSlashWorkflow(ctx, "oa",
 		"用法: /oa <OA通知书文本>\n"+
@@ -92,6 +96,8 @@ func (s *tuiSession) handleOASlash(ctx slashCtx) {
 
 // handleInvalidationSlash 处理 /invalidation <权利要求文本> 斜杠命令——
 // 直接运行无效宣告分析 Pregel 图。
+//
+//nolint:dupl // Slash handlers follow the same runSingleInputSlashWorkflow pattern intentionally
 func (s *tuiSession) handleInvalidationSlash(ctx slashCtx) {
 	s.runSingleInputSlashWorkflow(ctx, "invalidation",
 		"用法: /invalidation <权利要求文本>\n"+
@@ -117,6 +123,8 @@ func (s *tuiSession) handleInvalidationSlash(ctx slashCtx) {
 
 // handleReexaminationSlash 处理 /reexamination <驳回决定书> 斜杠命令——
 // 直接运行复审请求书起草 Pregel 图。
+//
+//nolint:dupl // Slash handlers follow the same runSingleInputSlashWorkflow pattern intentionally
 func (s *tuiSession) handleReexaminationSlash(ctx slashCtx) {
 	s.runSingleInputSlashWorkflow(ctx, "reexamination",
 		"用法: /reexamination <驳回决定书文本>\n"+

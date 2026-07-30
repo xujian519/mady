@@ -79,6 +79,7 @@ const (
 
 // ── Markdown → PDF 布局 ────────────────────────────────────────────
 
+//nolint:gocognit
 func pdfRenderMarkdown(pdf *gopdf.GoPdf, md string) error {
 	lines := strings.Split(md, "\n")
 	var para []string

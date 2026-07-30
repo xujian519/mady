@@ -188,6 +188,7 @@ func (s *Server) handleSendTask(ctx context.Context, w http.ResponseWriter, req 
 	writeJSONRPCResult(w, req.ID, task)
 }
 
+//nolint:gocognit
 func (s *Server) handleSendTaskSubscribe(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -368,6 +369,7 @@ func (s *Server) handleGetPushNotification(ctx context.Context, w http.ResponseW
 	writeJSONRPCResult(w, req.ID, cfg)
 }
 
+//nolint:gocognit
 func (s *Server) handleResubscribe(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
 	var params struct {
 		ID string `json:"id"`

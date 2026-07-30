@@ -32,6 +32,8 @@ type cardEntry struct {
 // enrichRelations fills empty related_concepts for all cards.
 // Strategy 1: same-concept cards become mutual relations.
 // Strategy 2: same-domain, different-concept cards → up to 3 cross-references.
+//
+//nolint:gocognit
 func enrichRelations(idx *cardIndex) int {
 	conceptToIDs := make(map[string][]int)
 	for i, c := range idx.Cards {

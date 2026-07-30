@@ -1,3 +1,5 @@
+// Package config provides domain-level configuration management including project-level
+// settings, document style definitions, and embedded style resources.
 package config
 
 import (

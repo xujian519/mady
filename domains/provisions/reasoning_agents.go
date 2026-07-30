@@ -37,6 +37,8 @@ func BuildReasoningSystemPrompt(entry *ReasoningManifestEntry) string {
 }
 
 // ReasoningToHandoff 将一条推理模式 Manifest 条目转换为 HandoffConfig。
+//
+//nolint:dupl // ReasoningToHandoff and ProvisionToHandoff share the same HandoffConfig boilerplate
 func ReasoningToHandoff(entry *ReasoningManifestEntry, base agentcore.Config) agentcore.HandoffConfig {
 	cfg := base
 	cfg.Name = entry.Worker

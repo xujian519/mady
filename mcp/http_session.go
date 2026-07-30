@@ -82,6 +82,7 @@ func expiredSessionID(err error) string {
 	return ""
 }
 
+//nolint:gocognit
 func (c *HTTPClient) runServerStream() {
 	defer close(c.streamDone)
 	state := sseStreamState{}

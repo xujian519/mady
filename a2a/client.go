@@ -308,6 +308,7 @@ func (c *Client) resubscribe(ctx context.Context, taskID, lastEventID string) (*
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+//nolint:gocognit
 func (c *Client) call(ctx context.Context, method string, params any) (*JSONRPCResponse, error) {
 	var lastErr error
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {

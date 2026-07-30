@@ -209,6 +209,8 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 //
 // 重复检测状态（lastContent/repeatCount/...）在每次调用中局部化，
 // 有意不在跟随消息轮次间共享。
+//
+//nolint:gocognit
 func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, bool, error) {
 	var finalOutput string
 	var lastContent string

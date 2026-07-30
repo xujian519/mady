@@ -38,6 +38,8 @@ type ContentBlock struct {
 // MessageTextBody returns legacy Content plus all text/thinking blocks in order.
 // Thinking segments are wrapped in <thinking>...</thinking> for traceability;
 // callers that feed the LLM should use MessageCollapseForLLM instead.
+//
+//nolint:gocognit
 func MessageTextBody(m Message) string {
 	var b strings.Builder
 	if m.Content != "" {

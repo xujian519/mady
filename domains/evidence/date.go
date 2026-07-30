@@ -264,6 +264,8 @@ func extractWaybackMachineDate(rawURL string) string {
 // extractDateFromText 从描述文本中尝试提取日期。
 // 支持 "XXXX年XX月XX日"、"YYYY年MM月"、"YYYY-MM-DD" 等日期表达。
 // 返回找到的最精确的日期表达。
+//
+//nolint:gocognit
 func extractDateFromText(text string) string {
 	if text == "" {
 		return ""

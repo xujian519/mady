@@ -99,6 +99,7 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 
 	var dead atomic.Bool
 	var mu sync.Mutex
+	//nolint:dupl // SSE write helper is intentionally duplicated across handlers (same pattern)
 	writeSSE := func(eventType string, data any) {
 		if dead.Load() {
 			return

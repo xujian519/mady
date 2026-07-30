@@ -127,6 +127,8 @@ func NewPlanCompiler(builder NodeBuilder) *PlanCompiler {
 // runs independent branches in parallel.
 //
 // entryNode returns the name of the graph's entry node.
+//
+//nolint:gocognit
 func (c *PlanCompiler) CompilePlanToGraph(plan *Plan, bb *FactBlackboard) (*graph.PregelGraph, string, error) {
 	if plan == nil || len(plan.Steps) == 0 {
 		return nil, "", fmt.Errorf("plan compiler: plan is nil or has no steps")

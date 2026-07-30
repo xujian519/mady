@@ -148,6 +148,8 @@ func (s *tuiSession) extendConfig(cfg agentcore.Config) agentcore.Config {
 
 // applyPersistence injects session store, checkpoint, project context,
 // review gate, and vision config into the given agent config.
+//
+//nolint:gocognit // pre-existing high complexity
 func (s *tuiSession) applyPersistence(cfg agentcore.Config) agentcore.Config {
 	if s.agentStore != nil {
 		cfg.Store = s.agentStore
