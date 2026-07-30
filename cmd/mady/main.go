@@ -22,16 +22,14 @@
 package main
 
 // 本文件只保留主入口 main 与用法说明 printUsage。共享装配与子命令实现
-// 分布在同包兄弟文件中：
+// 分布在同包兄弟文件和内部包中：
 //   - framework.go — frameworkContext + setupFrameworkContext 等共享装配
 //   - knowledge.go — 知识库（SQLite/wiki/embedder/reranker）装配
 //   - tui.go + tui_session.go + tui_session_config.go + tui_session_agent.go
 //     + tui_helpers.go + tui_storage.go + tui_deferred.go + slash_registry.go — `mady tui`
 //   - server.go    — `mady serve`
 //   - acp.go       — `mady acp`
-//   - trust_mcp.go — `mady trust-mcp`
-//   - mcp_install.go — `mady mcp-install`
-//   - patent.go    — `mady patent`
+//   - subcmd/      — 其余子命令实现（evidence/eval/patent/mcp-install/trust-mcp/trust-knowledge/ocr/util）
 
 import (
 	"context"
@@ -44,6 +42,7 @@ import (
 
 	_ "github.com/joho/godotenv/autoload" // 自动加载 .env 文件（如有）
 
+	"github.com/xujian519/mady/cmd/mady/subcmd"
 	"github.com/xujian519/mady/pkg/omlx"
 	_ "github.com/xujian519/mady/provider/adapter"
 )
@@ -81,42 +80,42 @@ func main() {
 			os.Exit(1)
 		}
 	case "trust-mcp":
-		if err := runTrustMCP(os.Args); err != nil {
+		if err := subcmd.RunTrustMCP(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
 	case "trust-knowledge":
-		if err := runTrustKnowledge(os.Args[2:]); err != nil {
+		if err := subcmd.RunTrustKnowledge(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
 	case "mcp-install":
-		if err := runMCPInstall(os.Args[2:]); err != nil {
+		if err := subcmd.RunMCPInstall(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
 	case "eval":
-		if err := runEval(ctx, os.Args[2:]); err != nil {
+		if err := subcmd.RunEval(ctx, os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
 	case "evidence":
-		if err := runEvidenceCLI(os.Args[2:]); err != nil {
+		if err := subcmd.RunEvidenceCLI(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
 	case "patent":
-		if err := runPatentCLI(ctx, os.Args); err != nil {
+		if err := subcmd.RunPatentCLI(ctx, os.Args); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
 	case "util":
-		if err := runUtil(os.Args[2:]); err != nil {
+		if err := subcmd.RunUtil(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
 	case "ocr":
-		if err := runOCRCLI(os.Args[2:]); err != nil {
+		if err := subcmd.RunOCRCLI(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}

@@ -1,5 +1,3 @@
-package main
-
 // runTrustKnowledge handles the "mady trust-knowledge" subcommand.
 // It adds a directory to the sandbox AllowRead whitelist persisted in
 // ~/.mady/config.yaml, so file tools (read, grep, glob, etc.) can access
@@ -11,6 +9,8 @@ package main
 //	mady trust-knowledge --list   Show current whitelist
 //	mady trust-knowledge --remove <path>  Remove <path> from whitelist
 
+package subcmd
+
 import (
 	"fmt"
 	"os"
@@ -19,7 +19,8 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
-func runTrustKnowledge(args []string) error {
+// RunTrustKnowledge handles the "mady trust-knowledge" subcommand.
+func RunTrustKnowledge(args []string) error {
 	if len(args) == 0 {
 		printTrustKnowledgeUsage()
 		return fmt.Errorf("trust-knowledge: missing path argument")

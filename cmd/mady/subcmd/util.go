@@ -1,4 +1,4 @@
-package main
+package subcmd
 
 import (
 	"fmt"
@@ -9,10 +9,10 @@ import (
 	"github.com/xujian519/mady/prompt"
 )
 
-// runUtil dispatches utility subcommands that do not need a full framework
+// RunUtil dispatches utility subcommands that do not need a full framework
 // context. Currently supports:
 //   - list-prompts: print the catalog of built-in + user prompt templates.
-func runUtil(args []string) error {
+func RunUtil(args []string) error {
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "usage: mady util <subcommand>\n\nSubcommands:\n  list-prompts  列出可用的提示词模板")
 		return fmt.Errorf("util: missing subcommand")

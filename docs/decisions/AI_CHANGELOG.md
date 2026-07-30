@@ -9088,3 +9088,40 @@ mcp/client_test.go                          (+19 行, 2 个构造器 + 1 测试�
 **验证**：`go build ./...`、`go vet ./...`、`go test -race ./...`（含 tools/ 和 tui/ 子模块）全部通过。
 
 **影响**：无行为变更。测试使用 channel/context 同步而非固定延时，减少 flaky 风险和执行时间。`DeferredInit.Done()` 为新导出 API。`runtime.Gosched()` 引入少量 yield 而非 sleep，在多核环境下不引入实际等待。
+
+## 2026-07-31: fix(arch) P2-12 修复 root↔tools 交叉模块依赖
+
+**背景**：`agentcore/permission/permission.go` 导入了 `github.com/xujian519/mady/tools` 包，仅为了使用 `tools.ToolBash`、`tools.ToolExecuteCode`、`tools.ToolComputerUse` 三个常量。这导致 agentcore（内核层）依赖 tools（外层），形成架构违规。
+
+**改动清单**：
+1. `agentcore/permission/toolnames.go` — 新建文件，定义 `ToolBash`、`ToolExecuteCode`、`ToolComputerUse` 三个工具名常量，避免跨模块依赖
+2. `agentcore/permission/permission.go` — 删除 `import "github.com/xujian519/mady/tools"`，将 `tools.ToolBash`/`tools.ToolExecuteCode`/`tools.ToolComputerUse` 改为直接使用本地常量
+
+**影响**：无行为变更。常量值与 tools/tools.go 定义完全一致（bash/execute_code/computer_use），agentcore 不再依赖 tools 包。agentcore 下无其他文件导入 tools 包（grep 确认）。
+
+## 2026-07-31: refactor(cmd) P2-5 Phase 1 — 子命令提取到 cmd/mady/subcmd/ 内部包
+
+**背景**：`cmd/mady/` 有 34 个非测试 Go 源文件，远超标准 Go 项目的「cmd 只放 main」原则。
+Phase 1 将 8 个不依赖 framework shim 非导出符号的子命令提取到 `cmd/mady/subcmd/` 内部包，
+保持 `acp.go` 和 `server.go` 在 package main（因依赖 `setupFrameworkContext`、`buildUnifiedToolExt` 等非导出 shim 函数，
+需后续 Phase 处理）。
+
+**改动清单**：
+1. `cmd/mady/subcmd/` — 新建内部包目录，含 8 子命令 + 2 测试 + 1 doc.go 共 11 文件
+2. 8 个文件从 `package main` 改为 `package subcmd`，入口函数从 `runXxx` 改为导出 `RunXxx`
+3. 移动的文件：
+   - `evidence.go` + `evidence_test.go` → `subcmd/evidence.go` + `subcmd/evidence_test.go`
+   - `eval.go` → `subcmd/eval.go`
+   - `patent.go` → `subcmd/patent.go`
+   - `mcp_install.go` → `subcmd/mcp_install.go`
+   - `trust_mcp.go` → `subcmd/trust_mcp.go`（同时修复：原函数直接读 `os.Args`，改为接受 `[]string` 参数）
+   - `trust_knowledge.go` → `subcmd/trust_knowledge.go`
+   - `ocr.go` → `subcmd/ocr.go`
+   - `util.go` + `util_test.go` → `subcmd/util.go` + `subcmd/util_test.go`
+4. 删除 `cmd/mady/` 下原始 10 个文件
+5. `main.go` — 添加 `subcmd` import，8 个 switch case 改为 `subcmd.RunXxx()` 调用
+6. `doc.go` — 更新包注释反映新结构
+
+**验证**：`go build ./cmd/mady/...`、`go build ./...`、`go vet ./...`、`go test ./cmd/mady/...`（含 `./cmd/mady/subcmd/...`）全部通过。
+
+**影响**：无行为变更。`trust-mcp` 子命令参数解析从直接读 `os.Args` 改为接受函数参数（行为等价）。剩余 2 个子命令（`acp`、`server`）仍留在 `package main`，因依赖 `setupFrameworkContext`、`buildUnifiedToolExt` 等非导出符号，需后续 Phase 通过回调/接口解耦后迁移。

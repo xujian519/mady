@@ -1,4 +1,4 @@
-package main
+package subcmd
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func citationVerifierAdapter(text string) evaluate.CitationValidityReport {
 	}
 }
 
-// runEvalCLI 运行评估 CLI 子命令。
+// RunEval 运行评估 CLI 子命令。
 //
 // 用法:
 //
@@ -51,7 +51,7 @@ func citationVerifierAdapter(text string) evaluate.CitationValidityReport {
 //	--model      (live 模式) LLM 模型名 (如 deepseek-chat)
 //	--workers    (live 模式) 并发数 (默认 4)
 //	--timeout    (live 模式) 单题超时秒数 (默认 900)
-func runEval(ctx context.Context, args []string) error {
+func RunEval(ctx context.Context, args []string) error {
 	// 子命令分发：mady eval baseline [flags]
 	if len(args) > 0 && args[0] == "baseline" {
 		return runEvalBaseline(ctx, args[1:])

@@ -1,4 +1,4 @@
-package main
+package subcmd
 
 import (
 	"context"
@@ -11,13 +11,13 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
-// runPatentCLI dispatches `mady patent <subcommand> [args...]`.
+// RunPatentCLI dispatches `mady patent <subcommand> [args...]`.
 //
 // Subcommands:
 //
 //	mady patent novelty [<description> | -f <file>] [-o <file>]
 //	mady patent oa [<oa_text> | -f <file>] [-o <file>]
-func runPatentCLI(ctx context.Context, args []string) error {
+func RunPatentCLI(ctx context.Context, args []string) error {
 	if len(args) < 3 {
 		printPatentUsage()
 		return fmt.Errorf("patent: missing subcommand (novelty/oa/invalidation/infringement/reexamination)")

@@ -1,4 +1,4 @@
-package main
+package subcmd
 
 // 本文件实现 `mady trust-mcp` 子命令：将 MCP 配置文件（默认 $PWD/.mcp.json）
 // 的当前内容哈希写入信任存储（$MADY_HOME/trusted-mcp.json）。
@@ -13,11 +13,12 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
-func runTrustMCP(_ []string) error {
+// RunTrustMCP handles the "mady trust-mcp" subcommand.
+func RunTrustMCP(cmdArgs []string) error {
 	// 默认信任当前目录的 .mcp.json；也可显式指定配置文件路径。
 	path := ".mcp.json"
-	if len(os.Args) > 2 {
-		path = os.Args[2]
+	if len(cmdArgs) > 0 {
+		path = cmdArgs[0]
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {

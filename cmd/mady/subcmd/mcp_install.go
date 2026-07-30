@@ -1,4 +1,4 @@
-package main
+package subcmd
 
 import (
 	"fmt"
@@ -8,14 +8,14 @@ import (
 	"github.com/xujian519/mady/mcp"
 )
 
-// runMCPInstall handles the "mady mcp-install" subcommand.
+// RunMCPInstall handles the "mady mcp-install" subcommand.
 // Usage:
 //
 //	mady mcp-install <agent>          install Mady MCP server into <agent>
 //	mady mcp-install --list            list detected agents
 //	mady mcp-install <agent> --print   dry-run: show what would be written
 //	mady mcp-install <agent> --uninstall  remove Mady from <agent> config
-func runMCPInstall(args []string) error {
+func RunMCPInstall(args []string) error {
 	// Parse flags.
 	var listFlag, printFlag, uninstallFlag bool
 	var agentArg string

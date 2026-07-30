@@ -1,4 +1,4 @@
-package main
+package subcmd
 
 import (
 	"encoding/json"
@@ -9,7 +9,8 @@ import (
 	"github.com/xujian519/mady/pkg/ocr"
 )
 
-func runOCRCLI(args []string) error {
+// RunOCRCLI handles the "mady ocr" subcommand.
+func RunOCRCLI(args []string) error {
 	if len(args) == 0 {
 		printOCRUsage()
 		return fmt.Errorf("ocr: missing subcommand")

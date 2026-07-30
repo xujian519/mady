@@ -1,4 +1,4 @@
-package main
+package subcmd
 
 import (
 	"encoding/json"
@@ -14,7 +14,8 @@ import (
 	"github.com/xujian519/mady/domains/evidence"
 )
 
-func runEvidenceCLI(args []string) error {
+// RunEvidenceCLI dispatches the `mady evidence` subcommand.
+func RunEvidenceCLI(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("evidence: missing action (use -h for help)")
 	}

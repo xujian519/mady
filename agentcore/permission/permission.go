@@ -3,8 +3,6 @@ package permission
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/xujian519/mady/tools"
 )
 
 // Decision is the outcome of evaluating a tool call against policy rules.
@@ -58,9 +56,9 @@ func ProjectAgentPolicy() Policy {
 		Mode: DecisionAllow,
 		Ask: []Rule{
 			// 任意命令执行/代码执行/桌面控制 —— 仅此三项需要交互确认
-			{Tool: tools.ToolBash},
-			{Tool: tools.ToolExecuteCode},
-			{Tool: tools.ToolComputerUse},
+			{Tool: ToolBash},
+			{Tool: ToolExecuteCode},
+			{Tool: ToolComputerUse},
 		},
 	}
 }
