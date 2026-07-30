@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -31,8 +32,11 @@ func NewLLMClassifier(provider agentcore.Provider) *LLMClassifier {
 func (c *LLMClassifier) Name() string { return "llm" }
 
 // Classify implements Classifier using LLM structured output.
+// Uses a 5-second timeout to prevent indefinite blocking.
 func (c *LLMClassifier) Classify(input string) IntentResult {
-	result, err := c.classifyWithLLM(context.Background(), input)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := c.classifyWithLLM(ctx, input)
 	if err != nil || result.Confidence < c.threshold() {
 		return c.keywordFallback.Classify(input)
 	}

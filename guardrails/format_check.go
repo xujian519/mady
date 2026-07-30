@@ -32,7 +32,7 @@ type FormatCheckRule struct {
 // NewFormatCheckRule creates a rule with the given required sections.
 func NewFormatCheckRule(sections ...string) *FormatCheckRule {
 	return &FormatCheckRule{
-		RequiredSections:    sections,
+		RequiredSections:     sections,
 		MissingSectionAction: ActionAlert,
 	}
 }
@@ -46,8 +46,8 @@ func PatentFormatCheck() *FormatCheckRule {
 			"发明内容",
 			"具体实施方式",
 		},
-		MinSectionCount:     3, // at least 3 of 4 required
-		Domain:              "patent",
+		MinSectionCount:      3, // at least 3 of 4 required
+		Domain:               "patent",
 		MissingSectionAction: ActionAlert,
 	}
 }
@@ -61,8 +61,8 @@ func LegalFormatCheck() *FormatCheckRule {
 			"分析",
 			"结论",
 		},
-		MinSectionCount:     3,
-		Domain:              "legal",
+		MinSectionCount:      3,
+		Domain:               "legal",
 		MissingSectionAction: ActionAlert,
 	}
 }

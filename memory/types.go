@@ -68,6 +68,29 @@ const (
 	LayerLongTerm MemoryLayer = "long_term" // 跨会话持久事实/知识（持久）
 )
 
+// ---------------------------------------------------------------------------
+// Tier — 温度分级（HOT/WARM/COLD/ETERNAL）
+// ---------------------------------------------------------------------------
+
+// MemoryTier represents the temperature-based access tier of a memory entry.
+// This is orthogonal to MemoryLayer — a LayerSession entry can be TierHot,
+// while a LayerLongTerm entry can be TierCold.
+type MemoryTier string
+
+const (
+	// TierHot — active/recent memory, full content preserved.
+	TierHot MemoryTier = "hot"
+
+	// TierWarm — recently important but cooling, may be summarized.
+	TierWarm MemoryTier = "warm"
+
+	// TierCold — archived memory, key points only.
+	TierCold MemoryTier = "cold"
+
+	// TierEternal — user-marked as permanent, never migrates or prunes.
+	TierEternal MemoryTier = "eternal"
+)
+
 // ValidLayers 返回所有有效层级的切片。
 func ValidLayers() []MemoryLayer {
 	return []MemoryLayer{LayerUser, LayerSession, LayerLongTerm}
@@ -104,6 +127,10 @@ type MemoryEntry struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 	LastAccess  time.Time `json:"last_access"`
 	DecayFactor float64   `json:"decay_factor"` // 衰减因子 (0~1, 默认 0.95/天)
+
+	// Tier is the temperature-based access tier (hot/warm/cold/eternal).
+	// Default: "hot" for new entries.
+	Tier MemoryTier `json:"tier,omitempty"`
 
 	Metadata map[string]any `json:"metadata,omitempty"` // 扩展元数据
 }
@@ -156,6 +183,7 @@ type MemoryFilter struct {
 	SessionID string      `json:"session_id,omitempty"`
 	ProjectID string      `json:"project_id,omitempty"`
 	Layer     MemoryLayer `json:"layer,omitempty"` // 空字符串 = 所有层
+	Tier      string      `json:"tier,omitempty"`  // 空字符串 = 所有温度层
 
 	// TopK 最大返回条数。0 = 使用默认值 (10)。
 	TopK int `json:"top_k,omitempty"`

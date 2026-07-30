@@ -88,6 +88,13 @@ type ToolResult struct {
 	Terminate bool
 	Err       error
 	Duration  time.Duration
+	// Success is true when the tool call completed without error.
+	// Note: Interrupt signals (e.g., user-requested pause) are considered
+	// successful completions since the tool fulfilled its contract.
+	// Downstream code should check Err with IsInterrupt() for interrupt handling.
+	Success bool `json:"success"`
+	// Metadata carries tool-specific structured data for observability.
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // IsDualOutput returns true when LLM and user outputs differ.
@@ -279,6 +286,7 @@ func (e *Executor) Execute(ctx context.Context, tc ToolCall, state *AgentState) 
 		Result:     result,
 		Err:        err,
 		Duration:   time.Since(start),
+		Success:    err == nil || IsInterrupt(err),
 	}
 	if tm.set {
 		tr.Terminate = true

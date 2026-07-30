@@ -380,29 +380,82 @@ func NewPregelCheckpointer(cpg *CompiledPregelGraph, store CheckpointStore) *Pre
 func (pc *PregelCheckpointer) RunWithCheckpoints(ctx context.Context, initial PregelState, graphID string) (PregelState, error) {
 	state := initial.Clone()
 	active := []string{pc.graph.entry}
-	var steps int64
+	return pc.runWithCheckpointsFrom(ctx, graphID, state, active, 0, "pregel_checkpointed")
+}
 
+// Resume continues execution from the latest checkpoint for the given graphID.
+func (pc *PregelCheckpointer) Resume(ctx context.Context, graphID string) (PregelState, error) {
+	cp, err := pc.store.LoadLatest(ctx, graphID)
+	if err != nil {
+		return nil, fmt.Errorf("pregel resume: %w", err)
+	}
+	if cp == nil {
+		return nil, fmt.Errorf("pregel resume: no checkpoint found for graph %q", graphID)
+	}
+
+	var state PregelState
+	if err := json.Unmarshal(cp.State, &state); err != nil {
+		return nil, fmt.Errorf("pregel resume: unmarshal state: %w", err)
+	}
+	var active []string
+	if rawNodes, ok := cp.Metadata["active_nodes"]; ok {
+		switch nodes := rawNodes.(type) {
+		case []string:
+			active = nodes
+		case []interface{}:
+			for _, n := range nodes {
+				if s, ok := n.(string); ok {
+					active = append(active, s)
+				}
+			}
+		}
+	}
+	if len(active) == 0 {
+		return nil, fmt.Errorf("pregel resume: no active nodes in checkpoint %q", cp.ID)
+	}
+	return pc.resumeLoop(ctx, graphID, state, active, cp.StepIndex)
+}
+
+// resumeLoop continues the Pregel execution loop from a specific state.
+// It delegates to runWithCheckpointsFrom to share the execution logic
+// with RunWithCheckpoints, ensuring consistent node policy lookup and
+// error handling.
+func (pc *PregelCheckpointer) resumeLoop(ctx context.Context, graphID string, state PregelState, active []string, steps int64) (PregelState, error) {
+	return pc.runWithCheckpointsFrom(ctx, graphID, state, active, steps, "pregel_resume")
+}
+
+// runWithCheckpointsFrom is the shared execution loop used by both
+// RunWithCheckpoints and resumeLoop. It executes supersteps from the
+// given active nodes, saving checkpoints before each step and looking
+// up node policies from pc.graph.nodePolicies.
+func (pc *PregelCheckpointer) runWithCheckpointsFrom(
+	ctx context.Context,
+	graphID string,
+	state PregelState,
+	active []string,
+	steps int64,
+	errPrefix string,
+) (PregelState, error) {
 	for len(active) > 0 {
 		steps++
 		if steps > pc.graph.maxSteps {
-			return state, fmt.Errorf("pregel_checkpointed: %w", ErrExceedMaxSteps)
+			return state, fmt.Errorf("%s: %w", errPrefix, ErrExceedMaxSteps)
 		}
 
 		stateBytes, err := json.Marshal(state)
 		if err != nil {
-			return state, fmt.Errorf("pregel checkpoint marshal failed: %w", err)
+			return state, fmt.Errorf("%s: marshal state: %w", errPrefix, err)
 		}
 		cp := Checkpoint{
 			ID:        fmt.Sprintf("pregel_%s_step_%d", graphID, steps),
 			GraphID:   graphID,
-			NodeName:  active[0],
 			StepIndex: steps,
 			State:     stateBytes,
 			Metadata:  map[string]any{"active_nodes": active},
 			CreatedAt: time.Now(),
 		}
 		if err := pc.store.Save(ctx, cp); err != nil {
-			return state, fmt.Errorf("pregel checkpoint save failed: %w", err)
+			return state, fmt.Errorf("%s: save checkpoint: %w", errPrefix, err)
 		}
 
 		var nextActive []string
@@ -411,7 +464,7 @@ func (pc *PregelCheckpointer) RunWithCheckpoints(ctx context.Context, initial Pr
 		for _, name := range active {
 			node, ok := pc.graph.pg.nodes[name]
 			if !ok {
-				return state, fmt.Errorf("pregel_checkpointed: node %s not found", name)
+				return state, fmt.Errorf("%s: node %s not found", errPrefix, name)
 			}
 			snapshot := state.Clone()
 			policy, hasPolicy := pc.graph.nodePolicies[name]
@@ -421,12 +474,11 @@ func (pc *PregelCheckpointer) RunWithCheckpoints(ctx context.Context, initial Pr
 			}
 			out, err := executeWithPolicy(ctx, name, node, snapshot, policyPtr)
 			if err != nil {
-				return state, fmt.Errorf("pregel_checkpointed:%s: %w", name, err)
+				return state, fmt.Errorf("%s:%s: %w", errPrefix, name, err)
 			}
-			// Merge deterministically using schema (same as parallel Run path).
 			singleResult := map[string]PregelState{name: out}
 			if err := mergeWithSchema(state, singleResult, pc.graph.Schema); err != nil {
-				return state, err
+				return state, fmt.Errorf("%s: merge %s: %w", errPrefix, name, err)
 			}
 
 			if targets, ok := pc.graph.pg.edges[name]; ok {

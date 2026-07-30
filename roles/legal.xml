@@ -1,0 +1,10 @@
+<handoff_role name="legal" mode="delegate" invisible="true">
+    <description>法律咨询与研究。处理法条检索、判例检索、法律分析。</description>
+    <allowed_sources>
+        <source>mady-router</source>
+        <source>mady-agent</source>
+    </allowed_sources>
+    <!-- NOTE: System prompt is defined in code (domains/unified.go LegalAgentConfig).
+         Allowed tools are controlled by Extension configs in code, not XML. -->
+    <temperature>0.3</temperature>
+</handoff_role>

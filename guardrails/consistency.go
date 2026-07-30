@@ -26,16 +26,17 @@ type ConsistencyRule struct {
 }
 
 // defaultContradictionPairs are common contradictory patterns in Chinese.
+// Each pair is (affirmative, negation). These avoid substring ambiguity
+// where possible (e.g., preferring "构成侵权" over the ambiguous "具备").
 var defaultContradictionPairs = [][2]string{
 	{"技术方案为", "技术方案不含"},
 	{"属于", "不属于"},
-	{"具有", "不具有"},
 	{"包括", "不包括"},
 	{"满足", "不满足"},
 	{"符合", "不符合"},
 	{"构成侵权", "不构成侵权"},
-	{"具备新颖性", "不具备新颖性"},
-	{"具备创造性", "不具备创造性"},
+	{"具有新颖性", "不具有新颖性"},
+	{"具有创造性", "不具有创造性"},
 	{"公开充分", "公开不充分"},
 }
 
@@ -85,16 +86,31 @@ func (r *ConsistencyRule) findContradictions(content string) []string {
 		affIdx := strings.Index(content, pair[0])
 		negIdx := strings.Index(content, pair[1])
 
-		if affIdx >= 0 && negIdx >= 0 {
-			dist := affIdx - negIdx
-			if dist < 0 {
-				dist = -dist
-			}
-			if dist <= window {
-				contradictions = append(contradictions,
-					fmt.Sprintf("「%s」与「%s」同时出现（相距%d字符）",
-						pair[0], pair[1], dist))
-			}
+		if affIdx < 0 || negIdx < 0 {
+			continue
+		}
+
+		// Guard against substring false positives: if the affirmative
+		// match is entirely inside the negation match (or vice versa),
+		// skip — this is a single statement, not a contradiction.
+		// Example: "不满足" contains "满足" as a substring.
+		affEnd := affIdx + len(pair[0])
+		negEnd := negIdx + len(pair[1])
+		if affIdx >= negIdx && affEnd <= negEnd {
+			continue // affirmative inside negation
+		}
+		if negIdx >= affIdx && negEnd <= affEnd {
+			continue // negation inside affirmative
+		}
+
+		dist := affIdx - negIdx
+		if dist < 0 {
+			dist = -dist
+		}
+		if dist <= window {
+			contradictions = append(contradictions,
+				fmt.Sprintf("「%s」与「%s」同时出现（相距%d字符）",
+					pair[0], pair[1], dist))
 		}
 	}
 	return contradictions

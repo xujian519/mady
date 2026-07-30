@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -165,6 +166,31 @@ func (s *SQLiteGraphCheckpointStore) Delete(ctx context.Context, id string) erro
 		return fmt.Errorf("graph-checkpoint/sqlite: delete: %w", err)
 	}
 	return nil
+}
+
+// LoadLatest returns the checkpoint with the highest step_index for graphID.
+func (s *SQLiteGraphCheckpointStore) LoadLatest(ctx context.Context, graphID string) (*graph.Checkpoint, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, graph_id, node_name, step_index, state_json, metadata, created_at
+		 FROM graph_checkpoints WHERE graph_id = ?
+		 ORDER BY step_index DESC LIMIT 1`, graphID)
+	var cp graph.Checkpoint
+	var stateBytes, metadataBytes []byte
+	var createdAt time.Time
+	err := row.Scan(&cp.ID, &cp.GraphID, &cp.NodeName, &cp.StepIndex,
+		&stateBytes, &metadataBytes, &createdAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("graph-checkpoint/sqlite: load latest: %w", err)
+	}
+	cp.State = stateBytes
+	cp.CreatedAt = createdAt
+	if len(metadataBytes) > 0 {
+		_ = json.Unmarshal(metadataBytes, &cp.Metadata)
+	}
+	return &cp, nil
 }
 
 // Close releases the database connection.

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/internal/intentrules"
 )
 
 // Domain names used for intent classification and routing.
@@ -21,44 +22,17 @@ const (
 func ClassifyIntent(input string) string {
 	lower := strings.ToLower(input)
 
-	// Patent-related keywords
-	patentKeywords := []string{
-		"专利", "权利要求", "发明", "实用新型", "外观设计",
-		"新颖性", "创造性", "实用性", "prior art", "现有技术",
-		"patent", "invention", "claim", "IPC", "分类号",
-		"pct", "巴黎公约", "优先权",
-	}
-	for _, kw := range patentKeywords {
+	for _, kw := range intentrules.PatentKeywords {
 		if strings.Contains(lower, kw) {
 			return DomainPatent
 		}
 	}
-
-	// Legal-related keywords
-	legalKeywords := []string{
-		"法律", "法条", "法规", "判例", "判决", "裁定",
-		"诉讼", "起诉", "被告", "原告", "法院", "法官",
-		"合同", "侵权", "赔偿", "证据", "仲裁",
-		"刑法", "民法", "行政法", "公司法", "劳动法",
-		"司法解释", "指导性案例",
-		"law", "legal", "court", "statute", "regulation",
-	}
-	for _, kw := range legalKeywords {
+	for _, kw := range intentrules.LegalKeywords {
 		if strings.Contains(lower, kw) {
 			return DomainLegal
 		}
 	}
-
-	// Assistant-related keywords (task execution, code, file ops)
-	// Note: "分析" is intentionally excluded to avoid conflict with patent/legal.
-	assistantKeywords := []string{
-		"查一下", "帮我搜", "搜索", "检索", "查找",
-		"起草", "生成", "写一个", "创建", "整理", "导出", "统计",
-		"写代码", "实现一个", "调试", "优化", "重构",
-		"代码", "编程", "python", "javascript", "go语言",
-		"bash", "shell", "命令行", "脚本",
-	}
-	for _, kw := range assistantKeywords {
+	for _, kw := range intentrules.AssistantKeywords {
 		if strings.Contains(lower, kw) {
 			return DomainAssistant
 		}

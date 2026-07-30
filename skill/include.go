@@ -109,9 +109,8 @@ func expandIncludesRecursive(
 			cache[fullPath] = content
 		}
 
-		// If the included file has SKILL.md-style frontmatter, strip it
-		// so only the body content is included. We reuse the existing
-		// parseFrontmatter function.
+		// If the included file has SKILL.md-style frontmatter, strip it.
+		// On parse failure, fall back to raw content to avoid silent data loss.
 		if strings.HasPrefix(content, "---\n") {
 			_, bodyContent, _ := parseFrontmatter(content, fullPath)
 			if strings.TrimSpace(bodyContent) != "" {

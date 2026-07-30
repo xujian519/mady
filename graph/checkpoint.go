@@ -23,6 +23,8 @@ type Checkpoint struct {
 type CheckpointStore interface {
 	Save(ctx context.Context, cp Checkpoint) error
 	Load(ctx context.Context, id string) (*Checkpoint, error)
+	// LoadLatest returns the checkpoint with the highest StepIndex for graphID.
+	LoadLatest(ctx context.Context, graphID string) (*Checkpoint, error)
 	List(ctx context.Context, graphID string) ([]Checkpoint, error)
 	Delete(ctx context.Context, id string) error
 }
@@ -297,4 +299,21 @@ func (s *MemoryCheckpointStore) Delete(_ context.Context, id string) error {
 	defer s.mu.Unlock()
 	delete(s.checkpoints, id)
 	return nil
+}
+
+// LoadLatest returns the checkpoint with the highest StepIndex for graphID.
+func (s *MemoryCheckpointStore) LoadLatest(_ context.Context, graphID string) (*Checkpoint, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var latest *Checkpoint
+	for _, cp := range s.checkpoints {
+		if cp.GraphID != graphID {
+			continue
+		}
+		if latest == nil || cp.StepIndex > latest.StepIndex {
+			c := cp
+			latest = &c
+		}
+	}
+	return latest, nil
 }

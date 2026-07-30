@@ -25,6 +25,7 @@ import (
 	"github.com/xujian519/mady/domains/workflows/patent"
 	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/guardrails"
+	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/psychological"
 	"github.com/xujian519/mady/retrieval/domain"
 	"github.com/xujian519/mady/tools"
@@ -218,6 +219,133 @@ func injectWritingTools(cfg *agentcore.Config) {
 	if globalWritingExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalWritingExt)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// 角色配置 (Role Configuration)
+//
+// 借鉴 BCIP 的 9 角色 TOML 配置体系 (codex-patent-agents/roles.rs)，
+// 支持在构建 Patent Agent 时加载角色级配置（Temperature/Token 预算/工具域过滤）。
+//
+// 角色配置通过 YAML 文件定义（见 pkg/agentconfig/role.go），
+// 由 SetupPatentRoleConfig 在启动期加载并注入全局变量。
+// PatentAgentConfig 读取活跃角色配置并应用到 DisableTools/Temperature 中。
+// ---------------------------------------------------------------------------
+
+// globalPatentRoleSet 保存所有已注册的角色配置（按角色 ID 索引），
+// 由 SetupPatentRoleConfig 在启动期加载。
+var globalPatentRoleSet agentconfig.RoleSet
+
+// SetupPatentRoleConfig 在启动期加载并注入角色配置。
+// 角色配置 YAML 文件路径由 path 指定。文件格式示例：
+//
+//	roles:
+//	  retriever:
+//	    temperature: 0.5
+//	    max_tokens: 8192
+//	    tool_domains:
+//	      primary: [search, web_search, patent_search]
+//	      secondary: [system]
+//	    system_prompt: "你专注专利检索..."
+//
+// path 为空时跳过（不影响现有行为）。
+// 必须在任何 Agent 创建前调用。
+func SetupPatentRoleConfig(path string) {
+	if path == "" {
+		return
+	}
+	rs, err := agentconfig.NewRoleSet(path)
+	if err != nil {
+		slog.Warn("patent: 加载角色配置失败，跳过", "path", path, "err", err)
+		return
+	}
+	if err := rs.ValidateAll(); err != nil {
+		slog.Warn("patent: 角色配置校验失败，跳过", "err", err)
+		return
+	}
+	globalPatentRoleSet = rs
+	slog.Info("patent: 角色配置已加载", "count", len(rs), "roles", rs.IDs())
+}
+
+// applyRoleConfig 将角色配置应用到 Agent 配置。
+// 如果 roleID 指定的角色存在且已注册，则：
+//   - 非零 Temperature 覆盖 cfg.ModelConfig.Temperature
+//   - 非零 MaxTokens 覆盖 cfg.ModelConfig.MaxTokens
+//   - SystemPrompt 追加到 cfg.SystemPrompt 末尾
+//
+// 注意：工具域过滤（DisableTools）不由本函数处理，因 DisableTools 位于
+// tools.ExtensionConfig 而非 agentcore.Config。请在创建工具扩展时调用
+// RoleToolFilter 获取禁用列表并合并到 ExtensionConfig.DisableTools 中。
+func applyRoleConfig(cfg *agentcore.Config, roleID string) {
+	if roleID == "" {
+		return
+	}
+	roleCfg, ok := globalPatentRoleSet[roleID]
+	if !ok {
+		return
+	}
+
+	// 应用 Temperature 覆盖。
+	if roleCfg.Temperature != 0 {
+		cfg.ModelConfig.Temperature = roleCfg.Temperature
+		slog.Debug("patent: 角色 Temperature 已应用",
+			"role", roleID, "temperature", roleCfg.Temperature)
+	}
+
+	// 应用 MaxTokens 覆盖。
+	if roleCfg.MaxTokens > 0 {
+		cfg.ModelConfig.MaxTokens = roleCfg.MaxTokens
+		slog.Debug("patent: 角色 MaxTokens 已应用",
+			"role", roleID, "max_tokens", roleCfg.MaxTokens)
+	}
+
+	// 附加角色系统提示。
+	if roleCfg.SystemPrompt != "" {
+		cfg.SystemPrompt = cfg.SystemPrompt + "\n\n" + roleCfg.SystemPrompt
+	}
+}
+
+// RoleToolFilter 返回基于角色配置应当禁用的工具名称列表。
+// 角色指定的工具域决定了哪些通用工具对模型可见——不在域内的工具被禁用。
+// 领域专用工具（ExtraTools）不受此过滤影响。
+//
+// 用法：
+//
+//	disabled := tools.ExtensionConfig.DisableTools
+//	disabled = append(disabled, domains.RoleToolFilter("novelty_checker")...)
+//	toolExt := tools.NewExtension(tools.ExtensionConfig{DisableTools: disabled, ...})
+func RoleToolFilter(roleID string) []string {
+	if roleID == "" {
+		return nil
+	}
+	roleCfg, ok := globalPatentRoleSet[roleID]
+	if !ok {
+		return nil
+	}
+	allowedDomains := roleCfg.ToolDomains.AllDomains()
+	if len(allowedDomains) == 0 {
+		return nil
+	}
+	var disabled []string
+	for name, domain := range tools.ToolDomains {
+		if !domainInList(domain, allowedDomains) {
+			disabled = append(disabled, name)
+		}
+	}
+	slog.Debug("patent: 角色工具域过滤",
+		"role", roleID, "allowed_domains", allowedDomains,
+		"disabled_count", len(disabled))
+	return disabled
+}
+
+// domainInList 检查域名是否在允许列表中。
+func domainInList(domain string, list []string) bool {
+	for _, item := range list {
+		if item == domain {
+			return true
+		}
+	}
+	return false
 }
 
 // PatentAgentConfig builds the patent domain Agent configuration.

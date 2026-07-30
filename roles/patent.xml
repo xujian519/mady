@@ -1,0 +1,10 @@
+<handoff_role name="patent" mode="delegate" invisible="true">
+    <description>专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对。</description>
+    <allowed_sources>
+        <source>mady-router</source>
+        <source>mady-agent</source>
+    </allowed_sources>
+    <!-- NOTE: System prompt is defined in code (domains/patent.go PatentAgentConfig).
+         Allowed tools are controlled by Extension configs in code, not XML. -->
+    <temperature>0.3</temperature>
+</handoff_role>

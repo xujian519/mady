@@ -46,8 +46,22 @@ func NewFactCheckRule() *FactCheckRule {
 // Name returns the rule identifier.
 func (r *FactCheckRule) Name() string { return "fact-check" }
 
-// articlePattern matches patterns like "专利法第N条" or "XX法第N条".
-var articlePattern = regexp.MustCompile(`([\p{Han}]+法)第(\d+)条`)
+// articlePattern matches law citations like "专利法第99条", "《专利法》第26条".
+// The statute names are derived from MaxArticles keys at construction time
+// to keep the regex and article limits in sync.
+var articlePattern *regexp.Regexp
+
+func init() {
+	// Build the regex from the known statute names.
+	rule := NewFactCheckRule()
+	statutes := make([]string, 0, len(rule.MaxArticles))
+	for name := range rule.MaxArticles {
+		statutes = append(statutes, regexp.QuoteMeta(name))
+	}
+	// Match: optionally 《STATUTE》 followed by 第N条 optionally 之M or 第N款
+	pattern := `(?:《)?(` + strings.Join(statutes, "|") + `)(?:》)?第(\d+)条(?:之(\d+))?(?:第(\d+)款)?`
+	articlePattern = regexp.MustCompile(pattern)
+}
 
 // absoluteClaimPatterns are phrases that suggest an absolute claim
 // without supporting citation.

@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/xujian519/mady/internal/intentrules"
 )
 
 // KeywordClassifier classifies user input using deterministic keyword matching.
@@ -23,10 +25,10 @@ func (k *KeywordClassifier) Name() string { return "keyword" }
 func (k *KeywordClassifier) Classify(input string) IntentResult {
 	lower := strings.ToLower(input)
 
-	// Step 1: Domain classification (same logic as domains/router.go)
+	// Step 1: Domain classification using shared keyword lists.
 	domain := k.classifyDomain(lower)
 
-	// Step 2: Sub-intent classification for patent/legal domains
+	// Step 2: Sub-intent classification for patent/legal domains.
 	var subIntent SubIntent
 	var runMode RunMode
 	var matchedKeywords []string
@@ -36,13 +38,13 @@ func (k *KeywordClassifier) Classify(input string) IntentResult {
 	if domain == DomainPatent || domain == DomainLegal {
 		subIntent, runMode, matchedKeywords, suggestion = k.classifySubIntent(lower)
 		if len(matchedKeywords) == 0 {
-			confidence = 0.6 // domain matched but no sub-intent
+			confidence = 0.6
 			subIntent = SubIntentGeneral
 			runMode = ModeFlexiblePlan
 		}
 	}
 
-	// Step 3: Complexity classification
+	// Step 3: Complexity classification.
 	complexity := k.classifyComplexity(lower, input)
 
 	return IntentResult{
@@ -57,54 +59,30 @@ func (k *KeywordClassifier) Classify(input string) IntentResult {
 	}
 }
 
-// classifyDomain matches the input against domain-specific keywords.
+// classifyDomain matches the input against shared domain-specific keyword lists.
 func (k *KeywordClassifier) classifyDomain(lower string) Domain {
-	// Patent keywords (highest priority to avoid legal keyword collision)
-	patentKeywords := []string{
-		"专利", "权利要求", "发明", "实用新型", "外观设计",
-		"新颖性", "创造性", "实用性", "prior art", "现有技术",
-		"patent", "invention", "claim", "IPC", "分类号",
-		"pct", "巴黎公约", "优先权",
-	}
-	for _, kw := range patentKeywords {
+	for _, kw := range intentrules.PatentKeywords {
 		if strings.Contains(lower, kw) {
 			return DomainPatent
 		}
 	}
-
-	// Legal keywords
-	legalKeywords := []string{
-		"法律", "法条", "法规", "判例", "判决", "裁定",
-		"诉讼", "起诉", "被告", "原告", "法院", "法官",
-		"合同", "侵权", "赔偿", "证据", "仲裁",
-		"刑法", "民法", "行政法", "公司法", "劳动法",
-		"司法解释", "指导性案例",
-		"law", "legal", "court", "statute", "regulation",
-	}
-	for _, kw := range legalKeywords {
+	for _, kw := range intentrules.LegalKeywords {
 		if strings.Contains(lower, kw) {
 			return DomainLegal
 		}
 	}
-
-	// Assistant keywords
-	assistantKeywords := []string{
-		"查一下", "帮我搜", "搜索", "检索", "查找",
-		"起草", "生成", "写一个", "创建", "整理", "导出", "统计",
-		"写代码", "实现一个", "调试", "优化", "重构",
-		"代码", "编程", "python", "javascript", "go语言",
-		"bash", "shell", "命令行", "脚本",
-	}
-	for _, kw := range assistantKeywords {
+	for _, kw := range intentrules.AssistantKeywords {
 		if strings.Contains(lower, kw) {
 			return DomainAssistant
 		}
 	}
-
 	return DomainChat
 }
 
 // subIntentPattern describes a keyword pattern for sub-intent detection.
+// NOTE: These patterns overlap significantly with domains/legal_intent.go's
+// keywordPatterns. The two lists should be kept in sync manually until a
+// shared schema is designed. See B1 in code review report.
 type subIntentPattern struct {
 	keywords              []string
 	subIntent             SubIntent
@@ -177,12 +155,6 @@ var subIntentPatterns = []subIntentPattern{
 	},
 }
 
-var patentContextSignals = []string{
-	"权利要求", "专利", "说明书", "对比文件", "技术方案",
-	"审查意见", "申请人", "专利权", "申请号", "公开号",
-	"独立权利要求", "从属权利要求", "技术特征", "区别特征",
-}
-
 // classifySubIntent detects fine-grained intent from patent/legal input.
 func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode, []string, string) {
 	type matched struct {
@@ -192,7 +164,7 @@ func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode,
 	var matches []matched
 
 	for _, pat := range subIntentPatterns {
-		count, _ := countKeywordMatches(lower, pat.keywords)
+		count, _ := intentrules.CountKeywordMatches(lower, pat.keywords)
 		if count > 0 {
 			matches = append(matches, matched{pat: pat, count: count})
 		}
@@ -202,13 +174,11 @@ func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode,
 		return "", "", nil, ""
 	}
 
-	// Sort by match count descending
 	sort.Slice(matches, func(i, j int) bool {
 		return matches[i].count > matches[j].count
 	})
 	best := matches[0]
 
-	// Collect matched keywords
 	var matchedKeywords []string
 	for _, kw := range best.pat.keywords {
 		if strings.Contains(lower, strings.ToLower(kw)) {
@@ -216,7 +186,6 @@ func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode,
 		}
 	}
 
-	// Check patent context requirement
 	if best.pat.requiresPatentContext {
 		hasArticleID := false
 		for _, kw := range best.pat.keywords {
@@ -226,13 +195,7 @@ func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode,
 				break
 			}
 		}
-		hasPatentContext := false
-		for _, signal := range patentContextSignals {
-			if strings.Contains(lower, strings.ToLower(signal)) {
-				hasPatentContext = true
-				break
-			}
-		}
+		hasPatentContext := intentrules.MatchAnyKeyword(lower, intentrules.PatentContextSignals)
 		if !hasArticleID && !hasPatentContext && len(matches) < 2 {
 			return SubIntentGeneral, ModeFlexiblePlan, matchedKeywords, ""
 		}
@@ -243,7 +206,6 @@ func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode,
 
 // classifyComplexity determines reasoning complexity from input characteristics.
 func (k *KeywordClassifier) classifyComplexity(lower string, original string) Complexity {
-	// High complexity keywords
 	highKeywords := []string{
 		"分析", "推理", "对比", "论证", "侵权", "新颖性", "创造性",
 		"专利", "法律", "debug", "调试", "重构", "架构",
@@ -255,7 +217,6 @@ func (k *KeywordClassifier) classifyComplexity(lower string, original string) Co
 		}
 	}
 
-	// Length-based classification
 	runes := utf8.RuneCountInString(original)
 	switch {
 	case runes > 800:
@@ -265,38 +226,4 @@ func (k *KeywordClassifier) classifyComplexity(lower string, original string) Co
 	default:
 		return ComplexityLow
 	}
-}
-
-// countKeywordMatches counts how many keywords from the list appear in input.
-// Longer keywords are matched first to prevent substring false positives.
-// Returns the count and matched long keywords for deduplication.
-func countKeywordMatches(input string, keywords []string) (int, []string) {
-	sorted := make([]string, len(keywords))
-	copy(sorted, keywords)
-	sort.Slice(sorted, func(i, j int) bool {
-		return utf8.RuneCountInString(sorted[i]) > utf8.RuneCountInString(sorted[j])
-	})
-
-	count := 0
-	var matchedLong []string
-	for _, kw := range sorted {
-		if !strings.Contains(input, kw) {
-			continue
-		}
-		// Skip if a longer already-matched keyword contains this one
-		skip := false
-		kwLen := utf8.RuneCountInString(kw)
-		for _, ml := range matchedLong {
-			if utf8.RuneCountInString(ml)-kwLen <= 1 && strings.Contains(ml, kw) {
-				skip = true
-				break
-			}
-		}
-		if skip {
-			continue
-		}
-		matchedLong = append(matchedLong, kw)
-		count++
-	}
-	return count, matchedLong
 }

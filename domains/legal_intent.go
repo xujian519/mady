@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/xujian519/mady/domains/reasoning"
+	"github.com/xujian519/mady/internal/intentrules"
 )
 
 // RunMode selects how a legal case should be processed.
@@ -117,11 +117,7 @@ var keywordPatterns = []keywordPattern{
 	},
 }
 
-var patentContextSignals = []string{
-	"权利要求", "专利", "说明书", "对比文件", "技术方案",
-	"审查意见", "申请人", "专利权", "申请号", "公开号",
-	"独立权利要求", "从属权利要求", "技术特征", "区别特征",
-}
+var patentContextSignals = intentrules.PatentContextSignals
 
 const legalPrefix = "@legal"
 
@@ -140,33 +136,7 @@ func detectExplicitTrigger(userInput string) (bool, string) {
 }
 
 func countKeywordMatches(input string, keywords []string) (int, []string) {
-	sorted := make([]string, len(keywords))
-	copy(sorted, keywords)
-	sort.Slice(sorted, func(i, j int) bool {
-		return utf8.RuneCountInString(sorted[i]) > utf8.RuneCountInString(sorted[j])
-	})
-
-	count := 0
-	var matchedLong []string
-	for _, kw := range sorted {
-		if !strings.Contains(input, strings.ToLower(kw)) {
-			continue
-		}
-		skip := false
-		kwLen := utf8.RuneCountInString(kw)
-		for _, ml := range matchedLong {
-			if utf8.RuneCountInString(ml)-kwLen <= 1 && strings.Contains(ml, kw) {
-				skip = true
-				break
-			}
-		}
-		if skip {
-			continue
-		}
-		matchedLong = append(matchedLong, kw)
-		count++
-	}
-	return count, matchedLong
+	return intentrules.CountKeywordMatches(input, keywords)
 }
 
 // DetectLegalIntent analyzes user input and returns the detected legal intent.
