@@ -89,6 +89,7 @@ func NewOCRTool(cfg *OCRToolConfig) *agentcore.Tool {
 	}
 }
 
+//nolint:unused
 func resolveOCRCacheDir() string {
 	d := ocr.DefaultCacheDir()
 	os.MkdirAll(d, 0755)

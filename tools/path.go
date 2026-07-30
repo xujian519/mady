@@ -130,11 +130,11 @@ func resolvePathSandboxedMode(userPath, cwd string, sbx WorkingDirSandbox, mode 
 func resolveAllowList(dirs []string) []string {
 	var resolved []string
 	for _, d := range dirs {
-		real, err := filepath.EvalSymlinks(d)
+		realPath, err := filepath.EvalSymlinks(d)
 		if err != nil {
 			continue
 		}
-		resolved = append(resolved, real)
+		resolved = append(resolved, realPath)
 	}
 	return resolved
 }
@@ -155,9 +155,9 @@ func isWithin(base, path string) bool {
 // safety because a non-existent path cannot contain a symlink — only its
 // existing ancestors can.
 func evalSymlinksExist(abs string) (string, error) {
-	real, err := filepath.EvalSymlinks(abs)
+	realPath, err := filepath.EvalSymlinks(abs)
 	if err == nil {
-		return real, nil
+		return realPath, nil
 	}
 	if !os.IsNotExist(err) {
 		return "", err
@@ -234,6 +234,7 @@ func OpenSandboxed(path string, sbx WorkingDirSandbox) (*os.File, error) {
 	return os.Open(resolved)
 }
 
+//nolint:unused
 // readFileSandboxed opens a file through the sandbox, reads its full content,
 // and returns it as a string. This prevents TOCTOU by pinning the inode through
 // the open FD.

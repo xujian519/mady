@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -232,7 +233,12 @@ func TestWebFetchToolFetchError(t *testing.T) {
 // --- Read tests ---
 
 func TestReadToolBasic(t *testing.T) {
-	tool := NewReadTool("/tmp", &ReadToolConfig{
+	dir := t.TempDir()
+	tmpFile := filepath.Join(dir, "test.txt")
+	if err := os.WriteFile(tmpFile, []byte("dummy"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	tool := NewReadTool(dir, &ReadToolConfig{
 		Operations: &mockReadOps{
 			readFileFunc: func(path string) ([]byte, error) {
 				return []byte("line1\nline2\nline3\n"), nil
@@ -252,7 +258,12 @@ func TestReadToolBasic(t *testing.T) {
 }
 
 func TestReadToolWithOffsetLimit(t *testing.T) {
-	tool := NewReadTool("/tmp", &ReadToolConfig{
+	dir := t.TempDir()
+	tmpFile := filepath.Join(dir, "test.txt")
+	if err := os.WriteFile(tmpFile, []byte("dummy\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	tool := NewReadTool(dir, &ReadToolConfig{
 		Operations: &mockReadOps{
 			readFileFunc: func(path string) ([]byte, error) {
 				var content string

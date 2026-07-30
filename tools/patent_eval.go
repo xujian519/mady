@@ -256,9 +256,9 @@ func sectionCoverageDetail(content string) string {
 		}
 	}
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("已覆盖 %d/%d 个章节。", len(present), len(reportSectionPatterns)))
+	fmt.Fprintf(&b, "已覆盖 %d/%d 个章节。", len(present), len(reportSectionPatterns))
 	if len(missing) > 0 {
-		b.WriteString(fmt.Sprintf(" 缺失: %s", strings.Join(missing, "、")))
+		fmt.Fprintf(&b, " 缺失: %s", strings.Join(missing, "、"))
 	}
 	return b.String()
 }

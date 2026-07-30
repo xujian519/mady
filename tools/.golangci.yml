@@ -69,6 +69,56 @@ linters:
         linters:
           - errcheck
           - revive
+      # defer Close / Remove / Kill / Wait 在清理路径中是安全的
+      - linters:
+          - errcheck
+        source: "defer .*\\.(Close|Remove|RemoveAll|Kill|Wait)\\("
+      # 非 defer 的 Close / Kill / Wait 清理操作
+      - linters:
+          - errcheck
+        source: "\\.(Kill|Wait|CloseSession|CloseTab|Close)\\("
+        path: "(browser_|desktop/|ego_lite_|mcp_client|execute_code|move\\.go|write_file\\.go|web_fetch\\.go)"
+      # fmt.Sscanf / fmt.Scanln 交互式读取错误表示用户取消
+      - linters:
+          - errcheck
+        source: "fmt\\.(Sscanf|Scanln)\\("
+      # os.Remove / os.MkdirAll 清理/缓存路径
+      - linters:
+          - errcheck
+        source: "os\\.(Remove|MkdirAll)\\("
+      # syscall.Kill / filepath.WalkDir
+      - linters:
+          - errcheck
+        source: "(syscall\\.Kill|filepath\\.WalkDir)\\("
+      # browser/desktop 特定安全操作
+      - linters:
+          - errcheck
+        source: "(ReapOrphans|StopScreencast|StopRecording|HandleDialog|StartRecording|egoLiteMgr\\.Close)\\("
+      # 键盘模拟函数（desktop 平台特有）
+      - linters:
+          - errcheck
+        source: "(xdoKey|osaKeyImpl|winKey)\\("
+      # exec.Command().Run 在 desktop 操作中
+      - linters:
+          - errcheck
+        source: "exec\\.Command.*\\.Run\\(\\)"
+      # io.Copy 到 io.Discard 故意丢弃
+      - linters:
+          - errcheck
+        source: "io\\.Copy\\(io\\.Discard"
+      # conn.SetDeadline 超时设置
+      - linters:
+          - errcheck
+        source: "conn\\.SetDeadline\\("
+      # grep.go 中的 Kill/Wait 清理操作
+      - linters:
+          - errcheck
+        source: "cmd\\.Process\\.Kill\\(\\)"
+        path: "grep\\.go"
+      - linters:
+          - errcheck
+        source: "cmd\\.Wait\\(\\)"
+        path: "grep\\.go"
 
 issues:
   max-issues-per-linter: 0

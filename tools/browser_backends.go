@@ -96,9 +96,7 @@ func (bm *BrowserManager) createLightpandaSession(ctx context.Context, session *
 
 	if bm.config.DialogPolicy != "" {
 		supervisor := NewCDPSupervisor(proc.CDPURL, session.sessionID, bm.config.DialogPolicy, bm.config.DialogTimeout)
-		if err := supervisor.Start(ctx); err != nil {
-			// Supervisor is optional for lightpanda
-		} else {
+		if err := supervisor.Start(ctx); err == nil {
 			session.supervisor = supervisor
 		}
 	}
