@@ -42,7 +42,8 @@ func (s *SQLiteStore) searchLawsLike(keyword string, topK int) ([]LawRecord, err
 	return results, rows.Err()
 }
 
-// uses BM25-ranked FTS5 search for better relevance. Otherwise it falls
+// SearchLaws searches for laws matching the given keyword. It uses
+// BM25-ranked FTS5 search for better relevance. Otherwise it falls
 // back to LIKE pattern matching with order-based sort.
 //
 // For short queries (< 3 CJK characters) the LIKE fallback is used even

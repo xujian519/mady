@@ -11,6 +11,7 @@ import (
 	"github.com/xujian519/mady/retrieval"
 )
 
+// GetChunksByDocID retrieves all chunks for a given document ID, using
 // query-level FTSSearch/VectorSearch, enabling DomainRetriever.GetDocument to
 // reconstruct a document's text without exposing the underlying *sql.DB.
 //

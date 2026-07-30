@@ -30,7 +30,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 111 source files (+ 63 test files) across 10 packages.
+> Auto-verified: 110 source files (+ 63 test files) across 10 packages.
 > Last sync: 2026-07-30.
 
 ```
@@ -92,6 +92,7 @@ tui/
 │   ├── viewport.go        # Scrollable viewport wrapper for large content
 │   ├── table.go           # Tabular data rendering component
 │   ├── fuzzy_provider.go  # FuzzyContentProvider, NormalizeForMatch, SubstringFuzzyFilter
+│   ├── footer.go          # Footer bar showing core keyboard shortcuts (responsive)
 │   │
 │   ├── domain.go          # DomainMessage / DomainAction professional card data models
 │   ├── evidence_card.go   # Evidence card: source attribution, direction, collapsible snippet
@@ -141,6 +142,8 @@ tui/
 │   ├── state.go           # Explicit FSM over ChatApp interaction states (249 lines)
 │   ├── reasoning.go       # Reasoning/thinking block rendering
 │   └── clipboard.go       # Clipboard helpers (pbcopy/xclip/win32)
+│   ├── layout_editor.go   # Editor frame layout helpers (ChildRect indices, baseline reset)
+│   ├── layout_shortcuts.go# Copy/clipboard shortcut helpers (doCopy, hasSelection)
 │
 ├── agentadapter/          # Layer 7 — Agentcore Adapter
 │   └── adapter.go         # BindAgent, AgentRunner, event conversion (agentcore → chat)
@@ -154,7 +157,6 @@ tui/
 │
 ├── internal/              # Internal helpers (not exported, used by sibling packages)
 │   ├── csync/slice.go     # Concurrent slice helpers
-│   └── fuzzy/fuzzy.go     # Shared fuzzy matching primitives
 │
 ├── doc.go                 # Package doc for the root `tui` package
 ├── tui.go                 # Layer 3 — TUI container, types, constructor (271 lines)

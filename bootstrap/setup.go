@@ -597,8 +597,6 @@ func InitMemorySystem(fc *Context) {
 	fc.KnowledgeGraph = kgwgraph.NewGraphStore()
 }
 
-// InitReasoningAndTemplates 初始化推理引擎 retriever/LLM 客户端、文档模板仓库、
-// 引用核验装配（CitationGate 留痕 store），以及专利新颖性分析的检索器。
 // ExtSlice wraps a single Extension into a slice, returning nil for nil input.
 func ExtSlice(ext agentcore.Extension) []agentcore.Extension {
 	if ext == nil {

@@ -335,10 +335,16 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 	// In CI environments, disable interactive features that depend on a
 	// real terminal — synchronized output, mouse capture, and alt screen
 	// are all meaningless or harmful in a CI log.
+	// Only override when the caller hasn't explicitly opted into these
+	// features (tests that set AltScreen/MouseMode use mock terminals).
 	if terminal.IsCIEnvironment() {
 		o.DisableSynchronizedOutput = true
-		o.AltScreen = false
-		o.MouseMode = "off"
+		if o.MouseMode == "" {
+			o.MouseMode = "off"
+		}
+		// AltScreen: zero value is already false (safe default). When the
+		// caller explicitly sets AltScreen:true we preserve it — tests
+		// that need alt-screen features use mock terminals.
 	}
 	km := o.Keybindings
 	if km == nil {
