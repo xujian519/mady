@@ -127,9 +127,9 @@ func (s *Server) dispatchJSONRPC(ctx context.Context, w http.ResponseWriter, req
 		}
 		s.handleSendTaskSubscribe(ctx, w, req)
 	case "tasks/get":
-		s.handleGetTask(ctx, w, req)
+		handleTaskAction(s, ctx, w, req, s.handler.GetTask, A2AErrorTaskNotFound)
 	case "tasks/cancel":
-		s.handleCancelTask(ctx, w, req)
+		handleTaskAction(s, ctx, w, req, s.handler.CancelTask, A2AErrorTaskNotCancelable)
 	case "tasks/query":
 		s.handleQueryTasks(ctx, w, req)
 	case "tasks/pushNotification/set":
@@ -300,36 +300,21 @@ func (s *Server) handleSendTaskSubscribe(ctx context.Context, w http.ResponseWri
 	}
 }
 
-func (s *Server) handleGetTask(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
-	var params GetTaskRequest
+// handleTaskAction is a generic handler for task actions that unmarshal a
+// request, call the handler, record the task, and write the result.
+func handleTaskAction[Req any](s *Server, ctx context.Context, w http.ResponseWriter, req JSONRPCRequest,
+	handler func(context.Context, Req) (*Task, error), errCode int,
+) {
+	var params Req
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		writeJSONRPCError(w, req.ID, JSONRPCInvalidParams, err.Error())
 		return
 	}
-
-	task, err := s.handler.GetTask(ctx, params)
+	task, err := handler(ctx, params)
 	if err != nil {
-		writeJSONRPCError(w, req.ID, A2AErrorTaskNotFound, err.Error())
+		writeJSONRPCError(w, req.ID, errCode, err.Error())
 		return
 	}
-
-	s.recordTask(task)
-	writeJSONRPCResult(w, req.ID, task)
-}
-
-func (s *Server) handleCancelTask(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
-	var params CancelTaskRequest
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		writeJSONRPCError(w, req.ID, JSONRPCInvalidParams, err.Error())
-		return
-	}
-
-	task, err := s.handler.CancelTask(ctx, params)
-	if err != nil {
-		writeJSONRPCError(w, req.ID, A2AErrorTaskNotCancelable, err.Error())
-		return
-	}
-
 	s.recordTask(task)
 	writeJSONRPCResult(w, req.ID, task)
 }

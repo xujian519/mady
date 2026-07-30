@@ -106,15 +106,6 @@ func DetermineInternetPublicationDate(urlStr string, claimedDate string) *DateDe
 				return result
 			}
 		}
-
-		// 第 3 优先级：域名注册日期推断
-		if domDate := estimateDomainRegistrationDate(cleanURL); domDate != "" {
-			result.Determined = domDate
-			result.IsPriorArt = true
-			result.Reliability = RelLow
-			result.SourceType = SrcDomainReg
-			return result
-		}
 	}
 
 	// 无法确定日期
@@ -267,21 +258,6 @@ func extractWaybackMachineDate(rawURL string) string {
 		}
 	}
 
-	return ""
-}
-
-// estimateDomainRegistrationDate 根据域名后缀估计注册日期（粗略推断）。
-// 仅作参考，不能作为确切的公开日期依据。
-func estimateDomainRegistrationDate(rawURL string) string {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return ""
-	}
-
-	hostname := strings.ToLower(parsed.Hostname())
-	// 某些顶级域名有明确的注册制度，但无法从 URL 直接获取注册日期
-	// 此处不返回具体日期，而是返回空字符串，提示需要额外查询
-	_ = hostname
 	return ""
 }
 

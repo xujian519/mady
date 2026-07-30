@@ -1,5 +1,39 @@
 # AI 变更记录
 
+## 2026-07-30: refactor(*) 继续执行优化方案：worktree清理 + 重复代码消除 + goroutine安全 + 未用参数清理
+
+### 变更内容
+
+#### P1-B: Worktree 垃圾清理
+- 删除 Claude Code 残留 6 个 + Grok 17 个 = 23 个过期 worktree，释放 ~470MB 磁盘
+- `git worktree prune` 清理引用
+
+#### P2-B: 重复代码消除（a2a + acp）
+**a2a/ws.go + a2a/client.go + a2a/server_jsonrpc.go**
+- 新增 `wsHandler` 类型 + `wsHandlerFor` 模板方法，消除 5 个 WebSocket handler 的重复 JSON-RPC 响应写入模式
+- 新增 `callAndDecode` 方法，消除 4 个 client 方法的重复 call + marshal + unmarshal 模式
+- 新增泛型函数 `handleTaskAction[Req any]`，消除 2 个 JSON-RPC HTTP handler 的重复模板
+- 每个 handler 缩减 50-60% 代码量
+
+**acp/server.go**
+- 新增 `sessionUpdateStep` 通用模板，消除 `handleSetMode`/`handleSetModel` 的 58 行重复代码
+- 两个 handler 各从 29 行缩减为 19 行
+
+#### P3-D: Goroutine 安全管理（15 处全覆盖）
+- **P0**（已有 recover 检查确认）：`acp/server.go` 已有，`a2a/taskstate.go` 已有，`mcp/tools_refresh.go` 已有
+- **P0**（新增 recover）：`agentcore/executor.go` — 工具调用并发执行、`agentcore/pubsub.go` — 事件订阅、`graph/pregel.go` — Pregel 图节点、`graph/graph.go` — DAG 节点
+- **P1**（新增 recover）：`bootstrap/setup.go` — BM25 索引构建、`provider/adapter/session.go`(2处) — stderr/stdout、`provider/chatcompat/chat.go` — SSE 流、`provider/chatcompat/responses.go` — responses SSE 流、`mcp/client_reconnect.go` — 子进程回收、`tools/browser_manager.go` — 孤儿回收、`a2a/pool/pool.go` — 连接池（启动命名函数，已有内部 recover）
+
+统一模式：`defer func() { if r := recover(); r != nil { log.Printf(...) } }()`
+
+#### P2-C: 未使用参数清理（50 处全部修复）
+- 37 个文件，371 次工具调用
+- 按策略分类：A) 私有函数删除参数（~20 处）、B) 接口实现改名 `_`（3 处）、C) 删除始终为 nil 的 error 返回（8 处）、D) 删除从未使用的返回值（5 处）、E) 删除始终接收相同值的参数（1 处）
+- 全部 `go build ./...` + `go test ./...` 通过
+
+### 变更文件统计
+阶段一任务全部完成 | 阶段二任务全部完成 | 阶段三 ~20% 完成
+
 ## 2026-07-30: refactor(tools) 拆分三大高复杂度函数 + linter 增强 + panic 审计（4 文件）
 
 ### 变更内容

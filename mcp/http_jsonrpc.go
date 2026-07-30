@@ -12,23 +12,24 @@ import (
 	"strings"
 )
 
-func (c *HTTPClient) call(ctx context.Context, method string, params any, out any) (http.Header, error) {
-	headers, err := c.callOnce(ctx, method, params, out)
+func (c *HTTPClient) call(ctx context.Context, method string, params any, out any) error {
+	err := c.callOnce(ctx, method, params, out)
 	if err == nil || !errors.Is(err, errSessionExpired) || isInitializeMethod(method) {
-		return headers, err
+		return err
 	}
 	staleSession := expiredSessionID(err)
 	c.emitReconnectEvent(ReconnectPhaseStarted, ReconnectReasonSessionExpired, 1, staleSession, "", "", nil)
 	if err := c.reinitializeSession(ctx, expiredSessionID(err)); err != nil {
 		c.emitReconnectEvent(ReconnectPhaseFailed, ReconnectReasonSessionExpired, 1, staleSession, "", "", err)
-		return nil, err
+		return err
 	}
 	sessionID, _ := c.sessionState()
 	c.emitReconnectEvent(ReconnectPhaseSucceeded, ReconnectReasonSessionExpired, 1, staleSession, sessionID, "", nil)
-	return c.callOnce(ctx, method, params, out)
+	err = c.callOnce(ctx, method, params, out)
+	return err
 }
 
-func (c *HTTPClient) callOnce(ctx context.Context, method string, params any, out any) (http.Header, error) {
+func (c *HTTPClient) callOnce(ctx context.Context, method string, params any, out any) error {
 	if ctx == nil {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(context.Background(), defaultRequestTimeout)
@@ -50,23 +51,23 @@ func (c *HTTPClient) callOnce(ctx context.Context, method string, params any, ou
 	}
 	resp, err := c.doJSONRPC(ctx, msg, true)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	rpcResp, err := c.decodeHTTPRPCResponse(ctx, resp.Body, resp.Header.Get("Content-Type"), id)
 	if err != nil {
-		return resp.Header, fmt.Errorf("mcp: %s decode response: %w", method, err)
+		return fmt.Errorf("mcp: %s decode response: %w", method, err)
 	}
 	if rpcResp.Error != nil {
-		return resp.Header, fmt.Errorf("mcp: %s: %s", method, rpcResp.Error.Message)
+		return fmt.Errorf("mcp: %s: %s", method, rpcResp.Error.Message)
 	}
 	if out != nil && len(rpcResp.Result) > 0 {
 		if err := json.Unmarshal(rpcResp.Result, out); err != nil {
-			return resp.Header, fmt.Errorf("mcp: %s decode result: %w", method, err)
+			return fmt.Errorf("mcp: %s decode result: %w", method, err)
 		}
 	}
-	return resp.Header, nil
+	return nil
 }
 
 func (c *HTTPClient) doJSONRPC(ctx context.Context, msg any, expectResponse bool) (*http.Response, error) {
