@@ -45,7 +45,7 @@ func envInt(key string, def int64) int64 {
 		return def
 	}
 	n := int64(0)
-	if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
+	if _, err := fmt.Sscanf(v, "%d", &n); err == nil {
 		return n
 	}
 	return def
