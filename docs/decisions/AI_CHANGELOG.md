@@ -8771,3 +8771,38 @@ go test -race ./tui/... ✓
 ```
 pkg/ocr/ocr_test.go      (新增, 769 行, 40+ 纯函数测试)
 ```
+
+## 2026-07-30: perf(test) 第五轮修复——testing.Short() 集成测试跳过（3 文件）
+
+### 问题
+- knowledge/sqlite ~38s（3 个测试加载真实 ~/.mady/knowledge/knowledge.db）
+- mcp ~22s（18 个进程级集成测试，每个 ~1-4s）
+- retrieval/domain/sqlite ~12s（2 个集成测试查询真实数据库）
+
+### 修复
+**3 个包添加 `testing.Short()` 支持**
+- knowledge/sqlite/store_test.go: TestFTSSearch/LoadGraph/SearchLaws 跳过
+- mcp/client_test.go: newTestClient/newTestExtension 构造器加 t.Skip
+- retrieval/domain/sqlite: Search_Integration/GetDocument_Integration 跳过
+
+### 性能对比（-race 模式）
+| 包 | 优化前 | `-short` | 节省 |
+|---|-------|---------|-----|
+| knowledge/sqlite | 38s | 1.2s | 97% |
+| mcp | 22s | 4.1s | 81% |
+| retrieval/domain/sqlite | 12s | 1.0s | 91% |
+
+### 验证
+```
+go build ./... ✓
+go vet ./... ✓
+go test -race -short ./... ✓ (全部通过，~30s)
+go test -race ./... ✓ (0 FAIL，全量)
+```
+
+### 变更文件
+```
+knowledge/sqlite/store_test.go              (+3 行, 3 个测试添加 short skip)
+retrieval/domain/sqlite/patent_retriever_test.go (+2 行, 2 个测试添加 short skip)
+mcp/client_test.go                          (+19 行, 2 个构造器 + 1 测试添加 short skip)
+```
