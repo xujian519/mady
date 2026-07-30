@@ -1,0 +1,70 @@
+package patent
+
+// PublicAccessRules returns rules for determining how prior art was made
+// available to the public (公开方式判断). Covers publication disclosure,
+// public use disclosure, internet disclosure, publication date verification,
+// and confidentiality obligation analysis.
+func PublicAccessRules() []CheckRule {
+	return []CheckRule{
+		{
+			ID:               "PUBACC-01",
+			Name:             "出版物公开认定",
+			Description:      "判断现有技术是否通过出版物方式公开（论文/期刊/书籍）",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未充分认定是否构成出版物公开",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"出版物公开"},
+			Domain:           domainNovelty,
+			FixSuggestion:    "确认出版物是否在申请日前出版发行，公众能否获知",
+		},
+		{
+			ID:               "PUBACC-02",
+			Name:             "使用公开认定",
+			Description:      "判断现有技术是否通过使用方式公开（销售/展出/公开实施）",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未充分认定是否构成使用公开",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"使用公开"},
+			Domain:           domainNovelty,
+			FixSuggestion:    "确认使用行为是否在申请日前使技术内容为公众所知",
+		},
+		{
+			ID:               "PUBACC-03",
+			Name:             "互联网公开认定",
+			Description:      "判断现有技术是否通过互联网方式公开（网页/在线公开）",
+			Level:            LevelShould,
+			Severity:         SeverityMajor,
+			Message:          "未充分认定是否构成互联网公开",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"互联网公开"},
+			Domain:           domainNovelty,
+			FixSuggestion:    "确认网页公开日的确定方式及公众能否通过互联网获知",
+		},
+		{
+			ID:               "PUBACC-04",
+			Name:             "公开日核实",
+			Description:      "核实现有技术的公开日是否早于申请日或优先权日",
+			Level:            LevelMust,
+			Severity:         SeverityCritical,
+			Message:          "未核实现有技术的公开日是否早于申请日",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"公开日", termFilingDateLit},
+			Domain:           domainNovelty,
+			FixSuggestion:    "核实每份现有技术的公开日是否早于涉案专利的申请日或有效优先权日",
+		},
+		{
+			ID:               "PUBACC-05",
+			Name:             "保密义务分析",
+			Description:      "判断技术内容在公开日之前是否处于保密状态",
+			Level:            LevelQuality,
+			Severity:         SeverityMinor,
+			Message:          "未分析技术内容是否处于保密状态",
+			CheckType:        CheckPublicAccess,
+			RequiredElements: []string{"保密", "保密义务"},
+			Domain:           domainNovelty,
+			FixSuggestion:    "确认技术内容在公开日之前是否存在明示或默示的保密义务",
+		},
+	}
+}
