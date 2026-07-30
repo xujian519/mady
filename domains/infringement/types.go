@@ -260,6 +260,7 @@ const (
 	StateEquivalenceResult = "inf_equivalence_result"
 	StateVerdict           = "inf_verdict"
 	StateDefenseAnalysis   = "inf_defense_analysis"
+	StateRuleCheckResults  = "inf_rule_check"
 	StateRemedyAssessment  = "inf_remedy_assessment"
 	StateStrategy          = "inf_strategy"
 	StateOutput            = "inf_output"

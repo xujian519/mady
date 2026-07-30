@@ -342,7 +342,12 @@ func NerdFontsSupported() NerdFontStatus {
 	if v == nil {
 		return DetectNerdFonts()
 	}
-	return v.(NerdFontStatus)
+	status, ok := v.(NerdFontStatus)
+	if !ok {
+		nerdFontStatus.Store(NerdFontUnavailable)
+		return NerdFontUnavailable
+	}
+	return status
 }
 
 // ---------------------------------------------------------------------------

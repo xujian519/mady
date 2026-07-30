@@ -18,6 +18,7 @@ package patent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/xujian519/mady/graph"
@@ -163,8 +164,14 @@ func reexamClassifyGroundsNode(ctx context.Context, state graph.PregelState) (gr
 // reexamDraftNode generates the reexamination request skeleton, with
 // per-ground argumentation framework and required legal sections.
 func reexamDraftNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-	info, _ := state[ReexamStateDecisionInfo].(ReexamDecisionInfo)
-	grounds, _ := state[ReexamStateGrounds].([]ReexamGround)
+	info, ok := state[ReexamStateDecisionInfo].(ReexamDecisionInfo)
+	if !ok {
+		slog.Warn("reexamination: state missing or invalid ReexamStateDecisionInfo, using zero value")
+	}
+	grounds, ok2 := state[ReexamStateGrounds].([]ReexamGround)
+	if !ok2 {
+		slog.Warn("reexamination: state missing or invalid ReexamStateGrounds, using empty grounds")
+	}
 	patentType := state.GetString(ReexamStatePatentType)
 
 	var b strings.Builder
@@ -307,8 +314,14 @@ func reexamConcludeNode(ctx context.Context, state graph.PregelState) (graph.Pre
 // including a technical comparison table, amendment non-extension argument,
 // possible examiner challenges preview, and statement outline.
 func reexamOralHearingNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-	grounds, _ := state[ReexamStateGrounds].([]ReexamGround)
-	info, _ := state[ReexamStateDecisionInfo].(ReexamDecisionInfo)
+	grounds, ok := state[ReexamStateGrounds].([]ReexamGround)
+	if !ok {
+		slog.Warn("reexamination: hearing state missing or invalid ReexamStateGrounds, using empty grounds")
+	}
+	info, ok2 := state[ReexamStateDecisionInfo].(ReexamDecisionInfo)
+	if !ok2 {
+		slog.Warn("reexamination: hearing state missing or invalid ReexamStateDecisionInfo, using zero value")
+	}
 	draft := state.GetString(ReexamStateDraft)
 	_ = draft // available for future claim extraction expansion
 

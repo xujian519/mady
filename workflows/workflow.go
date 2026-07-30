@@ -76,6 +76,12 @@ type WorkflowStep struct {
 
 	// Retry 是失败时的重试次数。
 	Retry int `yaml:"retry,omitempty" json:"retry,omitempty"`
+
+	// HumanApprovalFor 指定本人工审批步骤需要批准的产物（仅 StepHumanApproval）。
+	HumanApprovalFor string `yaml:"human_approval_for,omitempty" json:"human_approval_for,omitempty"`
+
+	// SubWorkflowName 指定子工作流的模板名称（仅 StepSubWorkflow）。
+	SubWorkflowName string `yaml:"sub_workflow,omitempty" json:"sub_workflow,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +117,9 @@ func (w *Workflow) Validate() error {
 	if w.Name == "" {
 		return fmt.Errorf("workflow: name must not be empty")
 	}
+	if len(w.Steps) == 0 {
+		return fmt.Errorf("workflow %q: must have at least one step", w.Name)
+	}
 	seen := make(map[string]int)
 	for i, step := range w.Steps {
 		if step.ID == "" {
@@ -138,13 +147,43 @@ func (w *Workflow) Validate() error {
 	return nil
 }
 
-// TopologicalSteps returns step IDs in topological order (input order assumed).
+// TopologicalSteps returns step IDs in topological order.
+// Uses Kahn's algorithm to respect DependsOn edges.
 func (w *Workflow) TopologicalSteps() []string {
-	ids := make([]string, len(w.Steps))
-	for i, s := range w.Steps {
-		ids[i] = s.ID
+	// Build in-degree map and adjacency list.
+	inDegree := make(map[string]int, len(w.Steps))
+	outEdges := make(map[string][]string, len(w.Steps))
+	for _, s := range w.Steps {
+		inDegree[s.ID] = 0
 	}
-	return ids
+	for _, s := range w.Steps {
+		for _, dep := range s.DependsOn {
+			inDegree[s.ID]++
+			outEdges[dep] = append(outEdges[dep], s.ID)
+		}
+	}
+
+	// Collect zero-in-degree nodes in original order to preserve preference.
+	var queue []string
+	for _, s := range w.Steps {
+		if inDegree[s.ID] == 0 {
+			queue = append(queue, s.ID)
+		}
+	}
+
+	result := make([]string, 0, len(w.Steps))
+	for len(queue) > 0 {
+		node := queue[0]
+		queue = queue[1:]
+		result = append(result, node)
+		for _, neighbor := range outEdges[node] {
+			inDegree[neighbor]--
+			if inDegree[neighbor] == 0 {
+				queue = append(queue, neighbor)
+			}
+		}
+	}
+	return result
 }
 
 // StepByID 按 ID 查找步骤。
@@ -295,8 +334,7 @@ func compileWorkflowToPregel(w *Workflow) *graph.PregelGraph {
 	for i := range w.Steps {
 		step := w.Steps[i] // capture
 		_ = pg.AddNode(step.ID, func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-			// TODO: 根据 step.Type 路由到实际的执行逻辑。
-			// 当前为占位实现——仅记录步骤执行并合并输入。
+			// 根据 step.Type 路由到实际的执行逻辑。
 			newState := make(graph.PregelState)
 			for k, v := range state {
 				newState[k] = v
@@ -304,9 +342,58 @@ func compileWorkflowToPregel(w *Workflow) *graph.PregelGraph {
 			newState["last_step"] = step.ID
 			newState["last_step_type"] = string(step.Type)
 
-			// 收集步骤输出。
+			// 收集步骤执行历史。
 			steps, _ := state["steps"].([]string)
 			newState["steps"] = append(steps, step.ID)
+
+			// 按步骤类型路由执行逻辑。
+			var execErr error
+			switch step.Type {
+			case StepAgent:
+				// Agent 步骤：委托给指定的 Agent 角色（配置 AgentProvider 后在 Execute 层注入）。
+				// TODO: 当 WorkflowOrchestrator 持有 Provider 引用时，创建 agentcore.Agent 并运行。
+				newState["step_agent"] = step.Role
+				newState["step_prompt"] = step.Prompt
+				slog.Debug("workflow: agent step dispatch", "step", step.ID, "role", step.Role)
+
+			case StepTool:
+				// Tool 步骤：执行指定的工具。
+				// TODO: 通过 ToolRegistry 按 step.Tool 查找并调用工具。
+				if step.Tool == "" {
+					execErr = fmt.Errorf("workflow: tool step %q has no tool name", step.ID)
+				} else {
+					newState["step_tool"] = step.Tool
+					slog.Debug("workflow: tool step dispatch", "step", step.ID, "tool", step.Tool)
+				}
+
+			case StepQualityCheck:
+				// 质量检查步骤：收集当前上下文中的输出并运行检查。
+				// TODO: 当 EvaluateProvider 可用时，调用质量检查器评估当前产物。
+				newState["step_quality_check"] = true
+				slog.Debug("workflow: quality check step", "step", step.ID)
+
+			case StepHumanApproval:
+				// 人工审批步骤：设置审批等待状态，由外层调度器 HITL 循环处理。
+				newState["step_human_approval"] = true
+				newState["step_human_approval_for"] = step.HumanApprovalFor
+				slog.Debug("workflow: human approval step", "step", step.ID,
+					"approval_for", step.HumanApprovalFor)
+
+			case StepSubWorkflow:
+				// 子工作流步骤：递归执行嵌套工作流。
+				// TODO: 按 step.SubWorkflowName 查找已注册的工作流模板并递归执行。
+				newState["step_sub_workflow"] = step.SubWorkflowName
+				slog.Debug("workflow: sub-workflow step", "step", step.ID,
+					"sub_workflow", step.SubWorkflowName)
+
+			default:
+				// 未知步骤类型：设为错误而非静默跳过。
+				execErr = fmt.Errorf("workflow: unknown step type %q in step %q", step.Type, step.ID)
+			}
+
+			if execErr != nil {
+				return newState, execErr
+			}
 
 			slog.Debug("workflow: step executed",
 				"workflow", w.Name, "step", step.ID, "type", step.Type,

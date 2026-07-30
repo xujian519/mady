@@ -84,6 +84,21 @@ func extractInput(state graph.PregelState) *InfringementInput {
 	return v
 }
 
+// extractPerspective safely extracts the analysis perspective from Pregel state.
+// Returns an error if the perspective key is missing or has the wrong type,
+// since all infringement graph nodes require a perspective to produce correct output.
+func extractPerspective(state graph.PregelState) (Perspective, error) {
+	raw, ok := state[StatePerspective]
+	if !ok {
+		return "", fmt.Errorf("state missing required key %q", StatePerspective)
+	}
+	p, ok := raw.(Perspective)
+	if !ok {
+		return "", fmt.Errorf("state[%q] has unexpected type %T, expected Perspective", StatePerspective, raw)
+	}
+	return p, nil
+}
+
 // claimScopeNode returns the claim interpretation Pregel node.
 func claimScopeNode(provider agentcore.Provider, frameworkProvider ArticleFrameworkProvider) graph.PregelNode {
 	framework := defaultInfringementFramework
@@ -98,7 +113,10 @@ func claimScopeNode(provider agentcore.Provider, frameworkProvider ArticleFramew
 		if input == nil {
 			return state, fmt.Errorf("claim_scope: input not available")
 		}
-		perspective, _ := state[StatePerspective].(Perspective)
+		perspective, err := extractPerspective(state)
+		if err != nil {
+			return state, fmt.Errorf("claim_scope: %w", err)
+		}
 
 		patenteePrompt := "你是专利权人的法律顾问。请以最宽合理解释原则确定专利保护范围，在权利要求用语允许的范围内尽可能宽地解释保护范围。利用说明书和附图支持宽泛解释。"
 		defendantPrompt := "你是被控侵权人的法律顾问。请以严格解释原则分析专利保护范围，识别权利要求中的限缩性用语，主张窄化解释。利用说明书中的具体实施方式限制权利要求的抽象含义。"
@@ -133,7 +151,10 @@ func featureDecompositionNode(provider agentcore.Provider) graph.PregelNode {
 		if input == nil {
 			return state, fmt.Errorf("feature_decomposition: input not available")
 		}
-		perspective, _ := state[StatePerspective].(Perspective)
+		perspective, err := extractPerspective(state)
+		if err != nil {
+			return state, fmt.Errorf("feature_decomposition: %w", err)
+		}
 
 		prompt := "请将权利要求和被控产品/方法分别分解为独立的技术特征列表。每个特征应是一个完整的技术限定。特征的粒度应适中。\n\n## 权利要求文本\n" + input.PatentClaims + "\n\n## 被控产品/方法描述\n" + input.AccusedProduct
 
@@ -174,7 +195,10 @@ func literalInfringementNode(provider agentcore.Provider) graph.PregelNode {
 		if input == nil {
 			return state, fmt.Errorf("literal_infringement: input not available")
 		}
-		perspective, _ := state[StatePerspective].(Perspective)
+		perspective, err := extractPerspective(state)
+		if err != nil {
+			return state, fmt.Errorf("literal_infringement: %w", err)
+		}
 		claimFeatures, _ := state[StateClaimFeatures].([]string)
 		productFeatures, _ := state[StateProductFeatures].([]string)
 		scope, _ := state[StateClaimScope].(*ClaimScopeResult)
@@ -233,7 +257,10 @@ func equivalenceNode(provider agentcore.Provider, frameworkProvider ArticleFrame
 		if input == nil {
 			return state, fmt.Errorf("equivalence: input not available")
 		}
-		perspective, _ := state[StatePerspective].(Perspective)
+		perspective, err := extractPerspective(state)
+		if err != nil {
+			return state, fmt.Errorf("equivalence: %w", err)
+		}
 		literal, _ := state[StateLiteralResult].(*LiteralResult)
 		if literal == nil {
 			return state, fmt.Errorf("equivalence: literal result not available")
@@ -281,7 +308,10 @@ func infringementVerdictNode(provider agentcore.Provider) graph.PregelNode {
 		if stateHasSkip(state) {
 			return state, nil
 		}
-		perspective, _ := state[StatePerspective].(Perspective)
+		perspective, err := extractPerspective(state)
+		if err != nil {
+			return state, fmt.Errorf("infringement_verdict: %w", err)
+		}
 		literal, _ := state[StateLiteralResult].(*LiteralResult)
 		equiv, _ := state[StateEquivalenceResult].(*EquivalenceResult)
 		if literal == nil || equiv == nil {
@@ -322,6 +352,31 @@ func infringementVerdictNode(provider agentcore.Provider) graph.PregelNode {
 			KeyFindings: out.KeyFindings,
 			RiskLevel:   out.RiskLevel,
 		}
+
+		// Run deterministic rule engine checks alongside the LLM analysis.
+		// The rule engine provides structured violation detection covering
+		// all-elements, equivalence-three-part-test, prosecution-history-estoppel,
+		// dedication-rule, and other legally-grounded rules.
+		claimFeats, _ := state[StateClaimFeatures].([]string)
+		prodFeats, _ := state[StateProductFeatures].([]string)
+		featMapping, _ := state[StateFeatureMapping].([]FeatureComparison)
+		prosecutionHistoryStr, _ := state["prosecution_history"].(string)
+		priorArtStrs, _ := state["prior_art_refs"].([]string)
+
+		ruleInput := &RuleCheckInput{
+			ClaimFeatures:      claimFeats,
+			ProductFeatures:    prodFeats,
+			FeatureMapping:     featMapping,
+			LiteralResult:      literal,
+			EquivalenceResult:  equiv,
+			ProsecutionHistory: prosecutionHistoryStr,
+			PriorArtRefs:       priorArtStrs,
+		}
+		engine := NewRuleEngine()
+		violations := engine.Check(ctx, ruleInput)
+		if len(violations) > 0 {
+			state[StateRuleCheckResults] = violations
+		}
 		return state, nil
 	}
 }
@@ -340,7 +395,10 @@ func defenseReviewNode(provider agentcore.Provider, frameworkProvider ArticleFra
 		if input == nil {
 			return state, fmt.Errorf("defense_review: input not available")
 		}
-		perspective, _ := state[StatePerspective].(Perspective)
+		perspective, err := extractPerspective(state)
+		if err != nil {
+			return state, fmt.Errorf("defense_review: %w", err)
+		}
 		verdict, _ := state[StateVerdict].(*InfringementVerdict)
 		if verdict == nil {
 			return state, fmt.Errorf("defense_review: verdict not available")
@@ -382,7 +440,10 @@ func remedyAssessmentNode(provider agentcore.Provider, frameworkProvider Article
 		if stateHasSkip(state) {
 			return state, nil
 		}
-		perspective, _ := state[StatePerspective].(Perspective)
+		perspective, err := extractPerspective(state)
+		if err != nil {
+			return state, fmt.Errorf("remedy_assessment: %w", err)
+		}
 		verdict, _ := state[StateVerdict].(*InfringementVerdict)
 		if verdict == nil {
 			return state, fmt.Errorf("remedy_assessment: verdict not available")
@@ -418,7 +479,10 @@ func strategyNode(provider agentcore.Provider) graph.PregelNode {
 		if stateHasSkip(state) {
 			return state, nil
 		}
-		perspective, _ := state[StatePerspective].(Perspective)
+		perspective, err := extractPerspective(state)
+		if err != nil {
+			return state, fmt.Errorf("strategy: %w", err)
+		}
 		verdict, _ := state[StateVerdict].(*InfringementVerdict)
 		if verdict == nil {
 			return state, fmt.Errorf("strategy: verdict not available")

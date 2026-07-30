@@ -1,5 +1,25 @@
 # AI 变更记录
 
+## 2026-07-30: docs(refactoring) 全量代码异味探查，生成优化方案与执行清单
+
+### 发现问题（详见完整报告）
+- **编译错误**: `domains/infringement/types.go` 重复常量 `StateRemedyAssessment`（已修复）
+- **高认知复杂度**: 87 个函数超过阈值 30（最高 120: `NewComputerUseTool`）
+- **重复代码**: 15 处（A2A WebSocket handler、ACP server handler、New*Tool 工厂模式）
+- **未使用参数**: 50 处（含 8 个始终为 nil 的 error 返回、15 个未使用的 ctx 参数）
+- **God 包**: `domains/` 47K 行 / 245 文件
+- **千行级文件**: 4 个（最高 1336 行）
+- **生产 panic**: 11 处（2 处高危: `ipc-standards.go:68`、`event_logger.go:62`）
+- **裸 goroutine**: 15 处无 panic recovery
+- **架构违规**: `domains` 直接 import `tools` 包
+- **TODO 空实现**: `workflows/workflow.go` 4 处未实现骨架
+- **Worktree 膨胀**: ~470MB 残留工作树（6 Claude + 17 Grok）
+
+### 产出文件
+- `docs/refactoring/optimization-plan.md` — 三阶段完整优化方案（P1/P2/P3 共 6 个子项）
+- `docs/refactoring/CHECKLIST.md` — 77 项可追踪执行清单
+- 已修复 `domains/infringement/types.go` 重复常量
+
 ## 2026-07-30: fix(core) 为 mady-agent 添加引用核验 Gate，清理 AllowedSources 与 manifest 死引用（7 文件）
 
 ### 问题
@@ -8521,4 +8541,120 @@ PatentAgent (patent-agent)
   │    └─ System Prompt 含 IPC 领域专家按需启用说明
   └─ Lazy IPC → domain-A61-novelty, domain-G06-inventiveness ...
        └─ resolve_domain_workers(ipc_hints=["A61","G06"]) → 自动解析可用领域专家
+```
+
+## 2026-07-30: fix(code-health) 技术债务修复——死代码清理、孤儿包移除、路由 TODO 实现、断言安全加固（5 文件 + 2 目录）
+
+### 问题
+代码健康扫描发现多项技术债务：
+1. `tui/terminal/detect.go:345` — 无保护的类型断言（`v.(NerdFontStatus)` 可能 panic）
+2. `tui/stdio/` 整包（6 文件）未被任何代码引用——旧版 Chat API 遗留
+3. `.analysis/`（3MB PNG UI 截图）+ `graphify-out/`（28MB 分析产物）属于二进制大文件，不应在仓库中
+4. `workflows/workflow.go:298` — TODO 占位：步骤执行仅有 ID 记录，未按 step.Type 路由
+5. `workflows/workflow.go` — `WorkflowStep` 缺少 `HumanApprovalFor` 和 `SubWorkflowName` 字段
+
+### 修复
+
+**1. `tui/terminal/detect.go` — 无保护类型断言加 ok 检查**
+- `NerdFontsSupported()` 中 `v.(NerdFontStatus)` 改为带 ok 检查的安全版本
+
+**2. 删除 `tui/stdio/` 孤儿包**
+- 删除 5 个生产文件 + 1 个测试文件（linereader, renderer, spinner, progress, layout）
+- 该包用于旧式 Chat API 的终端 I/O，已被 TUI 组件化方案完全替代
+
+**3. 删除 `.analysis/` 和 `graphify-out/` 目录**
+- 移除约 31MB 非必要二进制文件（UI 截图、分析缓存）
+
+**4. `workflows/workflow.go` — 实现 TODO: 步骤类型路由**
+- `compileWorkflowToPregel` 中为 5 种 StepType 添加路由逻辑：
+  - `StepAgent` → 设置 role/prompt 状态
+  - `StepTool` → 校验 tool 名称存在性
+  - `StepQualityCheck` → 设置质量检查标志
+  - `StepHumanApproval` → 设置审批等待状态
+  - `StepSubWorkflow` → 设置子工作流名称
+  - `default` → 返回未知类型错误（之前静默跳过）
+
+**5. `workflows/workflow.go` — WorkflowStep 新增字段**
+- `HumanApprovalFor string` — 人工审批步骤的目标产物
+- `SubWorkflowName string` — 子工作流模板名称
+
+### 验证
+```
+go build ./...
+go vet ./...
+go test -race -count=1 ./... ✓ (全通过)
+go build ./tools/... && go vet ./tools/... ✓
+go build ./tui/... && go vet ./tui/... ✓
+go test -race -count=1 ./tui/... ✓ (stdio 移除后无影响)
+```
+
+### 变更文件
+```
+tui/terminal/detect.go              (±10 行, 类型断言安全加固)
+tui/stdio/                          (删除, 孤儿包 6 文件)
+.analysis/                          (删除, ~3MB UI 截图)
+graphify-out/                       (删除, ~28MB 分析缓存)
+workflows/workflow.go               (±100 行, 步骤路由 + 新字段)
+```
+
+## 2026-07-30: fix(code-health) 第二轮修复——断言安全、规则引擎接入、拓扑排序、测试补充（7 文件）
+
+### 问题
+1. `domains/infringement/nodes.go` — 8 处 `perspective, _` 忽略 ok，静默使用零值，导致不正确的中立/被控方视角
+2. `domains/workflows/patent/reexamination.go` — 2 处忽略 ok（`info, _`, `grounds, _`）
+3. `domains/infringement/rules.go` — 15 条确定性侵权规则引擎（79 项声明）完全未接入，纯死代码
+4. `workflows/` — 零测试覆盖
+5. `workflows/workflow.go` — `Validate()` 未检查空 steps；`TopologicalSteps()` 未做拓扑排序
+
+### 修复
+
+**1. `domains/infringement/nodes.go` — 安全提取 Perspective**
+- 新增 `extractPersistent()` 函数，8 处 `perspective, _` → `perspective, err := extractPerspective(state)` + 错误返回
+- 缺失 perspective 时返回明确的 fmt.Errorf，阻止产生不正确的中立分析
+
+**2. `domains/workflows/patent/reexamination.go` — 安全提取判决信息**
+- `reexamDraftNode` 和 `reexamOralHearingNode` 中忽略的 ok 改为 slog.Warn 日志
+- 添加 `log/slog` import
+
+**3. `domains/infringement/rules.go` + `nodes.go` — 规则引擎接入**
+- `infringementVerdictNode` 在 LLM 分析后添加确定性规则引擎检查
+- 创建 `RuleCheckInput` 从 state 提取特征、映射和历史数据
+- 调用 `NewRuleEngine().Check()`，违规结果存入 `StateRuleCheckResults`
+- 死代码从 79 项降至 1 项（公共 API getter `RuleEngine.Rules`）
+
+**4. `workflows/workflow_test.go`（新）— 24 个测试用例**
+- Validate（空名称/空步骤/缺少 ID/重复 ID/工具名缺失/未知依赖/循环依赖/黄金路径）
+- TopologicalSteps（顺序/依赖/空）
+- StepByID（找到/未找到/空工作流）
+- 模板实例化 + 超时/重试参数
+
+**5. `workflows/templates_test.go`（新）— 10 个测试用例**
+- 默认模板存在性（7 内置模板）
+- 注册/查找/列出
+- YAML 加载（正常 + 异常）
+- GetOrchestrationManifest 映射
+
+**6. `workflows/workflow.go` — Validate 和 TopologicalSort 修复**
+- Validate 新增 `len(w.Steps) == 0` 检查
+- TopologicalSteps 从简单顺序输出改为 Kahn 算法拓扑排序
+
+### 验证
+```
+go build ./... ✓
+go vet ./... ✓
+go test -race -count=1 ./... ✓ (全通过, 0 FAIL)
+go test -race -count=1 ./workflows/... ✓ (0→24 测试)
+go test -race -count=1 ./tools/... ✓
+go test -race -count=1 ./tui/... ✓
+```
+
+### 变更文件
+```
+domains/infringement/nodes.go           (+80 行, 8 处类型断言安全加固 + 规则引擎接入)
+domains/infringement/rules.go           (接入 15 条规则, 死代码 -78 项)
+domains/infringement/types.go           (+2 行, StateRuleCheckResults + StateRemedyAssessment)
+domains/workflows/patent/reexamination.go (±20 行, slog.Warn + import)
+workflows/workflow.go                   (±40 行, Validate 补缺 + Kahn 拓扑排序)
+workflows/workflow_test.go              (新增, 24 测试)
+workflows/templates_test.go             (新增, 10 测试)
 ```
