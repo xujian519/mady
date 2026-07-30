@@ -137,6 +137,13 @@ func (s *Server) SetMaxRequestBodyBytes(n int64) {
 	s.maxRequestBodyBytes.Store(n)
 }
 
+// SyncConfig 原子替换 Server 的内部配置。
+// 桌面端在 Phase 2 后台初始化完成后调用，将知识库/MCP/记忆系统等扩展
+// 合并到服务器配置中，使后续新建的会话获得完整能力。
+func (s *Server) SyncConfig(cfg agentcore.Config) {
+	s.config.Set(cfg)
+}
+
 // SetMetricsRecorder 注入自定义指标记录器。传入 nil 时复位为 NopMetricsRecorder。
 func (s *Server) SetMetricsRecorder(m MetricsRecorder) {
 	if m == nil {

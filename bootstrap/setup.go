@@ -568,12 +568,18 @@ func InitMemorySystem(fc *Context) {
 	slog.Info("长期记忆系统已就绪")
 
 	if sqliteStore, ok := memoryStore.(*memory.SQLiteMemoryStore); ok {
-		if bm25Idx, err := sqliteStore.BuildBM25Index(context.Background()); err == nil {
-			fc.MemoryManager.SetBM25Index(bm25Idx)
-			slog.Info("BM25 混合检索已启用", "index_size", bm25Idx.Size())
-		} else {
-			slog.Error("BM25 索引构建失败，退化为纯稠密检索", "error", err)
-		}
+		// BM25 索引构建在后台异步完成，避免阻塞启动流程。
+		// 用户可在索引完成前先使用纯稠密检索或关键词检索。
+		go func() {
+			bmCtx, bmCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer bmCancel()
+			if bm25Idx, err := sqliteStore.BuildBM25Index(bmCtx); err == nil {
+				fc.MemoryManager.SetBM25Index(bm25Idx)
+				slog.Info("BM25 混合检索已启用", "index_size", bm25Idx.Size())
+			} else {
+				slog.Error("BM25 索引构建失败，退化为纯稠密检索", "error", err)
+			}
+		}()
 	}
 
 	fc.MemoryCompiler = compiler.NewCompiler(compiler.Config{

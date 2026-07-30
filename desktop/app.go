@@ -70,6 +70,15 @@ func (a *App) emitInitProgress(msg string) {
 	}
 }
 
+// timedPhase 执行带计时和进度通知的初始化步骤。
+// progressMsg 发送到前端（中文），timingLabel 用于 [timing] 日志。
+func (a *App) timedPhase(progressMsg, timingLabel string, fn func()) {
+	a.emitInitProgress(progressMsg)
+	t := time.Now()
+	fn()
+	log.Printf("[timing] %s: %v", timingLabel, time.Since(t))
+}
+
 // startup 在 Wails 窗口就绪后调用。
 //
 // 启动分两阶段：
@@ -174,20 +183,29 @@ func (a *App) startup(ctx context.Context) {
 
 	// == 阶段 2：重型初始化（后台） ==
 	//
-	// 知识库（SQLite + 向量）、规则引擎（YAML）、记忆系统（SQLite + BM25）、
-	// 推理引擎等工作区级初始化在后台完成后，完整功能才可用。
-	// 不阻塞窗口交互。
+	// 优化策略（2026-07）：
+	//   1. Server 在 Phase 2 开始时立即创建，emit init-done，前端立刻可用。
+	//   2. 知识库/规则引擎/技能/MCP/记忆系统/推理引擎等重型初始化在后台静默完成。
+	//   3. 完成后通过 SyncConfig 将新扩展注入 server，后续新建会话获得完整能力。
+	//
+	// 这消除了此前"必须等全部初始化完成才能交互"的两阶段门闩缺陷。
+	//
+	// 注入 MCP 发现超时（desktop 路径此前未命中 bootstrap 的 timeout 分支）。
+	discoveryCtx := mcp.WithDiscoveryTimeout(ctx, 1500*time.Millisecond)
 
-	go a.initDeferred(ctx, fc)
+	go a.initDeferred(discoveryCtx, fc)
 }
 
 // initDeferred 在后台 goroutine 中完成重型初始化，通过 Wails Events
 // 向前端发射进度文案。
+//
+// 优化（2026-07）：Server 在函数开始时立即创建并 emit init-done，
+// 使前端在主窗口显示后即可交互。重型初始化在后台静默完成，
+// 完成后通过 SyncConfig 将完整的扩展列表注入 server。
 func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[mady-desktop] PANIC in deferred init: %v", r)
-			// 使用 x/slog 记录结构化日志后，仍确保 init-done 发出以避免前端挂死。
 			a.emitInitProgress("初始化异常: 部分功能不可用")
 			runtime.EventsEmit(ctx, "mady:init-done", map[string]bool{"ready": false})
 		}
@@ -201,37 +219,56 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 	default:
 	}
 
+	// === 步骤 0：立即创建 Server + 通知前端就绪 ===
+	// 此时 fc.BaseConfig 只有 Phase 1 的核心扩展（工具链/工作区）。
+	// 后续重型初始化通过 SyncConfig 将知识库/MCP/记忆等扩展注入 server。
+	t0 := time.Now()
+	a.server = madyserver.New(fc.BaseConfig)
+	log.Printf("[mady-desktop] server created in %v — frontend now interactive", time.Since(t0))
+	a.emitInitProgress("就绪")
+	runtime.EventsEmit(ctx, "mady:init-done", map[string]bool{"ready": true, "degraded": true})
+
+	// === 阶段 2：重型初始化（后台，不阻塞前端） ===
+	// 逐步骤计时，便于定位瓶颈。
 	log.Println("[mady-desktop] startup: phase 2 — deferred init starting")
 
-	a.emitInitProgress("正在加载知识库...")
-	fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = bootstrap.LoadWikiStore(fc.MadyHome)
-	if fc.KnowledgeBackend != nil {
-		log.Printf("[mady-desktop] wiki store loaded (backend: %v)", fc.KnowledgeBackend)
-	}
-	fc.WikiRoot = bootstrap.ResolveWikiRoot(fc.MadyHome)
+	a.timedPhase("正在加载知识库...", "LoadWikiStore", func() {
+		fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = bootstrap.LoadWikiStore(fc.MadyHome)
+		if fc.KnowledgeBackend != nil {
+			log.Printf("[mady-desktop] wiki store loaded (backend: %v)", fc.KnowledgeBackend)
+		}
+		fc.WikiRoot = bootstrap.ResolveWikiRoot(fc.MadyHome)
+	})
 
-	a.emitInitProgress("正在加载规则引擎...")
-	if engine, err := rules.LoadEngineFromMadyHome(); err != nil {
-		log.Printf("[mady-desktop] rule engine load failed: %v", err)
-	} else {
-		fc.RuleEngine = engine
-	}
+	a.timedPhase("正在加载规则引擎...", "LoadRuleEngine", func() {
+		if engine, err := rules.LoadEngineFromMadyHome(); err != nil {
+			log.Printf("[mady-desktop] rule engine load failed: %v", err)
+		} else {
+			fc.RuleEngine = engine
+		}
+	})
 
-	a.emitInitProgress("正在发现技能和 MCP 服务...")
-	bootstrap.DiscoverSkills(fc)
-	bootstrap.DiscoverMCP(ctx, fc)
+	a.timedPhase("正在发现技能和 MCP 服务...", "DiscoverSkills+MCP", func() {
+		bootstrap.DiscoverSkills(fc)
+		bootstrap.DiscoverMCP(ctx, fc)
+	})
 
-	a.emitInitProgress("正在初始化记忆系统...")
-	bootstrap.InitMemorySystem(fc)
+	a.timedPhase("正在初始化记忆系统...", "InitMemorySystem", func() {
+		bootstrap.InitMemorySystem(fc)
+	})
 
-	a.emitInitProgress("正在加载推理引擎...")
-	bootstrap.InitReasoningAndTemplates(fc)
+	a.timedPhase("正在加载推理引擎...", "InitReasoningAndTemplates", func() {
+		bootstrap.InitReasoningAndTemplates(fc)
+	})
 
-	// 所有延迟初始化完成后创建内嵌 server，确保 Config 包含完整 Extensions/AvailableSkills。
-	a.server = madyserver.New(fc.BaseConfig)
-	log.Println("[mady-desktop] deferred init complete")
-	a.emitInitProgress("就绪")
-	runtime.EventsEmit(ctx, "mady:init-done", map[string]bool{"ready": true})
+	// 将 Phase 2 新增的扩展（知识库/MCP/技能/记忆编译器/推理引擎等）
+	// 同步到 server，使后续新建的会话获得完整能力。
+	tEnd := time.Now()
+	a.server.SyncConfig(fc.BaseConfig)
+	log.Printf("[timing] SyncConfig: %v | total phase 2: %v", time.Since(tEnd), time.Since(t0))
+
+	log.Printf("[mady-desktop] deferred init complete: phase 2 took %v", time.Since(t0))
+	log.Println("[mady-desktop] startup: deferred init complete — all capabilities available")
 }
 
 // shutdown 在 Wails 窗口关闭前调用。优雅关闭 server，取消所有运行中的 chat。
