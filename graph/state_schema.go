@@ -122,13 +122,13 @@ func mergeWithSchema(state PregelState, results map[string]PregelState, schema *
 				state[k] = v
 
 			case ReducerAppend:
-				existingSlice, _ := toAnySlice(existing)
-				newSlice, _ := toAnySlice(v)
+				existingSlice := toAnySlice(existing)
+				newSlice := toAnySlice(v)
 				state[k] = append(existingSlice, newSlice...)
 
 			case ReducerUnion:
-				existingSlice, _ := toAnySlice(existing)
-				newSlice, _ := toAnySlice(v)
+				existingSlice := toAnySlice(existing)
+				newSlice := toAnySlice(v)
 				state[k] = unionSlices(existingSlice, newSlice)
 
 			case ReducerMergeMap:
@@ -157,18 +157,18 @@ func mergeWithSchema(state PregelState, results map[string]PregelState, schema *
 }
 
 // toAnySlice 尝试将 value 转换为 []any。支持 []any 和 []string 等常见类型。
-func toAnySlice(v any) ([]any, bool) {
+func toAnySlice(v any) []any {
 	switch s := v.(type) {
 	case []any:
-		return s, true
+		return s
 	case []string:
 		result := make([]any, len(s))
 		for i, item := range s {
 			result[i] = item
 		}
-		return result, true
+		return result
 	default:
-		return nil, false
+		return nil
 	}
 }
 

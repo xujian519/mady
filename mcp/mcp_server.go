@@ -219,25 +219,25 @@ const (
 func (srv *MCPServer) handleJSONRPC(w http.ResponseWriter, r *http.Request) {
 	// Validate method — MCP uses POST.
 	if r.Method != http.MethodPost {
-		writeJSONError(w, http.StatusMethodNotAllowed, errCodeInvalidRequest, "POST required")
+		writeJSONError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
 
 	// Read body.
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, errCodeInvalidRequest, "cannot read body")
+		writeJSONError(w, http.StatusBadRequest, "cannot read body")
 		return
 	}
 	if len(body) == 0 {
-		writeJSONError(w, http.StatusBadRequest, errCodeInvalidRequest, "empty body")
+		writeJSONError(w, http.StatusBadRequest, "empty body")
 		return
 	}
 
 	// Parse request.
 	var req jsonRPCRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, errCodeInvalidRequest, "invalid JSON: "+err.Error())
+		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 
@@ -251,10 +251,7 @@ func (srv *MCPServer) handleJSONRPC(w http.ResponseWriter, r *http.Request) {
 
 	// Set MCP headers for initialize response.
 	if req.Method == "initialize" {
-		sessionID := extractSessionID(resp)
-		if sessionID != "" {
-			w.Header().Set(headerSessionID, sessionID)
-		}
+		extractSessionID(resp)
 		w.Header().Set(headerProtocolVersion, MCPProtocolVersion)
 	}
 
@@ -579,26 +576,25 @@ func agentToolToMCPTool(t *agentcore.Tool) Tool {
 }
 
 // writeJSONError writes an HTTP error with a JSON body.
-func writeJSONError(w http.ResponseWriter, status int, code int64, message string) {
+func writeJSONError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(jsonRPCResponse{ //nolint:errchkjson
 		JSONRPC: "2.0",
-		Error:   &jsonRPCError{Code: code, Message: message},
+		Error:   &jsonRPCError{Code: errCodeInvalidRequest, Message: message},
 	})
 }
 
 // extractSessionID pulls the session ID from an initialize response.
-func extractSessionID(resp *jsonRPCResponse) string {
+func extractSessionID(resp *jsonRPCResponse) {
 	if resp == nil || resp.Result == nil {
-		return ""
+		return
 	}
 	if m, ok := resp.Result.(map[string]any); ok {
 		if caps, ok := m["capabilities"].(map[string]any); ok {
 			_ = caps // just checking structure
 		}
 	}
-	return ""
 }
 
 // header constants reused from existing mcp package.

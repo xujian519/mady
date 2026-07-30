@@ -83,7 +83,7 @@ func (fr *FileReader) ReadProjectFile(ctx context.Context, path string) (*FileRe
 		case CategoryTextDoc:
 			result, err = fr.readText(ctx, fullPath)
 		case CategoryPdf:
-			result, err = fr.readPDF(ctx, fullPath)
+			result = fr.readPDF(ctx, fullPath)
 		case CategorySpreadsheet:
 			result, err = fr.readSpreadsheet(ctx, fullPath)
 		case CategoryImage:

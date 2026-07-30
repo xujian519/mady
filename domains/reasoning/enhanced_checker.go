@@ -73,7 +73,7 @@ func (c *EnhancedSyllogismChecker) Check(ctx context.Context, bb *FactBlackboard
 	}
 
 	if level >= CheckLevel2 && c.llm != nil {
-		c.checkLogicalConsistency(ctx, plan, syllogisms, report)
+		c.checkLogicalConsistency(ctx, syllogisms, report)
 	}
 
 	if level >= CheckLevel3 && c.llm != nil {
@@ -100,7 +100,7 @@ func (c *EnhancedSyllogismChecker) Check(ctx context.Context, bb *FactBlackboard
 }
 
 // checkLogicalConsistency runs Level 2 validation using the LLM.
-func (c *EnhancedSyllogismChecker) checkLogicalConsistency(ctx context.Context, plan *Plan, syllogisms []Syllogism, report *CheckReport) {
+func (c *EnhancedSyllogismChecker) checkLogicalConsistency(ctx context.Context, syllogisms []Syllogism, report *CheckReport) {
 	if len(syllogisms) == 0 {
 		return
 	}

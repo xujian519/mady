@@ -116,7 +116,7 @@ func RunCLI(ctx context.Context, cli *EvalCLI) (*RunResult, error) {
 	case ModeStatic:
 		report = runStatic(cases, cli.Predictions)
 	case ModeLive:
-		report, err = runLive(ctx, cases, cli)
+		report = runLive(ctx, cases, cli)
 	default:
 		return nil, fmt.Errorf("cli: 不支持的执行模式 %q", cli.Mode)
 	}
@@ -203,7 +203,7 @@ func runStatic(cases []evaluate.TestCase, predictions map[string]string) *evalua
 }
 
 // runLive 以 live 模式运行评估。
-func runLive(ctx context.Context, cases []evaluate.TestCase, cli *EvalCLI) (*evaluate.BatchReport, error) {
+func runLive(ctx context.Context, cases []evaluate.TestCase, cli *EvalCLI) *evaluate.BatchReport {
 	workers := cli.Workers
 	if workers <= 0 {
 		workers = 4
@@ -282,7 +282,7 @@ func runLive(ctx context.Context, cases []evaluate.TestCase, cli *EvalCLI) (*eva
 		}
 	}
 
-	return benchmark.DefaultEvaluator().EvaluateStatic(cases, predictions), nil
+	return benchmark.DefaultEvaluator().EvaluateStatic(cases, predictions)
 }
 
 func callProviderSimple(ctx context.Context, provider Completer, input string) (string, error) {

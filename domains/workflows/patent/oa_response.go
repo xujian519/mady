@@ -126,7 +126,7 @@ func classifyRejectionNode(ctx context.Context, state graph.PregelState) (graph.
 		return nil, fmt.Errorf("oa_response: invalid or missing parsed OA state")
 	}
 
-	strategy := determineResponseStrategy(rejectionType, parsed)
+	strategy := determineResponseStrategy(rejectionType)
 	templateName := selectOATemplate(rejectionType, strategy)
 
 	return graph.PregelState{
@@ -141,7 +141,7 @@ func classifyRejectionNode(ctx context.Context, state graph.PregelState) (graph.
 }
 
 // determineResponseStrategy picks the response strategy based on rejection type.
-func determineResponseStrategy(rejectionType string, parsed *ParsedOfficeAction) string {
+func determineResponseStrategy(rejectionType string) string {
 	switch OaRejectionType(rejectionType) {
 	case OaNovelty, OaInventiveness:
 		return "argument" // 主要通过争辩
@@ -350,7 +350,7 @@ func draftResponseNode(ctx context.Context, state graph.PregelState) (graph.Preg
 
 	// Template-specific drafting guidance.
 	response.WriteString("## 意见陈述\n\n")
-	response.WriteString(draftResponseBody(OaRejectionType(rejectionType), parsed))
+	response.WriteString(draftResponseBody(OaRejectionType(rejectionType)))
 	response.WriteString("\n")
 
 	// Disclaimer.
@@ -378,7 +378,7 @@ func draftResponseNode(ctx context.Context, state graph.PregelState) (graph.Preg
 }
 
 // draftResponseBody generates the core argument section based on rejection type.
-func draftResponseBody(rejectionType OaRejectionType, parsed *ParsedOfficeAction) string {
+func draftResponseBody(rejectionType OaRejectionType) string {
 	var b strings.Builder
 
 	switch rejectionType {

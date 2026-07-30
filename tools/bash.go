@@ -247,6 +247,162 @@ type BashToolDetails struct {
 	FullOutputPath string            `json:"full_output_path,omitempty"`
 }
 
+// bashOutputCollector 收集 bash 命令输出，支持临时文件溢出和滚动缓冲区。
+type bashOutputCollector struct {
+	mu         sync.Mutex
+	chunks     [][]byte
+	totalBytes int
+	tempFile   *os.File
+	tempPath   string
+	maxBytes   int64
+	maxLines   int64
+}
+
+func newBashOutputCollector(maxBytes, maxLines int64) *bashOutputCollector {
+	return &bashOutputCollector{
+		maxBytes: maxBytes,
+		maxLines: maxLines,
+	}
+}
+
+// Write 接收输出数据，累计到滚动缓冲区；当超过 maxBytes 时自动创建临时文件保存完整输出。
+func (c *bashOutputCollector) Write(data []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.totalBytes += len(data)
+	c.chunks = append(c.chunks, data)
+
+	// 当累计输出超过阈值时开始写入临时文件（回填所有已有数据）。
+	if c.totalBytes > int(c.maxBytes) && c.tempFile == nil {
+		var tempFileErr error
+		c.tempFile, tempFileErr = os.CreateTemp("", "mady-bash-*.log")
+		if tempFileErr != nil {
+			c.tempFile = nil
+			fmt.Fprintf(os.Stderr, "bash: 创建日志临时文件失败: %v（输出截断后无法提供完整日志）\n", tempFileErr)
+		}
+		if c.tempFile != nil {
+			c.tempPath = c.tempFile.Name()
+			for _, chunk := range c.chunks {
+				if _, werr := c.tempFile.Write(chunk); werr != nil {
+					c.cleanupTempFile()
+					break
+				}
+			}
+		}
+	}
+	// 如果临时文件仍可用，追加当前数据块。
+	if c.tempFile != nil {
+		if _, werr := c.tempFile.Write(data); werr != nil {
+			c.cleanupTempFile()
+		}
+	}
+
+	// 保持滚动缓冲区，只保留最近的内容（上限 2x maxBytes）。
+	maxChunksBytes := int(c.maxBytes) * 2
+	chunksBytes := 0
+	for _, ch := range c.chunks {
+		chunksBytes += len(ch)
+	}
+	for chunksBytes > maxChunksBytes && len(c.chunks) > 1 {
+		chunksBytes -= len(c.chunks[0])
+		c.chunks = c.chunks[1:]
+	}
+}
+
+// cleanupTempFile 移除并关闭临时文件，重置 tempFile 和 tempPath。
+func (c *bashOutputCollector) cleanupTempFile() {
+	if c.tempPath != "" {
+		_ = os.Remove(c.tempPath)
+	}
+	if c.tempFile != nil {
+		if cerr := c.tempFile.Close(); cerr != nil {
+			log.Printf("close temp log file: %v", cerr)
+		}
+	}
+	c.tempFile = nil
+	c.tempPath = ""
+}
+
+// Close 关闭临时文件（不删除），由调用方在 Exec 结束后调用。
+func (c *bashOutputCollector) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.tempFile != nil {
+		_ = c.tempFile.Close()
+	}
+}
+
+// Result 合并输出、清理 ANSI/二进制字符、执行尾部截断，返回结果文本和详情。
+func (c *bashOutputCollector) Result() (string, BashToolDetails) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var fullOutput []byte
+	for _, chunk := range c.chunks {
+		fullOutput = append(fullOutput, chunk...)
+	}
+	outputText := string(fullOutput)
+
+	outputText = stripAnsi(outputText)
+	outputText = sanitizeBinaryOutput(outputText)
+
+	truncation := TruncateTail(outputText, TruncationOptions{
+		MaxLines: int(c.maxLines),
+		MaxBytes: int(c.maxBytes),
+	})
+
+	var details BashToolDetails
+	resultText := truncation.Content
+
+	if truncation.Truncated {
+		details.Truncation = &truncation
+		details.FullOutputPath = c.tempPath
+		startLine := truncation.TotalLines - truncation.OutputLines + 1
+		endLine := truncation.TotalLines
+		switch {
+		case truncation.LastLinePartial:
+			resultText += fmt.Sprintf("\n\n[Showing last %s of line %d. Full output: %s]",
+				FormatSize(int64(truncation.OutputBytes)), endLine, c.tempPath)
+		case truncation.TruncatedBy == "lines":
+			resultText += fmt.Sprintf("\n\n[Showing lines %d-%d of %d. Full output: %s]",
+				startLine, endLine, truncation.TotalLines, c.tempPath)
+		default:
+			resultText += fmt.Sprintf("\n\n[Showing lines %d-%d of %d (%s limit). Full output: %s]",
+				startLine, endLine, truncation.TotalLines, FormatSize(c.maxBytes), c.tempPath)
+		}
+	}
+
+	return resultText, details
+}
+
+// parseBashInput 解析 bash 工具参数，校验必填字段。
+func parseBashInput(args json.RawMessage) (BashToolInput, error) {
+	var input BashToolInput
+	if err := json.Unmarshal(args, &input); err != nil {
+		return input, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if input.Command == "" {
+		return input, errors.New("command is required")
+	}
+	return input, nil
+}
+
+// checkDangerousPatterns 校验命令中是否包含危险模式。当 patterns 为 nil 时使用默认集合。
+func checkDangerousPatterns(command string, patterns []string) error {
+	if patterns == nil {
+		patterns = DefaultDangerousPatterns()
+	}
+	for _, pat := range patterns {
+		if matched, err := regexp.MatchString(pat, command); err != nil {
+			return fmt.Errorf("command rejected: invalid pattern %q: %w", pat, err)
+		} else if matched {
+			return fmt.Errorf("command rejected: contains dangerous pattern %q", pat)
+		}
+	}
+	return nil
+}
+
 // NewBashTool creates a shell execution tool.
 func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 	if cfg == nil {
@@ -268,149 +424,36 @@ func NewBashTool(cwd string, cfg *BashToolConfig) *agentcore.Tool {
 			"required": []any{"command"},
 		},
 		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-			var input BashToolInput
-			if err := json.Unmarshal(args, &input); err != nil {
-				return resultErrf("invalid arguments: %w", err)
+			input, err := parseBashInput(args)
+			if err != nil {
+				return resultErrf("%w", err)
 			}
 
-			if input.Command == "" {
-				return resultErrf("command is required")
+			if err := checkDangerousPatterns(input.Command, cfg.DangerousPatterns); err != nil {
+				return resultErrf("%w", err)
 			}
 
-			// Validate against dangerous patterns before execution.
-			// This is a defense-in-depth measure; the primary security
-			// boundary is the Sandbox + DisableTools mechanism.
-			patterns := cfg.DangerousPatterns
-			if patterns == nil {
-				patterns = DefaultDangerousPatterns()
-			}
-			for _, pat := range patterns {
-				if matched, err := regexp.MatchString(pat, input.Command); err != nil {
-					return resultErrf("command rejected: invalid pattern %q: %w", pat, err)
-				} else if matched {
-					return resultErrf("command rejected: contains dangerous pattern %q", pat)
-				}
-			}
+			collector := newBashOutputCollector(cfg.MaxBytes, cfg.MaxLines)
+			exitCode, execErr := cfg.Operations.Exec(ctx, input.Command, cwd, nil, input.Timeout, collector.Write)
 
-			var chunks [][]byte
-			var totalBytes int
-			var tempFile *os.File
-			var tempFilePath string
-			// dataMu protects chunks, totalBytes, tempFile, and tempFilePath
-			// because onData is called concurrently from two goroutines
-			// (stdout reader and stderr reader in DefaultBashOperations.Exec).
-			var dataMu sync.Mutex
+			collector.Close()
 
-			onData := func(data []byte) {
-				dataMu.Lock()
-				defer dataMu.Unlock()
-
-				totalBytes += len(data)
-				chunks = append(chunks, data)
-
-				// Start writing to temp file once output exceeds threshold.
-				if totalBytes > int(cfg.MaxBytes) && tempFile == nil {
-					var tempFileErr error
-					tempFile, tempFileErr = os.CreateTemp("", "mady-bash-*.log")
-					if tempFileErr != nil {
-						tempFile = nil
-						fmt.Fprintf(os.Stderr, "bash: 创建日志临时文件失败: %v（输出截断后无法提供完整日志）\n", tempFileErr)
-					}
-					if tempFile != nil {
-						tempFilePath = tempFile.Name()
-						for _, c := range chunks {
-							if _, werr := tempFile.Write(c); werr != nil {
-								_ = os.Remove(tempFile.Name())
-								if cerr := tempFile.Close(); cerr != nil {
-									log.Printf("close temp log file: %v", cerr)
-								}
-								tempFile = nil
-								tempFilePath = ""
-								break
-							}
-						}
-					}
-				}
-				if tempFile != nil {
-					if _, werr := tempFile.Write(data); werr != nil {
-						_ = os.Remove(tempFile.Name())
-						if cerr := tempFile.Close(); cerr != nil {
-							log.Printf("close temp log file: %v", cerr)
-						}
-						tempFile = nil
-					}
-				}
-
-				// Keep rolling buffer of recent output.
-				maxChunksBytes := int(cfg.MaxBytes) * 2
-				chunksBytes := 0
-				for _, c := range chunks {
-					chunksBytes += len(c)
-				}
-				for chunksBytes > maxChunksBytes && len(chunks) > 1 {
-					chunksBytes -= len(chunks[0])
-					chunks = chunks[1:]
-				}
-			}
-
-			exitCode, err := cfg.Operations.Exec(ctx, input.Command, cwd, nil, input.Timeout, onData)
-
-			if tempFile != nil {
-				_ = tempFile.Close()
-			}
-
-			// Schedule delayed cleanup of temp file (agent may reference it).
-			// Uses time.NewTimer so the timer can be stopped early if needed.
-			if tempFilePath != "" {
+			// 调度临时文件延迟清理（Agent 可能在截断消息中引用此路径）。
+			if collector.tempPath != "" {
 				go func(path string) {
 					timer := time.NewTimer(10 * time.Minute)
 					<-timer.C
 					_ = os.Remove(path)
-				}(tempFilePath)
+				}(collector.tempPath)
 			}
 
-			// Combine rolling buffer.
-			var fullOutput []byte
-			for _, c := range chunks {
-				fullOutput = append(fullOutput, c...)
-			}
-			outputText := string(fullOutput)
-
-			outputText = stripAnsi(outputText)
-			outputText = sanitizeBinaryOutput(outputText)
-
-			// Apply tail truncation.
-			truncation := TruncateTail(outputText, TruncationOptions{
-				MaxLines: int(cfg.MaxLines),
-				MaxBytes: int(cfg.MaxBytes),
-			})
-
-			var details BashToolDetails
-			resultText := truncation.Content
+			resultText, details := collector.Result()
 			if resultText == "" {
 				resultText = "(no output)"
 			}
 
-			if truncation.Truncated {
-				details.Truncation = &truncation
-				details.FullOutputPath = tempFilePath
-				startLine := truncation.TotalLines - truncation.OutputLines + 1
-				endLine := truncation.TotalLines
-				switch {
-				case truncation.LastLinePartial:
-					resultText += fmt.Sprintf("\n\n[Showing last %s of line %d. Full output: %s]",
-						FormatSize(int64(truncation.OutputBytes)), endLine, tempFilePath)
-				case truncation.TruncatedBy == "lines":
-					resultText += fmt.Sprintf("\n\n[Showing lines %d-%d of %d. Full output: %s]",
-						startLine, endLine, truncation.TotalLines, tempFilePath)
-				default:
-					resultText += fmt.Sprintf("\n\n[Showing lines %d-%d of %d (%s limit). Full output: %s]",
-						startLine, endLine, truncation.TotalLines, FormatSize(cfg.MaxBytes), tempFilePath)
-				}
-			}
-
-			if err != nil {
-				return resultErrf("command failed: %w", err)
+			if execErr != nil {
+				return resultErrf("command failed: %w", execErr)
 			}
 
 			if exitCode != 0 {

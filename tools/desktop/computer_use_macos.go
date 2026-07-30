@@ -6,7 +6,6 @@
 package desktop
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -40,7 +39,7 @@ func fallbackInfo() (any, error) {
 	return result(info+"\nBackend: osascript", nil)
 }
 
-func fallbackCapture(ctx context.Context, backend cuBackend, appName, mode string) (any, error) {
+func fallbackCapture(backend cuBackend, appName, mode string) (any, error) {
 	screenshotPath := filepath.Join(os.TempDir(), fmt.Sprintf("mady_cu_%d.png", time.Now().UnixNano()))
 	var args []string
 	if appName != "" {
@@ -97,7 +96,7 @@ func fallbackClick(backend cuBackend, action string, x, y int) (string, error) {
 		default:
 			cliAction = "c"
 		}
-		if _, err := cliclickExec(fmt.Sprintf("%s:%d,%d", cliAction, x, y)); err != nil {
+		if err := cliclickExec(fmt.Sprintf("%s:%d,%d", cliAction, x, y)); err != nil {
 			return "", fmt.Errorf("%s: %w", action, err)
 		}
 		return fmt.Sprintf("%s at (%d, %d) via cliclick", action, x, y), nil
@@ -126,7 +125,7 @@ func osaClick(action string, x, y int) (string, error) {
 
 func fallbackDrag(backend cuBackend, x1, y1, x2, y2 int) (string, error) {
 	if backend == cuBackendCliclick {
-		if _, err := cliclickExec(
+		if err := cliclickExec(
 			fmt.Sprintf("dd:%d,%d", x1, y1),
 			fmt.Sprintf("du:%d,%d", x2, y2),
 		); err != nil {
@@ -150,7 +149,7 @@ func fallbackType(backend cuBackend, text string) (string, error) {
 	escaped := strings.ReplaceAll(text, `\`, `\\`)
 	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
 	if backend == cuBackendCliclick {
-		if _, err := cliclickExec(fmt.Sprintf(`t:"%s"`, escaped)); err != nil {
+		if err := cliclickExec(fmt.Sprintf(`t:"%s"`, escaped)); err != nil {
 			return "", fmt.Errorf("type: %w", err)
 		}
 		return fmt.Sprintf("Typed via cliclick: %s", text), nil
@@ -192,11 +191,11 @@ func cliclickKeyImpl(keys string) (string, error) {
 		for i := len(modifiers) - 1; i >= 0; i-- {
 			args = append(args, fmt.Sprintf("ku:%s", modifiers[i]))
 		}
-		if _, err := cliclickExec(args...); err != nil {
+		if err := cliclickExec(args...); err != nil {
 			return "", fmt.Errorf("key combo: %w", err)
 		}
 	} else {
-		if _, err := cliclickExec(fmt.Sprintf("kp:%s", key)); err != nil {
+		if err := cliclickExec(fmt.Sprintf("kp:%s", key)); err != nil {
 			return "", fmt.Errorf("key press: %w", err)
 		}
 	}
@@ -275,7 +274,7 @@ func fallbackScroll(backend cuBackend, direction string, amount int) (string, er
 		case "right":
 			flag = "wr"
 		}
-		if _, err := cliclickExec(fmt.Sprintf("%s:%d", flag, amount)); err != nil {
+		if err := cliclickExec(fmt.Sprintf("%s:%d", flag, amount)); err != nil {
 			return "", fmt.Errorf("scroll: %w", err)
 		}
 		return fmt.Sprintf("Scrolled %s %d via cliclick", direction, amount), nil

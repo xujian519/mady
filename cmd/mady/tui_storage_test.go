@@ -11,7 +11,7 @@ func TestProbeSessionDir_Writable(t *testing.T) {
 	dir := t.TempDir()
 	// probeSessionDir("", madyHome, workspaceDir) with madyHome set:
 	// session dir becomes madyHome + "/sessions".
-	result := probeSessionDir("", dir, "", "")
+	result := probeSessionDir("", dir, "")
 	if result.Unavailable {
 		t.Errorf("expected writable session dir, got Unavailable=true: %s", result.Message)
 	}
@@ -33,7 +33,7 @@ func TestProbeSessionDir_Unwritable(t *testing.T) {
 	}
 
 	// probeSessionDir will try to mkdir "sessions" under roDir → fail.
-	result := probeSessionDir("", "", "", "")
+	result := probeSessionDir("", "", "")
 	// With empty madyHome, it falls through to ResolveDataDir → likely succeeds
 	// with a temp dir. Skip the unwritable scenario assertion since it's
 	// platform-dependent. Instead, verify the function doesn't panic.
@@ -44,7 +44,7 @@ func TestProbeSessionDir_Unwritable(t *testing.T) {
 
 func TestProbeSessionDir_CustomPath(t *testing.T) {
 	dir := t.TempDir()
-	result := probeSessionDir(dir, "", "", "")
+	result := probeSessionDir(dir, "", "")
 	if result.Unavailable {
 		t.Errorf("expected writable custom session dir, got Unavailable=true: %s", result.Message)
 	}
@@ -56,7 +56,7 @@ func TestProbeSessionDir_CustomPath(t *testing.T) {
 func TestProbeSessionDir_PartitionsByCWD(t *testing.T) {
 	dir := t.TempDir()
 	cwd := "/path/to/project"
-	result := probeSessionDir("", dir, "", cwd)
+	result := probeSessionDir("", dir, cwd)
 	if result.Unavailable {
 		t.Fatalf("expected writable session dir, got Unavailable=true: %s", result.Message)
 	}
@@ -75,7 +75,7 @@ func TestProbeSessionDir_PartitionsByCWD(t *testing.T) {
 
 	// A different CWD must land in a different partition.
 	cwd2 := "/path/to/other"
-	result2 := probeSessionDir("", dir, "", cwd2)
+	result2 := probeSessionDir("", dir, cwd2)
 	if result2.ResolvedDir == result.ResolvedDir {
 		t.Errorf("different cwd got same partition: %q", result2.ResolvedDir)
 	}
@@ -84,7 +84,7 @@ func TestProbeSessionDir_PartitionsByCWD(t *testing.T) {
 func TestProbeSessionDir_ExplicitEnvDisablesPartition(t *testing.T) {
 	dir := t.TempDir()
 	explicit := filepath.Join(dir, "custom")
-	result := probeSessionDir(explicit, "", "", "/path/to/project")
+	result := probeSessionDir(explicit, "", "/path/to/project")
 	if result.Unavailable {
 		t.Fatalf("expected writable session dir, got Unavailable=true: %s", result.Message)
 	}

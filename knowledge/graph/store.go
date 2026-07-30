@@ -118,14 +118,14 @@ func (s *GraphStore) AddEdge(edge GraphEdge) {
 func (s *GraphStore) RemoveEdges(sourceID, targetID, relation string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.adj[sourceID] = filterEdges(s.adj[sourceID], sourceID, targetID, relation, true)
-	s.radj[targetID] = filterEdges(s.radj[targetID], sourceID, targetID, relation, false)
+	s.adj[sourceID] = filterEdges(s.adj[sourceID], sourceID, targetID, relation)
+	s.radj[targetID] = filterEdges(s.radj[targetID], sourceID, targetID, relation)
 	// Also fix reverse indices for any other affected entries.
 	for id, edges := range s.adj {
-		s.adj[id] = filterEdges(edges, sourceID, targetID, relation, true)
+		s.adj[id] = filterEdges(edges, sourceID, targetID, relation)
 	}
 	for id, edges := range s.radj {
-		s.radj[id] = filterEdges(edges, sourceID, targetID, relation, false)
+		s.radj[id] = filterEdges(edges, sourceID, targetID, relation)
 	}
 }
 
@@ -336,7 +336,7 @@ func edgeExists(edges []GraphEdge, candidate GraphEdge) bool {
 // filterEdges removes edges matching the source/target/relation criteria.
 // asSource=true filters the forward adjacency (match by TargetID); false
 // filters the reverse adjacency (match by SourceID).
-func filterEdges(edges []GraphEdge, sourceID, targetID, relation string, asSource bool) []GraphEdge {
+func filterEdges(edges []GraphEdge, sourceID, targetID, relation string) []GraphEdge {
 	filtered := edges[:0]
 	for _, e := range edges {
 		match := true

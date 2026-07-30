@@ -20,7 +20,7 @@ func (fr *FileReader) readSpreadsheet(ctx context.Context, path string) (*FileRe
 
 	switch ext {
 	case ".csv":
-		return fr.readCSV(ctx, path)
+		return fr.readCSV(path)
 	case ".xlsx":
 		return fr.readXLSX(ctx, path)
 	case ".xls":
@@ -42,7 +42,7 @@ func (fr *FileReader) readSpreadsheet(ctx context.Context, path string) (*FileRe
 }
 
 // readCSV reads a CSV file and formats it as text.
-func (fr *FileReader) readCSV(ctx context.Context, path string) (*FileReadResult, error) {
+func (fr *FileReader) readCSV(path string) (*FileReadResult, error) {
 	f, err := os.Open(path) //nolint:gosec // path is from file index, validated by caller
 	if err != nil {
 		return nil, fmt.Errorf("打开 CSV 文件失败: %w", err)

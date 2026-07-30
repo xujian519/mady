@@ -37,7 +37,7 @@ func init() {
 	if err := defaultRegistry.LoadYAML(defaultTemplatesYAML); err != nil {
 		slog.Warn("workflows: load default templates", "err", err)
 	}
-	_ = registerBuiltinTemplates(defaultRegistry)
+	registerBuiltinTemplates(defaultRegistry)
 }
 
 // NewTemplateRegistry 创建模板注册表。
@@ -131,7 +131,7 @@ func (yt *yamlTemplate) toWorkflowTemplate() WorkflowTemplate {
 // 内置 Go 模板（BCIP 6 模板的直接映射）
 // ---------------------------------------------------------------------------
 
-func registerBuiltinTemplates(r *TemplateRegistry) error {
+func registerBuiltinTemplates(r *TemplateRegistry) {
 	builtins := []WorkflowTemplate{
 		// SearchAnalyzeDraft — 检索→分析→撰写
 		{
@@ -217,7 +217,6 @@ func registerBuiltinTemplates(r *TemplateRegistry) error {
 	for _, t := range builtins {
 		r.Register(t)
 	}
-	return nil
 }
 
 // ---------------------------------------------------------------------------

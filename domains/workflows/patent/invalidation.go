@@ -241,7 +241,7 @@ func identifyGroundsNode(ctx context.Context, state graph.PregelState) (graph.Pr
 // Without a retriever, it marks degradation and returns empty evidence.
 //
 //nolint:unused // used by invalidation_test.go
-func gatherEvidenceNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
+func gatherEvidenceNode(_ context.Context, state graph.PregelState) (graph.PregelState, error) {
 	claims := state.GetString(InvStateClaims)
 	grounds, _ := state[InvStateGrounds].([]InvGround)
 

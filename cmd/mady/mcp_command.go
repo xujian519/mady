@@ -13,7 +13,7 @@ import (
 
 // handleMCPCommand implements /mcp [status|list].
 // Lists registered MCP extensions from the framework context.
-func (s *tuiSession) handleMCPCommand(sub string) {
+func (s *tuiSession) handleMCPCommand() {
 	exts := s.collectMCPExtensions()
 	if len(exts) == 0 {
 		s.app.PrintSystem("🔌 未注册 MCP 服务器。\n" +

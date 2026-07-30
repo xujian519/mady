@@ -118,7 +118,7 @@ func AsWorkflowToolWithCheckpoint(runner *FiveStepRunner, store CheckpointStore)
 				// If the runner interrupted at the confirmation gate, save a
 				// checkpoint so the user can resume after confirming rules.
 				if store != nil && agentcore.IsInterrupt(err) {
-					return handleConfirmationInterrupt(ctx, store, runner, err, query)
+					return handleConfirmationInterrupt(ctx, store, runner, err)
 				}
 				return "", fmt.Errorf("workflow tool: execution failed: %w", err)
 			}
@@ -130,7 +130,7 @@ func AsWorkflowToolWithCheckpoint(runner *FiveStepRunner, store CheckpointStore)
 // handleConfirmationInterrupt saves a checkpoint at the interruption point and
 // returns a message telling the caller how to resume. The retrieved rules are
 // included so the human can review/edit them before confirming.
-func handleConfirmationInterrupt(ctx context.Context, store CheckpointStore, runner *FiveStepRunner, interruptErr error, query string) (any, error) {
+func handleConfirmationInterrupt(ctx context.Context, store CheckpointStore, runner *FiveStepRunner, interruptErr error) (any, error) {
 	data := agentcore.InterruptData(interruptErr)
 	caseID, _ := data["case_id"].(string)
 	if caseID == "" {

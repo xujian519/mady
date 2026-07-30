@@ -314,7 +314,7 @@ func TestDetermineResponseStrategy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.rejectionType, func(t *testing.T) {
-			got := determineResponseStrategy(tt.rejectionType, nil)
+			got := determineResponseStrategy(tt.rejectionType)
 			if got != tt.want {
 				t.Errorf("determineResponseStrategy(%q) = %q, want %q", tt.rejectionType, got, tt.want)
 			}

@@ -138,22 +138,9 @@ func (c *Client) GetAgentCard(ctx context.Context) (*AgentCard, error) {
 
 // SendTask sends a task to the remote agent (synchronous).
 func (c *Client) SendTask(ctx context.Context, req SendTaskRequest) (*Task, error) {
-	resp, err := c.call(ctx, "tasks/send", req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.Error != nil {
-		return nil, resp.Error
-	}
-
-	data, err := json.Marshal(resp.Result)
-	if err != nil {
-		return nil, err
-	}
-
 	var task Task
-	if err := json.Unmarshal(data, &task); err != nil {
-		return nil, fmt.Errorf("decode task: %w", err)
+	if err := c.callAndDecode(ctx, "tasks/send", req, &task); err != nil {
+		return nil, err
 	}
 	return &task, nil
 }
@@ -205,66 +192,27 @@ func (c *Client) SendTaskSubscribe(ctx context.Context, req SendTaskRequest) (*T
 
 // GetTask retrieves the current state of a task.
 func (c *Client) GetTask(ctx context.Context, req GetTaskRequest) (*Task, error) {
-	resp, err := c.call(ctx, "tasks/get", req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.Error != nil {
-		return nil, resp.Error
-	}
-
-	data, err := json.Marshal(resp.Result)
-	if err != nil {
-		return nil, err
-	}
-
 	var task Task
-	if err := json.Unmarshal(data, &task); err != nil {
-		return nil, fmt.Errorf("decode task: %w", err)
+	if err := c.callAndDecode(ctx, "tasks/get", req, &task); err != nil {
+		return nil, err
 	}
 	return &task, nil
 }
 
 // CancelTask cancels a running task.
 func (c *Client) CancelTask(ctx context.Context, req CancelTaskRequest) (*Task, error) {
-	resp, err := c.call(ctx, "tasks/cancel", req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.Error != nil {
-		return nil, resp.Error
-	}
-
-	data, err := json.Marshal(resp.Result)
-	if err != nil {
-		return nil, err
-	}
-
 	var task Task
-	if err := json.Unmarshal(data, &task); err != nil {
-		return nil, fmt.Errorf("decode task: %w", err)
+	if err := c.callAndDecode(ctx, "tasks/cancel", req, &task); err != nil {
+		return nil, err
 	}
 	return &task, nil
 }
 
 // QueryTasks queries tasks by session ID or state.
 func (c *Client) QueryTasks(ctx context.Context, req QueryTasksRequest) (*QueryTasksResult, error) {
-	resp, err := c.call(ctx, "tasks/query", req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.Error != nil {
-		return nil, resp.Error
-	}
-
-	data, err := json.Marshal(resp.Result)
-	if err != nil {
-		return nil, err
-	}
-
 	var result QueryTasksResult
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("decode query result: %w", err)
+	if err := c.callAndDecode(ctx, "tasks/query", req, &result); err != nil {
+		return nil, err
 	}
 	return &result, nil
 }
@@ -437,6 +385,26 @@ func (c *Client) call(ctx context.Context, method string, params any) (*JSONRPCR
 		return &rpcResp, nil
 	}
 	return nil, fmt.Errorf("after %d retries: %w", c.maxRetries, lastErr)
+}
+
+// callAndDecode calls the given JSON-RPC method and decodes the result into
+// result.  If result is nil, only the error check is performed (no decode).
+func (c *Client) callAndDecode(ctx context.Context, method string, req any, result any) error {
+	resp, err := c.call(ctx, method, req)
+	if err != nil {
+		return err
+	}
+	if resp.Error != nil {
+		return resp.Error
+	}
+	if result == nil {
+		return nil
+	}
+	data, err := json.Marshal(resp.Result)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, result)
 }
 
 func isRetryableError(err error) bool {

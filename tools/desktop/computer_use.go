@@ -180,6 +180,266 @@ func computerUseSchema() map[string]any {
 	}
 }
 
+// computerUseInput 是 computer_use 工具的参数结构体，与 JSON schema 字段对应。
+type computerUseInput struct {
+	Action         string  `json:"action"`
+	Coordinate     []int   `json:"coordinate"`
+	FromCoordinate []int   `json:"from_coordinate"`
+	ToCoordinate   []int   `json:"to_coordinate"`
+	Text           string  `json:"text"`
+	Keys           string  `json:"keys"`
+	Direction      string  `json:"direction"`
+	Amount         int     `json:"amount"`
+	Seconds        float64 `json:"seconds"`
+	App            string  `json:"app"`
+	Element        int     `json:"element"`
+	CaptureMode    string  `json:"capture_mode"`
+	RaiseWindow    bool    `json:"raise_window"`
+	CaptureAfter   bool    `json:"capture_after"`
+}
+
+// actionHandler 是 computer_use 单次 action 的处理函数签名。
+type actionHandler func(ctx context.Context, backend cuBackend, input computerUseInput) (any, error)
+
+// newComputerUseActions 构建 action → handler 查表。clickWait 由 map 闭包捕获，
+// 使 handlers 保持纯函数签名，便于独立测试。
+func newComputerUseActions(clickWait int) map[string]actionHandler {
+	return map[string]actionHandler{
+		"capture":       handleCapture,
+		"info":          handleInfo,
+		"click":         handleClickWithWait(clickWait),
+		"double_click":  handleClickWithWait(clickWait),
+		"right_click":   handleClickWithWait(clickWait),
+		"middle_click":  handleClickWithWait(clickWait),
+		"drag":          handleDragWithWait(clickWait),
+		"type":          handleTypeWithWait(clickWait),
+		"key":           handleKeyWithWait(clickWait),
+		"scroll":        handleScrollWithWait(clickWait),
+		"set_value":     handleSetValueWithWait(clickWait),
+		"wait":          handleWait,
+		"list_apps":     handleListApps,
+		"focus_app":     handleFocusApp,
+	}
+}
+
+// computerUseHandler 是 NewComputerUseTool 闭包 handler 的命名替代。
+// 职责链：平台检查 → 参数解析 → 安全检查 → 破坏性操作审批 → action dispatch → capture_after。
+func computerUseHandler(clickWait int) func(ctx context.Context, args json.RawMessage) (any, error) {
+	actions := newComputerUseActions(clickWait)
+	return func(ctx context.Context, args json.RawMessage) (any, error) {
+		switch runtime.GOOS {
+		case "darwin", "windows", "linux":
+		default:
+			return nil, fmt.Errorf("computer_use is only supported on macOS, Windows, and Linux")
+		}
+
+		var input computerUseInput
+		if err := json.Unmarshal(args, &input); err != nil {
+			return nil, fmt.Errorf("invalid arguments: %w", err)
+		}
+		backend := detectCUABackend()
+
+		// Pre-flight safety checks
+		if input.Action == "key" {
+			input.Keys = normalizeKeyString(input.Keys)
+			if err := checkBlockedKeyCombo(input.Keys); err != nil {
+				return nil, err
+			}
+		}
+		if input.Action == "type" || input.Action == "set_value" {
+			if err := checkBlockedTypePattern(input.Text); err != nil {
+				return nil, err
+			}
+		}
+
+		// Approval for destructive actions
+		if isDestructiveAction(input.Action) {
+			approved, err := awaitApproval(input.Action)
+			if err != nil {
+				return nil, err
+			}
+			if !approved {
+				return nil, fmt.Errorf("DENIED by user")
+			}
+		}
+
+		handler, ok := actions[input.Action]
+		if !ok {
+			return nil, fmt.Errorf("unknown action: %s", input.Action)
+		}
+		actionResult, err := handler(ctx, backend, input)
+		if err != nil {
+			return nil, err
+		}
+
+		if input.CaptureAfter {
+			actionResult = addCaptureAfter(ctx, backend, input, actionResult)
+		}
+		return actionResult, nil
+	}
+}
+
+// --- 独立 action handler 函数集 ---
+// 每个 handler 封装其所属 case 的全部逻辑（含校验、调用、clickWait 休眠、结果格式）。
+// 基准的函数签名便于独立测试。
+
+func handleCapture(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+	return cuaCapture(ctx, backend, input.App, input.CaptureMode)
+}
+
+func handleInfo(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+	return cuaInfo(backend)
+}
+
+// handleClickWithWait 返回绑定了 clickWait 的 click handler。
+// 覆盖 click / double_click / right_click / middle_click，由 input.Action 区分。
+func handleClickWithWait(clickWait int) actionHandler {
+	return func(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+		if len(input.Coordinate) < 2 && input.Element <= 0 {
+			return nil, fmt.Errorf("coordinate [x, y] or element required for action=%s", input.Action)
+		}
+		x, y := 0, 0
+		if len(input.Coordinate) >= 2 {
+			x, y = input.Coordinate[0], input.Coordinate[1]
+		}
+		msg, err := cuaClick(ctx, backend, input.Action, x, y, input.Element)
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(time.Duration(clickWait) * time.Millisecond)
+		return result(msg, nil)
+	}
+}
+
+func handleDragWithWait(clickWait int) actionHandler {
+	return func(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+		if len(input.FromCoordinate) < 2 || len(input.ToCoordinate) < 2 {
+			return nil, fmt.Errorf("from_coordinate and to_coordinate required for drag")
+		}
+		msg, err := cuaDrag(backend, input.FromCoordinate[0], input.FromCoordinate[1], input.ToCoordinate[0], input.ToCoordinate[1])
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(time.Duration(clickWait) * time.Millisecond)
+		return result(msg, nil)
+	}
+}
+
+func handleTypeWithWait(clickWait int) actionHandler {
+	return func(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+		if input.Text == "" {
+			return nil, fmt.Errorf("text required for action=type")
+		}
+		msg, err := cuaType(ctx, backend, input.Text)
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(time.Duration(clickWait) * time.Millisecond)
+		return result(msg, nil)
+	}
+}
+
+func handleKeyWithWait(clickWait int) actionHandler {
+	return func(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+		if input.Keys == "" {
+			return nil, fmt.Errorf("keys required for action=key")
+		}
+		msg, err := cuaKey(ctx, backend, input.Keys)
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(time.Duration(clickWait) * time.Millisecond)
+		return result(msg, nil)
+	}
+}
+
+func handleScrollWithWait(clickWait int) actionHandler {
+	return func(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+		if input.Direction == "" {
+			return nil, fmt.Errorf("direction required for action=scroll")
+		}
+		amount := input.Amount
+		if amount <= 0 {
+			amount = 3
+		}
+		if amount > 50 {
+			amount = 50
+		}
+		msg, err := cuaScroll(ctx, backend, input.Direction, amount)
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(time.Duration(clickWait) * time.Millisecond)
+		return result(msg, nil)
+	}
+}
+
+func handleSetValueWithWait(clickWait int) actionHandler {
+	return func(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+		msg, err := cuaSetValue(ctx, backend, input.Element, input.Text)
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(time.Duration(clickWait) * time.Millisecond)
+		return result(msg, nil)
+	}
+}
+
+func handleWait(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+	seconds := input.Seconds
+	if seconds <= 0 {
+		seconds = 1
+	}
+	if seconds > 30 {
+		seconds = 30
+	}
+	time.Sleep(time.Duration(seconds * float64(time.Second)))
+	return result(fmt.Sprintf("Waited %.1f seconds", seconds), nil)
+}
+
+func handleListApps(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+	return cuaListApps(ctx, backend)
+}
+
+func handleFocusApp(ctx context.Context, backend cuBackend, input computerUseInput) (any, error) {
+	if input.App == "" {
+		return nil, fmt.Errorf("app required for action=focus_app")
+	}
+	msg, err := cuaFocusApp(ctx, backend, input.App, input.RaiseWindow)
+	if err != nil {
+		return nil, err
+	}
+	return result(msg, nil)
+}
+
+// addCaptureAfter 将 capture_after 截屏结果合并进 action 的返回结果中。
+func addCaptureAfter(ctx context.Context, backend cuBackend, input computerUseInput, actionResult any) any {
+	capResult, capErr := cuaCapture(ctx, backend, input.App, "")
+	if capErr != nil {
+		return actionResult
+	}
+	tr, ok := actionResult.(toolResult)
+	if !ok {
+		return actionResult
+	}
+	trDet, ok := tr.Details.(map[string]any)
+	if !ok {
+		return actionResult
+	}
+	capTR, ok := capResult.(toolResult)
+	if !ok {
+		return actionResult
+	}
+	capDet, ok := capTR.Details.(map[string]any)
+	if !ok {
+		return actionResult
+	}
+	for k, v := range capDet {
+		trDet["capture_after_"+k] = v
+	}
+	return actionResult
+}
+
 // NewComputerUseTool 创建 computer_use 桌面控制工具；cfg 为 nil 时使用默认配置。
 func NewComputerUseTool(cfg *ComputerUseToolConfig) *agentcore.Tool {
 	if cfg == nil {
@@ -195,179 +455,7 @@ func NewComputerUseTool(cfg *ComputerUseToolConfig) *agentcore.Tool {
 		Name:        "computer_use",
 		Description: computerUseDescription(),
 		Parameters:  computerUseSchema(),
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-			switch runtime.GOOS {
-			case "darwin", "windows", "linux":
-			default:
-				return nil, fmt.Errorf("computer_use is only supported on macOS, Windows, and Linux")
-			}
-
-			var input struct {
-				Action         string  `json:"action"`
-				Coordinate     []int   `json:"coordinate"`
-				FromCoordinate []int   `json:"from_coordinate"`
-				ToCoordinate   []int   `json:"to_coordinate"`
-				Text           string  `json:"text"`
-				Keys           string  `json:"keys"`
-				Direction      string  `json:"direction"`
-				Amount         int     `json:"amount"`
-				Seconds        float64 `json:"seconds"`
-				App            string  `json:"app"`
-				Element        int     `json:"element"`
-				CaptureMode    string  `json:"capture_mode"`
-				RaiseWindow    bool    `json:"raise_window"`
-				CaptureAfter   bool    `json:"capture_after"`
-			}
-			if err := json.Unmarshal(args, &input); err != nil {
-				return nil, fmt.Errorf("invalid arguments: %w", err)
-			}
-			backend := detectCUABackend()
-
-			// Pre-flight safety checks
-			if input.Action == "key" {
-				input.Keys = normalizeKeyString(input.Keys)
-				if err := checkBlockedKeyCombo(input.Keys); err != nil {
-					return nil, err
-				}
-			}
-			if input.Action == "type" || input.Action == "set_value" {
-				if err := checkBlockedTypePattern(input.Text); err != nil {
-					return nil, err
-				}
-			}
-
-			// Approval for destructive actions
-			if isDestructiveAction(input.Action) {
-				approved, err := awaitApproval(input.Action)
-				if err != nil {
-					return nil, err
-				}
-				if !approved {
-					return nil, fmt.Errorf("DENIED by user")
-				}
-			}
-
-			var actionResult any
-			var err error
-			switch input.Action {
-			case "capture":
-				actionResult, err = cuaCapture(ctx, backend, input.App, input.CaptureMode)
-			case "info":
-				actionResult, err = cuaInfo(ctx, backend)
-			case "click", "double_click", "right_click", "middle_click":
-				if len(input.Coordinate) < 2 && input.Element <= 0 {
-					return nil, fmt.Errorf("coordinate [x, y] or element required for action=%s", input.Action)
-				}
-				x, y := 0, 0
-				if len(input.Coordinate) >= 2 {
-					x, y = input.Coordinate[0], input.Coordinate[1]
-				}
-				msg, e := cuaClick(ctx, backend, input.Action, x, y, input.Element)
-				err = e
-				if err == nil {
-					time.Sleep(time.Duration(clickWait) * time.Millisecond)
-					actionResult, _ = result(msg, nil)
-				}
-			case "drag":
-				if len(input.FromCoordinate) < 2 || len(input.ToCoordinate) < 2 {
-					return nil, fmt.Errorf("from_coordinate and to_coordinate required for drag")
-				}
-				msg, e := cuaDrag(ctx, backend, input.FromCoordinate[0], input.FromCoordinate[1], input.ToCoordinate[0], input.ToCoordinate[1])
-				err = e
-				if err == nil {
-					time.Sleep(time.Duration(clickWait) * time.Millisecond)
-					actionResult, _ = result(msg, nil)
-				}
-			case "type":
-				if input.Text == "" {
-					return nil, fmt.Errorf("text required for action=type")
-				}
-				msg, e := cuaType(ctx, backend, input.Text)
-				err = e
-				if err == nil {
-					time.Sleep(time.Duration(clickWait) * time.Millisecond)
-					actionResult, _ = result(msg, nil)
-				}
-			case "key":
-				if input.Keys == "" {
-					return nil, fmt.Errorf("keys required for action=key")
-				}
-				msg, e := cuaKey(ctx, backend, input.Keys)
-				err = e
-				if err == nil {
-					time.Sleep(time.Duration(clickWait) * time.Millisecond)
-					actionResult, _ = result(msg, nil)
-				}
-			case "scroll":
-				if input.Direction == "" {
-					return nil, fmt.Errorf("direction required for action=scroll")
-				}
-				amount := input.Amount
-				if amount <= 0 {
-					amount = 3
-				}
-				if amount > 50 {
-					amount = 50
-				}
-				msg, e := cuaScroll(ctx, backend, input.Direction, amount)
-				err = e
-				if err == nil {
-					time.Sleep(time.Duration(clickWait) * time.Millisecond)
-					actionResult, _ = result(msg, nil)
-				}
-			case "set_value":
-				msg, e := cuaSetValue(ctx, backend, input.Element, input.Text)
-				err = e
-				if err == nil {
-					time.Sleep(time.Duration(clickWait) * time.Millisecond)
-					actionResult, _ = result(msg, nil)
-				}
-			case "wait":
-				seconds := input.Seconds
-				if seconds <= 0 {
-					seconds = 1
-				}
-				if seconds > 30 {
-					seconds = 30
-				}
-				time.Sleep(time.Duration(seconds * float64(time.Second)))
-				actionResult, _ = result(fmt.Sprintf("Waited %.1f seconds", seconds), nil)
-			case "list_apps":
-				actionResult, err = cuaListApps(ctx, backend)
-			case "focus_app":
-				if input.App == "" {
-					return nil, fmt.Errorf("app required for action=focus_app")
-				}
-				msg, e := cuaFocusApp(ctx, backend, input.App, input.RaiseWindow)
-				err = e
-				if err == nil {
-					actionResult, _ = result(msg, nil)
-				}
-			default:
-				return nil, fmt.Errorf("unknown action: %s", input.Action)
-			}
-			if err != nil {
-				return nil, err
-			}
-
-			if input.CaptureAfter {
-				capResult, capErr := cuaCapture(ctx, backend, input.App, "")
-				if capErr == nil {
-					if tr, ok := actionResult.(toolResult); ok {
-						if trDet, ok := tr.Details.(map[string]any); ok {
-							if capTR, ok := capResult.(toolResult); ok {
-								if capDet, ok := capTR.Details.(map[string]any); ok {
-									for k, v := range capDet {
-										trDet["capture_after_"+k] = v
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-			return actionResult, nil
-		},
+		Func: computerUseHandler(clickWait),
 	}
 }
 
@@ -377,17 +465,17 @@ func cuaCapture(ctx context.Context, backend cuBackend, appName, mode string) (a
 		return cuaDriverCapture(ctx, appName, mode)
 	case cuBackendPowerShell:
 		if mode == "som" {
-			return winCaptureSOM(ctx, appName)
+			return winCaptureSOM(appName)
 		}
-		return winCapture(ctx, appName)
+		return winCapture(appName)
 	case cuBackendXDoTool, cuBackendYDoTool:
-		return xdoCapture(ctx, appName)
+		return xdoCapture(appName)
 	default:
-		return fallbackCapture(ctx, backend, appName, mode)
+		return fallbackCapture(backend, appName, mode)
 	}
 }
 
-func cuaInfo(ctx context.Context, backend cuBackend) (any, error) {
+func cuaInfo(backend cuBackend) (any, error) {
 	switch backend {
 	case cuBackendPowerShell:
 		return winInfo()
@@ -416,7 +504,7 @@ func cuaClick(ctx context.Context, backend cuBackend, action string, x, y, eleme
 	}
 }
 
-func cuaDrag(ctx context.Context, backend cuBackend, x1, y1, x2, y2 int) (string, error) {
+func cuaDrag(backend cuBackend, x1, y1, x2, y2 int) (string, error) {
 	switch backend {
 	case cuBackendCua:
 		return "", fmt.Errorf("drag is not supported by cua-driver backend. Use click + type + key or fallback backend")

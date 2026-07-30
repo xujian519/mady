@@ -15,7 +15,7 @@ import (
 //
 // Fallback: if pdftotext is not available, returns empty content with
 // a cost notice.
-func (fr *FileReader) readPDF(ctx context.Context, path string) (*FileReadResult, error) {
+func (fr *FileReader) readPDF(ctx context.Context, path string) *FileReadResult {
 	// Check if pdftotext is available.
 	pdftotextPath, err := exec.LookPath("pdftotext")
 	if err != nil {
@@ -24,7 +24,7 @@ func (fr *FileReader) readPDF(ctx context.Context, path string) (*FileReadResult
 			Confidence: 0.0,
 			Metadata:   map[string]string{"warning": "pdftotext not found"},
 			CostNotice: "系统未安装 pdftotext（poppler-utils）。请安装后重试，或手动查看 PDF。",
-		}, nil
+		}
 	}
 
 	// Run pdftotext to extract text.
@@ -39,7 +39,7 @@ func (fr *FileReader) readPDF(ctx context.Context, path string) (*FileReadResult
 			Confidence: 0.0,
 			Metadata:   map[string]string{"error": err.Error(), "stderr": stderr.String()},
 			CostNotice: fmt.Sprintf("pdftotext 提取失败: %s", err.Error()),
-		}, nil
+		}
 	}
 
 	content := stdout.String()
@@ -52,7 +52,7 @@ func (fr *FileReader) readPDF(ctx context.Context, path string) (*FileReadResult
 				Confidence: 0.0,
 				Metadata:   map[string]string{"error": err.Error()},
 				CostNotice: "无法读取 PDF 文件信息",
-			}, nil
+			}
 		}
 		return &FileReadResult{
 			Content:    "",
@@ -62,7 +62,7 @@ func (fr *FileReader) readPDF(ctx context.Context, path string) (*FileReadResult
 				"empty":      "true",
 			},
 			CostNotice: "此 PDF 未提取到文本内容（可能是扫描件或纯图片 PDF）。建议人工查看。",
-		}, nil
+		}
 	}
 
 	// Truncate extremely large PDF extracts (>500KB of text).
@@ -104,5 +104,5 @@ func (fr *FileReader) readPDF(ctx context.Context, path string) (*FileReadResult
 		result.Metadata["stderr"] = strings.TrimSpace(stderr.String())
 	}
 
-	return result, nil
+	return result
 }

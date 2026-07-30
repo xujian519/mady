@@ -47,7 +47,7 @@ var agentResponses = []string{
 // buildDebateRounds creates 3 rounds of examiner-agent debate.
 // Each round follows the standard examination pattern:
 //   - Examiner raises objection → Agent rebuts
-func buildDebateRounds(claims, disclosure string) []DebateRound {
+func buildDebateRounds(claims string) []DebateRound {
 	var rounds []DebateRound
 
 	// Use 3 different objection topics for 3 rounds.
@@ -61,7 +61,7 @@ func buildDebateRounds(claims, disclosure string) []DebateRound {
 		obj := examinerObjections[objIdx]
 
 		// Examiner objection
-		examinerContent := fmt.Sprintf("%s%s。", obj.Pattern, extractKeyTerm(claims, round))
+		examinerContent := fmt.Sprintf("%s%s。", obj.Pattern, extractKeyTerm(claims))
 		rounds = append(rounds, DebateRound{
 			Round:   round + 1,
 			Speaker: "examiner",
@@ -81,7 +81,7 @@ func buildDebateRounds(claims, disclosure string) []DebateRound {
 }
 
 // extractKeyTerm picks a distinguishing technical term from claims.
-func extractKeyTerm(claims string, round int) string {
+func extractKeyTerm(claims string) string {
 	terms := []string{"所述方法", "所述装置", "所述系统", "所述模块", "所述步骤"}
 	for _, term := range terms {
 		if strings.Contains(claims, term) {
@@ -110,7 +110,7 @@ func debateInitNode(ctx context.Context, state graph.PregelState) (graph.PregelS
 		return nil, fmt.Errorf("debate: claims text is required")
 	}
 
-	rounds := buildDebateRounds(claims, state.GetString(StateDebateDisclosure))
+	rounds := buildDebateRounds(claims)
 
 	return graph.PregelState{
 		StateDebateClaims:     claims,

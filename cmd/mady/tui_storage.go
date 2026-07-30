@@ -66,7 +66,7 @@ func writeCWDMapping(sessionDir, cwd string) error {
 //	<base>/sessions/by-cwd/<cwd-hash>/
 //
 // 这样在不同项目目录启动 TUI 时，各自只能看到自己的会话历史。
-func probeSessionDir(envDir, madyHome, workspaceDir, cwd string) StorageProbeResult {
+func probeSessionDir(envDir, madyHome, cwd string) StorageProbeResult {
 	r := StorageProbeResult{Name: "sessions"}
 
 	baseDir, explicit, err := resolveBaseSessionDir(envDir, madyHome)

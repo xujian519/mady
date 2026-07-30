@@ -346,7 +346,7 @@ func (e *KnowledgeExtension) GraphContext() string {
 
 // handleSearchLaws processes the search_laws tool call. It delegates to
 // the configured LawSearcher function.
-func (e *KnowledgeExtension) handleSearchLaws(ctx context.Context, args json.RawMessage) (any, error) {
+func (e *KnowledgeExtension) handleSearchLaws(_ context.Context, args json.RawMessage) (any, error) {
 	var p struct {
 		Query string `json:"query"`
 		TopK  int    `json:"top_k"`

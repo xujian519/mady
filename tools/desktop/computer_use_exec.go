@@ -24,15 +24,14 @@ func osaExec(script string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-func cliclickExec(args ...string) (string, error) {
+func cliclickExec(args ...string) error {
 	cmd := exec.Command("cliclick", args...) //nolint:gosec,noctx // G204: cliclick execution by design for desktop control
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
+	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("cliclick: %w\nstderr: %s", err, strings.TrimSpace(stderr.String()))
+		return fmt.Errorf("cliclick: %w\nstderr: %s", err, strings.TrimSpace(stderr.String()))
 	}
-	return strings.TrimSpace(stdout.String()), nil
+	return nil
 }
 
 var (
@@ -74,15 +73,14 @@ func xdoExec(args ...string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-func ydoExec(args ...string) (string, error) {
+func ydoExec(args ...string) error {
 	cmd := exec.Command("ydotool", args...) //nolint:gosec,noctx // G204: ydotool execution by design for desktop control
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
+	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("ydotool: %w\nstderr: %s", err, strings.TrimSpace(stderr.String()))
+		return fmt.Errorf("ydotool: %w\nstderr: %s", err, strings.TrimSpace(stderr.String()))
 	}
-	return strings.TrimSpace(stdout.String()), nil
+	return nil
 }
 
 func wtypeExec(text string) (string, error) {

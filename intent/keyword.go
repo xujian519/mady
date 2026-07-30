@@ -32,11 +32,10 @@ func (k *KeywordClassifier) Classify(input string) IntentResult {
 	var subIntent SubIntent
 	var runMode RunMode
 	var matchedKeywords []string
-	var suggestion string
 	confidence := 1.0
 
 	if domain == DomainPatent || domain == DomainLegal {
-		subIntent, runMode, matchedKeywords, suggestion = k.classifySubIntent(lower)
+		subIntent, runMode, matchedKeywords = k.classifySubIntent(lower)
 		if len(matchedKeywords) == 0 {
 			confidence = 0.6
 			subIntent = SubIntentGeneral
@@ -55,7 +54,7 @@ func (k *KeywordClassifier) Classify(input string) IntentResult {
 		Confidence:      confidence,
 		Sources:         []string{"keyword"},
 		MatchedKeywords: matchedKeywords,
-		Suggestion:      suggestion,
+		Suggestion:      "",
 	}
 }
 
@@ -156,7 +155,7 @@ var subIntentPatterns = []subIntentPattern{
 }
 
 // classifySubIntent detects fine-grained intent from patent/legal input.
-func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode, []string, string) {
+func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode, []string) {
 	type matched struct {
 		pat   subIntentPattern
 		count int
@@ -171,7 +170,7 @@ func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode,
 	}
 
 	if len(matches) == 0 {
-		return "", "", nil, ""
+		return "", "", nil
 	}
 
 	sort.Slice(matches, func(i, j int) bool {
@@ -197,11 +196,11 @@ func (k *KeywordClassifier) classifySubIntent(lower string) (SubIntent, RunMode,
 		}
 		hasPatentContext := intentrules.MatchAnyKeyword(lower, intentrules.PatentContextSignals)
 		if !hasArticleID && !hasPatentContext && len(matches) < 2 {
-			return SubIntentGeneral, ModeFlexiblePlan, matchedKeywords, ""
+			return SubIntentGeneral, ModeFlexiblePlan, matchedKeywords
 		}
 	}
 
-	return best.pat.subIntent, best.pat.mode, matchedKeywords, ""
+	return best.pat.subIntent, best.pat.mode, matchedKeywords
 }
 
 // classifyComplexity determines reasoning complexity from input characteristics.

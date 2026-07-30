@@ -46,22 +46,21 @@ func (e *DefaultEngine) Judge(span agentcore_evidence.EvidenceSpan) (*EvidenceJu
 		return nil, fmt.Errorf("证据跨度缺少 ID")
 	}
 	evType := inferEvidenceType(span.SourceURI)
-	rules := e.index.GetRulesByType(evType)
 	judgment := &EvidenceJudgment{
 		SpanID:      span.ID,
 		EvaluatedAt: time.Now(),
 		Confidence:  1.0,
 	}
 
-	e.evaluateTripleAttributes(span, rules, judgment)
-	e.evaluateTypeSpecific(span, evType, rules, judgment)
+	e.evaluateTripleAttributes(span, judgment)
+	e.evaluateTypeSpecific(span, evType, judgment)
 	judgment.OverallScore = e.computeOverallScore(judgment)
 	judgment.Reasoning = e.buildReasoning(judgment, evType)
 	return judgment, nil
 }
 
 // evaluateTripleAttributes 对证据三性逐项评分并填入 judgment。
-func (e *DefaultEngine) evaluateTripleAttributes(span agentcore_evidence.EvidenceSpan, rules []EvidenceRule, judgment *EvidenceJudgment) {
+func (e *DefaultEngine) evaluateTripleAttributes(span agentcore_evidence.EvidenceSpan, judgment *EvidenceJudgment) {
 	judgment.RelevanceJudgment = evaluateRelevance(span)
 	judgment.LegalityJudgment = evaluateLegality(span)
 	judgment.AuthenticityJudgment = evaluateAuthenticity(span)
@@ -81,7 +80,7 @@ func (e *DefaultEngine) evaluateTripleAttributes(span agentcore_evidence.Evidenc
 }
 
 // evaluateTypeSpecific 根据证据类型进行特定评估，结果填入 judgment。
-func (e *DefaultEngine) evaluateTypeSpecific(span agentcore_evidence.EvidenceSpan, evType EvidenceType, rules []EvidenceRule, judgment *EvidenceJudgment) {
+func (e *DefaultEngine) evaluateTypeSpecific(span agentcore_evidence.EvidenceSpan, evType EvidenceType, judgment *EvidenceJudgment) {
 	ts := &TypeSpecificJudgment{EvidenceType: evType}
 
 	switch evType {

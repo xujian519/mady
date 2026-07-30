@@ -83,6 +83,41 @@ func (c *wsConn) close() error {
 	return c.conn.Close()
 }
 
+// wsHandler is the business-logic portion of a WebSocket JSON-RPC handler.
+// It unmarshals params, performs the operation, and returns a result or
+// *JSONRPCError.  The caller (wsHandlerFor) handles the standard JSON-RPC
+// response envelope.
+type wsHandler func(ctx context.Context, wc *wsConn, req JSONRPCRequest) (any, error)
+
+// wsHandlerFor wraps a wsHandler with standard JSON-RPC response/error writing,
+// eliminating the boilerplate repeated across all WS handlers.
+func (s *Server) wsHandlerFor(fn wsHandler) func(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
+	return func(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
+		result, err := fn(ctx, wc, req)
+		if err != nil {
+			rpcErr, ok := err.(*JSONRPCError)
+			if !ok {
+				rpcErr = &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}
+			}
+			if werr := wc.writeJSON(JSONRPCResponse{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Error:   rpcErr,
+			}); werr != nil {
+				_ = wc.close()
+			}
+			return
+		}
+		if werr := wc.writeJSON(JSONRPCResponse{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  result,
+		}); werr != nil {
+			_ = wc.close()
+		}
+	}
+}
+
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	if s.auth.APIKey != "" || s.auth.BearerToken != "" {
 		// Note: token/apiKey via query params is a pragmatic trade-off —
@@ -275,128 +310,73 @@ func (s *Server) handleWSSendTask(ctx context.Context, wc *wsConn, req JSONRPCRe
 }
 
 func (s *Server) handleWSGetTask(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
-	var params GetTaskRequest
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+	s.wsHandlerFor(func(ctx context.Context, wc *wsConn, req JSONRPCRequest) (any, error) {
+		var params GetTaskRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return nil, &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}
 		}
-		return
-	}
-
-	task, err := s.handler.GetTask(ctx, params)
-	if err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorTaskNotFound, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+		task, err := s.handler.GetTask(ctx, params)
+		if err != nil {
+			return nil, &JSONRPCError{Code: A2AErrorTaskNotFound, Message: err.Error()}
 		}
-		return
-	}
-
-	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task}); err != nil {
-		_ = wc.close()
-		return
-	}
+		return task, nil
+	})(ctx, wc, req)
 }
 
 func (s *Server) handleWSCancelTask(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
-	var params CancelTaskRequest
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+	s.wsHandlerFor(func(ctx context.Context, wc *wsConn, req JSONRPCRequest) (any, error) {
+		var params CancelTaskRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return nil, &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}
 		}
-		return
-	}
-
-	task, err := s.handler.CancelTask(ctx, params)
-	if err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: A2AErrorTaskNotCancelable, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+		task, err := s.handler.CancelTask(ctx, params)
+		if err != nil {
+			return nil, &JSONRPCError{Code: A2AErrorTaskNotCancelable, Message: err.Error()}
 		}
-		return
-	}
-
-	s.recordTask(task)
-	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task}); err != nil {
-		_ = wc.close()
-		return
-	}
+		s.recordTask(task)
+		return task, nil
+	})(ctx, wc, req)
 }
 
 func (s *Server) handleWSQueryTasks(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
-	var params QueryTasksRequest
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+	s.wsHandlerFor(func(ctx context.Context, wc *wsConn, req JSONRPCRequest) (any, error) {
+		var params QueryTasksRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return nil, &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}
 		}
-		return
-	}
-
-	result, err := s.handler.QueryTasks(ctx, params)
-	if err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+		result, err := s.handler.QueryTasks(ctx, params)
+		if err != nil {
+			return nil, &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}
 		}
-		return
-	}
-
-	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: result}); err != nil {
-		_ = wc.close()
-		return
-	}
+		return result, nil
+	})(ctx, wc, req)
 }
 
 func (s *Server) handleWSSetPushNotification(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
-	var params SetPushNotificationRequest
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+	s.wsHandlerFor(func(ctx context.Context, wc *wsConn, req JSONRPCRequest) (any, error) {
+		var params SetPushNotificationRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return nil, &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}
 		}
-		return
-	}
-
-	if err := s.handler.SetPushNotification(ctx, params); err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+		if err := s.handler.SetPushNotification(ctx, params); err != nil {
+			return nil, &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}
 		}
-		return
-	}
-
-	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: nil}); err != nil {
-		_ = wc.close()
-		return
-	}
+		return nil, nil
+	})(ctx, wc, req)
 }
 
 func (s *Server) handleWSGetPushNotification(ctx context.Context, wc *wsConn, req JSONRPCRequest) {
-	var params GetTaskRequest
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+	s.wsHandlerFor(func(ctx context.Context, wc *wsConn, req JSONRPCRequest) (any, error) {
+		var params GetTaskRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return nil, &JSONRPCError{Code: JSONRPCInvalidParams, Message: err.Error()}
 		}
-		return
-	}
-
-	cfg, err := s.handler.GetPushNotification(ctx, params.ID)
-	if err != nil {
-		if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}}); err != nil {
-			_ = wc.close()
-			return
+		cfg, err := s.handler.GetPushNotification(ctx, params.ID)
+		if err != nil {
+			return nil, &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}
 		}
-		return
-	}
-
-	if err := wc.writeJSON(JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: cfg}); err != nil {
-		_ = wc.close()
-		return
-	}
+		return cfg, nil
+	})(ctx, wc, req)
 }
 
 func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCRequest, _ context.CancelFunc) {

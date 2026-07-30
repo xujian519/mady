@@ -57,6 +57,104 @@ type ViewToolInput struct {
 	Depth *int   `json:"depth,omitempty"`
 }
 
+// directoryWalker 在约束条件下执行递归目录遍历并生成树形文本。
+type directoryWalker struct {
+	ops        ViewOperations
+	maxDepth   int
+	maxEntries int
+	lines      []string
+	entries    int
+	root       string
+}
+
+func newDirectoryWalker(ops ViewOperations, maxDepth, maxEntries int) *directoryWalker {
+	return &directoryWalker{
+		ops:        ops,
+		maxDepth:   maxDepth,
+		maxEntries: maxEntries,
+	}
+}
+
+// Walk 执行目录遍历并返回树形文本。当达到条目上限时不会返回错误，而是附带截断信息。
+func (w *directoryWalker) Walk(root string) (string, error) {
+	w.root = filepath.Base(root)
+	w.lines = nil
+	w.entries = 0
+	if err := w.walk(root, "", 1); err != nil && !errors.Is(err, errMaxEntries) {
+		return "", err
+	}
+	return w.buildOutput(), nil
+}
+
+// walk 递归遍历目录，将条目追加到 lines 中。
+func (w *directoryWalker) walk(path, prefix string, depth int) error {
+	if depth > w.maxDepth {
+		return nil
+	}
+	if w.entries >= w.maxEntries {
+		return errMaxEntries
+	}
+
+	entriesList, err := w.ops.ReadDir(path)
+	if err != nil {
+		return nil
+	}
+
+	// Sort: dirs first, then files, alphabetically.
+	sort.Slice(entriesList, func(i, j int) bool {
+		if entriesList[i].IsDir() != entriesList[j].IsDir() {
+			return entriesList[i].IsDir()
+		}
+		return strings.ToLower(entriesList[i].Name()) < strings.ToLower(entriesList[j].Name())
+	})
+
+	for i, entry := range entriesList {
+		if w.entries >= w.maxEntries {
+			return errMaxEntries
+		}
+
+		isLast := i == len(entriesList)-1
+		connector := "├── "
+		if isLast {
+			connector = "└── "
+		}
+
+		name := entry.Name()
+		if entry.IsDir() {
+			name += "/"
+		}
+		w.lines = append(w.lines, prefix+connector+name)
+		w.entries++
+
+		if entry.IsDir() {
+			nextPrefix := prefix
+			if isLast {
+				nextPrefix += "    "
+			} else {
+				nextPrefix += "│   "
+			}
+			if err := w.walk(filepath.Join(path, entry.Name()), nextPrefix, depth+1); err != nil {
+				if errors.Is(err, errMaxEntries) {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// buildOutput 组装最终输出的树形文本。
+func (w *directoryWalker) buildOutput() string {
+	output := w.root + "/"
+	if len(w.lines) > 0 {
+		output += "\n" + strings.Join(w.lines, "\n")
+	}
+	if w.entries >= w.maxEntries {
+		output += fmt.Sprintf("\n\n[%d entries limit reached]", w.maxEntries)
+	}
+	return output
+}
+
 // NewViewTool creates a directory tree viewing tool.
 func NewViewTool(cwd string, cfg *ViewToolConfig) *agentcore.Tool {
 	if cfg == nil {
@@ -111,77 +209,11 @@ func NewViewTool(cwd string, cfg *ViewToolConfig) *agentcore.Tool {
 				return result(fmt.Sprintf("%s (%s, %d bytes)", filepath.Base(dirPath), info.Mode(), info.Size()), nil)
 			}
 
-			var lines []string
-			entries := 0
-			var walk func(path string, prefix string, depth int) error
-			walk = func(path string, prefix string, depth int) error {
-				if depth > maxDepth {
-					return nil
-				}
-				if entries >= cfg.MaxEntries {
-					return errMaxEntries
-				}
-
-				entriesList, err := cfg.Operations.ReadDir(path)
-				if err != nil {
-					return nil
-				}
-
-				// Sort: dirs first, then files, alphabetically.
-				sort.Slice(entriesList, func(i, j int) bool {
-					if entriesList[i].IsDir() != entriesList[j].IsDir() {
-						return entriesList[i].IsDir()
-					}
-					return strings.ToLower(entriesList[i].Name()) < strings.ToLower(entriesList[j].Name())
-				})
-
-				for i, entry := range entriesList {
-					if entries >= cfg.MaxEntries {
-						return errMaxEntries
-					}
-
-					isLast := i == len(entriesList)-1
-					connector := "├── "
-					if isLast {
-						connector = "└── "
-					}
-
-					name := entry.Name()
-					if entry.IsDir() {
-						name += "/"
-					}
-					lines = append(lines, prefix+connector+name)
-					entries++
-
-					if entry.IsDir() {
-						nextPrefix := prefix
-						if isLast {
-							nextPrefix += "    "
-						} else {
-							nextPrefix += "│   "
-						}
-						if err := walk(filepath.Join(path, entry.Name()), nextPrefix, depth+1); err != nil {
-							if errors.Is(err, errMaxEntries) {
-								return err
-							}
-						}
-					}
-				}
-				return nil
-			}
-
-			if err := walk(dirPath, "", 1); err != nil && !errors.Is(err, errMaxEntries) {
+			walker := newDirectoryWalker(cfg.Operations, maxDepth, cfg.MaxEntries)
+			output, err := walker.Walk(dirPath)
+			if err != nil {
 				return resultErrf("walk failed: %w", err)
 			}
-
-			output := filepath.Base(dirPath) + "/"
-			if len(lines) > 0 {
-				output += "\n" + strings.Join(lines, "\n")
-			}
-			if entries >= cfg.MaxEntries {
-				output += fmt.Sprintf("\n\n[%d entries limit reached]", cfg.MaxEntries)
-			}
-
 			return result(output, nil)
 		},
 	}

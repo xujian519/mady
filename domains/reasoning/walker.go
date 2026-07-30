@@ -138,7 +138,7 @@ func (w *ReasoningWalker) Walk(ctx context.Context, in ReasoningWalkInput) (Reas
 		if len(chains) >= maxChains {
 			break
 		}
-		chainNodes := w.traverseFrom(ctx, seed, maxDepth)
+		chainNodes := w.traverseFrom(seed, maxDepth)
 		chains = append(chains, ReasoningChain{
 			ID:         fmtChainID(len(chains) + 1),
 			FactRef:    factRef,
@@ -294,7 +294,7 @@ func (w *ReasoningWalker) searchSeedNodes(keywords []string) []KgNode {
 	return all
 }
 
-func (w *ReasoningWalker) traverseFrom(ctx context.Context, seed KgNode, maxDepth int) []ReasoningChainNode {
+func (w *ReasoningWalker) traverseFrom(seed KgNode, maxDepth int) []ReasoningChainNode {
 	chainNodes := []ReasoningChainNode{{
 		KgNodeID: seed.ID,
 		NodeType: seed.NodeType,

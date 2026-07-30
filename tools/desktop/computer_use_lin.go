@@ -8,7 +8,6 @@
 package desktop
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -19,7 +18,7 @@ import (
 	"time"
 )
 
-func xdoCapture(ctx context.Context, appName string) (any, error) {
+func xdoCapture(appName string) (any, error) {
 	screenshotPath := filepath.Join(os.TempDir(), fmt.Sprintf("mady_cu_%d.png", time.Now().UnixNano()))
 	if err := scrotExec(screenshotPath); err != nil {
 		return nil, err
@@ -51,7 +50,7 @@ func xdoCapture(ctx context.Context, appName string) (any, error) {
 				w := parseInt(parts[2])
 				h := parseInt(parts[3])
 				if w > 0 && h > 0 {
-					if cropped, err := cropImageToBounds(data, x, y, w, h); err == nil {
+					if cropped := cropImageToBounds(data, x, y, w, h); len(cropped) != len(data) {
 						data = cropped
 						desc = fmt.Sprintf("xdotool (cropped to %s)", appName)
 					}
@@ -386,7 +385,7 @@ func waylandFocusApp(app string, raiseWindow bool) (string, error) {
 }
 
 func ydoClick(action string, x, y int) (string, error) {
-	if _, err := ydoExec("mousemove", "--absolute", "-x", fmt.Sprintf("%d", x), "-y", fmt.Sprintf("%d", y)); err != nil {
+	if err := ydoExec("mousemove", "--absolute", "-x", fmt.Sprintf("%d", x), "-y", fmt.Sprintf("%d", y)); err != nil {
 		return "", fmt.Errorf("mousemove: %w", err)
 	}
 	var btnCode string
@@ -400,12 +399,12 @@ func ydoClick(action string, x, y int) (string, error) {
 	}
 	if action == "double_click" {
 		for i := 0; i < 2; i++ {
-			if _, err := ydoExec("click", btnCode); err != nil {
+			if err := ydoExec("click", btnCode); err != nil {
 				return "", fmt.Errorf("%s: %w", action, err)
 			}
 		}
 	} else {
-		if _, err := ydoExec("click", btnCode); err != nil {
+		if err := ydoExec("click", btnCode); err != nil {
 			return "", fmt.Errorf("%s: %w", action, err)
 		}
 	}
@@ -446,15 +445,15 @@ func ydoKey(keys string) (string, error) {
 		}
 	}
 	for _, m := range mods {
-		if _, err := ydoExec("key", m); err != nil {
+		if err := ydoExec("key", m); err != nil {
 			return "", fmt.Errorf("key: %w", err)
 		}
 	}
-	if _, err := ydoExec("key", key); err != nil {
+	if err := ydoExec("key", key); err != nil {
 		return "", fmt.Errorf("key: %w", err)
 	}
 	for i := len(mods) - 1; i >= 0; i-- {
-		if _, err := ydoExec("key", mods[i]); err != nil {
+		if err := ydoExec("key", mods[i]); err != nil {
 			return "", fmt.Errorf("key release: %w", err)
 		}
 	}

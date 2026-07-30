@@ -465,7 +465,7 @@ func (fi *FileIndex) ftsSearchLocked(ctx context.Context, query string, allRecor
 	// For queries shorter than 3 characters, trigram tokenizer produces no
 	// matches. Fall back to a LIKE scan over preview_text as a cheap signal.
 	if len([]rune(query)) < 3 {
-		return fi.ftsLikeFallbackLocked(ctx, query, allRecords)
+		return fi.ftsLikeFallbackLocked(query, allRecords)
 	}
 	// FTS5 with double-quoted phrase matching.
 	ftsQuery := `"` + strings.ReplaceAll(query, `"`, `""`) + `"`
@@ -515,7 +515,7 @@ func (fi *FileIndex) ftsSearchLocked(ctx context.Context, query string, allRecor
 // ---------------------------------------------------------------------------
 
 // ftsLikeFallbackLocked is a fallback for short queries (<3 runes). Uses substring scan.
-func (fi *FileIndex) ftsLikeFallbackLocked(ctx context.Context, query string, allRecords []FileRecord) []retrieval.ScoredChunk {
+func (fi *FileIndex) ftsLikeFallbackLocked(query string, allRecords []FileRecord) []retrieval.ScoredChunk {
 	var results []retrieval.ScoredChunk
 	qlower := strings.ToLower(query)
 	for _, r := range allRecords {

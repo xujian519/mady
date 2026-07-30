@@ -137,7 +137,7 @@ func buildClaimSet(ext *ExtractionResult) string {
 	if len(ext.PFETriples) > 0 {
 		primary := ext.PFETriples[0]
 		// Pre-characterizing portion: problem context + first feature
-		preamble := buildPreamble(ext.Problems, primary)
+		preamble := buildPreamble(ext.Problems)
 		// Characterizing portion: the distinguishing features
 		characterized := buildCharacterizedFeatures(primary, featureMap, featuresByImportance)
 
@@ -168,7 +168,7 @@ func buildClaimSet(ext *ExtractionResult) string {
 	}
 
 	// Orphan features (not part of any triple) become additional dependent claims.
-	orphanFeatures := findOrphanFeatures(ext, featureMap)
+	orphanFeatures := findOrphanFeatures(ext)
 	for _, f := range orphanFeatures {
 		cs.DependentClaims = append(cs.DependentClaims, claim{
 			Number:    claimNum,
@@ -183,7 +183,7 @@ func buildClaimSet(ext *ExtractionResult) string {
 }
 
 // buildPreamble constructs the pre-characterizing portion from the problem description.
-func buildPreamble(problems []string, primary PFETriple) string {
+func buildPreamble(problems []string) string {
 	if len(problems) > 0 {
 		// Use the first problem as context.
 		problem := problems[0]
@@ -249,7 +249,7 @@ func buildFeatureDescription(triple PFETriple, featureMap map[string]TechFeature
 }
 
 // findOrphanFeatures finds features not linked to any PFE triple.
-func findOrphanFeatures(ext *ExtractionResult, featureMap map[string]TechFeature) []TechFeature {
+func findOrphanFeatures(ext *ExtractionResult) []TechFeature {
 	linked := make(map[string]bool)
 	for _, triple := range ext.PFETriples {
 		for _, fid := range triple.FeatureIDs {

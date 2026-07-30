@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -16,7 +15,7 @@ import (
 //	mady mcp-install --list            list detected agents
 //	mady mcp-install <agent> --print   dry-run: show what would be written
 //	mady mcp-install <agent> --uninstall  remove Mady from <agent> config
-func runMCPInstall(ctx context.Context, args []string) error {
+func runMCPInstall(args []string) error {
 	// Parse flags.
 	var listFlag, printFlag, uninstallFlag bool
 	var agentArg string

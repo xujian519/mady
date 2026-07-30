@@ -56,7 +56,8 @@ func (d *llmDedupDecider) Decide(ctx context.Context, newFact string, existing [
 		return DedupAdd, "", fmt.Errorf("dedup llm call failed: %w", err)
 	}
 
-	return parseDedupDecision(resp.Content)
+	action, reason := parseDedupDecision(resp.Content)
+	return action, reason, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -110,24 +111,24 @@ type dedupDecisionResponse struct {
 }
 
 // parseDedupDecision 解析 LLM 返回的去重判定。
-func parseDedupDecision(content string) (DedupAction, string, error) {
+func parseDedupDecision(content string) (DedupAction, string) {
 	content = strings.TrimSpace(content)
 	if content == "" {
-		return DedupAdd, "空响应，默认新增", nil
+		return DedupAdd, "空响应，默认新增"
 	}
 
 	content = stripMarkdownFences(content)
 
 	var resp dedupDecisionResponse
 	if err := json.Unmarshal([]byte(content), &resp); err != nil {
-		return DedupAdd, fmt.Sprintf("解析失败(%v)，默认新增", err), nil
+		return DedupAdd, fmt.Sprintf("解析失败(%v)，默认新增", err)
 	}
 
 	action := DedupAction(strings.ToLower(resp.Action))
 	switch action {
 	case DedupAdd, DedupUpdate, DedupDelete, DedupNoop:
-		return action, resp.Reason, nil
+		return action, resp.Reason
 	default:
-		return DedupAdd, fmt.Sprintf("未知动作 %q，默认新增", resp.Action), nil
+		return DedupAdd, fmt.Sprintf("未知动作 %q，默认新增", resp.Action)
 	}
 }

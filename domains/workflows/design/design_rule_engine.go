@@ -53,19 +53,15 @@ func (dre *DesignRuleEngine) Evaluate(text, domain string) []patent.RuleCheckRes
 		if domain != "" && rule.Domain != "" && rule.Domain != domain {
 			continue
 		}
-		passed, detail := evaluateDesignRule(text, rule)
+		passed := evaluateDesignRule(text, rule)
 		if !passed {
-			msg := rule.Message
-			if detail != "" {
-				msg = detail
-			}
 			results = append(results, patent.RuleCheckResult{
 				RuleID:        rule.ID,
 				RuleName:      rule.Name,
 				Passed:        false,
 				Level:         rule.Level,
 				Severity:      rule.Severity,
-				Message:       msg,
+				Message:       rule.Message,
 				FixSuggestion: rule.FixSuggestion,
 			})
 		}
@@ -89,15 +85,15 @@ func FormatRuleResults(results []patent.RuleCheckResult, verdict patent.Verdict)
 }
 
 // evaluateDesignRule dispatches to the type-specific checker for design rules.
-func evaluateDesignRule(text string, rule patent.CheckRule) (bool, string) {
+func evaluateDesignRule(text string, rule patent.CheckRule) bool {
 	// All design rules use CheckType == DesignCheckType.
 	// RequiredElements must ALL be present in the text.
 	if len(rule.RequiredElements) > 0 {
 		if !matchKeywordsAll(text, rule.RequiredElements) {
-			return false, ""
+			return false
 		}
 	}
-	return true, ""
+	return true
 }
 
 // =============================================================================

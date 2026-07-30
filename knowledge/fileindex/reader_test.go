@@ -164,10 +164,7 @@ func TestReader_PDF(t *testing.T) {
 	}
 
 	fr := NewFileReader(".")
-	result, err := fr.readPDF(context.Background(), pdfPath)
-	if err != nil {
-		t.Fatalf("readPDF: %v", err)
-	}
+	result := fr.readPDF(context.Background(), pdfPath)
 	t.Logf("PDF result: content=%q, confidence=%f, costNotice=%q",
 		truncatePreview(result.Content, 60), result.Confidence, result.CostNotice)
 }

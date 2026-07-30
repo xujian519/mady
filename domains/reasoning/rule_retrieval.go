@@ -186,7 +186,7 @@ func (r *MultiSourceRetriever) querySource(ctx context.Context, src RuleSourceCf
 	case RuleSourceVector:
 		return r.queryVector(ctx, src, queryCtx)
 	case RuleSourceSkill:
-		return r.querySkill(ctx, src)
+		return r.querySkill(ctx)
 	case RuleSourceRules:
 		return r.queryRules(ctx, src, queryCtx)
 	case RuleSourceIPC:
@@ -302,7 +302,7 @@ func (r *MultiSourceRetriever) queryVector(ctx context.Context, src RuleSourceCf
 	return rules, nil
 }
 
-func (r *MultiSourceRetriever) querySkill(ctx context.Context, src RuleSourceCfg) ([]RetrievedRule, error) {
+func (r *MultiSourceRetriever) querySkill(ctx context.Context) ([]RetrievedRule, error) {
 	if r.skillReader == nil {
 		return nil, nil
 	}

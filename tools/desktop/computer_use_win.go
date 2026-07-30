@@ -7,14 +7,13 @@
 package desktop //nolint:noctx
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
 )
 
-func winCapture(ctx context.Context, appName string) (any, error) {
+func winCapture(appName string) (any, error) {
 	boundsScript := `Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
 "$($bounds.X),$($bounds.Y),$($bounds.Width),$($bounds.Height)"`
@@ -66,7 +65,7 @@ $g.Dispose()
 				w := parseInt(parts[2])
 				h := parseInt(parts[3])
 				if w > 0 && h > 0 {
-					if cropped, err := cropImageToBounds(data, x, y, w, h); err == nil {
+					if cropped := cropImageToBounds(data, x, y, w, h); len(cropped) != len(data) {
 						data = cropped
 						desc = fmt.Sprintf("powershell (cropped to %s)", appName)
 					}
@@ -86,9 +85,9 @@ $g.Dispose()
 	)
 }
 
-func winCaptureSOM(ctx context.Context, appName string) (any, error) {
+func winCaptureSOM(appName string) (any, error) {
 	// Step 1: capture screenshot
-	screenshotResult, err := winCapture(ctx, appName)
+	screenshotResult, err := winCapture(appName)
 	if err != nil {
 		return nil, err
 	}

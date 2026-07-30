@@ -282,7 +282,7 @@ func (r *serverKnowledgeRetriever) SearchGuidelines(ctx context.Context, domain 
 	}
 
 	// 构建搜索查询：技术领域 + 审查指南 + 技术问题
-	query := buildGuidelineQuery(domain, problems, features)
+	query := buildGuidelineQuery(domain, problems)
 	if query == "" {
 		return nil, nil
 	}
@@ -351,7 +351,7 @@ func (r *serverKnowledgeRetriever) SearchSimilarCases(ctx context.Context, domai
 }
 
 // buildGuidelineQuery 构建审查指南检索查询。
-func buildGuidelineQuery(domain enablement.TechDomain, problems []string, features []enablement.TechFeature) string {
+func buildGuidelineQuery(domain enablement.TechDomain, problems []string) string {
 	var parts []string
 
 	// 加入技术领域标签

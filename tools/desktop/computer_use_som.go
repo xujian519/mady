@@ -204,21 +204,21 @@ func parseInt(s string) int {
 	return n
 }
 
-func cropImageToBounds(data []byte, x, y, w, h int) ([]byte, error) {
+func cropImageToBounds(data []byte, x, y, w, h int) []byte {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		return data, nil
+		return data
 	}
 	bounds := img.Bounds()
 	r := image.Rect(x, y, x+w, y+h).Intersect(bounds)
 	if r.Empty() {
-		return data, nil
+		return data
 	}
 	dst := image.NewRGBA(r)
 	draw.Draw(dst, dst.Bounds(), img, r.Min, draw.Src)
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 85}); err != nil {
-		return data, nil
+		return data
 	}
-	return buf.Bytes(), nil
+	return buf.Bytes()
 }
