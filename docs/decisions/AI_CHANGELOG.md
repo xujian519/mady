@@ -1,5 +1,50 @@
 # AI 变更记录
 
+## 2026-07-30: refactor(tools) 拆分三大高复杂度函数 + linter 增强 + panic 审计（4 文件）
+
+### 变更内容
+
+#### 1. P1-A: `.golangci.yml` 增强（认知复杂度/重复代码/未用参数门禁）
+- 追加 `gocognit`（阈值 30）、`dupl`（阈值 100）、`unparam` 三个 linter
+- 标准 `make lint` 新增检测项：认知复杂度 66 处、重复代码 42 处、未用参数 37 处
+
+#### 2. P3-C: 生产代码 panic 审计（2 处高危修复）
+
+**`knowledge/standards/ipc-standards.go:68`**
+- `MustLoadStandards()` 的 `panic(err)` → `panic(fmt.Sprintf("ipc-standards: MustLoadStandards failed: %v", err))`
+- 增加文档注释提醒仅在初始化阶段使用，请求路径用 `LoadStandards()` 并处理 error
+
+**`agentcore/event_logger.go:62`**
+- `Start()` 签名从 `(bus *EventBus)` 改为 `(bus *EventBus) error`
+- `panic("EventLogger already started")` 改为 `return fmt.Errorf("event logger already started")`
+- 更新调用方：`cmd/mady/tui_session_storage.go` + `agentcore/event_logger_test.go`（3 处）
+
+#### 3. P2-A: 三个最高认知复杂度函数拆分（5 个新类型 + 16+ 命名函数）
+
+**`NewComputerUseTool`（复杂度 120 → < 30）**
+- 提取 `computerUseInput` 结构体（原匿名 struct）
+- 提取 `actionHandler` 类型 + `computerUseActions` 注册表（14 action handler）
+- 提取 `computerUseHandler()` 命名顶级函数（替代原 200 行匿名闭包）
+- 提取 13 个 action handler 命名函数 + `addCaptureAfter()` 辅助函数
+- 文件：`tools/desktop/computer_use.go`
+
+**`NewBashTool`（复杂度 79 → < 30）**
+- 提取 `bashOutputCollector` 类型（含 `Write/Close/Result/cleanupTempFile` 4 方法）
+- 提取 `parseBashInput()` 输入解析函数
+- 提取 `checkDangerousPatterns()` 模式校验函数
+- 文件：`tools/bash.go`
+
+**`NewViewTool`（复杂度 75 → < 30）**
+- 提取 `directoryWalker` 类型（含 `Walk/walk/buildOutput` 3 方法）
+- Func handler 从 ~65 行缩减为 4 行
+- 文件：`tools/view.go`
+
+### 验证
+- `go build ./...` — 通过
+- `go test ./tools/... -count=1` — 3 子包全部通过（tools/browserproviders/desktop）
+- `go test ./agentcore/... -count=1` — 8 子包全部通过
+- `golangci-lint run ./...` — gocognit/dupl/unparam 正确曝露 145 个 issue
+
 ## 2026-07-30: docs(refactoring) 全量代码异味探查，生成优化方案与执行清单
 
 ### 发现问题（详见完整报告）
@@ -8694,4 +8739,35 @@ go test -race ./tui/... ✓
 ```
 domains/checker/catalog.go           (+15 行, matchArtifact 双端通配符 + import)
 domains/checker/checker_test.go      (新增, 35 测试, 653 行)
+```
+
+## 2026-07-30: fix(ocr) 第四轮修复——OCR 包纯函数测试（1 文件）
+
+### 问题
+- `pkg/ocr/` — 13 个生产文件，0 个测试文件
+- 依赖 ONNX Runtime + PP-OCRv5 模型，无法做集成测试
+
+### 修复
+**`pkg/ocr/ocr_test.go`（新增）— 40+ 纯函数测试用例**
+- Quad 几何: BoundingBox/Center/Height/dist
+- 多边形算法: polygonArea/polygonPerimeter/offsetPolygon/unclipQuad/fitQuad
+- 图像处理: resizeBilinear/normalizeHWC2CHW/cropRect/toNRGBA/roundUpTo32
+- 文本合并: mergeLineResults（空/单行/多行/同线归并/Y 轴排序）
+- 镜像/代理: mirrorCandidates/isGitHubURL/toJsDelivr（自定义代理/内置代理/去重/MADY_DISABLE_GH_MIRROR）
+- 文件工具: fileExists/isReady/DefaultCacheDir
+- OCR 构造: New/Global
+- 分割: segmentationToQuads（空/全低值/全高值）
+
+### 验证
+```
+go build ./... ✓
+go vet ./... ✓
+go test -race -count=1 ./... ✓（全通过 0 FAIL）
+go test -race ./tools/... ✓
+go test -race ./tui/... ✓
+```
+
+### 变更文件
+```
+pkg/ocr/ocr_test.go      (新增, 769 行, 40+ 纯函数测试)
 ```
