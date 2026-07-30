@@ -164,7 +164,7 @@ func mergeFeaturesFromState(ext *ExtractionResult, state graph.PregelState) {
 
 // mergeEffectsFromState 从 StateKeyExtractEffects 读取并解析效果列表。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：Pregel 状态效果合并，多节点结果汇聚和解析
 func mergeEffectsFromState(ext *ExtractionResult, state graph.PregelState) {
 	type effectsResponse struct {
 		Effects []struct {

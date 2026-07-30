@@ -84,7 +84,7 @@ func (a *Agent) checkpointTurnEnd(ctx context.Context, turn int64) error {
 // It returns the early-exit content (non-empty) when a tool requested loop
 // termination via TerminateResult; otherwise it returns "" and the error.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：工具调用执行循环，含生命周期钩子和结果持久化
 func (a *Agent) executeToolCalls(ctx context.Context, calls []ToolCall) (string, error) {
 	// Lifecycle: BeforeToolExecution
 	// Pre-allocate results so lifecycle hooks can pre-populate blocked tool

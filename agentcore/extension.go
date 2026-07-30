@@ -80,7 +80,7 @@ func NewExtensionRegistry() *ExtensionRegistry {
 // 注意：已写入 agent.config 的 Tools/Hooks/Middleware 等不回滚
 // （调用方在 Register 失败后通常丢弃该 agent）。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：扩展注册，含逆序回滚和资源清理逻辑
 func (r *ExtensionRegistry) Register(ctx context.Context, agent *Agent, exts ...Extension) error {
 	for _, ext := range exts {
 		if err := ext.Init(ctx, agent); err != nil {

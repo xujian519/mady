@@ -188,7 +188,7 @@ func (s *Server) handleSendTask(ctx context.Context, w http.ResponseWriter, req 
 	writeJSONRPCResult(w, req.ID, task)
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：A2A 任务订阅处理，含多输入模式校验和流管理
 func (s *Server) handleSendTaskSubscribe(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -369,7 +369,7 @@ func (s *Server) handleGetPushNotification(ctx context.Context, w http.ResponseW
 	writeJSONRPCResult(w, req.ID, cfg)
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：A2A 重订阅处理，含任务查询和推送配置
 func (s *Server) handleResubscribe(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
 	var params struct {
 		ID string `json:"id"`

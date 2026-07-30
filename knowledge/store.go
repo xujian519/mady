@@ -235,7 +235,7 @@ func (s StoreStats) String() string {
 // The embedder is used to compute vectors; chunks already having an embedding
 // are skipped to avoid redundant API calls.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：向量重索引，多文档多分块遍历和去重逻辑
 func (s *Store) ReindexVectors(ctx context.Context, embedder retrieval.Embedder) error {
 	if embedder == nil {
 		return fmt.Errorf("knowledge: embedder is nil")

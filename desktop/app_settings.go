@@ -102,7 +102,7 @@ func (a *App) GetAISettings() (AISettings, error) {
 	a.aiMu.RLock()
 	defer a.aiMu.RUnlock()
 	if a.aiProvider == "" && a.aiModel == "" {
-		return AISettings{}, fmt.Errorf("GetAISettings: AI settings not initialized")
+		return AISettings{}, fmt.Errorf("getAISettings: AI settings not initialized")
 	}
 	return AISettings{Provider: a.aiProvider, Model: a.aiModel}, nil
 }
@@ -116,7 +116,7 @@ func (a *App) GetAISettings() (AISettings, error) {
 //     重建失败时返回错误且不变更任何状态（环境变量一并回滚）。
 func (a *App) SetAISettings(s AISettings) error {
 	if s.Provider == "" && s.Model == "" {
-		return fmt.Errorf("SetAISettings: provider 或 model 至少一项必填")
+		return fmt.Errorf("setAISettings: provider 或 model 至少一项必填")
 	}
 
 	a.aiMu.Lock()
@@ -139,7 +139,7 @@ func (a *App) SetAISettings(s AISettings) error {
 		p, err := agentconfig.BuildProvider()
 		if err != nil {
 			_ = os.Setenv("PROVIDER", prev) // 回滚环境变量
-			return fmt.Errorf("SetAISettings: 重建 Provider 失败（请确认 %s 的 API Key 已配置）: %w", newProvider, err)
+			return fmt.Errorf("setAISettings: 重建 Provider 失败（请确认 %s 的 API Key 已配置）: %w", newProvider, err)
 		}
 		providerIface = p
 	}
@@ -151,7 +151,7 @@ func (a *App) SetAISettings(s AISettings) error {
 		saved.Provider = newProvider
 		saved.Model = newModel
 		if err := saveAISettingsTo(aiSettingsPath(home), saved); err != nil {
-			return fmt.Errorf("SetAISettings: 保存配置失败: %w", err)
+			return fmt.Errorf("setAISettings: 保存配置失败: %w", err)
 		}
 	}
 

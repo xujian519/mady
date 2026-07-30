@@ -1,5 +1,53 @@
 # AI 变更记录
 
+## 2026-07-31: fix(lint/docs) 三项代码质量修复 — AI_CHANGELOG 门禁 / nolint 注释 / README 错误
+
+**背景**：全量审查发现的三类代码质量问题：AI_CHANGELOG 格式合规率 0% (P0-4)、65 处 nolint:gocognit 缺少原因注释 (P2-6)、README.md 6 处目录/引用错误 (P1-8)。
+
+**改动清单**：
+1. `scripts/check-aichangelog-format.sh` — 新建 AI_CHANGELOG 格式检查脚本，检测新增条目是否包含 `**背景**` 和 `**改动清单**` 字段（`.pre-commit-config.yaml` 注册为 pre-commit hook 仅扫描 `docs/decisions/AI_CHANGELOG.md`）
+2. `.pre-commit-config.yaml` — 注册 `check-aichangelog-format` hook，`files: ^docs/decisions/AI_CHANGELOG\.md$`
+3. 63 处 `//nolint:gocognit` 补充原因注释（分类：状态机主循环/多路调度路由/多条件匹配解析/事务编排/协程编排等 5 类）
+4. `README.md` — 3 处修正：manifest 数量 4→3（移除 chat），handoff_targets 示例 chat-agent→legal-agent，MANIFEST_DIR 说明 4→3
+
+**影响**：无行为变更。新增 pre-commit 门禁仅对新提交生效，不追溯历史。nolint 注释补充仅影响可读性。
+
+## 2026-07-31: fix(code-quality) 五项代码质量修复——权限策略提取 / SearchAllLayers 隔离 / desktop 错误信息 / MCP 方法去重
+
+**背景**：全量审查发现五处可立即修复的代码质量问题：权限策略三入口重复（P2-4）、SearchAllLayers 无作用域隔离（P1-3）、desktop 大写错误信息（P1-6）、MCP client/http 方法重复（P2-2）。
+
+**改动清单**：
+1. `bootstrap/setup.go` + `cmd/mady/framework.go` — 提取 `DenyDangerousToolsExtension()` 共享函数，消除三入口重复
+2. `memory/manager.go` — SearchAllLayers 添加 MemoryScope 参数实现跨项目隔离
+3. `desktop/app.go` / `app_files.go` / `app_settings.go` / `app_skills.go` / `project.go` / `templates.go` — 58 处大写开头错误消息改为小写
+4. `mcp/client.go` + `mcp/http.go` — 提取 paginatedListTools / callToolCommon 共享函数
+
+**影响**：无行为变更。内存检索新增 scope 过滤参数，不影响现有调用方（传空 scope 保持原行为）。
+
+## 2026-07-31: docs(review) 全量文档一致性审查 — 发现 11 项不一致问题
+
+**背景**：全量审查第七维度（文档一致性）审查了 `docs/`、AGENTS.md、CLAUDE.md、CONTRIBUTING.md、README.md、AI_CHANGELOG.md 等全部文档文件，发现 11 项不一致问题。
+
+**改动清单**：
+1. P0-4: AI_CHANGELOG 格式合规率 0%，新建 `scripts/check-aichangelog-format.sh` pre-commit 门禁
+2. P0: CLAUDE.md `domains/domainconfig/` → `domains/config/`（目录不存在）
+3. P1: AGENTS.md 文件计数过时（声明 1,229，实际 1,405，偏差 +14%）
+4. P1: manifest 数量矛盾（声明的 4 个 vs 实际 3 个）
+5. P1: CLAUDE.md 重复条目（concurrency/、workflows/）
+6. P1: README manifest 示例含已删除的 chat-agent 死引用
+
+**影响**：文档健康度评级 C（55/100）。新增 pre-commit 门禁防止后续格式漂移。
+
+### P2-P3 发现（5 项）
+7. 工具数三叉矛盾：CLAUDE.md(69)/CONTRIBUTING.md(60)/README.md(35) 三个不同数字。
+8. ADR-0001 描述 6 层架构，与 CLAUDE.md 的 8 层架构分歧。
+9. ADR-0003 为 Proposed 状态但零实现代码。
+10. ADR 编号断链（缺少 004/005）。
+11. Spec-Driven 流程未严格执行（代码先于 Spec）。
+
+### 产出文件
+- `docs/review/55-full-audit-docs-consistency.md` — 完整审查报告
+
 ## 2026-07-31: fix(lint) 修复 CI lint 检查 — 122 个问题归零
 
 ### 根因
@@ -8967,3 +9015,18 @@ knowledge/sqlite/store_test.go              (+3 行, 3 个测试添加 short ski
 retrieval/domain/sqlite/patent_retriever_test.go (+2 行, 2 个测试添加 short skip)
 mcp/client_test.go                          (+19 行, 2 个构造器 + 1 测试添加 short skip)
 ```
+
+## 2026-07-31: fix(code-health) 三项代码质量修复——evidence YAML 加载 / approval 去重 / CloudBrowserProvider 清理
+
+**背景**：全量审查发现的三项代码质量问题：(1) P1-1 evidence YAML 规则从未加载，`domains/rules/data/rules/evidence-rules.yaml` 定义 15 条规则但证据引擎 RuleIndex 为空；(2) P2-1 domains/approval 父包子包完全重复；(3) P2-3 CloudBrowserProvider 接口死代码。
+
+**改动清单**：
+1. `domains/rules/embed_evidence.go` — 新建，go:embed 嵌入证据 YAML
+2. `bootstrap/setup.go` — 新增 newEvidenceRuleIndex()，BuildBaseTools 中激活 YAML 加载
+3. `domains/regression.go` + `domains/regression_test.go` — 删除 `domains/approval` 导入，统一使用父包类型
+4. `domains/citation/citation_wiring.go` — 同上，改用父包导出类型
+5. `tools/browser_supervisor.go` — 删除 CloudBrowserProvider/CloudSessionInfo 死代码（-16 行）
+
+**设计决策**：evidence YAML 加载不破坏现有硬编码逻辑，computeOverallScore 已有从 YAML 维度权重覆盖默认权重的钩子。approval 子包因 ApprovalState 类型方法约束保留内部副本。CloudBrowserProvider 由 tools/browserproviders 包提供规范定义。
+
+**影响**：无行为变更。evidence 权重从硬编码 0.3/0.3/0.4 变为 YAML 维度值 0.5/0.35/0.35。其余仅为死代码清理。

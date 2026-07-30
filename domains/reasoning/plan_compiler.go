@@ -128,7 +128,7 @@ func NewPlanCompiler(builder NodeBuilder) *PlanCompiler {
 //
 // entryNode returns the name of the graph's entry node.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：计划编译为 Pregel 图，含依赖解析和拓扑排序
 func (c *PlanCompiler) CompilePlanToGraph(plan *Plan, bb *FactBlackboard) (*graph.PregelGraph, string, error) {
 	if plan == nil || len(plan.Steps) == 0 {
 		return nil, "", fmt.Errorf("plan compiler: plan is nil or has no steps")

@@ -136,7 +136,7 @@ func dist(a, b image.Point) int {
 	return int(math.Sqrt(float64(dx*dx + dy*dy)))
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：图像分割转四边形，含 BFS 连通域标记和多条件过滤
 func segmentationToQuads(prob []float32, w, h int, thresh float32) []Quad {
 	if len(prob) < w*h {
 		return nil

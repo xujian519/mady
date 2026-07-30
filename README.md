@@ -103,7 +103,7 @@ mady evidence      # 证据判断 CLI（judge/burden/standard/conflict/type）
 mady util          # 实用工具（list-prompts）
 ```
 
-> mady 的 4 个内置领域 manifest（chat/assistant/patent/legal）已通过 `go:embed`
+> mady 的 3 个内置领域 manifest（assistant/patent/legal）已通过 `go:embed`
 > 编进二进制，**无需额外资源文件**即可在任意目录启动。如需自定义/新增领域，
 > 将 JSON 放入 `~/.mady/manifests/` 即可覆盖或扩展（无需重编译）。
 
@@ -116,7 +116,7 @@ mady util          # 实用工具（list-prompts）
 | `BASE_URL` | — | API 基础 URL（覆盖默认端点） |
 | `MODEL` | — | 模型名称 |
 | `MADY_HOME` | `~/.mady` | 应用数据根目录（workspace/sessions/manifests 落在此处） |
-| `MANIFEST_DIR` | `$MADY_HOME/manifests` | 外部 manifest 覆盖目录（内置 4 个始终可用） |
+| `MANIFEST_DIR` | `$MADY_HOME/manifests` | 外部 manifest 覆盖目录（内置 3 个始终可用） |
 | `WORKSPACE_DIR` | `$MADY_HOME/workspace` | Workspace 根目录 |
 | `SESSION_DIR` | `$MADY_HOME/sessions` | 会话持久化目录（仅 serve） |
 | `SKILL_DIR` | `$MADY_HOME/skills` | 外部技能覆盖目录 |
@@ -211,7 +211,7 @@ go get github.com/xujian519/mady/agentcore
   "domain": "patent",
   "description": "专利分析与知识产权检索",
   "guardrail_level": "strict",
-  "handoff_targets": ["chat-agent", "assistant-agent"],
+  "handoff_targets": ["assistant-agent", "legal-agent"],
   "knowledge_domain": "patent"
 }
 ```

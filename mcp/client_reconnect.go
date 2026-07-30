@@ -28,7 +28,7 @@ func (c *Client) emitReconnectEvent(phase, reason string, attempt int, err error
 	c.emitRuntimeEvent(evt)
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：MCP 客户端重连逻辑，含状态检查和退避策略
 func (c *Client) tryReconnect(ctx context.Context) bool {
 	c.reconnectMu.Lock()
 	defer c.reconnectMu.Unlock()

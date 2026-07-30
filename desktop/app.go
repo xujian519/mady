@@ -23,7 +23,6 @@ import (
 
 	"github.com/xujian519/mady/a2ui"
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/agui"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/rules"
@@ -278,16 +277,7 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 func buildDesktopAgentConfig(fc *bootstrap.Context) agentcore.Config {
 	cfg := domains.UnifiedAgentConfig(fc.BaseConfig, buildDesktopUnifiedToolExt(fc), buildDesktopPatentToolExt(fc), buildDesktopLegalToolExt(fc))
 	cfg.Extensions = append(cfg.Extensions,
-		permission.NewExtension(permission.Policy{
-			Mode: permission.DecisionAllow,
-			Deny: []permission.Rule{
-				{Tool: tools.ToolBash},
-				{Tool: tools.ToolProcess},
-				{Tool: tools.ToolExecuteCode},
-				{Tool: tools.ToolBrowser},
-				{Tool: tools.ToolComputerUse},
-			},
-		}, permission.AlwaysDenyApprover{}),
+		bootstrap.DenyDangerousToolsExtension(),
 	)
 	if fc.KnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
@@ -378,7 +368,7 @@ func (a *App) Cancel(runID string) error {
 	}
 	info, ok := val.(*runInfo)
 	if !ok {
-		return fmt.Errorf("Cancel: invalid run info for %s", runID)
+		return fmt.Errorf("cancel: invalid run info for %s", runID)
 	}
 	if info.cancel != nil {
 		info.cancel()
@@ -397,7 +387,7 @@ func (a *App) SendAction(surfaceID string, action *a2ui.ClientAction) error {
 		return err
 	}
 	if action == nil {
-		return fmt.Errorf("SendAction: action is required")
+		return fmt.Errorf("sendAction: action is required")
 	}
 	// 确保 timestamp 不为空
 	if action.Timestamp == "" {

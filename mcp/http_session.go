@@ -82,7 +82,7 @@ func expiredSessionID(err error) string {
 	return ""
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：HTTP SSE 流管理，含重连和事件状态维护
 func (c *HTTPClient) runServerStream() {
 	defer close(c.streamDone)
 	state := sseStreamState{}

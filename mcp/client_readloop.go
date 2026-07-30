@@ -11,7 +11,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 )
 
-//nolint:gocognit
+//nolint:gocognit // 原因：MCP 客户端读取循环，含多消息类型分发
 func (c *Client) readLoop() {
 	defer func() {
 		if r := recover(); r != nil {

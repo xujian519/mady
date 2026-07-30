@@ -259,38 +259,12 @@ func (c *HTTPClient) initializeSession(ctx context.Context) error {
 
 // ListTools retrieves the full list of tools from the MCP server.
 func (c *HTTPClient) ListTools(ctx context.Context) ([]Tool, error) {
-	var out []Tool
-	cursor := ""
-	for {
-		params := map[string]any{}
-		if cursor != "" {
-			params["cursor"] = cursor
-		}
-		var result toolListResult
-		if err := c.call(ctx, "tools/list", params, &result); err != nil {
-			return nil, err
-		}
-		out = append(out, result.Tools...)
-		if result.NextCursor == "" {
-			return out, nil
-		}
-		cursor = result.NextCursor
-	}
+	return paginatedListTools(ctx, c)
 }
 
 // CallTool invokes a tool on the MCP server with the given arguments.
 func (c *HTTPClient) CallTool(ctx context.Context, name string, arguments map[string]any) (*ToolResult, error) {
-	if arguments == nil {
-		arguments = map[string]any{}
-	}
-	var result ToolResult
-	if err := c.call(ctx, "tools/call", map[string]any{
-		"name":      name,
-		"arguments": arguments,
-	}, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
+	return callToolCommon(ctx, c, name, arguments)
 }
 
 // AgentTools converts MCP tools to agentcore Tool definitions.

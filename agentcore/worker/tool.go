@@ -85,7 +85,7 @@ func buildRequiredParams(inputs []Input) []string {
 
 // buildToolFunc 构造 Tool.Func，将 Tool 调用的 JSON 参数转为 PregelState 后交给 Executor 执行。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：Pregel 工具函数构造器，含参数解析和状态转换
 func buildToolFunc(exec *Executor) agentcore.ToolFunc {
 	node := exec.ToPregelNode()
 	def := exec.def

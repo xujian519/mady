@@ -37,7 +37,7 @@ var categoryLabels = map[string]string{
 func (a *App) ListDocTemplates() ([]DocTemplateEntry, error) {
 	cwd, err := a.resolveProjectDir()
 	if err != nil {
-		return nil, fmt.Errorf("ListDocTemplates: %w", err)
+		return nil, fmt.Errorf("listDocTemplates: %w", err)
 	}
 
 	templatesDir := filepath.Join(cwd, "doc-templates")
@@ -46,7 +46,7 @@ func (a *App) ListDocTemplates() ([]DocTemplateEntry, error) {
 		if os.IsNotExist(err) {
 			return []DocTemplateEntry{}, nil
 		}
-		return nil, fmt.Errorf("ListDocTemplates: %w", err)
+		return nil, fmt.Errorf("listDocTemplates: %w", err)
 	}
 
 	var result []DocTemplateEntry

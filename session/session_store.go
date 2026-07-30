@@ -304,7 +304,7 @@ func (s *FileStore) Create(_ context.Context, opts CreateOptions) (*Manager, err
 
 // Open opens an existing session by ID and loads its entries.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：会话文件解析与恢复流程，含多路径多格式兼容分支
 func (s *FileStore) Open(_ context.Context, sessionID string) (*Manager, error) {
 	if err := util.ValidateKey(sessionID); err != nil {
 		return nil, err
@@ -488,7 +488,7 @@ func (s *FileStore) Has(_ context.Context, sessionID string) (bool, error) {
 	return false, fmt.Errorf("check session: %w", err)
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：会话元数据读取，含多版本格式兼容分支
 func (s *FileStore) readInfo(sessionID string) Info {
 	lock := s.sessionLock(sessionID)
 	lock.RLock()

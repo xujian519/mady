@@ -33,7 +33,7 @@ type RuleSet struct {
 //	  orchestrations/*.yaml — orchestrations
 //	  reflection-indicators.yaml — reflection phrases
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：规则加载，多格式多类型文件解析和索引构建
 func LoadFromDir(dir string) (*RuleSet, error) {
 	rs := &RuleSet{
 		Articles:          make(map[string]*ArticleFramework),

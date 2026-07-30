@@ -180,7 +180,7 @@ func findTailCutByTokens(msgs []Message, headProtect int64, tailTokenBudget int6
 	return alignBoundaryForward(msgs, tailStart)
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：工具结果修剪，含保护区间和边界对齐
 func pruneOldToolResults(msgs []Message, protectTailCount int) ([]Message, int) {
 	if len(msgs) == 0 {
 		return msgs, 0
@@ -289,7 +289,7 @@ type CompactionParams struct {
 	IneffectiveCooldown time.Duration
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：上下文压缩执行，含多策略和重试逻辑
 func runCompaction(ctx context.Context, p CompactionParams) (int64, error) {
 	provider := p.Provider
 	model := p.Model

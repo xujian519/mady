@@ -1,7 +1,6 @@
 package domains
 
 import (
-	"github.com/xujian519/mady/domains/approval"
 	"github.com/xujian519/mady/evaluate"
 )
 
@@ -14,7 +13,7 @@ import (
 // correct (no regression signal), and rejected outputs lack a usable
 // expected answer. The caller should still review each candidate before
 // adding it to the benchmark dataset.
-func ApprovalToTestCase(record approval.ApprovalRecord, domain string) evaluate.TestCase {
+func ApprovalToTestCase(record ApprovalRecord, domain string) evaluate.TestCase {
 	return evaluate.TestCase{
 		ID:                "regression_" + record.ID,
 		Domain:            domain,
@@ -33,10 +32,10 @@ func ApprovalToTestCase(record approval.ApprovalRecord, domain string) evaluate.
 // Records with empty ModifiedOutput are skipped — they indicate the human
 // rejected without providing an alternative, which is not useful for
 // regression testing.
-func ApprovalToRegressionCandidates(records []approval.ApprovalRecord, domain string) []evaluate.TestCase {
+func ApprovalToRegressionCandidates(records []ApprovalRecord, domain string) []evaluate.TestCase {
 	var cases []evaluate.TestCase
 	for _, r := range records {
-		if r.Decision != approval.DecisionModified {
+		if r.Decision != DecisionModified {
 			continue
 		}
 		if r.ModifiedOutput == "" {

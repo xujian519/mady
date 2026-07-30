@@ -85,7 +85,7 @@ var _ interface {
 // then pulls in similar cases and shared-statute citation chains. Results are
 // deduplicated, filtered by authority, and formatted into a context block.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：知识图谱检索增强，含去重/关联/引用链遍历
 func (e *GraphEnhancer) Enhance(seeds []retrieval.ScoredChunk) any {
 	result := EnhancementResult{Seeds: seeds}
 	if e.store == nil || e.store.NodeCount() == 0 || len(seeds) == 0 {

@@ -79,7 +79,7 @@ type taskUpdateArgs struct {
 //     验证全部在写入前完成——只有所有校验通过才开始写入。
 //   - 主任务的 Blocks/BlockedBy 字段在同一 UpdateFunc 中与状态等一起写入。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：任务更新工具，含状态校验和依赖关系处理
 func (t *taskUpdateTool) Run(ctx context.Context, args json.RawMessage) (any, error) {
 	var p taskUpdateArgs
 	if err := json.Unmarshal(args, &p); err != nil {

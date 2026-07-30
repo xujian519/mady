@@ -85,7 +85,7 @@ func (a *Agent) callProvider(ctx context.Context, req *ProviderRequest) (*Provid
 	return resp, err
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：流式响应解析，含工具调用和多事件类型处理
 func (a *Agent) runStreaming(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error) {
 	ch, err := a.config.Provider.Stream(ctx, req)
 	if err != nil {

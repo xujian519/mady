@@ -205,7 +205,7 @@ func (s *tuiSession) handleMemoryCommand(query string) {
 
 	if query != "" {
 		// 语义检索模式：SearchAllLayers 已内置混合检索（语义+关键词+RRF）
-		results, err := mgr.SearchAllLayers(s.ctx, query, maxMemoryEntries)
+		results, err := mgr.SearchAllLayers(s.ctx, query, memory.MemoryScope{}, maxMemoryEntries)
 		if err != nil {
 			s.app.PrintSystem(fmt.Sprintf("❌ 记忆检索失败：%v", err))
 			return

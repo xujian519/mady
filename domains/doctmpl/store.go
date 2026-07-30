@@ -230,7 +230,7 @@ type MergedVarContext struct {
 // Shared variables (declared via shared_vars in the frontmatter) are
 // automatically identified and deduplicated.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：模板变量空间合并，含去重和共享检测
 func (s *TemplateStore) MergeVarContext(names []string) (*MergedVarContext, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

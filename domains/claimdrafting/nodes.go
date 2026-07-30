@@ -113,7 +113,7 @@ func draftPrimaryNode(builder *ClaimBuilder) graph.PregelNode {
 // draftParallelNode 根据撰写策略生成并列独立权利要求。
 // 策略为 product_only 时跳过（不设置 StateKeyParallels）。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：并行权利要求撰写节点，含策略路由和多条件状态判断
 func draftParallelNode(builder *ClaimBuilder) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		if stateHasSkip(state) {

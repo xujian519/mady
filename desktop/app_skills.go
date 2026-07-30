@@ -45,7 +45,7 @@ func (a *App) ListSkills() ([]SkillEntry, error) {
 
 	cwd, err := a.resolveProjectDir()
 	if err != nil {
-		return nil, fmt.Errorf("ListSkills: %w", err)
+		return nil, fmt.Errorf("listSkills: %w", err)
 	}
 
 	homeDir, _ := os.UserHomeDir()

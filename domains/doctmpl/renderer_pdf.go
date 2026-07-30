@@ -79,7 +79,7 @@ const (
 
 // ── Markdown → PDF 布局 ────────────────────────────────────────────
 
-//nolint:gocognit
+//nolint:gocognit // 原因：PDF Markdown 渲染，多元素类型布局和分页
 func pdfRenderMarkdown(pdf *gopdf.GoPdf, md string) error {
 	lines := strings.Split(md, "\n")
 	var para []string

@@ -17,6 +17,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/evidence"
 	"github.com/xujian519/mady/agentcore/filecheckpoint"
+	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/agentcore/planmode"
 	"github.com/xujian519/mady/agentcore/tasklist"
 	"github.com/xujian519/mady/domains"
@@ -462,7 +463,7 @@ func BuildBaseTools(fc *Context) {
 	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions,
 		fc.PlanModeExt,
 		fc.EvidenceExt,
-		domainEvidence.NewDomainExtension(nil),
+		domainEvidence.NewDomainExtension(newEvidenceRuleIndex()),
 		domains.NewDeadlineCalculatorExtension(),
 	)
 
@@ -729,3 +730,36 @@ func openWritableStore(madyHome string, embedder retrieval.Embedder, knowledgeDB
 // 内部类型断言为 *knowledge.KnowledgeExtension 以获取 LawSearcher 和 GraphContext；
 // 当 ext 为 nil 或类型不匹配时返回 nil（降级为纯 LLM 知识评估）。
 // 与 server.NewServerKnowledgeRetriever 采用相同的适配模式。
+
+// DenyDangerousToolsExtension 返回一个拒绝危险工具的权限扩展。
+// 适用于无交互模式（ACP/Server/Desktop），默认拒绝 bash/process/
+// execute_code/browser/computer_use 等可能造成破坏的工具。
+func DenyDangerousToolsExtension() agentcore.Extension {
+	return permission.NewExtension(permission.Policy{
+		Mode: permission.DecisionAllow,
+		Deny: []permission.Rule{
+			{Tool: tools.ToolBash},
+			{Tool: tools.ToolProcess},
+			{Tool: tools.ToolExecuteCode},
+			{Tool: tools.ToolBrowser},
+			{Tool: tools.ToolComputerUse},
+		},
+	}, permission.AlwaysDenyApprover{})
+}
+
+// newEvidenceRuleIndex 从嵌入的 evidence-rules.yaml 加载证据规则，返回预填充的 RuleIndex。
+// 如果嵌入数据为空或解析失败，返回空索引（不阻断启动流程）。
+func newEvidenceRuleIndex() *domainEvidence.RuleIndex {
+	idx := domainEvidence.NewRuleIndex()
+	data := rules.EvidenceRulesYAML()
+	if len(data) == 0 {
+		slog.Warn("证据规则 YAML 为空，使用空索引")
+		return idx
+	}
+	if err := idx.LoadBytes(data); err != nil {
+		slog.Warn("加载证据规则 YAML 失败", "error", err)
+		return idx
+	}
+	slog.Info("已加载证据规则 YAML", "count", idx.Count())
+	return idx
+}

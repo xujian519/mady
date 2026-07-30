@@ -122,7 +122,7 @@ func (e *TopologyExtractor) searchSeedGuidelineRules(keywords []string) []KgNode
 // collectTopologySteps traverses outward from seed nodes, collecting
 // WorkflowSteps from CITES/APPLIES/RELATED_TO edges.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：拓扑步骤收集，含 BFS 多跳遍历和多边类型路由
 func (e *TopologyExtractor) collectTopologySteps(seeds []KgNode, maxDepth, maxSteps int) []WorkflowStep {
 	visited := make(map[string]bool)
 	var allSteps []WorkflowStep

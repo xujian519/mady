@@ -53,7 +53,7 @@ func (h *Handler) handleCapabilities(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, caps)
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：AGUI 运行请求处理，含 SSE 流管理和多事件写入
 func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 	var input RunAgentInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {

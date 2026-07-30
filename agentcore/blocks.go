@@ -39,7 +39,7 @@ type ContentBlock struct {
 // Thinking segments are wrapped in <thinking>...</thinking> for traceability;
 // callers that feed the LLM should use MessageCollapseForLLM instead.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：消息正文拼接，多块类型遍历和格式处理
 func MessageTextBody(m Message) string {
 	var b strings.Builder
 	if m.Content != "" {

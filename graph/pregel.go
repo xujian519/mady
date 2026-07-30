@@ -265,7 +265,7 @@ func (pg *PregelGraph) Compile(entryNode string, maxSteps ...int64) (*CompiledPr
 // are merged using the configured StateSchema (or last-write-wins by
 // alphabetical node name when Schema is nil).
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：Pregel 图执行主循环，含超步迭代和状态机驱动
 func (cpg *CompiledPregelGraph) Run(ctx context.Context, initial PregelState) (PregelState, error) {
 	state := initial.Clone()
 	active := []string{cpg.entry}
@@ -438,7 +438,7 @@ func (pc *PregelCheckpointer) resumeLoop(ctx context.Context, graphID string, st
 // given active nodes, saving checkpoints before each step and looking
 // up node policies from pc.graph.nodePolicies.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：带检查点的 Pregel 执行循环，含保存/恢复路径分支
 func (pc *PregelCheckpointer) runWithCheckpointsFrom(
 	ctx context.Context,
 	graphID string,

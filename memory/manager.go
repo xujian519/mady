@@ -118,7 +118,7 @@ func (m *Manager) RememberFromTurn(ctx context.Context, userInput, assistantOutp
 
 // RememberFromTurnWithEmotion 从一轮对话中提取记忆并附加情绪上下文标注。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：记忆提取，含情绪上下文和降级逻辑
 func (m *Manager) rememberFromTurnWithEmotion(ctx context.Context, userInput, assistantOutput string, scope MemoryScope, ec emotionContext) ([]string, error) {
 	if userInput == "" && assistantOutput == "" {
 		return nil, nil
@@ -218,8 +218,9 @@ func (m *Manager) Get(ctx context.Context, id string) (*MemoryEntry, error) {
 	return m.store.Get(ctx, id)
 }
 
-// SearchAllLayers 跨所有层检索记忆。
-func (m *Manager) SearchAllLayers(ctx context.Context, query string, topK int) ([]ScoredMemory, error) {
+// SearchAllLayers 跨所有层检索记忆，支持作用域过滤。
+// 如果 scope 中的 UserID/SessionID/ProjectID 非空，将作为过滤条件传递。
+func (m *Manager) SearchAllLayers(ctx context.Context, query string, scope MemoryScope, topK int) ([]ScoredMemory, error) {
 	if topK <= 0 {
 		topK = m.cfg.DefaultTopK
 	}
@@ -227,12 +228,9 @@ func (m *Manager) SearchAllLayers(ctx context.Context, query string, topK int) (
 	var all []ScoredMemory
 
 	for _, layer := range ValidLayers() {
-		results, err := m.retriever.Search(ctx, m.store, query, MemoryFilter{
-			UserID:    "",
-			SessionID: "",
-			Layer:     layer,
-			TopK:      perLayer,
-		})
+		filter := scope.AsFilter(perLayer)
+		filter.Layer = layer
+		results, err := m.retriever.Search(ctx, m.store, query, filter)
 		if err != nil {
 			continue
 		}

@@ -153,7 +153,7 @@ func (e *Executor) buildChain() ExecuteFunc {
 
 // coreExecute looks up the tool, optionally validates arguments, and invokes its Func.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：工具核心执行，含参数校验/钩子链/超时/错误处理多分支
 func (e *Executor) coreExecute(ctx context.Context, tc ToolCall) (string, error) {
 	tool, ok := e.registry.Get(tc.Name)
 	if !ok {

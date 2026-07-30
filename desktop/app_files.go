@@ -127,7 +127,7 @@ func (a *App) ReadFile(relPath string) (*FileContent, error) {
 
 	cwd, err := a.resolveProjectDir()
 	if err != nil {
-		return nil, fmt.Errorf("ReadFile: %w", err)
+		return nil, fmt.Errorf("readFile: %w", err)
 	}
 
 	roots := []string{cwd}
@@ -137,23 +137,23 @@ func (a *App) ReadFile(relPath string) (*FileContent, error) {
 
 	abs, err := resolveSandboxedPathMulti(relPath, roots...)
 	if err != nil {
-		return nil, fmt.Errorf("ReadFile: %w", err)
+		return nil, fmt.Errorf("readFile: %w", err)
 	}
 
 	info, err := os.Stat(abs)
 	if err != nil {
-		return nil, fmt.Errorf("ReadFile: %w", err)
+		return nil, fmt.Errorf("readFile: %w", err)
 	}
 	if info.IsDir() {
-		return nil, fmt.Errorf("ReadFile: %s is a directory", relPath)
+		return nil, fmt.Errorf("readFile: %s is a directory", relPath)
 	}
 	if info.Size() > maxReadFileSize {
-		return nil, fmt.Errorf("ReadFile: file too large (%d bytes, limit %d)", info.Size(), maxReadFileSize)
+		return nil, fmt.Errorf("readFile: file too large (%d bytes, limit %d)", info.Size(), maxReadFileSize)
 	}
 
 	raw, err := os.ReadFile(abs) //nolint:gosec // 路径已过沙箱校验
 	if err != nil {
-		return nil, fmt.Errorf("ReadFile: %w", err)
+		return nil, fmt.Errorf("readFile: %w", err)
 	}
 
 	kind, mime := classifyFileKind(info.Name())
@@ -168,7 +168,7 @@ func (a *App) ReadFile(relPath string) (*FileContent, error) {
 	switch kind {
 	case "text", "md":
 		if kind == "text" && isBinaryContent(raw) {
-			return nil, fmt.Errorf("ReadFile: %s appears to be a binary file", relPath)
+			return nil, fmt.Errorf("readFile: %s appears to be a binary file", relPath)
 		}
 		fc.Text = string(raw)
 	case "image", "pdf":
@@ -188,17 +188,17 @@ func (a *App) WriteFile(relPath, content string) error {
 		return err
 	}
 	if len(content) > maxWriteFileSize {
-		return fmt.Errorf("WriteFile: content too large (%d bytes, limit %d)", len(content), maxWriteFileSize)
+		return fmt.Errorf("writeFile: content too large (%d bytes, limit %d)", len(content), maxWriteFileSize)
 	}
 
 	kind, _ := classifyFileKind(relPath)
 	if kind != "text" && kind != "md" {
-		return fmt.Errorf("WriteFile: %s is not a writable text file", relPath)
+		return fmt.Errorf("writeFile: %s is not a writable text file", relPath)
 	}
 
 	cwd, err := a.resolveProjectDir()
 	if err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
+		return fmt.Errorf("writeFile: %w", err)
 	}
 
 	roots := []string{cwd}
@@ -208,28 +208,28 @@ func (a *App) WriteFile(relPath, content string) error {
 
 	abs, err := resolveSandboxedPathMulti(relPath, roots...)
 	if err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
+		return fmt.Errorf("writeFile: %w", err)
 	}
 	// 原子写：同目录临时文件 + rename
 	tmp, err := os.CreateTemp(filepath.Dir(abs), ".mady-write-*")
 	if err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
+		return fmt.Errorf("writeFile: %w", err)
 	}
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
 
 	if _, err := tmp.WriteString(content); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("WriteFile: %w", err)
+		return fmt.Errorf("writeFile: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
+		return fmt.Errorf("writeFile: %w", err)
 	}
 	if err := os.Chmod(tmpName, 0600); err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
+		return fmt.Errorf("writeFile: %w", err)
 	}
 	if err := os.Rename(tmpName, abs); err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
+		return fmt.Errorf("writeFile: %w", err)
 	}
 	log.Printf("[mady-desktop] wrote file: %s (%d bytes)", abs, len(content))
 	return nil
@@ -244,31 +244,31 @@ func (a *App) DeleteEntry(relPath string) error {
 
 	cwd, err := a.resolveProjectDir()
 	if err != nil {
-		return fmt.Errorf("DeleteEntry: %w", err)
+		return fmt.Errorf("deleteEntry: %w", err)
 	}
 
 	abs, err := resolveSandboxedPath(relPath, cwd)
 	if err != nil {
-		return fmt.Errorf("DeleteEntry: %w", err)
+		return fmt.Errorf("deleteEntry: %w", err)
 	}
 
 	info, err := os.Stat(abs)
 	if err != nil {
-		return fmt.Errorf("DeleteEntry: %w", err)
+		return fmt.Errorf("deleteEntry: %w", err)
 	}
 
 	if info.IsDir() {
 		entries, err := os.ReadDir(abs)
 		if err != nil {
-			return fmt.Errorf("DeleteEntry: %w", err)
+			return fmt.Errorf("deleteEntry: %w", err)
 		}
 		if len(entries) > 0 {
-			return fmt.Errorf("DeleteEntry: directory %s is not empty", relPath)
+			return fmt.Errorf("deleteEntry: directory %s is not empty", relPath)
 		}
 	}
 
 	if err := os.Remove(abs); err != nil {
-		return fmt.Errorf("DeleteEntry: %w", err)
+		return fmt.Errorf("deleteEntry: %w", err)
 	}
 	log.Printf("[mady-desktop] deleted: %s", abs)
 	return nil
@@ -283,7 +283,7 @@ func (a *App) ListDirectory(relPath string) ([]FileEntry, error) {
 
 	cwd, err := a.resolveProjectDir()
 	if err != nil {
-		return nil, fmt.Errorf("ListDirectory: %w", err)
+		return nil, fmt.Errorf("listDirectory: %w", err)
 	}
 
 	targetDir := cwd
@@ -293,12 +293,12 @@ func (a *App) ListDirectory(relPath string) ([]FileEntry, error) {
 
 	// 沙箱边界校验（ListDirectory 也需校验，防止读越狱路径）
 	if !isPathWithinSandbox(targetDir, cwd) {
-		return nil, fmt.Errorf("ListDirectory: path escape detected: %s is outside %s", targetDir, cwd)
+		return nil, fmt.Errorf("listDirectory: path escape detected: %s is outside %s", targetDir, cwd)
 	}
 
 	entries, err := os.ReadDir(targetDir)
 	if err != nil {
-		return nil, fmt.Errorf("ListDirectory: %w", err)
+		return nil, fmt.Errorf("listDirectory: %w", err)
 	}
 
 	var result []FileEntry
@@ -326,12 +326,12 @@ func (a *App) CreateFolder(parentPath, folderName string) (string, error) {
 		return "", err
 	}
 	if folderName == "" {
-		return "", fmt.Errorf("CreateFolder: folderName is required")
+		return "", fmt.Errorf("createFolder: folderName is required")
 	}
 
 	cwd, err := a.resolveProjectDir()
 	if err != nil {
-		return "", fmt.Errorf("CreateFolder: %w", err)
+		return "", fmt.Errorf("createFolder: %w", err)
 	}
 
 	targetDir := cwd
@@ -343,11 +343,11 @@ func (a *App) CreateFolder(parentPath, folderName string) (string, error) {
 
 	// 沙箱边界校验
 	if !isPathWithinSandbox(newDir, cwd) {
-		return "", fmt.Errorf("CreateFolder: path escape detected: %s is outside %s", newDir, cwd)
+		return "", fmt.Errorf("createFolder: path escape detected: %s is outside %s", newDir, cwd)
 	}
 
 	if err := os.MkdirAll(newDir, 0750); err != nil {
-		return "", fmt.Errorf("CreateFolder: %w", err)
+		return "", fmt.Errorf("createFolder: %w", err)
 	}
 	log.Printf("[mady-desktop] created folder: %s", newDir)
 	return newDir, nil
@@ -362,12 +362,12 @@ func (a *App) RenameFolder(oldPath, newName string) error {
 		return err
 	}
 	if oldPath == "" || newName == "" {
-		return fmt.Errorf("RenameFolder: oldPath and newName are required")
+		return fmt.Errorf("renameFolder: oldPath and newName are required")
 	}
 
 	cwd, err := a.resolveProjectDir()
 	if err != nil {
-		return fmt.Errorf("RenameFolder: %w", err)
+		return fmt.Errorf("renameFolder: %w", err)
 	}
 
 	oldDir := filepath.Join(cwd, oldPath)
@@ -376,14 +376,14 @@ func (a *App) RenameFolder(oldPath, newName string) error {
 
 	// 沙箱边界校验
 	if !isPathWithinSandbox(oldDir, cwd) {
-		return fmt.Errorf("RenameFolder: path escape detected: %s is outside %s", oldDir, cwd)
+		return fmt.Errorf("renameFolder: path escape detected: %s is outside %s", oldDir, cwd)
 	}
 	if !isPathWithinSandbox(newDir, cwd) {
-		return fmt.Errorf("RenameFolder: path escape detected: %s is outside %s", newDir, cwd)
+		return fmt.Errorf("renameFolder: path escape detected: %s is outside %s", newDir, cwd)
 	}
 
 	if err := os.Rename(oldDir, newDir); err != nil {
-		return fmt.Errorf("RenameFolder: %w", err)
+		return fmt.Errorf("renameFolder: %w", err)
 	}
 	log.Printf("[mady-desktop] renamed folder: %s → %s", oldDir, newDir)
 	return nil

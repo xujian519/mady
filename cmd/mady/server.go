@@ -15,7 +15,6 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/iface"
-	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/domains"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/knowledge"
@@ -24,7 +23,6 @@ import (
 	rsqlite "github.com/xujian519/mady/retrieval/domain/sqlite"
 	"github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
-	"github.com/xujian519/mady/tools"
 )
 
 func preflightWritableSQLitePath(dbPath string) error {
@@ -105,16 +103,7 @@ func runServer(ctx context.Context) error {
 	// 无交互用户模式（serve）：用 AlwaysDenyApprover 拒绝危险工具调用。
 	// 允许读/写工具继续工作，bash/process/browser/execute_code/computer_use 被拒绝。
 	cfg.Extensions = append(cfg.Extensions,
-		permission.NewExtension(permission.Policy{
-			Mode: permission.DecisionAllow,
-			Deny: []permission.Rule{
-				{Tool: tools.ToolBash},
-				{Tool: tools.ToolProcess},
-				{Tool: tools.ToolExecuteCode},
-				{Tool: tools.ToolBrowser},
-				{Tool: tools.ToolComputerUse},
-			},
-		}, permission.AlwaysDenyApprover{}),
+		denyDangerousToolsExtension(),
 	)
 
 	// Attach wiki retrieval hook if available.

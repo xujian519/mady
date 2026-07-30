@@ -481,7 +481,7 @@ func ToolKind(name string) string {
 
 // BuildToolTitle builds a human-readable title for a tool call.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：工具标题生成，多工具类型 switch 路由
 func BuildToolTitle(name string, args map[string]any) string {
 	switch name {
 	case "terminal":

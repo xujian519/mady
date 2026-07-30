@@ -58,7 +58,7 @@ func collectKeywordsFromExtraction(ext *ExtractionResult) []string {
 // reasoning Stage ② 规则召回——见
 // docs/specs/design-prior-art-retrieval-stage.md 的 retrieve_prior_art 设计。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：新颖性预评估，多源数据汇聚和启发式判断
 func assessNoveltyFromState(state graph.PregelState) *NoveltyResult {
 	// Collect available data.
 	var features []TechFeature
@@ -264,7 +264,7 @@ func buildReportPrompt() string {
 
 // buildReportInput 从 PregelState 构建报告生成的输入。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：报告输入构建，从 PregelState 多字段提取和格式化
 func buildReportInput(state graph.PregelState) string {
 	var sb strings.Builder
 

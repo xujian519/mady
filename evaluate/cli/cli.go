@@ -134,7 +134,7 @@ func RunCLI(ctx context.Context, cli *EvalCLI) (*RunResult, error) {
 
 // loadCases 根据 CLI 配置加载和过滤测试用例。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：测试用例加载与过滤，含多条件筛选和去重逻辑
 func loadCases(cli *EvalCLI) []evaluate.TestCase {
 	if len(cli.CaseIDs) > 0 {
 		allCases := benchmark.AllCases()

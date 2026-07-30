@@ -253,7 +253,7 @@ func topoSort(nodeNames map[string]struct{}, edges map[string][]string, inDegree
 
 // Run executes the compiled graph.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：DAG 图执行主循环，含分层并行调度和状态追踪
 func (cg *CompiledGraph) Run(ctx context.Context, input string) (string, error) {
 	if cg.StateFn != nil {
 		state := cg.StateFn(ctx)

@@ -399,7 +399,7 @@ func (p *Provider) Stream(ctx context.Context, req *agentcore.ProviderRequest) (
 // values to the returned channel. It takes ownership of httpResp and closes
 // its body when the stream is fully consumed.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：SSE 流解析，含多事件类型分支和工具调用装配
 func (p *Provider) readSSEStream(ctx context.Context, httpResp *http.Response) <-chan agentcore.StreamDelta {
 	ch := make(chan agentcore.StreamDelta, 64)
 	go func() {

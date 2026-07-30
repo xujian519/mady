@@ -20,7 +20,7 @@ import (
 
 // LoadWikiStore initializes the knowledge retrieval system.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：知识库初始化，含多组件装配和条件分支
 func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, agentcore.Extension, knowledge.KnowledgeBackend) { //nolint:staticcheck // legacy hook type retained for backward compat
 	embedder := BuildEmbedder()
 	backend, knowledgeDBPath := LoadKnowledgeBackend(madyHome)

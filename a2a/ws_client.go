@@ -114,7 +114,7 @@ func (c *WSClient) Connect(ctx context.Context) (*WSConnection, error) {
 	return wsc, nil
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：WebSocket 客户端读取循环，含多类型消息和 ping/pong 处理
 func (c *WSConnection) readLoop() {
 	defer close(c.ch)
 	defer c.cancel()

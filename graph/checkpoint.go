@@ -115,7 +115,7 @@ type checkpointState struct {
 	LastInput string            `json:"last_input"`
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：带检查点恢复的图执行循环，含中断点和恢复分支
 func (ig *InterruptableGraph) runFrom(ctx context.Context, input string, startLayer int64, resumeCP *Checkpoint) (string, *InterruptResult, error) {
 	var steps int64
 	skipFirstInterruptBefore := resumeCP != nil

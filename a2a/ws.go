@@ -181,7 +181,7 @@ func (s *Server) checkWSAuth(key, token string) bool {
 	return false
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：WebSocket 消息读取循环，含多消息类型分发和认证
 func (s *Server) wsReadLoop(wc *wsConn, r *http.Request) {
 	defer func() { _ = wc.close() }()
 
@@ -379,11 +379,11 @@ func (s *Server) handleWSGetPushNotification(ctx context.Context, wc *wsConn, re
 			return nil, &JSONRPCError{Code: JSONRPCInternalError, Message: err.Error()}
 		}
 		return cfg, nil
-		//nolint:gocognit
+		//nolint:gocognit // 原因：内联匿名函数，包含多个推送配置分支
 	})(ctx, wc, req)
 }
 
-//nolint:gocognit
+//nolint:gocognit // 原因：WebSocket 订阅处理，多参数校验和推送
 func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCRequest, _ context.CancelFunc) {
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {

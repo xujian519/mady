@@ -97,7 +97,7 @@ func (s *Scanner) ScanByFeatures(ctx context.Context, features []string) (*ScanR
 
 // analyzeFeatureCombinations groups results by feature tags and computes risk metrics.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：特征组合风险分析，多条件匹配和聚合逻辑
 func (s *Scanner) analyzeFeatureCombinations(features []string, results []CaseResult) []RiskSignal {
 	var signals []RiskSignal
 

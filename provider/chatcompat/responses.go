@@ -129,7 +129,7 @@ type responsesStreamEvent struct {
 
 // ToResponsesInput converts agentcore messages to the Responses API input format.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：消息格式转换，多角色多块类型路由
 func ToResponsesInput(msgs []agentcore.Message) any {
 	if len(msgs) == 1 && msgs[0].Role == agentcore.RoleUser && msgs[0].ToolCallID == "" && len(msgs[0].ToolCalls) == 0 {
 		if len(msgs[0].Blocks) == 0 {
@@ -312,7 +312,7 @@ func (p *Provider) streamResponses(ctx context.Context, req *agentcore.ProviderR
 // It takes ownership of httpResp and closes its body when the stream is
 // fully consumed.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：Responses API SSE 流解析，多事件类型分支
 func (p *Provider) readResponsesStream(ctx context.Context, httpResp *http.Response) <-chan agentcore.StreamDelta {
 	ch := make(chan agentcore.StreamDelta, 64)
 	go func() {

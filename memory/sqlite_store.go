@@ -155,7 +155,7 @@ func (s *SQLiteMemoryStore) Remember(ctx context.Context, content string, scope 
 
 // RememberBatch 批量存入。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：批量记忆写入，含事务和多行预处理
 func (s *SQLiteMemoryStore) RememberBatch(ctx context.Context, entries []MemoryEntry) error {
 	if len(entries) == 0 {
 		return nil

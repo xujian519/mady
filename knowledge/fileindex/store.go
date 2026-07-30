@@ -152,7 +152,7 @@ func (fi *FileIndex) initSchema() error {
 // The call is lightweight — for a typical 200-file case folder it completes
 // in under 50 ms (os.Stat for each file + checksum comparison for changed files).
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：文件索引增量刷新，多条件文件状态比对和更新
 func (fi *FileIndex) Refresh(ctx context.Context) error {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()

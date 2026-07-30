@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/domains/approval"
+	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/guardrails"
 )
 
@@ -29,7 +29,7 @@ type CitationWiring struct {
 	Source guardrails.CitationSource
 	// Store 是 disclosure 留痕后端（approvals.db）；
 	// nil 时命中疑点仅追加提示，不写留痕（跑批/冒烟默认）。
-	Store approval.ApprovalStore
+	Store domains.ApprovalStore
 }
 
 // citationWiring 持有当前装配（atomic.Value 存 CitationWiring）。
@@ -74,14 +74,14 @@ func NewCitationGate(sessionID, caseID string) agentcore.LifecycleHook {
 // trigger_keyword='citation_verify' AND decision=” 过滤。
 // store 为 nil 时返回 nil（Gate 仅标注）；写库失败不阻断 Agent，
 // 仅 stderr 记录（留痕是审计增强，不是主流程）。
-func citationRecorder(store approval.ApprovalStore, sessionID, caseID string) func(guardrails.CitationReport, string) {
+func citationRecorder(store domains.ApprovalStore, sessionID, caseID string) func(guardrails.CitationReport, string) {
 	if store == nil {
 		return nil
 	}
 	return func(report guardrails.CitationReport, content string) {
 		feedback := fmt.Sprintf("引用核验命中 %d 条疑点（Suspect %d / Invalid %d），原始输出已抑制持久化，待人工复核",
 			len(report.Flagged), report.Suspect, report.Invalid)
-		if err := approval.RecordApprovalDecision(
+		if err := domains.RecordApprovalDecision(
 			context.Background(), store,
 			sessionID, caseID, "citation_verify", content,
 			"", "", feedback,

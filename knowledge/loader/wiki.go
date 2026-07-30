@@ -84,7 +84,7 @@ func (l *WikiLoader) ImportWiki() (*WikiImportStats, error) {
 
 // importDirectory walks a directory tree and imports .md files.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：Wiki 文件导入遍历，多条件文件类型判断和处理分支
 func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ string) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

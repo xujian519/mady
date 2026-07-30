@@ -102,3 +102,8 @@ func agentThinking(cfg *agentconfig.ThinkingConfig) *agentcore.ThinkingConfig {
 func tasklistDirForCWD(baseDir, cwd string) string {
 	return bootstrap.TasklistDirForCWD(baseDir, cwd)
 }
+
+// denyDangerousToolsExtension 委托到 bootstrap.DenyDangerousToolsExtension。
+func denyDangerousToolsExtension() agentcore.Extension {
+	return bootstrap.DenyDangerousToolsExtension()
+}

@@ -430,7 +430,7 @@ func (e *KnowledgeExtension) search(ctx context.Context, query string, topK int)
 // When a writable user store is configured, a third lane (user documents)
 // is added to the RRF fusion.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：多路融合搜索，含并行查询调度和结果合并
 func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, topK int) []retrieval.ScoredChunk {
 	candidateK := topK * 2
 	if candidateK < 20 {

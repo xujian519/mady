@@ -24,7 +24,11 @@ func (t *TUI) eventLoop() {
 			// we still capture the original panic's stack trace rather than
 			// losing it to a secondary panic.
 			func() {
-				defer func() { _ = recover() }()
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Warn("tui: stop panicked during panic recovery", "err", r)
+					}
+				}()
 				if err := t.Stop(); err != nil {
 					slog.Warn("tui: stop failed in panic recovery", "err", err)
 				}

@@ -45,7 +45,7 @@ func projectInfoFromRecord(rec domains.ProjectRecord) ProjectInfo {
 // ListProjects 返回已注册的项目列表，按最近访问时间倒序。
 func (a *App) ListProjects() ([]ProjectInfo, error) {
 	if a.fc == nil || a.fc.ProjectRegistry == nil {
-		return nil, fmt.Errorf("ListProjects: 项目注册表未初始化")
+		return nil, fmt.Errorf("listProjects: 项目注册表未初始化")
 	}
 
 	a.fc.ProjectRegistry.RefreshStatus(a.ctx)
@@ -64,7 +64,7 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 // GetCurrentProject 返回当前生效的项目。未选择项目时返回零值，不报错。
 func (a *App) GetCurrentProject() (ProjectInfo, error) {
 	if a.fc == nil {
-		return ProjectInfo{}, fmt.Errorf("GetCurrentProject: framework 未初始化")
+		return ProjectInfo{}, fmt.Errorf("getCurrentProject: framework 未初始化")
 	}
 
 	rootDir, err := a.resolveProjectDir()
@@ -93,10 +93,10 @@ func (a *App) GetCurrentProject() (ProjectInfo, error) {
 // SelectProjectFolder 弹出系统文件夹选择对话框，将选中的文件夹注册为项目并设为当前项目。
 func (a *App) SelectProjectFolder() (ProjectInfo, error) {
 	if a.ctx == nil {
-		return ProjectInfo{}, fmt.Errorf("SelectProjectFolder: 应用尚未启动")
+		return ProjectInfo{}, fmt.Errorf("selectProjectFolder: 应用尚未启动")
 	}
 	if a.fc == nil || a.fc.ProjectRegistry == nil {
-		return ProjectInfo{}, fmt.Errorf("SelectProjectFolder: 项目注册表未初始化")
+		return ProjectInfo{}, fmt.Errorf("selectProjectFolder: 项目注册表未初始化")
 	}
 
 	opts := runtime.OpenDialogOptions{
@@ -107,10 +107,10 @@ func (a *App) SelectProjectFolder() (ProjectInfo, error) {
 
 	selected, err := runtime.OpenDirectoryDialog(a.ctx, opts)
 	if err != nil {
-		return ProjectInfo{}, fmt.Errorf("SelectProjectFolder: %w", err)
+		return ProjectInfo{}, fmt.Errorf("selectProjectFolder: %w", err)
 	}
 	if selected == "" {
-		return ProjectInfo{}, fmt.Errorf("SelectProjectFolder: 未选择文件夹")
+		return ProjectInfo{}, fmt.Errorf("selectProjectFolder: 未选择文件夹")
 	}
 
 	info, err := a.registerAndSwitch(selected)
@@ -126,31 +126,31 @@ func (a *App) SelectProjectFolder() (ProjectInfo, error) {
 // name 为项目名称，将自动清理为合法目录名。
 func (a *App) CreateProjectFolder(name string) (ProjectInfo, error) {
 	if a.fc == nil || a.fc.ProjectRegistry == nil {
-		return ProjectInfo{}, fmt.Errorf("CreateProjectFolder: 项目注册表未初始化")
+		return ProjectInfo{}, fmt.Errorf("createProjectFolder: 项目注册表未初始化")
 	}
 
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return ProjectInfo{}, fmt.Errorf("CreateProjectFolder: 项目名称不能为空")
+		return ProjectInfo{}, fmt.Errorf("createProjectFolder: 项目名称不能为空")
 	}
 
 	safeName := sanitizeProjectName(name)
 	if safeName == "" {
-		return ProjectInfo{}, fmt.Errorf("CreateProjectFolder: 项目名称不合法: %s", name)
+		return ProjectInfo{}, fmt.Errorf("createProjectFolder: 项目名称不合法: %s", name)
 	}
 
 	// 使用 workspace/projects 作为默认根目录
 	baseDir := filepath.Join(a.fc.WorkspaceDir, "projects")
 	if err := util.EnsureDir(baseDir); err != nil {
-		return ProjectInfo{}, fmt.Errorf("CreateProjectFolder: 创建工作区目录失败: %w", err)
+		return ProjectInfo{}, fmt.Errorf("createProjectFolder: 创建工作区目录失败: %w", err)
 	}
 
 	projectDir := filepath.Join(baseDir, safeName)
 	if _, err := os.Stat(projectDir); err == nil {
-		return ProjectInfo{}, fmt.Errorf("CreateProjectFolder: 项目文件夹已存在: %s", projectDir)
+		return ProjectInfo{}, fmt.Errorf("createProjectFolder: 项目文件夹已存在: %s", projectDir)
 	}
 	if err := os.MkdirAll(projectDir, 0o750); err != nil {
-		return ProjectInfo{}, fmt.Errorf("CreateProjectFolder: 创建项目文件夹失败: %w", err)
+		return ProjectInfo{}, fmt.Errorf("createProjectFolder: 创建项目文件夹失败: %w", err)
 	}
 
 	info, err := a.registerAndSwitch(projectDir)
@@ -165,15 +165,15 @@ func (a *App) CreateProjectFolder(name string) (ProjectInfo, error) {
 // SwitchProject 切换到指定 ID 的项目。
 func (a *App) SwitchProject(projectID string) error {
 	if a.fc == nil || a.fc.ProjectRegistry == nil {
-		return fmt.Errorf("SwitchProject: 项目注册表未初始化")
+		return fmt.Errorf("switchProject: 项目注册表未初始化")
 	}
 
 	rec, ok := a.fc.ProjectRegistry.Lookup(projectID)
 	if !ok {
-		return fmt.Errorf("SwitchProject: 项目 %q 不存在", projectID)
+		return fmt.Errorf("switchProject: 项目 %q 不存在", projectID)
 	}
 	if err := domains.ValidateProjectPath(rec.RootPath); err != nil {
-		return fmt.Errorf("SwitchProject: 项目路径不可用: %w", err)
+		return fmt.Errorf("switchProject: 项目路径不可用: %w", err)
 	}
 
 	if err := a.setCurrentProject(rec.ProjectID, rec.RootPath); err != nil {

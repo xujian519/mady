@@ -177,6 +177,49 @@ type toolBridge interface {
 	CallTool(ctx context.Context, name string, arguments map[string]any) (*ToolResult, error)
 }
 
+// rpcCaller abstracts the JSON-RPC call mechanism shared by Client and HTTPClient.
+type rpcCaller interface {
+	call(ctx context.Context, method string, params any, out any) error
+}
+
+// paginatedListTools implements the paginated tools/list logic shared by
+// both stdio Client and HTTPClient via a common rpcCaller interface.
+func paginatedListTools(ctx context.Context, caller rpcCaller) ([]Tool, error) {
+	var out []Tool
+	cursor := ""
+	for {
+		params := map[string]any{}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+		var result toolListResult
+		if err := caller.call(ctx, "tools/list", params, &result); err != nil {
+			return nil, err
+		}
+		out = append(out, result.Tools...)
+		if result.NextCursor == "" {
+			return out, nil
+		}
+		cursor = result.NextCursor
+	}
+}
+
+// callToolCommon implements the tools/call logic shared by both stdio Client
+// and HTTPClient via a common rpcCaller interface.
+func callToolCommon(ctx context.Context, caller rpcCaller, name string, arguments map[string]any) (*ToolResult, error) {
+	if arguments == nil {
+		arguments = map[string]any{}
+	}
+	var result ToolResult
+	if err := caller.call(ctx, "tools/call", map[string]any{
+		"name":      name,
+		"arguments": arguments,
+	}, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // NewStdioClient creates a new MCP client over stdio transport and
 // performs the MCP initialize handshake.
 func NewStdioClient(ctx context.Context, cfg StdioConfig) (*Client, error) {
@@ -269,38 +312,12 @@ func (c *Client) initialize(ctx context.Context) error {
 
 // ListTools retrieves the full list of tools from the MCP server.
 func (c *Client) ListTools(ctx context.Context) ([]Tool, error) {
-	var out []Tool
-	cursor := ""
-	for {
-		params := map[string]any{}
-		if cursor != "" {
-			params["cursor"] = cursor
-		}
-		var result toolListResult
-		if err := c.call(ctx, "tools/list", params, &result); err != nil {
-			return nil, err
-		}
-		out = append(out, result.Tools...)
-		if result.NextCursor == "" {
-			return out, nil
-		}
-		cursor = result.NextCursor
-	}
+	return paginatedListTools(ctx, c)
 }
 
 // CallTool invokes a tool on the MCP server with the given arguments.
 func (c *Client) CallTool(ctx context.Context, name string, arguments map[string]any) (*ToolResult, error) {
-	if arguments == nil {
-		arguments = map[string]any{}
-	}
-	var result ToolResult
-	if err := c.call(ctx, "tools/call", map[string]any{
-		"name":      name,
-		"arguments": arguments,
-	}, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
+	return callToolCommon(ctx, c, name, arguments)
 }
 
 // AgentTools converts MCP tools to agentcore Tool definitions.

@@ -562,21 +562,6 @@ func (r *SupervisorRegistry) StopAll() {
 	}
 }
 
-type CloudBrowserProvider interface {
-	ProviderName() string
-	IsConfigured() bool
-	CreateSession(taskID string) (map[string]string, error)
-	CloseSession(sessionID string) error
-	EmergencyCleanup(sessionID string)
-}
-
-type CloudSessionInfo struct {
-	SessionName string
-	SessionID   string
-	CDPURL      string
-	Features    map[string]bool
-}
-
 type BrowserBackendType string
 
 const (

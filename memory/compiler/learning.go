@@ -94,7 +94,7 @@ func (c *Compiler) StartTurn(goal string) (guidance string, strategyID string) {
 // Trace signal quality (ClassifyQuality) affects the weight of the update:
 // HIGH_SIGNAL traces count fully, MEDIUM_SIGNAL count as 0.5, NOISE is skipped.
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：记忆编译器 FinishTurn，含质量加权多分支统计
 func (c *Compiler) FinishTurn(trace ExecutionTrace) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

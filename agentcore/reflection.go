@@ -115,7 +115,7 @@ func NewReflectionEngine(config ReflectionConfig) *ReflectionEngine {
 // domain 是可选的领域标识（如 "patent", "legal"），用于领域关键词检查。
 // roleID 是可选的角色标识，用于指定关键词检查范围。
 //
-//nolint:gocognit
+//nolint:gocognit // 原因：反思检查引擎，含多维度质量评估和关键词检查
 func (e *ReflectionEngine) Reflect(content string, domain, roleID string) ReflectionResult {
 	if strings.TrimSpace(content) == "" {
 		return ReflectionResult{

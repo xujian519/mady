@@ -12,12 +12,10 @@ import (
 
 	"github.com/xujian519/mady/acp"
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/domains"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
-	"github.com/xujian519/mady/tools"
 )
 
 func runAcp(ctx context.Context) error {
@@ -37,16 +35,7 @@ func runAcp(ctx context.Context) error {
 	cfg := domains.UnifiedAgentConfig(fc.BaseConfig, unifiedExt, patentExt, legalExt)
 	// ACP 运行在无交互的编辑器环境中，危险工具默认拒绝。
 	cfg.Extensions = append(cfg.Extensions,
-		permission.NewExtension(permission.Policy{
-			Mode: permission.DecisionAllow,
-			Deny: []permission.Rule{
-				{Tool: tools.ToolBash},
-				{Tool: tools.ToolProcess},
-				{Tool: tools.ToolExecuteCode},
-				{Tool: tools.ToolBrowser},
-				{Tool: tools.ToolComputerUse},
-			},
-		}, permission.AlwaysDenyApprover{}),
+		denyDangerousToolsExtension(),
 	)
 	if fc.KnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, fc.KnowledgeExt)
