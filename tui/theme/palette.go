@@ -15,7 +15,7 @@ type Palette struct {
 	Accent, Muted, BorderMuted, Border, BorderAccent        Style
 	SelectHighlight, SelectDescription                      Style
 	SelectionBg                                             Style
-	SettingsKey, SettingsValueSelected                      Style
+	SettingsKey, SettingsValueSelected, Warning             Style
 	LoaderSpinner, ProgressPrompt, ProgressCompletion       Style
 	Thinking                                                Style
 
@@ -169,6 +169,7 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 	if FgParams(sem.Warning, mode) == "" {
 		p.SettingsValueSelected = NewStyle().Fg(BrightYellow)
 	}
+	p.Warning = p.SettingsValueSelected
 
 	spin := sem.LoaderSpinner
 	if spin == "" {

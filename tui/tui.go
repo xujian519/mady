@@ -81,6 +81,10 @@ type TUIOptions struct {
 	// This is useful for intercepting quit events, implementing confirm
 	// dialogs, or globally transforming messages.
 	Filter func(c core.Component, msg core.Msg) core.Msg
+
+	// WindowTitle sets the terminal window title via OSC 0 sequence when
+	// the TUI starts. Empty string (default) leaves the title unchanged.
+	WindowTitle string
 }
 
 // TUIOption is a functional option for configuring a TUI.
@@ -136,6 +140,15 @@ func WithAltScreen() TUIOption {
 func WithMouse(mode string) TUIOption {
 	return func(o *TUIOptions) {
 		o.MouseMode = mode
+	}
+}
+
+// WithWindowTitle sets the terminal window title displayed in the terminal
+// tab or title bar. The title is set when the TUI starts (in Start).
+// Example: WithWindowTitle("Mady — 审查意见答复")
+func WithWindowTitle(title string) TUIOption {
+	return func(o *TUIOptions) {
+		o.WindowTitle = title
 	}
 }
 

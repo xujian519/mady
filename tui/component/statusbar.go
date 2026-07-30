@@ -39,6 +39,8 @@ type StatusBar struct {
 	caseName     string // current case/thread name
 	pendingCount int    // pending review items, 0 = hide
 	persisted    bool   // session save state indicator
+
+	width int64 // terminal width for responsive layout
 }
 
 func NewStatusBar() *StatusBar {
@@ -104,6 +106,13 @@ func (s *StatusBar) SetPersisted(saved bool) {
 	s.mu.Unlock()
 }
 
+// SetWidth records the terminal width for responsive rendering.
+func (s *StatusBar) SetWidth(w int64) {
+	s.mu.Lock()
+	s.width = w
+	s.mu.Unlock()
+}
+
 func (s *StatusBar) Busy() {
 	s.mu.Lock()
 	s.running = true
@@ -136,7 +145,7 @@ func (s *StatusBar) Render(width int64) []string {
 		elapsed := time.Since(s.start)
 		left.WriteString(p.LoaderSpinner.Render(theme.SymbolThinking + " " + formatDuration(elapsed)))
 		// Streaming rate indicator — compact, only on wide terminals.
-		if s.tokPerSec > 0 && width > 100 {
+		if s.tokPerSec > 0 && width >= 100 {
 			left.WriteString(" " + p.Dim.Render(fmt.Sprintf("%s/s", formatTokenRate(s.tokPerSec))))
 		}
 	} else if s.agent != "" {
@@ -144,14 +153,16 @@ func (s *StatusBar) Render(width int64) []string {
 	}
 
 	// Right cluster: case name + pending count (compact).
-	if s.caseName != "" {
-		right.WriteString(" " + p.Dim.Render(s.caseName))
-	}
-	if s.pendingCount > 0 {
-		right.WriteString(" " + p.Accent.Render(fmt.Sprintf("⚖%d", s.pendingCount)))
+	if width >= 80 {
+		if s.caseName != "" {
+			right.WriteString(" " + p.Dim.Render(s.caseName))
+		}
+		if s.pendingCount > 0 {
+			right.WriteString(" " + p.Accent.Render(fmt.Sprintf("⚖%d", s.pendingCount)))
+		}
 	}
 	// Context bar — only on wide terminals; it's diagnostic, not primary.
-	if s.ctxTotal > 0 && s.ctxUsed >= 0 && width > 120 {
+	if s.ctxTotal > 0 && s.ctxUsed >= 0 && width >= 100 {
 		right.WriteString(" " + renderContextBar(s.ctxUsed, s.ctxTotal, p))
 	}
 

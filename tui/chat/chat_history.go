@@ -236,11 +236,11 @@ type ChatHistory struct {
 	pendingCount int
 
 	// search state for / search mode
-	searchActive bool     // true while search mode is active
-	searchQuery  string   // current search term
-	searchMatch  []int    // indices of matching messages in messages[]
-	searchIdx    int      // index into searchMatch (current selection)
-	searchEsc    bool     // true: next Esc exits search; false: also searches literal '/'
+	searchActive bool   // true while search mode is active
+	searchQuery  string // current search term
+	searchMatch  []int  // indices of matching messages in messages[]
+	searchIdx    int    // index into searchMatch (current selection)
+	searchEsc    bool   // true: next Esc exits search; false: also searches literal '/'
 }
 
 // NewChatHistory returns an empty history using the default theme.
@@ -299,6 +299,24 @@ func (h *ChatHistory) SetOnCopy(fn func(text string)) {
 	h.mu.Lock()
 	h.onCopy = fn
 	h.mu.Unlock()
+}
+
+// ToggleFoldAtViewportCenter toggles the fold state (tool group / thinking
+// segment) at the viewport's center line. Returns true if a fold was toggled.
+// This enables keyboard-based fold toggling via Space/Enter.
+func (h *ChatHistory) ToggleFoldAtViewportCenter() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.maxRows <= 0 || len(h.cachedAll) == 0 {
+		return false
+	}
+	centerLine := h.offset + h.maxRows/2
+	// Clamp to content boundaries
+	total := int64(len(h.cachedAll))
+	if centerLine >= total {
+		centerLine = total - 1
+	}
+	return h.tryToggleThinkingAtLineLocked(centerLine)
 }
 
 // SetScrollbarEnabled enables or disables the visual scrollbar on the right edge.

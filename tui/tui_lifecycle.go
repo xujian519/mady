@@ -10,6 +10,7 @@ import (
 	"time"
 
 	core "github.com/xujian519/mady/tui/core"
+	"github.com/xujian519/mady/tui/terminal"
 )
 
 // Start begins input and render loops. Non-blocking.
@@ -75,6 +76,11 @@ func (t *TUI) Start() error {
 	}
 
 	t.enableMouse(t.options.MouseMode)
+
+	// Set the terminal window title if configured.
+	if t.options.WindowTitle != "" {
+		_, _ = t.term.Write([]byte(terminal.SetWindowTitle(t.options.WindowTitle)))
+	}
 
 	go t.eventLoop()
 	go t.startWatchdog()

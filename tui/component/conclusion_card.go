@@ -1,5 +1,14 @@
 package component
 
+// 输出示例（宽 50 列）：
+//
+//	▌ 分析结论
+//	  置信度: ████████░░ 80%  高
+//	  支持证据: 3  ·  反对证据: 1
+//	  分类: 创造性 · 非显而易见
+//	  ──────────────────────────────────
+//	  基于现有技术分析，该技术方案...
+
 // conclusion_card.go renders a professional conclusion card with confidence bar,
 // evidence counts, classification label, and body text.
 

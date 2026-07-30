@@ -45,7 +45,7 @@ func NewLoader(onRequestRender func(), message string) *Loader {
 	}
 	return &Loader{
 		onRequestRender: onRequestRender,
-		style:           core.SpinnerDots,
+		style:           core.SpinnerMady,
 		message:         message,
 	}
 }

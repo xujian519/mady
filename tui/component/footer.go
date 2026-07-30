@@ -57,6 +57,18 @@ func defaultGroups() []FooterGroup {
 			},
 		},
 		{
+			Label: "fold",
+			Items: []FooterItem{
+				{Key: "Alt+F", Desc: "fold"},
+			},
+		},
+		{
+			Label: "theme",
+			Items: []FooterItem{
+				{Key: "Ctrl+Alt+T", Desc: "theme"},
+			},
+		},
+		{
 			Label: "commands",
 			Items: []FooterItem{
 				{Key: "Ctrl+P", Desc: "cmd"},
@@ -121,12 +133,19 @@ func (f *Footer) Render(width int64) []string {
 	// Select groups based on available width.
 	var visible []FooterGroup
 	if compact || width < 80 {
-		// Compact: only first 3 groups (help, cmd, quit).
-		// width < 80 is a safety net in case SetCompact hasn't been called yet.
-		if len(groups) > 3 {
-			visible = groups[:3]
+		if width < 60 {
+			// Ultra-narrow: only the first group's first item (? help).
+			if len(groups) > 0 {
+				visible = groups[:1]
+			}
 		} else {
-			visible = groups
+			// Compact: only first 3 groups (help, cmd, quit).
+			// width < 80 is a safety net in case SetCompact hasn't been called yet.
+			if len(groups) > 3 {
+				visible = groups[:3]
+			} else {
+				visible = groups
+			}
 		}
 	} else if width < 160 {
 		// Standard: show up to 5 groups.

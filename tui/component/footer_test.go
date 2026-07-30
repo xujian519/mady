@@ -52,7 +52,7 @@ func TestFooterWidthFallback(t *testing.T) {
 func TestFooterRegisterGroup(t *testing.T) {
 	f := NewFooter()
 	f.RegisterGroup("search", FooterItem{Key: "/", Desc: "search"})
-	lines := f.Render(120)
+	lines := f.Render(200) // ≥160 shows all groups
 	if !strings.Contains(lines[0], "search") {
 		t.Fatalf("expected 'search' in footer after RegisterGroup, got %q", lines[0])
 	}

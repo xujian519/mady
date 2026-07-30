@@ -3,10 +3,44 @@ package theme
 import (
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 )
 
 var themeChangeHook atomic.Pointer[func()]
+
+// ToggleTheme switches between the built-in light and dark semantic themes.
+// It is safe to call concurrently; the first call infers the current theme
+// from CurrentPalette() if SetSemanticTheme has not been called yet.
+func ToggleTheme() {
+	toggleMu.Lock()
+	defer toggleMu.Unlock()
+	mode := ColorModeFromEnv()
+	// If isDark was never initialized, infer from the current palette.
+	if !isDarkInitialized.Load() {
+		if p := CurrentPalette(); p != nil && p.Semantic != nil {
+			isDark.Store(p.Semantic.Background == "#07111F")
+		} else {
+			// Default to dark if no palette available.
+			isDark.Store(true)
+		}
+		isDarkInitialized.Store(true)
+	}
+	var sem *SemanticTheme
+	if isDark.Load() {
+		sem = DefaultSemanticLight()
+	} else {
+		sem = DefaultMadyDark()
+	}
+	isDark.Store(!isDark.Load())
+	SetSemanticTheme(sem, mode)
+}
+
+var (
+	toggleMu          sync.Mutex
+	isDark            atomic.Bool // tracks the last SetSemanticTheme call for toggling
+	isDarkInitialized atomic.Bool // false until ToggleTheme or SetSemanticTheme sets isDark
+)
 
 // SetOnSemanticThemeChange registers a callback invoked after each successful
 // SetSemanticTheme (including JSON reload). Pass nil to clear.
@@ -45,6 +79,9 @@ func SetSemanticTheme(sem *SemanticTheme, mode ColorMode) {
 	if sem == nil {
 		sem = DefaultSemanticLight()
 	}
+	// Track whether the current theme is dark for ToggleTheme.
+	isDark.Store(sem.Background == "#07111F")
+	isDarkInitialized.Store(true)
 	SyncPaletteGlobals(sem, mode)
 	fireThemeChange()
 }

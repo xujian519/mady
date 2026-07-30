@@ -36,4 +36,11 @@ var (
 		Frames:   []string{"◐", "◓", "◑", "◒"},
 		Interval: 120 * time.Millisecond,
 	}
+	// SpinnerMady is the Mady brand spinner — a diamond rotation that
+	// echoes the "中观" (middle view) philosophy: balanced, steady, precise.
+	// Used as the default spinner in the Loader and status indicators.
+	SpinnerMady = SpinnerStyle{
+		Frames:   []string{"◈", "◆", "◇", "◆"},
+		Interval: 100 * time.Millisecond,
+	}
 )

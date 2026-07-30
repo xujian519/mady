@@ -1,5 +1,16 @@
 package component
 
+// 输出示例（宽 50 列）：
+//
+//	══════════════════════════════════════
+//	  复核门
+//	══════════════════════════════════════
+//	  当前判断...
+//	  置信度: ████████░░ 80% (高)
+//	  ▸ ▼ 证据标题  [confirmed]
+//	  [p] 通过  [b] 返回  [f] 阻塞  Esc
+//	══════════════════════════════════════
+
 // review_gate.go — ReviewGate overlay component for structured review.
 //
 // The ReviewGate renders as a full-panel overlay with:

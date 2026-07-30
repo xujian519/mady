@@ -50,6 +50,13 @@ func CursorPosition(row, col int64) string {
 // ClearToEndOfLine clears from cursor to end of line.
 func ClearToEndOfLine() string { return Esc + "0K" }
 
+// SetWindowTitle returns an OSC escape sequence to set the terminal window
+// title (icon name + window title). Uses OSC 0 sequence: ESC ] 0 ; title BEL.
+// This is widely supported by xterm, iTerm2, Kitty, WezTerm, and Terminal.app.
+func SetWindowTitle(title string) string {
+	return "\x1b]0;" + title + "\x07"
+}
+
 // escn formats "ESC<n>Suffix" (e.g. "ESC[5A" for cursor up 5).
 func escn(suffix string, n int64) string {
 	if n <= 0 {

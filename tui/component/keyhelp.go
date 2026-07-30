@@ -1,6 +1,24 @@
 package component
 
+// keyhelp.go — KeyHelp overlay component.
+//
+// Displays keyboard shortcuts as a reference overlay. Supports both
+// static groups (for documented shortcuts) and dynamic extraction from
+// the keybinding manager. Triggered by pressing "?" in the footer.
+//
+// 输出示例（宽 50 列）：
+//
+//	▎ 快捷键帮助
+//	────────────────────────────────────
+//	 导航 (Navigation)
+//	   ↑↓ / j/k — 上下滚动
+//	   / — 搜索对话
+//	  ...
+//	────────────────────────────────────
+//	↑↓ scroll · Esc 关闭
+
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -10,288 +28,335 @@ import (
 	"github.com/xujian519/mady/tui/theme"
 )
 
-// ---------------------------------------------------------------------------
-// KeyHelp — a Component that renders a two-column help panel listing every
-// registered keybinding (grouped by the "category" prefix of their ID).
-//
-// Typical usage — overlay with PushOverlay:
-//
-//	helpComp := component.NewKeyHelp(km)
-//	ov := tui.NewCenteredOverlay(helpComp, 70, 70)
-//	tuiApp.PushOverlay(ov)
-//
-// The component itself has no input bindings — closing the overlay is the
-// caller's responsibility (typically bound to Escape or the same key that
-// opened it).
-// ---------------------------------------------------------------------------
-
-// KeyHelp renders the keybindings registered on a KeybindingsManager.
-type KeyHelp struct {
-	mu sync.RWMutex
-
-	km       *terminal.KeybindingsManager
-	title    string
-	filter   string
-	maxRows  int64
-	offset   int64
-	groupBy  string // prefix separator, default "."
-	override map[string]string
-
-	onClose func() // called on Esc; set by caller to close the overlay
-
-	cacheWidth int64
-	cacheLines []string
-	dirty      bool
+// KeyHelpGroup is a named category of keyboard shortcuts shown in the help panel.
+type KeyHelpGroup struct {
+	Label string
+	Items []KeyHelpItem
 }
 
-// NewKeyHelp constructs a KeyHelp bound to the given manager.
+// KeyHelpItem is a single shortcut description.
+type KeyHelpItem struct {
+	Keys string // e.g. "↑↓ / j/k"
+	Desc string // e.g. "上下滚动"
+}
+
+// KeyHelp renders a keyboard shortcut reference panel.
+// It can display both static groups and bindings from the keybinding manager.
+type KeyHelp struct {
+	mu          sync.RWMutex
+	title       string
+	km          *terminal.KeybindingsManager
+	groups      []KeyHelpGroup // static groups (shown before dynamic bindings)
+	filter      string         // text filter
+	scroll      int64
+	maxRows     int64 // 0 = no limit
+	onClose     func()
+	onRequestFn func()
+}
+
+// NewKeyHelp creates a KeyHelp overlay from the given keybinding manager.
+// Static default groups are merged with dynamic bindings from the manager.
 func NewKeyHelp(km *terminal.KeybindingsManager) *KeyHelp {
+	if km == nil {
+		km = terminal.NewKeybindingsManager(nil)
+	}
 	return &KeyHelp{
-		km:      km,
-		title:   "Keybindings",
-		groupBy: ".",
-		dirty:   true,
+		title:  "快捷键帮助 (Keybindings)",
+		km:     km,
+		groups: defaultKeyHelpGroups(),
 	}
 }
 
-// SetTitle overrides the panel title (default "Keybindings").
+// SetTitle overrides the panel title.
 func (h *KeyHelp) SetTitle(t string) {
 	h.mu.Lock()
 	h.title = t
-	h.dirty = true
 	h.mu.Unlock()
 }
 
-// SetOnClose registers a callback for when Esc is pressed (closes the overlay).
-func (h *KeyHelp) SetOnClose(fn func()) {
+// SetFilter narrows displayed bindings to those matching the text.
+func (h *KeyHelp) SetFilter(text string) {
+	h.mu.Lock()
+	h.filter = text
+	h.mu.Unlock()
+}
+
+// SetMaxRows clamps the visible viewport.
+func (h *KeyHelp) SetMaxRows(n int64) {
+	h.mu.Lock()
+	h.maxRows = n
+	h.mu.Unlock()
+}
+
+// OnClose sets a callback invoked when the overlay is dismissed.
+func (h *KeyHelp) OnClose(fn func()) {
 	h.mu.Lock()
 	h.onClose = fn
 	h.mu.Unlock()
 }
 
-// SetFilter restricts the display to bindings whose ID or description
-// contains the substring (case-insensitive). Empty string clears the filter.
-func (h *KeyHelp) SetFilter(s string) {
-	h.mu.Lock()
-	h.filter = strings.ToLower(s)
-	h.offset = 0
-	h.dirty = true
-	h.mu.Unlock()
-}
+// SetOnClose is an alias for OnClose, matching the overlay pattern.
+func (h *KeyHelp) SetOnClose(fn func()) { h.OnClose(fn) }
 
-// SetOverrideLabel maps an ID to a human label (e.g. "Quit application")
-// shown instead of the ID. Useful when you want friendly names.
-func (h *KeyHelp) SetOverrideLabel(id, label string) {
-	h.mu.Lock()
-	if h.override == nil {
-		h.override = map[string]string{}
+// Close dismisses the overlay.
+func (h *KeyHelp) Close() {
+	h.mu.RLock()
+	fn := h.onClose
+	h.mu.RUnlock()
+	if fn != nil {
+		fn()
 	}
-	h.override[id] = label
-	h.dirty = true
-	h.mu.Unlock()
 }
 
-// SetMaxRows clamps the scrollable viewport.
-func (h *KeyHelp) SetMaxRows(n int64) {
+// ScrollBy adjusts the scroll offset.
+func (h *KeyHelp) ScrollBy(n int64) {
 	h.mu.Lock()
-	if h.maxRows == n {
-		h.mu.Unlock()
-		return
+	h.scroll += n
+	if h.scroll < 0 {
+		h.scroll = 0
 	}
-	h.maxRows = n
-	h.dirty = true
 	h.mu.Unlock()
+	h.requestRender()
 }
 
-// ScrollBy pages through a long binding list.
-func (h *KeyHelp) ScrollBy(delta int64) {
+// SetOnRequestRender wires a render request callback.
+func (h *KeyHelp) SetOnRequestRender(fn func()) {
 	h.mu.Lock()
-	h.offset += delta
-	if h.offset < 0 {
-		h.offset = 0
-	}
-	h.dirty = true
+	h.onRequestFn = fn
 	h.mu.Unlock()
 }
 
-// Render produces the help panel for the given width.
+func (h *KeyHelp) requestRender() {
+	h.mu.RLock()
+	fn := h.onRequestFn
+	h.mu.RUnlock()
+	if fn != nil {
+		fn()
+	}
+}
+
+func (h *KeyHelp) Invalidate() {}
+
 func (h *KeyHelp) Render(width int64) []string {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if !h.dirty && h.cacheWidth == width && h.cacheLines != nil {
-		return h.cacheLines
+	h.mu.RLock()
+	title := h.title
+	groups := h.groups
+	filter := h.filter
+	scroll := h.scroll
+	maxRows := h.maxRows
+	h.mu.RUnlock()
+
+	if width < 10 {
+		width = 10
 	}
 
-	h.cacheLines = h.renderLocked(width)
-	h.cacheWidth = width
-	h.dirty = false
-	return h.cacheLines
-}
+	pal := theme.CurrentPalette()
 
-// Invalidate forces a re-render on next frame.
-func (h *KeyHelp) Invalidate() {
-	h.mu.Lock()
-	h.dirty = true
-	h.mu.Unlock()
+	// Collect lines
+	var lines []string
+
+	// Title
+	lines = append(lines, core.PadToWidth(pal.Accent.Render("▎ "+title), width))
+	lines = append(lines, pal.BorderMuted.Render(strings.Repeat("─", int(width))))
+
+	// Static groups
+	for _, g := range groups {
+		shown := false
+		if filter != "" {
+			// Filter mode: only show items matching filter
+			for _, item := range g.Items {
+				if !strings.Contains(strings.ToLower(item.Keys+item.Desc), strings.ToLower(filter)) {
+					continue
+				}
+				if !shown {
+					lines = append(lines, "  "+pal.Dim.Render(g.Label))
+					shown = true
+				}
+				itemLine := "   " + pal.Accent.Render(item.Keys) + " — " + pal.Muted.Render(item.Desc)
+				itemLine = core.TruncateToWidth(itemLine, width-2, "…")
+				lines = append(lines, core.PadToWidth(itemLine, width))
+			}
+		} else {
+			lines = append(lines, "  "+pal.Dim.Render(g.Label))
+			for _, item := range g.Items {
+				itemLine := "   " + pal.Accent.Render(item.Keys) + " — " + pal.Muted.Render(item.Desc)
+				itemLine = core.TruncateToWidth(itemLine, width-2, "…")
+				lines = append(lines, core.PadToWidth(itemLine, width))
+			}
+		}
+		lines = append(lines, pal.BorderMuted.Render(strings.Repeat("─", int(width))))
+	}
+
+	// Dynamic bindings from keybinding manager
+	allDefIDs := h.km.All()
+	if len(allDefIDs) > 0 && filter == "" {
+		// Sort by ID
+		ids := make([]string, 0, len(allDefIDs))
+		for id := range allDefIDs {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+		// Only show first 30 to avoid overwhelming the overlay
+		maxShown := 30
+		if len(ids) > maxShown {
+			ids = ids[:maxShown]
+		}
+		lines = append(lines, "  "+pal.Dim.Render(fmt.Sprintf("其他绑定 (%d)", len(allDefIDs))))
+		for _, id := range ids {
+			keys := allDefIDs[id]
+			def := h.km.Definition(id)
+			desc := def.Description
+			if desc == "" {
+				desc = id
+			}
+			keysStr := joinKeyIDs(keys)
+			itemLine := "   " + pal.Accent.Render(keysStr) + " — " + pal.Muted.Render(desc)
+			itemLine = core.TruncateToWidth(itemLine, width-2, "…")
+			lines = append(lines, core.PadToWidth(itemLine, width))
+		}
+		lines = append(lines, pal.BorderMuted.Render(strings.Repeat("─", int(width))))
+	} else if filter != "" && len(allDefIDs) > 0 {
+		// Show matching dynamic bindings
+		for id, keys := range allDefIDs {
+			def := h.km.Definition(id)
+			desc := def.Description
+			if desc == "" {
+				desc = id
+			}
+			if !strings.Contains(strings.ToLower(id+desc), strings.ToLower(filter)) {
+				continue
+			}
+			keysStr := joinKeyIDs(keys)
+			itemLine := "   " + pal.Accent.Render(keysStr) + " — " + pal.Muted.Render(desc)
+			itemLine = core.TruncateToWidth(itemLine, width-2, "…")
+			lines = append(lines, core.PadToWidth(itemLine, width))
+		}
+	}
+
+	// Footer hint
+	if filter != "" {
+		lines = append(lines, core.PadToWidth(pal.Dim.Render(fmt.Sprintf("  过滤: %s  ↑↓ 翻页  Esc 关闭", filter)), width))
+	} else {
+		lines = append(lines, core.PadToWidth(pal.Dim.Render("  ↑↓ 翻页  Esc 关闭"), width))
+	}
+
+	// Apply scroll offset BEFORE viewport clipping so scroll effectively
+	// pans through the full content, then clamps to maxRows.
+	if scroll > 0 {
+		if scroll >= int64(len(lines)) {
+			scroll = int64(len(lines)) - 1
+		}
+		if scroll < 0 {
+			scroll = 0
+		}
+		lines = lines[scroll:]
+	}
+
+	// Viewport clipping: after scroll, clamp to maxRows.
+	if maxRows > 0 && int64(len(lines)) > maxRows {
+		lines = lines[:maxRows]
+	}
+
+	return lines
 }
 
 func (h *KeyHelp) Update(msg core.Msg) core.Cmd {
 	switch m := msg.(type) {
 	case core.KeyMsg:
-		data := m.Data
-		switch {
-		case terminal.MatchesKey(data, "up"):
-			h.ScrollBy(-1)
-		case terminal.MatchesKey(data, "down"):
-			h.ScrollBy(1)
-		case terminal.MatchesKey(data, "pgup"):
-			h.ScrollBy(-5)
-		case terminal.MatchesKey(data, "pgdown"):
-			h.ScrollBy(5)
-		case terminal.MatchesKey(data, "escape") || data == "\x1b":
-			h.mu.RLock()
-			fn := h.onClose
-			h.mu.RUnlock()
-			if fn != nil {
-				fn()
+		for _, k := range terminal.ParseKeys(m.Data, m.KittyFlags) {
+			name := strings.ToLower(k.Name)
+			switch name {
+			case "escape":
+				h.Close()
+				return nil
+			case "up", "k":
+				h.ScrollBy(-1)
+			case "down", "j":
+				h.ScrollBy(1)
+			case "pageup":
+				h.ScrollBy(-10)
+			case "pagedown":
+				h.ScrollBy(10)
+			case "home":
+				h.mu.Lock()
+				h.scroll = 0
+				h.mu.Unlock()
+				h.requestRender()
+			case "end":
+				h.mu.Lock()
+				h.scroll = 1 << 30
+				h.mu.Unlock()
+				h.requestRender()
 			}
 		}
-	case core.WindowSizeMsg:
-		h.Invalidate()
 	}
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// Internals
-// ---------------------------------------------------------------------------
-
-type kbRow struct {
-	group string
-	id    string
-	label string
-	keys  string
-	desc  string
+// defaultKeyHelpGroups returns the complete set of keyboard shortcuts
+// organized by category for the chat TUI.
+func defaultKeyHelpGroups() []KeyHelpGroup {
+	return []KeyHelpGroup{
+		{
+			Label: "导航 (Navigation)",
+			Items: []KeyHelpItem{
+				{Keys: "↑↓ / j/k", Desc: "上下滚动"},
+				{Keys: "PgUp/PgDn", Desc: "翻页"},
+				{Keys: "Home/End", Desc: "顶部/尾部"},
+				{Keys: "Alt+↑/↓", Desc: "逐行滚动"},
+				{Keys: "/", Desc: "搜索对话"},
+				{Keys: "Tab", Desc: "切换焦点"},
+			},
+		},
+		{
+			Label: "编辑 (Editor)",
+			Items: []KeyHelpItem{
+				{Keys: "Enter", Desc: "发送消息"},
+				{Keys: "Ctrl+A/E", Desc: "行首/行尾"},
+				{Keys: "Ctrl+B/F", Desc: "左移/右移"},
+				{Keys: "Ctrl+U/K", Desc: "删至行首/尾"},
+				{Keys: "Ctrl+Y", Desc: "召回上条输入"},
+				{Keys: "Ctrl+W", Desc: "删除前一词"},
+				{Keys: "Esc", Desc: "弹出自动补全"},
+			},
+		},
+		{
+			Label: "折叠 (Collapse)",
+			Items: []KeyHelpItem{
+				{Keys: "Alt+F", Desc: "切换折叠/展开"},
+				{Keys: "鼠标点击", Desc: "切换工具组/思维段"},
+			},
+		},
+		{
+			Label: "系统 (System)",
+			Items: []KeyHelpItem{
+				{Keys: "Ctrl+P", Desc: "命令面板"},
+				{Keys: "Ctrl+C / Ctrl+Q", Desc: "退出"},
+				{Keys: "Ctrl+T", Desc: "任务面板"},
+				{Keys: "Ctrl+Shift+D", Desc: "调试面板"},
+				{Keys: "Ctrl+Alt+T", Desc: "切换主题"},
+				{Keys: "F2", Desc: "鼠标穿透模式"},
+			},
+		},
+		{
+			Label: "专业操作 (Domain)",
+			Items: []KeyHelpItem{
+				{Keys: "s (展开时)", Desc: "系统状态"},
+				{Keys: "e (展开时)", Desc: "证据浮层"},
+				{Keys: "p/b/f", Desc: "审阅门控操作"},
+			},
+		},
+	}
 }
 
-func (h *KeyHelp) collectRows() []kbRow {
-	if h.km == nil {
-		return nil
-	}
-	all := h.km.All()
-	rows := make([]kbRow, 0, len(all))
-	for id, keys := range all {
-		def := h.km.Definition(id)
-		group, rest := splitGroup(id, h.groupBy)
-		label := rest
-		if v, ok := h.override[id]; ok {
-			label = v
-		}
-		rows = append(rows, kbRow{
-			group: group,
-			id:    id,
-			label: label,
-			keys:  formatKeyList(keys),
-			desc:  def.Description,
-		})
-	}
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].group != rows[j].group {
-			return rows[i].group < rows[j].group
-		}
-		return rows[i].id < rows[j].id
-	})
-	if h.filter != "" {
-		out := rows[:0]
-		for _, r := range rows {
-			if strings.Contains(strings.ToLower(r.id), h.filter) ||
-				strings.Contains(strings.ToLower(r.desc), h.filter) ||
-				strings.Contains(strings.ToLower(r.keys), h.filter) {
-				out = append(out, r)
-			}
-		}
-		rows = out
-	}
-	return rows
-}
+// Ensure KeyHelp implements core.Component.
+var _ core.Component = (*KeyHelp)(nil)
 
-func (h *KeyHelp) renderLocked(width int64) []string {
-	rows := h.collectRows()
-
-	// Compute key column width.
-	var keyCol int64
-	for _, r := range rows {
-		if w := core.VisibleWidth(r.keys); w > keyCol {
-			keyCol = w
-		}
+// joinKeyIDs joins KeyID values into a readable display string.
+func joinKeyIDs(keys []terminal.KeyID) string {
+	strs := make([]string, len(keys))
+	for i, k := range keys {
+		strs[i] = string(k)
 	}
-	if keyCol < 8 {
-		keyCol = 8
-	}
-	if keyCol > width/2 {
-		keyCol = width / 2
-	}
-	labelCol := width - keyCol - 3 // 3 = " • "
-	if labelCol < 10 {
-		labelCol = 10
-	}
-
-	var out []string
-	pal := theme.CurrentPalette()
-	if h.title != "" {
-		out = append(out, pal.User.Render(h.title), pal.Dim.Render(strings.Repeat("─", int(width))))
-	}
-	lastGroup := ""
-	for _, r := range rows {
-		if r.group != lastGroup {
-			if lastGroup != "" {
-				out = append(out, "")
-			}
-			out = append(out, pal.Dim.Italic().Render(r.group))
-			lastGroup = r.group
-		}
-		keys := core.PadToWidth(pal.User.Render(r.keys), keyCol)
-		desc := r.desc
-		if desc == "" {
-			desc = r.label
-		}
-		line := keys + pal.Dim.Render(" • ") + core.TruncateToWidth(desc, labelCol, "…")
-		out = append(out, line)
-	}
-
-	// Pagination.
-	if h.maxRows > 0 && int64(len(out)) > h.maxRows {
-		end := int64(len(out))
-		start := h.offset
-		if start > end-h.maxRows {
-			start = end - h.maxRows
-			if start < 0 {
-				start = 0
-			}
-		}
-		if start < 0 {
-			start = 0
-		}
-		stop := start + h.maxRows
-		if stop > end {
-			stop = end
-		}
-		out = out[start:stop]
-	}
-	return out
-}
-
-func splitGroup(id, sep string) (string, string) {
-	idx := strings.LastIndex(id, sep)
-	if idx < 0 {
-		return id, id
-	}
-	return id[:idx], id[idx+1:]
-}
-
-func formatKeyList(keys []terminal.KeyID) string {
-	if len(keys) == 0 {
-		return "—"
-	}
-	return strings.Join(keys, " / ")
+	return strings.Join(strs, " / ")
 }

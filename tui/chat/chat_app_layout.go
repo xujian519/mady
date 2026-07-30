@@ -359,6 +359,31 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 	case "f2":
 		l.app.ToggleMousePassthrough()
 		return true
+	case "enter", " ":
+		// Space/Enter to toggle fold at viewport center (tool groups,
+		// thinking segments). Only when Ctrl is held, to avoid stealing
+		// the Enter key from the editor (submit) or Space from the input.
+		if k.Mods&terminal.ModCtrl != 0 {
+			if l.app != nil && l.app.State() == StateIdle && l.history != nil {
+				l.history.ToggleFoldAtViewportCenter()
+				if l.app.host != nil {
+					l.app.host.RequestRender()
+				}
+				return true
+			}
+		}
+	case "f":
+		// Alt+F to toggle fold at viewport center (no modifier conflict
+		// with editor or search). F = "Fold".
+		if k.Mods&terminal.ModAlt != 0 {
+			if l.app != nil && l.app.State() == StateIdle && l.history != nil {
+				l.history.ToggleFoldAtViewportCenter()
+				if l.app.host != nil {
+					l.app.host.RequestRender()
+				}
+				return true
+			}
+		}
 	case "v":
 		if k.Mods&(terminal.ModCtrl|terminal.ModSuper|terminal.ModMeta) != 0 &&
 			k.Mods&terminal.ModAlt != 0 {
@@ -398,6 +423,14 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 			return true
 		}
 	case "t":
+		// Ctrl+Alt+T toggles theme; Ctrl+T (without Alt) toggles todo panel.
+		if k.Mods&(terminal.ModCtrl|terminal.ModAlt) == (terminal.ModCtrl | terminal.ModAlt) {
+			theme.ToggleTheme()
+			if l.app != nil && l.app.host != nil {
+				l.app.host.RequestRender()
+			}
+			return true
+		}
 		if k.Mods&terminal.ModCtrl != 0 {
 			l.app.ToggleTodoPanel()
 			return true
@@ -408,6 +441,11 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 			l.app.host.RequestRender()
 		}
 		return true
+	case "question":
+		if l.app != nil {
+			l.app.ToggleKeyHelp()
+			return true
+		}
 	case "c", "insert":
 		return l.handleCopyOrInterrupt(k, name)
 	}

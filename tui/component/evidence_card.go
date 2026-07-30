@@ -1,5 +1,14 @@
 package component
 
+// 输出示例（宽 50 列）：
+//
+//	▌ 证据卡
+//	  ⊕ 支持  file://d1.pdf · p3
+//	  ┃ 对比文件1公开了技术特征A...
+//	  ⊖ 反对  file://d2.pdf · p5
+//	  ┃ 对比文件2未公开区别特征...
+//	  ──────────────────────────────────
+
 // evidence_card.go renders a professional evidence card with source attribution,
 // direction indicator (supporting/contradicting), and collapsible snippet body.
 
