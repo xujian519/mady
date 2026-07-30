@@ -1,0 +1,252 @@
+# =============================================================================
+# 宪法规则默认配置
+#
+# 参考 BCIP 的 35+ 宪法规则系统 (codex-patent-constitutional crate)，
+# 覆盖 13 个专利法阶段：新颖性/创造性/实用性/充分公开/修改超范围/
+# 权利要求清楚/单一性/优先权/侵权/无效/复审/OA答复/撰写
+# =============================================================================
+
+rules:
+
+  # ── 专利法阶段：检索阶段 ──
+  - name: "no_invented_patent_numbers"
+    type: pattern_analysis
+    domain: [patent, legal]
+    phase: [search, novelty_analysis]
+    severity: major
+    action: warn
+    description: "引用专利文献时应确保专利号真实可查"
+    prompt: "引用专利文献时必须提供真实可查的专利号，不得编造"
+    patterns:
+      - "CN\\d{9}[A-Z]?\\d?"        # 中国专利申请号格式
+      - "US\\d{7,11}[A-Z]?\\d?"     # US 专利号格式
+      - "EP\\d{7}[A-Z]?\\d?"        # EP 专利号格式
+      - "WO\\d{4}/\\d{6}"           # PCT 申请号格式
+    blocklist: ["专利号：CN00000000", "专利号:CN00000000"]
+
+  - name: "valid_ipc_classification"
+    type: pattern_analysis
+    domain: [patent]
+    phase: [search, classification]
+    severity: major
+    action: warn
+    description: "IPC 分类号格式不合法"
+    prompt: "IPC 分类号格式为：部(1字母)+大类(2数字)+小类(1字母)+大组(1-3数字)/小组(2-5数字)"
+    patterns:
+      - "[A-H]\\d{2}[A-Z]\\d{1,3}/00\\d{0,2}"   # IPC 标准格式 A01B1/00
+
+  # ── 专利法阶段：审查（新颖性/创造性/实用性）──
+  - name: "novelty_three_element_check"
+    type: section_structure
+    domain: [patent]
+    phase: [novelty_analysis]
+    severity: major
+    action: warn
+    description: "新颖性分析必须包含三步判断"
+    prompt: "新颖性判断必须遵循：1)确定最接近的现有技术 2)确定区别特征 3)判断是否显而易见"
+    section_titles:
+      - "最接近的现有技术"
+      - "区别特征"
+      - "实际解决的技术问题"
+    min_count: 3
+
+  - name: "inventiveness_three_step"
+    type: section_structure
+    domain: [patent]
+    phase: [inventiveness_analysis]
+    severity: major
+    action: warn
+    description: "创造性分析必须包含要素"
+    prompt: "创造性判断分三步：1)确定最接近的现有技术 2)确定区别特征和实际解决的技术问题 3)判断是否显而易见"
+    section_titles:
+      - "区别特征"
+      - "实际解决的技术问题"
+      - "技术启示"
+      - "显而易见"
+    min_count: 3
+
+  # ── 专利法阶段：充分公开（26.3）──
+  - name: "enablement_sufficiency"
+    type: specification
+    domain: [patent]
+    phase: [enablement_check, specification_drafting]
+    severity: critical
+    action: block
+    description: "说明书必须满足充分公开要求"
+    prompt: "说明书应当对发明作出清楚、完整的说明，以所属技术领域的技术人员能够实现为准"
+    required_fields:
+      - "技术方案"
+      - "有益效果"
+      - "具体实施方式"
+
+  # ── 专利法阶段：修改超范围（A33）──
+  - name: "amendment_scope_limit"
+    type: pattern_analysis
+    domain: [patent]
+    phase: [amendment_check, oa_response]
+    severity: critical
+    action: block
+    description: "修改不得超出原说明书和权利要求书记载的范围"
+    prompt: "对申请文件的修改不得超出原说明书和权利要求书记载的范围（专利法第33条）"
+    patterns:
+      - "增加(了)?(新的|额外的|附加的)(技术)?特征(?!记载)"
+      - "补充(了)?(新的|额外的)(实施例|实施方式)"
+
+  # ── 专利法阶段：权利要求清楚支持（26.4）──
+  - name: "claim_clarity_support"
+    type: claim_clarity
+    domain: [patent]
+    phase: [claim_drafting, quality_review]
+    severity: major
+    action: warn
+    description: "权利要求应当以说明书为依据，清楚、简要地限定保护范围"
+    prompt: "权利要求应当以说明书为依据，清楚、简要地限定要求专利保护的范围（专利法第26条第4款）"
+    field_rules:
+      "其特征在于": "所述"
+      "根据权利要求": "其特征在于"
+      "如权利要求": "所述"
+
+  - name: "claim_antecedent_basis"
+    type: claim_clarity
+    domain: [patent]
+    phase: [claim_drafting, quality_review]
+    severity: major
+    action: warn
+    description: "权利要求中的引用基础必须明确"
+    prompt: "从属权利要求的引用部分应当写明引用的权利要求编号及其主题名称"
+    field_rules:
+      "根据权利要求": "所述"
+      "如权利要求": "所述的"
+
+  # ── 专利法阶段：OA 答复 ──
+  - name: "oa_response_structure"
+    type: section_structure
+    domain: [patent]
+    phase: [oa_response]
+    severity: major
+    action: warn
+    description: "OA 答复应包含必要结构"
+    prompt: "答复审查意见通知书应包含：意见陈述、修改说明（如有）、修改文本（如有）"
+    section_titles:
+      - "意见陈述"
+      - "修改说明"
+    min_count: 2
+
+  # ── 专利法阶段：侵权分析 ──
+  - name: "infringement_all_elements"
+    type: section_structure
+    domain: [patent, legal]
+    phase: [infringement_analysis]
+    severity: major
+    action: warn
+    description: "侵权分析应当遵循全面覆盖原则"
+    prompt: "发明或实用新型专利权的保护范围以其权利要求的内容为准，侵权判断应当比对被诉侵权技术方案是否包含与权利要求全部技术特征相同或等同的技术特征"
+    section_titles:
+      - "权利要求技术特征"
+      - "被诉侵权技术方案"
+      - "全面覆盖分析"
+      - "等同分析"
+    min_count: 3
+
+  # ── 专利法阶段：无效宣告 ──
+  - name: "invalidation_grounds"
+    type: keyword_blocklist
+    domain: [patent]
+    phase: [invalidation, reexamination]
+    severity: critical
+    action: review
+    description: "无效宣告理由必须基于法定条款"
+    prompt: "无效宣告请求的理由仅限于专利法实施细则第65条第2款规定的法定理由"
+    blocklist:
+      - "实用性不足"
+      - "技术效果不好"
+      - "成本过高"
+      - "市场前景差"
+
+  # ── 专利法阶段：撰写 ──
+  - name: "specification_completeness"
+    type: specification
+    domain: [patent]
+    phase: [specification_drafting, quality_review]
+    severity: major
+    action: warn
+    description: "说明书必须包含五部分"
+    prompt: "说明书应当包含：技术领域、背景技术、发明内容、附图说明（如有附图）、具体实施方式"
+    required_fields:
+      - "技术领域"
+      - "发明内容"
+      - "具体实施方式"
+
+  - name: "terminology_consistency"
+    type: pattern_analysis
+    domain: [patent]
+    phase: [claim_drafting, specification_drafting]
+    severity: major
+    action: warn
+    description: "术语应当前后一致"
+    prompt: "说明书和权利要求书中的技术术语应当前后一致"
+    patterns:
+      - "(一种|所述)[^。]{5,30}(包括|包含|具有)[^。]*。\\s*[。\\n]"
+    min_count: 1
+    max_count: 50
+
+  # ── 法律分析 ──
+  - name: "legal_citation_standard"
+    type: pattern_analysis
+    domain: [legal]
+    phase: [legal_analysis]
+    severity: major
+    action: warn
+    description: "法律引用必须注明具体条款"
+    prompt: "引用法律法规时必须注明具体条款（第X条），不得仅引用法律名称"
+    patterns:
+      - "根据(?:相关)?(?:法律|法规|规定)(?:[^第]|$)"
+      - "依照(?:相关)?(?:法律|法规|规定)(?:[^第]|$)"
+
+  - name: "legal_reasoning_structure"
+    type: category_detection
+    domain: [legal]
+    phase: [legal_analysis]
+    severity: minor
+    action: info
+    description: "法律分析应包含事实认定和法律适用"
+    prompt: "法律分析应包含：事实认定、法律适用、结论三部分"
+    categories:
+      - "事实认定"
+      - "法律适用"
+
+  # ── 通用 ──
+  - name: "absolute_language"
+    type: keyword_blocklist
+    domain: [patent, legal]
+    phase: [all]
+    severity: major
+    action: warn
+    description: "避免绝对化表述"
+    prompt: '法律分析中使用审慎语言，避免绝对化断言。使用"通常""大概率""根据现有证据"等表述'
+    blocklist:
+      - "绝对"
+      - "一定"
+      - "百分百"
+      - "毫无疑问"
+      - "铁证如山"
+      - "毫无疑问地"
+
+  - name: "confidence_labeling"
+    type: category_detection
+    domain: [patent, legal]
+    phase: [report, analysis]
+    severity: minor
+    action: info
+    description: "结论性陈述应当标注置信度"
+    prompt: "对法律结论或专利性判断应当标注置信度（高/中/低）或说明确定性程度"
+    categories:
+      - "综上所述"
+      - "因此，"
+      - "最终结论"
+      - "经分析"
+    stop_words:
+      - "置信度"
+      - "通常"
+      - "大概率"
+      - "仅供参考"

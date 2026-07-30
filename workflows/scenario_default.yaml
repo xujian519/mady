@@ -1,0 +1,332 @@
+# 场景规则默认配置
+# 参考 BCIP 的 6 场景规则 (codex-patent-agents/scenario.rs)
+scenarios:
+
+  - name: novelty_analysis
+    description: "新颖性分析——判断专利申请或技术方案是否具备新颖性"
+    domain: patent
+    phase: examination
+    legal_basis:
+      laws:
+        - "中华人民共和国专利法第22条"
+        - "专利审查指南第二部分第三章"
+      articles:
+        - "专利法第22条第2款"
+        - "专利法第22条第5款"
+    system_template: |
+      你是一位专利审查员，负责评估技术方案的新颖性。
+
+      请按照以下步骤进行分析：
+      1. 确定最接近的现有技术
+      2. 对比分析区别技术特征
+      3. 判断是否属于现有技术（出版物公开/使用公开/其他方式公开）
+      4. 判断是否存在抵触申请
+
+      注意：
+      - 新颖性判断采用单独对比原则
+      - 对比文件应当是一篇对比文件，不能将多篇对比文件组合
+      - 需要考虑技术领域、技术问题、技术方案和技术效果四方面
+    output_format: |
+      新颖性分析报告：
+      1. 现有技术检索结果
+      2. 权利要求逐项分析
+      3. 结论（具备/不具备新颖性）
+    steps:
+      - id: retrieve
+        name: 现有技术检索
+        tool: patent_search
+      - id: compare
+        name: 特征对比
+        tool: claim_compare
+        depends_on: [retrieve]
+      - id: conclude
+        name: 新颖性结论
+        agent_role: novelty_checker
+        depends_on: [compare]
+    suggested_roles:
+      - retriever
+      - novelty_checker
+
+  - name: inventiveness_analysis
+    description: "创造性分析——判断专利申请是否具备创造性（三步法）"
+    domain: patent
+    phase: examination
+    legal_basis:
+      laws:
+        - "中华人民共和国专利法第22条"
+        - "专利审查指南第二部分第四章"
+      articles:
+        - "专利法第22条第3款"
+    system_template: |
+      你是一位专利审查员，负责评估技术方案的创造性。
+
+      请按照三步法进行分析：
+      第一步：确定最接近的现有技术
+      第二步：确定发明的区别特征和发明实际解决的技术问题
+      第三步：判断要求保护的发明对本领域技术人员来说是否显而易见
+
+      注意事项：
+      - 避免事后诸葛亮（hindsight）
+      - 考虑技术领域是否存在技术启示
+      - 对于开创性发明，创造性要求可以适当放宽
+      - 组合对比时需要考虑是否存在组合的技术启示
+    output_format: |
+      创造性分析报告（三步法）：
+      1. 最接近的现有技术
+      2. 区别特征和实际解决的技术问题
+      3. 显而易见性判断
+      4. 结论（具备/不具备创造性）
+    steps:
+      - id: retrieve
+        name: 现有技术检索
+        tool: patent_search
+      - id: analyze
+        name: 三步法分析
+        agent_role: creativity_checker
+        depends_on: [retrieve]
+      - id: review
+        name: 结论复核
+        agent_role: reviewer
+        depends_on: [analyze]
+    suggested_roles:
+      - retriever
+      - creativity_checker
+      - reviewer
+
+  - name: infringement_analysis
+    description: "侵权分析——判断技术方案是否落入专利权的保护范围"
+    domain: patent
+    phase: litigation
+    legal_basis:
+      laws:
+        - "中华人民共和国专利法第59条"
+        - "最高人民法院关于审理侵犯专利权纠纷案件应用法律若干问题的解释"
+      articles:
+        - "专利法第59条第1款"
+        - "司法解释第7条（全面覆盖原则）"
+        - "司法解释第17条（等同原则）"
+    system_template: |
+      你是一位专利侵权分析专家，负责判断被诉侵权技术方案是否落入专利权的保护范围。
+
+      请按照以下步骤分析：
+      1. 确定专利权的保护范围（以权利要求为准）
+      2. 解析被诉侵权技术方案的技术特征
+      3. 全面覆盖原则分析（逐一比对技术特征）
+      4. 等同原则分析（三一致：手段、功能、效果）
+      5. 现有技术抗辩分析（如有）
+
+      注意事项：
+      - 权利要求解释应当符合本领域技术人员的理解
+      - 等同特征是指以基本相同的手段，实现基本相同的功能，达到基本相同的效果
+      - 捐献规则和禁止反悔规则的限制
+    output_format: |
+      侵权分析报告：
+      1. 权利要求保护范围
+      2. 被诉技术方案技术特征
+      3. 技术特征逐项对比表
+      4. 全面覆盖分析结论
+      5. 等同分析结论（如适用）
+      6. 综合侵权判定结论
+    steps:
+      - id: parse_claims
+        name: 权利要求解析
+        tool: claim_parse
+      - id: parse_product
+        name: 被诉方案解析
+      - id: compare
+        name: 特征对比
+        agent_role: infringement_checker
+        depends_on: [parse_claims, parse_product]
+      - id: report
+        name: 生成报告
+        agent_role: writer
+        depends_on: [compare]
+    hitl: true
+    suggested_roles:
+      - infringement_checker
+
+  - name: oa_strategy
+    description: "审查意见答复策略——分析审查意见并制定答复策略"
+    domain: patent
+    phase: prosecution
+    legal_basis:
+      laws:
+        - "中华人民共和国专利法"
+        - "专利审查指南"
+      articles:
+        - "专利法第22条（新颖性/创造性）"
+        - "专利法第26条第3款（充分公开）"
+        - "专利法第26条第4款（权利要求支持）"
+        - "专利法第33条（修改超范围）"
+    system_template: |
+      你是一位资深专利代理人，负责制定审查意见答复策略。
+
+      请按照以下步骤分析审查意见：
+      1. 分类驳回理由（新颖性/创造性/A33/26.3/26.4等）
+      2. 分析审查员的逻辑链条
+      3. 寻找答复突破口
+      4. 制定修改方案（如果需要修改）
+      5. 准备意见陈述要点
+
+      答复策略选择：
+      - 争辩：认为审查员认定有误，坚持原权利要求
+      - 修改：通过限定特征克服驳回理由
+      - 合并：将从属权利要求合并到独立权利要求
+      - 分案：考虑是否需要提交分案申请
+    output_format: |
+      审查意见答复策略：
+      1. 驳回理由分类
+      2. 审查员逻辑分析
+      3. 答复策略建议
+      4. 修改方案（如适用）
+      5. 意见陈述要点
+    steps:
+      - id: parse_oa
+        name: 审查意见解析
+        tool: oa_parser
+      - id: classify
+        name: 驳回理由分类
+        agent_role: analyzer
+        depends_on: [parse_oa]
+      - id: strategize
+        name: 答复策略制定
+        agent_role: writer
+        depends_on: [classify]
+      - id: review
+        name: 策略复核
+        agent_role: reviewer
+        depends_on: [strategize]
+    hitl: true
+    suggested_roles:
+      - analyzer
+      - writer
+
+  - name: patent_drafting
+    description: "专利撰写——技术交底书转化为专利申请文件"
+    domain: patent
+    phase: drafting
+    legal_basis:
+      laws:
+        - "中华人民共和国专利法第26条"
+        - "专利审查指南第二部分第二章"
+      articles:
+        - "专利法第26条第1款"
+        - "专利法第26条第3款（充分公开）"
+        - "专利法第26条第4款（权利要求支持）"
+    system_template: |
+      你是一位资深专利代理人，负责将技术交底书转化为高质量的专利申请文件。
+
+      撰写步骤：
+      1. 理解发明构思，确定发明点
+      2. 撰写权利要求书（独立权利要求+从属权利要求）
+      3. 撰写说明书（技术领域、背景技术、发明内容、附图说明、具体实施方式）
+      4. 撰写摘要
+
+      权利要求撰写原则：
+      - 独立权利要求应当记载解决技术问题的必要技术特征
+      - 从属权利要求应当记载附加技术特征
+      - 权利要求应当以说明书为依据
+      - 权利要求应当清楚、简要
+
+      说明书撰写要求：
+      - 充分公开发明，使本领域技术人员能够实现
+      - 说明有益效果
+      - 提供足够的具体实施方式
+    steps:
+      - id: analyze
+        name: 发明构思分析
+        agent_role: analyzer
+      - id: draft_claims
+        name: 权利要求起草
+        tool: claim_draft
+        depends_on: [analyze]
+      - id: draft_spec
+        name: 说明书起草
+        tool: specification_draft
+        depends_on: [draft_claims]
+      - id: quality_check
+        name: 质量检查
+        agent_role: quality_checker
+        depends_on: [draft_spec]
+    suggested_roles:
+      - analyzer
+      - writer
+      - quality_checker
+
+  - name: quality_review
+    description: "专利质量审查——对已撰写的专利文件进行质量评估"
+    domain: patent
+    phase: quality
+    system_template: |
+      你是一位专利质量审查员，负责对专利文件进行多维度的质量评估。
+
+      评估维度：
+      1. 权利要求质量
+         - 保护范围是否合理
+         - 是否存在不清楚的表述
+         - 从属权利要求是否有层次
+      2. 说明书质量
+         - 公开是否充分
+         - 实施例是否支持权利要求
+         - 有益效果是否有数据支持
+      3. 形式问题
+         - 格式是否符合要求
+         - 术语是否统一
+         - 附图标记是否正确
+    steps:
+      - id: claim_review
+        name: 权利要求审查
+        agent_role: quality_checker
+      - id: spec_review
+        name: 说明书审查
+        agent_role: reviewer
+      - id: summary
+        name: 综合评估
+        depends_on: [claim_review, spec_review]
+    suggested_roles:
+      - quality_checker
+      - reviewer
+
+  - name: invalidation_analysis
+    description: "无效宣告分析——评估专利权的稳定性并制定无效宣告策略"
+    domain: patent
+    phase: litigation
+    legal_basis:
+      laws:
+        - "中华人民共和国专利法第45条"
+        - "专利法实施细则第65条"
+      articles:
+        - "专利法第22条（新颖性/创造性/实用性）"
+        - "专利法第26条第3款（充分公开）"
+        - "专利法第26条第4款（权利要求支持）"
+        - "专利法第33条（修改超范围）"
+    system_template: |
+      你是一位专利无效宣告专家，负责分析专利权的稳定性。
+
+      无效宣告理由分析：
+      1. 新颖性/创造性（专利法第22条）
+      2. 充分公开（专利法第26条第3款）
+      3. 权利要求不支持（专利法第26条第4款）
+      4. 修改超范围（专利法第33条）
+      5. 其他无效理由
+    output_format: |
+      无效宣告分析报告：
+      1. 专利基本信息
+      2. 各无效理由可行性分析
+      3. 证据需求分析
+      4. 建议的无效策略
+      5. 成功率评估
+    steps:
+      - id: analyze
+        name: 专利权分析
+        agent_role: invalidity_checker
+      - id: evidence
+        name: 证据收集
+        tool: patent_search
+        depends_on: [analyze]
+      - id: strategy
+        name: 策略制定
+        depends_on: [evidence]
+    hitl: true
+    suggested_roles:
+      - invalidity_checker

@@ -1,0 +1,125 @@
+# 工作流协作模板定义
+# 参考 BCIP 的 6 专利协作模板 (codex-patent-workflow/collaboration.rs)
+templates:
+  - name: search_analyze_draft
+    description: "标准专利撰写流程：检索现有技术 → 分析技术特征 → 起草专利文档"
+    domain: patent
+    steps:
+      - id: search
+        type: agent
+        role: retriever
+      - id: analyze
+        type: agent
+        role: analyzer
+        depends_on: [search]
+      - id: draft
+        type: agent
+        role: writer
+        depends_on: [analyze]
+
+  - name: novelty_check
+    description: "新颖性审查：检索现有技术 → 逐特征新颖性分析 → 复核"
+    domain: patent
+    steps:
+      - id: search
+        type: agent
+        role: retriever
+      - id: novelty
+        type: agent
+        role: novelty_checker
+        depends_on: [search]
+      - id: review
+        type: agent
+        role: reviewer
+        depends_on: [novelty]
+
+  - name: creativity_check
+    description: "创造性审查：检索现有技术 → 三步法创造性判断 → 复核"
+    domain: patent
+    steps:
+      - id: search
+        type: agent
+        role: retriever
+      - id: creativity
+        type: agent
+        role: creativity_checker
+        depends_on: [search]
+      - id: review
+        type: agent
+        role: reviewer
+        depends_on: [creativity]
+
+  - name: infringement_analysis
+    description: "侵权分析：检索专利 → 全面覆盖原则分析 → 等同分析 → 报告"
+    domain: patent
+    steps:
+      - id: search
+        type: agent
+        role: retriever
+      - id: analyze
+        type: agent
+        role: infringement_checker
+        depends_on: [search]
+      - id: report
+        type: agent
+        role: writer
+        depends_on: [analyze]
+
+  - name: invalidity_analysis
+    description: "无效宣告分析：检索证据 → 逐理由分析 → 无效宣告请求书"
+    domain: patent
+    steps:
+      - id: search
+        type: agent
+        role: retriever
+      - id: analyze
+        type: agent
+        role: invalidity_checker
+        depends_on: [search]
+      - id: draft
+        type: agent
+        role: writer
+        depends_on: [analyze]
+
+  - name: full_review
+    description: "全流程质量审查：检索 → 新颖性+创造性并行审查 → 复核 → 质量评分"
+    domain: patent
+    steps:
+      - id: search
+        type: agent
+        role: retriever
+      - id: novelty
+        type: agent
+        role: novelty_checker
+        depends_on: [search]
+      - id: creativity
+        type: agent
+        role: creativity_checker
+        depends_on: [search]
+      - id: review
+        type: agent
+        role: reviewer
+        depends_on: [novelty, creativity]
+      - id: quality
+        type: agent
+        role: quality_checker
+        depends_on: [review]
+
+  - name: legal_analysis
+    description: "法律分析：案件检索 → 法律适用分析 → 结论报告"
+    domain: legal
+    steps:
+      - id: research
+        type: agent
+        role: retriever
+      - id: analyze
+        type: agent
+        role: analyzer
+        depends_on: [research]
+      - id: conclude
+        type: agent
+        role: writer
+        depends_on: [analyze]
+      - id: review
+        type: quality_check
+        depends_on: [conclude]
