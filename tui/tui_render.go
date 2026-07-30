@@ -39,9 +39,16 @@ func (t *TUI) renderFrame() {
 	// Minimum terminal size gate: below 80×24 the layout does not fit.
 	// Show a resize hint instead of garbled content. Normal rendering
 	// resumes automatically on the next frame after resize.
-	termCols, _ := t.term.Size()
+	termCols, termRows := t.term.Size()
 	if termCols < minTermCols {
-		t.renderResizeHint(termCols, 24) // assume 24 rows for hint layout
+		// Use the actual terminal height for the hint layout; if it's
+		// too small to display the full hint box, the hint text will
+		// still be readable at the top of the terminal.
+		hintRows := termRows
+		if hintRows < 3 {
+			hintRows = 3
+		}
+		t.renderResizeHint(termCols, hintRows)
 		return
 	}
 	cols := termCols

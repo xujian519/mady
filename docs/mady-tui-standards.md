@@ -536,20 +536,20 @@ Mady 视觉分配合理：80% 内容（`Text`）、10% 标题（`MdHeading` 强�
 
 ### 12.1 差距汇总
 
-| 优先级 | 缺失功能 | 社区规则 | 影响 |
-|--------|---------|---------|------|
-| **P0** | 组件 `Dispose()` 接口 | TUI-CMP-010 | 资源泄漏风险 |
-| **P0** | 最小尺寸门闩（<80×24 提示） | TUI-LAY-002 | 小终端中 UI 错乱 |
-| **P1** | Footer 组件常驻快捷键 | 帮助系统三层 | 用户难以发现快捷键 |
-| **P1** | CI 对比度审计 | TUI-TST-010 | 无障碍合规无法自动验证 |
-| **P1** | `CI=true` 环境变量处理 | TUI-TRM | CI 中可能出现 ANSI 泄漏 |
-| **P2** | 响应式断点（wide/standard/compact） | TUI-LAY-004 | 大屏利用率低 |
-| **P2** | SIGWINCH 100ms 去抖 | TUI-LAY-010 | 高频 resize 性能抖动 |
-| **P2** | `/` 搜索模式（n/N/高亮） | 交互设计 §4.4 | 长列表导航效率低 |
-| **P2** | `reduceMotion` 配置 | TUI-A11Y-020 | 光敏用户无障碍 |
-| **P3** | 行内确认模式 | 确认机制 §4.6 | 中等严重度操作确认不便 |
-| **P3** | Nerd Font 自动检测 | TUI-ICO-001 | 字符显示一致性 |
-| **P3** | Watchdog 监控 | TUI-ERR-003 | 调试困难 |
+| 优先级 | 缺失功能 | 社区规则 | 影响 | 状态 |
+|--------|---------|---------|------|------|
+| **P0** | 组件 `Dispose()` 接口 | TUI-CMP-010 | 资源泄漏风险 | ✅ Sprint 1 |
+| **P0** | 最小尺寸门闩（<80 列提示） | TUI-LAY-002 | 小终端中 UI 错乱 | ✅ Sprint 1 |
+| **P1** | Footer 组件常驻快捷键 | 帮助系统三层 | 用户难以发现快捷键 | ✅ Sprint 2 |
+| **P1** | CI 对比度审计 | TUI-TST-010 | 无障碍合规无法自动验证 | ✅ Sprint 1 |
+| **P1** | `CI=true` 环境变量处理 | TUI-TRM | CI 中可能出现 ANSI 泄漏 | ✅ Sprint 2 |
+| **P2** | 响应式断点（wide/standard/compact） | TUI-LAY-004 | 大屏利用率低 | ✅ Sprint 3 |
+| **P2** | SIGWINCH 100ms 去抖 | TUI-LAY-010 | 高频 resize 性能抖动 | ✅ Sprint 2 |
+| **P2** | `/` 搜索模式（n/N/高亮） | 交互设计 §4.4 | 长列表导航效率低 | ✅ Sprint 2 |
+| **P2** | `reduceMotion` 配置 | TUI-A11Y-020 | 光敏用户无障碍 | ✅ Sprint 3 |
+| **P3** | 行内确认模式 | 确认机制 §4.6 | 中等严重度操作确认不便 | ✅ Sprint 4 |
+| **P3** | Nerd Font 自动检测 | TUI-ICO-001 | 字符显示一致性 | ✅ Sprint 3 |
+| **P3** | Watchdog 监控 | TUI-ERR-003 | 调试困难 | ✅ Sprint 4 |
 
 ### 12.2 优先级定义
 
@@ -560,12 +560,12 @@ Mady 视觉分配合理：80% 内容（`Text`）、10% 标题（`MdHeading` 强�
 
 ### 12.3 改进路线图
 
-| 阶段 | 内容 | 预计工作量 |
-|------|------|-----------|
-| **Sprint 1: 安全与质量门禁** | `Dispose()` 接口 + P0 补全、最小尺寸门闩、CI 对比度审计 | 3-5 天 |
-| **Sprint 2: 交互增强** | Footer 组件、SIGWINCH 去抖、`/` 搜索模式、`CI=true` 处理 | 5-7 天 |
-| **Sprint 3: 视觉与无障碍** | 响应式断点、`reduceMotion`、Nerd Font 检测、色盲主题完善 | 3-5 天 |
-| **Sprint 4: 功能完善** | Watchdog、行内确认、`--output json` TUI 集成 | 3-5 天 |
+| 阶段 | 内容 | 预计工作量 | 状态 |
+|------|------|-----------|------|
+| **Sprint 1: 安全与质量门禁** | `Dispose()` 接口 + P0 补全、最小尺寸门闩、CI 对比度审计 | 3-5 天 | ✅ 已完成 |
+| **Sprint 2: 交互增强** | Footer 组件、SIGWINCH 去抖、`/` 搜索模式、`CI=true` 处理 | 5-7 天 | ✅ 已完成 |
+| **Sprint 3: 视觉与无障碍** | 响应式断点、`reduceMotion`、Nerd Font 检测、色盲主题完善 | 3-5 天 | ✅ 已完成 |
+| **Sprint 4: 功能完善** | Watchdog、行内确认、`--output json` TUI 集成 | 3-5 天 | ✅ 已完成 |
 
 ---
 
@@ -620,3 +620,4 @@ Mady 视觉分配合理：80% 内容（`Text`）、10% 标题（`MdHeading` 强�
 
 > 本文档是活文档，随 TUI 架构演进持续更新。
 > 最新同步：2026-07-30 | 配套文件：`tui/LAYERS.md`, `docs/tui-design-specification.md`
+> 全部 12 项差距已于 Sprint 1-4 修复完成，`go test -race ./tui/...` 全绿。

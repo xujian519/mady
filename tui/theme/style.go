@@ -219,3 +219,48 @@ const (
 	SymbolRight    = "▸"
 	SymbolDown     = "▾"
 )
+
+// ---------------------------------------------------------------------------
+// Multi-level icon with Nerd Font / Unicode / ASCII fallback
+// ---------------------------------------------------------------------------
+
+// Icon represents a single symbol with three fallback levels:
+//   - NerdFont: PUA-encoded glyph (requires a Nerd Font installed).
+//   - Unicode:  standard Unicode codepoint.
+//   - ASCII:    plain ASCII fallback (always safe).
+type Icon struct {
+	NerdFont string
+	Unicode  string
+	ASCII    string
+}
+
+// Resolve returns the best available representation of the icon based on
+// the terminal's detected Nerd Font support.
+func ResolveIcon(ic Icon) string {
+	switch terminal.NerdFontsSupported() {
+	case terminal.NerdFontAvailable:
+		if ic.NerdFont != "" {
+			return ic.NerdFont
+		}
+		fallthrough
+	default:
+		if ic.Unicode != "" {
+			return ic.Unicode
+		}
+		return ic.ASCII
+	}
+}
+
+// Common icons used throughout the TUI.
+var (
+	IconFolder = Icon{NerdFont: "\uf07b", Unicode: "📁", ASCII: "[D]"}
+	IconFile   = Icon{NerdFont: "\uf15b", Unicode: "📄", ASCII: "[F]"}
+	IconSearch = Icon{NerdFont: "\uf002", Unicode: "🔍", ASCII: "[S]"}
+	IconGear   = Icon{NerdFont: "\uf013", Unicode: "⚙", ASCII: "[C]"}
+	IconUser   = Icon{NerdFont: "\uf007", Unicode: "👤", ASCII: "[U]"}
+	IconCheck  = Icon{NerdFont: "\uf00c", Unicode: SymbolCheck, ASCII: "[Y]"}
+	IconX      = Icon{NerdFont: "\uf00d", Unicode: SymbolCross, ASCII: "[N]"}
+	IconTime   = Icon{NerdFont: "\uf017", Unicode: "🕐", ASCII: "[T]"}
+	IconBranch = Icon{NerdFont: "\uf1d3", Unicode: "⑂", ASCII: "[B]"}
+	IconLock   = Icon{NerdFont: "\uf023", Unicode: "🔒", ASCII: "[L]"}
+)

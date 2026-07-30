@@ -6,6 +6,7 @@ package tui
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	core "github.com/xujian519/mady/tui/core"
@@ -76,6 +77,7 @@ func (t *TUI) Start() error {
 	t.enableMouse(t.options.MouseMode)
 
 	go t.eventLoop()
+	go t.startWatchdog()
 
 	cols, rows := t.term.Size()
 	t.SendMsg(core.WindowSizeMsg{Width: cols, Height: rows})
@@ -239,4 +241,29 @@ func (t *TUI) Every(d time.Duration, fn func(time.Time) core.Msg) {
 			}
 		}
 	}()
+}
+
+// startWatchdog launches a background goroutine that monitors event-loop
+// health. If processMsg blocks for longer than watchdogThreshold, a warning
+// is logged. The watchdog stops when the TUI's lifecycle context is canceled.
+func (t *TUI) startWatchdog() {
+	ctx := t.Context()
+	ticker := time.NewTicker(t.watchdog.threshold)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			last := time.Unix(0, t.watchdog.lastEvent.Load())
+			since := time.Since(last)
+			if since > t.watchdog.threshold && !t.watchdog.triggered.Load() {
+				t.watchdog.triggered.Store(true)
+				slog.Warn("TUI watchdog: event loop may be stuck",
+					"since_last_event", since.Round(time.Millisecond).String(),
+					"threshold", t.watchdog.threshold,
+				)
+			}
+		}
+	}
 }

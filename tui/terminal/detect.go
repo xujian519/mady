@@ -285,6 +285,67 @@ func IsCIEnvironment() bool {
 }
 
 // ---------------------------------------------------------------------------
+// Nerd Font detection
+// ---------------------------------------------------------------------------
+
+// NerdFontStatus represents the detected level of Nerd Font support.
+type NerdFontStatus int
+
+const (
+	NerdFontUnknown     NerdFontStatus = iota // not yet detected
+	NerdFontAvailable                         // Nerd Font symbols can be used
+	NerdFontUnavailable                       // fall back to Unicode/ASCII
+)
+
+var nerdFontStatus atomic.Value // stores NerdFontStatus
+
+func init() {
+	nerdFontStatus.Store(NerdFontUnknown)
+}
+
+// DetectNerdFonts checks whether the terminal likely supports Nerd Fonts.
+// Uses a combination of env-var override and terminal-program heuristics.
+func DetectNerdFonts() NerdFontStatus {
+	// 1. Explicit env override
+	switch os.Getenv("NERD_FONT") {
+	case "1", "true", "yes":
+		nerdFontStatus.Store(NerdFontAvailable)
+		return NerdFontAvailable
+	case "0", "false", "no":
+		nerdFontStatus.Store(NerdFontUnavailable)
+		return NerdFontUnavailable
+	}
+
+	// 2. Known modern terminals where users commonly install Nerd Fonts
+	termProg := os.Getenv("TERM_PROGRAM")
+	switch termProg {
+	case "iTerm.app", "WezTerm", "kitty", "ghostty", "tabby", "alacritty",
+		"warp", "vscode", "Hyper":
+		nerdFontStatus.Store(NerdFontAvailable)
+		return NerdFontAvailable
+	}
+
+	// 3. $TERM heuristic for xterm-256color derived terminals
+	term := os.Getenv("TERM")
+	if strings.Contains(term, "xterm") || strings.Contains(term, "tmux") {
+		nerdFontStatus.Store(NerdFontAvailable)
+		return NerdFontAvailable
+	}
+
+	nerdFontStatus.Store(NerdFontUnavailable)
+	return NerdFontUnavailable
+}
+
+// NerdFontsSupported returns the cached result of DetectNerdFonts.
+func NerdFontsSupported() NerdFontStatus {
+	v := nerdFontStatus.Load()
+	if v == nil {
+		return DetectNerdFonts()
+	}
+	return v.(NerdFontStatus)
+}
+
+// ---------------------------------------------------------------------------
 // Env collection (pure, injectable)
 // ---------------------------------------------------------------------------
 

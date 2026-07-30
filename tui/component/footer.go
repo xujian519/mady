@@ -28,7 +28,7 @@ type FooterItem struct {
 
 // FooterGroup is a named group of related shortcuts.
 type FooterGroup struct {
-	Label string       // group label (optional, e.g. "search")
+	Label string // group label (optional, e.g. "search")
 	Items []FooterItem
 }
 
@@ -122,6 +122,7 @@ func (f *Footer) Render(width int64) []string {
 	var visible []FooterGroup
 	if compact || width < 80 {
 		// Compact: only first 3 groups (help, cmd, quit).
+		// width < 80 is a safety net in case SetCompact hasn't been called yet.
 		if len(groups) > 3 {
 			visible = groups[:3]
 		} else {

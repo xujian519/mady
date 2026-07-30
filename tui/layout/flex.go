@@ -1,5 +1,6 @@
 // Package layout provides a Flex-box declarative layout engine with
-// 7 size policies (Natural, Fixed, Min, Max, Fill, Percent, Shrinkable).
+// 7 size policies (Natural, Fixed, Min, Max, Fill, Percent, Shrinkable),
+// and a responsive breakpoint system for adaptative terminal layouts.
 package layout
 
 import (

@@ -24,6 +24,20 @@ func fireThemeChange() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Reduce motion (accessibility)
+// ---------------------------------------------------------------------------
+
+var reduceMotion atomic.Bool
+
+// SetReduceMotion enables or disables animated UI elements. When true,
+// spinners, progress bars, and other moving elements render as static
+// placeholders. This supports users with vestibular motion disorders.
+func SetReduceMotion(v bool) { reduceMotion.Store(v) }
+
+// IsReduceMotion reports whether animated UI elements should be suppressed.
+func IsReduceMotion() bool { return reduceMotion.Load() }
+
 // SetSemanticTheme installs a semantic palette and rebuilds global Style*
 // variables. Safe to call from theme hot-reload; concurrent Render may
 // briefly see torn Style on 32-bit — prefer reloading when idle.

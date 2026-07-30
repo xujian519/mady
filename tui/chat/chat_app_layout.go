@@ -78,6 +78,10 @@ type chatLayout struct {
 	// mainFlex holds the most recently rendered Flex, used for mouse
 	// hit-testing. Populated in Render; nil before the first render.
 	mainFlex *layout.Flex
+
+	// breakpoint is the current layout regime based on terminal width.
+	// Recalculated each Render call; stored for use by child components.
+	breakpoint layout.LayoutBreakpoint
 }
 
 type textSelectionComponent interface {
@@ -161,6 +165,17 @@ func (l *chatLayout) Render(width int64) []string {
 		rows = 24
 	}
 	l.lastRows = rows
+
+	// Detect the current breakpoint and inform child components.
+	bp := layout.DetectLayoutBreakpoint(width)
+	l.breakpoint = bp
+
+	// Adjust child component rendering based on breakpoint.
+	if l.footer != nil {
+		if ft, ok := l.footer.(*component.Footer); ok {
+			ft.SetCompact(bp == layout.LayoutCompact)
+		}
+	}
 
 	// Build and render the main flex.
 	flex := layout.NewFlex(layout.DirectionVertical)
@@ -335,6 +350,11 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 		return l.dispatchSearchKey(k)
 	}
 
+	// When an inline confirmation is pending, only y/n/Esc are accepted.
+	if l.app != nil && l.app.State() == StateConfirmPending {
+		return l.dispatchConfirmKey(k)
+	}
+
 	switch name {
 	case "f2":
 		l.app.ToggleMousePassthrough()
@@ -390,6 +410,21 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 		return true
 	case "c", "insert":
 		return l.handleCopyOrInterrupt(k, name)
+	}
+	return false
+}
+
+// dispatchConfirmKey handles key events while an inline confirmation is
+// pending. Only y (yes), n (no), and Esc (no) are accepted.
+func (l *chatLayout) dispatchConfirmKey(k terminal.Key) bool {
+	name := strings.ToLower(k.Name)
+	switch name {
+	case "y":
+		l.app.ConfirmYes()
+		return true
+	case "n", "escape":
+		l.app.ConfirmNo()
+		return true
 	}
 	return false
 }

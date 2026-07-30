@@ -59,6 +59,12 @@ func TestTransitionFSM(t *testing.T) {
 		{"failed + agentStart → streaming (retry)", StateFailed, evtAgentStart, StateStreaming},
 		{"failed + approvalRequest → awaiting", StateFailed, evtApprovalRequest, StateAwaitingConfirm},
 		{"failed + delta → failed (steady)", StateFailed, evtMessageDelta, StateFailed},
+
+		// ConfirmPending
+		{"idle + confirmRequest → confirm-pending", StateIdle, evtConfirmRequest, StateConfirmPending},
+		{"confirmPending + confirmDecision → idle", StateConfirmPending, evtConfirmDecision, StateIdle},
+		{"confirmPending + interrupt → interrupted", StateConfirmPending, evtInterrupt, StateInterrupted},
+		{"confirmPending + delta → confirmPending (steady)", StateConfirmPending, evtMessageDelta, StateConfirmPending},
 	}
 	for _, c := range cases {
 		got := Transition(c.from, c.event)
@@ -126,6 +132,7 @@ func TestAppStateString(t *testing.T) {
 		StateCompacting:      "compacting",
 		StateFailed:          "failed",
 		StateInterrupted:     "interrupted",
+		StateConfirmPending:  "confirm-pending",
 	}
 	for s, w := range want {
 		if s.String() != w {

@@ -164,12 +164,16 @@ func (c *Container) AddChild(child Component) {
 }
 
 // RemoveChild removes the first occurrence of child. Returns true if removed.
+// If the child implements Disposable, Dispose is called after removal.
 func (c *Container) RemoveChild(child Component) bool {
 	children := c.children.Copy()
 	for i, ch := range children {
 		if ch == child {
 			children = append(children[:i], children[i+1:]...)
 			c.children.SetSlice(children)
+			if d, ok := child.(Disposable); ok {
+				d.Dispose()
+			}
 			return true
 		}
 	}

@@ -229,6 +229,14 @@ type TUI struct {
 		timer atomic.Pointer[time.Timer] // 100ms debounce timer; nil when idle
 	}
 
+	// watchog monitors event-loop health. If processMsg blocks for more than
+	// watchdogThreshold, a warning is logged to aid debugging stuck-TUI issues.
+	watchdog struct {
+		lastEvent atomic.Int64  // UnixNano timestamp; updated after every processMsg
+		threshold time.Duration // default 5s
+		triggered atomic.Bool   // true while a diagnostic is pending
+	}
+
 	// debugMetrics accumulates runtime diagnostics for the ctrl+shift+d
 	// debug overlay. All fields are accessed under t.mu.
 	frameStamps    [debugFrameCap]time.Time // circular buffer of frame timestamps
@@ -351,6 +359,8 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 		cancel:        cancel,
 	}
 	t.lastCursor.first = true
+	t.watchdog.threshold = 5 * time.Second
+	t.watchdog.lastEvent.Store(time.Now().UnixNano())
 	return t
 }
 

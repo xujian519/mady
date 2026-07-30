@@ -41,6 +41,7 @@ const (
 	StateCompacting                      // context compaction running
 	StateFailed                          // agent run/init terminal error
 	StateInterrupted                     // agent paused for human review
+	StateConfirmPending                  // awaiting y/n inline confirmation
 )
 
 // String returns a human-readable state name for diagnostics and tests.
@@ -62,6 +63,8 @@ func (s AppState) String() string {
 		return "failed"
 	case StateInterrupted:
 		return "interrupted"
+	case StateConfirmPending:
+		return "confirm-pending"
 	default:
 		return "idle"
 	}
@@ -90,6 +93,10 @@ const (
 	evtInterrupt
 	evtApprovalRequest
 	evtApprovalDecision
+	// evtConfirmRequest fires when the app needs inline y/n confirmation.
+	evtConfirmRequest
+	// evtConfirmDecision fires when the user answers y/n to a confirmation.
+	evtConfirmDecision
 	// evtAgentReady fires when the agent finishes initializing and is ready
 	// for user input, transitioning StateInitializing → StateIdle.
 	// This is distinct from evtAgentStart, which starts a streaming run.
@@ -148,8 +155,23 @@ func Transition(s AppState, e eventKind) AppState {
 		return transitionFromFailed(e)
 	case StateInterrupted:
 		return transitionFromInterrupted(e)
+	case StateConfirmPending:
+		return transitionFromConfirmPending(e)
 	}
 	return s
+}
+
+// transitionFromConfirmPending handles events in the confirm-pending state.
+// The user must answer y (confirm) or n/Esc/timeout (cancel) to leave.
+func transitionFromConfirmPending(e eventKind) AppState {
+	switch e {
+	case evtConfirmDecision:
+		return StateIdle
+	case evtInterrupt:
+		return StateInterrupted
+	default:
+		return StateConfirmPending
+	}
 }
 
 // transitionFromInitializing handles events when the FSM is in StateInitializing.
@@ -176,6 +198,9 @@ func transitionFromIdle(e eventKind) AppState {
 	}
 	if e == evtApprovalRequest {
 		return StateAwaitingConfirm
+	}
+	if e == evtConfirmRequest {
+		return StateConfirmPending
 	}
 	if e == evtInterrupt {
 		return StateInterrupted

@@ -30,8 +30,8 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 107 source files (+ 51 test files) across 9 packages.
-> Last sync: 2026-07-26.
+> Auto-verified: 111 source files (+ 63 test files) across 10 packages.
+> Last sync: 2026-07-30.
 
 ```
 tui/
@@ -121,6 +121,7 @@ tui/
 │   └── editor_killring.go # Editor — Emacs kill-ring (yank/yank-pop) (126 lines)
 │
 ├── layout/                # Layer 0 — Layout primitives (depends on core only)
+│   ├── breakpoint.go       # LayoutBreakpoint type + DetectLayoutBreakpoint
 │   ├── flex.go            # Flex declarative layout (main-axis size policies, 506 lines)
 │   └── layout.go          # Layout helpers
 │

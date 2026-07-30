@@ -159,6 +159,10 @@ type chatModel struct {
 	// cleared on agent start.
 	judgmentSummary JudgmentSummary
 
+	// confirm holds the active inline confirmation state, if any.
+	// Non-nil only when state == StateConfirmPending.
+	confirm *confirmPending
+
 	// toolSeq is a per-run counter for tool call sequence numbers.
 	// Reset on agent start, incremented on each tool call.
 	toolSeq int64
@@ -512,6 +516,98 @@ func (a *ChatApp) Start() error {
 }
 
 func (a *ChatApp) Stop() error { return a.host.Stop() }
+
+// ---------------------------------------------------------------------------
+// Inline confirmation
+// ---------------------------------------------------------------------------
+
+// InlineConfirm is a lightweight yes/no confirmation prompt displayed inline
+// in the status bar. Used for medium-severity actions (delete, clear, etc.)
+// that don't warrant a full modal overlay.
+type InlineConfirm struct {
+	Prompt  string        // confirmation text, e.g. "Delete this message?"
+	OnYes   func()        // called when user confirms (y/Y)
+	OnNo    func()        // called when user cancels (n/N/Esc/timeout)
+	Timeout time.Duration // auto-cancel duration; 0 = default 10s
+}
+
+// confirmPending holds the active confirmation state.
+type confirmPending struct {
+	confirm InlineConfirm
+	timer   *time.Timer
+}
+
+// ConfirmPending returns the active confirmation, or nil if none.
+func (a *ChatApp) ConfirmPending() *InlineConfirm {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.model.confirm == nil {
+		return nil
+	}
+	return &a.model.confirm.confirm
+}
+
+// StartConfirm shows an inline confirmation prompt and enters the
+// ConfirmPending FSM state.
+func (a *ChatApp) StartConfirm(ic InlineConfirm) {
+	if ic.Timeout <= 0 {
+		ic.Timeout = 10 * time.Second
+	}
+	a.mu.Lock()
+	a.model.state = StateConfirmPending
+	a.model.confirm = &confirmPending{
+		confirm: ic,
+		timer: time.AfterFunc(ic.Timeout, func() {
+			a.confirmTimeout()
+		}),
+	}
+	a.mu.Unlock()
+	a.host.RequestRender()
+}
+
+// ConfirmYes resolves the pending confirmation with "yes".
+func (a *ChatApp) ConfirmYes() {
+	a.mu.Lock()
+	c := a.model.confirm
+	a.model.confirm = nil
+	a.model.state = StateIdle
+	a.mu.Unlock()
+	if c != nil {
+		c.timer.Stop()
+		if c.confirm.OnYes != nil {
+			c.confirm.OnYes()
+		}
+	}
+	a.host.RequestRender()
+}
+
+// ConfirmNo resolves the pending confirmation with "no".
+func (a *ChatApp) ConfirmNo() {
+	a.mu.Lock()
+	c := a.model.confirm
+	a.model.confirm = nil
+	a.model.state = StateIdle
+	a.mu.Unlock()
+	if c != nil {
+		c.timer.Stop()
+		if c.confirm.OnNo != nil {
+			c.confirm.OnNo()
+		}
+	}
+	a.host.RequestRender()
+}
+
+func (a *ChatApp) confirmTimeout() {
+	a.mu.Lock()
+	c := a.model.confirm
+	a.model.confirm = nil
+	a.model.state = StateIdle
+	a.mu.Unlock()
+	if c != nil && c.confirm.OnNo != nil {
+		c.confirm.OnNo()
+	}
+	a.host.RequestRender()
+}
 
 func (a *ChatApp) Done() <-chan struct{} { return a.host.Done() }
 

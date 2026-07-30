@@ -73,6 +73,8 @@ func (l *Loader) SetMessage(msg string) {
 }
 
 // Start begins the animation (no-op if already running).
+// When reduceMotion is active (theme.IsReduceMotion()), the animation is
+// skipped — only the initial frame is shown as a static indicator.
 func (l *Loader) Start() {
 	l.mu.Lock()
 	if l.running {
@@ -84,6 +86,13 @@ func (l *Loader) Start() {
 	l.doneCh = make(chan struct{})
 	l.mu.Unlock()
 
+	if theme.IsReduceMotion() {
+		// Reduce motion: render one static frame and don't start the
+		// animation goroutine. Signal done immediately.
+		close(l.doneCh)
+		l.onRequestRender()
+		return
+	}
 	go l.animate()
 }
 

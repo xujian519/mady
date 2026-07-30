@@ -8143,3 +8143,56 @@ Mady 缺少本地 OCR 能力（仅依赖云端多模态 LLM 的 `vision_analyze`
 ### 验证
 - `go build ./...` ✅ 编译通过
 - 所有架构引用经代码验证与实际一致（Disposable/Footer/CI=true/debounce 等差距确认缺失；DiffFrame/CSI2026/KeybindingsManager/NO_COLOR/VirtualTerminal 等功能确认存在）
+
+---
+
+## 2026-07-30: feat(tui) 执行 Sprint 1-4，完整修复 12 项 TUI 差距
+
+### 背景
+基于 `docs/mady-tui-standards.md` 定义的 12 项差距清单和 `docs/plans/tui-gap-implementation-plan.md` 实施方案，
+分 4 个 Sprint 执行全部差距修复。涉及 tui/ 全部 10 个子包。
+
+### Sprint 1 — 安全与质量门禁（3 项）
+| 任务 | 关键文件 | 说明 |
+|------|---------|------|
+| T1.1 Disposable 接口 | `core/component.go`, `tui_lifecycle.go`, `tui.go`, `loader.go` | 接口定义 + Stop/RemoveChild 集成 + Loader 实现 |
+| T1.2 最小尺寸门闩 | `tui_render.go` | <80 列显示纯文本 resize 提示，恢复自动渲染 |
+| T1.3 CI 对比度审计 | `scripts/validate-colors.sh` | 93 fg×bg pairs，0 failures |
+
+### Sprint 2 — 交互增强（4 项）
+| 任务 | 关键文件 | 说明 |
+|------|---------|------|
+| T2.1 Footer 组件 | `component/footer.go`, `component/footer_test.go` | 6 测试，集成到 ChatApp |
+| T2.2 CI=true 处理 | `terminal/detect.go`, `tui.go` | 自动禁用 alt screen/mouse/sync output |
+| T2.3 SIGWINCH 去抖 | `tui_input.go`, `tui.go`, `tui_lifecycle.go` | 100ms atomic.Pointer 防抖 |
+| T2.4 搜索模式 | `chat_history.go`, `chat_app_layout.go` | / 激活 + n/N 导航 + 匹配高亮 |
+
+### Sprint 3 — 视觉与无障碍（3 项）
+| 任务 | 关键文件 | 说明 |
+|------|---------|------|
+| T3.1 响应式断点 | `layout/breakpoint.go`, `chat_app_layout.go` | LayoutBreakpoint + Footer 紧凑联动 |
+| T3.2 reduceMotion | `theme/global.go`, `component/loader.go` | 全局 atomic.Bool，Loader 跳过动画 |
+| T3.3 Nerd Font 检测 | `terminal/detect.go`, `theme/style.go` | NerdFontStatus + Icon 三级回退 |
+
+### Sprint 4 — 功能完善（2 项）
+| 任务 | 关键文件 | 说明 |
+|------|---------|------|
+| T4.1 行内确认 | `state.go`, `chat_app.go`, `chat_app_layout.go` | InlineConfirm + FSM + y/n/Esc 按键 |
+| T4.2 Watchdog | `tui.go`, `tui_lifecycle.go`, `tui_input.go` | 5s 超时 atomic.Int64 防 data race |
+
+### 质量审阅发现修复
+- Container.RemoveChild 新增 Disposable 检查
+- resize 提示改用实际终端高度
+- 新增 4 个 ConfirmPending FSM 测试
+- Watchdog lastEvent 改为 atomic.Int64 消除 data race
+
+### 变更统计
+- 22+ 源文件变更 + 5 新文件（footer.go, footer_test.go, validate-colors.sh, breakpoint.go）
+- 源码文件：107 → 111，测试文件：51 → 63
+- 覆盖 tui/ 全部 10 个子包
+
+### 验证
+- `go build ./...` ✅
+- `go test -race -count=1 ./tui/...` — 10 包全绿 ✅
+- `bash tui/scripts/validate-colors.sh` — 93 pairs 0 failures ✅
+- `review` skill 确认全部 medium-risk 变更 ship as-is ✅

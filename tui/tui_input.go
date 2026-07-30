@@ -28,6 +28,12 @@ func (t *TUI) processMsg(msg core.Msg) {
 	t.msgCount++
 	t.mu.Unlock()
 
+	// Update watchdog timestamp so the health-check goroutine knows the
+	// event loop is alive. Reset triggered flag so a new warning can fire
+	// if the loop blocks again later.
+	t.watchdog.lastEvent.Store(time.Now().UnixNano())
+	t.watchdog.triggered.Store(false)
+
 	// Debounce rapid WindowSizeMsg events: coalesce multiple resize events
 	// within 100ms into a single update. This prevents layout thrashing
 	// when the user drags a tmux pane border or quickly resizes a window.
