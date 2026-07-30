@@ -1,6 +1,6 @@
 package main
 
-// slash_registry.go defines a registry for TUI slash commands so the command
+// slash_commands.go defines the TUI slash command registration table.
 // set has a single source of truth. It replaces the two-branch switch in
 // handleSubmit (prefix match + exact switch) and the parallel static list in
 // slash_suggestions.go: both the dispatcher and the autocomplete menu read
@@ -29,7 +29,7 @@ import (
 	"github.com/xujian519/mady/skill"
 )
 
-// buildSlashRegistry registers every// buildSlashRegistry registers every TUI slash command. Order matters: more
+// buildSlashRegistry registers every TUI slash command. Order matters: more
 // specific prefix commands (thinking, theme, case, skill:) must be registered
 // before the generic fallback so Lookup short-circuits correctly — mirroring
 // the original two-branch dispatch.

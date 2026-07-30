@@ -81,12 +81,6 @@ func (s *SQLiteStore) Close() error {
 	return errors.Join(errs...)
 }
 
-// GetChunksByDocID returns up to limit chunks belonging to the given document
-// ID, ordered by chunk_index. It is the doc-level fetch counterpart to the
-
-// SearchLaws searches the laws db by law name or content keyword.
-// When the law_fts FTS5 table is present (detected in OpenLawsDB), it
-
 // LawRecord represents a single law from laws-full.db.
 type LawRecord struct {
 	ID       string

@@ -27,6 +27,8 @@ import (
 	rsqlite "github.com/xujian519/mady/retrieval/domain/sqlite"
 )
 
+// InitReasoningAndTemplates 初始化推理引擎 retriever/LLM 客户端、文档模板仓库、
+// 引用核验装配（CitationGate 留痕 store），以及专利新颖性分析的检索器。
 func InitReasoningAndTemplates(fc *Context) {
 	loadWorkflowManifests(fc.MadyHome)
 

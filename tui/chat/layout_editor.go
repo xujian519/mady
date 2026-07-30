@@ -1,11 +1,7 @@
 package chat
 
-// This file defines the chatLayout — the root Component that stacks header,
-// chat history, autocomplete, loader, editor (bordered), footer, and status
-// bar via the declarative Flex layout. It also owns the input router
-// (Update), translating keys/mouse/paste into the right child action
-// (scrolling, copy-vs-interrupt, autocomplete, image paste), and the
-// copy/copy-shortcut helpers.
+// Editor frame layout helpers — returns indices for header and editor frame
+// for ChildRect queries, and resets the editor baseline row budget.
 
 // Returns the indices for header and editor frame for ChildRect queries.
 // resetEditorBaseline restores the editor to its baseline row budget so a

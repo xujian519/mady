@@ -18,6 +18,7 @@ import (
 	"github.com/xujian519/mady/retrieval"
 )
 
+// LoadWikiStore initializes the knowledge retrieval system.
 func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, agentcore.Extension, knowledge.KnowledgeBackend) { //nolint:staticcheck // legacy hook type retained for backward compat
 	embedder := BuildEmbedder()
 	backend, knowledgeDBPath := LoadKnowledgeBackend(madyHome)
