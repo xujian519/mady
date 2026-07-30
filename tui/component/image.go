@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -93,7 +94,8 @@ func NewImageFromBytes(data []byte) (*Image, error) {
 
 // NewImageFromFile reads and decodes an image from disk.
 func NewImageFromFile(path string) (*Image, error) {
-	f, err := os.Open(path)
+	cleanPath := filepath.Clean(path)
+	f, err := os.Open(cleanPath)
 	if err != nil {
 		return nil, err
 	}

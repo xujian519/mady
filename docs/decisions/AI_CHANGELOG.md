@@ -1,5 +1,54 @@
 # AI 变更记录
 
+## 2026-07-30: fix(core) 为 mady-agent 添加引用核验 Gate，清理 AllowedSources 与 manifest 死引用（7 文件）
+
+### 问题
+代码审查发现以下问题：
+1. **`mady-agent`（统一用户入口）缺少 CitationGate** — 用户直接问法条问题时引用核验完全跳过；patent-agent 和 legal-advisor 各有 CitationGate 但入口层空白
+2. **AllowedSources 含 "chat-agent" 死引用** — v0.4.0 合并后 "chat-agent" 已不存在，白名单条目永不匹配
+3. **AgentManifest.HandoffTargets 字段定义但从未被消费** — 4 个 JSON 文件含死数据
+4. **CitationGate 级别不一致** — patent: Strict / legal: Standard / mady-agent: 无
+
+### 修复
+
+**1. `domains/unified.go` — mady-agent 添加 CitationGate（LevelStandard）**
+- 在 Guardrail（LevelLight）之后注册 `guardrails.NewCitationGate(LevelStandard)`
+- 确保统一 Agent 入口层也具备引用核验能力，与 legal-advisor 级别对齐
+
+**2. `domains/router.go` — 清理 AllowedSources 白名单**
+- 3 处 `["mady-router", "chat-agent", "mady-agent"]` 改为 `["mady-router", "mady-agent"]`
+- 注释同步更新
+
+**3. `agentcore/manifests/` + `manifests/` — 移除 manifest 死数据**
+- `patent.json` 和 `legal.json` 各 2 处（内外目录）移除未被消费的 `handoff_targets` 字段
+
+**4. `domains/router_manifest_test.go` — 同步测试**
+- AllowedSources 期望条数从 3 改为 2，验证列表更新
+
+**5. `cmd/mady/framework.go` — 移除废弃委托函数**
+- `extSlice()` 已无引用，删除
+
+### 变更文件
+```
+domains/unified.go                  (+7 行, CitationGate)
+domains/router.go                   (±10 行, AllowedSources 清理)
+domains/router_manifest_test.go     (±8 行, 测试同步)
+agentcore/manifests/patent.json     (-1 行)
+agentcore/manifests/legal.json      (-1 行)
+manifests/patent.json               (-1 行)
+manifests/legal.json                (-1 行)
+cmd/mady/framework.go               (-5 行)
+```
+
+### 验证
+```bash
+go build ./... && go test ./domains/...
+```
+全部通过。
+
+### 遗留
+- `ClassifyIntent` 关键词分类器（P2）仍为粗糙方案，待 LLM 分类改进
+
 ## 2026-07-30: fix(frontend) 修复 Desktop 与 ACP 前端的工作流/loop/graph 断链（5 文件）
 
 ### 问题
