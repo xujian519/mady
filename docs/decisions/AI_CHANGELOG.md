@@ -8339,3 +8339,186 @@ Mady 缺少本地 OCR 能力（仅依赖云端多模态 LLM 的 `vision_analyze`
 - `go test -race -count=1 ./tui/...` — 10 包全绿 ✅
 - `bash tui/scripts/validate-colors.sh` — 93 pairs 0 failures ✅
 - `review` skill 确认全部 medium-risk 变更 ship as-is ✅
+
+## 2026-07-30: feat(domains) 引入条款智能体体系（Tier A Provision + Tier B Reasoning），第一期 9+6 注册（8 文件）
+
+### 背景
+受 XiaoNuo Agent 项目的专利智能体三层架构启发，在 Mady 中引入条款智能体体系，将专利法各核心条款封装为可独立调用的 Handoff 子 Agent。第一期实施高频子集。
+
+### 变更
+
+**1. `domains/rules/data/provisions/manifest.yaml`（新增）— 条款智能体 Manifest**
+- 定义 22 个 Tier A 条款簇（第一期预注册 9 个高频：P-A01~P-A07 + P-C04 + P-D01）
+- 定义 14 个 Tier B 推理模式（第一期预注册 6 个：R-01~R-06）
+- 剩余条目 pre_register: false，按需扩展
+
+**2. `domains/provisions/`（新增 6 文件）— 条款智能体包**
+- `doc.go`：包文档，说明三层智能体模型
+- `types.go`：`ProvisionManifestEntry` / `ReasoningManifestEntry` / `PatentManifest` 类型定义 + manifest 加载与校验
+- `provision_agents.go`：`ProvisionToHandoff()` / `BuildProvisionSystemPrompt()` — Tier A 条款智能体 HandoffConfig 工厂
+- `reasoning_agents.go`：`ReasoningToHandoff()` / `BuildReasoningSystemPrompt()` — Tier B 推理模式 HandoffConfig 工厂
+- `register.go`：`RegisterProvisionHandoffs()` 入口函数 — 加载 manifest 并注册到 Config.Handoffs
+- `provision_agents_test.go`：11 个单元测试
+
+**3. `domains/patent.go` — 集成到 PatentAgentConfig**
+- 新增 `import "github.com/xujian519/mady/domains/provisions"`
+- 在 `return cfg` 前调用 `provisions.RegisterProvisionHandoffs(&cfg, "")`
+- System Prompt 新增「条款智能体（专业分析委派）」章节，列出 9 个 transfer_to_provision-* 和 transfer_to_reasoning-* 工具
+
+### 架构
+```
+PatentAgentConfig (patent-agent)
+  └─ Handoff[delegate, invisible]
+       ├─ provision-novelty (P-A01)           — A22.2 新颖性     [复用 domains/novelty 子图]
+       ├─ provision-inventiveness (P-A02)      — A22.3 创造性     [复用 domains/inventiveness 子图]
+       ├─ provision-utility (P-A03)            — A22.4 实用性
+       ├─ provision-eligibility (P-A04)        — A25/A5 保护客体
+       ├─ provision-disclosure (P-A05)         — A26.3 充分公开   [复用 domains/enablement 子图]
+       ├─ provision-claims-clarity (P-A06)     — A26.4 清楚支持
+       ├─ provision-amendment (P-A07)          — A33 修改超范围
+       ├─ provision-prior-art (P-C04)          — A22 现有技术认定
+       ├─ provision-drafting-claims (P-D01)    — 权利要求撰写   [复用 domains/claimdrafting]
+       └─ reasoning-* (R-01~R-06)              — 6 个推理模式
+```
+
+### 验证
+```bash
+go build ./domains/...
+go test ./domains/provisions/ -v
+```
+全部通过。
+
+### 遗留 / 后续
+- 其余 13 个条款簇 + 8 个推理模式待二期按需开启
+- `provision-novelty` / `provision-inventiveness` / `provision-disclosure` 在 manifest 中标注了 `existing_subgraph` 但当前 Handoff 仍走 LLM 模式——二期可改为调用对应 Pregel 子图工具
+- IPC 领域专家（Tier C）映射表待三期
+- 检查器体系（novelty_checker / creativity_checker 等）待二期
+
+## 2026-07-30: feat(domains) 扩展检查器体系（5 新）并引入专利编排器 orchestrator（5 文件）
+
+### 变更
+
+**1. `domains/checker/catalog.go` — DefaultCatalog 从 4 到 7 检查器**
+- 新增 3 个 CheckerTier：`inventiveness_checker`、`infringement_checker`、`invalidity_checker`
+- DefaultCatalog 新增 3 个检查器条目（均 HITLCheckpoint=true）：
+  - **inventiveness_checker**: 复核三步法推导逻辑
+  - **infringement_checker**: 复核全面覆盖/等同侵权判定
+  - **invalidity_checker**: 复核无效宣告理由与证据组合
+
+**2. `domains/provisions/orchestrator.go`（新增）— 专利编排器**
+- `OrchestratorSystemPrompt(manifest)` — 生成编排器的 System Prompt，动态列出全部预注册条款和推理模式
+- `OrchestratorHandoffConfig(manifest, base)` — 创建对用户可见的 Handoff 配置
+- 编排器是专利业务总调度入口：意图识别 → 条款委派 → 检查器复核 → 综合报告
+
+**3. `domains/patent.go` — 集成编排器**
+- `PatentAgentConfig()` 中注册 `patent-orchestrator` Handoff（visible 模式）
+- System Prompt 新增「专利编排器」章节
+
+**4. `domains/provisions/provision_agents_test.go` — 新增 2 编排器测试**
+- `TestOrchestratorSystemPrompt`: 验证编排器 prompt 包含 transfer_to 列表和 suggest_checkers
+- `TestOrchestratorHandoffConfig`: 验证 HandoffConfig 字段完整性
+
+### 验证
+```bash
+go build ./domains/...
+go test -count=1 ./domains/provisions/ -v
+```
+全部通过（13/13）。
+
+### 当前架构状态
+```
+PatentAgent (patent-agent)
+  ├─ Tools: draft_claims, analyze_patent_novelty, run_orchestration ...
+  ├─ Checker 扩展: suggest_checkers / run_checker_review (7 检查器)
+  ├─ Invisible Handoff → 9× provision-* + 6× reasoning-* (条款智能体)
+  └─ Visible Handoff → patent-orchestrator (编排器: 端到端流程)
+       ├─ transfer_to_provision-*  (委托条款分析)
+       └─ suggest_checkers / run_checker_review  (质量复核)
+```
+
+### 遗留
+- 侵权/等同侵权等 14 个低频条款待扩展 pre_register
+- IPC 领域专家（Tier C）映射表待实施
+
+## 2026-07-30: feat(manifest) 全量开启 22 条款 + 14 推理模式 + IPC 领域专家 Tier C（4 文件）
+
+### 变更
+
+**1. `domains/rules/data/provisions/manifest.yaml` — 全量条款 + 推理模式**
+- 新增 14 条款（P-A08/P-A09/P-B01~P-B06/P-C01~P-C03/P-C05/P-D02/P-D03），全部 pre_register: true
+- 新增 7 推理模式（R-08~R-14），全部 pre_register: true；R-07 从 false→true
+- Manifest 覆盖完整 22 条款簇 + 14 推理模式（二期完备集）
+
+**2. `domains/rules/data/provisions/ipc-domain-map.yaml`（新增）— IPC 领域映射表**
+- 10 个 IPC 大类（A61/G06/H04/C07/C12/G01/B60/F16/H01/E04）
+- 7 个条款后缀模板
+
+**3. `domains/provisions/domain_agents.go`（新增）— Tier C 工厂**
+- LoadIpcDomainMap / ResolveDomainWorkerName / BuildDomainSystemPrompt
+- DomainAgentHandoffConfig / ListDomainWorkerNames
+
+**4. `domains/provisions/provision_agents_test.go` — +6 个 Tier C 测试**
+
+### 验证
+```
+go build ./domains/provisions/ ./domains/checker/
+go test -count=1 ./domains/provisions/
+```
+全部通过（19/19）。
+
+### 当前架构
+```
+PatentAgent
+  ├─ Invisible Handoff → 23× provision-* + 14× reasoning-*  (全量)
+  ├─ Visible Handoff → patent-orchestrator
+  └─ Lazy IPC → domain-A61-novelty, domain-G06-inventiveness ...
+```
+
+## 2026-07-30: feat(provisions) Pregel 子图集成指引 + IPC 触发工具 + 编排器 IPC 感知（4 文件）
+
+### 变更
+
+**1. `domains/rules/data/provisions/manifest.yaml` — 新增 tool_hints 字段**
+- 4 个有关联子图的条款 P-A01/P-A02/P-A05/P-D01 新增 tool_hints 字段
+- 字段内容为具体工具名和关键参数指引（如 `evaluate_novelty(claims/PriorArtDocs/ConflictApps)`）
+
+**2. `domains/provisions/types.go` — ProvisionManifestEntry 新增 ToolHints 字段**
+- 新增 `ToolHints string` YAML/JSON 标签
+
+**3. `domains/provisions/provision_agents.go` — BuildProvisionSystemPrompt 增强**
+- 当 existing_subgraph 和 tool_hints 均非空时，生成详细的工具调用指引：
+  - 优先调用专用工具的优先级声明
+  - 工具名称和参数要求
+  - 工具结果直接采纳原则
+
+**4. `domains/provisions/ipc_tool.go`（新增）— resolve_domain_workers 工具**
+- `NewResolveDomainWorkersTool(mapPath)` — 根据 IPC 提示列表解析 domain worker 的 agentcore.Tool
+- 注册到 ExtraTools 中，编排器和条款智能体可调用
+
+**5. `domains/provisions/orchestrator.go` — 编排器 Prompt 新增 IPC 章节**
+- 新增「IPC 领域专家（按需启用）」章节，指导编排器根据 ipcHints 调用 domain-* 专家
+- 列出 10 个已知 IPC 领域和示例
+
+**6. `domains/patent.go` — ExtraTools 注册 resolve_domain_workers 工具**
+- 在 ExtraTools 列表中追加 `provisions.NewResolveDomainWorkersTool("")`
+
+### 验证
+```
+go build ./domains/provisions/ ./domains/checker/
+go test -count=1 ./domains/provisions/
+```
+全部通过（19/19）。
+
+### 最终架构
+```
+PatentAgent (patent-agent)
+  ├─ ExtraTools: evaluate_novelty, evaluate_inventiveness, evaluate_enablement,
+  │              draft_claims, resolve_domain_workers ...
+  ├─ Checker: 7 检查器
+  ├─ Invisible Handoff → 23× provision-* + 14× reasoning-*
+  │    └─ P-A01/P-A02/P-A05/P-D01: System Prompt 含专用 Pregel 子图工具指引
+  ├─ Visible Handoff → patent-orchestrator
+  │    └─ System Prompt 含 IPC 领域专家按需启用说明
+  └─ Lazy IPC → domain-A61-novelty, domain-G06-inventiveness ...
+       └─ resolve_domain_workers(ipc_hints=["A61","G06"]) → 自动解析可用领域专家
+```

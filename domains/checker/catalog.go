@@ -11,10 +11,13 @@ package checker
 type CheckerTier string
 
 const (
-	TierReviewer       CheckerTier = "reviewer"        // 文档形式规范/格式审查
-	TierQualityChecker CheckerTier = "quality_checker" // 三维度加权质量评分
-	TierNoveltyChecker CheckerTier = "novelty_checker" // 新颖性分析复核
-	TierOAChecker      CheckerTier = "oa_checker"      // OA 答复逻辑复核
+	TierReviewer       CheckerTier = "reviewer"              // 文档形式规范/格式审查
+	TierQualityChecker CheckerTier = "quality_checker"       // 三维度加权质量评分
+	TierNoveltyChecker CheckerTier = "novelty_checker"       // 新颖性分析复核
+	TierInventiveness  CheckerTier = "inventiveness_checker" // 创造性分析复核
+	TierInfringement   CheckerTier = "infringement_checker"  // 侵权分析复核
+	TierInvalidity     CheckerTier = "invalidity_checker"    // 无效宣告分析复核
+	TierOAChecker      CheckerTier = "oa_checker"            // OA 答复逻辑复核
 )
 
 // CheckerEntry defines one checker's identity and capability.
@@ -159,6 +162,39 @@ func DefaultCatalog() *Catalog {
 		RequiredInputs:  []string{"*oa-response*", "*OA*"},
 		OutputContracts: []string{"oa-review.md"},
 		AllowedTools:    []string{"read", "grep"},
+	})
+	c.Register(CheckerEntry{
+		RoleID:          "inventiveness_checker",
+		Tier:            TierInventiveness,
+		Name:            "创造性复核专家",
+		Description:     "复核创造性分析的三步法推导逻辑——确认最接近现有技术选择是否合理、区别特征认定是否准确、技术启示判断是否有对比文件依据、辅助因素评估是否充分。",
+		InvokesAfter:    []string{"patent-creativity-analyzer"},
+		HITLCheckpoint:  true,
+		RequiredInputs:  []string{"*inventiveness*", "*creativity*", "*三步法*"},
+		OutputContracts: []string{"inventiveness-review.md"},
+		AllowedTools:    []string{"read", "grep", "knowledge_search"},
+	})
+	c.Register(CheckerEntry{
+		RoleID:          "infringement_checker",
+		Tier:            TierInfringement,
+		Name:            "侵权分析复核专家",
+		Description:     "复核侵权分析的全面覆盖/等同侵权判定逻辑——确认权利要求解释是否合理、被控方案特征提取是否完整、逐特征对比是否有依据、等同判定是否满足三要素（手段/功能/效果）。",
+		InvokesAfter:    []string{"patent-infringement-analyzer"},
+		HITLCheckpoint:  true,
+		RequiredInputs:  []string{"*infringement*", "*侵权*"},
+		OutputContracts: []string{"infringement-review.md"},
+		AllowedTools:    []string{"read", "grep", "knowledge_search", "knowledge_rules"},
+	})
+	c.Register(CheckerEntry{
+		RoleID:          "invalidity_checker",
+		Tier:            TierInvalidity,
+		Name:            "无效宣告复核专家",
+		Description:     "复核无效宣告分析——确认无效理由是否涵盖 A22.2/A22.3/A26.3/A26.4/A33 等法定理由、证据组合策略是否合理、无效请求书逻辑链是否完整、口审应对策略是否充分。",
+		InvokesAfter:    []string{"patent-invalidation-analyzer"},
+		HITLCheckpoint:  true,
+		RequiredInputs:  []string{"*invalidation*", "*无效*"},
+		OutputContracts: []string{"invalidity-review.md"},
+		AllowedTools:    []string{"read", "grep", "knowledge_search", "knowledge_rules"},
 	})
 	return c
 }

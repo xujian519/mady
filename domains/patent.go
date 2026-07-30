@@ -17,6 +17,7 @@ import (
 	"github.com/xujian519/mady/domains/infringement"
 	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/domains/novelty"
+	"github.com/xujian519/mady/domains/provisions"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/domains/specdrafting"
@@ -247,6 +248,24 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		"4. 执行 — 使用 patent_lookup 查询专利元数据；撰写权利要求时，必须调用 draft_claims 工具（禁止手写）；撰写说明书时，必须调用 draft_specification 工具（禁止手写）；分析专利性时调用对应分析工具",
 		"5. 检查 — 验证检索完整性、分析准确性",
 		"",
+		"## 条款智能体（专业分析委派）",
+		"对专利法各条款的专项分析，可使用 transfer_to_provision-* 工具委派给对应的条款智能体：",
+		"- transfer_to_provision-novelty → 新颖性分析（A22.2）",
+		"- transfer_to_provision-inventiveness → 创造性分析（A22.3）",
+		"- transfer_to_provision-utility → 实用性分析（A22.4）",
+		"- transfer_to_provision-eligibility → 保护客体分析（A25/A5）",
+		"- transfer_to_provision-disclosure → 充分公开分析（A26.3）",
+		"- transfer_to_provision-claims-clarity → 清楚支持分析（A26.4）",
+		"- transfer_to_provision-amendment → 修改超范围分析（A33）",
+		"- transfer_to_provision-prior-art → 现有技术认定",
+		"- transfer_to_provision-drafting-claims → 权利要求书撰写",
+		"对跨条款的推理步骤，可使用 transfer_to_reasoning-* 委派给对应的推理模式。",
+		"委派完成后直接使用结果，不需要解释切换过程。",
+		"",
+		"## 专利编排器",
+		"对需要完整流程编排的专利分析任务（从条款分析到质量复核），可使用 transfer_to_patent-orchestrator 委派给专利编排器。",
+		"编排器会自动识别涉及的法条、委派条款智能体、运行检查器复核，并输出综合报告。",
+		"",
 		"涉及专利性判断的输出附以下声明：",
 		"「本分析由 AI 辅助生成，不构成正式法律意见。」",
 		"",
@@ -304,6 +323,7 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 			design.NewDesignInvalidationTool(),
 			disclosure.NewDisclosureTool(base.Provider),
 			tools.NewPatentEvalTool(nil),
+			provisions.NewResolveDomainWorkersTool(""),
 		},
 	})
 	cfg.Extensions = append(cfg.Extensions, toolExt,
@@ -420,6 +440,18 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		}
 	}
 
+	// 条款智能体 Handoff 注册：从 Manifest 加载 Tier A 条款智能体和
+	// Tier B 推理模式，注册为 PatentAgent 内不可见的 Handoff 子 Agent。
+	// 专利 Agent 可通过 transfer_to_provision-* 工具将专业条款分析任务
+	// 委派给对应条款智能体。
+	manifest := provisions.LoadManifestOrDefault("")
+	provisions.RegisterProvisionHandoffsFromManifest(&cfg, manifest)
+
+	// 专利编排器 Handoff 注册（对用户可见）：专利业务总调度入口。
+	// 编排器整合了意图识别 → 条款委派 → 质量复核的完整流程。
+	// 用户可以通过 transfer_to_patent-orchestrator 发起端到端的专利分析任务。
+	cfg.Handoffs = append(cfg.Handoffs, provisions.OrchestratorHandoffConfig(manifest, base))
+
 	return cfg
 }
 
@@ -530,6 +562,10 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 			RequireApprovalFor: guardrails.ApprovalKeywordsFor("patent"),
 		}),
 	)
+
+	// 条款智能体 Handoff 注册：使项目 Agent 也拥有条款智能体委派能力。
+	manifest := provisions.LoadManifestOrDefault("")
+	provisions.RegisterProvisionHandoffsFromManifest(&cfg, manifest)
 
 	return cfg
 }
