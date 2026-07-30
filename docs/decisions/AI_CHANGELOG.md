@@ -1,5 +1,60 @@
 # AI 变更记录
 
+## 2026-07-30: fix(tui) 彻底修复 TUI 三大排版问题（删除 glamour + 重写 Markdown 渲染器）
+
+### 问题
+TUI 会话输出存在三个严重的排版问题，严重影响可读性：
+1. **AI 总结排版极差**：Markdown 渲染器对标题、列表、表格、引用块等元素没有正确分层渲染，内容挤成一片，完全丧失结构层次
+2. **工具色块不美观**：工具执行状态区域左侧有彩色竖条/ANSI 背景色块（`▌` 符号），视觉上突兀
+3. **列表/表格排列混乱**：列表项列对齐错误，表格行被强制填充到全宽导致列宽不均
+
+### 根因
+- 使用 glamour 库渲染 Markdown，其对 ANSI 背景色的处理方式在终端中表现为大面积色块，与 TUI 的 cell-level 渲染模型不兼容
+- 所有 block 元素（heading/quote/bullet/paragraph）均使用 `PadToWidth` 强制填充到终端全宽，导致结构元素失去自然的留白边界
+- Paragraph 将多行合并为一行（`strings.Join(b.Lines, " ")`），破坏了 AI 输出的原生换行结构
+- 表格检测要求标准分隔行（`| --- |`），导致大量简写表格被错误识别为普通文本
+- 列表项不支持多行续行，长列表项被截断或错位
+
+### 修复（彻底方案：删除 glamour 整套体系）
+
+**删除 glamour 依赖：**
+- 删除 `tui/component/markdown_glamour.go`（112 行 glamour 渲染器封装）
+- `tui/go.mod` / `go.sum`：`go mod tidy` 清理 glamour、termenv 等间接依赖
+
+**重写 `tui/component/markdown.go`：**
+- `Render` 直接走自定义 `renderMarkdown`，不再检查 glamour 路径
+- `parseBlocks` 新增多行列表项续行检测（`isListContinuation`），支持空行内部的续行处理
+- `renderBlock` 中 heading/quote/bullet/ordered/paragraph 全部去掉 `PadToWidth` 强制全宽填充，保留自然边界
+- Paragraph 不再合并行，改为逐行渲染（`for _, ln := range b.Lines`），保留 AI 原生换行结构
+- 表格检测放宽：连续 2+ 行含 `|` 即识别，无标准分隔行时第一行当 header
+- 代码块和表格仍保留 `PadToWidth`（列对齐和代码缩进需要）
+
+**重写 `tui/component/tool_card.go`：**
+- 删除左侧 `▌` 彩色竖条，改为纯文本状态行
+- 更新注释说明新风格
+
+**修改 `tui/chat/chat_history_render_message.go`：**
+- `renderMarkdownRole` 简化为无 bar 版本（直接调用 Markdown 渲染）
+
+**修改 `tui/chat/chat_history_render.go`：**
+- `renderToolGroup` 去掉 bar 前缀和 `PadToWidth` 填充
+
+**测试更新：**
+- `tui/component/markdown_equiv_test.go`：去掉"每行必须等于 60 宽度"的断言，改为结构性内容检查（确保每种 block kind 的内容都被保留）
+
+**文档同步：**
+- `tui/LAYERS.md`：删除 `markdown_glamour.go` 条目，component source files 39→38，total 108→107
+
+### 验证
+- `cd tui && go build ./...` ✅
+- `cd tui && go test ./...` ✅ 全部通过（component + chat + 其他子包）
+- 根模块 `go test ./...` ✅ 全部通过
+- `grep glamour tui/go.mod` → 未找到
+
+---
+
+## 2026-07-29: fix(ci) 修复 CI 三个失败点（lint / mod-tidy / integration）
+
 ## 2026-07-29: fix(ci) 修复 CI 三个失败点（lint / mod-tidy / integration）
 
 ### 问题

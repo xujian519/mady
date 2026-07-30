@@ -84,8 +84,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 
 	switch m.Role {
 	case RoleUser:
-		bar := theme.UserStyle.Render("▌ ")
-		return h.renderMarkdownRole(m.Text, bar, width, theme)
+		return h.renderMarkdownRole(m.Text, width, theme)
 	case RoleAssistant:
 		// Collapsed assistant messages (e.g. collapsed diffs)
 		if m.Collapsed && m.Text != "" {
@@ -96,15 +95,13 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			if len(firstLine) > 200 {
 				firstLine = firstLine[:197] + "..."
 			}
-			bar := theme.AssistantStyle.Render("▌ ")
-			head := bar + theme.DimStyle.Render(firstLine)
+			head := theme.DimStyle.Render(firstLine)
 			lines := core.WrapAnsi(head, width)
 			lines = append(lines, "  "+theme.DimStyle.Render("▸ expand"))
 			return lines
 		}
 
-		bar := theme.DimStyle.Render("▌ ")
-		innerWidth := width - 2
+		innerWidth := width
 		if innerWidth < 1 {
 			innerWidth = 1
 		}
@@ -117,9 +114,6 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		// anywhere (sidebar, overlay, etc.).
 		if h.reasoningRenderer != nil {
 			if rendered := h.reasoningRenderer.RenderThinking(m, innerWidth); len(rendered) > 0 {
-				for i := range rendered {
-					rendered[i] = bar + rendered[i]
-				}
 				allLines = append(allLines, rendered...)
 			}
 		}
@@ -136,12 +130,9 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 				md.SetTheme(theme.MarkdownTheme)
 				lines = md.Render(innerWidth)
 			}
-			for i := range lines {
-				lines[i] = bar + lines[i]
-			}
 			if m.Pending {
 				if len(lines) == 0 {
-					lines = []string{bar + theme.DimStyle.Render("…")}
+					lines = []string{theme.DimStyle.Render("…")}
 				} else {
 					last := lines[len(lines)-1]
 					lines[len(lines)-1] = last + theme.UserStyle.Render("▊")
@@ -150,7 +141,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			allLines = append(allLines, lines...)
 		} else if len(m.ThinkingSegments) > 0 && m.Pending {
 			if len(allLines) == 0 {
-				allLines = []string{bar + theme.DimStyle.Render("…")}
+				allLines = []string{theme.DimStyle.Render("…")}
 			} else {
 				last := allLines[len(allLines)-1]
 				allLines[len(allLines)-1] = last + theme.ThinkingStyle.Render("▊")
@@ -158,12 +149,11 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		}
 
 		if len(allLines) == 0 {
-			allLines = []string{bar}
+			allLines = []string{""}
 		}
 		return allLines
 	case RoleSystem:
-		bar := theme.ToolBorder.Render("▌ ")
-		return h.renderMarkdownRole(m.Text, bar, width, theme)
+		return h.renderMarkdownRole(m.Text, width, theme)
 	case RoleTool:
 		// Tool results are rendered via the shared ToolCard component so the
 		// collapsed/expanded treatment stays consistent with diffs and future
@@ -186,36 +176,20 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			Collapsed: m.Collapsed,
 		}, tcTheme, width)
 	case RoleError:
-		bar := theme.ErrorStyle.Render("▌ ")
-		return h.renderMarkdownRole(m.Text, bar, width, theme)
+		return h.renderMarkdownRole(m.Text, width, theme)
 	case RoleDivider:
-		// Consistent with the ▌ bar language used by all message roles.
-		bar := theme.DimStyle.Render("▌")
-		return []string{bar}
+		return []string{""}
 	default:
 		return core.WrapAnsi(m.Text, width)
 	}
 }
 
-// renderMarkdownRole renders message text as Markdown and prefixes each line
-// with a role-specific bar (e.g. "▌ "). The inner width accounts for the
-// prefix so content aligns correctly within the available space.
-func (h *ChatHistory) renderMarkdownRole(text, bar string, width int64, theme ChatHistoryTheme) []string {
+// renderMarkdownRole renders message text as Markdown. No left bar prefix.
+func (h *ChatHistory) renderMarkdownRole(text string, width int64, theme ChatHistoryTheme) []string {
 	if text == "" {
-		return []string{bar}
-	}
-	innerWidth := width - core.VisibleWidth(bar)
-	if innerWidth < 1 {
-		innerWidth = 1
+		return nil
 	}
 	md := component.NewMarkdown(text)
 	md.SetTheme(theme.MarkdownTheme)
-	lines := md.Render(innerWidth)
-	for i := range lines {
-		lines[i] = bar + lines[i]
-	}
-	if len(lines) == 0 {
-		lines = []string{bar}
-	}
-	return lines
+	return md.Render(width)
 }

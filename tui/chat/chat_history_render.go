@@ -485,7 +485,6 @@ func (h *ChatHistory) detectToolGroup(msgs []ChatMessage, i int) (groupEnd int, 
 // renderToolGroup 渲染一组连续的工具/系统消息为折叠（[+]）或展开（[-]）形式。
 // 返回渲染后的行列表及对应的 msgRange。
 func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expanded bool, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) ([]string, msgRange) {
-	bar := theme.ToolBorder.Render("▌ ")
 	toolCount, sysCount := 0, 0
 	for j := start; j <= end; j++ {
 		if msgs[j].Role == RoleTool {
@@ -501,7 +500,7 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 		if sysCount == 0 {
 			summary = fmt.Sprintf("[-] %d tools", toolCount)
 		}
-		lines = append(lines, core.PadToWidth(bar+theme.DimStyle.Render(summary), width))
+		lines = append(lines, theme.DimStyle.Render(summary))
 		for j := start; j <= end; j++ {
 			lines = append(lines, trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, width, cache))...)
 		}
@@ -516,7 +515,7 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 				break
 			}
 		}
-		lines = append(lines, bar+theme.DimStyle.Render(summary))
+		lines = append(lines, theme.DimStyle.Render(summary))
 	}
 
 	return lines, msgRange{

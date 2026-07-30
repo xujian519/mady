@@ -30,7 +30,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 108 source files (+ 51 test files) across 9 packages.
+> Auto-verified: 107 source files (+ 51 test files) across 9 packages.
 > Last sync: 2026-07-26.
 
 ```
@@ -77,15 +77,14 @@ tui/
 │   ├── system_appearance.go # macOS NSAppearance dark/light detection
 │   └── theme_registry.go  # Theme registry: built-in + user theme registration
 │
-├── component/             # Layer 4 — Components (39 source files)
+├── component/             # Layer 4 — Components (38 source files)
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
 │   ├── text.go            # Text, TruncatedText
 │   ├── input.go           # Single-line input editor
 │   ├── keyhelp.go         # Keybindings cheat sheet
 │   ├── loader.go          # Animated spinner component (callback-based, uses core.SpinnerStyle)
-│   ├── markdown.go        # Markdown rendering (771 lines)
-│   ├── markdown_glamour.go # Glamour-based rich markdown rendering (112 lines)
+│   ├── markdown.go        # Markdown rendering (block-level parser + renderer)
 │   ├── selectlist.go      # Selectable list with fuzzy filter
 │   ├── statusbar.go       # StatusBar
 │   ├── settings.go        # Settings panel

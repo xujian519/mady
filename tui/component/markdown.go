@@ -77,10 +77,9 @@ type Markdown struct {
 	source string
 	theme  MarkdownTheme
 
-	cacheWidth     int64
-	cacheLines     []string
-	dirty          bool
-	hasCustomTheme bool // true 时使用自定义渲染器以尊重主题
+	cacheWidth int64
+	cacheLines []string
+	dirty      bool
 }
 
 // NewMarkdown creates a Markdown component.
@@ -100,31 +99,18 @@ func (m *Markdown) SetSource(s string) {
 func (m *Markdown) SetTheme(t MarkdownTheme) {
 	m.mu.Lock()
 	m.theme = mergeMarkdownTheme(t)
-	m.hasCustomTheme = true
 	m.dirty = true
 	m.mu.Unlock()
 }
 
-// Render produces lines wrapped to the given width.
-// Uses glamour for rendering when available, falling back to the custom
-// renderer if glamour initialization fails.
+// Render produces lines wrapped to the given width using the custom renderer.
 func (m *Markdown) Render(width int64) []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.dirty && m.cacheWidth == width && m.cacheLines != nil {
 		return m.cacheLines
 	}
-	var lines []string
-	if m.hasCustomTheme {
-		// 自定义主题：使用自定义渲染器以完整尊重 MarkdownTheme 设置。
-		lines = renderMarkdown(m.source, width, m.theme)
-	} else {
-		// 默认主题：优先使用 glamour（质量更高），失败时回退自定义渲染器。
-		lines = renderWithGlamour(m.source, width)
-		if lines == nil {
-			lines = renderMarkdown(m.source, width, m.theme)
-		}
-	}
+	lines := renderMarkdown(m.source, width, m.theme)
 	m.cacheLines = lines
 	m.cacheWidth = width
 	m.dirty = false
@@ -154,22 +140,18 @@ func (m *Markdown) Update(msg core.Msg) core.Cmd {
 //
 //   1. parseBlocks(src) — a single-pass slicer that walks the source lines and
 //      emits a []Block, where each Block records its kind and the raw source
-//      lines it spans. The slicer preserves EXACTLY the same block-boundary
-//      decisions the original single-pass renderer used (same regexes, same
-//      lookahead, same greedy-paragraph rule).
+//      lines it spans.
 //
-//   2. renderBlock(b, width, theme) — renders ONE block to []string. This is
-//      the per-block body of the old loop, factored out unchanged.
+//   2. renderBlock(b, width, theme) — renders ONE block to []string.
 //
 // renderMarkdown is now just `for _, b := range parseBlocks(src) { out += renderBlock(...) }`.
-// The equivalence is pinned by TestRenderMarkdownEquivalenceGolden.
 // ---------------------------------------------------------------------------
 
 var (
 	reHeading  = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
 	reFence    = regexp.MustCompile(`^(` + "```" + `|~~~)\s*(\S*)\s*$`)
 	reHR       = regexp.MustCompile(`^\s*(-{3,}|\*{3,}|_{3,})\s*$`)
-	reBullet   = regexp.MustCompile(`^(\s*)([\-*+])\s+(.*)$`)
+	reBullet   = regexp.MustCompile(`^(\s*)([-*+])\s+(.*)$`)
 	reOrdered  = regexp.MustCompile(`^(\s*)(\d+)\.\s+(.*)$`)
 	reQuote    = regexp.MustCompile(`^>\s?(.*)$`)
 	reTableSep = regexp.MustCompile(`^\s*\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?\s*$`)
@@ -215,8 +197,25 @@ type Block struct {
 	Closed bool
 }
 
-// parseBlocks slices src into blocks using the same boundary rules the
-// historical single-pass renderer used. It does not render anything.
+// isListContinuation reports whether line is a continuation line for a list
+// item whose bullet starts at itemIndent.
+func isListContinuation(line string, itemIndent int) bool {
+	if strings.TrimSpace(line) == "" {
+		return false
+	}
+	leadingSpaces := len(line) - len(strings.TrimLeft(line, " "))
+	if leadingSpaces < itemIndent+2 {
+		return false
+	}
+	// Not a block-level element
+	if reHeading.MatchString(line) || reFence.MatchString(line) || reHR.MatchString(line) || reQuote.MatchString(line) {
+		return false
+	}
+	return true
+}
+
+// parseBlocks slices src into blocks. List items may span multiple lines
+// (soft-wrapped content or explicit continuation lines).
 func parseBlocks(src string) []Block {
 	lines := strings.Split(src, "\n")
 	var blocks []Block
@@ -266,8 +265,9 @@ func parseBlocks(src string) []Block {
 			continue
 		}
 
-		// Detect a table: a header row followed by a separator row.
-		if strings.Contains(ln, "|") && i+1 < len(lines) && reTableSep.MatchString(lines[i+1]) {
+		// Detect a table: consecutive rows containing "|".
+		// The separator row is optional — if absent, treat first row as header.
+		if strings.Contains(ln, "|") && i+1 < len(lines) && strings.Contains(lines[i+1], "|") {
 			end := i + 2
 			for end < len(lines) && strings.Contains(lines[end], "|") {
 				end++
@@ -277,14 +277,63 @@ func parseBlocks(src string) []Block {
 			continue
 		}
 
-		if reBullet.FindStringSubmatch(ln) != nil {
-			blocks = append(blocks, Block{Kind: kindBullet, Lines: []string{ln}, Closed: true})
+		// Bulleted list — consume the entire item (including continuation lines).
+		if bm := reBullet.FindStringSubmatch(ln); bm != nil {
+			itemIndent := len(bm[1])
+			itemLines := []string{ln}
 			i++
+			for i < len(lines) {
+				if strings.TrimSpace(lines[i]) == "" {
+					if i+1 < len(lines) && isListContinuation(lines[i+1], itemIndent) {
+						itemLines = append(itemLines, lines[i])
+						i++
+						continue
+					}
+					break
+				}
+				if nextBm := reBullet.FindStringSubmatch(lines[i]); nextBm != nil && len(nextBm[1]) <= itemIndent {
+					break
+				}
+				if nextOm := reOrdered.FindStringSubmatch(lines[i]); nextOm != nil && len(nextOm[1]) <= itemIndent {
+					break
+				}
+				if reHeading.MatchString(lines[i]) || reFence.MatchString(lines[i]) || reHR.MatchString(lines[i]) || reQuote.MatchString(lines[i]) {
+					break
+				}
+				itemLines = append(itemLines, lines[i])
+				i++
+			}
+			blocks = append(blocks, Block{Kind: kindBullet, Lines: itemLines, Closed: true})
 			continue
 		}
-		if reOrdered.FindStringSubmatch(ln) != nil {
-			blocks = append(blocks, Block{Kind: kindOrdered, Lines: []string{ln}, Closed: true})
+
+		// Ordered list — same continuation logic.
+		if om := reOrdered.FindStringSubmatch(ln); om != nil {
+			itemIndent := len(om[1])
+			itemLines := []string{ln}
 			i++
+			for i < len(lines) {
+				if strings.TrimSpace(lines[i]) == "" {
+					if i+1 < len(lines) && isListContinuation(lines[i+1], itemIndent) {
+						itemLines = append(itemLines, lines[i])
+						i++
+						continue
+					}
+					break
+				}
+				if nextBm := reBullet.FindStringSubmatch(lines[i]); nextBm != nil && len(nextBm[1]) <= itemIndent {
+					break
+				}
+				if nextOm := reOrdered.FindStringSubmatch(lines[i]); nextOm != nil && len(nextOm[1]) <= itemIndent {
+					break
+				}
+				if reHeading.MatchString(lines[i]) || reFence.MatchString(lines[i]) || reHR.MatchString(lines[i]) || reQuote.MatchString(lines[i]) {
+					break
+				}
+				itemLines = append(itemLines, lines[i])
+				i++
+			}
+			blocks = append(blocks, Block{Kind: kindOrdered, Lines: itemLines, Closed: true})
 			continue
 		}
 
@@ -294,7 +343,7 @@ func parseBlocks(src string) []Block {
 			continue
 		}
 
-		// Paragraph: join consecutive non-empty non-block lines.
+		// Paragraph: consecutive non-empty non-block lines.
 		para := []string{ln}
 		i++
 		for i < len(lines) && strings.TrimSpace(lines[i]) != "" &&
@@ -312,8 +361,7 @@ func parseBlocks(src string) []Block {
 	return blocks
 }
 
-// renderBlock renders a single Block to width using theme. This is the body
-// of the original renderMarkdown loop, factored per-kind and unchanged.
+// renderBlock renders a single Block to width using theme.
 func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 	switch b.Kind {
 	case kindFence:
@@ -331,12 +379,7 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		}
 		text := renderInline(hm[2], theme)
 		fn := theme.HeadingFn[level]
-		wrapped := core.WrapAnsi(fn(text), width)
-		out := make([]string, 0, len(wrapped))
-		for _, w := range wrapped {
-			out = append(out, core.PadToWidth(w, width))
-		}
-		return out
+		return core.WrapAnsi(fn(text), width)
 	case kindQuote:
 		qm := reQuote.FindStringSubmatch(b.Lines[0])
 		if qm == nil {
@@ -346,12 +389,15 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		out := make([]string, 0, 2)
 		for _, w := range core.WrapAnsi(text, width-2) {
 			line := theme.QuoteFn("│ ") + w
-			out = append(out, core.PadToWidth(line, width))
+			out = append(out, line)
 		}
 		return out
 	case kindTable:
 		return renderTable(b.Lines, width, theme)
 	case kindBullet:
+		if len(b.Lines) == 0 {
+			return nil
+		}
 		bm := reBullet.FindStringSubmatch(b.Lines[0])
 		if bm == nil {
 			return nil
@@ -360,16 +406,26 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		text := renderInline(bm[3], theme)
 		bullet := theme.ListBulletFn("• ")
 		indentStr := strings.Repeat(" ", indent+2)
-		out := make([]string, 0, 2)
+		out := make([]string, 0, len(b.Lines)*2)
 		for k, w := range core.WrapAnsi(text, width-int64(indent)-3) {
 			prefix := indentStr
 			if k == 0 {
 				prefix = strings.Repeat(" ", indent) + bullet
 			}
-			out = append(out, core.PadToWidth(prefix+w, width))
+			out = append(out, prefix+w)
+		}
+		// Render continuation lines.
+		for _, cl := range b.Lines[1:] {
+			ct := renderInline(cl, theme)
+			for _, w := range core.WrapAnsi(ct, width-int64(indent)-3) {
+				out = append(out, indentStr+w)
+			}
 		}
 		return out
 	case kindOrdered:
+		if len(b.Lines) == 0 {
+			return nil
+		}
 		om := reOrdered.FindStringSubmatch(b.Lines[0])
 		if om == nil {
 			return nil
@@ -378,23 +434,28 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		num := om[2] + ". "
 		text := renderInline(om[3], theme)
 		indentStr := strings.Repeat(" ", indent+len(num))
-		out := make([]string, 0, 2)
+		out := make([]string, 0, len(b.Lines)*2)
 		for k, w := range core.WrapAnsi(text, width-int64(indent)-int64(len(num))) {
 			prefix := indentStr
 			if k == 0 {
 				prefix = strings.Repeat(" ", indent) + theme.ListBulletFn(num)
 			}
-			out = append(out, core.PadToWidth(prefix+w, width))
+			out = append(out, prefix+w)
+		}
+		for _, cl := range b.Lines[1:] {
+			ct := renderInline(cl, theme)
+			for _, w := range core.WrapAnsi(ct, width-int64(indent)-int64(len(num))) {
+				out = append(out, indentStr+w)
+			}
 		}
 		return out
 	case kindBlank:
-		return []string{core.PadToWidth("", width)}
+		return []string{""}
 	case kindParagraph:
-		joined := strings.Join(b.Lines, " ")
-		text := renderInline(joined, theme)
-		out := make([]string, 0, len(b.Lines))
-		for _, w := range core.WrapAnsi(text, width) {
-			out = append(out, core.PadToWidth(w, width))
+		var out []string
+		for _, ln := range b.Lines {
+			text := renderInline(ln, theme)
+			out = append(out, core.WrapAnsi(text, width)...)
 		}
 		return out
 	}
@@ -627,10 +688,24 @@ func renderTable(rows []string, width int64, t MarkdownTheme) []string {
 		}
 		return parts
 	}
-	header := parse(rows[0])
-	body := make([][]string, 0, len(rows)-2)
-	for _, r := range rows[2:] {
-		body = append(body, parse(r))
+
+	// Check if row 1 is a standard separator; if not, treat all rows as data
+	// with the first row as header.
+	hasSep := reTableSep.MatchString(rows[1])
+
+	var header []string
+	var body [][]string
+
+	if hasSep {
+		header = parse(rows[0])
+		for _, r := range rows[2:] {
+			body = append(body, parse(r))
+		}
+	} else {
+		header = parse(rows[0])
+		for _, r := range rows[1:] {
+			body = append(body, parse(r))
+		}
 	}
 	cols := len(header)
 

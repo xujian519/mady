@@ -1,7 +1,7 @@
 package component
 
-// ToolCard renders a single tool-call result as a left-bar + title + status
-// block, with optional collapsible diff content. It factors out the rendering
+// ToolCard renders a single tool-call result as a compact status line,
+// with optional collapsible diff content. It factors out the rendering
 // ChatHistory previously inlined for RoleTool / diff messages, so tool
 // results, diffs, and (future) reasoning blocks share one visual treatment
 // and one click-to-toggle contract.
@@ -24,11 +24,11 @@ import (
 // file stays in package component and does not depend on package chat.
 // Callers construct it from their ChatHistoryTheme.
 type ToolCardTheme struct {
-	// Border styles the left bar when the status is neither success nor error.
+	// Border styles the status text when the status is neither success nor error.
 	Border func(string) string
-	// Success styles the left bar when the status indicates success.
+	// Success styles the status text when the status indicates success.
 	Success func(string) string
-	// Error styles the left bar when the status indicates failure.
+	// Error styles the status text when the status indicates failure.
 	Error func(string) string
 	// Title styles the tool name.
 	Title func(string) string
@@ -59,8 +59,8 @@ type ToolCardConfig struct {
 }
 
 // RenderToolCard renders cfg to width using theme, returning the lines.
-// The output matches what ChatHistory previously produced inline for RoleTool
-// messages, so callers can adopt it without visual change.
+// The output uses a clean text-only style: no left bar, no full-width
+// background colour block.
 func RenderToolCard(cfg ToolCardConfig, theme ToolCardTheme, width int64) []string {
 	meta := ""
 	if cfg.Duration > 0 {
@@ -71,24 +71,24 @@ func RenderToolCard(cfg ToolCardConfig, theme ToolCardTheme, width int64) []stri
 		seqStr = fmt.Sprintf("[%d] ", cfg.Seq)
 	}
 
-	barColor := theme.Border
+	statusStyle := theme.Border
 	if strings.Contains(cfg.Status, "done") || strings.Contains(cfg.Status, "✓") {
-		barColor = theme.Success
+		statusStyle = theme.Success
 	} else if strings.Contains(cfg.Status, "failed") || strings.Contains(cfg.Status, "✗") {
-		barColor = theme.Error
+		statusStyle = theme.Error
 	}
-	bar := barColor("▌")
+	styledStatus := statusStyle(cfg.Status)
 
 	if cfg.Collapsed {
 		summary := cfg.Status
 		if len(summary) > 300 {
 			summary = summary[:297] + "..."
 		}
-		head := bar + " [+] " + theme.Title(cfg.Name) + " " + theme.Dim(summary)
+		head := "[+] " + theme.Title(cfg.Name) + " " + theme.Dim(summary)
 		return core.WrapAnsi(head, width)
 	}
 
-	head := bar + " " + seqStr + theme.Title(cfg.Name) + " " + cfg.Status + meta
+	head := seqStr + theme.Title(cfg.Name) + " " + styledStatus + meta
 	lines := core.WrapAnsi(head, width)
 
 	if cfg.DiffText != "" {
