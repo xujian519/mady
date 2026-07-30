@@ -9,8 +9,8 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 | 1 Terminal I/O | `tui/terminal` | Terminal abstraction, key parsing, input buffer, ANSI builders | Layer 0 |
 | 2 Theming | `tui/theme` | Palette, semantic theme, a11y theme, JSON loading, file watch, Style | Layer 0, 1 |
 | 3 Engine | `tui` (root) | TUI container, event loop, overlay system, focus stack, ChatApp bridge | Layer 0–2, chat |
-| 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels, toast, onboarding) — 37 source files | Layer 0–2, fuzzy |
-| 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 14 source files | Layer 0–2, 4 |
+| 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels, toast, onboarding) — 41 source files | Layer 0–2, fuzzy |
+| 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 17 source files | Layer 0–2, 4 |
 | 6 Stdio | `tui/stdio` | Procedural stdout/stdin tools (Spinner, Renderer, ProgressBar, LineReader, layout) | Layer 0, 1, 2 |
 | 7 Adapter | `tui/agentadapter` | Agentcore → chat event conversion, BindAgent convenience | Layer 5, agentcore |
 
@@ -77,7 +77,7 @@ tui/
 │   ├── system_appearance.go # macOS NSAppearance dark/light detection
 │   └── theme_registry.go  # Theme registry: built-in + user theme registration
 │
-├── component/             # Layer 4 — Components (40 source files)
+├── component/             # Layer 4 — Components (41 source files)
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
 │   ├── text.go            # Text, TruncatedText
@@ -128,7 +128,7 @@ tui/
 │   ├── flex.go            # Flex declarative layout (main-axis size policies, 506 lines)
 │   └── layout.go          # Layout helpers
 │
-├── chat/                  # Layer 5 — Application (15 source files)
+├── chat/                  # Layer 5 — Application (17 source files)
 │   ├── chat_app.go        # ChatApp struct, constructor, public API (1060 lines)
 │   ├── chat_app_layout.go # chatLayout root Component + input router (582 lines)
 │   ├── chat_app_stream.go # ChatApp streaming lifecycle handlers (submit/delta/end/error)
