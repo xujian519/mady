@@ -39,7 +39,8 @@ func findGateway(t *testing.T, lc any) *agentcore.Gateway {
 func TestUnifiedAgentConfig_GatewayInjected(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := UnifiedAgentConfig(base, ue, pe, le)
 
 	g := findGateway(t, cfg.Lifecycle)
 	if g == nil {
@@ -67,7 +68,8 @@ func TestUnifiedAgentConfig_NoStandaloneStrategyRouter(t *testing.T) {
 func TestUnifiedAgentConfig_FallbackRouterWired(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := UnifiedAgentConfig(base, ue, pe, le)
 
 	g := findGateway(t, cfg.Lifecycle)
 	if g == nil {
@@ -92,7 +94,8 @@ func TestUnifiedAgentConfig_FallbackRouterWired(t *testing.T) {
 func TestUnifiedAgentConfig_FallbackCandidatesEffective(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := UnifiedAgentConfig(base, ue, pe, le)
 
 	g := findGateway(t, cfg.Lifecycle)
 	if g == nil {
@@ -119,7 +122,8 @@ func TestUnifiedAgentConfig_BudgetBlockingClampsEffort(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
 	base.ContextWindow = 100 // 极小窗口，构造 blocking 场景
-	cfg := UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := UnifiedAgentConfig(base, ue, pe, le)
 
 	g := findGateway(t, cfg.Lifecycle)
 	if g == nil {
@@ -160,7 +164,8 @@ func TestUnifiedAgentConfig_BudgetBlockingClampsEffort(t *testing.T) {
 func TestUnifiedAgentConfig_NoContextWindow_NoBudgetManager(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{} // ContextWindow=0
-	cfg := UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := UnifiedAgentConfig(base, ue, pe, le)
 
 	g := findGateway(t, cfg.Lifecycle)
 	if g == nil {
@@ -176,7 +181,8 @@ func TestUnifiedAgentConfig_NoContextWindow_NoBudgetManager(t *testing.T) {
 func TestUnifiedAgentConfig_StrategyHintInjectionPreserved(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := UnifiedAgentConfig(base, ue, pe, le)
 
 	g := findGateway(t, cfg.Lifecycle)
 	if g == nil {
@@ -213,7 +219,8 @@ func TestUnifiedAgentConfig_StrategyHintInjectionPreserved(t *testing.T) {
 func TestUnifiedAgentConfig_ClassifyOncePerTurn(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := UnifiedAgentConfig(base, ue, pe, le)
 
 	g := findGateway(t, cfg.Lifecycle)
 	if g == nil {
@@ -279,14 +286,14 @@ func assertGatewayWired(t *testing.T, cfg agentcore.Config, label string) {
 func TestPatentAgentConfig_GatewayWired(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := PatentAgentConfig(base)
+	cfg := PatentAgentConfig(base, testToolExt())
 	assertGatewayWired(t, cfg, "PatentAgentConfig")
 }
 
 func TestLegalAgentConfig_GatewayWired(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := LegalAgentConfig(base)
+	cfg := LegalAgentConfig(base, testToolExt())
 	assertGatewayWired(t, cfg, "LegalAgentConfig")
 }
 
@@ -294,7 +301,7 @@ func TestBuildProjectAgent_GatewayWired(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
 	rec := ProjectRecord{ProjectID: "test-project", Alias: "测试案件"}
-	cfg := BuildProjectAgent(rec, base)
+	cfg := BuildProjectAgent(rec, base, testToolExt())
 	assertGatewayWired(t, cfg, "BuildProjectAgent")
 }
 

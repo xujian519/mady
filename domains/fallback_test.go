@@ -76,7 +76,7 @@ func TestFallback_DelegateErrorReturnsHandoffResult(t *testing.T) {
 		},
 	}
 
-	cfg := UnifiedAgentConfig(base)
+	cfg := UnifiedAgentConfig(base, testToolExt(), testToolExt(), testToolExt())
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 
@@ -184,7 +184,7 @@ func TestFallback_PatentAgentFallbackMsg(t *testing.T) {
 			Provider: &handoffProvider{tool: DomainChat, content: "ok"},
 		},
 	}
-	cfg := UnifiedAgentConfig(base)
+	cfg := UnifiedAgentConfig(base, testToolExt(), testToolExt(), testToolExt())
 
 	var patentFallback string
 	for _, h := range cfg.Handoffs {
@@ -210,7 +210,7 @@ func TestFallback_LegalAgentFallbackMsg(t *testing.T) {
 			Provider: &handoffProvider{tool: DomainChat, content: "ok"},
 		},
 	}
-	cfg := UnifiedAgentConfig(base)
+	cfg := UnifiedAgentConfig(base, testToolExt(), testToolExt(), testToolExt())
 
 	var legalFallback string
 	for _, h := range cfg.Handoffs {

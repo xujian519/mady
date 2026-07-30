@@ -97,8 +97,8 @@ func runServer(ctx context.Context) error {
 
 	fc := setupFrameworkContext(ctx, "serve")
 
-	// Build unified agent config.
-	cfg := domains.UnifiedAgentConfig(fc.BaseConfig)
+	// Build unified agent config with injected tool extensions.
+	cfg := domains.UnifiedAgentConfig(fc.BaseConfig, buildUnifiedToolExt(fc), buildPatentToolExt(fc), buildLegalToolExt(fc))
 
 	// 无交互用户模式（serve）：用 AlwaysDenyApprover 拒绝危险工具调用。
 	// 允许读/写工具继续工作，bash/process/browser/execute_code/computer_use 被拒绝。

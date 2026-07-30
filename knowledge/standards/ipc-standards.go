@@ -60,12 +60,13 @@ func LoadStandards() ([]IPCStandard, error) {
 	return loaded, loadErr
 }
 
-// MustLoadStandards loads standards and panics on error. Convenient for
-// one-time initialization in server startup or tests.
+// MustLoadStandards loads standards and panics on error. Only use during
+// one-time initialization (server startup or tests). For request-handling
+// paths, use LoadStandards() and handle the error gracefully instead.
 func MustLoadStandards() []IPCStandard {
 	s, err := LoadStandards()
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("ipc-standards: MustLoadStandards failed: %v", err))
 	}
 	return s
 }

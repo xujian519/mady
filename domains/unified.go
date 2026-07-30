@@ -6,7 +6,6 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/psychological"
-	"github.com/xujian519/mady/tools"
 )
 
 // UnifiedAgentConfig 构建合并后的统一 Agent 配置。
@@ -14,7 +13,11 @@ import (
 // 融合了原 Chat Agent（对话/情感陪伴）、Assistant Agent（工具执行）
 // 和 Router（领域路由）三者的能力。用户面对的唯一智能体入口，
 // 内部通过 Invisible Handoff 委派专利/法律专业任务。
-func UnifiedAgentConfig(base agentcore.Config) agentcore.Config {
+//
+// toolExt 是调用方已装配好的工具扩展（含文件/网络/视觉等标准能力），
+// 通过被动注入模式传入，域层不再主动创建工具。
+// patentToolExt 和 legalToolExt 是 Handoff 子 Agent 的独立工具扩展。
+func UnifiedAgentConfig(base agentcore.Config, toolExt agentcore.Extension, patentToolExt agentcore.Extension, legalToolExt agentcore.Extension) agentcore.Config {
 	cfg := base
 	cfg.Name = "mady-agent"
 
@@ -77,41 +80,17 @@ func UnifiedAgentConfig(base agentcore.Config) agentcore.Config {
 		agentcore.NewIFaceLifecycleHook(guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard))),
 	)
 
-	// 工具扩展 — 沿用 Assistant Agent 的完整配置。
-	// WorkingDir 从 base.ProjectDir 透传，回退到 base.WorkspaceDir。
-	// SandboxEnabled=true 确保文件操作被限制在项目目录内。
-	workingDir := base.ProjectDir
-	if workingDir == "" {
-		workingDir = base.WorkspaceDir
-	}
-	allowRead, allowWrite := BuildSandboxAllowLists()
-	toolExt := tools.NewExtension(tools.ExtensionConfig{
-		WorkingDir:     workingDir,
-		SandboxEnabled: true,
-		AllowRead:      allowRead,
-		AllowWrite:     allowWrite,
-		Vision: &tools.VisionToolConfig{
-			Provider: base.Provider,
-			Model:    base.Model,
-		},
-		WebSearch:   &tools.WebSearchToolConfig{},
-		WebFetch:    &tools.WebFetchToolConfig{},
-		ComputerUse: true,
-		MaxBytes:    100 * 1024,
-		MaxLines:    5000,
-		// 安全策略由入口层（TUI/serve/ACP）注入的 PermissionExtension 管理。
-		// 此处不再硬编码 DisableTools，确保所有工具对 Agent 可见。
-		// TUI：PermissionExtension(ProjectAgentPolicy, TUIChannelApprover) → Ask
-		// serve：PermissionExtension(DenyPolicy, AlwaysDenyApprover)    → Deny
-	})
-
-	// 心理引擎 — 统一模式：VAD/OCC 语气调整，不做认知扭曲诊断（Chat/Assistant 场景）。
+	// 被动注入：调用方已装配好的工具扩展。
+	// 安全策略由入口层（TUI/serve/ACP）注入的 PermissionExtension 管理。
+	// TUI：PermissionExtension(ProjectAgentPolicy, TUIChannelApprover) → Ask
+	// serve：PermissionExtension(DenyPolicy, AlwaysDenyApprover)    → Deny
 	cfg.Extensions = append(cfg.Extensions, toolExt, psychological.NewExtension(
 		ChatPsychConfig(),
 	))
 
 	// 注册专业领域 Handoff（Patent/Legal），标记为不可见。
-	cfg.Handoffs = ProfessionalHandoffConfigs(base)
+	// 传入专利和法律的独立工具扩展用于子 Agent 配置。
+	cfg.Handoffs = ProfessionalHandoffConfigs(base, patentToolExt, legalToolExt)
 	for i := range cfg.Handoffs {
 		cfg.Handoffs[i].Invisible = true
 	}

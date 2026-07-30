@@ -36,6 +36,7 @@ import (
 	"github.com/xujian519/mady/evaluate/benchmark"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/provider/chatcompat"
+	"github.com/xujian519/mady/tools"
 )
 
 // envInt 读取整型环境变量，缺省或非法时返回 def。
@@ -139,7 +140,7 @@ func main() {
 			ExecutionMode: agentcore.ModeSerial,
 		},
 	}
-	cfg := domains.PatentAgentConfig(base)
+	cfg := domains.PatentAgentConfig(base, buildSmokeToolExt(base))
 
 	out, elapsed, err := runSmoke(cfg, input)
 	if err != nil {
@@ -175,4 +176,19 @@ func main() {
 			fmt.Println(out)
 		}
 	}
+}
+
+// buildSmokeToolExt 为冒烟测试构建专利 Agent 工具扩展。
+func buildSmokeToolExt(base agentcore.Config) agentcore.Extension {
+	workingDir := base.ProjectDir
+	if workingDir == "" {
+		workingDir = base.WorkspaceDir
+	}
+	return tools.NewExtension(tools.ExtensionConfig{
+		WorkingDir: workingDir,
+		Vision: &tools.VisionToolConfig{
+			Provider: base.Provider,
+			Model:    base.Model,
+		},
+	})
 }

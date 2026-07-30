@@ -1,0 +1,562 @@
+package chat
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/xujian519/mady/tui/component"
+	"github.com/xujian519/mady/tui/core"
+	"github.com/xujian519/mady/tui/theme"
+)
+
+// escInterruptWindow is the time window for double-Esc interrupt detection.
+// The first Esc during streaming sets a hint; the second within this window
+// triggers the actual interrupt. This prevents accidental interruptions by
+// users coming from vim/neovim who reflexively press Esc.
+const escInterruptWindow = 1 * time.Second
+
+// Paste thresholds for the placeholder system. Pastes exceeding either
+// threshold are stored separately and replaced with a compact placeholder.
+const pasteThresholdChars = 800
+const pasteThresholdLines = 2
+
+// ---------------------------------------------------------------------------
+// Mouse passthrough
+// ---------------------------------------------------------------------------
+
+// ToggleMousePassthrough toggles between TUI mouse tracking and native terminal
+// mouse handling. When passthrough is enabled, the terminal's native text
+// selection and right-click menu work; when disabled, the TUI captures mouse
+// events for its own scroll/click routing. State is tracked on ChatApp so the
+// status bar or layout can reflect the current mode.
+func (a *ChatApp) ToggleMousePassthrough() {
+	a.mu.Lock()
+	a.mousePassthrough = !a.mousePassthrough
+	pass := a.mousePassthrough
+	// 保存初始鼠标模式，用于从 passthrough 恢复。
+	// 如果 a.cfg.MouseMode 为空/off，用 "sgr" 作为默认。
+	origMode := a.cfg.MouseMode
+	if origMode == "" || origMode == "off" {
+		origMode = "sgr"
+	}
+	a.mu.Unlock()
+
+	if pass {
+		a.host.DisableMouse()
+	} else {
+		a.host.EnableMouse(origMode)
+	}
+	a.host.RequestRender()
+}
+
+// ---------------------------------------------------------------------------
+// Print helpers
+// ---------------------------------------------------------------------------
+
+// PrintSystem appends a system message to the chat history.
+func (a *ChatApp) PrintSystem(msg string) {
+	a.history.Append(ChatMessage{Role: RoleSystem, Text: msg})
+}
+
+// PrintError appends an error message to the chat history.
+func (a *ChatApp) PrintError(err error) {
+	if err == nil {
+		return
+	}
+	a.history.Append(ChatMessage{Role: RoleError, Text: err.Error()})
+}
+
+// PrintUser appends a user message to the chat history.
+func (a *ChatApp) PrintUser(input string) {
+	a.history.Append(ChatMessage{Role: RoleUser, Text: input})
+}
+
+// ---------------------------------------------------------------------------
+// Busy / Idle
+// ---------------------------------------------------------------------------
+
+// Busy sets the loader spinning and marks the model as running.
+func (a *ChatApp) Busy(message string) {
+	if message != "" {
+		a.loader.SetMessage(theme.CurrentPalette().Dim.Render(message))
+	}
+	a.loader.Start()
+	a.mu.Lock()
+	a.model.Running = true
+	a.mu.Unlock()
+	if a.statusBar != nil {
+		a.statusBar.Busy()
+	}
+	a.editor.SetPlaceholder("Ctrl+C to interrupt")
+	a.host.RequestRender()
+}
+
+// Idle stops the loader and marks the model as idle.
+func (a *ChatApp) Idle() {
+	a.loader.Stop()
+	a.mu.Lock()
+	a.model.Running = false
+	a.mu.Unlock()
+	if a.statusBar != nil {
+		a.statusBar.Idle()
+	}
+	// 恢复原始占位符（Busy 时被替换为 "Ctrl+C to interrupt"）。
+	// 不得清空为 ""，否则首次 Agent 运行后输入区丢失提示文字。
+	a.editor.SetPlaceholder(a.defaultPlaceholder)
+	a.host.RequestRender()
+}
+
+// ---------------------------------------------------------------------------
+// Judgment summary
+// ---------------------------------------------------------------------------
+
+// SetJudgmentSummary populates the judgment-bar summary from the provided
+// snapshot and triggers a render. Called by event handlers when structured
+// judgment data arrives (e.g. review gate, approval prompt).
+func (a *ChatApp) SetJudgmentSummary(s JudgmentSummary) {
+	a.mu.Lock()
+	a.model.judgmentSummary = s
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
+}
+
+// ClearJudgmentSummary resets the judgment-bar to idle. Called when a new
+// agent run starts so stale data from a previous run doesn't leak.
+func (a *ChatApp) ClearJudgmentSummary() {
+	a.mu.Lock()
+	a.model.judgmentSummary = JudgmentSummary{}
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
+}
+
+// MarkAgentReady signals that agent initialization has completed and
+// transitions the FSM from StateInitializing to StateIdle. Called after
+// initializeAgentAsync successfully binds the agent to the ChatApp.
+func (a *ChatApp) MarkAgentReady() {
+	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtAgentReady)
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
+}
+
+// MarkAgentFailed signals that agent initialization hit a terminal error and
+// transitions the FSM to StateFailed. Called from initializeAgentAsync's
+// error recovery path so the UI reflects the failed state.
+func (a *ChatApp) MarkAgentFailed() {
+	a.mu.Lock()
+	a.model.state = Transition(a.model.state, evtAgentError)
+	a.mu.Unlock()
+	a.layout.updateJudgmentView()
+}
+
+// ---------------------------------------------------------------------------
+// State queries
+// ---------------------------------------------------------------------------
+
+// State returns the current FSM state of the ChatApp.
+func (a *ChatApp) State() AppState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.model.state
+}
+
+// QueuedInputCount returns the number of inputs queued during streaming.
+func (a *ChatApp) QueuedInputCount() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return len(a.model.queuedInput)
+}
+
+// ---------------------------------------------------------------------------
+// Welcome / Status
+// ---------------------------------------------------------------------------
+
+// PrintWelcome appends a minimal welcome message using Markdown formatting.
+// Since RoleSystem now renders through the Markdown pipeline, the text uses
+// proper Markdown syntax (headings, lists, code, HR) for clean rendering.
+func (a *ChatApp) PrintWelcome(provider, model, mode, project string) {
+	var b strings.Builder
+
+	b.WriteString("## ◈ Mady · 中观智能体\n\n")
+
+	b.WriteString("- `/help` — 快捷键指南\n")
+	b.WriteString("- `/clear` — 开始新对话\n")
+	b.WriteString("- `/review` — 审阅\n")
+	b.WriteString("- `/plan` — 计划\n")
+	b.WriteString("- `/theme` — 主题\n")
+	b.WriteString("- `/settings` — 设置\n\n")
+
+	b.WriteString("---\n\n")
+
+	fmt.Fprintf(&b, "提供方: %s · 模型: %s\n", provider, model)
+	fmt.Fprintf(&b, "模式: %s · 案件: %s\n\n", mode, project)
+
+	b.WriteString("💡 输入 `/` 查看命令，或直接用自然语言提问\n")
+
+	a.history.Append(ChatMessage{Role: RoleSystem, Text: b.String()})
+}
+
+// PrintStatus updates the loader message without starting/stopping it.
+func (a *ChatApp) PrintStatus(message string) {
+	a.loader.SetMessage(theme.CurrentPalette().Dim.Render(message))
+	a.host.RequestRender()
+}
+
+// ---------------------------------------------------------------------------
+// Overlay: review gate
+// ---------------------------------------------------------------------------
+
+// OpenReviewGate opens a review gate overlay with the given data.
+// Lock discipline: a.mu is NOT held during PushOverlay (see ToggleKeyHelp).
+func (a *ChatApp) OpenReviewGate(data ReviewGateData) OverlayRef {
+	a.mu.Lock()
+	if a.reviewGateOverlay != nil {
+		// Close existing review gate before opening a new one.
+		ov := a.reviewGateOverlay
+		a.reviewGateOverlay = nil
+		a.mu.Unlock()
+		a.host.RemoveOverlay(ov)
+		a.mu.Lock()
+	}
+
+	rg := component.NewReviewGate(data.Judgment, data.Confidence, data.Evidences, data.Checklist, data.Risks)
+	if data.Title != "" {
+		rg.SetTitle(data.Title)
+	}
+	rg.SetKeybindings(a.km)
+	if data.OnPass != nil {
+		rg.SetOnPass(data.OnPass)
+	}
+	if data.OnBack != nil {
+		rg.SetOnBack(data.OnBack)
+	}
+	if data.OnBlock != nil {
+		rg.SetOnBlock(data.OnBlock)
+	}
+	rg.SetOnClose(func() { a.CloseReviewGate() })
+
+	ov := &overlayHandle{
+		content:       rg,
+		focus:         true,
+		dimBackground: true,
+		category:      OverlayCatGate,
+		widthPct:      70,
+		heightPct:     75,
+	}
+	a.reviewGateOverlay = ov
+	a.mu.Unlock()
+	a.host.PushOverlay(ov)
+	a.host.RequestRender()
+	return ov
+}
+
+// CloseReviewGate closes the review gate overlay if open.
+func (a *ChatApp) CloseReviewGate() {
+	a.mu.Lock()
+	ov := a.reviewGateOverlay
+	a.reviewGateOverlay = nil
+	a.mu.Unlock()
+	if ov != nil {
+		a.host.RemoveOverlay(ov)
+		a.host.Focus(a.editor)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Overlay: system status
+// ---------------------------------------------------------------------------
+
+// OpenSystemStatus opens a system status overlay with the given data.
+// Lock discipline: a.mu is NOT held during PushOverlay (see ToggleKeyHelp).
+func (a *ChatApp) OpenSystemStatus(data SystemStatusData) OverlayRef {
+	a.mu.Lock()
+	if a.systemStatusOverlay != nil {
+		ov := a.systemStatusOverlay
+		a.systemStatusOverlay = nil
+		a.mu.Unlock()
+		a.host.RemoveOverlay(ov)
+		a.mu.Lock()
+	}
+
+	ss := component.NewSystemStatus()
+	ss.SetMode(data.Mode, data.ModeReason)
+	ss.SetEvents(data.Events)
+	ss.SetImpacts(data.Impacts)
+	ss.SetKeybindings(a.km)
+	ss.SetOnClose(func() { a.CloseSystemStatus() })
+
+	ov := &overlayHandle{
+		content:       ss,
+		focus:         true,
+		dimBackground: true,
+		category:      OverlayCatSystem,
+		widthPct:      50,
+		heightPct:     40,
+	}
+	a.systemStatusOverlay = ov
+	a.mu.Unlock()
+	a.host.PushOverlay(ov)
+	a.host.RequestRender()
+	return ov
+}
+
+// CloseSystemStatus closes the system status overlay if open.
+func (a *ChatApp) CloseSystemStatus() {
+	a.mu.Lock()
+	ov := a.systemStatusOverlay
+	a.systemStatusOverlay = nil
+	a.mu.Unlock()
+	if ov != nil {
+		a.host.RemoveOverlay(ov)
+		a.host.Focus(a.editor)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Overlay: evidence details
+// ---------------------------------------------------------------------------
+
+// OpenEvidenceOverlay opens the evidence details overlay.
+// Lock discipline: a.mu is NOT held during PushOverlay (see ToggleKeyHelp).
+func (a *ChatApp) OpenEvidenceOverlay(data EvidenceOverlayData) OverlayRef {
+	a.mu.Lock()
+	if a.evidenceOverlay != nil {
+		ov := a.evidenceOverlay
+		a.evidenceOverlay = nil
+		a.mu.Unlock()
+		a.host.RemoveOverlay(ov)
+		a.mu.Lock()
+	}
+
+	eo := component.NewEvidenceOverlay()
+	if len(data.Items) > 0 {
+		eo.SetItems(data.Items)
+	}
+	eo.SetOnClose(func() { a.CloseEvidenceOverlay() })
+
+	ov := &overlayHandle{
+		content:       eo,
+		focus:         true,
+		dimBackground: true,
+		category:      OverlayCatReview,
+		widthPct:      60,
+		heightPct:     60,
+	}
+	a.evidenceOverlay = ov
+	a.mu.Unlock()
+	a.host.PushOverlay(ov)
+	a.host.RequestRender()
+	return ov
+}
+
+// CloseEvidenceOverlay closes the evidence details overlay if open.
+func (a *ChatApp) CloseEvidenceOverlay() {
+	a.mu.Lock()
+	ov := a.evidenceOverlay
+	a.evidenceOverlay = nil
+	a.mu.Unlock()
+	if ov != nil {
+		a.host.RemoveOverlay(ov)
+		a.host.Focus(a.editor)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Generic overlay helpers
+// ---------------------------------------------------------------------------
+
+// OpenOverlay mounts an arbitrary content component as a centered, focused
+// overlay and returns a handle the caller can pass to CloseOverlay. This is
+// the public entry point for app-level panels (settings, session picker, …)
+// that the keyhelp-specific ToggleKeyHelp does not cover.
+func (a *ChatApp) OpenOverlay(content core.Component, opts OverlayOpts) OverlayRef {
+	if opts.WidthPct == 0 {
+		opts.WidthPct = 60
+	}
+	if opts.HeightPct == 0 {
+		opts.HeightPct = 60
+	}
+	ov := &overlayHandle{
+		content:       content,
+		focus:         true,
+		dimBackground: opts.Dim,
+		category:      opts.Category,
+		widthPct:      opts.WidthPct,
+		heightPct:     opts.HeightPct,
+	}
+	// Push the overlay outside any ChatApp lock to avoid the lock-ordering
+	// hazard documented in ToggleKeyHelp (host.PushOverlay takes host.mu /
+	// TUI.mu; ChatApp.mu must never be held across that call).
+	a.host.PushOverlay(ov)
+	a.host.RequestRender()
+	return ov
+}
+
+// CloseOverlay removes an overlay previously opened via OpenOverlay (or any
+// other OverlayRef returned by the host) and restores focus to the editor.
+func (a *ChatApp) CloseOverlay(ov OverlayRef) {
+	if ov == nil {
+		return
+	}
+	a.host.RemoveOverlay(ov)
+	a.host.Focus(a.editor)
+}
+
+// OpenSelectionOverlay opens a selection-type overlay for quick object
+// switching (sessions, threads, branches). Default size: 40/30.
+func (a *ChatApp) OpenSelectionOverlay(content core.Component) OverlayRef {
+	return a.OpenOverlay(content, OverlayOpts{
+		WidthPct:  40,
+		HeightPct: 30,
+		Dim:       true,
+		Category:  OverlayCatSelection,
+	})
+}
+
+// OpenReviewOverlay opens a review-type overlay for viewing details
+// (evidence, citations, keybindings). Default size: 60/60.
+func (a *ChatApp) OpenReviewOverlay(content core.Component) OverlayRef {
+	return a.OpenOverlay(content, OverlayOpts{
+		WidthPct:  60,
+		HeightPct: 60,
+		Dim:       true,
+		Category:  OverlayCatReview,
+	})
+}
+
+// OpenGateOverlay opens a gate-type overlay for structured review
+// (review gates, high-risk confirmations). Default size: 70/75.
+func (a *ChatApp) OpenGateOverlay(content core.Component) OverlayRef {
+	return a.OpenOverlay(content, OverlayOpts{
+		WidthPct:  70,
+		HeightPct: 75,
+		Dim:       true,
+		Category:  OverlayCatGate,
+	})
+}
+
+// OpenSystemOverlay opens a system-type overlay for runtime condition
+// explanation (degraded mode, blocked, logs). Default size: 50/40.
+func (a *ChatApp) OpenSystemOverlay(content core.Component) OverlayRef {
+	return a.OpenOverlay(content, OverlayOpts{
+		WidthPct:  50,
+		HeightPct: 40,
+		Dim:       true,
+		Category:  OverlayCatSystem,
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Stream finalization
+// ---------------------------------------------------------------------------
+
+func (a *ChatApp) finalizeStreamLocked() {
+	id := a.model.StreamID
+	a.model.StreamID = ""
+	if id != "" {
+		a.history.Finalize(id)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Paste placeholder helpers
+// ---------------------------------------------------------------------------
+
+// handlePastePlaceholder stores a large paste text and returns a PasteMsg
+// with a compact placeholder. The placeholder is expanded back to the full
+// text when the editor value is submitted (see expandPastePlaceholders).
+func (a *ChatApp) handlePastePlaceholder(text string) core.Msg {
+	a.mu.Lock()
+	id := a.model.nextPasteID
+	a.model.nextPasteID++
+	a.model.pastedTexts[id] = text
+	textLen := len(text)
+	a.mu.Unlock()
+
+	a.PrintSystem(fmt.Sprintf("📋 已粘贴大文本 #%d（%d 字符）", id, textLen))
+
+	lineCount := strings.Count(text, "\n")
+	placeholder := fmt.Sprintf("[Pasted text #%d +%d lines]", id, lineCount)
+	return core.PasteMsg{Text: placeholder}
+}
+
+// expandPastePlaceholders scans the input text for placeholder markers
+// ([Pasted text #N +M lines]) and replaces them with the stored full text.
+// Returns the expanded text and cleans up referenced entries. Placeholders
+// for unknown IDs are left as-is (defensive).
+func (a *ChatApp) expandPastePlaceholders(input string) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	prefix := "[Pasted text #"
+	suffix := "]"
+	result := input
+	for {
+		start := strings.Index(result, prefix)
+		if start < 0 {
+			break
+		}
+		end := strings.Index(result[start:], suffix)
+		if end < 0 {
+			break
+		}
+		marker := result[start : start+end+len(suffix)]
+		// Parse ID from "[Pasted text #N +M lines]"
+		idStr := strings.TrimPrefix(marker, prefix)
+		spaceIdx := strings.Index(idStr, " ")
+		if spaceIdx < 0 {
+			break
+		}
+		idStr = idStr[:spaceIdx] // just the numeric ID
+		var id int
+		if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+			break
+		}
+		fullText, exists := a.model.pastedTexts[id]
+		if exists {
+			result = strings.Replace(result, marker, fullText, 1)
+			delete(a.model.pastedTexts, id)
+		} else {
+			// Unknown reference: leave the placeholder as-is.
+			result = strings.Replace(result, marker, marker+"(expired)", 1)
+		}
+	}
+	return result
+}
+
+// ---------------------------------------------------------------------------
+// Queued input flush
+// ---------------------------------------------------------------------------
+
+// flushQueuedInput submits all inputs queued during streaming in FIFO order.
+// Each input goes through the normal submit path (PrintUser → OnSubmit).
+// Called from onAgentEnd and onAgentError after finalizing the stream.
+func (a *ChatApp) flushQueuedInput() {
+	a.mu.Lock()
+	queue := a.model.queuedInput
+	a.model.queuedInput = nil
+	// 循环不变式在 cfg 构造后恒定，在循环外加载。
+	onSubmit := a.cfg.OnSubmit
+	ctx := a.cfg.Context
+	a.mu.Unlock()
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	for _, input := range queue {
+		trimmed := strings.TrimSpace(input)
+		if trimmed == "" {
+			continue
+		}
+		a.PrintUser(trimmed)
+		a.host.RequestRender()
+		a.editor.PushInputHistory(trimmed)
+		a.editor.SetValue("")
+		if onSubmit != nil {
+			onSubmit(ctx, trimmed)
+		}
+	}
+}

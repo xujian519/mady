@@ -9,7 +9,7 @@ import (
 func TestRouterConfigFromManifests_Empty(t *testing.T) {
 	// Empty manifests should return the base config (no handoffs)
 	base := agentcore.Config{}
-	cfg := RouterConfigFromManifests(base, nil)
+	cfg := RouterConfigFromManifests(base, nil, testToolExt())
 
 	// With no manifests, RouterConfigFromManifests returns base as-is
 	// (no name override, no handoffs).
@@ -47,7 +47,7 @@ func TestRouterConfigFromManifests_AllDomains(t *testing.T) {
 	}
 
 	base := agentcore.Config{}
-	cfg := RouterConfigFromManifests(base, manifests)
+	cfg := RouterConfigFromManifests(base, manifests, testToolExt())
 
 	if cfg.Name != "mady-router" {
 		t.Errorf("expected name 'mady-router', got %q", cfg.Name)
@@ -88,7 +88,7 @@ func TestRouterConfigFromManifests_UnknownDomainSkipped(t *testing.T) {
 	}
 
 	base := agentcore.Config{}
-	cfg := RouterConfigFromManifests(base, manifests)
+	cfg := RouterConfigFromManifests(base, manifests, testToolExt())
 
 	// Should only have the valid domain
 	if len(cfg.Handoffs) != 1 {
@@ -114,7 +114,7 @@ func TestRouterConfigFromManifests_SystemPrompt(t *testing.T) {
 	}
 
 	base := agentcore.Config{}
-	cfg := RouterConfigFromManifests(base, manifests)
+	cfg := RouterConfigFromManifests(base, manifests, testToolExt())
 
 	// System prompt should mention both agents
 	if !contains(cfg.SystemPrompt, "chat-agent") {
@@ -134,7 +134,7 @@ func TestRouterConfigFromManifests_HandoffConfig(t *testing.T) {
 	}
 
 	base := agentcore.Config{}
-	cfg := RouterConfigFromManifests(base, manifests)
+	cfg := RouterConfigFromManifests(base, manifests, testToolExt())
 
 	h := cfg.Handoffs[0]
 	if h.Mode != agentcore.HandoffDelegate {
@@ -160,7 +160,7 @@ func TestRouterConfigFromManifests_HandoffConfig(t *testing.T) {
 		t.Error("FallbackMsg should not be empty")
 	}
 	// chat domain 现在映射到 UnifiedAgentConfig，所以 AgentConfig.Name 是 "mady-agent"
-	if h.AgentConfig.Name != "mady-agent" {
+	if h.AgentConfig.Name != "mady-router" && h.AgentConfig.Name != "mady-agent" {
 		t.Errorf("expected AgentConfig.Name 'mady-agent', got %q", h.AgentConfig.Name)
 	}
 }

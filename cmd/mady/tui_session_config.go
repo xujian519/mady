@@ -91,7 +91,7 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 		base.Extensions = append(base.Extensions,
 			permission.NewExtension(permission.ProjectAgentPolicy(), s.toolApprover))
 	}
-	cfg := s.extendConfig(domains.UnifiedAgentConfig(base))
+	cfg := s.extendConfig(domains.UnifiedAgentConfig(base, buildUnifiedToolExt(s.fc), buildPatentToolExt(s.fc), buildLegalToolExt(s.fc)))
 
 	// Propagate session/case context for LifecycleHook persistence.
 	cfg.SessionID = s.currentThreadID

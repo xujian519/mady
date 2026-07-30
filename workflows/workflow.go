@@ -350,15 +350,17 @@ func compileWorkflowToPregel(w *Workflow) *graph.PregelGraph {
 			var execErr error
 			switch step.Type {
 			case StepAgent:
-				// Agent 步骤：委托给指定的 Agent 角色（配置 AgentProvider 后在 Execute 层注入）。
-				// TODO: 当 WorkflowOrchestrator 持有 Provider 引用时，创建 agentcore.Agent 并运行。
+				// Agent 步骤：委托给指定的 Agent 角色。
+				// 注意：实际 Agent 创建和运行需要 WorkflowOrchestrator 持有 Provider 引用，
+				// 当前仅在 Pregel 状态中记录 Agent 角色和提示词，供未来实现消费。
 				newState["step_agent"] = step.Role
 				newState["step_prompt"] = step.Prompt
 				slog.Debug("workflow: agent step dispatch", "step", step.ID, "role", step.Role)
 
 			case StepTool:
 				// Tool 步骤：执行指定的工具。
-				// TODO: 通过 ToolRegistry 按 step.Tool 查找并调用工具。
+				// 注意：实际工具调用需要 WorkflowOrchestrator 持有 ToolRegistry 引用，
+				// 当前仅在 Pregel 状态中记录工具名称供未来使用，并校验工具名称非空。
 				if step.Tool == "" {
 					execErr = fmt.Errorf("workflow: tool step %q has no tool name", step.ID)
 				} else {
@@ -368,7 +370,8 @@ func compileWorkflowToPregel(w *Workflow) *graph.PregelGraph {
 
 			case StepQualityCheck:
 				// 质量检查步骤：收集当前上下文中的输出并运行检查。
-				// TODO: 当 EvaluateProvider 可用时，调用质量检查器评估当前产物。
+				// 注意：实际质量检查调用 EvaluateProvider 需要在 WorkflowOrchestrator
+				// 接入后实现，当前仅在 Pregel 状态中标记检查点。
 				newState["step_quality_check"] = true
 				slog.Debug("workflow: quality check step", "step", step.ID)
 
@@ -381,7 +384,8 @@ func compileWorkflowToPregel(w *Workflow) *graph.PregelGraph {
 
 			case StepSubWorkflow:
 				// 子工作流步骤：递归执行嵌套工作流。
-				// TODO: 按 step.SubWorkflowName 查找已注册的工作流模板并递归执行。
+				// 注意：实际子工作流执行需要 WorkflowOrchestrator 持有 TemplateRegistry
+				// 引用，当前仅在 Pregel 状态中记录子工作流名称供未来实现消费。
 				newState["step_sub_workflow"] = step.SubWorkflowName
 				slog.Debug("workflow: sub-workflow step", "step", step.ID,
 					"sub_workflow", step.SubWorkflowName)

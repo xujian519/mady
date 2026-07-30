@@ -18,7 +18,7 @@ func TestPatentAgentProvisionHandoffsIntegrated(t *testing.T) {
 	base.Provider = &mockProvider{}
 
 	// 通过 ProfessionalHandoffConfigs 模拟 UnifiedAgent 创建 PatentAgent 的路径
-	handoffs := ProfessionalHandoffConfigs(base)
+	handoffs := ProfessionalHandoffConfigs(base, testToolExt(), testToolExt())
 
 	var patentHandoff *agentcore.HandoffConfig
 	for i, h := range handoffs {
@@ -88,7 +88,7 @@ func TestPatentAgentSystemPromptMentionsProvisions(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
 
-	cfg := PatentAgentConfig(base)
+	cfg := PatentAgentConfig(base, testToolExt())
 
 	checks := []struct {
 		name    string
@@ -141,7 +141,7 @@ func TestBuildProjectAgentHasProvisions(t *testing.T) {
 		Status:    StatusActive,
 	}
 
-	cfg := BuildProjectAgent(rec, base)
+	cfg := BuildProjectAgent(rec, base, testToolExt())
 
 	hasNovelty := false
 	for _, h := range cfg.Handoffs {

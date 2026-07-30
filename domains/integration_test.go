@@ -43,7 +43,7 @@ func TestUnifiedHandoffDelegateToPatent(t *testing.T) {
 		},
 	}
 
-	cfg := UnifiedAgentConfig(base)
+	cfg := UnifiedAgentConfig(base, testToolExt(), testToolExt(), testToolExt())
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 
@@ -90,7 +90,7 @@ func TestRouterHandoffDelegateToPatent(t *testing.T) {
 		},
 	}
 
-	cfg := UnifiedAgentConfig(base)
+	cfg := UnifiedAgentConfig(base, testToolExt(), testToolExt(), testToolExt())
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 
@@ -115,7 +115,7 @@ func TestRouterHandoffDelegateToLegal(t *testing.T) {
 		},
 	}
 
-	cfg := UnifiedAgentConfig(base)
+	cfg := UnifiedAgentConfig(base, testToolExt(), testToolExt(), testToolExt())
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 
@@ -329,7 +329,7 @@ func TestHandoffContextExtractionAndPropagation(t *testing.T) {
 		},
 	}
 
-	cfg := UnifiedAgentConfig(base)
+	cfg := UnifiedAgentConfig(base, testToolExt(), testToolExt(), testToolExt())
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 
@@ -389,7 +389,7 @@ func TestSafeHandoff_AllowedSource(t *testing.T) {
 		},
 	}
 
-	cfg := UnifiedAgentConfig(base)
+	cfg := UnifiedAgentConfig(base, testToolExt(), testToolExt(), testToolExt())
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 

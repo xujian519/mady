@@ -9,7 +9,8 @@ import (
 func TestUnifiedAgentConfig(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := UnifiedAgentConfig(base, ue, pe, le)
 
 	if cfg.Name != "mady-agent" {
 		t.Errorf("name = %q, want %q", cfg.Name, "mady-agent")
@@ -42,7 +43,8 @@ func TestUnifiedAgentConfig(t *testing.T) {
 func TestUnifiedAgentConfig_AllowedSources(t *testing.T) {
 	base := agentcore.Config{}
 	base.Provider = &mockProvider{}
-	cfg := UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := UnifiedAgentConfig(base, ue, pe, le)
 
 	for _, h := range cfg.Handoffs {
 		found := false

@@ -29,7 +29,12 @@ func runAcp(ctx context.Context) error {
 
 	fc := setupFrameworkContext(ctx, "acp")
 
-	cfg := domains.UnifiedAgentConfig(fc.BaseConfig)
+	// 构建三个工具扩展（统一 Agent、专利子 Agent、法律子 Agent），
+	// 通过被动注入模式传入域层配置函数。
+	unifiedExt := buildUnifiedToolExt(fc)
+	patentExt := buildPatentToolExt(fc)
+	legalExt := buildLegalToolExt(fc)
+	cfg := domains.UnifiedAgentConfig(fc.BaseConfig, unifiedExt, patentExt, legalExt)
 	// ACP 运行在无交互的编辑器环境中，危险工具默认拒绝。
 	cfg.Extensions = append(cfg.Extensions,
 		permission.NewExtension(permission.Policy{

@@ -3,17 +3,19 @@ package domains
 import (
 	"testing"
 	"time"
+
+	"github.com/xujian519/mady/domains/approval"
 )
 
 func TestApprovalToTestCase(t *testing.T) {
-	record := ApprovalRecord{
+	record := approval.ApprovalRecord{
 		ID:             "appr_001",
 		SessionID:      "sess-1",
 		CaseID:         "case-1",
 		Timestamp:      time.Now(),
 		TriggerKeyword: "专利结论",
 		OriginalOutput: "该发明具备新颖性。",
-		Decision:       DecisionModified,
+		Decision:       approval.DecisionModified,
 		ModifiedOutput: "该发明具备新颖性。根据《专利法》第二十二条第二款，新颖性要求不属于现有技术。",
 	}
 
@@ -33,35 +35,35 @@ func TestApprovalToTestCase(t *testing.T) {
 }
 
 func TestApprovalToRegressionCandidates(t *testing.T) {
-	records := []ApprovalRecord{
+	records := []approval.ApprovalRecord{
 		{
 			ID:             "r1",
 			OriginalOutput: "AI 原始输出1",
-			Decision:       DecisionModified,
+			Decision:       approval.DecisionModified,
 			ModifiedOutput: "人工修改后的输出1",
 		},
 		{
 			ID:             "r2",
 			OriginalOutput: "AI 原始输出2",
-			Decision:       DecisionAdopted,
+			Decision:       approval.DecisionAdopted,
 			ModifiedOutput: "",
 		},
 		{
 			ID:             "r3",
 			OriginalOutput: "AI 原始输出3",
-			Decision:       DecisionModified,
+			Decision:       approval.DecisionModified,
 			ModifiedOutput: "", // empty → should be skipped
 		},
 		{
 			ID:             "r4",
 			OriginalOutput: "AI 原始输出4",
-			Decision:       DecisionRejected,
+			Decision:       approval.DecisionRejected,
 			ModifiedOutput: "",
 		},
 		{
 			ID:             "r5",
 			OriginalOutput: "AI 原始输出5",
-			Decision:       DecisionModified,
+			Decision:       approval.DecisionModified,
 			ModifiedOutput: "人工修改后的输出5",
 		},
 	}

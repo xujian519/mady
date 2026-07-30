@@ -75,7 +75,10 @@ func (s *tuiSession) startEventLogger(agent *agentcore.Agent) {
 		return
 	}
 	el := agentcore.NewEventLogger(store)
-	el.Start(agent.EventBus())
+	if err := el.Start(agent.EventBus()); err != nil {
+		log.Printf("[WARN] event logger: start failed: %v", err)
+		return
+	}
 	s.eventLogger = el
 	log.Printf("[INFO] event logger: started")
 }

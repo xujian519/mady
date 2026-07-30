@@ -86,7 +86,7 @@ func runTui(ctx context.Context) error {
 	// Session 持久化探针
 	sessionDir := os.Getenv("SESSION_DIR")
 	cwd, _ := os.Getwd()
-	sessionProbe := probeSessionDir(sessionDir, fc.MadyHome, fc.WorkspaceDir, cwd)
+	sessionProbe := probeSessionDir(sessionDir, fc.MadyHome, cwd)
 	storageProbes = append(storageProbes, sessionProbe)
 
 	// 如果 session 可写，构建 agentStore（供后续 tuiSession 使用）。

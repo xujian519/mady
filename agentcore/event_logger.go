@@ -3,6 +3,7 @@ package agentcore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 )
 
@@ -56,14 +57,15 @@ func NewEventLogger(store EventLoggerStore) *EventLogger {
 }
 
 // Start registers the EventBus handler and starts the async write loop.
-// Must be called exactly once; panics on double-start.
-func (el *EventLogger) Start(bus *EventBus) {
+// Must be called exactly once; returns an error on double-start.
+func (el *EventLogger) Start(bus *EventBus) error {
 	if el.started {
-		panic("EventLogger already started")
+		return fmt.Errorf("event logger already started")
 	}
 	el.started = true
 	el.cancel = bus.OnAll(el.handle)
 	go el.loop()
+	return nil
 }
 
 // handle is the EventBus callback. It runs on the EventBus dispatch

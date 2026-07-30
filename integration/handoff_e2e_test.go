@@ -78,7 +78,8 @@ func TestHandoffE2E_PatentRoute(t *testing.T) {
 		},
 	}
 
-	cfg := domains.UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := domains.UnifiedAgentConfig(base, ue, pe, le)
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 
@@ -128,7 +129,8 @@ func TestHandoffE2E_LegalRoute(t *testing.T) {
 		},
 	}
 
-	cfg := domains.UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := domains.UnifiedAgentConfig(base, ue, pe, le)
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 
@@ -170,7 +172,8 @@ func TestHandoffE2E_FallbackDirect(t *testing.T) {
 		},
 	}
 
-	cfg := domains.UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := domains.UnifiedAgentConfig(base, ue, pe, le)
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 
@@ -207,7 +210,8 @@ func TestHandoffE2E_EmptyInput(t *testing.T) {
 			MaxTurns: 3,
 		},
 	}
-	cfg := domains.UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := domains.UnifiedAgentConfig(base, ue, pe, le)
 	agent := agentcore.New(cfg)
 	defer agent.Close()
 

@@ -91,7 +91,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "mcp-install":
-		if err := runMCPInstall(ctx, os.Args[2:]); err != nil {
+		if err := runMCPInstall(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}
@@ -111,7 +111,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "util":
-		if err := runUtil(ctx, os.Args[2:]); err != nil {
+		if err := runUtil(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "mady:", err)
 			os.Exit(1)
 		}

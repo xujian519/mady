@@ -82,7 +82,7 @@ func TestDrafting_PatentAgentConfig(t *testing.T) {
 		},
 		WorkspaceDir: t.TempDir(),
 	}
-	cfg := domains.PatentAgentConfig(base)
+	cfg := domains.PatentAgentConfig(base, testToolExt())
 
 	// Verify that run_five_step_workflow appears in the tool list.
 	found := false
@@ -112,7 +112,7 @@ func TestDrafting_NoComputerUse(t *testing.T) {
 		},
 		WorkspaceDir: t.TempDir(),
 	}
-	cfg := domains.PatentAgentConfig(base)
+	cfg := domains.PatentAgentConfig(base, testToolExt())
 
 	for _, tool := range cfg.Tools {
 		if tool.Name == "computer_use" {

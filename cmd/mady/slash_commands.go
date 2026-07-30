@@ -254,7 +254,7 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Usage:    "/mcp",
 		Risk:     riskNone,
 		Match:    exactMatch("mcp"),
-		Handler:  func(ctx slashCtx) { s.handleMCPCommand(parseSlashSubcommand(ctx.input, "mcp")) },
+		Handler:  func(ctx slashCtx) { s.handleMCPCommand() },
 	})
 	// 提示词模板浏览
 	r.Register(SlashCommand{

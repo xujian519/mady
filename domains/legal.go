@@ -7,11 +7,12 @@ import (
 	"github.com/xujian519/mady/domains/workflows/legal"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/psychological"
-	"github.com/xujian519/mady/tools"
 )
 
 // LegalAgentConfig builds the legal domain Agent configuration.
-func LegalAgentConfig(base agentcore.Config) agentcore.Config {
+//
+// toolExt 是调用方已装配好的工具扩展，通过被动注入传入。
+func LegalAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agentcore.Config {
 	cfg := base
 	cfg.Name = "legal-advisor"
 
@@ -46,36 +47,10 @@ func LegalAgentConfig(base agentcore.Config) agentcore.Config {
 		"- success: 是否成功完成",
 	}, "\n")
 
-	// Tools extension — legal agent needs file tools for document analysis
-	// and web search for legal research.
-	// WorkingDir 从 base.ProjectDir 透传（用户当前项目文件夹），
-	// 回退到 base.WorkspaceDir（~/.mady/workspace）。
-	workingDir := base.ProjectDir
-	if workingDir == "" {
-		workingDir = base.WorkspaceDir
-	}
-	allowRead, allowWrite := BuildSandboxAllowLists()
-	toolExt := tools.NewExtension(tools.ExtensionConfig{
-		WorkingDir:     workingDir,
-		SandboxEnabled: true,
-		AllowRead:      allowRead,
-		AllowWrite:     allowWrite,
-		Vision: &tools.VisionToolConfig{
-			Provider: base.Provider,
-			Model:    base.Model,
-		},
-		WebSearch: &tools.WebSearchToolConfig{},
-		WebFetch:  &tools.WebFetchToolConfig{},
-		DisableTools: []string{
-			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
-			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolComputerUse,
-			tools.ToolProcess,
-		},
-		MaxBytes: 100 * 1024,
-		ExtraTools: []*agentcore.Tool{
-			legal.NewLegalComparisonTool(),
-		},
-	})
+	// 被动注入：调用方已装配好的工具扩展。
+	// 法律领域额外工具（legal comparison）追加到 cfg.Tools。
+	cfg.Tools = append(cfg.Tools, legal.NewLegalComparisonTool())
+
 	cfg.Extensions = append(cfg.Extensions, toolExt,
 		// 心理引擎 — 法律领域：VAD/OCC 语气调整 + 认知扭曲诊断（法律分析需要完整心理评估）。
 		psychological.NewExtension(LegalPsychConfig()),

@@ -40,7 +40,9 @@ func TestEventLogger_RecordsSelectedEvents(t *testing.T) {
 
 	store := &memoryEventStore{}
 	logger := NewEventLogger(store)
-	logger.Start(bus)
+	if err := logger.Start(bus); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
 	defer logger.Close()
 
 	// Emit events that should be recorded.
@@ -62,7 +64,9 @@ func TestEventLogger_SkipsHighFrequencyEvents(t *testing.T) {
 
 	store := &memoryEventStore{}
 	logger := NewEventLogger(store)
-	logger.Start(bus)
+	if err := logger.Start(bus); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
 	defer logger.Close()
 
 	// Emit a high-frequency event that should be skipped.
@@ -81,7 +85,9 @@ func TestEventLogger_CloseUnregistersHandler(t *testing.T) {
 
 	store := &memoryEventStore{}
 	logger := NewEventLogger(store)
-	logger.Start(bus)
+	if err := logger.Start(bus); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
 	defer logger.Close()
 
 	// Emit an event and verify it's recorded.

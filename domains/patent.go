@@ -28,7 +28,6 @@ import (
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/psychological"
 	"github.com/xujian519/mady/retrieval/domain"
-	"github.com/xujian519/mady/tools"
 )
 
 // globalDraftingRunner 是 FiveStepRunner 的全局实例，由 SetupPatentDraftingEngine
@@ -197,6 +196,18 @@ func SetupWritingExtension(store *writing.PatternStore) {
 	}
 }
 
+// globalPatentEvalTool 是专利评估工具的全局实例，由 SetupPatentEvalTool
+// 在启动期注入。PatentAgentConfig 将其注册到 Tools 列表中。
+// 遵循与 globalKnowledgeExt 一致的全局注入模式（因 tools 包不可在 domains 层直接导入）。
+var globalPatentEvalTool *agentcore.Tool
+
+// SetupPatentEvalTool 在启动期注入专利评估工具实例。
+// tool 为 nil 时静默跳过，不影响现有行为。
+// 必须在任何 Agent 创建前调用。
+func SetupPatentEvalTool(tool *agentcore.Tool) {
+	globalPatentEvalTool = tool
+}
+
 // injectDocTemplateTools 向 Agent 配置注册文档模板相关工具。
 func injectDocTemplateTools(cfg *agentcore.Config) {
 	if globalTemplateStore != nil {
@@ -311,8 +322,7 @@ func applyRoleConfig(cfg *agentcore.Config, roleID string) { //nolint:unused // 
 //
 // 用法：
 //
-//	disabled := tools.ExtensionConfig.DisableTools
-//	disabled = append(disabled, domains.RoleToolFilter("novelty_checker")...)
+//	disabled := append(disabled, domains.RoleToolFilter("novelty_checker")...)
 //	toolExt := tools.NewExtension(tools.ExtensionConfig{DisableTools: disabled, ...})
 func RoleToolFilter(roleID string) []string {
 	if roleID == "" {
@@ -327,7 +337,7 @@ func RoleToolFilter(roleID string) []string {
 		return nil
 	}
 	var disabled []string
-	for name, domain := range tools.ToolDomains {
+	for name, domain := range agentcore.ToolDomains {
 		if !domainInList(domain, allowedDomains) {
 			disabled = append(disabled, name)
 		}
@@ -349,7 +359,10 @@ func domainInList(domain string, list []string) bool {
 }
 
 // PatentAgentConfig builds the patent domain Agent configuration.
-func PatentAgentConfig(base agentcore.Config) agentcore.Config {
+//
+// toolExt 是调用方已装配好的工具扩展，通过被动注入传入。
+// 域层不再主动创建工具扩展，domain-specific 额外工具以 cfg.Tools 追加。
+func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agentcore.Config {
 	cfg := base
 	cfg.Name = "patent-agent"
 
@@ -396,56 +409,30 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		"- success: 是否成功完成",
 	}, "\n")
 
-	// Tools extension — patent agent needs file tools for document analysis.
-	// WorkingDir 从 base.ProjectDir 透传（用户当前项目文件夹），
-	// 回退到 base.WorkspaceDir（~/.mady/workspace）。
-	workingDir := base.ProjectDir
-	if workingDir == "" {
-		workingDir = base.WorkspaceDir
-	}
-	allowRead, allowWrite := BuildSandboxAllowLists()
-
-	// infringement tool returns (tool, error) — capture error before slice literal.
-	// globalInfringementKR 由 framework.Setup → SetupInfringementKnowledgeRetriever 注入。
+	// 被动注入：调用方已装配好的工具扩展。
+	// patent 领域额外工具（domain-specific）追加到 cfg.Tools。
+	// infringement tool 从 globalInfringementKR 按需构建（nil 时跳过）。
 	infTool, infErr := infringement.NewInfringementTool(base.Provider, nil, globalInfringementKR)
 	if infErr != nil {
 		slog.Warn("patent: infringement tool not available, skipping", "err", infErr)
 	}
 
-	toolExt := tools.NewExtension(tools.ExtensionConfig{
-		WorkingDir:     workingDir,
-		SandboxEnabled: true,
-		AllowRead:      allowRead,
-		AllowWrite:     allowWrite,
-		Vision: &tools.VisionToolConfig{
-			Provider: base.Provider,
-			Model:    base.Model,
-		},
-		WebSearch:  &tools.WebSearchToolConfig{},
-		WebFetch:   &tools.WebFetchToolConfig{},
-		PatentTool: tools.PatentToolConfigDefaults(),
-		Pandoc:     tools.PandocToolConfigDefaults(),
-		DisableTools: []string{
-			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
-			tools.ToolBrowser, tools.ToolExecuteCode,
-		},
-		MaxBytes: 100 * 1024,
-		ExtraTools: []*agentcore.Tool{
-			patent.NewPatentNoveltyTool(patent.WithRetriever(globalPatentRetriever)),
-			patent.NewOAResponseTool(patent.WithOAProvider(base.Provider)),
-			patent.NewDebateTool(),
-			patent.NewInvalidationTool(patent.WithInvRetriever(globalPatentRetriever)),
-			infTool,
-			patent.NewReexaminationTool(),
-			enablement.NewEnablementTool(enablement.WithProvider(base.Provider)),
-			inventiveness.NewInventivenessTool(inventiveness.WithProvider(base.Provider)),
-			novelty.NewNoveltyTool(novelty.WithProvider(base.Provider)),
-			design.NewDesignInvalidationTool(),
-			disclosure.NewDisclosureTool(base.Provider),
-			tools.NewPatentEvalTool(nil),
-			provisions.NewResolveDomainWorkersTool(""),
-		},
-	})
+	cfg.Tools = append(cfg.Tools, filterNilTools([]*agentcore.Tool{
+		patent.NewPatentNoveltyTool(patent.WithRetriever(globalPatentRetriever)),
+		patent.NewOAResponseTool(patent.WithOAProvider(base.Provider)),
+		patent.NewDebateTool(),
+		patent.NewInvalidationTool(patent.WithInvRetriever(globalPatentRetriever)),
+		infTool,
+		patent.NewReexaminationTool(),
+		enablement.NewEnablementTool(enablement.WithProvider(base.Provider)),
+		inventiveness.NewInventivenessTool(inventiveness.WithProvider(base.Provider)),
+		novelty.NewNoveltyTool(novelty.WithProvider(base.Provider)),
+		design.NewDesignInvalidationTool(),
+		disclosure.NewDisclosureTool(base.Provider),
+		globalPatentEvalTool,
+		provisions.NewResolveDomainWorkersTool(""),
+	})...)
+
 	cfg.Extensions = append(cfg.Extensions, toolExt,
 		// 心理引擎 — 专利领域：VAD/OCC 语气调整 + 认知扭曲诊断（专利分析需要完整心理评估）。
 		psychological.NewExtension(PatentPsychConfig()),
@@ -579,7 +566,9 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 // 这是 v2 设计的关键工厂函数——每个案件获得独立的 Agent 实例，
 // WorkingDir 设为案件真实文件夹（RootPath），System Prompt 注入案件元数据。
 // 不同于 PatentAgentConfig 的静态配置，此函数生成的 Agent 具备案件感知能力。
-func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Config {
+//
+// toolExt 是调用方已装配好的工具扩展（项目级沙箱配置），通过被动注入传入。
+func BuildProjectAgent(rec ProjectRecord, base agentcore.Config, toolExt agentcore.Extension) agentcore.Config {
 	cfg := base
 	cfg.Name = fmt.Sprintf("patent-agent-%s", rec.ProjectID)
 
@@ -594,21 +583,7 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config) agentcore.Confi
 			permission.NewExtension(permission.ProjectAgentPolicy(), nil))
 	}
 
-	// 动态 WorkingDir = 案件真实文件夹，沙箱约束在此边界内
-	allowRead, allowWrite := BuildSandboxAllowLists()
-	toolExt := tools.NewExtension(tools.ExtensionConfig{
-		WorkingDir:     rec.RootPath,
-		EnabledTools:   []string{"read", "write_file", "edit", "grep", "find", "glob", "ls"},
-		SandboxEnabled: true,
-		AllowRead:      allowRead,
-		AllowWrite:     allowWrite,
-		Vision: &tools.VisionToolConfig{
-			Provider: base.Provider,
-			Model:    base.Model,
-		},
-		Pandoc:   tools.PandocToolConfigDefaults(),
-		MaxBytes: 100 * 1024,
-	})
+	// 被动注入：调用方已装配好的工具扩展（项目级沙箱配置）。
 	cfg.Extensions = append(cfg.Extensions, toolExt)
 
 	injectDraftingTool(&cfg)
@@ -738,4 +713,15 @@ func buildProjectSystemPrompt(rec ProjectRecord) string {
 	b.WriteString("- 涉及法定期限的判断需明确标注 deadline\n")
 
 	return b.String()
+}
+
+// filterNilTools 过滤掉 nil 的 *agentcore.Tool 值，用于安全地 append 可能为 nil 的工具。
+func filterNilTools(tools []*agentcore.Tool) []*agentcore.Tool {
+	result := make([]*agentcore.Tool, 0, len(tools))
+	for _, t := range tools {
+		if t != nil {
+			result = append(result, t)
+		}
+	}
+	return result
 }

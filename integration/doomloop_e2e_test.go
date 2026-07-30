@@ -406,7 +406,8 @@ func TestDoomLoopE2E_DomainConfigAssistant(t *testing.T) {
 		},
 		ExecutionConfig: agentcore.ExecutionConfig{MaxTurns: 3},
 	}
-	cfg := domains.UnifiedAgentConfig(base)
+	ue, pe, le := testToolExtTuple()
+	cfg := domains.UnifiedAgentConfig(base, ue, pe, le)
 
 	output, err := runStubAgent(t, cfg, "验证 Unified 领域配置包含 DoomLoop")
 	if err != nil {

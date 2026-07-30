@@ -9,6 +9,12 @@ import (
 )
 
 // Domain names used for intent classification and routing.
+//
+// 注意：这些常量定义在 domains 根包而非 domains/router/ 子包中，是因为
+// ClassifyIntent 需要引用 internal/intentrules，而 router/ 子包若导入
+// domains 根包会形成循环依赖（根包 imports router/, router/ imports 根包）。
+// 如果未来将 ClassifyIntent 独立到单独的 classifier 包，这些常量可一并
+// 迁移到 domains/router/。
 const (
 	DomainChat      = "chat"
 	DomainAssistant = "assistant"
@@ -48,13 +54,13 @@ func ClassifyIntent(input string) string {
 // AllowedSources 包含 "mady-router"（遗留 Router 委派）和 "mady-agent"
 // （统一 Agent 委派），两者都是受信任的调度入口。
 // 扩展此白名单需要安全审阅。不包含 "*" 通配符，防止未授权 Agent 触发专业领域委派。
-func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig {
+func ProfessionalHandoffConfigs(base agentcore.Config, patentToolExt agentcore.Extension, legalToolExt agentcore.Extension) []agentcore.HandoffConfig {
 	return []agentcore.HandoffConfig{
 		{
 			Name:           DomainPatent,
 			Description:    "专利代理与知识产权分析。处理专利检索、权利要求分析、新颖性比对。",
 			Mode:           agentcore.HandoffDelegate,
-			AgentConfig:    PatentAgentConfig(base),
+			AgentConfig:    PatentAgentConfig(base, patentToolExt),
 			AllowedSources: []string{"mady-router", "mady-agent"},
 			FallbackMsg:    "专利分析功能暂时不可用，建议稍后重试或联系专业代理人。",
 		},
@@ -62,7 +68,7 @@ func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig
 			Name:           DomainLegal,
 			Description:    "法律咨询与研究。处理法条检索、判例检索、法律分析。",
 			Mode:           agentcore.HandoffDelegate,
-			AgentConfig:    LegalAgentConfig(base),
+			AgentConfig:    LegalAgentConfig(base, legalToolExt),
 			AllowedSources: []string{"mady-router", "mady-agent"},
 			FallbackMsg:    "法律分析功能暂时不可用，建议稍后重试或咨询专业律师。",
 		},
@@ -74,11 +80,28 @@ func ProfessionalHandoffConfigs(base agentcore.Config) []agentcore.HandoffConfig
 // 为可执行的 HandoffConfig。
 //
 // chat 和 assistant 均映射到 UnifiedAgentConfig（三合一后不再区分）。
-var domainFactoryMap = map[string]func(agentcore.Config) agentcore.Config{
-	DomainChat:      UnifiedAgentConfig,
-	DomainAssistant: UnifiedAgentConfig,
-	DomainPatent:    PatentAgentConfig,
-	DomainLegal:     LegalAgentConfig,
+// 工厂函数接受 toolExt 参数，由 RouterConfigFromManifests 透传。
+var domainFactoryMap = map[string]func(agentcore.Config, agentcore.Extension) agentcore.Config{
+	DomainChat:      UnifiedAgentFunc,
+	DomainAssistant: UnifiedAgentFunc,
+	DomainPatent:    PatentAgentFunc,
+	DomainLegal:     LegalAgentFunc,
+}
+
+// UnifiedAgentFunc 是 UnifiedAgentConfig 的适配器，适配 domainFactoryMap 签名。
+// 在 Router 模式下 chat/assistant 无需 Handoff 子 Agent 工具，忽略 toolExt。
+func UnifiedAgentFunc(base agentcore.Config, _ agentcore.Extension) agentcore.Config {
+	return base
+}
+
+// PatentAgentFunc 是 PatentAgentConfig 的适配器，适配 domainFactoryMap 签名。
+func PatentAgentFunc(base agentcore.Config, toolExt agentcore.Extension) agentcore.Config {
+	return PatentAgentConfig(base, toolExt)
+}
+
+// LegalAgentFunc 是 LegalAgentConfig 的适配器，适配 domainFactoryMap 签名。
+func LegalAgentFunc(base agentcore.Config, toolExt agentcore.Extension) agentcore.Config {
+	return LegalAgentConfig(base, toolExt)
 }
 
 // RouterConfigFromManifests 从 AgentManifest 列表构建 Router Agent 配置。
@@ -88,7 +111,7 @@ var domainFactoryMap = map[string]func(agentcore.Config) agentcore.Config{
 // 不在 factoryMap 中的 domain 会被自动跳过（不做 fallback），
 // 因为入口已在 ScanManifests 阶段验证过 domain 有效性。
 // manifests 为空时返回仅含 base 的配置（无 Handoff）。
-func RouterConfigFromManifests(base agentcore.Config, manifests []agentcore.AgentManifest) agentcore.Config {
+func RouterConfigFromManifests(base agentcore.Config, manifests []agentcore.AgentManifest, toolExt agentcore.Extension) agentcore.Config {
 	if len(manifests) == 0 {
 		return base
 	}
@@ -107,7 +130,7 @@ func RouterConfigFromManifests(base agentcore.Config, manifests []agentcore.Agen
 			Name:           m.Name,
 			Description:    m.Description,
 			Mode:           agentcore.HandoffDelegate,
-			AgentConfig:    factory(base),
+			AgentConfig:    factory(base, toolExt),
 			AllowedSources: []string{"mady-router", "mady-agent"}, // 与 ProfessionalHandoffConfigs 对齐，不使用通配符
 			FallbackMsg:    fmt.Sprintf("%s 功能暂时不可用，请稍后再试。", m.Description),
 		})

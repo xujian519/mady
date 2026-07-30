@@ -252,7 +252,7 @@ func TestGuardrailE2E_MixedLevels(t *testing.T) {
 		ExecutionConfig: agentcore.ExecutionConfig{
 			MaxTurns: 3,
 		},
-	})
+	}, testToolExt())
 	patentAgent := agentcore.New(patentCfg)
 	defer patentAgent.Close()
 

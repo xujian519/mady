@@ -6,18 +6,16 @@ package main
 //
 // App 结构体是 Wails Binding 的接收端，将前端调用映射到 server 包。
 // 生命周期由 Wails 框架管理：OnStartup → (Chat/Cancel/... 任意序列) → OnShutdown。
+//
+// 按责任拆分：app_settings.go（AI 设置）、app_files.go（文件操作）、
+// app_skills.go（技能管理）、app_mcp.go（MCP 服务器管理）。
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -32,7 +30,6 @@ import (
 	"github.com/xujian519/mady/mcp"
 	madyserver "github.com/xujian519/mady/server"
 	"github.com/xujian519/mady/session"
-	"github.com/xujian519/mady/skill"
 	"github.com/xujian519/mady/tools"
 
 	"github.com/xujian519/mady/bootstrap"
@@ -211,7 +208,7 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 		if r := recover(); r != nil {
 			log.Printf("[mady-desktop] PANIC in deferred init: %v", r)
 			a.emitInitProgress("初始化异常: 部分功能不可用")
-			runtime.EventsEmit(ctx, "mady:init-done", map[string]bool{"ready": false})
+			runtime.EventsEmit(ctx, "mady:init-done", map[string]any{"ready": false})
 		}
 	}()
 
@@ -231,10 +228,9 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 	a.server = madyserver.New(buildDesktopAgentConfig(fc))
 	log.Printf("[mady-desktop] server created in %v — frontend now interactive", time.Since(t0))
 	a.emitInitProgress("就绪")
-	runtime.EventsEmit(ctx, "mady:init-done", map[string]bool{"ready": true, "degraded": true})
+	runtime.EventsEmit(ctx, "mady:init-done", map[string]any{"ready": true, "degraded": true})
 
 	// === 阶段 2：重型初始化（后台，不阻塞前端） ===
-	// 逐步骤计时，便于定位瓶颈。
 	log.Println("[mady-desktop] startup: phase 2 — deferred init starting")
 
 	a.timedPhase("正在加载知识库...", "LoadWikiStore", func() {
@@ -280,7 +276,7 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 // 与 server 入口保持一致：启用 handoff/doomloop/gateway/guardrails/专业工具链，
 // 并对无交互场景默认拒绝危险工具（bash/process/execute_code/browser/computer_use）。
 func buildDesktopAgentConfig(fc *bootstrap.Context) agentcore.Config {
-	cfg := domains.UnifiedAgentConfig(fc.BaseConfig)
+	cfg := domains.UnifiedAgentConfig(fc.BaseConfig, buildDesktopUnifiedToolExt(fc), buildDesktopPatentToolExt(fc), buildDesktopLegalToolExt(fc))
 	cfg.Extensions = append(cfg.Extensions,
 		permission.NewExtension(permission.Policy{
 			Mode: permission.DecisionAllow,
@@ -505,745 +501,6 @@ func (a *App) Health() (HealthInfo, error) {
 	return a.server.Health(), nil
 }
 
-// --- AI 服务设置（Q9：全局切换 + 新会话生效） ---
-
-// AISettings 是设置面板读写的 AI 服务配置。
-// 持久化到 ~/.mady/desktop-settings.json；运行时切换仅对后续新建会话
-// 生效，已有会话保持原有模型（Q9 语义）。
-type AISettings struct {
-	Provider      string `json:"provider,omitempty"`
-	Model         string `json:"model,omitempty"`
-	LastProjectID string `json:"last_project_id,omitempty"`
-}
-
-// aiSettingsPath 返回桌面端设置文件路径。
-func aiSettingsPath(madyHome string) string {
-	return filepath.Join(madyHome, "desktop-settings.json")
-}
-
-// loadAISettingsFrom 从指定路径读取 AI 设置。文件不存在或解析失败时
-// 返回零值（视为无用户覆盖），不视为错误。
-func loadAISettingsFrom(path string) AISettings {
-	data, err := os.ReadFile(path) //nolint:gosec // path 由 MadyHome 派生
-	if err != nil {
-		return AISettings{}
-	}
-	var s AISettings
-	if err := json.Unmarshal(data, &s); err != nil {
-		log.Printf("[mady-desktop] invalid AI settings file %s: %v", path, err)
-		return AISettings{}
-	}
-	return s
-}
-
-// saveAISettingsTo 将 AI 设置原子写入指定路径（tmp + rename）。
-func saveAISettingsTo(path string, s AISettings) error {
-	data, err := json.Marshal(s)
-	if err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
-}
-
-// resolveMadyHome 返回 MadyHome；优先取 framework 上下文（便于测试注入），
-// 回退到 util.MadyHome()。
-func (a *App) resolveMadyHome() string {
-	if a.fc != nil && a.fc.MadyHome != "" {
-		return a.fc.MadyHome
-	}
-	home, err := util.MadyHome()
-	if err != nil {
-		return ""
-	}
-	return home
-}
-
-// applyLastProject 在启动时恢复上次使用的项目。
-// 如果 LastProjectID 存在且对应案件目录仍可用，则将其设为当前 ProjectDir。
-func (a *App) applyLastProject(saved AISettings) {
-	if saved.LastProjectID == "" || a.fc == nil || a.fc.ProjectRegistry == nil {
-		return
-	}
-	rec, ok := a.fc.ProjectRegistry.Lookup(saved.LastProjectID)
-	if !ok {
-		log.Printf("[mady-desktop] last project %q not found in registry", saved.LastProjectID)
-		return
-	}
-	if err := domains.ValidateProjectPath(rec.RootPath); err != nil {
-		log.Printf("[mady-desktop] last project %q path %s unreachable: %v", rec.ProjectID, rec.RootPath, err)
-		return
-	}
-	a.fc.BaseConfig.ProjectDir = rec.RootPath
-	a.fc.ProjectRegistry.Touch(a.ctx, rec.ProjectID)
-	log.Printf("[mady-desktop] restored last project: %s (%s)", rec.Alias, rec.RootPath)
-}
-
-// GetAISettings 返回当前生效的 Provider/Model，供设置面板展示。
-func (a *App) GetAISettings() (AISettings, error) {
-	a.aiMu.RLock()
-	defer a.aiMu.RUnlock()
-	if a.aiProvider == "" && a.aiModel == "" {
-		return AISettings{}, fmt.Errorf("GetAISettings: AI settings not initialized")
-	}
-	return AISettings{Provider: a.aiProvider, Model: a.aiModel}, nil
-}
-
-// SetAISettings 切换全局 Provider/Model（Q9：全局切换 + 新会话生效）。
-//
-// 行为契约：
-//  1. 持久化到 ~/.mady/desktop-settings.json（重启后仍生效）；
-//  2. 运行时立即对后续新建会话生效；已有会话保持原有模型；
-//  3. Provider 切换会依据目标 Provider 的 API Key 重建 Provider 实例，
-//     重建失败时返回错误且不变更任何状态（环境变量一并回滚）。
-func (a *App) SetAISettings(s AISettings) error {
-	if s.Provider == "" && s.Model == "" {
-		return fmt.Errorf("SetAISettings: provider 或 model 至少一项必填")
-	}
-
-	a.aiMu.Lock()
-	defer a.aiMu.Unlock()
-
-	newProvider := a.aiProvider
-	if s.Provider != "" {
-		newProvider = s.Provider
-	}
-	newModel := a.aiModel
-	if s.Model != "" {
-		newModel = s.Model
-	}
-
-	// Provider 变化时重建 Provider 实例（依据目标 Provider 的 API Key）。
-	var providerIface agentcore.Provider
-	if newProvider != a.aiProvider {
-		prev := os.Getenv("PROVIDER")
-		_ = os.Setenv("PROVIDER", newProvider)
-		p, err := agentconfig.BuildProvider()
-		if err != nil {
-			_ = os.Setenv("PROVIDER", prev) // 回滚环境变量
-			return fmt.Errorf("SetAISettings: 重建 Provider 失败（请确认 %s 的 API Key 已配置）: %w", newProvider, err)
-		}
-		providerIface = p
-	}
-
-	// 持久化（原子写）；失败时不变更运行时状态。
-	// 保留已有的 last_project_id，避免 AI 设置保存覆盖项目状态。
-	if home := a.resolveMadyHome(); home != "" {
-		saved := loadAISettingsFrom(aiSettingsPath(home))
-		saved.Provider = newProvider
-		saved.Model = newModel
-		if err := saveAISettingsTo(aiSettingsPath(home), saved); err != nil {
-			return fmt.Errorf("SetAISettings: 保存配置失败: %w", err)
-		}
-	}
-
-	// 运行时生效：更新 framework 上下文与 server 全局配置。
-	// server.SwitchModel 仅影响后续新建 agent；池中已有会话保持不变。
-	ctxWindow := agentconfig.ResolveContextWindow(newModel)
-	if a.fc != nil {
-		if providerIface != nil {
-			a.fc.BaseConfig.Provider = providerIface
-		}
-		a.fc.BaseConfig.Model = newModel
-		a.fc.BaseConfig.ContextWindow = ctxWindow
-	}
-	if a.server != nil {
-		a.server.SwitchModel(providerIface, newModel, ctxWindow)
-	}
-
-	a.aiProvider = newProvider
-	a.aiModel = newModel
-	log.Printf("[mady-desktop] AI settings updated: provider=%s model=%s", newProvider, newModel)
-	return nil
-}
-
-// --- 项目树操作（T3.2b） ---
-
-// resolveProjectDir 返回当前可用的项目根目录。
-// 优先使用 ProjectDir（由 CWD 解析），回退到 WorkspaceDir。
-func (a *App) resolveProjectDir() (string, error) {
-	cwd := a.fc.BaseConfig.ProjectDir
-	if cwd == "" {
-		cwd = a.fc.BaseConfig.WorkspaceDir
-	}
-	if cwd == "" {
-		return "", fmt.Errorf("no working directory available")
-	}
-	return cwd, nil
-}
-
-// isPathWithinSandbox 检查 target 是否位于 sandboxRoot 之下。
-// 防止路径穿越攻击（path traversal）。
-func isPathWithinSandbox(target, sandboxRoot string) bool {
-	cleanTarget, err := filepath.Abs(target)
-	if err != nil {
-		return false
-	}
-	cleanRoot, err := filepath.Abs(sandboxRoot)
-	if err != nil {
-		return false
-	}
-	rel, err := filepath.Rel(cleanRoot, cleanTarget)
-	if err != nil {
-		return false
-	}
-	// rel 以 ".." 开头说明 target 在 sandboxRoot 之外
-	return len(rel) < 2 || rel[:2] != ".."
-}
-
-// CreateFolder 在指定父目录下创建子文件夹。
-// parentPath 是相对于项目根目录的路径，空字符串表示根目录。
-// folderName 为要创建的文件夹名称。
-// 操作经过沙箱路径校验，越狱路径将被拒绝。
-func (a *App) CreateFolder(parentPath, folderName string) (string, error) {
-	if err := a.ready(); err != nil {
-		return "", err
-	}
-	if folderName == "" {
-		return "", fmt.Errorf("CreateFolder: folderName is required")
-	}
-
-	cwd, err := a.resolveProjectDir()
-	if err != nil {
-		return "", fmt.Errorf("CreateFolder: %w", err)
-	}
-
-	targetDir := cwd
-	if parentPath != "" {
-		targetDir = filepath.Join(cwd, parentPath)
-	}
-
-	newDir := filepath.Join(targetDir, folderName)
-
-	// 沙箱边界校验
-	if !isPathWithinSandbox(newDir, cwd) {
-		return "", fmt.Errorf("CreateFolder: path escape detected: %s is outside %s", newDir, cwd)
-	}
-
-	if err := os.MkdirAll(newDir, 0750); err != nil {
-		return "", fmt.Errorf("CreateFolder: %w", err)
-	}
-	log.Printf("[mady-desktop] created folder: %s", newDir)
-	return newDir, nil
-}
-
-// RenameFolder 重命名指定路径的文件夹。
-// oldPath 为当前完整路径（相对于项目根），
-// newName 为新文件夹名称。
-// 操作经过沙箱路径校验，越狱路径将被拒绝。
-func (a *App) RenameFolder(oldPath, newName string) error {
-	if err := a.ready(); err != nil {
-		return err
-	}
-	if oldPath == "" || newName == "" {
-		return fmt.Errorf("RenameFolder: oldPath and newName are required")
-	}
-
-	cwd, err := a.resolveProjectDir()
-	if err != nil {
-		return fmt.Errorf("RenameFolder: %w", err)
-	}
-
-	oldDir := filepath.Join(cwd, oldPath)
-	parentDir := filepath.Dir(oldDir)
-	newDir := filepath.Join(parentDir, newName)
-
-	// 沙箱边界校验
-	if !isPathWithinSandbox(oldDir, cwd) {
-		return fmt.Errorf("RenameFolder: path escape detected: %s is outside %s", oldDir, cwd)
-	}
-	if !isPathWithinSandbox(newDir, cwd) {
-		return fmt.Errorf("RenameFolder: path escape detected: %s is outside %s", newDir, cwd)
-	}
-
-	if err := os.Rename(oldDir, newDir); err != nil {
-		return fmt.Errorf("RenameFolder: %w", err)
-	}
-	log.Printf("[mady-desktop] renamed folder: %s → %s", oldDir, newDir)
-	return nil
-}
-
-// ListDirectory 返回指定路径下的文件和文件夹列表。
-// relPath 是相对于项目根目录的路径，空字符串表示根目录。
-func (a *App) ListDirectory(relPath string) ([]FileEntry, error) {
-	if err := a.ready(); err != nil {
-		return nil, err
-	}
-
-	cwd, err := a.resolveProjectDir()
-	if err != nil {
-		return nil, fmt.Errorf("ListDirectory: %w", err)
-	}
-
-	targetDir := cwd
-	if relPath != "" {
-		targetDir = filepath.Join(cwd, relPath)
-	}
-
-	// 沙箱边界校验（ListDirectory 也需校验，防止读越狱路径）
-	if !isPathWithinSandbox(targetDir, cwd) {
-		return nil, fmt.Errorf("ListDirectory: path escape detected: %s is outside %s", targetDir, cwd)
-	}
-
-	entries, err := os.ReadDir(targetDir)
-	if err != nil {
-		return nil, fmt.Errorf("ListDirectory: %w", err)
-	}
-
-	var result []FileEntry
-	for _, e := range entries {
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		result = append(result, FileEntry{
-			Name:    e.Name(),
-			IsDir:   e.IsDir(),
-			Size:    info.Size(),
-			ModTime: info.ModTime().Unix(),
-		})
-	}
-	return result, nil
-}
-
-// FileEntry 是文件系统条目的概要信息。
-type FileEntry struct {
-	Name    string `json:"name"`
-	IsDir   bool   `json:"isDir"`
-	Size    int64  `json:"size"`
-	ModTime int64  `json:"modTime"`
-}
-
-// --- 文件内容读取（T5.1，PilotDeck 对齐） ---
-
-// maxReadFileSize 是 ReadFile 允许读取的单文件上限（20MB）。
-const maxReadFileSize = 20 << 20
-
-// FileContent 描述一个已读出的文件内容。
-// 文本类（text/md）通过 Text 返回 UTF-8 内容；
-// 二进制类（image/pdf）通过 Data 返回 base64 编码内容。
-type FileContent struct {
-	Name string `json:"name"`           // 文件名
-	Path string `json:"path"`           // 相对项目根的路径
-	Kind string `json:"kind"`           // text | md | image | pdf
-	Text string `json:"text,omitempty"` // kind=text/md 时的内容
-	Data string `json:"data,omitempty"` // kind=image/pdf 时的 base64 内容
-	Mime string `json:"mime,omitempty"` // image/png、application/pdf 等
-	Size int64  `json:"size"`
-}
-
-// classifyFileKind 按扩展名归类文件类型。
-// svg 按图片处理（前端 <img> 渲染）；未知扩展名默认 text，
-// 由 ReadFile 在读出后做二进制嗅探兜底。
-func classifyFileKind(name string) (kind, mime string) {
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".md", ".markdown":
-		return "md", "text/markdown"
-	case ".pdf":
-		return "pdf", "application/pdf"
-	case ".png":
-		return "image", "image/png"
-	case ".jpg", ".jpeg":
-		return "image", "image/jpeg"
-	case ".gif":
-		return "image", "image/gif"
-	case ".webp":
-		return "image", "image/webp"
-	case ".svg":
-		return "image", "image/svg+xml"
-	case ".bmp":
-		return "image", "image/bmp"
-	case ".ico":
-		return "image", "image/x-icon"
-	default:
-		return "text", "text/plain"
-	}
-}
-
-// isBinaryContent 嗅探内容是否为二进制（前 8KB 内含 NUL 字节即判定）。
-func isBinaryContent(data []byte) bool {
-	const sniffLen = 8192
-	n := len(data)
-	if n > sniffLen {
-		n = sniffLen
-	}
-	return bytes.Contains(data[:n], []byte{0})
-}
-
-// resolveSandboxedPath 将路径解析为沙箱内的绝对路径。
-// relPath 可以是相对路径（相对于 sandboxRoot）或绝对路径。
-// 越狱路径返回错误。
-func resolveSandboxedPath(relPath, sandboxRoot string) (string, error) {
-	if relPath == "" {
-		return "", fmt.Errorf("path is required")
-	}
-	abs := relPath
-	if !filepath.IsAbs(relPath) {
-		abs = filepath.Join(sandboxRoot, relPath)
-	}
-	if !isPathWithinSandbox(abs, sandboxRoot) {
-		return "", fmt.Errorf("path escape detected: %s is outside %s", abs, sandboxRoot)
-	}
-	return abs, nil
-}
-
-// resolveSandboxedPathMulti 尝试将 relPath 解析为沙箱内的绝对路径。
-// 先在 sandboxRoots[0]（项目根）中解析，失败后依次尝试后续沙箱根（如 MADY_HOME）。
-// 全部失败时返回组合错误。
-func resolveSandboxedPathMulti(relPath string, sandboxRoots ...string) (string, error) {
-	if relPath == "" {
-		return "", fmt.Errorf("path is required")
-	}
-	var errs []string
-	for _, root := range sandboxRoots {
-		abs, err := resolveSandboxedPath(relPath, root)
-		if err == nil {
-			return abs, nil
-		}
-		errs = append(errs, err.Error())
-	}
-	return "", fmt.Errorf("path not allowed: %s", strings.Join(errs, "; "))
-}
-
-// ReadFile 读取项目沙箱或 MADY_HOME 沙箱内的文件内容。
-// relPath 是相对于项目根目录的路径（项目文件）或相对/绝对路径（全局技能文件）。
-// 文本/Markdown 返回 Text；图片/PDF 返回 base64 编码的 Data。
-// 其他二进制文件返回错误，不向前端暴露原始字节。
-func (a *App) ReadFile(relPath string) (*FileContent, error) {
-	if err := a.ready(); err != nil {
-		return nil, err
-	}
-
-	cwd, err := a.resolveProjectDir()
-	if err != nil {
-		return nil, fmt.Errorf("ReadFile: %w", err)
-	}
-
-	roots := []string{cwd}
-	if home, err := util.MadyHome(); err == nil && home != cwd {
-		roots = append(roots, home)
-	}
-
-	abs, err := resolveSandboxedPathMulti(relPath, roots...)
-	if err != nil {
-		return nil, fmt.Errorf("ReadFile: %w", err)
-	}
-
-	info, err := os.Stat(abs)
-	if err != nil {
-		return nil, fmt.Errorf("ReadFile: %w", err)
-	}
-	if info.IsDir() {
-		return nil, fmt.Errorf("ReadFile: %s is a directory", relPath)
-	}
-	if info.Size() > maxReadFileSize {
-		return nil, fmt.Errorf("ReadFile: file too large (%d bytes, limit %d)", info.Size(), maxReadFileSize)
-	}
-
-	raw, err := os.ReadFile(abs) //nolint:gosec // 路径已过沙箱校验
-	if err != nil {
-		return nil, fmt.Errorf("ReadFile: %w", err)
-	}
-
-	kind, mime := classifyFileKind(info.Name())
-	fc := &FileContent{
-		Name: info.Name(),
-		Path: relPath,
-		Kind: kind,
-		Mime: mime,
-		Size: info.Size(),
-	}
-
-	switch kind {
-	case "text", "md":
-		if kind == "text" && isBinaryContent(raw) {
-			return nil, fmt.Errorf("ReadFile: %s appears to be a binary file", relPath)
-		}
-		fc.Text = string(raw)
-	case "image", "pdf":
-		fc.Data = base64.StdEncoding.EncodeToString(raw)
-	}
-	return fc, nil
-}
-
-// maxWriteFileSize 是 WriteFile 允许写入的内容上限（20MB）。
-const maxWriteFileSize = 20 << 20
-
-// WriteFile 将文本内容写入项目沙箱或 MADY_HOME 沙箱内的文件。
-// 仅允许写入 text/md 类文件（按扩展名判定），图片/PDF 等二进制不可写。
-// 采用临时文件 + rename 的原子写策略，避免写一半留下损坏文件。
-func (a *App) WriteFile(relPath, content string) error {
-	if err := a.ready(); err != nil {
-		return err
-	}
-	if len(content) > maxWriteFileSize {
-		return fmt.Errorf("WriteFile: content too large (%d bytes, limit %d)", len(content), maxWriteFileSize)
-	}
-
-	kind, _ := classifyFileKind(relPath)
-	if kind != "text" && kind != "md" {
-		return fmt.Errorf("WriteFile: %s is not a writable text file", relPath)
-	}
-
-	cwd, err := a.resolveProjectDir()
-	if err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
-	}
-
-	roots := []string{cwd}
-	if home, err := util.MadyHome(); err == nil && home != cwd {
-		roots = append(roots, home)
-	}
-
-	abs, err := resolveSandboxedPathMulti(relPath, roots...)
-	if err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
-	}
-	// 原子写：同目录临时文件 + rename
-	tmp, err := os.CreateTemp(filepath.Dir(abs), ".mady-write-*")
-	if err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-
-	if _, err := tmp.WriteString(content); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("WriteFile: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
-	}
-	if err := os.Chmod(tmpName, 0600); err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
-	}
-	if err := os.Rename(tmpName, abs); err != nil {
-		return fmt.Errorf("WriteFile: %w", err)
-	}
-	log.Printf("[mady-desktop] wrote file: %s (%d bytes)", abs, len(content))
-	return nil
-}
-
-// --- 文件删除（T5.8，PilotDeck 对齐） ---
-
-// DeleteEntry 删除项目沙箱内的文件或空目录。
-// 目录必须为空才允许删除（递归删除本期不支持）。
-func (a *App) DeleteEntry(relPath string) error {
-	if err := a.ready(); err != nil {
-		return err
-	}
-
-	cwd, err := a.resolveProjectDir()
-	if err != nil {
-		return fmt.Errorf("DeleteEntry: %w", err)
-	}
-
-	abs, err := resolveSandboxedPath(relPath, cwd)
-	if err != nil {
-		return fmt.Errorf("DeleteEntry: %w", err)
-	}
-
-	info, err := os.Stat(abs)
-	if err != nil {
-		return fmt.Errorf("DeleteEntry: %w", err)
-	}
-
-	if info.IsDir() {
-		entries, err := os.ReadDir(abs)
-		if err != nil {
-			return fmt.Errorf("DeleteEntry: %w", err)
-		}
-		if len(entries) > 0 {
-			return fmt.Errorf("DeleteEntry: directory %s is not empty", relPath)
-		}
-	}
-
-	if err := os.Remove(abs); err != nil {
-		return fmt.Errorf("DeleteEntry: %w", err)
-	}
-	log.Printf("[mady-desktop] deleted: %s", abs)
-	return nil
-}
-
-// --- 技能管理（T5.6，PilotDeck 对齐） ---
-
-// SkillEntry 是一个已发现技能的概要信息。
-type SkillEntry struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	// Path 是 SKILL.md 相对项目根的路径，可直接用于 ReadFile/WriteFile。
-	Path string `json:"path"`
-}
-
-// ListSkills 扫描所有技能发现路径，返回发现的技能列表。
-// 项目本地技能优先，全局技能按名称去重（同名以项目本地为准）。
-// 未找到任何技能时返回空列表（不视为错误）。
-//
-// 扫描路径与 bootstrap.DiscoverSkills 保持一致：
-//   - SKILL_DIR 环境变量
-//   - ~/.agent/
-//   - $PWD/.agent/
-//   - $PWD/skills/
-//   - $PWD/plugins/
-//   - $MADY_HOME/skills/
-//   - ~/.agents/skills/
-func (a *App) ListSkills() ([]SkillEntry, error) {
-	if err := a.ready(); err != nil {
-		return nil, err
-	}
-
-	cwd, err := a.resolveProjectDir()
-	if err != nil {
-		return nil, fmt.Errorf("ListSkills: %w", err)
-	}
-
-	homeDir, _ := os.UserHomeDir()
-	madyHome, _ := util.MadyHome()
-
-	type scanned struct {
-		root string
-		dir  string
-	}
-	dirs := []scanned{}
-
-	// 1. SKILL_DIR 环境变量
-	if env := os.Getenv("SKILL_DIR"); env != "" {
-		for _, p := range filepath.SplitList(env) {
-			if p != "" {
-				dirs = append(dirs, scanned{root: p, dir: p})
-			}
-		}
-	}
-	// 2. ~/.agent/
-	if homeDir != "" {
-		dirs = append(dirs, scanned{root: homeDir, dir: filepath.Join(homeDir, ".agent")})
-	}
-	// 3. $PWD/.agent/
-	dirs = append(dirs, scanned{root: cwd, dir: filepath.Join(cwd, ".agent")})
-	// 4. $PWD/skills/
-	dirs = append(dirs, scanned{root: cwd, dir: filepath.Join(cwd, "skills")})
-	// 4b. $PWD/plugins/ (插件 SKILL.md)
-	dirs = append(dirs, scanned{root: cwd, dir: filepath.Join(cwd, "plugins")})
-	// 5. $MADY_HOME/skills/
-	if madyHome != "" && madyHome != cwd {
-		dirs = append(dirs, scanned{root: madyHome, dir: filepath.Join(madyHome, "skills")})
-	}
-	// 6. ~/.agents/skills/
-	if homeDir != "" {
-		dirs = append(dirs, scanned{root: homeDir, dir: filepath.Join(homeDir, ".agents", "skills")})
-	}
-
-	seen := make(map[string]bool)
-	var result []SkillEntry
-
-	for _, d := range dirs {
-		if _, err := os.Stat(d.dir); os.IsNotExist(err) {
-			continue
-		}
-		skills, _, err := skill.Load(d.dir)
-		if err != nil {
-			continue
-		}
-		for _, s := range skills {
-			if seen[s.Name] {
-				continue
-			}
-			seen[s.Name] = true
-			var entryPath string
-			if d.root == cwd {
-				rel, err := filepath.Rel(cwd, s.FilePath)
-				if err != nil {
-					log.Printf("ListSkills: filepath.Rel(%q, %q) failed: %v", cwd, s.FilePath, err)
-					entryPath = filepath.ToSlash(s.FilePath)
-				} else {
-					entryPath = filepath.ToSlash(rel)
-				}
-			} else {
-				entryPath = filepath.ToSlash(s.FilePath)
-			}
-			result = append(result, SkillEntry{
-				Name:        s.Name,
-				Description: s.Description,
-				Path:        entryPath,
-			})
-		}
-	}
-
-	if result == nil {
-		return []SkillEntry{}, nil
-	}
-	return result, nil
-}
-
-// --- MCP 服务器管理（T5.7，PilotDeck 对齐，只读） ---
-
-// McpServerEntry 是一个已配置 MCP 服务器的只读概要。
-// Env 仅暴露键名，不返回值，防止 API Key 泄露到前端。
-type McpServerEntry struct {
-	Name    string   `json:"name"`
-	Type    string   `json:"type"` // stdio | http
-	Command string   `json:"command,omitempty"`
-	Args    []string `json:"args,omitempty"`
-	URL     string   `json:"url,omitempty"`
-	EnvKeys []string `json:"envKeys,omitempty"`
-	// Source 是来源配置文件（~/.mady/mcp.json 或项目 .mcp.json）。
-	Source string `json:"source"`
-}
-
-// ListMcpServers 返回已配置的 MCP 服务器列表（只读）。
-// 扫描 ~/.mady/mcp.json 与项目 .mcp.json，不触碰信任存储写路径。
-// 项目 .mcp.json 的来源不受信，仅作展示（实际执行仍需信任校验）。
-func (a *App) ListMcpServers() ([]McpServerEntry, error) {
-	if err := a.ready(); err != nil {
-		return nil, err
-	}
-
-	var result []McpServerEntry
-	collect := func(path, source string) {
-		cfg, err := mcp.LoadMCPConfig(path)
-		if err != nil {
-			return // 文件不存在或解析失败：跳过（best-effort 展示）
-		}
-		for name, srv := range cfg.MCPServers {
-			typ := srv.Type
-			if typ == "" {
-				typ = "stdio"
-			}
-			envKeys := make([]string, 0, len(srv.Env))
-			for k := range srv.Env {
-				envKeys = append(envKeys, k)
-			}
-			sort.Strings(envKeys)
-			result = append(result, McpServerEntry{
-				Name:    name,
-				Type:    typ,
-				Command: srv.Command,
-				Args:    srv.Args,
-				URL:     srv.URL,
-				EnvKeys: envKeys,
-				Source:  source,
-			})
-		}
-	}
-
-	if home, err := util.MadyHome(); err == nil {
-		collect(filepath.Join(home, "mcp.json"), "global")
-	}
-
-	if cwd, err := a.resolveProjectDir(); err == nil {
-		collect(filepath.Join(cwd, ".mcp.json"), "project")
-	}
-
-	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	if result == nil {
-		result = []McpServerEntry{}
-	}
-	return result, nil
-}
-
 // --- 内部辅助 ---
 
 // ready 检查 App 是否已完成 startup 初始化。
@@ -1333,4 +590,83 @@ var errServerNotReady = fmt.Errorf("server not ready: startup may not have compl
 
 func errRunNotFound(runID string) error {
 	return fmt.Errorf("run %s not found", runID)
+}
+
+// buildDesktopUnifiedToolExt 为桌面端统一 Agent 构建工具扩展。
+func buildDesktopUnifiedToolExt(fc *bootstrap.Context) agentcore.Extension {
+	workingDir := fc.BaseConfig.ProjectDir
+	if workingDir == "" {
+		workingDir = fc.BaseConfig.WorkspaceDir
+	}
+	allowRead, allowWrite := domains.BuildSandboxAllowLists()
+	return tools.NewExtension(tools.ExtensionConfig{
+		WorkingDir:     workingDir,
+		SandboxEnabled: true,
+		AllowRead:      allowRead,
+		AllowWrite:     allowWrite,
+		Vision: &tools.VisionToolConfig{
+			Provider: fc.BaseConfig.Provider,
+			Model:    fc.BaseConfig.Model,
+		},
+		WebSearch:   &tools.WebSearchToolConfig{},
+		WebFetch:    &tools.WebFetchToolConfig{},
+		ComputerUse: true,
+		MaxBytes:    100 * 1024,
+		MaxLines:    5000,
+	})
+}
+
+// buildDesktopPatentToolExt 为桌面端专利子 Agent 构建工具扩展。
+func buildDesktopPatentToolExt(fc *bootstrap.Context) agentcore.Extension {
+	workingDir := fc.BaseConfig.ProjectDir
+	if workingDir == "" {
+		workingDir = fc.BaseConfig.WorkspaceDir
+	}
+	allowRead, allowWrite := domains.BuildSandboxAllowLists()
+	return tools.NewExtension(tools.ExtensionConfig{
+		WorkingDir:     workingDir,
+		SandboxEnabled: true,
+		AllowRead:      allowRead,
+		AllowWrite:     allowWrite,
+		Vision: &tools.VisionToolConfig{
+			Provider: fc.BaseConfig.Provider,
+			Model:    fc.BaseConfig.Model,
+		},
+		WebSearch:  &tools.WebSearchToolConfig{},
+		WebFetch:   &tools.WebFetchToolConfig{},
+		PatentTool: tools.PatentToolConfigDefaults(),
+		Pandoc:     tools.PandocToolConfigDefaults(),
+		DisableTools: []string{
+			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
+			tools.ToolBrowser, tools.ToolExecuteCode,
+		},
+		MaxBytes: 100 * 1024,
+	})
+}
+
+// buildDesktopLegalToolExt 为桌面端法律子 Agent 构建工具扩展。
+func buildDesktopLegalToolExt(fc *bootstrap.Context) agentcore.Extension {
+	workingDir := fc.BaseConfig.ProjectDir
+	if workingDir == "" {
+		workingDir = fc.BaseConfig.WorkspaceDir
+	}
+	allowRead, allowWrite := domains.BuildSandboxAllowLists()
+	return tools.NewExtension(tools.ExtensionConfig{
+		WorkingDir:     workingDir,
+		SandboxEnabled: true,
+		AllowRead:      allowRead,
+		AllowWrite:     allowWrite,
+		Vision: &tools.VisionToolConfig{
+			Provider: fc.BaseConfig.Provider,
+			Model:    fc.BaseConfig.Model,
+		},
+		WebSearch: &tools.WebSearchToolConfig{},
+		WebFetch:  &tools.WebFetchToolConfig{},
+		DisableTools: []string{
+			tools.ToolBash, tools.ToolGitStatus, tools.ToolGitDiff, tools.ToolGitLog,
+			tools.ToolBrowser, tools.ToolExecuteCode, tools.ToolComputerUse,
+			tools.ToolProcess,
+		},
+		MaxBytes: 100 * 1024,
+	})
 }
