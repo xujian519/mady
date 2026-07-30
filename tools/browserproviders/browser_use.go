@@ -2,6 +2,7 @@ package browserproviders
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -40,7 +41,7 @@ func (p *BrowserUseProvider) CreateSession(taskID string) (map[string]string, er
 		return nil, fmt.Errorf("marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", "https://api.browser-use.com/v3/browsers", bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", "https://api.browser-use.com/v3/browsers", bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func (p *BrowserUseProvider) CloseSession(sessionID string) error {
 		return fmt.Errorf("marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest("PATCH", fmt.Sprintf("https://api.browser-use.com/v3/browsers/%s", sessionID), bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(context.Background(), "PATCH", fmt.Sprintf("https://api.browser-use.com/v3/browsers/%s", sessionID), bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

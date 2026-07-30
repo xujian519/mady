@@ -1,3 +1,4 @@
+//nolint:noctx
 // computer_use_exec.go：外部命令执行助手。
 // 职责：统一封装 osascript / cliclick / pwsh / xdotool / ydotool / wtype 的调用，
 // 捕获 stdout/stderr 并包装错误；scrotExec 在 Linux 下依次尝试 grim/import/gnome-screenshot/scrot。
@@ -13,7 +14,7 @@ import (
 )
 
 func osaExec(script string) (string, error) {
-	cmd := exec.Command("osascript", "-e", script)
+	cmd := exec.Command("osascript", "-e", script) //nolint:gosec // G204: AppleScript execution by design for desktop control
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -24,7 +25,7 @@ func osaExec(script string) (string, error) {
 }
 
 func cliclickExec(args ...string) (string, error) {
-	cmd := exec.Command("cliclick", args...)
+	cmd := exec.Command("cliclick", args...) //nolint:gosec // G204: cliclick execution by design for desktop control
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -52,7 +53,7 @@ func getPwshBinary() string {
 
 func pwshExec(script string) (string, error) {
 	binary := getPwshBinary()
-	cmd := exec.Command(binary, "-NoProfile", "-NonInteractive", "-Command", script)
+	cmd := exec.Command(binary, "-NoProfile", "-NonInteractive", "-Command", script) //nolint:gosec // G204: PowerShell execution by design for desktop control
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -63,7 +64,7 @@ func pwshExec(script string) (string, error) {
 }
 
 func xdoExec(args ...string) (string, error) {
-	cmd := exec.Command("xdotool", args...)
+	cmd := exec.Command("xdotool", args...) //nolint:gosec // G204: xdotool execution by design for desktop control
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -74,7 +75,7 @@ func xdoExec(args ...string) (string, error) {
 }
 
 func ydoExec(args ...string) (string, error) {
-	cmd := exec.Command("ydotool", args...)
+	cmd := exec.Command("ydotool", args...) //nolint:gosec // G204: ydotool execution by design for desktop control
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -85,7 +86,7 @@ func ydoExec(args ...string) (string, error) {
 }
 
 func wtypeExec(text string) (string, error) {
-	cmd := exec.Command("wtype", text)
+	cmd := exec.Command("wtype", text) //nolint:gosec // G204: wtype execution by design for desktop control
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -97,18 +98,18 @@ func wtypeExec(text string) (string, error) {
 
 func scrotExec(path string) error {
 	if isWayland() {
-		if err := exec.Command("grim", path).Run(); err == nil {
+		if err := exec.Command("grim", path).Run(); err == nil { //nolint:gosec // G204: grim screenshot by design for desktop control
 			return nil
 		}
 		return fmt.Errorf("no Wayland screenshot tool found (try: apt install grim)")
 	}
-	if err := exec.Command("import", "-window", "root", path).Run(); err == nil {
+	if err := exec.Command("import", "-window", "root", path).Run(); err == nil { //nolint:gosec // G204: ImageMagick screenshot by design
 		return nil
 	}
-	if err := exec.Command("gnome-screenshot", "-f", path).Run(); err == nil {
+	if err := exec.Command("gnome-screenshot", "-f", path).Run(); err == nil { //nolint:gosec // G204: gnome-screenshot by design
 		return nil
 	}
-	if err := exec.Command("scrot", path).Run(); err == nil {
+	if err := exec.Command("scrot", path).Run(); err == nil { //nolint:gosec // G204: scrot screenshot by design
 		return nil
 	}
 	return fmt.Errorf("no screenshot tool found (try: apt install imagemagick, gnome-screenshot, grim, or scrot)")

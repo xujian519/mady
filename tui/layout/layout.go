@@ -88,14 +88,14 @@ func Percent(c core.Component, pct int) Child {
 	return Child{Component: c, Policy: SizePercent, Percent: pct}
 }
 
-// Min returns a Child whose size is at least min.
-func Min(c core.Component, min int64) Child {
-	return Child{Component: c, Policy: SizeMin, Min: min}
+// Min returns a Child whose size is at least minSize.
+func Min(c core.Component, minSize int64) Child {
+	return Child{Component: c, Policy: SizeMin, Min: minSize}
 }
 
-// Max returns a Child whose size is at most max.
-func Max(c core.Component, max int64) Child {
-	return Child{Component: c, Policy: SizeMax, Max: max}
+// Max returns a Child whose size is at most maxSize.
+func Max(c core.Component, maxSize int64) Child {
+	return Child{Component: c, Policy: SizeMax, Max: maxSize}
 }
 
 // Shrinkable returns a Child that takes its natural height but yields space
@@ -105,11 +105,11 @@ func Max(c core.Component, max int64) Child {
 // WithAllocate to let the component re-render at the smaller size. Use this
 // for components that would rather shrink than push siblings off-screen
 // (e.g. a multi-line editor border frame).
-func Shrinkable(c core.Component, min int64) Child {
-	if min < 1 {
-		min = 1
+func Shrinkable(c core.Component, minSize int64) Child {
+	if minSize < 1 {
+		minSize = 1
 	}
-	return Child{Component: c, Policy: SizeShrinkable, Min: min}
+	return Child{Component: c, Policy: SizeShrinkable, Min: minSize}
 }
 
 // WithAllocate attaches an allocation callback to a Child.

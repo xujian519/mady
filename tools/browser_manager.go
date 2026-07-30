@@ -31,7 +31,7 @@ func initDefaultBrowserManager() {
 
 		reaper := NewOrphanReaper()
 		go func() {
-			reaper.ReapOrphans()
+			reaper.ReapOrphans() //nolint:gosec // G104: cleanup-only; orphan reaper runs in background goroutine
 		}()
 	})
 }

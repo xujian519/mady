@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# pre-commit hook: 对根模块和 tools/ 子模块分别运行 golangci-lint。
+# pre-commit hook: 对根模块、tools/、tui/、desktop/ 子模块分别运行 golangci-lint。
 #
 # 设计要点：
-# 1. go.work 多模块结构下，根目录的 `golangci-lint run ./...` 不会覆盖 tools/ 子模块，
+# 1. go.work 多模块结构下，根目录的 `golangci-lint run ./...` 不会覆盖子模块，
 #    必须分别执行（与 Makefile lint target、CI matrix 行为对齐）。
 # 2. 跨机器兼容：优先使用 $(go env GOPATH)/bin/golangci-lint（make install-lint 的安装位置），
 #    缺失则回退 PATH 中的 golangci-lint。
@@ -28,3 +28,7 @@ cd "$REPO_ROOT"
 "$LINT" run ./...
 echo "---"
 cd tools && "$LINT" run ./...
+echo "---"
+cd "$REPO_ROOT/tui" && "$LINT" run ./...
+echo "---"
+cd "$REPO_ROOT/desktop" && "$LINT" run ./...

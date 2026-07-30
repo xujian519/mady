@@ -92,7 +92,7 @@ func NewOCRTool(cfg *OCRToolConfig) *agentcore.Tool {
 //nolint:unused
 func resolveOCRCacheDir() string {
 	d := ocr.DefaultCacheDir()
-	os.MkdirAll(d, 0755)
+	os.MkdirAll(d, 0755) //nolint:gosec // G104: best-effort cache dir creation
 	return d
 }
 
@@ -111,7 +111,7 @@ func SweepOCRCache(maxAge int64) error {
 			continue
 		}
 		if info.ModTime().Unix() < maxAge {
-			os.Remove(filepath.Join(cacheDir, e.Name()))
+			os.Remove(filepath.Join(cacheDir, e.Name())) //nolint:gosec // G104: cleanup-only; best-effort cache sweep
 		}
 	}
 	return nil

@@ -294,7 +294,7 @@ func (t *ProcessTerminal) Context() *TerminalContext {
 	return CurrentTerminalContext()
 }
 
-// Call this after entering the alternate screen.
+// PushKittyKeyboard should be called after entering the alternate screen.
 //
 // Background: switching to the alt screen resets the Kitty keyboard protocol
 // state negotiated in Start, so modifier-rich keys (e.g. Cmd+C on macOS) fall

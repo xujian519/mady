@@ -144,7 +144,7 @@ func NewPandocTool(cfg *PandocToolConfig) *agentcore.Tool {
 				if err != nil {
 					return resultErrf("output path: %w", err)
 				}
-				if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil { //nolint:gosec // G301: output dir needs write permission
 					return resultErrf("create output dir: %w", err)
 				}
 				pandocArgs = append(pandocArgs, "-o", outputPath)
@@ -158,7 +158,7 @@ func NewPandocTool(cfg *PandocToolConfig) *agentcore.Tool {
 			timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.Timeout)*time.Second)
 			defer cancel()
 
-			cmd := exec.CommandContext(timeoutCtx, cfg.PandocPath, pandocArgs...)
+			cmd := exec.CommandContext(timeoutCtx, cfg.PandocPath, pandocArgs...) //nolint:gosec // G204: pandoc subprocess; path from config
 
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout = &stdout

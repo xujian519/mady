@@ -40,14 +40,14 @@ func (r *CDPRecorder) StartRecording(ctx context.Context, browserCtx context.Con
 		return fmt.Errorf("already recording")
 	}
 
-	if err := os.MkdirAll(r.outputPath, 0755); err != nil {
+	if err := os.MkdirAll(r.outputPath, 0755); err != nil { //nolint:gosec // G301: recording output dir needs write permission for media files
 		return fmt.Errorf("failed to create recording dir: %w", err)
 	}
 
 	filename := fmt.Sprintf("recording_%s_%d.webm", sessionID, time.Now().Unix())
 	filepath := filepath.Join(r.outputPath, filename)
 
-	f, err := os.Create(filepath)
+	f, err := os.Create(filepath) //nolint:gosec // G304: path under managed recording output dir
 	if err != nil {
 		return fmt.Errorf("failed to create recording file: %w", err)
 	}
@@ -109,7 +109,7 @@ func (r *CDPRecorder) captureFrames(ctx context.Context) {
 
 	<-ctx.Done()
 
-	page.StopScreencast().Do(ctx)
+	page.StopScreencast().Do(ctx) //nolint:gosec // G104: cleanup-only; best-effort stop
 }
 
 func (r *CDPRecorder) StopRecording() (string, error) {

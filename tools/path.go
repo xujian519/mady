@@ -231,13 +231,14 @@ func OpenSandboxed(path string, sbx WorkingDirSandbox) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	return os.Open(resolved)
+	return os.Open(resolved) //nolint:gosec // G304: resolved path from sandbox check
 }
 
-//nolint:unused
 // readFileSandboxed opens a file through the sandbox, reads its full content,
 // and returns it as a string. This prevents TOCTOU by pinning the inode through
 // the open FD.
+//
+//nolint:unused
 func readFileSandboxed(path string, sbx WorkingDirSandbox) (string, error) {
 	f, err := OpenSandboxed(path, sbx)
 	if err != nil {
@@ -256,7 +257,7 @@ func readFileSandboxed(path string, sbx WorkingDirSandbox) (string, error) {
 // or I/O failure. Used to detect TOCTOU symlink-swap attacks between path resolution
 // and the actual file operation.
 func pinPath(path string) error {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: path from sandbox-checked source
 	if err != nil {
 		return fmt.Errorf("path not found: %s", path)
 	}
@@ -290,5 +291,5 @@ func OpenSandboxedFile(path string, sbx WorkingDirSandbox, flag int, perm os.Fil
 	if err != nil {
 		return nil, err
 	}
-	return os.OpenFile(resolved, flag, perm)
+	return os.OpenFile(resolved, flag, perm) //nolint:gosec // G304: resolved path from sandbox check
 }

@@ -1,0 +1,82 @@
+# Mady Desktop - golangci-lint Configuration (v2 format)
+# Desktop 模块为 Wails 应用，Go 代码量少（5 源文件），
+# 无 HTTP 客户端，无需 bodyclose/noctx/gosec。
+version: "2"
+
+run:
+  timeout: 3m
+  tests: false
+
+linters:
+  default: none
+  enable:
+    # 基础正确性
+    - errcheck        # 检查未处理的错误
+    - govet           # go vet
+    - ineffassign     # 无效赋值检测
+    - staticcheck     # 静态分析（SA 级）
+    - unused          # 未使用变量/类型/常量
+    - misspell        # 拼写检查
+    - unconvert       # 不必要的类型转换
+
+    # 代码质量
+    - revive          # golint 替代（增强版）
+
+    # 正确性
+    - copyloopvar     # 循环变量引用副本
+    - durationcheck   # 时间乘时间错误
+
+  settings:
+    misspell:
+      locale: US
+    revive:
+      severity: warning
+      rules:
+        - name: blank-imports
+          severity: warning
+        - name: context-keys-type
+          severity: warning
+        - name: error-return
+          severity: warning
+        - name: error-naming
+          severity: warning
+        - name: range
+          severity: warning
+        - name: receiver-naming
+          severity: warning
+        - name: time-naming
+          severity: warning
+        - name: unexported-return
+          severity: warning
+        - name: errorf
+          severity: warning
+        - name: empty-block
+          severity: warning
+        - name: superfluous-else
+          severity: warning
+        - name: unreachable-code
+          severity: warning
+        - name: redefines-builtin-id
+          severity: warning
+    staticcheck:
+      checks:
+        - all
+        - "-SA1019"
+
+  exclusions:
+    paths:
+      - .git
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+      - path: ".*_gen\\.go"
+        linters:
+          - all
+      - path: ".*\\.pb\\.go"
+        linters:
+          - all
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

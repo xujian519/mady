@@ -40,11 +40,11 @@ func (m *mockBashOps) Exec(_ context.Context, command, cwd string, env map[strin
 }
 
 type mockWebFetchOps struct {
-	fetchFunc func(url string) (string, error)
+	fetchFunc func(ctx context.Context, url string) (string, error)
 }
 
-func (m *mockWebFetchOps) Fetch(url string) (string, error) {
-	return m.fetchFunc(url)
+func (m *mockWebFetchOps) Fetch(ctx context.Context, url string) (string, error) {
+	return m.fetchFunc(ctx, url)
 }
 
 type mockReadOps struct {
@@ -190,7 +190,7 @@ func TestBashToolConfigDefaults(t *testing.T) {
 func TestWebFetchToolBasic(t *testing.T) {
 	tool := NewWebFetchTool(&WebFetchToolConfig{
 		Operations: &mockWebFetchOps{
-			fetchFunc: func(url string) (string, error) {
+			fetchFunc: func(ctx context.Context, url string) (string, error) {
 				return "<html><body><p>hello world</p></body></html>", nil
 			},
 		},
@@ -219,7 +219,7 @@ func TestWebFetchToolEmptyURL(t *testing.T) {
 func TestWebFetchToolFetchError(t *testing.T) {
 	tool := NewWebFetchTool(&WebFetchToolConfig{
 		Operations: &mockWebFetchOps{
-			fetchFunc: func(url string) (string, error) {
+			fetchFunc: func(ctx context.Context, url string) (string, error) {
 				return "", errors.New("connection refused")
 			},
 		},

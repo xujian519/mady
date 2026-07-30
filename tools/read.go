@@ -22,7 +22,7 @@ type ReadOperations interface {
 type DefaultReadOperations struct{}
 
 func (d DefaultReadOperations) ReadFile(ctx context.Context, path string) ([]byte, error) {
-	return os.ReadFile(path)
+	return os.ReadFile(path) //nolint:gosec // G304: path from sandbox-checked source
 }
 func (d DefaultReadOperations) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 	return os.Stat(path)

@@ -19,7 +19,7 @@ type GitOperations interface {
 type DefaultGitOperations struct{}
 
 func (d DefaultGitOperations) Exec(ctx context.Context, args []string, cwd string) (string, int, error) {
-	cmd := exec.Command("git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // G204: git subprocess; args from tool input
 	cmd.Dir = cwd
 	output, err := cmd.CombinedOutput()
 	exitCode := 0

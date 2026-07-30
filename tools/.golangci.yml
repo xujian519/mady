@@ -21,9 +21,18 @@ linters:
     - misspell        # 拼写检查
     - unconvert       # 不必要类型转换
 
+    # 代码质量（补齐自根模块 2026-07-30）
+    - goconst         # 可提取为常量的重复字符串
+
     # 正确性
     - copyloopvar     # 循环变量复制
     - durationcheck   # 时间运算检查
+
+    # 安全与 HTTP 正确性（补齐自根模块 2026-07-30）
+    - bodyclose       # HTTP 响应体是否关闭
+    - noctx           # HTTP 请求是否携带 context
+    - errchkjson      # JSON 编码类型检查
+    - gosec           # 安全审查
 
   settings:
     revive:
@@ -55,6 +64,15 @@ linters:
           severity: warning
         - name: redefines-builtin-id
           severity: warning
+    goconst:
+      min-len: 15
+      min-occurrences: 15
+      ignore-calls: true
+    gosec:
+      excludes:
+        - G404   # 弱随机数生成器（项目已知设计选择）
+        - G115   # 整数溢出（项目已知设计选择）
+        - G402   # TLS 配置（非 TLS 服务）
     misspell:
       locale: US
 

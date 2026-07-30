@@ -310,7 +310,7 @@ func transitionFromInterrupted(e eventKind) AppState {
 // between the imperative ChatEvent interface and the pure FSM: handlers can
 // call Transition(state, EventKindFor(e)) to decide the next state without
 // type-switching themselves.
-func EventKindFor(e ChatEvent) eventKind {
+func EventKindFor(e ChatEvent) eventKind { //nolint:revive // unexported eventKind is intentional — only used within this package
 	switch e.(type) {
 	case AgentStartChatEvent:
 		return evtAgentStart

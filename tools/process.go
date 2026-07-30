@@ -123,7 +123,7 @@ func (d *DefaultProcessOperations) Spawn(command string, cwd string) (*ProcessEn
 		shell = "/bin/sh"
 	}
 
-	cmd := exec.Command(shell, "-c", command)
+	cmd := exec.CommandContext(context.Background(), shell, "-c", command) //nolint:gosec // G204: process spawn by design
 	cmd.Dir = cwd
 	// Setpgid creates a new process group so Kill(-pgid) only affects this
 	// command's children, preventing orphaned grandchild processes. This
@@ -182,7 +182,7 @@ func (d *DefaultProcessOperations) Spawn(command string, cwd string) (*ProcessEn
 
 func (d *DefaultProcessOperations) Kill(pid int) error {
 	// Try process group first, then direct kill.
-	syscall.Kill(-pid, syscall.SIGKILL)
+	syscall.Kill(-pid, syscall.SIGKILL) //nolint:gosec // G104: cleanup-only; best-effort kill process group
 	return syscall.Kill(pid, syscall.SIGKILL)
 }
 

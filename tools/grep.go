@@ -31,7 +31,7 @@ func (d DefaultGrepOperations) IsDirectory(ctx context.Context, path string) (bo
 	return info.IsDir(), nil
 }
 func (d DefaultGrepOperations) ReadFile(ctx context.Context, path string) (string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path from sandbox-checked source
 	if err != nil {
 		return "", err
 	}
@@ -179,8 +179,8 @@ func runRipgrep(ctx context.Context, rgPath, searchPath string, input GrepToolIn
 	waitDone := false
 	for scanner.Scan() {
 		if matchCount >= limit {
-			cmd.Process.Kill()
-			cmd.Wait()
+			cmd.Process.Kill() //nolint:gosec // G104: cleanup-only; kill on limit reached
+			cmd.Wait()         //nolint:gosec // G104: cleanup-only; reap zombie after kill
 			waitDone = true
 			break
 		}
@@ -211,7 +211,7 @@ func runRipgrep(ctx context.Context, rgPath, searchPath string, input GrepToolIn
 	}
 
 	if !waitDone {
-		cmd.Wait()
+		cmd.Wait() //nolint:gosec // G104: cleanup-only; reap zombie after kill
 	}
 
 	if len(matches) == 0 {

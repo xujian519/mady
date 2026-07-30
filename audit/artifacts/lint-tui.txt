@@ -1,0 +1,91 @@
+chat/state.go:313:32: unexported-return: exported func EventKindFor returns unexported type chat.eventKind, which can be annoying to use (revive)
+func EventKindFor(e ChatEvent) eventKind {
+                               ^
+component/fuzzy_provider.go:122:28: redefines-builtin-id: redefinition of the built-in function max (revive)
+func previewText(s string, max int64) string {
+                           ^
+component/fuzzy_provider.go:130:43: redefines-builtin-id: redefinition of the built-in function max (revive)
+func makeExcerpt(body string, start, end, max int64) string {
+                                          ^
+core/celldiff.go:16:19: redefines-builtin-id: redefinition of the built-in function cap (revive)
+func getDiffCells(cap int) []Cell {
+                  ^
+core/celldiff.go:59:20: redefines-builtin-id: redefinition of the built-in function new (revive)
+func DiffRows(old, new []Row) []RowDiff {
+                   ^
+core/celldiff.go:111:21: redefines-builtin-id: redefinition of the built-in function new (revive)
+func DiffFrame(old, new []Row) []RowCellDiff {
+                    ^
+core/celldiff.go:172:21: redefines-builtin-id: redefinition of the built-in function new (revive)
+func DiffCells(old, new Row) RowCellDiff {
+                    ^
+core/celldiff.go:236:23: redefines-builtin-id: redefinition of the built-in function new (revive)
+func adjustStart(old, new Row, l int) int {
+                      ^
+core/celldiff.go:256:21: redefines-builtin-id: redefinition of the built-in function new (revive)
+func adjustEnd(old, new Row, r int) int {
+                    ^
+layout/flex.go:251:8: redefines-builtin-id: redefinition of the built-in function min (revive)
+				if min := f.Children[e.idx].Min; newSize < min {
+				   ^
+layout/flex.go:271:6: redefines-builtin-id: redefinition of the built-in function min (revive)
+					min := f.Children[e.idx].Min
+					^
+layout/flex.go:470:2: redefines-builtin-id: redefinition of the built-in function max (revive)
+	max := int64(0)
+	^
+layout/flex.go:473:4: redefines-builtin-id: redefinition of the built-in function max (revive)
+			max = w
+			^
+layout/layout.go:92:28: redefines-builtin-id: redefinition of the built-in function min (revive)
+func Min(c core.Component, min int64) Child {
+                           ^
+layout/layout.go:97:28: redefines-builtin-id: redefinition of the built-in function max (revive)
+func Max(c core.Component, max int64) Child {
+                           ^
+layout/layout.go:108:35: redefines-builtin-id: redefinition of the built-in function min (revive)
+func Shrinkable(c core.Component, min int64) Child {
+                                  ^
+layout/layout.go:110:3: redefines-builtin-id: redefinition of the built-in function min (revive)
+		min = 1
+		^
+terminal/ansi.go:20:1: ST1020: comment on exported function CursorUp should be of the form "CursorUp ..." (staticcheck)
+// Cursor movement (return ANSI strings; do not perform I/O).
+^
+terminal/ansi.go:26:1: ST1020: comment on exported function ClearLine should be of the form "ClearLine ..." (staticcheck)
+// Screen clearing.
+^
+terminal/ansi.go:31:1: ST1020: comment on exported function SaveCursor should be of the form "SaveCursor ..." (staticcheck)
+// Cursor save/restore.
+^
+terminal/ansi.go:35:1: ST1020: comment on exported function HideCursor should be of the form "HideCursor ..." (staticcheck)
+// Cursor visibility.
+^
+terminal/terminal.go:297:1: ST1020: comment on exported method PushKittyKeyboard should be of the form "PushKittyKeyboard ..." (staticcheck)
+// Call this after entering the alternate screen.
+^
+theme/style.go:237:1: ST1020: comment on exported function ResolveIcon should be of the form "ResolveIcon ..." (staticcheck)
+// Resolve returns the best available representation of the icon based on
+^
+tui_render.go:337:2: QF1012: Use fmt.Fprintf(...) instead of WriteString(fmt.Sprintf(...)) (staticcheck)
+	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH╔", topY+1, leftX+1))
+	^
+tui_render.go:344:2: QF1012: Use fmt.Fprintf(...) instead of WriteString(fmt.Sprintf(...)) (staticcheck)
+	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH║  %-*s  ║", hintCNY+1, leftX+1, boxWidth-6, hintCN))
+	^
+tui_render.go:346:2: QF1012: Use fmt.Fprintf(...) instead of WriteString(fmt.Sprintf(...)) (staticcheck)
+	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH║  %-*s  ║", textY+1, leftX+1, boxWidth-6, hint))
+	^
+tui_render.go:348:2: QF1012: Use fmt.Fprintf(...) instead of WriteString(fmt.Sprintf(...)) (staticcheck)
+	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH╚", botY+1, leftX+1))
+	^
+tui_render.go:355:2: QF1012: Use fmt.Fprintf(...) instead of WriteString(fmt.Sprintf(...)) (staticcheck)
+	buf.WriteString(fmt.Sprintf("\x1b[%d;1H", botY+2))
+	^
+chat/layout_shortcuts.go:67:6: func hasSelection is unused (unused)
+func hasSelection(l *chatLayout) bool {
+     ^
+29 issues:
+* revive: 17
+* staticcheck: 11
+* unused: 1

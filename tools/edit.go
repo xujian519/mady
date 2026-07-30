@@ -21,7 +21,7 @@ type EditOperations interface {
 type DefaultEditOperations struct{}
 
 func (d DefaultEditOperations) ReadFile(ctx context.Context, path string) ([]byte, error) {
-	return os.ReadFile(path)
+	return os.ReadFile(path) //nolint:gosec // G304: path from sandbox-checked source
 }
 func (d DefaultEditOperations) WriteFile(path string, content []byte) error {
 	return os.WriteFile(path, content, 0600)

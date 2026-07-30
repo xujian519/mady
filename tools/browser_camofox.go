@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -69,7 +70,7 @@ func (c *CamofoxClient) IsConfigured() bool {
 	return c.baseURL != ""
 }
 
-func (c *CamofoxClient) CreateTab(taskID string, url string) (*CamofoxTab, error) {
+func (c *CamofoxClient) CreateTab(ctx context.Context, taskID string, url string) (*CamofoxTab, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -79,7 +80,7 @@ func (c *CamofoxClient) CreateTab(taskID string, url string) (*CamofoxTab, error
 	}
 
 	if c.adoptTab {
-		if tab, err := c.adoptExistingTab(taskID); err == nil && tab != nil {
+		if tab, err := c.adoptExistingTab(ctx, taskID); err == nil && tab != nil {
 			c.tabs[taskID] = tab
 			return tab, nil
 		}
@@ -103,7 +104,7 @@ func (c *CamofoxClient) CreateTab(taskID string, url string) (*CamofoxTab, error
 		reqBody["url"] = url
 	}
 
-	resp, err := c.doJSON("POST", "/tabs", reqBody)
+	resp, err := c.doJSON(ctx, "POST", "/tabs", reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("create tab failed: %w", err)
 	}
@@ -124,13 +125,13 @@ func (c *CamofoxClient) CreateTab(taskID string, url string) (*CamofoxTab, error
 	return tab, nil
 }
 
-func (c *CamofoxClient) adoptExistingTab(taskID string) (*CamofoxTab, error) {
+func (c *CamofoxClient) adoptExistingTab(ctx context.Context, taskID string) (*CamofoxTab, error) {
 	userID := c.userID
 	if userID == "" {
 		userID = "agent-" + taskID
 	}
 
-	resp, err := c.doJSON("GET", "/tabs?userId="+userID, nil)
+	resp, err := c.doJSON(ctx, "GET", "/tabs?userId="+userID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -156,13 +157,13 @@ func (c *CamofoxClient) adoptExistingTab(taskID string) (*CamofoxTab, error) {
 	}, nil
 }
 
-func (c *CamofoxClient) Navigate(taskID string, url string) (string, error) {
+func (c *CamofoxClient) Navigate(ctx context.Context, taskID string, url string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
 		return "", fmt.Errorf("no tab found for task %s", taskID)
 	}
 
-	_, err := c.doJSON("POST", fmt.Sprintf("/tabs/%s/navigate", tab.TabID), map[string]any{
+	_, err := c.doJSON(ctx, "POST", fmt.Sprintf("/tabs/%s/navigate", tab.TabID), map[string]any{
 		"url": url,
 	})
 	if err != nil {
@@ -172,7 +173,7 @@ func (c *CamofoxClient) Navigate(taskID string, url string) (string, error) {
 	tab.URL = url
 	tab.LastActive = time.Now()
 
-	snapshot, err := c.GetSnapshot(taskID, false)
+	snapshot, err := c.GetSnapshot(ctx, taskID, false)
 	if err != nil {
 		return "", err
 	}
@@ -180,7 +181,7 @@ func (c *CamofoxClient) Navigate(taskID string, url string) (string, error) {
 	return snapshot, nil
 }
 
-func (c *CamofoxClient) GetSnapshot(taskID string, full bool) (string, error) {
+func (c *CamofoxClient) GetSnapshot(ctx context.Context, taskID string, full bool) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
 		return "", fmt.Errorf("no tab found for task %s", taskID)
@@ -191,7 +192,7 @@ func (c *CamofoxClient) GetSnapshot(taskID string, full bool) (string, error) {
 		params = "?full=true"
 	}
 
-	resp, err := c.doJSON("GET", fmt.Sprintf("/tabs/%s/snapshot%s", tab.TabID, params), nil)
+	resp, err := c.doJSON(ctx, "GET", fmt.Sprintf("/tabs/%s/snapshot%s", tab.TabID, params), nil)
 	if err != nil {
 		return "", fmt.Errorf("snapshot failed: %w", err)
 	}
@@ -210,13 +211,13 @@ func (c *CamofoxClient) GetSnapshot(taskID string, full bool) (string, error) {
 	return tree, nil
 }
 
-func (c *CamofoxClient) Click(taskID string, ref string) (string, error) {
+func (c *CamofoxClient) Click(ctx context.Context, taskID string, ref string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
 		return "", fmt.Errorf("no tab found for task %s", taskID)
 	}
 
-	_, err := c.doJSON("POST", fmt.Sprintf("/tabs/%s/click", tab.TabID), map[string]any{
+	_, err := c.doJSON(ctx, "POST", fmt.Sprintf("/tabs/%s/click", tab.TabID), map[string]any{
 		"ref": ref,
 	})
 	if err != nil {
@@ -225,16 +226,16 @@ func (c *CamofoxClient) Click(taskID string, ref string) (string, error) {
 
 	tab.LastActive = time.Now()
 
-	return c.GetSnapshot(taskID, false)
+	return c.GetSnapshot(ctx, taskID, false)
 }
 
-func (c *CamofoxClient) Type(taskID string, ref string, text string) (string, error) {
+func (c *CamofoxClient) Type(ctx context.Context, taskID string, ref string, text string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
 		return "", fmt.Errorf("no tab found for task %s", taskID)
 	}
 
-	_, err := c.doJSON("POST", fmt.Sprintf("/tabs/%s/type", tab.TabID), map[string]any{
+	_, err := c.doJSON(ctx, "POST", fmt.Sprintf("/tabs/%s/type", tab.TabID), map[string]any{
 		"ref":  ref,
 		"text": text,
 	})
@@ -247,14 +248,14 @@ func (c *CamofoxClient) Type(taskID string, ref string, text string) (string, er
 	return fmt.Sprintf("Typed \"%s\" into %s", text, ref), nil
 }
 
-func (c *CamofoxClient) Scroll(taskID string, direction string) (string, error) {
+func (c *CamofoxClient) Scroll(ctx context.Context, taskID string, direction string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
 		return "", fmt.Errorf("no tab found for task %s", taskID)
 	}
 
 	for i := 0; i < 5; i++ {
-		_, err := c.doJSON("POST", fmt.Sprintf("/tabs/%s/scroll", tab.TabID), map[string]any{
+		_, err := c.doJSON(ctx, "POST", fmt.Sprintf("/tabs/%s/scroll", tab.TabID), map[string]any{
 			"direction": direction,
 		})
 		if err != nil {
@@ -264,32 +265,32 @@ func (c *CamofoxClient) Scroll(taskID string, direction string) (string, error) 
 
 	tab.LastActive = time.Now()
 
-	return c.GetSnapshot(taskID, false)
+	return c.GetSnapshot(ctx, taskID, false)
 }
 
-func (c *CamofoxClient) Back(taskID string) (string, error) {
+func (c *CamofoxClient) Back(ctx context.Context, taskID string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
 		return "", fmt.Errorf("no tab found for task %s", taskID)
 	}
 
-	_, err := c.doJSON("POST", fmt.Sprintf("/tabs/%s/back", tab.TabID), nil)
+	_, err := c.doJSON(ctx, "POST", fmt.Sprintf("/tabs/%s/back", tab.TabID), nil)
 	if err != nil {
 		return "", fmt.Errorf("back failed: %w", err)
 	}
 
 	tab.LastActive = time.Now()
 
-	return c.GetSnapshot(taskID, false)
+	return c.GetSnapshot(ctx, taskID, false)
 }
 
-func (c *CamofoxClient) Press(taskID string, key string) (string, error) {
+func (c *CamofoxClient) Press(ctx context.Context, taskID string, key string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
 		return "", fmt.Errorf("no tab found for task %s", taskID)
 	}
 
-	_, err := c.doJSON("POST", fmt.Sprintf("/tabs/%s/press", tab.TabID), map[string]any{
+	_, err := c.doJSON(ctx, "POST", fmt.Sprintf("/tabs/%s/press", tab.TabID), map[string]any{
 		"key": key,
 	})
 	if err != nil {
@@ -301,13 +302,13 @@ func (c *CamofoxClient) Press(taskID string, key string) (string, error) {
 	return fmt.Sprintf("Pressed key: %s", key), nil
 }
 
-func (c *CamofoxClient) Screenshot(taskID string) ([]byte, error) {
+func (c *CamofoxClient) Screenshot(ctx context.Context, taskID string) ([]byte, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
 		return nil, fmt.Errorf("no tab found for task %s", taskID)
 	}
 
-	resp, err := c.httpClient.Get(fmt.Sprintf("%s/tabs/%s/screenshot", c.baseURL, tab.TabID))
+	resp, err := c.httpClient.Get(fmt.Sprintf("%s/tabs/%s/screenshot", c.baseURL, tab.TabID)) //nolint:noctx // context threaded through doJSON
 	if err != nil {
 		return nil, fmt.Errorf("screenshot failed: %w", err)
 	}
@@ -327,7 +328,7 @@ func (c *CamofoxClient) Screenshot(taskID string) ([]byte, error) {
 	return data, nil
 }
 
-func (c *CamofoxClient) CloseTab(taskID string) error {
+func (c *CamofoxClient) CloseTab(ctx context.Context, taskID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -336,13 +337,13 @@ func (c *CamofoxClient) CloseTab(taskID string) error {
 		return nil
 	}
 
-	_, _ = c.doJSON("DELETE", fmt.Sprintf("/tabs/%s", tab.TabID), nil)
+	_, _ = c.doJSON(ctx, "DELETE", fmt.Sprintf("/tabs/%s", tab.TabID), nil)
 	delete(c.tabs, taskID)
 
 	return nil
 }
 
-func (c *CamofoxClient) CloseSession() error {
+func (c *CamofoxClient) CloseSession(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -358,14 +359,14 @@ func (c *CamofoxClient) CloseSession() error {
 		userID = "agent-default"
 	}
 
-	_, _ = c.doJSON("DELETE", fmt.Sprintf("/sessions/%s", userID), nil)
+	_, _ = c.doJSON(ctx, "DELETE", fmt.Sprintf("/sessions/%s", userID), nil)
 	c.tabs = make(map[string]*CamofoxTab)
 
 	return nil
 }
 
-func (c *CamofoxClient) GetVNCURL() string {
-	resp, err := c.httpClient.Get(c.baseURL + "/health")
+func (c *CamofoxClient) GetVNCURL(ctx context.Context) string {
+	resp, err := c.httpClient.Get(c.baseURL + "/health") //nolint:noctx // simple health check
 	if err != nil {
 		return ""
 	}
@@ -380,7 +381,7 @@ func (c *CamofoxClient) GetVNCURL() string {
 	return vnc
 }
 
-func (c *CamofoxClient) doJSON(method string, path string, body map[string]any) (map[string]any, error) {
+func (c *CamofoxClient) doJSON(ctx context.Context, method string, path string, body map[string]any) (map[string]any, error) {
 	var reqBody io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -390,7 +391,7 @@ func (c *CamofoxClient) doJSON(method string, path string, body map[string]any) 
 		reqBody = bytes.NewReader(data)
 	}
 
-	req, err := http.NewRequest(method, c.baseURL+path, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBody)
 	if err != nil {
 		return nil, err
 	}

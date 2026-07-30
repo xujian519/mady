@@ -26,7 +26,7 @@ func handleSnapshot(ctx context.Context, input browserToolInput, cfg *BrowserToo
 
 	switch session.backendType {
 	case BackendCamofox:
-		snapshot, err = session.camofoxClient.GetSnapshot(session.sessionID, input.Full)
+		snapshot, err = session.camofoxClient.GetSnapshot(ctx, session.sessionID, input.Full)
 	case BackendEgoLite:
 		snapParams := map[string]any{}
 		if input.Full {

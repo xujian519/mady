@@ -225,6 +225,9 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	cfg := base
 	cfg.Name = "patent-agent"
 
+	// 加载 Manifest 以构建动态条款智能体列表。
+	manifest := provisions.LoadManifestOrDefault("")
+
 	cfg.SystemPrompt = strings.Join([]string{
 		"你是 Mady 的专利代理与知识产权分析模块。",
 		"用简体中文回复，专业严谨。",
@@ -248,19 +251,8 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 		"4. 执行 — 使用 patent_lookup 查询专利元数据；撰写权利要求时，必须调用 draft_claims 工具（禁止手写）；撰写说明书时，必须调用 draft_specification 工具（禁止手写）；分析专利性时调用对应分析工具",
 		"5. 检查 — 验证检索完整性、分析准确性",
 		"",
-		"## 条款智能体（专业分析委派）",
-		"对专利法各条款的专项分析，可使用 transfer_to_provision-* 工具委派给对应的条款智能体：",
-		"- transfer_to_provision-novelty → 新颖性分析（A22.2）",
-		"- transfer_to_provision-inventiveness → 创造性分析（A22.3）",
-		"- transfer_to_provision-utility → 实用性分析（A22.4）",
-		"- transfer_to_provision-eligibility → 保护客体分析（A25/A5）",
-		"- transfer_to_provision-disclosure → 充分公开分析（A26.3）",
-		"- transfer_to_provision-claims-clarity → 清楚支持分析（A26.4）",
-		"- transfer_to_provision-amendment → 修改超范围分析（A33）",
-		"- transfer_to_provision-prior-art → 现有技术认定",
-		"- transfer_to_provision-drafting-claims → 权利要求书撰写",
-		"对跨条款的推理步骤，可使用 transfer_to_reasoning-* 委派给对应的推理模式。",
-		"委派完成后直接使用结果，不需要解释切换过程。",
+		provisions.BuildProvisionListForSystemPrompt(manifest),
+		provisions.BuildProvisionListForSystemPrompt(manifest),
 		"",
 		"## 专利编排器",
 		"对需要完整流程编排的专利分析任务（从条款分析到质量复核），可使用 transfer_to_patent-orchestrator 委派给专利编排器。",
@@ -444,13 +436,12 @@ func PatentAgentConfig(base agentcore.Config) agentcore.Config {
 	// Tier B 推理模式，注册为 PatentAgent 内不可见的 Handoff 子 Agent。
 	// 专利 Agent 可通过 transfer_to_provision-* 工具将专业条款分析任务
 	// 委派给对应条款智能体。
-	manifest := provisions.LoadManifestOrDefault("")
 	provisions.RegisterProvisionHandoffsFromManifest(&cfg, manifest)
 
 	// 专利编排器 Handoff 注册（对用户可见）：专利业务总调度入口。
 	// 编排器整合了意图识别 → 条款委派 → 质量复核的完整流程。
 	// 用户可以通过 transfer_to_patent-orchestrator 发起端到端的专利分析任务。
-	cfg.Handoffs = append(cfg.Handoffs, provisions.OrchestratorHandoffConfig(manifest, base))
+	cfg.Handoffs = append(cfg.Handoffs, provisions.OrchestratorHandoffConfig(manifest, cfg))
 
 	return cfg
 }

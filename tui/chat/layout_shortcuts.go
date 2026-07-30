@@ -60,13 +60,3 @@ func doCopy(l *chatLayout) {
 func isPrimaryShortcutMod(mods terminal.Modifier) bool {
 	return mods&terminal.ModSuper != 0 || mods&terminal.ModMeta != 0
 }
-
-// hasSelection reports whether the editor or chat history currently has a
-// non-empty text selection, without clearing it. Used to decide whether
-// Ctrl/Cmd+C should copy instead of interrupting the running agent.
-func hasSelection(l *chatLayout) bool {
-	if sel, ok := l.editor.(textSelectionComponent); ok && sel.GetSelectedText() != "" {
-		return true
-	}
-	return l.history.GetSelectedText() != ""
-}

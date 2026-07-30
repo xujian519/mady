@@ -47,6 +47,18 @@ jobs:
           version: v2.12.2
           working-directory: tools
 
+      - name: golangci-lint (tui)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: tui
+
+      - name: golangci-lint (desktop)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: desktop
+
   check-arch:
     runs-on: ubuntu-latest
     name: check-arch

@@ -2,7 +2,7 @@
 // 职责：危险键组合黑名单（按平台过滤）、危险输入文本模式（curl|sh、rm -rf、fork bomb 等）、
 // COMPUTER_USE_APPROVAL 环境变量驱动的审批模式（none/once/session）。
 
-package desktop
+package desktop //nolint:noctx
 
 import (
 	"fmt"
@@ -164,7 +164,7 @@ func awaitApproval(action string) (bool, error) {
 	// 首次提示用户（持锁状态：不会有两个 goroutine 同时进入此段）
 	fmt.Fprintf(os.Stderr, "\n⚠️  COMPUTER_USE: %s — approve? [y/N/session/always] ", action)
 	var resp string
-	fmt.Scanln(&resp)
+	fmt.Scanln(&resp) //nolint:gosec // G104: best-effort user input; empty on Ctrl-D
 	resp = strings.ToLower(strings.TrimSpace(resp))
 
 	switch resp {

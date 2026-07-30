@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -157,7 +158,7 @@ func wellKnownPaths() []string {
 }
 
 func examineChrome(path string) (*ChromeInfo, error) {
-	if _, err := os.Stat(path); err != nil {
+	if _, err := os.Stat(path); err != nil { //nolint:gosec // G703: path from known Chrome installation paths
 		return nil, err
 	}
 
@@ -176,7 +177,7 @@ func examineChrome(path string) (*ChromeInfo, error) {
 }
 
 func chromeVersion(path string) (string, error) {
-	cmd := exec.Command(path, "--version")
+	cmd := exec.CommandContext(context.Background(), path, "--version") //nolint:gosec // G204: Chrome version query, path validated by examineChrome
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err

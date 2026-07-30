@@ -158,7 +158,7 @@ func (bm *BrowserManager) createCamofoxSession(ctx context.Context, session *Bro
 		return fmt.Errorf("camofox not configured")
 	}
 
-	tab, err := bm.camofoxClient.CreateTab(session.sessionID, targetURL)
+	tab, err := bm.camofoxClient.CreateTab(ctx, session.sessionID, targetURL)
 	if err != nil {
 		return fmt.Errorf("camofox create tab failed: %w", err)
 	}

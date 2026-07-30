@@ -12,18 +12,18 @@ var diffCellPool = sync.Pool{
 	},
 }
 
-// getDiffCells borrows a Cell slice with capacity cap from the pool.
-func getDiffCells(cap int) []Cell {
-	if cap > 32 {
-		return make([]Cell, cap)
+// getDiffCells borrows a Cell slice with the given capacity from the pool.
+func getDiffCells(capacity int) []Cell {
+	if capacity > 32 {
+		return make([]Cell, capacity)
 	}
 	ptr := diffCellPool.Get().(*[]Cell)
 	cells := *ptr
-	if cap > len(cells) {
+	if capacity > len(cells) {
 		// Reset length but keep backing array for capacity up to 32.
-		return cells[:cap]
+		return cells[:capacity]
 	}
-	return cells[:cap]
+	return cells[:capacity]
 }
 
 // PutDiffCells returns a Cell slice to the pool. The slice must have been
@@ -56,9 +56,9 @@ type RowDiff struct {
 // DiffRows returns every row index at which old and new differ, or where
 // new is longer than old. Rows present in old but missing in new are not
 // returned (the caller clears trailing lines separately).
-func DiffRows(old, new []Row) []RowDiff {
+func DiffRows(old, newRows []Row) []RowDiff {
 	var out []RowDiff
-	for i, n := range new {
+	for i, n := range newRows {
 		if i >= len(old) {
 			out = append(out, RowDiff{Row: int64(i), Content: n})
 			continue
@@ -108,10 +108,10 @@ type RowCellDiff struct {
 // of unchanged rows, then only diffs the middle section. In streaming
 // scenarios where only 1-2 lines change per frame (out of 500+), this
 // avoids ~499 RowsEqual calls per frame.
-func DiffFrame(old, new []Row) []RowCellDiff {
+func DiffFrame(old, newFrame []Row) []RowCellDiff {
 	// Find common prefix — rows that are identical from the top.
 	prefix := 0
-	for prefix < len(old) && prefix < len(new) && RowsEqual(old[prefix], new[prefix]) {
+	for prefix < len(old) && prefix < len(newFrame) && RowsEqual(old[prefix], newFrame[prefix]) {
 		prefix++
 	}
 
@@ -124,9 +124,9 @@ func DiffFrame(old, new []Row) []RowCellDiff {
 	// positions in old vs new. Skipping their re-emission would leave stale
 	// content at the old positions, causing visual corruption.
 	suffix := 0
-	if len(old) == len(new) {
-		for suffix < len(old)-prefix && suffix < len(new)-prefix {
-			if !RowsEqual(old[len(old)-1-suffix], new[len(new)-1-suffix]) {
+	if len(old) == len(newFrame) {
+		for suffix < len(old)-prefix && suffix < len(newFrame)-prefix {
+			if !RowsEqual(old[len(old)-1-suffix], newFrame[len(newFrame)-1-suffix]) {
 				break
 			}
 			suffix++
@@ -135,11 +135,11 @@ func DiffFrame(old, new []Row) []RowCellDiff {
 
 	oldEnd := len(old) - suffix
 	newStart := prefix
-	newEnd := len(new) - suffix
+	newEnd := len(newFrame) - suffix
 
 	var out []RowCellDiff
 	for i := newStart; i < newEnd; i++ {
-		n := new[i]
+		n := newFrame[i]
 		if i >= oldEnd {
 			// Row exists only in new (new rows appended).
 			if n.IsRaw() {
@@ -169,22 +169,22 @@ func DiffFrame(old, new []Row) []RowCellDiff {
 // DiffCells computes the smallest changed cell segment between old and new.
 // If either row is a raw row, the whole new row is returned as a single
 // segment. The returned diff may be empty when the rows are identical.
-func DiffCells(old, new Row) RowCellDiff {
-	if old.IsRaw() || new.IsRaw() {
+func DiffCells(old, newRow Row) RowCellDiff {
+	if old.IsRaw() || newRow.IsRaw() {
 		return RowCellDiff{
-			Segments: []Segment{{StartCol: 0, Cells: new.Cells, AfterStyle: DefaultStyle}},
+			Segments: []Segment{{StartCol: 0, Cells: newRow.Cells, AfterStyle: DefaultStyle}},
 		}
 	}
 
 	maxLen := len(old.Cells)
-	if len(new.Cells) > maxLen {
-		maxLen = len(new.Cells)
+	if len(newRow.Cells) > maxLen {
+		maxLen = len(newRow.Cells)
 	}
 
 	// Find the first column where the rows differ.
 	l := 0
 	for l < maxLen {
-		if l >= len(old.Cells) || l >= len(new.Cells) || !EqualCell(old.Cells[l], new.Cells[l]) {
+		if l >= len(old.Cells) || l >= len(newRow.Cells) || !EqualCell(old.Cells[l], newRow.Cells[l]) {
 			break
 		}
 		l++
@@ -196,7 +196,7 @@ func DiffCells(old, new Row) RowCellDiff {
 	// Find the last column where the rows differ.
 	r := maxLen - 1
 	for r >= 0 {
-		if r >= len(old.Cells) || r >= len(new.Cells) || !EqualCell(old.Cells[r], new.Cells[r]) {
+		if r >= len(old.Cells) || r >= len(newRow.Cells) || !EqualCell(old.Cells[r], newRow.Cells[r]) {
 			break
 		}
 		r--
@@ -206,38 +206,38 @@ func DiffCells(old, new Row) RowCellDiff {
 	}
 
 	// Never split a wide character: expand the segment to the primary cell.
-	l = adjustStart(old, new, l)
-	r = adjustEnd(old, new, r)
+	l = adjustStart(old, newRow, l)
+	r = adjustEnd(old, newRow, r)
 
 	end := r + 1
-	if end > len(new.Cells) {
-		end = len(new.Cells)
+	if end > len(newRow.Cells) {
+		end = len(newRow.Cells)
 	}
 
 	after := DefaultStyle
-	if end < len(new.Cells) {
-		after = new.Cells[end].Style
+	if end < len(newRow.Cells) {
+		after = newRow.Cells[end].Style
 	}
 
 	cells := getDiffCells(end - l)
-	copy(cells, new.Cells[l:end])
+	copy(cells, newRow.Cells[l:end])
 
 	var diff RowCellDiff
 	diff.Segments = []Segment{{StartCol: int64(l), Cells: cells, AfterStyle: after}}
-	if len(new.Cells) < len(old.Cells) {
+	if len(newRow.Cells) < len(old.Cells) {
 		diff.ClearTail = true
-		diff.TailStart = int64(len(new.Cells))
+		diff.TailStart = int64(len(newRow.Cells))
 	}
 	return diff
 }
 
 // adjustStart moves the left boundary to the primary cell of a wide
 // character so we never emit only the continuation half.
-func adjustStart(old, new Row, l int) int {
+func adjustStart(old, newRow Row, l int) int {
 	if l <= 0 {
 		return l
 	}
-	if l < len(new.Cells) && new.Cells[l].IsContinuation() {
+	if l < len(newRow.Cells) && newRow.Cells[l].IsContinuation() {
 		return l - 1
 	}
 	if l < len(old.Cells) && old.Cells[l].IsContinuation() {
@@ -253,6 +253,6 @@ func adjustStart(old, new Row, l int) int {
 // unchanged cells, wasting terminal output.
 // Note: this function exists for API symmetry with adjustStart and for
 // future-proofing against alternative segment-boundary strategies.
-func adjustEnd(old, new Row, r int) int {
+func adjustEnd(old, newRow Row, r int) int {
 	return r
 }

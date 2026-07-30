@@ -27,7 +27,7 @@ func handleClick(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 
 	switch session.backendType {
 	case BackendCamofox:
-		snap, cfErr := session.camofoxClient.Click(session.sessionID, ref)
+		snap, cfErr := session.camofoxClient.Click(ctx, session.sessionID, ref)
 		if cfErr != nil {
 			return nil, fmt.Errorf("camofox click failed: %w", cfErr)
 		}
@@ -92,7 +92,7 @@ func handleType(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 
 	switch session.backendType {
 	case BackendCamofox:
-		rMsg, cfErr := session.camofoxClient.Type(session.sessionID, ref, input.Text)
+		rMsg, cfErr := session.camofoxClient.Type(ctx, session.sessionID, ref, input.Text)
 		if cfErr != nil {
 			return nil, fmt.Errorf("camofox type failed: %w", cfErr)
 		}
@@ -153,7 +153,7 @@ func handleScroll(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 
 	switch session.backendType {
 	case BackendCamofox:
-		snap, cfErr := session.camofoxClient.Scroll(session.sessionID, input.Direction)
+		snap, cfErr := session.camofoxClient.Scroll(ctx, session.sessionID, input.Direction)
 		if cfErr != nil {
 			return nil, fmt.Errorf("camofox scroll failed: %w", cfErr)
 		}
@@ -219,7 +219,7 @@ func handlePress(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 
 	switch session.backendType {
 	case BackendCamofox:
-		rMsg, cfErr := session.camofoxClient.Press(session.sessionID, input.Key)
+		rMsg, cfErr := session.camofoxClient.Press(ctx, session.sessionID, input.Key)
 		if cfErr != nil {
 			return nil, fmt.Errorf("camofox key press failed: %w", cfErr)
 		}

@@ -157,6 +157,7 @@ func runFd(ctx context.Context, fdPath, searchPath, pattern string, limit int, c
 	// Collect .gitignore files.
 	gitignoreFiles := []string{}
 	const maxGitignoreDepth = 5
+	//nolint:gosec // G104: best-effort walk; errors are non-fatal here
 	filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -178,7 +179,7 @@ func runFd(ctx context.Context, fdPath, searchPath, pattern string, limit int, c
 	}
 	args = append(args, pattern, searchPath)
 
-	cmd := exec.CommandContext(ctx, fdPath, args...)
+	cmd := exec.CommandContext(ctx, fdPath, args...) //nolint:gosec // G204: fd subprocess; path validated by sandbox
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {

@@ -190,7 +190,7 @@ func NewExecuteCodeTool(cfg *ExecuteCodeToolConfig) *agentcore.Tool {
 				}
 			}
 
-			cmd := exec.CommandContext(execCtx, python, scriptPath)
+			cmd := exec.CommandContext(execCtx, python, scriptPath) //nolint:gosec // G204: Python subprocess; script path from sandbox
 			cmd.Dir = tmpDir
 			applySubprocessIsolation(cmd) // prevent /dev/tty access
 

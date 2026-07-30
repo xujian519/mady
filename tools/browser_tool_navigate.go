@@ -39,7 +39,7 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	}
 
 	if session.backendType == BackendCamofox {
-		snapshot, err := session.camofoxClient.Navigate(sessionID, parsedURL.String())
+		snapshot, err := session.camofoxClient.Navigate(ctx, sessionID, parsedURL.String())
 		if err != nil {
 			return nil, fmt.Errorf("camofox navigation failed: %w", err)
 		}
@@ -242,7 +242,7 @@ func handleBack(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 
 	switch session.backendType {
 	case BackendCamofox:
-		snapshot, err = session.camofoxClient.Back(session.sessionID)
+		snapshot, err = session.camofoxClient.Back(ctx, session.sessionID)
 		if err != nil {
 			return nil, fmt.Errorf("camofox back failed: %w", err)
 		}

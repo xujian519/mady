@@ -77,6 +77,10 @@ mady:
    ├─ 权利要求 → references/claim-checklist.md
    ├─ 说明书   → references/spec-checklist.md
    └─ OA 答复  → references/oa-response-checklist.md
+
+<include ref="references/claim-checklist.md" />
+<include ref="references/spec-checklist.md" />
+<include ref="references/oa-response-checklist.md" />
     ↓
 ③ 人工复核（HITL 审批节点）
    - 专利申请文件最终定稿

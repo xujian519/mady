@@ -62,7 +62,17 @@ func loadSkillFile(path string) (*Skill, []Diagnostic, error) {
 	}
 	diagnostics = append(diagnostics, validateSkill(item)...)
 	if strings.TrimSpace(content) != "" {
-		item.Body = strings.TrimSpace(content)
+		body := strings.TrimSpace(content)
+		// Expand <include ref="..."/> tags if present in the body.
+		if expanded, err := ExpandIncludes(item.BaseDir, body); err != nil {
+			diagnostics = append(diagnostics, Diagnostic{
+				Path:    abs,
+				Message: fmt.Sprintf("include expansion failed: %v (using raw body)", err),
+			})
+		} else {
+			body = expanded
+		}
+		item.Body = body
 	}
 	return &item, diagnostics, nil
 }

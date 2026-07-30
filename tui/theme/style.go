@@ -234,7 +234,7 @@ type Icon struct {
 	ASCII    string
 }
 
-// Resolve returns the best available representation of the icon based on
+// ResolveIcon returns the best available representation of the icon based on
 // the terminal's detected Nerd Font support.
 func ResolveIcon(ic Icon) string {
 	switch terminal.NerdFontsSupported() {

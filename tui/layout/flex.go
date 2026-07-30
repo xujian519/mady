@@ -248,8 +248,8 @@ func (f *Flex) renderVertical(width int64) []string {
 			for _, e := range entries {
 				cut := over * e.slack / totalSlack
 				newSize := sizes[e.idx] - cut
-				if min := f.Children[e.idx].Min; newSize < min {
-					newSize = min
+				if minSize := f.Children[e.idx].Min; newSize < minSize {
+					newSize = minSize
 				}
 				cutTotal += sizes[e.idx] - newSize
 				f.reallocateShrinkable(e.idx, newSize, width, rendered, sizes)
@@ -268,8 +268,8 @@ func (f *Flex) renderVertical(width int64) []string {
 					if rest <= 0 {
 						break
 					}
-					min := f.Children[e.idx].Min
-					if sizes[e.idx] > min {
+					minSize := f.Children[e.idx].Min
+					if sizes[e.idx] > minSize {
 						f.reallocateShrinkable(e.idx, sizes[e.idx]-1, width, rendered, sizes)
 						rest--
 						progressed = true
@@ -467,13 +467,13 @@ func (f *Flex) renderHorizontal(width int64) []string {
 }
 
 func naturalWidth(lines []string) int64 {
-	max := int64(0)
+	maxVal := int64(0)
 	for _, l := range lines {
-		if w := core.VisibleWidth(l); w > max {
-			max = w
+		if w := core.VisibleWidth(l); w > maxVal {
+			maxVal = w
 		}
 	}
-	return max
+	return maxVal
 }
 
 // distributeFill 是 Fill 子元素空间分配的核心算法。

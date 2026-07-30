@@ -74,7 +74,7 @@ func (lm *LightpandaManager) StartProcess(ctx context.Context, taskID string, he
 		args = append(args, "--headless")
 	}
 
-	cmd := exec.CommandContext(ctx, lm.binaryPath, args...)
+	cmd := exec.CommandContext(ctx, lm.binaryPath, args...) //nolint:gosec // G204: lightpanda browser child process; binary validated at startup
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 
@@ -129,7 +129,7 @@ func isCDPReady(cdpURL string) bool {
 		return false
 	}
 
-	conn, err := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", fmt.Sprintf("http://127.0.0.1:%d/json/version", port)).Output()
+	conn, err := exec.CommandContext(context.Background(), "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", fmt.Sprintf("http://127.0.0.1:%d/json/version", port)).Output() //nolint:gosec // G204: curl health check to localhost only
 	if err != nil {
 		return false
 	}
@@ -313,7 +313,7 @@ func (sr *SessionRecorder) saveAsWebM(outputPath string) error {
 		}
 	}
 
-	cmd := exec.Command(ffmpegPath,
+	cmd := exec.Command(ffmpegPath, //nolint:gosec,noctx // G204: ffmpeg video encoding; binary validated via LookPath; noctx: simple binary call with fixed args
 		"-framerate", "10",
 		"-pattern_type", "glob",
 		"-i", filepath.Join(tmpDir, "frame_*.png"),

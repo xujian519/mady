@@ -184,7 +184,10 @@ lint: vet
 		golangci-lint run ./...; \
 		echo "---"; \
 		(cd tools && golangci-lint run ./...); \
+		echo "---"; \
 		(cd tui && golangci-lint run ./...); \
+		echo "---"; \
+		(cd desktop && golangci-lint run ./...); \
 	else \
 		echo "golangci-lint not installed. Run: make install-lint"; \
 	fi

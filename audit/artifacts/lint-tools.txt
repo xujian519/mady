@@ -1,0 +1,376 @@
+ego_lite_manager.go:132:13: Error return value of `encoding/json.Marshal` is not checked: unsafe type `any` found (errchkjson)
+	data, _ := json.Marshal(req)
+	           ^
+ego_lite_manager.go:206:17: Error return value of `encoding/json.Marshal` is not checked: unsafe type `any` found (errchkjson)
+	initData, _ := json.Marshal(req)
+	               ^
+bash.go:36:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.CommandContext(ctx, shell, "-c", command)
+	       ^
+browser_advanced.go:83:19: G304: Potential file inclusion via variable (gosec)
+		pidData, err := os.ReadFile(ownerPIDPath)
+		                ^
+browser_advanced.go:96:28: G304: Potential file inclusion via variable (gosec)
+		if daemonPIDData, err := os.ReadFile(daemonPIDPath); err == nil {
+		                         ^
+browser_agent_browser.go:62:23: G703: Path traversal via taint analysis (gosec)
+		if _, err := os.Stat(path); err == nil {
+		                    ^
+browser_agent_browser.go:128:15: G304: Potential file inclusion via variable (gosec)
+	data, err := os.ReadFile(cdpFile)
+	             ^
+browser_agent_browser.go:171:9: G204: Subprocess launched with variable (gosec)
+		cmd = exec.CommandContext(ctx, npxBin, npxArgs...)
+		      ^
+browser_agent_browser.go:173:9: G204: Subprocess launched with variable (gosec)
+		cmd = exec.CommandContext(ctx, binary, allArgs...)
+		      ^
+browser_chrome_finder.go:160:22: G703: Path traversal via taint analysis (gosec)
+	if _, err := os.Stat(path); err != nil {
+	                    ^
+browser_chrome_finder.go:179:21: G702: Command injection via taint analysis (gosec)
+	cmd := exec.Command(path, "--version")
+	                   ^
+browser_lightpanda.go:77:9: G204: Subprocess launched with a potential tainted input or cmd arguments (gosec)
+	cmd := exec.CommandContext(ctx, lm.binaryPath, args...)
+	       ^
+browser_lightpanda.go:132:15: G204: Subprocess launched with a potential tainted input or cmd arguments (gosec)
+	conn, err := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", fmt.Sprintf("http://127.0.0.1:%d/json/version", port)).Output()
+	             ^
+browser_lightpanda.go:316:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.Command(ffmpegPath,
+		"-framerate", "10",
+		"-pattern_type", "glob",
+		"-i", filepath.Join(tmpDir, "frame_*.png"),
+		"-c:v", "libvpx-vp9",
+		"-pix_fmt", "yuv420p",
+		"-y",
+		outputPath,
+	)
+browser_manager.go:34:4: G104: Errors unhandled (gosec)
+			reaper.ReapOrphans()
+			^
+browser_recorder.go:43:12: G301: Expect directory permissions to be 0750 or less (gosec)
+	if err := os.MkdirAll(r.outputPath, 0755); err != nil {
+	          ^
+browser_recorder.go:50:12: G304: Potential file inclusion via variable (gosec)
+	f, err := os.Create(filepath)
+	          ^
+browser_recorder.go:112:2: G104: Errors unhandled (gosec)
+	page.StopScreencast().Do(ctx)
+	^
+browser_session.go:289:3: G104: Errors unhandled (gosec)
+		session.recorder.StopRecording()
+		^
+browser_session.go:296:4: G104: Errors unhandled (gosec)
+			session.cloudProvider.CloseSession(session.cloudSessionID)
+			^
+browser_session.go:301:3: G104: Errors unhandled (gosec)
+		session.camofoxClient.CloseTab(session.sessionID)
+		^
+browser_session.go:385:3: G104: Errors unhandled (gosec)
+		bm.egoLiteMgr.Close()
+		^
+browser_supervisor.go:212:5: G104: Errors unhandled (gosec)
+				s.HandleDialog(dialogID, false, "")
+				^
+browser_supervisor.go:214:5: G104: Errors unhandled (gosec)
+				s.HandleDialog(dialogID, true, "")
+				^
+browser_tool_navigate.go:219:3: G104: Errors unhandled (gosec)
+		session.recorder.StartRecording(ctx, session.ctx, session.sessionID)
+		^
+desktop/computer_use_exec.go:16:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.Command("osascript", "-e", script)
+	       ^
+desktop/computer_use_exec.go:27:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.Command("cliclick", args...)
+	       ^
+desktop/computer_use_exec.go:55:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.Command(binary, "-NoProfile", "-NonInteractive", "-Command", script)
+	       ^
+desktop/computer_use_exec.go:66:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.Command("xdotool", args...)
+	       ^
+desktop/computer_use_exec.go:77:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.Command("ydotool", args...)
+	       ^
+desktop/computer_use_exec.go:88:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.Command("wtype", text)
+	       ^
+desktop/computer_use_exec.go:100:13: G204: Subprocess launched with variable (gosec)
+		if err := exec.Command("grim", path).Run(); err == nil {
+		          ^
+desktop/computer_use_exec.go:105:12: G204: Subprocess launched with variable (gosec)
+	if err := exec.Command("import", "-window", "root", path).Run(); err == nil {
+	          ^
+desktop/computer_use_exec.go:108:12: G204: Subprocess launched with variable (gosec)
+	if err := exec.Command("gnome-screenshot", "-f", path).Run(); err == nil {
+	          ^
+desktop/computer_use_exec.go:111:12: G204: Subprocess launched with variable (gosec)
+	if err := exec.Command("scrot", path).Run(); err == nil {
+	          ^
+desktop/computer_use_lin.go:26:15: G304: Potential file inclusion via variable (gosec)
+	data, err := os.ReadFile(screenshotPath)
+	             ^
+desktop/computer_use_lin.go:27:2: G104: Errors unhandled (gosec)
+	os.Remove(screenshotPath)
+	^
+desktop/computer_use_lin.go:91:2: G104: Errors unhandled (gosec)
+	fmt.Sscanf(geo, "Position: %d,%d\nGeometry: %dx%d", &x, &y, &w, &h)
+	^
+desktop/computer_use_lin.go:227:2: G104: Errors unhandled (gosec)
+	xdoKey("return")
+	^
+desktop/computer_use_lin.go:360:8: G104: Errors unhandled (gosec)
+							exec.Command("hyprctl", "dispatch", "focuswindow", "address:"+c.Address).Run()
+							^
+desktop/computer_use_lin.go:373:14: G204: Subprocess launched with a potential tainted input or cmd arguments (gosec)
+			if err := exec.Command("swaymsg", fmt.Sprintf(`[title="(?i)%s"]`, app), "focus").Run(); err == nil {
+			          ^
+desktop/computer_use_lin.go:376:14: G204: Subprocess launched with a potential tainted input or cmd arguments (gosec)
+			if err := exec.Command("swaymsg", fmt.Sprintf(`[app_id="(?i)%s"]`, app), "focus").Run(); err == nil {
+			          ^
+desktop/computer_use_macos.go:52:12: G204: Subprocess launched with variable (gosec)
+	if err := exec.Command("screencapture", args...).Run(); err != nil {
+	          ^
+desktop/computer_use_macos.go:55:15: G304: Potential file inclusion via variable (gosec)
+	data, err := os.ReadFile(screenshotPath)
+	             ^
+desktop/computer_use_macos.go:56:2: G104: Errors unhandled (gosec)
+	os.Remove(screenshotPath)
+	^
+desktop/computer_use_macos.go:314:2: G104: Errors unhandled (gosec)
+	osaKeyImpl("return")
+	^
+desktop/computer_use_safety.go:167:2: G104: Errors unhandled (gosec)
+	fmt.Scanln(&resp)
+	^
+desktop/computer_use_win.go:321:2: G104: Errors unhandled (gosec)
+	winKey("return")
+	^
+desktop/mcp_client.go:50:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.CommandContext(ctx, binary, arg...)
+	       ^
+desktop/mcp_client.go:79:3: G104: Errors unhandled (gosec)
+		io.Copy(io.Discard, stderr)
+		^
+desktop/mcp_client.go:250:2: G104: Errors unhandled (gosec)
+	c.stdin.Close()
+	^
+desktop/mcp_client.go:254:3: G104: Errors unhandled (gosec)
+		c.cmd.Process.Kill()
+		^
+desktop/mcp_client.go:255:3: G104: Errors unhandled (gosec)
+		c.cmd.Wait()
+		^
+edit.go:24:9: G304: Potential file inclusion via variable (gosec)
+	return os.ReadFile(path)
+	       ^
+ego_lite_manager.go:190:3: G104: Errors unhandled (gosec)
+		m.cmd.Process.Kill()
+		^
+ego_lite_manager.go:196:3: G104: Errors unhandled (gosec)
+		m.cmd.Process.Kill()
+		^
+ego_lite_manager.go:212:3: G104: Errors unhandled (gosec)
+		m.cmd.Process.Kill()
+		^
+ego_lite_manager.go:222:3: G104: Errors unhandled (gosec)
+		m.cmd.Process.Kill()
+		^
+ego_lite_manager.go:268:3: G104: Errors unhandled (gosec)
+		m.cmd.Process.Kill()
+		^
+ego_lite_manager.go:302:3: G104: Errors unhandled (gosec)
+		m.cmd.Process.Kill()
+		^
+execute_code.go:193:11: G204: Subprocess launched with variable (gosec)
+			cmd := exec.CommandContext(execCtx, python, scriptPath)
+			       ^
+execute_code_ptc.go:75:3: G104: Errors unhandled (gosec)
+		listener.Close()
+		^
+execute_code_ptc.go:104:3: G104: Errors unhandled (gosec)
+		s.listener.Close()
+		^
+execute_code_ptc.go:117:2: G104: Errors unhandled (gosec)
+	conn.SetDeadline(time.Now().Add(30 * time.Second))
+	^
+find.go:160:2: G104: Errors unhandled (gosec)
+	filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			rel, _ := filepath.Rel(searchPath, path)
+			if rel != "." && strings.Count(filepath.ToSlash(rel), "/") >= maxGitignoreDepth {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Base(path) == ".gitignore" {
+			gitignoreFiles = append(gitignoreFiles, path)
+		}
+		return nil
+	})
+find.go:181:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.CommandContext(ctx, fdPath, args...)
+	       ^
+git.go:22:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.Command("git", args...)
+	       ^
+grep.go:34:15: G304: Potential file inclusion via variable (gosec)
+	data, err := os.ReadFile(path)
+	             ^
+grep.go:182:4: G104: Errors unhandled (gosec)
+			cmd.Process.Kill()
+			^
+grep.go:183:4: G104: Errors unhandled (gosec)
+			cmd.Wait()
+			^
+grep.go:214:3: G104: Errors unhandled (gosec)
+		cmd.Wait()
+		^
+move.go:44:18: G304: Potential file inclusion via variable (gosec)
+	srcFile, err := os.Open(src)
+	                ^
+move.go:55:18: G304: Potential file inclusion via variable (gosec)
+	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+	                ^
+move.go:153:23: G304: Potential file inclusion via variable (gosec)
+				pinSrc, pinErr := os.Open(sourcePath)
+				                  ^
+move.go:156:7: G104: Errors unhandled (gosec)
+						pinSrc.Close()
+						^
+move.go:159:6: G104: Errors unhandled (gosec)
+					pinSrc.Close()
+					^
+move.go:161:26: G304: Potential file inclusion via variable (gosec)
+				if pinDst, pinErr := os.Open(destPath); pinErr == nil {
+				                     ^
+move.go:163:7: G104: Errors unhandled (gosec)
+						pinDst.Close()
+						^
+move.go:166:6: G104: Errors unhandled (gosec)
+					pinDst.Close()
+					^
+ocr.go:95:2: G104: Errors unhandled (gosec)
+	os.MkdirAll(d, 0755)
+	^
+ocr.go:114:4: G104: Errors unhandled (gosec)
+			os.Remove(filepath.Join(cacheDir, e.Name()))
+			^
+pandoc.go:147:15: G301: Expect directory permissions to be 0750 or less (gosec)
+				if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+				          ^
+pandoc.go:161:11: G204: Subprocess launched with a potential tainted input or cmd arguments (gosec)
+			cmd := exec.CommandContext(timeoutCtx, cfg.PandocPath, pandocArgs...)
+			       ^
+patch.go:24:9: G304: Potential file inclusion via variable (gosec)
+	return os.ReadFile(path)
+	       ^
+patent_search.go:52:9: G204: Subprocess launched with a potential tainted input or cmd arguments (gosec)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	       ^
+patent_search.go:132:14: G301: Expect directory permissions to be 0750 or less (gosec)
+			if err := os.MkdirAll(cfg.DownloadDir, 0755); err != nil {
+			          ^
+path.go:234:9: G304: Potential file inclusion via variable (gosec)
+	return os.Open(resolved)
+	       ^
+path.go:259:12: G304: Potential file inclusion via variable (gosec)
+	f, err := os.Open(path)
+	          ^
+path.go:293:9: G304: Potential file inclusion via variable (gosec)
+	return os.OpenFile(resolved, flag, perm)
+	       ^
+process.go:126:9: G204: Subprocess launched with variable (gosec)
+	cmd := exec.Command(shell, "-c", command)
+	       ^
+process.go:185:2: G104: Errors unhandled (gosec)
+	syscall.Kill(-pid, syscall.SIGKILL)
+	^
+read.go:25:9: G304: Potential file inclusion via variable (gosec)
+	return os.ReadFile(path)
+	       ^
+vision.go:442:23: G304: Potential file inclusion via variable (gosec)
+					imageData, err = os.ReadFile(resolved)
+					                 ^
+web_fetch.go:156:3: G104: Errors unhandled (gosec)
+		resp.Body.Close()
+		^
+write_file.go:30:9: G304: Potential file inclusion via variable (gosec)
+	return os.ReadFile(path)
+	       ^
+write_file.go:119:21: G304: Potential file inclusion via variable (gosec)
+				pinF, pinErr := os.Open(pinTarget)
+				                ^
+write_file.go:124:6: G104: Errors unhandled (gosec)
+					pinF.Close()
+					^
+write_file.go:127:5: G104: Errors unhandled (gosec)
+				pinF.Close()
+				^
+browser_camofox.go:310:31: (*net/http.Client).Get must not be called. use (*net/http.Client).Do(*http.Request) (noctx)
+	resp, err := c.httpClient.Get(fmt.Sprintf("%s/tabs/%s/screenshot", c.baseURL, tab.TabID))
+	                             ^
+browser_camofox.go:368:31: (*net/http.Client).Get must not be called. use (*net/http.Client).Do(*http.Request) (noctx)
+	resp, err := c.httpClient.Get(c.baseURL + "/health")
+	                             ^
+browser_camofox.go:393:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest(method, c.baseURL+path, reqBody)
+	                           ^
+browserproviders/browser_use.go:43:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest("POST", "https://api.browser-use.com/v3/browsers", bytes.NewReader(data))
+	                           ^
+browserproviders/browser_use.go:89:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest("PATCH", fmt.Sprintf("https://api.browser-use.com/v3/browsers/%s", sessionID), bytes.NewReader(data))
+	                           ^
+browserproviders/browserbase.go:73:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest("POST", "https://api.browserbase.com/v1/sessions", bytes.NewReader(data))
+	                           ^
+browserproviders/browserbase.go:133:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://api.browserbase.com/v1/sessions/%s", sessionID), bytes.NewReader(data))
+	                           ^
+browserproviders/firecrawl.go:60:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest("POST", p.apiURL+"/v2/browser", bytes.NewReader(data))
+	                           ^
+browserproviders/firecrawl.go:94:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/v2/browser/%s", p.apiURL, sessionID), nil)
+	                           ^
+desktop/computer_use_lin.go:276:27: os/exec.Command must not be called. use os/exec.CommandContext (noctx)
+		out, err := exec.Command("hyprctl", "clients", "-j").Output()
+		                        ^
+desktop/computer_use_lin.go:302:27: os/exec.Command must not be called. use os/exec.CommandContext (noctx)
+		out, err := exec.Command("swaymsg", "-t", "get_tree").Output()
+		                        ^
+desktop/computer_use_lin.go:346:27: os/exec.Command must not be called. use os/exec.CommandContext (noctx)
+		out, err := exec.Command("hyprctl", "clients", "-j").Output()
+		                        ^
+execute_code_ptc.go:69:29: net.Listen must not be called. use (*net.ListenConfig).Listen (noctx)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	                           ^
+web_fetch.go:106:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest("GET", url, nil)
+	                           ^
+web_search.go:128:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest(http.MethodPost, "https://api.tavily.com/search", strings.NewReader(string(data)))
+	                           ^
+web_search.go:207:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest(http.MethodGet, "https://www.bing.com/search?"+q.Encode(), nil)
+	                           ^
+web_search.go:262:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	                           ^
+web_search_duckduckgo.go:16:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest(http.MethodGet, "https://html.duckduckgo.com/html/?"+q.Encode(), nil)
+	                           ^
+web_search_gemini.go:34:29: net/http.NewRequest must not be called. use net/http.NewRequestWithContext (noctx)
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(string(payload)))
+	                           ^
+117 issues:
+* errchkjson: 2
+* gosec: 96
+* noctx: 19

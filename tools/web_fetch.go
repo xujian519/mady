@@ -48,7 +48,7 @@ var blockPagePatterns = []string{
 
 // WebFetchOperations defines pluggable operations for the web fetch tool.
 type WebFetchOperations interface {
-	Fetch(url string) (string, error)
+	Fetch(ctx context.Context, url string) (string, error)
 }
 
 // DefaultWebFetchOperations uses a browser-like HTTP client.
@@ -103,7 +103,7 @@ func validateFetchURL(rawURL string) error {
 }
 
 func (d *DefaultWebFetchOperations) newRequest(url string) (*http.Request, error) {
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (d *DefaultWebFetchOperations) newRequest(url string) (*http.Request, error
 	return req, nil
 }
 
-func (d *DefaultWebFetchOperations) Fetch(url string) (string, error) {
+func (d *DefaultWebFetchOperations) Fetch(ctx context.Context, url string) (string, error) {
 	d.defaults()
 
 	if err := validateFetchURL(url); err != nil {
@@ -308,7 +308,7 @@ func NewWebFetchTool(cfg *WebFetchToolConfig) *agentcore.Tool {
 				return resultErrf("invalid URL: must start with http:// or https://")
 			}
 
-			body, err := cfg.Operations.Fetch(input.URL)
+			body, err := cfg.Operations.Fetch(ctx, input.URL)
 			if err != nil {
 				return resultErrf("fetch failed: %w", err)
 			}

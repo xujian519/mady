@@ -2,6 +2,7 @@ package browserproviders
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -70,7 +71,7 @@ func (p *BrowserbaseProvider) createSessionWithBody(reqBody map[string]any) (map
 		return nil, fmt.Errorf("marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", "https://api.browserbase.com/v1/sessions", bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", "https://api.browserbase.com/v1/sessions", bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +131,7 @@ func (p *BrowserbaseProvider) CloseSession(sessionID string) error {
 		return fmt.Errorf("marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://api.browserbase.com/v1/sessions/%s", sessionID), bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", fmt.Sprintf("https://api.browserbase.com/v1/sessions/%s", sessionID), bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

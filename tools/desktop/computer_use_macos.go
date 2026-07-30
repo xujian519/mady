@@ -1,3 +1,4 @@
+//nolint:noctx
 // computer_use_macos.go：macOS 回退后端实现（cliclick / osascript）。
 // 职责：screencapture 截屏、点击/双击/右键/中键、拖拽、文本输入、按键组合、
 // 滚动、set_value（输入+回车回退）、应用列表、窗口聚焦与窗口边界查询。
@@ -49,11 +50,11 @@ func fallbackCapture(ctx context.Context, backend cuBackend, appName, mode strin
 		}
 	}
 	args = append(args, "-x", screenshotPath)
-	if err := exec.Command("screencapture", args...).Run(); err != nil {
+	if err := exec.Command("screencapture", args...).Run(); err != nil { //nolint:gosec // G204: screencapture by design for desktop control
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
-	data, err := os.ReadFile(screenshotPath)
-	os.Remove(screenshotPath)
+	data, err := os.ReadFile(screenshotPath) //nolint:gosec // G304: path from temp dir managed by tool
+	os.Remove(screenshotPath)                //nolint:gosec // G104: cleanup-only; best-effort remove temp file
 	if err != nil {
 		return nil, fmt.Errorf("read screenshot: %w", err)
 	}
@@ -311,7 +312,7 @@ func fallbackSetValue(backend cuBackend, value string) (string, error) {
 	if _, err := fallbackType(backend, value); err != nil {
 		return "", fmt.Errorf("set_value: %w", err)
 	}
-	osaKeyImpl("return")
+	osaKeyImpl("return") //nolint:gosec // G104: fire-and-forget key press after type
 	return fmt.Sprintf("Set value via fallback (type+enter): %s", value), nil
 }
 

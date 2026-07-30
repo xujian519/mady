@@ -41,7 +41,7 @@ func (d DefaultMoveOperations) Rename(oldPath, newPath string) error {
 
 // copyFile copies the contents and permissions from src to dst.
 func copyFile(src, dst string) error {
-	srcFile, err := os.Open(src)
+	srcFile, err := os.Open(src) //nolint:gosec // G304: src from sandbox-checked source
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,8 @@ func copyFile(src, dst string) error {
 		return err
 	}
 
-	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+	dstFile, err := os.OpenFile(dst, //nolint:gosec // G304: dst from sandbox-checked source
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
 	if err != nil {
 		return err
 	}
@@ -150,20 +151,20 @@ func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool {
 			// to detect symlink swaps before the rename operation.
 			// Destination may not exist yet (new file) — skip pin in that case.
 			if cfg.Sandbox.Enabled {
-				pinSrc, pinErr := os.Open(sourcePath)
+				pinSrc, pinErr := os.Open(sourcePath) //nolint:gosec // G304: sourcePath from sandbox-checked source
 				if pinErr == nil {
 					if err := verifyOpenedInode(pinSrc, sourcePath); err != nil {
-						pinSrc.Close()
+						pinSrc.Close() //nolint:gosec // G104: cleanup-only; inode pin verification
 						return resultErrf("%w", err)
 					}
-					pinSrc.Close()
+					pinSrc.Close() //nolint:gosec // G104: cleanup-only; inode pin verification
 				}
-				if pinDst, pinErr := os.Open(destPath); pinErr == nil {
+				if pinDst, pinErr := os.Open(destPath); pinErr == nil { //nolint:gosec // G304: destPath from sandbox-checked source
 					if err := verifyOpenedInode(pinDst, destPath); err != nil {
-						pinDst.Close()
+						pinDst.Close() //nolint:gosec // G104: cleanup-only; inode pin verification
 						return resultErrf("%w", err)
 					}
-					pinDst.Close()
+					pinDst.Close() //nolint:gosec // G104: cleanup-only; inode pin verification
 				}
 			}
 

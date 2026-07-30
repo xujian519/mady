@@ -1,3 +1,4 @@
+//nolint:noctx
 // computer_use_lin.go：Linux 后端实现（xdotool X11 / ydotool+wtype Wayland）。
 // 职责：截屏（grim/import/gnome-screenshot/scrot）、点击、拖拽、输入、按键、滚动、
 // 应用列表与窗口聚焦；Wayland 下窗口边界/聚焦走 Hyprland 或 Sway。
@@ -23,8 +24,8 @@ func xdoCapture(ctx context.Context, appName string) (any, error) {
 	if err := scrotExec(screenshotPath); err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(screenshotPath)
-	os.Remove(screenshotPath)
+	data, err := os.ReadFile(screenshotPath) //nolint:gosec // G304: path from temp dir managed by tool
+	os.Remove(screenshotPath)                //nolint:gosec // G104: cleanup-only; best-effort remove temp file
 	if err != nil {
 		return nil, fmt.Errorf("read screenshot: %w", err)
 	}
@@ -88,7 +89,7 @@ func linuxGetWindowBounds(app string) (string, error) {
 		return "", err
 	}
 	var x, y, w, h int
-	fmt.Sscanf(geo, "Position: %d,%d\nGeometry: %dx%d", &x, &y, &w, &h)
+	fmt.Sscanf(geo, "Position: %d,%d\nGeometry: %dx%d", &x, &y, &w, &h) //nolint:gosec // G104: best-effort parse; zero values on error
 	if w == 0 || h == 0 {
 		return "", fmt.Errorf("could not parse geometry for window %s", winID)
 	}
@@ -224,7 +225,7 @@ func xdoSetValue(value string) (string, error) {
 	if _, err := xdoType(value); err != nil {
 		return "", fmt.Errorf("set_value: %w", err)
 	}
-	xdoKey("return")
+	xdoKey("return") //nolint:gosec // G104: fire-and-forget key press after type
 	return fmt.Sprintf("Set value via xdotool (type+enter): %s", value), nil
 }
 
@@ -299,7 +300,7 @@ func waylandGetWindowBounds(app string) (string, error) {
 
 	// Try Sway
 	if _, err := exec.LookPath("swaymsg"); err == nil {
-		out, err := exec.Command("swaymsg", "-t", "get_tree").Output()
+		out, err := exec.Command("swaymsg", "-t", "get_tree").Output() //nolint:gosec // G104: G204: fire-and-forget window focus; subprocess by design
 		if err == nil {
 			var root struct {
 				Nodes []struct {
@@ -357,7 +358,7 @@ func waylandFocusApp(app string, raiseWindow bool) (string, error) {
 						strings.Contains(strings.ToLower(c.Title), lower) ||
 						strings.Contains(strings.ToLower(c.InitialTitle), lower) {
 						if raiseWindow {
-							exec.Command("hyprctl", "dispatch", "focuswindow", "address:"+c.Address).Run()
+							exec.Command("hyprctl", "dispatch", "focuswindow", "address:"+c.Address).Run() //nolint:gosec // G104: G204: fire-and-forget window focus; subprocess by design
 							return fmt.Sprintf("Focused via Hyprland: %s (raised)", app), nil
 						}
 						return fmt.Sprintf("Targeting: %s via Hyprland (not raised)", app), nil
@@ -370,10 +371,10 @@ func waylandFocusApp(app string, raiseWindow bool) (string, error) {
 	// Try Sway
 	if _, err := exec.LookPath("swaymsg"); err == nil {
 		if raiseWindow {
-			if err := exec.Command("swaymsg", fmt.Sprintf(`[title="(?i)%s"]`, app), "focus").Run(); err == nil {
+			if err := exec.Command("swaymsg", fmt.Sprintf(`[title="(?i)%s"]`, app), "focus").Run(); err == nil { //nolint:gosec // G104: G204: fire-and-forget window focus; subprocess by design
 				return fmt.Sprintf("Focused via Sway: %s (raised)", app), nil
 			}
-			if err := exec.Command("swaymsg", fmt.Sprintf(`[app_id="(?i)%s"]`, app), "focus").Run(); err == nil {
+			if err := exec.Command("swaymsg", fmt.Sprintf(`[app_id="(?i)%s"]`, app), "focus").Run(); err == nil { //nolint:gosec // G104: G204: fire-and-forget window focus; subprocess by design
 				return fmt.Sprintf("Focused via Sway: %s (raised)", app), nil
 			}
 		} else {

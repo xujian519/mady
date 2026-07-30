@@ -125,7 +125,7 @@ func searchTavily(client *http.Client, query string, count int, apiKey string) (
 	if err != nil {
 		return nil, fmt.Errorf("marshal tavily request: %w", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, "https://api.tavily.com/search", strings.NewReader(string(data)))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://api.tavily.com/search", strings.NewReader(string(data)))
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,7 @@ func searchBingRSS(client *http.Client, query string, count int) ([]SearchResult
 	q.Set("format", "rss")
 	q.Set("mkt", envOrDefault("WEB_SEARCH_MARKET", "zh-CN"))
 
-	req, err := http.NewRequest(http.MethodGet, "https://www.bing.com/search?"+q.Encode(), nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://www.bing.com/search?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func cleanSearchText(s string) string {
 }
 
 func getJSON(client *http.Client, rawURL string, headers map[string]string, target any) error {
-	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawURL, nil)
 	if err != nil {
 		return err
 	}

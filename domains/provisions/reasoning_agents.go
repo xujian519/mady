@@ -46,6 +46,12 @@ func ReasoningToHandoff(entry *ReasoningManifestEntry, base agentcore.Config) ag
 	cfg.Extensions = nil
 	cfg.Lifecycle = nil
 
+	allowedTools := entry.PrimaryTools
+	if len(allowedTools) == 0 {
+		allowedTools = DefaultPatentTools
+	}
+	cfg.Tools = filterTools(allowedTools, cfg.Tools)
+
 	return agentcore.HandoffConfig{
 		Name:        entry.Worker,
 		Description: fmt.Sprintf("专利推理模式：%s（%s）。服务 %s", entry.Name, entry.ID, strings.Join(entry.Serves, "、")),
@@ -53,6 +59,7 @@ func ReasoningToHandoff(entry *ReasoningManifestEntry, base agentcore.Config) ag
 		AgentConfig: cfg,
 		AllowedSources: []string{
 			"patent-agent",
+			"patent-orchestrator",
 			"mady-router",
 			"mady-agent",
 		},

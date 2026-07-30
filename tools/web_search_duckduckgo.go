@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +14,7 @@ import (
 func searchDuckDuckGo(client *http.Client, query string, count int) ([]SearchResult, error) {
 	q := url.Values{}
 	q.Set("q", query)
-	req, err := http.NewRequest(http.MethodGet, "https://html.duckduckgo.com/html/?"+q.Encode(), nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://html.duckduckgo.com/html/?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}

@@ -298,7 +298,7 @@ func (bm *BrowserManager) closeSessionResources(session *BrowserSession, emergen
 	}
 
 	if session.camofoxClient != nil {
-		session.camofoxClient.CloseTab(session.sessionID)
+		session.camofoxClient.CloseTab(context.Background(), session.sessionID)
 	}
 
 	if session.lightpandaProc != nil {

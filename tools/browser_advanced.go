@@ -80,7 +80,7 @@ func (r *OrphanReaper) ReapOrphans() (int, error) {
 		dirPath := filepath.Join(r.socketDir, entry.Name())
 		ownerPIDPath := filepath.Join(dirPath, "owner_pid")
 
-		pidData, err := os.ReadFile(ownerPIDPath)
+		pidData, err := os.ReadFile(ownerPIDPath) //nolint:gosec // G304: path under managed socket directory, not user-controlled
 		if err != nil {
 			continue
 		}
@@ -93,7 +93,7 @@ func (r *OrphanReaper) ReapOrphans() (int, error) {
 		}
 
 		daemonPIDPath := filepath.Join(dirPath, "daemon_pid")
-		if daemonPIDData, err := os.ReadFile(daemonPIDPath); err == nil {
+		if daemonPIDData, err := os.ReadFile(daemonPIDPath); err == nil { //nolint:gosec // G304: path under managed socket directory
 			var daemonPID int
 			_, _ = fmt.Sscanf(strings.TrimSpace(string(daemonPIDData)), "%d", &daemonPID)
 			if daemonPID > 0 {

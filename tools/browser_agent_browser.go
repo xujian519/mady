@@ -59,10 +59,10 @@ var errAgentBrowserNotFound = fmt.Errorf(
 
 func findAgentBrowserBinary() (string, error) {
 	if path := os.Getenv("AGENT_BROWSER_PATH"); path != "" {
-		if _, err := os.Stat(path); err == nil {
+		if _, err := os.Stat(path); err == nil { //nolint:gosec // G703: path from env var or hardcoded system path
 			return path, nil
 		}
-		if path, err := exec.LookPath(path); err == nil {
+		if path, err := exec.LookPath(path); err == nil { //nolint:gosec // G703: LookPath returns resolved system binary
 			return path, nil
 		}
 	}
@@ -125,7 +125,7 @@ func (m *AgentBrowserManager) EnsureSession(ctx context.Context, taskID string) 
 
 func (m *AgentBrowserManager) discoverCDPURL(socketDir string) string {
 	cdpFile := filepath.Join(socketDir, "cdp_url")
-	data, err := os.ReadFile(cdpFile)
+	data, err := os.ReadFile(cdpFile) //nolint:gosec // G304: path under managed socket dir
 	if err != nil {
 		return ""
 	}
@@ -168,9 +168,9 @@ func (m *AgentBrowserManager) buildABCommand(ctx context.Context, taskID string,
 		npxBin := strings.Fields(binary)[0]
 		npxArgs := []string{"agent-browser"}
 		npxArgs = append(npxArgs, allArgs...)
-		cmd = exec.CommandContext(ctx, npxBin, npxArgs...)
+		cmd = exec.CommandContext(ctx, npxBin, npxArgs...) //nolint:gosec // G204: agent-browser child process; binary validated at startup
 	} else {
-		cmd = exec.CommandContext(ctx, binary, allArgs...)
+		cmd = exec.CommandContext(ctx, binary, allArgs...) //nolint:gosec // G204: agent-browser child process; binary validated at startup
 	}
 
 	cmd.Env = append(os.Environ(),

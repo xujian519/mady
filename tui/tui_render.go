@@ -334,25 +334,25 @@ func (t *TUI) renderResizeHint(cols, rows int64) {
 	}
 
 	// Top border
-	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH╔", topY+1, leftX+1))
+	fmt.Fprintf(&buf, "\x1b[%d;%dH╔", topY+1, leftX+1)
 	for i := int64(2); i < int64(boxWidth); i++ {
 		buf.WriteString("═")
 	}
 	buf.WriteString("╗")
 
 	// Chinese hint
-	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH║  %-*s  ║", hintCNY+1, leftX+1, boxWidth-6, hintCN))
+	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %-*s  ║", hintCNY+1, leftX+1, boxWidth-6, hintCN)
 	// English hint
-	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH║  %-*s  ║", textY+1, leftX+1, boxWidth-6, hint))
+	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %-*s  ║", textY+1, leftX+1, boxWidth-6, hint)
 	// Bottom border
-	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH╚", botY+1, leftX+1))
+	fmt.Fprintf(&buf, "\x1b[%d;%dH╚", botY+1, leftX+1)
 	for i := int64(2); i < int64(boxWidth); i++ {
 		buf.WriteString("═")
 	}
 	buf.WriteString("╝")
 
 	// Move cursor out of the way and show it.
-	buf.WriteString(fmt.Sprintf("\x1b[%d;1H", botY+2))
+	fmt.Fprintf(&buf, "\x1b[%d;1H", botY+2)
 	buf.WriteString("\x1b[?25h") // show cursor
 
 	if _, err := t.term.Write(buf.Bytes()); err != nil {

@@ -25,7 +25,7 @@ func handleScreenshot(ctx context.Context, input browserToolInput, cfg *BrowserT
 	switch session.backendType {
 	case BackendCamofox:
 		var buf []byte
-		buf, err = session.camofoxClient.Screenshot(session.sessionID)
+		buf, err = session.camofoxClient.Screenshot(ctx, session.sessionID)
 		if err == nil {
 			sizeBytes = len(buf)
 		}
@@ -85,7 +85,7 @@ func handleVision(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 
 	switch session.backendType {
 	case BackendCamofox:
-		screenshotData, err = session.camofoxClient.Screenshot(session.sessionID)
+		screenshotData, err = session.camofoxClient.Screenshot(ctx, session.sessionID)
 	case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 		if err := chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot(&screenshotData)); err != nil {

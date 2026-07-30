@@ -66,13 +66,14 @@ type ptcServer struct {
 // eventually call Close (or cancel the context passed to Serve, which
 // closes the listener too).
 func newPTCServer(allowedTools []string, invoke func(ctx context.Context, name string, args json.RawMessage) (string, error), maxCalls int) (*ptcServer, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("PTC: failed to start RPC listener: %w", err)
 	}
 	tokenBytes := make([]byte, 16)
 	if _, err := rand.Read(tokenBytes); err != nil {
-		listener.Close()
+		listener.Close() //nolint:gosec // G104: cleanup-only on error
 		return nil, fmt.Errorf("PTC: failed to generate token: %w", err)
 	}
 	if len(allowedTools) == 0 {
@@ -101,7 +102,7 @@ func newPTCServer(allowedTools []string, invoke func(ctx context.Context, name s
 func (s *ptcServer) Serve(ctx context.Context) {
 	go func() {
 		<-ctx.Done()
-		s.listener.Close()
+		s.listener.Close() //nolint:gosec // G104: cleanup-only
 	}()
 	for {
 		conn, err := s.listener.Accept()
@@ -114,7 +115,7 @@ func (s *ptcServer) Serve(ctx context.Context) {
 
 func (s *ptcServer) handle(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(30 * time.Second))
+	conn.SetDeadline(time.Now().Add(30 * time.Second)) //nolint:gosec // G104: best-effort deadline for PTC handler
 
 	// Limit request size to 1MB to prevent memory exhaustion from a
 	// malicious or buggy local process connecting to the RPC port.
@@ -169,7 +170,7 @@ func (s *ptcServer) reply(conn net.Conn, resp ptcResponse) {
 }
 
 func (s *ptcServer) Close() error {
-	return s.listener.Close()
+	return s.listener.Close() //nolint:gosec // G104: cleanup-only
 }
 
 // allowedToolNames returns the tool names actually in effect (after

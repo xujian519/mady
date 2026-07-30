@@ -25,6 +25,8 @@ type mcpClient struct {
 	exited chan struct{}
 	// exitErr 记录子进程 Wait() 返回的错误，进程死亡后 call() 可读取。
 	exitErr error
+	// waitOnce 保证 c.cmd.Wait() 仅被调用一次（Wait goroutine 与 Close 之间互斥）。
+	waitOnce sync.Once
 }
 
 type mcpRequest struct {
@@ -80,8 +82,9 @@ func newMCPClient(ctx context.Context, binary string, arg ...string) (*mcpClient
 	}()
 
 	// 进程死亡监控：readLoop 可借此检测下游已死
+	// waitOnce.Do 确保 c.cmd.Wait() 仅被调用一次，避免与 Close() 竞态。
 	go func() {
-		c.exitErr = c.cmd.Wait()
+		c.waitOnce.Do(func() { c.exitErr = c.cmd.Wait() })
 		close(c.exited)
 	}()
 
@@ -252,6 +255,7 @@ func (c *mcpClient) Close() {
 
 	if c.cmd != nil && c.cmd.Process != nil {
 		c.cmd.Process.Kill()
-		c.cmd.Wait()
+		// 不在此调用 c.cmd.Wait()——Wait goroutine 通过 waitOnce.Do 统一回收，
+		// 防止与 Wait goroutine 同时调用 exec.Cmd.Wait() 造成 data race。
 	}
 }

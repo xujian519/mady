@@ -4,7 +4,7 @@
 // 注意：本文件不能命名为 computer_use_windows.go——以 _windows.go 结尾会被
 // Go 工具链视为 GOOS 限定文件，仅在 Windows 上编译，导致其他平台符号缺失。
 
-package desktop
+package desktop //nolint:noctx
 
 import (
 	"context"
@@ -318,7 +318,7 @@ func winSetValue(value string) (string, error) {
 	if _, err := winType(value); err != nil {
 		return "", fmt.Errorf("set_value: %w", err)
 	}
-	winKey("return")
+	winKey("return") //nolint:gosec // G104: fire-and-forget key press after type
 	return fmt.Sprintf("Set value via powershell (type+enter): %s", value), nil
 }
 

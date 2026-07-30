@@ -27,7 +27,7 @@ func (d DefaultWriteFileOperations) WriteFile(path string, content []byte) error
 }
 
 func (d DefaultWriteFileOperations) ReadFile(path string) ([]byte, error) {
-	return os.ReadFile(path)
+	return os.ReadFile(path) //nolint:gosec // G304: path from sandbox-checked source
 }
 
 func (d DefaultWriteFileOperations) Stat(path string) (os.FileInfo, error) {
@@ -116,15 +116,15 @@ func NewWriteFileTool(cwd string, cfg *WriteFileToolConfig) *agentcore.Tool {
 				if _, statErr := cfg.Operations.Stat(resolved); statErr != nil {
 					pinTarget = filepath.Dir(resolved)
 				}
-				pinF, pinErr := os.Open(pinTarget)
+				pinF, pinErr := os.Open(pinTarget) //nolint:gosec // G304: pinTarget from sandbox-checked source
 				if pinErr != nil {
 					return resultErrf("path not found: %s", input.Path)
 				}
 				if err := verifyOpenedInode(pinF, pinTarget); err != nil {
-					pinF.Close()
+					pinF.Close() //nolint:gosec // G104: cleanup-only; inode pin verification
 					return resultErrf("%w", err)
 				}
-				pinF.Close()
+				pinF.Close() //nolint:gosec // G104: cleanup-only; inode pin verification
 			}
 
 			// Check content size.

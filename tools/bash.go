@@ -33,7 +33,7 @@ func (d DefaultBashOperations) Exec(ctx context.Context, command string, cwd str
 		shell = "/bin/sh"
 	}
 
-	cmd := exec.CommandContext(ctx, shell, "-c", command)
+	cmd := exec.CommandContext(ctx, shell, "-c", command) //nolint:gosec // G204: shell execution by design; tools module provides CLI interface
 	cmd.Dir = cwd
 	// Setpgid creates a new process group so killProcessTree(-pgid) only
 	// affects this command's children, preventing PID-reuse collateral damage.

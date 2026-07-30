@@ -209,9 +209,9 @@ func (s *CDPSupervisor) listenForDialogs(ctx context.Context) {
 
 			switch s.dialogPolicy {
 			case DialogAutoDismiss:
-				s.HandleDialog(dialogID, false, "")
+				s.HandleDialog(dialogID, false, "") //nolint:gosec // G104: fire-and-forget dialog auto-dismiss
 			case DialogAutoAccept:
-				s.HandleDialog(dialogID, true, "")
+				s.HandleDialog(dialogID, true, "") //nolint:gosec // G104: fire-and-forget dialog auto-accept
 			}
 
 		case *page.EventJavascriptDialogClosed:

@@ -1,0 +1,101 @@
+# Mady TUI - golangci-lint Configuration (v2 format)
+# TUI 模块为 8 层 Elm 架构终端 UI，无 HTTP 客户端代码，
+# 无需 bodyclose/noctx/gosec 等 HTTP/安全相关 linter。
+version: "2"
+
+run:
+  timeout: 3m
+  tests: false
+
+linters:
+  default: none
+  enable:
+    # 基础正确性
+    - errcheck        # 检查未处理的错误
+    - govet           # go vet
+    - ineffassign     # 无效赋值检测
+    - staticcheck     # 静态分析（SA 级）
+    - unused          # 未使用变量/类型/常量
+    - misspell        # 拼写检查
+    - unconvert       # 不必要的类型转换
+
+    # 代码质量
+    - goconst         # 可提取为常量的重复字符串
+    - revive          # golint 替代（增强版）
+
+    # 正确性
+    - copyloopvar     # 循环变量引用副本
+    - durationcheck   # 时间乘时间错误
+
+  settings:
+    goconst:
+      min-len: 15
+      min-occurrences: 15
+      ignore-calls: true
+    misspell:
+      locale: US
+      ignore-rules:
+        - cancelled
+        - cancelling
+        - colour
+        - defence
+        - licence
+        - optimise
+        - organise
+    revive:
+      severity: warning
+      rules:
+        - name: blank-imports
+          severity: warning
+        - name: context-keys-type
+          severity: warning
+        - name: error-return
+          severity: warning
+        - name: error-naming
+          severity: warning
+        - name: increment-decrement
+          severity: warning
+        - name: range
+          severity: warning
+        - name: receiver-naming
+          severity: warning
+        - name: time-naming
+          severity: warning
+        - name: unexported-return
+          severity: warning
+        - name: errorf
+          severity: warning
+        - name: empty-block
+          severity: warning
+        - name: superfluous-else
+          severity: warning
+        - name: unreachable-code
+          severity: warning
+        - name: redefines-builtin-id
+          severity: warning
+    staticcheck:
+      checks:
+        - all
+        - "-SA1019"
+
+  exclusions:
+    paths:
+      - .git
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - goconst
+          - errcheck
+      - path: "doc\\.go"
+        linters:
+          - unused
+      - path: ".*_gen\\.go"
+        linters:
+          - all
+      - path: ".*\\.pb\\.go"
+        linters:
+          - all
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

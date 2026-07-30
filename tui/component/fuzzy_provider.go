@@ -119,24 +119,24 @@ func (p *FuzzyContentProvider) previewLen() int64 {
 	return 48
 }
 
-func previewText(s string, max int64) string {
+func previewText(s string, maxLen int64) string {
 	s = strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\t", " ")
-	if int64(len(s)) <= max {
+	if int64(len(s)) <= maxLen {
 		return s
 	}
-	return s[:max] + "…"
+	return s[:maxLen] + "…"
 }
 
-func makeExcerpt(body string, start, end, max int64) string {
-	if end-start > max {
-		end = start + max
+func makeExcerpt(body string, start, end, maxLen int64) string {
+	if end-start > maxLen {
+		end = start + maxLen
 	}
 	b := int64(len(body))
-	lo := start - max/2
+	lo := start - maxLen/2
 	if lo < 0 {
 		lo = 0
 	}
-	hi := end + max/2
+	hi := end + maxLen/2
 	if hi > b {
 		hi = b
 	}

@@ -49,7 +49,7 @@ func runNuoPatent(ctx context.Context, bin string, args ...string) (*exec.Cmd, *
 	argv = append(argv, parts...)
 	argv = append(argv, args...)
 
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) //nolint:gosec // G204: patent search subprocess; binary from config
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -129,7 +129,7 @@ func NewPatentDownloadTool(cfg *PatentToolConfig) *agentcore.Tool {
 			if len(numbers) == 0 {
 				return nil, fmt.Errorf("至少需要一个专利号")
 			}
-			if err := os.MkdirAll(cfg.DownloadDir, 0755); err != nil {
+			if err := os.MkdirAll(cfg.DownloadDir, 0755); err != nil { //nolint:gosec // G301: download dir needs write permission
 				return nil, fmt.Errorf("create download dir: %w", err)
 			}
 

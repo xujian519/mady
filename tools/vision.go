@@ -439,7 +439,7 @@ func NewVisionTool(cwd string, cfg *VisionToolConfig) *agentcore.Tool {
 					if err != nil {
 						return resultErrf("%w", err)
 					}
-					imageData, err = os.ReadFile(resolved)
+					imageData, err = os.ReadFile(resolved) //nolint:gosec // G304: resolved path from sandbox check
 					if err != nil {
 						return resultErrf("failed to read image file: %w", err)
 					}

@@ -2,6 +2,7 @@ package browserproviders
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -57,7 +58,7 @@ func (p *FirecrawlProvider) CreateSession(taskID string) (map[string]string, err
 		return nil, fmt.Errorf("marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", p.apiURL+"/v2/browser", bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", p.apiURL+"/v2/browser", bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func (p *FirecrawlProvider) CreateSession(taskID string) (map[string]string, err
 }
 
 func (p *FirecrawlProvider) CloseSession(sessionID string) error {
-	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/v2/browser/%s", p.apiURL, sessionID), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", fmt.Sprintf("%s/v2/browser/%s", p.apiURL, sessionID), nil)
 	if err != nil {
 		return err
 	}

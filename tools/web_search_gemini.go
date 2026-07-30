@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -31,7 +32,7 @@ func searchGeminiGrounding(client *http.Client, query string, count int, apiKey 
 		return nil, fmt.Errorf("marshal gemini request body: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(string(payload)))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, endpoint, strings.NewReader(string(payload)))
 	if err != nil {
 		return nil, err
 	}
