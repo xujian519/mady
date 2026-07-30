@@ -1,3 +1,5 @@
+//go:build darwin
+
 package main
 
 // app.go — Mady 桌面端应用核心。
