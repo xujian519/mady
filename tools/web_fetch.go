@@ -153,7 +153,7 @@ func (d *DefaultWebFetchOperations) Fetch(ctx context.Context, url string) (stri
 		// Detect and decode charset (GB2312/GBK/GB18030 → UTF-8 for Chinese .gov.cn sites)
 		bodyReader, _ := charset.NewReader(resp.Body, resp.Header.Get("Content-Type"))
 		body, readErr := io.ReadAll(io.LimitReader(bodyReader, 10*1024*1024))
-		resp.Body.Close()
+		resp.Body.Close() //nolint:gosec // G104: response body close in retry loop
 		if readErr != nil {
 			lastErr = readErr
 			continue

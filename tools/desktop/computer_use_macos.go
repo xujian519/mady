@@ -50,7 +50,7 @@ func fallbackCapture(ctx context.Context, backend cuBackend, appName, mode strin
 		}
 	}
 	args = append(args, "-x", screenshotPath)
-	if err := exec.Command("screencapture", args...).Run(); err != nil { //nolint:gosec // G204: screencapture by design for desktop control
+	if err := exec.Command("screencapture", args...).Run(); err != nil { //nolint:gosec,noctx // G204: screencapture by design for desktop control
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
 	data, err := os.ReadFile(screenshotPath) //nolint:gosec // G304: path from temp dir managed by tool

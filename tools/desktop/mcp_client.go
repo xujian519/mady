@@ -49,7 +49,7 @@ type mcpError struct {
 }
 
 func newMCPClient(ctx context.Context, binary string, arg ...string) (*mcpClient, error) {
-	cmd := exec.CommandContext(ctx, binary, arg...)
+	cmd := exec.CommandContext(ctx, binary, arg...) //nolint:gosec // G204: MCP binary from trusted config
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("stdin pipe: %w", err)
@@ -78,7 +78,7 @@ func newMCPClient(ctx context.Context, binary string, arg ...string) (*mcpClient
 
 	// drain stderr 防止进程因 pipe buffer 满而阻塞
 	go func() {
-		io.Copy(io.Discard, stderr)
+		io.Copy(io.Discard, stderr) //nolint:gosec // G104: drain stderr to prevent pipe buffer blocking
 	}()
 
 	// 进程死亡监控：readLoop 可借此检测下游已死
@@ -250,11 +250,11 @@ func (c *mcpClient) Close() {
 	// c.mu 下的读写互不互斥，构成数据竞争。closeMu 仅作为外层重入保护。
 	c.mu.Lock()
 	c.closed = true
-	c.stdin.Close()
+	c.stdin.Close() //nolint:gosec // G104: close stdin in cleanup, error is irrelevant
 	c.mu.Unlock()
 
 	if c.cmd != nil && c.cmd.Process != nil {
-		c.cmd.Process.Kill()
+		c.cmd.Process.Kill() //nolint:gosec // G104: kill process in shutdown, error is irrelevant
 		// 不在此调用 c.cmd.Wait()——Wait goroutine 通过 waitOnce.Do 统一回收，
 		// 防止与 Wait goroutine 同时调用 exec.Cmd.Wait() 造成 data race。
 	}

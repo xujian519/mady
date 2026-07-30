@@ -286,19 +286,19 @@ func (bm *BrowserManager) closeSessionResources(session *BrowserSession, emergen
 	}
 
 	if session.recorder != nil && session.recorder.IsRecording() {
-		session.recorder.StopRecording()
+		session.recorder.StopRecording() //nolint:gosec // G104: recorder stop is best-effort cleanup
 	}
 
 	if session.cloudProvider != nil && session.cloudSessionID != "" {
 		if emergency {
 			session.cloudProvider.EmergencyCleanup(session.cloudSessionID)
 		} else {
-			session.cloudProvider.CloseSession(session.cloudSessionID)
+			session.cloudProvider.CloseSession(session.cloudSessionID) //nolint:gosec // G104: close session is best-effort cleanup
 		}
 	}
 
 	if session.camofoxClient != nil {
-		session.camofoxClient.CloseTab(context.Background(), session.sessionID)
+		session.camofoxClient.CloseTab(context.Background(), session.sessionID) //nolint:gosec // G104: close tab is best-effort cleanup
 	}
 
 	if session.lightpandaProc != nil {
@@ -382,7 +382,7 @@ func (bm *BrowserManager) CloseAll() {
 	}
 
 	if bm.egoLiteMgr != nil {
-		bm.egoLiteMgr.Close()
+		bm.egoLiteMgr.Close() //nolint:gosec // G104: close manager is best-effort cleanup
 	}
 
 	if bm.agentBrowserMgr != nil {

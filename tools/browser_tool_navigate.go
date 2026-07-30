@@ -216,7 +216,7 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	}
 
 	if session.recorder != nil && !session.recorder.IsRecording() && session.ctx != nil {
-		session.recorder.StartRecording(ctx, session.ctx, session.sessionID)
+		session.recorder.StartRecording(ctx, session.ctx, session.sessionID) //nolint:gosec // G104: recorder start in navigation chain
 	}
 
 	var extraInfo string
