@@ -7,6 +7,8 @@
 //	auto-eval → checker review → revision → re-eval → sign-off
 package checker
 
+import "strings"
+
 // CheckerTier classifies the review capability level.
 type CheckerTier string
 
@@ -97,7 +99,12 @@ func (c *Catalog) Suggest(artifactPath string) []CheckerEntry {
 }
 
 // matchArtifact checks if an artifact path matches a required input pattern.
-// Patterns can use "*" as a wildcard for simple glob matching.
+// Patterns can use "*" as a wildcard for simple glob matching:
+//   - "*" matches everything
+//   - "*.ext" matches paths ending with ".ext"
+//   - "prefix*" matches paths starting with "prefix"
+//   - "*substring*" matches paths containing "substring" anywhere
+//   - Otherwise exact match is required.
 func matchArtifact(path, pattern string) bool {
 	if pattern == "" {
 		return false
@@ -105,11 +112,17 @@ func matchArtifact(path, pattern string) bool {
 	if pattern == "*" {
 		return true
 	}
-	// Simple prefix/suffix matching
 	plen := len(pattern)
+	// Both wildcards: *text* — substring match
+	if plen >= 3 && pattern[0] == '*' && pattern[plen-1] == '*' {
+		inner := pattern[1 : plen-1]
+		return len(path) >= len(inner) && strings.Contains(path, inner)
+	}
+	// Prefix wildcard: *suffix — suffix match
 	if plen > 0 && pattern[0] == '*' {
 		return len(path) >= plen-1 && path[len(path)-(plen-1):] == pattern[1:]
 	}
+	// Suffix wildcard: prefix* — prefix match
 	if plen > 0 && pattern[plen-1] == '*' {
 		return len(path) >= plen-1 && path[:plen-1] == pattern[:plen-1]
 	}
