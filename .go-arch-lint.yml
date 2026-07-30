@@ -1,9 +1,16 @@
 version: 3
 workdir: .
 
+exclude:
+  - .claude
+  - .git
+  - vendor
+  - node_modules
+
 allow:
   depOnAnyVendor: true
-  deepScan: false
+  deepScan: false       # 关闭后仅检测包级导入，不追踪方法调用链。如需完整依赖追踪设为 true。
+  ignoreNotFoundComponents: true  # 组件配置中引用的目录不存在时静默忽略（支持渐进式迁移）。
 
 # 定义项目中所有可导入的 Go 包目录
 components:
@@ -24,8 +31,6 @@ components:
     in: ./tui/theme/**
   tui_layout:
     in: ./tui/layout/**
-  tui_stdio:
-    in: ./tui/stdio/**
   tui_agentadapter:
     in: ./tui/agentadapter/**
   tui_root:
@@ -162,7 +167,6 @@ deps:
       - tui_terminal
       - tui_theme
       - tui_layout
-      - tui_stdio
       - tui_agentadapter
       - doomloop
       - evaluate
@@ -194,7 +198,6 @@ deps:
       - tui_terminal
       - tui_theme
       - tui_layout
-      - tui_stdio
       - tui_agentadapter
       - tui_root
       - graph
@@ -466,7 +469,6 @@ deps:
       - tui_terminal
       - tui_theme
       - tui_layout
-      - tui_stdio
       - tui_agentadapter
 
   # 以下组件无架构约束，可导入任何项目组件
@@ -523,8 +525,6 @@ deps:
   tui_theme:
     anyProjectDeps: true
   tui_layout:
-    anyProjectDeps: true
-  tui_stdio:
     anyProjectDeps: true
   tui_agentadapter:
     anyProjectDeps: true

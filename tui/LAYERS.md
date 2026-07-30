@@ -11,7 +11,6 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 | 3 Engine | `tui` (root) | TUI container, event loop, overlay system, focus stack, ChatApp bridge | Layer 0–2, chat |
 | 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels, toast, onboarding) — 41 source files | Layer 0–2, fuzzy |
 | 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 17 source files | Layer 0–2, 4 |
-| 6 Stdio | `tui/stdio` | Procedural stdout/stdin tools (Spinner, Renderer, ProgressBar, LineReader, layout) | Layer 0, 1, 2 |
 | 7 Adapter | `tui/agentadapter` | Agentcore → chat event conversion, BindAgent convenience | Layer 5, agentcore |
 
 > `tui/layout` 在编号上归入 Layer 0（仅依赖 `tui/core`，不依赖 theming/agentcore），
@@ -21,7 +20,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 - Higher layers may import lower layers; lower layers MUST NOT import higher layers.
 - `tui/stdio` depends on Layer 0, 1, and 2 (core + terminal + theme); it MUST NOT depend on Layer 3–5.
-- `tui/chat` depends on Layer 0–2 and 4 only; it does NOT depend on `tui/stdio` (stdio tools are for procedural stdout/stdin apps, not for the TUI chat app).
+- `tui/chat` depends on Layer 0–2 and 4 only; it does NOT depend on `tui/stdio` (stdio tools were moved to layout).
 - `tui/chat` does NOT import `agentcore`. All agentcore integration is in `tui/agentadapter`.
 - `tui/chat` uses `AppHost` interface instead of directly referencing `*TUI`, breaking the cycle.
 - `tui/chat` uses `Subscriber` / `EventSubscriber` interfaces for event subscription, decoupled from agentcore.
@@ -30,7 +29,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 112 source files (+ 64 test files) across 10 packages.
+> Auto-verified: 112 source files (+ 64 test files) across 9 packages.
 > Last sync: 2026-07-30.
 
 ```
@@ -143,19 +142,16 @@ tui/
 │   ├── events.go          # ChatEvent types (15 events), Subscriber/EventSubscriber interfaces
 │   ├── state.go           # Explicit FSM over ChatApp interaction states (249 lines)
 │   ├── reasoning.go       # Reasoning/thinking block rendering
-│   └── clipboard.go       # Clipboard helpers (pbcopy/xclip/win32)
+│   ├── clipboard.go       # Clipboard helpers (pbcopy/xclip/win32)
 │   ├── layout_editor.go   # Editor frame layout helpers (ChildRect indices, baseline reset)
 │   ├── layout_shortcuts.go# Copy/clipboard shortcut helpers (doCopy, hasSelection)
+│   ├── chat_builder.go    # ChatApp builder pattern and configuration
+│   ├── chat_display.go    # Chat display formatting and layout
+│   ├── chat_host.go       # AppHost interface and adapter
+│   └── chat_model.go      # Conversation data model types
 │
 ├── agentadapter/          # Layer 7 — Agentcore Adapter
 │   └── adapter.go         # BindAgent, AgentRunner, event conversion (agentcore → chat)
-│
-├── stdio/                 # Layer 6 — Procedural stdio tools (5 source files)
-│   ├── renderer.go        # Streaming markdown stdout renderer + ToolStatus/HandoffStatus helpers
-│   ├── spinner.go         # Procedural spinner (stdout-based), uses core.SpinnerStyle
-│   ├── progress.go        # ProgressBar, TokenUsageDisplay, Timer
-│   ├── linereader.go      # Blocking stdin helper, Confirm, PromptSelect
-│   └── layout.go          # Box-drawing and layout helpers (moved from theme)
 │
 ├── internal/              # Internal helpers (not exported, used by sibling packages)
 │   ├── csync/slice.go     # Concurrent slice helpers

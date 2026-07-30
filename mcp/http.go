@@ -148,23 +148,37 @@ func NewHTTPExtension(ctx context.Context, cfg HTTPConfig) (*HTTPExtension, erro
 // Name returns the extension name.
 func (e *HTTPExtension) Name() string { return e.name }
 
+// initExtensionClient hooks up a client's event sink, notification, and capability
+// callbacks to the extension — shared by HTTPExtension and StdioExtension.
+type extensionClient interface {
+	SetEventSink(emit func(agentcore.Event))
+	AddNotificationHook(h func(context.Context, string, json.RawMessage) error)
+	SupportsToolListChanged() bool
+	AddCapabilityHook(h func(context.Context, ServerCapabilities))
+	Capabilities() ServerCapabilities
+}
+
+func initExtensionClient(client extensionClient, agent *agentcore.Agent, scheduleRefresh func()) ServerCapabilities {
+	client.SetEventSink(agent.EmitEvent)
+	client.AddNotificationHook(func(_ context.Context, method string, _ json.RawMessage) error {
+		if method != "notifications/tools/list_changed" || !client.SupportsToolListChanged() {
+			return nil
+		}
+		scheduleRefresh()
+		return nil
+	})
+	client.AddCapabilityHook(func(_ context.Context, caps ServerCapabilities) {
+		// emitCapabilitiesEvent is handled by the caller
+	})
+	return client.Capabilities()
+}
+
 // Init initializes the HTTP extension with the agent.
 func (e *HTTPExtension) Init(_ context.Context, agent *agentcore.Agent) error {
 	e.agent = agent
 	e.toolNames = toolNames(e.tools)
 	if e.client != nil {
-		e.client.SetEventSink(agent.EmitEvent)
-		e.client.AddNotificationHook(func(_ context.Context, method string, _ json.RawMessage) error {
-			if method != "notifications/tools/list_changed" || !e.client.SupportsToolListChanged() {
-				return nil
-			}
-			e.scheduleRefresh()
-			return nil
-		})
-		e.client.AddCapabilityHook(func(_ context.Context, caps ServerCapabilities) {
-			e.emitCapabilitiesEvent(caps)
-		})
-		e.emitCapabilitiesEvent(e.client.Capabilities())
+		e.emitCapabilitiesEvent(initExtensionClient(e.client, agent, e.scheduleRefresh))
 	}
 	return nil
 }
@@ -253,7 +267,7 @@ func (c *HTTPClient) ListTools(ctx context.Context) ([]Tool, error) {
 			params["cursor"] = cursor
 		}
 		var result toolListResult
-		if _, err := c.call(ctx, "tools/list", params, &result); err != nil {
+		if err := c.call(ctx, "tools/list", params, &result); err != nil {
 			return nil, err
 		}
 		out = append(out, result.Tools...)
@@ -270,7 +284,7 @@ func (c *HTTPClient) CallTool(ctx context.Context, name string, arguments map[st
 		arguments = map[string]any{}
 	}
 	var result ToolResult
-	if _, err := c.call(ctx, "tools/call", map[string]any{
+	if err := c.call(ctx, "tools/call", map[string]any{
 		"name":      name,
 		"arguments": arguments,
 	}, &result); err != nil {

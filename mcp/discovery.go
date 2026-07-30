@@ -108,6 +108,25 @@ type promptListResult struct {
 
 type discoveryRPC func(ctx context.Context, method string, params any, out any) error
 
+// listWithCursor is a generic helper for cursor-paginated resource listing.
+// It eliminates dupl across listResources, listResourceTemplates, and listPrompts.
+func listWithCursor[T any](
+	fetchPage func(cursor string) (items []T, nextCursor string, err error)) ([]T, error) {
+	var out []T
+	cursor := ""
+	for {
+		items, nextCursor, err := fetchPage(cursor)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, items...)
+		if nextCursor == "" {
+			return out, nil
+		}
+		cursor = nextCursor
+	}
+}
+
 // DiscoveryClient is the interface for MCP resource and prompt discovery operations.
 type DiscoveryClient interface {
 	ListResources(ctx context.Context) ([]Resource, error)
@@ -279,32 +298,39 @@ func (c *Client) invokeDiscovery(ctx context.Context, method string, params any,
 }
 
 func (c *HTTPClient) invokeDiscovery(ctx context.Context, method string, params any, out any) error {
-	_, err := c.call(ctx, method, params, out)
-	return err
+	return c.call(ctx, method, params, out)
+}
+
+// listWithCache combines cache-check with listWithCursor, eliminating dupl
+// across listResources, listResourceTemplates, and listPrompts.
+func listWithCache[T any](
+	cacheCheck func() ([]T, bool), store func([]T),
+	fetchPage func(cursor string) (items []T, nextCursor string, err error)) ([]T, error) {
+	if cached, ok := cacheCheck(); ok {
+		return cached, nil
+	}
+	out, err := listWithCursor(fetchPage)
+	if err != nil {
+		return nil, err
+	}
+	store(out)
+	return out, nil
 }
 
 func listResources(ctx context.Context, state *discoveryState, rpc discoveryRPC) ([]Resource, error) {
-	if resources, ok := state.cachedResources(); ok {
-		return resources, nil
-	}
-	var out []Resource
-	cursor := ""
-	for {
-		params := map[string]any{}
-		if cursor != "" {
-			params["cursor"] = cursor
-		}
-		var result resourceListResult
-		if err := rpc(ctx, "resources/list", params, &result); err != nil {
-			return nil, err
-		}
-		out = append(out, result.Resources...)
-		if result.NextCursor == "" {
-			state.storeResources(out)
-			return out, nil
-		}
-		cursor = result.NextCursor
-	}
+	return listWithCache(
+		state.cachedResources, state.storeResources,
+		func(cursor string) ([]Resource, string, error) {
+			params := map[string]any{}
+			if cursor != "" {
+				params["cursor"] = cursor
+			}
+			var result resourceListResult
+			if err := rpc(ctx, "resources/list", params, &result); err != nil {
+				return nil, "", err
+			}
+			return result.Resources, result.NextCursor, nil
+		})
 }
 
 func readResource(ctx context.Context, state *discoveryState, rpc discoveryRPC, uri string) (*ReadResourceResult, error) {
@@ -320,51 +346,35 @@ func readResource(ctx context.Context, state *discoveryState, rpc discoveryRPC, 
 }
 
 func listResourceTemplates(ctx context.Context, state *discoveryState, rpc discoveryRPC) ([]ResourceTemplate, error) {
-	if templates, ok := state.cachedResourceTemplates(); ok {
-		return templates, nil
-	}
-	var out []ResourceTemplate
-	cursor := ""
-	for {
-		params := map[string]any{}
-		if cursor != "" {
-			params["cursor"] = cursor
-		}
-		var result resourceTemplateListResult
-		if err := rpc(ctx, "resources/templates/list", params, &result); err != nil {
-			return nil, err
-		}
-		out = append(out, result.ResourceTemplates...)
-		if result.NextCursor == "" {
-			state.storeResourceTemplates(out)
-			return out, nil
-		}
-		cursor = result.NextCursor
-	}
+	return listWithCache(
+		state.cachedResourceTemplates, state.storeResourceTemplates,
+		func(cursor string) ([]ResourceTemplate, string, error) {
+			params := map[string]any{}
+			if cursor != "" {
+				params["cursor"] = cursor
+			}
+			var result resourceTemplateListResult
+			if err := rpc(ctx, "resources/templates/list", params, &result); err != nil {
+				return nil, "", err
+			}
+			return result.ResourceTemplates, result.NextCursor, nil
+		})
 }
 
 func listPrompts(ctx context.Context, state *discoveryState, rpc discoveryRPC) ([]Prompt, error) {
-	if prompts, ok := state.cachedPrompts(); ok {
-		return prompts, nil
-	}
-	var out []Prompt
-	cursor := ""
-	for {
-		params := map[string]any{}
-		if cursor != "" {
-			params["cursor"] = cursor
-		}
-		var result promptListResult
-		if err := rpc(ctx, "prompts/list", params, &result); err != nil {
-			return nil, err
-		}
-		out = append(out, result.Prompts...)
-		if result.NextCursor == "" {
-			state.storePrompts(out)
-			return out, nil
-		}
-		cursor = result.NextCursor
-	}
+	return listWithCache(
+		state.cachedPrompts, state.storePrompts,
+		func(cursor string) ([]Prompt, string, error) {
+			params := map[string]any{}
+			if cursor != "" {
+				params["cursor"] = cursor
+			}
+			var result promptListResult
+			if err := rpc(ctx, "prompts/list", params, &result); err != nil {
+				return nil, "", err
+			}
+			return result.Prompts, result.NextCursor, nil
+		})
 }
 
 func getPrompt(ctx context.Context, state *discoveryState, rpc discoveryRPC, name string, arguments map[string]any) (*PromptResult, error) {
@@ -450,6 +460,35 @@ func (m PromptMessage) AgentMessage() agentcore.Message {
 	return out
 }
 
+// subUnsubResourceTool creates subscribe/unsubscribe tool definitions,
+// consolidating their nearly identical structure.
+func subUnsubResourceTool(prefix, action string, label string, subscribed bool, fn func(context.Context, string) error) *agentcore.Tool {
+	return &agentcore.Tool{
+		Name:        qualifyToolName(prefix, "resources."+action),
+		Description: label + " MCP resource updates by URI.",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"uri": map[string]any{"type": "string"},
+			},
+			"required":             []string{"uri"},
+			"additionalProperties": false,
+		},
+		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+			var in struct {
+				URI string `json:"uri"`
+			}
+			if err := decodeObjectArgs(args, &in, "mcp decode "+action+" resource args"); err != nil {
+				return nil, err
+			}
+			if err := fn(ctx, in.URI); err != nil {
+				return nil, err
+			}
+			return map[string]any{"subscribed": subscribed, "uri": in.URI}, nil
+		},
+	}
+}
+
 func discoveryResourceTools(client DiscoveryClient, prefix string) []*agentcore.Tool {
 	return []*agentcore.Tool{
 		{
@@ -484,54 +523,8 @@ func discoveryResourceTools(client DiscoveryClient, prefix string) []*agentcore.
 				return map[string]any{"resource_templates": templates}, nil
 			},
 		},
-		{
-			Name:        qualifyToolName(prefix, "resources.subscribe"),
-			Description: "Subscribe to MCP resource updates by URI.",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"uri": map[string]any{"type": "string"},
-				},
-				"required":             []string{"uri"},
-				"additionalProperties": false,
-			},
-			Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-				var in struct {
-					URI string `json:"uri"`
-				}
-				if err := decodeObjectArgs(args, &in, "mcp decode subscribe resource args"); err != nil {
-					return nil, err
-				}
-				if err := client.SubscribeResource(ctx, in.URI); err != nil {
-					return nil, err
-				}
-				return map[string]any{"subscribed": true, "uri": in.URI}, nil
-			},
-		},
-		{
-			Name:        qualifyToolName(prefix, "resources.unsubscribe"),
-			Description: "Unsubscribe from MCP resource updates by URI.",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"uri": map[string]any{"type": "string"},
-				},
-				"required":             []string{"uri"},
-				"additionalProperties": false,
-			},
-			Func: func(ctx context.Context, args json.RawMessage) (any, error) {
-				var in struct {
-					URI string `json:"uri"`
-				}
-				if err := decodeObjectArgs(args, &in, "mcp decode unsubscribe resource args"); err != nil {
-					return nil, err
-				}
-				if err := client.UnsubscribeResource(ctx, in.URI); err != nil {
-					return nil, err
-				}
-				return map[string]any{"subscribed": false, "uri": in.URI}, nil
-			},
-		},
+		subUnsubResourceTool(prefix, "subscribe", "Subscribe to", true, client.SubscribeResource),
+		subUnsubResourceTool(prefix, "unsubscribe", "Unsubscribe from", false, client.UnsubscribeResource),
 		{
 			Name:        qualifyToolName(prefix, "resources.read"),
 			Description: "Read one MCP resource by URI.",
@@ -663,132 +656,95 @@ func handleDiscoveryNotification(
 	return nil
 }
 
-func (c *Client) refreshResourceAsync(uri string) {
+// goSafe runs fn in a goroutine with panic recovery.
+func goSafe(fn func()) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("mcp: discovery goroutine panicked", "err", r, "stack", string(debug.Stack()))
 			}
 		}()
-		result, err := readResource(c.bgCtx, c.discovery, c.invokeDiscovery, uri)
+		fn()
+	}()
+}
+
+// refreshResource refreshes a single resource asynchronously.
+// Shared by Client and HTTPClient to eliminate mirror duplication.
+func refreshResource(bgCtx context.Context, d *discoveryState, rpc discoveryRPC, uri string) {
+	goSafe(func() {
+		result, err := readResource(bgCtx, d, rpc, uri)
 		if err != nil {
-			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
+			if d.cfg.AsyncRefreshErrorHandler != nil {
+				d.cfg.AsyncRefreshErrorHandler(bgCtx, err)
 			} else {
 				slog.Warn("mcp: async resource refresh failed", "uri", uri, "err", err)
 			}
 			return
 		}
-		if c.discovery.cfg.ResourceUpdatedHandler != nil {
-			c.discovery.cfg.ResourceUpdatedHandler(c.bgCtx, uri, result)
+		if d.cfg.ResourceUpdatedHandler != nil {
+			d.cfg.ResourceUpdatedHandler(bgCtx, uri, result)
 		}
-	}()
+	})
+}
+
+// refreshResourcesList refreshes resource lists asynchronously.
+// Shared by Client and HTTPClient to eliminate mirror duplication.
+func refreshResourcesList(bgCtx context.Context, d *discoveryState, rpc discoveryRPC) {
+	goSafe(func() {
+		if _, err := listResources(bgCtx, d, rpc); err != nil {
+			if d.cfg.AsyncRefreshErrorHandler != nil {
+				d.cfg.AsyncRefreshErrorHandler(bgCtx, err)
+			} else {
+				slog.Warn("mcp: async resources list refresh failed", "err", err)
+			}
+			return
+		}
+		if _, err := listResourceTemplates(bgCtx, d, rpc); err != nil {
+			if d.cfg.AsyncRefreshErrorHandler != nil {
+				d.cfg.AsyncRefreshErrorHandler(bgCtx, err)
+			} else {
+				slog.Warn("mcp: async resource templates list refresh failed", "err", err)
+			}
+		}
+	})
+}
+
+// refreshPromptsList refreshes the prompts list asynchronously.
+// Shared by Client and HTTPClient to eliminate mirror duplication.
+func refreshPromptsList(bgCtx context.Context, d *discoveryState, rpc discoveryRPC) {
+	goSafe(func() {
+		if _, err := listPrompts(bgCtx, d, rpc); err != nil {
+			if d.cfg.AsyncRefreshErrorHandler != nil {
+				d.cfg.AsyncRefreshErrorHandler(bgCtx, err)
+			} else {
+				slog.Warn("mcp: async prompts list refresh failed", "err", err)
+			}
+		}
+	})
+}
+
+func (c *Client) refreshResourceAsync(uri string) {
+	refreshResource(c.bgCtx, c.discovery, c.invokeDiscovery, uri)
 }
 
 func (c *Client) refreshResourcesListAsync() {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("mcp: discovery goroutine panicked", "err", r, "stack", string(debug.Stack()))
-			}
-		}()
-		if _, err := listResources(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
-			} else {
-				slog.Warn("mcp: async resources list refresh failed", "err", err)
-			}
-			return
-		}
-		if _, err := listResourceTemplates(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
-			} else {
-				slog.Warn("mcp: async resource templates list refresh failed", "err", err)
-			}
-		}
-	}()
+	refreshResourcesList(c.bgCtx, c.discovery, c.invokeDiscovery)
 }
 
 func (c *Client) refreshPromptsListAsync() {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("mcp: discovery goroutine panicked", "err", r, "stack", string(debug.Stack()))
-			}
-		}()
-		if _, err := listPrompts(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
-			} else {
-				slog.Warn("mcp: async prompts list refresh failed", "err", err)
-			}
-		}
-	}()
+	refreshPromptsList(c.bgCtx, c.discovery, c.invokeDiscovery)
 }
 
 func (c *HTTPClient) refreshResourceAsync(uri string) {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("mcp: discovery goroutine panicked", "err", r, "stack", string(debug.Stack()))
-			}
-		}()
-		result, err := readResource(c.bgCtx, c.discovery, c.invokeDiscovery, uri)
-		if err != nil {
-			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
-			} else {
-				slog.Warn("mcp: async resource refresh failed", "uri", uri, "err", err)
-			}
-			return
-		}
-		if c.discovery.cfg.ResourceUpdatedHandler != nil {
-			c.discovery.cfg.ResourceUpdatedHandler(c.bgCtx, uri, result)
-		}
-	}()
+	refreshResource(c.bgCtx, c.discovery, c.invokeDiscovery, uri)
 }
 
 func (c *HTTPClient) refreshResourcesListAsync() {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("mcp: discovery goroutine panicked", "err", r, "stack", string(debug.Stack()))
-			}
-		}()
-		if _, err := listResources(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
-			} else {
-				slog.Warn("mcp: async resources list refresh failed", "err", err)
-			}
-			return
-		}
-		if _, err := listResourceTemplates(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
-			} else {
-				slog.Warn("mcp: async resource templates list refresh failed", "err", err)
-			}
-		}
-	}()
+	refreshResourcesList(c.bgCtx, c.discovery, c.invokeDiscovery)
 }
 
 func (c *HTTPClient) refreshPromptsListAsync() {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("mcp: discovery goroutine panicked", "err", r, "stack", string(debug.Stack()))
-			}
-		}()
-		if _, err := listPrompts(c.bgCtx, c.discovery, c.invokeDiscovery); err != nil {
-			if c.discovery.cfg.AsyncRefreshErrorHandler != nil {
-				c.discovery.cfg.AsyncRefreshErrorHandler(c.bgCtx, err)
-			} else {
-				slog.Warn("mcp: async prompts list refresh failed", "err", err)
-			}
-		}
-	}()
+	refreshPromptsList(c.bgCtx, c.discovery, c.invokeDiscovery)
 }
 
 // Interface assertions.

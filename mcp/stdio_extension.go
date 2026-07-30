@@ -57,18 +57,7 @@ func (e *StdioExtension) Init(_ context.Context, agent *agentcore.Agent) error {
 	e.agent = agent
 	e.toolNames = toolNames(e.tools)
 	if e.client != nil {
-		e.client.SetEventSink(agent.EmitEvent)
-		e.client.AddNotificationHook(func(_ context.Context, method string, _ json.RawMessage) error {
-			if method != "notifications/tools/list_changed" || !e.client.SupportsToolListChanged() {
-				return nil
-			}
-			e.scheduleRefresh()
-			return nil
-		})
-		e.client.AddCapabilityHook(func(_ context.Context, caps ServerCapabilities) {
-			e.emitCapabilitiesEvent(caps)
-		})
-		e.emitCapabilitiesEvent(e.client.Capabilities())
+		e.emitCapabilitiesEvent(initExtensionClient(e.client, agent, e.scheduleRefresh))
 	}
 	return nil
 }

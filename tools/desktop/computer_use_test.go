@@ -318,10 +318,7 @@ func TestCropImageToBounds(t *testing.T) {
 	raw, _ := base64.StdEncoding.DecodeString(makeJPEGBase64(t, 100, 80))
 
 	// 正常裁剪
-	cropped, err := cropImageToBounds(raw, 10, 10, 40, 30)
-	if err != nil {
-		t.Fatalf("cropImageToBounds 失败: %v", err)
-	}
+	cropped := cropImageToBounds(raw, 10, 10, 40, 30)
 	img, err := jpeg.Decode(bytes.NewReader(cropped))
 	if err != nil {
 		t.Fatalf("裁剪结果应为 JPEG: %v", err)
@@ -331,10 +328,7 @@ func TestCropImageToBounds(t *testing.T) {
 	}
 
 	// 部分越界：取交集
-	cropped, err = cropImageToBounds(raw, 90, 70, 50, 50)
-	if err != nil {
-		t.Fatalf("部分越界裁剪失败: %v", err)
-	}
+	cropped = cropImageToBounds(raw, 90, 70, 50, 50)
 	if img, err = jpeg.Decode(bytes.NewReader(cropped)); err != nil {
 		t.Fatalf("裁剪结果应为 JPEG: %v", err)
 	}
@@ -343,16 +337,16 @@ func TestCropImageToBounds(t *testing.T) {
 	}
 
 	// 完全越界：原样返回
-	out, err := cropImageToBounds(raw, 500, 500, 10, 10)
-	if err != nil || !bytes.Equal(out, raw) {
-		t.Errorf("完全越界应原样返回输入，err=%v", err)
+	out := cropImageToBounds(raw, 500, 500, 10, 10)
+	if !bytes.Equal(out, raw) {
+		t.Errorf("完全越界应原样返回输入")
 	}
 
 	// 非法图像数据：原样返回且不报错
 	garbage := []byte("not an image")
-	out, err = cropImageToBounds(garbage, 0, 0, 10, 10)
-	if err != nil || !bytes.Equal(out, garbage) {
-		t.Errorf("非法图像应原样返回且 err 为 nil，err=%v", err)
+	out = cropImageToBounds(garbage, 0, 0, 10, 10)
+	if !bytes.Equal(out, garbage) {
+		t.Errorf("非法图像应原样返回")
 	}
 }
 
