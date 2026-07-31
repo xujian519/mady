@@ -7,14 +7,14 @@
 
 ## 技术栈
 
-- **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` + `./tui` 三个子模块）
+- **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` + `./tui` + `./desktop` 四个子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 1200+ 个 Go 源文件（~820 非测试 + ~400 测试），~281K 行代码
+- 1400+ 个 Go 源文件（~980 非测试 + ~440 测试，不含 vendor），~281K 行代码
 
 ## 构建与测试
 
 ```bash
-# 提交前标准（推荐）：lint + build + race 测试，覆盖根模块 + tools 子模块
+# 提交前标准（推荐）：lint + build + race 测试，覆盖全部四个模块
 make verify
 
 # 构建所有包
@@ -31,17 +31,16 @@ cd tools && go test ./...
 
 ```
 mady/
-├── agentcore/        # 核心 Agent 运行时（105 源 + 66 测试，根目录）
-│   ├── concurrency/  #   并发原语
+├── agentcore/        # 核心 Agent 运行时（113 源 + 69 测试，含子目录）
 │   ├── concurrency/  #   并发原语
 │   ├── evidence/     #   工具调用证据账本（Receipt/Ledger/Claim Binding）
 │   ├── filecheckpoint/ # 文件级快照与回退
 │   ├── iface/        #   接口抽象层（Agent/Extension/Lifecycle/Provider/Event 契约）
 │   ├── permission/   #   细粒度权限门控（Allow/Ask/Deny）
 │   ├── planmode/     #   计划模式工具门控
-│   ├── tasklist/    #   结构化任务管理（4 工具 + FileStore 持久化）
-│   ├── atom.go       #   Pipeline Atoms（可组合原子操作）
-│   ├── plugin.go     #   插件系统（plugin.json + SKILL.md）
+│   ├── tasklist/     #   结构化任务管理（4 工具 + FileStore 持久化）
+│   ├── worker/       #   工作协程（目录/注册/监控）
+│   ├── skill_extension.go # SKILL.md 技能扩展（加载与执行）
 │   ├── reasoning_strategy.go  # 推理策略编排（6 种策略）
 │   ├── reasoning_router.go    # 推理策略路由（三档复杂度分类）
 │   └── manifests/    #   内置领域 manifest JSON（go:embed）
@@ -53,18 +52,24 @@ mady/
 ├── doomloop/         # 死循环检测器（6 种探测器，LifecycleHook 实现）
 ├── domains/          # 领域 Agent 配置 + 推理引擎 + 专利分析模块
 │   ├── claimdrafting/#   权利要求书撰写（LLM 增强撰写 + 6 类规则引擎 + 评分器）
-│   ├── domainconfig/ #   统一领域配置（YAML/JSON 加载 + 校验）
+│   ├── config/       #   领域配置（项目注册 registry.json + 文档风格）
+│   ├── casemgmt/     #   案件管理（registry 索引 + 工作区）
 │   ├── evidence/     #   专利证据判断规则引擎（三性/类型/举证责任/证明标准/日期/可信度）
 │   ├── doctmpl/      #   文档模板库（Markdown + YAML frontmatter）
 │   ├── enablement/   #   26.3 充分公开判断（图引擎 + 领域规则 + 知识库联动）
 │   ├── inventiveness/#   创造性判断图引擎（四轮迭代优化 + 审查模拟）
+│   ├── novelty/      #   新颖性分析（图引擎 + 评分器）
+│   ├── infringement/ #   侵权比对（图引擎 + 规则）
+│   ├── ipc/          #   IPC 分类
+│   ├── checker/      #   撰写检查器（catalog/dispatch/verdict）
+│   ├── provisions/   #   法条条款域 Agent 装配
 │   ├── reasoning/    #   事实黑板、三段论、多跳遍历、五步工作法、规划编译器、拓扑驱动泛化
-│   │   ├── collector/#     上下文收集与路由
 │   │   ├── sqlite/   #     推理持久化
 │   │   └── wiring/   #     装配层（vector/skill/rule 三路适配）
 │   ├── rules/        #   YAML 规则引擎 + OA 解析 + 反套话引擎
 │   ├── specdrafting/ #   说明书撰写（12 节点 Pregel 图 + 规则引擎 + 评分器）
 │   ├── sqlite/       #   领域持久化（approval_store / case_index）
+│   ├── workflows/    #   领域工作流（legal/patent/design）
 │   └── writing/      #   撰写质量评估、模式存储、技能编译器
 ├── graph/            # 图引擎（DAG + Pregel，含 StateSchema/Reducer、NodePolicy、DegradationMark）
 ├── guardrails/       # 三级护栏系统（含引用核验 Gate）
@@ -75,9 +80,11 @@ mady/
 ├── knowledge/        # 知识管理（知识图谱 + 文档加载器 + 风险扫描）
 │   ├── fileindex/    #   文件索引（MD 文件扫描与缓存）
 │   ├── graph/        #   图谱存储/查询/缓存/增量
+│   ├── knowledgeinit/#   知识库初始化
 │   ├── loader/       #   Wiki/Patent/Legal 加载器 + 法条索引构建
 │   ├── risk/         #   风险扫描器（侵权/合规关键词）
-│   └── sqlite/       #   SQLite 只读层（FTS5 全文 + 向量余弦）
+│   ├── sqlite/       #   SQLite 只读层（FTS5 全文 + 向量余弦）
+│   └── standards/    #   IPC 标准（ipc-standards.yaml）
 ├── mcp/              # MCP 客户端（stdio + HTTP/SSE）
 ├── memory/           # 长期记忆系统（三层模型）
 │   └── compiler/     #   策略学习型记忆编译器（时间衰减置信度、质量加权、持久化）
@@ -85,7 +92,7 @@ mady/
 ├── provider/         # LLM 接入层
 │   ├── adapter/      #   Agent 适配器模式（Claude Code / Codex CLI）
 │   ├── chatcompat/   #   OpenAI Chat Completions 兼容
-│   └── smartrouter/  #   智能模型路由
+│   └── sanitizer/    #   PII 脱敏 Provider 包装（请求脱敏 + 响应还原）
 ├── retrieval/        # 检索引擎（关键词/BM25/向量/RRF 混合）
 │   ├── domain/       #   检索域基础抽象
 │   │   └── sqlite/   #     SQLite 域存储
@@ -95,42 +102,43 @@ mady/
 ├── skill/            # SKILL.md 解析器（含 MadyExtension 扩展字段）
 ├── skills/           # 内置技能定义（chat/patent/legal/disclosure）
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块，69 源 + 23 测试）
-│   ├── computer_use*.go  # 桌面控制（macOS/Linux/Windows 三平台 + SOM）
+├── tools/            # 内置工具扩展（独立子模块，74 源 + 23 测试）
+│   ├── desktop/          # 桌面控制（computer_use*.go：macOS/Linux/Windows 三平台 + SOM）
 │   ├── browser_*.go      # 浏览器自动化（stealth/session/recorder/supervisor）
-│   └── browser_providers/# 浏览器提供商抽象
+│   └── browserproviders/ # 浏览器提供商抽象
 ├── tracing/          # OpenTelemetry 追踪（分布式 span 注入）
-├── tui/              # 终端 UI（8 层 Elm 架构）
-│   ├── core/         #   Layer 0: Component 接口
+├── tui/              # 终端 UI（分层 Elm 架构，Layer 0-7）
+│   ├── core/         #   Layer 0: 基础类型与组件接口（含 Cell 级渲染模型）
+│   ├── layout/       #   Layer 0 扩展：布局原语（仅依赖 core）
 │   ├── terminal/     #   Layer 1: 终端 I/O（含 keymap.json 配置文件）
 │   ├── theme/        #   Layer 2: 主题系统（品牌主题 + 颜色模式）
 │   ├── tui.go        #   Layer 3: 引擎层
 │   ├── component/    #   Layer 4: UI 组件（含 ToolCard / StatusBar / Markdown 块缓存）
 │   ├── chat/         #   Layer 5: 聊天应用（含 AppState 显式状态机）
-│   ├── stdio/        #   Layer 6: 过程式 I/O
-│   ├── agentadapter/ #   Layer 7: Agent 适配器
-│   └── layout/       #   Layer 0 扩展：布局原语（仅依赖 core）
+│   └── agentadapter/ #   Layer 7: Agent 适配器（agentcore → chat 事件转换）
 ├── workflows/        # 工作流原语（Pipeline/Parallel/Router）
-├── workflows/        # 领域工作流（legal/patent/autoresearch；专利含无效宣告/侵权比对/复审请求）
-├── benchmark/        # 性能基准测试
-├── evaluate/         # 评估框架（RAGAS 风格，benchmark 跑批 + CLI 引擎 + 校准）
+├── bootstrap/        # 启动装配（disclosure/infringement 适配器 + 知识初始化）
+├── evaluate/         # 评估框架（RAGAS 风格，含 benchmark 跑批 + CLI 引擎 + 校准）
 ├── integration/      # 端到端集成测试（含 doomloop/chain/drafting/guardrails/handoff）
-├── cmd/mady/         # 统一入口（mady tui | mady serve | mady acp | mady eval | mady evidence | mady mcp-install | mady trust-mcp | mady trust-knowledge | mady util | mady patent）
+├── intent/           # 意图分类（keyword/LLM/语义三路）
+├── cmd/mady/         # 统一入口（14 个子命令：tui / serve / acp / eval / evidence / ocr / mcp-install / trust-mcp / trust-knowledge / util / patent / start-embeddings / stop-embeddings / status-embeddings）
 ├── example/          # 示例应用（10 个）
 ├── docs/             # 文档（ADRs、OpenAPI 规范、设计文档、评审报告）
 ├── fuzzy/            # 模糊匹配
 ├── prompt/           # 提示词模板加载器 + 内置模板库（prompt/templates/）
-├── protocol/         # JSON-RPC 协议原语
 ├── plugins/          # 专利工作流插件（novelty-analysis / infringement-check / oa-response）
-├── pluginsys/         # 插件系统加载器（manifest 解析与初始化）
+├── desktop/          # Wails 桌面应用（独立子模块：Go 后端 + React 前端）
 ├── styles/           # 文档风格指南 YAML（patent-standard / legal-standard / chat-friendly / assistant-neutral）
 ├── doc-templates/    # 文档模板库（claims / specification / oa-response / disclosure / legal）
 ├── manifests/        # 外部 manifest 示例
 ├── pkg/
 │   ├── agentconfig/  #   统一 Provider/Model 配置层
 │   ├── csync/        #   并发同步原语
+│   ├── framework/    #   框架装配（DeferredInit 并发原语等）
 │   ├── i18n/         #   国际化（zh-CN / en-US，护栏与通用文案翻译）
 │   ├── lawcite/      #   法条引用解析与归一化（中文数字+条/款/项/之N）
+│   ├── ocr/          #   OCR 识别（ONNX Runtime，多平台）
+│   ├── omlx/         #   oMLX 嵌入服务管理（start/stop/status-embeddings）
 │   ├── util/         #   路径解析、沙箱配置等通用工具
 │   └── vecbytes/     #   向量字节编码
 ```
@@ -144,15 +152,15 @@ mady/
                         |
                    核心引擎层：agentcore
                  /      |       \         \
-        提供者层   工具层(85源)    扩展层    领域扩展层
+        提供者层   工具层(74源)    扩展层    领域扩展层
                  \      |       /         /
          基础设施层：graph/ session/ skill/ prompt/ store/
-                     disclosure/ memory/ fuzzy/
-                     knowledge/ retrieval/ benchmark/ integration/
+                     disclosure/ memory/ fuzzy/ intent/
+                     knowledge/ retrieval/ evaluate/ integration/
                                    |
-                    TUI 层：8-layer Elm 架构（含 layout 层）
+                    TUI 层：分层 Elm 架构（Layer 0-7，含 layout 层）
                                    |
-                    应用入口：cmd/mady（10 子命令） server/  example/
+                    应用入口：cmd/mady（14 子命令） server/  desktop/  example/
 ```
 
 ## 设计约定
@@ -189,7 +197,7 @@ mady-agent (UnifiedAgentConfig)
 
 > 历史说明：v0.3.0 曾用 `IntegratedChatConfig` + `MADY_ROUTER_MODE` / `MADY_SINGLE_AGENT`
 > 环境变量切换三种模式。v0.4.0 起这些已被删除，统一为 `UnifiedAgentConfig` 单一路径
-> （见 `docs/decisions/AI_CHANGELOG.md` 第 1119-1127 行）。
+> （见 `docs/decisions/AI_CHANGELOG.md` 2026-07-23「Agent 三合一」章节，第 3814 行起）。
 
 **核心组件：**
 

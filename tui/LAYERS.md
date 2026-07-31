@@ -19,8 +19,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 ## Rules
 
 - Higher layers may import lower layers; lower layers MUST NOT import higher layers.
-- `tui/stdio` depends on Layer 0, 1, and 2 (core + terminal + theme); it MUST NOT depend on Layer 3–5.
-- `tui/chat` depends on Layer 0–2 and 4 only; it does NOT depend on `tui/stdio` (stdio tools were moved to layout).
+- `tui/chat` depends on Layer 0–2 and 4 only; it does NOT depend on the root `tui` package (stdio-era procedural rendering was removed; all rendering now goes through `core.Component`).
 - `tui/chat` does NOT import `agentcore`. All agentcore integration is in `tui/agentadapter`.
 - `tui/chat` uses `AppHost` interface instead of directly referencing `*TUI`, breaking the cycle.
 - `tui/chat` uses `Subscriber` / `EventSubscriber` interfaces for event subscription, decoupled from agentcore.

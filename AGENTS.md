@@ -6,8 +6,8 @@
 ## 项目概览
 
 Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于专利/法律专业领域智能体。
-核心分层：agentcore（内核，含 doomloop/reasoning_strategy/atom/plugin/evaluate/tasklist）
-→ 领域扩展层（psychological/guardrails/knowledge/retrieval/domains/{claimdrafting,specdrafting,enablement,inventiveness,evidence,workflows}/rules/doctmpl）
+核心分层：agentcore（内核，含 reasoning_strategy/reasoning_router/skill_extension/tasklist/worker）
+→ 领域扩展层（psychological/guardrails/knowledge/retrieval/domains/{claimdrafting,specdrafting,enablement,inventiveness,evidence,workflows,novelty,infringement,ipc}/rules/doctmpl）
     domains/evidence/ — 专利证据判断规则引擎（三性/类型/举证责任/证明标准/日期/可信度）
     domains/workflows/ — 领域工作流（patent/legal/design）
 → 基础设施层（graph/session/store/memory/disclosure/fuzzy/prompt/skill/tracing/
@@ -15,9 +15,9 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 → 通用工具库（pkg/{util,csync,i18n,lawcite,agentconfig,vecbytes}）
 → 协议与接口层（A2A/A2UI/AGUI/ACP/Server/MCP/TUI）
 → 应用入口（cmd/mady, example/）。
-1229 个 Go 源文件（820 非测试 + 409 测试），~281K 行代码。
+1414 个 Go 源文件（977 非测试 + 437 测试），~281K 行代码。
 
-> 文件计数更新时间：2026-07-27。如需获取最新计数，请执行：
+> 文件计数更新时间：2026-07-31。如需获取最新计数，请执行：
 > ```bash
 > find . -name '*.go' | wc -l && find . -name '*_test.go' | wc -l
 > ```
@@ -27,23 +27,25 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 - 构建：`go build ./...`
 - 测试：`go test -race ./...`（并发相关代码必须带 -race）
 - Lint：`golangci-lint run`
-- **提交前必须三者全过**，建议统一使用 `make verify`（lint + build + test-race，覆盖 root + tools 双模块）
+- **提交前必须三者全过**，建议统一使用 `make verify`（lint + build + test-race，覆盖全部四个模块）
 - 日常快速验证：`make all`（vet + build + test，不含 race）
 - 常用快捷命令见 `Makefile`：`make verify`、`make all`、`make test-race`、
   `make lint`、`make build-mady`、`make run-mady`（TUI 入口 `cmd/mady/`）
 
-  `mady` 子命令（入口 `cmd/mady/`）：
+  `mady` 子命令（入口 `cmd/mady/`，共 14 个）：
   - `mady eval` — 评估套件运行器（--suite --format --mode）
   - `mady evidence` — 证据判断 CLI（judge/burden/standard/conflict/type 五子命令）
   - `mady util` — 实用工具（list-prompts 列出可用模板）
   - `mady mcp-install` — 将 Mady 安装到编码 Agent
+  - `mady ocr` — OCR 识别（ONNX Runtime）
+  - `mady start-embeddings` / `stop-embeddings` / `status-embeddings` — oMLX 嵌入服务管理
 
 ### ⚠️ 多模块工作区（重要 gotcha）
 
-本仓库是 `go.work` 多模块结构：根模块 `.` + 独立子模块 `./tools` + `./tui`（各有自己的 `go.mod`）。
-- 根目录执行 `go build/test/vet ./...` **不会**覆盖 `tools/` 和 `tui/` 模块
+本仓库是 `go.work` 多模块结构：根模块 `.` + 独立子模块 `./tools` + `./tui` + `./desktop`（各有自己的 `go.mod`）。
+- 根目录执行 `go build/test/vet ./...` **不会**覆盖 `tools/`、`tui/`、`desktop/` 模块
 - 根模块通过 `replace github.com/xujian519/mady => ../` 引用 tools/tui，反之亦然
-- 对 `tools/` 或 `tui/` 的改动须单独 `cd <模块> && go build ./... && go test ./...`，
+- 对 `tools/`、`tui/` 或 `desktop/` 的改动须单独 `cd <模块> && go build ./... && go test ./...`，
   或用 `make lint` / `make fmt`（Makefile 已封装各模块分支）
 
 ### 提交规范

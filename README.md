@@ -525,17 +525,13 @@ GET/DELETE `/api/states/{key}`。
 
 ## 心理引擎
 
-`psychological/` 是一个基于心理学的对话分析引擎，通过 7 阶段管道分析用户情绪和认知状态。
+`psychological/` 是一个基于心理学的对话分析引擎，通过精简的 3 步管道（`ExecuteFullPipeline`）分析用户情绪状态：
 
-| 阶段 | 模型 | 功能 |
+| 步骤 | 模型 | 功能 |
 |------|------|------|
-| 1 | **VAD** | 三维情绪空间（Valence/Arousal/Dominance） |
-| 2 | **OCC** | 14 种情绪分类评价公式 |
-| 3 | **EMA** | 四维认知评价 + 应对模式检测 |
-| 4 | **Beck CBT** | 13 种认知扭曲检测 |
-| 5 | **SDT** | 自我决定理论跨轮次需求追踪 |
-| 6 | **对话策略匹配** | 9 种策略 |
-| 7 | **管道编排** | 7 阶段顺序执行 + 短路优化 |
+| 1 | **文本信号提取** | 6 类心理信号评分（情感/不确定性/责备/控制/惊讶/目标重要性） |
+| 2 | **VAD 计算** | 三维情绪空间（Valence/Arousal/Dominance）+ 主导情绪分类 |
+| 3 | **策略匹配** | VAD + 情绪 → 对话语调策略（9 种策略） |
 
 纯 Go 标准库实现，零外部依赖。
 
@@ -595,7 +591,7 @@ agent := agentcore.New(agentcore.Config{Extensions: []agentcore.Extension{&MyExt
 | 规则引擎 | `domains/rules/` | YAML 规则查询 + OA 解析 + 反套话分析（opt-in） |
 | MCP 桥接 | `mcp/` | 将外部 MCP 服务器桥接为 Tool |
 | 证据判断 | `domains/evidence/` | 5 个证据工具（三性/举证责任/证明标准/冲突/类型化评价） |
-| 心理引擎 | `psychological/` | 7 阶段心理分析管道 |
+| 心理引擎 | `psychological/` | 3 步心理分析管道（信号 → VAD → 策略匹配） |
 | A2A 远程 Handoff | `a2a/` | 将远程 A2A Agent 注册为 Handoff 目标 |
 | 证据账本 | `agentcore/evidence/` | 工具调用证据 Receipt/Ledger（opt-in） |
 | 文件检查点 | `agentcore/filecheckpoint/` | 文件级快照与回退（opt-in） |
