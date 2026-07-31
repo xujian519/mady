@@ -59,14 +59,11 @@
 │  Layer 7:  Agent Adapter   (tui/agentadapter)            │
 │      Agent 事件 → ChatEvent 转换，BindAgent              │
 ├─────────────────────────────────────────────────────────┤
-│  Layer 6:  Stdio           (tui/stdio)                   │
-│      过程式 stdout/stdin，Spinner/ProgressBar/LineReader  │
-├─────────────────────────────────────────────────────────┤
 │  Layer 5:  Application     (tui/chat)                    │
 │      ChatApp 应用逻辑、ChatHistory、状态机 (FSM)          │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 4:  Components      (tui/component)               │
-│      35 个 UI 组件：Editor/Markdown/SelectList 等         │
+│      41 个 UI 组件：Editor/Markdown/SelectList 等         │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 3:  Engine          (tui 根包)                    │
 │      TUI 容器、事件循环、Overlay 系统、焦点栈              │
@@ -82,6 +79,9 @@
 │      ★ 纯数据层，无 I/O、无主题依赖                        │
 └─────────────────────────────────────────────────────────┘
 ```
+
+> 注：Layer 6（`tui/stdio`，过程式 stdout/stdin 渲染）曾存在，后已移除——
+> 所有渲染统一走 `core.Component` 模型。层编号不连续为既有事实，勿按编号推导依赖。
 
 ### 2.2 依赖规则
 
@@ -309,8 +309,8 @@ type TerminalContext struct {
 
 ```go
 vt := NewVirtualTerminal(80, 24)
-// 注入输入
-vt.Type("hello\x1b[5~") // Ctrl+E
+// 注入输入（CSI 序列：\x1b[5~ 为 Home/PageUp 键，等价于按一次该键）
+vt.Type("hello\x1b[5~")
 // 获取输出
 output := vt.OutputString()
 ```
@@ -358,13 +358,20 @@ JSON 格式，遵循 `theme/json.go` 的变量引用语义：
 - 支持变量引用：`$accent`、`$accent@0.5`（透明度混合）。
 - 主题文件通过文件监控（`theme/watch.go`）支持热重载。
 
-### 6.3 默认主题
+### 6.3 内置主题
+
+注册表（`theme/theme_registry.go`）当前内置 8 个主题：
 
 | 主题 | 特点 | 切换命令 |
 |------|------|----------|
 | `mady-dark`（默认） | 冷色深色主题，Logo 灵感：#0B1120 底 + #38BDF8 Accent | `/theme dark` |
 | `mady-light` | 冰白浅色：#F8FAFC 底 + #0EA5E9 Accent | `/theme light` |
-| `amber` | 暖琥珀可选主题 | `/theme amber` |
+| `tokyo-night` | Tokyo Night 社区配色 | `/theme tokyo-night` |
+| `rose-pine-moon` | Rose Pine Moon 社区配色 | `/theme rose-pine-moon` |
+| `grok-night` | Grok Night 社区配色 | `/theme grok-night` |
+| `high-contrast` | 无障碍：纯黑/白/蓝，WCAG AA 4.5:1 | `/theme high-contrast` |
+| `colorblind` | 无障碍：蓝橙替代红绿（deuteranopia/protanopia safe） | `/theme colorblind` |
+| `auto` | 跟随系统深/浅外观 | `/theme auto` |
 
 ### 6.4 组件视觉规范
 
@@ -478,7 +485,7 @@ type Overlay struct {
 TUI 动效依赖帧重绘，应**克制**：
 
 1. **功能性**：动效服务于状态传达，不装饰。
-2. **低帧率**：最多 125fps（8ms 间隔），默认 60fps。
+2. **低帧率**：最小帧间隔 8ms（上限 125fps），默认 60fps。
 3. **可跳过**：快捷键操作到目标状态应直接跳转，不等待动画完成。
 4. **不闪烁**：避免背景色交替变化（对光敏用户不友好）。
 
@@ -486,7 +493,7 @@ TUI 动效依赖帧重绘，应**克制**：
 
 | 动效 | 实现方式 | 帧率 | 说明 |
 |------|----------|------|------|
-| 加载 Spinner | `core.SpinnerStyle` | interval 80–120ms | `component.Loader` / `stdio.Spinner` |
+| 加载 Spinner | `core.SpinnerStyle` | interval 80–120ms | `component.Loader` |
 | 流式光标 | 光标状态切换 | 500ms 闪烁 | 终端原生管理，非 TUI 帧循环 |
 | 思考块折叠 | `▶`/`▼` 符号 | 即时 | 不逐帧展开 |
 | 工具调用折叠 | 可折叠为单行 | 即时 | 点击展开详情 |
@@ -499,10 +506,10 @@ TUI 动效依赖帧重绘，应**克制**：
 // 核心层提供预设变量：
 var SpinnerDots   = SpinnerStyle{Frames: []string{"⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"}, Interval: 80}
 var SpinnerLine   = SpinnerStyle{Frames: []string{"─","╱","│","╲"}, Interval: 100}
-var SpinnerPulse  = SpinnerStyle{Frames: []string("⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"), Interval: 80}
+var SpinnerBounce = SpinnerStyle{Frames: []string{"⠁","⠂","⠄","⡀","⢀","⠠","⠐","⠈"}, Interval: 100}
 ```
 
-- `SpinnerStyle` 在 `core` 包（Layer 0），因为 `component.Loader`（Layer 4）和 `stdio.Spinner`（Layer 6）都需要引用。
+- `SpinnerStyle` 在 `core` 包（Layer 0），因为 `component.Loader`（Layer 4）需要引用。
 - 自定义：创建新的 `SpinnerStyle` 值即可，无需注册。
 
 ---
@@ -717,84 +724,149 @@ Markdown:   MdHeading > MdLink > MdCode > MdCodeBlock > MdQuote > MdHr
 
 ## 附录 C：文件清单索引
 
+> 文件清单以 `tui/LAYERS.md` 为权威来源（`./tui/scripts/verify_layers.sh` 自动校验）。
+> 以下为同步快照（2026-07-31）：113 源 + 63 测试，跨 9 个包。
+
 ```
 tui/
-├── LAYERS.md              # 架构层级定义（推荐先读此文件）
+├── LAYERS.md              # 架构层级定义（推荐先读此文件，verify_layers.sh 校验）
 ├── doc.go                 # 包文档
-├── tui.go                 # TUI 容器 + TUIOptions
-├── tui_loop.go            # 事件循环
-├── tui_lifecycle.go       # Start/Stop/Quit/Every
-├── tui_input.go           # 消息处理、Cmd 执行
-├── tui_render.go          # 渲染管线（差分/全帧）
-├── tui_focus.go           # 焦点栈 + Overlay 栈
-├── overlay.go             # Overlay 类型 + 组合器
-├── chat_bridge.go         # NewChatApp 便利构造器
+├── tui.go                 # TUI 容器 + TUIOptions（271 行）
+├── tui_loop.go            # 事件循环（lifecycle/render/input 枢纽）
+├── tui_lifecycle.go       # Start/Stop/Quit/Done/Context/Tick/Every
+├── tui_input.go           # processMsg、Cmd 执行、鼠标模式
+├── tui_render.go          # RequestRender、renderFrame、normalizeLine
+├── tui_focus.go           # 焦点栈 + Overlay 栈管理
+├── overlay.go             # Overlay 类型 + 组合器（573 行）
+├── chat_bridge.go         # NewChatApp 便利构造器 + tuiAppHost 适配器
 │
-├── core/                  # Layer 0 (11源 + 5测试)
-│   ├── component.go       # Component/Sizer/Updatable/Focusable
-│   ├── message.go         # Msg/Cmd/Batch/Sequence
-│   ├── cell.go            # Cell/Row/CellGrid
-│   ├── celldiff.go        # DiffRows/DiffFrame
-│   ├── cellparse.go       # ParseLine: string → Row
-│   ├── cellrender.go      # SerializeRow: Row → ANSI string
-│   ├── sgr.go             # ParseSGR/BuildSGR
-│   ├── width.go           # East-Asian width/truncation/wrap
+├── core/                  # Layer 0 (14源 + 7测试)
+│   ├── component.go       # Component/Sizer/Updatable/Focusable + Container
+│   ├── message.go         # Msg/Cmd 类型、Batch/Sequence/Quit、MsgBase
+│   ├── errors.go          # 三层错误模型 TermError/NetError/LogicError
+│   ├── width.go           # East-Asian width/truncation/padding/wrap
 │   ├── runeutil.go        # 字符工具
 │   ├── fuzzy_match.go     # 模糊匹配
-│   └── spinner_style.go   # SpinnerStyle + 预设
+│   ├── spinner_style.go   # SpinnerStyle + 预设
+│   ├── cell.go            # Cell/Row 类型、CellGrid
+│   ├── celldiff.go        # 帧级差分 DiffRows（严于字符串 diff）
+│   ├── cellparse.go       # ParseLine: string → Row
+│   ├── cellrender.go      # SerializeRow: Row → ANSI string
+│   ├── sgr.go             # ParseSGR/BuildSGR（宽松参数解析）
+│   ├── sanitize.go        # SanitizeRawContent：剥离危险转义序列
+│   └── stack.go           # CaptureStack：PanicMsg 诊断栈捕获
 │
-├── layout/                # Layer 0 (2源 + 1测试)
-│   ├── layout.go          # 布局辅助
-│   └── flex.go            # Flex 声明式布局
+├── layout/                # Layer 0 (3源 + 2测试)
+│   ├── breakpoint.go      # LayoutBreakpoint + DetectLayoutBreakpoint
+│   ├── flex.go            # Flex 声明式布局（506 行）
+│   └── layout.go          # 布局辅助
 │
-├── terminal/              # Layer 1 (8源 + 4测试)
+├── terminal/              # Layer 1 (9源 + 8测试)
+│   ├── keys.go            # Key 解析、MatchesKey、Kitty 协议、KeyID
+│   ├── keybindings.go     # KeybindingsManager、DefaultKeybindings
+│   ├── stdin_buffer.go    # StdinBuffer 碎片重组
 │   ├── terminal.go        # Terminal 接口 + ProcessTerminal + VirtualTerminal
-│   ├── keys.go            # Key/KeyEventType/KeyID 解析
-│   ├── keybindings.go     # KeybindingsManager
-│   ├── stdin_buffer.go    # StdinBuffer
-│   ├── ansi.go            # ANSI 构造器
+│   ├── ansi.go            # ANSI 构造器（纯函数）
+│   ├── detect.go          # 终端能力检测（色彩/Kitty/品牌）
 │   ├── terminal_darwin.go # macOS termios
 │   ├── terminal_linux.go  # Linux termios
 │   └── terminal_other.go  # 其他系统回退
 │
-├── theme/                 # Layer 2 (7源 + 5测试)
-│   ├── style.go           # Style/Color/Attr
-│   ├── semantic_theme.go  # SemanticTheme + 默认值
-│   ├── palette.go         # Palette + 构建
-│   ├── color_resolve.go   # 颜色模式检测
+├── theme/                 # Layer 2 (13源 + 5测试)
+│   ├── a11y_themes.go     # 无障碍主题（high-contrast / colorblind）
+│   ├── style.go           # ANSI Style/Color/Attr/符号/光标辅助
+│   ├── color_resolve.go   # 颜色模式检测、RGB→256
+│   ├── semantic_theme.go  # SemanticTheme + 默认值（light/dark）
+│   ├── palette.go         # Palette + CurrentPalette + BuildPalette
 │   ├── global.go          # SetSemanticTheme/InitThemeFromEnv
-│   ├── json.go            # JSON 主题解析
-│   └── watch.go           # 主题文件热重载
+│   ├── json.go            # JSON 主题解析（变量引用）
+│   ├── watch.go           # 文件监控热重载（mtime 轮询）
+│   ├── watchutil.go       # runWithRestart：watcher panic 恢复
+│   ├── aliases.go         # 颜色别名（name → hex）
+│   ├── quantize.go        # 颜色量化（RGB→16 ANSI）
+│   ├── system_appearance.go # macOS NSAppearance 检测
+│   └── theme_registry.go  # 主题注册表（8 内置主题）
 │
-├── component/             # Layer 4 (35源 + 11测试)
-│   ├── core/              # Box/Text/Input/Viewport
-│   ├── content/           # Markdown/Syntax/Image/Loader
-│   ├── cards/             # ToolCard/ApprovalCard/EvidenceCard
-│   ├── panels/            # SessionSelector/SkillCenter/Settings
-│   └── widgets/           # Autocomplete/Table/SelectList
+├── component/             # Layer 4 (41源 + 24测试)
+│   ├── autocomplete.go    # Autocomplete 下拉 + StaticProvider
+│   ├── box.go             # Box（边框/内边距容器）
+│   ├── text.go            # Text、TruncatedText
+│   ├── input.go           # 单行输入编辑器
+│   ├── keyhelp.go         # 快捷键速查表
+│   ├── loader.go          # 动画 Spinner 组件
+│   ├── markdown.go        # Markdown 渲染（块级解析 + 渲染）
+│   ├── selectlist.go      # 可过滤选择列表
+│   ├── statusbar.go       # StatusBar
+│   ├── settings.go        # Settings 面板
+│   ├── image.go           # Kitty/iTerm2/HalfBlock/ASCII 图像
+│   ├── viewport.go        # 可滚动视口
+│   ├── table.go           # 表格渲染
+│   ├── fuzzy_provider.go  # FuzzyContentProvider
+│   ├── footer.go          # 底部快捷键栏（响应式）
+│   │
+│   ├── domain.go          # DomainMessage/DomainAction 数据模型
+│   ├── evidence_card.go   # 证据卡片
+│   ├── conclusion_card.go # 结论卡片（置信度条/证据计数）
+│   ├── confidence_bar.go  # 置信度条可视化
+│   ├── approval_card.go   # 批准门卡片
+│   ├── tool_card.go       # 工具调用结果卡片
+│   ├── evidence_overlay.go # EvidenceOverlay 可滚动知识源
+│   ├── judgment_view.go   # JudgmentView 判断摘要面板（386 行）
+│   ├── review_gate.go     # ReviewGate 复核清单 Overlay（577 行）
+│   ├── session_selector.go # SessionSelector 会话选择（545 行）
+│   ├── command_center.go  # CommandCenter Ctrl+P 命令面板
+│   ├── debug_overlay.go   # DebugOverlay 诊断面板
+│   ├── skill_center.go    # SkillCenter 技能中心
+│   ├── system_status.go   # SystemStatus 系统模式显示
+│   ├── todo_panel.go      # TodoPanel 任务跟踪
+│   ├── toast.go           # Toast 瞬态通知
+│   ├── onboarding.go      # FirstRunWizard 首次引导
+│   │
+│   ├── syntax.go          # 语法高亮核心（313 行）
+│   ├── syntax_langs.go    # 内置语言规格
+│   ├── syntax_tokenizer.go # 语法高亮分词器
+│   │
+│   ├── editor.go          # Editor 核心结构（392 行）
+│   ├── editor_chip.go     # Editor 内联 chips
+│   ├── editor_edit.go     # Editor 按键分发与编辑原语（553 行）
+│   ├── editor_render.go   # Editor 渲染与鼠标命中（324 行）
+│   ├── editor_history.go  # Editor 撤销/重做栈（182 行）
+│   └── editor_killring.go # Editor Emacs kill-ring（126 行）
 │
-├── chat/                  # Layer 5 (14源 + 5测试)
-│   ├── chat_app.go        # ChatApp 构造器 + API
-│   ├── chat_app_layout.go # chatLayout 根组件
-│   ├── chat_app_stream.go # 流式生命周期
-│   ├── chat_app_tool.go   # 工具/Handoff 处理
-│   ├── chat_history*.go   # 聊天历史（6文件）
-│   ├── state.go           # 显式状态机 (FSM)
-│   ├── events.go          # ChatEvent 类型
-│   └── clipboard.go       # 剪切板
+├── chat/                  # Layer 5 (22源 + 6测试)
+│   ├── chat_app.go        # ChatApp 构造器 + 公开 API（1060 行）
+│   ├── chat_app_layout.go # chatLayout 根组件 + 输入路由（582 行）
+│   ├── chat_app_plantask.go # PlanTask 状态/批准/中断处理器（40 行）
+│   ├── chat_app_stream.go # 流式生命周期（submit/delta/end/error）
+│   ├── chat_app_tool.go   # 工具/Handoff/turn/压缩处理器
+│   ├── chat_app_todo.go   # TodoPanel 集成
+│   ├── chat_history.go    # ChatHistory 滚动转录（566 行）
+│   ├── chat_history_render.go        # 渲染管线（视口/分隔线）
+│   ├── chat_history_render_message.go # 单消息渲染（角色分发/卡片路由）
+│   ├── chat_history_render_highlight.go # 文本选中高亮
+│   ├── chat_history_input.go         # 输入与视口滚动、鼠标
+│   ├── chat_history_selection.go     # 选区业务逻辑
+│   ├── events.go          # ChatEvent 类型（23 种）+ Subscriber 接口
+│   ├── state.go           # 显式 FSM（9 状态，249 行）
+│   ├── reasoning.go       # 思考块渲染
+│   ├── clipboard.go       # 剪切板（pbcopy/xclip/win32）
+│   ├── layout_editor.go   # Editor 帧布局辅助
+│   ├── layout_shortcuts.go # 复制/剪切板快捷键
+│   ├── chat_builder.go    # ChatApp builder 模式
+│   ├── chat_display.go    # 显示格式化
+│   ├── chat_host.go       # AppHost 接口族（ISP 拆分）
+│   └── chat_model.go      # 会话数据模型
 │
-├── stdio/                 # Layer 6 (5源 + 1测试)
-│   ├── renderer.go        # 流式 Markdown 渲染
-│   ├── spinner.go         # 过程式 Spinner
-│   ├── progress.go        # ProgressBar
-│   ├── linereader.go      # 行读取器
-│   └── layout.go          # 布局辅助
+├── agentadapter/          # Layer 7 (1源 + 2测试)
+│   └── adapter.go         # BindAgent + 23 种事件转换（370 行）
 │
-└── agentadapter/          # Layer 7 (1源 + 1测试)
-    └── adapter.go         # BindAgent + 事件转换
+└── internal/              # 内部辅助（不导出）
+    └── csync/             # 并发切片
 ```
+
+> 注：Layer 6 `tui/stdio/` 已移除（2026-07 架构简化），不再列入。
 
 ---
 
 > 本文档受 TUI 架构演进驱动，持续更新。
-> 最新同步：2026-07-25 | 配套文件：`tui/LAYERS.md` | 版本：v1.0
+> 最新同步：2026-07-31 | 配套文件：`tui/LAYERS.md` | 版本：v1.1

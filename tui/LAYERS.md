@@ -10,7 +10,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 | 2 Theming | `tui/theme` | Palette, semantic theme, a11y theme, JSON loading, file watch, Style | Layer 0, 1 |
 | 3 Engine | `tui` (root) | TUI container, event loop, overlay system, focus stack, ChatApp bridge | Layer 0–2, chat |
 | 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels, toast, onboarding) — 41 source files | Layer 0–2, fuzzy |
-| 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 17 source files | Layer 0–2, 4 |
+| 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 22 source files | Layer 0–2, 4 |
 | 7 Adapter | `tui/agentadapter` | Agentcore → chat event conversion, BindAgent convenience | Layer 5, agentcore |
 
 > `tui/layout` 在编号上归入 Layer 0（仅依赖 `tui/core`，不依赖 theming/agentcore），
@@ -28,8 +28,8 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 113 source files (+ 64 test files) across 9 packages.
-> Last sync: 2026-07-30.
+> Auto-verified: 113 source files (+ 63 test files) across 9 packages.
+> Last sync: 2026-07-31.
 
 ```
 tui/
@@ -126,7 +126,7 @@ tui/
 │   ├── flex.go            # Flex declarative layout (main-axis size policies, 506 lines)
 │   └── layout.go          # Layout helpers
 │
-├── chat/                  # Layer 5 — Application (18 source files)
+├── chat/                  # Layer 5 — Application (22 source files)
 │   ├── chat_app.go        # ChatApp struct, constructor, public API (1060 lines)
 │   ├── chat_app_layout.go # chatLayout root Component + input router (582 lines)
 │   ├── chat_app_plantask.go # PlanTask state/approval/interrupt/reject/revise handlers (40 lines)
@@ -139,7 +139,7 @@ tui/
 │   ├── chat_history_render_highlight.go # Text-selection highlighting
 │   ├── chat_history_input.go         # ChatHistory input & viewport scrolling, mouse handling
 │   ├── chat_history_selection.go     # ChatHistory selection business logic
-│   ├── events.go          # ChatEvent types (15 events), Subscriber/EventSubscriber interfaces
+│   ├── events.go          # ChatEvent types (23 events), Subscriber/EventSubscriber interfaces
 │   ├── state.go           # Explicit FSM over ChatApp interaction states (249 lines)
 │   ├── reasoning.go       # Reasoning/thinking block rendering
 │   ├── clipboard.go       # Clipboard helpers (pbcopy/xclip/win32)
