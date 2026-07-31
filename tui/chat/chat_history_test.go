@@ -114,6 +114,54 @@ func TestChatHistoryScrollbarTransition(t *testing.T) {
 	}
 }
 
+// TestChatHistoryCJKReplyNoDroppedRunes 是 CJK 换行丢字的端到端回归测试。
+// 修复前：findBreakColumn 在 2 列宽汉字放不下时返回裸 width（落在字符中间），
+// SliceByColumn 随后把跨边界汉字整个丢弃——长中文回复每行末尾都丢字，
+// 表现为"输出总是被截断"。修复后 wrap 断点始终落在完整字形边界。
+func TestChatHistoryCJKReplyNoDroppedRunes(t *testing.T) {
+	h := NewChatHistory()
+	reply := strings.Join([]string{
+		"根据专利法第26条第3款的规定，权利要求书应当以说明书为依据，清楚、简要地限定要求专利保护的范围。",
+		"",
+		"本发明的技术方案包括以下步骤：",
+		"1. 获取用户输入的技术特征；",
+		"2. 基于所述技术特征构建检索式；",
+		"3. 将检索结果与权利要求进行要素级比对。",
+		"",
+		"**有益效果**：通过上述方案，能够提高检索准确率，`claim 1` 的技术特征得到完整覆盖。",
+	}, "\n")
+	h.Append(ChatMessage{Role: RoleAssistant, Text: reply})
+	h.SetMaxRows(30)
+
+	width := int64(60)
+	lines := h.Render(width)
+	joined := strings.Join(lines, "\n")
+
+	// 所有渲染行不得超过视口宽度（scrollbar 占 1 列，内容宽度实际为 width-1）。
+	for i, ln := range lines {
+		if w := core.VisibleWidth(ln); w > width {
+			t.Errorf("line %d width %d > %d: %q", i, w, width, ln)
+		}
+	}
+	// 段落不得被截断成省略号。
+	if strings.Contains(core.StripAnsi(joined), "…") {
+		t.Errorf("unexpected ellipsis truncation:\n%s", joined)
+	}
+	// 关键内容必须完整出现（markdown 标记会被样式替换，仅校验纯文本片段）。
+	for _, frag := range []string{
+		"根据专利法第26条第3款的规定",
+		"获取用户输入的技术特征",
+		"构建检索式",
+		"要素级比对",
+		"提高检索准确率",
+		"claim 1",
+	} {
+		if !strings.Contains(core.StripAnsi(joined), frag) {
+			t.Errorf("reply fragment missing: %q\nframe:\n%s", frag, joined)
+		}
+	}
+}
+
 func TestChatHistoryScroll(t *testing.T) {
 	h := NewChatHistory()
 	for i := 0; i < 30; i++ {

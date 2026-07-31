@@ -275,6 +275,11 @@ func PadToWidth(s string, width int64) string {
 // SliceByColumn returns the substring covering visible columns [start, end).
 // ANSI escapes inside the range are preserved; a reset is appended if the
 // slice starts or ends inside a styled region.
+//
+// A wide (2-cell) rune that begins before start but overlaps the range is
+// included rather than dropped: dropping it would silently delete visible
+// characters whenever a caller slices at a mid-glyph column (which CJK wrap
+// and mouse selection can legitimately do).
 func SliceByColumn(s string, start, end int64) string {
 	if end <= start {
 		return ""
@@ -306,7 +311,7 @@ func SliceByColumn(s string, start, end int64) string {
 		if col+rw > end {
 			break
 		}
-		if col >= start {
+		if col+rw > start {
 			b.WriteString(s[i : i+size])
 		}
 		col += rw
@@ -359,8 +364,14 @@ func wrapOneLine(line string, width int64) []string {
 }
 
 // findBreakColumn returns the column at which to wrap the string: the column
-// right after the last whitespace that fits within width. Falls back to
-// width itself if there is no suitable whitespace.
+// right after the last whitespace that fits within width. Falls back to the
+// last complete-glyph boundary if there is no suitable whitespace.
+//
+// The returned column is always a rune boundary: when a wide (2-cell) rune
+// would exceed width, we return the column of the last fully-fitting rune
+// instead of width itself. Returning a mid-glyph column would make the
+// SliceByColumn calls in wrapOneLine drop that boundary rune entirely —
+// visible as missing characters at the end of every wrapped CJK line.
 func findBreakColumn(s string, width int64) int64 {
 	var col int64
 	var lastWS int64 = -1
@@ -383,6 +394,9 @@ func findBreakColumn(s string, width int64) int64 {
 		if col+rw > width {
 			if lastWS > 0 {
 				return lastWS
+			}
+			if col > 0 {
+				return col // last complete-glyph boundary
 			}
 			return width
 		}

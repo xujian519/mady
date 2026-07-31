@@ -1,6 +1,9 @@
 package core
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestVisibleWidth(t *testing.T) {
 	cases := []struct {
@@ -51,6 +54,49 @@ func TestWrapAnsi(t *testing.T) {
 	}
 	if len(lines) < 2 {
 		t.Errorf("expected multiple wrapped lines, got %d", len(lines))
+	}
+}
+
+// TestWrapAnsiCJKNoDrop verifies that hard-wrapping CJK text never drops a
+// wide (2-cell) rune at a width boundary. The pre-fix findBreakColumn
+// returned the raw width even when it landed mid-glyph, and SliceByColumn
+// then skipped that boundary rune entirely — every wrapped Chinese line lost
+// its last character, i.e. "输出总是被截断".
+func TestWrapAnsiCJKNoDrop(t *testing.T) {
+	text := "中文换行测试文本内容较长用于验证宽度边界处是否丢字"
+	width := int64(10)
+	lines := WrapAnsi(text, width)
+	var joined string
+	for _, ln := range lines {
+		joined += StripAnsi(ln)
+	}
+	if joined != text {
+		t.Errorf("WrapAnsi dropped runes:\n got %q\nwant %q", joined, text)
+	}
+	for i, ln := range lines {
+		if w := VisibleWidth(ln); w > width {
+			t.Errorf("line %d width %d > %d: %q", i, w, width, ln)
+		}
+	}
+}
+
+// TestWrapAnsiCJKASCIINoDrop covers the common mixed ASCII+CJK reply text.
+// Whitespace at wrap boundaries is intentionally trimmed (standard
+// line-breaking), so the assertion compares the non-space character
+// sequence: every glyph must survive, spaces may be dropped at breaks.
+func TestWrapAnsiCJKASCIINoDrop(t *testing.T) {
+	text := "根据专利法第26条第3款的规定，权利要求书应当以说明书为依据，claim 1 需要进一步限定。"
+	width := int64(20)
+	lines := WrapAnsi(text, width)
+	joined := strings.Join(lines, "")
+	noSpace := func(s string) string { return strings.ReplaceAll(StripAnsi(s), " ", "") }
+	if noSpace(joined) != noSpace(text) {
+		t.Errorf("WrapAnsi dropped runes:\n got %q\nwant %q", joined, text)
+	}
+	for i, ln := range lines {
+		if w := VisibleWidth(ln); w > width {
+			t.Errorf("line %d width %d > %d: %q", i, w, width, ln)
+		}
 	}
 }
 

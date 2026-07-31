@@ -1,5 +1,17 @@
 # AI 变更记录
 
+## 2026-07-31: fix(tui) 修复 CJK 换行丢字 — 长中文回复"总是被截断"根因
+
+**背景**：用户长期反馈 TUI 智能体中文回复"输出总是被截断、格式可读性差"。根因定位到 `tui/core/width.go` 的硬换行链路：`wrapOneLine` → `findBreakColumn` → `SliceByColumn`。`findBreakColumn` 在 2 列宽汉字放不下时返回裸 `width`（可能落在宽字符中间），`SliceByColumn` 以 `col >= start` 判定写入，把跨边界宽字符整个丢弃——每行宽度边界丢一个汉字（如"说明书"断成"说明"+丢"书"）。中文回复几乎每行都触发，累积丢失大量字符。纯中文+偶数列宽度（如 10）恰好边界对齐，掩盖了 bug；混合 ASCII+CJK 文本（含数字/英文 claim 号）必然复现。
+
+**改动清单**：
+1. `tui/core/width.go` — `findBreakColumn` 在字符放不下时返回最后一个完整字形的边界列 `col`（而非裸 `width`），保证 wrap 断点永远落在字形边界；`col == 0` 时回退原行为防死循环
+2. `tui/core/width.go` — `SliceByColumn` 写入条件 `col >= start` → `col+rw > start`：跨 start 边界的宽字符保留而非丢弃（wrap、鼠标文本选择复制均受益）
+3. `tui/core/width_test.go` — 新增 `TestWrapAnsiCJKNoDrop`（纯中文）与 `TestWrapAnsiCJKASCIINoDrop`（混合，修复前失败）回归测试
+4. `tui/chat/chat_history_test.go` — 新增端到端回归 `TestChatHistoryCJKReplyNoDroppedRunes`：典型中文回复经 markdown → wrap → scrollbar 全链路渲染，断言行不超宽、无省略号截断、关键片段完整
+
+**验证**：`tui` 模块 gofmt / go build / `go test ./...` 全过；修复前 `TestWrapAnsiCJKASCIINoDrop` 复现丢字（"第26条第3款"→"第3"丢"款"），修复后字符完整。
+
 ## 2026-07-31: style(tui) 输入区移除整行背景色块，恢复上下边框分隔
 
 **背景**：2e28890「输入区视觉重构」将输入区改为 Claude Code 风格整行背景色块（`editorFrame` 每行注入 `SurfaceBg` 背景）。用户反馈不需要该色块渲染，选择恢复 2e28890 之前的上下 `▌`（BorderMuted）边框行分隔，输入区与消息区保持视觉分界。
