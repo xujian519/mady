@@ -79,10 +79,14 @@ tui/
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
 │   ├── text.go            # Text, TruncatedText
-│   ├── input.go           # Single-line input editor
+│   ├── input.go           # Single-line input editor (component API + rendering) (267 lines)
+│   ├── input_edit.go      # Input editing primitives (keys, delete family, kill-ring) (423 lines)
 │   ├── keyhelp.go         # Keybindings cheat sheet
 │   ├── loader.go          # Animated spinner component (callback-based, uses core.SpinnerStyle)
-│   ├── markdown.go        # Markdown rendering (block-level parser + renderer)
+│   ├── markdown.go        # Markdown component + block cache (321 lines)
+│   ├── markdown_parse.go  # Markdown block parser (ATX headings, lists, tables) (370 lines)
+│   ├── markdown_inline.go # Markdown inline styles (bold/italic/code/links) (49 lines)
+│   ├── markdown_render.go # Markdown block rendering + tables (339 lines)
 │   ├── selectlist.go      # Selectable list with fuzzy filter
 │   ├── statusbar.go       # StatusBar
 │   ├── settings.go        # Settings panel
