@@ -1,5 +1,30 @@
 # AI 变更记录
 
+## 2026-07-31: docs(tui) 阶段一文档同步——移除 stdio 死引用、修正文件计数与事件数
+
+**背景**：TUI 规范符合度审阅报告（`docs/review/tui-spec-compliance-review-2026-07-31.md`）
+识别出 P0-1/P0-4/P1-2/P1-3/P1-4/P1-7 等文档漂移问题，按报告 §11 修复状态追踪执行阶段一。
+
+**改动清单**：
+1. `tui/doc.go`：移除 Layer 6（stdio）与"two parallel rendering models"描述；
+   架构改为"7 Layers"并注明 Layer 6 历史移除；组件数 35+ → 41；
+   agentadapter 标注 23 事件类型、删除 Optional 措辞（实为硬依赖）。
+2. `tui/LAYERS.md`：chat 文件数 17/18 → 22；测试文件总数 64 → 63；
+   events.go 注释 15 → 23 种事件；同步日期更新；`verify_layers.sh` 校验通过。
+3. `docs/tui-design-specification.md`（v1.0 → v1.1）：§2.1 架构图移除 Layer 6 并加注；
+   §6.3 主题清单 3 个 → 8 个内置主题；§8.1 帧率表述修正；
+   §8.2/§8.3 移除 stdio 引用、SpinnerPulse → SpinnerBounce（与实现统一）；
+   §5.4 示例注释修正（`\x1b[5~` 为 Home/PageUp 键，非 Ctrl+E）；
+   附录 C 文件清单全面重写并与 LAYERS.md 同步。
+4. `docs/review/tui-spec-compliance-review-2026-07-31.md`：修正 P1-7 表述（目录树文件
+   齐全，仅标头计数错误）；新增 §11 修复状态追踪。
+
+**设计决策**：层编号保留不连续（Layer 6 空缺）而非重编号，避免大规模连锁修改；
+规范附录 C 标注"以 LAYERS.md 为权威来源"（verify_layers.sh 自动校验）。
+
+**影响**：阶段一 12/22 项差距关闭（P0 中 2 项、P1 中 5 项）；剩余 P0-2/P0-3/P1-1/P1-5
+等代码侧问题进入阶段二/三。
+
 ## 2026-07-31: docs(review) TUI 模块规范符合度全量审阅——4 P0 + 7 P1 + 6 P2 + 5 P3
 
 **背景**：依据 `docs/tui-design-specification.md`（v1.0）对 TUI 模块进行全量质量审阅，
