@@ -38,7 +38,7 @@
 //	  lifecycle management (Start/Stop/Quit/Tick/Every), message dispatch.
 //
 //	Layer 4 — Components (tui/component)
-//	  41 UI components: Editor, Markdown, autocomplete, selectlist,
+//	  45 UI components: Editor, Markdown, autocomplete, selectlist,
 //	  statusbar, table, syntax highlighter, domain cards (evidence,
 //	  conclusion, approval, tool-call, review gate), overlays
 //	  (command palette, skill center, session selector, system status).
