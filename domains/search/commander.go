@@ -289,6 +289,12 @@ func (c *Commander) Run(ctx context.Context, req Request) (*Report, error) {
 		perRound = c.perRound
 	}
 
+	// 国家过滤透传（cn/global），供检索器决定源内过滤。
+	// 在副本上注入，避免就地修改调用方持有的 req.Filters map。
+	if req.Country != "" {
+		req.Filters = ensureFilter(cloneFilters(req.Filters), "country", req.Country)
+	}
+
 	report := &Report{
 		Target:   strings.TrimSpace(req.Query),
 		Strategy: strategy.Name,
@@ -344,6 +350,12 @@ func (c *Commander) Run(ctx context.Context, req Request) (*Report, error) {
 	if report.Conclusion == "" {
 		report.Conclusion = fmt.Sprintf("共执行 %d 轮检索，收集对比文件 %d 篇。%s",
 			len(report.Rounds), len(report.Table), report.GapsText())
+	}
+
+	// 全部轮次均失败（检索器不可用）时返回 error，调用方才能区分
+	// "检索器挂了" 与 "正常无结果"。部分轮次失败已记入 Gaps，不阻塞。
+	if len(report.Rounds) == 0 && len(gaps) > 0 {
+		return nil, fmt.Errorf("search commander: 所有检索轮次均失败: %s", strings.Join(gaps, "; "))
 	}
 	return report, nil
 }
