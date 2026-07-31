@@ -1,5 +1,14 @@
 # AI 变更记录
 
+## 2026-07-31: fix(desktop) CI 修复 — pnpm-workspace.yaml 补 packages 字段（desktop job 变绿）
+
+**背景**：push 触发 CI run #418（head 797e879）中 desktop job 失败：`pnpm install --frozen-lockfile` 报 `ERROR packages field missing or empty`。根因：`desktop/frontend/pnpm-workspace.yaml` 仅有 pnpm 10 的 `allowBuilds` 字段、缺 `packages` 字段，pnpm 9（CI 用 pnpm/action-setup@v4 version:9）检测到 workspace 文件但 packages 缺失即报错。该文件自引入以来未改过，此前 desktop job 无前端步骤故从未暴露；本次提交新增前端链路后首次触发。
+
+**改动清单**：
+1. `desktop/frontend/pnpm-workspace.yaml` — 顶部新增 `packages: ["."]`（单包项目声明当前目录为 workspace 包）；保留 `allowBuilds: {esbuild: true}`（pnpm 10 本地开发用）
+
+**验证**：pnpm 9.15.9（CI 版本）install --frozen-lockfile + vitest 100/100 + Playwright chromium E2E 10/10 全链路通过；pnpm 10.33.4 全新安装通过（双版本兼容）。修复已提交推送，等待 CI 复跑确认变绿。
+
 ## 2026-07-31: fix(desktop) 代码审查修复 — SendAction 生产闭环真实化 + 并发/性能修复
 
 **背景**：/code-review 全量审查（10 角度并行）发现上一轮闭环修复存在关键盲点：A2UIPromise 仅在测试中安装、生产路径按钮点击 action 被静默丢弃；desktop 未装配会话 Store 导致 agent 不入池。多角度交叉证实后全部修复。
