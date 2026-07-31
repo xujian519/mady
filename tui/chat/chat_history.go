@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/theme"
@@ -796,7 +797,9 @@ func (h *ChatHistory) SearchBackspace() {
 	if !h.searchActive || len(h.searchQuery) == 0 {
 		return
 	}
-	h.searchQuery = h.searchQuery[:len(h.searchQuery)-1]
+	// Trim one rune, not one byte — byte slicing would corrupt UTF-8 input.
+	_, size := utf8.DecodeLastRuneInString(h.searchQuery)
+	h.searchQuery = h.searchQuery[:len(h.searchQuery)-size]
 	h.rebuildSearchMatchesLocked()
 }
 

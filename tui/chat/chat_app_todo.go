@@ -104,7 +104,6 @@ func (a *ChatApp) ToggleTodoPanel() OverlayRef {
 	panel := a.todoPanel
 	panel.SetTitle("任务列表 (↑↓ 导航 · Esc 关闭)")
 	panel.SetOnClose(func() { a.CloseTodoPanel() })
-	panel.Reload()
 	ov := &overlayHandle{
 		content:       panel,
 		focus:         true,
@@ -115,6 +114,11 @@ func (a *ChatApp) ToggleTodoPanel() OverlayRef {
 	}
 	a.todoOverlay = ov
 	a.mu.Unlock()
+
+	// Reload outside the lock: the data provider calls collectTodoItems,
+	// which re-acquires a.mu (sync.Mutex is not reentrant — reloading while
+	// holding the lock would self-deadlock).
+	panel.Reload()
 	a.host.PushOverlay(ov)
 	return ov
 }

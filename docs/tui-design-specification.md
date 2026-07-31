@@ -465,6 +465,11 @@ type Overlay struct {
 }
 ```
 
+**实现说明**：当前实现采用反向字段 `NonModal`（`tui/overlay.go`）——零值保持模态，
+与既有 overlay 向后兼容；规范中的 `Modal: true` 行为由 `NonModal: false`（零值）表达。
+非模态浮层打开时，输入在送达聚焦组件后仍会广播给背景组件（`tui/tui_input.go`），
+用于不阻塞主工作区的辅助面板。
+
 **Overlay 使用场景：**
 - 快捷键帮助（`KeyHelp`）
 - 命令面板（`CommandCenter`）

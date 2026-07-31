@@ -140,9 +140,9 @@ func (d *DebugOverlay) Update(msg core.Msg) core.Cmd {
 			d.ScrollBy(-1)
 		case terminal.MatchesKey(data, "down"):
 			d.ScrollBy(1)
-		case terminal.MatchesKey(data, "pgup"):
+		case terminal.MatchesKey(data, "pageUp"):
 			d.ScrollBy(-5)
-		case terminal.MatchesKey(data, "pgdown"):
+		case terminal.MatchesKey(data, "pageDown"):
 			d.ScrollBy(5)
 		}
 		return nil

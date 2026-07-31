@@ -87,7 +87,7 @@ func NewSessionSelector() *SessionSelector {
 		"session.up":      {DefaultKeys: []string{"up", "ctrl+p"}},
 		"session.down":    {DefaultKeys: []string{"down", "ctrl+n"}},
 		"session.confirm": {DefaultKeys: []string{"enter"}},
-		"session.cancel":  {DefaultKeys: []string{"esc"}},
+		"session.cancel":  {DefaultKeys: []string{"escape"}},
 		"session.delete":  {DefaultKeys: []string{"ctrl+x"}},
 		"session.rename":  {DefaultKeys: []string{"ctrl+r"}},
 		"session.filter":  {DefaultKeys: []string{"/"}},
@@ -434,19 +434,19 @@ func (s *SessionSelector) Render(width int64) []string {
 	var lines []string
 
 	// Title
-	title := core.PadToWidth(s.theme.Title, width)
+	title := core.PadToWidth(core.TruncateToWidth(s.theme.Title, width, "…"), width)
 	lines = append(lines, s.theme.HeaderStyle.Render(title), s.theme.DimStyle.Render(strings.Repeat("─", int(width))))
 
-	// Search bar
+	// Search bar (user input is dynamic — truncate before padding)
 	if s.focusMode {
 		searchText := s.filter
 		if searchText == "" {
 			searchText = "type to search..."
 		}
-		searchBar := core.PadToWidth("  / "+searchText+"█", width)
+		searchBar := core.PadToWidth(core.TruncateToWidth("  / "+searchText+"█", width, "…"), width)
 		lines = append(lines, s.theme.SearchStyle.Render(searchBar))
 	} else if s.filter != "" {
-		filterText := core.PadToWidth("  filter: "+s.filter, width)
+		filterText := core.PadToWidth(core.TruncateToWidth("  filter: "+s.filter, width, "…"), width)
 		lines = append(lines, s.theme.DimStyle.Render(filterText))
 	}
 
@@ -455,14 +455,14 @@ func (s *SessionSelector) Render(width int64) []string {
 	if len(s.filtered) != len(s.items) {
 		countLine = fmt.Sprintf("  %d of %d sessions", len(s.filtered), len(s.items))
 	}
-	countLine = core.PadToWidth(countLine, width)
+	countLine = core.PadToWidth(core.TruncateToWidth(countLine, width, "…"), width)
 	lines = append(lines, s.theme.DimStyle.Render(countLine))
 
 	if s.renameMode {
 		lines = append(lines, "")
 		header := core.PadToWidth("  Rename session:", width)
 		lines = append(lines, s.theme.HeaderStyle.Render(header))
-		prompt := core.PadToWidth("  > "+s.renameBuf+"█", width)
+		prompt := core.PadToWidth(core.TruncateToWidth("  > "+s.renameBuf+"█", width, "…"), width)
 		lines = append(lines, prompt)
 		hint := core.PadToWidth("    Enter to confirm, Esc to cancel", width)
 		lines = append(lines, s.theme.DimStyle.Render(hint))

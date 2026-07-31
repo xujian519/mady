@@ -93,9 +93,9 @@ func (c *CommandCenter) Render(width int64) []string {
 
 	// Title bar
 	title := p.Accent.Render("▎ 命令中心") + p.Dim.Render("  —  输入关键词筛选，Enter 执行，Esc 关闭")
-	out = append(out, core.PadToWidth(title, width))
+	out = append(out, core.PadToWidth(core.TruncateToWidth(title, width, "…"), width))
 
-	// Search bar
+	// Search bar (user input is dynamic — truncate before padding)
 	searchText := c.filter
 	if searchText == "" {
 		searchText = p.Dim.Render("输入搜索…")
@@ -103,7 +103,7 @@ func (c *CommandCenter) Render(width int64) []string {
 		searchText = p.Assistant.Render(searchText)
 	}
 	out = append(out,
-		core.PadToWidth("  > "+searchText, width),
+		core.PadToWidth(core.TruncateToWidth("  > "+searchText, width, "…"), width),
 		p.Dim.Render(strings.Repeat("─", int(width))),
 	)
 
@@ -205,7 +205,7 @@ func (c *CommandCenter) processKey(data string) {
 		c.filter += data
 		c.applyFilterLocked()
 		c.cursor = 0
-	case c.km.Matches(data, "tui.editor.backspace"):
+	case c.km.Matches(data, "tui.editor.deleteCharBackward"):
 		if len(c.filter) > 0 {
 			c.filter = c.filter[:len(c.filter)-1]
 			c.applyFilterLocked()

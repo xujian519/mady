@@ -105,13 +105,11 @@ func TestCommandCenterFilterTyping(t *testing.T) {
 	if cc.filter != "pat" {
 		t.Fatalf("expected filter unchanged, got %q", cc.filter)
 	}
-	// Backspace branch: processKey matches "tui.editor.backspace", which is
-	// NOT registered in DefaultKeybindings (only "tui.editor.deleteCharBackward"
-	// exists), so the key never matches — the filter stays unchanged.
-	// (Source bug: the backspace branch is unreachable via default bindings.)
+	// Backspace deletes the last filter rune (matches the registered
+	// "tui.editor.deleteCharBackward" binding).
 	cc.Update(core.KeyMsg{Data: "\x7f"})
-	if cc.filter != "pat" {
-		t.Fatalf("expected filter unchanged after backspace (unreachable binding), got %q", cc.filter)
+	if cc.filter != "pa" {
+		t.Fatalf("expected filter 'pa' after backspace, got %q", cc.filter)
 	}
 }
 

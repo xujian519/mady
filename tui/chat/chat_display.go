@@ -519,8 +519,10 @@ func (a *ChatApp) expandPastePlaceholders(input string) string {
 			result = strings.Replace(result, marker, fullText, 1)
 			delete(a.model.pastedTexts, id)
 		} else {
-			// Unknown reference: leave the placeholder as-is.
-			result = strings.Replace(result, marker, marker+"(expired)", 1)
+			// Unknown reference: leave the placeholder as-is. Stop scanning —
+			// rewriting it (e.g. appending a suffix) would leave the marker
+			// text intact and loop forever on the next iteration.
+			break
 		}
 	}
 	return result

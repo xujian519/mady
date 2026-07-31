@@ -188,6 +188,16 @@ type Overlay struct {
 	// overlay is mounted, and pop it when removed.
 	Focus bool
 
+	// NonModal marks this overlay as transparent to input: while it is open,
+	// key/mouse events still reach components behind it (the focused overlay
+	// component receives input first, matching modal behavior).
+	//
+	// The zero value (false) keeps the overlay modal — the historical
+	// default, so existing overlays behave unchanged without opting in.
+	// Non-modal overlays are for auxiliary panels that must not block the
+	// main workspace (e.g. a floating reference panel).
+	NonModal bool
+
 	// DimBackground applies a uniform "frosted glass" dim effect to every
 	// cell outside the overlay rectangle. The dimming adds dimTextAttr and
 	// a dark glass background (dimBgColor) to cells, creating visual focus

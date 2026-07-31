@@ -164,9 +164,11 @@ func (t *TUI) processMsg(msg core.Msg) {
 
 	t.mu.Lock()
 	focusedIsOverlay := false
+	focusedOverlayNonModal := false
 	for _, ov := range t.overlays {
 		if ov != nil && ov.Content == focused {
 			focusedIsOverlay = true
+			focusedOverlayNonModal = ov.NonModal
 			break
 		}
 	}
@@ -174,7 +176,10 @@ func (t *TUI) processMsg(msg core.Msg) {
 	copy(children, t.children)
 	t.mu.Unlock()
 
-	if !focusedIsOverlay {
+	// Modal overlays stop background dispatch; non-modal overlays let input
+	// reach the components behind them (the overlay content itself was
+	// already updated via the focused path above).
+	if !focusedIsOverlay || focusedOverlayNonModal {
 		for _, child := range children {
 			if child == focused {
 				continue

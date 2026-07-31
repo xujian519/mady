@@ -73,14 +73,15 @@ func TestDebugOverlayScrollKeys(t *testing.T) {
 	if d.offset != 1 {
 		t.Fatalf("expected offset 1, got %d", d.offset)
 	}
-	// PageUp/PageDown branches match against the KeyIDs "pgup"/"pgdown",
-	// but the key parser canonicalises these sequences to "pageUp" — so the
-	// branches are unreachable via real key input (source bug). The offset
-	// must remain unchanged.
-	d.Update(core.KeyMsg{Data: "\x1b[5~"}) // pgup
-	d.Update(core.KeyMsg{Data: "\x1b[6~"}) // pgdown
-	if d.offset != 1 {
-		t.Fatalf("expected offset 1 (pgup/pgdown bindings unreachable), got %d", d.offset)
+	// PageUp/PageDown are matched via the canonical KeyIDs "pageUp"/"pageDown"
+	// (CSI 5~/6~). Updating by ±5, clamped to ≥ 0.
+	d.Update(core.KeyMsg{Data: "\x1b[5~"}) // pgup → 1-5 clamped to 0
+	if d.offset != 0 {
+		t.Fatalf("expected offset 0 after pgup, got %d", d.offset)
+	}
+	d.Update(core.KeyMsg{Data: "\x1b[6~"}) // pgdown → 0+5
+	if d.offset != 5 {
+		t.Fatalf("expected offset 5 after pgdown, got %d", d.offset)
 	}
 }
 

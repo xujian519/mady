@@ -74,10 +74,12 @@ func DefaultTodoPanelTheme() TodoPanelTheme {
 // NewTodoPanel creates a new TODO panel.
 func NewTodoPanel() *TodoPanel {
 	km := terminal.NewKeybindingsManager(map[string]terminal.KeybindingDef{
-		"todo.up":     {DefaultKeys: []string{"up", "ctrl+p"}},
-		"todo.down":   {DefaultKeys: []string{"down", "ctrl+n"}},
-		"todo.toggle": {DefaultKeys: []string{"enter", "space"}},
-		"todo.close":  {DefaultKeys: []string{"esc"}},
+		"todo.up":   {DefaultKeys: []string{"up", "ctrl+p"}},
+		"todo.down": {DefaultKeys: []string{"down", "ctrl+n"}},
+		// Key IDs follow the parser's canonical names: space = " ",
+		// escape = "escape" (see terminal.KeySpace / KeyEscape).
+		"todo.toggle": {DefaultKeys: []string{"enter", " "}},
+		"todo.close":  {DefaultKeys: []string{"escape"}},
 	})
 	return &TodoPanel{
 		theme: DefaultTodoPanelTheme(),

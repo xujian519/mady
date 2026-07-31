@@ -426,6 +426,11 @@ func (h *ChatHistory) renderMessagesRange(
 		if groupEnd, ok := h.detectToolGroup(msgs, i); ok {
 			lines, r := h.renderToolGroup(msgs, i, groupEnd, expandedGroups[i], theme, width, cache)
 			out = append(out, lines...)
+			// renderToolGroup reports lines relative to itself (startLine 0);
+			// rebase onto the absolute output position so hit-testing and
+			// scroll-to-match use consistent coordinates.
+			r.startLine = len(out) - len(lines)
+			r.endLine = len(out)
 			ranges = append(ranges, r)
 			i = groupEnd
 			continue
