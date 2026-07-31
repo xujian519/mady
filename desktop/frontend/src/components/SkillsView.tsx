@@ -7,9 +7,11 @@
  * - 未保存修改关闭时确认
  */
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { X, Loader2, AlertCircle, Sparkles, Eye, Pencil, Save, RefreshCw } from 'lucide-react'
-import { listSkills, readFile, writeFile, type SkillEntry } from '@/lib/backend'
+import { readFile, writeFile, type SkillEntry } from '@/lib/backend'
+import { useSkills } from '@/queries/skills'
+import { ModalShell } from './ModalShell'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { CodeEditor } from '@/components/fileviewer/CodeEditor'
 
@@ -18,9 +20,13 @@ interface SkillsViewProps {
 }
 
 export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
-  const [skills, setSkills] = useState<SkillEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const skillsQuery = useSkills()
+  const skills = skillsQuery.data ?? []
+  const loading = skillsQuery.isLoading
+  // 列表错误优先显示，其次文件操作（读取/保存）错误
+  const listError = skillsQuery.isError
+    ? (skillsQuery.error instanceof Error ? skillsQuery.error.message : String(skillsQuery.error))
+    : null
   const [selected, setSelected] = useState<SkillEntry | null>(null)
 
   // SKILL.md 内容状态
@@ -28,24 +34,13 @@ export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
   const [draft, setDraft] = useState<string | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
   const [mode, setMode] = useState<'preview' | 'edit'>('preview')
   const dirty = draft !== null
+  // JSX 统一显示入口：列表错误优先，其次文件操作错误
+  const error = listError ?? fileError
 
-  const loadSkills = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      setSkills(await listSkills())
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadSkills()
-  }, [loadSkills])
+  const loadSkills = useCallback(() => { void skillsQuery.refetch() }, [skillsQuery])
 
   const openSkill = useCallback(
     async (skill: SkillEntry) => {
@@ -59,7 +54,7 @@ export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
         setContent(fc.text ?? '')
       } catch (err: unknown) {
         setContent('')
-        setError(err instanceof Error ? err.message : String(err))
+        setFileError(err instanceof Error ? err.message : String(err))
       } finally {
         setFileLoading(false)
       }
@@ -75,7 +70,7 @@ export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
       setContent(draft)
       setDraft(null)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err))
+      setFileError(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving(false)
     }
@@ -89,7 +84,7 @@ export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
   const text = draft ?? content
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+    <ModalShell onClose={onClose} ariaLabel="技能管理">
       <div className="w-[860px] max-w-[92vw] h-[600px] max-h-[85vh] bg-mady-bg-primary rounded-xl shadow-2xl border border-mady-separator flex flex-col overflow-hidden">
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-mady-separator">
@@ -209,6 +204,6 @@ export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
           </div>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

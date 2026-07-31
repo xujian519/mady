@@ -11,11 +11,12 @@ import React from 'react'
 import { useSettingsStore } from '@/stores/settings'
 import { useTheme } from '@/theme/tokens'
 import type { ThemeMode } from '@/theme/tokens'
-import { getAISettings, setAISettings } from '@/lib/backend'
+import { getAISettings, setAISettings, checkUpdate } from '@/lib/backend'
 import { AnimatePresence, motion } from 'framer-motion'
-import { X, Sun, Moon, Monitor, Server, Cpu, Check, AlertCircle } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Server, Cpu, Check, AlertCircle, RefreshCw } from 'lucide-react'
 import { McpServersSettings } from './McpServersSettings'
 import { ModelSettings } from './ModelSettings'
+import { ModalShell } from './ModalShell'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -28,14 +29,19 @@ interface Toast {
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
-  const settings = useSettingsStore()
+  // F-I16：字段级 selector，避免温度滑条/面板刷新时整树重订阅
+  const settingsProvider = useSettingsStore((s) => s.provider)
+  const settingsModel = useSettingsStore((s) => s.model)
+  const themeMode = useSettingsStore((s) => s.themeMode)
+  const updateSettings = useSettingsStore((s) => s.update)
   const { setMode } = useTheme()
 
   // AI 服务：本地编辑态（保存前不影响后端）
-  const [provider, setProvider] = React.useState(settings.provider)
-  const [model, setModel] = React.useState(settings.model)
+  const [provider, setProvider] = React.useState(settingsProvider)
+  const [model, setModel] = React.useState(settingsModel)
   const [saving, setSaving] = React.useState(false)
   const [toast, setToast] = React.useState<Toast | null>(null)
+  const [checking, setChecking] = React.useState(false)
 
   // 挂载时从后端读取当前生效的 Provider/Model（真相源在后端）
   React.useEffect(() => {
@@ -43,7 +49,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
       .then((s) => {
         setProvider(s.provider)
         setModel(s.model)
-        settings.update({ provider: s.provider, model: s.model })
+        updateSettings({ provider: s.provider, model: s.model })
       })
       .catch(() => {
         // 后端未就绪（初始化中）：保留本地编辑态，用户仍可保存触发重试
@@ -59,19 +65,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   }, [toast])
 
   const aiDirty =
-    (provider !== '' && provider !== settings.provider) ||
-    (model !== '' && model !== settings.model)
+    (provider !== '' && provider !== settingsProvider) ||
+    (model !== '' && model !== settingsModel)
 
   const handleSaveAI = async () => {
     if (saving || !aiDirty) return
     setSaving(true)
     const effective = {
-      provider: provider || settings.provider,
-      model: model || settings.model,
+      provider: provider || settingsProvider,
+      model: model || settingsModel,
     }
     try {
       await setAISettings(effective)
-      settings.update(effective)
+      updateSettings(effective)
       setProvider(effective.provider)
       setModel(effective.model)
       setToast({ kind: 'success', message: '已保存，切换将在下一轮新会话中生效' })
@@ -93,11 +99,28 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
   const handleThemeChange = (mode: ThemeMode) => {
     setMode(mode)
-    settings.update({ themeMode: mode })
+    updateSettings({ themeMode: mode })
+  }
+
+  // 检查更新（W4-T12 占位：后端返回「已是最新版本」，为真实更新通道预留入口）
+  const handleCheckUpdate = async () => {
+    if (checking) return
+    setChecking(true)
+    try {
+      const info = await checkUpdate()
+      setToast({ kind: 'success', message: info.message })
+    } catch (err) {
+      setToast({
+        kind: 'error',
+        message: err instanceof Error ? err.message : '检查更新失败，请稍后重试',
+      })
+    } finally {
+      setChecking(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+    <ModalShell onClose={onClose} ariaLabel="设置">
       <div className="w-[480px] max-h-[80vh] bg-mady-bg-primary rounded-2xl border border-mady-separator shadow-xl overflow-y-auto">
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-mady-separator">
@@ -124,7 +147,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   onClick={() => handleThemeChange(opt.value)}
                   className={`
                     flex items-center gap-2 px-3 py-2 rounded-lg text-mady-ui transition-colors
-                    ${settings.themeMode === opt.value
+                    ${themeMode === opt.value
                       ? 'bg-mady-accent text-white'
                       : 'bg-mady-bg-secondary text-mady-text-secondary hover:bg-mady-border'
                     }
@@ -224,6 +247,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 <span className="text-mady-text-primary font-mono">v0.9.1</span>
               </div>
             </div>
+            <button
+              onClick={handleCheckUpdate}
+              disabled={checking}
+              className="mt-2 inline-flex items-center gap-1.5 text-mady-small text-mady-text-secondary hover:text-mady-accent disabled:opacity-60 transition-colors"
+            >
+              <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
+              {checking ? '检查中…' : '检查更新'}
+            </button>
           </section>
         </div>
       </div>
@@ -255,6 +286,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </ModalShell>
   )
 }

@@ -138,8 +138,6 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
     el?.scrollIntoView({ block: 'nearest' })
   }, [selectedIndex])
 
-  if (filtered.length === 0) return null
-
   // 按分类分组
   const grouped = useMemo(() => {
     const map = new Map<string, SlashCommand[]>()
@@ -153,6 +151,10 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 
   // 构建扁平索引用于 selectedIndex 导航
   const flatList = useMemo(() => filtered, [filtered])
+
+  // 注意：以上所有 hooks 必须位于条件返回之前（rules-of-hooks），
+  // 否则 filtered 为空时 hooks 数量变化会导致 React 崩溃（F-B1 修复点）。
+  if (filtered.length === 0) return null
 
   return (
     <div className="mb-2 rounded-xl border border-mady-border mady-material shadow-mady-floating overflow-hidden max-h-72">

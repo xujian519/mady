@@ -48,7 +48,8 @@ export function buildCommands(opts: {
   return [
     // ── 导航 ──
     nav('new-session', '新建会话', 'Plus', ['new', 'chat', '对话'], () => {
-      // 由 ChatView 处理
+      // F-I3：新建会话 = 清空当前对话（与 clearChat 同语义）
+      opts.clearChat()
     }, 'Cmd+N'),
     nav('toggle-sidebar', '切换侧栏', 'PanelLeft', ['sidebar', 'panel', 'toggle'], opts.toggleSidebar, 'Cmd+B'),
     nav('toggle-focus', '专注模式', 'ScanEye', ['focus', 'mode', 'layout'], opts.toggleFocusMode),

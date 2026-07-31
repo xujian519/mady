@@ -8,15 +8,14 @@
  * 数据从后端 knowledge 子系统加载。
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { Database, RefreshCw, CheckCircle2, Folder, X, Loader } from 'lucide-react'
-import { getKnowledgeStatus, type KnowledgeStatus } from '@/lib/backend'
+import React, { useState } from 'react'
+import { Database, Folder, X, Loader } from 'lucide-react'
+import { useKnowledgeStatus } from '@/queries/knowledge'
+import { ModalShell } from './ModalShell'
 
 interface KnowledgeViewProps {
   onClose: () => void
 }
-
-type IndexStatus = 'idle' | 'indexing' | 'done'
 
 /** 索引范围选项。 */
 const SCOPE_OPTIONS = [
@@ -27,60 +26,17 @@ const SCOPE_OPTIONS = [
 ] as const
 
 export const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onClose }) => {
-  const [indexStatus, setIndexStatus] = useState<IndexStatus>('idle')
-  const [progress, setProgress] = useState(0)
-  const [data, setData] = useState<KnowledgeStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  const knowledgeQuery = useKnowledgeStatus()
+  const data = knowledgeQuery.data ?? null
+  const loading = knowledgeQuery.isLoading
   const [checked, setChecked] = useState<Set<string>>(
     () => new Set(SCOPE_OPTIONS.map((o) => o.key)),
   )
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // 从后端加载知识库状态
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    getKnowledgeStatus()
-      .then((ks) => {
-        if (!cancelled) {
-          setData(ks)
-          setLoading(false)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setData(null)
-          setLoading(false)
-        }
-      })
-    return () => { cancelled = true }
-  }, [])
-
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-  }, [])
-
-  const handleReindex = useCallback(() => {
-    if (indexStatus === 'indexing') return
-
-    setIndexStatus('indexing')
-    setProgress(0)
-
-    timerRef.current = setInterval(() => {
-      setProgress((prev) => {
-        const next = Math.min(prev + 4, 100)
-        if (next >= 100) {
-          if (timerRef.current) clearInterval(timerRef.current)
-          timerRef.current = null
-          setIndexStatus('done')
-        }
-        return next
-      })
-    }, 120) // 3s / (100/4) = ~120ms per tick
-  }, [indexStatus])
+  // 知识库状态由 TanStack Query 接管（useKnowledgeStatus，
+  // 见 mady-desktop-standards.md M-DSK-ST-002）；加载失败静默降级为 null
+  // F-I13：移除模拟「重新索引」（indexStatus/progress/timerRef/handleReindex）
+  // ——后端无 reindex binding，前端自增进度是假象，状态展示改为说明文案。
 
   const toggleScope = (key: string) => {
     setChecked((prev) => {
@@ -95,7 +51,7 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+    <ModalShell onClose={onClose} ariaLabel="知识库管理">
       <div className="w-[480px] max-h-[80vh] bg-mady-bg-primary rounded-2xl border border-mady-separator shadow-xl overflow-y-auto">
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-mady-separator">
@@ -167,78 +123,15 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onClose }) => {
             )}
           </section>
 
-          {/* ── 重新索引 ─────────────────────────── */}
+          {/* ── 索引状态（F-I13：移除无后端支撑的模拟「重新索引」，
+              避免显示虚假进度；真实状态以启动时自动索引为准） ── */}
           <section>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-mady-ui font-medium text-mady-text-primary">重新索引</h3>
-              <span
-                className={`
-                  text-mady-caption transition-colors
-                  ${indexStatus === 'done'
-                    ? 'text-mady-success'
-                    : indexStatus === 'indexing'
-                      ? 'text-mady-accent'
-                      : 'text-mady-text-tertiary'
-                  }
-                `}
-              >
-                {indexStatus === 'idle' && '就绪'}
-                {indexStatus === 'indexing' && '索引中...'}
-                {indexStatus === 'done' && '索引完成 ✓'}
-              </span>
+            <h3 className="text-mady-ui font-medium text-mady-text-primary mb-3">索引状态</h3>
+            <div className="rounded-lg bg-mady-bg-secondary px-3 py-2.5 text-mady-small text-mady-text-secondary">
+              知识库在应用启动时自动建立索引。索引文件位于
+              <code className="mx-1 px-1 py-0.5 rounded bg-mady-bg-tertiary text-mady-caption font-mono">~/.mady/knowledge</code>
+              ；如需重建，请重启应用。
             </div>
-
-            {/* 进度条 */}
-            <div className="w-full h-2 bg-mady-bg-secondary rounded-full overflow-hidden">
-              <div
-                className={`
-                  h-full rounded-full transition-all duration-150 ease-out
-                  ${indexStatus === 'done'
-                    ? 'bg-mady-success'
-                    : 'bg-mady-accent'
-                  }
-                `}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-
-            {/* 进度数值 */}
-            {indexStatus !== 'idle' && (
-              <p className="text-mady-caption text-mady-text-tertiary mt-1 text-right">{progress}%</p>
-            )}
-
-            {/* 按钮 */}
-            <button
-              onClick={handleReindex}
-              disabled={indexStatus === 'indexing'}
-              className={`
-                mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
-                text-mady-ui font-medium transition-colors
-                ${indexStatus === 'done'
-                  ? 'bg-mady-success/10 text-mady-success cursor-default'
-                  : indexStatus === 'indexing'
-                    ? 'bg-mady-accent/10 text-mady-accent cursor-not-allowed'
-                    : 'bg-mady-accent text-white hover:bg-mady-accent-hover'
-                }
-              `}
-            >
-              {indexStatus === 'done' ? (
-                <>
-                  <CheckCircle2 size={14} />
-                  已是最新
-                </>
-              ) : indexStatus === 'indexing' ? (
-                <>
-                  <RefreshCw size={14} className="animate-spin" />
-                  索引中...
-                </>
-              ) : (
-                <>
-                  <RefreshCw size={14} />
-                  开始索引
-                </>
-              )}
-            </button>
           </section>
 
           {/* ── 索引范围 ─────────────────────────── */}
@@ -268,6 +161,6 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onClose }) => {
           </section>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

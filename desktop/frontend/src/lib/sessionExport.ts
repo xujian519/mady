@@ -43,14 +43,11 @@ function messageToMarkdown(
   const ts = includeTimestamp ? ` *(${formatTimestamp(msg.timestamp)})*` : ''
   let content = msg.content
 
-  // 如果内容包含 thinking-fold，提取摘要
-  const thinkingMatch = content.match(/<details class="thinking-fold">[\s\S]*?<\/details>/)
-  if (thinkingMatch) {
-    const thinkingText = thinkingMatch[0].replace(/<[^>]*>/g, '').trim()
-    const lines = thinkingText.split('\n').filter((l) => l.trim())
-    if (lines.length > 0) {
-      content = content.replace(thinkingMatch[0], `> 💭 ${lines[0]}`)
-    }
+  // F-B4：思考过程已结构化（msg.thinking），导出为引用块首行摘要
+  if (msg.thinking) {
+    const firstLine = msg.thinking.split('\n').find((l) => l.trim()) ?? ''
+    const summary = firstLine.trim().slice(0, 60)
+    content = `> 💭 ${summary}${summary.length >= 60 ? '…' : ''}\n\n${content}`
   }
 
   return `### **${role}**${ts}\n\n${content}\n\n---\n`

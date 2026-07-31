@@ -16,6 +16,32 @@ import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AguiEventPayload = any
 
+// ── 流式 delta 批处理（M-DSK-PRF-001/004，G-I5） ──
+//
+// Wails v2 事件经 ExecJS 全量推送到前端，逐 token 高频 setState 会让
+// 每个 token 触发整轮 re-render。这里按 16ms 合并一批再写入 store：
+//  - output 与 thinking 各自缓冲，同批内顺序保持；
+//  - 非流式事件（tool-call/step 等）即时处理，与文本流解耦；
+//  - run 结束（handleDone）前强制 flush，确保最后一批 token 不丢失。
+const DELTA_BATCH_MS = 16
+let deltaBuffer = { output: '', thinking: '' }
+let deltaTimer: ReturnType<typeof setTimeout> | null = null
+
+function flushDeltas() {
+  if (deltaTimer) {
+    clearTimeout(deltaTimer)
+    deltaTimer = null
+  }
+  const { output, thinking } = deltaBuffer
+  deltaBuffer = { output: '', thinking: '' }
+  if (output) useChatStore.getState().appendToken(output)
+  if (thinking) useChatStore.getState().appendThinking(thinking)
+}
+
+function scheduleDeltaFlush() {
+  if (!deltaTimer) deltaTimer = setTimeout(flushDeltas, DELTA_BATCH_MS)
+}
+
 // ── 子处理器 ──────────────────────────────────────
 
 function handleAgentStart(payload: AguiEventPayload) {
@@ -26,13 +52,13 @@ function handleAgentStart(payload: AguiEventPayload) {
 }
 
 function handleMessageDelta(payload: AguiEventPayload) {
-  const delta = payload.delta ?? payload.content ?? ''
-  useChatStore.getState().appendToken(delta)
+  deltaBuffer.output += payload.delta ?? payload.content ?? ''
+  scheduleDeltaFlush()
 }
 
 function handleThinkingDelta(payload: AguiEventPayload) {
-  const delta = payload.delta ?? payload.content ?? ''
-  useChatStore.getState().appendThinking(delta)
+  deltaBuffer.thinking += payload.delta ?? payload.content ?? ''
+  scheduleDeltaFlush()
 }
 
 function handleToolCallStart(payload: AguiEventPayload) {
@@ -130,7 +156,13 @@ function handleError(payload: AguiEventPayload) {
 }
 
 function handleA2UI(payload: AguiEventPayload) {
-  useA2UIStore.getState().applyEnvelope(payload)
+  // F-I5：A2UI 信封处理异常（如重复 createSurface 抛 SurfaceExistsError）
+  // 不应中断 AGUI 事件流——捕获并记录，事件流继续。
+  try {
+    useA2UIStore.getState().applyEnvelope(payload)
+  } catch (err) {
+    console.error('[agui] applyEnvelope failed:', err)
+  }
 }
 
 function handleApprovalPrompt(payload: AguiEventPayload) {
@@ -145,6 +177,8 @@ function handleApprovalPrompt(payload: AguiEventPayload) {
 
 function handleDone() {
   const store = useChatStore.getState()
+  // G-I5：run 结束前强制 flush 流式缓冲，避免最后一批 token 丢失
+  flushDeltas()
   store.setToolCallBuffer(null)
   store.finishTurn()
 }

@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* 暗色模式 class 策略（W4-T7 三态切换）：
+ * dark: variant 与 CSS 变量覆盖均由 <html>.dark 类驱动，
+ * 由 theme/provider.tsx 根据「跟随系统/浅色/深色」三态写入。
+ * 系统跟随由 provider 内部 matchMedia 监听完成。 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================
  * Mady 桌面端 Design Tokens
  *
@@ -44,11 +50,14 @@
   --color-mady-accent-secondary: #f56600;     /* 品牌橙色（极低频） */
   --color-mady-accent-tertiary: #2e1065;      /* 品牌深紫 */
 
-  /* ---- 语义色（成功/警告/错误/信息） ---- */
-  --color-mady-danger: #ff3b30;
+  /* ---- 语义色（成功/警告/错误/信息） ----
+   * 对比度审计（scripts/check-color-contrast.mjs）校准为 WCAG AA ≥4.5:1（小文本）。
+   * 注意分层：本组令牌供「文字」使用（置信度标签/错误提示/语法高亮），取可达标色；
+   * 下方连接状态色 / MCP 状态色为「图形/圆点」用途，保持亮色以获得图标辨识度。 */
+  --color-mady-danger: #C62828;
   --color-mady-success: #5856d6;              /* 品牌紫，非绿色 */
-  --color-mady-warning: #ff9500;
-  --color-mady-info: #007aff;
+  --color-mady-warning: #9C4F00;
+  --color-mady-info: #0066E6;
 
   /* ---- 连接状态色 ---- */
   --color-mady-connection-connected: #5856d6;
@@ -118,9 +127,8 @@
   --mady-settings-nav-width: 200px;
 }
 
-/* 深色模式覆盖 */
-@media (prefers-color-scheme: dark) {
-  :root {
+/* 深色模式覆盖（class 策略：由 ThemeProvider 写入 <html>.dark） */
+.dark {
     --color-mady-bg-primary: #1C1A18;             /* 暖深灰 */
     --color-mady-bg-secondary: #1A1816;
     --color-mady-bg-tertiary: #252320;
@@ -136,8 +144,8 @@
     --color-mady-bg-bubble-user: rgba(88, 86, 214, 0.08); /* 暗色下透明度降低 */
     --color-mady-bg-bubble-agent: rgba(255, 255, 255, 0.02); /* 暗色下极淡白 */
     --color-mady-text-primary: #F0EDE8;           /* 暖白 */
-    --color-mady-text-secondary: #8A8580;
-    --color-mady-text-tertiary: #6B6560;
+    --color-mady-text-secondary: #9A958F;
+    --color-mady-text-tertiary: #75706A;
     --color-mady-text-quaternary: rgba(255, 255, 255, 0.10);
     --color-mady-text-link: #6e6cf0;
     --color-mady-text-inverse: #1A1814;
@@ -150,9 +158,9 @@
     --color-mady-accent-secondary: #ff7a1a;
     --color-mady-accent-tertiary: #4c1d95;
     --color-mady-danger: #ff453a;
-    --color-mady-success: #4b4ac4;                /* 品牌紫暗色 */
+    --color-mady-success: #8A88E8;                /* 品牌紫暗色（文字可达标版） */
     --color-mady-warning: #ff9f0a;
-    --color-mady-info: #0a84ff;
+    --color-mady-info: #2E9BFF;
     --color-mady-connection-connected: #4b4ac4;
     --color-mady-connection-connecting: #ff9f0a;
     --color-mady-connection-disconnected: #ff453a;
@@ -167,7 +175,6 @@
     --shadow-mady-floating: 0 4px 12px rgba(0,0,0,0.24), 0 2px 4px rgba(0,0,0,0.12);
     --shadow-mady-modal: 0 12px 40px rgba(0,0,0,0.32), 0 4px 12px rgba(0,0,0,0.16);
     --shadow-mady-drag: 0 16px 48px rgba(0,0,0,0.40), 0 8px 24px rgba(0,0,0,0.20);
-  }
 }
 
 /* ---- 基础重置 ---- */
@@ -209,6 +216,25 @@ html, body, #root {
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* ---- Windows 平台适配层（M-DSK-PKG-002 前端部分，W3-T4） ----
+ * 由 main.tsx 在 <html> 上设置 data-platform="win32" 驱动：
+ * 标题栏 32px / Segoe UI Variable 字体栈 / 10px 传统式滚动条。
+ * macOS（默认分支）不受影响。 */
+html[data-platform="win32"] {
+  --mady-titlebar-height: 32px;
+  --font-sans: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
+}
+html[data-platform="win32"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html[data-platform="win32"] ::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 6px;
 }
 
 /* ---- 流式光标（对应设计规范 §6.3.6） ---- */
@@ -300,8 +326,8 @@ select {
     --color-mady-border: rgba(0, 0, 0, 0.30);
   }
 }
-@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-  :root {
+@media (prefers-contrast: more) {
+  .dark {
     --color-mady-separator: rgba(255, 255, 255, 0.35);
     --color-mady-border: rgba(255, 255, 255, 0.35);
   }

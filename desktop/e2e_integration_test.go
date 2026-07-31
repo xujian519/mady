@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build darwin && e2e
 
 package main
 
@@ -55,7 +55,7 @@ func TestDesktopAppLifecycle(t *testing.T) {
 	app := NewApp()
 	app.fc = fc
 	app.server = madyserver.New(buildDesktopAgentConfig(fc))
-	app.ctx = context.Background()
+	app.ctx.Store(context.Background())
 
 	// 3. 验证 App 就绪
 	if err := app.ready(); err != nil {
@@ -85,7 +85,7 @@ func TestDesktopAppLifecycle(t *testing.T) {
 	// Chat/SendAction 等涉及 Wails Events 的测试仅在 Wails 环境下完整执行。
 	// 在纯 Go test 环境中跳过这些测试。
 	t.Run("Chat", func(t *testing.T) {
-		if !isWailsContext(app.ctx) {
+		if !isWailsContext(app.ctxOrNil()) {
 			t.Skip("SKIP: Wails context not available in pure Go test")
 		}
 		runID, err := app.Chat(madyserver.ChatRequest{

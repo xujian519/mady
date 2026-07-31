@@ -10,11 +10,35 @@ package main
 import (
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/xujian519/mady/mcp"
 
 	"github.com/xujian519/mady/pkg/util"
 )
+
+// sanitizeMcpArgs 掩码 MCP 参数中的敏感值（S-7）：
+// --api-key=xxx / --token=xxx / --secret=xxx / --password=xxx 等
+// 以 "=值" 形式出现的参数在展示层脱敏，防止密钥经 Args 泄露到前端。
+func sanitizeMcpArgs(args []string) []string {
+	if len(args) == 0 {
+		return args
+	}
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		eq := strings.IndexByte(a, '=')
+		if eq > 0 {
+			name := strings.ToLower(a[:eq])
+			if strings.Contains(name, "key") || strings.Contains(name, "token") ||
+				strings.Contains(name, "secret") || strings.Contains(name, "password") {
+				out = append(out, a[:eq]+"=***")
+				continue
+			}
+		}
+		out = append(out, a)
+	}
+	return out
+}
 
 // McpServerEntry 是一个已配置 MCP 服务器的只读概要。
 // Env 仅暴露键名，不返回值，防止 API Key 泄露到前端。
@@ -57,7 +81,7 @@ func (a *App) ListMcpServers() ([]McpServerEntry, error) {
 				Name:    name,
 				Type:    typ,
 				Command: srv.Command,
-				Args:    srv.Args,
+				Args:    sanitizeMcpArgs(srv.Args),
 				URL:     srv.URL,
 				EnvKeys: envKeys,
 				Source:  source,

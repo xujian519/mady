@@ -9,24 +9,26 @@
 
 import React, { useEffect, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
-import { health } from '@/lib/backend'
+import { useHealth } from '@/stores/threads'
 import { Circle, Brain, Server, Package, Loader2 } from 'lucide-react'
 import type { HealthInfo } from '@/lib/backend'
 
 export const StatusBar: React.FC = () => {
   const running = useChatStore((s) => s.running)
   const ready = useChatStore((s) => s.ready)
+  const healthQuery = useHealth(ready)
   const [info, setInfo] = useState<HealthInfo | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // 健康信息由 TanStack Query 接管（useHealth，缓存 60s），
+  // 此处仅同步到本地 state 供渲染（开发期/CI 失败静默忽略）
   useEffect(() => {
     if (!ready) return
-    setLoading(true)
-    health()
-      .then(setInfo)
-      .catch(() => {}) // 开发期/CI 静默忽略
-      .finally(() => setLoading(false))
-  }, [ready])
+    setLoading(healthQuery.isFetching)
+    if (healthQuery.data) {
+      setInfo(healthQuery.data)
+    }
+  }, [ready, healthQuery.data, healthQuery.isFetching])
 
   // 连接状态
   const connColor = running

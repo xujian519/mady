@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -39,7 +40,11 @@ import (
 // App 是桌面端顶层应用结构体，持有内嵌的 server 实例。
 // 所有公开方法都是 Wails Binding，由前端 TS 通过 wailsjs 调用。
 type App struct {
-	ctx    context.Context
+	// ctx 是 Wails 运行时上下文（atomic.Value 存 context.Context）。
+	// 原子化原因（G-I8）：startup 在 Wails 主线程写入，而单实例锁的
+	// 第二实例回调（focusMainWindow）与托盘菜单可能在独立 goroutine 读取；
+	// 直接字段读写属于 -race 语义下的数据竞争。
+	ctx    atomic.Value
 	server *madyserver.Server
 	fc     *bootstrap.Context
 	runs   sync.Map // runId -> *runInfo
@@ -48,6 +53,21 @@ type App struct {
 	aiMu       sync.RWMutex
 	aiProvider string // 当前生效的 Provider 名（含用户覆盖）
 	aiModel    string // 当前生效的模型（含用户覆盖）
+
+	// settingsMu 保护 desktop-settings.json 的 load-modify-save 原子性（G-I3）。
+	// SetAISettings 与 setCurrentProject 会并发写同一文件；无锁时后写者用
+	// 旧快照覆盖先写者的字段更新（静默丢更新）。
+	settingsMu sync.Mutex
+}
+
+// ctxOrNil 返回 Wails 运行时上下文；未初始化（startup 未执行）时为 nil。
+// 所有跨 goroutine 读取 a.ctx 的路径必须走此方法（G-I8）。
+func (a *App) ctxOrNil() context.Context {
+	v := a.ctx.Load()
+	if v == nil {
+		return nil
+	}
+	return v.(context.Context)
 }
 
 // runInfo 记录一次 Chat 会话的运行状态。
@@ -65,8 +85,8 @@ func NewApp() *App {
 
 // emitInitProgress 通过 Wails Events 向前端发射初始化进度消息。
 func (a *App) emitInitProgress(msg string) {
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "mady:init-progress", msg)
+	if ctx := a.ctxOrNil(); ctx != nil {
+		runtime.EventsEmit(ctx, "mady:init-progress", msg)
 	}
 }
 
@@ -88,9 +108,12 @@ func (a *App) timedPhase(progressMsg, timingLabel string, fn func()) {
 //
 // 前端通过 mady:init-progress 事件接收进度文案，通过 mady:init-done 得知就绪。
 func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+	a.ctx.Store(ctx)
 	log.Println("[mady-desktop] startup: framework initializing (phase 1 — core)")
 	a.emitInitProgress("正在初始化引擎...")
+
+	// 系统托盘（W4-T11）：独立 goroutine，不阻塞初始化
+	a.startTray()
 
 	// == 阶段 1：核心初始化（同步） ==
 
@@ -193,13 +216,23 @@ func (a *App) startup(ctx context.Context) {
 	// 注入 MCP 发现超时（desktop 路径此前未命中 bootstrap 的 timeout 分支）。
 	discoveryCtx := mcp.WithDiscoveryTimeout(ctx, 1500*time.Millisecond)
 
+	// === Server 创建（同步段，G-I1） ===
+	// 使用 UnifiedAgentConfig 包装基础配置，确保专利/法律 handoff、
+	// doomloop、gateway、guardrails 等专业能力从第一阶段就可用。
+	// 同步创建避免后台 goroutine 写入 a.server 与 Binding 读取的数据竞争；
+	// 后续重型初始化通过 SyncConfig 将知识库/MCP/记忆等扩展注入 server。
+	a.server = madyserver.New(buildDesktopAgentConfig(fc))
+	a.emitInitProgress("就绪")
+	runtime.EventsEmit(ctx, "mady:init-done", map[string]any{"ready": true, "degraded": true})
+	log.Printf("[mady-desktop] server created — frontend now interactive")
+
 	go a.initDeferred(discoveryCtx, fc)
 }
 
 // initDeferred 在后台 goroutine 中完成重型初始化，通过 Wails Events
 // 向前端发射进度文案。
 //
-// 优化（2026-07）：Server 在函数开始时立即创建并 emit init-done，
+// 优化（2026-07）：Server 由 startup 同步段创建并 emit init-done（G-I1），
 // 使前端在主窗口显示后即可交互。重型初始化在后台静默完成，
 // 完成后通过 SyncConfig 将完整的扩展列表注入 server。
 func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
@@ -207,7 +240,7 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 		if r := recover(); r != nil {
 			log.Printf("[mady-desktop] PANIC in deferred init: %v", r)
 			a.emitInitProgress("初始化异常: 部分功能不可用")
-			runtime.EventsEmit(ctx, "mady:init-done", map[string]any{"ready": false})
+			// init-done 已由 startup 同步发射，此处不再重复（G-I1）。
 		}
 	}()
 
@@ -219,17 +252,8 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 	default:
 	}
 
-	// === 步骤 0：立即创建 Server + 通知前端就绪 ===
-	// 使用 UnifiedAgentConfig 包装基础配置，确保专利/法律 handoff、
-	// doomloop、gateway、guardrails 等专业能力从第一阶段就可用。
-	// 后续重型初始化通过 SyncConfig 将知识库/MCP/记忆等扩展注入 server。
-	t0 := time.Now()
-	a.server = madyserver.New(buildDesktopAgentConfig(fc))
-	log.Printf("[mady-desktop] server created in %v — frontend now interactive", time.Since(t0))
-	a.emitInitProgress("就绪")
-	runtime.EventsEmit(ctx, "mady:init-done", map[string]any{"ready": true, "degraded": true})
-
 	// === 阶段 2：重型初始化（后台，不阻塞前端） ===
+	t0 := time.Now()
 	log.Println("[mady-desktop] startup: phase 2 — deferred init starting")
 
 	a.timedPhase("正在加载知识库...", "LoadWikiStore", func() {
@@ -342,7 +366,7 @@ func (a *App) Chat(req madyserver.ChatRequest) (string, error) {
 	}
 
 	runID := generateRunID()
-	ctx, cancel := context.WithCancel(a.ctx)
+	ctx, cancel := context.WithCancel(a.ctxOrNil())
 	a.runs.Store(runID, &runInfo{
 		cancel:   cancel,
 		threadID: req.ThreadID,
@@ -354,6 +378,7 @@ func (a *App) Chat(req madyserver.ChatRequest) (string, error) {
 
 	go func() {
 		defer a.runs.Delete(runID)
+		start := time.Now()
 
 		output, err := a.server.Chat(ctx, req, func(e agentcore.Event) {
 			a.emitAguiEvent(ctx, converter, e)
@@ -370,6 +395,14 @@ func (a *App) Chat(req madyserver.ChatRequest) (string, error) {
 			log.Printf("[mady-desktop] chat %s failed: %v", runID, err)
 		}
 		runtime.EventsEmit(ctx, "agui:done", done)
+
+		// 长任务完成系统通知（W4-T11，G-I4）：仅「长任务」（超过阈值）成功
+		// 时弹通知，避免交互式短对话的通知轰炸；失败通知始终保留。
+		if err != nil {
+			a.notifyChatDone(err.Error())
+		} else if time.Since(start) >= chatNotifyThreshold {
+			a.notifyChatDone("")
+		}
 	}()
 
 	return runID, nil
@@ -426,7 +459,7 @@ func (a *App) ListThreads() ([]ThreadSummary, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-	infos, err := a.server.ListThreads(a.ctx)
+	infos, err := a.server.ListThreads(a.ctxOrNil())
 	if err != nil {
 		return nil, err
 	}
@@ -447,7 +480,7 @@ func (a *App) GetThread(key string) (*session.ThreadSnapshot, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-	return a.server.GetThread(a.ctx, key)
+	return a.server.GetThread(a.ctxOrNil(), key)
 }
 
 // DeleteThread 删除指定会话。
@@ -455,7 +488,7 @@ func (a *App) DeleteThread(key string) error {
 	if err := a.ready(); err != nil {
 		return err
 	}
-	return a.server.DeleteThread(a.ctx, key)
+	return a.server.DeleteThread(a.ctxOrNil(), key)
 }
 
 // ModelEntry 是可用模型的 Wails Binding 返回类型。
@@ -472,7 +505,7 @@ func (a *App) ListModels() ([]ModelEntry, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-	models, err := a.server.ListModels(a.ctx)
+	models, err := a.server.ListModels(a.ctxOrNil())
 	if err != nil {
 		return nil, err
 	}
@@ -505,10 +538,26 @@ func (a *App) Health() (HealthInfo, error) {
 	if err := a.ready(); err != nil {
 		return HealthInfo{}, err
 	}
-	return a.server.Health(), nil
+	info := a.server.Health()
+	// S-1：桌面端版本以 desktopVersion 为准（server.Health().Version 为 "unknown"，
+	// 面向根模块；桌面端绑定统一暴露自身版本，与设置面板/CheckUpdate 一致）。
+	info.Version = desktopVersion
+	return info, nil
 }
 
 // --- 内部辅助 ---
+
+// focusMainWindow 将已运行实例的窗口带到前台（单实例锁回调）。
+// 回调可能在第二进程（未执行 OnStartup，ctx 为 nil）中触发，故做 nil 防御；
+// 若第二进程已初始化完成，则聚焦并还原最小化窗口。
+func (a *App) focusMainWindow() {
+	ctx := a.ctxOrNil()
+	if ctx == nil {
+		return
+	}
+	runtime.WindowShow(ctx)
+	runtime.WindowUnminimise(ctx)
+}
 
 // ready 检查 App 是否已完成 startup 初始化。
 // 所有公开 Wails Binding 方法应通过 ready() 快速失败。

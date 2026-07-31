@@ -5,7 +5,6 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useChatStore } from '@/stores/chat'
 import * as backend from '@/lib/backend'
 
 // ── Query Keys ────────────────────────────────────
@@ -19,22 +18,15 @@ export const threadKeys = {
 
 /**
  * 查询所有会话列表。
+ *
+ * 会话列表的真相源是 TanStack Query（server-state），不再同步进 Zustand
+ * （M-DSK-ST-001：Query 管 server-state，Zustand 管 client-state）。
+ * 挂载点：App.tsx（常驻，任何视图切换都不丢数据）。
  */
 export function useThreads() {
-  const setThreads = useChatStore((s) => s.setThreads)
-
   return useQuery({
     queryKey: threadKeys.all,
-    queryFn: async () => {
-      const threads = await backend.listThreads()
-      setThreads(threads.map((t) => ({
-        key: t.key,
-        title: t.title,
-        updatedAt: t.updatedAt,
-        messageN: t.messageN,
-      })))
-      return threads
-    },
+    queryFn: () => backend.listThreads(),
     staleTime: 30_000,
     retry: 2,
   })
@@ -68,11 +60,13 @@ export function useDeleteThread() {
 
 /**
  * 健康检查查询。
+ * @param enabled 是否启用查询（ready 前不拉取）
  */
-export function useHealth() {
+export function useHealth(enabled = true) {
   return useQuery({
     queryKey: ['health'],
     queryFn: () => backend.health(),
+    enabled,
     staleTime: 60_000,
     retry: 1,
   })

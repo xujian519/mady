@@ -36,9 +36,19 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		OnStartup:  app.startup,
-		OnShutdown: app.shutdown,
-		Bind:       []interface{}{app},
+		// M-DSK-PKG-004：单实例锁，防多开（会话/数据库/端口资源场景）。
+		// UniqueId 复用 Info.plist Bundle ID；第二实例启动时聚焦已运行窗口。
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId: "com.mady.desktop",
+			OnSecondInstanceLaunch: func(options.SecondInstanceData) {
+				app.focusMainWindow()
+			},
+		},
+		// M-DSK-SEC-005：限制 JS↔Go binding 的合法来源（仅本地 dev 服务）。
+		BindingsAllowedOrigins: "http://localhost:*,https://localhost:*",
+		OnStartup:              app.startup,
+		OnShutdown:             app.shutdown,
+		Bind:                   []interface{}{app},
 		Mac: &mac.Options{
 			TitleBar:             mac.TitleBarHiddenInset(),
 			Appearance:           mac.DefaultAppearance,

@@ -5,28 +5,19 @@
  * 嵌入在 SettingsPanel 中使用。
  */
 
-import React, { useCallback, useEffect, useState } from 'react'
-import { listMcpServers, type McpServerEntry } from '@/lib/backend'
+import React, { useCallback } from 'react'
+import { useMcpServers } from '@/queries/mcp'
 import { Loader2, AlertCircle, Server, RefreshCw, Globe, Terminal, Plug, CheckCircle } from 'lucide-react'
 
 export const McpServersSettings: React.FC = () => {
-  const [servers, setServers] = useState<McpServerEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const serversQuery = useMcpServers()
+  const servers = serversQuery.data ?? []
+  const loading = serversQuery.isLoading
+  const error = serversQuery.isError
+    ? (serversQuery.error instanceof Error ? serversQuery.error.message : String(serversQuery.error))
+    : null
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      setServers(await listMcpServers())
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { void load() }, [load])
+  const load = useCallback(() => { void serversQuery.refetch() }, [serversQuery])
 
   return (
     <section>
@@ -68,9 +59,9 @@ export const McpServersSettings: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-2">
-          {servers.map((s, i) => (
+          {servers.map((s) => (
             <div
-              key={`${s.source}-${s.name}-${i}`}
+              key={`${s.source}-${s.name}`}
               className="rounded-lg border border-mady-border bg-mady-bg-secondary px-3 py-2.5"
             >
               <div className="flex items-center gap-2">

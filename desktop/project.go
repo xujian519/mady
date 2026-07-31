@@ -48,7 +48,7 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 		return nil, fmt.Errorf("listProjects: 项目注册表未初始化")
 	}
 
-	a.fc.ProjectRegistry.RefreshStatus(a.ctx)
+	a.fc.ProjectRegistry.RefreshStatus(a.ctxOrNil())
 
 	recs := a.fc.ProjectRegistry.List()
 	// 按 LastAccessed 倒序，零值放最后
@@ -92,7 +92,8 @@ func (a *App) GetCurrentProject() (ProjectInfo, error) {
 
 // SelectProjectFolder 弹出系统文件夹选择对话框，将选中的文件夹注册为项目并设为当前项目。
 func (a *App) SelectProjectFolder() (ProjectInfo, error) {
-	if a.ctx == nil {
+	ctx := a.ctxOrNil()
+	if ctx == nil {
 		return ProjectInfo{}, fmt.Errorf("selectProjectFolder: 应用尚未启动")
 	}
 	if a.fc == nil || a.fc.ProjectRegistry == nil {
@@ -105,7 +106,7 @@ func (a *App) SelectProjectFolder() (ProjectInfo, error) {
 		ResolvesAliases:      true,
 	}
 
-	selected, err := runtime.OpenDirectoryDialog(a.ctx, opts)
+	selected, err := runtime.OpenDirectoryDialog(ctx, opts)
 	if err != nil {
 		return ProjectInfo{}, fmt.Errorf("selectProjectFolder: %w", err)
 	}
@@ -118,7 +119,9 @@ func (a *App) SelectProjectFolder() (ProjectInfo, error) {
 		return ProjectInfo{}, err
 	}
 
-	runtime.WindowReloadApp(a.ctx)
+	if ctx := a.ctxOrNil(); ctx != nil {
+		runtime.WindowReloadApp(ctx)
+	}
 	return info, nil
 }
 
@@ -158,7 +161,9 @@ func (a *App) CreateProjectFolder(name string) (ProjectInfo, error) {
 		return ProjectInfo{}, err
 	}
 
-	runtime.WindowReloadApp(a.ctx)
+	if ctx := a.ctxOrNil(); ctx != nil {
+		runtime.WindowReloadApp(ctx)
+	}
 	return info, nil
 }
 
@@ -180,7 +185,9 @@ func (a *App) SwitchProject(projectID string) error {
 		return err
 	}
 
-	runtime.WindowReloadApp(a.ctx)
+	if ctx := a.ctxOrNil(); ctx != nil {
+		runtime.WindowReloadApp(ctx)
+	}
 	return nil
 }
 
@@ -211,7 +218,7 @@ func (a *App) registerAndSwitch(rootPath string) (ProjectInfo, error) {
 		Domain:    domains.DomainPatent,
 		Status:    domains.StatusActive,
 	}
-	if err := a.fc.ProjectRegistry.Register(a.ctx, rec); err != nil {
+	if err := a.fc.ProjectRegistry.Register(a.ctxOrNil(), rec); err != nil {
 		return ProjectInfo{}, fmt.Errorf("registerAndSwitch: %w", err)
 	}
 
@@ -227,15 +234,25 @@ func (a *App) setCurrentProject(projectID, rootPath string) error {
 	a.fc.BaseConfig.ProjectDir = rootPath
 
 	home := a.resolveMadyHome()
-	if home == "" {
-		return nil
+	if home != "" {
+		// settingsMu（G-I3）：与 SetAISettings 的 load-modify-save 互斥，
+		// 防止并发写文件时用旧快照覆盖对方字段。
+		a.settingsMu.Lock()
+		settings := loadAISettingsFrom(aiSettingsPath(home))
+		settings.LastProjectID = projectID
+		saveErr := saveAISettingsTo(aiSettingsPath(home), settings)
+		a.settingsMu.Unlock()
+		if saveErr != nil {
+			log.Printf("[mady-desktop] 保存 last_project_id 失败: %v", saveErr)
+			return fmt.Errorf("setCurrentProject: 保存项目设置失败: %w", saveErr)
+		}
 	}
 
-	settings := loadAISettingsFrom(aiSettingsPath(home))
-	settings.LastProjectID = projectID
-	if err := saveAISettingsTo(aiSettingsPath(home), settings); err != nil {
-		log.Printf("[mady-desktop] 保存 last_project_id 失败: %v", err)
-		return fmt.Errorf("setCurrentProject: 保存项目设置失败: %w", err)
+	// G-I2：项目切换后重建 Agent 工具扩展（WorkingDir 沙箱指向新项目根）。
+	// 否则前端文件面板已切到新项目，而 LLM 的 ReadFile/WriteFile 仍沙箱在旧项目。
+	if a.server != nil {
+		a.server.SyncConfig(buildDesktopAgentConfig(a.fc))
+		log.Printf("[mady-desktop] project switched to %s — agent sandbox synced", rootPath)
 	}
 	return nil
 }
@@ -246,7 +263,8 @@ func generateProjectID(alias string) string {
 	if clean == "" {
 		clean = "project"
 	}
-	return fmt.Sprintf("%s-%d", clean, time.Now().Unix())
+	// S-5：Unix 秒粒度同别名必冲突，改用纳秒粒度
+	return fmt.Sprintf("%s-%d", clean, time.Now().UnixNano())
 }
 
 var projectNameInvalidChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]+`)

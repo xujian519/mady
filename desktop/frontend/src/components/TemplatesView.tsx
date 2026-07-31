@@ -7,7 +7,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { FileText, Search, X, Loader } from 'lucide-react'
-import { listDocTemplates, type DocTemplateEntry } from '@/lib/backend'
+import { useDocTemplates, type DocTemplateEntry } from '@/queries/templates'
+import { ModalShell } from './ModalShell'
 
 export interface TemplatesViewProps {
   /** 关闭回调。 */
@@ -24,28 +25,12 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('claims')
   const [searchQuery, setSearchQuery] = useState('')
-  const [templates, setTemplates] = useState<DocTemplateEntry[]>([])
-  const [loading, setLoading] = useState(true)
+  const templatesQuery = useDocTemplates()
+  const templates = templatesQuery.data ?? []
+  const loading = templatesQuery.isLoading
 
-  // 从后端加载模板数据
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    listDocTemplates()
-      .then((data) => {
-        if (!cancelled) {
-          setTemplates(data)
-          setLoading(false)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setTemplates([])
-          setLoading(false)
-        }
-      })
-    return () => { cancelled = true }
-  }, [])
+  // 模板数据由 TanStack Query 接管（useDocTemplates，
+  // 见 mady-desktop-standards.md M-DSK-ST-002）；失败静默降级为空列表
 
   // 从模板数据中提取所有分类
   const categories = React.useMemo(() => {
@@ -87,7 +72,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+    <ModalShell onClose={onClose} ariaLabel="专利模板库">
       <div className="w-[640px] max-h-[80vh] bg-mady-bg-primary rounded-2xl border border-mady-separator shadow-xl flex flex-col overflow-hidden">
         {/* ── 头部 ── */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-mady-separator shrink-0">
@@ -150,9 +135,9 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
             </div>
           ) : filteredTemplates.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
-              {filteredTemplates.map((template, idx) => (
+              {filteredTemplates.map((template) => (
                 <div
-                  key={`${template.name}-${idx}`}
+                  key={template.name}
                   className="rounded-xl border border-mady-separator bg-mady-bg-secondary p-4 flex flex-col"
                 >
                   <div className="flex items-start gap-2 mb-2">
@@ -184,6 +169,6 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

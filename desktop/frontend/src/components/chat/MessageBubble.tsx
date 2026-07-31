@@ -14,6 +14,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import type { Message } from '@/stores/chat'
 import { MarkdownRenderer } from '../MarkdownRenderer'
+import { ReasoningBlock } from '../ReasoningBlock'
 
 interface MessageBubbleProps {
   message: Message
@@ -52,7 +53,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {isUser ? (
           <p className="whitespace-pre-wrap">{message.content}</p>
         ) : (
-          <MarkdownRenderer content={message.content} />
+          <>
+            {/* 结构化思考过程：折叠展示（F-B4） */}
+            {message.thinking && <ReasoningBlock content={message.thinking} />}
+            {message.content && <MarkdownRenderer content={message.content} />}
+          </>
         )}
 
         {/* 流式光标（仅 Agent 流式时显示） */}

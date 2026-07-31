@@ -11,6 +11,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agui"
 	"github.com/xujian519/mady/bootstrap"
+	madyserver "github.com/xujian519/mady/server"
 )
 
 func TestToKebabCase_RunStarted(t *testing.T) {
@@ -558,7 +559,7 @@ func TestSandboxChain_DeleteEntryPattern(t *testing.T) {
 }
 
 func TestSandboxChain_NonEmptyDirRejected(t *testing.T) {
-	// 模拟 DeleteEntry 的非空目录拒绝逻辑
+	// 真实调用 App.DeleteEntry：非空目录必须被拒绝且目录保留
 	root := t.TempDir()
 	dir := filepath.Join(root, "mydir")
 	if err := os.Mkdir(dir, 0755); err != nil {
@@ -568,30 +569,87 @@ func TestSandboxChain_NonEmptyDirRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
+	app := &App{
+		server: madyserver.New(agentcore.Config{}),
+		fc:     &bootstrap.Context{BaseConfig: agentcore.Config{ProjectDir: root}, WorkspaceDir: root},
 	}
-	if len(entries) > 0 {
-		// 应该拒绝删除非空目录
-		t.Log("non-empty directory correctly detected (would be rejected by DeleteEntry)")
+	if err := app.DeleteEntry("mydir"); err == nil {
+		t.Fatal("DeleteEntry(non-empty dir) should be rejected")
+	}
+	if _, statErr := os.Stat(dir); statErr != nil {
+		t.Errorf("non-empty dir should not be deleted: %v", statErr)
 	}
 }
 
 func TestSandboxChain_FileTooLarge(t *testing.T) {
-	// 模拟 ReadFile 的 maxReadFileSize 检查
-	const maxSize = 20 << 20
-	// 在限制内
-	smallSize := maxSize - 1
-	if smallSize <= maxSize {
-		// pass
-	} else {
-		t.Error("size check logic wrong")
+	// 真实调用 App.ReadFile：超限文件必须被拒绝
+	root := t.TempDir()
+	big := make([]byte, maxReadFileSize+1)
+	if err := os.WriteFile(filepath.Join(root, "big.md"), big, 0600); err != nil {
+		t.Fatal(err)
 	}
-	// 超限
-	largeSize := maxSize + 1
-	if largeSize <= maxSize {
-		t.Error("size check should detect large files")
+
+	app := &App{
+		server: madyserver.New(agentcore.Config{}),
+		fc:     &bootstrap.Context{BaseConfig: agentcore.Config{ProjectDir: root}, WorkspaceDir: root},
+	}
+	if _, err := app.ReadFile("big.md"); err == nil {
+		t.Error("ReadFile(too large) should fail")
+	}
+}
+
+// TestSandbox_SymlinkReadEscape 验证符号链接读逃逸被拒绝（G-B1）。
+// 沙箱内 symlink -> 沙箱外文件：isPathWithinSandbox / resolveSandboxedPath 必须拒绝。
+func TestSandbox_SymlinkReadEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret.txt")
+	if err := os.WriteFile(secret, []byte("top-secret"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "evil-link.txt")
+	if err := os.Symlink(secret, link); err != nil {
+		t.Skipf("symlink not supported: %v", err)
+	}
+
+	if isPathWithinSandbox(link, root) {
+		t.Error("symlink to outside file should NOT be within sandbox")
+	}
+	if _, err := resolveSandboxedPath("evil-link.txt", root); err == nil {
+		t.Error("resolveSandboxedPath(symlink escape) should fail")
+	}
+}
+
+// TestSandbox_SymlinkDirEscape 验证经符号链接目录的写逃逸被拒绝（G-B1）。
+// 沙箱内 symlink dir -> 沙箱外目录：写入目标必须被拒绝。
+func TestSandbox_SymlinkDirEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "evil-dir")); err != nil {
+		t.Skipf("symlink not supported: %v", err)
+	}
+
+	target := filepath.Join(root, "evil-dir", "x.md")
+	if isPathWithinSandbox(target, root) {
+		t.Error("write through symlink dir should NOT be within sandbox")
+	}
+	if _, err := resolveSandboxedPath(filepath.Join("evil-dir", "x.md"), root); err == nil {
+		t.Error("resolveSandboxedPath(symlink dir escape) should fail")
+	}
+}
+
+// TestSandbox_SymlinkWithinRoot 验证沙箱内正常 symlink（指向沙箱内）不被误伤。
+func TestSandbox_SymlinkWithinRoot(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "real.txt"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "real.txt"), filepath.Join(root, "alias.txt")); err != nil {
+		t.Skipf("symlink not supported: %v", err)
+	}
+
+	if !isPathWithinSandbox(filepath.Join(root, "alias.txt"), root) {
+		t.Error("symlink pointing inside sandbox should be allowed")
 	}
 }
 

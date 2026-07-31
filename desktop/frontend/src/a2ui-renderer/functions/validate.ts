@@ -9,6 +9,8 @@
  * 所有函数以 Record<string, (args: Record<string, unknown>) => unknown> 导出。
  */
 
+import { BrowserOpenURL } from '../../../wailsjs/runtime/runtime'
+
 /** 必填校验。value 不能为 null/undefined/空字符串。 */
 function _required(args: Record<string, unknown>): unknown {
   const value = args.value
@@ -80,10 +82,10 @@ function _not(args: Record<string, unknown>): unknown {
 // ── 副作用 ───────────────────────────────────────
 
 /**
- * openUrl — 打开 URL。
- * 安全约束：仅允许 http/https 协议。
- * 实际调用由 renderer 拦截后通过 Wails runtime.EventsEmit 或 window.open 执行。
- * 本函数仅做协议校验并返回 URL。
+ * openUrl — 打开 URL（F-I12：校验通过后实际打开）。
+ * 安全约束：仅允许 http/https 协议（M-DSK-SEC-003）。
+ * Wails 宿主经 BrowserOpenURL 交给系统浏览器；纯浏览器回退 window.open。
+ * 非浏览器环境（node 测试）仅校验并返回 URL，不产生副作用。
  */
 function _openUrl(args: Record<string, unknown>): unknown {
   const url = args.url as string | undefined
@@ -93,6 +95,13 @@ function _openUrl(args: Record<string, unknown>): unknown {
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       console.warn(`[a2ui] openUrl blocked for protocol: ${parsed.protocol}`)
       return undefined
+    }
+    if (typeof window !== 'undefined') {
+      if ((window as unknown as { runtime?: unknown }).runtime) {
+        BrowserOpenURL(url)
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      }
     }
     return url
   } catch {

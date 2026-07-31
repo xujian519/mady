@@ -22,6 +22,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { useTheme } from '@/theme/tokens'
 
 interface CodeEditorProps {
   value: string
@@ -65,13 +66,6 @@ const baseTheme = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
 })
 
-function isDarkMode(): boolean {
-  return (
-    document.documentElement.classList.contains('dark') ||
-    window.matchMedia?.('(prefers-color-scheme: dark)').matches === true
-  )
-}
-
 export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, onSave, markdown: isMd }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -80,6 +74,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, onSave,
   const onSaveRef = useRef(onSave)
   onChangeRef.current = onChange
   onSaveRef.current = onSave
+  // F-I10：主题作为 effect 依赖——ThemeProvider 切换时重建编辑器高亮
+  const { resolved } = useTheme()
+  const isDark = resolved === 'dark'
 
   // 初始化 / 销毁
   useEffect(() => {
@@ -116,7 +113,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, onSave,
       extensions.push(markdown({ base: markdownLanguage }))
     }
 
-    if (isDarkMode()) {
+    if (isDark) {
       extensions.push(oneDark)
     } else {
       extensions.push(syntaxHighlighting(lightHighlight, { fallback: true }))
@@ -130,9 +127,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, onSave,
       view.destroy()
       viewRef.current = null
     }
-    // 仅在挂载/语言切换时重建；value 由 updateListener 单向流出
+    // F-I10：isMd / isDark 均作为依赖——语言或主题切换时重建编辑器
+    // value 由 updateListener 单向流出
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMd])
+  }, [isMd, isDark])
 
   // 外部 value 变更（如打开新文件）时同步进 editor
   useEffect(() => {

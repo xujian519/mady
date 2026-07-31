@@ -7,37 +7,26 @@
  * - 本期只读；增删改不在范围内（信任存储为安全敏感路径）
  */
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback } from 'react'
 import { X, Loader2, AlertCircle, Server, RefreshCw, Globe, Terminal } from 'lucide-react'
-import { listMcpServers, type McpServerEntry } from '@/lib/backend'
+import { useMcpServers } from '@/queries/mcp'
+import { ModalShell } from './ModalShell'
 
 interface McpViewProps {
   onClose: () => void
 }
 
 export const McpView: React.FC<McpViewProps> = ({ onClose }) => {
-  const [servers, setServers] = useState<McpServerEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      setServers(await listMcpServers())
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
+  const serversQuery = useMcpServers()
+  const servers = serversQuery.data ?? []
+  const loading = serversQuery.isLoading
+  const error = serversQuery.isError
+    ? (serversQuery.error instanceof Error ? serversQuery.error.message : String(serversQuery.error))
+    : null
+  const load = useCallback(() => { void serversQuery.refetch() }, [serversQuery])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+    <ModalShell onClose={onClose} ariaLabel="MCP 服务器">
       <div className="w-[640px] max-w-[92vw] max-h-[80vh] bg-mady-bg-primary rounded-xl shadow-2xl border border-mady-separator flex flex-col overflow-hidden">
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-mady-separator">
@@ -84,8 +73,8 @@ export const McpView: React.FC<McpViewProps> = ({ onClose }) => {
               </div>
             </div>
           ) : (
-            servers.map((s, i) => (
-              <div key={`${s.source}-${s.name}-${i}`} className="px-4 py-3 border-b border-mady-separator/50">
+            servers.map((s) => (
+              <div key={`${s.source}-${s.name}`} className="px-4 py-3 border-b border-mady-separator/50">
                 <div className="flex items-center gap-2">
                   {s.type === 'http' ? (
                     <Globe size={14} className="text-mady-accent shrink-0" />
@@ -120,6 +109,6 @@ export const McpView: React.FC<McpViewProps> = ({ onClose }) => {
           )}
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

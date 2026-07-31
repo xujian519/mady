@@ -12,12 +12,11 @@
  * server.ListModels，agentconfig 聚合）；失败时回退占位模型。
  */
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { ChevronDown, Cpu, Thermometer, SlidersHorizontal, Brain } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useSettingsStore } from '@/stores/settings'
-import { listModels } from '@/lib/backend'
-import type { ModelInfo } from '@/lib/backend'
+import { useModels } from '@/queries/models'
 
 // ── 类型 ──────────────────────────────────────────
 
@@ -33,64 +32,55 @@ interface ModelOption {
 // ── Component ─────────────────────────────────────
 
 export const ModelSettings: React.FC = () => {
-  const store = useSettingsStore()
+  // F-I16：字段级 selector，避免模型列表刷新/温度拖动时整树重订阅
+  const modelId = useSettingsStore((s) => s.modelId)
+  const reasoningEffort = useSettingsStore((s) => s.reasoningEffort)
+  const contextWindow = useSettingsStore((s) => s.contextWindow)
+  const temperature = useSettingsStore((s) => s.temperature)
+  const update = useSettingsStore((s) => s.update)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const [models, setModels] = useState<ModelOption[]>([])
-  const [_loading, _setLoading] = useState(true)
-  const [_error, _setError] = useState<string | null>(null)
+  const modelsQuery = useModels()
 
-  // 从后端加载模型列表
+  // 从后端加载模型列表（TanStack Query 接管缓存/重试/失效，
+  // 见 mady-desktop-standards.md M-DSK-ST-002）
+  const models = useMemo<ModelOption[]>(() => {
+    const list = modelsQuery.data ?? []
+    const opts: ModelOption[] = list.map((m, i) => ({
+      id: m.id,
+      name: m.name,
+      provider: m.provider,
+      // 第一个模型标记为推荐，其余为全部
+      group: i === 0 ? 'recommended' as const : 'all' as const,
+      capabilities: [`${m.contextWindow > 0 ? `${m.contextWindow/1024}K` : '默认'} 上下文`],
+      reasoningLabel: '—',
+    }))
+    // 如果后端返回为空，使用一个占位
+    if (opts.length === 0) {
+      opts.push({
+        id: modelId || 'default',
+        name: modelId || '默认模型',
+        provider: 'local',
+        group: 'recommended',
+        capabilities: [],
+        reasoningLabel: '—',
+      })
+    }
+    return opts
+  }, [modelsQuery.data, modelId])
+
+  // 失败时回退占位模型（上面的 useMemo 已保证占位存在），仅记录日志
   useEffect(() => {
-    let cancelled = false
-    _setLoading(true)
-    _setError(null)
-    listModels()
-      .then((list: ModelInfo[]) => {
-        if (cancelled) return
-        const opts: ModelOption[] = list.map((m, i) => ({
-          id: m.id,
-          name: m.name,
-          provider: m.provider,
-          // 第一个模型标记为推荐，其余为全部
-          group: i === 0 ? 'recommended' as const : 'all' as const,
-          capabilities: [`${m.contextWindow > 0 ? `${m.contextWindow/1024}K` : '默认'} 上下文`],
-          reasoningLabel: '—',
-        }))
-        // 如果后端返回为空，使用一个占位
-        if (opts.length === 0) {
-          opts.push({
-            id: store.modelId || 'default',
-            name: store.modelId || '默认模型',
-            provider: 'local',
-            group: 'recommended',
-            capabilities: [],
-            reasoningLabel: '—',
-          })
-        }
-        setModels(opts)
-        _setLoading(false)
-      })
-      .catch((err: Error) => {
-        if (cancelled) return
-        console.error('[ModelSettings] listModels failed:', err)
-        _setError('无法加载模型列表')
-        // 失败时回退占位模型，保证下拉仍有可选条目
-        setModels([{
-          id: store.modelId || 'default',
-          name: store.modelId || '默认模型',
-          provider: 'local',
-          group: 'recommended',
-          capabilities: [],
-          reasoningLabel: '—',
-        }])
-        _setLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [store.modelId])
+    if (modelsQuery.isError) {
+      console.error('[ModelSettings] listModels failed:', modelsQuery.error)
+    }
+  }, [modelsQuery.isError, modelsQuery.error])
+
+  // 保持原有 JSX 引用的 error 语义（下划线前缀为兼容旧变量名）
+  const _error = modelsQuery.isError ? '无法加载模型列表' : null
 
   // 从 models 匹配当前模型，取第一个或占位
-  const selectedModel = models.find((m) => m.id === store.modelId) ?? models[0] ?? {
+  const selectedModel = models.find((m) => m.id === modelId) ?? models[0] ?? {
     id: 'default',
     name: '默认模型',
     provider: '',
@@ -189,9 +179,9 @@ export const ModelSettings: React.FC = () => {
                       <ModelRow
                         key={model.id}
                         model={model}
-                        selected={model.id === store.modelId}
+                        selected={model.id === modelId}
                         onSelect={() => {
-                          store.update({ modelId: model.id })
+                          update({ modelId: model.id })
                           setDropdownOpen(false)
                         }}
                       />
@@ -208,9 +198,9 @@ export const ModelSettings: React.FC = () => {
                       <ModelRow
                         key={model.id}
                         model={model}
-                        selected={model.id === store.modelId}
+                        selected={model.id === modelId}
                         onSelect={() => {
-                          store.update({ modelId: model.id })
+                          update({ modelId: model.id })
                           setDropdownOpen(false)
                         }}
                       />
@@ -234,11 +224,11 @@ export const ModelSettings: React.FC = () => {
             {EFFORT_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => store.update({ reasoningEffort: opt.value })}
+                onClick={() => update({ reasoningEffort: opt.value })}
                 className={`
                   flex-1 px-2 py-1.5 rounded-md text-mady-small font-medium transition-all duration-100
                   ${
-                    store.reasoningEffort === opt.value
+                    reasoningEffort === opt.value
                       ? 'bg-mady-accent text-white shadow-sm'
                       : 'text-mady-text-secondary hover:text-mady-text-primary'
                   }
@@ -258,8 +248,8 @@ export const ModelSettings: React.FC = () => {
           </label>
           <div className="relative">
             <select
-              value={store.contextWindow}
-              onChange={(e) => store.update({ contextWindow: e.target.value })}
+              value={contextWindow}
+              onChange={(e) => update({ contextWindow: e.target.value })}
               className="
                 w-full appearance-none rounded-lg px-3 py-2 pr-8
                 bg-mady-bg-secondary border border-mady-border
@@ -287,14 +277,14 @@ export const ModelSettings: React.FC = () => {
             <Thermometer size={11} />
             温度
             <span className="text-mady-text-tertiary ml-auto font-mono text-mady-caption">
-              {store.temperature.toFixed(1)}
+              {temperature.toFixed(1)}
             </span>
           </label>
           <div className="relative pt-1 pb-2">
             <div className="relative h-1 rounded-full bg-mady-border">
               <div
                 className="absolute inset-y-0 left-0 rounded-full bg-mady-accent transition-[width] duration-100"
-                style={{ width: `${(store.temperature / 2) * 100}%` }}
+                style={{ width: `${(temperature / 2) * 100}%` }}
               />
             </div>
             <input
@@ -302,8 +292,8 @@ export const ModelSettings: React.FC = () => {
               min={0}
               max={2}
               step={0.1}
-              value={store.temperature}
-              onChange={(e) => store.update({ temperature: parseFloat(e.target.value) })}
+              value={temperature}
+              onChange={(e) => update({ temperature: parseFloat(e.target.value) })}
               className="
                 absolute inset-0 w-full h-full opacity-0 cursor-pointer
                 m-0 p-0
@@ -312,7 +302,7 @@ export const ModelSettings: React.FC = () => {
             <div
               className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] border border-mady-border pointer-events-none transition-transform duration-150 hover:scale-110"
               style={{
-                left: `calc(${(store.temperature / 2) * 100}% - 8px)`,
+                left: `calc(${(temperature / 2) * 100}% - 8px)`,
               }}
             />
           </div>

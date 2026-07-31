@@ -57,11 +57,24 @@ func saveAISettingsTo(path string, s AISettings) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	// 并发安全的原子写：CreateTemp 生成唯一临时文件名（G-I3），
+	// 避免两个并发保存互相覆盖同一个 .tmp 文件。
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".mady-settings-*")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 // resolveMadyHome 返回 MadyHome；优先取 framework 上下文（便于测试注入），
@@ -93,7 +106,7 @@ func (a *App) applyLastProject(saved AISettings) {
 		return
 	}
 	a.fc.BaseConfig.ProjectDir = rec.RootPath
-	a.fc.ProjectRegistry.Touch(a.ctx, rec.ProjectID)
+	a.fc.ProjectRegistry.Touch(a.ctxOrNil(), rec.ProjectID)
 	log.Printf("[mady-desktop] restored last project: %s (%s)", rec.Alias, rec.RootPath)
 }
 
@@ -146,12 +159,17 @@ func (a *App) SetAISettings(s AISettings) error {
 
 	// 持久化（原子写）；失败时不变更运行时状态。
 	// 保留已有的 last_project_id，避免 AI 设置保存覆盖项目状态。
+	// settingsMu（G-I3）：与 setCurrentProject 的 load-modify-save 互斥，
+	// 防止并发写文件时用旧快照覆盖对方字段。
 	if home := a.resolveMadyHome(); home != "" {
+		a.settingsMu.Lock()
 		saved := loadAISettingsFrom(aiSettingsPath(home))
 		saved.Provider = newProvider
 		saved.Model = newModel
-		if err := saveAISettingsTo(aiSettingsPath(home), saved); err != nil {
-			return fmt.Errorf("setAISettings: 保存配置失败: %w", err)
+		saveErr := saveAISettingsTo(aiSettingsPath(home), saved)
+		a.settingsMu.Unlock()
+		if saveErr != nil {
+			return fmt.Errorf("setAISettings: 保存配置失败: %w", saveErr)
 		}
 	}
 
@@ -191,7 +209,9 @@ func (a *App) resolveProjectDir() (string, error) {
 }
 
 // isPathWithinSandbox 检查 target 是否位于 sandboxRoot 之下。
-// 防止路径穿越攻击（path traversal）。
+// 防止路径穿越攻击（path traversal）与符号链接逃逸（G-B1）：
+// 先解析 target 与 root 的符号链接再比较，对齐 tools/path.go 的
+// evalSymlinksExist（防 "link_to_etc -> /etc" 式逃逸）。
 func isPathWithinSandbox(target, sandboxRoot string) bool {
 	cleanTarget, err := filepath.Abs(target)
 	if err != nil {
@@ -201,10 +221,45 @@ func isPathWithinSandbox(target, sandboxRoot string) bool {
 	if err != nil {
 		return false
 	}
-	rel, err := filepath.Rel(cleanRoot, cleanTarget)
+
+	// 解析符号链接：对尚不存在的文件（写操作常见），回退到最近的已存在父目录校验。
+	realTarget, err := evalSymlinksExist(cleanTarget)
+	if err != nil {
+		return false
+	}
+	realRoot, err := evalSymlinksExist(cleanRoot)
+	if err != nil {
+		return false
+	}
+
+	rel, err := filepath.Rel(realRoot, realTarget)
 	if err != nil {
 		return false
 	}
 	// rel 以 ".." 开头说明 target 在 sandboxRoot 之外
 	return len(rel) < 2 || rel[:2] != ".."
+}
+
+// evalSymlinksExist 解析 abs 中符号链接，返回规范路径。
+// 对不存在的路径（写操作目标），向上回溯到最近的已存在祖先解析后再拼接回原后缀。
+// 与 tools/path.go 的实现保持一致（G-B1 安全修复）。
+func evalSymlinksExist(abs string) (string, error) {
+	realPath, err := filepath.EvalSymlinks(abs)
+	if err == nil {
+		return realPath, nil
+	}
+	if !os.IsNotExist(err) {
+		return "", err
+	}
+	dir := abs
+	for {
+		dir = filepath.Dir(dir)
+		if dir == "/" || dir == "." {
+			return "", fmt.Errorf("path not found: %s", abs)
+		}
+		if realDir, err := filepath.EvalSymlinks(dir); err == nil {
+			rel, _ := filepath.Rel(dir, abs)
+			return filepath.Join(realDir, rel), nil
+		}
+	}
 }

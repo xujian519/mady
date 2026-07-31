@@ -17,6 +17,7 @@ import { getComponent } from './registry'
 import { childRefsOf } from './child-refs'
 import { resolveDynamic } from './dynamic'
 import type { RenderContext } from './registry'
+import { useA2UIStore } from './a2ui-store'
 
 // ── Props ─────────────────────────────────────────
 
@@ -42,13 +43,20 @@ export const A2UISurface: React.FC<A2UIRendererProps> = ({
   functions,
   onAction,
 }) => {
+  // F-B2：surface 状态从 zustand 快照订阅——applyEnvelope 后受影响的
+  // surfaces[surfaceId] 是「新引用」（见 a2ui-store.applyEnvelope 的浅拷贝），
+  // context 随之重建，React.memo 层不再被引用相等性 bail out。
+  // 不再直接读 store.surface(surfaceId)：底层 SurfaceStore 原地 mutate，
+  // 旧实现下 surface 引用永不变化，dataModel/组件更新后 UI 冻结。
+  const surface = useA2UIStore((s) => s.surfaces[surfaceId])
+
   const context: RenderContext = useMemo(
     () => ({
-      surface: store.surface(surfaceId)!,
+      surface: surface!,
       functions,
       onAction,
     }),
-    [store, surfaceId, functions, onAction],
+    [surface, functions, onAction],
   )
 
   if (!context.surface) return null
@@ -73,13 +81,10 @@ interface A2UINodeProps {
 /** 递归渲染单个节点及其子节点。 */
 const A2UINode: React.FC<A2UINodeProps> = React.memo(({ componentId, context, store }) => {
   const comp = context.surface.components.get(componentId)
-  if (!comp) {
-    console.warn(`[a2ui] component not found: ${componentId}`)
-    return null
-  }
 
-  const Component = getComponent(comp.type)
+  // 所有 hooks 必须在条件返回之前（rules-of-hooks）。
   const children = useMemo(() => {
+    if (!comp) return []
     const refs = childRefsOf(comp, context.surface.catalogId)
     return refs.map((childId) => (
       <A2UINode
@@ -90,6 +95,13 @@ const A2UINode: React.FC<A2UINodeProps> = React.memo(({ componentId, context, st
       />
     ))
   }, [comp, context])
+
+  if (!comp) {
+    console.warn(`[a2ui] component not found: ${componentId}`)
+    return null
+  }
+
+  const Component = getComponent(comp.type)
 
   return (
     <Component component={comp} context={context}>

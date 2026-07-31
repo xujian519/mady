@@ -25,6 +25,7 @@ import type { ThemePackId } from '@/theme/tokens'
 import { ChatView } from '@/components/chat/ChatView'
 import { SplashScreen } from '@/components/SplashScreen'
 import { saveWindowState } from '@/lib/backend'
+import { useThreads } from '@/stores/threads'
 
 /** 是否启用测试 API（__mady 全局接口）。生产构建默认为 false。 */
 const ENABLE_TEST_API = import.meta.env.VITE_ENABLE_TEST_API === 'true'
@@ -69,6 +70,10 @@ function App() {
       unsubscribe()
     }
   }, [])
+
+  // 常驻挂载会话列表查询（F-B3）：Sidebar 折叠/焦点模式卸载时数据仍保持，
+  // 删除/新建会话后经 invalidateQueries 自动刷新。
+  useThreads()
 
   // 暴露测试接口
   useEffect(() => {

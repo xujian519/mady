@@ -82,6 +82,14 @@ export interface HealthInfo {
   uptime: string
 }
 
+/** UpdateInfo — 更新检查结果（W4-T12 占位契约，对应 Go UpdateInfo）。 */
+export interface UpdateInfo {
+  currentVersion: string
+  latestVersion: string
+  hasUpdate: boolean
+  message: string
+}
+
 /** 已注册项目摘要。 */
 export interface ProjectInfo {
   id: string
@@ -274,6 +282,11 @@ export async function saveWindowState(width: number, height: number): Promise<vo
  */
 export async function health(): Promise<HealthInfo> {
   return callBinding<HealthInfo>('main/App', 'Health')
+}
+
+/** 检查是否有可用更新（W4-T12 占位：当前返回「已是最新版本」）。 */
+export async function checkUpdate(): Promise<UpdateInfo> {
+  return callBinding<UpdateInfo>('main/App', 'CheckUpdate')
 }
 
 // ── AI Settings（Q9：全局切换 + 新会话生效） ──────────

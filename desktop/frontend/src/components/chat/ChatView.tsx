@@ -31,6 +31,8 @@ import { DecisionSurface } from '../DecisionSurface'
 import { ContextIndicator } from '../ContextIndicator'
 import { StatusBar } from '../StatusBar'
 import { ToolCard } from '../ToolCard'
+import { useTheme } from '@/theme/tokens'
+import { exportSession } from '@/lib/sessionExport'
 import { TodoDock } from '../TodoDock'
 import { DocumentViewer, type DocViewerFile } from '../DocumentViewer'
 import { FileViewerOverlay } from '../fileviewer/FileViewerOverlay'
@@ -109,19 +111,47 @@ function hasActiveContent(
 // ── 智能自动滚动 Hook ─────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function useAutoScroll(virtualizer: any, enabled: boolean, items: TranscriptItem[]): void {
+function useAutoScroll(
+  virtualizer: any,
+  enabled: boolean,
+  items: TranscriptItem[],
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>,
+): void {
   const prevCountRef = useRef(items.length)
+  const prevOutputLenRef = useRef(0)
+  // 用户是否「贴底」：上翻阅读历史时暂停自动滚动，回到底部附近才恢复（F-I14）
+  const stickToBottomRef = useRef(true)
+
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const onScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el
+      stickToBottomRef.current = scrollHeight - scrollTop - clientHeight < 120
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [scrollContainerRef])
 
   useEffect(() => {
     if (!enabled || items.length === 0) return
 
-    // 仅在新项追加或内容变化时触发
-    if (items.length === prevCountRef.current) return
+    // 流式文本增量（item 数不变）也触发跟随：汇总 streaming item 的文本长度
+    let outputLen = 0
+    for (const it of items) {
+      if (it.kind === 'streaming-output') outputLen += it.output.length
+      if (it.kind === 'streaming-thinking') outputLen += it.thinking.length
+    }
+    const countChanged = items.length !== prevCountRef.current
+    const outputChanged = outputLen !== prevOutputLenRef.current
     prevCountRef.current = items.length
+    prevOutputLenRef.current = outputLen
 
-    // 自动滚到底部
-    virtualizer.scrollToIndex(items.length - 1, { align: 'end', behavior: 'smooth' })
-  }, [items.length, enabled, virtualizer])
+    if (!stickToBottomRef.current) return // 用户上翻时保持不动
+    if (!countChanged && !outputChanged) return
+
+    virtualizer.scrollToIndex(items.length - 1, { align: 'end', behavior: 'auto' })
+  }, [items, enabled, virtualizer])
 }
 
 // ── 主要组件 ──────────────────────────────────────
@@ -143,7 +173,29 @@ export const ChatView: React.FC = () => {
   const layout = useSettingsStore((s) => s.layout as LayoutMode)
 
   const isFocusMode = layout === 'focus'
-  const [showSidebar, setShowSidebar] = useState(!isFocusMode)
+  // 侧栏显隐与持久化设置联动（W4-T13 布局持久化：重启恢复折叠状态）
+  const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
+  const [showSidebar, setShowSidebar] = useState(
+    () => !useSettingsStore.getState().sidebarCollapsed && !isFocusMode,
+  )
+
+  // 折叠状态变化时同步本地显隐（收起按钮在 Sidebar 内触发）
+  useEffect(() => {
+    if (sidebarCollapsed && showSidebar && !isFocusMode) {
+      setShowSidebar(false)
+    }
+  }, [sidebarCollapsed, showSidebar, isFocusMode])
+
+  // 窄窗口（<900px）自动折叠侧栏（W4-T8，对齐 HIG Sidebars：空间紧张时自动隐藏导航）
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth < 900 && !isFocusMode) {
+        useSettingsStore.setState({ sidebarCollapsed: true })
+      }
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [isFocusMode])
   const [showDocViewer, setShowDocViewer] = useState(false)
   const [docFile, setDocFile] = useState<DocViewerFile | null>(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -155,12 +207,32 @@ export const ChatView: React.FC = () => {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
+  // 主题三态切换（F-I1）：命令面板与 SettingsPanel 走同一路径（ThemeProvider）
+  const { setMode } = useTheme()
+
+  // /settings 斜杠命令（F-I2）：Composer dispatch mady:open-settings 事件，
+  // 由本组件（设置面板所有者）监听并打开。
+  useEffect(() => {
+    const handleOpenSettings = () => setShowSettings(true)
+    window.addEventListener('mady:open-settings', handleOpenSettings)
+    return () => window.removeEventListener('mady:open-settings', handleOpenSettings)
+  }, [])
+
   // ⌘K 快捷键切换命令面板
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         setShowCommandPalette((v) => !v)
+        return
+      }
+      // ⌘B 切换侧栏折叠（W4-T8；仅在非输入元素时响应，避免与编辑区粗体冲突）
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+        const target = e.target as HTMLElement | null
+        const tag = target?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
+        e.preventDefault()
+        useSettingsStore.setState((s) => ({ sidebarCollapsed: !s.sidebarCollapsed }))
       }
     }
     document.addEventListener('keydown', handler)
@@ -225,7 +297,7 @@ export const ChatView: React.FC = () => {
   })
 
   // 智能自动滚动
-  useAutoScroll(virtualizer, running || !!output || !!thinking, items)
+  useAutoScroll(virtualizer, running || !!output || !!thinking, items, scrollContainerRef)
 
   // ── 渲染单项 ────────────────────────────────────
 
@@ -330,7 +402,10 @@ export const ChatView: React.FC = () => {
         <div className="flex items-center gap-2.5">
           {!showSidebar && !isFocusMode && (
             <button
-              onClick={() => setShowSidebar(true)}
+              onClick={() => {
+                setShowSidebar(true)
+                useSettingsStore.setState({ sidebarCollapsed: false })
+              }}
               className="p-1 rounded-md hover:bg-mady-bg-secondary text-mady-text-secondary transition-colors"
               title="显示侧栏"
             >
@@ -542,13 +617,24 @@ export const ChatView: React.FC = () => {
             toggleSettings: () => setShowSettings(true),
             toggleSidebar: () => setShowSidebar((v) => !v),
             setTheme: (mode) => {
-              document.documentElement.setAttribute('data-theme', mode)
+              // F-I1：经 ThemeProvider 切换（写 .dark class + localStorage），
+              // 不再直接改 DOM 属性（data-theme 是 provider 的输出而非输入）。
+              setMode(mode)
             },
             clearChat: () => {
               useChatStore.setState({ ...initialState, ready: true, threads: useChatStore.getState().threads })
             },
             exportChat: () => {
-              // 由 MessageBubble 等组件实现的导出功能
+              // F-I3：真实导出为 Markdown 并触发下载
+              const { messages } = useChatStore.getState()
+              const md = exportSession(messages)
+              const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+              const url = URL.createObjectURL(blob)
+              const link = document.createElement('a')
+              link.href = url
+              link.download = `mady-session-${Date.now()}.md`
+              link.click()
+              URL.revokeObjectURL(url)
             },
             toggleFocusMode: () => {
               useSettingsStore.getState().update({ layout: 'focus' as LayoutMode })

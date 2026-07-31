@@ -50,7 +50,11 @@ export function getData(model: unknown, path: string): [unknown, boolean] {
       cur = cur[idx]
     } else {
       const m = cur as Record<string, unknown>
-      if (!(tok in m)) return [undefined, false]
+      // S-6 纵深防御：'__proto__' 经 `in` 操作符恒为 true（原型链），
+      // 直接取值会拿到 Object.prototype；改用 hasOwnProperty 并显式拒绝。
+      if (tok === '__proto__' || !Object.prototype.hasOwnProperty.call(m, tok)) {
+        return [undefined, false]
+      }
       cur = m[tok]
     }
   }

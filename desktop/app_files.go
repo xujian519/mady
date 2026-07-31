@@ -167,7 +167,9 @@ func (a *App) ReadFile(relPath string) (*FileContent, error) {
 
 	switch kind {
 	case "text", "md":
-		if kind == "text" && isBinaryContent(raw) {
+		// S-12：md 同样做二进制嗅探——含 NUL 的 .md（如误命名的二进制）以文本原样
+		// 返回会污染渲染/后续处理，统一拒绝。
+		if isBinaryContent(raw) {
 			return nil, fmt.Errorf("readFile: %s appears to be a binary file", relPath)
 		}
 		fc.Text = string(raw)

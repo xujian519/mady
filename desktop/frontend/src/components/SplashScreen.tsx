@@ -8,13 +8,16 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { listenToWailsEvent } from '@/lib/wails'
 import { useChatStore } from '@/stores/chat'
+import { AlertCircle } from 'lucide-react'
 
 export function SplashScreen() {
   const [visible, setVisible] = useState(true)
   const [progress, setProgress] = useState('正在初始化引擎...')
   const [fadingOut, setFadingOut] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const doneRef = useRef(false)
   const fadingOutRef = useRef(false)
+  const errorRef = useRef(false)
 
   const handleDone = useCallback(() => {
     if (doneRef.current) return // 去重守卫：即使收到重复事件也仅触发一次
@@ -38,15 +41,23 @@ export function SplashScreen() {
     // 订阅初始化完成
     const unsubDone = listenToWailsEvent('mady:init-done', handleDone)
 
+    // 订阅初始化失败（W4-T3 观察项闭环）：停住加载层并展示错误，
+    // 不进入主界面；兜底计时器同时失效，避免错误态被强行跳过。
+    const unsubError = listenToWailsEvent('mady:init-error', (msg: string) => {
+      errorRef.current = true
+      setError(typeof msg === 'string' && msg !== '' ? msg : '引擎初始化失败')
+    })
+
     // 兜底：15 秒后自动关闭（防止事件丢失导致永远卡在加载界面）
-    // 使用 fadingOutRef 避免 fadingOut 闭包过期
+    // 使用 fadingOutRef 避免 fadingOut 闭包过期；初始化失败时不自动关闭
     const timeout = setTimeout(() => {
-      if (!fadingOutRef.current) handleDone()
+      if (!errorRef.current && !fadingOutRef.current) handleDone()
     }, 15000)
 
     return () => {
       unsubProgress()
       unsubDone()
+      unsubError()
       clearTimeout(timeout)
     }
   }, [handleDone])
@@ -91,25 +102,38 @@ export function SplashScreen() {
         </h1>
       </div>
 
-      {/* 进度文案 */}
-      <p className="text-sm text-mady-text-secondary mb-6 h-5 text-center transition-all duration-300 relative z-10">
-        {progress}
-      </p>
+      {/* 进度文案 / 失败状态 */}
+      {error ? (
+        <div className="flex flex-col items-center mb-6 relative z-10 max-w-xs">
+          <AlertCircle size={28} className="text-mady-danger mb-3" />
+          <p className="text-sm text-mady-danger mb-1 text-center">引擎初始化失败</p>
+          <p className="text-xs text-mady-text-secondary text-center break-all">{error}</p>
+          <p className="text-xs text-mady-text-tertiary mt-3 text-center">
+            请检查 AI 服务配置后重启应用
+          </p>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-mady-text-secondary mb-6 h-5 text-center transition-all duration-300 relative z-10">
+            {progress}
+          </p>
 
-      {/* 加载指示器 — 波形脉冲 */}
-      <div className="flex items-center gap-1.5 relative z-10">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="w-1.5 h-1.5 rounded-full animate-bounce"
-            style={{
-              backgroundColor: 'var(--color-mady-accent)',
-              animationDelay: `${i * 0.15}s`,
-              animationDuration: '0.8s',
-            }}
-          />
-        ))}
-      </div>
+          {/* 加载指示器 — 波形脉冲 */}
+          <div className="flex items-center gap-1.5 relative z-10">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-1.5 h-1.5 rounded-full animate-bounce"
+                style={{
+                  backgroundColor: 'var(--color-mady-accent)',
+                  animationDelay: `${i * 0.15}s`,
+                  animationDuration: '0.8s',
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

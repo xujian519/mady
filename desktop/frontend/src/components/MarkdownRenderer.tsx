@@ -21,6 +21,7 @@
  */
 
 import React, { useMemo } from 'react'
+import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { CodeBlock } from './CodeBlock'
 
 interface MarkdownRendererProps {
@@ -70,13 +71,20 @@ function parseInline(text: string): React.ReactNode[] {
       // 斜体
       parts.push(<em key={match.index} className="italic">{match[8]}</em>)
     } else if (match[10] !== undefined) {
-      // 链接
+      // 链接（F-I11）：Wails WebView 不支持 _blank 新窗口，
+      // 改为点击时经 BrowserOpenURL 交给系统浏览器；仅放行 http/https（M-DSK-SEC-003）。
+      const href = match[11]
       parts.push(
         <a
           key={match.index}
-          href={match[11]}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={href}
+          onClick={(e) => {
+            if (/^https?:\/\//i.test(href)) {
+              e.preventDefault()
+              BrowserOpenURL(href)
+            }
+            // 非 http(s)（如 javascript:）不打开，依赖 CSP 兜底 + 白名单拦截
+          }}
           className="text-mady-text-link underline hover:opacity-80"
         >
           {match[10]}

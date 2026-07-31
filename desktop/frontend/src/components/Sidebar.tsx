@@ -7,11 +7,13 @@
  *   底部 — 设置入口
  */
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import { useChatStore } from '@/stores/chat'
+import { useSettingsStore } from '@/stores/settings'
+import { useThreads, useDeleteThread } from '@/stores/threads'
 import { ThreadItem } from './ThreadItem'
 import { ProjectTree } from './ProjectTree'
-import { deleteThread, getThread } from '@/lib/backend'
+import { getThread } from '@/lib/backend'
 import { Search, Settings, FolderTree, FileText, MessageSquare, PanelLeftClose } from 'lucide-react'
 
 type SidebarTab = 'threads' | 'project' | 'files'
@@ -22,10 +24,17 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSettings }) => {
-  const threads = useChatStore((s) => s.threads)
+  // 会话列表真相源：TanStack Query（App.tsx 常驻挂载，F-B3）
+  const { data: threadList = [] } = useThreads()
+  const threads = threadList
+  const deleteMutation = useDeleteThread()
   const threadId = useChatStore((s) => s.threadId)
+  // 折叠状态持久化于 settings store（W4-T13），⌘B / 收起按钮 / 窄窗口均可切换
+  const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const [activeTab, setActiveTab] = useState<SidebarTab>('threads')
   const [searchQuery, setSearchQuery] = useState('')
+  // 会话切换竞态守卫（S3）：快速切换 A→B 时丢弃 A 的过期响应
+  const selectReqRef = useRef(0)
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return threads
@@ -35,8 +44,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
 
   const handleSelect = async (key: string) => {
     useChatStore.setState({ threadId: key })
+    const reqId = ++selectReqRef.current
     try {
       const snapshot = await getThread(key)
+      if (reqId !== selectReqRef.current) return // 已切换到其他会话，丢弃过期响应
       if (snapshot?.messages) {
         useChatStore.setState({
           messages: snapshot.messages as any[],
@@ -49,9 +60,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
 
   const handleDelete = async (key: string) => {
     try {
-      await deleteThread(key)
-      const store = useChatStore.getState()
-      store.setThreads(store.threads.filter((t) => t.key !== key))
+      await deleteMutation.mutateAsync(key)
+      // 删除的是当前会话时清空 threadId（S3）
+      if (useChatStore.getState().threadId === key) {
+        useChatStore.setState({ threadId: '' })
+      }
     } catch {
       // 静默失败
     }
@@ -64,15 +77,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
   ]
 
   return (
-    <aside className="w-[var(--mady-sidebar-width)] h-full flex flex-col mady-material border-r border-mady-separator select-none">
-      {/* SidebarHeader: 40px — 对齐规范 §7.2.2 */}
+    <aside className={`${sidebarCollapsed ? 'w-12' : 'w-[var(--mady-sidebar-width)]'} h-full flex flex-col mady-material border-r border-mady-separator select-none transition-[width] duration-150`}>
+      {/* SidebarHeader: 40px — 对齐规范 §7.2.2；折叠态仅显示 Tab 图标 */}
       <div className="h-10 flex items-center justify-between px-3 border-b border-mady-separator">
         {/* Tab 切换按钮组 */}
-        <div className="flex items-center gap-0.5">
+        <div className={`flex ${sidebarCollapsed ? 'flex-col items-center gap-1 w-full' : 'items-center gap-0.5'}`}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              title={tab.label}
+              aria-label={tab.label}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-mady-small font-medium transition-colors duration-150 ${
                 activeTab === tab.id
                   ? 'bg-mady-bg-hover text-mady-text-primary'
@@ -80,20 +95,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
               }`}
             >
               {tab.icon}
-              {tab.label}
+              {!sidebarCollapsed && tab.label}
             </button>
           ))}
         </div>
 
-        {/* 收起按钮 */}
-        <button
-          className="p-1 rounded-md text-mady-text-secondary hover:text-mady-text-primary hover:bg-mady-bg-hover transition-colors duration-150"
-          title="收起侧栏"
-        >
-          <PanelLeftClose size={14} />
-        </button>
+        {/* 收起按钮（W4-T13：折叠状态持久化到 settings store）——折叠态时隐藏，由 ChatView 标题栏展开按钮恢复 */}
+        {!sidebarCollapsed && (
+          <button
+            onClick={() => useSettingsStore.setState({ sidebarCollapsed: true })}
+            className="p-1 rounded-md text-mady-text-secondary hover:text-mady-text-primary hover:bg-mady-bg-hover transition-colors duration-150"
+            title="收起侧栏"
+          >
+            <PanelLeftClose size={14} />
+          </button>
+        )}
       </div>
 
+      {/* 折叠态：仅保留图标 Tab 切换，内容区隐藏 */}
+      {sidebarCollapsed ? (
+        <div className="flex-1" />
+      ) : (
+        <>
       {/* Tab: 会话列表 */}
       {activeTab === 'threads' && (
         <>
@@ -148,15 +171,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
           </div>
         </div>
       )}
+        </>
+      )}
 
       {/* 底部：设置入口 */}
       <div className="p-2 border-t border-mady-separator">
         <button
           onClick={onSettings}
+          title="设置"
+          aria-label="设置"
           className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-mady-text-secondary text-mady-ui hover:bg-mady-bg-hover transition-colors duration-150"
         >
           <Settings size={14} />
-          设置
+          {!sidebarCollapsed && '设置'}
         </button>
       </div>
     </aside>

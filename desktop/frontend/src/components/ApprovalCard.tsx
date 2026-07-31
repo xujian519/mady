@@ -86,12 +86,14 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ prompt }) => {
         className="w-full rounded-lg px-3 py-2 bg-mady-bg-primary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent resize-none mb-3"
       />
 
-      {/* 操作按钮 */}
+      {/* 操作按钮（F-I7 无障碍）：批准 = accent 填充白字（AA 达标）；
+          拒绝 = danger outline 次级样式（dark 下 danger 填充白字仅 3.4:1，改描边后
+          danger 文字在常规背景上 AA 达标）。 */}
       <div className="flex gap-2">
         <button
           onClick={() => handleResponse(true)}
           disabled={submitting}
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-mady-success text-white text-mady-ui hover:brightness-110 hover:shadow-md active:scale-[0.97] transition-all duration-150 disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-none disabled:active:scale-100"
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-mady-accent text-white text-mady-ui hover:brightness-110 hover:shadow-md active:scale-[0.97] transition-all duration-150 disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-none disabled:active:scale-100"
         >
           <Check size={14} />
           批准
@@ -99,7 +101,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ prompt }) => {
         <button
           onClick={() => handleResponse(false)}
           disabled={submitting}
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-mady-danger text-white text-mady-ui hover:brightness-110 hover:shadow-md active:scale-[0.97] transition-all duration-150 disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-none disabled:active:scale-100"
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-mady-danger/40 text-mady-danger text-mady-ui hover:bg-mady-danger/10 active:scale-[0.97] transition-all duration-150 disabled:opacity-50 disabled:active:scale-100"
         >
           <X size={14} />
           拒绝

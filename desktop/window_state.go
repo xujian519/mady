@@ -10,11 +10,11 @@ import (
 )
 
 // windowState 保存窗口几何信息。
+// 仅持久化宽高（S-8：X/Y 从未被 SaveWindowState 保存/恢复，属死字段，
+// 若要持久化位置需扩展绑定先保存再恢复）。
 type windowState struct {
 	Width  int `json:"width"`
 	Height int `json:"height"`
-	X      int `json:"x,omitempty"`
-	Y      int `json:"y,omitempty"`
 }
 
 func windowStatePath() string {
