@@ -74,7 +74,6 @@ mady/
 ├── knowledge/        # 知识库（文档加载器、图谱、SQLite 读取层）
 ├── mcp/              # MCP 客户端
 ├── prompt/           # 提示词管理
-├── protocol/         # JSON-RPC 协议原语
 ├── provider/         # LLM 提供者实现
 ├── psychological/    # 心理引擎（VAD 情绪空间模型）
 ├── retrieval/        # 检索基础设施（关键词/BM25/向量/RRF）
@@ -83,26 +82,21 @@ mady/
 ├── skill/            # 技能加载器
 ├── skills/           # 内置技能定义
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块，60 工具）
-├── tui/              # 终端 UI（8 层 Elm 架构）
-│   ├── core/         #   基础层 (Layer 0)
-│   ├── terminal/     #   终端 I/O (Layer 1)
-│   ├── theme/        #   主题系统 (Layer 2)
-│   ├── tui.go        #   引擎层 (Layer 3)
-│   ├── component/    #   UI 组件 (Layer 4)
-│   ├── chat/         #   聊天应用 (Layer 5)
-│   ├── stdio/        #   过程式 I/O (Layer 6)
-│   └── agentadapter/ #   Agent 适配器 (Layer 7)
-├── workflows/        # 工作流原语 + 领域工作流
-│   ├── patent/       #   专利工作流（无效宣告/侵权比对/OA 答复/复审请求）
-│   ├── legal/        #   法律工作流
-│   ├── design/       #   外观设计工作流
-│   └── autoresearch/ #   自动研究工作流
+├── tools/            # 内置工具扩展（独立子模块，74 源 + 23 测试）
+├── tui/              # 终端 UI（分层 Elm 架构，Layer 0-7）
+│   ├── core/         #   Layer 0: 基础类型与组件接口
+│   ├── layout/       #   Layer 0 扩展：布局原语
+│   ├── terminal/     #   Layer 1: 终端 I/O
+│   ├── theme/        #   Layer 2: 主题系统
+│   ├── tui.go        #   Layer 3: 引擎层
+│   ├── component/    #   Layer 4: UI 组件
+│   ├── chat/         #   Layer 5: 聊天应用
+│   └── agentadapter/ #   Layer 7: Agent 适配器
+├── workflows/        # 工作流原语（Pipeline/Parallel/Router）
+├── domains/workflows/# 领域工作流（legal/patent/design）
 ├── disclosure/       # 技术交底书分析管线（13 节点 Pregel）
-├── pluginsys/        # 插件系统加载器（manifest 解析与初始化）
 ├── memory/           # 长期记忆系统 + 策略学习型记忆编译器
 ├── fuzzy/            # 模糊搜索
-├── benchmark/        # 性能基准测试
 ├── integration/      # 端到端集成测试（5 条核心链路）
 ├── pkg/
 │   ├── agentconfig/  #   统一 Provider/Model 配置层
@@ -130,7 +124,7 @@ mady/
                                              memory/
                   \      |       /         /
           基础设施层：graph/ session/ skill/ prompt/ store/ mcp/ knowledge/graph
-                          disclosure/ memory/ fuzzy/ benchmark/ integration/
+                          disclosure/ memory/ fuzzy/ integration/
                                    |
                     TUI 层：8-layer Elm 架构
                                    |

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/chromedp/chromedp"
@@ -57,6 +58,11 @@ var browserActionHandlers = map[string]browserActionHandler{
 func NewBrowserTool(cfg *BrowserToolConfig) *agentcore.Tool {
 	if cfg == nil {
 		cfg = &BrowserToolConfig{}
+	}
+	// 在 defaults() 之前校验原始配置：负超时/负尺寸是配置错误信号，
+	// 提前暴露而非被 defaults() 静默替换（defaults 只处理 <=0 为默认值）。
+	if err := cfg.Validate(); err != nil {
+		slog.Warn("browser: 配置校验失败，使用默认值继续", "err", err)
 	}
 	cfg.defaults()
 

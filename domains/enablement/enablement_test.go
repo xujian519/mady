@@ -394,6 +394,51 @@ func convertFixtureToInput(c *testCase) *EnablementInput {
 	return input
 }
 
+// TestFixtureCases_RunThroughGraph 将每个非 skip fixture 完整跑过
+// enablement 图（mock provider），验证图执行不 panic、产出 EnablementResult。
+// 注意：mock provider 返回空响应，因此 IsSufficient 的精确断言不在此处做
+// （需要真实 LLM 的集成测试覆盖）；本测试保障 fixture 数据与图执行链路
+// 的完整性，防止 fixture 与引擎脱节。
+func TestFixtureCases_RunThroughGraph(t *testing.T) {
+	cases := loadFixtureCases(t)
+	compiled, err := BuildEnablementGraph(mockProvider{})
+	if err != nil {
+		t.Fatalf("BuildEnablementGraph: %v", err)
+	}
+
+	ran := 0
+	for _, c := range cases {
+		if c.Expected.ShouldSkip {
+			continue
+		}
+		c := c
+		t.Run(c.ID, func(t *testing.T) {
+			input := convertFixtureToInput(&c)
+			state := graph.PregelState{stateKeyInput: input}
+			state, err := compiled.Run(context.Background(), state)
+			if err != nil {
+				t.Fatalf("graph run for fixture %s: %v", c.ID, err)
+			}
+			result, ok := state[stateKeyResult].(*EnablementResult)
+			if !ok {
+				t.Fatalf("fixture %s: expected EnablementResult in state", c.ID)
+			}
+			if result.Skipped {
+				t.Errorf("fixture %s: expected non-skip graph run, got Skipped=true", c.ID)
+			}
+			// 结果对象必须可序列化（防止节点写入未导出字段导致 panic）
+			if _, err := json.Marshal(result); err != nil {
+				t.Errorf("fixture %s: result not serializable: %v", c.ID, err)
+			}
+		})
+		ran++
+	}
+	if ran == 0 {
+		t.Fatal("no non-skip fixture cases found")
+	}
+	t.Logf("ran %d fixture cases through graph", ran)
+}
+
 func TestFixtureCases_EmptyInputSkips(t *testing.T) {
 	// Verify that the empty input case triggers Skip behavior.
 	var emptyCase *testCase

@@ -22,11 +22,21 @@ GOLANGCI_LINT_VERSION ?= v2.12.2
 # 覆盖根模块 + tools 子模块（go.work 多模块结构）。
 # 注：单独 `go build/test/vet ./...` 在根目录执行时不会覆盖 tools/ 子模块，
 # 这里通过显式两段调用来保证一致性（CI 的 matrix 也覆盖了相同路径）。
-all: vet build test
+all: vet doc-check build test
+
+# 文档-代码一致性校验（CLAUDE.md/AGENTS.md/CONTRIBUTING.md vs 实际代码库）。
+# 防止目录结构/文件计数/子命令数漂移复发，详见 scripts/check-doc-consistency.py。
+# python3 不可用时跳过（警告而非阻断），避免无 python3 环境无法执行标准门禁。
+doc-check:
+	@if command -v python3 >/dev/null 2>&1; then \
+		python3 scripts/check-doc-consistency.py; \
+	else \
+		echo "⚠ python3 不可用，跳过文档一致性检查"; \
+	fi
 
 # "提交前真实标准"——比 all 更完整：包含 lint（golangci-lint）与 test-race（竞态检测）。
 # 提交前请运行 make verify 而非 make all，以确保门禁完整闭合。
-verify: lint check-arch build test-race
+verify: lint check-arch doc-check build test-race
 
 # TOOLS_BUILD_DIR 用于在 tools 子模块执行命令时切换工作目录。
 # 所有 `cd tools && go ...` 调用都使用 `$(GO)` 与 `$(GOFLAGS)`，与根模块保持一致。

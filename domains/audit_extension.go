@@ -35,6 +35,10 @@ func NewAuditExtension(baseDir string, projectID string) (*AuditExtension, error
 	if baseDir == "" {
 		return nil, nil // audit disabled
 	}
+	// 校验保留策略配置（当前使用默认值恒合法；未来支持外部注入时在此生效）。
+	if err := DefaultRetentionConfig().Validate(); err != nil {
+		return nil, fmt.Errorf("audit: 保留策略配置非法: %w", err)
+	}
 	auditDir := filepath.Join(baseDir, "audit")
 	logger, err := NewAuditLogger(auditDir)
 	if err != nil {

@@ -416,7 +416,8 @@ func TestParseClaimsFromLLM_DomainCarryOver(t *testing.T) {
 
 // TestIntegration_ErrorCases 用知识库中的常见错误案例反向验证规则引擎的捕获能力。
 // 注意：这些测试直接构造含错误的claim输入，验证规则是否能检测到，而非测试Builder输出。
-// 数据来源 ref: testdata/error-cases.json（内联版本，避免文件加载依赖 cwd）。
+// 数据来源：宝宸知识库 错误案例集（内联版本，避免文件加载依赖 cwd；
+// 原 testdata/error-cases.json 归档已删除，本文件为唯一权威源）。
 func TestIntegration_ErrorCases(t *testing.T) {
 	engine := NewRuleEngine()
 	RegisterDefaultRules(engine)
@@ -520,7 +521,7 @@ func TestIntegration_ErrorCases(t *testing.T) {
 
 	t.Run("主题名称不当_含宣传用语", func(t *testing.T) {
 		// 模拟：主题名称中包含GCQ型、高效等不当用语。
-		// 标题格式校验规则尚未实现，暂跳过。数据来源: testdata/error-cases.json
+		// 标题格式校验规则尚未实现，暂跳过（数据来源于已删除的 error-cases.json 归档）。
 		t.Skip("标题格式规则待实现后补全断言")
 		claims := []Claim{
 			{Number: 1, ClaimType: ClaimTypeProduct, Kind: "independent",

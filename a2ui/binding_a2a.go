@@ -50,7 +50,7 @@ func DataPartToEnvelope(p a2a.Part) (env Envelope, ok bool, err error) {
 		// If the MIME type is explicitly A2UI, report the malformed envelope.
 		// Otherwise treat as a non-match (unknown format).
 		if p.Data.MIMEType == MIMEType {
-			return Envelope{}, false, fmt.Errorf("%w: %v", ErrInvalidA2UIEnvelope, err)
+			return Envelope{}, false, fmt.Errorf("%w: %w", ErrInvalidA2UIEnvelope, err)
 		}
 		return Envelope{}, false, nil
 	}

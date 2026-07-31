@@ -55,10 +55,17 @@ func RunEvidenceCLI(args []string) error {
 	return nil
 }
 
+const evidenceMaxInputBytes = 1 << 20 // 1MB 输入上限
+
 func runEvidenceAction(action string, input io.Reader, stdout, stderr io.Writer) int {
-	data, err := io.ReadAll(input)
+	// 读取上限 + 1 字节探测超限：超限时报明确错误而非静默截断产生误导性的 JSON 解析失败。
+	data, err := io.ReadAll(io.LimitReader(input, evidenceMaxInputBytes+1))
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "读取输入失败: %v\n", err)
+		return 1
+	}
+	if len(data) > evidenceMaxInputBytes {
+		_, _ = fmt.Fprintf(stderr, "输入超过 %d 字节上限，请精简输入\n", evidenceMaxInputBytes)
 		return 1
 	}
 	data = []byte(strings.TrimSpace(string(data)))

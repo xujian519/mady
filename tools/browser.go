@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"fmt"
 	"os"
 	"time"
 )
@@ -35,6 +36,27 @@ type BrowserToolConfig struct {
 	AgentBrowserEnabled bool
 	EgoLiteEnabled      bool
 	EgoLiteTaskName     string
+}
+
+// Validate 校验浏览器配置中的明显错误（负超时/非法尺寸）。
+// 零值合法——defaults() 会填充默认值；负值通常是配置错误信号，提前暴露。
+func (c *BrowserToolConfig) Validate() error {
+	if c.CommandTimeout < 0 {
+		return fmt.Errorf("tools: Browser.CommandTimeout 不能为负（%v）", c.CommandTimeout)
+	}
+	if c.DialogTimeout < 0 {
+		return fmt.Errorf("tools: Browser.DialogTimeout 不能为负（%v）", c.DialogTimeout)
+	}
+	if c.InactivityTimeout < 0 {
+		return fmt.Errorf("tools: Browser.InactivityTimeout 不能为负（%v）", c.InactivityTimeout)
+	}
+	if c.ViewportWidth < 0 || c.ViewportHeight < 0 {
+		return fmt.Errorf("tools: Browser.Viewport 尺寸不能为负（%dx%d）", c.ViewportWidth, c.ViewportHeight)
+	}
+	if c.MaxImageSize < 0 {
+		return fmt.Errorf("tools: Browser.MaxImageSize 不能为负（%d）", c.MaxImageSize)
+	}
+	return nil
 }
 
 func (c *BrowserToolConfig) defaults() {

@@ -603,3 +603,68 @@ func TestE2E_A2UIStream(t *testing.T) {
 		t.Fatal("A2UI CUSTOM event not found in SSE stream")
 	}
 }
+
+// failingStreamProvider 在 Stream 时返回错误，用于验证 agent.Run 失败路径。
+type failingStreamProvider struct{}
+
+func (p *failingStreamProvider) Name() string     { return "failing" }
+func (p *failingStreamProvider) Models() []string { return []string{"test-model"} }
+func (p *failingStreamProvider) Complete(_ context.Context, _ *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+	return nil, fmt.Errorf("provider complete failed")
+}
+func (p *failingStreamProvider) Stream(_ context.Context, _ *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
+	return nil, fmt.Errorf("provider stream failed")
+}
+
+func TestE2E_RunErrorOnAgentFailure(t *testing.T) {
+	// agent.Run 失败时：RUN_ERROR 必须先于 RUN_FINISHED 发出，且携带错误消息。
+	cfg := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:      "test-model",
+			Model:     "test-model",
+			Provider:  &failingStreamProvider{},
+			Streaming: true,
+		},
+	}
+	h := agui.NewHandler(cfg)
+	body := `{"messages":[{"role":"user","content":"hi"}]}`
+	raw := postAGUI(t, h, body)
+	events := parseSSE(t, raw)
+
+	var runErrorIdx, runFinishedIdx = -1, -1
+	var errMsg string
+	for i, e := range events {
+		switch e.Event {
+		case "RUN_ERROR":
+			runErrorIdx = i
+			var ev agui.RunErrorEvent
+			if err := json.Unmarshal([]byte(e.Data), &ev); err != nil {
+				t.Fatalf("RUN_ERROR data 解析失败: %v", err)
+			}
+			errMsg = ev.Message
+		case "RUN_FINISHED":
+			runFinishedIdx = i
+		}
+	}
+	if runErrorIdx == -1 {
+		t.Fatalf("agent.Run 失败时未发送 RUN_ERROR，事件序列: %v", eventTypes(events))
+	}
+	if runFinishedIdx == -1 {
+		t.Fatal("缺少 RUN_FINISHED")
+	}
+	if runErrorIdx > runFinishedIdx {
+		t.Errorf("RUN_ERROR（#%d）必须先于 RUN_FINISHED（#%d）", runErrorIdx, runFinishedIdx)
+	}
+	if !strings.Contains(errMsg, "failed") {
+		t.Errorf("RUN_ERROR 消息应包含错误详情，got %q", errMsg)
+	}
+}
+
+// eventTypes 提取事件类型序列，用于断言输出。
+func eventTypes(events []sseEvent) []string {
+	types := make([]string, len(events))
+	for i, e := range events {
+		types[i] = e.Event
+	}
+	return types
+}

@@ -3,6 +3,7 @@ package subcmd
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -143,5 +144,31 @@ func TestRunEvidenceCLI_TypeSpecific_MissingField(t *testing.T) {
 	exitCode := runEvidenceAction("type-specific", r, &buf, os.Stderr)
 	if exitCode != 1 {
 		t.Errorf("expected exit 1 for missing source_uri, got %d", exitCode)
+	}
+}
+
+func TestRunEvidenceAction_OverLimitInput(t *testing.T) {
+	// 超过 1MB 上限的输入应报明确错误（exit 1），而非静默截断后报 JSON 解析失败。
+	big := strings.Repeat("x", evidenceMaxInputBytes+1)
+	r := strings.NewReader(big)
+	var stderr bytes.Buffer
+	exitCode := runEvidenceAction("triple", r, io.Discard, &stderr)
+	if exitCode != 1 {
+		t.Errorf("expected exit 1 for over-limit input, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "超过") || !strings.Contains(stderr.String(), "上限") {
+		t.Errorf("expected clear over-limit error, got: %q", stderr.String())
+	}
+}
+
+func TestRunEvidenceAction_BoundaryInput(t *testing.T) {
+	// 恰好 1MB 的输入应正常处理（不触发超限分支）。
+	valid := `{"source_uri": "file:///tmp/x.json", "text": "` + strings.Repeat("a", 100) + `"}`
+	pad := evidenceMaxInputBytes - len(valid)
+	r := strings.NewReader(valid + strings.Repeat(" ", pad))
+	var stderr bytes.Buffer
+	exitCode := runEvidenceAction("type-specific", r, io.Discard, &stderr)
+	if exitCode != 0 {
+		t.Errorf("expected exit 0 for boundary input, got %d (stderr: %s)", exitCode, stderr.String())
 	}
 }

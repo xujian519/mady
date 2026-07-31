@@ -73,7 +73,7 @@ func (p *FirecrawlProvider) CreateSession(taskID string) (map[string]string, err
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body
 		return nil, fmt.Errorf("firecrawl API error %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -106,7 +106,7 @@ func (p *FirecrawlProvider) CloseSession(sessionID string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body
 		return fmt.Errorf("firecrawl close error %d: %s", resp.StatusCode, string(body))
 	}
 

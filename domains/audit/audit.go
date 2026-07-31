@@ -167,6 +167,17 @@ type DataRetentionConfig struct {
 	AutoCleanup bool `json:"auto_cleanup"`
 }
 
+// Validate 校验保留天数非负（负数会导致清理逻辑异常），0 表示永久保留。
+func (c DataRetentionConfig) Validate() error {
+	if c.DefaultDays < 0 {
+		return fmt.Errorf("audit: DefaultDays 不能为负（%d）", c.DefaultDays)
+	}
+	if c.AuditRetentionDays < 0 {
+		return fmt.Errorf("audit: AuditRetentionDays 不能为负（%d）", c.AuditRetentionDays)
+	}
+	return nil
+}
+
 // DefaultRetentionConfig returns the standard retention policy.
 // Defaults to 3650 days (10 years) for project data and 365 days for audit logs,
 // with automatic cleanup disabled.

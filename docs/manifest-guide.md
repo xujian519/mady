@@ -5,7 +5,7 @@ Agent Manifest 是 Mady 的声明式 Agent 注册机制。通过编写 JSON 格�
 
 ## 文件位置
 
-4 个内置领域 manifest（chat/assistant/patent/legal）通过 `go:embed` 编进二进制，**无需额外资源文件**即可在任意目录启动。
+3 个内置领域 manifest（assistant/patent/legal）通过 `go:embed` 编进二进制，**无需额外资源文件**即可在任意目录启动。
 
 要覆盖内置 manifest 或新增领域，将 `.json` 文件放入 `$MADY_HOME/manifests/` 目录（默认 `~/.mady/manifests/`，可通过 `MANIFEST_DIR` 环境变量自定义）。加载顺序：内置 → 外部覆盖（同名外部文件优先）。
 

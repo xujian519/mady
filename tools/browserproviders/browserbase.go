@@ -97,7 +97,7 @@ func (p *BrowserbaseProvider) createSessionWithBody(reqBody map[string]any) (map
 	}
 
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body
 		return nil, fmt.Errorf("browserbase API error %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -146,7 +146,7 @@ func (p *BrowserbaseProvider) CloseSession(sessionID string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body
 		return fmt.Errorf("browserbase close error %d: %s", resp.StatusCode, string(body))
 	}
 

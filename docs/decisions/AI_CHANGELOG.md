@@ -1,5 +1,73 @@
 # AI 变更记录
 
+## 2026-07-31: fix(techdebt) code-review 8 项发现全量修复
+
+**背景**：/code-review 对本批次技术债务修复的 diff 进行全量审查，发现 8 项问题，全部修复。
+
+**改动清单**：
+1. `AGENTS.md` + `scripts/check-doc-consistency.py` — AGENTS.md 计数修复（1414→1429：978 非测试 + 451 测试）；脚本对 AGENTS.md 增加非测试/测试/总数三向校验（此前只校验非测试数，本批次新增 14 个测试文件的漂移被漏检）
+2. `tools/browser_tool.go` + `domains/audit_extension.go` ×2 — `BrowserToolConfig.Validate()` 在 `NewBrowserTool` 的 defaults() 之前调用（失败 slog.Warn，不改 API）；`DataRetentionConfig.Validate()` 在 `NewAuditExtension` 中调用并返回 error——落实 GO-DEVELOPMENT-STANDARDS 规则 9"在 New() 中校验"，消除 Validate 死代码
+3. `cmd/mady/subcmd/evidence.go` — 1MB 上限改为读 1MB+1 字节探测超限，超限时报明确错误而非静默截断产生误导性 JSON 解析失败；新增 `TestRunEvidenceAction_OverLimitInput` / `_BoundaryInput` 测试
+4. `agui/handler.go` + `agui/handler_e2e_test.go` — 错误路径改用 `converter.RunError()` 助手（消除手写重复，保证 threadID/runID 单一事实来源）；新增 `TestE2E_RunErrorOnAgentFailure`（failingStreamProvider 驱动 agent.Run 失败，断言 RUN_ERROR 先于 RUN_FINISHED 且携带错误消息）
+5. `domains/claimdrafting/integration_test.go` — L524 残留注释不再引用已删除的 testdata/error-cases.json
+6. `Makefile` — doc-check 目标在 python3 不可用时跳过（警告）而非阻断 make all/verify
+7. `scripts/check-doc-consistency.py` — 子命令提取正则支持任意数量字符串字面量（原上限 3 个）；目录树正则改为通用 `(?:│   )*` 前缀支持任意深度
+8. `domains/audit.go` 删除 + `domains/audit_alias.go` 新建 — 父包 216 行审计实现与子包完全重复（diff 仅 3 行注释差异），整体合并为子包权威 + 父包 alias 转发（含 8 个 AuditAction 常量），与本批次 project.go 去重模式一致
+
+**验证**：四模块 `go build` + `go vet` 全过；`go test -race` agui/a2a/a2ui/server/domains/audit/subcmd 全绿；`make doc-check` 通过（src=978 test=451）。
+
+## 2026-07-31: refactor(tests) 超大测试文件拆分 — a2a/server/a2ui 三文件 6982→15 文件
+
+**背景**：技术债务修复批次第四部分。9 个测试文件 >1000 行，优先拆分 top 3（a2a_test.go 2745 / server_test.go 2356 / a2ui_test.go 1881）。
+
+**改动清单**：
+1. `a2a/a2a_test.go`（2745→690 行）拆为 5 个主题文件：`a2a_security_test.go`（认证/SSRF/Webhook 335）、`a2a_session_test.go`（TTL/History/SessionManager 401）、`a2a_input_modes_test.go`（251）、`a2a_streaming_test.go`（Streaming/QueryTasks/WebSocket 1068）
+2. `server/server_test.go`（2356→204 行）拆为 5 个主题文件：`server_stream_test.go`（674）、`server_thread_test.go`（313）、`server_skill_test.go`（510）、`server_thread_session_test.go`（649）
+3. `a2ui/a2ui_test.go`（1881→956 行）拆为 5 个主题文件：`a2ui_envelope_test.go`（385）、`a2ui_builder_test.go`（313）、`a2ui_stream_test.go`（107）、`a2ui_binding_test.go`（115）
+4. `CLAUDE.md` — 测试文件计数 ~440 → ~450（拆分+新增测试后实际 451）
+5. `scripts/check-doc-consistency.py` — 测试文件计数检查改为从 CLAUDE.md 动态提取声明值（±10 容差），不再硬编码
+
+**验证**：拆分前后测试函数数完全一致（a2a 60 / server 32 / a2ui 103）；`go test -race` a2a/a2ui/agui/server 全绿；`go vet` 全过；`make doc-check` 通过。
+
+## 2026-07-31: refactor(config) Config Validate() 覆盖率提升 7→12 + 测试
+
+**背景**：技术债务修复批次第三部分。GO-DEVELOPMENT-STANDARDS §0.1 规则 9 要求 Config 提供 Validate() 并在 New() 中校验；审计时仅 7/116 Config 满足（6%）。
+
+**改动清单**：
+1. `domains/audit.go` + `domains/audit/audit.go` — `DataRetentionConfig.Validate()` 新增：DefaultDays / AuditRetentionDays 负值非法（负数会导致清理逻辑异常），0 表示永久保留
+2. `tools/browser.go` — `BrowserToolConfig.Validate()` 新增：负超时（CommandTimeout/DialogTimeout/InactivityTimeout）、负视口尺寸、负 MaxImageSize 为非法；零值合法（defaults() 会填充默认值）
+3. `domains/audit/audit_validate_test.go` — 新增：Validate 5 组用例（默认配置/零值/负值/正常值）
+4. `tools/browser_validate_test.go` — 新增：Validate 8 组用例
+5. 覆盖率：7/116 (6%) → 12/121 (9.9%)，含 agentcore/knowledge/pkf/guardrails 已有项
+
+**验证**：`go build ./domains/... ./tools/...` + `go test ./domains/audit/... ./tools/` 全过。
+
+**说明**：剩余 109 个 Config 中大部分为工具子配置（ToolConfig）或无实际校验语义的占位结构，硬凑覆盖率违背"克制"原则，本批次不做；后续按模块需求逐个补。
+
+## 2026-07-31: chore(psychological) TODO 标记分类结论 + 文档一致性校验脚本
+
+**背景**：技术债务修复批次第二部分。
+
+**改动清单**：
+1. `scripts/check-doc-consistency.py` — **新建**：文档-代码一致性校验（Go 文件计数 vs CLAUDE.md/AGENTS.md、cmd/mady 子命令数 vs 文档、CLAUDE.md/CONTRIBUTING.md 目录树路径存在性、内置 manifest 数量）。集成到 `make verify`（新增 doc-check target）
+2. `CONTRIBUTING.md` — 修复 2 处真实漂移：`tui/stdio`（Layer 6 已不存在，改为 layout/ 等实际层级）、`workflows/patent|legal|design|autoresearch`（领域工作流实际位于 `domains/workflows/`，workflows/ 根目录仅工作流原语）
+3. TODO 分类结论：全库仅 7 处 TODO 标记，均为 psychological `SkipDistortionDetection` 认知偏差检测占位符（引擎未实现该功能），注释已自我描述"待需求驱动实现"，无 FIXME/HACK/WORKAROUND/BUG 标记。维持现状，不格式化（无认领人、无期限的占位实现），跟踪由 changelog 承担
+
+**验证**：`make doc-check` 通过（src=978 test=437, 子命令=14, manifests=3）。
+
+## 2026-07-31: refactor(agui) 技术债务修复批次 — RUN_ERROR 补发 + callConfigFromInput 已知限制记录
+
+**背景**：2026-07-31 技术债务审计修复。AGUI `handleRun` 在 `agent.Run` 返回错误时只发送 closeAll + RUN_FINISHED，不发送 RUN_ERROR，客户端无法获知运行失败原因；`callConfigFromInput` 为 stub 实现，客户端 per-call tools 被静默忽略。
+
+**改动清单**：
+1. `agui/handler.go` — `handleRun` 错误路径补发 `RUN_ERROR` 事件（含 ThreadID/RunID/Message），位于 closeAll 之前，随后仍发 RUN_FINISHED 保持既有协议语义
+2. `agui/handler.go` — `callConfigFromInput` 函数注释更新为中文，明确记录已知限制：input.Tools（per-call 工具注入）当前被静默忽略，需 CallConfig 扩展或独立 agent API 支持；input.State 由 handleRun 直接经 SSE StateSnapshot 交付，不经此函数
+
+**验证**：`go test -race ./agui/...` 全过。
+
+**已知限制**：AGUI per-call tools 注入仍未实现（依赖 agentcore.CallConfig 扩展），本批次仅文档化，不改变行为。
+
+
 ## 2026-07-31: fix(tui) Markdown 表格截断与换行可读性修复
 
 **背景**：用户截图反馈 TUI 实际输出"乱"且"信息不完整"。主要表现：Markdown 表格在窄视口下列宽被压缩，单元格内容截断为省略号（如"不可…"）；长 URL/文件路径在没有空白处被 `WrapAnsi` 硬截断到字符中间（如"比 如/"、"skill:xxx" 被拆开）；模型输出不规范的列表项（如 `-配置文件` 缺少空格）原解析器不识别，且列表 continuation 逻辑会把无缩进的后续段落误吞为列表项，导致版式混乱。
@@ -33,7 +101,6 @@
 2. `tui/chat/chat_app_frame_test.go` — 删除 `TestFillRowBackground`（函数已移除），清理不再使用的 `core` / `terminal` import
 
 **验证**：`tui` 模块 gofmt / go build / go vet 全过；`go test -count=1 ./tui/chat/` 全过。
-
 
 ## 2026-07-31: fix(desktop) CI 修复 — pnpm-workspace.yaml 补 packages 字段（desktop job 变绿）
 
@@ -738,7 +805,6 @@ CI 检查 7 个任务失败：
 - `go vet ./tools/desktop/` — 通过
 - `go test -race -v -count=1 ./tools/desktop/` — 17/17 测试通过，无 data race
 - `go build ./...` — 全项目无编译错误
-
 
 ## 2026-07-27: `domains/inventiveness/` 全量质量审阅
 
@@ -3098,7 +3164,6 @@ Mady 缺乏结构化任务列表管理能力。LLM 在处理复杂多步骤任�
 - `go test -race ./agentcore/tasklist/...`：30+ 测试全部通过 ✅
 - `go test ./...`：全部通过 ✅
 
-
 ## 2026-07-24: PDF 质量升级 — chromedp Chrome 引擎 + Pandoc 启用
 
 ### 背景
@@ -3130,7 +3195,6 @@ P0 阶段已完成 HTML 渲染器（goldmark）和 Pandoc 集成。本次 P1 将
 - `go vet ./...`：通过 ✅
 - `go test ./domains/doctmpl/`：57 个测试全部通过 ✅（含 7 个新增 Chrome PDF 测试）
 - `golangci-lint run`：0 issues ✅
-
 
 
 
@@ -3167,7 +3231,6 @@ doctmpl 模块定义了 5 种输出格式（markdown/docx/pdf/html/email），�
 - `go vet ./...`：通过 ✅
 - `go test ./domains/doctmpl/`：50 个测试全部通过 ✅
 - `golangci-lint run`：0 issues ✅
-
 
 ## 2026-07-24: B 档高价值接线 — guardian/tracing/evidence/disclosure
 
@@ -4361,7 +4424,6 @@ AGENTS.md 与 CLAUDE.md 的目录结构、代码统计和资源定位描述已�
 - `go test ./domains/...` — 通过
 
 
-
 ## 2026-07-23: 新增 domains/novelty 新颖性判断独立模块
 
 ### 背景
@@ -4610,7 +4672,6 @@ TUI 进入 alternate screen 模式后，`os.Stderr` 与 `os.Stdout` 共享同一
 
 ## 2026-07-21: Sprint 3 — 大文件拆分重构（R7/R8/R9）
 
-
 ## 2026-07-21: Code Review 跟进 — 三项改进实施
 
 ### 背景
@@ -4676,7 +4737,6 @@ TUI 进入 alternate screen 模式后，`os.Stderr` 与 `os.Stdout` 共享同一
 - golangci-lint run — 0 issues（根模块 + tools 子模块）
 - go test -race ./agentcore/... ./mcp/... — 全部通过（含 mcp 测试 20.7s）
 - cd tools && go test -race ./... — 全部通过
-
 
 
 ## 2026-07-21: 补充“绞车带轴”专家盲测单案用例卡
@@ -5797,7 +5857,6 @@ agentcore/ 全子树（planmode/pipeline/handoff/filecheckpoint/doomloop/context
 ### 验证
 - `go build ./...` ✅ | `go vet ./...` ✅ | `golangci-lint run ./agentcore/...` 0 issues ✅ | `go test -race ./agentcore/...` 全绿 ✅ | 根模块 build/vet ✅
 
-
 ## 2026-07-20: agentcore 深度审阅（182 文件全量，2C/8H/18M/25L）
 
 ### 背景
@@ -6235,7 +6294,6 @@ Mady 的错误处理实际**非常健康**：
 
 ---
 
-
 ## 2026-07-19: 里程碑 2——代码现代化与重复消除
 
 ### 背景
@@ -6317,7 +6375,6 @@ browser_providers 的循环依赖"。经深入分析，**该项基于审查误�
 
 ---
 
-
 ## 2026-07-19: 里程碑 1——本地开发反馈回路完整性修复
 
 ### 背景
@@ -6378,7 +6435,6 @@ vet/build/test，但本地 `make` 与 `pre-commit` 都**漏掉 `tools/` 子模�
 
 ---
 
-
 ## 2026-07-18: 代码质量现代化——slices.Contains/min 替换 + 全面审阅报告
 
 ### 背景
@@ -6428,7 +6484,6 @@ vet/build/test，但本地 `make` 与 `pre-commit` 都**漏掉 `tools/` 子模�
 
 ---
 
-
 ## 2026-07-18: Phase 7 剩余 High 修复（H2 H3 H6）+ 安全性审核（H4 H5 H7）
 
 ### 背景
@@ -6472,7 +6527,6 @@ Phase 7 报告列出 18 个 High 问题，此前已修复 11 个（H1/H8-H14）�
 
 ---
 
-
 ## 2026-07-18: Phase 7 遗留 High 修复（H1 H11）+ 报告同步
 
 ### 背景
@@ -6507,7 +6561,6 @@ Phase 7 全量审阅报告（2026-07-14）标识 8 Critical + 18 High + 34 Mediu
   从 roadmap 看 P3 盲测完成前不会启动这类协议层修复，符合"停止规则"。
 
 ---
-
 
 ## 2026-07-18: M1 门禁加固（4/4）：pre-commit 跨机器兼容 + commit-msg 敏感路径门禁
 
@@ -6552,7 +6605,6 @@ Phase 7 全量审阅报告（2026-07-14）标识 8 Critical + 18 High + 34 Mediu
 
 ---
 
-
 ## 2026-07-18: M1 门禁加固（3/4）：清理无效 -short flag 与 forbidigo 死配置
 
 ### 背景
@@ -6575,7 +6627,6 @@ Phase 7 全量审阅报告（2026-07-14）标识 8 Critical + 18 High + 34 Mediu
 - `.github/workflows/ci.yml`、`.golangci.yml`
 
 ---
-
 
 ## 2026-07-18: M1 门禁加固（2/4）：codecov 配置合并并启用覆盖率门槛
 
@@ -6604,7 +6655,6 @@ Phase 7 全量审阅报告（2026-07-14）标识 8 Critical + 18 High + 34 Mediu
 
 ---
 
-
 ## 2026-07-18: M1 门禁加固（1/4）：integration e2e 测试接入 CI
 
 ### 背景
@@ -6626,7 +6676,6 @@ CI 无任何门禁，回归无法被自动拦截。
 - `Makefile`、`.github/workflows/ci.yml`
 
 ---
-
 
 ## 2026-07-18: TUI 质量审查修复落地（P1 主题检测 + P2 测试覆盖 + 支撑构造函数）
 
@@ -6682,7 +6731,6 @@ CI 无任何门禁，回归无法被自动拦截。
 - `agentcore/event.go`
 - `tui/component/domain.go`
 ---
-
 
 ## 2026-07-18: 规范合规全面修复（P0/P1/P2/P3 共 9 项）
 
@@ -6803,7 +6851,6 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 
 ---
 
-
 ## 2026-07-18: Code Review 第二轮修复（5 项 P0/P1 + 1 项测试质量）
 
 ### 背景
@@ -6853,7 +6900,6 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 
 ---
 
-
 ## 2026-07-18: P2-5 大文件拆分（4 个 >1000 行文件 → 20 个聚焦文件）
 
 ### 背景
@@ -6898,7 +6944,6 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 - `go test -race -count=1 ./...`：全部 PASS，无 DATA RACE
 
 ---
-
 
 ## 2026-07-18: 全量技术债务清理（P0 真实 Bug + P1 Lint 债务 + P2 结构性改进）
 
@@ -6968,7 +7013,6 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 `tools/vision_test.go`、`tui/component/editor_edit.go`、
 `workflows/autoresearch/{contract,heartbeat}.go`
 
-
 ## 2026-07-18: Open Design 思路引入 —— Tier 3 实现（最终阶段）
 
 ### 背景
@@ -7017,7 +7061,6 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 - `tools/` 子模块 build/test/vet ✅
 - 项目全量无新增 lint 问题
 
-
 ## 2026-07-18: Open Design 思路引入 —— Tier 2 实现
 
 ### 本次实现（Tier 2 — 中等影响力）
@@ -7051,7 +7094,6 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 - `go test -race ./...` ✅（全部通过，含新增 9 个测试文件，30+ 新用例）
 - `go vet ./...` ✅
 
-
 ## 2026-07-18: 引入 Open Design 项目思路 —— 三阶段 Tier 1 实现
 
 ### 背景
@@ -7080,7 +7122,6 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 - `go test -race ./...` ✅（全部通过，含新增 5 个测试文件）
 - `go vet ./...` ✅
 
-
 ## 2026-07-18: Code Review 全部 6 个问题修复
 
 ### 修复清单
@@ -7098,7 +7139,6 @@ chat-assistant-architecture 全套规范审阅项目，发现 4 项 P0、2 项 P
 - 集成测试新增 `signalCapture.requireDetected` / `requireNone` 方法，统一信号断言逻辑
 - 新增 `runStubAgent` 辅助函数消除测试中重复的 `agentcore.New` + `defer agent.Close()` + `agent.Run` 样板代码
 - 4 个领域文件移除不再需要的 `"github.com/xujian519/mady/agentcore/doomloop"` import
-
 
 ## 2026-07-18: ReasoningStrategyRouter 接入 4 个领域 Agent
 
@@ -7123,7 +7163,6 @@ DoomLoop (安全第一: 死循环检测)
 `NewDefaultStrategySelector`），策略映射为 Low→StepByStep、
 Medium→StructuredAnalysis、High→VerifiedThinking。领域可通过注入自定义
 `ComplexityClassifier` 或 `StrategySelector` 调整行为。
-
 
 ## 2026-07-18: DoomLoop 集成测试——7 个端到端测试覆盖 5 个探测器和领域接线
 
@@ -7152,7 +7191,6 @@ Medium→StructuredAnalysis、High→VerifiedThinking。领域可通过注入自
   循环，因此 TextRepetition 测试必须让 provider 同时返回重复文本和工具调用，
   使 Agent 持续迭代以积累探测器历史
 
-
 ## 2026-07-18: 评估框架增强收尾——新度量注册 + `--format enhanced` CLI
 
 ### 改动
@@ -7177,7 +7215,6 @@ mady eval --format enhanced --suite p2a --mode static
 mady eval --format json --suite p2a --mode static -o baseline.json
 mady eval --format enhanced --baseline baseline.json --suite p2a --mode static
 ```
-
 
 ## 2026-07-18: 引用核验 P2a——CitationSource 知识源抽象 + S2 wiki 法条索引（82 条全覆盖）
 
@@ -7225,7 +7262,6 @@ mady eval --format enhanced --baseline baseline.json --suite p2a --mode static
 - **审查要求**: L1（guardrails/ 改动对照 docs/chat-assistant-architecture.md）
 - **验证**: go vet/build 双模块 ✅ | golangci-lint run 0 issues ✅ |
   go test -race ./... 全绿 ✅ | 双重回放验收 ✅（见上）
-
 
 ## 2026-07-18: 从 XiaoNuo Agent 引入评估框架增强、死循环检测和推理策略编排
 
@@ -7294,7 +7330,6 @@ mady eval --format enhanced --baseline baseline.json --suite p2a --mode static
 - **审查要求**: L1
 - **验证**: 见上 ✅
 
-
 ## 2026-07-18: fix(tools) computer_use schema 畸形致 oMLX 500 + 引用核验端到端冒烟
 
 ### 背景
@@ -7329,7 +7364,6 @@ TUI assistant / patent agent 走 oMLX 等 OpenAI 兼容端点必现。
 - **验证**: tools 模块 vet/build/test/lint 0 issues ✅ | 冒烟端到端 ✅ |
   离线核验演示 ✅
 
-
 ## 2026-07-18: 启用 computer_use 桌面控制工具（Assistant + Patent Agent）
 
 ### 背景
@@ -7350,7 +7384,6 @@ TUI assistant / patent agent 走 oMLX 等 OpenAI 兼容端点必现。
 ### 审查要求
 - L1（简单配置变更，不涉及敏感路径）
 - `computer_use` 已在 SECURITY.md 中列为需用户授权的敏感工具，用户已知悉
-
 
 ## 2026-07-18: 修复 PlanCompiler 边连接 bug——多假设子图被完全绕过
 
@@ -7399,7 +7432,6 @@ g.AddEdge(prevTerminal, stepEntry) // stepEntry = aThink（多假设子图入口
    消除 StrategyChain 分支需单独赋值的视觉差异。
 2. **提取 `injectDraftingTool` helper**：消除 `globalDraftingRunner` nil 守卫在
    `PatentAgentConfig` 和 `BuildProjectAgent` 两处的重复，各从 5 行压缩为 1 行调用。
-
 
 ## 2026-07-18: 知识系统全面优化（5 阶段）
 
@@ -7466,7 +7498,6 @@ g.AddEdge(prevTerminal, stepEntry) // stepEntry = aThink（多假设子图入口
 
 ### 验证
 - `go build ./...` ✅ | `go test -count=1 ./knowledge/... ./retrieval/... ./memory/...` ✅ | `make bench-knowledge` ✅
-
 
 ## 2026-07-18: MCP 发现超时优化
 

@@ -23,15 +23,6 @@ func testToolExtTuple() (agentcore.Extension, agentcore.Extension, agentcore.Ext
 	return base, base, base
 }
 
-// testRecord 创建一个最小 ProjectRecord 用于测试。
-func testRecord() ProjectRecord {
-	return ProjectRecord{
-		ProjectID: "test-case-001",
-		RootPath:  "/tmp/test-case",
-		Status:    StatusActive,
-	}
-}
-
 // handoffProvider 模拟 LLM Provider，支持指定首次返回工具调用（handoff）、
 // 后续返回固定内容的模式。用于 Handoff 流程的单元/集成测试。
 type handoffProvider struct {

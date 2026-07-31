@@ -3,6 +3,7 @@ package specdrafting
 import (
 	"time"
 
+	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/iface"
 )
 
@@ -54,14 +55,14 @@ var requiredSections = []SpecSectionName{
 	SecEmbodiment,
 }
 
-// Severity 表示违规的严重程度（复用 claimdrafting 的模式）。
-type Severity string
+// Severity 表示违规的严重程度（复用 claimdrafting 的类型，避免重复定义）。
+type Severity = claimdrafting.Severity
 
 // Severity level constants.
 const (
-	SeverityError   Severity = "error"   // 严重违法
-	SeverityWarning Severity = "warning" // 潜在风险
-	SeverityInfo    Severity = "info"    // 建议改进
+	SeverityError   = claimdrafting.SeverityError   // 严重违法
+	SeverityWarning = claimdrafting.SeverityWarning // 潜在风险
+	SeverityInfo    = claimdrafting.SeverityInfo    // 建议改进
 )
 
 // =============================================================================

@@ -186,6 +186,7 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if runErr != nil {
+		writeSSE(w, flusher, string(EventRunError), converter.RunError(time.Now(), runErr))
 		for _, agEv := range converter.closeAll(time.Now()) {
 			evtType := extractEventType(agEv)
 			writeSSE(w, flusher, evtType, agEv)
@@ -195,11 +196,14 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // callConfigFromInput extracts per-call configuration from the AGUI input.
-// Currently only checks whether Tools or State were provided (which would
-// indicate a per-call override is expected), but CallConfig does not yet
-// support injecting per-call tools — that requires a future extension to
-// CallConfig or a separate agent API. input.State is already handled
-// directly by handleRun via SSE StateSnapshot events.
+// 已知限制（2026-07-31 记录）：
+//   - input.Tools（per-call 工具注入）当前被静默忽略：agentcore.CallConfig
+//     尚不支持注入 per-call tools，需未来扩展 CallConfig 或新增独立 agent API。
+//   - input.State 不经此函数处理，由 handleRun 直接通过 SSE StateSnapshot
+//     事件交付。
+//
+// 传入 Tools 或 State 时返回空 CallConfig 仅作占位，避免后续 API 扩展
+// 时遗漏调用点；工具注入实现前，客户端自定义工具能力不可用。
 func callConfigFromInput(input RunAgentInput) *agentcore.CallConfig {
 	if input.Tools == nil && input.State == nil {
 		return nil

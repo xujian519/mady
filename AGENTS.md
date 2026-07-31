@@ -15,7 +15,7 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 → 通用工具库（pkg/{util,csync,i18n,lawcite,agentconfig,vecbytes}）
 → 协议与接口层（A2A/A2UI/AGUI/ACP/Server/MCP/TUI）
 → 应用入口（cmd/mady, example/）。
-1414 个 Go 源文件（977 非测试 + 437 测试），~281K 行代码。
+1429 个 Go 源文件（978 非测试 + 451 测试），~281K 行代码。
 
 > 文件计数更新时间：2026-07-31。如需获取最新计数，请执行：
 > ```bash
