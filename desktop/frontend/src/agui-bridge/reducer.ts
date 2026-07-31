@@ -53,6 +53,10 @@ function handleAgentStart(payload: AguiEventPayload) {
 
 function handleMessageDelta(payload: AguiEventPayload) {
   deltaBuffer.output += payload.delta ?? payload.content ?? ''
+  // 收到新 token 即清除重试提示（不等批 flush）：
+  // appendToken 内清 retryNotice 的逻辑随 16ms 批处理被延迟，
+  // 此处立即生效，保持「收到 token → 重试提示消失」的既有语义（G-I5 回归修复）。
+  useChatStore.setState({ retryNotice: null })
   scheduleDeltaFlush()
 }
 
