@@ -9,6 +9,15 @@
 
 **验证**：pnpm 9.15.9（CI 版本）install --frozen-lockfile + vitest 100/100 + Playwright chromium E2E 10/10 全链路通过；pnpm 10.33.4 全新安装通过（双版本兼容）。修复已提交推送，等待 CI 复跑确认变绿。
 
+## 2026-07-31: fix(desktop) CI 修复 — desktop job Node 20 → 24（jsdom 30 engines 要求）
+
+**背景**：CI run #419（含 packages 修复）中 desktop job 在 vitest 步骤失败：86 个测试全过但报 2 个 unhandled errors —— `TypeError: webidl.util.markAsUncloneable is not a function`（undici@8.9.0 的 CacheStorage 构造）。根因：`jsdom@30.0.0` engines 要求 Node `^22.22.2 || ^24.15.0 || >=26.0.0`、`undici@8.9.0` 要求 `>=22.19.0`（`markAsUncloneable` 在 Node 22.2.0 才加入 `node:worker_threads`），而 desktop job 用 `node-version: 20`（20.20.2）。pnpm install 默认不强制 engines 校验，故安装通过、运行时才崩。本地 Node 26 满足要求故本地 vitest 100/100 未暴露。
+
+**改动清单**：
+1. `.github/workflows/ci.yml` — desktop job `Setup Node` 步骤 `node-version: 20` → `24`（同时消除 Node 20 deprecation 警告）
+
+**验证**：pnpm 9.15.9 + Node 24.18.1 下 vitest 100/100 + Playwright chromium E2E 10/10 全过（与 CI 相同的 Node 24 场景）；Node 22.22.3 下同样 100/100。修复已提交推送，等待 CI 复跑确认变绿。
+
 ## 2026-07-31: fix(desktop) 代码审查修复 — SendAction 生产闭环真实化 + 并发/性能修复
 
 **背景**：/code-review 全量审查（10 角度并行）发现上一轮闭环修复存在关键盲点：A2UIPromise 仅在测试中安装、生产路径按钮点击 action 被静默丢弃；desktop 未装配会话 Store 导致 agent 不入池。多角度交叉证实后全部修复。
