@@ -68,8 +68,13 @@ func (r *DefaultReasoningRenderer) RenderThinking(m ChatMessage, width int64) []
 			out = append(out, pal.Thinking.Render(summary))
 		} else {
 			out = append(out, pal.Thinking.Render("💭 Thinking"))
-			for _, line := range core.WrapAnsi(pal.Thinking.Render(seg.Text), width) {
-				out = append(out, "  "+line)
+			// Reserve the 2-cell indent in the wrap budget so wrapped lines
+			// (plus prefix) stay within width. Wrapping first and prefixing
+			// after would produce width+2 lines that get hard-truncated.
+			const indent = "  "
+			contentW := max(width-core.VisibleWidth(indent), 1)
+			for _, line := range core.WrapAnsi(pal.Thinking.Render(seg.Text), contentW) {
+				out = append(out, indent+line)
 			}
 		}
 

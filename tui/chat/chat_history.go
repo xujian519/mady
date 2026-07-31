@@ -524,7 +524,12 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 // suppressing common provider-level duplication patterns:
 //   - exact delta already seen for this message
 //   - cumulative chunks where delta starts with the current text
-//   - re-emitted suffixes already present at the end of the current text
+//
+// Note: a delta that merely equals a suffix of the current text is NOT
+// treated as a duplicate. Providers stream true increments (each chunk is new
+// content), so a suffix match means the model genuinely produced that text
+// again (repeated words, closing brackets, repeated symbols) — dropping it
+// would silently truncate the visible answer.
 //
 // It returns true if the delta was applied and false if it was suppressed.
 // Caller must hold h.mu.
@@ -549,16 +554,14 @@ func (h *ChatHistory) applyDeltaLocked(m *ChatMessage, delta, kind string) bool 
 	current := *target
 	if current != "" {
 		// Cumulative provider chunks: the provider sent the full text so far
-		// instead of an incremental delta. Replace rather than append.
+		// instead of an incremental delta. Replace rather than append, and
+		// record the replaced text as already-seen so a later re-send of the
+		// old chunk is suppressed by the exact-match dedup above.
 		if strings.HasPrefix(delta, current) {
 			*target = delta
 			m.deltaHistory[delta] = struct{}{}
+			m.deltaHistory[current] = struct{}{}
 			return true
-		}
-		// Re-emitted suffix: provider re-sent a chunk already at the tail.
-		if strings.HasSuffix(current, delta) {
-			m.deltaHistory[delta] = struct{}{}
-			return false
 		}
 	}
 

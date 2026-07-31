@@ -30,27 +30,37 @@ type layoutHost interface {
 	TerminalSize() (cols, rows int64)
 }
 
-// editorFrame wraps the editor with a horizontal top/bottom border. It exists
-// so the editor border can participate in the declarative Flex layout.
+// editorFrame wraps the editor with a Claude Code-style surface fill: every
+// row gets a full-width background block so the input area reads as a distinct
+// panel below the chat history (no border lines needed). It exists so the
+// editor surface can participate in the declarative Flex layout.
 type editorFrame struct {
 	editor core.Component
 }
 
 func (f *editorFrame) Render(width int64) []string {
 	lines := f.editor.Render(width)
-	border := theme.CurrentPalette().BorderMuted.Render("▌")
-	// Use a single left bar instead of full-width ─ border.
-	// This is visually lighter and consistent with the role bar language
-	// used in ChatHistory (▌ prefix).
-	out := make([]string, 0, len(lines)+2)
-	for range [1]struct{}{} {
-		out = append(out, border)
+	bg := theme.CurrentPalette().SurfaceBg.BgStrip()
+	if bg == "" {
+		return lines
 	}
-	out = append(out, lines...)
-	for range [1]struct{}{} {
-		out = append(out, border)
+	out := make([]string, 0, len(lines))
+	for _, ln := range lines {
+		out = append(out, fillRowBackground(ln, bg))
 	}
 	return out
+}
+
+// fillRowBackground applies a full-width background block to one rendered row.
+// The background SGR is inserted at the start and re-applied after every ANSI
+// reset inside the row, so nested styles (prompt, text, chips, selection,
+// cursor marker) never clear the fill. Visible width is unchanged.
+func fillRowBackground(line, bg string) string {
+	line = bg + line
+	if strings.Contains(line, terminal.Reset) {
+		line = strings.ReplaceAll(line, terminal.Reset, terminal.Reset+bg)
+	}
+	return line
 }
 
 func (f *editorFrame) Invalidate() {}
@@ -131,13 +141,13 @@ func (l *chatLayout) buildFlex(flex *layout.Flex) (headerIndex, editorIndex int)
 	}
 	ef := &editorFrame{editor: l.editor}
 	editorIndex = len(flex.Children)
-	// editorFrame is Shrinkable (min 3 = top border + ≥1 editor row + bottom
-	// border): when header + editor + autocomplete + status bar overfill the
-	// terminal, the Flex squeezes the editor (via OnAllocate → SetMaxRows)
-	// instead of pushing the input area off-screen.
-	flex.AddChild(layout.Shrinkable(ef, 3).WithAllocate(func(h int64) {
+	// editorFrame is Shrinkable (min 1 = ≥1 editor row): when header + editor
+	// + autocomplete + status bar overfill the terminal, the Flex squeezes the
+	// editor (via OnAllocate → SetMaxRows) instead of pushing the input area
+	// off-screen.
+	flex.AddChild(layout.Shrinkable(ef, 1).WithAllocate(func(h int64) {
 		if ed, ok := l.editor.(maxRowsSetter); ok {
-			rows := h - 2 // subtract top + bottom borders
+			rows := h // no border rows — the whole allocation is editor rows
 			if rows < 1 {
 				rows = 1
 			}

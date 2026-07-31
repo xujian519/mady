@@ -1,5 +1,36 @@
 # AI 变更记录
 
+## 2026-07-31: style(tui) 输入区视觉重构 — Claude Code 风格整行背景色块
+
+**背景**：用户反馈 TUI 用户输入区用光标/竖条（`▌`）隔离观感不佳。原实现 `editorFrame` 在编辑器首尾各加一行仅含单个 `▌` 的竖条行，既无满宽分隔也缺乏输入区整体感。参照 Claude Code 输入形式（整行背景色块 + `❯` 提示符），实现更简单且与历史区形成清晰的色块对比。
+
+**改动清单**：
+1. `tui/chat/chat_app_layout.go` — `editorFrame` 重写：移除上下 `▌` 竖条行，改为对每行注入整行背景色块（`theme.CurrentPalette().SurfaceBg.BgStrip()`，即 mady-dark 的 `#0C1B2A`）；新增 `fillRowBackground(line, bg)` helper：行首插背景 SGR，并对行内每个 `\x1b[0m` 重置后重新注入背景，保证 prompt/文本/chip/选区/光标 marker 等嵌套样式不会清掉色块；`buildFlex` 中 editorFrame `Shrinkable` min 从 3（上下边框+1 行）降为 1，`OnAllocate` 行数分配从 `h-2` 改为 `h`
+2. `tui/chat/chat_builder.go` — 默认 `EditorPrompt` 从 `"> "` 改为 `"❯ "`；`SetPromptFn(theme.CurrentPalette().Accent.Render)` 提示符用 accent 色；续行缩进从 `strings.Repeat(" ", len(prompt))` 改为 `int(core.VisibleWidth(prompt))`（修复 ❯ 占 3 字节但仅 1 列宽导致的续行缩进错位隐患）
+3. `tui/chat/chat_app_frame_test.go` — 新增 `TestFillRowBackground`：断言背景 SGR 出现在行首、每个内嵌 reset 后重现、含 reset 时行尾有背景、可见宽度不变
+
+**设计决策**：背景色块走语义色 token（`SurfaceBg`），随主题自动切换深浅；`BgStrip()` 绕过 `ColorEnabled()` 保证填充恒生效（与 Scrollbar thumb 同款先例）；不引入聚焦/忙碌提示符颜色切换，保持实现简单。placeholder（dim）+ accent `❯` + 背景块在空输入态下同样成立。历史区 user 消息渲染与输入区色块形成视觉分层。
+
+**影响**：`cd tui && go vet ./... && go test ./...` 全部通过。探针渲染确认：输入区行为 `\x1b[48;2;12;27;42m❯ 输入消息…（/ 查看命令）…`，整行色块 + `❯` 提示符（测试环境 stdout 非 TTY 时前景色被 `ColorEnabled` 关闭，真实终端正常）。无公共 API 变更；`EditorPrompt` 配置项仍可覆盖默认 `❯ `。
+
+## 2026-07-31: fix(tui) 流式输出截断根因修复 — 光标超宽 / thinking 前缀 / delta 后缀误吞
+
+**背景**：TUI 智能体输出存在大量截断，用户在窄终端下难以看到连续输出。对照参考架构 `deepx-code-main` 的输出设计（chatLog 分段存储 + glamour 渲染期精确换行，从不把光标拼进内容行）定位出三层根因。
+
+**根因**：
+1. **光标 `▊` 直接拼进末行导致行超宽**（主根因）：`chat_history_render_message.go` 在 Pending 消息末行直接 `last + UserStyle.Render("▊")`。markdown 块渲染（fence 行 `PadToWidth` 补满、表格、硬换行贴边）可产生与宽度完全相等的行，追加 1 列光标后行宽 = width+1，被 `drawScrollbar` 的 `TruncateToWidth(ln, contentWidth, "…")` 硬截断——丢真实字符还挂省略号。已实证：20 列终端 + fence 块 + pending，输出 `ABCDEFGHIJKLMNOPQRS`（丢 `T`）+ 末行 `TUVWXYZ …`。
+2. **thinking 段 `"  " + line` 前缀未计入换行宽度**：`reasoning.go` 先按 width 换行再给每行加 2 列前缀 → width+2，无空格长词硬切时触发即被截。
+3. **`applyDeltaLocked` 后缀误吞**：`strings.HasSuffix(current, delta)` 将"恰为当前文本尾部"的增量判定为重复后缀直接丢弃。真增量流（agentcore 透传 provider chunk）下，模型重复输出（如 `go go`、连续括号、重复符号）会被静默吞掉，造成输出变短。
+
+**改动清单**：
+1. `tui/chat/chat_history_render_message.go` — 新增 `appendStreamCursor` helper：光标宽度计入预算，行已满宽时先截 1 列再附光标，总宽恒 ≤ width；应用于三处（UserStyle 光标、ThinkingStyle 光标、collapsed 的 `▸ expand` 行同样保护）
+2. `tui/chat/reasoning.go` — thinking 展开渲染：缩进 `"  "` 计入换行预算（`WrapAnsi(..., width-2)` 后加前缀），保证换行行+前缀 ≤ width，且每行缩进视觉一致
+3. `tui/chat/chat_history.go` — `applyDeltaLocked` 移除 `HasSuffix` 误吞分支；`HasPrefix` 累计块替换时把被替换的旧文本记入 `deltaHistory`，重发旧 chunk 由精确去重覆盖
+4. `tui/chat/chat_history_test.go` — `TestChatHistoryAppendDeltaRejectsReemittedSuffix` 改为 `TestChatHistoryAppendDeltaKeepsLegitSuffixIncrement`（合法后缀增量必须保留）；新增 `TestAppendStreamCursorFitsWidth`（光标宽度单元测试，含 ANSI/宽字符用例）与 `TestChatHistoryPendingCursorNoTruncation`（20 列 + fence + pending 端到端回归，修复前复现 `TUVWXYZ …` 截断）
+
+**设计决策**：drawScrollbar 与引擎 `normalizeLine` 的硬截断保留为兜底（deepx 同样保留 `ansi.Cut` 兜底），正确做法是让上层行宽精确——本次修复即让所有内容行宽 ≤ 可用宽度，兜底自然不再触发。表格单元格列压缩截断为设计行为（deepx 同款），不予修改。
+
+**影响**：`cd tui && go vet ./... && go test ./...` 全部通过；修复前回归测试确认失败（`TUVWXYZ           …`），修复后通过。无公共 API 变更。
 ## 2026-07-31: refactor(domains) P0-2 Domain→Infrastructure 接口隔离 — disclosure 依赖移除
 
 **背景**：domain 子包（enablement/inventiveness/specdrafting）及 domains 根包直接导入 `disclosure` 包，违反分层架构的依赖倒置原则（Domain 层不得 import Infrastructure 层的具体实现）。根据 `AGENTS.md` 编码规范，"Domain 层不得 import Infrastructure 层的具体实现，只能依赖接口"。第 1 批聚焦 disclosure（最高频的导入源）。

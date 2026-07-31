@@ -97,7 +97,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			}
 			head := theme.DimStyle.Render(firstLine)
 			lines := core.WrapAnsi(head, width)
-			lines = append(lines, "  "+theme.DimStyle.Render("▸ expand"))
+			lines = append(lines, core.TruncateToWidth("  "+theme.DimStyle.Render("▸ expand"), width, ""))
 			return lines
 		}
 
@@ -135,7 +135,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 					lines = []string{theme.DimStyle.Render("…")}
 				} else {
 					last := lines[len(lines)-1]
-					lines[len(lines)-1] = last + theme.UserStyle.Render("▊")
+					lines[len(lines)-1] = appendStreamCursor(last, width, theme.UserStyle.Render("▊"))
 				}
 			}
 			allLines = append(allLines, lines...)
@@ -144,7 +144,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 				allLines = []string{theme.DimStyle.Render("…")}
 			} else {
 				last := allLines[len(allLines)-1]
-				allLines[len(allLines)-1] = last + theme.ThinkingStyle.Render("▊")
+				allLines[len(allLines)-1] = appendStreamCursor(last, width, theme.ThinkingStyle.Render("▊"))
 			}
 		}
 
@@ -192,4 +192,19 @@ func (h *ChatHistory) renderMarkdownRole(text string, width int64, theme ChatHis
 	md := component.NewMarkdown(text)
 	md.SetTheme(theme.MarkdownTheme)
 	return md.Render(width)
+}
+
+// appendStreamCursor appends a streaming cursor to the last rendered line
+// without pushing it past width. Markdown block rendering (padded code fences,
+// tables, hard-wrapped paragraphs) can already produce lines exactly as wide
+// as width; blindly appending "▊" would overflow by one cell and the scrollbar
+// / engine normalizeLayer would hard-truncate the line — dropping the trailing
+// real character along with the cursor. When the line is at capacity we trim
+// one cell so the total stays within width.
+func appendStreamCursor(line string, width int64, cursor string) string {
+	if core.VisibleWidth(line)+core.VisibleWidth(cursor) <= width {
+		return line + cursor
+	}
+	keep := width - core.VisibleWidth(cursor)
+	return core.TruncateToWidth(line, keep, "") + cursor
 }

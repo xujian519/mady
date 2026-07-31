@@ -479,21 +479,25 @@ func TestChatHistoryAppendDeltaRejectsCumulativeContent(t *testing.T) {
 	}
 }
 
-func TestChatHistoryAppendDeltaRejectsReemittedSuffix(t *testing.T) {
+// TestChatHistoryAppendDeltaKeepsLegitSuffixIncrement verifies that an
+// incremental delta which happens to equal the tail of the current text is
+// appended, not dropped. Providers stream true increments (each chunk is new
+// content), so a suffix match means the model genuinely produced that text
+// again (repeated words, repeated symbols, closing brackets) — suppressing it
+// would silently truncate the visible answer.
+func TestChatHistoryAppendDeltaKeepsLegitSuffixIncrement(t *testing.T) {
 	h := NewChatHistory()
 	id := h.AppendDelta("", "Hello, world")
-	// Simulate provider re-sending a chunk already at the tail.
-	h.AppendDelta(id, "world")
+	h.AppendDelta(id, "world") // legit new content that happens to be a suffix
 	h.AppendDelta(id, "!")
 
 	msgs := h.Messages()
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
 	}
-	// "world" was already a suffix of "Hello, world" - it should be rejected.
-	// "!" is new - it should be appended.
-	if got, want := msgs[0].Text, "Hello, world!"; got != want {
-		t.Fatalf("suffix dedup failed: text=%q want=%q", got, want)
+	// Both deltas are real new output — the text must keep them, duplicated.
+	if got, want := msgs[0].Text, "Hello, worldworld!"; got != want {
+		t.Fatalf("suffix increment dropped: text=%q want=%q", got, want)
 	}
 }
 
@@ -583,4 +587,71 @@ func BenchmarkChatHistoryStreamAppendNoCache(b *testing.B) {
 			h.mu.Unlock()
 		}
 	}
+}
+
+// TestAppendStreamCursorFitsWidth verifies the streaming cursor never pushes a
+// rendered line past width. Before the fix the cursor was appended blindly, so
+// full-width lines (padded code fences, tables, hard-wrapped paragraphs) grew
+// to width+1 and got hard-truncated by the scrollbar/engine layer — dropping
+// the trailing real character together with the cursor.
+func TestAppendStreamCursorFitsWidth(t *testing.T) {
+	cursor := "\x1b[1m▊\x1b[0m" // styled cursor, 1 cell wide
+	tests := []struct {
+		name   string
+		line   string
+		width  int64
+		append bool // expect the cursor appended without trimming
+	}{
+		{"roomy", "abc", 10, true},
+		{"exact fit", "abcdefghi", 10, true}, // 9 + cursor = 10
+		{"one over", "abcdefghij", 10, false},
+		{"ansi over", "\x1b[32mabcdefghij\x1b[0m", 10, false},
+		{"wide zero", "中文中文中文", 8, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			out := appendStreamCursor(tc.line, tc.width, cursor)
+			if w := core.VisibleWidth(out); w > tc.width {
+				t.Fatalf("overflows width %d: %q (w=%d)", tc.width, out, w)
+			}
+			if tc.append && out != tc.line+cursor {
+				t.Fatalf("expected direct append, got %q", out)
+			}
+			if !strings.HasSuffix(out, cursor) {
+				t.Fatalf("cursor missing at end: %q", out)
+			}
+		})
+	}
+}
+
+// TestChatHistoryPendingCursorNoTruncation is the end-to-end regression test
+// for the streaming cursor truncation bug. A Pending assistant message whose
+// text is a padded code-fence block is rendered in a narrow terminal with the
+// scrollbar active; before the fix the trailing "▊" overflowed the last line
+// by one cell and the scrollbar layer truncated it (dropping real characters).
+func TestChatHistoryPendingCursorNoTruncation(t *testing.T) {
+	h := NewChatHistory() // 默认 sbEnabled=true, sbWidth=1
+	h.SetMaxRows(8)
+	for i := 0; i < 6; i++ {
+		h.Append(ChatMessage{Role: RoleUser, Text: fmt.Sprintf("filler %d", i)})
+	}
+	id := h.AppendDelta("", "```go\nABCDEFGHIJKLMNOPQRSTUVWXYZ\n```")
+
+	lines := h.Render(20)
+	for i, ln := range lines {
+		if core.VisibleWidth(ln) > 20 {
+			t.Errorf("line %d overflows width 20: %q", i, ln)
+		}
+	}
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "TUVWXYZ") {
+		t.Errorf("streamed fence content truncated:\n%s", joined)
+	}
+	if !strings.Contains(joined, "▊") {
+		t.Errorf("streaming cursor missing:\n%s", joined)
+	}
+	if strings.Contains(joined, "…") {
+		t.Errorf("unexpected ellipsis truncation:\n%s", joined)
+	}
+	h.Finalize(id)
 }
