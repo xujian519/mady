@@ -250,6 +250,7 @@ func TestStatusChangedEvent(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	agent.EventBus().Drain()
 	if got.Load() != 1 {
 		t.Errorf("expected 1 status event, got %d", got.Load())
 	}

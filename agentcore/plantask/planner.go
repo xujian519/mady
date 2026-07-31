@@ -21,6 +21,9 @@ type TaskStore interface {
 	Create(ctx context.Context, t *agentcore.Task) error
 	NextID(ctx context.Context) (string, error)
 	Update(ctx context.Context, t *agentcore.Task) error
+	// UpdateFunc 以原子方式读取、修改并写回任务；用于只更新 BlockedBy
+	// 等局部字段，避免 Update 全量覆盖导致既有字段丢失。
+	UpdateFunc(ctx context.Context, id string, mutate func(*agentcore.Task) error) (*agentcore.Task, error)
 }
 
 // PlanStepInput 是 plan_submit 工具接收的步骤输入。
@@ -90,13 +93,19 @@ func SyncPlanToTasks(ctx context.Context, store TaskStore, session *PlanTaskSess
 	}
 
 	// 维护顺序依赖：步骤 i 阻塞 i+1。
+	// 使用 UpdateFunc 仅更新 BlockedBy，避免 Update 全量覆盖抹掉既有字段。
 	for i := 0; i+1 < len(ids); i++ {
 		if ids[i] == "" || ids[i+1] == "" {
 			continue
 		}
-		if err := store.Update(ctx, &agentcore.Task{
-			ID:        ids[i+1],
-			BlockedBy: []string{ids[i]},
+		if _, err := store.UpdateFunc(ctx, ids[i+1], func(t *agentcore.Task) error {
+			for _, b := range t.BlockedBy {
+				if b == ids[i] {
+					return nil
+				}
+			}
+			t.BlockedBy = append(t.BlockedBy, ids[i])
+			return nil
 		}); err != nil {
 			return nil, fmt.Errorf("plantask: set dependency: %w", err)
 		}

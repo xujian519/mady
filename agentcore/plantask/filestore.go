@@ -38,6 +38,9 @@ func (f *FileStore) Save(_ context.Context, s *PlanTaskSession) error {
 	if s.ID == "" {
 		return fmt.Errorf("plantask: session ID is empty")
 	}
+	if strings.Contains(s.ID, "/") || strings.Contains(s.ID, "\\") || s.ID == "." || s.ID == ".." {
+		return fmt.Errorf("plantask: invalid session ID %q", s.ID)
+	}
 	data, err := json.Marshal(s)
 	if err != nil {
 		return fmt.Errorf("plantask: marshal session %q: %w", s.ID, err)

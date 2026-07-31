@@ -58,8 +58,17 @@ func (b *PlantaskBridge) Replan(ctx context.Context, s *plantask.PlanTaskSession
 
 	skip, removed := plantask.ReplanMerge(s.Plan.Steps, s.CompletedIDs, newSteps, feedback)
 
+	// 同步任务（新增步骤创建任务，顺序依赖维护）。
+	// 注意：先同步再写回 s.Plan，否则 SyncPlanToTasks 内部的哈希复用判断会
+	// 因 session.Plan 已被 newSteps 覆盖而恒真，导致旧步骤变更时仍复用旧任务。
+	ids, err := plantask.SyncPlanToTasks(ctx, b.TaskStore, s, newSteps)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// 写回 Plan 与 CompletedIDs（keptDone = 新 Plan 中保持 done 的步骤）。
 	s.Plan = plantask.PlanSnapshot{Steps: newSteps}
+	s.TaskIDs = ids
 	kept := make([]string, 0, len(newSteps))
 	for _, st := range newSteps {
 		if skip[st.Hash] {
@@ -67,13 +76,6 @@ func (b *PlantaskBridge) Replan(ctx context.Context, s *plantask.PlanTaskSession
 		}
 	}
 	s.CompletedIDs = kept
-
-	// 同步任务（新增步骤创建任务，顺序依赖维护）。
-	ids, err := plantask.SyncPlanToTasks(ctx, b.TaskStore, s, newSteps)
-	if err != nil {
-		return nil, nil, err
-	}
-	s.TaskIDs = ids
 
 	return mapKeys(skip), mapKeys(removed), nil
 }

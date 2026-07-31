@@ -94,8 +94,12 @@ func NewExtension(cfg Config) (*Extension, error) {
 func (e *Extension) Name() string { return ExtensionName }
 
 // Init 实现 agentcore.Extension。
+// 同一 Extension 实例可能被多个 Agent 共享（例如 handoff 子 Agent 继承父配置），
+// 因此 agent 引用只设置一次，避免父 Agent 的事件引用被子 Agent 覆盖。
 func (e *Extension) Init(_ context.Context, agent *agentcore.Agent) error {
-	e.agent = agent
+	if e.agent == nil {
+		e.agent = agent
+	}
 	return nil
 }
 
@@ -167,7 +171,7 @@ func (e *Extension) save(ctx context.Context, s *PlanTaskSession, from Status) e
 		return err
 	}
 	if from != s.Status && e.agent != nil {
-		e.agent.EmitEvent(agentcore.NewPlanTaskStatusChangedEvent(
+		e.agent.EventBus().EmitMustDeliver(ctx, agentcore.NewPlanTaskStatusChangedEvent(
 			s.ID, s.CaseID, string(from), string(s.Status)))
 	}
 	return nil

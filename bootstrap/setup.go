@@ -466,7 +466,12 @@ func BuildBaseTools(fc *Context) {
 		fc.FileCheckpointExt,
 	)
 
-	fc.PlanModeExt = planmode.NewExtension(planmode.Policy{})
+	fc.PlanModeExt = planmode.NewExtension(planmode.Policy{
+		AllowedTools: []string{
+			"plan_submit", "plan_approve", "plan_reject", "plan_revise",
+			"workflow_interrupt", "workflow_resume", "workflow_feedback",
+		},
+	})
 	fc.EvidenceExt = evidence.NewExtension()
 	fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions,
 		fc.PlanModeExt,

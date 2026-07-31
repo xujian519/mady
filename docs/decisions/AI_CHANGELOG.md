@@ -1,5 +1,20 @@
 # AI 变更记录
 
+## 2026-07-31: fix(plantask) 修复 HCL 接入后 5 个 plantask 稳定性 bug
+
+**背景**：commit 84ca00c 将 HCL 规划链接入 plantask 后，本地与 CI 暴露出 5 个影响正确性与安全性的 bug，并附带一个异步事件测试不稳定问题。
+
+**改动清单**：
+1. `agentcore/plantask/planner.go`：`TaskStore` 接口新增 `UpdateFunc`；`SyncPlanToTasks` 改用 `UpdateFunc` 增量追加 `BlockedBy`，避免 `Update` 全量覆盖导致既有任务字段丢失。
+2. `bootstrap/plantask_bridge.go`：将 `s.Plan = {Steps: newSteps}` 移到 `SyncPlanToTasks` 之后，防止同步前基于 PlanSnapshot 的哈希复用判断恒真，旧步骤变更时仍复用旧任务。
+3. `bootstrap/setup.go`：PlanMode Policy 白名单加入 plantask 工具（`plan_submit/approve/reject/revise`、`workflow_interrupt/resume/feedback`），避免 gate 激活后因 `plan_submit` 被 policy 拦截而死锁。
+4. `agentcore/plantask/filestore.go`：`Save` 增加 session ID 路径校验，禁止 `/`、反斜杠、`.`、`..`，防止路径逃逸。
+5. `agentcore/plantask/extension.go`：`Init` 仅在 `e.agent == nil` 时设置 agent，避免 handoff 子 Agent 覆盖父 Agent 的事件引用。
+6. `agentcore/plantask/extension_test.go`：修复 `TestStatusChangedEvent` 异步事件断言，检查前调用 `agent.EventBus().Drain()`；`save` 改用 `EmitMustDeliver` 确保状态事件不被异步丢弃。
+7. `domains/search/commander.go`：透传 `req.Country` 到 filters；所有检索轮次均失败时返回 error，区分"检索器不可用"与"正常无结果"。
+
+**测试**：`go build ./...`、`go vet ./...`、`golangci-lint run ./...`、`go test ./...`、`go test -race ./agentcore/plantask/... ./domains/search/...` 全绿；tools/tui/desktop 子模块测试全绿。
+
 ## 2026-07-31: feat(search-commander) 专利检索编排 Worker——search-commander 技能 Go 固化
 
 **背景**：将 `~/.agents/skills/patent-legal/search-commander`（多轮渐进式检索策略
