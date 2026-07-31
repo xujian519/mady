@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
-	github.com/signintech/gopdf v0.37.0
+	github.com/signintech/gopdf v0.38.0
 	github.com/xujian519/mady/tools v0.0.0-20260711000742-56d5e1c6ad94
 	github.com/xujian519/mady/tui v0.0.0-20260721162033-d76ce4144d96
 	github.com/xuri/excelize/v2 v2.11.0
