@@ -9,7 +9,7 @@
 
 - **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` + `./tui` + `./desktop` 四个子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 1400+ 个 Go 源文件（~980 非测试 + ~450 测试，不含 vendor），~281K 行代码
+- 1400+ 个 Go 源文件（~1001 非测试 + ~463 测试，不含 vendor），~281K 行代码
 
 ## 构建与测试
 
@@ -94,13 +94,17 @@ mady/
 │   ├── chatcompat/   #   OpenAI Chat Completions 兼容
 │   └── sanitizer/    #   PII 脱敏 Provider 包装（请求脱敏 + 响应还原）
 ├── retrieval/        # 检索引擎（关键词/BM25/向量/RRF 混合）
-│   ├── domain/       #   检索域基础抽象
-│   │   └── sqlite/   #     SQLite 域存储
+│   ├── domain/       #   检索域基础抽象（DomainRetriever 接口）
+│   │   ├── sqlite/   #     SQLite 域存储（本地 FTS5 语料）
+│   │   └── browser/  #     ego-browser 在线检索器（Google Patents/CNIPA/Espacenet
+│   │                 #     + CompositeRetriever 组合降级）
 │   └── model_rerank.go # cross-encoder 重排
 ├── server/           # HTTP/SSE API 服务器
 ├── session/          # 会话管理（JSONL 树）
 ├── skill/            # SKILL.md 解析器（含 MadyExtension 扩展字段）
-├── skills/           # 内置技能定义（chat/patent/legal/disclosure）
+├── skills/           # 内置技能定义（chat/patent/legal/disclosure/ego-browser）
+│   └── ego-browser/  #   浏览器自动化技能（ego lite，macOS only）+ 专利数据库 learnings
+│                     #   （patent-google / patent-cnipa / patent-espacenet）
 ├── store/            # 快照存储
 ├── tools/            # 内置工具扩展（独立子模块，74 源 + 23 测试）
 │   ├── desktop/          # 桌面控制（computer_use*.go：macOS/Linux/Windows 三平台 + SOM）
