@@ -171,6 +171,9 @@ type TurnEndStreamPayload struct {
 // MessageDeltaStreamPayload 是 SSE 流中 MessageDeltaStreamPayload 类型的事件/负载结构。
 type MessageDeltaStreamPayload struct {
 	Delta string `json:"delta"`
+	// Kind 区分正文 ("text") 与思考过程 ("thinking")。DeepSeek 等推理模型的
+	// reasoning_content 若不区分会混入正文造成乱序。
+	Kind string `json:"kind,omitempty"`
 }
 
 // ToolCallStartStreamPayload 是 SSE 流中 ToolCallStartStreamPayload 类型的事件/负载结构。
@@ -372,7 +375,7 @@ func agentEventPayload(e agentcore.Event) any {
 			Usage: ev.Usage,
 		}
 	case *agentcore.MessageDeltaEvent:
-		return MessageDeltaStreamPayload{Delta: ev.Delta}
+		return MessageDeltaStreamPayload{Delta: ev.Delta, Kind: string(ev.Kind)}
 	case *agentcore.ToolCallStartEvent:
 		return ToolCallStartStreamPayload{ToolCall: ev.ToolCall}
 	case *agentcore.ToolCallEndEvent:

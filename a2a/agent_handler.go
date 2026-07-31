@@ -333,13 +333,25 @@ func (h *DefaultAgentHandler) subscribeAgentEvents(taskID string) (unsub func())
 		}
 		switch ev := e.(type) {
 		case *agentcore.MessageDeltaEvent:
+			// thinking 内容用 DataPart 承载，避免与正文 TextPart 混流
+			// （DeepSeek 等推理模型的 reasoning_content 若按文本发布会
+			// 污染最终输出）。消费端按 part type 分流。
+			var part Part
+			if ev.Kind == agentcore.BlockKindThinking {
+				part = NewDataPart(map[string]any{
+					"kind": "thinking",
+					"text": ev.Delta,
+				})
+			} else {
+				part = NewTextPart(ev.Delta)
+			}
 			h.publish(taskID, &TaskUpdateEvent{
 				Result: &Task{
 					ID:    taskID,
 					State: TaskStateWorking,
 				},
 				Artifact: &Artifact{
-					Parts:     []Part{NewTextPart(ev.Delta)},
+					Parts:     []Part{part},
 					Append:    boolPtr(true),
 					LastChunk: boolPtr(false),
 				},

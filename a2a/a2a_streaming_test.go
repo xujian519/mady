@@ -1083,3 +1083,74 @@ func TestWSClient_ConnectAndSend(t *testing.T) {
 		t.Fatalf("unexpected event result: %+v", ev.Result)
 	}
 }
+
+// mockUpdatePublisher collects TaskUpdateEvents into a channel so tests can
+// observe what DefaultAgentHandler publishes asynchronously.
+type mockUpdatePublisher struct {
+	ch chan *TaskUpdateEvent
+}
+
+func (m *mockUpdatePublisher) PublishTaskUpdate(_ string, ev *TaskUpdateEvent) {
+	m.ch <- ev
+}
+
+// TestAgentHandlerStreamingDeltaPartRouting is the regression guard for the
+// DeepSeek v4 text-garbling bug on the A2A path: thinking deltas must be
+// published as a DataPart (kind="thinking") so consumers can separate them
+// from the visible text stream, while text deltas stay TextPart.
+func TestAgentHandlerStreamingDeltaPartRouting(t *testing.T) {
+	agent := agentcore.New(agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{Name: "test"},
+	})
+
+	handler := NewDefaultAgentHandler(AgentCard{
+		Name: "test-agent",
+		URL:  "http://localhost:8080",
+	}, agent, agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{Name: "test"},
+	})
+
+	pub := &mockUpdatePublisher{ch: make(chan *TaskUpdateEvent, 16)}
+	handler.SetUpdatePublisher(pub)
+
+	unsub := handler.subscribeAgentEvents("stream-task")
+	defer unsub()
+
+	// Emit the interleaved text/thinking pattern seen with DeepSeek v4.
+	agent.EmitEvent(&agentcore.MessageDeltaEvent{Delta: "可见正文", Kind: agentcore.BlockKindText})
+	agent.EmitEvent(&agentcore.MessageDeltaEvent{Delta: "内部思考过程", Kind: agentcore.BlockKindThinking})
+	agent.EmitEvent(&agentcore.MessageDeltaEvent{Delta: "更多正文", Kind: agentcore.BlockKindText})
+
+	var textParts, thinkingParts int
+	for i := 0; i < 3; i++ {
+		select {
+		case ev := <-pub.ch:
+			if ev.Artifact == nil || len(ev.Artifact.Parts) != 1 {
+				t.Fatalf("expected 1 part per update, got %+v", ev.Artifact)
+			}
+			part := ev.Artifact.Parts[0]
+			switch part.Type {
+			case PartTypeText:
+				textParts++
+			case PartTypeData:
+				thinkingParts++
+				if part.Data == nil {
+					t.Fatal("data part has nil Data")
+				}
+				if kind, _ := part.Data.Data["kind"].(string); kind != "thinking" {
+					t.Fatalf("data part kind = %v", part.Data.Data["kind"])
+				}
+				if text, _ := part.Data.Data["text"].(string); text != "内部思考过程" {
+					t.Fatalf("data part text = %q", text)
+				}
+			default:
+				t.Fatalf("unexpected part type %q", part.Type)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for delta updates")
+		}
+	}
+	if textParts != 2 || thinkingParts != 1 {
+		t.Fatalf("text parts = %d, thinking parts = %d; want 2/1", textParts, thinkingParts)
+	}
+}

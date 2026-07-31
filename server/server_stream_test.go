@@ -360,6 +360,36 @@ func TestAgentEventPayloadShapesSkillLoadedEvent(t *testing.T) {
 	}
 }
 
+// TestAgentEventPayloadPreservesDeltaKind is the regression guard for the
+// DeepSeek v4 text-garbling bug on the Server SSE path: the delta payload must
+// carry the Kind field so SSE consumers can separate thinking content from the
+// visible text stream.
+func TestAgentEventPayloadPreservesDeltaKind(t *testing.T) {
+	textPayload := agentEventPayload(&agentcore.MessageDeltaEvent{
+		Delta: "可见正文",
+		Kind:  agentcore.BlockKindText,
+	})
+	textDelta, ok := textPayload.(MessageDeltaStreamPayload)
+	if !ok {
+		t.Fatalf("payload type = %T", textPayload)
+	}
+	if textDelta.Delta != "可见正文" || textDelta.Kind != "text" {
+		t.Fatalf("text delta payload = %#v", textDelta)
+	}
+
+	thinkingPayload := agentEventPayload(&agentcore.MessageDeltaEvent{
+		Delta: "内部思考过程",
+		Kind:  agentcore.BlockKindThinking,
+	})
+	thinkingDelta, ok := thinkingPayload.(MessageDeltaStreamPayload)
+	if !ok {
+		t.Fatalf("payload type = %T", thinkingPayload)
+	}
+	if thinkingDelta.Delta != "内部思考过程" || thinkingDelta.Kind != "thinking" {
+		t.Fatalf("thinking delta payload = %#v", thinkingDelta)
+	}
+}
+
 func TestServerStreamChatEmitsHTTPMCPReconnectEvents(t *testing.T) {
 	var mu sync.Mutex
 	initCount := 0
