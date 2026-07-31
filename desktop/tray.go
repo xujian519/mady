@@ -32,6 +32,12 @@ var trayIconBytes []byte
 
 // startTray 启动系统托盘（独立 goroutine，非阻塞）。
 // 在 startup 阶段调用（a.ctx 已就绪，供菜单回调操作窗口）。
+//
+// 使用 systray.Register 而非 systray.Run：Wails 已在主线程运行 AppKit 主循环
+// （[NSApp run]），systray.Run 会再次调用 nativeLoop → [NSApp run]，AppKit 不允许
+// 重复启动主循环（SIGTRAP 崩溃）。Register 只注册回调与初始化托盘，事件循环复用
+// Wails 的。fork 的 registerSystray 检测到主循环已运行时，不再接管 NSApp.delegate、
+// 仅在主线程初始化状态栏菜单。
 func (a *App) startTray() {
 	go func() {
 		defer func() {
@@ -39,7 +45,7 @@ func (a *App) startTray() {
 				log.Printf("[mady-desktop] tray panic recovered: %v", r)
 			}
 		}()
-		systray.Run(
+		systray.Register(
 			func() { a.trayReady() },
 			func() { log.Println("[mady-desktop] tray exited") },
 		)

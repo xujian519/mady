@@ -86,3 +86,5 @@ require (
 )
 
 replace github.com/xujian519/mady => ../
+
+replace github.com/getlantern/systray => ./third_party/systray

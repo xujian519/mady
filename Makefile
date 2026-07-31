@@ -118,7 +118,7 @@ desktop-test-e2e:
 	cd desktop/frontend && npx playwright test --config=playwright.config.ts
 
 desktop-dmg:
-	cd desktop && wails build -platform darwin/universal -o Mady.app
+	cd desktop && wails build -platform darwin/universal
 
 # 快速单架构构建（arm64），比 universal 快约 2 倍，文件小 50%。
 # 开发迭代时使用，发版仍用 desktop-dmg（universal）。
