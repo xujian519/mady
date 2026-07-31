@@ -89,6 +89,10 @@ func TestMarkdownHeadingLenient(t *testing.T) {
 		{"🏆### 一、Top 07", "🏆 一、Top 07"},
 		{"🏆###一 Top07)", "🏆 一 Top07)"},
 		{"⭐## Section", "⭐ Section"},
+		// Ornamental Dingbats (1F650-1F67F) and Geometric Shapes Extended
+		// (1F780-1F7FF) prefix decorations.
+		{"❞## 装饰标题", "❞ 装饰标题"},
+		{"🞄### 几何标题", "🞄 几何标题"},
 	}
 	for _, tc := range cases {
 		md := NewMarkdown(tc.src)

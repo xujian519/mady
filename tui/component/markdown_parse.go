@@ -65,6 +65,10 @@ func isHeadingDecorationRune(r rune) bool {
 		return true
 	case r >= 0x2B00 && r <= 0x2BFF: // Stars, arrows, zodiac, etc.
 		return true
+	case r >= 0x1F650 && r <= 0x1F67F: // Ornamental Dingbats (❝ ❞ ❡ …)
+		return true
+	case r >= 0x1F780 && r <= 0x1F7FF: // Geometric Shapes Extended (🞄 …)
+		return true
 	}
 	return false
 }

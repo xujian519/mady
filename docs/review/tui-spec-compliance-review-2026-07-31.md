@@ -446,14 +446,14 @@ mady-dark（默认）, mady-light, tokyo-night, rose-pine-moon, grok-night, high
 | P2-3 markdown 新函数归属 | ✅ | 随拆分归入 `markdown_parse.go`（parseATXHeading 等） |
 | P2-4 Overlay 字段命名 | ✅ | 随 P0-2 一并处理（NonModal 反向字段 + 规范说明） |
 
-### 待修复（阶段四可选）
+### 阶段四（2026-07-31，用户决策）
 
 | 条目 | 状态 | 说明 |
 |------|------|------|
-| P2-1 响应式断点 | ⬜ | 3 级 vs 规范 4 级（图标栏 Sidebar），需产品决策 |
-| P2-6 屏幕阅读器边界 | ⬜ | 需明确实现边界 |
-| P3-3 Unicode 范围补充 | ⬜ | `isHeadingDecorationRune` 可补充新块 |
-| P3-4 敏感路径复核 | ⬜ | `editor_killring.go` 敏感级别评估 |
+| P2-1 响应式断点 | ✅ | 规范 §7.3 改为实际 3 级断点；规范愿景（4 级 + Sidebar）标注"规划中"，待 Sidebar 组件落地时实现 |
+| P2-6 屏幕阅读器边界 | ✅ | 规范 §9.5 标注"已知限制"（不实现，依赖终端复用器/辅助工具捕获） |
+| P3-3 Unicode 范围补充 | ✅ | `isHeadingDecorationRune` 补 Ornamental Dingbats（1F650-1F67F）+ Geometric Shapes Extended（1F780-1F7FF）+ 2 测试用例 |
+| P3-4 敏感路径复核 | ⬜ | 用户决策不执行（规范 §12.3 保留 `editor_killring.go` 条目） |
 
 ---
 
