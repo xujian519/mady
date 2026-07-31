@@ -2,6 +2,16 @@
 /build/bin/
 /desktop
 
+# 应用图标与打包资产（须入库）：
+# - build/appicon.png 被 tray.go 的 //go:embed 引用，CI 构建必需
+# - build/darwin/Info.plist 是 macOS 打包模板（Bundle ID/签名配置）
+# 根 .gitignore 的 `build/` 会忽略整个目录，这里取消目录排除后再放行具体文件；
+# 其余构建产物（build/bin/ 等）仍保持忽略。
+!/build/
+!/build/appicon.png
+!/build/darwin/
+!/build/darwin/Info.plist
+
 # Frontend dependencies & build output
 /frontend/node_modules/
 /frontend/dist/
