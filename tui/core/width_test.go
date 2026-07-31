@@ -109,3 +109,29 @@ func TestSliceByColumn(t *testing.T) {
 		t.Errorf("SliceByColumn cjk = %q, want %q", got, "文a")
 	}
 }
+
+// TestWrapAnsiSoftBreakOnPunctuation verifies that long tokens without
+// whitespace are broken at punctuation boundaries (/, -, _, .) rather than
+// arbitrary character boundaries. This keeps URLs and file paths readable.
+func TestWrapAnsiSoftBreakOnPunctuation(t *testing.T) {
+	text := "比如/skill:xxx命令严格说我没法自动激活它"
+	width := int64(20)
+	lines := WrapAnsi(text, width)
+	for i, ln := range lines {
+		if w := VisibleWidth(ln); w > width {
+			t.Errorf("line %d width %d > %d: %q", i, w, width, ln)
+		}
+	}
+	joined := strings.Join(lines, "")
+	if StripAnsi(joined) != text {
+		t.Errorf("WrapAnsi dropped runes:\n got %q\nwant %q", joined, text)
+	}
+	// The break must land at the '/' soft-break boundary, not inside "skill".
+	first := StripAnsi(lines[0])
+	if !strings.HasSuffix(first, "/") {
+		t.Errorf("expected first wrapped line to end at '/', got %q", first)
+	}
+	if strings.Contains(first, "skill") {
+		t.Errorf("expected first wrapped line to stop before 'skill', got %q", first)
+	}
+}

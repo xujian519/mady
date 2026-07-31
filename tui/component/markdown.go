@@ -214,151 +214,196 @@ func isListContinuation(line string, itemIndent int) bool {
 	return true
 }
 
-// parseBlocks slices src into blocks. List items may span multiple lines
-// (soft-wrapped content or explicit continuation lines).
+// parseBlocks slices src into blocks. Each block type is consumed by a small
+// tryConsume* helper returning (Block, nextIndex). If nextIndex == start the
+// helper did not consume the line and parseBlocks falls through to the next
+// candidate. The final default is consumeParagraph, which always consumes at
+// least one line. This keeps parseBlocks a simple priority dispatcher.
 func parseBlocks(src string) []Block {
 	lines := strings.Split(src, "\n")
 	var blocks []Block
 	i := 0
 	for i < len(lines) {
-		ln := lines[i]
-
-		// Fenced code block.
-		if fm := reFence.FindStringSubmatch(ln); fm != nil {
-			fence := fm[1]
-			lang := fm[2]
-			i++
-			var codeLines []string
-			closed := false
-			for i < len(lines) {
-				if strings.HasPrefix(strings.TrimSpace(lines[i]), fence) {
-					closed = true
-					i++ // consume closing fence
-					break
-				}
-				codeLines = append(codeLines, lines[i])
-				i++
-			}
-			b := Block{
-				Kind: kindFence, Lines: codeLines,
-				Fence: fence, Lang: lang, Closed: closed,
-			}
+		if b, next := tryConsumeFenceBlock(lines, i); next > i {
 			blocks = append(blocks, b)
+			i = next
 			continue
 		}
-
-		if reHR.MatchString(ln) {
-			blocks = append(blocks, Block{Kind: kindHR, Lines: []string{ln}, Closed: true})
-			i++
+		if b, next := tryConsumeHR(lines, i); next > i {
+			blocks = append(blocks, b)
+			i = next
 			continue
 		}
-
-		if hm := reHeading.FindStringSubmatch(ln); hm != nil {
-			blocks = append(blocks, Block{Kind: kindHeading, Lines: []string{ln}, Closed: true})
-			i++
+		if b, next := tryConsumeHeading(lines, i); next > i {
+			blocks = append(blocks, b)
+			i = next
 			continue
 		}
-
-		if reQuote.FindStringSubmatch(ln) != nil {
-			blocks = append(blocks, Block{Kind: kindQuote, Lines: []string{ln}, Closed: true})
-			i++
+		if b, next := tryConsumeQuote(lines, i); next > i {
+			blocks = append(blocks, b)
+			i = next
 			continue
 		}
-
-		// Detect a table: consecutive rows containing "|".
-		// The separator row is optional — if absent, treat first row as header.
-		if strings.Contains(ln, "|") && i+1 < len(lines) && strings.Contains(lines[i+1], "|") {
-			end := i + 2
-			for end < len(lines) && strings.Contains(lines[end], "|") {
-				end++
-			}
-			blocks = append(blocks, Block{Kind: kindTable, Lines: lines[i:end], Closed: true})
-			i = end
+		if b, next := tryConsumeTable(lines, i); next > i {
+			blocks = append(blocks, b)
+			i = next
 			continue
 		}
-
-		// Bulleted list — consume the entire item (including continuation lines).
-		if bm := reBullet.FindStringSubmatch(ln); bm != nil {
-			itemIndent := len(bm[1])
-			itemLines := []string{ln}
-			i++
-			for i < len(lines) {
-				if strings.TrimSpace(lines[i]) == "" {
-					if i+1 < len(lines) && isListContinuation(lines[i+1], itemIndent) {
-						itemLines = append(itemLines, lines[i])
-						i++
-						continue
-					}
-					break
-				}
-				if nextBm := reBullet.FindStringSubmatch(lines[i]); nextBm != nil && len(nextBm[1]) <= itemIndent {
-					break
-				}
-				if nextOm := reOrdered.FindStringSubmatch(lines[i]); nextOm != nil && len(nextOm[1]) <= itemIndent {
-					break
-				}
-				if reHeading.MatchString(lines[i]) || reFence.MatchString(lines[i]) || reHR.MatchString(lines[i]) || reQuote.MatchString(lines[i]) {
-					break
-				}
-				itemLines = append(itemLines, lines[i])
-				i++
-			}
-			blocks = append(blocks, Block{Kind: kindBullet, Lines: itemLines, Closed: true})
+		if b, next := tryConsumeListItem(lines, i, reBullet, kindBullet); next > i {
+			blocks = append(blocks, b)
+			i = next
 			continue
 		}
-
-		// Ordered list — same continuation logic.
-		if om := reOrdered.FindStringSubmatch(ln); om != nil {
-			itemIndent := len(om[1])
-			itemLines := []string{ln}
-			i++
-			for i < len(lines) {
-				if strings.TrimSpace(lines[i]) == "" {
-					if i+1 < len(lines) && isListContinuation(lines[i+1], itemIndent) {
-						itemLines = append(itemLines, lines[i])
-						i++
-						continue
-					}
-					break
-				}
-				if nextBm := reBullet.FindStringSubmatch(lines[i]); nextBm != nil && len(nextBm[1]) <= itemIndent {
-					break
-				}
-				if nextOm := reOrdered.FindStringSubmatch(lines[i]); nextOm != nil && len(nextOm[1]) <= itemIndent {
-					break
-				}
-				if reHeading.MatchString(lines[i]) || reFence.MatchString(lines[i]) || reHR.MatchString(lines[i]) || reQuote.MatchString(lines[i]) {
-					break
-				}
-				itemLines = append(itemLines, lines[i])
-				i++
-			}
-			blocks = append(blocks, Block{Kind: kindOrdered, Lines: itemLines, Closed: true})
+		if b, next := tryConsumeListItem(lines, i, reOrdered, kindOrdered); next > i {
+			blocks = append(blocks, b)
+			i = next
 			continue
 		}
-
-		if strings.TrimSpace(ln) == "" {
-			blocks = append(blocks, Block{Kind: kindBlank, Lines: []string{ln}, Closed: true})
-			i++
+		if b, next := tryConsumeBlank(lines, i); next > i {
+			blocks = append(blocks, b)
+			i = next
 			continue
 		}
-
-		// Paragraph: consecutive non-empty non-block lines.
-		para := []string{ln}
-		i++
-		for i < len(lines) && strings.TrimSpace(lines[i]) != "" &&
-			!reHeading.MatchString(lines[i]) &&
-			!reFence.MatchString(lines[i]) &&
-			!reHR.MatchString(lines[i]) &&
-			!reBullet.MatchString(lines[i]) &&
-			!reOrdered.MatchString(lines[i]) &&
-			!reQuote.MatchString(lines[i]) {
-			para = append(para, lines[i])
-			i++
-		}
-		blocks = append(blocks, Block{Kind: kindParagraph, Lines: para, Closed: true})
+		b, next := consumeParagraph(lines, i)
+		blocks = append(blocks, b)
+		i = next
 	}
 	return blocks
+}
+
+// tryConsumeFenceBlock attempts to consume a fenced code block starting at i.
+// It returns the block and the index after the block, or i if no fence starts
+// at this line.
+func tryConsumeFenceBlock(lines []string, i int) (Block, int) {
+	fm := reFence.FindStringSubmatch(lines[i])
+	if fm == nil {
+		return Block{}, i
+	}
+	fence := fm[1]
+	lang := fm[2]
+	i++
+	var codeLines []string
+	closed := false
+	for i < len(lines) {
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), fence) {
+			closed = true
+			i++ // consume closing fence
+			break
+		}
+		codeLines = append(codeLines, lines[i])
+		i++
+	}
+	return Block{
+		Kind: kindFence, Lines: codeLines,
+		Fence: fence, Lang: lang, Closed: closed,
+	}, i
+}
+
+// tryConsumeHR attempts to consume a horizontal rule at i.
+func tryConsumeHR(lines []string, i int) (Block, int) {
+	if !reHR.MatchString(lines[i]) {
+		return Block{}, i
+	}
+	return Block{Kind: kindHR, Lines: []string{lines[i]}, Closed: true}, i + 1
+}
+
+// tryConsumeHeading attempts to consume an ATX heading at i.
+func tryConsumeHeading(lines []string, i int) (Block, int) {
+	hm := reHeading.FindStringSubmatch(lines[i])
+	if hm == nil {
+		return Block{}, i
+	}
+	return Block{Kind: kindHeading, Lines: []string{lines[i]}, Closed: true}, i + 1
+}
+
+// tryConsumeQuote attempts to consume a blockquote line at i.
+func tryConsumeQuote(lines []string, i int) (Block, int) {
+	if reQuote.FindStringSubmatch(lines[i]) == nil {
+		return Block{}, i
+	}
+	return Block{Kind: kindQuote, Lines: []string{lines[i]}, Closed: true}, i + 1
+}
+
+// tryConsumeTable attempts to consume a pipe table starting at i.
+// It returns the block and the index after the table, or i if no table starts
+// at this line.
+func tryConsumeTable(lines []string, i int) (Block, int) {
+	ln := lines[i]
+	if !strings.Contains(ln, "|") || i+1 >= len(lines) || !strings.Contains(lines[i+1], "|") {
+		return Block{}, i
+	}
+	end := i + 2
+	for end < len(lines) && strings.Contains(lines[end], "|") {
+		end++
+	}
+	return Block{Kind: kindTable, Lines: lines[i:end], Closed: true}, end
+}
+
+// tryConsumeListItem parses one list item (bulleted or ordered) starting at
+// lines[start] using the provided list regex and kind. It returns the block
+// and the index after the item, or start if this line does not begin a valid
+// list item.
+func tryConsumeListItem(lines []string, start int, re *regexp.Regexp, kind blockKind) (Block, int) {
+	m := re.FindStringSubmatch(lines[start])
+	if m == nil {
+		return Block{}, start
+	}
+	itemIndent := len(m[1])
+	itemLines := []string{lines[start]}
+	i := start + 1
+	for i < len(lines) {
+		if strings.TrimSpace(lines[i]) == "" {
+			if i+1 < len(lines) && isListContinuation(lines[i+1], itemIndent) {
+				itemLines = append(itemLines, lines[i])
+				i++
+				continue
+			}
+			break
+		}
+		if nextBullet := reBullet.FindStringSubmatch(lines[i]); nextBullet != nil && len(nextBullet[1]) <= itemIndent {
+			break
+		}
+		if nextOrdered := reOrdered.FindStringSubmatch(lines[i]); nextOrdered != nil && len(nextOrdered[1]) <= itemIndent {
+			break
+		}
+		if reHeading.MatchString(lines[i]) || reFence.MatchString(lines[i]) || reHR.MatchString(lines[i]) || reQuote.MatchString(lines[i]) {
+			break
+		}
+		// A non-blank continuation must have enough indentation to belong
+		// to this list item; otherwise it starts a new paragraph.
+		if !isListContinuation(lines[i], itemIndent) {
+			break
+		}
+		itemLines = append(itemLines, lines[i])
+		i++
+	}
+	return Block{Kind: kind, Lines: itemLines, Closed: true}, i
+}
+
+// tryConsumeBlank attempts to consume a blank line at i.
+func tryConsumeBlank(lines []string, i int) (Block, int) {
+	if strings.TrimSpace(lines[i]) != "" {
+		return Block{}, i
+	}
+	return Block{Kind: kindBlank, Lines: []string{lines[i]}, Closed: true}, i + 1
+}
+
+// consumeParagraph consumes consecutive non-empty non-block lines starting at i
+// as a single paragraph block. It always consumes at least one line.
+func consumeParagraph(lines []string, i int) (Block, int) {
+	para := []string{lines[i]}
+	i++
+	for i < len(lines) && strings.TrimSpace(lines[i]) != "" &&
+		!reHeading.MatchString(lines[i]) &&
+		!reFence.MatchString(lines[i]) &&
+		!reHR.MatchString(lines[i]) &&
+		!reBullet.MatchString(lines[i]) &&
+		!reOrdered.MatchString(lines[i]) &&
+		!reQuote.MatchString(lines[i]) {
+		para = append(para, lines[i])
+		i++
+	}
+	return Block{Kind: kindParagraph, Lines: para, Closed: true}, i
 }
 
 // renderBlock renders a single Block to width using theme.
@@ -721,28 +766,26 @@ func renderTable(rows []string, width int64, t MarkdownTheme) []string {
 			}
 		}
 	}
-	// Squeeze to fit viewport.
+
+	// If the table does not fit naturally, render it vertically as key/value
+	// pairs rather than squeezing columns and truncating cell content with
+	// ellipsis. This keeps the information complete on narrow viewports.
 	total := int64(cols)*3 + 1
 	for _, w := range colW {
 		total += w
 	}
 	if total > width {
-		excess := total - width
-		for excess > 0 {
-			idx := 0
-			for i := range colW {
-				if colW[i] > colW[idx] {
-					idx = i
-				}
-			}
-			if colW[idx] <= 5 {
-				break
-			}
-			colW[idx]--
-			excess--
-		}
+		return renderTableVertical(header, body, width, t)
 	}
 
+	out := renderTableRows(header, body, colW, width, t)
+	return out
+}
+
+// renderTableRows renders a fixed-width table from header/body cells and
+// pre-computed column widths. Extracted from renderTable to keep its cognitive
+// load low.
+func renderTableRows(header []string, body [][]string, colW []int64, width int64, t MarkdownTheme) []string {
 	sep := func() string {
 		var b strings.Builder
 		b.WriteString("+")
@@ -752,7 +795,7 @@ func renderTable(rows []string, width int64, t MarkdownTheme) []string {
 		}
 		return t.TableBorderFn(b.String())
 	}
-	row := func(cells []string, headerRow bool) string {
+	renderRow := func(cells []string, headerRow bool) string {
 		var b strings.Builder
 		b.WriteString(t.TableBorderFn("|"))
 		for i, w := range colW {
@@ -776,13 +819,42 @@ func renderTable(rows []string, width int64, t MarkdownTheme) []string {
 	}
 	out := []string{
 		core.PadToWidth(sep(), width),
-		core.PadToWidth(row(header, true), width),
+		core.PadToWidth(renderRow(header, true), width),
 		core.PadToWidth(sep(), width),
 	}
 	for _, r := range body {
-		out = append(out, core.PadToWidth(row(r, false), width))
+		out = append(out, core.PadToWidth(renderRow(r, false), width))
 	}
 	out = append(out, core.PadToWidth(sep(), width))
+	return out
+}
+
+// renderTableVertical renders a table as key/value pairs when the table is too
+// wide for the viewport. This preserves all cell content instead of truncating
+// it with ellipsis.
+func renderTableVertical(header []string, body [][]string, width int64, t MarkdownTheme) []string {
+	const indent = 2
+	wrapWidth := width
+	if wrapWidth < 1 {
+		wrapWidth = 1
+	}
+	indentStr := strings.Repeat(" ", indent)
+	var out []string
+	for rowIdx, r := range body {
+		if rowIdx > 0 {
+			out = append(out, "")
+		}
+		for i, h := range header {
+			cell := ""
+			if i < len(r) {
+				cell = r[i]
+			}
+			head := t.TableHeaderFn(h + ":")
+			out = append(out, core.WrapAnsi(head, wrapWidth)...)
+			rendered := renderInline(cell, t)
+			out = append(out, core.WrapAnsi(indentStr+rendered, wrapWidth)...)
+		}
+	}
 	return out
 }
 

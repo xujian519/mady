@@ -1,5 +1,17 @@
 # AI 变更记录
 
+## 2026-07-31: fix(tui) Markdown 表格截断与换行可读性修复
+
+**背景**：用户截图反馈 TUI 实际输出"乱"且"信息不完整"。主要表现：Markdown 表格在窄视口下列宽被压缩，单元格内容截断为省略号（如"不可…"）；长 URL/文件路径在没有空白处被 `WrapAnsi` 硬截断到字符中间（如"比 如/"、"skill:xxx" 被拆开）；模型输出不规范的列表项（如 `-配置文件` 缺少空格）原解析器不识别，且列表 continuation 逻辑会把无缩进的后续段落误吞为列表项，导致版式混乱。
+
+**改动清单**：
+1. `tui/component/markdown.go` — 表格渲染：总宽超过视口时不再挤压列宽并截断，而是回退为垂直 key/value 布局，保证单元格内容完整；列表解析：保持 `reBullet`/`reOrdered` 要求 bullet/序号后必须有空格（不牺牲标准 Markdown 斜体/强调语义），同时要求非空 continuation 行必须满足缩进（`isListContinuation`），防止后续段落被误吞；重构 `parseBlocks` 为统一 `(Block, int)` 约定的 dispatcher，新增 `tryConsumeHR`/`tryConsumeHeading`/`tryConsumeQuote`/`tryConsumeBlank`/`tryConsumeListItem`，消除 bullet/ordered 重复代码并显著降低认知复杂度。
+2. `tui/core/width.go` — `findBreakColumn` 在无 whitespace 可断时，优先在 `/`、`-`、`_`、`.` 等路径/URL 标点处 soft-break，而非任意字符边界，提升文件路径、命令、URL 的换行可读性。
+3. `tui/component/markdown_test.go` — 新增 `TestMarkdownTableVerticalFallback`：窄视口下验证表格不截断为省略号、使用 key/value 布局、内容完整保留。
+4. `tui/core/width_test.go` — 新增 `TestWrapAnsiSoftBreakOnPunctuation`：验证长路径/命令在标点边界断开，不丢失字符。
+
+**验证**：`go test -race ./tui/...` 全过；`go vet ./tui/core ./tui/component ./tui/chat` 通过；`golangci-lint` 在本轮消除 `dupl` 警告，`parseBlocks` 复杂度从 88 降至 30 以下，`renderTable` 复杂度从 44 降至 30 以下；`renderBlock`/`renderFenceBlock` 的复杂度为历史遗留，未在本轮改动。
+
 ## 2026-07-31: fix(tui) 修复 CJK 换行丢字 — 长中文回复"总是被截断"根因
 
 **背景**：用户长期反馈 TUI 智能体中文回复"输出总是被截断、格式可读性差"。根因定位到 `tui/core/width.go` 的硬换行链路：`wrapOneLine` → `findBreakColumn` → `SliceByColumn`。`findBreakColumn` 在 2 列宽汉字放不下时返回裸 `width`（可能落在宽字符中间），`SliceByColumn` 以 `col >= start` 判定写入，把跨边界宽字符整个丢弃——每行宽度边界丢一个汉字（如"说明书"断成"说明"+丢"书"）。中文回复几乎每行都触发，累积丢失大量字符。纯中文+偶数列宽度（如 10）恰好边界对齐，掩盖了 bug；混合 ASCII+CJK 文本（含数字/英文 claim 号）必然复现。

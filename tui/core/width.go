@@ -365,16 +365,15 @@ func wrapOneLine(line string, width int64) []string {
 
 // findBreakColumn returns the column at which to wrap the string: the column
 // right after the last whitespace that fits within width. Falls back to the
-// last complete-glyph boundary if there is no suitable whitespace.
-//
-// The returned column is always a rune boundary: when a wide (2-cell) rune
-// would exceed width, we return the column of the last fully-fitting rune
-// instead of width itself. Returning a mid-glyph column would make the
-// SliceByColumn calls in wrapOneLine drop that boundary rune entirely —
-// visible as missing characters at the end of every wrapped CJK line.
+// last soft-break boundary (path punctuation like '/', '-', '_', '.', ':')
+// and finally to the last complete-glyph boundary. Returning a mid-glyph
+// column would make the SliceByColumn calls in wrapOneLine drop that
+// boundary rune entirely — visible as missing characters at the end of every
+// wrapped CJK line.
 func findBreakColumn(s string, width int64) int64 {
 	var col int64
 	var lastWS int64 = -1
+	var lastSoft int64 = -1
 	i := 0
 	for i < len(s) {
 		c := s[i]
@@ -395,13 +394,19 @@ func findBreakColumn(s string, width int64) int64 {
 			if lastWS > 0 {
 				return lastWS
 			}
+			if lastSoft > 0 {
+				return lastSoft
+			}
 			if col > 0 {
 				return col // last complete-glyph boundary
 			}
 			return width
 		}
-		if r == ' ' || r == '\t' {
+		switch r {
+		case ' ', '\t':
 			lastWS = col + rw
+		case '/', '-', '_', '.':
+			lastSoft = col + rw
 		}
 		col += rw
 		i += size

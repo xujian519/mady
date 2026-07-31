@@ -62,3 +62,22 @@ func TestMarkdownList(t *testing.T) {
 		t.Fatalf("missing bullets: %s", joined)
 	}
 }
+
+// TestMarkdownTableVerticalFallback verifies that a table too wide for the
+// viewport is rendered as key/value pairs instead of squeezing columns and
+// truncating cell content with ellipsis.
+func TestMarkdownTableVerticalFallback(t *testing.T) {
+	src := "| 项目 | 配置情况 | 实际可用性 |\n|------|----------|------------|\n| MCP (filer) | ~/.mady/mcp.json里配了服务（python3 - filer.m_server） | ❌不可用 |"
+	md := NewMarkdown(src)
+	lines := md.Render(60)
+	joined := strings.Join(lines, "\n")
+	if strings.Contains(joined, "…") {
+		t.Errorf("table should not truncate cells with ellipsis:\n%s", joined)
+	}
+	if !strings.Contains(joined, "配置情况:") {
+		t.Errorf("expected vertical key/value layout with header labels, got:\n%s", joined)
+	}
+	if !strings.Contains(joined, "~/.mady/mcp.json里配了服务") {
+		t.Errorf("cell content lost in fallback:\n%s", joined)
+	}
+}
