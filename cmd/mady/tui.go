@@ -59,7 +59,12 @@ func loadWritingPatterns(madyHome string) *writing.PatternStore {
 //nolint:gocognit // pre-existing high complexity
 func runTui(ctx context.Context) error {
 	fs := flag.NewFlagSet("mady tui", flag.ExitOnError)
-	if err := fs.Parse(os.Args[2:]); err != nil {
+	// 无参数启动（mady 默认进入 TUI）时 os.Args 只有程序名，需安全切片。
+	var args []string
+	if len(os.Args) > 2 {
+		args = os.Args[2:]
+	}
+	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("mady tui: %w", err)
 	}
 

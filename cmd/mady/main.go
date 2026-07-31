@@ -2,7 +2,8 @@
 //
 // It exposes several subcommands:
 //
-//	mady tui   — interactive terminal chat (default)
+//	mady       — interactive terminal chat (default；不带参数时直接启动)
+//	mady tui   — interactive terminal chat（与 mady 等价）
 //	mady serve — HTTP/SSE API server with multi-domain routing
 //	mady acp   — run as an ACP (Agent Client Protocol) server for editors like Zed
 //	mady trust-mcp — trust an MCP config file so its commands may run at startup
@@ -58,9 +59,12 @@ func main() {
 	defer stop()
 
 	if len(os.Args) < 2 {
-		printUsage()
-		stop()
-		os.Exit(0) //nolint:gocritic // exitAfterDefer: stop() manually called above; defer is a panic safety-net
+		// 无参数时默认启动交互式终端对话（mady 等价于 mady tui）。
+		if err := runTui(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, "mady:", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	switch os.Args[1] {
@@ -135,7 +139,9 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, `mady — Mady agent framework
 
 Usage:
-  mady <command> [flags]
+  mady [command] [flags]
+
+不带任何参数时直接启动交互式终端对话（mady 等价于 mady tui）。
 
 Commands:
   tui   Launch the interactive terminal chat (default).
@@ -166,7 +172,7 @@ Configuration (environment variables):
   BASE_URL   override provider endpoint
 
 Examples:
-  PROVIDER=deepseek API_KEY=sk-... mady tui
+  PROVIDER=deepseek API_KEY=sk-... mady
   PROVIDER=zhipu API_KEY=... mady acp
   mady eval --suite p2a --mode static
   mady eval --case patent_exam_2009_a22_01 --format json
