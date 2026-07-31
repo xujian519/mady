@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-08-01T00:21:24+08:00",
-  "total": 274,
+  "updated": "2026-08-01T00:37:10+08:00",
+  "total": 275,
   "entries": [
     {
       "date": "2026-08-01",
@@ -20,12 +20,12 @@
       "line": 7
     },
     {
-      "date": "2026-07-31",
-      "type": "docs",
-      "scope": "*",
-      "title": "项目文档与代码一致性修复（重构后全量核对）",
-      "file": "2026-07-31.md",
-      "line": 378
+      "date": "2026-08-01",
+      "type": "chore",
+      "scope": "docs",
+      "title": "文档一致性检查防漂移加固（--update 自动同步 + git 口径 + CI 接入）",
+      "file": "2026-08-01.md",
+      "line": 13
     },
     {
       "date": "2026-07-31",
@@ -428,12 +428,12 @@
       "line": 356
     },
     {
-      "date": "2026-07-30",
-      "type": "feat",
-      "scope": "worker",
-      "title": "Worker 引擎从声明式目录变为可执行（4 Phase / 8 文件）",
-      "file": "2026-07-30.md",
-      "line": 305
+      "date": "2026-07-31",
+      "type": "docs",
+      "scope": "*",
+      "title": "项目文档与代码一致性修复（重构后全量核对）",
+      "file": "2026-07-31.md",
+      "line": 378
     },
     {
       "date": "2026-07-30",
@@ -588,12 +588,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
-      "scope": "*",
-      "title": "桌面端第二波 W2-T2 — CommandPalette ⌘K 命令面板",
-      "file": "2026-07-29.md",
-      "line": 175
+      "date": "2026-07-30",
+      "type": "feat",
+      "scope": "worker",
+      "title": "Worker 引擎从声明式目录变为可执行（4 Phase / 8 文件）",
+      "file": "2026-07-30.md",
+      "line": 305
     },
     {
       "date": "2026-07-29",
@@ -668,12 +668,12 @@
       "line": 134
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
-      "scope": "a2ui",
-      "title": "桌面端 G2 修复 — A2UI 渲染器 Vitest 黄金对照测试（Go↔TS 漂移护栏）",
-      "file": "2026-07-28.md",
-      "line": 150
+      "date": "2026-07-29",
+      "type": "chore",
+      "scope": "*",
+      "title": "桌面端第二波 W2-T2 — CommandPalette ⌘K 命令面板",
+      "file": "2026-07-29.md",
+      "line": 175
     },
     {
       "date": "2026-07-28",
@@ -796,12 +796,12 @@
       "line": 581
     },
     {
-      "date": "2026-07-27",
-      "type": "chore",
-      "scope": "*",
-      "title": "桌面端 PilotDeck 对齐规格（05-pilotdeck-alignment）",
-      "file": "2026-07-27.md",
-      "line": 18
+      "date": "2026-07-28",
+      "type": "fix",
+      "scope": "a2ui",
+      "title": "桌面端 G2 修复 — A2UI 渲染器 Vitest 黄金对照测试（Go↔TS 漂移护栏）",
+      "file": "2026-07-28.md",
+      "line": 150
     },
     {
       "date": "2026-07-27",
@@ -964,12 +964,12 @@
       "line": 323
     },
     {
-      "date": "2026-07-26",
+      "date": "2026-07-27",
       "type": "chore",
       "scope": "*",
-      "title": "Sprint 3 全部完成 — T3.2~T3.15 共 11 项",
-      "file": "2026-07-26.md",
-      "line": 61
+      "title": "桌面端 PilotDeck 对齐规格（05-pilotdeck-alignment）",
+      "file": "2026-07-27.md",
+      "line": 18
     },
     {
       "date": "2026-07-26",
@@ -1036,12 +1036,12 @@
       "line": 41
     },
     {
-      "date": "2026-07-25",
+      "date": "2026-07-26",
       "type": "chore",
-      "scope": "mcp",
-      "title": "MCP stdio 客户端协议版本协商改为向下兼容",
-      "file": "2026-07-25.md",
-      "line": 30
+      "scope": "*",
+      "title": "Sprint 3 全部完成 — T3.2~T3.15 共 11 项",
+      "file": "2026-07-26.md",
+      "line": 61
     },
     {
       "date": "2026-07-25",
@@ -1148,12 +1148,12 @@
       "line": 55
     },
     {
-      "date": "2026-07-24",
+      "date": "2026-07-25",
       "type": "chore",
-      "scope": "*",
-      "title": "prompt-templates 接线 — Phase 2（框架注入）",
-      "file": "2026-07-24.md",
-      "line": 515
+      "scope": "mcp",
+      "title": "MCP stdio 客户端协议版本协商改为向下兼容",
+      "file": "2026-07-25.md",
+      "line": 30
     },
     {
       "date": "2026-07-24",
@@ -1308,12 +1308,12 @@
       "line": 275
     },
     {
-      "date": "2026-07-23",
+      "date": "2026-07-24",
       "type": "chore",
-      "scope": "agentcore",
-      "title": "Agent 三合一 — Chat + Assistant + Router → UnifiedAgent",
-      "file": "2026-07-23.md",
-      "line": 390
+      "scope": "*",
+      "title": "prompt-templates 接线 — Phase 2（框架注入）",
+      "file": "2026-07-24.md",
+      "line": 515
     },
     {
       "date": "2026-07-23",
@@ -1460,12 +1460,12 @@
       "line": 202
     },
     {
-      "date": "2026-07-22",
+      "date": "2026-07-23",
       "type": "chore",
-      "scope": "*",
-      "title": "专利法第26.3条判断模块全面增强 — 对标 Wiki 知识库补全 10 项差距",
-      "file": "2026-07-22.md",
-      "line": 142
+      "scope": "agentcore",
+      "title": "Agent 三合一 — Chat + Assistant + Router → UnifiedAgent",
+      "file": "2026-07-23.md",
+      "line": 390
     },
     {
       "date": "2026-07-22",
@@ -1524,12 +1524,12 @@
       "line": 99
     },
     {
-      "date": "2026-07-21",
+      "date": "2026-07-22",
       "type": "chore",
       "scope": "*",
-      "title": "为“绞车带轴”案件补充 Mady 基线输出 v1 草案",
-      "file": "2026-07-21.md",
-      "line": 308
+      "title": "专利法第26.3条判断模块全面增强 — 对标 Wiki 知识库补全 10 项差距",
+      "file": "2026-07-22.md",
+      "line": 142
     },
     {
       "date": "2026-07-21",
@@ -1708,12 +1708,12 @@
       "line": 287
     },
     {
-      "date": "2026-07-20",
+      "date": "2026-07-21",
       "type": "chore",
-      "scope": "tui",
-      "title": "稳固 TUI 启动链路（后台初始化 Agent + 显式状态 + 可调 discovery 超时）",
-      "file": "2026-07-20.md",
-      "line": 605
+      "scope": "*",
+      "title": "为“绞车带轴”案件补充 Mady 基线输出 v1 草案",
+      "file": "2026-07-21.md",
+      "line": 308
     },
     {
       "date": "2026-07-20",
@@ -1940,12 +1940,12 @@
       "line": 1077
     },
     {
-      "date": "2026-07-19",
-      "type": "docs",
-      "scope": "a2ui",
-      "title": "A2UI 模块审阅与完备化",
-      "file": "2026-07-19.md",
-      "line": 41
+      "date": "2026-07-20",
+      "type": "chore",
+      "scope": "tui",
+      "title": "稳固 TUI 启动链路（后台初始化 Agent + 显式状态 + 可调 discovery 超时）",
+      "file": "2026-07-20.md",
+      "line": 605
     },
     {
       "date": "2026-07-19",
@@ -1988,12 +1988,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-18",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI 质量审查修复落地（P1 主题检测 + P2 测试覆盖 + 支撑构造函数）",
-      "file": "2026-07-18.md",
-      "line": 259
+      "date": "2026-07-19",
+      "type": "docs",
+      "scope": "a2ui",
+      "title": "A2UI 模块审阅与完备化",
+      "file": "2026-07-19.md",
+      "line": 41
     },
     {
       "date": "2026-07-18",
@@ -2194,6 +2194,14 @@
       "title": "规范合规全面修复（P0/P1/P2/P3 共 9 项）",
       "file": "2026-07-18.md",
       "line": 316
+    },
+    {
+      "date": "2026-07-18",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 质量审查修复落地（P1 主题检测 + P2 测试覆盖 + 支撑构造函数）",
+      "file": "2026-07-18.md",
+      "line": 259
     }
   ]
 }
