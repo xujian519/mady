@@ -78,11 +78,6 @@ func TestTaskToTodoItem(t *testing.T) {
 }
 
 // TestToggleTodoPanelClosePath verifies the todo panel close paths.
-//
-// NOTE: the OPEN path of ToggleTodoPanel is untestable without deadlocking:
-// it calls panel.Reload() while holding a.mu, and Reload → collectTodoItems
-// re-locks a.mu (self-deadlock). This is a pre-existing production bug
-// (chat_app_todo.go) — source edits are out of scope for this task.
 func TestToggleTodoPanelClosePath(t *testing.T) {
 	app, _ := newTestChatApp(t, ChatAppConfig{})
 	host := app.host.(*testAppHost)
@@ -117,6 +112,35 @@ func TestToggleTodoPanelClosePath(t *testing.T) {
 	app.CloseTodoPanel()
 	if len(host.overlays) != 0 {
 		t.Fatal("CloseTodoPanel should remove the panel")
+	}
+}
+
+// TestToggleTodoPanelOpenPath verifies the open path mounts the overlay and
+// reloads task data from the cache. Regression guard: the open path used to
+// self-deadlock (panel.Reload inside a.mu → collectTodoItems re-locks a.mu);
+// the fix moved Reload outside the lock.
+func TestToggleTodoPanelOpenPath(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	host := app.host.(*testAppHost)
+
+	app.onTaskCreated(TaskCreatedChatEvent{Task: &TaskInfo{ID: "p1", Subject: "专利分析", Priority: "high"}})
+
+	ov := app.ToggleTodoPanel()
+	if ov == nil {
+		t.Fatal("ToggleTodoPanel open path returned nil overlay")
+	}
+	if len(host.overlays) != 1 {
+		t.Fatalf("overlays after open = %d, want 1", len(host.overlays))
+	}
+	// The panel must be populated from the cache (Reload ran without deadlock).
+	out := strings.Join(app.todoPanel.Render(60), "\n")
+	if !strings.Contains(out, "专利分析") {
+		t.Fatalf("todo panel should render cached tasks after open, got %q", out)
+	}
+
+	// Second call closes it.
+	if got := app.ToggleTodoPanel(); got != nil {
+		t.Fatal("second ToggleTodoPanel should close and return nil")
 	}
 }
 

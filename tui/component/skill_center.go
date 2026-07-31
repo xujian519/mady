@@ -78,7 +78,7 @@ func NewSkillCenter() *SkillCenter {
 		"skill.up":     {DefaultKeys: []string{"up", "ctrl+p"}},
 		"skill.down":   {DefaultKeys: []string{"down", "ctrl+n"}},
 		"skill.select": {DefaultKeys: []string{"enter"}},
-		"skill.close":  {DefaultKeys: []string{"esc"}},
+		"skill.close":  {DefaultKeys: []string{"escape"}},
 	})
 	return &SkillCenter{
 		theme: DefaultSkillCenterTheme(),

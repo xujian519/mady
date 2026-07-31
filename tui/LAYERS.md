@@ -9,7 +9,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 | 1 Terminal I/O | `tui/terminal` | Terminal abstraction, key parsing, input buffer, ANSI builders | Layer 0 |
 | 2 Theming | `tui/theme` | Palette, semantic theme, a11y theme, JSON loading, file watch, Style | Layer 0, 1 |
 | 3 Engine | `tui` (root) | TUI container, event loop, overlay system, focus stack, ChatApp bridge | Layer 0–2, chat |
-| 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels, toast, onboarding) — 41 source files | Layer 0–2, fuzzy |
+| 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels, toast, onboarding) — 45 source files | Layer 0–2, fuzzy |
 | 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 22 source files | Layer 0–2, 4 |
 | 7 Adapter | `tui/agentadapter` | Agentcore → chat event conversion, BindAgent convenience | Layer 5, agentcore |
 
@@ -28,7 +28,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 113 source files (+ 63 test files) across 9 packages.
+> Auto-verified: 117 source files (+ 108 test files) across 9 packages.
 > Last sync: 2026-07-31.
 
 ```
@@ -75,18 +75,18 @@ tui/
 │   ├── system_appearance.go # macOS NSAppearance dark/light detection
 │   └── theme_registry.go  # Theme registry: built-in + user theme registration
 │
-├── component/             # Layer 4 — Components (41 source files)
+├── component/             # Layer 4 — Components (45 source files)
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
 │   ├── text.go            # Text, TruncatedText
-│   ├── input.go           # Single-line input editor (component API + rendering) (267 lines)
-│   ├── input_edit.go      # Input editing primitives (keys, delete family, kill-ring) (423 lines)
+│   ├── input.go           # Single-line input editor (component API + rendering)
+│   ├── input_edit.go      # Input editing primitives (keys, delete family, kill-ring)
 │   ├── keyhelp.go         # Keybindings cheat sheet
 │   ├── loader.go          # Animated spinner component (callback-based, uses core.SpinnerStyle)
-│   ├── markdown.go        # Markdown component + block cache (321 lines)
-│   ├── markdown_parse.go  # Markdown block parser (ATX headings, lists, tables) (370 lines)
-│   ├── markdown_inline.go # Markdown inline styles (bold/italic/code/links) (49 lines)
-│   ├── markdown_render.go # Markdown block rendering + tables (339 lines)
+│   ├── markdown.go        # Markdown component + block cache
+│   ├── markdown_parse.go  # Markdown block parser (ATX headings, lists, tables)
+│   ├── markdown_inline.go # Markdown inline styles (bold/italic/code/links)
+│   ├── markdown_render.go # Markdown block rendering + tables
 │   ├── selectlist.go      # Selectable list with fuzzy filter
 │   ├── statusbar.go       # StatusBar
 │   ├── settings.go        # Settings panel
@@ -103,9 +103,9 @@ tui/
 │   ├── approval_card.go   # Approval gate card renderer
 │   ├── tool_card.go       # Tool-call result card: left-bar + title + collapsible content
 │   ├── evidence_overlay.go # EvidenceOverlay: scrollable knowledge source display
-│   ├── judgment_view.go   # JudgmentView: current-judgment summary panel (386 lines)
-│   ├── review_gate.go     # ReviewGate overlay: structured review checklist (577 lines)
-│   ├── session_selector.go # SessionSelector: session list with fuzzy filter (545 lines)
+│   ├── judgment_view.go   # JudgmentView: current-judgment summary panel
+│   ├── review_gate.go     # ReviewGate overlay: structured review checklist
+│   ├── session_selector.go # SessionSelector: session list with fuzzy filter
 │   ├── command_center.go  # CommandCenter: Ctrl+P command palette overlay
 │   ├── debug_overlay.go   # DebugOverlay: ctrl+shift+d diagnostic panel (FPS, queue, events)
 │   ├── skill_center.go    # SkillCenter: skill list and management overlay
@@ -118,12 +118,12 @@ tui/
 │   ├── syntax_langs.go    # Built-in language specs (Go, Bash, JSON, YAML, etc.)
 │   ├── syntax_tokenizer.go # Tokenizer for syntax highlighting
 │   │
-│   ├── editor.go          # Editor subsystem — core struct & interface (392 lines)
+│   ├── editor.go          # Editor subsystem — core struct & interface
 │   ├── editor_chip.go     # Editor — inline chips (completion hints, annotations)
-│   ├── editor_edit.go     # Editor — key dispatch & editing primitives (553 lines)
-│   ├── editor_render.go   # Editor — rendering & mouse hit-testing (324 lines)
-│   ├── editor_history.go  # Editor — undo/redo stack & input recall (182 lines)
-│   └── editor_killring.go # Editor — Emacs kill-ring (yank/yank-pop) (126 lines)
+│   ├── editor_edit.go     # Editor — key dispatch & editing primitives
+│   ├── editor_render.go   # Editor — rendering & mouse hit-testing
+│   ├── editor_history.go  # Editor — undo/redo stack & input recall
+│   └── editor_killring.go # Editor — Emacs kill-ring (yank/yank-pop)
 │
 ├── layout/                # Layer 0 — Layout primitives (depends on core only)
 │   ├── breakpoint.go       # LayoutBreakpoint type + DetectLayoutBreakpoint
@@ -131,20 +131,20 @@ tui/
 │   └── layout.go          # Layout helpers
 │
 ├── chat/                  # Layer 5 — Application (22 source files)
-│   ├── chat_app.go        # ChatApp struct, constructor, public API (1060 lines)
-│   ├── chat_app_layout.go # chatLayout root Component + input router (582 lines)
-│   ├── chat_app_plantask.go # PlanTask state/approval/interrupt/reject/revise handlers (40 lines)
+│   ├── chat_app.go        # ChatApp struct, constructor, public API
+│   ├── chat_app_layout.go # chatLayout root Component + input router
+│   ├── chat_app_plantask.go # PlanTask state/approval/interrupt/reject/revise handlers
 │   ├── chat_app_stream.go # ChatApp streaming lifecycle handlers (submit/delta/end/error)
 │   ├── chat_app_tool.go   # ChatApp tool-call/handoff/turn/compaction handlers
 │   ├── chat_app_todo.go   # ChatApp todo-list panel integration handlers
-│   ├── chat_history.go    # ChatHistory scrollable transcript component (566 lines)
+│   ├── chat_history.go    # ChatHistory scrollable transcript component
 │   ├── chat_history_render.go        # ChatHistory rendering pipeline (viewport, separators)
 │   ├── chat_history_render_message.go # Per-message rendering (role dispatch, card router)
 │   ├── chat_history_render_highlight.go # Text-selection highlighting
 │   ├── chat_history_input.go         # ChatHistory input & viewport scrolling, mouse handling
 │   ├── chat_history_selection.go     # ChatHistory selection business logic
 │   ├── events.go          # ChatEvent types (23 events), Subscriber/EventSubscriber interfaces
-│   ├── state.go           # Explicit FSM over ChatApp interaction states (249 lines)
+│   ├── state.go           # Explicit FSM over ChatApp interaction states
 │   ├── reasoning.go       # Reasoning/thinking block rendering
 │   ├── clipboard.go       # Clipboard helpers (pbcopy/xclip/win32)
 │   ├── layout_editor.go   # Editor frame layout helpers (ChildRect indices, baseline reset)
@@ -161,13 +161,13 @@ tui/
 │   ├── csync/slice.go     # Concurrent slice helpers
 │
 ├── doc.go                 # Package doc for the root `tui` package
-├── tui.go                 # Layer 3 — TUI container, types, constructor (271 lines)
+├── tui.go                 # Layer 3 — TUI container, types, constructor
 ├── tui_loop.go            # Layer 3 — eventLoop (lifecycle/render/input junction)
 ├── tui_lifecycle.go       # Layer 3 — Start/Stop/Quit/Done/Context/Tick/Every
 ├── tui_input.go          # Layer 3 — processMsg, Cmd execution, input callbacks, mouse mode
 ├── tui_render.go          # Layer 3 — RequestRender, renderFrame, normalizeLine
 ├── tui_focus.go           # Layer 3 — focus stack + overlay stack management
-├── overlay.go             # Layer 3 — Overlay data type + composition helpers (573 lines)
+├── overlay.go             # Layer 3 — Overlay data type + composition helpers
 ├── chat_bridge.go         # Layer 3 — NewChatApp convenience constructor + tuiAppHost adapter
 └── LAYERS.md              # This file
 ```
@@ -248,13 +248,13 @@ cancellation). See `tui_lifecycle.go:190-209` for the implementation.
 `ChatApp` is split across 4 `chat_app_*.go` files + 10 `chat_history_*.go` /
 helper files, following the same sibling-file pattern as the Editor subsystem:
 
-- `chat_app.go` — struct, constructor, public API (1060 lines)
-- `chat_app_layout.go` — `chatLayout` root component + input router (582 lines)
+- `chat_app.go` — struct, constructor, public API
+- `chat_app_layout.go` — `chatLayout` root component + input router
 - `chat_app_stream.go` — streaming lifecycle handlers (submit/delta/end/error)
 - `chat_app_tool.go` — tool-call/handoff/turn/compaction handlers + diff extraction
 
 `ChatHistory` rendering is similarly split:
-- `chat_history.go` — struct + public API (566 lines)
+- `chat_history.go` — struct + public API
 - `chat_history_render.go` — rendering pipeline (viewport, separators, scroll)
 - `chat_history_render_message.go` — per-message rendering (role dispatch, cards)
 - `chat_history_render_highlight.go` — text-selection highlighting

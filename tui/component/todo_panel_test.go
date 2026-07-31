@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/xujian519/mady/tui/core"
-	"github.com/xujian519/mady/tui/terminal"
 )
 
 func testTodoItems() []TodoItem {
@@ -129,23 +128,17 @@ func TestTodoPanelToggleSelected(t *testing.T) {
 	}
 }
 
-// TestTodoPanelToggleWithSpace verifies Space triggers toggle when the
-// binding is registered under the parser's canonical key name.
-// Note: the default "space" KeyID does not match the parser's output for a
-// literal space character (Name " "), so the default binding cannot fire.
-// Rebinding via SetUserBindings with KeyID " " makes it work — this is the
-// documented user-override path, and it covers the same toggle branch.
+// TestTodoPanelToggleWithSpace verifies Space triggers toggle via the
+// default binding (canonical key name " "). Regression guard for the former
+// "space"/"esc" naming mismatch that made the default bindings dead.
 func TestTodoPanelToggleWithSpace(t *testing.T) {
 	p := NewTodoPanel()
 	p.SetItems(testTodoItems())
-	p.km.SetUserBindings(map[string][]terminal.KeyID{
-		"todo.toggle": {"enter", " "},
-	})
 	toggled := false
 	p.SetOnToggle(func(TodoItem) { toggled = true })
 	p.Update(core.KeyMsg{Data: " "})
 	if !toggled {
-		t.Fatal("expected toggle on Space after rebinding")
+		t.Fatal("expected toggle on Space via default binding")
 	}
 }
 
@@ -184,21 +177,16 @@ func TestTodoPanelToggleSelectedOutOfRange(t *testing.T) {
 	p.Update(core.KeyMsg{Data: "\r"})
 }
 
-// TestTodoPanelClose verifies the Escape key fires onClose.
-// Note: the default "esc" KeyID does not match the key parser's canonical
-// name ("escape"), so the default binding can never fire. Rebinding via
-// SetUserBindings to the canonical "escape" KeyID makes it work; this is the
-// documented user-override path and exercises the same branch.
+// TestTodoPanelClose verifies the Escape key fires onClose via the default
+// binding. Regression guard for the former "esc" naming mismatch that made
+// the default binding dead.
 func TestTodoPanelClose(t *testing.T) {
 	p := NewTodoPanel()
-	p.km.SetUserBindings(map[string][]terminal.KeyID{
-		"todo.close": {"escape"},
-	})
 	closed := false
 	p.SetOnClose(func() { closed = true })
 	p.Update(core.KeyMsg{Data: "\x1b"})
 	if !closed {
-		t.Fatal("expected onClose on Escape after rebinding")
+		t.Fatal("expected onClose on Escape via default binding")
 	}
 }
 

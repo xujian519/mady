@@ -396,7 +396,7 @@ mady-dark（默认）, mady-light, tokyo-night, rose-pine-moon, grok-night, high
 | 2026-07-26 | `docs/review/tui-full-audit-2026-07-26.md` | 全量审计（7 维度） |
 | **2026-07-31** | **本报告** | **规范符合度专项：4 P0 + 7 P1 + 6 P2 + 5 P3** |
 
-测试覆盖自 07-25 的 53.2% 提升至当前加权约 58.1%（agentadapter 84% / layout 75.4% 达标），但与规范 70% 阈值仍有差距。
+测试覆盖自 07-25 的 53.2% 提升至补测后全部达标：core 73.1% / terminal 71.8% / root 73.3% / layout 75.4% / component 85.1% / chat 88.7% / agentadapter 84.0% / theme 96.3%（均 ≥ 规范 70% 阈值，见 §11 阶段二）。
 
 ---
 
@@ -404,16 +404,16 @@ mady-dark（默认）, mady-light, tokyo-night, rose-pine-moon, grok-night, high
 
 > 状态标记：✅ 已修复（提交含 Commit） | 🔶 部分修复 | ⬜ 待修复
 
-### 阶段一：文档同步（2026-07-31，commit 待填）
+### 阶段一：文档同步（2026-07-31，commit 18a079c / 7a74e64）
 
 | 条目 | 状态 | 修复内容 |
 |------|------|----------|
 | P0-1 stdio 死文档 | ✅ | `tui/doc.go` 移除 Layer 6 与两套渲染模型描述（保留历史移除说明）；规范 §2.1 架构图移除 Layer 6 并加注 |
-| P0-4 文件计数过时 | ✅ | 规范附录 C 全面重写并与 LAYERS.md 同步；`verify_layers.sh` 校验通过（113 文件） |
+| P0-4 文件计数过时 | ✅ | 规范附录 C 全面重写并与 LAYERS.md 同步；`verify_layers.sh` 校验通过（117 文件，含拆分新增） |
 | P1-2 doc.go 数字 | ✅ | 35+ → 41 组件；agentadapter 标注"23 事件类型、硬依赖 agentcore"（删除 Optional 措辞） |
 | P1-3 层编号冲突 | ✅ | doc.go 改"7 Layers"并说明 Layer 6 历史；规范 §2.1 加注"层编号不连续为既有事实" |
 | P1-4 事件数不一致 | ✅ | doc.go 18 → 23 种；LAYERS.md events.go 注释 15 → 23 种 |
-| P1-6 主题清单 | 🔶 | 规范 §6.3 更新为 8 个内置主题（含 high-contrast/colorblind/auto）；JSON 主题文件落地留待阶段四 |
+| P1-6 主题清单 | 🔶 | 规范 §6.3 更新为 8 个内置主题（含 high-contrast/colorblind/auto）；JSON 主题文件落地为独立改进项（json.go/watch.go 能力已存在，无使用方），暂无排期 |
 | P1-7 LAYERS.md 计数 | ✅ | chat 17/18 → 22；测试文件 64 → 63；目录树标头同步 |
 | P2-2 帧率表述 | ✅ | 规范 §8.1"最多 125fps（8ms 间隔）"→"最小帧间隔 8ms（上限 125fps）" |
 | P2-5 §5.4 示例注释 | ✅ | `\x1b[5~` 注释"Ctrl+E"改为正确的"Home/PageUp 键"说明 |
@@ -431,7 +431,7 @@ mady-dark（默认）, mady-light, tokyo-night, rose-pine-moon, grok-night, high
 | theme | 54.6% → 96.3% | ✅ |
 | chat | 47.4% → 88.7% | ✅ |
 | component | 58.9% → 85.0% | ✅ |
-| P1-1 19 组件无测试 | 全部补齐（44 个测试文件新增） | ✅ |
+| P1-1 19 组件无测试 | 全部补齐（45 个测试文件新增：63 → 108） | ✅ |
 
 补测同时发现 9 处生产缺陷（见阶段三）。
 

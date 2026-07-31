@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -9,15 +10,47 @@ import (
 
 // clearTerminalEnv removes env vars that the terminal detection system keys
 // on, so DetectColorMode only sees the variables a test explicitly sets.
+// clearTerminalEnv unsets every environment variable the terminal detector
+// reads (detect.go collectEnv/detectTerminalBrandFromEnv + color resolve),
+// so brand/capability detection starts from a clean slate. Missing keys make
+// tests environment-sensitive: e.g. ITERM_SESSION_ID or COLORFGBG set in a
+// real iTerm2/VS Code terminal deterministically fails TestDetectColorMode
+// and brand detection tests.
+//
+// Keys must be truly unset, not set to "": DetectTerminalBackground and the
+// brand detector use os.LookupEnv existence checks (DARK_BACKGROUND,
+// ITERM_SESSION_ID, …), where an empty-but-present variable still matches.
+// Values are restored via t.Cleanup.
 func clearTerminalEnv(t *testing.T) {
 	t.Helper()
 	for _, k := range []string{
-		"COLORTERM", "WT_SESSION", "TERM_PROGRAM", "TERM_PROFILE",
-		"KITTY_WINDOW_ID", "WEZTERM_EXECUTABLE", "VSCODE_INJECTION",
-		"ALACRITTY_LOG", "GHOSTTY_RESOURCES_DIR", "WARP_IS_LOCAL_SHELL_SESSION",
-		"ZELLIJ", "NVIM", "TMUX", "STY",
+		// Brand/env detection (detect.go).
+		"TERM", "TERM_PROGRAM", "TERM_PROFILE", "TERMINAL_EMULATOR",
+		"COLORTERM", "COLORFGBG", "DARK_BACKGROUND", "LC_TERMINAL",
+		"CURSOR_TRACE_ID", "VTE_VERSION", "SSH_CLIENT", "SSH_CONNECTION", "SSH_TTY",
+		"VSCODE_GIT_ASKPASS_MAIN", "VSCODE_INJECTION",
+		"WEZTERM_VERSION", "WEZTERM_EXECUTABLE", "ITERM_SESSION_ID",
+		"ITERM_PROFILE", "TERM_SESSION_ID", "KITTY_WINDOW_ID",
+		"GHOSTTY_RESOURCES_DIR", "GHOSTTY_BIN", "ALACRITTY_SOCKET",
+		"ALACRITTY_WINDOW_ID", "ALACRITTY_LOG", "TERMINATOR_UUID",
+		"WARP_IS_LOCAL_SHELL_SESSION", "WT_SESSION",
+		// Multiplexers.
+		"TMUX", "ZELLIJ", "ZELLIJ_SESSION_NAME", "STY",
+		"CMUX_SOCKET_PATH", "CMUX_PANEL_ID", "CMUX_BUNDLE_ID",
+		"BYOBU_BACKEND", "BYOBU_CONFIG_DIR", "BYOBU_DISTRO",
+		"NVIM",
 	} {
-		t.Setenv(k, "")
+		old, had := os.LookupEnv(k)
+		if err := os.Unsetenv(k); err != nil {
+			t.Fatalf("Unsetenv(%s): %v", k, err)
+		}
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv(k, old)
+			} else {
+				_ = os.Unsetenv(k)
+			}
+		})
 	}
 	terminal.ResetTerminalContext()
 }

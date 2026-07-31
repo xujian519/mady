@@ -131,13 +131,19 @@ func (t *TUI) processMsg(msg core.Msg) {
 		msg = filtered
 	}
 
+	// The original (screen-absolute) mouse coordinates are preserved when a
+	// non-modal overlay translates them to overlay-local space, so the
+	// background broadcast below hits tests against screen space.
+	var origMouseMsg *core.MouseMsg
 	if focused != nil {
-		// Phase 4.2: translate absolute mouse coordinates to overlay-local space
+		// Phase 4.2: translate absolute mouse coordinates to overlay-local space.
 		if mm, ok := msg.(core.MouseMsg); ok {
 			t.mu.Lock()
 			for _, ov := range t.overlays {
 				if ov != nil && ov.Content == focused {
 					if lr, lc, ok2 := ov.TranslateMouse(mm.Row, mm.Col); ok2 {
+						screenMM := mm
+						origMouseMsg = &screenMM
 						mm.Row = lr
 						mm.Col = lc
 						msg = mm
@@ -180,6 +186,13 @@ func (t *TUI) processMsg(msg core.Msg) {
 	// reach the components behind them (the overlay content itself was
 	// already updated via the focused path above).
 	if !focusedIsOverlay || focusedOverlayNonModal {
+		// Background components receive the message as-is; for mouse events
+		// under a non-modal overlay, broadcast the original screen-absolute
+		// coordinates instead of the overlay-local translation.
+		broadcastMsg := msg
+		if origMouseMsg != nil {
+			broadcastMsg = *origMouseMsg
+		}
 		for _, child := range children {
 			if child == focused {
 				continue
@@ -189,7 +202,7 @@ func (t *TUI) processMsg(msg core.Msg) {
 				// the focused-component path and avoids the footgun where a
 				// background component's Cmd is silently dropped.
 				start := time.Now()
-				if cmd := u.Update(msg); cmd != nil {
+				if cmd := u.Update(broadcastMsg); cmd != nil {
 					go t.execCmd(cmd)
 				}
 				if d := time.Since(start); d > 50*time.Millisecond {

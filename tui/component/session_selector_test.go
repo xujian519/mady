@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/tui/core"
-	"github.com/xujian519/mady/tui/terminal"
 )
 
 func testSessionItems() []SessionItem {
@@ -120,11 +119,6 @@ func TestSessionSelectorNavigation(t *testing.T) {
 func TestSessionSelectorConfirmCancelDelete(t *testing.T) {
 	s := NewSessionSelector()
 	s.SetItems(testSessionItems())
-	// Note: the default "esc" KeyID does not match the key parser's canonical
-	// "escape" name, so rebind via SetUserBindings (documented override path).
-	s.km.SetUserBindings(map[string][]terminal.KeyID{
-		"session.cancel": {"escape"},
-	})
 
 	selected := make(chan SessionItem, 1)
 	s.SetOnSelect(func(it SessionItem) { selected <- it })

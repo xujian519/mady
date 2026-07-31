@@ -313,7 +313,9 @@ func TestChatAppConfirmFlow(t *testing.T) {
 
 	t.Run("confirm timeout direct call", func(t *testing.T) {
 		app, _ := newTestChatApp(t, ChatAppConfig{})
-		app.StartConfirm(InlineConfirm{Prompt: "p", OnNo: func() {}})
+		// Short timeout so the internal timer fires (and is stopped) within
+		// the test instead of lingering for the 10s default.
+		app.StartConfirm(InlineConfirm{Prompt: "p", OnNo: func() {}, Timeout: 200 * time.Millisecond})
 		app.confirmTimeout()
 		if app.ConfirmPending() != nil {
 			t.Fatal("confirmTimeout should clear pending confirm")

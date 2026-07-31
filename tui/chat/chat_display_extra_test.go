@@ -47,9 +47,33 @@ func TestExpandPastePlaceholders(t *testing.T) {
 		}
 	})
 
-	// Note: the unknown-id branch (marker + "(expired)") is NOT exercised:
-	// the source re-matches the marker after appending the suffix, which
-	// loops forever. Source files are off-limits for this task.
+	t.Run("unknown id left as-is", func(t *testing.T) {
+		app, _ := newTestChatApp(t, ChatAppConfig{})
+		app.mu.Lock()
+		app.model.pastedTexts = map[int]string{}
+		app.mu.Unlock()
+
+		// Unknown reference: the marker stays literal and scanning stops
+		// (regression guard for the former infinite loop).
+		out := app.expandPastePlaceholders("[Pasted text #42 +3 lines]")
+		if out != "[Pasted text #42 +3 lines]" {
+			t.Fatalf("unknown-id expansion = %q, want marker left as-is", out)
+		}
+	})
+
+	t.Run("known marker after unknown marker still expands", func(t *testing.T) {
+		app, _ := newTestChatApp(t, ChatAppConfig{})
+		app.mu.Lock()
+		app.model.pastedTexts = map[int]string{7: "real text"}
+		app.mu.Unlock()
+
+		// The unknown marker stops the scan; the known marker before it
+		// must still have been expanded on the earlier iteration.
+		out := app.expandPastePlaceholders("[Pasted text #7 +1 lines] then [Pasted text #42 +3 lines]")
+		if out != "real text then [Pasted text #42 +3 lines]" {
+			t.Fatalf("mixed expansion = %q", out)
+		}
+	})
 
 	t.Run("malformed markers untouched", func(t *testing.T) {
 		app, _ := newTestChatApp(t, ChatAppConfig{})

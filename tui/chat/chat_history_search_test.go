@@ -99,10 +99,6 @@ func TestSearchAppendInactive(t *testing.T) {
 }
 
 // TestSearchBackspace verifies query shrinking and empty-query no-op.
-//
-// NOTE: only ASCII queries are used here. The source's SearchBackspace
-// truncates by bytes (h.searchQuery[:len-1]) which corrupts multibyte runes;
-// that is a pre-existing bug out of scope for this task.
 func TestSearchBackspace(t *testing.T) {
 	h := newSearchHistory()
 	h.SearchActivate()
@@ -122,6 +118,27 @@ func TestSearchBackspace(t *testing.T) {
 	h.SearchBackspace()
 	if h.SearchMode() != true || h.SearchQuery() != "" {
 		t.Fatal("backspace on empty query should be a no-op")
+	}
+}
+
+// TestSearchBackspaceMultibyte verifies backspace trims one full rune, not
+// one byte — regression guard for the former byte-slicing UTF-8 corruption.
+func TestSearchBackspaceMultibyte(t *testing.T) {
+	h := newSearchHistory()
+	h.SearchActivate()
+	for _, r := range "权利" {
+		h.SearchAppend(r)
+	}
+	if h.SearchQuery() != "权利" {
+		t.Fatalf("setup query = %q", h.SearchQuery())
+	}
+	h.SearchBackspace()
+	if h.SearchQuery() != "权" {
+		t.Fatalf("after one backspace = %q, want %q (rune, not byte)", h.SearchQuery(), "权")
+	}
+	h.SearchBackspace()
+	if h.SearchQuery() != "" {
+		t.Fatalf("after two backspaces = %q, want empty", h.SearchQuery())
 	}
 }
 

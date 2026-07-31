@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -101,5 +102,56 @@ func TestOverlayNonModalReachesBackground(t *testing.T) {
 	}
 	if got := probe.msgs.Load(); got != 1 {
 		t.Errorf("background probe received %d keys with non-modal overlay, want 1", got)
+	}
+}
+
+// mouseProbe records the last MouseMsg it receives (screen coordinates).
+// Guarded by mu: Update runs on the event-loop goroutine while the test
+// goroutine reads last.
+type mouseProbe struct {
+	core.MsgBase
+	mu   sync.Mutex
+	last core.MouseMsg
+}
+
+func (m *mouseProbe) Update(msg core.Msg) core.Cmd {
+	if mm, ok := msg.(core.MouseMsg); ok {
+		m.mu.Lock()
+		m.last = mm
+		m.mu.Unlock()
+	}
+	return nil
+}
+func (m *mouseProbe) Render(width int64) []string { return []string{"bg"} }
+func (m *mouseProbe) Invalidate()                 {}
+
+func (m *mouseProbe) LastMouse() core.MouseMsg {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.last
+}
+
+// TestOverlayNonModalMouseUsesScreenCoords verifies that mouse events
+// broadcast to background components under a non-modal overlay carry the
+// original screen-absolute coordinates, not the overlay-local translation
+// delivered to the focused overlay content.
+func TestOverlayNonModalMouseUsesScreenCoords(t *testing.T) {
+	app, _, _, ov := runModalTUI(t)
+
+	bg := &mouseProbe{}
+	app.AddChild(bg)
+
+	app.RemoveOverlay(ov)
+	ov.NonModal = true
+	app.PushOverlay(ov)
+	time.Sleep(20 * time.Millisecond)
+
+	// Overlay anchored at (0,0) sized 40x10: a click at screen (5,5) is
+	// inside the overlay; the background must receive (5,5), not (0,0)-local.
+	app.SendMsg(core.MouseMsg{Action: core.MousePress, Row: 5, Col: 5, Button: 1})
+	time.Sleep(80 * time.Millisecond)
+
+	if got := bg.LastMouse(); got.Row != 5 || got.Col != 5 {
+		t.Errorf("background mouse = (%d,%d), want screen coords (5,5)", got.Row, got.Col)
 	}
 }

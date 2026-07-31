@@ -40,10 +40,10 @@ func TestTextRenderCacheHit(t *testing.T) {
 	if len(third) == 0 {
 		t.Fatal("expected lines after Invalidate")
 	}
-	// Different width bypasses the cache.
+	// Different width bypasses the cache: the wrapped line count changes.
 	fourth := txt.Render(16)
-	if len(fourth) != len(first) && len(fourth) == 0 {
-		t.Fatal("expected re-render at new width")
+	if len(fourth) == len(first) {
+		t.Fatalf("Render(16) = %d lines, want different from Render(8) = %d (width change must bypass cache)", len(fourth), len(first))
 	}
 }
 
