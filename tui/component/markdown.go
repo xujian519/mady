@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/xujian519/mady/tui/core"
 	apitheme "github.com/xujian519/mady/tui/theme"
@@ -147,8 +148,102 @@ func (m *Markdown) Update(msg core.Msg) core.Cmd {
 // renderMarkdown is now just `for _, b := range parseBlocks(src) { out += renderBlock(...) }`.
 // ---------------------------------------------------------------------------
 
+// extractHeadingText returns the visible heading text, preserving any emoji or
+// symbol decorations that appear before the hash sequence (e.g. "🏆### 标题" →
+// "🏆 标题"). The hash sequence itself is removed.
+func extractHeadingText(line string, level int) string {
+	s := strings.TrimLeft(line, " \t")
+	// Find the hash sequence start, collecting decorations before it.
+	hashStart := 0
+	for hashStart < len(s) {
+		r, size := utf8.DecodeRuneInString(s[hashStart:])
+		if r == utf8.RuneError && size <= 1 {
+			break
+		}
+		if r == '#' {
+			break
+		}
+		if !isHeadingDecorationRune(r) {
+			break
+		}
+		hashStart += size
+	}
+	prefix := strings.TrimSpace(s[:hashStart])
+	text := strings.TrimSpace(s[hashStart+level:])
+	if prefix != "" && text != "" {
+		return prefix + " " + text
+	}
+	return prefix + text
+}
+
+// isHeadingDecorationRune reports whether r is an emoji or common symbol that
+// LLMs frequently place before ATX headings (e.g. "🏆### 一、Top 07"). These
+// characters are skipped when looking for the leading hash sequence.
+func isHeadingDecorationRune(r rune) bool {
+	switch {
+	case r >= 0x1F300 && r <= 0x1F64F: // Misc Symbols & Emoticons
+		return true
+	case r >= 0x1F680 && r <= 0x1F6FF: // Transport & Map
+		return true
+	case r >= 0x1F900 && r <= 0x1F9FF: // Supplemental Symbols
+		return true
+	case r >= 0x1FA70 && r <= 0x1FAFF: // Symbols & Pictographs Ext A
+		return true
+	case r >= 0x2600 && r <= 0x26FF: // Misc symbols
+		return true
+	case r >= 0x2700 && r <= 0x27BF: // Dingbats
+		return true
+	case r >= 0x2B00 && r <= 0x2BFF: // Stars, arrows, zodiac, etc.
+		return true
+	}
+	return false
+}
+
+// parseATXHeading parses an ATX heading line. It is more lenient than
+// CommonMark to accommodate real-world LLM output:
+//   - Optional leading whitespace.
+//   - Optional leading emoji/symbol decorations (e.g. 🏆, ⭐).
+//   - Optional space between the hash sequence and the heading text.
+//
+// It returns the heading level (1..6), the heading text, and whether the line
+// is a heading at all.
+func parseATXHeading(line string) (level int, text string, ok bool) {
+	s := strings.TrimLeft(line, " \t")
+	for {
+		r, size := utf8.DecodeRuneInString(s)
+		if r == utf8.RuneError && size <= 1 {
+			break
+		}
+		if !isHeadingDecorationRune(r) {
+			break
+		}
+		s = s[size:]
+	}
+	if len(s) == 0 || s[0] != '#' {
+		return 0, "", false
+	}
+	for level < len(s) && s[level] == '#' {
+		level++
+	}
+	if level == 0 || level > 6 {
+		return 0, "", false
+	}
+	return level, strings.TrimSpace(s[level:]), true
+}
+
+// isTableStart reports whether lines[i] begins a pipe table and is followed by
+// a separator line. This is used by consumeParagraph to stop before a table.
+func isTableStart(lines []string, i int) bool {
+	if i+1 >= len(lines) {
+		return false
+	}
+	if !strings.Contains(lines[i], "|") || !strings.Contains(lines[i+1], "|") {
+		return false
+	}
+	return reTableSep.MatchString(lines[i+1])
+}
+
 var (
-	reHeading  = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
 	reFence    = regexp.MustCompile(`^(` + "```" + `|~~~)\s*(\S*)\s*$`)
 	reHR       = regexp.MustCompile(`^\s*(-{3,}|\*{3,}|_{3,})\s*$`)
 	reBullet   = regexp.MustCompile(`^(\s*)([-*+])\s+(.*)$`)
@@ -208,7 +303,7 @@ func isListContinuation(line string, itemIndent int) bool {
 		return false
 	}
 	// Not a block-level element
-	if reHeading.MatchString(line) || reFence.MatchString(line) || reHR.MatchString(line) || reQuote.MatchString(line) {
+	if _, _, ok := parseATXHeading(line); ok || reFence.MatchString(line) || reHR.MatchString(line) || reQuote.MatchString(line) {
 		return false
 	}
 	return true
@@ -309,8 +404,7 @@ func tryConsumeHR(lines []string, i int) (Block, int) {
 
 // tryConsumeHeading attempts to consume an ATX heading at i.
 func tryConsumeHeading(lines []string, i int) (Block, int) {
-	hm := reHeading.FindStringSubmatch(lines[i])
-	if hm == nil {
+	if _, _, ok := parseATXHeading(lines[i]); !ok {
 		return Block{}, i
 	}
 	return Block{Kind: kindHeading, Lines: []string{lines[i]}, Closed: true}, i + 1
@@ -366,7 +460,7 @@ func tryConsumeListItem(lines []string, start int, re *regexp.Regexp, kind block
 		if nextOrdered := reOrdered.FindStringSubmatch(lines[i]); nextOrdered != nil && len(nextOrdered[1]) <= itemIndent {
 			break
 		}
-		if reHeading.MatchString(lines[i]) || reFence.MatchString(lines[i]) || reHR.MatchString(lines[i]) || reQuote.MatchString(lines[i]) {
+		if _, _, ok := parseATXHeading(lines[i]); ok || reFence.MatchString(lines[i]) || reHR.MatchString(lines[i]) || reQuote.MatchString(lines[i]) {
 			break
 		}
 		// A non-blank continuation must have enough indentation to belong
@@ -394,12 +488,17 @@ func consumeParagraph(lines []string, i int) (Block, int) {
 	para := []string{lines[i]}
 	i++
 	for i < len(lines) && strings.TrimSpace(lines[i]) != "" &&
-		!reHeading.MatchString(lines[i]) &&
 		!reFence.MatchString(lines[i]) &&
 		!reHR.MatchString(lines[i]) &&
 		!reBullet.MatchString(lines[i]) &&
 		!reOrdered.MatchString(lines[i]) &&
-		!reQuote.MatchString(lines[i]) {
+		!reQuote.MatchString(lines[i]) &&
+		!isTableStart(lines, i) {
+		// Stop before any ATX heading as well (including lenient forms with emoji
+		// prefixes or no space after hashes).
+		if _, _, ok := parseATXHeading(lines[i]); ok {
+			break
+		}
 		para = append(para, lines[i])
 		i++
 	}
@@ -414,16 +513,18 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 	case kindHR:
 		return []string{theme.HRFn(core.PadToWidth(strings.Repeat("─", int(width)), width))}
 	case kindHeading:
-		hm := reHeading.FindStringSubmatch(b.Lines[0])
-		if hm == nil {
+		level, _, ok := parseATXHeading(b.Lines[0])
+		if !ok {
 			return nil
 		}
-		level := len(hm[1]) - 1
-		if level > 5 {
-			level = 5
+		if level < 1 {
+			level = 1
 		}
-		text := renderInline(hm[2], theme)
-		fn := theme.HeadingFn[level]
+		if level > 6 {
+			level = 6
+		}
+		text := renderInline(extractHeadingText(b.Lines[0], level), theme)
+		fn := theme.HeadingFn[level-1]
 		return core.WrapAnsi(fn(text), width)
 	case kindQuote:
 		qm := reQuote.FindStringSubmatch(b.Lines[0])

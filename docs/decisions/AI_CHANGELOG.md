@@ -1,5 +1,25 @@
 # AI 变更记录
 
+## 2026-07-31: fix(tui) 修复 Markdown 结构塌陷——段落后表格被吞并 + emoji/无空格标题未识别
+
+**背景**：TUI 截图显示助手回复出现 Markdown 结构塌陷：标题、表格与正文挤成一段。
+根因是自定义 Markdown 解析器对 LLM 常见不规范写法容错不足。
+
+**改动清单**：
+1. `tui/component/markdown.go`：
+   - 新增 `parseATXHeading` / `extractHeadingText` / `isHeadingDecorationRune`，
+     支持 emoji/符号前缀（如 `🏆### 一、Top 07`）以及 `#` 与标题之间无空格
+     （如 `###一 Top07)`）的标题识别，并在渲染时保留 emoji 前缀。
+   - 新增 `isTableStart` 辅助函数，`consumeParagraph` 在段落后遇到表格行时停止，
+     避免表格被吞并到前一段落中。
+   - `tryConsumeListItem` 与 `isListContinuation` 同步使用 `parseATXHeading`，
+     保证对宽松标题的识别与段落/列表边界一致。
+   - 移除不再使用的 `reHeading` 正则，避免严格正则与宽松解析行为不一致。
+2. `tui/component/markdown_test.go`：新增 `TestMarkdownParagraphDoesNotSwallowTable`
+   与 `TestMarkdownHeadingLenient` 回归测试。
+
+**测试**：`cd tui && go test ./... -race` 全绿；根模块 `go build ./...` 通过。
+
 ## 2026-07-31: fix(plantask) 修复 HCL 接入后 5 个 plantask 稳定性 bug
 
 **背景**：commit 84ca00c 将 HCL 规划链接入 plantask 后，本地与 CI 暴露出 5 个影响正确性与安全性的 bug，并附带一个异步事件测试不稳定问题。

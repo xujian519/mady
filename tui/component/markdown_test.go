@@ -63,6 +63,43 @@ func TestMarkdownList(t *testing.T) {
 	}
 }
 
+// TestMarkdownParagraphDoesNotSwallowTable verifies that a table immediately
+// following a paragraph is recognized as a table block rather than being merged
+// into the preceding paragraph.
+func TestMarkdownParagraphDoesNotSwallowTable(t *testing.T) {
+	src := "intro paragraph\n| a | b |\n|---|---|\n| 1 | 2 |"
+	md := NewMarkdown(src)
+	lines := md.Render(40)
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "intro paragraph") {
+		t.Errorf("paragraph text missing: %s", joined)
+	}
+	if !strings.Contains(joined, "+---+") {
+		t.Errorf("table borders missing; paragraph swallowed the table:\n%s", joined)
+	}
+}
+
+// TestMarkdownHeadingLenient parses LLM-friendly headings that place an emoji
+// before the hash sequence or omit the space between hashes and text.
+func TestMarkdownHeadingLenient(t *testing.T) {
+	cases := []struct {
+		src  string
+		want string
+	}{
+		{"🏆### 一、Top 07", "🏆 一、Top 07"},
+		{"🏆###一 Top07)", "🏆 一 Top07)"},
+		{"⭐## Section", "⭐ Section"},
+	}
+	for _, tc := range cases {
+		md := NewMarkdown(tc.src)
+		lines := md.Render(80)
+		joined := strings.Join(lines, "\n")
+		if !strings.Contains(joined, tc.want) {
+			t.Errorf("heading %q missing want %q; got:\n%s", tc.src, tc.want, joined)
+		}
+	}
+}
+
 // TestMarkdownTableVerticalFallback verifies that a table too wide for the
 // viewport is rendered as key/value pairs instead of squeezing columns and
 // truncating cell content with ellipsis.
