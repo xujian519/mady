@@ -1,5 +1,16 @@
 # AI 变更记录
 
+## 2026-07-31: style(tui) 输入区移除整行背景色块，恢复上下边框分隔
+
+**背景**：2e28890「输入区视觉重构」将输入区改为 Claude Code 风格整行背景色块（`editorFrame` 每行注入 `SurfaceBg` 背景）。用户反馈不需要该色块渲染，选择恢复 2e28890 之前的上下 `▌`（BorderMuted）边框行分隔，输入区与消息区保持视觉分界。
+
+**改动清单**：
+1. `tui/chat/chat_app_layout.go` — `editorFrame.Render` 移除 `fillRowBackground` 整行背景填充，恢复为上下各一行 `▌` 边框（`theme.CurrentPalette().BorderMuted`）；删除 `fillRowBackground` 函数；`buildFlex` 中 `Shrinkable` 最小值恢复为 3（上边框 + ≥1 编辑器行 + 下边框），`OnAllocate` 恢复 `rows := h - 2` 扣除边框行
+2. `tui/chat/chat_app_frame_test.go` — 删除 `TestFillRowBackground`（函数已移除），清理不再使用的 `core` / `terminal` import
+
+**验证**：`tui` 模块 gofmt / go build / go vet 全过；`go test -count=1 ./tui/chat/` 全过。
+
+
 ## 2026-07-31: fix(desktop) CI 修复 — pnpm-workspace.yaml 补 packages 字段（desktop job 变绿）
 
 **背景**：push 触发 CI run #418（head 797e879）中 desktop job 失败：`pnpm install --frozen-lockfile` 报 `ERROR packages field missing or empty`。根因：`desktop/frontend/pnpm-workspace.yaml` 仅有 pnpm 10 的 `allowBuilds` 字段、缺 `packages` 字段，pnpm 9（CI 用 pnpm/action-setup@v4 version:9）检测到 workspace 文件但 packages 缺失即报错。该文件自引入以来未改过，此前 desktop job 无前端步骤故从未暴露；本次提交新增前端链路后首次触发。

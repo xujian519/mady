@@ -16,9 +16,6 @@ package chat
 import (
 	"strings"
 	"testing"
-
-	core "github.com/xujian519/mady/tui/core"
-	"github.com/xujian519/mady/tui/terminal"
 )
 
 func TestChatAppFullFrameStructure(t *testing.T) {
@@ -77,36 +74,5 @@ func TestChatAppFullFrameAfterEnd(t *testing.T) {
 	}
 	if !strings.Contains(joined, "a") {
 		t.Errorf("assistant message lost after AgentEnd:\n%s", joined)
-	}
-}
-
-func TestFillRowBackground(t *testing.T) {
-	const bg = "\x1b[48;2;12;27;42m"
-	cases := []struct {
-		name string
-		line string
-	}{
-		{"plain", "hello"},
-		{"single reset", "\x1b[1mhello\x1b[0m"},
-		{"multiple resets", "\x1b[38;5;245m▌\x1b[0m \x1b[1mhi\x1b[0m"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			out := fillRowBackground(c.line, bg)
-			if !strings.HasPrefix(out, bg) {
-				t.Errorf("missing leading background: %q", out)
-			}
-			// Every embedded reset must be followed by the background again
-			// so nested styles don't clear the fill.
-			if got := strings.Count(out, terminal.Reset); got != strings.Count(c.line, terminal.Reset) {
-				t.Errorf("reset count changed: got %d want %d", got, strings.Count(c.line, terminal.Reset))
-			}
-			if strings.Contains(c.line, terminal.Reset) && !strings.HasSuffix(out, bg) {
-				t.Errorf("missing background after trailing reset: %q", out)
-			}
-			if w := core.VisibleWidth(out); w != core.VisibleWidth(c.line) {
-				t.Errorf("visible width changed: got %d want %d", w, core.VisibleWidth(c.line))
-			}
-		})
 	}
 }
