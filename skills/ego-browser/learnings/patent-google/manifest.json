@@ -1,0 +1,82 @@
+{
+  "id": "patent-google",
+  "name": "Google Patents",
+  "domains": ["patents.google.com", "*.patents.google.com"],
+  "notes": ["notes/overview.md"],
+  "nodeTools": {
+    "search_patents": {
+      "description": "Search Google Patents and extract top results (title, patent number, assignee, date, abstract, PDF link).",
+      "path": "tools/search-patents.js",
+      "callable": "searchPatents",
+      "args": {
+        "query": {
+          "type": "string",
+          "required": true,
+          "description": "Search query (supports Google Patents syntax, e.g. keywords or `country:CN`)."
+        },
+        "maxResults": {
+          "type": "integer",
+          "required": false,
+          "description": "Maximum number of results to extract (1-100, default 10)."
+        },
+        "country": {
+          "type": "string",
+          "required": false,
+          "description": "Optional country filter appended to the query (e.g. \"CN\", \"US\", \"EP\")."
+        }
+      },
+      "returns": {
+        "type": "array",
+        "description": "Array of {title, number, country, inventors, assignee, dates, abstract, url, pdfUrl} objects."
+      }
+    },
+    "get_patent_document": {
+      "description": "Open a Google Patents detail page and extract title, abstract, claims, and description text.",
+      "path": "tools/get-document.js",
+      "callable": "getPatentDocument",
+      "args": {
+        "patentNumber": {
+          "type": "string",
+          "required": true,
+          "description": "Patent number, e.g. \"CN110515732B\" or full URL \"https://patents.google.com/patent/CN110515732B/zh\"."
+        }
+      },
+      "returns": {
+        "type": "object",
+        "description": "Object with title, number, abstract, claims, description."
+      }
+    },
+    "download_patent_pdf": {
+      "description": "Download a patent PDF from Google Patents to a local directory.",
+      "path": "tools/download-pdf.js",
+      "callable": "downloadPatentPDF",
+      "args": {
+        "patentNumber": {
+          "type": "string",
+          "required": true,
+          "description": "Patent number, e.g. \"CN110515732B\"."
+        },
+        "outputDir": {
+          "type": "string",
+          "required": false,
+          "description": "Output directory for the PDF (default: current working directory)."
+        }
+      },
+      "returns": {
+        "type": "object",
+        "description": "Object with {patentNumber, file, success}."
+      }
+    }
+  },
+  "browserTools": {
+    "extract_pdf_link": {
+      "description": "Extract the PDF download link from the current Google Patents result page.",
+      "path": "browser-tools/extract-pdf-link.js",
+      "args": {},
+      "returns": {
+        "type": "string",
+        "description": "The PDF URL, or empty string."
+      }
+    }
+  }
+}

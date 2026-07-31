@@ -1,0 +1,45 @@
+{
+  "id": "patent-espacenet",
+  "name": "Espacenet",
+  "domains": ["worldwide.espacenet.com", "*.espacenet.com"],
+  "notes": ["notes/overview.md"],
+  "nodeTools": {
+    "search_patents": {
+      "description": "Search Espacenet and extract top results (title, publication number, applicant, dates, abstract).",
+      "path": "tools/search-patents.js",
+      "callable": "searchPatents",
+      "args": {
+        "query": {
+          "type": "string",
+          "required": true,
+          "description": "Search query string."
+        },
+        "maxResults": {
+          "type": "integer",
+          "required": false,
+          "description": "Maximum number of results to extract (1-50, default 10)."
+        }
+      },
+      "returns": {
+        "type": "array",
+        "description": "Array of {title, number, kind, date, applicant, abstract, url} objects."
+      }
+    },
+    "get_patent_document": {
+      "description": "Open an Espacenet publication detail page and extract bibliographic data and abstract.",
+      "path": "tools/get-document.js",
+      "callable": "getPatentDocument",
+      "args": {
+        "patentNumber": {
+          "type": "string",
+          "required": true,
+          "description": "Publication number, e.g. \"CN107891199A\" or \"EP1234567B1\"."
+        }
+      },
+      "returns": {
+        "type": "object",
+        "description": "Object with number, title, abstract, applicant, inventor, url."
+      }
+    }
+  }
+}

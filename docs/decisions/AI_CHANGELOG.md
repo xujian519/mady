@@ -1,5 +1,40 @@
 # AI 变更记录
 
+## 2026-07-31: feat(search-commander) 专利检索编排 Worker——search-commander 技能 Go 固化
+
+**背景**：将 `~/.agents/skills/patent-legal/search-commander`（多轮渐进式检索策略
+skill）按方案 A（Go 固化编排 + Tool Worker）落地为 Mady 专利 Agent 的确定性
+worker，检索执行复用本项目已验证的 ego-browser 技术栈（与 patent_web_search
+同源）。
+
+**改动清单**：
+1. 新增 `domains/search/commander.go`（编排核心）：
+   - 5 场景策略模板（OA 现有技术调查 / 无效证据收集 / 侵权排查 / FTO /
+     学术+专利混合）+ 场景自动识别（query 启发式）+ 默认兜底策略
+   - 多轮渐进循环：宽语义 → IPC/申请人过滤 → 术语二次验证 → 穷举覆盖，
+     跨轮累积 IPC/申请人/关键词；每轮反思启发式（0 命中停 / 偏窄收敛 /
+     偏宽提示 / 新发现趋稳收敛，默认 ≤4 轮对齐 SKILL 规则 4）
+   - 输出对比文件总表（文献号去重、按轮次排序）+ Gap 分析 +
+     Markdown 报告（对齐 search-commander-report.md 结构）
+2. 新增 `domains/search/tool.go`：`patent_search_commander` 工具（ReadOnly）
+   与 `CommanderExtension`（ToolProvider，ego-browser 不可用时静默降级不注册）
+3. `cmd/mady/tool_ext.go`：`buildPatentToolExt` 组合 tools 扩展 +
+   commander 扩展（新增 `combineExtensions` 组合扩展类型；
+   `buildEgoCompositeRetriever` 复用 `rbrowser.NewCompositeRetriever` 三源）
+4. `agentcore/worker/catalog.go`：新增 `patent-search-commander` Worker 定义
+   （TierDomain），修正 `patent-search-planner/executor` 描述与 AllowedTools
+   （对齐实际工具名 patent_search_commander/patent_web_search/patent_lookup/
+   scholar_search/web_search/web_fetch，去掉不存在的 patent_search 域名）
+5. `agentcore/worker/tool_test.go`：Worker 总数断言 17→18，新增 worker 纳入校验
+
+**测试**：`domains/search/` 15 个单测全绿（编排核心 + 工具 + 扩展注册闭环）；
+`go vet` / `gofmt` 干净；`go build ./cmd/mady/` 通过；`agentcore/worker` 测试全绿。
+
+**说明**：`patent_search_commander` 与 `patent_web_search`（单轮）互补；本地
+PostgreSQL 版 patent-search 技能（移动硬盘环境）未纳入，走 ego-browser 在线源。
+verify-workers.sh 临时文件因 go.work 目录约束报错（环境问题，非代码问题），
+worker 注册完整性由 `TestDefaultWorkers_NewEntries`（Register+Verify）覆盖。
+
 ## 2026-07-31: techdebt 并发 WIP 的 tools 测试失败（非本会话代码）
 
 **背景**：会话期间（19:13-19:23）工作区出现另一并发进程创建的未跟踪 WIP：
@@ -9443,3 +9478,31 @@ Phase 1 将 8 个不依赖 framework shim 非导出符号的子命令提取到 `
 详情页全文 56KB（CN106599773B）；patent_web_search 工具端到端 15s 返回结构化结果。
 
 **影响**：新增能力，默认行为不变（无 ego-browser 时完全降级）。macOS only（ego lite 无其他平台版本）。
+
+## 2026-07-31: fix(retrieval) code-review 修复批 — 并发化/开关/死分支/转义
+
+**背景**：/code-review 十维度审查（efficiency/reuse/simplification/逐行/语言陷阱/架构/规范/行为移除/wrapper/跨文件）确认
+ego-browser 集成的 8 项问题，本批修复其中 7 项（1 项为设计决策保持并加开关）。
+
+**改动清单**：
+1. `retrieval/domain/browser/composite.go` — CompositeRetriever.Search 从顺序执行改为**并发 fan-out**
+   （sync.WaitGroup 按索引收集；单源失败降级不变）。串行 3 源最坏 270s+ → 并发后总耗时 ≈ 最慢源。
+   真实 E2E 验证：patent_web_search 三源调用 15.1s → 7.6s。另：分数平局按 ID 升序，保证并发输出可复现。
+2. `bootstrap/init_reasoning.go` — 在线检索接入加**显式开关**：`MADY_BROWSER_RETRIEVERS=off` 关闭。
+   原因（Angle B P1）：启用后 analyze_patent_novelty/invalidation 的检索节点会把发明技术特征经本机浏览器
+   会话发往在线专利数据库，未公开发明的保密性场景需可 opt-out。
+3. `domains/patent.go` — SetupBrowserPatentRetrievers 删除对 typed-nil 无效的 `r != nil` 过滤
+   （真实过滤在 NewCompositeRetriever 的 isNilInterface），修正 docstring 虚假声明；改用新切片避免
+   原地修改调用方数组。
+4. `tools/patent_web_search.go` — 删除不可达死分支 `retriever == nil`（三源同配置同生共死，
+   composite != nil 已隐含）；max_results 钳制到 [1,100]（schema 声称最大 100）。
+5. `retrieval/domain/browser/patent_retrievers.go` — 正则 hoist 到包级变量（cnCountryRe/notAlnumRe）；
+   espacenetDetailURL 对 http URL 透传校验单引号/反引号（heredoc 模板以单引号嵌入 URL，含引号会破坏
+   JS 脚本），非法时回退搜索页。
+6. `retrieval/domain/browser/doc.go` — 包文档改全中文。
+
+**验证**：`go build ./...`、`make lint`（0 issues）、`go test -race`（browser/tools/domains 全绿，
+浏览器包含真实 E2E 连续 2 轮）；新增回归测试：并发确定性、分数平局排序、URL 引号拒绝、max_results 钳制。
+
+**影响**：行为变更两项——① 三源检索从串行变并发（更快，无语义变化）；② 新增 MADY_BROWSER_RETRIEVERS
+开关（默认开启，维持集成意图；off 时完全回退本地检索）。其余为清理与防御性修正。

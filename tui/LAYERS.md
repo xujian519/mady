@@ -28,7 +28,7 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 112 source files (+ 64 test files) across 9 packages.
+> Auto-verified: 113 source files (+ 64 test files) across 9 packages.
 > Last sync: 2026-07-30.
 
 ```
@@ -126,9 +126,10 @@ tui/
 │   ├── flex.go            # Flex declarative layout (main-axis size policies, 506 lines)
 │   └── layout.go          # Layout helpers
 │
-├── chat/                  # Layer 5 — Application (17 source files)
+├── chat/                  # Layer 5 — Application (18 source files)
 │   ├── chat_app.go        # ChatApp struct, constructor, public API (1060 lines)
 │   ├── chat_app_layout.go # chatLayout root Component + input router (582 lines)
+│   ├── chat_app_plantask.go # PlanTask state/approval/interrupt/reject/revise handlers (40 lines)
 │   ├── chat_app_stream.go # ChatApp streaming lifecycle handlers (submit/delta/end/error)
 │   ├── chat_app_tool.go   # ChatApp tool-call/handoff/turn/compaction handlers
 │   ├── chat_app_todo.go   # ChatApp todo-list panel integration handlers

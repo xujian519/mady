@@ -61,12 +61,18 @@ func InitReasoningAndTemplates(fc *Context) {
 	// 在线专利数据库检索器（ego-browser 驱动，实时检索 Google Patents /
 	// CNIPA / Espacenet）。ego lite 未安装时工厂返回 nil 并被过滤，
 	// 不影响现有本地检索行为。
-	cfg := rbrowser.DefaultConfig()
-	domains.SetupBrowserPatentRetrievers([]domain.DomainRetriever{
-		rbrowser.NewGooglePatentsRetriever(*cfg),
-		rbrowser.NewCNIPARetriever(*cfg),
-		rbrowser.NewEspacenetRetriever(*cfg),
-	})
+	//
+	// 注意：启用后 analyze_patent_novelty / analyze_invalidation 的检索节点
+	// 会把查询词发往在线专利数据库（通过本机真实浏览器会话）。需要保密性
+	// 隔离（如未公开发明）的环境可用 MADY_BROWSER_RETRIEVERS=off 关闭。
+	if os.Getenv("MADY_BROWSER_RETRIEVERS") != "off" {
+		cfg := rbrowser.DefaultConfig()
+		domains.SetupBrowserPatentRetrievers([]domain.DomainRetriever{
+			rbrowser.NewGooglePatentsRetriever(*cfg),
+			rbrowser.NewCNIPARetriever(*cfg),
+			rbrowser.NewEspacenetRetriever(*cfg),
+		})
+	}
 
 	domains.SetupKnowledgeExtension(fc.KnowledgeExt)
 

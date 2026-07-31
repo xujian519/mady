@@ -117,6 +117,10 @@ type ExtensionConfig struct {
 
 	PatentTool *PatentToolConfig
 
+	// PatentWebSearch configures the patent_web_search tool (ego-browser 驱动，
+	// 在线专利数据库实时检索)。Nil 时自动检测 ego-browser，不可用则不注册。
+	PatentWebSearch *PatentWebSearchConfig
+
 	// Pandoc configures the convert_document tool (format conversion via Pandoc CLI).
 	// If nil, the tool is not registered. Requires Pandoc installed on the system.
 	Pandoc *PandocToolConfig
@@ -325,6 +329,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(readOnly(NewPatentScrapeTool(cfg.PatentTool)))
 	addTool(NewPatentDownloadTool(cfg.PatentTool))
 	addTool(NewPatentLegalStatusTool(cfg.PatentTool))
+	addTool(readOnly(NewPatentWebSearchTool(cfg.PatentWebSearch)))
 
 	if cfg.Pandoc != nil {
 		addTool(NewPandocTool(cfg.Pandoc))

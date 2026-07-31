@@ -286,6 +286,7 @@ func TestDefaultWorkers_NewEntries(t *testing.T) {
 		"patent-reexamination-drafter",
 		"legal-case-comparator",
 		"patent-claim-formality-checker",
+		"patent-search-commander",
 	}
 	for _, name := range expectedNew {
 		if catalog.Get(name) == nil {
@@ -296,8 +297,8 @@ func TestDefaultWorkers_NewEntries(t *testing.T) {
 	// 验证总数
 	all := catalog.List()
 	t.Logf("总 Worker 数: %d", len(all))
-	if len(all) != 17 {
-		t.Errorf("期望 17 个 Worker（11 原始 + 6 新增），得到 %d", len(all))
+	if len(all) != 18 {
+		t.Errorf("期望 18 个 Worker（11 原始 + 6 新增 + patent-search-commander），得到 %d", len(all))
 	}
 
 	// 按 Tier 列出

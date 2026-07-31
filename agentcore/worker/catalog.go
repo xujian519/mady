@@ -142,18 +142,26 @@ func DefaultWorkers() []Definition {
 		{
 			Name:         "patent-search-planner",
 			Tier:         TierDomain,
-			Description:  "根据检索需求制定多轮渐进式检索策略。类似 Search Commander 功能。",
+			Description:  "根据检索需求制定多轮渐进式检索策略（宽语义→IPC引证过滤→二次验证）。已由 patent_search_commander 工具固化，本 Worker 供声明式契约/审计场景使用。",
 			Inputs:       []Input{{Path: "data/cases/{caseId}/search-request.md"}},
 			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/search-plan.md", Format: "markdown", ContractLevel: ContractStructured}},
-			AllowedTools: []string{"read"},
+			AllowedTools: []string{"read", "patent_search_commander"},
 		},
 		{
 			Name:         "patent-search-executor",
 			Tier:         TierDomain,
-			Description:  "执行专利检索（Google Patents/CNIPA），收集对比文件和相关信息。",
+			Description:  "执行专利检索（ego-browser 驱动 Google Patents/CNIPA/Espacenet 多源 + 学术/网络补充），收集对比文件。",
 			Inputs:       []Input{{Path: "data/cases/{caseId}/outputs/search-plan.md"}},
 			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/search-results.md", Format: "markdown", ContractLevel: ContractHard}},
-			AllowedTools: []string{"web_search", "web_fetch", "bash"},
+			AllowedTools: []string{"patent_search_commander", "patent_web_search", "patent_lookup", "scholar_search", "web_search", "web_fetch"},
+		},
+		{
+			Name:         "patent-search-commander",
+			Tier:         TierDomain,
+			Description:  "Search Commander 专利检索编排器：多轮渐进式检索（宽语义→IPC/申请人过滤→二次验证→穷举覆盖），统一调度 Google Patents/CNIPA/Espacenet（ego-browser），每轮反思收敛，输出对比文件总表与遗漏分析报告。",
+			Inputs:       []Input{{Path: "data/cases/{caseId}/search-request.md"}},
+			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/search-commander-report.md", Format: "markdown", ContractLevel: ContractHard}},
+			AllowedTools: []string{"patent_search_commander", "patent_web_search", "scholar_search", "web_search", "web_fetch"},
 		},
 		// ===== Checker Tier =====
 		{

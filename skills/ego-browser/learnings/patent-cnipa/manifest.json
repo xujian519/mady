@@ -1,0 +1,29 @@
+{
+  "id": "patent-cnipa",
+  "name": "CNIPA (Chinese Patents via Google Patents)",
+  "domains": ["patents.google.com"],
+  "notes": ["notes/overview.md"],
+  "nodeTools": {
+    "search_patents": {
+      "description": "Search Chinese patents (country:CN) via Google Patents and extract top results (title, patent number, assignee, dates, abstract).",
+      "path": "tools/search-patents.js",
+      "callable": "searchPatents",
+      "args": {
+        "query": {
+          "type": "string",
+          "required": true,
+          "description": "Search query string (Chinese or English keywords)."
+        },
+        "maxResults": {
+          "type": "integer",
+          "required": false,
+          "description": "Maximum number of results to extract (1-100, default 10)."
+        }
+      },
+      "returns": {
+        "type": "array",
+        "description": "Array of {title, number, country, inventors, assignee, dates, abstract, url, pdfUrl} objects (country is always CN)."
+      }
+    }
+  }
+}

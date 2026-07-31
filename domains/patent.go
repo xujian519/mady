@@ -178,19 +178,16 @@ func GetPatentRetriever() domain.DomainRetriever {
 // globalBrowserPatentRetrievers 是在线专利数据库检索器列表（ego-browser 驱动：
 // Google Patents / CNIPA / Espacenet），由 SetupBrowserPatentRetrievers 注入。
 // 与 globalPatentRetriever（本地语料）互补，为 search 节点提供实时检索能力。
+// 注意：工厂返回 typed-nil 指针（接口非 nil），此处不过滤——真实过滤在
+// NewCompositeRetriever 内部（isNilInterface 反射判断）。
 var globalBrowserPatentRetrievers []domain.DomainRetriever
 
 // SetupBrowserPatentRetrievers 在启动期注入在线专利数据库检索器。
-// 检索器在 ego-browser 不可用时由工厂返回 nil 并被过滤；空列表等价于未注入。
+// 检索器在 ego-browser 不可用时为 typed-nil 指针（接口非 nil），由下游
+// NewCompositeRetriever 反射过滤；空列表等价于未注入。
 // 必须在任何 Agent 创建前调用。
 func SetupBrowserPatentRetrievers(retrievers []domain.DomainRetriever) {
-	kept := retrievers[:0]
-	for _, r := range retrievers {
-		if r != nil {
-			kept = append(kept, r)
-		}
-	}
-	globalBrowserPatentRetrievers = kept
+	globalBrowserPatentRetrievers = append([]domain.DomainRetriever(nil), retrievers...)
 }
 
 // SetupDocTemplateStore 在启动期注入模板仓库实例，使 PatentAgentConfig 和
