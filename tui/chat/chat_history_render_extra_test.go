@@ -63,14 +63,56 @@ func TestRenderToolGroup(t *testing.T) {
 			t.Fatalf("tools-only summary = %q", plain)
 		}
 	})
+
+	t.Run("expanded uses left bar timeline", func(t *testing.T) {
+		lines, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs[:2], 0, 1, true, th, 60, cache)
+		joined := core.StripAnsi(strings.Join(lines, "\n"))
+		// 2 个成员 + 1 条组内连接 = 至少 3 处色带。
+		barCount := strings.Count(joined, "│")
+		if barCount < 3 {
+			t.Fatalf("expected left bar markers (2 members + 1 connector), got:\n%s", joined)
+		}
+		// 组成员之间用细色带连接，不应出现点线或旧的全宽分隔线。
+		if strings.Contains(joined, "·") || strings.Contains(joined, "─") {
+			t.Fatalf("expanded group should not use dot/full-width dividers, got:\n%s", joined)
+		}
+	})
 }
 
-// TestRenderMessageSeparator verifies all five separator branches.
+// TestRenderToolGroupCacheWidthMismatch verifies that a message cached at full
+// width (e.g. via the mid-turn non-group path) is re-rendered at the group's
+// innerW instead of returning stale full-width lines that would overflow the
+// viewport once the left bar prefix is added.
+func TestRenderToolGroupCacheWidthMismatch(t *testing.T) {
+	th := DefaultChatHistoryTheme()
+	const width = int64(60)
+	msgs := []ChatMessage{
+		{ID: "w-1", Role: RoleTool, Meta: "search", Text: "result"},
+		{ID: "w-2", Role: RoleTool, Meta: "read", Text: "..."},
+	}
+	cache := make(map[string]cachedMessage)
+	// 先以全宽渲染第一条并写入缓存，模拟流式中途轮次的非分组路径。
+	(&ChatHistory{theme: th}).renderMessageCachedWithCache(msgs[0], th, width, cache)
+
+	// 展开组以 innerW 渲染：缓存宽度不一致，必须重渲染而不是复用全宽行。
+	lines, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 1, true, th, width, cache)
+	for _, ln := range lines {
+		if vw := core.VisibleWidth(ln); vw > width {
+			t.Fatalf("expanded group line exceeds width %d (got %d): %q", width, vw, core.StripAnsi(ln))
+		}
+	}
+	if c, ok := cache["w-1"]; !ok || c.width != width-4 {
+		t.Fatalf("cache should be re-rendered at innerW=%d, got width=%d ok=%v", width-4, c.width, ok)
+	}
+}
+
+// TestRenderMessageSeparator verifies the compact timeline separator rules:
+// role switches produce a single blank line, consecutive tools have no divider,
+// and same-role messages use a subtle short divider.
 func TestRenderMessageSeparator(t *testing.T) {
 	th := DefaultChatHistoryTheme()
-	sep := func(prev, curr ChatMessage) string {
-		lines := (&ChatHistory{theme: th}).renderMessageSeparator(prev, curr, 40, th)
-		return strings.Join(lines, "\n")
+	sep := func(prev, curr ChatMessage) []string {
+		return (&ChatHistory{theme: th}).renderMessageSeparator(prev, curr, 80, th)
 	}
 
 	user := ChatMessage{Role: RoleUser}
@@ -78,23 +120,37 @@ func TestRenderMessageSeparator(t *testing.T) {
 	tool := ChatMessage{Role: RoleTool}
 	sys := ChatMessage{Role: RoleSystem}
 
-	if s := sep(user, asst); !strings.Contains(core.StripAnsi(s), "─") {
-		t.Errorf("user→assistant should be a full divider, got %q", s)
+	// Role switches: single blank line.
+	for _, tc := range []struct {
+		prev, curr ChatMessage
+		label      string
+	}{
+		{user, asst, "user→assistant"},
+		{asst, user, "assistant→user"},
+		{tool, asst, "tool→assistant"},
+		{tool, sys, "tool→system"},
+		{sys, tool, "system→tool"},
+	} {
+		lines := sep(tc.prev, tc.curr)
+		if len(lines) != 1 || lines[0] != "" {
+			t.Errorf("%s should be a single blank line, got %q", tc.label, lines)
+		}
 	}
-	if s := sep(asst, user); !strings.Contains(core.StripAnsi(s), "─") {
-		t.Errorf("assistant→user should be a full divider, got %q", s)
+
+	// Consecutive tools: no separator (grouped or ungrouped, the card itself is enough).
+	if lines := sep(tool, tool); len(lines) != 0 {
+		t.Errorf("tool→tool should have no separator, got %q", lines)
 	}
-	if s := sep(tool, asst); !strings.Contains(core.StripAnsi(s), "─") {
-		t.Errorf("tool→assistant should be a full divider, got %q", s)
+
+	// System↔System: single blank line.
+	if lines := sep(sys, sys); len(lines) != 1 || lines[0] != "" {
+		t.Errorf("system→system should be a single blank line, got %q", lines)
 	}
-	if s := sep(tool, tool); !strings.Contains(core.StripAnsi(s), "·") {
-		t.Errorf("tool→tool should be a half divider, got %q", s)
-	}
-	if s := sep(tool, sys); s != "" {
-		t.Errorf("tool→system should be a blank line, got %q", s)
-	}
-	if s := sep(sys, sys); !strings.Contains(core.StripAnsi(s), "·") {
-		t.Errorf("same-role should be a quarter divider, got %q", s)
+
+	// Same-role assistant/assistant: subtle eighth-width dot divider.
+	lines := sep(asst, asst)
+	if len(lines) != 1 || !strings.Contains(core.StripAnsi(lines[0]), "·") {
+		t.Errorf("assistant→assistant should be a short dot divider, got %q", lines)
 	}
 }
 

@@ -2,10 +2,20 @@ package component
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/xujian519/mady/tui/core"
 	apitheme "github.com/xujian519/mady/tui/theme"
+)
+
+var (
+	// reInlineHashes matches ATX-style hash runs of 2+ appearing mid-line
+	// inside a paragraph. Line-start hashes are classified as headings by the
+	// block parser, so any hash run that reaches paragraph text is a stray LLM
+	// artifact. Requiring at least two hashes keeps legitimate single hashes
+	// ("C#", "F#", patent drawing references like "1#") intact.
+	reInlineHashes = regexp.MustCompile(`([^#\s])#{2,6}(\s|$)`)
 )
 
 // renderBlock renders a single Block to width using theme.
@@ -103,7 +113,7 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 	case kindParagraph:
 		var out []string
 		for _, ln := range b.Lines {
-			text := renderInline(ln, theme)
+			text := renderInline(sanitizeParagraphArtifacts(ln), theme)
 			out = append(out, core.WrapAnsi(text, width)...)
 		}
 		return out
@@ -248,7 +258,8 @@ func renderTable(rows []string, width int64, t MarkdownTheme) []string {
 	for _, w := range colW {
 		total += w
 	}
-	if total > width {
+	// 留 2 列安全边距，避免表格边框紧贴视口边缘导致破碎感。
+	if total > width-2 {
 		return renderTableVertical(header, body, width, t)
 	}
 
@@ -335,5 +346,30 @@ func renderTableVertical(header []string, body [][]string, width int64, t Markdo
 // ---------------------------------------------------------------------------
 // Default theme
 // ---------------------------------------------------------------------------
+
+// sanitizeParagraphArtifacts cleans up stray markdown punctuation that LLMs
+// commonly emit inside paragraph text, after legal block-level parsing has
+// already happened. Paragraph lines are never headings, so any ATX hash
+// sequence here is malformed and can be stripped. Unpaired emphasis markers
+// are also removed to avoid raw `**` / `*` polluting the terminal output.
+func sanitizeParagraphArtifacts(s string) string {
+	s = reInlineHashes.ReplaceAllString(s, "$1$2")
+	s = stripUnpairedMarker(s, "**")
+	s = stripUnpairedMarker(s, "*")
+	s = stripUnpairedMarker(s, "~~")
+	return s
+}
+
+// stripUnpairedMarker removes the last occurrence of marker when it has no
+// matching pair. This is a best-effort cleanup for incomplete LLM markdown.
+func stripUnpairedMarker(s, marker string) string {
+	if strings.Count(s, marker)%2 != 0 {
+		idx := strings.LastIndex(s, marker)
+		if idx >= 0 {
+			s = s[:idx] + s[idx+len(marker):]
+		}
+	}
+	return s
+}
 
 // DefaultMarkdownTheme returns the built-in markdown theme used when no

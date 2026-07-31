@@ -152,6 +152,7 @@ type selectionPos struct {
 // of the whole message — turning streaming render cost from O(N²) into ~O(N).
 type cachedMessage struct {
 	lines      []string
+	width      int64                 // 渲染行时的宽度；命中时不一致需重渲染（如工具组 innerW）
 	blockCache *component.BlockCache // non-nil only for Pending assistant messages
 }
 

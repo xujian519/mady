@@ -487,7 +487,8 @@ func (h *ChatHistory) detectToolGroup(msgs []ChatMessage, i int) (groupEnd int, 
 }
 
 // renderToolGroup 渲染一组连续的工具/系统消息为折叠（[+]）或展开（[-]）形式。
-// 返回渲染后的行列表及对应的 msgRange。
+// 展开时使用左侧色带（│）把多个工具/系统消息连成一条紧凑时间线，
+// 避免原本散落的卡片感。
 func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expanded bool, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) ([]string, msgRange) {
 	toolCount, sysCount := 0, 0
 	for j := start; j <= end; j++ {
@@ -499,27 +500,42 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 	}
 
 	var lines []string
+	// 折叠/展开只差一个标记符，统一用 marker 构建。
+	marker := "[+] "
 	if expanded {
-		summary := fmt.Sprintf("[-] %d tools · %d msgs", toolCount, sysCount)
-		if sysCount == 0 {
-			summary = fmt.Sprintf("[-] %d tools", toolCount)
-		}
-		lines = append(lines, theme.DimStyle.Render(summary))
-		for j := start; j <= end; j++ {
-			lines = append(lines, trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, width, cache))...)
-		}
-	} else {
-		summary := fmt.Sprintf("[+] %d tools · %d msgs", toolCount, sysCount)
-		if sysCount == 0 {
-			summary = fmt.Sprintf("[+] %d tools", toolCount)
-		}
+		marker = "[-] "
+	}
+	summary := fmt.Sprintf("%s %d tools · %d msgs", marker, toolCount, sysCount)
+	if sysCount == 0 {
+		summary = fmt.Sprintf("%s %d tools", marker, toolCount)
+	}
+	if !expanded {
 		for j := start; j <= end; j++ {
 			if msgs[j].Meta != "" && msgs[j].Meta != "tool" {
-				summary = "[+] " + msgs[j].Meta
+				summary = marker + msgs[j].Meta
 				break
 			}
 		}
-		lines = append(lines, theme.DimStyle.Render(summary))
+	}
+	lines = append(lines, theme.DimStyle.Render(summary))
+	if expanded {
+		// 左侧 2 列色带 + 内容，使组内成员连成一体。
+		barStyled := theme.DimStyle.Render("│")
+		prefix := "  " + barStyled + " "
+		innerW := width - core.VisibleWidth(prefix)
+		if innerW < 1 {
+			innerW = 1
+		}
+		for j := start; j <= end; j++ {
+			member := trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, innerW, cache))
+			for _, ln := range member {
+				lines = append(lines, prefix+ln)
+			}
+			if j < end {
+				// 组成员之间的细色带连接，比空行更紧凑。
+				lines = append(lines, "  "+barStyled)
+			}
+		}
 	}
 
 	return lines, msgRange{
@@ -528,48 +544,30 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 	}
 }
 
-// renderMessageSeparator 在两条连续消息之间插入视觉分隔符。
-// 返回行列表（可能含分隔线），调用方直接 append 到输出 buffer。
-//
-// 视觉层次（从粗到细）：
-//
-//	───（全宽） — User↔Assistant 切换，或 Tool↔Assistant 切换
-//	···（半宽） — Tool↔Tool 连续工具调用
-//	···（1/4宽）— 其他连续同角色消息
+// renderMessageSeparator 在两条连续消息之间插入最小视觉分隔。
+// 采用“时间线”密度：角色切换用单空行，同角色连续用极细点线，
+// 连续工具调用之间不再插入额外分隔线（由工具组自身色带/卡片承担层次）。
 func (h *ChatHistory) renderMessageSeparator(prev, curr ChatMessage, width int64, theme ChatHistoryTheme) []string {
 	switch {
-	// User / Assistant 角色切换：全宽分隔线
-	case (prev.Role == RoleUser && curr.Role == RoleAssistant) ||
-		(prev.Role == RoleAssistant && curr.Role == RoleUser):
-		sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
-		return []string{"", sep, ""}
-
-	// Tool → Assistant（工具执行完毕开始输出）：全宽分隔线
-	case prev.Role == RoleTool && curr.Role == RoleAssistant:
-		sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
-		return []string{"", sep, ""}
-
-	// Tool ↔ Tool 连续工具调用：半宽细分隔线
+	// Tool ↔ Tool 连续工具调用：无额外分隔，由工具组色带/卡片自身承担层次。
 	case prev.Role == RoleTool && curr.Role == RoleTool:
-		half := int64(int(width) / 2)
-		if half < 1 {
-			half = 1
-		}
-		sep := theme.DimStyle.Render(strings.Repeat("·", int(half)))
-		return []string{"", sep, ""}
+		return nil
 
-	// Tool → 其他角色：单空行
-	case prev.Role == RoleTool || curr.Role == RoleTool:
+	// 系统消息之间：单空行。
+	case prev.Role == RoleSystem && curr.Role == RoleSystem:
 		return []string{""}
 
-	// 其他连续同角色消息：四分之一宽细分隔线
-	default:
-		qtr := int64(int(width) / 4)
-		if qtr < 1 {
-			qtr = 1
+	// 其他连续同角色消息（Assistant↔Assistant、User↔User）：八分之一宽点线。
+	case prev.Role == curr.Role:
+		eighth := int64(int(width) / 8)
+		if eighth < 1 {
+			eighth = 1
 		}
-		sep := theme.DimStyle.Render(strings.Repeat("·", int(qtr)))
-		return []string{"", sep, ""}
+		return []string{theme.DimStyle.Render(strings.Repeat("·", int(eighth)))}
+
+	// 其余任意角色切换：单空行。
+	default:
+		return []string{""}
 	}
 }
 

@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-08-01T00:37:10+08:00",
-  "total": 275,
+  "updated": "2026-08-01T01:24:06+08:00",
+  "total": 276,
   "entries": [
     {
       "date": "2026-08-01",
@@ -28,12 +28,12 @@
       "line": 13
     },
     {
-      "date": "2026-07-31",
-      "type": "refactor",
-      "scope": "config",
-      "title": "Config Validate() 覆盖率提升 7→12 + 测试",
-      "file": "2026-07-31.md",
-      "line": 227
+      "date": "2026-08-01",
+      "type": "style",
+      "scope": "tui",
+      "title": "TUI 输出紧凑时间线与 Markdown 可读性优化",
+      "file": "2026-08-01.md",
+      "line": 32
     },
     {
       "date": "2026-07-31",
@@ -436,12 +436,12 @@
       "line": 378
     },
     {
-      "date": "2026-07-30",
-      "type": "fix",
-      "scope": "code-health",
-      "title": "技术债务修复——死代码清理、孤儿包移除、路由 TODO 实现、断言安全加固（5 文件 + 2 目录）",
-      "file": "2026-07-30.md",
-      "line": 686
+      "date": "2026-07-31",
+      "type": "refactor",
+      "scope": "config",
+      "title": "Config Validate() 覆盖率提升 7→12 + 测试",
+      "file": "2026-07-31.md",
+      "line": 227
     },
     {
       "date": "2026-07-30",
@@ -596,12 +596,12 @@
       "line": 305
     },
     {
-      "date": "2026-07-29",
-      "type": "style",
-      "scope": "*",
-      "title": "桌面端第三波 — P2 Token 补齐 + 视觉/发布评估",
-      "file": "2026-07-29.md",
-      "line": 216
+      "date": "2026-07-30",
+      "type": "fix",
+      "scope": "code-health",
+      "title": "技术债务修复——死代码清理、孤儿包移除、路由 TODO 实现、断言安全加固（5 文件 + 2 目录）",
+      "file": "2026-07-30.md",
+      "line": 686
     },
     {
       "date": "2026-07-29",
@@ -676,12 +676,12 @@
       "line": 175
     },
     {
-      "date": "2026-07-28",
-      "type": "chore",
+      "date": "2026-07-29",
+      "type": "style",
       "scope": "*",
-      "title": "桌面端像素级设计对齐 — Codex C 系列全部组件对标完成",
-      "file": "2026-07-28.md",
-      "line": 649
+      "title": "桌面端第三波 — P2 Token 补齐 + 视觉/发布评估",
+      "file": "2026-07-29.md",
+      "line": 216
     },
     {
       "date": "2026-07-28",
@@ -804,12 +804,12 @@
       "line": 150
     },
     {
-      "date": "2026-07-27",
-      "type": "fix",
-      "scope": "server",
-      "title": "废弃 LifecycleHook → Observer 接口迁移 + 注册架构修复",
-      "file": "2026-07-27.md",
-      "line": 165
+      "date": "2026-07-28",
+      "type": "chore",
+      "scope": "*",
+      "title": "桌面端像素级设计对齐 — Codex C 系列全部组件对标完成",
+      "file": "2026-07-28.md",
+      "line": 649
     },
     {
       "date": "2026-07-27",
@@ -972,12 +972,12 @@
       "line": 18
     },
     {
-      "date": "2026-07-26",
+      "date": "2026-07-27",
       "type": "fix",
-      "scope": "tui",
-      "title": "TUI 模块 Sprint 1 Critical 修复（T1.1–T1.5）",
-      "file": "2026-07-26.md",
-      "line": 347
+      "scope": "server",
+      "title": "废弃 LifecycleHook → Observer 接口迁移 + 注册架构修复",
+      "file": "2026-07-27.md",
+      "line": 165
     },
     {
       "date": "2026-07-26",
@@ -1044,12 +1044,12 @@
       "line": 61
     },
     {
-      "date": "2026-07-25",
-      "type": "chore",
+      "date": "2026-07-26",
+      "type": "fix",
       "scope": "tui",
-      "title": "TUI 会话持久化按当前工作目录隔离",
-      "file": "2026-07-25.md",
-      "line": 82
+      "title": "TUI 模块 Sprint 1 Critical 修复（T1.1–T1.5）",
+      "file": "2026-07-26.md",
+      "line": 347
     },
     {
       "date": "2026-07-25",
@@ -1156,12 +1156,12 @@
       "line": 30
     },
     {
-      "date": "2026-07-24",
+      "date": "2026-07-25",
       "type": "chore",
-      "scope": "*",
-      "title": "PDF 质量升级 — chromedp Chrome 引擎 + Pandoc 启用",
-      "file": "2026-07-24.md",
-      "line": 205
+      "scope": "tui",
+      "title": "TUI 会话持久化按当前工作目录隔离",
+      "file": "2026-07-25.md",
+      "line": 82
     },
     {
       "date": "2026-07-24",
@@ -1316,12 +1316,12 @@
       "line": 515
     },
     {
-      "date": "2026-07-23",
-      "type": "test",
+      "date": "2026-07-24",
+      "type": "chore",
       "scope": "*",
-      "title": "删除 evidence 包悬空测试 TestContext_RoundTrip",
-      "file": "2026-07-23.md",
-      "line": 346
+      "title": "PDF 质量升级 — chromedp Chrome 引擎 + Pandoc 启用",
+      "file": "2026-07-24.md",
+      "line": 205
     },
     {
       "date": "2026-07-23",
@@ -1468,12 +1468,12 @@
       "line": 390
     },
     {
-      "date": "2026-07-22",
-      "type": "docs",
+      "date": "2026-07-23",
+      "type": "test",
       "scope": "*",
-      "title": "实用新型/发明驳回复审请求工作流 — 产出实现规划文档（Spec 阶段）",
-      "file": "2026-07-22.md",
-      "line": 227
+      "title": "删除 evidence 包悬空测试 TestContext_RoundTrip",
+      "file": "2026-07-23.md",
+      "line": 346
     },
     {
       "date": "2026-07-22",
@@ -1532,12 +1532,12 @@
       "line": 142
     },
     {
-      "date": "2026-07-21",
-      "type": "chore",
+      "date": "2026-07-22",
+      "type": "docs",
       "scope": "*",
-      "title": "Batch 6 — 联邦式 Agent 网络 + i18n 多语言框架",
-      "file": "2026-07-21.md",
-      "line": 701
+      "title": "实用新型/发明驳回复审请求工作流 — 产出实现规划文档（Spec 阶段）",
+      "file": "2026-07-22.md",
+      "line": 227
     },
     {
       "date": "2026-07-21",
@@ -1716,12 +1716,12 @@
       "line": 308
     },
     {
-      "date": "2026-07-20",
-      "type": "fix",
-      "scope": "agentcore",
-      "title": "agentcore 深度审阅全面修复（43 项：2C/8H/18M/25L 全清）",
-      "file": "2026-07-20.md",
-      "line": 806
+      "date": "2026-07-21",
+      "type": "chore",
+      "scope": "*",
+      "title": "Batch 6 — 联邦式 Agent 网络 + i18n 多语言框架",
+      "file": "2026-07-21.md",
+      "line": 701
     },
     {
       "date": "2026-07-20",
@@ -1948,12 +1948,12 @@
       "line": 605
     },
     {
-      "date": "2026-07-19",
+      "date": "2026-07-20",
       "type": "fix",
-      "scope": "*",
-      "title": "里程碑 1——本地开发反馈回路完整性修复",
-      "file": "2026-07-19.md",
-      "line": 315
+      "scope": "agentcore",
+      "title": "agentcore 深度审阅全面修复（43 项：2C/8H/18M/25L 全清）",
+      "file": "2026-07-20.md",
+      "line": 806
     },
     {
       "date": "2026-07-19",
@@ -1996,12 +1996,12 @@
       "line": 41
     },
     {
-      "date": "2026-07-18",
-      "type": "feat",
-      "scope": "integration",
-      "title": "M1 门禁加固（1/4）：integration e2e 测试接入 CI",
-      "file": "2026-07-18.md",
-      "line": 235
+      "date": "2026-07-19",
+      "type": "fix",
+      "scope": "*",
+      "title": "里程碑 1——本地开发反馈回路完整性修复",
+      "file": "2026-07-19.md",
+      "line": 315
     },
     {
       "date": "2026-07-18",
@@ -2202,6 +2202,14 @@
       "title": "TUI 质量审查修复落地（P1 主题检测 + P2 测试覆盖 + 支撑构造函数）",
       "file": "2026-07-18.md",
       "line": 259
+    },
+    {
+      "date": "2026-07-18",
+      "type": "feat",
+      "scope": "integration",
+      "title": "M1 门禁加固（1/4）：integration e2e 测试接入 CI",
+      "file": "2026-07-18.md",
+      "line": 235
     }
   ]
 }

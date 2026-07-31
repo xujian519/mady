@@ -59,8 +59,8 @@ type ToolCardConfig struct {
 }
 
 // RenderToolCard renders cfg to width using theme, returning the lines.
-// The output uses a clean text-only style: no left bar, no full-width
-// background colour block.
+// The output uses a compact single-line header by default; the diff body is
+// appended only when DiffText is provided.
 func RenderToolCard(cfg ToolCardConfig, theme ToolCardTheme, width int64) []string {
 	meta := ""
 	if cfg.Duration > 0 {
@@ -80,16 +80,11 @@ func RenderToolCard(cfg ToolCardConfig, theme ToolCardTheme, width int64) []stri
 	styledStatus := statusStyle(cfg.Status)
 
 	if cfg.Collapsed {
-		summary := cfg.Status
-		if len(summary) > 300 {
-			summary = summary[:297] + "..."
-		}
-		head := "[+] " + theme.Title(cfg.Name) + " " + theme.Dim(summary)
-		return core.WrapAnsi(head, width)
+		return []string{renderToolCardHeader(seqStr, "[+] ", cfg.Name, cfg.Status, meta, theme.Title, theme.Dim, width)}
 	}
 
-	head := seqStr + theme.Title(cfg.Name) + " " + styledStatus + meta
-	lines := core.WrapAnsi(head, width)
+	head := renderToolCardHeader(seqStr, "", cfg.Name, styledStatus, meta, theme.Title, nil, width)
+	lines := []string{head}
 
 	if cfg.DiffText != "" {
 		diffSrc := "```diff\n" + cfg.DiffText + "\n```"
@@ -98,4 +93,26 @@ func RenderToolCard(cfg ToolCardConfig, theme ToolCardTheme, width int64) []stri
 		lines = append(lines, md.Render(width)...)
 	}
 	return lines
+}
+
+// renderToolCardHeader composes a single-line tool card header that never
+// wraps: the status is truncated so the name, status, and optional meta all
+// fit within width. titleFn styles the tool name; dimFn styles the status in
+// collapsed mode (pass nil to keep the already-styled status).
+func renderToolCardHeader(seq, marker, name, status, meta string, titleFn, dimFn func(string) string, width int64) string {
+	if dimFn != nil {
+		status = dimFn(status)
+	}
+	prefix := seq + marker + titleFn(name) + " "
+	metaWidth := int64(0)
+	if meta != "" {
+		metaWidth = core.VisibleWidth(meta)
+	}
+	available := width - core.VisibleWidth(prefix) - metaWidth
+	if available < 0 {
+		available = 0
+	}
+	status = core.TruncateToWidth(status, available, "…")
+	line := prefix + status + meta
+	return core.PadToWidth(line, width)
 }

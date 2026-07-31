@@ -6,6 +6,8 @@ package component
 import (
 	"strings"
 	"testing"
+
+	"github.com/xujian519/mady/tui/core"
 )
 
 func testToolCardTheme() ToolCardTheme {
@@ -58,13 +60,28 @@ func TestToolCardCollapsedSummary(t *testing.T) {
 
 func TestToolCardLongStatusTruncatedInCollapsed(t *testing.T) {
 	theme := testToolCardTheme()
-	long := strings.Repeat("x", 350)
+	long := strings.Repeat("x", 100)
 	lines := RenderToolCard(ToolCardConfig{
 		Name: "t", Status: long, Collapsed: true,
-	}, theme, 400)
-	// Collapsed summary truncates to 297 + "...".
-	if !strings.Contains(lines[0], "...") {
-		t.Errorf("long status should be truncated with ...: %q", lines[0])
+	}, theme, 40)
+	// Collapsed summary is truncated to fit a single line.
+	plain := core.StripAnsi(lines[0])
+	if !strings.Contains(plain, "…") {
+		t.Errorf("long status should be truncated with ellipsis: %q", plain)
+	}
+}
+
+func TestToolCardCompactHeaderSingleLine(t *testing.T) {
+	theme := testToolCardTheme()
+	long := strings.Repeat("x", 200)
+	lines := RenderToolCard(ToolCardConfig{
+		Name: "bash", Status: long,
+	}, theme, 40)
+	if len(lines) != 1 {
+		t.Fatalf("expanded tool card header should be one line, got %d: %v", len(lines), lines)
+	}
+	if core.VisibleWidth(lines[0]) > 40 {
+		t.Errorf("header exceeds width: %q", lines[0])
 	}
 }
 

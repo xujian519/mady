@@ -3,6 +3,8 @@ package component
 import (
 	"strings"
 	"testing"
+
+	"github.com/xujian519/mady/tui/core"
 )
 
 func TestMarkdownHeadingsAndCode(t *testing.T) {
@@ -120,5 +122,55 @@ func TestMarkdownTableVerticalFallback(t *testing.T) {
 	}
 	if !strings.Contains(joined, "~/.mady/mcp.json里配了服务") {
 		t.Errorf("cell content lost in fallback:\n%s", joined)
+	}
+}
+
+// TestMarkdownTableVerticalFallbackAggressive verifies that tables switch to the
+// vertical key/value layout early, before the horizontal ASCII borders get
+// squeezed against the viewport edge.
+func TestMarkdownTableVerticalFallbackAggressive(t *testing.T) {
+	src := "| 维度 | 要点 |\n| --- | --- |\n| 新颖性 | 区别于现有技术 |"
+	md := NewMarkdown(src)
+	lines := md.Render(20)
+	joined := core.StripAnsi(strings.Join(lines, "\n"))
+	if strings.Contains(joined, "+---+") {
+		t.Errorf("narrow table should use vertical fallback, got horizontal borders:\n%s", joined)
+	}
+	if !strings.Contains(joined, "维度:") || !strings.Contains(joined, "新颖性") {
+		t.Errorf("vertical layout missing content:\n%s", joined)
+	}
+}
+
+// TestMarkdownParagraphArtifactCleanup verifies that stray ATX hashes and
+// unpaired emphasis markers inside paragraph lines are stripped rather than
+// left raw on the terminal.
+func TestMarkdownParagraphArtifactCleanup(t *testing.T) {
+	src := "相关规定源自机#### 📖法> **如变压器\"\"放大器术语）。"
+	md := NewMarkdown(src)
+	lines := md.Render(80)
+	joined := core.StripAnsi(strings.Join(lines, "\n"))
+	if strings.Contains(joined, "####") {
+		t.Errorf("inline ATX hashes should be stripped, got:\n%s", joined)
+	}
+	if strings.Contains(joined, "**") {
+		t.Errorf("unpaired bold markers should be stripped, got:\n%s", joined)
+	}
+	if !strings.Contains(joined, "相关规定源自机") || !strings.Contains(joined, "放大器术语") {
+		t.Errorf("paragraph content should be preserved, got:\n%s", joined)
+	}
+}
+
+// TestMarkdownParagraphKeepsSingleHash verifies that legitimate single hashes
+// (C#/F#/patent drawing references like "1#") survive paragraph cleanup — only
+// hash runs of 2+ are treated as stray artifacts.
+func TestMarkdownParagraphKeepsSingleHash(t *testing.T) {
+	src := "C# 与 F# 语言，以及 1# 上盖（图纸引用）"
+	md := NewMarkdown(src)
+	lines := md.Render(80)
+	joined := core.StripAnsi(strings.Join(lines, "\n"))
+	for _, want := range []string{"C#", "F#", "1#"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("single hash %q should be preserved, got:\n%s", want, joined)
+		}
 	}
 }

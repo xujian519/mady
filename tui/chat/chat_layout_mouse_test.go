@@ -285,11 +285,23 @@ func TestHandleMouseMsgToolMessageCollapse(t *testing.T) {
 func TestHandleMouseMsgMissFallsBackToLegacy(t *testing.T) {
 	app, _ := newTestChatApp(t, ChatAppConfig{})
 	hist := app.History()
-	for i := 0; i < 10; i++ {
+	cols, rows := app.TerminalSize()
+	// 消息分隔符密度影响每屏能容纳的条数，直接按渲染行数校准溢出条件，
+	// 不依赖固定消息条数（密度调整后 10 条不再溢出 24 行视口）。
+	for i := 0; ; i++ {
 		hist.Append(ChatMessage{Role: RoleAssistant, Text: "x"})
+		app.layout.Render(cols)
+		hist.mu.Lock()
+		n := len(hist.cachedAll)
+		hist.mu.Unlock()
+		// 内容比整个终端至少多 3 行 ⇒ 历史视口必然可滚动 3 行。
+		if int64(n) >= rows+3 {
+			break
+		}
+		if i > 1000 {
+			t.Fatal("history never overflowed the viewport")
+		}
 	}
-	cols, _ := app.TerminalSize()
-	app.layout.Render(cols)
 
 	// A click at a column beyond the flex width misses every child.
 	app.layout.handleMouseMsg(core.MouseMsg{Action: core.MouseWheelUp, Row: 3, Col: cols + 50})
