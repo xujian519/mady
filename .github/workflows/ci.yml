@@ -218,6 +218,42 @@ jobs:
         working-directory: desktop
         run: go test -race -count=1 ./...
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
+
+      - name: Install frontend deps
+        working-directory: desktop/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('desktop/frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright chromium (webkit not installed on CI)
+        working-directory: desktop/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Frontend unit tests (vitest)
+        working-directory: desktop/frontend
+        run: pnpm test
+
+      - name: Playwright E2E tests (chromium only)
+        working-directory: desktop/frontend
+        run: npx playwright test --config=playwright.config.ts --project=chromium
+
   example-build:
     runs-on: ubuntu-latest
     name: example-build

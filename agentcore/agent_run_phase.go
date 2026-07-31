@@ -250,10 +250,11 @@ func (a *Agent) endTurn(ctx context.Context, turn int64, usage TokenUsage, hadTo
 // No-op when no promise is installed (safe for the TUI path where the agent
 // has no A2UIPromise), or when no action is pending.
 func (a *Agent) consumePendingA2UIActions(ctx context.Context) error {
-	if a.a2uiPromise == nil {
+	promise := a.a2uiPromise.Load()
+	if promise == nil {
 		return nil
 	}
-	action := a.a2uiPromise.TryGet()
+	action := promise.TryGet()
 	if action == nil {
 		return nil
 	}

@@ -130,10 +130,54 @@ func (a *App) DeleteThread(key string) error
 // Health 返回运行时健康信息（provider/知识库/版本）
 func (a *App) Health() (HealthInfo, error)
 
+// --- 扩展方法（PilotDeck 对齐 + 桌面实践新增，均已实现）---
+// --- 模型 / 设置 ---
+// ListModels 返回后端动态获取的可用模型列表（agentconfig 聚合）
+func (a *App) ListModels() ([]ModelEntry, error)
+
+// GetAISettings / SetAISettings 读写 AI 设置（Provider/Model），
+// 持久化到 ~/.mady/desktop-settings.json；Provider 切换失败时完整回滚
+func (a *App) GetAISettings() (AISettings, error)
+func (a *App) SetAISettings(s AISettings) error
+
+// --- 文件操作（PilotDeck T5.1-T5.8，全部经沙箱路径校验）---
+// ReadFile 读取文本/base64 文件；WriteFile 原子写（tmp+rename）
+// DeleteEntry 删除空目录或文件；ListDirectory 列出目录
+// CreateFolder / RenameFolder 创建/重命名文件夹
+func (a *App) ReadFile(relPath string) (FileContent, error)
+func (a *App) WriteFile(relPath string, content string) error
+func (a *App) DeleteEntry(relPath string) error
+func (a *App) ListDirectory(dirPath string) ([]DirEntry, error)
+func (a *App) CreateFolder(relPath string) error
+func (a *App) RenameFolder(oldPath, newPath string) error
+
+// --- 环境浏览（只读）---
+// ListSkills 扫描 7 个技能发现路径；ListMcpServers 只读 MCP 配置（Env 仅暴露键名）
+// GetKnowledgeStatus 知识库索引状态；ListDocTemplates 项目模板库
+func (a *App) ListSkills() ([]SkillInfo, error)
+func (a *App) ListMcpServers() ([]McpServer, error)
+func (a *App) GetKnowledgeStatus() (KnowledgeStatus, error)
+func (a *App) ListDocTemplates() ([]DocTemplate, error)
+
+// --- 项目（案件）管理 ---
+func (a *App) ListProjects() ([]ProjectSummary, error)
+func (a *App) GetCurrentProject() (ProjectInfo, error)
+func (a *App) SelectProjectFolder() (ProjectInfo, error)
+func (a *App) CreateProjectFolder(name string) (ProjectInfo, error)
+func (a *App) SwitchProject(name string) error
+
+// --- 窗口状态 ---
+func (a *App) SaveWindowState(w, h int) error
+
 // --- 生命周期（Wails 调用，非前端可见）---
 func (a *App) startup(ctx context.Context)    // Wails OnStartup
 func (a *App) shutdown(ctx context.Context)   // Wails OnShutdown
 ```
+
+> 注：核心 7 个方法（Chat/Cancel/SendAction/ListThreads/GetThread/DeleteThread/Health）
+> 对应 §2.1.1 的 `server.Server` 公开方法；其余方法为桌面端扩展，
+> 由 PilotDeck 对齐（文件/技能/MCP）与桌面实践（设置/项目/窗口）驱动，
+> 均经 `desktop/` 各 `app_*.go` 文件实现。
 
 ### 2.1.1 server 包需新增的公开方法
 
@@ -515,6 +559,21 @@ desktop/frontend/
 
 > 未来可统一抽取 `packages/design-tokens` 共享给 TUI/Server/桌面端，本期桌面端独立实现以控制范围。
 
+### 5.9 主题包（扩展：4 套预设）
+
+在 Apple HIG 基线之上，桌面端实现 **4 套主题包**（`frontend/src/theme/packs.ts`），
+全部基于 §5.2 语义令牌的 CSS 变量，运行时经 `ThemeProvider` 切换：
+
+| 主题包 | 定位 | 令牌特征 |
+|--------|------|----------|
+| `professional` | 默认（HIG 基线） | `systemIndigo` accent、中性灰阶 |
+| `focus-blue` | 专注模式 | 蓝调 accent、低饱和背景 |
+| `paper-warm` | 文档阅读 | 暖色纸张背景、深色正文 |
+| `slate` | 夜间/高对比 | 深灰 slate 底色、高对比文字 |
+
+语义令牌（`--mady-*`）在所有主题包中保持一致，仅具体色值不同；
+新增主题只需在 `packs.ts` 增加一个包，无需改动组件。
+
 ---
 
 ## 6. 验证规则
@@ -579,8 +638,8 @@ desktop/frontend/
 | Q4 | 是否支持自动更新（Sparkle 等） | **暂时不做**，阶段 5 再评估 | 阶段范围 |
 | Q5 | 是否需要系统托盘 / Dock badge | **暂时不做**，阶段 3 预留 | UX、阶段范围 |
 | Q6 | Wails 版本锁定策略 | 锁定 v2 最新稳定 tag；构建前验证 Go 1.26 兼容性，不兼容则临时降 go.mod 到 1.24 | 构建 |
-| Q7 | 分屏文档预览 PDF 渲染方案 | **HTML 内嵌 + PDF 外部打开**：法条/模板等可控内容在 WebView 内渲染 HTML；正式 PDF 调用系统默认 PDF 应用（macOS Preview / QuickLook）；阶段 5 再评估 pdf.js 内嵌 | T3.1 DocumentViewer |
-| Q8 | 项目树是否允许用户操作 | **可读写**：用户可在侧栏项目树中新建、重命名文件夹，但文件操作受沙箱边界约束（复用 `tools/path.go` 路径校验）；阶段 3 先实现文件/文件夹的创建与重命名，删除操作阶段 5 再做 | T3.2b ProjectTree |
+| Q7 | 分屏文档预览 PDF 渲染方案 | **pdf.js 内嵌只读查看器**（修订：05-pilotdeck-alignment.md 决策 3 取代原"PDF 外部打开"）：引入 pdfjs-dist v6，`components/fileviewer/PdfViewer.tsx` 实现 canvas 渲染 + 注释；法条/模板等可控内容仍在 WebView 内渲染 HTML | T3.1 DocumentViewer / T5.5 |
+| Q8 | 项目树是否允许用户操作 | **可读写**（修订：删除操作已提前实现）：用户可在侧栏项目树中新建、重命名、删除文件/文件夹（`DeleteEntry` 仅允许空目录或文件，非递归删除），全部经沙箱边界约束（复用 `tools/path.go` 路径校验） | T3.2b ProjectTree / T5.8 |
 | Q9 | Provider/Model 切换策略 | **全局切换 + 新会话生效**：写入 `pkg/agentconfig` 全局配置，已有会话保持原有模型；切换时弹 Toast 提示；不改造 session 存储 | T3.6 设置面板 |
 | Q10 | Invisible Handoff 过滤 | **确认作为设计契约**：ToolCard 过滤 `transfer_to_*` 类型工具调用；AGUI bridge 对 `handoff-start/end` 事件不渲染；审查等级 L3 | T3.2 ToolCard / §1.2 |
 

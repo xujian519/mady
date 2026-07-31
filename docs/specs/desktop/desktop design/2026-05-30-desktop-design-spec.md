@@ -1,5 +1,12 @@
 # BCIP 桌面端设计稿规范（Figma / 设计交付）
 
+> [!WARNING]
+> **DEPRECATED（归档）**：本文档为 BCIP 时代（2026-05-30）历史设计，
+> 基于已废弃的 **Tauri 方案**。当前桌面端实现以
+> `docs/specs/desktop/` 根目录下的 01-proposal/02-spec/03-design/04-tasks/05-pilotdeck-alignment
+> 为准（Wails v2 + React）。仅保留作为设计历史参考。
+
+
 **日期**: 2026-05-30
 **状态**: 设计稿专用（不含开发实现）
 **依赖策略**: `docs/plans/2026-05-30-desktop-codex-parity-strategy.md`

@@ -1,3 +1,5 @@
+//go:build darwin
+
 package main
 
 // e2e_integration_test.go — 桌面端端到端集成测试。

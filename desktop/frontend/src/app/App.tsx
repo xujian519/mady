@@ -18,6 +18,7 @@ import { useChatStore } from '@/stores/chat'
 import { subscribeAguiEvents } from '@/agui-bridge/client'
 import { aguiReducer } from '@/agui-bridge/reducer'
 import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
+import { A2UIOverlay } from '@/components/A2UIOverlay'
 import { ThemeProvider } from '@/theme/provider'
 import { useTheme } from '@/theme/tokens'
 import type { ThemePackId } from '@/theme/tokens'
@@ -111,6 +112,9 @@ function App() {
           <ChatView />
         </ThemeEventListener>
       </ThemeProvider>
+      {/* A2UIOverlay 挂载于 App 根：渲染生命周期与全局 store 一致，
+          且与 ChatView 的流式重渲染解耦（避免每 token 全树重渲染）。 */}
+      <A2UIOverlay />
     </>
   )
 }

@@ -1,5 +1,12 @@
 # BCIP 桌面端：性能架构、无感接入与 Codex 像素级对齐策略
 
+> [!WARNING]
+> **DEPRECATED（归档）**：本文档为 BCIP 时代（2026-05-30）历史设计，
+> 基于已废弃的 **Tauri 方案**。当前桌面端实现以
+> `docs/specs/desktop/` 根目录下的 01-proposal/02-spec/03-design/04-tasks/05-pilotdeck-alignment
+> 为准（Wails v2 + React）。仅保留作为设计历史参考。
+
+
 **日期**: 2026-05-30
 **状态**: 架构决策（仅文档，不含实现）
 **读者**: 产品、设计、桌面端与 app-server 开发

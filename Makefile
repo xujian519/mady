@@ -115,6 +115,27 @@ desktop-dmg:
 desktop-build-quick:
 	cd desktop && wails build -platform darwin/arm64
 
+# macOS 公证（Notarization）：签名 + 公证 + 装订。
+# 需要环境变量 APPLE_ID / TEAM_ID / APP_PASSWORD（Developer 账号，
+# 见 docs/plans/desktop-notarization-assessment.md）。
+# 前置：先执行 desktop-dmg 生成 Mady.app。
+# 凭据统一用 shell 展开（$$VAR），避免 make 变量与 shell 变量来源不一致。
+desktop-notarize:
+	@echo "=== 签名 Mady.app ==="
+	codesign --force --options runtime \
+		--sign "Developer ID Application: $$TEAM_ID" \
+		./desktop/build/bin/Mady.app
+	@echo "=== 公证 Mady.app ==="
+	xcrun notarytool submit ./desktop/build/bin/Mady.app \
+		--apple-id "$$APPLE_ID" \
+		--team-id "$$TEAM_ID" \
+		--password "$$APP_PASSWORD" \
+		--wait
+	@echo "=== 装订 stapler ==="
+	xcrun stapler staple ./desktop/build/bin/Mady.app
+	@echo "=== 验证 spctl ==="
+	spctl --assess --type execute --verbose ./desktop/build/bin/Mady.app
+
 # disclosure smoke 验证最小 happy path：analyze -> awaiting_review -> review -> export
 test-disclosure-smoke:
 	$(GO) test $(GOFLAGS) -count=1 -run TestDisclosureHappyPathSmoke ./server
@@ -295,7 +316,9 @@ help:
 	@echo "  desktop-run        Run desktop app (wails dev)"
 	@echo "  desktop-dev        Run frontend dev server"
 	@echo "  desktop-test       Test desktop module"
+	@echo "  desktop-test-e2e   Run Playwright E2E tests (needs dev server)"
 	@echo "  desktop-dmg        Build macOS .app + .dmg (universal)"
+	@echo "  desktop-notarize   Sign + notarize + staple Mady.app (needs Apple credentials)"
 	@echo ""
 	@echo "Setup:"
 	@echo "  install            Install mady to $(PREFIX)/bin (use PREFIX=/usr/local for system-wide)"

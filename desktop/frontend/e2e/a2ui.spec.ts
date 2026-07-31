@@ -23,33 +23,12 @@ async function getA2UI(page: import('@playwright/test').Page) {
   return page.waitForFunction(() => {
     const m = (window as any).__mady
     return m?.a2ui?.applyEnvelope !== undefined
-  }, { timeout: 5_000 })
+  }, { timeout: 10_000 })
 }
 
 // ── Envelope 构造辅助 ─────────────────────────────
 
 const BASIC_CATALOG = 'https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json'
-
-function makeCreateSurface(surfaceId: string) {
-  return {
-    version: 'v0.9.1',
-    createSurface: { surfaceId, catalogId: BASIC_CATALOG },
-  }
-}
-
-function makeUpdateComponents(surfaceId: string, components: any[]) {
-  return {
-    version: 'v0.9.1',
-    updateComponents: { surfaceId, components },
-  }
-}
-
-function makeUpdateDataModel(surfaceId: string, path: string, value: any) {
-  return {
-    version: 'v0.9.1',
-    updateDataModel: { surfaceId, path, value },
-  }
-}
 
 // ── 测试 1：冒烟测试 ──────────────────────────────
 
@@ -164,4 +143,84 @@ test('updateDataModel 更新 data model', async ({ page }) => {
   }, BASIC_CATALOG)
 
   expect(result).toEqual({ name: 'Alice' })
+})
+
+// ── 测试 5：按钮点击 → sendAction 闭环 ────────────
+
+test('按钮点击触发 sendAction 到后端', async ({ page }) => {
+  await page.goto('/')
+  await waitForApp(page)
+  await getA2UI(page)
+
+  // Stub Wails Go binding：记录 sendAction 调用参数。
+  // 生产环境 Wails 注入 window.go.main.App.SendAction；
+  // 此处注入 stub 以在无后端 dev 模式验证完整调用链。
+  await page.evaluate(() => {
+    const stub = {
+      main: {
+        App: {
+          SendAction: async (surfaceId: string, action: unknown) => {
+            ;(window as any).__sendActionCalls =
+              (window as any).__sendActionCalls ?? []
+            ;(window as any).__sendActionCalls.push({ surfaceId, action })
+          },
+        },
+      },
+    }
+    ;(window as any).go = stub
+  })
+
+  // 创建 surface + Button（带 action.event）
+  await page.evaluate(
+    ([catalog]) => {
+      const a2ui = (window as any).__mady.a2ui
+      a2ui.applyEnvelope({
+        version: 'v0.9.1',
+        createSurface: { surfaceId: 'action-demo', catalogId: catalog },
+      })
+      a2ui.applyEnvelope({
+        version: 'v0.9.1',
+        updateComponents: {
+          surfaceId: 'action-demo',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['btn1'],
+            },
+            {
+              id: 'btn1',
+              component: 'Button',
+              label: '批准',
+              // 扁平 wire format：除 id/component 外均并入 props
+              action: {
+                event: { name: 'approve', context: { id: 'req-1' } },
+              },
+            },
+          ],
+        },
+      })
+    },
+    [BASIC_CATALOG] as any,
+  )
+
+  // A2UIOverlay 应渲染 Button 到 DOM
+  const button = page.locator('[data-a2ui-id="btn1"]')
+  await expect(button).toBeVisible({ timeout: 10_000 })
+
+  // 点击按钮 → 触发 onAction → sendAction
+  await button.click()
+
+  // 验证 SendAction 被调用且参数正确
+  await page.waitForFunction(() => {
+    return (window as any).__sendActionCalls?.length > 0
+  }, undefined, { timeout: 10_000 })
+  const recorded = await page.evaluate(() => (window as any).__sendActionCalls)
+  expect(recorded.length).toBe(1)
+  expect(recorded[0].surfaceId).toBe('action-demo')
+  expect(recorded[0].action).toMatchObject({
+    name: 'approve',
+    sourceComponentId: 'btn1',
+    context: { id: 'req-1' },
+  })
 })

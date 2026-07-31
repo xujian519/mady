@@ -146,15 +146,33 @@ func (p *A2UIPromise) Set(action *A2UIAction) {
 	p.action = action
 }
 
-// TryGet returns the action if one has been Set and not yet consumed.
-// Consumed actions are never returned again.
+// TryGet 返回已 Set 且尚未消费的 action，并标记为已消费。
+// 已消费的 action 不会再次返回。
 func (p *A2UIPromise) TryGet() *A2UIAction {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.consumed || p.action == nil {
+	act := p.peekLocked()
+	if act == nil {
 		return nil
 	}
 	p.consumed = true
+	return act
+}
+
+// Peek 返回待处理的 action，但不改变 consumed 状态。
+// 供测试与诊断使用：与 TryGet 不同，Peek 之后 action 仍可被
+// consumePendingA2UIActions 消费。
+func (p *A2UIPromise) Peek() *A2UIAction {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.peekLocked()
+}
+
+// peekLocked 返回未消费的 action；调用方须持有 mu。
+func (p *A2UIPromise) peekLocked() *A2UIAction {
+	if p.consumed || p.action == nil {
+		return nil
+	}
 	return p.action
 }
 
@@ -174,7 +192,10 @@ type Agent struct {
 	contextEngine ContextEngine
 	engineReg     *EngineRegistry
 	interrupted   atomic.Pointer[InterruptReason]
-	a2uiPromise   *A2UIPromise // optional, set by desktop/adapter for UI→agent action delivery
+	// a2uiPromise 以 atomic 存储：SetA2UIAction 可能来自 UI goroutine，
+	// 与 SetA2UIPromise（安装/替换）和 consumePendingA2UIActions（agent
+	// 运行 goroutine 读取）并发，普通字段读写即数据竞争。
+	a2uiPromise atomic.Pointer[A2UIPromise]
 	// intentCacheMu + intentCache provide a per-Agent LLM intent summary
 	// cache. Previously this was a package-level global, which caused
 	// cross-agent cache pollution in multi-agent setups.
@@ -327,14 +348,19 @@ func (a *Agent) EventBus() *EventBus { return a.eventBus }
 // run loop. Pass nil to clear a previously installed promise.
 // A2UIPromise is an opt-in mechanism: the TUI path does not set it, so the
 // agent's runPreTurn simply skips the nil check with zero overhead.
-func (a *Agent) SetA2UIPromise(p *A2UIPromise) { a.a2uiPromise = p }
+// 并发安全：可随时安装/替换，不会与运行循环或 UI 投递产生竞争。
+func (a *Agent) SetA2UIPromise(p *A2UIPromise) { a.a2uiPromise.Store(p) }
+
+// A2UIPromise 返回当前安装的 promise（未安装时为 nil）。
+// 供 server 装配与测试观察投递状态；并发安全。
+func (a *Agent) A2UIPromise() *A2UIPromise { return a.a2uiPromise.Load() }
 
 // SetA2UIAction delivers a user action from the A2UI protocol into the agent's
 // promise. The action is consumed by consumePendingA2UIActions during the next
 // runPreTurn. If no promise is installed this is a no-op (safe for TUI path).
 func (a *Agent) SetA2UIAction(action *A2UIAction) {
-	if a.a2uiPromise != nil {
-		a.a2uiPromise.Set(action)
+	if p := a.a2uiPromise.Load(); p != nil {
+		p.Set(action)
 	}
 }
 

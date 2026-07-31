@@ -1,5 +1,58 @@
 # AI 变更记录
 
+## 2026-07-31: fix(desktop) 代码审查修复 — SendAction 生产闭环真实化 + 并发/性能修复
+
+**背景**：/code-review 全量审查（10 角度并行）发现上一轮闭环修复存在关键盲点：A2UIPromise 仅在测试中安装、生产路径按钮点击 action 被静默丢弃；desktop 未装配会话 Store 导致 agent 不入池。多角度交叉证实后全部修复。
+
+**改动清单**：
+1. `server/pool.go` — loadAgent 新建 agent 时自动 `SetA2UIPromise(NewA2UIPromise())`：生产 SendAction → consumePendingA2UIActions 闭环真正生效（此前仅测试手动安装）
+2. `desktop/app.go` — `buildDesktopAgentConfig` 装配 `session.NewAgentStore`（与 cmd/mady/server.go 同模式）：无 Store 时 ensureThreadID 返回空 → agent 用完即关不入池，SendAction 池查找永远失败
+3. `agentcore/agent.go` — `a2uiPromise` 字段改 `atomic.Pointer`（Set 安装/UI 投递/运行循环读取三处并发安全）；新增 `A2UIPromise()` getter；Peek/TryGet 共享 `peekLocked`；注释改中文（GO-DEVELOPMENT-STANDARDS §0.1 规则 8）
+4. `server/desktop_test.go` — 测试改真实两段 srv.Chat 路径（memoryStore）：验证 loadAgent 自动安装 + promise 池往返存活 + 消费持久化；改用 `slices.ContainsFunc`
+5. `A2UIOverlay.tsx` — onAction 提为模块级函数（引用恒稳定，不再破坏 A2UISurface useMemo）；加 sendAction 错误反馈（console.error，不再静默吞错）；wrapper 改 inline-block（修复静态块级全宽截获标题栏点击）；挂载点从 ChatView 移至 App 根（生命周期与全局 store 一致，解除与流式渲染耦合）
+6. `ModelSettings.tsx` — catch 分支填充占位模型 + `_error` 在下拉面板渲染（此前失败时下拉为空面板且注释与行为不符）
+7. `vite.config.ts` — ui chunk 注释如实化（lucide-react ~700KB/gzip 135KB，独立缓存收益>阈值）
+8. `Makefile` — desktop-notarize 凭据统一 shell 展开（$$TEAM_ID）；codesign 去 `--deep`（Apple 已废弃分发签名用法）
+9. `desktop/main_unsupported.go` — 合并 main_linux/main_windows 为单文件（`//go:build linux || windows` + runtime.GOOS），写入错误检查
+10. `.github/workflows/ci.yml` — 加 Playwright 浏览器缓存（actions/cache，key 含 pnpm-lock hash）
+11. `e2e/a2ui.spec.ts` — 超时 5s→10s（cold-start 防 flaky）
+
+**验证**：desktop/server/agentcore `go test -race` 全过；linux/windows 交叉编译+vet 过；vitest 100/100；pnpm build 过；Playwright chromium 10/10；ci.yml YAML 校验过。
+
+**影响**：审批/按钮交互从"点了没反应"到生产完整可用（依赖桌面端 Store 目录可写，失败时降级为无持久化并保留池内行为）。遗留：A2UI surface 尚无生产生产者（envelope 仅测试注入），审批当前走 AGUI approval-prompt → ApprovalCard 路径。
+
+## 2026-07-31: feat(desktop) 设计文档-代码缺口全量修复（7 项）
+
+**背景**：对比 18 份桌面端设计文档与实际代码，识别缺口并全量修复。探查发现多项"缺口"实际已实现（A2UIPromise 入站、Server.Chat、ListModels 后端化、P0/P1/P2 设计 Token），真实缺口集中在 SendAction 前端闭环未接线与文档债。
+
+**改动清单**：
+1. `desktop/frontend/src/components/A2UIOverlay.tsx` — **新建**：A2UI surface 渲染容器，遍历 useA2UIStore 渲染组件树，将 onAction 接线到 sendAction（此前 surface 渲染器未挂载、按钮点击无响应——SendAction 闭环缺失根因）；挂载于 `ChatView.tsx`
+2. `agentcore/agent.go` — A2UIPromise 新增 `Peek()` 只读方法（TryGet 会消费 action，测试用 TryGet 验证会导致 agent 运行循环取不到 action——真实 bug）
+3. `server/desktop_test.go` — `TestSendActionDeliversViaPromise` 补第 6 步：验证审批消息持久化到 agent 状态；改用 `Peek()` 验证投递；第二次运行改直接 `agent.Run`（无 Store 时池命中失败会重建 agent 丢失 promise）
+4. `desktop/frontend/e2e/a2ui.spec.ts` — 新增按钮点击→sendAction 闭环 E2E（stub window.go + 注入 Button envelope + 验证参数）；修复 waitForFunction 参数错位；清理 3 个未使用辅助函数
+5. `desktop/frontend/vite.config.ts` — manualChunks 增加 react/ui vendor 块；**修复预先存在的 bug**：引用 3 个未安装的 @codemirror 包导致 `pnpm build` 直接失败
+6. `desktop/main_windows.go` / `main_linux.go` — **新建**平台占位入口（清晰报错替代 undefined reference）；3 个测试文件补 `//go:build darwin`
+7. 文档同步：`02-spec.md` §2.1 补 18 个已实现 API + §5.9 四主题架构 + Q7/Q8 决策更新；`04-tasks.md` 28 个任务状态标注 + 验收清单；`desktop-design-development-basis.md` P0-P2 差距清单标记已实现
+8. `Makefile` — 新增 `desktop-notarize`（签名+公证+装订+验证）；`docs/plans/desktop-notarization-assessment.md` — **新建**公证评估文档（含沙箱策略决策：本期不启用）
+9. `.github/workflows/ci.yml` — desktop job 增加前端链路：pnpm install + Playwright chromium + vitest + E2E（仅 chromium，webkit 不下载）
+10. 历史文档 — 4 份 BCIP/Tauri 时代文档加 DEPRECATED 归档标记
+
+**验证**：`desktop` 模块 build/vet/test/race 全过；`server`/`agentcore` SendAction+A2UIPromise race 测试过；Windows/Linux 交叉编译+vet 过；前端 tsc + vitest 100/100 + pnpm build 过；Playwright chromium 10/10 过；ci.yml YAML 校验过。
+
+**影响**：SendAction 从"按钮点了没反应"变为完整闭环（按钮→Wails binding→agent→surface 更新）；`pnpm build` 从必然失败变为可用。webkit E2E 失败为环境问题（浏览器未安装），与代码无关。
+
+## 2026-07-31: docs 项目文档与代码一致性修复（重构后全量核对）
+
+**背景**：项目近期多轮重构后，CLAUDE.md / AGENTS.md / README.md 中部分目录结构、文件路径、模块计数与实际代码脱节。通过 3 路并行全量审计（文档扫描 + 目录遍历 + 关键文件逐项核对，共 27+ 项声明），修复全部已确认偏差。
+
+**改动清单**：
+1. `CLAUDE.md` — 目录树修正：删除不存在的 `agentcore/atom.go`/`plugin.go`（替换为 `skill_extension.go`）、顶级 `benchmark/`/`protocol/`/`pluginsys/`、`tui/stdio/`（Layer 6）、`domains/reasoning/collector/`、重复的 `concurrency/` 行；修正 `domains/domainconfig/`→`config/`、`provider/smartrouter/`→`sanitizer/`（PII 脱敏）、`tools/computer_use*.go`→`tools/desktop/`、`tools/browser_providers/`→`browserproviders/`、双 `workflows/`→单顶级 + `domains/workflows/`；更新 go.work 模块数 3→4（补 `./desktop`）、子命令 10→14（补 ocr/start-embeddings/stop-embeddings/status-embeddings）、源文件计数 ~820+~400→~980+~440、agentcore/tools 模块计数；补充遗漏模块（bootstrap/ intent/ desktop/ agentcore/worker/ domains/{casemgmt,novelty,infringement,ipc,checker,provisions,workflows} knowledge/{knowledgeinit,standards} pkg/{framework,ocr,omlx}）；架构图同步；AI_CHANGELOG 行号引用 1119-1127 → 3814（2026-07-23「Agent 三合一」章节）
+2. `AGENTS.md` — 核心分层描述（移除 atom/plugin，补 skill_extension/worker）、文件计数 1229→1414（更新时间 2026-07-31）、make verify 覆盖 4 模块、多模块描述补 `./desktop`、子命令列表补 ocr 与 embeddings 三命令
+3. `README.md` — 心理引擎描述修正：7 阶段管道（OCC/EMA/Beck CBT/SDT）→ 实际实现的 3 步精简管道（信号提取 → VAD → 策略匹配，见 `psychological/engine.go` 的 `ExecuteFullPipeline`）
+4. `tui/LAYERS.md` — 清理已不存在的 `tui/stdio` 规则残留（stdio 工具已移入 layout，渲染全部走 `core.Component`）
+
+**验证**：CLAUDE.md 全部 `.go/.sh/.yaml/.json` 路径引用与目录树逐项存在性检查通过（仅 3 处"常见开发流程"模板引用属示例写法）；`go build ./...` 通过。无代码逻辑变更。
+
 ## 2026-07-31: style(tui) 输入区视觉重构 — Claude Code 风格整行背景色块
 
 **背景**：用户反馈 TUI 用户输入区用光标/竖条（`▌`）隔离观感不佳。原实现 `editorFrame` 在编辑器首尾各加一行仅含单个 `▌` 的竖条行，既无满宽分隔也缺乏输入区整体感。参照 Claude Code 输入形式（整行背景色块 + `❯` 提示符），实现更简单且与历史区形成清晰的色块对比。

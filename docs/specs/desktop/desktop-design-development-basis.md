@@ -149,33 +149,37 @@
 
 ## 2. 实现差距清单（按优先级）
 
+> ✅ **2026-07-31 审计**：P0（1-5）与 P2（11-13）全部已实现（`globals.css` 117 个 `--mady-*` 令牌），
+> 命名统一为 `--color-mady-*` 体系（如 `--color-mady-bg-hover`）。P1 中 7/8/9 已实现；
+> 待办仅剩 #6（字号 Token 核对）与 #10（整体色温评估）。
+
 ### P0：阻碍发布 — 必须实现
 
 | # | 差距 | 位置 | 工作量 | 建议方案 |
 |---|------|------|--------|---------|
-| 1 | **链接色用 iOS 蓝而非品牌紫** | `globals.css:24` | 5min | 修改 `--color-mady-text-link: #5e5ce6`（Light）/ `#6e6cf0`（Dark） |
-| 2 | **成功色用绿色而非品牌紫** | `globals.css:35` | 5min | 修改 `--color-mady-success: #5856d6`，这是规范的核心设计决策 |
-| 3 | **侧栏背景色缺失** | 新增 | 15min | 新增 `--color-mady-bg-sidebar` 和 `--bg-composer` |
-| 4 | **hover/active/overlay 背景缺失** | 新增 | 15min | 新增 `--bg-hover` / `--bg-active` / `--bg-overlay` |
-| 5 | **全局过渡动画缺失 Token** | `globals.css` | 15min | 在 `@theme` 中补充 duration 和 easing Token（6 个） |
+| 1 | **链接色用 iOS 蓝而非品牌紫** | `globals.css` | ✅ 已实现 | `--color-mady-text-link: #5e5ce6`（L）/ `#6e6cf0`（D） |
+| 2 | **成功色用绿色而非品牌紫** | `globals.css` | ✅ 已实现 | `--color-mady-success: #5856d6`（L）/ `#4b4ac4`（D） |
+| 3 | **侧栏背景色缺失** | 新增 | ✅ 已实现 | `--color-mady-bg-sidebar` + `--color-mady-bg-sidebar-solid` + `--color-mady-bg-composer` |
+| 4 | **hover/active/overlay 背景缺失** | 新增 | ✅ 已实现 | `--color-mady-bg-hover` / `--color-mady-bg-active` / `--color-mady-bg-overlay` |
+| 5 | **全局过渡动画缺失 Token** | `globals.css` | ✅ 已实现 | duration×5（fast/normal/slow/slower/stream）+ easing×4（spring/bounce/decelerate/step） |
 
 ### P1：重要 — 影响视觉体验一致性
 
 | # | 差距 | 工作量 | 建议方案 |
 |---|------|--------|---------|
 | 6 | **中文字号/行高 Token 不完整** | 30min | 补充 `type/h1=20px`、`type/h2=16px`、`type/caption=11px` 等缺失字号 |
-| 7 | **圆角系统不完整** | 15min | 补充 `radius/xl=12px`、`radius/2xl=16px`、`radius/full=50%` |
-| 8 | **阴影系统不完整** | 20min | 补充 Elevation 1-4 级阴影（`shadow/card`, `shadow/modal`, `shadow/drag`） |
-| 9 | **布局 Token 未统一** | 20min | 补充 `--layout-statusbar-height: 40px`、`--layout-agent-width: 380px`、`--layout-settings-nav-width: 200px` |
+| 7 | **圆角系统不完整** | ✅ 已实现 | `--radius-xl=12px` / `--radius-2xl=16px` / `--radius-full=50%` |
+| 8 | **阴影系统不完整** | ✅ 已实现 | `--shadow-mady-card/floating/modal/drag` 四级 |
+| 9 | **布局 Token 未统一** | ✅ 已实现 | `--mady-statusbar-height: 40px`；Agent 面板宽度差异见上文 ⚠️ 说明（320 vs 380px，待视觉走查） |
 | 10 | **整体色温不统一** | 1-2h | 评估是否将 Light/Dark 模式底色从纯色改为规范的暖色调（#F5F2EE / #1C1A18） |
 
 ### P2：优化 — 提升体验
 
 | # | 差距 | 工作量 | 建议方案 |
 |---|------|--------|---------|
-| 11 | MCP/连接状态 Token 缺失 | 30min | 新增 8 个状态 Token（mcp-* / connection-*），引用语义色 |
-| 12 | 文字选择高亮色缺失 | 10min | 新增 `--selection-bg` |
-| 13 | 焦点环缺失 | 10min | 新增 `--focus-ring` |
+| 11 | MCP/连接状态 Token 缺失 | ✅ 已实现 | `--color-mady-mcp-starting/ready/failed/cancelled` + `--color-mady-connection-connected/connecting/disconnected` |
+| 12 | 文字选择高亮色缺失 | ✅ 已实现 | `--color-mady-selection-bg`（L 0.25 / D 0.30） |
+| 13 | 焦点环缺失 | ✅ 已实现 | `--focus-ring: 0 0 0 2px rgba(88,86,214,0.3)` |
 | 14 | 间距 Token 未映射到 Tailwind | 30min | 补充 `@theme` 中的 `--spacing-*` 或使用 Tailwind 的 `theme.extend.spacing` |
 
 ---

@@ -274,6 +274,10 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 // buildDesktopAgentConfig 为桌面端构造统一 Agent 配置。
 // 与 server 入口保持一致：启用 handoff/doomloop/gateway/guardrails/专业工具链，
 // 并对无交互场景默认拒绝危险工具（bash/process/execute_code/browser/computer_use）。
+//
+// 关键：装配会话持久化 Store（与 cmd/mady/server.go 相同模式）。
+// 无 Store 时 server.Chat 的 ensureThreadID 返回空 → agent 不入池即被
+// Close，SendAction 的池查找永远失败，A2UI 审批闭环在生产中失效。
 func buildDesktopAgentConfig(fc *bootstrap.Context) agentcore.Config {
 	cfg := domains.UnifiedAgentConfig(fc.BaseConfig, buildDesktopUnifiedToolExt(fc), buildDesktopPatentToolExt(fc), buildDesktopLegalToolExt(fc))
 	cfg.Extensions = append(cfg.Extensions,
@@ -284,6 +288,19 @@ func buildDesktopAgentConfig(fc *bootstrap.Context) agentcore.Config {
 	}
 	if fc.WikiHook != nil {
 		cfg.Lifecycle = agentcore.AppendLifecycle(cfg.Lifecycle, fc.WikiHook)
+	}
+	if cfg.Store == nil {
+		sessionDir, err := util.ResolveDataDir("sessions")
+		if err != nil {
+			log.Printf("[mady-desktop] resolve sessions dir: %v (continuing without persistence)", err)
+		} else {
+			fileStore, ferr := session.NewFileStore(sessionDir)
+			if ferr != nil {
+				log.Printf("[mady-desktop] session store: %v (continuing without persistence)", ferr)
+			} else {
+				cfg.Store = session.NewAgentStore(fileStore, fc.WorkspaceDir)
+			}
+		}
 	}
 	return cfg
 }

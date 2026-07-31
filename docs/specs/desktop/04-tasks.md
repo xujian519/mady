@@ -3,7 +3,7 @@
 - **功能名**：desktop
 - **Human Owner**：[NEEDS CLARIFICATION: 待指派]
 - **拆解日期**：2026-07-27
-- **状态**：阶段 1-3 待开工 | 阶段 4 预留
+- **状态**：阶段 1-3 已完成（2026-07-31 核对）| 阶段 4 预留
 - **依赖设计**：[03-design.md](./03-design.md)
 
 > 每个任务标注：**涉及文件范围**、**验收**、**风险等级**、**审查要求**。
@@ -17,6 +17,8 @@
 **阶段目标**：Wails 模块跑起来，内嵌 server，前端能收到 `agui:message-delta` 流式事件并显示。
 
 ### T1.1 — 初始化 `desktop/` Go 模块与 Wails 骨架
+
+**状态**：✅ 已完成 — go.mod + main.go + go.work 就绪（Wails v2.13.0，高于锁定 v2.12.x）
 
 - **文件**（新增，3 个）：
   - `desktop/go.mod`（module + replace 指向根模块 + Wails v2 依赖）
@@ -34,6 +36,8 @@
 
 ### T1.2 — 实现 `App` 结构体与生命周期
 
+**状态**：✅ 已完成 — app.go 实现 App 结构体、startup/shutdown（两阶段启动）
+
 - **文件**（新增，2 个）：
   - `desktop/app.go`（App struct + New + startup + shutdown）
   - `desktop/config.go`（配置加载，复用 `pkg/agentconfig`）
@@ -47,6 +51,8 @@
 - **关键约束**：**不修改** `cmd/mady/framework.go`，只消费 `pkg/framework` 导出函数；chat 事件源不是 `server.OnAll`
 
 ### T1.3 — 提取共享装配逻辑到 `pkg/framework`
+
+**状态**：🔄 已适配（偏离原方案） — pkg/framework 仅落地 DeferredInit；desktop 自建两阶段启动 buildDesktopAgentConfig，未按原方案提取 Setup(ctx, opts)；功能等价
 
 - **文件**（修改 + 新增，≤5 个）：
   - 新增 `pkg/framework/setup.go`（导出 `Setup(ctx, Options)`，返回 `BaseConfig`/`MadyHome`/可选 `Deferred`）
@@ -63,6 +69,8 @@
 
 ### T1.3b — `server` 包新增桌面端公开 API
 
+**状态**：✅ 已完成 — server/desktop.go 实现 Chat/Cancel/SendAction/ListThreads/GetThread/DeleteThread/Health
+
 - **文件**（新增 + 修改，2-3 个）：
   - 新增 `server/desktop.go`（`Server.Chat` / `Cancel` / `SendAction` / `ListThreads` / `GetThread` / `DeleteThread` / `Health`）
   - 修改 `server/chat.go`（可选：将 `handleStreamChat` 的核心逻辑抽取为内部可复用函数，供 `Server.Chat` 和 HTTP handler 共用）
@@ -78,6 +86,8 @@
 
 ### T1.4 — 初始化 React + Vite + Tailwind v4 前端骨架
 
+**状态**：✅ 已完成 — React 18 + Vite 5.4 + Tailwind v4.2 前端骨架（pnpm）
+
 - **文件**（新增，~8 个，均在前端目录）：
   - `desktop/frontend/package.json`（React 18 + Vite + Tailwind v4 + TS + shadcn + Motion + Zustand + TanStack Query）
   - `desktop/frontend/vite.config.ts`
@@ -92,6 +102,8 @@
 - **依赖**：T1.1（go:embed 路径）
 
 ### T1.5 — 实现 Chat 方法与 AGUI → Wails 事件透传
+
+**状态**：✅ 已完成 — App.Chat + AGUI→Wails 事件透传（mapAguiEventToWailsName 覆盖 24 种 EventType）
 
 - **文件**（修改 + 新增，4 个）：
   - `desktop/app.go`（新增 `Chat(req)` / `Cancel(runId)` / 事件映射 `mapAguiEventToWailsName` / `emitAguiEvents`）
@@ -113,6 +125,8 @@
 
 ### T1.6 — 会话/线程管理与健康检查方法
 
+**状态**：✅ 已完成 — ListThreads/GetThread/DeleteThread/Health 已实现并测试
+
 - **文件**（修改，2 个）：
   - `desktop/app.go`（新增 `ListThreads` / `GetThread` / `DeleteThread` / `Health` 方法，代理到 `server.Server.*`）
   - `desktop/frontend/src/stores/threads.ts`（Zustand store + TanStack Query 适配）
@@ -122,6 +136,8 @@
 
 ### T1.7 — Makefile 集成与冒烟测试
 
+**状态**：✅ 已完成 — Makefile 9 个 desktop 目标 + e2e_integration_test.go + app_test.go
+
 - **文件**（修改，2 个）：
   - `Makefile`（新增 `desktop-build` / `desktop-run` / `desktop-dev` / `desktop-test` 目标）
   - `desktop/app_test.go`（集成测试：mock provider → Chat → 收到 agui:done）
@@ -129,6 +145,8 @@
 - **风险**：低 | **审查**：L2
 
 ### T1.8 — 阶段 1 文档与 CHANGELOG
+
+**状态**：✅ 已完成 — README §Desktop 章节 + AI_CHANGELOG 多条记录
 
 - **文件**（修改，2 个）：
   - `README.md`（新增"桌面端"章节，开发/构建说明）
@@ -144,6 +162,8 @@
 
 ### T2.1 — SurfaceStore + CatalogRegistry（TS 版）
 
+**状态**：✅ 已完成 — store.ts + store.golden.test.ts（与 Go 端 1:1 对齐）
+
 - **文件**（新增，4 个）：
   - `desktop/frontend/src/a2ui-renderer/catalog.ts`（`CatalogRegistry` + `BasicCatalog` 定义，对齐 `a2ui/catalog.go`）
   - `desktop/frontend/src/a2ui-renderer/store.ts`（对齐 Go `a2ui.SurfaceStore`）
@@ -158,6 +178,8 @@
 
 ### T2.2 — 动态值解析（Dynamic + FunctionCall）
 
+**状态**：✅ 已完成 — dynamic.ts + dynamic.golden.test.ts
+
 - **文件**（新增，3 个）：
   - `desktop/frontend/src/a2ui-renderer/dynamic.ts`（Bind/FunctionCall 解析 + memoize；按 Go 端实际 wire 格式 `path`/`call` 解析）
   - `desktop/frontend/src/a2ui-renderer/functions/format.ts`（formatString/Number/Currency/Date/pluralize）
@@ -170,6 +192,8 @@
 - **风险**：低 | **审查**：L2（openUrl 安全拦截）
 
 ### T2.3 — P0 组件渲染（9 个核心组件）
+
+**状态**：✅ 已完成 — 18 个 A2UI 组件全覆盖（含 P0 集）
 
 - **文件**（新增，~12 个）：
   - `desktop/frontend/src/a2ui-renderer/registry.tsx`（ComponentType → ReactComponent 注册表）
@@ -189,6 +213,8 @@
 
 ### T2.4 — SendAction 回传闭环
 
+**状态**：✅ 已完成（2026-07-31 闭环） — A2UIPromise 入站 + A2UIOverlay 接线 + Playwright 闭环测试；发现并修复 TryGet 消费语义 bug（新增 Peek）
+
 - **文件**（修改 + 新增，3 个）：
   - `desktop/app.go`（`SendAction(surfaceId, action)` 方法 → 转发到 server）
   - `desktop/frontend/src/a2ui-renderer/components/Button.tsx`（点击 → `SendAction`）
@@ -198,12 +224,16 @@
 
 ### T2.5 — P1 组件渲染（5 个）
 
+**状态**：✅ 已完成 — P1 组件（含于 18 个）
+
 - **文件**（新增，5 个）：
   - `components/Image.tsx` / `components/Tabs.tsx`（shadcn Tabs）/ `components/Modal.tsx`（shadcn Dialog）/ `components/CheckBox.tsx`（shadcn Checkbox）/ `components/ChoicePicker.tsx`（shadcn RadioGroup/Select）
 - **验收**：snapshot 测试；交互测试
 - **风险**：低 | **审查**：L1
 
 ### T2.6 — P2 组件渲染（4 个）
+
+**状态**：✅ 已完成 — P2 组件（含于 18 个）
 
 - **文件**（新增，4 个）：
   - `components/Video.tsx` / `components/AudioPlayer.tsx` / `components/DateTimeInput.tsx`（shadcn Calendar+Popover）/ `components/Slider.tsx`（shadcn Slider）
@@ -212,12 +242,16 @@
 
 ### T2.7 — 开发期结构校验
 
+**状态**：✅ 已完成 — validate.ts + validate.golden.test.ts
+
 - **文件**（新增，1 个）：
   - `desktop/frontend/src/a2ui-renderer/validate.ts`（对齐 `a2ui.ValidateEnvelope` + `ValidateSurfaceTree`）
 - **验收**：dangling ref / cycle / 缺 root 检测；失败 console.error 不阻塞
 - **风险**：低 | **审查**：L1
 
 ### T2.8 — A2UI 渲染器端到端测试
+
+**状态**：✅ 已完成 — a2ui_e2e_test.go + e2e/a2ui.spec.ts（5 场景，chromium 全过）
 
 - **文件**（新增，2 个）：
   - `desktop/frontend/e2e/a2ui.spec.ts`（Playwright：注入 envelope → 截图对比）
@@ -233,6 +267,8 @@
 
 ### T3.1 — ChatView 主视图与消息流
 
+**状态**：✅ 已完成 — ChatView/Composer/MessageBubble/Sidebar/StatusBar
+
 - **文件**（新增，~6 个）：
   - `desktop/frontend/src/components/ChatView.tsx`（消息列表 + 输入框 + 流式）
   - `desktop/frontend/src/components/MessageBubble.tsx`（含 Motion token 淡入）
@@ -247,6 +283,8 @@
 
 ### T3.2 — ToolCard 工具调用卡片
 
+**状态**：✅ 已完成 — ToolCard.tsx + isHandoffTool 过滤测试
+
 - **文件**（新增，2 个）：
   - `desktop/frontend/src/components/ToolCard.tsx`（展开/收起 + 状态）
   - `desktop/frontend/src/components/ToolCard.test.tsx`
@@ -255,6 +293,8 @@
 - **风险**：中（契约）| **审查**：L3（涉 handoff 安全契约）
 
 ### T3.2b — ProjectTree 可读写项目树
+
+**状态**：✅ 已完成（删除提前实现） — ProjectTree 读写 + DeleteEntry（仅空目录/文件，非递归）+ 沙箱校验
 
 - **文件**（新增 + 修改，4 个）：
   - `desktop/frontend/src/components/ProjectTree.tsx`（文件树 + 新建/重命名交互）
@@ -273,6 +313,8 @@
 
 ### T3.3 — ApprovalCard 审批卡片
 
+**状态**：✅ 已完成 — ApprovalCard.tsx
+
 - **文件**（新增，2 个）：
   - `desktop/frontend/src/components/ApprovalCard.tsx`（批准/拒绝按钮 → SendAction）
   - `desktop/frontend/src/components/ApprovalCard.test.tsx`
@@ -280,6 +322,8 @@
 - **风险**：中 | **审查**：L2
 
 ### T3.4 — ConclusionCard + ConfidenceBar
+
+**状态**：✅ 已完成 — ConclusionCard.tsx + ConfidenceBar.tsx
 
 - **文件**（新增，3 个）：
   - `desktop/frontend/src/components/ConclusionCard.tsx`
@@ -290,6 +334,8 @@
 
 ### T3.5 — 主题层与深浅色模式
 
+**状态**：✅ 已完成 — theme/ 4 套主题包（professional/focus-blue/paper-warm/slate）
+
 - **文件**（新增 + 修改，3 个）：
   - `desktop/frontend/src/theme/tokens.ts`（design tokens，对齐 §02 §5.1）
   - `desktop/frontend/src/theme/provider.tsx`（ThemeProvider + 系统跟随）
@@ -299,6 +345,8 @@
 - **依赖**：Q1 已决策——主 accent 为 `systemIndigo`，橙色为品牌点缀色
 
 ### T3.6 — 设置面板与持久化
+
+**状态**：✅ 已完成 — SettingsPanel + app_settings.go（Provider 切换回滚）
 
 - **文件**（新增，2 个）：
   - `desktop/frontend/src/components/SettingsPanel.tsx`（主题/Provider 切换）
@@ -312,6 +360,8 @@
 
 ### T3.7 — macOS 打包（`.app` + `.dmg`）
 
+**状态**：🔄 部分完成 — .app 构建可用（wails build + desktop-dmg）；公证（Notarization）评估未开始（W3-T3）
+
 - **文件**（修改 + 新增，3 个）：
   - `Makefile`（新增 `desktop-dmg` 目标，调 `wails build -platform darwin/universal`）
   - `desktop/build/Info.plist`（Bundle ID / 应用名 / 权限声明）
@@ -323,6 +373,8 @@
 
 ### T3.8 — 阶段 3 集成测试 + 文档
 
+**状态**：✅ 已完成 — Go 3 个测试文件 + 前端 8 个单测 + 2 个 Playwright spec
+
 - **文件**（修改，2 个）：
   - `desktop/e2e_test.go`（端到端：启动 → chat → A2UI surface → 审批 → 关闭）
   - `README.md`（macOS 下载/安装说明）
@@ -330,6 +382,8 @@
 - **风险**：低 | **审查**：L2
 
 ### T3.9 — 知识库管理页面（`knowledge.html`）
+
+**状态**：✅ 已完成 — KnowledgeView.tsx + knowledge.go
 
 - **文件**（新增，2 个）：
   - `desktop/frontend/src/components/KnowledgeView.tsx`
@@ -344,6 +398,8 @@
 - **优先级**：P1（阶段 3 扩展，非 MVP 阻塞）
 
 ### T3.10 — 专利模板库页面（`templates.html`）
+
+**状态**：✅ 已完成 — TemplatesView.tsx + templates.go
 
 - **文件**（新增，2 个）：
   - `desktop/frontend/src/components/TemplatesView.tsx`
@@ -413,16 +469,18 @@ T3.6 ─▶ T3.7 ─▶ T3.8
 
 ## 验收检查清单（阶段合并）
 
+> 2026-07-31 核对：AC-1 至 AC-8 除 AC-6（公证）外均已完成并通过验证。
+
 | AC | 验收任务 | 状态 |
 |----|----------|------|
-| AC-1 | T1.5 / T1.7 | ☐ |
-| AC-2 | T1.5 / T2.3 | ☐ |
-| AC-3 | T2.3 / T2.8 | ☐ |
-| AC-4 | T2.3 / T2.8 | ☐ |
-| AC-5 | T2.4 / T3.3 | ☐ |
-| AC-6 | T3.7 | ☐ |
-| AC-7 | T2.8 / T3.8 | ☐ |
-| AC-8 | T3.1 / T3.2b / T3.9 / T3.10 | ☐ |
+| AC-1 | T1.5 / T1.7 | ✅ 事件透传 + Makefile 集成验证通过（a2ui_e2e_test.go + app_test.go） |
+| AC-2 | T1.5 / T2.3 | ✅ agui-bridge/reducer 订阅 + 18 组件渲染 |
+| AC-3 | T2.3 / T2.8 | ✅ a2ui_e2e_test.go 四信封链路 + Playwright 5 场景 |
+| AC-4 | T2.3 / T2.8 | ✅ golden 对照测试（datamodel/validate/store/dynamic） |
+| AC-5 | T2.4 / T3.3 | ✅ A2UIPromise 闭环 + 按钮点击 E2E（chromium 通过） |
+| AC-6 | T3.7 | ⚠️ .app 构建可用；公证未评估（W3-T3 排期） |
+| AC-7 | T2.8 / T3.8 | ✅ 3 Go 测试 + 8 前端单测 + 2 Playwright spec |
+| AC-8 | T3.1 / T3.2b / T3.9 / T3.10 | ✅ ChatView/ProjectTree/KnowledgeView/TemplatesView 全部实现 |
 
 ---
 

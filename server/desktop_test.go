@@ -2,43 +2,42 @@ package server
 
 import (
 	"context"
-	"sync"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/a2ui"
 	"github.com/xujian519/mady/agentcore"
 )
 
-// TestSendActionDeliversViaPromise verifies that SendAction delivers the
-// action to the agent's A2UIPromise, and that consumePendingA2UIActions
-// in runPreTurn picks it up and persists it as a user message.
+// TestSendActionDeliversViaPromise verifies the full production loop:
+// loadAgent auto-installs an A2UIPromise → SendAction delivers the action →
+// the next Chat turn's consumePendingA2UIActions consumes it and persists it
+// as a user message → the promise survives the pool round-trip.
 func TestSendActionDeliversViaPromise(t *testing.T) {
-	// Create a server with a simple provider that returns after one turn.
+	// Store is required: without it ensureThreadID returns "" and the
+	// agent never enters the pool (desktop wiring fixes this in
+	// buildDesktopAgentConfig; here memoryStore plays the same role).
 	srv := New(agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Model:    "test-model",
 			Provider: &historyProvider{},
 		},
+		Store: newMemoryStore(),
 	})
 	defer srv.Close()
 
 	// Run a chat to populate the pool with an agent entry for a thread.
 	ctx := context.Background()
-	var mu sync.Mutex
-	var events []agentcore.Event
 	_, err := srv.Chat(ctx, ChatRequest{
 		Message:  "hello",
 		ThreadID: "test-thread-1",
-	}, func(e agentcore.Event) {
-		mu.Lock()
-		events = append(events, e)
-		mu.Unlock()
-	})
+	}, func(agentcore.Event) {})
 	if err != nil {
 		t.Fatalf("Chat failed: %v", err)
 	}
 
-	// Get the pool entry to install an A2UIPromise.
+	// The pooled agent must carry the promise auto-installed by loadAgent.
 	srv.poolMu.Lock()
 	cached, ok := srv.agentPool.Load("test-thread-1")
 	srv.poolMu.Unlock()
@@ -46,10 +45,10 @@ func TestSendActionDeliversViaPromise(t *testing.T) {
 		t.Fatal("agent not found in pool after Chat")
 	}
 	entry := cached.(*poolEntry)
-
-	// Install a promise so we can observe delivery.
-	promise := agentcore.NewA2UIPromise()
-	entry.agent.SetA2UIPromise(promise)
+	promise := entry.agent.A2UIPromise()
+	if promise == nil {
+		t.Fatal("loadAgent did not auto-install an A2UIPromise on the pooled agent")
+	}
 
 	// SendAction — the action payload.
 	err = srv.SendAction("surface_test-thread-1", a2ui.NewClientAction("approve",
@@ -60,8 +59,9 @@ func TestSendActionDeliversViaPromise(t *testing.T) {
 		t.Fatalf("SendAction failed: %v", err)
 	}
 
-	// Verify the action reached the promise.
-	action := promise.TryGet()
+	// Verify the action reached the promise (Peek — not TryGet, which
+	// would mark it consumed before consumePendingA2UIActions runs).
+	action := promise.Peek()
 	if action == nil {
 		t.Fatal("SendAction did not deliver the action to the promise")
 	}
@@ -72,21 +72,29 @@ func TestSendActionDeliversViaPromise(t *testing.T) {
 		t.Fatalf("action.Context[\"reason\"] = %v, want %v", action.Context["reason"], "looks good")
 	}
 
-	// Now run a second Chat turn on the same thread.
-	// consumePendingA2UIActions in runPreTurn should pick up the action
-	// and persist it as a user message. The promise should now be consumed
-	// (TryGet returns nil).
+	// Second Chat on the same thread: loadAgent pool-hit → LoadState
+	// (succeeds because Store is set) → the SAME agent runs and
+	// consumePendingA2UIActions consumes the promise. This exercises the
+	// exact production ordering: action survives the pool round-trip.
 	_, err = srv.Chat(ctx, ChatRequest{
 		Message:  "continue",
 		ThreadID: "test-thread-1",
-	}, func(e agentcore.Event) {})
+	}, func(agentcore.Event) {})
 	if err != nil {
 		t.Fatalf("second Chat failed: %v", err)
 	}
 
-	// Verify the promise was consumed during the second Chat.
+	// The promise must be consumed after the second turn.
 	if leftover := promise.TryGet(); leftover != nil {
 		t.Fatal("promise still has an unconsumed action after the second Chat — consumePendingA2UIActions may not have run")
+	}
+
+	// Verify the action was persisted as a user message in the agent state.
+	messages := entry.agent.State().Messages()
+	if !slices.ContainsFunc(messages, func(m agentcore.Message) bool {
+		return m.Role == agentcore.RoleUser && strings.Contains(m.Content, "审批已通过")
+	}) {
+		t.Fatalf("agent messages do not contain the approval follow-up message; got %d messages", len(messages))
 	}
 }
 

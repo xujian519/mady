@@ -8,8 +8,8 @@
  * - 温度 Slider（0–2，step 0.1）
  *
  * 所有设置通过 settingsStore 持久化到 localStorage。
- * 模型列表当前为 mock 数据（后端尚无 model/list 端点），
- * 后端就绪后替换 fetchModels() 体内的 MOCK_MODELS 为 API 调用即可。
+ * 模型列表通过 listModels() 从后端动态获取（app.go ListModels →
+ * server.ListModels，agentconfig 聚合）；失败时回退占位模型。
  */
 
 import React, { useState, useRef, useEffect } from 'react'
@@ -75,6 +75,15 @@ export const ModelSettings: React.FC = () => {
         if (cancelled) return
         console.error('[ModelSettings] listModels failed:', err)
         _setError('无法加载模型列表')
+        // 失败时回退占位模型，保证下拉仍有可选条目
+        setModels([{
+          id: store.modelId || 'default',
+          name: store.modelId || '默认模型',
+          provider: 'local',
+          group: 'recommended',
+          capabilities: [],
+          reasoningLabel: '—',
+        }])
         _setLoading(false)
       })
     return () => { cancelled = true }
@@ -166,6 +175,11 @@ export const ModelSettings: React.FC = () => {
                   overflow-hidden
                 "
               >
+                {_error && (
+                  <div className="px-3 py-1.5 text-mady-caption text-mady-danger">
+                    {_error}（已回退默认模型）
+                  </div>
+                )}
                 {recommended.length > 0 && (
                   <div>
                     <div className="px-3 py-1.5 text-mady-caption font-medium text-mady-text-secondary tracking-wide uppercase">

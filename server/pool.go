@@ -60,6 +60,11 @@ func (s *Server) loadAgent(ctx context.Context, threadID string, callCfg *agentc
 	if err != nil {
 		return nil, err
 	}
+	// 安装 A2UIPromise：使 server.SendAction → agent.SetA2UIAction 的
+	// 桌面端交互闭环在生产路径生效。每个新 agent 都带独立 promise，
+	// 由 runPreTurn 的 consumePendingA2UIActions 消费。
+	// （此前仅测试手动安装，生产点击按钮 action 被静默丢弃。）
+	agent.SetA2UIPromise(agentcore.NewA2UIPromise())
 	return &poolEntry{agent: agent, refs: 1}, nil
 }
 
