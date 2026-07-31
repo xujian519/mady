@@ -25,6 +25,7 @@ import (
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/prompt"
 	"github.com/xujian519/mady/retrieval/domain"
+	rbrowser "github.com/xujian519/mady/retrieval/domain/browser"
 	rsqlite "github.com/xujian519/mady/retrieval/domain/sqlite"
 )
 
@@ -38,7 +39,11 @@ func InitReasoningAndTemplates(fc *Context) {
 	if fc.Provider != nil {
 		llmClient = reasoning.NewLlmClientFromProvider(fc.Provider, agentconfig.DefaultModel())
 	}
-	domains.SetupPatentDraftingEngine(retriever, llmClient)
+	runner := domains.SetupPatentDraftingEngine(retriever, llmClient)
+	// HCL replan 闭环：bridge 接入真实五步推理引擎（反馈 → 模板/KG/LLM 重规划）。
+	if fc.PlantaskBridge != nil {
+		fc.PlantaskBridge.SetRunner(runner)
+	}
 
 	var patentRetriever domain.DomainRetriever
 	if fc.KnowledgeBackend != nil {
@@ -52,6 +57,16 @@ func InitReasoningAndTemplates(fc *Context) {
 		slog.Debug("patent retriever disabled: KnowledgeBackend is nil")
 	}
 	domains.SetupPatentRetriever(patentRetriever)
+
+	// 在线专利数据库检索器（ego-browser 驱动，实时检索 Google Patents /
+	// CNIPA / Espacenet）。ego lite 未安装时工厂返回 nil 并被过滤，
+	// 不影响现有本地检索行为。
+	cfg := rbrowser.DefaultConfig()
+	domains.SetupBrowserPatentRetrievers([]domain.DomainRetriever{
+		rbrowser.NewGooglePatentsRetriever(*cfg),
+		rbrowser.NewCNIPARetriever(*cfg),
+		rbrowser.NewEspacenetRetriever(*cfg),
+	})
 
 	domains.SetupKnowledgeExtension(fc.KnowledgeExt)
 

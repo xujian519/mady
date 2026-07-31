@@ -105,6 +105,14 @@ type Gateway struct {
 	// Decision, when set, is invoked with each GatewayDecision for tracing.
 	Decision func(d GatewayDecision)
 
+	// OnHighComplexity, when set, is invoked with the run context and the
+	// current decision whenever the classification is ComplexityHigh.
+	// Used by plantask AutoEnterPlanning (03-design §1.3): the callback
+	// fires per model call; turn-based deduplication is the consumer's job.
+	// This field is the agentcore-side injection point (no import of
+	// bootstrap/domains), wired at assembly time.
+	OnHighComplexity func(arc *AgentRunContext, d GatewayDecision)
+
 	// mu guards lastDecision (written in BeforeModelCall, read via
 	// LastDecision). The agent model-call path is single-threaded per turn;
 	// the mutex only protects LastDecision() callers on other goroutines.
@@ -192,6 +200,9 @@ func (g *Gateway) BeforeModelCall(_ context.Context, arc *AgentRunContext, mcc *
 
 	if g.Decision != nil {
 		g.Decision(d)
+	}
+	if d.Complexity == ComplexityHigh && g.OnHighComplexity != nil {
+		g.OnHighComplexity(arc, d)
 	}
 	if d.Budget.State != BudgetOK && d.Budget.MaxContextTokens > 0 {
 		slog.Info("gateway: budget-aware decision",

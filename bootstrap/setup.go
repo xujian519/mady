@@ -19,6 +19,7 @@ import (
 	"github.com/xujian519/mady/agentcore/filecheckpoint"
 	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/agentcore/planmode"
+	"github.com/xujian519/mady/agentcore/plantask"
 	"github.com/xujian519/mady/agentcore/tasklist"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/doctmpl"
@@ -95,6 +96,8 @@ type Context struct {
 	GuardianExt       *guardian.GuardianExtension
 	EvidenceExt       *evidence.EvidenceExtension
 	FileCheckpointExt *filecheckpoint.FileCheckpointExtension
+	PlantaskExt       *plantask.Extension
+	PlantaskBridge    *PlantaskBridge
 	Deferred          *framework.DeferredInit
 }
 
@@ -476,6 +479,30 @@ func BuildBaseTools(fc *Context) {
 		taskDir = TasklistDirForCWD(taskDir, fc.BaseConfig.ProjectDir)
 		if taskExt, err := tasklist.NewExtension(taskDir); err == nil {
 			fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, taskExt)
+		}
+		// PlanTask HCL 扩展：会话 + 计划任务镜像存储，门控复用 PlanModeExt。
+		ptSessionsDir := filepath.Join(taskDir, "plantask", "sessions")
+		ptTasksDir := filepath.Join(taskDir, "plantask", "tasks")
+		if sessStore, sErr := plantask.NewFileStore(ptSessionsDir); sErr == nil {
+			if taskStore, tErr := tasklist.NewFileStore(ptTasksDir); tErr == nil {
+				expiry := plantask.DefaultExpirySettings()
+				bridge := NewPlantaskBridge(taskStore)
+				if ptExt, eErr := plantask.NewExtension(plantask.Config{
+					Store:         sessStore,
+					TaskStore:     taskStore,
+					Gate:          fc.PlanModeExt,
+					DefaultExpiry: &expiry,
+					Replanner:     bridge,
+					// 02-spec §N4：连续 2 轮 High 自动进入规划态。
+					AutoEnter: plantask.AutoEnterConfig{Rounds: 2},
+				}); eErr == nil {
+					fc.PlantaskExt = ptExt
+					fc.PlantaskBridge = bridge
+					fc.BaseConfig.Extensions = append(fc.BaseConfig.Extensions, ptExt)
+				} else {
+					slog.Warn("PlanTask 扩展初始化失败，跳过", "error", eErr)
+				}
+			}
 		}
 	}
 

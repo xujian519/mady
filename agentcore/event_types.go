@@ -529,3 +529,72 @@ func NewTaskUpdatedEvent(task *Task, oldStatus, newStatus string) *TaskUpdatedEv
 		NewStatus: newStatus,
 	}
 }
+
+// ===========================================================================
+// PlanTask HCL 事件（plantask 扩展发射，TUI/SSE 订阅）
+// ===========================================================================
+
+const (
+	// EventPlanTaskStatusChanged 在 HCL 会话状态迁移时触发。
+	EventPlanTaskStatusChanged EventType = "plantask_status_changed"
+	// EventPlanTaskFeedbackAdded 在用户反馈注入时触发。
+	EventPlanTaskFeedbackAdded EventType = "plantask_feedback_added"
+	// EventPlanTaskInterrupted 在执行中断时触发（复用 EventAgentInterrupt 语义的 HCL 层）。
+	EventPlanTaskInterrupted EventType = "plantask_interrupted"
+)
+
+// PlanTaskStatusChangedEvent 携带会话状态迁移信息。
+type PlanTaskStatusChangedEvent struct {
+	baseEvent
+	SessionID  string `json:"session_id"`
+	CaseID     string `json:"case_id"`
+	FromStatus string `json:"from_status"`
+	ToStatus   string `json:"to_status"`
+}
+
+// NewPlanTaskStatusChangedEvent 构造状态迁移事件。
+func NewPlanTaskStatusChangedEvent(sessionID, caseID, from, to string) *PlanTaskStatusChangedEvent {
+	return &PlanTaskStatusChangedEvent{
+		baseEvent:  newBase(EventPlanTaskStatusChanged),
+		SessionID:  sessionID,
+		CaseID:     caseID,
+		FromStatus: from,
+		ToStatus:   to,
+	}
+}
+
+// PlanTaskFeedbackAddedEvent 携带用户反馈信息。
+type PlanTaskFeedbackAddedEvent struct {
+	baseEvent
+	SessionID string `json:"session_id"`
+	Text      string `json:"text"`
+	StepID    string `json:"step_id"`
+}
+
+// NewPlanTaskFeedbackAddedEvent 构造反馈事件。
+func NewPlanTaskFeedbackAddedEvent(sessionID, text, stepID string) *PlanTaskFeedbackAddedEvent {
+	return &PlanTaskFeedbackAddedEvent{
+		baseEvent: newBase(EventPlanTaskFeedbackAdded),
+		SessionID: sessionID,
+		Text:      text,
+		StepID:    stepID,
+	}
+}
+
+// PlanTaskInterruptedEvent 携带中断上下文。
+type PlanTaskInterruptedEvent struct {
+	baseEvent
+	SessionID string `json:"session_id"`
+	StepID    string `json:"step_id"`
+	Reason    string `json:"reason"`
+}
+
+// NewPlanTaskInterruptedEvent 构造中断事件。
+func NewPlanTaskInterruptedEvent(sessionID, stepID, reason string) *PlanTaskInterruptedEvent {
+	return &PlanTaskInterruptedEvent{
+		baseEvent: newBase(EventPlanTaskInterrupted),
+		SessionID: sessionID,
+		StepID:    stepID,
+		Reason:    reason,
+	}
+}

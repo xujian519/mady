@@ -28,6 +28,7 @@ import (
 	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/psychological"
 	"github.com/xujian519/mady/retrieval/domain"
+	browserpkg "github.com/xujian519/mady/retrieval/domain/browser"
 )
 
 // globalDraftingRunner 是 FiveStepRunner 的全局实例，由 SetupPatentDraftingEngine
@@ -45,10 +46,11 @@ var globalDraftingRunner *reasoning.FiveStepRunner
 // retriever 和 llm 均可为 nil——retriever 为 nil 时 Stage ② 跳过；
 // llm 为 nil 时降级为 noop 节点（仅回显步骤描述，不做 LLM 分析）。
 // 必须在任何 Agent 创建前调用。
-func SetupPatentDraftingEngine(retriever *reasoning.MultiSourceRetriever, llm reasoning.LlmClient) {
+func SetupPatentDraftingEngine(retriever *reasoning.MultiSourceRetriever, llm reasoning.LlmClient) *reasoning.FiveStepRunner {
 	globalDraftingRunner = reasoning.NewWorkflowRunner(
 		"patent-agent", reasoning.CaseDrafting, "", retriever, llm,
 	)
+	return globalDraftingRunner
 }
 
 // injectDraftingTool 向 Agent 配置注册 run_five_step_workflow 工具。
@@ -171,6 +173,24 @@ func SetupPatentRetriever(r domain.DomainRetriever) {
 // GetPatentRetriever 返回已注入的全局专利检索器，供 CLI/Server 等入口复用。
 func GetPatentRetriever() domain.DomainRetriever {
 	return globalPatentRetriever
+}
+
+// globalBrowserPatentRetrievers 是在线专利数据库检索器列表（ego-browser 驱动：
+// Google Patents / CNIPA / Espacenet），由 SetupBrowserPatentRetrievers 注入。
+// 与 globalPatentRetriever（本地语料）互补，为 search 节点提供实时检索能力。
+var globalBrowserPatentRetrievers []domain.DomainRetriever
+
+// SetupBrowserPatentRetrievers 在启动期注入在线专利数据库检索器。
+// 检索器在 ego-browser 不可用时由工厂返回 nil 并被过滤；空列表等价于未注入。
+// 必须在任何 Agent 创建前调用。
+func SetupBrowserPatentRetrievers(retrievers []domain.DomainRetriever) {
+	kept := retrievers[:0]
+	for _, r := range retrievers {
+		if r != nil {
+			kept = append(kept, r)
+		}
+	}
+	globalBrowserPatentRetrievers = kept
 }
 
 // SetupDocTemplateStore 在启动期注入模板仓库实例，使 PatentAgentConfig 和
@@ -435,11 +455,23 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		slog.Warn("patent: infringement tool not available, skipping", "err", infErr)
 	}
 
+	// 组合检索器：本地语料 + 在线专利数据库（ego-browser 驱动）。
+	// browser 检索器在 ego-browser 不可用时为 nil 并被过滤，组合器退化为本地检索。
+	patentRetriever := globalPatentRetriever
+	if len(globalBrowserPatentRetrievers) > 0 {
+		merged := make([]domain.DomainRetriever, 0, len(globalBrowserPatentRetrievers)+1)
+		merged = append(merged, globalPatentRetriever)
+		merged = append(merged, globalBrowserPatentRetrievers...)
+		if composite := browserpkg.NewCompositeRetriever(merged...); composite != nil {
+			patentRetriever = composite
+		}
+	}
+
 	cfg.Tools = append(cfg.Tools, filterNilTools([]*agentcore.Tool{
-		patent.NewPatentNoveltyTool(patent.WithRetriever(globalPatentRetriever)),
+		patent.NewPatentNoveltyTool(patent.WithRetriever(patentRetriever)),
 		patent.NewOAResponseTool(patent.WithOAProvider(base.Provider)),
 		patent.NewDebateTool(),
-		patent.NewInvalidationTool(patent.WithInvRetriever(globalPatentRetriever)),
+		patent.NewInvalidationTool(patent.WithInvRetriever(patentRetriever)),
 		infTool,
 		patent.NewReexaminationTool(),
 		enablement.NewEnablementTool(enablement.WithProvider(base.Provider)),

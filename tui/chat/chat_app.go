@@ -347,6 +347,9 @@ func (a *ChatApp) Subscribe(sub EventSubscriber) {
 	sub.On(ChatEventApprovalPrompt, a.onApprovalPrompt)
 	sub.On(ChatEventTaskCreated, a.onTaskCreated)
 	sub.On(ChatEventTaskUpdated, a.onTaskUpdated)
+	sub.On(ChatEventPlanTaskStatusChanged, a.onPlanTaskStatusChanged)
+	sub.On(ChatEventPlanTaskFeedbackAdded, a.onPlanTaskFeedbackAdded)
+	sub.On(ChatEventPlanTaskInterrupted, a.onPlanTaskInterrupted)
 }
 
 // ---------------------------------------------------------------------------

@@ -32,7 +32,7 @@ func runAcp(ctx context.Context) error {
 	unifiedExt := buildUnifiedToolExt(fc)
 	patentExt := buildPatentToolExt(fc)
 	legalExt := buildLegalToolExt(fc)
-	cfg := domains.UnifiedAgentConfig(fc.BaseConfig, unifiedExt, patentExt, legalExt)
+	cfg := domains.UnifiedAgentConfig(fc.BaseConfig, unifiedExt, patentExt, legalExt, withPlantaskAutoEnter(fc))
 	// ACP 运行在无交互的编辑器环境中，危险工具默认拒绝。
 	cfg.Extensions = append(cfg.Extensions,
 		denyDangerousToolsExtension(),

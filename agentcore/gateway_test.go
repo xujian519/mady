@@ -368,3 +368,44 @@ func TestGateway_Decide_DoesNotMutateArcMessages(t *testing.T) {
 		t.Errorf("Decide mutated arc messages: %+v", arc.Messages)
 	}
 }
+
+// --- OnHighComplexity ---
+
+// TestGateway_OnHighComplexity_HighOnly 验证 High 分类触发回调、非 High 不触发。
+func TestGateway_OnHighComplexity_HighOnly(t *testing.T) {
+	cc := &countingClassifier{result: ComplexityHigh}
+	g := NewGateway(cc)
+	var calls int
+	var gotTurn int64
+	g.OnHighComplexity = func(arc *AgentRunContext, d GatewayDecision) {
+		calls++
+		gotTurn = d.Turn
+	}
+
+	mcc := &ModelCallContext{Request: &ProviderRequest{}}
+	arc := &AgentRunContext{Input: "分析权利要求", Turn: 7}
+	if err := g.BeforeModelCall(context.Background(), arc, mcc); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 || gotTurn != 7 {
+		t.Errorf("expected 1 callback with turn 7, got calls=%d turn=%d", calls, gotTurn)
+	}
+
+	// 非 High → 不触发。
+	cc.result = ComplexityLow
+	if err := g.BeforeModelCall(context.Background(), arc, mcc); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Errorf("callback must not fire on Low complexity, got %d calls", calls)
+	}
+}
+
+// TestGateway_OnHighComplexity_NilSafe 未设置回调时 High 分类不 panic。
+func TestGateway_OnHighComplexity_NilSafe(t *testing.T) {
+	g := NewGateway(&countingClassifier{result: ComplexityHigh})
+	mcc := &ModelCallContext{Request: &ProviderRequest{}}
+	if err := g.BeforeModelCall(context.Background(), &AgentRunContext{Input: "x"}, mcc); err != nil {
+		t.Fatal(err)
+	}
+}

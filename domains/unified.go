@@ -8,6 +8,19 @@ import (
 	"github.com/xujian519/mady/psychological"
 )
 
+// UnifiedAgentOption 是 UnifiedAgentConfig 的可选配置（向后兼容的 variadic 扩展）。
+type UnifiedAgentOption func(*unifiedAgentOptions)
+
+type unifiedAgentOptions struct {
+	gatewayModifier func(*agentcore.Gateway)
+}
+
+// WithGatewayModifier 允许装配层定制 Gateway（如挂接 plantask 的
+// OnHighComplexity 自动进入规划态回调；bootstrap 层注入）。
+func WithGatewayModifier(m func(*agentcore.Gateway)) UnifiedAgentOption {
+	return func(o *unifiedAgentOptions) { o.gatewayModifier = m }
+}
+
 // UnifiedAgentConfig 构建合并后的统一 Agent 配置。
 //
 // 融合了原 Chat Agent（对话/情感陪伴）、Assistant Agent（工具执行）
@@ -17,7 +30,11 @@ import (
 // toolExt 是调用方已装配好的工具扩展（含文件/网络/视觉等标准能力），
 // 通过被动注入模式传入，域层不再主动创建工具。
 // patentToolExt 和 legalToolExt 是 Handoff 子 Agent 的独立工具扩展。
-func UnifiedAgentConfig(base agentcore.Config, toolExt agentcore.Extension, patentToolExt agentcore.Extension, legalToolExt agentcore.Extension) agentcore.Config {
+func UnifiedAgentConfig(base agentcore.Config, toolExt agentcore.Extension, patentToolExt agentcore.Extension, legalToolExt agentcore.Extension, opts ...UnifiedAgentOption) agentcore.Config {
+	var o unifiedAgentOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	cfg := base
 	cfg.Name = "mady-agent"
 
@@ -61,6 +78,9 @@ func UnifiedAgentConfig(base agentcore.Config, toolExt agentcore.Extension, pate
 	// 接入契约：注册 Gateway 后不得再单独注册 ReasoningRouter /
 	// ReasoningStrategyRouter / FallbackRouter，否则会重复分类与重复健康计数。
 	gateway := newDefaultGateway(cfg)
+	if o.gatewayModifier != nil {
+		o.gatewayModifier(gateway)
+	}
 	cfg.FallbackRouter = gateway.Fallback // 供 callModelWithFallback 使用
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, gateway)
 

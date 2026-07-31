@@ -188,6 +188,43 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 			})
 		})
 	// SkillLoadedChatEvent mapping
+	case chat.ChatEventPlanTaskStatusChanged:
+		s.agent.On(agentcore.EventPlanTaskStatusChanged, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.PlanTaskStatusChangedEvent)
+			if !ok {
+				return
+			}
+			handler(chat.PlanTaskStatusChangedChatEvent{
+				SessionID:  ev.SessionID,
+				CaseID:     ev.CaseID,
+				FromStatus: ev.FromStatus,
+				ToStatus:   ev.ToStatus,
+			})
+		})
+	case chat.ChatEventPlanTaskFeedbackAdded:
+		s.agent.On(agentcore.EventPlanTaskFeedbackAdded, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.PlanTaskFeedbackAddedEvent)
+			if !ok {
+				return
+			}
+			handler(chat.PlanTaskFeedbackAddedChatEvent{
+				SessionID: ev.SessionID,
+				Text:      ev.Text,
+				StepID:    ev.StepID,
+			})
+		})
+	case chat.ChatEventPlanTaskInterrupted:
+		s.agent.On(agentcore.EventPlanTaskInterrupted, func(e agentcore.Event) {
+			ev, ok := e.(*agentcore.PlanTaskInterruptedEvent)
+			if !ok {
+				return
+			}
+			handler(chat.PlanTaskInterruptedChatEvent{
+				SessionID: ev.SessionID,
+				StepID:    ev.StepID,
+				Reason:    ev.Reason,
+			})
+		})
 	case chat.ChatEventSkillLoaded:
 		s.agent.On(agentcore.EventSkillLoaded, func(e agentcore.Event) {
 			ev, ok := e.(*agentcore.SkillLoadedEvent)

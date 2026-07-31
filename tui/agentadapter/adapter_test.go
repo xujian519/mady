@@ -141,3 +141,39 @@ func TestAdapterAgentErrorMapping(t *testing.T) {
 		t.Fatalf("unexpected AgentError event: %+v", got)
 	}
 }
+
+// --- PlanTask HCL 事件映射 ---
+
+// TestAdapterPlanTaskStatusMapping 验证 plantask 状态迁移事件映射到 Chat 层。
+func TestAdapterPlanTaskStatusMapping(t *testing.T) {
+	agent := newAgentWithBus()
+	sub := &mockSubscriber{}
+	BindAgent(sub, agent)
+
+	var got chat.PlanTaskStatusChangedChatEvent
+	sub.sub.On(chat.ChatEventPlanTaskStatusChanged, func(ce chat.ChatEvent) {
+		got = ce.(chat.PlanTaskStatusChangedChatEvent)
+	})
+
+	emitAndWait(t, agent, agentcore.NewPlanTaskStatusChangedEvent("s1", "case1", "planning", "awaiting_approval"))
+	if got.SessionID != "s1" || got.ToStatus != "awaiting_approval" {
+		t.Fatalf("unexpected status event: %+v", got)
+	}
+}
+
+// TestAdapterPlanTaskInterruptMapping 验证 plantask 中断事件映射到 Chat 层。
+func TestAdapterPlanTaskInterruptMapping(t *testing.T) {
+	agent := newAgentWithBus()
+	sub := &mockSubscriber{}
+	BindAgent(sub, agent)
+
+	var got chat.PlanTaskInterruptedChatEvent
+	sub.sub.On(chat.ChatEventPlanTaskInterrupted, func(ce chat.ChatEvent) {
+		got = ce.(chat.PlanTaskInterruptedChatEvent)
+	})
+
+	emitAndWait(t, agent, agentcore.NewPlanTaskInterruptedEvent("s1", "step_2", "用户请求暂停"))
+	if got.SessionID != "s1" || got.Reason != "用户请求暂停" {
+		t.Fatalf("unexpected interrupt event: %+v", got)
+	}
+}

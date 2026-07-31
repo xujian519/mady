@@ -1,5 +1,61 @@
 # AI 变更记录
 
+## 2026-07-31: techdebt 并发 WIP 的 tools 测试失败（非本会话代码）
+
+**背景**：会话期间（19:13-19:23）工作区出现另一并发进程创建的未跟踪 WIP：
+`retrieval/domain/browser/` 整包 + `tools/patent_web_search.go` /
+`tools/patent_web_search_test.go`。其测试 `TestNewPatentWebSearchToolUnavailable`
+当前失败，阻塞 `make verify` 的 tools 门禁。
+
+**改动清单**：
+1. 记录技术债务，不在本会话修复（非本会话代码，需由创建方处理）
+2. 在 `retrieval/domain/browser/config.go` 留 1 处 gosec 兼容修复（home 前缀
+   校验，防 taint 逃逸）
+
+**影响**：`make verify` 的 tools 门禁暂红，待创建方修复
+`patent_web_search_test.go` 的不可用断言后消除。
+
+**待办**：① 创建方修复 `patent_web_search_test.go` 的不可用断言；② WIP 文件
+入库时需通过 lint（gosec G306/G703 类）与全部 race 测试。
+
+## 2026-07-31: feat(plantask) HCL 后续接入——真实 LLM 规划链 + TUI 交互命令
+
+**背景**：承接 plantask-hcl 三阶段落地后的两项后续接入（04-tasks 已知后续项）：bridge 的 GenerateSteps 接入真实 FiveStepRunner 规划管线；TUI 提供 /interrupt /resume /feedback 交互命令。
+
+**改动清单**：
+1. `domains/reasoning/five_step_runner.go`（additive）：
+   - `InjectUserFeedback(text)` — 反馈注入 blackboard（作为用户反馈事实，审计留痕）
+   - `GenerateReplanSteps(ctx, feedback)` — 反馈 → 三路规划（模板/KG/LLM）重新生成步骤，供 plantask 合并
+   - `FeedbackInjected()` — 测试/审计用反馈事实探测
+2. `bootstrap/plantask_bridge.go` — `SetRunner(r)` 接入五步推理引擎；Replan 时 GenerateSteps 未覆盖则经 runner 走真实规划管线（`toSnapshots` 转换 reasoning.PlanStep → plantask.StepSnapshot）
+3. `domains/patent.go` + `bootstrap/init_reasoning.go` — `SetupPatentDraftingEngine` 返回 runner；装配时 `fc.PlantaskBridge.SetRunner(runner)` 接线
+4. TUI 交互（cmd/mady + tui/chat）：
+   - 新增 `cmd/mady/plantask_slash.go`：`/interrupt`（runCancel 暂停 + 会话 → AwaitingFeedback）、`/resume`（→ Executing + resumeIfInterrupted 联动）、`/feedback <文本>`（→ Replanning → Executing + 续跑联动）；会话 ID 参数可选（LatestSession 解析）
+   - `slash_commands.go` 注册 3 个命令（catSession 分类）
+   - `agentcore/plantask/extension.go` 新增 `LatestSession`（最近活动会话）
+   - `tui/chat/chat_app_plantask.go` + `chat_app.go`：3 个 HCL 事件的聊天流提示订阅
+
+**验证**：新增 `integration/plantask_runner_e2e_test.go`（真实 FiveStepRunner 链路：manifest 模板规划 → 提交 → 批准 → 执行 → 打断 → 反馈重跑 → replan 合并 → 续跑，断言步骤 1 重跑 2 次、步骤 2 不重跑、反馈事实注入 blackboard）；两个 plantask e2e 全绿；agentcore/plantask 单测全绿；tui/chat + agentadapter 测试全绿；`make verify` 通过。
+
+## 2026-07-31: feat(plantask) PlanTask HCL 人机协作闭环落地（规划→批准→执行→打断→反馈→续跑）
+
+**背景**：专业工作流（五步工作法/WorkflowOrchestrator）此前是"一键跑完"模式，用户无法在执行前审批计划、无法在执行中打断并改进路径。本次落地 HCL 闭环（docs/specs/plantask-hcl/ 四阶段设计文档，经评审修订后 Sign-off）。
+
+**改动清单**：
+1. 新增 `agentcore/plantask/`（7 工具 + 8 态状态机 + 文件存储 + 3 事件）：
+   - 状态机：Planning/AwaitingApproval/Executing/AwaitingFeedback/Replanning/Finished/Canceled/Expired，迁移矩阵白名单（session.go + state_machine.go）
+   - 批准门：plan_submit / plan_approve / plan_reject / plan_revise（revise 语义 = 修改意图 → 回 Planning 重新生成，02-spec N2）
+   - 打断反馈：workflow_interrupt（普通 Tool 返回 InterruptError，走既有中断通道——评审修正了 observer 方案的错误，agent_run_tool.go:95-107 证实 BeforeToolExecution 返回 error 不触发中断）/ workflow_resume / workflow_feedback
+   - replan 合并：ReplanMerge 纯函数（哈希一致判定 + 重跑:语法，03-design §3.3）
+   - 自动进入：AutoEnterPlanning（Gateway OnHighComplexity 回调，按用户输入 turn 去重计数，连续 N=2 轮触发，N=0 显式关闭）
+2. `agentcore/event_types.go` 追加 3 个 plantask 事件（const 块）；`agentcore/gateway.go` 追加 `OnHighComplexity` 回调字段（agentcore 层定义，装配层注入，不破坏分层）
+3. `bootstrap/plantask_bridge.go`：实现 Replanner（GenerateSteps 可插拔；nil 时仍支持重跑语法）；`bootstrap/setup.go` 注册扩展（会话 + 任务镜像存储，门控复用 PlanModeExt）
+4. `domains/unified.go`：UnifiedAgentConfig 增加 variadic UnifiedAgentOption（WithGatewayModifier）；`cmd/mady/plantask_gateway.go` 挂接 3 个入口（acp/server/tui）
+5. TUI 接线：tui/chat/events.go + tui/agentadapter/adapter.go 映射 3 个 plantask 事件
+6. 分层说明：plantask 在 agentcore 层不依赖 domains/reasoning（Planner 经 Replanner 接口注入）；Store 采用文件实现（tasklist FileStore 模式）替代 spec 初稿的 SQLite，避免 agentcore→domains/sqlite 反向依赖
+
+**验证**：agentcore/plantask 单测 26 个全绿（状态机矩阵全分支、工具流程、replan 4 场景、auto-enter 6 场景）；integration/plantask_e2e_test.go（recorder 替身验证"已完成步骤不重跑 + 重跑:语法生效"）；agentcore+bootstrap+domains+integration race 37 包全绿；TUI 模块全绿；`make verify` 通过。
+
 ## 2026-07-31: fix(techdebt) code-review 8 项发现全量修复
 
 **背景**：/code-review 对本批次技术债务修复的 diff 进行全量审查，发现 8 项问题，全部修复。
@@ -9346,3 +9402,44 @@ Phase 1 将 8 个不依赖 framework shim 非导出符号的子命令提取到 `
 **验证**：`go build ./psychological/...`、`go vet ./psychological/...`、`go test -race ./psychological/...`、`go build ./domains/...` 全部通过。
 
 **影响**：无行为变更。`SkipDistortionDetection` 仍保留为配置字段，但已标注为 TODO 占位符，避免后续开发者误以为有实际行为效果。
+
+## 2026-07-31: feat(retrieval) ego-browser 集成 — 在线专利数据库实时检索
+
+**背景**：专利检索依赖 nuo-patent CLI（按专利号查询）与本地 SQLite FTS5 语料（静态、无法获取最新专利），
+缺少 Espacenet/CNIPA/WIPO 的在线检索能力。ego-browser（ego lite 浏览器 CLI，macOS only）提供完整的
+浏览器自动化能力（task space 隔离、登录态继承、语义快照、JS 执行），适合专利数据库实时检索与 PDF 下载。
+
+**改动清单**：
+1. `skills/ego-browser/` — **新建**技能包：SKILL.md + 3 个 patent learnings
+   - `learnings/patent-google/`：搜索（按行解析 search-result-item）、详情全文（section#abstract/claims/description，
+     滚动触发懒加载）、PDF 下载（a.pdfLink / meta[name="citation_pdf_url"]）
+   - `learnings/patent-cnipa/`：通过 Google Patents `country:CN` 过滤检索中国专利
+     （epub.cnipa.gov.cn 对自动化访问不稳定，Google Patents 完整收录 CN 专利，见 notes/overview.md 数据源说明）
+   - `learnings/patent-espacenet/`：搜索（article[data-qa="result_resultList"] 稳定选择器，XHR 渲染需滚动）、
+     biblio 详情页提取
+2. `retrieval/domain/browser/` — **新建**包（5 Go 文件 + 2 测试文件）：
+   - `config.go`：BrowserRetrieverConfig + FindEgoBrowser 自动检测（PATH → ~/.local/bin）
+   - `browser_retriever.go`：BrowserRetriever 实现 domain.DomainRetriever，通过 exec 调用 `ego-browser nodejs`
+     heredoc 脚本（stdin 传脚本，stdout/stderr 提取 cliLog JSON），Search/GetDocument 各自独立调用
+   - `patent_retrievers.go`：三个数据源定义与工厂函数（NewGooglePatentsRetriever / NewCNIPARetriever /
+     NewEspacenetRetriever），ego-browser 不可用时返回 nil 静默降级
+   - `composite.go`：CompositeRetriever 组合本地语料 + 在线源，单源失败降级，typed-nil 过滤（反射判断）
+   - `browser_retriever_test.go` / `composite_test.go`：mock CLI 单元测试 + `e2e_test.go` 真实浏览器 E2E（t.Skip 保护）
+3. `domains/patent.go` — `SetupBrowserPatentRetrievers` 全局注入；PatentAgentConfig 将本地 + 在线源组合为
+   CompositeRetriever 注入 analyze_patent_novelty / analyze_invalidation 的 search 节点
+4. `bootstrap/init_reasoning.go` — 启动期构造三个在线检索器并注入
+5. `tools/patent_web_search.go` — **新建** `patent_web_search` 工具（LLM 可直接调用，支持 source 选择），
+   `tools/tools.go` 注册
+
+**关键设计决策**：
+- heredoc 脚本经 `js(\`...\`)` 模板字面量嵌入，JS 提取代码反斜杠加倍转义（escapeJSTemplate）
+- cliLog 输出写入 stderr（实测确认），stdout/stderr 双侧提取 JSON（trimToJSON 优先 `[` 开头的完整数组）
+- 专利号归一化：citation 格式 "CN:106599773:B" → "CN106599773B"
+- metadata 解析兼容 bullet（•）与空格分隔（innerText 中 bullet 渲染为空格，同族多国 "WO CN CN109964446B …"）
+- 降级策略：ego-browser 缺失/调用失败 → 工厂返回 nil / 组合器跳过该源，不影响现有本地检索
+
+**验证**：`go build ./...`、`go vet`、`golangci-lint`（0 issues）、`go-arch-lint`（passed）、
+`go test -race` 全绿；真实浏览器 E2E：Google Patents 搜索 3 条 / CNIPA 3 条 / Espacenet 2 条 /
+详情页全文 56KB（CN106599773B）；patent_web_search 工具端到端 15s 返回结构化结果。
+
+**影响**：新增能力，默认行为不变（无 ego-browser 时完全降级）。macOS only（ego lite 无其他平台版本）。

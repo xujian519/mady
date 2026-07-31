@@ -278,6 +278,38 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Handler:  func(ctx slashCtx) { s.handleEvidenceDomainCommand(parseSlashSubcommand(ctx.input, "evidence-domain")) },
 	})
 
+	// --- PlanTask HCL 人机协作命令（规划→批准→执行→反馈闭环） ---
+	r.Register(SlashCommand{
+		Name:     "interrupt",
+		Category: catSession,
+		Desc:     "请求暂停当前执行（HCL 人机协作）",
+		Usage:    "/interrupt [session_id]",
+		Examples: []string{"/interrupt"},
+		Risk:     riskNone,
+		Match:    exactMatch("interrupt"),
+		Handler:  func(ctx slashCtx) { s.handlePlantaskInterrupt(ctx.input) },
+	})
+	r.Register(SlashCommand{
+		Name:     "resume",
+		Category: catSession,
+		Desc:     "无改动恢复已暂停的执行",
+		Usage:    "/resume [session_id]",
+		Examples: []string{"/resume"},
+		Risk:     riskNone,
+		Match:    exactMatch("resume"),
+		Handler:  func(ctx slashCtx) { s.handlePlantaskResume(ctx.input) },
+	})
+	r.Register(SlashCommand{
+		Name:     "feedback",
+		Category: catSession,
+		Desc:     "注入反馈并重新规划执行路径",
+		Usage:    "/feedback <改进意见> [session_id]",
+		Examples: []string{"/feedback 检索范围应含美国同族"},
+		Risk:     riskNone,
+		Match:    prefixMatch("feedback"),
+		Handler:  func(ctx slashCtx) { s.handlePlantaskFeedback(ctx.input) },
+	})
+
 	r.Register(SlashCommand{
 		Name:      catMode,
 		Category:  catGeneral,

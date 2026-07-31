@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -188,6 +189,48 @@ func (r *FiveStepRunner) seedBlackboard(input string) {
 		CollectorID: CollectorUserInput,
 		Category:    FactCategoryTechnical,
 	})
+}
+
+// InjectUserFeedback 将用户反馈作为事实注入 blackboard（HCL replan 闭环）。
+// 反馈作为新事实参与后续规划/检索，审计留痕于 blackboard 事实列表。
+func (r *FiveStepRunner) InjectUserFeedback(text string) {
+	content := "用户反馈: " + text
+	r.bb.AddFact(FactEntry{
+		ID:          fmt.Sprintf("fact_%s_feedback_%d", r.bb.CaseID, time.Now().UnixNano()),
+		Source:      string(CollectorUserInput),
+		Content:     content,
+		Confidence:  1.0,
+		ExtractedAt: nowISO(),
+		CollectorID: CollectorUserInput,
+		Category:    FactCategoryTechnical,
+	})
+}
+
+// FeedbackInjected 报告 blackboard 中是否存在用户反馈事实（测试/审计用）。
+func (r *FiveStepRunner) FeedbackInjected() bool {
+	for _, f := range r.bb.ActiveFacts() {
+		if strings.HasPrefix(f.Content, "用户反馈: ") {
+			return true
+		}
+	}
+	return false
+}
+
+// GenerateReplanSteps 根据反馈重新生成 Plan 并返回新步骤（HCL replan 用，
+// 03-design §3.3 步骤 4）。反馈先注入 blackboard，再走与正常规划相同的
+// 三路管线（模板 / KG 拓扑 / LLM）。不修改执行状态，仅产出新步骤
+// 供 plantask 合并（ReplanMerge）。
+func (r *FiveStepRunner) GenerateReplanSteps(ctx context.Context, feedback string) ([]PlanStep, error) {
+	if feedback != "" {
+		r.InjectUserFeedback(feedback)
+	}
+	intent := detectPlanIntent(r.bb)
+	plan, err := r.planner.GeneratePlan(ctx, r.bb, intent)
+	if err != nil {
+		return nil, fmt.Errorf("replan: generate plan: %w", err)
+	}
+	r.bb.SetPlanV2(*plan)
+	return plan.Steps, nil
 }
 
 // passThroughCheck creates a minimal pass-through CheckReport.

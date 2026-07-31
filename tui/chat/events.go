@@ -38,31 +38,37 @@ const (
 	ChatEventSkillLoaded
 	ChatEventSkillsReloaded
 	ChatEventA2UI
+	ChatEventPlanTaskStatusChanged
+	ChatEventPlanTaskFeedbackAdded
+	ChatEventPlanTaskInterrupted
 )
 
 // chatEventTypeNames maps ChatEventType to descriptive strings for
 // debugging and formatted output (e.g. test %q, log %v).
 var chatEventTypeNames = map[ChatEventType]string{
-	ChatEventAgentStart:      "agent_start",
-	ChatEventAgentEnd:        "agent_end",
-	ChatEventAgentError:      "agent_error",
-	ChatEventTurnStart:       "turn_start",
-	ChatEventTurnEnd:         "turn_end",
-	ChatEventMessageDelta:    "message_delta",
-	ChatEventToolCallStart:   "tool_call_start",
-	ChatEventToolCallEnd:     "tool_call_end",
-	ChatEventHandoffStart:    "handoff_start",
-	ChatEventHandoffEnd:      "handoff_end",
-	ChatEventCompactionStart: "compaction_start",
-	ChatEventCompactionEnd:   "compaction_end",
-	ChatEventAutoRetry:       "auto_retry",
-	ChatEventAgentInterrupt:  "agent_interrupt",
-	ChatEventApprovalPrompt:  "approval_prompt",
-	ChatEventTaskCreated:     "task_created",
-	ChatEventTaskUpdated:     "task_updated",
-	ChatEventSkillLoaded:     "skill_loaded",
-	ChatEventSkillsReloaded:  "skills_reloaded",
-	ChatEventA2UI:            "a2ui",
+	ChatEventAgentStart:            "agent_start",
+	ChatEventAgentEnd:              "agent_end",
+	ChatEventAgentError:            "agent_error",
+	ChatEventTurnStart:             "turn_start",
+	ChatEventTurnEnd:               "turn_end",
+	ChatEventMessageDelta:          "message_delta",
+	ChatEventToolCallStart:         "tool_call_start",
+	ChatEventToolCallEnd:           "tool_call_end",
+	ChatEventHandoffStart:          "handoff_start",
+	ChatEventHandoffEnd:            "handoff_end",
+	ChatEventCompactionStart:       "compaction_start",
+	ChatEventCompactionEnd:         "compaction_end",
+	ChatEventAutoRetry:             "auto_retry",
+	ChatEventAgentInterrupt:        "agent_interrupt",
+	ChatEventApprovalPrompt:        "approval_prompt",
+	ChatEventTaskCreated:           "task_created",
+	ChatEventTaskUpdated:           "task_updated",
+	ChatEventSkillLoaded:           "skill_loaded",
+	ChatEventSkillsReloaded:        "skills_reloaded",
+	ChatEventA2UI:                  "a2ui",
+	ChatEventPlanTaskStatusChanged: "plantask_status_changed",
+	ChatEventPlanTaskFeedbackAdded: "plantask_feedback_added",
+	ChatEventPlanTaskInterrupted:   "plantask_interrupted",
 }
 
 func (t ChatEventType) String() string {
@@ -294,3 +300,37 @@ type A2UIChatEvent struct {
 }
 
 func (A2UIChatEvent) ChatEventKind() ChatEventType { return ChatEventA2UI }
+
+// PlanTaskStatusChangedChatEvent 在 HCL 会话状态迁移时触发。
+type PlanTaskStatusChangedChatEvent struct {
+	SessionID  string
+	CaseID     string
+	FromStatus string
+	ToStatus   string
+}
+
+func (PlanTaskStatusChangedChatEvent) ChatEventKind() ChatEventType {
+	return ChatEventPlanTaskStatusChanged
+}
+
+// PlanTaskFeedbackAddedChatEvent 在用户反馈注入时触发。
+type PlanTaskFeedbackAddedChatEvent struct {
+	SessionID string
+	Text      string
+	StepID    string
+}
+
+func (PlanTaskFeedbackAddedChatEvent) ChatEventKind() ChatEventType {
+	return ChatEventPlanTaskFeedbackAdded
+}
+
+// PlanTaskInterruptedChatEvent 在执行中断时触发。
+type PlanTaskInterruptedChatEvent struct {
+	SessionID string
+	StepID    string
+	Reason    string
+}
+
+func (PlanTaskInterruptedChatEvent) ChatEventKind() ChatEventType {
+	return ChatEventPlanTaskInterrupted
+}
