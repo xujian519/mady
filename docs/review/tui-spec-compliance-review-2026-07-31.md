@@ -455,6 +455,20 @@ mady-dark（默认）, mady-light, tokyo-night, rose-pine-moon, grok-night, high
 | P3-3 Unicode 范围补充 | ✅ | `isHeadingDecorationRune` 补 Ornamental Dingbats（1F650-1F67F）+ Geometric Shapes Extended（1F780-1F7FF）+ 2 测试用例 |
 | P3-4 敏感路径复核 | ⬜ | 用户决策不执行（规范 §12.3 保留 `editor_killring.go` 条目） |
 
+### 审阅复核（2026-07-31，三路 code-review，commit 3b000b1）
+
+| 来源 | 发现 | 处理 |
+|------|------|------|
+| 源文件审阅 | skill_center `"esc"` 键名同批漏改（Esc 关不掉技能中心） | ✅ 修复 |
+| 源文件审阅 | NonModal 鼠标广播发 overlay 局部坐标（污染背景命中测试） | ✅ 修复（屏幕坐标广播 + 回归测试） |
+| 源文件审阅 | 快路径组内 patch 丢消息（`chat_history_render.go`，既有 bug） | ⬜ 记录，改动面大，另行处理 |
+| 测试审阅 | 三处过时"不可测"注释（描述的 bug 已修复） | ✅ 删注释 + 补真回归测试（open 路径/多字节 backspace/unknown-id） |
+| 测试审阅 | text_extra 逻辑死亡断言 | ✅ 修正 |
+| 测试审阅 | SetUserBindings 掩盖键名修复 | ✅ 移除（默认绑定即验证） |
+| 测试审阅 | colorresolve 环境变量清理不完整（iTerm2/VS Code 环境确定性失败） | ✅ 补全 40+ 键 + Unsetenv 语义 |
+| 测试审阅 | StartConfirm 10s 定时器泄漏 | ✅ 短超时 |
+| 文档审阅 | 计数/行数/标题/帧率/SpinnerLine/AI_CHANGELOG 引用（6 P1 + 9 P2） | ✅ 全部修正（行数声称删除） |
+
 ---
 
 > 本报告受 TUI 架构演进驱动，文档同步后需更新"最新同步"日期。
