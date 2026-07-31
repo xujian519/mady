@@ -212,26 +212,43 @@ func TestProcessToolFileOutput(t *testing.T) {
 		"action":  "spawn",
 		"command": "echo file_content > " + outputFile,
 	})
-	_, err := tool.Func(context.Background(), args)
+	result, err := tool.Func(context.Background(), args)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	tr := result.(ToolResult)
+	content := tr.Content
 
-	// Wait for output file to be created by polling.
+	// Extract process ID from spawn result.
+	start := strings.Index(content, "proc-")
+	if start == -1 {
+		t.Fatalf("expected process ID in output: %s", content)
+	}
+	end := strings.Index(content[start:], " ")
+	if end == -1 {
+		end = len(content) - start
+	}
+	procID := content[start : start+end]
+
+	// Wait for the process to complete before reading the file,
+	// so the shell has finished writing all output to the file.
 	deadline := time.After(2 * time.Second)
 	for {
-		if _, err := os.Stat(outputFile); err == nil {
-			break
+		if entry, ok := registry.Get(procID); ok {
+			status, _, _ := ops.Poll(entry)
+			if status != "running" {
+				break
+			}
 		}
 		select {
 		case <-deadline:
-			t.Fatal("output file was not created within timeout")
+			t.Fatal("process did not complete within timeout")
 		default:
 		}
 		runtime.Gosched()
 	}
 
-	// Verify file was created.
+	// Verify file was created with content.
 	data, err := os.ReadFile(outputFile)
 	if err != nil {
 		t.Fatalf("expected output file to exist: %v", err)
