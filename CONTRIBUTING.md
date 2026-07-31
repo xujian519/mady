@@ -217,7 +217,7 @@ chore: 更新 Go 依赖版本
 
 ## AI 变更日志
 
-`docs/decisions/AI_CHANGELOG.md` 记录 AI 协助开发过程中的关键决策。
+`docs/decisions/ai-changelog/` 目录记录 AI 协助开发过程中的关键决策（JSON 索引 + 日期文件）。
 每个 AI 参与的功能变更必须在对应版本下追加记录，格式如下：
 
 ```

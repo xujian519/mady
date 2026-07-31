@@ -104,8 +104,17 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 
 ## 变更即记录
 
-任何完成的功能改动，必须同步在 `docs/decisions/AI_CHANGELOG.md` 追加一条记录
-（格式见该文件头部），不允许"写完代码就走人"
+任何完成的功能改动，必须同步追加到 `docs/decisions/ai-changelog/`：
+- AI 智能体先读 `docs/decisions/ai-changelog/INDEX.json` 获取结构化索引（日期/类型/范围/标题）
+- 新增条目通过脚本追加（不要手写 Markdown）：
+  ```bash
+  go run scripts/changelog/main.go \
+    --type=feat|fix|refactor|docs|test|chore|style|perf \
+    --scope=<模块名> \
+    --title="变更标题" \
+    --body="详细内容（背景/改动清单/验证/影响）"
+  ```
+- 不允许"写完代码就走人"
 
 ## 安全敏感路径
 
@@ -144,4 +153,4 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 - `docs/chat-assistant-architecture.md` — Chat/Assistant 架构决策
 - `docs/data-privacy-standards.md` — 数据处理与隐私规范
 - `docs/developer-quickstart.md` — 开发者门禁速查表
-- `docs/decisions/AI_CHANGELOG.md` — AI 决策变更日志
+- `docs/decisions/ai-changelog/INDEX.json` — AI 决策变更日志索引（结构化，面向 AI 智能体）

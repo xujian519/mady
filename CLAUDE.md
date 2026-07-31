@@ -201,7 +201,7 @@ mady-agent (UnifiedAgentConfig)
 
 > 历史说明：v0.3.0 曾用 `IntegratedChatConfig` + `MADY_ROUTER_MODE` / `MADY_SINGLE_AGENT`
 > 环境变量切换三种模式。v0.4.0 起这些已被删除，统一为 `UnifiedAgentConfig` 单一路径
-> （见 `docs/decisions/AI_CHANGELOG.md` 2026-07-23「Agent 三合一」章节，第 3814 行起）。
+> （见 `docs/decisions/ai-changelog/archive-AI_CHANGELOG.md` 2026-07-23「Agent 三合一」章节，第 3814 行起）。
 
 **核心组件：**
 
@@ -243,7 +243,7 @@ mady-agent (UnifiedAgentConfig)
 本项目遵循 [AGENTS.md](AGENTS.md) 定义的人机协助开发规范。AI 参与开发时请注意：
 
 1. **AGENTS.md** — 跨平台 AI 指令标准，非 Claude 的 AI 助手读取此文件
-2. **AI_CHANGELOG.md** — 每次 AI 参与的功能变更须在 `docs/decisions/AI_CHANGELOG.md` 记录决策
+2. **AI_CHANGELOG** — 每次 AI 参与的功能变更须通过脚本追加到 `docs/decisions/ai-changelog/`（先读 `INDEX.json`，再用 `scripts/changelog/main.go` 追加）
 3. **敏感路径** — 编辑 `agentcore/handoff.go`、`guardrails/levels.go`、`tools/bash.go` 等
    涉及安全红线的文件后，`scripts/check-sensitive-paths.sh` 和 CI 将自动标记
 4. **Spec-Driven** — 新功能按 proposal → spec → design → tasks 四阶段文档进行（详见 `docs/specs/`）

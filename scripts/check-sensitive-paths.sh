@@ -168,7 +168,7 @@ if [ "$HAS_SENSITIVE_CHANGES" = true ] && [ "$HAS_AI_COAUTHOR" = true ]; then
   echo "    请完成以下步骤后重新提交："
   echo "    1. 在 PR 描述中勾选 '涉红线变更'"
   echo "    2. 至少一位人类维护者完成代码审查"
-  echo "    3. 在 AI_CHANGELOG.md 中记录本次变更决策"
+  echo "    3. 在 docs/decisions/ai-changelog/ 中记录本次变更决策（go run scripts/changelog/main.go）"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   exit 1
 fi
