@@ -549,6 +549,109 @@ func TestChatHistoryAppendDeltaKeepsLegitSuffixIncrement(t *testing.T) {
 	}
 }
 
+// TestChatHistoryAppendDeltaWithKindRoutesThinkingToSegments verifies that
+// a "thinking" delta is appended to ThinkingSegments, never to the visible
+// Text. This is the regression guard for the DeepSeek v4 text-garbling bug:
+// onMessageDelta previously dropped the Kind field, so reasoning_content
+// chunks were concatenated into m.Text, scrambling word order.
+func TestChatHistoryAppendDeltaWithKindRoutesThinkingToSegments(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDeltaWithKind("", "可见正文", "text")
+	h.AppendDeltaWithKind(id, "内部思考过程", "thinking")
+	h.AppendDeltaWithKind(id, "更多正文", "text")
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "可见正文更多正文"; got != want {
+		t.Fatalf("text polluted by thinking: text=%q want=%q", got, want)
+	}
+	if len(msgs[0].ThinkingSegments) != 1 {
+		t.Fatalf("expected 1 thinking segment, got %d", len(msgs[0].ThinkingSegments))
+	}
+	if got, want := msgs[0].ThinkingSegments[0].Text, "内部思考过程"; got != want {
+		t.Fatalf("thinking segment=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryAppendDeltaWithKindMixedStream simulates the real DeepSeek v4
+// streaming pattern (testified in example/provider-compat/compat_test.go):
+// reasoning_content chunks alternate with content chunks. After the fix, the
+// text field must read exactly as the model's visible output, with thinking
+// fragments quarantined in separate segments.
+func TestChatHistoryAppendDeltaWithKindMixedStream(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDeltaWithKind("", "知识产权法庭裁判要旨", "text")
+	h.AppendDeltaWithKind(id, "需要检索改进动机相关案例", "thinking")
+	h.AppendDeltaWithKind(id, "3典型案例 / 关于区别特征", "text")
+	h.AppendDeltaWithKind(id, "隧道高清全息成像装置案发明构思", "thinking")
+	h.AppendDeltaWithKind(id, "与协调配合关系对改进动机判断的影响", "text")
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+	wantText := "知识产权法庭裁判要旨3典型案例 / 关于区别特征与协调配合关系对改进动机判断的影响"
+	if got := msgs[0].Text; got != wantText {
+		t.Fatalf("visible text garbled: %q want %q", got, wantText)
+	}
+	if len(msgs[0].ThinkingSegments) != 2 {
+		t.Fatalf("expected 2 thinking segments, got %d", len(msgs[0].ThinkingSegments))
+	}
+	if got := msgs[0].ThinkingSegments[0].Text; got != "需要检索改进动机相关案例" {
+		t.Fatalf("segment 0=%q", got)
+	}
+	if got := msgs[0].ThinkingSegments[1].Text; got != "隧道高清全息成像装置案发明构思" {
+		t.Fatalf("segment 1=%q", got)
+	}
+}
+
+// TestChatHistoryAppendDeltaWithKindDedupAcrossKinds verifies exact-match
+// dedup still holds independently per storage target: a repeated text delta
+// is suppressed without touching the thinking stream, and vice versa.
+func TestChatHistoryAppendDeltaWithKindDedupAcrossKinds(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDeltaWithKind("", "abc", "text")
+	h.AppendDeltaWithKind(id, "abc", "text") // exact duplicate → suppressed
+	h.AppendDeltaWithKind(id, "def", "thinking")
+	h.AppendDeltaWithKind(id, "def", "thinking") // exact duplicate → suppressed
+	h.AppendDeltaWithKind(id, "ghi", "text")
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "abcghi"; got != want {
+		t.Fatalf("text dedup broken: %q want %q", got, want)
+	}
+	if len(msgs[0].ThinkingSegments) != 1 || msgs[0].ThinkingSegments[0].Text != "def" {
+		t.Fatalf("thinking segments unexpected: %+v", msgs[0].ThinkingSegments)
+	}
+}
+
+// TestChatHistoryAppendDeltaWithKindCumulativeInText verifies the cumulative
+// chunk replacement (HasPrefix) still works on the text stream when thinking
+// deltas are interleaved — the scenario where the old bug's contamination
+// broke the prefix match and produced duplicated content.
+func TestChatHistoryAppendDeltaWithKindCumulativeInText(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDeltaWithKind("", "Hello", "text")
+	h.AppendDeltaWithKind(id, "thinking part", "thinking")
+	h.AppendDeltaWithKind(id, "Hello, world", "text") // cumulative text → replace
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "Hello, world"; got != want {
+		t.Fatalf("cumulative replacement broken with interleaved thinking: %q want %q", got, want)
+	}
+	if got := msgs[0].ThinkingSegments[0].Text; got != "thinking part" {
+		t.Fatalf("thinking segment=%q", got)
+	}
+}
+
 // TestChatHistoryStickToBottomHint verifies the "↓ N new — End to follow"
 // hint appears when the user scrolls up and new content arrives, and that
 // returning to the tail clears it.

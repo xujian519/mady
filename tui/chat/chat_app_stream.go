@@ -96,7 +96,9 @@ func (a *ChatApp) onMessageDelta(e ChatEvent) {
 	// Read-modify-write StreamID under a single critical section.
 	a.mu.Lock()
 	id := a.model.StreamID
-	newID := a.history.AppendDelta(id, d.Delta)
+	// 传递 Kind：thinking delta 必须路由到 ThinkingSegments，否则 DeepSeek
+	// 等推理模型的 reasoning_content 会混入正文导致文本乱序。
+	newID := a.history.AppendDeltaWithKind(id, d.Delta, d.Kind)
 	if newID != id {
 		a.model.StreamID = newID
 	}

@@ -79,6 +79,46 @@ func TestChatAppMessageDeltaStream(t *testing.T) {
 	}
 }
 
+// TestChatAppMessageDeltaWithThinkingKind is the end-to-end regression guard
+// for the DeepSeek v4 text-garbling bug: onMessageDelta previously dropped
+// the Kind field, so reasoning_content chunks were concatenated into the
+// visible Text, scrambling word order and duplicating content (the broken
+// cumulative prefix match then re-appended the full text). The full path
+// onMessageDelta → AppendDeltaWithKind → ThinkingSegments must quarantine
+// thinking content away from Text.
+func TestChatAppMessageDeltaWithThinkingKind(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+
+	app.onAgentStart(AgentStartChatEvent{})
+	// Simulate DeepSeek v4 interleaved text + reasoning_content chunks.
+	app.onMessageDelta(MessageDeltaChatEvent{Delta: "知识产权法庭裁判要旨", Kind: "text"})
+	app.onMessageDelta(MessageDeltaChatEvent{Delta: "需要检索改进动机相关案例", Kind: "thinking"})
+	app.onMessageDelta(MessageDeltaChatEvent{Delta: "3典型案例 / 关于区别特征", Kind: "text"})
+	app.onMessageDelta(MessageDeltaChatEvent{Delta: "隧道高清全息成像装置案发明构思", Kind: "thinking"})
+	app.onMessageDelta(MessageDeltaChatEvent{Delta: "与协调配合关系对改进动机判断的影响", Kind: "text"})
+
+	msgs := app.History().Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
+	}
+	wantText := "知识产权法庭裁判要旨3典型案例 / 关于区别特征与协调配合关系对改进动机判断的影响"
+	if msgs[0].Text != wantText {
+		t.Fatalf("visible text garbled: %q want %q", msgs[0].Text, wantText)
+	}
+	if len(msgs[0].ThinkingSegments) != 2 {
+		t.Fatalf("expected 2 thinking segments, got %d", len(msgs[0].ThinkingSegments))
+	}
+	if msgs[0].ThinkingSegments[0].Text != "需要检索改进动机相关案例" ||
+		msgs[0].ThinkingSegments[1].Text != "隧道高清全息成像装置案发明构思" {
+		t.Fatalf("thinking segments unexpected: %+v", msgs[0].ThinkingSegments)
+	}
+	if !msgs[0].Pending {
+		t.Fatalf("expected pending during stream")
+	}
+
+	app.onAgentEnd(AgentEndChatEvent{})
+}
+
 func TestChatAppToolLifecycle(t *testing.T) {
 	app, _ := newTestChatApp(t, ChatAppConfig{ShowTimings: true})
 

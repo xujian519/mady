@@ -69,6 +69,11 @@ type ChatMessage struct {
 	// Used to suppress duplicate or cumulative provider chunks that would
 	// otherwise cause visible text repetition in the UI.
 	deltaHistory map[string]struct{}
+
+	// Internal: Kind of the last applied delta ("text" / "thinking").
+	// Used to start a new ThinkingSegment when thinking resumes after text,
+	// so distinct thinking phases stay separate blocks.
+	lastDeltaKind string
 }
 
 // ThinkingSegment holds a chunk of thinking text.
@@ -495,11 +500,12 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 	h.msgIDSeq++
 	newID := fmt.Sprintf("msg-%d-%d", time.Now().UnixNano(), h.msgIDSeq)
 	msg := ChatMessage{
-		ID:           newID,
-		Role:         RoleAssistant,
-		Pending:      true,
-		At:           time.Now(),
-		deltaHistory: map[string]struct{}{delta: {}},
+		ID:            newID,
+		Role:          RoleAssistant,
+		Pending:       true,
+		At:            time.Now(),
+		deltaHistory:  map[string]struct{}{delta: {}},
+		lastDeltaKind: kind,
 	}
 	if kind == "thinking" {
 		msg.ThinkingSegments = []ThinkingSegment{{Text: delta}}
@@ -543,7 +549,9 @@ func (h *ChatHistory) applyDeltaLocked(m *ChatMessage, delta, kind string) bool 
 
 	var target *string
 	if kind == "thinking" {
-		if len(m.ThinkingSegments) == 0 {
+		// Start a new segment when thinking resumes after a text delta (or on
+		// first contact), so distinct thinking phases stay separate blocks.
+		if len(m.ThinkingSegments) == 0 || m.lastDeltaKind != "thinking" {
 			m.ThinkingSegments = append(m.ThinkingSegments, ThinkingSegment{})
 		}
 		target = &m.ThinkingSegments[len(m.ThinkingSegments)-1].Text
@@ -561,12 +569,14 @@ func (h *ChatHistory) applyDeltaLocked(m *ChatMessage, delta, kind string) bool 
 			*target = delta
 			m.deltaHistory[delta] = struct{}{}
 			m.deltaHistory[current] = struct{}{}
+			m.lastDeltaKind = kind
 			return true
 		}
 	}
 
 	*target += delta
 	m.deltaHistory[delta] = struct{}{}
+	m.lastDeltaKind = kind
 	return true
 }
 
