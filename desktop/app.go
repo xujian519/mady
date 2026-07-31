@@ -154,34 +154,9 @@ func (a *App) startup(ctx context.Context) {
 		Provider: provider,
 		MadyHome: madyHome,
 	}
-	fc.BaseConfig = agentcore.Config{
-		ModelConfig: agentcore.ModelConfig{
-			Name:      "mady-router",
-			Model:     model,
-			Provider:  provider,
-			Streaming: true,
-		},
-		ExecutionConfig: agentcore.ExecutionConfig{
-			MaxTurns:          25,
-			ExecutionMode:     agentcore.ModeSerial,
-			ValidateArguments: true,
-		},
-		CompactionConfig: agentcore.CompactionConfig{
-			ContextWindow:    agentconfig.ResolveContextWindow(model),
-			ReserveTokens:    32000,
-			KeepRecentTokens: 4000,
-		},
-		RetryConfig: &agentcore.RetryConfig{
-			MaxRetries:  3,
-			BaseDelayMs: 1000,
-			MaxDelayMs:  15000,
-		},
-	}
-
-	// 模型级联回退候选链。
-	if fbCfg := bootstrap.LoadFallbackConfig(); fbCfg != nil {
-		fc.BaseConfig.FallbackConfig = fbCfg
-	}
+	// 使用统一的 BaseConfig 构造，确保 max_tokens 默认值、用户配置覆盖
+	// 与 fallback 候选链在 desktop 与 cli 入口行为一致。
+	fc.BaseConfig = bootstrap.NewBaseConfig(model, provider, agentconfig.LoadOrDefault())
 
 	// 用户自定义风格目录。
 	if fc.MadyHome != "" {

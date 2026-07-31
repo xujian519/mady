@@ -70,13 +70,12 @@ func (s *tuiSession) buildAgentConfig() agentcore.Config {
 
 	base := s.fc.BaseConfig
 	base.Name = "mady-agent"
-	base.ModelConfig = agentcore.ModelConfig{
-		Name:      "mady",
-		Model:     s.model,
-		Provider:  s.provider,
-		Thinking:  cloneThinkingConfig(s.thinkingConfig()),
-		Streaming: true,
-	}
+	// 只更新需要动态覆盖的字段，保留 BaseConfig 中已经解析好的 MaxTokens、
+	// ResponseFormat 等模型参数，避免用户配置或框架默认值被清零。
+	base.Model = s.model
+	base.Provider = s.provider
+	base.Thinking = cloneThinkingConfig(s.thinkingConfig())
+	base.Streaming = true
 	s.applyPlanModeThinking(&base)
 	// 同步 PlanModeExtension 激活状态：根据设置启用/禁用工具门控。
 	// 避免代理在计划模式外被误阻断，或在计划模式内被漏放过。

@@ -82,3 +82,47 @@ func TestAgentThinking(t *testing.T) {
 		t.Errorf("Budget mismatch: got %d want 4096", got.Budget)
 	}
 }
+
+func TestResolveMaxTokens(t *testing.T) {
+	// 用户未配置时，默认应为 DefaultMaxTokens，确保长输出不被截断。
+	if got := ResolveMaxTokens(nil); got != DefaultMaxTokens {
+		t.Errorf("ResolveMaxTokens(nil) = %d, want %d", got, DefaultMaxTokens)
+	}
+	if got := ResolveMaxTokens(&agentconfig.Config{}); got != DefaultMaxTokens {
+		t.Errorf("ResolveMaxTokens(empty) = %d, want %d", got, DefaultMaxTokens)
+	}
+
+	// 用户配置应被尊重。
+	if got := ResolveMaxTokens(&agentconfig.Config{MaxTokens: 16384}); got != 16384 {
+		t.Errorf("ResolveMaxTokens(16384) = %d, want 16384", got)
+	}
+
+	// 零值视为未配置，回退默认值。
+	if got := ResolveMaxTokens(&agentconfig.Config{MaxTokens: 0}); got != DefaultMaxTokens {
+		t.Errorf("ResolveMaxTokens(0) = %d, want %d", got, DefaultMaxTokens)
+	}
+}
+
+func TestNewBaseConfig(t *testing.T) {
+	// 未配置时 MaxTokens 应为默认值，且其他核心字段正确填充。
+	cfg := NewBaseConfig("deepseek-v4-flash", nil, nil)
+	if cfg.MaxTokens != DefaultMaxTokens {
+		t.Errorf("MaxTokens default = %d, want %d", cfg.MaxTokens, DefaultMaxTokens)
+	}
+	if cfg.Model != "deepseek-v4-flash" {
+		t.Errorf("Model = %q, want deepseek-v4-flash", cfg.Model)
+	}
+	if cfg.Name != "mady-router" {
+		t.Errorf("Name = %q, want mady-router", cfg.Name)
+	}
+	if !cfg.Streaming {
+		t.Error("Streaming should be true")
+	}
+
+	// 用户配置的 MaxTokens 应被正确覆盖。
+	user := &agentconfig.Config{MaxTokens: 32768}
+	cfg = NewBaseConfig("deepseek-v4-flash", nil, user)
+	if cfg.MaxTokens != 32768 {
+		t.Errorf("MaxTokens override = %d, want 32768", cfg.MaxTokens)
+	}
+}

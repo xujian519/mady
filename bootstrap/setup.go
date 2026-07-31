@@ -187,34 +187,11 @@ func Setup(ctx context.Context, opts Options) (*Context, error) {
 	fc.MadyHome = madyHome
 	fc.Provider = provider
 
-	fc.BaseConfig = agentcore.Config{
-		ModelConfig: agentcore.ModelConfig{
-			Name:      "mady-router",
-			Model:     model,
-			Provider:  provider,
-			Streaming: true,
-		},
-		ExecutionConfig: agentcore.ExecutionConfig{
-			MaxTurns:          25,
-			ExecutionMode:     agentcore.ModeSerial,
-			ValidateArguments: true,
-		},
-		CompactionConfig: agentcore.CompactionConfig{
-			ContextWindow:    agentconfig.ResolveContextWindow(model),
-			ReserveTokens:    32000,
-			KeepRecentTokens: 4000,
-		},
-		RetryConfig: &agentcore.RetryConfig{
-			MaxRetries:  3,
-			BaseDelayMs: 1000,
-			MaxDelayMs:  15000,
-		},
-	}
-
-	// 模型级联回退候选链。
-	if fbCfg := LoadFallbackConfig(); fbCfg != nil {
-		fc.BaseConfig.FallbackConfig = fbCfg
-	}
+	// 加载用户配置（MADY_CONFIG + 环境变量）并构造入口统一的 BaseConfig。
+	// 特别确保 MaxTokens 被正确传递；默认过低会导致长表格/调研输出被
+	// provider 在表格中间截断，出现截图中的列错位、缺字现象。
+	userCfg := agentconfig.LoadOrDefault()
+	fc.BaseConfig = NewBaseConfig(model, provider, userCfg)
 
 	// OpenTelemetry 分布式追踪。
 	if tracingMode := os.Getenv("MADY_TRACING"); tracingMode != "" {
@@ -667,10 +644,63 @@ func AgentThinking(cfg *agentconfig.ThinkingConfig) *agentcore.ThinkingConfig {
 	}
 }
 
+// DefaultMaxTokens 是 LLM 响应的默认最大 token 数。
+//
+// 取 8192 的原因：当前支持的主流模型（DeepSeek-V4 / Kimi-K2 / GLM-5）均为
+// 1M 上下文、数百 K 最大输出，8192 足以覆盖普通调研、分析、表格输出，
+// 同时避免 provider 默认限制导致长内容在表格/代码块中间被截断。
+// 用户可通过 MADY_CONFIG 中的 max_tokens 或 MAX_TOKENS 环境变量覆盖。
+const DefaultMaxTokens = 8192
+
+// ResolveMaxTokens 决定最终使用的 LLM 最大输出 token 数。
+//
+// 优先级：
+//  1. 用户显式配置（MADY_CONFIG 中的 max_tokens 或 MAX_TOKENS 环境变量）。
+//  2. 未配置时回退到 DefaultMaxTokens。
+func ResolveMaxTokens(userCfg *agentconfig.Config) int64 {
+	if userCfg != nil && userCfg.MaxTokens > 0 {
+		return userCfg.MaxTokens
+	}
+	return DefaultMaxTokens
+}
+
+// NewBaseConfig 构造所有入口（tui/serve/acp/desktop）共享的基础 Agent 配置。
+// 它统一处理 max_tokens 默认值、用户配置覆盖和 fallback 候选链，避免各入口
+// 重复维护一份 BaseConfig 构造逻辑。
+func NewBaseConfig(model string, provider agentcore.Provider, userCfg *agentconfig.Config) agentcore.Config {
+	cfg := agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:      "mady-router",
+			Model:     model,
+			Provider:  provider,
+			Streaming: true,
+			MaxTokens: ResolveMaxTokens(userCfg),
+		},
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns:          25,
+			ExecutionMode:     agentcore.ModeSerial,
+			ValidateArguments: true,
+		},
+		CompactionConfig: agentcore.CompactionConfig{
+			ContextWindow:    agentconfig.ResolveContextWindow(model),
+			ReserveTokens:    32000,
+			KeepRecentTokens: 4000,
+		},
+		RetryConfig: &agentcore.RetryConfig{
+			MaxRetries:  3,
+			BaseDelayMs: 1000,
+			MaxDelayMs:  15000,
+		},
+	}
+	if fbCfg := LoadFallbackConfig(userCfg); fbCfg != nil {
+		cfg.FallbackConfig = fbCfg
+	}
+	return cfg
+}
+
 // LoadFallbackConfig 从 agentconfig 读取模型级联回退候选链。
-func LoadFallbackConfig() *agentcore.FallbackConfig {
-	ac := agentconfig.LoadOrDefault()
-	if ac.Fallback == nil || len(ac.Fallback.Candidates) == 0 {
+func LoadFallbackConfig(ac *agentconfig.Config) *agentcore.FallbackConfig {
+	if ac == nil || ac.Fallback == nil || len(ac.Fallback.Candidates) == 0 {
 		return nil
 	}
 	candidates := make(map[agentcore.Complexity][]string, len(ac.Fallback.Candidates))

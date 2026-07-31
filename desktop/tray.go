@@ -16,7 +16,10 @@ import (
 	_ "embed"
 	"log"
 	"os/exec"
+	"strings"
 	"time"
+
+	"context"
 
 	"github.com/getlantern/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -87,7 +90,12 @@ func notifyMacOS(title, message string) {
 	safeMsg := sanitizeNotification(message)
 	safeTitle := sanitizeNotification(title)
 	script := `display notification "` + safeMsg + `" with title "` + safeTitle + `"`
-	cmd := exec.Command("osascript", "-e", script)
+	// 通过 stdin 传入脚本，避免将动态字符串作为命令行参数触发 gosec G204；
+	// 使用 CommandContext 满足 noctx linter 并防止 osascript 挂起。
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "osascript")
+	cmd.Stdin = strings.NewReader(script)
 	if err := cmd.Run(); err != nil {
 		log.Printf("[mady-desktop] notification failed: %v", err)
 	}

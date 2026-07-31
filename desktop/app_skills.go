@@ -51,77 +51,87 @@ func (a *App) ListSkills() ([]SkillEntry, error) {
 	homeDir, _ := os.UserHomeDir()
 	madyHome, _ := util.MadyHome()
 
-	type scanned struct {
-		root string
-		dir  string
+	seen := make(map[string]bool)
+	result := make([]SkillEntry, 0)
+	for _, d := range collectSkillDirs(cwd, homeDir, madyHome) {
+		result = append(result, loadUniqueSkills(d, cwd, seen)...)
 	}
-	dirs := []scanned{}
+	return result, nil
+}
+
+// skillDir 描述一个待扫描的技能目录及其“根”路径（用于判断相对路径）。
+type skillDir struct {
+	root string
+	dir  string
+}
+
+// collectSkillDirs 按优先级收集所有技能发现路径。
+func collectSkillDirs(cwd, homeDir, madyHome string) []skillDir {
+	var dirs []skillDir
 
 	// 1. SKILL_DIR 环境变量
 	if env := os.Getenv("SKILL_DIR"); env != "" {
 		for _, p := range filepath.SplitList(env) {
 			if p != "" {
-				dirs = append(dirs, scanned{root: p, dir: p})
+				dirs = append(dirs, skillDir{root: p, dir: p})
 			}
 		}
 	}
 	// 2. ~/.agent/
 	if homeDir != "" {
-		dirs = append(dirs, scanned{root: homeDir, dir: filepath.Join(homeDir, ".agent")})
+		dirs = append(dirs, skillDir{root: homeDir, dir: filepath.Join(homeDir, ".agent")})
 	}
 	// 3. $PWD/.agent/
-	dirs = append(dirs, scanned{root: cwd, dir: filepath.Join(cwd, ".agent")})
+	dirs = append(dirs, skillDir{root: cwd, dir: filepath.Join(cwd, ".agent")})
 	// 4. $PWD/skills/
-	dirs = append(dirs, scanned{root: cwd, dir: filepath.Join(cwd, "skills")})
+	dirs = append(dirs, skillDir{root: cwd, dir: filepath.Join(cwd, "skills")})
 	// 4b. $PWD/plugins/ (插件 SKILL.md)
-	dirs = append(dirs, scanned{root: cwd, dir: filepath.Join(cwd, "plugins")})
+	dirs = append(dirs, skillDir{root: cwd, dir: filepath.Join(cwd, "plugins")})
 	// 5. $MADY_HOME/skills/
 	if madyHome != "" && madyHome != cwd {
-		dirs = append(dirs, scanned{root: madyHome, dir: filepath.Join(madyHome, "skills")})
+		dirs = append(dirs, skillDir{root: madyHome, dir: filepath.Join(madyHome, "skills")})
 	}
 	// 6. ~/.agents/skills/
 	if homeDir != "" {
-		dirs = append(dirs, scanned{root: homeDir, dir: filepath.Join(homeDir, ".agents", "skills")})
+		dirs = append(dirs, skillDir{root: homeDir, dir: filepath.Join(homeDir, ".agents", "skills")})
+	}
+	return dirs
+}
+
+// loadUniqueSkills 从单个目录加载技能，跳过已知名称，并将路径转为相对项目目录。
+func loadUniqueSkills(d skillDir, cwd string, seen map[string]bool) []SkillEntry {
+	if _, err := os.Stat(d.dir); os.IsNotExist(err) {
+		return nil
+	}
+	skills, _, err := skill.Load(d.dir)
+	if err != nil {
+		return nil
 	}
 
-	seen := make(map[string]bool)
 	var result []SkillEntry
-
-	for _, d := range dirs {
-		if _, err := os.Stat(d.dir); os.IsNotExist(err) {
+	for _, s := range skills {
+		if seen[s.Name] {
 			continue
 		}
-		skills, _, err := skill.Load(d.dir)
-		if err != nil {
-			continue
-		}
-		for _, s := range skills {
-			if seen[s.Name] {
-				continue
-			}
-			seen[s.Name] = true
-			var entryPath string
-			if d.root == cwd {
-				rel, err := filepath.Rel(cwd, s.FilePath)
-				if err != nil {
-					log.Printf("ListSkills: filepath.Rel(%q, %q) failed: %v", cwd, s.FilePath, err)
-					entryPath = filepath.ToSlash(s.FilePath)
-				} else {
-					entryPath = filepath.ToSlash(rel)
-				}
-			} else {
-				entryPath = filepath.ToSlash(s.FilePath)
-			}
-			result = append(result, SkillEntry{
-				Name:        s.Name,
-				Description: s.Description,
-				Path:        entryPath,
-			})
-		}
+		seen[s.Name] = true
+		result = append(result, SkillEntry{
+			Name:        s.Name,
+			Description: s.Description,
+			Path:        skillEntryPath(d, cwd, s.FilePath),
+		})
 	}
+	return result
+}
 
-	if result == nil {
-		return []SkillEntry{}, nil
+// skillEntryPath 计算技能在返回结果中应展示的路径：项目本地技能用相对路径，其他用绝对路径。
+func skillEntryPath(d skillDir, cwd, filePath string) string {
+	if d.root != cwd {
+		return filepath.ToSlash(filePath)
 	}
-	return result, nil
+	rel, err := filepath.Rel(cwd, filePath)
+	if err != nil {
+		log.Printf("ListSkills: filepath.Rel(%q, %q) failed: %v", cwd, filePath, err)
+		return filepath.ToSlash(filePath)
+	}
+	return filepath.ToSlash(rel)
 }
