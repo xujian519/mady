@@ -421,20 +421,39 @@ mady-dark（默认）, mady-light, tokyo-night, rose-pine-moon, grok-night, high
 | P3-2 主题清单差异 | ✅ | 随 P1-6 一并修复（§6.3） |
 | P3-5 附录 C 缺文件 | ✅ | 随 P0-4 一并修复（附录 C 全量重写） |
 
-### 待修复（阶段二 ~ 四）
+### 阶段二：测试补强（2026-07-31，commit 86374e2）
 
-| 条目 | 状态 | 计划阶段 |
+| 包 | 提升前 → 提升后 | 状态 |
+|----|----------------|------|
+| core | 60.6% → 73.0% | ✅ |
+| terminal | 61.6% → 71.8% | ✅ |
+| tui (root) | 65.1% → 71.9% | ✅ |
+| theme | 54.6% → 96.3% | ✅ |
+| chat | 47.4% → 88.7% | ✅ |
+| component | 58.9% → 85.0% | ✅ |
+| P1-1 19 组件无测试 | 全部补齐（44 个测试文件新增） | ✅ |
+
+补测同时发现 9 处生产缺陷（见阶段三）。
+
+### 阶段三：代码质量（2026-07-31，commit fcfc969 / aab1cdf）
+
+| 条目 | 状态 | 修复内容 |
 |------|------|----------|
-| P0-2 Overlay.Modal | ⬜ | 阶段三（代码质量） |
-| P0-3 测试覆盖率 | ⬜ | 阶段二（测试补强） |
-| P1-1 19 组件无测试 | ⬜ | 阶段二 |
-| P1-5 文件行数超标 | ⬜ | 阶段三 |
-| P2-1 响应式断点 | ⬜ | 阶段四（可选） |
-| P2-3 markdown 新函数归属 | ⬜ | 阶段三（随拆分） |
-| P2-4 Overlay 字段命名 | ⬜ | 阶段三 |
-| P2-6 屏幕阅读器边界 | ⬜ | 阶段四（需讨论） |
-| P3-3 Unicode 范围补充 | ⬜ | 阶段三 |
-| P3-4 敏感路径复核 | ⬜ | 阶段四 |
+| P0-2 Overlay.Modal | ✅ | 新增 `NonModal` 字段（零值模态，向后兼容）+ 输入穿透路由 + 2 行为测试；规范 §7.4 已同步实现说明 |
+| 补测发现 9 缺陷 | ✅ | ①ToggleTodoPanel 自死锁 ②expandPastePlaceholders 死循环 ③SearchBackspace UTF-8 截断 ④renderToolGroup 行映射错位 ⑤-⑧四处键名不匹配（esc/space/pgup/pgdown/backspace）⑨两处窄宽超宽 |
+| P1-5 markdown.go 拆分 | ✅ | 1053 行 → `markdown.go`(321) + `markdown_parse.go`(371) + `markdown_inline.go`(49) + `markdown_render.go`(339)，行为不变（10 测试全过） |
+| P1-5 input.go 拆分 | ✅ | 675 行 → `input.go`(267) + `input_edit.go`(425) |
+| P2-3 markdown 新函数归属 | ✅ | 随拆分归入 `markdown_parse.go`（parseATXHeading 等） |
+| P2-4 Overlay 字段命名 | ✅ | 随 P0-2 一并处理（NonModal 反向字段 + 规范说明） |
+
+### 待修复（阶段四可选）
+
+| 条目 | 状态 | 说明 |
+|------|------|------|
+| P2-1 响应式断点 | ⬜ | 3 级 vs 规范 4 级（图标栏 Sidebar），需产品决策 |
+| P2-6 屏幕阅读器边界 | ⬜ | 需明确实现边界 |
+| P3-3 Unicode 范围补充 | ⬜ | `isHeadingDecorationRune` 可补充新块 |
+| P3-4 敏感路径复核 | ⬜ | `editor_killring.go` 敏感级别评估 |
 
 ---
 
