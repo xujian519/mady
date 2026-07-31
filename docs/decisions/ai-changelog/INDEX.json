@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-07-31T22:33:50+08:00",
-  "total": 267,
+  "updated": "2026-07-31T22:44:09+08:00",
+  "total": 268,
   "entries": [
     {
       "date": "2026-07-31",
@@ -372,12 +372,12 @@
       "line": 864
     },
     {
-      "date": "2026-07-30",
-      "type": "feat",
-      "scope": "tui",
-      "title": "执行 Sprint 1-4，完整修复 12 项 TUI 差距",
-      "file": "2026-07-30.md",
-      "line": 442
+      "date": "2026-07-31",
+      "type": "fix",
+      "scope": "desktop",
+      "title": "代码审查全部修复：沙箱逃逸/渲染冻结/会话死数据/并发竞争等",
+      "file": "2026-07-31.md",
+      "line": 874
     },
     {
       "date": "2026-07-30",
@@ -532,12 +532,12 @@
       "line": 401
     },
     {
-      "date": "2026-07-29",
+      "date": "2026-07-30",
       "type": "feat",
-      "scope": "patent-quality",
-      "title": "专利事务质量闭环全体系交付",
-      "file": "2026-07-29.md",
-      "line": 285
+      "scope": "tui",
+      "title": "执行 Sprint 1-4，完整修复 12 项 TUI 差距",
+      "file": "2026-07-30.md",
+      "line": 442
     },
     {
       "date": "2026-07-29",
@@ -612,12 +612,12 @@
       "line": 243
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
-      "scope": "*",
-      "title": "桌面端 G4 修复 — 设计系统对齐 spec §5（令牌补全 + vibrancy 材质 + 动效/对比无障碍）",
-      "file": "2026-07-28.md",
-      "line": 104
+      "date": "2026-07-29",
+      "type": "feat",
+      "scope": "patent-quality",
+      "title": "专利事务质量闭环全体系交付",
+      "file": "2026-07-29.md",
+      "line": 285
     },
     {
       "date": "2026-07-28",
@@ -740,12 +740,12 @@
       "line": 274
     },
     {
-      "date": "2026-07-27",
+      "date": "2026-07-28",
       "type": "fix",
-      "scope": "desktop",
-      "title": "修复 CI check-arch 持续失败 — desktop 模块未在架构配置中注册",
-      "file": "2026-07-27.md",
-      "line": 148
+      "scope": "*",
+      "title": "桌面端 G4 修复 — 设计系统对齐 spec §5（令牌补全 + vibrancy 材质 + 动效/对比无障碍）",
+      "file": "2026-07-28.md",
+      "line": 104
     },
     {
       "date": "2026-07-27",
@@ -908,12 +908,12 @@
       "line": 776
     },
     {
-      "date": "2026-07-26",
+      "date": "2026-07-27",
       "type": "fix",
-      "scope": "tui",
-      "title": "TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）",
-      "file": "2026-07-26.md",
-      "line": 306
+      "scope": "desktop",
+      "title": "修复 CI check-arch 持续失败 — desktop 模块未在架构配置中注册",
+      "file": "2026-07-27.md",
+      "line": 148
     },
     {
       "date": "2026-07-26",
@@ -980,12 +980,12 @@
       "line": 347
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
-      "scope": "*",
-      "title": "审阅决策 — OrchestrationExecutor 增加递归深度限制",
-      "file": "2026-07-25.md",
-      "line": 260
+      "date": "2026-07-26",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）",
+      "file": "2026-07-26.md",
+      "line": 306
     },
     {
       "date": "2026-07-25",
@@ -1092,12 +1092,12 @@
       "line": 232
     },
     {
-      "date": "2026-07-24",
+      "date": "2026-07-25",
       "type": "docs",
       "scope": "*",
-      "title": "IPC 审查标准卡片知识集成（P2-2）",
-      "file": "2026-07-24.md",
-      "line": 678
+      "title": "审阅决策 — OrchestrationExecutor 增加递归深度限制",
+      "file": "2026-07-25.md",
+      "line": 260
     },
     {
       "date": "2026-07-24",
@@ -1252,12 +1252,12 @@
       "line": 545
     },
     {
-      "date": "2026-07-23",
+      "date": "2026-07-24",
       "type": "docs",
       "scope": "*",
-      "title": "文档格式转换能力纯 Go 补齐（XLSX 解析 + DOCX/PDF 渲染器）",
-      "file": "2026-07-23.md",
-      "line": 225
+      "title": "IPC 审查标准卡片知识集成（P2-2）",
+      "file": "2026-07-24.md",
+      "line": 678
     },
     {
       "date": "2026-07-23",
@@ -1404,12 +1404,12 @@
       "line": 51
     },
     {
-      "date": "2026-07-22",
+      "date": "2026-07-23",
       "type": "docs",
       "scope": "*",
-      "title": "实用新型/发明驳回复审请求工作流 — 产出实现规划文档（Spec 阶段）",
-      "file": "2026-07-22.md",
-      "line": 227
+      "title": "文档格式转换能力纯 Go 补齐（XLSX 解析 + DOCX/PDF 渲染器）",
+      "file": "2026-07-23.md",
+      "line": 225
     },
     {
       "date": "2026-07-22",
@@ -1468,12 +1468,12 @@
       "line": 142
     },
     {
-      "date": "2026-07-21",
-      "type": "chore",
+      "date": "2026-07-22",
+      "type": "docs",
       "scope": "*",
-      "title": "Sprint 1 文件规模治理 — R1/R2/R6",
-      "file": "2026-07-21.md",
-      "line": 556
+      "title": "实用新型/发明驳回复审请求工作流 — 产出实现规划文档（Spec 阶段）",
+      "file": "2026-07-22.md",
+      "line": 227
     },
     {
       "date": "2026-07-21",
@@ -1652,12 +1652,12 @@
       "line": 480
     },
     {
-      "date": "2026-07-20",
-      "type": "fix",
+      "date": "2026-07-21",
+      "type": "chore",
       "scope": "*",
-      "title": "鼠标文字选中的流畅度修复 — ?1000h → ?1002h",
-      "file": "2026-07-20.md",
-      "line": 1038
+      "title": "Sprint 1 文件规模治理 — R1/R2/R6",
+      "file": "2026-07-21.md",
+      "line": 556
     },
     {
       "date": "2026-07-20",
@@ -1884,12 +1884,12 @@
       "line": 254
     },
     {
-      "date": "2026-07-19",
+      "date": "2026-07-20",
       "type": "fix",
       "scope": "*",
-      "title": "四大证据源全面接线修复",
-      "file": "2026-07-19.md",
-      "line": 3
+      "title": "鼠标文字选中的流畅度修复 — ?1000h → ?1002h",
+      "file": "2026-07-20.md",
+      "line": 1038
     },
     {
       "date": "2026-07-19",
@@ -1932,12 +1932,12 @@
       "line": 85
     },
     {
-      "date": "2026-07-18",
-      "type": "feat",
+      "date": "2026-07-19",
+      "type": "fix",
       "scope": "*",
-      "title": "Open Design 思路引入 —— Tier 2 实现",
-      "file": "2026-07-18.md",
-      "line": 655
+      "title": "四大证据源全面接线修复",
+      "file": "2026-07-19.md",
+      "line": 3
     },
     {
       "date": "2026-07-18",
@@ -2138,6 +2138,14 @@
       "title": "引入 Open Design 项目思路 —— 三阶段 Tier 1 实现",
       "file": "2026-07-18.md",
       "line": 690
+    },
+    {
+      "date": "2026-07-18",
+      "type": "feat",
+      "scope": "*",
+      "title": "Open Design 思路引入 —— Tier 2 实现",
+      "file": "2026-07-18.md",
+      "line": 655
     }
   ]
 }

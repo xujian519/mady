@@ -1,8 +1,8 @@
 # 桌面端下一阶段开发计划
 
-> **制定日期**：2026-07-29
-> **依据**：缺口分析（G1-G7）、[04-tasks.md](../specs/desktop/04-tasks.md)、[desktop-design-development-basis.md](../specs/desktop/desktop-design-development-basis.md)
-> **三波推进**：第一波「闭环真实化」→ 第二波「领域差异化」→ 第三波「视觉收尾与发布」
+> **制定日期**：2026-07-29 | **修订**：2026-07-31（新增第四波「规范对齐与质量门禁」，依据 [mady-desktop-standards.md](../mady-desktop-standards.md) §14 差距清单）
+> **依据**：缺口分析（G1-G7）、[04-tasks.md](../specs/desktop/04-tasks.md)、[desktop-design-development-basis.md](../specs/desktop/desktop-design-development-basis.md)、[mady-desktop-standards.md](../mady-desktop-standards.md)
+> **四波推进**：第一波「闭环真实化」→ 第二波「领域差异化」→ 第三波「视觉收尾与发布」→ 第四波「规范对齐与质量门禁」
 
 ---
 
@@ -21,6 +21,19 @@
 | 第三波 | W3-T2 | G5 | 视觉走查 — 按走查表逐项 ⚠️→✅ | 各组件 CSS | 低 | L2 |
 | 第三波 | W3-T3 | G7 | macOS 公证评估与配置 | `Info.plist`, `Makefile` | 中 | L2 |
 | 第三波 | W3-T4 | G7 | Windows 适配（标题栏/字体/滚动条/布局） | `main_windows.go`, `globals.css` | 中 | L2 |
+| 第四波 | W4-T1 | P0-1 | 组件测试环境补齐（vitest jsdom + jest-dom） | `vitest.component.config.ts`, `package.json` | 低 | L1 |
+| 第四波 | W4-T2 | P0-2 | 构建产物入库治理（.gitignore + git rm） | `desktop/.gitignore`, `git` | 低 | L1 |
+| 第四波 | W4-T3 | P0-3 | 事件监听 cleanup 契约审计 | `agui-bridge/client.ts`, `App.tsx` | 低 | L2 |
+| 第四波 | W4-T4 | P1-1 | wailsjs 类型漂移校验（CI 契约测试） | `scripts/`, CI | 低 | L1 |
+| 第四波 | W4-T5 | P1-2 | Zustand store 按 slices 切分 | `stores/chat.ts` 等 | 中 | L2 |
+| 第四波 | W4-T6 | P1-5 | TanStack Query 接管只读列表 | `stores/`, `components/` | 中 | L2 |
+| 第四波 | W4-T7 | P1-3 | 暗色模式三态切换（@custom-variant dark） | `globals.css`, `theme/provider.tsx` | 中 | L2 |
+| 第四波 | W4-T8 | P1-6 | HIG 视觉走查（可折叠侧栏/toolbar 对齐） | `Sidebar.tsx`, 各组件 CSS | 中 | L2 |
+| 第四波 | W4-T9 | P1-4 | 前端 i18n 评估（react-i18next 对齐 pkg/i18n） | `frontend/`, 文档 | 低 | L1 |
+| 第四波 | W4-T10 | P2-3 | CI 对比度审计（WCAG AA） | `scripts/`, CI | 低 | L1 |
+| 第四波 | W4-T11 | P2-5 | 托盘 + 长任务完成通知 | `main.go`, `app.go` | 中 | L2 |
+| 第四波 | W4-T12 | P2-6 | 自动更新预留与评估 | `app.go`, 文档 | 低 | L1 |
+| 第四波 | W4-T13 | P2-7 | 布局/面板比例持久化 | `window_state.go`, `stores/` | 低 | L1 |
 
 ---
 
@@ -577,6 +590,276 @@ desktop-notarize:
 
 ---
 
+## 第四波：规范对齐与质量门禁（工程收尾，2026-07-31 新增）
+
+> **依据**：[mady-desktop-standards.md](../mady-desktop-standards.md) §14 差距清单（P0-1/P0-2/P0-3、P1-1~P1-6、P2-3/P2-5/P2-6/P2-7）。
+> **说明**：P2-1（⌘K 命令面板）与 P2-2（TodoDock）已由 W2-T1/W2-T2 覆盖，P2-4（Windows 适配）已由 W3-T4 覆盖，此处不重复建任务；第四波聚焦规范识别的**新差距**。
+> **建议节奏**：P0 项（W4-T1~T3）是质量门禁，可在第三波期间并行完成，不必等前三波全部结束。
+>
+> **✅ 执行状态（2026-07-31）**：W4-T1~T13 全部完成。W4-T2 核实为误报（.gitignore 已覆盖）；W4-T3 审计零违规；W4-T9/W4-T12 产出评估文档；其余任务代码落地。验证：前端 typecheck + 100 测试 + build 全过，desktop `go build`/`go vet`/`go test` 全过。遗留：对比度脚本发现的 5 类真实问题待视觉走查修复（见 W4-T10 小节），W4-T4 的 CI 接入步骤与 W4-T10 的 CI 集成待与既有 CI 一并配置。
+
+### W4-T1 — 组件测试环境补齐（P0-1）
+
+**缺口** P0-1（M-DSK-TST-002）：`vitest.config.ts` 为 `environment: 'node'`，`*.test.tsx` 组件测试（jsdom + `@testing-library/jest-dom` matchers）未被覆盖；现有 `src/components/__tests__/*.test.tsx` 与 `src/a2ui-renderer/__tests__/*.test.tsx` 实际未跑。
+
+**当前状态追踪**：
+
+- `package.json` 已有 `@testing-library/react` / `@testing-library/jest-dom` / `@testing-library/user-event` / `jsdom` 依赖 ✅
+- `vitest.config.ts` 仅 include `src/**/*.test.ts` / `*.test.tsx`，但 environment=node、无 jest-dom setup ❌
+
+**设计方案**：新建独立组件测试配置（不动现有纯函数配置），两种方案择一：
+
+```ts
+// 方案 A：vitest.component.config.ts（推荐，配置隔离最清晰）
+import { defineConfig } from 'vitest/config'
+export default defineConfig({
+  resolve: { alias: { '@': new URL('./src', import.meta.url).pathname } },
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.tsx'],
+    setupFiles: ['./src/test/setup.ts'], // 引入 '@testing-library/jest-dom'
+  },
+})
+```
+
+```ts
+// 方案 B：vitest.config.ts 用 projects 分流（单一配置，复杂度略高）
+// test.projects = [{ environment: 'node', include: ['src/**/*.test.ts'] },
+//                  { environment: 'jsdom', include: ['src/**/*.test.tsx'], setupFiles: [...] }]
+```
+
+- `package.json` 脚本改为 `"test": "vitest run && vitest run -c vitest.component.config.ts"`（或 projects 分流后单命令）
+- 注意：升级 Vitest 大版本前验证其 Vite 版本要求（当前 vite 5.4 / vitest 3.2.7 组合已在用，勿贸然升级）
+
+**验收标准**：
+
+1. `pnpm test` 实际执行 `*.test.tsx` 组件测试（此前为静默跳过）
+2. 现有组件测试（`TodoDock.test.tsx`、`CommandPalette.test.tsx`、`toolcard.test.ts` 等）全绿
+3. 新增组件必须带组件测试（M-DSK-TST-001 门禁）
+
+### W4-T2 — 构建产物入库治理（P0-2，已核实为误报）
+
+> **2026-07-31 核实结论**：**非差距，无需修复**。`desktop/` 构建产物已被正确忽略：
+> - `desktop/Mady` → 根 `.gitignore:104`（`desktop/Mady`）
+> - `desktop/desktop.exe` → 根 `.gitignore:3`（`*.exe`）
+> - `desktop/build/bin` → 根 `.gitignore:16`（`build/`）
+> - `frontend/node_modules` / `frontend/dist` → `desktop/.gitignore` 第 6-7 行
+>
+> `git status --porcelain desktop/` 验证无二进制跟踪。本节保留为**防回归检查**（可选）：CI 中加 `git status --porcelain` 静默检查，出现未忽略的构建产物即失败。
+
+**缺口** P0-2（M-DSK-WLS-003）：`desktop/` 下存在已构建产物 `Mady` / `desktop.exe`（二进制），疑似被 git 跟踪，导致仓库膨胀与跨机器二进制不一致。
+
+**设计方案**：
+
+1. ~~检查 `desktop/.gitignore` 现状~~ ✅ 已核实：根 `.gitignore` + `desktop/.gitignore` 共同覆盖全部产物
+2. ~~`git rm --cached`~~ ✅ 已核实：二进制未被跟踪，无需操作
+3. ~~`.gitignore` 补齐~~ ✅ 已覆盖
+4. CI 增加静态检查：`git status --porcelain` 不允许出现未忽略的构建产物（**可选防回归**，与 W4-T4 的 CI 步骤合并实施）
+
+**验收标准**：
+
+1. `git status` 无 `Mady` / `desktop.exe` 二进制 ✅ 已满足
+2. `.gitignore` 覆盖 `build/bin` / `frontend/dist` / `node_modules` ✅ 已满足
+3. CI 产物检查步骤存在（防回归，随 W4-T4 一起加）
+
+### W4-T3 — 事件监听 cleanup 契约审计（P0-3）
+
+**缺口** P0-3（M-DSK-WLS-010）：Wails v2 事件监听未清理会导致组件重挂载后回调重复执行、内存累积（issue #3796/#4683）。`src/lib/wails.ts` 已封装「返回取消函数」模式，但需审计所有调用方是否持有并调用。
+
+**审计清单**：
+
+- [ ] `agui-bridge/client.ts` — 每个 `listenToWailsEvent` 调用点的 useEffect cleanup
+- [ ] `app/App.tsx` — `mady:init-*` 与 AGUI 事件订阅的清理
+- [ ] `components/` 中所有直接订阅 Wails 事件的组件（`grep -rn "listenToWailsEvent" src/`）
+- [ ] 确认不在事件 handler 内部调用取消函数（M-DSK-WLS-011，issue #4393）
+
+**验收标准**：
+
+1. 审计报告列出全部调用点及 cleanup 状态（✅/❌）
+2. 缺失处修复：useEffect 返回取消函数
+3. 新增订阅代码必须遵循「useEffect + cleanup」模式（Code Review 检查项）
+
+### W4-T4 — wailsjs 类型漂移校验（P1-1）
+
+**缺口** P1-1（M-DSK-TST-005）：`backend.ts` 包装类型与 `wailsjs` 生成类型可能漂移（Go 侧改字段后前端静默失配）。
+
+**设计方案**：
+
+- 方案 A（轻量，推荐先做）：CI 步骤 `wails generate module` 后 `git diff --exit-code frontend/wailsjs/`——生成物与仓库不一致即失败，防止忘提交生成物
+- 方案 B（增强）：新增契约测试，断言 `backend.ts` 包装函数签名与 `wailsjs/go/main/App.d.ts` 生成签名一致（`typeof` 派生对比）
+- 两种方案都依赖 CI 安装 Wails CLI（macOS runner）
+
+**验收标准**：
+
+1. CI 契约步骤存在且可拦截漂移
+2. `tsc --noEmit` 全绿（已有门禁保持）
+
+### W4-T5 — Zustand store 按 slices 切分（P1-2）
+
+**缺口** P1-2（M-DSK-ST-005）：`stores/chat.ts` 为单文件大 store（~30 字段 + 全部 actions），继续膨胀将难以维护。
+
+**设计方案**（参照 [Zustand Slices 模式](https://zustand.docs.pmnd.rs/guides/slices-pattern)）：
+
+```ts
+// stores/chat.ts — 组合入口
+interface AppState extends ChatSlice, ThreadsSlice, CommandsSlice, SettingsSlice {}
+export const useAppStore = create<AppState>()((...args) => ({
+  ...createChatSlice(...args),
+  ...createThreadsSlice(...args),
+  ...createCommandsSlice(...args),
+  ...createSettingsSlice(...args),
+}))
+```
+
+- 切分边界：`chatSlice`（消息流/输入态/流式状态）、`threadsSlice`（会话列表）、`commandsSlice`（⌘K 命令注册表，与 W2-T2 衔接）、`settingsSlice`（主题/面板开关）
+- 组件订阅用 selector + `useShallow`（复合值），避免无关字段引发整树重渲染（M-DSK-ST-004）
+- 行为不变量：重构期间 `stores/` 对外导出保持兼容或一次性全量迁移
+
+**验收标准**：
+
+1. `chat.ts` 拆分为 slices 文件，组合 store 对外行为不变
+2. 现有测试（store 相关）全绿；`-race`/StrictMode 无异常
+3. 组件订阅审计：使用 selector，复合值用 `useShallow`
+
+### W4-T6 — TanStack Query 接管只读列表（P1-5）
+
+**缺口** P1-5（M-DSK-ST-002）：`ListProjects` / `ListThreads` / `ListModels` / `ListMcpServers` / `GetKnowledgeStatus` 等只读后端数据散落在组件 Effect + Zustand 中，无缓存与失效机制。
+
+**设计方案**（参照 [TanStack Query 官方指南](https://tanstack.com/query/latest/docs/framework/react/guides/queries)）：
+
+- 新建 `src/queries/` 目录，每个只读列表一个 query hook（`useProjects()` / `useThreads()` / `useModels()` / `useMcpServers()` / `useKnowledgeStatus()`）
+- queryKey 唯一分层：`['projects']` / `['threads']` / `['models']` / `['mcp']` / `['knowledge']`
+- 写操作（如 `SetAISettings` 后刷新模型）用 `useMutation` + `invalidateQueries`（M-DSK-ST-003）
+- 流式会话状态（`stores/chat.ts`）**不迁移**，保持 Zustand（M-DSK-ST-001 分工原则）
+- 移除组件内手写数据拉取 Effect
+
+**验收标准**：
+
+1. 只读列表全部走 Query，组件无手写拉取 Effect
+2. mutation 后列表自动失效刷新（如切换模型后模型列表/状态更新）
+3. 加载态/错误态/重试按 Query 三态渲染
+
+### W4-T7 — 暗色模式三态切换（P1-3，需产品决策）
+
+**缺口** P1-3（M-DSK-TW-003）：`02-spec.md` §5.6 规划「跟随系统 / 浅色 / 深色」三档，当前 `globals.css` 用 `@media (prefers-color-scheme: dark)` 只跟随系统，两处不一致。
+
+**待决策**（[NEEDS CLARIFICATION]）：
+
+- 三档切换是否本期交付？（设置面板已有 `theme/provider.tsx` 的 `mode: 'light' | 'dark' | 'system'` 状态，但 CSS 令牌层未接入 class 策略）
+
+**迁移方案**（决策为「是」时）：
+
+```css
+/* globals.css — Tailwind v4 class 策略（一行切换 dark: variant 语义） */
+@custom-variant dark (&:where(.dark, .dark *));
+/* 现有 @media (prefers-color-scheme: dark) 覆盖迁移为 .dark 下的变量覆盖 */
+```
+
+- 主题初始化：head 内联脚本读 localStorage + `matchMedia('(prefers-color-scheme: dark)')` 防 FOUC（shadcn 官方 Vite 示例模式）
+- 手动切换即写 `document.documentElement.classList` + 持久化
+- `theme/provider.tsx` 的 `resolved` 计算同步更新（跟随系统时监听 matchMedia change）
+- 高对比模式（`prefers-contrast: more`）保持媒体查询不变
+
+**验收标准**：
+
+1. 三档切换生效且重启后保持
+2. 切换无闪烁（FOUC）
+3. 深浅色下 `prefers-contrast` / `prefers-reduced-motion` 行为不回退
+
+### W4-T8 — HIG 视觉走查（可折叠侧栏 / toolbar 对齐，P1-6）
+
+**缺口** P1-6（M-DSK-VIS-002/005）：侧栏固定 260px 无折叠模式；工具栏项样式未按 HIG「无 bezel、单 primary」走查。
+
+**设计方案**：
+
+1. **侧栏可折叠**：`Sidebar.tsx` 增加收起态（48px 图标列，对应 `--mady-sidebar-width` / 规范 `sidebar-collapsed: 48px`）；窄窗口（<900px）自动折叠；折叠/恢复双入口（按钮 + ⌘B 快捷键）
+2. **toolbar 对齐**：工具栏项默认透明无描边、hover 才有底；每屏只设一个 accent 主按钮置于右侧；分组 ≤3
+3. **TitleBar 检查**：`TitleBarHiddenInset` 下交通灯不与侧栏图标/按钮重叠（`padding-left` 预留约 80px）
+4. 其余 HIG 项对照 `mady-desktop-standards.md` §6 走查（关键操作不放底部、窗口标题语义化等）
+
+**验收标准**：
+
+1. 侧栏可折叠、窄窗口自动折叠、⌘B 恢复
+2. 工具栏无 bezel、单 primary、分组 ≤3
+3. 交通灯不重叠 UI（走查截图）
+
+### W4-T9 — 前端 i18n 评估（P1-4）
+
+**缺口** P1-4（案例参考 §13.1）：后端已有 `pkg/i18n`（zh-CN/en-US），前端 UI 文案未接入翻译框架；专利/法律术语的翻译一致性对专业产品尤其重要（参考 tiny-rdm 12 语言、WailBrew 11 语言）。
+
+**评估范围**（本期为评估 + 可行性原型，不做全量翻译）：
+
+- 方案：`react-i18next` + JSON 资源，术语表与 `pkg/i18n` 对齐（共享一份术语源）
+- 评估点：① 文案抽取范围（组件内硬编码字符串清单）② 与后端 i18n 的术语一致性机制 ③ 切换入口与默认语言（zh-CN）
+
+**验收标准**：
+
+1. 评估报告输出（范围/方案/工作量）
+2. 原型验证：至少一个关键页面（如设置面板）可切换 zh-CN/en-US
+
+### W4-T10 — CI 对比度审计（P2-3）
+
+**缺口** P2-3（M-DSK-TST-008）：`--color-mady-*` 令牌对文字/背景的 WCAG 对比度无自动化验证（与 TUI 规范 M-TUI-TST-005 对齐）。
+
+**设计方案**：
+
+- 脚本 `scripts/check-color-contrast.mjs`（或 .ts）：解析 `globals.css` 的 `@theme` 令牌（light/dark 两套），对「文字色 × 背景色」组合计算对比度，低于 4.5:1（小文本）/ 3:1（大文本或加粗）输出失败
+- 组合矩阵：`text-primary/secondary/tertiary × bg-primary/secondary/tertiary/sidebar` + 语义色（danger/warning/success/info）× 常见背景
+- 纳入 CI（`make desktop-test` 或独立 job）
+
+**验收标准**：
+
+1. 脚本可解析令牌并输出对比度报告
+2. CI 中对比度不达标即失败（当前令牌应全过或列出豁免清单）
+
+### W4-T11 — 托盘 + 长任务完成通知（P2-5）
+
+**缺口** P2-5（M-DSK-PKG-005）：长分析任务（专利检索/证据判断，分钟级）无系统通知；窗口最小化后用户无法感知完成。
+
+**设计方案**：
+
+- macOS 托盘：Wails v2 无内置托盘 API，评估 `getlantern/systray` 或原生菜单栏集成（P2 阶段可先用最小实现：最小化到托盘 + Dock 通知）
+- 长任务完成通知：`agui:done` / `agui:error` 事件到达且窗口非激活时发系统通知（`runtime` 或原生 `NSUserNotification` / macOS 10.14+ `UNUserNotificationCenter`）
+- 托盘图标复用 `build/appicon.png`
+
+**验收标准**：
+
+1. 长任务完成且窗口失焦时弹出系统通知
+2. 最小化到托盘不退出（可选，若评估可行）
+3. 通知点击可聚焦窗口
+
+### W4-T12 — 自动更新预留与评估（P2-6）
+
+**缺口** P2-6（M-DSK-PKG-003）：Wails 生态无官方 autoupdate；参考 RWKV-Runner（内置更新 + 保留用户配置）与 jcp（前端 `updateService.ts`）。
+
+**评估范围**：
+
+- 版本接口复用 `Health().Version`（commitHash + buildTime）
+- 评估方案：Sparkle（macOS 原生，需签名）、`go-update` 类自实现（HTTP 拉取 + 校验 + 替换二进制）、或 GitHub Releases + 手动下载引导
+- 预留：`app.go` 增加 `CheckUpdate()` 绑定方法占位 + 设置面板「检查更新」入口（本期可不实现真实更新）
+
+**验收标准**：
+
+1. 评估报告输出（三方案对比 + 推荐）
+2. `CheckUpdate()` 绑定占位存在（返回「当前版本」即可）
+
+### W4-T13 — 布局/面板比例持久化（P2-7）
+
+**缺口** P2-7（案例参考 §13.3-6）：多面板（侧栏/聊天/文件查看器/Agent 面板）的 split 比例与面板开关状态未持久化；`window_state.go` 已持久化窗口几何。
+
+**设计方案**：
+
+- 面板状态并入 `window_state.go` 或 `desktop-settings.json`：`{ sidebarCollapsed, sidebarWidth, agentPanelWidth, fileViewerOpen }`
+- 前端 `stores/settings.ts`（W4-T5 slices 切分后的 settingsSlice）持久化开关状态，split 宽度经 `SaveWindowState` 扩展或新增 `SaveLayout` binding
+- 启动时恢复（参考 jcp「布局持久化——自动保存窗口和面板布局，下次启动自动恢复」）
+
+**验收标准**：
+
+1. 调整面板比例/开关后重启，布局恢复
+2. 多窗口场景不串台（按窗口 ID 或全局一份，本期全局一份即可）
+
+---
+
 ## 依赖关系图
 
 ```
@@ -595,6 +878,22 @@ W3-T1 (P2 Token)           可随时完成
 W3-T2 (视觉走查) ← W1-T3 + W3-T1 完成后进行
 W3-T3 (公证)               独立评估
 W3-T4 (Windows适配)        独立评估
+  │
+  ├── 第四波（规范对齐）──
+  │
+W4-T1 (组件测试环境) ← W1-T4 之后（前端测试门禁完整）
+W4-T2 (产物治理)          独立，可随时完成
+W4-T3 (事件 cleanup 审计)  独立
+W4-T4 (wailsjs 契约校验) ← CI 就绪后
+W4-T5 (Zustand slices)     独立（约定与 W2-T2 的 commands 共用接口）
+W4-T6 (TanStack Query)   ← W1-T3 完成后（ListModels 动态化）
+W4-T7 (暗色三态)          待产品决策
+W4-T8 (HIG 走查)         ← W1-T3 + W3-T1 完成后进行（与 W3-T2 合并走查）
+W4-T9 (i18n 评估)         独立
+W4-T10 (对比度审计)        独立
+W4-T11 (托盘/通知)         独立
+W4-T12 (自动更新评估)      独立
+W4-T13 (布局持久化)       ← W4-T5 之后（settingsSlice 承接）
 ```
 
 ---
@@ -613,6 +912,19 @@ W3-T4 (Windows适配)        独立评估
 | C01-C12 走查表 ⚠️ 项 ≤3 个 | 视觉走查记录 | W3-T2 |
 | 公证可行性评估报告输出 | 文档记录 | W3-T3 |
 | Windows 构建不 panic（功能降级提示） | `GOOS=windows go build` | W3-T4 |
+| `pnpm test` 实际执行 `*.test.tsx` 组件测试且全绿 | `pnpm test` | W4-T1 |
+| `git status` 无 `Mady` / `desktop.exe` 二进制，CI 产物检查存在 | `git status --porcelain` | W4-T2 |
+| 事件监听 cleanup 审计报告输出，缺失处已修复 | 审计报告 + grep | W4-T3 |
+| CI 契约步骤存在（wails generate 后无 diff / 类型对比） | CI 检查 | W4-T4 |
+| chat.ts 拆分 slices，组件订阅用 selector + useShallow | 代码审查 | W4-T5 |
+| 只读列表全部走 TanStack Query，mutation 后自动失效刷新 | 组件测试 + 手动 | W4-T6 |
+| 暗色三态切换生效、无 FOUC、重启保持 | 手动测试 | W4-T7 |
+| 侧栏可折叠、toolbar 无 bezel、交通灯不重叠 | 视觉走查截图 | W4-T8 |
+| i18n 评估报告输出 + 至少一个页面可切换语言 | 文档记录 + 原型 | W4-T9 |
+| 对比度审计脚本进 CI，不达标即失败 | CI 检查 | W4-T10 |
+| 长任务完成且窗口失焦时弹出系统通知 | 手动测试 | W4-T11 |
+| 自动更新评估报告输出，`CheckUpdate()` 占位存在 | 文档记录 | W4-T12 |
+| 调整面板比例/开关后重启布局恢复 | 手动测试 | W4-T13 |
 
 ---
 
@@ -634,8 +946,22 @@ W3-T4 (Windows适配)        独立评估
 | 第三波 | W3-T3 公证评估 | 0.5-1 | 独立 |
 | 第三波 | W3-T4 Windows 适配 | 2-3 | 独立 |
 | **第三波合计** | | **4-6** | |
+| 第四波 | W4-T1 组件测试环境 | 0.5 | 独立 |
+| 第四波 | W4-T2 产物治理 | 0.3 | 独立 |
+| 第四波 | W4-T3 cleanup 审计 | 0.5 | 独立 |
+| 第四波 | W4-T4 契约校验 | 0.3 | 独立 |
+| 第四波 | W4-T5 Zustand slices | 1-2 | 可并行 |
+| 第四波 | W4-T6 TanStack Query | 1-1.5 | 依赖 W1-T3 |
+| 第四波 | W4-T7 暗色三态 | 1-2 | 待决策 |
+| 第四波 | W4-T8 HIG 走查 | 1-2 | 依赖 W1-T3 + W3-T1 |
+| 第四波 | W4-T9 i18n 评估 | 0.5-1 | 独立 |
+| 第四波 | W4-T10 对比度审计 | 0.3-0.5 | 独立 |
+| 第四波 | W4-T11 托盘/通知 | 1-2 | 独立 |
+| 第四波 | W4-T12 自动更新评估 | 0.5-1 | 独立 |
+| 第四波 | W4-T13 布局持久化 | 0.5 | 依赖 W4-T5 |
+| **第四波合计** | | **8.4-14.1** | |
 
-**总计**：11.5-16.5 人天（约 2-3 周全职开发）
+**总计**：19.9-30.6 人天（约 4-6 周全职开发；第四波 P0 项可随第三波并行推进）
 
 ---
 
@@ -652,3 +978,11 @@ W3-T4 (Windows适配)        独立评估
 5. **每次提交 3-5 个文件**：遵循 AGENTS.md 的"小炸弹"原则，CI（`make verify`）全过后再推进下一步。
 
 6. **A2UI 事件 vs A2UIPromise**：本计划采用 Promise 而非在 EventBus 上做 request-response，原因是 EventBus 是 fire-and-forget 的广播机制，不适合"写一次读一次"的语义。Promise 模式在每个 agent 实例上只分配一次，零开销直到被使用。
+
+7. **第四波 P0 项尽早并行**：W4-T1（组件测试环境）与 W4-T2（产物治理）是质量门禁，建议在第三波期间就完成——它们不受前三波依赖，且能让后续 W4-T5/T6/T8 的改动一开始就有组件测试兜底。
+
+8. **W4-T7 需产品决策先行**：暗色模式三态切换（`@custom-variant dark` class 策略迁移）会改动全局 CSS 令牌层，方案存在 [NEEDS CLARIFICATION]（三档是否本期交付）。决策前不要动 `globals.css` 的暗色覆盖结构。
+
+9. **W4-T8 与 W3-T2 合并走查**：HIG 视觉走查与既有「按走查表逐项 ⚠️→✅」目标一致，统一在 W1-T3 + W3-T1 完成后执行一次，避免重复走查推翻结果。
+
+10. **W4 各任务遵循「小炸弹」**：每次提交 3-5 个文件；W4-T5（slices 切分）与 W4-T6（Query 接管）改动面较大，按 store/组件分批提交，每批 `make desktop-test` 全过再推进。

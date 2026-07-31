@@ -613,7 +613,7 @@ Mady 桌面端是 Wails v2 单进程应用，内嵌现有 Go 后端，前端用 
 
 ```
 desktop/
-├── go.mod                  # Go 模块（Wails v2.12.0）
+├── go.mod                  # Go 模块（Wails v2.13.0）
 ├── main.go                 # Wails 骨架入口（macOS TitleBarHiddenInset）
 ├── app.go                  # App 结构体与 Wails Binding 方法
 ├── types.go                # 类型别名（预留）
@@ -664,6 +664,17 @@ make desktop-dmg
 # 完整构建
 make build
 ```
+
+**体积与分发（M-DSK-PKG-007）**：
+
+| 方案 | 典型安装体积 | 说明 |
+|------|-------------|------|
+| Mady 桌面端（Wails v2 单二进制） | 15-25 MB | Go 编译单文件 `.app`，无运行时依赖 |
+| Electron 类应用（VS Code / Slack） | 150-400 MB | 内嵌 Chromium + Node 运行时 |
+| Tauri 类应用（Rust） | 5-15 MB | 系统 WebView，体积最小但构建链较重 |
+
+> 体积是传播卖点：单二进制内嵌 `pdfjs-dist`（含 cmaps）+ CodeMirror + React 后仍远小于 Electron 基线。
+> 平台状态：macOS 已适配（公证链路见 `make desktop-notarize`）；Windows 构建不 panic、前端平台适配层已就绪（W3-T4 排期中）；Linux 预留。
 
 **状态**：phase 1（骨架）+ phase 2（A2UI 渲染器）+ phase 3（组件迁移）已完成。
 - ✅ Wails 模块初始化 + `go.work` 集成
