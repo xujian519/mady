@@ -10,11 +10,14 @@ import (
 )
 
 // windowState 保存窗口几何信息。
-// 仅持久化宽高（S-8：X/Y 从未被 SaveWindowState 保存/恢复，属死字段，
-// 若要持久化位置需扩展绑定先保存再恢复）。
+// Width/Height 由前端 beforeunload 时 SaveWindowState 保存（见 app.go）；
+// X/Y 由 Go 侧 beforeClose 经 runtime.WindowGetPosition 自取（S-8 修复），
+// nil 表示未保存过位置（Wails 默认居中）。
 type windowState struct {
-	Width  int `json:"width"`
-	Height int `json:"height"`
+	Width  int  `json:"width"`
+	Height int  `json:"height"`
+	X      *int `json:"x,omitempty"`
+	Y      *int `json:"y,omitempty"`
 }
 
 func windowStatePath() string {
@@ -45,7 +48,22 @@ func loadWindowState() *windowState {
 	if ws.Width < 400 || ws.Height < 300 {
 		return nil
 	}
+	// 位置合法性：绝对值上限 10000，防坏数据把窗口丢出屏幕（S-8）。
+	if ws.X != nil && (absInt(*ws.X) > 10000) {
+		ws.X = nil
+	}
+	if ws.Y != nil && (absInt(*ws.Y) > 10000) {
+		ws.Y = nil
+	}
 	return &ws
+}
+
+// absInt 返回 int 绝对值（Go 标准库 math 包的 Abs 只支持 float）。
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func saveWindowState(ws windowState) {

@@ -128,6 +128,56 @@ func (s *AgentStore) Delete(ctx context.Context, key string) error {
 	return s.sessions.Delete(ctx, key)
 }
 
+// RenameThread 重命名会话（写入 session_info 元数据 name，readInfo/Info 自动可见）。
+func (s *AgentStore) RenameThread(ctx context.Context, key string, name string) error {
+	if key == "" {
+		return fmt.Errorf("agent store: key is required")
+	}
+	if name == "" {
+		return fmt.Errorf("agent store: name is required")
+	}
+	mgr, err := s.sessions.Open(ctx, key)
+	if err != nil {
+		return fmt.Errorf("open agent session for rename: %w", err)
+	}
+	if err := mgr.SetSessionName(ctx, name); err != nil {
+		return fmt.Errorf("set session name: %w", err)
+	}
+	if err := mgr.flushAll(); err != nil {
+		return fmt.Errorf("persist session name: %w", err)
+	}
+	return nil
+}
+
+// TrashThread 将会话移入回收站（软删除；阶段 1.4 回收站能力）。
+func (s *AgentStore) TrashThread(ctx context.Context, key string) error {
+	if key == "" {
+		return fmt.Errorf("agent store: key is required")
+	}
+	return s.sessions.MoveToTrash(ctx, key)
+}
+
+// RestoreThread 将回收站中的会话恢复回主目录。
+func (s *AgentStore) RestoreThread(ctx context.Context, key string) error {
+	if key == "" {
+		return fmt.Errorf("agent store: key is required")
+	}
+	return s.sessions.RestoreFromTrash(ctx, key)
+}
+
+// ListTrashedThreads 列出回收站中的会话（按更新时间倒序）。
+func (s *AgentStore) ListTrashedThreads(ctx context.Context) ([]Info, error) {
+	return s.sessions.ListTrashed(ctx)
+}
+
+// PurgeThread 从回收站彻底删除会话（不可恢复）。
+func (s *AgentStore) PurgeThread(ctx context.Context, key string) error {
+	if key == "" {
+		return fmt.Errorf("agent store: key is required")
+	}
+	return s.sessions.PurgeTrashed(ctx, key)
+}
+
 // Has checks whether an agent session exists by key.
 func (s *AgentStore) Has(ctx context.Context, key string) (bool, error) {
 	return s.sessions.Has(ctx, key)

@@ -13,6 +13,11 @@ type threadStore interface {
 	ListThreads(ctx context.Context) ([]session.Info, error)
 	GetThread(ctx context.Context, key string) (*session.ThreadSnapshot, error)
 	BranchThread(ctx context.Context, key, entryID string) (*session.ThreadSnapshot, error)
+	RenameThread(ctx context.Context, key, name string) error
+	TrashThread(ctx context.Context, key string) error
+	RestoreThread(ctx context.Context, key string) error
+	ListTrashedThreads(ctx context.Context) ([]session.Info, error)
+	PurgeThread(ctx context.Context, key string) error
 	GetThreadConfig(ctx context.Context, key string) (*agentcore.CallConfig, bool, error)
 	SetThreadConfig(ctx context.Context, key string, cfg *agentcore.CallConfig) (*session.ThreadSnapshot, error)
 	GetThreadThinking(ctx context.Context, key string) (*agentcore.ThinkingConfig, bool, error)

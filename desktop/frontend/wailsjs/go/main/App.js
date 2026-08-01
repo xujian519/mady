@@ -6,9 +6,35 @@ export function Cancel(arg1) {
   return window['go']['main']['App']['Cancel'](arg1);
 }
 
+export function ActivateTab(arg1) {
+  return window['go']['main']['App']['ActivateTab'](arg1);
+}
+
+export function ActiveTabID() {
+  return window['go']['main']['App']['ActiveTabID']();
+}
+
+export function CloseTab(arg1) {
+  return window['go']['main']['App']['CloseTab'](arg1);
+}
+
+export function CreateTab() {
+  return window['go']['main']['App']['CreateTab']();
+}
+
+export function ListTabs() {
+  return window['go']['main']['App']['ListTabs']();
+}
+
+
 export function Chat(arg1) {
   return window['go']['main']['App']['Chat'](arg1);
 }
+
+export function ChatInTab(arg1, arg2) {
+  return window['go']['main']['App']['ChatInTab'](arg1, arg2);
+}
+
 
 export function CheckUpdate() {
   return window['go']['main']['App']['CheckUpdate']();
@@ -29,6 +55,23 @@ export function DeleteEntry(arg1) {
 export function DeleteThread(arg1) {
   return window['go']['main']['App']['DeleteThread'](arg1);
 }
+
+export function ForgetMemory(arg1) {
+  return window['go']['main']['App']['ForgetMemory'](arg1);
+}
+
+export function ListMemories(arg1) {
+  return window['go']['main']['App']['ListMemories'](arg1);
+}
+
+export function RecallMemories(arg1, arg2) {
+  return window['go']['main']['App']['RecallMemories'](arg1, arg2);
+}
+
+export function RememberMemory(arg1) {
+  return window['go']['main']['App']['RememberMemory'](arg1);
+}
+
 
 export function GetAISettings() {
   return window['go']['main']['App']['GetAISettings']();
@@ -81,6 +124,26 @@ export function ListThreads() {
 export function ReadFile(arg1) {
   return window['go']['main']['App']['ReadFile'](arg1);
 }
+
+export function RenameThread(arg1, arg2) {
+  return window['go']['main']['App']['RenameThread'](arg1, arg2);
+}
+export function RestoreThread(arg1) {
+  return window['go']['main']['App']['RestoreThread'](arg1);
+}
+
+export function ListTrashedThreads() {
+  return window['go']['main']['App']['ListTrashedThreads']();
+}
+
+export function PurgeThread(arg1) {
+  return window['go']['main']['App']['PurgeThread'](arg1);
+}
+
+export function TrashThread(arg1) {
+  return window['go']['main']['App']['TrashThread'](arg1);
+}
+
 
 export function RenameFolder(arg1, arg2) {
   return window['go']['main']['App']['RenameFolder'](arg1, arg2);

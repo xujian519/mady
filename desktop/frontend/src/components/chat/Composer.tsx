@@ -27,6 +27,40 @@ const LONG_PASTE_THRESHOLD = 2000
 const LONG_PASTE_LINES = 20
 /** 输入框最大高度 */
 const MAX_INPUT_HEIGHT = 200
+/** 发送历史最大条数（阶段 2.5，↑↓ 导航） */
+const MAX_SEND_HISTORY = 50
+
+// ── 会话草稿 / 发送历史（阶段 2.5） ───────────────
+
+/** 草稿 localStorage key（按会话隔离）。 */
+function draftKey(threadId: string | null): string {
+  return `mady-composer-draft-${threadId || 'default'}`
+}
+
+/** 发送历史 localStorage key（按会话隔离）。 */
+function historyKey(threadId: string | null): string {
+  return `mady-composer-history-${threadId || 'default'}`
+}
+
+/** 读取发送历史（旧 → 新，Index 0 为最早）。 */
+function loadSendHistory(threadId: string | null): string[] {
+  try {
+    const raw = localStorage.getItem(historyKey(threadId))
+    const parsed = raw ? (JSON.parse(raw) as unknown) : []
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/** 写入发送历史（新消息在前，去重相邻，上限 MAX_SEND_HISTORY）。 */
+function saveSendHistory(threadId: string | null, history: string[]): void {
+  try {
+    localStorage.setItem(historyKey(threadId), JSON.stringify(history.slice(0, MAX_SEND_HISTORY)))
+  } catch {
+    // localStorage 不可用（隐私模式等）时静默
+  }
+}
 
 // ── 组件 ──────────────────────────────────────────
 
@@ -37,8 +71,71 @@ export const Composer: React.FC = () => {
   const [isComposing, setIsComposing] = useState(false)
   const [longPasteDetected, setLongPasteDetected] = useState(false)
   const running = useChatStore((s) => s.running)
+  const threadId = useChatStore((s) => s.threadId)
   const sendMessage = useChatStore((s) => s.sendMessage)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // ── 会话草稿 + 发送历史（阶段 2.5）：切换会话时恢复/保存 ──
+
+  const sendHistoryRef = useRef<string[]>(loadSendHistory(threadId))
+  const [historyIdx, setHistoryIdx] = useState(-1)
+  const initTextRef = useRef('')
+
+  useEffect(() => {
+    // 切换会话：恢复该会话上次未发送的草稿 + 该会话的发送历史
+    let saved = ''
+    try {
+      saved = localStorage.getItem(draftKey(threadId)) ?? ''
+    } catch {
+      // localStorage 不可用时忽略
+    }
+    setText(saved)
+    setHistoryIdx(-1)
+    initTextRef.current = ''
+    sendHistoryRef.current = loadSendHistory(threadId)
+  }, [threadId])
+
+  useEffect(() => {
+    // 输入变化时实时保存草稿（空串也存，覆盖旧草稿）
+    try {
+      localStorage.setItem(draftKey(threadId), text)
+    } catch {
+      // 忽略
+    }
+  }, [text, threadId])
+
+  // ── 发送历史（阶段 2.5）：↑ 回看已发送，↓ 前进 ──
+
+  const navigateHistory = (dir: 1 | -1) => {
+    const hist = sendHistoryRef.current
+    if (hist.length === 0) return
+
+    if (historyIdx === -1 && dir === 1) {
+      // ↑ 首次：记住当前输入，回退到最新一条已发送
+      initTextRef.current = text
+      setHistoryIdx(0)
+      setText(hist[hist.length - 1])
+      return
+    }
+    const next = historyIdx + dir
+    if (next >= 0 && next < hist.length) {
+      setHistoryIdx(next)
+      setText(hist[hist.length - 1 - next])
+    } else if (next < 0) {
+      // ↓ 越过最新 → 恢复进入历史前的输入
+      setHistoryIdx(-1)
+      setText(initTextRef.current)
+    }
+  }
+
+  const recordSent = (input: string) => {
+    const hist = sendHistoryRef.current
+    const deduped = hist[hist.length - 1] === input ? hist : [...hist, input]
+    sendHistoryRef.current = deduped.slice(-MAX_SEND_HISTORY)
+    saveSendHistory(threadId, sendHistoryRef.current)
+    setHistoryIdx(-1)
+    initTextRef.current = ''
+  }
 
   // 自动聚焦
   useEffect(() => {
@@ -164,6 +261,7 @@ export const Composer: React.FC = () => {
 
     setText('')
     setLongPasteDetected(false)
+    recordSent(trimmed)
     sendMessage(trimmed)
   }
 
@@ -191,6 +289,21 @@ export const Composer: React.FC = () => {
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && showCommands) {
       e.preventDefault()
       return
+    }
+
+    // 阶段 2.5：输入区 ↑/↓ 导航发送历史（单行/空输入时触发）
+    if (e.key === 'ArrowUp' && !e.shiftKey) {
+      const el = e.currentTarget as HTMLTextAreaElement
+      if (el.selectionStart === 0 && el.selectionEnd === el.value.length) {
+        e.preventDefault()
+        navigateHistory(1)
+      }
+    } else if (e.key === 'ArrowDown' && !e.shiftKey) {
+      const el = e.currentTarget as HTMLTextAreaElement
+      if (el.selectionStart === el.value.length && el.selectionEnd === el.value.length) {
+        e.preventDefault()
+        navigateHistory(-1)
+      }
     }
   }
 

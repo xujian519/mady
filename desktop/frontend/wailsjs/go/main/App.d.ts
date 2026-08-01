@@ -4,10 +4,25 @@ import {server} from '../models';
 import {main} from '../models';
 import {session} from '../models';
 import {a2ui} from '../models';
+import {memory} from '../models';
 
 export function Cancel(arg1:string):Promise<void>;
 
+export function ActivateTab(arg1:string):Promise<void>;
+
+export function ActiveTabID():Promise<string>;
+
+export function CloseTab(arg1:string):Promise<void>;
+
+export function CreateTab():Promise<main.Tab>;
+
+export function ListTabs():Promise<Array<main.Tab>>;
+
+
 export function Chat(arg1:server.ChatRequest):Promise<string>;
+
+export function ChatInTab(arg1:string,arg2:server.ChatRequest):Promise<string>;
+
 
 export function CheckUpdate():Promise<main.UpdateInfo>;
 
@@ -18,6 +33,15 @@ export function CreateProjectFolder(arg1:string):Promise<main.ProjectInfo>;
 export function DeleteEntry(arg1:string):Promise<void>;
 
 export function DeleteThread(arg1:string):Promise<void>;
+
+export function ForgetMemory(arg1:string):Promise<void>;
+
+export function ListMemories(arg1:number):Promise<Array<memory.MemoryEntry>>;
+
+export function RecallMemories(arg1:string,arg2:number):Promise<Array<memory.ScoredMemory>>;
+
+export function RememberMemory(arg1:string):Promise<string>;
+
 
 export function GetAISettings():Promise<main.AISettings>;
 
@@ -43,7 +67,15 @@ export function ListSkills():Promise<Array<main.SkillEntry>>;
 
 export function ListThreads():Promise<Array<main.ThreadSummary>>;
 
+export function ListTrashedThreads():Promise<Array<main.ThreadSummary>>;
+
+export function PurgeThread(arg1:string):Promise<void>;
+
 export function ReadFile(arg1:string):Promise<main.FileContent>;
+
+export function RenameThread(arg1:string,arg2:string):Promise<void>;
+
+export function RestoreThread(arg1:string):Promise<void>;
 
 export function RenameFolder(arg1:string,arg2:string):Promise<void>;
 
@@ -56,5 +88,7 @@ export function SendAction(arg1:string,arg2:a2ui.ClientAction):Promise<void>;
 export function SetAISettings(arg1:main.AISettings):Promise<void>;
 
 export function SwitchProject(arg1:string):Promise<void>;
+
+export function TrashThread(arg1:string):Promise<void>;
 
 export function WriteFile(arg1:string,arg2:string):Promise<void>;

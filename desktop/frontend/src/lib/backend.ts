@@ -172,6 +172,151 @@ export async function deleteThread(key: string): Promise<void> {
   return callBinding<void>('main/App', 'DeleteThread', key)
 }
 
+/**
+ * 重命名会话（自定义标题，阶段 1.4）。
+ * 写入会话元数据；listThreads 返回的 title 会携带新标题。
+ */
+export async function renameThread(key: string, name: string): Promise<void> {
+  return callBinding<void>('main/App', 'RenameThread', key, name)
+}
+
+/**
+ * 将会话移入回收站（软删除，阶段 1.4）。
+ */
+export async function trashThread(key: string): Promise<void> {
+  return callBinding<void>('main/App', 'TrashThread', key)
+}
+
+/**
+ * 从回收站恢复会话到主列表。
+ */
+export async function restoreThread(key: string): Promise<void> {
+  return callBinding<void>('main/App', 'RestoreThread', key)
+}
+
+/**
+ * 列出回收站中的会话（按更新时间倒序）。
+ */
+export async function listTrashedThreads(): Promise<ThreadSummary[]> {
+  return callBinding<ThreadSummary[]>('main/App', 'ListTrashedThreads')
+}
+
+/**
+ * 从回收站彻底删除会话（不可恢复）。
+ */
+export async function purgeThread(key: string): Promise<void> {
+  return callBinding<void>('main/App', 'PurgeThread', key)
+}
+
+// ── Tabs（阶段 2.1：Go 侧标签状态机） ──────────────
+
+/** 会话标签（对应 Go 侧 main.Tab）。 */
+export interface DesktopTab {
+  id: string
+  threadId?: string
+  title: string
+  createdAt: string
+  activeAt: string
+}
+
+/**
+ * 列出全部会话标签（TabBar 渲染用）。
+ */
+export async function listTabs(): Promise<DesktopTab[]> {
+  return callBinding<DesktopTab[]>('main/App', 'ListTabs')
+}
+
+/**
+ * 返回当前激活标签 ID。
+ */
+export async function activeTabId(): Promise<string> {
+  return callBinding<string>('main/App', 'ActiveTabID')
+}
+
+/**
+ * 新建会话标签并激活。
+ */
+export async function createTab(): Promise<DesktopTab> {
+  return callBinding<DesktopTab>('main/App', 'CreateTab')
+}
+
+/**
+ * 关闭指定标签（最后一个标签不可关闭）。
+ */
+export async function closeTab(id: string): Promise<void> {
+  return callBinding<void>('main/App', 'CloseTab', id)
+}
+
+/**
+ * 激活指定标签。
+ */
+export async function activateTab(id: string): Promise<void> {
+  return callBinding<void>('main/App', 'ActivateTab', id)
+}
+
+/**
+ * 向指定标签发起对话（阶段 2.1b：会话绑定按 tab 分派）。
+ * 标签未关联会话时后端自动创建并写回。
+ */
+export async function chatInTab(
+  tabId: string,
+  req: { message: string; thread_id?: string },
+): Promise<string> {
+  return callBinding<string>('main/App', 'ChatInTab', tabId, req)
+}
+
+// ── Memory（阶段 4：记忆面板） ────────────────────
+
+/** 记忆条目（对应 Go 侧 memory.MemoryEntry）。 */
+export interface MemoryEntry {
+  id: string
+  scope: Record<string, unknown>
+  layer: string
+  content: string
+  importance: number
+  createdAt: string
+  updatedAt: string
+  tier?: string
+}
+
+/** 语义检索结果（对应 Go 侧 memory.ScoredMemory）。 */
+export interface ScoredMemory {
+  entry: MemoryEntry
+  semantic: number
+  recency: number
+  importance: number
+  composite: number
+  rank: number
+}
+
+/**
+ * 列出全部三层记忆（user/session/long_term，按更新时间倒序）。
+ */
+export async function listMemories(limit = 100): Promise<MemoryEntry[]> {
+  return callBinding<MemoryEntry[]>('main/App', 'ListMemories', limit)
+}
+
+/**
+ * 手动写入一条长期记忆。
+ */
+export async function rememberMemory(content: string): Promise<string> {
+  return callBinding<string>('main/App', 'RememberMemory', content)
+}
+
+/**
+ * 按 ID 删除记忆。
+ */
+export async function forgetMemory(id: string): Promise<void> {
+  return callBinding<void>('main/App', 'ForgetMemory', id)
+}
+
+/**
+ * 语义检索记忆（记忆面板搜索框）。
+ */
+export async function recallMemories(query: string, limit = 20): Promise<ScoredMemory[]> {
+  return callBinding<ScoredMemory[]>('main/App', 'RecallMemories', query, limit)
+}
+
 // ── File System ────────────────────────────────────
 
 /**

@@ -12,11 +12,13 @@ import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 import { useThreads, useDeleteThread } from '@/stores/threads'
 import { ThreadItem } from './ThreadItem'
+import { TrashPanel } from './TrashPanel'
+import { MemoryPanel } from './MemoryPanel'
 import { ProjectTree } from './ProjectTree'
 import { getThread } from '@/lib/backend'
-import { Search, Settings, FolderTree, FileText, MessageSquare, PanelLeftClose } from 'lucide-react'
+import { Search, Settings, FolderTree, FileText, MessageSquare, PanelLeftClose, Trash2, Brain } from 'lucide-react'
 
-type SidebarTab = 'threads' | 'project' | 'files'
+type SidebarTab = 'threads' | 'project' | 'files' | 'memory'
 
 interface SidebarProps {
   onNewChat: () => void
@@ -33,6 +35,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const [activeTab, setActiveTab] = useState<SidebarTab>('threads')
   const [searchQuery, setSearchQuery] = useState('')
+  // 阶段 2.2：历史面板 — 会话列表 ↔ 回收站视图切换
+  const [showTrash, setShowTrash] = useState(false)
   // 会话切换竞态守卫（S3）：快速切换 A→B 时丢弃 A 的过期响应
   const selectReqRef = useRef(0)
 
@@ -74,6 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
     { id: 'threads', label: '会话', icon: <MessageSquare size={14} /> },
     { id: 'project', label: '项目', icon: <FolderTree size={14} /> },
     { id: 'files', label: '文件', icon: <FileText size={14} /> },
+    { id: 'memory', label: '记忆', icon: <Brain size={14} /> },
   ]
 
   return (
@@ -120,9 +125,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
       {/* Tab: 会话列表 */}
       {activeTab === 'threads' && (
         <>
-          {/* 搜索框 */}
-          <div className="p-3 pb-0">
-            <div className="relative">
+          {/* 搜索框 + 回收站切换 */}
+          <div className="p-3 pb-0 flex items-center gap-2">
+            <div className="relative flex-1">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mady-text-tertiary" />
               <input
                 type="text"
@@ -132,26 +137,41 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
                 className="w-full pl-7 pr-3 py-1.5 rounded-md bg-mady-bg-primary border border-mady-border text-mady-ui text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent focus:ring-1 focus:ring-mady-accent/30 transition-all duration-150"
               />
             </div>
+            <button
+              onClick={() => setShowTrash((v) => !v)}
+              title={showTrash ? '返回会话列表' : '回收站'}
+              aria-label={showTrash ? '返回会话列表' : '回收站'}
+              aria-pressed={showTrash}
+              className={`p-1.5 rounded-md transition-colors duration-150 ${
+                showTrash ? 'text-mady-accent bg-mady-bg-hover' : 'text-mady-text-secondary hover:text-mady-text-primary hover:bg-mady-bg-hover'
+              }`}
+            >
+              <Trash2 size={14} />
+            </button>
           </div>
 
-          {/* 会话列表 */}
-          <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-            {filtered.length === 0 ? (
-              <p className="text-mady-text-tertiary text-mady-caption text-center pt-8">
-                {searchQuery ? '无匹配会话' : '暂无会话'}
-              </p>
-            ) : (
-              filtered.map((t) => (
-                <ThreadItem
-                  key={t.key}
-                  thread={t}
-                  active={t.key === threadId}
-                  onClick={() => handleSelect(t.key)}
-                  onDelete={() => handleDelete(t.key)}
-                />
-              ))
-            )}
-          </nav>
+          {showTrash ? (
+            <TrashPanel />
+          ) : (
+            /* 会话列表 */
+            <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
+              {filtered.length === 0 ? (
+                <p className="text-mady-text-tertiary text-mady-caption text-center pt-8">
+                  {searchQuery ? '无匹配会话' : '暂无会话'}
+                </p>
+              ) : (
+                filtered.map((t) => (
+                  <ThreadItem
+                    key={t.key}
+                    thread={t}
+                    active={t.key === threadId}
+                    onClick={() => handleSelect(t.key)}
+                    onDelete={() => handleDelete(t.key)}
+                  />
+                ))
+              )}
+            </nav>
+          )}
         </>
       )}
 
@@ -170,6 +190,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
             <p className="text-mady-caption">文件浏览</p>
           </div>
         </div>
+      )}
+
+      {/* Tab: 记忆（阶段 4：MemoryPanel） */}
+      {activeTab === 'memory' && (
+        <MemoryPanel />
       )}
         </>
       )}

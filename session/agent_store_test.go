@@ -369,3 +369,84 @@ func assertSnapshotEqual(t *testing.T, got, want agentcore.StateSnapshot) {
 		}
 	}
 }
+
+func TestAgentStore_RenameAndTrash(t *testing.T) {
+	ctx := context.Background()
+	fs, err := NewFileStore(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewAgentStore(fs, "/project")
+
+	mgr, err := fs.Create(ctx, CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := mgr.Header().ID
+
+	// 重命名：ListThreads 的 Info.Name 应携带新标题。
+	if err := store.RenameThread(ctx, key, "自定义标题"); err != nil {
+		t.Fatalf("RenameThread: %v", err)
+	}
+	infos, err := store.ListThreads(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(infos) != 1 || infos[0].Name != "自定义标题" {
+		t.Fatalf("ListThreads after rename: want 1 with name 自定义标题, got %+v", infos)
+	}
+
+	// 重命名后再读取快照，Name 仍保留（持久化生效）。
+	snap, err := store.GetThread(ctx, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Info.Name != "自定义标题" {
+		t.Fatalf("GetThread after rename: name = %q, want 自定义标题", snap.Info.Name)
+	}
+
+	// 空名称应被拒绝。
+	if err := store.RenameThread(ctx, key, ""); err == nil {
+		t.Fatal("RenameThread with empty name: want error")
+	}
+
+	// 回收站流转：trash → listTrashed → restore。
+	if err := store.TrashThread(ctx, key); err != nil {
+		t.Fatalf("TrashThread: %v", err)
+	}
+	mainInfos, err := store.ListThreads(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mainInfos) != 0 {
+		t.Fatalf("ListThreads after trash: want 0, got %d", len(mainInfos))
+	}
+	trashed, err := store.ListTrashedThreads(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(trashed) != 1 || trashed[0].ID != key {
+		t.Fatalf("ListTrashedThreads: want 1 with id %s, got %+v", key, trashed)
+	}
+	if err := store.RestoreThread(ctx, key); err != nil {
+		t.Fatalf("RestoreThread: %v", err)
+	}
+	mainInfos, err = store.ListThreads(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mainInfos) != 1 {
+		t.Fatalf("ListThreads after restore: want 1, got %d", len(mainInfos))
+	}
+
+	// purge：彻底删除。
+	if err := store.TrashThread(ctx, key); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.PurgeThread(ctx, key); err != nil {
+		t.Fatalf("PurgeThread: %v", err)
+	}
+	if _, err := fs.Open(ctx, key); err == nil {
+		t.Fatal("Open after purge: want error (file gone)")
+	}
+}

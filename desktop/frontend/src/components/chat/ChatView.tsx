@@ -21,10 +21,14 @@ import React, { useRef, useEffect, useMemo, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useShallow } from 'zustand/react/shallow'
 import { useChatStore, initialState } from '@/stores/chat'
+import { useTabsStore } from '@/stores/tabs'
+import { getThread } from '@/lib/backend'
+import { TabBar } from '../TabBar'
 import { useSettingsStore, type LayoutMode } from '@/stores/settings'
 import type { Message, ToolCall, CompactionNotice, RetryNotice } from '@/stores/chat'
 import { ReasoningBlock } from '../ReasoningBlock'
 import { UsageStrip } from '../UsageStrip'
+import { ContextWindowRing } from '../ContextWindowRing'
 import { Sidebar } from '../Sidebar'
 import { MessageBubble } from './MessageBubble'
 import { DecisionSurface } from '../DecisionSurface'
@@ -33,6 +37,7 @@ import { StatusBar } from '../StatusBar'
 import { ToolCard } from '../ToolCard'
 import { useTheme } from '@/theme/tokens'
 import { exportSession } from '@/lib/sessionExport'
+import { listenToWailsEvent } from '@/lib/wails'
 import { TodoDock } from '../TodoDock'
 import { DocumentViewer, type DocViewerFile } from '../DocumentViewer'
 import { FileViewerOverlay } from '../fileviewer/FileViewerOverlay'
@@ -43,7 +48,7 @@ import { SkillsView } from '../SkillsView'
 import { McpView } from '../McpView'
 import { CommandPalette } from './CommandPalette'
 import { buildCommands } from '@/stores/commands'
-import { Sparkles, PanelRightOpen, Database, FileText, Server, Zap, Loader2, RefreshCw, Scissors } from 'lucide-react'
+import { Sparkles, PanelRightOpen, Database, FileText, Server, Zap, Loader2, RefreshCw, Scissors, ChevronDown, ChevronRight } from 'lucide-react'
 
 // ── 虚拟列表项类型 ────────────────────────────────
 
@@ -62,6 +67,9 @@ function formatTokens(n: number): string {
 
 type TranscriptItem =
   | { kind: 'message'; message: Message; index: number }
+  // 阶段 2.4：回合组头（可折叠）。startIndex 为回合首条消息在 messages 中的索引，
+  // roundId 为该回合首条消息 id，作为折叠状态的身份标识（索引漂移时状态不串位）。
+  | { kind: 'round-header'; roundId: string; startIndex: number; count: number; collapsed: boolean }
   | { kind: 'streaming-output'; output: string }
   | { kind: 'streaming-thinking'; thinking: string }
   | { kind: 'tool-calls'; toolCalls: ToolCall[] }
@@ -82,6 +90,8 @@ function estimateLines(text: string): number {
 /** 单项预估高度（px），用于虚拟化器的 estimateSize。 */
 function itemHeight(item: TranscriptItem): number {
   switch (item.kind) {
+    case 'round-header':
+      return 32
     case 'message':
       // 头像 32px + 气泡 padding ~48px + 时间戳 ~20px + 内容
       return 80 + estimateLines(item.message.content) * 22
@@ -173,6 +183,9 @@ export const ChatView: React.FC = () => {
   const layout = useSettingsStore((s) => s.layout as LayoutMode)
 
   const isFocusMode = layout === 'focus'
+  // 阶段 2.1c：会话标签（TabBar 数据源）
+  const tabsActiveId = useTabsStore((s) => s.activeTabId)
+  const loadTabs = useTabsStore((s) => s.loadTabs)
   // 侧栏显隐与持久化设置联动（W4-T13 布局持久化：重启恢复折叠状态）
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
   const [showSidebar, setShowSidebar] = useState(
@@ -218,6 +231,42 @@ export const ChatView: React.FC = () => {
     return () => window.removeEventListener('mady:open-settings', handleOpenSettings)
   }, [])
 
+  // 原生菜单「设置」（⌘,）→ Wails 事件 app:open-settings（desktop/menu.go 触发）
+  useEffect(() => {
+    return listenToWailsEvent('app:open-settings', () => setShowSettings(true))
+  }, [])
+
+  // 阶段 2.1c：挂载时加载会话标签（TabBar 数据源；后端保证至少 1 个默认标签）
+  useEffect(() => {
+    void loadTabs()
+  }, [loadTabs])
+
+  // 阶段 2.1c：激活标签变化 → 同步聊天上下文（threadId + 历史加载 / 新会话清空）
+  useEffect(() => {
+    const activeTabId = useTabsStore.getState().activeTabId
+    if (!activeTabId) return
+    const tab = useTabsStore.getState().tabs.find((t) => t.id === activeTabId)
+    if (!tab) return
+    const targetThreadId = tab.threadId ?? ''
+    const current = useChatStore.getState()
+    if (current.threadId === targetThreadId) return // 已在目标会话，避免重复加载
+    useChatStore.setState({ threadId: targetThreadId })
+    if (!targetThreadId) {
+      // 新标签（未关联会话）：清空聊天状态
+      useChatStore.setState({ ...initialState, ready: true, threads: useChatStore.getState().threads })
+      return
+    }
+    // 已有关联会话：加载历史（完成后校验仍在同一会话，防竞态）
+    void getThread(targetThreadId)
+      .then((snap) => {
+        if (useChatStore.getState().threadId !== targetThreadId) return
+        useChatStore.setState({ messages: (snap?.messages ?? []) as never[] })
+      })
+      .catch(() => {
+        /* 后端未就绪时静默 */
+      })
+  }, [tabsActiveId])
+
   // ⌘K 快捷键切换命令面板
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -249,13 +298,53 @@ export const ChatView: React.FC = () => {
 
   const showContent = hasActiveContent(messages, output, thinking, toolCalls, error)
 
+  // 阶段 2.4：折叠的回合（键为回合首条消息 id；折叠时仅显示组头）
+  const [collapsedRounds, setCollapsedRounds] = useState<Set<string>>(new Set())
+  const toggleRound = (roundId: string) => {
+    setCollapsedRounds((prev) => {
+      const next = new Set(prev)
+      if (next.has(roundId)) next.delete(roundId)
+      else next.add(roundId)
+      return next
+    })
+  }
+
   // ── 构建虚拟化条目 ──────────────────────────────
 
   const items = useMemo<TranscriptItem[]>(() => {
     const result: TranscriptItem[] = []
 
-    // 已完成的过往消息
+    // 回合分组：user 消息（或首条消息）开启新回合；
+    // 组内消息（agent 回复等）跟随到下一个 user 消息之前。
+    const roundStartOf: number[] = new Array(messages.length)
+    {
+      let cur = -1
+      for (let i = 0; i < messages.length; i++) {
+        if (i === 0 || messages[i].role === 'user') cur = i
+        roundStartOf[i] = cur
+      }
+    }
+    // 每个回合的消息条数（一次遍历统计，避免逐回合 filter 的 O(n²)）
+    const roundCount = new Map<number, number>()
+    for (const s of roundStartOf) {
+      roundCount.set(s, (roundCount.get(s) ?? 0) + 1)
+    }
+    // 每个回合组头只输出一次
+    const emittedHeaders = new Set<number>()
     for (let i = 0; i < messages.length; i++) {
+      const start = roundStartOf[i]
+      const roundId = messages[start]?.id ?? ''
+      if (!emittedHeaders.has(start)) {
+        emittedHeaders.add(start)
+        result.push({
+          kind: 'round-header',
+          roundId,
+          startIndex: start,
+          count: roundCount.get(start) ?? 0,
+          collapsed: roundId !== '' && collapsedRounds.has(roundId),
+        })
+      }
+      if (roundId !== '' && collapsedRounds.has(roundId)) continue // 折叠：跳过组内消息
       result.push({ kind: 'message', message: messages[i], index: i })
     }
 
@@ -284,7 +373,7 @@ export const ChatView: React.FC = () => {
     }
 
     return result
-  }, [messages, output, thinking, running, toolCalls, error, currentStep, stepCount, compaction, retryNotice])
+  }, [messages, output, thinking, running, toolCalls, error, currentStep, stepCount, compaction, retryNotice, collapsedRounds])
 
   // ── 虚拟化器 ────────────────────────────────────
 
@@ -303,6 +392,29 @@ export const ChatView: React.FC = () => {
 
   const renderItem = (item: TranscriptItem) => {
     switch (item.kind) {
+      case 'round-header': {
+        const first = messages[item.startIndex]
+        const time = first?.timestamp
+          ? new Date(first.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+          : ''
+        return (
+          <div key={`round-${item.roundId}`} className="px-4 pt-2">
+            <button
+              onClick={() => toggleRound(item.roundId)}
+              className="w-full flex items-center gap-2 text-mady-caption text-mady-text-tertiary hover:text-mady-text-secondary transition-colors duration-150 group"
+              title={item.collapsed ? '展开该回合' : '折叠该回合'}
+            >
+              <span className="h-px flex-1 bg-mady-separator group-hover:bg-mady-border" />
+              {item.collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+              <span>
+                回合 · {item.count} 条消息{time ? ` · ${time}` : ''}
+                {item.collapsed && '（已折叠）'}
+              </span>
+              <span className="h-px flex-1 bg-mady-separator group-hover:bg-mady-border" />
+            </button>
+          </div>
+        )
+      }
       case 'message':
         return <MessageBubble key={item.message.id} message={item.message} />
       case 'streaming-output':
@@ -422,6 +534,12 @@ export const ChatView: React.FC = () => {
             </div>
             <h1 className="text-mady-ui font-semibold text-mady-text-primary">Mady</h1>
           </div>
+
+          {/* 阶段 2.1c：会话标签栏（多标签并行会话） */}
+          <div className="flex items-center">
+            <span className="text-mady-text-quaternary mr-1.5">/</span>
+            <TabBar />
+          </div>
           {threadId && (
             <>
               <span className="text-mady-text-quaternary">/</span>
@@ -432,8 +550,9 @@ export const ChatView: React.FC = () => {
           )}
         </div>
 
-        {/* UsageStrip：用量条（C09） */}
+        {/* UsageStrip + ContextWindowRing：用量条（C09）/ 环形指示器（阶段 2.3） */}
         <UsageStrip />
+        <ContextWindowRing />
 
         {!isFocusMode && (
           <div className="flex items-center gap-0.5">

@@ -12,6 +12,7 @@ import * as backend from '@/lib/backend'
 export const threadKeys = {
   all: ['threads'] as const,
   detail: (key: string) => ['threads', key] as const,
+  trashed: ['threads', 'trashed'] as const,
 }
 
 // ── Hooks ─────────────────────────────────────────
@@ -45,15 +46,57 @@ export function useThreadDetail(key: string | null) {
 }
 
 /**
- * 删除会话。
+ * 删除会话（阶段 2.2：改为软删除 → 进入回收站，可从回收站恢复）。
  */
 export function useDeleteThread() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (key: string) => backend.deleteThread(key),
+    mutationFn: (key: string) => backend.trashThread(key),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: threadKeys.all })
+      queryClient.invalidateQueries({ queryKey: threadKeys.trashed })
+    },
+  })
+}
+
+/**
+ * 查询回收站中的会话（阶段 2.2）。
+ */
+export function useTrashedThreads() {
+  return useQuery({
+    queryKey: threadKeys.trashed,
+    queryFn: () => backend.listTrashedThreads(),
+    staleTime: 30_000,
+    retry: 2,
+  })
+}
+
+/**
+ * 从回收站恢复会话。
+ */
+export function useRestoreThread() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (key: string) => backend.restoreThread(key),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: threadKeys.all })
+      queryClient.invalidateQueries({ queryKey: threadKeys.trashed })
+    },
+  })
+}
+
+/**
+ * 从回收站彻底删除会话（不可恢复）。
+ */
+export function usePurgeThread() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (key: string) => backend.purgeThread(key),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: threadKeys.trashed })
     },
   })
 }
