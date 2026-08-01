@@ -64,6 +64,26 @@ func TestRenderToolGroup(t *testing.T) {
 		}
 	})
 
+	t.Run("summary single-space format", func(t *testing.T) {
+		// 回归：marker 与计数之间必须恰好一个空格（曾出现 "[+]  2 tools" 双空格）。
+		noMeta := []ChatMessage{
+			{Role: RoleTool, Text: "..."},
+			{Role: RoleTool, Text: "..."},
+		}
+		collapsed, _ := (&ChatHistory{theme: th}).renderToolGroup(noMeta, 0, 1, false, th, 60, cache)
+		if plain := core.StripAnsi(collapsed[0]); plain != "[+] 2 tools" {
+			t.Fatalf("collapsed no-meta summary = %q, want %q", plain, "[+] 2 tools")
+		}
+		withMeta, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, false, th, 60, cache)
+		if plain := core.StripAnsi(withMeta[0]); plain != "[+] search" {
+			t.Fatalf("collapsed meta summary = %q, want %q", plain, "[+] search")
+		}
+		expanded, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, true, th, 60, cache)
+		if plain := core.StripAnsi(expanded[0]); plain != "[-] 2 tools · 1 msgs" {
+			t.Fatalf("expanded summary = %q, want %q", plain, "[-] 2 tools · 1 msgs")
+		}
+	})
+
 	t.Run("expanded uses left bar timeline", func(t *testing.T) {
 		lines, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs[:2], 0, 1, true, th, 60, cache)
 		joined := core.StripAnsi(strings.Join(lines, "\n"))

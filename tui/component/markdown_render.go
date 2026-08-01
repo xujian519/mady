@@ -334,7 +334,8 @@ func renderTableVertical(header []string, body [][]string, width int64, t Markdo
 			if i < len(r) {
 				cell = r[i]
 			}
-			head := t.TableHeaderFn(h + ":")
+			// 与单元格一致，表头也先过 renderInline，避免 **bold** 等裸标记泄漏。
+			head := t.TableHeaderFn(renderInline(h, t) + ":")
 			out = append(out, core.WrapAnsi(head, wrapWidth)...)
 			rendered := renderInline(cell, t)
 			out = append(out, core.WrapAnsi(indentStr+rendered, wrapWidth)...)
@@ -362,14 +363,38 @@ func sanitizeParagraphArtifacts(s string) string {
 
 // stripUnpairedMarker removes the last occurrence of marker when it has no
 // matching pair. This is a best-effort cleanup for incomplete LLM markdown.
+// A marker flanked by digits on both sides is treated as a math expression
+// (e.g. "2*3", "4**2", "2**10") and left untouched instead of mangled.
 func stripUnpairedMarker(s, marker string) string {
 	if strings.Count(s, marker)%2 != 0 {
 		idx := strings.LastIndex(s, marker)
-		if idx >= 0 {
-			s = s[:idx] + s[idx+len(marker):]
+		if idx < 0 {
+			return s
 		}
+		// 数学表达式（2*3 / 4**2）：两侧都是数字，保留。
+		if isDigitByte(s, idx-1) && isDigitByte(s, idx+len(marker)) {
+			return s
+		}
+		// 单字符 marker 紧邻另一个相同字符（如 4**2 中的单个 '*'）：
+		// 它属于 "**" 片段，交由 "**" 分支处理，避免二次误删。
+		if len(marker) == 1 &&
+			((idx > 0 && s[idx-1] == marker[0]) || (idx+1 < len(s) && s[idx+1] == marker[0])) {
+			return s
+		}
+		s = s[:idx] + s[idx+len(marker):]
 	}
 	return s
+}
+
+// isDigitByte reports whether s[i] is an ASCII digit. Out-of-range indices
+// report false. Byte-wise check is sufficient: multi-byte runes never equal
+// '0'..'9', so full-width digits fall through to the removal path.
+func isDigitByte(s string, i int) bool {
+	if i < 0 || i >= len(s) {
+		return false
+	}
+	c := s[i]
+	return c >= '0' && c <= '9'
 }
 
 // DefaultMarkdownTheme returns the built-in markdown theme used when no

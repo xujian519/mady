@@ -108,11 +108,17 @@ func renderToolCardHeader(seq, marker, name, status, meta string, titleFn, dimFn
 	if meta != "" {
 		metaWidth = core.VisibleWidth(meta)
 	}
+	// 至少给 status 保留 1 列省略号空间：极窄窗口下状态也不应完全消失。
 	available := width - core.VisibleWidth(prefix) - metaWidth
-	if available < 0 {
-		available = 0
+	if available < 1 {
+		available = 1
 	}
 	status = core.TruncateToWidth(status, available, "…")
 	line := prefix + status + meta
+	// 兜底：极端窄窗下 prefix+meta 本身就可能超宽，整体截断到 width，
+	// 保证返回行永不超宽，不依赖引擎层 normalizeLine 的二次兜底。
+	if core.VisibleWidth(line) > width {
+		line = core.TruncateToWidth(line, width, "…")
+	}
 	return core.PadToWidth(line, width)
 }

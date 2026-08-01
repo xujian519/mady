@@ -106,6 +106,50 @@ func TestMarkdownHeadingLenient(t *testing.T) {
 	}
 }
 
+// TestMarkdownParagraphKeepsMathExpressions verifies that math expressions
+// like multiplication and exponentiation survive paragraph artifact cleanup:
+// the digit-flank guard must not mangle "2*3" or "4**2" at the sanitize layer.
+//
+// Note: the inline italic regexp (renderInline) can still pair asterisks
+// across two separate math expressions in one paragraph (e.g. "2*3 与 4**2"
+// combined yields three '*' and may style the span between them). That is a
+// pre-existing inline-parse limitation, orthogonal to this cleanup fix; a
+// single expression per paragraph renders intact.
+func TestMarkdownParagraphKeepsMathExpressions(t *testing.T) {
+	// sanitize 层直接验证：数学表达式原样保留。
+	src := "简化比例 2*3=6，且 4**2=16 符合预期"
+	if got := sanitizeParagraphArtifacts(src); got != src {
+		t.Errorf("sanitize should keep math expressions intact, got %q", got)
+	}
+	// 未闭合的强调标记仍应清理。
+	if got := sanitizeParagraphArtifacts("关键点：**未闭合"); strings.Contains(got, "**") {
+		t.Errorf("unpaired bold should still be stripped, got %q", got)
+	}
+
+	// 完整渲染：单个幂运算表达式保留（避免 renderInline 跨表达式误配）。
+	md := NewMarkdown("计算 4**2=16 符合预期")
+	joined := core.StripAnsi(strings.Join(md.Render(80), "\n"))
+	if !strings.Contains(joined, "4**2=16") {
+		t.Errorf("math expression should survive full render, got:\n%s", joined)
+	}
+}
+
+// TestMarkdownTableVerticalHeaderInline verifies that headers in the vertical
+// key/value fallback go through renderInline, so **bold** does not leak raw
+// asterisks into the terminal.
+func TestMarkdownTableVerticalHeaderInline(t *testing.T) {
+	src := "| **维度** | **要点** |\n| --- | --- |\n| 新颖性 | 区别于现有技术 |"
+	md := NewMarkdown(src)
+	lines := md.Render(20)
+	joined := core.StripAnsi(strings.Join(lines, "\n"))
+	if strings.Contains(joined, "**") {
+		t.Errorf("table header markdown markers should be rendered, not leaked raw:\n%s", joined)
+	}
+	if !strings.Contains(joined, "维度:") || !strings.Contains(joined, "要点:") {
+		t.Errorf("vertical layout header labels missing:\n%s", joined)
+	}
+}
+
 // TestMarkdownTableVerticalFallback verifies that a table too wide for the
 // viewport is rendered as key/value pairs instead of squeezing columns and
 // truncating cell content with ellipsis.

@@ -500,10 +500,11 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 	}
 
 	var lines []string
-	// 折叠/展开只差一个标记符，统一用 marker 构建。
-	marker := "[+] "
+	// 折叠/展开只差一个标记符，统一用 marker 构建。marker 不带尾随空格，
+	// 由各分支的格式串/拼接统一补一个空格，避免 "[+]  2 tools" 双空格。
+	marker := "[+]"
 	if expanded {
-		marker = "[-] "
+		marker = "[-]"
 	}
 	summary := fmt.Sprintf("%s %d tools · %d msgs", marker, toolCount, sysCount)
 	if sysCount == 0 {
@@ -512,7 +513,7 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 	if !expanded {
 		for j := start; j <= end; j++ {
 			if msgs[j].Meta != "" && msgs[j].Meta != "tool" {
-				summary = marker + msgs[j].Meta
+				summary = marker + " " + msgs[j].Meta
 				break
 			}
 		}
