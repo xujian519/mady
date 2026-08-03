@@ -150,13 +150,20 @@ func (h *ChatHistory) Render(width int64) []string {
 }
 
 // computeRenderWidth determines the content width accounting for scrollbar.
+//
+// 方案1：滚动条列恒定预留。滚动条启用时内容渲染宽度恒为 width-sbWidth，
+// 不随滚动条实际显隐而变。修复前：流式输出期间内容从"可容纳"变为"溢出"时，
+// 滚动条出现/消失让 renderWidth 在 width 与 width-1 之间切换；Markdown 段落
+// 按宽度换行，宽度突变会让已渲染行的换行点全部错位——表现为"输出时排版混乱、
+// 重开 TUI 后正常"（重开时整条消息以稳定的最终宽度重渲染）。修复后 cachedWidth
+// 恒定，不再因滚动条切换触发缓存失效与全量重排，整条消息始终以同一宽度渲染。
 func (h *ChatHistory) computeRenderWidth(width int64) (renderWidth int64, sbNow bool) {
-	sbNow = h.sbEnabled && h.sbWidth > 0
-	if sbNow && h.cachedAll != nil && h.maxRows > 0 && !h.dirty && int64(len(h.cachedAll)) <= h.maxRows {
-		sbNow = false
-	}
+	sbEnabled := h.sbEnabled && h.sbWidth > 0
+	// sbNow 仅表示本帧是否实际绘制滚动条轨道（内容超出视口时），
+	// 只影响后处理（drawScrollbar / padToWidth），不再影响内容换行宽度。
+	sbNow = sbEnabled && h.cachedAll != nil && h.maxRows > 0 && int64(len(h.cachedAll)) > h.maxRows
 	renderWidth = width
-	if sbNow {
+	if sbEnabled {
 		renderWidth = width - h.sbWidth
 		if renderWidth < 1 {
 			renderWidth = 1
@@ -277,7 +284,9 @@ func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string,
 }
 
 // padToWidth pads every line to full width so the TUI diff engine never
-// leaves a partial column. This is the fallback when scrollbar is off.
+// leaves a partial column. Skipped when the scrollbar track was drawn this
+// frame (sbNow): drawScrollbar has already padded lines to contentWidth and
+// appended the track, so padding again would be a no-op.
 func (h *ChatHistory) padToWidth(visible []string, width int64, maxRows int64, sbNow bool, sbWidth int64) []string {
 	if sbNow {
 		return visible
