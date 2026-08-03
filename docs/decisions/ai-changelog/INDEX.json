@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-08-03T16:23:38+08:00",
-  "total": 286,
+  "updated": "2026-08-03T18:06:27+08:00",
+  "total": 287,
   "entries": [
     {
       "date": "2026-08-03",
@@ -12,12 +12,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-02",
+      "date": "2026-08-03",
       "type": "fix",
       "scope": "tui",
-      "title": "renderResizeHint 对齐公式完善（review 驱动）：boxWidth=VisibleWidth+6 + 对齐断言测试",
-      "file": "2026-08-02.md",
-      "line": 23
+      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
+      "file": "2026-08-03.md",
+      "line": 9
     },
     {
       "date": "2026-08-02",
@@ -84,12 +84,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-01",
-      "type": "chore",
-      "scope": "docs",
-      "title": "文档一致性检查防漂移加固（--update 自动同步 + git 口径 + CI 接入）",
-      "file": "2026-08-01.md",
-      "line": 13
+      "date": "2026-08-02",
+      "type": "fix",
+      "scope": "tui",
+      "title": "renderResizeHint 对齐公式完善（review 驱动）：boxWidth=VisibleWidth+6 + 对齐断言测试",
+      "file": "2026-08-02.md",
+      "line": 23
     },
     {
       "date": "2026-08-01",
@@ -116,12 +116,12 @@
       "line": 7
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "psychological",
-      "title": "P1-9 psychological 完整性修复 — 清理占位符、如实记录能力范围",
-      "file": "2026-07-31.md",
-      "line": 693
+      "date": "2026-08-01",
+      "type": "chore",
+      "scope": "docs",
+      "title": "文档一致性检查防漂移加固（--update 自动同步 + git 口径 + CI 接入）",
+      "file": "2026-08-01.md",
+      "line": 13
     },
     {
       "date": "2026-07-31",
@@ -524,12 +524,12 @@
       "line": 428
     },
     {
-      "date": "2026-07-30",
-      "type": "docs",
-      "scope": "tui",
-      "title": "制定 Mady TUI 规范 v1.0 — 综合 XiaoNuo 社区标准",
-      "file": "2026-07-30.md",
-      "line": 401
+      "date": "2026-07-31",
+      "type": "fix",
+      "scope": "psychological",
+      "title": "P1-9 psychological 完整性修复 — 清理占位符、如实记录能力范围",
+      "file": "2026-07-31.md",
+      "line": 693
     },
     {
       "date": "2026-07-30",
@@ -684,12 +684,12 @@
       "line": 346
     },
     {
-      "date": "2026-07-29",
-      "type": "feat",
-      "scope": "*",
-      "title": "引入本地 OCR 引擎（PP-OCRv5 增强版）",
-      "file": "2026-07-29.md",
-      "line": 243
+      "date": "2026-07-30",
+      "type": "docs",
+      "scope": "tui",
+      "title": "制定 Mady TUI 规范 v1.0 — 综合 XiaoNuo 社区标准",
+      "file": "2026-07-30.md",
+      "line": 401
     },
     {
       "date": "2026-07-29",
@@ -764,12 +764,12 @@
       "line": 216
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
+      "date": "2026-07-29",
+      "type": "feat",
       "scope": "*",
-      "title": "全量技术债务清理（14 项修复计划，11 项完成）",
-      "file": "2026-07-28.md",
-      "line": 22
+      "title": "引入本地 OCR 引擎（PP-OCRv5 增强版）",
+      "file": "2026-07-29.md",
+      "line": 243
     },
     {
       "date": "2026-07-28",
@@ -892,12 +892,12 @@
       "line": 430
     },
     {
-      "date": "2026-07-27",
-      "type": "feat",
-      "scope": "agentcore",
-      "title": "Gateway 接线 UnifiedAgentConfig + 吸收策略注入（PilotDeck 架构引入 第四阶段）",
-      "file": "2026-07-27.md",
-      "line": 818
+      "date": "2026-07-28",
+      "type": "fix",
+      "scope": "*",
+      "title": "全量技术债务清理（14 项修复计划，11 项完成）",
+      "file": "2026-07-28.md",
+      "line": 22
     },
     {
       "date": "2026-07-27",
@@ -1060,12 +1060,12 @@
       "line": 881
     },
     {
-      "date": "2026-07-26",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI 模块 Sprint 0 Quick-win 基线修复（T0.1–T0.8）",
-      "file": "2026-07-26.md",
-      "line": 396
+      "date": "2026-07-27",
+      "type": "feat",
+      "scope": "agentcore",
+      "title": "Gateway 接线 UnifiedAgentConfig + 吸收策略注入（PilotDeck 架构引入 第四阶段）",
+      "file": "2026-07-27.md",
+      "line": 818
     },
     {
       "date": "2026-07-26",
@@ -1132,12 +1132,12 @@
       "line": 306
     },
     {
-      "date": "2026-07-25",
-      "type": "chore",
-      "scope": "*",
-      "title": "OrchestrationExecutor 增加递归深度限制（R10-F1）",
-      "file": "2026-07-25.md",
-      "line": 3
+      "date": "2026-07-26",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 模块 Sprint 0 Quick-win 基线修复（T0.1–T0.8）",
+      "file": "2026-07-26.md",
+      "line": 396
     },
     {
       "date": "2026-07-25",
@@ -1244,12 +1244,12 @@
       "line": 381
     },
     {
-      "date": "2026-07-24",
-      "type": "refactor",
+      "date": "2026-07-25",
+      "type": "chore",
       "scope": "*",
-      "title": "prompt-templates 接线 — Phase 1（Store + Embed + 目录迁移）",
-      "file": "2026-07-24.md",
-      "line": 545
+      "title": "OrchestrationExecutor 增加递归深度限制（R10-F1）",
+      "file": "2026-07-25.md",
+      "line": 3
     },
     {
       "date": "2026-07-24",
@@ -1404,12 +1404,12 @@
       "line": 577
     },
     {
-      "date": "2026-07-23",
-      "type": "docs",
+      "date": "2026-07-24",
+      "type": "refactor",
       "scope": "*",
-      "title": "文档格式转换能力纯 Go 补齐（XLSX 解析 + DOCX/PDF 渲染器）",
-      "file": "2026-07-23.md",
-      "line": 225
+      "title": "prompt-templates 接线 — Phase 1（Store + Embed + 目录迁移）",
+      "file": "2026-07-24.md",
+      "line": 545
     },
     {
       "date": "2026-07-23",
@@ -1556,12 +1556,12 @@
       "line": 51
     },
     {
-      "date": "2026-07-22",
-      "type": "fix",
+      "date": "2026-07-23",
+      "type": "docs",
       "scope": "*",
-      "title": "修复 CI 检查失败 — mod tidy + go-arch-lint 格式升级",
-      "file": "2026-07-22.md",
-      "line": 320
+      "title": "文档格式转换能力纯 Go 补齐（XLSX 解析 + DOCX/PDF 渲染器）",
+      "file": "2026-07-23.md",
+      "line": 225
     },
     {
       "date": "2026-07-22",
@@ -1620,12 +1620,12 @@
       "line": 243
     },
     {
-      "date": "2026-07-21",
-      "type": "chore",
+      "date": "2026-07-22",
+      "type": "fix",
       "scope": "*",
-      "title": "为“绞车带轴”案件生成专家盲评版",
-      "file": "2026-07-21.md",
-      "line": 329
+      "title": "修复 CI 检查失败 — mod tidy + go-arch-lint 格式升级",
+      "file": "2026-07-22.md",
+      "line": 320
     },
     {
       "date": "2026-07-21",
@@ -1804,12 +1804,12 @@
       "line": 371
     },
     {
-      "date": "2026-07-20",
-      "type": "feat",
-      "scope": "tui",
-      "title": "新增现有 TUI + 浮层优化方案设计稿",
-      "file": "2026-07-20.md",
-      "line": 3
+      "date": "2026-07-21",
+      "type": "chore",
+      "scope": "*",
+      "title": "为“绞车带轴”案件生成专家盲评版",
+      "file": "2026-07-21.md",
+      "line": 329
     },
     {
       "date": "2026-07-20",
@@ -2036,12 +2036,12 @@
       "line": 506
     },
     {
-      "date": "2026-07-19",
-      "type": "docs",
-      "scope": "a2ui",
-      "title": "A2UI 模块审阅与完备化",
-      "file": "2026-07-19.md",
-      "line": 41
+      "date": "2026-07-20",
+      "type": "feat",
+      "scope": "tui",
+      "title": "新增现有 TUI + 浮层优化方案设计稿",
+      "file": "2026-07-20.md",
+      "line": 3
     },
     {
       "date": "2026-07-19",
@@ -2084,12 +2084,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-18",
-      "type": "test",
-      "scope": "*",
-      "title": "DoomLoop 集成测试——7 个端到端测试覆盖 5 个探测器和领域接线",
-      "file": "2026-07-18.md",
-      "line": 766
+      "date": "2026-07-19",
+      "type": "docs",
+      "scope": "a2ui",
+      "title": "A2UI 模块审阅与完备化",
+      "file": "2026-07-19.md",
+      "line": 41
     },
     {
       "date": "2026-07-18",
@@ -2290,6 +2290,14 @@
       "title": "知识系统全面优化（5 阶段）",
       "file": "2026-07-18.md",
       "line": 1049
+    },
+    {
+      "date": "2026-07-18",
+      "type": "test",
+      "scope": "*",
+      "title": "DoomLoop 集成测试——7 个端到端测试覆盖 5 个探测器和领域接线",
+      "file": "2026-07-18.md",
+      "line": 766
     }
   ]
 }

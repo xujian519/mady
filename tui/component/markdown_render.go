@@ -38,7 +38,7 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		}
 		text := renderInline(extractHeadingText(b.Lines[0], level), theme)
 		fn := theme.HeadingFn[level-1]
-		return core.WrapAnsi(fn(text), width)
+		return wrapMarkdownText(fn(text), width)
 	case kindQuote:
 		qm := reQuote.FindStringSubmatch(b.Lines[0])
 		if qm == nil {
@@ -46,7 +46,7 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		}
 		text := renderInline(qm[1], theme)
 		out := make([]string, 0, 2)
-		for _, w := range core.WrapAnsi(text, width-2) {
+		for _, w := range wrapMarkdownText(text, width-2) {
 			line := theme.QuoteFn("│ ") + w
 			out = append(out, line)
 		}
@@ -64,19 +64,26 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		indent := len(bm[1])
 		text := renderInline(bm[3], theme)
 		bullet := theme.ListBulletFn("• ")
-		indentStr := strings.Repeat(" ", indent+2)
+		prefixWidth := int64(indent) + core.VisibleWidth(bullet)
+		wrapW := width - prefixWidth
+		if wrapW < 1 {
+			wrapW = 1
+		}
+		indentStr := strings.Repeat(" ", int(prefixWidth))
 		out := make([]string, 0, len(b.Lines)*2)
-		for k, w := range core.WrapAnsi(text, width-int64(indent)-3) {
+		for k, w := range wrapMarkdownText(text, wrapW) {
 			prefix := indentStr
 			if k == 0 {
 				prefix = strings.Repeat(" ", indent) + bullet
 			}
 			out = append(out, prefix+w)
 		}
-		// Render continuation lines.
+		// Render continuation lines. Strip the source indentation that marks
+		// the line as a continuation so the rendered text aligns with the first
+		// line's text column rather than being indented twice.
 		for _, cl := range b.Lines[1:] {
-			ct := renderInline(cl, theme)
-			for _, w := range core.WrapAnsi(ct, width-int64(indent)-3) {
+			ct := renderInline(strings.TrimLeft(cl, " \t"), theme)
+			for _, w := range wrapMarkdownText(ct, wrapW) {
 				out = append(out, indentStr+w)
 			}
 		}
@@ -92,18 +99,64 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		indent := len(om[1])
 		num := om[2] + ". "
 		text := renderInline(om[3], theme)
-		indentStr := strings.Repeat(" ", indent+len(num))
+		styledNum := theme.ListBulletFn(num)
+		prefixWidth := int64(indent) + core.VisibleWidth(styledNum)
+		wrapW := width - prefixWidth
+		if wrapW < 1 {
+			wrapW = 1
+		}
+		indentStr := strings.Repeat(" ", int(prefixWidth))
 		out := make([]string, 0, len(b.Lines)*2)
-		for k, w := range core.WrapAnsi(text, width-int64(indent)-int64(len(num))) {
+		for k, w := range wrapMarkdownText(text, wrapW) {
 			prefix := indentStr
 			if k == 0 {
-				prefix = strings.Repeat(" ", indent) + theme.ListBulletFn(num)
+				prefix = strings.Repeat(" ", indent) + styledNum
 			}
 			out = append(out, prefix+w)
 		}
+		// Strip source continuation indentation so wrapped/continuation lines
+		// align with the first line's text column.
 		for _, cl := range b.Lines[1:] {
-			ct := renderInline(cl, theme)
-			for _, w := range core.WrapAnsi(ct, width-int64(indent)-int64(len(num))) {
+			ct := renderInline(strings.TrimLeft(cl, " \t"), theme)
+			for _, w := range wrapMarkdownText(ct, wrapW) {
+				out = append(out, indentStr+w)
+			}
+		}
+		return out
+	case kindChineseOrdered:
+		if len(b.Lines) == 0 {
+			return nil
+		}
+		om := reChineseOrdered.FindStringSubmatch(b.Lines[0])
+		if om == nil {
+			return nil
+		}
+		indent := len(om[1])
+		// Normalize the Chinese enumeration comma to a period so the marker is
+		// treated like other ordered lists and does not leave raw punctuation
+		// (e.g. "一、") in the rendered output.
+		num := om[2] + ". "
+		text := renderInline(om[3], theme)
+		styledNum := theme.ListBulletFn(num)
+		prefixWidth := int64(indent) + core.VisibleWidth(styledNum)
+		wrapW := width - prefixWidth
+		if wrapW < 1 {
+			wrapW = 1
+		}
+		indentStr := strings.Repeat(" ", int(prefixWidth))
+		out := make([]string, 0, len(b.Lines)*2)
+		for k, w := range wrapMarkdownText(text, wrapW) {
+			prefix := indentStr
+			if k == 0 {
+				prefix = strings.Repeat(" ", indent) + styledNum
+			}
+			out = append(out, prefix+w)
+		}
+		// Strip source continuation indentation so wrapped/continuation lines
+		// align with the first line's text column.
+		for _, cl := range b.Lines[1:] {
+			ct := renderInline(strings.TrimLeft(cl, " \t"), theme)
+			for _, w := range wrapMarkdownText(ct, wrapW) {
 				out = append(out, indentStr+w)
 			}
 		}
@@ -114,11 +167,35 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		var out []string
 		for _, ln := range b.Lines {
 			text := renderInline(sanitizeParagraphArtifacts(ln), theme)
-			out = append(out, core.WrapAnsi(text, width)...)
+			out = append(out, wrapMarkdownText(text, width)...)
 		}
 		return out
 	}
 	return nil
+}
+
+// wrapMarkdownText chooses between the generic ANSI wrapper and the CJK-aware
+// wrapper based on whether the text contains CJK ideographs.
+func wrapMarkdownText(text string, width int64) []string {
+	if containsCJK(text) {
+		return core.WrapAnsiCJK(text, width)
+	}
+	return core.WrapAnsi(text, width)
+}
+
+// containsCJK reports whether s contains any CJK Unified Ideographs.
+func containsCJK(s string) bool {
+	for _, r := range s {
+		switch {
+		case r >= 0x4E00 && r <= 0x9FFF, // CJK Unified Ideographs
+			r >= 0x3400 && r <= 0x4DBF,   // CJK Ext A
+			r >= 0xF900 && r <= 0xFAFF,   // CJK Compatibility
+			r >= 0x20000 && r <= 0x2FFFD, // CJK Ext B..F
+			r >= 0x30000 && r <= 0x3FFFD: // CJK Ext G
+			return true
+		}
+	}
+	return false
 }
 
 // renderFenceBlock renders a fenced code block. Split out of renderBlock so
@@ -336,9 +413,9 @@ func renderTableVertical(header []string, body [][]string, width int64, t Markdo
 			}
 			// 与单元格一致，表头也先过 renderInline，避免 **bold** 等裸标记泄漏。
 			head := t.TableHeaderFn(renderInline(h, t) + ":")
-			out = append(out, core.WrapAnsi(head, wrapWidth)...)
+			out = append(out, wrapMarkdownText(head, wrapWidth)...)
 			rendered := renderInline(cell, t)
-			out = append(out, core.WrapAnsi(indentStr+rendered, wrapWidth)...)
+			out = append(out, wrapMarkdownText(indentStr+rendered, wrapWidth)...)
 		}
 	}
 	return out

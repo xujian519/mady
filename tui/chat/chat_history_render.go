@@ -151,20 +151,20 @@ func (h *ChatHistory) Render(width int64) []string {
 
 // computeRenderWidth determines the content width accounting for scrollbar.
 //
-// 方案1：滚动条列恒定预留。滚动条启用时内容渲染宽度恒为 width-sbWidth，
-// 不随滚动条实际显隐而变。修复前：流式输出期间内容从"可容纳"变为"溢出"时，
-// 滚动条出现/消失让 renderWidth 在 width 与 width-1 之间切换；Markdown 段落
-// 按宽度换行，宽度突变会让已渲染行的换行点全部错位——表现为"输出时排版混乱、
-// 重开 TUI 后正常"（重开时整条消息以稳定的最终宽度重渲染）。修复后 cachedWidth
-// 恒定，不再因滚动条切换触发缓存失效与全量重排，整条消息始终以同一宽度渲染。
+// 方案1：滚动条列恒定预留。滚动条启用时内容渲染宽度恒为 width-sbWidth-gutter，
+// 其中 gutter=1 是内容与滚动条之间的最小内边距。不随滚动条实际显隐而变。
+// 修复前：流式输出期间内容从"可容纳"变为"溢出"时，滚动条出现/消失让 renderWidth
+// 在 width 与 width-1 之间切换；Markdown 段落按宽度换行，宽度突变会让已渲染行的
+// 换行点全部错位——表现为"输出时排版混乱、重开 TUI 后正常"。
+// 修复后 cachedWidth 恒定，不再因滚动条切换触发缓存失效与全量重排。
 func (h *ChatHistory) computeRenderWidth(width int64) (renderWidth int64, sbNow bool) {
 	sbEnabled := h.sbEnabled && h.sbWidth > 0
-	// sbNow 仅表示本帧是否实际绘制滚动条轨道（内容超出视口时），
-	// 只影响后处理（drawScrollbar / padToWidth），不再影响内容换行宽度。
+	// sbNow 仅表示本帧是否实际绘制滚动条轨道（内容超出视口时）。
 	sbNow = sbEnabled && h.cachedAll != nil && h.maxRows > 0 && int64(len(h.cachedAll)) > h.maxRows
 	renderWidth = width
 	if sbEnabled {
-		renderWidth = width - h.sbWidth
+		// 预留滚动条列 + 1 列内边距，避免文字紧贴/侵入滚动条区域。
+		renderWidth = width - h.sbWidth - 1
 		if renderWidth < 1 {
 			renderWidth = 1
 		}
@@ -236,12 +236,14 @@ func (h *ChatHistory) addStickToBottomHint(visible []string, all []string, maxRo
 	return append(visible, hint)
 }
 
-// drawScrollbar renders a scrollbar on the right edge when content overflows.
+// drawScrollbar renders a scrollbar on the right edge when content overflows,
+// leaving a 1-column gutter between content and the scrollbar track so text
+// never touches or underlaps the track.
 func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string, maxRows int64, follow bool) []string {
 	if !h.sbEnabled || h.sbWidth <= 0 || int64(len(all)) <= maxRows {
 		return visible
 	}
-	contentWidth := width - h.sbWidth
+	contentWidth := width - h.sbWidth - 1
 	if contentWidth < 1 {
 		contentWidth = 1
 	}
@@ -261,6 +263,7 @@ func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string,
 	}
 
 	pal := theme.CurrentPalette()
+	gapStyle := pal.SurfaceBg.Render(" ") // 1-column gutter
 	trackStyle := pal.SurfaceBg.Render(" ")
 	thumbStyle := pal.SurfaceRaisedBg.Render(" ")
 	if !follow {
@@ -269,31 +272,46 @@ func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string,
 
 	for i := int64(0); i < int64(len(visible)); i++ {
 		ln := visible[i]
+		// Defensive clamp: never let a miscounted-width line overflow the
+		// content area. This is the last safety net before DECAWM-off output.
 		if core.VisibleWidth(ln) > contentWidth {
-			ln = core.TruncateToWidth(ln, contentWidth, "\u2026")
-		} else {
-			ln = core.PadToWidth(ln, contentWidth)
+			ln = core.TruncateToWidth(ln, contentWidth, "")
 		}
+		ln = core.PadToWidth(ln, contentWidth)
 		if i >= thumbOff && i < thumbEnd {
-			visible[i] = ln + thumbStyle
+			visible[i] = ln + gapStyle + thumbStyle
 		} else {
-			visible[i] = ln + trackStyle
+			visible[i] = ln + gapStyle + trackStyle
 		}
 	}
 	return visible
 }
 
-// padToWidth pads every line to full width so the TUI diff engine never
-// leaves a partial column. Skipped when the scrollbar track was drawn this
-// frame (sbNow): drawScrollbar has already padded lines to contentWidth and
-// appended the track, so padding again would be a no-op.
+// padToWidth pads every line to the target width so the TUI diff engine never
+// leaves a partial column. When the scrollbar is enabled but not drawn this
+// frame, we keep the 1-column right gutter for visual consistency.
+// Skipped when the scrollbar track was drawn this frame (sbNow): drawScrollbar
+// has already padded lines to contentWidth and appended gutter + track.
 func (h *ChatHistory) padToWidth(visible []string, width int64, maxRows int64, sbNow bool, sbWidth int64) []string {
 	if sbNow {
 		return visible
 	}
+	target := width
+	if sbWidth > 0 {
+		// Keep the same right gutter used by drawScrollbar.
+		target = width - 1
+		if target < 1 {
+			target = 1
+		}
+	}
 	for i, ln := range visible {
-		if core.VisibleWidth(ln) < width {
-			visible[i] = core.PadToWidth(ln, width)
+		vw := core.VisibleWidth(ln)
+		if vw > target {
+			// Defensive clamp: a buggy component or miscounted width must not
+			// emit an over-width line to a DECAWM-off terminal.
+			visible[i] = core.TruncateToWidth(ln, target, "")
+		} else if vw < target {
+			visible[i] = core.PadToWidth(ln, target)
 		}
 	}
 	return visible

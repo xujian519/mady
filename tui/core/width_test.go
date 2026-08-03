@@ -3,6 +3,7 @@ package core
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestVisibleWidth(t *testing.T) {
@@ -96,6 +97,92 @@ func TestWrapAnsiCJKASCIINoDrop(t *testing.T) {
 	for i, ln := range lines {
 		if w := VisibleWidth(ln); w > width {
 			t.Errorf("line %d width %d > %d: %q", i, w, width, ln)
+		}
+	}
+}
+
+// TestRuneWidthAmbiguousInCJKMode verifies that characters whose East Asian
+// Width property is Ambiguous are counted as 2 cells when CJK mode is active.
+// These are the most common cause of "text runs into the scrollbar" bugs.
+func TestRuneWidthAmbiguousInCJKMode(t *testing.T) {
+	// Save and restore the global mode so we don't leak state to other tests.
+	old := IsCJKMode()
+	defer SetCJKMode(old)
+
+	ambiguous := "—…·“”‘’" // em dash, ellipsis, middle dot, curly quotes
+	SetCJKMode(true)
+	for _, r := range ambiguous {
+		if got := RuneWidth(r); got != 2 {
+			t.Errorf("CJK mode: RuneWidth(%q) = %d, want 2", r, got)
+		}
+	}
+
+	SetCJKMode(false)
+	for _, r := range ambiguous {
+		if got := RuneWidth(r); got != 1 {
+			t.Errorf("non-CJK mode: RuneWidth(%q) = %d, want 1", r, got)
+		}
+	}
+}
+
+// TestVisibleWidthCJKAmbiguous verifies the full width pipeline with ambiguous
+// characters under CJK mode.
+func TestVisibleWidthCJKAmbiguous(t *testing.T) {
+	old := IsCJKMode()
+	defer SetCJKMode(old)
+
+	SetCJKMode(true)
+	// "中—中" in a CJK terminal: 2 + 2 + 2 = 6.
+	if got := VisibleWidth("中—中"); got != 6 {
+		t.Errorf("VisibleWidth(\"中—中\") in CJK mode = %d, want 6", got)
+	}
+	SetCJKMode(false)
+	if got := VisibleWidth("中—中"); got != 5 {
+		t.Errorf("VisibleWidth(\"中—中\") in non-CJK mode = %d, want 5", got)
+	}
+}
+
+// TestWrapAnsiCJKBreaksAtPunctuation verifies that CJK-aware wrapping prefers
+// breaking after full-width punctuation instead of splitting a sentence at an
+// arbitrary character boundary.
+func TestWrapAnsiCJKBreaksAtPunctuation(t *testing.T) {
+	old := IsCJKMode()
+	defer SetCJKMode(old)
+	SetCJKMode(true)
+
+	text := "环境准备—稳定运行：本地云服务器AWS阿里Kubernetes集群安装基础依赖"
+	width := int64(20)
+	lines := WrapAnsiCJK(text, width)
+	for i, ln := range lines {
+		if w := VisibleWidth(ln); w > width {
+			t.Errorf("line %d width %d > %d: %q", i, w, width, ln)
+		}
+	}
+	// The first line should end at a punctuation boundary, not split a word.
+	first := StripAnsi(lines[0])
+	if !strings.HasSuffix(first, "—") && !strings.HasSuffix(first, "：") {
+		t.Errorf("expected first line to end at CJK punctuation, got %q", first)
+	}
+}
+
+// TestWrapAnsiCJKNoLeadingPunctuation verifies that a CJK punctuation is not
+// left alone at the start of a wrapped line when the previous line has room.
+func TestWrapAnsiCJKNoLeadingPunctuation(t *testing.T) {
+	old := IsCJKMode()
+	defer SetCJKMode(old)
+	SetCJKMode(true)
+
+	// "中文，中文..." forced narrow so the comma is near the boundary.
+	text := "中文，中文中文中文中文中文中文中文中文中文中文"
+	width := int64(10)
+	lines := WrapAnsiCJK(text, width)
+	for i := 1; i < len(lines); i++ {
+		if strings.Contains(lines[i], "\x1b") {
+			continue
+		}
+		r, _ := utf8.DecodeRuneInString(lines[i])
+		if isCJKPunctuation(r) {
+			t.Errorf("line %d starts with punctuation %q: %q", i, r, lines[i])
 		}
 	}
 }

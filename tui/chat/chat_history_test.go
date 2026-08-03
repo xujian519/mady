@@ -117,32 +117,33 @@ func TestChatHistoryScrollbarTransition(t *testing.T) {
 // TestChatHistoryReservedGutterWidthStable 是方案1（滚动条列恒定预留）的回归测试。
 // 修复前：流式输出期间内容从"可容纳"变为"溢出"时，renderWidth 在 width 与
 // width-1 之间切换，Markdown 换行点全部错位（输出时排版混乱、重开 TUI 后正常）。
-// 修复后：滚动条启用时内容渲染宽度恒为 width-sbWidth，cachedWidth 不随滚动条
-// 显隐变化，整条消息始终以同一宽度渲染。
+// 修复后：滚动条启用时内容渲染宽度恒为 width-sbWidth-gutter（gutter=1），
+// cachedWidth 不随滚动条显隐变化，整条消息始终以同一宽度渲染。
 func TestChatHistoryReservedGutterWidthStable(t *testing.T) {
 	h := NewChatHistory() // 默认 sbEnabled=true, sbWidth=1
 	h.SetMaxRows(3)
 	const width = int64(20)
+	wantWidth := width - h.sbWidth - 1 // 额外 1 列内容-滚动条内边距
 
-	// 第一阶段：内容可容纳，无滚动条轨道。渲染宽度必须已预留滚动条列。
+	// 第一阶段：内容可容纳，无滚动条轨道。渲染宽度必须已预留滚动条列+内边距。
 	h.Append(ChatMessage{Role: RoleAssistant, Text: "短文本"})
 	_ = h.Render(width)
-	if w := h.cachedWidth; w != width-1 {
-		t.Fatalf("phase 1 cachedWidth = %d, want %d (width - sbWidth)", w, width-1)
+	if w := h.cachedWidth; w != wantWidth {
+		t.Fatalf("phase 1 cachedWidth = %d, want %d (width - sbWidth - gutter)", w, wantWidth)
 	}
 
 	// 第二阶段：内容溢出 → 滚动条出现，渲染宽度不得变化。
 	h.Append(ChatMessage{Role: RoleAssistant, Text: strings.Repeat("中文测试内容", 20)})
 	_ = h.Render(width)
-	if w := h.cachedWidth; w != width-1 {
-		t.Fatalf("phase 2 cachedWidth = %d, want %d (width must be stable)", w, width-1)
+	if w := h.cachedWidth; w != wantWidth {
+		t.Fatalf("phase 2 cachedWidth = %d, want %d (width must be stable)", w, wantWidth)
 	}
 
 	// 第三阶段：模拟流式 delta 继续到达，宽度仍然稳定。
 	h.Append(ChatMessage{Role: RoleAssistant, Text: "更多内容"})
 	_ = h.Render(width)
-	if w := h.cachedWidth; w != width-1 {
-		t.Fatalf("phase 3 cachedWidth = %d, want %d (width must be stable)", w, width-1)
+	if w := h.cachedWidth; w != wantWidth {
+		t.Fatalf("phase 3 cachedWidth = %d, want %d (width must be stable)", w, wantWidth)
 	}
 }
 

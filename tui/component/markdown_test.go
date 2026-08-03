@@ -106,6 +106,34 @@ func TestMarkdownHeadingLenient(t *testing.T) {
 	}
 }
 
+// TestMarkdownListLenientMarkers verifies that LLM-style list markers without
+// a space after the marker, parenthesized numbers, and Chinese numerals are
+// recognized as list items.
+func TestMarkdownListLenientMarkers(t *testing.T) {
+	src := strings.Join([]string{
+		"+渠道",
+		"-付费模式",
+		"1)item",
+		"2. item",
+		"一、要点",
+		"二、 细节",
+	}, "\n")
+	md := NewMarkdown(src)
+	lines := md.Render(40)
+	joined := core.StripAnsi(strings.Join(lines, "\n"))
+
+	for _, want := range []string{"渠道", "付费模式", "item", "要点", "细节"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing list content %q:\n%s", want, joined)
+		}
+	}
+	// Raw markers should not leak into the rendered output (except for bullets
+	// rendered as "•" or the number itself).
+	if strings.Contains(joined, "+") || strings.Contains(joined, "1)") || strings.Contains(joined, "一、") {
+		t.Errorf("raw marker leaked into output:\n%s", joined)
+	}
+}
+
 // TestMarkdownParagraphKeepsMathExpressions verifies that math expressions
 // like multiplication and exponentiation survive paragraph artifact cleanup:
 // the digit-flank guard must not mangle "2*3" or "4**2" at the sanitize layer.
