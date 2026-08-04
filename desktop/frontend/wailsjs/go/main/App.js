@@ -150,10 +150,6 @@ export function SavePastedImage(arg1) {
   return window['go']['main']['App']['SavePastedImage'](arg1);
 }
 
-export function SaveWindowState(arg1, arg2) {
-  return window['go']['main']['App']['SaveWindowState'](arg1, arg2);
-}
-
 export function SelectProjectFolder() {
   return window['go']['main']['App']['SelectProjectFolder']();
 }

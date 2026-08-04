@@ -48,8 +48,10 @@ import { KnowledgeView } from '../KnowledgeView'
  * 将 Go 侧历史消息（agentcore.Message：role=user/assistant、无 timestamp 字段）
  * 映射为前端 Message（role 归一 + 时间戳缺省为 0），避免渲染出 NaN:NaN 与角色错位（M-14）。
  */
-function mapHistoryMessage(m: Record<string, unknown>): Message {
-  const id = typeof m.id === 'string' && m.id ? m.id : `hist-${Math.random().toString(36).slice(2)}`
+function mapHistoryMessage(m: Record<string, unknown>, index: number): Message {
+  // B-9：fallback id 用下标而非随机值——随机 id 会让同一条历史每次加载都重挂载
+  // 消息气泡（滚动位置/折叠状态丢失）。
+  const id = typeof m.id === 'string' && m.id ? m.id : `hist-${index}`
   return {
     id,
     role: m.role === 'user' ? 'user' : 'agent',
@@ -199,6 +201,9 @@ export const ChatView: React.FC = () => {
   const isFocusMode = layout === 'focus'
   // 阶段 2.1c：会话标签（TabBar 数据源）
   const tabsActiveId = useTabsStore((s) => s.activeTabId)
+  // B-1：活跃标签绑定的会话（'' = 未绑定）。作为历史加载 effect 的依赖，
+  // 使「新建标签 → bind 绑定会话」后 effect 自动重跑，Sidebar 无需手动加载。
+  const activeTabThreadId = useTabsStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.threadId ?? '')
   const loadTabs = useTabsStore((s) => s.loadTabs)
   // 侧栏显隐与持久化设置联动（W4-T13 布局持久化：重启恢复折叠状态）
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
@@ -255,7 +260,9 @@ export const ChatView: React.FC = () => {
     void loadTabs()
   }, [loadTabs])
 
-  // 阶段 2.1c：激活标签变化 → 同步聊天上下文（threadId + 历史加载 / 新会话清空）
+  // 阶段 2.1c：激活标签变化 → 同步聊天上下文（threadId + 历史加载 / 新会话清空）。
+  // 依赖含活跃标签的 threadId（B-1）：Sidebar 新标签绑定会话（bind 后 threadId ''→key）
+  // 或会话重命名不会触发——只有「激活标签」或「其绑定会话」变化才重跑，历史加载单一 owner。
   useEffect(() => {
     const activeTabId = useTabsStore.getState().activeTabId
     if (!activeTabId) return
@@ -274,13 +281,13 @@ export const ChatView: React.FC = () => {
     void getThread(targetThreadId)
       .then((snap) => {
         if (useChatStore.getState().threadId !== targetThreadId) return
-        const history = (snap?.messages ?? []).map((m) => mapHistoryMessage(m as Record<string, unknown>))
+        const history = (snap?.messages ?? []).map((m, idx) => mapHistoryMessage(m as Record<string, unknown>, idx))
         useChatStore.setState({ messages: history })
       })
       .catch(() => {
         /* 后端未就绪时静默 */
       })
-  }, [tabsActiveId])
+  }, [tabsActiveId, activeTabThreadId])
 
   // ⌘K 快捷键切换命令面板
   useEffect(() => {

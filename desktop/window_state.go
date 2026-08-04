@@ -10,8 +10,7 @@ import (
 )
 
 // windowState 保存窗口几何信息。
-// Width/Height 由前端 beforeunload 时 SaveWindowState 保存（见 app.go）；
-// X/Y 由 Go 侧 beforeClose 经 runtime.WindowGetPosition 自取（S-8 修复），
+// 由 Go 侧 beforeClose 经 runtime.WindowGetSize/GetPosition 自取完整几何（S-8），
 // nil 表示未保存过位置（Wails 默认居中）。
 type windowState struct {
 	Width  int  `json:"width"`
@@ -66,26 +65,17 @@ func absInt(v int) int {
 	return v
 }
 
-// saveWindowState 持久化窗口几何。
+// saveWindowState 持久化窗口几何（原子写，纯写入）。
 //
-// X/Y 为 nil 时保留已存值（load-modify-merge）：前端 beforeunload 的 SaveWindowState
-// 只携带宽高，不能覆盖 beforeClose 已保存的位置——否则正常退出路径下位置被清空，
-// 下次启动回到默认居中（2026-08-04 审阅修复：双写入者竞态）。
+// 单一写入者模型（B-3）：只有 beforeClose 写入——Wails v2.13 的 OnBeforeClose
+// 覆盖窗口关闭 / Cmd+W / runtime.Quit（⌘Q）等主流退出路径（darwin frontend.go:
+// Frontend.Quit 先触发 OnBeforeClose）。已删除前端 beforeunload 的 SaveWindowState
+// 绑定：它只携带宽高，会覆盖 X/Y 造成位置丢失，且 WKWebView 的 beforeunload
+// 可靠性存疑——删除写入者后不再需要 load-modify-merge 补救。
 func saveWindowState(ws windowState) {
 	p := windowStatePath()
 	if p == "" {
 		return
-	}
-	// 合并已存位置：新值未携带 X/Y（nil）时保留旧值，避免覆盖丢失。
-	if ws.X == nil || ws.Y == nil {
-		if prev := loadWindowState(); prev != nil {
-			if ws.X == nil {
-				ws.X = prev.X
-			}
-			if ws.Y == nil {
-				ws.Y = prev.Y
-			}
-		}
 	}
 	data, err := json.Marshal(ws)
 	if err != nil {

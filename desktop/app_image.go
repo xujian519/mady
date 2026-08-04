@@ -85,7 +85,24 @@ func (a *App) SavePastedImage(dataURL string) (string, error) {
 	if !isPathWithinSandbox(abs, cwd) {
 		return "", fmt.Errorf("SavePastedImage: 路径逃逸")
 	}
-	if err := os.WriteFile(abs, decoded, 0600); err != nil {
+	// 原子写（tmp+rename，与 WriteFile 的既有模式一致，B-6）：崩溃不残留半张图。
+	tmp, err := os.CreateTemp(attachmentsDir, ".mady-img-*")
+	if err != nil {
+		return "", fmt.Errorf("SavePastedImage: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if _, err := tmp.Write(decoded); err != nil {
+		_ = tmp.Close()
+		return "", fmt.Errorf("SavePastedImage: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return "", fmt.Errorf("SavePastedImage: %w", err)
+	}
+	if err := os.Chmod(tmpName, 0600); err != nil {
+		return "", fmt.Errorf("SavePastedImage: %w", err)
+	}
+	if err := os.Rename(tmpName, abs); err != nil {
 		return "", fmt.Errorf("SavePastedImage: %w", err)
 	}
 	rel := filepath.ToSlash(filepath.Join("attachments", name))

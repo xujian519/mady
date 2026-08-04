@@ -7,7 +7,7 @@
  *   底部 — 设置入口
  */
 
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 import { useThreads, useDeleteThread, useRenameThread } from '@/stores/threads'
@@ -16,7 +16,7 @@ import { ThreadItem } from './ThreadItem'
 import { TrashPanel } from './TrashPanel'
 import { MemoryPanel } from './MemoryPanel'
 import { ProjectTree } from './ProjectTree'
-import { getThread, bindThreadToSession } from '@/lib/backend'
+import { bindThreadToSession } from '@/lib/backend'
 import { Search, Settings, FolderTree, FileText, MessageSquare, PanelLeftClose, Trash2, Brain } from 'lucide-react'
 
 type SidebarTab = 'threads' | 'project' | 'files' | 'memory'
@@ -39,8 +39,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
   const [searchQuery, setSearchQuery] = useState('')
   // 阶段 2.2：历史面板 — 会话列表 ↔ 回收站视图切换
   const [showTrash, setShowTrash] = useState(false)
-  // 会话切换竞态守卫（S3）：快速切换 A→B 时丢弃 A 的过期响应
-  const selectReqRef = useRef(0)
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return threads
@@ -51,7 +49,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
   const handleSelect = async (key: string) => {
     // 决策 5（标签联动）：侧栏点击会话 = 切换到绑定该会话的标签。
     // 已存在绑定该会话的标签 → 激活它；否则新建标签并绑定到该会话。
-    // 历史加载由 ChatView 的激活标签 effect 统一处理（避免双真相源撕裂）。
+    // 历史加载统一由 ChatView 的激活标签 effect 处理（依赖含活跃标签 threadId，
+    // bind 完成后自动重跑）——单一 owner、单一消息形状（B-1）。
     const tabState = useTabsStore.getState()
     const threadTitle = threads.find((t) => t.key === key)?.title ?? ''
     try {
@@ -65,22 +64,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
       const created = await tabState.createTab()
       if (!created) return
       await bindThreadToSession(created.id, key, threadTitle)
-      await tabState.loadTabs()
-      // 新标签绑定完成：主动加载该会话历史（ChatView effect 可能已在 bind 前
-      // 按空 threadId 走了清空分支，这里补一次加载保证最终一致）。
-      const reqId = ++selectReqRef.current
-      try {
-        const snapshot = await getThread(key)
-        if (reqId !== selectReqRef.current) return // 已切换到其他会话，丢弃过期响应
-        if (snapshot?.messages) {
-          useChatStore.setState({
-            threadId: key,
-            messages: snapshot.messages as any[],
-          })
-        }
-      } catch {
-        /* 后端未就绪时静默失败 */
-      }
     } catch {
       // 后端未就绪时静默失败
     }

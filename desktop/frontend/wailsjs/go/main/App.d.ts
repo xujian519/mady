@@ -80,8 +80,6 @@ export function RestoreThread(arg1:string):Promise<void>;
 
 export function SavePastedImage(arg1:string):Promise<string>;
 
-export function SaveWindowState(arg1:number,arg2:number):Promise<void>;
-
 export function SelectProjectFolder():Promise<main.ProjectInfo>;
 
 export function SendAction(arg1:string,arg2:a2ui.ClientAction):Promise<void>;

@@ -47,6 +47,8 @@ export const ThreadItem: React.FC<ThreadItemProps> = ({
   }
 
   const commitRename = () => {
+    // B-8：Enter 提交后 input 卸载可能触发 blur 二次提交（Chrome 行为），加守卫防重复调用
+    if (!renaming) return
     const name = draft.trim()
     setRenaming(false)
     if (name && name !== thread.title && onRename) onRename(name)

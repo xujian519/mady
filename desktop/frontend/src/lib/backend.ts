@@ -421,15 +421,6 @@ export async function deleteEntry(relPath: string): Promise<void> {
   return callBinding<void>('main/App', 'DeleteEntry', relPath)
 }
 
-// ── Window State ────────────────────────────────────
-
-/**
- * 保存窗口几何信息。
- */
-export async function saveWindowState(width: number, height: number): Promise<void> {
-  return callBinding<void>('main/App', 'SaveWindowState', width, height)
-}
-
 // ── Health ────────────────────────────────────────
 
 /**

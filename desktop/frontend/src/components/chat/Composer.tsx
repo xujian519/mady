@@ -343,16 +343,16 @@ export const Composer: React.FC = () => {
   const insertAtCursor = useCallback((insert: string) => {
     const el = inputRef.current
     if (!el) return
-    const start = el.selectionStart ?? text.length
-    const end = el.selectionEnd ?? text.length
-    const next = text.slice(0, start) + insert + text.slice(end)
-    setText(next)
+    const start = el.selectionStart ?? 0
+    const end = el.selectionEnd ?? 0
+    // B-5：函数式更新，避免异步回调（FileReader→RPC）期间渲染闭包 text 过期
+    setText((prev) => prev.slice(0, start) + insert + prev.slice(end))
     requestAnimationFrame(() => {
       el.focus()
       const pos = start + insert.length
       el.setSelectionRange(pos, pos)
     })
-  }, [text])
+  }, [])
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const pasted = e.clipboardData.getData('text')
