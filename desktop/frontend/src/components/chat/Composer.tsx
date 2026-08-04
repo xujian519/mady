@@ -19,6 +19,7 @@ import { Send, Sparkles } from 'lucide-react'
 import { SlashCommandMenu, type SlashCommand } from './SlashCommandMenu'
 import { exportSession, downloadSession, generateExportFilename } from '@/lib/sessionExport'
 import { useTheme } from '@/theme/tokens'
+import { savePastedImage } from '@/lib/backend'
 
 // ── 常量 ──────────────────────────────────────────
 
@@ -71,6 +72,7 @@ export const Composer: React.FC = () => {
   const [slashQuery, setSlashQuery] = useState('')
   const [isComposing, setIsComposing] = useState(false)
   const [longPasteDetected, setLongPasteDetected] = useState(false)
+  const [pastingImage, setPastingImage] = useState(false)
   const running = useChatStore((s) => s.running)
   const threadId = useChatStore((s) => s.threadId)
   const sendMessage = useChatStore((s) => s.sendMessage)
@@ -335,7 +337,22 @@ export const Composer: React.FC = () => {
     }
   }
 
-  // ── 粘贴事件（简化长粘贴） ──────────────────────
+  // ── 粘贴事件（文本长粘贴检测 + 图片粘贴，Reasonix 对齐） ─────────
+
+  /** 在输入框光标处插入文本，并聚焦回输入框。 */
+  const insertAtCursor = useCallback((insert: string) => {
+    const el = inputRef.current
+    if (!el) return
+    const start = el.selectionStart ?? text.length
+    const end = el.selectionEnd ?? text.length
+    const next = text.slice(0, start) + insert + text.slice(end)
+    setText(next)
+    requestAnimationFrame(() => {
+      el.focus()
+      const pos = start + insert.length
+      el.setSelectionRange(pos, pos)
+    })
+  }, [text])
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const pasted = e.clipboardData.getData('text')
@@ -345,6 +362,31 @@ export const Composer: React.FC = () => {
         setLongPasteDetected(true)
       }, 0)
     }
+
+    // 图片粘贴：取剪贴板第一张图片 → 保存到项目 attachments/ → 插入 Markdown 引用
+    const imageItem = Array.from(e.clipboardData?.items ?? []).find((it) => it.type.startsWith('image/'))
+    if (!imageItem) return
+    const file = imageItem.getAsFile()
+    if (!file) return
+    e.preventDefault()
+    setPastingImage(true)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataURL = String(reader.result ?? '')
+      savePastedImage(dataURL)
+        .then((path) => {
+          insertAtCursor(`![${file.name || '图片'}](${path})`)
+        })
+        .catch((err: unknown) => {
+          console.error('[composer] save pasted image failed:', err)
+        })
+        .finally(() => setPastingImage(false))
+    }
+    reader.onerror = () => {
+      setPastingImage(false)
+      console.error('[composer] read pasted image failed')
+    }
+    reader.readAsDataURL(file)
   }
 
   const canSend = text.trim().length > 0 && !running
@@ -365,6 +407,13 @@ export const Composer: React.FC = () => {
         {longPasteDetected && (
           <div className="mb-2 px-3 py-1.5 rounded-lg bg-mady-warning/10 border border-mady-warning/20 text-mady-caption text-mady-warning">
             检测到大量文本粘贴，内容将被精简显示
+          </div>
+        )}
+
+        {/* 图片上传提示 */}
+        {pastingImage && (
+          <div className="mb-2 px-3 py-1.5 rounded-lg bg-mady-accent/10 border border-mady-accent/20 text-mady-caption text-mady-accent">
+            正在保存粘贴的图片…
           </div>
         )}
 

@@ -257,6 +257,14 @@ export async function bindThreadToSession(tabId: string, threadId: string, title
 }
 
 /**
+ * 保存剪贴板粘贴的图片（data URL）到项目 attachments/ 目录。
+ * 返回相对项目根的路径（供消息 Markdown 引用，如 attachments/pasted-xxx.png）。
+ */
+export async function savePastedImage(dataURL: string): Promise<string> {
+  return callBinding<string>('main/App', 'SavePastedImage', dataURL)
+}
+
+/**
  * 向指定标签发起对话（阶段 2.1b：会话绑定按 tab 分派）。
  * 标签未关联会话时后端自动创建并写回。
  */

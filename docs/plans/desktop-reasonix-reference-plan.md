@@ -211,6 +211,9 @@
    `wails dev` 生成物；`wails dev` 后若 wailsjs 有变化随代码一并提交（Wails 官方惯例）。
 7. **会话重命名 UI（2026-08-04 审阅对齐）**：`RenameThread` 绑定前端接入（ThreadItem 两段式
    编辑），补阶段 1.4「自定义标题」最后一块。
+8. **粘贴图片（2026-08-04 批次 D）**：新增 `SavePastedImage` 绑定（data URL → 项目根
+   `attachments/` 目录，返回相对路径）+ MarkdownRenderer 图片渲染（项目内附件经 ReadFile
+   读取 base64）+ Composer 粘贴检测与光标插入，闭环 Reasonix 计划 A.3「Composer 增强」最后一项。
 
 ---
 
@@ -221,7 +224,7 @@
 | 计划项 | 状态 | 说明 |
 |--------|------|------|
 | 版本号 ldflags 注入（C.3.1） | ✅ | Makefile 注入 `main.desktopVersion` |
-| CheckUpdate 真实化（C.3.1） | ⚠️ | 占位实现恒返回「已是最新」；真实通道依赖公证（见 autoupdate-assessment），中间态文案待改 |
+| CheckUpdate 真实化（C.3.1） | ⚠️ | 占位实现：中间态文案已改「更新通道未接入」（2026-08-04 批次 D），不再误导为「已是最新」；真实通道依赖公证（见 autoupdate-assessment） |
 | 窗口 X/Y 持久化（C.2/C.3.2） | ⚠️ | `beforeClose` 已保存 X/Y，但前端 `SaveWindowState` 双写入者覆盖，正常退出位置丢失（2026-08-04 审阅发现，修复计划批次 A3） |
 | macOS 原生菜单（C.3.3） | ✅ | `menu.go` 设置/退出已就位；「关于」项待补（低） |
 | 会话自定义标题 + 回收站（B.3/阶段 1.4） | ⚠️ | Go 侧完整（RenameThread/Trash/Restore/Purge）；前端重命名 UI 待接入（决策 7） |
@@ -229,7 +232,7 @@
 | 上下文用量环形可视化（A.3） | ✅ | `ContextWindowRing.tsx`（颜色分级缺 80% 档，低） |
 | 多标签 TabBar（A.3/阶段 2.1） | ✅ | Go 侧 tab 状态机 + `ChatInTab` + 前端 TabBar；threadId 采用标签联动（决策 5） |
 | 历史面板/回收站（A.3） | ✅ | 侧栏搜索 + `TrashPanel` 软删除/恢复/彻底清除 |
-| Composer 增强（A.3） | ⚠️ | 草稿/↑↓历史/斜杠菜单/长粘贴检测 ✅；**粘贴图片未做**（低优先） |
+| Composer 增强（A.3） | ✅ | 草稿/↑↓历史/斜杠菜单/长粘贴检测/粘贴图片（2026-08-04 批次 D：SavePastedImage 绑定 + Markdown 图片渲染 + Composer paste 处理） |
 | 三语 i18n（A.3） | ❌ | 产品决策：发布前只做 zh-CN 单语言（见 desktop-i18n-assessment） |
 | 上下文用量持久化快照（B.3） | ❌ | 未实现（低优先） |
 | 长会话历史分页（B.3） | ❌ | `GetThread` 全量返回（低优先） |

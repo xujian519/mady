@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-08-04T18:44:58+08:00",
-  "total": 292,
+  "updated": "2026-08-04T18:51:09+08:00",
+  "total": 293,
   "entries": [
     {
       "date": "2026-08-04",
@@ -44,12 +44,12 @@
       "line": 111
     },
     {
-      "date": "2026-08-03",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
-      "file": "2026-08-03.md",
-      "line": 9
+      "date": "2026-08-04",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "批次 D：Composer 粘贴图片 + CheckUpdate 中间态文案",
+      "file": "2026-08-04.md",
+      "line": 146
     },
     {
       "date": "2026-08-03",
@@ -60,12 +60,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-02",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "桌面端记忆面板：memory 三层系统绑定 + MemoryPanel + Sidebar 记忆页",
-      "file": "2026-08-02.md",
-      "line": 97
+      "date": "2026-08-03",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
+      "file": "2026-08-03.md",
+      "line": 9
     },
     {
       "date": "2026-08-02",
@@ -132,12 +132,12 @@
       "line": 85
     },
     {
-      "date": "2026-08-01",
-      "type": "refactor",
-      "scope": "bootstrap",
-      "title": "统一 BaseConfig 构造并清理 desktop lint 遗留问题",
-      "file": "2026-08-01.md",
-      "line": 3
+      "date": "2026-08-02",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "桌面端记忆面板：memory 三层系统绑定 + MemoryPanel + Sidebar 记忆页",
+      "file": "2026-08-02.md",
+      "line": 97
     },
     {
       "date": "2026-08-01",
@@ -164,12 +164,12 @@
       "line": 32
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "lint/docs",
-      "title": "三项代码质量修复 — AI_CHANGELOG 门禁 / nolint 注释 / README 错误",
-      "file": "2026-07-31.md",
-      "line": 471
+      "date": "2026-08-01",
+      "type": "refactor",
+      "scope": "bootstrap",
+      "title": "统一 BaseConfig 构造并清理 desktop lint 遗留问题",
+      "file": "2026-08-01.md",
+      "line": 3
     },
     {
       "date": "2026-07-31",
@@ -572,12 +572,12 @@
       "line": 212
     },
     {
-      "date": "2026-07-30",
-      "type": "refactor",
-      "scope": "*",
-      "title": "阶段三完成：4个大文件拆分 + TODO清理 + 文档同步",
-      "file": "2026-07-30.md",
-      "line": 48
+      "date": "2026-07-31",
+      "type": "fix",
+      "scope": "lint/docs",
+      "title": "三项代码质量修复 — AI_CHANGELOG 门禁 / nolint 注释 / README 错误",
+      "file": "2026-07-31.md",
+      "line": 471
     },
     {
       "date": "2026-07-30",
@@ -732,12 +732,12 @@
       "line": 635
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
-      "scope": "a2ui",
-      "title": "桌面端第一波闭环实现（A2UIPromise + ListModels + 工程加固）",
-      "file": "2026-07-29.md",
-      "line": 95
+      "date": "2026-07-30",
+      "type": "refactor",
+      "scope": "*",
+      "title": "阶段三完成：4个大文件拆分 + TODO清理 + 文档同步",
+      "file": "2026-07-30.md",
+      "line": 48
     },
     {
       "date": "2026-07-29",
@@ -812,12 +812,12 @@
       "line": 48
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
-      "scope": "tui",
-      "title": "修复 TUI 滚动会话记录失效（alt screen 下滚轮被翻译为方向键）",
-      "file": "2026-07-28.md",
-      "line": 389
+      "date": "2026-07-29",
+      "type": "chore",
+      "scope": "a2ui",
+      "title": "桌面端第一波闭环实现（A2UIPromise + ListModels + 工程加固）",
+      "file": "2026-07-29.md",
+      "line": 95
     },
     {
       "date": "2026-07-28",
@@ -940,12 +940,12 @@
       "line": 649
     },
     {
-      "date": "2026-07-27",
-      "type": "docs",
-      "scope": "*",
-      "title": "Mady 桌面端 Spec 四阶段文档起草（Wails + React）",
-      "file": "2026-07-27.md",
-      "line": 527
+      "date": "2026-07-28",
+      "type": "fix",
+      "scope": "tui",
+      "title": "修复 TUI 滚动会话记录失效（alt screen 下滚轮被翻译为方向键）",
+      "file": "2026-07-28.md",
+      "line": 389
     },
     {
       "date": "2026-07-27",
@@ -1108,12 +1108,12 @@
       "line": 276
     },
     {
-      "date": "2026-07-26",
-      "type": "chore",
+      "date": "2026-07-27",
+      "type": "docs",
       "scope": "*",
-      "title": "Sprint 3 全部完成 — T3.2~T3.15 共 11 项",
-      "file": "2026-07-26.md",
-      "line": 61
+      "title": "Mady 桌面端 Spec 四阶段文档起草（Wails + React）",
+      "file": "2026-07-27.md",
+      "line": 527
     },
     {
       "date": "2026-07-26",
@@ -1180,12 +1180,12 @@
       "line": 41
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
-      "scope": "memory",
-      "title": "审阅决策 — memory 与 tasklist 按 workspace 隔离",
-      "file": "2026-07-25.md",
-      "line": 171
+      "date": "2026-07-26",
+      "type": "chore",
+      "scope": "*",
+      "title": "Sprint 3 全部完成 — T3.2~T3.15 共 11 项",
+      "file": "2026-07-26.md",
+      "line": 61
     },
     {
       "date": "2026-07-25",
@@ -1292,12 +1292,12 @@
       "line": 139
     },
     {
-      "date": "2026-07-24",
-      "type": "fix",
-      "scope": "*",
-      "title": "斜杠命令系统交互改进（P0三阶段 + code-review修复）",
-      "file": "2026-07-24.md",
-      "line": 701
+      "date": "2026-07-25",
+      "type": "docs",
+      "scope": "memory",
+      "title": "审阅决策 — memory 与 tasklist 按 workspace 隔离",
+      "file": "2026-07-25.md",
+      "line": 171
     },
     {
       "date": "2026-07-24",
@@ -1452,12 +1452,12 @@
       "line": 308
     },
     {
-      "date": "2026-07-23",
-      "type": "chore",
-      "scope": "domains",
-      "title": "enablement 模块知识库联动补强",
-      "file": "2026-07-23.md",
-      "line": 202
+      "date": "2026-07-24",
+      "type": "fix",
+      "scope": "*",
+      "title": "斜杠命令系统交互改进（P0三阶段 + code-review修复）",
+      "file": "2026-07-24.md",
+      "line": 701
     },
     {
       "date": "2026-07-23",
@@ -1604,12 +1604,12 @@
       "line": 114
     },
     {
-      "date": "2026-07-22",
+      "date": "2026-07-23",
       "type": "chore",
-      "scope": "knowledge",
-      "title": "知识库工具注入修正 — search_knowledge/search_laws 归属 Patent/Legal Agent",
-      "file": "2026-07-22.md",
-      "line": 285
+      "scope": "domains",
+      "title": "enablement 模块知识库联动补强",
+      "file": "2026-07-23.md",
+      "line": 202
     },
     {
       "date": "2026-07-22",
@@ -1668,12 +1668,12 @@
       "line": 227
     },
     {
-      "date": "2026-07-21",
-      "type": "feat",
-      "scope": "guardrails",
-      "title": "新增护航评估 GuardrailsMetric + AdoptionRateMetric",
-      "file": "2026-07-21.md",
-      "line": 665
+      "date": "2026-07-22",
+      "type": "chore",
+      "scope": "knowledge",
+      "title": "知识库工具注入修正 — search_knowledge/search_laws 归属 Patent/Legal Agent",
+      "file": "2026-07-22.md",
+      "line": 285
     },
     {
       "date": "2026-07-21",
@@ -1852,12 +1852,12 @@
       "line": 49
     },
     {
-      "date": "2026-07-20",
-      "type": "fix",
-      "scope": "tui",
-      "title": "修复 TUI 输入框区域溢出（Flex 容器不裁剪总输出）",
-      "file": "2026-07-20.md",
-      "line": 652
+      "date": "2026-07-21",
+      "type": "feat",
+      "scope": "guardrails",
+      "title": "新增护航评估 GuardrailsMetric + AdoptionRateMetric",
+      "file": "2026-07-21.md",
+      "line": 665
     },
     {
       "date": "2026-07-20",
@@ -2084,12 +2084,12 @@
       "line": 777
     },
     {
-      "date": "2026-07-19",
-      "type": "docs",
-      "scope": "a2ui",
-      "title": "A2UI 模块审阅与完备化",
-      "file": "2026-07-19.md",
-      "line": 41
+      "date": "2026-07-20",
+      "type": "fix",
+      "scope": "tui",
+      "title": "修复 TUI 输入框区域溢出（Flex 容器不裁剪总输出）",
+      "file": "2026-07-20.md",
+      "line": 652
     },
     {
       "date": "2026-07-19",
@@ -2132,12 +2132,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-18",
-      "type": "feat",
-      "scope": "*",
-      "title": "引入 Open Design 项目思路 —— 三阶段 Tier 1 实现",
-      "file": "2026-07-18.md",
-      "line": 690
+      "date": "2026-07-19",
+      "type": "docs",
+      "scope": "a2ui",
+      "title": "A2UI 模块审阅与完备化",
+      "file": "2026-07-19.md",
+      "line": 41
     },
     {
       "date": "2026-07-18",
@@ -2338,6 +2338,14 @@
       "title": "Code Review 全部 6 个问题修复",
       "file": "2026-07-18.md",
       "line": 720
+    },
+    {
+      "date": "2026-07-18",
+      "type": "feat",
+      "scope": "*",
+      "title": "引入 Open Design 项目思路 —— 三阶段 Tier 1 实现",
+      "file": "2026-07-18.md",
+      "line": 690
     }
   ]
 }

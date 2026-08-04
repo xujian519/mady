@@ -146,6 +146,10 @@ export function RestoreThread(arg1) {
   return window['go']['main']['App']['RestoreThread'](arg1);
 }
 
+export function SavePastedImage(arg1) {
+  return window['go']['main']['App']['SavePastedImage'](arg1);
+}
+
 export function SaveWindowState(arg1, arg2) {
   return window['go']['main']['App']['SaveWindowState'](arg1, arg2);
 }
