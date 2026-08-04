@@ -246,3 +246,23 @@ func TestMarkdownParagraphKeepsSingleHash(t *testing.T) {
 		}
 	}
 }
+
+// TestMarkdownTableHorizontalHeaderInline verifies horizontal-mode table
+// headers also pass through renderInline. renderTableVertical fixed this for
+// the vertical fallback, but renderTableRows skipped renderInline for header
+// rows — so `**维度**` leaked raw asterisks in wide (horizontal) tables.
+func TestMarkdownTableHorizontalHeaderInline(t *testing.T) {
+	src := "| **维度** | **要点** |\n| --- | --- |\n| 新颖性 | 区别于现有技术 |"
+	md := NewMarkdown(src)
+	lines := md.Render(60)
+	joined := core.StripAnsi(strings.Join(lines, "\n"))
+	if strings.Contains(joined, "**") {
+		t.Errorf("horizontal table header markdown markers should be rendered, not leaked raw:\n%s", joined)
+	}
+	if !strings.Contains(joined, "维度") || !strings.Contains(joined, "要点") {
+		t.Errorf("horizontal table headers missing:\n%s", joined)
+	}
+	if !strings.Contains(joined, "区别于现有技术") {
+		t.Errorf("horizontal table body cell missing:\n%s", joined)
+	}
+}

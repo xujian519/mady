@@ -97,3 +97,72 @@ func TestParseKeysPrintable(t *testing.T) {
 		t.Errorf("unexpected names: %v %v %v", keys[0].Name, keys[1].Name, keys[2].Name)
 	}
 }
+
+// TestKittyFunctionalKeyMapping locks the Kitty keyboard protocol functional
+// key codepoints to their canonical names. These are the Unicode PUA codes a
+// Kitty-protocol terminal emits in CSI ... u (0xe000=Escape … 0xe01f=F12);
+// a wrong mapping silently breaks navigation on Kitty/Ghostty/WezTerm/foot.
+func TestKittyFunctionalKeyMapping(t *testing.T) {
+	cases := []struct {
+		seq  string
+		want string
+	}{
+		{"\x1b[57348u", "insert"},
+		{"\x1b[57349u", "delete"},
+		{"\x1b[57350u", "left"},
+		{"\x1b[57351u", "right"},
+		{"\x1b[57352u", "up"},
+		{"\x1b[57353u", "down"},
+		{"\x1b[57354u", "pageUp"},
+		{"\x1b[57355u", "pageDown"},
+		{"\x1b[57356u", "home"},
+		{"\x1b[57357u", "end"},
+		{"\x1b[57358u", "capsLock"},
+		{"\x1b[57359u", "scrollLock"},
+		{"\x1b[57360u", "numLock"},
+		{"\x1b[57361u", "printScreen"},
+		{"\x1b[57362u", "pause"},
+		{"\x1b[57363u", "menu"},
+		{"\x1b[57364u", "f1"},
+		{"\x1b[57368u", "f5"},
+		{"\x1b[57375u", "f12"},
+	}
+	for _, c := range cases {
+		if !MatchesKey(c.seq, c.want) {
+			t.Errorf("MatchesKey(%q): want %q", c.seq, c.want)
+		}
+	}
+}
+
+// TestKittyFunctionalKeyWithModifier verifies modifier prefixes compose
+// correctly with the functional-key mapping (ctrl+up, shift+f3).
+func TestKittyFunctionalKeyWithModifier(t *testing.T) {
+	if !MatchesKey("\x1b[57352;5u", "ctrl+up") {
+		t.Error("expected ctrl+up from CSI 57352;5 u")
+	}
+	if !MatchesKey("\x1b[57366;2u", "shift+f3") {
+		t.Error("expected shift+f3 from CSI 57366;2 u (57366 = 0xe016 = F3)")
+	}
+}
+
+// TestKittyC0PUAKeys verifies the C0 control keys encoded as PUA codepoints
+// under protocol flag 1 (0xe000=Escape … 0xe003=Enter). Without these
+// mappings, Shift+Esc/Shift+Enter etc. arrive as private-use runes and get
+// inserted into the editor buffer as garbage characters.
+func TestKittyC0PUAKeys(t *testing.T) {
+	cases := []struct {
+		seq  string
+		want string
+	}{
+		{"\x1b[57344;2u", "shift+escape"},   // 0xe000 + Shift
+		{"\x1b[57345;2u", "shift+tab"},      // 0xe001 + Shift
+		{"\x1b[57346;5u", "ctrl+backspace"}, // 0xe002 + Ctrl
+		{"\x1b[57347;5u", "ctrl+enter"},     // 0xe003 + Ctrl
+		{"\x1b[57344;5u", "ctrl+escape"},    // 0xe000 + Ctrl
+	}
+	for _, c := range cases {
+		if !MatchesKey(c.seq, c.want) {
+			t.Errorf("MatchesKey(%q): want %q", c.seq, c.want)
+		}
+	}
+}

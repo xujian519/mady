@@ -311,13 +311,17 @@ func (h *ChatHistory) tryToggleThinkingAtLineLocked(absLine int64) bool {
 	}
 
 	// Check if it's a tool group
+	// msgIdx is an index into cachedMsgRanges, NOT into h.messages: a tool
+	// group collapses multiple messages into one range, so the two arrays
+	// drift apart once a group exists. Always translate through
+	// cachedMsgRanges[msgIdx].msgIndex before touching h.messages.
 	if r := &h.cachedMsgRanges[msgIdx]; r.toolGroup {
 		h.expandToolGroup(msgIdx)
 		h.dirty = true
 		return true
 	}
 
-	msg := &h.messages[msgIdx]
+	msg := &h.messages[h.cachedMsgRanges[msgIdx].msgIndex]
 	if msg.Role == RoleTool && msg.Collapsed {
 		msg.Collapsed = false
 		h.invalidateMessageLocked(msg.ID)

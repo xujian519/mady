@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -65,5 +66,48 @@ func TestSetSemanticThemeAndCurrentPalette(t *testing.T) {
 	}
 	if p.Mode != ColorModeTruecolor {
 		t.Fatalf("want ColorModeTruecolor, got %v", p.Mode)
+	}
+}
+
+// TestLightThemePhase1Tokens verifies DefaultSemanticLight defines the
+// Phase-1 background/surface/evidence tokens. Without them palette.go falls
+// back to the dark brand values (#07111F etc.), so a light theme renders
+// dark blue surfaces — and overlay dimBgColor (which derives from
+// sem.Background) darkens overlays instead of lightening them.
+func TestLightThemePhase1Tokens(t *testing.T) {
+	sem := DefaultSemanticLight()
+	if sem.Background == "" || sem.Surface == "" || sem.SurfaceRaised == "" {
+		t.Fatalf("light theme missing phase-1 tokens: Background=%q Surface=%q SurfaceRaised=%q",
+			sem.Background, sem.Surface, sem.SurfaceRaised)
+	}
+	for name, tok := range map[string]string{
+		"EvidenceSupport":  sem.EvidenceSupport,
+		"EvidenceCounter":  sem.EvidenceCounter,
+		"ConfidenceLow":    sem.ConfidenceLow,
+		"ConfidenceMedium": sem.ConfidenceMedium,
+		"ConfidenceHigh":   sem.ConfidenceHigh,
+	} {
+		if tok == "" {
+			t.Errorf("light theme missing token %q", name)
+		}
+	}
+}
+
+// TestLightThemeSurfaceIsLight renders the palette under the light theme and
+// asserts the surface background is a light color (not the dark fallback).
+func TestLightThemeSurfaceIsLight(t *testing.T) {
+	savePalette(t)
+	SetSemanticTheme(DefaultSemanticLight(), ColorModeTruecolor)
+	p := CurrentPalette()
+	if p == nil {
+		t.Fatal("CurrentPalette nil")
+	}
+	strip := p.BackgroundBg.BgStrip()
+	// #f7f9fc → 48;2;247;249;252
+	if !strings.Contains(strip, "48;2;247;249;252") {
+		t.Errorf("light BackgroundBg = %q, want truecolor 48;2;247;249;252 (light)", strip)
+	}
+	if strings.Contains(strip, "48;2;7;17;31") {
+		t.Errorf("light BackgroundBg = %q contains dark fallback #07111F", strip)
 	}
 }

@@ -546,7 +546,16 @@ func (h *ChatHistory) applyDeltaLocked(m *ChatMessage, delta, kind string) bool 
 		m.deltaHistory = make(map[string]struct{})
 	}
 	if _, seen := m.deltaHistory[delta]; seen {
-		return false
+		// Single-rune deltas are exempt from exact-match dedup. Streams that
+		// arrive one rune at a time legitimately repeat characters — table
+		// separators "---|---", "===", ellipses "...", doubled punctuation —
+		// and dropping them silently corrupts the rendered output (a
+		// 5-column separator shrinks to 3). Providers re-send whole chunks,
+		// not isolated characters, so the dedup still protects the intended
+		// case (duplicate chunk) without damaging rune streams.
+		if utf8.RuneCountInString(delta) > 1 {
+			return false
+		}
 	}
 
 	var target *string

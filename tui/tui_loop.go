@@ -62,11 +62,18 @@ func (t *TUI) eventLoop() {
 // (if any) to the event loop. Called on every ticker/tick boundary so that
 // the final drag position from a burst of throttled motion events reaches
 // the component, keeping text-selection endpoints accurate.
+//
+// Runs on the event-loop goroutine; pendingMotion is shared with onMouse /
+// onThrottledMotion on the terminal read goroutine, so it is guarded by t.mu
+// and SendMsg happens outside the lock (see onMouse for the deadlock note).
 func (t *TUI) flushPendingMotion() {
+	t.mu.Lock()
 	if t.pendingMotion == nil {
+		t.mu.Unlock()
 		return
 	}
 	msg := *t.pendingMotion
 	t.pendingMotion = nil
+	t.mu.Unlock()
 	t.SendMsg(msg)
 }

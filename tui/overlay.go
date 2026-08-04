@@ -383,6 +383,13 @@ func composeOverlays(base []core.Row, overlays []*Overlay, cols, rows int64) []c
 		origin := resolveOverlayOrigin(ov, cols, rows, w, h)
 		ov.renderedRow = origin.row
 		ov.renderedCol = origin.col
+		// Record the rendered extent so TranslateMouse can map absolute
+		// screen coordinates into the overlay's local space. Without these,
+		// renderedWidth/Height stay 0 and TranslateMouse always reports
+		// out-of-bounds — overlay content components would receive absolute
+		// screen coordinates and their hit-testing would be wrong.
+		ov.renderedWidth = w
+		ov.renderedHeight = h
 		// CoW rows that spliceOverlayRows will mutate in place.
 		// If dims=true, all rows were already copied above (cowRow no-op).
 		// If dims=false, only overlay rows get copied — the big win.

@@ -53,7 +53,7 @@ func runModalTUI(t *testing.T) (*TUI, *modalProbe, *overlayProbe, *Overlay) {
 
 	done := app.Done()
 	go func() { _ = app.Start() }()
-	time.Sleep(50 * time.Millisecond)
+	waitTUIStarted(t, app)
 	t.Cleanup(func() {
 		app.Stop()
 		select {
@@ -73,7 +73,8 @@ func TestOverlayModalBlocksBackground(t *testing.T) {
 		t.Fatal("overlay content did not receive focus")
 	}
 	app.SendMsg(core.KeyMsg{Data: "a"})
-	time.Sleep(80 * time.Millisecond)
+	waitFor(t, 3*time.Second, func() bool { return ovContent.msgs.Load() == 1 },
+		"overlay content to process the key")
 
 	if got := probe.msgs.Load(); got != 0 {
 		t.Errorf("background probe received %d keys with modal overlay, want 0", got)
@@ -92,10 +93,12 @@ func TestOverlayNonModalReachesBackground(t *testing.T) {
 	app.RemoveOverlay(ov)
 	ov.NonModal = true
 	app.PushOverlay(ov)
-	time.Sleep(20 * time.Millisecond)
+	waitFor(t, 3*time.Second, func() bool { return ovContent.focused.Load() },
+		"overlay content to regain focus after reopening non-modal")
 
 	app.SendMsg(core.KeyMsg{Data: "b"})
-	time.Sleep(80 * time.Millisecond)
+	waitFor(t, 3*time.Second, func() bool { return ovContent.msgs.Load() == 1 },
+		"overlay content to process the key")
 
 	if got := ovContent.msgs.Load(); got != 1 {
 		t.Errorf("overlay content received %d keys, want 1 (focused path first)", got)
@@ -136,7 +139,7 @@ func (m *mouseProbe) LastMouse() core.MouseMsg {
 // original screen-absolute coordinates, not the overlay-local translation
 // delivered to the focused overlay content.
 func TestOverlayNonModalMouseUsesScreenCoords(t *testing.T) {
-	app, _, _, ov := runModalTUI(t)
+	app, _, ovContent, ov := runModalTUI(t)
 
 	bg := &mouseProbe{}
 	app.AddChild(bg)
@@ -144,12 +147,14 @@ func TestOverlayNonModalMouseUsesScreenCoords(t *testing.T) {
 	app.RemoveOverlay(ov)
 	ov.NonModal = true
 	app.PushOverlay(ov)
-	time.Sleep(20 * time.Millisecond)
+	waitFor(t, 3*time.Second, func() bool { return ovContent.focused.Load() },
+		"overlay content to regain focus after reopening non-modal")
 
 	// Overlay anchored at (0,0) sized 40x10: a click at screen (5,5) is
 	// inside the overlay; the background must receive (5,5), not (0,0)-local.
 	app.SendMsg(core.MouseMsg{Action: core.MousePress, Row: 5, Col: 5, Button: 1})
-	time.Sleep(80 * time.Millisecond)
+	waitFor(t, 3*time.Second, func() bool { return bg.LastMouse().Row == 5 },
+		"background to receive the mouse event")
 
 	if got := bg.LastMouse(); got.Row != 5 || got.Col != 5 {
 		t.Errorf("background mouse = (%d,%d), want screen coords (5,5)", got.Row, got.Col)

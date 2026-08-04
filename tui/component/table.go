@@ -307,8 +307,10 @@ func (t *Table) Items() []any {
 // the maximum number of visible rows. Caller adjusts maxVisible to account
 // for chrome rows (title, search, footer, etc.).
 func (t *Table) VisibleRange(maxVisible int) (start, end int) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
+	// Full write lock: this method clamps t.scroll so the selection stays
+	// visible. Under RLock two concurrent readers would race on t.scroll.
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	n := len(t.items)
 	if n == 0 || maxVisible <= 0 {

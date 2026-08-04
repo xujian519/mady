@@ -113,6 +113,20 @@ func DefaultSemanticLight() *SemanticTheme {
 
 		LoaderSpinner: "#0066cc",
 		ProgressBar:   "#1565c0",
+
+		// Phase 1 新增 token：背景层次（浅色系，与 Text:#212121 协调）。
+		// 缺省时 palette.go 会回退到深色品牌值（#07111F 等），导致浅色主题
+		// 下表面/背景渲染成深蓝——必须显式提供。
+		Background:    "#f7f9fc",
+		Surface:       "#eef2f7",
+		SurfaceRaised: "#ffffff",
+
+		// 证据与置信度可视化（浅色背景下的深色语义色）
+		EvidenceSupport:  "#1565c0",
+		EvidenceCounter:  "#7b1fa2",
+		ConfidenceLow:    "#ef6c00",
+		ConfidenceMedium: "#0277bd",
+		ConfidenceHigh:   "#2e7d32",
 	}
 }
 

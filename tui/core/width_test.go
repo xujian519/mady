@@ -3,6 +3,7 @@ package core
 import (
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -220,5 +221,56 @@ func TestWrapAnsiSoftBreakOnPunctuation(t *testing.T) {
 	}
 	if strings.Contains(first, "skill") {
 		t.Errorf("expected first wrapped line to stop before 'skill', got %q", first)
+	}
+}
+
+// TestWrapAnsiWidthOneCJKNoHang is the regression test for the wrapOneLine
+// infinite loop: when width == 1 and the line starts with a 2-cell CJK rune,
+// findBreakColumn previously returned `width` (1), SliceByColumn(0, 1) cut
+// the wide rune and returned an empty left slice, so `cur` never advanced and
+// the loop spun forever. This test fails fast via a watchdog if it hangs, and
+// asserts no rune is dropped.
+func TestWrapAnsiWidthOneCJKNoHang(t *testing.T) {
+	text := "中文"
+	done := make(chan []string, 1)
+	go func() {
+		done <- WrapAnsi(text, 1)
+	}()
+	select {
+	case lines := <-done:
+		var joined string
+		for _, ln := range lines {
+			joined += StripAnsi(ln)
+		}
+		if joined != text {
+			t.Errorf("WrapAnsi(%q, 1) dropped runes: got %q", text, joined)
+		}
+		if len(lines) == 0 {
+			t.Errorf("WrapAnsi(%q, 1) returned no lines", text)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("WrapAnsi(%q, 1) hung (infinite loop)", text)
+	}
+}
+
+// TestWrapAnsiWidthOneMixed covers a wide rune in the middle of the line plus
+// a standalone over-wide emoji at width 1 — both must terminate and preserve
+// every glyph.
+func TestWrapAnsiWidthOneMixed(t *testing.T) {
+	for _, text := range []string{"a中b", "✅ok", "中文", "中"} {
+		done := make(chan []string, 1)
+		go func(src string) { done <- WrapAnsi(src, 1) }(text)
+		select {
+		case lines := <-done:
+			var joined string
+			for _, ln := range lines {
+				joined += StripAnsi(ln)
+			}
+			if joined != text {
+				t.Errorf("WrapAnsi(%q, 1) dropped runes: got %q", text, joined)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("WrapAnsi(%q, 1) hung (infinite loop)", text)
+		}
 	}
 }
