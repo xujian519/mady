@@ -112,7 +112,6 @@ tui/
 │   ├── system_status.go   # SystemStatus: system-mode display overlay
 │   ├── todo_panel.go      # TodoPanel: task tracking panel
 │   ├── toast.go           # Toast: transient notification bar with auto-dismiss
-│   ├── onboarding.go      # FirstRunWizard: welcome guide for first-time users
 │   │
 │   ├── syntax.go          # Syntax highlighter core (entry point, 313 lines)
 │   ├── syntax_langs.go    # Built-in language specs (Go, Bash, JSON, YAML, etc.)
