@@ -33,23 +33,23 @@ import (
 
 ---
 
-## 决策 2：两套渲染模型（stdio vs Component）
+## 决策 2：渲染模型演进——stdio 已删除，统一走 Component
 
-TUI 模块有两套并行的渲染模型：
+> **2026-07-30 更新**：`tui/stdio/` 孤儿包已删除（linereader/renderer/spinner/progress/layout 共 6 文件，
+> 见 AI_CHANGELOG 2026-07-30「删除 tui/stdio 孤儿包」）。TUI 现在**只有一套渲染模型**。
 
 1. **TUI 引擎**（Layer 3–5）：Elm 架构，差分渲染，`Component` 接口。组件渲染为字符串数组，引擎做 diff 后只写变更。ChatApp 使用此模型。
+2. ~~**stdio**（Layer 6）：过程式 stdout/stdin，`\r` 覆写，`fmt.Fprint`。~~ 已删除；全部渲染走
+   `core.Component` → `core.ParseLine` → cell 级 diff → `core.SerializeRow` 单一路径。
 
-2. **stdio**（Layer 6）：过程式 stdout/stdin，`\r` 覆写，`fmt.Fprint`。无组件模型，无差分渲染。供独立脚本/示例使用。
-
-两者共享 `core.SpinnerStyle`（动画帧数据）和 `theme`（样式），但 I/O 模型完全不同。
-`stdio` 的名称体现了这一区别——这些工具操作裸 stdin/stdout，不经过 TUI 引擎。
+`core.SpinnerStyle` 由 `component.Loader` 消费（TUI 组件）；过程式 stdio 不再存在。
 
 ---
 
 ## 决策 3：SpinnerStyle 放在 Core
 
 `SpinnerStyle` 是纯数据类型（动画帧 + 间隔），无渲染依赖。
-放在 `core` 是因为 `component.Loader`（TUI 组件）和 `stdio.Spinner`（过程式）都需要它。
+放在 `core` 是因为 `component.Loader`（TUI 组件）消费它，且它是纯数据无渲染依赖。
 放在任一消费者包都会迫使另一方向上导入。
 
 ---
@@ -57,7 +57,7 @@ TUI 模块有两套并行的渲染模型：
 ## 决策 4：FuzzyContentProvider 在 Component
 
 `FuzzyContentProvider` 实现 `core.AutocompleteProvider`，属于组件层概念（自动补全数据源）。
-之前位于 `util/fuzzy_bridge.go`，但 `util` 被重分类为 `stdio`（过程式 I/O 工具）后，
+之前位于 `util/fuzzy_bridge.go`；`util` 层的 I/O 工具分类调整后，
 该 provider 与 `StaticProvider` 和 `FilePathProvider` 一同归入 `component`。
 
 ---

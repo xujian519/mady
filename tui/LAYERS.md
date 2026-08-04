@@ -9,8 +9,8 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 | 1 Terminal I/O | `tui/terminal` | Terminal abstraction, key parsing, input buffer, ANSI builders | Layer 0 |
 | 2 Theming | `tui/theme` | Palette, semantic theme, a11y theme, JSON loading, file watch, Style | Layer 0, 1 |
 | 3 Engine | `tui` (root) | TUI container, event loop, overlay system, focus stack, ChatApp bridge | Layer 0–2, chat |
-| 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels, toast, onboarding) — 45 source files | Layer 0–2, fuzzy |
-| 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 22 source files | Layer 0–2, 4 |
+| 4 Components | `tui/component` | UI components (Editor, Markdown, domain cards, syntax highlighter, overlays, panels, toast, onboarding) — 44 source files | Layer 0–2, fuzzy |
+| 5 Application | `tui/chat` | Chat application layer (ChatApp, ChatHistory, state machine) — 21 source files | Layer 0–2, 4 |
 | 7 Adapter | `tui/agentadapter` | Agentcore → chat event conversion, BindAgent convenience | Layer 5, agentcore |
 
 > `tui/layout` 在编号上归入 Layer 0（仅依赖 `tui/core`，不依赖 theming/agentcore），
@@ -28,24 +28,24 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 117 source files (+ 108 test files) across 9 packages.
-> Last sync: 2026-07-31.
+> Auto-verified: 116 source files (+ 113 test files) across 9 packages.
+> Last sync: 2026-08-04.
 
 ```
 tui/
 ├── core/                  # Layer 0 — Foundation (14 source files)
 │   ├── component.go       # Component/Updatable/Focusable interfaces, Container, CURSOR_MARKER
 │   ├── message.go         # Msg/Cmd types, Batch/Sequence/Quit, MsgBase
-│   ├── errors.go          # Three-layer error model: TermError/NetError/LogicError
+│   ├── errors.go          # Typed errors: TerminalError/ClipboardError (TermError/NetError/LogicError removed)
 │   ├── width.go           # East-Asian width, truncation, padding, wrapping
 │   ├── runeutil.go        # Shared rune utilities (CellWidthOfRunes, SliceRunesByCells, etc.)
 │   ├── fuzzy_match.go     # Fuzzy matching utilities
 │   ├── spinner_style.go   # SpinnerStyle type + preset vars (SpinnerDots, SpinnerLine, etc.)
-│   ├── cell.go            # Cell-level rendering model: Cell/Row types, CellGrid
+│   ├── cell.go            # Cell-level rendering model: Cell/Row types
 │   ├── celldiff.go        # Cell-level frame diff (DiffRows), stricter than string diff
 │   ├── cellparse.go       # string → Row parser (ANSI escape → Cell grid)
 │   ├── cellrender.go      # Row → ANSI string serializer (SerializeRow)
-│   ├── sgr.go             # SGR state machine: ParseSGR/BuildSGR, permissive parameter parsing
+│   ├── sgr.go             # SGR state machine: ParseSGR/RenderSGR, permissive parameter parsing
 │   ├── sanitize.go        # SanitizeRawContent: strips dangerous escape sequences from raw output
 │   └── stack.go           # CaptureStack: goroutine stack trace for PanicMsg diagnostics
 │
@@ -75,7 +75,7 @@ tui/
 │   ├── system_appearance.go # macOS NSAppearance dark/light detection
 │   └── theme_registry.go  # Theme registry: built-in + user theme registration
 │
-├── component/             # Layer 4 — Components (45 source files)
+├── component/             # Layer 4 — Components (44 source files)
 │   ├── autocomplete.go    # Autocomplete dropdown, StaticProvider, FilePathProvider
 │   ├── box.go             # Box (border/padding container)
 │   ├── text.go            # Text, TruncatedText
@@ -130,7 +130,7 @@ tui/
 │   ├── flex.go            # Flex declarative layout (main-axis size policies, 506 lines)
 │   └── layout.go          # Layout helpers
 │
-├── chat/                  # Layer 5 — Application (22 source files)
+├── chat/                  # Layer 5 — Application (21 source files)
 │   ├── chat_app.go        # ChatApp struct, constructor, public API
 │   ├── chat_app_layout.go # chatLayout root Component + input router
 │   ├── chat_app_plantask.go # PlanTask state/approval/interrupt/reject/revise handlers
@@ -155,7 +155,7 @@ tui/
 │   └── chat_model.go      # Conversation data model types
 │
 ├── agentadapter/          # Layer 7 — Agentcore Adapter
-│   └── adapter.go         # BindAgent, AgentRunner, event conversion (agentcore → chat)
+│   └── adapter.go         # BindAgent, event conversion (agentcore → chat; AgentRunner lives in agentcore/iface)
 │
 ├── internal/              # Internal helpers (not exported, used by sibling packages)
 │   ├── csync/slice.go     # Concurrent slice helpers
@@ -203,11 +203,11 @@ rendered strings into a 2D grid of `Cell` values, each carrying an absolute
    unnecessary re-renders.
 
 Files:
-- `cell.go` — `Cell`/`Row` types, `CellGrid`
+- `cell.go` — `Cell`/`Row` types
 - `celldiff.go` — `DiffRows` cell-level frame diff (stricter than string diff)
 - `cellparse.go` — string → `Row` parser (ANSI escape → Cell grid)
 - `cellrender.go` — `Row` → ANSI string serializer (`SerializeRow`)
-- `sgr.go` — SGR state machine: `ParseSGR`/`BuildSGR`, permissive parameter parsing
+- `sgr.go` — SGR state machine: `ParseSGR`/`RenderSGR`, permissive parameter parsing
 
 ### Editor Subsystem (5-file architecture)
 
