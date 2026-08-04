@@ -8,5 +8,11 @@ export default {
 		'header-max-length': [2, 'always', 120],
 		// 允许中文 scope 与 subject；主体可含中日韩文字及标点。
 		'subject-case': [0],
+		// dependabot gomod 生成的 commit 使用 deps(deps): 前缀，补充到允许的类型枚举。
+		// （与 .github/dependabot.yml 的 commit-message.prefix: "deps" 保持一致）
+		'type-enum': [2, 'always', [
+			'build', 'chore', 'ci', 'docs', 'feat', 'fix', 'perf',
+			'refactor', 'revert', 'style', 'test', 'deps',
+		]],
 	},
 };
