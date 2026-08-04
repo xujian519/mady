@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-08-04T19:06:16+08:00",
-  "total": 294,
+  "updated": "2026-08-04T19:21:24+08:00",
+  "total": 295,
   "entries": [
     {
       "date": "2026-08-04",
@@ -60,12 +60,12 @@
       "line": 173
     },
     {
-      "date": "2026-08-03",
+      "date": "2026-08-04",
       "type": "fix",
-      "scope": "tui",
-      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
-      "file": "2026-08-03.md",
-      "line": 9
+      "scope": "ci",
+      "title": "CI 门禁修复：文档计数与 LAYERS 清单同步 + commitlint 支持 deps 类型",
+      "file": "2026-08-04.md",
+      "line": 205
     },
     {
       "date": "2026-08-03",
@@ -76,12 +76,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-02",
+      "date": "2026-08-03",
       "type": "fix",
       "scope": "tui",
-      "title": "TUI 渲染小瑕疵修复：工具组 summary 双空格/工具卡窄宽/数学表达式保护/表头 inline/resize 提示对齐",
-      "file": "2026-08-02.md",
-      "line": 3
+      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
+      "file": "2026-08-03.md",
+      "line": 9
     },
     {
       "date": "2026-08-02",
@@ -148,12 +148,12 @@
       "line": 109
     },
     {
-      "date": "2026-08-01",
-      "type": "chore",
-      "scope": "docs",
-      "title": "文档一致性检查防漂移加固（--update 自动同步 + git 口径 + CI 接入）",
-      "file": "2026-08-01.md",
-      "line": 13
+      "date": "2026-08-02",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 渲染小瑕疵修复：工具组 summary 双空格/工具卡窄宽/数学表达式保护/表头 inline/resize 提示对齐",
+      "file": "2026-08-02.md",
+      "line": 3
     },
     {
       "date": "2026-08-01",
@@ -180,12 +180,12 @@
       "line": 7
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "desktop",
-      "title": "CI 修复 — desktop job Node 20 → 24（jsdom 30 engines 要求）",
-      "file": "2026-07-31.md",
-      "line": 322
+      "date": "2026-08-01",
+      "type": "chore",
+      "scope": "docs",
+      "title": "文档一致性检查防漂移加固（--update 自动同步 + git 口径 + CI 接入）",
+      "file": "2026-08-01.md",
+      "line": 13
     },
     {
       "date": "2026-07-31",
@@ -588,12 +588,12 @@
       "line": 561
     },
     {
-      "date": "2026-07-30",
-      "type": "feat",
-      "scope": "worker",
-      "title": "Worker 引擎从声明式目录变为可执行（4 Phase / 8 文件）",
-      "file": "2026-07-30.md",
-      "line": 305
+      "date": "2026-07-31",
+      "type": "fix",
+      "scope": "desktop",
+      "title": "CI 修复 — desktop job Node 20 → 24（jsdom 30 engines 要求）",
+      "file": "2026-07-31.md",
+      "line": 322
     },
     {
       "date": "2026-07-30",
@@ -748,12 +748,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
-      "scope": "*",
-      "title": "桌面端第二波 W2-T2 — CommandPalette ⌘K 命令面板",
-      "file": "2026-07-29.md",
-      "line": 175
+      "date": "2026-07-30",
+      "type": "feat",
+      "scope": "worker",
+      "title": "Worker 引擎从声明式目录变为可执行（4 Phase / 8 文件）",
+      "file": "2026-07-30.md",
+      "line": 305
     },
     {
       "date": "2026-07-29",
@@ -828,12 +828,12 @@
       "line": 134
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI 输出截断修复（scrollbar 宽度错配 + 代码块软换行）",
-      "file": "2026-07-28.md",
-      "line": 504
+      "date": "2026-07-29",
+      "type": "chore",
+      "scope": "*",
+      "title": "桌面端第二波 W2-T2 — CommandPalette ⌘K 命令面板",
+      "file": "2026-07-29.md",
+      "line": 175
     },
     {
       "date": "2026-07-28",
@@ -956,12 +956,12 @@
       "line": 332
     },
     {
-      "date": "2026-07-27",
+      "date": "2026-07-28",
       "type": "fix",
-      "scope": "*",
-      "title": "Code Review 修复 — Cancel threadID / 删除死代码 / 沙箱校验 / 重复抽取",
-      "file": "2026-07-27.md",
-      "line": 323
+      "scope": "tui",
+      "title": "TUI 输出截断修复（scrollbar 宽度错配 + 代码块软换行）",
+      "file": "2026-07-28.md",
+      "line": 504
     },
     {
       "date": "2026-07-27",
@@ -1124,12 +1124,12 @@
       "line": 113
     },
     {
-      "date": "2026-07-26",
+      "date": "2026-07-27",
       "type": "fix",
-      "scope": "tui",
-      "title": "TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）",
-      "file": "2026-07-26.md",
-      "line": 306
+      "scope": "*",
+      "title": "Code Review 修复 — Cancel threadID / 删除死代码 / 沙箱校验 / 重复抽取",
+      "file": "2026-07-27.md",
+      "line": 323
     },
     {
       "date": "2026-07-26",
@@ -1196,12 +1196,12 @@
       "line": 347
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
-      "scope": "*",
-      "title": "审阅决策 — AI_CHANGELOG 格式修订为四段式 + 强制三字段",
-      "file": "2026-07-25.md",
-      "line": 232
+      "date": "2026-07-26",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）",
+      "file": "2026-07-26.md",
+      "line": 306
     },
     {
       "date": "2026-07-25",
@@ -1308,12 +1308,12 @@
       "line": 203
     },
     {
-      "date": "2026-07-24",
-      "type": "chore",
+      "date": "2026-07-25",
+      "type": "docs",
       "scope": "*",
-      "title": "prompt-templates 接线 — Phase 2（框架注入）",
-      "file": "2026-07-24.md",
-      "line": 515
+      "title": "审阅决策 — AI_CHANGELOG 格式修订为四段式 + 强制三字段",
+      "file": "2026-07-25.md",
+      "line": 232
     },
     {
       "date": "2026-07-24",
@@ -1468,12 +1468,12 @@
       "line": 275
     },
     {
-      "date": "2026-07-23",
-      "type": "test",
+      "date": "2026-07-24",
+      "type": "chore",
       "scope": "*",
-      "title": "删除 evidence 包悬空测试 TestContext_RoundTrip",
-      "file": "2026-07-23.md",
-      "line": 346
+      "title": "prompt-templates 接线 — Phase 2（框架注入）",
+      "file": "2026-07-24.md",
+      "line": 515
     },
     {
       "date": "2026-07-23",
@@ -1620,12 +1620,12 @@
       "line": 390
     },
     {
-      "date": "2026-07-22",
-      "type": "fix",
+      "date": "2026-07-23",
+      "type": "test",
       "scope": "*",
-      "title": "修复 CI 检查失败 — mod tidy + go-arch-lint 格式升级",
-      "file": "2026-07-22.md",
-      "line": 320
+      "title": "删除 evidence 包悬空测试 TestContext_RoundTrip",
+      "file": "2026-07-23.md",
+      "line": 346
     },
     {
       "date": "2026-07-22",
@@ -1684,12 +1684,12 @@
       "line": 243
     },
     {
-      "date": "2026-07-21",
+      "date": "2026-07-22",
       "type": "fix",
-      "scope": "tui",
-      "title": "修复 TUI 运行时 stderr 泄漏 + 编辑器占位符复位",
-      "file": "2026-07-21.md",
-      "line": 109
+      "scope": "*",
+      "title": "修复 CI 检查失败 — mod tidy + go-arch-lint 格式升级",
+      "file": "2026-07-22.md",
+      "line": 320
     },
     {
       "date": "2026-07-21",
@@ -1868,12 +1868,12 @@
       "line": 585
     },
     {
-      "date": "2026-07-20",
+      "date": "2026-07-21",
       "type": "fix",
       "scope": "tui",
-      "title": "Code Review 反馈修复 — TUI SIGINT / Paste 异步 / 测试覆盖",
-      "file": "2026-07-20.md",
-      "line": 1025
+      "title": "修复 TUI 运行时 stderr 泄漏 + 编辑器占位符复位",
+      "file": "2026-07-21.md",
+      "line": 109
     },
     {
       "date": "2026-07-20",
@@ -2100,12 +2100,12 @@
       "line": 706
     },
     {
-      "date": "2026-07-19",
-      "type": "chore",
-      "scope": "*",
-      "title": "里程碑 2——代码现代化与重复消除",
-      "file": "2026-07-19.md",
-      "line": 232
+      "date": "2026-07-20",
+      "type": "fix",
+      "scope": "tui",
+      "title": "Code Review 反馈修复 — TUI SIGINT / Paste 异步 / 测试覆盖",
+      "file": "2026-07-20.md",
+      "line": 1025
     },
     {
       "date": "2026-07-19",
@@ -2148,12 +2148,12 @@
       "line": 315
     },
     {
-      "date": "2026-07-18",
-      "type": "feat",
+      "date": "2026-07-19",
+      "type": "chore",
       "scope": "*",
-      "title": "从 XiaoNuo Agent 引入评估框架增强、死循环检测和推理策略编排",
-      "file": "2026-07-18.md",
-      "line": 871
+      "title": "里程碑 2——代码现代化与重复消除",
+      "file": "2026-07-19.md",
+      "line": 232
     },
     {
       "date": "2026-07-18",
@@ -2354,6 +2354,14 @@
       "title": "Open Design 思路引入 —— Tier 2 实现",
       "file": "2026-07-18.md",
       "line": 655
+    },
+    {
+      "date": "2026-07-18",
+      "type": "feat",
+      "scope": "*",
+      "title": "从 XiaoNuo Agent 引入评估框架增强、死循环检测和推理策略编排",
+      "file": "2026-07-18.md",
+      "line": 871
     }
   ]
 }
