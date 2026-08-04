@@ -99,14 +99,6 @@ func (b TerminalBrand) IsVTEVteBased() bool {
 	return b == BrandVte
 }
 
-// RequiresTrueColor returns true when the brand's theme definition looks
-// incorrect when quantized to 256 colors. Only TokyoNight and RosePineMoon
-// have this issue; neutral-gray themes (GrokNight, MadyDark) survive
-// quantization.
-func (b TerminalBrand) RequiresTrueColor() bool {
-	return false // brand-level; theme-level check in theme package
-}
-
 // ---------------------------------------------------------------------------
 // Multiplexer enumeration
 // ---------------------------------------------------------------------------

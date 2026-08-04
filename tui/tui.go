@@ -43,9 +43,11 @@ var errTUIAlreadyStopped = errors.New("tui: Start called on a stopped TUI; const
 
 // TUIOptions configures a TUI instance.
 type TUIOptions struct {
-	// TickInterval is the minimum time between frames when many renders are
-	// requested in a burst. Defaults to 8ms (~125 fps) to ensure smooth
-	// streaming output; increase to 16ms if CPU usage is a concern.
+	// TickInterval is the period of the ticker that drives flushPendingMotion
+	// and periodic housekeeping. Defaults to 8ms. Note: it is NOT a frame-rate
+	// cap — renderFrame runs after every processed message that requested a
+	// render; this interval only bounds how often pending mouse-motion events
+	// are flushed.
 	TickInterval time.Duration
 
 	// DisableBracketedPaste suppresses paste mode at start. Default is to enable.
@@ -159,11 +161,10 @@ type TUI struct {
 	options TUIOptions
 	km      *terminal.KeybindingsManager
 
-	mu         sync.Mutex
-	children   []core.Component
-	overlays   []*Overlay
-	focus      []core.Component // focus stack; top is the active target
-	focusCycle []core.Component // ordered list for Tab/Shift+Tab traversal
+	mu       sync.Mutex
+	children []core.Component
+	overlays []*Overlay
+	focus    []core.Component // focus stack; top is the active target
 
 	renderRequested int64
 	prevFrame       []core.Row
@@ -216,9 +217,9 @@ type TUI struct {
 	// coalesced (throttled) instead of dispatched immediately. The event
 	// loop flushes it on the next ticker tick so the final drag position
 	// is never lost — this is a merge, not a drop. nil when no motion is
-	// pending. Accessed only from the event-loop goroutine (onMouse +
-	// eventLoop both run there: onMouse is called from the stdin read
-	// callback, which runs on the event loop after Stop wiring).
+	// pending. Written by onMouse/onThrottledMotion on the terminal read
+	// goroutine and read/cleared by flushPendingMotion on the event-loop
+	// goroutine, so it is guarded by t.mu (see tui_input.go / tui_loop.go).
 	pendingMotion *core.MouseMsg
 
 	// lastCursor tracks the cursor state emitted in the previous frame.

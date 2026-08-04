@@ -17,21 +17,6 @@ const (
 	Reset = Esc + "0m"
 )
 
-// CursorUp returns an ANSI escape to move the cursor up n rows.
-func CursorUp(n int64) string    { return escn("A", n) }
-func CursorDown(n int64) string  { return escn("B", n) }
-func CursorRight(n int64) string { return escn("C", n) }
-func CursorLeft(n int64) string  { return escn("D", n) }
-
-// ClearLine clears the current line.
-func ClearLine() string   { return Esc + "2K" }
-func ClearToEnd() string  { return Esc + "0K" }
-func ClearScreen() string { return Esc + "2J" + Esc + "H" }
-
-// SaveCursor saves the cursor position.
-func SaveCursor() string    { return Esc + "s" }
-func RestoreCursor() string { return Esc + "u" }
-
 // HideCursor hides the cursor.
 func HideCursor() string { return Esc + "?25l" }
 func ShowCursor() string { return Esc + "?25h" }
@@ -55,12 +40,4 @@ func ClearToEndOfLine() string { return Esc + "0K" }
 // This is widely supported by xterm, iTerm2, Kitty, WezTerm, and Terminal.app.
 func SetWindowTitle(title string) string {
 	return "\x1b]0;" + title + "\x07"
-}
-
-// escn formats "ESC<n>Suffix" (e.g. "ESC[5A" for cursor up 5).
-func escn(suffix string, n int64) string {
-	if n <= 0 {
-		return ""
-	}
-	return Esc + strconv.FormatInt(n, 10) + suffix
 }

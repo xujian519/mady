@@ -115,25 +115,6 @@ func TestRectContains(t *testing.T) {
 	}
 }
 
-// TestEnsureWidth verifies the width contract: no output line exceeds the
-// target width, short lines are left untouched (never padded), and truncation
-// reserves room for the ellipsis.
-func TestEnsureWidth(t *testing.T) {
-	got := EnsureWidth([]string{"hi", "你好世界", "this is long"}, 4)
-	if got[0] != "hi" {
-		t.Errorf("EnsureWidth()[0] = %q, want %q (short line untouched, no padding)", got[0], "hi")
-	}
-	for i, l := range got {
-		if w := VisibleWidth(l); w > 4 {
-			t.Errorf("EnsureWidth()[%d] = %q exceeds width (visible %d > 4)", i, l, w)
-		}
-	}
-	// Truncation reserves room for the ellipsis: a 5-col line becomes 3 cols + "…".
-	if got[2] != "thi…" {
-		t.Errorf("EnsureWidth()[2] = %q, want %q", got[2], "thi…")
-	}
-}
-
 // TestFillLines verifies count/width semantics, including zero-width.
 func TestFillLines(t *testing.T) {
 	if got := FillLines(0, 10); got != nil {

@@ -39,13 +39,6 @@ func (b *byteSinkTerminal) Write(p []byte) (int, error) {
 }
 
 func (b *byteSinkTerminal) Size() (int64, int64)               { return 80, 24 }
-func (b *byteSinkTerminal) HideCursor()                        {}
-func (b *byteSinkTerminal) ShowCursor()                        {}
-func (b *byteSinkTerminal) ClearLine()                         {}
-func (b *byteSinkTerminal) ClearFromCursor()                   {}
-func (b *byteSinkTerminal) ClearScreen()                       {}
-func (b *byteSinkTerminal) MoveBy(int64)                       {}
-func (b *byteSinkTerminal) MoveTo(int64, int64)                {}
 func (b *byteSinkTerminal) PushKittyKeyboard()                 {}
 func (b *byteSinkTerminal) PopKittyKeyboard()                  {}
 func (b *byteSinkTerminal) Context() *terminal.TerminalContext { return nil }

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -41,14 +42,6 @@ type Terminal interface {
 
 	Size() (cols, rows int64)
 
-	HideCursor()
-	ShowCursor()
-	ClearLine()
-	ClearFromCursor()
-	ClearScreen()
-	MoveBy(lines int64)
-	MoveTo(row, col int64)
-
 	// Context returns the cached terminal context for the session.
 	Context() *TerminalContext
 
@@ -74,7 +67,6 @@ type ProcessTerminal struct {
 	onResize      func()
 	stopRead      chan struct{}
 	readDone      chan struct{}
-	readErr       error
 	resizeSig     chan os.Signal
 	resizeDone    chan struct{}
 	signalStopped bool
@@ -102,8 +94,20 @@ func NewProcessTerminal() *ProcessTerminal {
 	return &ProcessTerminal{
 		in:         os.Stdin,
 		out:        os.Stdout,
-		kittyFlags: 1, // disambiguate escape codes (flag 8 breaks CJK IME; use MADY_KITTY_FLAGS=9 to opt in)
+		kittyFlags: kittyFlagsFromEnv(),
 	}
+}
+
+// kittyFlagsFromEnv resolves the negotiated Kitty keyboard protocol flags.
+// Default is 1 (disambiguate escape codes). Flag 8 (alternate keys) breaks
+// CJK IME input on some terminals, so it is opt-in via MADY_KITTY_FLAGS=9.
+func kittyFlagsFromEnv() int64 {
+	if v := os.Getenv("MADY_KITTY_FLAGS"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return n
+		}
+	}
+	return 1
 }
 
 // SetKittyKeyboardMode overrides the default Kitty keyboard protocol policy.
@@ -273,22 +277,6 @@ func (t *ProcessTerminal) Size() (int64, int64) {
 	return atomic.LoadInt64(&t.cols), atomic.LoadInt64(&t.rows)
 }
 
-func (t *ProcessTerminal) HideCursor()      { _, _ = t.out.WriteString("\x1b[?25l") }
-func (t *ProcessTerminal) ShowCursor()      { _, _ = t.out.WriteString("\x1b[?25h") }
-func (t *ProcessTerminal) ClearLine()       { _, _ = t.out.WriteString("\x1b[2K") }
-func (t *ProcessTerminal) ClearFromCursor() { _, _ = t.out.WriteString("\x1b[0J") }
-func (t *ProcessTerminal) ClearScreen()     { _, _ = t.out.WriteString("\x1b[2J\x1b[H") }
-func (t *ProcessTerminal) MoveBy(lines int64) {
-	if lines < 0 {
-		_, _ = fmt.Fprintf(t.out, "\x1b[%dA", -lines)
-	} else if lines > 0 {
-		_, _ = fmt.Fprintf(t.out, "\x1b[%dB", lines)
-	}
-}
-func (t *ProcessTerminal) MoveTo(row, col int64) {
-	_, _ = fmt.Fprintf(t.out, "\x1b[%d;%dH", row, col)
-}
-
 // Context returns the cached terminal context for the session.
 func (t *ProcessTerminal) Context() *TerminalContext {
 	return CurrentTerminalContext()
@@ -359,7 +347,6 @@ func (t *ProcessTerminal) readLoop() {
 			if err == syscall.EINTR || err == syscall.EAGAIN {
 				continue
 			}
-			t.readErr = err
 			slog.Default().Error("terminal read loop exiting", "error", err)
 			return
 		}
@@ -455,15 +442,8 @@ func (v *VirtualTerminal) Size() (int64, int64) {
 	return v.cols, v.rows
 }
 
-func (v *VirtualTerminal) HideCursor()         {}
-func (v *VirtualTerminal) ShowCursor()         {}
-func (v *VirtualTerminal) ClearLine()          {}
-func (v *VirtualTerminal) ClearFromCursor()    {}
-func (v *VirtualTerminal) ClearScreen()        {}
-func (v *VirtualTerminal) MoveBy(int64)        {}
-func (v *VirtualTerminal) MoveTo(int64, int64) {}
-func (v *VirtualTerminal) PushKittyKeyboard()  {}
-func (v *VirtualTerminal) PopKittyKeyboard()   {}
+func (v *VirtualTerminal) PushKittyKeyboard() {}
+func (v *VirtualTerminal) PopKittyKeyboard()  {}
 func (v *VirtualTerminal) Context() *TerminalContext {
 	return CurrentTerminalContext()
 }
