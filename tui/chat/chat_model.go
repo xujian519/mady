@@ -68,20 +68,20 @@ type ChatAppConfig struct {
 
 // chatModel holds the mutable runtime state of a ChatApp.
 type chatModel struct {
-	StreamID    string
-	ActiveTools map[string]time.Time
-	Running     bool
+	// streamID is the message ID of the currently-streaming assistant
+	// message ("" when none). It is an implementation handle for AppendDelta,
+	// NOT a state signal: the FSM state below is the single source of truth
+	// for "what state are we in".
+	streamID string
+	// activeTools tracks tool calls currently in flight. Like streamID it is
+	// data (for the system-status panel's tool count), not state.
+	activeTools map[string]time.Time
 
 	// state is the FSM's current interaction state. It is the single source
 	// of truth for UI state display (JudgmentView, StatusBar). Handlers
 	// call Transition(state, EventKindFor(e)) to compute the next state.
 	// Initialized to StateInitializing at ChatApp creation.
 	state AppState
-
-	// Running, StreamID, ActiveTools are retained as compatibility shims.
-	// StreamID and ActiveTools still carry runtime state that the FSM state
-	// alone does not capture (stream identity, tool-lifetime tracking).
-	// Revisit after FSM is extended to cover these concerns.
 
 	// Token accounting for the StatusBar indicator. usagePrompt/Completion
 	// accumulate across turns within one agent run; turnStarted is set on

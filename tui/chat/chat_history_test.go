@@ -839,3 +839,66 @@ func TestChatHistoryPendingCursorNoTruncation(t *testing.T) {
 	}
 	h.Finalize(id)
 }
+
+// TestChatHistoryAppendDeltaSingleRuneStream is the regression test for
+// exact-match dedup corrupting rune-by-rune streams: "|---|---|" streamed one
+// rune per delta repeated '-' five times, and the dedup dropped every repeat
+// after the first, shrinking the separator to "|-|". Single-rune deltas must
+// be appended unconditionally.
+func TestChatHistoryAppendDeltaSingleRuneStream(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "|")
+	for _, r := range "|---|---|" {
+		id = h.AppendDelta(id, string(r))
+	}
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "|---|---|"; got != want {
+		t.Fatalf("rune-stream dedup corrupted separator: text=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryAppendDeltaCJKRuneStream covers multi-byte runes (3 bytes
+// each) streamed one rune at a time — the exemption must key on rune count,
+// not byte length.
+func TestChatHistoryAppendDeltaCJKRuneStream(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "")
+	for _, r := range "中文中中" {
+		id = h.AppendDelta(id, string(r))
+	}
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "中文中中"; got != want {
+		t.Fatalf("CJK rune-stream corrupted: text=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryRenderEarlyReturnClampsWidth is the regression test for the
+// early-return path in Render: when maxRows <= 0 (no viewport clipping) the
+// cached lines were returned as-is, skipping the padToWidth clamp that guards
+// every other path. An over-wide cached line leaked straight to the terminal.
+func TestChatHistoryRenderEarlyReturnClampsWidth(t *testing.T) {
+	h := NewChatHistory()
+	h.Append(ChatMessage{Role: RoleAssistant, Text: "hello"})
+	h.SetMaxRows(0) // no clipping → early return path
+	_ = h.Render(30)
+
+	// Inject an over-wide line into the cache (simulates a buggy upstream
+	// component emitting more columns than requested).
+	h.mu.Lock()
+	h.cachedAll = []string{strings.Repeat("x", 60)}
+	h.mu.Unlock()
+
+	lines := h.Render(30)
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(lines))
+	}
+	if w := core.VisibleWidth(lines[0]); w > 30 {
+		t.Errorf("early-return path leaked over-width line: %d cells", w)
+	}
+}

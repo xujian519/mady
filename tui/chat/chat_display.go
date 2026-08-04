@@ -77,15 +77,13 @@ func (a *ChatApp) PrintUser(input string) {
 // Busy / Idle
 // ---------------------------------------------------------------------------
 
-// Busy sets the loader spinning and marks the model as running.
+// Busy sets the loader spinning. UI-side effect only: the FSM state (not a
+// Running flag) is the source of truth for whether a run is in progress.
 func (a *ChatApp) Busy(message string) {
 	if message != "" {
 		a.loader.SetMessage(theme.CurrentPalette().Dim.Render(message))
 	}
 	a.loader.Start()
-	a.mu.Lock()
-	a.model.Running = true
-	a.mu.Unlock()
 	if a.statusBar != nil {
 		a.statusBar.Busy()
 	}
@@ -93,12 +91,9 @@ func (a *ChatApp) Busy(message string) {
 	a.host.RequestRender()
 }
 
-// Idle stops the loader and marks the model as idle.
+// Idle stops the loader. UI-side effect only (see Busy).
 func (a *ChatApp) Idle() {
 	a.loader.Stop()
-	a.mu.Lock()
-	a.model.Running = false
-	a.mu.Unlock()
 	if a.statusBar != nil {
 		a.statusBar.Idle()
 	}
@@ -453,8 +448,8 @@ func (a *ChatApp) OpenSystemOverlay(content core.Component) OverlayRef {
 // ---------------------------------------------------------------------------
 
 func (a *ChatApp) finalizeStreamLocked() {
-	id := a.model.StreamID
-	a.model.StreamID = ""
+	id := a.model.streamID
+	a.model.streamID = ""
 	if id != "" {
 		a.history.Finalize(id)
 	}

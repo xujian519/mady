@@ -135,7 +135,7 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 		defaultPlaceholder: "输入消息…（/ 查看命令）",
 		model: chatModel{
 			state:       StateInitializing,
-			ActiveTools: make(map[string]time.Time),
+			activeTools: make(map[string]time.Time),
 			pastedTexts: make(map[int]string),
 		},
 	}
@@ -242,10 +242,17 @@ func (a *ChatApp) Stop() error { return a.host.Stop() }
 // Done returns a channel that is closed when the lifecycle ends.
 func (a *ChatApp) Done() <-chan struct{} { return a.host.Done() }
 
+// isRunning reports whether an agent run is in progress, derived purely
+// from the FSM state (the old model.Running flag was removed in the FSM
+// migration). Used by Ctrl+C to decide whether to fire OnInterrupt.
 func (a *ChatApp) isRunning() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.model.Running
+	switch a.model.state {
+	case StateStreaming, StateToolRunning, StateCompacting, StateAwaitingConfirm, StateInterrupted:
+		return true
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------
@@ -264,12 +271,20 @@ func (a *ChatApp) ConfirmPending() *InlineConfirm {
 
 // StartConfirm shows an inline confirmation prompt and enters the
 // ConfirmPending FSM state.
+//
+// Note: this whole confirm chain currently has no production caller —
+// dispatchConfirmKey is only reachable from StateConfirmPending, which only
+// StartConfirm can enter. The wiring is kept for the planned approval/undo
+// flows; treat it as active code, not dead weight.
 func (a *ChatApp) StartConfirm(ic InlineConfirm) {
 	if ic.Timeout <= 0 {
 		ic.Timeout = 10 * time.Second
 	}
 	a.mu.Lock()
-	a.model.state = StateConfirmPending
+	// A confirm prompt pauses any in-flight stream: end the current assistant
+	// message so its Pending flag is cleared and a later delta starts fresh.
+	a.finalizeStreamLocked()
+	a.model.state = Transition(a.model.state, evtConfirmRequest)
 	a.model.confirm = &confirmPending{
 		confirm: ic,
 		timer: time.AfterFunc(ic.Timeout, func() {
@@ -280,48 +295,57 @@ func (a *ChatApp) StartConfirm(ic InlineConfirm) {
 	a.host.RequestRender()
 }
 
-// ConfirmYes resolves the pending confirmation with "yes".
-func (a *ChatApp) ConfirmYes() {
+// resolveConfirm resolves the pending confirmation: clears it, drives the
+// FSM back to Idle via evtConfirmDecision, stops the timer (unless the timer
+// itself fired — stopTimer=false), and invokes fire outside the lock with the
+// resolved prompt so callbacks never run while holding a.mu.
+func (a *ChatApp) resolveConfirm(stopTimer bool, fire func(ic *InlineConfirm)) {
 	a.mu.Lock()
 	c := a.model.confirm
 	a.model.confirm = nil
-	a.model.state = StateIdle
+	if a.model.state == StateConfirmPending {
+		a.model.state = Transition(a.model.state, evtConfirmDecision)
+	} else {
+		// Defensive: resolving without a pending prompt (or after a
+		// non-confirm state) must not leave the FSM in ConfirmPending.
+		a.model.state = StateIdle
+	}
 	a.mu.Unlock()
 	if c != nil {
-		c.timer.Stop()
-		if c.confirm.OnYes != nil {
-			c.confirm.OnYes()
+		if stopTimer {
+			c.timer.Stop()
+		}
+		if fire != nil {
+			fire(&c.confirm)
 		}
 	}
 	a.host.RequestRender()
+}
+
+// ConfirmYes resolves the pending confirmation with "yes".
+func (a *ChatApp) ConfirmYes() {
+	a.resolveConfirm(true, func(ic *InlineConfirm) {
+		if ic.OnYes != nil {
+			ic.OnYes()
+		}
+	})
 }
 
 // ConfirmNo resolves the pending confirmation with "no".
 func (a *ChatApp) ConfirmNo() {
-	a.mu.Lock()
-	c := a.model.confirm
-	a.model.confirm = nil
-	a.model.state = StateIdle
-	a.mu.Unlock()
-	if c != nil {
-		c.timer.Stop()
-		if c.confirm.OnNo != nil {
-			c.confirm.OnNo()
+	a.resolveConfirm(true, func(ic *InlineConfirm) {
+		if ic.OnNo != nil {
+			ic.OnNo()
 		}
-	}
-	a.host.RequestRender()
+	})
 }
 
 func (a *ChatApp) confirmTimeout() {
-	a.mu.Lock()
-	c := a.model.confirm
-	a.model.confirm = nil
-	a.model.state = StateIdle
-	a.mu.Unlock()
-	if c != nil && c.confirm.OnNo != nil {
-		c.confirm.OnNo()
-	}
-	a.host.RequestRender()
+	a.resolveConfirm(false, func(ic *InlineConfirm) {
+		if ic.OnNo != nil {
+			ic.OnNo()
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------
