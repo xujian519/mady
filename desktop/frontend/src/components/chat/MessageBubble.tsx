@@ -77,6 +77,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 }
 
 function formatTime(ts: number): string {
+  // 历史消息无时间戳（映射为 0）时留空，避免渲染 NaN:NaN（M-14）
+  if (!ts || Number.isNaN(ts)) return ''
   const d = new Date(ts)
   const now = new Date()
   const isToday = d.toDateString() === now.toDateString()

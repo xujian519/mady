@@ -255,6 +255,15 @@ export async function activateTab(id: string): Promise<void> {
 }
 
 /**
+ * 将标签绑定到既有会话并更新标题（2026-08-04 决策 5：标签联动）。
+ * 侧栏点击会话时调用：已存在绑定该会话的标签则激活，否则新建标签并绑定，
+ * 消除「侧栏当前会话」与「标签绑定会话」的双真相源撕裂。
+ */
+export async function bindThreadToSession(tabId: string, threadId: string, title?: string): Promise<void> {
+  return callBinding<void>('main/App', 'BindThreadToSession', tabId, threadId, title ?? '')
+}
+
+/**
  * 向指定标签发起对话（阶段 2.1b：会话绑定按 tab 分派）。
  * 标签未关联会话时后端自动创建并写回。
  */
@@ -267,15 +276,15 @@ export async function chatInTab(
 
 // ── Memory（阶段 4：记忆面板） ────────────────────
 
-/** 记忆条目（对应 Go 侧 memory.MemoryEntry）。 */
+/** 记忆条目（对应 Go 侧 memory.MemoryEntry；字段名与 wailsjs 生成模型一致，snake_case）。 */
 export interface MemoryEntry {
   id: string
   scope: Record<string, unknown>
   layer: string
   content: string
   importance: number
-  createdAt: string
-  updatedAt: string
+  created_at: string
+  updated_at: string
   tier?: string
 }
 

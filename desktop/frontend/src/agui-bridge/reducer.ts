@@ -179,12 +179,18 @@ function handleApprovalPrompt(payload: AguiEventPayload) {
   })
 }
 
-function handleDone() {
+function handleDone(payload: AguiEventPayload) {
   const store = useChatStore.getState()
   // G-I5：run 结束前强制 flush 流式缓冲，避免最后一批 token 丢失
   flushDeltas()
   store.setToolCallBuffer(null)
   store.finishTurn()
+  // 运行级错误（如线程加载失败）经 agui:done 的 error 字段传递（Go 侧 startChatRun 塞入），
+  // 不额外发 agui:error —— 此处读取并反馈 UI，避免静默无反馈。
+  const errMsg = payload.error
+  if (errMsg) {
+    store.setError(typeof errMsg === 'string' ? errMsg : 'Unknown error')
+  }
 }
 
 function handleContextUsage(payload: AguiEventPayload) {

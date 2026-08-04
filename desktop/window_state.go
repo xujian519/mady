@@ -66,16 +66,32 @@ func absInt(v int) int {
 	return v
 }
 
+// saveWindowState 持久化窗口几何。
+//
+// X/Y 为 nil 时保留已存值（load-modify-merge）：前端 beforeunload 的 SaveWindowState
+// 只携带宽高，不能覆盖 beforeClose 已保存的位置——否则正常退出路径下位置被清空，
+// 下次启动回到默认居中（2026-08-04 审阅修复：双写入者竞态）。
 func saveWindowState(ws windowState) {
 	p := windowStatePath()
 	if p == "" {
 		return
 	}
+	// 合并已存位置：新值未携带 X/Y（nil）时保留旧值，避免覆盖丢失。
+	if ws.X == nil || ws.Y == nil {
+		if prev := loadWindowState(); prev != nil {
+			if ws.X == nil {
+				ws.X = prev.X
+			}
+			if ws.Y == nil {
+				ws.Y = prev.Y
+			}
+		}
+	}
 	data, err := json.Marshal(ws)
 	if err != nil {
 		return
 	}
-	if err := os.WriteFile(p, data, 0600); err != nil {
+	if err := os.WriteFile(filepath.Clean(p), data, 0600); err != nil {
 		slog.Warn("mady-desktop: save window state failed", "err", err)
 	}
 }

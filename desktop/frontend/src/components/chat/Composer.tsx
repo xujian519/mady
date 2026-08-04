@@ -18,6 +18,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { Send, Sparkles } from 'lucide-react'
 import { SlashCommandMenu, type SlashCommand } from './SlashCommandMenu'
 import { exportSession, downloadSession, generateExportFilename } from '@/lib/sessionExport'
+import { useTheme } from '@/theme/tokens'
 
 // ── 常量 ──────────────────────────────────────────
 
@@ -73,6 +74,7 @@ export const Composer: React.FC = () => {
   const running = useChatStore((s) => s.running)
   const threadId = useChatStore((s) => s.threadId)
   const sendMessage = useChatStore((s) => s.sendMessage)
+  const { setMode } = useTheme()
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // ── 会话草稿 + 发送历史（阶段 2.5）：切换会话时恢复/保存 ──
@@ -203,10 +205,16 @@ export const Composer: React.FC = () => {
 
   /** 检测并执行本地 UI 命令。返回 true 表示已处理。 */
   const tryLocalCommand = (input: string): boolean => {
-    // /theme <name>
+    // /theme <light|dark|system|packName>
     const themeMatch = input.match(/^\/theme\s+(.+)$/)
     if (themeMatch) {
       const name = themeMatch[1].toLowerCase()
+      // M-16：light/dark/system 是明暗模式切换（SlashCommandMenu usage 语义），
+      // 其余值按主题包名匹配（professional/focus-blue/paper-warm/slate）。
+      if (name === 'light' || name === 'dark' || name === 'system') {
+        setMode(name)
+        return true
+      }
       // 通过 CustomEvent 通信给 App 层（SettingsPanel 监听）
       window.dispatchEvent(new CustomEvent('mady:set-theme-pack', { detail: name }))
       return true

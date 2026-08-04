@@ -47,3 +47,13 @@ func (a *App) ActivateTab(id string) error {
 	}
 	return a.tabs.Activate(id)
 }
+
+// BindThreadToSession 将标签绑定到既有会话并更新标题（2026-08-04 决策 5：标签联动）。
+// 侧栏点击会话时前端调用：已存在绑定该会话的标签则激活，否则新建标签并绑定，
+// 消除「侧栏当前会话」与「标签绑定会话」的双真相源撕裂。
+func (a *App) BindThreadToSession(tabID, threadID, title string) error {
+	if a.tabs == nil {
+		return errTabsNotReady
+	}
+	return a.tabs.BindThread(tabID, threadID, title)
+}

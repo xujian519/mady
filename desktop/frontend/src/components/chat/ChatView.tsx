@@ -43,6 +43,21 @@ import { DocumentViewer, type DocViewerFile } from '../DocumentViewer'
 import { FileViewerOverlay } from '../fileviewer/FileViewerOverlay'
 import { SettingsPanel } from '../SettingsPanel'
 import { KnowledgeView } from '../KnowledgeView'
+
+/**
+ * 将 Go 侧历史消息（agentcore.Message：role=user/assistant、无 timestamp 字段）
+ * 映射为前端 Message（role 归一 + 时间戳缺省为 0），避免渲染出 NaN:NaN 与角色错位（M-14）。
+ */
+function mapHistoryMessage(m: Record<string, unknown>): Message {
+  const id = typeof m.id === 'string' && m.id ? m.id : `hist-${Math.random().toString(36).slice(2)}`
+  return {
+    id,
+    role: m.role === 'user' ? 'user' : 'agent',
+    content: typeof m.content === 'string' ? m.content : '',
+    timestamp: typeof m.timestamp === 'number' && Number.isFinite(m.timestamp) ? m.timestamp : 0,
+    thinking: typeof m.thinking === 'string' ? m.thinking : undefined,
+  }
+}
 import { TemplatesView } from '../TemplatesView'
 import { SkillsView } from '../SkillsView'
 import { McpView } from '../McpView'
@@ -260,7 +275,8 @@ export const ChatView: React.FC = () => {
     void getThread(targetThreadId)
       .then((snap) => {
         if (useChatStore.getState().threadId !== targetThreadId) return
-        useChatStore.setState({ messages: (snap?.messages ?? []) as never[] })
+        const history = (snap?.messages ?? []).map((m) => mapHistoryMessage(m as Record<string, unknown>))
+        useChatStore.setState({ messages: history })
       })
       .catch(() => {
         /* 后端未就绪时静默 */
@@ -663,21 +679,27 @@ export const ChatView: React.FC = () => {
               </div>
             ) : (
               <div className="max-w-3xl mx-auto py-4 relative" style={{ height: virtualizer.getTotalSize() }}>
-                {virtualizer.getVirtualItems().map((vItem) => (
-                  <div
-                    key={items[vItem.index].kind === 'message'
-                      ? (items[vItem.index] as Extract<TranscriptItem, { kind: 'message' }>).message.id
-                      : items[vItem.index].kind}
-                    ref={virtualizer.measureElement}
-                    data-index={vItem.index}
-                    className="absolute left-0 right-0"
-                    style={{
-                      transform: `translateY(${vItem.start}px)`,
-                    }}
-                  >
-                    {renderItem(items[vItem.index])}
-                  </div>
-                ))}
+                {virtualizer.getVirtualItems().map((vItem) => {
+                  const item = items[vItem.index]
+                  const outerKey = item.kind === 'message'
+                    ? (item as Extract<TranscriptItem, { kind: 'message' }>).message.id
+                    : item.kind === 'round-header'
+                      ? `round-${(item as Extract<TranscriptItem, { kind: 'round-header' }>).roundId || (item as Extract<TranscriptItem, { kind: 'round-header' }>).startIndex}`
+                      : item.kind
+                  return (
+                    <div
+                      key={outerKey}
+                      ref={virtualizer.measureElement}
+                      data-index={vItem.index}
+                      className="absolute left-0 right-0"
+                      style={{
+                        transform: `translateY(${vItem.start}px)`,
+                      }}
+                    >
+                      {renderItem(item)}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -756,7 +778,11 @@ export const ChatView: React.FC = () => {
               URL.revokeObjectURL(url)
             },
             toggleFocusMode: () => {
-              useSettingsStore.getState().update({ layout: 'focus' as LayoutMode })
+              // M-15：toggle 应双向——专注模式 ↔ 标准布局（原实现只进不出）
+              const settings = useSettingsStore.getState()
+              const next = settings.layout === 'focus' ? 'standard' : 'focus'
+              settings.update({ layout: next as LayoutMode })
+              setShowSidebar(next !== 'focus' && !useSettingsStore.getState().sidebarCollapsed)
             },
             openTemplate: (_name: string) => {
               setShowTemplates(true)
