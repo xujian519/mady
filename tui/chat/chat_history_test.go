@@ -582,6 +582,41 @@ func TestChatHistoryAppendDeltaKeepsLegitSuffixIncrement(t *testing.T) {
 	}
 }
 
+// TestChatHistoryAppendDeltaStripsLookBehindOverlap verifies that when a
+// provider sends a look-behind chunk (re-echoing the tail of the previous
+// buffer before new content), the overlapping runes are not duplicated. This
+// is the regression guard for the TUI streaming duplication bug where the
+// answer repeated whole phrases (e.g. "专著（篇我） 法、" across the screen).
+func TestChatHistoryAppendDeltaStripsLookBehindOverlap(t *testing.T) {
+	h := NewChatHistory()
+	// CJK look-behind: the provider re-echoes the tail of the previous buffer
+	// before sending the new content.
+	id := h.AppendDelta("", "专著（篇我） 法、")
+	h.AppendDelta(id, " 法、更多内容") // look-behind: re-echoes " 法、" then new content
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "专著（篇我） 法、更多内容"; got != want {
+		t.Fatalf("CJK look-behind overlap not stripped: text=%q want=%q", got, want)
+	}
+
+	// ASCII look-behind: the model genuinely says "world" once, the provider
+	// only re-echoes "world" as the head of the next chunk.
+	h2 := NewChatHistory()
+	id2 := h2.AppendDelta("", "Hello, world")
+	h2.AppendDelta(id2, "world and more") // re-echoes "world" then new content
+
+	msgs2 := h2.Messages()
+	if len(msgs2) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs2))
+	}
+	if got, want := msgs2[0].Text, "Hello, world and more"; got != want {
+		t.Fatalf("ASCII look-behind overlap not stripped: text=%q want=%q", got, want)
+	}
+}
+
 // TestChatHistoryAppendDeltaWithKindRoutesThinkingToSegments verifies that
 // a "thinking" delta is appended to ThinkingSegments, never to the visible
 // Text. This is the regression guard for the DeepSeek v4 text-garbling bug:

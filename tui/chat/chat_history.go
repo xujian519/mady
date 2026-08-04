@@ -583,12 +583,51 @@ func (h *ChatHistory) applyDeltaLocked(m *ChatMessage, delta, kind string) bool 
 			m.lastDeltaKind = kind
 			return true
 		}
+		// Look-behind chunks: some OpenAI-compatible gateways / SSE middleboxes
+		// re-echo the tail of the previous buffer (a few runes) before the new
+		// content when reassembling byte-boundary splits or replaying on
+		// reconnect. Appending blindly would duplicate that tail. Strip the
+		// overlapping prefix (rune-safe, because CJK is multi-byte) and append
+		// only the genuinely new part. If the entire delta is just a suffix of
+		// current with no new content, we deliberately fall through to the
+		// normal append so genuinely repeated output (e.g. a model repeating a
+		// word) is preserved rather than truncated.
+		if ov := longestOverlapRuneCount(current, delta); ov > 0 {
+			r := []rune(delta)
+			if ov < len(r) {
+				*target += string(r[ov:])
+				m.deltaHistory[delta] = struct{}{}
+				m.lastDeltaKind = kind
+				return true
+			}
+		}
 	}
 
 	*target += delta
 	m.deltaHistory[delta] = struct{}{}
 	m.lastDeltaKind = kind
 	return true
+}
+
+// longestOverlapRuneCount returns the number of runes in the longest suffix of
+// current that is also a prefix of delta. It is used to detect look-behind
+// streaming chunks where a provider re-sends part of the previous buffer before
+// the new content, so the overlap can be stripped before appending. The
+// comparison is rune-based so multi-byte CJK characters are handled correctly.
+func longestOverlapRuneCount(current, delta string) int {
+	cur := []rune(current)
+	del := []rune(delta)
+	maxK := len(cur)
+	if len(del) < maxK {
+		maxK = len(del)
+	}
+	best := 0
+	for k := 1; k <= maxK; k++ {
+		if string(cur[len(cur)-k:]) == string(del[:k]) {
+			best = k
+		}
+	}
+	return best
 }
 
 // Finalize clears the Pending flag on the given id and releases the
