@@ -77,7 +77,7 @@ func (ts *tabStore) load() {
 	}
 }
 
-// save 将当前标签状态落盘。
+// save 将当前标签状态落盘（原子写：tmp + rename，M-3）。
 func (ts *tabStore) save() {
 	if ts.path == "" {
 		return
@@ -86,7 +86,24 @@ func (ts *tabStore) save() {
 	if err != nil {
 		return
 	}
-	if err := os.WriteFile(filepath.Clean(ts.path), data, 0o600); err != nil {
+	dir := filepath.Dir(ts.path)
+	tmp, err := os.CreateTemp(dir, ".mady-tabs-*")
+	if err != nil {
+		log.Printf("[mady-desktop] tabs: save failed: %v", err)
+		return
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		log.Printf("[mady-desktop] tabs: save failed: %v", err)
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		log.Printf("[mady-desktop] tabs: save failed: %v", err)
+		return
+	}
+	if err := os.Rename(tmpName, filepath.Clean(ts.path)); err != nil {
 		log.Printf("[mady-desktop] tabs: save failed: %v", err)
 	}
 }
@@ -194,6 +211,26 @@ func (ts *tabStore) SetThreadID(id, threadID string) error {
 		return fmt.Errorf("tab %s: threadID is required", id)
 	}
 	ts.tabs[idx].ThreadID = threadID
+	ts.save()
+	return nil
+}
+
+// BindThread 将标签绑定到既有会话并可选更新标题（2026-08-04 决策 5：标签联动——
+// 侧栏点击会话时由 BindThreadToSession 调用，把「侧栏当前会话」与「标签绑定会话」统一）。
+func (ts *tabStore) BindThread(id, threadID, title string) error {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	idx := ts.indexLocked(id)
+	if idx < 0 {
+		return fmt.Errorf("tab %s: not found", id)
+	}
+	if threadID == "" {
+		return fmt.Errorf("tab %s: threadID is required", id)
+	}
+	ts.tabs[idx].ThreadID = threadID
+	if title != "" {
+		ts.tabs[idx].Title = title
+	}
 	ts.save()
 	return nil
 }

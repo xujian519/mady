@@ -7,15 +7,16 @@
  *   底部 — 设置入口
  */
 
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
-import { useThreads, useDeleteThread } from '@/stores/threads'
+import { useThreads, useDeleteThread, useRenameThread } from '@/stores/threads'
+import { useTabsStore } from '@/stores/tabs'
 import { ThreadItem } from './ThreadItem'
 import { TrashPanel } from './TrashPanel'
 import { MemoryPanel } from './MemoryPanel'
 import { ProjectTree } from './ProjectTree'
-import { getThread } from '@/lib/backend'
+import { bindThreadToSession } from '@/lib/backend'
 import { Search, Settings, FolderTree, FileText, MessageSquare, PanelLeftClose, Trash2, Brain } from 'lucide-react'
 
 type SidebarTab = 'threads' | 'project' | 'files' | 'memory'
@@ -30,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
   const { data: threadList = [] } = useThreads()
   const threads = threadList
   const deleteMutation = useDeleteThread()
+  const renameMutation = useRenameThread()
   const threadId = useChatStore((s) => s.threadId)
   // 折叠状态持久化于 settings store（W4-T13），⌘B / 收起按钮 / 窄窗口均可切换
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
@@ -37,8 +39,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
   const [searchQuery, setSearchQuery] = useState('')
   // 阶段 2.2：历史面板 — 会话列表 ↔ 回收站视图切换
   const [showTrash, setShowTrash] = useState(false)
-  // 会话切换竞态守卫（S3）：快速切换 A→B 时丢弃 A 的过期响应
-  const selectReqRef = useRef(0)
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return threads
@@ -47,16 +47,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
   }, [threads, searchQuery])
 
   const handleSelect = async (key: string) => {
-    useChatStore.setState({ threadId: key })
-    const reqId = ++selectReqRef.current
+    // 决策 5（标签联动）：侧栏点击会话 = 切换到绑定该会话的标签。
+    // 已存在绑定该会话的标签 → 激活它；否则新建标签并绑定到该会话。
+    // 历史加载统一由 ChatView 的激活标签 effect 处理（依赖含活跃标签 threadId，
+    // bind 完成后自动重跑）——单一 owner、单一消息形状（B-1）。
+    const tabState = useTabsStore.getState()
+    const threadTitle = threads.find((t) => t.key === key)?.title ?? ''
     try {
-      const snapshot = await getThread(key)
-      if (reqId !== selectReqRef.current) return // 已切换到其他会话，丢弃过期响应
-      if (snapshot?.messages) {
-        useChatStore.setState({
-          messages: snapshot.messages as any[],
-        })
+      const existing = tabState.tabs.find((t) => t.threadId === key)
+      if (existing) {
+        if (existing.id !== tabState.activeTabId) {
+          await tabState.activateTab(existing.id)
+        }
+        return
       }
+      const created = await tabState.createTab()
+      if (!created) return
+      await bindThreadToSession(created.id, key, threadTitle)
     } catch {
       // 后端未就绪时静默失败
     }
@@ -167,6 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
                     active={t.key === threadId}
                     onClick={() => handleSelect(t.key)}
                     onDelete={() => handleDelete(t.key)}
+                    onRename={(name) => renameMutation.mutate({ key: t.key, name })}
                   />
                 ))
               )}

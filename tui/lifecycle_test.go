@@ -217,13 +217,6 @@ func (f *failingTerminal) Stop() error {
 }
 func (f *failingTerminal) Write([]byte) (int, error)          { return 0, nil }
 func (f *failingTerminal) Size() (int64, int64)               { return 80, 24 }
-func (f *failingTerminal) HideCursor()                        {}
-func (f *failingTerminal) ShowCursor()                        {}
-func (f *failingTerminal) ClearLine()                         {}
-func (f *failingTerminal) ClearFromCursor()                   {}
-func (f *failingTerminal) ClearScreen()                       {}
-func (f *failingTerminal) MoveBy(int64)                       {}
-func (f *failingTerminal) MoveTo(int64, int64)                {}
 func (f *failingTerminal) PushKittyKeyboard()                 {}
 func (f *failingTerminal) PopKittyKeyboard()                  {}
 func (f *failingTerminal) Context() *terminal.TerminalContext { return nil }

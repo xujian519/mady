@@ -365,9 +365,11 @@ func renderTableRows(header []string, body [][]string, colW []int64, width int64
 			if i < len(cells) {
 				cell = cells[i]
 			}
-			if !headerRow {
-				cell = renderInline(cell, t)
-			}
+			// Header and data rows both go through renderInline so inline
+			// markers (**bold**, *italic*, `code`) never leak literally.
+			// renderTableVertical does the same; skipping it here produced
+			// raw "**维度**" in horizontal-mode tables.
+			cell = renderInline(cell, t)
 			padded := core.PadToWidth(core.TruncateToWidth(cell, w, "…"), w)
 			if headerRow {
 				padded = t.TableHeaderFn(padded)

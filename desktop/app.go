@@ -226,6 +226,11 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 			log.Printf("[mady-desktop] PANIC in deferred init: %v", r)
 			a.emitInitProgress("初始化异常: 部分功能不可用")
 			// init-done 已由 startup 同步发射，此处不再重复（G-I1）。
+			// M-9：panic 后仍尽力注入阶段 2 已完成的扩展（知识库/MCP/技能/记忆等），
+			// 避免 server config 停留在缺失扩展的同步段状态直至下次项目切换。
+			if a.server != nil {
+				a.server.SyncConfig(buildDesktopAgentConfig(fc))
+			}
 		}
 	}()
 
@@ -616,15 +621,6 @@ func (a *App) ListModels() ([]ModelEntry, error) {
 
 // HealthInfo 返回运行时健康检查信息。
 type HealthInfo = madyserver.HealthInfo
-
-// SaveWindowState 持久化窗口几何信息，供前端 beforeunload 时调用。
-func (a *App) SaveWindowState(width, height int) {
-	if width < 400 || height < 300 {
-		return
-	}
-	saveWindowState(windowState{Width: width, Height: height})
-	log.Printf("[mady-desktop] saved window state: %dx%d", width, height)
-}
 
 // Health 返回桌面端运行时健康信息。
 func (a *App) Health() (HealthInfo, error) {

@@ -4,14 +4,13 @@ package main
 
 import (
 	"encoding/json"
-	"log/slog"
+	"log"
 	"os"
 	"path/filepath"
 )
 
 // windowState 保存窗口几何信息。
-// Width/Height 由前端 beforeunload 时 SaveWindowState 保存（见 app.go）；
-// X/Y 由 Go 侧 beforeClose 经 runtime.WindowGetPosition 自取（S-8 修复），
+// 由 Go 侧 beforeClose 经 runtime.WindowGetSize/GetPosition 自取完整几何（S-8），
 // nil 表示未保存过位置（Wails 默认居中）。
 type windowState struct {
 	Width  int  `json:"width"`
@@ -27,7 +26,7 @@ func windowStatePath() string {
 	}
 	dir := filepath.Join(cacheDir, "mady")
 	if err := os.MkdirAll(dir, 0750); err != nil {
-		slog.Warn("mady-desktop: mkdir failed", "err", err)
+		log.Printf("[mady-desktop] mkdir failed: %v", err)
 	}
 	return filepath.Join(dir, "window_state.json")
 }
@@ -66,6 +65,13 @@ func absInt(v int) int {
 	return v
 }
 
+// saveWindowState 持久化窗口几何（原子写，纯写入）。
+//
+// 单一写入者模型（B-3）：只有 beforeClose 写入——Wails v2.13 的 OnBeforeClose
+// 覆盖窗口关闭 / Cmd+W / runtime.Quit（⌘Q）等主流退出路径（darwin frontend.go:
+// Frontend.Quit 先触发 OnBeforeClose）。已删除前端 beforeunload 的 SaveWindowState
+// 绑定：它只携带宽高，会覆盖 X/Y 造成位置丢失，且 WKWebView 的 beforeunload
+// 可靠性存疑——删除写入者后不再需要 load-modify-merge 补救。
 func saveWindowState(ws windowState) {
 	p := windowStatePath()
 	if p == "" {
@@ -75,7 +81,7 @@ func saveWindowState(ws windowState) {
 	if err != nil {
 		return
 	}
-	if err := os.WriteFile(p, data, 0600); err != nil {
-		slog.Warn("mady-desktop: save window state failed", "err", err)
+	if err := os.WriteFile(filepath.Clean(p), data, 0600); err != nil {
+		log.Printf("[mady-desktop] save window state failed: %v", err)
 	}
 }

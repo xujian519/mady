@@ -61,6 +61,22 @@ export function useDeleteThread() {
 }
 
 /**
+ * 重命名会话（自定义标题，阶段 1.4 / Reasonix 对齐）。
+ * 成功后刷新列表；若目标会话已被标签绑定，标签标题同步更新由
+ * 下一次 ListTabs 拉取体现（后端 titles.json 为单一真相源）。
+ */
+export function useRenameThread() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ key, name }: { key: string; name: string }) => backend.renameThread(key, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: threadKeys.all })
+    },
+  })
+}
+
+/**
  * 查询回收站中的会话（阶段 2.2）。
  */
 export function useTrashedThreads() {

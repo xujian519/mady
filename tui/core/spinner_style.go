@@ -4,8 +4,7 @@ import "time"
 
 // SpinnerStyle defines the animation frames and speed for a spinner indicator.
 // This is a pure data type with no rendering dependency, placed in core so
-// both the TUI component layer (Loader) and the procedural stdio layer
-// (Spinner) can share it without creating cross-dependencies.
+// the TUI component layer (Loader) can consume it without cross-dependencies.
 type SpinnerStyle struct {
 	Frames   []string
 	Interval time.Duration

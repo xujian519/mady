@@ -145,3 +145,44 @@ func TestTabStore_GetAndSetThreadID(t *testing.T) {
 		t.Fatal("Get missing tab: want error")
 	}
 }
+
+// TestTabStore_BindThread 覆盖标签联动绑定（2026-08-04 决策 5）。
+func TestTabStore_BindThread(t *testing.T) {
+	ts := newTabStore("") // 内存模式
+	first := ts.List()[0]
+
+	// 绑定会话 + 更新标题
+	if err := ts.BindThread(first.ID, "thread-xyz", "客户 A 检索"); err != nil {
+		t.Fatalf("BindThread: %v", err)
+	}
+	got, err := ts.Get(first.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ThreadID != "thread-xyz" {
+		t.Fatalf("BindThread: want thread-xyz, got %q", got.ThreadID)
+	}
+	if got.Title != "客户 A 检索" {
+		t.Fatalf("BindThread: want title 客户 A 检索, got %q", got.Title)
+	}
+
+	// 空 title 不覆盖既有标题
+	if err := ts.BindThread(first.ID, "thread-xyz2", ""); err != nil {
+		t.Fatalf("BindThread empty title: %v", err)
+	}
+	got, _ = ts.Get(first.ID)
+	if got.ThreadID != "thread-xyz2" {
+		t.Fatalf("BindThread: threadID not updated, got %q", got.ThreadID)
+	}
+	if got.Title != "客户 A 检索" {
+		t.Fatalf("BindThread: title should be preserved, got %q", got.Title)
+	}
+
+	// 空 threadID / 不存在标签报错
+	if err := ts.BindThread(first.ID, "", "t"); err == nil {
+		t.Fatal("BindThread empty threadID: want error")
+	}
+	if err := ts.BindThread("no-such", "t", "t"); err == nil {
+		t.Fatal("BindThread missing tab: want error")
+	}
+}

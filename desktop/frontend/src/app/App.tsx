@@ -24,7 +24,6 @@ import { useTheme } from '@/theme/tokens'
 import type { ThemePackId } from '@/theme/tokens'
 import { ChatView } from '@/components/chat/ChatView'
 import { SplashScreen } from '@/components/SplashScreen'
-import { saveWindowState } from '@/lib/backend'
 import { useThreads } from '@/stores/threads'
 
 /** 是否启用测试 API（__mady 全局接口）。生产构建默认为 false。 */
@@ -52,15 +51,6 @@ function ThemeEventListener({ children }: { children: React.ReactNode }) {
 
 function App() {
   const ready = useChatStore((s) => s.ready)
-
-  // 窗口关闭前保存几何信息
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      saveWindowState(window.innerWidth, window.innerHeight).catch(() => {})
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [])
 
   useEffect(() => {
     // 订阅 AGUI 事件流

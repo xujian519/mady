@@ -364,10 +364,21 @@ func (t *TUI) onMouse(msg core.MouseMsg) {
 	}
 	// Non-motion events flush any pending coalesced motion first, so a
 	// press/release right after a drag burst sees the correct final position.
+	//
+	// pendingMotion/mouseLast are shared with the event-loop goroutine
+	// (flushPendingMotion), so reads/writes are guarded by t.mu. SendMsg is
+	// deferred until the lock is released: sending while holding t.mu could
+	// deadlock when msgCh is full and the event loop is blocked on t.mu.
+	var flushed *core.MouseMsg
+	t.mu.Lock()
 	if t.pendingMotion != nil {
-		flushed := *t.pendingMotion
+		f := *t.pendingMotion
 		t.pendingMotion = nil
-		t.SendMsg(flushed)
+		flushed = &f
+	}
+	t.mu.Unlock()
+	if flushed != nil {
+		t.SendMsg(*flushed)
 	}
 	t.SendMsg(msg)
 }
@@ -383,26 +394,34 @@ func (t *TUI) onMouse(msg core.MouseMsg) {
 // drags.
 //
 // Caller: onMouse — only when msg.Action == MouseMotion and mouseThrottle != nil.
+// Runs on the terminal read goroutine; pendingMotion/mouseLast are guarded by
+// t.mu (shared with flushPendingMotion on the event-loop goroutine).
 func (t *TUI) onThrottledMotion(msg core.MouseMsg) {
 	select {
 	case <-t.mouseThrottle.C:
+		t.mu.Lock()
 		t.mouseLast = time.Now()
 		t.pendingMotion = nil // consumed a tick, send directly
+		t.mu.Unlock()
+		t.SendMsg(msg)
 	default:
 		// Ticker channel empty → events arriving faster than throttle rate.
 		// Accept if at least mouseThrottlePeriod (~33ms) has passed since the
 		// last accepted event (secondary time guard so a slow-ticking ticker
 		// doesn't starve motion entirely when the consumer is lagging).
+		t.mu.Lock()
 		if time.Since(t.mouseLast) < mouseThrottlePeriod {
 			// Throttle: remember as pending. The next ticker tick will
 			// flush this so the final position is never lost.
 			t.pendingMotion = &msg
+			t.mu.Unlock()
 			return
 		}
 		t.mouseLast = time.Now()
 		t.pendingMotion = nil
+		t.mu.Unlock()
+		t.SendMsg(msg)
 	}
-	t.SendMsg(msg)
 }
 
 func (t *TUI) enableMouse(mode string) {

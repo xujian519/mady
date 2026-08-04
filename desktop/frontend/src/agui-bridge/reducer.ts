@@ -13,7 +13,6 @@ import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
 /**
  * AGUI 事件负载（通用）。具体结构取决于事件类型。
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AguiEventPayload = any
 
 // ── 流式 delta 批处理（M-DSK-PRF-001/004，G-I5） ──
@@ -179,12 +178,18 @@ function handleApprovalPrompt(payload: AguiEventPayload) {
   })
 }
 
-function handleDone() {
+function handleDone(payload: AguiEventPayload) {
   const store = useChatStore.getState()
   // G-I5：run 结束前强制 flush 流式缓冲，避免最后一批 token 丢失
   flushDeltas()
   store.setToolCallBuffer(null)
   store.finishTurn()
+  // 运行级错误（如线程加载失败）经 agui:done 的 error 字段传递（Go 侧 startChatRun 塞入），
+  // 不额外发 agui:error —— 此处读取并反馈 UI，避免静默无反馈。
+  const errMsg = payload.error
+  if (errMsg) {
+    store.setError(typeof errMsg === 'string' ? errMsg : 'Unknown error')
+  }
 }
 
 function handleContextUsage(payload: AguiEventPayload) {

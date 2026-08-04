@@ -64,35 +64,6 @@ func TestFindNormalized(t *testing.T) {
 	}
 }
 
-// TestSerializeRows verifies CRLF joining, empty-input short-circuit, and
-// round-trip through ParseLine.
-func TestSerializeRows(t *testing.T) {
-	if got := SerializeRows(nil); got != "" {
-		t.Fatalf("SerializeRows(nil) = %q, want empty", got)
-	}
-
-	rows := []Row{
-		ParseLine("\x1b[31mred\x1b[0m"),
-		ParseLine("plain"),
-	}
-	out := SerializeRows(rows)
-	if !strings.Contains(out, "\r\n") {
-		t.Fatalf("SerializeRows missing CRLF: %q", out)
-	}
-
-	// Round-trip: re-parsing the serialized output yields the same visible text.
-	reparsed := strings.Split(out, "\r\n")
-	if len(reparsed) != 2 {
-		t.Fatalf("re-parsed lines = %d, want 2", len(reparsed))
-	}
-	if v := VisibleWidth(reparsed[0]); v != 3 {
-		t.Fatalf("first line visible width = %d, want 3 (red)", v)
-	}
-	if v := VisibleWidth(reparsed[1]); v != 5 {
-		t.Fatalf("second line visible width = %d, want 5 (plain)", v)
-	}
-}
-
 // TestPutDiffCellsPooling verifies pool reuse for short slices and pass-through
 // for oversized ones (no panic, no corruption).
 func TestPutDiffCells(t *testing.T) {

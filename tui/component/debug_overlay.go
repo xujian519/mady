@@ -55,7 +55,6 @@ type DebugOverlay struct {
 	appSource DebugAppSource
 	onClose   func()
 	offset    int64
-	dirty     bool
 
 	// Cached data (refreshed on debugTick).
 	fps        float64
@@ -77,7 +76,6 @@ func NewDebugOverlay(tuiSrc DebugTUISource, appSrc DebugAppSource) *DebugOverlay
 	return &DebugOverlay{
 		tuiSource:  tuiSrc,
 		appSource:  appSrc,
-		dirty:      true,
 		maxVisible: 20,
 	}
 }
@@ -121,7 +119,6 @@ func (d *DebugOverlay) refreshDataLocked() {
 		s := d.appSource.State()
 		d.fsmState = s.String()
 	}
-	d.dirty = true
 }
 
 func (d *DebugOverlay) Update(msg core.Msg) core.Cmd {
@@ -158,7 +155,6 @@ func (d *DebugOverlay) Update(msg core.Msg) core.Cmd {
 
 	case core.WindowSizeMsg:
 		d.mu.Lock()
-		d.dirty = true
 		d.mu.Unlock()
 		return nil
 	}
@@ -177,7 +173,7 @@ func (d *DebugOverlay) Render(width int64) []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	_ = d.dirty // Render is always called on each frame; cache disabled for simplicity.
+	// Render is always called on each frame; cache disabled.
 
 	pal := theme.CurrentPalette()
 	var out []string
@@ -263,12 +259,9 @@ func (d *DebugOverlay) Render(width int64) []string {
 	return out
 }
 
-// Invalidate forces a re-render on the next frame.
-func (d *DebugOverlay) Invalidate() {
-	d.mu.Lock()
-	d.dirty = true
-	d.mu.Unlock()
-}
+// Invalidate forces a re-render on the next frame. Rendering is always
+// full-frame (cache disabled), so this is a no-op.
+func (d *DebugOverlay) Invalidate() {}
 
 // formatBytes renders a byte count as a human-readable string.
 func formatBytes(b uint64) string {

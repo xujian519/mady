@@ -263,7 +263,7 @@ func generateProjectID(alias string) string {
 	if clean == "" {
 		clean = "project"
 	}
-	// S-5：Unix 秒粒度同别名必冲突，改用纳秒粒度
+	// S-5：Unix 秒粒度同别名必冲突，使用纳秒粒度
 	return fmt.Sprintf("%s-%d", clean, time.Now().UnixNano())
 }
 

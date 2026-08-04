@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -667,9 +668,15 @@ func TestAISettingsPersistence_RoundTrip(t *testing.T) {
 	if got != want {
 		t.Errorf("round trip mismatch: got %+v, want %+v", got, want)
 	}
-	// 原子写不应残留 tmp 文件
-	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
-		t.Errorf("tmp file should not exist after atomic rename")
+	// 原子写不应残留 tmp 文件（saveAISettingsTo 用 CreateTemp 前缀 .mady-settings-*，M-5）
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".mady-settings-") {
+			t.Errorf("tmp file %s should not exist after atomic rename", e.Name())
+		}
 	}
 }
 

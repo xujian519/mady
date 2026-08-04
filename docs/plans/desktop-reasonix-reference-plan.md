@@ -1,6 +1,7 @@
 # Mady 桌面端仿照 Reasonix 桌面端调整方案
 
-> 状态：方案评审中（未开始实施）
+> 状态：**已实施**（阶段 1-4 主体于 2026-08-02 commit `b6a14df` 落地；2026-08-04 全面审阅对齐，
+> 剩余缺口见文末「G. 实施状态核对表」）
 > 参考对象：`/Users/xujian/projects/参考架构/DeepSeek-Reasonix-main-v2/desktop/`
 > 结论：参考项目有成熟桌面端（Wails v2 + React 19），Mady 桌面端同为 Wails v2 + React 18，
 > 架构同构，可按四个方向有选择吸收。**不建议整体照搬** —— Reasonix 是通用 agent IDE，
@@ -202,6 +203,45 @@
 2. **视觉风格取向**：Mady 现有主题语言渐进增强，不整体换皮。
 3. **平台目标**：仅 macOS（保持 darwin tag，跨平台不立项）。
 4. **阶段推进**：按阶段 1→4 顺序全做。
+5. **threadId 双真相源（2026-08-04 审阅对齐）**：侧栏会话列表与标签绑定会话采用**标签联动**——
+   侧栏点击会话时，若已存在绑定该会话的标签则激活它，否则新建标签并绑定到该会话
+   （新增 Go 绑定 `BindTabToThread`）。侧栏不再独立维护「当前会话」，聊天上下文唯一由标签驱动，
+   消除「消息落 A 会话、UI 高亮 B 会话」的撕裂。
+6. **wailsjs 生成物提交策略（2026-08-04 审阅对齐）**：提交当前差异，保持提交物 = 本地
+   `wails dev` 生成物；`wails dev` 后若 wailsjs 有变化随代码一并提交（Wails 官方惯例）。
+7. **会话重命名 UI（2026-08-04 审阅对齐）**：`RenameThread` 绑定前端接入（ThreadItem 两段式
+   编辑），补阶段 1.4「自定义标题」最后一块。
+8. **粘贴图片（2026-08-04 批次 D）**：新增 `SavePastedImage` 绑定（data URL → 项目根
+   `attachments/` 目录，返回相对路径）+ MarkdownRenderer 图片渲染（项目内附件经 ReadFile
+   读取 base64）+ Composer 粘贴检测与光标插入，闭环 Reasonix 计划 A.3「Composer 增强」最后一项。
+
+---
+
+## G. 实施状态核对表（2026-08-04 全面审阅后更新）
+
+> 逐项对应上文 A-D 各节的落地建议；✅=已实现，⚠️=部分实现/有缺陷，❌=未实现（多为有意保留或低优先）。
+
+| 计划项 | 状态 | 说明 |
+|--------|------|------|
+| 版本号 ldflags 注入（C.3.1） | ✅ | Makefile 注入 `main.desktopVersion` |
+| CheckUpdate 真实化（C.3.1） | ⚠️ | 占位实现：中间态文案已改「更新通道未接入」（2026-08-04 批次 D），不再误导为「已是最新」；真实通道依赖公证（见 autoupdate-assessment） |
+| 窗口 X/Y 持久化（C.2/C.3.2） | ⚠️ | `beforeClose` 已保存 X/Y，但前端 `SaveWindowState` 双写入者覆盖，正常退出位置丢失（2026-08-04 审阅发现，修复计划批次 A3） |
+| macOS 原生菜单（C.3.3） | ✅ | `menu.go` 设置/退出已就位；「关于」项待补（低） |
+| 会话自定义标题 + 回收站（B.3/阶段 1.4） | ⚠️ | Go 侧完整（RenameThread/Trash/Restore/Purge）；前端重命名 UI 待接入（决策 7） |
+| 启动恢复上次线程/项目（B.3） | ✅ | 项目 `applyLastProject` + 标签持久化 `desktop-tabs.json` |
+| 上下文用量环形可视化（A.3） | ✅ | `ContextWindowRing.tsx`（颜色分级缺 80% 档，低） |
+| 多标签 TabBar（A.3/阶段 2.1） | ✅ | Go 侧 tab 状态机 + `ChatInTab` + 前端 TabBar；threadId 采用标签联动（决策 5） |
+| 历史面板/回收站（A.3） | ✅ | 侧栏搜索 + `TrashPanel` 软删除/恢复/彻底清除 |
+| Composer 增强（A.3） | ✅ | 草稿/↑↓历史/斜杠菜单/长粘贴检测/粘贴图片（2026-08-04 批次 D：SavePastedImage 绑定 + Markdown 图片渲染 + Composer paste 处理） |
+| 三语 i18n（A.3） | ❌ | 产品决策：发布前只做 zh-CN 单语言（见 desktop-i18n-assessment） |
+| 上下文用量持久化快照（B.3） | ❌ | 未实现（低优先） |
+| 长会话历史分页（B.3） | ❌ | `GetThread` 全量返回（低优先） |
+| MCP 生命周期管理（B.3） | ❌ | 涉安全红线（`mcp/config_trust.go`），未立项 |
+| 记忆面板（B.3/阶段 4） | ⚠️ | `MemoryPanel.tsx` 已实现；字段名 snake/camel 不匹配 bug（2026-08-04 审阅发现，修复计划批次 A2） |
+| 主题包结构扩展 + 画廊（D.3） | ⚠️ | 渐变 background + `ThemeGallery` 导入导出 ✅；背景图资产服务/zip 打包/对比度校验未做（低优先） |
+| 自动更新链路（C.3.4） | ❌ | 依赖公证落地后分步实施 |
+| 崩溃捕获 + safe-mode（C.3.5） | ❌ | 未立项（需谨慎设计） |
+| 跨平台 Win/Linux（C.3.6） | ❌ | 独立立项，不做（决策 3） |
 
 ---
 

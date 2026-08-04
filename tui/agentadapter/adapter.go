@@ -1,5 +1,5 @@
 // Package agentadapter bridges agentcore event streams to the TUI chat layer,
-// converting 18 agent event types into ChatEvent messages.
+// converting 20 agent event types into ChatEvent messages.
 package agentadapter
 
 import (
@@ -187,7 +187,7 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 				Task: agentTaskToInfo(ev.Task),
 			})
 		})
-	// SkillLoadedChatEvent mapping
+	// PlanTask status events
 	case chat.ChatEventPlanTaskStatusChanged:
 		s.agent.On(agentcore.EventPlanTaskStatusChanged, func(e agentcore.Event) {
 			ev, ok := e.(*agentcore.PlanTaskStatusChangedEvent)
@@ -224,44 +224,6 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 				StepID:    ev.StepID,
 				Reason:    ev.Reason,
 			})
-		})
-	case chat.ChatEventSkillLoaded:
-		s.agent.On(agentcore.EventSkillLoaded, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.SkillLoadedEvent)
-			if !ok {
-				return
-			}
-			handler(chat.SkillLoadedChatEvent{
-				SkillName: ev.SkillName,
-				Path:      ev.Path,
-				Source:    ev.Source,
-				Arguments: ev.Arguments,
-			})
-		})
-	case chat.ChatEventSkillsReloaded:
-		s.agent.On(agentcore.EventSkillsReloaded, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.SkillsReloadedEvent)
-			if !ok {
-				return
-			}
-			handler(chat.SkillsReloadedChatEvent{
-				SkillPaths:       copyStrings(ev.SkillPaths),
-				TotalSkills:      ev.TotalSkills,
-				VisibleSkills:    ev.VisibleSkills,
-				HiddenSkills:     ev.HiddenSkills,
-				DiagnosticsCount: ev.DiagnosticsCount,
-				AddedSkills:      copyStrings(ev.AddedSkills),
-				RemovedSkills:    copyStrings(ev.RemovedSkills),
-				UpdatedSkills:    copyStrings(ev.UpdatedSkills),
-			})
-		})
-	case chat.ChatEventA2UI:
-		s.agent.On(agentcore.EventA2UI, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.A2UIEvent)
-			if !ok {
-				return
-			}
-			handler(chat.A2UIChatEvent{Envelope: ev.Envelope})
 		})
 	}
 }
@@ -359,14 +321,4 @@ func agentTaskToInfo(t *agentcore.Task) *chat.TaskInfo {
 		Status:   string(t.Status),
 		Priority: string(t.Priority),
 	}
-}
-
-// copyStrings returns a defensive copy of a string slice.
-func copyStrings(src []string) []string {
-	if src == nil {
-		return nil
-	}
-	out := make([]string, len(src))
-	copy(out, src)
-	return out
 }

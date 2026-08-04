@@ -29,8 +29,9 @@ type UpdateInfo struct {
 }
 
 // CheckUpdate 检查是否有可用更新（占位实现，版本号已 ldflags 注入）。
-// 返回「当前已是最新版本」；真实更新通道（manifest + 校验 + 整包替换）
-// 在公证落地后接入，见 docs/plans/desktop-autoupdate-assessment.md 阶段二。
+// 真实更新通道（manifest + 校验 + 整包替换）在公证落地后接入，
+// 见 docs/plans/desktop-autoupdate-assessment.md 阶段二。
+// 中间态文案（M-1）：明确告知「更新通道未接入」，避免误导为「已是最新」。
 func (a *App) CheckUpdate() (UpdateInfo, error) {
 	if err := a.ready(); err != nil {
 		return UpdateInfo{}, err
@@ -39,6 +40,6 @@ func (a *App) CheckUpdate() (UpdateInfo, error) {
 		CurrentVersion: desktopVersion,
 		LatestVersion:  desktopVersion,
 		HasUpdate:      false,
-		Message:        "当前已是最新版本",
+		Message:        "更新通道未接入（自动更新将在公证落地后启用）；当前版本 " + desktopVersion,
 	}, nil
 }

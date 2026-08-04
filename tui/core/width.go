@@ -384,13 +384,26 @@ func WrapAnsi(text string, width int64) []string {
 	return lines
 }
 
+// maxWrapIterations caps the number of break iterations per input line. Each
+// iteration must consume at least one glyph (findBreakColumn now returns a
+// glyph boundary even for wide runes in narrow widths), so this bound is never
+// reached on well-formed input — it exists purely so a future regression in
+// the break-column logic degrades to an over-wide line instead of hanging the
+// TUI event loop.
+const maxWrapIterations = 4096
+
 func wrapOneLine(line string, width int64) []string {
 	if VisibleWidth(line) <= width {
 		return []string{line}
 	}
 	var out []string
 	cur := line
-	for VisibleWidth(cur) > width {
+	for iter := 0; VisibleWidth(cur) > width; iter++ {
+		if iter >= maxWrapIterations {
+			// Defensive: emit the remainder as-is rather than loop forever.
+			out = append(out, cur)
+			return out
+		}
 		// Try to break on the last whitespace that still fits.
 		breakAt := findBreakColumn(cur, width)
 		left := SliceByColumn(cur, 0, breakAt)
@@ -456,7 +469,13 @@ func findBreakColumn(s string, width int64) int64 {
 			if col > 0 {
 				return col // last complete-glyph boundary
 			}
-			return width
+			// col == 0: the first glyph is wider than width itself (e.g. a
+			// 2-cell CJK rune in a 1-column window). Return the glyph's full
+			// width: slicing at `width` would cut the wide rune and produce
+			// an empty left slice, so wrapOneLine would never make progress
+			// and hang. The wrapped line overflows by design — a wide glyph
+			// cannot fit, but it must still be emitted whole.
+			return col + rw
 		}
 		switch r {
 		case ' ', '\t':
@@ -513,7 +532,7 @@ func wrapOneLineCJK(line string, width int64) []string {
 	return out
 }
 
-// ansiReset is kept local to avoid importing from style.go which uses a lowercase name.
+// ansiReset is the SGR reset sequence, kept local to core (theme/style.go has its own).
 const ansiReset = "\x1b[0m"
 
 func StripAnsi(s string) string {

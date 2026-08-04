@@ -23,8 +23,8 @@ const LAYER_LABEL: Record<string, string> = {
 
 const MemoryRow: React.FC<{ entry: MemoryEntry }> = ({ entry }) => {
   const forget = useForgetMemory()
-  const time = entry.updatedAt
-    ? new Date(entry.updatedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const time = entry.updated_at
+    ? new Date(entry.updated_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : ''
   return (
     <li className="group px-2 py-1.5 rounded-md hover:bg-mady-bg-hover/60 transition-colors duration-150">

@@ -320,7 +320,7 @@ func TestSuppressHandoffToolDisplay(t *testing.T) {
 			t.Fatalf("suppressed handoff tool must not render, got %d messages", n)
 		}
 		app.mu.Lock()
-		active := len(app.model.ActiveTools)
+		active := len(app.model.activeTools)
 		app.mu.Unlock()
 		if active != 0 {
 			t.Fatalf("suppressed tool should not track ActiveTools, got %d", active)

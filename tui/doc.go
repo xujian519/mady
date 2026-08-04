@@ -38,7 +38,7 @@
 //	  lifecycle management (Start/Stop/Quit/Tick/Every), message dispatch.
 //
 //	Layer 4 — Components (tui/component)
-//	  45 UI components: Editor, Markdown, autocomplete, selectlist,
+//	  44 UI components: Editor, Markdown, autocomplete, selectlist,
 //	  statusbar, table, syntax highlighter, domain cards (evidence,
 //	  conclusion, approval, tool-call, review gate), overlays
 //	  (command palette, skill center, session selector, system status).
@@ -84,9 +84,9 @@
 //		app.Focus(hello)
 //
 //		// Alternative: use the convenience constructor for a chat-style app:
-//		// tui.NewChatApp(term, config)
+//		// tui.NewChatApp(tui.ChatAppConfig{Title: "Demo"})
 //
-//		if err := app.Start(ctx); err != nil {
+//		if err := app.Start(); err != nil {
 //			fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
 //			os.Exit(1)
 //		}
@@ -101,14 +101,14 @@
 //
 // The monolithic chat application is available via:
 //
-//	tui.NewChatApp(term, chat.ChatAppConfig{...})
+//	tui.NewChatApp(chat.ChatAppConfig{...})
 //
 // which creates both the TUI engine and a ChatApp wired together.
 //
 // # Internal Packages
 //
 // The tui/internal directory contains minimal copies of packages from
-// the parent mady module (csync.Slice, fuzzy string utilities). These
+// the parent mady module (csync helpers). These
 // are present so the TUI module can build independently without a
 // circular dependency on the parent module. External consumers should
 // not import these internal packages.

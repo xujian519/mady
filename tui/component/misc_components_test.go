@@ -181,84 +181,6 @@ func TestMakeExcerpt(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// onboarding.go
-// ---------------------------------------------------------------------------
-
-func TestFirstRunWizardLifecycle(t *testing.T) {
-	w := NewFirstRunWizard()
-	if !w.IsVisible() {
-		t.Fatal("expected wizard visible initially")
-	}
-	lines := w.Render(50)
-	if len(lines) == 0 {
-		t.Fatal("expected non-empty render")
-	}
-	joined := strings.Join(lines, "\n")
-	for _, want := range []string{"欢迎使用 Mady", "搜索对话历史", "按 Esc 关闭此引导"} {
-		if !strings.Contains(joined, want) {
-			t.Fatalf("expected %q in render, got %q", want, joined)
-		}
-	}
-	for _, ln := range lines {
-		if w := core.VisibleWidth(ln); w > 50 {
-			t.Fatalf("line width %d > 50 (line=%q)", w, ln)
-		}
-	}
-}
-
-func TestFirstRunWizardDismiss(t *testing.T) {
-	w := NewFirstRunWizard()
-	dismissed := false
-	rendered := false
-	w.SetOnDismiss(func() { dismissed = true })
-	w.SetOnRequestRender(func() { rendered = true })
-	w.Dismiss()
-	if w.IsVisible() {
-		t.Fatal("expected wizard hidden after Dismiss")
-	}
-	if !dismissed {
-		t.Fatal("expected onDismiss callback")
-	}
-	if !rendered {
-		t.Fatal("expected onRequestRender callback")
-	}
-	if lines := w.Render(50); lines != nil {
-		t.Fatalf("expected nil render after dismiss, got %v", lines)
-	}
-}
-
-func TestFirstRunWizardEscapeKey(t *testing.T) {
-	w := NewFirstRunWizard()
-	w.Update(core.KeyMsg{Data: "\x1b"})
-	if w.IsVisible() {
-		t.Fatal("expected wizard dismissed by Escape")
-	}
-	w.Invalidate() // no-op
-	// Non-key message is a no-op.
-	w2 := NewFirstRunWizard()
-	w2.Update(core.WindowSizeMsg{Width: 100, Height: 30})
-	if !w2.IsVisible() {
-		t.Fatal("expected wizard still visible after WindowSizeMsg")
-	}
-}
-
-func TestFirstRunWizardNarrowWidth(t *testing.T) {
-	w := NewFirstRunWizard()
-	lines := w.Render(10) // clamped to 30
-	if len(lines) == 0 {
-		t.Fatal("expected render")
-	}
-	for _, ln := range lines {
-		if ln == "" {
-			continue // spacer line
-		}
-		if w := core.VisibleWidth(ln); w < 30 {
-			t.Fatalf("expected width clamped to 30, got %d (line=%q)", w, ln)
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
 // approval_card.go / confidence_bar.go
 // ---------------------------------------------------------------------------
 
@@ -365,7 +287,6 @@ func TestStatusBarSettersAndRender(t *testing.T) {
 	s.SetCaseInfo("专利案件 A")
 	s.SetPendingReview(3)
 	s.SetPersisted(true)
-	s.SetWidth(120)
 	s.Busy() // tok/s rate only renders while running
 
 	lines := s.Render(120)

@@ -391,3 +391,61 @@ func TestHandleMouseMsgReleaseMiddleButton(t *testing.T) {
 	// doCopy spawns a clipboard goroutine; just ensure no panic.
 	app.layout.handleMouseMsg(core.MouseMsg{Action: core.MouseRelease, Row: 1, Col: 1, Button: 2})
 }
+
+// TestToggleThinkingAfterToolGroup is the regression test for the
+// msgRange-index/message-index drift: tryToggleThinkingAtLineLocked used the
+// ranges-array index directly as a h.messages index. A tool group collapses
+// multiple messages into ONE range, so once a group exists the arrays drift
+// (ranges = [user, group, thinking] vs messages = [user, tool0, tool1,
+// assistant]); toggling the thinking header then acted on the group's last
+// tool message and silently did nothing.
+func TestToggleThinkingAfterToolGroup(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+	hist := app.History()
+	hist.Append(ChatMessage{Role: RoleUser}) // renders 0 lines
+	hist.Append(ChatMessage{Role: RoleTool, Meta: "tool0", Text: "a"})
+	hist.Append(ChatMessage{Role: RoleTool, Meta: "tool1", Text: "b"})
+	hist.AppendDeltaWithKind("", "thinking content", "thinking")
+
+	cols, _ := app.TerminalSize()
+	hist.SetMaxRows(10)
+	app.layout.Render(cols)
+
+	// Locate the thinking (assistant) message's range — its msgIndex is 3,
+	// while its range index is 2 (the tool pair shares one range).
+	hist.mu.Lock()
+	var thinkRange *msgRange
+	for i := range hist.cachedMsgRanges {
+		r := &hist.cachedMsgRanges[i]
+		if r.msgIndex == 3 {
+			thinkRange = r
+			break
+		}
+	}
+	if thinkRange == nil {
+		hist.mu.Unlock()
+		t.Fatal("setup: no range for the thinking message (group may not have formed)")
+	}
+	if len(hist.cachedMsgRanges) != 3 {
+		hist.mu.Unlock()
+		t.Fatalf("setup: expected 3 ranges (user/group/thinking), got %d", len(hist.cachedMsgRanges))
+	}
+	hist.mu.Unlock()
+
+	// Toggle at the thinking header line: must collapse the assistant's
+	// thinking segment, not silently no-op on a tool message.
+	if !hist.tryToggleThinkingAtLineLocked(int64(thinkRange.startLine)) {
+		t.Fatal("tryToggleThinkingAtLineLocked returned false for the thinking header")
+	}
+
+	msgs := hist.Messages()
+	if len(msgs) != 4 {
+		t.Fatalf("expected 4 messages, got %d", len(msgs))
+	}
+	if len(msgs[3].ThinkingSegments) != 1 || !msgs[3].ThinkingSegments[0].Collapsed {
+		t.Error("assistant thinking segment should be collapsed after toggle")
+	}
+	if msgs[1].Collapsed || msgs[2].Collapsed {
+		t.Error("tool messages must be untouched by the thinking toggle")
+	}
+}

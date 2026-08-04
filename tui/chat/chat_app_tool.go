@@ -26,7 +26,7 @@ func (a *ChatApp) onToolStart(e ChatEvent) {
 	}
 	a.mu.Lock()
 	a.model.toolSeq++
-	a.model.ActiveTools[tc.ToolCall.ID] = time.Now()
+	a.model.activeTools[tc.ToolCall.ID] = time.Now()
 	a.model.state = Transition(a.model.state, evtToolStart)
 	a.finalizeStreamLocked()
 	toolSeq := a.model.toolSeq
@@ -51,7 +51,7 @@ func (a *ChatApp) onToolEnd(e ChatEvent) {
 		return
 	}
 	a.mu.Lock()
-	delete(a.model.ActiveTools, tc.ToolCallID)
+	delete(a.model.activeTools, tc.ToolCallID)
 	a.model.state = Transition(a.model.state, evtToolEnd)
 	a.mu.Unlock()
 

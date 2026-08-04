@@ -138,6 +138,15 @@ func (h *ChatHistory) Render(width int64) []string {
 	h.mu.Unlock()
 
 	if maxRows <= 0 || int64(len(all)) <= maxRows {
+		// No viewport clipping: still clamp every line to the render width.
+		// This is the only path that previously skipped padToWidth — a buggy
+		// upstream component or miscounted width could emit an over-width
+		// line straight to a DECAWM-off terminal.
+		for i, ln := range all {
+			if vw := core.VisibleWidth(ln); vw > width {
+				all[i] = core.TruncateToWidth(ln, width, "")
+			}
+		}
 		return all
 	}
 
