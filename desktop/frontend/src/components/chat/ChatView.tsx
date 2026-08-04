@@ -135,7 +135,6 @@ function hasActiveContent(
 
 // ── 智能自动滚动 Hook ─────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function useAutoScroll(
   virtualizer: any,
   enabled: boolean,

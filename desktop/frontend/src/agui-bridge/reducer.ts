@@ -13,7 +13,6 @@ import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
 /**
  * AGUI 事件负载（通用）。具体结构取决于事件类型。
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AguiEventPayload = any
 
 // ── 流式 delta 批处理（M-DSK-PRF-001/004，G-I5） ──

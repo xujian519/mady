@@ -15,9 +15,7 @@ import (
 )
 
 func main() {
-	if _, err := fmt.Fprintf(os.Stderr, "[mady-desktop] 当前版本不支持 %s：桌面端处于 macOS-only 阶段（Windows 适配计划见 docs/plans/desktop-next-development-plan.md W3-T4）\n", runtime.GOOS); err != nil {
-		// stderr 写入失败无其他恢复路径，直接退出
-		os.Exit(1)
-	}
+	// stderr 写入失败无其他恢复路径（lint: errcheck 忽略返回值）。
+	_, _ = fmt.Fprintf(os.Stderr, "[mady-desktop] 当前版本不支持 %s：桌面端处于 macOS-only 阶段（Windows 适配计划见 docs/plans/desktop-next-development-plan.md W3-T4）\n", runtime.GOOS)
 	os.Exit(1)
 }

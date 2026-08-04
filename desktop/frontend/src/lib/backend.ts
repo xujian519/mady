@@ -166,13 +166,6 @@ export async function getThread(key: string): Promise<ThreadSnapshot> {
 }
 
 /**
- * 删除会话。
- */
-export async function deleteThread(key: string): Promise<void> {
-  return callBinding<void>('main/App', 'DeleteThread', key)
-}
-
-/**
  * 重命名会话（自定义标题，阶段 1.4）。
  * 写入会话元数据；listThreads 返回的 title 会携带新标题。
  */

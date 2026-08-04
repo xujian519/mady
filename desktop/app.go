@@ -226,6 +226,11 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 			log.Printf("[mady-desktop] PANIC in deferred init: %v", r)
 			a.emitInitProgress("初始化异常: 部分功能不可用")
 			// init-done 已由 startup 同步发射，此处不再重复（G-I1）。
+			// M-9：panic 后仍尽力注入阶段 2 已完成的扩展（知识库/MCP/技能/记忆等），
+			// 避免 server config 停留在缺失扩展的同步段状态直至下次项目切换。
+			if a.server != nil {
+				a.server.SyncConfig(buildDesktopAgentConfig(fc))
+			}
 		}
 	}()
 

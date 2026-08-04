@@ -13,7 +13,7 @@
  *   - 用户输入后通过 onAction 回传 "inputChanged" 事件
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type React from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
@@ -35,11 +35,13 @@ export const TextFieldComponent: A2UIComponent = ({ component, context }) => {
   }, [component.props, context.surface.dataModel, context.functions])
 
   const [value, setValue] = useState(resolved.initialValue)
-  const initialRef = useRef(resolved.initialValue)
+  const [syncedInitial, setSyncedInitial] = useState(resolved.initialValue)
 
   // 当 data model 更新时同步初始值
-  if (initialRef.current !== resolved.initialValue) {
-    initialRef.current = resolved.initialValue
+  // （React 官方 derived-state 模式：render 期间调用 setState，React 会丢弃本次渲染结果并重渲染；
+  //   不用 ref 写入，避免 react-hooks/refs 警告）
+  if (syncedInitial !== resolved.initialValue) {
+    setSyncedInitial(resolved.initialValue)
     setValue(resolved.initialValue)
   }
 
@@ -53,7 +55,7 @@ export const TextFieldComponent: A2UIComponent = ({ component, context }) => {
         })
       }
     },
-    [context.onAction, context.surface.id, component.id],
+    [context, component.id],
   )
 
   const className =

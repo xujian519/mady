@@ -9,9 +9,9 @@ PREFIX ?= $(HOME)/.local
 COMMIT_HASH ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS ?= -ldflags "-s -w -X main.commitHash=$(COMMIT_HASH) -X main.buildTime=$(BUILD_TIME)"
-# 桌面端版本号（desktop/app_update.go 的 desktopVersion 由 -X main.desktopVersion 注入）。
-# 与 desktop/wails.json 的 productVersion 保持一致；发布时用 `make desktop-dmg DESKTOP_VERSION=v0.2.0` 覆盖。
-DESKTOP_VERSION ?= 0.1.0
+# 桌面端版本号（权威源 = desktop/wails.json 的 info.productVersion，单点维护）。
+# 发版时先改 wails.json 再 `make desktop-dmg`；临时覆盖用 `make desktop-dmg DESKTOP_VERSION=v0.2.0`。
+DESKTOP_VERSION ?= $(shell sed -n 's/.*"productVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' desktop/wails.json | head -1)
 # wails build 注入桌面端版本（与根模块 LDFLAGS 注入 main.commitHash 的约定对齐）。
 DESKTOP_LDFLAGS ?= -ldflags "-X main.desktopVersion=$(DESKTOP_VERSION)"
 GOLANGCI_LINT_VERSION ?= v2.12.2

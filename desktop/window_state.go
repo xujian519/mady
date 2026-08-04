@@ -4,7 +4,7 @@ package main
 
 import (
 	"encoding/json"
-	"log/slog"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -27,7 +27,7 @@ func windowStatePath() string {
 	}
 	dir := filepath.Join(cacheDir, "mady")
 	if err := os.MkdirAll(dir, 0750); err != nil {
-		slog.Warn("mady-desktop: mkdir failed", "err", err)
+		log.Printf("[mady-desktop] mkdir failed: %v", err)
 	}
 	return filepath.Join(dir, "window_state.json")
 }
@@ -92,6 +92,6 @@ func saveWindowState(ws windowState) {
 		return
 	}
 	if err := os.WriteFile(filepath.Clean(p), data, 0600); err != nil {
-		slog.Warn("mady-desktop: save window state failed", "err", err)
+		log.Printf("[mady-desktop] save window state failed: %v", err)
 	}
 }
