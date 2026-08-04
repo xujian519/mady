@@ -9,7 +9,8 @@
  * （Zustand Slices 模式，见 mady-desktop-standards.md M-DSK-ST-005）。
  */
 import type { StateCreator } from 'zustand'
-import { chat as backendChat } from '@/lib/backend'
+import { chat as backendChat, chatInTab as backendChatInTab } from '@/lib/backend'
+import { useTabsStore } from '@/stores/tabs'
 import type { AppState } from '../chat'
 import type { SliceState } from './types'
 
@@ -200,11 +201,24 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
     try {
       const { threadId } = get()
-      const runId = await backendChat({
-        message: trimmed,
-        thread_id: threadId ?? undefined,
-      })
+      // 阶段 2.1c：激活标签存在时消息发往该标签的会话（ChatInTab），
+      // 标签未关联会话时后端自动创建并写回 tab.ThreadID。
+      const activeTabId = useTabsStore.getState().activeTabId
+      const runId = activeTabId
+        ? await backendChatInTab(activeTabId, {
+            message: trimmed,
+            thread_id: threadId ?? undefined,
+          })
+        : await backendChat({
+            message: trimmed,
+            thread_id: threadId ?? undefined,
+          })
       set({ runId, running: true })
+      if (activeTabId) {
+        // 阶段 2.1c：ChatInTab 首次发消息时后端会创建会话并写回 tab.ThreadID，
+        // 刷新 tabs store 让前端标签立即带上 threadId，避免切走再切回时误判为「新标签」。
+        await useTabsStore.getState().loadTabs()
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       set({ error: msg, running: false })

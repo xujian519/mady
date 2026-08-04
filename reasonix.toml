@@ -54,45 +54,13 @@ enabled = true   # language server tools; servers launch lazily when used
 # Rules are "Tool" or "Tool(specifier)"; e.g. Bash(go test:*), Edit(src/**).
 mode  = "ask"
 deny = ["Bash(rm -rf*)", "Bash(git push*)"]   # hard-blocked in every mode
-allow = ["task", "Edit(src/**)",
   # Git read-only
-  "Bash(cd /Users/xujian/projects/Mady && git status)",
-  "Bash(cd /Users/xujian/projects/Mady && git log --oneline -10)",
-  "Bash(cd /Users/xujian/projects/Mady && git remote -v)",
-  "Bash(cd /Users/xujian/projects/Mady && git diff --stat)",
-  "Bash(cd /Users/xujian/projects/Mady && git ls-remote origin HEAD 2>/dev/null && echo \"---\" && git rev-parse HEAD)",
   # "Bash(cd /Users/xujian/projects/Mady && git stash && go test -tags integration -count=1 -run TestDrafting_WorkflowTool ./integration/... 2>&1 | tail -5)",
   # Build & test
-  "Bash(cd /Users/xujian/projects/Mady && go build ./... 2>&1 | tail -5)",
-  "Bash(cd /Users/xujian/projects/Mady && go build ./... && go build ./example/... && echo \"build OK\")",
-  "Bash(cd /Users/xujian/projects/Mady && go vet ./... 2>&1 | head -30)",
-  "Bash(cd /Users/xujian/projects/Mady && go test -count=1 -v ./evaluate/benchmark/ -run 'TestEvalSuite_' 2>&1 | head -40)",
-  "Bash(cd /Users/xujian/projects/Mady && go test -tags integration -count=1 ./integration/... 2>&1 | tail -20)",
-  "Bash(cd /Users/xujian/projects/Mady && go test -tags integration -count=1 -v ./integration/... 2>&1 | head -80)",
-  "Bash(cd /Users/xujian/projects/Mady && make verify 2>&1)",
-  "Bash(cd /Users/xujian/projects/Mady && go mod tidy -diff 2>&1)",
-  "Bash(cd /Users/xujian/projects/Mady && go mod tidy 2>&1)",
-  "Bash(cd /Users/xujian/projects/Mady/tools && go vet ./... 2>&1 | head -40)",
-  "Bash(cd /Users/xujian/projects/Mady/tools && go vet ./... 2>&1)",
-  "Bash(cd /Users/xujian/projects/Mady/tools && go mod tidy -diff 2>&1)",
-  "Bash(cd /Users/xujian/projects/Mady/tui && go mod tidy -diff 2>&1)",
-  "Bash(cd /Users/xujian/projects/Mady/tui && bash scripts/verify_layers.sh --diff 2>&1)",
-  "Bash(cd /Users/xujian/projects/Mady/tui && bash scripts/verify_layers.sh 2>&1)",
-  "Bash(cd /Users/xujian/projects/Mady/tui && bash scripts/verify_layers.sh)",
   # Lint & CI
-  "Bash(cd /Users/xujian/projects/Mady && golangci-lint run --timeout=5m . 2>&1 | head -20)",
-  "Bash(cd /Users/xujian/projects/Mady && golangci-lint run --timeout=5m ./... 2>&1 | head -20)",
-  "Bash(cd /Users/xujian/projects/Mady && ls .golangci* 2>/dev/null; ls tui/.golangci* 2>/dev/null; ls tools/.golangci* 2>/dev/null)",
-  "Bash(cd /Users/xujian/projects/Mady && gh pr list --state open 2>/dev/null || echo \"gh not available or no PRs\")",
-  "Bash(cd /Users/xujian/projects/Mady && gh run list --limit 10 --json conclusion,headBranch,name,status,createdAt 2>/dev/null || echo \"gh not available\")",
-  "Bash(cd /Users/xujian/projects/Mady && gh run list --limit 1 --json databaseId,conclusion,headBranch --jq '.[0].databaseId' 2>/dev/null)",
   # Project discovery
-  "Bash(cd /Users/xujian/projects/Mady && ls -la .github/ 2>/dev/null || echo \"No .github directory\")",
-  "Bash(cd /Users/xujian/projects/Mady && ls -la .circleci/ 2>/dev/null; ls -la .gitlab-ci.yml 2>/dev/null; ls -la Jenkinsfile 2>/dev/null; echo \"done\")",
-  "Bash(cd /Users/xujian/projects/Mady && ls .github/workflows/ 2>/dev/null || echo \"No workflows\")",
   # Branch investigation (read-only for loops)
-  "Bash(cd /Users/xujian/projects/Mady && for b in origin/dependabot/go_modules/github.com/chromedp/chromedp-0.16.0 origin/dependabot/go_modules/modernc.org/sqlite-1.54.0 origin/dependabot/go_modules/tools/github.com/chromedp/chromedp-0.16.0 origin/fix/spec-system-remediation; do echo \"=== $b ===\" && git log --oneline main..$b && echo \"---\"; done)",
-  "Bash(cd /Users/xujian/projects/Mady && for b in worktree-agent-a15ea9032b02b098d worktree-agent-a2d791daa112e8d1d worktree-agent-a3f43f4bda2e03ba9 worktree-agent-a577700b4fcf469db worktree-agent-a7ba077a9e31cc084 worktree-agent-a96ede87d90172e9f; do echo \"=== $b ===\" && git log --oneline main..$b && echo \"---\"; done)"]
+allow = ["task", "Edit(src/**)", "Bash(cd /Users/xujian/projects/Mady && git status)", "Bash(cd /Users/xujian/projects/Mady && git log --oneline -10)", "Bash(cd /Users/xujian/projects/Mady && git remote -v)", "Bash(cd /Users/xujian/projects/Mady && git diff --stat)", "Bash(cd /Users/xujian/projects/Mady && git ls-remote origin HEAD 2>/dev/null && echo \"---\" && git rev-parse HEAD)", "Bash(cd /Users/xujian/projects/Mady && go build ./... 2>&1 | tail -5)", "Bash(cd /Users/xujian/projects/Mady && go build ./... && go build ./example/... && echo \"build OK\")", "Bash(cd /Users/xujian/projects/Mady && go vet ./... 2>&1 | head -30)", "Bash(cd /Users/xujian/projects/Mady && go test -count=1 -v ./evaluate/benchmark/ -run 'TestEvalSuite_' 2>&1 | head -40)", "Bash(cd /Users/xujian/projects/Mady && go test -tags integration -count=1 ./integration/... 2>&1 | tail -20)", "Bash(cd /Users/xujian/projects/Mady && go test -tags integration -count=1 -v ./integration/... 2>&1 | head -80)", "Bash(cd /Users/xujian/projects/Mady && make verify 2>&1)", "Bash(cd /Users/xujian/projects/Mady && go mod tidy -diff 2>&1)", "Bash(cd /Users/xujian/projects/Mady && go mod tidy 2>&1)", "Bash(cd /Users/xujian/projects/Mady/tools && go vet ./... 2>&1 | head -40)", "Bash(cd /Users/xujian/projects/Mady/tools && go vet ./... 2>&1)", "Bash(cd /Users/xujian/projects/Mady/tools && go mod tidy -diff 2>&1)", "Bash(cd /Users/xujian/projects/Mady/tui && go mod tidy -diff 2>&1)", "Bash(cd /Users/xujian/projects/Mady/tui && bash scripts/verify_layers.sh --diff 2>&1)", "Bash(cd /Users/xujian/projects/Mady/tui && bash scripts/verify_layers.sh 2>&1)", "Bash(cd /Users/xujian/projects/Mady/tui && bash scripts/verify_layers.sh)", "Bash(cd /Users/xujian/projects/Mady && golangci-lint run --timeout=5m . 2>&1 | head -20)", "Bash(cd /Users/xujian/projects/Mady && golangci-lint run --timeout=5m ./... 2>&1 | head -20)", "Bash(cd /Users/xujian/projects/Mady && ls .golangci* 2>/dev/null; ls tui/.golangci* 2>/dev/null; ls tools/.golangci* 2>/dev/null)", "Bash(cd /Users/xujian/projects/Mady && gh pr list --state open 2>/dev/null || echo \"gh not available or no PRs\")", "Bash(cd /Users/xujian/projects/Mady && gh run list --limit 10 --json conclusion,headBranch,name,status,createdAt 2>/dev/null || echo \"gh not available\")", "Bash(cd /Users/xujian/projects/Mady && gh run list --limit 1 --json databaseId,conclusion,headBranch --jq '.[0].databaseId' 2>/dev/null)", "Bash(cd /Users/xujian/projects/Mady && ls -la .github/ 2>/dev/null || echo \"No .github directory\")", "Bash(cd /Users/xujian/projects/Mady && ls -la .circleci/ 2>/dev/null; ls -la .gitlab-ci.yml 2>/dev/null; ls -la Jenkinsfile 2>/dev/null; echo \"done\")", "Bash(cd /Users/xujian/projects/Mady && ls .github/workflows/ 2>/dev/null || echo \"No workflows\")", "Bash(cd /Users/xujian/projects/Mady && for b in origin/dependabot/go_modules/github.com/chromedp/chromedp-0.16.0 origin/dependabot/go_modules/modernc.org/sqlite-1.54.0 origin/dependabot/go_modules/tools/github.com/chromedp/chromedp-0.16.0 origin/fix/spec-system-remediation; do echo \"=== $b ===\" && git log --oneline main..$b && echo \"---\"; done)", "Bash(cd /Users/xujian/projects/Mady && for b in worktree-agent-a15ea9032b02b098d worktree-agent-a2d791daa112e8d1d worktree-agent-a3f43f4bda2e03ba9 worktree-agent-a577700b4fcf469db worktree-agent-a7ba077a9e31cc084 worktree-agent-a96ede87d90172e9f; do echo \"=== $b ===\" && git log --oneline main..$b && echo \"---\"; done)", "Bash=cd /Users/xujian/projects/Mady/desktop && ls $(go env GOMODCACHE)/github.com/wailsapp/wails/v2@v2.13.0/pkg/runtime/ 2>/dev/null && grep -n \"func WindowSetPosition\\|func WindowGetPosition\\|func WindowSetSize\\|func WindowGetSize\" $(go env GOMODCACHE)/github.com/wailsapp/wails/v2@v2.13.0/pkg/runtime/window.go 2>/dev/null", "Bash=M=$(go env GOMODCACHE)/github.com/wailsapp/wails/v2@v2.13.0; grep -n \"func AppMenu\\|func EditMenu\\|func WindowMenu\\|func NewMenu\\b\\|func (m \\*Menu) AddSubmenu\\|func (m \\*Menu) AddText\\|func (m \\*Menu) Append\" $M/pkg/menu/menu.go | head; echo \"=== AppMenu 实现 ===\"; sed -n \"$(grep -n 'func AppMenu' $M/pkg/menu/menu.go | head -1 | cut -d: -f1),+30p\" $M/pkg/menu/menu.go", "Bash=M=$(go env GOMODCACHE)/github.com/wailsapp/wails/v2@v2.13.0; grep -rn \"func AppMenu\\|func EditMenu\\|func WindowMenu\" $M/pkg/menu/ | head", "Bash=M=$(go env GOMODCACHE)/github.com/wailsapp/wails/v2@v2.13.0; sed -n '100,175p' $M/pkg/menu/menuroles.go"]
 # ask = ["Edit(src/**)"]   # force a prompt even if otherwise allowed
 
 [sandbox]

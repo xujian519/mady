@@ -48,7 +48,10 @@ func main() {
 		BindingsAllowedOrigins: "http://localhost:*,https://localhost:*",
 		OnStartup:              app.startup,
 		OnShutdown:             app.shutdown,
-		Bind:                   []interface{}{app},
+		OnBeforeClose:          app.beforeClose,
+		// 1.3：macOS 原生菜单（设置 ⌘, / 退出 ⌘Q），见 menu.go
+		Menu: app.createAppMenu(),
+		Bind: []interface{}{app},
 		Mac: &mac.Options{
 			TitleBar:             mac.TitleBarHiddenInset(),
 			Appearance:           mac.DefaultAppearance,

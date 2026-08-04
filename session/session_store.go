@@ -443,6 +443,11 @@ func (s *FileStore) List(_ context.Context) ([]Info, error) {
 
 // Delete removes a session file by ID.
 func (s *FileStore) Delete(_ context.Context, sessionID string) error {
+	return s.removeSessionFile(s.path(sessionID), sessionID, "delete session")
+}
+
+// removeSessionFile 删除指定路径的会话文件并清理锁缓存，供主目录删除与回收站彻底删除共用。
+func (s *FileStore) removeSessionFile(path, sessionID, op string) error {
 	if err := util.ValidateKey(sessionID); err != nil {
 		return err
 	}
@@ -450,8 +455,8 @@ func (s *FileStore) Delete(_ context.Context, sessionID string) error {
 	lock.Lock()
 	defer lock.Unlock()
 
-	if err := os.Remove(s.path(sessionID)); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("delete session: %w", err)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	s.locksMu.Lock()
@@ -459,6 +464,101 @@ func (s *FileStore) Delete(_ context.Context, sessionID string) error {
 	s.locksMu.Unlock()
 
 	return nil
+}
+
+// --- Trash（回收站，软删除） ---
+// 实现基于文件移动：会话文件从主目录移入 <dir>/.trash/。
+// List 只扫描顶层 *.jsonl，.trash 子目录天然被排除，主目录视图自动隐藏回收站内容。
+
+// trashDir 返回回收站目录路径。
+func (s *FileStore) trashDir() string {
+	return filepath.Join(s.dir, ".trash")
+}
+
+// trashPath 返回回收站中会话文件的路径。
+func (s *FileStore) trashPath(sessionID string) string {
+	return filepath.Join(s.trashDir(), sessionID+sessionFileExt)
+}
+
+// MoveToTrash 将会话移入回收站（软删除，文件仍保留在 .trash/ 下）。
+func (s *FileStore) MoveToTrash(_ context.Context, sessionID string) error {
+	if err := util.ValidateKey(sessionID); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(s.trashDir(), 0o750); err != nil {
+		return fmt.Errorf("create trash directory: %w", err)
+	}
+	lock := s.sessionLock(sessionID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	if _, err := os.Stat(s.trashPath(sessionID)); err == nil {
+		return fmt.Errorf("trash session %s: already in trash", sessionID)
+	}
+	if err := os.Rename(s.path(sessionID), s.trashPath(sessionID)); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("trash session %s: %w", sessionID, os.ErrNotExist)
+		}
+		return fmt.Errorf("trash session: %w", err)
+	}
+
+	s.locksMu.Lock()
+	delete(s.locks, sessionID)
+	s.locksMu.Unlock()
+
+	return nil
+}
+
+// RestoreFromTrash 将回收站中的会话恢复回主目录。
+func (s *FileStore) RestoreFromTrash(_ context.Context, sessionID string) error {
+	if err := util.ValidateKey(sessionID); err != nil {
+		return err
+	}
+	lock := s.sessionLock(sessionID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	if _, err := os.Stat(s.path(sessionID)); err == nil {
+		return fmt.Errorf("restore session %s: session already exists", sessionID)
+	}
+	if err := os.Rename(s.trashPath(sessionID), s.path(sessionID)); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("restore session %s: %w", sessionID, os.ErrNotExist)
+		}
+		return fmt.Errorf("restore session: %w", err)
+	}
+	return nil
+}
+
+// ListTrashed 列出回收站中的会话，按更新时间倒序（无回收站目录时返回空列表）。
+func (s *FileStore) ListTrashed(_ context.Context) ([]Info, error) {
+	dirEntries, err := os.ReadDir(s.trashDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("list trash directory: %w", err)
+	}
+
+	var sessions []Info
+	for _, de := range dirEntries {
+		if de.IsDir() || !strings.HasSuffix(de.Name(), sessionFileExt) {
+			continue
+		}
+		name := strings.TrimSuffix(de.Name(), sessionFileExt)
+		info := s.readInfoFrom(name, true)
+		sessions = append(sessions, info)
+	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
+	})
+	return sessions, nil
+}
+
+// PurgeTrashed 从回收站彻底删除会话（不可恢复）。
+func (s *FileStore) PurgeTrashed(_ context.Context, sessionID string) error {
+	return s.removeSessionFile(s.trashPath(sessionID), sessionID, "purge trashed session")
 }
 
 // lockCleanup removes the per-session lock cache entry without touching the
@@ -488,8 +588,14 @@ func (s *FileStore) Has(_ context.Context, sessionID string) (bool, error) {
 	return false, fmt.Errorf("check session: %w", err)
 }
 
-//nolint:gocognit // 原因：会话元数据读取，含多版本格式兼容分支
+// readInfo 读取主目录中指定会话的元信息。
 func (s *FileStore) readInfo(sessionID string) Info {
+	return s.readInfoFrom(sessionID, false)
+}
+
+// readInfoFrom 读取会话元信息（主目录与回收站共用）。trashed 为 true 时从 .trash 目录读取；
+// 路径统一由经过 ValidateKey 校验的 sessionID 派生，避免外部路径注入。
+func (s *FileStore) readInfoFrom(sessionID string, trashed bool) Info {
 	lock := s.sessionLock(sessionID)
 	lock.RLock()
 	defer lock.RUnlock()
@@ -497,6 +603,9 @@ func (s *FileStore) readInfo(sessionID string) Info {
 	info := Info{ID: sessionID}
 
 	f, err := os.Open(s.path(sessionID))
+	if trashed {
+		f, err = os.Open(s.trashPath(sessionID))
+	}
 	if err != nil {
 		return info
 	}
@@ -520,43 +629,55 @@ func (s *FileStore) readInfo(sessionID string) Info {
 		lineNum++
 
 		if lineNum == 1 {
-			var header Header
-			if json.Unmarshal([]byte(line), &header) == nil && header.Type == EntryHeader {
-				info.ParentSession = header.ParentSession
-				info.Cwd = header.Cwd
-				info.Version = header.Version
-				if t, err := time.Parse(time.RFC3339, header.Timestamp); err == nil {
-					info.CreatedAt = t
-				}
-				continue
-			}
-		}
-
-		var entry Entry
-		if json.Unmarshal([]byte(line), &entry) != nil {
+			s.parseHeaderInto(&info, line)
 			continue
 		}
 
-		if entry.Type == EntryMessage {
-			info.MessageCount++
-		}
-		if entry.Type == EntrySessionInfo {
-			var meta map[string]string
-			if json.Unmarshal(entry.Data, &meta) == nil {
-				if v, ok := meta["name"]; ok {
-					info.Name = v
-				}
-			}
-		}
-		if entry.Type == EntryLabel {
-			var ld LabelData
-			if json.Unmarshal(entry.Data, &ld) == nil && ld.Label != "" {
-				info.Label = ld.Label
-			}
-		}
+		s.applyEntryInto(&info, line)
 	}
 
 	return info
+}
+
+// parseHeaderInto 解析首行头部（含会话版本、父会话、cwd、创建时间等元信息）。
+func (s *FileStore) parseHeaderInto(info *Info, line string) {
+	var header Header
+	if json.Unmarshal([]byte(line), &header) == nil && header.Type == EntryHeader {
+		info.ParentSession = header.ParentSession
+		info.Cwd = header.Cwd
+		info.Version = header.Version
+		if t, err := time.Parse(time.RFC3339, header.Timestamp); err == nil {
+			info.CreatedAt = t
+		}
+	}
+}
+
+// applyEntryInto 解析一条会话日志条目并累加计数/会话名/标签等派生信息。
+func (s *FileStore) applyEntryInto(info *Info, line string) {
+	var entry Entry
+	if json.Unmarshal([]byte(line), &entry) != nil {
+		return
+	}
+
+	if entry.Type == EntryMessage {
+		info.MessageCount++
+		return
+	}
+	if entry.Type == EntrySessionInfo {
+		var meta map[string]string
+		if json.Unmarshal(entry.Data, &meta) == nil {
+			if v, ok := meta["name"]; ok {
+				info.Name = v
+			}
+		}
+		return
+	}
+	if entry.Type == EntryLabel {
+		var ld LabelData
+		if json.Unmarshal(entry.Data, &ld) == nil && ld.Label != "" {
+			info.Label = ld.Label
+		}
+	}
 }
 
 // MessagesFromEntries rebuilds a Message slice from entries (flat, no tree awareness).

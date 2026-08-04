@@ -29,7 +29,7 @@ export const CheckBoxComponent: A2UIComponent = ({ component, context }) => {
         value: newVal,
       })
     }
-  }, [localChecked, context.onAction, context.surface.id, component.id])
+  }, [localChecked, context, component.id])
 
   return (
     <label className="flex items-center gap-2 cursor-pointer select-none">

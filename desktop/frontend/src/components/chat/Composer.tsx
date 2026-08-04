@@ -18,6 +18,8 @@ import { useSettingsStore } from '@/stores/settings'
 import { Send, Sparkles } from 'lucide-react'
 import { SlashCommandMenu, type SlashCommand } from './SlashCommandMenu'
 import { exportSession, downloadSession, generateExportFilename } from '@/lib/sessionExport'
+import { useTheme } from '@/theme/tokens'
+import { savePastedImage } from '@/lib/backend'
 
 // ── 常量 ──────────────────────────────────────────
 
@@ -27,6 +29,40 @@ const LONG_PASTE_THRESHOLD = 2000
 const LONG_PASTE_LINES = 20
 /** 输入框最大高度 */
 const MAX_INPUT_HEIGHT = 200
+/** 发送历史最大条数（阶段 2.5，↑↓ 导航） */
+const MAX_SEND_HISTORY = 50
+
+// ── 会话草稿 / 发送历史（阶段 2.5） ───────────────
+
+/** 草稿 localStorage key（按会话隔离）。 */
+function draftKey(threadId: string | null): string {
+  return `mady-composer-draft-${threadId || 'default'}`
+}
+
+/** 发送历史 localStorage key（按会话隔离）。 */
+function historyKey(threadId: string | null): string {
+  return `mady-composer-history-${threadId || 'default'}`
+}
+
+/** 读取发送历史（旧 → 新，Index 0 为最早）。 */
+function loadSendHistory(threadId: string | null): string[] {
+  try {
+    const raw = localStorage.getItem(historyKey(threadId))
+    const parsed = raw ? (JSON.parse(raw) as unknown) : []
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/** 写入发送历史（新消息在前，去重相邻，上限 MAX_SEND_HISTORY）。 */
+function saveSendHistory(threadId: string | null, history: string[]): void {
+  try {
+    localStorage.setItem(historyKey(threadId), JSON.stringify(history.slice(0, MAX_SEND_HISTORY)))
+  } catch {
+    // localStorage 不可用（隐私模式等）时静默
+  }
+}
 
 // ── 组件 ──────────────────────────────────────────
 
@@ -36,9 +72,74 @@ export const Composer: React.FC = () => {
   const [slashQuery, setSlashQuery] = useState('')
   const [isComposing, setIsComposing] = useState(false)
   const [longPasteDetected, setLongPasteDetected] = useState(false)
+  const [pastingImage, setPastingImage] = useState(false)
   const running = useChatStore((s) => s.running)
+  const threadId = useChatStore((s) => s.threadId)
   const sendMessage = useChatStore((s) => s.sendMessage)
+  const { setMode } = useTheme()
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // ── 会话草稿 + 发送历史（阶段 2.5）：切换会话时恢复/保存 ──
+
+  const sendHistoryRef = useRef<string[]>(loadSendHistory(threadId))
+  const [historyIdx, setHistoryIdx] = useState(-1)
+  const initTextRef = useRef('')
+
+  useEffect(() => {
+    // 切换会话：恢复该会话上次未发送的草稿 + 该会话的发送历史
+    let saved = ''
+    try {
+      saved = localStorage.getItem(draftKey(threadId)) ?? ''
+    } catch {
+      // localStorage 不可用时忽略
+    }
+    setText(saved)
+    setHistoryIdx(-1)
+    initTextRef.current = ''
+    sendHistoryRef.current = loadSendHistory(threadId)
+  }, [threadId])
+
+  useEffect(() => {
+    // 输入变化时实时保存草稿（空串也存，覆盖旧草稿）
+    try {
+      localStorage.setItem(draftKey(threadId), text)
+    } catch {
+      // 忽略
+    }
+  }, [text, threadId])
+
+  // ── 发送历史（阶段 2.5）：↑ 回看已发送，↓ 前进 ──
+
+  const navigateHistory = (dir: 1 | -1) => {
+    const hist = sendHistoryRef.current
+    if (hist.length === 0) return
+
+    if (historyIdx === -1 && dir === 1) {
+      // ↑ 首次：记住当前输入，回退到最新一条已发送
+      initTextRef.current = text
+      setHistoryIdx(0)
+      setText(hist[hist.length - 1])
+      return
+    }
+    const next = historyIdx + dir
+    if (next >= 0 && next < hist.length) {
+      setHistoryIdx(next)
+      setText(hist[hist.length - 1 - next])
+    } else if (next < 0) {
+      // ↓ 越过最新 → 恢复进入历史前的输入
+      setHistoryIdx(-1)
+      setText(initTextRef.current)
+    }
+  }
+
+  const recordSent = (input: string) => {
+    const hist = sendHistoryRef.current
+    const deduped = hist[hist.length - 1] === input ? hist : [...hist, input]
+    sendHistoryRef.current = deduped.slice(-MAX_SEND_HISTORY)
+    saveSendHistory(threadId, sendHistoryRef.current)
+    setHistoryIdx(-1)
+    initTextRef.current = ''
+  }
 
   // 自动聚焦
   useEffect(() => {
@@ -106,10 +207,16 @@ export const Composer: React.FC = () => {
 
   /** 检测并执行本地 UI 命令。返回 true 表示已处理。 */
   const tryLocalCommand = (input: string): boolean => {
-    // /theme <name>
+    // /theme <light|dark|system|packName>
     const themeMatch = input.match(/^\/theme\s+(.+)$/)
     if (themeMatch) {
       const name = themeMatch[1].toLowerCase()
+      // M-16：light/dark/system 是明暗模式切换（SlashCommandMenu usage 语义），
+      // 其余值按主题包名匹配（professional/focus-blue/paper-warm/slate）。
+      if (name === 'light' || name === 'dark' || name === 'system') {
+        setMode(name)
+        return true
+      }
       // 通过 CustomEvent 通信给 App 层（SettingsPanel 监听）
       window.dispatchEvent(new CustomEvent('mady:set-theme-pack', { detail: name }))
       return true
@@ -164,6 +271,7 @@ export const Composer: React.FC = () => {
 
     setText('')
     setLongPasteDetected(false)
+    recordSent(trimmed)
     sendMessage(trimmed)
   }
 
@@ -192,6 +300,21 @@ export const Composer: React.FC = () => {
       e.preventDefault()
       return
     }
+
+    // 阶段 2.5：输入区 ↑/↓ 导航发送历史（单行/空输入时触发）
+    if (e.key === 'ArrowUp' && !e.shiftKey) {
+      const el = e.currentTarget as HTMLTextAreaElement
+      if (el.selectionStart === 0 && el.selectionEnd === el.value.length) {
+        e.preventDefault()
+        navigateHistory(1)
+      }
+    } else if (e.key === 'ArrowDown' && !e.shiftKey) {
+      const el = e.currentTarget as HTMLTextAreaElement
+      if (el.selectionStart === el.value.length && el.selectionEnd === el.value.length) {
+        e.preventDefault()
+        navigateHistory(-1)
+      }
+    }
   }
 
   // ── 输入事件 ────────────────────────────────────
@@ -214,7 +337,22 @@ export const Composer: React.FC = () => {
     }
   }
 
-  // ── 粘贴事件（简化长粘贴） ──────────────────────
+  // ── 粘贴事件（文本长粘贴检测 + 图片粘贴，Reasonix 对齐） ─────────
+
+  /** 在输入框光标处插入文本，并聚焦回输入框。 */
+  const insertAtCursor = useCallback((insert: string) => {
+    const el = inputRef.current
+    if (!el) return
+    const start = el.selectionStart ?? 0
+    const end = el.selectionEnd ?? 0
+    // B-5：函数式更新，避免异步回调（FileReader→RPC）期间渲染闭包 text 过期
+    setText((prev) => prev.slice(0, start) + insert + prev.slice(end))
+    requestAnimationFrame(() => {
+      el.focus()
+      const pos = start + insert.length
+      el.setSelectionRange(pos, pos)
+    })
+  }, [])
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const pasted = e.clipboardData.getData('text')
@@ -224,6 +362,31 @@ export const Composer: React.FC = () => {
         setLongPasteDetected(true)
       }, 0)
     }
+
+    // 图片粘贴：取剪贴板第一张图片 → 保存到项目 attachments/ → 插入 Markdown 引用
+    const imageItem = Array.from(e.clipboardData?.items ?? []).find((it) => it.type.startsWith('image/'))
+    if (!imageItem) return
+    const file = imageItem.getAsFile()
+    if (!file) return
+    e.preventDefault()
+    setPastingImage(true)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataURL = String(reader.result ?? '')
+      savePastedImage(dataURL)
+        .then((path) => {
+          insertAtCursor(`![${file.name || '图片'}](${path})`)
+        })
+        .catch((err: unknown) => {
+          console.error('[composer] save pasted image failed:', err)
+        })
+        .finally(() => setPastingImage(false))
+    }
+    reader.onerror = () => {
+      setPastingImage(false)
+      console.error('[composer] read pasted image failed')
+    }
+    reader.readAsDataURL(file)
   }
 
   const canSend = text.trim().length > 0 && !running
@@ -244,6 +407,13 @@ export const Composer: React.FC = () => {
         {longPasteDetected && (
           <div className="mb-2 px-3 py-1.5 rounded-lg bg-mady-warning/10 border border-mady-warning/20 text-mady-caption text-mady-warning">
             检测到大量文本粘贴，内容将被精简显示
+          </div>
+        )}
+
+        {/* 图片上传提示 */}
+        {pastingImage && (
+          <div className="mb-2 px-3 py-1.5 rounded-lg bg-mady-accent/10 border border-mady-accent/20 text-mady-caption text-mady-accent">
+            正在保存粘贴的图片…
           </div>
         )}
 

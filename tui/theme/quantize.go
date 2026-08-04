@@ -3,15 +3,13 @@ package theme
 import "strconv"
 
 // quantize.go — Color quantization engine for terminals with limited color
-// support. Provides RGB-to-16 and theme-level quantization.
+// support. Provides RGB-to-16 conversion.
 //
 // RGBTo16 maps a 24-bit color to the nearest ANSI 16-color index using
 // perceptually-weighted Euclidean distance. Polarity-aware: dark backgrounds
 // prefer bright fg variants (ANSI 90-97), light backgrounds prefer normal
-// variants (ANSI 30-37).
-//
-// QuantizeTheme applies the appropriate quantization to every SemanticTheme
-// color field based on the terminal's detected color level.
+// variants (ANSI 30-37). (Theme-level pre-quantization was removed: all
+// quantization happens at render time in color_resolve.go.)
 
 // ColorLevel represents the terminal's color capability.
 type ColorLevel int
@@ -88,11 +86,6 @@ func QuantizeRGBTo16(r, g, b uint8, isDarkBg bool) uint8 {
 	return bestIdx
 }
 
-// QuantizeRGBTo256 wraps the existing RGBTo256 function with uint8 inputs.
-func QuantizeRGBTo256(r, g, b uint8) uint8 {
-	return uint8(RGBTo256(int64(r), int64(g), int64(b)))
-}
-
 // RGBTo16ANSI converts an RGB hex string to the closest 16-color ANSI index.
 // Returns (index, ok). isDarkBg controls the polarity bonus.
 func RGBTo16ANSI(hex string, isDarkBg bool) (uint8, bool) {
@@ -130,35 +123,4 @@ func BgParams16(hex string, isDarkBg bool) string {
 	}
 	// Normal bg: ANSI 40-47
 	return "4" + strconv.FormatInt(int64(idx), 10)
-}
-
-// QuantizeTheme applies color quantization to a SemanticTheme based on the
-// given ColorLevel.
-//
-// NOTE: This function is currently a no-op — all quantization is handled
-// downstream at render time by color_resolve.go (FgParams/BgParams call
-// RGBTo256/QuantizeRGBTo16 on hex values). The SemanticTheme itself stores
-// unmodified hex strings regardless of the target ColorLevel.
-//
-// This function exists as a pre-quantization extension point for future
-// optimizations (e.g., caching pre-quantized palette copies). Until then,
-// it returns the input pointer unchanged.
-func QuantizeTheme(sem *SemanticTheme, level ColorLevel, isDarkBg bool) *SemanticTheme {
-	if level == ColorLevelTrueColor {
-		return sem
-	}
-	if level == ColorLevel256 {
-		return quantizeTheme256(sem)
-	}
-	return quantizeThemeBasic(sem, isDarkBg)
-}
-
-// quantizeTheme256 is a no-op: 256-color quantization happens at render time.
-func quantizeTheme256(sem *SemanticTheme) *SemanticTheme {
-	return sem
-}
-
-// quantizeThemeBasic is a no-op: 16-color quantization happens at render time.
-func quantizeThemeBasic(sem *SemanticTheme, _ bool) *SemanticTheme {
-	return sem
 }

@@ -370,24 +370,56 @@ func decodeKittyU(seq, params string, flags int64) Key {
 		k.Name = "escape"
 	case 127:
 		k.Name = "backspace"
-	case 57358:
-		k.Name = "up"
-	case 57359:
-		k.Name = "down"
-	case 57360:
-		k.Name = "right"
-	case 57361:
+	// Kitty keyboard protocol functional-key codepoints (Unicode PUA
+	// 0xe000..0xe01f). Reference: kitty's key encoding table — 0xe000=Escape,
+	// 0xe004=Insert, 0xe006=Left, 0xe008=Up, 0xe014=F1, … These must match
+	// the terminal's CSI ... u payload exactly; a wrong mapping silently
+	// breaks navigation and F-keys on Kitty/Ghostty/WezTerm/foot. The first
+	// four are the C0 control keys as PUA: under protocol flag 1 they arrive
+	// with this encoding when a modifier is held (e.g. Shift+Enter), and
+	// without a mapping they'd be inserted as private-use runes.
+	case 0xe000:
+		k.Name = "escape"
+	case 0xe001:
+		k.Name = "tab"
+	case 0xe002:
+		k.Name = "backspace"
+	case 0xe003:
+		k.Name = "enter"
+	case 0xe004:
+		k.Name = "insert"
+	case 0xe005:
+		k.Name = "delete"
+	case 0xe006:
 		k.Name = "left"
-	case 57362:
-		k.Name = "home"
-	case 57363:
-		k.Name = "end"
-	case 57364:
+	case 0xe007:
+		k.Name = "right"
+	case 0xe008:
+		k.Name = "up"
+	case 0xe009:
+		k.Name = "down"
+	case 0xe00a:
 		k.Name = "pageUp"
-	case 57365:
+	case 0xe00b:
 		k.Name = "pageDown"
-	case 57366, 57367, 57368, 57369, 57370, 57371, 57372, 57373, 57374, 57375, 57376, 57377:
-		k.Name = fmt.Sprintf("f%d", code-57365)
+	case 0xe00c:
+		k.Name = "home"
+	case 0xe00d:
+		k.Name = "end"
+	case 0xe00e:
+		k.Name = "capsLock"
+	case 0xe00f:
+		k.Name = "scrollLock"
+	case 0xe010:
+		k.Name = "numLock"
+	case 0xe011:
+		k.Name = "printScreen"
+	case 0xe012:
+		k.Name = "pause"
+	case 0xe013:
+		k.Name = "menu"
+	case 0xe014, 0xe015, 0xe016, 0xe017, 0xe018, 0xe019, 0xe01a, 0xe01b, 0xe01c, 0xe01d, 0xe01e, 0xe01f:
+		k.Name = fmt.Sprintf("f%d", code-0xe013) // 0xe014 → f1 … 0xe01f → f12
 	default:
 		r := rune(code)
 		k.Rune = r

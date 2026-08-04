@@ -34,7 +34,7 @@ export const ChoicePickerComponent: A2UIComponent = ({ component, context }) => 
         })
       }
     },
-    [context.onAction, context.surface.id, component.id],
+    [context, component.id],
   )
 
   return (

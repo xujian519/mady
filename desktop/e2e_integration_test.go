@@ -2,19 +2,21 @@
 
 package main
 
-// e2e_integration_test.go — 桌面端端到端集成测试。
-//
-// 测试流程（需要完整 Wails 运行环境）：
-//   1. 启动 App（通过 bootstrap.Setup）
-//   2. 调用 Chat 发起对话
-//   3. 验证收到 agui:* 事件
-//   4. 调用 SendAction
-//   5. 调用 Cancel
-//   6. 调用 ListThreads / GetThread / DeleteThread
-//   7. 调用 Health
+// e2e_integration_test.go — 桌面端冒烟测试（smoke，非完整端到端）。
 //
 // 本文件通过 build tag "e2e" 隔离，避免在常规 `go test` 中执行。
 // 运行方式：go test -tags e2e -count=1 ./desktop/
+//
+// 覆盖（纯 Go 环境可完整执行的部分）：
+//   1. App 构造 + ready() 状态检查
+//   2. Health / ListThreads（无 Wails runtime 也可执行）
+//   3. 文件操作（CreateFolder / ListDirectory / RenameFolder，t.TempDir 隔离）
+//   4. SendAction / Cancel（尽力而为，验证不 panic）
+//   5. shutdown（不 panic）
+//
+// 说明（M-4）：Chat 需要 Wails runtime（runtime.EventsEmit 依赖 OnStartup 注入的
+// context），纯 Go test 环境无法真实跑通，测试中显式 Skip 并注明需实机验证
+// （make desktop-run 手动走查）；不再使用恒 false 的 isWailsContext 伪检测。
 
 import (
 	"context"
@@ -28,8 +30,8 @@ import (
 	madyserver "github.com/xujian519/mady/server"
 )
 
-// TestDesktopAppLifecycle 测试桌面端 App 的完整生命周期：
-// setup → startup → Chat → SendAction → Cancel → ListThreads → Health → shutdown
+// TestDesktopAppLifecycle 测试桌面端 App 的生命周期冒烟：
+// setup → startup → Health → ListThreads → SendAction → Cancel → 文件操作 → shutdown
 func TestDesktopAppLifecycle(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test in short mode")
@@ -70,36 +72,23 @@ func TestDesktopAppLifecycle(t *testing.T) {
 	if health.Model == "" {
 		t.Error("Health().Model should not be empty")
 	}
-	t.Logf("Health: provider=%s model=%s", health.Provider, health.Model)
+	t.Logf("Health: provider=%s model=%s version=%s", health.Provider, health.Model, health.Version)
 
-	// 5. 测试 ListThreads（可能因无 thread store 返回错误）
+	// 5. 测试 ListThreads（可能因无 thread store 返回错误，非阻塞）
 	t.Run("ListThreads", func(t *testing.T) {
 		_, err := app.ListThreads()
 		if err != nil {
-			// 无 thread store 时返回预期错误，非阻塞
 			t.Logf("ListThreads() returned (expected without store): %v", err)
 		}
 	})
 
-	// 由于 runtime.EventsEmit 需要 Wails 专用 context，
-	// Chat/SendAction 等涉及 Wails Events 的测试仅在 Wails 环境下完整执行。
-	// 在纯 Go test 环境中跳过这些测试。
+	// 6. Chat：需要 Wails runtime（runtime.EventsEmit 依赖 OnStartup 注入的 context），
+	// 纯 Go test -tags e2e 环境下无法真实跑通，显式跳过；实机走查见 make desktop-run。
 	t.Run("Chat", func(t *testing.T) {
-		if !isWailsContext(app.ctxOrNil()) {
-			t.Skip("SKIP: Wails context not available in pure Go test")
-		}
-		runID, err := app.Chat(madyserver.ChatRequest{
-			Message: "Hello, Mady!",
-		})
-		if err != nil {
-			t.Logf("Chat() returned error: %v", err)
-		} else {
-			t.Logf("Chat() returned runID: %s", runID)
-		}
-		time.Sleep(200 * time.Millisecond)
+		t.Skip("SKIP: requires Wails runtime (EventsEmit needs OnStartup context); verify manually via make desktop-run")
 	})
 
-	// 7. 测试 SendAction（验证不 panic）
+	// 7. 测试 SendAction（尽力而为，验证不 panic）
 	t.Run("SendAction", func(t *testing.T) {
 		err := app.SendAction("surface_test", &a2ui.ClientAction{
 			Name:              "test_action",
@@ -182,7 +171,7 @@ func TestDesktopAppLifecycle(t *testing.T) {
 		t.Log("shutdown completed successfully")
 	})
 
-	log.Println("[test] desktop e2e integration test passed")
+	log.Println("[test] desktop smoke test passed")
 }
 
 // TestAppReady 测试 App ready() 状态检查。
@@ -201,16 +190,6 @@ func TestAppReady(t *testing.T) {
 	}
 
 	t.Log("App ready() state checks passed")
-}
-
-// isWailsContext 检测 context 是否来自 Wails 运行时。
-// Wails 的 runtime.EventsEmit 需要 Wails OnStartup 注入的 context，
-// 普通 context.Background() 无法使用。
-func isWailsContext(ctx context.Context) bool {
-	// 在 Wails 环境下，context 会包含 Wails 内部的值。
-	// 最简单的检测方式：如果 context 有特定的 Wails 方法则返回 true。
-	// 此处使用保守策略：只有在明确使用 Wails runtime 时才返回 true。
-	return false
 }
 
 // TestMapAguiEvent 测试 AGUI 事件名映射。

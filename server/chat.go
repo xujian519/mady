@@ -184,3 +184,10 @@ func (s *Server) ensureThreadID(ctx context.Context, threadID string) (string, e
 	}
 	return thread.Info.ID, nil
 }
+
+// EnsureThreadID 确保指定 threadID 存在（空则自动创建），返回实际 threadID。
+// 供桌面端多标签绑定使用：新标签发消息前先创建会话，把 threadID 关联到标签，
+// 避免 server.Chat 值传递导致调用方无法得知实际会话 ID。
+func (s *Server) EnsureThreadID(ctx context.Context, threadID string) (string, error) {
+	return s.ensureThreadID(ctx, threadID)
+}

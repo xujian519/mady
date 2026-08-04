@@ -172,10 +172,15 @@ func (f *Footer) Render(width int64) []string {
 
 	// If the rendered line exceeds width, trim from the right.
 	if core.VisibleWidth(line) > width {
-		// Fall back to minimal: just show [?] help
-		if len(visible) > 1 {
-			item := visible[0].Items[0]
-			line = pal.Accent.Render(item.Key) + " " + pal.Muted.Render(item.Desc)
+		// Fall back to minimal: just show [?] help. visible[0] may be a group
+		// registered with zero items, so scan for the first non-empty group —
+		// indexing Items[0] blindly panics on an empty group.
+		for _, g := range visible {
+			if len(g.Items) > 0 {
+				item := g.Items[0]
+				line = pal.Accent.Render(item.Key) + " " + pal.Muted.Render(item.Desc)
+				break
+			}
 		}
 	}
 

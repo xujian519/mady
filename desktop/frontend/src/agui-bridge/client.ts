@@ -34,6 +34,8 @@ const SUBSCRIBED_EVENTS = [
   'compaction-end',
   'auto-retry',
   'context-usage',
+  'task-created',
+  'task-updated',
   'error',
   'a2ui',
   'approval-prompt',

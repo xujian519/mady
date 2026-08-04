@@ -340,7 +340,7 @@ func (p *passthroughComp) Update(core.Msg) core.Cmd { return nil }
 
 // TestOverlayMouseOutsideRegion verifies that clicking outside the overlay
 // region does NOT deliver the mouse event to the overlay component.
-func TestComposeOverlayDropShadow(t *testing.T) {
+func TestComposeOverlayUniformBackdrop(t *testing.T) {
 	// 10 rows x 20 cols base. Overlay at (row=2,col=4), 6 wide, 3 tall.
 	// The backdrop must be a UNIFORM dim layer — no drop shadow ring (the
 	// shadow rendered as faint rectangular box edges, so it was removed).
@@ -576,5 +576,47 @@ func BenchmarkOverlayComposeMultipleOverlays(b *testing.B) {
 		rows := make([]core.Row, len(base))
 		copy(rows, base)
 		_ = composeOverlays(rows, []*Overlay{ov1, ov2}, 80, 60)
+	}
+}
+
+// TestComposeOverlayRecordsRenderedExtent is the regression test for the
+// mouse-translation defect: composeOverlays set renderedRow/renderedCol but
+// never renderedWidth/renderedHeight, so TranslateMouse always reported
+// out-of-bounds and overlay content received absolute screen coordinates.
+// This asserts the production render path fills all four fields and that a
+// click inside the overlay then translates correctly.
+func TestComposeOverlayRecordsRenderedExtent(t *testing.T) {
+	base := stringRows(10, 40)
+	ov := &Overlay{
+		UseAbsolute: true,
+		Anchor:      AnchorTopLeft,
+		Row:         2,
+		Col:         10,
+		Width:       OverlaySize{Value: 20},
+		Height:      OverlaySize{Value: 4},
+		Content:     &rawLineComp{lines: []string{"AAAA", "BBBB", "CCCC", "DDDD"}},
+	}
+	composeOverlays(base, []*Overlay{ov}, 40, 10)
+
+	if ov.renderedRow != 2 || ov.renderedCol != 10 {
+		t.Fatalf("rendered origin: want (2,10), got (%d,%d)", ov.renderedRow, ov.renderedCol)
+	}
+	if ov.renderedWidth != 20 || ov.renderedHeight != 4 {
+		t.Fatalf("rendered extent: want (20,4), got (%d,%d)", ov.renderedWidth, ov.renderedHeight)
+	}
+
+	// Screen click at (3, 15) is inside the overlay (rows [2,6), cols [10,30))
+	// and must translate to overlay-local (1, 5).
+	lr, lc, ok := ov.TranslateMouse(3, 15)
+	if !ok {
+		t.Fatal("TranslateMouse reported out-of-bounds for a click inside the overlay")
+	}
+	if lr != 1 || lc != 5 {
+		t.Fatalf("translated: want (1,5), got (%d,%d)", lr, lc)
+	}
+
+	// Click outside the overlay region must be rejected.
+	if _, _, ok := ov.TranslateMouse(7, 15); ok {
+		t.Error("TranslateMouse accepted a click below the overlay")
 	}
 }

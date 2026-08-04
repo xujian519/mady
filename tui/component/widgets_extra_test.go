@@ -230,8 +230,6 @@ func TestComponentInvalidateNoOps(t *testing.T) {
 	v.Invalidate()
 	toast := NewToast(0)
 	toast.Invalidate()
-	w := NewFirstRunWizard()
-	w.Invalidate()
 	s := NewSkillCenter()
 	s.Invalidate()
 	tp := NewTodoPanel()

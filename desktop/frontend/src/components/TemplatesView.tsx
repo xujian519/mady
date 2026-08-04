@@ -33,10 +33,12 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
   // 见 mady-desktop-standards.md M-DSK-ST-002）；失败静默降级为空列表
 
   // 从模板数据中提取所有分类
+  // （依赖用 query data 而非 `?? []` 表达式——表达式每次 render 产生新数组引用，M-? 2026-08-04）
   const categories = React.useMemo(() => {
+    const list = templatesQuery.data ?? []
     const seen = new Set<string>()
     const result: { key: string; label: string }[] = []
-    for (const t of templates) {
+    for (const t of list) {
       if (!seen.has(t.category)) {
         seen.add(t.category)
         result.push({ key: t.category, label: t.categoryLabel || t.category })
@@ -50,7 +52,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
       return (ai >= 0 ? ai : 99) - (bi >= 0 ? bi : 99)
     })
     return result
-  }, [templates])
+  }, [templatesQuery.data])
 
   // 如果当前 activeCategory 不在分类中，自动切换到第一个
   useEffect(() => {

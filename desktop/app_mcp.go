@@ -17,23 +17,35 @@ import (
 	"github.com/xujian519/mady/pkg/util"
 )
 
-// sanitizeMcpArgs 掩码 MCP 参数中的敏感值（S-7）：
-// --api-key=xxx / --token=xxx / --secret=xxx / --password=xxx 等
-// 以 "=值" 形式出现的参数在展示层脱敏，防止密钥经 Args 泄露到前端。
+// sanitizeMcpArgs 掩码 MCP 参数中的敏感值（S-7）。
+// 覆盖两种常见形式：
+//
+//	--api-key=sk-xxx    （等号内联）
+//	--api-key sk-xxx    （空格分隔，掩码其后的值参数）
+//
+// 展示层脱敏，防止密钥经 Args 泄露到前端。保守策略：无法确定是否敏感时宁可多掩码。
 func sanitizeMcpArgs(args []string) []string {
 	if len(args) == 0 {
 		return args
 	}
+	isSensitiveName := func(name string) bool {
+		n := strings.ToLower(name)
+		return strings.Contains(n, "key") || strings.Contains(n, "token") ||
+			strings.Contains(n, "secret") || strings.Contains(n, "password")
+	}
 	out := make([]string, 0, len(args))
-	for _, a := range args {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
 		eq := strings.IndexByte(a, '=')
-		if eq > 0 {
-			name := strings.ToLower(a[:eq])
-			if strings.Contains(name, "key") || strings.Contains(name, "token") ||
-				strings.Contains(name, "secret") || strings.Contains(name, "password") {
-				out = append(out, a[:eq]+"=***")
-				continue
-			}
+		if eq > 0 && isSensitiveName(a[:eq]) {
+			out = append(out, a[:eq]+"=***")
+			continue
+		}
+		// 空格分隔形式：敏感键名参数本身不含值（无 =），掩码其下一个参数。
+		if eq < 0 && isSensitiveName(a) && i+1 < len(args) {
+			out = append(out, a, "***")
+			i++ // 跳过已被掩码的值参数
+			continue
 		}
 		out = append(out, a)
 	}

@@ -11,11 +11,12 @@ import React from 'react'
 import { useSettingsStore } from '@/stores/settings'
 import { useTheme } from '@/theme/tokens'
 import type { ThemeMode } from '@/theme/tokens'
-import { getAISettings, setAISettings, checkUpdate } from '@/lib/backend'
+import { getAISettings, setAISettings, checkUpdate, health } from '@/lib/backend'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X, Sun, Moon, Monitor, Server, Cpu, Check, AlertCircle, RefreshCw } from 'lucide-react'
 import { McpServersSettings } from './McpServersSettings'
 import { ModelSettings } from './ModelSettings'
+import { ThemeGallery } from './ThemeGallery'
 import { ModalShell } from './ModalShell'
 
 interface SettingsPanelProps {
@@ -29,6 +30,22 @@ interface Toast {
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
+  // 关于区版本号：优先展示 health().version（后端 ldflags 注入），未取到则回退占位。
+  const [appVersion, setAppVersion] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    let cancelled = false
+    health()
+      .then((h) => {
+        if (!cancelled && h.version) setAppVersion(h.version)
+      })
+      .catch(() => {
+        /* 后端不可用时保持回退值 */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // F-I16：字段级 selector，避免温度滑条/面板刷新时整树重订阅
   const settingsProvider = useSettingsStore((s) => s.provider)
   const settingsModel = useSettingsStore((s) => s.model)
@@ -158,6 +175,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 </button>
               ))}
             </div>
+
+            {/* 阶段 3.2：主题画廊（主题包切换） */}
+            <div className="mt-3">
+              <ThemeGallery />
+            </div>
           </section>
 
           {/* AI 服务 */}
@@ -236,7 +258,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             <div className="bg-mady-bg-secondary rounded-lg p-3 space-y-1 text-mady-small text-mady-text-secondary">
               <div className="flex justify-between">
                 <span>版本</span>
-                <span className="text-mady-text-primary">0.1.0</span>
+                <span className="text-mady-text-primary">{appVersion ?? '0.1.0'}</span>
               </div>
               <div className="flex justify-between">
                 <span>构建</span>

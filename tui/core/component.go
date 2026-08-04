@@ -249,20 +249,6 @@ type FullInputProvider interface {
 // Small helpers for component authors.
 // ---------------------------------------------------------------------------
 
-// EnsureWidth returns lines truncated so none exceeds width cells. It does
-// NOT pad to exactly width; callers may pad manually for background fills.
-func EnsureWidth(lines []string, width int64) []string {
-	out := make([]string, len(lines))
-	for i, l := range lines {
-		if VisibleWidth(l) > width {
-			out[i] = TruncateToWidth(l, width, "…")
-		} else {
-			out[i] = l
-		}
-	}
-	return out
-}
-
 // FillLines returns `count` empty lines of the given width (all spaces).
 func FillLines(count, width int64) []string {
 	if count <= 0 {

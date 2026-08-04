@@ -20,11 +20,12 @@ func TestTransitionFSM(t *testing.T) {
 		{"initializing + agentStart → streaming", StateInitializing, evtAgentStart, StateStreaming},
 		{"initializing + agentError → failed", StateInitializing, evtAgentError, StateFailed},
 		{"initializing + approvalRequest → awaiting", StateInitializing, evtApprovalRequest, StateAwaitingConfirm},
+		{"initializing + confirmRequest → confirm-pending", StateInitializing, evtConfirmRequest, StateConfirmPending},
 		{"initializing + delta → initializing (steady)", StateInitializing, evtMessageDelta, StateInitializing},
 
 		// Idle
 		{"idle + agentStart → streaming", StateIdle, evtAgentStart, StateStreaming},
-		{"idle + delta → idle (no stream started)", StateIdle, evtMessageDelta, StateIdle},
+		{"idle + delta → streaming (late delta starts stream)", StateIdle, evtMessageDelta, StateStreaming},
 		{"idle + approval request → awaiting", StateIdle, evtApprovalRequest, StateAwaitingConfirm},
 
 		// Streaming
@@ -32,6 +33,7 @@ func TestTransitionFSM(t *testing.T) {
 		{"streaming + toolStart → tool-running", StateStreaming, evtToolStart, StateToolRunning},
 		{"streaming + compactionStart → compacting", StateStreaming, evtCompactionStart, StateCompacting},
 		{"streaming + approvalRequest → awaiting", StateStreaming, evtApprovalRequest, StateAwaitingConfirm},
+		{"streaming + confirmRequest → confirm-pending", StateStreaming, evtConfirmRequest, StateConfirmPending},
 		{"streaming + agentEnd → idle", StateStreaming, evtAgentEnd, StateIdle},
 		{"streaming + agentError → idle", StateStreaming, evtAgentError, StateIdle},
 		{"streaming + turnEnd → streaming (boundary)", StateStreaming, evtTurnEnd, StateStreaming},
@@ -41,6 +43,7 @@ func TestTransitionFSM(t *testing.T) {
 		{"tool + toolEnd → streaming", StateToolRunning, evtToolEnd, StateStreaming},
 		{"tool + compactionStart → compacting", StateToolRunning, evtCompactionStart, StateCompacting},
 		{"tool + approvalRequest → awaiting", StateToolRunning, evtApprovalRequest, StateAwaitingConfirm},
+		{"tool + confirmRequest → confirm-pending", StateToolRunning, evtConfirmRequest, StateConfirmPending},
 		{"tool + agentError → idle", StateToolRunning, evtAgentError, StateIdle},
 
 		// Compacting
@@ -48,10 +51,13 @@ func TestTransitionFSM(t *testing.T) {
 		{"compacting + agentEnd → idle", StateCompacting, evtAgentEnd, StateIdle},
 		{"compacting + delta → compacting (steady)", StateCompacting, evtMessageDelta, StateCompacting},
 		{"compacting + approvalRequest → awaiting", StateCompacting, evtApprovalRequest, StateAwaitingConfirm},
+		{"compacting + confirmRequest → confirm-pending", StateCompacting, evtConfirmRequest, StateConfirmPending},
 
 		// AwaitingConfirm
 		{"awaiting + approvalDecision → streaming", StateAwaitingConfirm, evtApprovalDecision, StateStreaming},
+		{"awaiting + agentStart → streaming (approval submitted as new run)", StateAwaitingConfirm, evtAgentStart, StateStreaming},
 		{"awaiting + agentError → idle", StateAwaitingConfirm, evtAgentError, StateIdle},
+		{"awaiting + confirmRequest → confirm-pending", StateAwaitingConfirm, evtConfirmRequest, StateConfirmPending},
 		{"awaiting + delta → awaiting (steady)", StateAwaitingConfirm, evtMessageDelta, StateAwaitingConfirm},
 
 		// Failed
@@ -92,7 +98,6 @@ func TestEventKindForMapsChatEvents(t *testing.T) {
 		{CompactionEndChatEvent{}, evtCompactionEnd},
 		{HandoffStartChatEvent{}, evtHandoffStart},
 		{HandoffEndChatEvent{}, evtHandoffEnd},
-		{AutoRetryChatEvent{}, evtAutoRetry},
 		{AgentInterruptChatEvent{}, evtInterrupt},
 	}
 	for _, c := range cases {

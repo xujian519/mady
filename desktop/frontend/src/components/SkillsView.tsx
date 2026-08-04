@@ -12,6 +12,7 @@ import { X, Loader2, AlertCircle, Sparkles, Eye, Pencil, Save, RefreshCw } from 
 import { readFile, writeFile, type SkillEntry } from '@/lib/backend'
 import { useSkills } from '@/queries/skills'
 import { ModalShell } from './ModalShell'
+import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { CodeEditor } from '@/components/fileviewer/CodeEditor'
 
@@ -37,29 +38,38 @@ export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
   const [fileError, setFileError] = useState<string | null>(null)
   const [mode, setMode] = useState<'preview' | 'edit'>('preview')
   const dirty = draft !== null
+  // 未保存修改时的待确认操作（WKWebView 不支持 window.confirm，统一走 ConfirmDialog，M-11）
+  const [pendingAction, setPendingAction] = useState<{ kind: 'switch'; skill: SkillEntry } | { kind: 'close' } | null>(null)
   // JSX 统一显示入口：列表错误优先，其次文件操作错误
   const error = listError ?? fileError
 
   const loadSkills = useCallback(() => { void skillsQuery.refetch() }, [skillsQuery])
 
+  const doOpenSkill = useCallback(async (skill: SkillEntry) => {
+    setSelected(skill)
+    setMode('preview')
+    setDraft(null)
+    setFileLoading(true)
+    try {
+      const fc = await readFile(skill.path)
+      setContent(fc.text ?? '')
+    } catch (err: unknown) {
+      setContent('')
+      setFileError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setFileLoading(false)
+    }
+  }, [])
+
   const openSkill = useCallback(
-    async (skill: SkillEntry) => {
-      if (dirty && !window.confirm('有未保存的修改，确定切换？')) return
-      setSelected(skill)
-      setMode('preview')
-      setDraft(null)
-      setFileLoading(true)
-      try {
-        const fc = await readFile(skill.path)
-        setContent(fc.text ?? '')
-      } catch (err: unknown) {
-        setContent('')
-        setFileError(err instanceof Error ? err.message : String(err))
-      } finally {
-        setFileLoading(false)
+    (skill: SkillEntry) => {
+      if (dirty) {
+        setPendingAction({ kind: 'switch', skill })
+        return
       }
+      void doOpenSkill(skill)
     },
-    [dirty],
+    [dirty, doOpenSkill],
   )
 
   const handleSave = useCallback(async () => {
@@ -77,15 +87,28 @@ export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
   }, [selected, draft])
 
   const handleClose = useCallback(() => {
-    if (dirty && !window.confirm('有未保存的修改，确定关闭？')) return
+    if (dirty) {
+      setPendingAction({ kind: 'close' })
+      return
+    }
     onClose()
   }, [dirty, onClose])
+
+  /** ConfirmDialog 确认后执行待定操作。 */
+  const handleConfirmPending = useCallback(() => {
+    if (!pendingAction) return
+    const action = pendingAction
+    setPendingAction(null)
+    if (action.kind === 'switch') void doOpenSkill(action.skill)
+    else onClose()
+  }, [pendingAction, doOpenSkill, onClose])
 
   const text = draft ?? content
 
   return (
-    <ModalShell onClose={onClose} ariaLabel="技能管理">
-      <div className="w-[860px] max-w-[92vw] h-[600px] max-h-[85vh] bg-mady-bg-primary rounded-xl shadow-2xl border border-mady-separator flex flex-col overflow-hidden">
+    <>
+      <ModalShell onClose={onClose} ariaLabel="技能管理">
+        <div className="w-[860px] max-w-[92vw] h-[600px] max-h-[85vh] bg-mady-bg-primary rounded-xl shadow-2xl border border-mady-separator flex flex-col overflow-hidden">
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-mady-separator">
           <div className="flex items-center gap-2">
@@ -204,6 +227,15 @@ export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
           </div>
         </div>
       </div>
-    </ModalShell>
+      </ModalShell>
+      <ConfirmDialog
+        open={pendingAction !== null}
+        title="未保存的修改"
+        message="有未保存的修改，确定放弃并继续？"
+        confirmLabel="放弃修改"
+        onConfirm={handleConfirmPending}
+        onCancel={() => setPendingAction(null)}
+      />
+    </>
   )
 }

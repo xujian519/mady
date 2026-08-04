@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -216,13 +217,6 @@ func (f *failingTerminal) Stop() error {
 }
 func (f *failingTerminal) Write([]byte) (int, error)          { return 0, nil }
 func (f *failingTerminal) Size() (int64, int64)               { return 80, 24 }
-func (f *failingTerminal) HideCursor()                        {}
-func (f *failingTerminal) ShowCursor()                        {}
-func (f *failingTerminal) ClearLine()                         {}
-func (f *failingTerminal) ClearFromCursor()                   {}
-func (f *failingTerminal) ClearScreen()                       {}
-func (f *failingTerminal) MoveBy(int64)                       {}
-func (f *failingTerminal) MoveTo(int64, int64)                {}
 func (f *failingTerminal) PushKittyKeyboard()                 {}
 func (f *failingTerminal) PopKittyKeyboard()                  {}
 func (f *failingTerminal) Context() *terminal.TerminalContext { return nil }
@@ -450,6 +444,37 @@ func TestRenderResizeHint(t *testing.T) {
 	}
 	if !strings.Contains(out, "60") {
 		t.Fatalf("expected current width (60) in hint, got %q", out)
+	}
+}
+
+// TestRenderResizeHintAlignment verifies the CN/EN hint lines share the same
+// right border column. Both lines start at the same cursor column, so their
+// padded content must have identical visible width — a CJK byte-length
+// padding regression would misalign the right "║" by 2+ columns.
+func TestRenderResizeHintAlignment(t *testing.T) {
+	vt := terminal.NewVirtualTerminal(60, 24)
+	app := NewTUI(vt, TUIOptions{})
+	app.renderFrame()
+
+	// Content rows look like: ESC[row;colH║  <padded>  ║
+	re := regexp.MustCompile(`\x1b\[\d+;\d+H║  ([^║]+)  ║`)
+	matches := re.FindAllStringSubmatch(vt.OutputString(), -1)
+	if len(matches) != 2 {
+		t.Fatalf("expected 2 hint content rows (CN+EN), got %d: %q", len(matches), vt.OutputString())
+	}
+	wCN := core.VisibleWidth(matches[0][1])
+	wEN := core.VisibleWidth(matches[1][1])
+	if wCN != wEN {
+		t.Errorf("CN/EN right borders misaligned: CN width %d, EN width %d (content %q / %q)",
+			wCN, wEN, matches[0][1], matches[1][1])
+	}
+	if wCN == 0 {
+		t.Errorf("CN hint content unexpectedly empty")
+	}
+	// EN 行恒为最宽行，不应被 pad：若 EN 也被填充，说明 inner 大于 EN 宽，
+	// 意味着 boxWidth 相对 hint 宽度的 +6 余量被破坏（两行右框将越过边框）。
+	if trimEN := core.VisibleWidth(strings.TrimSpace(matches[1][1])); trimEN != wEN {
+		t.Errorf("EN hint line must not be padded (got pad=%d): %q", wEN-trimEN, matches[1][1])
 	}
 }
 

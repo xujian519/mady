@@ -88,12 +88,21 @@ func (s *Server) Chat(ctx context.Context, req ChatRequest, onEvent func(agentco
 	return output, runErr
 }
 
+// requireThreadStore 返回可用的 threadStore；不可用时返回带方法名的错误。
+func (s *Server) requireThreadStore(method string) (threadStore, error) {
+	ts, ok := s.threadStore()
+	if !ok {
+		return nil, fmt.Errorf("server.%s: thread store not available", method)
+	}
+	return ts, nil
+}
+
 // ListThreads 返回所有持久化会话的概要信息。
 // 对应 HTTP GET /api/threads。
 func (s *Server) ListThreads(ctx context.Context) ([]session.Info, error) {
-	ts, ok := s.threadStore()
-	if !ok {
-		return nil, fmt.Errorf("server.ListThreads: thread store not available")
+	ts, err := s.requireThreadStore("ListThreads")
+	if err != nil {
+		return nil, err
 	}
 	return ts.ListThreads(ctx)
 }
@@ -104,9 +113,9 @@ func (s *Server) GetThread(ctx context.Context, key string) (*session.ThreadSnap
 	if key == "" {
 		return nil, fmt.Errorf("server.GetThread: key is required")
 	}
-	ts, ok := s.threadStore()
-	if !ok {
-		return nil, fmt.Errorf("server.GetThread: thread store not available")
+	ts, err := s.requireThreadStore("GetThread")
+	if err != nil {
+		return nil, err
 	}
 	return ts.GetThread(ctx, key)
 }
@@ -122,6 +131,67 @@ func (s *Server) DeleteThread(ctx context.Context, key string) error {
 		return fmt.Errorf("server.DeleteThread: no store configured")
 	}
 	return store.Delete(ctx, key)
+}
+
+// RenameThread 重命名指定会话（自定义标题）。
+// 对应桌面端绑定 App.RenameThread（阶段 1.4：仿照 Reasonix 的 .titles.json 自定义标题）。
+func (s *Server) RenameThread(ctx context.Context, key, name string) error {
+	if key == "" {
+		return fmt.Errorf("server.RenameThread: key is required")
+	}
+	if name == "" {
+		return fmt.Errorf("server.RenameThread: name is required")
+	}
+	ts, err := s.requireThreadStore("RenameThread")
+	if err != nil {
+		return err
+	}
+	return ts.RenameThread(ctx, key, name)
+}
+
+// TrashThread 将会话移入回收站（软删除，阶段 1.4）。
+func (s *Server) TrashThread(ctx context.Context, key string) error {
+	if key == "" {
+		return fmt.Errorf("server.TrashThread: key is required")
+	}
+	ts, err := s.requireThreadStore("TrashThread")
+	if err != nil {
+		return err
+	}
+	return ts.TrashThread(ctx, key)
+}
+
+// RestoreThread 将回收站中的会话恢复回主目录。
+func (s *Server) RestoreThread(ctx context.Context, key string) error {
+	if key == "" {
+		return fmt.Errorf("server.RestoreThread: key is required")
+	}
+	ts, err := s.requireThreadStore("RestoreThread")
+	if err != nil {
+		return err
+	}
+	return ts.RestoreThread(ctx, key)
+}
+
+// ListTrashedThreads 列出回收站中的会话。
+func (s *Server) ListTrashedThreads(ctx context.Context) ([]session.Info, error) {
+	ts, err := s.requireThreadStore("ListTrashedThreads")
+	if err != nil {
+		return nil, err
+	}
+	return ts.ListTrashedThreads(ctx)
+}
+
+// PurgeThread 从回收站彻底删除会话（不可恢复）。
+func (s *Server) PurgeThread(ctx context.Context, key string) error {
+	if key == "" {
+		return fmt.Errorf("server.PurgeThread: key is required")
+	}
+	ts, err := s.requireThreadStore("PurgeThread")
+	if err != nil {
+		return err
+	}
+	return ts.PurgeThread(ctx, key)
 }
 
 // Cancel 取消指定 threadID 对应 agent 的正在执行的 chat 流。

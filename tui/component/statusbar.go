@@ -40,7 +40,6 @@ type StatusBar struct {
 	pendingCount int    // pending review items, 0 = hide
 	persisted    bool   // session save state indicator
 
-	width int64 // terminal width for responsive layout
 }
 
 func NewStatusBar() *StatusBar {
@@ -103,13 +102,6 @@ func (s *StatusBar) SetPendingReview(count int) {
 func (s *StatusBar) SetPersisted(saved bool) {
 	s.mu.Lock()
 	s.persisted = saved
-	s.mu.Unlock()
-}
-
-// SetWidth records the terminal width for responsive rendering.
-func (s *StatusBar) SetWidth(w int64) {
-	s.mu.Lock()
-	s.width = w
 	s.mu.Unlock()
 }
 

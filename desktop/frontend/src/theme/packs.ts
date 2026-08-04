@@ -27,6 +27,8 @@ export interface ThemePackVars {
   accentSecondary: string
   separator: string
   border: string
+  /** 应用背景（CSS background 简写，可含渐变；缺省回退 bgPrimary）。 */
+  background: string
 }
 
 export interface ThemePack {
@@ -62,6 +64,7 @@ const PROFESSIONAL: ThemePack = {
     accentSecondary: '#f56600',
     separator: 'rgba(0, 0, 0, 0.08)',
     border: 'rgba(0, 0, 0, 0.08)',
+    background: 'radial-gradient(1200px 600px at 80% -10%, rgba(88, 86, 214, 0.10), transparent 60%), var(--color-mady-bg-primary)',
   },
   dark: {
     bgPrimary: '#1C1A18',
@@ -77,6 +80,7 @@ const PROFESSIONAL: ThemePack = {
     accentSecondary: '#f56600',
     separator: 'rgba(255, 255, 255, 0.08)',
     border: 'rgba(255, 255, 255, 0.08)',
+    background: 'radial-gradient(1200px 600px at 80% -10%, rgba(94, 92, 230, 0.16), transparent 60%), var(--color-mady-bg-primary)',
   },
 }
 
@@ -98,6 +102,7 @@ const FOCUS_BLUE: ThemePack = {
     accentSecondary: '#5856d6',
     separator: 'rgba(0, 0, 0, 0.10)',
     border: 'rgba(0, 0, 0, 0.10)',
+    background: 'radial-gradient(1100px 500px at 70% -10%, rgba(0, 122, 255, 0.08), transparent 60%), var(--color-mady-bg-primary)',
   },
   dark: {
     bgPrimary: '#0b0b0f',
@@ -113,6 +118,7 @@ const FOCUS_BLUE: ThemePack = {
     accentSecondary: '#5e5ce6',
     separator: 'rgba(255, 255, 255, 0.10)',
     border: 'rgba(255, 255, 255, 0.10)',
+    background: 'radial-gradient(1100px 500px at 70% -10%, rgba(10, 132, 255, 0.14), transparent 60%), var(--color-mady-bg-primary)',
   },
 }
 
@@ -134,6 +140,7 @@ const PAPER_WARM: ThemePack = {
     accentSecondary: '#5856d6',
     separator: 'rgba(44, 36, 22, 0.10)',
     border: 'rgba(44, 36, 22, 0.12)',
+    background: 'linear-gradient(160deg, rgba(180, 83, 9, 0.06), transparent 55%), var(--color-mady-bg-primary)',
   },
   dark: {
     bgPrimary: '#1c1917',
@@ -149,6 +156,7 @@ const PAPER_WARM: ThemePack = {
     accentSecondary: '#5e5ce6',
     separator: 'rgba(245, 240, 235, 0.10)',
     border: 'rgba(245, 240, 235, 0.10)',
+    background: 'linear-gradient(160deg, rgba(217, 119, 6, 0.10), transparent 55%), var(--color-mady-bg-primary)',
   },
 }
 
@@ -170,6 +178,7 @@ const SLATE: ThemePack = {
     accentSecondary: '#6366f1',
     separator: 'rgba(15, 23, 42, 0.08)',
     border: 'rgba(15, 23, 42, 0.10)',
+    background: 'radial-gradient(1100px 500px at 75% -10%, rgba(100, 116, 139, 0.10), transparent 60%), var(--color-mady-bg-primary)',
   },
   dark: {
     bgPrimary: '#0f172a',
@@ -185,6 +194,7 @@ const SLATE: ThemePack = {
     accentSecondary: '#818cf8',
     separator: 'rgba(241, 245, 249, 0.08)',
     border: 'rgba(241, 245, 249, 0.10)',
+    background: 'radial-gradient(1100px 500px at 75% -10%, rgba(148, 163, 184, 0.12), transparent 60%), var(--color-mady-bg-primary)',
   },
 }
 
@@ -221,5 +231,6 @@ export function buildThemePackCSS(pack: ThemePack, isDark: boolean): string {
     `--color-mady-accent-secondary: ${vars.accentSecondary};`,
     `--color-mady-separator: ${vars.separator};`,
     `--color-mady-border: ${vars.border};`,
+    `--color-mady-app-background: ${vars.background};`,
   ].join('\n')
 }

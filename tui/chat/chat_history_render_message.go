@@ -21,33 +21,28 @@ func (h *ChatHistory) renderMessageCachedWithCache(m ChatMessage, theme ChatHist
 	if m.ID == "" {
 		return h.renderMessage(m, theme, width, nil)
 	}
+	var bc *component.BlockCache
 	if cached, ok := cache[m.ID]; ok {
-		// Pending messages must re-render on every delta (their text grew),
-		// but they reuse the block cache so only the tail block re-renders.
-		if !m.Pending {
+		// 同宽度且内容未变（非 Pending）时直接复用渲染行。
+		if cached.width == width && !m.Pending {
 			return cached.lines
 		}
-		lines := h.renderMessage(m, theme, width, cached.blockCache)
-		trimmed := trimBlankEdges(lines)
-		cachedLines := make([]string, len(trimmed))
-		copy(cachedLines, trimmed)
-		cache[m.ID] = cachedMessage{lines: cachedLines, blockCache: cached.blockCache}
-		return cachedLines
+		// 宽度不一致（如展开工具组以 innerW 渲染）或 Pending 增量更新时
+		// 重渲染，但复用块缓存，避免整条消息重新解析。
+		if m.Pending {
+			bc = cached.blockCache
+		}
 	}
-	var bc *component.BlockCache
-	if m.Pending && m.Role == RoleAssistant && m.Text != "" {
+	if bc == nil && m.Pending && m.Role == RoleAssistant && m.Text != "" {
 		bc = &component.BlockCache{}
 	}
 	lines := h.renderMessage(m, theme, width, bc)
-	if m.ID == "" {
-		return lines
-	}
 	// Trim blank edges before caching so the stored version matches what
 	// renderAll callers need (trimBlankEdges is idempotent on already-trimmed).
 	trimmed := trimBlankEdges(lines)
 	cachedLines := make([]string, len(trimmed))
 	copy(cachedLines, trimmed)
-	cache[m.ID] = cachedMessage{lines: cachedLines, blockCache: bc}
+	cache[m.ID] = cachedMessage{lines: cachedLines, width: width, blockCache: bc}
 	return cachedLines
 }
 

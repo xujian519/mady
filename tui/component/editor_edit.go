@@ -130,6 +130,10 @@ func (e *Editor) insertRune(r rune) {
 		newLines = append(newLines, after)
 		newLines = append(newLines, e.lines[e.row+1:]...)
 		e.lines = newLines
+		// Relocate chips below the split point one row down, and chips that
+		// start at/after the cursor column into the new lower line. Runs
+		// exactly once against the pre-increment e.row: a second identical
+		// pass after e.row++ would double-shift every chip below the cursor.
 		for i := range e.chips.chips {
 			cp := &e.chips.chips[i]
 			if cp.HardRow > e.row {
@@ -141,16 +145,6 @@ func (e *Editor) insertRune(r rune) {
 			}
 		}
 		e.row++
-		for i := range e.chips.chips {
-			cp := &e.chips.chips[i]
-			if cp.HardRow > e.row {
-				cp.HardRow++
-			} else if cp.HardRow == e.row && cp.RuneStart >= e.col {
-				cp.HardRow = e.row + 1
-				cp.RuneStart -= e.col
-				cp.RuneEnd = cp.RuneStart
-			}
-		}
 		e.col = 0
 	} else {
 		cur := e.lines[e.row]

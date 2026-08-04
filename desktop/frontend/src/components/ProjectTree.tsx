@@ -40,6 +40,7 @@ import { listDirectory, createFolder, renameFolder, deleteEntry, writeFile } fro
 import type { FileEntry } from '@/lib/backend'
 import { useFilesStore } from '@/stores/files'
 import { useProjectStore, type ProjectInfo } from '@/stores/project'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 // ── Types ─────────────────────────────────────────
 
@@ -347,6 +348,9 @@ export const ProjectTree: React.FC = () => {
   const [rootError, setRootError] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [editing, setEditing] = useState<EditingState | null>(null)
+  // 删除二次确认（WKWebView 不支持 window.confirm，统一走 ConfirmDialog，M-11）
+  const [confirmDelete, setConfirmDelete] = useState<{ path: string; name: string; isDir: boolean } | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const createInputRef = useRef<HTMLInputElement>(null)
@@ -477,14 +481,21 @@ export const ProjectTree: React.FC = () => {
     if (!contextMenu) return
     const node = contextMenu.node
     setContextMenu(null)
-    const label = node.isDir ? '文件夹（须为空）' : '文件'
-    if (!window.confirm(`确定删除${label}「${node.name}」？此操作不可撤销。`)) return
-    deleteEntry(node.path)
-      .then(() => dispatch({ type: 'REMOVE_NODE', path: node.path }))
-      .catch((err: unknown) => {
-        window.alert(err instanceof Error ? err.message : String(err))
-      })
+    setConfirmDelete({ path: node.path, name: node.name, isDir: node.isDir })
   }, [contextMenu])
+
+  /** 执行删除（ConfirmDialog 确认后调用）。 */
+  const handleConfirmDelete = useCallback(() => {
+    if (!confirmDelete) return
+    const { path } = confirmDelete
+    setConfirmDelete(null)
+    setDeleteError(null)
+    deleteEntry(path)
+      .then(() => dispatch({ type: 'REMOVE_NODE', path }))
+      .catch((err: unknown) => {
+        setDeleteError(err instanceof Error ? err.message : String(err))
+      })
+  }, [confirmDelete])
 
   /** 完成编辑（新建文件夹或重命名）。 */
   const handleFinishEdit = useCallback(
@@ -843,6 +854,26 @@ export const ProjectTree: React.FC = () => {
           </button>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="删除确认"
+        message={
+          confirmDelete
+            ? `确定删除${confirmDelete.isDir ? '文件夹（须为空）' : '文件'}「${confirmDelete.name}」？此操作不可撤销。`
+            : ''
+        }
+        confirmLabel="删除"
+        danger
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
+      <ConfirmDialog
+        open={deleteError !== null}
+        title="删除失败"
+        message={deleteError ?? ''}
+        alertOnly
+        onConfirm={() => setDeleteError(null)}
+      />
     </div>
   )
 }
