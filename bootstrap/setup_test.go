@@ -119,10 +119,38 @@ func TestNewBaseConfig(t *testing.T) {
 		t.Error("Streaming should be true")
 	}
 
+	// 频率惩罚默认应为 0.2（缓解模型退化重复），重复惩罚默认不发送（0）。
+	if cfg.FrequencyPenalty != DefaultFrequencyPenalty {
+		t.Errorf("FrequencyPenalty default = %f, want %f", cfg.FrequencyPenalty, DefaultFrequencyPenalty)
+	}
+	if cfg.RepetitionPenalty != 0 {
+		t.Errorf("RepetitionPenalty default = %f, want 0", cfg.RepetitionPenalty)
+	}
+
 	// 用户配置的 MaxTokens 应被正确覆盖。
 	user := &agentconfig.Config{MaxTokens: 32768}
 	cfg = NewBaseConfig("deepseek-v4-flash", nil, user)
 	if cfg.MaxTokens != 32768 {
 		t.Errorf("MaxTokens override = %d, want 32768", cfg.MaxTokens)
+	}
+
+	// 用户配置的频率/重复惩罚应被正确覆盖。
+	user = &agentconfig.Config{
+		FrequencyPenalty:  0.5,
+		RepetitionPenalty: 1.1,
+	}
+	cfg = NewBaseConfig("deepseek-v4-flash", nil, user)
+	if cfg.FrequencyPenalty != 0.5 {
+		t.Errorf("FrequencyPenalty override = %f, want 0.5", cfg.FrequencyPenalty)
+	}
+	if cfg.RepetitionPenalty != 1.1 {
+		t.Errorf("RepetitionPenalty override = %f, want 1.1", cfg.RepetitionPenalty)
+	}
+
+	// 显式 -1 关闭频率惩罚应被透传（chatcompat 仅 >0 发送，故等价于不发送）。
+	user = &agentconfig.Config{FrequencyPenalty: -1}
+	cfg = NewBaseConfig("deepseek-v4-flash", nil, user)
+	if cfg.FrequencyPenalty != -1 {
+		t.Errorf("FrequencyPenalty disable = %f, want -1", cfg.FrequencyPenalty)
 	}
 }

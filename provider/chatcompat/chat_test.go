@@ -477,3 +477,58 @@ func TestProviderComplete_BuildExtraBody(t *testing.T) {
 		t.Fatalf("effort = %#v", reasoning["effort"])
 	}
 }
+
+// TestProviderComplete_SendsFrequencyAndRepetitionPenalty 验证频率/重复惩罚
+// 仅当 >0 时才出现在请求体中（保护与 OpenAI 官方端点的兼容：0 值不发送）。
+func TestProviderComplete_SendsFrequencyAndRepetitionPenalty(t *testing.T) {
+	capture := func(fp, rp float64) map[string]any {
+		var gotBody map[string]any
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+			if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+				t.Fatalf("decode request body: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"id":"resp_p",
+				"choices":[{"message":{"role":"assistant","content":"ok"}}],
+				"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+			}`))
+		}))
+		defer srv.Close()
+
+		provider := New(Config{
+			APIKey:  "test-key",
+			BaseURL: srv.URL,
+			Client:  srv.Client(),
+		})
+		_, err := provider.Complete(context.Background(), &agentcore.ProviderRequest{
+			Model:             "gpt-4o-mini",
+			Messages:          []agentcore.Message{{Role: agentcore.RoleUser, Content: "hi"}},
+			FrequencyPenalty:  fp,
+			RepetitionPenalty: rp,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return gotBody
+	}
+
+	// 非零：两个惩罚都应出现在请求体中。
+	body := capture(0.2, 1.1)
+	if fp, ok := body["frequency_penalty"].(float64); !ok || fp != 0.2 {
+		t.Fatalf("frequency_penalty = %#v, want 0.2", body["frequency_penalty"])
+	}
+	if rp, ok := body["repetition_penalty"].(float64); !ok || rp != 1.1 {
+		t.Fatalf("repetition_penalty = %#v, want 1.1", body["repetition_penalty"])
+	}
+
+	// 零值：两个惩罚都不应出现（omitempty + >0 判定）。
+	body = capture(0, 0)
+	if _, ok := body["frequency_penalty"]; ok {
+		t.Fatalf("frequency_penalty should be omitted when 0, got %#v", body["frequency_penalty"])
+	}
+	if _, ok := body["repetition_penalty"]; ok {
+		t.Fatalf("repetition_penalty should be omitted when 0, got %#v", body["repetition_penalty"])
+	}
+}

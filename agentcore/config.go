@@ -9,14 +9,22 @@ import (
 
 // ModelConfig groups LLM model selection and generation parameters.
 type ModelConfig struct {
-	Name           string          // optional: identifies this agent in events and handoff logs
-	Model          string          // model identifier (e.g. "gpt-4o-mini")
-	Provider       Provider        // LLM provider implementation
-	Temperature    float64         // sampling temperature; 0 = deterministic
-	MaxTokens      int64           // max tokens in response; 0 = provider default
-	ResponseFormat *ResponseFormat // optional: force JSON mode etc.
-	Thinking       *ThinkingConfig // optional: extended thinking / reasoning
-	Streaming      bool            // enable streaming responses
+	Name        string   // optional: identifies this agent in events and handoff logs
+	Model       string   // model identifier (e.g. "gpt-4o-mini")
+	Provider    Provider // LLM provider implementation
+	Temperature float64  // sampling temperature; 0 = deterministic
+	MaxTokens   int64    // max tokens in response; 0 = provider default
+	// FrequencyPenalty suppresses repeated tokens (OpenAI-compatible, ~0..2).
+	// Mitigates degenerate model output that loops the same sentence (the
+	// "整句 ×N" repetition observed in streaming agents). 0 = provider default.
+	FrequencyPenalty float64
+	// RepetitionPenalty suppresses repeated n-grams (local/vLLM endpoints such
+	// as oMLX). OpenAI's official API may not accept this field; only set it
+	// when targeting a compatible endpoint. 0 = not sent.
+	RepetitionPenalty float64
+	ResponseFormat    *ResponseFormat // optional: force JSON mode etc.
+	Thinking          *ThinkingConfig // optional: extended thinking / reasoning
+	Streaming         bool            // enable streaming responses
 }
 
 // SkillConfig groups skill loading, selection, and API control.

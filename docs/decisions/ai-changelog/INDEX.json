@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-08-04T20:22:46+08:00",
-  "total": 296,
+  "updated": "2026-08-04T21:02:28+08:00",
+  "total": 297,
   "entries": [
     {
       "date": "2026-08-04",
@@ -76,12 +76,12 @@
       "line": 219
     },
     {
-      "date": "2026-08-03",
+      "date": "2026-08-04",
       "type": "fix",
-      "scope": "tui",
-      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
-      "file": "2026-08-03.md",
-      "line": 9
+      "scope": "bootstrap",
+      "title": "模型请求增加频率/重复惩罚以缓解退化重复",
+      "file": "2026-08-04.md",
+      "line": 225
     },
     {
       "date": "2026-08-03",
@@ -92,12 +92,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-02",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "桌面端工程基础：版本注入 + 窗口位置持久化 + 原生菜单 + 会话重命名/回收站",
-      "file": "2026-08-02.md",
-      "line": 33
+      "date": "2026-08-03",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
+      "file": "2026-08-03.md",
+      "line": 9
     },
     {
       "date": "2026-08-02",
@@ -164,12 +164,12 @@
       "line": 23
     },
     {
-      "date": "2026-08-01",
-      "type": "refactor",
-      "scope": "bootstrap",
-      "title": "统一 BaseConfig 构造并清理 desktop lint 遗留问题",
-      "file": "2026-08-01.md",
-      "line": 3
+      "date": "2026-08-02",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "桌面端工程基础：版本注入 + 窗口位置持久化 + 原生菜单 + 会话重命名/回收站",
+      "file": "2026-08-02.md",
+      "line": 33
     },
     {
       "date": "2026-08-01",
@@ -196,12 +196,12 @@
       "line": 32
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "tui",
-      "title": "Markdown 表格截断与换行可读性修复",
-      "file": "2026-07-31.md",
-      "line": 271
+      "date": "2026-08-01",
+      "type": "refactor",
+      "scope": "bootstrap",
+      "title": "统一 BaseConfig 构造并清理 desktop lint 遗留问题",
+      "file": "2026-08-01.md",
+      "line": 3
     },
     {
       "date": "2026-07-31",
@@ -604,12 +604,12 @@
       "line": 498
     },
     {
-      "date": "2026-07-30",
+      "date": "2026-07-31",
       "type": "fix",
-      "scope": "code-health",
-      "title": "第二轮修复——断言安全、规则引擎接入、拓扑排序、测试补充（7 文件）",
-      "file": "2026-07-30.md",
-      "line": 742
+      "scope": "tui",
+      "title": "Markdown 表格截断与换行可读性修复",
+      "file": "2026-07-31.md",
+      "line": 271
     },
     {
       "date": "2026-07-30",
@@ -764,12 +764,12 @@
       "line": 686
     },
     {
-      "date": "2026-07-29",
-      "type": "feat",
-      "scope": "*",
-      "title": "引入本地 OCR 引擎（PP-OCRv5 增强版）",
-      "file": "2026-07-29.md",
-      "line": 243
+      "date": "2026-07-30",
+      "type": "fix",
+      "scope": "code-health",
+      "title": "第二轮修复——断言安全、规则引擎接入、拓扑排序、测试补充（7 文件）",
+      "file": "2026-07-30.md",
+      "line": 742
     },
     {
       "date": "2026-07-29",
@@ -844,12 +844,12 @@
       "line": 216
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
+      "date": "2026-07-29",
+      "type": "feat",
       "scope": "*",
-      "title": "桌面端截图问题修复与项目管理功能",
-      "file": "2026-07-28.md",
-      "line": 3
+      "title": "引入本地 OCR 引擎（PP-OCRv5 增强版）",
+      "file": "2026-07-29.md",
+      "line": 243
     },
     {
       "date": "2026-07-28",
@@ -972,12 +972,12 @@
       "line": 704
     },
     {
-      "date": "2026-07-27",
+      "date": "2026-07-28",
       "type": "fix",
-      "scope": "server",
-      "title": "废弃 LifecycleHook → Observer 接口迁移 + 注册架构修复",
-      "file": "2026-07-27.md",
-      "line": 165
+      "scope": "*",
+      "title": "桌面端截图问题修复与项目管理功能",
+      "file": "2026-07-28.md",
+      "line": 3
     },
     {
       "date": "2026-07-27",
@@ -1140,12 +1140,12 @@
       "line": 18
     },
     {
-      "date": "2026-07-26",
-      "type": "feat",
-      "scope": "agentcore",
-      "title": "FallbackRouter — 模型级联回退 + ProviderHealthTracker（PilotDeck 架构引入）",
-      "file": "2026-07-26.md",
-      "line": 3
+      "date": "2026-07-27",
+      "type": "fix",
+      "scope": "server",
+      "title": "废弃 LifecycleHook → Observer 接口迁移 + 注册架构修复",
+      "file": "2026-07-27.md",
+      "line": 165
     },
     {
       "date": "2026-07-26",
@@ -1212,12 +1212,12 @@
       "line": 396
     },
     {
-      "date": "2026-07-25",
-      "type": "fix",
-      "scope": "memory",
-      "title": "修复 memory 跨 workspace 记忆泄漏（R17-02）",
-      "file": "2026-07-25.md",
-      "line": 289
+      "date": "2026-07-26",
+      "type": "feat",
+      "scope": "agentcore",
+      "title": "FallbackRouter — 模型级联回退 + ProviderHealthTracker（PilotDeck 架构引入）",
+      "file": "2026-07-26.md",
+      "line": 3
     },
     {
       "date": "2026-07-25",
@@ -1324,12 +1324,12 @@
       "line": 260
     },
     {
-      "date": "2026-07-24",
-      "type": "chore",
-      "scope": "tui",
-      "title": "结构化任务管理 — Plantask 工具集 + TUI TodoPanel",
-      "file": "2026-07-24.md",
-      "line": 154
+      "date": "2026-07-25",
+      "type": "fix",
+      "scope": "memory",
+      "title": "修复 memory 跨 workspace 记忆泄漏（R17-02）",
+      "file": "2026-07-25.md",
+      "line": 289
     },
     {
       "date": "2026-07-24",
@@ -1484,12 +1484,12 @@
       "line": 205
     },
     {
-      "date": "2026-07-23",
-      "type": "fix",
-      "scope": "agentcore",
-      "title": "agentcore 核心引擎深度质量审阅修复（P0-P3 全量）",
-      "file": "2026-07-23.md",
-      "line": 289
+      "date": "2026-07-24",
+      "type": "chore",
+      "scope": "tui",
+      "title": "结构化任务管理 — Plantask 工具集 + TUI TodoPanel",
+      "file": "2026-07-24.md",
+      "line": 154
     },
     {
       "date": "2026-07-23",
@@ -1636,12 +1636,12 @@
       "line": 538
     },
     {
-      "date": "2026-07-22",
-      "type": "perf",
-      "scope": "domains",
-      "title": "工作流编排器优化第二批 — 无效宣告 + 侵权比对 Pregel 工作流",
-      "file": "2026-07-22.md",
-      "line": 59
+      "date": "2026-07-23",
+      "type": "fix",
+      "scope": "agentcore",
+      "title": "agentcore 核心引擎深度质量审阅修复（P0-P3 全量）",
+      "file": "2026-07-23.md",
+      "line": 289
     },
     {
       "date": "2026-07-22",
@@ -1700,12 +1700,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-21",
-      "type": "chore",
-      "scope": "*",
-      "title": "为“绞车带轴”案件补充 Mady 基线输出模板",
-      "file": "2026-07-21.md",
-      "line": 287
+      "date": "2026-07-22",
+      "type": "perf",
+      "scope": "domains",
+      "title": "工作流编排器优化第二批 — 无效宣告 + 侵权比对 Pregel 工作流",
+      "file": "2026-07-22.md",
+      "line": 59
     },
     {
       "date": "2026-07-21",
@@ -1884,12 +1884,12 @@
       "line": 186
     },
     {
-      "date": "2026-07-20",
-      "type": "fix",
+      "date": "2026-07-21",
+      "type": "chore",
       "scope": "*",
-      "title": "鼠标文字选中的流畅度修复 — ?1000h → ?1002h",
-      "file": "2026-07-20.md",
-      "line": 1038
+      "title": "为“绞车带轴”案件补充 Mady 基线输出模板",
+      "file": "2026-07-21.md",
+      "line": 287
     },
     {
       "date": "2026-07-20",
@@ -2116,12 +2116,12 @@
       "line": 254
     },
     {
-      "date": "2026-07-19",
-      "type": "chore",
+      "date": "2026-07-20",
+      "type": "fix",
       "scope": "*",
-      "title": "里程碑 4——原路线图剩余项收尾",
-      "file": "2026-07-19.md",
-      "line": 85
+      "title": "鼠标文字选中的流畅度修复 — ?1000h → ?1002h",
+      "file": "2026-07-20.md",
+      "line": 1038
     },
     {
       "date": "2026-07-19",
@@ -2164,12 +2164,12 @@
       "line": 131
     },
     {
-      "date": "2026-07-18",
+      "date": "2026-07-19",
       "type": "chore",
       "scope": "*",
-      "title": "全量技术债务清理（P0 真实 Bug + P1 Lint 债务 + P2 结构性改进）",
-      "file": "2026-07-18.md",
-      "line": 535
+      "title": "里程碑 4——原路线图剩余项收尾",
+      "file": "2026-07-19.md",
+      "line": 85
     },
     {
       "date": "2026-07-18",
@@ -2370,6 +2370,14 @@
       "title": "Open Design 思路引入 —— Tier 3 实现（最终阶段）",
       "file": "2026-07-18.md",
       "line": 605
+    },
+    {
+      "date": "2026-07-18",
+      "type": "chore",
+      "scope": "*",
+      "title": "全量技术债务清理（P0 真实 Bug + P1 Lint 债务 + P2 结构性改进）",
+      "file": "2026-07-18.md",
+      "line": 535
     }
   ]
 }

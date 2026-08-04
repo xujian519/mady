@@ -31,6 +31,15 @@ type Config struct {
 	// 对应 agentcore.ModelConfig.Temperature。
 	Temperature float64 `json:"temperature,omitempty" yaml:"temperature,omitempty"`
 
+	// FrequencyPenalty 是频率惩罚（OpenAI 兼容，通常 0..2），抑制重复 token。
+	// 用于缓解模型生成退化导致的整句循环重复。0 = 不设置（沿用 provider 默认）。
+	// 对应 agentcore.ModelConfig.FrequencyPenalty。
+	FrequencyPenalty float64 `json:"frequency_penalty,omitempty" yaml:"frequency_penalty,omitempty"`
+
+	// RepetitionPenalty 是重复惩罚（本地/vLLM 类端点如 oMLX）。OpenAI 官方端点
+	// 可能不支持该字段。0 = 不设置。对应 agentcore.ModelConfig.RepetitionPenalty。
+	RepetitionPenalty float64 `json:"repetition_penalty,omitempty" yaml:"repetition_penalty,omitempty"`
+
 	// MaxTokens 是 LLM 响应的最大 token 数。
 	// 对应 agentcore.ModelConfig.MaxTokens。
 	MaxTokens int64 `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
@@ -136,6 +145,13 @@ func (c *Config) Validate() error {
 	if c.Temperature < 0 || c.Temperature > 2 {
 		return fmt.Errorf("temperature must be in [0, 2], got %f", c.Temperature)
 	}
+	// -1 is reserved as an explicit "disabled" sentinel; otherwise 0..2.
+	if c.FrequencyPenalty < -1 || c.FrequencyPenalty > 2 {
+		return fmt.Errorf("frequency_penalty must be in [-1, 2], got %f", c.FrequencyPenalty)
+	}
+	if c.RepetitionPenalty < -1 || c.RepetitionPenalty > 2 {
+		return fmt.Errorf("repetition_penalty must be in [-1, 2], got %f", c.RepetitionPenalty)
+	}
 	if c.MaxTokens < 0 {
 		return fmt.Errorf("max_tokens must be >= 0, got %d", c.MaxTokens)
 	}
@@ -162,6 +178,18 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// applyDefaults fills generation parameters that have a sensible non-zero
+// default when left at their zero value. FrequencyPenalty defaults to 0.2 to
+// mitigate degenerate model repetition (the "整句 ×N" loop) for agents built
+// from a config file. An explicit -1 disables it. RepetitionPenalty is opt-in
+// (0 = not sent). Only called on the file-load path so an explicit env value
+// is never shadowed by this default.
+func (c *Config) applyDefaults() {
+	if c.FrequencyPenalty == 0 {
+		c.FrequencyPenalty = 0.2
+	}
+}
+
 // Merge 将非零字段从 other 合并到 c 中。
 // other 的字段优先（覆盖 c 中的对应字段）。
 func (c *Config) Merge(other *Config) {
@@ -173,6 +201,12 @@ func (c *Config) Merge(other *Config) {
 	}
 	if other.Temperature != 0 {
 		c.Temperature = other.Temperature
+	}
+	if other.FrequencyPenalty != 0 {
+		c.FrequencyPenalty = other.FrequencyPenalty
+	}
+	if other.RepetitionPenalty != 0 {
+		c.RepetitionPenalty = other.RepetitionPenalty
 	}
 	if other.MaxTokens != 0 {
 		c.MaxTokens = other.MaxTokens

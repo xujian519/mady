@@ -10,13 +10,15 @@ import (
 
 // ProviderRequest is the input for a model completion call.
 type ProviderRequest struct {
-	Model          string
-	Messages       []Message
-	Tools          []ToolDefinition
-	Temperature    float64
-	MaxTokens      int64
-	ResponseFormat *ResponseFormat
-	Thinking       *ThinkingConfig
+	Model             string
+	Messages          []Message
+	Tools             []ToolDefinition
+	Temperature       float64
+	MaxTokens         int64
+	FrequencyPenalty  float64
+	RepetitionPenalty float64
+	ResponseFormat    *ResponseFormat
+	Thinking          *ThinkingConfig
 }
 
 // CallConfig is a reusable subset of per-call agent/provider options that can

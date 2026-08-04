@@ -90,15 +90,17 @@ func New(cfg Config) *Provider {
 // --- Chat Completions wire types ---
 
 type chatRequest struct {
-	Model           string              `json:"model"`
-	Messages        []chatMessage       `json:"messages"`
-	Tools           []chatTool          `json:"tools,omitempty"`
-	Stream          bool                `json:"stream,omitempty"`
-	Temperature     *float64            `json:"temperature,omitempty"`
-	MaxTokens       *int64              `json:"max_tokens,omitempty"`
-	ResponseFormat  *chatResponseFormat `json:"response_format,omitempty"`
-	StreamOptions   *streamOptions      `json:"stream_options,omitempty"`
-	ReasoningEffort *string             `json:"reasoning_effort,omitempty"`
+	Model             string              `json:"model"`
+	Messages          []chatMessage       `json:"messages"`
+	Tools             []chatTool          `json:"tools,omitempty"`
+	Stream            bool                `json:"stream,omitempty"`
+	Temperature       *float64            `json:"temperature,omitempty"`
+	MaxTokens         *int64              `json:"max_tokens,omitempty"`
+	FrequencyPenalty  *float64            `json:"frequency_penalty,omitempty"`
+	RepetitionPenalty *float64            `json:"repetition_penalty,omitempty"`
+	ResponseFormat    *chatResponseFormat `json:"response_format,omitempty"`
+	StreamOptions     *streamOptions      `json:"stream_options,omitempty"`
+	ReasoningEffort   *string             `json:"reasoning_effort,omitempty"`
 }
 
 type streamOptions struct {
@@ -517,6 +519,14 @@ func (p *Provider) buildRequest(req *agentcore.ProviderRequest, stream bool) (ch
 	if req.MaxTokens > 0 {
 		m := req.MaxTokens
 		cr.MaxTokens = &m
+	}
+	if req.FrequencyPenalty > 0 {
+		f := req.FrequencyPenalty
+		cr.FrequencyPenalty = &f
+	}
+	if req.RepetitionPenalty > 0 {
+		r := req.RepetitionPenalty
+		cr.RepetitionPenalty = &r
 	}
 	if stream {
 		cr.StreamOptions = &streamOptions{IncludeUsage: true}

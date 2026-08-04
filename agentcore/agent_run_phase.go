@@ -57,13 +57,15 @@ func (a *Agent) runModelTurn(ctx context.Context, turn int64) (*ProviderResponse
 	msgs := a.buildRequestMessages(ctx)
 
 	req := &ProviderRequest{
-		Model:          a.config.Model,
-		Messages:       msgs,
-		Tools:          a.registry.Definitions(),
-		Temperature:    a.config.Temperature,
-		MaxTokens:      a.config.MaxTokens,
-		ResponseFormat: a.config.ResponseFormat,
-		Thinking:       a.config.Thinking,
+		Model:             a.config.Model,
+		Messages:          msgs,
+		Tools:             a.registry.Definitions(),
+		Temperature:       a.config.Temperature,
+		MaxTokens:         a.config.MaxTokens,
+		FrequencyPenalty:  a.config.FrequencyPenalty,
+		RepetitionPenalty: a.config.RepetitionPenalty,
+		ResponseFormat:    a.config.ResponseFormat,
+		Thinking:          a.config.Thinking,
 	}
 
 	if lc := a.lifecycle(); lc != nil {

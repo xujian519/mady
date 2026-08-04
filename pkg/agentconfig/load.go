@@ -38,6 +38,7 @@ func LoadConfig(path string) (*Config, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("agentconfig: validate %s: %w", path, err)
 	}
+	cfg.applyDefaults()
 
 	return &cfg, nil
 }
@@ -56,6 +57,9 @@ func FromEnv() *Config {
 			cfg.Temperature = f
 		}
 	}
+
+	// 频率/重复惩罚从独立辅助函数注入，避免 FromEnv 认知复杂度超出阈值。
+	applyPenaltyEnv(cfg)
 
 	if v := os.Getenv("MAX_TOKENS"); v != "" {
 		if n, err := parseInt64(v); err == nil {
@@ -122,6 +126,21 @@ func FromEnv() *Config {
 	}
 
 	return cfg
+}
+
+// applyPenaltyEnv 从环境变量注入频率/重复惩罚，隔离为独立函数以保持
+// FromEnv 的认知复杂度在阈值内。
+func applyPenaltyEnv(cfg *Config) {
+	if v := os.Getenv("FREQUENCY_PENALTY"); v != "" {
+		if f, err := parseFloat(v); err == nil {
+			cfg.FrequencyPenalty = f
+		}
+	}
+	if v := os.Getenv("REPETITION_PENALTY"); v != "" {
+		if f, err := parseFloat(v); err == nil {
+			cfg.RepetitionPenalty = f
+		}
+	}
 }
 
 // fromEnvFallback reads FALLBACK_CANDIDATES_LOW / _MEDIUM / _HIGH and
