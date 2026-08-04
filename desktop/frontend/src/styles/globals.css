@@ -193,7 +193,8 @@ html, body, #root {
   font-family: var(--font-sans);
   font-size: var(--font-size-mady-ui);
   color: var(--color-mady-text-primary);
-  background: var(--color-mady-bg-primary);
+  /* 阶段 3.1：主题包可注入应用背景（渐变等）；未注入时回退主背景色 */
+  background: var(--color-mady-app-background, var(--color-mady-bg-primary));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

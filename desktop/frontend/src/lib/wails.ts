@@ -35,12 +35,3 @@ export function listenToWailsEvent(eventName: string, callback: (...args: any[])
   }
   return () => {}
 }
-
-/**
- * 通过 Wails Events 向后端发送事件。在 Wails 宿主中绑定 EventsEmit，纯浏览器环境 noop。
- */
-export function emitWailsEvent(eventName: string, data?: any) {
-  if (isWailsHost()) {
-    EventsEmit(eventName, data)
-  }
-}

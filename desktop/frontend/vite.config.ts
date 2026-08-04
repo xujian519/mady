@@ -71,7 +71,7 @@ export default defineConfig({
           react: ['react', 'react-dom', 'zustand', 'framer-motion', '@tanstack/react-query', '@tanstack/react-virtual'],
           // lucide-react 图标库独立缓存：minified ~700KB / gzip ~135KB，
           // 超过 500KB 的 Vite 警告可接受（图标更新频率远低于业务代码）。
-          ui: ['lucide-react', 'clsx', 'tailwind-merge', 'class-variance-authority'],
+          ui: ['lucide-react'],
         },
       },
     },

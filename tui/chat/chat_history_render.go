@@ -138,6 +138,15 @@ func (h *ChatHistory) Render(width int64) []string {
 	h.mu.Unlock()
 
 	if maxRows <= 0 || int64(len(all)) <= maxRows {
+		// No viewport clipping: still clamp every line to the render width.
+		// This is the only path that previously skipped padToWidth — a buggy
+		// upstream component or miscounted width could emit an over-width
+		// line straight to a DECAWM-off terminal.
+		for i, ln := range all {
+			if vw := core.VisibleWidth(ln); vw > width {
+				all[i] = core.TruncateToWidth(ln, width, "")
+			}
+		}
 		return all
 	}
 
@@ -150,14 +159,21 @@ func (h *ChatHistory) Render(width int64) []string {
 }
 
 // computeRenderWidth determines the content width accounting for scrollbar.
+//
+// 方案1：滚动条列恒定预留。滚动条启用时内容渲染宽度恒为 width-sbWidth-gutter，
+// 其中 gutter=1 是内容与滚动条之间的最小内边距。不随滚动条实际显隐而变。
+// 修复前：流式输出期间内容从"可容纳"变为"溢出"时，滚动条出现/消失让 renderWidth
+// 在 width 与 width-1 之间切换；Markdown 段落按宽度换行，宽度突变会让已渲染行的
+// 换行点全部错位——表现为"输出时排版混乱、重开 TUI 后正常"。
+// 修复后 cachedWidth 恒定，不再因滚动条切换触发缓存失效与全量重排。
 func (h *ChatHistory) computeRenderWidth(width int64) (renderWidth int64, sbNow bool) {
-	sbNow = h.sbEnabled && h.sbWidth > 0
-	if sbNow && h.cachedAll != nil && h.maxRows > 0 && !h.dirty && int64(len(h.cachedAll)) <= h.maxRows {
-		sbNow = false
-	}
+	sbEnabled := h.sbEnabled && h.sbWidth > 0
+	// sbNow 仅表示本帧是否实际绘制滚动条轨道（内容超出视口时）。
+	sbNow = sbEnabled && h.cachedAll != nil && h.maxRows > 0 && int64(len(h.cachedAll)) > h.maxRows
 	renderWidth = width
-	if sbNow {
-		renderWidth = width - h.sbWidth
+	if sbEnabled {
+		// 预留滚动条列 + 1 列内边距，避免文字紧贴/侵入滚动条区域。
+		renderWidth = width - h.sbWidth - 1
 		if renderWidth < 1 {
 			renderWidth = 1
 		}
@@ -229,12 +245,14 @@ func (h *ChatHistory) addStickToBottomHint(visible []string, all []string, maxRo
 	return append(visible, hint)
 }
 
-// drawScrollbar renders a scrollbar on the right edge when content overflows.
+// drawScrollbar renders a scrollbar on the right edge when content overflows,
+// leaving a 1-column gutter between content and the scrollbar track so text
+// never touches or underlaps the track.
 func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string, maxRows int64, follow bool) []string {
 	if !h.sbEnabled || h.sbWidth <= 0 || int64(len(all)) <= maxRows {
 		return visible
 	}
-	contentWidth := width - h.sbWidth
+	contentWidth := width - h.sbWidth - 1
 	if contentWidth < 1 {
 		contentWidth = 1
 	}
@@ -254,6 +272,7 @@ func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string,
 	}
 
 	pal := theme.CurrentPalette()
+	gapStyle := pal.SurfaceBg.Render(" ") // 1-column gutter
 	trackStyle := pal.SurfaceBg.Render(" ")
 	thumbStyle := pal.SurfaceRaisedBg.Render(" ")
 	if !follow {
@@ -262,29 +281,46 @@ func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string,
 
 	for i := int64(0); i < int64(len(visible)); i++ {
 		ln := visible[i]
+		// Defensive clamp: never let a miscounted-width line overflow the
+		// content area. This is the last safety net before DECAWM-off output.
 		if core.VisibleWidth(ln) > contentWidth {
-			ln = core.TruncateToWidth(ln, contentWidth, "\u2026")
-		} else {
-			ln = core.PadToWidth(ln, contentWidth)
+			ln = core.TruncateToWidth(ln, contentWidth, "")
 		}
+		ln = core.PadToWidth(ln, contentWidth)
 		if i >= thumbOff && i < thumbEnd {
-			visible[i] = ln + thumbStyle
+			visible[i] = ln + gapStyle + thumbStyle
 		} else {
-			visible[i] = ln + trackStyle
+			visible[i] = ln + gapStyle + trackStyle
 		}
 	}
 	return visible
 }
 
-// padToWidth pads every line to full width so the TUI diff engine never
-// leaves a partial column. This is the fallback when scrollbar is off.
+// padToWidth pads every line to the target width so the TUI diff engine never
+// leaves a partial column. When the scrollbar is enabled but not drawn this
+// frame, we keep the 1-column right gutter for visual consistency.
+// Skipped when the scrollbar track was drawn this frame (sbNow): drawScrollbar
+// has already padded lines to contentWidth and appended gutter + track.
 func (h *ChatHistory) padToWidth(visible []string, width int64, maxRows int64, sbNow bool, sbWidth int64) []string {
 	if sbNow {
 		return visible
 	}
+	target := width
+	if sbWidth > 0 {
+		// Keep the same right gutter used by drawScrollbar.
+		target = width - 1
+		if target < 1 {
+			target = 1
+		}
+	}
 	for i, ln := range visible {
-		if core.VisibleWidth(ln) < width {
-			visible[i] = core.PadToWidth(ln, width)
+		vw := core.VisibleWidth(ln)
+		if vw > target {
+			// Defensive clamp: a buggy component or miscounted width must not
+			// emit an over-width line to a DECAWM-off terminal.
+			visible[i] = core.TruncateToWidth(ln, target, "")
+		} else if vw < target {
+			visible[i] = core.PadToWidth(ln, target)
 		}
 	}
 	return visible
@@ -487,7 +523,8 @@ func (h *ChatHistory) detectToolGroup(msgs []ChatMessage, i int) (groupEnd int, 
 }
 
 // renderToolGroup 渲染一组连续的工具/系统消息为折叠（[+]）或展开（[-]）形式。
-// 返回渲染后的行列表及对应的 msgRange。
+// 展开时使用左侧色带（│）把多个工具/系统消息连成一条紧凑时间线，
+// 避免原本散落的卡片感。
 func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expanded bool, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) ([]string, msgRange) {
 	toolCount, sysCount := 0, 0
 	for j := start; j <= end; j++ {
@@ -499,27 +536,43 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 	}
 
 	var lines []string
+	// 折叠/展开只差一个标记符，统一用 marker 构建。marker 不带尾随空格，
+	// 由各分支的格式串/拼接统一补一个空格，避免 "[+]  2 tools" 双空格。
+	marker := "[+]"
 	if expanded {
-		summary := fmt.Sprintf("[-] %d tools · %d msgs", toolCount, sysCount)
-		if sysCount == 0 {
-			summary = fmt.Sprintf("[-] %d tools", toolCount)
-		}
-		lines = append(lines, theme.DimStyle.Render(summary))
-		for j := start; j <= end; j++ {
-			lines = append(lines, trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, width, cache))...)
-		}
-	} else {
-		summary := fmt.Sprintf("[+] %d tools · %d msgs", toolCount, sysCount)
-		if sysCount == 0 {
-			summary = fmt.Sprintf("[+] %d tools", toolCount)
-		}
+		marker = "[-]"
+	}
+	summary := fmt.Sprintf("%s %d tools · %d msgs", marker, toolCount, sysCount)
+	if sysCount == 0 {
+		summary = fmt.Sprintf("%s %d tools", marker, toolCount)
+	}
+	if !expanded {
 		for j := start; j <= end; j++ {
 			if msgs[j].Meta != "" && msgs[j].Meta != "tool" {
-				summary = "[+] " + msgs[j].Meta
+				summary = marker + " " + msgs[j].Meta
 				break
 			}
 		}
-		lines = append(lines, theme.DimStyle.Render(summary))
+	}
+	lines = append(lines, theme.DimStyle.Render(summary))
+	if expanded {
+		// 左侧 2 列色带 + 内容，使组内成员连成一体。
+		barStyled := theme.DimStyle.Render("│")
+		prefix := "  " + barStyled + " "
+		innerW := width - core.VisibleWidth(prefix)
+		if innerW < 1 {
+			innerW = 1
+		}
+		for j := start; j <= end; j++ {
+			member := trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, innerW, cache))
+			for _, ln := range member {
+				lines = append(lines, prefix+ln)
+			}
+			if j < end {
+				// 组成员之间的细色带连接，比空行更紧凑。
+				lines = append(lines, "  "+barStyled)
+			}
+		}
 	}
 
 	return lines, msgRange{
@@ -528,48 +581,30 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 	}
 }
 
-// renderMessageSeparator 在两条连续消息之间插入视觉分隔符。
-// 返回行列表（可能含分隔线），调用方直接 append 到输出 buffer。
-//
-// 视觉层次（从粗到细）：
-//
-//	───（全宽） — User↔Assistant 切换，或 Tool↔Assistant 切换
-//	···（半宽） — Tool↔Tool 连续工具调用
-//	···（1/4宽）— 其他连续同角色消息
+// renderMessageSeparator 在两条连续消息之间插入最小视觉分隔。
+// 采用“时间线”密度：角色切换用单空行，同角色连续用极细点线，
+// 连续工具调用之间不再插入额外分隔线（由工具组自身色带/卡片承担层次）。
 func (h *ChatHistory) renderMessageSeparator(prev, curr ChatMessage, width int64, theme ChatHistoryTheme) []string {
 	switch {
-	// User / Assistant 角色切换：全宽分隔线
-	case (prev.Role == RoleUser && curr.Role == RoleAssistant) ||
-		(prev.Role == RoleAssistant && curr.Role == RoleUser):
-		sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
-		return []string{"", sep, ""}
-
-	// Tool → Assistant（工具执行完毕开始输出）：全宽分隔线
-	case prev.Role == RoleTool && curr.Role == RoleAssistant:
-		sep := theme.DimStyle.Render(strings.Repeat("─", int(width)))
-		return []string{"", sep, ""}
-
-	// Tool ↔ Tool 连续工具调用：半宽细分隔线
+	// Tool ↔ Tool 连续工具调用：无额外分隔，由工具组色带/卡片自身承担层次。
 	case prev.Role == RoleTool && curr.Role == RoleTool:
-		half := int64(int(width) / 2)
-		if half < 1 {
-			half = 1
-		}
-		sep := theme.DimStyle.Render(strings.Repeat("·", int(half)))
-		return []string{"", sep, ""}
+		return nil
 
-	// Tool → 其他角色：单空行
-	case prev.Role == RoleTool || curr.Role == RoleTool:
+	// 系统消息之间：单空行。
+	case prev.Role == RoleSystem && curr.Role == RoleSystem:
 		return []string{""}
 
-	// 其他连续同角色消息：四分之一宽细分隔线
-	default:
-		qtr := int64(int(width) / 4)
-		if qtr < 1 {
-			qtr = 1
+	// 其他连续同角色消息（Assistant↔Assistant、User↔User）：八分之一宽点线。
+	case prev.Role == curr.Role:
+		eighth := int64(int(width) / 8)
+		if eighth < 1 {
+			eighth = 1
 		}
-		sep := theme.DimStyle.Render(strings.Repeat("·", int(qtr)))
-		return []string{"", sep, ""}
+		return []string{theme.DimStyle.Render(strings.Repeat("·", int(eighth)))}
+
+	// 其余任意角色切换：单空行。
+	default:
+		return []string{""}
 	}
 }
 

@@ -195,7 +195,7 @@ tui/agentadapter → agentcore
 | 无重导出 | 根 `tui` 包不重导出子包类型 |
 | `chat` 不依赖 `agentcore` | 通过 `agentadapter` + `AppHost` 接口解耦 |
 | Cell-level 渲染 | `Cell`/`Row`/`CellGrid` + `DiffRows` 单元格级差分，消除宽字符截断和 SGR 编码歧义 |
-| 双渲染模型 | TUI Engine（Elm 架构，差分渲染） + stdio（过程式 stdout/spinners） |
+| 渲染模型 | TUI Engine（Elm 架构，cell 级差分渲染）；stdio 过程式层已于 2026-07-30 删除 |
 | 显式 FSM | `chat/state.go` 249 行显式状态机解耦交互状态与事件处理 |
 | 编辑器 5 文件拆分 | 核心/编辑/渲染/历史/kill-ring，按职责分组 |
 | `core.Every` 移除 | 改为 `TUI.Every()` 生命周期感知替代方案 |

@@ -1,8 +1,12 @@
 package core
 
 import (
+	"os"
 	"strings"
+	"sync/atomic"
 	"unicode/utf8"
+
+	"golang.org/x/text/width"
 )
 
 // ---------------------------------------------------------------------------
@@ -13,14 +17,38 @@ import (
 //   - Control characters (width 0)
 //   - Combining marks (width 0)
 //   - East-Asian Wide / Fullwidth (width 2)
+//   - East-Asian Ambiguous characters (width 2 in CJK mode, 1 otherwise)
 //   - Emoji basic ranges (width 2)
 //   - Variation selectors / ZWJ (width 0)
 //   - ANSI CSI/OSC escape sequences (width 0, transparently stripped)
 //
-// It is intentionally a *subset* of full Unicode UAX #11 — good enough for
-// terminal UI. When in doubt, it errs on the side of width 1 to avoid
-// truncating too aggressively.
+// Ambiguous-width characters (e.g. em dash, ellipsis, middle dot) are
+// measured according to the active CJK mode. The mode defaults to true when
+// LANG/LC_CTYPE indicates a CJK locale, or when MADY_CJK_WIDTH=1.
 // ---------------------------------------------------------------------------
+
+var cjkMode atomic.Bool
+
+func init() {
+	if os.Getenv("MADY_CJK_WIDTH") == "1" {
+		cjkMode.Store(true)
+		return
+	}
+	for _, v := range []string{os.Getenv("LANG"), os.Getenv("LC_CTYPE")} {
+		v = strings.ToLower(v)
+		if strings.HasPrefix(v, "zh") || strings.HasPrefix(v, "ja") || strings.HasPrefix(v, "ko") {
+			cjkMode.Store(true)
+			return
+		}
+	}
+}
+
+// SetCJKMode toggles whether ambiguous-width characters are treated as 2 cells.
+// Call this before rendering if the terminal is known to use a CJK font.
+func SetCJKMode(cjk bool) { cjkMode.Store(cjk) }
+
+// IsCJKMode reports whether ambiguous-width characters are currently counted as 2 cells.
+func IsCJKMode() bool { return cjkMode.Load() }
 
 // RuneWidth returns the cell width of a single rune (0, 1, or 2).
 func RuneWidth(r rune) int64 {
@@ -33,6 +61,22 @@ func RuneWidth(r rune) int64 {
 	if isZeroWidth(r) {
 		return 0
 	}
+
+	// Use the standard East Asian Width table. Ambiguous characters get their
+	// width from the active CJK mode; this is the main source of overflow bugs
+	// when the code assumed width 1 but the terminal rendered them as 2.
+	switch width.LookupRune(r).Kind() {
+	case width.EastAsianWide, width.EastAsianFullwidth:
+		return 2
+	case width.EastAsianAmbiguous:
+		if cjkMode.Load() {
+			return 2
+		}
+		return 1
+	}
+
+	// Fallback to the legacy table for ranges not classified above (e.g. some
+	// historic CJK extensions or private-use emoji sequences).
 	if isWide(r) {
 		return 2
 	}
@@ -340,13 +384,26 @@ func WrapAnsi(text string, width int64) []string {
 	return lines
 }
 
+// maxWrapIterations caps the number of break iterations per input line. Each
+// iteration must consume at least one glyph (findBreakColumn now returns a
+// glyph boundary even for wide runes in narrow widths), so this bound is never
+// reached on well-formed input — it exists purely so a future regression in
+// the break-column logic degrades to an over-wide line instead of hanging the
+// TUI event loop.
+const maxWrapIterations = 4096
+
 func wrapOneLine(line string, width int64) []string {
 	if VisibleWidth(line) <= width {
 		return []string{line}
 	}
 	var out []string
 	cur := line
-	for VisibleWidth(cur) > width {
+	for iter := 0; VisibleWidth(cur) > width; iter++ {
+		if iter >= maxWrapIterations {
+			// Defensive: emit the remainder as-is rather than loop forever.
+			out = append(out, cur)
+			return out
+		}
 		// Try to break on the last whitespace that still fits.
 		breakAt := findBreakColumn(cur, width)
 		left := SliceByColumn(cur, 0, breakAt)
@@ -363,13 +420,25 @@ func wrapOneLine(line string, width int64) []string {
 	return out
 }
 
+// isCJKPunctuation reports whether r is a full-width punctuation at which
+// a Chinese/Japanese/Korean line may preferentially break.
+func isCJKPunctuation(r rune) bool {
+	switch r {
+	case '，', '。', '；', '：', '！', '？', '、',
+		'（', '）', '「', '」', '『', '』', '【', '】', '《', '》', '〈', '〉',
+		'—', '…', '·':
+		return true
+	}
+	return false
+}
+
 // findBreakColumn returns the column at which to wrap the string: the column
 // right after the last whitespace that fits within width. Falls back to the
-// last soft-break boundary (path punctuation like '/', '-', '_', '.', ':')
-// and finally to the last complete-glyph boundary. Returning a mid-glyph
-// column would make the SliceByColumn calls in wrapOneLine drop that
-// boundary rune entirely — visible as missing characters at the end of every
-// wrapped CJK line.
+// last soft-break boundary (path punctuation like '/', '-', '_', '.', ':' and
+// full-width CJK punctuation) and finally to the last complete-glyph boundary.
+// Returning a mid-glyph column would make the SliceByColumn calls in wrapOneLine
+// drop that boundary rune entirely — visible as missing characters at the end
+// of every wrapped CJK line.
 func findBreakColumn(s string, width int64) int64 {
 	var col int64
 	var lastWS int64 = -1
@@ -400,12 +469,21 @@ func findBreakColumn(s string, width int64) int64 {
 			if col > 0 {
 				return col // last complete-glyph boundary
 			}
-			return width
+			// col == 0: the first glyph is wider than width itself (e.g. a
+			// 2-cell CJK rune in a 1-column window). Return the glyph's full
+			// width: slicing at `width` would cut the wide rune and produce
+			// an empty left slice, so wrapOneLine would never make progress
+			// and hang. The wrapped line overflows by design — a wide glyph
+			// cannot fit, but it must still be emitted whole.
+			return col + rw
 		}
 		switch r {
 		case ' ', '\t':
 			lastWS = col + rw
 		case '/', '-', '_', '.':
+			lastSoft = col + rw
+		}
+		if isCJKPunctuation(r) {
 			lastSoft = col + rw
 		}
 		col += rw
@@ -414,7 +492,47 @@ func findBreakColumn(s string, width int64) int64 {
 	return col
 }
 
-// ansiReset is kept local to avoid importing from style.go which uses a lowercase name.
+// WrapAnsiCJK wraps text with CJK-aware line breaking. It prefers breaking
+// after full-width punctuation and, when safe, avoids leaving a punctuation
+// character alone at the start of a wrapped line.
+func WrapAnsiCJK(text string, width int64) []string {
+	if width <= 0 {
+		return []string{text}
+	}
+	var lines []string
+	for _, para := range strings.Split(text, "\n") {
+		lines = append(lines, wrapOneLineCJK(para, width)...)
+	}
+	return lines
+}
+
+func wrapOneLineCJK(line string, width int64) []string {
+	if VisibleWidth(line) <= width {
+		return []string{line}
+	}
+	out := WrapAnsi(line, width)
+	// Defensive pass: if a wrapped line starts with a CJK punctuation and the
+	// previous line has room, move the punctuation up so it doesn't dangle at
+	// the beginning of a line. Skip lines containing ANSI escapes to avoid
+	// splitting style sequences.
+	for i := 1; i < len(out); i++ {
+		if strings.Contains(out[i], "\x1b") {
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(out[i])
+		if !isCJKPunctuation(r) {
+			continue
+		}
+		if VisibleWidth(out[i-1])+RuneWidth(r) > width {
+			continue
+		}
+		out[i-1] = out[i-1] + string(r)
+		out[i] = out[i][size:]
+	}
+	return out
+}
+
+// ansiReset is the SGR reset sequence, kept local to core (theme/style.go has its own).
 const ansiReset = "\x1b[0m"
 
 func StripAnsi(s string) string {

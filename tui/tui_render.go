@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -319,34 +320,46 @@ func (t *TUI) renderResizeHint(cols, rows int64) {
 		minTermCols, cols)
 	hintCN := "终端窗口太小，请放大以继续使用"
 
-	// Use a simple box.
-	boxWidth := len(hint) + 4
+	// Use a simple box. Box width is derived from the visible (display-cell)
+	// width, not byte length — CJK text is multi-byte and would misalign the
+	// right border if padded with %-*s. The +6 accounts for the two box
+	// borders plus the 2-space padding on each side (║ + 2 + inner + 2 + ║),
+	// so padLine fills the content to exactly inner and all rows line up
+	// with the border rows.
+	boxWidth := core.VisibleWidth(hint) + 6
 	if boxWidth < 50 {
 		boxWidth = 50
+	}
+	inner := boxWidth - 6 // 扣除 "║" + 2 空格 + 2 空格 + "║" 共 6 列固定开销
+	padLine := func(s string) string {
+		if pad := inner - core.VisibleWidth(s); pad > 0 {
+			return s + strings.Repeat(" ", int(pad))
+		}
+		return s
 	}
 	topY := rows / 2
 	textY := topY + 1
 	hintCNY := textY + 1
 	botY := hintCNY + 1
-	leftX := (cols - int64(boxWidth)) / 2
+	leftX := (cols - boxWidth) / 2
 	if leftX < 0 {
 		leftX = 0
 	}
 
 	// Top border
 	fmt.Fprintf(&buf, "\x1b[%d;%dH╔", topY+1, leftX+1)
-	for i := int64(2); i < int64(boxWidth); i++ {
+	for i := int64(2); i < boxWidth; i++ {
 		buf.WriteString("═")
 	}
 	buf.WriteString("╗")
 
 	// Chinese hint
-	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %-*s  ║", hintCNY+1, leftX+1, boxWidth-6, hintCN)
+	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %s  ║", hintCNY+1, leftX+1, padLine(hintCN))
 	// English hint
-	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %-*s  ║", textY+1, leftX+1, boxWidth-6, hint)
+	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %s  ║", textY+1, leftX+1, padLine(hint))
 	// Bottom border
 	fmt.Fprintf(&buf, "\x1b[%d;%dH╚", botY+1, leftX+1)
-	for i := int64(2); i < int64(boxWidth); i++ {
+	for i := int64(2); i < boxWidth; i++ {
 		buf.WriteString("═")
 	}
 	buf.WriteString("╝")

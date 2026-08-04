@@ -123,7 +123,7 @@ func TestDebugAccessors(t *testing.T) {
 
 	done := app.Done()
 	go func() { _ = app.Start() }()
-	time.Sleep(50 * time.Millisecond)
+	waitTUIStarted(t, app)
 	app.Stop()
 	<-done
 

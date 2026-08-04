@@ -46,7 +46,7 @@ export const ButtonComponent: A2UIComponent = ({ component, context }) => {
         console.warn(`[a2ui] Button action function not found: ${action.functionCall.call}`)
       }
     }
-  }, [resolved.disabled, action, context.onAction, context.surface.id, component.id, context.functions])
+  }, [resolved.disabled, action, context, component.id])
 
   const variantClass = {
     primary: 'bg-mady-accent text-white hover:bg-mady-accent-hover active:bg-mady-accent',

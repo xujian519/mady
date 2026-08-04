@@ -840,3 +840,32 @@ func TestEditorEditInsertRune(t *testing.T) {
 		}
 	})
 }
+
+// TestEditorEditNewlineRelocatesChipsOnce is the regression test for the
+// duplicated chip-relocation loop in insertRune's newline branch: the second
+// pass (run after e.row++ with identical logic) double-shifted every chip
+// below the cursor row. A chip on the split line must land at (row+1, 0) and
+// a chip below it at exactly row+1 — not row+2.
+func TestEditorEditNewlineRelocatesChipsOnce(t *testing.T) {
+	e := setupEditorAt("abcd\nxyz", 0, 2)
+	chipAtCursor := &Chip{Kind: ChipFile, Value: "a", Display: "@a"}
+	chipBelow := &Chip{Kind: ChipFile, Value: "b", Display: "@b"}
+	e.InsertChipAt(0, 2, chipAtCursor) // on the split point
+	e.InsertChipAt(1, 1, chipBelow)    // below the split row
+
+	e.insertRune('\n')
+
+	byRow := map[int64]int64{}
+	for _, cp := range e.Chips() {
+		byRow[cp.HardRow] = cp.RuneStart
+	}
+	if rs, ok := byRow[1]; !ok || rs != 0 {
+		t.Errorf("chip at cursor: want (1,0), got row=1 start=%d (present=%v)", rs, ok)
+	}
+	if rs, ok := byRow[2]; !ok || rs != 1 {
+		t.Errorf("chip below: want (2,1) (single shift), got row=2 start=%d (present=%v) — double-shifted if absent", rs, ok)
+	}
+	if len(byRow) != 2 {
+		t.Errorf("expected exactly 2 chips after split, got %d", len(byRow))
+	}
+}

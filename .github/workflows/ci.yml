@@ -85,6 +85,18 @@ jobs:
         working-directory: tui
         run: bash scripts/verify_layers.sh
 
+  doc-check:
+    # 文档-代码一致性门禁：CLAUDE.md/AGENTS.md 的文件计数、cmd/mady 子命令数、
+    # 文档目录树路径、内置 manifest 数量必须与代码库实际状态一致。
+    # 漂移时本地可先运行 `python3 scripts/check-doc-consistency.py --update` 自动同步。
+    runs-on: ubuntu-latest
+    name: doc-check
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run doc consistency check
+        run: make doc-check
+
   eval:
     runs-on: ubuntu-latest
     name: eval-benchmark

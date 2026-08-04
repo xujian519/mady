@@ -9,6 +9,11 @@ PREFIX ?= $(HOME)/.local
 COMMIT_HASH ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS ?= -ldflags "-s -w -X main.commitHash=$(COMMIT_HASH) -X main.buildTime=$(BUILD_TIME)"
+# 桌面端版本号（权威源 = desktop/wails.json 的 info.productVersion，单点维护）。
+# 发版时先改 wails.json 再 `make desktop-dmg`；临时覆盖用 `make desktop-dmg DESKTOP_VERSION=v0.2.0`。
+DESKTOP_VERSION ?= $(shell sed -n 's/.*"productVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' desktop/wails.json | head -1)
+# wails build 注入桌面端版本（与根模块 LDFLAGS 注入 main.commitHash 的约定对齐）。
+DESKTOP_LDFLAGS ?= -ldflags "-X main.desktopVersion=$(DESKTOP_VERSION)"
 GOLANGCI_LINT_VERSION ?= v2.12.2
 
 .PHONY: all build test test-race test-short test-integration test-verbose test-disclosure-smoke test-approval-audit test-dry-run-gate coverage vet lint fmt clean \
@@ -118,12 +123,12 @@ desktop-test-e2e:
 	cd desktop/frontend && npx playwright test --config=playwright.config.ts
 
 desktop-dmg:
-	cd desktop && wails build -platform darwin/universal
+	cd desktop && wails build -platform darwin/universal $(DESKTOP_LDFLAGS)
 
 # 快速单架构构建（arm64），比 universal 快约 2 倍，文件小 50%。
 # 开发迭代时使用，发版仍用 desktop-dmg（universal）。
 desktop-build-quick:
-	cd desktop && wails build -platform darwin/arm64
+	cd desktop && wails build -platform darwin/arm64 $(DESKTOP_LDFLAGS)
 
 # macOS 公证（Notarization）：签名 + 公证 + 装订。
 # 需要环境变量 APPLE_ID / TEAM_ID / APP_PASSWORD（Developer 账号，

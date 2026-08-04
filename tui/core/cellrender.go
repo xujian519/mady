@@ -111,19 +111,3 @@ func SerializeRowSegment(cells []Cell, afterStyle Style) string {
 	}
 	return b.String()
 }
-
-// SerializeRows converts a slice of Rows to a single ANSI string with
-// "\r\n" between lines. Used for full-frame repaints.
-func SerializeRows(rows []Row) string {
-	if len(rows) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	for i, r := range rows {
-		if i > 0 {
-			b.WriteString("\r\n")
-		}
-		b.WriteString(SerializeRow(r))
-	}
-	return b.String()
-}

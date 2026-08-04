@@ -2,10 +2,20 @@ package component
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/xujian519/mady/tui/core"
 	apitheme "github.com/xujian519/mady/tui/theme"
+)
+
+var (
+	// reInlineHashes matches ATX-style hash runs of 2+ appearing mid-line
+	// inside a paragraph. Line-start hashes are classified as headings by the
+	// block parser, so any hash run that reaches paragraph text is a stray LLM
+	// artifact. Requiring at least two hashes keeps legitimate single hashes
+	// ("C#", "F#", patent drawing references like "1#") intact.
+	reInlineHashes = regexp.MustCompile(`([^#\s])#{2,6}(\s|$)`)
 )
 
 // renderBlock renders a single Block to width using theme.
@@ -28,7 +38,7 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		}
 		text := renderInline(extractHeadingText(b.Lines[0], level), theme)
 		fn := theme.HeadingFn[level-1]
-		return core.WrapAnsi(fn(text), width)
+		return wrapMarkdownText(fn(text), width)
 	case kindQuote:
 		qm := reQuote.FindStringSubmatch(b.Lines[0])
 		if qm == nil {
@@ -36,7 +46,7 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		}
 		text := renderInline(qm[1], theme)
 		out := make([]string, 0, 2)
-		for _, w := range core.WrapAnsi(text, width-2) {
+		for _, w := range wrapMarkdownText(text, width-2) {
 			line := theme.QuoteFn("│ ") + w
 			out = append(out, line)
 		}
@@ -54,19 +64,26 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		indent := len(bm[1])
 		text := renderInline(bm[3], theme)
 		bullet := theme.ListBulletFn("• ")
-		indentStr := strings.Repeat(" ", indent+2)
+		prefixWidth := int64(indent) + core.VisibleWidth(bullet)
+		wrapW := width - prefixWidth
+		if wrapW < 1 {
+			wrapW = 1
+		}
+		indentStr := strings.Repeat(" ", int(prefixWidth))
 		out := make([]string, 0, len(b.Lines)*2)
-		for k, w := range core.WrapAnsi(text, width-int64(indent)-3) {
+		for k, w := range wrapMarkdownText(text, wrapW) {
 			prefix := indentStr
 			if k == 0 {
 				prefix = strings.Repeat(" ", indent) + bullet
 			}
 			out = append(out, prefix+w)
 		}
-		// Render continuation lines.
+		// Render continuation lines. Strip the source indentation that marks
+		// the line as a continuation so the rendered text aligns with the first
+		// line's text column rather than being indented twice.
 		for _, cl := range b.Lines[1:] {
-			ct := renderInline(cl, theme)
-			for _, w := range core.WrapAnsi(ct, width-int64(indent)-3) {
+			ct := renderInline(strings.TrimLeft(cl, " \t"), theme)
+			for _, w := range wrapMarkdownText(ct, wrapW) {
 				out = append(out, indentStr+w)
 			}
 		}
@@ -82,18 +99,64 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		indent := len(om[1])
 		num := om[2] + ". "
 		text := renderInline(om[3], theme)
-		indentStr := strings.Repeat(" ", indent+len(num))
+		styledNum := theme.ListBulletFn(num)
+		prefixWidth := int64(indent) + core.VisibleWidth(styledNum)
+		wrapW := width - prefixWidth
+		if wrapW < 1 {
+			wrapW = 1
+		}
+		indentStr := strings.Repeat(" ", int(prefixWidth))
 		out := make([]string, 0, len(b.Lines)*2)
-		for k, w := range core.WrapAnsi(text, width-int64(indent)-int64(len(num))) {
+		for k, w := range wrapMarkdownText(text, wrapW) {
 			prefix := indentStr
 			if k == 0 {
-				prefix = strings.Repeat(" ", indent) + theme.ListBulletFn(num)
+				prefix = strings.Repeat(" ", indent) + styledNum
 			}
 			out = append(out, prefix+w)
 		}
+		// Strip source continuation indentation so wrapped/continuation lines
+		// align with the first line's text column.
 		for _, cl := range b.Lines[1:] {
-			ct := renderInline(cl, theme)
-			for _, w := range core.WrapAnsi(ct, width-int64(indent)-int64(len(num))) {
+			ct := renderInline(strings.TrimLeft(cl, " \t"), theme)
+			for _, w := range wrapMarkdownText(ct, wrapW) {
+				out = append(out, indentStr+w)
+			}
+		}
+		return out
+	case kindChineseOrdered:
+		if len(b.Lines) == 0 {
+			return nil
+		}
+		om := reChineseOrdered.FindStringSubmatch(b.Lines[0])
+		if om == nil {
+			return nil
+		}
+		indent := len(om[1])
+		// Normalize the Chinese enumeration comma to a period so the marker is
+		// treated like other ordered lists and does not leave raw punctuation
+		// (e.g. "一、") in the rendered output.
+		num := om[2] + ". "
+		text := renderInline(om[3], theme)
+		styledNum := theme.ListBulletFn(num)
+		prefixWidth := int64(indent) + core.VisibleWidth(styledNum)
+		wrapW := width - prefixWidth
+		if wrapW < 1 {
+			wrapW = 1
+		}
+		indentStr := strings.Repeat(" ", int(prefixWidth))
+		out := make([]string, 0, len(b.Lines)*2)
+		for k, w := range wrapMarkdownText(text, wrapW) {
+			prefix := indentStr
+			if k == 0 {
+				prefix = strings.Repeat(" ", indent) + styledNum
+			}
+			out = append(out, prefix+w)
+		}
+		// Strip source continuation indentation so wrapped/continuation lines
+		// align with the first line's text column.
+		for _, cl := range b.Lines[1:] {
+			ct := renderInline(strings.TrimLeft(cl, " \t"), theme)
+			for _, w := range wrapMarkdownText(ct, wrapW) {
 				out = append(out, indentStr+w)
 			}
 		}
@@ -103,12 +166,36 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 	case kindParagraph:
 		var out []string
 		for _, ln := range b.Lines {
-			text := renderInline(ln, theme)
-			out = append(out, core.WrapAnsi(text, width)...)
+			text := renderInline(sanitizeParagraphArtifacts(ln), theme)
+			out = append(out, wrapMarkdownText(text, width)...)
 		}
 		return out
 	}
 	return nil
+}
+
+// wrapMarkdownText chooses between the generic ANSI wrapper and the CJK-aware
+// wrapper based on whether the text contains CJK ideographs.
+func wrapMarkdownText(text string, width int64) []string {
+	if containsCJK(text) {
+		return core.WrapAnsiCJK(text, width)
+	}
+	return core.WrapAnsi(text, width)
+}
+
+// containsCJK reports whether s contains any CJK Unified Ideographs.
+func containsCJK(s string) bool {
+	for _, r := range s {
+		switch {
+		case r >= 0x4E00 && r <= 0x9FFF, // CJK Unified Ideographs
+			r >= 0x3400 && r <= 0x4DBF,   // CJK Ext A
+			r >= 0xF900 && r <= 0xFAFF,   // CJK Compatibility
+			r >= 0x20000 && r <= 0x2FFFD, // CJK Ext B..F
+			r >= 0x30000 && r <= 0x3FFFD: // CJK Ext G
+			return true
+		}
+	}
+	return false
 }
 
 // renderFenceBlock renders a fenced code block. Split out of renderBlock so
@@ -248,7 +335,8 @@ func renderTable(rows []string, width int64, t MarkdownTheme) []string {
 	for _, w := range colW {
 		total += w
 	}
-	if total > width {
+	// 留 2 列安全边距，避免表格边框紧贴视口边缘导致破碎感。
+	if total > width-2 {
 		return renderTableVertical(header, body, width, t)
 	}
 
@@ -277,9 +365,11 @@ func renderTableRows(header []string, body [][]string, colW []int64, width int64
 			if i < len(cells) {
 				cell = cells[i]
 			}
-			if !headerRow {
-				cell = renderInline(cell, t)
-			}
+			// Header and data rows both go through renderInline so inline
+			// markers (**bold**, *italic*, `code`) never leak literally.
+			// renderTableVertical does the same; skipping it here produced
+			// raw "**维度**" in horizontal-mode tables.
+			cell = renderInline(cell, t)
 			padded := core.PadToWidth(core.TruncateToWidth(cell, w, "…"), w)
 			if headerRow {
 				padded = t.TableHeaderFn(padded)
@@ -323,10 +413,11 @@ func renderTableVertical(header []string, body [][]string, width int64, t Markdo
 			if i < len(r) {
 				cell = r[i]
 			}
-			head := t.TableHeaderFn(h + ":")
-			out = append(out, core.WrapAnsi(head, wrapWidth)...)
+			// 与单元格一致，表头也先过 renderInline，避免 **bold** 等裸标记泄漏。
+			head := t.TableHeaderFn(renderInline(h, t) + ":")
+			out = append(out, wrapMarkdownText(head, wrapWidth)...)
 			rendered := renderInline(cell, t)
-			out = append(out, core.WrapAnsi(indentStr+rendered, wrapWidth)...)
+			out = append(out, wrapMarkdownText(indentStr+rendered, wrapWidth)...)
 		}
 	}
 	return out
@@ -335,5 +426,54 @@ func renderTableVertical(header []string, body [][]string, width int64, t Markdo
 // ---------------------------------------------------------------------------
 // Default theme
 // ---------------------------------------------------------------------------
+
+// sanitizeParagraphArtifacts cleans up stray markdown punctuation that LLMs
+// commonly emit inside paragraph text, after legal block-level parsing has
+// already happened. Paragraph lines are never headings, so any ATX hash
+// sequence here is malformed and can be stripped. Unpaired emphasis markers
+// are also removed to avoid raw `**` / `*` polluting the terminal output.
+func sanitizeParagraphArtifacts(s string) string {
+	s = reInlineHashes.ReplaceAllString(s, "$1$2")
+	s = stripUnpairedMarker(s, "**")
+	s = stripUnpairedMarker(s, "*")
+	s = stripUnpairedMarker(s, "~~")
+	return s
+}
+
+// stripUnpairedMarker removes the last occurrence of marker when it has no
+// matching pair. This is a best-effort cleanup for incomplete LLM markdown.
+// A marker flanked by digits on both sides is treated as a math expression
+// (e.g. "2*3", "4**2", "2**10") and left untouched instead of mangled.
+func stripUnpairedMarker(s, marker string) string {
+	if strings.Count(s, marker)%2 != 0 {
+		idx := strings.LastIndex(s, marker)
+		if idx < 0 {
+			return s
+		}
+		// 数学表达式（2*3 / 4**2）：两侧都是数字，保留。
+		if isDigitByte(s, idx-1) && isDigitByte(s, idx+len(marker)) {
+			return s
+		}
+		// 单字符 marker 紧邻另一个相同字符（如 4**2 中的单个 '*'）：
+		// 它属于 "**" 片段，交由 "**" 分支处理，避免二次误删。
+		if len(marker) == 1 &&
+			((idx > 0 && s[idx-1] == marker[0]) || (idx+1 < len(s) && s[idx+1] == marker[0])) {
+			return s
+		}
+		s = s[:idx] + s[idx+len(marker):]
+	}
+	return s
+}
+
+// isDigitByte reports whether s[i] is an ASCII digit. Out-of-range indices
+// report false. Byte-wise check is sufficient: multi-byte runes never equal
+// '0'..'9', so full-width digits fall through to the removal path.
+func isDigitByte(s string, i int) bool {
+	if i < 0 || i >= len(s) {
+		return false
+	}
+	c := s[i]
+	return c >= '0' && c <= '9'
+}
 
 // DefaultMarkdownTheme returns the built-in markdown theme used when no

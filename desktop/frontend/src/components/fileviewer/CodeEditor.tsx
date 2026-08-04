@@ -69,11 +69,14 @@ const baseTheme = EditorView.theme({
 export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, onSave, markdown: isMd }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
-  // 用 ref 持有最新回调，避免重建 editor
+  // 用 ref 持有最新回调，避免重建 editor；每次 render 后经 effect 同步
+  // （避免 render 期间写 ref，react-hooks/refs）
   const onChangeRef = useRef(onChange)
   const onSaveRef = useRef(onSave)
-  onChangeRef.current = onChange
-  onSaveRef.current = onSave
+  useEffect(() => {
+    onChangeRef.current = onChange
+    onSaveRef.current = onSave
+  })
   // F-I10：主题作为 effect 依赖——ThemeProvider 切换时重建编辑器高亮
   const { resolved } = useTheme()
   const isDark = resolved === 'dark'

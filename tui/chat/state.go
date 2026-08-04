@@ -3,21 +3,25 @@ package chat
 // state.go defines an explicit finite-state machine over ChatApp interaction
 // states, decoupled from the imperative event handlers in chat_app_*.go.
 //
-// Why: the handlers in chat_app_stream.go / chat_app_tool.go mutate chatModel
-// fields (Running, StreamID, ActiveTools) directly, so the "what state are we
-// in" question is scattered across branches. This module makes the state
-// lattice explicit and pure — Transition(s, event) -> newState has no side
-// effects, so it can be table-tested and used as a regression oracle.
+// Why: the handlers in chat_app_stream.go / chat_app_tool.go used to mutate
+// chatModel fields (Running, StreamID, ActiveTools) directly, so the "what
+// state are we in" question was scattered across branches. This module makes
+// the state lattice explicit and pure — Transition(s, event) -> newState has
+// no side effects, so it can be table-tested and used as a regression oracle.
+// The FSM is now the single source of truth; Running was removed, and
+// streamID/activeTools remain only as data handles (message id, tool count).
 //
 // The states deliberately mirror what the user sees:
 //
-//   StateInitializing   — agent is being initialized (TUI just started)
-//   StateIdle           — nothing running, editor is the focus
-//   StateStreaming      — assistant text is streaming (StreamID != "")
-//   StateToolRunning    — one or more tool calls are in flight
-//   StateAwaitingConfirm— an approval gate is blocking (review mode)
-//   StateCompacting     — context compaction is running
-//   StateFailed         — agent run/init encountered a terminal error
+//   StateInitializing    — agent is being initialized (TUI just started)
+//   StateIdle            — nothing running, editor is the focus
+//   StateStreaming       — assistant text is streaming
+//   StateToolRunning     — one or more tool calls are in flight
+//   StateAwaitingConfirm — an approval gate is blocking (review mode)
+//   StateCompacting      — context compaction is running
+//   StateFailed          — agent init encountered a terminal error
+//   StateInterrupted     — user interrupted the run (Ctrl+C)
+//   StateConfirmPending  — inline y/n confirmation is awaiting input
 //
 // StateDegraded is deliberately NOT a separate AppState value — it is a
 // cross-cutting visual modifier on the StatusBar (set via JudgmentView
@@ -89,7 +93,6 @@ const (
 	evtCompactionEnd
 	evtAgentEnd
 	evtAgentError
-	evtAutoRetry
 	evtInterrupt
 	evtApprovalRequest
 	evtApprovalDecision
@@ -113,31 +116,45 @@ const (
 //
 // The lattice (events that change state):
 //
-//	Initializing     --AgentReady-->        Idle
-//	Initializing     --AgentStart-->        Streaming  (optimistic: agent starts
-//	                                           processing user input during init)
-//	Initializing     --AgentError-->        Failed
-//	Initializing     --Interrupt-->         Interrupted
-//	Idle             --AgentStart-->        Streaming
-//	Idle             --ApprovalRequest-->   AwaitingConfirm
-//	Idle             --Interrupt-->         Interrupted
-//	Streaming        --MessageDelta-->      Streaming      (steady)
-//	Streaming        --ToolStart-->         ToolRunning
-//	ToolRunning      --ToolEnd-->           Streaming      (back to text)
-//	ToolRunning      --Interrupt-->         Interrupted
-//	Streaming        --CompactionStart-->   Compacting
-//	Compacting       --CompactionEnd-->     Streaming
-//	Compacting       --Interrupt-->         Interrupted
-//	*                --ApprovalRequest-->   AwaitingConfirm
-//	AwaitingConfirm  --ApprovalDecision-->  Streaming (or Idle if no stream)
-//	AwaitingConfirm  --Interrupt-->         Interrupted
-//	Streaming        --AgentEnd/Error-->    Idle
-//	Failed           --AgentReady-->        Idle  (re-initialized)
-//	Failed           --AgentStart-->        Streaming  (retry)
-//	Failed           --Interrupt-->         Interrupted
+//   - --ConfirmRequest-->   ConfirmPending  (global: a y/n prompt
+//     can appear in any state)
+//     Initializing     --AgentReady-->        Idle
+//     Initializing     --AgentStart-->        Streaming  (optimistic: agent starts
+//     processing user input during init)
+//     Initializing     --AgentError-->        Failed
+//     Initializing     --Interrupt-->         Interrupted
+//     Idle             --AgentStart-->        Streaming
+//     Idle             --MessageDelta-->      Streaming  (late/out-of-order delta
+//     still means a stream is active)
+//     Idle             --ApprovalRequest-->   AwaitingConfirm
+//     Idle             --Interrupt-->         Interrupted
+//     Streaming        --MessageDelta-->      Streaming      (steady)
+//     Streaming        --ToolStart-->         ToolRunning
+//     ToolRunning      --ToolEnd-->           Streaming      (back to text)
+//     ToolRunning      --Interrupt-->         Interrupted
+//     Streaming        --CompactionStart-->   Compacting
+//     Compacting       --CompactionEnd-->     Streaming
+//     Compacting       --Interrupt-->         Interrupted
+//   - --ApprovalRequest-->   AwaitingConfirm
+//     AwaitingConfirm  --ApprovalDecision-->  Streaming (or Idle if no stream)
+//     AwaitingConfirm  --AgentStart-->        Streaming  (approval submitted as a new run)
+//     AwaitingConfirm  --AgentEnd/Error-->    Idle
+//     AwaitingConfirm  --Interrupt-->         Interrupted
+//     Streaming        --AgentEnd/Error-->    Idle
+//     Failed           --AgentReady-->        Idle  (re-initialized)
+//     Failed           --AgentStart-->        Streaming  (retry)
+//     ConfirmPending   --ConfirmDecision-->   Idle
+//     ConfirmPending   --Interrupt-->         Interrupted
 //
 // Events that don't change the current state are no-ops (return s unchanged).
 func Transition(s AppState, e eventKind) AppState {
+	// A confirmation prompt is globally reachable: from any state (except
+	// ConfirmPending itself, where a re-prompt is a no-op) a new prompt
+	// enters ConfirmPending. Hoisting this here removes eight duplicated
+	// branches from the per-state transition functions below.
+	if e == evtConfirmRequest && s != StateConfirmPending {
+		return StateConfirmPending
+	}
 	switch s {
 	case StateInitializing:
 		return transitionFromInitializing(e)
@@ -196,11 +213,15 @@ func transitionFromIdle(e eventKind) AppState {
 	if e == evtAgentStart {
 		return StateStreaming
 	}
+	// A delta arriving without a preceding AgentStart (late/out-of-order
+	// stream) is still streaming activity: the message content is growing,
+	// so the FSM must enter Streaming rather than stay Idle. Previously the
+	// judgment view papered over this gap with a StreamID heuristic.
+	if e == evtMessageDelta {
+		return StateStreaming
+	}
 	if e == evtApprovalRequest {
 		return StateAwaitingConfirm
-	}
-	if e == evtConfirmRequest {
-		return StateConfirmPending
 	}
 	if e == evtInterrupt {
 		return StateInterrupted
@@ -264,6 +285,13 @@ func transitionFromCompacting(e eventKind) AppState {
 // transitionFromAwaitingConfirm handles events when the FSM is in StateAwaitingConfirm.
 func transitionFromAwaitingConfirm(e eventKind) AppState {
 	if e == evtApprovalDecision {
+		return StateStreaming
+	}
+	// The user's approval is submitted as a new agent run (submit → editor
+	// submit → AgentStart). Without this branch the FSM stayed in
+	// AwaitingConfirm for the whole run, leaving judgmentView stuck on
+	// "awaiting review" until AgentEnd.
+	if e == evtAgentStart {
 		return StateStreaming
 	}
 	if e == evtAgentEnd || e == evtAgentError {
@@ -336,8 +364,6 @@ func EventKindFor(e ChatEvent) eventKind { //nolint:revive // unexported eventKi
 		return evtAgentEnd
 	case AgentErrorChatEvent:
 		return evtAgentError
-	case AutoRetryChatEvent:
-		return evtAutoRetry
 	case AgentInterruptChatEvent:
 		return evtInterrupt
 	case ApprovalPromptChatEvent:

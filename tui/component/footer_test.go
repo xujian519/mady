@@ -90,3 +90,21 @@ func TestFooterNoColorMode(t *testing.T) {
 		t.Fatalf("expected non-empty footer line")
 	}
 }
+
+// TestFooterEmptyFirstGroupWidthFallback is the regression test for the
+// overflow fallback path: when the first visible group was registered with
+// zero items, `visible[0].Items[0]` panicked with index-out-of-range. The
+// fallback must scan for the first non-empty group instead.
+func TestFooterEmptyFirstGroupWidthFallback(t *testing.T) {
+	f := &Footer{}
+	f.RegisterGroup("empty") // empty group sorts first
+	f.RegisterGroup("long", FooterItem{Key: "ctrl+q", Desc: strings.Repeat("very long description ", 12)})
+
+	lines := f.Render(60) // width 60 → compact layout, line overflows → fallback
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(lines))
+	}
+	if !strings.Contains(lines[0], "ctrl+q") {
+		t.Errorf("fallback should show first non-empty group's item, got %q", lines[0])
+	}
+}

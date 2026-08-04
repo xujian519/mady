@@ -86,11 +86,6 @@ func copyOSC52(text string) error {
 	return err
 }
 
-// CopyToClipboardOSC52 forces OSC 52 copy (useful for SSH sessions or tmux).
-func CopyToClipboardOSC52(text string) error {
-	return copyOSC52(text)
-}
-
 // ReadFromClipboard reads text from the system clipboard.
 // It tries native tools first (pbpaste/xclip/clip), then falls back to an
 // empty string. OSC 52 readback is not implemented (terminal support is rare).

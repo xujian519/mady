@@ -94,7 +94,7 @@ const A2UINode: React.FC<A2UINodeProps> = React.memo(({ componentId, context, st
         store={store}
       />
     ))
-  }, [comp, context])
+  }, [comp, context, store])
 
   if (!comp) {
     console.warn(`[a2ui] component not found: ${componentId}`)

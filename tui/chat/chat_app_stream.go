@@ -2,9 +2,9 @@ package chat
 
 // This file groups ChatApp event handlers for the assistant streaming
 // lifecycle: editor submit (user input → OnSubmit), agent start/delta/end,
-// and agent error. The streaming StreamID is mutated under ChatApp.mu in a
-// single critical section (see onMessageDelta) to prevent concurrent deltas
-// from corrupting the stream.
+// and agent error. The streaming streamID handle is mutated under ChatApp.mu
+// in a single critical section (see onMessageDelta) to prevent concurrent
+// deltas from corrupting the stream.
 
 import (
 	"context"
@@ -71,7 +71,7 @@ func (a *ChatApp) onAgentStart(e ChatEvent) {
 		return
 	}
 	a.mu.Lock()
-	a.model.StreamID = ""
+	a.model.streamID = ""
 	// Update FSM state: agent is now streaming its response.
 	a.model.state = Transition(a.model.state, evtAgentStart)
 	// Reset per-run token accounting and mark the turn start so onTurnEnd can
@@ -93,14 +93,14 @@ func (a *ChatApp) onMessageDelta(e ChatEvent) {
 	if !ok {
 		return
 	}
-	// Read-modify-write StreamID under a single critical section.
+	// Read-modify-write streamID under a single critical section.
 	a.mu.Lock()
-	id := a.model.StreamID
+	id := a.model.streamID
 	// 传递 Kind：thinking delta 必须路由到 ThinkingSegments，否则 DeepSeek
 	// 等推理模型的 reasoning_content 会混入正文导致文本乱序。
 	newID := a.history.AppendDeltaWithKind(id, d.Delta, d.Kind)
 	if newID != id {
-		a.model.StreamID = newID
+		a.model.streamID = newID
 	}
 	a.model.state = Transition(a.model.state, evtMessageDelta)
 	a.mu.Unlock()

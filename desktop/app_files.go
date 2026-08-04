@@ -227,7 +227,12 @@ func (a *App) WriteFile(relPath, content string) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("writeFile: %w", err)
 	}
-	if err := os.Chmod(tmpName, 0600); err != nil {
+	// 保留既有文件权限（M-2）：已存在文件沿用原权限，新文件默认 0600。
+	mode := os.FileMode(0600)
+	if info, err := os.Stat(abs); err == nil && !info.IsDir() {
+		mode = info.Mode().Perm()
+	}
+	if err := os.Chmod(tmpName, mode); err != nil {
 		return fmt.Errorf("writeFile: %w", err)
 	}
 	if err := os.Rename(tmpName, abs); err != nil {

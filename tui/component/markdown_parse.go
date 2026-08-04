@@ -118,12 +118,13 @@ func isTableStart(lines []string, i int) bool {
 }
 
 var (
-	reFence    = regexp.MustCompile(`^(` + "```" + `|~~~)\s*(\S*)\s*$`)
-	reHR       = regexp.MustCompile(`^\s*(-{3,}|\*{3,}|_{3,})\s*$`)
-	reBullet   = regexp.MustCompile(`^(\s*)([-*+])\s+(.*)$`)
-	reOrdered  = regexp.MustCompile(`^(\s*)(\d+)\.\s+(.*)$`)
-	reQuote    = regexp.MustCompile(`^>\s?(.*)$`)
-	reTableSep = regexp.MustCompile(`^\s*\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?\s*$`)
+	reFence          = regexp.MustCompile(`^(` + "```" + `|~~~)\s*(\S*)\s*$`)
+	reHR             = regexp.MustCompile(`^\s*(-{3,}|\*{3,}|_{3,})\s*$`)
+	reBullet         = regexp.MustCompile(`^(\s*)([-*+])\s*(.*)$`)
+	reOrdered        = regexp.MustCompile(`^(\s*)(\d+)[.)]\s*(.*)$`)
+	reChineseOrdered = regexp.MustCompile(`^(\s*)([一二三四五六七八九十]+)、\s*(.*)$`)
+	reQuote          = regexp.MustCompile(`^>\s?(.*)$`)
+	reTableSep       = regexp.MustCompile(`^\s*\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?\s*$`)
 )
 
 // blockKind tags how a Block should be rendered.
@@ -137,6 +138,7 @@ const (
 	kindTable
 	kindBullet
 	kindOrdered
+	kindChineseOrdered
 	kindBlank
 	kindParagraph
 )
@@ -218,6 +220,11 @@ func parseBlocks(src string) []Block {
 			continue
 		}
 		if b, next := tryConsumeListItem(lines, i, reOrdered, kindOrdered); next > i {
+			blocks = append(blocks, b)
+			i = next
+			continue
+		}
+		if b, next := tryConsumeListItem(lines, i, reChineseOrdered, kindChineseOrdered); next > i {
 			blocks = append(blocks, b)
 			i = next
 			continue
@@ -328,6 +335,9 @@ func tryConsumeListItem(lines []string, start int, re *regexp.Regexp, kind block
 		if nextOrdered := reOrdered.FindStringSubmatch(lines[i]); nextOrdered != nil && len(nextOrdered[1]) <= itemIndent {
 			break
 		}
+		if nextChinese := reChineseOrdered.FindStringSubmatch(lines[i]); nextChinese != nil && len(nextChinese[1]) <= itemIndent {
+			break
+		}
 		if _, _, ok := parseATXHeading(lines[i]); ok || reFence.MatchString(lines[i]) || reHR.MatchString(lines[i]) || reQuote.MatchString(lines[i]) {
 			break
 		}
@@ -360,6 +370,7 @@ func consumeParagraph(lines []string, i int) (Block, int) {
 		!reHR.MatchString(lines[i]) &&
 		!reBullet.MatchString(lines[i]) &&
 		!reOrdered.MatchString(lines[i]) &&
+		!reChineseOrdered.MatchString(lines[i]) &&
 		!reQuote.MatchString(lines[i]) &&
 		!isTableStart(lines, i) {
 		// Stop before any ATX heading as well (including lenient forms with emoji

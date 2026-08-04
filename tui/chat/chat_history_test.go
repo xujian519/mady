@@ -114,6 +114,39 @@ func TestChatHistoryScrollbarTransition(t *testing.T) {
 	}
 }
 
+// TestChatHistoryReservedGutterWidthStable 是方案1（滚动条列恒定预留）的回归测试。
+// 修复前：流式输出期间内容从"可容纳"变为"溢出"时，renderWidth 在 width 与
+// width-1 之间切换，Markdown 换行点全部错位（输出时排版混乱、重开 TUI 后正常）。
+// 修复后：滚动条启用时内容渲染宽度恒为 width-sbWidth-gutter（gutter=1），
+// cachedWidth 不随滚动条显隐变化，整条消息始终以同一宽度渲染。
+func TestChatHistoryReservedGutterWidthStable(t *testing.T) {
+	h := NewChatHistory() // 默认 sbEnabled=true, sbWidth=1
+	h.SetMaxRows(3)
+	const width = int64(20)
+	wantWidth := width - h.sbWidth - 1 // 额外 1 列内容-滚动条内边距
+
+	// 第一阶段：内容可容纳，无滚动条轨道。渲染宽度必须已预留滚动条列+内边距。
+	h.Append(ChatMessage{Role: RoleAssistant, Text: "短文本"})
+	_ = h.Render(width)
+	if w := h.cachedWidth; w != wantWidth {
+		t.Fatalf("phase 1 cachedWidth = %d, want %d (width - sbWidth - gutter)", w, wantWidth)
+	}
+
+	// 第二阶段：内容溢出 → 滚动条出现，渲染宽度不得变化。
+	h.Append(ChatMessage{Role: RoleAssistant, Text: strings.Repeat("中文测试内容", 20)})
+	_ = h.Render(width)
+	if w := h.cachedWidth; w != wantWidth {
+		t.Fatalf("phase 2 cachedWidth = %d, want %d (width must be stable)", w, wantWidth)
+	}
+
+	// 第三阶段：模拟流式 delta 继续到达，宽度仍然稳定。
+	h.Append(ChatMessage{Role: RoleAssistant, Text: "更多内容"})
+	_ = h.Render(width)
+	if w := h.cachedWidth; w != wantWidth {
+		t.Fatalf("phase 3 cachedWidth = %d, want %d (width must be stable)", w, wantWidth)
+	}
+}
+
 // TestChatHistoryCJKReplyNoDroppedRunes 是 CJK 换行丢字的端到端回归测试。
 // 修复前：findBreakColumn 在 2 列宽汉字放不下时返回裸 width（落在字符中间），
 // SliceByColumn 随后把跨边界汉字整个丢弃——长中文回复每行末尾都丢字，
@@ -805,4 +838,67 @@ func TestChatHistoryPendingCursorNoTruncation(t *testing.T) {
 		t.Errorf("unexpected ellipsis truncation:\n%s", joined)
 	}
 	h.Finalize(id)
+}
+
+// TestChatHistoryAppendDeltaSingleRuneStream is the regression test for
+// exact-match dedup corrupting rune-by-rune streams: "|---|---|" streamed one
+// rune per delta repeated '-' five times, and the dedup dropped every repeat
+// after the first, shrinking the separator to "|-|". Single-rune deltas must
+// be appended unconditionally.
+func TestChatHistoryAppendDeltaSingleRuneStream(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "|")
+	for _, r := range "|---|---|" {
+		id = h.AppendDelta(id, string(r))
+	}
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "|---|---|"; got != want {
+		t.Fatalf("rune-stream dedup corrupted separator: text=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryAppendDeltaCJKRuneStream covers multi-byte runes (3 bytes
+// each) streamed one rune at a time — the exemption must key on rune count,
+// not byte length.
+func TestChatHistoryAppendDeltaCJKRuneStream(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "")
+	for _, r := range "中文中中" {
+		id = h.AppendDelta(id, string(r))
+	}
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "中文中中"; got != want {
+		t.Fatalf("CJK rune-stream corrupted: text=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryRenderEarlyReturnClampsWidth is the regression test for the
+// early-return path in Render: when maxRows <= 0 (no viewport clipping) the
+// cached lines were returned as-is, skipping the padToWidth clamp that guards
+// every other path. An over-wide cached line leaked straight to the terminal.
+func TestChatHistoryRenderEarlyReturnClampsWidth(t *testing.T) {
+	h := NewChatHistory()
+	h.Append(ChatMessage{Role: RoleAssistant, Text: "hello"})
+	h.SetMaxRows(0) // no clipping → early return path
+	_ = h.Render(30)
+
+	// Inject an over-wide line into the cache (simulates a buggy upstream
+	// component emitting more columns than requested).
+	h.mu.Lock()
+	h.cachedAll = []string{strings.Repeat("x", 60)}
+	h.mu.Unlock()
+
+	lines := h.Render(30)
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(lines))
+	}
+	if w := core.VisibleWidth(lines[0]); w > 30 {
+		t.Errorf("early-return path leaked over-width line: %d cells", w)
+	}
 }

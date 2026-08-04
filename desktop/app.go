@@ -58,6 +58,9 @@ type App struct {
 	// SetAISettings 与 setCurrentProject 会并发写同一文件；无锁时后写者用
 	// 旧快照覆盖先写者的字段更新（静默丢更新）。
 	settingsMu sync.Mutex
+
+	// tabs 是 Go 侧会话标签状态机（阶段 2.1），startup 时初始化。
+	tabs *tabStore
 }
 
 // ctxOrNil 返回 Wails 运行时上下文；未初始化（startup 未执行）时为 nil。
@@ -111,6 +114,13 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx.Store(ctx)
 	log.Println("[mady-desktop] startup: framework initializing (phase 1 — core)")
 	a.emitInitProgress("正在初始化引擎...")
+
+	// S-8：恢复上次保存的窗口位置（无记录时保持 Wails 默认居中）
+	a.applySavedWindowPosition(ctx)
+
+	// 阶段 2.1：恢复会话标签（ListTabs 驱动前端 TabBar；MadyHome 为空时仅内存）
+	a.tabs = newTabStore(a.resolveMadyHome())
+	log.Printf("[mady-desktop] tabs restored: %d tab(s), active=%s", len(a.tabs.List()), a.tabs.ActiveID())
 
 	// 系统托盘（W4-T11）：独立 goroutine，不阻塞初始化
 	a.startTray()
@@ -216,6 +226,11 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 			log.Printf("[mady-desktop] PANIC in deferred init: %v", r)
 			a.emitInitProgress("初始化异常: 部分功能不可用")
 			// init-done 已由 startup 同步发射，此处不再重复（G-I1）。
+			// M-9：panic 后仍尽力注入阶段 2 已完成的扩展（知识库/MCP/技能/记忆等），
+			// 避免 server config 停留在缺失扩展的同步段状态直至下次项目切换。
+			if a.server != nil {
+				a.server.SyncConfig(buildDesktopAgentConfig(fc))
+			}
 		}
 	}()
 
@@ -304,6 +319,28 @@ func buildDesktopAgentConfig(fc *bootstrap.Context) agentcore.Config {
 	return cfg
 }
 
+// applySavedWindowPosition 恢复上次保存的窗口位置（S-8）。
+// X/Y 记录在 window_state.json（beforeClose 时写入）；无记录则保持 Wails 默认居中。
+func (a *App) applySavedWindowPosition(ctx context.Context) {
+	ws := loadWindowState()
+	if ws == nil || ws.X == nil || ws.Y == nil {
+		return
+	}
+	runtime.WindowSetPosition(ctx, *ws.X, *ws.Y)
+	log.Printf("[mady-desktop] restored window position: %d,%d", *ws.X, *ws.Y)
+}
+
+// beforeClose 在窗口关闭前持久化完整窗口几何（S-8）。
+// 宽高与位置均由 Go 侧 runtime 自取，不依赖前端 beforeunload（异常退出也覆盖）；
+// 返回 false 表示不阻止关闭。
+func (a *App) beforeClose(ctx context.Context) bool {
+	w, h := runtime.WindowGetSize(ctx)
+	x, y := runtime.WindowGetPosition(ctx)
+	saveWindowState(windowState{Width: w, Height: h, X: &x, Y: &y})
+	log.Printf("[mady-desktop] saved window geometry: %dx%d @ %d,%d", w, h, x, y)
+	return false
+}
+
 // shutdown 在 Wails 窗口关闭前调用。优雅关闭 server，取消所有运行中的 chat。
 func (a *App) shutdown(_ context.Context) {
 	log.Println("[mady-desktop] shutdown: canceling all runs")
@@ -339,7 +376,43 @@ func (a *App) Chat(req madyserver.ChatRequest) (string, error) {
 	if err := a.ready(); err != nil {
 		return "", err
 	}
+	return a.startChatRun(req)
+}
 
+// ChatInTab 向指定标签发起对话（阶段 2.1b：会话绑定按 tab 分派）。
+//
+// 与 Chat 的差异：
+//   - 若标签尚未关联会话（tab.ThreadID 为空），先经 server.EnsureThreadID
+//     创建会话并写回标签（持久化），保证「新标签 → 新会话」闭环；
+//   - 消息始终作用于该标签的会话，前端切换标签即切换会话上下文。
+func (a *App) ChatInTab(tabID string, req madyserver.ChatRequest) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	if a.tabs == nil {
+		return "", errTabsNotReady
+	}
+	tab, err := a.tabs.Get(tabID)
+	if err != nil {
+		return "", err
+	}
+	threadID, err := a.server.EnsureThreadID(a.ctxOrNil(), tab.ThreadID)
+	if err != nil {
+		return "", err
+	}
+	if tab.ThreadID == "" {
+		if err := a.tabs.SetThreadID(tabID, threadID); err != nil {
+			return "", err
+		}
+		log.Printf("[mady-desktop] tab %s bound to thread %s", tabID, threadID)
+	}
+	req.ThreadID = threadID
+	return a.startChatRun(req)
+}
+
+// startChatRun 执行一轮对话（Chat 与 ChatInTab 共用的运行逻辑）。
+// 要求调用方已通过 a.ready() 校验且 req.ThreadID 已就绪。
+func (a *App) startChatRun(req madyserver.ChatRequest) (string, error) {
 	runID := generateRunID()
 	ctx, cancel := context.WithCancel(a.ctxOrNil())
 	a.runs.Store(runID, &runInfo{
@@ -429,15 +502,8 @@ type ThreadSummary struct {
 	MessageN  int       `json:"messageN"`
 }
 
-// ListThreads 返回所有持久化会话的概要列表。
-func (a *App) ListThreads() ([]ThreadSummary, error) {
-	if err := a.ready(); err != nil {
-		return nil, err
-	}
-	infos, err := a.server.ListThreads(a.ctxOrNil())
-	if err != nil {
-		return nil, err
-	}
+// threadSummaries 将会话元信息列表转换为前端 ThreadSummary 列表。
+func threadSummaries(infos []session.Info) []ThreadSummary {
 	summaries := make([]ThreadSummary, len(infos))
 	for i, info := range infos {
 		summaries[i] = ThreadSummary{
@@ -447,7 +513,19 @@ func (a *App) ListThreads() ([]ThreadSummary, error) {
 			MessageN:  int(info.MessageCount),
 		}
 	}
-	return summaries, nil
+	return summaries
+}
+
+// ListThreads 返回所有持久化会话的概要列表。
+func (a *App) ListThreads() ([]ThreadSummary, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	infos, err := a.server.ListThreads(a.ctxOrNil())
+	if err != nil {
+		return nil, err
+	}
+	return threadSummaries(infos), nil
 }
 
 // GetThread 返回指定会话的完整消息列表。
@@ -464,6 +542,51 @@ func (a *App) DeleteThread(key string) error {
 		return err
 	}
 	return a.server.DeleteThread(a.ctxOrNil(), key)
+}
+
+// RenameThread 重命名会话（自定义标题，阶段 1.4）。
+// 写入 session_info 元数据；ListThreads 返回的 Info.Name 会携带新标题。
+func (a *App) RenameThread(key, name string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.server.RenameThread(a.ctxOrNil(), key, name)
+}
+
+// TrashThread 将会话移入回收站（软删除，阶段 1.4）。
+func (a *App) TrashThread(key string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.server.TrashThread(a.ctxOrNil(), key)
+}
+
+// RestoreThread 将回收站中的会话恢复回主目录。
+func (a *App) RestoreThread(key string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.server.RestoreThread(a.ctxOrNil(), key)
+}
+
+// ListTrashedThreads 列出回收站中的会话（按更新时间倒序）。
+func (a *App) ListTrashedThreads() ([]ThreadSummary, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	infos, err := a.server.ListTrashedThreads(a.ctxOrNil())
+	if err != nil {
+		return nil, err
+	}
+	return threadSummaries(infos), nil
+}
+
+// PurgeThread 从回收站彻底删除会话（不可恢复）。
+func (a *App) PurgeThread(key string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.server.PurgeThread(a.ctxOrNil(), key)
 }
 
 // ModelEntry 是可用模型的 Wails Binding 返回类型。
@@ -498,15 +621,6 @@ func (a *App) ListModels() ([]ModelEntry, error) {
 
 // HealthInfo 返回运行时健康检查信息。
 type HealthInfo = madyserver.HealthInfo
-
-// SaveWindowState 持久化窗口几何信息，供前端 beforeunload 时调用。
-func (a *App) SaveWindowState(width, height int) {
-	if width < 400 || height < 300 {
-		return
-	}
-	saveWindowState(windowState{Width: width, Height: height})
-	log.Printf("[mady-desktop] saved window state: %dx%d", width, height)
-}
 
 // Health 返回桌面端运行时健康信息。
 func (a *App) Health() (HealthInfo, error) {
@@ -618,6 +732,7 @@ func toKebabCase(s string) string {
 // --- 错误值 ---
 
 var errServerNotReady = fmt.Errorf("server not ready: startup may not have completed")
+var errTabsNotReady = fmt.Errorf("tabs not ready: startup may not have completed")
 
 func errRunNotFound(runID string) error {
 	return fmt.Errorf("run %s not found", runID)

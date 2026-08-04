@@ -621,18 +621,16 @@ func (l *chatLayout) recalcMaxRows(width, height int64) {
 }
 
 // updateJudgmentView syncs the judgment view state from the ChatApp model.
-// It derives the status text from the FSM state (model.state), falling back
-// to the Running+StreamID heuristic only when the FSM is in Idle (the FSM
-// doesn't track "between-phases-activity" that the old heuristic detected).
-// This is the transitional implementation; after full FSM adoption the
-// Running+StreamID+ActiveTools fields will be removed.
+// The status text is derived purely from the FSM state. The former
+// Running+StreamID fallback heuristic (which papered over "between-phases"
+// activity the FSM didn't track) is gone: transitionFromIdle now treats a
+// late delta as streaming activity, so the FSM is the single truth source.
 func (l *chatLayout) updateJudgmentView() {
 	if l.judgmentView == nil {
 		return
 	}
 	l.app.mu.Lock()
 	fsmState := l.app.model.state
-	streamID := l.app.model.StreamID
 	js := l.app.model.judgmentSummary
 	l.app.mu.Unlock()
 
@@ -653,15 +651,10 @@ func (l *chatLayout) updateJudgmentView() {
 		status = "failed"
 	case StateInterrupted:
 		status = "interrupted"
+	case StateConfirmPending:
+		status = "confirming"
 	case StateIdle:
-		// Fallback: the old heuristic detected "between-phases" activity via
-		// Running+ActiveTools; use it for idle-only until full FSM migration.
-		// Running is no longer the single truth source; check ActiveTools only.
-		if streamID != "" {
-			status = "streaming"
-		} else {
-			status = "idle"
-		}
+		status = "idle"
 	}
 	l.judgmentView.SetStatus(status)
 
@@ -713,7 +706,7 @@ func popLastPathSegment(value string) string {
 func buildSystemStatusData(app *ChatApp, mode string) SystemStatusData {
 	app.mu.Lock()
 	fsmState := app.model.state
-	toolCount := len(app.model.ActiveTools)
+	toolCount := len(app.model.activeTools)
 	js := app.model.judgmentSummary
 	app.mu.Unlock()
 

@@ -251,8 +251,7 @@ func adjustStart(old, newRow Row, l int) int {
 // is guaranteed to be within [l, r] because continuation cells never differ
 // independently of their primary. Expanding r further right would include
 // unchanged cells, wasting terminal output.
-// Note: this function exists for API symmetry with adjustStart and for
-// future-proofing against alternative segment-boundary strategies.
+
 func adjustEnd(old, newRow Row, r int) int {
 	return r
 }

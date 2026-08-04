@@ -16,23 +16,17 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { type ThemeMode, type ThemePackId } from '@/theme/tokens'
+import { type ThemeMode } from '@/theme/tokens'
 
 // ── Types ─────────────────────────────────────────
 
 export interface SettingsState {
   /** 主题模式。 */
   themeMode: ThemeMode
-  /** 主题包 ID。 */
-  themePack: ThemePackId
   /** 布局模式。 */
   layout: LayoutMode
   /** 侧栏是否折叠（W4-T13 布局持久化，参考 jcp 布局恢复模式）。 */
   sidebarCollapsed: boolean
-  /** 右侧 Agent 面板宽度（px）。 */
-  agentPanelWidth: number
-  /** 文件查看器是否打开。 */
-  fileViewerOpen: boolean
   /** 默认 Provider。 */
   provider: string
   /** 默认模型。 */
@@ -61,11 +55,8 @@ export type SettingsStore = SettingsState & SettingsActions
 
 const DEFAULTS: SettingsState = {
   themeMode: 'system',
-  themePack: 'professional',
   layout: 'standard',
   sidebarCollapsed: false,
-  agentPanelWidth: 380,
-  fileViewerOpen: false,
   provider: '',
   model: '',
   modelId: 'deepseek-v4',

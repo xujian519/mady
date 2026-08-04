@@ -3,22 +3,30 @@
 
 校验 CLAUDE.md / AGENTS.md / CONTRIBUTING.md 中的关键声明与代码库实际状态
 是否一致：
-  1. 根模块 Go 文件计数（非测试/测试）与 CLAUDE.md、AGENTS.md 声明
+  1. 被 git 跟踪的 Go 文件计数（非测试/测试）与 CLAUDE.md、AGENTS.md 声明
+     —— 使用 `git ls-files` 口径，与版本库一致、结果可复现，天然排除
+     node_modules、vendor、构建产物等未跟踪/被忽略目录
   2. cmd/mady 子命令数量与文档声明（14 个）
   3. 文档目录树中引用的每个路径是否真实存在（解析嵌套层级）
   4. 内置领域 manifest 数量（应为 3 个）
 
-用法: scripts/check-doc-consistency.py    # 退出码非 0 表示存在漂移
+用法:
+  scripts/check-doc-consistency.py          # 退出码非 0 表示存在漂移
+  scripts/check-doc-consistency.py --update # 检测到计数漂移时自动同步文档
 """
 
 import os
 import re
+import subprocess
 import sys
+from datetime import date
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 
+UPDATE = "--update" in sys.argv
 fail = 0
+updated_files: list[str] = []
 
 
 def warn(msg: str) -> None:
@@ -27,46 +35,115 @@ def warn(msg: str) -> None:
     fail = 1
 
 
-# --- 1. Go 文件计数 ----------------------------------------------------------
-src_count = 0
-test_count = 0
-for dirpath, _, files in os.walk("."):
-    if "/vendor/" in dirpath or dirpath.startswith("./vendor"):
-        continue
-    for f in files:
-        if f.endswith(".go"):
-            if f.endswith("_test.go"):
-                test_count += 1
-            else:
-                src_count += 1
+def sync_file(path: str, subs: list[tuple[re.Pattern, str]]) -> None:
+    """按 subs 逐个替换 path 中首个匹配；发生变更则写回并记录。"""
+    text = open(path, encoding="utf-8").read()
+    new = text
+    for pat, repl in subs:
+        new = pat.sub(repl, new, count=1)
+    if new != text:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(new)
+        updated_files.append(path)
 
+
+# --- 1. Go 文件计数（git 跟踪口径） ------------------------------------------
+def get_git_counts() -> tuple[int, int]:
+    """统计被 git 跟踪的 Go 文件（返回非测试数、测试数）。"""
+    out = subprocess.run(
+        ["git", "ls-files"], capture_output=True, text=True, check=True
+    ).stdout.splitlines()
+    src = test = 0
+    for f in out:
+        if f.endswith("_test.go"):
+            test += 1
+        elif f.endswith(".go"):
+            src += 1
+    return src, test
+
+
+src_count, test_count = get_git_counts()
 total = src_count + test_count
+hundreds = total // 100 * 100  # "1500+" 这类百位下限声明应取的值
+
 claude_md = open("CLAUDE.md", encoding="utf-8").read()
-if total < 1400:
+
+# 百位下限声明（"1500+ 个 Go 源文件"）—— 声明是下限，实际不得低于它
+m = re.search(r"(\d+)\+\s*个 Go 源文件", claude_md)
+if m:
+    if total < int(m.group(1)):
+        warn(f"CLAUDE.md 声称 {m.group(1)}+ 个 Go 源文件，实际 {total}")
+        if UPDATE:
+            sync_file(
+                "CLAUDE.md",
+                [(re.compile(r"\d+\+\s*个 Go 源文件"), f"{hundreds}+ 个 Go 源文件")],
+            )
+elif total < 1400:  # 声明缺失时的兜底下限
     warn(f"CLAUDE.md 声称 1400+ 个 Go 源文件，实际 {total}")
 
-# 从 CLAUDE.md 提取声明计数（"~980 非测试 + ~450 测试"），±10 容差
+# 精确计数声明（"~980 非测试 + ~450 测试"），±10 容差
 m = re.search(r"~(\d+)\s*非测试\s*\+\s*~(\d+)\s*测试", claude_md)
 if m:
     decl_src, decl_test = int(m.group(1)), int(m.group(2))
-    if abs(src_count - decl_src) > 10:
+    src_drift = abs(src_count - decl_src) > 10
+    test_drift = abs(test_count - decl_test) > 10
+    if src_drift:
         warn(f"CLAUDE.md 声明 ~{decl_src} 非测试文件，实际 {src_count}")
-    if abs(test_count - decl_test) > 10:
+    if test_drift:
         warn(f"CLAUDE.md 声明 ~{decl_test} 测试文件，实际 {test_count}")
+    if (src_drift or test_drift) and UPDATE:
+        sync_file(
+            "CLAUDE.md",
+            [
+                (
+                    re.compile(r"~\d+\s*非测试\s*\+\s*~\d+\s*测试"),
+                    f"~{src_count} 非测试 + ~{test_count} 测试",
+                )
+            ],
+        )
 
-# AGENTS.md 文件计数（若声明存在）— 非测试/测试/总数三向校验
+# AGENTS.md 文件计数（若声明存在）— 非测试/测试/总数三向校验。
+# 注意：AGENTS.md 使用全角括号（），正则必须匹配全角字符，
+# 历史版本误用半角 \(\) 导致该检查从未生效。
+agents_md = open("AGENTS.md", encoding="utf-8").read()
 m = re.search(
-    r"(\d+)\s*个 Go 源文件\s*\((\d+)\s*非测试\s*\+\s*(\d+)\s*测试\)",
-    open("AGENTS.md", encoding="utf-8").read(),
+    r"(\d+)\s*个 Go 源文件\s*（(\d+)\s*非测试\s*\+\s*(\d+)\s*测试）",
+    agents_md,
 )
 if m:
     decl_total, decl_src, decl_test = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    drift = False
     if abs(src_count - decl_src) > 5:
         warn(f"AGENTS.md 声明 {decl_src} 非测试文件，实际 {src_count}")
+        drift = True
     if abs(test_count - decl_test) > 5:
         warn(f"AGENTS.md 声明 {decl_test} 测试文件，实际 {test_count}")
+        drift = True
     if abs(total - decl_total) > 10:
         warn(f"AGENTS.md 声明 {decl_total} 个 Go 源文件，实际 {total}")
+        drift = True
+    if drift and UPDATE:
+        sync_file(
+            "AGENTS.md",
+            [
+                (
+                    re.compile(
+                        r"\d+\s*个 Go 源文件\s*（\d+\s*非测试\s*\+\s*\d+\s*测试）"
+                    ),
+                    f"{total} 个 Go 源文件（{src_count} 非测试 + {test_count} 测试）",
+                )
+            ],
+        )
+        # 计数被同步时，一并刷新"文件计数更新时间"标记
+        sync_file(
+            "AGENTS.md",
+            [
+                (
+                    re.compile(r"文件计数更新时间：\d{4}-\d{2}-\d{2}"),
+                    f"文件计数更新时间：{date.today().isoformat()}",
+                )
+            ],
+        )
 
 # --- 2. cmd/mady 子命令 ------------------------------------------------------
 main_go = open("cmd/mady/main.go", encoding="utf-8").read()
@@ -123,5 +200,11 @@ if fail == 0:
         f"子命令={len(subcmd_names)}, manifests={manifest_count}）"
     )
 else:
-    print("✗ 文档一致性检查失败 — 请同步更新 CLAUDE.md / AGENTS.md / CONTRIBUTING.md")
+    if UPDATE and updated_files:
+        print(
+            "  ℹ 已自动同步计数: "
+            + ", ".join(updated_files)
+            + " — 请重新运行 doc-check 确认"
+        )
+    print("✗ 文档一致性检查失败 — 请同步更新文档或运行 scripts/check-doc-consistency.py --update")
 sys.exit(1 if fail else 0)

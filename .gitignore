@@ -5,8 +5,9 @@
 *.dll
 *.so
 *.dylib
-cli-chat
-wiki-import
+# 编译产物二进制（锚定根目录，避免误伤 example/ 下的同名示例目录）
+/cli-chat
+/wiki-import
 a2ui-demo
 a2a-client
 a2a-server

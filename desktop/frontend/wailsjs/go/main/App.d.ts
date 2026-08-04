@@ -3,21 +3,36 @@
 import {server} from '../models';
 import {main} from '../models';
 import {session} from '../models';
+import {memory} from '../models';
 import {a2ui} from '../models';
+
+export function ActivateTab(arg1:string):Promise<void>;
+
+export function ActiveTabID():Promise<string>;
+
+export function BindThreadToSession(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function Cancel(arg1:string):Promise<void>;
 
 export function Chat(arg1:server.ChatRequest):Promise<string>;
 
+export function ChatInTab(arg1:string,arg2:server.ChatRequest):Promise<string>;
+
 export function CheckUpdate():Promise<main.UpdateInfo>;
+
+export function CloseTab(arg1:string):Promise<void>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<string>;
 
 export function CreateProjectFolder(arg1:string):Promise<main.ProjectInfo>;
 
+export function CreateTab():Promise<main.Tab>;
+
 export function DeleteEntry(arg1:string):Promise<void>;
 
 export function DeleteThread(arg1:string):Promise<void>;
+
+export function ForgetMemory(arg1:string):Promise<void>;
 
 export function GetAISettings():Promise<main.AISettings>;
 
@@ -35,19 +50,35 @@ export function ListDocTemplates():Promise<Array<main.DocTemplateEntry>>;
 
 export function ListMcpServers():Promise<Array<main.McpServerEntry>>;
 
+export function ListMemories(arg1:number):Promise<Array<memory.MemoryEntry>>;
+
 export function ListModels():Promise<Array<main.ModelEntry>>;
 
 export function ListProjects():Promise<Array<main.ProjectInfo>>;
 
 export function ListSkills():Promise<Array<main.SkillEntry>>;
 
+export function ListTabs():Promise<Array<main.Tab>>;
+
 export function ListThreads():Promise<Array<main.ThreadSummary>>;
+
+export function ListTrashedThreads():Promise<Array<main.ThreadSummary>>;
+
+export function PurgeThread(arg1:string):Promise<void>;
 
 export function ReadFile(arg1:string):Promise<main.FileContent>;
 
+export function RecallMemories(arg1:string,arg2:number):Promise<Array<memory.ScoredMemory>>;
+
+export function RememberMemory(arg1:string):Promise<string>;
+
 export function RenameFolder(arg1:string,arg2:string):Promise<void>;
 
-export function SaveWindowState(arg1:number,arg2:number):Promise<void>;
+export function RenameThread(arg1:string,arg2:string):Promise<void>;
+
+export function RestoreThread(arg1:string):Promise<void>;
+
+export function SavePastedImage(arg1:string):Promise<string>;
 
 export function SelectProjectFolder():Promise<main.ProjectInfo>;
 
@@ -56,5 +87,7 @@ export function SendAction(arg1:string,arg2:a2ui.ClientAction):Promise<void>;
 export function SetAISettings(arg1:main.AISettings):Promise<void>;
 
 export function SwitchProject(arg1:string):Promise<void>;
+
+export function TrashThread(arg1:string):Promise<void>;
 
 export function WriteFile(arg1:string,arg2:string):Promise<void>;

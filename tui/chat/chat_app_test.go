@@ -256,7 +256,10 @@ func TestCtrlCInterruptsNeverCopy(t *testing.T) {
 	app, _ := newTestChatApp(t, ChatAppConfig{
 		OnInterrupt: func() { interrupted = true },
 	})
-	app.Busy("working") // agent "running"
+	// Agent run in progress: onAgentStart drives the FSM to Streaming (and
+	// Busy is a UI side effect of it). isRunning() now derives from the FSM
+	// state rather than a Running flag.
+	app.onAgentStart(AgentStartChatEvent{})
 
 	app.editor.Update(core.KeyMsg{Data: "hello"})
 	app.editor.Render(40)                                                      // populate lastVisuals; default prompt "> " is 2 cols wide
@@ -425,8 +428,9 @@ func TestChatAppFSMFullLifecycle(t *testing.T) {
 	}
 }
 
-// TestChatAppFSMApprovalFlow verifies the approval interrupt path:
-// streaming → awaiting-confirm → idle (approval decision).
+// TestChatAppFSMApprovalFlow verifies the full approval cycle:
+// streaming → awaiting-confirm → (approve → new run) → streaming, and that
+// the judgment view leaves "awaiting_review" once the run resumes.
 func TestChatAppFSMApprovalFlow(t *testing.T) {
 	app, _ := newTestChatApp(t, ChatAppConfig{})
 	app.MarkAgentReady()
@@ -448,6 +452,20 @@ func TestChatAppFSMApprovalFlow(t *testing.T) {
 	}
 	if !app.judgmentView.IsExpanded() {
 		t.Error("judgment view should be expanded during approval")
+	}
+
+	// User approves — submitted as a new agent run (AgentStart). The FSM must
+	// leave AwaitingConfirm and the judgment view must leave awaiting_review;
+	// previously the state stayed AwaitingConfirm until AgentEnd, so the
+	// whole run displayed "awaiting_review".
+	app.onAgentStart(AgentStartChatEvent{})
+	app.mu.Lock()
+	if s := app.model.state; s != StateStreaming {
+		t.Errorf("after approve+agentStart: FSM = %s, want %s", s, StateStreaming)
+	}
+	app.mu.Unlock()
+	if status := app.judgmentView.Status(); status == "awaiting_review" {
+		t.Error("judgment view still awaiting_review after approval resumed the run")
 	}
 }
 

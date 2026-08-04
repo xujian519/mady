@@ -18,6 +18,7 @@ import { CodeEditor } from './CodeEditor'
 import { ImagePreview } from './ImagePreview'
 import { MarkdownPreview } from './MarkdownPreview'
 import { PdfViewer } from './PdfViewer'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 /** 格式化文件大小。 */
 function formatSize(bytes: number): string {
@@ -29,6 +30,8 @@ function formatSize(bytes: number): string {
 export const FileViewerOverlay: React.FC = () => {
   const { current, loading, saving, error, draft, closeFile, setDraft, saveFile } = useFilesStore()
   const dirty = draft !== null
+  // 未保存修改时关闭文件需确认（WKWebView 不支持 window.confirm，统一走 ConfirmDialog，M-11）
+  const [confirmClose, setConfirmClose] = useState(false)
   // md 文件的查看模式：preview（默认）或 edit
   const [mode, setMode] = useState<'preview' | 'edit'>('preview')
 
@@ -47,7 +50,10 @@ export const FileViewerOverlay: React.FC = () => {
     if (!current && !loading) return
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (dirty && !window.confirm('有未保存的修改，确定关闭？')) return
+        if (dirty) {
+          setConfirmClose(true)
+          return
+        }
         closeFile()
       }
     }
@@ -58,7 +64,15 @@ export const FileViewerOverlay: React.FC = () => {
   if (!current && !loading && !error) return null
 
   const handleClose = () => {
-    if (dirty && !window.confirm('有未保存的修改，确定关闭？')) return
+    if (dirty) {
+      setConfirmClose(true)
+      return
+    }
+    closeFile()
+  }
+
+  const handleConfirmClose = () => {
+    setConfirmClose(false)
     closeFile()
   }
 
@@ -67,7 +81,8 @@ export const FileViewerOverlay: React.FC = () => {
   const lines = text ? text.split('\n').length : 0
 
   return (
-    <aside className={`${current?.kind === 'pdf' ? 'w-[680px]' : 'w-[460px]'} shrink-0 h-full flex flex-col bg-mady-bg-primary border-l border-mady-separator shadow-2xl`}>
+    <>
+      <aside className={`${current?.kind === 'pdf' ? 'w-[680px]' : 'w-[460px]'} shrink-0 h-full flex flex-col bg-mady-bg-primary border-l border-mady-separator shadow-2xl`}>
       {/* 标题栏 */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-mady-separator bg-mady-bg-secondary/50">
         <div className="flex items-center gap-2 min-w-0">
@@ -157,6 +172,15 @@ export const FileViewerOverlay: React.FC = () => {
           </span>
         </div>
       )}
-    </aside>
+      </aside>
+      <ConfirmDialog
+        open={confirmClose}
+        title="未保存的修改"
+        message="有未保存的修改，确定放弃并关闭？"
+        confirmLabel="放弃修改"
+        onConfirm={handleConfirmClose}
+        onCancel={() => setConfirmClose(false)}
+      />
+    </>
   )
 }
