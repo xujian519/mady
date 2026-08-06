@@ -32,7 +32,11 @@ type CitedReference struct {
 
 // ParsedOfficeAction holds the structured result of parsing an Office Action text.
 type ParsedOfficeAction struct {
-	RejectionType     OaRejectionType
+	// RejectionType is the primary rejection category (first detected in text order).
+	RejectionType OaRejectionType
+	// RejectionTypes lists all detected rejection categories, ordered by their
+	// first appearance in the source text (e.g. novelty + inventiveness).
+	RejectionTypes    []OaRejectionType
 	Citations         []CitedReference
 	AffectedClaims    []int
 	ExaminerArguments []string
@@ -47,21 +51,58 @@ var oaRejectionPatterns = []struct {
 	{OaClarity, []string{"不清楚", "26条第4款", "简明"}},
 	{OaSupport, []string{"不支持", "得不到说明书支持"}},
 	{OaDisclosure, []string{"公开不充分", "26条第3款", "无法实现"}},
-	{OaScope, []string{"保护范围", "33条", "修改超范围"}},
+	{OaScope, []string{"33条", "修改超范围", "超出原说明书", "超出原始记载"}},
 	{OaFormal, []string{"形式", "格式", "书写", "明显错误"}},
 }
 
-// DetectOaRejectionType inspects text and returns the matching rejection category.
+// DetectOaRejectionType inspects text and returns the first matching rejection
+// category (in text order). Prefer DetectOaRejectionTypes when the OA may cite
+// multiple distinct grounds.
 func DetectOaRejectionType(text string) OaRejectionType {
-	t := strings.ToLower(text)
+	types := DetectOaRejectionTypes(text)
+	if len(types) == 0 {
+		return OaOther
+	}
+	return types[0]
+}
+
+// DetectOaRejectionTypes inspects text and returns every matching rejection
+// category, deduplicated and ordered by first appearance in the source text.
+// An OA notification commonly cites several grounds at once (e.g. novelty for
+// claim 1 and inventiveness for claims 2-3); each distinct ground needs its
+// own response strategy.
+func DetectOaRejectionTypes(text string) []OaRejectionType {
+	lower := strings.ToLower(text)
+
+	type hit struct {
+		pos int
+		typ OaRejectionType
+	}
+	var hits []hit
+	seen := make(map[OaRejectionType]bool)
+
 	for _, entry := range oaRejectionPatterns {
+		// Find the earliest occurrence among all patterns of this category,
+		// so text-order sorting reflects the true first mention.
+		best := -1
 		for _, p := range entry.patterns {
-			if strings.Contains(t, strings.ToLower(p)) {
-				return entry.typ
+			if idx := strings.Index(lower, strings.ToLower(p)); idx >= 0 && (best == -1 || idx < best) {
+				best = idx
 			}
 		}
+		if best >= 0 && !seen[entry.typ] {
+			seen[entry.typ] = true
+			hits = append(hits, hit{pos: best, typ: entry.typ})
+		}
 	}
-	return OaOther
+
+	sort.Slice(hits, func(i, j int) bool { return hits[i].pos < hits[j].pos })
+
+	out := make([]OaRejectionType, len(hits))
+	for i, h := range hits {
+		out[i] = h.typ
+	}
+	return out
 }
 
 var allPatentRe = regexp.MustCompile(`(?:CN|US|WO|EP|JP|KR)\d{6,}[A-Z]?`)
@@ -88,7 +129,11 @@ func ExtractCitations(text string) []CitedReference {
 }
 
 var claimRe = regexp.MustCompile(`权利要求\s*(\d+)`)
-var claimRangeRe = regexp.MustCompile(`第\s*(\d+)\s*[-至到]\s*(\d+)\s*项`)
+
+// claimRangeRe matches claim ranges in both common phrasings:
+//   - "第1-5项" / "第1至5项"（带"项"后缀）
+//   - "权利要求1-3" / "权利要求1至3"（无"项"后缀，审查意见中最常见写法）
+var claimRangeRe = regexp.MustCompile(`(?:第|权利要求)\s*(\d+)\s*[-至到]\s*(\d+)\s*(?:项)?`)
 
 // ExtractAffectedClaims collects all claim numbers mentioned in the text,
 // expanding ranges like "第1-5项" into individual numbers.
@@ -122,8 +167,14 @@ func ExtractAffectedClaims(text string) []int {
 
 // ParseOfficeAction is the top-level entry point that combines all extraction steps.
 func ParseOfficeAction(text string) ParsedOfficeAction {
+	rejectionTypes := DetectOaRejectionTypes(text)
+	rejectionType := OaOther
+	if len(rejectionTypes) > 0 {
+		rejectionType = rejectionTypes[0]
+	}
 	return ParsedOfficeAction{
-		RejectionType:     DetectOaRejectionType(text),
+		RejectionType:     rejectionType,
+		RejectionTypes:    rejectionTypes,
 		Citations:         ExtractCitations(text),
 		AffectedClaims:    ExtractAffectedClaims(text),
 		ExaminerArguments: []string{},

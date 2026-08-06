@@ -414,10 +414,9 @@ func TestOAEnhanceNode_NoopOnNilProvider(t *testing.T) {
 		t.Fatalf("noop enhance node error = %v", err)
 	}
 
-	// Should pass through unchanged.
-	draft := out.GetString(OAStateResponseDraft)
-	if draft != "test draft" {
-		t.Error("expected draft to pass through unchanged")
+	// 增量语义：no-op 节点不触碰 draft，只标记 LLMEnhanced=false。
+	if _, exists := out[OAStateResponseDraft]; exists {
+		t.Error("no-op node should not touch the draft (incremental state)")
 	}
 	enhanced, ok := out[OAStateLLMEnhanced].(bool)
 	if !ok || enhanced {
@@ -589,5 +588,211 @@ func TestBuildOAResponseGraphWithOpts_WithoutRetriever(t *testing.T) {
 	// No dynamic retrieval section should appear.
 	if strings.Contains(output, "适用法条与审查指南") {
 		t.Error("should not contain dynamic rules section when no retriever")
+	}
+}
+
+// =============================================================================
+// 多驳回类型（mixed grounds）测试
+// =============================================================================
+
+func TestClassifyRejectionNode_MultipleTypes(t *testing.T) {
+	parsed := &ParsedOfficeAction{
+		RejectionType:  string(OaNovelty),
+		RejectionTypes: []OaRejectionType{OaNovelty, OaInventiveness, OaClarity},
+	}
+	state := graph.PregelState{
+		OAStateInput:          "test OA text",
+		OAStateParsed:         parsed,
+		OAStateRejectionType:  string(OaNovelty),
+		OAStateRejectionTypes: []OaRejectionType{OaNovelty, OaInventiveness, OaClarity},
+	}
+
+	out, err := classifyRejectionNode(context.Background(), state)
+	if err != nil {
+		t.Fatalf("classifyRejectionNode() error = %v", err)
+	}
+
+	// Primary (first) strategy/template preserved for backward compatibility.
+	if got := out.GetString(OAStateResponseStrategy); got != "argument" {
+		t.Errorf("primary strategy = %q, want argument", got)
+	}
+	if got := out.GetString(OAStateTemplateUsed); got != "novelty-defense" {
+		t.Errorf("primary template = %q, want novelty-defense", got)
+	}
+
+	// Per-type strategy list.
+	strategies, ok := out[OAStateStrategies].([]string)
+	if !ok {
+		t.Fatalf("expected OAStateStrategies []string, got %T", out[OAStateStrategies])
+	}
+	wantStrategies := []string{"argument", "argument", "amendment"}
+	if len(strategies) != len(wantStrategies) {
+		t.Fatalf("strategies = %v, want %v", strategies, wantStrategies)
+	}
+	for i, s := range wantStrategies {
+		if strategies[i] != s {
+			t.Errorf("strategies[%d] = %q, want %q", i, strategies[i], s)
+		}
+	}
+
+	// Per-type template list.
+	templates, ok := out[OAStateTemplates].([]string)
+	if !ok {
+		t.Fatalf("expected OAStateTemplates []string, got %T", out[OAStateTemplates])
+	}
+	wantTemplates := []string{"novelty-defense", "inventiveness-defense", "clarity-amendment"}
+	for i, tmpl := range wantTemplates {
+		if templates[i] != tmpl {
+			t.Errorf("templates[%d] = %q, want %q", i, templates[i], tmpl)
+		}
+	}
+}
+
+func TestAnalyzeClaimsNode_MixedTypes(t *testing.T) {
+	parsed := &ParsedOfficeAction{
+		RejectionType:  string(OaInventiveness),
+		RejectionTypes: []OaRejectionType{OaInventiveness, OaClarity},
+		AffectedClaims: []int{1, 2, 3},
+	}
+	state := graph.PregelState{
+		OAStateParsed:           parsed,
+		OAStateRejectionType:    string(OaInventiveness),
+		OAStateRejectionTypes:   []OaRejectionType{OaInventiveness, OaClarity},
+		OAStateResponseStrategy: "argument",
+		OAStateStrategies:       []string{"argument", "amendment"},
+		OAStateCitations:        parsed.Citations,
+		OAStateAffectedClaims:   parsed.AffectedClaims,
+		OAStateInput:            "test OA text",
+		OAStateTemplateUsed:     "inventiveness-defense",
+	}
+
+	out, err := analyzeClaimsNode(context.Background(), state)
+	if err != nil {
+		t.Fatalf("analyzeClaimsNode() error = %v", err)
+	}
+
+	amendments := out.GetString(OAStateClaimAmendments)
+	if amendments == "" {
+		t.Fatal("expected non-empty claim amendments")
+	}
+	// 创造性（争辩）不生成修改行，不清楚（修改）生成一行。
+	if !strings.Contains(amendments, "| 驳回类型 | 修改类型 |") {
+		t.Error("expected rejection type column in amendment table")
+	}
+	if !strings.Contains(amendments, "| 不清楚 | 澄清限定 | [原内容] | [建议修改] | 专利法第26条第4款（清楚） | 1, 2, 3 |") {
+		t.Errorf("expected clarity amendment row with claims 1, 2, 3, got:\n%s", amendments)
+	}
+	if strings.Contains(amendments, "| — | 无需修改 |") {
+		t.Errorf("argument+amendment mix should not show the no-amendment placeholder:\n%s", amendments)
+	}
+	// 每个驳回类型一段策略建议。
+	if !strings.Contains(amendments, "### 创造性（策略：争辩）") {
+		t.Error("expected inventiveness strategy block")
+	}
+	if !strings.Contains(amendments, "### 不清楚（策略：修改）") {
+		t.Error("expected clarity strategy block")
+	}
+}
+
+func TestDraftResponseBodies_Numbering(t *testing.T) {
+	body := draftResponseBodies([]OaRejectionType{OaNovelty, OaInventiveness, OaClarity})
+
+	for _, want := range []string{
+		"### 一、关于新颖性（专利法第22条第2款）",
+		"### 二、关于创造性（专利法第22条第3款）",
+		"### 三、关于权利要求不清楚（专利法第26条第4款）",
+		"### 结论",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("expected %q in multi-type response body:\n%s", want, body)
+		}
+	}
+	// 结论只出现一次。
+	if strings.Count(body, "### 结论") != 1 {
+		t.Errorf("expected exactly one conclusion, got %d", strings.Count(body, "### 结论"))
+	}
+}
+
+func TestSummarizeStrategies(t *testing.T) {
+	got := summarizeStrategies(
+		[]OaRejectionType{OaNovelty, OaClarity},
+		[]string{"argument", "amendment"},
+	)
+	want := "新颖性→争辩、不清楚→修改"
+	if got != want {
+		t.Errorf("summarizeStrategies() = %q, want %q", got, want)
+	}
+	if got := summarizeStrategies(nil, nil); got != "综合答复" {
+		t.Errorf("empty summarizeStrategies() = %q, want 综合答复", got)
+	}
+}
+
+func TestFullOAResponsePipeline_MixedTypes(t *testing.T) {
+	oaText := `审查意见通知书
+
+本申请涉及一种基于深度学习的图像识别方法。审查员认为：
+
+1. 权利要求1-3相对于对比文件1（CN202410001A）不具备新颖性，不符合专利法第22条第2款的规定。
+2. 权利要求4相对于对比文件1和对比文件2（CN202410002B）的结合不具备创造性，不符合专利法第22条第3款的规定。
+3. 权利要求5不清楚，不符合专利法第26条第4款的规定。`
+
+	g, err := BuildOAResponseGraph()
+	if err != nil {
+		t.Fatalf("BuildOAResponseGraph() error = %v", err)
+	}
+
+	state, err := g.Run(context.Background(), graph.PregelState{
+		OAStateInput: oaText,
+	})
+	if err != nil {
+		t.Fatalf("graph.Run() error = %v", err)
+	}
+
+	// 区间展开："权利要求1-3" 应展开为 1、2、3。
+	claims, ok := state[OAStateAffectedClaims].([]int)
+	if !ok {
+		t.Fatal("expected OAStateAffectedClaims []int")
+	}
+	wantClaims := []int{1, 2, 3, 4, 5}
+	if len(claims) != len(wantClaims) {
+		t.Fatalf("affected claims = %v, want %v", claims, wantClaims)
+	}
+	for i, c := range wantClaims {
+		if claims[i] != c {
+			t.Errorf("claims[%d] = %d, want %d", i, claims[i], c)
+		}
+	}
+
+	// 多驳回类型全部识别。
+	types, ok := state[OAStateRejectionTypes].([]OaRejectionType)
+	if !ok || len(types) != 3 {
+		t.Fatalf("expected 3 rejection types, got %v", state[OAStateRejectionTypes])
+	}
+
+	output := state.GetString(OAStateOutput)
+	if output == "" {
+		t.Fatal("expected non-empty output")
+	}
+
+	// 三段意见陈述（每种驳回类型一段）+ 单一结论。
+	for _, want := range []string{
+		"### 一、关于新颖性（专利法第22条第2款）",
+		"### 二、关于创造性（专利法第22条第3款）",
+		"### 三、关于权利要求不清楚（专利法第26条第4款）",
+		"### 结论",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("expected %q in output", want)
+		}
+	}
+	// 策略摘要包含所有类型的映射。
+	for _, want := range []string{"新颖性→争辩", "创造性→争辩", "不清楚→修改"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("expected %q in strategy summary", want)
+		}
+	}
+	// 清楚性驳回类型应有修改行（每类型一行，涉及权利要求列表展示）。
+	if !strings.Contains(output, "| 不清楚 | 澄清限定 | [原内容] | [建议修改] | 专利法第26条第4款（清楚） | 1, 2, 3, 4, 5 |") {
+		t.Errorf("expected clarity amendment row with all claims in output")
 	}
 }

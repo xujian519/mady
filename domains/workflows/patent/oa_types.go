@@ -29,7 +29,10 @@ type CitedReference struct {
 
 // ParsedOfficeAction represents a parsed OA notification (wraps rules.ParsedOfficeAction).
 type ParsedOfficeAction struct {
-	RejectionType     string
+	// RejectionType is the primary (first-detected) rejection category.
+	RejectionType string
+	// RejectionTypes lists all detected rejection categories in text order.
+	RejectionTypes    []OaRejectionType
 	Citations         []CitedReference
 	AffectedClaims    []int
 	ExaminerArguments []string
