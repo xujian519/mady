@@ -29,13 +29,6 @@ func DecodeStructuredInto(raw string, dst any) error {
 	return nil
 }
 
-// RunStructured runs the agent and decodes the final output into T.
-func RunStructured[T any](ctx context.Context, agent *Agent, input string) (T, error) {
-	var out T
-	_, err := RunStructuredInto(ctx, agent, input, &out)
-	return out, err
-}
-
 // RunStructuredInto runs the agent and decodes the final output into dst.
 // It returns the raw output string for callers that also want the original JSON.
 func RunStructuredInto[T any](ctx context.Context, agent *Agent, input string, dst *T) (string, error) {
@@ -47,13 +40,6 @@ func RunStructuredInto[T any](ctx context.Context, agent *Agent, input string, d
 		return raw, err
 	}
 	return raw, nil
-}
-
-// ContinueStructured resumes the agent and decodes the final output into T.
-func ContinueStructured[T any](ctx context.Context, agent *Agent) (T, error) {
-	var out T
-	_, err := ContinueStructuredInto(ctx, agent, &out)
-	return out, err
 }
 
 // ContinueStructuredInto resumes the agent and decodes the final output into dst.

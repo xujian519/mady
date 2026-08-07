@@ -6,7 +6,6 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	iface "github.com/xujian519/mady/agentcore/iface"
-	"github.com/xujian519/mady/pkg/csync"
 )
 
 // Level defines the strictness tier of a guardrail.
@@ -27,24 +26,6 @@ const (
 	// incorrect output could have real-world consequences.
 	LevelStrict
 )
-
-var customLevels = csync.NewMap[string, Level]()
-
-// RegisterLevel registers a custom guardrail level name and associates it
-// with the given Level value. The name is also registered with agentcore
-// manifest validation so manifest files can reference it.
-// Empty names or duplicate registrations are ignored.
-func RegisterLevel(name string, level Level) {
-	if name == "" {
-		return
-	}
-	customLevels.Set(name, level)
-}
-
-// RegisteredLevel returns the Level value registered for name, if any.
-func RegisteredLevel(name string) (Level, bool) {
-	return customLevels.Get(name)
-}
 
 // Config configures a guardrail instance.
 type Config struct {

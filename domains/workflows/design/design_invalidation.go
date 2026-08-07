@@ -7,7 +7,6 @@ import (
 
 	"github.com/xujian519/mady/domains/workflows/patent"
 	"github.com/xujian519/mady/graph"
-	"github.com/xujian519/mady/retrieval/domain"
 )
 
 // State keys used by the design patent invalidation workflow.
@@ -430,15 +429,7 @@ func designConcludeNode(ctx context.Context, state graph.PregelState) (graph.Pre
 // DesignGraphOption optionally configures the design invalidation graph.
 type DesignGraphOption func(*designGraphConfig)
 
-type designGraphConfig struct {
-	retriever domain.DomainRetriever
-}
-
-// WithDesignRetriever injects a domain retriever for design evidence search.
-// When not injected, evidence gathering returns degraded results.
-func WithDesignRetriever(r domain.DomainRetriever) DesignGraphOption {
-	return func(c *designGraphConfig) { c.retriever = r }
-}
+type designGraphConfig struct{}
 
 // BuildDesignInvalidationGraphWithOpts constructs the design invalidation
 // Pregel graph with optional dependency injection.

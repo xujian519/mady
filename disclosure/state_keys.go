@@ -46,21 +46,6 @@ func SetExtraction(state graph.PregelState, ext *ExtractionResult) {
 	state[StateKeyExtraction] = ext
 }
 
-// GetConsistency 从 state 中读取 ConsistencyResult。
-func GetConsistency(state graph.PregelState) (*ConsistencyResult, bool) {
-	raw, ok := state[StateKeyConsistency]
-	if !ok {
-		return nil, false
-	}
-	cr, ok := raw.(*ConsistencyResult)
-	return cr, ok
-}
-
-// SetConsistency 将 ConsistencyResult 写入 state。
-func SetConsistency(state graph.PregelState, cr *ConsistencyResult) {
-	state[StateKeyConsistency] = cr
-}
-
 // GetSearchKeywords 从 state 中读取关键词列表。
 func GetSearchKeywords(state graph.PregelState) ([]string, bool) {
 	raw, ok := state[StateKeySearchKeywords]

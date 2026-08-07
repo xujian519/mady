@@ -54,13 +54,6 @@ type SystemPromptSegment struct {
 	Priority int `json:"priority,omitempty"`
 }
 
-// DefaultSystemPromptConfig 返回默认配置。
-func DefaultSystemPromptConfig() SystemPromptConfig {
-	return SystemPromptConfig{
-		Separator: "\n\n---\n\n",
-	}
-}
-
 // SystemPromptBuilder 构建分段式系统提示。
 type SystemPromptBuilder struct {
 	cfg SystemPromptConfig
@@ -183,11 +176,6 @@ func hasCacheableContent(content string) bool {
 // ---------------------------------------------------------------------------
 // 便捷构建函数
 // ---------------------------------------------------------------------------
-
-// BuildSystemPrompt 是单步构建完整 system prompt 的便捷函数。
-func BuildSystemPrompt(cfg SystemPromptConfig) string {
-	return NewSystemPromptBuilder(cfg).Build()
-}
 
 // InjectDynamicContext 将动态上下文附加到 system prompt 后缀。
 func (cfg *SystemPromptConfig) InjectDynamicContext(cwd string, envVars map[string]string) {

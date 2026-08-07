@@ -111,58 +111,9 @@ func TestKeywordClassifier_EmptyInput(t *testing.T) {
 	}
 }
 
-func TestPreferenceStore_BasicRecord(t *testing.T) {
-	ps := NewPreferenceStore()
-
-	correctedIntent := IntentResult{
-		Domain:     DomainPatent,
-		SubIntent:  SubIntentNovelty,
-		RunMode:    ModeJudgment,
-		Complexity: ComplexityHigh,
-		Confidence: 0.95,
-	}
-
-	// Record a preference matching keywords that will appear in the input
-	ps.Record([]string{"专利", "新颖性", "分析"}, correctedIntent)
-
-	// Input with overlapping keywords should match via bigram tokenization
-	result := ps.Classify("请帮我分析这个专利的新颖性")
-	if result.Domain != DomainPatent {
-		t.Errorf("expected patent domain, got %q", result.Domain)
-	}
-	if result.SubIntent != SubIntentNovelty {
-		t.Errorf("expected novelty sub-intent, got %q", result.SubIntent)
-	}
-}
-
-func TestPreferenceStore_NoMatch(t *testing.T) {
-	ps := NewPreferenceStore()
-
-	ps.Record([]string{"专利", "新颖性"}, IntentResult{Domain: DomainPatent})
-
-	// Completely different input should not match
-	result := ps.Classify("今天天气真好")
-	if result.Confidence != 0 {
-		t.Errorf("expected zero confidence for non-matching input, got %f", result.Confidence)
-	}
-}
-
-func TestPreferenceStore_Decay(t *testing.T) {
-	ps := NewPreferenceStore()
-
-	ps.Record([]string{"专利", "新颖性", "检索"}, IntentResult{Domain: DomainPatent})
-
-	// First match should have high confidence
-	result := ps.Classify("专利新颖性检索")
-	if result.Confidence < 0.9 {
-		t.Errorf("expected high confidence, got %f", result.Confidence)
-	}
-}
-
 func TestUnifiedRouter_KeywordPriority(t *testing.T) {
 	kc := NewKeywordClassifier()
-	ps := NewPreferenceStore()
-	router := NewUnifiedRouter(ps, kc)
+	router := NewUnifiedRouter(kc)
 
 	// Keyword should work even without preferences
 	result := router.Classify("分析专利的新颖性")
@@ -180,30 +131,5 @@ func TestUnifiedRouter_FallbackToChat(t *testing.T) {
 	result := router.Classify("hello world")
 	if result.Domain != DomainChat {
 		t.Errorf("expected chat fallback, got %q", result.Domain)
-	}
-}
-
-func TestExtractKeywords_CJK(t *testing.T) {
-	// Chinese input should produce bigrams
-	result := extractKeywords("分析专利的新颖性")
-	if len(result) == 0 {
-		t.Error("expected non-empty keywords for CJK input")
-	}
-	// Should contain bigrams like "分析", "专利", "新颖"
-	t.Logf("keywords: %v", result)
-}
-
-func TestExtractKeywords_English(t *testing.T) {
-	result := extractKeywords("hello world test")
-	if len(result) < 2 {
-		t.Errorf("expected at least 2 keywords, got %d: %v", len(result), result)
-	}
-}
-
-func TestKeywordOverlap(t *testing.T) {
-	a := []string{"专利", "新颖性", "分析"}
-	b := []string{"专利", "创造性", "分析"}
-	if got := keywordOverlap(a, b); got != 2 {
-		t.Errorf("keywordOverlap = %d, want 2", got)
 	}
 }

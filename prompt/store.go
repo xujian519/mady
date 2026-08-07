@@ -156,11 +156,6 @@ func SetDefaultStore(store *PromptStore) {
 	defaultStore = store
 }
 
-// DefaultStore returns the globally registered PromptStore, or nil if none.
-func DefaultStore() *PromptStore {
-	return defaultStore
-}
-
 // ResolveSystemPrompt interprets a raw system prompt value. If it starts with
 // "prompt://<name>", the named template's system_prompt field is returned.
 // Otherwise the raw value is returned unchanged. When the template is not

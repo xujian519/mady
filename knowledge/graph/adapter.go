@@ -25,11 +25,6 @@ func NewReasoningStoreAdapter(store *GraphStore) *ReasoningStoreAdapter {
 	return &ReasoningStoreAdapter{store: store}
 }
 
-// NewReasoningStoreAdapterWithCache creates an adapter backed by a query cache.
-func NewReasoningStoreAdapterWithCache(store *GraphStore, cache *GraphCache) *ReasoningStoreAdapter {
-	return &ReasoningStoreAdapter{store: store, cache: cache}
-}
-
 // SearchNodes implements KnowledgeGraphStore. It performs a
 // substring search and converts results to KgNode.
 func (a *ReasoningStoreAdapter) SearchNodes(keyword, nodeType string, limit int) ([]kgraph.KgNode, error) {

@@ -5,14 +5,14 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/internal/intentrules"
+	"github.com/xujian519/mady/intent"
 )
 
 // Domain names used for intent classification and routing.
 //
 // 注意：这些常量定义在 domains 根包而非 domains/router/ 子包中，是因为
-// ClassifyIntent 需要引用 internal/intentrules，而 router/ 子包若导入
-// domains 根包会形成循环依赖（根包 imports router/, router/ imports 根包）。
+// 领域常量需要与 intent 包的 Domain 枚举保持同一来源；分类逻辑统一
+// 委托给 intent 包（intent.KeywordClassifier → internal/intentrules）。
 // 如果未来将 ClassifyIntent 独立到单独的 classifier 包，这些常量可一并
 // 迁移到 domains/router/。
 const (
@@ -22,29 +22,16 @@ const (
 	DomainLegal     = "legal"
 )
 
+// intentRouter 是领域意图分类的共享路由实例。
+// 当前注册 keyword 分类器（基于 internal/intentrules 规则表）；
+// 后续可追加 LLM/语义分类器提升准确率（intent.NewLLMClassifier）。
+var intentRouter = intent.NewUnifiedRouter(intent.NewKeywordClassifier())
+
 // ClassifyIntent analyzes user input and returns the target domain name.
-// This is a simple keyword-based classifier; a future version should use
-// LLM-based classification for better accuracy.
+// 委托给 intent.UnifiedRouter：keyword 分类器基于 intentrules 规则表，
+// 输出 Domain 枚举与 domains 包常量保持一致的 chat/assistant/patent/legal。
 func ClassifyIntent(input string) string {
-	lower := strings.ToLower(input)
-
-	for _, kw := range intentrules.PatentKeywords {
-		if strings.Contains(lower, kw) {
-			return DomainPatent
-		}
-	}
-	for _, kw := range intentrules.LegalKeywords {
-		if strings.Contains(lower, kw) {
-			return DomainLegal
-		}
-	}
-	for _, kw := range intentrules.AssistantKeywords {
-		if strings.Contains(lower, kw) {
-			return DomainAssistant
-		}
-	}
-
-	return DomainChat
+	return string(intentRouter.Classify(input).Domain)
 }
 
 // ProfessionalHandoffConfigs 返回专业领域（Patent/Legal）的 HandoffConfig 列表，
@@ -162,9 +149,4 @@ func buildRouterSystemPrompt(manifests []agentcore.AgentManifest) string {
 // appendLifecycle composes lifecycle hooks safely (delegates to agentcore.AppendLifecycle).
 func appendLifecycle(existing, next agentcore.LifecycleHook) agentcore.LifecycleHook { //nolint:staticcheck
 	return agentcore.AppendLifecycle(existing, next)
-}
-
-// ProjectHandoffName 返回规范化的案件 Handoff 目标名称。
-func ProjectHandoffName(projectID string) string {
-	return "project-" + projectID
 }

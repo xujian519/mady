@@ -588,11 +588,6 @@ func (e *SignalError) Error() string {
 	return fmt.Sprintf("doomloop %s: %s", e.Signal.Detector, e.Signal.Reason)
 }
 
-// NewSignalError wraps a Signal as an error.
-func NewSignalError(s Signal) error {
-	return &SignalError{Signal: s}
-}
-
 // IsDoomLoopFatal checks if the error from the agent runtime was caused by a
 // doomloop signal. Returns the Signal if so, nil otherwise.
 //

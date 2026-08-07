@@ -61,12 +61,6 @@ func ScanManifests(dir string) ([]AgentManifest, []ManifestLoadError, error) {
 	return scanManifestsFromPath(dir)
 }
 
-// ScanManifestsFromFS 从任意 fs.FS 扫描 .json manifest 文件。
-// 用于从 embed.FS 或 os.DirFS 加载，目录树的根即 fsys 根。
-func ScanManifestsFromFS(fsys fs.FS) ([]AgentManifest, []ManifestLoadError, error) {
-	return scanManifestsFS(fsys, ".")
-}
-
 // scanManifestsFromPath 扫描磁盘 dir 目录（os.DirFS 语义），返回解析后的列表。
 func scanManifestsFromPath(dir string) ([]AgentManifest, []ManifestLoadError, error) {
 	fsys := os.DirFS(dir)

@@ -192,15 +192,3 @@ type ContextBuilderConfig struct {
 	// Providers 负责各层内容提供的 LayerProvider 列表。
 	Providers []LayerProvider `json:"-"`
 }
-
-// DefaultContextBuilderConfig 返回默认的 ContextBuilder 配置。
-func DefaultContextBuilderConfig() ContextBuilderConfig {
-	cfgs := make(map[ContextLayer]LayerConfig)
-	for _, l := range ValidContextLayers {
-		cfgs[l] = DefaultLayerConfig(l)
-	}
-	return ContextBuilderConfig{
-		Enabled:             false,
-		DefaultLayerConfigs: cfgs,
-	}
-}

@@ -17,23 +17,23 @@ package agentcore
 // 每个工具只分配一个主域。如果一个工具跨多个域，选择最匹配的主域。
 var ToolDomains = map[string]string{
 	// ── 系统/内置工具 (system) ──
-	"bash":          "system",
-	"execute_code":  "system",
-	"process":       "system",
-	"read":          "system",
-	"edit":          "system",
-	"write_file":    "system",
-	"ls":            "system",
-	"grep":          "system",
-	"find":          "system",
-	"glob":          "system",
-	"delete":        "system",
-	"move":          "system",
-	"mkdir":         "system",
-	"patch":         "system",
-	"append":        "system",
+	"bash":             "system",
+	"execute_code":     "system",
+	"process":          "system",
+	"read":             "system",
+	"edit":             "system",
+	"write_file":       "system",
+	"ls":               "system",
+	"grep":             "system",
+	"find":             "system",
+	"glob":             "system",
+	"delete":           "system",
+	"move":             "system",
+	"mkdir":            "system",
+	"patch":            "system",
+	"append":           "system",
 	"convert_document": "system",
-	"ocr":           "system",
+	"ocr":              "system",
 
 	// ── 版本控制 (git) ──
 	"git_status": "git",
@@ -59,10 +59,10 @@ var ToolDomains = map[string]string{
 	"computer_use": "desktop",
 
 	// ── 专利搜索 (patent_search) ──
-	"patent_search":         "patent_search",
-	"google_patents":        "patent_search",
-	"iterative_search":      "patent_search",
-	"search_query_builder":  "patent_search",
+	"patent_search":        "patent_search",
+	"google_patents":       "patent_search",
+	"iterative_search":     "patent_search",
+	"search_query_builder": "patent_search",
 
 	// ── 专利分析 (patent_analysis) ──
 	"patent_novelty":         "patent_analysis",

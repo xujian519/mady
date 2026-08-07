@@ -58,18 +58,6 @@ var (
 	}
 )
 
-// RegisterValidDomain registers an additional valid manifest domain.
-// Empty names are ignored. This allows extension packages to add new
-// functional domains without modifying the core manifest definitions.
-func RegisterValidDomain(name string) {
-	if name == "" {
-		return
-	}
-	validDomainsMu.Lock()
-	defer validDomainsMu.Unlock()
-	validDomains[name] = true
-}
-
 // sortedValidDomains returns a sorted snapshot of registered domain names.
 func sortedValidDomains() []string {
 	validDomainsMu.RLock()
@@ -92,17 +80,6 @@ func sortedValidGuardrailLevels() []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// RegisterValidGuardrailLevel registers an additional valid guardrail level
-// name for manifest validation. Empty names are ignored.
-func RegisterValidGuardrailLevel(name string) {
-	if name == "" {
-		return
-	}
-	validGuardrailLevelsMu.Lock()
-	defer validGuardrailLevelsMu.Unlock()
-	validGuardrailLevels[name] = true
 }
 
 // ValidateManifest 校验 AgentManifest 的字段合法性。

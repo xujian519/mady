@@ -35,34 +35,6 @@ func Disclaimer(level Level) string {
 	}
 }
 
-// ShortDisclaimer 返回给定护栏等级的简短免责声明文本。
-func ShortDisclaimer(level Level) string {
-	switch level {
-	case LevelStrict:
-		return i18n.T("guardrail.disclaimer.strict_short")
-	case LevelStandard:
-		return i18n.T("guardrail.disclaimer.standard_short")
-	case LevelLight:
-		return i18n.T("guardrail.disclaimer.light_short")
-	default:
-		return i18n.T("guardrail.disclaimer.standard_short")
-	}
-}
-
-// LevelTag 返回给定护栏等级的审查标签。
-func LevelTag(level Level) string {
-	switch level {
-	case LevelStrict:
-		return i18n.T("guardrail.level_tag.strict")
-	case LevelStandard:
-		return i18n.T("guardrail.level_tag.standard")
-	case LevelLight:
-		return i18n.T("guardrail.level_tag.light")
-	default:
-		return i18n.T("guardrail.level_tag.standard")
-	}
-}
-
 // RiskKeywordsFor returns risk keywords appropriate for a domain.
 // These keywords trigger disclaimer injection when found in output.
 func RiskKeywordsFor(domain string) []string {

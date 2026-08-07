@@ -127,14 +127,6 @@ func ReasoningHandoffs(manifest *PatentManifest, base agentcore.Config) []agentc
 	return handoffs
 }
 
-// AllHandoffs 返回 Manifest 中所有预注册的 Handoff（条款 + 推理模式）。
-func AllHandoffs(manifest *PatentManifest, base agentcore.Config) []agentcore.HandoffConfig {
-	var handoffs []agentcore.HandoffConfig
-	handoffs = append(handoffs, ProvisionHandoffs(manifest, base)...)
-	handoffs = append(handoffs, ReasoningHandoffs(manifest, base)...)
-	return handoffs
-}
-
 // BuildProvisionListForSystemPrompt 根据 Manifest 构建条款智能体列表字符串。
 // 用于 PatentAgentConfig 的系统提示词中的"条款智能体（专业分析委派）"段落，
 // 替代原有的硬编码列表，使列表随 manifest.yaml 自动更新。

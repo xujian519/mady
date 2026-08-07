@@ -2,7 +2,6 @@ package guardrails
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -100,9 +99,6 @@ type YAMLConstitutionalConfig struct {
 // Ruleset — 编译后的规则集合（嵌入默认规则 + 加载用户规则）
 // ---------------------------------------------------------------------------
 
-//go:embed constitutional_default.yaml
-var defaultConstitutionalYAML []byte
-
 // CompiledRule 是编译后的可执行规则。
 type CompiledRule struct {
 	Config   YAMLConstitutionalRule
@@ -119,11 +115,6 @@ type Ruleset struct {
 	pipeline *RulePipeline
 }
 
-// LoadDefaultRuleset 加载内嵌的默认宪法规则集。
-func LoadDefaultRuleset() (*Ruleset, error) {
-	return LoadConstitutionalYAML(defaultConstitutionalYAML)
-}
-
 // LoadConstitutionalYAML 从 YAML 数据加载宪法规则集。
 func LoadConstitutionalYAML(data []byte) (*Ruleset, error) {
 	var cfg YAMLConstitutionalConfig
@@ -131,15 +122,6 @@ func LoadConstitutionalYAML(data []byte) (*Ruleset, error) {
 		return nil, fmt.Errorf("guardrails: parse constitutional YAML: %w", err)
 	}
 	return compileRuleset(cfg)
-}
-
-// LoadConstitutionalFile 从文件路径加载宪法规则集。
-func LoadConstitutionalFile(path string) (*Ruleset, error) {
-	data, err := yamlFSReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("guardrails: read constitutional file %s: %w", path, err)
-	}
-	return LoadConstitutionalYAML(data)
 }
 
 // compileRuleset 将 YAML 规则编译为可执行规则。
@@ -583,19 +565,6 @@ func mapConstitutionalAction(a ConstitutionalAction) Action {
 var (
 	_ iface.LifecycleHook = (*ConstitutionalHook)(nil)
 )
-
-// ---------------------------------------------------------------------------
-// 文件读取辅助（可被测试替换）
-// ---------------------------------------------------------------------------
-
-var yamlFSReadFile = func(path string) ([]byte, error) {
-	return nil, fmt.Errorf("file reading not available: %s", path)
-}
-
-// SetYAMLFileReader 允许外部注入文件读取函数（用于测试或自定义加载）。
-func SetYAMLFileReader(fn func(path string) ([]byte, error)) {
-	yamlFSReadFile = fn
-}
 
 // Ensure interface compliance.
 var (

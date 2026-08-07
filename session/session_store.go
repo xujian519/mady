@@ -680,21 +680,6 @@ func (s *FileStore) applyEntryInto(info *Info, line string) {
 	}
 }
 
-// MessagesFromEntries rebuilds a Message slice from entries (flat, no tree awareness).
-func MessagesFromEntries(entries []Entry) []agentcore.Message {
-	var msgs []agentcore.Message
-	for _, e := range entries {
-		if e.Type != EntryMessage {
-			continue
-		}
-		var msg agentcore.Message
-		if json.Unmarshal(e.Data, &msg) == nil {
-			msgs = append(msgs, msg)
-		}
-	}
-	return msgs
-}
-
 // ---------------------------------------------------------------------------
 // ID generator
 // ---------------------------------------------------------------------------

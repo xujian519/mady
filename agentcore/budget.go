@@ -34,14 +34,6 @@ func (b Budget) IsUnlimited() bool {
 	return b.MaxTokens == 0 && b.MaxCalls == 0 && b.MaxToolCalls == 0 && b.MaxDuration == 0
 }
 
-// BudgetUsage tracks cumulative consumption across the dimensions of Budget.
-type BudgetUsage struct {
-	Tokens    int64         `json:"tokens"`
-	Calls     int64         `json:"calls"`
-	ToolCalls int64         `json:"tool_calls"`
-	Duration  time.Duration `json:"duration"`
-}
-
 // BudgetExceededError describes which dimension exceeded its limit and by how
 // much. It unwraps through NewNodeError so callers can use errors.As even when
 // the lifecycle layer wraps it.

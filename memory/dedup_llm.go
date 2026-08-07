@@ -19,16 +19,6 @@ type llmDedupDecider struct {
 	model    string
 }
 
-// NewLLMDedupDecider 创建一个基于 LLM 的去重判定器。
-//
-//nolint:revive // intentionally returns unexported llmDedupDecider
-func NewLLMDedupDecider(provider agentcore.Provider, model string) *llmDedupDecider {
-	if model == "" {
-		model = "default"
-	}
-	return &llmDedupDecider{provider: provider, model: model}
-}
-
 // Decide 实现 DedupDecider 接口。
 func (d *llmDedupDecider) Decide(ctx context.Context, newFact string, existing []ScoredMemory) (DedupAction, string, error) {
 	if len(existing) == 0 {

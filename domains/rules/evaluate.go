@@ -289,9 +289,3 @@ func (e *Engine) EvaluateAllRules(text string) map[string]*CheckResult {
 	}
 	return e.EvaluateRules(ids, text)
 }
-
-// SupportedCheckTypes returns the list of check types that support
-// programmatic evaluation.
-func SupportedCheckTypes() []string {
-	return []string{"presence", "exist", "must_include", "absence", "must_not", "forbidden", "numeric", "range", "numerical", "composition", "compound"}
-}

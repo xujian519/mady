@@ -53,36 +53,3 @@ func AgentAsTool(cfg Config) *Tool {
 		},
 	}
 }
-
-// AgentAsToolWithEventBus is like AgentAsTool but forwards the sub-agent's
-// events to the given EventBus for centralized observability.
-func AgentAsToolWithEventBus(cfg Config, parentBus *EventBus) *Tool {
-	tool := AgentAsTool(cfg)
-	name := cfg.Name
-	if name == "" {
-		name = "sub_agent"
-	}
-
-	tool.Func = func(ctx context.Context, args json.RawMessage) (any, error) {
-		var params struct {
-			Input string `json:"input"`
-		}
-		if err := json.Unmarshal(args, &params); err != nil {
-			return nil, fmt.Errorf("代理工具 %s 参数无效: %w", name, err)
-		}
-		if params.Input == "" {
-			return nil, fmt.Errorf("代理工具 %s 需要非空输入", name)
-		}
-
-		agent := New(cfg)
-		if parentBus != nil {
-			agent.SetEventBus(parentBus)
-		}
-		result, err := agent.Run(ctx, params.Input)
-		if err != nil {
-			return nil, WrapNodeError(err, "agent_tool:"+name)
-		}
-		return result, nil
-	}
-	return tool
-}

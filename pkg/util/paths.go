@@ -29,15 +29,6 @@ func OpenFile(path string, flag int, perm os.FileMode) (*os.File, error) {
 	return os.OpenFile(path, flag, perm) //nolint:gosec // path originates from filepath.Join over resolved dirs
 }
 
-// CopyFile copies a file from src to dst. It does not preserve permissions.
-func CopyFile(src, dst string) error {
-	in, err := ReadFile(src)
-	if err != nil {
-		return fmt.Errorf("read source %s: %w", src, err)
-	}
-	return WriteFile(dst, in, DefaultFilePerm)
-}
-
 // MadyHome 返回 Mady 应用数据根目录（绝对路径），并确保目录存在。
 //
 // 解析优先级：

@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -403,26 +402,4 @@ func withCORS(next http.Handler, cfg CORSConfig) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-// SSEKeepAlive sends periodic comment lines to prevent proxy/browser timeouts.
-// Call this in a goroutine and cancel the context when the stream ends.
-func SSEKeepAlive(ctx context.Context, w http.ResponseWriter, mu sync.Locker, interval time.Duration) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		return
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			mu.Lock()
-			_, _ = fmt.Fprintf(w, ": keepalive\n\n")
-			flusher.Flush()
-			mu.Unlock()
-		}
-	}
 }

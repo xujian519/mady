@@ -83,11 +83,6 @@ func NewChecker(engine *RuleEngine, llm LlmJudgeClient) *Checker {
 	return &Checker{ruleEngine: engine, llm: llm, policy: DefaultMergePolicy()}
 }
 
-// NewCheckerWithPolicy creates a dual-track checker with a custom merge policy.
-func NewCheckerWithPolicy(engine *RuleEngine, llm LlmJudgeClient, policy MergePolicy) *Checker {
-	return &Checker{ruleEngine: engine, llm: llm, policy: policy}
-}
-
 // SetMergePolicy updates the conflict-resolution policy at runtime.
 func (c *Checker) SetMergePolicy(policy MergePolicy) {
 	c.policy = policy

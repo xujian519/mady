@@ -53,7 +53,7 @@ mady/
 ├── domains/          # 领域 Agent 配置 + 推理引擎 + 专利分析模块
 │   ├── claimdrafting/#   权利要求书撰写（LLM 增强撰写 + 6 类规则引擎 + 评分器）
 │   ├── config/       #   领域配置（项目注册 registry.json + 文档风格）
-│   ├── casemgmt/     #   案件管理（registry 索引 + 工作区）
+│   ├── case_*.go     #   案件管理（生命周期/索引/工作区，domains 根包）
 │   ├── evidence/     #   专利证据判断规则引擎（三性/类型/举证责任/证明标准/日期/可信度）
 │   ├── doctmpl/      #   文档模板库（Markdown + YAML frontmatter）
 │   ├── enablement/   #   26.3 充分公开判断（图引擎 + 领域规则 + 知识库联动）
@@ -120,11 +120,10 @@ mady/
 │   ├── component/    #   Layer 4: UI 组件（含 ToolCard / StatusBar / Markdown 块缓存）
 │   ├── chat/         #   Layer 5: 聊天应用（含 AppState 显式状态机）
 │   └── agentadapter/ #   Layer 7: Agent 适配器（agentcore → chat 事件转换）
-├── workflows/        # 工作流原语（Pipeline/Parallel/Router）
 ├── bootstrap/        # 启动装配（disclosure/infringement 适配器 + 知识初始化）
 ├── evaluate/         # 评估框架（RAGAS 风格，含 benchmark 跑批 + CLI 引擎 + 校准）
 ├── integration/      # 端到端集成测试（含 doomloop/chain/drafting/guardrails/handoff）
-├── intent/           # 意图分类（keyword/LLM/语义三路）
+├── intent/           # 意图分类（keyword/LLM 多分类器路由，domains.ClassifyIntent 委托使用）
 ├── cmd/mady/         # 统一入口（14 个子命令：tui / serve / acp / eval / evidence / ocr / mcp-install / trust-mcp / trust-knowledge / util / patent / start-embeddings / stop-embeddings / status-embeddings）
 ├── example/          # 示例应用（10 个）
 ├── docs/             # 文档（ADRs、OpenAPI 规范、设计文档、评审报告）

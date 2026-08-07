@@ -86,12 +86,6 @@ func (e *GuardianExtension) guardianMiddleware(next agentcore.ExecuteFunc) agent
 
 type transcriptKey struct{}
 
-// WithTranscript injects a conversation transcript into the context for
-// the Guardian to use as evidence during review.
-func WithTranscript(ctx context.Context, transcript string) context.Context {
-	return context.WithValue(ctx, transcriptKey{}, transcript)
-}
-
 func extractTranscript(ctx context.Context) string {
 	if v, ok := ctx.Value(transcriptKey{}).(string); ok {
 		return v

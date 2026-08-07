@@ -182,13 +182,3 @@ func CosineSimilarity(a, b []float32) float64 {
 	}
 	return float64(dot) / (math.Sqrt(float64(normA)) * math.Sqrt(float64(normB)))
 }
-
-// DotProduct computes the dot product of two equal-length vectors.
-// Uses float32 arithmetic for consistency with CosineSimilarity.
-func DotProduct(a, b []float32) float64 {
-	var sum float32
-	for i := range a {
-		sum += a[i] * b[i]
-	}
-	return float64(sum)
-}

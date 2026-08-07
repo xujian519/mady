@@ -31,11 +31,6 @@ type SQLiteMemoryStore struct {
 // SQLiteOption 是 SQLiteMemoryStore 的函数式配置选项。
 type SQLiteOption func(*SQLiteMemoryStore)
 
-// WithSQLiteScoringConfig 设置复合评分参数。
-func WithSQLiteScoringConfig(cfg ScoringConfig) SQLiteOption {
-	return func(s *SQLiteMemoryStore) { s.scoring = cfg }
-}
-
 // WithSQLiteClock 注入时间函数（测试用）。
 func WithSQLiteClock(clock func() time.Time) SQLiteOption {
 	return func(s *SQLiteMemoryStore) { s.now = clock }

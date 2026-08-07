@@ -21,17 +21,3 @@ func ContainsAny(s string, keywords ...string) bool {
 	}
 	return false
 }
-
-// ContainsAnyFold is an alias for ContainsAny; prefer ContainsAny.
-func ContainsAnyFold(s string, keywords ...string) bool {
-	return ContainsAny(s, keywords...)
-}
-
-// ContainsRejectionKeyword reports whether s contains any standard
-// patent rejection keywords: 创造性, 新颖性, 充分公开, 22.2, 22.3, etc.
-func ContainsRejectionKeyword(s string) bool {
-	return ContainsAny(s,
-		"创造性", "新颖性", "充分公开", "不清楚", "不支持",
-		"22.2", "22.3", "26.3", "26.4", "33条", "A33",
-	)
-}

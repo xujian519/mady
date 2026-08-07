@@ -217,13 +217,3 @@ func (e *ChunkedContextEngine) LastSavingsPct() float64 {
 func (e *ChunkedContextEngine) CheckFeasibility(mainModelContextLength int64) string {
 	return e.base.CheckFeasibility(mainModelContextLength)
 }
-
-// MarkAsProtected marks a message as a protected document chunk.
-// This is the public API for domain code to protect document content from
-// being lost during context compaction.
-func MarkAsProtected(msg *Message) {
-	if msg.Metadata == nil {
-		msg.Metadata = make(map[string]any)
-	}
-	msg.Metadata["mady_doc_chunk"] = "protected"
-}

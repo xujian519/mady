@@ -94,15 +94,6 @@ type reexamGraphConfig struct {
 	oralHearing bool
 }
 
-// WithOralHearingPrep inserts an oral hearing preparation node between
-// draft_request and rule_check in the reexamination graph.
-// When enabled, the graph generates 口审准备 materials:
-// technical comparison table, amendment non-extension argument,
-// possible challenges preview, and statement outline.
-func WithOralHearingPrep() ReexamGraphOption {
-	return func(c *reexamGraphConfig) { c.oralHearing = true }
-}
-
 // =============================================================================
 // Pregel Nodes
 // =============================================================================

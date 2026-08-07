@@ -149,30 +149,3 @@ func (e *GuardrailError) Error() string {
 }
 
 func (e *GuardrailError) Unwrap() error { return e.Err }
-
-// IsFatal 判断错误是否致命。
-func IsFatal(err error) bool {
-	if err == nil {
-		return false
-	}
-	_, ok := err.(*FatalError)
-	return ok
-}
-
-// IsHandoffError 判断是否 Handoff 错误。
-func IsHandoffError(err error) bool {
-	if err == nil {
-		return false
-	}
-	_, ok := err.(*HandoffError)
-	return ok
-}
-
-// IsGuardrailError 判断是否护栏错误。
-func IsGuardrailError(err error) bool {
-	if err == nil {
-		return false
-	}
-	_, ok := err.(*GuardrailError)
-	return ok
-}

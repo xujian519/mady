@@ -20,11 +20,6 @@ type EvalConsumer struct {
 // EvalConsumerOption 配置 EvalConsumer。
 type EvalConsumerOption func(*EvalConsumer)
 
-// WithEvalLogger 设置日志记录器。
-func WithEvalLogger(logger *slog.Logger) EvalConsumerOption {
-	return func(c *EvalConsumer) { c.logger = logger }
-}
-
 // WithAlertThreshold 设置忠实度警告阈值。
 func WithAlertThreshold(t float64) EvalConsumerOption {
 	return func(c *EvalConsumer) { c.AlertThreshold = t }

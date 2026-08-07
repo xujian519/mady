@@ -29,14 +29,6 @@ type FormatCheckRule struct {
 	MissingSectionAction Action
 }
 
-// NewFormatCheckRule creates a rule with the given required sections.
-func NewFormatCheckRule(sections ...string) *FormatCheckRule {
-	return &FormatCheckRule{
-		RequiredSections:     sections,
-		MissingSectionAction: ActionAlert,
-	}
-}
-
 // PatentFormatCheck returns a pre-configured rule for patent documents.
 func PatentFormatCheck() *FormatCheckRule {
 	return &FormatCheckRule{
@@ -48,21 +40,6 @@ func PatentFormatCheck() *FormatCheckRule {
 		},
 		MinSectionCount:      3, // at least 3 of 4 required
 		Domain:               "patent",
-		MissingSectionAction: ActionAlert,
-	}
-}
-
-// LegalFormatCheck returns a pre-configured rule for legal documents.
-func LegalFormatCheck() *FormatCheckRule {
-	return &FormatCheckRule{
-		RequiredSections: []string{
-			"案件事实",
-			"法律依据",
-			"分析",
-			"结论",
-		},
-		MinSectionCount:      3,
-		Domain:               "legal",
 		MissingSectionAction: ActionAlert,
 	}
 }

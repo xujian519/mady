@@ -28,12 +28,6 @@ func NewIPCStandardAdapter() (*IPCStandardAdapter, error) {
 	return &IPCStandardAdapter{}, nil
 }
 
-// MustIPCStandardAdapter creates a new adapter and returns an error if standards
-// cannot be loaded. Use during startup when IPC standards are required.
-func MustIPCStandardAdapter() (*IPCStandardAdapter, error) {
-	return NewIPCStandardAdapter()
-}
-
 // MatchByIPC returns examination standards matching the given IPC section and
 // legal article. The results are returned as RetrievedRule objects.
 //

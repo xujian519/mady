@@ -19,27 +19,6 @@ func NewLLMWorkerFactory(llmFn func(ctx context.Context, prompt string) (string,
 	}
 }
 
-// RegisterWorkersAsToolsExtension 创建一个 agentcore.Extension，
-// 在 Init 时将 Worker 目录中的定义注册为 Agent 工具。
-//
-// 参数：
-//   - catalog: Worker 目录（含所有定义）
-//   - factory: Worker 定义 → Executor 的工厂函数
-//   - tiers:   要注册的 Worker 层级（空 = 全部）
-//
-// 使用方式（在 PatentAgentConfig 中）：
-//
-//	cfg.Extensions = append(cfg.Extensions,
-//	    worker.RegisterWorkersAsToolsExtension(catalog, factory),
-//	)
-func RegisterWorkersAsToolsExtension(catalog *Catalog, factory WorkerExecutorFactory, tiers ...WorkerTier) agentcore.Extension {
-	return &workerToolExtension{
-		catalog: catalog,
-		factory: factory,
-		tiers:   tiers,
-	}
-}
-
 // RegisterWorkersAsToolsExtensionWithEnv 同 RegisterWorkersAsToolsExtension，
 // 但仅在环境变量 MADY_WORKER_ENABLED=1 时生效。
 func RegisterWorkersAsToolsExtensionWithEnv(catalog *Catalog, factory WorkerExecutorFactory, tiers ...WorkerTier) agentcore.Extension {

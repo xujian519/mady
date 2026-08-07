@@ -348,11 +348,6 @@ type LengthScore struct {
 	Max   int // maximum acceptable length (runes)
 }
 
-// DefaultLengthScore returns a LengthScore tuned for paragraph-length answers.
-func DefaultLengthScore() LengthScore {
-	return LengthScore{Min: 50, Ideal: 500, Max: 3000}
-}
-
 // Name returns "length_score".
 func (m LengthScore) Name() string { return "length_score" }
 

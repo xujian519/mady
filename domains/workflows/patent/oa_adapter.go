@@ -7,11 +7,6 @@ func ParseOA(text string) ParsedOfficeAction {
 	return toLocalParsed(rules.ParseOfficeAction(text))
 }
 
-// ToRulesRejectionType converts a local OaRejectionType to the rules package type.
-func ToRulesRejectionType(t OaRejectionType) rules.OaRejectionType {
-	return rules.OaRejectionType(t)
-}
-
 // FormatOaSummary wraps rules.FormatOaSummary for the local ParsedOfficeAction type.
 func FormatOaSummary(oa ParsedOfficeAction) string {
 	return rules.FormatOaSummary(toRulesParsed(oa))

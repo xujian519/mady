@@ -3,12 +3,9 @@ package inventiveness
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
-	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/domains/iface"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -230,79 +227,6 @@ func parseInventivenessArgs(args json.RawMessage) *InventivenessInput {
 	}
 
 	return input
-}
-
-// NewInventivenessToolFromReport 从 iface 报告构造评估输入并执行创造性评估。
-// 这是一个便捷函数，供需要从 iface.AnalysisReport 直接创建输入的场景使用。
-func NewInventivenessToolFromReport(ctx context.Context, provider agentcore.Provider, report *iface.AnalysisReport, evidence []iface.EvidenceChunk, coverage string) (*InventivenessResult, error) {
-	if provider == nil {
-		return nil, fmt.Errorf("inventiveness: provider is nil")
-	}
-
-	input := &InventivenessInput{EvidenceCoverage: coverage}
-	if input.EvidenceCoverage == "" {
-		input.EvidenceCoverage = "partial"
-	}
-
-	// 1. 转换现有技术证据片段。
-	for _, c := range evidence {
-		input.PriorArtChunks = append(input.PriorArtChunks, EvidenceChunk{
-			DocID:   c.DocID,
-			Title:   c.Title,
-			Snippet: c.Snippet,
-			Score:   c.Score,
-		})
-	}
-
-	// 2. 转换技术特征和 PFE 三元组。
-	if report != nil && report.Extraction != nil {
-		for _, f := range report.Extraction.Features {
-			input.Features = append(input.Features, TechFeature{
-				ID:          f.ID,
-				Description: f.Description,
-				Category:    f.Category,
-				Function:    f.Function,
-				Importance:  f.Importance,
-			})
-		}
-		for _, t := range report.Extraction.PFETriples {
-			input.PFETriples = append(input.PFETriples, PFETriple{
-				ID:      t.ID,
-				Problem: t.Problem,
-				Effect:  t.Effect,
-			})
-		}
-
-		// 3. 特征非空时覆盖度提升为 full。
-		if len(input.Features) > 0 && input.EvidenceCoverage == "partial" {
-			input.EvidenceCoverage = "full"
-		}
-	}
-
-	// 4. 新颖性初判结论。
-	if report != nil && report.Novelty != nil {
-		input.NoveltyConclusion = report.Novelty.Conclusion
-	}
-
-	compiled, err := BuildInventivenessGraph(provider)
-	if err != nil {
-		return nil, err
-	}
-
-	state := graph.PregelState{}
-	state[StateKeyInput] = input
-
-	// 使用带超时的 context，防止 LLM API 挂起时 goroutine 永久泄漏。
-	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-	defer cancel()
-	state, runErr := compiled.Run(timeoutCtx, state)
-
-	if raw, ok := state[StateKeyResult]; ok {
-		if result, ok := raw.(*InventivenessResult); ok {
-			return result, runErr
-		}
-	}
-	return nil, runErr
 }
 
 // spaceJoin 用空格拼接字符串。

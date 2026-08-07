@@ -205,20 +205,20 @@ type actionHandler func(ctx context.Context, backend cuBackend, input computerUs
 // 使 handlers 保持纯函数签名，便于独立测试。
 func newComputerUseActions(clickWait int) map[string]actionHandler {
 	return map[string]actionHandler{
-		"capture":       handleCapture,
-		"info":          handleInfo,
-		"click":         handleClickWithWait(clickWait),
-		"double_click":  handleClickWithWait(clickWait),
-		"right_click":   handleClickWithWait(clickWait),
-		"middle_click":  handleClickWithWait(clickWait),
-		"drag":          handleDragWithWait(clickWait),
-		"type":          handleTypeWithWait(clickWait),
-		"key":           handleKeyWithWait(clickWait),
-		"scroll":        handleScrollWithWait(clickWait),
-		"set_value":     handleSetValueWithWait(clickWait),
-		"wait":          handleWait,
-		"list_apps":     handleListApps,
-		"focus_app":     handleFocusApp,
+		"capture":      handleCapture,
+		"info":         handleInfo,
+		"click":        handleClickWithWait(clickWait),
+		"double_click": handleClickWithWait(clickWait),
+		"right_click":  handleClickWithWait(clickWait),
+		"middle_click": handleClickWithWait(clickWait),
+		"drag":         handleDragWithWait(clickWait),
+		"type":         handleTypeWithWait(clickWait),
+		"key":          handleKeyWithWait(clickWait),
+		"scroll":       handleScrollWithWait(clickWait),
+		"set_value":    handleSetValueWithWait(clickWait),
+		"wait":         handleWait,
+		"list_apps":    handleListApps,
+		"focus_app":    handleFocusApp,
 	}
 }
 
@@ -455,7 +455,7 @@ func NewComputerUseTool(cfg *ComputerUseToolConfig) *agentcore.Tool {
 		Name:        "computer_use",
 		Description: computerUseDescription(),
 		Parameters:  computerUseSchema(),
-		Func: computerUseHandler(clickWait),
+		Func:        computerUseHandler(clickWait),
 	}
 }
 

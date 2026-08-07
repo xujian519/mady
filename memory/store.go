@@ -36,24 +36,9 @@ type InMemoryStore struct {
 // InMemoryOption 是 InMemoryStore 的函数式配置选项。
 type InMemoryOption func(*InMemoryStore)
 
-// WithScoringConfig 设置复合评分参数。
-func WithScoringConfig(cfg ScoringConfig) InMemoryOption {
-	return func(s *InMemoryStore) { s.scoring = cfg }
-}
-
-// WithTokenBudget 设置记忆层的 token 预算。
-func WithTokenBudget(budget TokenBudget) InMemoryOption {
-	return func(s *InMemoryStore) { s.tokenBudget = budget }
-}
-
 // WithClock 注入时间函数（测试用）。
 func WithClock(clock func() time.Time) InMemoryOption {
 	return func(s *InMemoryStore) { s.now = clock }
-}
-
-// WithEmbeddingDimension 设置向量维度（默认 384）。
-func WithEmbeddingDimension(dim int) InMemoryOption {
-	return func(s *InMemoryStore) { s.dimension = dim }
 }
 
 // WithEmbedder 注入向量编码器，启用语义检索。

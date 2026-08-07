@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/domains/iface"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -255,69 +253,4 @@ func stringsJoin(s ...string) string {
 		b.WriteString(str)
 	}
 	return b.String()
-}
-
-// NewEnablementToolFromReport 从 iface 报告构造评估输入并执行评估。
-// 这是一个便捷函数，供需要从 iface.AnalysisReport 直接创建输入的场景使用。
-func NewEnablementToolFromReport(provider agentcore.Provider, report *iface.AnalysisReport) (*EnablementResult, error) {
-	if provider == nil {
-		return nil, nil
-	}
-
-	input := &EnablementInput{EvidenceCoverage: "partial"}
-	if report != nil && report.Extraction != nil {
-		for _, f := range report.Extraction.Features {
-			input.Features = append(input.Features, TechFeature{
-				ID:          f.ID,
-				Description: f.Description,
-				Category:    f.Category,
-				Function:    f.Function,
-				Importance:  f.Importance,
-			})
-		}
-		for _, t := range report.Extraction.PFETriples {
-			input.PFETriples = append(input.PFETriples, PFETriple{
-				ID:         t.ID,
-				Problem:    t.Problem,
-				FeatureIDs: t.FeatureIDs,
-				Effect:     t.Effect,
-			})
-		}
-		input.Problems = report.Extraction.Problems
-		input.Effects = report.Extraction.Effects
-		if len(input.Features) > 0 {
-			input.EvidenceCoverage = "full"
-		}
-	}
-	// Copy document sections and drawing flag for step1 completeness check.
-	if report != nil && report.Document != nil {
-		input.HasDrawings = report.Document.HasDrawings
-		input.DocSections = make(map[string]string)
-		for section, content := range report.Document.Sections {
-			input.DocSections[section] = content
-		}
-	}
-
-	// Note: NewEnablementToolFromReport 暂不支持知识检索增强。
-	// 如需知识赋能，请使用 NewEnablementTool + WithKnowledgeRetriever 路径。
-
-	compiled, err := BuildEnablementGraph(provider)
-	if err != nil {
-		return nil, err
-	}
-
-	state := graph.PregelState{}
-	state[stateKeyInput] = input
-
-	// 使用带超时的 context，防止 LLM API 挂起时 goroutine 永久泄漏。
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	state, runErr := compiled.Run(timeoutCtx, state)
-
-	if raw, ok := state[stateKeyResult]; ok {
-		if result, ok := raw.(*EnablementResult); ok {
-			return result, runErr
-		}
-	}
-	return nil, runErr
 }

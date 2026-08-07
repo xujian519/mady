@@ -51,15 +51,6 @@ func newRequestIDContext(ctx context.Context, requestID string) context.Context 
 	return context.WithValue(ctx, requestIDKey, requestID)
 }
 
-// RequestIDFromContext 从 context 中提取 request_id。
-// 若上下文中未设置，返回空字符串。
-func RequestIDFromContext(ctx context.Context) string {
-	if id, ok := ctx.Value(requestIDKey).(string); ok {
-		return id
-	}
-	return ""
-}
-
 // loggingMiddleware 记录每个 HTTP 请求的方法、路径、状态码、持续时间和 request_id。
 //
 // 优先级顺序提取 request_id：

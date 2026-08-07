@@ -30,21 +30,6 @@ type DualToolOutput struct {
 	Terminate bool   `json:"terminate,omitempty"`
 }
 
-// NewToolResult creates a result visible to both LLM and user.
-func NewToolResult(forLLM string) *DualToolOutput {
-	return &DualToolOutput{ForLLM: forLLM}
-}
-
-// SilentResult creates a result visible only to the LLM (not shown to user).
-func SilentResult(forLLM string) *DualToolOutput {
-	return &DualToolOutput{ForLLM: forLLM, Silent: true}
-}
-
-// UserResult creates a result visible to both LLM and user.
-func UserResult(content string) *DualToolOutput {
-	return &DualToolOutput{ForLLM: content, ForUser: content}
-}
-
 // TerminateResult creates a result that ends the agent loop immediately:
 // content becomes the final answer and no further LLM turn runs.
 func TerminateResult(content string) *DualToolOutput {

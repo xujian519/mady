@@ -1,7 +1,6 @@
 package agentcore
 
 import (
-	"maps"
 	"strings"
 	"sync"
 )
@@ -91,23 +90,6 @@ type ReflectionIssue struct {
 type ReflectionEngine struct {
 	config ReflectionConfig
 	mu     sync.RWMutex
-}
-
-// NewReflectionEngine 创建反射引擎。
-func NewReflectionEngine(config ReflectionConfig) *ReflectionEngine {
-	if config.MinLength <= 0 {
-		config.MinLength = 100
-	}
-	if len(config.ErrorPatterns) == 0 {
-		config.ErrorPatterns = DefaultReflectionConfig().ErrorPatterns
-	}
-	if config.DomainKeywords == nil {
-		config.DomainKeywords = maps.Clone(DefaultReflectionConfig().DomainKeywords)
-		if config.DomainKeywords == nil {
-			config.DomainKeywords = make(map[string][]string)
-		}
-	}
-	return &ReflectionEngine{config: config}
 }
 
 // Reflect 对 Agent 输出执行质量检查。

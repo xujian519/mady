@@ -380,12 +380,6 @@ type CollectResult struct {
 // Multi-Hypothesis types (Stage ④ multi_hypothesis strategy)
 // =============================================================================
 
-// HypothesisSpec defines one side of a debate.
-type HypothesisSpec struct {
-	ID    string `json:"id"`    // "pro" | "con"
-	Claim string `json:"claim"` // e.g. "该技术特征相对于对比文件是显而易见的"
-}
-
 // Argument is the output of an Advocate node — a structured case for one side.
 type Argument struct {
 	HypothesisID              string   `json:"hypothesis_id"`

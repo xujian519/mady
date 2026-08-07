@@ -10,14 +10,6 @@ func ChatPsychConfig() psychological.Config {
 	return psychological.Config{SkipDistortionDetection: true}
 }
 
-// AssistantPsychConfig returns a psychological config tuned for assistant domain.
-// Uses minimal processing for task execution context.
-// Note: SkipDistortionDetection is a TODO placeholder — cognitive distortion
-// detection is not yet implemented, so setting it has no behavioral effect.
-func AssistantPsychConfig() psychological.Config {
-	return psychological.Config{SkipDistortionDetection: true}
-}
-
 // PatentPsychConfig returns a psychological config tuned for patent domain.
 // Note: SkipDistortionDetection is a TODO placeholder — cognitive distortion
 // detection is not yet implemented, so setting it has no behavioral effect.

@@ -34,17 +34,6 @@ func NewLLMNodeBuilder(llm LlmClient) *LLMNodeBuilder {
 	return &LLMNodeBuilder{clients: clients}
 }
 
-// NewLLMNodeBuilderWithClients creates a NodeBuilder with multiple LlmClient
-// instances keyed by model name. Use this for multi-LLM arbitration where
-// different judges use different models. The "default" key is used for
-// chain/react steps; arbitrated judges select their client by model name.
-func NewLLMNodeBuilderWithClients(clients map[string]LlmClient) *LLMNodeBuilder {
-	if clients == nil {
-		clients = make(map[string]LlmClient)
-	}
-	return &LLMNodeBuilder{clients: clients}
-}
-
 // clientFor returns the LlmClient for the given model name. If model is empty
 // or not found, falls back to the "default" client. Returns nil if no client
 // is available.
@@ -142,19 +131,6 @@ func (b *LLMNodeBuilder) BuildReActObserve(step PlanStep, bb *FactBlackboard) Pr
 type MultiModelNodeBuilder struct {
 	builders map[string]NodeBuilder // role → NodeBuilder
 	roles    map[string]string      // stepID_role → modelID
-}
-
-// NewMultiModelNodeBuilder 创建 MultiModelNodeBuilder。
-// roleModels 映射 advocate_role → modelID（如 "adv_a" → "deepseek"）。
-// builders 是 modelID → NodeBuilder 的预构建映射。
-func NewMultiModelNodeBuilder(roleModels map[string]string, builders map[string]NodeBuilder) *MultiModelNodeBuilder {
-	roles := make(map[string]string, len(roleModels))
-	for role, modelID := range roleModels {
-		if _, ok := builders[modelID]; ok {
-			roles[role] = modelID
-		}
-	}
-	return &MultiModelNodeBuilder{builders: builders, roles: roles}
 }
 
 // selectBuilder 根据 state 中的 advocate_role 标签选择对应的 builder。

@@ -1,9 +1,5 @@
 package evaluate
 
-import (
-	"math"
-)
-
 // EvidenceJudgmentAccuracy 评估证据判断的准确性。
 // 分数为预测结论与参考结论一致的比例。
 type EvidenceJudgmentAccuracy struct {
@@ -44,19 +40,6 @@ type EvidenceTypeCoverage struct {
 	AllTypes     []string
 }
 
-// NewEvidenceTypeCoverage creates an EvidenceTypeCoverage with the default
-// set of all 12 evidence types.
-func NewEvidenceTypeCoverage() *EvidenceTypeCoverage {
-	return &EvidenceTypeCoverage{
-		AllTypes: []string{
-			"general", "foreign_language", "overseas", "electronic",
-			"witness_testimony", "expert_opinion", "common_knowledge",
-			"notarial_certificate", "burden_of_proof", "standard_of_proof",
-			"prior_art_date", "procedural",
-		},
-	}
-}
-
 // Name returns "evidence_type_coverage".
 func (m *EvidenceTypeCoverage) Name() string {
 	return "evidence_type_coverage"
@@ -93,23 +76,6 @@ type EvidenceReasoningCompleteness struct {
 	FoundSections []string
 }
 
-// NewEvidenceReasoningCompleteness creates an EvidenceReasoningCompleteness with
-// default required sections covering relevance, legality, authenticity,
-// type-specific assessment, burden analysis, standard of proof, and conclusion.
-func NewEvidenceReasoningCompleteness() *EvidenceReasoningCompleteness {
-	return &EvidenceReasoningCompleteness{
-		RequiredSections: []string{
-			"relevance",     // 相关性审查
-			"legality",      // 合法性审查
-			"authenticity",  // 真实性审查
-			"type_specific", // 类型特定评估
-			"burden",        // 举证责任分析
-			"standard",      // 证明标准判断
-			"conclusion",    // 综合结论
-		},
-	}
-}
-
 // Name returns "evidence_reasoning_completeness".
 func (m *EvidenceReasoningCompleteness) Name() string {
 	return "evidence_reasoning_completeness"
@@ -139,68 +105,4 @@ func (m *EvidenceReasoningCompleteness) Compute(prediction, reference string) fl
 // SetSectionsFound 设置已发现的推理章节。
 func (m *EvidenceReasoningCompleteness) SetSectionsFound(sections []string) {
 	m.FoundSections = sections
-}
-
-// F1ForEvidenceJudgment 计算证据判断的 F1 分数。
-// 用于评估召回证据和参考证据之间的重叠程度。
-func F1ForEvidenceJudgment(predicted, reference []string) float64 {
-	if len(predicted) == 0 && len(reference) == 0 {
-		return 1
-	}
-	if len(predicted) == 0 || len(reference) == 0 {
-		return 0
-	}
-
-	refSet := make(map[string]int)
-	for _, r := range reference {
-		refSet[r]++
-	}
-
-	var overlap int
-	predCounts := make(map[string]int)
-	for _, p := range predicted {
-		predCounts[p]++
-	}
-	for p, pc := range predCounts {
-		if rc := refSet[p]; rc < pc {
-			overlap += rc
-		} else {
-			overlap += pc
-		}
-	}
-	if overlap == 0 {
-		return 0
-	}
-
-	precision := float64(overlap) / float64(len(predicted))
-	recall := float64(overlap) / float64(len(reference))
-	if precision+recall == 0 {
-		return 0
-	}
-	return 2 * precision * recall / (precision + recall)
-}
-
-// EvidenceWeightedScore 计算加权综合评分。
-// weights 为各维度权重（需归一化）。
-func EvidenceWeightedScore(scores map[string]float64, weights map[string]float64) float64 {
-	var totalWeight, weightedSum float64
-	for dim, score := range scores {
-		w := weights[dim]
-		if w <= 0 {
-			w = 0.1 // 默认权重
-		}
-		weightedSum += score * w
-		totalWeight += w
-	}
-	if totalWeight == 0 {
-		return 0
-	}
-	raw := weightedSum / totalWeight
-	if raw > 1 {
-		raw = 1
-	}
-	if raw < 0 {
-		raw = 0
-	}
-	return math.Round(raw*100) / 100
 }

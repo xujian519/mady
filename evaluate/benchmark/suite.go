@@ -1,7 +1,6 @@
 package benchmark
 
 import (
-	"context"
 	"os"
 	"strconv"
 
@@ -108,14 +107,6 @@ func CasesByDomain(domain string) []evaluate.TestCase {
 		}
 	}
 	return out
-}
-
-// RunSuite runs all benchmark cases through the given RunFunc (typically an
-// agent or workflow under test) and returns a scored BatchReport. This is the
-// primary entry point for live evaluation — e.g. "make eval-live" with a
-// running LLM backend.
-func RunSuite(ctx context.Context, run evaluate.RunFunc) (*evaluate.BatchReport, error) {
-	return DefaultEvaluator().EvaluateBatch(ctx, AllCases(), run)
 }
 
 // RunStatic scores pre-recorded predictions without calling a live agent.
