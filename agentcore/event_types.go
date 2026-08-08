@@ -77,6 +77,10 @@ type AgentEndEvent struct {
 	baseEvent
 	AgentName string `json:"agent_name,omitempty"`
 	Output    string `json:"output"`
+	// FinishReason 是模型最后一个应答轮次的结束原因（如 "stop"/"length"/"error"），
+	// 仅在无工具调用的收尾轮次填充。订阅方可据此提示用户输出可能被截断
+	// （"length"）或流异常终止（"error"）；空值表示正常结束或原因未知。
+	FinishReason string `json:"finish_reason,omitempty"`
 }
 
 // NewAgentEndEvent 构造一个 AgentEndEvent。

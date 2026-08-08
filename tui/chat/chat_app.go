@@ -283,7 +283,7 @@ func (a *ChatApp) StartConfirm(ic InlineConfirm) {
 	a.mu.Lock()
 	// A confirm prompt pauses any in-flight stream: end the current assistant
 	// message so its Pending flag is cleared and a later delta starts fresh.
-	a.finalizeStreamLocked()
+	a.finalizeStreamLocked("")
 	a.model.state = Transition(a.model.state, evtConfirmRequest)
 	a.model.confirm = &confirmPending{
 		confirm: ic,

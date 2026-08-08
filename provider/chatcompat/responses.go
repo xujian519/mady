@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -262,7 +263,7 @@ func (p *Provider) completeResponses(ctx context.Context, req *agentcore.Provide
 
 	rr := p.buildResponsesRequest(req, msgs, false)
 
-	httpResp, err := p.doHTTP(ctx, rr, nil)
+	httpResp, err := p.doHTTP(ctx, p.client, rr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +294,7 @@ func (p *Provider) streamResponses(ctx context.Context, req *agentcore.ProviderR
 
 	rr := p.buildResponsesRequest(req, msgs, true)
 
-	httpResp, err := p.doHTTP(ctx, rr, nil)
+	httpResp, err := p.doHTTP(ctx, p.streamClient, rr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -332,6 +333,9 @@ func (p *Provider) readResponsesStream(ctx context.Context, httpResp *http.Respo
 		}
 
 		scanner := bufio.NewScanner(httpResp.Body)
+		// Single SSE data lines can carry large JSON payloads; the 64KB
+		// default would silently truncate the stream.
+		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 		for scanner.Scan() {
 			line := scanner.Text()
 			if !strings.HasPrefix(line, "event: ") {
@@ -340,7 +344,9 @@ func (p *Provider) readResponsesStream(ctx context.Context, httpResp *http.Respo
 			eventType := strings.TrimPrefix(line, "event: ")
 
 			if !scanner.Scan() {
-				return
+				// EOF in the middle of an event: fall through to the
+				// abnormal-termination handling below the loop.
+				break
 			}
 			dataLine := scanner.Text()
 			if !strings.HasPrefix(dataLine, "data: ") {
@@ -350,6 +356,8 @@ func (p *Provider) readResponsesStream(ctx context.Context, httpResp *http.Respo
 
 			var evt responsesStreamEvent
 			if err := json.Unmarshal([]byte(data), &evt); err != nil {
+				slog.Default().Warn("readResponsesStream: skipping unparseable data line",
+					"error", err, "event", eventType, "data_prefix", truncateForLog(data))
 				continue
 			}
 			evt.Type = eventType
@@ -431,6 +439,19 @@ func (p *Provider) readResponsesStream(ctx context.Context, httpResp *http.Respo
 				return
 			}
 		}
+
+		// The loop ended without response.completed. Distinguish abnormal
+		// termination from context cancellation so the stream does not
+		// close silently.
+		if ctx.Err() != nil {
+			return
+		}
+		if err := scanner.Err(); err != nil {
+			slog.Default().Warn("readResponsesStream: stream read error, terminating abnormally", "error", err)
+		} else {
+			slog.Default().Warn("readResponsesStream: stream ended without response.completed (possible truncation)")
+		}
+		p.sendFinalDelta(ctx, ch, agentcore.StreamDelta{FinishReason: streamFinishReasonError})
 	}()
 	return ch
 }

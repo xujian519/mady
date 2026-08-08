@@ -28,7 +28,7 @@ func (a *ChatApp) onToolStart(e ChatEvent) {
 	a.model.toolSeq++
 	a.model.activeTools[tc.ToolCall.ID] = time.Now()
 	a.model.state = Transition(a.model.state, evtToolStart)
-	a.finalizeStreamLocked()
+	a.finalizeStreamLocked("")
 	toolSeq := a.model.toolSeq
 	a.mu.Unlock()
 	a.layout.updateJudgmentView()
@@ -215,7 +215,7 @@ func (a *ChatApp) onHandoffStart(e ChatEvent) {
 		return // 不可见交接：不在 UI 中显示
 	}
 	a.mu.Lock()
-	a.finalizeStreamLocked()
+	a.finalizeStreamLocked("")
 	a.mu.Unlock()
 	a.history.Append(ChatMessage{
 		Role: RoleSystem,
@@ -231,7 +231,7 @@ func (a *ChatApp) onHandoffEnd(e ChatEvent) {
 	if h.Invisible {
 		// 不可见交接：只清理流状态，不显示结束公告
 		a.mu.Lock()
-		a.finalizeStreamLocked()
+		a.finalizeStreamLocked("")
 		a.mu.Unlock()
 		return
 	}

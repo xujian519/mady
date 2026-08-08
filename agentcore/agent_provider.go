@@ -164,6 +164,15 @@ func (a *Agent) runStreaming(ctx context.Context, req *ProviderRequest) (*Provid
 	}
 
 buildResponse:
+	switch finishReason {
+	case "":
+		slog.Default().Warn("runStreaming: stream ended without finish reason (possible silent truncation)",
+			"agent", a.config.Name)
+	case "error":
+		slog.Default().Warn("runStreaming: provider terminated the stream abnormally",
+			"agent", a.config.Name)
+	}
+
 	var indices []int64
 	for idx := range toolCallMap {
 		indices = append(indices, idx)

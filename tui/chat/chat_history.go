@@ -66,10 +66,11 @@ type ChatMessage struct {
 	// Thinking blocks (structured content).
 	ThinkingSegments []ThinkingSegment
 
-	// Internal: set of deltas already applied to this message during streaming.
-	// Used to suppress duplicate or cumulative provider chunks that would
-	// otherwise cause visible text repetition in the UI.
-	deltaHistory map[string]struct{}
+	// Internal: the raw delta string most recently applied to this message.
+	// Used to suppress an immediate re-send of the exact same chunk (e.g. a
+	// reconnect replay) while keeping legitimately repeated output elsewhere
+	// in the stream.
+	lastDelta string
 
 	// Internal: Kind of the last applied delta ("text" / "thinking").
 	// Used to start a new ThinkingSegment when thinking resumes after text,
@@ -506,7 +507,7 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 		Role:          RoleAssistant,
 		Pending:       true,
 		At:            time.Now(),
-		deltaHistory:  map[string]struct{}{delta: {}},
+		lastDelta:     delta,
 		lastDeltaKind: kind,
 	}
 	if kind == "thinking" {
@@ -529,33 +530,29 @@ func (h *ChatHistory) AppendDeltaWithKind(id, delta, kind string) string {
 }
 
 // applyDeltaLocked merges `delta` into the streaming message `m` while
-// suppressing common provider-level duplication patterns:
-//   - exact delta already seen for this message
+// suppressing the two provider-level duplication patterns that are safe to
+// detect locally:
+//   - an immediate re-send of the exact same delta (reconnect replay)
 //   - cumulative chunks where delta starts with the current text
 //
-// Note: a delta that merely equals a suffix of the current text is NOT
-// treated as a duplicate. Providers stream true increments (each chunk is new
-// content), so a suffix match means the model genuinely produced that text
-// again (repeated words, closing brackets, repeated symbols) — dropping it
-// would silently truncate the visible answer.
+// Everything else is appended verbatim. Non-consecutive repeats are real
+// output (long answers legitimately repeat "```", "**", "---", table
+// separators), and look-behind overlap stripping is deliberately NOT
+// attempted: a cross-chunk 叠字 ("让我想想" + "想办法") is genuine text that
+// must not be silently truncated. A transient double from a provider replay
+// is reconciled at stream end by FinalizeWithOutput, which corrects the
+// message against the full output carried by AgentEndEvent.
 //
 // It returns true if the delta was applied and false if it was suppressed.
 // Caller must hold h.mu.
 func (h *ChatHistory) applyDeltaLocked(m *ChatMessage, delta, kind string) bool {
-	if m.deltaHistory == nil {
-		m.deltaHistory = make(map[string]struct{})
-	}
-	if _, seen := m.deltaHistory[delta]; seen {
-		// Single-rune deltas are exempt from exact-match dedup. Streams that
-		// arrive one rune at a time legitimately repeat characters — table
-		// separators "---|---", "===", ellipses "...", doubled punctuation —
-		// and dropping them silently corrupts the rendered output (a
-		// 5-column separator shrinks to 3). Providers re-send whole chunks,
-		// not isolated characters, so the dedup still protects the intended
-		// case (duplicate chunk) without damaging rune streams.
-		if utf8.RuneCountInString(delta) > 1 {
-			return false
-		}
+	// Consecutive exact duplicate: providers replay whole chunks, never
+	// isolated characters, so only an immediate multi-rune repeat of the
+	// previous delta (same kind, same content) counts as a replay. Rune
+	// streams legitimately repeat single characters ("---|---", "...") and
+	// are exempt.
+	if delta == m.lastDelta && kind == m.lastDeltaKind && utf8.RuneCountInString(delta) > 1 {
+		return false
 	}
 
 	var target *string
@@ -571,75 +568,41 @@ func (h *ChatHistory) applyDeltaLocked(m *ChatMessage, delta, kind string) bool 
 	}
 
 	current := *target
-	if current != "" {
+	if current != "" && strings.HasPrefix(delta, current) {
 		// Cumulative provider chunks: the provider sent the full text so far
-		// instead of an incremental delta. Replace rather than append, and
-		// record the replaced text as already-seen so a later re-send of the
-		// old chunk is suppressed by the exact-match dedup above.
-		if strings.HasPrefix(delta, current) {
-			*target = delta
-			m.deltaHistory[delta] = struct{}{}
-			m.deltaHistory[current] = struct{}{}
-			m.lastDeltaKind = kind
-			return true
-		}
-		// Look-behind chunks: some OpenAI-compatible gateways / SSE middleboxes
-		// re-echo the tail of the previous buffer (a few runes) before the new
-		// content when reassembling byte-boundary splits or replaying on
-		// reconnect. Appending blindly would duplicate that tail. Strip the
-		// overlapping prefix (rune-safe, because CJK is multi-byte) and append
-		// only the genuinely new part. If the entire delta is just a suffix of
-		// current with no new content, we deliberately fall through to the
-		// normal append so genuinely repeated output (e.g. a model repeating a
-		// word) is preserved rather than truncated.
-		if ov := longestOverlapRuneCount(current, delta); ov > 0 {
-			r := []rune(delta)
-			if ov < len(r) {
-				*target += string(r[ov:])
-				m.deltaHistory[delta] = struct{}{}
-				m.lastDeltaKind = kind
-				return true
-			}
-		}
+		// instead of an incremental delta. Replace rather than append.
+		*target = delta
+		m.lastDelta = delta
+		m.lastDeltaKind = kind
+		return true
 	}
 
 	*target += delta
-	m.deltaHistory[delta] = struct{}{}
+	m.lastDelta = delta
 	m.lastDeltaKind = kind
 	return true
-}
-
-// longestOverlapRuneCount returns the number of runes in the longest suffix of
-// current that is also a prefix of delta. It is used to detect look-behind
-// streaming chunks where a provider re-sends part of the previous buffer before
-// the new content, so the overlap can be stripped before appending. The
-// comparison is rune-based so multi-byte CJK characters are handled correctly.
-func longestOverlapRuneCount(current, delta string) int {
-	cur := []rune(current)
-	del := []rune(delta)
-	maxK := len(cur)
-	if len(del) < maxK {
-		maxK = len(del)
-	}
-	best := 0
-	for k := 1; k <= maxK; k++ {
-		if string(cur[len(cur)-k:]) == string(del[:k]) {
-			best = k
-		}
-	}
-	return best
 }
 
 // Finalize clears the Pending flag on the given id and releases the
 // per-block render cache so the blockCache can be GC'd promptly.
 func (h *ChatHistory) Finalize(id string) {
+	h.FinalizeWithOutput(id, "")
+}
+
+// FinalizeWithOutput behaves like Finalize and additionally reconciles the
+// visible Text with the agent's final output: when output is non-empty and
+// differs from the accumulated text (e.g. a delta was lost or duplicated
+// upstream), the full output wins. Thinking segments are left untouched —
+// output carries the pure body text only.
+func (h *ChatHistory) FinalizeWithOutput(id, output string) {
 	h.PatchMessage(id, func(m *ChatMessage) {
 		if m.Pending {
 			h.pendingCount--
 		}
 		m.Pending = false
-		// Release streaming dedup state; the message is no longer mutable.
-		m.deltaHistory = nil
+		if output != "" && m.Text != output {
+			m.Text = output
+		}
 	})
 }
 

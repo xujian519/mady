@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -63,7 +64,19 @@ type Config struct {
 type Provider struct {
 	config Config
 	client *http.Client
+	// streamClient is used for streaming requests. Unlike client it has no
+	// overall Timeout: a stream may legitimately run longer than the
+	// non-streaming budget (long reasoning + long output), so cancellation
+	// is driven by the request context. ResponseHeaderTimeout still bounds
+	// the connect / time-to-first-byte phase.
+	streamClient *http.Client
 }
+
+// streamFinishReasonError is the synthetic FinishReason emitted as the final
+// StreamDelta when a stream terminates abnormally (read error, mid-stream
+// error payload, or EOF without [DONE]/finish_reason). It lets consumers
+// distinguish "stream broke" from a normal channel close.
+const streamFinishReasonError = "error"
 
 // New creates a Chat Completions provider with the given configuration.
 func New(cfg Config) *Provider {
@@ -78,13 +91,29 @@ func New(cfg Config) *Provider {
 		}
 	}
 	client := cfg.Client
+	streamClient := cfg.Client
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Minute}
+		streamClient = &http.Client{Transport: newStreamTransport()}
 	}
 	return &Provider{
-		config: cfg,
-		client: client,
+		config:       cfg,
+		client:       client,
+		streamClient: streamClient,
 	}
+}
+
+// newStreamTransport clones the default transport and bounds only the
+// connect / wait-for-headers phase; the streaming body itself is unbounded
+// and cancelled via context.
+func newStreamTransport() *http.Transport {
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return &http.Transport{ResponseHeaderTimeout: 60 * time.Second}
+	}
+	tr := base.Clone()
+	tr.ResponseHeaderTimeout = 60 * time.Second
+	return tr
 }
 
 // --- Chat Completions wire types ---
@@ -188,9 +217,18 @@ type chatUsage struct {
 }
 
 type chatChunk struct {
-	ID      string        `json:"id"`
-	Choices []chunkChoice `json:"choices"`
-	Usage   *chatUsage    `json:"usage,omitempty"`
+	ID      string           `json:"id"`
+	Choices []chunkChoice    `json:"choices"`
+	Usage   *chatUsage       `json:"usage,omitempty"`
+	Error   *chatStreamError `json:"error,omitempty"`
+}
+
+// chatStreamError is the mid-stream error payload some vendors send as
+// `data: {"error": {...}}` instead of a chunk with choices.
+type chatStreamError struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+	Code    string `json:"code"`
 }
 
 type chunkChoice struct {
@@ -322,7 +360,7 @@ func (p *Provider) Complete(ctx context.Context, req *agentcore.ProviderRequest)
 	}
 	cr, extra := p.buildRequest(req, false)
 
-	httpResp, err := p.doHTTP(ctx, cr, extra)
+	httpResp, err := p.doHTTP(ctx, p.client, cr, extra)
 	if err != nil {
 		return nil, err
 	}
@@ -383,7 +421,7 @@ func (p *Provider) Stream(ctx context.Context, req *agentcore.ProviderRequest) (
 	}
 	cr, extra := p.buildRequest(req, true)
 
-	httpResp, err := p.doHTTP(ctx, cr, extra)
+	httpResp, err := p.doHTTP(ctx, p.streamClient, cr, extra)
 	if err != nil {
 		return nil, err
 	}
@@ -414,6 +452,10 @@ func (p *Provider) readSSEStream(ctx context.Context, httpResp *http.Response) <
 		defer close(ch)
 
 		scanner := bufio.NewScanner(httpResp.Body)
+		// Single SSE data lines can carry large JSON payloads (e.g. big tool
+		// call arguments); the 64KB default would silently truncate the stream.
+		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+		sawFinish := false
 		for scanner.Scan() {
 			line := scanner.Text()
 			if !strings.HasPrefix(line, "data: ") {
@@ -426,7 +468,15 @@ func (p *Provider) readSSEStream(ctx context.Context, httpResp *http.Response) <
 
 			var chunk chatChunk
 			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+				slog.Default().Warn("readSSEStream: skipping unparseable data line",
+					"error", err, "data_prefix", truncateForLog(data))
 				continue
+			}
+			if chunk.Error != nil {
+				slog.Default().Warn("readSSEStream: mid-stream error payload",
+					"code", chunk.Error.Code, "type", chunk.Error.Type, "message", chunk.Error.Message)
+				p.sendFinalDelta(ctx, ch, agentcore.StreamDelta{FinishReason: streamFinishReasonError})
+				return
 			}
 			// Final chunk may have usage but no choices
 			if chunk.Usage != nil {
@@ -452,6 +502,7 @@ func (p *Provider) readSSEStream(ctx context.Context, httpResp *http.Response) <
 			sd := agentcore.StreamDelta{Content: delta.Content}
 			if fr := chunk.Choices[0].FinishReason; fr != nil && *fr != "" {
 				sd.FinishReason = *fr
+				sawFinish = true
 			}
 			if delta.Content != "" {
 				sd.Blocks = TextBlocks(delta.Content)
@@ -484,8 +535,40 @@ func (p *Provider) readSSEStream(ctx context.Context, httpResp *http.Response) <
 				return
 			}
 		}
+
+		// The loop ended without [DONE]. Distinguish abnormal termination
+		// from context cancellation so the stream does not close silently.
+		if ctx.Err() != nil {
+			return
+		}
+		if err := scanner.Err(); err != nil {
+			slog.Default().Warn("readSSEStream: stream read error, terminating abnormally", "error", err)
+			p.sendFinalDelta(ctx, ch, agentcore.StreamDelta{FinishReason: streamFinishReasonError})
+			return
+		}
+		if !sawFinish {
+			slog.Default().Warn("readSSEStream: stream ended without [DONE] or finish_reason (possible truncation)")
+			p.sendFinalDelta(ctx, ch, agentcore.StreamDelta{FinishReason: streamFinishReasonError})
+		}
 	}()
 	return ch
+}
+
+// sendFinalDelta delivers a terminal delta unless the context is done.
+func (p *Provider) sendFinalDelta(ctx context.Context, ch chan<- agentcore.StreamDelta, sd agentcore.StreamDelta) {
+	select {
+	case ch <- sd:
+	case <-ctx.Done():
+	}
+}
+
+// truncateForLog bounds a payload fragment for log output.
+func truncateForLog(s string) string {
+	const limit = 200
+	if len(s) <= limit {
+		return s
+	}
+	return s[:limit] + "..."
 }
 
 // --- internal helpers ---
@@ -662,7 +745,7 @@ func marshalWithExtra(body any, extra map[string]any) ([]byte, error) {
 	return result, nil
 }
 
-func (p *Provider) doHTTP(ctx context.Context, body any, extra map[string]any) (*http.Response, error) {
+func (p *Provider) doHTTP(ctx context.Context, client *http.Client, body any, extra map[string]any) (*http.Response, error) {
 	data, err := marshalWithExtra(body, extra)
 	if err != nil {
 		return nil, err
@@ -686,7 +769,7 @@ func (p *Provider) doHTTP(ctx context.Context, body any, extra map[string]any) (
 		httpReq.Header.Set(k, v)
 	}
 
-	return p.client.Do(httpReq)
+	return client.Do(httpReq)
 }
 
 // formatError attempts to extract a structured error message from API error

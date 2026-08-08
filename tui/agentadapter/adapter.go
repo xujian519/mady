@@ -33,7 +33,7 @@ func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.C
 			if !ok {
 				return
 			}
-			handler(chat.AgentEndChatEvent{AgentName: ev.AgentName, Output: ev.Output})
+			handler(chat.AgentEndChatEvent{AgentName: ev.AgentName, Output: ev.Output, FinishReason: ev.FinishReason})
 		})
 	case chat.ChatEventAgentError:
 		s.agent.On(agentcore.EventAgentError, func(e agentcore.Event) {

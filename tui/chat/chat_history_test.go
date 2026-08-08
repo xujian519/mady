@@ -521,11 +521,14 @@ func TestChatHistoryStreamingDeltaReusesBlockCache(t *testing.T) {
 	}
 }
 
-// TestChatHistoryAppendDeltaDeduplicatesNonConsecutiveRepeats verifies that
-// identical deltas are suppressed even when they are not back-to-back. Some
-// providers (or proxy/buffer layers) re-emit the same sentence after a different
-// delta; without this guard the assistant text appears duplicated in the UI.
-func TestChatHistoryAppendDeltaDeduplicatesNonConsecutiveRepeats(t *testing.T) {
+// TestChatHistoryAppendDeltaKeepsNonConsecutiveRepeats verifies that
+// identical deltas separated by other content are kept, not deduplicated.
+// Long answers legitimately repeat whole chunks (code fences, emphasis
+// markers, separators); a whole-message-lifetime dedup map used to swallow
+// the second occurrence and corrupt the Markdown structure. Only an
+// immediate (consecutive) re-send of the exact same chunk is treated as a
+// reconnect replay.
+func TestChatHistoryAppendDeltaKeepsNonConsecutiveRepeats(t *testing.T) {
 	h := NewChatHistory()
 	id := h.AppendDelta("", "Hello, ")
 	h.AppendDelta(id, "world!")
@@ -536,8 +539,26 @@ func TestChatHistoryAppendDeltaDeduplicatesNonConsecutiveRepeats(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
 	}
+	if got, want := msgs[0].Text, "Hello, world!Hello, world!"; got != want {
+		t.Fatalf("non-consecutive repeat dropped: text=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryAppendDeltaSuppressesConsecutiveReplay verifies the only
+// remaining dedup case: an immediate re-send of the exact same multi-rune
+// delta (same kind), as produced by a reconnect replay.
+func TestChatHistoryAppendDeltaSuppressesConsecutiveReplay(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "Hello, ")
+	h.AppendDelta(id, "world!")
+	h.AppendDelta(id, "world!") // consecutive exact replay → suppressed
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 streaming msg, got %d", len(msgs))
+	}
 	if got, want := msgs[0].Text, "Hello, world!"; got != want {
-		t.Fatalf("dedup failed: text=%q want=%q", got, want)
+		t.Fatalf("consecutive replay not suppressed: text=%q want=%q", got, want)
 	}
 }
 
@@ -582,38 +603,115 @@ func TestChatHistoryAppendDeltaKeepsLegitSuffixIncrement(t *testing.T) {
 	}
 }
 
-// TestChatHistoryAppendDeltaStripsLookBehindOverlap verifies that when a
-// provider sends a look-behind chunk (re-echoing the tail of the previous
-// buffer before new content), the overlapping runes are not duplicated. This
-// is the regression guard for the TUI streaming duplication bug where the
-// answer repeated whole phrases (e.g. "专著（篇我） 法、" across the screen).
-func TestChatHistoryAppendDeltaStripsLookBehindOverlap(t *testing.T) {
+// TestChatHistoryAppendDeltaKeepsLookBehindOverlap verifies that a delta
+// whose head repeats the tail of the current text is appended verbatim.
+// Overlap stripping used to drop the duplicated runes, which silently
+// truncated genuine output whenever the model repeated characters across a
+// chunk boundary (CJK 叠字, repeated words). Any transient double caused by
+// a provider re-echo is reconciled at stream end by FinalizeWithOutput
+// against the full AgentEndEvent output.
+func TestChatHistoryAppendDeltaKeepsLookBehindOverlap(t *testing.T) {
 	h := NewChatHistory()
 	// CJK look-behind: the provider re-echoes the tail of the previous buffer
-	// before sending the new content.
+	// before sending the new content. The overlap is kept as-is now.
 	id := h.AppendDelta("", "专著（篇我） 法、")
-	h.AppendDelta(id, " 法、更多内容") // look-behind: re-echoes " 法、" then new content
+	h.AppendDelta(id, " 法、更多内容")
 
 	msgs := h.Messages()
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 msg, got %d", len(msgs))
 	}
-	if got, want := msgs[0].Text, "专著（篇我） 法、更多内容"; got != want {
-		t.Fatalf("CJK look-behind overlap not stripped: text=%q want=%q", got, want)
+	if got, want := msgs[0].Text, "专著（篇我） 法、 法、更多内容"; got != want {
+		t.Fatalf("CJK look-behind chunk altered: text=%q want=%q", got, want)
 	}
 
-	// ASCII look-behind: the model genuinely says "world" once, the provider
-	// only re-echoes "world" as the head of the next chunk.
+	// ASCII look-behind: same rule — append, never strip.
 	h2 := NewChatHistory()
 	id2 := h2.AppendDelta("", "Hello, world")
-	h2.AppendDelta(id2, "world and more") // re-echoes "world" then new content
+	h2.AppendDelta(id2, "world and more")
 
 	msgs2 := h2.Messages()
 	if len(msgs2) != 1 {
 		t.Fatalf("expected 1 msg, got %d", len(msgs2))
 	}
-	if got, want := msgs2[0].Text, "Hello, world and more"; got != want {
-		t.Fatalf("ASCII look-behind overlap not stripped: text=%q want=%q", got, want)
+	if got, want := msgs2[0].Text, "Hello, worldworld and more"; got != want {
+		t.Fatalf("ASCII look-behind chunk altered: text=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryAppendDeltaKeepsCrossChunkReduplication is the S3 regression
+// guard: a Chinese 叠字 split across chunk boundaries must survive intact.
+// The old look-behind overlap stripper dropped the second 想.
+func TestChatHistoryAppendDeltaKeepsCrossChunkReduplication(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "让我想想")
+	h.AppendDelta(id, "想办法")
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "让我想想想办法"; got != want {
+		t.Fatalf("cross-chunk reduplication lost a rune: text=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryAppendDeltaKeepsRepeatedCodeFenceChunk is the S2 regression
+// guard: "```" emitted as an independent chunk twice in one answer (with
+// other content in between) must be kept both times. The old whole-lifetime
+// dedup map swallowed the second fence and broke the Markdown structure.
+func TestChatHistoryAppendDeltaKeepsRepeatedCodeFenceChunk(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "```")
+	h.AppendDelta(id, "\nfmt.Println()\n")
+	h.AppendDelta(id, "```") // second fence, separated by other content
+
+	msgs := h.Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "```\nfmt.Println()\n```"; got != want {
+		t.Fatalf("second code fence chunk dropped: text=%q want=%q", got, want)
+	}
+}
+
+// TestChatHistoryFinalizeWithOutputReconciles verifies the S5 safety net:
+// a delta lost mid-stream is corrected at finalize time by the full output
+// carried by AgentEndEvent. Thinking segments are untouched — output is the
+// pure body text.
+func TestChatHistoryFinalizeWithOutputReconciles(t *testing.T) {
+	h := NewChatHistory()
+	id := h.AppendDelta("", "Hello, ")
+	h.AppendDelta(id, "world!") // "brave " was lost upstream
+
+	h.FinalizeWithOutput(id, "Hello, brave world!")
+	msgs := h.Messages()
+	if got, want := msgs[0].Text, "Hello, brave world!"; got != want {
+		t.Fatalf("reconcile failed: text=%q want=%q", got, want)
+	}
+	if msgs[0].Pending {
+		t.Fatalf("FinalizeWithOutput should clear pending")
+	}
+
+	// Empty output keeps the accumulated text.
+	h2 := NewChatHistory()
+	id2 := h2.AppendDelta("", "kept")
+	h2.FinalizeWithOutput(id2, "")
+	if got := h2.Messages()[0].Text; got != "kept" {
+		t.Fatalf("empty output clobbered text: %q", got)
+	}
+
+	// Thinking segments survive reconciliation; only Text is corrected.
+	h3 := NewChatHistory()
+	id3 := h3.AppendDeltaWithKind("", "想", "thinking")
+	h3.AppendDeltaWithKind(id3, "答", "text")
+	h3.FinalizeWithOutput(id3, "答案")
+	msgs3 := h3.Messages()
+	if got, want := msgs3[0].Text, "答案"; got != want {
+		t.Fatalf("text not reconciled with thinking present: %q want %q", got, want)
+	}
+	if len(msgs3[0].ThinkingSegments) != 1 || msgs3[0].ThinkingSegments[0].Text != "想" {
+		t.Fatalf("thinking segments clobbered: %+v", msgs3[0].ThinkingSegments)
 	}
 }
 
@@ -675,23 +773,28 @@ func TestChatHistoryAppendDeltaWithKindMixedStream(t *testing.T) {
 	}
 }
 
-// TestChatHistoryAppendDeltaWithKindDedupAcrossKinds verifies exact-match
-// dedup still holds independently per storage target: a repeated text delta
-// is suppressed without touching the thinking stream, and vice versa.
+// TestChatHistoryAppendDeltaWithKindDedupAcrossKinds verifies the replay
+// suppression is stream-ordered rather than whole-lifetime: an immediate
+// re-send of the same delta is suppressed, but the same content arriving
+// later — or in the other stream — is real output and must be kept.
 func TestChatHistoryAppendDeltaWithKindDedupAcrossKinds(t *testing.T) {
 	h := NewChatHistory()
 	id := h.AppendDeltaWithKind("", "abc", "text")
-	h.AppendDeltaWithKind(id, "abc", "text") // exact duplicate → suppressed
+	h.AppendDeltaWithKind(id, "abc", "text") // consecutive exact duplicate → suppressed
 	h.AppendDeltaWithKind(id, "def", "thinking")
-	h.AppendDeltaWithKind(id, "def", "thinking") // exact duplicate → suppressed
+	h.AppendDeltaWithKind(id, "def", "thinking") // consecutive exact duplicate → suppressed
 	h.AppendDeltaWithKind(id, "ghi", "text")
+	// Same content as the earlier thinking delta, now on the text stream and
+	// not consecutive: legitimately new output that the old whole-lifetime
+	// dedup map would have swallowed.
+	h.AppendDeltaWithKind(id, "def", "text")
 
 	msgs := h.Messages()
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 msg, got %d", len(msgs))
 	}
-	if got, want := msgs[0].Text, "abcghi"; got != want {
-		t.Fatalf("text dedup broken: %q want %q", got, want)
+	if got, want := msgs[0].Text, "abcghidef"; got != want {
+		t.Fatalf("text stream wrong: %q want %q", got, want)
 	}
 	if len(msgs[0].ThinkingSegments) != 1 || msgs[0].ThinkingSegments[0].Text != "def" {
 		t.Fatalf("thinking segments unexpected: %+v", msgs[0].ThinkingSegments)

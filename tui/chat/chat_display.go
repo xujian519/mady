@@ -447,11 +447,16 @@ func (a *ChatApp) OpenSystemOverlay(content core.Component) OverlayRef {
 // Stream finalization
 // ---------------------------------------------------------------------------
 
-func (a *ChatApp) finalizeStreamLocked() {
+// finalizeStreamLocked clears the in-flight stream and finalizes its history
+// message. When finalOutput is non-empty (AgentEndEvent carries the full
+// output), the message Text is reconciled against it so any delta lost
+// upstream is corrected at stream end. Pass "" when no final output is
+// available (error / interrupt paths).
+func (a *ChatApp) finalizeStreamLocked(finalOutput string) {
 	id := a.model.streamID
 	a.model.streamID = ""
 	if id != "" {
-		a.history.Finalize(id)
+		a.history.FinalizeWithOutput(id, finalOutput)
 	}
 }
 

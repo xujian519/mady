@@ -95,6 +95,10 @@ func (AgentStartChatEvent) ChatEventKind() ChatEventType { return ChatEventAgent
 type AgentEndChatEvent struct {
 	AgentName string
 	Output    string
+	// FinishReason 是模型收尾轮次的结束原因（如 "stop"/"length"/"error"）。
+	// "length" 表示输出触达 max_tokens 上限可能被截断；"error" 表示流异常终止；
+	// 空值表示正常结束或原因未知。
+	FinishReason string
 }
 
 func (AgentEndChatEvent) ChatEventKind() ChatEventType { return ChatEventAgentEnd }

@@ -137,11 +137,12 @@ func (a *Agent) Resume(ctx context.Context) (string, error) {
 func (a *Agent) runLoop(ctx context.Context) (string, error) {
 	loopStartTurn := a.state.Turn()
 	var finalOutput string
+	var finishReason string
 	var finished bool
 	var err error
 
 	for {
-		finalOutput, finished, err = a.runInnerLoop(ctx, loopStartTurn)
+		finalOutput, finishReason, finished, err = a.runInnerLoop(ctx, loopStartTurn)
 		if err != nil {
 			return "", err
 		}
@@ -179,9 +180,10 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 	switch a.state.Status() {
 	case StatusFinished:
 		a.emitMustDeliver(ctx, &AgentEndEvent{
-			baseEvent: newBase(EventAgentEnd),
-			AgentName: a.config.Name,
-			Output:    finalOutput,
+			baseEvent:    newBase(EventAgentEnd),
+			AgentName:    a.config.Name,
+			Output:       finalOutput,
+			FinishReason: finishReason,
 		})
 	case StatusInterrupted:
 		a.emitMustDeliver(ctx, &AgentInterruptEvent{
@@ -201,18 +203,21 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 // runInnerLoop 执行内层轮次循环，直到模型停止调用工具或达到终止条件。
 //
 // 返回值：
-//   - finalOutput: Agent 的最终文本响应（可能为空）
-//   - finished:    是否达到终止状态（StatusFinished /
+//   - finalOutput:  Agent 的最终文本响应（可能为空）
+//   - finishReason: 收尾轮次（无工具调用）模型上报的结束原因，
+//     如 "stop"/"length"/"error"；其他路径为空
+//   - finished:     是否达到终止状态（StatusFinished /
 //     StatusError/StatusInterrupted）；false 表示模型停止调用工具，
 //     可能存在跟随消息
-//   - err:         不可恢复的错误
+//   - err:          不可恢复的错误
 //
 // 重复检测状态（lastContent/repeatCount/...）在每次调用中局部化，
 // 有意不在跟随消息轮次间共享。
 //
 //nolint:gocognit // 原因：Agent 内循环，含状态机和重复检测逻辑
-func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, bool, error) {
+func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, string, bool, error) {
 	var finalOutput string
+	var finishReason string
 	var lastContent string
 	var repeatCount int
 	var lastToolSignature string
@@ -222,7 +227,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		turn := a.state.NextTurn()
 
 		if err := a.runPreTurn(ctx, loopStartTurn, turn); err != nil {
-			return "", true, err
+			return "", "", true, err
 		}
 
 		resp, err := a.runModelTurn(ctx, turn)
@@ -234,9 +239,9 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 					slog.Debug("agent_run: endTurn failed during context cancellation", "turn", turn, "error", e)
 				}
 				a.state.SetStatus(StatusInterrupted)
-				return "", true, nil
+				return "", "", true, nil
 			}
-			return "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
+			return "", "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
 		}
 
 		// Lifecycle: AfterModelCall — error is non-fatal, persist and continue
@@ -259,15 +264,16 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 				Blocks:    resp.Blocks,
 				ToolCalls: resp.ToolCalls,
 			}); err != nil {
-				return "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", err)
+				return "", "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", err)
 			}
 		}
 
 		if len(resp.ToolCalls) == 0 {
 			finalOutput = resp.Content
+			finishReason = resp.FinishReason
 			a.state.SetStatus(StatusFinished)
 			if err := a.endTurn(ctx, turn, resp.Usage, false); err != nil {
-				return "", true, err
+				return "", "", true, err
 			}
 			break
 		}
@@ -276,7 +282,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		// model hit max_tokens and any tool-call arguments may be cut mid-JSON.
 		if handled, gErr := a.guardTruncation(ctx, turn, resp); handled {
 			if gErr != nil {
-				return "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "truncation guard failed", gErr)
+				return "", "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "truncation guard failed", gErr)
 			}
 			continue
 		}
@@ -286,9 +292,9 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			if IsInterrupt(err) {
 				a.state.SetStatus(StatusInterrupted)
 				a.state.SetInterruptReason(a.interrupted.Load())
-				return "", true, nil
+				return "", "", true, nil
 			}
-			return "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "tool execution persist failed", err)
+			return "", "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "tool execution persist failed", err)
 		}
 
 		// Early-exit: a tool returned a terminating result
@@ -296,7 +302,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			finalOutput = earlyExit
 			a.state.SetStatus(StatusFinished)
 			if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
-				return "", true, err
+				return "", "", true, err
 			}
 			break
 		}
@@ -307,17 +313,17 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 				slog.Debug("agent_run: endTurn failed during context cancellation", "turn", turn, "error", e)
 			}
 			a.state.SetStatus(StatusInterrupted)
-			return "", true, nil
+			return "", "", true, nil
 		}
 		if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
-			return "", true, err
+			return "", "", true, err
 		}
 
 		// Transfer handoff
 		if handoff := a.state.PendingHandoff(); handoff != nil {
 			a.state.ClearPendingHandoff()
 			out, err := a.handleTransfer(ctx, handoff)
-			return out, true, err
+			return out, "", true, err
 		}
 
 		// Repetition detection: if the model emits the same text 3+ turns in a
@@ -362,5 +368,5 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		}
 	}
 
-	return finalOutput, false, nil
+	return finalOutput, finishReason, false, nil
 }

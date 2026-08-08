@@ -115,7 +115,7 @@ func (a *ChatApp) onAgentError(e ChatEvent) {
 	}
 	a.mu.Lock()
 	a.model.state = Transition(a.model.state, evtAgentError)
-	a.finalizeStreamLocked()
+	a.finalizeStreamLocked("")
 	a.mu.Unlock()
 	a.Idle()
 	a.layout.updateJudgmentView()
@@ -125,15 +125,26 @@ func (a *ChatApp) onAgentError(e ChatEvent) {
 }
 
 func (a *ChatApp) onAgentEnd(e ChatEvent) {
-	if _, ok := e.(AgentEndChatEvent); !ok {
+	ev, ok := e.(AgentEndChatEvent)
+	if !ok {
 		return
 	}
 	a.mu.Lock()
 	a.model.state = Transition(a.model.state, evtAgentEnd)
-	a.finalizeStreamLocked()
+	// 最终对账：AgentEndEvent 携带 agentcore 侧的完整输出，流式期间任何
+	// 丢失或重复的 delta 都在这里被修正（见 ChatHistory.FinalizeWithOutput）。
+	a.finalizeStreamLocked(ev.Output)
 	a.mu.Unlock()
 	a.Idle()
 	a.layout.updateJudgmentView()
+	// 输出异常结束时提醒用户内容可能不完整（不做自动续写，
+	// 避免循环风险与对话语义变更）。
+	switch ev.FinishReason {
+	case "length":
+		a.PrintSystem("⚠ 输出达到长度上限（max_tokens），内容可能不完整。可发送“继续”让智能体接着输出。")
+	case "error":
+		a.PrintSystem("⚠ 连接异常中断，输出可能不完整。可重新发送或让智能体重试。")
+	}
 	// Flush any input queued while the agent was streaming.
 	a.flushQueuedInput()
 }
@@ -152,7 +163,7 @@ func (a *ChatApp) onAgentInterrupt(e ChatEvent) {
 	}
 	a.mu.Lock()
 	a.model.state = Transition(a.model.state, evtInterrupt)
-	a.finalizeStreamLocked()
+	a.finalizeStreamLocked("")
 	a.mu.Unlock()
 	a.Idle()
 	// Show the interrupt phase in the judgment bar so the user sees the
@@ -215,7 +226,7 @@ func (a *ChatApp) onApprovalPrompt(e ChatEvent) {
 	}
 	a.mu.Lock()
 	a.model.state = Transition(a.model.state, evtApprovalRequest)
-	a.finalizeStreamLocked()
+	a.finalizeStreamLocked("")
 	a.mu.Unlock()
 	a.Idle()
 	a.judgmentView.SetStatus("awaiting_review")

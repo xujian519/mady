@@ -79,6 +79,48 @@ func TestChatAppMessageDeltaStream(t *testing.T) {
 	}
 }
 
+// TestChatAppAgentEndReconcilesDroppedDelta is the S5 regression guard: when
+// a delta is lost upstream mid-stream, the full output carried by
+// AgentEndChatEvent corrects the message text at finalize time.
+func TestChatAppAgentEndReconcilesDroppedDelta(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+
+	app.onAgentStart(AgentStartChatEvent{})
+	app.onMessageDelta(MessageDeltaChatEvent{Delta: "Hello, "})
+	// "brave " never arrives (lost upstream).
+	app.onMessageDelta(MessageDeltaChatEvent{Delta: "world!"})
+
+	app.onAgentEnd(AgentEndChatEvent{Output: "Hello, brave world!"})
+	msgs := app.History().Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "Hello, brave world!"; got != want {
+		t.Fatalf("finalize did not reconcile with Output: text=%q want=%q", got, want)
+	}
+	if msgs[0].Pending {
+		t.Fatalf("agent_end should finalize streaming message")
+	}
+}
+
+// TestChatAppAgentEndKeepsTextWhenOutputEmpty verifies that an empty Output
+// leaves the accumulated stream text untouched.
+func TestChatAppAgentEndKeepsTextWhenOutputEmpty(t *testing.T) {
+	app, _ := newTestChatApp(t, ChatAppConfig{})
+
+	app.onAgentStart(AgentStartChatEvent{})
+	app.onMessageDelta(MessageDeltaChatEvent{Delta: "Hello, world!"})
+	app.onAgentEnd(AgentEndChatEvent{})
+
+	msgs := app.History().Messages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+	if got, want := msgs[0].Text, "Hello, world!"; got != want {
+		t.Fatalf("empty Output clobbered text: text=%q want=%q", got, want)
+	}
+}
+
 // TestChatAppMessageDeltaWithThinkingKind is the end-to-end regression guard
 // for the DeepSeek v4 text-garbling bug: onMessageDelta previously dropped
 // the Kind field, so reasoning_content chunks were concatenated into the
