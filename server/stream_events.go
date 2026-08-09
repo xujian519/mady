@@ -115,7 +115,10 @@ type StreamDoneEvent struct {
 	Type     string `json:"type"`
 	ThreadID string `json:"thread_id,omitempty"`
 	Output   string `json:"output"`
-	Error    string `json:"error,omitempty"`
+	// FinishReason 与 AgentEndStreamPayload.FinishReason 语义一致，
+	// 在流末尾汇总事件中再次透传，方便客户端在单一收尾事件中判断完整性。
+	FinishReason string `json:"finish_reason,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 // AgentStartStreamPayload 是 SSE 流中 AgentStartStreamPayload 类型的事件/负载结构。
@@ -128,6 +131,10 @@ type AgentStartStreamPayload struct {
 type AgentEndStreamPayload struct {
 	AgentName string `json:"agent_name,omitempty"`
 	Output    string `json:"output"`
+	// FinishReason 是模型收尾轮次的结束原因（"stop"/"length"/"error" 等）。
+	// "length" 表示输出触达 max_tokens 上限可能被截断；"error" 表示流异常
+	// 终止。客户端应据此提示用户输出可能不完整。
+	FinishReason string `json:"finish_reason,omitempty"`
 }
 
 // AgentErrorStreamPayload 是 SSE 流中 AgentErrorStreamPayload 类型的事件/负载结构。
@@ -340,8 +347,9 @@ func agentEventPayload(e agentcore.Event) any {
 		}
 	case *agentcore.AgentEndEvent:
 		return AgentEndStreamPayload{
-			AgentName: ev.AgentName,
-			Output:    ev.Output,
+			AgentName:    ev.AgentName,
+			Output:       ev.Output,
+			FinishReason: ev.FinishReason,
 		}
 	case *agentcore.AgentErrorEvent:
 		return AgentErrorStreamPayload{

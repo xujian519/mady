@@ -10,6 +10,39 @@ import (
 
 // --- 公开入口 ---
 
+// maxTruncationContinuations 是纯文本输出被 max_tokens 截断时自动续写的
+// 最大次数。续写一次后若仍截断，则按截断结果正常结束，由下游通道透传
+// FinishReason 提示用户，避免无限续写造成死循环。
+//
+// 边界说明：自动续写针对"输出超出预算被截断"的场景（finish_reason="length"
+// 而模型本可继续）。若用户显式配置了较小的 max_tokens（配置性截断），续写
+// 轮可能仍被截断——此时不放大输出预算（放大可能超 provider 上限导致续写
+// 轮报错、整轮失败，且绕过用户配置意图），而是按 length 正常结束并提示用户
+// 输出可能不完整，由用户决定是否继续。
+const maxTruncationContinuations = 1
+
+// steering 提示词常量：runInnerLoop 检测到异常模式（截断/重复文本/重复
+// 工具调用）时，通过 messageQueue 注入系统消息引导模型摆脱当前状态。
+const (
+	// steeringMsgTruncation 在纯文本输出被 max_tokens 截断时要求模型
+	// 直接从断点续写，避免重复已输出内容。
+	steeringMsgTruncation = "你的上一条回复因达到输出长度上限（max_tokens）被截断。请直接从上次中断处继续输出剩余内容，不要重复已输出的部分。"
+	// steeringMsgRepeatText 在模型连续多轮输出相同文本时要求其停止循环。
+	steeringMsgRepeatText = "You have been repeating the same response. Stop this loop immediately. Do not call any more tools. Give a final answer based on what you have so far, or clearly state that you cannot complete the request and ask the user for guidance."
+	// steeringMsgRepeatTool 在模型反复调用相同工具而无进展时要求其停止。
+	steeringMsgRepeatTool = "You have been calling the same tools repeatedly without progress. Stop this loop immediately. Do not call any more tools. Report to the user what you attempted and why it failed, and ask for guidance."
+)
+
+// LastFinishReason 返回最近一次 Run/Continue/Resume 的模型结束原因
+// （如 "stop"/"length"/"error"）。"length" 表示输出触达 max_tokens 上限
+// 可能被截断；"error" 表示流异常终止。未运行时返回空字符串。
+func (a *Agent) LastFinishReason() string {
+	if v, ok := a.lastFinishReason.Load().(string); ok {
+		return v
+	}
+	return ""
+}
+
 // Run 启动 Agent 循环，传入新的用户输入。
 // Agent 可跨多次 Run 调用复用 —— 会话状态在调用间保留，
 // 系统提示词仅首次持久化。
@@ -135,6 +168,10 @@ func (a *Agent) Resume(ctx context.Context) (string, error) {
 // 外层循环处理跟随消息；内层循环处理工具调用轮次。
 // MaxTurns 按每次 runLoop 调用执行（不跨会话累积）。
 func (a *Agent) runLoop(ctx context.Context) (string, error) {
+	// 每次运行开始时清空上次的结束原因：若本次运行在记录 finishReason
+	// 之前失败（返回 err），LastFinishReason 保持为空，避免池化复用的
+	// Agent 读到上次运行的残留值而误报截断。
+	a.lastFinishReason.Store("")
 	loopStartTurn := a.state.Turn()
 	var finalOutput string
 	var finishReason string
@@ -197,6 +234,9 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 			Err:       NewNodeError("agent run loop exited with error", nil, a.config.Name, "runLoop"),
 		})
 	}
+	// 记录模型结束原因，供同步调用方（server 同步端点 / ACP）判断
+	// 输出是否因 max_tokens 截断或流异常而可能不完整。
+	a.lastFinishReason.Store(finishReason)
 	return finalOutput, nil
 }
 
@@ -222,6 +262,9 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 	var repeatCount int
 	var lastToolSignature string
 	var toolRepeatCount int
+	// truncationContinuations 记录本轮循环内因 max_tokens 截断触发的
+	// 自动续写次数，超过 maxTruncationContinuations 后不再续写。
+	var truncationContinuations int
 
 	for a.state.Status() == StatusRunning {
 		turn := a.state.NextTurn()
@@ -269,6 +312,24 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 		}
 
 		if len(resp.ToolCalls) == 0 {
+			// 输出完整性保护：模型因 max_tokens 截断输出（finish_reason="length"）
+			// 时，自动追加一轮续写，要求模型从断点继续完成剩余内容。仅续写
+			// maxTruncationContinuations 次，续写后仍截断则按截断结果正常结束，
+			// FinishReason 保留 "length" 供下游通道提示用户输出可能不完整。
+			if resp.FinishReason == "length" && truncationContinuations < maxTruncationContinuations {
+				truncationContinuations++
+				if err := a.steering.Push(Message{
+					Role:    RoleSystem,
+					Content: steeringMsgTruncation,
+				}); err == nil {
+					if err := a.endTurn(ctx, turn, resp.Usage, false); err != nil {
+						return "", "", true, err
+					}
+					continue
+				}
+				slog.Warn("agent: failed to push truncation continuation message", "error", err)
+			}
+
 			finalOutput = resp.Content
 			finishReason = resp.FinishReason
 			a.state.SetStatus(StatusFinished)
@@ -333,7 +394,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			if repeatCount >= 2 {
 				if err := a.steering.Push(Message{
 					Role:    RoleSystem,
-					Content: "You have been repeating the same response. Stop this loop immediately. Do not call any more tools. Give a final answer based on what you have so far, or clearly state that you cannot complete the request and ask the user for guidance.",
+					Content: steeringMsgRepeatText,
 				}); err != nil {
 					slog.Warn("agent: failed to push steering message", "error", err)
 				}
@@ -354,7 +415,7 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 				if toolRepeatCount >= 2 {
 					if err := a.steering.Push(Message{
 						Role:    RoleSystem,
-						Content: "You have been calling the same tools repeatedly without progress. Stop this loop immediately. Do not call any more tools. Report to the user what you attempted and why it failed, and ask for guidance.",
+						Content: steeringMsgRepeatTool,
 					}); err != nil {
 						slog.Warn("agent: failed to push steering message", "error", err)
 					}

@@ -113,13 +113,16 @@ func (c *Converter) RunFinishedWithInterrupts(t time.Time, interrupts []Interrup
 }
 
 // RunFinishedWithSuccess creates a RunFinishedEvent with a successful outcome.
-func (c *Converter) RunFinishedWithSuccess(t time.Time, result any) RunFinishedEvent {
+// finishReason 为模型结束原因（"stop"/"length"/"error" 等），写入事件供
+// 前端判断输出是否可能不完整。
+func (c *Converter) RunFinishedWithSuccess(t time.Time, result any, finishReason string) RunFinishedEvent {
 	return RunFinishedEvent{
-		BaseEvent: baseEvent(EventRunFinished, t),
-		ThreadID:  c.threadID,
-		RunID:     c.runID,
-		Result:    result,
-		Outcome:   &RunFinishedOutcome{Type: "success"},
+		BaseEvent:    baseEvent(EventRunFinished, t),
+		ThreadID:     c.threadID,
+		RunID:        c.runID,
+		Result:       result,
+		Outcome:      &RunFinishedOutcome{Type: "success"},
+		FinishReason: finishReason,
 	}
 }
 
@@ -239,13 +242,13 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 		closeEvents := c.closeAll(ev.EventTime())
 		events := make([]any, 0, len(closeEvents)+1)
 		events = append(events, closeEvents...)
-		events = append(events, c.RunFinishedWithSuccess(ev.EventTime(), ev.Output))
+		events = append(events, c.RunFinishedWithSuccess(ev.EventTime(), ev.Output, ev.FinishReason))
 		return events
 	case *agentcore.AgentEndEvent:
 		closeEvents := c.closeAll(ev.EventTime())
 		events := make([]any, 0, len(closeEvents)+1)
 		events = append(events, closeEvents...)
-		events = append(events, c.RunFinishedWithSuccess(ev.EventTime(), ev.Output))
+		events = append(events, c.RunFinishedWithSuccess(ev.EventTime(), ev.Output, ev.FinishReason))
 		return events
 
 	case agentcore.AgentErrorEvent:

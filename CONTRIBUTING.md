@@ -92,7 +92,6 @@ mady/
 │   ├── component/    #   Layer 4: UI 组件
 │   ├── chat/         #   Layer 5: 聊天应用
 │   └── agentadapter/ #   Layer 7: Agent 适配器
-├── workflows/        # 工作流原语（Pipeline/Parallel/Router）
 ├── domains/workflows/# 领域工作流（legal/patent/design）
 ├── disclosure/       # 技术交底书分析管线（13 节点 Pregel）
 ├── memory/           # 长期记忆系统 + 策略学习型记忆编译器

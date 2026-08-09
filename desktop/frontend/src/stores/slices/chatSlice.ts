@@ -105,6 +105,9 @@ export interface ChatSlice {
   compaction: CompactionNotice | null
   /** 自动重试提示（收到后续 token 或轮次结束时清除）。 */
   retryNotice: RetryNotice | null
+  /** 输出完整性提示（agui:run-finished 携带 finishReason="length"/"error" 时设置，
+   *  新轮次开始时清除）。告知用户输出可能不完整。 */
+  truncationNotice: string | null
 
   setReady: (v: boolean) => void
   setRunning: (runId: string | null) => void
@@ -132,6 +135,8 @@ export interface ChatSlice {
   setCompaction: (n: CompactionNotice) => void
   /** 设置/清除自动重试提示。 */
   setRetryNotice: (n: RetryNotice | null) => void
+  /** 设置/清除输出完整性提示。 */
+  setTruncationNotice: (n: string | null) => void
   /** 追加工具调用参数（agui:tool-call-args 流式增量）。 */
   appendToolCallArgs: (id: string, delta: string) => void
 }
@@ -161,6 +166,7 @@ export const chatInitialState = {
   stepCount: 0,
   compaction: null,
   retryNotice: null,
+  truncationNotice: null,
 } satisfies SliceState<ChatSlice>
 
 /** 创建 Chat slice（组合入口通过 StateCreator 注入 set/get）。 */
@@ -197,6 +203,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       stepCount: 0,
       compaction: null,
       retryNotice: null,
+      truncationNotice: null,
     }))
 
     try {
@@ -289,6 +296,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   setCompaction: (n) => set({ compaction: n }),
 
   setRetryNotice: (n) => set({ retryNotice: n }),
+
+  setTruncationNotice: (n) => set({ truncationNotice: n }),
 
   appendToolCallArgs: (id, delta) =>
     set((s) => ({

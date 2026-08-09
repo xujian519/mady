@@ -53,6 +53,7 @@ func (s *Server) handleSyncChat(w http.ResponseWriter, r *http.Request, req Chat
 	if saveErr := s.saveAgentState(r.Context(), agent, req.ThreadID); saveErr != nil && err == nil {
 		err = saveErr
 	}
+	finishReason := agent.LastFinishReason()
 	s.releaseAgent(entry, req.ThreadID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, ChatResponse{
@@ -61,7 +62,7 @@ func (s *Server) handleSyncChat(w http.ResponseWriter, r *http.Request, req Chat
 		})
 		return
 	}
-	writeJSON(w, http.StatusOK, ChatResponse{Output: output, ThreadID: req.ThreadID})
+	writeJSON(w, http.StatusOK, ChatResponse{Output: output, ThreadID: req.ThreadID, FinishReason: finishReason})
 }
 
 func (s *Server) handleStreamChat(w http.ResponseWriter, r *http.Request, req ChatRequest) {
@@ -135,14 +136,16 @@ func (s *Server) handleStreamChat(w http.ResponseWriter, r *http.Request, req Ch
 	if saveErr != nil && runErr == nil {
 		runErr = saveErr
 	}
+	finishReason := agent.LastFinishReason()
 	unregister() // detach BEFORE releasing — see comment above
 	s.releaseAgent(entry, req.ThreadID)
 
 	done := StreamDoneEvent{
-		Schema:   streamSchemaChatDone,
-		Type:     "done",
-		ThreadID: req.ThreadID,
-		Output:   output,
+		Schema:       streamSchemaChatDone,
+		Type:         "done",
+		ThreadID:     req.ThreadID,
+		Output:       output,
+		FinishReason: finishReason,
 	}
 	if runErr != nil {
 		done.Error = runErr.Error()

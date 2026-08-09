@@ -247,6 +247,10 @@ type ImageContentBlock struct {
 type PromptResponse struct {
 	StopReason string `json:"stopReason"`
 	Usage      *Usage `json:"usage,omitempty"`
+	// FinishReason 是模型收尾轮次的结束原因（"stop"/"length"/"error" 等）。
+	// "length" 表示输出触达 max_tokens 上限可能被截断；"error" 表示流异常
+	// 终止。客户端应据此提示用户输出可能不完整。
+	FinishReason string `json:"finishReason,omitempty"`
 }
 
 // Usage reports token consumption for a prompt execution.

@@ -390,6 +390,27 @@ func TestAgentEventPayloadPreservesDeltaKind(t *testing.T) {
 	}
 }
 
+// TestAgentEventPayloadCarriesFinishReason 是输出完整性回归防护：SSE 的
+// AgentEndStreamPayload 必须透传 FinishReason，客户端才能判断输出是否
+// 因 max_tokens 截断（"length"）或流异常（"error"）而可能不完整。
+func TestAgentEventPayloadCarriesFinishReason(t *testing.T) {
+	payload := agentEventPayload(&agentcore.AgentEndEvent{
+		AgentName:    "mady-agent",
+		Output:       "partial answer",
+		FinishReason: "length",
+	})
+	endPayload, ok := payload.(AgentEndStreamPayload)
+	if !ok {
+		t.Fatalf("payload type = %T", payload)
+	}
+	if endPayload.FinishReason != "length" {
+		t.Fatalf("FinishReason = %q, want %q", endPayload.FinishReason, "length")
+	}
+	if endPayload.Output != "partial answer" {
+		t.Fatalf("Output = %q, want %q", endPayload.Output, "partial answer")
+	}
+}
+
 func TestServerStreamChatEmitsHTTPMCPReconnectEvents(t *testing.T) {
 	var mu sync.Mutex
 	initCount := 0

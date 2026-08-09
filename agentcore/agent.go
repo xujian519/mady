@@ -192,6 +192,10 @@ type Agent struct {
 	contextEngine ContextEngine
 	engineReg     *EngineRegistry
 	interrupted   atomic.Pointer[InterruptReason]
+	// lastFinishReason 记录最近一次 runLoop 的模型结束原因
+	// （"stop"/"length"/"error" 等，空表示未知或未运行）。
+	// 供同步调用方（server 同步端点 / ACP）在输出完整性判断上使用。
+	lastFinishReason atomic.Value
 	// a2uiPromise 以 atomic 存储：SetA2UIAction 可能来自 UI goroutine，
 	// 与 SetA2UIPromise（安装/替换）和 consumePendingA2UIActions（agent
 	// 运行 goroutine 读取）并发，普通字段读写即数据竞争。

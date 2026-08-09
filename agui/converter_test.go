@@ -507,7 +507,7 @@ func TestGenerateID(t *testing.T) {
 
 func TestRunFinishedWithSuccess(t *testing.T) {
 	c := NewConverter("t1", "r1")
-	ev := c.RunFinishedWithSuccess(time.Now(), "result text")
+	ev := c.RunFinishedWithSuccess(time.Now(), "result text", "stop")
 	if ev.Type != EventRunFinished {
 		t.Errorf("expected %s, got %s", EventRunFinished, ev.Type)
 	}
@@ -519,6 +519,45 @@ func TestRunFinishedWithSuccess(t *testing.T) {
 	}
 	if ev.Outcome.Type != "success" {
 		t.Errorf("expected 'success', got %s", ev.Outcome.Type)
+	}
+	if ev.FinishReason != "stop" {
+		t.Errorf("expected FinishReason 'stop', got %q", ev.FinishReason)
+	}
+}
+
+// TestRunFinishedWithSuccessCarriesFinishReason 验证带 finish reason 的
+// 成功结束事件能透传截断/异常信号（desktop 通道输出完整性依赖此字段）。
+func TestRunFinishedWithSuccessCarriesFinishReason(t *testing.T) {
+	c := NewConverter("t1", "r1")
+	ev := c.RunFinishedWithSuccess(time.Now(), "partial answer", "length")
+	if ev.FinishReason != "length" {
+		t.Fatalf("FinishReason = %q, want %q", ev.FinishReason, "length")
+	}
+}
+
+// TestConvertAgentEndCarriesFinishReason 验证 agentcore.AgentEndEvent 转换后
+// 的 RunFinishedEvent 携带 FinishReason，desktop 前端据此提示输出不完整。
+func TestConvertAgentEndCarriesFinishReason(t *testing.T) {
+	c := NewConverter("t1", "r1")
+	events := c.Convert(&agentcore.AgentEndEvent{
+		AgentName:    "mady-agent",
+		Output:       "partial answer",
+		FinishReason: "length",
+	})
+	var found bool
+	for _, ev := range events {
+		if re, ok := ev.(RunFinishedEvent); ok {
+			found = true
+			if re.FinishReason != "length" {
+				t.Fatalf("RunFinishedEvent.FinishReason = %q, want %q", re.FinishReason, "length")
+			}
+			if re.Result != "partial answer" {
+				t.Fatalf("RunFinishedEvent.Result = %v, want %q", re.Result, "partial answer")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected a RunFinishedEvent in converted events")
 	}
 }
 

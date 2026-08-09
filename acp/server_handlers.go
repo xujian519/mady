@@ -368,8 +368,16 @@ func (s *Server) handlePrompt(ctx context.Context, req *JSONRPCRequest) {
 			})
 		}
 
+		// 透传模型结束原因，让客户端能判断输出是否因 max_tokens 截断
+		// 或流异常而可能不完整。
+		finishReason := ""
+		if core := state.Agent.Core(); core != nil {
+			finishReason = core.LastFinishReason()
+		}
+
 		s.writeResponse(req.ID, PromptResponse{
-			StopReason: "end_turn",
+			StopReason:   "end_turn",
+			FinishReason: finishReason,
 		})
 	}()
 }

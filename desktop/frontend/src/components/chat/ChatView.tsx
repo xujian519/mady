@@ -65,7 +65,7 @@ import { SkillsView } from '../SkillsView'
 import { McpView } from '../McpView'
 import { CommandPalette } from './CommandPalette'
 import { buildCommands } from '@/stores/commands'
-import { Sparkles, PanelRightOpen, Database, FileText, Server, Zap, Loader2, RefreshCw, Scissors, ChevronDown, ChevronRight } from 'lucide-react'
+import { Sparkles, PanelRightOpen, Database, FileText, Server, Zap, Loader2, RefreshCw, Scissors, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
 
 // ── 虚拟列表项类型 ────────────────────────────────
 
@@ -92,6 +92,7 @@ type TranscriptItem =
   | { kind: 'tool-calls'; toolCalls: ToolCall[] }
   | { kind: 'step-indicator'; step: string; count: number }
   | { kind: 'retry-notice'; notice: RetryNotice }
+  | { kind: 'truncation-notice'; notice: string }
   | { kind: 'compaction-notice'; notice: CompactionNotice }
   | { kind: 'error'; error: string }
 
@@ -120,6 +121,7 @@ function itemHeight(item: TranscriptItem): number {
       return item.toolCalls.length * 80 + 24
     case 'step-indicator':
     case 'retry-notice':
+    case 'truncation-notice':
     case 'compaction-notice':
       return 36
     case 'error':
@@ -196,6 +198,7 @@ export const ChatView: React.FC = () => {
   const stepCount = useChatStore((s) => s.stepCount)
   const compaction = useChatStore((s) => s.compaction)
   const retryNotice = useChatStore((s) => s.retryNotice)
+  const truncationNotice = useChatStore((s) => s.truncationNotice)
   const layout = useSettingsStore((s) => s.layout as LayoutMode)
 
   const isFocusMode = layout === 'focus'
@@ -387,6 +390,9 @@ export const ChatView: React.FC = () => {
     if (running && retryNotice) {
       result.push({ kind: 'retry-notice', notice: retryNotice })
     }
+    if (!running && truncationNotice) {
+      result.push({ kind: 'truncation-notice', notice: truncationNotice })
+    }
     if (compaction) {
       result.push({ kind: 'compaction-notice', notice: compaction })
     }
@@ -395,7 +401,7 @@ export const ChatView: React.FC = () => {
     }
 
     return result
-  }, [messages, output, thinking, running, toolCalls, error, currentStep, stepCount, compaction, retryNotice, collapsedRounds])
+  }, [messages, output, thinking, running, toolCalls, error, currentStep, stepCount, compaction, retryNotice, truncationNotice, collapsedRounds])
 
   // ── 虚拟化器 ────────────────────────────────────
 
@@ -488,6 +494,15 @@ export const ChatView: React.FC = () => {
                 请求失败，{Math.round(item.notice.delayMs / 1000)}s 后自动重试
                 （第 {item.notice.attempt}/{item.notice.maxRetries} 次）…
               </span>
+            </div>
+          </div>
+        )
+      case 'truncation-notice':
+        return (
+          <div key="truncation-notice" className="px-4 py-1.5">
+            <div className="flex items-start gap-2 rounded-md border border-mady-warning/30 bg-mady-warning/5 px-3 py-2 text-mady-caption text-mady-warning">
+              <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+              <span>{item.notice}</span>
             </div>
           </div>
         )

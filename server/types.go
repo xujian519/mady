@@ -109,5 +109,9 @@ type ChatRequest struct {
 type ChatResponse struct {
 	Output   string `json:"output"`
 	ThreadID string `json:"thread_id,omitempty"`
-	Error    string `json:"error,omitempty"`
+	// FinishReason 是模型收尾轮次的结束原因（"stop"/"length"/"error" 等）。
+	// "length" 表示输出触达 max_tokens 上限可能被截断；"error" 表示流异常
+	// 终止。客户端应据此提示用户输出可能不完整。
+	FinishReason string `json:"finish_reason,omitempty"`
+	Error        string `json:"error,omitempty"`
 }

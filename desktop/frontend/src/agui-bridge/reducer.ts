@@ -192,6 +192,23 @@ function handleDone(payload: AguiEventPayload) {
   }
 }
 
+/**
+ * run-finished：Agent 正常结束事件（RunFinishedEvent）。
+ * 读取 finishReason（"stop"/"length"/"error" 等），在输出被 max_tokens
+ * 截断或流异常终止时提示用户内容可能不完整（与 TUI 通道行为对齐）。
+ */
+const TRUNCATION_NOTICES: Record<string, string> = {
+  length:
+    '⚠ 输出达到长度上限（max_tokens），内容可能不完整。可发送“继续”让智能体接着输出。',
+  error: '⚠ 连接异常中断，输出可能不完整。可重新发送或让智能体重试。',
+}
+
+function handleRunFinished(payload: AguiEventPayload) {
+  const notice = TRUNCATION_NOTICES[payload.finishReason]
+  if (!notice) return
+  useChatStore.getState().setTruncationNotice(notice)
+}
+
 function handleContextUsage(payload: AguiEventPayload) {
   const store = useChatStore.getState()
   // ContextUsageEvent fields: usagePercent, tokenUsage.totalTokens, contextWindow
@@ -253,6 +270,7 @@ const HANDLERS: Record<string, (payload: AguiEventPayload) => void> = {
   a2ui: handleA2UI,
   'approval-prompt': handleApprovalPrompt,
   done: handleDone,
+  'run-finished': handleRunFinished,
   'context-usage': handleContextUsage,
   'task-created': handleTaskCreated,
   'task-updated': handleTaskUpdated,

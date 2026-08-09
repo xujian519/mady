@@ -24,6 +24,7 @@ const SUBSCRIBED_EVENTS = [
   'message-delta',
   'thinking-delta',
   'agent-start',
+  'run-finished',
   'tool-call-start',
   'tool-call-args',
   'tool-call-end',
