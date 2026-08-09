@@ -226,6 +226,11 @@ func FgParams(value string, mode ColorMode) string {
 		return ""
 	}
 	if n, err := strconv.ParseInt(value, 10, 32); err == nil && n >= 0 && n <= 255 {
+		if mode == ColorModeBasic {
+			// In basic mode a raw 256-color index must be folded into the
+			// 16-color palette — the terminal ignores 38;5;n (P2-8).
+			return FgParams16Index(n, currentIsDarkBg())
+		}
 		return fmt.Sprintf("38;5;%d", n)
 	}
 	r, g, b, ok := hexToRGB(value)
@@ -236,9 +241,10 @@ func FgParams(value string, mode ColorMode) string {
 		return fmt.Sprintf("38;2;%d;%d;%d", r, g, b)
 	}
 	if mode == ColorModeBasic {
-		// Determine polarity: in practice color_resolve doesn't know isDarkBg
-		// at the per-call level. Default dark=true since most themes are dark.
-		return FgParams16(value, true)
+		// Polarity is derived from the active semantic background so light
+		// themes pick legible normal variants instead of always assuming a
+		// dark background (P2-9).
+		return FgParams16(value, currentIsDarkBg())
 	}
 	idx := RGBTo256(r, g, b)
 	return fmt.Sprintf("38;5;%d", idx)
@@ -251,6 +257,9 @@ func BgParams(value string, mode ColorMode) string {
 		return ""
 	}
 	if n, err := strconv.ParseInt(value, 10, 32); err == nil && n >= 0 && n <= 255 {
+		if mode == ColorModeBasic {
+			return BgParams16Index(n, currentIsDarkBg())
+		}
 		return fmt.Sprintf("48;5;%d", n)
 	}
 	r, g, b, ok := hexToRGB(value)
@@ -261,8 +270,26 @@ func BgParams(value string, mode ColorMode) string {
 		return fmt.Sprintf("48;2;%d;%d;%d", r, g, b)
 	}
 	if mode == ColorModeBasic {
-		return BgParams16(value, true)
+		return BgParams16(value, currentIsDarkBg())
 	}
 	idx := RGBTo256(r, g, b)
 	return fmt.Sprintf("48;5;%d", idx)
+}
+
+// currentIsDarkBg reports whether the active semantic theme has a dark
+// background, used for 16-color polarity decisions. Defaults to true when
+// no theme has been applied yet (most themes are dark).
+//
+// It MUST NOT consult CurrentPalette(): BuildPalette calls FgParams/BgParams,
+// which call back into currentIsDarkBg while the palette has not been stored
+// yet — an infinite recursion that overflows the stack on the first palette
+// build in ColorModeBasic (e.g. TERM=dumb or a non-TTY process). The isDark
+// flag that SetSemanticTheme/ToggleTheme already maintain is the same
+// backgroundIsDark(sem.Background) value, so reading it here is equivalent
+// and side-effect free.
+func currentIsDarkBg() bool {
+	if isDarkInitialized.Load() {
+		return isDark.Load()
+	}
+	return true
 }

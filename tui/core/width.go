@@ -277,8 +277,15 @@ func TruncateToWidth(s string, maxWidth int64, ellipsis string) string {
 			if adv > 0 {
 				b.WriteString(s[i : i+adv])
 				openStyles = true
+				// A reset sequence (\x1b[m, \x1b[0m, \x1b[0;0m, …) closes
+				// any open styles. The previous heuristic treated ANY
+				// sequence starting with '0' as a reset, which
+				// misclassified \x1b[01m (bold), \x1b[04m (underline),
+				// \x1b[07m (reverse) and \x1b[0;31m (reset+red) and then
+				// dropped the trailing reset — leaking styles into the
+				// next line after truncation (P2-14).
 				if i+1 < len(s) && s[i+1] == '[' && adv >= 3 && s[i+adv-1] == 'm' &&
-					(adv == 3 || s[i+2] == '0') {
+					isPureResetParams(s[i+2:i+adv-1]) {
 					openStyles = false
 				}
 				i += adv
@@ -304,6 +311,25 @@ func TruncateToWidth(s string, maxWidth int64, ellipsis string) string {
 	}
 	b.WriteString(ellipsis)
 	return b.String()
+}
+
+// isPureResetParams reports whether SGR parameters (the bytes between
+// "ESC[" and the final 'm') are exactly a reset: empty (ESC[m), or a
+// ';'-separated list whose members are all composed of the digit '0'
+// (e.g. "0", "00", "0;0"). Anything else (bold "01", "0;31", reverse
+// "07", …) leaves the style open so the caller appends a real reset.
+func isPureResetParams(params string) bool {
+	if params == "" {
+		return true
+	}
+	for _, p := range strings.Split(params, ";") {
+		for _, ch := range p {
+			if ch != '0' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // PadToWidth right-pads s with spaces until its visible width equals width.

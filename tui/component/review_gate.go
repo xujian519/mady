@@ -255,9 +255,7 @@ func (g *ReviewGate) Update(msg core.Msg) core.Cmd {
 		switch {
 		case data == "\x1b" || g.matches(data, "escape"):
 			if g.onClose != nil {
-				g.mu.Unlock()
-				g.onClose()
-				g.mu.Lock()
+				g.invokeLocked(g.onClose)
 			}
 		case g.matches(data, "down") || g.matches(data, "j"):
 			g.focusNextLocked()
@@ -269,28 +267,38 @@ func (g *ReviewGate) Update(msg core.Msg) core.Cmd {
 			g.toggleCurrentLocked()
 			g.dirty = true
 		case g.matches(data, "p"):
-			g.mu.Unlock()
-			if g.onPass != nil {
-				g.onPass()
-			}
-			g.mu.Lock()
+			g.invokeLocked(func() {
+				if g.onPass != nil {
+					g.onPass()
+				}
+			})
 		case g.matches(data, "b"):
-			g.mu.Unlock()
-			if g.onBack != nil {
-				g.onBack()
-			}
-			g.mu.Lock()
+			g.invokeLocked(func() {
+				if g.onBack != nil {
+					g.onBack()
+				}
+			})
 		case g.matches(data, "f"):
-			g.mu.Unlock()
-			if g.onBlock != nil {
-				g.onBlock()
-			}
-			g.mu.Lock()
+			g.invokeLocked(func() {
+				if g.onBlock != nil {
+					g.onBlock()
+				}
+			})
 		}
 	case core.WindowSizeMsg:
 		g.Invalidate()
 	}
 	return nil
+}
+
+// invokeLocked runs fn after releasing the gate lock, re-acquiring it before
+// returning. The re-lock is deferred so a panicking callback cannot double-
+// unlock (which would mask the original error with "unlock of unlocked
+// mutex") nor leave the gate locked forever (P1-10).
+func (g *ReviewGate) invokeLocked(fn func()) {
+	g.mu.Unlock()
+	defer g.mu.Lock()
+	fn()
 }
 
 // matches is a helper that checks key data against a binding ID.
@@ -422,7 +430,7 @@ func (g *ReviewGate) renderLocked(width int64) []string {
 
 	// ── Current judgment ──
 	judgmentHeader := t.Dim("当前判断")
-	out = append(out, core.PadToWidth(judgmentHeader, width), core.PadToWidth(t.Body(g.judgment), width))
+	out = append(out, core.PadToWidth(judgmentHeader, width), core.PadToWidth(core.TruncateToWidth(t.Body(g.judgment), width, "…"), width))
 
 	// Confidence bar
 	if g.confidence >= 0 {

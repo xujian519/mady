@@ -162,12 +162,13 @@ func (e *EvidenceOverlay) Render(width int64) []string {
 		if item.Score >= 0 {
 			titleText = fmt.Sprintf("%s (相关度: %.2f)", titleText, item.Score)
 		}
-		lines = append(lines, fmt.Sprintf("%s%s", cursorMark, titleText))
+		lines = append(lines, core.TruncateToWidth(fmt.Sprintf("%s%s", cursorMark, titleText), width, "…"))
 
 		// Source line.
 		if item.Source != "" {
-			lines = append(lines, fmt.Sprintf("    %s: %s",
-				p.Dim.Render("来源"), p.Dim.Render(item.Source)))
+			srcLine := fmt.Sprintf("    %s: %s",
+				p.Dim.Render("来源"), p.Dim.Render(item.Source))
+			lines = append(lines, core.TruncateToWidth(srcLine, width, "…"))
 		}
 
 		// Excerpt line (single line, truncated).

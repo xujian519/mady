@@ -56,13 +56,13 @@ func RenderApprovalCard(msg *DomainMessage, t ApprovalCardTheme, width int64) []
 	// Header banner
 	lines = append(lines,
 		divider,
-		core.PadToWidth(t.Warning("  ⚠  人 工 审 核 关 卡"), width),
+		core.PadToWidth(core.TruncateToWidth(t.Warning("  ⚠  人 工 审 核 关 卡"), width, "…"), width),
 		divider,
 	)
 
 	// Conclusion summary
 	if msg.Title != "" {
-		lines = append(lines, core.PadToWidth("  "+t.Title(msg.Title), width))
+		lines = append(lines, core.PadToWidth(core.TruncateToWidth("  "+t.Title(msg.Title), width, "…"), width))
 	}
 
 	// Confidence bar + evidence summary divider
@@ -83,7 +83,7 @@ func RenderApprovalCard(msg *DomainMessage, t ApprovalCardTheme, width int64) []
 	// Actions
 	lines = append(lines, dashDivider)
 	for _, a := range msg.Actions {
-		lines = append(lines, t.Action(fmt.Sprintf("  %s → %s", a.Label, a.Command)))
+		lines = append(lines, t.Action(core.TruncateToWidth(fmt.Sprintf("  %s → %s", a.Label, a.Command), width, "…")))
 	}
 
 	// Body text

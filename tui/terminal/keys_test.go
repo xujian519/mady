@@ -146,19 +146,37 @@ func TestKittyFunctionalKeyWithModifier(t *testing.T) {
 }
 
 // TestKittyC0PUAKeys verifies the C0 control keys encoded as PUA codepoints
-// under protocol flag 1 (0xe000=Escape … 0xe003=Enter). Without these
-// mappings, Shift+Esc/Shift+Enter etc. arrive as private-use runes and get
-// inserted into the editor buffer as garbage characters.
+// under protocol flag 1 (0xe000=Escape, 0xe001=Enter, 0xe002=Tab,
+// 0xe003=Backspace per the Kitty spec). Without these mappings,
+// Shift+Esc/Shift+Enter etc. arrive as private-use runes and get inserted
+// into the editor buffer as garbage characters.
 func TestKittyC0PUAKeys(t *testing.T) {
 	cases := []struct {
 		seq  string
 		want string
 	}{
 		{"\x1b[57344;2u", "shift+escape"},   // 0xe000 + Shift
-		{"\x1b[57345;2u", "shift+tab"},      // 0xe001 + Shift
-		{"\x1b[57346;5u", "ctrl+backspace"}, // 0xe002 + Ctrl
-		{"\x1b[57347;5u", "ctrl+enter"},     // 0xe003 + Ctrl
+		{"\x1b[57345;2u", "shift+enter"},    // 0xe001 + Shift
+		{"\x1b[57346;5u", "ctrl+tab"},       // 0xe002 + Ctrl
+		{"\x1b[57347;5u", "ctrl+backspace"}, // 0xe003 + Ctrl
 		{"\x1b[57344;5u", "ctrl+escape"},    // 0xe000 + Ctrl
+	}
+	for _, c := range cases {
+		if !MatchesKey(c.seq, c.want) {
+			t.Errorf("MatchesKey(%q): want %q", c.seq, c.want)
+		}
+	}
+}
+
+// TestLegacyShiftTabParsing verifies the traditional xterm Shift+Tab
+// encoding ("CSI Z" and "CSI 1 ; 2 Z") is parsed in non-Kitty terminals.
+func TestLegacyShiftTabParsing(t *testing.T) {
+	cases := []struct {
+		seq  string
+		want string
+	}{
+		{"\x1b[Z", "shift+tab"},
+		{"\x1b[1;2Z", "shift+tab"},
 	}
 	for _, c := range cases {
 		if !MatchesKey(c.seq, c.want) {

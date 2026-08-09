@@ -139,8 +139,12 @@ func (s *SettingsList) IsFocused() bool {
 
 // Render draws a key/value list with the current row highlighted.
 func (s *SettingsList) Render(width int64) []string {
+	// Deep-copy entries under the lock: SetValue/cycleValue mutate element
+	// fields (Current) under the write lock, so the render loop must not
+	// iterate the live slice after releasing RLock (P1-9).
 	s.mu.RLock()
-	entries := s.entries
+	entries := make([]SettingEntry, len(s.entries))
+	copy(entries, s.entries)
 	cursor := s.cursor
 	scroll := s.scroll
 	maxV := s.maxVisible

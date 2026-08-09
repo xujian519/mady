@@ -2,6 +2,7 @@ package component
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	core "github.com/xujian519/mady/tui/core"
 )
@@ -124,7 +125,13 @@ func previewText(s string, maxLen int64) string {
 	if int64(len(s)) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "…"
+	// Truncate on a rune boundary — byte slicing can cut a multi-byte
+	// UTF-8 sequence in half and render a replacement character (P2-24).
+	runes := []rune(s)
+	if int64(len(runes)) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen]) + "…"
 }
 
 func makeExcerpt(body string, start, end, maxLen int64) string {
@@ -140,6 +147,12 @@ func makeExcerpt(body string, start, end, maxLen int64) string {
 	if hi > b {
 		hi = b
 	}
+	// Align the slice bounds to UTF-8 rune boundaries: core.Find returns
+	// byte offsets that are themselves on boundaries, but the ±maxLen/2
+	// expansion can land mid-rune, producing invalid UTF-8 in the excerpt
+	// (P2-24).
+	lo = prevRuneBoundary(body, lo)
+	hi = nextRuneBoundary(body, hi)
 	out := body[lo:hi]
 	out = strings.ReplaceAll(strings.ReplaceAll(out, "\n", " "), "\t", " ")
 	if lo > 0 {
@@ -149,4 +162,22 @@ func makeExcerpt(body string, start, end, maxLen int64) string {
 		out += "…"
 	}
 	return out
+}
+
+// prevRuneBoundary returns the largest index ≤ i that is a UTF-8 rune
+// boundary (i itself when already on one).
+func prevRuneBoundary(s string, i int64) int64 {
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return i
+}
+
+// nextRuneBoundary returns the smallest index ≥ i that is a UTF-8 rune
+// boundary (i itself when already on one).
+func nextRuneBoundary(s string, i int64) int64 {
+	for i < int64(len(s)) && !utf8.RuneStart(s[i]) {
+		i++
+	}
+	return i
 }

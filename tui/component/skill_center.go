@@ -163,12 +163,20 @@ func (s *SkillCenter) moveSelected(delta int) {
 
 func (s *SkillCenter) confirm() {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
+	item := SkillItem{}
+	ok := false
 	if len(s.filtered) > 0 && s.selected >= 0 && s.selected < len(s.filtered) {
-		item := s.filtered[s.selected]
-		if s.onSelect != nil {
-			s.onSelect(item)
-		}
+		item = s.filtered[s.selected]
+		ok = true
+	}
+	fn := s.onSelect
+	s.mu.RUnlock()
+	// Call the callback outside the lock: the handler may re-enter a
+	// Set* method (RWMutex is not reentrant) and would deadlock if
+	// invoked under RLock (P2-27 — compare todo_panel/settings, which
+	// deliberately take the reference under lock and call outside).
+	if ok && fn != nil {
+		fn(item)
 	}
 }
 

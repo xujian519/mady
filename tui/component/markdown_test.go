@@ -266,3 +266,28 @@ func TestMarkdownTableHorizontalHeaderInline(t *testing.T) {
 		t.Errorf("horizontal table body cell missing:\n%s", joined)
 	}
 }
+
+// TestRenderInlineMathGuardDoesNotBreakDigitEmphasis is a regression test
+// for the P2-17 math guard: guarding every '*' adjacent to a digit also
+// ate the opening/closing asterisks of **2** / *2*, destroying the
+// emphasis. Only both-sides-digit asterisks (2*3) are math; emphasis on a
+// digit must survive.
+func TestRenderInlineMathGuardDoesNotBreakDigitEmphasis(t *testing.T) {
+	tm := DefaultMarkdownTheme()
+	cases := []struct {
+		in, want string
+	}{
+		{"**2**", "2"}, // bold on a digit must survive the math guard
+		{"**2024**", "2024"},
+		{"*2*", "2"},       // italic on a digit
+		{"2*3*4", "2*3*4"}, // inline math stays literal
+		{"4**2", "4**2"},   // exponent stays literal
+		{"**bold**", "bold"},
+		{"*em*", "em"},
+	}
+	for _, c := range cases {
+		if got := renderInline(c.in, tm); got != c.want {
+			t.Errorf("renderInline(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

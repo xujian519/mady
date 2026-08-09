@@ -76,6 +76,20 @@ func (e *Editor) insertStringLocked(s string) {
 			newLines = append(newLines, after)
 			newLines = append(newLines, e.lines[e.row+1:]...)
 			e.lines = newLines
+			// Relocate chips below the split point one row down, and chips
+			// that start at/after the cursor column into the new lower line
+			// — mirrors insertRune so yank of multi-line text keeps chip
+			// positions in sync (P2-25).
+			for i := range e.chips.chips {
+				cp := &e.chips.chips[i]
+				if cp.HardRow > e.row {
+					cp.HardRow++
+				} else if cp.HardRow == e.row && cp.RuneStart >= e.col {
+					cp.HardRow = e.row + 1
+					cp.RuneStart -= e.col
+					cp.RuneEnd = cp.RuneStart
+				}
+			}
 			e.row++
 			e.col = 0
 			continue
@@ -106,6 +120,8 @@ func (e *Editor) removeBeforeCursorLocked(n int64) {
 			cur := e.lines[e.row]
 			e.lines[e.row] = append(cur[:e.col-n], cur[e.col:]...)
 			e.col -= n
+			// Shift chips at/after the cursor left by n (P2-25).
+			e.chips.ShiftAfter(e.row, e.col, -n)
 			return
 		}
 		n -= e.col
@@ -120,6 +136,7 @@ func (e *Editor) removeBeforeCursorLocked(n int64) {
 		e.col = int64(len(prev))
 		e.lines[e.row-1] = append(prev, cur...)
 		e.lines = append(e.lines[:e.row], e.lines[e.row+1:]...)
+		adjustChipsLineMerge(e.chips, e.row, int64(len(prev)))
 		e.row--
 		n-- // the newline itself counted as one rune
 	}

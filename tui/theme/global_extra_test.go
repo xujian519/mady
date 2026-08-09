@@ -269,3 +269,23 @@ func TestSetSemanticThemeNilUsesLightDefault(t *testing.T) {
 		t.Fatalf("SetSemanticTheme(nil) should install light default, got %q", got)
 	}
 }
+
+// TestCurrentIsDarkBgDoesNotBuildPalette is a regression test for the P2-9
+// infinite recursion: currentIsDarkBg used to consult CurrentPalette(),
+// which re-enters BuildPalette while the palette is not yet stored. In
+// ColorModeBasic that recursed until stack overflow; in every mode it
+// forced a palette build from a pure polarity query.
+func TestCurrentIsDarkBgDoesNotBuildPalette(t *testing.T) {
+	savePalette(t)
+	atomicPalette.Store(nil)
+	origDark := isDark.Load()
+	origInit := isDarkInitialized.Load()
+	t.Cleanup(func() {
+		isDark.Store(origDark)
+		isDarkInitialized.Store(origInit)
+	})
+	_ = currentIsDarkBg()
+	if p := atomicPalette.Load(); p != nil {
+		t.Fatal("currentIsDarkBg must not construct the palette (infinite recursion regression)")
+	}
+}

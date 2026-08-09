@@ -7,7 +7,18 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 )
+
+// currentThemeName tracks the most recently applied named theme. The auto
+// theme watcher consults it so OS appearance changes only re-apply the
+// "auto" theme while "auto" is the active choice — a manually selected
+// theme must never be silently overridden (P1-4).
+var currentThemeName atomic.Value // string
+
+func init() {
+	currentThemeName.Store("")
+}
 
 // ThemeInfo describes a registered theme in the registry.
 type ThemeInfo struct {
@@ -37,8 +48,10 @@ func init() {
 	registerBuiltin("grok-night", "Grok Night", true, grokNightFactory)
 	registerBuiltin("high-contrast", "High Contrast", true, HighContrast)
 	registerBuiltin("colorblind", "Color Blind", false, ColorBlind)
-	// Auto is a meta-theme that resolves to dark or light based on system appearance.
-	// Not registered via registerBuiltin because it delegates to one of the concrete themes.
+	// Auto is a meta-theme that resolves to dark or light based on system
+	// appearance. It IS registered below (the previous "Not registered"
+	// comment was stale). Its factory delegates to a concrete theme, and
+	// StartAutoThemeWatcher only re-applies it while it is the active theme.
 	registerBuiltin("auto", "Auto (follow system)", true, autoThemeFactory)
 }
 
@@ -223,6 +236,7 @@ func ApplyThemeByName(name string) *SemanticTheme {
 		if e.info.Name == name {
 			sem := e.factory()
 			SetSemanticTheme(sem, ColorModeFromEnv())
+			currentThemeName.Store(name)
 			return sem
 		}
 	}
@@ -237,6 +251,7 @@ func SetThemeByName(name string) error {
 		if e.info.Name == name {
 			sem := e.factory()
 			SetSemanticTheme(sem, ColorModeFromEnv())
+			currentThemeName.Store(name)
 			return nil
 		}
 	}
@@ -248,7 +263,12 @@ func SetThemeByName(name string) error {
 // active theme is "auto". Returns a cancel function.
 func StartAutoThemeWatcher() func() {
 	return WatchSystemAppearance(context.Background(), 0, func(a SystemAppearance) {
-		_ = a
+		// Only follow the OS appearance while the user's active theme is
+		// "auto". A manually selected theme (or a programmatic
+		// SetSemanticTheme) must not be overwritten by an OS change.
+		if currentThemeName.Load().(string) != "auto" {
+			return
+		}
 		ApplyThemeByName("auto")
 	})
 }

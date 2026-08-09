@@ -54,6 +54,12 @@ type SessionSelector struct {
 	renameItem *SessionItem
 
 	focusMode bool
+
+	// pendingCmd is the Cmd returned by the next Update call. Action
+	// handlers (confirm/cancel/delete/rename) schedule their callback here
+	// instead of spawning bare goroutines, so the TUI event loop drives the
+	// async work with panic-guard and timeout (P1-12).
+	pendingCmd core.Cmd
 }
 
 // SessionSelectorTheme customizes the selector appearance.
@@ -263,7 +269,27 @@ func (s *SessionSelector) Update(msg core.Msg) core.Cmd {
 	if m, ok := msg.(core.KeyMsg); ok {
 		s.processKeys(m.Data)
 	}
-	return nil
+	s.mu.Lock()
+	cmd := s.pendingCmd
+	s.pendingCmd = nil
+	s.mu.Unlock()
+	return cmd
+}
+
+// setPending schedules fn as the Cmd returned by the next Update, so the
+// TUI event loop runs the callback in its own goroutine. The loop's
+// execCmdIndexed already panic-guards every Cmd (routing panics to
+// PanicMsg), so no component-level goroutine/recover/timeout wrapper is
+// needed here — an earlier version layered one on and it neither stopped
+// a hung callback nor added protection (P1-12).
+func (s *SessionSelector) setPending(fn func()) {
+	cmd := func() core.Msg {
+		fn()
+		return nil
+	}
+	s.mu.Lock()
+	s.pendingCmd = cmd
+	s.mu.Unlock()
 }
 
 func (s *SessionSelector) processKeys(data string) {
@@ -345,7 +371,7 @@ func (s *SessionSelector) handleRenameInput(data string) {
 		if buf != "" && s.onRename != nil {
 			item := item
 			buf := buf
-			go s.onRename(item, buf)
+			s.setPending(func() { s.onRename(item, buf) })
 		}
 		s.endRename()
 		return
@@ -395,9 +421,17 @@ func (s *SessionSelector) confirm() {
 	sel := s.table.Selected()
 	items := s.filtered
 	fn := s.onSelect
+	var item SessionItem
+	ok := sel >= 0 && sel < len(items)
+	if ok {
+		// Copy under the lock: applyFilterLocked reuses the filtered
+		// backing array (s.filtered[:0]) in place, so reading
+		// items[sel] after RUnlock races with a concurrent SetItems.
+		item = items[sel]
+	}
 	s.mu.RUnlock()
-	if len(items) > 0 && sel >= 0 && sel < len(items) && fn != nil {
-		go fn(items[sel])
+	if ok && fn != nil {
+		s.setPending(func() { fn(item) })
 	}
 }
 
@@ -406,7 +440,7 @@ func (s *SessionSelector) cancel() {
 	fn := s.onCancel
 	s.mu.RUnlock()
 	if fn != nil {
-		go fn()
+		s.setPending(fn)
 	}
 }
 
@@ -415,11 +449,16 @@ func (s *SessionSelector) confirmDelete() {
 	sel := s.table.Selected()
 	items := s.filtered
 	fn := s.onDelete
-	s.mu.RUnlock()
-	if sel < 0 || sel >= len(items) || fn == nil {
-		return
+	var item SessionItem
+	ok := sel >= 0 && sel < len(items)
+	if ok {
+		// Copy under the lock — see confirm() for the race rationale.
+		item = items[sel]
 	}
-	go fn(items[sel])
+	s.mu.RUnlock()
+	if ok && fn != nil {
+		s.setPending(func() { fn(item) })
+	}
 }
 
 // Render draws the session selector.

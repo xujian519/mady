@@ -72,6 +72,13 @@ type ProcessTerminal struct {
 	signalStopped bool
 	kittyKbdOn    bool
 
+	// nonblockValid/savedNonblock remember the fd's original blocking
+	// mode so Stop can restore it. Start switches stdin to blocking (the
+	// Go runtime may open os.Stdin non-blocking); without this, Stop
+	// silently leaves the fd in a different mode than it started in.
+	nonblockValid bool
+	savedNonblock bool
+
 	cols, rows int64
 
 	// EnableKittyKeyboard, when true, pushes Kitty keyboard protocol flags
@@ -99,8 +106,9 @@ func NewProcessTerminal() *ProcessTerminal {
 }
 
 // kittyFlagsFromEnv resolves the negotiated Kitty keyboard protocol flags.
-// Default is 1 (disambiguate escape codes). Flag 8 (alternate keys) breaks
-// CJK IME input on some terminals, so it is opt-in via MADY_KITTY_FLAGS=9.
+// Default is 1 (disambiguate escape codes). Flag 4 (alternate keys) breaks
+// CJK IME input on some terminals, so it is opt-in via MADY_KITTY_FLAGS=9
+// (1|8 — disambiguate + all-keys-as-escape; see SetKittyKeyboardFlags).
 func kittyFlagsFromEnv() int64 {
 	if v := os.Getenv("MADY_KITTY_FLAGS"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
@@ -178,6 +186,12 @@ func (t *ProcessTerminal) Start(onInput func(data []byte), onResize func()) erro
 	// termios VTIME timeout and avoid a busy-spin on EAGAIN.  The Go
 	// runtime may open os.Stdin in non-blocking mode; restore blocking
 	// before the read loop starts so stdin reads behave like a normal tty.
+	// Remember the original mode so Stop can restore it (Start/Stop
+	// symmetry — see savedNonblock).
+	if fl, err := unix.FcntlInt(t.in.Fd(), unix.F_GETFL, 0); err == nil {
+		t.nonblockValid = true
+		t.savedNonblock = fl&unix.O_NONBLOCK != 0
+	}
 	if err := unix.SetNonblock(int(t.in.Fd()), false); err != nil {
 		_ = setTermios(t.in.Fd(), &saved) // restore termios
 		t.mu.Unlock()
@@ -264,6 +278,12 @@ func (t *ProcessTerminal) Stop() error {
 			return fmt.Errorf("tui: restore termios: %w", err)
 		}
 	}
+	// Restore the fd's original blocking mode after the read loop has
+	// exited (Start switched it to blocking; without this, a Start→Stop→
+	// read cycle in the same process sees a different mode than before).
+	if t.nonblockValid && t.savedNonblock {
+		_ = unix.SetNonblock(int(t.in.Fd()), true)
+	}
 	return nil
 }
 
@@ -291,10 +311,13 @@ func (t *ProcessTerminal) Context() *TerminalContext {
 // See https://sw.kovidgoyal.net/kitty/keyboard-protocol/ ("when entering
 // alternate screen mode").
 //
-// IMPORTANT: flag changes must go through SetKittyKeyboardFlags, which
-// synchronizes the global flags for decodeKittyU. Direct writes to
-// t.kittyFlags followed by PushKittyKeyboard would re-negotiate the terminal
-// without updating the parser, causing parameter layout mismatches.
+// IMPORTANT: flag changes must go through SetKittyKeyboardFlags. The
+// negotiated flags are captured by the TUI at start-up and carried with
+// each KeyMsg (KeyMsg.KittyFlags) so decodeKittyU parses against the same
+// flags the terminal was configured with — the historical global-flags
+// registry was removed. Direct writes to t.kittyFlags followed by
+// PushKittyKeyboard would re-negotiate the terminal without updating the
+// parser, causing parameter layout mismatches.
 //
 // No-op when Kitty keyboard is disabled (mode "off") or unsupported (mode
 // "auto" on an unsupported terminal). Safe to call multiple times; each call

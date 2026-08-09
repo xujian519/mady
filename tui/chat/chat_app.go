@@ -145,6 +145,7 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 	chatApp.layout = newChatLayout(cfg, chatApp, history, editor, loader, statusBar)
 	chatApp.SetFooter(footer)
 	chatApp.todoPanel.SetDataProvider(chatApp.collectTodoItems)
+	chatApp.todoPanel.SetOnToggle(chatApp.onTodoToggle)
 	if chatApp.host != nil {
 		chatApp.todoPanel.SetOnInvalidate(chatApp.host.RequestRender)
 	}

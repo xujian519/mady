@@ -192,12 +192,17 @@ func applyExtended(nums []int, i int, c *Color) int {
 	case 2:
 		// 38;2;r;g;b — truecolor. The ITU T.416 colon form
 		// (38:2:CS:r:g:b) carries a colorspace ID; when normalised to
-		// semicolons it becomes 38;2;CS;r;g;b (6 params). Detect by
-		// parameter count: if there are 4 values after the sub-mode, the
-		// first is the colorspace ID and must be skipped.
+		// semicolons it becomes 38;2;CS;r;g;b (6 params), which is
+		// ambiguous with the standard form followed by another attribute
+		// code (38;2;r;g;b;<code>, also 6 params). We prefer the standard
+		// interpretation and only skip a leading colorspace ID when it is
+		// implausibly small (< 4) for an RGB channel — the ITU colors
+		// spaces used in practice are 0 (sRGB) and a few tiny IDs
+		// (P2-13). Previously any 6-param sequence skipped its first
+		// value, corrupting colors like 38;2;10;20;30;49 (red channel
+		// swallowed, blue got 49).
 		base := i + 2
-		// 4 trailing values (base..base+3) ⇒ leading one is colorspace.
-		if base+3 < len(nums) {
+		if base+3 < len(nums) && nums[base] < 4 {
 			base++
 		}
 		if base+2 >= len(nums) {

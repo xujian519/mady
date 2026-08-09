@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"encoding/json"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -216,6 +217,12 @@ func (m *KeybindingsManager) rebuild() {
 
 	for id, userKeys := range m.userBindings {
 		if _, ok := m.defs[id]; !ok {
+			// Unknown binding IDs are silently dropped by the token-level
+			// strictness (unknown modifiers are rejected), so warn here to
+			// surface typos like "tui.imput.submit" instead of silently
+			// swallowing the user's configuration.
+			slog.Warn("keybindings: unknown binding id in user config, ignored",
+				"id", id)
 			continue
 		}
 		for _, k := range normalizeKeyList(userKeys) {
@@ -290,6 +297,7 @@ func DefaultKeybindings() map[string]KeybindingDef {
 		"tui.editor.yank":               {DefaultKeys: []KeyID{"ctrl+y"}, Description: "Yank"},
 		"tui.editor.yankPop":            {DefaultKeys: []KeyID{"alt+y"}, Description: "Yank pop"},
 		"tui.editor.undo":               {DefaultKeys: []KeyID{"ctrl+-", "ctrl+z"}, Description: "Undo"},
+		"tui.editor.redo":               {DefaultKeys: []KeyID{"ctrl+shift+z"}, Description: "Redo"},
 		"tui.editor.selectAll":          {DefaultKeys: []KeyID{"super+a", "meta+a", "ctrl+super+a", "ctrl+meta+a", "alt+a"}, Description: "Select all editor text"},
 
 		"tui.input.newLine": {DefaultKeys: []KeyID{"shift+enter", "alt+enter"}, Description: "Insert newline"},

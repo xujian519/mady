@@ -207,10 +207,10 @@ func (s *SystemStatus) Render(width int64) []string {
 	if modeLabel == "degraded" {
 		modeStyle = t.Degraded
 	}
-	out = append(out, core.PadToWidth(" - 模式: "+modeStyle(modeLabel), width))
+	out = append(out, core.PadToWidth(core.TruncateToWidth(" - 模式: "+modeStyle(modeLabel), width, "…"), width))
 
 	if s.modeReason != "" {
-		out = append(out, core.PadToWidth(" - 原因: "+t.Body(s.modeReason), width))
+		out = append(out, core.PadToWidth(core.TruncateToWidth(" - 原因: "+t.Body(s.modeReason), width, "…"), width))
 	}
 
 	// ── Recent events ──
@@ -237,7 +237,7 @@ func (s *SystemStatus) Render(width int64) []string {
 			default:
 				line = " - " + t.Dim(timeStr) + " " + t.Info(ev.Message)
 			}
-			out = append(out, core.PadToWidth(line, width))
+			out = append(out, core.PadToWidth(core.TruncateToWidth(line, width, "…"), width))
 		}
 	}
 
@@ -248,7 +248,7 @@ func (s *SystemStatus) Render(width int64) []string {
 		out = append(out, core.PadToWidth(impactHeader, width))
 
 		for _, imp := range s.impacts {
-			out = append(out, core.PadToWidth(" - "+t.Body(imp), width))
+			out = append(out, core.PadToWidth(core.TruncateToWidth(" - "+t.Body(imp), width, "…"), width))
 		}
 	}
 

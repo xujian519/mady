@@ -103,6 +103,44 @@ func (i *Input) insertRune(r rune) {
 	}
 }
 
+// insertPaste inserts pasted text at the cursor in bulk, stripping line
+// breaks (Input is single-line). Unlike processKeys it never translates
+// '\n'/'\r' into an Enter keypress, so a multi-line paste cannot submit
+// the form unintentionally (P2-22). Fires onChange exactly once.
+func (i *Input) insertPaste(text string) {
+	i.mu.Lock()
+	if i.allSelected {
+		i.clearSelectionContentLocked()
+	}
+	runes := make([]rune, 0, len(text))
+	for _, r := range text {
+		if r == '\n' || r == '\r' {
+			continue
+		}
+		runes = append(runes, r)
+	}
+	if len(runes) == 0 {
+		i.mu.Unlock()
+		return
+	}
+	before := i.runes[:i.cursor]
+	after := i.runes[i.cursor:]
+	newRunes := make([]rune, 0, len(i.runes)+len(runes))
+	newRunes = append(newRunes, before...)
+	newRunes = append(newRunes, runes...)
+	newRunes = append(newRunes, after...)
+	i.runes = newRunes
+	i.cursor += int64(len(runes))
+	i.lastKillOp = false
+	i.allSelected = false
+	value := string(i.runes)
+	changeFn := i.onChange
+	i.mu.Unlock()
+	if changeFn != nil {
+		changeFn(value)
+	}
+}
+
 func (i *Input) moveCursor(delta int64) {
 	i.mu.Lock()
 	i.allSelected = false

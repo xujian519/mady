@@ -144,10 +144,14 @@ func EqualCell(a, b Cell) bool {
 // Row is one terminal line in the cell model.
 //
 // A line is represented either by Cells (the common case) or by Raw (a
-// fallback string emitted verbatim). Raw is used for lines the cell model
-// cannot represent, such as Kitty graphics APC sequences: those carry
-// binary-ish payloads that have no meaningful cell representation, so the
-// engine passes them through untouched.
+// fallback string). Raw is used for lines the cell model cannot represent,
+// such as Kitty graphics APC sequences, which carry binary-ish payloads
+// with no meaningful cell representation. Note that Raw content is NOT
+// emitted verbatim: SerializeRow funnels every Raw row through
+// SanitizeRawContent, whose strict whitelist (SGR + CURSOR_MARKER only)
+// strips OSC/APC/DCS/non-SGR CSI before anything reaches the terminal
+// (the C-4 ANSI-injection fix). The CURSOR_MARKER APC is the only inline
+// APC that survives.
 //
 // CursorCol, when >= 0, marks the visible column at which an IME cursor
 // marker (CURSOR_MARKER APC) was found. The marker itself is stripped from

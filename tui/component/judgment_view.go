@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
 )
 
@@ -223,27 +224,21 @@ func (v *JudgmentView) Render(width int64) []string {
 	// --- Judgment section (expanded or normal only) ---
 	if v.isExpanded() || v.isNormal() {
 		if v.judgment != "" {
-			lines = append(lines, v.judgment)
+			lines = append(lines, core.TruncateToWidth(v.judgment, width, "…"))
 		}
 
 		// Confidence bar (expanded only)
 		if v.isExpanded() && v.confidence >= 0 {
-			barLen := v.confidence / 10
-			if barLen > 10 {
-				barLen = 10
+			// Delegate to the shared RenderConfidenceBar so the threshold
+			// levels and styling stay consistent with evidence/conclusion/
+			// approval cards (P2-29 — previously a private bar here used
+			// its own 30/60 thresholds, contradicting the shared 34/67).
+			colors := &ConfidenceBarColors{
+				High:   p.ConfidenceHigh.Render,
+				Medium: p.ConfidenceMedium.Render,
+				Low:    p.ConfidenceLow.Render,
 			}
-			if barLen < 0 {
-				barLen = 0
-			}
-			filled := strings.Repeat("█", barLen)
-			empty := strings.Repeat("░", 10-barLen)
-			confLabel := confidenceLabel(v.confidence)
-			confStyle := confidenceStyle(v.confidence, p)
-			lines = append(lines, fmt.Sprintf("置信度: %s%s %s",
-				confStyle.Render(filled),
-				p.Dim.Render(empty),
-				confStyle.Render(confLabel),
-			))
+			lines = append(lines, RenderConfidenceBar(float64(v.confidence)/100, colors, width, true))
 		}
 
 		// Pending items (expanded only, non-empty)
@@ -341,34 +336,6 @@ func (v *JudgmentView) isExpanded() bool {
 // isNormal returns true when the view should render at normal (compact) size.
 func (v *JudgmentView) isNormal() bool {
 	return v.status == "done" || v.status == "ready" || v.status == "degraded"
-}
-
-// confidenceLabel maps a 0-100 confidence value to a label string.
-func confidenceLabel(c int) string {
-	switch {
-	case c < 0:
-		return ""
-	case c <= 30:
-		return "低"
-	case c <= 60:
-		return "中"
-	default:
-		return "高"
-	}
-}
-
-// confidenceStyle returns the palette style for a given confidence level.
-func confidenceStyle(c int, p *theme.Palette) theme.Style {
-	switch {
-	case c < 0:
-		return p.Dim
-	case c <= 30:
-		return p.ConfidenceLow
-	case c <= 60:
-		return p.ConfidenceMedium
-	default:
-		return p.ConfidenceHigh
-	}
 }
 
 // IsEmpty reports whether the view has no meaningful data to display.

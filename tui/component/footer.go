@@ -119,8 +119,18 @@ func (f *Footer) Invalidate() {}
 
 // Render produces a single-line footer with keyboard shortcut hints.
 func (f *Footer) Render(width int64) []string {
+	// Deep-copy the groups under the lock: RegisterGroup/ClearGroup mutate
+	// the shared slice (and replace Items) under the write lock, so the
+	// render loop must not iterate the live slice after releasing RLock
+	// (P1-9 — previously a shallow header copy raced with RegisterGroup's
+	// in-place element writes).
 	f.mu.RLock()
-	groups := f.leftGroups
+	src := f.leftGroups
+	groups := make([]FooterGroup, len(src))
+	for i, g := range src {
+		groups[i] = g
+		groups[i].Items = append([]FooterItem(nil), g.Items...)
+	}
 	compact := f.compact
 	f.mu.RUnlock()
 

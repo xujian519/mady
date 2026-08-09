@@ -258,7 +258,10 @@ func (i *Input) Update(msg core.Msg) core.Cmd {
 	case core.KeyMsg:
 		i.processKeys(m.Data, m.KittyFlags)
 	case core.PasteMsg:
-		i.processKeys(m.Text, 0)
+		// Insert pasted text verbatim — do NOT route it through the key
+		// parser: a multi-line paste would translate every '\n'/'\r' into
+		// an Enter keypress and unexpectedly submit the form (P2-22).
+		i.insertPaste(m.Text)
 	case core.WindowSizeMsg:
 		i.Invalidate()
 	}

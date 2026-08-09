@@ -84,7 +84,14 @@ func (e *Editor) processKeys(data string, kittyFlags int64) {
 			e.yankPop()
 		case km.Matches(raw, "tui.editor.undo"):
 			e.undo()
-		case km.Matches(raw, "ctrl+shift+z"), km.Matches(raw, "ctrl+y"):
+		case km.Matches(raw, "tui.editor.redo"):
+			// Matches a registered binding id (not a literal key string —
+			// literal strings are never present in the resolved binding
+			// table, so the old `Matches(raw, "ctrl+shift+z")` was a
+			// runtime-dead branch and redo was unreachable from the
+			// keyboard, P1-8). Default keys come from keybindings.go
+			// "tui.editor.redo" (ctrl+shift+z). ctrl+y remains the yank
+			// key ("tui.editor.yank") — redo must not shadow it.
 			e.redo()
 		case km.Matches(raw, "tui.input.copy"):
 			e.handleCopy()
@@ -336,14 +343,16 @@ func (e *Editor) deleteWordBackward() {
 		e.lines = append(e.lines[:e.row], e.lines[e.row+1:]...)
 		adjustChipsLineMerge(e.chips, e.row, prevLen)
 		e.row--
-		e.mu.Unlock()
-		return
+		// Fall through to the shared exit below so onChange fires for the
+		// line-merge too (P1-7). Merging does not push the kill ring — the
+		// deleted content is a newline join, not a word.
+	} else {
+		start := core.FindWordBoundaryLeft(e.lines[e.row], e.col)
+		killed := string(e.lines[e.row][start:e.col])
+		e.lines[e.row] = append(e.lines[e.row][:start], e.lines[e.row][e.col:]...)
+		e.col = start
+		e.pushKillRingLocked(killed)
 	}
-	start := core.FindWordBoundaryLeft(e.lines[e.row], e.col)
-	killed := string(e.lines[e.row][start:e.col])
-	e.lines[e.row] = append(e.lines[e.row][:start], e.lines[e.row][e.col:]...)
-	e.col = start
-	e.pushKillRingLocked(killed)
 	fn := e.onChange
 	v := e.valueLocked()
 	e.mu.Unlock()
@@ -377,13 +386,14 @@ func (e *Editor) deleteWordForward() {
 		e.lines[e.row] = append(cur, next...)
 		e.lines = append(e.lines[:e.row+1], e.lines[e.row+2:]...)
 		adjustChipsLineMerge(e.chips, e.row+1, curLen)
-		e.mu.Unlock()
-		return
+		// Fall through to the shared exit below so onChange fires for the
+		// line-merge too (P1-7). Merging does not push the kill ring.
+	} else {
+		end := core.FindWordBoundaryRight(cur, e.col)
+		killed := string(cur[e.col:end])
+		e.lines[e.row] = append(cur[:e.col], cur[end:]...)
+		e.pushKillRingLocked(killed)
 	}
-	end := core.FindWordBoundaryRight(cur, e.col)
-	killed := string(cur[e.col:end])
-	e.lines[e.row] = append(cur[:e.col], cur[end:]...)
-	e.pushKillRingLocked(killed)
 	fn := e.onChange
 	v := e.valueLocked()
 	e.mu.Unlock()
@@ -500,20 +510,23 @@ func (e *Editor) deleteToLineEnd() {
 	cur := e.lines[e.row]
 	if e.col >= int64(len(cur)) {
 		// Merge with next line if any.
-		if e.row < int64(len(e.lines)-1) {
-			next := e.lines[e.row+1]
-			curLen := int64(len(cur))
-			e.lines[e.row] = append(cur, next...)
-			e.lines = append(e.lines[:e.row+1], e.lines[e.row+2:]...)
-			adjustChipsLineMerge(e.chips, e.row+1, curLen)
-			e.pushKillRingLocked("\n")
+		if e.row >= int64(len(e.lines)-1) {
+			e.mu.Unlock()
+			return
 		}
-		e.mu.Unlock()
-		return
+		next := e.lines[e.row+1]
+		curLen := int64(len(cur))
+		e.lines[e.row] = append(cur, next...)
+		e.lines = append(e.lines[:e.row+1], e.lines[e.row+2:]...)
+		adjustChipsLineMerge(e.chips, e.row+1, curLen)
+		e.pushKillRingLocked("\n")
+		// Fall through to the shared exit below so onChange fires for the
+		// line-merge too (P1-7).
+	} else {
+		killed := string(cur[e.col:])
+		e.lines[e.row] = cur[:e.col]
+		e.pushKillRingLocked(killed)
 	}
-	killed := string(cur[e.col:])
-	e.lines[e.row] = cur[:e.col]
-	e.pushKillRingLocked(killed)
 	fn := e.onChange
 	v := e.valueLocked()
 	e.mu.Unlock()

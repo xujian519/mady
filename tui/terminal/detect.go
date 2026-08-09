@@ -647,7 +647,8 @@ func computeTrueColor(tc *TerminalContext, env map[string]string) {
 	// Brand-specific heuristics.
 	switch tc.Brand {
 	case BrandKitty, BrandGhostty, BrandWezTerm, BrandAlacritty,
-		BrandFoot, BrandRio, BrandITerm2, BrandContour, BrandHyper:
+		BrandFoot, BrandRio, BrandITerm2, BrandContour, BrandHyper,
+		BrandWarp, BrandOtty, BrandGrokDesktop:
 		tc.hasTrueColor = true
 		return
 	case BrandVsCode, BrandCursor, BrandWindsurf, BrandZed:
@@ -705,14 +706,41 @@ func compute256Color(tc *TerminalContext) {
 }
 
 func computeKittyKeyboard(tc *TerminalContext) {
+	// Multiplexer gating comes FIRST: when running under a multiplexer,
+	// the Kitty keyboard protocol is mediated by the multiplexer, not the
+	// outer terminal. tmux/screen/cmux conservatively disable KKP (tmux
+	// 3.3+ supports it in a limited form, but the env-based detection has
+	// no version number, so skipping is the safe default). This must run
+	// before the brand positive list, or a KKP-capable outer brand (e.g.
+	// Kitty under tmux) would bypass the multiplexer gate entirely.
+	switch tc.Multiplexer {
+	case MuxScreen:
+		tc.hasKittyKeyboard = false
+		tc.kittyKeyboardSkipReason = "screen"
+		return
+	case MuxTmux:
+		// tmux 3.3+ supports limited KKP; 3.4+ recommended.
+		// Without a version number (env-based detection), conservative = skip.
+		tc.hasKittyKeyboard = false
+		tc.kittyKeyboardSkipReason = "tmux"
+		return
+	case MuxCmux:
+		tc.hasKittyKeyboard = false
+		tc.kittyKeyboardSkipReason = "cmux"
+		return
+	case MuxZellij:
+		tc.hasKittyKeyboard = false
+		tc.kittyKeyboardSkipReason = "zellij"
+		return
+	}
+
 	// Positive list: brands known to implement the Kitty keyboard protocol.
 	switch tc.Brand {
-	case BrandKitty, BrandGhostty, BrandWezTerm, BrandAlacritty, BrandFoot:
+	case BrandKitty, BrandGhostty, BrandWezTerm, BrandAlacritty, BrandFoot,
+		BrandContour, BrandRio, BrandITerm2:
+		// iTerm2 supports KKP since 3.5 (2023).
 		tc.hasKittyKeyboard = true
 		tc.kittyKeyboardSkipReason = ""
-		return
-	case BrandContour, BrandRio:
-		tc.hasKittyKeyboard = true
 		return
 	}
 
@@ -747,24 +775,6 @@ func computeKittyKeyboard(tc *TerminalContext) {
 		return
 	}
 
-	// Multiplexer gating.
-	switch tc.Multiplexer {
-	case MuxScreen:
-		tc.hasKittyKeyboard = false
-		tc.kittyKeyboardSkipReason = "screen"
-		return
-	case MuxTmux:
-		// tmux 3.3+ supports limited KKP; 3.4+ recommended.
-		// Without a version number (env-based detection), conservative = skip.
-		tc.hasKittyKeyboard = false
-		tc.kittyKeyboardSkipReason = "tmux"
-		return
-	case MuxCmux:
-		tc.hasKittyKeyboard = false
-		tc.kittyKeyboardSkipReason = "cmux"
-		return
-	}
-
 	// Unknown brand + no multiplexer. Could be anything (SSH, embedded
 	// terminal). Conservative: skip.
 	if tc.Brand == BrandUnknown && tc.Multiplexer == MuxUndetected {
@@ -787,8 +797,10 @@ func vteHasKKP(version string) bool {
 	if err != nil {
 		return false
 	}
-	// 82000 = 0.82.0 (first VTE release with KKP).
-	return v >= 82000
+	// 8200 = 0.82.0 (first VTE release with KKP). Note: the packed encoding
+	// makes 0.82.0 == 8200, NOT 82000 (which would be 8.20.0 and is never
+	// reached by any VTE release — all are on the 0.x line).
+	return v >= 8200
 }
 
 func computeOSC8Hyperlinks(tc *TerminalContext, _ map[string]string) {

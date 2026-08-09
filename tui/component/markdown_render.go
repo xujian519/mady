@@ -82,7 +82,14 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		// the line as a continuation so the rendered text aligns with the first
 		// line's text column rather than being indented twice.
 		for _, cl := range b.Lines[1:] {
-			ct := renderInline(strings.TrimLeft(cl, " \t"), theme)
+			ct := strings.TrimLeft(cl, " \t")
+			// A nested list line (deeper indentation + bullet/ordered
+			// marker) is not real continuation text of this item. Strip its
+			// marker so it renders as indented plain text instead of
+			// leaking a raw "- " or "1. " into the output (P2-16). Full
+			// nested-list rendering is a separate feature.
+			ct = stripNestedListMarker(ct)
+			ct = renderInline(ct, theme)
 			for _, w := range wrapMarkdownText(ct, wrapW) {
 				out = append(out, indentStr+w)
 			}
@@ -117,7 +124,8 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		// Strip source continuation indentation so wrapped/continuation lines
 		// align with the first line's text column.
 		for _, cl := range b.Lines[1:] {
-			ct := renderInline(strings.TrimLeft(cl, " \t"), theme)
+			ct := stripNestedListMarker(strings.TrimLeft(cl, " \t"))
+			ct = renderInline(ct, theme)
 			for _, w := range wrapMarkdownText(ct, wrapW) {
 				out = append(out, indentStr+w)
 			}
@@ -155,7 +163,8 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		// Strip source continuation indentation so wrapped/continuation lines
 		// align with the first line's text column.
 		for _, cl := range b.Lines[1:] {
-			ct := renderInline(strings.TrimLeft(cl, " \t"), theme)
+			ct := stripNestedListMarker(strings.TrimLeft(cl, " \t"))
+			ct = renderInline(ct, theme)
 			for _, w := range wrapMarkdownText(ct, wrapW) {
 				out = append(out, indentStr+w)
 			}
@@ -314,6 +323,14 @@ func renderTable(rows []string, width int64, t MarkdownTheme) []string {
 		}
 	}
 	cols := len(header)
+	// Body rows may carry more cells than the header (LLM output is
+	// inconsistent about trailing columns). Take the max so extra columns
+	// render instead of being silently dropped (P2-20).
+	for _, r := range body {
+		if len(r) > cols {
+			cols = len(r)
+		}
+	}
 
 	// Column widths
 	colW := make([]int64, cols)
@@ -477,3 +494,22 @@ func isDigitByte(s string, i int) bool {
 }
 
 // DefaultMarkdownTheme returns the built-in markdown theme used when no
+
+var (
+	reNestedBullet  = regexp.MustCompile(`^[-*+]\s+(.*)$`)
+	reNestedOrdered = regexp.MustCompile(`^\d+[.)]\s+(.*)$`)
+)
+
+// stripNestedListMarker removes a nested-list marker ("- ", "* ", "1. ")
+// from a continuation line, leaving the item text. Nested lists are not
+// rendered with real hierarchy (P2-16); stripping the marker prevents raw
+// "- "/"1. " from leaking into the output while keeping the indented text.
+func stripNestedListMarker(s string) string {
+	if m := reNestedBullet.FindStringSubmatch(s); m != nil {
+		return m[1]
+	}
+	if m := reNestedOrdered.FindStringSubmatch(s); m != nil {
+		return m[1]
+	}
+	return s
+}

@@ -295,6 +295,18 @@ func decodeCSI(seq, params string, final byte, flags int64) Key {
 		}
 		return Key{Raw: seq}
 
+	case 'Z':
+		// Shift+Tab (backwards tab) in xterm semantics: bare "CSI Z" or
+		// explicit "CSI 1 ; 2 Z". A bare CSI Z carries no modifier field,
+		// but by convention it IS Shift+Tab, so default to ModShift when
+		// no explicit modifier parameter is present.
+		mods := ModShift
+		if strings.Contains(params, ";") {
+			_, modCode := splitTwo(params, ";")
+			mods = decodeCSIMods(modCode)
+		}
+		return Key{Name: "tab", Mods: mods, Raw: seq}
+
 	case 'u':
 		return decodeKittyU(seq, params, flags)
 	}
@@ -381,11 +393,14 @@ func decodeKittyU(seq, params string, flags int64) Key {
 	case 0xe000:
 		k.Name = "escape"
 	case 0xe001:
-		k.Name = "tab"
-	case 0xe002:
-		k.Name = "backspace"
-	case 0xe003:
+		// Kitty spec: 0xe001 = Enter (NOT Tab — that is 0xe002).
 		k.Name = "enter"
+	case 0xe002:
+		// Kitty spec: 0xe002 = Tab (NOT Backspace — that is 0xe003).
+		k.Name = "tab"
+	case 0xe003:
+		// Kitty spec: 0xe003 = Backspace (NOT Enter).
+		k.Name = "backspace"
 	case 0xe004:
 		k.Name = "insert"
 	case 0xe005:

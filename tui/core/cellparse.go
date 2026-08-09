@@ -16,8 +16,10 @@ import (
 //     renderer owns cursor positioning).
 //   - OSC / APC / DCS / PM string sequences: zero-width. CursorMarker is
 //     detected specifically and recorded as CursorCol; other APCs (Kitty
-//     graphics, OSC titles, etc.) cause the line to fall back to Raw form
-//     so they pass through verbatim.
+//     graphics, OSC titles, etc.) cause the line to fall back to Raw form.
+//     Raw content is later sanitized by SerializeRow (see SanitizeRawContent):
+//     only SGR and CursorMarker survive, so "pass through verbatim" no longer
+//     applies to arbitrary escapes (C-4 fix).
 //   - Runes: each visible rune becomes a Cell. Wide runes (RuneWidth==2)
 //     produce a Cell followed by a continuation Cell. Combining marks
 //     (RuneWidth==0) attach to the preceding Cell's Combining slice.
@@ -89,6 +91,17 @@ func ParseLine(s string) Row {
 		if r == utf8.RuneError && size <= 1 {
 			// Invalid UTF-8 byte — skip.
 			i++
+			continue
+		}
+		// Control characters (\t, \r, \n) have no cell representation:
+		// the cell grid is strictly rectangular, while terminals render a
+		// tab by advancing to the next tab stop (up to 8 columns) — a
+		// width the 0-width model cannot express. Drop them rather than
+		// misattributing them as combining marks on the previous cell,
+		// which corrupted column alignment and caused perpetual diff
+		// churn (P2-12).
+		if r == '\t' || r == '\r' || r == '\n' {
+			i += size
 			continue
 		}
 		rw := RuneWidth(r)

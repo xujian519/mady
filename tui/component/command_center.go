@@ -175,7 +175,6 @@ func (c *CommandCenter) Update(msg core.Msg) core.Cmd {
 func (c *CommandCenter) processKey(data string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	switch {
 	case c.km.Matches(data, "tui.editor.cursorUp") || c.km.Matches(data, "tui.select.up"):
 		if c.cursor > 0 {
@@ -189,16 +188,12 @@ func (c *CommandCenter) processKey(data string) {
 		if c.cursor >= 0 && c.cursor < len(c.filtered) {
 			item := c.filtered[c.cursor]
 			if c.onExecute != nil {
-				c.mu.Unlock()
-				c.onExecute(item)
-				c.mu.Lock()
+				c.invokeLocked(func() { c.onExecute(item) })
 			}
 		}
 	case c.km.Matches(data, "tui.select.cancel"):
 		if c.onClose != nil {
-			c.mu.Unlock()
-			c.onClose()
-			c.mu.Lock()
+			c.invokeLocked(c.onClose)
 		}
 	case len(data) == 1 && data[0] >= 32 && data[0] < 127:
 		// Printable character: append to filter
@@ -212,6 +207,16 @@ func (c *CommandCenter) processKey(data string) {
 			c.cursor = 0
 		}
 	}
+}
+
+// invokeLocked runs fn after releasing the center lock, re-acquiring it
+// before returning. The re-lock is deferred so a panicking callback cannot
+// double-unlock (masking the original error) nor leave the lock held
+// forever (P1-10).
+func (c *CommandCenter) invokeLocked(fn func()) {
+	c.mu.Unlock()
+	defer c.mu.Lock()
+	fn()
 }
 
 // SetFilter sets the search filter and re-applies filtering.

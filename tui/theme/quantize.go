@@ -111,7 +111,8 @@ func FgParams16(hex string, isDarkBg bool) string {
 }
 
 // BgParams16 returns the SGR parameter string for a 16-color background.
-// For dark backgrounds, prefers the dark variants (40-47) for bg colors.
+// For dark backgrounds, prefers the bright variants (100-107) so the
+// background stays distinguishable from the canvas.
 func BgParams16(hex string, isDarkBg bool) string {
 	idx, ok := RGBTo16ANSI(hex, isDarkBg)
 	if !ok {
@@ -122,5 +123,50 @@ func BgParams16(hex string, isDarkBg bool) string {
 		return "10" + strconv.FormatInt(int64(idx-8), 10)
 	}
 	// Normal bg: ANSI 40-47
+	return "4" + strconv.FormatInt(int64(idx), 10)
+}
+
+// indexToRGB resolves an xterm 256-color index (0-255) to its canonical RGB:
+// 0-15 system colors, 16-231 the 6×6×6 colour cube, 232-255 the grey ramp.
+// Used to fold 256-color indexes into the 16-color palette in basic mode.
+func indexToRGB(n int64) (r, g, b int64) {
+	sys := [16][3]int64{
+		{0, 0, 0}, {128, 0, 0}, {0, 128, 0}, {128, 128, 0},
+		{0, 0, 128}, {128, 0, 128}, {0, 128, 128}, {192, 192, 192},
+		{128, 128, 128}, {255, 0, 0}, {0, 255, 0}, {255, 255, 0},
+		{0, 0, 255}, {255, 0, 255}, {0, 255, 255}, {255, 255, 255},
+	}
+	switch {
+	case n < 16:
+		return sys[n][0], sys[n][1], sys[n][2]
+	case n < 232:
+		n -= 16
+		cube := [6]int64{0, 95, 135, 175, 215, 255}
+		return cube[n/36], cube[(n%36)/6], cube[n%6]
+	default:
+		v := 8 + 10*(n-232)
+		return v, v, v
+	}
+}
+
+// FgParams16Index folds a 256-color index into the nearest ANSI 16-color
+// foreground parameter with the given polarity (P2-8).
+func FgParams16Index(n int64, isDarkBg bool) string {
+	r, g, b := indexToRGB(n)
+	idx := QuantizeRGBTo16(uint8(r), uint8(g), uint8(b), isDarkBg)
+	if idx >= 8 {
+		return "9" + strconv.FormatInt(int64(idx-8), 10)
+	}
+	return "3" + strconv.FormatInt(int64(idx), 10)
+}
+
+// BgParams16Index folds a 256-color index into the nearest ANSI 16-color
+// background parameter with the given polarity (P2-8).
+func BgParams16Index(n int64, isDarkBg bool) string {
+	r, g, b := indexToRGB(n)
+	idx := QuantizeRGBTo16(uint8(r), uint8(g), uint8(b), isDarkBg)
+	if idx >= 8 {
+		return "10" + strconv.FormatInt(int64(idx-8), 10)
+	}
 	return "4" + strconv.FormatInt(int64(idx), 10)
 }

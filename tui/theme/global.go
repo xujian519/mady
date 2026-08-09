@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -8,6 +9,28 @@ import (
 )
 
 var themeChangeHook atomic.Pointer[func()]
+
+// backgroundIsDark reports whether a semantic background hex colour is dark,
+// using a WCAG-style relative-luminance threshold. This replaces the brittle
+// `== "#07111F"` magic-hex check, which misclassified dark named themes
+// (tokyo-night, high-contrast, grok-night, …) as light and made ToggleTheme
+// switch between two dark themes (P2-7). Unknown/unparseable colors default
+// to dark (the safer assumption for a terminal UI).
+func backgroundIsDark(hex string) bool {
+	r, g, b, ok := hexToRGB(hex)
+	if !ok {
+		return true
+	}
+	lin := func(c int64) float64 {
+		v := float64(c) / 255.0
+		if v <= 0.03928 {
+			return v / 12.92
+		}
+		return math.Pow((v+0.055)/1.055, 2.4)
+	}
+	l := 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)
+	return l < 0.4
+}
 
 // ToggleTheme switches between the built-in light and dark semantic themes.
 // It is safe to call concurrently; the first call infers the current theme
@@ -19,7 +42,7 @@ func ToggleTheme() {
 	// If isDark was never initialized, infer from the current palette.
 	if !isDarkInitialized.Load() {
 		if p := CurrentPalette(); p != nil && p.Semantic != nil {
-			isDark.Store(p.Semantic.Background == "#07111F")
+			isDark.Store(backgroundIsDark(p.Semantic.Background))
 		} else {
 			// Default to dark if no palette available.
 			isDark.Store(true)
@@ -34,6 +57,10 @@ func ToggleTheme() {
 	}
 	isDark.Store(!isDark.Load())
 	SetSemanticTheme(sem, mode)
+	// A manual toggle is an explicit non-"auto" choice: stop following
+	// the OS appearance so a later OS change cannot silently undo it
+	// (P1-4 invariant; ToggleTheme bypasses ApplyThemeByName).
+	currentThemeName.Store("")
 }
 
 var (
@@ -80,7 +107,7 @@ func SetSemanticTheme(sem *SemanticTheme, mode ColorMode) {
 		sem = DefaultSemanticLight()
 	}
 	// Track whether the current theme is dark for ToggleTheme.
-	isDark.Store(sem.Background == "#07111F")
+	isDark.Store(backgroundIsDark(sem.Background))
 	isDarkInitialized.Store(true)
 	SyncPaletteGlobals(sem, mode)
 	fireThemeChange()
@@ -144,5 +171,8 @@ func LoadSemanticThemeFromFile(path string, mode ColorMode) error {
 		return err
 	}
 	SetSemanticTheme(sem, mode)
+	// A JSON-loaded theme is an explicit non-"auto" choice: stop
+	// following the OS appearance (P1-4 invariant).
+	currentThemeName.Store("")
 	return nil
 }

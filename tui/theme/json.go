@@ -49,6 +49,11 @@ func ParseSemanticThemeJSON(data []byte, base *SemanticTheme) (*SemanticTheme, e
 	for key, val := range raw.Colors {
 		col, err := resolve(val)
 		if err != nil {
+			if !knownColorKeys[key] {
+				// Unknown key with an unsupported value type: ignore it like
+				// any other unknown key instead of failing the whole load.
+				continue
+			}
 			return nil, fmt.Errorf("colors.%s: %w", key, err)
 		}
 		if col == "" {
@@ -97,6 +102,28 @@ func resolveThemeColorRef(s string, vars map[string]string, seen map[string]bool
 		return resolveThemeColorRef(v, vars, seen)
 	}
 	return ""
+}
+
+// knownColorKeys is the set of semantic keys applyColorKey understands.
+// Kept in sync with applyColorKey's switch below. Unknown keys are ignored
+// per the "unknown keys are ignored" contract — including when their value
+// has an unsupported type, which must not fail the whole theme load (P2-10).
+var knownColorKeys = map[string]bool{
+	"accent": true, "border": true, "borderAccent": true, "borderMuted": true,
+	"success": true, "error": true, "warning": true, "muted": true, "dim": true,
+	"text": true, "system": true, "assistantText": true, "thinkingText": true,
+	"userMessageText": true, "selectedBg": true, "userMessageBg": true,
+	"toolPendingBg": true, "toolSuccessBg": true, "toolErrorBg": true,
+	"mdHeading": true, "mdLink": true, "mdLinkUrl": true, "mdCode": true,
+	"mdCodeBlock": true, "mdCodeBlockBorder": true, "mdQuote": true,
+	"mdQuoteBorder": true, "mdHr": true, "mdListBullet": true,
+	"syntaxComment": true, "syntaxKeyword": true, "syntaxFunction": true,
+	"syntaxVariable": true, "syntaxString": true, "syntaxNumber": true,
+	"syntaxType": true, "syntaxOperator": true, "syntaxPunctuation": true,
+	"loaderSpinner": true, "progressBar": true,
+	"background": true, "surface": true, "surfaceRaised": true,
+	"evidenceSupport": true, "evidenceCounter": true,
+	"confidenceLow": true, "confidenceMedium": true, "confidenceHigh": true,
 }
 
 func applyColorKey(t *SemanticTheme, key, col string) {

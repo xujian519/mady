@@ -86,6 +86,30 @@ func taskToTodoItem(t *TaskInfo) component.TodoItem {
 	}
 }
 
+// onTodoToggle handles the TodoPanel's Space/Enter toggle action. It flips
+// the task's status in the local cache and refreshes the panel (P2-26 —
+// previously SetOnToggle had no caller, so the advertised "Space/Enter
+// toggle" in the panel title was a no-op). Persisting the flip back to
+// agentcore requires a cross-module task-update channel and is intentionally
+// out of scope for the TUI layer.
+func (a *ChatApp) onTodoToggle(item component.TodoItem) {
+	a.mu.Lock()
+	cur, ok := a.tasks[item.ID]
+	if !ok {
+		a.mu.Unlock()
+		return
+	}
+	switch cur.Status {
+	case "done", "completed", "cancelled":
+		cur.Status = "pending"
+	default:
+		cur.Status = "done"
+	}
+	a.tasks[item.ID] = cur
+	a.mu.Unlock()
+	a.todoPanel.Reload()
+}
+
 // ToggleTodoPanel opens or closes the TodoPanel overlay.
 // Lock discipline: a.mu is NOT held during PushOverlay/RemoveOverlay
 // (see ToggleKeyHelp for the lock-ordering rationale).

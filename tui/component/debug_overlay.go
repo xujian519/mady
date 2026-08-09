@@ -235,9 +235,9 @@ func (d *DebugOverlay) Render(width int64) []string {
 		))
 
 		for _, ev := range displayEvents {
-			out = append(out, fmt.Sprintf("  %s",
+			out = append(out, core.TruncateToWidth(fmt.Sprintf("  %s",
 				pal.Dim.Render("▸")+" "+pal.User.Render(ev),
-			))
+			), width, "…"))
 		}
 	} else {
 		out = append(out, fmt.Sprintf(" %s %s",

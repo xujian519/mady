@@ -68,6 +68,13 @@ func WatchSystemAppearance(ctx context.Context, poll time.Duration, onChanged fu
 					// Don't change state; try again next cycle.
 					continue
 				}
+				if current == AppearanceUnknown {
+					// Transient detection failure (e.g. the defaults/gsettings
+					// command errored). Treat it as "no change": keep the last
+					// known appearance so a flaky probe can't flip the theme
+					// (P2-6 — Unknown must not be reported as a change).
+					continue
+				}
 				appMu.Lock()
 				changed := current != lastAppearance
 				if changed {
@@ -106,9 +113,10 @@ func detectMacOSAppearance() (SystemAppearance, error) {
 	out, err := cmd.Output()
 	if err != nil {
 		// On macOS Light mode, AppleInterfaceStyle key does not exist
-		// and defaults read exits with code 1. Distinguish this from
-		// the command being missing entirely (e.g. on Linux).
-		if _, ok := err.(*exec.ExitError); ok {
+		// and defaults read exits with code 1. Only this specific exit
+		// code means "light"; any other failure is a detection error and
+		// must not misreport a dark system as light (P2-6).
+		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 1 {
 			return AppearanceLight, nil
 		}
 		return AppearanceUnknown, err // propagate so Linux detection runs

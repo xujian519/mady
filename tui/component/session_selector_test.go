@@ -122,7 +122,11 @@ func TestSessionSelectorConfirmCancelDelete(t *testing.T) {
 
 	selected := make(chan SessionItem, 1)
 	s.SetOnSelect(func(it SessionItem) { selected <- it })
-	s.Update(core.KeyMsg{Data: "\r"}) // enter confirms first item
+	// Actions are dispatched as Cmds (P1-12): run the returned Cmd to
+	// trigger the callback, mirroring the TUI event loop.
+	if cmd := s.Update(core.KeyMsg{Data: "\r"}); cmd != nil {
+		cmd()
+	}
 	select {
 	case it := <-selected:
 		if it.ID != "sess-001" {
@@ -134,7 +138,9 @@ func TestSessionSelectorConfirmCancelDelete(t *testing.T) {
 
 	canceled := make(chan struct{}, 1)
 	s.SetOnCancel(func() { canceled <- struct{}{} })
-	s.Update(core.KeyMsg{Data: "\x1b"})
+	if cmd := s.Update(core.KeyMsg{Data: "\x1b"}); cmd != nil {
+		cmd()
+	}
 	select {
 	case <-canceled:
 	case <-time.After(2 * time.Second):
@@ -143,7 +149,9 @@ func TestSessionSelectorConfirmCancelDelete(t *testing.T) {
 
 	deleted := make(chan SessionItem, 1)
 	s.SetOnDelete(func(it SessionItem) { deleted <- it })
-	s.Update(core.KeyMsg{Data: "\x18"}) // ctrl+x
+	if cmd := s.Update(core.KeyMsg{Data: "\x18"}); cmd != nil { // ctrl+x
+		cmd()
+	}
 	select {
 	case it := <-deleted:
 		if it.ID != "sess-001" {
@@ -187,7 +195,9 @@ func TestSessionSelectorFocusMode(t *testing.T) {
 	// Enter ends focus and confirms.
 	selected := make(chan SessionItem, 1)
 	s.SetOnSelect(func(it SessionItem) { selected <- it })
-	s.Update(core.KeyMsg{Data: "\r"})
+	if cmd := s.Update(core.KeyMsg{Data: "\r"}); cmd != nil {
+		cmd()
+	}
 	if s.focusMode {
 		t.Fatal("expected focus mode exited")
 	}
@@ -236,7 +246,11 @@ func TestSessionSelectorRename(t *testing.T) {
 	if s.renameBuf != "专利撰写" {
 		t.Fatalf("expected backspace applied, got %q", s.renameBuf)
 	}
-	s.Update(core.KeyMsg{Data: "\r"}) // enter commits
+	// Enter commits the rename; run the returned Cmd to trigger onRename
+	// (actions are dispatched as Cmds, P1-12).
+	if cmd := s.Update(core.KeyMsg{Data: "\r"}); cmd != nil {
+		cmd()
+	}
 	select {
 	case r := <-renamed:
 		if r.name != "专利撰写" || r.item.ID != "sess-001" {

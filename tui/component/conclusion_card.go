@@ -59,7 +59,7 @@ func RenderConclusionCard(msg *DomainMessage, t ConclusionCardTheme, width int64
 
 	// Header
 	head := bar + " " + t.Title(title)
-	lines = append(lines, core.PadToWidth(head, width))
+	lines = append(lines, core.PadToWidth(core.TruncateToWidth(head, width, "…"), width))
 
 	// Confidence bar (10-cell)
 	colors := &ConfidenceBarColors{High: t.HighConf, Medium: t.MediumConf, Low: t.LowConf}
@@ -73,7 +73,7 @@ func RenderConclusionCard(msg *DomainMessage, t ConclusionCardTheme, width int64
 	if cls, ok := msg.Extra["classification"]; ok && cls != "" {
 		evSummary += "  ·  分类: " + cls
 	}
-	lines = append(lines, t.Dim(evSummary))
+	lines = append(lines, t.Dim(core.TruncateToWidth(evSummary, width, "…")))
 
 	// Body
 	if msg.Body != "" {

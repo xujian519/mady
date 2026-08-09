@@ -107,6 +107,10 @@ func parseATXHeading(line string) (level int, text string, ok bool) {
 
 // isTableStart reports whether lines[i] begins a pipe table and is followed by
 // a separator line. This is used by consumeParagraph to stop before a table.
+// The table-start criterion is kept in sync with tryConsumeTable: the first
+// line must contain a '|' and the second line must be a separator row
+// (P2-21 — previously the two functions disagreed, so the same input was a
+// table in one context and a paragraph in another).
 func isTableStart(lines []string, i int) bool {
 	if i+1 >= len(lines) {
 		return false
@@ -120,11 +124,15 @@ func isTableStart(lines []string, i int) bool {
 var (
 	reFence          = regexp.MustCompile(`^(` + "```" + `|~~~)\s*(\S*)\s*$`)
 	reHR             = regexp.MustCompile(`^\s*(-{3,}|\*{3,}|_{3,})\s*$`)
-	reBullet         = regexp.MustCompile(`^(\s*)([-*+])\s*(.*)$`)
+	reBullet         = regexp.MustCompile(`^(\s*)([-+]\s*|\*\s+)(.*)$`)
 	reOrdered        = regexp.MustCompile(`^(\s*)(\d+)[.)]\s*(.*)$`)
 	reChineseOrdered = regexp.MustCompile(`^(\s*)([一二三四五六七八九十]+)、\s*(.*)$`)
 	reQuote          = regexp.MustCompile(`^>\s?(.*)$`)
-	reTableSep       = regexp.MustCompile(`^\s*\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?\s*$`)
+	// reTableSep matches a pipe-table separator row with one or more
+	// columns: "| --- |", "|---|", "|:---:|", "| --- | --- |", … A bare
+	// "---" (no pipe) is deliberately NOT matched so an HR is not mistaken
+	// for a single-column separator (P1-2).
+	reTableSep = regexp.MustCompile(`^\s*\|?(\s*:?-+:?\s*\|)+(\s*:?-+:?\s*)?\s*$`)
 )
 
 // blockKind tags how a Block should be rendered.
@@ -295,14 +303,23 @@ func tryConsumeQuote(lines []string, i int) (Block, int) {
 
 // tryConsumeTable attempts to consume a pipe table starting at i.
 // It returns the block and the index after the table, or i if no table starts
-// at this line.
+// at this line. The start criterion matches isTableStart (first line contains
+// '|', second line is a separator row) so table detection does not depend on
+// the surrounding context (P2-21).
 func tryConsumeTable(lines []string, i int) (Block, int) {
 	ln := lines[i]
-	if !strings.Contains(ln, "|") || i+1 >= len(lines) || !strings.Contains(lines[i+1], "|") {
+	if !strings.Contains(ln, "|") || i+1 >= len(lines) || !reTableSep.MatchString(lines[i+1]) {
 		return Block{}, i
 	}
 	end := i + 2
-	for end < len(lines) && strings.Contains(lines[end], "|") {
+	for end < len(lines) {
+		t := strings.TrimSpace(lines[end])
+		// Stop at blank lines and at lines that merely contain a '|' but
+		// do not start a table row — a following paragraph mentioning a
+		// pipe must not be swallowed into the table (P2-19).
+		if t == "" || !strings.HasPrefix(t, "|") {
+			break
+		}
 		end++
 	}
 	return Block{Kind: kindTable, Lines: lines[i:end], Closed: true}, end

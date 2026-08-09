@@ -199,8 +199,8 @@ func TestKittyKeyboardGate(t *testing.T) {
 		{"Cursor — skip vscode", BrandCursor, MuxUndetected, "", false, "vscode"},
 		{"Windsurf — skip vscode", BrandWindsurf, MuxUndetected, "", false, "vscode"},
 		{"Apple Terminal — skip apple_terminal", BrandAppleTerminal, MuxUndetected, "", false, "apple_terminal"},
-		{"VTE >= 0.82.0 — supported", BrandVte, MuxUndetected, "83000", true, ""},
-		{"VTE < 0.82.0 — skip vte_old", BrandVte, MuxUndetected, "74000", false, "vte_old"},
+		{"VTE >= 0.82.0 — supported", BrandVte, MuxUndetected, "8300", true, ""},
+		{"VTE < 0.82.0 — skip vte_old", BrandVte, MuxUndetected, "7400", false, "vte_old"},
 		{"VTE no version — skip vte_old", BrandVte, MuxUndetected, "", false, "vte_old"},
 		{"Windows Terminal — skip windows_terminal", BrandWindowsTerminal, MuxUndetected, "", false, "windows_terminal"},
 		{"JetBrains — skip jetbrains", BrandJetBrains, MuxUndetected, "", false, "jetbrains"},
@@ -474,11 +474,11 @@ func TestVteHasKKP(t *testing.T) {
 		want bool
 	}{
 		{"", false},
-		{"74000", false},
-		{"81900", false},
-		{"82000", true},
-		{"83000", true},
-		{"90000", true},
+		{"7400", false}, // 0.74.0 — pre-KKP
+		{"8100", false}, // 0.81.0 — pre-KKP
+		{"8200", true},  // 0.82.0 — first VTE release with KKP
+		{"8300", true},
+		{"9000", true},
 	}
 	for _, tt := range tests {
 		got := vteHasKKP(tt.ver)
@@ -528,11 +528,11 @@ func TestVteHasKKP_VersionCheck(t *testing.T) {
 		want bool
 	}{
 		{"", false},
-		{"74000", false},
-		{"81900", false},
-		{"82000", true},
-		{"83000", true},
-		{"90000", true},
+		{"7400", false},
+		{"8100", false},
+		{"8200", true},
+		{"8300", true},
+		{"9000", true},
 	}
 	for _, tt := range tests {
 		got := vteHasKKP(tt.ver)

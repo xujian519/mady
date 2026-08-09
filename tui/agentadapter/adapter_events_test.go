@@ -501,6 +501,24 @@ func eventCases() []eventCase {
 				}
 			},
 		},
+		{
+			name:     "PlanTaskFeedbackAdded",
+			chatType: chat.ChatEventPlanTaskFeedbackAdded,
+			coreKind: agentcore.EventPlanTaskFeedbackAdded,
+			event:    agentcore.NewPlanTaskFeedbackAddedEvent("sess-9", "用户补充的背景技术", "step-3"),
+			assert: func(t *testing.T, ce chat.ChatEvent) {
+				got, ok := ce.(chat.PlanTaskFeedbackAddedChatEvent)
+				if !ok {
+					t.Fatalf("want PlanTaskFeedbackAddedChatEvent, got %T", ce)
+				}
+				if got.SessionID != "sess-9" || got.Text != "用户补充的背景技术" || got.StepID != "step-3" {
+					t.Fatalf("unexpected fields: %+v", got)
+				}
+				if got.ChatEventKind() != chat.ChatEventPlanTaskFeedbackAdded {
+					t.Fatalf("kind = %v, want %v", got.ChatEventKind(), chat.ChatEventPlanTaskFeedbackAdded)
+				}
+			},
+		},
 	}
 }
 

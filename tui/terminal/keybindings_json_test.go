@@ -1,8 +1,9 @@
 package terminal
 
 // keybindings_json_test.go verifies LoadUserBindingsJSON: valid tokens apply,
-// unknown modifiers warn but are still accepted, empty tokens are skipped,
-// and a malformed JSON returns an error.
+// unknown modifiers are rejected (strict validation — they are NOT accepted
+// with a warning), empty tokens are skipped, and a malformed JSON returns
+// an error.
 
 import (
 	"sort"
