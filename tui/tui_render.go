@@ -154,6 +154,11 @@ func (t *TUI) renderFrame() {
 		// Always hide cursor during full repaint to avoid flicker while
 		// rows are being redrawn. Stateful cursor visibility is restored below.
 		buf.WriteString(terminal.HideCursor())
+		// Record that the cursor is hidden so the stateful cursor block
+		// below re-emits ShowCursor when the cursor should be visible
+		// again. Without this, a full repaint (e.g. after a resize) left
+		// the cursor permanently hidden (P1-6).
+		t.lastCursor.visible = false
 		buf.WriteString(terminal.CursorHome())
 		buf.WriteString(terminal.ClearFromCursorDown())
 		for i, r := range rows {
@@ -185,6 +190,10 @@ func (t *TUI) renderFrame() {
 				// is the single chokepoint for all row-to-ANSI-string conversion.
 				buf.WriteString(terminal.CursorPosition(d.Row+1, 1) + terminal.Reset)
 				buf.WriteString(core.SerializeRow(rows[d.Row]))
+				// The sanitized Raw content may itself carry an unterminated
+				// SGR (e.g. a truncated streaming chunk); close it so the
+				// style cannot leak into the unchanged rows below (P2-11).
+				buf.WriteString(terminal.Reset)
 				continue
 			}
 			for _, seg := range d.Segments {

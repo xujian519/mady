@@ -154,8 +154,24 @@ func DiffFrame(old, newFrame []Row) []RowCellDiff {
 		}
 		if !RowsEqual(old[i], n) {
 			if old[i].IsRaw() || n.IsRaw() {
-				// Raw rows lack Cells — fall back to full-row write.
-				out = append(out, RowCellDiff{Row: int64(i), RawContent: n.Raw})
+				switch {
+				case !n.IsRaw():
+					// Old row was raw but the new row is cell-structured.
+					// Emit the new cells as a full-row segment so the stale
+					// raw content is actually replaced — previously this
+					// produced RawContent=="" with no segments, leaving a
+					// ghost of the old raw line on screen (P1-5).
+					out = append(out, RowCellDiff{
+						Row:      int64(i),
+						Segments: []Segment{{StartCol: 0, Cells: n.Cells, AfterStyle: DefaultStyle}},
+					})
+				case n.Raw == "":
+					// New row is an empty raw row: clear the whole line.
+					out = append(out, RowCellDiff{Row: int64(i), ClearTail: true, TailStart: 0})
+				default:
+					// Raw rows lack Cells — fall back to full-row write.
+					out = append(out, RowCellDiff{Row: int64(i), RawContent: n.Raw})
+				}
 			} else {
 				d := DiffCells(old[i], n)
 				d.Row = int64(i)
@@ -167,13 +183,13 @@ func DiffFrame(old, newFrame []Row) []RowCellDiff {
 }
 
 // DiffCells computes the smallest changed cell segment between old and new.
-// If either row is a raw row, the whole new row is returned as a single
-// segment. The returned diff may be empty when the rows are identical.
+// The returned diff may be empty when the rows are identical. Raw rows are
+// handled by DiffFrame before reaching this function (raw rows lack Cells),
+// so a raw argument here is a caller error — return an empty diff rather
+// than an empty segment that would render nothing (P2-15).
 func DiffCells(old, newRow Row) RowCellDiff {
 	if old.IsRaw() || newRow.IsRaw() {
-		return RowCellDiff{
-			Segments: []Segment{{StartCol: 0, Cells: newRow.Cells, AfterStyle: DefaultStyle}},
-		}
+		return RowCellDiff{}
 	}
 
 	maxLen := len(old.Cells)

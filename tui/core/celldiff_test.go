@@ -103,12 +103,32 @@ func TestDiffCellsWideCharBoundary(t *testing.T) {
 	}
 }
 
+// TestDiffCellsRawRow verifies that DiffCells returns an empty diff for raw
+// rows. Raw rows lack cell structure and are handled by DiffFrame (which
+// emits RawContent or a cell segment); passing one here is a caller error,
+// and returning an empty segment would render nothing (P2-15).
 func TestDiffCellsRawRow(t *testing.T) {
 	old := Row{Raw: "old"}
 	new := Row{Raw: "new"}
 	diff := DiffCells(old, new)
-	if len(diff.Segments) != 1 || diff.Segments[0].StartCol != 0 {
-		t.Fatalf("expected full-row segment for raw rows, got %+v", diff)
+	if len(diff.Segments) != 0 || diff.RawContent != "" {
+		t.Fatalf("expected empty diff for raw rows, got %+v", diff)
+	}
+}
+
+// TestDiffFrameRawToCells verifies P1-5: a frame transition from a raw row
+// to a cell-structured row must emit the new cells (full-row segment), not
+// an empty diff that would leave a ghost of the old raw line on screen.
+func TestDiffFrameRawToCells(t *testing.T) {
+	old := []Row{{Raw: "\x1b_Gstale\x1b\\"}}
+	new := []Row{ParseLine("plain text")}
+	diffs := DiffFrame(old, new)
+	if len(diffs) != 1 {
+		t.Fatalf("expected 1 diff, got %d", len(diffs))
+	}
+	d := diffs[0]
+	if len(d.Segments) != 1 || len(d.Segments[0].Cells) == 0 {
+		t.Fatalf("expected full-row cell segment replacing raw row, got %+v", d)
 	}
 }
 

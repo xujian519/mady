@@ -396,12 +396,23 @@ func (h *ChatHistory) renderAllWithState(
 		// previous cachedAll. We walk cachedMsgRanges backwards from
 		// firstDirtyIdx to find the boundary.
 		cleanEnd := 0
+		renderFrom := firstDirtyIdx
 		for _, r := range cachedMsgRanges {
 			if r.msgIndex >= firstDirtyIdx {
 				break
 			}
 			// For tool groups, ensure the entire group is clean
 			if r.toolGroup && r.groupTo >= firstDirtyIdx {
+				// P1-11: firstDirtyIdx lands INSIDE a rendered tool group.
+				// The group's earlier members exist only in the cached
+				// prefix; starting the re-render at firstDirtyIdx would
+				// drop them from both the prefix AND the new render (a
+				// visible tool-card loss). Clamp the render start back to
+				// the group's first message so the whole group is
+				// re-rendered together.
+				if r.msgIndex < renderFrom {
+					renderFrom = r.msgIndex
+				}
 				break
 			}
 			cleanEnd = r.endLine
@@ -423,8 +434,9 @@ func (h *ChatHistory) renderAllWithState(
 				ranges = append(ranges, r)
 			}
 
-			// Re-render only dirty messages
-			out, ranges = h.renderMessagesRange(msgs, firstDirtyIdx, theme, expandedGroups, width, cache, out, ranges)
+			// Re-render only dirty messages (from renderFrom, which may be
+			// earlier than firstDirtyIdx when a tool group was affected).
+			out, ranges = h.renderMessagesRange(msgs, renderFrom, theme, expandedGroups, width, cache, out, ranges)
 
 			// Apply selection highlight
 			selEmpty := selStart.line == selEnd.line && selStart.col == selEnd.col

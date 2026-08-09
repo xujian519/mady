@@ -19,6 +19,17 @@ import (
 // Matches the mouseThrottle ticker (~33ms for 30fps) and caps event throughput.
 const mouseThrottlePeriod = time.Second / 30
 
+// delayedWindowSizeMsg is the internal delivery wrapper for a debounced
+// resize event. The raw WindowSizeMsg entering processMsg is always caught
+// by the debounce branch, so the debounce timer must re-enqueue through
+// this wrapper instead — otherwise the re-sent WindowSizeMsg would re-arm
+// the debounce timer forever and components would never see the resize
+// (the P0-1 self-perpetuating loop). processMsg unwraps it below the
+// debounce branch and dispatches it to components exactly once.
+type delayedWindowSizeMsg struct {
+	core.WindowSizeMsg
+}
+
 func (t *TUI) processMsg(msg core.Msg) {
 	if msg == nil {
 		return
@@ -51,11 +62,20 @@ func (t *TUI) processMsg(msg core.Msg) {
 		// this copy, not from the struct field (which may be overwritten
 		// by a subsequent resize event).
 		pendingMsg := msg.(core.WindowSizeMsg)
+		// Re-enqueue through delayedWindowSizeMsg (see its doc comment):
+		// re-sending the raw WindowSizeMsg would re-enter this debounce
+		// branch and never reach components.
 		timer := time.AfterFunc(100*time.Millisecond, func() {
-			t.SendMsg(pendingMsg)
+			t.SendMsg(delayedWindowSizeMsg{WindowSizeMsg: pendingMsg})
 		})
 		t.resizeThrottle.timer.Store(timer)
 		return // don't process intermediate resize events
+	}
+
+	// A debounced resize arrived: unwrap it and let it flow through the
+	// normal dispatch path (Filter, focused Update, background broadcast).
+	if dm, ok := msg.(delayedWindowSizeMsg); ok {
+		msg = dm.WindowSizeMsg
 	}
 
 	switch m := msg.(type) {
@@ -114,11 +134,6 @@ func (t *TUI) processMsg(msg core.Msg) {
 			"cmdIndex", m.CmdIndex,
 			"stack", m.Stack,
 		)
-	case core.QuitMsg:
-		if err := t.Stop(); err != nil {
-			slog.Warn("tui: stop failed on QuitMsg", "err", err)
-		}
-		return
 	}
 
 	focused := t.Focused()
@@ -129,6 +144,18 @@ func (t *TUI) processMsg(msg core.Msg) {
 			return
 		}
 		msg = filtered
+	}
+
+	// QuitMsg is handled AFTER the Filter so a global Filter can intercept
+	// it — e.g. to show a confirm dialog (return nil blocks the quit) or
+	// replace it with another message (P2-30). This matches the documented
+	// "intercepting quit events" contract on TUIOptions.Filter; previously
+	// QuitMsg short-circuited before the Filter ever saw it.
+	if _, ok := msg.(core.QuitMsg); ok {
+		if err := t.Stop(); err != nil {
+			slog.Warn("tui: stop failed on QuitMsg", "err", err)
+		}
+		return
 	}
 
 	// The original (screen-absolute) mouse coordinates are preserved when a
