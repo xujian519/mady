@@ -16,7 +16,7 @@ DESKTOP_VERSION ?= $(shell sed -n 's/.*"productVersion"[[:space:]]*:[[:space:]]*
 DESKTOP_LDFLAGS ?= -ldflags "-X main.desktopVersion=$(DESKTOP_VERSION)"
 GOLANGCI_LINT_VERSION ?= v2.12.2
 
-.PHONY: all build test test-race test-short test-integration test-verbose test-disclosure-smoke test-approval-audit test-dry-run-gate coverage vet lint fmt clean \
+.PHONY: all build test test-race test-short test-integration test-e2e test-verbose test-disclosure-smoke test-approval-audit test-dry-run-gate coverage vet lint fmt clean \
         install install-hooks install-lint \
         build-cli-chat build-wiki-import build-acp-server build-mady \
         run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client run-mady run-acp-server \
@@ -93,6 +93,13 @@ test-short:
 
 test-integration:
 	$(GO) test $(GOFLAGS) -tags integration -count=1 ./integration/...
+
+# 真实 ego-browser e2e 测试（Google Patents/CNIPA/Espacenet 检索闭环）。
+# 依赖外部浏览器运行时与网络，不纳入 verify 门禁（测试内部以 MADY_E2E=1 显式开启）；
+# 手动或 CI 专用。
+test-e2e:
+	MADY_E2E=1 $(GO) test $(GOFLAGS) -count=1 -run 'E2E' ./retrieval/domain/browser/...
+	cd tools && MADY_E2E=1 $(GO) test $(GOFLAGS) -count=1 -run 'E2E' ./...
 
 test-verbose:
 	$(GO) test $(GOFLAGS) -v -count=1 ./...
