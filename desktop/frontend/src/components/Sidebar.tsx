@@ -2,8 +2,9 @@
  * Sidebar — 左侧导航栏（对齐设计规范第7.2章）。
  *
  * 布局：
- *   SidebarHeader (40px) — 汉堡 + Tab 切换 + 收起按钮
- *   Tab Content Area — 会话列表 / 项目树 / 文件浏览
+ *   SidebarHeader (40px) — 收起按钮
+ *   Tab 导航（竖向）— 会话 / 项目 / 记忆
+ *   Tab Content Area — 会话列表 / 项目树 / 记忆面板
  *   底部 — 设置入口
  */
 
@@ -17,9 +18,9 @@ import { TrashPanel } from './TrashPanel'
 import { MemoryPanel } from './MemoryPanel'
 import { ProjectTree } from './ProjectTree'
 import { bindThreadToSession } from '@/lib/backend'
-import { Search, Settings, FolderTree, FileText, MessageSquare, PanelLeftClose, Trash2, Brain } from 'lucide-react'
+import { Search, Settings, FolderTree, MessageSquare, PanelLeftClose, Trash2, Brain } from 'lucide-react'
 
-type SidebarTab = 'threads' | 'project' | 'files' | 'memory'
+type SidebarTab = 'threads' | 'project' | 'memory'
 
 interface SidebarProps {
   onNewChat: () => void
@@ -81,39 +82,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
     }
   }
 
+  // icon 仅折叠态（48px）显示；展开态只渲染 label
   const tabs: { id: SidebarTab; label: string; icon: React.ReactNode }[] = [
     { id: 'threads', label: '会话', icon: <MessageSquare size={14} /> },
     { id: 'project', label: '项目', icon: <FolderTree size={14} /> },
-    { id: 'files', label: '文件', icon: <FileText size={14} /> },
     { id: 'memory', label: '记忆', icon: <Brain size={14} /> },
   ]
 
   return (
     <aside className={`${sidebarCollapsed ? 'w-12' : 'w-[var(--mady-sidebar-width)]'} h-full flex flex-col mady-material border-r border-mady-separator select-none transition-[width] duration-150`}>
-      {/* SidebarHeader: 40px — 对齐规范 §7.2.2；折叠态仅显示 Tab 图标 */}
-      <div className="h-10 flex items-center justify-between px-3 border-b border-mady-separator">
-        {/* Tab 切换按钮组 */}
-        <div className={`flex ${sidebarCollapsed ? 'flex-col items-center gap-1 w-full' : 'items-center gap-0.5'}`}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              title={tab.label}
-              aria-label={tab.label}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-mady-small font-medium transition-colors duration-150 ${
-                activeTab === tab.id
-                  ? 'bg-mady-bg-hover text-mady-text-primary'
-                  : 'text-mady-text-secondary hover:text-mady-text-primary hover:bg-mady-bg-hover/50'
-              }`}
-            >
-              {tab.icon}
-              {!sidebarCollapsed && tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 收起按钮（W4-T13：折叠状态持久化到 settings store）——折叠态时隐藏，由 ChatView 标题栏展开按钮恢复 */}
-        {!sidebarCollapsed && (
+      {/* SidebarHeader: 40px — 对齐规范 §7.2.2；仅保留收起按钮（折叠态隐藏，由 ChatView 标题栏/⌘B 恢复） */}
+      {!sidebarCollapsed && (
+        <div className="h-10 flex items-center justify-end px-3 border-b border-mady-separator">
           <button
             onClick={() => useSettingsStore.setState({ sidebarCollapsed: true })}
             className="p-1 rounded-md text-mady-text-secondary hover:text-mady-text-primary hover:bg-mady-bg-hover transition-colors duration-150"
@@ -121,10 +101,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
           >
             <PanelLeftClose size={14} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* 折叠态：仅保留图标 Tab 切换，内容区隐藏 */}
+      {/* 竖向 Tab 导航 — 会话/项目/记忆 按功能竖排，位于搜索框上方 */}
+      <nav className={`flex ${sidebarCollapsed ? 'flex-col items-center gap-1 py-2' : 'flex-col gap-0.5 p-2 border-b border-mady-separator'}`}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            title={tab.label}
+            aria-label={tab.label}
+            className={`flex items-center gap-1.5 rounded-md transition-colors duration-150 ${
+              sidebarCollapsed ? 'justify-center p-1.5' : 'px-2.5 py-1.5 text-mady-small font-medium'
+            } ${
+              activeTab === tab.id
+                ? 'bg-mady-bg-hover text-mady-text-primary'
+                : 'text-mady-text-secondary hover:text-mady-text-primary hover:bg-mady-bg-hover/50'
+            }`}
+          >
+            {sidebarCollapsed ? tab.icon : tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* 折叠态：仅保留图标导航，内容区隐藏 */}
       {sidebarCollapsed ? (
         <div className="flex-1" />
       ) : (
@@ -187,16 +188,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSetti
       {activeTab === 'project' && (
         <div className="flex-1 overflow-y-auto p-2">
           <ProjectTree />
-        </div>
-      )}
-
-      {/* Tab: 文件浏览（预留） */}
-      {activeTab === 'files' && (
-        <div className="flex-1 flex items-center justify-center text-mady-text-tertiary">
-          <div className="text-center px-4">
-            <FileText size={24} className="mx-auto mb-2 opacity-50" />
-            <p className="text-mady-caption">文件浏览</p>
-          </div>
         </div>
       )}
 

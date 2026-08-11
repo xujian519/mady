@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "updated": "2026-08-11T23:03:10+08:00",
-  "total": 333,
+  "updated": "2026-08-12T01:02:56+08:00",
+  "total": 334,
   "entries": [
     {
-      "date": "2026-08-11",
-      "type": "feat",
-      "scope": "tui",
-      "title": "TUI P0 优化实施：补间动画 + OSC8 链接 + Golden 快照 + 能力接口",
-      "file": "2026-08-11.md",
+      "date": "2026-08-12",
+      "type": "refactor",
+      "scope": "desktop",
+      "title": "Sidebar 导航重构：Tab 竖排于搜索框上方，移除文件占位 Tab 与展开态图标",
+      "file": "2026-08-12.md",
       "line": 3
     },
     {
@@ -196,11 +196,11 @@
       "line": 324
     },
     {
-      "date": "2026-08-09",
-      "type": "fix",
+      "date": "2026-08-11",
+      "type": "feat",
       "scope": "tui",
-      "title": "全量审阅修复：P0 resize 防抖自续循环 + 12 项 P1 + 31 项 P2（TUI 2026-08-09 审阅）",
-      "file": "2026-08-09.md",
+      "title": "TUI P0 优化实施：补间动画 + OSC8 链接 + Golden 快照 + 能力接口",
+      "file": "2026-08-11.md",
       "line": 3
     },
     {
@@ -228,12 +228,12 @@
       "line": 39
     },
     {
-      "date": "2026-08-08",
+      "date": "2026-08-09",
       "type": "fix",
-      "scope": "chatcompat",
-      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
-      "file": "2026-08-08.md",
-      "line": 7
+      "scope": "tui",
+      "title": "全量审阅修复：P0 resize 防抖自续循环 + 12 项 P1 + 31 项 P2（TUI 2026-08-09 审阅）",
+      "file": "2026-08-09.md",
+      "line": 3
     },
     {
       "date": "2026-08-08",
@@ -252,11 +252,11 @@
       "line": 3
     },
     {
-      "date": "2026-08-07",
-      "type": "refactor",
-      "scope": "techdebt",
-      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
-      "file": "2026-08-07.md",
+      "date": "2026-08-08",
+      "type": "fix",
+      "scope": "chatcompat",
+      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
+      "file": "2026-08-08.md",
       "line": 7
     },
     {
@@ -276,12 +276,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-06",
-      "type": "feat",
-      "scope": "domains/workflows/patent",
-      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
-      "file": "2026-08-06.md",
-      "line": 3
+      "date": "2026-08-07",
+      "type": "refactor",
+      "scope": "techdebt",
+      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
+      "file": "2026-08-07.md",
+      "line": 7
     },
     {
       "date": "2026-08-06",
@@ -292,12 +292,12 @@
       "line": 16
     },
     {
-      "date": "2026-08-04",
-      "type": "refactor",
-      "scope": "desktop",
-      "title": "code-review 修复：标签联动单真相源、嵌套模态 Esc、单写入者窗口状态等 7 项",
-      "file": "2026-08-04.md",
-      "line": 173
+      "date": "2026-08-06",
+      "type": "feat",
+      "scope": "domains/workflows/patent",
+      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
+      "file": "2026-08-06.md",
+      "line": 3
     },
     {
       "date": "2026-08-04",
@@ -372,12 +372,12 @@
       "line": 146
     },
     {
-      "date": "2026-08-03",
-      "type": "fix",
-      "scope": "tui/chat",
-      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
-      "file": "2026-08-03.md",
-      "line": 3
+      "date": "2026-08-04",
+      "type": "refactor",
+      "scope": "desktop",
+      "title": "code-review 修复：标签联动单真相源、嵌套模态 Esc、单写入者窗口状态等 7 项",
+      "file": "2026-08-04.md",
+      "line": 173
     },
     {
       "date": "2026-08-03",
@@ -388,12 +388,12 @@
       "line": 9
     },
     {
-      "date": "2026-08-02",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "桌面端多标签（Go 侧状态机）第一步：Tab 模型/持久化/恢复/绑定",
-      "file": "2026-08-02.md",
-      "line": 47
+      "date": "2026-08-03",
+      "type": "fix",
+      "scope": "tui/chat",
+      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
+      "file": "2026-08-03.md",
+      "line": 3
     },
     {
       "date": "2026-08-02",
@@ -460,12 +460,12 @@
       "line": 33
     },
     {
-      "date": "2026-08-01",
-      "type": "test",
-      "scope": "cmd/mady",
-      "title": "buildAgentConfig 集成测试：MaxTokens 保留不变量",
-      "file": "2026-08-01.md",
-      "line": 7
+      "date": "2026-08-02",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "桌面端多标签（Go 侧状态机）第一步：Tab 模型/持久化/恢复/绑定",
+      "file": "2026-08-02.md",
+      "line": 47
     },
     {
       "date": "2026-08-01",
@@ -492,12 +492,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-31",
-      "type": "docs",
-      "scope": "review",
-      "title": "TUI 模块规范符合度全量审阅——4 P0 + 7 P1 + 6 P2 + 5 P3",
-      "file": "2026-07-31.md",
-      "line": 30
+      "date": "2026-08-01",
+      "type": "test",
+      "scope": "cmd/mady",
+      "title": "buildAgentConfig 集成测试：MaxTokens 保留不变量",
+      "file": "2026-08-01.md",
+      "line": 7
     },
     {
       "date": "2026-07-31",
@@ -900,12 +900,12 @@
       "line": 407
     },
     {
-      "date": "2026-07-30",
-      "type": "refactor",
-      "scope": "*",
-      "title": "P3-A God包拆分 + P3-E 架构边界修复 — 剩余9项全部完成",
-      "file": "2026-07-30.md",
-      "line": 3
+      "date": "2026-07-31",
+      "type": "docs",
+      "scope": "review",
+      "title": "TUI 模块规范符合度全量审阅——4 P0 + 7 P1 + 6 P2 + 5 P3",
+      "file": "2026-07-31.md",
+      "line": 30
     },
     {
       "date": "2026-07-30",
@@ -1060,12 +1060,12 @@
       "line": 48
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
+      "date": "2026-07-30",
+      "type": "refactor",
       "scope": "*",
-      "title": "桌面端第二波 W2-T1 — TodoDock 底部待办坞",
-      "file": "2026-07-29.md",
-      "line": 134
+      "title": "P3-A God包拆分 + P3-E 架构边界修复 — 剩余9项全部完成",
+      "file": "2026-07-30.md",
+      "line": 3
     },
     {
       "date": "2026-07-29",
@@ -1140,12 +1140,12 @@
       "line": 95
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
+      "date": "2026-07-29",
+      "type": "chore",
       "scope": "*",
-      "title": "桌面端 Provider/Model 切换闭环（T3.6 缺口 G1 修复）",
-      "file": "2026-07-28.md",
-      "line": 430
+      "title": "桌面端第二波 W2-T1 — TodoDock 底部待办坞",
+      "file": "2026-07-29.md",
+      "line": 134
     },
     {
       "date": "2026-07-28",
@@ -1268,12 +1268,12 @@
       "line": 473
     },
     {
-      "date": "2026-07-27",
-      "type": "feat",
+      "date": "2026-07-28",
+      "type": "fix",
       "scope": "*",
-      "title": "四子系统死代码接入 — 可信度管线/审计扩展/期限工具/指标端点",
-      "file": "2026-07-27.md",
-      "line": 276
+      "title": "桌面端 Provider/Model 切换闭环（T3.6 缺口 G1 修复）",
+      "file": "2026-07-28.md",
+      "line": 430
     },
     {
       "date": "2026-07-27",
@@ -1436,12 +1436,12 @@
       "line": 65
     },
     {
-      "date": "2026-07-26",
-      "type": "fix",
+      "date": "2026-07-27",
+      "type": "feat",
       "scope": "*",
-      "title": "Sprint 1 P0/P1 安全止血修复 + 全面审阅报告",
-      "file": "2026-07-26.md",
-      "line": 546
+      "title": "四子系统死代码接入 — 可信度管线/审计扩展/期限工具/指标端点",
+      "file": "2026-07-27.md",
+      "line": 276
     },
     {
       "date": "2026-07-26",
@@ -1508,12 +1508,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
+      "date": "2026-07-26",
+      "type": "fix",
       "scope": "*",
-      "title": "审阅决策 — LLM outbound 数据统一 PII redaction 层",
-      "file": "2026-07-25.md",
-      "line": 139
+      "title": "Sprint 1 P0/P1 安全止血修复 + 全面审阅报告",
+      "file": "2026-07-26.md",
+      "line": 546
     },
     {
       "date": "2026-07-25",
@@ -1620,12 +1620,12 @@
       "line": 110
     },
     {
-      "date": "2026-07-24",
-      "type": "chore",
-      "scope": "disclosure",
-      "title": "B 档高价值接线 — guardian/tracing/evidence/disclosure",
-      "file": "2026-07-24.md",
-      "line": 275
+      "date": "2026-07-25",
+      "type": "docs",
+      "scope": "*",
+      "title": "审阅决策 — LLM outbound 数据统一 PII redaction 层",
+      "file": "2026-07-25.md",
+      "line": 139
     },
     {
       "date": "2026-07-24",
@@ -1780,12 +1780,12 @@
       "line": 701
     },
     {
-      "date": "2026-07-23",
-      "type": "feat",
-      "scope": "domains",
-      "title": "新增 domains/novelty 新颖性判断独立模块",
-      "file": "2026-07-23.md",
-      "line": 538
+      "date": "2026-07-24",
+      "type": "chore",
+      "scope": "disclosure",
+      "title": "B 档高价值接线 — guardian/tracing/evidence/disclosure",
+      "file": "2026-07-24.md",
+      "line": 275
     },
     {
       "date": "2026-07-23",
@@ -1932,12 +1932,12 @@
       "line": 346
     },
     {
-      "date": "2026-07-22",
-      "type": "docs",
-      "scope": "*",
-      "title": "知识管理系统审阅优化 — BuildProjectAgent 注入 + 测试补充",
-      "file": "2026-07-22.md",
-      "line": 243
+      "date": "2026-07-23",
+      "type": "feat",
+      "scope": "domains",
+      "title": "新增 domains/novelty 新颖性判断独立模块",
+      "file": "2026-07-23.md",
+      "line": 538
     },
     {
       "date": "2026-07-22",
@@ -1996,12 +1996,12 @@
       "line": 285
     },
     {
-      "date": "2026-07-21",
-      "type": "chore",
-      "scope": "tui",
-      "title": "Phase 3 工作流工具 + TUI 判断摘要条与浮层统一",
-      "file": "2026-07-21.md",
-      "line": 142
+      "date": "2026-07-22",
+      "type": "docs",
+      "scope": "*",
+      "title": "知识管理系统审阅优化 — BuildProjectAgent 注入 + 测试补充",
+      "file": "2026-07-22.md",
+      "line": 243
     },
     {
       "date": "2026-07-21",
@@ -2180,12 +2180,12 @@
       "line": 329
     },
     {
-      "date": "2026-07-20",
-      "type": "fix",
-      "scope": "agentcore",
-      "title": "agentcore 深度审阅全面修复（43 项：2C/8H/18M/25L 全清）",
-      "file": "2026-07-20.md",
-      "line": 806
+      "date": "2026-07-21",
+      "type": "chore",
+      "scope": "tui",
+      "title": "Phase 3 工作流工具 + TUI 判断摘要条与浮层统一",
+      "file": "2026-07-21.md",
+      "line": 142
     },
     {
       "date": "2026-07-20",
@@ -2412,12 +2412,12 @@
       "line": 605
     },
     {
-      "date": "2026-07-19",
+      "date": "2026-07-20",
       "type": "fix",
-      "scope": "*",
-      "title": "四大证据源全面接线修复",
-      "file": "2026-07-19.md",
-      "line": 3
+      "scope": "agentcore",
+      "title": "agentcore 深度审阅全面修复（43 项：2C/8H/18M/25L 全清）",
+      "file": "2026-07-20.md",
+      "line": 806
     },
     {
       "date": "2026-07-19",
@@ -2460,11 +2460,11 @@
       "line": 85
     },
     {
-      "date": "2026-07-18",
-      "type": "docs",
+      "date": "2026-07-19",
+      "type": "fix",
       "scope": "*",
-      "title": "代码质量现代化——slices.Contains/min 替换 + 全面审阅报告",
-      "file": "2026-07-18.md",
+      "title": "四大证据源全面接线修复",
+      "file": "2026-07-19.md",
       "line": 3
     },
     {
@@ -2666,6 +2666,14 @@
       "title": "Phase 7 剩余 High 修复（H2 H3 H6）+ 安全性审核（H4 H5 H7）",
       "file": "2026-07-18.md",
       "line": 54
+    },
+    {
+      "date": "2026-07-18",
+      "type": "docs",
+      "scope": "*",
+      "title": "代码质量现代化——slices.Contains/min 替换 + 全面审阅报告",
+      "file": "2026-07-18.md",
+      "line": 3
     }
   ]
 }
