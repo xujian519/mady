@@ -322,23 +322,11 @@ func (h *ChatHistory) tryToggleThinkingAtLineLocked(absLine int64) bool {
 	}
 
 	msg := &h.messages[h.cachedMsgRanges[msgIdx].msgIndex]
-	if msg.Role == RoleTool && msg.Collapsed {
-		msg.Collapsed = false
-		h.invalidateMessageLocked(msg.ID)
-		return true
-	}
-	if msg.Role == RoleTool && !msg.Collapsed {
-		msg.Collapsed = true
-		h.invalidateMessageLocked(msg.ID)
-		return true
-	}
-	if msg.Role == RoleAssistant && msg.Collapsed {
-		msg.Collapsed = false
-		h.invalidateMessageLocked(msg.ID)
-		return true
-	}
-	if msg.Role == RoleAssistant && !msg.Collapsed && msg.Meta == "diff" {
-		msg.Collapsed = true
+	// 统一折叠判定：可折叠消息（证据卡/工具结果/diff 摘要）点击切换
+	// Collapsed，渲染层（renderMessage/renderDomainCard）读该字段渲染
+	// 折叠态。新增可折叠消息类型只需扩展 IsCollapsible，无需改本函数。
+	if msg.IsCollapsible() {
+		msg.Collapsed = !msg.Collapsed
 		h.invalidateMessageLocked(msg.ID)
 		return true
 	}

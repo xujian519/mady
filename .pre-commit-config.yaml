@@ -3,7 +3,10 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        # golden 基线含 PadToWidth 的行尾空格（像素级渲染快照），必须保留。
+        exclude: '\.golden$'
       - id: end-of-file-fixer
+        exclude: '\.golden$'
       - id: check-added-large-files
         args: [--maxkb=500]
         exclude: 'docs/decisions/ai-changelog/archive-'

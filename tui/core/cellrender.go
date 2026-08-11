@@ -36,11 +36,35 @@ func SerializeRow(row Row) string {
 	var b strings.Builder
 	prev := DefaultStyle
 	activeNonDefault := false
+	// 链接注入游标：col 是当前 cell 的可见列；linkIdx 指向下一个待处理的
+	// LinkSpan。OSC 8 序列在进入/离开 LinkSpan 时注入（半开区间 [Start,
+	// End)），注入点不改变单元格内容与 SGR 状态。
+	var col int64
+	linkIdx := 0
+	curURL := "" // 当前打开的 OSC 8 链接，"" 表示未打开
+	closeLink := func() {
+		if curURL != "" {
+			b.WriteString("\x1b]8;;\x1b\\")
+			curURL = ""
+		}
+	}
 	for i := 0; i < len(row.Cells); i++ {
 		c := row.Cells[i]
 		if c.IsContinuation() {
 			// Right half of a wide char — already emitted with the primary.
 			continue
+		}
+		// 链接结束：col 已越过 EndCol 的链接关闭（可能同时结束多个）。
+		for linkIdx < len(row.Links) && row.Links[linkIdx].EndCol <= col {
+			closeLink()
+			linkIdx++
+		}
+		// 链接开始：col 恰好位于 StartCol 且 OSC 8 开启时打开。
+		if osc8Enabled && linkIdx < len(row.Links) && row.Links[linkIdx].StartCol == col &&
+			row.Links[linkIdx].URL != curURL {
+			closeLink()
+			b.WriteString("\x1b]8;;" + row.Links[linkIdx].URL + "\x1b\\")
+			curURL = row.Links[linkIdx].URL
 		}
 		if !c.Style.Equal(prev) {
 			sgr := RenderSGR(prev, c.Style)
@@ -58,7 +82,10 @@ func SerializeRow(row Row) string {
 				b.WriteRune(m)
 			}
 		}
+		col += int64(c.Width)
 	}
+	// 行尾关闭未闭合的链接（链接跨到行尾的情况）。
+	closeLink()
 	if activeNonDefault {
 		b.WriteString("\x1b[0m")
 	}

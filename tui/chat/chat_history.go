@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/xujian519/mady/tui/component"
+	core "github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
 )
 
@@ -82,6 +83,25 @@ type ChatMessage struct {
 type ThinkingSegment struct {
 	Text      string
 	Collapsed bool
+}
+
+// IsCollapsible 报告该消息是否支持折叠/展开交互（点击切换摘要/全文）。
+// 覆盖：证据卡（DomainMsg evidence_card）、工具结果、可折叠摘要文本
+// （diff 或已处于折叠态的 assistant 消息）。
+//
+// 这是折叠判定的唯一入口：渲染层读 Collapsed 字段渲染折叠态，交互层
+// （chat_history_input.go 的 click-to-toggle）用它判定"点击是否切换折叠"。
+func (m *ChatMessage) IsCollapsible() bool {
+	if m.DomainMsg != nil {
+		return m.DomainMsg.Type == component.DomainMsgTypeEvidenceCard
+	}
+	switch m.Role {
+	case RoleTool:
+		return true
+	case RoleAssistant:
+		return m.Collapsed || m.Meta == "diff"
+	}
+	return false
 }
 
 // ChatHistoryTheme customizes prefix / styling for each role.
@@ -153,6 +173,7 @@ type selectionPos struct {
 // of the whole message — turning streaming render cost from O(N²) into ~O(N).
 type cachedMessage struct {
 	lines      []string
+	links      [][]core.LinkSpan     // 与 lines 行对齐的链接元数据（受信任来源）
 	width      int64                 // 渲染行时的宽度；命中时不一致需重渲染（如工具组 innerW）
 	blockCache *component.BlockCache // non-nil only for Pending assistant messages
 }
@@ -172,8 +193,13 @@ type ChatHistory struct {
 	cachedWidth     int64
 	cachedAll       []string
 	cachedMsgRanges []msgRange
+	cachedLinks     [][]core.LinkSpan // 与 cachedAll 行对齐的链接元数据
 	dirty           bool
 	expandedGroups  map[int]bool // group message indices that are expanded
+
+	// lastLinks 是最近一次 Render 返回值（可见行）对应的链接元数据，供
+	// RenderLinks（core.LinkProvider）返回。与 Render 同线程读写，无锁。
+	lastLinks [][]core.LinkSpan
 
 	// msgCache maps message ID to its rendered lines at the current width.
 	// It is cleared on width changes and on any global style change; single

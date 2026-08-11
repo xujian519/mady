@@ -1,0 +1,7 @@
+[3] → edit_block done (1.25s)           
+  diff                                  
+     0 -func old() {                    
+     0 +func new() {                    
+     1 -}                               
+     1 +}                               
+                                        

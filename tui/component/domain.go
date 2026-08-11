@@ -39,6 +39,8 @@ type EvidenceRef struct {
 	SourceURI string            `json:"source_uri,omitempty"`
 	PageRange string            `json:"page_range,omitempty"`
 	Direction EvidenceDirection `json:"direction"`
+	// URL 是证据来源的可点击链接（OSC 8）。为空时不生成链接。
+	URL string `json:"url,omitempty"`
 }
 
 // DomainAction 描述用户可对领域消息执行的操作。

@@ -156,10 +156,14 @@ func EqualCell(a, b Cell) bool {
 // CursorCol, when >= 0, marks the visible column at which an IME cursor
 // marker (CURSOR_MARKER APC) was found. The marker itself is stripped from
 // the cell content; the renderer uses CursorCol to drive the hardware cursor.
+//
+// Links 携带本行的受信任超链接元数据（见 link.go 的 LinkProvider）。链接
+// 由 SerializeRow 在输出时转换为 OSC 8 序列；LLM 原始输出不产生 Links。
 type Row struct {
 	Cells     []Cell
 	Raw       string // populated iff Cells is nil
 	CursorCol int    // -1 when no IME cursor marker; column otherwise
+	Links     []LinkSpan
 }
 
 // IsRaw reports whether the row is the opaque-string fallback form.
@@ -182,7 +186,8 @@ func (r Row) VisibleWidth() int64 {
 
 // RowsEqual reports whether two Rows are rendering-equivalent.
 // Two raw rows are equal iff their strings match; two cell rows are equal
-// iff every cell matches; a raw row and a cell row are never equal.
+// iff every cell (and the link metadata) matches; a raw row and a cell row
+// are never equal.
 func RowsEqual(a, b Row) bool {
 	if a.IsRaw() || b.IsRaw() {
 		return a.IsRaw() && b.IsRaw() && a.Raw == b.Raw && a.CursorCol == b.CursorCol
@@ -191,6 +196,11 @@ func RowsEqual(a, b Row) bool {
 		return false
 	}
 	if len(a.Cells) != len(b.Cells) {
+		return false
+	}
+	// 链接元数据也必须一致：链接变化（URL/区间）必须触发重绘，否则终端
+	// 上的可点击区域与单元格内容脱节。
+	if !linksEqual(a.Links, b.Links) {
 		return false
 	}
 	for i := range a.Cells {

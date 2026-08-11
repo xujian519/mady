@@ -20,7 +20,7 @@ func TestRenderToolGroup(t *testing.T) {
 	cache := make(map[string]cachedMessage)
 
 	t.Run("collapsed with meta", func(t *testing.T) {
-		lines, r := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, false, th, 60, cache)
+		lines, r, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, false, th, 60, cache)
 		if len(lines) != 1 {
 			t.Fatalf("collapsed group should render 1 line, got %d", len(lines))
 		}
@@ -38,7 +38,7 @@ func TestRenderToolGroup(t *testing.T) {
 			{Role: RoleTool, Text: "..."},
 			{Role: RoleTool, Text: "..."},
 		}
-		lines, _ := (&ChatHistory{theme: th}).renderToolGroup(noMeta, 0, 1, false, th, 60, cache)
+		lines, _, _ := (&ChatHistory{theme: th}).renderToolGroup(noMeta, 0, 1, false, th, 60, cache)
 		plain := core.StripAnsi(lines[0])
 		if !strings.Contains(plain, "2 tools") {
 			t.Fatalf("summary should count tools: %q", plain)
@@ -46,7 +46,7 @@ func TestRenderToolGroup(t *testing.T) {
 	})
 
 	t.Run("expanded shows all lines", func(t *testing.T) {
-		lines, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, true, th, 60, cache)
+		lines, _, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, true, th, 60, cache)
 		if len(lines) < 4 {
 			t.Fatalf("expanded group should render summary + members, got %d lines", len(lines))
 		}
@@ -57,7 +57,7 @@ func TestRenderToolGroup(t *testing.T) {
 	})
 
 	t.Run("expanded tools-only summary", func(t *testing.T) {
-		lines, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs[:2], 0, 1, true, th, 60, cache)
+		lines, _, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs[:2], 0, 1, true, th, 60, cache)
 		plain := core.StripAnsi(lines[0])
 		if strings.Contains(plain, "msgs") || !strings.Contains(plain, "2 tools") {
 			t.Fatalf("tools-only summary = %q", plain)
@@ -70,22 +70,22 @@ func TestRenderToolGroup(t *testing.T) {
 			{Role: RoleTool, Text: "..."},
 			{Role: RoleTool, Text: "..."},
 		}
-		collapsed, _ := (&ChatHistory{theme: th}).renderToolGroup(noMeta, 0, 1, false, th, 60, cache)
+		collapsed, _, _ := (&ChatHistory{theme: th}).renderToolGroup(noMeta, 0, 1, false, th, 60, cache)
 		if plain := core.StripAnsi(collapsed[0]); plain != "[+] 2 tools" {
 			t.Fatalf("collapsed no-meta summary = %q, want %q", plain, "[+] 2 tools")
 		}
-		withMeta, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, false, th, 60, cache)
+		withMeta, _, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, false, th, 60, cache)
 		if plain := core.StripAnsi(withMeta[0]); plain != "[+] search" {
 			t.Fatalf("collapsed meta summary = %q, want %q", plain, "[+] search")
 		}
-		expanded, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, true, th, 60, cache)
+		expanded, _, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 2, true, th, 60, cache)
 		if plain := core.StripAnsi(expanded[0]); plain != "[-] 2 tools · 1 msgs" {
 			t.Fatalf("expanded summary = %q, want %q", plain, "[-] 2 tools · 1 msgs")
 		}
 	})
 
 	t.Run("expanded uses left bar timeline", func(t *testing.T) {
-		lines, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs[:2], 0, 1, true, th, 60, cache)
+		lines, _, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs[:2], 0, 1, true, th, 60, cache)
 		joined := core.StripAnsi(strings.Join(lines, "\n"))
 		// 2 个成员 + 1 条组内连接 = 至少 3 处色带。
 		barCount := strings.Count(joined, "│")
@@ -115,7 +115,7 @@ func TestRenderToolGroupCacheWidthMismatch(t *testing.T) {
 	(&ChatHistory{theme: th}).renderMessageCachedWithCache(msgs[0], th, width, cache)
 
 	// 展开组以 innerW 渲染：缓存宽度不一致，必须重渲染而不是复用全宽行。
-	lines, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 1, true, th, width, cache)
+	lines, _, _ := (&ChatHistory{theme: th}).renderToolGroup(msgs, 0, 1, true, th, width, cache)
 	for _, ln := range lines {
 		if vw := core.VisibleWidth(ln); vw > width {
 			t.Fatalf("expanded group line exceeds width %d (got %d): %q", width, vw, core.StripAnsi(ln))
@@ -180,7 +180,7 @@ func TestRenderDomainCard(t *testing.T) {
 	h := NewChatHistory()
 
 	t.Run("evidence card", func(t *testing.T) {
-		lines := h.renderDomainCard(ChatMessage{
+		lines, _ := h.renderDomainCard(ChatMessage{
 			DomainMsg: &component.DomainMessage{Type: component.DomainMsgTypeEvidenceCard, Body: "证据"},
 		}, th, 60)
 		if len(lines) == 0 {
@@ -189,7 +189,7 @@ func TestRenderDomainCard(t *testing.T) {
 	})
 
 	t.Run("conclusion card", func(t *testing.T) {
-		lines := h.renderDomainCard(ChatMessage{
+		lines, _ := h.renderDomainCard(ChatMessage{
 			DomainMsg: &component.DomainMessage{Type: component.DomainMsgTypeConclusionCard, Body: "结论"},
 		}, th, 60)
 		if len(lines) == 0 {
@@ -198,7 +198,7 @@ func TestRenderDomainCard(t *testing.T) {
 	})
 
 	t.Run("approval card", func(t *testing.T) {
-		lines := h.renderDomainCard(ChatMessage{
+		lines, _ := h.renderDomainCard(ChatMessage{
 			DomainMsg: &component.DomainMessage{Type: component.DomainMsgTypeApprovalPrompt, Body: "确认?"},
 		}, th, 60)
 		if len(lines) == 0 {
@@ -207,7 +207,7 @@ func TestRenderDomainCard(t *testing.T) {
 	})
 
 	t.Run("fallback markdown", func(t *testing.T) {
-		lines := h.renderDomainCard(ChatMessage{
+		lines, _ := h.renderDomainCard(ChatMessage{
 			DomainMsg: &component.DomainMessage{Type: "custom_type", Body: "**bold body**"},
 		}, th, 60)
 		if len(lines) == 0 {
@@ -216,7 +216,7 @@ func TestRenderDomainCard(t *testing.T) {
 	})
 
 	t.Run("nil domain msg", func(t *testing.T) {
-		if lines := h.renderDomainCard(ChatMessage{}, th, 60); lines != nil {
+		if lines, _ := h.renderDomainCard(ChatMessage{}, th, 60); lines != nil {
 			t.Fatalf("nil DomainMsg should return nil, got %v", lines)
 		}
 	})
@@ -230,7 +230,7 @@ func TestRenderMessageExtraRoles(t *testing.T) {
 
 	t.Run("collapsed assistant", func(t *testing.T) {
 		long := strings.Repeat("x", 300) + "\nsecond line"
-		lines := h.renderMessage(ChatMessage{Role: RoleAssistant, Collapsed: true, Text: long}, th, 60, nil)
+		lines, _ := h.renderMessage(ChatMessage{Role: RoleAssistant, Collapsed: true, Text: long}, th, 60, nil)
 		joined := strings.Join(lines, "\n")
 		if !strings.Contains(joined, "expand") {
 			t.Fatalf("collapsed assistant should show expand hint, got %q", joined)
@@ -241,28 +241,28 @@ func TestRenderMessageExtraRoles(t *testing.T) {
 	})
 
 	t.Run("error role", func(t *testing.T) {
-		lines := h.renderMessage(ChatMessage{Role: RoleError, Text: "**boom**"}, th, 60, nil)
+		lines, _ := h.renderMessage(ChatMessage{Role: RoleError, Text: "**boom**"}, th, 60, nil)
 		if len(lines) == 0 {
 			t.Fatal("error role should render markdown")
 		}
 	})
 
 	t.Run("divider role", func(t *testing.T) {
-		lines := h.renderMessage(ChatMessage{Role: RoleDivider}, th, 60, nil)
+		lines, _ := h.renderMessage(ChatMessage{Role: RoleDivider}, th, 60, nil)
 		if len(lines) != 1 || lines[0] != "" {
 			t.Fatalf("divider should render one blank line, got %v", lines)
 		}
 	})
 
 	t.Run("unknown role falls back to plain wrap", func(t *testing.T) {
-		lines := h.renderMessage(ChatMessage{Role: ChatRole(99), Text: "raw"}, th, 20, nil)
+		lines, _ := h.renderMessage(ChatMessage{Role: ChatRole(99), Text: "raw"}, th, 20, nil)
 		if len(lines) != 1 || !strings.Contains(lines[0], "raw") {
 			t.Fatalf("unknown role should wrap raw text, got %v", lines)
 		}
 	})
 
 	t.Run("pending thinking without text", func(t *testing.T) {
-		lines := h.renderMessage(ChatMessage{
+		lines, _ := h.renderMessage(ChatMessage{
 			Role:             RoleAssistant,
 			Pending:          true,
 			ThinkingSegments: []ThinkingSegment{{Text: "thinking..."}},
@@ -273,7 +273,7 @@ func TestRenderMessageExtraRoles(t *testing.T) {
 	})
 
 	t.Run("empty assistant renders blank", func(t *testing.T) {
-		lines := h.renderMessage(ChatMessage{Role: RoleAssistant}, th, 60, nil)
+		lines, _ := h.renderMessage(ChatMessage{Role: RoleAssistant}, th, 60, nil)
 		if len(lines) != 1 || lines[0] != "" {
 			t.Fatalf("empty assistant should render one blank line, got %v", lines)
 		}

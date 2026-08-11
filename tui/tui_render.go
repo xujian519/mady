@@ -79,7 +79,13 @@ func (t *TUI) renderFrame() {
 	var rows []core.Row
 	var rawLines []string
 	for _, c := range children {
-		for _, ln := range c.Render(cols) {
+		// 受信任链接：组件显式提供与渲染行一一对应的 LinkSpan 元数据
+		// （见 core.LinkProvider）。LLM 原始输出不经过此通道。
+		var links [][]core.LinkSpan
+		if lp, ok := c.(core.LinkProvider); ok {
+			links = lp.RenderLinks(cols)
+		}
+		for j, ln := range c.Render(cols) {
 			ln = normalizeLine(ln, cols)
 			// Assert: after normalization, no line should exceed cols. A
 			// component returning over-wide content is a layout bug that
@@ -101,7 +107,11 @@ func (t *TUI) renderFrame() {
 				rows = append(rows, prev[idx])
 				continue
 			}
-			rows = append(rows, core.ParseLine(ln))
+			r := core.ParseLine(ln)
+			if links != nil && j < len(links) {
+				r.Links = links[j]
+			}
+			rows = append(rows, r)
 		}
 	}
 

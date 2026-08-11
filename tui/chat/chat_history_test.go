@@ -904,7 +904,7 @@ func BenchmarkChatHistoryStreamAppendNoCache(b *testing.B) {
 			h.mu.Lock()
 			if len(h.messages) > 0 {
 				msg := h.messages[len(h.messages)-1]
-				_ = h.renderMessage(msg, h.theme, 80, nil)
+				_, _ = h.renderMessage(msg, h.theme, 80, nil)
 			}
 			h.mu.Unlock()
 		}

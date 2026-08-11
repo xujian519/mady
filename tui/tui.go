@@ -360,6 +360,13 @@ func NewTUI(term terminal.Terminal, opts ...TUIOptions) *TUI {
 		// caller explicitly sets AltScreen:true we preserve it — tests
 		// that need alt-screen features use mock terminals.
 	}
+
+	// OSC 8 超链接能力：按终端能力检测结果开关（未知/老终端默认关闭，
+	// 链接退化为纯文本）。CurrentTerminalContext 惰性初始化，与主题层
+	// 的颜色检测共用同一检测结果。
+	if ok, _ := terminal.CurrentTerminalContext().SupportsOSC8Hyperlinks(); !ok {
+		core.SetOSC8Enabled(false)
+	}
 	km := o.Keybindings
 	if km == nil {
 		km = terminal.GetGlobalKeybindings()

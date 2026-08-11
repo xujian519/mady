@@ -17,15 +17,15 @@ import (
 // lock-free snapshot rendering. It reads from and writes to the provided cache
 // map instead of h.msgCache, so the snapshot render can run without holding
 // h.mu while still benefiting from per-message caching.
-func (h *ChatHistory) renderMessageCachedWithCache(m ChatMessage, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) []string {
+func (h *ChatHistory) renderMessageCachedWithCache(m ChatMessage, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) ([]string, [][]core.LinkSpan) {
 	if m.ID == "" {
 		return h.renderMessage(m, theme, width, nil)
 	}
 	var bc *component.BlockCache
 	if cached, ok := cache[m.ID]; ok {
-		// 同宽度且内容未变（非 Pending）时直接复用渲染行。
+		// 同宽度且内容未变（非 Pending）时直接复用渲染行与链接。
 		if cached.width == width && !m.Pending {
-			return cached.lines
+			return cached.lines, cached.links
 		}
 		// 宽度不一致（如展开工具组以 innerW 渲染）或 Pending 增量更新时
 		// 重渲染，但复用块缓存，避免整条消息重新解析。
@@ -36,41 +36,58 @@ func (h *ChatHistory) renderMessageCachedWithCache(m ChatMessage, theme ChatHist
 	if bc == nil && m.Pending && m.Role == RoleAssistant && m.Text != "" {
 		bc = &component.BlockCache{}
 	}
-	lines := h.renderMessage(m, theme, width, bc)
+	lines, msgLinks := h.renderMessage(m, theme, width, bc)
 	// Trim blank edges before caching so the stored version matches what
 	// renderAll callers need (trimBlankEdges is idempotent on already-trimmed).
-	trimmed := trimBlankEdges(lines)
+	// 链接元数据同步裁剪，保证与缓存行一一对应。
+	trimmed, startOff := trimBlankEdges(lines)
 	cachedLines := make([]string, len(trimmed))
 	copy(cachedLines, trimmed)
-	cache[m.ID] = cachedMessage{lines: cachedLines, width: width, blockCache: bc}
-	return cachedLines
+	var cachedLinks [][]core.LinkSpan
+	if msgLinks != nil {
+		end := startOff + len(trimmed)
+		if end > len(msgLinks) {
+			end = len(msgLinks)
+		}
+		cachedLinks = msgLinks[startOff:end]
+	}
+	cache[m.ID] = cachedMessage{lines: cachedLines, links: cachedLinks, width: width, blockCache: bc}
+	return cachedLines, cachedLinks
 }
 
 // renderDomainCard routes a DomainMessage to the appropriate professional card renderer.
-func (h *ChatHistory) renderDomainCard(m ChatMessage, theme ChatHistoryTheme, width int64) []string {
+// 返回渲染行与一一对应的链接元数据（无链接行为 nil）。
+func (h *ChatHistory) renderDomainCard(m ChatMessage, theme ChatHistoryTheme, width int64) ([]string, [][]core.LinkSpan) {
 	dm := m.DomainMsg
 	if dm == nil {
-		return nil
+		return nil, nil
 	}
 	switch dm.Type {
 	case "evidence_card":
 		ecTheme := component.DefaultEvidenceCardTheme()
-		return component.RenderEvidenceCard(dm, m.Collapsed, ecTheme, width)
+		return component.RenderEvidenceCardWithLinks(dm, m.Collapsed, ecTheme, width)
 	case "conclusion_card":
 		ccTheme := component.DefaultConclusionCardTheme()
-		return component.RenderConclusionCard(dm, ccTheme, width)
+		return component.RenderConclusionCard(dm, ccTheme, width), nil
 	case "approval_prompt":
 		acTheme := component.DefaultApprovalCardTheme()
-		return component.RenderApprovalCard(dm, acTheme, width)
+		return component.RenderApprovalCard(dm, acTheme, width), nil
 	default:
 		// Fallback: render body as markdown
 		md := component.NewMarkdown(dm.Body)
 		md.SetTheme(theme.MarkdownTheme)
-		return md.Render(width)
+		return md.Render(width), nil
 	}
 }
 
-func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width int64, mdCache *component.BlockCache) []string {
+// nilLinks 返回 n 个空链接行（全部 nil 元素）。仅用于 renderMessagesRange：
+// 消息渲染返回顶层 nil（无链接）时，兜底补齐与输出行等长的元数据，
+// 保持 outLinks 与 out 一一对应。
+func nilLinks(n int) [][]core.LinkSpan {
+	return make([][]core.LinkSpan, n)
+}
+
+func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width int64, mdCache *component.BlockCache) ([]string, [][]core.LinkSpan) {
 	h.renderCount++
 	// Phase 5: route domain messages to professional card renderers
 	if m.DomainMsg != nil {
@@ -79,7 +96,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 
 	switch m.Role {
 	case RoleUser:
-		return h.renderMarkdownRole(m.Text, width, theme)
+		return h.renderMarkdownRole(m.Text, width, theme), nil
 	case RoleAssistant:
 		// Collapsed assistant messages (e.g. collapsed diffs)
 		if m.Collapsed && m.Text != "" {
@@ -93,7 +110,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			head := theme.DimStyle.Render(firstLine)
 			lines := core.WrapAnsi(head, width)
 			lines = append(lines, core.TruncateToWidth("  "+theme.DimStyle.Render("▸ expand"), width, ""))
-			return lines
+			return lines, nil
 		}
 
 		innerWidth := width
@@ -146,9 +163,9 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 		if len(allLines) == 0 {
 			allLines = []string{""}
 		}
-		return allLines
+		return allLines, nil
 	case RoleSystem:
-		return h.renderMarkdownRole(m.Text, width, theme)
+		return h.renderMarkdownRole(m.Text, width, theme), nil
 	case RoleTool:
 		// Tool results are rendered via the shared ToolCard component so the
 		// collapsed/expanded treatment stays consistent with diffs and future
@@ -169,13 +186,13 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			Status:    m.Text,
 			Duration:  m.Duration,
 			Collapsed: m.Collapsed,
-		}, tcTheme, width)
+		}, tcTheme, width), nil
 	case RoleError:
-		return h.renderMarkdownRole(m.Text, width, theme)
+		return h.renderMarkdownRole(m.Text, width, theme), nil
 	case RoleDivider:
-		return []string{""}
+		return []string{""}, nil
 	default:
-		return core.WrapAnsi(m.Text, width)
+		return core.WrapAnsi(m.Text, width), nil
 	}
 }
 

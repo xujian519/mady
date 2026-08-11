@@ -5,6 +5,8 @@ package tui
 // are guarded by t.mu; mutations trigger a re-render.
 
 import (
+	"time"
+
 	core "github.com/xujian519/mady/tui/core"
 )
 
@@ -76,11 +78,39 @@ func (t *TUI) PushOverlay(o *Overlay) {
 	}
 	t.mu.Lock()
 	t.overlays = append(t.overlays, o)
+	if o.Transition.Kind != OverlayTransitionNone {
+		// 动画起始时刻在锁内写入；动画 goroutine 由 startOverlayAnimation
+		// 创建（goroutine 创建 happens-after 本写入），渲染线程经
+		// RequestRender 的原子标记同步，均无数据竞争。
+		o.openAt = time.Now()
+	}
 	t.mu.Unlock()
 	if o.Focus {
 		t.Focus(o.Content)
 	}
+	t.startOverlayAnimation(o)
 	t.RequestRender()
+}
+
+// animationFrameInterval 是 overlay 打开动画的帧间隔（≈60fps）。
+const animationFrameInterval = 16 * time.Millisecond
+
+// startOverlayAnimation 驱动 overlay 打开动画：每帧请求一次渲染，直到动画
+// 结束。使用链式 Tick 自终止——动画完成后不残留周期 goroutine。
+func (t *TUI) startOverlayAnimation(o *Overlay) {
+	if o == nil || o.Transition.Kind == OverlayTransitionNone {
+		return
+	}
+	var step func(now time.Time) core.Msg
+	step = func(now time.Time) core.Msg {
+		_, done := o.transitionProgress(now)
+		if !done {
+			t.Tick(animationFrameInterval, step)
+		}
+		t.RequestRender()
+		return nil
+	}
+	t.Tick(animationFrameInterval, step)
 }
 
 // PopOverlay removes the top overlay; returns it or nil if the stack is empty.

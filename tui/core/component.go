@@ -95,6 +95,23 @@ type WantsKeyRelease interface {
 	WantsKeyRelease() bool
 }
 
+// Expandable 是可选接口：组件自身持有折叠/展开状态。
+//
+// 聊天消息的折叠状态由数据模型承载（见 chat.ChatMessage.IsCollapsible），
+// 本接口面向未来自持交互状态的卡片组件（如 ToolCard/EvidenceCard 的组件化
+// 包装），使新增卡片无需改动容器交互逻辑即可获得点击折叠能力。
+type Expandable interface {
+	ToggleExpanded()
+	IsExpanded() bool
+}
+
+// Compactable 是可选接口：组件支持紧凑/完整两种渲染模式。
+// 紧凑模式用于窄窗或概览场景，完整模式用于展开详情。
+type Compactable interface {
+	SetCompact(compact bool)
+	IsCompact() bool
+}
+
 // ---------------------------------------------------------------------------
 // Mouse routing interfaces
 // ---------------------------------------------------------------------------

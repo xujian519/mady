@@ -35,6 +35,7 @@ type renderSnapshot struct {
 	firstDirtyIdx     int      // earliest changed message index (0 = full rebuild)
 	cachedAll         []string // previous render output, for splice fast path
 	cachedMsgRanges   []msgRange
+	cachedLinks       [][]core.LinkSpan // 与 cachedAll 行对齐的链接元数据
 }
 
 // captureSnapshot copies all mutable render state under h.mu. The returned
@@ -51,6 +52,7 @@ func (h *ChatHistory) captureSnapshot() renderSnapshot {
 	cal := h.cachedAll
 	cmr := make([]msgRange, len(h.cachedMsgRanges))
 	copy(cmr, h.cachedMsgRanges)
+	cl := h.cachedLinks
 	return renderSnapshot{
 		msgs:              msgs,
 		theme:             h.theme,
@@ -62,6 +64,7 @@ func (h *ChatHistory) captureSnapshot() renderSnapshot {
 		firstDirtyIdx:     h.firstDirtyIdx,
 		cachedAll:         cal,
 		cachedMsgRanges:   cmr,
+		cachedLinks:       cl,
 	}
 }
 
@@ -94,6 +97,7 @@ func (h *ChatHistory) Render(width int64) []string {
 	needRender := h.dirty || h.cachedAll == nil
 
 	var all []string
+	var allLinks [][]core.LinkSpan
 	if needRender {
 		h.dirty = false
 		snap := h.captureSnapshot()
@@ -102,12 +106,14 @@ func (h *ChatHistory) Render(width int64) []string {
 			localCache[k] = v
 		}
 
-		rendered, ranges := h.renderAllFromSnapshot(snap, renderWidth, localCache)
+		rendered, ranges, links := h.renderAllFromSnapshot(snap, renderWidth, localCache)
 		h.msgCache = localCache
 		h.evictCacheEntriesLocked()
 		h.cachedAll = rendered
 		h.cachedMsgRanges = ranges
+		h.cachedLinks = links
 		h.firstDirtyIdx = 0
+		allLinks = links
 
 		if wasDirty && h.follow {
 			h.offset = 0
@@ -126,6 +132,7 @@ func (h *ChatHistory) Render(width int64) []string {
 		all = h.cachedAll
 	} else {
 		all = h.cachedAll
+		allLinks = h.cachedLinks
 	}
 
 	if h.follow {
@@ -147,15 +154,41 @@ func (h *ChatHistory) Render(width int64) []string {
 				all[i] = core.TruncateToWidth(ln, width, "")
 			}
 		}
+		h.lastLinks = allLinks
 		return all
 	}
 
 	visible := h.extractViewport(all, maxRows, offset)
-	visible = h.addScrollIndicator(visible, all, maxRows, offset, follow)
-	visible = h.addStickToBottomHint(visible, all, maxRows, follow, newSinceAnchor)
+	// 链接元数据与可见行同步裁剪（extractViewport 的切片边界）。
+	// allLinks 与 all 恒等长（renderAll 各路径按行同步产出元数据），
+	// 直接切片、无需长度钳制；若未来不变式被破坏，越界 panic 会立即
+	// 暴露，而不是静默错位。
+	vEnd := int64(len(all)) - offset
+	vStart := vEnd - maxRows
+	if vStart < 0 {
+		vStart = 0
+		vEnd = maxRows
+	}
+	var visibleLinks [][]core.LinkSpan
+	if allLinks != nil {
+		visibleLinks = allLinks[vStart:vEnd]
+	}
+	visible, visibleLinks = h.addScrollIndicator(visible, all, maxRows, offset, follow, visibleLinks)
+	visible, visibleLinks = h.addStickToBottomHint(visible, all, maxRows, follow, newSinceAnchor, visibleLinks)
 	visible = h.drawScrollbar(visible, width, all, maxRows, follow)
 	visible = h.padToWidth(visible, width, maxRows, sbNow, h.sbWidth)
+	h.lastLinks = visibleLinks
 	return visible
+}
+
+// RenderLinks 实现 core.LinkProvider：返回最近一次 Render 输出的可见行
+// 对应的链接元数据（与渲染行一一对应，无链接行为 nil）。
+//
+// 与 Render 在事件循环同一线程串行调用（引擎先 Render 后 RenderLinks），
+// 无锁安全。宽度变化帧的链接可能来自上一宽度——引擎在行数不匹配时
+// 忽略（见 tui/tui_render.go 的 j < len(links) 保护），下一帧自动恢复。
+func (h *ChatHistory) RenderLinks(width int64) [][]core.LinkSpan {
+	return h.lastLinks
 }
 
 // computeRenderWidth determines the content width accounting for scrollbar.
@@ -209,13 +242,14 @@ func (h *ChatHistory) extractViewport(all []string, maxRows int64, offset int64)
 }
 
 // addScrollIndicator prepends a scroll-position indicator when not following.
-func (h *ChatHistory) addScrollIndicator(visible []string, all []string, maxRows int64, offset int64, follow bool) []string {
+// links 与 visible 行同步裁剪（indicator 行无链接）。
+func (h *ChatHistory) addScrollIndicator(visible []string, all []string, maxRows int64, offset int64, follow bool, links [][]core.LinkSpan) ([]string, [][]core.LinkSpan) {
 	if follow {
-		return visible
+		return visible, links
 	}
 	visibleEnd := int64(len(all)) - offset
 	if visibleEnd >= int64(len(all)) {
-		return visible
+		return visible, links
 	}
 	totalLines := int64(len(all))
 	visibleStart := visibleEnd - maxRows
@@ -229,20 +263,36 @@ func (h *ChatHistory) addScrollIndicator(visible []string, all []string, maxRows
 	indicator := h.theme.DimStyle.Render(fmt.Sprintf("\u25b2 %d/%d (%d%%) \u2014 End to follow", visibleStart, totalLines, percent))
 	if int64(len(visible)) >= maxRows && len(visible) > 0 {
 		visible = visible[:len(visible)-1]
+		if len(links) > 0 {
+			links = links[:len(links)-1]
+		}
 	}
-	return append([]string{indicator}, visible...)
+	// indicator 行无链接；links 为空（无链接）时保持 nil，不为空对话
+	// 制造长度 1 的元数据（否则 lastLinks 与可见行不等长）。
+	if len(links) > 0 {
+		links = append([][]core.LinkSpan{nil}, links...)
+	}
+	return append([]string{indicator}, visible...), links
 }
 
 // addStickToBottomHint appends a "N new" hint when not following and new content arrived.
-func (h *ChatHistory) addStickToBottomHint(visible []string, all []string, maxRows int64, follow bool, newSinceAnchor int64) []string {
+// links 与 visible 行同步追加（hint 行无链接）。
+func (h *ChatHistory) addStickToBottomHint(visible []string, all []string, maxRows int64, follow bool, newSinceAnchor int64, links [][]core.LinkSpan) ([]string, [][]core.LinkSpan) {
 	if follow || newSinceAnchor <= 0 {
-		return visible
+		return visible, links
 	}
 	hint := h.theme.SuccessStyle.Render(fmt.Sprintf("\u2193 %d new \u2014 End to follow", newSinceAnchor))
 	if int64(len(visible)) >= maxRows && len(visible) > 0 {
 		visible = visible[:len(visible)-1]
+		if len(links) > 0 {
+			links = links[:len(links)-1]
+		}
 	}
-	return append(visible, hint)
+	// hint 行无链接；links 为空时保持 nil（与 addScrollIndicator 同规则）。
+	if len(links) > 0 {
+		links = append(links, nil)
+	}
+	return append(visible, hint), links
 }
 
 // drawScrollbar renders a scrollbar on the right edge when content overflows,
@@ -336,30 +386,29 @@ func (h *ChatHistory) Invalidate() {
 
 // renderAllFromSnapshot renders the full transcript from a snapshot captured
 // under h.mu. It writes new cache entries to localCache instead of h.msgCache,
-// and returns the rendered lines + msgRanges so the caller can merge them back
-// under the lock. This is the Phase 2 rendering path — it runs without h.mu.
-func (h *ChatHistory) renderAllFromSnapshot(snap renderSnapshot, width int64, localCache map[string]cachedMessage) ([]string, []msgRange) {
-	return h.renderAllWithState(snap.msgs, snap.theme, snap.expandedGroups, snap.selActive,
-		snap.selStart, snap.selEnd, snap.reasoningRenderer, width, localCache,
-		snap.firstDirtyIdx, snap.cachedAll, snap.cachedMsgRanges)
+// and returns the rendered lines + msgRanges (+ links) so the caller can merge
+// them back under the lock. This is the Phase 2 rendering path — it runs
+// without h.mu.
+func (h *ChatHistory) renderAllFromSnapshot(snap renderSnapshot, width int64, localCache map[string]cachedMessage) ([]string, []msgRange, [][]core.LinkSpan) {
+	return h.renderAllWithState(snap, width, localCache)
 }
 
-// renderAllWithState is the unified rendering core. It takes all mutable state
-// as parameters so it can be called both from renderAll (with live h fields)
-// and from renderAllFromSnapshot (with snapshot copies).
-func (h *ChatHistory) renderAllWithState(
-	msgs []ChatMessage,
-	theme ChatHistoryTheme,
-	expandedGroups map[int]bool,
-	selActive bool,
-	selStart, selEnd selectionPos,
-	rr ReasoningRenderer,
-	width int64,
-	cache map[string]cachedMessage,
-	firstDirtyIdx int,
-	cachedAll []string,
-	cachedMsgRanges []msgRange,
-) ([]string, []msgRange) {
+// renderAllWithState is the unified rendering core. It renders from the
+// snapshot struct directly (the same one renderAllFromSnapshot receives),
+// so callers never unpack fields individually.
+func (h *ChatHistory) renderAllWithState(snap renderSnapshot, width int64, cache map[string]cachedMessage) ([]string, []msgRange, [][]core.LinkSpan) {
+	// 解包快照字段为局部变量；函数体其余部分与旧签名一致。
+	msgs := snap.msgs
+	theme := snap.theme
+	expandedGroups := snap.expandedGroups
+	selActive := snap.selActive
+	selStart, selEnd := snap.selStart, snap.selEnd
+	rr := snap.reasoningRenderer
+	firstDirtyIdx := snap.firstDirtyIdx
+	cachedAll := snap.cachedAll
+	cachedMsgRanges := snap.cachedMsgRanges
+	cachedLinks := snap.cachedLinks
+
 	// Temporarily swap the reasoning renderer so renderMessage (called from
 	// renderMessageCachedWithCache) uses the snapshot value. Safe because
 	// the event loop is single-threaded and AppendDelta never reads this.
@@ -383,7 +432,7 @@ func (h *ChatHistory) renderAllWithState(
 			sys.Render("  输入消息开始对话，输入 / 查看可用命令"),
 			dim.Render("  Ctrl+C 退出  ·  Ctrl+P 命令面板  ·  ? 帮助"),
 			"",
-		}, nil
+		}, nil, nil
 	}
 
 	// Streaming fast path: when only the tail of the message list changed
@@ -422,6 +471,11 @@ func (h *ChatHistory) renderAllWithState(
 			out := make([]string, 0, cleanEnd+len(cachedAll)-cleanEnd)
 			out = append(out, cachedAll[:cleanEnd]...)
 			var ranges []msgRange
+			// 前缀链接复用：与 cachedAll 前缀行一一对应。
+			var outLinks [][]core.LinkSpan
+			if cachedLinks != nil && cleanEnd <= len(cachedLinks) {
+				outLinks = append(outLinks, cachedLinks[:cleanEnd]...)
+			}
 
 			// Copy ranges for clean messages unchanged
 			for _, r := range cachedMsgRanges {
@@ -436,19 +490,20 @@ func (h *ChatHistory) renderAllWithState(
 
 			// Re-render only dirty messages (from renderFrom, which may be
 			// earlier than firstDirtyIdx when a tool group was affected).
-			out, ranges = h.renderMessagesRange(msgs, renderFrom, theme, expandedGroups, width, cache, out, ranges)
+			out, ranges, tailLinks := h.renderMessagesRange(msgs, renderFrom, theme, expandedGroups, width, cache, out, ranges)
+			outLinks = append(outLinks, tailLinks...)
 
 			// Apply selection highlight
 			selEmpty := selStart.line == selEnd.line && selStart.col == selEnd.col
 			if selActive && !selEmpty {
 				h.applySelectionHighlightSnapshot(out, width, selStart, selEnd)
 			}
-			return out, ranges
+			return out, ranges, outLinks
 		}
 	}
 
 	// Full rebuild path
-	out, ranges = h.renderMessagesRange(msgs, 0, theme, expandedGroups, width, cache, out, ranges)
+	out, ranges, outLinks := h.renderMessagesRange(msgs, 0, theme, expandedGroups, width, cache, out, ranges)
 
 	// Apply selection highlight
 	selEmpty := selStart.line == selEnd.line && selStart.col == selEnd.col
@@ -456,7 +511,7 @@ func (h *ChatHistory) renderAllWithState(
 		h.applySelectionHighlightSnapshot(out, width, selStart, selEnd)
 	}
 
-	return out, ranges
+	return out, ranges, outLinks
 }
 
 // renderMessagesRange 从 start 开始渲染连续消息到 out/ranges。
@@ -468,12 +523,14 @@ func (h *ChatHistory) renderMessagesRange(
 	theme ChatHistoryTheme, expandedGroups map[int]bool, width int64,
 	cache map[string]cachedMessage,
 	out []string, ranges []msgRange,
-) ([]string, []msgRange) {
+) ([]string, []msgRange, [][]core.LinkSpan) {
+	var outLinks [][]core.LinkSpan
 	for i := start; i < len(msgs); i++ {
 		m := msgs[i]
 		if groupEnd, ok := h.detectToolGroup(msgs, i); ok {
-			lines, r := h.renderToolGroup(msgs, i, groupEnd, expandedGroups[i], theme, width, cache)
+			lines, r, links := h.renderToolGroup(msgs, i, groupEnd, expandedGroups[i], theme, width, cache)
 			out = append(out, lines...)
+			outLinks = append(outLinks, links...)
 			// renderToolGroup reports lines relative to itself (startLine 0);
 			// rebase onto the absolute output position so hit-testing and
 			// scroll-to-match use consistent coordinates.
@@ -484,13 +541,26 @@ func (h *ChatHistory) renderMessagesRange(
 			continue
 		}
 		if i > 0 {
-			out = append(out, h.renderMessageSeparator(msgs[i-1], m, width, theme)...)
+			sep := h.renderMessageSeparator(msgs[i-1], m, width, theme)
+			out = append(out, sep...)
+			// 分隔行无链接；按实际行数补齐，保持 outLinks 与 out 等长
+			// （renderMessageSeparator 对 Tool↔Tool 返回 nil，无行）。
+			if len(sep) > 0 {
+				outLinks = append(outLinks, nilLinks(len(sep))...)
+			}
 		}
 		startLine := len(out)
-		out = append(out, trimBlankEdges(h.renderMessageCachedWithCache(m, theme, width, cache))...)
+		msgLines, msgLinks := h.renderMessageCachedWithCache(m, theme, width, cache)
+		trimmed, _ := trimBlankEdges(msgLines)
+		out = append(out, trimmed...)
+		if msgLinks != nil {
+			outLinks = append(outLinks, msgLinks...)
+		} else if len(trimmed) > 0 {
+			outLinks = append(outLinks, nilLinks(len(trimmed))...)
+		}
 		ranges = append(ranges, msgRange{startLine: startLine, endLine: len(out), msgIndex: i})
 	}
-	return out, ranges
+	return out, ranges, outLinks
 }
 
 // detectToolGroup 检查 msgs[i] 是否为一组连续工具/系统消息的起始。
@@ -537,7 +607,8 @@ func (h *ChatHistory) detectToolGroup(msgs []ChatMessage, i int) (groupEnd int, 
 // renderToolGroup 渲染一组连续的工具/系统消息为折叠（[+]）或展开（[-]）形式。
 // 展开时使用左侧色带（│）把多个工具/系统消息连成一条紧凑时间线，
 // 避免原本散落的卡片感。
-func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expanded bool, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) ([]string, msgRange) {
+// 返回渲染行、行区间与链接元数据（展开时成员行加色带前缀，链接列偏移）。
+func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expanded bool, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) ([]string, msgRange, [][]core.LinkSpan) {
 	toolCount, sysCount := 0, 0
 	for j := start; j <= end; j++ {
 		if msgs[j].Role == RoleTool {
@@ -548,6 +619,7 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 	}
 
 	var lines []string
+	var links [][]core.LinkSpan
 	// 折叠/展开只差一个标记符，统一用 marker 构建。marker 不带尾随空格，
 	// 由各分支的格式串/拼接统一补一个空格，避免 "[+]  2 tools" 双空格。
 	marker := "[+]"
@@ -567,22 +639,36 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 		}
 	}
 	lines = append(lines, theme.DimStyle.Render(summary))
+	links = append(links, nil)
 	if expanded {
 		// 左侧 2 列色带 + 内容，使组内成员连成一体。
 		barStyled := theme.DimStyle.Render("│")
 		prefix := "  " + barStyled + " "
-		innerW := width - core.VisibleWidth(prefix)
+		prefixW := core.VisibleWidth(prefix)
+		innerW := width - prefixW
 		if innerW < 1 {
 			innerW = 1
 		}
 		for j := start; j <= end; j++ {
-			member := trimBlankEdges(h.renderMessageCachedWithCache(msgs[j], theme, innerW, cache))
-			for _, ln := range member {
+			memberLines, memberLinks := h.renderMessageCachedWithCache(msgs[j], theme, innerW, cache)
+			trimmed, _ := trimBlankEdges(memberLines)
+			for k, ln := range trimmed {
 				lines = append(lines, prefix+ln)
+				if memberLinks != nil && k < len(memberLinks) && memberLinks[k] != nil {
+					// 成员行加色带前缀：链接列区间整体右移 prefixW。
+					shifted := make([]core.LinkSpan, len(memberLinks[k]))
+					for si, ls := range memberLinks[k] {
+						shifted[si] = core.LinkSpan{StartCol: ls.StartCol + prefixW, EndCol: ls.EndCol + prefixW, URL: ls.URL}
+					}
+					links = append(links, shifted)
+				} else {
+					links = append(links, nil)
+				}
 			}
 			if j < end {
 				// 组成员之间的细色带连接，比空行更紧凑。
 				lines = append(lines, "  "+barStyled)
+				links = append(links, nil)
 			}
 		}
 	}
@@ -590,7 +676,7 @@ func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expand
 	return lines, msgRange{
 		startLine: 0, endLine: len(lines), msgIndex: start,
 		toolGroup: true, groupFrom: start, groupTo: end,
-	}
+	}, links
 }
 
 // renderMessageSeparator 在两条连续消息之间插入最小视觉分隔。
@@ -625,7 +711,9 @@ func (h *ChatHistory) renderMessageSeparator(prev, curr ChatMessage, width int64
 // leading/trailing newlines which the markdown renderer turns into padded
 // blank lines, inflating the vertical gap between turns. Internal blank lines
 // (e.g. inside code blocks) are preserved.
-func trimBlankEdges(lines []string) []string {
+//
+// 返回裁剪后的行与起始偏移（供链接元数据同步裁剪）。
+func trimBlankEdges(lines []string) ([]string, int) {
 	start, end := 0, len(lines)
 	for start < end && strings.TrimSpace(core.StripAnsi(lines[start])) == "" {
 		start++
@@ -633,5 +721,5 @@ func trimBlankEdges(lines []string) []string {
 	for end > start && strings.TrimSpace(core.StripAnsi(lines[end-1])) == "" {
 		end--
 	}
-	return lines[start:end]
+	return lines[start:end], start
 }

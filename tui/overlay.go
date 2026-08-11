@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"time"
+
 	core "github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
 )
@@ -102,6 +104,36 @@ func DefaultOverlaySize(cat OverlayCategory) (wPct, hPct int64) {
 	default:
 		return 60, 60
 	}
+}
+
+// ---------------------------------------------------------------------------
+// OverlayTransition — 打开动画配置。
+//
+// 零值（OverlayTransitionNone）表示无动画，现有全部 overlay 行为不变。
+// 动画由 TUI.PushOverlay 启动（见 tui_focus.go 的 startOverlayAnimation），
+// 进度在 composeOverlays 合成时读取：
+//   - SlideUp：面板从视口底部滑入（origin 行偏移插值）
+//   - Fade：背景变暗强度从 0 渐变到 1（毛玻璃渐显）
+// ---------------------------------------------------------------------------
+
+// OverlayTransitionKind 描述 overlay 打开动画的类型。
+type OverlayTransitionKind int
+
+const (
+	// OverlayTransitionNone 无动画（零值，默认）。
+	OverlayTransitionNone OverlayTransitionKind = iota
+	// OverlayTransitionSlideUp 从视口底部滑入。
+	OverlayTransitionSlideUp
+	// OverlayTransitionFade 背景变暗强度渐变（毛玻璃渐显）。
+	OverlayTransitionFade
+)
+
+// OverlayTransition 配置一次 overlay 打开动画。Kind 为零值时忽略其余字段。
+type OverlayTransition struct {
+	Kind     OverlayTransitionKind
+	Duration time.Duration
+	// Easing 为 nil 时默认 EaseOutCubic（先快后慢）。
+	Easing core.Easing
 }
 
 // ---------------------------------------------------------------------------
@@ -210,12 +242,48 @@ type Overlay struct {
 	// dimBackgroundRows).
 	DimBackground bool
 
+	// Transition 配置 overlay 打开动画（零值 = 无动画，默认）。
+	// 由 TUI.PushOverlay 启动；openAt 记录动画开始时刻。
+	Transition OverlayTransition
+	openAt     time.Time
+
 	// Phase 4.2: stored render position for mouse coordinate translation.
 	// Set by composeOverlays during rendering; used by TranslateMouse.
 	renderedRow    int64
 	renderedCol    int64
 	renderedWidth  int64
 	renderedHeight int64
+}
+
+// transitionProgress 返回当前帧的动画进度 p∈[0,1] 与是否已结束。
+// 无动画或未开始（openAt 为零值）时返回 (1, true)。
+func (o *Overlay) transitionProgress(now time.Time) (float64, bool) {
+	tr := o.Transition
+	if tr.Kind == OverlayTransitionNone || tr.Duration <= 0 || o.openAt.IsZero() {
+		return 1, true
+	}
+	p := float64(now.Sub(o.openAt)) / float64(tr.Duration)
+	if p >= 1 {
+		return 1, true
+	}
+	if p < 0 {
+		p = 0
+	}
+	e := tr.Easing
+	if e == nil {
+		e = core.EaseOutCubic
+	}
+	return e(p), false
+}
+
+// dimIntensity 返回当前帧该 overlay 的背景变暗强度。
+// Fade 过渡从 0（无变暗）渐变到 1（全变暗）；其余恒为 1。
+func (o *Overlay) dimIntensity(now time.Time) float64 {
+	if o.Transition.Kind == OverlayTransitionFade {
+		p, _ := o.transitionProgress(now)
+		return p
+	}
+	return 1
 }
 
 // NewCenteredOverlay is a convenience constructor for a centered panel
@@ -341,7 +409,7 @@ func composeOverlays(base []core.Row, overlays []*Overlay, cols, rows int64) []c
 		w := ov.Width.resolve(cols)
 		h := ov.Height.resolve(rows)
 		origin := resolveOverlayOrigin(ov, cols, rows, w, h)
-		base = dimBackgroundRows(base, cols, rows, origin.row, origin.col, w, h)
+		base = dimBackgroundRows(base, cols, rows, origin.row, origin.col, w, h, ov.dimIntensity(time.Now()))
 	}
 
 	for _, ov := range overlays {
@@ -381,6 +449,13 @@ func composeOverlays(base []core.Row, overlays []*Overlay, cols, rows int64) []c
 		}
 
 		origin := resolveOverlayOrigin(ov, cols, rows, w, h)
+		// SlideUp 过渡：动画期间 origin 行从视口底部（屏外）向目标位置插值。
+		// p=0 时面板完全在屏外（不可见），p=1 时到达目标位置。超出的行由
+		// 渲染管线的行数裁剪处理，不会溢出视口。
+		if ov.Transition.Kind == OverlayTransitionSlideUp {
+			p, _ := ov.transitionProgress(time.Now())
+			origin.row = origin.row + int64((1-p)*float64(rows))
+		}
 		ov.renderedRow = origin.row
 		ov.renderedCol = origin.col
 		// Record the rendered extent so TranslateMouse can map absolute
@@ -416,11 +491,14 @@ func blankRow(cols int64) core.Row {
 // Cells under the overlay itself are left untouched (the overlay is spliced
 // on top afterwards).
 //
+// intensity ∈ [0,1] 缩放变暗强度（Fade 动画期间从 0 渐变到 1）；1 为全强度
+// （既有行为）。0 时跳过变暗（与无 dim 等价）。
+//
 // No drop shadow is drawn: the shadow ring (a slightly darker bg on the
 // overlay's right column and bottom band) rendered as faint rectangular
 // "box" edges against the dim backdrop — visually indistinguishable from an
 // artifact — so the backdrop is kept perfectly uniform instead.
-func dimBackgroundRows(base []core.Row, cols, rows, oRow, oCol, oW, oH int64) []core.Row {
+func dimBackgroundRows(base []core.Row, cols, rows, oRow, oCol, oW, oH int64, intensity float64) []core.Row {
 	_ = rows
 	// Overlay rectangle: rows [ovTop, ovBot), cols [ovLeft, ovRight).
 	ovTop, ovBot := oRow, oRow+oH
@@ -440,7 +518,7 @@ func dimBackgroundRows(base []core.Row, cols, rows, oRow, oCol, oW, oH int64) []
 		r := int64(i)
 		dim := func(a, b int64) {
 			if a, b = clamp(a), clamp(b); b > a {
-				base[i] = applyDimToRow(base[i], a, b, true)
+				base[i] = applyDimToRow(base[i], a, b, true, intensity)
 			}
 		}
 
@@ -459,10 +537,15 @@ func dimBackgroundRows(base []core.Row, cols, rows, oRow, oCol, oW, oH int64) []
 // applyDimToRow adds the dim attribute and a dark glass background to cells
 // in the column range [start, end) of row. If row is Raw it is left as-is
 // (dim doesn't compose cleanly with opaque content).
-func applyDimToRow(row core.Row, start, end int64, withBg bool) core.Row {
-	if row.IsRaw() {
+//
+// intensity ∈ [0,1] 缩放变暗强度：≥1 为全强度（dim 属性 + 玻璃背景）；
+// (0,1) 只加 dim 属性（两级近似，避免颜色混合的解析开销）；0 不修改。
+func applyDimToRow(row core.Row, start, end int64, withBg bool, intensity float64) core.Row {
+	if row.IsRaw() || intensity <= 0 {
 		return row
 	}
+	// 部分强度时只加 dim 属性（终端属性无法连续混合，取两级近似）。
+	full := intensity >= 1
 	for c := start; c < end && c < int64(len(row.Cells)); c++ {
 		cell := &row.Cells[c]
 		if cell.IsContinuation() {
@@ -472,7 +555,7 @@ func applyDimToRow(row core.Row, start, end int64, withBg bool) core.Row {
 			// its original (often default) background and shows up as a
 			// bright half-cell speckle across the dimmed region — most
 			// visible with CJK text, where every wide char leaves a gap.
-			if withBg {
+			if full && withBg {
 				cell.Style.Bg = dimBgColor()
 			}
 			cell.Style.Attrs |= dimTextAttr
@@ -483,7 +566,7 @@ func applyDimToRow(row core.Row, start, end int64, withBg bool) core.Row {
 			}
 		}
 		cell.Style.Attrs |= dimTextAttr
-		if withBg {
+		if full && withBg {
 			cell.Style.Bg = dimBgColor()
 		}
 	}
@@ -619,14 +702,14 @@ type overlayOrigin struct{ row, col int64 }
 // TranslateMouse adjusts absolute screen mouse coordinates to the overlay's local
 // coordinate space. Returns (row - renderedRow, col - renderedCol). If the mouse
 // is outside the overlay region, ok is false.
-func (ov *Overlay) TranslateMouse(row, col int64) (localRow, localCol int64, ok bool) {
-	if ov == nil {
+func (o *Overlay) TranslateMouse(row, col int64) (localRow, localCol int64, ok bool) {
+	if o == nil {
 		return 0, 0, false
 	}
-	localRow = row - ov.renderedRow
-	localCol = col - ov.renderedCol
+	localRow = row - o.renderedRow
+	localCol = col - o.renderedCol
 	if localRow < 0 || localCol < 0 ||
-		localRow >= ov.renderedHeight || localCol >= ov.renderedWidth {
+		localRow >= o.renderedHeight || localCol >= o.renderedWidth {
 		return 0, 0, false
 	}
 	ok = true

@@ -100,6 +100,11 @@ type RowCellDiff struct {
 	TailStart  int64  // first column to clear when ClearTail is true
 }
 
+// linkRowSentinel 是触发"全行重写"的 RawContent 哨兵：含 Links 的行由
+// SerializeRow 全行序列化（OSC 8 注入依赖行级列游标，segment diff 无法
+// 补全链接边界），渲染端见 tui/tui_render.go 的 RawContent 分支。
+const linkRowSentinel = " "
+
 // DiffFrame returns cell-level diffs for every row that changed between
 // old and new. Rows only present in old are omitted; the caller is
 // expected to clear trailing lines when new is shorter than old.
@@ -144,6 +149,9 @@ func DiffFrame(old, newFrame []Row) []RowCellDiff {
 			// Row exists only in new (new rows appended).
 			if n.IsRaw() {
 				out = append(out, RowCellDiff{Row: int64(i), RawContent: n.Raw})
+			} else if len(n.Links) > 0 {
+				// 含链接的新行：全行重写（经 SerializeRow 注入 OSC 8）。
+				out = append(out, RowCellDiff{Row: int64(i), RawContent: linkRowSentinel})
 			} else {
 				out = append(out, RowCellDiff{
 					Row:      int64(i),
@@ -153,18 +161,25 @@ func DiffFrame(old, newFrame []Row) []RowCellDiff {
 			continue
 		}
 		if !RowsEqual(old[i], n) {
-			if old[i].IsRaw() || n.IsRaw() {
+			if old[i].IsRaw() || n.IsRaw() || len(old[i].Links) > 0 || len(n.Links) > 0 {
 				switch {
 				case !n.IsRaw():
-					// Old row was raw but the new row is cell-structured.
-					// Emit the new cells as a full-row segment so the stale
-					// raw content is actually replaced — previously this
-					// produced RawContent=="" with no segments, leaving a
-					// ghost of the old raw line on screen (P1-5).
-					out = append(out, RowCellDiff{
-						Row:      int64(i),
-						Segments: []Segment{{StartCol: 0, Cells: n.Cells, AfterStyle: DefaultStyle}},
-					})
+					// n 是 cell 行。若含链接，用 RawContent 哨兵触发全行
+					// SerializeRow（OSC 8 注入依赖行级列游标，segment diff
+					// 无法补全边界）；否则全行 segment（原有行为）。
+					if len(n.Links) > 0 {
+						out = append(out, RowCellDiff{Row: int64(i), RawContent: linkRowSentinel})
+					} else {
+						// Old row was raw but the new row is cell-structured.
+						// Emit the new cells as a full-row segment so the stale
+						// raw content is actually replaced — previously this
+						// produced RawContent=="" with no segments, leaving a
+						// ghost of the old raw line on screen (P1-5).
+						out = append(out, RowCellDiff{
+							Row:      int64(i),
+							Segments: []Segment{{StartCol: 0, Cells: n.Cells, AfterStyle: DefaultStyle}},
+						})
+					}
 				case n.Raw == "":
 					// New row is an empty raw row: clear the whole line.
 					out = append(out, RowCellDiff{Row: int64(i), ClearTail: true, TailStart: 0})

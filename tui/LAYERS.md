@@ -28,8 +28,8 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 116 source files (+ 113 test files) across 9 packages.
-> Last sync: 2026-08-04.
+> Auto-verified: 118 source files (+ 115 test files) across 9 packages.
+> Last sync: 2026-08-11.
 
 ```
 tui/
@@ -45,6 +45,8 @@ tui/
 │   ├── celldiff.go        # Cell-level frame diff (DiffRows), stricter than string diff
 │   ├── cellparse.go       # string → Row parser (ANSI escape → Cell grid)
 │   ├── cellrender.go      # Row → ANSI string serializer (SerializeRow)
+│   ├── link.go            # Trusted OSC 8 hyperlink metadata (LinkSpan/LinkProvider)
+│   ├── tween.go           # Tween/Easing animation primitives (补间动画)
 │   ├── sgr.go             # SGR state machine: ParseSGR/RenderSGR, permissive parameter parsing
 │   ├── sanitize.go        # SanitizeRawContent: strips dangerous escape sequences from raw output
 │   └── stack.go           # CaptureStack: goroutine stack trace for PanicMsg diagnostics

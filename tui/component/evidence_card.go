@@ -46,7 +46,19 @@ func DefaultEvidenceCardTheme() EvidenceCardTheme {
 }
 
 // RenderEvidenceCard 渲染类型为 evidence_card 的 DomainMessage 到指定宽度。
+// 无链接版本（向后兼容）；链接见 RenderEvidenceCardWithLinks。
 func RenderEvidenceCard(msg *DomainMessage, collapsed bool, t EvidenceCardTheme, width int64) []string {
+	lines, _ := RenderEvidenceCardWithLinks(msg, collapsed, t, width)
+	return lines
+}
+
+// RenderEvidenceCardWithLinks 渲染证据卡，并返回与渲染行一一对应的链接
+// 元数据（每行一个 []core.LinkSpan；无链接行为 nil）。
+//
+// 链接目标为证据来源位置（EvidenceRef.URL 非空时）：覆盖来源文本所在的
+// 列区间。仅当该行未被截断（VisibleWidth ≤ width）时生成链接，避免链接
+// 区间超出实际可见文本。
+func RenderEvidenceCardWithLinks(msg *DomainMessage, collapsed bool, t EvidenceCardTheme, width int64) ([]string, [][]core.LinkSpan) {
 	bar := t.Border("▌")
 	title := msg.Title
 	if title == "" {
@@ -54,13 +66,14 @@ func RenderEvidenceCard(msg *DomainMessage, collapsed bool, t EvidenceCardTheme,
 	}
 
 	var lines []string
+	var links [][]core.LinkSpan
 
 	// Collapsed: one-line summary
 	if collapsed {
 		supportN := msg.SupportingSpans()
 		counterN := msg.ContradictingSpans()
 		summary := fmt.Sprintf("[+] %s  ·  支持 %d · 反对 %d", title, supportN, counterN)
-		return core.WrapAnsi(bar+" "+t.Title(summary), width)
+		return core.WrapAnsi(bar+" "+t.Title(summary), width), nil
 	}
 
 	// Expanded header
@@ -69,6 +82,7 @@ func RenderEvidenceCard(msg *DomainMessage, collapsed bool, t EvidenceCardTheme,
 		head += t.Dim(fmt.Sprintf("  置信度: %.0f%%", msg.Confidence*100))
 	}
 	lines = append(lines, core.PadToWidth(head, width))
+	links = append(links, nil)
 
 	// Evidence spans
 	for _, sp := range msg.Spans {
@@ -87,23 +101,41 @@ func RenderEvidenceCard(msg *DomainMessage, collapsed bool, t EvidenceCardTheme,
 		if sp.PageRange != "" {
 			loc += " · " + sp.PageRange
 		}
-		info := fmt.Sprintf("  %s  %s", dirColor(dirIcon+" "+string(sp.Direction)), t.Dim(loc))
+		dirTxt := dirColor(dirIcon + " " + string(sp.Direction))
+		prefix := "  " + dirTxt + "  "
+		locText := t.Dim(loc)
+		info := prefix + locText
 		lines = append(lines, core.PadToWidth(core.TruncateToWidth(info, width, "…"), width))
+		// 链接：仅当行未被截断且提供了 URL 时。
+		if sp.URL != "" && core.VisibleWidth(info) <= width {
+			links = append(links, []core.LinkSpan{core.LinkSpanFor(prefix, locText, sp.URL)})
+		} else {
+			links = append(links, nil)
+		}
 
 		if sp.Snippet != "" {
 			// Render snippet as quoted text
 			quote := "  ┃ " + sp.Snippet
-			lines = append(lines, core.WrapAnsi(t.Body(quote), width-2)...)
+			snippetLines := core.WrapAnsi(t.Body(quote), width-2)
+			lines = append(lines, snippetLines...)
+			for range snippetLines {
+				links = append(links, nil)
+			}
 		}
 	}
 
 	// Body text (conclusion or analysis)
 	if msg.Body != "" {
 		lines = append(lines, t.Dim(strings.Repeat("─", int(width))))
+		links = append(links, nil)
 		md := NewMarkdown(msg.Body)
 		md.SetTheme(t.MarkdownTheme)
-		lines = append(lines, md.Render(width)...)
+		body := md.Render(width)
+		lines = append(lines, body...)
+		for range body {
+			links = append(links, nil)
+		}
 	}
 
-	return lines
+	return lines, links
 }
