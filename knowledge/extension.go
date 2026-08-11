@@ -506,20 +506,18 @@ func (e *KnowledgeExtension) backendSearch(ctx context.Context, query string, to
 		return nil
 	}
 
-	fuser := retrieval.NewRRFFuser()
-
 	// If a cross-encoder reranker is configured, fuse more candidates
 	// then rerank down to topK for better precision.
 	var fused []retrieval.ScoredChunk
 	if e.queryReranker != nil {
-		fused = fuser.Fuse(lists, candidateK)
+		fused = retrieval.FuseRRF(lists, candidateK)
 		reranked := e.queryReranker.RerankWithQuery(ctx, query, fused)
 		if len(reranked) > topK {
 			reranked = reranked[:topK]
 		}
 		fused = reranked
 	} else {
-		fused = fuser.Fuse(lists, topK)
+		fused = retrieval.FuseRRF(lists, topK)
 	}
 
 	// Graph-enhanced retrieval: expand results with similar cases and

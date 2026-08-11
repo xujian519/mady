@@ -294,8 +294,7 @@ func (w *WritableStore) Search(ctx context.Context, query string, topK int) ([]r
 		return nil, nil
 	}
 
-	fuser := retrieval.NewRRFFuser()
-	return fuser.Fuse(lists, topK), nil
+	return retrieval.FuseRRF(lists, topK), nil
 }
 
 // ftsSearch performs BM25 full-text search against the user database.

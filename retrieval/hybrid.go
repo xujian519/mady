@@ -20,6 +20,13 @@ func NewRRFFuser() *RRFFuser {
 	return &RRFFuser{K: 60}
 }
 
+// FuseRRF merges multiple ranked lists using RRF with the default smoothing
+// constant (k=60). It is a convenience wrapper over NewRRFFuser().Fuse for
+// call sites that only need the default configuration.
+func FuseRRF(lists [][]ScoredChunk, topK int) []ScoredChunk {
+	return NewRRFFuser().Fuse(lists, topK)
+}
+
 // Fuse merges multiple ranked lists using RRF. Each input list should be
 // sorted by relevance descending. Returns topK results sorted by RRF score.
 func (f *RRFFuser) Fuse(lists [][]ScoredChunk, topK int) []ScoredChunk {

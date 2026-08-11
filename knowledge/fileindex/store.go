@@ -81,8 +81,6 @@ type FileIndex struct {
 	db  *sql.DB
 	dir string // project RootPath (absolute)
 	mu  sync.RWMutex
-
-	rrf *retrieval.RRFFuser
 }
 
 // OpenFileIndex opens or creates the file index database.
@@ -104,7 +102,7 @@ func OpenFileIndex(dir, dbPath string) (*FileIndex, error) {
 	}
 	db.SetMaxOpenConns(4)
 
-	fi := &FileIndex{db: db, dir: absDir, rrf: retrieval.NewRRFFuser()}
+	fi := &FileIndex{db: db, dir: absDir}
 	if err := fi.initSchema(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -374,7 +372,7 @@ func (fi *FileIndex) Search(ctx context.Context, query string, topK int) ([]File
 		lists = append(lists, toScored(list4))
 	}
 
-	fused := fi.rrf.Fuse(lists, topK)
+	fused := retrieval.FuseRRF(lists, topK)
 
 	// Build FileCandidate results.
 	recordByPath := make(map[string]FileRecord, len(allRecords))
