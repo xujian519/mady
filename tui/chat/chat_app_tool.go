@@ -346,4 +346,7 @@ func (a *ChatApp) onAutoRetry(e ChatEvent) {
 		Text: fmt.Sprintf("%s retry %d/%d in %s",
 			theme.SymbolWarning, r.Attempt, r.MaxRetries, r.Delay.Round(time.Millisecond)),
 	})
+	if a.statusBar != nil {
+		a.statusBar.SetRetry(r.Attempt, r.MaxRetries)
+	}
 }

@@ -132,7 +132,7 @@ func newChatApp(cfg ChatAppConfig) *ChatApp {
 		judgmentView:       component.NewJudgmentView(),
 		todoPanel:          component.NewTodoPanel(),
 		tasks:              make(map[string]component.TodoItem),
-		defaultPlaceholder: "输入消息…（/ 查看命令）",
+		defaultPlaceholder: "输入消息…（↑↓ 历史  / 查看命令）",
 		model: chatModel{
 			state:       StateInitializing,
 			activeTools: make(map[string]time.Time),

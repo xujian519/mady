@@ -30,30 +30,162 @@ type layoutHost interface {
 	TerminalSize() (cols, rows int64)
 }
 
-// editorFrame wraps the editor with a horizontal top/bottom border so the
-// input area reads as a distinct panel below the chat history. It exists so
-// the editor border can participate in the declarative Flex layout.
+// editorFrame wraps the editor with a rounded brand border so the input
+// area reads as a distinct panel below the chat history. It exists so the
+// editor border can participate in the declarative Flex layout.
+//
+// Visual style (Reasonix-inspired brand box):
+//
+//	╭─ 输入 (Enter 发送 · Shift+Enter 换行) ─────╮
+//	│ ❯ hello world                             │
+//	╰────────────────────────────────────────────╯
 type editorFrame struct {
 	editor core.Component
 }
 
 func (f *editorFrame) Render(width int64) []string {
-	lines := f.editor.Render(width)
-	border := theme.CurrentPalette().BorderMuted.Render("▌")
-	// Single left-bar top/bottom border lines, consistent with the role bar
-	// language used in ChatHistory (▌ prefix).
+	pal := theme.CurrentPalette()
+	bfn := pal.BorderAccent.Render
+	if width < 4 {
+		width = 4
+	}
+	inner := width - 2
+	if inner < 1 {
+		inner = 1
+	}
+	lines := f.editor.Render(inner)
+	title := " 输入 (Enter 发送 · Shift+Enter 换行) "
+	tw := core.VisibleWidth(title)
+	if tw > inner {
+		title = core.TruncateToWidth(title, inner, "…")
+		tw = core.VisibleWidth(title)
+	}
+	headRune := "╭"
+	diff := inner - tw
+	if diff < 0 {
+		diff = 0
+	}
+	topBody := title + strings.Repeat("─", int(diff))
+	top := bfn(headRune) + topBody + bfn("╮")
+
 	out := make([]string, 0, len(lines)+2)
-	for range [1]struct{}{} {
-		out = append(out, border)
+	out = append(out, top)
+
+	v := bfn("│")
+	for _, ln := range lines {
+		body := core.PadToWidth(ln, inner)
+		out = append(out, v+body+v)
 	}
-	out = append(out, lines...)
-	for range [1]struct{}{} {
-		out = append(out, border)
+
+	// Bottom border with trailing hint. If too narrow, fall back to plain bar.
+	hint := " ↑↓ 历史 · ⏎ 发送 · ⇧⏎ 换行 "
+	hintW := core.VisibleWidth(hint)
+	dimHint := pal.Dim.Render(hint)
+	var bottom string
+	if inner >= hintW+4 {
+		fill := inner - hintW
+		if fill < 0 {
+			fill = 0
+		}
+		bottom = bfn("╰") + strings.Repeat("─", int(fill)) + dimHint + bfn("╯")
+	} else {
+		bottom = bfn("╰") + strings.Repeat("─", int(inner)) + bfn("╯")
 	}
+	bottom = core.TruncateToWidth(bottom, width, "…")
+	out = append(out, bottom)
 	return out
 }
 
 func (f *editorFrame) Invalidate() {}
+
+// todoBar is a compact, always-visible task anchor mounted in the layout
+// flow directly above the editor frame (Reasonix todoArgs pattern). It
+// surfaces the top 1-3 in-flight tasks so the user sees them while typing
+// without opening the full TodoPanel overlay (Ctrl+T).
+type todoBar struct {
+	app *ChatApp
+}
+
+func (t *todoBar) Render(width int64) []string {
+	if t.app == nil {
+		return nil
+	}
+	items := t.app.collectTodoItems()
+	var active []component.TodoItem
+collectLoop:
+	for _, it := range items {
+		switch it.Status {
+		case "pending", "in_progress":
+			active = append(active, it)
+			if len(active) == 3 {
+				break collectLoop
+			}
+		}
+	}
+	if len(active) == 0 {
+		return nil
+	}
+	if width < 20 {
+		width = 20
+	}
+	const prefixW = 4 // "│ " + icon + " "
+	contentW := width - prefixW - 1
+	if contentW < 8 {
+		contentW = 8
+	}
+
+	pal := theme.CurrentPalette()
+	header := fmt.Sprintf("📋 %d 待办  Ctrl+T 全览", len(active))
+	lines := make([]string, 0, len(active)+2)
+
+	// Top border: ╭ ─ header ─ ╮
+	head := pal.BorderAccent.Render("╭ ") + pal.Accent.Render(header) + " "
+	headRemain := width - core.VisibleWidth(head) - 1
+	if headRemain < 0 {
+		headRemain = 0
+	}
+	head += pal.BorderAccent.Render(strings.Repeat("─", int(headRemain)) + "╮")
+	lines = append(lines, core.TruncateToWidth(head, width, "…"))
+
+	// Body rows: │ ○ content [pri]  │
+	v := pal.BorderAccent.Render("│")
+	for _, it := range active {
+		icon := "○"
+		var bodyStyle func(string) string
+		switch it.Status {
+		case "in_progress":
+			icon = "◐"
+			bodyStyle = pal.Accent.Render
+		default:
+			bodyStyle = pal.Assistant.Render
+		}
+		pri := ""
+		if it.Priority != "" {
+			pri = " [" + it.Priority + "]"
+		}
+		content := strings.ReplaceAll(it.Content, "\n", " ")
+		maxCW := contentW - core.VisibleWidth(pri)
+		if maxCW < 1 {
+			maxCW = 1
+		}
+		content = core.TruncateToWidth(content, maxCW, "…")
+		row := v + " " + icon + " " + bodyStyle(content) + pal.Dim.Render(pri)
+		row = core.TruncateToWidth(row, width-1, "…")
+		fill := width - core.VisibleWidth(row) - 1
+		if fill < 0 {
+			fill = 0
+		}
+		row = row + strings.Repeat(" ", int(fill)) + v
+		lines = append(lines, row)
+	}
+
+	// Bottom border: ╰ ─ ╯
+	tail := pal.BorderAccent.Render("╰" + strings.Repeat("─", int(width)-2) + "╯")
+	lines = append(lines, core.TruncateToWidth(tail, width, "…"))
+	return lines
+}
+
+func (t *todoBar) Invalidate() {}
 
 type chatLayout struct {
 	host         layoutHost
@@ -66,6 +198,7 @@ type chatLayout struct {
 	statusBar    *component.StatusBar
 	footer       core.Component
 	ac           *component.Autocomplete
+	todoBar      *todoBar
 	lastRows     int64
 	headerHeight int
 	// editorMaxRows is the baseline (un-shrunk) row budget for the editor,
@@ -128,6 +261,12 @@ func (l *chatLayout) buildFlex(flex *layout.Flex) (headerIndex, editorIndex int)
 	if qc := l.app.QueuedInputCount(); qc > 0 {
 		qText := fmt.Sprintf("待发送：%d 条消息（排队中）", qc)
 		flex.AddChild(layout.Natural(component.NewText(theme.CurrentPalette().Dim.Render(qText))))
+	}
+	// Reasonix-style anchored todo bar: compact view of top 1-3 in-flight
+	// tasks between the queue text and the editor frame. Render returns nil
+	// (0 rows) when no active tasks exist, so the layout collapses silently.
+	if l.todoBar != nil {
+		flex.AddChild(layout.Natural(l.todoBar))
 	}
 	ef := &editorFrame{editor: l.editor}
 	editorIndex = len(flex.Children)
@@ -588,7 +727,7 @@ func (l *chatLayout) recalcMaxRows(width, height int64) {
 	// from the previous render's OnAllocate.
 	l.resetEditorBaseline()
 
-	var headerH, jvH, loaderH, editorH, footerH, statusH, acH int64
+	var headerH, jvH, loaderH, editorH, footerH, statusH, acH, todoBarH int64
 	if l.header != nil {
 		headerH = int64(len(l.header.Render(width)))
 	}
@@ -610,7 +749,10 @@ func (l *chatLayout) recalcMaxRows(width, height int64) {
 	if l.ac != nil && l.ac.Active() {
 		acH = int64(len(l.ac.Render(width)))
 	}
-	reserved := headerH + jvH + editorH + loaderH + footerH + statusH + acH
+	if l.todoBar != nil {
+		todoBarH = int64(len(l.todoBar.Render(width)))
+	}
+	reserved := headerH + jvH + editorH + loaderH + footerH + statusH + acH + todoBarH
 	remaining := height - reserved
 	if remaining < 1 {
 		remaining = 1

@@ -104,13 +104,15 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 			if idx := strings.IndexByte(firstLine, '\n'); idx > 0 {
 				firstLine = firstLine[:idx]
 			}
-			if len(firstLine) > 200 {
-				firstLine = firstLine[:197] + "..."
+			if len([]rune(firstLine)) > 200 {
+				firstLine = string([]rune(firstLine)[:197]) + "..."
 			}
-			head := theme.DimStyle.Render(firstLine)
-			lines := core.WrapAnsi(head, width)
-			lines = append(lines, core.TruncateToWidth("  "+theme.DimStyle.Render("▸ expand"), width, ""))
-			return lines, nil
+			// 折叠态首行严格单显式预览，禁止 WrapAnsi 软换行导致
+			// 预览被拆成多行后视觉上误认为内容被截断，也避免
+			// "▸ expand" 提示被挤到可视区外造成"无法展开"的错觉。
+			head := core.TruncateToWidth(theme.DimStyle.Render(firstLine), width, "…")
+			expand := core.TruncateToWidth("  "+theme.DimStyle.Render("▸ expand"), width, "")
+			return []string{head, expand}, nil
 		}
 
 		innerWidth := width

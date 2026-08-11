@@ -238,6 +238,65 @@ func TestRenderMessageExtraRoles(t *testing.T) {
 		if len(joined) > 250 {
 			t.Fatalf("collapsed first line should be truncated, len=%d", len(joined))
 		}
+		// S1 回归：折叠态严格占 2 行（预览 + expand 提示），
+		// 禁止 WrapAnsi 软换行导致预览膨胀为多行，用户视觉上
+		// 会误以为"下面内容被截断没显示"，也会让 expand 提示
+		// 跑到视口外，造成"无法展开"的错觉。
+		if len(lines) != 2 {
+			t.Fatalf("collapsed assistant must render exactly 2 lines (preview + expand), got %d lines:\n%q",
+				len(lines), lines)
+		}
+		// 每行不得溢出 width=60。
+		for i, ln := range lines {
+			if vw := core.VisibleWidth(ln); vw > 60 {
+				t.Fatalf("collapsed line %d overflow: visible=%d > width=60: %q",
+					i, vw, core.StripAnsi(ln))
+			}
+		}
+	})
+
+	t.Run("collapsed assistant CJK truncation by rune", func(t *testing.T) {
+		// 首行 210 个汉字，按 rune 截断至 197 + "..."，
+		// 不得按字节截断（否则最后一个汉字会变成半个 UTF-8 序列，
+		// 触发 RuneError/� 乱码）。
+		long := strings.Repeat("汉", 210) + "\nsecond"
+		lines, _ := h.renderMessage(ChatMessage{Role: RoleAssistant, Collapsed: true, Text: long}, th, 120, nil)
+		if len(lines) != 2 {
+			t.Fatalf("CJK collapsed assistant must also be 2 lines, got %d", len(lines))
+		}
+		preview := core.StripAnsi(lines[0])
+		if strings.ContainsRune(preview, '\uFFFD') {
+			t.Fatalf("CJK preview has replacement char (half UTF-8 cut): %q", preview)
+		}
+		// 197 汉字 + "..." = 200 runes
+		previewPlain := strings.TrimSpace(preview)
+		if strings.HasSuffix(previewPlain, "…") {
+			previewPlain = previewPlain[:len(previewPlain)-len("…")]
+		}
+		if strings.HasSuffix(previewPlain, "...") {
+			previewPlain = previewPlain[:len(previewPlain)-len("...")]
+		}
+		runeCount := len([]rune(previewPlain))
+		if runeCount > 200 {
+			t.Fatalf("CJK preview runes = %d, want <= 200 (197 + ...)", runeCount)
+		}
+	})
+
+	t.Run("collapsed assistant medium line not wrapped", func(t *testing.T) {
+		// 首行 120 个 ASCII 字符，未触发 200 截断，
+		// 但宽度 60 下原先 WrapAnsi 会软换行成 2 行预览，
+		// 修复后应只保留单行 + expand，合计 2 行。
+		medium := strings.Repeat("A", 120) + "\nnext"
+		lines, _ := h.renderMessage(ChatMessage{Role: RoleAssistant, Collapsed: true, Text: medium}, th, 60, nil)
+		if len(lines) != 2 {
+			t.Fatalf("medium (120 chars, untruncated-by-rune) collapsed assistant must be 2 lines, got %d:\n%q",
+				len(lines), lines)
+		}
+		preview := core.StripAnsi(lines[0])
+		if !strings.HasSuffix(preview, "…") && len([]rune(preview)) > 60 {
+			t.Fatalf("preview should be truncated by width with …, got len=%d: %q",
+				len([]rune(preview)), preview)
+		}
 	})
 
 	t.Run("error role", func(t *testing.T) {

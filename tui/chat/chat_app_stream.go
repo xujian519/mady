@@ -84,6 +84,9 @@ func (a *ChatApp) onAgentStart(e ChatEvent) {
 	a.model.judgmentSummary = JudgmentSummary{}
 	a.model.toolSeq = 0
 	a.mu.Unlock()
+	if a.statusBar != nil {
+		a.statusBar.SetRetry(0, 0)
+	}
 	a.Busy("thinking...")
 	a.layout.updateJudgmentView()
 }
@@ -116,7 +119,13 @@ func (a *ChatApp) onAgentError(e ChatEvent) {
 	a.mu.Lock()
 	a.model.state = Transition(a.model.state, evtAgentError)
 	a.finalizeStreamLocked("")
+	a.model.turnCompleted++
+	turn := a.model.turnCompleted
 	a.mu.Unlock()
+	if a.statusBar != nil {
+		a.statusBar.SetTurn(turn)
+		a.statusBar.SetRetry(0, 0)
+	}
 	a.Idle()
 	a.layout.updateJudgmentView()
 	a.PrintError(ev.Err)
@@ -131,10 +140,14 @@ func (a *ChatApp) onAgentEnd(e ChatEvent) {
 	}
 	a.mu.Lock()
 	a.model.state = Transition(a.model.state, evtAgentEnd)
-	// 最终对账：AgentEndEvent 携带 agentcore 侧的完整输出，流式期间任何
-	// 丢失或重复的 delta 都在这里被修正（见 ChatHistory.FinalizeWithOutput）。
 	a.finalizeStreamLocked(ev.Output)
+	a.model.turnCompleted++
+	turn := a.model.turnCompleted
 	a.mu.Unlock()
+	if a.statusBar != nil {
+		a.statusBar.SetTurn(turn)
+		a.statusBar.SetRetry(0, 0)
+	}
 	a.Idle()
 	a.layout.updateJudgmentView()
 	// 输出异常结束时提醒用户内容可能不完整（不做自动续写，

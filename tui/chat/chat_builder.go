@@ -46,12 +46,10 @@ func newChatEditor(cfg ChatAppConfig, km *terminal.KeybindingsManager) *componen
 	editor := component.NewEditor(km)
 	editor.SetMinRows(cfg.EditorMinRows)
 	editor.SetMaxRows(cfg.EditorMaxRows)
-	// Continuation indent must match the prompt's visible width (❯ is 3
-	// bytes but 1 column), not its byte length.
 	editor.SetPrompt(cfg.EditorPrompt, strings.Repeat(" ", int(core.VisibleWidth(cfg.EditorPrompt))))
 	editor.SetPromptFn(theme.CurrentPalette().Accent.Render)
 	editor.SetFocusIndicator("")
-	editor.SetPlaceholder("输入消息…（/ 查看命令）")
+	editor.SetPlaceholder("输入消息…（↑↓ 历史  / 查看命令）")
 	editor.SetPlaceholderFn(func(s string) string { return theme.CurrentPalette().Dim.Render(s) })
 	editor.SetSelectedBg(theme.CurrentPalette().SelectionBg.Render(""))
 	return editor
@@ -104,6 +102,7 @@ func newChatLayout(cfg ChatAppConfig, a *ChatApp, history *ChatHistory, editor *
 		loader:        loader,
 		statusBar:     statusBar,
 		ac:            a.ac,
+		todoBar:       &todoBar{app: a},
 		editorMaxRows: cfg.EditorMaxRows,
 	}
 	if a.header != nil {

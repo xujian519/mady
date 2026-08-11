@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/tui/core"
@@ -150,11 +151,19 @@ func TestApplyChatDefaults(t *testing.T) {
 func TestEditorFrameRender(t *testing.T) {
 	app, _ := newTestChatApp(t, ChatAppConfig{})
 	f := &editorFrame{editor: app.editor}
-	out := f.Render(40)
+	out := f.Render(80)
 	if len(out) < 3 {
 		t.Fatalf("frame should have top+bottom borders, got %d lines", len(out))
 	}
-	if core.StripAnsi(out[0]) != "▌" || core.StripAnsi(out[len(out)-1]) != "▌" {
-		t.Fatalf("frame borders wrong: %q / %q", out[0], out[len(out)-1])
+	first := core.StripAnsi(out[0])
+	last := core.StripAnsi(out[len(out)-1])
+	if !strings.HasPrefix(first, "╭") || !strings.HasSuffix(first, "╮") {
+		t.Fatalf("top border should be ╭…╮, got %q", first)
+	}
+	if !strings.HasPrefix(last, "╰") || !strings.HasSuffix(last, "╯") {
+		t.Fatalf("bottom border should be ╰…╯, got %q", last)
+	}
+	if !strings.Contains(last, "↑↓") {
+		t.Fatalf("bottom border should contain the compact hint (wide frame), got %q", last)
 	}
 }

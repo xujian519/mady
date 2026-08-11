@@ -90,6 +90,10 @@ type chatModel struct {
 	usageCompletion int64
 	turnStarted     time.Time
 
+	// turnCompleted counts finished agent turns (user submit + agent end =
+	// one turn). Surfaced on the StatusBar as "T#N" after each onAgentEnd.
+	turnCompleted int64
+
 	// judgmentSummary carries the current judgment-bar snapshot. It is
 	// populated during agent execution (approval prompts, interrupts) and
 	// cleared on agent start.
