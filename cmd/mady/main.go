@@ -45,7 +45,6 @@ import (
 
 	"github.com/xujian519/mady/cmd/mady/subcmd"
 	"github.com/xujian519/mady/pkg/omlx"
-	_ "github.com/xujian519/mady/provider/adapter"
 )
 
 // commitHash and buildTime are injected via -ldflags at build time

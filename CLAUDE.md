@@ -90,7 +90,6 @@ mady/
 │   └── compiler/     #   策略学习型记忆编译器（时间衰减置信度、质量加权、持久化）
 ├── psychological/    # 心理引擎（VAD 情绪空间模型）
 ├── provider/         # LLM 接入层
-│   ├── adapter/      #   Agent 适配器模式（Claude Code / Codex CLI）
 │   ├── chatcompat/   #   OpenAI Chat Completions 兼容
 │   └── sanitizer/    #   PII 脱敏 Provider 包装（请求脱敏 + 响应还原）
 ├── retrieval/        # 检索引擎（关键词/BM25/向量/RRF 混合）
