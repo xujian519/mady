@@ -333,8 +333,11 @@ func TestRenderMessageExtraRoles(t *testing.T) {
 
 	t.Run("empty assistant renders blank", func(t *testing.T) {
 		lines, _ := h.renderMessage(ChatMessage{Role: RoleAssistant}, th, 60, nil)
-		if len(lines) != 1 || lines[0] != "" {
-			t.Fatalf("empty assistant should render one blank line, got %v", lines)
+		if len(lines) != 1 {
+			t.Fatalf("empty assistant should render one blank line, got %d lines: %v", len(lines), lines)
+		}
+		if plain := strings.TrimSpace(core.StripAnsi(lines[0])); plain != "" {
+			t.Fatalf("empty assistant plain content should be blank, got %q", plain)
 		}
 	})
 }

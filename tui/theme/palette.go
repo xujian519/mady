@@ -11,6 +11,7 @@ type Palette struct {
 	Mode     ColorMode
 
 	User, Assistant, System, Tool, ToolName, Error, Success Style
+	UserBg, AssistantBg                                     Style
 	Dim, Bold, Handoff, Code, CodeBlock, Usage              Style
 	Accent, Muted, BorderMuted, Border, BorderAccent        Style
 	SelectHighlight, SelectDescription                      Style
@@ -71,6 +72,11 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 	}
 	p.User = fg(userHex).Bold()
 
+	userBgHex := sem.UserMessageBg
+	if userBgHex != "" {
+		p.UserBg = bg(userBgHex)
+	}
+
 	assistHex := sem.AssistantText
 	if assistHex == "" {
 		assistHex = sem.Text
@@ -79,6 +85,11 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 		p.Assistant = NewStyle().Fg(BrightWhite)
 	} else {
 		p.Assistant = fg(assistHex)
+	}
+
+	assistBgHex := sem.AssistantMessageBg
+	if assistBgHex != "" {
+		p.AssistantBg = bg(assistBgHex)
 	}
 
 	sysHex := sem.System

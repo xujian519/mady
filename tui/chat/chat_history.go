@@ -106,46 +106,50 @@ func (m *ChatMessage) IsCollapsible() bool {
 
 // ChatHistoryTheme customizes prefix / styling for each role.
 type ChatHistoryTheme struct {
-	UserPrefix      string
-	UserStyle       theme.Style
-	AssistantPrefix string
-	AssistantStyle  theme.Style
-	SystemPrefix    string
-	SystemStyle     theme.Style
-	ToolPrefix      string
-	ToolStyle       theme.Style
-	ToolBorder      theme.Style
-	SuccessStyle    theme.Style
-	ErrorPrefix     string
-	ErrorStyle      theme.Style
-	DividerChar     string
-	DimStyle        theme.Style
-	ThinkingStyle   theme.Style
-	SelectedBg      string // ANSI background for selection
-	MarkdownTheme   component.MarkdownTheme
+	UserPrefix       string
+	UserStyle        theme.Style
+	UserBgStyle      theme.Style
+	AssistantPrefix  string
+	AssistantStyle   theme.Style
+	AssistantBgStyle theme.Style
+	SystemPrefix     string
+	SystemStyle      theme.Style
+	ToolPrefix       string
+	ToolStyle        theme.Style
+	ToolBorder       theme.Style
+	SuccessStyle     theme.Style
+	ErrorPrefix      string
+	ErrorStyle       theme.Style
+	DividerChar      string
+	DimStyle         theme.Style
+	ThinkingStyle    theme.Style
+	SelectedBg       string // ANSI background for selection
+	MarkdownTheme    component.MarkdownTheme
 }
 
 // DefaultChatHistoryTheme returns a theme built from the current palette.
 func DefaultChatHistoryTheme() ChatHistoryTheme {
 	pal := theme.CurrentPalette()
 	return ChatHistoryTheme{
-		UserPrefix:      "> ",
-		UserStyle:       pal.User,
-		AssistantPrefix: "",
-		AssistantStyle:  pal.Assistant,
-		SystemPrefix:    "",
-		SystemStyle:     pal.System,
-		ToolPrefix:      theme.SymbolArrow + " ",
-		ToolStyle:       pal.Dim,
-		ToolBorder:      pal.BorderMuted,
-		SuccessStyle:    pal.Success,
-		ErrorPrefix:     theme.SymbolCross + " ",
-		ErrorStyle:      pal.Error,
-		DividerChar:     "─",
-		DimStyle:        pal.Dim,
-		ThinkingStyle:   pal.Thinking,
-		SelectedBg:      pal.SelectionBg.BgStrip(),
-		MarkdownTheme:   component.DefaultMarkdownTheme(),
+		UserPrefix:       "> ",
+		UserStyle:        pal.User,
+		UserBgStyle:      pal.UserBg,
+		AssistantPrefix:  "",
+		AssistantStyle:   pal.Assistant,
+		AssistantBgStyle: pal.AssistantBg,
+		SystemPrefix:     "",
+		SystemStyle:      pal.System,
+		ToolPrefix:       theme.SymbolArrow + " ",
+		ToolStyle:        pal.Dim,
+		ToolBorder:       pal.BorderMuted,
+		SuccessStyle:     pal.Success,
+		ErrorPrefix:      theme.SymbolCross + " ",
+		ErrorStyle:       pal.Error,
+		DividerChar:      "─",
+		DimStyle:         pal.Dim,
+		ThinkingStyle:    pal.Thinking,
+		SelectedBg:       pal.SelectionBg.BgStrip(),
+		MarkdownTheme:    component.DefaultMarkdownTheme(),
 	}
 }
 

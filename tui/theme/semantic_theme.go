@@ -21,11 +21,12 @@ type SemanticTheme struct {
 	UserMessage   string `json:"userMessageText"` // if empty, derive from Accent + bold
 	AssistantText string `json:"assistantText"`   // extension: not in pi JSON; optional
 
-	SelectedBg    string `json:"selectedBg"`
-	UserMessageBg string `json:"userMessageBg"`
-	ToolPendingBg string `json:"toolPendingBg"`
-	ToolSuccessBg string `json:"toolSuccessBg"`
-	ToolErrorBg   string `json:"toolErrorBg"`
+	SelectedBg         string `json:"selectedBg"`
+	UserMessageBg      string `json:"userMessageBg"`
+	AssistantMessageBg string `json:"assistantMessageBg"`
+	ToolPendingBg      string `json:"toolPendingBg"`
+	ToolSuccessBg      string `json:"toolSuccessBg"`
+	ToolErrorBg        string `json:"toolErrorBg"`
 
 	MdHeading         string `json:"mdHeading"`
 	MdLink            string `json:"mdLink"`
@@ -84,11 +85,12 @@ func DefaultSemanticLight() *SemanticTheme {
 		UserMessage:   "#006064",
 		AssistantText: "#212121",
 
-		SelectedBg:    "#e3f2fd",
-		UserMessageBg: "#eceff1",
-		ToolPendingBg: "#fff8e1",
-		ToolSuccessBg: "#e8f5e9",
-		ToolErrorBg:   "#ffebee",
+		SelectedBg:         "#e3f2fd",
+		UserMessageBg:      "#eceff1",
+		AssistantMessageBg: "#f7f9fc",
+		ToolPendingBg:      "#fff8e1",
+		ToolSuccessBg:      "#e8f5e9",
+		ToolErrorBg:        "#ffebee",
 
 		MdHeading:         "#b8860b",
 		MdLink:            "#1565c0",
@@ -154,11 +156,12 @@ func DefaultMadyDark() *SemanticTheme {
 		UserMessage:   "#5DDCFF",
 		AssistantText: "#DCEAF3",
 
-		SelectedBg:    "#164C63",
-		UserMessageBg: "#102638",
-		ToolPendingBg: "#102638",
-		ToolSuccessBg: "#0F2A1E",
-		ToolErrorBg:   "#2C1A1A",
+		SelectedBg:         "#164C63",
+		UserMessageBg:      "#102638",
+		AssistantMessageBg: "#0C1B2A",
+		ToolPendingBg:      "#102638",
+		ToolSuccessBg:      "#0F2A1E",
+		ToolErrorBg:        "#2C1A1A",
 
 		// Markdown 着色
 		MdHeading:         "#38C8F4",
