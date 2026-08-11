@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/analysiskit"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -23,8 +24,6 @@ func BuildGraph(
 		return nil, fmt.Errorf("infringement: provider is required")
 	}
 
-	pg := graph.NewPregelGraph()
-
 	nodes := map[string]graph.PregelNode{
 		"load_input":            loadInputNode(),
 		"claim_scope":           claimScopeNode(provider, frameworkProvider),
@@ -36,12 +35,6 @@ func BuildGraph(
 		"remedy_assessment":     remedyAssessmentNode(provider, frameworkProvider),
 		"strategy":              strategyNode(provider),
 		"conclude":              concludeNode(),
-	}
-
-	for name, node := range nodes {
-		if err := pg.AddNode(name, node); err != nil {
-			return nil, fmt.Errorf("infringement: add node %q: %w", name, err)
-		}
 	}
 
 	edges := [][2]string{
@@ -56,10 +49,10 @@ func BuildGraph(
 		{"strategy", "conclude"},
 		{"conclude", graph.PregelEnd},
 	}
-	for _, e := range edges {
-		if err := pg.AddEdge(e[0], e[1]); err != nil {
-			return nil, fmt.Errorf("infringement: add edge %q→%q: %w", e[0], e[1], err)
-		}
+
+	pg, err := analysiskit.AssemblePregel(nodes, edges)
+	if err != nil {
+		return nil, fmt.Errorf("infringement: %w", err)
 	}
 
 	return pg.Compile("load_input", 100)

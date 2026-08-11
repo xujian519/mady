@@ -28,6 +28,7 @@ import (
 	"fmt"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/analysiskit"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -46,8 +47,6 @@ import (
 // 每步均为单 Agent LLM 节点，输出结构化 JSON。
 // 结论逻辑：IsInventive = (Step3: 非显而易见) AND (Step4: 具有显著进步)
 func BuildInventivenessGraph(provider agentcore.Provider) (*graph.CompiledPregelGraph, error) {
-	pg := graph.NewPregelGraph()
-
 	nodes := map[string]graph.PregelNode{
 		"load_input":                    loadInputNode(),
 		"step1_closest_prior_art":       step1ClosestPriorArtNode(provider),
@@ -56,12 +55,6 @@ func BuildInventivenessGraph(provider agentcore.Provider) (*graph.CompiledPregel
 		"step4_significant_progress":    step4SignificantProgressNode(provider),
 		"evaluate_experimental_data":    evaluateExperimentalDataNode(),
 		"generate_conclusion":           generateConclusionNode(provider),
-	}
-
-	for name, node := range nodes {
-		if err := pg.AddNode(name, node); err != nil {
-			return nil, fmt.Errorf("inventiveness: add node %q: %w", name, err)
-		}
 	}
 
 	edges := [][2]string{
@@ -73,10 +66,9 @@ func BuildInventivenessGraph(provider agentcore.Provider) (*graph.CompiledPregel
 		{"evaluate_experimental_data", "generate_conclusion"},
 		{"generate_conclusion", graph.PregelEnd},
 	}
-	for _, e := range edges {
-		if err := pg.AddEdge(e[0], e[1]); err != nil {
-			return nil, fmt.Errorf("inventiveness: add edge %q→%q: %w", e[0], e[1], err)
-		}
+	pg, err := analysiskit.AssemblePregel(nodes, edges)
+	if err != nil {
+		return nil, fmt.Errorf("inventiveness: %w", err)
 	}
 
 	return pg.Compile("load_input", 100)

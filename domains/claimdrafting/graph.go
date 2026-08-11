@@ -3,6 +3,7 @@ package claimdrafting
 import (
 	"fmt"
 
+	"github.com/xujian519/mady/domains/analysiskit"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -21,8 +22,6 @@ import (
 //
 // engine 和 scorer 为 nil 时使用默认实现。
 func BuildClaimGraph(engine *RuleEngine, scorer *ClaimScorer) (*graph.CompiledPregelGraph, error) {
-	pg := graph.NewPregelGraph()
-
 	if engine == nil {
 		engine = NewRuleEngine()
 		RegisterDefaultRules(engine)
@@ -44,12 +43,6 @@ func BuildClaimGraph(engine *RuleEngine, scorer *ClaimScorer) (*graph.CompiledPr
 		"finalize":          finalizeNode(),
 	}
 
-	for name, node := range nodes {
-		if err := pg.AddNode(name, node); err != nil {
-			return nil, fmt.Errorf("claimdrafting: add node %q: %w", name, err)
-		}
-	}
-
 	edges := [][2]string{
 		{"load_input", "classify_features"},
 		{"classify_features", "draft_primary"},
@@ -61,10 +54,9 @@ func BuildClaimGraph(engine *RuleEngine, scorer *ClaimScorer) (*graph.CompiledPr
 		{"finalize", graph.PregelEnd},
 	}
 
-	for _, e := range edges {
-		if err := pg.AddEdge(e[0], e[1]); err != nil {
-			return nil, fmt.Errorf("claimdrafting: add edge %q→%q: %w", e[0], e[1], err)
-		}
+	pg, err := analysiskit.AssemblePregel(nodes, edges)
+	if err != nil {
+		return nil, fmt.Errorf("claimdrafting: %w", err)
 	}
 
 	return pg.Compile("load_input", 30)

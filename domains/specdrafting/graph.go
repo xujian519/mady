@@ -3,6 +3,7 @@ package specdrafting
 import (
 	"fmt"
 
+	"github.com/xujian519/mady/domains/analysiskit"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -31,8 +32,6 @@ import (
 // validate 和 score 节点使用规则引擎和评分器对生成结果进行校验。
 // engine 和 scorer 为 nil 时使用默认实现。
 func BuildSpecificationGraph(engine *RuleEngine, scorer *SpecScorer) (*graph.CompiledPregelGraph, error) {
-	pg := graph.NewPregelGraph()
-
 	// 默认引擎
 	if engine == nil {
 		engine = NewRuleEngine()
@@ -60,12 +59,6 @@ func BuildSpecificationGraph(engine *RuleEngine, scorer *SpecScorer) (*graph.Com
 		"finalize":         finalizeNode(),
 	}
 
-	for name, node := range nodes {
-		if err := pg.AddNode(name, node); err != nil {
-			return nil, fmt.Errorf("specdrafting: add node %q: %w", name, err)
-		}
-	}
-
 	edges := [][2]string{
 		{"load_input", "classify_domain"},
 		{"classify_domain", "draft_title"},
@@ -81,10 +74,9 @@ func BuildSpecificationGraph(engine *RuleEngine, scorer *SpecScorer) (*graph.Com
 		{"finalize", graph.PregelEnd},
 	}
 
-	for _, e := range edges {
-		if err := pg.AddEdge(e[0], e[1]); err != nil {
-			return nil, fmt.Errorf("specdrafting: add edge %q→%q: %w", e[0], e[1], err)
-		}
+	pg, err := analysiskit.AssemblePregel(nodes, edges)
+	if err != nil {
+		return nil, fmt.Errorf("specdrafting: %w", err)
 	}
 
 	return pg.Compile("load_input", 30)

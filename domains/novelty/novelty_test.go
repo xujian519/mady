@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/analysiskit"
 	"github.com/xujian519/mady/graph"
 )
 
@@ -625,7 +626,7 @@ func TestFormatArticleData(t *testing.T) {
 		Steps:        []ArticleStepData{{Order: 1, Name: "测试步骤", InputHint: "测试输入"}},
 		ApplicableTo: []string{"test"},
 	}
-	result := formatArticleData(af)
+	result := analysiskit.FormatArticleData(af)
 	if !strings.Contains(result, "测试框架") {
 		t.Error("expected formatted name")
 	}

@@ -1,61 +1,31 @@
 package enablement
 
 import (
-	"fmt"
 	"strings"
+
+	"github.com/xujian519/mady/domains/analysiskit"
 )
 
 // =============================================================================
-// ArticleFramework 查询
+// ArticleFramework 查询（骨架复用 analysiskit，见 domains/analysiskit）
 // =============================================================================
 
-// ArticleFrameworkProvider 是法条框架查询的抽象接口。
-// 生产环境由 domains/rules.Engine 实现，测试/降级场景由 nil 实现。
-// 使用接口而非直接引用 domains/rules 包，避免引入 transitive build 依赖。
-type ArticleFrameworkProvider interface {
-	Article(id string) ArticleFrameworkData
-}
+// ArticleFrameworkProvider 是法条框架查询的抽象接口（复用 analysiskit）。
+type ArticleFrameworkProvider = analysiskit.ArticleFrameworkProvider
 
-// ArticleFrameworkData 是法条框架的纯数据镜像（避免依赖 domains/rules 包）。
-type ArticleFrameworkData struct {
-	Name             string
-	LawRef           string
-	GuidelineRef     string
-	Steps            []ArticleStepData
-	ConclusionSchema map[string]string
-	ApplicableTo     []string
-}
+// ArticleFrameworkData 是法条框架的纯数据镜像（复用 analysiskit）。
+type ArticleFrameworkData = analysiskit.ArticleFrameworkData
 
-// ArticleStepData 是单步判断步骤的数据镜像。
-type ArticleStepData struct {
-	Order        int
-	Name         string
-	InputHint    string
-	OutputSchema map[string]string
-}
+// ArticleStepData 是单步判断步骤的数据镜像（复用 analysiskit）。
+type ArticleStepData = analysiskit.ArticleStepData
 
-// Framework 返回专利法第26条第3款的判断框架。
-// provider 为 nil 时降级为内置默认框架文本。
-type Framework struct {
-	provider ArticleFrameworkProvider
-}
+// Framework 是充分公开（A26.3）判断框架查询器（复用 analysiskit）。
+type Framework = analysiskit.Framework
 
 // NewFramework 创建绑定到 ArticleFrameworkProvider 的 Framework 查询器。
+// provider 为 nil 时降级为内置默认框架文本。
 func NewFramework(provider ArticleFrameworkProvider) *Framework {
-	return &Framework{provider: provider}
-}
-
-// GetArticleFramework 返回 A26.3 的法条判断框架。
-func (f *Framework) GetArticleFramework() string {
-	if f.provider != nil {
-		if af := f.provider.Article("patent-law-a26.3"); af.Name != "" {
-			return formatArticleData(af)
-		}
-		if af := f.provider.Article("A26.3"); af.Name != "" {
-			return formatArticleData(af)
-		}
-	}
-	return defaultA263Framework()
+	return analysiskit.NewFramework(provider, []string{"patent-law-a26.3", "A26.3"}, defaultA263Framework)
 }
 
 // defaultA263Framework 返回内嵌的默认 A26.3 判断框架。
@@ -101,37 +71,4 @@ func defaultA263Framework() string {
 		"",
 		"**注意**：本判断由 AI 辅助生成，不构成正式法律意见。",
 	}, "\n")
-}
-
-// formatArticleData 将 ArticleFrameworkData 格式化为 Markdown 文本。
-func formatArticleData(af ArticleFrameworkData) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "## %s\n\n", af.Name)
-	fmt.Fprintf(&b, "**法条依据**：%s\n\n", af.LawRef)
-	if af.GuidelineRef != "" {
-		fmt.Fprintf(&b, "**审查指南依据**：%s\n\n", af.GuidelineRef)
-	}
-
-	b.WriteString("### 判断步骤\n\n")
-	for _, step := range af.Steps {
-		fmt.Fprintf(&b, "**第 %d 步：%s**\n", step.Order, step.Name)
-		if step.InputHint != "" {
-			fmt.Fprintf(&b, "- 输入：%s\n", step.InputHint)
-		}
-		for key, desc := range step.OutputSchema {
-			fmt.Fprintf(&b, "- %s：%s\n", key, desc)
-		}
-		b.WriteString("\n")
-	}
-
-	b.WriteString("### 结论模式\n\n")
-	for key, desc := range af.ConclusionSchema {
-		fmt.Fprintf(&b, "- %s：%s\n", key, desc)
-	}
-
-	if len(af.ApplicableTo) > 0 {
-		fmt.Fprintf(&b, "\n**适用场景**：%s\n", strings.Join(af.ApplicableTo, "、"))
-	}
-
-	return b.String()
 }
