@@ -17,7 +17,7 @@ require (
 	github.com/yuin/goldmark v1.8.5
 	go.opentelemetry.io/otel v1.45.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.44.0
-	go.opentelemetry.io/otel/sdk v1.44.0
+	go.opentelemetry.io/otel/sdk v1.45.0
 	go.opentelemetry.io/otel/trace v1.45.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.56.0
