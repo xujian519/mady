@@ -1,6 +1,7 @@
 package specdrafting
 
 import (
+	"github.com/xujian519/mady/domains/rulekit"
 	"strconv"
 	"strings"
 )
@@ -9,7 +10,7 @@ import (
 // 领域特定规则（5 条）
 // =============================================================================
 
-type domainMechanicalRule struct{ baseRule }
+type domainMechanicalRule struct{ rulekit.BaseRule }
 
 func (r *domainMechanicalRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	if input.TechDomain != DomainMechanical || spec == nil {
@@ -30,7 +31,7 @@ func (r *domainMechanicalRule) Check(spec *SpecOutput, input SpecInput) []Violat
 	return nil
 }
 
-type domainElectricalRule struct{ baseRule }
+type domainElectricalRule struct{ rulekit.BaseRule }
 
 func (r *domainElectricalRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	if input.TechDomain != DomainElectrical || spec == nil {
@@ -51,7 +52,7 @@ func (r *domainElectricalRule) Check(spec *SpecOutput, input SpecInput) []Violat
 	return nil
 }
 
-type domainChemicalRule struct{ baseRule }
+type domainChemicalRule struct{ rulekit.BaseRule }
 
 func (r *domainChemicalRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	if input.TechDomain != DomainChemical || spec == nil {
@@ -81,7 +82,7 @@ func (r *domainChemicalRule) Check(spec *SpecOutput, input SpecInput) []Violatio
 	return issues
 }
 
-type domainSoftwareRule struct{ baseRule }
+type domainSoftwareRule struct{ rulekit.BaseRule }
 
 func (r *domainSoftwareRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	if input.TechDomain != DomainSoftware || spec == nil {
@@ -117,7 +118,7 @@ func (r *domainSoftwareRule) Check(spec *SpecOutput, input SpecInput) []Violatio
 //  1. 需足够数量的代表性实例支持权利要求范围（至少2个）
 //  2. 需同时包含产品制备实施例和应用效果实施例
 //  3. 效果用事实和数据说明，不能仅主观论断
-type domainChemicalEmbodimentRule struct{ baseRule }
+type domainChemicalEmbodimentRule struct{ rulekit.BaseRule }
 
 func (r *domainChemicalEmbodimentRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	if input.TechDomain != DomainChemical || spec == nil {

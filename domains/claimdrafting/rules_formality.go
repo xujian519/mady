@@ -1,6 +1,7 @@
 package claimdrafting
 
 import (
+	"github.com/xujian519/mady/domains/rulekit"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -12,7 +13,7 @@ import (
 
 // formalityNumberingRule 检查权利要求是否用阿拉伯数字顺序编号。
 // 依据：细则第20条第1款——权利要求书有几项权利要求的，应当用阿拉伯数字顺序编号。
-type formalityNumberingRule struct{ baseRule }
+type formalityNumberingRule struct{ rulekit.BaseRule }
 
 func (r *formalityNumberingRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -38,7 +39,7 @@ func (r *formalityNumberingRule) Check(claims []Claim, _ DraftInput) []Violation
 
 // formalityPeriodRule 检查每一项权利要求是否只在其结尾处使用句号。
 // 依据：细则第20条——每一项权利要求只允许在其结尾处使用句号。
-type formalityPeriodRule struct{ baseRule }
+type formalityPeriodRule struct{ rulekit.BaseRule }
 
 func (r *formalityPeriodRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -66,7 +67,7 @@ func (r *formalityPeriodRule) Check(claims []Claim, _ DraftInput) []Violation {
 
 // formalityNoIllustrationRule 检查权利要求书中是否含有插图。
 // 依据：细则第20条第3款——权利要求书中不得有插图。
-type formalityNoIllustrationRule struct{ baseRule }
+type formalityNoIllustrationRule struct{ rulekit.BaseRule }
 
 func (r *formalityNoIllustrationRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -117,7 +118,7 @@ func hasFigRefWithoutParens(text string) bool {
 
 // formalityMultipleDependentRule 检查多项从属权利要求是否被另一项多项从属权利要求引用。
 // 依据：细则第23条第2款——多项从属权利要求不得作为另一项多项从属权利要求的基础。
-type formalityMultipleDependentRule struct{ baseRule }
+type formalityMultipleDependentRule struct{ rulekit.BaseRule }
 
 func (r *formalityMultipleDependentRule) Check(claims []Claim, _ DraftInput) []Violation {
 	// 构建多项从属集合
@@ -157,7 +158,7 @@ func (r *formalityMultipleDependentRule) Check(claims []Claim, _ DraftInput) []V
 
 // formalityThemeConsistencyRule 检查从属权利要求的主题名称是否与其引用的权利要求一致。
 // 依据：细则第22条第3款——从属权利要求的类型和主题名称应当与其引用权利要求的类型和主题名称一致。
-type formalityThemeConsistencyRule struct{ baseRule }
+type formalityThemeConsistencyRule struct{ rulekit.BaseRule }
 
 func (r *formalityThemeConsistencyRule) Check(claims []Claim, _ DraftInput) []Violation {
 	// 构建权利要求的主题名称映射
@@ -198,7 +199,7 @@ func (r *formalityThemeConsistencyRule) Check(claims []Claim, _ DraftInput) []Vi
 // formalityScopeNarrowingRule 检查从属权利要求的保护范围是否在引用权利要求的范围之内。
 // 依据：审查指南——从属权利要求的保护范围应当比其引用权利要求的保护范围小。
 // 注意：此规则为启发式检查，精确判断需要语义分析。
-type formalityScopeNarrowingRule struct{ baseRule }
+type formalityScopeNarrowingRule struct{ rulekit.BaseRule }
 
 func (r *formalityScopeNarrowingRule) Check(claims []Claim, _ DraftInput) []Violation {
 	// 目前做基本检查：从属权利要求不需要写与独立权利要求相同的特征开头
@@ -227,7 +228,7 @@ func (r *formalityScopeNarrowingRule) Check(claims []Claim, _ DraftInput) []Viol
 // 形式规范规则：并列独立权利要求
 // =============================================================================
 
-type formalityParallelClaimRule struct{ baseRule }
+type formalityParallelClaimRule struct{ rulekit.BaseRule }
 
 func (r *formalityParallelClaimRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -319,7 +320,7 @@ func extractReferencedClaim(preamble string) int {
 // formalityDependentOrderingRule 检查从属权利要求是否遵循"从宽到窄"的递进布局。
 // 依据：审查指南——从属权利要求应当对引用的权利要求作进一步限定，
 // 布局策略应遵循从重要到次要、从宽到窄的递进顺序。
-type formalityDependentOrderingRule struct{ baseRule }
+type formalityDependentOrderingRule struct{ rulekit.BaseRule }
 
 func (r *formalityDependentOrderingRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation

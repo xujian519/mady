@@ -1,6 +1,7 @@
 package claimdrafting
 
 import (
+	"github.com/xujian519/mady/domains/rulekit"
 	"strconv"
 	"strings"
 )
@@ -11,7 +12,7 @@ import (
 
 // clarityClaimTypeRule 检查权利要求的类型是否清楚。
 // 依据：细则第20条第2款——类型应当清楚，产品/方法不得混合。
-type clarityClaimTypeRule struct{ baseRule }
+type clarityClaimTypeRule struct{ rulekit.BaseRule }
 
 func (r *clarityClaimTypeRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -49,13 +50,13 @@ func (r *clarityClaimTypeRule) Check(claims []Claim, _ DraftInput) []Violation {
 
 // clarityWordingRule 检查是否使用了含义不确定的用语。
 // 依据：专利法第26条第4款——保护范围应当清楚。
-type clarityWordingRule struct{ baseRule }
+type clarityWordingRule struct{ rulekit.BaseRule }
 
 func (r *clarityWordingRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
 	for _, c := range claims {
 		text := c.String()
-		if word, found := containsUncertainWord(text); found {
+		if word, found := rulekit.ContainsAny(text, uncertainWords); found {
 			violations = append(violations, Violation{
 				RuleName:    r.Name(),
 				RuleBasis:   r.LegalBasis(),
@@ -75,13 +76,13 @@ func (r *clarityWordingRule) Check(claims []Claim, _ DraftInput) []Violation {
 
 // clarityForbiddenWordsRule 检查是否使用了"例如""最好是"等非限定性用语。
 // 依据：专利法第26条第4款；审查指南第二部分第二章§3.2.2。
-type clarityForbiddenWordsRule struct{ baseRule }
+type clarityForbiddenWordsRule struct{ rulekit.BaseRule }
 
 func (r *clarityForbiddenWordsRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
 	for _, c := range claims {
 		text := c.String()
-		if word, found := containsForbiddenWord(text); found {
+		if word, found := rulekit.ContainsAny(text, forbiddenWords); found {
 			severity := SeverityWarning
 			if word == "等" || word == "或类似物" {
 				severity = SeverityError
@@ -105,7 +106,7 @@ func (r *clarityForbiddenWordsRule) Check(claims []Claim, _ DraftInput) []Violat
 
 // clarityReferenceRule 检查从属权利要求的引用关系是否清楚。
 // 依据：细则第23条第2款——多项从属只能择一引用（用"或"），不得用"和"。
-type clarityReferenceRule struct{ baseRule }
+type clarityReferenceRule struct{ rulekit.BaseRule }
 
 func (r *clarityReferenceRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -151,7 +152,7 @@ func (r *clarityReferenceRule) Check(claims []Claim, _ DraftInput) []Violation {
 
 // clarityReferenceChainRule 检查引用关系是否形成循环依赖。
 // 依据：专利法第26条第4款——引用关系应当清楚正确。
-type clarityReferenceChainRule struct{ baseRule }
+type clarityReferenceChainRule struct{ rulekit.BaseRule }
 
 func (r *clarityReferenceChainRule) Check(claims []Claim, _ DraftInput) []Violation {
 	// 构建引用关系图并检测循环
@@ -206,7 +207,7 @@ func (r *clarityReferenceChainRule) Check(claims []Claim, _ DraftInput) []Violat
 // 清楚性规则：引用基础（Antecedent Basis）
 // =============================================================================
 
-type clarityAntecedentBasisRule struct{ baseRule }
+type clarityAntecedentBasisRule struct{ rulekit.BaseRule }
 
 func (r *clarityAntecedentBasisRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation

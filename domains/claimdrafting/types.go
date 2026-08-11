@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xujian519/mady/domains/rulekit"
 )
 
 // =============================================================================
@@ -151,28 +153,21 @@ type DraftOutput struct {
 }
 
 // =============================================================================
-// 验证相关
+// 验证相关（类型复用 rulekit，见 domains/rulekit）
 // =============================================================================
 
 // Severity 表示违规的严重程度。
-type Severity string
+type Severity = rulekit.Severity
 
 // Severity level constants.
 const (
-	SeverityError   Severity = "error"   // 严重违法（如多项从属互引）
-	SeverityWarning Severity = "warning" // 潜在风险（如使用不确定用语）
-	SeverityInfo    Severity = "info"    // 建议改进（如保护范围可优化）
+	SeverityError   = rulekit.SeverityError   // 严重违法（如多项从属互引）
+	SeverityWarning = rulekit.SeverityWarning // 潜在风险（如使用不确定用语）
+	SeverityInfo    = rulekit.SeverityInfo    // 建议改进（如保护范围可优化）
 )
 
 // Violation 记录一条规则违规信息。
-type Violation struct {
-	RuleName    string   `json:"rule_name"`
-	RuleBasis   string   `json:"rule_basis,omitempty"` // 法律依据
-	Severity    Severity `json:"severity"`
-	ClaimNumber int      `json:"claim_number"` // 关联的权利要求编号（0 表示整体问题）
-	Message     string   `json:"message"`      // 违规描述
-	Suggestion  string   `json:"suggestion"`   // 修改建议
-}
+type Violation = rulekit.Violation
 
 // =============================================================================
 // 质量评分

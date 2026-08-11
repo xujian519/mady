@@ -1,6 +1,9 @@
 package claimdrafting
 
-import "strings"
+import (
+	"github.com/xujian519/mady/domains/rulekit"
+	"strings"
+)
 
 // =============================================================================
 // 领域特定规则：机械领域
@@ -8,7 +11,7 @@ import "strings"
 
 // domainMechanicalRule 检查机械领域产品独立权利要求是否包含必要的要素。
 // 依据：审查指南——机械领域产品独立权利要求应包含零部件、配置关系、联系形式。
-type domainMechanicalRule struct{ baseRule }
+type domainMechanicalRule struct{ rulekit.BaseRule }
 
 func (r *domainMechanicalRule) Check(claims []Claim, input DraftInput) []Violation {
 	if input.TechDomain != DomainMechanical {
@@ -59,7 +62,7 @@ func hasConfigurationRelation(text string) bool {
 
 // domainElectricalRule 检查电路领域产品独立权利要求是否包含必要的要素。
 // 依据：审查指南——电路产品应包含元器件、连接关系、电回路、功能描述。
-type domainElectricalRule struct{ baseRule }
+type domainElectricalRule struct{ rulekit.BaseRule }
 
 func (r *domainElectricalRule) Check(claims []Claim, input DraftInput) []Violation {
 	if input.TechDomain != DomainElectrical {
@@ -109,7 +112,7 @@ func hasElectricalRelation(text string) bool {
 
 // domainChemicalRule 检查化学组合物独立权利要求是否包含组分及含量。
 // 依据：审查指南——组合物独立权利要求应包含组分及含量，含量之和应为100%。
-type domainChemicalRule struct{ baseRule }
+type domainChemicalRule struct{ rulekit.BaseRule }
 
 func (r *domainChemicalRule) Check(claims []Claim, input DraftInput) []Violation {
 	if input.TechDomain != DomainChemical {
@@ -144,7 +147,7 @@ func (r *domainChemicalRule) Check(claims []Claim, input DraftInput) []Violation
 
 // domainSoftwareRule 检查计算机程序发明的权利要求形式是否恰当。
 // 依据：审查指南第二部分第九章§5.2——可写为方法或产品权利要求。
-type domainSoftwareRule struct{ baseRule }
+type domainSoftwareRule struct{ rulekit.BaseRule }
 
 func (r *domainSoftwareRule) Check(claims []Claim, input DraftInput) []Violation {
 	if input.TechDomain != DomainSoftware {
@@ -182,7 +185,7 @@ func (r *domainSoftwareRule) Check(claims []Claim, input DraftInput) []Violation
 
 // domainUtilityModelRule 检查实用新型专利的权利要求类型是否恰当。
 // 依据：专利法实施细则第2条——实用新型专利只能有产品权利要求。
-type domainUtilityModelRule struct{ baseRule }
+type domainUtilityModelRule struct{ rulekit.BaseRule }
 
 func (r *domainUtilityModelRule) Check(claims []Claim, input DraftInput) []Violation {
 	// 若无 input，无法判断是否为实用新型，跳过
@@ -220,7 +223,7 @@ func (r *domainUtilityModelRule) Check(claims []Claim, input DraftInput) []Viola
 // domainMethodToProductRule 提示软件领域可将方法权利要求同时表达为产品形式。
 // 依据：审查指南第二部分第九章§5.2——含计算机程序的发明可以写成方法权利要求，
 // 也可以写成装置权利要求（用步骤限定装置）。
-type domainMethodToProductRule struct{ baseRule }
+type domainMethodToProductRule struct{ rulekit.BaseRule }
 
 func (r *domainMethodToProductRule) Check(claims []Claim, input DraftInput) []Violation {
 	var violations []Violation

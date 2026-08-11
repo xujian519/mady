@@ -1,102 +1,22 @@
 package specdrafting
 
 import (
-	"strings"
-	"sync"
+	"github.com/xujian519/mady/domains/rulekit"
 )
 
 // =============================================================================
-// SpecRule 规则接口
+// SpecRule 规则接口与 RuleEngine（骨架复用 rulekit，见 domains/rulekit）
 // =============================================================================
 
-// SpecRule 是说明书验证规则接口。
-type SpecRule interface {
-	Name() string
-	Description() string
-	LegalBasis() string
-	Check(spec *SpecOutput, input SpecInput) []Violation
-}
+// SpecRule 是说明书验证规则接口（rulekit.Rule 的类型别名）。
+type SpecRule = rulekit.Rule[*SpecOutput, SpecInput]
 
-// =============================================================================
-// RuleEngine 规则引擎
-// =============================================================================
-
-// RuleEngine 管理一组验证规则，提供批量验证能力。
-type RuleEngine struct {
-	mu    sync.RWMutex
-	rules []SpecRule
-}
+// RuleEngine 管理一组验证规则，提供批量验证能力（rulekit.Engine 的类型别名）。
+type RuleEngine = rulekit.Engine[*SpecOutput, SpecInput]
 
 // NewRuleEngine 创建一个空的规则引擎。
 func NewRuleEngine() *RuleEngine {
-	return &RuleEngine{rules: make([]SpecRule, 0)}
-}
-
-// Register 注册一条规则（线程安全）。
-func (e *RuleEngine) Register(rule SpecRule) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.rules = append(e.rules, rule)
-}
-
-// RegisterAll 批量注册规则。
-func (e *RuleEngine) RegisterAll(rules ...SpecRule) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.rules = append(e.rules, rules...)
-}
-
-// Rules 返回当前注册的所有规则。
-func (e *RuleEngine) Rules() []SpecRule {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	cp := make([]SpecRule, len(e.rules))
-	copy(cp, e.rules)
-	return cp
-}
-
-// Validate 执行所有注册规则的检查，返回违规列表。
-func (e *RuleEngine) Validate(spec *SpecOutput, input SpecInput) []Violation {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	all := make([]Violation, 0, len(e.rules))
-	for _, rule := range e.rules {
-		all = append(all, rule.Check(spec, input)...)
-	}
-	return all
-}
-
-// ValidateAndGroup 执行检查并按严重程度分组。
-func (e *RuleEngine) ValidateAndGroup(spec *SpecOutput, input SpecInput) (errors, warnings, infos []Violation) {
-	for _, v := range e.Validate(spec, input) {
-		switch v.Severity {
-		case SeverityError:
-			errors = append(errors, v)
-		case SeverityWarning:
-			warnings = append(warnings, v)
-		case SeverityInfo:
-			infos = append(infos, v)
-		}
-	}
-	return
-}
-
-// =============================================================================
-// 基础规则
-// =============================================================================
-
-type baseRule struct {
-	name        string
-	description string
-	legalBasis  string
-}
-
-func (r *baseRule) Name() string        { return r.name }
-func (r *baseRule) Description() string { return r.description }
-func (r *baseRule) LegalBasis() string  { return r.legalBasis }
-
-func newBaseRule(name, desc, basis string) baseRule {
-	return baseRule{name: name, description: desc, legalBasis: basis}
+	return rulekit.NewEngine[*SpecOutput, SpecInput]()
 }
 
 // =============================================================================
@@ -106,52 +26,52 @@ func newBaseRule(name, desc, basis string) baseRule {
 // RegisterDefaultRules 注册所有默认说明书验证规则到引擎。
 func RegisterDefaultRules(engine *RuleEngine) {
 	engine.RegisterAll(
-		&structureSectionsRule{baseRule: newBaseRule("structure-sections",
+		&structureSectionsRule{BaseRule: rulekit.NewBaseRule("structure-sections",
 			"说明书必须包含五项必要章节", "专利法实施细则第18条")},
-		&structureTitleLengthRule{baseRule: newBaseRule("structure-title-length",
+		&structureTitleLengthRule{BaseRule: rulekit.NewBaseRule("structure-title-length",
 			"发明名称不得超过25个字", "专利法实施细则第17条第1款")},
-		&structureAbstractLengthRule{baseRule: newBaseRule("structure-abstract-length",
+		&structureAbstractLengthRule{BaseRule: rulekit.NewBaseRule("structure-abstract-length",
 			"说明书摘要不超过300字", "专利法实施细则第23条第2款")},
-		&structureContentTriadRule{baseRule: newBaseRule("structure-content-triad",
+		&structureContentTriadRule{BaseRule: rulekit.NewBaseRule("structure-content-triad",
 			"发明内容须包含问题+方案+效果三要素", "专利法实施细则第18条第1款第(三)项")},
-		&structureEmbodimentDetailRule{baseRule: newBaseRule("structure-embodiment-detail",
+		&structureEmbodimentDetailRule{BaseRule: rulekit.NewBaseRule("structure-embodiment-detail",
 			"具体实施方式应至少给出一个详细实施例", "专利法第26条第3款")},
 
-		&clarityTerminologyRule{baseRule: newBaseRule("clarity-terminology",
+		&clarityTerminologyRule{BaseRule: rulekit.NewBaseRule("clarity-terminology",
 			"应使用清楚的技术术语", "专利法第26条第3款")},
-		&clarityForbiddenWordsRule{baseRule: newBaseRule("clarity-forbidden-words",
+		&clarityForbiddenWordsRule{BaseRule: rulekit.NewBaseRule("clarity-forbidden-words",
 			"不得使用禁止用词和不确定用语", "专利法第26条第3款；审查指南第二部分第二章§2.1.1")},
-		&clarityPFEConsistencyRule{baseRule: newBaseRule("clarity-pfe-consistency",
+		&clarityPFEConsistencyRule{BaseRule: rulekit.NewBaseRule("clarity-pfe-consistency",
 			"问题、方案、效果三者应相互适应", "专利法第26条第3款")},
-		&clarityTermConsistencyRule{baseRule: newBaseRule("clarity-term-consistency",
+		&clarityTermConsistencyRule{BaseRule: rulekit.NewBaseRule("clarity-term-consistency",
 			"术语全文应保持一致", "专利法第26条第3款")},
-		&clarityEffectsSpecificRule{baseRule: newBaseRule("clarity-effects-specific",
+		&clarityEffectsSpecificRule{BaseRule: rulekit.NewBaseRule("clarity-effects-specific",
 			"有益效果应具体分析因果关系，避免仅写笼统优点", "审查指南第二部分第二章§2.1.3")},
-		&clarityCitationRule{baseRule: newBaseRule("clarity-citation",
+		&clarityCitationRule{BaseRule: rulekit.NewBaseRule("clarity-citation",
 			"背景技术应引证反映现有技术的文件", "专利法实施细则第17条第2款")},
 
-		&domainMechanicalRule{baseRule: newBaseRule("domain-mechanical",
+		&domainMechanicalRule{BaseRule: rulekit.NewBaseRule("domain-mechanical",
 			"机械领域应描述零部件及其配置关系", "审查指南第二部分第二章")},
-		&domainElectricalRule{baseRule: newBaseRule("domain-electrical",
+		&domainElectricalRule{BaseRule: rulekit.NewBaseRule("domain-electrical",
 			"电学领域应描述元器件、连接关系和功能", "审查指南第二部分第二章")},
-		&domainChemicalRule{baseRule: newBaseRule("domain-chemical",
+		&domainChemicalRule{BaseRule: rulekit.NewBaseRule("domain-chemical",
 			"化学领域应公开组分含量及实验数据", "审查指南第二部分第十章")},
-		&domainChemicalEmbodimentRule{baseRule: newBaseRule("domain-chemical-embodiment",
+		&domainChemicalEmbodimentRule{BaseRule: rulekit.NewBaseRule("domain-chemical-embodiment",
 			"化学领域应提供足够数量和类型的实施例", "审查指南第二部分第十章§3.4")},
-		&domainSoftwareRule{baseRule: newBaseRule("domain-software",
+		&domainSoftwareRule{BaseRule: rulekit.NewBaseRule("domain-software",
 			"软件领域应描述方法步骤或功能模块", "审查指南第二部分第九章§5.2")},
 
-		&utilityDrawingsRequiredRule{baseRule: newBaseRule("utility-drawings-required",
+		&utilityDrawingsRequiredRule{BaseRule: rulekit.NewBaseRule("utility-drawings-required",
 			"实用新型必须有附图", "专利法实施细则第39条")},
-		&utilityProductOnlyRule{baseRule: newBaseRule("utility-product-only",
+		&utilityProductOnlyRule{BaseRule: rulekit.NewBaseRule("utility-product-only",
 			"实用新型仅保护产品形状/构造", "专利法第2条第3款")},
-		&utilitySingleIndependentRule{baseRule: newBaseRule("utility-single-independent",
+		&utilitySingleIndependentRule{BaseRule: rulekit.NewBaseRule("utility-single-independent",
 			"实用新型应只有一个独立权利要求", "专利法实施细则第21条第1款")},
 
 		// 充分公开规则（专利法第26条第3款）
-		&enablementMeansExistRule{baseRule: newBaseRule("enablement-means-exist",
+		&enablementMeansExistRule{BaseRule: rulekit.NewBaseRule("enablement-means-exist",
 			"说明书应当清楚、完整地说明发明，使所属领域技术人员能够实现", "专利法第26条第3款；审查指南第二部分第二章§2.1.3")},
-		&enablementExperimentEvidenceRule{baseRule: newBaseRule("enablement-experiment-evidence",
+		&enablementExperimentEvidenceRule{BaseRule: rulekit.NewBaseRule("enablement-experiment-evidence",
 			"化学/材料领域应提供实验数据证实技术效果", "专利法第26条第3款；审查指南第二部分第二章§2.1.3")},
 	)
 }
@@ -171,13 +91,4 @@ var forbiddenWords = []string{
 	"尤其是", "必要时",
 	"等", "或类似物",
 	"性能卓越", "市场广阔",
-}
-
-func containsAny(s string, words []string) (string, bool) {
-	for _, w := range words {
-		if strings.Contains(s, w) {
-			return w, true
-		}
-	}
-	return "", false
 }

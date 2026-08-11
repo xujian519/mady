@@ -1,13 +1,17 @@
 package specdrafting
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/xujian519/mady/domains/rulekit"
+)
 
 // =============================================================================
 // 结构完整性规则测试
 // =============================================================================
 
 func TestStructureSectionsRule_MissingSections(t *testing.T) {
-	rule := &structureSectionsRule{baseRule: newBaseRule("structure-sections", "", "细则第18条")}
+	rule := &structureSectionsRule{BaseRule: rulekit.NewBaseRule("structure-sections", "", "细则第18条")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -35,7 +39,7 @@ func TestStructureSectionsRule_MissingSections(t *testing.T) {
 }
 
 func TestStructureTitleLengthRule(t *testing.T) {
-	rule := &structureTitleLengthRule{baseRule: newBaseRule("td", "", "")}
+	rule := &structureTitleLengthRule{BaseRule: rulekit.NewBaseRule("td", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -56,7 +60,7 @@ func TestStructureTitleLengthRule(t *testing.T) {
 }
 
 func TestStructureAbstractLengthRule(t *testing.T) {
-	rule := &structureAbstractLengthRule{baseRule: newBaseRule("al", "", "")}
+	rule := &structureAbstractLengthRule{BaseRule: rulekit.NewBaseRule("al", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -77,7 +81,7 @@ func TestStructureAbstractLengthRule(t *testing.T) {
 }
 
 func TestStructureContentTriadRule(t *testing.T) {
-	rule := &structureContentTriadRule{baseRule: newBaseRule("ct", "", "")}
+	rule := &structureContentTriadRule{BaseRule: rulekit.NewBaseRule("ct", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -104,7 +108,7 @@ func TestStructureContentTriadRule(t *testing.T) {
 }
 
 func TestStructureEmbodimentDetailRule(t *testing.T) {
-	rule := &structureEmbodimentDetailRule{baseRule: newBaseRule("ed", "", "")}
+	rule := &structureEmbodimentDetailRule{BaseRule: rulekit.NewBaseRule("ed", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -134,7 +138,7 @@ func TestStructureEmbodimentDetailRule(t *testing.T) {
 // =============================================================================
 
 func TestClarityForbiddenWordsRule(t *testing.T) {
-	rule := &clarityForbiddenWordsRule{baseRule: newBaseRule("fw", "", "")}
+	rule := &clarityForbiddenWordsRule{BaseRule: rulekit.NewBaseRule("fw", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -154,7 +158,7 @@ func TestClarityForbiddenWordsRule(t *testing.T) {
 }
 
 func TestClarityPFEConsistencyRule(t *testing.T) {
-	rule := &clarityPFEConsistencyRule{baseRule: newBaseRule("pfec", "", "")}
+	rule := &clarityPFEConsistencyRule{BaseRule: rulekit.NewBaseRule("pfec", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -185,7 +189,7 @@ func TestClarityPFEConsistencyRule(t *testing.T) {
 // =============================================================================
 
 func TestDomainMechanicalRule(t *testing.T) {
-	rule := &domainMechanicalRule{baseRule: newBaseRule("dm", "", "")}
+	rule := &domainMechanicalRule{BaseRule: rulekit.NewBaseRule("dm", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -209,7 +213,7 @@ func TestDomainMechanicalRule(t *testing.T) {
 }
 
 func TestDomainChemicalRule(t *testing.T) {
-	rule := &domainChemicalRule{baseRule: newBaseRule("dc", "", "")}
+	rule := &domainChemicalRule{BaseRule: rulekit.NewBaseRule("dc", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -233,7 +237,7 @@ func TestDomainChemicalRule(t *testing.T) {
 }
 
 func TestDomainSoftwareRule(t *testing.T) {
-	rule := &domainSoftwareRule{baseRule: newBaseRule("ds", "", "")}
+	rule := &domainSoftwareRule{BaseRule: rulekit.NewBaseRule("ds", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -261,7 +265,7 @@ func TestDomainSoftwareRule(t *testing.T) {
 // =============================================================================
 
 func TestUtilityDrawingsRequiredRule(t *testing.T) {
-	rule := &utilityDrawingsRequiredRule{baseRule: newBaseRule("udr", "", "")}
+	rule := &utilityDrawingsRequiredRule{BaseRule: rulekit.NewBaseRule("udr", "", "")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -284,7 +288,7 @@ func TestUtilityDrawingsRequiredRule(t *testing.T) {
 }
 
 func TestUtilityProductOnlyRule(t *testing.T) {
-	rule := &utilityProductOnlyRule{baseRule: newBaseRule("upo", "", "")}
+	rule := &utilityProductOnlyRule{BaseRule: rulekit.NewBaseRule("upo", "", "")}
 	tests := []struct {
 		name    string
 		input   SpecInput
@@ -305,7 +309,7 @@ func TestUtilityProductOnlyRule(t *testing.T) {
 }
 
 func TestUtilitySingleIndependentRule(t *testing.T) {
-	rule := &utilitySingleIndependentRule{baseRule: newBaseRule("usi", "", "")}
+	rule := &utilitySingleIndependentRule{BaseRule: rulekit.NewBaseRule("usi", "", "")}
 	tests := []struct {
 		name    string
 		input   SpecInput
@@ -385,7 +389,7 @@ func TestSpecScorer_Score(t *testing.T) {
 // =============================================================================
 
 func TestEnablementMeansExistRule_OnlyGoalNoMeans(t *testing.T) {
-	rule := &enablementMeansExistRule{baseRule: newBaseRule("em", "", "专利法第26条第3款")}
+	rule := &enablementMeansExistRule{BaseRule: rulekit.NewBaseRule("em", "", "专利法第26条第3款")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput
@@ -428,7 +432,7 @@ func TestEnablementMeansExistRule_OnlyGoalNoMeans(t *testing.T) {
 }
 
 func TestEnablementExperimentEvidenceRule(t *testing.T) {
-	rule := &enablementExperimentEvidenceRule{baseRule: newBaseRule("eee", "", "专利法第26条第3款")}
+	rule := &enablementExperimentEvidenceRule{BaseRule: rulekit.NewBaseRule("eee", "", "专利法第26条第3款")}
 	tests := []struct {
 		name    string
 		spec    *SpecOutput

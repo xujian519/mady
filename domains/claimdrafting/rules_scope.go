@@ -1,6 +1,7 @@
 package claimdrafting
 
 import (
+	"github.com/xujian519/mady/domains/rulekit"
 	"regexp"
 	"strconv"
 	"strings"
@@ -109,7 +110,7 @@ var numericSpecificPattern = regexp.MustCompile(`\d+\.?\d*\s*(mm|cm|m|μm|nm|℃
 
 // scopePyramidRule 提醒申请人采用"从宽到窄"的金字塔型从属权利要求布局策略。
 // 依据：审查指南——独立权利要求限定最宽范围，从属权利要求逐层递进限定。
-type scopePyramidRule struct{ baseRule }
+type scopePyramidRule struct{ rulekit.BaseRule }
 
 func (r *scopePyramidRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -165,7 +166,7 @@ func (r *scopePyramidRule) Check(claims []Claim, _ DraftInput) []Violation {
 	return violations
 }
 
-type scopeOverSpecificationRule struct{ baseRule }
+type scopeOverSpecificationRule struct{ rulekit.BaseRule }
 
 func (r *scopeOverSpecificationRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -201,7 +202,7 @@ func (r *scopeOverSpecificationRule) Check(claims []Claim, _ DraftInput) []Viola
 	return violations
 }
 
-type scopeEquivalentsCoverageRule struct{ baseRule }
+type scopeEquivalentsCoverageRule struct{ rulekit.BaseRule }
 
 func (r *scopeEquivalentsCoverageRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation

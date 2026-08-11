@@ -1,6 +1,7 @@
 package claimdrafting
 
 import (
+	"github.com/xujian519/mady/domains/rulekit"
 	"strconv"
 	"strings"
 )
@@ -12,7 +13,7 @@ import (
 // necessityCompletenessRule 检查独立权利要求是否包含解决技术问题的全部必要技术特征。
 // 依据：细则第21条第2款——独立权利要求应当记载解决技术问题的必要技术特征。
 // 检查逻辑：确认每个 PFE triple 中的关联特征是否在独立权利要求中体现。
-type necessityCompletenessRule struct{ baseRule }
+type necessityCompletenessRule struct{ rulekit.BaseRule }
 
 func (r *necessityCompletenessRule) Check(claims []Claim, input DraftInput) []Violation {
 	var violations []Violation
@@ -63,7 +64,7 @@ func (r *necessityCompletenessRule) Check(claims []Claim, input DraftInput) []Vi
 
 // necessityNonEssentialRule 检查独立权利要求是否包含非必要技术特征。
 // 依据：专利法第26条第4款（结合审查指南§3.1.2）。
-type necessityNonEssentialRule struct{ baseRule }
+type necessityNonEssentialRule struct{ rulekit.BaseRule }
 
 func (r *necessityNonEssentialRule) Check(claims []Claim, input DraftInput) []Violation {
 	var violations []Violation
@@ -107,7 +108,7 @@ func (r *necessityNonEssentialRule) Check(claims []Claim, input DraftInput) []Vi
 // 单一性检查规则（专利法第31条）
 // =============================================================================
 
-type unityInventionRule struct{ baseRule }
+type unityInventionRule struct{ rulekit.BaseRule }
 
 // Check 使用单一性评分引擎（domains/claimdrafting/unity.go）判定多个独立权利要求
 // 之间是否包含相同或相应的特定技术特征。任一权利要求对的特征相似度低于 0.6

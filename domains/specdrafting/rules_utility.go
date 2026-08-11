@@ -1,12 +1,15 @@
 package specdrafting
 
-import "strings"
+import (
+	"github.com/xujian519/mady/domains/rulekit"
+	"strings"
+)
 
 // =============================================================================
 // 实用新型特有规则（3 条）
 // =============================================================================
 
-type utilityDrawingsRequiredRule struct{ baseRule }
+type utilityDrawingsRequiredRule struct{ rulekit.BaseRule }
 
 func (r *utilityDrawingsRequiredRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	if input.PatentType != PatentTypeUtilityModel {
@@ -32,7 +35,7 @@ func (r *utilityDrawingsRequiredRule) Check(spec *SpecOutput, input SpecInput) [
 	return nil
 }
 
-type utilityProductOnlyRule struct{ baseRule }
+type utilityProductOnlyRule struct{ rulekit.BaseRule }
 
 func (r *utilityProductOnlyRule) Check(_ *SpecOutput, input SpecInput) []Violation {
 	if input.PatentType != PatentTypeUtilityModel {
@@ -63,7 +66,7 @@ func (r *utilityProductOnlyRule) Check(_ *SpecOutput, input SpecInput) []Violati
 	return nil
 }
 
-type utilitySingleIndependentRule struct{ baseRule }
+type utilitySingleIndependentRule struct{ rulekit.BaseRule }
 
 func (r *utilitySingleIndependentRule) Check(_ *SpecOutput, input SpecInput) []Violation {
 	if input.PatentType != PatentTypeUtilityModel {

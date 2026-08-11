@@ -1,12 +1,15 @@
 package specdrafting
 
-import "strings"
+import (
+	"github.com/xujian519/mady/domains/rulekit"
+	"strings"
+)
 
 // =============================================================================
 // 结构完整性规则（5 条）
 // =============================================================================
 
-type structureSectionsRule struct{ baseRule }
+type structureSectionsRule struct{ rulekit.BaseRule }
 
 func (r *structureSectionsRule) Check(spec *SpecOutput, _ SpecInput) []Violation {
 	if spec == nil || len(spec.Sections) == 0 {
@@ -35,7 +38,7 @@ func (r *structureSectionsRule) Check(spec *SpecOutput, _ SpecInput) []Violation
 	}}
 }
 
-type structureTitleLengthRule struct{ baseRule }
+type structureTitleLengthRule struct{ rulekit.BaseRule }
 
 func (r *structureTitleLengthRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	title := spec.Title
@@ -56,7 +59,7 @@ func (r *structureTitleLengthRule) Check(spec *SpecOutput, input SpecInput) []Vi
 	return nil
 }
 
-type structureAbstractLengthRule struct{ baseRule }
+type structureAbstractLengthRule struct{ rulekit.BaseRule }
 
 func (r *structureAbstractLengthRule) Check(spec *SpecOutput, _ SpecInput) []Violation {
 	if spec.Abstract == "" {
@@ -73,7 +76,7 @@ func (r *structureAbstractLengthRule) Check(spec *SpecOutput, _ SpecInput) []Vio
 	return nil
 }
 
-type structureContentTriadRule struct{ baseRule }
+type structureContentTriadRule struct{ rulekit.BaseRule }
 
 func (r *structureContentTriadRule) Check(spec *SpecOutput, _ SpecInput) []Violation {
 	content := findSection(spec, SecContent)
@@ -101,7 +104,7 @@ func (r *structureContentTriadRule) Check(spec *SpecOutput, _ SpecInput) []Viola
 	}}
 }
 
-type structureEmbodimentDetailRule struct{ baseRule }
+type structureEmbodimentDetailRule struct{ rulekit.BaseRule }
 
 func (r *structureEmbodimentDetailRule) Check(spec *SpecOutput, _ SpecInput) []Violation {
 	if spec == nil {

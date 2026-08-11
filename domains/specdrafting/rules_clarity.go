@@ -1,12 +1,15 @@
 package specdrafting
 
-import "strings"
+import (
+	"github.com/xujian519/mady/domains/rulekit"
+	"strings"
+)
 
 // =============================================================================
 // 清楚性规则（4 条）
 // =============================================================================
 
-type clarityTerminologyRule struct{ baseRule }
+type clarityTerminologyRule struct{ rulekit.BaseRule }
 
 func (r *clarityTerminologyRule) Check(spec *SpecOutput, _ SpecInput) []Violation {
 	if spec == nil {
@@ -19,7 +22,7 @@ func (r *clarityTerminologyRule) Check(spec *SpecOutput, _ SpecInput) []Violatio
 	if allText == "" {
 		return nil
 	}
-	if word, found := containsAny(allText, uncertainWords); found {
+	if word, found := rulekit.ContainsAny(allText, uncertainWords); found {
 		return []Violation{{
 			RuleName: r.Name(), RuleBasis: r.LegalBasis(),
 			Severity:   SeverityWarning,
@@ -30,7 +33,7 @@ func (r *clarityTerminologyRule) Check(spec *SpecOutput, _ SpecInput) []Violatio
 	return nil
 }
 
-type clarityForbiddenWordsRule struct{ baseRule }
+type clarityForbiddenWordsRule struct{ rulekit.BaseRule }
 
 func (r *clarityForbiddenWordsRule) Check(spec *SpecOutput, _ SpecInput) []Violation {
 	if spec == nil {
@@ -40,7 +43,7 @@ func (r *clarityForbiddenWordsRule) Check(spec *SpecOutput, _ SpecInput) []Viola
 	for _, sec := range spec.Sections {
 		allText += " " + sec.Content
 	}
-	if word, found := containsAny(allText, forbiddenWords); found {
+	if word, found := rulekit.ContainsAny(allText, forbiddenWords); found {
 		return []Violation{{
 			RuleName: r.Name(), RuleBasis: r.LegalBasis(),
 			Severity:   SeverityWarning,
@@ -51,7 +54,7 @@ func (r *clarityForbiddenWordsRule) Check(spec *SpecOutput, _ SpecInput) []Viola
 	return nil
 }
 
-type clarityPFEConsistencyRule struct{ baseRule }
+type clarityPFEConsistencyRule struct{ rulekit.BaseRule }
 
 func (r *clarityPFEConsistencyRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	if spec == nil || (len(input.PFETriples) == 0 && len(input.Problems) == 0 && len(input.Effects) == 0) {
@@ -95,7 +98,7 @@ func (r *clarityPFEConsistencyRule) Check(spec *SpecOutput, input SpecInput) []V
 	return issues
 }
 
-type clarityTermConsistencyRule struct{ baseRule }
+type clarityTermConsistencyRule struct{ rulekit.BaseRule }
 
 func (r *clarityTermConsistencyRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	if spec == nil || len(spec.Sections) < 2 {
@@ -211,7 +214,7 @@ func truncStr(s string, maxLen int) string {
 // 清楚性规则：有益效果具体性（S3）
 // =============================================================================
 
-type clarityEffectsSpecificRule struct{ baseRule }
+type clarityEffectsSpecificRule struct{ rulekit.BaseRule }
 
 func (r *clarityEffectsSpecificRule) Check(spec *SpecOutput, _ SpecInput) []Violation {
 	if spec == nil {
@@ -283,7 +286,7 @@ func extractEffectPart(content string) string {
 // 清楚性规则：背景技术引证检查（S4）
 // =============================================================================
 
-type clarityCitationRule struct{ baseRule }
+type clarityCitationRule struct{ rulekit.BaseRule }
 
 func (r *clarityCitationRule) Check(spec *SpecOutput, _ SpecInput) []Violation {
 	if spec == nil {

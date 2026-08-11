@@ -3,8 +3,8 @@ package specdrafting
 import (
 	"time"
 
-	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/iface"
+	"github.com/xujian519/mady/domains/rulekit"
 )
 
 // =============================================================================
@@ -55,14 +55,14 @@ var requiredSections = []SpecSectionName{
 	SecEmbodiment,
 }
 
-// Severity 表示违规的严重程度（复用 claimdrafting 的类型，避免重复定义）。
-type Severity = claimdrafting.Severity
+// Severity 表示违规的严重程度（复用 rulekit 的类型，避免重复定义）。
+type Severity = rulekit.Severity
 
 // Severity level constants.
 const (
-	SeverityError   = claimdrafting.SeverityError   // 严重违法
-	SeverityWarning = claimdrafting.SeverityWarning // 潜在风险
-	SeverityInfo    = claimdrafting.SeverityInfo    // 建议改进
+	SeverityError   = rulekit.SeverityError   // 严重违法
+	SeverityWarning = rulekit.SeverityWarning // 潜在风险
+	SeverityInfo    = rulekit.SeverityInfo    // 建议改进
 )
 
 // =============================================================================
@@ -141,15 +141,8 @@ type SpecMetadata struct {
 // 验证与评分
 // =============================================================================
 
-// Violation 记录一条规则违规信息。
-type Violation struct {
-	RuleName    string   `json:"rule_name"`
-	RuleBasis   string   `json:"rule_basis,omitempty"`
-	Severity    Severity `json:"severity"`
-	SectionName string   `json:"section_name,omitempty"`
-	Message     string   `json:"message"`
-	Suggestion  string   `json:"suggestion"`
-}
+// Violation 记录一条规则违规信息（复用 rulekit 的类型）。
+type Violation = rulekit.Violation
 
 // ScoreReport 是质量评估的完整报告。
 type ScoreReport struct {

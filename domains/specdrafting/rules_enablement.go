@@ -1,6 +1,9 @@
 package specdrafting
 
-import "strings"
+import (
+	"github.com/xujian519/mady/domains/rulekit"
+	"strings"
+)
 
 // =============================================================================
 // 充分公开规则：五种"不能实现"情形检查
@@ -26,7 +29,7 @@ import "strings"
 //
 // 检测策略：如果发明内容包含问题描述和效果描述，但缺乏具体技术手段
 // 关键词（如包含/包括/由…组成/步骤/特征在于等），则判为违规。
-type enablementMeansExistRule struct{ baseRule }
+type enablementMeansExistRule struct{ rulekit.BaseRule }
 
 func (r *enablementMeansExistRule) Check(spec *SpecOutput, _ SpecInput) []Violation {
 	if spec == nil {
@@ -88,7 +91,7 @@ func (r *enablementMeansExistRule) Check(spec *SpecOutput, _ SpecInput) []Violat
 //
 // 对应审查指南情形5——有技术方案但未给出实验证据，而方案必须依赖实验结果证实。
 // 主要针对化学/材料领域，但也适用于其他需要效果验证的领域。
-type enablementExperimentEvidenceRule struct{ baseRule }
+type enablementExperimentEvidenceRule struct{ rulekit.BaseRule }
 
 func (r *enablementExperimentEvidenceRule) Check(spec *SpecOutput, input SpecInput) []Violation {
 	if spec == nil {

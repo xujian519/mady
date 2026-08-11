@@ -1,6 +1,7 @@
 package claimdrafting
 
 import (
+	"github.com/xujian519/mady/domains/rulekit"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,7 +14,7 @@ import (
 // supportEmbodimentRule 检查权利要求的概括是否得到说明书实施例支持。
 // 依据：专利法第26条第4款——权利要求书应当以说明书为依据。
 // 检查逻辑：如果 Description 为空但 Claims 使用了上位概括，给出警告。
-type supportEmbodimentRule struct{ baseRule }
+type supportEmbodimentRule struct{ rulekit.BaseRule }
 
 func (r *supportEmbodimentRule) Check(claims []Claim, input DraftInput) []Violation {
 	var violations []Violation
@@ -46,7 +47,7 @@ func (r *supportEmbodimentRule) Check(claims []Claim, input DraftInput) []Violat
 // supportFunctionalRule 检查功能性限定的使用是否恰当。
 // 依据：审查指南第二部分第二章§3.2.1——功能性限定以说明书中有具体实施方式为前提。
 // 增强版：同时检查特征类别多样性（结构+连接+功能各至少1类）。
-type supportFunctionalRule struct{ baseRule }
+type supportFunctionalRule struct{ rulekit.BaseRule }
 
 func (r *supportFunctionalRule) Check(claims []Claim, input DraftInput) []Violation {
 	var violations []Violation
@@ -94,7 +95,7 @@ func (r *supportFunctionalRule) Check(claims []Claim, input DraftInput) []Violat
 // supportFunctionalVarietyRule 检查权利要求中功能性限定的占比是否过高。
 // 依据：审查指南第二部分第二章§3.2.1——过度依赖功能性限定可能导致权利要求不清楚。
 // 如果文本中功能性限定（以"用于"为代表）占比过高，且缺乏结构特征，则给出警告。
-type supportFunctionalVarietyRule struct{ baseRule }
+type supportFunctionalVarietyRule struct{ rulekit.BaseRule }
 
 func (r *supportFunctionalVarietyRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -151,7 +152,7 @@ func (r *supportFunctionalVarietyRule) Check(claims []Claim, _ DraftInput) []Vio
 
 // supportPureFunctionalRule 检查是否出现了纯功能性权利要求。
 // 依据：审查指南第二部分第二章§3.2.1——纯功能性权利要求得不到说明书支持。
-type supportPureFunctionalRule struct{ baseRule }
+type supportPureFunctionalRule struct{ rulekit.BaseRule }
 
 func (r *supportPureFunctionalRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -182,7 +183,7 @@ func (r *supportPureFunctionalRule) Check(claims []Claim, _ DraftInput) []Violat
 // supportMarkushUnityRule 检查马库什权利要求是否满足单一性要求。
 // 依据：审查指南第二部分第十章§4.3——马库什权利要求中的可选化合物必须具有
 // 共同结构（构成与现有技术的区别特征）并对共同性能或作用必不可少。
-type supportMarkushUnityRule struct{ baseRule }
+type supportMarkushUnityRule struct{ rulekit.BaseRule }
 
 func (r *supportMarkushUnityRule) Check(claims []Claim, _ DraftInput) []Violation {
 	var violations []Violation
@@ -265,7 +266,7 @@ var rangeDigitRe = regexp.MustCompile(`\d+(?:\.\d+)?`)
 // supportRangeEndpointRule 检查数值范围限定的独立权利要求是否得到说明书端点附近
 // 实施例的支持。依据：专利法第26条第4款——权利要求以说明书为依据；数值范围权
 // 利要求的概括需得到端点附近实施例的支持（审查指南第二部分第二章§2.2.6）。
-type supportRangeEndpointRule struct{ baseRule }
+type supportRangeEndpointRule struct{ rulekit.BaseRule }
 
 func (r *supportRangeEndpointRule) Check(claims []Claim, input DraftInput) []Violation {
 	var violations []Violation

@@ -854,7 +854,7 @@ func DenyDangerousToolsExtension() agentcore.Extension {
 // 如果嵌入数据为空或解析失败，返回空索引（不阻断启动流程）。
 func newEvidenceRuleIndex() *domainEvidence.RuleIndex {
 	idx := domainEvidence.NewRuleIndex()
-	data := rules.EvidenceRulesYAML()
+	data := domainEvidence.EvidenceRulesYAML()
 	if len(data) == 0 {
 		slog.Warn("证据规则 YAML 为空，使用空索引")
 		return idx

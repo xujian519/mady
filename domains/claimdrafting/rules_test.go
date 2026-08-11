@@ -2,6 +2,8 @@ package claimdrafting
 
 import (
 	"testing"
+
+	"github.com/xujian519/mady/domains/rulekit"
 )
 
 // =============================================================================
@@ -79,7 +81,7 @@ func TestClarityReferenceRule_ForwardRef(t *testing.T) {
 }
 
 func TestClarityReferenceChainRule_CycleDetection(t *testing.T) {
-	rule := &clarityReferenceChainRule{baseRule: newBaseRule("clarity-reference-chain", "desc", "law")}
+	rule := &clarityReferenceChainRule{BaseRule: rulekit.NewBaseRule("clarity-reference-chain", "desc", "law")}
 	claims := []Claim{
 		{Number: 1, ClaimType: ClaimTypeProduct, Kind: "independent", Preamble: "一种装置"},
 		{Number: 2, Kind: "dependent", DependsOn: []int{3}, ClaimType: ClaimTypeProduct, Limitation: "A"},
