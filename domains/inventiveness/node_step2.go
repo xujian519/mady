@@ -149,5 +149,9 @@ func parseStep2(output string) Step2Result {
 	r.NonContributingFeatures = parsed.NonContributingFeatures
 	r.TechEffects = parsed.TechEffects
 	r.ActualTechProblem = parsed.ActualTechProblem
+	// 对结构化输出的"实际解决的技术问题"执行原子化四检验（不绑方案/单一因果/可测效果）。
+	if r.ActualTechProblem != "" {
+		r.ProblemChecks = CheckAtomicProblem(r.ActualTechProblem)
+	}
 	return r
 }

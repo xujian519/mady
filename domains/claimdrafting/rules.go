@@ -182,6 +182,9 @@ func RegisterDefaultRules(engine *RuleEngine) {
 		&supportFunctionalVarietyRule{baseRule: newBaseRule("support-functional-variety",
 			"功能性限定占比应适当，避免过度依赖功能描述导致权利要求不清楚",
 			"审查指南第二部分第二章§3.2.1")},
+		&supportRangeEndpointRule{baseRule: newBaseRule("support-range-endpoint",
+			"数值范围限定的独立权利要求应得到说明书端点附近实施例的支持",
+			"专利法第26条第4款；审查指南第二部分第二章§2.2.6")},
 	)
 
 	// 必要技术特征与单一性规则

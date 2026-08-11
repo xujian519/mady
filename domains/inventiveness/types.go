@@ -88,10 +88,11 @@ type Step1Result struct {
 
 // Step2Result 三步法第 2 步：确定区别特征和实际解决的技术问题。
 type Step2Result struct {
-	DistinguishingFeatures  []string `json:"distinguishing_features"`   // 区别技术特征列表
-	NonContributingFeatures []string `json:"non_contributing_features"` // 无贡献特征（2023审查指南新增）
-	TechEffects             []string `json:"tech_effects"`              // 区别特征对应的技术效果
-	ActualTechProblem       string   `json:"actual_tech_problem"`       // 重新确定的实际技术问题
+	DistinguishingFeatures  []string          `json:"distinguishing_features"`   // 区别技术特征列表
+	NonContributingFeatures []string          `json:"non_contributing_features"` // 无贡献特征（2023审查指南新增）
+	TechEffects             []string          `json:"tech_effects"`              // 区别特征对应的技术效果
+	ActualTechProblem       string            `json:"actual_tech_problem"`       // 重新确定的实际技术问题
+	ProblemChecks           AtomicCheckResult `json:"problem_checks,omitempty"`  // 技术问题四检验结果（不绑方案/单一因果/可测效果）
 }
 
 // Step3Result 三步法第 3 步：判断现有技术整体上是否存在技术启示。

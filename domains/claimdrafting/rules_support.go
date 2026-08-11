@@ -1,6 +1,10 @@
 package claimdrafting
 
-import "strings"
+import (
+	"regexp"
+	"strconv"
+	"strings"
+)
 
 // =============================================================================
 // 支持性规则：以说明书为依据（概括不得超范围）
@@ -111,7 +115,7 @@ func (r *supportFunctionalVarietyRule) Check(claims []Claim, _ DraftInput) []Vio
 		}
 
 		// 统计结构性关键词出现次数
-		strucKeywords := []string{"包括", "包含", "由…组成", "连接", "设置", "安装", "固定", "所述"}
+		strucKeywords := []string{"包括", "包含", "组成", "连接", "设置", "安装", "固定", "所述"}
 		strucCount := 0
 		for _, kw := range strucKeywords {
 			strucCount += strings.Count(text, kw)
@@ -239,4 +243,113 @@ func hasStructuralFeature(text string) bool {
 		}
 	}
 	return false
+}
+
+// =============================================================================
+// 支持性规则：数值范围需端点附近实施例支持
+// =============================================================================
+
+// rangePatterns 数值范围/界限表述模式（CLA-001 第3条：数值范围需要端点附近实施例）。
+var rangePatterns = []*regexp.Regexp{
+	// "10%-30%" / "5~8mm" / "60℃-80℃" 等区间
+	regexp.MustCompile(`\d+(?:\.\d+)?\s*(?:[-~～—])\s*\d+(?:\.\d+)?\s*(?:%|％|℃|°C|°|度|mm|cm|m|kg|h|小时|天|次|倍|ppm|MPa|kPa|V|A|W|kHz|MHz|GHz)`),
+	// "大于5mm" / "不超过80%" / "至少3层" 等界限
+	regexp.MustCompile(`(?:大于|小于|不低于|不高于|不超过|至少|至多|多于|少于)\s*\d+(?:\.\d+)?`),
+	// "从10mm至50mm" / "为0.1到0.5" 等范围句式
+	regexp.MustCompile(`(?:从|介于|在)\s*\d+(?:\.\d+)?[^。；]{0,8}(?:至|到|之间)\s*\d+(?:\.\d+)?`),
+}
+
+// rangeDigitRe 提取数值范围片段中的全部数值。
+var rangeDigitRe = regexp.MustCompile(`\d+(?:\.\d+)?`)
+
+// supportRangeEndpointRule 检查数值范围限定的独立权利要求是否得到说明书端点附近
+// 实施例的支持。依据：专利法第26条第4款——权利要求以说明书为依据；数值范围权
+// 利要求的概括需得到端点附近实施例的支持（审查指南第二部分第二章§2.2.6）。
+type supportRangeEndpointRule struct{ baseRule }
+
+func (r *supportRangeEndpointRule) Check(claims []Claim, input DraftInput) []Violation {
+	var violations []Violation
+	for _, c := range claims {
+		if c.Kind != "independent" {
+			continue
+		}
+		text := c.Preamble + " " + c.Characterized
+		if !hasNumericRange(text) {
+			continue
+		}
+		endpoints := rangeEndpoints(text)
+		if len(endpoints) == 0 {
+			continue
+		}
+		// 说明书（摘要/实施方式）中出现任意端点数值，即视为存在端点支撑的弱证据。
+		desc := input.Description
+		covered := 0
+		for _, e := range endpoints {
+			if endpointMentioned(desc, e) {
+				covered++
+			}
+		}
+		if covered == 0 {
+			violations = append(violations, Violation{
+				RuleName:    r.Name(),
+				RuleBasis:   r.LegalBasis(),
+				Severity:    SeverityWarning,
+				ClaimNumber: c.Number,
+				Message:     "独立权利要求使用了数值范围（如 " + strings.Join(endpoints[:minInt(2, len(endpoints))], "-") + "），但说明书未记载端点附近的具体实施例，该概括可能得不到说明书支持",
+				Suggestion:  "在说明书中补充数值范围端点附近（上限/下限）的具体实施例，以确保权利要求以说明书为依据",
+			})
+		} else if covered < len(endpoints) {
+			violations = append(violations, Violation{
+				RuleName:    r.Name(),
+				RuleBasis:   r.LegalBasis(),
+				Severity:    SeverityInfo,
+				ClaimNumber: c.Number,
+				Message:     "数值范围部分端点（" + strings.Join(endpoints, "-") + "）在说明书中缺少对应实施例（已覆盖：" + strconv.Itoa(covered) + "/" + strconv.Itoa(len(endpoints)) + "）",
+				Suggestion:  "补充数值范围未覆盖端点的实施例，完善说明书的支持性",
+			})
+		}
+	}
+	return violations
+}
+
+// hasNumericRange 判断文本是否包含数值范围/界限表述。
+func hasNumericRange(text string) bool {
+	for _, re := range rangePatterns {
+		if re.MatchString(text) {
+			return true
+		}
+	}
+	return false
+}
+
+// rangeEndpoints 提取数值范围片段中出现的全部端点数值（字符串形式）。
+func rangeEndpoints(text string) []string {
+	var endpoints []string
+	seen := make(map[string]bool)
+	for _, re := range rangePatterns {
+		for _, m := range re.FindAllString(text, -1) {
+			for _, n := range rangeDigitRe.FindAllString(m, -1) {
+				if !seen[n] {
+					seen[n] = true
+					endpoints = append(endpoints, n)
+				}
+			}
+		}
+	}
+	return endpoints
+}
+
+// endpointMentioned 判定说明书是否出现指定端点数值（弱证据：出现即算覆盖）。
+// 匹配带词边界（两侧不得为数字或小数点），避免端点 "10" 被 "100mm" 等更长数值串、
+// 或 "0.5" 中的 "5" 被误当作端点 "5"。
+func endpointMentioned(desc, endpoint string) bool {
+	re := regexp.MustCompile(`(^|[^0-9.])` + regexp.QuoteMeta(endpoint) + `($|[^0-9.])`)
+	return re.MatchString(desc)
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

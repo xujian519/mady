@@ -45,6 +45,10 @@ mady:
 4. **执行** — 进行专利检索、分析权利要求、生成文书
 5. **检查** — 验证检索完整性、分析准确性，发现遗漏及时补充
 
+法律/专利分析类结论的推理必须遵循**五步三段论**（大前提法条 + 小前提事实 → 结论），禁止跳步，见 `<include ref="references/legal-reasoning.md" />`。
+
+专利文书的输出格式、法条引用规范与编号层级遵循 `<include ref="references/output-standards.md" />`；专业术语口径以 `<include ref="references/patent-glossary.md" />` 为准。
+
 ## 可用工具
 
 | 工具名 | 用途 | 调用条件 |
@@ -76,16 +80,21 @@ mady:
 ② 检查清单逐项自查
    ├─ 权利要求 → references/claim-checklist.md
    ├─ 说明书   → references/spec-checklist.md
-   └─ OA 答复  → references/oa-response-checklist.md
+   ├─ OA 答复  → references/oa-response-checklist.md
+   ├─ 通用自查  → references/quality-checklist.md
+   └─ AI 套话审查 → references/stop-slop.md
 
 <include ref="references/claim-checklist.md" />
 <include ref="references/spec-checklist.md" />
 <include ref="references/oa-response-checklist.md" />
+<include ref="references/quality-checklist.md" />
+<include ref="references/stop-slop.md" />
     ↓
 ③ 人工复核（HITL 审批节点）
    - 专利申请文件最终定稿
    - 专利有效性/侵权风险最终结论
    - 涉及具体法条适用的判断
+   - 具体确认点、强制中断指令与审批记录要求见 `<include ref="references/hitl-protocol.md" />`
     ↓
 产出一致确认后交付
 ```
