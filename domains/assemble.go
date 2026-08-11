@@ -45,12 +45,12 @@ func appendDraftingExtensions(cfg *agentcore.Config) {
 
 // appendGatewayLifecycle 追加 DoomLoop 死循环检测 + Gateway 统一决策入口段落：
 // 注册默认 DoomLoop hook，构建 Gateway，将 gateway.Fallback 挂到
-// cfg.FallbackRouter 并注册到 Lifecycle，返回 Gateway 实例。
+// cfg.FallbackRouter 并注册到 Lifecycle。
 //
 // Patent/Legal/Unified/Project 四处装配块重复；modify 供 UnifiedAgentConfig
 // 挂接 gatewayModifier（nil 时跳过）。接入契约：注册 Gateway 后不得再单独
 // 注册 ReasoningRouter / ReasoningStrategyRouter / FallbackRouter。
-func appendGatewayLifecycle(cfg *agentcore.Config, modify func(*agentcore.Gateway)) *agentcore.Gateway {
+func appendGatewayLifecycle(cfg *agentcore.Config, modify func(*agentcore.Gateway)) {
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
 	gateway := newDefaultGateway(*cfg)
 	if modify != nil {
@@ -58,7 +58,6 @@ func appendGatewayLifecycle(cfg *agentcore.Config, modify func(*agentcore.Gatewa
 	}
 	cfg.FallbackRouter = gateway.Fallback
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, gateway)
-	return gateway
 }
 
 // appendStandardCitationGate 追加法条引用核验 Gate（LevelStandard）：
