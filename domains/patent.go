@@ -9,7 +9,6 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/agentcore/worker"
-	"github.com/xujian519/mady/domains/checker"
 	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
@@ -294,7 +293,6 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		"5. 检查 — 验证检索完整性、分析准确性",
 		"",
 		provisions.BuildProvisionListForSystemPrompt(manifest),
-		provisions.BuildProvisionListForSystemPrompt(manifest),
 		"",
 		"## 专利编排器",
 		"对需要完整流程编排的专利分析任务（从条款分析到质量复核），可使用 transfer_to_patent-orchestrator 委派给专利编排器。",
@@ -351,96 +349,22 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		psychological.NewExtension(PatentPsychConfig()),
 	)
 
-	injectDraftingTool(&cfg)
-	injectDocTemplateTools(&cfg)
-	injectPromptTools(&cfg)
-	injectWritingTools(&cfg)
-	injectRulesTools(&cfg)
-
-	// 知识库扩展：为专利 Agent 提供 search_knowledge / search_laws 工具，
-	// 使其能检索本地知识库中的法律法规、司法解释和案例。
-	// 之前仅在会话级 extendConfig 注入到顶层 Chat Agent，Handoff 子 Agent 无法获得。
-	if globalKnowledgeExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
-	}
-
-	// 证据判断扩展：使专利 Agent 拥有证据三性审查、举证责任查询、证明标准评估等工具。
-	if globalEvidenceExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
-	}
-
-	// 权利要求书撰写扩展（claimdrafting）：五步法 builder + 六类规则校验 + 可选 LLM 增强。
-	if globalClaimDraftingExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalClaimDraftingExt)
-	}
-
-	// Checker 复核扩展：提供 suggest_checkers / run_checker_review 工具。
-	cfg.Extensions = append(cfg.Extensions, checker.NewExtension(nil))
-
-	// 说明书撰写扩展（specdrafting）：12 节点 Pregel 图引擎 + 16 条校验规则 + 评分器，
-	// 替代旧的 workflows/patent.NewSpecificationTool（简单 workflow 版）。
-	if globalSpecDraftingExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalSpecDraftingExt)
-	}
-
-	// Orchestration 扩展：使 PatentAgent 拥有 run_orchestration 工具。
-	// 此扩展在 Init 阶段捕获 Agent 引用并注册工具（见 orchestration_extension.go），
-	// 确保 handoff 子 Agent 也能调用 run_orchestration 编排链。
-	cfg.Extensions = append(cfg.Extensions, &OrchestrationExtension{})
+	injectDomainSharedExtensions(&cfg)
+	appendDraftingExtensions(&cfg)
 
 	// Chunked context engine for long patent documents.
 	cfg.Engine = "chunked"
 
-	// DoomLoop: 死循环检测器，监控工具调用循环、重复文本、空结果等异常。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
-
-	// ReasoningStrategy: 专利分析通常需要结构化分析或验证式推理，
-	// 因此注入策略提示，根据问题复杂度自动选择合适推理方式。
-	// Gateway 统一决策入口：一次分类驱动 effort/策略/模型回退/预算钳制。
-	patentGateway := newDefaultGateway(cfg)
-	cfg.FallbackRouter = patentGateway.Fallback
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, patentGateway)
+	// DoomLoop + Gateway 统一决策入口（见 assemble.go appendGatewayLifecycle）。
+	appendGatewayLifecycle(&cfg, nil)
 
 	// 法条引用核验 Gate（P2b Strict）：命中疑点追加存疑提示 +
 	// citation_verify 留痕 + SuppressPersist（未人工复核不入库）。
 	// 知识源与留痕 store 由装配侧注入（citation_wiring.go）。
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, newCitationGate(DomainPatent, ""))
 
-	// Guardrail: LevelStrict with patent disclaimer + approval gate.
-	// Create a shared DeferredPersistQueue so suppressed messages are
-	// not silently dropped — they are either committed (on approval) or
-	// discarded (on rejection) when the human responds.
-	patentDQ := guardrails.NewDeferredPersistQueue()
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewIFaceLifecycleHook(guardrails.New(
-			guardrails.WithLevel(guardrails.LevelStrict),
-			guardrails.WithDisclaimer(guardrails.DisclaimerPatent),
-			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("patent")),
-			guardrails.WithApproval(guardrails.ApprovalKeywordsFor("patent")),
-			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-			guardrails.WithDeferredQueue(patentDQ),
-		)),
-	)
-
-	// Human approval gate for critical decisions.
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		NewApprovalGate(ApprovalConfig{
-			RequireApprovalFor: guardrails.ApprovalKeywordsFor("patent"),
-		},
-			WithDeferredPersist(&DeferredPersistFuncs{
-				CommitFn: func() {
-					for _, idx := range patentDQ.Pending() {
-						patentDQ.Commit(idx)
-					}
-				},
-				DiscardFn: func() {
-					for _, idx := range patentDQ.Pending() {
-						patentDQ.Discard(idx)
-					}
-				},
-			}),
-		),
-	)
+	// Guardrail: LevelStrict with patent disclaimer + approval gate（共享段落）。
+	appendStrictGuardrails(&cfg, DomainPatent, guardrails.DisclaimerPatent, true)
 
 	// Worker-driven tool registration (MADY_WORKER_ENABLED=1 gate).
 	// 将 DefaultWorkers 中 Reasoning + Domain + Checker 层的 Worker 注册为 Agent 工具。
@@ -499,76 +423,22 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config, toolExt agentco
 	// 被动注入：调用方已装配好的工具扩展（项目级沙箱配置）。
 	cfg.Extensions = append(cfg.Extensions, toolExt)
 
-	injectDraftingTool(&cfg)
-	injectDocTemplateTools(&cfg)
-	injectPromptTools(&cfg)
-	injectWritingTools(&cfg)
-	injectRulesTools(&cfg)
-
-	// 知识库扩展：使项目级 Agent 具备 search_knowledge / search_laws 工具，
-	// 能检索本地知识库中的法律法规、司法解释和案例。
-	if globalKnowledgeExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
-	}
-
-	// 证据判断扩展：使专利 Agent 拥有证据三性审查、举证责任查询、证明标准评估等工具。
-	if globalEvidenceExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
-	}
-
-	// 权利要求书撰写扩展（claimdrafting）：五步法 builder + 六类规则校验 + 可选 LLM 增强。
-	if globalClaimDraftingExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalClaimDraftingExt)
-	}
-
-	// Checker 复核扩展：提供 suggest_checkers / run_checker_review 工具。
-	cfg.Extensions = append(cfg.Extensions, checker.NewExtension(nil))
-
-	// 说明书撰写扩展（specdrafting）：12 节点 Pregel 图引擎 + 16 条校验规则 + 评分器，
-	// 替代旧的 workflows/patent.NewSpecificationTool（简单 workflow 版）。
-	if globalSpecDraftingExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalSpecDraftingExt)
-	}
-
-	// Orchestration 扩展：使 PatentAgent 拥有 run_orchestration 工具。
-	// 此扩展在 Init 阶段捕获 Agent 引用并注册工具（见 orchestration_extension.go），
-	// 确保 handoff 子 Agent 也能调用 run_orchestration 编排链。
-	cfg.Extensions = append(cfg.Extensions, &OrchestrationExtension{})
+	injectDomainSharedExtensions(&cfg)
+	appendDraftingExtensions(&cfg)
 
 	// Chunked context engine for long patent/legal documents.
 	if base.Engine == "" {
 		cfg.Engine = "chunked"
 	}
 
-	// DoomLoop: 死循环检测器，监控工具调用循环、重复文本、空结果等异常。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
-
-	// ReasoningStrategy: 项目级别 Agent 同样需要结构化推理策略。
-	// Gateway 统一决策入口：一次分类驱动 effort/策略/模型回退/预算钳制。
-	projectGateway := newDefaultGateway(cfg)
-	cfg.FallbackRouter = projectGateway.Fallback
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, projectGateway)
+	// DoomLoop + Gateway 统一决策入口（见 assemble.go appendGatewayLifecycle）。
+	appendGatewayLifecycle(&cfg, nil)
 
 	// 法条引用核验 Gate（P1b）：案件答案同样纳入引用核验。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewIFaceLifecycleHook(guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard))),
-	)
+	appendStandardCitationGate(&cfg)
 
-	// LevelStrict 护栏 + 人工审批门
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewIFaceLifecycleHook(guardrails.New(
-			guardrails.WithLevel(guardrails.LevelStrict),
-			guardrails.WithDisclaimer(guardrails.DisclaimerPatent),
-			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("patent")),
-			guardrails.WithApproval(guardrails.ApprovalKeywordsFor("patent")),
-			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-		)),
-	)
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		NewApprovalGate(ApprovalConfig{
-			RequireApprovalFor: guardrails.ApprovalKeywordsFor("patent"),
-		}),
-	)
+	// LevelStrict 护栏 + 人工审批门（共享段落，无 DeferredPersistQueue）。
+	appendStrictGuardrails(&cfg, DomainPatent, guardrails.DisclaimerPatent, false)
 
 	// 条款智能体 Handoff 注册：使项目 Agent 也拥有条款智能体委派能力。
 	manifest := provisions.LoadManifestOrDefault("")

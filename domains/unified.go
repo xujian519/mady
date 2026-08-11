@@ -66,23 +66,12 @@ func UnifiedAgentConfig(base agentcore.Config, toolExt agentcore.Extension, pate
 		"不确定的专业问题建议用户咨询相关专业人士。",
 	}, "\n")
 
-	// DoomLoop: 死循环检测器。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
-
-	// Gateway (PilotDeck 风格统一决策入口): 一次分类同时驱动
-	//   - 推理 effort/budget（原 ReasoningRouter 职责）
-	//   - 策略 hint 注入到系统消息（原 ReasoningStrategyRouter 职责）
-	//   - 模型回退链选择（FallbackRouter，候选链由调用方按需配置）
-	//   - token 预算评估与 blocking 钳制（TokenBudgetManager）
-	// 替换此前单独注册的 ReasoningStrategyRouter，消除每轮两次 Classify。
+	// DoomLoop + Gateway（PilotDeck 风格统一决策入口）：一次分类同时驱动
+	// 推理 effort/budget、策略 hint、模型回退链与 token 预算钳制
+	// （见 assemble.go appendGatewayLifecycle）。
 	// 接入契约：注册 Gateway 后不得再单独注册 ReasoningRouter /
 	// ReasoningStrategyRouter / FallbackRouter，否则会重复分类与重复健康计数。
-	gateway := newDefaultGateway(cfg)
-	if o.gatewayModifier != nil {
-		o.gatewayModifier(gateway)
-	}
-	cfg.FallbackRouter = gateway.Fallback // 供 callModelWithFallback 使用
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, gateway)
+	appendGatewayLifecycle(&cfg, o.gatewayModifier)
 
 	// Guardrail: LevelLight — 统一使用轻量护栏。
 	// 安全防护未来通过人机协作和 plan 模式替代。
@@ -96,9 +85,7 @@ func UnifiedAgentConfig(base agentcore.Config, toolExt agentcore.Extension, pate
 	// 法条引用核验 Gate（LevelStandard）：R1 存在性 + R2 交叉匹配，
 	// 命中疑点追加存疑提示。统一 Agent 作为用户入口层也需要引用核验，
 	// 防止直接回答法条相关问题时不经过 Handoff 子 Agent。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewIFaceLifecycleHook(guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard))),
-	)
+	appendStandardCitationGate(&cfg)
 
 	// 被动注入：调用方已装配好的工具扩展。
 	// 安全策略由入口层（TUI/serve/ACP）注入的 PermissionExtension 管理。

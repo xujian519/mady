@@ -61,72 +61,17 @@ func LegalAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agentc
 
 	// Reasoning engine injection: same five-step workflow + legal case
 	// comparison tools as PatentAgent, via the shared injectDraftingTool.
-	injectDraftingTool(&cfg)
-	injectDocTemplateTools(&cfg)
-	injectRulesTools(&cfg)
-	injectWritingTools(&cfg)
-	injectPromptTools(&cfg)
+	injectDomainSharedExtensions(&cfg)
 
-	// 知识库扩展：为法律 Agent 提供 search_knowledge / search_laws 工具，
-	// 使其能检索本地知识库中的法律法规、司法解释和案例。
-	// 之前仅在会话级 extendConfig 注入到顶层 Chat Agent，Handoff 子 Agent 无法获得。
-	if globalKnowledgeExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
-	}
-
-	// 证据判断扩展：使法律 Agent 拥有证据三性审查、举证责任查询等工具。
-	if globalEvidenceExt != nil {
-		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
-	}
-
-	// DoomLoop: 死循环检测器。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
-
-	// ReasoningStrategy: 法律分析需要结构化推理（三段论/法律适用），
-	// 根据问题复杂度自动选择推理策略，注入 strategy hint。
-	// Gateway 统一决策入口：一次分类驱动 effort/策略/模型回退/预算钳制。
-	legalGateway := newDefaultGateway(cfg)
-	cfg.FallbackRouter = legalGateway.Fallback
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, legalGateway)
+	// DoomLoop + Gateway 统一决策入口（见 assemble.go appendGatewayLifecycle）。
+	appendGatewayLifecycle(&cfg, nil)
 
 	// 法条引用核验 Gate（P1b）：R1 存在性 + R2 交叉匹配，命中疑点追加存疑提示。
 	// P1b 阶段统一按 Standard 处置；Strict 的 SuppressPersist + ApprovalGate 联动留待 P2。
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewIFaceLifecycleHook(guardrails.NewCitationGate(guardrails.WithCitationGateLevel(guardrails.LevelStandard))),
-	)
+	appendStandardCitationGate(&cfg)
 
-	// Guardrail: LevelStrict with legal disclaimer + approval gate.
-	legalDQ := guardrails.NewDeferredPersistQueue()
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		agentcore.NewIFaceLifecycleHook(guardrails.New(
-			guardrails.WithLevel(guardrails.LevelStrict),
-			guardrails.WithDisclaimer(guardrails.DisclaimerLegal),
-			guardrails.WithRiskKeywords(guardrails.RiskKeywordsFor("legal")),
-			guardrails.WithApproval(guardrails.ApprovalKeywordsFor("legal")),
-			guardrails.WithBlockedPhrases([]string{"恶意代码", "攻击方法", "非法入侵"}),
-			guardrails.WithDeferredQueue(legalDQ),
-		)),
-	)
-
-	// Human approval gate for critical decisions.
-	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
-		NewApprovalGate(ApprovalConfig{
-			RequireApprovalFor: guardrails.ApprovalKeywordsFor("legal"),
-		},
-			WithDeferredPersist(&DeferredPersistFuncs{
-				CommitFn: func() {
-					for _, idx := range legalDQ.Pending() {
-						legalDQ.Commit(idx)
-					}
-				},
-				DiscardFn: func() {
-					for _, idx := range legalDQ.Pending() {
-						legalDQ.Discard(idx)
-					}
-				},
-			}),
-		),
-	)
+	// Guardrail: LevelStrict with legal disclaimer + approval gate（共享段落）。
+	appendStrictGuardrails(&cfg, DomainLegal, guardrails.DisclaimerLegal, true)
 
 	return cfg
 }
