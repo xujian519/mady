@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/agui"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/enablement"
@@ -54,7 +53,7 @@ func registerAPIRoute(mux *http.ServeMux, pattern string, handler http.Handler) 
 // Server exposes an Agent as an HTTP/SSE API.
 type Server struct {
 	config    *csync.Value[agentcore.Config]
-	eventBus  iface.EventBus
+	eventBus  *agentcore.EventBus
 	cors      CORSConfig
 	srv       atomic.Pointer[http.Server]
 	createdAt time.Time // 记录 Server 创建时刻，供 Health().uptime 使用
@@ -111,7 +110,7 @@ type CORSConfig struct {
 func New(cfg agentcore.Config) *Server {
 	s := &Server{
 		config:               csync.NewValue(cfg),
-		eventBus:             agentcore.NewIFaceEventBus(agentcore.NewEventBus()),
+		eventBus:             agentcore.NewEventBus(),
 		poolLimit:            64,
 		createdAt:            time.Now(),
 		inventivenessResults: csync.NewMap[string, *inventiveness.InventivenessResult](),
@@ -221,18 +220,18 @@ func (s *Server) limitedBody(w http.ResponseWriter, r *http.Request) io.Reader {
 }
 
 // On registers an event handler for a specific event type.
-func (s *Server) On(t iface.EventType, h iface.EventHandler) func() {
+func (s *Server) On(t agentcore.EventType, h agentcore.EventHandler) func() {
 	return s.eventBus.On(t, h)
 }
 
 // OnAll registers a handler for all event types.
-func (s *Server) OnAll(h iface.EventHandler) func() { return s.eventBus.OnAll(h) }
+func (s *Server) OnAll(h agentcore.EventHandler) func() { return s.eventBus.OnAll(h) }
 
 // EmitEvent emits an event to the event bus.
-func (s *Server) EmitEvent(e iface.Event) { s.eventBus.Emit(e) }
+func (s *Server) EmitEvent(e agentcore.Event) { s.eventBus.Emit(e) }
 
 // EventBus returns the underlying event bus instance.
-func (s *Server) EventBus() iface.EventBus { return s.eventBus }
+func (s *Server) EventBus() *agentcore.EventBus { return s.eventBus }
 
 // Close shuts down the event bus and evicts all pool entries.
 func (s *Server) Close() {

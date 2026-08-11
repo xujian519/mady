@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains/enablement"
 	"github.com/xujian519/mady/graph"
@@ -31,7 +30,7 @@ const enablementExecTimeout = 10 * time.Minute
 //   - 容错运行：子图失败仅记录日志，不影响上游
 type EnablementTrigger struct {
 	provider           agentcore.Provider
-	bus                iface.EventBus
+	bus                *agentcore.EventBus
 	logger             *slog.Logger
 	cancel             func() // 取消订阅
 	ctx                context.Context
@@ -59,7 +58,7 @@ func WithEnablementKnowledgeRetriever(r enablement.KnowledgeRetriever) Enablemen
 // NewEnablementTrigger 创建 26.3 充分公开评估触发器。
 // provider 用于运行评估子图的 LLM 调用。
 // bus 是事件总线引用。
-func NewEnablementTrigger(provider agentcore.Provider, bus iface.EventBus, opts ...EnablementTriggerOption) *EnablementTrigger {
+func NewEnablementTrigger(provider agentcore.Provider, bus *agentcore.EventBus, opts ...EnablementTriggerOption) *EnablementTrigger {
 	ctx, cancel := context.WithCancel(context.Background())
 	t := &EnablementTrigger{
 		provider:  provider,
@@ -89,11 +88,11 @@ func (t *EnablementTrigger) Stop() {
 }
 
 // onEvent 是 EventBus 回调：筛选 disclosure_completed 事件并执行 26.3 评估。
-func (t *EnablementTrigger) onEvent(ev iface.Event) {
-	if ev.Type() != iface.EventType(EventDisclosureCompleted) {
+func (t *EnablementTrigger) onEvent(ev agentcore.Event) {
+	if ev.EventKind() != EventDisclosureCompleted {
 		return
 	}
-	completed, ok := ev.Payload().(DisclosureCompletedEvent)
+	completed, ok := ev.(DisclosureCompletedEvent)
 	if !ok {
 		return
 	}

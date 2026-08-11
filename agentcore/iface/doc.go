@@ -6,9 +6,14 @@
 //
 // # 当前提供的契约
 //
-//   - Event / EventBus: 事件发布与订阅
-//   - AgentRunner: Agent 运行抽象（Run / Continue / Resume / Close）
 //   - LifecycleHook: 生命周期拦截点（窄视图）
+//
+// # 历史说明
+//
+// 本包曾提供 iface.Event / EventBus（2026-07 引入，server 侧经
+// agentcore.NewIFaceEventBus 适配）。由于 server 本就直接依赖 agentcore，
+// 适配链（Event → payloadEvent → iface.Event 往返转换）价值有限，
+// 已于 2026-08-11 移除，server 直连 agentcore.EventBus。
 //
 // # 接口收缩策略（Narrow View Strategy）
 //

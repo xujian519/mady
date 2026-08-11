@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/graph"
@@ -50,7 +49,7 @@ func (e DisclosureCompletedEvent) EventTime() time.Time { return e.at }
 //   - 容错运行：子图失败仅记录日志，不影响上游
 type InventivenessTrigger struct {
 	provider      agentcore.Provider
-	bus           iface.EventBus
+	bus           *agentcore.EventBus
 	logger        *slog.Logger
 	cancel        func() // 取消订阅
 	ctx           context.Context
@@ -70,7 +69,7 @@ func WithInventivenessResultHandler(fn func(taskID string, result *inventiveness
 // NewInventivenessTrigger 创建创造性分析触发器。
 // provider 用于运行创造性分析子图的 LLM 调用。
 // bus 是事件总线引用。
-func NewInventivenessTrigger(provider agentcore.Provider, bus iface.EventBus, opts ...InventivenessTriggerOption) *InventivenessTrigger {
+func NewInventivenessTrigger(provider agentcore.Provider, bus *agentcore.EventBus, opts ...InventivenessTriggerOption) *InventivenessTrigger {
 	ctx, cancel := context.WithCancel(context.Background())
 	t := &InventivenessTrigger{
 		provider:  provider,
@@ -100,11 +99,11 @@ func (t *InventivenessTrigger) Stop() {
 }
 
 // onEvent 是 EventBus 回调：筛选 disclosure_completed 事件并执行创造性分析。
-func (t *InventivenessTrigger) onEvent(ev iface.Event) {
-	if ev.Type() != iface.EventType(EventDisclosureCompleted) {
+func (t *InventivenessTrigger) onEvent(ev agentcore.Event) {
+	if ev.EventKind() != EventDisclosureCompleted {
 		return
 	}
-	completed, ok := ev.Payload().(DisclosureCompletedEvent)
+	completed, ok := ev.(DisclosureCompletedEvent)
 	if !ok {
 		return
 	}

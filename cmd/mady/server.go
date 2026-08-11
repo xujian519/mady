@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/domains"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
 	"github.com/xujian519/mady/knowledge"
@@ -202,11 +201,8 @@ func runServer(ctx context.Context) error {
 			consumer := knowledge.NewEvalConsumer(evalStore,
 				knowledge.WithAlertThreshold(evalCfg.AlertThreshold),
 			)
-			srv.OnAll(func(e iface.Event) {
-				raw, ok := e.Payload().(agentcore.Event)
-				if ok {
-					consumer.OnEvent(raw)
-				}
+			srv.OnAll(func(e agentcore.Event) {
+				consumer.OnEvent(e)
 			})
 			log.Printf("eval: 评估数据持久化已启用（%s），忠实度阈值: %.2f", evalDB, evalCfg.AlertThreshold)
 		}

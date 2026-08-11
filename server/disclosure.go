@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/agentcore/iface"
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/enablement"
@@ -106,7 +105,7 @@ type disclosureTaskManager struct {
 	tasks    *csync.Map[string, *disclosureTask]
 	counter  atomic.Int64
 	stopCh   chan struct{}
-	eventBus iface.EventBus
+	eventBus *agentcore.EventBus
 }
 
 func cloneDisclosureProgress(src *DisclosureProgress) *DisclosureProgress {
@@ -141,7 +140,7 @@ func cloneAnalysisReport(src *disclosure.AnalysisReport) *disclosure.AnalysisRep
 
 // newDisclosureTaskManager 创建一个新的任务管理器并启动后台清理 goroutine。
 // eventBus 为可选参数，非 nil 时任务完成后发射 DisclosureCompletedEvent。
-func newDisclosureTaskManager(eventBus iface.EventBus) *disclosureTaskManager {
+func newDisclosureTaskManager(eventBus *agentcore.EventBus) *disclosureTaskManager {
 	m := &disclosureTaskManager{
 		tasks:    csync.NewMap[string, *disclosureTask](),
 		stopCh:   make(chan struct{}),
@@ -281,7 +280,7 @@ func (m *disclosureTaskManager) executeTask(ctx context.Context, task *disclosur
 		if task.Err != nil {
 			ev.Err = task.Err.Error()
 		}
-		m.eventBus.Emit(iface.NewEvent(iface.EventType(EventDisclosureCompleted), ev))
+		m.eventBus.Emit(ev)
 	}
 	task.mu.Unlock()
 

@@ -3,93 +3,9 @@ package agentcore
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/xujian519/mady/agentcore/iface"
 )
-
-// =============================================================================
-// iface.EventBus 适配器
-// =============================================================================
-
-type eventBusAdapter struct {
-	inner *EventBus
-}
-
-// NewIFaceEventBus 将 *EventBus 包装为 iface.EventBus。
-func NewIFaceEventBus(eb *EventBus) iface.EventBus {
-	if eb == nil {
-		return nil
-	}
-	return &eventBusAdapter{inner: eb}
-}
-
-func (w *eventBusAdapter) On(eventType iface.EventType, handler iface.EventHandler) func() {
-	return w.inner.On(EventType(eventType), func(e Event) {
-		handler(wrapIFaceEvent(e))
-	})
-}
-
-func (w *eventBusAdapter) OnAll(handler iface.EventHandler) func() {
-	return w.inner.OnAll(func(e Event) {
-		handler(wrapIFaceEvent(e))
-	})
-}
-
-func (w *eventBusAdapter) Emit(event iface.Event) {
-	if p := event.Payload(); p != nil {
-		// 如果有 payload，用 payloadEvent 包装以保留原始事件体
-		pe := &payloadEvent{
-			baseEvent: baseEvent{Kind: EventType(event.Type()), At: time.Now()},
-			payload:   p,
-		}
-		w.inner.Emit(pe)
-		return
-	}
-	w.inner.Emit(baseEvent{Kind: EventType(event.Type()), At: time.Now()})
-}
-
-func (w *eventBusAdapter) EmitMustDeliver(ctx context.Context, event iface.Event) {
-	if p := event.Payload(); p != nil {
-		pe := &payloadEvent{
-			baseEvent: baseEvent{Kind: EventType(event.Type()), At: time.Now()},
-			payload:   p,
-		}
-		w.inner.EmitMustDeliver(ctx, pe)
-		return
-	}
-	w.inner.EmitMustDeliver(ctx, baseEvent{Kind: EventType(event.Type()), At: time.Now()})
-}
-
-func (w *eventBusAdapter) Close() {
-	w.inner.Close()
-}
-
-// wrapIFaceEvent 将 agentcore.Event 包装为 iface.Event。
-func wrapIFaceEvent(e Event) iface.Event {
-	return &ifaceWrappedEvent{inner: e}
-}
-
-type ifaceWrappedEvent struct {
-	inner Event
-}
-
-func (w *ifaceWrappedEvent) Type() iface.EventType {
-	return iface.EventType(w.inner.EventKind())
-}
-
-func (w *ifaceWrappedEvent) Payload() any {
-	if pe, ok := w.inner.(*payloadEvent); ok {
-		return pe.payload
-	}
-	return w.inner
-}
-
-// payloadEvent 是 agentcore.Event 的扩展，携带通过 iface 适配器传入的 payload。
-type payloadEvent struct {
-	baseEvent
-	payload any
-}
 
 // =============================================================================
 // iface.LifecycleHook → agentcore.LifecycleHook 适配器
