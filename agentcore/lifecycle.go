@@ -104,9 +104,12 @@ type CompactionPersistObserver interface {
 // LifecycleHook intercepts a specific phase of agent execution.
 // Returning a non-nil error short-circuits the phase.
 //
-// Deprecated: prefer implementing AgentRunObserver / TurnObserver /
-// ModelCallObserver / ToolCallObserver / MessagePersistObserver instead.
-// Existing implementations continue to work via BaseLifecycleHook.
+// New code should prefer implementing AgentRunObserver / TurnObserver /
+// ModelCallObserver / ToolCallObserver / MessagePersistObserver when the
+// phase granularity fits. LifecycleHook remains fully supported as the
+// coarser-grained compatibility surface (e.g. doomloop.AsHook, memory
+// extensions) and is adapted into the observer pipeline by
+// BaseLifecycleHook — do not plan for its removal.
 type LifecycleHook interface {
 	// BeforeAgentRun is called once when the agent starts.
 	// Modify arc.Messages to alter the initial prompt.

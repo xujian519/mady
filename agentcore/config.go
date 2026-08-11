@@ -48,8 +48,12 @@ type ExecutionConfig struct {
 	Concurrency   int64
 	MaxTurns      int64
 	Middleware    []Middleware
-	// Deprecated: use Middleware instead. These are auto-adapted to Middleware
-	// in New() for backward compatibility. Will be removed in v0.6.0.
+	// GlobalBefore/GlobalAfter are legacy hook slots, auto-adapted to
+	// Middleware in New() for backward compatibility. New code should use
+	// Middleware or the observer interfaces directly; these slots remain
+	// supported as the adaptor path for extensions' HookProvider hooks
+	// (see extension.go) and Handoff propagation (handoff.go) — do not
+	// plan for their removal.
 	GlobalBefore       []BeforeHook
 	GlobalAfter        []AfterHook
 	ValidateArguments  bool
