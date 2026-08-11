@@ -96,7 +96,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 
 	switch m.Role {
 	case RoleUser:
-		return h.renderMarkdownRole(m.Text, width, theme), nil
+		return h.renderUserRole(m.Text, width, theme), nil
 	case RoleAssistant:
 		// Collapsed assistant messages (e.g. collapsed diffs)
 		if m.Collapsed && m.Text != "" {
@@ -196,6 +196,40 @@ func (h *ChatHistory) renderMessage(m ChatMessage, theme ChatHistoryTheme, width
 	default:
 		return core.WrapAnsi(m.Text, width), nil
 	}
+}
+
+// renderUserRole renders a user message as Markdown with the configured
+// UserPrefix marker (styled via UserStyle) and indented continuation lines,
+// so the user's turn reads as one visually distinct block against the
+// assistant's unprefixed output. An empty prefix falls back to plain
+// Markdown for themes that opt out.
+func (h *ChatHistory) renderUserRole(text string, width int64, theme ChatHistoryTheme) []string {
+	prefix := theme.UserPrefix
+	if prefix == "" {
+		return h.renderMarkdownRole(text, width, theme)
+	}
+	prefixW := core.VisibleWidth(prefix)
+	innerWidth := width - prefixW
+	if innerWidth < 1 {
+		innerWidth = 1
+	}
+	lines := h.renderMarkdownRole(text, innerWidth, theme)
+	marker := theme.UserStyle.Render(prefix)
+	indent := strings.Repeat(" ", int(prefixW))
+	out := make([]string, 0, len(lines))
+	for i, ln := range lines {
+		if i == 0 {
+			out = append(out, marker+ln)
+			continue
+		}
+		// 空行保持干净：段落间距与 trimBlankEdges 不受缩进空格影响。
+		if strings.TrimSpace(core.StripAnsi(ln)) == "" {
+			out = append(out, ln)
+		} else {
+			out = append(out, indent+ln)
+		}
+	}
+	return out
 }
 
 // renderMarkdownRole renders message text as Markdown. No left bar prefix.

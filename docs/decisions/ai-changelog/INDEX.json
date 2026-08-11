@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-08-11T20:38:59+08:00",
-  "total": 322,
+  "updated": "2026-08-11T21:01:54+08:00",
+  "total": 323,
   "entries": [
     {
       "date": "2026-08-11",
@@ -108,12 +108,12 @@
       "line": 132
     },
     {
-      "date": "2026-08-09",
-      "type": "fix",
-      "scope": "tui",
-      "title": "code-review 复核修复：Basic 模式调色板栈溢出回归 + 数字强调回归 + 锁外读竞争等 7 项",
-      "file": "2026-08-09.md",
-      "line": 17
+      "date": "2026-08-11",
+      "type": "feat",
+      "scope": "tui/chat",
+      "title": "用户消息视觉区分：接线 UserPrefix/UserStyle 前缀渲染",
+      "file": "2026-08-11.md",
+      "line": 138
     },
     {
       "date": "2026-08-09",
@@ -140,12 +140,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-08",
-      "type": "feat",
-      "scope": "agentcore",
-      "title": "输出异常结束透传 TUI 可见：AgentEndEvent 带 FinishReason，截断/中断出用户提示",
-      "file": "2026-08-08.md",
-      "line": 13
+      "date": "2026-08-09",
+      "type": "fix",
+      "scope": "tui",
+      "title": "code-review 复核修复：Basic 模式调色板栈溢出回归 + 数字强调回归 + 锁外读竞争等 7 项",
+      "file": "2026-08-09.md",
+      "line": 17
     },
     {
       "date": "2026-08-08",
@@ -164,11 +164,11 @@
       "line": 7
     },
     {
-      "date": "2026-08-07",
-      "type": "chore",
-      "scope": "techdebt",
-      "title": "P3 仓库卫生收尾：清除根目录杂散文档与编译二进制",
-      "file": "2026-08-07.md",
+      "date": "2026-08-08",
+      "type": "feat",
+      "scope": "agentcore",
+      "title": "输出异常结束透传 TUI 可见：AgentEndEvent 带 FinishReason，截断/中断出用户提示",
+      "file": "2026-08-08.md",
       "line": 13
     },
     {
@@ -188,12 +188,12 @@
       "line": 7
     },
     {
-      "date": "2026-08-06",
-      "type": "refactor",
-      "scope": "domains/workflows/patent",
-      "title": "OA 答复工作流代码审查重构：节点增量返回 + 文件拆分 + 表格紧凑化",
-      "file": "2026-08-06.md",
-      "line": 16
+      "date": "2026-08-07",
+      "type": "chore",
+      "scope": "techdebt",
+      "title": "P3 仓库卫生收尾：清除根目录杂散文档与编译二进制",
+      "file": "2026-08-07.md",
+      "line": 13
     },
     {
       "date": "2026-08-06",
@@ -204,12 +204,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-04",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "批次 D：Composer 粘贴图片 + CheckUpdate 中间态文案",
-      "file": "2026-08-04.md",
-      "line": 146
+      "date": "2026-08-06",
+      "type": "refactor",
+      "scope": "domains/workflows/patent",
+      "title": "OA 答复工作流代码审查重构：节点增量返回 + 文件拆分 + 表格紧凑化",
+      "file": "2026-08-06.md",
+      "line": 16
     },
     {
       "date": "2026-08-04",
@@ -284,12 +284,12 @@
       "line": 111
     },
     {
-      "date": "2026-08-03",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
-      "file": "2026-08-03.md",
-      "line": 9
+      "date": "2026-08-04",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "批次 D：Composer 粘贴图片 + CheckUpdate 中间态文案",
+      "file": "2026-08-04.md",
+      "line": 146
     },
     {
       "date": "2026-08-03",
@@ -300,12 +300,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-02",
+      "date": "2026-08-03",
       "type": "fix",
       "scope": "tui",
-      "title": "renderResizeHint 对齐公式完善（review 驱动）：boxWidth=VisibleWidth+6 + 对齐断言测试",
-      "file": "2026-08-02.md",
-      "line": 23
+      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
+      "file": "2026-08-03.md",
+      "line": 9
     },
     {
       "date": "2026-08-02",
@@ -372,12 +372,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-01",
-      "type": "chore",
-      "scope": "docs",
-      "title": "文档一致性检查防漂移加固（--update 自动同步 + git 口径 + CI 接入）",
-      "file": "2026-08-01.md",
-      "line": 13
+      "date": "2026-08-02",
+      "type": "fix",
+      "scope": "tui",
+      "title": "renderResizeHint 对齐公式完善（review 驱动）：boxWidth=VisibleWidth+6 + 对齐断言测试",
+      "file": "2026-08-02.md",
+      "line": 23
     },
     {
       "date": "2026-08-01",
@@ -404,12 +404,12 @@
       "line": 7
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "bootstrap",
-      "title": "修复 TUI 长输出被截断：MaxTokens 配置未传递且默认过低",
-      "file": "2026-07-31.md",
-      "line": 898
+      "date": "2026-08-01",
+      "type": "chore",
+      "scope": "docs",
+      "title": "文档一致性检查防漂移加固（--update 自动同步 + git 口径 + CI 接入）",
+      "file": "2026-08-01.md",
+      "line": 13
     },
     {
       "date": "2026-07-31",
@@ -812,12 +812,12 @@
       "line": 892
     },
     {
-      "date": "2026-07-30",
+      "date": "2026-07-31",
       "type": "fix",
-      "scope": "core",
-      "title": "为 mady-agent 添加引用核验 Gate，清理 AllowedSources 与 manifest 死引用（7 文件）",
-      "file": "2026-07-30.md",
-      "line": 197
+      "scope": "bootstrap",
+      "title": "修复 TUI 长输出被截断：MaxTokens 配置未传递且默认过低",
+      "file": "2026-07-31.md",
+      "line": 898
     },
     {
       "date": "2026-07-30",
@@ -972,12 +972,12 @@
       "line": 128
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
-      "scope": "a2ui",
-      "title": "桌面端第一波闭环实现（A2UIPromise + ListModels + 工程加固）",
-      "file": "2026-07-29.md",
-      "line": 95
+      "date": "2026-07-30",
+      "type": "fix",
+      "scope": "core",
+      "title": "为 mady-agent 添加引用核验 Gate，清理 AllowedSources 与 manifest 死引用（7 文件）",
+      "file": "2026-07-30.md",
+      "line": 197
     },
     {
       "date": "2026-07-29",
@@ -1052,12 +1052,12 @@
       "line": 48
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
+      "date": "2026-07-29",
+      "type": "chore",
       "scope": "a2ui",
-      "title": "桌面端 G2 修复 — A2UI 渲染器 Vitest 黄金对照测试（Go↔TS 漂移护栏）",
-      "file": "2026-07-28.md",
-      "line": 150
+      "title": "桌面端第一波闭环实现（A2UIPromise + ListModels + 工程加固）",
+      "file": "2026-07-29.md",
+      "line": 95
     },
     {
       "date": "2026-07-28",
@@ -1180,12 +1180,12 @@
       "line": 581
     },
     {
-      "date": "2026-07-27",
+      "date": "2026-07-28",
       "type": "fix",
-      "scope": "*",
-      "title": "CI/CD 管道修复 — 4 个失败检查全部通过",
-      "file": "2026-07-27.md",
-      "line": 36
+      "scope": "a2ui",
+      "title": "桌面端 G2 修复 — A2UI 渲染器 Vitest 黄金对照测试（Go↔TS 漂移护栏）",
+      "file": "2026-07-28.md",
+      "line": 150
     },
     {
       "date": "2026-07-27",
@@ -1348,12 +1348,12 @@
       "line": 939
     },
     {
-      "date": "2026-07-26",
+      "date": "2026-07-27",
       "type": "fix",
-      "scope": "tui",
-      "title": "TUI 模块 Sprint 0 Quick-win 基线修复（T0.1–T0.8）",
-      "file": "2026-07-26.md",
-      "line": 396
+      "scope": "*",
+      "title": "CI/CD 管道修复 — 4 个失败检查全部通过",
+      "file": "2026-07-27.md",
+      "line": 36
     },
     {
       "date": "2026-07-26",
@@ -1420,12 +1420,12 @@
       "line": 306
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
-      "scope": "*",
-      "title": "审阅决策 — AI_CHANGELOG 格式修订为四段式 + 强制三字段",
-      "file": "2026-07-25.md",
-      "line": 232
+      "date": "2026-07-26",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 模块 Sprint 0 Quick-win 基线修复（T0.1–T0.8）",
+      "file": "2026-07-26.md",
+      "line": 396
     },
     {
       "date": "2026-07-25",
@@ -1532,12 +1532,12 @@
       "line": 203
     },
     {
-      "date": "2026-07-24",
-      "type": "chore",
-      "scope": "tui",
-      "title": "TUI 输出防溢出保护 — renderFrame/Flex 双层截断",
-      "file": "2026-07-24.md",
-      "line": 33
+      "date": "2026-07-25",
+      "type": "docs",
+      "scope": "*",
+      "title": "审阅决策 — AI_CHANGELOG 格式修订为四段式 + 强制三字段",
+      "file": "2026-07-25.md",
+      "line": 232
     },
     {
       "date": "2026-07-24",
@@ -1692,12 +1692,12 @@
       "line": 52
     },
     {
-      "date": "2026-07-23",
-      "type": "fix",
-      "scope": "*",
-      "title": "修复 TieredEngine 上下文压缩管线三个盲区",
-      "file": "2026-07-23.md",
-      "line": 364
+      "date": "2026-07-24",
+      "type": "chore",
+      "scope": "tui",
+      "title": "TUI 输出防溢出保护 — renderFrame/Flex 双层截断",
+      "file": "2026-07-24.md",
+      "line": 33
     },
     {
       "date": "2026-07-23",
@@ -1844,12 +1844,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-22",
-      "type": "chore",
+      "date": "2026-07-23",
+      "type": "fix",
       "scope": "*",
-      "title": "专利法第26.3条判断模块全面增强 — 对标 Wiki 知识库补全 10 项差距",
-      "file": "2026-07-22.md",
-      "line": 142
+      "title": "修复 TieredEngine 上下文压缩管线三个盲区",
+      "file": "2026-07-23.md",
+      "line": 364
     },
     {
       "date": "2026-07-22",
@@ -1908,12 +1908,12 @@
       "line": 99
     },
     {
-      "date": "2026-07-21",
-      "type": "fix",
+      "date": "2026-07-22",
+      "type": "chore",
       "scope": "*",
-      "title": "修复 pre-commit 钩子失效问题",
-      "file": "2026-07-21.md",
-      "line": 516
+      "title": "专利法第26.3条判断模块全面增强 — 对标 Wiki 知识库补全 10 项差距",
+      "file": "2026-07-22.md",
+      "line": 142
     },
     {
       "date": "2026-07-21",
@@ -2092,12 +2092,12 @@
       "line": 701
     },
     {
-      "date": "2026-07-20",
+      "date": "2026-07-21",
       "type": "fix",
-      "scope": "tui",
-      "title": "修复 TUI 五处用户体验问题（鼠标选中/复制粘贴/Settings Esc退出/斜杠命令/步数上限）",
-      "file": "2026-07-20.md",
-      "line": 706
+      "scope": "*",
+      "title": "修复 pre-commit 钩子失效问题",
+      "file": "2026-07-21.md",
+      "line": 516
     },
     {
       "date": "2026-07-20",
@@ -2324,12 +2324,12 @@
       "line": 652
     },
     {
-      "date": "2026-07-19",
-      "type": "docs",
-      "scope": "a2ui",
-      "title": "A2UI 模块审阅与完备化",
-      "file": "2026-07-19.md",
-      "line": 41
+      "date": "2026-07-20",
+      "type": "fix",
+      "scope": "tui",
+      "title": "修复 TUI 五处用户体验问题（鼠标选中/复制粘贴/Settings Esc退出/斜杠命令/步数上限）",
+      "file": "2026-07-20.md",
+      "line": 706
     },
     {
       "date": "2026-07-19",
@@ -2372,12 +2372,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-18",
-      "type": "chore",
-      "scope": "*",
-      "title": "全量技术债务清理（P0 真实 Bug + P1 Lint 债务 + P2 结构性改进）",
-      "file": "2026-07-18.md",
-      "line": 535
+      "date": "2026-07-19",
+      "type": "docs",
+      "scope": "a2ui",
+      "title": "A2UI 模块审阅与完备化",
+      "file": "2026-07-19.md",
+      "line": 41
     },
     {
       "date": "2026-07-18",
@@ -2578,6 +2578,14 @@
       "title": "Open Design 思路引入 —— Tier 3 实现（最终阶段）",
       "file": "2026-07-18.md",
       "line": 605
+    },
+    {
+      "date": "2026-07-18",
+      "type": "chore",
+      "scope": "*",
+      "title": "全量技术债务清理（P0 真实 Bug + P1 Lint 债务 + P2 结构性改进）",
+      "file": "2026-07-18.md",
+      "line": 535
     }
   ]
 }
