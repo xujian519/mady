@@ -82,29 +82,25 @@ func (e *Editor) processKeys(data string, kittyFlags int64) {
 			e.yank()
 		case km.Matches(raw, "tui.editor.yankPop"):
 			e.yankPop()
+		case km.Matches(raw, "tui.editor.redo"):
+			// redo 分支必须在 undo 之前：keysEqual 对未声明 Shift 的绑定
+			// 忽略 Shift（大小写已表达），因此 ctrl+shift+z 同时匹配
+			// "tui.editor.undo"(ctrl+z) 与 "tui.editor.redo"(ctrl+shift+z)。
+			// 而 ctrl+z 因 redo 显式要求 Shift 不会匹配 redo，故 redo 在前
+			// 只捕获 ctrl+shift+z，不会劫持纯 ctrl+z（P1-8 遗留：redo 曾
+			// 因 undo 分支在前而从键盘不可达）。
+			e.redo()
 		case km.Matches(raw, "tui.editor.undo"):
 			e.undo()
-		case km.Matches(raw, "tui.editor.redo"):
-			// Matches a registered binding id (not a literal key string —
-			// literal strings are never present in the resolved binding
-			// table, so the old `Matches(raw, "ctrl+shift+z")` was a
-			// runtime-dead branch and redo was unreachable from the
-			// keyboard, P1-8). Default keys come from keybindings.go
-			// "tui.editor.redo" (ctrl+shift+z). ctrl+y remains the yank
-			// key ("tui.editor.yank") — redo must not shadow it.
-			e.redo()
 		case km.Matches(raw, "tui.input.copy"):
 			e.handleCopy()
 		case km.Matches(raw, "tui.input.paste"):
 			e.handlePaste()
 		case km.Matches(raw, "tui.input.tab"):
-			// Tab while autocomplete is active: let the autocomplete handle it
-			// (either apply the suggestion or dismiss). Don't insert a literal
-			// tab character into the buffer.
-			if e.isAutocompleteActive() {
-				continue
-			}
-			e.insertRune(k.Rune)
+			// Tab 不向 buffer 插入字符：autocomplete 活跃时由 chat 层的
+			// Autocomplete 组件处理；否则忽略。Tab 解析出的 k.Rune 为 NUL
+			// （\x00），插入会向 buffer 写入不可见控制字符污染提交文本。
+			continue
 		default:
 			if k.Rune == '\n' || k.Rune == '\r' {
 				continue

@@ -523,9 +523,17 @@ func keysEqual(got Key, want parsedKeyID) bool {
 		return false
 	}
 	// For printable keys, Shift is encoded in the case of the rune, so we
-	// compare mods *excluding* Shift.
+	// compare mods *excluding* Shift — UNLESS the binding explicitly
+	// requires Shift (e.g. "ctrl+shift+z" for redo). Without the explicit
+	// requirement, a shift-modified key also matches its unshifted binding,
+	// so ctrl+shift+z would match both undo ("ctrl+z") and redo
+	// ("ctrl+shift+z") and the earlier undo case would shadow redo.
 	if len(got.Name) == 1 {
-		return (got.Mods &^ ModShift) == (want.mods &^ ModShift)
+		gotM, wantM := got.Mods, want.mods
+		if want.mods&ModShift == 0 {
+			gotM &^= ModShift
+		}
+		return gotM == wantM
 	}
 	return got.Mods == want.mods
 }
