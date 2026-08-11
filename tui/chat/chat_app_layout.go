@@ -585,6 +585,19 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 			l.app.ToggleKeyHelp()
 			return true
 		}
+	case "p":
+		// Ctrl+P opens the command palette. Only with Ctrl held (a bare
+		// "p" must keep typing into the editor), and excluding super/meta
+		// so ⌘P on macOS (system print) never triggers it. The palette
+		// itself is a host-level overlay (cmd/mady builds it from the
+		// slash registry), so the chat layer only forwards via
+		// OnCommandCenter.
+		if k.Mods&terminal.ModCtrl != 0 &&
+			k.Mods&terminal.ModSuper == 0 && k.Mods&terminal.ModMeta == 0 &&
+			l.app != nil && l.app.cfg.OnCommandCenter != nil {
+			l.app.cfg.OnCommandCenter()
+			return true
+		}
 	case "c", "insert":
 		return l.handleCopyOrInterrupt(k, name)
 	}
@@ -692,12 +705,24 @@ func (l *chatLayout) handleEscapeKey(k terminal.Key) bool {
 	return false
 }
 
-// handleCopyOrInterrupt handles Ctrl+C (interrupt) and copy shortcuts.
+// handleCopyOrInterrupt handles Ctrl+C (interrupt/quit) and copy shortcuts.
 func (l *chatLayout) handleCopyOrInterrupt(k terminal.Key, name string) bool {
 	if name == "c" && k.Mods&terminal.ModCtrl != 0 &&
 		k.Mods&terminal.ModSuper == 0 && k.Mods&terminal.ModMeta == 0 {
-		if l.app.cfg.OnInterrupt != nil && l.app.isRunning() {
-			l.app.cfg.OnInterrupt()
+		if l.app == nil {
+			return true
+		}
+		switch {
+		case l.app.isRunning():
+			// 流式/工具运行中：Ctrl+C 中断当前运行（已有语义）。
+			if l.app.cfg.OnInterrupt != nil {
+				l.app.cfg.OnInterrupt()
+			}
+		case l.app.cfg.OnQuit != nil:
+			// 空闲时 Ctrl+C 退出（footer 提示 "Ctrl+C quit"）。
+			l.app.cfg.OnQuit()
+		default:
+			// 空闲且 OnQuit 未配置（库使用场景）：安全降级为忽略。
 		}
 		return true
 	}

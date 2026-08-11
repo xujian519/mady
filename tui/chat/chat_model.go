@@ -53,6 +53,13 @@ type ChatAppConfig struct {
 	OnInterrupt  func()
 	OnImagePaste func() // called when an image paste is detected (clipboard image, empty text)
 
+	// OnCommandCenter is invoked by Ctrl+P to open the command palette.
+	// It is a host-level concern (the palette is built from the slash
+	// registry in cmd/mady), so the chat layer only forwards the key.
+	// When nil, Ctrl+P is ignored by the chat layout and falls through
+	// to the editor (which has no binding for it).
+	OnCommandCenter func()
+
 	Host AppHost
 
 	// SuppressHandoffToolDisplay when true suppresses transfer_to_* tool calls

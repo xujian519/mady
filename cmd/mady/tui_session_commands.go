@@ -64,35 +64,57 @@ func (s *tuiSession) handleThemeCommand(trimmed string) {
 			s.app.PrintSystem("当前主题: " + s.themeName())
 			return
 		}
-		if info := theme.ThemeInfoByName(name); info != nil {
-			if err := theme.SetThemeByName(name); err != nil {
-				log.Printf("theme: apply %s: %v", name, err)
-			}
-			s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-			if err := s.store.Set(SettingKeyTheme, name, SettingsScopeGlobal); err != nil {
-				log.Printf("settings: persist theme: %v", err)
-			}
-			s.app.PrintSystem("已切换主题: " + info.Display)
+		display, ok := applyThemeByName(name)
+		if !ok {
+			s.app.PrintSystem("未知主题: " + name + "。可用主题: " + strings.Join(theme.ThemeNames(), ", "))
+			return
+		}
+		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
+		if err := s.store.Set(SettingKeyTheme, name, SettingsScopeGlobal); err != nil {
+			log.Printf("settings: persist theme: %v", err)
+		}
+		s.app.PrintSystem("已切换主题: " + display)
 
-			// Manage system appearance watcher.
-			if name == "auto" {
-				if s.cancelAutoWatch == nil {
-					s.cancelAutoWatch = theme.StartAutoThemeWatcher()
-					s.app.PrintSystem("已启用系统外观跟随 — macOS 切换深色/浅色时自动切换")
-				}
-			} else {
-				if s.cancelAutoWatch != nil {
-					s.cancelAutoWatch()
-					s.cancelAutoWatch = nil
-				}
+		// Manage system appearance watcher.
+		if name == "auto" {
+			if s.cancelAutoWatch == nil {
+				s.cancelAutoWatch = theme.StartAutoThemeWatcher()
+				s.app.PrintSystem("已启用系统外观跟随 — macOS 切换深色/浅色时自动切换")
 			}
 		} else {
-			s.app.PrintSystem("未知主题: " + name + "。可用主题: " + strings.Join(theme.ThemeNames(), ", "))
+			if s.cancelAutoWatch != nil {
+				s.cancelAutoWatch()
+				s.cancelAutoWatch = nil
+			}
 		}
 
 	default:
 		s.app.PrintSystem("当前主题: " + s.themeName())
 	}
+}
+
+// applyThemeByName 按名应用主题：先查主题注册表（mady-dark、tokyo-night 等），
+// 再回退 legacy 别名 "light"/"dark"。后者是 SettingsStore 的默认值
+// （settings_store.go DefaultTheme），但注册表内没有这两个名字（只有
+// mady-light/mady-dark），故需显式映射。返回人类可读名称；未知名字返回
+// ok=false。applyStoredTheme（启动路径）与 handleThemeCommand（交互路径）
+// 共用此单一映射，避免两处重复维护。
+func applyThemeByName(name string) (display string, ok bool) {
+	if info := theme.ThemeInfoByName(name); info != nil {
+		if err := theme.SetThemeByName(name); err != nil {
+			log.Printf("theme: apply %s: %v", name, err)
+		}
+		return info.Display, true
+	}
+	switch name {
+	case "light":
+		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
+		return "浅色", true
+	case "dark":
+		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
+		return "深色", true
+	}
+	return "", false
 }
 
 // detectCaseFromCWD checks if the current working directory is associated with

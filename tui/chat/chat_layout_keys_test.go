@@ -392,3 +392,72 @@ func TestLayoutUpdateWindowSizeRoutesToRecalc(t *testing.T) {
 		t.Fatalf("lastRows = %d, want 20", app.layout.lastRows)
 	}
 }
+
+// TestDispatchKeyCtrlPCommandCenter verifies Ctrl+P forwards to the
+// OnCommandCenter callback (footer 提示 "Ctrl+P cmd"；此前该键被静默吞掉)。
+// 裸 'p' 仍进入编辑器输入。
+func TestDispatchKeyCtrlPCommandCenter(t *testing.T) {
+	var opened int
+	app, _ := newTestChatApp(t, ChatAppConfig{
+		OnCommandCenter: func() { opened++ },
+	})
+	app.MarkAgentReady() // StateInitializing → StateIdle
+
+	// Ctrl+P（\x10）触发回调。
+	if !app.layout.dispatchKey(terminal.Key{Name: "p", Mods: terminal.ModCtrl}) {
+		t.Fatal("ctrl+p should be consumed by the chat layout")
+	}
+	if opened != 1 {
+		t.Fatalf("OnCommandCenter calls = %d, want 1", opened)
+	}
+
+	// 裸 'p' 不被消费——应落到编辑器输入。
+	if app.layout.dispatchKey(terminal.Key{Name: "p"}) {
+		t.Fatal("bare p should not be consumed by the chat layout")
+	}
+}
+
+// TestDispatchKeyCtrlCIdleQuits verifies idle Ctrl+C fires OnQuit
+// (footer 提示 "Ctrl+C quit"；此前空闲时被静默吞掉且无退出路径)。
+// OnQuit 未配置时安全降级为忽略。
+func TestDispatchKeyCtrlCIdleQuits(t *testing.T) {
+	var quit int
+	app, _ := newTestChatApp(t, ChatAppConfig{
+		OnQuit: func() { quit++ },
+	})
+	app.MarkAgentReady() // StateIdle
+
+	if !app.layout.dispatchKey(terminal.Key{Name: "c", Mods: terminal.ModCtrl}) {
+		t.Fatal("ctrl+c should be consumed by the chat layout")
+	}
+	if quit != 1 {
+		t.Fatalf("OnQuit calls = %d, want 1", quit)
+	}
+
+	// 未配置 OnQuit 时：Ctrl+C 仍被消费，但不 panic、不复制。
+	app2, _ := newTestChatApp(t, ChatAppConfig{})
+	app2.MarkAgentReady()
+	if !app2.layout.dispatchKey(terminal.Key{Name: "c", Mods: terminal.ModCtrl}) {
+		t.Fatal("ctrl+c should still be consumed when OnQuit is nil")
+	}
+}
+
+// TestDispatchKeyCtrlCRunningInterruptsNotQuits verifies streaming-state
+// Ctrl+C keeps interrupting (not quitting) after the idle-quit change.
+func TestDispatchKeyCtrlCRunningInterruptsNotQuits(t *testing.T) {
+	var interrupted, quit int
+	app, _ := newTestChatApp(t, ChatAppConfig{
+		OnInterrupt: func() { interrupted++ },
+		OnQuit:      func() { quit++ },
+	})
+	app.MarkAgentReady()
+	app.onAgentStart(AgentStartChatEvent{}) // → StateStreaming
+
+	app.layout.dispatchKey(terminal.Key{Name: "c", Mods: terminal.ModCtrl})
+	if interrupted != 1 {
+		t.Fatalf("OnInterrupt calls = %d, want 1", interrupted)
+	}
+	if quit != 0 {
+		t.Fatalf("OnQuit must not fire while running, got %d", quit)
+	}
+}

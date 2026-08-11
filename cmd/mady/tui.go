@@ -226,6 +226,11 @@ func runTui(ctx context.Context) error {
 				}
 			}
 		},
+		// Ctrl+P 打开命令中心（footer 提示 "Ctrl+P cmd"）。命令面板
+		// 由 slash 注册表构建，故回调在 cmd/mady 层实现。
+		OnCommandCenter: func() {
+			s.openCommandCenter()
+		},
 		Providers: []core.AutocompleteProvider{
 			&component.StaticProvider{
 				TriggerStr:  "/",
@@ -322,30 +327,20 @@ func runTui(ctx context.Context) error {
 
 // applyStoredTheme reads the persisted theme from the store and applies it to
 // the terminal palette. Called early in startup before s.app exists, so it uses
-// SetSemanticTheme directly rather than going through handleThemeCommand.
+// applyThemeByName directly rather than going through handleThemeCommand.
 func applyStoredTheme(s *tuiSession) {
 	name := s.store.Get(SettingKeyTheme)
 	if name == "" {
 		name = "auto"
 	}
-	// Try theme registry first (supports named themes like "tokyo-night", etc.).
-	if info := theme.ThemeInfoByName(name); info != nil {
-		theme.ApplyThemeByName(name)
+	if _, ok := applyThemeByName(name); ok {
 		return
 	}
-	// Legacy fallback for "light"/"dark" aliases.
-	switch name {
-	case "light":
-		theme.SetSemanticTheme(theme.DefaultSemanticLight(), theme.DetectColorMode())
-	case "dark":
+	// 未知持久化值兜底：尝试 "auto"，再回退 mady-dark。
+	if info := theme.ThemeInfoByName("auto"); info != nil {
+		theme.ApplyThemeByName("auto")
+	} else {
 		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
-	default:
-		// Try to apply "auto" as safe default.
-		if info := theme.ThemeInfoByName("auto"); info != nil {
-			theme.ApplyThemeByName("auto")
-		} else {
-			theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
-		}
 	}
 }
 
