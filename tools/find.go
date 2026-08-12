@@ -63,11 +63,17 @@ type FindToolConfig struct {
 	MaxBytes   int64
 	Limit      int
 	Sandbox    WorkingDirSandbox
+	// FdLookup 探测 fd 可执行文件；nil 时默认 exec.LookPath("fd")。
+	// 测试注入可禁用 fd 优先路径，保证走 mock Operations 稳定执行。
+	FdLookup func() (string, error)
 }
 
 func (c *FindToolConfig) defaults() {
 	if c.Operations == nil {
 		c.Operations = DefaultFindOperations{}
+	}
+	if c.FdLookup == nil {
+		c.FdLookup = func() (string, error) { return exec.LookPath("fd") }
 	}
 	if c.MaxBytes <= 0 {
 		c.MaxBytes = DefaultMaxBytes
@@ -141,7 +147,7 @@ func NewFindTool(cwd string, cfg *FindToolConfig) *agentcore.Tool {
 			}
 
 			// Try fd first.
-			if fdPath, err := exec.LookPath("fd"); err == nil {
+			if fdPath, err := cfg.FdLookup(); err == nil {
 				return runFd(ctx, fdPath, searchPath, input.Pattern, limit, cfg)
 			}
 

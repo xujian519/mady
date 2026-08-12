@@ -1,4 +1,3 @@
-//nolint:noctx
 // computer_use_exec.go：外部命令执行助手。
 // 职责：统一封装 osascript / cliclick / pwsh / xdotool / ydotool / wtype 的调用，
 // 捕获 stdout/stderr 并包装错误；scrotExec 在 Linux 下依次尝试 grim/import/gnome-screenshot/scrot。

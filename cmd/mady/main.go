@@ -13,6 +13,7 @@
 //	mady evidence — evidence judgment CLI
 //	mady patent — patent analysis CLI (novelty analysis, OA response drafting)
 //	mady util  — utility tools (list-prompts, etc.)
+//	mady version — show build version info
 //	mady help  — show usage help
 //
 // All configuration is via environment variables (see package agentconfig):
@@ -51,7 +52,6 @@ import (
 // (see LDFLAGS in Makefile). Default to "unknown" for dev builds.
 var commitHash = "unknown" // set via ldflags at build time
 var buildTime = "unknown"  // set via ldflags at build time
-var _, _ = commitHash, buildTime
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -124,6 +124,8 @@ func main() {
 		}
 	case "start-embeddings", "stop-embeddings", "status-embeddings":
 		runEmbeddingsCLI(ctx, os.Args[1])
+	case "version", "-v", "--version":
+		printVersion()
 	case "-h", "--help", "help":
 		printUsage()
 	default:
@@ -131,6 +133,13 @@ func main() {
 		printUsage()
 		stop()
 		os.Exit(2)
+	}
+}
+
+// printVersion 输出构建版本信息（commitHash/buildTime 由 ldflags 注入）。
+func printVersion() {
+	if _, err := fmt.Fprintf(os.Stdout, "mady %s (build %s)\n", commitHash, buildTime); err != nil {
+		fmt.Fprintln(os.Stderr, "mady: 输出版本信息失败:", err)
 	}
 }
 
@@ -163,6 +172,7 @@ Commands:
   start-embeddings  Start the oMLX embedding/reranking server.
   stop-embeddings   Stop the oMLX embedding/reranking server.
   status-embeddings Check the oMLX embedding/reranking server status.
+  version  Show build version info (commit hash and build time).
   help  Show this help message.
 
 Configuration (environment variables):

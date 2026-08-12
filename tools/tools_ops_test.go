@@ -536,6 +536,10 @@ func TestGrepToolNoMatch(t *testing.T) {
 
 // --- Find tests ---
 
+// noFdLookup 禁用 find 工具的 fd 优先路径，保证测试走 mock Glob 稳定执行
+// （不依赖本机是否安装 fd、搜索目录内容）。
+func noFdLookup() (string, error) { return "", errors.New("fd disabled in test") }
+
 func TestFindToolBasic(t *testing.T) {
 	tool := NewFindTool("/tmp", &FindToolConfig{
 		Operations: &mockFindOps{
@@ -544,6 +548,7 @@ func TestFindToolBasic(t *testing.T) {
 				return []string{"file1.go", "file2.go"}, nil
 			},
 		},
+		FdLookup: noFdLookup,
 	})
 	tr, err := callTool(t, tool, FindToolInput{
 		Pattern: "**/*.go",
@@ -562,6 +567,7 @@ func TestFindToolNotExists(t *testing.T) {
 		Operations: &mockFindOps{
 			existsFunc: func(path string) bool { return false },
 		},
+		FdLookup: noFdLookup,
 	})
 	_, err := callTool(t, tool, FindToolInput{
 		Pattern: "**/*.go",
@@ -584,6 +590,7 @@ func TestFindToolLimit(t *testing.T) {
 				return []string{"file1.go"}, nil
 			},
 		},
+		FdLookup: noFdLookup,
 	})
 	_, err := callTool(t, tool, FindToolInput{
 		Pattern: "**/*.go",
@@ -600,6 +607,12 @@ func TestFindToolConfigDefaults(t *testing.T) {
 	cfg.defaults()
 	if cfg.MaxBytes <= 0 {
 		t.Fatal("MaxBytes should be positive")
+	}
+	if cfg.Limit <= 0 {
+		t.Fatal("Limit should be positive")
+	}
+	if cfg.FdLookup == nil {
+		t.Fatal("FdLookup should default to exec.LookPath")
 	}
 }
 

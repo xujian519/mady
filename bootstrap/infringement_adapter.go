@@ -14,6 +14,7 @@ import (
 // NewInfringementKnowledgeRetriever 从 agentcore.Extension 创建 infringement.KnowledgeRetriever。
 // 内部类型断言为 *knowledge.KnowledgeExtension 以获取 LawSearcher 和 GraphContext；
 // 当 ext 为 nil 或类型不匹配时返回 nil（降级为纯 LLM 知识评估）。
+// 与 server.NewServerKnowledgeRetriever 采用相同的适配模式。
 func NewInfringementKnowledgeRetriever(ext agentcore.Extension) infringement.KnowledgeRetriever {
 	if ext == nil {
 		return nil

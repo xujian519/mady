@@ -1,4 +1,3 @@
-//nolint:noctx
 // computer_use_macos.go：macOS 回退后端实现（cliclick / osascript）。
 // 职责：screencapture 截屏、点击/双击/右键/中键、拖拽、文本输入、按键组合、
 // 滚动、set_value（输入+回车回退）、应用列表、窗口聚焦与窗口边界查询。

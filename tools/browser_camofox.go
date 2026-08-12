@@ -308,7 +308,11 @@ func (c *CamofoxClient) Screenshot(ctx context.Context, taskID string) ([]byte, 
 		return nil, fmt.Errorf("no tab found for task %s", taskID)
 	}
 
-	resp, err := c.httpClient.Get(fmt.Sprintf("%s/tabs/%s/screenshot", c.baseURL, tab.TabID)) //nolint:noctx // context threaded through doJSON
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/tabs/%s/screenshot", c.baseURL, tab.TabID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("build screenshot request failed: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("screenshot failed: %w", err)
 	}
@@ -366,7 +370,11 @@ func (c *CamofoxClient) CloseSession(ctx context.Context) error {
 }
 
 func (c *CamofoxClient) GetVNCURL(ctx context.Context) string {
-	resp, err := c.httpClient.Get(c.baseURL + "/health") //nolint:noctx // simple health check
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/health", nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return ""
 	}

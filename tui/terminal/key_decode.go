@@ -1,0 +1,275 @@
+package terminal
+
+import (
+	"fmt"
+	"strings"
+)
+
+// parseCSI handles ESC '[' sequences: arrow keys, F1-F12, Home/End/PageUp/Down,
+// Insert, Delete, bracketed paste markers, and the Kitty CSI u format.
+func parseCSI(s string, i int, flags int64) (Key, int) {
+	// Find the final byte (0x40..0x7E) to determine sequence length.
+	j := i + 2
+	for j < len(s) {
+		b := s[j]
+		if b >= 0x40 && b <= 0x7E {
+			seq := s[i : j+1]
+			final := b
+			params := s[i+2 : j]
+			return decodeCSI(seq, params, final, flags), j + 1 - i
+		}
+		j++
+	}
+	// Incomplete: return what we have so next chunk can finish it.
+	return Key{Name: "escape", Raw: s[i:]}, len(s) - i
+}
+
+func parseSS3(s string, i int) (Key, int) {
+	c := s[i+2]
+	raw := s[i : i+3]
+	switch c {
+	case 'A':
+		return Key{Name: "up", Raw: raw}, 3
+	case 'B':
+		return Key{Name: "down", Raw: raw}, 3
+	case 'C':
+		return Key{Name: "right", Raw: raw}, 3
+	case 'D':
+		return Key{Name: "left", Raw: raw}, 3
+	case 'H':
+		return Key{Name: "home", Raw: raw}, 3
+	case 'F':
+		return Key{Name: "end", Raw: raw}, 3
+	case 'P':
+		return Key{Name: "f1", Raw: raw}, 3
+	case 'Q':
+		return Key{Name: "f2", Raw: raw}, 3
+	case 'R':
+		return Key{Name: "f3", Raw: raw}, 3
+	case 'S':
+		return Key{Name: "f4", Raw: raw}, 3
+	}
+	return Key{Raw: raw}, 3
+}
+
+func decodeCSI(seq, params string, final byte, flags int64) Key {
+	switch final {
+	case 'A', 'B', 'C', 'D', 'H', 'F':
+		mods := ModNone
+		if strings.Contains(params, ";") {
+			_, modCode := splitTwo(params, ";")
+			mods = decodeCSIMods(modCode)
+		}
+		name := map[byte]string{
+			'A': "up", 'B': "down", 'C': "right", 'D': "left",
+			'H': "home", 'F': "end",
+		}[final]
+		return Key{Name: name, Mods: mods, Raw: seq}
+
+	case '~':
+		head, modCode := splitTwo(params, ";")
+		switch head {
+		case "2":
+			return Key{Name: "insert", Mods: decodeCSIMods(modCode), Raw: seq}
+		case "3":
+			return Key{Name: "delete", Mods: decodeCSIMods(modCode), Raw: seq}
+		case "5":
+			return Key{Name: "pageUp", Mods: decodeCSIMods(modCode), Raw: seq}
+		case "6":
+			return Key{Name: "pageDown", Mods: decodeCSIMods(modCode), Raw: seq}
+		case "7":
+			return Key{Name: "home", Mods: decodeCSIMods(modCode), Raw: seq}
+		case "8":
+			return Key{Name: "end", Mods: decodeCSIMods(modCode), Raw: seq}
+		case "11", "12", "13", "14":
+			fn := map[string]string{"11": "f1", "12": "f2", "13": "f3", "14": "f4"}[head]
+			return Key{Name: fn, Mods: decodeCSIMods(modCode), Raw: seq}
+		case "15":
+			return Key{Name: "f5", Mods: decodeCSIMods(modCode), Raw: seq}
+		case "17", "18", "19", "20", "21":
+			fn := map[string]string{"17": "f6", "18": "f7", "19": "f8", "20": "f9", "21": "f10"}[head]
+			return Key{Name: fn, Mods: decodeCSIMods(modCode), Raw: seq}
+		case "23", "24":
+			fn := map[string]string{"23": "f11", "24": "f12"}[head]
+			return Key{Name: fn, Mods: decodeCSIMods(modCode), Raw: seq}
+		case "200":
+			return Key{Name: "pasteStart", Raw: seq}
+		case "201":
+			return Key{Name: "pasteEnd", Raw: seq}
+		}
+		return Key{Raw: seq}
+
+	case 'Z':
+		// Shift+Tab (backwards tab) in xterm semantics: bare "CSI Z" or
+		// explicit "CSI 1 ; 2 Z". A bare CSI Z carries no modifier field,
+		// but by convention it IS Shift+Tab, so default to ModShift when
+		// no explicit modifier parameter is present.
+		mods := ModShift
+		if strings.Contains(params, ";") {
+			_, modCode := splitTwo(params, ";")
+			mods = decodeCSIMods(modCode)
+		}
+		return Key{Name: "tab", Mods: mods, Raw: seq}
+
+	case 'u':
+		return decodeKittyU(seq, params, flags)
+	}
+	return Key{Raw: seq}
+}
+
+// decodeKittyU parses CSI unicode-codepoint ; mods [; event] ; ... u
+// The parameter positions depend on which Kitty keyboard flags (1/2/4/8/16)
+// were negotiated. Without flag context, the parser cannot tell whether the
+// third parameter is an event type, an alternate key, or associated text.
+// flags is the negotiated bitmask (0 = default/compat: assume all fields
+// present). Callers should obtain flags from the Terminal instance.
+func decodeKittyU(seq, params string, flags int64) Key {
+	codeStr, rest := splitTwo(params, ";")
+	modStr, rest2 := splitTwo(rest, ";")
+
+	// Consume positional parameters from rest2 according to negotiated flags.
+	// Layout: code ; mods [; event] [; alt] [; text] u
+	var evtStr, altStr, textStr string
+
+	// When flags are unknown (0), default to the old greedy layout: parse
+	// up to 4 semicolon-separated fields (code;mods;event;alt;text). This
+	// preserves backward compatibility for callers that don't negotiate flags.
+	if flags == 0 {
+		flags = 1 | 2 | 4 | 16 // assume everything present
+	}
+
+	// Event type (flag 2).
+	if flags&2 != 0 {
+		if strings.Contains(rest2, ";") {
+			evtStr, rest2 = splitTwo(rest2, ";")
+		} else {
+			evtStr = rest2
+			rest2 = ""
+		}
+	}
+
+	// Alternate key codepoint (flag 4).
+	if flags&4 != 0 {
+		if strings.Contains(rest2, ";") {
+			altStr, rest2 = splitTwo(rest2, ";")
+		} else if rest2 != "" {
+			altStr = rest2
+			rest2 = ""
+		}
+	}
+
+	// Associated text (flag 16) — the remaining payload.
+	if flags&16 != 0 {
+		textStr = rest2
+	}
+
+	code := parseUint(codeStr)
+	mods := decodeCSIMods(modStr)
+	evt := KeyPress
+	switch parseUint(evtStr) {
+	case 2:
+		evt = KeyRepeat
+	case 3:
+		evt = KeyRelease
+	}
+
+	k := Key{Mods: mods, Event: evt, Alt: parseUint(altStr), Text: percentDecode(textStr), Raw: seq}
+	if code == 0 {
+		return k
+	}
+	switch code {
+	case 13:
+		k.Name = "enter"
+	case 9:
+		k.Name = "tab"
+	case 27:
+		k.Name = "escape"
+	case 127:
+		k.Name = "backspace"
+	// Kitty keyboard protocol functional-key codepoints (Unicode PUA
+	// 0xe000..0xe01f). Reference: kitty's key encoding table — 0xe000=Escape,
+	// 0xe004=Insert, 0xe006=Left, 0xe008=Up, 0xe014=F1, … These must match
+	// the terminal's CSI ... u payload exactly; a wrong mapping silently
+	// breaks navigation and F-keys on Kitty/Ghostty/WezTerm/foot. The first
+	// four are the C0 control keys as PUA: under protocol flag 1 they arrive
+	// with this encoding when a modifier is held (e.g. Shift+Enter), and
+	// without a mapping they'd be inserted as private-use runes.
+	case 0xe000:
+		k.Name = "escape"
+	case 0xe001:
+		// Kitty spec: 0xe001 = Enter (NOT Tab — that is 0xe002).
+		k.Name = "enter"
+	case 0xe002:
+		// Kitty spec: 0xe002 = Tab (NOT Backspace — that is 0xe003).
+		k.Name = "tab"
+	case 0xe003:
+		// Kitty spec: 0xe003 = Backspace (NOT Enter).
+		k.Name = "backspace"
+	case 0xe004:
+		k.Name = "insert"
+	case 0xe005:
+		k.Name = "delete"
+	case 0xe006:
+		k.Name = "left"
+	case 0xe007:
+		k.Name = "right"
+	case 0xe008:
+		k.Name = "up"
+	case 0xe009:
+		k.Name = "down"
+	case 0xe00a:
+		k.Name = "pageUp"
+	case 0xe00b:
+		k.Name = "pageDown"
+	case 0xe00c:
+		k.Name = "home"
+	case 0xe00d:
+		k.Name = "end"
+	case 0xe00e:
+		k.Name = "capsLock"
+	case 0xe00f:
+		k.Name = "scrollLock"
+	case 0xe010:
+		k.Name = "numLock"
+	case 0xe011:
+		k.Name = "printScreen"
+	case 0xe012:
+		k.Name = "pause"
+	case 0xe013:
+		k.Name = "menu"
+	case 0xe014, 0xe015, 0xe016, 0xe017, 0xe018, 0xe019, 0xe01a, 0xe01b, 0xe01c, 0xe01d, 0xe01e, 0xe01f:
+		k.Name = fmt.Sprintf("f%d", code-0xe013) // 0xe014 → f1 … 0xe01f → f12
+	default:
+		r := rune(code)
+		k.Rune = r
+		k.Name = string(r)
+	}
+	return k
+}
+
+func decodeCSIMods(s string) Modifier {
+	n := parseUint(s)
+	if n <= 0 {
+		return ModNone
+	}
+	return Modifier(n - 1)
+}
+
+func splitTwo(s, sep string) (string, string) {
+	idx := strings.Index(s, sep)
+	if idx < 0 {
+		return s, ""
+	}
+	return s[:idx], s[idx+len(sep):]
+}
+
+func parseUint(s string) int64 {
+	var n int64
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			break
+		}
+		n = n*10 + int64(c-'0')
+	}
+	return n
+}

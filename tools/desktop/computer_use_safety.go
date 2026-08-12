@@ -2,7 +2,7 @@
 // 职责：危险键组合黑名单（按平台过滤）、危险输入文本模式（curl|sh、rm -rf、fork bomb 等）、
 // COMPUTER_USE_APPROVAL 环境变量驱动的审批模式（none/once/session）。
 
-package desktop //nolint:noctx
+package desktop
 
 import (
 	"fmt"

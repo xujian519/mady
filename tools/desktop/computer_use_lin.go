@@ -1,4 +1,3 @@
-//nolint:noctx
 // computer_use_lin.go：Linux 后端实现（xdotool X11 / ydotool+wtype Wayland）。
 // 职责：截屏（grim/import/gnome-screenshot/scrot）、点击、拖拽、输入、按键、滚动、
 // 应用列表与窗口聚焦；Wayland 下窗口边界/聚焦走 Hyprland 或 Sway。
