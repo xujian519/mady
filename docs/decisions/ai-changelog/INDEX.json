@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-08-12T22:42:33+08:00",
-  "total": 345,
+  "updated": "2026-08-12T23:14:52+08:00",
+  "total": 346,
   "entries": [
     {
       "date": "2026-08-12",
@@ -100,12 +100,12 @@
       "line": 73
     },
     {
-      "date": "2026-08-11",
-      "type": "docs",
+      "date": "2026-08-12",
+      "type": "fix",
       "scope": "repo",
-      "title": "修复 doc-check 漂移：同步 Go 文件计数声明",
-      "file": "2026-08-11.md",
-      "line": 132
+      "title": "CI 门禁修复：doc-check 与 verify-tui-layers 文档同步",
+      "file": "2026-08-12.md",
+      "line": 79
     },
     {
       "date": "2026-08-11",
@@ -292,12 +292,12 @@
       "line": 126
     },
     {
-      "date": "2026-08-09",
-      "type": "fix",
-      "scope": "tui",
-      "title": "全量审阅修复：P0 resize 防抖自续循环 + 12 项 P1 + 31 项 P2（TUI 2026-08-09 审阅）",
-      "file": "2026-08-09.md",
-      "line": 3
+      "date": "2026-08-11",
+      "type": "docs",
+      "scope": "repo",
+      "title": "修复 doc-check 漂移：同步 Go 文件计数声明",
+      "file": "2026-08-11.md",
+      "line": 132
     },
     {
       "date": "2026-08-09",
@@ -324,12 +324,12 @@
       "line": 39
     },
     {
-      "date": "2026-08-08",
+      "date": "2026-08-09",
       "type": "fix",
-      "scope": "chatcompat",
-      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
-      "file": "2026-08-08.md",
-      "line": 7
+      "scope": "tui",
+      "title": "全量审阅修复：P0 resize 防抖自续循环 + 12 项 P1 + 31 项 P2（TUI 2026-08-09 审阅）",
+      "file": "2026-08-09.md",
+      "line": 3
     },
     {
       "date": "2026-08-08",
@@ -348,11 +348,11 @@
       "line": 3
     },
     {
-      "date": "2026-08-07",
-      "type": "refactor",
-      "scope": "techdebt",
-      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
-      "file": "2026-08-07.md",
+      "date": "2026-08-08",
+      "type": "fix",
+      "scope": "chatcompat",
+      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
+      "file": "2026-08-08.md",
       "line": 7
     },
     {
@@ -372,12 +372,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-06",
-      "type": "feat",
-      "scope": "domains/workflows/patent",
-      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
-      "file": "2026-08-06.md",
-      "line": 3
+      "date": "2026-08-07",
+      "type": "refactor",
+      "scope": "techdebt",
+      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
+      "file": "2026-08-07.md",
+      "line": 7
     },
     {
       "date": "2026-08-06",
@@ -388,12 +388,12 @@
       "line": 16
     },
     {
-      "date": "2026-08-04",
-      "type": "fix",
-      "scope": "tui/chat",
-      "title": "修复 TUI 流式输出内容重复",
-      "file": "2026-08-04.md",
-      "line": 219
+      "date": "2026-08-06",
+      "type": "feat",
+      "scope": "domains/workflows/patent",
+      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
+      "file": "2026-08-06.md",
+      "line": 3
     },
     {
       "date": "2026-08-04",
@@ -468,12 +468,12 @@
       "line": 205
     },
     {
-      "date": "2026-08-03",
+      "date": "2026-08-04",
       "type": "fix",
       "scope": "tui/chat",
-      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
-      "file": "2026-08-03.md",
-      "line": 3
+      "title": "修复 TUI 流式输出内容重复",
+      "file": "2026-08-04.md",
+      "line": 219
     },
     {
       "date": "2026-08-03",
@@ -484,12 +484,12 @@
       "line": 9
     },
     {
-      "date": "2026-08-02",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "桌面端主题系统：主题包背景变量 + 主题画廊 + JSON 导入导出",
-      "file": "2026-08-02.md",
-      "line": 85
+      "date": "2026-08-03",
+      "type": "fix",
+      "scope": "tui/chat",
+      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
+      "file": "2026-08-03.md",
+      "line": 3
     },
     {
       "date": "2026-08-02",
@@ -556,12 +556,12 @@
       "line": 74
     },
     {
-      "date": "2026-08-01",
-      "type": "test",
-      "scope": "cmd/mady",
-      "title": "buildAgentConfig 集成测试：MaxTokens 保留不变量",
-      "file": "2026-08-01.md",
-      "line": 7
+      "date": "2026-08-02",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "桌面端主题系统：主题包背景变量 + 主题画廊 + JSON 导入导出",
+      "file": "2026-08-02.md",
+      "line": 85
     },
     {
       "date": "2026-08-01",
@@ -588,12 +588,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "desktop",
-      "title": "CI 修复 — desktop job Node 20 → 24（jsdom 30 engines 要求）",
-      "file": "2026-07-31.md",
-      "line": 322
+      "date": "2026-08-01",
+      "type": "test",
+      "scope": "cmd/mady",
+      "title": "buildAgentConfig 集成测试：MaxTokens 保留不变量",
+      "file": "2026-08-01.md",
+      "line": 7
     },
     {
       "date": "2026-07-31",
@@ -996,12 +996,12 @@
       "line": 561
     },
     {
-      "date": "2026-07-30",
+      "date": "2026-07-31",
       "type": "fix",
-      "scope": "tui",
-      "title": "彻底修复 TUI 三大排版问题（删除 glamour + 重写 Markdown 渲染器）",
-      "file": "2026-07-30.md",
-      "line": 346
+      "scope": "desktop",
+      "title": "CI 修复 — desktop job Node 20 → 24（jsdom 30 engines 要求）",
+      "file": "2026-07-31.md",
+      "line": 322
     },
     {
       "date": "2026-07-30",
@@ -1156,12 +1156,12 @@
       "line": 92
     },
     {
-      "date": "2026-07-29",
-      "type": "style",
-      "scope": "*",
-      "title": "桌面端第三波 — P2 Token 补齐 + 视觉/发布评估",
-      "file": "2026-07-29.md",
-      "line": 216
+      "date": "2026-07-30",
+      "type": "fix",
+      "scope": "tui",
+      "title": "彻底修复 TUI 三大排版问题（删除 glamour + 重写 Markdown 渲染器）",
+      "file": "2026-07-30.md",
+      "line": 346
     },
     {
       "date": "2026-07-29",
@@ -1236,12 +1236,12 @@
       "line": 175
     },
     {
-      "date": "2026-07-28",
-      "type": "test",
-      "scope": "tui",
-      "title": "TUI 鼠标路由架构升级（方案 2 hit-test + 方案 4 事件消费）",
-      "file": "2026-07-28.md",
-      "line": 204
+      "date": "2026-07-29",
+      "type": "style",
+      "scope": "*",
+      "title": "桌面端第三波 — P2 Token 补齐 + 视觉/发布评估",
+      "file": "2026-07-29.md",
+      "line": 216
     },
     {
       "date": "2026-07-28",
@@ -1364,12 +1364,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-27",
+      "date": "2026-07-28",
       "type": "test",
-      "scope": "a2ui",
-      "title": "Phase 2 完成 — A2UI 渲染器（33 TS 文件 + 6 Go e2e 测试）",
-      "file": "2026-07-27.md",
-      "line": 450
+      "scope": "tui",
+      "title": "TUI 鼠标路由架构升级（方案 2 hit-test + 方案 4 事件消费）",
+      "file": "2026-07-28.md",
+      "line": 204
     },
     {
       "date": "2026-07-27",
@@ -1532,12 +1532,12 @@
       "line": 713
     },
     {
-      "date": "2026-07-26",
-      "type": "fix",
-      "scope": "*",
-      "title": "CI/CD 修复 — Makefile 子-shell 泄漏 + LAYERS.md 同步",
-      "file": "2026-07-26.md",
-      "line": 41
+      "date": "2026-07-27",
+      "type": "test",
+      "scope": "a2ui",
+      "title": "Phase 2 完成 — A2UI 渲染器（33 TS 文件 + 6 Go e2e 测试）",
+      "file": "2026-07-27.md",
+      "line": 450
     },
     {
       "date": "2026-07-26",
@@ -1604,12 +1604,12 @@
       "line": 434
     },
     {
-      "date": "2026-07-25",
-      "type": "chore",
-      "scope": "tui",
-      "title": "TUI 会话持久化按当前工作目录隔离",
-      "file": "2026-07-25.md",
-      "line": 82
+      "date": "2026-07-26",
+      "type": "fix",
+      "scope": "*",
+      "title": "CI/CD 修复 — Makefile 子-shell 泄漏 + LAYERS.md 同步",
+      "file": "2026-07-26.md",
+      "line": 41
     },
     {
       "date": "2026-07-25",
@@ -1716,12 +1716,12 @@
       "line": 30
     },
     {
-      "date": "2026-07-24",
+      "date": "2026-07-25",
       "type": "chore",
-      "scope": "domains",
-      "title": "claimdrafting Pregel 图 — 8 节点编排替代串行 Builder",
-      "file": "2026-07-24.md",
-      "line": 577
+      "scope": "tui",
+      "title": "TUI 会话持久化按当前工作目录隔离",
+      "file": "2026-07-25.md",
+      "line": 82
     },
     {
       "date": "2026-07-24",
@@ -1876,12 +1876,12 @@
       "line": 614
     },
     {
-      "date": "2026-07-23",
-      "type": "fix",
-      "scope": "*",
-      "title": "执行器全量质量审阅与修复",
-      "file": "2026-07-23.md",
-      "line": 136
+      "date": "2026-07-24",
+      "type": "chore",
+      "scope": "domains",
+      "title": "claimdrafting Pregel 图 — 8 节点编排替代串行 Builder",
+      "file": "2026-07-24.md",
+      "line": 577
     },
     {
       "date": "2026-07-23",
@@ -2028,12 +2028,12 @@
       "line": 257
     },
     {
-      "date": "2026-07-22",
-      "type": "perf",
+      "date": "2026-07-23",
+      "type": "fix",
       "scope": "*",
-      "title": "工作流编排器优化第一批 — 规则引擎场景化 + 知识系统深度集成",
-      "file": "2026-07-22.md",
-      "line": 99
+      "title": "执行器全量质量审阅与修复",
+      "file": "2026-07-23.md",
+      "line": 136
     },
     {
       "date": "2026-07-22",
@@ -2092,12 +2092,12 @@
       "line": 59
     },
     {
-      "date": "2026-07-21",
-      "type": "fix",
+      "date": "2026-07-22",
+      "type": "perf",
       "scope": "*",
-      "title": "修复 pre-commit 钩子失效问题",
-      "file": "2026-07-21.md",
-      "line": 516
+      "title": "工作流编排器优化第一批 — 规则引擎场景化 + 知识系统深度集成",
+      "file": "2026-07-22.md",
+      "line": 99
     },
     {
       "date": "2026-07-21",
@@ -2276,12 +2276,12 @@
       "line": 701
     },
     {
-      "date": "2026-07-20",
+      "date": "2026-07-21",
       "type": "fix",
       "scope": "*",
-      "title": "全仓技术债务修复（第二轮：快速修复 + 函数拆分 + 布局模板化）",
-      "file": "2026-07-20.md",
-      "line": 171
+      "title": "修复 pre-commit 钩子失效问题",
+      "file": "2026-07-21.md",
+      "line": 516
     },
     {
       "date": "2026-07-20",
@@ -2508,12 +2508,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-19",
+      "date": "2026-07-20",
       "type": "fix",
       "scope": "*",
-      "title": "四大证据源全面接线修复",
-      "file": "2026-07-19.md",
-      "line": 3
+      "title": "全仓技术债务修复（第二轮：快速修复 + 函数拆分 + 布局模板化）",
+      "file": "2026-07-20.md",
+      "line": 171
     },
     {
       "date": "2026-07-19",
@@ -2556,12 +2556,12 @@
       "line": 85
     },
     {
-      "date": "2026-07-18",
-      "type": "feat",
+      "date": "2026-07-19",
+      "type": "fix",
       "scope": "*",
-      "title": "Open Design 思路引入 —— Tier 2 实现",
-      "file": "2026-07-18.md",
-      "line": 655
+      "title": "四大证据源全面接线修复",
+      "file": "2026-07-19.md",
+      "line": 3
     },
     {
       "date": "2026-07-18",
@@ -2762,6 +2762,14 @@
       "title": "引入 Open Design 项目思路 —— 三阶段 Tier 1 实现",
       "file": "2026-07-18.md",
       "line": 690
+    },
+    {
+      "date": "2026-07-18",
+      "type": "feat",
+      "scope": "*",
+      "title": "Open Design 思路引入 —— Tier 2 实现",
+      "file": "2026-07-18.md",
+      "line": 655
     }
   ]
 }
