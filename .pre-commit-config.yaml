@@ -50,6 +50,21 @@ repos:
         language: system
         files: \.go$
         pass_filenames: false
+      - id: golangci-lint-newcode
+        name: golangci-lint (new code, exported gate)
+        # 只检查相对 HEAD 的新增/修改代码：新导出符号必须带注释（revive exported，
+        # 配置 .golangci-newcode.yml）。存量缺口不阻塞。首次提交（无 HEAD）时跳过。
+        entry: bash -ec 'git rev-parse HEAD >/dev/null 2>&1 || exit 0; golangci-lint run --config .golangci-newcode.yml --new-from-rev=HEAD ./...' --
+        language: system
+        files: \.go$
+        pass_filenames: false
+      - id: check-comment-seams
+        name: check comment seams
+        # 纯搬移重构的注释拼接残留防护：重复注释行 / 英文断片（"that the" 结尾等）。
+        # python3 实现（macOS BSD awk 的多字节字符串比较不可靠），直接执行靠 shebang。
+        entry: scripts/check-comment-seams.sh
+        language: system
+        files: \.go$
       - id: check-aichangelog-format
         name: AI_CHANGELOG format gate
         entry: bash scripts/check-aichangelog-format.sh

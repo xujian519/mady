@@ -57,7 +57,6 @@ func WithAuth(cfg AuthConfig) ServerOption {
 }
 
 // WithMaxRequestBody sets the maximum request body size in bytes.
-// WithMaxRequestBody sets the maximum request body size in bytes.
 func WithMaxRequestBody(n int64) ServerOption {
 	return func(s *Server) { s.maxRequestBody = n }
 }

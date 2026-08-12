@@ -262,7 +262,6 @@ func (c *WSConnection) tryReconnect() bool {
 }
 
 // SendRequest sends a JSON-RPC request over the WebSocket connection.
-// SendRequest sends a JSON-RPC request over the WebSocket connection.
 func (c *WSConnection) SendRequest(method string, params any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -286,7 +285,6 @@ func (c *WSConnection) SendRequest(method string, params any) error {
 	return c.conn.WriteJSON(req)
 }
 
-// Recv receives the next task update event from the WebSocket connection.
 // Recv receives the next task update event from the WebSocket connection.
 func (c *WSConnection) Recv() (*TaskUpdateEvent, bool) {
 	ev, ok := <-c.ch

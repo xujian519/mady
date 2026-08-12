@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-08-12T22:24:47+08:00",
-  "total": 343,
+  "updated": "2026-08-12T22:37:05+08:00",
+  "total": 344,
   "entries": [
     {
       "date": "2026-08-12",
@@ -84,12 +84,12 @@
       "line": 61
     },
     {
-      "date": "2026-08-11",
-      "type": "fix",
-      "scope": "cmd/mady",
-      "title": "修复默认主题 light 启动时误报未知主题",
-      "file": "2026-08-11.md",
-      "line": 120
+      "date": "2026-08-12",
+      "type": "chore",
+      "scope": "repo",
+      "title": "门禁增强：新代码 exported 规则 + 注释拼接残留检查",
+      "file": "2026-08-12.md",
+      "line": 67
     },
     {
       "date": "2026-08-11",
@@ -276,12 +276,12 @@
       "line": 114
     },
     {
-      "date": "2026-08-09",
+      "date": "2026-08-11",
       "type": "fix",
-      "scope": "agentcore",
-      "title": "输出完整性链路修复：纯文本 max_tokens 截断自动续写 + FinishReason 全通道透传",
-      "file": "2026-08-09.md",
-      "line": 23
+      "scope": "cmd/mady",
+      "title": "修复默认主题 light 启动时误报未知主题",
+      "file": "2026-08-11.md",
+      "line": 120
     },
     {
       "date": "2026-08-09",
@@ -308,12 +308,12 @@
       "line": 17
     },
     {
-      "date": "2026-08-08",
-      "type": "feat",
+      "date": "2026-08-09",
+      "type": "fix",
       "scope": "agentcore",
-      "title": "输出异常结束透传 TUI 可见：AgentEndEvent 带 FinishReason，截断/中断出用户提示",
-      "file": "2026-08-08.md",
-      "line": 13
+      "title": "输出完整性链路修复：纯文本 max_tokens 截断自动续写 + FinishReason 全通道透传",
+      "file": "2026-08-09.md",
+      "line": 23
     },
     {
       "date": "2026-08-08",
@@ -332,11 +332,11 @@
       "line": 7
     },
     {
-      "date": "2026-08-07",
-      "type": "chore",
-      "scope": "techdebt",
-      "title": "P3 仓库卫生收尾：清除根目录杂散文档与编译二进制",
-      "file": "2026-08-07.md",
+      "date": "2026-08-08",
+      "type": "feat",
+      "scope": "agentcore",
+      "title": "输出异常结束透传 TUI 可见：AgentEndEvent 带 FinishReason，截断/中断出用户提示",
+      "file": "2026-08-08.md",
       "line": 13
     },
     {
@@ -356,12 +356,12 @@
       "line": 7
     },
     {
-      "date": "2026-08-06",
-      "type": "feat",
-      "scope": "domains/workflows/patent",
-      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
-      "file": "2026-08-06.md",
-      "line": 3
+      "date": "2026-08-07",
+      "type": "chore",
+      "scope": "techdebt",
+      "title": "P3 仓库卫生收尾：清除根目录杂散文档与编译二进制",
+      "file": "2026-08-07.md",
+      "line": 13
     },
     {
       "date": "2026-08-06",
@@ -372,12 +372,12 @@
       "line": 16
     },
     {
-      "date": "2026-08-04",
-      "type": "refactor",
-      "scope": "desktop",
-      "title": "code-review 修复：标签联动单真相源、嵌套模态 Esc、单写入者窗口状态等 7 项",
-      "file": "2026-08-04.md",
-      "line": 173
+      "date": "2026-08-06",
+      "type": "feat",
+      "scope": "domains/workflows/patent",
+      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
+      "file": "2026-08-06.md",
+      "line": 3
     },
     {
       "date": "2026-08-04",
@@ -452,12 +452,12 @@
       "line": 146
     },
     {
-      "date": "2026-08-03",
-      "type": "fix",
-      "scope": "tui/chat",
-      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
-      "file": "2026-08-03.md",
-      "line": 3
+      "date": "2026-08-04",
+      "type": "refactor",
+      "scope": "desktop",
+      "title": "code-review 修复：标签联动单真相源、嵌套模态 Esc、单写入者窗口状态等 7 项",
+      "file": "2026-08-04.md",
+      "line": 173
     },
     {
       "date": "2026-08-03",
@@ -468,12 +468,12 @@
       "line": 9
     },
     {
-      "date": "2026-08-02",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "桌面端阶段 2 UI 升级：历史面板回收站 / 上下文环形指示器 / 回合折叠 / Composer 草稿与历史",
-      "file": "2026-08-02.md",
-      "line": 61
+      "date": "2026-08-03",
+      "type": "fix",
+      "scope": "tui/chat",
+      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
+      "file": "2026-08-03.md",
+      "line": 3
     },
     {
       "date": "2026-08-02",
@@ -540,12 +540,12 @@
       "line": 47
     },
     {
-      "date": "2026-08-01",
-      "type": "style",
-      "scope": "tui",
-      "title": "TUI 输出紧凑时间线与 Markdown 可读性优化",
-      "file": "2026-08-01.md",
-      "line": 32
+      "date": "2026-08-02",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "桌面端阶段 2 UI 升级：历史面板回收站 / 上下文环形指示器 / 回合折叠 / Composer 草稿与历史",
+      "file": "2026-08-02.md",
+      "line": 61
     },
     {
       "date": "2026-08-01",
@@ -572,12 +572,12 @@
       "line": 13
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "lint/docs",
-      "title": "三项代码质量修复 — AI_CHANGELOG 门禁 / nolint 注释 / README 错误",
-      "file": "2026-07-31.md",
-      "line": 471
+      "date": "2026-08-01",
+      "type": "style",
+      "scope": "tui",
+      "title": "TUI 输出紧凑时间线与 Markdown 可读性优化",
+      "file": "2026-08-01.md",
+      "line": 32
     },
     {
       "date": "2026-07-31",
@@ -980,12 +980,12 @@
       "line": 212
     },
     {
-      "date": "2026-07-30",
+      "date": "2026-07-31",
       "type": "fix",
-      "scope": "frontend",
-      "title": "修复 Desktop 与 ACP 前端的工作流/loop/graph 断链（5 文件）",
-      "file": "2026-07-30.md",
-      "line": 248
+      "scope": "lint/docs",
+      "title": "三项代码质量修复 — AI_CHANGELOG 门禁 / nolint 注释 / README 错误",
+      "file": "2026-07-31.md",
+      "line": 471
     },
     {
       "date": "2026-07-30",
@@ -1140,12 +1140,12 @@
       "line": 197
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
-      "scope": "*",
-      "title": "桌面端第二波 W2-T1 — TodoDock 底部待办坞",
-      "file": "2026-07-29.md",
-      "line": 134
+      "date": "2026-07-30",
+      "type": "fix",
+      "scope": "frontend",
+      "title": "修复 Desktop 与 ACP 前端的工作流/loop/graph 断链（5 文件）",
+      "file": "2026-07-30.md",
+      "line": 248
     },
     {
       "date": "2026-07-29",
@@ -1220,12 +1220,12 @@
       "line": 95
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
+      "date": "2026-07-29",
+      "type": "chore",
       "scope": "*",
-      "title": "基础设施层全量质量审阅与架构违规修复",
-      "file": "2026-07-28.md",
-      "line": 704
+      "title": "桌面端第二波 W2-T1 — TodoDock 底部待办坞",
+      "file": "2026-07-29.md",
+      "line": 134
     },
     {
       "date": "2026-07-28",
@@ -1348,12 +1348,12 @@
       "line": 504
     },
     {
-      "date": "2026-07-27",
+      "date": "2026-07-28",
       "type": "fix",
       "scope": "*",
-      "title": "CI/CD 管道修复 — 4 个失败检查全部通过",
-      "file": "2026-07-27.md",
-      "line": 36
+      "title": "基础设施层全量质量审阅与架构违规修复",
+      "file": "2026-07-28.md",
+      "line": 704
     },
     {
       "date": "2026-07-27",
@@ -1516,12 +1516,12 @@
       "line": 939
     },
     {
-      "date": "2026-07-26",
-      "type": "chore",
-      "scope": "tui",
-      "title": "TUI 补齐 evidence/filecheckpoint/memory 三个查看入口（P0 缺口）",
-      "file": "2026-07-26.md",
-      "line": 486
+      "date": "2026-07-27",
+      "type": "fix",
+      "scope": "*",
+      "title": "CI/CD 管道修复 — 4 个失败检查全部通过",
+      "file": "2026-07-27.md",
+      "line": 36
     },
     {
       "date": "2026-07-26",
@@ -1588,12 +1588,12 @@
       "line": 546
     },
     {
-      "date": "2026-07-25",
+      "date": "2026-07-26",
       "type": "chore",
-      "scope": "*",
-      "title": "放宽 skill name 校验——不再强求等于父目录名",
-      "file": "2026-07-25.md",
-      "line": 55
+      "scope": "tui",
+      "title": "TUI 补齐 evidence/filecheckpoint/memory 三个查看入口（P0 缺口）",
+      "file": "2026-07-26.md",
+      "line": 486
     },
     {
       "date": "2026-07-25",
@@ -1700,12 +1700,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-24",
+      "date": "2026-07-25",
       "type": "chore",
       "scope": "*",
-      "title": "EgoLite 浏览器集成 — Runtime 后端 + Workflow 工具",
-      "file": "2026-07-24.md",
-      "line": 642
+      "title": "放宽 skill name 校验——不再强求等于父目录名",
+      "file": "2026-07-25.md",
+      "line": 55
     },
     {
       "date": "2026-07-24",
@@ -1860,12 +1860,12 @@
       "line": 33
     },
     {
-      "date": "2026-07-23",
-      "type": "docs",
+      "date": "2026-07-24",
+      "type": "chore",
       "scope": "*",
-      "title": "文档格式转换能力纯 Go 补齐（XLSX 解析 + DOCX/PDF 渲染器）",
-      "file": "2026-07-23.md",
-      "line": 225
+      "title": "EgoLite 浏览器集成 — Runtime 后端 + Workflow 工具",
+      "file": "2026-07-24.md",
+      "line": 642
     },
     {
       "date": "2026-07-23",
@@ -2012,12 +2012,12 @@
       "line": 51
     },
     {
-      "date": "2026-07-22",
-      "type": "perf",
-      "scope": "tui",
-      "title": "工作流编排器优化第三批 — 工具注册 + CLI/TUI 入口 + 复审请求工作流",
-      "file": "2026-07-22.md",
-      "line": 3
+      "date": "2026-07-23",
+      "type": "docs",
+      "scope": "*",
+      "title": "文档格式转换能力纯 Go 补齐（XLSX 解析 + DOCX/PDF 渲染器）",
+      "file": "2026-07-23.md",
+      "line": 225
     },
     {
       "date": "2026-07-22",
@@ -2076,12 +2076,12 @@
       "line": 320
     },
     {
-      "date": "2026-07-21",
-      "type": "chore",
-      "scope": "*",
-      "title": "为“绞车带轴”案件补充 Mady 基线输出 v1 草案",
-      "file": "2026-07-21.md",
-      "line": 308
+      "date": "2026-07-22",
+      "type": "perf",
+      "scope": "tui",
+      "title": "工作流编排器优化第三批 — 工具注册 + CLI/TUI 入口 + 复审请求工作流",
+      "file": "2026-07-22.md",
+      "line": 3
     },
     {
       "date": "2026-07-21",
@@ -2260,12 +2260,12 @@
       "line": 287
     },
     {
-      "date": "2026-07-20",
-      "type": "test",
-      "scope": "tui",
-      "title": "补齐审批留痕一致性测试（TUI / Server / ACP 三入口对齐）",
-      "file": "2026-07-20.md",
-      "line": 506
+      "date": "2026-07-21",
+      "type": "chore",
+      "scope": "*",
+      "title": "为“绞车带轴”案件补充 Mady 基线输出 v1 草案",
+      "file": "2026-07-21.md",
+      "line": 308
     },
     {
       "date": "2026-07-20",
@@ -2492,12 +2492,12 @@
       "line": 390
     },
     {
-      "date": "2026-07-19",
-      "type": "refactor",
-      "scope": "*",
-      "title": "里程碑 3——超大函数拆分 + fmt.Errorf 债务复核",
-      "file": "2026-07-19.md",
-      "line": 131
+      "date": "2026-07-20",
+      "type": "test",
+      "scope": "tui",
+      "title": "补齐审批留痕一致性测试（TUI / Server / ACP 三入口对齐）",
+      "file": "2026-07-20.md",
+      "line": 506
     },
     {
       "date": "2026-07-19",
@@ -2540,12 +2540,12 @@
       "line": 232
     },
     {
-      "date": "2026-07-18",
-      "type": "fix",
+      "date": "2026-07-19",
+      "type": "refactor",
       "scope": "*",
-      "title": "Code Review 全部 6 个问题修复",
-      "file": "2026-07-18.md",
-      "line": 720
+      "title": "里程碑 3——超大函数拆分 + fmt.Errorf 债务复核",
+      "file": "2026-07-19.md",
+      "line": 131
     },
     {
       "date": "2026-07-18",
@@ -2746,6 +2746,14 @@
       "title": "引用核验 P2a——CitationSource 知识源抽象 + S2 wiki 法条索引（82 条全覆盖）",
       "file": "2026-07-18.md",
       "line": 822
+    },
+    {
+      "date": "2026-07-18",
+      "type": "fix",
+      "scope": "*",
+      "title": "Code Review 全部 6 个问题修复",
+      "file": "2026-07-18.md",
+      "line": 720
     }
   ]
 }

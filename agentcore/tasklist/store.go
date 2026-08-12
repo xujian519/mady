@@ -136,7 +136,6 @@ func (m *MemoryStore) Delete(_ context.Context, id string) error {
 }
 
 // NextID returns the next monotonically increasing task ID.
-// NextID returns the next monotonically increasing task ID.
 func (m *MemoryStore) NextID(_ context.Context) (string, error) {
 	id := m.nextID.Add(1)
 	return fmt.Sprintf("%d", id), nil

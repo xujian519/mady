@@ -319,7 +319,6 @@ func (a *AgentAdapter) CancelTask(ctx context.Context, req CancelTaskRequest) (*
 }
 
 // QueryTasks implements AgentHandler.
-// QueryTasks implements AgentHandler.
 func (a *AgentAdapter) QueryTasks(ctx context.Context, req QueryTasksRequest) (*QueryTasksResult, error) {
 	return a.handler.QueryTasks(ctx, req)
 }

@@ -144,7 +144,6 @@ func (h *DefaultAgentHandler) SetInputRequiredPredicate(fn func(output string) b
 }
 
 // Card returns the agent card describing this handler's capabilities.
-// Card returns the agent card describing this handler's capabilities.
 func (h *DefaultAgentHandler) Card() AgentCard { return h.card }
 
 // SendTask processes a task request by running the agent and streaming updates.

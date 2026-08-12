@@ -162,7 +162,6 @@ func (f *FileStore) Delete(_ context.Context, id string) error {
 }
 
 // NextID returns the next monotonically increasing task ID.
-// NextID returns the next monotonically increasing task ID.
 func (f *FileStore) NextID(_ context.Context) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
