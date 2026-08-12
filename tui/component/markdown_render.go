@@ -46,8 +46,14 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		}
 		text := renderInline(qm[1], theme)
 		out := make([]string, 0, 2)
-		for _, w := range wrapMarkdownText(text, width-2) {
-			line := theme.QuoteFn("│ ") + w
+		border := theme.QuoteBorderFn(apitheme.SymbolBarQuote + " ")
+		borderW := core.VisibleWidth(border)
+		wrapW := width - borderW
+		if wrapW < 1 {
+			wrapW = 1
+		}
+		for _, w := range wrapMarkdownText(text, wrapW) {
+			line := border + theme.QuoteFn(w)
 			out = append(out, line)
 		}
 		return out

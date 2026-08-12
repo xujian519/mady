@@ -265,6 +265,25 @@ func (e *Editor) valueLocked() string {
 // Clear empties the buffer.
 func (e *Editor) Clear() { e.SetValue("") }
 
+// CharCount implements the chat.charCounter interface so the wrapping
+// editorFrame can render a non-intrusive character counter in the border
+// below the editor without stealing rows from the edit area. The softLimit
+// is derived from the configured context window so the counter turns
+// warning-colored when the single prompt nears the rough budget.
+func (e *Editor) CharCount() (count, softLimit int64) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	total := 0
+	for _, ln := range e.lines {
+		total += len(ln)
+	}
+	// + newlines between lines
+	if len(e.lines) > 1 {
+		total += len(e.lines) - 1
+	}
+	return int64(total), 0
+}
+
 // SelectAll selects the editor buffer without affecting terminal-level text selection.
 func (e *Editor) SelectAll() {
 	e.mu.Lock()
@@ -347,6 +366,27 @@ func (e *Editor) OnChange(fn func(string))   { e.mu.Lock(); e.onChange = fn; e.m
 func (e *Editor) OnCancel(fn func())         { e.mu.Lock(); e.onCancel = fn; e.mu.Unlock() }
 func (e *Editor) OnCopy(fn func(string))     { e.mu.Lock(); e.onCopy = fn; e.mu.Unlock() }
 func (e *Editor) OnPaste(fn func() core.Cmd) { e.mu.Lock(); e.onPaste = fn; e.mu.Unlock() }
+
+// RequestPaste programmatically triggers the paste handler. Returns the Cmd
+// produced by OnPaste (if registered), which the caller must execute via the
+// event loop. Used when a layer-visible shortcut (e.g. Ctrl+Shift+V) is caught
+// before the Editor's own key dispatch.
+func (e *Editor) RequestPaste() core.Cmd {
+	e.mu.Lock()
+	fn := e.onPaste
+	e.mu.Unlock()
+	if fn == nil {
+		return nil
+	}
+	return fn()
+}
+
+// RequestCopy programmatically triggers the copy handler with the current
+// selection. Used when layer-visible shortcuts (e.g. Ctrl+Shift+C) are
+// intercepted before reaching the Editor's own key dispatch.
+func (e *Editor) RequestCopy() {
+	e.handleCopy()
+}
 
 // SetAutocompleteActiveCheck registers a function that returns whether an
 // autocomplete popup is currently active. When active, up/down keys skip

@@ -218,7 +218,62 @@ const (
 	SymbolThinking = "◐"
 	SymbolRight    = "▸"
 	SymbolDown     = "▾"
+
+	// Box-drawing primitives (Box Light / Heavy families). 所有原语
+	// 统一为 1-cell 宽，便于 VisibleWidth / 版面栅格计算。
+	SymbolBarLightV      = "│"       // 竖线：时间线/色带连接
+	SymbolBarHeavyV      = "┃"       // 粗竖线：强调左栏
+	SymbolBarQuote       = "▌"       // 引用块左边框：实心半格
+	SymbolBarAccentThin  = "▏"       // 跨角色色带：1/8 细竖条
+	SymbolRuleLightH     = "─"       // 分隔细线
+	SymbolRuleHeavyH     = "━"       // 分隔粗线
+	SymbolRuleEighthDots = SymbolDot // 同角色紧凑分隔符（eighth-width dot series）
+
+	// Glyphs 语义层：给调用方使用命名字面量，而不是硬编码 ▸/▾
+	ChevronCollapsed = SymbolRight // 折叠态提示
+	ChevronExpanded  = SymbolDown  // 展开态提示
+	StreamCursor     = "▊"         // 流式输出末尾光标
+	ScrollUpHint     = "▲"
+	ScrollDownHint   = "↓"
 )
+
+// Density enum. 全 TUI 统一使用这三种密度切换，禁止在各组件内
+// 私自定义「空格多一点/少一点」造成视觉漂移。
+type Density int
+
+const (
+	DensityCompact     Density = 0 // 工具面板/列表：行距0/角色分隔1行
+	DensityComfortable Density = 1 // 默认聊天区：同角色紧凑、跨角色有色带
+	DensityCozy        Density = 2 // 展示模式：跨角色额外加 1 行空
+)
+
+// Spacing constants —— 对应竞品分析的 8px baseline 栅格（在 TUI
+// 中用"行数/空格数"近似）。
+const (
+	Spacer0        = 0
+	Spacer1        = 1 // ~8px 栅格
+	Spacer2        = 2 // ~16px
+	Spacer3        = 3 // ~24px
+	IndentEdge     = 0 // 气泡对 viewport 的默认缩进
+	IndentQuote    = 2 // 引用块/列表项的内层缩进
+	IndentTimeline = 1 // 时间线/工具组色带与正文之间的 gutter
+
+	// Bubble sizing（同 chat_history_render_message.messageBubbleWidth
+	// 语义一致，提取到 tokens 后供所有组件复用）。
+	BubbleMaxRatio   = 0.85 // ≥60cols 终端时最大气泡占比
+	BubbleMinColumns = 40   // 占比收缩时的最小绝对宽度
+	NarrowCols       = 60   // <此阈值为窄屏，气泡放宽至 100%
+)
+
+// RoleTransitionBandRule returns the horizontal rule length for the
+// cross-role accent band (see renderRoleTransitionBand). 所有调用方
+// 都走这个函数而不是各自算一个 magic number。
+func RoleTransitionBandRule(bubbleWidth int64) int {
+	if bubbleWidth < 4 {
+		bubbleWidth = 4
+	}
+	return int(bubbleWidth) - 1
+}
 
 // ---------------------------------------------------------------------------
 // Multi-level icon with Nerd Font / Unicode / ASCII fallback

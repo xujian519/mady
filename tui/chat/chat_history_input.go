@@ -392,18 +392,48 @@ func (h *ChatHistory) scrollByLocked(n int64) {
 		return
 	}
 	h.offset += n
-	if h.offset < 0 {
+
+	// Upward clamp (overscrolling to the oldest line of the buffer).
+	// Two cases:
+	//   (a) content taller than the viewport (total >= maxRows): the
+	//       highest legal offset is total - maxRows (view anchored at
+	//       oldest possible frame, still showing a full viewport).
+	//   (b) content fits in the viewport (total < maxRows): *any*
+	//       upward scroll is meaningless, so offset collapses to 0
+	//       (exactly what the previous legacy implementation did).
+	// Clamping is skipped when maxRows is unset (== 0) to preserve the
+	// pre-layout legacy behavior used by legacyMouseFallback (tests
+	// and code paths that call ScrollBy before the first Render pass).
+	if h.maxRows > 0 {
+		if total >= h.maxRows {
+			maxUp := total - h.maxRows
+			if h.offset > maxUp {
+				h.offset = maxUp
+			}
+		} else if h.offset > 0 {
+			h.offset = 0
+		}
+	}
+
+	atTail := false
+	// Downward clamp (overscrolling past the newest line → we hit the
+	// tail, so re-engage auto-follow). This is the UX improvement: if
+	// the user scrolls down all the way, they clearly want to keep
+	// watching new content as it streams in — matching every modern
+	// chat client (Slack, Discord, ChatGPT, etc.).
+	if h.offset <= 0 {
 		h.offset = 0
+		atTail = true
+	}
+
+	// Auto-follow only kicks in when the viewport is anchored at the
+	// exact tail position. Scrolling up (even to an adjacent line) opts
+	// the user out so they can read older content without the viewport
+	// jumping on each streaming token.
+	if atTail {
 		h.follow = true
 	} else {
 		h.follow = false
-	}
-	if h.maxRows > 0 && h.offset > total-h.maxRows {
-		if total >= h.maxRows {
-			h.offset = total - h.maxRows
-		} else {
-			h.offset = 0
-		}
 	}
 }
 

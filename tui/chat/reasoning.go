@@ -34,6 +34,12 @@ func (HiddenReasoningRenderer) RenderThinking(_ ChatMessage, _ int64) []string {
 //   - Mode="truncated": respect per-segment Collapsed flag (legacy behavior
 //     kept "truncated" semantically equivalent to non-"full" for now).
 //   - Mode="collapsed" (or any other value): respect per-segment Collapsed flag.
+//
+// Visual hierarchy (mid-term UX):
+//   - collapsed header: "▸ 💭 Thinking (N lines)" + a dim "⏎ 展开" hint, so
+//     the fold affordance is discoverable (lazygit / ranger style chevrons).
+//   - expanded header: "▾ 💭 Thinking (N lines)" marking the block is
+//     open and can be re-collapsed; body is indented 2 cells.
 type DefaultReasoningRenderer struct {
 	Show bool
 	Mode string // "collapsed" / "truncated" / "full"
@@ -63,15 +69,24 @@ func (r *DefaultReasoningRenderer) RenderThinking(m ChatMessage, width int64) []
 		// per-segment Collapsed flag (already captured in `collapsed`), so no
 		// extra branch is needed.
 
+		header := fmt.Sprintf("💭 Thinking (%d lines)", lineCount)
 		if collapsed {
-			summary := fmt.Sprintf("💭 Thinking (%d lines)", lineCount)
-			out = append(out, pal.Thinking.Render(summary))
+			header = theme.ChevronCollapsed + " " + header
 		} else {
-			out = append(out, pal.Thinking.Render("💭 Thinking"))
-			// Reserve the 2-cell indent in the wrap budget so wrapped lines
-			// (plus prefix) stay within width. Wrapping first and prefixing
-			// after would produce width+2 lines that get hard-truncated.
-			const indent = "  "
+			header = theme.ChevronExpanded + " " + header
+		}
+		header = core.TruncateToWidth(header, width, "…")
+		headerLine := pal.Thinking.Render(header)
+
+		if collapsed {
+			hint := "  ⏎ 展开 "
+			if core.VisibleWidth(headerLine)+core.VisibleWidth(hint) <= width {
+				headerLine += pal.Dim.Render(hint)
+			}
+			out = append(out, headerLine)
+		} else {
+			out = append(out, headerLine)
+			indent := strings.Repeat(" ", theme.IndentQuote)
 			contentW := max(width-core.VisibleWidth(indent), 1)
 			for _, line := range core.WrapAnsi(pal.Thinking.Render(seg.Text), contentW) {
 				out = append(out, indent+line)

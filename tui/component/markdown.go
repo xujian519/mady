@@ -41,6 +41,7 @@ type MarkdownTheme struct {
 	CodeBlockFn   func(string) string
 	CodeFenceFn   func(string) string // language label line
 	QuoteFn       func(string) string
+	QuoteBorderFn func(string) string // quote left-border bar (MdQuoteBorder)
 	LinkLabelFn   func(string) string
 	LinkURLFn     func(string) string
 	HRFn          func(string) string
@@ -260,6 +261,7 @@ func defaultMarkdownTheme() MarkdownTheme {
 		CodeBlockFn:   apitheme.SemStyle(sem.MdCodeBlock, mode).Render,
 		CodeFenceFn:   apitheme.SemStyle(sem.MdCodeBlockBorder, mode).Render,
 		QuoteFn:       apitheme.SemStyle(sem.MdQuote, mode).Render,
+		QuoteBorderFn: apitheme.SemStyle(sem.MdQuoteBorder, mode).Render,
 		LinkLabelFn:   apitheme.SemStyle(sem.MdLink, mode).Underline().Render,
 		LinkURLFn:     apitheme.SemStyle(sem.MdLinkURL, mode).Render,
 		HRFn:          apitheme.SemStyle(sem.MdHr, mode).Render,
@@ -291,6 +293,9 @@ func mergeMarkdownTheme(t MarkdownTheme) MarkdownTheme {
 	}
 	if t.QuoteFn != nil {
 		d.QuoteFn = t.QuoteFn
+	}
+	if t.QuoteBorderFn != nil {
+		d.QuoteBorderFn = t.QuoteBorderFn
 	}
 	if t.LinkLabelFn != nil {
 		d.LinkLabelFn = t.LinkLabelFn

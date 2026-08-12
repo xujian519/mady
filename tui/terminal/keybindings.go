@@ -303,8 +303,8 @@ func DefaultKeybindings() map[string]KeybindingDef {
 		"tui.input.newLine": {DefaultKeys: []KeyID{"shift+enter", "alt+enter"}, Description: "Insert newline"},
 		"tui.input.submit":  {DefaultKeys: []KeyID{"enter"}, Description: "Submit input"},
 		"tui.input.tab":     {DefaultKeys: []KeyID{"tab"}, Description: "Autocomplete"},
-		"tui.input.copy":    {DefaultKeys: []KeyID{"super+c", "meta+c", "ctrl+super+c", "ctrl+meta+c"}, Description: "Copy"},
-		"tui.input.paste":   {DefaultKeys: []KeyID{"super+v", "ctrl+v", "meta+v"}, Description: "Paste"},
+		"tui.input.copy":    {DefaultKeys: []KeyID{"super+c", "meta+c", "ctrl+super+c", "ctrl+meta+c", "ctrl+shift+c"}, Description: "Copy"},
+		"tui.input.paste":   {DefaultKeys: []KeyID{"super+v", "ctrl+v", "meta+v", "ctrl+shift+v", "shift+insert"}, Description: "Paste"},
 
 		"tui.select.up":       {DefaultKeys: []KeyID{"up", "ctrl+p"}, Description: "Selection up"},
 		"tui.select.down":     {DefaultKeys: []KeyID{"down", "ctrl+n"}, Description: "Selection down"},

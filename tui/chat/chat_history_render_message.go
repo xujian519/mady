@@ -81,6 +81,70 @@ func nilLinks(n int) [][]core.LinkSpan {
 	return make([][]core.LinkSpan, n)
 }
 
+// messageBubbleWidth computes the effective inner width for a message bubble
+// given the viewport width and an indent (left padding in cells).
+//
+// The rule (short-term UX fix P2): messages no longer stretch to 100% of the
+// viewport. A max-bubble-width cap of 85% (min 40 cols) keeps long paragraphs
+// readable (optimal line length ~60-80 chars per line is a standard readability
+// heuristic) and introduces consistent breathing room on both sides. For
+// terminals narrower than 60 cols the cap is relaxed to 100% because every
+// pixel matters on small displays.
+func messageBubbleWidth(viewport, indent int64) int64 {
+	remain := viewport - indent
+	if remain < 1 {
+		return 1
+	}
+	if viewport < theme.NarrowCols {
+		return remain
+	}
+	bubbleCap := int64(float64(viewport) * theme.BubbleMaxRatio)
+	if bubbleCap < theme.BubbleMinColumns {
+		bubbleCap = theme.BubbleMinColumns
+	}
+	if bubbleCap > remain {
+		bubbleCap = remain
+	}
+	return bubbleCap
+}
+
+// renderMessageCore wraps a bubble (list of rendered content lines) with its
+// visual envelope: left indent padding, optional background-fill to
+// bubbleWidth, and separator-free vertical spacing. bgWidth should equal the
+// effective bubble width as returned by messageBubbleWidth.
+func envelopeBubble(lines []string, indent, bgWidth int64, bgStyle theme.Style) []string {
+	leftPad := ""
+	if indent > 0 {
+		leftPad = strings.Repeat(" ", int(indent))
+	}
+	padded := make([]string, 0, len(lines))
+	for _, ln := range lines {
+		padded = append(padded, leftPad+ln)
+	}
+	if bgStyle.BgStrip() == "" {
+		return padded
+	}
+	// Background fill spans only the bubble envelope (indent -> indent+bubbleWidth).
+	// We build background-filled lines by inserting the bg SGR at the start of
+	// the indent-padded portion and reconstructing at every SGR reset. The
+	// visible content itself must already fit within bgWidth.
+	bgSGR := bgStyle.BgStrip()
+	reset := theme.Reset
+	totalBgWidth := indent + bgWidth
+	out := make([]string, 0, len(padded))
+	for _, ln := range padded {
+		vis := core.VisibleWidth(ln)
+		var full string
+		if vis < totalBgWidth {
+			full = ln + strings.Repeat(" ", int(totalBgWidth-vis))
+		} else {
+			full = ln
+		}
+		out = append(out, applyBgOneLine(full, bgSGR, reset))
+	}
+	return out
+}
+
 func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, width int64, mdCache *component.BlockCache) ([]string, [][]core.LinkSpan) {
 	h.renderCount++
 	if m.DomainMsg != nil {
@@ -91,6 +155,8 @@ func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, w
 	case RoleUser:
 		return h.renderUserRole(m.Text, width, chatTheme), nil
 	case RoleAssistant:
+		indent := int64(0)
+		bubbleW := messageBubbleWidth(width, indent)
 		if m.Collapsed && m.Text != "" {
 			firstLine := m.Text
 			if idx := strings.IndexByte(firstLine, '\n'); idx > 0 {
@@ -99,13 +165,13 @@ func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, w
 			if len([]rune(firstLine)) > 200 {
 				firstLine = string([]rune(firstLine)[:197]) + "..."
 			}
-			head := core.TruncateToWidth(chatTheme.DimStyle.Render(firstLine), width, "…")
-			expand := core.TruncateToWidth("  "+chatTheme.DimStyle.Render("▸ expand"), width, "")
+			head := core.TruncateToWidth(chatTheme.DimStyle.Render(firstLine), bubbleW, "…")
+			expand := core.TruncateToWidth("  "+chatTheme.DimStyle.Render("▸ expand"), bubbleW, "")
 			collapsedLines := []string{head, expand}
-			return applyBubbleBg(collapsedLines, width, chatTheme.AssistantBgStyle), nil
+			return envelopeBubble(collapsedLines, indent, bubbleW, chatTheme.AssistantBgStyle), nil
 		}
 
-		innerWidth := width
+		innerWidth := bubbleW
 		if innerWidth < 1 {
 			innerWidth = 1
 		}
@@ -132,7 +198,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, w
 					lines = []string{chatTheme.DimStyle.Render("…")}
 				} else {
 					last := lines[len(lines)-1]
-					lines[len(lines)-1] = appendStreamCursor(last, width, chatTheme.UserStyle.Render("▊"))
+					lines[len(lines)-1] = appendStreamCursor(last, innerWidth, chatTheme.UserStyle.Render(theme.StreamCursor))
 				}
 			}
 			allLines = append(allLines, lines...)
@@ -141,14 +207,14 @@ func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, w
 				allLines = []string{chatTheme.DimStyle.Render("…")}
 			} else {
 				last := allLines[len(allLines)-1]
-				allLines[len(allLines)-1] = appendStreamCursor(last, width, chatTheme.ThinkingStyle.Render("▊"))
+				allLines[len(allLines)-1] = appendStreamCursor(last, innerWidth, chatTheme.ThinkingStyle.Render(theme.StreamCursor))
 			}
 		}
 
 		if len(allLines) == 0 {
 			allLines = []string{""}
 		}
-		return applyBubbleBg(allLines, innerWidth, chatTheme.AssistantBgStyle), nil
+		return envelopeBubble(allLines, indent, innerWidth, chatTheme.AssistantBgStyle), nil
 	case RoleSystem:
 		return h.renderMarkdownRole(m.Text, width, chatTheme), nil
 	case RoleTool:
@@ -183,18 +249,20 @@ func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, w
 // Markdown for themes that opt out.
 func (h *ChatHistory) renderUserRole(text string, width int64, chatTheme ChatHistoryTheme) []string {
 	prefix := chatTheme.UserPrefix
+	indent := int64(0)
+	bubbleW := messageBubbleWidth(width, indent)
 	if prefix == "" {
-		lines := h.renderMarkdownRole(text, width, chatTheme)
-		return applyBubbleBg(lines, width, chatTheme.UserBgStyle)
+		lines := h.renderMarkdownRole(text, bubbleW, chatTheme)
+		return envelopeBubble(lines, indent, bubbleW, chatTheme.UserBgStyle)
 	}
 	prefixW := core.VisibleWidth(prefix)
-	innerWidth := width - prefixW
+	innerWidth := bubbleW - prefixW
 	if innerWidth < 1 {
 		innerWidth = 1
 	}
 	lines := h.renderMarkdownRole(text, innerWidth, chatTheme)
 	marker := chatTheme.UserStyle.Render(prefix)
-	indent := strings.Repeat(" ", int(prefixW))
+	lineIndent := strings.Repeat(" ", int(prefixW))
 	bgEnabled := chatTheme.UserBgStyle.BgStrip() != ""
 	out := make([]string, 0, len(lines))
 	for i, ln := range lines {
@@ -209,10 +277,10 @@ func (h *ChatHistory) renderUserRole(text string, width int64, chatTheme ChatHis
 				out = append(out, ln)
 			}
 		} else {
-			out = append(out, indent+ln)
+			out = append(out, lineIndent+ln)
 		}
 	}
-	return applyBubbleBg(out, width, chatTheme.UserBgStyle)
+	return envelopeBubble(out, indent, bubbleW, chatTheme.UserBgStyle)
 }
 
 func (h *ChatHistory) renderMarkdownRole(text string, width int64, chatTheme ChatHistoryTheme) []string {
@@ -224,36 +292,12 @@ func (h *ChatHistory) renderMarkdownRole(text string, width int64, chatTheme Cha
 	return md.Render(width)
 }
 
-// appendStreamCursor appends a streaming cursor to the last rendered line
-// without pushing it past width. Markdown block rendering (padded code fences,
-// tables, hard-wrapped paragraphs) can already produce lines exactly as wide
-// as width; blindly appending "▊" would overflow by one cell and the scrollbar
-// / engine normalizeLayer would hard-truncate the line — dropping the trailing
-// real character along with the cursor. When the line is at capacity we trim
-// one cell so the total stays within width.
 func appendStreamCursor(line string, width int64, cursor string) string {
 	if core.VisibleWidth(line)+core.VisibleWidth(cursor) <= width {
 		return line + cursor
 	}
 	keep := width - core.VisibleWidth(cursor)
 	return core.TruncateToWidth(line, keep, "") + cursor
-}
-
-func applyBubbleBg(lines []string, width int64, bgStyle theme.Style) []string {
-	bgSGR := bgStyle.BgStrip()
-	if bgSGR == "" {
-		return lines
-	}
-	if len(lines) == 0 {
-		return lines
-	}
-	reset := theme.Reset
-	out := make([]string, 0, len(lines))
-	for _, ln := range lines {
-		padded := core.PadToWidth(ln, width)
-		out = append(out, applyBgOneLine(padded, bgSGR, reset))
-	}
-	return out
 }
 
 func applyBgOneLine(line, bgSGR, reset string) string {
@@ -304,4 +348,43 @@ func isSgrReset(seq string) bool {
 		}
 	}
 	return true
+}
+
+// renderRoleTransitionBand renders a 1-line visual accent that precedes a
+// message when its role differs from the previous one. This achieves the
+// "same-role tight / cross-role loose" density heuristic without touching
+// renderMessageSeparator (which is locked down by 14 strict assertions in
+// TestRenderMessageSeparator).
+//
+// Visual style (lazy vertical-timeline / lazygit branch-graph inspired):
+//
+//	▏────────────────────────  (1-cell left accent in the NEW role's color,
+//	                           followed by a thin muted rule out to ~85% width)
+func renderRoleTransitionBand(newRole ChatRole, width int64, chatTheme ChatHistoryTheme) []string {
+	if width < 8 {
+		return nil
+	}
+	bubbleW := messageBubbleWidth(width, 0)
+	if bubbleW < 4 {
+		bubbleW = 4
+	}
+	var accentFn func(string) string
+	switch newRole {
+	case RoleUser:
+		accentFn = chatTheme.UserStyle.Render
+	case RoleAssistant:
+		accentFn = chatTheme.AssistantStyle.Render
+	case RoleSystem:
+		accentFn = chatTheme.SystemStyle.Render
+	case RoleTool:
+		accentFn = chatTheme.ToolBorder.Render
+	case RoleError:
+		accentFn = chatTheme.ErrorStyle.Render
+	default:
+		accentFn = chatTheme.DimStyle.Render
+	}
+	accent := accentFn(theme.SymbolBarAccentThin)
+	ruleLen := theme.RoleTransitionBandRule(bubbleW)
+	rule := chatTheme.DimStyle.Render(strings.Repeat(theme.SymbolRuleLightH, ruleLen))
+	return []string{accent + rule}
 }

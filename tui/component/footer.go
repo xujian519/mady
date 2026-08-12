@@ -48,6 +48,20 @@ func NewFooter() *Footer {
 }
 
 // defaultGroups returns the standard shortcut groups.
+// Order matters: Footer.Render shows groups left→right, progressively trimmed
+// by available-width breakpoints (<60 / 60-80 / 80-160 / ≥160 cols).
+//
+// Breakpoint visibility:
+//
+//	<60 cols   → group 1  only                 (? help)
+//	60-80 cols → groups 1-3                    (? help, ctrl+shift+c/v paste, Ctrl+P cmd)
+//	80-160 cols→ groups 1-5                    (+ quit, Alt+F fold)
+//	≥160 cols  → all                           (+ theme toggle)
+//
+// Clipboard is in the top-3 so <80-col terminals (default 80×24 on macOS
+// Terminal.app is right on the breakpoint; anything smaller is common in
+// splits/TMux panes) still surface copy/paste hints — critical because
+// ⌘C is swallowed by the terminal itself on Apple platforms.
 func defaultGroups() []FooterGroup {
 	return []FooterGroup{
 		{
@@ -57,15 +71,10 @@ func defaultGroups() []FooterGroup {
 			},
 		},
 		{
-			Label: "fold",
+			Label: "clipboard",
 			Items: []FooterItem{
-				{Key: "Alt+F", Desc: "fold"},
-			},
-		},
-		{
-			Label: "theme",
-			Items: []FooterItem{
-				{Key: "Ctrl+Alt+T", Desc: "theme"},
+				{Key: "C-S-C", Desc: "copy"},
+				{Key: "C-S-V", Desc: "paste"},
 			},
 		},
 		{
@@ -78,6 +87,18 @@ func defaultGroups() []FooterGroup {
 			Label: "quit",
 			Items: []FooterItem{
 				{Key: "Ctrl+C", Desc: "quit"},
+			},
+		},
+		{
+			Label: "fold",
+			Items: []FooterItem{
+				{Key: "Alt+F", Desc: "fold"},
+			},
+		},
+		{
+			Label: "theme",
+			Items: []FooterItem{
+				{Key: "Ctrl+Alt+T", Desc: "theme"},
 			},
 		},
 	}

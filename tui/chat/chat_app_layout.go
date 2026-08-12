@@ -30,6 +30,16 @@ type layoutHost interface {
 	TerminalSize() (cols, rows int64)
 }
 
+// charCounter is implemented by the Editor component so the wrapping
+// editorFrame can render a non-intrusive character counter in the bottom
+// border without intruding into the editor's own layout budget.
+type charCounter interface {
+	// CharCount returns the current buffer length in runes (not bytes),
+	// and a recommended soft-limit after which the counter should render
+	// in a warning hue (0 = no limit).
+	CharCount() (count, softLimit int64)
+}
+
 // editorFrame wraps the editor with a rounded brand border so the input
 // area reads as a distinct panel below the chat history. It exists so the
 // editor border can participate in the declarative Flex layout.
@@ -38,7 +48,7 @@ type layoutHost interface {
 //
 //	╭─ 输入 (Enter 发送 · Shift+Enter 换行) ─────╮
 //	│ ❯ hello world                             │
-//	╰────────────────────────────────────────────╯
+//	╰─────────────────────── N chars · ↑↓历史╯
 type editorFrame struct {
 	editor core.Component
 }
@@ -54,6 +64,24 @@ func (f *editorFrame) Render(width int64) []string {
 		inner = 1
 	}
 	lines := f.editor.Render(inner)
+
+	counter := ""
+	if cc, ok := f.editor.(charCounter); ok {
+		n, limit := cc.CharCount()
+		if n > 0 {
+			counter = fmt.Sprintf(" %d 字符 ", n)
+			if limit > 0 && n > limit {
+				counter = pal.Warning.Render(counter)
+			} else {
+				counter = pal.Dim.Render(counter)
+			}
+		}
+	}
+	counterW := int64(0)
+	if counter != "" {
+		counterW = core.VisibleWidth(counter)
+	}
+
 	title := " 输入 (Enter 发送 · Shift+Enter 换行) "
 	tw := core.VisibleWidth(title)
 	if tw > inner {
@@ -77,18 +105,34 @@ func (f *editorFrame) Render(width int64) []string {
 		out = append(out, v+body+v)
 	}
 
-	// Bottom border with trailing hint. If too narrow, fall back to plain bar.
-	hint := " ↑↓ 历史 · ⏎ 发送 · ⇧⏎ 换行 "
+	// Bottom border: counter on the far left when present, hint on the far
+	// right, with ─ fill in between. If too narrow, drop hint first, then
+	// counter, finally fall back to plain bar.
+	hint := " ↑↓历史 · ⏎发送 · ⇧⏎换行 "
 	hintW := core.VisibleWidth(hint)
 	dimHint := pal.Dim.Render(hint)
+
 	var bottom string
-	if inner >= hintW+4 {
+	switch {
+	case counter != "" && inner >= counterW+hintW+6:
+		fill := inner - counterW - hintW
+		if fill < 0 {
+			fill = 0
+		}
+		bottom = bfn("╰") + counter + strings.Repeat("─", int(fill)) + dimHint + bfn("╯")
+	case inner >= hintW+4:
 		fill := inner - hintW
 		if fill < 0 {
 			fill = 0
 		}
 		bottom = bfn("╰") + strings.Repeat("─", int(fill)) + dimHint + bfn("╯")
-	} else {
+	case counter != "" && inner >= counterW+4:
+		fill := inner - counterW
+		if fill < 0 {
+			fill = 0
+		}
+		bottom = bfn("╰") + counter + strings.Repeat("─", int(fill)) + bfn("╯")
+	default:
 		bottom = bfn("╰") + strings.Repeat("─", int(inner)) + bfn("╯")
 	}
 	bottom = core.TruncateToWidth(bottom, width, "…")
@@ -215,6 +259,10 @@ type chatLayout struct {
 	// breakpoint is the current layout regime based on terminal width.
 	// Recalculated each Render call; stored for use by child components.
 	breakpoint layout.LayoutBreakpoint
+
+	// pendingCmd holds a Cmd produced during Update that must be returned
+	// to the TUI event loop (e.g. clipboard read from a paste shortcut).
+	pendingCmd core.Cmd
 }
 
 type textSelectionComponent interface {
@@ -358,6 +406,9 @@ func (l *chatLayout) HitTest(row, col int64) (core.Component, core.Rect, bool) {
 }
 
 func (l *chatLayout) Update(msg core.Msg) core.Cmd {
+	// Reset any carry-over pending Cmd from the previous Update tick.
+	l.pendingCmd = nil
+
 	// Handle global messages that don't depend on l.history.
 	// If consumed (e.g. image paste), skip all further processing.
 	if l.handleGlobalMsg(msg) {
@@ -365,13 +416,14 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 	}
 
 	if l.history == nil {
-		return l.updateRemaining(msg)
+		remaining := l.updateRemaining(msg)
+		return core.Sequence(l.pendingCmd, remaining)
 	}
 
-	// Delegate to type-specific handlers. The handlers do NOT return a Cmd
-	// for the TUI engine — all side effects happen inline. The consumed flag
-	// prevents consumed keys from reaching the autocomplete popup (which has
-	// its own key handling that would conflict).
+	// Delegate to type-specific handlers. The consumed flag prevents consumed
+	// keys from reaching the autocomplete popup. Handlers may set l.pendingCmd
+	// (e.g. paste shortcut triggers an async clipboard-read Cmd) that we fold
+	// into the return value below.
 	var consumed bool
 	switch m := msg.(type) {
 	case core.MouseMsg:
@@ -388,7 +440,8 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 			l.ac.Update(msg)
 		}
 	}
-	return l.updateRemaining(msg)
+	remaining := l.updateRemaining(msg)
+	return core.Sequence(l.pendingCmd, remaining)
 }
 
 // handleGlobalMsg processes WindowSizeMsg and PasteMsg — events that don't
@@ -708,26 +761,30 @@ func (l *chatLayout) handleEscapeKey(k terminal.Key) bool {
 // handleCopyOrInterrupt handles Ctrl+C (interrupt/quit) and copy shortcuts.
 func (l *chatLayout) handleCopyOrInterrupt(k terminal.Key, name string) bool {
 	if name == "c" && k.Mods&terminal.ModCtrl != 0 &&
-		k.Mods&terminal.ModSuper == 0 && k.Mods&terminal.ModMeta == 0 {
+		k.Mods&terminal.ModSuper == 0 && k.Mods&terminal.ModMeta == 0 &&
+		k.Mods&terminal.ModShift == 0 {
 		if l.app == nil {
 			return true
 		}
 		switch {
 		case l.app.isRunning():
-			// 流式/工具运行中：Ctrl+C 中断当前运行（已有语义）。
 			if l.app.cfg.OnInterrupt != nil {
 				l.app.cfg.OnInterrupt()
 			}
 		case l.app.cfg.OnQuit != nil:
-			// 空闲时 Ctrl+C 退出（footer 提示 "Ctrl+C quit"）。
 			l.app.cfg.OnQuit()
 		default:
-			// 空闲且 OnQuit 未配置（库使用场景）：安全降级为忽略。
 		}
 		return true
 	}
 	if isCopyShortcut(k) {
 		doCopy(l)
+		return true
+	}
+	if isPasteShortcut(k) {
+		if e, ok := l.editor.(*component.Editor); ok {
+			l.pendingCmd = e.RequestPaste()
+		}
 		return true
 	}
 	return false

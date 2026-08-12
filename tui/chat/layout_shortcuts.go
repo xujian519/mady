@@ -25,10 +25,31 @@ func doCopyToClipboard(l *chatLayout, text string) {
 func isCopyShortcut(k terminal.Key) bool {
 	name := strings.ToLower(k.Name)
 	if name == "c" {
-		return isPrimaryShortcutMod(k.Mods)
+		if isPrimaryShortcutMod(k.Mods) {
+			return true
+		}
+		if k.Mods&terminal.ModCtrl != 0 && k.Mods&terminal.ModShift != 0 {
+			return true
+		}
 	}
 	if name == "insert" {
 		return k.Mods&terminal.ModCtrl != 0 || k.Mods&terminal.ModShift != 0
+	}
+	return false
+}
+
+func isPasteShortcut(k terminal.Key) bool {
+	name := strings.ToLower(k.Name)
+	if name == "v" {
+		if isPrimaryShortcutMod(k.Mods) {
+			return true
+		}
+		if k.Mods&terminal.ModCtrl != 0 && k.Mods&terminal.ModShift != 0 {
+			return true
+		}
+	}
+	if name == "insert" {
+		return k.Mods&terminal.ModShift != 0
 	}
 	return false
 }

@@ -66,11 +66,17 @@ func (a *ChatApp) PrintError(err error) {
 		return
 	}
 	a.history.Append(ChatMessage{Role: RoleError, Text: err.Error()})
+	a.history.FollowTail()
 }
 
-// PrintUser appends a user message to the chat history.
+// PrintUser appends a user message to the chat history. When the user
+// actively sends a message we re-enable tail-following so their own input
+// and the assistant's upcoming response are visible on screen regardless
+// of whether they had scrolled up to read older context — matching the
+// convention of every modern chat UI (Slack, Discord, ChatGPT, etc.).
 func (a *ChatApp) PrintUser(input string) {
 	a.history.Append(ChatMessage{Role: RoleUser, Text: input})
+	a.history.FollowTail()
 }
 
 // ---------------------------------------------------------------------------

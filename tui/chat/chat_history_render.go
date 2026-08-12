@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/tui/core"
-	"github.com/xujian519/mady/tui/theme"
+	tuitheme "github.com/xujian519/mady/tui/theme"
 )
 
 // renderSnapshot holds a point-in-time copy of the mutable state that renderAll
@@ -260,7 +260,7 @@ func (h *ChatHistory) addScrollIndicator(visible []string, all []string, maxRows
 	if totalLines > 0 {
 		percent = visibleStart * 100 / totalLines
 	}
-	indicator := h.theme.DimStyle.Render(fmt.Sprintf("\u25b2 %d/%d (%d%%) \u2014 End to follow", visibleStart, totalLines, percent))
+	indicator := h.theme.DimStyle.Render(fmt.Sprintf("%s %d/%d (%d%%) \u2014 End to follow", tuitheme.ScrollUpHint, visibleStart, totalLines, percent))
 	if int64(len(visible)) >= maxRows && len(visible) > 0 {
 		visible = visible[:len(visible)-1]
 		if len(links) > 0 {
@@ -281,7 +281,7 @@ func (h *ChatHistory) addStickToBottomHint(visible []string, all []string, maxRo
 	if follow || newSinceAnchor <= 0 {
 		return visible, links
 	}
-	hint := h.theme.SuccessStyle.Render(fmt.Sprintf("\u2193 %d new \u2014 End to follow", newSinceAnchor))
+	hint := h.theme.SuccessStyle.Render(fmt.Sprintf("%s %d new \u2014 End to follow", tuitheme.ScrollDownHint, newSinceAnchor))
 	if int64(len(visible)) >= maxRows && len(visible) > 0 {
 		visible = visible[:len(visible)-1]
 		if len(links) > 0 {
@@ -321,7 +321,7 @@ func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string,
 		thumbEnd = maxRows
 	}
 
-	pal := theme.CurrentPalette()
+	pal := tuitheme.CurrentPalette()
 	gapStyle := pal.SurfaceBg.Render(" ") // 1-column gutter
 	trackStyle := pal.SurfaceBg.Render(" ")
 	thumbStyle := pal.SurfaceRaisedBg.Render(" ")
@@ -543,10 +543,15 @@ func (h *ChatHistory) renderMessagesRange(
 		if i > 0 {
 			sep := h.renderMessageSeparator(msgs[i-1], m, width, theme)
 			out = append(out, sep...)
-			// 分隔行无链接；按实际行数补齐，保持 outLinks 与 out 等长
-			// （renderMessageSeparator 对 Tool↔Tool 返回 nil，无行）。
 			if len(sep) > 0 {
 				outLinks = append(outLinks, nilLinks(len(sep))...)
+			}
+			if msgs[i-1].Role != m.Role {
+				band := renderRoleTransitionBand(m.Role, width, theme)
+				out = append(out, band...)
+				if len(band) > 0 {
+					outLinks = append(outLinks, nilLinks(len(band))...)
+				}
 			}
 		}
 		startLine := len(out)
@@ -698,7 +703,7 @@ func (h *ChatHistory) renderMessageSeparator(prev, curr ChatMessage, width int64
 		if eighth < 1 {
 			eighth = 1
 		}
-		return []string{theme.DimStyle.Render(strings.Repeat("·", int(eighth)))}
+		return []string{theme.DimStyle.Render(strings.Repeat(tuitheme.SymbolRuleEighthDots, int(eighth)))}
 
 	// 其余任意角色切换：单空行。
 	default:
