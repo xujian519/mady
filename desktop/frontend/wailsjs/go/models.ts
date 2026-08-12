@@ -359,6 +359,42 @@ export namespace main {
 	        this.isIndexing = source["isIndexing"];
 	    }
 	}
+	export class KnowledgeModelSettings {
+	    baseURL?: string;
+	    apiKey?: string;
+	    embedModel?: string;
+	    rerankModel?: string;
+	    rerankEnabled?: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new KnowledgeModelSettings(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.baseURL = source["baseURL"];
+	        this.apiKey = source["apiKey"];
+	        this.embedModel = source["embedModel"];
+	        this.rerankModel = source["rerankModel"];
+	        this.rerankEnabled = source["rerankEnabled"];
+	    }
+	}
+	export class OmlxServiceStatus {
+	    running: boolean;
+	    installed: boolean;
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new OmlxServiceStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.running = source["running"];
+	        this.installed = source["installed"];
+	        this.message = source["message"];
+	    }
+	}
 	export class McpServerEntry {
 	    name: string;
 	    type: string;

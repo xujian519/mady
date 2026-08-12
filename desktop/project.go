@@ -238,9 +238,9 @@ func (a *App) setCurrentProject(projectID, rootPath string) error {
 		// settingsMu（G-I3）：与 SetAISettings 的 load-modify-save 互斥，
 		// 防止并发写文件时用旧快照覆盖对方字段。
 		a.settingsMu.Lock()
-		settings := loadAISettingsFrom(aiSettingsPath(home))
+		settings := loadJSONFile[AISettings](aiSettingsPath(home))
 		settings.LastProjectID = projectID
-		saveErr := saveAISettingsTo(aiSettingsPath(home), settings)
+		saveErr := saveJSONFile(aiSettingsPath(home), settings)
 		a.settingsMu.Unlock()
 		if saveErr != nil {
 			log.Printf("[mady-desktop] 保存 last_project_id 失败: %v", saveErr)

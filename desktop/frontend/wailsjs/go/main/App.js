@@ -70,6 +70,14 @@ export function GetKnowledgeStatus() {
   return window['go']['main']['App']['GetKnowledgeStatus']();
 }
 
+export function GetKnowledgeModelSettings() {
+  return window['go']['main']['App']['GetKnowledgeModelSettings']();
+}
+
+export function GetOmlxServiceStatus() {
+  return window['go']['main']['App']['GetOmlxServiceStatus']();
+}
+
 export function GetThread(arg1) {
   return window['go']['main']['App']['GetThread'](arg1);
 }
@@ -160,6 +168,10 @@ export function SendAction(arg1, arg2) {
 
 export function SetAISettings(arg1) {
   return window['go']['main']['App']['SetAISettings'](arg1);
+}
+
+export function SetKnowledgeModelSettings(arg1) {
+  return window['go']['main']['App']['SetKnowledgeModelSettings'](arg1);
 }
 
 export function SwitchProject(arg1) {

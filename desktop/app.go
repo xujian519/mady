@@ -136,7 +136,7 @@ func (a *App) startup(ctx context.Context) {
 	// Q9：用户保存的 Provider/Model 覆盖环境默认值（desktop-settings.json）。
 	var saved AISettings
 	if madyHome != "" {
-		saved = loadAISettingsFrom(aiSettingsPath(madyHome))
+		saved = loadJSONFile[AISettings](aiSettingsPath(madyHome))
 		if saved.Provider != "" {
 			// BuildProvider 依据 PROVIDER 环境变量构建，设置面板的选择优先级最高。
 			_ = os.Setenv("PROVIDER", saved.Provider)
@@ -245,6 +245,10 @@ func (a *App) initDeferred(ctx context.Context, fc *bootstrap.Context) {
 	// === 阶段 2：重型初始化（后台，不阻塞前端） ===
 	t0 := time.Now()
 	log.Println("[mady-desktop] startup: phase 2 — deferred init starting")
+
+	// 知识库嵌入/Rerank 模型设置注入：将保存的配置写入 OMLX_* 环境变量，
+	// 使 LoadWikiStore → BuildEmbedder/BuildReranker 装配时读到新值（重启生效）。
+	a.applyKnowledgeModelEnv()
 
 	a.timedPhase("正在加载知识库...", "LoadWikiStore", func() {
 		fc.WikiStore, fc.WikiHook, fc.KnowledgeExt, fc.KnowledgeBackend = bootstrap.LoadWikiStore(fc.MadyHome)

@@ -509,6 +509,37 @@ export async function getKnowledgeStatus(): Promise<KnowledgeStatus> {
   return callBinding<KnowledgeStatus>('main/App', 'GetKnowledgeStatus')
 }
 
+/** 知识库嵌入/Rerank 模型设置（apiKey 为掩码，空表示未配置）。 */
+export interface KnowledgeModelSettings {
+  baseURL: string
+  apiKey: string
+  embedModel: string
+  rerankModel: string
+  rerankEnabled: boolean
+}
+
+/** 本地 oMLX 推理服务状态（嵌入/Rerank 依赖）。 */
+export interface OmlxServiceStatus {
+  running: boolean
+  installed: boolean
+  message: string
+}
+
+/** 获取保存的知识库模型设置（未保存时返回默认值，apiKey 仅掩码）。 */
+export async function getKnowledgeModelSettings(): Promise<KnowledgeModelSettings> {
+  return callBinding<KnowledgeModelSettings>('main/App', 'GetKnowledgeModelSettings')
+}
+
+/** 保存知识库模型设置（apiKey 传掩码保持原值，传空串清空）。保存后重启应用生效。 */
+export async function setKnowledgeModelSettings(s: KnowledgeModelSettings): Promise<void> {
+  return callBinding<void>('main/App', 'SetKnowledgeModelSettings', s)
+}
+
+/** 检测本地 oMLX 推理服务运行状态。 */
+export async function getOmlxServiceStatus(): Promise<OmlxServiceStatus> {
+  return callBinding<OmlxServiceStatus>('main/App', 'GetOmlxServiceStatus')
+}
+
 // ── 项目管理 ──────────────────────────────────────
 
 /** 列出已注册的项目。 */

@@ -661,14 +661,14 @@ func TestAISettingsPersistence_RoundTrip(t *testing.T) {
 	path := aiSettingsPath(dir)
 
 	want := AISettings{Provider: "kimi", Model: "kimi-k2.6"}
-	if err := saveAISettingsTo(path, want); err != nil {
-		t.Fatalf("saveAISettingsTo: %v", err)
+	if err := saveJSONFile(path, want); err != nil {
+		t.Fatalf("saveJSONFile: %v", err)
 	}
-	got := loadAISettingsFrom(path)
+	got := loadJSONFile[AISettings](path)
 	if got != want {
 		t.Errorf("round trip mismatch: got %+v, want %+v", got, want)
 	}
-	// 原子写不应残留 tmp 文件（saveAISettingsTo 用 CreateTemp 前缀 .mady-settings-*，M-5）
+	// 原子写不应残留 tmp 文件（saveJSONFile 用 CreateTemp 前缀 .mady-settings-*，M-5）
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("ReadDir: %v", err)
@@ -684,7 +684,7 @@ func TestLoadAISettingsFrom_MissingOrInvalid(t *testing.T) {
 	dir := t.TempDir()
 
 	// 文件不存在 → 零值，不视为错误
-	if got := loadAISettingsFrom(aiSettingsPath(dir)); got != (AISettings{}) {
+	if got := loadJSONFile[AISettings](aiSettingsPath(dir)); got != (AISettings{}) {
 		t.Errorf("missing file should yield zero AISettings, got %+v", got)
 	}
 
@@ -693,7 +693,7 @@ func TestLoadAISettingsFrom_MissingOrInvalid(t *testing.T) {
 	if err := os.WriteFile(bad, []byte("{oops"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if got := loadAISettingsFrom(bad); got != (AISettings{}) {
+	if got := loadJSONFile[AISettings](bad); got != (AISettings{}) {
 		t.Errorf("invalid JSON should yield zero AISettings, got %+v", got)
 	}
 }
@@ -729,7 +729,7 @@ func TestSetAISettings_ModelOnly(t *testing.T) {
 		t.Errorf("BaseConfig model = %q, want deepseek-v4-pro", app.fc.BaseConfig.ModelConfig.Model)
 	}
 	// 持久化生效
-	got := loadAISettingsFrom(aiSettingsPath(dir))
+	got := loadJSONFile[AISettings](aiSettingsPath(dir))
 	if got.Provider != "deepseek" || got.Model != "deepseek-v4-pro" {
 		t.Errorf("persisted settings = %+v, want {deepseek deepseek-v4-pro}", got)
 	}
@@ -762,7 +762,7 @@ func TestSetAISettings_ProviderWithoutKey(t *testing.T) {
 		t.Error("PROVIDER env should be rolled back on failure")
 	}
 	// 未持久化
-	if got := loadAISettingsFrom(aiSettingsPath(dir)); got != (AISettings{}) {
+	if got := loadJSONFile[AISettings](aiSettingsPath(dir)); got != (AISettings{}) {
 		t.Errorf("nothing should be persisted on failure, got %+v", got)
 	}
 }

@@ -40,6 +40,10 @@ export function GetCurrentProject():Promise<main.ProjectInfo>;
 
 export function GetKnowledgeStatus():Promise<main.KnowledgeStatus>;
 
+export function GetKnowledgeModelSettings():Promise<main.KnowledgeModelSettings>;
+
+export function GetOmlxServiceStatus():Promise<main.OmlxServiceStatus>;
+
 export function GetThread(arg1:string):Promise<session.ThreadSnapshot>;
 
 export function Health():Promise<server.HealthInfo>;
@@ -85,6 +89,8 @@ export function SelectProjectFolder():Promise<main.ProjectInfo>;
 export function SendAction(arg1:string,arg2:a2ui.ClientAction):Promise<void>;
 
 export function SetAISettings(arg1:main.AISettings):Promise<void>;
+
+export function SetKnowledgeModelSettings(arg1:main.KnowledgeModelSettings):Promise<void>;
 
 export function SwitchProject(arg1:string):Promise<void>;
 

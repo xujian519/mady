@@ -36,29 +36,32 @@ func aiSettingsPath(madyHome string) string {
 	return filepath.Join(madyHome, "desktop-settings.json")
 }
 
-// loadAISettingsFrom 从指定路径读取 AI 设置。文件不存在或解析失败时
-// 返回零值（视为无用户覆盖），不视为错误。
-func loadAISettingsFrom(path string) AISettings {
+// loadJSONFile 从指定路径读取 JSON 到 T。
+// 文件不存在或解析失败时返回零值（视为无用户覆盖），不视为错误。
+// 所有桌面端设置文件（AISettings / KnowledgeModelSettings）共用的读取入口。
+func loadJSONFile[T any](path string) T {
 	data, err := os.ReadFile(path) //nolint:gosec // path 由 MadyHome 派生
 	if err != nil {
-		return AISettings{}
+		var zero T
+		return zero
 	}
-	var s AISettings
-	if err := json.Unmarshal(data, &s); err != nil {
-		log.Printf("[mady-desktop] invalid AI settings file %s: %v", path, err)
-		return AISettings{}
+	var v T
+	if err := json.Unmarshal(data, &v); err != nil {
+		log.Printf("[mady-desktop] invalid JSON settings file %s: %v", path, err)
+		var zero T
+		return zero
 	}
-	return s
+	return v
 }
 
-// saveAISettingsTo 将 AI 设置原子写入指定路径（tmp + rename）。
-func saveAISettingsTo(path string, s AISettings) error {
-	data, err := json.Marshal(s)
+// saveJSONFile 将任意结构原子写入指定路径（tmp + rename）。
+// 并发安全的原子写：CreateTemp 生成唯一临时文件名（G-I3），
+// 避免两个并发保存互相覆盖同一个 .tmp 文件。
+func saveJSONFile(path string, v any) error {
+	data, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	// 并发安全的原子写：CreateTemp 生成唯一临时文件名（G-I3），
-	// 避免两个并发保存互相覆盖同一个 .tmp 文件。
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".mady-settings-*")
 	if err != nil {
@@ -163,10 +166,10 @@ func (a *App) SetAISettings(s AISettings) error {
 	// 防止并发写文件时用旧快照覆盖对方字段。
 	if home := a.resolveMadyHome(); home != "" {
 		a.settingsMu.Lock()
-		saved := loadAISettingsFrom(aiSettingsPath(home))
+		saved := loadJSONFile[AISettings](aiSettingsPath(home))
 		saved.Provider = newProvider
 		saved.Model = newModel
-		saveErr := saveAISettingsTo(aiSettingsPath(home), saved)
+		saveErr := saveJSONFile(aiSettingsPath(home), saved)
 		a.settingsMu.Unlock()
 		if saveErr != nil {
 			return fmt.Errorf("setAISettings: 保存配置失败: %w", saveErr)
