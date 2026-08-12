@@ -15,9 +15,9 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 → 通用工具库（pkg/{util,csync,i18n,lawcite,agentconfig,vecbytes}）
 → 协议与接口层（A2A/A2UI/AGUI/ACP/Server/MCP/TUI）
 → 应用入口（cmd/mady, example/）。
-1531 个 Go 源文件（1001 非测试 + 530 测试），~281K 行代码。
+1599 个 Go 源文件（1066 非测试 + 533 测试），~281K 行代码。
 
-> 文件计数更新时间：2026-08-11。如需获取最新计数（与 check-doc-consistency.py 同口径），请执行：
+> 文件计数更新时间：2026-08-12。如需获取最新计数（与 check-doc-consistency.py 同口径），请执行：
 > ```bash
 > git ls-files '*.go' | wc -l && git ls-files '*_test.go' | wc -l
 > ```
@@ -32,13 +32,20 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 - 常用快捷命令见 `Makefile`：`make verify`、`make all`、`make test-race`、
   `make lint`、`make build-mady`、`make run-mady`（TUI 入口 `cmd/mady/`）
 
-  `mady` 子命令（入口 `cmd/mady/`，共 14 个）：
+  `mady` 子命令（入口 `cmd/mady/`，共 17 个）：
+  - `mady tui` — 交互式终端对话（默认，无参数时等价）
+  - `mady serve` — HTTP/SSE API 服务器（多领域路由）
+  - `mady acp` — ACP 服务器（stdio JSON-RPC，供 Zed 等编辑器接入）
   - `mady eval` — 评估套件运行器（--suite --format --mode）
   - `mady evidence` — 证据判断 CLI（judge/burden/standard/conflict/type 五子命令）
+  - `mady patent` — 专利分析 CLI（novelty/OA 答复/无效/侵权/复审）
   - `mady util` — 实用工具（list-prompts 列出可用模板）
   - `mady mcp-install` — 将 Mady 安装到编码 Agent
+  - `mady trust-mcp` — 信任 MCP 配置文件（SHA-256 记录，命令方可启动时运行）
+  - `mady trust-knowledge` — 管理知识库沙箱只读白名单
   - `mady ocr` — OCR 识别（ONNX Runtime）
   - `mady start-embeddings` / `stop-embeddings` / `status-embeddings` — oMLX 嵌入服务管理
+  - `mady version` — 构建版本信息（commit hash + 构建时间）
 
 ### ⚠️ 多模块工作区（重要 gotcha）
 

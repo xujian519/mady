@@ -28,16 +28,17 @@ Dependency direction: high-number layers may depend on low-number layers, never 
 
 ## Directory Structure
 
-> Auto-verified: 118 source files (+ 115 test files) across 9 packages.
-> Last sync: 2026-08-11.
+> Auto-verified: 131 source files (+ 124 test files) across 9 packages.
+> Last sync: 2026-08-12.
 
 ```
 tui/
-├── core/                  # Layer 0 — Foundation (14 source files)
+├── core/                  # Layer 0 — Foundation (17 source files)
 │   ├── component.go       # Component/Updatable/Focusable interfaces, Container, CURSOR_MARKER
 │   ├── message.go         # Msg/Cmd types, Batch/Sequence/Quit, MsgBase
 │   ├── errors.go          # Typed errors: TerminalError/ClipboardError (TermError/NetError/LogicError removed)
 │   ├── width.go           # East-Asian width, truncation, padding, wrapping
+│   ├── width_wrap.go      # ANSI-aware line wrapping (WrapAnsi/WrapAnsiCJK, StripAnsi)
 │   ├── runeutil.go        # Shared rune utilities (CellWidthOfRunes, SliceRunesByCells, etc.)
 │   ├── fuzzy_match.go     # Fuzzy matching utilities
 │   ├── spinner_style.go   # SpinnerStyle type + preset vars (SpinnerDots, SpinnerLine, etc.)
@@ -51,13 +52,18 @@ tui/
 │   ├── sanitize.go        # SanitizeRawContent: strips dangerous escape sequences from raw output
 │   └── stack.go           # CaptureStack: goroutine stack trace for PanicMsg diagnostics
 │
-├── terminal/              # Layer 1 — Terminal I/O (9 source files)
+├── terminal/              # Layer 1 — Terminal I/O (14 source files)
 │   ├── keys.go            # Key parsing, MatchesKey, Kitty protocol, KeyID
 │   ├── keybindings.go     # KeybindingsManager, DefaultKeybindings, KeybindingDef
+│   ├── key_decode.go      # CSI/SS3/Kitty escape sequence decoding (parseCSI/parseSS3/decodeKittyU)
 │   ├── stdin_buffer.go    # StdinBuffer for reassembling fragmented input
+│   ├── stdin_buffer_parse.go # StdinBuffer event splitting, ANSI completeness, mouse parsing
 │   ├── terminal.go        # Terminal interface, ProcessTerminal, VirtualTerminal
 │   ├── ansi.go            # ANSI escape sequence builders (pure functions, no I/O)
 │   ├── detect.go          # Terminal capability detection (color level, kitty, etc.)
+│   ├── detect_types.go    # TerminalBrand/MultiplexerKind types + capability predicates
+│   ├── detect_env.go      # Capability detection from environment variables
+│   ├── detect_caps.go     # Capability computation (truecolor/256/kitty/OSC8/SGR)
 │   ├── terminal_darwin.go # macOS termios
 │   ├── terminal_linux.go  # Linux termios
 │   └── terminal_other.go # Fallback for other OSes
@@ -131,19 +137,25 @@ tui/
 │   ├── flex.go            # Flex declarative layout (main-axis size policies, 506 lines)
 │   └── layout.go          # Layout helpers
 │
-├── chat/                  # Layer 5 — Application (21 source files)
+├── chat/                  # Layer 5 — Application (28 source files)
 │   ├── chat_app.go        # ChatApp struct, constructor, public API
 │   ├── chat_app_layout.go # chatLayout root Component + input router
 │   ├── chat_app_plantask.go # PlanTask state/approval/interrupt/reject/revise handlers
 │   ├── chat_app_stream.go # ChatApp streaming lifecycle handlers (submit/delta/end/error)
 │   ├── chat_app_tool.go   # ChatApp tool-call/handoff/turn/compaction handlers
 │   ├── chat_app_todo.go   # ChatApp todo-list panel integration handlers
+│   ├── chat_app_frame.go  # ChatApp frame/terminal size coordination (TerminalSize)
+│   ├── chat_app_keys.go   # chatLayout keyboard dispatch (handleKeyMsg/dispatchKey/confirm/search)
 │   ├── chat_history.go    # ChatHistory scrollable transcript component
+│   ├── chat_history_types.go # Message data model: ChatRole/ChatMessage/ThinkingSegment/Theme
+│   ├── chat_history_messages.go # ChatHistory message mutation (Append/Patch/AppendDelta/Finalize/Clear)
 │   ├── chat_history_render.go        # ChatHistory rendering pipeline (viewport, separators)
 │   ├── chat_history_render_message.go # Per-message rendering (role dispatch, card router)
 │   ├── chat_history_render_highlight.go # Text-selection highlighting
 │   ├── chat_history_input.go         # ChatHistory input & viewport scrolling, mouse handling
 │   ├── chat_history_selection.go     # ChatHistory selection business logic
+│   ├── chat_render_tools.go # Tool-call grouping & rendering (detectToolGroup/renderToolGroup)
+│   ├── chat_search.go     # In-transcript search (SearchMode/SearchNext/SearchPrev/highlighting)
 │   ├── events.go          # ChatEvent types (23 events), Subscriber/EventSubscriber interfaces
 │   ├── state.go           # Explicit FSM over ChatApp interaction states
 │   ├── reasoning.go       # Reasoning/thinking block rendering
@@ -169,6 +181,7 @@ tui/
 ├── tui_render.go          # Layer 3 — RequestRender, renderFrame, normalizeLine
 ├── tui_focus.go           # Layer 3 — focus stack + overlay stack management
 ├── overlay.go             # Layer 3 — Overlay data type + composition helpers
+├── overlay_render.go      # Layer 3 — overlay composition rendering (composeOverlays, splice, dim background)
 ├── chat_bridge.go         # Layer 3 — NewChatApp convenience constructor + tuiAppHost adapter
 └── LAYERS.md              # This file
 ```
@@ -246,21 +259,29 @@ cancellation). See `tui_lifecycle.go:190-209` for the implementation.
 
 ### ChatApp Multi-File Architecture
 
-`ChatApp` is split across 4 `chat_app_*.go` files + 10 `chat_history_*.go` /
+`ChatApp` is split across 8 `chat_app_*.go` files + 8 `chat_history_*.go` /
 helper files, following the same sibling-file pattern as the Editor subsystem:
 
 - `chat_app.go` — struct, constructor, public API
 - `chat_app_layout.go` — `chatLayout` root component + input router
 - `chat_app_stream.go` — streaming lifecycle handlers (submit/delta/end/error)
 - `chat_app_tool.go` — tool-call/handoff/turn/compaction handlers + diff extraction
+- `chat_app_todo.go` — todo-list panel integration handlers
+- `chat_app_plantask.go` — PlanTask state/approval/interrupt/reject/revise handlers
+- `chat_app_frame.go` — frame/terminal size coordination
+- `chat_app_keys.go` — keyboard dispatch for `chatLayout`
 
 `ChatHistory` rendering is similarly split:
 - `chat_history.go` — struct + public API
+- `chat_history_types.go` — message data model types
+- `chat_history_messages.go` — message mutation (append/patch/finalize/clear)
 - `chat_history_render.go` — rendering pipeline (viewport, separators, scroll)
 - `chat_history_render_message.go` — per-message rendering (role dispatch, cards)
 - `chat_history_render_highlight.go` — text-selection highlighting
 - `chat_history_input.go` — input handling, viewport scrolling, mouse
 - `chat_history_selection.go` — selection business logic
+- `chat_render_tools.go` — tool-call grouping & rendering
+- `chat_search.go` — in-transcript search
 
 An explicit FSM (`state.go`, 249 lines) decouples interaction states from the
 imperative event handlers in `chat_app_stream.go` / `chat_app_tool.go`.

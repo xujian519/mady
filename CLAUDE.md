@@ -9,7 +9,7 @@
 
 - **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` + `./tui` + `./desktop` 四个子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 1500+ 个 Go 源文件（~1001 非测试 + ~530 测试，不含 vendor），~281K 行代码
+- 1500+ 个 Go 源文件（~1066 非测试 + ~533 测试，不含 vendor），~281K 行代码
 
 ## 构建与测试
 
@@ -123,7 +123,7 @@ mady/
 ├── evaluate/         # 评估框架（RAGAS 风格，含 benchmark 跑批 + CLI 引擎 + 校准）
 ├── integration/      # 端到端集成测试（含 doomloop/chain/drafting/guardrails/handoff）
 ├── intent/           # 意图分类（keyword/LLM 多分类器路由，domains.ClassifyIntent 委托使用）
-├── cmd/mady/         # 统一入口（14 个子命令：tui / serve / acp / eval / evidence / ocr / mcp-install / trust-mcp / trust-knowledge / util / patent / start-embeddings / stop-embeddings / status-embeddings）
+├── cmd/mady/         # 统一入口（17 个子命令：tui / serve / acp / eval / evidence / ocr / mcp-install / trust-mcp / trust-knowledge / util / patent / start-embeddings / stop-embeddings / status-embeddings / version）
 ├── example/          # 示例应用（10 个）
 ├── docs/             # 文档（ADRs、OpenAPI 规范、设计文档、评审报告）
 ├── fuzzy/            # 模糊匹配
@@ -162,7 +162,7 @@ mady/
                                    |
                     TUI 层：分层 Elm 架构（Layer 0-7，含 layout 层）
                                    |
-                    应用入口：cmd/mady（14 子命令） server/  desktop/  example/
+                    应用入口：cmd/mady（17 子命令） server/  desktop/  example/
 ```
 
 ## 设计约定

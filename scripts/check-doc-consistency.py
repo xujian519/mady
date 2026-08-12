@@ -6,7 +6,7 @@
   1. 被 git 跟踪的 Go 文件计数（非测试/测试）与 CLAUDE.md、AGENTS.md 声明
      —— 使用 `git ls-files` 口径，与版本库一致、结果可复现，天然排除
      node_modules、vendor、构建产物等未跟踪/被忽略目录
-  2. cmd/mady 子命令数量与文档声明（14 个）
+  2. cmd/mady 子命令数量与文档声明（17 个）
   3. 文档目录树中引用的每个路径是否真实存在（解析嵌套层级）
   4. 内置领域 manifest 数量（应为 3 个）
 
@@ -155,9 +155,9 @@ for m in re.finditer(r'^\tcase ((?:"[^"]+",?\s*)+):', main_go, re.M):
 subcmd_names.discard("-h")
 subcmd_names.discard("--help")
 subcmd_names.discard("help")
-if len(subcmd_names) != 14:
+if len(subcmd_names) != 17:
     actual = sorted(subcmd_names)
-    warn(f"cmd/mady 实际 {len(actual)} 个子命令（{actual}），文档声明 14 个")
+    warn(f"cmd/mady 实际 {len(actual)} 个子命令（{actual}），文档声明 17 个")
 
 # --- 3. 文档目录树路径存在性 --------------------------------------------------
 # 通用树行正则：任意深度（`│   ` 缩进任意多级 + 分支符号）
