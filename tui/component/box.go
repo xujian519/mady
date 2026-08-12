@@ -284,24 +284,25 @@ func repeatGlyph(glyph string, n int64) string {
 // Separator helpers — used for important transition markers in the chat.
 // ---------------------------------------------------------------------------
 
-// BrandSeparator returns a full-width brand separator line with an optional
+// BrandSeparator returns a full-width separator line with an optional
 // center marker (e.g. ⚖). Used for approval gates, review gates, and other
-// important state transitions where the standard ── separator is too subtle.
+// important state transitions. Uses the single-line glyph (─) for visual
+// consistency with JudgmentView and editorFrame borders.
 //
 // Example with marker "⚖":
 //
-//	═══ ⚖ ═══
+//	─── ⚖ ───
 //
 // Example without marker:
 //
-//	════════════════════════
+//	────────────────────────
 func BrandSeparator(width int64, marker string, fn func(string) string) string {
 	if fn == nil {
 		pal := theme.CurrentPalette()
 		fn = pal.BorderMuted.Render
 	}
 	if marker == "" {
-		return fn(strings.Repeat("═", int(width)))
+		return fn(strings.Repeat("─", int(width)))
 	}
 	markerStr := " " + marker + " "
 	mw := core.VisibleWidth(markerStr)
@@ -309,5 +310,5 @@ func BrandSeparator(width int64, marker string, fn func(string) string) string {
 	if half < 1 {
 		return fn(markerStr)
 	}
-	return fn(strings.Repeat("═", half) + markerStr + strings.Repeat("═", int(width)-half-int(mw)))
+	return fn(strings.Repeat("─", half) + markerStr + strings.Repeat("─", int(width)-half-int(mw)))
 }

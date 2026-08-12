@@ -215,11 +215,18 @@ func (v *JudgmentView) Render(width int64) []string {
 		statusLine.WriteString(" · ")
 		statusLine.WriteString(p.Accent.Render("degraded"))
 	}
-	lines = append(lines,
-		p.BorderMuted.Render(strings.Repeat("─", int(width))),
-		statusLine.String(),
-		p.BorderMuted.Render(strings.Repeat("─", int(width))),
-	)
+	// Collapsed 模式（非展开、非正常）：单行紧凑显示，不浪费 3 行空间。
+	if !v.isExpanded() && !v.isNormal() {
+		line := p.BorderMuted.Render("── ") + statusLine.String() + " " + p.BorderMuted.Render(strings.Repeat("─", int(width)))
+		line = core.TruncateToWidth(line, width, "…")
+		lines = append(lines, line)
+	} else {
+		lines = append(lines,
+			p.BorderMuted.Render(strings.Repeat("─", int(width))),
+			statusLine.String(),
+			p.BorderMuted.Render(strings.Repeat("─", int(width))),
+		)
+	}
 
 	// --- Judgment section (expanded or normal only) ---
 	if v.isExpanded() || v.isNormal() {

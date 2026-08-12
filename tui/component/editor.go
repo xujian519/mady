@@ -267,10 +267,8 @@ func (e *Editor) Clear() { e.SetValue("") }
 
 // CharCount implements the chat.charCounter interface so the wrapping
 // editorFrame can render a non-intrusive character counter in the border
-// below the editor without stealing rows from the edit area. The softLimit
-// is derived from the configured context window so the counter turns
-// warning-colored when the single prompt nears the rough budget.
-func (e *Editor) CharCount() (count, softLimit int64) {
+// below the editor without stealing rows from the edit area.
+func (e *Editor) CharCount() int64 {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	total := 0
@@ -281,7 +279,7 @@ func (e *Editor) CharCount() (count, softLimit int64) {
 	if len(e.lines) > 1 {
 		total += len(e.lines) - 1
 	}
-	return int64(total), 0
+	return int64(total)
 }
 
 // SelectAll selects the editor buffer without affecting terminal-level text selection.

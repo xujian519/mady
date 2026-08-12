@@ -499,7 +499,6 @@ func blankRow(cols int64) core.Row {
 // "box" edges against the dim backdrop — visually indistinguishable from an
 // artifact — so the backdrop is kept perfectly uniform instead.
 func dimBackgroundRows(base []core.Row, cols, rows, oRow, oCol, oW, oH int64, intensity float64) []core.Row {
-	_ = rows
 	// Overlay rectangle: rows [ovTop, ovBot), cols [ovLeft, ovRight).
 	ovTop, ovBot := oRow, oRow+oH
 	ovLeft, ovRight := oCol, oCol+oW
@@ -514,8 +513,13 @@ func dimBackgroundRows(base []core.Row, cols, rows, oRow, oCol, oW, oH int64, in
 		return v
 	}
 
-	for i := range base {
-		r := int64(i)
+	// 限定遍历范围到实际视口高度，跳过多余的 padding 行。
+	n := int64(len(base))
+	if rows < n {
+		n = rows
+	}
+	for i := int64(0); i < n; i++ {
+		r := i
 		dim := func(a, b int64) {
 			if a, b = clamp(a), clamp(b); b > a {
 				base[i] = applyDimToRow(base[i], a, b, true, intensity)

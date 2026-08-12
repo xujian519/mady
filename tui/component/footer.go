@@ -8,9 +8,10 @@ package component
 // bindings; the full key reference is available via `?` (KeyHelp overlay).
 //
 // Layout strategy (responsive):
-//   - < 80 cols: [?] help · [Ctrl+P] cmd · [Ctrl+C] quit
-//   - 80-159 cols: adds [/] search · [Tab] focus
-//   - ≥ 160 cols: shows all 5-7 registered groups
+//   - < 60 cols: [?] help
+//   - 60-79 cols: help, clipboard, commands (first 3 groups)
+//   - 80-159 cols: adds quit, fold (first 5 groups)
+//   - ≥ 160 cols: shows all 6 registered groups (+ theme)
 
 import (
 	"strings"

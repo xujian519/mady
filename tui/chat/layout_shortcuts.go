@@ -33,7 +33,8 @@ func isCopyShortcut(k terminal.Key) bool {
 		}
 	}
 	if name == "insert" {
-		return k.Mods&terminal.ModCtrl != 0 || k.Mods&terminal.ModShift != 0
+		// Ctrl+Insert is copy; Shift+Insert is paste (handled by isPasteShortcut).
+		return k.Mods&terminal.ModCtrl != 0 && k.Mods&terminal.ModShift == 0
 	}
 	return false
 }
@@ -80,4 +81,15 @@ func doCopy(l *chatLayout) {
 
 func isPrimaryShortcutMod(mods terminal.Modifier) bool {
 	return mods&terminal.ModSuper != 0 || mods&terminal.ModMeta != 0
+}
+
+// hasSelection reports whether there is currently selected text in the editor
+// or the history viewport.
+func hasSelection(l *chatLayout) bool {
+	if sel, ok := l.editor.(textSelectionComponent); ok {
+		if sel.GetSelectedText() != "" {
+			return true
+		}
+	}
+	return l.history.GetSelectedText() != ""
 }

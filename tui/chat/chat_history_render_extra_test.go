@@ -232,7 +232,7 @@ func TestRenderMessageExtraRoles(t *testing.T) {
 		long := strings.Repeat("x", 300) + "\nsecond line"
 		lines, _ := h.renderMessage(ChatMessage{Role: RoleAssistant, Collapsed: true, Text: long}, th, 60, nil)
 		joined := strings.Join(lines, "\n")
-		if !strings.Contains(joined, "expand") {
+		if !strings.Contains(joined, "展开") {
 			t.Fatalf("collapsed assistant should show expand hint, got %q", joined)
 		}
 		if len(joined) > 250 {

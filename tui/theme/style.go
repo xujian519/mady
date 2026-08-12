@@ -237,16 +237,6 @@ const (
 	ScrollDownHint   = "↓"
 )
 
-// Density enum. 全 TUI 统一使用这三种密度切换，禁止在各组件内
-// 私自定义「空格多一点/少一点」造成视觉漂移。
-type Density int
-
-const (
-	DensityCompact     Density = 0 // 工具面板/列表：行距0/角色分隔1行
-	DensityComfortable Density = 1 // 默认聊天区：同角色紧凑、跨角色有色带
-	DensityCozy        Density = 2 // 展示模式：跨角色额外加 1 行空
-)
-
 // Spacing constants —— 对应竞品分析的 8px baseline 栅格（在 TUI
 // 中用"行数/空格数"近似）。
 const (
@@ -260,9 +250,8 @@ const (
 
 	// Bubble sizing（同 chat_history_render_message.messageBubbleWidth
 	// 语义一致，提取到 tokens 后供所有组件复用）。
-	BubbleMaxRatio   = 0.85 // ≥60cols 终端时最大气泡占比
-	BubbleMinColumns = 40   // 占比收缩时的最小绝对宽度
-	NarrowCols       = 60   // <此阈值为窄屏，气泡放宽至 100%
+	BubbleMaxRatio = 0.85 // ≥60cols 终端时最大气泡占比
+	NarrowCols     = 60   // <此阈值为窄屏，气泡放宽至 100%
 )
 
 // RoleTransitionBandRule returns the horizontal rule length for the

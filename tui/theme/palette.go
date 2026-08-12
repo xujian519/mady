@@ -214,13 +214,16 @@ func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
 	}
 
 	// Phase 1 新增：背景与表面层次
-	p.Background = fg(firstNonEmpty(sem.Background, "#07111F"))
-	p.Surface = fg(firstNonEmpty(sem.Surface, "#0C1B2A"))
-	p.SurfaceRaised = fg(firstNonEmpty(sem.SurfaceRaised, "#102638"))
+	// 根据终端背景明暗动态选择回退值，避免在自定义浅色主题中
+	// 使用深色品牌默认值（#07111F 等）造成视觉不协调。
+	bgFallback, sfFallback, srFallback := backgroundFallbacks()
+	p.Background = fg(firstNonEmpty(sem.Background, bgFallback))
+	p.Surface = fg(firstNonEmpty(sem.Surface, sfFallback))
+	p.SurfaceRaised = fg(firstNonEmpty(sem.SurfaceRaised, srFallback))
 	// Background variants for surface fills (BgParams).
-	p.BackgroundBg = bg(firstNonEmpty(sem.Background, "#07111F"))
-	p.SurfaceBg = bg(firstNonEmpty(sem.Surface, "#0C1B2A"))
-	p.SurfaceRaisedBg = bg(firstNonEmpty(sem.SurfaceRaised, "#102638"))
+	p.BackgroundBg = bg(firstNonEmpty(sem.Background, bgFallback))
+	p.SurfaceBg = bg(firstNonEmpty(sem.Surface, sfFallback))
+	p.SurfaceRaisedBg = bg(firstNonEmpty(sem.SurfaceRaised, srFallback))
 
 	// Phase 1 新增：证据方向着色
 	p.EvidenceSupport = fg(firstNonEmpty(sem.EvidenceSupport, "#5BC0EB"))
@@ -253,6 +256,18 @@ func firstNonEmpty(a, b string) string {
 		return a
 	}
 	return b
+}
+
+// backgroundFallbacks returns (bg, surface, surfaceRaised) hex colors appropriate
+// for the detected terminal background. Dark terminals get the Mady brand dark
+// palette; light terminals get the light palette values. This prevents custom
+// JSON themes that omit background tokens from rendering dark colors on a light
+// terminal (P2-1).
+func backgroundFallbacks() (bg, surface, surfaceRaised string) {
+	if DetectTerminalBackground() == "light" {
+		return "#f7f9fc", "#eef2f7", "#ffffff"
+	}
+	return "#07111F", "#0C1B2A", "#102638"
 }
 
 // SemStyle builds a foreground Style from a hex / 256 index string.

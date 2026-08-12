@@ -96,12 +96,16 @@ func messageBubbleWidth(viewport, indent int64) int64 {
 		return 1
 	}
 	if viewport < theme.NarrowCols {
+		// 极窄终端也保留至少 1 列 padding，避免文字紧贴视口边缘。
+		const narrowPad int64 = 1
+		if remain > narrowPad*2 {
+			return remain - narrowPad
+		}
 		return remain
 	}
 	bubbleCap := int64(float64(viewport) * theme.BubbleMaxRatio)
-	if bubbleCap < theme.BubbleMinColumns {
-		bubbleCap = theme.BubbleMinColumns
-	}
+	// bubbleCap is always >= 51 here (viewport ≥ NarrowCols=60, ratio=0.85),
+	// so the prior BubbleMinColumns=40 guard was unreachable.
 	if bubbleCap > remain {
 		bubbleCap = remain
 	}
@@ -133,14 +137,7 @@ func envelopeBubble(lines []string, indent, bgWidth int64, bgStyle theme.Style) 
 	totalBgWidth := indent + bgWidth
 	out := make([]string, 0, len(padded))
 	for _, ln := range padded {
-		vis := core.VisibleWidth(ln)
-		var full string
-		if vis < totalBgWidth {
-			full = ln + strings.Repeat(" ", int(totalBgWidth-vis))
-		} else {
-			full = ln
-		}
-		out = append(out, applyBgOneLine(full, bgSGR, reset))
+		out = append(out, applyBgOneLine(core.PadToWidth(ln, totalBgWidth), bgSGR, reset))
 	}
 	return out
 }
@@ -166,7 +163,9 @@ func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, w
 				firstLine = string([]rune(firstLine)[:197]) + "..."
 			}
 			head := core.TruncateToWidth(chatTheme.DimStyle.Render(firstLine), bubbleW, "…")
-			expand := core.TruncateToWidth("  "+chatTheme.DimStyle.Render("▸ expand"), bubbleW, "")
+			// 折叠提示使用加号括号风格，比纯文字更具交互暗示（点击可展开）。
+			expandHint := chatTheme.UserStyle.Render(" + ") + chatTheme.DimStyle.Render("点击展开")
+			expand := core.TruncateToWidth("  "+expandHint, bubbleW, "")
 			collapsedLines := []string{head, expand}
 			return envelopeBubble(collapsedLines, indent, bubbleW, chatTheme.AssistantBgStyle), nil
 		}
@@ -305,7 +304,10 @@ func applyBgOneLine(line, bgSGR, reset string) string {
 		return bgSGR + line + reset
 	}
 	var b strings.Builder
-	b.Grow(len(line) + 32)
+	// 为含语法高亮的代码块预留充足空间：每个 ANSI 序列 ~10 字节，
+	// 极端情况下每 4 个可见字符可能出现一个序列（如 syntax token）。
+	// +25% 作为安全余量，避免多次内部扩容。
+	b.Grow(len(line) + len(line)/4 + len(bgSGR) + len(reset))
 	b.WriteString(bgSGR)
 	i := 0
 	for i < len(line) {
@@ -337,17 +339,20 @@ func isSgrReset(seq string) bool {
 		return false
 	}
 	params := seq[2 : len(seq)-1]
+	// ESC[m and ESC[0m are canonical resets; ESC[0;30m resets all attributes
+	// then sets foreground to 30 — the background SGR must be re-applied after
+	// the reset portion regardless of the trailing parameters.
 	if params == "" {
 		return true
 	}
-	for _, p := range strings.Split(params, ";") {
-		for _, ch := range p {
-			if ch != '0' {
-				return false
-			}
-		}
+	first := params
+	if idx := strings.IndexByte(params, ';'); idx >= 0 {
+		first = params[:idx]
 	}
-	return true
+	if first == "" || first == "0" {
+		return true
+	}
+	return false
 }
 
 // renderRoleTransitionBand renders a 1-line visual accent that precedes a

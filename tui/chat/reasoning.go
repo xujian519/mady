@@ -79,7 +79,7 @@ func (r *DefaultReasoningRenderer) RenderThinking(m ChatMessage, width int64) []
 		headerLine := pal.Thinking.Render(header)
 
 		if collapsed {
-			hint := "  ⏎ 展开 "
+			hint := "  Enter 展开 "
 			if core.VisibleWidth(headerLine)+core.VisibleWidth(hint) <= width {
 				headerLine += pal.Dim.Render(hint)
 			}

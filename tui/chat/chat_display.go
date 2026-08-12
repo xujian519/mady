@@ -61,12 +61,14 @@ func (a *ChatApp) PrintSystem(msg string) {
 }
 
 // PrintError appends an error message to the chat history.
+// FollowTail is intentionally omitted: errors are appended but should not
+// yank the viewport away from scrolled-up position where the user is
+// reading context — matching the convention of modern chat UIs.
 func (a *ChatApp) PrintError(err error) {
 	if err == nil {
 		return
 	}
 	a.history.Append(ChatMessage{Role: RoleError, Text: err.Error()})
-	a.history.FollowTail()
 }
 
 // PrintUser appends a user message to the chat history. When the user

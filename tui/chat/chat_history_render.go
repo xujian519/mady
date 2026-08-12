@@ -541,16 +541,20 @@ func (h *ChatHistory) renderMessagesRange(
 			continue
 		}
 		if i > 0 {
-			sep := h.renderMessageSeparator(msgs[i-1], m, width, theme)
-			out = append(out, sep...)
-			if len(sep) > 0 {
-				outLinks = append(outLinks, nilLinks(len(sep))...)
-			}
-			if msgs[i-1].Role != m.Role {
+			roleChanged := msgs[i-1].Role != m.Role
+			if roleChanged {
+				// 跨角色切换时色带行自身承担分隔，不再叠加空行分隔符，
+				// 避免空行+色带产生 2 行间距导致视觉过松。
 				band := renderRoleTransitionBand(m.Role, width, theme)
 				out = append(out, band...)
 				if len(band) > 0 {
 					outLinks = append(outLinks, nilLinks(len(band))...)
+				}
+			} else {
+				sep := h.renderMessageSeparator(msgs[i-1], m, width, theme)
+				out = append(out, sep...)
+				if len(sep) > 0 {
+					outLinks = append(outLinks, nilLinks(len(sep))...)
 				}
 			}
 		}

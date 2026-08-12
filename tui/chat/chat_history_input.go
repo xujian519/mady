@@ -421,9 +421,16 @@ func (h *ChatHistory) scrollByLocked(n int64) {
 	// the user scrolls down all the way, they clearly want to keep
 	// watching new content as it streams in — matching every modern
 	// chat client (Slack, Discord, ChatGPT, etc.).
+	//
+	// When the content fits entirely within the viewport (total < maxRows),
+	// the tail is always visible and "re-engaging follow" is meaningless —
+	// it only prevents the user from scrolling up to read older content
+	// (the "复吸" bug). In that case, leave follow as-is.
 	if h.offset <= 0 {
 		h.offset = 0
-		atTail = true
+		if h.maxRows <= 0 || total >= h.maxRows {
+			atTail = true
+		}
 	}
 
 	// Auto-follow only kicks in when the viewport is anchored at the

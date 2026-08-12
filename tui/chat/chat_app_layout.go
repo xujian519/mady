@@ -34,10 +34,8 @@ type layoutHost interface {
 // editorFrame can render a non-intrusive character counter in the bottom
 // border without intruding into the editor's own layout budget.
 type charCounter interface {
-	// CharCount returns the current buffer length in runes (not bytes),
-	// and a recommended soft-limit after which the counter should render
-	// in a warning hue (0 = no limit).
-	CharCount() (count, softLimit int64)
+	// CharCount returns the current buffer length in runes (not bytes).
+	CharCount() int64
 }
 
 // editorFrame wraps the editor with a rounded brand border so the input
@@ -67,14 +65,9 @@ func (f *editorFrame) Render(width int64) []string {
 
 	counter := ""
 	if cc, ok := f.editor.(charCounter); ok {
-		n, limit := cc.CharCount()
-		if n > 0 {
+		if n := cc.CharCount(); n > 0 {
 			counter = fmt.Sprintf(" %d 字符 ", n)
-			if limit > 0 && n > limit {
-				counter = pal.Warning.Render(counter)
-			} else {
-				counter = pal.Dim.Render(counter)
-			}
+			counter = pal.Dim.Render(counter)
 		}
 	}
 	counterW := int64(0)
@@ -108,7 +101,7 @@ func (f *editorFrame) Render(width int64) []string {
 	// Bottom border: counter on the far left when present, hint on the far
 	// right, with ─ fill in between. If too narrow, drop hint first, then
 	// counter, finally fall back to plain bar.
-	hint := " ↑↓历史 · ⏎发送 · ⇧⏎换行 "
+	hint := " ↑↓历史 · Enter发送 · Shift+Enter换行 "
 	hintW := core.VisibleWidth(hint)
 	dimHint := pal.Dim.Render(hint)
 
@@ -584,6 +577,9 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 			}
 			return true
 		}
+		// Route regular paste shortcuts (Ctrl+V, Super+V, etc.) through
+		// the unified handler so isPasteShortcut can trigger RequestPaste.
+		return l.handleCopyOrInterrupt(k, name)
 	case "escape":
 		return l.handleEscapeKey(k)
 	case "pageup":
@@ -758,22 +754,37 @@ func (l *chatLayout) handleEscapeKey(k terminal.Key) bool {
 	return false
 }
 
-// handleCopyOrInterrupt handles Ctrl+C (interrupt/quit) and copy shortcuts.
+// handleCopyOrInterrupt handles Ctrl+C (interrupt/quit) and copy/paste shortcuts.
 func (l *chatLayout) handleCopyOrInterrupt(k terminal.Key, name string) bool {
 	if name == "c" && k.Mods&terminal.ModCtrl != 0 &&
-		k.Mods&terminal.ModSuper == 0 && k.Mods&terminal.ModMeta == 0 &&
-		k.Mods&terminal.ModShift == 0 {
-		if l.app == nil {
+		k.Mods&terminal.ModSuper == 0 && k.Mods&terminal.ModMeta == 0 {
+		// Ctrl+Shift+C: the Editor's keybinding system already handles the copy
+		// on Kitty-capable terminals. Consume the key here to prevent doCopy
+		// below from firing a second time (double-copy regression).
+		if k.Mods&terminal.ModShift != 0 {
 			return true
 		}
-		switch {
-		case l.app.isRunning():
+		// Plain Ctrl+C (no Shift). Priority: interrupt (when running) > copy
+		// (idle with selection) > quit (idle without selection).
+		if l.app != nil && l.app.isRunning() {
 			if l.app.cfg.OnInterrupt != nil {
 				l.app.cfg.OnInterrupt()
 			}
-		case l.app.cfg.OnQuit != nil:
+			return true
+		}
+		// On non-Kitty terminals (tmux, Terminal.app), Ctrl+Shift+C is parsed
+		// without the Shift bit and arrives here. When idle with a selection,
+		// treat Ctrl+C as copy — matching the convention of modern terminal
+		// emulators (Alacritty vi mode, WezTerm, etc.).
+		if hasSelection(l) {
+			doCopy(l)
+			return true
+		}
+		if l.app == nil {
+			return true
+		}
+		if l.app.cfg.OnQuit != nil {
 			l.app.cfg.OnQuit()
-		default:
 		}
 		return true
 	}

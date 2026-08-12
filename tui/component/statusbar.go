@@ -315,5 +315,9 @@ func renderContextBar(used, total int64, p *theme.Palette) string {
 		style = p.Success.Render
 	}
 	bar := strings.Repeat("█", filled) + strings.Repeat("░", cells-filled)
+	// 无色模式回退到 ASCII 风格，解决 █/░ 在无颜色终端上对比度不足的问题。
+	if !theme.ColorEnabled() {
+		bar = "[" + strings.Repeat("#", filled) + strings.Repeat("-", cells-filled) + "]"
+	}
 	return style(bar) + " " + fmt.Sprintf("%d%%", pct)
 }
