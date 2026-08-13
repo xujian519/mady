@@ -9,7 +9,7 @@
 
 - **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` + `./tui` + `./desktop` 四个子模块）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 1500+ 个 Go 源文件（~1066 非测试 + ~533 测试，不含 vendor），~281K 行代码
+- 1500+ 个 Go 源文件（~1072 非测试 + ~538 测试，不含 vendor），~281K 行代码
 
 ## 构建与测试
 

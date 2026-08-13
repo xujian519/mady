@@ -43,6 +43,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/richardlehane/mscfb v1.0.7 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
+	github.com/sky-valley/pi v0.84.17 // indirect
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/up-zero/gotool v0.0.0-20260105010850-4a05e8fadd54 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
