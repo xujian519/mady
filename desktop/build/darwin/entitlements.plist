@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Mady Desktop entitlements（R-P1-4）。
+
+  决策：启用 hardened runtime（codesign --options runtime，公证必需），
+  **不启用 App Sandbox**——Mady 以「CWD 即工作区」访问任意案件/项目目录，
+  沙箱会将其强制收进容器并破坏既有数据目录（MadyHome）。Developer ID
+  直接分发（非 Mac App Store）场景下无需沙箱即可正常访问网络与文件系统。
+
+  以下三项为 WKWebView/JavaScriptCore 在 hardened runtime 下的必需例外
+  （Wails 生态通行配置，参考 RiftShare / WailBrew 的 hardened-runtime 变体）：
+    - allow-jit: WebKit JIT 编译（缺省会降级解释执行，明显卡顿）
+    - allow-unsigned-executable-memory: WebKit 分配可执行内存
+    - disable-library-validation: 允许加载未签名动态库（WebView 相关辅助）
+-->
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

@@ -82,11 +82,12 @@ export interface HealthInfo {
   uptime: string
 }
 
-/** UpdateInfo — 更新检查结果（W4-T12 占位契约，对应 Go UpdateInfo）。 */
+/** UpdateInfo — 更新检查结果（对应 Go UpdateInfo，R-P1-6 真实检测）。 */
 export interface UpdateInfo {
   currentVersion: string
   latestVersion: string
   hasUpdate: boolean
+  downloadUrl?: string
   message: string
 }
 

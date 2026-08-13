@@ -66,12 +66,12 @@ export function GetCurrentProject() {
   return window['go']['main']['App']['GetCurrentProject']();
 }
 
-export function GetKnowledgeStatus() {
-  return window['go']['main']['App']['GetKnowledgeStatus']();
-}
-
 export function GetKnowledgeModelSettings() {
   return window['go']['main']['App']['GetKnowledgeModelSettings']();
+}
+
+export function GetKnowledgeStatus() {
+  return window['go']['main']['App']['GetKnowledgeStatus']();
 }
 
 export function GetOmlxServiceStatus() {

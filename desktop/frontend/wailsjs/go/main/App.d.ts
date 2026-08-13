@@ -38,9 +38,9 @@ export function GetAISettings():Promise<main.AISettings>;
 
 export function GetCurrentProject():Promise<main.ProjectInfo>;
 
-export function GetKnowledgeStatus():Promise<main.KnowledgeStatus>;
-
 export function GetKnowledgeModelSettings():Promise<main.KnowledgeModelSettings>;
+
+export function GetKnowledgeStatus():Promise<main.KnowledgeStatus>;
 
 export function GetOmlxServiceStatus():Promise<main.OmlxServiceStatus>;
 

@@ -12,8 +12,10 @@ import { useSettingsStore } from '@/stores/settings'
 import { useTheme } from '@/theme/tokens'
 import type { ThemeMode } from '@/theme/tokens'
 import { getAISettings, setAISettings, checkUpdate, health } from '@/lib/backend'
+import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
+import type { UpdateInfo } from '@/lib/backend'
 import { AnimatePresence, motion } from 'framer-motion'
-import { X, Sun, Moon, Monitor, Server, Cpu, Check, AlertCircle, RefreshCw } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Server, Cpu, Check, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react'
 import { McpServersSettings } from './McpServersSettings'
 import { ModelSettings } from './ModelSettings'
 import { ThemeGallery } from './ThemeGallery'
@@ -59,6 +61,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const [saving, setSaving] = React.useState(false)
   const [toast, setToast] = React.useState<Toast | null>(null)
   const [checking, setChecking] = React.useState(false)
+  const [updateInfo, setUpdateInfo] = React.useState<UpdateInfo | null>(null)
 
   // 挂载时从后端读取当前生效的 Provider/Model（真相源在后端）
   React.useEffect(() => {
@@ -119,13 +122,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     updateSettings({ themeMode: mode })
   }
 
-  // 检查更新（W4-T12 占位：后端返回「已是最新版本」，为真实更新通道预留入口）
+  // 检查更新（R-P1-6：真实检测 GitHub Releases desktop-v*；发现新版本时展示下载入口）
   const handleCheckUpdate = async () => {
     if (checking) return
     setChecking(true)
+    setUpdateInfo(null)
     try {
       const info = await checkUpdate()
-      setToast({ kind: 'success', message: info.message })
+      if (info.hasUpdate && info.downloadUrl) {
+        setUpdateInfo(info)
+      } else {
+        setToast({ kind: 'success', message: info.message })
+      }
     } catch (err) {
       setToast({
         kind: 'error',
@@ -134,6 +142,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     } finally {
       setChecking(false)
     }
+  }
+
+  // 打开下载页（M-DSK-SEC-003：仅放行 http/https，交给系统浏览器）
+  const handleOpenDownload = () => {
+    if (!updateInfo?.downloadUrl) return
+    let url: URL
+    try {
+      url = new URL(updateInfo.downloadUrl)
+    } catch {
+      setToast({ kind: 'error', message: '下载地址无效' })
+      return
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      setToast({ kind: 'error', message: '下载地址无效' })
+      return
+    }
+    BrowserOpenURL(url.toString())
   }
 
   return (
@@ -277,6 +302,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
               <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
               {checking ? '检查中…' : '检查更新'}
             </button>
+
+            {/* 发现新版本（R-P1-6：手动下载引导，公证前不自替换） */}
+            {updateInfo?.hasUpdate && updateInfo.downloadUrl && (
+              <div className="mt-3 rounded-lg border border-mady-accent/30 bg-mady-bg-secondary px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-mady-small text-mady-text-primary">
+                    发现新版本 v{updateInfo.latestVersion}（当前 v{updateInfo.currentVersion}）
+                  </div>
+                  <button
+                    onClick={handleOpenDownload}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-mady-accent px-2.5 py-1 text-mady-small font-medium text-mady-accent-foreground hover:opacity-90 transition-opacity"
+                  >
+                    <ExternalLink size={12} />
+                    打开下载页
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </div>

@@ -1,0 +1,186 @@
+# 桌面端发布流水线（调研报告 R-P1-2 / R-P1-3）。
+#
+# 触发：推送 desktop-v* 标签（Tauri `app-v*` 惯例；与 CLI 发布 `v*.*.*` 的 release.yml
+#       互不冲突——tag 前缀不同，两个 workflow 不会在同一 tag 上并发建 Release）。
+#
+# 流程（社区事实标准：构建与发布解耦）：
+#   build job（matrix: macos universal / windows amd64+NSIS）
+#     → 签名/公证（凭据未配置时自动跳过，不阻塞出包）
+#     → 上传制品
+#   release job → 建 GitHub Release 草稿（人工确认后发布）
+#
+# 版本权威源 = desktop/wails.json 的 info.productVersion（与 Makefile DESKTOP_VERSION 一致，
+# 发版前先改 wails.json 再打 desktop-v* tag）。
+
+name: Desktop Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: write
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin/universal
+            name: macos
+          - os: windows-latest
+            platform: windows/amd64
+            name: windows
+    env:
+      # 签名/公证凭据（未配置时对应步骤自动跳过，构建不阻塞）
+      APPLE_DEVELOPER_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 }}
+      APPLE_DEVELOPER_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      WIN_SIGNING_CERT: ${{ secrets.WIN_SIGNING_CERT }}
+      WIN_SIGNING_CERT_PASSWORD: ${{ secrets.WIN_SIGNING_CERT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: desktop/frontend/pnpm-lock.yaml
+
+      - name: Install frontend deps (frozen lockfile)
+        working-directory: desktop/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve desktop version (wails.json 权威源)
+        working-directory: desktop
+        run: |
+          VER=$(sed -n 's/.*"productVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' wails.json | head -1)
+          echo "DESKTOP_VERSION=$VER" >> "$GITHUB_ENV"
+
+      - name: Setup Wails CLI (v2.13.0, 与 go.mod 一致)
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+
+      - name: Build macOS universal
+        if: matrix.os == 'macos-latest'
+        working-directory: desktop
+        env:
+          CGO_LDFLAGS: "-framework UniformTypeIdentifiers -mmacosx-version-min=10.13"
+        run: wails build -platform darwin/universal -clean -ldflags "-X main.desktopVersion=$DESKTOP_VERSION"
+
+      - name: Build Windows (NSIS installer)
+        if: matrix.os == 'windows-latest'
+        working-directory: desktop
+        run: |
+          choco install nsis -y
+          wails build -platform windows/amd64 -nsis -clean -ldflags "-X main.desktopVersion=$DESKTOP_VERSION"
+
+      - name: Import Apple code-signing certificate
+        if: matrix.os == 'macos-latest' && env.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 != ''
+        uses: Apple-Actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ env.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 }}
+          p12-password: ${{ env.APPLE_DEVELOPER_CERTIFICATE_PASSWORD }}
+
+      # 复用本地已验证的 Makefile 公证链路（codesign → notarytool → stapler → spctl）。
+      # 凭据未配置时跳过（开发阶段可直接出未签名包）。
+      # 门禁一致性：必须同时具备 p12 证书 + Apple ID 凭据才执行——
+      # 只配 APPLE_ID 而缺证书时跳过（避免 codesign 找不到身份的误导性失败）。
+      - name: Sign and notarize macOS (make desktop-notarize)
+        if: matrix.os == 'macos-latest' && env.APPLE_ID != '' && env.TEAM_ID != '' && env.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 != ''
+        run: make desktop-notarize
+
+      # zip 为可分发包 + 自动更新载体（R-P1-6 前置）
+      - name: Package macOS zip
+        if: matrix.os == 'macos-latest'
+        working-directory: desktop
+        run: ditto -c -k --sequesterRsrc --keepParent build/bin/Mady.app "build/bin/Mady-$DESKTOP_VERSION-macos-universal.zip"
+
+      - name: Sign Windows binaries (signtool, skipped when 证书未配置)
+        if: matrix.os == 'windows-latest' && env.WIN_SIGNING_CERT != ''
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          New-Item -ItemType directory -Path certificate -Force | Out-Null
+          Set-Content -Path certificate\certificate.txt -Value $env:WIN_SIGNING_CERT
+          certutil -decode certificate\certificate.txt certificate\certificate.pfx | Out-Null
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found" }
+          Get-ChildItem build\bin -Filter *.exe | ForEach-Object {
+            & $signtool.FullName sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /f certificate\certificate.pfx /p $env:WIN_SIGNING_CERT_PASSWORD $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed on $($_.Name)" }
+          }
+
+      # 签名验证（R-P1-3）：macOS 已在 desktop-notarize 内做 spctl --assess；
+      # Windows 在此补 signtool verify /pa（证书配置时执行，失败即阻断发布）。
+      - name: Verify Windows signatures (signtool verify)
+        if: matrix.os == 'windows-latest' && env.WIN_SIGNING_CERT != ''
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found" }
+          Get-ChildItem build\bin -Filter *.exe | ForEach-Object {
+            & $signtool.FullName verify /pa $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signtool verify failed on $($_.Name)" }
+          }
+
+      - name: List build artifacts
+        working-directory: desktop
+        run: find build/bin -maxdepth 2 -type f | sort
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.name }}
+          path: desktop/build/bin/
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        working-directory: artifacts
+        run: |
+          sha256sum *.zip *.exe > checksums.txt 2>/dev/null || true
+          cat checksums.txt
+
+      - name: Create GitHub Release (draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Mady Desktop ${{ github.ref_name }}"
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/*.zip
+            artifacts/*.exe
+            artifacts/checksums.txt

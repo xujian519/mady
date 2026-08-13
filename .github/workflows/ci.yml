@@ -281,6 +281,12 @@ jobs:
         working-directory: desktop/frontend
         run: pnpm test
 
+      # M-DSK-TST-006：vite 生产构建门禁。捕获 vite/rollup 配置错误、
+      # manualChunks 失效、copyCmapsPlugin（pdfjs cmaps）失败等 typecheck 覆盖不到的产物问题。
+      - name: Frontend production build (vite build)
+        working-directory: desktop/frontend
+        run: pnpm build
+
       # W4-T4 / M-DSK-TST-005：backend.ts 包装层与 wailsjs 生成类型漂移拦截
       - name: Wails JS contract drift check
         working-directory: desktop

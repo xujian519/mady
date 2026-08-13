@@ -339,26 +339,6 @@ export namespace main {
 	        this.modTime = source["modTime"];
 	    }
 	}
-	export class KnowledgeStatus {
-	    docCount: number;
-	    indexSizeMB: number;
-	    lastUpdated: string;
-	    sourceDirs: string[];
-	    isIndexing: boolean;
-
-	    static createFrom(source: any = {}) {
-	        return new KnowledgeStatus(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.docCount = source["docCount"];
-	        this.indexSizeMB = source["indexSizeMB"];
-	        this.lastUpdated = source["lastUpdated"];
-	        this.sourceDirs = source["sourceDirs"];
-	        this.isIndexing = source["isIndexing"];
-	    }
-	}
 	export class KnowledgeModelSettings {
 	    baseURL?: string;
 	    apiKey?: string;
@@ -379,20 +359,24 @@ export namespace main {
 	        this.rerankEnabled = source["rerankEnabled"];
 	    }
 	}
-	export class OmlxServiceStatus {
-	    running: boolean;
-	    installed: boolean;
-	    message: string;
+	export class KnowledgeStatus {
+	    docCount: number;
+	    indexSizeMB: number;
+	    lastUpdated: string;
+	    sourceDirs: string[];
+	    isIndexing: boolean;
 
 	    static createFrom(source: any = {}) {
-	        return new OmlxServiceStatus(source);
+	        return new KnowledgeStatus(source);
 	    }
 
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.running = source["running"];
-	        this.installed = source["installed"];
-	        this.message = source["message"];
+	        this.docCount = source["docCount"];
+	        this.indexSizeMB = source["indexSizeMB"];
+	        this.lastUpdated = source["lastUpdated"];
+	        this.sourceDirs = source["sourceDirs"];
+	        this.isIndexing = source["isIndexing"];
 	    }
 	}
 	export class McpServerEntry {
@@ -435,6 +419,22 @@ export namespace main {
 	        this.name = source["name"];
 	        this.provider = source["provider"];
 	        this.contextWindow = source["contextWindow"];
+	    }
+	}
+	export class OmlxServiceStatus {
+	    running: boolean;
+	    installed: boolean;
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new OmlxServiceStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.running = source["running"];
+	        this.installed = source["installed"];
+	        this.message = source["message"];
 	    }
 	}
 	export class ProjectInfo {
@@ -573,6 +573,7 @@ export namespace main {
 	    currentVersion: string;
 	    latestVersion: string;
 	    hasUpdate: boolean;
+	    downloadUrl?: string;
 	    message: string;
 
 	    static createFrom(source: any = {}) {
@@ -584,6 +585,7 @@ export namespace main {
 	        this.currentVersion = source["currentVersion"];
 	        this.latestVersion = source["latestVersion"];
 	        this.hasUpdate = source["hasUpdate"];
+	        this.downloadUrl = source["downloadUrl"];
 	        this.message = source["message"];
 	    }
 	}

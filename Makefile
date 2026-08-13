@@ -117,8 +117,14 @@ desktop-run:
 desktop-dev:
 	cd desktop/frontend && pnpm dev
 
+# M-DSK-TST-006：桌面端全量检查 = Go 测试 + 前端四门禁（typecheck/lint/单测/生产构建），
+# 与 CI desktop job 门禁链一致。E2E 独立（desktop-test-e2e，需先起 dev server）。
 desktop-test:
 	cd desktop && $(GO) test $(GOFLAGS) -count=1 ./...
+	cd desktop/frontend && pnpm typecheck
+	cd desktop/frontend && pnpm lint
+	cd desktop/frontend && pnpm test
+	cd desktop/frontend && pnpm build
 
 desktop-test-race:
 	cd desktop && $(GO) test $(GOFLAGS) -race -count=1 ./...
@@ -142,9 +148,11 @@ desktop-build-quick:
 # 见 docs/plans/desktop-notarization-assessment.md）。
 # 前置：先执行 desktop-dmg 生成 Mady.app。
 # 凭据统一用 shell 展开（$$VAR），避免 make 变量与 shell 变量来源不一致。
+# entitlements.plist（R-P1-4）：hardened runtime + WKWebView JIT 例外，非沙箱。
 desktop-notarize:
 	@echo "=== 签名 Mady.app ==="
 	codesign --force --options runtime \
+		--entitlements ./desktop/build/darwin/entitlements.plist \
 		--sign "Developer ID Application: $$TEAM_ID" \
 		./desktop/build/bin/Mady.app
 	@echo "=== 公证 Mady.app ==="
