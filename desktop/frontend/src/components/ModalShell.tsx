@@ -69,7 +69,7 @@ export const ModalShell: React.FC<ModalShellProps> = ({ onClose, ariaLabel, chil
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-mady-bg-overlay backdrop-blur-sm"
       onMouseDown={(e) => {
         // 点击遮罩（非面板）关闭；嵌套时最顶层先捕获（子面板在父之上），
         // 父层遮罩点击由最顶层拦截，不会穿透关闭下层（B-2）。

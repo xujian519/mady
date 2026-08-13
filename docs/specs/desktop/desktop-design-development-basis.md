@@ -152,6 +152,12 @@
 > ✅ **2026-07-31 审计**：P0（1-5）与 P2（11-13）全部已实现（`globals.css` 117 个 `--mady-*` 令牌），
 > 命名统一为 `--color-mady-*` 体系（如 `--color-mady-bg-hover`）。P1 中 7/8/9 已实现；
 > 待办仅剩 #6（字号 Token 核对）与 #10（整体色温评估）。
+>
+> ✅ **2026-08-13 视觉走查修复**：根因修复 `html` 根字号 13px→16px（rem 基准，UI 字号移至
+> `body/#root`，修复全站尺寸缩小约 19%）；标题栏改实色 `bg/surface`；StatusBar 用
+> `--mady-statusbar-height` 与连接状态色；DocumentViewer 用 `--mady-context-width`（380px）；
+> 遮罩/阴影统一 Token；SettingsPanel 按 §3.3 全屏化（200px SettingsNav + 720px 内容区）；
+> ThreadItem 补选中蓝竖线（#0066FF）；SplashScreen logo 64px。详见 AI changelog 2026-08-13。
 
 ### P0：阻碍发布 — 必须实现
 

@@ -300,7 +300,7 @@ export const ModelSettings: React.FC = () => {
               "
             />
             <div
-              className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] border border-mady-border pointer-events-none transition-transform duration-150 hover:scale-110"
+              className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-mady-bg-tertiary shadow-[0_1px_4px_rgba(0,0,0,0.3)] border border-mady-border pointer-events-none transition-transform duration-150 hover:scale-110"
               style={{
                 left: `calc(${(temperature / 2) * 100}% - 8px)`,
               }}

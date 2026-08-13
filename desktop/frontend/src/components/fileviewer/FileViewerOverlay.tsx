@@ -82,7 +82,7 @@ export const FileViewerOverlay: React.FC = () => {
 
   return (
     <>
-      <aside className={`${current?.kind === 'pdf' ? 'w-[680px]' : 'w-[460px]'} shrink-0 h-full flex flex-col bg-mady-bg-primary border-l border-mady-separator shadow-2xl`}>
+      <aside className={`${current?.kind === 'pdf' ? 'w-[680px]' : 'w-[460px]'} shrink-0 h-full flex flex-col bg-mady-bg-primary border-l border-mady-separator shadow-mady-modal`}>
       {/* 标题栏 */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-mady-separator bg-mady-bg-secondary/50">
         <div className="flex items-center gap-2 min-w-0">

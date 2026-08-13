@@ -38,7 +38,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   if (!open) return null
   return (
     <ModalShell onClose={() => onCancel?.()} ariaLabel={title}>
-      <div className="w-[320px] rounded-xl border border-mady-border bg-mady-bg-primary shadow-lg">
+      <div className="w-[320px] rounded-xl border border-mady-border bg-mady-bg-primary shadow-mady-modal">
         <div className="px-4 pt-3.5 pb-1">
           <h2 className="text-mady-ui font-medium text-mady-text-primary">{title}</h2>
           <p className="mt-1.5 text-mady-small text-mady-text-secondary leading-relaxed whitespace-pre-line">

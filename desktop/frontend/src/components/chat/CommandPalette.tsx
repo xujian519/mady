@@ -132,13 +132,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, c
     <>
       {/* 半透明遮罩 */}
       <div
-        className="fixed inset-0 z-[90] bg-black/48 transition-opacity duration-100"
+        className="fixed inset-0 z-[90] bg-mady-bg-overlay transition-opacity duration-100"
         onClick={onClose}
       />
 
       {/* 面板 */}
       <div
-        className="fixed top-[15%] left-1/2 -translate-x-1/2 z-[91] w-[560px] max-h-[400px] flex flex-col rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-mady-border bg-mady-bg-tertiary/95 backdrop-blur-xl overflow-hidden"
+        className="fixed top-[15%] left-1/2 -translate-x-1/2 z-[91] w-[560px] max-h-[400px] flex flex-col rounded-xl shadow-mady-modal border border-mady-border bg-mady-bg-tertiary/95 backdrop-blur-xl overflow-hidden"
         style={{ backdropFilter: 'blur(20px)' }}
       >
         {/* 搜索框 */}

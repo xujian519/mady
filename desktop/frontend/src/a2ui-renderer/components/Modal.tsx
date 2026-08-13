@@ -42,14 +42,16 @@ export const ModalComponent: A2UIComponent = ({ component, context, children }) 
           className="fixed inset-0 z-50 flex items-center justify-center"
           onClick={() => setLocalOpen(false)}
         >
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-mady-bg-overlay backdrop-blur-sm" />
           <div
-            className="relative bg-mady-bg-primary rounded-lg shadow-lg max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            className="relative bg-mady-bg-primary rounded-lg shadow-mady-modal max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {resolved.title && (
               <div className="flex items-center justify-between px-4 py-3 border-b border-mady-separator">
-                <h3 className="text-mady-text-heading font-semibold">{resolved.title}</h3>
+                <h3 className="text-mady-text-primary font-semibold">{resolved.title}</h3>
                 <button
                   className="text-mady-text-tertiary hover:text-mady-text-primary text-lg leading-none"
                   onClick={() => setLocalOpen(false)}

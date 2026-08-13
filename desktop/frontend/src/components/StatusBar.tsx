@@ -34,12 +34,12 @@ export const StatusBar: React.FC = () => {
   const connColor = running
     ? 'text-mady-connection-connected'
     : ready
-      ? 'text-mady-text-tertiary'
+      ? 'text-mady-connection-connected'
       : 'text-mady-connection-connecting'
   const connLabel = running ? '运行中' : ready ? '就绪' : '初始化…'
 
   return (
-    <footer className="h-10 flex items-center justify-between px-4 bg-mady-bg-secondary border-t border-mady-separator text-mady-caption text-mady-text-secondary select-none">
+    <footer className="h-[var(--mady-statusbar-height)] flex items-center justify-between px-4 bg-mady-bg-secondary border-t border-mady-separator text-mady-caption text-mady-text-secondary select-none">
       {/* 左区：连接状态芯片（ConnectionChip） */}
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-1.5">

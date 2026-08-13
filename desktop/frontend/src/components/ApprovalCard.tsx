@@ -93,7 +93,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ prompt }) => {
         <button
           onClick={() => handleResponse(true)}
           disabled={submitting}
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-mady-accent text-white text-mady-ui hover:brightness-110 hover:shadow-md active:scale-[0.97] transition-all duration-150 disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-none disabled:active:scale-100"
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-mady-accent text-white text-mady-ui hover:brightness-110 hover:shadow-mady-floating active:scale-[0.97] transition-all duration-150 disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-none disabled:active:scale-100"
         >
           <Check size={14} />
           批准

@@ -108,7 +108,7 @@ export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
   return (
     <>
       <ModalShell onClose={onClose} ariaLabel="技能管理">
-        <div className="w-[860px] max-w-[92vw] h-[600px] max-h-[85vh] bg-mady-bg-primary rounded-xl shadow-2xl border border-mady-separator flex flex-col overflow-hidden">
+        <div className="w-[860px] max-w-[92vw] h-[600px] max-h-[85vh] bg-mady-bg-primary rounded-xl shadow-mady-modal border border-mady-separator flex flex-col overflow-hidden">
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-mady-separator">
           <div className="flex items-center gap-2">

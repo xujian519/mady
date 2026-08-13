@@ -816,7 +816,7 @@ export const ProjectTree: React.FC = () => {
       {/* 右键菜单 */}
       {contextMenu && (
         <div
-          className="fixed z-50 min-w-36 py-1 bg-mady-bg-primary border border-mady-separator rounded-lg shadow-lg"
+          className="fixed z-50 min-w-36 py-1 bg-mady-bg-primary border border-mady-separator rounded-lg shadow-mady-floating"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >

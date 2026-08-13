@@ -75,7 +75,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
 
   return (
     <ModalShell onClose={onClose} ariaLabel="专利模板库">
-      <div className="w-[640px] max-h-[80vh] bg-mady-bg-primary rounded-2xl border border-mady-separator shadow-xl flex flex-col overflow-hidden">
+      <div className="w-[640px] max-h-[80vh] bg-mady-bg-primary rounded-2xl border border-mady-separator shadow-mady-modal flex flex-col overflow-hidden">
         {/* ── 头部 ── */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-mady-separator shrink-0">
           <div className="flex items-center gap-2">

@@ -21,7 +21,7 @@ export const TextComponent: A2UIComponent = ({ component, context }) => {
 
   const className = useMemo(() => {
     switch (resolved.variant) {
-      case 'heading': return 'text-mady-text-heading font-semibold'
+      case 'heading': return 'text-mady-text-primary font-semibold'
       case 'caption': return 'text-mady-text-tertiary text-mady-caption'
       default: return 'text-mady-text-primary text-mady-body'
     }

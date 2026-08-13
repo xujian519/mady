@@ -27,7 +27,7 @@ export const McpView: React.FC<McpViewProps> = ({ onClose }) => {
 
   return (
     <ModalShell onClose={onClose} ariaLabel="MCP 服务器">
-      <div className="w-[640px] max-w-[92vw] max-h-[80vh] bg-mady-bg-primary rounded-xl shadow-2xl border border-mady-separator flex flex-col overflow-hidden">
+      <div className="w-[640px] max-w-[92vw] max-h-[80vh] bg-mady-bg-primary rounded-xl shadow-mady-modal border border-mady-separator flex flex-col overflow-hidden">
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-mady-separator">
           <div className="flex items-center gap-2">

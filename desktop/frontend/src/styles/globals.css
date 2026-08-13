@@ -161,11 +161,11 @@
     --color-mady-success: #8A88E8;                /* 品牌紫暗色（文字可达标版） */
     --color-mady-warning: #ff9f0a;
     --color-mady-info: #2E9BFF;
-    --color-mady-connection-connected: #4b4ac4;
+    --color-mady-connection-connected: #8A88E8;
     --color-mady-connection-connecting: #ff9f0a;
     --color-mady-connection-disconnected: #ff453a;
     --color-mady-mcp-starting: #ff9f0a;
-    --color-mady-mcp-ready: #4b4ac4;
+    --color-mady-mcp-ready: #8A88E8;
     --color-mady-mcp-failed: #ff453a;
     --color-mady-mcp-cancelled: #6B6560;
     --color-mady-separator: rgba(255, 255, 255, 0.08);
@@ -184,7 +184,22 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+/* rem 基准固定 16px（浏览器默认）：Tailwind 间距/尺寸类（h-10、w-16、
+ * px-4、gap-2 等）以 rem 计，若被 UI 字号（13px）污染会导致全站组件
+ * 尺寸整体缩小约 19%（M-DSK-VIS-017 间距 Token 为 4px 网格）。
+ * UI 字号（--font-size-mady-ui）仅作用于 body/#root 文本继承，不参与 rem 计算。 */
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body, #root {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -195,8 +210,6 @@ html, body, #root {
   color: var(--color-mady-text-primary);
   /* 阶段 3.1：主题包可注入应用背景（渐变等）；未注入时回退主背景色 */
   background: var(--color-mady-app-background, var(--color-mady-bg-primary));
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ---- 滚动条（macOS 风格，悬浮渐显） ---- */

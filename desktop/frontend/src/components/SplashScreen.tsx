@@ -89,13 +89,13 @@ export function SplashScreen() {
       {/* Logo / 品牌标识 */}
       <div className="flex items-center gap-3 mb-8 relative z-10">
         <div
-          className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
+          className="w-16 h-16 rounded-2xl flex items-center justify-center"
           style={{
             background: 'linear-gradient(135deg, var(--color-mady-accent) 0%, var(--color-mady-accent-tertiary) 100%)',
             boxShadow: '0 8px 24px var(--color-mady-accent-glow)',
           }}
         >
-          <span className="text-white text-xl font-bold tracking-tight">M</span>
+          <span className="text-white text-2xl font-bold tracking-tight">M</span>
         </div>
         <h1 className="text-3xl font-semibold text-mady-text-primary tracking-tight">
           Mady

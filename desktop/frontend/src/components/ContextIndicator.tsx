@@ -16,14 +16,14 @@ import { Brain } from 'lucide-react'
 function usageBarColor(percent: number): string {
   if (percent >= 80) return 'bg-mady-danger'
   if (percent >= 50) return 'bg-mady-warning'
-  return 'bg-mady-success'
+  return 'bg-mady-text-secondary'
 }
 
 /** 获取文本颜色（使用语义 token）。 */
 function usageTextColor(percent: number): string {
   if (percent >= 80) return 'text-mady-danger'
   if (percent >= 50) return 'text-mady-warning'
-  return 'text-mady-success'
+  return 'text-mady-text-secondary'
 }
 
 export const ContextIndicator: React.FC = () => {

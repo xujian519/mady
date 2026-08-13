@@ -547,7 +547,7 @@ export const ChatView: React.FC = () => {
   return (
     <div className={`h-screen w-screen flex flex-col bg-mady-bg-primary text-mady-text-primary select-none ${isFocusMode ? 'layout-focus' : ''}`}>
       {/* 全宽标题栏：对齐 macOS 交通灯，内容左侧缩进避免重叠 */}
-      <header className="titlebar-drag-region mac-titlebar-safe h-[var(--mady-titlebar-height)] flex items-center justify-between px-4 border-b border-mady-separator mady-material">
+      <header className="titlebar-drag-region mac-titlebar-safe h-[var(--mady-titlebar-height)] flex items-center justify-between px-4 border-b border-mady-separator bg-mady-bg-secondary">
         <div className="flex items-center gap-2.5">
           {!showSidebar && !isFocusMode && (
             <button
@@ -667,7 +667,7 @@ export const ChatView: React.FC = () => {
                   {/* 图标组合 */}
                   <div className="relative z-10 mb-6 flex items-center justify-center">
                     <div
-                      className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center"
                       style={{
                         background: 'linear-gradient(135deg, var(--color-mady-accent) 0%, var(--color-mady-accent-tertiary) 100%)',
                         boxShadow: '0 8px 24px var(--color-mady-accent-glow)',

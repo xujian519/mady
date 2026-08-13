@@ -98,7 +98,7 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onClose }) => {
 
   return (
     <ModalShell onClose={onClose} ariaLabel="知识库管理">
-      <div className="w-[520px] max-h-[80vh] bg-mady-bg-primary rounded-2xl border border-mady-separator shadow-xl overflow-y-auto">
+      <div className="w-[520px] max-h-[80vh] bg-mady-bg-primary rounded-2xl border border-mady-separator shadow-mady-modal overflow-y-auto">
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-mady-separator">
           <div className="flex items-center gap-2">

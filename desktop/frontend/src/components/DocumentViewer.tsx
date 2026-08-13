@@ -40,7 +40,7 @@ interface DocumentViewerProps {
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, onClose }) => {
   if (!file) {
     return (
-      <aside className="w-72 h-full flex flex-col bg-mady-bg-secondary border-l border-mady-separator">
+      <aside className="w-[var(--mady-context-width)] h-full flex flex-col bg-mady-bg-secondary border-l border-mady-separator">
         <div className="flex-1 flex items-center justify-center text-mady-text-tertiary">
           <div className="text-center px-4">
             <FileText size={24} className="mx-auto mb-2 opacity-50" />
@@ -68,7 +68,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, onClose })
   }
 
   return (
-    <aside className="w-96 h-full flex flex-col bg-mady-bg-secondary border-l border-mady-separator">
+    <aside className="w-[var(--mady-context-width)] h-full flex flex-col bg-mady-bg-secondary border-l border-mady-separator">
       {/* 标题栏 */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-mady-separator">
         <div className="flex items-center gap-2 min-w-0">

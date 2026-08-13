@@ -433,7 +433,7 @@ export const Composer: React.FC = () => {
               rows={1}
               className={`
                 w-full resize-none rounded-xl px-4 py-2.5 pr-10
-                bg-mady-bg-secondary border border-mady-border
+                bg-mady-bg-composer border border-mady-border
                 text-mady-body text-mady-text-primary
                 placeholder-mady-text-tertiary
                 outline-none
@@ -453,7 +453,7 @@ export const Composer: React.FC = () => {
               shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
               transition-all duration-200
               ${canSend
-                ? 'bg-mady-accent text-white hover:bg-mady-accent-hover shadow-md hover:shadow-lg hover:scale-105 active:scale-95'
+                ? 'bg-mady-accent text-white hover:bg-mady-accent-hover shadow-mady-card hover:shadow-mady-floating hover:scale-105 active:scale-95'
                 : 'bg-mady-bg-secondary text-mady-text-tertiary border border-mady-border'
               }
               disabled:cursor-not-allowed

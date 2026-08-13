@@ -75,9 +75,11 @@ export const ThreadItem: React.FC<ThreadItemProps> = ({
         w-full text-left px-3 py-2 rounded-lg text-mady-ui transition-colors duration-100
         flex items-center gap-2 group cursor-pointer select-none
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mady-accent/40
+        {/* §5.3 颜色恒等性例外：线程选中指示器保留 Codex 蓝 #0066FF，
+            其余强调行为（链接/选中态/主按钮）一律使用品牌紫 --color-mady-accent */}
         ${active
-          ? 'bg-mady-accent-soft text-mady-accent'
-          : 'text-mady-text-primary hover:bg-mady-bg-secondary'
+          ? 'bg-mady-accent-soft text-mady-accent border-l-[3px] border-l-[#0066FF]'
+          : 'text-mady-text-primary hover:bg-mady-bg-secondary border-l-[3px] border-l-transparent'
         }
       `}
     >
