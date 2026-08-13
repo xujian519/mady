@@ -6,6 +6,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.10.2
 	github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f
 	github.com/chromedp/chromedp v0.16.0
+	github.com/sky-valley/pi v0.84.17
 	github.com/xujian519/mady v0.0.0
 	golang.org/x/image v0.44.0
 	golang.org/x/net v0.57.0

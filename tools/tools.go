@@ -19,6 +19,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/tools/desktop"
+	"github.com/xujian519/mady/tools/piagent"
 )
 
 // 工具名常量，用于 DisableTools 配置。
@@ -168,6 +169,10 @@ type ExtensionConfig struct {
 	// bash/git/browser for a retrieval-only assistant). An empty list means
 	// all tools are enabled (backward compatible).
 	DisableTools []string
+
+	// SpawnAgent enables the spawn_agent tool (辅助智能体子会话，pi 驱动)。
+	// Nil 时不注册该工具。WorkingDir 与工具快照由 BuildTools 自动注入。
+	SpawnAgent *piagent.SpawnConfig
 
 	// ExtraTools is an optional set of add-on tools to register on top of
 	// the built-in set. Use this for domain-specific tools that live outside
@@ -359,6 +364,16 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 		if t != nil {
 			tools = append(tools, t)
 		}
+	}
+
+	// spawn_agent：辅助智能体子会话（pi 驱动）。需要父 Agent 已收集的工具
+	// 快照（含 ExtraTools 域工具）作为子会话白名单源，故放在最后注册。
+	if cfg.SpawnAgent != nil {
+		spawnCfg := *cfg.SpawnAgent
+		if spawnCfg.WorkingDir == "" {
+			spawnCfg.WorkingDir = cfg.WorkingDir
+		}
+		addTool(piagent.NewSpawnAgentTool(spawnCfg, tools))
 	}
 
 	return tools

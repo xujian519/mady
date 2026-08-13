@@ -303,6 +303,25 @@ agent := agentcore.New(agentcore.Config{
 })
 ```
 
+#### 辅助智能体（spawn_agent）
+
+通过 `ExtensionConfig.SpawnAgent` 启用 `spawn_agent` 工具：父 Agent 运行期派发一个由
+[sky-valley/pi](https://github.com/sky-valley/pi)（纯 Go 智能体框架）驱动的受限子会话
+（explore/verify/plan/general-purpose 预设），拥有独立上下文与 token 预算，工具白名单
+按预设裁剪，只读预设拒绝写类工具，不污染父会话上下文。
+
+```go
+cfg := tools.ExtensionConfig{
+    WorkingDir:     "/path/to/project",
+    SandboxEnabled: true,
+    SpawnAgent:     &piagent.SpawnConfig{DefaultModel: "deepseek/deepseek-v4-flash"},
+}
+```
+
+子会话模型按以下优先级解析：`spawn_agent.model` 参数 → `DefaultModel` →
+环境变量（`PROVIDER`/`MODEL`/`BASE_URL`/`API_KEY`，与主 Agent 同约定）。
+超时默认 120s，可用 `SPAWN_AGENT_TIMEOUT` 覆盖。详见 `docs/specs/pi-subagent/`。
+
 ### MCP 工具
 
 `mady` 可将外部 MCP 服务器桥接为 `agentcore.Tool`。支持 MCP `stdio` 传输和 HTTP/SSE 传输。

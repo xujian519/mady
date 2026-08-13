@@ -39,5 +39,6 @@ docs/specs/{feature-name}/
 | 实用新型/发明驳回复审请求工作流 | `docs/specs/reexamination-request/` | 2026-07-22 | 设计草案（待 Sign-off） | [待指派] |
 | Mady 桌面端（Wails + React） | `docs/specs/desktop/` | 2026-07-27 | 设计草案（待 Sign-off） | [待指派] |
 | PlanTask HCL（规划→批准→执行→反馈人机协作闭环） | `docs/specs/plantask-hcl/` | 2026-07-31 | **已上线**（agentcore/plantask + 装配 + TUI 事件接线，三阶段全绿） | [待指派] |
+| 基于 sky-valley/pi 的动态子会话（辅助智能体） | `docs/specs/pi-subagent/` | 2026-08-13 | 实现中（阶段 1：spawn_agent + explore/verify 预设已落地，AC-1..7 通过） | [待指派] |
 
 > 阶段含义：设计草案 → Spec 待 Sign-off → 已上线（代码已落地） → 已完成。
