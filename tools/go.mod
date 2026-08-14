@@ -10,7 +10,7 @@ require (
 	github.com/xujian519/mady v0.0.0
 	golang.org/x/image v0.44.0
 	golang.org/x/net v0.57.0
-	golang.org/x/text v0.40.0
+	golang.org/x/text v0.41.0
 )
 
 require (
