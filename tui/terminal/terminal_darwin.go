@@ -70,7 +70,7 @@ type winsize struct {
 
 func getTermios(fd uintptr) (termios, error) {
 	var t termios
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, ioctlTcgets, uintptr(unsafe.Pointer(&t)))
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, ioctlTcgets, uintptr(unsafe.Pointer(&t))) //nolint:gosec // G103: termios ioctl 必需的直接指针访问
 	if errno != 0 {
 		return t, errno
 	}
@@ -78,7 +78,7 @@ func getTermios(fd uintptr) (termios, error) {
 }
 
 func setTermios(fd uintptr, t *termios) error {
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, ioctlTcsets, uintptr(unsafe.Pointer(t)))
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, ioctlTcsets, uintptr(unsafe.Pointer(t))) //nolint:gosec // G103: termios ioctl 必需的直接指针访问
 	if errno != 0 {
 		return errno
 	}
@@ -99,7 +99,7 @@ func makeRaw(orig termios) termios {
 
 func getWinsize(fd uintptr) (cols, rows int64, err error) {
 	var w winsize
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, ioctlWinsizeGet, uintptr(unsafe.Pointer(&w)))
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, ioctlWinsizeGet, uintptr(unsafe.Pointer(&w))) //nolint:gosec // G103: winsize ioctl 必需的直接指针访问
 	if errno != 0 {
 		return 0, 0, errno
 	}

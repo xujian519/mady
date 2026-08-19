@@ -417,7 +417,7 @@ func (g *ReviewGate) toggleCurrentLocked() {
 // Rendering
 // ---------------------------------------------------------------------------
 
-func (g *ReviewGate) renderLocked(width int64) []string {
+func (g *ReviewGate) renderLocked(width int64) []string { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	pal := theme.CurrentPalette()
 	t := DefaultReviewGateTheme()
 

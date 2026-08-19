@@ -340,44 +340,6 @@ func (s *tuiSession) handleSessionNameCommand(input string) {
 	s.app.PrintSystem(fmt.Sprintf("✅ 当前线程已命名为: %s", name))
 }
 
-// handleSessionsCommand lists all stored sessions with their IDs, names,
-// message counts, and last-updated timestamps.
-func (s *tuiSession) handleSessionsCommand() { //nolint:unused // kept for test coverage; replaced by interactive selector
-	if s.agentStore == nil {
-		s.app.PrintSystem("会话持久化未启用")
-		return
-	}
-	ctx := context.Background()
-	threads, err := s.agentStore.ListThreads(ctx)
-	if err != nil {
-		s.app.PrintError(fmt.Errorf("读取会话列表失败: %w", err))
-		return
-	}
-	if len(threads) == 0 {
-		s.app.PrintSystem("无已保存的会话")
-		return
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "📋 会话列表（共 %d 个）：\n", len(threads))
-	for _, t := range threads {
-		mark := " "
-		if t.ID == s.currentThreadID {
-			mark = "→"
-		}
-		name := t.Name
-		if name == "" {
-			name = t.ID
-			if len(name) > 20 {
-				name = name[:20] + "…"
-			}
-		}
-		fmt.Fprintf(&b, "  %s %s (%d 条消息, %s)\n",
-			mark, name, t.MessageCount, t.UpdatedAt.Format("01-02 15:04"))
-	}
-	b.WriteString("\n使用 /session <名称> 为当前线程命名")
-	s.app.PrintSystem(b.String())
-}
-
 func (s *tuiSession) handleCopyCommand() {
 	msgs := s.app.History().Messages()
 	for i := len(msgs) - 1; i >= 0; i-- {

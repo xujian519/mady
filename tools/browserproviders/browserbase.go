@@ -122,35 +122,13 @@ func (p *BrowserbaseProvider) createSessionWithBody(reqBody map[string]any) (map
 }
 
 func (p *BrowserbaseProvider) CloseSession(sessionID string) error {
-	reqBody := map[string]any{
-		"status": "REQUEST_RELEASE",
-	}
-
-	data, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("marshal request body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", fmt.Sprintf("https://api.browserbase.com/v1/sessions/%s", sessionID), bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-bb-api-key", p.apiKey)
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body
-		return fmt.Errorf("browserbase close error %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return closeSessionRequest(p.httpClient,
+		"POST",
+		fmt.Sprintf("https://api.browserbase.com/v1/sessions/%s", sessionID),
+		p.apiKey, "x-bb-api-key",
+		map[string]any{"status": "REQUEST_RELEASE"},
+		"browserbase close",
+	)
 }
 
 func (p *BrowserbaseProvider) EmergencyCleanup(sessionID string) {

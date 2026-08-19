@@ -42,7 +42,7 @@ func PatentToolConfigDefaults() *PatentToolConfig {
 }
 
 // runNuoPatent 执行 nuo-patent CLI 命令，返回 stdout。
-func runNuoPatent(ctx context.Context, bin string, args ...string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer, error) {
+func runNuoPatent(ctx context.Context, bin string, args ...string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer) {
 	// 拆分 bin（如 "node /path/to/cli.js" → ["node", "/path/to/cli.js"]）
 	parts := strings.Fields(bin)
 	var argv []string
@@ -53,7 +53,7 @@ func runNuoPatent(ctx context.Context, bin string, args ...string) (*exec.Cmd, *
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	return cmd, &stdout, &stderr, nil
+	return cmd, &stdout, &stderr
 }
 
 // NewPatentScrapeTool 专利元数据查询（通过 nuo-patent Google Patents）。
@@ -82,10 +82,7 @@ func NewPatentScrapeTool(cfg *PatentToolConfig) *agentcore.Tool {
 				return nil, fmt.Errorf("invalid input: %w", err)
 			}
 
-			cmd, stdout, stderr, err := runNuoPatent(ctx, cfg.NuoPatentPath, "scrape", input.PatentNumber, "--pretty")
-			if err != nil {
-				return nil, fmt.Errorf("prepare nuo-patent: %w", err)
-			}
+			cmd, stdout, stderr := runNuoPatent(ctx, cfg.NuoPatentPath, "scrape", input.PatentNumber, "--pretty")
 			if err := cmd.Run(); err != nil {
 				return map[string]any{
 					"patent_number": input.PatentNumber,
@@ -136,10 +133,7 @@ func NewPatentDownloadTool(cfg *PatentToolConfig) *agentcore.Tool {
 			allArgs := []string{"download", "--output", cfg.DownloadDir, "--max-workers", "4"}
 			allArgs = append(allArgs, numbers...)
 
-			cmd, stdout, stderr, err := runNuoPatent(ctx, cfg.NuoPatentPath, allArgs...)
-			if err != nil {
-				return nil, fmt.Errorf("prepare nuo-patent: %w", err)
-			}
+			cmd, stdout, stderr := runNuoPatent(ctx, cfg.NuoPatentPath, allArgs...)
 			if err := cmd.Run(); err != nil {
 				return nil, fmt.Errorf("专利下载失败: %w\n%s", err, stderr.String())
 			}
@@ -179,10 +173,7 @@ func NewPatentLegalStatusTool(cfg *PatentToolConfig) *agentcore.Tool {
 			}
 
 			allArgs := append([]string{"legal-status", "--max-concurrency", "4"}, numbers...)
-			cmd, stdout, stderr, err := runNuoPatent(ctx, cfg.NuoPatentPath, allArgs...)
-			if err != nil {
-				return nil, fmt.Errorf("prepare nuo-patent: %w", err)
-			}
+			cmd, stdout, stderr := runNuoPatent(ctx, cfg.NuoPatentPath, allArgs...)
 			if err := cmd.Run(); err != nil {
 				return nil, fmt.Errorf("法律状态查询失败: %w\n%s", err, stderr.String())
 			}

@@ -81,7 +81,7 @@ func isHeadingDecorationRune(r rune) bool {
 //
 // It returns the heading level (1..6), the heading text, and whether the line
 // is a heading at all.
-func parseATXHeading(line string) (level int, text string, ok bool) {
+func parseATXHeading(line string) (level int, text string, ok bool) { //nolint:unparam // text 返回值保留解析能力，当前调用者仅用 level/ok
 	s := strings.TrimLeft(line, " \t")
 	for {
 		r, size := utf8.DecodeRuneInString(s)

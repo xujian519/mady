@@ -159,7 +159,7 @@ func (s *SelectList) IsFocused() bool {
 // ---------------------------------------------------------------------------
 
 // Render draws up to MaxVisible rows plus optional scroll-info footer.
-func (s *SelectList) Render(width int64) []string {
+func (s *SelectList) Render(width int64) []string { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	s.mu.RLock()
 	items := s.filtered
 	cursor := s.cursor

@@ -102,7 +102,7 @@ func (t *TUI) startOverlayAnimation(o *Overlay) {
 		return
 	}
 	var step func(now time.Time) core.Msg
-	step = func(now time.Time) core.Msg {
+	step = func(now time.Time) core.Msg { //nolint:unparam // Tick 签名要求返回 core.Msg；动画步进恒返回 nil
 		_, done := o.transitionProgress(now)
 		if !done {
 			t.Tick(animationFrameInterval, step)

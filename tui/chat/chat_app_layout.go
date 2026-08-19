@@ -202,8 +202,8 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 	}
 
 	if l.history == nil {
-		remaining := l.updateRemaining(msg)
-		return core.Sequence(l.pendingCmd, remaining)
+		l.updateRemaining(msg)
+		return l.pendingCmd
 	}
 
 	// Delegate to type-specific handlers. The consumed flag prevents consumed
@@ -226,8 +226,8 @@ func (l *chatLayout) Update(msg core.Msg) core.Cmd {
 			l.ac.Update(msg)
 		}
 	}
-	remaining := l.updateRemaining(msg)
-	return core.Sequence(l.pendingCmd, remaining)
+	l.updateRemaining(msg)
+	return l.pendingCmd
 }
 
 // handleGlobalMsg processes WindowSizeMsg and PasteMsg — events that don't
@@ -309,7 +309,7 @@ func (l *chatLayout) legacyMouseFallback(m core.MouseMsg) {
 
 // updateRemaining handles status bar and autocomplete updates after other
 // message processing is complete.
-func (l *chatLayout) updateRemaining(msg core.Msg) core.Cmd {
+func (l *chatLayout) updateRemaining(msg core.Msg) {
 	if l.statusBar != nil {
 		l.statusBar.Update(msg)
 	}
@@ -318,7 +318,6 @@ func (l *chatLayout) updateRemaining(msg core.Msg) core.Cmd {
 			l.ac.Update(msg)
 		}
 	}
-	return nil
 }
 
 func (l *chatLayout) recalcMaxRows(width, height int64) {

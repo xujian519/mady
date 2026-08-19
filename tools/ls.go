@@ -65,7 +65,7 @@ type LsToolDetails struct {
 }
 
 // NewLsTool creates a directory listing tool.
-func NewLsTool(cwd string, cfg *LsToolConfig) *agentcore.Tool {
+func NewLsTool(cwd string, cfg *LsToolConfig) *agentcore.Tool { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if cfg == nil {
 		cfg = &LsToolConfig{}
 	}

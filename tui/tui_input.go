@@ -45,33 +45,56 @@ func (t *TUI) processMsg(msg core.Msg) {
 	t.watchdog.lastEvent.Store(time.Now().UnixNano())
 	t.watchdog.triggered.Store(false)
 
-	// Debounce rapid WindowSizeMsg events: coalesce multiple resize events
-	// within 100ms into a single update. This prevents layout thrashing
-	// when the user drags a tmux pane border or quickly resizes a window.
-	if _, ok := msg.(core.WindowSizeMsg); ok {
-		// Stop any pending debounce timer. If the old timer has already
-		// fired (Stop returns false), the callback is either running or
-		// about to run with the stale msg copy from its closure — that's
-		// harmless because the callback only calls SendMsg which is a
-		// channel send on msgCh, and the event loop will process it
-		// alongside any newer resize event.
-		if old := t.resizeThrottle.timer.Load(); old != nil {
-			old.Stop()
-		}
-		// Copy to local variable so the AfterFunc closure reads from
-		// this copy, not from the struct field (which may be overwritten
-		// by a subsequent resize event).
-		pendingMsg := msg.(core.WindowSizeMsg)
-		// Re-enqueue through delayedWindowSizeMsg (see its doc comment):
-		// re-sending the raw WindowSizeMsg would re-enter this debounce
-		// branch and never reach components.
-		timer := time.AfterFunc(100*time.Millisecond, func() {
-			t.SendMsg(delayedWindowSizeMsg{WindowSizeMsg: pendingMsg})
-		})
-		t.resizeThrottle.timer.Store(timer)
-		return // don't process intermediate resize events
+	// 窗口大小事件防抖：100ms 内的连续 resize 合并为一次更新。
+	if t.handleResizeDebounce(msg) {
+		return
 	}
 
+	// 特殊消息类型（Batch/Sequence/Ctx/Panic）不走常规分发路径。
+	// 其余消息（含 unwrap 后的 delayedWindowSizeMsg）继续常规分发。
+	var handled bool
+	if msg, handled = t.handleSpecialMsg(msg); handled {
+		return
+	}
+
+	t.dispatchToComponents(msg)
+}
+
+// handleResizeDebounce 处理 WindowSizeMsg 防抖：合并 100ms 内的连续 resize
+// 事件，避免拖动边框时布局抖动。返回 true 表示事件已被消费（中间 resize
+// 不进入分发路径）。
+func (t *TUI) handleResizeDebounce(msg core.Msg) bool {
+	if _, ok := msg.(core.WindowSizeMsg); !ok {
+		return false
+	}
+	// Stop any pending debounce timer. If the old timer has already
+	// fired (Stop returns false), the callback is either running or
+	// about to run with the stale msg copy from its closure — that's
+	// harmless because the callback only calls SendMsg which is a
+	// channel send on msgCh, and the event loop will process it
+	// alongside any newer resize event.
+	if old := t.resizeThrottle.timer.Load(); old != nil {
+		old.Stop()
+	}
+	// Copy to local variable so the AfterFunc closure reads from
+	// this copy, not from the struct field (which may be overwritten
+	// by a subsequent resize event).
+	pendingMsg := msg.(core.WindowSizeMsg)
+	// Re-enqueue through delayedWindowSizeMsg (see its doc comment):
+	// re-sending the raw WindowSizeMsg would re-enter this debounce
+	// branch and never reach components.
+	timer := time.AfterFunc(100*time.Millisecond, func() {
+		t.SendMsg(delayedWindowSizeMsg{WindowSizeMsg: pendingMsg})
+	})
+	t.resizeThrottle.timer.Store(timer)
+	return true // don't process intermediate resize events
+}
+
+// handleSpecialMsg 处理不经常规分发路径的特殊消息类型。
+// 返回 (处理后的消息, 是否完全消费)：特殊类型消费后返回 true；普通消息
+// 原样返回并标记未消费，其中 delayedWindowSizeMsg 已 unwrap 为
+// core.WindowSizeMsg 以便后续常规分发。
+func (t *TUI) handleSpecialMsg(msg core.Msg) (core.Msg, bool) {
 	// A debounced resize arrived: unwrap it and let it flow through the
 	// normal dispatch path (Filter, focused Update, background broadcast).
 	if dm, ok := msg.(delayedWindowSizeMsg); ok {
@@ -89,7 +112,7 @@ func (t *TUI) processMsg(msg core.Msg) {
 				go t.execCmdIndexed(cmd, i)
 			}
 		}
-		return
+		return msg, true
 	case core.SequenceMessage:
 		// Asynchronous ordered execution: run the first Cmd, and when it
 		// completes, re-enqueue the remaining Cmds as a new SequenceMessage
@@ -104,7 +127,7 @@ func (t *TUI) processMsg(msg core.Msg) {
 			m = m[1:]
 		}
 		if len(m) == 0 {
-			return
+			return msg, true
 		}
 		first := m[0]
 		rest := m[1:]
@@ -122,20 +145,29 @@ func (t *TUI) processMsg(msg core.Msg) {
 				t.SendMsg(rest)
 			}
 		}()
-		return
+		return msg, true
 	case core.CtxMessage:
 		if m.Inner() != nil {
 			t.processMsg(m.Inner())
 		}
-		return
+		return msg, true
 	case core.PanicMsg:
 		slog.Error("cmd panic recovered",
 			"err", m.Err,
 			"cmdIndex", m.CmdIndex,
 			"stack", m.Stack,
 		)
+		// 注意：不 return —— PanicMsg 仍需继续流向常规分发路径，
+		// 让组件（如测试用 recordingComponent）能观察到它。
+		return msg, false
 	}
+	return msg, false
+}
 
+// dispatchToComponents 将普通消息分发给组件：先经全局 Filter，再处理
+// QuitMsg，然后更新聚焦组件（含 overlay 鼠标坐标平移），最后广播给背景
+// 组件（modal overlay 会阻止背景分发）。
+func (t *TUI) dispatchToComponents(msg core.Msg) {
 	focused := t.Focused()
 
 	if t.options.Filter != nil {
@@ -161,94 +193,15 @@ func (t *TUI) processMsg(msg core.Msg) {
 	// The original (screen-absolute) mouse coordinates are preserved when a
 	// non-modal overlay translates them to overlay-local space, so the
 	// background broadcast below hits tests against screen space.
-	var origMouseMsg *core.MouseMsg
-	if focused != nil {
-		// Phase 4.2: translate absolute mouse coordinates to overlay-local space.
-		if mm, ok := msg.(core.MouseMsg); ok {
-			t.mu.Lock()
-			for _, ov := range t.overlays {
-				if ov != nil && ov.Content == focused {
-					if lr, lc, ok2 := ov.TranslateMouse(mm.Row, mm.Col); ok2 {
-						screenMM := mm
-						origMouseMsg = &screenMM
-						mm.Row = lr
-						mm.Col = lc
-						msg = mm
-					}
-					break
-				}
-			}
-			t.mu.Unlock()
-		}
-		if u, ok := focused.(core.Updatable); ok {
-			start := time.Now()
-			if cmd := u.Update(msg); cmd != nil {
-				go t.execCmd(cmd)
-			}
-			if d := time.Since(start); d > 50*time.Millisecond {
-				slog.Warn("slow Update in processMsg",
-					"component", fmt.Sprintf("%T", focused),
-					"msg", fmt.Sprintf("%T", msg),
-					"duration", d,
-				)
-			}
-		}
-	}
+	origMouseMsg := t.updateFocused(focused, msg)
 
-	t.mu.Lock()
-	focusedIsOverlay := false
-	focusedOverlayNonModal := false
-	for _, ov := range t.overlays {
-		if ov != nil && ov.Content == focused {
-			focusedIsOverlay = true
-			focusedOverlayNonModal = ov.NonModal
-			break
-		}
-	}
-	children := make([]core.Component, len(t.children))
-	copy(children, t.children)
-	t.mu.Unlock()
+	focusedIsOverlay, focusedOverlayNonModal, children := t.focusState(focused)
 
 	// Modal overlays stop background dispatch; non-modal overlays let input
 	// reach the components behind them (the overlay content itself was
 	// already updated via the focused path above).
 	if !focusedIsOverlay || focusedOverlayNonModal {
-		// Background components receive the message as-is; for mouse events
-		// under a non-modal overlay, broadcast the original screen-absolute
-		// coordinates instead of the overlay-local translation.
-		broadcastMsg := msg
-		if origMouseMsg != nil {
-			broadcastMsg = *origMouseMsg
-		}
-		for _, child := range children {
-			if child == focused {
-				continue
-			}
-			if u, ok := child.(core.Updatable); ok {
-				// Non-focused children also get to run Cmds. This matches
-				// the focused-component path and avoids the footgun where a
-				// background component's Cmd is silently dropped.
-				start := time.Now()
-				if cmd := u.Update(broadcastMsg); cmd != nil {
-					go t.execCmd(cmd)
-				}
-				if d := time.Since(start); d > 50*time.Millisecond {
-					slog.Warn("slow Update in child component",
-						"component", fmt.Sprintf("%T", child),
-						"msg", fmt.Sprintf("%T", msg),
-						"duration", d,
-					)
-				}
-				// Mouse consumption: if this child consumed the MouseMsg,
-				// stop broadcasting to remaining siblings. This prevents
-				// every component from processing the same mouse event.
-				if _, isMouse := msg.(core.MouseMsg); isMouse {
-					if mc, ok := child.(core.MouseConsumer); ok && mc.MouseConsumed() {
-						break
-					}
-				}
-			}
-		}
+		t.broadcastToBackground(children, focused, msg, origMouseMsg)
 	}
 
 	// Overlays are modal layers: once any overlay exists, only the focused
@@ -258,13 +211,107 @@ func (t *TUI) processMsg(msg core.Msg) {
 
 	// Log event type for debug overlay (avoid flooding with frequent events).
 	t.logEvent(msg)
-
-	t.RequestRender()
 }
 
-// logEvent records a summary of the given message in the debug event ring.
-// High-frequency events (MouseMotion, WindowSize, TickMsg) are thinned to
-// avoid flooding the ring buffer.
+// updateFocused 将消息交给聚焦组件处理；鼠标事件先做 overlay 坐标平移。
+// 返回原始屏幕绝对坐标的鼠标消息（供背景广播使用），无 overlay 平移时
+// 返回 nil。
+func (t *TUI) updateFocused(focused core.Component, msg core.Msg) *core.MouseMsg {
+	var origMouseMsg *core.MouseMsg
+	if focused == nil {
+		return nil
+	}
+	// Phase 4.2: translate absolute mouse coordinates to overlay-local space.
+	if mm, ok := msg.(core.MouseMsg); ok {
+		t.mu.Lock()
+		for _, ov := range t.overlays {
+			if ov != nil && ov.Content == focused {
+				if lr, lc, ok2 := ov.TranslateMouse(mm.Row, mm.Col); ok2 {
+					screenMM := mm
+					origMouseMsg = &screenMM
+					mm.Row = lr
+					mm.Col = lc
+					msg = mm
+				}
+				break
+			}
+		}
+		t.mu.Unlock()
+	}
+	if u, ok := focused.(core.Updatable); ok {
+		start := time.Now()
+		if cmd := u.Update(msg); cmd != nil {
+			go t.execCmd(cmd)
+		}
+		if d := time.Since(start); d > 50*time.Millisecond {
+			slog.Warn("slow Update in processMsg",
+				"component", fmt.Sprintf("%T", focused),
+				"msg", fmt.Sprintf("%T", msg),
+				"duration", d,
+			)
+		}
+	}
+	return origMouseMsg
+}
+
+// focusState 读取聚焦组件是否为 overlay 及其 modal 属性，并拷贝背景组件
+// 列表（避免在遍历期间持锁）。
+func (t *TUI) focusState(focused core.Component) (focusedIsOverlay, focusedOverlayNonModal bool, children []core.Component) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, ov := range t.overlays {
+		if ov != nil && ov.Content == focused {
+			focusedIsOverlay = true
+			focusedOverlayNonModal = ov.NonModal
+			break
+		}
+	}
+	children = make([]core.Component, len(t.children))
+	copy(children, t.children)
+	return
+}
+
+// broadcastToBackground 将消息广播给所有非聚焦的背景组件。非 modal overlay
+// 下鼠标事件用原始屏幕绝对坐标；组件消费 MouseMsg 后停止向剩余兄弟广播。
+func (t *TUI) broadcastToBackground(children []core.Component, focused core.Component, msg core.Msg, origMouseMsg *core.MouseMsg) {
+	// Background components receive the message as-is; for mouse events
+	// under a non-modal overlay, broadcast the original screen-absolute
+	// coordinates instead of the overlay-local translation.
+	broadcastMsg := msg
+	if origMouseMsg != nil {
+		broadcastMsg = *origMouseMsg
+	}
+	for _, child := range children {
+		if child == focused {
+			continue
+		}
+		if u, ok := child.(core.Updatable); ok {
+			// Non-focused children also get to run Cmds. This matches
+			// the focused-component path and avoids the footgun where a
+			// background component's Cmd is silently dropped.
+			start := time.Now()
+			if cmd := u.Update(broadcastMsg); cmd != nil {
+				go t.execCmd(cmd)
+			}
+			if d := time.Since(start); d > 50*time.Millisecond {
+				slog.Warn("slow Update in child component",
+					"component", fmt.Sprintf("%T", child),
+					"msg", fmt.Sprintf("%T", msg),
+					"duration", d,
+				)
+			}
+			// Mouse consumption: if this child consumed the MouseMsg,
+			// stop broadcasting to remaining siblings. This prevents
+			// every component from processing the same mouse event.
+			if _, isMouse := msg.(core.MouseMsg); isMouse {
+				if mc, ok := child.(core.MouseConsumer); ok && mc.MouseConsumed() {
+					break
+				}
+			}
+		}
+	}
+}
+
 func (t *TUI) logEvent(msg core.Msg) {
 	label := fmt.Sprintf("%T", msg)
 	// Strip package prefix for readability: "chat.AgentStartChatEvent" → "AgentStartChatEvent".

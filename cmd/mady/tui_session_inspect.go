@@ -47,49 +47,6 @@ func truncateRunes(s string, maxRunes int) string {
 	return string(r[:maxRunes-1]) + "…"
 }
 
-// handleLedgerCommand 实现 /ledger：展示当前轮的工具调用证据账本。
-//
-// 数据源：evidence.Extension.Ledger().Snapshot()。Ledger 在每次 BeforeTurn 时
-// 被 Reset，因此 /ledger 反映的是"本轮已执行的工具调用"。若本轮尚无工具调用，
-// 提示用户先发起一轮对话。
-func (s *tuiSession) handleLedgerCommand() { //nolint:unused // kept for test coverage; replaced by EvidenceOverlay
-	if s.fc == nil || s.fc.EvidenceExt == nil {
-		s.app.PrintSystem("⚠️ 证据账本未启用（EvidenceExt 未注入）")
-		return
-	}
-	ledger := s.fc.EvidenceExt.Ledger()
-	if ledger == nil || ledger.Len() == 0 {
-		s.app.PrintSystem("📋 本轮暂无工具调用证据。\n\n" +
-			"提示：证据账本在每轮对话开始时重置。发起一轮包含工具调用的对话后再查看。")
-		return
-	}
-	receipts := ledger.Snapshot()
-	var b strings.Builder
-	fmt.Fprintf(&b, "📋 本轮工具调用证据（共 %d 条）\n", len(receipts))
-	for i, r := range receipts {
-		status := "✓"
-		if !r.Success {
-			status = "✗"
-		}
-		fmt.Fprintf(&b, "\n  %d. %s %s", i+1, status, r.ToolName)
-		if r.DurationMs > 0 {
-			fmt.Fprintf(&b, "  · %dms", r.DurationMs)
-		}
-		if r.Write {
-			b.WriteString("  · [write]")
-		} else if r.Read {
-			b.WriteString("  · [read]")
-		}
-		if len(r.Paths) > 0 {
-			fmt.Fprintf(&b, "\n     paths: %s", strings.Join(r.Paths, ", "))
-		}
-		if r.Command != "" {
-			fmt.Fprintf(&b, "\n     cmd: %s", truncateRunes(r.Command, 80))
-		}
-	}
-	s.app.PrintSystem(b.String())
-}
-
 // handleSnapshotsCommand 实现 /snapshots：列出已记录的文件快照历史。
 //
 // 数据源：filecheckpoint.Store.List()，返回每轮的用户提示、时间戳、触及文件列表。

@@ -97,7 +97,7 @@ func resolvePython(pythonCommand string) (string, error) {
 	return "", fmt.Errorf("no Python interpreter found (tried python3, python)")
 }
 
-func NewExecuteCodeTool(cfg *ExecuteCodeToolConfig) *agentcore.Tool {
+func NewExecuteCodeTool(cfg *ExecuteCodeToolConfig) *agentcore.Tool { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if cfg == nil {
 		cfg = &ExecuteCodeToolConfig{}
 	}

@@ -57,63 +57,9 @@ func (t *TUI) renderFrame() {
 		cols = 80
 	}
 
-	t.mu.Lock()
-	children := make([]core.Component, len(t.children))
-	copy(children, t.children)
-	prev := t.prevFrame
-	prevRaw := t.prevRaw
-	prevW := t.prevWidth
-	first := t.firstFrame
-	t.mu.Unlock()
+	children, prev, prevRaw, prevW, first := t.snapshotFrame()
 
-	// Render children to strings, then parse each line into a cell Row.
-	// Parsing happens here (not in components) so component authors keep the
-	// simple []string API and the engine owns the cell model.
-	//
-	// Optimization: store raw output strings alongside parsed Rows. Before
-	// calling ParseLine (which walks the string character-by-character to
-	// parse ANSI escapes), compare the raw string against the previous
-	// frame's raw string. If identical, reuse the already-parsed Row
-	// directly. During streaming, only 1-2 lines per frame actually change,
-	// so this avoids hundreds of ParseLine calls per frame.
-	var rows []core.Row
-	var rawLines []string
-	for _, c := range children {
-		// 受信任链接：组件显式提供与渲染行一一对应的 LinkSpan 元数据
-		// （见 core.LinkProvider）。LLM 原始输出不经过此通道。
-		var links [][]core.LinkSpan
-		if lp, ok := c.(core.LinkProvider); ok {
-			links = lp.RenderLinks(cols)
-		}
-		for j, ln := range c.Render(cols) {
-			ln = normalizeLine(ln, cols)
-			// Assert: after normalization, no line should exceed cols. A
-			// component returning over-wide content is a layout bug that
-			// would corrupt subsequent rows (wide chars/phrases spill into
-			// the next line under DECAWM-off). Log once per offending line
-			// so the buggy component author can diagnose without crashing.
-			if w := core.VisibleWidth(ln); w > cols {
-				slog.Default().Debug("component returned over-width line",
-					"component", fmt.Sprintf("%T", c),
-					"width", cols,
-					"got", w,
-				)
-			}
-			rawLines = append(rawLines, ln)
-			// Fast path: if the raw string is byte-identical to the previous
-			// frame at the same position, reuse the parsed Row.
-			idx := len(rows)
-			if idx < len(prevRaw) && idx < len(prev) && ln == prevRaw[idx] {
-				rows = append(rows, prev[idx])
-				continue
-			}
-			r := core.ParseLine(ln)
-			if links != nil && j < len(links) {
-				r.Links = links[j]
-			}
-			rows = append(rows, r)
-		}
-	}
+	rows, rawLines := t.renderChildrenRows(children, cols, prev, prevRaw)
 
 	t.mu.Lock()
 	overlays := make([]*Overlay, len(t.overlays))
@@ -138,116 +84,22 @@ func (t *TUI) renderFrame() {
 		rows = rows[len(rows)-int(termRows2):]
 	}
 
-	// Locate the IME cursor marker across all rows. ParseLine already strips
-	// CURSOR_MARKER and records its column on the Row; here we just find the
-	// first row that carries one.
-	cursorRow := int64(-1)
-	cursorCol := int64(-1)
-	for i, r := range rows {
-		if r.CursorCol >= 0 {
-			cursorRow = int64(i)
-			cursorCol = int64(r.CursorCol)
-			break
-		}
-	}
+	cursorRow, cursorCol := locateCursor(rows)
 
 	var buf bytes.Buffer
 	if !t.options.DisableSynchronizedOutput {
 		buf.WriteString("\x1b[?2026h")
 	}
-
 	// Disable auto-wrap (DECAWM) for the duration of the frame render.
 	buf.WriteString("\x1b[?7l")
 
 	if first || prevW != cols {
-		// Full repaint: write every row from top to bottom.
-		// Always hide cursor during full repaint to avoid flicker while
-		// rows are being redrawn. Stateful cursor visibility is restored below.
-		buf.WriteString(terminal.HideCursor())
-		// Record that the cursor is hidden so the stateful cursor block
-		// below re-emits ShowCursor when the cursor should be visible
-		// again. Without this, a full repaint (e.g. after a resize) left
-		// the cursor permanently hidden (P1-6).
-		t.lastCursor.visible = false
-		buf.WriteString(terminal.CursorHome())
-		buf.WriteString(terminal.ClearFromCursorDown())
-		for i, r := range rows {
-			buf.WriteString(core.SerializeRow(r))
-			// SerializeRow emits its own reset when needed, but a trailing
-			// reset guarantees no style leaks across lines.
-			buf.WriteString(terminal.Reset)
-			if i < len(rows)-1 {
-				buf.WriteString("\r\n")
-			}
-		}
+		t.writeFullRepaint(&buf, rows)
 	} else {
-		// Differential repaint: emit only the changed cell segments. This
-		// reduces terminal output bandwidth compared to rewriting whole rows.
-		// Hide cursor during the repaint only when it was previously visible,
-		// since the diff writes move the cursor via MoveTo. If already hidden
-		// from a prior frame, skip the hide to preserve the blink timer.
-		if t.lastCursor.visible || t.lastCursor.first {
-			buf.WriteString(terminal.HideCursor())
-		}
-		diff := core.DiffFrame(prev, rows)
-		for _, d := range diff {
-			if d.RawContent != "" {
-				// Raw rows lack cell structure — fall back to a full-row
-				// rewrite. Reset style first because the SGR state after a
-				// cursor move is unknown.
-				// Delegate to SerializeRow (which sanitizes dangerous escape
-				// sequences) rather than sanitizing here, so that SerializeRow
-				// is the single chokepoint for all row-to-ANSI-string conversion.
-				buf.WriteString(terminal.CursorPosition(d.Row+1, 1) + terminal.Reset)
-				buf.WriteString(core.SerializeRow(rows[d.Row]))
-				// The sanitized Raw content may itself carry an unterminated
-				// SGR (e.g. a truncated streaming chunk); close it so the
-				// style cannot leak into the unchanged rows below (P2-11).
-				buf.WriteString(terminal.Reset)
-				continue
-			}
-			for _, seg := range d.Segments {
-				buf.WriteString(terminal.CursorPosition(d.Row+1, seg.StartCol+1))
-				buf.WriteString(core.SerializeRowSegment(seg.Cells, seg.AfterStyle))
-				core.PutDiffCells(seg.Cells)
-			}
-			if d.ClearTail {
-				buf.WriteString(terminal.CursorPosition(d.Row+1, d.TailStart+1))
-				buf.WriteString(terminal.ClearToEndOfLine())
-				buf.WriteString(terminal.Reset)
-			}
-		}
-		if len(rows) < len(prev) {
-			buf.WriteString(terminal.CursorPosition(int64(len(rows)+1), 1))
-			buf.WriteString(terminal.ClearFromCursorDown())
-		}
+		t.writeDiffRepaint(&buf, prev, rows)
 	}
 
-	// Stateful cursor placement: only emit Show/Hide and MoveTo when the
-	// desired state differs from the previous frame. This preserves the
-	// terminal's cursor blink timer — constant re-hide/reset every frame
-	// prevents the blink cycle from completing.
-	wantVisible := cursorRow >= 0
-	wantRow := cursorRow
-	wantCol := cursorCol
-
-	if wantVisible != t.lastCursor.visible {
-		// Visibility transition: emit Show/Hide.
-		if wantVisible {
-			buf.WriteString(terminal.CursorPosition(wantRow+1, wantCol+1) + terminal.ShowCursor())
-		} else {
-			buf.WriteString(terminal.HideCursor())
-		}
-	} else if wantVisible && (wantRow != t.lastCursor.row || wantCol != t.lastCursor.col) {
-		// Already visible but position changed: reposition without Show/Hide.
-		buf.WriteString(terminal.CursorPosition(wantRow+1, wantCol+1))
-	}
-	// No change: zero cursor commands emitted — blink timer undisturbed.
-
-	t.lastCursor.visible = wantVisible
-	t.lastCursor.row = wantRow
-	t.lastCursor.col = wantCol
-	t.lastCursor.first = false
+	t.applyCursorState(&buf, cursorRow, cursorCol)
 
 	// Re-enable auto-wrap after the frame render.
 	buf.WriteString("\x1b[?7h")
@@ -308,15 +160,165 @@ func (t *TUI) renderFrame() {
 	t.mu.Unlock()
 }
 
-// ---------------------------------------------------------------------------
-// Internals
-// ---------------------------------------------------------------------------
+// snapshotFrame 在锁内拷贝渲染所需的帧快照（children/prev/raw/width/first）。
+func (t *TUI) snapshotFrame() ([]core.Component, []core.Row, []string, int64, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	children := make([]core.Component, len(t.children))
+	copy(children, t.children)
+	prev := t.prevFrame
+	prevRaw := t.prevRaw
+	prevW := t.prevWidth
+	first := t.firstFrame
+	return children, prev, prevRaw, prevW, first
+}
 
-// normalizeLine ensures a single component-rendered line fits within `cols`.
-// It truncates with ellipsis and preserves ANSI styles across the cut.
-// ---------------------------------------------------------------------------
-// Minimum terminal size
-// ---------------------------------------------------------------------------
+// renderChildrenRows 渲染所有子组件为行，并应用缓存优化：原始字符串与
+// 上一帧相同的位置直接复用已解析的 Row。
+func (t *TUI) renderChildrenRows(children []core.Component, cols int64, prev []core.Row, prevRaw []string) ([]core.Row, []string) {
+	var rows []core.Row
+	var rawLines []string
+	for _, c := range children {
+		// 受信任链接：组件显式提供与渲染行一一对应的 LinkSpan 元数据
+		// （见 core.LinkProvider）。LLM 原始输出不经过此通道。
+		var links [][]core.LinkSpan
+		if lp, ok := c.(core.LinkProvider); ok {
+			links = lp.RenderLinks(cols)
+		}
+		for j, ln := range c.Render(cols) {
+			ln = normalizeLine(ln, cols)
+			// Assert: after normalization, no line should exceed cols. A
+			// component returning over-wide content is a layout bug that
+			// would corrupt subsequent rows (wide chars/phrases spill into
+			// the next line under DECAWM-off). Log once per offending line
+			// so the buggy component author can diagnose without crashing.
+			if w := core.VisibleWidth(ln); w > cols {
+				slog.Default().Debug("component returned over-width line",
+					"component", fmt.Sprintf("%T", c),
+					"width", cols,
+					"got", w,
+				)
+			}
+			rawLines = append(rawLines, ln)
+			// Fast path: if the raw string is byte-identical to the previous
+			// frame at the same position, reuse the parsed Row.
+			idx := len(rows)
+			if idx < len(prevRaw) && idx < len(prev) && ln == prevRaw[idx] {
+				rows = append(rows, prev[idx])
+				continue
+			}
+			r := core.ParseLine(ln)
+			if links != nil && j < len(links) {
+				r.Links = links[j]
+			}
+			rows = append(rows, r)
+		}
+	}
+	return rows, rawLines
+}
+
+// locateCursor 在所有行中查找 IME 光标标记（ParseLine 已剥离标记并记录
+// 列号），返回首个携带标记的行列。
+func locateCursor(rows []core.Row) (int64, int64) {
+	for i, r := range rows {
+		if r.CursorCol >= 0 {
+			return int64(i), int64(r.CursorCol)
+		}
+	}
+	return -1, -1
+}
+
+// writeFullRepaint 全量重绘：从顶部逐行写入，先隐藏光标避免闪烁。
+func (t *TUI) writeFullRepaint(buf *bytes.Buffer, rows []core.Row) {
+	// Full repaint: write every row from top to bottom.
+	// Always hide cursor during full repaint to avoid flicker while
+	// rows are being redrawn. Stateful cursor visibility is restored below.
+	buf.WriteString(terminal.HideCursor())
+	// Record that the cursor is hidden so the stateful cursor block
+	// below re-emits ShowCursor when the cursor should be visible
+	// again. Without this, a full repaint (e.g. after a resize) left
+	// the cursor permanently hidden (P1-6).
+	t.lastCursor.visible = false
+	buf.WriteString(terminal.CursorHome())
+	buf.WriteString(terminal.ClearFromCursorDown())
+	for i, r := range rows {
+		buf.WriteString(core.SerializeRow(r))
+		// SerializeRow emits its own reset when needed, but a trailing
+		// reset guarantees no style leaks across lines.
+		buf.WriteString(terminal.Reset)
+		if i < len(rows)-1 {
+			buf.WriteString("\r\n")
+		}
+	}
+}
+
+// writeDiffRepaint 差分重绘：仅输出发生变化的单元段，减少终端输出带宽。
+func (t *TUI) writeDiffRepaint(buf *bytes.Buffer, prev, rows []core.Row) {
+	// Differential repaint: emit only the changed cell segments. This
+	// reduces terminal output bandwidth compared to rewriting whole rows.
+	// Hide cursor during the repaint only when it was previously visible,
+	// since the diff writes move the cursor via MoveTo. If already hidden
+	// from a prior frame, skip the hide to preserve the blink timer.
+	if t.lastCursor.visible || t.lastCursor.first {
+		buf.WriteString(terminal.HideCursor())
+	}
+	diff := core.DiffFrame(prev, rows)
+	for _, d := range diff {
+		if d.RawContent != "" {
+			// Raw rows lack cell structure — fall back to a full-row
+			// rewrite. Reset style first because the SGR state after a
+			// cursor move is unknown.
+			// Delegate to SerializeRow (which sanitizes dangerous escape
+			// sequences) rather than sanitizing here, so that SerializeRow
+			// is the single chokepoint for all row-to-ANSI-string conversion.
+			buf.WriteString(terminal.CursorPosition(d.Row+1, 1) + terminal.Reset)
+			buf.WriteString(core.SerializeRow(rows[d.Row]))
+			// The sanitized Raw content may itself carry an unterminated
+			// SGR (e.g. a truncated streaming chunk); close it so the
+			// style cannot leak into the unchanged rows below (P2-11).
+			buf.WriteString(terminal.Reset)
+			continue
+		}
+		for _, seg := range d.Segments {
+			buf.WriteString(terminal.CursorPosition(d.Row+1, seg.StartCol+1))
+			buf.WriteString(core.SerializeRowSegment(seg.Cells, seg.AfterStyle))
+			core.PutDiffCells(seg.Cells)
+		}
+		if d.ClearTail {
+			buf.WriteString(terminal.CursorPosition(d.Row+1, d.TailStart+1))
+			buf.WriteString(terminal.ClearToEndOfLine())
+			buf.WriteString(terminal.Reset)
+		}
+	}
+	if len(rows) < len(prev) {
+		buf.WriteString(terminal.CursorPosition(int64(len(rows)+1), 1))
+		buf.WriteString(terminal.ClearFromCursorDown())
+	}
+}
+
+// applyCursorState 按状态机规则输出光标命令：仅在可见性/位置变化时发出，
+// 保持终端的光标闪烁计时器不被每帧的 hide/show 干扰。
+func (t *TUI) applyCursorState(buf *bytes.Buffer, cursorRow, cursorCol int64) {
+	wantVisible := cursorRow >= 0
+
+	if wantVisible != t.lastCursor.visible {
+		// Visibility transition: emit Show/Hide.
+		if wantVisible {
+			buf.WriteString(terminal.CursorPosition(cursorRow+1, cursorCol+1) + terminal.ShowCursor())
+		} else {
+			buf.WriteString(terminal.HideCursor())
+		}
+	} else if wantVisible && (cursorRow != t.lastCursor.row || cursorCol != t.lastCursor.col) {
+		// Already visible but position changed: reposition without Show/Hide.
+		buf.WriteString(terminal.CursorPosition(cursorRow+1, cursorCol+1))
+	}
+	// No change: zero cursor commands emitted — blink timer undisturbed.
+
+	t.lastCursor.visible = wantVisible
+	t.lastCursor.row = cursorRow
+	t.lastCursor.col = cursorCol
+	t.lastCursor.first = false
+}
 
 // minTermCols defines the minimum terminal width for the TUI.
 // Below this value, a resize hint is shown instead of the normal UI.
@@ -325,9 +327,6 @@ func (t *TUI) renderFrame() {
 // may have fewer than 24 rows.
 const minTermCols int64 = 80
 
-// renderResizeHint displays a centered, boxed resize hint when the terminal
-// is too small for the TUI layout. Pure text-only rendering (no components,
-// no cell grid) — guaranteed to work at any terminal size.
 func (t *TUI) renderResizeHint(cols, rows int64) {
 	var buf bytes.Buffer
 	buf.WriteString("\x1b[?25l") // hide cursor

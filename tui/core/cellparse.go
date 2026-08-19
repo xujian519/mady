@@ -41,7 +41,7 @@ import (
 // represent (Kitty graphics APC, OSC titles, etc.). CursorMarker is the
 // only inline APC that does NOT trigger Raw fallback — it is extracted into
 // CursorCol and stripped from the cell content.
-func ParseLine(s string) Row {
+func ParseLine(s string) Row { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	// First pass: scan for any escape that forces Raw fallback. If found,
 	// return a Raw row but still extract CursorMarker for cursor placement.
 	if hasUnrepresentableEscape(s) {

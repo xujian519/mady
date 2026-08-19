@@ -18,7 +18,7 @@ import (
 // Rows that are dimmed or spliced get their Cells slice replaced with a
 // private copy; rows that are untouched keep their original Cells. Callers
 // must not assume base is unmodified after this call.
-func composeOverlays(base []core.Row, overlays []*Overlay, cols, rows int64) []core.Row {
+func composeOverlays(base []core.Row, overlays []*Overlay, cols, rows int64) []core.Row { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	if len(overlays) == 0 {
 		return base
 	}
@@ -281,7 +281,7 @@ func applyDimToRow(row core.Row, start, end int64, withBg bool, intensity float6
 // it. Raw rows can't be cell-spliced because they carry opaque escape
 // payloads with no column structure, so whole-row replacement is the only
 // sound semantics.
-func spliceOverlayRows(base []core.Row, content []core.Row, row, col, cols int64) []core.Row {
+func spliceOverlayRows(base []core.Row, content []core.Row, row, col, cols int64) []core.Row { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	// Grow base vertically if needed.
 	for int64(len(base)) < row+int64(len(content)) {
 		base = append(base, blankRow(cols))

@@ -247,3 +247,17 @@ func TestGateNilResponseSafe(t *testing.T) {
 	// nil mcc 不得 panic。
 	hook.AfterModelCall(context.Background(), nil, nil)
 }
+
+// TestCitationGateConfig_Validate verifies that Validate is a no-op success
+// (configuration is validated at construction time), so callers can rely on
+// it never failing for a constructed gate.
+func TestCitationGateConfig_Validate(t *testing.T) {
+	cfg := CitationGateConfig{Level: LevelStandard}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil", err)
+	}
+	// A zero-value config (defaults) must also validate cleanly.
+	if err := (CitationGateConfig{}).Validate(); err != nil {
+		t.Fatalf("zero-value Validate() = %v, want nil", err)
+	}
+}

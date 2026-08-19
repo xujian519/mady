@@ -221,7 +221,7 @@ func runRipgrep(ctx context.Context, rgPath, searchPath string, input GrepToolIn
 	return formatGrepMatches(ctx, matches, searchPath, input, limit, isDir, cfg)
 }
 
-func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limit int, isDir bool, cfg *GrepToolConfig) (any, error) {
+func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limit int, isDir bool, cfg *GrepToolConfig) (any, error) { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	var pattern string
 	if input.Literal {
 		pattern = regexp.QuoteMeta(input.Pattern)
@@ -307,7 +307,7 @@ func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limi
 	return formatGrepMatches(ctx, matches, searchPath, input, limit, isDir, cfg)
 }
 
-func formatGrepMatches(ctx context.Context, matches []struct {
+func formatGrepMatches(ctx context.Context, matches []struct { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	filePath string
 	lineNum  int
 }, searchPath string, input GrepToolInput, limit int, isDir bool, cfg *GrepToolConfig) (any, error) {

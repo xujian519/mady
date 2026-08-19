@@ -124,6 +124,45 @@ linters:
       - path: ".*\\.pb\\.go"
         linters:
           - all
+    # 清理/交互类错误忽略（与 tools/.golangci.yml 对齐的通用模式）：
+    # defer Close/Remove/Kill/Wait、fire-and-forget 桌面按键、交互式读取等
+    # 在清理路径中忽略返回值是安全惯例（详见 tools/.golangci.yml 同款规则）。
+      - linters:
+          - errcheck
+        source: "defer .*\\.(Close|Remove|RemoveAll|Kill|Wait)\\("
+      - linters:
+          - errcheck
+        source: "\\.(Kill|Wait|CloseSession|CloseTab|Close)\\("
+      - linters:
+          - errcheck
+        source: "fmt\\.(Sscanf|Scanln)\\("
+      - linters:
+          - errcheck
+        source: "os\\.(Remove|MkdirAll)\\("
+      - linters:
+          - errcheck
+        source: "(syscall\\.Kill|filepath\\.WalkDir)\\("
+      - linters:
+          - errcheck
+        source: "(ReapOrphans|StopScreencast|StopRecording|HandleDialog|StartRecording|egoLiteMgr\\.Close)\\("
+      - linters:
+          - errcheck
+        source: "(xdoKey|osaKeyImpl|winKey)\\("
+      - linters:
+          - errcheck
+        source: "exec\\.Command.*\\.Run\\(\\)"
+      - linters:
+          - errcheck
+        source: "io\\.Copy\\(io\\.Discard"
+      - linters:
+          - errcheck
+        source: "conn\\.SetDeadline\\("
+      - linters:
+          - errcheck
+        source: "cmd\\.Process\\.Kill\\(\\)"
+      - linters:
+          - errcheck
+        source: "cmd\\.Wait\\(\\)"
 
 issues:
   max-issues-per-linter: 0

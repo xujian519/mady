@@ -2,6 +2,7 @@ package tools
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -95,11 +96,16 @@ func TestOpenSandboxed_ReadFile(t *testing.T) {
 	content := "sandbox test content"
 	os.WriteFile(filepath.Join(tmp, "test.txt"), []byte(content), 0644)
 
-	data, err := readFileSandboxed("test.txt", sbx)
+	f, err := OpenSandboxed("test.txt", sbx)
 	if err != nil {
-		t.Fatalf("readFileSandboxed failed: %v", err)
+		t.Fatalf("OpenSandboxed failed: %v", err)
 	}
-	if data != content {
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, 100<<20))
+	if err != nil {
+		t.Fatalf("read failed: %v", err)
+	}
+	if string(data) != content {
 		t.Fatalf("expected %q, got %q", content, data)
 	}
 }

@@ -380,7 +380,7 @@ func TestFormatContentPreview(t *testing.T) {
 	for i := range lines {
 		lines[i] = fmt.Sprintf("line %d", i)
 	}
-	preview := formatContentPreview(strings.Join(lines, "\n"), 10)
+	preview := formatContentPreview(strings.Join(lines, "\n"))
 	got := strings.Count(preview, "\n")
 	if got < 5 || got > 7 {
 		t.Fatalf("preview line count = %d, want ~6", got)
@@ -389,7 +389,7 @@ func TestFormatContentPreview(t *testing.T) {
 		t.Fatalf("preview should show overflow count, got %q", preview)
 	}
 
-	short := formatContentPreview("one", 1)
+	short := formatContentPreview("one")
 	if !strings.Contains(short, "one") || strings.Contains(short, "+") {
 		t.Fatalf("short preview unexpected: %q", short)
 	}

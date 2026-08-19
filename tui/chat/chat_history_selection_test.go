@@ -52,7 +52,7 @@ func TestRenderSelectionHighlight(t *testing.T) {
 
 	line := "\x1b[31mAB\x1b[0m\x1b[32mCD\x1b[0mE"
 	lines := []string{line}
-	h.applySelectionHighlightLocked(lines, 80)
+	h.applySelectionHighlightLocked(lines)
 
 	row := core.ParseLine(lines[0])
 	if row.IsRaw() {
@@ -75,7 +75,7 @@ func TestSelectionSnapshotHighlight(t *testing.T) {
 
 	line := "\x1b[31mAB\x1b[0m\x1b[32mCD\x1b[0mE"
 	lines := []string{line}
-	h.applySelectionHighlightSnapshot(lines, 80,
+	h.applySelectionHighlightSnapshot(lines,
 		selectionPos{line: 0, col: 0},
 		selectionPos{line: 0, col: 5},
 	)

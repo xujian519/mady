@@ -12,7 +12,7 @@ import (
 //
 // The watcher goroutine is automatically restarted with a 5s backoff if it
 // panics, so a single bad file reload cannot permanently disable hot-reload.
-func StartSemanticThemeWatcher(path string, poll time.Duration, onReload func()) func() {
+func StartSemanticThemeWatcher(path string, poll time.Duration, onReload func()) func() { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	if path == "" {
 		return func() {}
 	}

@@ -57,7 +57,7 @@ func decodeCSI(seq, params string, final byte, flags int64) Key {
 	case 'A', 'B', 'C', 'D', 'H', 'F':
 		mods := ModNone
 		if strings.Contains(params, ";") {
-			_, modCode := splitTwo(params, ";")
+			_, modCode := splitTwo(params)
 			mods = decodeCSIMods(modCode)
 		}
 		name := map[byte]string{
@@ -67,7 +67,7 @@ func decodeCSI(seq, params string, final byte, flags int64) Key {
 		return Key{Name: name, Mods: mods, Raw: seq}
 
 	case '~':
-		head, modCode := splitTwo(params, ";")
+		head, modCode := splitTwo(params)
 		switch head {
 		case "2":
 			return Key{Name: "insert", Mods: decodeCSIMods(modCode), Raw: seq}
@@ -106,7 +106,7 @@ func decodeCSI(seq, params string, final byte, flags int64) Key {
 		// no explicit modifier parameter is present.
 		mods := ModShift
 		if strings.Contains(params, ";") {
-			_, modCode := splitTwo(params, ";")
+			_, modCode := splitTwo(params)
 			mods = decodeCSIMods(modCode)
 		}
 		return Key{Name: "tab", Mods: mods, Raw: seq}
@@ -124,8 +124,8 @@ func decodeCSI(seq, params string, final byte, flags int64) Key {
 // flags is the negotiated bitmask (0 = default/compat: assume all fields
 // present). Callers should obtain flags from the Terminal instance.
 func decodeKittyU(seq, params string, flags int64) Key {
-	codeStr, rest := splitTwo(params, ";")
-	modStr, rest2 := splitTwo(rest, ";")
+	codeStr, rest := splitTwo(params)
+	modStr, rest2 := splitTwo(rest)
 
 	// Consume positional parameters from rest2 according to negotiated flags.
 	// Layout: code ; mods [; event] [; alt] [; text] u
@@ -141,7 +141,7 @@ func decodeKittyU(seq, params string, flags int64) Key {
 	// Event type (flag 2).
 	if flags&2 != 0 {
 		if strings.Contains(rest2, ";") {
-			evtStr, rest2 = splitTwo(rest2, ";")
+			evtStr, rest2 = splitTwo(rest2)
 		} else {
 			evtStr = rest2
 			rest2 = ""
@@ -151,7 +151,7 @@ func decodeKittyU(seq, params string, flags int64) Key {
 	// Alternate key codepoint (flag 4).
 	if flags&4 != 0 {
 		if strings.Contains(rest2, ";") {
-			altStr, rest2 = splitTwo(rest2, ";")
+			altStr, rest2 = splitTwo(rest2)
 		} else if rest2 != "" {
 			altStr = rest2
 			rest2 = ""
@@ -255,12 +255,12 @@ func decodeCSIMods(s string) Modifier {
 	return Modifier(n - 1)
 }
 
-func splitTwo(s, sep string) (string, string) {
-	idx := strings.Index(s, sep)
+func splitTwo(s string) (string, string) {
+	idx := strings.Index(s, ";")
 	if idx < 0 {
 		return s, ""
 	}
-	return s[:idx], s[idx+len(sep):]
+	return s[:idx], s[idx+1:]
 }
 
 func parseUint(s string) int64 {

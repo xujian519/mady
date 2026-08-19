@@ -48,7 +48,7 @@ type PandocToolInput struct {
 // NewPandocTool creates a document conversion tool backed by Pandoc.
 // It converts between formats: markdown, docx, html, pdf, epub, rst, latex, etc.
 // Pandoc must be installed on the system (pandoc.org).
-func NewPandocTool(cfg *PandocToolConfig) *agentcore.Tool {
+func NewPandocTool(cfg *PandocToolConfig) *agentcore.Tool { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if cfg == nil {
 		cfg = PandocToolConfigDefaults()
 	}

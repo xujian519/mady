@@ -149,24 +149,45 @@ func (f *Flex) renderVertical(width int64) []string {
 	rendered := make([][]string, n)
 	rects := make([]Rect, n)
 
-	fillCount := 0
-	totalWeight := 0
-	used := int64(0)
+	fillCount, totalWeight, used := f.measureVerticalPass(width, sizes, rendered)
 
-	// First pass: measure non-fill children and count Fill children.
+	// Second pass: distribute remaining space among Fill children.
+	if fillCount > 0 {
+		f.distributeVerticalFill(fillCount, totalWeight, totalHeight, used, width, sizes, rendered)
+	}
+
+	// Third pass: if the container is over-committed, squeeze SizeShrinkable
+	// children (down toward their Min) until the total fits totalHeight. Fill
+	// children have already been clamped to their min guard of 1, so only
+	// Shrinkable children can still give back space.
+	f.squeezeVerticalOverflow(totalHeight, used, width, sizes, rendered)
+
+	// Compute rectangles and compose output.
+	row := int64(0)
+	for i, ch := range f.Children {
+		if ch.Component == nil {
+			continue
+		}
+		rects[i] = Rect{Row: row, Col: 0, Width: width, Height: sizes[i]}
+		row += sizes[i]
+	}
+	f.rects = rects
+
+	return f.composeVerticalOutput(width, totalHeight, rendered, sizes)
+}
+
+// measureVerticalPass 首次测量：遍历所有子组件，按 Policy 计算各自高度并
+// 渲染非 Sizer 组件。返回 (Fill 子组件数, Fill 权重和, 已占高度)。
+func (f *Flex) measureVerticalPass(width int64, sizes []int64, rendered [][]string) (fillCount, totalWeight int, used int64) {
+	totalHeight := f.totalHeight()
 	for i, ch := range f.Children {
 		if ch.Component == nil {
 			continue
 		}
 		switch ch.Policy {
-		case SizeNatural:
-			lines := ch.Component.Render(width)
-			rendered[i] = lines
-			sizes[i] = int64(len(lines))
-			used += sizes[i]
-		case SizeShrinkable:
-			// Measure at natural height first; the third pass squeezes it
-			// down (toward Min) only if the container is over-committed.
+		case SizeNatural, SizeShrinkable:
+			// Measure at natural height first; SizeShrinkable is squeezed
+			// down (toward Min) later only if the container is over-committed.
 			lines := ch.Component.Render(width)
 			rendered[i] = lines
 			sizes[i] = int64(len(lines))
@@ -212,91 +233,79 @@ func (f *Flex) renderVertical(width int64) []string {
 			}
 		}
 	}
+	return fillCount, totalWeight, used
+}
 
-	// Second pass: distribute remaining space among Fill children.
-	if fillCount > 0 {
-		f.distributeVerticalFill(fillCount, totalWeight, totalHeight, used, width, sizes, rendered)
+// squeezeVerticalOverflow 处理容器超配：按比例压缩 SizeShrinkable 子组件
+// （靠近其 Min），余数贪心逐行裁剪，直至总高度适配或达到迭代上限。
+func (f *Flex) squeezeVerticalOverflow(totalHeight, used int64, width int64, sizes []int64, rendered [][]string) {
+	if totalHeight <= 0 || used <= totalHeight {
+		return
 	}
-
-	// Third pass: if the container is over-committed, squeeze SizeShrinkable
-	// children (down toward their Min) until the total fits totalHeight. Fill
-	// children have already been clamped to their min guard of 1, so only
-	// Shrinkable children can still give back space.
-	if totalHeight > 0 && used > totalHeight {
-		over := used - totalHeight
-		type shrinkEntry struct {
-			idx   int
-			slack int64
-		}
-		var entries []shrinkEntry
-		totalSlack := int64(0)
-		for i, ch := range f.Children {
-			if ch.Policy != SizeShrinkable {
-				continue
-			}
-			slack := sizes[i] - ch.Min
-			if slack <= 0 {
-				continue
-			}
-			entries = append(entries, shrinkEntry{i, slack})
-			totalSlack += slack
-		}
-		if totalSlack > 0 {
-			// Proportional cut: each Shrinkable child gives back a share of
-			// the overflow proportional to its slack (distance above Min).
-			cutTotal := int64(0)
-			for _, e := range entries {
-				cut := over * e.slack / totalSlack
-				newSize := sizes[e.idx] - cut
-				if minSize := f.Children[e.idx].Min; newSize < minSize {
-					newSize = minSize
-				}
-				cutTotal += sizes[e.idx] - newSize
-				f.reallocateShrinkable(e.idx, newSize, width, rendered, sizes)
-			}
-			// Greedy remainder: integer division leaves a small leftover;
-			// trim one row at a time from any child still above its Min.
-			rest := over - cutTotal
-			// maxIter guards against pathological edge cases where the
-			// proportional cut-rounding loop never converges (e.g. zero-Min
-			// shrinkable children that immediately re-grow via OnAllocate).
-			// 256 iterations is far more than any sane layout needs.
-			const maxIter = 256
-			for iter := 0; rest > 0 && iter < maxIter; iter++ {
-				progressed := false
-				for _, e := range entries {
-					if rest <= 0 {
-						break
-					}
-					minSize := f.Children[e.idx].Min
-					if sizes[e.idx] > minSize {
-						f.reallocateShrinkable(e.idx, sizes[e.idx]-1, width, rendered, sizes)
-						rest--
-						progressed = true
-					}
-				}
-				if !progressed {
-					break
-				}
-			}
-			used = 0
-			for i := range f.Children {
-				used += sizes[i]
-			}
-		}
+	over := used - totalHeight
+	type shrinkEntry struct {
+		idx   int
+		slack int64
 	}
-
-	// Compute rectangles and compose output.
-	row := int64(0)
+	var entries []shrinkEntry
+	totalSlack := int64(0)
 	for i, ch := range f.Children {
-		if ch.Component == nil {
+		if ch.Policy != SizeShrinkable {
 			continue
 		}
-		rects[i] = Rect{Row: row, Col: 0, Width: width, Height: sizes[i]}
-		row += sizes[i]
+		slack := sizes[i] - ch.Min
+		if slack <= 0 {
+			continue
+		}
+		entries = append(entries, shrinkEntry{i, slack})
+		totalSlack += slack
 	}
-	f.rects = rects
+	if totalSlack <= 0 {
+		return
+	}
 
+	// Proportional cut: each Shrinkable child gives back a share of
+	// the overflow proportional to its slack (distance above Min).
+	cutTotal := int64(0)
+	for _, e := range entries {
+		cut := over * e.slack / totalSlack
+		newSize := sizes[e.idx] - cut
+		if minSize := f.Children[e.idx].Min; newSize < minSize {
+			newSize = minSize
+		}
+		cutTotal += sizes[e.idx] - newSize
+		f.reallocateShrinkable(e.idx, newSize, width, rendered, sizes)
+	}
+	// Greedy remainder: integer division leaves a small leftover;
+	// trim one row at a time from any child still above its Min.
+	rest := over - cutTotal
+	// maxIter guards against pathological edge cases where the
+	// proportional cut-rounding loop never converges (e.g. zero-Min
+	// shrinkable children that immediately re-grow via OnAllocate).
+	// 256 iterations is far more than any sane layout needs.
+	const maxIter = 256
+	for iter := 0; rest > 0 && iter < maxIter; iter++ {
+		progressed := false
+		for _, e := range entries {
+			if rest <= 0 {
+				break
+			}
+			minSize := f.Children[e.idx].Min
+			if sizes[e.idx] > minSize {
+				f.reallocateShrinkable(e.idx, sizes[e.idx]-1, width, rendered, sizes)
+				rest--
+				progressed = true
+			}
+		}
+		if !progressed {
+			break
+		}
+	}
+}
+
+// composeVerticalOutput 按计算好的高度拼接输出行，并在总高超出 totalHeight
+// 时从顶部裁剪（保证底部输入区/状态栏可见），同步修正 child rects。
+func (f *Flex) composeVerticalOutput(width, totalHeight int64, rendered [][]string, sizes []int64) []string {
 	var out []string
 	for i, ch := range f.Children {
 		if ch.Component == nil {
@@ -336,7 +345,7 @@ func (f *Flex) renderVertical(width int64) []string {
 	return out
 }
 
-func (f *Flex) renderHorizontal(width int64) []string {
+func (f *Flex) renderHorizontal(width int64) []string { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	totalWidth := f.totalWidth()
 	if totalWidth <= 0 {
 		// Without a bounded width, sum natural widths for a best-effort layout.

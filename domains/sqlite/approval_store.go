@@ -115,43 +115,25 @@ func (s *SQLiteApprovalStore) Save(ctx context.Context, record domains.ApprovalR
 }
 
 // List returns all records for the given session, oldest first.
-//
-//nolint:dupl // List and ListByCase share identical iteration boilerplate
 func (s *SQLiteApprovalStore) List(ctx context.Context, sessionID string) ([]domains.ApprovalRecord, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT data FROM approval_records WHERE session_id = ? ORDER BY created_at ASC`,
-		sessionID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("approval/sqlite: list: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var records []domains.ApprovalRecord
-	for rows.Next() {
-		var data string
-		if err := rows.Scan(&data); err != nil {
-			return nil, fmt.Errorf("approval/sqlite: scan: %w", err)
-		}
-		rec, err := unmarshalRecord([]byte(data))
-		if err != nil {
-			return nil, fmt.Errorf("approval/sqlite: unmarshal: %w", err)
-		}
-		records = append(records, rec)
-	}
-	return records, rows.Err()
+	return s.queryRecords(ctx, "WHERE session_id = ?", sessionID, "list")
 }
 
 // ListByCase returns all records for the given case ID, oldest first.
-//
-//nolint:dupl // List and ListByCase share identical iteration boilerplate
 func (s *SQLiteApprovalStore) ListByCase(ctx context.Context, caseID string) ([]domains.ApprovalRecord, error) {
+	return s.queryRecords(ctx, "WHERE case_id = ?", caseID, "list by case")
+}
+
+// queryRecords 执行审批记录的公共查询：按给定 WHERE 子句过滤并按创建时间
+// 升序返回，统一处理行扫描与反序列化。
+func (s *SQLiteApprovalStore) queryRecords(ctx context.Context, whereClause, arg, opName string) ([]domains.ApprovalRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT data FROM approval_records WHERE case_id = ? ORDER BY created_at ASC`,
-		caseID,
+		//nolint:gosec // G202: whereClause 是内部常量（"WHERE session_id = ?" / "WHERE case_id = ?"），非用户输入，无注入风险
+		`SELECT data FROM approval_records `+whereClause+` ORDER BY created_at ASC`,
+		arg,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("approval/sqlite: list by case: %w", err)
+		return nil, fmt.Errorf("approval/sqlite: %s: %w", opName, err)
 	}
 	defer func() { _ = rows.Close() }()
 

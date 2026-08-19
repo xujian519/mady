@@ -1,4 +1,5 @@
 // ego_lite.go — EgoLite Extension: handoff + task_spaces 工具
+
 package tools
 
 import (
@@ -61,7 +62,8 @@ func (e *EgoLiteExtension) Tools() []*agentcore.Tool {
 // ==========================================
 // ego_lite_handoff 工具
 // ==========================================
-
+//
+//nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 func newEgoLiteHandoffTool(mgr *EgoLiteManager) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name: EgoLiteHandoffToolName,
@@ -162,7 +164,8 @@ func newEgoLiteHandoffTool(mgr *EgoLiteManager) *agentcore.Tool {
 // ==========================================
 // ego_lite_task_spaces 工具
 // ==========================================
-
+//
+//nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 func newEgoLiteTaskSpacesTool(mgr *EgoLiteManager) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name: EgoLiteTaskSpacesToolName,

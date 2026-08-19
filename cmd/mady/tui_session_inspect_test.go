@@ -40,53 +40,6 @@ func newInspectSession(t *testing.T) *tuiSession {
 	return s
 }
 
-// TestHandleLedgerCommand_Empty 验证无工具调用时的提示。
-func TestHandleLedgerCommand_Empty(t *testing.T) {
-	s := newInspectSession(t)
-	s.handleLedgerCommand()
-	msg := lastSystemMessage(s)
-	if !strings.Contains(msg, "暂无") {
-		t.Fatalf("期望提示'暂无工具调用证据'，实际：%q", msg)
-	}
-}
-
-// TestHandleLedgerCommand_WithData 验证有 Receipt 时正确渲染。
-func TestHandleLedgerCommand_WithData(t *testing.T) {
-	s := newInspectSession(t)
-	ledger := s.fc.EvidenceExt.Ledger()
-	ledger.Record(evidence.Receipt{
-		ToolName:   "read",
-		Success:    true,
-		Paths:      []string{"/tmp/foo.go"},
-		Read:       true,
-		DurationMs: 12,
-	})
-	ledger.Record(evidence.Receipt{
-		ToolName: "write_file",
-		Success:  true,
-		Paths:    []string{"/tmp/bar.go"},
-		Write:    true,
-	})
-	s.handleLedgerCommand()
-	msg := lastSystemMessage(s)
-	for _, want := range []string{"共 2 条", "read", "write_file", "/tmp/foo.go", "/tmp/bar.go", "[write]"} {
-		if !strings.Contains(msg, want) {
-			t.Errorf("期望输出包含 %q，实际：%s", want, msg)
-		}
-	}
-}
-
-// TestHandleLedgerCommand_NotEnabled 验证扩展缺失时降级提示。
-func TestHandleLedgerCommand_NotEnabled(t *testing.T) {
-	app := testAppForSession(t)
-	s := &tuiSession{ctx: context.Background(), fc: nil, app: app}
-	s.handleLedgerCommand()
-	msg := lastSystemMessage(s)
-	if !strings.Contains(msg, "未启用") {
-		t.Fatalf("期望降级提示'未启用'，实际：%q", msg)
-	}
-}
-
 // TestHandleSnapshotsCommand_Empty 验证无快照时的提示。
 func TestHandleSnapshotsCommand_Empty(t *testing.T) {
 	s := newInspectSession(t)

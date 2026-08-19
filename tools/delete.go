@@ -67,7 +67,7 @@ func isProtected(path string, protected []string) bool {
 }
 
 // NewDeleteTool creates a file/directory deletion tool.
-func NewDeleteTool(cwd string, cfg *DeleteToolConfig) *agentcore.Tool {
+func NewDeleteTool(cwd string, cfg *DeleteToolConfig) *agentcore.Tool { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if cfg == nil {
 		cfg = &DeleteToolConfig{}
 	}

@@ -89,7 +89,7 @@ func buildTerminalContextFromEnv(env map[string]string) TerminalContext {
 // Brand detection (pure function)
 // ---------------------------------------------------------------------------
 
-func detectTerminalBrandFromEnv(env map[string]string) TerminalBrand {
+func detectTerminalBrandFromEnv(env map[string]string) TerminalBrand { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	// 1. VS Code forks — check specific env markers before TERM_PROGRAM
 	//    because some forks set TERM_PROGRAM=vscode.
 	if _, ok := env["CURSOR_TRACE_ID"]; ok {

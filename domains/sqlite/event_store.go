@@ -138,7 +138,13 @@ func scanEvents(rows *sql.Rows) ([]EventRecord, error) {
 			return nil, fmt.Errorf("event/sqlite: scan: %w", err)
 		}
 		r.Payload = json.RawMessage(payloadStr)
-		r.CreatedAt, _ = time.Parse(time.RFC3339, createdAtStr)
+		// SQLite datetime('now') 返回 "YYYY-MM-DD HH:MM:SS"（无时区），
+		// 与 RFC3339 不同；两种格式都尝试解析，避免 CreatedAt 恒为零。
+		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+			r.CreatedAt = t
+		} else if t, err := time.Parse("2006-01-02 15:04:05", createdAtStr); err == nil {
+			r.CreatedAt = t
+		}
 		out = append(out, r)
 	}
 	return out, rows.Err()

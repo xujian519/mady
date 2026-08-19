@@ -60,122 +60,14 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 	case kindTable:
 		return renderTable(b.Lines, width, theme)
 	case kindBullet:
-		if len(b.Lines) == 0 {
-			return nil
-		}
-		bm := reBullet.FindStringSubmatch(b.Lines[0])
-		if bm == nil {
-			return nil
-		}
-		indent := len(bm[1])
-		text := renderInline(bm[3], theme)
-		bullet := theme.ListBulletFn("• ")
-		prefixWidth := int64(indent) + core.VisibleWidth(bullet)
-		wrapW := width - prefixWidth
-		if wrapW < 1 {
-			wrapW = 1
-		}
-		indentStr := strings.Repeat(" ", int(prefixWidth))
-		out := make([]string, 0, len(b.Lines)*2)
-		for k, w := range wrapMarkdownText(text, wrapW) {
-			prefix := indentStr
-			if k == 0 {
-				prefix = strings.Repeat(" ", indent) + bullet
-			}
-			out = append(out, prefix+w)
-		}
-		// Render continuation lines. Strip the source indentation that marks
-		// the line as a continuation so the rendered text aligns with the first
-		// line's text column rather than being indented twice.
-		for _, cl := range b.Lines[1:] {
-			ct := strings.TrimLeft(cl, " \t")
-			// A nested list line (deeper indentation + bullet/ordered
-			// marker) is not real continuation text of this item. Strip its
-			// marker so it renders as indented plain text instead of
-			// leaking a raw "- " or "1. " into the output (P2-16). Full
-			// nested-list rendering is a separate feature.
-			ct = stripNestedListMarker(ct)
-			ct = renderInline(ct, theme)
-			for _, w := range wrapMarkdownText(ct, wrapW) {
-				out = append(out, indentStr+w)
-			}
-		}
-		return out
+		return renderBulletList(b.Lines, width, theme)
 	case kindOrdered:
-		if len(b.Lines) == 0 {
-			return nil
-		}
-		om := reOrdered.FindStringSubmatch(b.Lines[0])
-		if om == nil {
-			return nil
-		}
-		indent := len(om[1])
-		num := om[2] + ". "
-		text := renderInline(om[3], theme)
-		styledNum := theme.ListBulletFn(num)
-		prefixWidth := int64(indent) + core.VisibleWidth(styledNum)
-		wrapW := width - prefixWidth
-		if wrapW < 1 {
-			wrapW = 1
-		}
-		indentStr := strings.Repeat(" ", int(prefixWidth))
-		out := make([]string, 0, len(b.Lines)*2)
-		for k, w := range wrapMarkdownText(text, wrapW) {
-			prefix := indentStr
-			if k == 0 {
-				prefix = strings.Repeat(" ", indent) + styledNum
-			}
-			out = append(out, prefix+w)
-		}
-		// Strip source continuation indentation so wrapped/continuation lines
-		// align with the first line's text column.
-		for _, cl := range b.Lines[1:] {
-			ct := stripNestedListMarker(strings.TrimLeft(cl, " \t"))
-			ct = renderInline(ct, theme)
-			for _, w := range wrapMarkdownText(ct, wrapW) {
-				out = append(out, indentStr+w)
-			}
-		}
-		return out
+		return renderOrderedList(b.Lines, reOrdered, width, theme)
 	case kindChineseOrdered:
-		if len(b.Lines) == 0 {
-			return nil
-		}
-		om := reChineseOrdered.FindStringSubmatch(b.Lines[0])
-		if om == nil {
-			return nil
-		}
-		indent := len(om[1])
 		// Normalize the Chinese enumeration comma to a period so the marker is
 		// treated like other ordered lists and does not leave raw punctuation
 		// (e.g. "一、") in the rendered output.
-		num := om[2] + ". "
-		text := renderInline(om[3], theme)
-		styledNum := theme.ListBulletFn(num)
-		prefixWidth := int64(indent) + core.VisibleWidth(styledNum)
-		wrapW := width - prefixWidth
-		if wrapW < 1 {
-			wrapW = 1
-		}
-		indentStr := strings.Repeat(" ", int(prefixWidth))
-		out := make([]string, 0, len(b.Lines)*2)
-		for k, w := range wrapMarkdownText(text, wrapW) {
-			prefix := indentStr
-			if k == 0 {
-				prefix = strings.Repeat(" ", indent) + styledNum
-			}
-			out = append(out, prefix+w)
-		}
-		// Strip source continuation indentation so wrapped/continuation lines
-		// align with the first line's text column.
-		for _, cl := range b.Lines[1:] {
-			ct := stripNestedListMarker(strings.TrimLeft(cl, " \t"))
-			ct = renderInline(ct, theme)
-			for _, w := range wrapMarkdownText(ct, wrapW) {
-				out = append(out, indentStr+w)
-			}
-		}
-		return out
+		return renderOrderedList(b.Lines, reChineseOrdered, width, theme)
 	case kindBlank:
 		return []string{""}
 	case kindParagraph:
@@ -187,6 +79,93 @@ func renderBlock(b Block, width int64, theme MarkdownTheme) []string {
 		return out
 	}
 	return nil
+}
+
+// renderBulletList renders an unordered list block: first line gets the
+// bullet marker, continuation lines re-indent to the text column.
+func renderBulletList(lines []string, width int64, theme MarkdownTheme) []string {
+	if len(lines) == 0 {
+		return nil
+	}
+	bm := reBullet.FindStringSubmatch(lines[0])
+	if bm == nil {
+		return nil
+	}
+	indent := len(bm[1])
+	text := renderInline(bm[3], theme)
+	bullet := theme.ListBulletFn("• ")
+	prefixWidth := int64(indent) + core.VisibleWidth(bullet)
+	wrapW := width - prefixWidth
+	if wrapW < 1 {
+		wrapW = 1
+	}
+	indentStr := strings.Repeat(" ", int(prefixWidth))
+	out := make([]string, 0, len(lines)*2)
+	for k, w := range wrapMarkdownText(text, wrapW) {
+		prefix := indentStr
+		if k == 0 {
+			prefix = strings.Repeat(" ", indent) + bullet
+		}
+		out = append(out, prefix+w)
+	}
+	// Render continuation lines. Strip the source indentation that marks
+	// the line as a continuation so the rendered text aligns with the first
+	// line's text column rather than being indented twice.
+	for _, cl := range lines[1:] {
+		ct := strings.TrimLeft(cl, " 	")
+		// A nested list line (deeper indentation + bullet/ordered
+		// marker) is not real continuation text of this item. Strip its
+		// marker so it renders as indented plain text instead of
+		// leaking a raw "- " or "1. " into the output (P2-16). Full
+		// nested-list rendering is a separate feature.
+		ct = stripNestedListMarker(ct)
+		ct = renderInline(ct, theme)
+		for _, w := range wrapMarkdownText(ct, wrapW) {
+			out = append(out, indentStr+w)
+		}
+	}
+	return out
+}
+
+// renderOrderedList renders a numbered list block (Arabic or Chinese
+// enumeration, distinguished only by the marker regex). Continuation lines
+// are re-indented to align with the first line's text column.
+func renderOrderedList(lines []string, marker *regexp.Regexp, width int64, theme MarkdownTheme) []string {
+	if len(lines) == 0 {
+		return nil
+	}
+	om := marker.FindStringSubmatch(lines[0])
+	if om == nil {
+		return nil
+	}
+	indent := len(om[1])
+	num := om[2] + ". "
+	text := renderInline(om[3], theme)
+	styledNum := theme.ListBulletFn(num)
+	prefixWidth := int64(indent) + core.VisibleWidth(styledNum)
+	wrapW := width - prefixWidth
+	if wrapW < 1 {
+		wrapW = 1
+	}
+	indentStr := strings.Repeat(" ", int(prefixWidth))
+	out := make([]string, 0, len(lines)*2)
+	for k, w := range wrapMarkdownText(text, wrapW) {
+		prefix := indentStr
+		if k == 0 {
+			prefix = strings.Repeat(" ", indent) + styledNum
+		}
+		out = append(out, prefix+w)
+	}
+	// Strip source continuation indentation so wrapped/continuation lines
+	// align with the first line's text column.
+	for _, cl := range lines[1:] {
+		ct := stripNestedListMarker(strings.TrimLeft(cl, " \t"))
+		ct = renderInline(ct, theme)
+		for _, w := range wrapMarkdownText(ct, wrapW) {
+			out = append(out, indentStr+w)
+		}
+	}
+	return out
 }
 
 // wrapMarkdownText chooses between the generic ANSI wrapper and the CJK-aware
@@ -216,7 +195,7 @@ func containsCJK(s string) bool {
 // renderFenceBlock renders a fenced code block. Split out of renderBlock so
 // the fence-specific highlighter logic (diff coloring, syntax Highlight)
 // stays readable on its own. Behavior is identical to the old inline branch.
-func renderFenceBlock(lang string, codeLines []string, width int64, theme MarkdownTheme) []string {
+func renderFenceBlock(lang string, codeLines []string, width int64, theme MarkdownTheme) []string { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	var out []string
 	if lang != "" {
 		out = append(out, theme.CodeFenceFn(core.PadToWidth("  "+lang, width)))

@@ -61,7 +61,7 @@ func renderSOMOverlayFromB64(jpegBase64 string, elements []somElement) (string, 
 	return renderSOMBody(raw, elements)
 }
 
-func renderSOMBody(raw []byte, elements []somElement) (string, error) {
+func renderSOMBody(raw []byte, elements []somElement) (string, error) { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	src, err := jpeg.Decode(bytes.NewReader(raw))
 	if err != nil {
 		// fallback: try other formats

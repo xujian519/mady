@@ -30,7 +30,7 @@ func schemaFromMap(raw map[string]any) (*ai.Schema, error) {
 	return schemaNode(node)
 }
 
-func schemaNode(node map[string]any) (*ai.Schema, error) {
+func schemaNode(node map[string]any) (*ai.Schema, error) { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	s := &ai.Schema{}
 	for k, v := range node {
 		switch k {

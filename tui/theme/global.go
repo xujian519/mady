@@ -145,7 +145,7 @@ func InitThemeFromEnv() error {
 		path = strings.TrimSpace(os.Getenv("AGENT_TUI_THEME"))
 	}
 	if path != "" {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // G304: 主题路径来自用户显式配置（TUI_THEME / LoadSemanticThemeFromFile 参数）
 		if err != nil {
 			return err
 		}
@@ -162,7 +162,7 @@ func InitThemeFromEnv() error {
 
 // LoadSemanticThemeFromFile reads JSON and applies it with the given color mode.
 func LoadSemanticThemeFromFile(path string, mode ColorMode) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: 主题路径来自用户显式配置（LoadSemanticThemeFromFile 参数）
 	if err != nil {
 		return err
 	}

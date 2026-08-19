@@ -41,7 +41,7 @@ func (a *ChatApp) onToolStart(e ChatEvent) {
 	})
 }
 
-func (a *ChatApp) onToolEnd(e ChatEvent) {
+func (a *ChatApp) onToolEnd(e ChatEvent) { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	tc, ok := e.(ToolCallEndChatEvent)
 	if !ok {
 		return
@@ -92,7 +92,7 @@ func (a *ChatApp) onToolEnd(e ChatEvent) {
 				switch {
 				case (tc.ToolName == "write_file" || tc.ToolName == "write") && fileContent != "":
 					// Write tool: show content preview.
-					parts = append(parts, fmt.Sprintf("⌨  Wrote %d lines to %s", added, filePath), formatContentPreview(fileContent, added))
+					parts = append(parts, fmt.Sprintf("⌨  Wrote %d lines to %s", added, filePath), formatContentPreview(fileContent))
 				default:
 					summary := fmt.Sprintf("✏️ %s", filePath)
 					if added > 0 || removed > 0 {
@@ -186,7 +186,7 @@ func extractToolDiff(toolName, resultJSON string) (path, diff string, added, rem
 
 // displayFileSearchResult parses and displays search_project_files results.
 // displayFileReadResult parses and displays read_project_file results.
-func formatContentPreview(content string, totalLines int64) string {
+func formatContentPreview(content string) string {
 	const previewLines = 6
 	lines := strings.Split(content, "\n")
 	var b strings.Builder

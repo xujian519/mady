@@ -276,90 +276,121 @@ func (cg *CompiledGraph) Run(ctx context.Context, input string) (string, error) 
 			continue
 		}
 
-		results := make(map[string]string)
-		errs := make(map[string]error)
-		var mu sync.Mutex
-		var wg sync.WaitGroup
-
-		for _, name := range layerNodes {
-			steps++
-			if steps > cg.MaxSteps {
-				return "", fmt.Errorf("graph: %w", ErrExceedMaxSteps)
-			}
-
-			nodeInput := input
-			if preds, ok := cg.RevEdges[name]; ok && len(preds) > 0 {
-				var parts []string
-				for _, p := range preds {
-					if out, exists := outputs[p]; exists {
-						parts = append(parts, out)
-					}
-				}
-				if len(parts) == 1 {
-					nodeInput = parts[0]
-				} else if len(parts) > 1 {
-					nodeInput = JoinOutputs(parts)
-				}
-			}
-
-			wg.Add(1)
-			go func(nodeName, nodeIn string) {
-				defer wg.Done()
-				defer func() {
-					if r := recover(); r != nil {
-						log.Printf("[PANIC] graph: node %q panicked: %v\n%s", nodeName, r, debug.Stack())
-					}
-				}()
-				step := cg.getNode(nodeName)
-				out, err := step.Run(ctx, nodeIn)
-				mu.Lock()
-				results[nodeName] = out
-				errs[nodeName] = err
-				mu.Unlock()
-			}(name, nodeInput)
+		results, errs, err := cg.runLayerNodes(ctx, layerNodes, input, outputs, &steps)
+		if err != nil {
+			return "", err
 		}
-
-		wg.Wait()
 
 		for name, err := range errs {
 			if err != nil {
 				return "", fmt.Errorf("graph:%s: %w", name, err)
 			}
 		}
-		for name, out := range results {
-			// Conditional edges: auto-route to target in the same super-step.
-			if router, ok := cg.CondEdges[name]; ok {
-				target := router.route(ctx, out)
-				routed := false
-				for _, t := range router.targets {
-					if t == target {
-						step := cg.getNode(target)
-						targetOut, err := step.Run(ctx, out)
-						if err != nil {
-							return "", fmt.Errorf("graph:%s: %w", target, err)
-						}
-						outputs[target] = targetOut
-						for _, to := range cg.graph.edges[target] {
-							outputs[to] = ""
-						}
-						routed = true
-						break
-					}
-				}
-				if routed {
-					continue // target output replaces source output
-				}
-				// Route didn't match any target — fall through to store source output.
-			}
-			outputs[name] = out
-			// Regular edges: mark targets as reachable for subsequent layers.
-			for _, to := range cg.graph.edges[name] {
-				outputs[to] = ""
-			}
+		if err := cg.applyNodeOutputs(ctx, results, outputs); err != nil {
+			return "", err
 		}
 	}
 
 	return FindTerminalOutput(allNodes(cg.graph.nodes, cg.StreamNodes), cg.graph.edges, outputs), nil
+}
+
+// runLayerNodes 并行执行同一层（super-step）内的节点，并做：
+//   - 前置输出汇聚（单前置直接透传，多前置 JoinOutputs）
+//   - 步数上限检查（ErrExceedMaxSteps）
+//   - 节点 panic 恢复（记录日志后继续，避免单个节点崩溃拖垮整图）
+//
+// 返回各节点输出、错误表与致命错误。
+func (cg *CompiledGraph) runLayerNodes(ctx context.Context, layerNodes []string, input string, outputs map[string]string, steps *int64) (map[string]string, map[string]error, error) {
+	results := make(map[string]string)
+	errs := make(map[string]error)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for _, name := range layerNodes {
+		*steps++
+		if *steps > cg.MaxSteps {
+			return nil, nil, fmt.Errorf("graph: %w", ErrExceedMaxSteps)
+		}
+
+		nodeInput := cg.nodeInputFor(name, input, outputs)
+
+		wg.Add(1)
+		go func(nodeName, nodeIn string) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[PANIC] graph: node %q panicked: %v\n%s", nodeName, r, debug.Stack())
+				}
+			}()
+			step := cg.getNode(nodeName)
+			out, err := step.Run(ctx, nodeIn)
+			mu.Lock()
+			results[nodeName] = out
+			errs[nodeName] = err
+			mu.Unlock()
+		}(name, nodeInput)
+	}
+
+	wg.Wait()
+	return results, errs, nil
+}
+
+// nodeInputFor 计算单个节点的输入：无前置时用全局 input，单前置直接透传
+// 其输出，多前置时用 JoinOutputs 拼接。
+func (cg *CompiledGraph) nodeInputFor(name, input string, outputs map[string]string) string {
+	if preds, ok := cg.RevEdges[name]; ok && len(preds) > 0 {
+		var parts []string
+		for _, p := range preds {
+			if out, exists := outputs[p]; exists {
+				parts = append(parts, out)
+			}
+		}
+		if len(parts) == 1 {
+			return parts[0]
+		}
+		if len(parts) > 1 {
+			return JoinOutputs(parts)
+		}
+	}
+	return input
+}
+
+// applyNodeOutputs 将层内结果写回 outputs，并处理条件边（CondEdges）：
+// 路由目标命中时执行目标节点并以其输出覆盖源节点，未命中则回退写源输出。
+// 普通边则标记后继节点为可达。
+func (cg *CompiledGraph) applyNodeOutputs(ctx context.Context, results map[string]string, outputs map[string]string) error {
+	for name, out := range results {
+		// Conditional edges: auto-route to target in the same super-step.
+		if router, ok := cg.CondEdges[name]; ok {
+			target := router.route(ctx, out)
+			routed := false
+			for _, t := range router.targets {
+				if t == target {
+					step := cg.getNode(target)
+					targetOut, err := step.Run(ctx, out)
+					if err != nil {
+						return fmt.Errorf("graph:%s: %w", target, err)
+					}
+					outputs[target] = targetOut
+					for _, to := range cg.graph.edges[target] {
+						outputs[to] = ""
+					}
+					routed = true
+					break
+				}
+			}
+			if routed {
+				continue // target output replaces source output
+			}
+			// Route didn't match any target — fall through to store source output.
+		}
+		outputs[name] = out
+		// Regular edges: mark targets as reachable for subsequent layers.
+		for _, to := range cg.graph.edges[name] {
+			outputs[to] = ""
+		}
+	}
+	return nil
 }
 
 var _ Step = (*CompiledGraph)(nil)

@@ -16,7 +16,7 @@ import (
 
 // handleNavigate opens a URL in the browser and returns an accessibility
 // snapshot of the loaded page.
-func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) {
+func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToolConfig) (any, error) { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if input.URL == "" {
 		return nil, fmt.Errorf("url is required for navigate action")
 	}

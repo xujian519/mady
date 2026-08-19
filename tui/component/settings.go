@@ -138,7 +138,7 @@ func (s *SettingsList) IsFocused() bool {
 }
 
 // Render draws a key/value list with the current row highlighted.
-func (s *SettingsList) Render(width int64) []string {
+func (s *SettingsList) Render(width int64) []string { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	// Deep-copy entries under the lock: SetValue/cycleValue mutate element
 	// fields (Current) under the write lock, so the render loop must not
 	// iterate the live slice after releasing RLock (P1-9).

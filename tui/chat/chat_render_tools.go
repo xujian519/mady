@@ -111,7 +111,7 @@ func (h *ChatHistory) detectToolGroup(msgs []ChatMessage, i int) (groupEnd int, 
 // 展开时使用左侧色带（│）把多个工具/系统消息连成一条紧凑时间线，
 // 避免原本散落的卡片感。
 // 返回渲染行、行区间与链接元数据（展开时成员行加色带前缀，链接列偏移）。
-func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expanded bool, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) ([]string, msgRange, [][]core.LinkSpan) {
+func (h *ChatHistory) renderToolGroup(msgs []ChatMessage, start, end int, expanded bool, theme ChatHistoryTheme, width int64, cache map[string]cachedMessage) ([]string, msgRange, [][]core.LinkSpan) { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	toolCount, sysCount := 0, 0
 	for j := start; j <= end; j++ {
 		if msgs[j].Role == RoleTool {

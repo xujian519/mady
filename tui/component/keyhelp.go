@@ -137,7 +137,7 @@ func (h *KeyHelp) requestRender() {
 
 func (h *KeyHelp) Invalidate() {}
 
-func (h *KeyHelp) Render(width int64) []string {
+func (h *KeyHelp) Render(width int64) []string { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	h.mu.RLock()
 	title := h.title
 	groups := h.groups

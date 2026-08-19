@@ -11,7 +11,7 @@ import (
 )
 
 // nolint:unused // used by tests in chat_history_test.go
-func (h *ChatHistory) applySelectionHighlightLocked(lines []string, width int64) {
+func (h *ChatHistory) applySelectionHighlightLocked(lines []string) { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	total := int64(len(lines))
 	if total == 0 || h.maxRows <= 0 {
 		return
@@ -127,7 +127,7 @@ func (h *ChatHistory) applySelectionHighlightLocked(lines []string, width int64)
 // applySelectionHighlightLocked used during snapshot rendering. It takes
 // selection state as explicit parameters and highlights the full content
 // (viewport clipping happens later in Render).
-func (h *ChatHistory) applySelectionHighlightSnapshot(lines []string, width int64, selStart, selEnd selectionPos) {
+func (h *ChatHistory) applySelectionHighlightSnapshot(lines []string, selStart, selEnd selectionPos) { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	total := int64(len(lines))
 	if total == 0 {
 		return

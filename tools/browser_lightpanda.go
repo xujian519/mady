@@ -215,12 +215,12 @@ func (sr *SessionRecorder) StartRecording(ctx context.Context, sessionID string)
 	sr.isRecording = true
 	sr.frames = nil
 
-	go sr.processFrames(ctx, sessionID)
+	go sr.processFrames(ctx)
 
 	return nil
 }
 
-func (sr *SessionRecorder) processFrames(ctx context.Context, sessionID string) {
+func (sr *SessionRecorder) processFrames(ctx context.Context) {
 	defer func() {
 		sr.mu.Lock()
 		sr.isRecording = false

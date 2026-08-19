@@ -224,7 +224,7 @@ func TestSelectionHighlightKeepsVisibleWidthStable(t *testing.T) {
 	for endCol := int64(1); endCol <= origWidth; endCol++ {
 		h.selEnd = selectionPos{line: 0, col: endCol}
 		lines := []string{origLine}
-		h.applySelectionHighlightLocked(lines, 120)
+		h.applySelectionHighlightLocked(lines)
 		gotWidth := core.VisibleWidth(lines[0])
 		if gotWidth != origWidth {
 			t.Fatalf("visible width changed at endCol=%d: got=%d want=%d", endCol, gotWidth, origWidth)
@@ -244,7 +244,7 @@ func TestSelectionHighlightWidthStableOnCJKAndEmoji(t *testing.T) {
 	for endCol := int64(0); endCol <= origWidth; endCol++ {
 		h.selEnd = selectionPos{line: 0, col: endCol}
 		lines := []string{line}
-		h.applySelectionHighlightLocked(lines, 120)
+		h.applySelectionHighlightLocked(lines)
 		gotWidth := core.VisibleWidth(lines[0])
 		if gotWidth != origWidth {
 			t.Fatalf("cjk/emoji width changed at endCol=%d: got=%d want=%d", endCol, gotWidth, origWidth)
@@ -265,7 +265,7 @@ func TestSelectionHighlightWidthStableWhenBoundaryMovesBackAndForth(t *testing.T
 	for _, endCol := range sequence {
 		h.selEnd = selectionPos{line: 0, col: endCol}
 		lines := []string{line}
-		h.applySelectionHighlightLocked(lines, 120)
+		h.applySelectionHighlightLocked(lines)
 		gotWidth := core.VisibleWidth(lines[0])
 		if gotWidth != origWidth {
 			t.Fatalf("boundary move changed width at endCol=%d: got=%d want=%d", endCol, gotWidth, origWidth)
@@ -291,7 +291,7 @@ func TestSelectionHighlightUsesUniformStyleOverStyledText(t *testing.T) {
 
 	line := "\x1b[31mAB\x1b[0m\x1b[32mCD\x1b[0mE"
 	lines := []string{line}
-	h.applySelectionHighlightLocked(lines, 80)
+	h.applySelectionHighlightLocked(lines)
 
 	row := core.ParseLine(lines[0])
 	if row.IsRaw() {

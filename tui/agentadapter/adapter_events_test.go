@@ -714,7 +714,7 @@ func TestParseReviewGateData(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			got := parseReviewGateData("ignored-content", tc.data)
+			got := parseReviewGateData(tc.data)
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("parseReviewGateData mismatch\n got: %+v\nwant: %+v", got, tc.want)
 			}

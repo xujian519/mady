@@ -86,7 +86,7 @@ type MoveToolInput struct {
 }
 
 // NewMoveTool creates a file/directory move/rename tool.
-func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool {
+func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if cfg == nil {
 		cfg = &MoveToolConfig{}
 	}

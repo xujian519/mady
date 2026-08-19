@@ -65,7 +65,7 @@ type SemanticTheme struct {
 	ConfidenceHigh   string `json:"confidenceHigh"`
 }
 
-func DefaultSemanticLight() *SemanticTheme {
+func DefaultSemanticLight() *SemanticTheme { //nolint:dupl // 主题数据：结构相同但颜色值不同的数据定义，提取会损害可读性
 	return &SemanticTheme{
 		Name: "light",
 
@@ -135,7 +135,7 @@ func DefaultSemanticLight() *SemanticTheme {
 // DefaultMadyDark is the Mady brand dark theme using cold blue tones that match
 // the Logo's deep-space blue + cyan light-arc palette. It conveys rationality and
 // restraint suitable for professional patent/law workflows.
-func DefaultMadyDark() *SemanticTheme {
+func DefaultMadyDark() *SemanticTheme { //nolint:dupl // 主题数据：结构相同但颜色值不同的数据定义，提取会损害可读性
 	return &SemanticTheme{
 		Name: "dark",
 

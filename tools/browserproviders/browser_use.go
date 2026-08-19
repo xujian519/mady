@@ -78,35 +78,13 @@ func (p *BrowserUseProvider) CreateSession(taskID string) (map[string]string, er
 }
 
 func (p *BrowserUseProvider) CloseSession(sessionID string) error {
-	reqBody := map[string]any{
-		"action": "stop",
-	}
-
-	data, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("marshal request body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PATCH", fmt.Sprintf("https://api.browser-use.com/v3/browsers/%s", sessionID), bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", p.apiKey)
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB max error body
-		return fmt.Errorf("browser_use close error %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return closeSessionRequest(p.httpClient,
+		"PATCH",
+		fmt.Sprintf("https://api.browser-use.com/v3/browsers/%s", sessionID),
+		p.apiKey, "x-api-key",
+		map[string]any{"action": "stop"},
+		"browser_use close",
+	)
 }
 
 func (p *BrowserUseProvider) EmergencyCleanup(sessionID string) {

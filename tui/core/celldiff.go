@@ -113,7 +113,7 @@ const linkRowSentinel = " "
 // of unchanged rows, then only diffs the middle section. In streaming
 // scenarios where only 1-2 lines change per frame (out of 500+), this
 // avoids ~499 RowsEqual calls per frame.
-func DiffFrame(old, newFrame []Row) []RowCellDiff {
+func DiffFrame(old, newFrame []Row) []RowCellDiff { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	// Find common prefix — rows that are identical from the top.
 	prefix := 0
 	for prefix < len(old) && prefix < len(newFrame) && RowsEqual(old[prefix], newFrame[prefix]) {

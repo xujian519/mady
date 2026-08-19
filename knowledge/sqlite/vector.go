@@ -118,54 +118,29 @@ func (s *SQLiteStore) vectorSearchInMemory(queryVec []float32, topK int) ([]retr
 // index is not available. It uses parallel goroutines to scan the embeddings
 // table in ranges, each maintaining a min-heap of top-K candidates.
 // This reduces query time from ~14s (sequential) to ~1-2s on M4 Pro.
-//
-//nolint:gocognit // 原因：并行向量搜索，含范围分区和协程编排
 func (s *SQLiteStore) vectorSearchSQLParallel(queryVec []float32, topK int) ([]retrieval.ScoredChunk, error) {
-	// Determine max ID for range partitioning — using MAX(id) instead of
-	// COUNT(*) so that gaps from deletions don't cause tail rows to be missed.
-	var maxID int
-	if err := s.db.QueryRowContext(s.baseCtx, "SELECT COALESCE(MAX(id), 0) FROM embeddings").Scan(&maxID); err != nil {
-		return nil, fmt.Errorf("vector sql max id: %w", err)
-	}
-	if maxID == 0 {
-		return nil, nil
-	}
 	if topK <= 0 {
 		topK = 10
 	}
-
-	qNorm := float64(0)
-	for _, v := range queryVec {
-		qNorm += float64(v) * float64(v)
+	maxID, qNorm, err := s.prepareVectorSearch(queryVec)
+	if err != nil {
+		return nil, err
 	}
-	qNorm = math.Sqrt(qNorm)
-	if qNorm == 0 {
-		return nil, fmt.Errorf("query vector is zero")
+	if maxID == 0 {
+		return nil, nil
 	}
 
 	numWorkers := runtime.GOMAXPROCS(0)
 	if numWorkers < 1 {
 		numWorkers = 1
 	}
-
-	type candidate struct {
-		chunkID int
-		score   float64
-	}
-
-	type workerResult struct {
-		top []candidate
-		err error
-	}
-
-	results := make(chan workerResult, numWorkers)
-	var wg sync.WaitGroup
-
 	batchSize := maxID / numWorkers
 	if batchSize < 1000 {
 		batchSize = 1000
 	}
 
+	results := make(chan vectorWorkerResult, numWorkers)
+	var wg sync.WaitGroup
 	for w := 0; w < numWorkers; w++ {
 		wg.Add(1)
 		startID := w * batchSize
@@ -173,94 +148,18 @@ func (s *SQLiteStore) vectorSearchSQLParallel(queryVec []float32, topK int) ([]r
 		if w == numWorkers-1 {
 			endID = maxID + 1 // +1 because the query uses id < endID
 		}
-
 		go func(sID, eID int) {
 			defer wg.Done()
-			localTop := make([]candidate, 0, topK)
-
-			rows, err := s.db.QueryContext(s.baseCtx, `
-				SELECT e.chunk_id, e.vector, e.norm
-				FROM embeddings e
-				WHERE e.id >= ? AND e.id < ?
-				ORDER BY e.id`, sID, eID)
-			if err != nil {
-				results <- workerResult{err: fmt.Errorf("worker [%d,%d): %w", sID, eID, err)}
-				return
-			}
-			defer func() { _ = rows.Close() }()
-
-			for rows.Next() {
-				var chunkID int
-				var vecBlob []byte
-				var norm float64
-				if err := rows.Scan(&chunkID, &vecBlob, &norm); err != nil {
-					continue
-				}
-				vec := vecbytes.BytesToFloats(vecBlob)
-				if len(vec) != len(queryVec) {
-					continue
-				}
-				dot := float64(0)
-				for i, v := range queryVec {
-					dot += float64(v) * float64(vec[i])
-				}
-				cosine := dot / (qNorm * norm)
-
-				if len(localTop) < topK {
-					localTop = append(localTop, candidate{chunkID, cosine})
-					for j := len(localTop) - 1; j > 0; j-- {
-						if localTop[j].score > localTop[j-1].score {
-							localTop[j], localTop[j-1] = localTop[j-1], localTop[j]
-						}
-					}
-				} else if cosine > localTop[len(localTop)-1].score {
-					localTop[len(localTop)-1] = candidate{chunkID, cosine}
-					for j := len(localTop) - 1; j > 0; j-- {
-						if localTop[j].score > localTop[j-1].score {
-							localTop[j], localTop[j-1] = localTop[j-1], localTop[j]
-						}
-					}
-				}
-			}
-			results <- workerResult{top: localTop}
+			results <- s.scanVectorRange(sID, eID, queryVec, qNorm, topK)
 		}(startID, endID)
 	}
-
 	wg.Wait()
 	close(results)
 
-	// Merge worker results, collecting any errors.
-	var workerErrs []error
-	merged := make([]candidate, 0, topK)
-	for wr := range results {
-		if wr.err != nil {
-			workerErrs = append(workerErrs, wr.err)
-			continue
-		}
-		for _, c := range wr.top {
-			if len(merged) < topK {
-				merged = append(merged, c)
-				for j := len(merged) - 1; j > 0; j-- {
-					if merged[j].score > merged[j-1].score {
-						merged[j], merged[j-1] = merged[j-1], merged[j]
-					}
-				}
-			} else if c.score > merged[len(merged)-1].score {
-				merged[len(merged)-1] = c
-				for j := len(merged) - 1; j > 0; j-- {
-					if merged[j].score > merged[j-1].score {
-						merged[j], merged[j-1] = merged[j-1], merged[j]
-					}
-				}
-			}
-		}
-	}
-
-	// If no results AND no errors from any worker, return empty.
+	merged, workerErrs := mergeVectorResults(results, topK)
 	if len(merged) == 0 && len(workerErrs) == 0 {
 		return nil, nil
 	}
-	// If no results but some workers errored, report the first error.
 	if len(merged) == 0 && len(workerErrs) > 0 {
 		return nil, fmt.Errorf("vector sql parallel: %w", workerErrs[0])
 	}
@@ -284,6 +183,112 @@ func (s *SQLiteStore) vectorSearchSQLParallel(queryVec []float32, topK int) ([]r
 		})
 	}
 	return results2, nil
+}
+
+// vectorCandidate 是向量搜索的 (chunkID, score) 候选对。
+type vectorCandidate struct {
+	chunkID int
+	score   float64
+}
+
+// vectorWorkerResult 是单个 worker 的产出：top-K 候选或错误。
+type vectorWorkerResult struct {
+	top []vectorCandidate
+	err error
+}
+
+// prepareVectorSearch 校验并计算并行搜索的前置量：最大 ID（范围分区用）、
+// 查询向量范数（余弦相似度分母）。
+func (s *SQLiteStore) prepareVectorSearch(queryVec []float32) (maxID int, qNorm float64, err error) {
+	if err := s.db.QueryRowContext(s.baseCtx, "SELECT COALESCE(MAX(id), 0) FROM embeddings").Scan(&maxID); err != nil {
+		return 0, 0, fmt.Errorf("vector sql max id: %w", err)
+	}
+	if maxID == 0 {
+		return 0, 0, nil
+	}
+	qNorm = 0
+	for _, v := range queryVec {
+		qNorm += float64(v) * float64(v)
+	}
+	qNorm = math.Sqrt(qNorm)
+	if qNorm == 0 {
+		return 0, 0, fmt.Errorf("query vector is zero")
+	}
+	return maxID, qNorm, nil
+}
+
+// scanVectorRange 扫描 [sID, eID) 的 embedding 行，返回该范围内的 top-K
+// 余弦相似候选（本地小顶堆维护）。
+func (s *SQLiteStore) scanVectorRange(sID, eID int, queryVec []float32, qNorm float64, topK int) vectorWorkerResult {
+	localTop := make([]vectorCandidate, 0, topK)
+
+	rows, err := s.db.QueryContext(s.baseCtx, `
+		SELECT e.chunk_id, e.vector, e.norm
+		FROM embeddings e
+		WHERE e.id >= ? AND e.id < ?
+		ORDER BY e.id`, sID, eID)
+	if err != nil {
+		return vectorWorkerResult{err: fmt.Errorf("worker [%d,%d): %w", sID, eID, err)}
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var chunkID int
+		var vecBlob []byte
+		var norm float64
+		if err := rows.Scan(&chunkID, &vecBlob, &norm); err != nil {
+			continue
+		}
+		vec := vecbytes.BytesToFloats(vecBlob)
+		if len(vec) != len(queryVec) {
+			continue
+		}
+		dot := float64(0)
+		for i, v := range queryVec {
+			dot += float64(v) * float64(vec[i])
+		}
+		cosine := dot / (qNorm * norm)
+		localTop = insertVectorCandidate(localTop, vectorCandidate{chunkID, cosine}, topK)
+	}
+	return vectorWorkerResult{top: localTop}
+}
+
+// insertVectorCandidate 将候选按分数降序插入容量受限的切片（模拟小顶堆：
+// 仅保留 topK 个最高分；新候选分数高于末尾时才替换并重新排序）。
+func insertVectorCandidate(heap []vectorCandidate, c vectorCandidate, topK int) []vectorCandidate {
+	if len(heap) < topK {
+		heap = append(heap, c)
+		for j := len(heap) - 1; j > 0; j-- {
+			if heap[j].score > heap[j-1].score {
+				heap[j], heap[j-1] = heap[j-1], heap[j]
+			}
+		}
+	} else if c.score > heap[len(heap)-1].score {
+		heap[len(heap)-1] = c
+		for j := len(heap) - 1; j > 0; j-- {
+			if heap[j].score > heap[j-1].score {
+				heap[j], heap[j-1] = heap[j-1], heap[j]
+			}
+		}
+	}
+	return heap
+}
+
+// mergeVectorResults 合并各 worker 的 top-K 候选（同样按分数降序插入），
+// 并收集 worker 错误供调用方决定是降级返回还是报告。
+func mergeVectorResults(results <-chan vectorWorkerResult, topK int) ([]vectorCandidate, []error) {
+	var workerErrs []error
+	merged := make([]vectorCandidate, 0, topK)
+	for wr := range results {
+		if wr.err != nil {
+			workerErrs = append(workerErrs, wr.err)
+			continue
+		}
+		for _, c := range wr.top {
+			merged = insertVectorCandidate(merged, c, topK)
+		}
+	}
+	return merged, workerErrs
 }
 
 // getChunk retrieves a single chunk by its integer ID.

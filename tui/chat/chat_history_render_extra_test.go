@@ -347,7 +347,7 @@ func TestPadToWidth(t *testing.T) {
 	h := NewChatHistory()
 	in := []string{"short", "longer line"}
 
-	out := h.padToWidth(append([]string(nil), in...), 20, 2, false, 0)
+	out := h.padToWidth(append([]string(nil), in...), 20, false, 0)
 	for _, ln := range out {
 		if core.VisibleWidth(ln) != 20 {
 			t.Fatalf("padded width = %d, want 20: %q", core.VisibleWidth(ln), ln)
@@ -355,7 +355,7 @@ func TestPadToWidth(t *testing.T) {
 	}
 
 	// With scrollbar active (sbNow=true) lines pass through unchanged.
-	out = h.padToWidth(append([]string(nil), in...), 20, 2, true, 1)
+	out = h.padToWidth(append([]string(nil), in...), 20, true, 1)
 	if len(out) != 2 || out[0] != "short" {
 		t.Fatalf("sbNow should skip padding, got %v", out)
 	}

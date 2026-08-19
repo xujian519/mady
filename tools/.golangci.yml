@@ -1,5 +1,7 @@
 # Mady Tools - golangci-lint Configuration (v2 format)
-# 与根模块 .golangci.yml 对标，逐步收紧。已修复项启用，待修复项标记。
+# 与根模块 .golangci.yml 对标（2026-08-19 门禁统一）：
+# gocognit/dupl/unparam 已启用；先修后开（108 issues → 0）。
+# errcheck 保留 source 规则豁免 defer 清理/交互读取（与根配置同款）。
 version: "2"
 
 run:
@@ -20,6 +22,9 @@ linters:
     - revive          # golint 替代
     - misspell        # 拼写检查
     - unconvert       # 不必要类型转换
+    - gocognit        # 认知复杂度（阈值 30，防止过度复杂函数）
+    - dupl            # 重复代码检测（阈值 100 token）
+    - unparam         # 未使用参数检测
 
     # 代码质量（补齐自根模块 2026-07-30）
     - goconst         # 可提取为常量的重复字符串
@@ -68,6 +73,10 @@ linters:
       min-len: 15
       min-occurrences: 15
       ignore-calls: true
+    gocognit:
+      min-complexity: 30
+    dupl:
+      threshold: 100
     gosec:
       excludes:
         - G404   # 弱随机数生成器（项目已知设计选择）

@@ -221,6 +221,17 @@ func RGBTo256(r, g, b int64) int64 {
 // FgParams returns the CSI SGR parameter segment for a foreground color value.
 // Empty string means default foreground. Values: "#rrggbb" or decimal index 0–255.
 func FgParams(value string, mode ColorMode) string {
+	return colorParams(value, mode, "38", FgParams16Index, FgParams16)
+}
+
+// BgParams returns CSI parameters for a background (48;…).
+func BgParams(value string, mode ColorMode) string {
+	return colorParams(value, mode, "48", BgParams16Index, BgParams16)
+}
+
+// colorParams implements the shared FgParams/BgParams logic; the two differ
+// only in the SGR prefix ("38" vs "48") and the 16-color folding helpers.
+func colorParams(value string, mode ColorMode, prefix string, params16Index func(int64, bool) string, params16 func(string, bool) string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""
@@ -229,51 +240,25 @@ func FgParams(value string, mode ColorMode) string {
 		if mode == ColorModeBasic {
 			// In basic mode a raw 256-color index must be folded into the
 			// 16-color palette — the terminal ignores 38;5;n (P2-8).
-			return FgParams16Index(n, currentIsDarkBg())
+			return params16Index(n, currentIsDarkBg())
 		}
-		return fmt.Sprintf("38;5;%d", n)
+		return fmt.Sprintf("%s;5;%d", prefix, n)
 	}
 	r, g, b, ok := hexToRGB(value)
 	if !ok {
 		return ""
 	}
 	if mode == ColorModeTruecolor {
-		return fmt.Sprintf("38;2;%d;%d;%d", r, g, b)
+		return fmt.Sprintf("%s;2;%d;%d;%d", prefix, r, g, b)
 	}
 	if mode == ColorModeBasic {
 		// Polarity is derived from the active semantic background so light
 		// themes pick legible normal variants instead of always assuming a
 		// dark background (P2-9).
-		return FgParams16(value, currentIsDarkBg())
+		return params16(value, currentIsDarkBg())
 	}
 	idx := RGBTo256(r, g, b)
-	return fmt.Sprintf("38;5;%d", idx)
-}
-
-// BgParams returns CSI parameters for a background (48;…).
-func BgParams(value string, mode ColorMode) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	if n, err := strconv.ParseInt(value, 10, 32); err == nil && n >= 0 && n <= 255 {
-		if mode == ColorModeBasic {
-			return BgParams16Index(n, currentIsDarkBg())
-		}
-		return fmt.Sprintf("48;5;%d", n)
-	}
-	r, g, b, ok := hexToRGB(value)
-	if !ok {
-		return ""
-	}
-	if mode == ColorModeTruecolor {
-		return fmt.Sprintf("48;2;%d;%d;%d", r, g, b)
-	}
-	if mode == ColorModeBasic {
-		return BgParams16(value, currentIsDarkBg())
-	}
-	idx := RGBTo256(r, g, b)
-	return fmt.Sprintf("48;5;%d", idx)
+	return fmt.Sprintf("%s;5;%d", prefix, idx)
 }
 
 // currentIsDarkBg reports whether the active semantic theme has a dark

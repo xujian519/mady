@@ -182,7 +182,7 @@ func (t *Table) Scroll() int {
 // Columns with Weight>0 get proportional allocations; Weight==0 fills
 // remaining space. If the flexible column's computed width would be less
 // than its MinWidth, all columns are redistributed proportionally.
-func (t *Table) ColWidths(total int64) []int64 {
+func (t *Table) ColWidths(total int64) []int64 { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 

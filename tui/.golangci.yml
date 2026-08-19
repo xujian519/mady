@@ -1,6 +1,7 @@
 # Mady TUI - golangci-lint Configuration (v2 format)
-# TUI 模块为 8 层 Elm 架构终端 UI，无 HTTP 客户端代码，
-# 无需 bodyclose/noctx/gosec 等 HTTP/安全相关 linter。
+# 与根模块 .golangci.yml 对标（2026-08-19 门禁统一）：
+# TUI 为 8 层 Elm 架构终端 UI，无 HTTP 客户端代码，故不含 bodyclose。
+# gocognit/dupl/unparam/gosec/noctx 已启用；先修后开（59 issues → 0）。
 version: "2"
 
 run:
@@ -19,13 +20,20 @@ linters:
     - misspell        # 拼写检查
     - unconvert       # 不必要的类型转换
 
-    # 代码质量
+    # 代码质量（对标根模块 2026-08-19）
     - goconst         # 可提取为常量的重复字符串
     - revive          # golint 替代（增强版）
+    - gocognit        # 认知复杂度（阈值 30，防止过度复杂函数）
+    - dupl            # 重复代码检测（阈值 100 token）
+    - unparam         # 未使用参数检测
 
     # 正确性
     - copyloopvar     # 循环变量引用副本
     - durationcheck   # 时间乘时间错误
+
+    # 安全（对标根模块 2026-08-19）
+    - gosec           # 安全审查
+    - noctx           # HTTP 请求是否携带 context
 
   settings:
     goconst:
@@ -73,6 +81,15 @@ linters:
           severity: warning
         - name: redefines-builtin-id
           severity: warning
+    gocognit:
+      min-complexity: 30
+    dupl:
+      threshold: 100
+    gosec:
+      excludes:
+        - G404   # 弱随机数生成器（项目已知设计选择）
+        - G115   # 整数溢出（项目已知设计选择）
+        - G402   # TLS 配置（非 TLS 服务）
     staticcheck:
       checks:
         - all

@@ -61,7 +61,7 @@ type RoleConfig struct {
 	MaxTokens int64 `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
 
 	// ToolDomains 声明角色使用的工具域范围。
-	// 工具域通过 tools.ToolDomains 映射工具名称到域，实现角色级工具过滤。
+	// 工具域映射见 agentcore.ToolDomains（工具名称 → 功能域）。
 	ToolDomains ToolDomainSet `json:"tool_domains,omitempty" yaml:"tool_domains,omitempty"`
 
 	// SystemPrompt 追加到 Agent SystemPrompt 末尾（可选）。

@@ -249,7 +249,7 @@ const jsRefMapOnlyScript = `
 })();
 `
 
-func generateSnapshot(ctx context.Context, full bool, refMapper *RefMapper) (string, error) {
+func generateSnapshot(ctx context.Context, full bool, refMapper *RefMapper) (string, error) { //nolint:unparam // full 参数转发给 GeneratePageSnapshot（__SHOW_ALL__ 注入），调用方当前恒传 false
 	return GeneratePageSnapshot(ctx, full, refMapper, "default")
 }
 
@@ -373,7 +373,7 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-func generateAriaSnapshot(ctx context.Context) (string, error) {
+func generateAriaSnapshot(ctx context.Context) (string, error) { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	nodes, err := accessibility.GetFullAXTree().Do(ctx)
 	if err != nil {
 		return "", fmt.Errorf("aria snapshot failed: %w", err)

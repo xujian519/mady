@@ -31,8 +31,7 @@ func (a SystemAppearance) String() string {
 // DetectSystemAppearance probes the OS for the current appearance.
 // Returns ApperanceUnknown when detection is not possible.
 func DetectSystemAppearance() SystemAppearance {
-	a, _ := detectAppearance()
-	return a
+	return detectAppearance(context.Background())
 }
 
 // cachedAppearance stores the last known appearance to avoid unnecessary
@@ -62,12 +61,7 @@ func WatchSystemAppearance(ctx context.Context, poll time.Duration, onChanged fu
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				current, err := detectAppearance()
-				if err != nil {
-					// Detection failed (e.g., defaults command not available).
-					// Don't change state; try again next cycle.
-					continue
-				}
+				current := detectAppearance(ctx)
 				if current == AppearanceUnknown {
 					// Transient detection failure (e.g. the defaults/gsettings
 					// command errored). Treat it as "no change": keep the last
@@ -91,16 +85,18 @@ func WatchSystemAppearance(ctx context.Context, poll time.Duration, onChanged fu
 }
 
 // detectAppearance runs the platform-specific detection command.
-func detectAppearance() (SystemAppearance, error) {
+// It never fails: macOS detection runs first; if unavailable it falls
+// through to Linux and finally returns AppearanceUnknown.
+func detectAppearance(ctx context.Context) SystemAppearance {
 	// Try macOS first (most reliable).
-	if a, err := detectMacOSAppearance(); err == nil {
-		return a, nil
+	if a, err := detectMacOSAppearance(ctx); err == nil {
+		return a
 	}
 	// Try Linux (GNOME-based desktops).
-	if a, err := detectLinuxAppearance(); err == nil {
-		return a, nil
+	if a, err := detectLinuxAppearance(ctx); err == nil {
+		return a
 	}
-	return AppearanceUnknown, nil
+	return AppearanceUnknown
 }
 
 // detectMacOSAppearance runs `defaults read -g AppleInterfaceStyle`.
@@ -108,8 +104,8 @@ func detectAppearance() (SystemAppearance, error) {
 // indicates light mode, or (AppearanceDark, nil) for dark mode.
 // Returns an error when the `defaults` command is unavailable (e.g. on Linux),
 // allowing detectAppearance to fall through to Linux detection.
-func detectMacOSAppearance() (SystemAppearance, error) {
-	cmd := exec.Command("defaults", "read", "-g", "AppleInterfaceStyle")
+func detectMacOSAppearance(ctx context.Context) (SystemAppearance, error) {
+	cmd := exec.CommandContext(ctx, "defaults", "read", "-g", "AppleInterfaceStyle")
 	out, err := cmd.Output()
 	if err != nil {
 		// On macOS Light mode, AppleInterfaceStyle key does not exist
@@ -128,8 +124,8 @@ func detectMacOSAppearance() (SystemAppearance, error) {
 }
 
 // detectLinuxAppearance runs `gsettings get org.gnome.desktop.interface color-scheme`.
-func detectLinuxAppearance() (SystemAppearance, error) {
-	cmd := exec.Command("gsettings", "get", "org.gnome.desktop.interface", "color-scheme")
+func detectLinuxAppearance(ctx context.Context) (SystemAppearance, error) {
+	cmd := exec.CommandContext(ctx, "gsettings", "get", "org.gnome.desktop.interface", "color-scheme")
 	out, err := cmd.Output()
 	if err != nil {
 		return AppearanceUnknown, err

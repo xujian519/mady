@@ -17,215 +17,134 @@ type subscriberAdapter struct {
 	agent *agentcore.Agent
 }
 
-func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.ChatEvent)) {
-	switch eventType {
-	case chat.ChatEventAgentStart:
-		s.agent.On(agentcore.EventAgentStart, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.AgentStartEvent)
-			if !ok {
-				return
-			}
-			handler(chat.AgentStartChatEvent{AgentName: ev.AgentName, Input: ev.Input})
-		})
-	case chat.ChatEventAgentEnd:
-		s.agent.On(agentcore.EventAgentEnd, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.AgentEndEvent)
-			if !ok {
-				return
-			}
-			handler(chat.AgentEndChatEvent{AgentName: ev.AgentName, Output: ev.Output, FinishReason: ev.FinishReason})
-		})
-	case chat.ChatEventAgentError:
-		s.agent.On(agentcore.EventAgentError, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.AgentErrorEvent)
-			if !ok {
-				return
-			}
-			handler(chat.AgentErrorChatEvent{Err: ev.Err})
-		})
-	case chat.ChatEventAgentInterrupt:
-		s.agent.On(agentcore.EventAgentInterrupt, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.AgentInterruptEvent)
-			if !ok {
-				return
-			}
-			var reason string
-			var data map[string]any
-			if ev.Reason != nil {
-				reason = ev.Reason.Reason
-				data = ev.Reason.Data
-			}
-			handler(chat.AgentInterruptChatEvent{Reason: reason, Data: data})
-		})
-	case chat.ChatEventTurnStart:
-		s.agent.On(agentcore.EventTurnStart, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.TurnStartEvent)
-			if !ok {
-				return
-			}
-			handler(chat.TurnStartChatEvent{Turn: ev.Turn})
-		})
-	case chat.ChatEventTurnEnd:
-		s.agent.On(agentcore.EventTurnEnd, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.TurnEndEvent)
-			if !ok {
-				return
-			}
-			handler(chat.TurnEndChatEvent{Turn: ev.Turn, Usage: convertUsage(ev.Usage)})
-		})
-	case chat.ChatEventMessageDelta:
-		s.agent.On(agentcore.EventMessageDelta, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.MessageDeltaEvent)
-			if !ok {
-				return
-			}
-			handler(chat.MessageDeltaChatEvent{Delta: ev.Delta, Kind: string(ev.Kind)})
-		})
-	case chat.ChatEventToolCallStart:
-		s.agent.On(agentcore.EventToolCallStart, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.ToolCallStartEvent)
-			if !ok {
-				return
-			}
-			handler(chat.ToolCallStartChatEvent{ToolCall: chat.ToolCallInfo{
-				ID: ev.ToolCall.ID, Name: ev.ToolCall.Name, Arguments: ev.ToolCall.Arguments,
-			}})
-		})
-	case chat.ChatEventToolCallEnd:
-		s.agent.On(agentcore.EventToolCallEnd, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.ToolCallEndEvent)
-			if !ok {
-				return
-			}
-			handler(chat.ToolCallEndChatEvent{
-				ToolCallID: ev.ToolCallID, ToolName: ev.ToolName,
-				Result: ev.Result, Err: ev.Err, Duration: ev.Duration,
-			})
-		})
-	case chat.ChatEventHandoffStart:
-		s.agent.On(agentcore.EventHandoffStart, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.HandoffStartEvent)
-			if !ok {
-				return
-			}
-			handler(chat.HandoffStartChatEvent{
-				SourceAgent: ev.SourceAgent, TargetAgent: ev.TargetAgent,
-				Mode: ev.Mode, Context: ev.Context,
-				Invisible: ev.Invisible,
-			})
-		})
-	case chat.ChatEventHandoffEnd:
-		s.agent.On(agentcore.EventHandoffEnd, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.HandoffEndEvent)
-			if !ok {
-				return
-			}
-			handler(chat.HandoffEndChatEvent{
-				TargetAgent: ev.TargetAgent, Output: ev.Output,
-				Duration: ev.Duration, Err: ev.Err,
-				Invisible: ev.Invisible,
-			})
-		})
-	case chat.ChatEventCompactionStart:
-		s.agent.On(agentcore.EventCompactionStart, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.CompactionStartEvent)
-			if !ok {
-				return
-			}
-			handler(chat.CompactionStartChatEvent{
-				TokensBefore: ev.TokensBefore, ContextWindow: ev.ContextWindow,
-			})
-		})
-	case chat.ChatEventCompactionEnd:
-		s.agent.On(agentcore.EventCompactionEnd, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.CompactionEndEvent)
-			if !ok {
-				return
-			}
-			handler(chat.CompactionEndChatEvent{
-				TokensBefore: ev.TokensBefore, TokensAfter: ev.TokensAfter,
-				MessagesCut: ev.MessagesCut, Duration: ev.Duration,
-			})
-		})
-	case chat.ChatEventAutoRetry:
-		s.agent.On(agentcore.EventAutoRetry, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.AutoRetryEvent)
-			if !ok {
-				return
-			}
-			handler(chat.AutoRetryChatEvent{
-				Attempt: ev.Attempt, MaxRetries: ev.MaxRetries,
-				Delay: ev.Delay, Err: ev.Err,
-			})
-		})
-	case chat.ChatEventApprovalPrompt:
-		s.agent.On(agentcore.EventApprovalPrompt, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.ApprovalPromptEvent)
-			if !ok {
-				return
-			}
-			handler(chat.ApprovalPromptChatEvent{
-				Content: ev.Content,
-				Data:    parseReviewGateData(ev.Content, ev.Data),
-			})
-		})
-	case chat.ChatEventTaskCreated:
-		s.agent.On(agentcore.EventTaskCreated, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.TaskCreatedEvent)
-			if !ok {
-				return
-			}
-			handler(chat.TaskCreatedChatEvent{Task: agentTaskToInfo(ev.Task)})
-		})
-	case chat.ChatEventTaskUpdated:
-		s.agent.On(agentcore.EventTaskUpdated, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.TaskUpdatedEvent)
-			if !ok {
-				return
-			}
-			handler(chat.TaskUpdatedChatEvent{
-				Task: agentTaskToInfo(ev.Task),
-			})
-		})
-	// PlanTask status events
-	case chat.ChatEventPlanTaskStatusChanged:
-		s.agent.On(agentcore.EventPlanTaskStatusChanged, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.PlanTaskStatusChangedEvent)
-			if !ok {
-				return
-			}
-			handler(chat.PlanTaskStatusChangedChatEvent{
-				SessionID:  ev.SessionID,
-				CaseID:     ev.CaseID,
-				FromStatus: ev.FromStatus,
-				ToStatus:   ev.ToStatus,
-			})
-		})
-	case chat.ChatEventPlanTaskFeedbackAdded:
-		s.agent.On(agentcore.EventPlanTaskFeedbackAdded, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.PlanTaskFeedbackAddedEvent)
-			if !ok {
-				return
-			}
-			handler(chat.PlanTaskFeedbackAddedChatEvent{
-				SessionID: ev.SessionID,
-				Text:      ev.Text,
-				StepID:    ev.StepID,
-			})
-		})
-	case chat.ChatEventPlanTaskInterrupted:
-		s.agent.On(agentcore.EventPlanTaskInterrupted, func(e agentcore.Event) {
-			ev, ok := e.(*agentcore.PlanTaskInterruptedEvent)
-			if !ok {
-				return
-			}
-			handler(chat.PlanTaskInterruptedChatEvent{
-				SessionID: ev.SessionID,
-				StepID:    ev.StepID,
-				Reason:    ev.Reason,
-			})
-		})
+// eventToChat 按 agentcore 事件类型转换（映射表驱动，取代大型 switch）。
+// 转换函数各自断言具体事件类型，断言失败返回 nil（不会发生：映射表
+// 已按类型一一对应）。
+func (s *subscriberAdapter) eventToChat(e agentcore.Event) chat.ChatEvent {
+	switch ev := e.(type) {
+	case *agentcore.AgentStartEvent:
+		return chat.AgentStartChatEvent{AgentName: ev.AgentName, Input: ev.Input}
+	case *agentcore.AgentEndEvent:
+		return chat.AgentEndChatEvent{AgentName: ev.AgentName, Output: ev.Output, FinishReason: ev.FinishReason}
+	case *agentcore.AgentErrorEvent:
+		return chat.AgentErrorChatEvent{Err: ev.Err}
+	case *agentcore.AgentInterruptEvent:
+		var reason string
+		var data map[string]any
+		if ev.Reason != nil {
+			reason = ev.Reason.Reason
+			data = ev.Reason.Data
+		}
+		return chat.AgentInterruptChatEvent{Reason: reason, Data: data}
+	case *agentcore.TurnStartEvent:
+		return chat.TurnStartChatEvent{Turn: ev.Turn}
+	case *agentcore.TurnEndEvent:
+		return chat.TurnEndChatEvent{Turn: ev.Turn, Usage: convertUsage(ev.Usage)}
+	case *agentcore.MessageDeltaEvent:
+		return chat.MessageDeltaChatEvent{Delta: ev.Delta, Kind: string(ev.Kind)}
+	case *agentcore.ToolCallStartEvent:
+		return chat.ToolCallStartChatEvent{ToolCall: chat.ToolCallInfo{
+			ID: ev.ToolCall.ID, Name: ev.ToolCall.Name, Arguments: ev.ToolCall.Arguments,
+		}}
+	case *agentcore.ToolCallEndEvent:
+		return chat.ToolCallEndChatEvent{
+			ToolCallID: ev.ToolCallID, ToolName: ev.ToolName,
+			Result: ev.Result, Err: ev.Err, Duration: ev.Duration,
+		}
+	case *agentcore.HandoffStartEvent:
+		return chat.HandoffStartChatEvent{
+			SourceAgent: ev.SourceAgent, TargetAgent: ev.TargetAgent,
+			Mode: ev.Mode, Context: ev.Context,
+			Invisible: ev.Invisible,
+		}
+	case *agentcore.HandoffEndEvent:
+		return chat.HandoffEndChatEvent{
+			TargetAgent: ev.TargetAgent, Output: ev.Output,
+			Duration: ev.Duration, Err: ev.Err,
+			Invisible: ev.Invisible,
+		}
+	case *agentcore.CompactionStartEvent:
+		return chat.CompactionStartChatEvent{
+			TokensBefore: ev.TokensBefore, ContextWindow: ev.ContextWindow,
+		}
+	case *agentcore.CompactionEndEvent:
+		return chat.CompactionEndChatEvent{
+			TokensBefore: ev.TokensBefore, TokensAfter: ev.TokensAfter,
+			MessagesCut: ev.MessagesCut, Duration: ev.Duration,
+		}
+	case *agentcore.AutoRetryEvent:
+		return chat.AutoRetryChatEvent{
+			Attempt: ev.Attempt, MaxRetries: ev.MaxRetries,
+			Delay: ev.Delay, Err: ev.Err,
+		}
+	case *agentcore.ApprovalPromptEvent:
+		return chat.ApprovalPromptChatEvent{
+			Content: ev.Content,
+			Data:    parseReviewGateData(ev.Data),
+		}
+	case *agentcore.TaskCreatedEvent:
+		return chat.TaskCreatedChatEvent{Task: agentTaskToInfo(ev.Task)}
+	case *agentcore.TaskUpdatedEvent:
+		return chat.TaskUpdatedChatEvent{Task: agentTaskToInfo(ev.Task)}
+	case *agentcore.PlanTaskStatusChangedEvent:
+		return chat.PlanTaskStatusChangedChatEvent{
+			SessionID:  ev.SessionID,
+			CaseID:     ev.CaseID,
+			FromStatus: ev.FromStatus,
+			ToStatus:   ev.ToStatus,
+		}
+	case *agentcore.PlanTaskFeedbackAddedEvent:
+		return chat.PlanTaskFeedbackAddedChatEvent{
+			SessionID: ev.SessionID,
+			Text:      ev.Text,
+			StepID:    ev.StepID,
+		}
+	case *agentcore.PlanTaskInterruptedEvent:
+		return chat.PlanTaskInterruptedChatEvent{
+			SessionID: ev.SessionID,
+			StepID:    ev.StepID,
+			Reason:    ev.Reason,
+		}
 	}
+	return nil
+}
+
+func (s *subscriberAdapter) On(eventType chat.ChatEventType, handler func(chat.ChatEvent)) {
+	// 事件映射表驱动：chat 事件类型 → agentcore 事件类型。
+	evType, ok := chatToAgentEvent[eventType]
+	if !ok {
+		return
+	}
+	s.agent.On(evType, func(e agentcore.Event) {
+		if conv := s.eventToChat(e); conv != nil {
+			handler(conv)
+		}
+	})
+}
+
+// chatToAgentEvent 建立 chat 事件类型到 agentcore 事件类型的双向映射。
+// eventToChat 按具体类型断言转换，此处只需确定订阅的事件类型。
+var chatToAgentEvent = map[chat.ChatEventType]agentcore.EventType{
+	chat.ChatEventAgentStart:            agentcore.EventAgentStart,
+	chat.ChatEventAgentEnd:              agentcore.EventAgentEnd,
+	chat.ChatEventAgentError:            agentcore.EventAgentError,
+	chat.ChatEventAgentInterrupt:        agentcore.EventAgentInterrupt,
+	chat.ChatEventTurnStart:             agentcore.EventTurnStart,
+	chat.ChatEventTurnEnd:               agentcore.EventTurnEnd,
+	chat.ChatEventMessageDelta:          agentcore.EventMessageDelta,
+	chat.ChatEventToolCallStart:         agentcore.EventToolCallStart,
+	chat.ChatEventToolCallEnd:           agentcore.EventToolCallEnd,
+	chat.ChatEventHandoffStart:          agentcore.EventHandoffStart,
+	chat.ChatEventHandoffEnd:            agentcore.EventHandoffEnd,
+	chat.ChatEventCompactionStart:       agentcore.EventCompactionStart,
+	chat.ChatEventCompactionEnd:         agentcore.EventCompactionEnd,
+	chat.ChatEventAutoRetry:             agentcore.EventAutoRetry,
+	chat.ChatEventApprovalPrompt:        agentcore.EventApprovalPrompt,
+	chat.ChatEventTaskCreated:           agentcore.EventTaskCreated,
+	chat.ChatEventTaskUpdated:           agentcore.EventTaskUpdated,
+	chat.ChatEventPlanTaskStatusChanged: agentcore.EventPlanTaskStatusChanged,
+	chat.ChatEventPlanTaskFeedbackAdded: agentcore.EventPlanTaskFeedbackAdded,
+	chat.ChatEventPlanTaskInterrupted:   agentcore.EventPlanTaskInterrupted,
 }
 
 func convertUsage(u agentcore.TokenUsage) chat.TokenUsage {
@@ -239,7 +158,7 @@ func convertUsage(u agentcore.TokenUsage) chat.TokenUsage {
 // parseReviewGateData converts the unstructured map from agentcore into a
 // typed ReviewGatePayload. This is the single parsing boundary — consumers
 // in the chat package receive typed data and never parse map[string]any.
-func parseReviewGateData(content string, data map[string]any) *chat.ReviewGatePayload {
+func parseReviewGateData(data map[string]any) *chat.ReviewGatePayload { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	if data == nil {
 		return nil
 	}

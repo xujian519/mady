@@ -12,7 +12,8 @@ package agentcore
 // =============================================================================
 
 // ToolDomains 将工具名称映射到功能域。
-// 映射表在启动时固定，运行时通过 FilterByDomains 过滤。
+// 映射表在启动时固定。注意：当前映射表尚未接线到角色工具过滤
+// （FilterToolNames 等函数已删除，角色级工具过滤属未完成功能，接线需另立 spec）。
 //
 // 每个工具只分配一个主域。如果一个工具跨多个域，选择最匹配的主域。
 var ToolDomains = map[string]string{
@@ -116,60 +117,4 @@ var ToolDomains = map[string]string{
 	// ── 撰写质量 (writing) ──
 	"writing_eval": "writing",
 	"style_check":  "writing",
-}
-
-// ToolDomain 返回工具所属的域名。如果工具未注册域，返回空字符串。
-// 未注册域的工具在角色过滤时默认放行（不限制）。
-func ToolDomain(name string) string {
-	return ToolDomains[name]
-}
-
-// AllDomains 返回所有已注册的工具域列表（去重）。
-func AllDomains() []string {
-	seen := make(map[string]bool)
-	for _, d := range ToolDomains {
-		seen[d] = true
-	}
-	out := make([]string, 0, len(seen))
-	for d := range seen {
-		out = append(out, d)
-	}
-	return out
-}
-
-// FilterToolNames 从工具名称列表中筛选出域属于 allowedDomains 的工具。
-// 未注册域的工具默认放行（视为"通用工具"）。
-//
-// 用途：按 Agent 角色可见性过滤工具名称列表，用于 DisableTools 配置。
-func FilterToolNames(names []string, allowedDomains []string) []string {
-	if len(allowedDomains) == 0 {
-		return names
-	}
-	allowed := make(map[string]bool, len(allowedDomains))
-	for _, d := range allowedDomains {
-		allowed[d] = true
-	}
-	var filtered []string
-	for _, name := range names {
-		domain := ToolDomain(name)
-		if domain == "" || allowed[domain] {
-			filtered = append(filtered, name)
-		}
-	}
-	return filtered
-}
-
-// ToolHasDomain 检查工具名称是否属于指定的域列表。
-// 未注册域的工具视为通用，始终返回 true。
-func ToolHasDomain(toolName string, domains []string) bool {
-	d := ToolDomain(toolName)
-	if d == "" {
-		return true
-	}
-	for _, allowed := range domains {
-		if d == allowed {
-			return true
-		}
-	}
-	return false
 }

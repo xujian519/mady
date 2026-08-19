@@ -24,13 +24,10 @@ func TestSystemAppearanceString(t *testing.T) {
 }
 
 func TestDetectAppearance(t *testing.T) {
-	// detectAppearance must never return an error: macOS detection runs
-	// first; if unavailable it falls through to Linux and finally returns
-	// (AppearanceUnknown, nil).
-	a, err := detectAppearance()
-	if err != nil {
-		t.Fatalf("detectAppearance: %v", err)
-	}
+	// detectAppearance never returns an error: macOS detection runs first;
+	// if unavailable it falls through to Linux and finally returns
+	// AppearanceUnknown.
+	a := detectAppearance(context.Background())
 	if a != AppearanceUnknown && a != AppearanceDark && a != AppearanceLight {
 		t.Fatalf("detectAppearance returned invalid value %v", a)
 	}
@@ -42,7 +39,7 @@ func TestDetectAppearance(t *testing.T) {
 //   - success branch: real GNOME desktop where gsettings answers -> dark or
 //     light depending on the OS color-scheme setting.
 func TestDetectLinuxAppearance(t *testing.T) {
-	a, err := detectLinuxAppearance()
+	a, err := detectLinuxAppearance(context.Background())
 	if err != nil {
 		// Error branch: gsettings unavailable / unusable.
 		if a != AppearanceUnknown {

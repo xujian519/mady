@@ -253,15 +253,10 @@ func (a *Agent) runLoop(ctx context.Context) (string, error) {
 //
 // 重复检测状态（lastContent/repeatCount/...）在每次调用中局部化，
 // 有意不在跟随消息轮次间共享。
-//
-//nolint:gocognit // 原因：Agent 内循环，含状态机和重复检测逻辑
 func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, string, bool, error) {
 	var finalOutput string
 	var finishReason string
-	var lastContent string
-	var repeatCount int
-	var lastToolSignature string
-	var toolRepeatCount int
+	var rep repetitionState
 	// truncationContinuations 记录本轮循环内因 max_tokens 截断触发的
 	// 自动续写次数，超过 maxTruncationContinuations 后不再续写。
 	var truncationContinuations int
@@ -273,18 +268,13 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			return "", "", true, err
 		}
 
-		resp, err := a.runModelTurn(ctx, turn)
+		resp, err := a.runModelTurnSafe(ctx, turn)
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				// User canceled the request — maintain Before/After pairing
-				// via endTurn, then exit as an interruption (not a clean finish).
-				if e := a.endTurn(ctx, turn, TokenUsage{}, false); e != nil {
-					slog.Debug("agent_run: endTurn failed during context cancellation", "turn", turn, "error", e)
-				}
-				a.state.SetStatus(StatusInterrupted)
-				return "", "", true, nil
-			}
-			return "", "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
+			return "", "", true, err
+		}
+		if resp == nil {
+			// 模型调用被用户取消，已转为中断状态。
+			return "", "", true, nil
 		}
 
 		// Lifecycle: AfterModelCall — error is non-fatal, persist and continue
@@ -292,142 +282,235 @@ func (a *Agent) runInnerLoop(ctx context.Context, loopStartTurn int64) (string, 
 			continue
 		}
 
-		// Accumulate usage
-		if resp.Usage.TotalTokens > 0 {
-			a.state.AddUsage(resp.Usage)
-			if a.contextEngine != nil {
-				a.contextEngine.UpdateFromResponse(resp.Usage)
-			}
+		if err := a.recordModelResponse(ctx, turn, resp); err != nil {
+			return "", "", true, err
 		}
 
-		if !resp.SuppressPersist {
-			if err := a.persistMessage(ctx, Message{
-				Role:      RoleAssistant,
-				Content:   resp.Content,
-				Blocks:    resp.Blocks,
-				ToolCalls: resp.ToolCalls,
-			}); err != nil {
-				return "", "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", err)
-			}
-		}
-
+		// 无工具调用：模型直接给出最终答案（或截断续写后收尾）。
 		if len(resp.ToolCalls) == 0 {
-			// 输出完整性保护：模型因 max_tokens 截断输出（finish_reason="length"）
-			// 时，自动追加一轮续写，要求模型从断点继续完成剩余内容。仅续写
-			// maxTruncationContinuations 次，续写后仍截断则按截断结果正常结束，
-			// FinishReason 保留 "length" 供下游通道提示用户输出可能不完整。
-			if resp.FinishReason == "length" && truncationContinuations < maxTruncationContinuations {
-				truncationContinuations++
-				if err := a.steering.Push(Message{
-					Role:    RoleSystem,
-					Content: steeringMsgTruncation,
-				}); err == nil {
-					if err := a.endTurn(ctx, turn, resp.Usage, false); err != nil {
-						return "", "", true, err
-					}
-					continue
-				}
-				slog.Warn("agent: failed to push truncation continuation message", "error", err)
-			}
-
-			finalOutput = resp.Content
-			finishReason = resp.FinishReason
-			a.state.SetStatus(StatusFinished)
-			if err := a.endTurn(ctx, turn, resp.Usage, false); err != nil {
+			finished, out, reason, err := a.finishWithoutToolCalls(ctx, turn, resp, &truncationContinuations)
+			if err != nil {
 				return "", "", true, err
 			}
+			if !finished {
+				continue
+			}
+			finalOutput, finishReason = out, reason
 			break
 		}
 
 		// Truncation guard: when the provider reports finish_reason="length" the
 		// model hit max_tokens and any tool-call arguments may be cut mid-JSON.
-		if handled, gErr := a.guardTruncation(ctx, turn, resp); handled {
-			if gErr != nil {
-				return "", "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "truncation guard failed", gErr)
-			}
+		if handled, err := a.runTruncationGuard(ctx, turn, resp); err != nil {
+			return "", "", true, err
+		} else if handled {
 			continue
 		}
 
-		earlyExit, err := a.executeToolCalls(ctx, resp.ToolCalls)
+		// 工具调用轮次：执行工具、处理 early-exit/取消/交接，并更新重复检测状态。
+		finished, earlyOutput, err := a.runToolCallTurn(ctx, turn, resp, &rep, loopStartTurn)
 		if err != nil {
-			if IsInterrupt(err) {
-				a.state.SetStatus(StatusInterrupted)
-				a.state.SetInterruptReason(a.interrupted.Load())
-				return "", "", true, nil
-			}
-			return "", "", true, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "tool execution persist failed", err)
-		}
-
-		// Early-exit: a tool returned a terminating result
-		if earlyExit != "" {
-			finalOutput = earlyExit
-			a.state.SetStatus(StatusFinished)
-			if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
-				return "", "", true, err
-			}
-			break
-		}
-
-		// Context cancellation during tool execution
-		if errors.Is(ctx.Err(), context.Canceled) {
-			if e := a.endTurn(ctx, turn, resp.Usage, true); e != nil {
-				slog.Debug("agent_run: endTurn failed during context cancellation", "turn", turn, "error", e)
-			}
-			a.state.SetStatus(StatusInterrupted)
-			return "", "", true, nil
-		}
-		if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
 			return "", "", true, err
 		}
-
-		// Transfer handoff
-		if handoff := a.state.PendingHandoff(); handoff != nil {
-			a.state.ClearPendingHandoff()
-			out, err := a.handleTransfer(ctx, handoff)
-			return out, "", true, err
-		}
-
-		// Repetition detection: if the model emits the same text 3+ turns in a
-		// row it is stuck in a loop. Inject a steering message to break out.
-		if turn-loopStartTurn >= 2 && resp.Content != "" && resp.Content == lastContent {
-			repeatCount++
-			if repeatCount >= 2 {
-				if err := a.steering.Push(Message{
-					Role:    RoleSystem,
-					Content: steeringMsgRepeatText,
-				}); err != nil {
-					slog.Warn("agent: failed to push steering message", "error", err)
-				}
-				lastContent = ""
-				repeatCount = 0
+		if finished {
+			if earlyOutput != "" {
+				finalOutput = earlyOutput
 			}
-		} else if resp.Content != "" {
-			lastContent = resp.Content
-			repeatCount = 0
-		}
-
-		// Tool-call repetition detection: if the model makes the same set of
-		// tool calls (by name) 3+ turns in a row, it is stuck in a retry loop
-		if len(resp.ToolCalls) > 0 {
-			sig := toolCallSignature(resp.ToolCalls)
-			if sig == lastToolSignature {
-				toolRepeatCount++
-				if toolRepeatCount >= 2 {
-					if err := a.steering.Push(Message{
-						Role:    RoleSystem,
-						Content: steeringMsgRepeatTool,
-					}); err != nil {
-						slog.Warn("agent: failed to push steering message", "error", err)
-					}
-					lastToolSignature = ""
-					toolRepeatCount = 0
-				}
-			} else {
-				lastToolSignature = sig
-				toolRepeatCount = 0
-			}
+			break
 		}
 	}
 
 	return finalOutput, finishReason, false, nil
+}
+
+// runTruncationGuard 包装 guardTruncation，把"截断已处理"与"处理失败"
+// 归一为调用方可直接消费的形态。
+func (a *Agent) runTruncationGuard(ctx context.Context, turn int64, resp *ProviderResponse) (bool, error) {
+	handled, gErr := a.guardTruncation(ctx, turn, resp)
+	if handled && gErr != nil {
+		return handled, a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "truncation guard failed", gErr)
+	}
+	return handled, nil
+}
+
+// runToolCallTurn 执行模型请求的工具调用并处理轮次收尾：
+//   - 工具执行错误：可恢复（IsInterrupt）→ 转中断；否则 failLoop
+//   - early-exit：工具返回终止性结果 → 结束轮次
+//   - 上下文取消：执行后取消 → 转中断
+//   - 交接：子 Agent 转交 → 结束
+//
+// 返回 (finished, earlyOutput, err)：finished=true 表示轮次结束（earlyOutput
+// 仅在 early-exit 时非空）；err 非空时调用方应终止循环。
+func (a *Agent) runToolCallTurn(ctx context.Context, turn int64, resp *ProviderResponse, rep *repetitionState, loopStartTurn int64) (bool, string, error) {
+	earlyExit, err := a.executeToolCalls(ctx, resp.ToolCalls)
+	if err != nil {
+		if IsInterrupt(err) {
+			a.state.SetStatus(StatusInterrupted)
+			a.state.SetInterruptReason(a.interrupted.Load())
+			return true, "", nil
+		}
+		return true, "", a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "tool execution persist failed", err)
+	}
+
+	// Early-exit: a tool returned a terminating result
+	if earlyExit != "" {
+		a.state.SetStatus(StatusFinished)
+		if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
+			return true, "", err
+		}
+		return true, earlyExit, nil
+	}
+
+	// Context cancellation during tool execution
+	if errors.Is(ctx.Err(), context.Canceled) {
+		if e := a.endTurn(ctx, turn, resp.Usage, true); e != nil {
+			slog.Debug("agent_run: endTurn failed during context cancellation", "turn", turn, "error", e)
+		}
+		a.state.SetStatus(StatusInterrupted)
+		return true, "", nil
+	}
+	if err := a.endTurn(ctx, turn, resp.Usage, true); err != nil {
+		return true, "", err
+	}
+
+	// Transfer handoff
+	if handoff := a.state.PendingHandoff(); handoff != nil {
+		a.state.ClearPendingHandoff()
+		out, err := a.handleTransfer(ctx, handoff)
+		return true, out, err
+	}
+
+	// 文本/工具调用重复检测：模型连续多轮输出相同文本或调用相同工具集时
+	// 注入 steering 消息打破循环。
+	a.detectRepetition(turn, loopStartTurn, resp, rep)
+	return false, "", nil
+}
+
+// finishWithoutToolCalls 处理模型未调用工具的收尾轮次：若输出被 max_tokens
+// 截断则自动续写一次（受 maxTruncationContinuations 限制），否则正常结束。
+// 返回 (finished, finalOutput, finishReason, err)：finished=false 表示本轮
+// 触发了截断续写、需要继续循环。
+func (a *Agent) finishWithoutToolCalls(ctx context.Context, turn int64, resp *ProviderResponse, truncationContinuations *int) (bool, string, string, error) {
+	// 输出完整性保护：模型因 max_tokens 截断输出（finish_reason="length"）
+	// 时，自动追加一轮续写，要求模型从断点继续完成剩余内容。仅续写
+	// maxTruncationContinuations 次，续写后仍截断则按截断结果正常结束，
+	// FinishReason 保留 "length" 供下游通道提示用户输出可能不完整。
+	if resp.FinishReason == "length" && *truncationContinuations < maxTruncationContinuations {
+		*truncationContinuations++
+		err := a.steering.Push(Message{
+			Role:    RoleSystem,
+			Content: steeringMsgTruncation,
+		})
+		if err == nil {
+			if err := a.endTurn(ctx, turn, resp.Usage, false); err != nil {
+				return false, "", "", err
+			}
+			return false, "", "", nil
+		}
+		slog.Warn("agent: failed to push truncation continuation message", "error", err)
+	}
+
+	a.state.SetStatus(StatusFinished)
+	if err := a.endTurn(ctx, turn, resp.Usage, false); err != nil {
+		return false, "", "", err
+	}
+	return true, resp.Content, resp.FinishReason, nil
+}
+
+// runModelTurnSafe 执行模型调用并将错误归一化为两种可处理形态：
+//   - 返回 (nil, nil)：用户取消，已设置 StatusInterrupted 并完成 endTurn
+//   - 返回 (nil, err)：不可恢复错误（已通过 failLoop 记录）
+func (a *Agent) runModelTurnSafe(ctx context.Context, turn int64) (*ProviderResponse, error) {
+	resp, err := a.runModelTurn(ctx, turn)
+	if err == nil {
+		return resp, nil
+	}
+	if errors.Is(err, context.Canceled) {
+		// User canceled the request — maintain Before/After pairing
+		// via endTurn, then exit as an interruption (not a clean finish).
+		if e := a.endTurn(ctx, turn, TokenUsage{}, false); e != nil {
+			slog.Debug("agent_run: endTurn failed during context cancellation", "turn", turn, "error", e)
+		}
+		a.state.SetStatus(StatusInterrupted)
+		return nil, nil
+	}
+	return nil, a.failLoop(ctx, fmt.Sprintf("turn:%d|provider", turn), "provider call failed", err)
+}
+
+// recordModelResponse 累计 token 用量并将助手消息持久化到会话状态，
+// SuppressPersist 为 true 时跳过持久化（如 Strict 护栏命中）。
+func (a *Agent) recordModelResponse(ctx context.Context, turn int64, resp *ProviderResponse) error {
+	if resp.Usage.TotalTokens > 0 {
+		a.state.AddUsage(resp.Usage)
+		if a.contextEngine != nil {
+			a.contextEngine.UpdateFromResponse(resp.Usage)
+		}
+	}
+
+	if !resp.SuppressPersist {
+		if err := a.persistMessage(ctx, Message{
+			Role:      RoleAssistant,
+			Content:   resp.Content,
+			Blocks:    resp.Blocks,
+			ToolCalls: resp.ToolCalls,
+		}); err != nil {
+			return a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", err)
+		}
+	}
+	return nil
+}
+
+// detectRepetition 检测模型是否陷入重复循环（连续多轮输出相同文本，或
+// 反复调用相同工具集），若是则注入 steering 消息打破循环。状态通过指针
+// 传入并在调用间更新，确保本轮注入后下一轮能重新计数。
+// repetitionState 聚合文本/工具调用的重复检测计数状态，随轮次在调用间
+// 传递，避免主循环维护多个分散的计数器。
+type repetitionState struct {
+	lastContent       string
+	repeatCount       int
+	lastToolSignature string
+	toolRepeatCount   int
+}
+
+func (a *Agent) detectRepetition(turn, loopStartTurn int64, resp *ProviderResponse, rep *repetitionState) {
+	// Repetition detection: if the model emits the same text 3+ turns in a
+	// row it is stuck in a loop. Inject a steering message to break out.
+	if turn-loopStartTurn >= 2 && resp.Content != "" && resp.Content == rep.lastContent {
+		rep.repeatCount++
+		if rep.repeatCount >= 2 {
+			if err := a.steering.Push(Message{
+				Role:    RoleSystem,
+				Content: steeringMsgRepeatText,
+			}); err != nil {
+				slog.Warn("agent: failed to push steering message", "error", err)
+			}
+			rep.lastContent = ""
+			rep.repeatCount = 0
+		}
+	} else if resp.Content != "" {
+		rep.lastContent = resp.Content
+		rep.repeatCount = 0
+	}
+
+	// Tool-call repetition detection: if the model makes the same set of
+	// tool calls (by name) 3+ turns in a row, it is stuck in a retry loop.
+	if len(resp.ToolCalls) > 0 {
+		sig := toolCallSignature(resp.ToolCalls)
+		if sig == rep.lastToolSignature {
+			rep.toolRepeatCount++
+			if rep.toolRepeatCount >= 2 {
+				if err := a.steering.Push(Message{
+					Role:    RoleSystem,
+					Content: steeringMsgRepeatTool,
+				}); err != nil {
+					slog.Warn("agent: failed to push steering message", "error", err)
+				}
+				rep.lastToolSignature = ""
+				rep.toolRepeatCount = 0
+			}
+		} else {
+			rep.lastToolSignature = sig
+			rep.toolRepeatCount = 0
+		}
+	}
 }

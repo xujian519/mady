@@ -42,7 +42,7 @@ func CurrentPalette() *Palette {
 }
 
 // BuildPalette materializes SemanticTheme into Style values.
-func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette {
+func BuildPalette(sem *SemanticTheme, mode ColorMode) *Palette { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	if sem == nil {
 		sem = DefaultSemanticLight()
 	}

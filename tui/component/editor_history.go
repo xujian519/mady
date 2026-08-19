@@ -28,7 +28,7 @@ func (e *Editor) pushSnapshotLocked() {
 	e.future = nil
 }
 
-func (e *Editor) undo() {
+func (e *Editor) undo() { //nolint:dupl // undo/redo 是镜像对偶（history↔future 互换），合并会降低对称可读性
 	e.mu.Lock()
 	e.clearMouseSelectionLocked()
 	if len(e.history) == 0 {
@@ -57,7 +57,7 @@ func (e *Editor) undo() {
 	}
 }
 
-func (e *Editor) redo() {
+func (e *Editor) redo() { //nolint:dupl // undo/redo 是镜像对偶（history↔future 互换），合并会降低对称可读性
 	e.mu.Lock()
 	e.clearMouseSelectionLocked()
 	if len(e.future) == 0 {

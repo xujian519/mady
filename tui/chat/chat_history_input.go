@@ -74,7 +74,7 @@ func (h *ChatHistory) Update(msg core.Msg) core.Cmd {
 	return nil
 }
 
-func (h *ChatHistory) handleMouse(m core.MouseMsg) {
+func (h *ChatHistory) handleMouse(m core.MouseMsg) { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	h.mu.Lock()
 
 	// Default: event not consumed. Each handled path explicitly sets

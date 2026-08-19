@@ -89,13 +89,6 @@ func NewOCRTool(cfg *OCRToolConfig) *agentcore.Tool {
 	}
 }
 
-//nolint:unused
-func resolveOCRCacheDir() string {
-	d := ocr.DefaultCacheDir()
-	os.MkdirAll(d, 0755) //nolint:gosec // G104: best-effort cache dir creation
-	return d
-}
-
 func SweepOCRCache(maxAge int64) error {
 	cacheDir := filepath.Join(ocr.DefaultCacheDir(), "cache")
 	entries, err := os.ReadDir(cacheDir)

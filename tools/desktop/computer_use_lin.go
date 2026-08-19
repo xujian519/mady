@@ -269,7 +269,7 @@ func xdoFocusApp(app string, raiseWindow bool) (string, error) {
 	return fmt.Sprintf("Targeting: %s via xdotool (not raised)", app), nil
 }
 
-func waylandGetWindowBounds(app string) (string, error) {
+func waylandGetWindowBounds(app string) (string, error) { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	// Try Hyprland
 	if _, err := exec.LookPath("hyprctl"); err == nil {
 		out, err := exec.Command("hyprctl", "clients", "-j").Output() //nolint:gosec,noctx // G204: hyprctl by design for desktop control
@@ -337,7 +337,7 @@ func waylandGetWindowBounds(app string) (string, error) {
 	return "", fmt.Errorf("no Wayland compositor recognized (supported: Hyprland, Sway)")
 }
 
-func waylandFocusApp(app string, raiseWindow bool) (string, error) {
+func waylandFocusApp(app string, raiseWindow bool) (string, error) { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	lower := strings.ToLower(app)
 
 	// Try Hyprland

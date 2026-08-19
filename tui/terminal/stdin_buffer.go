@@ -247,7 +247,7 @@ func (b *StdinBuffer) Reset() {
 
 // drainLocked walks the buffer and returns completed events. It mutates
 // b.buf to keep only the incomplete tail.
-func (b *StdinBuffer) drainLocked() (keys []string, pastes []string, mice []core.MouseMsg) {
+func (b *StdinBuffer) drainLocked() (keys []string, pastes []string, mice []core.MouseMsg) { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	const (
 		pasteStart = "\x1b[200~"
 		pasteEnd   = "\x1b[201~"

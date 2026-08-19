@@ -210,3 +210,65 @@ func TestGuardrail_ErrorResponseIsSkipped(t *testing.T) {
 		t.Errorf("empty content was unexpectedly modified: %q", ifaceMCC.Content)
 	}
 }
+
+// TestNew_WithRiskKeywordsOption verifies the WithRiskKeywords functional
+// option wires keywords into the guardrail config.
+func TestNew_WithRiskKeywordsOption(t *testing.T) {
+	hook := New(WithLevel(LevelStandard), WithRiskKeywords([]string{"风险", "警告"}))
+	gr := hook.(*guardrail)
+	if len(gr.config.RiskKeywords) != 2 || gr.config.RiskKeywords[0] != "风险" {
+		t.Errorf("RiskKeywords = %v, want [风险 警告]", gr.config.RiskKeywords)
+	}
+}
+
+// TestNew_WithApprovalOption verifies the WithApproval functional option
+// wires approval keywords into the guardrail config.
+func TestNew_WithApprovalOption(t *testing.T) {
+	hook := New(WithLevel(LevelStrict), WithApproval([]string{"专利结论"}))
+	gr := hook.(*guardrail)
+	if len(gr.config.ApprovalKeywords) != 1 || gr.config.ApprovalKeywords[0] != "专利结论" {
+		t.Errorf("ApprovalKeywords = %v, want [专利结论]", gr.config.ApprovalKeywords)
+	}
+}
+
+// TestNew_WithBlockedPhrasesOption verifies the WithBlockedPhrases functional
+// option wires blocked phrases into the guardrail config.
+func TestNew_WithBlockedPhrasesOption(t *testing.T) {
+	hook := New(WithBlockedPhrases([]string{"恶意代码", "非法入侵"}))
+	gr := hook.(*guardrail)
+	if len(gr.config.BlockedPhrases) != 2 || gr.config.BlockedPhrases[0] != "恶意代码" {
+		t.Errorf("BlockedPhrases = %v, want [恶意代码 非法入侵]", gr.config.BlockedPhrases)
+	}
+}
+
+// TestNew_WithDeferredQueueOption verifies the WithDeferredQueue functional
+// option attaches a queue, and that a Strict-level suppressed message is
+// stored in it for later Commit (approval) or Discard (rejection).
+func TestNew_WithDeferredQueueOption(t *testing.T) {
+	q := NewDeferredPersistQueue()
+	hook := New(
+		WithLevel(LevelStrict),
+		WithApproval([]string{"专利结论"}),
+		WithDeferredQueue(q),
+	)
+	gr := hook.(*guardrail)
+	if gr.config.DeferredQueue != q {
+		t.Fatalf("DeferredQueue not attached")
+	}
+
+	ifaceMCC := &iface.ModelCallContext{Content: "专利结论：该发明具有新颖性。"}
+	gr.AfterModelCall(context.Background(), nil, ifaceMCC)
+	if !ifaceMCC.SuppressPersist {
+		t.Fatal("expected SuppressPersist to be set at LevelStrict with approval keyword")
+	}
+	if q.Len() != 1 {
+		t.Fatalf("expected 1 deferred message, got %d", q.Len())
+	}
+	msg, ok := q.Commit(0)
+	if !ok {
+		t.Fatal("expected deferred message to be committable")
+	}
+	if msg.Content != "专利结论：该发明具有新颖性。" {
+		t.Errorf("deferred content = %q", msg.Content)
+	}
+}

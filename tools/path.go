@@ -2,7 +2,6 @@ package tools
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -232,24 +231,6 @@ func OpenSandboxed(path string, sbx WorkingDirSandbox) (*os.File, error) {
 		return nil, err
 	}
 	return os.Open(resolved) //nolint:gosec // G304: resolved path from sandbox check
-}
-
-// readFileSandboxed opens a file through the sandbox, reads its full content,
-// and returns it as a string. This prevents TOCTOU by pinning the inode through
-// the open FD.
-//
-//nolint:unused
-func readFileSandboxed(path string, sbx WorkingDirSandbox) (string, error) {
-	f, err := OpenSandboxed(path, sbx)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, 100<<20)) // 100MB max
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }
 
 // pinPath opens the path, verifies its inode hasn't been swapped since resolution,

@@ -158,7 +158,7 @@ func TestHandleEscapeKeyDoubleEscInterrupt(t *testing.T) {
 // TestHandleEscapeKeyIdleNoop verifies Esc while idle is not consumed.
 func TestHandleEscapeKeyIdleNoop(t *testing.T) {
 	app, _ := newTestChatApp(t, ChatAppConfig{})
-	if app.layout.handleEscapeKey(terminal.Key{Name: "escape"}) {
+	if app.layout.handleEscapeKey() {
 		t.Fatal("escape while idle should not be consumed")
 	}
 }
@@ -175,7 +175,7 @@ func TestHandleEscapeKeyAutocompletePop(t *testing.T) {
 		t.Fatal("setup: autocomplete should be active on @file: value")
 	}
 
-	if !app.layout.handleEscapeKey(terminal.Key{Name: "escape"}) {
+	if !app.layout.handleEscapeKey() {
 		t.Fatal("escape with active autocomplete should be consumed")
 	}
 	if got := app.editor.GetValue(); got != "@file:" {

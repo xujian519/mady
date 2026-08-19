@@ -23,7 +23,7 @@ func (l *chatLayout) handleKeyMsg(m core.KeyMsg) bool {
 
 // dispatchKey handles a single parsed key.
 // Returns true if the key was consumed; false to continue iteration.
-func (l *chatLayout) dispatchKey(k terminal.Key) bool {
+func (l *chatLayout) dispatchKey(k terminal.Key) bool { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	name := strings.ToLower(k.Name)
 
 	// When search is active, route all printable characters to search.
@@ -77,7 +77,7 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool {
 		// the unified handler so isPasteShortcut can trigger RequestPaste.
 		return l.handleCopyOrInterrupt(k, name)
 	case "escape":
-		return l.handleEscapeKey(k)
+		return l.handleEscapeKey()
 	case "pageup":
 		l.history.ScrollBy(l.history.MaxRows())
 	case "pagedown":
@@ -212,7 +212,7 @@ func (l *chatLayout) dispatchSearchKey(k terminal.Key) bool {
 }
 
 // handleEscapeKey implements the double-escape guard and autocomplete pop.
-func (l *chatLayout) handleEscapeKey(k terminal.Key) bool {
+func (l *chatLayout) handleEscapeKey() bool {
 	if l.app != nil {
 		state := l.app.State()
 		if state == StateStreaming || state == StateToolRunning || state == StateCompacting {

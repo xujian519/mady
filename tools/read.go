@@ -61,7 +61,7 @@ type ReadToolDetails struct {
 }
 
 // NewReadTool creates a read file tool.
-func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool {
+func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if cfg == nil {
 		cfg = &ReadToolConfig{}
 	}

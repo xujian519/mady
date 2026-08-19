@@ -137,11 +137,12 @@ func indexToRGB(n int64) (r, g, b int64) {
 		{0, 0, 255}, {255, 0, 255}, {0, 255, 255}, {255, 255, 255},
 	}
 	switch {
-	case n < 16:
-		return sys[n][0], sys[n][1], sys[n][2]
+	case n >= 0 && n < 16:
+		return sys[n][0], sys[n][1], sys[n][2] //nolint:gosec // G602: 分支前置条件 n∈[0,16) 已保证索引安全，gosec 无法跨分支推导
 	case n < 232:
 		n -= 16
 		cube := [6]int64{0, 95, 135, 175, 215, 255}
+		//nolint:gosec // G602: n<232 分支内 n 已减 16，n/36 ∈ [0,5] 不会越界；gosec 静态分析无法推导分支前置条件
 		return cube[n/36], cube[(n%36)/6], cube[n%6]
 	default:
 		v := 8 + 10*(n-232)

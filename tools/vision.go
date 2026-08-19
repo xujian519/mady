@@ -369,7 +369,7 @@ type VisionToolDetails struct {
 }
 
 // NewVisionTool creates an image analysis tool.
-func NewVisionTool(cwd string, cfg *VisionToolConfig) *agentcore.Tool {
+func NewVisionTool(cwd string, cfg *VisionToolConfig) *agentcore.Tool { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if cfg == nil {
 		cfg = &VisionToolConfig{}
 	}

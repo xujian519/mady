@@ -97,11 +97,11 @@ func NewPatentEvalTool(cfg *PatentEvalToolConfig) *agentcore.Tool {
 			content := p.Content
 
 			// Build evaluator with appropriate metrics for the mode
-			eval := buildEvaluatorForMode(mode, p.RequiredCitations)
+			eval := buildEvaluatorForMode(mode)
 
 			// For comprehensive mode, run all sub-evaluations and composite
 			if mode == EvalModeComprehensive {
-				return runComprehensiveEval(content, p.RequiredCitations, cfg)
+				return runComprehensiveEval(content, p.RequiredCitations, cfg), nil
 			}
 
 			// Run the evaluation
@@ -143,7 +143,7 @@ func NewPatentEvalTool(cfg *PatentEvalToolConfig) *agentcore.Tool {
 }
 
 // buildEvaluatorForMode returns an Evaluator with metrics appropriate to the mode.
-func buildEvaluatorForMode(mode PatentEvalMode, citations []string) *evaluate.Evaluator {
+func buildEvaluatorForMode(mode PatentEvalMode) *evaluate.Evaluator {
 	switch mode {
 	case EvalModeReport:
 		return evaluate.NewEvaluator(
@@ -382,7 +382,7 @@ func evaluateCitations(content string, required []string) (map[string]DimensionS
 }
 
 // runComprehensiveEval runs all evaluation modes and composites the results.
-func runComprehensiveEval(content string, citations []string, cfg *PatentEvalToolConfig) (PatentEvalResult, error) {
+func runComprehensiveEval(content string, citations []string, cfg *PatentEvalToolConfig) PatentEvalResult {
 	reportDims, _ := evaluateReport(content, cfg)
 	retrievalDims, _ := evaluateRetrieval(content)
 	workflowDims, _ := evaluateWorkflow(content)
@@ -441,7 +441,7 @@ func runComprehensiveEval(content string, citations []string, cfg *PatentEvalToo
 		Passed:  composite >= 0.7,
 		Details: allDims,
 		Summary: strings.Join(summaryParts, "\n"),
-	}, nil
+	}
 }
 
 func passText(passed bool) string {

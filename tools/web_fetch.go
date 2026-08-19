@@ -369,7 +369,7 @@ func extractText(html string) string {
 	return strings.Join(cleaned, "\n")
 }
 
-func extractNodeText(s *goquery.Selection, depth int) string {
+func extractNodeText(s *goquery.Selection, depth int) string { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if depth > 20 {
 		return ""
 	}

@@ -116,25 +116,19 @@ func messageBubbleWidth(viewport, indent int64) int64 {
 // visual envelope: left indent padding, optional background-fill to
 // bubbleWidth, and separator-free vertical spacing. bgWidth should equal the
 // effective bubble width as returned by messageBubbleWidth.
-func envelopeBubble(lines []string, indent, bgWidth int64, bgStyle theme.Style) []string {
-	leftPad := ""
-	if indent > 0 {
-		leftPad = strings.Repeat(" ", int(indent))
-	}
-	padded := make([]string, 0, len(lines))
-	for _, ln := range lines {
-		padded = append(padded, leftPad+ln)
-	}
+func envelopeBubble(lines []string, bgWidth int64, bgStyle theme.Style) []string {
+	padded := append([]string(nil), lines...)
 	if bgStyle.BgStrip() == "" {
 		return padded
 	}
 	// Background fill spans only the bubble envelope (indent -> indent+bubbleWidth).
 	// We build background-filled lines by inserting the bg SGR at the start of
 	// the indent-padded portion and reconstructing at every SGR reset. The
-	// visible content itself must already fit within bgWidth.
+	// visible content itself must already fit within bgWidth. indent is
+	// currently always 0, so totalBgWidth == bgWidth.
 	bgSGR := bgStyle.BgStrip()
 	reset := theme.Reset
-	totalBgWidth := indent + bgWidth
+	totalBgWidth := bgWidth
 	out := make([]string, 0, len(padded))
 	for _, ln := range padded {
 		out = append(out, applyBgOneLine(core.PadToWidth(ln, totalBgWidth), bgSGR, reset))
@@ -142,7 +136,7 @@ func envelopeBubble(lines []string, indent, bgWidth int64, bgStyle theme.Style) 
 	return out
 }
 
-func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, width int64, mdCache *component.BlockCache) ([]string, [][]core.LinkSpan) {
+func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, width int64, mdCache *component.BlockCache) ([]string, [][]core.LinkSpan) { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	h.renderCount++
 	if m.DomainMsg != nil {
 		return h.renderDomainCard(m, chatTheme, width)
@@ -167,7 +161,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, w
 			expandHint := chatTheme.UserStyle.Render(" + ") + chatTheme.DimStyle.Render("点击展开")
 			expand := core.TruncateToWidth("  "+expandHint, bubbleW, "")
 			collapsedLines := []string{head, expand}
-			return envelopeBubble(collapsedLines, indent, bubbleW, chatTheme.AssistantBgStyle), nil
+			return envelopeBubble(collapsedLines, bubbleW, chatTheme.AssistantBgStyle), nil
 		}
 
 		innerWidth := bubbleW
@@ -213,7 +207,7 @@ func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, w
 		if len(allLines) == 0 {
 			allLines = []string{""}
 		}
-		return envelopeBubble(allLines, indent, innerWidth, chatTheme.AssistantBgStyle), nil
+		return envelopeBubble(allLines, innerWidth, chatTheme.AssistantBgStyle), nil
 	case RoleSystem:
 		return h.renderMarkdownRole(m.Text, width, chatTheme), nil
 	case RoleTool:
@@ -252,7 +246,7 @@ func (h *ChatHistory) renderUserRole(text string, width int64, chatTheme ChatHis
 	bubbleW := messageBubbleWidth(width, indent)
 	if prefix == "" {
 		lines := h.renderMarkdownRole(text, bubbleW, chatTheme)
-		return envelopeBubble(lines, indent, bubbleW, chatTheme.UserBgStyle)
+		return envelopeBubble(lines, bubbleW, chatTheme.UserBgStyle)
 	}
 	prefixW := core.VisibleWidth(prefix)
 	innerWidth := bubbleW - prefixW
@@ -279,7 +273,7 @@ func (h *ChatHistory) renderUserRole(text string, width int64, chatTheme ChatHis
 			out = append(out, lineIndent+ln)
 		}
 	}
-	return envelopeBubble(out, indent, bubbleW, chatTheme.UserBgStyle)
+	return envelopeBubble(out, bubbleW, chatTheme.UserBgStyle)
 }
 
 func (h *ChatHistory) renderMarkdownRole(text string, width int64, chatTheme ChatHistoryTheme) []string {

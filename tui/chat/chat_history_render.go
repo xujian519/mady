@@ -79,7 +79,7 @@ func (h *ChatHistory) captureSnapshot() renderSnapshot {
 // processing (AppendDelta) and rendering (renderAll). Before this change,
 // AppendDelta could block for 5-10ms waiting for renderAll to release the
 // lock; now the critical section is ~100µs (snapshot + merge).
-func (h *ChatHistory) Render(width int64) []string {
+func (h *ChatHistory) Render(width int64) []string { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	if width < 1 {
 		width = 1
 	}
@@ -173,9 +173,9 @@ func (h *ChatHistory) Render(width int64) []string {
 		visibleLinks = allLinks[vStart:vEnd]
 	}
 	visible, visibleLinks = h.addScrollIndicator(visible, all, maxRows, offset, follow, visibleLinks)
-	visible, visibleLinks = h.addStickToBottomHint(visible, all, maxRows, follow, newSinceAnchor, visibleLinks)
+	visible, visibleLinks = h.addStickToBottomHint(visible, maxRows, follow, newSinceAnchor, visibleLinks)
 	visible = h.drawScrollbar(visible, width, all, maxRows, follow)
-	visible = h.padToWidth(visible, width, maxRows, sbNow, h.sbWidth)
+	visible = h.padToWidth(visible, width, sbNow, h.sbWidth)
 	h.lastLinks = visibleLinks
 	return visible
 }
@@ -276,7 +276,7 @@ func (h *ChatHistory) addScrollIndicator(visible []string, all []string, maxRows
 
 // addStickToBottomHint appends a "N new" hint when not following and new content arrived.
 // links 与 visible 行同步追加（hint 行无链接）。
-func (h *ChatHistory) addStickToBottomHint(visible []string, all []string, maxRows int64, follow bool, newSinceAnchor int64, links [][]core.LinkSpan) ([]string, [][]core.LinkSpan) {
+func (h *ChatHistory) addStickToBottomHint(visible []string, maxRows int64, follow bool, newSinceAnchor int64, links [][]core.LinkSpan) ([]string, [][]core.LinkSpan) {
 	if follow || newSinceAnchor <= 0 {
 		return visible, links
 	}
@@ -350,7 +350,7 @@ func (h *ChatHistory) drawScrollbar(visible []string, width int64, all []string,
 // frame, we keep the 1-column right gutter for visual consistency.
 // Skipped when the scrollbar track was drawn this frame (sbNow): drawScrollbar
 // has already padded lines to contentWidth and appended gutter + track.
-func (h *ChatHistory) padToWidth(visible []string, width int64, maxRows int64, sbNow bool, sbWidth int64) []string {
+func (h *ChatHistory) padToWidth(visible []string, width int64, sbNow bool, sbWidth int64) []string {
 	if sbNow {
 		return visible
 	}
@@ -395,7 +395,7 @@ func (h *ChatHistory) renderAllFromSnapshot(snap renderSnapshot, width int64, lo
 // renderAllWithState is the unified rendering core. It renders from the
 // snapshot struct directly (the same one renderAllFromSnapshot receives),
 // so callers never unpack fields individually.
-func (h *ChatHistory) renderAllWithState(snap renderSnapshot, width int64, cache map[string]cachedMessage) ([]string, []msgRange, [][]core.LinkSpan) {
+func (h *ChatHistory) renderAllWithState(snap renderSnapshot, width int64, cache map[string]cachedMessage) ([]string, []msgRange, [][]core.LinkSpan) { //nolint:gocognit // 渲染/分发/状态机复杂分支，拆分列入 P3
 	// 解包快照字段为局部变量；函数体其余部分与旧签名一致。
 	msgs := snap.msgs
 	theme := snap.theme
@@ -495,7 +495,7 @@ func (h *ChatHistory) renderAllWithState(snap renderSnapshot, width int64, cache
 			// Apply selection highlight
 			selEmpty := selStart.line == selEnd.line && selStart.col == selEnd.col
 			if selActive && !selEmpty {
-				h.applySelectionHighlightSnapshot(out, width, selStart, selEnd)
+				h.applySelectionHighlightSnapshot(out, selStart, selEnd)
 			}
 			return out, ranges, outLinks
 		}
@@ -507,7 +507,7 @@ func (h *ChatHistory) renderAllWithState(snap renderSnapshot, width int64, cache
 	// Apply selection highlight
 	selEmpty := selStart.line == selEnd.line && selStart.col == selEnd.col
 	if selActive && !selEmpty {
-		h.applySelectionHighlightSnapshot(out, width, selStart, selEnd)
+		h.applySelectionHighlightSnapshot(out, selStart, selEnd)
 	}
 
 	return out, ranges, outLinks

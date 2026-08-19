@@ -74,7 +74,7 @@ func autoThemeFactory() *SemanticTheme {
 	return DefaultSemanticLight()
 }
 
-func tokyoNightFactory() *SemanticTheme {
+func tokyoNightFactory() *SemanticTheme { //nolint:dupl // 主题工厂：结构相同但颜色数据不同的数据定义，提取会损害可读性
 	return &SemanticTheme{
 		Name:              "Tokyo Night",
 		Accent:            "#7aa2f7",
@@ -117,7 +117,7 @@ func tokyoNightFactory() *SemanticTheme {
 	}
 }
 
-func rosePineMoonFactory() *SemanticTheme {
+func rosePineMoonFactory() *SemanticTheme { //nolint:dupl // 主题工厂：结构相同但颜色数据不同的数据定义，提取会损害可读性
 	return &SemanticTheme{
 		Name:              "Rose Pine Moon",
 		Accent:            "#c4a7e7",
@@ -160,7 +160,7 @@ func rosePineMoonFactory() *SemanticTheme {
 	}
 }
 
-func grokNightFactory() *SemanticTheme {
+func grokNightFactory() *SemanticTheme { //nolint:dupl // 主题工厂：结构相同但颜色数据不同的数据定义，提取会损害可读性
 	return &SemanticTheme{
 		Name:              "Grok Night",
 		Accent:            "#e1e1e1",
