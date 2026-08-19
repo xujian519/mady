@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/getlantern/systray v1.2.2
-	github.com/wailsapp/wails/v2 v2.13.0
+	github.com/wailsapp/wails/v2 v2.14.0
 	github.com/xujian519/mady v0.0.0
 	github.com/xujian519/mady/tools v0.0.0-20260711000742-56d5e1c6ad94
 )
