@@ -61,12 +61,14 @@ jobs:
 
       # 门禁一致性校验（2026-08-19 T2.3）：子模块在根配置下必须同样干净，
       # 防止"子模块内部宽松配置掩盖问题"的假绿（门禁漂移）。
+      # 注：args 不要再写 `run` 子命令——golangci-lint-action 会自动注入，
+      # 重复的 run 会被当作包路径解析（stat ./run 报错，2026-08-22 修复）。
       - name: golangci-lint (submodules with root config)
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
           working-directory: .
-          args: run ./tools/... ./tui/... ./desktop/...
+          args: ./tools/... ./tui/... ./desktop/...
 
   check-arch:
     runs-on: ubuntu-latest
