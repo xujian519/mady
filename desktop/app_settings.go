@@ -18,7 +18,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains"
 
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 )
 

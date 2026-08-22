@@ -139,7 +139,7 @@ func DefaultModel() string {
 
 // ThinkingConfig captures reasoning-related configuration parsed from
 // environment variables. To obtain agentcore.ThinkingConfig, callers
-// should construct it directly from these fields (agentcore and pkg/agentconfig
+// should construct it directly from these fields (agentcore and bootstrap/agentconfig
 // cannot import each other without a cycle):
 //
 //	cfg := agentconfig.ThinkingFromEnv()

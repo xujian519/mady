@@ -2,9 +2,25 @@ package evaluate
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
+
+// fakePatternSource 构造 18 个模式、4 个类别、全部已覆盖的清单，
+// 模拟领域侧注入的真实数据形态。
+func fakePatternSource() []PatternInfo {
+	cats := map[string]int{"creativity": 6, "novelty": 4, "claims": 4, "other": 4}
+	var out []PatternInfo
+	i := 0
+	for cat, n := range cats {
+		for j := 0; j < n; j++ {
+			i++
+			out = append(out, PatternInfo{ID: fmt.Sprintf("P%02d", i), Name: "模式" + fmt.Sprint(i), Category: cat, RuleCount: 2})
+		}
+	}
+	return out
+}
 
 func TestReasoningPatternCoverage_Name(t *testing.T) {
 	r := ReasoningPatternCoverage{}
@@ -13,8 +29,15 @@ func TestReasoningPatternCoverage_Name(t *testing.T) {
 	}
 }
 
-func TestReasoningPatternCoverage_Evaluate(t *testing.T) {
+func TestReasoningPatternCoverage_NilSource(t *testing.T) {
 	r := ReasoningPatternCoverage{}
+	if _, err := r.Evaluate(context.Background(), nil); err == nil {
+		t.Error("Evaluate() with nil source should return error")
+	}
+}
+
+func TestReasoningPatternCoverage_Evaluate(t *testing.T) {
+	r := NewReasoningPatternCoverage(fakePatternSource)
 	report, err := r.Evaluate(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("Evaluate() returned error: %v", err)
@@ -53,7 +76,7 @@ func TestReasoningPatternCoverage_Evaluate(t *testing.T) {
 }
 
 func TestFormatCoverageReport(t *testing.T) {
-	r := ReasoningPatternCoverage{}
+	r := NewReasoningPatternCoverage(fakePatternSource)
 	report, err := r.Evaluate(context.Background(), map[string]any{"detail": true})
 	if err != nil {
 		t.Fatalf("Evaluate() returned error: %v", err)

@@ -1,11 +1,9 @@
-package domains
+package caseindex
 
 import (
 	"context"
 	"fmt"
 	"strings"
-
-	_ "modernc.org/sqlite" // register sqlite driver
 )
 
 func (ci *CaseIndex) searchByFTS(ctx context.Context, text string) ([]CaseRecord, error) {

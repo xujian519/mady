@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 )
 
 func TestConfig_Validate_Valid(t *testing.T) {

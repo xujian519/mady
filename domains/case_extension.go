@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/caseindex"
 	"github.com/xujian519/mady/pkg/util"
 )
 
@@ -33,13 +34,13 @@ func (defaultFileReader) ReadText(path string) string {
 // CaseExtension 是一个 agentcore.Extension，提供 AI 内部使用的案件管理工具。
 // 用户不直接调用这些工具；AI 根据对话上下文自动触发。
 type CaseExtension struct {
-	index  *CaseIndex
+	index  *caseindex.CaseIndex
 	reader FileContentReader // 文件内容读取器，避免 domains→knowledge 层级耦合
 	cwd    string            // 当前工作目录（构造后不可变）
 }
 
 // NewCaseExtension 创建案件管理扩展。reader 为 nil 时使用 os.ReadFile 回退。
-func NewCaseExtension(index *CaseIndex, cwd string, reader FileContentReader) *CaseExtension {
+func NewCaseExtension(index *caseindex.CaseIndex, cwd string, reader FileContentReader) *CaseExtension {
 	if reader == nil {
 		reader = defaultFileReader{}
 	}
@@ -274,12 +275,12 @@ func (e *CaseExtension) readFilePreview(path string, maxLen int) string {
 // stageForInfo determines the identity stage based on extracted info.
 func stageForInfo(info ExtractedCaseInfo) string {
 	if info.PublicationNumber != "" {
-		return StagePublished
+		return caseindex.StagePublished
 	}
 	if info.FilingNumber != "" {
-		return StageFiled
+		return caseindex.StageFiled
 	}
-	return StageDrafting
+	return caseindex.StageDrafting
 }
 
 // --- 响应类型 ---
@@ -302,7 +303,7 @@ type caseListResponse struct {
 	Cases []caseListItem `json:"cases"`
 }
 
-func caseListResult(cases []CaseRecord) caseListResponse {
+func caseListResult(cases []caseindex.CaseRecord) caseListResponse {
 	items := make([]caseListItem, 0, len(cases))
 	for _, c := range cases {
 		items = append(items, caseListItem{
@@ -349,18 +350,18 @@ func errorResult(tool string, err error) map[string]any {
 
 func stageLabel(stage string) string {
 	switch stage {
-	case StageDrafting:
+	case caseindex.StageDrafting:
 		return "撰写期"
-	case StageFiled:
+	case caseindex.StageFiled:
 		return "已申请"
-	case StagePublished:
+	case caseindex.StagePublished:
 		return "已公开"
 	default:
 		return stage
 	}
 }
 
-func pathStrings(paths []CasePath) []string {
+func pathStrings(paths []caseindex.CasePath) []string {
 	result := make([]string, 0, len(paths))
 	for _, p := range paths {
 		result = append(result, p.Path)

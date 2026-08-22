@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/domains"
-	"github.com/xujian519/mady/pkg/agentconfig"
 )
 
 // RunOptions configures a ready-to-run ACP server assembled by RunServer.

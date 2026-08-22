@@ -30,7 +30,7 @@ import (
 	"github.com/xujian519/mady/session"
 
 	"github.com/xujian519/mady/bootstrap"
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 )
 

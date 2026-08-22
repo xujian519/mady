@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 )
 
 func TestAgentRunInTUISession(t *testing.T) {

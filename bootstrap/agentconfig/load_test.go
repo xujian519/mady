@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 )
 
 func TestLoadConfig_JSON(t *testing.T) {

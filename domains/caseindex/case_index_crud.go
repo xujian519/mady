@@ -1,12 +1,10 @@
-package domains
+package caseindex
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"time"
-
-	_ "modernc.org/sqlite" // register sqlite driver
 )
 
 // ListAll 返回所有案件，按更新时间倒序。

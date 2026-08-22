@@ -1,4 +1,4 @@
-package domains
+package deadline
 
 import (
 	"context"
@@ -11,30 +11,30 @@ import (
 
 const deadlineExtName = "deadline_calculator"
 
-// DeadlineCalculatorExtension 将专利期限计算工具注入 Agent。
-type DeadlineCalculatorExtension struct{}
+// CalculatorExtension 将专利期限计算工具注入 Agent。
+type CalculatorExtension struct{}
 
 var (
-	_ agentcore.Extension    = (*DeadlineCalculatorExtension)(nil)
-	_ agentcore.ToolProvider = (*DeadlineCalculatorExtension)(nil)
+	_ agentcore.Extension    = (*CalculatorExtension)(nil)
+	_ agentcore.ToolProvider = (*CalculatorExtension)(nil)
 )
 
-// NewDeadlineCalculatorExtension 创建期限计算扩展。
-func NewDeadlineCalculatorExtension() *DeadlineCalculatorExtension {
-	return &DeadlineCalculatorExtension{}
+// NewCalculatorExtension 创建期限计算扩展。
+func NewCalculatorExtension() *CalculatorExtension {
+	return &CalculatorExtension{}
 }
 
 // Name returns the extension identifier.
-func (e *DeadlineCalculatorExtension) Name() string { return deadlineExtName }
+func (e *CalculatorExtension) Name() string { return deadlineExtName }
 
 // Init initializes the deadline calculator extension — currently a no-op.
-func (e *DeadlineCalculatorExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
+func (e *CalculatorExtension) Init(_ context.Context, _ *agentcore.Agent) error { return nil }
 
 // Dispose cleans up the deadline calculator extension — currently a no-op.
-func (e *DeadlineCalculatorExtension) Dispose() error { return nil }
+func (e *CalculatorExtension) Dispose() error { return nil }
 
 // Tools returns the deadline calculation tool for agent use.
-func (e *DeadlineCalculatorExtension) Tools() []*agentcore.Tool {
+func (e *CalculatorExtension) Tools() []*agentcore.Tool {
 	return []*agentcore.Tool{
 		deadlineTool(),
 	}

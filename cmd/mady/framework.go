@@ -12,11 +12,11 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/bootstrap"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/fileindex"
-	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 )
 

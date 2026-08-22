@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 )
 
 // --- Model/Provider switching ---

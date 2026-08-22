@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 )
 
 func ExtSlice(ext agentcore.Extension) []agentcore.Extension {

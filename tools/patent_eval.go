@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/evaluate"
 )
 
@@ -23,12 +22,23 @@ const (
 	EvalModeComprehensive PatentEvalMode = "comprehensive"
 )
 
+// SlopVerdict is the distilled result of an AI-slop analysis: the raw total
+// score (out of 50) and its pass/fail verdict. Declared locally so the tools
+// package does not depend on the domains/rules types.
+type SlopVerdict struct {
+	Total  int
+	Passed bool
+}
+
+// SlopAnalyzer abstracts AI-slop detection (typically backed by
+// domains/rules.AnalyzeSlop). Injected at composition time, keeping the
+// dependency direction one-way: bootstrap → {tools, domains/rules}.
+type SlopAnalyzer func(content string) SlopVerdict
+
 // PatentEvalToolConfig configures the patent_eval tool.
 type PatentEvalToolConfig struct {
-	// SlopEngine is optional; when non-nil, AI slop detection is enabled.
-	SlopEngine *rules.Engine `json:"-"`
-	// RuleEngine is optional; when non-nil, rule-based quality checks are enabled.
-	RuleEngine *rules.Engine `json:"-"`
+	// SlopAnalyzer is optional; when non-nil, AI slop detection is enabled.
+	SlopAnalyzer SlopAnalyzer `json:"-"`
 }
 
 // PatentEvalResult is the structured output of a patent evaluation.
@@ -202,14 +212,14 @@ func evaluateReport(content string, cfg *PatentEvalToolConfig) (map[string]Dimen
 		Details: sectionCoverageDetail(content),
 	}
 
-	// 2. AI slop detection (if slop engine available)
-	if cfg != nil && cfg.SlopEngine != nil {
-		slopResult := rules.AnalyzeSlop(content)
-		slopScore := float64(slopResult.Score.Total) / 50.0
+	// 2. AI slop detection (if slop analyzer available)
+	if cfg != nil && cfg.SlopAnalyzer != nil {
+		verdict := cfg.SlopAnalyzer(content)
+		slopScore := float64(verdict.Total) / 50.0
 		dims["表达质量"] = DimensionScore{
 			Score:   slopScore,
-			Passed:  slopResult.Score.Passed,
-			Details: fmt.Sprintf("AI套话评分 %d/50", slopResult.Score.Total),
+			Passed:  verdict.Passed,
+			Details: fmt.Sprintf("AI套话评分 %d/50", verdict.Total),
 		}
 	}
 

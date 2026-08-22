@@ -17,7 +17,9 @@ import (
 	"github.com/xujian519/mady/agentcore/planmode"
 	"github.com/xujian519/mady/agentcore/plantask"
 	"github.com/xujian519/mady/agentcore/tasklist"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/deadline"
 	domainEvidence "github.com/xujian519/mady/domains/evidence"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/guardrails/guardian"
@@ -25,7 +27,6 @@ import (
 	"github.com/xujian519/mady/mcp"
 	"github.com/xujian519/mady/memory"
 	"github.com/xujian519/mady/memory/compiler"
-	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/skill"
@@ -255,7 +256,7 @@ func BuildBaseTools(fc *Context) {
 		fc.PlanModeExt,
 		fc.EvidenceExt,
 		domainEvidence.NewDomainExtension(newEvidenceRuleIndex()),
-		domains.NewDeadlineCalculatorExtension(),
+		deadline.NewCalculatorExtension(),
 	)
 
 	if taskDir, err := util.ResolveDataDir("sessions"); err == nil {

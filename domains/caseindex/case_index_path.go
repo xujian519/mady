@@ -1,11 +1,9 @@
-package domains
+package caseindex
 
 import (
 	"context"
 	"fmt"
 	"time"
-
-	_ "modernc.org/sqlite" // register sqlite driver
 )
 
 // --- 路径管理 ---

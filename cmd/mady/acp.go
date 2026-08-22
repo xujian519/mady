@@ -12,9 +12,9 @@ import (
 
 	"github.com/xujian519/mady/acp"
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/domains"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
-	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 )
 

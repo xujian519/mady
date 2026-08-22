@@ -1,4 +1,4 @@
-package domains
+package deadline
 
 import (
 	"encoding/json"
@@ -8,29 +8,29 @@ import (
 	"time"
 )
 
-// DeadlineType categorizes a patent lifecycle deadline.
-type DeadlineType string
+// Type categorizes a patent lifecycle deadline.
+type Type string
 
 // Patent deadline type constants.
 const (
-	DeadlineOAResponse      DeadlineType = "oa_response"      // 答复审查意见
-	DeadlinePriorityClaim   DeadlineType = "priority_claim"   // 优先权期限
-	DeadlineSubstantiveExam DeadlineType = "substantive_exam" // 请求实质审查
-	DeadlineRegistration    DeadlineType = "registration"     // 办理登记手续
-	DeadlineAnnFee          DeadlineType = "annual_fee"       // 年费
-	DeadlineDivisional      DeadlineType = "divisional"       // 分案申请
-	DeadlineReexamination   DeadlineType = "reexamination"    // 复审请求
-	DeadlineInvalResponse   DeadlineType = "inval_response"   // 无效宣告答复
+	DeadlineOAResponse      Type = "oa_response"      // 答复审查意见
+	DeadlinePriorityClaim   Type = "priority_claim"   // 优先权期限
+	DeadlineSubstantiveExam Type = "substantive_exam" // 请求实质审查
+	DeadlineRegistration    Type = "registration"     // 办理登记手续
+	DeadlineAnnFee          Type = "annual_fee"       // 年费
+	DeadlineDivisional      Type = "divisional"       // 分案申请
+	DeadlineReexamination   Type = "reexamination"    // 复审请求
+	DeadlineInvalResponse   Type = "inval_response"   // 无效宣告答复
 )
 
 // CalculatedDeadline is a computed deadline for display.
 type CalculatedDeadline struct {
-	Type          DeadlineType `json:"type"`
-	Label         string       `json:"label"`
-	DueDate       string       `json:"due_date"`       // ISO 8601
-	DaysRemaining int          `json:"days_remaining"` // positive = remaining, negative = overdue
-	LegalBasis    string       `json:"legal_basis"`
-	Status        string       `json:"status"` // "urgent" / "normal" / "overdue" / "pending"
+	Type          Type   `json:"type"`
+	Label         string `json:"label"`
+	DueDate       string `json:"due_date"`       // ISO 8601
+	DaysRemaining int    `json:"days_remaining"` // positive = remaining, negative = overdue
+	LegalBasis    string `json:"legal_basis"`
+	Status        string `json:"status"` // "urgent" / "normal" / "overdue" / "pending"
 }
 
 // CalculatePatentDeadlines computes all statutory deadlines based on a filing
@@ -138,7 +138,7 @@ func CalculatePatentDeadlines(filingDate time.Time, caseType string) []Calculate
 }
 
 // newDeadline creates a CalculatedDeadline with computed days remaining.
-func newDeadline(typ DeadlineType, label string, due, today time.Time, legalBasis string) CalculatedDeadline {
+func newDeadline(typ Type, label string, due, today time.Time, legalBasis string) CalculatedDeadline {
 	dueStr := due.Format("2006-01-02")
 	daysRemaining := int(due.Sub(today).Hours() / 24)
 
@@ -206,8 +206,8 @@ func FormatDeadlineReport(deadlines []CalculatedDeadline) string {
 	return b.String()
 }
 
-// DeadlineSummary is a JSON-serializable summary of deadlines for the Agent.
-type DeadlineSummary struct {
+// Summary is a JSON-serializable summary of deadlines for the Agent.
+type Summary struct {
 	Deadlines    []CalculatedDeadline `json:"deadlines"`
 	UrgentCount  int                  `json:"urgent_count"`
 	OverdueCount int                  `json:"overdue_count"`
@@ -215,8 +215,8 @@ type DeadlineSummary struct {
 }
 
 // SummarizeDeadlines creates a summary for quick status checks.
-func SummarizeDeadlines(deadlines []CalculatedDeadline) DeadlineSummary {
-	s := DeadlineSummary{Deadlines: deadlines}
+func SummarizeDeadlines(deadlines []CalculatedDeadline) Summary {
+	s := Summary{Deadlines: deadlines}
 	for _, d := range deadlines {
 		if d.Status == "urgent" {
 			s.UrgentCount++
@@ -235,7 +235,7 @@ func SummarizeDeadlines(deadlines []CalculatedDeadline) DeadlineSummary {
 }
 
 // SerializeDeadlineSummary serializes the deadline summary as JSON.
-func SerializeDeadlineSummary(summary DeadlineSummary) string {
+func SerializeDeadlineSummary(summary Summary) string {
 	data, err := json.MarshalIndent(summary, "", "  ")
 	if err != nil {
 		return "{}"

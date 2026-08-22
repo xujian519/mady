@@ -17,7 +17,7 @@
 //	defer mgr.Stop()
 //
 // The default oMLX endpoint (http://127.0.0.1:8000/v1) and model names are
-// configured in pkg/agentconfig/defaults.go. This package only manages the
+// configured in bootstrap/agentconfig/defaults.go. This package only manages the
 // server process — model download and lifecycle are handled by oMLX itself.
 //
 // Architecture:

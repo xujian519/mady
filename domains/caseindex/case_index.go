@@ -1,4 +1,4 @@
-package domains
+package caseindex
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/xujian519/mady/domains/config"
 
 	_ "modernc.org/sqlite" // register sqlite driver
 )
@@ -258,9 +260,9 @@ func (rec *CaseRecord) DisplayLabel() string {
 
 // ToProjectRecord 将 CaseRecord 转换为 TUI/Agent 层使用的 ProjectRecord。
 // 桥接 SQLite 索引库与现有的 ProjectRecord 消费方，避免手动字段拷贝导致漂移。
-func (rec *CaseRecord) ToProjectRecord() ProjectRecord {
+func (rec *CaseRecord) ToProjectRecord() config.ProjectRecord {
 	rootPath := rec.PrimaryPath
-	return ProjectRecord{
+	return config.ProjectRecord{
 		ProjectID:    rec.CaseID,
 		Domain:       rec.Domain,
 		Alias:        rec.DisplayLabel(),
@@ -272,8 +274,8 @@ func (rec *CaseRecord) ToProjectRecord() ProjectRecord {
 }
 
 // ToProjectMeta 将 CaseRecord 转换为 TUI 层使用的 ProjectMeta。
-func (rec *CaseRecord) ToProjectMeta() ProjectMeta {
-	return ProjectMeta{
+func (rec *CaseRecord) ToProjectMeta() config.ProjectMeta {
+	return config.ProjectMeta{
 		ProjectID:  rec.CaseID,
 		Domain:     rec.Domain,
 		Alias:      rec.DisplayLabel(),

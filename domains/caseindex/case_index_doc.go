@@ -1,11 +1,9 @@
-package domains
+package caseindex
 
 import (
 	"context"
 	"fmt"
 	"time"
-
-	_ "modernc.org/sqlite" // register sqlite driver
 )
 
 // GetDocuments 返回案件的所有已记录文档。

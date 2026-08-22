@@ -3,8 +3,10 @@
 //
 // It lives in a subpackage of retrieval/domain so the parent package keeps
 // its current dependency boundary: retrieval/domain depends only on the
-// knowledge abstraction (and retrieval), never on knowledge/sqlite. This
-// sqlite subpackage is the composition seam that binds the concrete store.
+// retrieval primitives, never on knowledge or knowledge/sqlite. This sqlite
+// subpackage is the composition seam that binds a concrete store via the
+// FTSStore interface below; knowledge/sqlite.SQLiteStore satisfies it
+// implicitly, keeping the dependency direction one-way (knowledge → retrieval).
 package sqlite
 
 import (
@@ -14,10 +16,19 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/retrieval"
 	"github.com/xujian519/mady/retrieval/domain"
 )
+
+// FTSStore is the slice of the knowledge store this retriever needs: FTS5
+// keyword search and chunk expansion by document ID. Declared here so the
+// retriever never imports knowledge packages directly; the concrete
+// implementation (knowledge/sqlite.SQLiteStore) is injected at composition
+// time by bootstrap/cmd.
+type FTSStore interface {
+	FTSSearch(query string, topK int) ([]retrieval.ScoredChunk, error)
+	GetChunksByDocID(docID string, limit int) ([]retrieval.ScoredChunk, error)
+}
 
 // SourceNamePatent is the SourceName reported by PatentDomainRetriever.
 const SourceNamePatent = "本地专利知识库(knowledge.db)"
@@ -32,7 +43,7 @@ const SourceNamePatent = "本地专利知识库(knowledge.db)"
 // bm25-derived and normalized to (0,1] so downstream rerankers/RRF fusion
 // can treat them uniformly with vector scores.
 type PatentDomainRetriever struct {
-	store *sqlite.SQLiteStore
+	store FTSStore
 }
 
 // compile-time interface satisfaction check.
@@ -40,7 +51,7 @@ var _ domain.DomainRetriever = (*PatentDomainRetriever)(nil)
 
 // NewPatentDomainRetriever binds a knowledge.db store. Returns nil if store
 // is nil so callers can let a nil retriever disable the patent lane.
-func NewPatentDomainRetriever(store *sqlite.SQLiteStore) *PatentDomainRetriever {
+func NewPatentDomainRetriever(store FTSStore) *PatentDomainRetriever {
 	if store == nil {
 		return nil
 	}

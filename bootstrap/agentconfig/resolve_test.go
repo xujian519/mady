@@ -3,7 +3,7 @@ package agentconfig_test
 import (
 	"testing"
 
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/prompt"
 )
 

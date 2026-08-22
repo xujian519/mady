@@ -1,4 +1,4 @@
-package domains
+package caseindex
 
 import (
 	"context"
@@ -17,7 +17,7 @@ func TestCaseIndex_CRUD(t *testing.T) {
 		PatentTitle:   "锂电池正极材料",
 		PatentType:    "发明专利",
 		Year:          2024,
-		Domain:        DomainPatent,
+		Domain:        "patent", // domains.DomainPatent
 		Status:        CaseStatusActive,
 		PrimaryPath:   "/tmp/cases/001",
 	}
@@ -67,7 +67,7 @@ func TestCaseIndex_UpgradeToFiled(t *testing.T) {
 		PatentTitle:   "伸缩支架",
 		PatentType:    "实用新型",
 		Year:          2024,
-		Domain:        DomainPatent,
+		Domain:        "patent", // domains.DomainPatent
 		PrimaryPath:   "/tmp/cases/002",
 	}
 	ci.CreateCase(ctx, rec)

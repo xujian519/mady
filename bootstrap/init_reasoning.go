@@ -11,6 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/doctmpl"
@@ -22,7 +23,6 @@ import (
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/knowledge/knowledgeinit"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
-	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/prompt"
 	"github.com/xujian519/mady/retrieval/domain"
 	rbrowser "github.com/xujian519/mady/retrieval/domain/browser"

@@ -17,10 +17,10 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/writing"
 	"github.com/xujian519/mady/knowledge/fileindex"
-	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/session"
 	"github.com/xujian519/mady/tui"

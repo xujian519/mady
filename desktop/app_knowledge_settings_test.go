@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/xujian519/mady/bootstrap"
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 )
 
 // --- 知识库模型设置持久化 ---

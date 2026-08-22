@@ -101,8 +101,16 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 			s.submitInput(ctx.input)
 		},
 	})
+	s.registerPatentShortcutCommands(r)
+	s.registerInspectCommands(r)
+	s.registerPlanTaskCommands(r, multiDomain)
+	s.registerSessionMgmtCommands(r)
+	return r
+}
 
-	// 专利分析快捷命令：直接运行 Pregel 工作流，绕过 LLM 意图分类。
+// registerPatentShortcutCommands 注册专利分析快捷命令：直接运行 Pregel
+// 工作流，绕过 LLM 意图分类。
+func (s *tuiSession) registerPatentShortcutCommands(r *Registry) {
 	r.Register(SlashCommand{
 		Name:     "novelty",
 		Category: catCase,
@@ -169,7 +177,10 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 				"\n也可以直接在对话中输入自然语言描述需求，AI会自动调用分析工具。")
 		},
 	})
+}
 
+// registerInspectCommands 注册 Inspect 类命令：查看后端已注入能力的 TUI 入口。
+func (s *tuiSession) registerInspectCommands(r *Registry) {
 	// === Inspect 类命令：查看后端已注入但此前对用户不可见的能力 ===
 	// 这些子系统在 framework.go 启动时已装配，本组命令提供 TUI 直接查看入口。
 	// 参数解析统一走 parseSlashSubcommand / parseSlashRest，与其他命令一致。
@@ -277,7 +288,10 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Match:    exactMatch("evidence-domain"),
 		Handler:  func(ctx slashCtx) { s.handleEvidenceDomainCommand(parseSlashSubcommand(ctx.input, "evidence-domain")) },
 	})
+}
 
+// registerPlanTaskCommands 注册 PlanTask HCL 人机协作命令（规划→批准→执行→反馈闭环）。
+func (s *tuiSession) registerPlanTaskCommands(r *Registry, multiDomain func(s *tuiSession) (bool, string)) {
 	// --- PlanTask HCL 人机协作命令（规划→批准→执行→反馈闭环） ---
 	r.Register(SlashCommand{
 		Name:     "interrupt",
@@ -509,7 +523,10 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Match:    func(input string) bool { return input == "/quit" || input == "exit" },
 		Handler:  func(ctx slashCtx) { _ = s.app.Stop() },
 	})
+}
 
+// registerSessionMgmtCommands 注册会话管理命令。
+func (s *tuiSession) registerSessionMgmtCommands(r *Registry) {
 	// 会话管理命令。
 	r.Register(SlashCommand{
 		Name:     catSession,
@@ -527,5 +544,4 @@ func (s *tuiSession) buildSlashRegistry() *Registry {
 		Handler:  func(ctx slashCtx) { s.openSessionSelector() },
 	})
 
-	return r
 }

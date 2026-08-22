@@ -10,11 +10,11 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/knowledge"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/knowledge/loader"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
-	"github.com/xujian519/mady/pkg/agentconfig"
 	"github.com/xujian519/mady/retrieval"
 )
 

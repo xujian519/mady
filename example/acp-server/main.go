@@ -18,7 +18,7 @@ import (
 
 	"github.com/xujian519/mady/acp"
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/pkg/agentconfig"
+	"github.com/xujian519/mady/bootstrap/agentconfig"
 )
 
 // commitHash / buildTime are injected via -ldflags at release build time.
