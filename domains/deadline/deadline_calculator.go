@@ -23,6 +23,12 @@ const (
 	DeadlineInvalResponse   Type = "inval_response"   // 无效宣告答复
 )
 
+// 非日期占位：无法精确计算、需参见通知书的期限（DueDate 的哨兵值）。
+const (
+	dueDatePendingOA  = "参见通知书"
+	dueDatePendingReg = "参见授权通知书"
+)
+
 // CalculatedDeadline is a computed deadline for display.
 type CalculatedDeadline struct {
 	Type          Type   `json:"type"`
@@ -31,6 +37,12 @@ type CalculatedDeadline struct {
 	DaysRemaining int    `json:"days_remaining"` // positive = remaining, negative = overdue
 	LegalBasis    string `json:"legal_basis"`
 	Status        string `json:"status"` // "urgent" / "normal" / "overdue" / "pending"
+}
+
+// isNonDateDue 报告期限的 DueDate 是否为"参见通知书/授权通知书"这类非日期
+// 占位，即无法精确计算、只能以待处理展示的期限。
+func isNonDateDue(d CalculatedDeadline) bool {
+	return d.DueDate == dueDatePendingOA || d.DueDate == dueDatePendingReg
 }
 
 // CalculatePatentDeadlines computes all statutory deadlines based on a filing
@@ -93,7 +105,7 @@ func CalculatePatentDeadlines(filingDate time.Time, caseType string) []Calculate
 		deadlines = append(deadlines, CalculatedDeadline{
 			Type:       DeadlineOAResponse,
 			Label:      "答复审查意见通知书（具体期限参见通知书）——通常为发文日+15天+指定期限（2或4个月）",
-			DueDate:    "参见通知书",
+			DueDate:    dueDatePendingOA,
 			LegalBasis: "专利法第37条",
 			Status:     "pending",
 		})
@@ -104,7 +116,7 @@ func CalculatePatentDeadlines(filingDate time.Time, caseType string) []Calculate
 		deadlines = append(deadlines, CalculatedDeadline{
 			Type:       DeadlineRegistration,
 			Label:      "办理专利登记手续、缴纳登记费、印花税及当年年费（期限以授权通知书为准，通常为发文日+2个月）",
-			DueDate:    "参见授权通知书",
+			DueDate:    dueDatePendingReg,
 			LegalBasis: "专利法实施细则第97条",
 			Status:     "pending",
 		})
@@ -125,10 +137,10 @@ func CalculatePatentDeadlines(filingDate time.Time, caseType string) []Calculate
 
 	// Sort by due date, placing non-date entries at the end.
 	sort.Slice(deadlines, func(i, j int) bool {
-		if deadlines[i].DueDate == "参见通知书" || deadlines[i].DueDate == "参见授权通知书" {
+		if isNonDateDue(deadlines[i]) {
 			return false
 		}
-		if deadlines[j].DueDate == "参见通知书" || deadlines[j].DueDate == "参见授权通知书" {
+		if isNonDateDue(deadlines[j]) {
 			return true
 		}
 		return deadlines[i].DueDate < deadlines[j].DueDate
@@ -140,7 +152,8 @@ func CalculatePatentDeadlines(filingDate time.Time, caseType string) []Calculate
 // newDeadline creates a CalculatedDeadline with computed days remaining.
 func newDeadline(typ Type, label string, due, today time.Time, legalBasis string) CalculatedDeadline {
 	dueStr := due.Format("2006-01-02")
-	daysRemaining := int(due.Sub(today).Hours() / 24)
+	// 按整日历天差计算，避免时区/时刻偏移导致的截断偏差。
+	daysRemaining := daysBetween(today, due)
 
 	status := "normal"
 	if daysRemaining < 0 {
@@ -157,6 +170,17 @@ func newDeadline(typ Type, label string, due, today time.Time, legalBasis string
 		LegalBasis:    legalBasis,
 		Status:        status,
 	}
+}
+
+// daysBetween 返回从 from 到 to 的整日历天差（to - from），忽略时刻与
+// 时区偏移。两侧归一到各自日历日期的 UTC 零点，结果恒为整天，不会因
+// 本地零点与 UTC Parse 的偏移或小数天截断而偏差一天。
+func daysBetween(from, to time.Time) int {
+	fy, fm, fd := from.Date()
+	ty, tm, td := to.Date()
+	fromDay := time.Date(fy, fm, fd, 0, 0, 0, 0, time.UTC)
+	toDay := time.Date(ty, tm, td, 0, 0, 0, 0, time.UTC)
+	return int(toDay.Sub(fromDay).Hours() / 24)
 }
 
 // FormatDeadlineReport generates a Markdown deadline report.
@@ -187,7 +211,7 @@ func FormatDeadlineReport(deadlines []CalculatedDeadline) string {
 		}
 
 		daysStr := fmt.Sprintf("%d天", d.DaysRemaining)
-		if d.DueDate == "参见通知书" || d.DueDate == "参见授权通知书" {
+		if isNonDateDue(d) {
 			daysStr = "—"
 		} else if d.DaysRemaining < 0 {
 			daysStr = fmt.Sprintf("已逾期%d天", -d.DaysRemaining)
@@ -226,7 +250,7 @@ func SummarizeDeadlines(deadlines []CalculatedDeadline) Summary {
 		}
 	}
 	for _, d := range deadlines {
-		if d.DaysRemaining > 0 && d.DueDate != "参见通知书" && d.DueDate != "参见授权通知书" {
+		if d.DaysRemaining > 0 && !isNonDateDue(d) {
 			s.NextDeadline = &d
 			break
 		}

@@ -31,8 +31,8 @@ type CategoryCoverage struct {
 }
 
 // PatternInfo 是推理模式的领域无关摘要。evaluate 只关心标识、类别与
-// 关联规则数量，不依赖任何具体领域包；领域侧（如 workflows/patent）在
-// 组装期通过 PatternSource 注入实际数据。
+// 关联规则数量，不依赖任何具体领域包；需要时由组装接缝通过
+// PatternSource 注入实际数据（见 NewReasoningPatternCoverage）。
 type PatternInfo struct {
 	// ID 是模式唯一标识。
 	ID string

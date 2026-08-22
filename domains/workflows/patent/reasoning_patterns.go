@@ -6,8 +6,6 @@
 // and invalidation success rate.
 package patent
 
-import "github.com/xujian519/mady/evaluate"
-
 // ReasoningPattern represents a standardized legal reasoning template from
 // the patent re-examination knowledge base. Each pattern corresponds to one
 // of the 18 canonical reasoning forms used by patent examiners and agents.
@@ -44,23 +42,6 @@ func PatternsByCategory(category string) []ReasoningPattern {
 		if p.Category == category {
 			out = append(out, p)
 		}
-	}
-	return out
-}
-
-// PatternInfos 将本领域的推理模式摘要为 evaluate.PatternInfo 列表，
-// 供组装期注入 evaluate.NewReasoningPatternCoverage。依赖方向：
-// 领域层 → evaluate（评估器保持领域无关）。
-func PatternInfos() []evaluate.PatternInfo {
-	all := AllPatterns()
-	out := make([]evaluate.PatternInfo, 0, len(all))
-	for _, p := range all {
-		out = append(out, evaluate.PatternInfo{
-			ID:        p.ID,
-			Name:      p.Name,
-			Category:  p.Category,
-			RuleCount: len(p.CheckRules),
-		})
 	}
 	return out
 }
