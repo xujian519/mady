@@ -401,7 +401,9 @@ Planner body`)
 	defer stream.cancel()
 	<-stream.ready
 
-	snapshot := nextSSEEvent(t, stream, 3*time.Second)
+	// 超时取 10s：CI 上 -race + 全包并行导致事件送达偶发超过 3s（本地 ~100ms 级），
+	// 3s 会误报 flaky（2026-08-22 连续两次 CI 失败后确认）。
+	snapshot := nextSSEEvent(t, stream, 10*time.Second)
 	if snapshot.Event != "skills_snapshot" {
 		t.Fatalf("snapshot event = %#v", snapshot)
 	}
@@ -429,7 +431,7 @@ Missing description`)
 	var reloadResp SkillRegistryStatusResponse
 	postJSON(t, srv.Handler(), "/api/skills/reload", nil, &reloadResp, http.StatusOK)
 
-	ev := nextSSEEvent(t, stream, 3*time.Second)
+	ev := nextSSEEvent(t, stream, 10*time.Second)
 	if ev.Event != "skills_reloaded" {
 		t.Fatalf("event = %#v", ev)
 	}
