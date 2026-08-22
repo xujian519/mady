@@ -98,7 +98,6 @@ mady/
 ├── fuzzy/            # 模糊搜索
 ├── integration/      # 端到端集成测试（5 条核心链路）
 ├── pkg/
-│   ├── agentconfig/  #   统一 Provider/Model 配置层
 │   ├── util/         #   路径解析等通用工具
 │   └── vecbytes/     #   向量字节编码
 ├── example/          # 示例应用

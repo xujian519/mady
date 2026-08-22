@@ -134,7 +134,6 @@ mady/
 ├── doc-templates/    # 文档模板库（claims / specification / oa-response / disclosure / legal）
 ├── manifests/        # 外部 manifest 示例
 ├── pkg/
-│   ├── agentconfig/  #   统一 Provider/Model 配置层
 │   ├── csync/        #   并发同步原语
 │   ├── framework/    #   框架装配（DeferredInit 并发原语等）
 │   ├── i18n/         #   国际化（zh-CN / en-US，护栏与通用文案翻译）
