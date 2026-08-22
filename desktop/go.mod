@@ -58,7 +58,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/samber/lo v1.49.1 // indirect
 	github.com/signintech/gopdf v0.38.0 // indirect
-	github.com/sky-valley/pi v0.84.17 // indirect
+	github.com/sky-valley/pi v0.84.18 // indirect
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
 	github.com/up-zero/gotool v0.0.0-20260105010850-4a05e8fadd54 // indirect
