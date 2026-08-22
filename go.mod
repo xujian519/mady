@@ -12,7 +12,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	github.com/signintech/gopdf v0.38.0
-	github.com/sky-valley/pi v0.84.17
+	github.com/sky-valley/pi v0.84.18
 	github.com/xujian519/mady/tui v0.0.0-20260721162033-d76ce4144d96
 	github.com/xuri/excelize/v2 v2.11.0
 	github.com/yuin/goldmark v1.8.5

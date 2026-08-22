@@ -75,8 +75,8 @@ github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0t
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/signintech/gopdf v0.38.0 h1:s4apRVQX8SG+1qRfAFpWhs5fS2PFwwPU+fS0SnGRwgA=
 github.com/signintech/gopdf v0.38.0/go.mod h1:d23eO35GpEliSrF22eJ4bsM3wVeQJTjXTHq5x5qGKjA=
-github.com/sky-valley/pi v0.84.17 h1:cdlBoV24hNLIbPMDl5M6JOHU77yyyPmIeaajCHEYHR8=
-github.com/sky-valley/pi v0.84.17/go.mod h1:JSHhfku7juhYGBXWtNN9VzqnKHTYLVGQrnIf+oYCfeQ=
+github.com/sky-valley/pi v0.84.18 h1:LVFnMHJDVPeN6hYBAgkibKpqOuaLkbrc0WWbcGjRFpU=
+github.com/sky-valley/pi v0.84.18/go.mod h1:JSHhfku7juhYGBXWtNN9VzqnKHTYLVGQrnIf+oYCfeQ=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tiendc/go-deepcopy v1.7.2 h1:Ut2yYR7W9tWjTQitganoIue4UGxZwCcJy3orjrrIj44=
