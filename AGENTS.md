@@ -128,6 +128,7 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 - 涉及 Checkpoint、护栏等级（guardrails.Level）、Handoff 白名单（AllowedSources）、
   WorkingDir 沙箱边界（tools/path.go）的改动，禁止未经人工审阅直接合入
 - 涉及护栏文案、报告结论措辞的改动，对照 `docs/tone-style-guide.md` 的禁用词表
+  （机器扫描：`scripts/check-tone-words.py --fail`，pre-commit 已接线，命中即拦）
 
 ## 变更即记录
 

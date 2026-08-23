@@ -4,6 +4,7 @@
 //   - TestAichangelogFormatGate：AI 变更日志格式门禁（缺**背景**必拦 / 四字段齐全放行）
 //   - TestSensitivePathsGate：敏感路径门禁（AI 标记 + 敏感路径必拦 / 无 AI 标记放行）
 //   - TestCheckCoverage：覆盖率门禁（40% 必拦 / 60% 放行，阈值同源 codecov.yml）
+//   - TestToneWordsGate：tone 禁用词门禁（字符串文案含「一定构成侵权」必拦 / 正常放行）
 //   - TestPrecommitLintFailClosed：lint 工具缺失时阻断提交（fail-closed，单向）
 //
 // 红绿测试在 t.TempDir() 隔离的临时 git 仓库内执行（只 git add 不 commit），
@@ -219,6 +220,55 @@ func TestCheckCoverage_Green_AboveThreshold(t *testing.T) {
 	code, out := runCmd(t, repoRoot, nil, "python3", scriptPath("check-coverage.py"), profile)
 	if code != 0 {
 		t.Errorf("60%% 覆盖率应放行（exit 0），实际 exit=%d 输出:\n%s", code, out)
+	}
+}
+
+// --- tone 禁用词门禁 ------------------------------------------------------------
+
+func TestToneWordsGate_Red_ForbiddenPhrase(t *testing.T) {
+	dir := t.TempDir()
+	gitInit(t, dir)
+
+	// 面向用户文案目录（server/）中的字符串文案含禁用词——必须被拦截。
+	// 违规词须在字符串字面量而非注释里：脚本跳过代码注释（词表约束的是产出文案）。
+	if err := os.MkdirAll(filepath.Join(dir, "server"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := "package server\n\nconst red = \"该产品一定构成侵权，无需人工复核。\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "server", "tone_red.go"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, out := runCmd(t, dir, nil, "git", "add", "."); code != 0 {
+		t.Fatalf("git add 失败(%d): %s", code, out)
+	}
+
+	code, out := runCmd(t, dir, nil, "python3", scriptPath("check-tone-words.py"), "--fail")
+	if code != 1 {
+		t.Errorf("含禁用词的文案应被拦截（exit 1），实际 exit=%d 输出:\n%s", code, out)
+	}
+	if !strings.Contains(out, "构成侵权") {
+		t.Errorf("错误输出应指出命中的禁用词:\n%s", out)
+	}
+}
+
+func TestToneWordsGate_Green_NormalPhrase(t *testing.T) {
+	dir := t.TempDir()
+	gitInit(t, dir)
+
+	if err := os.MkdirAll(filepath.Join(dir, "server"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := "package server\n\n// 面向用户文案：本方案与对比文件存在多处相似特征，需人工复核确认。\n"
+	if err := os.WriteFile(filepath.Join(dir, "server", "tone_ok.go"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, out := runCmd(t, dir, nil, "git", "add", "."); code != 0 {
+		t.Fatalf("git add 失败(%d): %s", code, out)
+	}
+
+	code, out := runCmd(t, dir, nil, "python3", scriptPath("check-tone-words.py"), "--fail")
+	if code != 0 {
+		t.Errorf("正常文案应放行（exit 0），实际 exit=%d 输出:\n%s", code, out)
 	}
 }
 

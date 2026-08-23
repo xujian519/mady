@@ -18,7 +18,7 @@ DESKTOP_LDFLAGS ?= -ldflags "-X main.desktopVersion=$(DESKTOP_VERSION)"
 # 同样从该文件读取/校验，升级只需改一处）。
 GOLANGCI_LINT_VERSION ?= $(shell cat .golangci-version)
 
-.PHONY: all build test test-race test-short test-integration test-e2e test-verbose test-disclosure-smoke test-approval-audit test-dry-run-gate coverage vet lint fmt clean \
+.PHONY: all build test test-race test-short test-integration test-e2e test-verbose test-disclosure-smoke test-approval-audit test-dry-run-gate coverage vet lint fmt check-tone clean \
         install install-hooks install-lint \
         build-cli-chat build-wiki-import build-acp-server build-mady \
         run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client run-mady run-acp-server \
@@ -47,6 +47,19 @@ doc-check:
 # "提交前真实标准"——比 all 更完整：包含 lint（golangci-lint）、verify-layers 与
 # test-race（竞态检测）。提交前请运行 make verify 而非 make all，以确保门禁完整闭合。
 verify: lint check-arch doc-check verify-layers build test-race
+
+# tone-style 禁用词门禁：扫描面向用户文案目录（guardrails/server/agui/a2ui/pkg/i18n）
+# 的 Go 源码，命中禁用词即失败。词表单源解析 docs/tone-style-guide.md §4（防漂移），
+# 与 pre-commit 的 check-tone-words hook 行为一致。
+# 定位：面向用户文案的措辞门禁（AGENTS.md 安全红线），存量文案改动需人工审阅故不进
+# verify 链，由 pre-commit 拦截增量违规；需要全量确认时显式运行本目标。
+check-tone:
+	@if command -v python3 >/dev/null 2>&1; then \
+		python3 scripts/check-tone-words.py --fail; \
+	else \
+		echo "❌ python3 不可用，tone 词表检查未执行（fail-closed）"; \
+		exit 1; \
+	fi
 
 # --- Build ---
 build:
@@ -333,6 +346,7 @@ help:
 	@echo "  fmt                Format all source files"
 	@echo "  coverage           Generate coverage report (coverage.html)"
 	@echo "  coverage-check     Three-module weighted coverage gate (codecov.yml same-source threshold)"
+	@echo "  check-tone         tone-style word gate (user-facing copy, §4 table as single source)"
 	@echo ""
 	@echo "Run:"
 	@echo "  run-cli-chat       Run CLI chat application"

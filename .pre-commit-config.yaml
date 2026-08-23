@@ -65,6 +65,15 @@ repos:
         entry: scripts/check-comment-seams.sh
         language: system
         files: \.go$
+      - id: check-tone-words
+        name: tone-style word gate
+        # 面向用户文案的禁用词门禁：词表单源解析 docs/tone-style-guide.md §4，
+        # 命中即拦（--fail）。只扫 .go 变更触发；脚本内部限定面向用户文案目录
+        # （guardrails/server/agui/a2ui/pkg/i18n），跳过注释、测试数据与显式豁免文件。
+        entry: python3 scripts/check-tone-words.py --fail
+        language: system
+        files: \.go$
+        pass_filenames: false
       - id: check-aichangelog-format
         name: AI_CHANGELOG format gate
         entry: bash scripts/check-aichangelog-format.sh
