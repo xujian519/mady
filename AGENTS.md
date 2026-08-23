@@ -15,9 +15,9 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 → 通用工具库（pkg/{util,csync,i18n,lawcite,agentconfig,vecbytes}）
 → 协议与接口层（A2A/A2UI/AGUI/ACP/Server/MCP/TUI）
 → 应用入口（cmd/mady, example/）。
-1610 个 Go 源文件（1072 非测试 + 538 测试），~281K 行代码。
+1621 个 Go 源文件（1077 非测试 + 544 测试），~281K 行代码。
 
-> 文件计数更新时间：2026-08-13。如需获取最新计数（与 check-doc-consistency.py 同口径），请执行：
+> 文件计数更新时间：2026-08-23。如需获取最新计数（与 check-doc-consistency.py 同口径），请执行：
 > ```bash
 > git ls-files '*.go' | wc -l && git ls-files '*_test.go' | wc -l
 > ```
@@ -27,7 +27,7 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 - 构建：`go build ./...`
 - 测试：`go test -race ./...`（并发相关代码必须带 -race）
 - Lint：`golangci-lint run`
-- **提交前必须三者全过**，建议统一使用 `make verify`（lint + build + test-race，覆盖全部四个模块）
+- **提交前必须三者全过**，建议统一使用 `make verify`（lint + build + test-race，覆盖全部模块）
 - 日常快速验证：`make all`（vet + build + test，不含 race）
 - 常用快捷命令见 `Makefile`：`make verify`、`make all`、`make test-race`、
   `make lint`、`make build-mady`、`make run-mady`（TUI 入口 `cmd/mady/`）
@@ -49,10 +49,11 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 
 ### ⚠️ 多模块工作区（重要 gotcha）
 
-本仓库是 `go.work` 多模块结构：根模块 `.` + 独立子模块 `./tools` + `./tui` + `./desktop`（各有自己的 `go.mod`）。
-- 根目录执行 `go build/test/vet ./...` **不会**覆盖 `tools/`、`tui/`、`desktop/` 模块
-- 根模块通过 `replace github.com/xujian519/mady => ../` 引用 tools/tui，反之亦然
-- 对 `tools/`、`tui/` 或 `desktop/` 的改动须单独 `cd <模块> && go build ./... && go test ./...`，
+本仓库是 `go.work` 多模块结构：根模块 `.`（**含 `tools/` 目录包**，2026-08-22 已上收，
+`tools/` 不再有独立 `go.mod`）+ 子模块 `./tui` + `./desktop`（各有自己的 `go.mod`）。
+- 根目录执行 `go build/test/vet ./...` 已覆盖 `tools/`，但**不会**覆盖 `tui/`、`desktop/` 模块
+- 根模块通过 `require github.com/xujian519/mady/tui` + `replace => ./tui` 引用 tui；desktop 独立
+- 对 `tui/` 或 `desktop/` 的改动须单独 `cd <模块> && go build ./... && go test ./...`，
   或用 `make lint` / `make fmt`（Makefile 已封装各模块分支）
 
 ### 提交规范
@@ -95,6 +96,25 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
   （对应 `docs/chat-assistant-architecture.md` 里反复强调的依赖倒置原则）
 - 涉及 `guardrails/`、`psychological/`、Handoff 校验逻辑的改动，
   必须先读 `docs/chat-assistant-architecture.md` 了解已有契约设计
+
+## 规范元规则
+
+规范治理的六条元规则。每条规范都应满足"三件套"——家（一处定义）+ 机器验证
+（脚本/门禁）+ 理由记录（为什么这样）——缺机器验证的规范是愿望，不是规范。
+
+1. **三件套**：每条规范 = 家 + 机器验证 + 理由记录。家是唯一权威定义处（如敏感路径
+   清单的权威源是 `scripts/check-sensitive-paths.sh` 数组），机器验证是 `make doc-check`、
+   `make lint` 等可复现的脚本/门禁，理由记录写在规范旁（如 GO-STANDARDS §0.4）
+2. **例外显式**：门禁例外写成配置内的显式豁免 + 理由注释（如 doc-check 的 specs 四文件制
+   例外清单），禁止先违规后补豁免、禁止用宽松配置掩盖问题
+3. **事实清单可验证**：目录树、文件计数、模块声明、敏感路径清单等事实声明必须可脚本校验
+   （`scripts/check-doc-consistency.py` 断言 1-13），靠自觉维护的清单视为不存在
+4. **本地窄 / CI 全**：本地 `make verify` 快速收敛提交问题，CI 跑全量（三模块 + 桌面端 +
+   集成测试），提交不被慢门禁瘫痪
+5. **覆盖率定位**：`make coverage-check` 是死代码探测器而非考核，不进 verify 链；
+   阈值单源解析 `codecov.yml`（target − threshold），解析失败即红
+6. **fail-closed**：门禁工具缺失/配置错误时响亮失败（exit 1），不静默放行；
+   临时绕过用 `SKIP=<hook-id>` 并注明理由（见 Makefile lint 目标）
 
 ## 任务粒度
 

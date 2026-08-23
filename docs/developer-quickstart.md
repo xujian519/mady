@@ -19,7 +19,7 @@ pre-commit install --hook-type commit-msg
 make all          # vet + build + test（不含 race）
 
 # 提交前标准（必须）
-make verify       # lint + build + test-race → 覆盖根模块 + tools/ 子模块
+make verify       # lint + build + test-race → 覆盖全部模块（root + tui + desktop）
 ```
 
 ## 提交信息
@@ -36,7 +36,7 @@ make verify       # lint + build + test-race → 覆盖根模块 + tools/ 子模
 1. PR 模板中选择 AI 参与级别
 2. 勾选涉红线变更（如有）
 3. 确保 `make verify` 通过
-4. 更新 `CHANGELOG.md` + `docs/decisions/AI_CHANGELOG.md`（如涉及 AI 决策）
+4. 更新 `CHANGELOG.md` + `docs/decisions/ai-changelog/`（AI 决策记录，须用脚本追加，见 CONTRIBUTING.md）
 
 ## 安全红线
 
@@ -58,4 +58,4 @@ make verify       # lint + build + test-race → 覆盖根模块 + tools/ 子模
 | 安全策略 | `SECURITY.md` |
 | 措辞风格 | `docs/tone-style-guide.md` |
 | 数据隐私 | `docs/data-privacy-standards.md` |
-| AI 决策日志 | `docs/decisions/AI_CHANGELOG.md` |
+| AI 决策日志 | `docs/decisions/ai-changelog/`（INDEX.json 为入口） |

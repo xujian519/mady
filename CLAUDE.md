@@ -7,24 +7,24 @@
 
 ## 技术栈
 
-- **Go 1.26**：多模块项目（go.work 包含根模块 + `./tools` + `./tui` + `./desktop` 四个子模块）
+- **Go 1.26**：多模块项目（go.work 三模块：根模块，含 `tools/` 目录包 + `./tui` + `./desktop`）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
 - 1500+ 个 Go 源文件（~1072 非测试 + ~538 测试，不含 vendor），~281K 行代码
 
 ## 构建与测试
 
 ```bash
-# 提交前标准（推荐）：lint + build + race 测试，覆盖全部四个模块
+# 提交前标准（推荐）：lint + build + race 测试，覆盖全部模块
 make verify
 
-# 构建所有包
+# 构建所有包（含 tools/ 目录包，不含 tui/desktop 子模块）
 go build ./...
 
 # 运行所有测试
 go test ./...
 
-# 运行 tools 子模块测试
-cd tools && go test ./...
+# 运行 tui 子模块测试
+cd tui && go test ./...
 ```
 
 ## 目录结构
@@ -105,7 +105,7 @@ mady/
 │   └── ego-browser/  #   浏览器自动化技能（ego lite，macOS only）+ 专利数据库 learnings
 │                     #   （patent-google / patent-cnipa / patent-espacenet）
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块，74 源 + 23 测试）
+├── tools/            # 内置工具扩展（根模块包目录，85 源 + 30 测试）
 │   ├── desktop/          # 桌面控制（computer_use*.go：macOS/Linux/Windows 三平台 + SOM）
 │   ├── browser_*.go      # 浏览器自动化（stealth/session/recorder/supervisor）
 │   └── browserproviders/ # 浏览器提供商抽象
@@ -180,6 +180,7 @@ mady/
 - **DocumentStyle**：`domains/style.go` 以 YAML 定义领域风格指南（tone/voice/anti_patterns/citation/disclaimers），`styles/` 目录 4 套默认风格
 - **Spec-Driven**：新功能按 proposal → spec → design → tasks 四阶段文档进行（详见 `docs/specs/`）
 - **Go 编码规范**：所有 Go 代码必须遵守 `docs/GO-DEVELOPMENT-STANDARDS.md`，AI 编码前必读第 0 章硬约束清单
+- **规范元规则**：规范治理六条（三件套/例外显式/事实清单可验证/本地窄 CI 全/覆盖率定位/fail-closed）见 AGENTS.md「规范元规则」节
 
 ## Handoff 交接机制
 

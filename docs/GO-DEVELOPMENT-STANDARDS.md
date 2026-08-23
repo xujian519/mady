@@ -15,9 +15,9 @@
 | # | 规则 | 检查方式 |
 |---|------|---------|
 | 1 | **所有 error 必须检查** — 禁止 `_` 忽略 error | `go vet` 部分覆盖，人工 review |
-| 2 | **禁止 `import .`（dot import）** — 包括测试文件 | `golangci-lint` |
+| 2 | **禁止 `import .`（dot import）** — 包括测试文件 | `golangci-lint`（revive `dot-imports`，`.golangci.yml` 已启用） |
 | 3 | **禁止 `init()` 中 panic** — 用 `log.Printf` + stderr | 人工 review |
-| 4 | **禁止 `common/`、`utils/`、`base/` 等通用包** — 按领域语义命名 | `golangci-lint` 可配规则 |
+| 4 | **禁止 `common/`、`utils/`、`base/` 等通用包** — 按领域语义命名 | `doc-check` 包名守卫（`go list ./...` 路径段扫描）+ 人工 review。注：forbidigo 类规则只匹配使用点、拦不住"存在但未导入"的新包，故不做 lint 配置 |
 | 5 | **import 必须三组排序**：stdlib → 第三方 → `github.com/xujian519/mady/*`，组间空行 | `goimports -local github.com/xujian519/mady` |
 | 6 | **错误信息小写开头，不加标点** — `fmt.Errorf("...: %w", err)` 会拼接 | 人工 review |
 | 7 | **goroutine 必须知道如何退出** — 通过 `context.Context` 或 `<-done` 管理生命周期 | `go vet` 部分覆盖 |
@@ -40,11 +40,25 @@
 
 ```bash
 # AI 在完成代码修改后，必须运行以下命令确认无误：
-go build ./...            # 构建通过
-cd tools && go build ./... && cd ..  # 子模块通过
+go build ./...            # 构建通过（根模块，含 tools/ 目录包）
+cd tui && go build ./... && cd ..     # tui 子模块通过
+cd desktop && go build ./... && cd .. # desktop 子模块通过
 go vet ./...              # 无警告
 go test -race ./...       # 测试通过（含竞态检测）
 ```
+
+### 0.4 检查方式列的诚实原则
+
+**检查方式列标注什么，门禁链里就必须真能跑出什么**：
+
+- 标注 `golangci-lint`/`go vet`/`doc-check` 的规则，必须在对应配置里真启用且可复现。
+  反例：本表 #2 曾长期标注 "golangci-lint" 但 `.golangci.yml` 未启用 `dot-imports`
+  （revive），2026-08-23 补启用并以 `scripts/gatechecks/` 自测包锁定——标注与配置
+  双向校验由 `make doc-check` 负断言与门禁自测保证，禁止"标注了但没配置"的虚假承诺
+- 标注 `人工 review` 就是人工 review——不得用"已检查"字样伪装机器检查；
+  人工检查项应写明检查人观察点（如"检查错误信息是否小写开头"），方便人机复核
+- 门禁例外必须是配置内显式豁免 + 理由注释（如 `docs/specs/` 四文件制例外清单），
+  禁止用宽松配置、降级路径掩盖检查缺口
 
 > 详细说明见第 1-13 章。本节为硬约束提炼，与正文冲突时以本节为准。
 
@@ -73,7 +87,7 @@ go test -race ./...       # 测试通过（含竞态检测）
 
 ### 1.1 多模块布局
 
-Mady 使用 Go 1.26 多模块（`go.work`），根模块 + 3 个子模块：
+Mady 使用 Go 1.26 多模块（`go.work`），根模块 + 2 个子模块：
 
 ```go
 // go.work
@@ -82,16 +96,14 @@ go 1.26
 use (
     .
     ./desktop
-    ./tools
     ./tui
 )
 ```
 
 | 模块 | 用途 |
 |------|------|
-| `.`（根模块） | 核心引擎、领域逻辑、服务端 |
+| `.`（根模块） | 核心引擎、领域逻辑、服务端，**含 `tools/` 目录包**（2026-08-22 已从独立子模块上收） |
 | `./desktop` | 桌面应用 |
-| `./tools` | 内置工具扩展（可被外部 `go get` 导入） |
 | `./tui` | 终端 UI（8 层 Elm 架构） |
 
 > **何时拆分子模块**：当一组包与主项目生命周期不同、或需要独立版本号、或被外部复用。
@@ -104,7 +116,7 @@ mady/
 │   └── mady/main.go        # 统一的入口点，mady tui | mady serve | mady acp
 ├── agentcore/              # 核心引擎包（包名与目录名一致）
 ├── domains/                # 领域包
-├── tools/                  # 独立子模块（可用 go get 外部导入）
+├── tools/                  # 内置工具扩展（根模块包目录）
 ├── pkg/                    # 可被外部导入的公共库
 │   ├── agentconfig/
 │   └── util/
@@ -950,7 +962,7 @@ golangci-lint run ./...
 ### 11.2 CI 工作流（`.github/workflows/ci.yml`）
 
 CI 必须包含：
-1. `go build ./...` + `go build ./tools/...`
+1. `go build ./...`（已含 `./tools/...`）+ 子模块 `go build`（tui/desktop）
 2. `go vet ./...`
 3. `go test -race ./...`（单元测试）
 4. `golangci-lint run`
@@ -958,8 +970,9 @@ CI 必须包含：
 
 ### 11.3 构建检查清单（提交前）
 
-- [ ] `go build ./...` 成功
-- [ ] `cd tools && go build ./...` 成功
+- [ ] `go build ./...` 成功（含 tools/ 目录包）
+- [ ] `cd tui && go build ./...` 成功
+- [ ] `cd desktop && go build ./...` 成功
 - [ ] `go test -race ./...` 通过
 - [ ] `go vet ./...` 无警告
 - [ ] `golangci-lint run ./...` 通过
@@ -994,7 +1007,7 @@ CI 必须包含：
 
 - 密钥通过环境变量注入，禁止硬编码。
 - 测试/示例代码中使用占位符（如 `sk-your-test-key`）。
-- 配置文件中的密钥通过 `pkg/agentconfig` 统一管理。
+- 配置文件中的密钥通过 `bootstrap/agentconfig` 统一管理。
 
 ### 12.3 免责声明与措辞规范
 
@@ -1033,7 +1046,7 @@ CI 必须包含：
 | `acp/` | Agent 通信协议（JSON-RPC） | 无 |
 | `agui/` | Agent GUI 事件（SSE） | 无 |
 | `domains/` | 领域 Agent 配置 + 推理引擎 | 依赖 agentcore |
-| `tools/` | 内置工具扩展（独立子模块） | 可被外部导入 |
+| `tools/` | 内置工具扩展（根模块包目录） | 随根模块 |
 | `tui/` | 终端 UI（8 层 Elm） | 无外部 GUI 依赖 |
 | `graph/` | 图引擎（DAG + Pregel） | 无 |
 | `guardrails/` | 三级安全护栏 | 无 |
