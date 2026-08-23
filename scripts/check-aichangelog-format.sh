@@ -8,7 +8,8 @@
 #
 # 门禁规则（只检查新添加的条目）：
 #   必须包含：**背景** 和 **改动清单**
-#   建议包含：**设计决策** 和 **影响**
+#   建议包含：**验证** 和 **影响**
+# 字段名以 scripts/changelog/main.go 生成器模板为权威源（勿手写 Markdown）。
 
 set -euo pipefail
 
@@ -74,7 +75,7 @@ if [ -n "$ERRORS" ]; then
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "❌ ai-changelog 新增条目缺少必要字段！"
   echo "    新条目必须包含 **背景** 和 **改动清单** 字段。"
-  echo "    建议同时包含 **设计决策** 和 **影响** 字段。"
+  echo "    建议同时包含 **验证** 和 **影响** 字段。"
   echo "    请使用脚本追加: go run scripts/changelog/main.go"
   echo ""
   printf '%b' "$ERRORS"

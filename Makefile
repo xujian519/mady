@@ -14,7 +14,9 @@ LDFLAGS ?= -ldflags "-s -w -X main.commitHash=$(COMMIT_HASH) -X main.buildTime=$
 DESKTOP_VERSION ?= $(shell sed -n 's/.*"productVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' desktop/wails.json | head -1)
 # wails build 注入桌面端版本（与根模块 LDFLAGS 注入 main.commitHash 的约定对齐）。
 DESKTOP_LDFLAGS ?= -ldflags "-X main.desktopVersion=$(DESKTOP_VERSION)"
-GOLANGCI_LINT_VERSION ?= v2.12.2
+# golangci-lint 版本单一来源：.golangci-version（CI workflow 与 doc-check 断言
+# 同样从该文件读取/校验，升级只需改一处）。
+GOLANGCI_LINT_VERSION ?= $(shell cat .golangci-version)
 
 .PHONY: all build test test-race test-short test-integration test-e2e test-verbose test-disclosure-smoke test-approval-audit test-dry-run-gate coverage vet lint fmt clean \
         install install-hooks install-lint \
@@ -24,38 +26,36 @@ GOLANGCI_LINT_VERSION ?= v2.12.2
         help
 
 # Default target
-# 覆盖根模块 + tools 子模块（go.work 多模块结构）。
-# 注：单独 `go build/test/vet ./...` 在根目录执行时不会覆盖 tools/ 子模块，
-# 这里通过显式两段调用来保证一致性（CI 的 matrix 也覆盖了相同路径）。
+# 覆盖根模块（含 tools/ 目录包，2026-08-22 已并入根模块）+ tui/desktop 子模块。
+# 注：单独 `go build/test/vet ./...` 在根目录执行时不会覆盖 tui/desktop 子模块，
+# 这里通过显式多段调用来保证一致性（CI 的 matrix 也覆盖了相同路径）。
 all: vet doc-check build test
 
 # 文档-代码一致性校验（CLAUDE.md/AGENTS.md/CONTRIBUTING.md vs 实际代码库）。
 # 防止目录结构/文件计数/子命令数漂移复发，详见 scripts/check-doc-consistency.py。
-# python3 不可用时跳过（警告而非阻断），避免无 python3 环境无法执行标准门禁。
+# fail-closed：python3 不可用时报错退出（"跑过 verify"≠"通过门禁"），
+# 临时绕过请显式拆步运行其余目标（lint check-arch build test-race）并注明理由。
 doc-check:
 	@if command -v python3 >/dev/null 2>&1; then \
 		python3 scripts/check-doc-consistency.py; \
 	else \
-		echo "⚠ python3 不可用，跳过文档一致性检查"; \
+		echo "❌ python3 不可用，文档一致性检查未执行（fail-closed）"; \
+		echo "   请安装 python3 后重试：brew install python3"; \
+		exit 1; \
 	fi
 
-# "提交前真实标准"——比 all 更完整：包含 lint（golangci-lint）与 test-race（竞态检测）。
-# 提交前请运行 make verify 而非 make all，以确保门禁完整闭合。
-verify: lint check-arch doc-check build test-race
-
-# TOOLS_BUILD_DIR 用于在 tools 子模块执行命令时切换工作目录。
-# 所有 `cd tools && go ...` 调用都使用 `$(GO)` 与 `$(GOFLAGS)`，与根模块保持一致。
+# "提交前真实标准"——比 all 更完整：包含 lint（golangci-lint）、verify-layers 与
+# test-race（竞态检测）。提交前请运行 make verify 而非 make all，以确保门禁完整闭合。
+verify: lint check-arch doc-check verify-layers build test-race
 
 # --- Build ---
 build:
 	$(GO) build $(GOFLAGS) ./...
-	cd tools && $(GO) build $(GOFLAGS) ./...
 	cd tui && $(GO) build $(GOFLAGS) ./...
 	cd desktop && $(GO) build $(GOFLAGS) ./...
 
 build-release:
 	$(GO) build $(GOFLAGS) $(LDFLAGS) ./...
-	cd tools && $(GO) build $(GOFLAGS) $(LDFLAGS) ./...
 	cd tui && $(GO) build $(GOFLAGS) $(LDFLAGS) ./...
 	cd desktop && $(GO) build $(GOFLAGS) $(LDFLAGS) ./...
 
@@ -72,23 +72,20 @@ build-mady:
 	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINDIR)/mady ./cmd/mady/
 
 # --- Test ---
-# 所有 test target 都同时跑根模块和 tools 子模块，避免本地与 CI 不一致。
-# 失败时使用 `&&` 短路：根模块失败则不再跑 tools（与 matrix CI 行为一致）。
+# 所有 test target 都同时跑根模块（含 tools/）与 tui/desktop 子模块，避免本地与 CI 不一致。
+# 失败时使用 `&&` 短路：根模块失败则不再跑子模块（与 matrix CI 行为一致）。
 test:
 	$(GO) test $(GOFLAGS) -count=1 ./...
-	cd tools && $(GO) test $(GOFLAGS) -count=1 ./...
 	cd tui && $(GO) test $(GOFLAGS) -count=1 ./...
 	cd desktop && $(GO) test $(GOFLAGS) -count=1 ./...
 
 test-race:
 	$(GO) test $(GOFLAGS) -race -count=1 ./...
-	cd tools && $(GO) test $(GOFLAGS) -race -count=1 ./...
 	cd tui && $(GO) test $(GOFLAGS) -race -count=1 ./...
 	cd desktop && $(GO) test $(GOFLAGS) -race -count=1 ./...
 
 test-short:
 	$(GO) test $(GOFLAGS) -short -count=1 ./...
-	cd tools && $(GO) test $(GOFLAGS) -short -count=1 ./...
 	cd tui && $(GO) test $(GOFLAGS) -short -count=1 ./...
 
 test-integration:
@@ -98,12 +95,10 @@ test-integration:
 # 依赖外部浏览器运行时与网络，不纳入 verify 门禁（测试内部以 MADY_E2E=1 显式开启）；
 # 手动或 CI 专用。
 test-e2e:
-	MADY_E2E=1 $(GO) test $(GOFLAGS) -count=1 -run 'E2E' ./retrieval/domain/browser/...
-	cd tools && MADY_E2E=1 $(GO) test $(GOFLAGS) -count=1 -run 'E2E' ./...
+	MADY_E2E=1 $(GO) test $(GOFLAGS) -count=1 -run 'E2E' ./retrieval/domain/browser/... ./tools/...
 
 test-verbose:
 	$(GO) test $(GOFLAGS) -v -count=1 ./...
-	cd tools && $(GO) test $(GOFLAGS) -v -count=1 ./...
 	cd tui && $(GO) test $(GOFLAGS) -v -count=1 ./...
 	cd desktop && $(GO) test $(GOFLAGS) -v -count=1 ./...
 
@@ -194,17 +189,23 @@ bench-knowledge:
 	$(GO) test -bench=. -benchmem -count=1 ./knowledge/... 2>&1 | tee bench-knowledge.txt
 
 # --- Coverage ---
-# coverage 仅生成根模块覆盖率（与 CI 的 codecov 上传路径对齐）。
-# 如需 tools 覆盖率，单独执行 `cd tools && go test -coverprofile=tools.coverage.out ./...`
+# coverage 仅生成根模块覆盖率 HTML（与 CI 的 codecov 上传路径对齐）。
 coverage:
 	$(GO) test $(GOFLAGS) -coverprofile=coverage.out ./...
 	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo ""
 	@$(GO) tool cover -func=coverage.out | tail -1
 
+# coverage-check：三模块加权语句覆盖率门禁（fail-closed）。
+# - 阈值单源解析 codecov.yml（target − threshold，解析失败即红），勿在脚本内置默认值
+# - ignore 口径与 CI codecov 判定一致（example/integration/测试文件等）
+# - 定位是死代码探测器而非考核，故不进 verify 链；由 CI 与手动显式运行
 coverage-check:
-	$(GO) test $(GOFLAGS) -coverprofile=coverage.out ./...
-	@$(GO) tool cover -func=coverage.out | tail -1
+	@mkdir -p build/coverage
+	$(GO) test $(GOFLAGS) -coverprofile=build/coverage/root.out ./...
+	cd tui && $(GO) test $(GOFLAGS) -coverprofile=../build/coverage/tui.out ./...
+	cd desktop && $(GO) test $(GOFLAGS) -coverprofile=../build/coverage/desktop.out ./...
+	python3 scripts/check-coverage.py build/coverage/root.out build/coverage/tui.out build/coverage/desktop.out
 
 # --- Architecture Boundary Check ---
 .PHONY: check-arch
@@ -226,7 +227,6 @@ verify-layers:
 # --- Lint ---
 vet:
 	$(GO) vet $(GOFLAGS) ./...
-	cd tools && $(GO) vet $(GOFLAGS) ./...
 	cd tui && $(GO) vet $(GOFLAGS) ./...
 	cd desktop && $(GO) vet $(GOFLAGS) ./...
 
@@ -234,25 +234,25 @@ lint: vet
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run ./...; \
 		echo "---"; \
-		(cd tools && golangci-lint run ./...); \
-		echo "---"; \
 		(cd tui && golangci-lint run ./...); \
 		echo "---"; \
 		(cd desktop && golangci-lint run ./...); \
 	else \
-		echo "golangci-lint not installed. Run: make install-lint"; \
+		echo "❌ golangci-lint 未安装，lint 门禁未执行（fail-closed）"; \
+		echo "   请运行 make install-lint 安装后重试"; \
+		echo "   临时绕过（pre-commit 阶段）：SKIP=golangci-lint git commit，并注明理由"; \
+		exit 1; \
 	fi
 
 # --- Format ---
 fmt:
 	$(GO) fmt ./...
-	cd tools && $(GO) fmt ./...
 	cd tui && $(GO) fmt ./...
 	cd desktop && $(GO) fmt ./...
 
 # --- Clean ---
 clean:
-	rm -rf $(BINDIR) coverage.out coverage.html
+	rm -rf $(BINDIR) coverage.out coverage.html build/coverage
 
 # --- Tools Installation ---
 
@@ -302,8 +302,8 @@ help:
 	@echo "Mady Makefile"
 	@echo "============="
 	@echo ""
-	@echo "Note: all build/test/vet targets cover BOTH the root module"
-	@echo "      and the ./tools sub-module (go.work multi-module workspace)."
+	@echo "Note: all build/test/vet targets cover the root module (incl. tools/)"
+	@echo "      and the ./tui + ./desktop sub-modules (go.work multi-module workspace)."
 	@echo ""
 	@echo "Build:"
 	@echo "  build              Build all packages"
@@ -332,6 +332,7 @@ help:
 	@echo "  lint               Run golangci-lint (if installed)"
 	@echo "  fmt                Format all source files"
 	@echo "  coverage           Generate coverage report (coverage.html)"
+	@echo "  coverage-check     Three-module weighted coverage gate (codecov.yml same-source threshold)"
 	@echo ""
 	@echo "Run:"
 	@echo "  run-cli-chat       Run CLI chat application"

@@ -35,40 +35,49 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      # golangci-lint 版本单一来源：.golangci-version（doc-check 断言 workflows
+      # 不得出现版本字面量，升级只需改该文件一处）
+      - name: Read golangci-lint version
+        id: golangci-version
+        run: echo "version=$(cat .golangci-version)" >> "$GITHUB_OUTPUT"
+
       - name: golangci-lint (root)
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: ${{ steps.golangci-version.outputs.version }}
           working-directory: .
-
-      - name: golangci-lint (tools)
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.12.2
-          working-directory: tools
 
       - name: golangci-lint (tui)
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: ${{ steps.golangci-version.outputs.version }}
           working-directory: tui
 
       - name: golangci-lint (desktop)
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: ${{ steps.golangci-version.outputs.version }}
           working-directory: desktop
 
       # 门禁一致性校验（2026-08-19 T2.3）：子模块在根配置下必须同样干净，
       # 防止"子模块内部宽松配置掩盖问题"的假绿（门禁漂移）。
+      # tools/ 已于 2026-08-22 并入根模块，本步骤同时防止 tools/.golangci.yml 类
+      # 残留宽松配置文件复活。
       # 注：args 不要再写 `run` 子命令——golangci-lint-action 会自动注入，
       # 重复的 run 会被当作包路径解析（stat ./run 报错，2026-08-22 修复）。
       - name: golangci-lint (submodules with root config)
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: ${{ steps.golangci-version.outputs.version }}
           working-directory: .
           args: ./tools/... ./tui/... ./desktop/...
+
+      # 配置语法校验（fail-closed）：两份配置必须可解析。.golangci-newcode.yml
+      # 由 doc-check 从根配置生成（--update），此处防配置漂移后 CI 假绿。
+      - name: Verify golangci config syntax
+        run: |
+          golangci-lint config verify
+          golangci-lint config verify --config .golangci-newcode.yml
 
   check-arch:
     runs-on: ubuntu-latest
@@ -144,15 +153,6 @@ jobs:
             exit 1
           fi
 
-      - name: go mod tidy (tools)
-        working-directory: tools
-        run: |
-          go mod tidy -diff
-          if [ $? -ne 0 ]; then
-            echo "::error::tools/go.mod is not tidy. Run 'go mod tidy' in tools/ locally."
-            exit 1
-          fi
-
       - name: go mod tidy (tui)
         working-directory: tui
         run: |
@@ -170,8 +170,6 @@ jobs:
         module:
           - path: "."
             name: root
-          - path: "tools"
-            name: tools
           - path: "tui"
             name: tui
     name: test (${{ matrix.module.name }}, ${{ matrix.os }})
@@ -183,7 +181,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: |
             go.sum
-            tools/go.sum
+            tui/go.sum
 
       - name: go vet
         working-directory: ${{ matrix.module.path }}

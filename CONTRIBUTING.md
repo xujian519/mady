@@ -16,7 +16,7 @@ git clone https://github.com/xujian519/mady.git
 cd mady
 ```
 
-Mady 是一个 Go 多模块项目，使用 `go.work` 链接根模块、`tools/` 和 `tui/` 三个子模块：
+Mady 是一个 Go 多模块项目，使用 `go.work` 链接根模块（**含 `tools/` 目录包**，2026-08-22 已上收，不再有独立 `go.mod`）与 `tui/`、`desktop/` 两个子模块：
 
 ```bash
 # go.work 已包含在仓库中，直接使用即可
@@ -25,26 +25,26 @@ go work sync
 
 ### 构建
 
-推荐使用 Makefile 封装（覆盖根模块和 `tools/` 子模块）：
+推荐使用 Makefile 封装（覆盖全部模块）：
 
 ```bash
-# 构建所有包（根模块 + tools/ 子模块）
+# 构建所有包（根模块含 tools/ + tui/desktop 子模块）
 make build
 
-# 或使用原始的 go build（注意不会覆盖 tools/）
+# 或使用原始的 go build（注意不会覆盖 tui/desktop 子模块）
 go build ./...
 ```
 
-> **注意**：Mady 是 `go.work` 多模块结构（root + tools + tui）。根目录执行 `go build ./...` 不会覆盖 `tools/` 或 `tui/` 子模块。
+> **注意**：Mady 是 `go.work` 多模块结构（root + tui + desktop）。根目录执行 `go build ./...` 已覆盖 `tools/`，但不会覆盖 `tui/` 或 `desktop/` 子模块。
 > 除非使用 Makefile，否则需要单独 `cd <模块> && go build ./...</`。
 
 ### 运行测试
 
-> **注意**：`make verify`/`make test` 已同时覆盖 root + tools + tui 三个模块。
-> 裸 `go test ./...` 只跑根模块，如需跑 tools 或 tui 须 `cd tools && go test ./...` 或 `cd tui && go test ./...`。
+> **注意**：`make verify`/`make test` 已同时覆盖全部模块（root + tui + desktop）。
+> 裸 `go test ./...` 只跑根模块，如需跑子模块须 `cd tui && go test ./...` 或 `cd desktop && go test ./...`。
 
 ```bash
-# 提交前标准（推荐）：lint + build + race 测试，覆盖根模块 + tools/
+# 提交前标准（推荐）：lint + build + race 测试，覆盖全部模块
 make verify
 
 # 快速验证（日常开发）
@@ -53,7 +53,7 @@ make all       # vet + build + test（不含 race）
 # 仅带竞态检测
 make test-race
 
-# 生成覆盖率报告（仅根模块，tools/ 需单独执行）
+# 生成覆盖率 HTML（仅根模块；全模块阈值判定见 make coverage-check）
 make coverage
 ```
 
@@ -82,7 +82,7 @@ mady/
 ├── skill/            # 技能加载器
 ├── skills/           # 内置技能定义
 ├── store/            # 快照存储
-├── tools/            # 内置工具扩展（独立子模块，74 源 + 23 测试）
+├── tools/            # 内置工具扩展（根模块包目录，85 源 + 30 测试）
 ├── tui/              # 终端 UI（分层 Elm 架构，Layer 0-7）
 │   ├── core/         #   Layer 0: 基础类型与组件接口
 │   ├── layout/       #   Layer 0 扩展：布局原语
@@ -215,19 +215,26 @@ chore: 更新 Go 依赖版本
 
 ## AI 变更日志
 
-`docs/decisions/ai-changelog/` 目录记录 AI 协助开发过程中的关键决策（JSON 索引 + 日期文件）。
-每个 AI 参与的功能变更必须在对应版本下追加记录，格式如下：
+`docs/decisions/ai-changelog/` 目录记录 AI 协助开发过程中的关键决策：`INDEX.json` 提供结构化索引
+（日期/类型/范围/标题 + 条目行号定位），按日期归档的 `YYYY-MM-DD.md` 文件存放条目正文。
+
+每个 AI 参与的功能变更必须在对应日期文件追加一条记录，格式如下：
 
 ```
-## YYYY-MM-DD feature-slug
-- Decision: [做了什么设计决策]
-- Reason: [为什么这么选择，而非其他方案]
-- Risk: [已知风险或局限性]
-- Human Owner: [负责人姓名]
-- Spec: docs/specs/[feature]/ (如适用)
+## type(scope): title
+
+**背景**：为什么做这个变更（必填）
+**改动清单**：改了什么（必填）
+**验证**：如何验证（建议）
+**影响**：换来了什么、付出了什么（建议）
 ```
 
-此文件不是可选项 —— 每次 AI 参与的功能变更都必须更新。
+- type ∈ `feat|fix|refactor|docs|test|chore|style|perf`；scope 为模块名
+- 前置/后置字段名以 `scripts/changelog/main.go` 生成器模板为权威源
+- **追加必须通过脚本**（`go run scripts/changelog/main.go --type=... --scope=... --title=... --body=...`，
+  会原子更新 INDEX.json 与日期文件），**禁止手写 Markdown 追加**；`--body` 省略时从 stdin 读取
+- 此日志不是可选项 —— 每次 AI 参与的功能变更都必须更新；格式门禁
+  （`scripts/check-aichangelog-format.sh`）要求新条目含 **背景** 与 **改动清单** 两段
 
 ## AI 提交规范
 
@@ -290,6 +297,10 @@ rm -f "$TMP"
 git add .
 ./scripts/check-sensitive-paths.sh
 ```
+
+> **fail-closed 约定**：门禁工具缺失（golangci-lint / python3 等）时本地门禁**报错退出**而不是静默跳过——
+> 「跑过 verify」≠「通过门禁」。临时绕过仅限 pre-commit 阶段显式 `SKIP=<hook-id> git commit`，
+> 且须注明理由并尽快补装；Makefile 目标（lint/doc-check/coverage-check）无跳过开关。
 
 ## 获取帮助
 

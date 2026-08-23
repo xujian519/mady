@@ -67,6 +67,8 @@ linters:
           severity: warning
         - name: error-return
           severity: warning
+        - name: dot-imports
+          severity: warning
         - name: error-naming
           severity: warning
         - name: indent-error-flow
@@ -124,9 +126,10 @@ linters:
       - path: ".*\\.pb\\.go"
         linters:
           - all
-    # 清理/交互类错误忽略（与 tools/.golangci.yml 对齐的通用模式）：
+    # 清理/交互类错误忽略（历史 tools 模块 errcheck 豁免，tools 已并入根模块，
+    # 2026-08-22 后豁免随根配置保留）：
     # defer Close/Remove/Kill/Wait、fire-and-forget 桌面按键、交互式读取等
-    # 在清理路径中忽略返回值是安全惯例（详见 tools/.golangci.yml 同款规则）。
+    # 在清理路径中忽略返回值是安全惯例。
       - linters:
           - errcheck
         source: "defer .*\\.(Close|Remove|RemoveAll|Kill|Wait)\\("

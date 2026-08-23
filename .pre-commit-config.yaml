@@ -35,16 +35,16 @@ repos:
         pass_filenames: false
       - id: go-vet
         name: go vet
-        # go.work 多模块结构：必须分别 vet 根模块和 tools/ 子模块，
-        # 否则根目录 `go vet ./...` 不会覆盖 tools/。
-        entry: bash -ec 'go vet ./... && (cd tools && go vet ./...)' --
+        # go.work 多模块结构：必须分别 vet 根模块（含 tools/ 目录包）与
+        # tui/desktop 子模块，否则根目录 `go vet ./...` 不会覆盖子模块。
+        entry: bash -ec 'go vet ./... && (cd tui && go vet ./...) && (cd desktop && go vet ./...)' --
         language: system
         files: \.go$
         pass_filenames: false
       - id: golangci-lint
         name: golangci-lint
-        # go.work 多模块结构：必须分别 lint 根模块和 tools/ 子模块。
-        # 脚本处理跨机器兼容（GOPATH/bin 优先，PATH 回退）与未安装时的非阻塞降级。
+        # go.work 多模块结构：根模块（含 tools/ 目录包）与 tui/desktop 子模块。
+        # 脚本处理跨机器兼容（GOPATH/bin 优先，PATH 回退）与未安装时的 fail-closed。
         # 与 Makefile lint target 行为对齐。
         entry: bash scripts/precommit-golangci-lint.sh
         language: system
@@ -69,7 +69,7 @@ repos:
         name: AI_CHANGELOG format gate
         entry: bash scripts/check-aichangelog-format.sh
         language: system
-        files: ^docs/decisions/AI_CHANGELOG\.md$
+        files: ^docs/decisions/ai-changelog/[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$
         pass_filenames: false
       - id: check-sensitive-paths
         name: sensitive paths gate

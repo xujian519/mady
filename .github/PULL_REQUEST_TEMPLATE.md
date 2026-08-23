@@ -32,17 +32,17 @@
 
 ## 检查清单
 
-- [ ] 代码通过 `make verify`（lint + build + test-race，覆盖根模块 + tools/ 子模块）
+- [ ] 代码通过 `make verify`（lint + build + test-race，覆盖全部模块）
 - [ ] 新功能包含测试（含竞态检测 `-race`）
 - [ ] 文档已更新（README、代码注释等）
 - [ ] CHANGELOG.md 已更新（记录在 `[Unreleased]` 下）
-- [ ] 如涉及 AI 参与的功能变更，已更新 `docs/decisions/AI_CHANGELOG.md`
+- [ ] 如涉及 AI 参与的功能变更，已通过 `scripts/changelog/main.go` 追加到 `docs/decisions/ai-changelog/`
 - [ ] 无新的编译警告
 
 ## 测试计划
 
 <!-- 描述如何验证此变更 -->
-1. 运行 `make verify`（覆盖 lint、build、test-race、root + tools）
+1. 运行 `make verify`（覆盖 lint、build、test-race、全部模块）
 2. 运行示例验证：`go run ./example/cli-chat/`
 
 ## 截图 / 录屏（如适用）

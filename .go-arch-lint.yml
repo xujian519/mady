@@ -49,7 +49,8 @@ components:
     in: ./provider/**
   disclosure:
     in: ./disclosure/**
-  tools_submodule:
+  # tools 已并入根模块（2026-08-22），此处为根模块内的包目录组件
+  tools:
     in: ./tools/**
   domains:
     in: ./domains/**
@@ -126,7 +127,7 @@ deps:
       - retrieval
       - provider
       - disclosure
-      - tools_submodule
+      - tools
       - doomloop
       - evaluate
       - tracing
@@ -160,7 +161,7 @@ deps:
       - retrieval
       - provider
       - disclosure
-      - tools_submodule
+      - tools
       - tui_chat
       - tui_core
       - tui_component
@@ -206,7 +207,7 @@ deps:
       - retrieval
       - provider
       - disclosure
-      - tools_submodule
+      - tools
       - server
       - domains
       - doomloop
@@ -241,7 +242,7 @@ deps:
       - retrieval
       - provider
       - disclosure
-      - tools_submodule
+      - tools
       - doomloop
       - evaluate
       - tracing
@@ -274,7 +275,7 @@ deps:
       - retrieval
       - provider
       - disclosure
-      - tools_submodule
+      - tools
       - domains
       - doomloop
       - evaluate
@@ -308,7 +309,7 @@ deps:
       - memory
       - provider
       - disclosure
-      - tools_submodule
+      - tools
       - doomloop
       - evaluate
       - tracing
@@ -375,7 +376,7 @@ deps:
       - memory
       - retrieval
       - disclosure
-      - tools_submodule
+      - tools
       - doomloop
       - evaluate
       - tracing
@@ -408,7 +409,7 @@ deps:
       - memory
       - retrieval
       - provider
-      - tools_submodule
+      - tools
       - doomloop
       - evaluate
       - tracing
@@ -431,10 +432,10 @@ deps:
       - pkg
       - scripts
 
-  # tools 子模块不得导入 domains, server
-  tools_submodule:
+  # tools 包（根模块内）不得导入 domains, server
+  tools:
     mayDependOn:
-      - tools_submodule
+      - tools
       - agentcore
       - graph
       - knowledge

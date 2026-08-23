@@ -1,9 +1,10 @@
 # Mady Project - golangci-lint Configuration for NEW-CODE gate (v2 format)
 #
+# ⚠️ 由 scripts/check-doc-consistency.py --update 从 .golangci.yml 生成，禁止手改；
+#    修改根配置后运行 `python3 scripts/check-doc-consistency.py --update` 重新生成。
 # 与 .golangci.yml 相同，但额外启用 revive/exported（导出符号必须带注释）。
 # 用途：pre-commit 的 golangci-lint-newcode hook 以 `--new-from-rev=HEAD` 运行，
-# 只检查本次新增/修改代码，存量 exported 缺口不阻塞（见 scripts 与 pre-commit 配置）。
-# 注意：与 .golangci.yml 保持同步，仅新增 exported 规则。
+# 只检查本次新增/修改代码，存量 exported 缺口不阻塞。
 # Mady Project - golangci-lint Configuration (v2 format)
 version: "2"
 
@@ -73,6 +74,8 @@ linters:
           severity: warning
         - name: error-return
           severity: warning
+        - name: dot-imports
+          severity: warning
         - name: error-naming
           severity: warning
         - name: indent-error-flow
@@ -90,8 +93,6 @@ linters:
         - name: unexported-return
           severity: warning
         - name: errorf
-          severity: warning
-        - name: exported
           severity: warning
         - name: exported
           severity: warning
@@ -134,6 +135,46 @@ linters:
       - path: ".*\\.pb\\.go"
         linters:
           - all
+    # 清理/交互类错误忽略（历史 tools 模块 errcheck 豁免，tools 已并入根模块，
+    # 2026-08-22 后豁免随根配置保留）：
+    # defer Close/Remove/Kill/Wait、fire-and-forget 桌面按键、交互式读取等
+    # 在清理路径中忽略返回值是安全惯例。
+      - linters:
+          - errcheck
+        source: "defer .*\\.(Close|Remove|RemoveAll|Kill|Wait)\\("
+      - linters:
+          - errcheck
+        source: "\\.(Kill|Wait|CloseSession|CloseTab|Close)\\("
+      - linters:
+          - errcheck
+        source: "fmt\\.(Sscanf|Scanln)\\("
+      - linters:
+          - errcheck
+        source: "os\\.(Remove|MkdirAll)\\("
+      - linters:
+          - errcheck
+        source: "(syscall\\.Kill|filepath\\.WalkDir)\\("
+      - linters:
+          - errcheck
+        source: "(ReapOrphans|StopScreencast|StopRecording|HandleDialog|StartRecording|egoLiteMgr\\.Close)\\("
+      - linters:
+          - errcheck
+        source: "(xdoKey|osaKeyImpl|winKey)\\("
+      - linters:
+          - errcheck
+        source: "exec\\.Command.*\\.Run\\(\\)"
+      - linters:
+          - errcheck
+        source: "io\\.Copy\\(io\\.Discard"
+      - linters:
+          - errcheck
+        source: "conn\\.SetDeadline\\("
+      - linters:
+          - errcheck
+        source: "cmd\\.Process\\.Kill\\(\\)"
+      - linters:
+          - errcheck
+        source: "cmd\\.Wait\\(\\)"
 
 issues:
   max-issues-per-linter: 0

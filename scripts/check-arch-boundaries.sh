@@ -58,7 +58,7 @@ check_no_import ./disclosure "github.com/xujian519/mady/tui" "disclosure → tui
 check_no_import ./disclosure "github.com/xujian519/mady/server" "disclosure → server"
 check_no_import ./disclosure "github.com/xujian519/mady/domains" "disclosure → domains"
 
-# tools 子模块
+# tools 包（根模块内）
 check_no_import ./tools "github.com/xujian519/mady/domains" "tools → domains"
 check_no_import ./tools "github.com/xujian519/mady/server" "tools → server"
 
