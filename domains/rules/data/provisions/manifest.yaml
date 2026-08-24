@@ -28,6 +28,9 @@ provisions:
       - "宽限期审查（A24）与优先权例外（A29）"
       - "结论：具备新颖性 / 不具备新颖性，附对比推导"
     primary_tools: ["read", "grep", "knowledge_search", "search_knowledge", "knowledge_rules"]
+    wiki_roots:
+      - 专利实务/新颖性
+      - 复审无效/新颖性
     existing_subgraph: "domains/novelty"  # Mady 已有 Pregel 子图
     tool_hints: "使用 evaluate_novelty 工具进行逐特征对比分析（参数：claims/PriorArtDocs/ConflictApps）"
 
@@ -47,6 +50,9 @@ provisions:
       - "Step 4 — 辅助判断因素评估（预料不到的效果/商业成功/长期需求）"
       - "结论：具备创造性 / 不具备创造性，附三步法推导链"
     primary_tools: ["read", "grep", "knowledge_search", "search_knowledge", "knowledge_rules", "knowledge_graph_path"]
+    wiki_roots:
+      - 专利实务/创造性
+      - 复审无效/创造性
     existing_subgraph: "domains/inventiveness"  # Mady 已有 Pregel 子图
     tool_hints: "使用 evaluate_inventiveness 工具进行三步法分析（参数：prior_art_chunks/features_analysis）"
 
@@ -64,6 +70,8 @@ provisions:
       - "评估是否具有积极效果"
       - "结论：具备实用性 / 不具备实用性"
     primary_tools: ["read", "grep", "knowledge_search", "search_knowledge"]
+    wiki_roots:
+      - 专利实务/实用性
 
   # P-A04 — 保护客体（专利法第 25 条、第 5 条）
   - id: "P-A04"
@@ -80,6 +88,8 @@ provisions:
       - "判断是否违反法律、社会公德或妨害公共利益"
       - "结论：属于保护客体 / 不属于保护客体"
     primary_tools: ["read", "grep", "knowledge_search", "search_knowledge"]
+    wiki_roots:
+      - 专利实务/不授予专利权的客体
 
   # P-A05 — 充分公开（专利法第 26 条第 3 款）
   - id: "P-A05"
@@ -96,6 +106,9 @@ provisions:
       - "结合技术领域判断：机械/电学/化学/软件各有特别要求"
       - "结论：充分公开 / 未充分公开，附缺陷清单"
     primary_tools: ["read", "grep", "knowledge_search", "search_knowledge", "knowledge_rules"]
+    wiki_roots:
+      - 专利实务/说明书
+      - 复审无效/说明书
     existing_subgraph: "domains/enablement"  # Mady 已有 Pregel 子图
     tool_hints: "使用 evaluate_enablement 工具进行充分公开三步法判断（参数：technical_features/pfe_chain）"
 
@@ -116,6 +129,9 @@ provisions:
       - "引用基础检查：从属权利要求引用号是否正确"
       - "结论：清楚支持 / 存在缺陷，附具体问题清单"
     primary_tools: ["read", "grep", "knowledge_search", "search_knowledge", "knowledge_rules"]
+    wiki_roots:
+      - 专利实务/权利要求
+      - 复审无效/权利要求
 
   # P-A07 — 修改超范围（专利法第 33 条）
   - id: "P-A07"
@@ -131,6 +147,9 @@ provisions:
       - "判断修改内容是否可从原申请文件直接且毫无疑义地确定"
       - "结论：未超范围 / 修改超范围，附超范围内容清单"
     primary_tools: ["read", "grep", "knowledge_search", "search_knowledge", "knowledge_rules"]
+    wiki_roots:
+      - 专利实务/修改
+      - 复审无效/修改超范围
 
   # P-C04 — 现有技术认定（专利法第 22 条第 5 款）
   - id: "P-C04"
@@ -147,6 +166,8 @@ provisions:
       - "区分现有技术与抵触申请"
       - "结论：构成现有技术 / 不构成现有技术"
     primary_tools: ["read", "grep", "knowledge_search", "search_knowledge", "knowledge_rules"]
+    wiki_roots:
+      - 专利实务/现有技术和现有设计
 
   # P-D01 — 权利要求书撰写（专利法第 26 条第 4 款 + 细则第 20-23 条）
   - id: "P-D01"
@@ -164,6 +185,9 @@ provisions:
       - "权利要求书逻辑与一致性检查"
       - "结论：输出完整权利要求书草稿"
     primary_tools: ["read", "grep", "write", "knowledge_search", "search_knowledge", "knowledge_rules"]
+    wiki_roots:
+      - 专利实务/撰写
+      - 专利实务/权利要求
     existing_subgraph: "domains/claimdrafting"  # Mady 已有 builder + rules
     tool_hints: "使用 draft_claims 工具进行权利要求书撰写（参数：invention_name/technical_features/tech_domain）"
 
@@ -181,6 +205,8 @@ provisions:
       - "分析是否属于一个总的发明构思"
       - "结论：具有单一性 / 不具备单一性"
     primary_tools: ["read", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/单一性
 
   # P-A09 — 外观设计（专利法第 23 条）
   - id: "P-A09"
@@ -196,6 +222,9 @@ provisions:
       - "分析设计空间，判断设计自由度"
       - "与现有设计对比，判断是否具有明显区别"
     primary_tools: ["read", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/外观设计
+      - 复审无效/外观设计
 
   # P-B01 — 权利要求解释（专利法第 64 条）
   - id: "P-B01"
@@ -212,6 +241,9 @@ provisions:
       - "对功能性限定特征确定具体内容"
       - "确定权利要求的保护范围边界"
     primary_tools: ["read", "grep", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/侵权
+      - 诉讼/侵权判定
 
   # P-B02 — 全面覆盖侵权（专利法第 11 条）
   - id: "P-B02"
@@ -228,6 +260,9 @@ provisions:
       - "逐项对比是否全面覆盖"
       - "得出相同侵权结论"
     primary_tools: ["read", "grep", "knowledge_search", "knowledge_rules"]
+    wiki_roots:
+      - 专利实务/侵权
+      - 诉讼/侵权
 
   # P-B03 — 等同侵权（专利法第 39 条/司法解释）
   - id: "P-B03"
@@ -244,6 +279,9 @@ provisions:
       - "判断是否为显而易见替换"
       - "得出等同侵权结论"
     primary_tools: ["read", "grep", "knowledge_search", "knowledge_rules"]
+    wiki_roots:
+      - 专利实务/侵权
+      - 诉讼/等同侵权
 
   # P-B04 — 间接侵权（司法解释二第 21 条）
   - id: "P-B04"
@@ -259,6 +297,9 @@ provisions:
       - "分析是否构成教唆侵权"
       - "判断因果关系"
     primary_tools: ["read", "grep", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/间接侵权
+      - 诉讼/侵权
 
   # P-B05 — 侵权抗辩
   - id: "P-B05"
@@ -275,6 +316,9 @@ provisions:
       - "分析先用权抗辩是否成立"
       - "分析合法来源等其他抗辩事由"
     primary_tools: ["read", "grep", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/侵权抗辩
+      - 诉讼/侵权
 
   # P-B06 — 损害赔偿（专利法第 71 条）
   - id: "P-B06"
@@ -291,6 +335,9 @@ provisions:
       - "计算赔偿基数，确定赔偿倍数"
       - "评估合理开支"
     primary_tools: ["read", "grep", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/侵权救济
+      - 诉讼/赔偿
 
   # P-C01 — 权属（专利法第 6-8 条）
   - id: "P-C01"
@@ -308,6 +355,9 @@ provisions:
       - "分析是否存在合作或委托发明情形"
       - "给出权属认定结论"
     primary_tools: ["read", "grep", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/权属
+      - 诉讼/权属纠纷
 
   # P-C02 — 无效宣告程序（专利法第 45-47 条）
   - id: "P-C02"
@@ -325,6 +375,9 @@ provisions:
       - "预判专利权人可能的抗辩理由"
       - "给出无效宣告程序策略建议"
     primary_tools: ["read", "grep", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/程序
+      - 复审无效
 
   # P-C03 — 复审程序（专利法第 41-42 条）
   - id: "P-C03"
@@ -341,6 +394,9 @@ provisions:
       - "评估修改申请文件的可能性和策略"
       - "给出复审成功概率评估和建议"
     primary_tools: ["read", "grep", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/程序
+      - 审查指南/复审
 
   # P-C05 — 优先权（专利法第 29-30 条）
   - id: "P-C05"
@@ -357,6 +413,9 @@ provisions:
       - "核实优先权期限是否满足"
       - "给出优先权成立与否的结论"
     primary_tools: ["read", "grep", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/新颖性
+      - 审查指南/优先权
 
   # P-D02 — 说明书撰写（专利法第 26 条第 3 款）
   - id: "P-D02"
@@ -373,6 +432,9 @@ provisions:
       - "检查说明书与权利要求的对应关系"
       - "检查充分公开性"
     primary_tools: ["read", "grep", "write", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/撰写
+      - 专利实务/说明书
 
   # P-D03 — 审查意见答复（专利法第 26 条/审查指南）
   - id: "P-D03"
@@ -389,6 +451,9 @@ provisions:
       - "撰写意见陈述书"
       - "检查答复书的格式规范性和逻辑完整性"
     primary_tools: ["read", "grep", "write", "knowledge_search"]
+    wiki_roots:
+      - 专利实务/撰写
+      - 审查指南
 
 # =============================================================================
 # Tier B — 推理模式（跨条款的认定步骤封装，供 Tier A 调用）

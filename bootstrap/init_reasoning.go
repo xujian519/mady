@@ -184,6 +184,7 @@ func SetupProvenance(fc *Context) {
 	claimchart.SetProvenance(prov)
 	workercontract.SetProvenance(prov)
 	guardrails.SetProvenance(prov)
+	domains.SetWorkflowProvenance(prov)
 	slog.Info("provenance 溯源日志已启用")
 }
 

@@ -1,0 +1,19 @@
+id: patentability-opinion
+name: 可专利性意见
+case_type: patentability-opinion
+steps:
+  - id: s1-retrieve
+    step_type: retrieve
+    entry_point: prior-art-search
+  - id: s2-novelty
+    step_type: analyze
+    entry_point: novelty-analysis
+  - id: s3-inventiveness
+    step_type: analyze
+    entry_point: inventiveness
+  - id: s4-check
+    step_type: check
+    entry_point: checker-review
+  - id: s5-draft
+    step_type: draft
+    entry_point: report-draft

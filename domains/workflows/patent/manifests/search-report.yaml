@@ -1,0 +1,13 @@
+id: search-report
+name: 检索报告
+case_type: search-report
+steps:
+  - id: s1-retrieve
+    step_type: retrieve
+    entry_point: prior-art-search
+  - id: s2-check
+    step_type: check
+    entry_point: checker-review
+  - id: s3-draft
+    step_type: draft
+    entry_point: report-draft

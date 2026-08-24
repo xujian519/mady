@@ -1,0 +1,13 @@
+id: oa-response
+name: 审查意见答复
+case_type: oa_response
+steps:
+  - id: s1-oa
+    step_type: analyze
+    entry_point: oa-response
+  - id: s2-check
+    step_type: check
+    entry_point: checker-review
+  - id: s3-draft
+    step_type: draft
+    entry_point: report-draft

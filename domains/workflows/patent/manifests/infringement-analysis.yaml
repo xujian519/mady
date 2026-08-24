@@ -1,0 +1,16 @@
+id: infringement-analysis
+name: 侵权比对分析
+case_type: infringement_analysis
+steps:
+  - id: s1-retrieve
+    step_type: retrieve
+    entry_point: prior-art-search
+  - id: s2-infringement
+    step_type: analyze
+    entry_point: infringement
+  - id: s3-check
+    step_type: check
+    entry_point: checker-review
+  - id: s4-draft
+    step_type: draft
+    entry_point: report-draft

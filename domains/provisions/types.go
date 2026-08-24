@@ -25,6 +25,8 @@ type ProvisionManifestEntry struct {
 	PrimaryTools     []string `yaml:"primary_tools" json:"primary_tools"`
 	ExistingSubgraph string   `yaml:"existing_subgraph,omitempty" json:"existing_subgraph,omitempty"`
 	ToolHints        string   `yaml:"tool_hints,omitempty" json:"tool_hints,omitempty"`
+	// WikiRoots 是条款对应的 wiki 知识根目录（增量来自 Kimi 拷贝版），供检索限域。
+	WikiRoots []string `yaml:"wiki_roots,omitempty" json:"wiki_roots,omitempty"`
 }
 
 // ReasoningManifestEntry 定义一个 Tier B 推理模式。

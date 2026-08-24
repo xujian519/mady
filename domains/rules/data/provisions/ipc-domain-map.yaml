@@ -73,6 +73,31 @@ ipc_sections:
 
 # 条款后缀 → IPC 领域专家命名模板
 # 每个 IPC 段 × 每个条款后缀 = 一个 domain-{section}-{suffix} worker
+  - section: A63
+    name: 运动或游戏
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-A63
+
+  - section: B01
+    name: 物理或化学方法
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-B01
+
+  - section: B23
+    name: 机床
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-B23
+
+  - section: C08
+    name: 有机高分子
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-C08
+
+  - section: F01
+    name: 机器或发动机
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-F01
+
 provision_suffixes:
   novelty: "novelty"
   inventiveness: "inventiveness"

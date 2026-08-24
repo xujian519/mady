@@ -1,0 +1,13 @@
+id: re-examination
+name: 驳回复审
+case_type: re_examination
+steps:
+  - id: s1-reexam
+    step_type: analyze
+    entry_point: reexamination
+  - id: s2-check
+    step_type: check
+    entry_point: checker-review
+  - id: s3-draft
+    step_type: draft
+    entry_point: report-draft

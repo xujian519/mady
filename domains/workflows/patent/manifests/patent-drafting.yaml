@@ -1,0 +1,16 @@
+id: patent-drafting
+name: 专利撰写
+case_type: patent_drafting
+steps:
+  - id: s1-retrieve
+    step_type: retrieve
+    entry_point: prior-art-search
+  - id: s2-disclosure
+    step_type: analyze
+    entry_point: disclosure
+  - id: s3-draft
+    step_type: draft
+    entry_point: report-draft
+  - id: s4-check
+    step_type: check
+    entry_point: checker-review

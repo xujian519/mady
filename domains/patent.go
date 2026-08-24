@@ -18,6 +18,7 @@ import (
 	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/domains/novelty"
 	"github.com/xujian519/mady/domains/plantask"
+	"github.com/xujian519/mady/domains/provenance"
 	"github.com/xujian519/mady/domains/provisions"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/domains/rules"
@@ -31,6 +32,35 @@ import (
 	"github.com/xujian519/mady/retrieval/domain"
 	browserpkg "github.com/xujian519/mady/retrieval/domain/browser"
 )
+
+// workflowProv 是专利工作流溯源日志器；nil 时 patent_workflow_run 的溯源静默。
+var workflowProv *provenance.ProvenanceLogger
+
+// SetWorkflowProvenance 注入专利工作流溯源日志器（bootstrap 装配）；传 nil 时静默关闭。
+func SetWorkflowProvenance(l *provenance.ProvenanceLogger) { workflowProv = l }
+
+// workflowListForSystemPrompt 生成声明式专利工作流目录摘要（供 SystemPrompt 展示）。
+func workflowListForSystemPrompt() string {
+	ms, err := patent.LoadPatentWorkflowManifests()
+	if err != nil || len(ms) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("可用声明式工作流（patent_workflow_run 按 ID 路由）：")
+	for _, m := range ms {
+		fmt.Fprintf(&b, "\n- %s（%s）", m.ID, m.Name)
+	}
+	return b.String()
+}
+
+// roleListForSystemPrompt 生成专利域角色目录摘要（供 SystemPrompt 展示）。
+func roleListForSystemPrompt() string {
+	roles, err := provisions.LoadRoles()
+	if err != nil {
+		return ""
+	}
+	return provisions.BuildRoleListForSystemPrompt(roles)
+}
 
 // globalDraftingRunner 是 FiveStepRunner 的全局实例，由 SetupPatentDraftingEngine
 // 在启动期一次性注入，PatentAgentConfig 从中读取并注册为工具。
@@ -297,6 +327,10 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		"",
 		provisions.BuildProvisionListForSystemPrompt(manifest),
 		"",
+		roleListForSystemPrompt(),
+		"",
+		workflowListForSystemPrompt(),
+		"",
 		"## 专利编排器",
 		"对需要完整流程编排的专利分析任务（从条款分析到质量复核），可使用 transfer_to_patent-orchestrator 委派给专利编排器。",
 		"编排器会自动识别涉及的法条、委派条款智能体、运行检查器复核，并输出综合报告。",
@@ -349,6 +383,7 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		plantask.NewFlexiblePlanTool(plantask.DefaultFlexiblePlanStore()),
 		claimchart.NewClaimChartTool(),
 		workercontract.NewPatentWorkerValidateTool(),
+		patent.NewPatentWorkflowRunTool(workflowProv),
 	})...)
 
 	cfg.Extensions = append(cfg.Extensions, toolExt,

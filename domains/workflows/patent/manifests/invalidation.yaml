@@ -1,0 +1,16 @@
+id: invalidation
+name: 无效宣告
+case_type: invalidation
+steps:
+  - id: s1-retrieve
+    step_type: retrieve
+    entry_point: prior-art-search
+  - id: s2-invalidation
+    step_type: analyze
+    entry_point: invalidation
+  - id: s3-check
+    step_type: check
+    entry_point: checker-review
+  - id: s4-draft
+    step_type: draft
+    entry_point: report-draft
