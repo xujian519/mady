@@ -96,6 +96,10 @@ func NewInventivenessTool(opts ...InventivenessOption) *agentcore.Tool {
 					"type":        "string",
 					"description": "技术领域：chemistry/computer/tcm（可选）",
 				},
+				"case_id": map[string]any{
+					"type":        "string",
+					"description": "案卷 ID（可选）。存在时结论节点加载同案历史 HITL 反馈注入提示词",
+				},
 			},
 		},
 		ReadOnly: true,
@@ -123,6 +127,9 @@ func runInventivenessTool(ctx context.Context, cfg *inventivenessConfig, args js
 
 	state := graph.PregelState{}
 	state[StateKeyInput] = input
+	if input.CaseID != "" {
+		state[StateKeyCaseID] = input.CaseID
+	}
 
 	state, runErr := compiled.Run(ctx, state)
 
@@ -171,6 +178,7 @@ func parseInventivenessArgs(args json.RawMessage) *InventivenessInput {
 		EvidenceCoverage  string `json:"evidence_coverage"`
 		InventionType     string `json:"invention_type"`
 		TechDomain        string `json:"tech_domain"`
+		CaseID            string `json:"case_id"`
 		ExperimentalData  *struct {
 			HasOriginalData   bool   `json:"has_original_data"`
 			HasSupplementData bool   `json:"has_supplement_data"`
@@ -219,6 +227,7 @@ func parseInventivenessArgs(args json.RawMessage) *InventivenessInput {
 	input.EvidenceCoverage = raw.EvidenceCoverage
 	input.InventionType = raw.InventionType
 	input.TechDomain = raw.TechDomain
+	input.CaseID = raw.CaseID
 	if input.EvidenceCoverage == "" {
 		input.EvidenceCoverage = "partial"
 	}

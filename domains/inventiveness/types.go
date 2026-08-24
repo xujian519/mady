@@ -61,6 +61,7 @@ type InventivenessInput struct {
 	EvidenceCoverage  string            `json:"evidence_coverage"`           // "full" / "partial" / "none"
 	InventionType     string            `json:"invention_type,omitempty"`    // 发明类型（可选，留空时自动分类）
 	TechDomain        string            `json:"tech_domain,omitempty"`       // 技术领域：chemistry/computer/tcm（可选）
+	CaseID            string            `json:"case_id,omitempty"`           // 案卷 ID（可选）；结论节点据此注入同案历史 HITL 反馈
 	ExperimentalData  *ExperimentalData `json:"experimental_data,omitempty"` // 实验数据（可选，用于核验）
 }
 

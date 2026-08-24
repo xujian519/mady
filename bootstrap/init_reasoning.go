@@ -81,17 +81,8 @@ func InitReasoningAndTemplates(fc *Context) {
 		})
 	}
 
-	// 权威外部检索（nuo-patent CLI，方案 A）：作为 patent retriever 权威源，
-	// 在 patent.go 合成 composite 时置于首位（权威源优先）。MADY_NUO_PATENT_RETRIEVERS=off
-	// 关闭；二进制缺失时静默跳过，不阻塞启动。
-	if os.Getenv("MADY_NUO_PATENT_RETRIEVERS") != "off" {
-		if nr, err := nuopatent.NewNuoPatentRetriever(nuopatent.Config{}); err == nil && nr != nil {
-			domains.SetupPatentRetriever(nr)
-			slog.Info("nuo-patent 检索器已启用（权威源优先）")
-		} else {
-			slog.Debug("nuo-patent 检索器不可用", "err", err)
-		}
-	}
+	// 权威外部检索（nuo-patent CLI，方案 A）：作为 patent retriever 权威源。
+	setupNuoPatentRetriever()
 
 	domains.SetupKnowledgeExtension(fc.KnowledgeExt)
 
@@ -173,6 +164,28 @@ func InitReasoningAndTemplates(fc *Context) {
 		Source: citationSource,
 		Store:  citationStore,
 	})
+}
+
+// setupNuoPatentRetriever 组合权威外部检索（nuo-patent CLI，方案 A）与本地语料。
+// 注意不可直接覆盖已注入的本地语料——SetupPatentRetriever 是单值 setter，直接
+// 覆盖会让本地 patent-domain FTS 检索静默失效。此处把 nuo-patent 置于本地语料
+// 之前合成 composite（权威源优先），二者缺一不可。MADY_NUO_PATENT_RETRIEVERS=off
+// 关闭；二进制缺失时静默跳过，不阻塞启动。
+func setupNuoPatentRetriever() {
+	if os.Getenv("MADY_NUO_PATENT_RETRIEVERS") == "off" {
+		return
+	}
+	nr, err := nuopatent.NewNuoPatentRetriever(nuopatent.Config{})
+	if err != nil || nr == nil {
+		slog.Debug("nuo-patent 检索器不可用", "err", err)
+		return
+	}
+	merged := []domain.DomainRetriever{nr}
+	if prev := domains.GetPatentRetriever(); prev != nil {
+		merged = append(merged, prev)
+	}
+	domains.SetupPatentRetriever(rbrowser.NewCompositeRetriever(merged...))
+	slog.Info("nuo-patent 检索器已启用（权威源优先，组合本地语料）")
 }
 
 // SetupProvenance 初始化专利工作流溯源日志器（通道 B 模式）：在

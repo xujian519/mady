@@ -374,6 +374,7 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		patent.NewReexaminationTool(),
 		enablement.NewEnablementTool(enablement.WithProvider(base.Provider)),
 		inventiveness.NewInventivenessTool(inventiveness.WithProvider(base.Provider)),
+		inventiveness.NewInventivenessFeedbackTool(),
 		novelty.NewNoveltyTool(novelty.WithProvider(base.Provider)),
 		design.NewDesignInvalidationTool(),
 		disclosureToolFactoryOrDefault(base.Provider),
@@ -407,6 +408,13 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 
 	// Guardrail: LevelStrict with patent disclaimer + approval gate（共享段落）。
 	appendStrictGuardrails(&cfg, DomainPatent, guardrails.DisclaimerPatent, true)
+
+	// 专利输出质量门（B2）：对模型输出做五维专利语义核验，命中审批词时
+	// 挂起人工复核并写 outputgate_suspend 溯源。独立于规避类护栏（LevelStrict）
+	// 存在——前者约束"不该说"，这里核验"专利结论/侵权判断"这类需人工确认的措辞。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		agentcore.NewIFaceLifecycleHook(guardrails.NewPatentOutputGate()),
+	)
 
 	// Worker-driven tool registration (MADY_WORKER_ENABLED=1 gate).
 	// 将 DefaultWorkers 中 Reasoning + Domain + Checker 层的 Worker 注册为 Agent 工具。
@@ -481,6 +489,11 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config, toolExt agentco
 
 	// LevelStrict 护栏 + 人工审批门（共享段落，无 DeferredPersistQueue）。
 	appendStrictGuardrails(&cfg, DomainPatent, guardrails.DisclaimerPatent, false)
+
+	// 专利输出质量门（B2）：项目级专利 Agent 同样纳入，命中审批词挂起人工复核。
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		agentcore.NewIFaceLifecycleHook(guardrails.NewPatentOutputGate()),
+	)
 
 	// 条款智能体 Handoff 注册：使项目 Agent 也拥有条款智能体委派能力。
 	manifest := provisions.LoadManifestOrDefault("")
