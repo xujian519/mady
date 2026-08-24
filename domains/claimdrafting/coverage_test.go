@@ -2,6 +2,7 @@ package claimdrafting
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -91,6 +92,28 @@ func TestCoverageChecker_GapDetection(t *testing.T) {
 	rep := c.Check(nil, entries)
 	if len(rep.Gaps) != 1 || rep.Gaps[0] != 2 {
 		t.Errorf("expected gap 2, got %v", rep.Gaps)
+	}
+}
+
+func TestCoverageChecker_NoFalseGapOnInvalidEntry(t *testing.T) {
+	c := NewCoverageChecker()
+	entries := []ClaimCoverageEntry{
+		{ClaimID: "claim_1", Features: []string{"a"}, EmbodimentRefs: []string{"a"}},
+		{ClaimID: "claim_x", Features: []string{"b"}, EmbodimentRefs: []string{"b"}}, // 格式非法（无编号）
+		{ClaimID: "claim_3", Features: []string{"c"}, EmbodimentRefs: []string{"c"}},
+	}
+	rep := c.Check(nil, entries)
+	if len(rep.Gaps) != 0 {
+		t.Errorf("expected no gap when an entry's number is unknown, got %v", rep.Gaps)
+	}
+	if len(rep.Items) != 3 {
+		t.Errorf("expected 3 items, got %d", len(rep.Items))
+	}
+	if rep.Items[1].Valid {
+		t.Error("claim_x should be flagged invalid")
+	}
+	if !strings.Contains(rep.Items[1].InvalidReason, "格式非法") {
+		t.Errorf("expected format-invalid reason, got %q", rep.Items[1].InvalidReason)
 	}
 }
 

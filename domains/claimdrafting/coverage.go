@@ -59,11 +59,13 @@ func (c *CoverageChecker) Check(claims []string, entries []ClaimCoverageEntry) C
 		maxByClaims = len(claims)
 	}
 
+	allValid := true
 	nums := []int{}
 	for _, e := range entries {
 		item := checkEntry(e, maxByClaims)
 		report.Items = append(report.Items, item)
 		if !item.Valid {
+			allValid = false
 			continue
 		}
 		switch item.ActualCoverage {
@@ -79,13 +81,18 @@ func (c *CoverageChecker) Check(claims []string, entries []ClaimCoverageEntry) C
 		nums = append(nums, item.ClaimNum)
 	}
 
-	// 断号检测：有效编号排序后相邻差 >1 即为断档。
-	sort.Ints(nums)
-	for i := 1; i < len(nums); i++ {
-		gap := nums[i] - nums[i-1]
-		if gap > 1 {
-			for n := nums[i-1] + 1; n < nums[i]; n++ {
-				report.Gaps = append(report.Gaps, n)
+	// 断号检测：仅当全部条目编号均有效时才推断缺口。一旦存在无效条目（如
+	// claim_x 格式非法），其本应占据的编号未可知——此时声称某编号「缺失」会
+	// 把撰写人引向补一条已存在的权利要求。此类无效条目已在 report.Items 中
+	// 逐条标注 InvalidReason，应优先修复而非推断断档。
+	if allValid {
+		sort.Ints(nums)
+		for i := 1; i < len(nums); i++ {
+			gap := nums[i] - nums[i-1]
+			if gap > 1 {
+				for n := nums[i-1] + 1; n < nums[i]; n++ {
+					report.Gaps = append(report.Gaps, n)
+				}
 			}
 		}
 	}
