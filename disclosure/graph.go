@@ -317,6 +317,9 @@ func BuildDisclosureAnalysisGraphWithOpts(provider agentcore.Provider, opts ...G
 	if err := pg.AddNode("draft_claims", draftClaimsNode()); err != nil {
 		return nil, err
 	}
+	if err := pg.AddNode("check_clarity", clarityNode()); err != nil {
+		return nil, err
+	}
 
 	// 静态边：preprocess → 三提取节点（并发）
 	for _, edge := range [][2]string{
@@ -326,7 +329,8 @@ func BuildDisclosureAnalysisGraphWithOpts(provider agentcore.Provider, opts ...G
 		{"extract_problem", "merge_extractions"},
 		{"extract_features", "merge_extractions"},
 		{"extract_effects", "merge_extractions"},
-		{"merge_extractions", "groundedness_filter"},
+		{"merge_extractions", "check_clarity"},
+		{"check_clarity", "groundedness_filter"},
 		{"groundedness_filter", "check_consistency"},
 		{"generate_keywords", "retrieve_prior_art"},
 		{"retrieve_prior_art", "check_novelty"},
