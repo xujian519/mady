@@ -46,6 +46,42 @@ var transitions = map[State][]State{
 	StateReplanning:       {StateAwaitingApproval, StateExecuting},
 }
 
+// isKnownState reports whether s appears anywhere in the state machine — as a
+// source (map key) OR a transition target (edge value). StateFinished is a
+// terminal state that only appears as a target, so it must be recognized here
+// or to="finished" would be rejected as 非法状态.
+func isKnownState(s State) bool {
+	if _, ok := transitions[s]; ok {
+		return true
+	}
+	for _, targets := range transitions {
+		for _, t := range targets {
+			if t == s {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isSourceState reports whether s has outgoing transitions (is a map key).
+// Terminal states like StateFinished have no outgoing edges and cannot be a
+// transition source.
+func isSourceState(s State) bool {
+	_, ok := transitions[s]
+	return ok
+}
+
+// allStates returns every state in declaration order regardless of whether it
+// appears as a key or only as a transition target. Used for the error message's
+// 合法状态 list.
+func allStates() []State {
+	return []State{
+		StatePlanning, StateAwaitingApproval, StateExecuting,
+		StateAwaitingFeedback, StateReplanning, StateFinished,
+	}
+}
+
 // PlanTask is a single task derived from a plan step.
 type PlanTask struct {
 	ID          string   `json:"id"`
@@ -114,23 +150,11 @@ func handleTransition(p Input) (any, error) {
 		from = StatePlanning
 	}
 
-	validFrom := false
-	for s := range transitions {
-		if s == from {
-			validFrom = true
-			break
-		}
-	}
-	validTo := false
-	for s := range transitions {
-		if s == to {
-			validTo = true
-			break
-		}
-	}
+	validFrom := isSourceState(from)
+	validTo := isKnownState(to)
 	if !validFrom || !validTo {
 		states := []string{}
-		for s := range transitions {
+		for _, s := range allStates() {
 			states = append(states, string(s))
 		}
 		return agentcore.NewFailureResult("非法状态", fmt.Sprintf("状态 %q 或 %q 不合法（合法: %s）", from, to, strings.Join(states, ", "))), nil

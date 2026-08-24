@@ -33,6 +33,30 @@ func TestPatentPlanTask_InvalidTransition(t *testing.T) {
 	}
 }
 
+func TestPatentPlanTask_ReachFinished(t *testing.T) {
+	// executing → finished 是合法边：HITL 计划状态机应能通过工具走到终态。
+	args := json.RawMessage(`{"action":"transition","current_state":"executing","to":"finished"}`)
+	res, err := handlePlanTask(context.Background(), args)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s, ok := res.(string); !ok || !contains(s, "executing → finished") {
+		t.Errorf("expected reach finished, got %v", res)
+	}
+}
+
+func TestPatentPlanTask_FinishedNotSource(t *testing.T) {
+	// finished 是终端态，不能作为后续迁移的源。
+	args := json.RawMessage(`{"action":"transition","current_state":"finished","to":"executing"}`)
+	res, err := handlePlanTask(context.Background(), args)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if hr, ok := res.(agentcore.HandoffResult); ok && hr.Success {
+		t.Error("finished should not be a transition source")
+	}
+}
+
 func TestPatentPlanTask_Sync(t *testing.T) {
 	args := json.RawMessage(`{"action":"sync","plan_steps":["检索","分析","撰写"]}`)
 	res, err := handlePlanTask(context.Background(), args)

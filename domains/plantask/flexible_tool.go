@@ -69,15 +69,45 @@ func DefaultFlexiblePlanStore() *FlexiblePlanStore {
 	return NewFlexiblePlanStore(filepath.Join(home, "flexible-plans"))
 }
 
-func (s *FlexiblePlanStore) path(caseID string) string {
-	return filepath.Join(s.baseDir, caseID+".json")
+// isSafeCaseID 判定 caseID 是否是纯 base-name 标识符（不含路径分隔符、非 "." / ".."）。
+// case_id 完全由 LLM（或外部调用者）控制，若不净化可借 "../" 逃逸 flexible-plans
+// 目录，读写任意 .json 文件。与 inventiveness.CaseFeedbackDir 的净化规则保持一致。
+// 注意：显式拒绝 \ 与 /（Windows 上 \ 也是分隔符；POSIX 上虽不是，但作为逻辑标识符
+// 出现反斜杠亦属异常，统一拒绝避免平台差异带来的逃逸）。
+func isSafeCaseID(caseID string) bool {
+	if caseID == "" {
+		return false
+	}
+	if strings.ContainsAny(caseID, `/\`) {
+		return false
+	}
+	if caseID == "." || caseID == ".." {
+		return false
+	}
+	if filepath.Base(caseID) != caseID {
+		return false
+	}
+	return true
+}
+
+// path 返回 caseID 对应的计划文件路径；caseID 不合法时返回错误（拒绝而非落入
+// baseDir 之外）。baseDir 为受信任前缀，caseID 经 isSafeCaseID 净化后不可能逃逸。
+func (s *FlexiblePlanStore) path(caseID string) (string, error) {
+	if !isSafeCaseID(caseID) {
+		return "", fmt.Errorf("非法 case_id %q（仅允许不含路径分隔符的标识符）", caseID)
+	}
+	return filepath.Join(s.baseDir, caseID+".json"), nil
 }
 
 // Load reads a plan by case ID.
 func (s *FlexiblePlanStore) Load(caseID string) (*FlexiblePlan, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	data, err := os.ReadFile(s.path(caseID)) //nolint:gosec // path built from trusted baseDir
+	p, err := s.path(caseID)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(p) //nolint:gosec // caseID 已净化为 base name，baseDir 为可信前缀
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("计划 %q 不存在", caseID)
@@ -102,7 +132,11 @@ func (s *FlexiblePlanStore) Save(plan *FlexiblePlan) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path(plan.CaseID), data, 0600)
+	p, err := s.path(plan.CaseID)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(p, data, 0600)
 }
 
 // NewFlexiblePlanTool creates the patent_flexible_plan tool.
@@ -141,6 +175,9 @@ func handleFlexiblePlan(store *FlexiblePlanStore, args json.RawMessage) (any, er
 	}
 	if p.CaseID == "" {
 		return agentcore.NewFailureResult("缺少 case_id", "case_id 不能为空"), nil
+	}
+	if !isSafeCaseID(p.CaseID) {
+		return agentcore.NewFailureResult("非法 case_id", "case_id 仅允许不含路径分隔符的标识符"), nil
 	}
 
 	switch p.Action {
