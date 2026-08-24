@@ -109,10 +109,7 @@ func handleValidate(_ context.Context, args json.RawMessage) (any, error) {
 
 // ValidateWorkerOutput checks the output text against the known Worker contract.
 func ValidateWorkerOutput(workerName, outputText string) ValidationResult {
-	catalog := worker.NewCatalog()
-	for _, d := range worker.DefaultWorkers() {
-		_ = catalog.Register(d)
-	}
+	catalog := worker.NewCatalogFromDefault()
 	def := catalog.Get(workerName)
 	if def == nil {
 		return ValidationResult{
@@ -122,17 +119,8 @@ func ValidateWorkerOutput(workerName, outputText string) ValidationResult {
 	}
 
 	lower := strings.ToLower(outputText)
-	var missingHard, missingSoft []string
-	for _, kw := range hardKeywords[def.Name] {
-		if !strings.Contains(lower, strings.ToLower(kw)) {
-			missingHard = append(missingHard, kw)
-		}
-	}
-	for _, kw := range softKeywords[def.Name] {
-		if !strings.Contains(lower, strings.ToLower(kw)) {
-			missingSoft = append(missingSoft, kw)
-		}
-	}
+	missingHard := missingKeywords(lower, hardKeywords[def.Name])
+	missingSoft := missingKeywords(lower, softKeywords[def.Name])
 
 	valid := len(missingHard) == 0 && outputText != ""
 	msg := fmt.Sprintf("patent_worker_validate(%s): ", def.Name)
@@ -149,4 +137,15 @@ func ValidateWorkerOutput(workerName, outputText string) ValidationResult {
 		MissingSoftFields: missingSoft,
 		Message:           msg,
 	}
+}
+
+// missingKeywords 返回 kws 中未在 text（已小写）里出现的词。
+func missingKeywords(text string, kws []string) []string {
+	var missing []string
+	for _, kw := range kws {
+		if !strings.Contains(text, strings.ToLower(kw)) {
+			missing = append(missing, kw)
+		}
+	}
+	return missing
 }

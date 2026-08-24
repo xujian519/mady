@@ -28,6 +28,15 @@ var provenanceLog *provenance.ProvenanceLogger
 // SetProvenance 注入溯源日志器（bootstrap 装配）；传 nil 时溯源静默关闭。
 func SetProvenance(l *provenance.ProvenanceLogger) { provenanceLog = l }
 
+// 解析与匹配用的编译缓存正则（避免在元素×目标循环里每次调用重新编译）。
+var (
+	claimStartRe    = regexp.MustCompile(`^(?:权利要求?\s*)?(\d+)[\.、,，:：]\s*(.+)$`)
+	transitionRe    = regexp.MustCompile(`(其特征在于|特征在于|其中| wherein)`)
+	featureSplitRe  = regexp.MustCompile(`[，,；;]`)
+	claimKeywordRe  = regexp.MustCompile(`[^\p{Han}a-zA-Z]+`)
+	claimSentenceRe = regexp.MustCompile(`[。！？\n;；]`)
+)
+
 // ElementKind identifies the type of a parsed claim element.
 type ElementKind = string
 
@@ -101,7 +110,6 @@ type ChartRow struct {
 	Quote     string  `json:"quote"`
 	PinCite   string  `json:"pinCite"`
 	Mapping   Mapping `json:"mapping"`
-	State     Mapping `json:"state"`
 	Verified  bool    `json:"verified"`
 	Note      string  `json:"note,omitempty"`
 }
@@ -316,9 +324,6 @@ func parseClaimElements(text string) []ClaimElement {
 	var elements []ClaimElement
 	lines := strings.Split(text, "\n")
 
-	claimStartRe := regexp.MustCompile(`^(?:权利要求?\s*)?(\d+)[\.、,，:：]\s*(.+)$`)
-	transitionRe := regexp.MustCompile(`(其特征在于|特征在于|其中| wherein)`)
-
 	var currentClaimNo int
 	var elementIdx int
 	for _, rawLine := range lines {
@@ -328,7 +333,7 @@ func parseClaimElements(text string) []ClaimElement {
 		}
 
 		if m := claimStartRe.FindStringSubmatch(line); m != nil {
-			currentClaimNo, _ = parseInt(m[1])
+			currentClaimNo = parseInt(m[1])
 			elementIdx = 0
 			// Split preamble and features by transition phrase.
 			parts := transitionRe.Split(m[2], 2)
@@ -368,7 +373,6 @@ func parseClaimElements(text string) []ClaimElement {
 // for each non-empty fragment. When meansPlus is true it classifies fragments
 // containing 装置/单元/模块 as means-plus-function.
 func appendFeatureElements(elements []ClaimElement, claimNo int, featureText string, elementIdx int, meansPlus bool) ([]ClaimElement, int) {
-	featureSplitRe := regexp.MustCompile(`[，,；;]`)
 	for _, feat := range featureSplitRe.Split(strings.TrimSpace(featureText), -1) {
 		feat = strings.TrimSpace(feat)
 		if feat == "" {
@@ -396,10 +400,10 @@ func elementLabel(idx int) string {
 	return fmt.Sprintf("x%d", idx)
 }
 
-func parseInt(s string) (int, bool) {
+func parseInt(s string) int {
 	var n int
-	_, err := fmt.Sscanf(s, "%d", &n)
-	return n, err == nil
+	_, _ = fmt.Sscanf(s, "%d", &n)
+	return n
 }
 
 // matchElementToTarget performs simple keyword overlap matching between an
@@ -410,7 +414,6 @@ func matchElementToTarget(e ClaimElement, t ChartTarget, targetText string) Char
 		ElementID: e.ID,
 		TargetID:  t.ID,
 		Mapping:   MappingNeedsEvidence,
-		State:     MappingNeedsEvidence,
 		Verified:  false,
 		Note:      "未提供源文或尚未完成证据定位",
 	}
@@ -432,17 +435,13 @@ func matchElementToTarget(e ClaimElement, t ChartTarget, targetText string) Char
 		if score >= 0.7 {
 			if t.Kind == TargetPriorArt {
 				row.Mapping = MappingAnticipation
-				row.State = MappingAnticipation
 			} else {
 				row.Mapping = MappingLiteral
-				row.State = MappingLiteral
 			}
 		} else if score >= 0.4 {
 			row.Mapping = MappingPartial
-			row.State = MappingPartial
 		} else {
 			row.Mapping = MappingNotFound
-			row.State = MappingNotFound
 		}
 	}
 	return row
@@ -450,8 +449,7 @@ func matchElementToTarget(e ClaimElement, t ChartTarget, targetText string) Char
 
 func extractKeywords(text string) []string {
 	// Strip punctuation and numbers, keep CJK chars and ASCII letters.
-	re := regexp.MustCompile(`[^\p{Han}a-zA-Z]+`)
-	parts := re.Split(text, -1)
+	parts := claimKeywordRe.Split(text, -1)
 	var words []string
 	seen := make(map[string]bool)
 	for _, p := range parts {
@@ -508,8 +506,7 @@ func findBestMatch(elementText string, keywords []string, targetText string) (st
 }
 
 func splitSentences(text string) []string {
-	re := regexp.MustCompile(`[。！？\n;；]`)
-	return re.Split(text, -1)
+	return claimSentenceRe.Split(text, -1)
 }
 
 func overlapScore(keywords []string, text string) float64 {

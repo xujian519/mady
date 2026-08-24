@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
@@ -161,14 +162,7 @@ func handleTransition(p Input) (any, error) {
 	}
 
 	allowed := transitions[from]
-	found := false
-	for _, s := range allowed {
-		if s == to {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if !slices.Contains(allowed, to) {
 		return agentcore.NewFailureResult("非法迁移", fmt.Sprintf("不允许 %q → %q", from, to)), nil
 	}
 
@@ -194,7 +188,6 @@ func handleSync(p Input) (any, error) {
 		return agentcore.NewFailureResult("空计划", "sync 需要 plan_steps 非空"), nil
 	}
 	tasks := make([]PlanTask, len(p.PlanSteps))
-	ids := make([]string, len(p.PlanSteps))
 	toRun := []string{}
 	for i, step := range p.PlanSteps {
 		id := fmt.Sprintf("t%d", i+1)
@@ -204,11 +197,10 @@ func handleSync(p Input) (any, error) {
 			Status:      "pending",
 			Hash:        stepHash(step),
 		}
-		ids[i] = id
 		if i == 0 {
 			toRun = append(toRun, id)
 		} else {
-			tasks[i].BlockedBy = []string{ids[i-1]}
+			tasks[i].BlockedBy = []string{fmt.Sprintf("t%d", i)}
 		}
 	}
 

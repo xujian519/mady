@@ -240,17 +240,17 @@ func handleRunPlan(store *FlexiblePlanStore, p FlexiblePlanInput) (any, error) {
 	if p.InputText != "" {
 		plan.InputText = p.InputText
 	}
-	var pending []FlexiblePlanStage
+	pendingCount := 0
 	for i, s := range plan.Stages {
 		if s.Status == "pending" || s.Status == "rolled_back" {
-			pending = append(pending, s)
+			pendingCount++
 			plan.Stages[i].Status = "running"
 			if plan.CurrentStage == "" {
 				plan.CurrentStage = s.ID
 			}
 		}
 	}
-	if len(pending) == 0 {
+	if pendingCount == 0 {
 		return renderFlexiblePlan(plan, "无待执行阶段"), nil
 	}
 	if p.AutoConfirm {
@@ -264,7 +264,7 @@ func handleRunPlan(store *FlexiblePlanStore, p FlexiblePlanInput) (any, error) {
 	if err := store.Save(plan); err != nil {
 		return agentcore.NewFailureResult("保存失败", err.Error()), nil
 	}
-	return renderFlexiblePlan(plan, fmt.Sprintf("执行 %d 个未确认阶段", len(pending))), nil
+	return renderFlexiblePlan(plan, fmt.Sprintf("执行 %d 个未确认阶段", pendingCount)), nil
 }
 
 func handleAddPlan(store *FlexiblePlanStore, p FlexiblePlanInput) (any, error) {
