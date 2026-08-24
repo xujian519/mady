@@ -1,0 +1,314 @@
+# 专利 Reasoning 推理智能体目录（reasoning-*）
+# 从 workers-catalog.yaml 体系独立（2026-06-26）
+# 由 rule-explorer 输出 reasoningPatterns[] 后按需激活
+# 代码层由 worker-catalog.ts 的 loadWorkersCatalog() 合并加载。
+#
+# 契约模式：统一依赖 CAP02 报告（technical-analysis-report.md），contract_level: hard
+
+reasoning:
+  # ==================== 预注册（rule-explorer 常见输出）====================
+
+  - id: R-01
+    worker: reasoning-prior-art-identification
+    tier: reasoning
+    name: 现有技术识别
+    outputs:
+      - outputs/reasoning-prior-art-identification.md
+    required_inputs:
+      - outputs/search-results.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/search-results.md
+        quality_gate: search-results.md
+    output_contracts:
+      - path: outputs/reasoning-prior-art-identification.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造对比文件
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-02
+    worker: reasoning-disclosure-type
+    tier: reasoning
+    name: 公开类型判断
+    outputs:
+      - outputs/reasoning-disclosure-type.md
+    required_inputs:
+      - outputs/search-results.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/search-results.md
+        quality_gate: search-results.md
+    output_contracts:
+      - path: outputs/reasoning-disclosure-type.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造公开方式认定
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-03
+    worker: reasoning-obviousness-effect
+    tier: reasoning
+    name: 显而易见性技术效果分析
+    outputs:
+      - outputs/reasoning-obviousness-effect.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules, knowledge_graph_path]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/reasoning-obviousness-effect.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得事后诸葛亮
+      - 不得编造技术效果
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-04
+    worker: reasoning-enablement
+    tier: reasoning
+    name: 充分公开判断
+    outputs:
+      - outputs/reasoning-enablement.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/reasoning-enablement.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造实施例
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-05
+    worker: reasoning-claim-unsupported
+    tier: reasoning
+    name: 权利要求不支持分析
+    outputs:
+      - outputs/reasoning-claim-unsupported.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/reasoning-claim-unsupported.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造法条引用
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-06
+    worker: reasoning-subject-matter
+    tier: reasoning
+    name: 保护客体判断
+    outputs:
+      - outputs/reasoning-subject-matter.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/reasoning-subject-matter.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造法条引用
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-07
+    worker: reasoning-equivalent-infringement
+    tier: reasoning
+    name: 等同侵权推理
+    outputs:
+      - outputs/reasoning-equivalent-infringement.md
+    required_inputs:
+      - outputs/infringement-literal-analysis.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/infringement-literal-analysis.md
+        quality_gate: infringement-literal-analysis.md
+    output_contracts:
+      - path: outputs/reasoning-equivalent-infringement.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得扩大等同至申请日时尚未公开的技术
+      - 不得忽略禁止反悔原则
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  # ==================== Lazy（rule-explorer 按需输出）====================
+
+  - id: R-08
+    worker: reasoning-conflicting-application
+    tier: reasoning
+    name: 抵触申请判断
+    lazy: true
+    outputs:
+      - outputs/reasoning-conflicting-application.md
+    required_inputs:
+      - outputs/search-results.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/search-results.md
+        quality_gate: search-results.md
+    output_contracts:
+      - path: outputs/reasoning-conflicting-application.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造抵触申请
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-09
+    worker: reasoning-routine-selection
+    tier: reasoning
+    name: 惯用手段直接置换判断
+    lazy: true
+    outputs:
+      - outputs/reasoning-routine-selection.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/reasoning-routine-selection.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造惯用手段认定
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-10
+    worker: reasoning-claim-unclear
+    tier: reasoning
+    name: 权利要求不清楚分析
+    lazy: true
+    outputs:
+      - outputs/reasoning-claim-unclear.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/reasoning-claim-unclear.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造法条引用
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-11
+    worker: reasoning-functional-limitation
+    tier: reasoning
+    name: 功能性限定分析
+    lazy: true
+    outputs:
+      - outputs/reasoning-functional-limitation.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/reasoning-functional-limitation.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造法条引用
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-12
+    worker: reasoning-experimental-data
+    tier: reasoning
+    name: 实验数据充分性分析
+    lazy: true
+    outputs:
+      - outputs/reasoning-experimental-data.md
+    required_inputs:
+      - data/cases/{caseId}/converted/
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: data/cases/{caseId}/converted/
+        content_schema: [说明书, 实施例, 实验数据]
+    output_contracts:
+      - path: outputs/reasoning-experimental-data.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造实验数据
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-13
+    worker: reasoning-amendment-priority
+    tier: reasoning
+    name: 修改超范围分析
+    lazy: true
+    outputs:
+      - outputs/reasoning-amendment-priority.md
+    required_inputs:
+      - data/cases/{caseId}/converted/
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: data/cases/{caseId}/converted/
+        content_schema: [原申请文件, 修改后文件]
+    output_contracts:
+      - path: outputs/reasoning-amendment-priority.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造原申请内容
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: R-14
+    worker: reasoning-design-space
+    tier: reasoning
+    name: 设计空间分析
+    lazy: true
+    outputs:
+      - outputs/reasoning-design-space.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/reasoning-design-space.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造设计空间约束
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false

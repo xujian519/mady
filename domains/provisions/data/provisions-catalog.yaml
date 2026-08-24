@@ -1,0 +1,428 @@
+# 专利 Provision 条款分析智能体目录（P-*）
+# 从 workers-catalog.yaml 拆分而来（2026-06-26）
+# 与 workers-catalog.yaml (W-*) 和 checkers-catalog.yaml (K-*) 配合使用
+# 代码层由 worker-catalog.ts 的 loadWorkersCatalog() 合并加载三文件。
+#
+# 契约字段说明（与 workers-catalog.yaml 一致，详见该文件头部注释）。
+
+provisions:
+  - id: P-A01
+    worker: provision-novelty
+    tier: provision
+    name: 新颖性条款分析
+    outputs:
+      - outputs/novelty-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/novelty-analysis.md
+        standard_key: novelty-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得组合多篇对比文件评价新颖性（这是创造性评价方式）
+      - 不得使用"结合公知常识"判断新颖性缺失
+      - 不得编造对比文件
+      - 无 technical-analysis-report.md 不得出最终法律结论
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-A02
+    worker: provision-inventiveness
+    tier: provision
+    name: 创造性条款分析
+    outputs:
+      - outputs/inventiveness-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules, knowledge_graph_path]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+      - path: outputs/search-results.md
+        quality_gate: search-results.md
+        optional: true
+    output_contracts:
+      - path: outputs/inventiveness-analysis.md
+        standard_key: inventiveness-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得事后诸葛亮（用发明后的认知评价创造性）
+      - 不得将区别特征数量作为创造性标准
+      - 不得编造技术启示
+      - 无 technical-analysis-report.md 不得出最终法律结论
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-A05
+    worker: provision-disclosure
+    tier: provision
+    name: 充分公开分析
+    outputs:
+      - outputs/disclosure-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+      - data/cases/{caseId}/converted/
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+      - path: data/cases/{caseId}/converted/
+        content_schema: [说明书全文, 实施例]
+    output_contracts:
+      - path: outputs/disclosure-analysis.md
+        standard_key: disclosure-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造实施例
+      - 不得强行下公开不充分结论
+      - 无 technical-analysis-report.md 不得出最终法律结论
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-A06
+    worker: provision-claims-clarity
+    tier: provision
+    name: 清楚与支持分析
+    outputs:
+      - outputs/claims-support-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/claims-support-analysis.md
+        standard_key: claims-support-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造法条引用
+      - 无 technical-analysis-report.md 不得出最终法律结论
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-B02
+    worker: provision-infringement-literal
+    tier: provision
+    name: 字面侵权分析
+    outputs:
+      - outputs/infringement-literal-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+        description: 涉案专利与被控方案双端 CAP02 解构
+    output_contracts:
+      - path: outputs/infringement-literal-analysis.md
+        standard_key: infringement-literal-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 无涉案专利与被控方案双端解构不得出侵权判定
+      - 不得忽略禁止反悔原则对等同适用的限制
+      - 不得扩大等同至申请日时尚未公开的技术
+    can_invoke: [provision-infringement-equivalent]
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-C04
+    worker: provision-prior-art
+    tier: provision
+    name: 现有技术认定
+    outputs:
+      - outputs/prior-art-analysis.md
+    required_inputs:
+      - outputs/search-results.md
+    allowed_tools: [read, write, knowledge_search]
+    input_contracts:
+      - path: outputs/search-results.md
+        quality_gate: search-results.md
+    output_contracts:
+      - path: outputs/prior-art-analysis.md
+        standard_key: prior-art-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造公开日期
+      - 不得编造文献
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  # ==================== Lazy Provision Workers ====================
+  # 由 rule-explorer 输出 provision_ids 后按需激活
+  # 契约模式统一：依赖 CAP02 报告，contract_level: hard
+
+  - id: P-A08
+    worker: provision-unity
+    tier: provision
+    name: 独立性要求分析
+    lazy: true
+    outputs:
+      - outputs/unity-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/unity-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造法条引用
+      - 无 CAP02 报告不得出法律结论
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-A09
+    worker: provision-design-auth
+    tier: provision
+    name: 外观设计分析
+    lazy: true
+    outputs:
+      - outputs/design-auth-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/design-auth-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造法条引用
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-B01
+    worker: provision-claim-construction
+    tier: provision
+    name: 权利要求解释
+    lazy: true
+    outputs:
+      - outputs/claim-construction-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/claim-construction-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造法条引用
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-B03
+    worker: provision-infringement-equivalent
+    tier: provision
+    name: 等同侵权分析
+    outputs:
+      - outputs/infringement-equivalent-analysis.md
+    required_inputs:
+      - outputs/infringement-literal-analysis.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/infringement-literal-analysis.md
+        quality_gate: infringement-literal-analysis.md
+    output_contracts:
+      - path: outputs/infringement-equivalent-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得扩大等同至申请日时尚未公开的技术
+      - 不得忽略禁止反悔原则
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-B04
+    worker: provision-indirect-infringement
+    tier: provision
+    name: 间接侵权分析
+    lazy: true
+    outputs:
+      - outputs/indirect-infringement-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/indirect-infringement-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造法条引用
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-B05
+    worker: provision-defenses
+    tier: provision
+    name: 侵权抗辩分析
+    lazy: true
+    outputs:
+      - outputs/defenses-analysis.md
+    required_inputs:
+      - outputs/infringement-literal-analysis.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/infringement-literal-analysis.md
+        quality_gate: infringement-literal-analysis.md
+    output_contracts:
+      - path: outputs/defenses-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造现有技术抗辩证据
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-B06
+    worker: provision-damages
+    tier: provision
+    name: 损害赔偿分析
+    lazy: true
+    outputs:
+      - outputs/damages-analysis.md
+    required_inputs:
+      - outputs/infringement-literal-analysis.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/infringement-literal-analysis.md
+        quality_gate: infringement-literal-analysis.md
+    output_contracts:
+      - path: outputs/damages-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造赔偿数据
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-C01
+    worker: provision-ownership
+    tier: provision
+    name: 权属归属分析
+    lazy: true
+    outputs:
+      - outputs/ownership-analysis.md
+    required_inputs:
+      - data/cases/{caseId}/converted/
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: data/cases/{caseId}/converted/
+        content_schema: [权属证据, 申请文件]
+    output_contracts:
+      - path: outputs/ownership-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造权属证据
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-C02
+    worker: provision-invalidity-procedure
+    tier: provision
+    name: 无效程序分析
+    lazy: true
+    outputs:
+      - outputs/invalidity-procedure-analysis.md
+    required_inputs:
+      - outputs/novelty-analysis.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/novelty-analysis.md
+        quality_gate: novelty-analysis.md
+    output_contracts:
+      - path: outputs/invalidity-procedure-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造无效理由
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-C03
+    worker: provision-reexamination
+    tier: provision
+    name: 复审程序分析
+    lazy: true
+    outputs:
+      - outputs/reexamination-analysis.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/reexamination-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造复审理由
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-C05
+    worker: provision-priority
+    tier: provision
+    name: 优先权分析
+    lazy: true
+    outputs:
+      - outputs/priority-analysis.md
+    required_inputs:
+      - data/cases/{caseId}/converted/
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: data/cases/{caseId}/converted/
+        content_schema: [优先权文件, 申请文件]
+    output_contracts:
+      - path: outputs/priority-analysis.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造优先权日期
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: P-D02
+    worker: provision-drafting-spec
+    tier: provision
+    name: 说明书撰写
+    lazy: true
+    outputs:
+      - outputs/specification-draft.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    allowed_tools: [read, write, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/specification-draft.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造实施例
+      - 不得使用商业宣传语
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false

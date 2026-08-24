@@ -102,6 +102,10 @@ type KnowledgeExtension struct {
 	// topKBoost is set by EvalHook when it observes persistent low faithfulness.
 	// BackendRetrievalHook reads this flag to dynamically increase TopK.
 	topKBoost atomic.Bool
+
+	// extraTools holds tools injected by bootstrap from sub-packages that
+	// cannot be referenced directly here due to import-cycle constraints.
+	extraTools []*agentcore.Tool
 }
 
 // WithBackend injects a SQLite-backed knowledge retrieval backend and an
@@ -135,6 +139,14 @@ func (e *KnowledgeExtension) WithWritableStore(w WritableBackend) *KnowledgeExte
 // and citation chains from the knowledge graph.
 func (e *KnowledgeExtension) WithGraph(g GraphEnhancer) *KnowledgeExtension {
 	e.graph = g
+	return e
+}
+
+// RegisterTools appends additional tools to the extension's tool list.
+// Used by bootstrap to inject patent-specific tools (e.g. patent_kg_query)
+// that are defined in sub-packages to avoid import cycles.
+func (e *KnowledgeExtension) RegisterTools(tools ...*agentcore.Tool) *KnowledgeExtension {
+	e.extraTools = append(e.extraTools, tools...)
 	return e
 }
 
@@ -299,6 +311,10 @@ func (e *KnowledgeExtension) Tools() []*agentcore.Tool {
 				return e.handleAddDocument(ctx, args)
 			},
 		})
+	}
+
+	if len(e.extraTools) > 0 {
+		tools = append(tools, e.extraTools...)
 	}
 	return tools
 }

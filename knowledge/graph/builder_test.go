@@ -261,12 +261,32 @@ func TestQueryNeighbors(t *testing.T) {
 	store.AddNode(&GraphNode{ID: "center", NodeType: NodeConcept, Name: "中心"})
 	store.AddNode(&GraphNode{ID: "n1", NodeType: NodeConcept, Name: "邻居1"})
 	store.AddNode(&GraphNode{ID: "n2", NodeType: NodeConcept, Name: "邻居2"})
-	store.AddEdge(GraphEdge{SourceID: "center", TargetID: "n1", Relation: RelRelatedTo, Weight: 0.5})
-	store.AddEdge(GraphEdge{SourceID: "center", TargetID: "n2", Relation: RelRelatedTo, Weight: 0.5})
+	// Use semantic relation so the default weak-edge filter does not remove it.
+	store.AddEdge(GraphEdge{SourceID: "center", TargetID: "n1", Relation: RelCites, Weight: 0.5})
+	store.AddEdge(GraphEdge{SourceID: "center", TargetID: "n2", Relation: RelApplies, Weight: 0.5})
 
 	neighbors := QueryNeighbors(store, "center", 1)
 	if len(neighbors) != 2 {
 		t.Errorf("neighbors count = %d, want 2", len(neighbors))
+	}
+}
+
+func TestQueryNeighbors_WeakEdgesFiltered(t *testing.T) {
+	store := NewGraphStore()
+	store.AddNode(&GraphNode{ID: "center", NodeType: NodeConcept, Name: "中心"})
+	store.AddNode(&GraphNode{ID: "n1", NodeType: NodeConcept, Name: "邻居1"})
+	store.AddEdge(GraphEdge{SourceID: "center", TargetID: "n1", Relation: RelRelatedTo, Weight: 0.5})
+
+	// Default: weak edges filtered.
+	neighbors := QueryNeighbors(store, "center", 1)
+	if len(neighbors) != 0 {
+		t.Errorf("expected weak edges filtered, got %d neighbors", len(neighbors))
+	}
+
+	// Opt-in: include weak edges.
+	neighbors = QueryNeighbors(store, "center", 1, QueryOptions{IncludeWeakEdges: true})
+	if len(neighbors) != 1 {
+		t.Errorf("expected weak edges included, got %d neighbors", len(neighbors))
 	}
 }
 

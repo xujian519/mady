@@ -14,6 +14,7 @@ import (
 	"github.com/xujian519/mady/knowledge"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/knowledge/loader"
+	"github.com/xujian519/mady/knowledge/patenttools"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/retrieval"
 )
@@ -40,12 +41,22 @@ func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 			ext.WithReranker(reranker)
 			slog.Info("knowledge: cross-encoder rerank enabled")
 		}
+		var writable knowledge.WritableBackend
 		if ws := openWritableStore(madyHome, embedder, knowledgeDBPath); ws != nil {
+			writable = ws
 			ext.WithWritableStore(ws)
 		}
 
 		if store, ok := backend.(*ksqlite.SQLiteStore); ok {
 			dbDir := filepath.Dir(knowledgeDBPath)
+
+			// Open supplementary patent_kg.db (XiaoNuo) if present.
+			kgPath := filepath.Join(dbDir, "patent_kg.db")
+			if _, err := os.Stat(kgPath); err == nil {
+				if err := store.OpenPatentKGdb(kgPath); err != nil {
+					slog.Warn("knowledge: patent_kg.db open failed", "error", err)
+				}
+			}
 
 			lawsPath := filepath.Join(dbDir, "laws-full-local.db")
 			if _, err := os.Stat(lawsPath); os.IsNotExist(err) {
@@ -83,6 +94,15 @@ func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 			} else if gs.NodeCount() > 0 {
 				enhancer := kgwgraph.NewGraphEnhancer(gs, kgwgraph.DefaultEnhanceConfig())
 				ext.WithGraph(enhancer)
+				patentTools := []*agentcore.Tool{
+					patenttools.NewPatentWikiSearchTool(store),
+					patenttools.NewPatentCaseSearchTool(store),
+					kgwgraph.NewPatentKGQueryTool(gs),
+				}
+				if writable != nil {
+					patentTools = append(patentTools, patenttools.NewKnowledgeNoteSaveTool(writable))
+				}
+				ext.RegisterTools(patentTools...)
 				typeCounts := gs.NodeTypeCounts()
 				lawCount := typeCounts[kgwgraph.NodeLawArticle]
 				caseCount := typeCounts[kgwgraph.NodeCase] + typeCounts[kgwgraph.NodeJudgment]

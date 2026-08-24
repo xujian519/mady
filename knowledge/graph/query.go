@@ -18,10 +18,53 @@ type PathResult struct {
 	PathDetails [][]PathNode `json:"path_details"`
 }
 
+// QueryOptions controls traversal behavior for graph queries.
+type QueryOptions struct {
+	// IncludeWeakEdges includes SIMILAR_TO / RELATED_TO co-occurrence edges.
+	// Defaults to false because XiaoNuo patent_kg.db has ~83% weak edges that
+	// create noisy traversal results.
+	IncludeWeakEdges bool
+}
+
+// DefaultQueryOptions returns the default traversal behavior: weak co-occurrence
+// edges are filtered out.
+func DefaultQueryOptions() QueryOptions {
+	return QueryOptions{IncludeWeakEdges: false}
+}
+
+// weakRelations holds edge types that represent statistical co-occurrence
+// rather than explicit semantic relationships. These are filtered by default.
+var weakRelations = map[string]bool{
+	RelSimilarTo: true,
+	RelRelatedTo: true,
+}
+
+func isWeakRelation(relation string) bool {
+	return weakRelations[relation]
+}
+
+func filterWeakEdges(edges []GraphEdge, includeWeak bool) []GraphEdge {
+	if includeWeak {
+		return edges
+	}
+	filtered := edges[:0]
+	for _, e := range edges {
+		if !isWeakRelation(e.Relation) {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
 // QueryPaths searches for up to 5 paths from sourceID to targetID using BFS,
 // bounded by maxDepth hops. Returns a PathResult with Found=false when no
-// path exists within the depth limit.
-func QueryPaths(store *GraphStore, sourceID, targetID string, maxDepth int) PathResult {
+// path exists within the depth limit. Weak co-occurrence edges are filtered
+// by default; pass QueryOptions{IncludeWeakEdges: true} to include them.
+func QueryPaths(store *GraphStore, sourceID, targetID string, maxDepth int, opts ...QueryOptions) PathResult {
+	opt := DefaultQueryOptions()
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
 	if !store.HasNode(sourceID) || !store.HasNode(targetID) {
 		return PathResult{}
 	}
@@ -38,6 +81,17 @@ func QueryPaths(store *GraphStore, sourceID, targetID string, maxDepth int) Path
 		}
 	}
 
+	foundPaths := bfsPaths(store, sourceID, targetID, maxDepth, opt)
+	if len(foundPaths) == 0 {
+		return PathResult{}
+	}
+	return PathResult{Found: true, Paths: foundPaths, PathDetails: buildPathDetails(store, foundPaths)}
+}
+
+// bfsPaths searches breadth-first from sourceID toward targetID, returning all
+// paths found within maxDepth hops (at most 5). Weak co-occurrence edges are
+// filtered per opt.IncludeWeakEdges.
+func bfsPaths(store *GraphStore, sourceID, targetID string, maxDepth int, opt QueryOptions) [][]string {
 	type bfsEntry struct {
 		id   string
 		path []string
@@ -62,7 +116,7 @@ func QueryPaths(store *GraphStore, sourceID, targetID string, maxDepth int) Path
 		}
 		visited[current.id] = true
 
-		for _, edge := range store.GetOutgoing(current.id) {
+		for _, edge := range filterWeakEdges(store.GetOutgoing(current.id), opt.IncludeWeakEdges) {
 			if !visited[edge.TargetID] && !containsString(current.path, edge.TargetID) {
 				newPath := make([]string, len(current.path)+1)
 				copy(newPath, current.path)
@@ -71,12 +125,11 @@ func QueryPaths(store *GraphStore, sourceID, targetID string, maxDepth int) Path
 			}
 		}
 	}
+	return foundPaths
+}
 
-	if len(foundPaths) == 0 {
-		return PathResult{}
-	}
-
-	// Batch-fetch node details for all nodes across all paths.
+// buildPathDetails batch-fetches node details for every node across all paths.
+func buildPathDetails(store *GraphStore, foundPaths [][]string) [][]PathNode {
 	idSet := map[string]bool{}
 	for _, p := range foundPaths {
 		for _, id := range p {
@@ -102,13 +155,17 @@ func QueryPaths(store *GraphStore, sourceID, targetID string, maxDepth int) Path
 		}
 		pathDetails = append(pathDetails, details)
 	}
-	return PathResult{Found: true, Paths: foundPaths, PathDetails: pathDetails}
+	return pathDetails
 }
 
 // QueryNeighbors returns all nodes reachable from nodeID within the given
 // BFS depth (excluding the source itself). This supports multi-hop reasoning
-// traversal over the graph.
-func QueryNeighbors(store *GraphStore, nodeID string, depth int) []*GraphNode {
+// traversal over the graph. Weak co-occurrence edges are filtered by default.
+func QueryNeighbors(store *GraphStore, nodeID string, depth int, opts ...QueryOptions) []*GraphNode {
+	opt := DefaultQueryOptions()
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
 	if depth < 1 || !store.HasNode(nodeID) {
 		return nil
 	}
@@ -119,7 +176,7 @@ func QueryNeighbors(store *GraphStore, nodeID string, depth int) []*GraphNode {
 	for d := 0; d < depth; d++ {
 		var nextFrontier []string
 		for _, fid := range frontier {
-			for _, edge := range store.GetOutgoing(fid) {
+			for _, edge := range filterWeakEdges(store.GetOutgoing(fid), opt.IncludeWeakEdges) {
 				if !visited[edge.TargetID] {
 					visited[edge.TargetID] = true
 					nextFrontier = append(nextFrontier, edge.TargetID)
@@ -141,7 +198,13 @@ func QueryNeighbors(store *GraphStore, nodeID string, depth int) []*GraphNode {
 
 // QueryByRelation returns all nodes connected to nodeID via a specific
 // relation type, in the given direction ("outgoing", "incoming", or "both").
-func QueryByRelation(store *GraphStore, nodeID, relation, direction string) []*GraphNode {
+// When relation is empty, weak co-occurrence edges are filtered by default;
+// pass QueryOptions{IncludeWeakEdges: true} to include them.
+func QueryByRelation(store *GraphStore, nodeID, relation, direction string, opts ...QueryOptions) []*GraphNode {
+	opt := DefaultQueryOptions()
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
 	var edges []GraphEdge
 	switch direction {
 	case "incoming", "in":
@@ -153,10 +216,14 @@ func QueryByRelation(store *GraphStore, nodeID, relation, direction string) []*G
 		}
 	}
 
+	filterWeak := relation == "" && !opt.IncludeWeakEdges
 	seen := map[string]bool{}
 	var result []*GraphNode
 	for _, e := range edges {
 		if relation != "" && e.Relation != relation {
+			continue
+		}
+		if filterWeak && isWeakRelation(e.Relation) {
 			continue
 		}
 		var targetID string

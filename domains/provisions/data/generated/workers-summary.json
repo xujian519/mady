@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-06-05T18:18:11.941Z",
+  "tierAProvisionCount": 23,
+  "tierBReasoningCount": 14,
+  "preRegisteredWorkers": [
+    "provision-novelty",
+    "provision-inventiveness",
+    "provision-utility",
+    "provision-eligibility",
+    "provision-disclosure",
+    "provision-claims-clarity",
+    "provision-amendment",
+    "provision-prior-art",
+    "provision-drafting-claims",
+    "provision-infringement-literal",
+    "provision-infringement-equivalent",
+    "reasoning-prior-art-identification",
+    "reasoning-disclosure-type",
+    "reasoning-obviousness-effect",
+    "reasoning-enablement",
+    "reasoning-claim-unsupported",
+    "reasoning-subject-matter",
+    "reasoning-equivalent-infringement"
+  ],
+  "preRegisteredCount": 18
+}

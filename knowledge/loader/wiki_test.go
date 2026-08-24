@@ -234,13 +234,24 @@ func TestWikiLoader_ImportWiki(t *testing.T) {
 		stats.SkippedShort, stats.SkippedError)
 
 	// Should have imported at least the real content files.
-	if stats.Imported < 2 {
-		t.Errorf("imported = %d, want at least 2 (one Wiki + one card)", stats.Imported)
+	// Wiki file + cards file + root-level 审查指南 file + patent-cards file.
+	if stats.Imported < 4 {
+		t.Errorf("imported = %d, want at least 4 (Wiki + cards + root-level + patent-cards)", stats.Imported)
 	}
 
 	// index.md, log.md, CLAUDE.md should be filtered.
 	if stats.SkippedFilter < 3 {
 		t.Errorf("skippedFilter = %d, want at least 3 (index, log, CLAUDE)", stats.SkippedFilter)
+	}
+
+	// Verify XiaoNuo-style root-level directory was imported.
+	if _, ok := store.GetDocument("审查指南/审查-新颖性-上位概念"); !ok {
+		t.Error("root-level 审查指南 document not found")
+	}
+
+	// Verify patent-cards directory was imported.
+	if _, ok := store.GetDocument("card-新颖性"); !ok {
+		t.Error("patent-cards document not found")
 	}
 
 	// Verify searchable flag: index page should NOT be searchable.
@@ -270,6 +281,7 @@ func TestSanitizeDocID(t *testing.T) {
 	}{
 		{"Wiki/专利侵权/侵权判定/file.md", "专利侵权/侵权判定/file"},
 		{"cards/test-card.md", "test-card"},
+		{"patent-cards/card-新颖性.md", "card-新颖性"},
 		{"Wiki/审查指南/part1/chapter2.md", "审查指南/part1/chapter2"},
 	}
 

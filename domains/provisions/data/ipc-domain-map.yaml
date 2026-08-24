@@ -1,0 +1,131 @@
+# Tier C 领域专家 lazy 映射 — 运行时按 ipcHints[] 实例化 domain-* worker
+# 命名：domain-{ipc-section}-{provision-suffix}，如 domain-A61-inventiveness
+
+ipc_sections:
+  - section: A61
+    name: 医学或兽医学
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-A61
+      - 复审无效/新颖性/审查标准-A61
+
+  - section: A63
+    name: 运动或游戏
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-A63
+
+  - section: B01
+    name: 物理或化学方法
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-B01
+
+  - section: B23
+    name: 机床
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-B23
+
+  - section: C07
+    name: 有机化学
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-C07
+
+  - section: C08
+    name: 有机高分子
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-C08
+
+  - section: F01
+    name: 机器或发动机
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-F01
+
+  - section: F16
+    name: 工程元件
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-F16
+
+  - section: G01
+    name: 测量
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-G01
+
+  - section: G06
+    name: 计算或计数
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-G06
+      - 复审无效/新颖性/审查标准-G06
+
+  - section: H01
+    name: 基本电气元件
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-H01
+
+  - section: H04
+    name: 电通信技术
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-H04
+
+# 第二轮: IPC 子类级精细映射
+# 子类规则在 resolveIpcRoutes 中优先匹配精确 4 字符子类
+ipc_subclasses:
+  - subclass: A61K
+    name: 医药配制品
+    section: A61
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-A61
+  - subclass: A61B
+    name: 医学诊断/外科/鉴定
+    section: A61
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-A61
+  - subclass: G06F
+    name: 电数字数据处理
+    section: G06
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-G06
+  - subclass: G06T
+    name: 图像数据处理
+    section: G06
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-G06
+  - subclass: G06V
+    name: 图像或视频识别
+    section: G06
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-G06
+  - subclass: G06Q
+    name: 商业/金融数据处理
+    section: G06
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-G06
+  - subclass: H04L
+    name: 数字信息传输
+    section: H04
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-H04
+  - subclass: H04W
+    name: 无线通信网络
+    section: H04
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-H04
+  - subclass: H04N
+    name: 图像通信
+    section: H04
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-H04
+  - subclass: H01L
+    name: 半导体器件
+    section: H01
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-H01
+  - subclass: H01R
+    name: 导电连接
+    section: H01
+    wiki_card_roots:
+      - 复审无效/创造性/审查标准-H01
+
+# provision 后缀 → Tier A worker 简名
+provision_suffixes:
+  novelty: P-A01
+  inventiveness: P-A02
+  disclosure: P-A05
+  claims-clarity: P-A06

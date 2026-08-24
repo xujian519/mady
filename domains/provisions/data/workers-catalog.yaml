@@ -1,0 +1,356 @@
+# 专利 Work 工序智能体目录（W-*）
+# 与 workflow 模板步骤对应；CAP 提示词在 assets/prompts/patent/
+#
+# 本文件已于 2026-06-26 拆分：
+#   - W-* workers      → 本文件（workers-catalog.yaml）
+#   - P-* provisions   → provisions-catalog.yaml
+#   - K-* checkers     → checkers-catalog.yaml
+# 代码层由 worker-catalog.ts 的 loadWorkersCatalog() 合并加载三文件。
+#
+# 契约字段说明（2026-06-26 新增，与 required_inputs/outputs 并行）：
+#   input_contracts[]   — 输入契约：path + content_schema（必填内容项）+ quality_gate（引用 artifact-standards key）
+#   output_contracts[]  — 输出契约：path + standard_key（绑定 artifact-standards）+ contract_level（hard/soft/structured）
+#   forbidden_actions[] — 边界契约：禁止动作
+#   can_invoke[]        — 边界契约：可调度的下游 agent
+#   on_block            — 边界契约：阻塞时标准动作（output_blockage_list / prompt_user / prompt_sync）
+#   triggers_hitl       — 边界契约：是否可触发人工检查点
+
+workers:
+  - id: W-01
+    worker: project-probe
+    tier: work
+    name: 案卷探查智能体
+    description: 扫描案卷、索引文件、更新 xiaonuo.md、推断意图与 provision_ids
+    cap_prompt: cap06-project-probe.md
+    required_inputs:
+      - data/cases/{caseId}/source/
+    outputs:
+      - data/cases/{caseId}/xiaonuo.md
+    allowed_tools: [read, write, glob, grep, ls, find]
+    input_contracts:
+      - path: data/cases/{caseId}/source/
+        content_schema: [审查意见通知书, 申请文件, 答复草稿]
+    output_contracts:
+      - path: data/cases/{caseId}/xiaonuo.md
+        contract_level: soft
+    forbidden_actions:
+      - 不得编造案卷信息
+      - 不得伪造文件索引
+    can_invoke: [rule-explorer]
+    on_block: prompt_user
+    triggers_hitl: false
+
+  - id: W-02
+    worker: rule-explorer
+    tier: work
+    name: 规则探查智能体
+    description: 从 Wiki/知识库映射意图到 provision_ids 与 generatedPrompt
+    cap_prompt: cap07-rule-exploration.md
+    required_inputs:
+      - data/cases/{caseId}/xiaonuo.md
+    outputs:
+      - provision_ids
+      - generatedPrompt
+      - reasoningPatterns
+      - ipc_hints
+    allowed_tools: [knowledge_search, knowledge_rules, knowledge_graph_path, knowledge_detail, read, grep]
+    input_contracts:
+      - path: data/cases/{caseId}/xiaonuo.md
+        content_schema: [intent, 文件索引]
+    output_contracts:
+      - path: provision_ids
+        contract_level: soft
+    forbidden_actions:
+      - 不得编造 provision_ids
+      - 必须基于知识库检索结果；无命中时说明并给出最接近 Wiki 路径建议
+    can_invoke: [provision-*, reasoning-*, domain-*]
+    on_block: prompt_sync
+    triggers_hitl: false
+
+  - id: W-03
+    worker: patent-technical-analyzer
+    tier: work
+    name: CAP02 技术分析智能体
+    description: 七维解构、四级对比矩阵、tech-graph、区别特征与 HITL
+    cap_prompt: cap02-technical-analysis.md
+    required_inputs:
+      - data/cases/{caseId}/converted/
+      - data/cases/{caseId}/xiaonuo.md
+    outputs:
+      - outputs/technical-analysis-report.md
+    optional_outputs:
+      - outputs/technical-deconstruction-target.md
+      - outputs/distinctive-features.md
+      - outputs/technical-comparison-matrix.md
+    allowed_tools: [read, write, glob, grep, bash, knowledge_search, knowledge_rules, knowledge_graph_path]
+    input_contracts:
+      - path: data/cases/{caseId}/converted/
+        content_schema: [权利要求全文, 说明书全文]
+      - path: data/cases/{caseId}/xiaonuo.md
+        content_schema: [intent, provision_ids]
+      - path: outputs/search-results.md
+        quality_gate: search-results.md
+        optional: true
+    output_contracts:
+      - path: outputs/technical-analysis-report.md
+        standard_key: technical-analysis-report.md
+        contract_level: soft
+    forbidden_actions:
+      - 不得编造专利号、对比文件、法条
+      - 不得跳过检索直接出创造性/新颖性终局结论
+      - 信息不足时标注「待补充」，不得强行法律结论
+    can_invoke: [provision-*, reasoning-*]
+    on_block: output_blockage_list
+    triggers_hitl: true
+
+  - id: W-04
+    worker: patent-search-planner
+    tier: work
+    name: 检索规划智能体
+    description: 基于 CAP02 制定关键词、分类号与布尔检索式
+    cap_prompt: cap04-search-planning.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    outputs:
+      - outputs/search-plan.md
+    allowed_tools: [read, glob, grep, write, knowledge_search]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/search-plan.md
+        standard_key: search-plan.md
+        contract_level: soft
+    forbidden_actions:
+      - 检索式须可追溯至 CAP02 特征，不得凭空添加技术特征
+      - 未读 CAP02 报告时只输出阻塞说明，不写检索式
+    can_invoke: [patent-search-executor]
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: W-05
+    worker: patent-search-executor
+    tier: work
+    name: 检索执行智能体
+    description: 执行检索、筛选对比文件、写入检索结果
+    cap_prompt: cap05-search-execution.md
+    required_inputs:
+      - outputs/search-plan.md
+    outputs:
+      - outputs/search-results.md
+      - outputs/检索-*.md
+    allowed_tools: [read, glob, grep, write, webfetch]
+    input_contracts:
+      - path: outputs/search-plan.md
+        quality_gate: search-plan.md
+    output_contracts:
+      - path: outputs/search-results.md
+        standard_key: search-results.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造专利号或文献
+      - 公开日晚于本案申请日/优先权日的，须标注「不构成现有技术」
+    can_invoke: [patent-downloader, bcip-retrieval]
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: W-06
+    worker: patent-downloader
+    tier: work
+    name: 专利文献下载智能体
+    description: 按专利号/公开号下载全文至案卷
+    cap_prompt: cap08-patent-download.md
+    required_inputs:
+      - outputs/search-results.md
+    outputs:
+      - data/cases/{caseId}/source/
+    allowed_tools: [read, write, glob, webfetch, patent_download]
+    input_contracts:
+      - path: outputs/search-results.md
+        quality_gate: search-results.md
+    output_contracts:
+      - path: data/cases/{caseId}/source/
+        contract_level: soft
+    forbidden_actions:
+      - 不得编造下载结果
+      - 下载失败时须明确标注，不得伪造文件
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: W-07
+    worker: patent-oa-response-drafter
+    tier: work
+    name: 审查意见答复撰写智能体
+    description: 基于 CAP02 与条款分析撰写意见陈述书
+    cap_prompt: cap03-oa-response-drafting.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+      - data/cases/{caseId}/converted/
+    outputs:
+      - outputs/oa-response-statement.md
+    allowed_tools: [read, write, glob, grep, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+      - path: data/cases/{caseId}/converted/
+        content_schema: [审查意见通知书, 权利要求, 说明书]
+      - path: outputs/disclosure-analysis.md
+        quality_gate: disclosure-analysis.md
+        optional: true
+      - path: outputs/claims-support-analysis.md
+        quality_gate: claims-support-analysis.md
+        optional: true
+    output_contracts:
+      - path: outputs/oa-response-statement.md
+        standard_key: oa-response-statement.md
+        contract_level: hard
+    forbidden_actions:
+      - 不得编造对比文件引用
+      - 禁止 AI 套话与编造事实
+      - 所有对比文件引用必须指向 search-results.md 中的具体段落
+      - 无条款分析 md 不得定稿
+    can_invoke: [patent-slop-cleaner]
+    on_block: output_blockage_list
+    triggers_hitl: true
+
+  - id: W-08
+    worker: patent-slop-cleaner
+    tier: work
+    name: 反套话润色智能体
+    description: stop-patent-slop 规则后处理答复书/陈述书
+    cap_prompt: stop-patent-slop-rules.md
+    required_inputs:
+      - outputs/oa-response-statement.md
+    outputs:
+      - outputs/oa-response-statement-clean.md
+      - outputs/oa-response-slop-changelog.md
+    allowed_tools: [read, write, glob, grep]
+    input_contracts:
+      - path: outputs/oa-response-statement.md
+        quality_gate: oa-response-statement.md
+    output_contracts:
+      - path: outputs/oa-response-statement-clean.md
+        standard_key: oa-response-statement-clean.md
+        contract_level: hard
+      - path: outputs/oa-response-slop-changelog.md
+        contract_level: soft
+    forbidden_actions:
+      - 不得引入新的法律结论
+      - 不得编造引用
+      - 不得删除有实质论证支撑的段落
+    can_invoke: [quality_checker, reviewer]
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: W-09
+    worker: patent-search-commander
+    tier: work
+    name: 检索策略指挥官
+    description: 多轮渐进式检索（宽语义→IPC引证过滤→二次验证），统一调度专利检索、web搜索、学术搜索和知识图谱
+    cap_prompt: cap09-search-commander.md
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    outputs:
+      - outputs/search-commander-report.md
+      - outputs/search-round-1.md
+      - outputs/search-round-2.md
+      - outputs/search-round-3.md
+    allowed_tools:
+      [read, glob, grep, write, webfetch, web_search, patent_search, patent_kg_search, patent_kg_path, patent_rag, knowledge_search]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/search-commander-report.md
+        contract_level: soft
+    forbidden_actions:
+      - 不得编造专利号或文献
+      - 找不到时标注「检索未命中」
+    can_invoke: [patent-search-executor, bcip-retrieval]
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: W-10
+    worker: claim-deconstructor
+    tier: work
+    name: 权利要求四层解析智能体
+    description: 最小技术单元法分解权利要求，词法→语义→功能→效果四层解析，输出结构化 MTU 清单供 CAP02 消费
+    cap_prompt: cap11-claim-deconstruction.md
+    required_inputs:
+      - data/cases/{caseId}/converted/
+    outputs:
+      - outputs/claim-deconstruction-{claimIndex}.yaml
+      - outputs/claim-deconstruction-report.md
+    allowed_tools: [read, write, glob, grep, knowledge_search]
+    input_contracts:
+      - path: data/cases/{caseId}/converted/
+        content_schema: [权利要求全文]
+    output_contracts:
+      - path: outputs/claim-deconstruction-{claimIndex}.yaml
+        contract_level: structured
+      - path: outputs/claim-deconstruction-report.md
+        contract_level: soft
+    forbidden_actions:
+      - 不得跳过 L1 直接做 L3/L4
+      - 不得合并最小技术单元
+      - 不得编造技术含义
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+domain:
+  naming: "domain-{ipc_section}-{provision_suffix}"
+  ipc_map: assets/patent-provisions/ipc-domain-map.yaml
+  provision_suffixes: [novelty, inventiveness, disclosure, claims-clarity]
+  description: rule-explorer 输出 ipc_hints 时 lazy 激活，注入 IPC 段 Wiki 审查标准卡片
+
+orchestrator:
+  role_id: patent_orchestrator
+  name: 专利总调度编排器
+  description: 本项目主入口，调度专利 worker、知识库、workflow 及编程工具
+
+  routing:
+    - intent: [审查意见, 答复, 一通, 二通, 补正]
+      template_id: office-action-response
+      required_prelude: [CAP02]
+    - intent: [侵权, 全面覆盖, 等同]
+      template_id: infringement-analysis
+      required_prelude: [双端 CAP02]
+    - intent: [无效, 复审, 驳回]
+      template_id: invalidation-response
+      required_prelude: [CAP02, 检索]
+    - intent: [撰写, 交底, 申请]
+      template_id: prosecution-draft
+      required_prelude: [CAP02]
+    - intent: [检索, 现有技术, 调查]
+      template_id: prior-art-survey
+      required_prelude: [检索链]
+    - intent: [创造性, 评估]
+      template_id: creativity-assessment
+      required_prelude: [CAP02]
+
+  can_invoke:
+    tiers: [work, provision, reasoning, domain, checker]
+    tools: [plan_workflow, agent, knowledge_search, knowledge_rules, knowledge_graph_path, rule-explorer, suggest_checkers, run_checker_review, run_patent_rules, bash, edit, write, webfetch, tool_search]
+
+  escalation:
+    - condition: worker_failed
+      actions: [read_logs, switch_subagent, narrow_task]
+    - condition: dependency_missing
+      actions: [bash_install, edit_fix]
+    - condition: knowledge_empty
+      actions: [sync_all, knowledge_reindex]
+    - condition: unresolved
+      actions: [report_to_user]
+      hard_constraint: 不得伪造法律结论或对比文件
+
+  forbidden_actions:
+    - 不得伪造法律结论或对比文件
+    - 不得跳过 DAG 硬约束（检索必经、CAP02 前置）
+    - 不得在无 technical-analysis-report.md 时调度法律结论类 provision
+    - 不得跳过检索直接出创造性/新颖性终局结论
+    - 答复书定稿前必须运行 checker 复核
+
+  on_block: prompt_user
+  triggers_hitl: true

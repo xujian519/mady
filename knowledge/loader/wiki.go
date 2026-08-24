@@ -48,8 +48,12 @@ type WikiImportStats struct {
 }
 
 // ImportWiki scans the wiki directory tree and imports all qualifying documents.
-// It traverses Wiki/ and cards/ directories, applying the filter to exclude
-// meta pages, index pages, fragment files, and short content.
+// It traverses the root directory, Wiki/, cards/, and patent-cards/ directories,
+// applying the filter to exclude meta pages, index pages, fragment files, and
+// short content.
+//
+// For XiaoNuo-style wikis the root itself contains the main content folders
+// (审查指南, 专利实务, 复审无效, etc.) alongside cards/ and patent-cards/.
 func (l *WikiLoader) ImportWiki() (*WikiImportStats, error) {
 	if l.Store == nil {
 		return nil, fmt.Errorf("wiki: store is nil")
@@ -63,10 +67,18 @@ func (l *WikiLoader) ImportWiki() (*WikiImportStats, error) {
 		ByDomain: make(map[string]int),
 	}
 
-	// Walk the Wiki/ directory (main content).
+	// Walk the root directory first, skipping card subdirs so they can be
+	// handled separately (they may have card-index enrichment).
+	if info, err := os.Stat(l.WikiPath); err == nil && info.IsDir() {
+		if err := l.importDirectory(l.WikiPath, stats, []string{"cards", "patent-cards"}); err != nil {
+			return stats, fmt.Errorf("wiki: walk root: %w", err)
+		}
+	}
+
+	// Walk the Wiki/ directory (legacy Obsidian main content).
 	wikiDir := filepath.Join(l.WikiPath, "Wiki")
 	if info, err := os.Stat(wikiDir); err == nil && info.IsDir() {
-		if err := l.importDirectory(wikiDir, stats, "Wiki"); err != nil {
+		if err := l.importDirectory(wikiDir, stats, nil); err != nil {
 			return stats, fmt.Errorf("wiki: walk Wiki/: %w", err)
 		}
 	}
@@ -74,8 +86,16 @@ func (l *WikiLoader) ImportWiki() (*WikiImportStats, error) {
 	// Walk the cards/ directory (indexed cards).
 	cardsDir := filepath.Join(l.WikiPath, "cards")
 	if info, err := os.Stat(cardsDir); err == nil && info.IsDir() {
-		if err := l.importDirectory(cardsDir, stats, "cards"); err != nil {
+		if err := l.importDirectory(cardsDir, stats, nil); err != nil {
 			return stats, fmt.Errorf("wiki: walk cards/: %w", err)
+		}
+	}
+
+	// Walk the patent-cards/ directory (XiaoNuo indexed cards).
+	patentCardsDir := filepath.Join(l.WikiPath, "patent-cards")
+	if info, err := os.Stat(patentCardsDir); err == nil && info.IsDir() {
+		if err := l.importDirectory(patentCardsDir, stats, nil); err != nil {
+			return stats, fmt.Errorf("wiki: walk patent-cards/: %w", err)
 		}
 	}
 
@@ -83,9 +103,10 @@ func (l *WikiLoader) ImportWiki() (*WikiImportStats, error) {
 }
 
 // importDirectory walks a directory tree and imports .md files.
+// excludes lists top-level subdirectory names (relative to root) to skip.
 //
 //nolint:gocognit // 原因：Wiki 文件导入遍历，多条件文件类型判断和处理分支
-func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ string) error {
+func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, excludes []string) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			stats.SkippedError++
@@ -95,6 +116,18 @@ func (l *WikiLoader) importDirectory(root string, stats *WikiImportStats, _ stri
 			return nil
 		}
 		if info.IsDir() {
+			// Skip excluded top-level subdirectories to avoid double-walking
+			// card directories that are handled separately.
+			if path != root {
+				rel, relErr := filepath.Rel(root, path)
+				if relErr == nil && filepath.Dir(rel) == "." {
+					for _, ex := range excludes {
+						if strings.EqualFold(filepath.Base(rel), ex) {
+							return filepath.SkipDir
+						}
+					}
+				}
+			}
 			return nil
 		}
 		if !strings.HasSuffix(info.Name(), ".md") {
@@ -220,8 +253,9 @@ func sanitizeDocID(relPath string) string {
 	id := strings.TrimSuffix(relPath, ".md")
 	// Replace path separators with forward slash.
 	id = strings.ReplaceAll(id, string(filepath.Separator), "/")
-	// Remove leading "Wiki/" or "cards/" for cleaner IDs.
+	// Remove leading source-directory prefixes for cleaner IDs.
 	id = strings.TrimPrefix(id, "Wiki/")
 	id = strings.TrimPrefix(id, "cards/")
+	id = strings.TrimPrefix(id, "patent-cards/")
 	return id
 }

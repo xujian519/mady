@@ -35,21 +35,62 @@ func (s *SQLiteStore) OpenPatentKGdb(path string) error {
 // LoadGraph loads all nodes and edges from kg_nodes/kg_edges into a new
 // GraphStore. The SQLite schema mirrors Mady's GraphNode/GraphEdge types
 // exactly, so mapping is a direct field-to-column translation.
+//
+// It first tries knowledge.db (which may contain a merged graph). If that
+// database has no kg_nodes table or is empty, and OpenPatentKGdb has been
+// called, it falls back to the standalone patent_kg.db produced by XiaoNuo.
 func (s *SQLiteStore) LoadGraph() (*graph.GraphStore, error) {
+	gs, source, err := s.tryLoadGraph(s.db)
+	if err != nil {
+		return nil, err
+	}
+	if gs.NodeCount() == 0 && s.kgDB != nil {
+		fallback, fallbackSource, err := s.tryLoadGraph(s.kgDB)
+		if err != nil {
+			slog.Warn("knowledge/sqlite: patent_kg.db graph load failed", "error", err)
+		} else if fallback.NodeCount() > 0 {
+			gs = fallback
+			source = fallbackSource
+		}
+	}
+	if source != "" {
+		slog.Info("knowledge/sqlite: graph loaded", "source", source, "nodes", gs.NodeCount(), "edges", gs.EdgeCount())
+	}
+	return gs, nil
+}
+
+// tryLoadGraph attempts to load kg_nodes/kg_edges from the given DB.
+func (s *SQLiteStore) tryLoadGraph(db *sql.DB) (*graph.GraphStore, string, error) {
 	gs := graph.NewGraphStore()
 
+	// Check whether kg_nodes exists; some databases (e.g. laws-full.db) don't
+	// have graph tables and we should fail gracefully rather than error out.
+	var tableCount int
+	row := db.QueryRowContext(s.baseCtx,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='kg_nodes'")
+	if err := row.Scan(&tableCount); err != nil {
+		return gs, "", nil // fail-open: no graph tables
+	}
+	if tableCount == 0 {
+		return gs, "", nil
+	}
+
+	source := "knowledge.db"
+	if db == s.kgDB {
+		source = "patent_kg.db"
+	}
+
 	// Load nodes.
-	nodeRows, err := s.db.QueryContext(s.baseCtx, `
+	nodeRows, err := db.QueryContext(s.baseCtx, `
 		SELECT id, node_type, name, title, content, domain, source,
 		       full_ref, chapter, article_number, law_refs,
 		       priority, authority_weight, level_in_hierarchy
 		FROM kg_nodes`)
 	if err != nil {
-		return nil, fmt.Errorf("load graph nodes: %w", err)
+		return gs, "", fmt.Errorf("load graph nodes: %w", err)
 	}
 	defer func() { _ = nodeRows.Close() }()
 
-	nodeCount := 0
 	for nodeRows.Next() {
 		var n graph.GraphNode
 		var title, content, source, fullRef, chapter, articleNumber, lawRefs sql.NullString
@@ -61,7 +102,7 @@ func (s *SQLiteStore) LoadGraph() (*graph.GraphStore, error) {
 			&source, &fullRef, &chapter, &articleNumber, &lawRefs,
 			&priority, &authorityWeight, &levelInHierarchy,
 		); err != nil {
-			return nil, fmt.Errorf("scan graph node: %w", err)
+			return gs, "", fmt.Errorf("scan graph node: %w", err)
 		}
 
 		n.Title = title.String
@@ -78,36 +119,33 @@ func (s *SQLiteStore) LoadGraph() (*graph.GraphStore, error) {
 		n.LevelInHierarchy = int(levelInHierarchy.Int64)
 
 		gs.AddNode(&n)
-		nodeCount++
 	}
 	if err := nodeRows.Err(); err != nil {
-		return nil, err
+		return gs, "", err
 	}
 
 	// Load edges.
-	edgeRows, err := s.db.QueryContext(s.baseCtx, `
+	edgeRows, err := db.QueryContext(s.baseCtx, `
 		SELECT source_id, target_id, relation, weight, evidence
 		FROM kg_edges`)
 	if err != nil {
-		return nil, fmt.Errorf("load graph edges: %w", err)
+		return gs, "", fmt.Errorf("load graph edges: %w", err)
 	}
 	defer func() { _ = edgeRows.Close() }()
 
-	edgeCount := 0
 	for edgeRows.Next() {
 		var e graph.GraphEdge
 		var weight sql.NullFloat64
 		var evidence sql.NullString
 		if err := edgeRows.Scan(&e.SourceID, &e.TargetID, &e.Relation, &weight, &evidence); err != nil {
-			return nil, fmt.Errorf("scan graph edge: %w", err)
+			return gs, "", fmt.Errorf("scan graph edge: %w", err)
 		}
 		e.Weight = weight.Float64
 		e.Evidence = evidence.String
 		if gs.HasNode(e.SourceID) && gs.HasNode(e.TargetID) {
 			gs.AddEdge(e)
-			edgeCount++
 		}
 	}
 
-	return gs, edgeRows.Err()
+	return gs, source, edgeRows.Err()
 }

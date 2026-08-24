@@ -1,0 +1,215 @@
+# 专利 Checker 复核智能体目录（K-*）
+# 从 workers-catalog.yaml 拆分而来（2026-06-26）
+# 与 workers-catalog.yaml (W-*) 和 provisions-catalog.yaml (P-*) 配合使用
+# 代码层由 worker-catalog.ts 的 loadWorkersCatalog() 合并加载三文件。
+#
+# 契约字段说明（与 workers-catalog.yaml 一致，详见该文件头部注释）。
+# Checker 专有：
+#   - outputs 中 *.verdict.json 的 contract_level 固定为 structured（CAP09 JSON schema 强校验）
+#   - forbidden_actions 核心约束：不得修改被复核文件（只读复核）
+
+checkers:
+  - id: K-01
+    role_id: novelty_checker
+    tier: checker
+    name: 新颖性复核智能体
+    description: 复核单独对比与新颖性结论
+    invokes_after: [provision-novelty, W-03]
+    required_inputs:
+      - outputs/novelty-analysis.md
+      - outputs/technical-analysis-report.md
+    outputs:
+      - outputs/checkpoint-review-novelty-novelty_checker.md
+      - outputs/novelty.verdict.json
+    allowed_tools: [read, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/novelty-analysis.md
+        quality_gate: novelty-analysis.md
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/checkpoint-review-novelty-novelty_checker.md
+        contract_level: soft
+      - path: outputs/novelty.verdict.json
+        standard_key: checker-verdict.json
+        contract_level: structured
+    forbidden_actions:
+      - 不得修改被复核文件（novelty-analysis.md 只读）
+      - 不得编造对比文件
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: K-02
+    role_id: creativity_checker
+    tier: checker
+    name: 创造性复核智能体
+    description: 复核三步法与创造性结论
+    invokes_after: [provision-inventiveness, patent-technical-analyzer, W-03]
+    required_inputs:
+      - outputs/inventiveness-analysis.md
+      - outputs/technical-analysis-report.md
+    outputs:
+      - outputs/checkpoint-review-inventiveness-creativity_checker.md
+      - outputs/inventiveness.verdict.json
+    allowed_tools: [read, knowledge_search, knowledge_rules, knowledge_graph_path]
+    input_contracts:
+      - path: outputs/inventiveness-analysis.md
+        quality_gate: inventiveness-analysis.md
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/checkpoint-review-inventiveness-creativity_checker.md
+        contract_level: soft
+      - path: outputs/inventiveness.verdict.json
+        standard_key: checker-verdict.json
+        contract_level: structured
+    forbidden_actions:
+      - 不得修改被复核文件（inventiveness-analysis.md 只读）
+      - 不得编造对比文件或法条
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: K-03
+    role_id: infringement_checker
+    tier: checker
+    name: 侵权复核智能体
+    description: 复核全面覆盖与等同侵权对比
+    invokes_after: [provision-infringement-literal, provision-infringement-equivalent]
+    required_inputs:
+      - outputs/infringement-literal-analysis.md
+      - outputs/technical-analysis-report.md
+    outputs:
+      - outputs/checkpoint-review-infringement-infringement_checker.md
+      - outputs/infringement.verdict.json
+    allowed_tools: [read, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/infringement-literal-analysis.md
+        quality_gate: infringement-literal-analysis.md
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/checkpoint-review-infringement-infringement_checker.md
+        contract_level: soft
+      - path: outputs/infringement.verdict.json
+        standard_key: checker-verdict.json
+        contract_level: structured
+    forbidden_actions:
+      - 不得修改被复核文件（infringement-literal-analysis.md 只读）
+      - 不得忽略禁止反悔原则
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: K-04
+    role_id: invalidity_checker
+    tier: checker
+    name: 无效宣告复核智能体
+    description: 复核无效理由与证据链
+    invokes_after: [provision-novelty, provision-inventiveness]
+    required_inputs:
+      - outputs/novelty-analysis.md
+      - outputs/inventiveness-analysis.md
+    outputs:
+      - outputs/checkpoint-review-invalidity-invalidity_checker.md
+      - outputs/invalidity.verdict.json
+    allowed_tools: [read, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/novelty-analysis.md
+        quality_gate: novelty-analysis.md
+      - path: outputs/inventiveness-analysis.md
+        quality_gate: inventiveness-analysis.md
+    output_contracts:
+      - path: outputs/checkpoint-review-invalidity-invalidity_checker.md
+        contract_level: soft
+      - path: outputs/invalidity.verdict.json
+        standard_key: checker-verdict.json
+        contract_level: structured
+    forbidden_actions:
+      - 不得修改被复核文件
+      - 证据不足时不得仅凭推测下结论
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: K-05
+    role_id: retriever
+    tier: checker
+    name: 专利检索专家
+    description: 检索式构建与对比文件筛选（可替代或补强 W-04/W-05）
+    invokes_after: [W-03]
+    required_inputs:
+      - outputs/technical-analysis-report.md
+    outputs:
+      - outputs/retriever-review.md
+    allowed_tools: [read, write, webfetch, bash]
+    input_contracts:
+      - path: outputs/technical-analysis-report.md
+        quality_gate: technical-analysis-report.md
+    output_contracts:
+      - path: outputs/retriever-review.md
+        contract_level: soft
+    forbidden_actions:
+      - 不得编造专利号或文献
+      - 找不到时标注「检索未命中」
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: K-06
+    role_id: quality_checker
+    tier: checker
+    name: 质量一致性检查
+    description: 终稿一致性与规范性
+    invokes_after: [patent-oa-response-drafter, patent-slop-cleaner, W-07, W-08]
+    required_inputs:
+      - outputs/oa-response-statement-clean.md
+    outputs:
+      - outputs/checkpoint-review-quality-quality_checker.md
+      - outputs/quality.verdict.json
+    allowed_tools: [read, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/oa-response-statement-clean.md
+        quality_gate: oa-response-statement-clean.md
+    output_contracts:
+      - path: outputs/checkpoint-review-quality-quality_checker.md
+        contract_level: soft
+      - path: outputs/quality.verdict.json
+        standard_key: checker-verdict.json
+        contract_level: structured
+    forbidden_actions:
+      - 不得修改被复核文件（oa-response-statement-clean.md 只读）
+      - 不得编造规范性缺陷
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: false
+
+  - id: K-07
+    role_id: reviewer
+    tier: checker
+    name: 形式与实质审查
+    description: 答复书/陈述书 HITL 前审查
+    invokes_after: [patent-oa-response-drafter, W-07]
+    hitl_checkpoint: true
+    required_inputs:
+      - outputs/oa-response-statement.md
+    outputs:
+      - outputs/checkpoint-review-review-reviewer.md
+      - outputs/review.verdict.json
+    allowed_tools: [read, knowledge_search, knowledge_rules]
+    input_contracts:
+      - path: outputs/oa-response-statement.md
+        quality_gate: oa-response-statement.md
+    output_contracts:
+      - path: outputs/checkpoint-review-review-reviewer.md
+        contract_level: soft
+      - path: outputs/review.verdict.json
+        standard_key: checker-verdict.json
+        contract_level: structured
+    forbidden_actions:
+      - 不得修改被复核文件（oa-response-statement.md 只读）
+      - 不得编造形式缺陷
+    can_invoke: []
+    on_block: output_blockage_list
+    triggers_hitl: true

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -117,6 +118,36 @@ func setupTestData(root string) {
 
 	// Wiki/专利侵权/CLAUDE.md — filtered by ShouldImport
 	os.WriteFile(filepath.Join(root, "Wiki", "专利侵权", "CLAUDE.md"), []byte(`# CLAUDE`), 0644)
+
+	// XiaoNuo-style root-level directory (e.g. 审查指南 directly under wiki root).
+	ensureDir(filepath.Join(root, "审查指南"))
+	rootLevelContent := strings.Repeat("上位概念与下位概念的新颖性判断是专利审查中的重要内容。审查员应当根据技术领域的通常理解，准确把握上位概念与下位概念之间的关系。", 10)
+	os.WriteFile(
+		filepath.Join(root, "审查指南", "审查-新颖性-上位概念.md"),
+		[]byte(`# 审查-新颖性-上位概念
+
+> **来源：** 《专利审查指南》第二部分第三章 §3.2.2
+> **对应法条：** 《专利法》第二十二条第二款
+
+## 核心要点
+
+`+rootLevelContent+`
+`), 0644)
+
+	// XiaoNuo-style patent-cards directory.
+	ensureDir(filepath.Join(root, "patent-cards"))
+	cardContent := strings.Repeat("新颖性判断应当遵循单独对比原则，将每一份对比文件与权利要求单独进行比较。", 15)
+	os.WriteFile(
+		filepath.Join(root, "patent-cards", "card-新颖性.md"),
+		[]byte(`# 卡片-新颖性
+
+> **来源：** 审查指南
+> **核心法条：** 专利法第22条第2款
+
+## 核心要点
+
+`+cardContent+`
+`), 0644)
 }
 
 func ensureDir(path string) {
