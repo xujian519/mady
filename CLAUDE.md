@@ -9,7 +9,7 @@
 
 - **Go 1.26**：多模块项目（go.work 三模块：根模块，含 `tools/` 目录包 + `./tui` + `./desktop`）
 - 核心依赖极少（`gorilla/websocket` + `modernc.org/sqlite` + `gopkg.in/yaml.v3`）
-- 1500+ 个 Go 源文件（~1072 非测试 + ~538 测试，不含 vendor），~281K 行代码
+- 1500+ 个 Go 源文件（~1093 非测试 + ~561 测试，不含 vendor），~281K 行代码
 
 ## 构建与测试
 
@@ -62,6 +62,10 @@ mady/
 │   ├── infringement/ #   侵权比对（图引擎 + 规则）
 │   ├── ipc/          #   IPC 分类
 │   ├── checker/      #   撰写检查器（catalog/dispatch/verdict）
+│   ├── claimchart/   #   权利要求要素对照图构建（Sati 工具）
+│   ├── plantask/     #   HITL 计划状态机工具（阶段规划/柔性计划）
+│   ├── provenance/   #   专利工作流溯源（JSONL 按日 + AES 详情加密）
+│   ├── workercontract/#   Worker 输出契约校验（patent_worker_validate）
 │   ├── provisions/   #   法条条款域 Agent 装配
 │   ├── reasoning/    #   事实黑板、三段论、多跳遍历、五步工作法、规划编译器、拓扑驱动泛化
 │   │   ├── sqlite/   #     推理持久化
@@ -69,7 +73,7 @@ mady/
 │   ├── rules/        #   YAML 规则引擎 + OA 解析 + 反套话引擎
 │   ├── specdrafting/ #   说明书撰写（12 节点 Pregel 图 + 规则引擎 + 评分器）
 │   ├── sqlite/       #   领域持久化（approval_store / case_index）
-│   ├── workflows/    #   领域工作流（legal/patent/design）
+│   ├── workflows/    #   领域工作流（legal/patent/design；patent/ 含声明式 manifests + patent_workflow_run 路由）
 │   └── writing/      #   撰写质量评估、模式存储、技能编译器
 ├── graph/            # 图引擎（DAG + Pregel，含 StateSchema/Reducer、NodePolicy、DegradationMark）
 ├── guardrails/       # 三级护栏系统（含引用核验 Gate）
@@ -95,6 +99,7 @@ mady/
 ├── retrieval/        # 检索引擎（关键词/BM25/向量/RRF 混合）
 │   ├── domain/       #   检索域基础抽象（DomainRetriever 接口）
 │   │   ├── sqlite/   #     SQLite 域存储（本地 FTS5 语料）
+│   │   ├── nuopatent/ #     nuo-patent CLI 封装（方案 A：CNIPA 权威源，域检索 + 失配容错）
 │   │   └── browser/  #     ego-browser 在线检索器（Google Patents/CNIPA/Espacenet
 │   │                 #     + CompositeRetriever 组合降级）
 │   └── model_rerank.go # cross-encoder 重排

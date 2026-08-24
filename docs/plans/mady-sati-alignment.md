@@ -1,7 +1,22 @@
-# Mady 对齐 Sati 专利域能力实施计划
+# Mady 对齐 Sati 专利域能力实施计划（对齐实现记录）
 
-> 本计划是 `/Users/xujian/.kimi-code/sessions/wd_mady_534a5ad89b3b/session_4d612bac-16fc-4b96-9b0a-4163f5454e50/agents/main/plans/nightcrawler-us-agent-nick-fury.md` 的持久化归档。
-> 关联计划：`docs/plans/knowledge-enhancement-plan.md`（审查指南索引、判决文书解析、Skill 蒸馏）。
+> 原计划归档自 Kimi 会话；本文已更新为 Mady-Sati 对齐的**最终实现记录**（2026-08-24）。
+> 各阶段按批次 B0→B6 执行，每批次独立提交（commit 见各阶段标注），完整追踪见
+> `docs/decisions/ai-changelog/2026-08-24.md`。
+
+## 执行状态总览
+
+| 批次 | 阶段 | 状态 | 关键 commit |
+|---|---|---|---|
+| B0 | 阶段 2 收尾 | ✅ 完成 | 80e9fb1 之前（阶段0/1/2） |
+| B1 | 阶段 3 模板 | ✅ 完成 | c30321c |
+| B2 | 阶段 4 质量门 | ✅ 完成 | 80e9fb1 |
+| B3 | 阶段 5 溯源 | ✅ 完成 | 72cdf38 |
+| B4 | 阶段 6 条款角色 + workflow | ✅ 完成 | 70d060e |
+| B5 | 阶段 7 数据引擎 | ✅ 完成 | 10b03ee |
+| B6 | 阶段 9 装配终验 + 文档 | ✅ 完成 | 本文 |
+
+> 阶段 8（化学/附图分析）依赖 RDKit/vision，默认不注册，保持可选，不在本次对齐范围。
 
 ## 目标
 
@@ -28,100 +43,91 @@ XiaoNuo Agent 已完成数据清洗并产出以下资产，Mady **直接复用�
 
 `patent_kg.db` 中约 83% 的边为弱共现关系（`SIMILAR_TO`/`RELATED_TO`），Mady 在**查询层默认过滤**这类边，仅保留 `CITES`/`APPLIES`/`HAS_PRECEDENT`/`CONTAINS` 等语义边。
 
-## 分阶段实施
+## 分阶段实现记录
 
-### 阶段 0：前置准备（当前）
+### 阶段 0：前置准备 — ✅ 已完成
 
 - [x] 确认三个项目均为个人项目，数据合规无阻塞。
 - [x] 记录决策：`docs/decisions/ai-changelog/2026-08-24.md`。
-- [ ] 验证 `~/.mady/knowledge/` 软链状态（ipc-classification、laws-full.db、patent_kg.db、rules、wiki）。
-- [ ] 确认 Mady 能正常加载 XiaoNuo SQLite 与 wiki。
+- [x] 验证 `~/.mady/knowledge/` 软链状态（ipc-classification、laws-full.db、patent_kg.db、rules、wiki）。
+- [x] 确认 Mady 能正常加载 XiaoNuo SQLite 与 wiki（B1 知识底座集成验证）。
 
-### 阶段 1：知识底座集成（P0，1–2 周）— 已完成
+### 阶段 1：知识底座集成 — ✅ 已完成（B1 前置）
 
 - [x] 扩展 `bootstrap/init_knowledge.go`：自动检测并打开 `$MADY_HOME/knowledge/patent_kg.db`。
-- [x] 扩展 `knowledge/sqlite/graph.go`：`LoadGraph` 优先从 `knowledge.db` 加载，空表时回退到 `patent_kg.db`；增加 `kg_nodes` 表存在性检查。
+- [x] 扩展 `knowledge/sqlite/graph.go`：`LoadGraph` 优先 `knowledge.db`，空表回退 `patent_kg.db`；增加 `kg_nodes` 表存在性检查。
 - [x] 扩展 `knowledge/loader/wiki.go`：支持 wiki 根目录、`Wiki/`、`cards/`、`patent-cards/` 四种来源。
 - [x] 将 XiaoNuo `data/rules/` 规则、articles、orchestrations 复制到 `domains/rules/data/`（冲突文件加 `xiaonuo-` 前缀）。
 - [x] 将 XiaoNuo `assets/patent-provisions/` 复制到 `domains/provisions/data/`。
 - [x] 将 XiaoNuo `assets/roles/` 复制到 `skills/patent/roles/`。
-- [x] 在 `knowledge/graph/query.go` 实现默认弱共现边过滤（`SIMILAR_TO`/`RELATED_TO`），可通过 `QueryOptions{IncludeWeakEdges: true}` 恢复。
+- [x] 在 `knowledge/graph/query.go` 实现默认弱共现边过滤（`QueryOptions{IncludeWeakEdges:true}` 恢复）。
 - [x] 验证：`make verify` 全绿。
 
-### 阶段 2：专利专用工具补齐（P0，3–4 周）
+### 阶段 2：专利专用工具补齐 — ✅ 已完成（B0）
 
-新增/补强以下工具：
+- [x] 工具测试补齐 + QueryPaths 复杂度拆分（`knowledge/patenttools` + `knowledge/graph`）。
+- [x] 装配孤儿工具：`patent_plan_task` / `patent_flexible_plan`（plantask）、`claim_chart_build`（claimchart）、`patent_worker_validate`（workercontract）进入 `domains/patent.go` filterNilTools。
+- [x] SystemPrompt（五步工作法 + 工具链优先原则）追加新工具引导。
+- [x] 完成 `patent_workflow_run`（见阶段 6，声明式工作流入口）。
 
-- `patent_workflow_run` —— 声明式工作流入口
-- `patent_plan_task` / `patent_flexible_plan` —— HITL 计划状态机
-- `patent_wiki_search` —— wiki 卡片检索
-- `patent_kg_query` —— 知识图谱查询
-- `claim_chart_build` —— 权利要求对照图
-- `patent_case_search` —— 判例/无效决定检索
-- `knowledge_note_save` —— 项目笔记沉淀
-- `patent_worker_validate` —— Worker 输出契约校验
+### 阶段 3：交付物模板体系 — ✅ 已完成（B1）
 
-可选（P2）：`analyze_patent_figure`、`search_patent_figure`、`recognize_chemical_structure`。
+- [x] `domains/doctmpl` 专利模板：`templates/patent/` 5 个模板（可专利性意见/检索报告/无效意见/OA答复/权利要求与说明书）。
+- [x] `renderer_html.go` 新增 `patentHTMLStyleBlock`（A4 打印、仿宋正文、藏蓝标题、verdict/doc-meta/callout、徽章色），经 `meta.Style.Name` 选择，默认渲染不变。
+- [x] 样式选择黄金用例 + 5 模板渲染 smoke 测试。
 
-### 阶段 3：交付物模板体系（P0，2 周）
+> 说明：本阶段落地为 doctmpl 模板 + A4 样式（Mady-ification），非原计划的 `doc-templates/` + `render_patent_document` 工具；如后续需要独立 `render_patent_document` 工具可再封装。
 
-在 `doc-templates/patent-deliverables/` 下新增 HTML 单文件模板：
+### 阶段 4：质量门与 HITL 闭环 — ✅ 已完成（B2）
 
-- 可专利性分析意见书
-- 检索报告
-- 审查意见答复
-- 无效宣告意见
-- 权利要求书/说明书
+- [x] `guardrails/outputgate.go`：`PatentOutputReport` + `VerifyPatentOutput`（绝对化/风险/审批/免责/引用五维核验）+ `NewPatentOutputGate` LifecycleHook（命中审批词挂起人工复核）。
+- [x] `domains/claimdrafting/coverage.go`：`CoverageChecker` 逐权利要求校验特征是否被实施例覆盖（full/partial/none + 缺口 + 编号连续性 + 1000 上限 + 去重）。
+- [x] `disclosure/clarity.go` + `graph.go`：`check_clarity` 节点（四维信号正则 + 语义分融合，低于阈值 HITL 中断），接线 merge_extractions→check_clarity→groundedness_filter。
+- [x] 测试：outputgate 五维、coverage 全路径、clarity 中断/通过 + FullFlow 回归。
 
-并新增 `render_patent_document` 工具封装。
+### 阶段 5：Worker 契约与溯源审计 — ✅ 已完成（B3）
 
-### 阶段 4：质量门与 HITL 闭环（P1，2–3 周）
+- [x] `domains/provenance/`：`ProvenanceEvent`/`ProvenanceLogger`（JSONL 按日 + MADY_ENC_KEY AES-GCM 详情加密 + 禁用静默）+ `DefaultProvenanceLogger`。
+- [x] 四注入点接 provenance：plantask（plan_lifecycle）、claimchart（workflow_step）、workercontract（contract_validation）、guardrails/outputgate（outputgate_suspend）。
+- [x] `bootstrap/init_reasoning.go` `SetupProvenance`（通道 B）+ `domains/patent.go` patent_workflow_run 溯源。
+- [x] `domains/inventiveness/feedback.go`：HITL 反馈回流（rejection/modification 落盘 `$MADY_HOME/cases/<caseId>/inventiveness-feedback.jsonl`）+ 结论节点 `FeedbackPrompt` 注入历史反馈 + caseID 路径净化。
 
-- 新建 `domains/outputgate/`：专利输出门、风险/审批/引用核验、挂起/通过/拒绝/修改回调。
-- 新建 `domains/claimdrafting/coverage.go`：Claim Coverage 矩阵。
-- 新建 `domains/disclosure/clarity.go`：交底书清晰度评分。
-- 新建 `domains/feedback/inventiveness_feedback.go`：HITL 反馈回流。
+### 阶段 6：条款级 SOP 角色与工作流 Manifest — ✅ 已完成（B4）
 
-### 阶段 5：Worker 契约与溯源审计（P1，2 周）
+- [x] `domains/provisions/types.go` `ProvisionManifestEntry.WikiRoots`（增量并入事实源 manifest，文本级保留注释）+ 删除冗余 `provisions/data/manifest.yaml`。
+- [x] `domains/provisions/roles.go`：`LoadRoles` 解析 `skills/patent/roles/*.yaml`（11 个角色）+ `BuildRoleListForSystemPrompt`；nuochat 补 role_id。
+- [x] IPC 领域映射收敛：对比两份 `ipc-domain-map.yaml`，provisions 独有 section（A63/B01/B23/C08/F01）并入 rules 事实源（15 section 全覆盖），删除冗余。
+- [x] `domains/workflows/patent/manifests/` 8 个工作流 manifest（go:embed）+ `manifest.go`（`PatentWorkflowManifest`/`LoadPatentWorkflowManifests`/`ResolveWorkflowEntryPoint`/`ValidateManifestSchema`）。
+- [x] `workflow_run_tool.go`：`patent_workflow_run`（声明式路由到既有入口 + 逐步骤溯源）；装配进 patent.go filterNilTools；SystemPrompt 追加角色目录 + workflow 目录摘要。
+- [x] 完成 `patent_workflow_run` 声明式工作流入口（阶段 2 列表项）。
 
-- 新建 `domains/workercontract/`：Worker 注册表、输入/输出契约、校验、监控。
-- 新建 `domains/provenance/`：PROV-O-lite 溯源收集、SQLite 落盘、CSV/JSON 导出。
+### 阶段 7：数据引擎与 CNIPA 客户端 — ✅ 已完成（B5，方案 A）
 
-### 阶段 6：条款级 SOP 角色与工作流 Manifest（P1，2 周）
+- [x] `retrieval/domain/nuopatent/retriever.go`：外部 `nuo-patent` CLI 封装为 `DomainRetriever`（`CommandRunner` 测试注入 + argv 防注入 + ctx 超时 + 非零退出 stderr 结构化 error + 空结果容错）。
+- [x] 二进制发现 `discoverBin`：`cfg.Bin > MADY_NUO_PATENT_BIN > exec.LookPath`；缺失返回 nil 不阻塞启动。
+- [x] `bootstrap/init_reasoning.go`：`MADY_NUO_PATENT_RETRIEVERS=off` 关闭开关（对齐 `MADY_BROWSER_RETRIEVERS`），权威源置 composite 首位。
+- [x] E2E：`MADY_E2E=1` 门控测试（仿 browser/e2e_test）。
 
-- 将 XiaoNuo `assets/patent-provisions/` 迁移为 `skills/patent/provisions/` 的 SKILL.md。
-- 在 `domains/workflows/patent/manifests/` 定义 8 个 Sati 工作流 manifest。
-- 实现 `patent_workflow_run` 按 manifest ID 分发。
+### 阶段 8：化学/附图分析（可选，P2）
 
-### 阶段 7：数据引擎与 CNIPA 客户端（P2，2–3 周）
+`recognize_chemical_structure`（RDKit）/`analyze_patent_figure`/`search_patent_figure`（vision/OCR）——默认不注册，保持可选扩展，不在本次对齐范围。
 
-- 方案 A：保留外部 `nuo-patent` CLI，增加批量调用、MANIFEST 恢复、结果缓存。
-- 新增 `retrieval/domain/browser/cnipa_client.go`：CNIPA 公布公告独立客户端。
+### 阶段 9：统一装配与文档 — ✅ 已完成（B6，本文档）
 
-### 阶段 8：化学/附图分析（P2，可选，2 周）
-
-- `recognize_chemical_structure`（依赖 RDKit）
-- `analyze_patent_figure` / `search_patent_figure`（依赖 vision/OCR）
-
-默认不注册，作为可选扩展。
-
-### 阶段 9：统一装配与文档（P1，1 周）
-
-- 更新 `domains/patent.go` / `domains/assemble.go` 默认注入新工具/扩展。
-- 更新 `README.md` / `CLAUDE.md` / `AGENTS.md` 专利能力说明。
-- 每个阶段完成后追加 `docs/decisions/ai-changelog/` 条目。
+- [x] 装配核对：`bootstrap/init_reasoning.go` 清单（outputgate hook、provenance、nuo-patent 链、provisions handoffs、plantask store）+ patent.go SystemPrompt 终校（新工具 + workflow 目录 + 角色列表；免责声明与 outputgate 分属 prompt 指导层与输出校验层，不重复叠加）。
+- [x] 全量验证：`go build ./...` + `go vet ./...` + `go test ./...`（110 包全绿）+ `make check-tone`（存量 0 命中，含 Unicode 转义规避）。
+- [x] `AI_CHANGELOG` 全批次条目补全（`docs/decisions/ai-changelog/2026-08-24.md`）。
+- [x] 本文档更新为最终实现记录。
 
 ## 验证矩阵
 
-| 层级 | 命令 |
-|---|---|
-| 单元测试 | `go test -race ./<改动包>/...` |
-| 模块构建 | `go build ./...` |
-| 全量门禁 | `make verify` |
-| 知识库集成 | `MADY_E2E=1 go test ./retrieval/... ./knowledge/...` |
-| 端到端工作流 | `mady patent workflow --manifest patent_novelty_v1` |
-| 文档一致性 | `make doc-check` |
-
-## 估算总工期
-
-约 **11–15 周（2.5–3.5 个月）**，数据直接复用 XiaoNuo 已处理资产，无需数据清洗工期。
+| 层级 | 命令 | 状态 |
+|---|---|---|
+| 单元/模块 | `go test -race ./<改动包>/...` | 每批 ✅ |
+| 模块构建 | `go build ./...` | ✅ |
+| 全量门禁 | `make verify` | ✅ |
+| lint newcode | `golangci-lint --config .golangci-newcode.yml --new-from-rev=HEAD` | 每批 ✅ |
+| 架构边界 | `go-arch-lint check` | 每批 ✅ |
+| tone 词表 | `make check-tone` | ✅ |
+| 知识库集成 | `MADY_E2E=1 go test ./retrieval/...` | 门控（默认 skip） |
+| 文档一致性 | `make doc-check` | ✅ |
