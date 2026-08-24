@@ -105,6 +105,18 @@ func LoadInventivenessFeedback(caseDir string) ([]FeedbackEntry, error) {
 	return entries, sc.Err()
 }
 
+// feedbackActionLabel 把反馈类型映射为中文标签（驳回/修正）；未知类型回退原串以容错旧数据。
+func feedbackActionLabel(a FeedbackAction) string {
+	switch a {
+	case ActionRejection:
+		return "驳回"
+	case ActionModification:
+		return "修正"
+	default:
+		return string(a)
+	}
+}
+
 // SummarizeInventivenessFeedback 把历史反馈压缩为给结论节点的提示词块。
 // 无历史反馈时返回空串（调用方据此跳过注入）。
 func SummarizeInventivenessFeedback(entries []FeedbackEntry) string {
@@ -114,15 +126,7 @@ func SummarizeInventivenessFeedback(entries []FeedbackEntry) string {
 	var b strings.Builder
 	b.WriteString("**历史用户反馈（请吸取并据此修正你的判断）**：\n")
 	for _, e := range entries {
-		b.WriteString("- ")
-		switch e.Action {
-		case ActionRejection:
-			b.WriteString("驳回")
-		case ActionModification:
-			b.WriteString("修正")
-		default:
-			b.WriteString(string(e.Action))
-		}
+		b.WriteString("- " + feedbackActionLabel(e.Action))
 		if e.Reason != "" {
 			b.WriteString("：" + e.Reason)
 		}
@@ -139,7 +143,7 @@ func FeedbackPrompt(caseID string) string {
 		return ""
 	}
 	entries, err := LoadInventivenessFeedback(dir)
-	if err != nil || len(entries) == 0 {
+	if err != nil {
 		return ""
 	}
 	return SummarizeInventivenessFeedback(entries)

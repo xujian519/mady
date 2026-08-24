@@ -58,23 +58,26 @@ func VerifyPatentOutput(text string) PatentOutputReport {
 			break
 		}
 	}
-	for _, w := range patentRiskWords {
-		if strings.Contains(text, w) && !hasNegationContext(text, w) {
-			rep.RiskWordsHit = append(rep.RiskWordsHit, w)
-		}
-	}
-	for _, w := range patentApprovalWords {
-		if strings.Contains(text, w) {
-			rep.ApprovalWordsHit = append(rep.ApprovalWordsHit, w)
-			rep.NeedsApproval = true
-		}
-	}
-	for _, w := range patentAbsoluteWords {
-		if strings.Contains(text, w) {
-			rep.AbsoluteWordsHit = append(rep.AbsoluteWordsHit, w)
-		}
-	}
+	rep.RiskWordsHit = collectWordHits(text, patentRiskWords, true)
+	rep.ApprovalWordsHit = collectWordHits(text, patentApprovalWords, false)
+	rep.NeedsApproval = len(rep.ApprovalWordsHit) > 0
+	rep.AbsoluteWordsHit = collectWordHits(text, patentAbsoluteWords, false)
 	return rep
+}
+
+// collectWordHits 收集 text 中命中的词表项；excludeNegated 为 true 时跳过带否定语境者。
+func collectWordHits(text string, words []string, excludeNegated bool) []string {
+	var hits []string
+	for _, w := range words {
+		if !strings.Contains(text, w) {
+			continue
+		}
+		if excludeNegated && hasNegationContext(text, w) {
+			continue
+		}
+		hits = append(hits, w)
+	}
+	return hits
 }
 
 // hasNegationContext reports whether the characters immediately preceding any

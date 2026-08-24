@@ -52,11 +52,7 @@ func NewInventivenessFeedbackTool() *agentcore.Tool {
 			}); err != nil {
 				return agentcore.NewFailureResult("保存失败", err.Error()), nil
 			}
-			label := "驳回"
-			if action == ActionModification {
-				label = "修正"
-			}
-			return fmt.Sprintf("已记录用户%s反馈（案卷 %s）", label, p.CaseID), nil
+			return fmt.Sprintf("已记录用户%s反馈（案卷 %s）", feedbackActionLabel(action), p.CaseID), nil
 		},
 	}
 }

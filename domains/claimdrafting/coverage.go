@@ -54,10 +54,7 @@ func NewCoverageChecker() *CoverageChecker { return &CoverageChecker{} }
 // claims 为权利要求原文列表（用于数量上限参考，可空）。
 func (c *CoverageChecker) Check(claims []string, entries []ClaimCoverageEntry) CoverageReport {
 	report := CoverageReport{}
-	maxByClaims := 0
-	if len(claims) > 0 {
-		maxByClaims = len(claims)
-	}
+	maxByClaims := len(claims)
 
 	allValid := true
 	nums := []int{}
@@ -100,27 +97,25 @@ func (c *CoverageChecker) Check(claims []string, entries []ClaimCoverageEntry) C
 }
 
 func checkEntry(e ClaimCoverageEntry, maxByClaims int) CoverageItem {
-	item := CoverageItem{Entry: e, Uncovered: []string{}}
+	// reject 统一非法分支的返回形态（Entry + 空 Uncovered + InvalidReason）。
+	reject := func(reason string) CoverageItem {
+		return CoverageItem{Entry: e, Uncovered: []string{}, InvalidReason: reason}
+	}
 	m := claimIDRe.FindStringSubmatch(e.ClaimID)
 	if m == nil {
-		item.InvalidReason = "claim id 格式非法（应为 claim_<n>）"
-		return item
+		return reject("claim id 格式非法（应为 claim_<n>）")
 	}
 	num, err := strconv.Atoi(m[1])
 	if err != nil {
-		item.InvalidReason = "claim id 编号非法"
-		return item
+		return reject("claim id 编号非法")
 	}
 	if num <= 0 || num > MAXClaimNo {
-		item.InvalidReason = "claim 编号超出上限（1..1000）"
-		return item
+		return reject("claim 编号超出上限（1..1000）")
 	}
 	if maxByClaims > 0 && num > maxByClaims {
-		item.InvalidReason = "claim 编号超出权利要求数量"
-		return item
+		return reject("claim 编号超出权利要求数量")
 	}
-	item.Valid = true
-	item.ClaimNum = num
+	item := CoverageItem{Entry: e, ClaimNum: num, Valid: true, Uncovered: []string{}}
 
 	// 只信 Features + EmbodimentRefs：重复特征去重，按实施例支持判定覆盖。
 	features := dedupeFeatures(e.Features)
