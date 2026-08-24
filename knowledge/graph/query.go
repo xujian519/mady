@@ -26,10 +26,13 @@ type QueryOptions struct {
 	IncludeWeakEdges bool
 }
 
-// DefaultQueryOptions returns the default traversal behavior: weak co-occurrence
-// edges are filtered out.
-func DefaultQueryOptions() QueryOptions {
-	return QueryOptions{IncludeWeakEdges: false}
+// queryOpt resolves the effective traversal options. An empty opts falls back
+// to the zero value (weak co-occurrence edges filtered out), the default.
+func queryOpt(opts []QueryOptions) QueryOptions {
+	if len(opts) > 0 {
+		return opts[0]
+	}
+	return QueryOptions{}
 }
 
 // weakRelations holds edge types that represent statistical co-occurrence
@@ -61,10 +64,7 @@ func filterWeakEdges(edges []GraphEdge, includeWeak bool) []GraphEdge {
 // path exists within the depth limit. Weak co-occurrence edges are filtered
 // by default; pass QueryOptions{IncludeWeakEdges: true} to include them.
 func QueryPaths(store *GraphStore, sourceID, targetID string, maxDepth int, opts ...QueryOptions) PathResult {
-	opt := DefaultQueryOptions()
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
+	opt := queryOpt(opts)
 	if !store.HasNode(sourceID) || !store.HasNode(targetID) {
 		return PathResult{}
 	}
@@ -162,10 +162,7 @@ func buildPathDetails(store *GraphStore, foundPaths [][]string) [][]PathNode {
 // BFS depth (excluding the source itself). This supports multi-hop reasoning
 // traversal over the graph. Weak co-occurrence edges are filtered by default.
 func QueryNeighbors(store *GraphStore, nodeID string, depth int, opts ...QueryOptions) []*GraphNode {
-	opt := DefaultQueryOptions()
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
+	opt := queryOpt(opts)
 	if depth < 1 || !store.HasNode(nodeID) {
 		return nil
 	}
@@ -201,10 +198,7 @@ func QueryNeighbors(store *GraphStore, nodeID string, depth int, opts ...QueryOp
 // When relation is empty, weak co-occurrence edges are filtered by default;
 // pass QueryOptions{IncludeWeakEdges: true} to include them.
 func QueryByRelation(store *GraphStore, nodeID, relation, direction string, opts ...QueryOptions) []*GraphNode {
-	opt := DefaultQueryOptions()
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
+	opt := queryOpt(opts)
 	var edges []GraphEdge
 	switch direction {
 	case "incoming", "in":

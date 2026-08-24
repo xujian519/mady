@@ -38,6 +38,15 @@ func findProjectRoot() string {
 	if !ok {
 		return filepath.Join(".", rolesDir)
 	}
+	if root := projectRootUpward(file); root != "" {
+		return root
+	}
+	return filepath.Join(".", rolesDir)
+}
+
+// projectRootUpward 从源文件所在目录向上（最多 12 层）查找含 go.mod 的项目根。
+// findProjectRoot 与 resolveManifestPath 共用此查找逻辑；未找到返回空串。
+func projectRootUpward(file string) string {
 	dir := filepath.Dir(file)
 	for range 12 {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
@@ -49,7 +58,7 @@ func findProjectRoot() string {
 		}
 		dir = parent
 	}
-	return filepath.Join(".", rolesDir)
+	return ""
 }
 
 // LoadRoles 解析 skills/patent/roles/ 下的全部角色 YAML，按 RoleID 排序返回。

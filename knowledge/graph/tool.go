@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/knowledge"
 )
 
 // NewPatentKGQueryTool creates the patent_kg_query tool backed by the given
@@ -25,7 +26,6 @@ func NewPatentKGQueryTool(store *GraphStore) *agentcore.Tool {
 				"query":           map[string]any{"type": "string", "description": "关键词检索（如 创造性 三步法）；与 id 二选一"},
 				"id":              map[string]any{"type": "string", "description": "节点 id；与 query 二选一，id 优先"},
 				"node_type":       map[string]any{"type": "string", "description": "按节点类型浏览（Case/Judgment/LawArticle/GuidelineRule/Clause/WikiCard/Concept）"},
-				"expand":          map[string]any{"type": "boolean", "default": true, "description": "关键词命中后是否做关系扩展"},
 				"include_content": map[string]any{"type": "boolean", "default": false, "description": "是否附节点正文片段"},
 				"limit":           map[string]any{"type": "integer", "default": 5, "description": "返回条数上限（默认 5，最大 10）"},
 			},
@@ -36,7 +36,6 @@ func NewPatentKGQueryTool(store *GraphStore) *agentcore.Tool {
 				Query          string `json:"query"`
 				ID             string `json:"id"`
 				NodeType       string `json:"node_type"`
-				Expand         bool   `json:"expand"`
 				IncludeContent bool   `json:"include_content"`
 				Limit          int    `json:"limit"`
 			}
@@ -56,7 +55,7 @@ func NewPatentKGQueryTool(store *GraphStore) *agentcore.Tool {
 			case p.ID != "":
 				hits = queryKGByID(store, p.ID, limit, p.IncludeContent)
 			case p.Query != "":
-				hits = queryKGByKeyword(store, p.Query, limit, p.Expand, p.IncludeContent)
+				hits = queryKGByKeyword(store, p.Query, limit, p.IncludeContent)
 			case p.NodeType != "":
 				hits = queryKGByType(store, p.NodeType, limit, p.IncludeContent)
 			default:
@@ -112,8 +111,7 @@ func queryKGByID(store *GraphStore, id string, limit int, includeContent bool) [
 	return []patentKGHit{hit}
 }
 
-func queryKGByKeyword(store *GraphStore, query string, limit int, expand, includeContent bool) []patentKGHit {
-	_ = expand // Reserved for future relation expansion; currently uses substring search.
+func queryKGByKeyword(store *GraphStore, query string, limit int, includeContent bool) []patentKGHit {
 	kw := strings.ToLower(query)
 	matches := store.SearchGraphNodes(kw, "", limit*3)
 	if len(matches) < limit && len([]rune(kw)) <= 4 {
@@ -183,7 +181,7 @@ func nodeToKGHit(n *GraphNode, includeContent bool) patentKGHit {
 		Title:    n.Title,
 	}
 	if includeContent {
-		h.Content = truncateKGContent(n.Content, 600)
+		h.Content = knowledge.TruncateRunes(n.Content, 600)
 	}
 	return h
 }
@@ -207,12 +205,4 @@ func formatKGQueryResult(hits []patentKGHit) any {
 		}
 	}
 	return b.String()
-}
-
-func truncateKGContent(s string, maxChars int) string {
-	r := []rune(s)
-	if len(r) <= maxChars {
-		return s
-	}
-	return string(r[:maxChars]) + fmt.Sprintf("\n…（截断，共 %d 字符）", len(r))
 }

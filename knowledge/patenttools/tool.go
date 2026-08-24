@@ -68,7 +68,7 @@ func NewPatentWikiSearchTool(store *ksqlite.SQLiteStore) *agentcore.Tool {
 			for i, r := range results {
 				fmt.Fprintf(&b, "\n[%d] %s (id: %s)\n", i+1, r.Title, r.ID)
 				if r.Body != "" {
-					fmt.Fprintf(&b, "%s\n", truncatePatentText(r.Body, 600))
+					fmt.Fprintf(&b, "%s\n", knowledge.TruncateRunes(r.Body, 600))
 				}
 			}
 			return b.String(), nil
@@ -141,7 +141,7 @@ func NewPatentCaseSearchTool(store *ksqlite.SQLiteStore) *agentcore.Tool {
 					fmt.Fprintf(&b, "法院: %s\n", r.Court)
 				}
 				if r.Snippet != "" {
-					fmt.Fprintf(&b, "%s\n", truncatePatentText(r.Snippet, 800))
+					fmt.Fprintf(&b, "%s\n", knowledge.TruncateRunes(r.Snippet, 800))
 				}
 			}
 			return b.String(), nil
@@ -206,12 +206,4 @@ func NewKnowledgeNoteSaveTool(writable knowledge.WritableBackend) *agentcore.Too
 func noteDocumentID(project, title, content string) string {
 	sum := sha256.Sum256([]byte(project + "|" + title + "|" + content))
 	return hex.EncodeToString(sum[:])[:16]
-}
-
-func truncatePatentText(s string, maxChars int) string {
-	r := []rune(s)
-	if len(r) <= maxChars {
-		return s
-	}
-	return string(r[:maxChars]) + fmt.Sprintf("\n…（截断，共 %d 字符）", len(r))
 }

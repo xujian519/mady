@@ -82,16 +82,8 @@ func resolveManifestPath(path string) string {
 	// 从调用方的源文件开始向上查找 go.mod
 	_, file, _, ok := runtime.Caller(1)
 	if ok {
-		dir := filepath.Dir(file)
-		for i := 0; i < 12; i++ {
-			if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-				return filepath.Join(dir, path)
-			}
-			parent := filepath.Dir(dir)
-			if parent == dir {
-				break
-			}
-			dir = parent
+		if root := projectRootUpward(file); root != "" {
+			return filepath.Join(root, path)
 		}
 	}
 	return path
@@ -120,7 +112,7 @@ func LoadManifest(manifestPath string) (*PatentManifest, error) {
 func LoadManifestOrDefault(manifestPath string) *PatentManifest {
 	m, err := LoadManifest(manifestPath)
 	if err != nil {
-		return &PatentManifest{Provisions: nil, Reasoning: nil}
+		return &PatentManifest{}
 	}
 	return m
 }
