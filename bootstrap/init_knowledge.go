@@ -41,10 +41,9 @@ func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 			ext.WithReranker(reranker)
 			slog.Info("knowledge: cross-encoder rerank enabled")
 		}
-		var writable knowledge.WritableBackend
-		if ws := openWritableStore(madyHome, embedder, knowledgeDBPath); ws != nil {
-			writable = ws
-			ext.WithWritableStore(ws)
+		writable := openWritableStore(madyHome, embedder, knowledgeDBPath)
+		if writable != nil {
+			ext.WithWritableStore(writable)
 		}
 
 		if store, ok := backend.(*ksqlite.SQLiteStore); ok {

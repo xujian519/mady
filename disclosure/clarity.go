@@ -65,9 +65,14 @@ func SignalWeightedScore(c SignalCounts) float64 {
 	return score
 }
 
+// fuseClarity 融合语义分与信号分：0.75×semantic + 0.25×signal。
+func fuseClarity(semantic, signal float64) float64 {
+	return 0.75*semantic + 0.25*signal
+}
+
 // ComputeClarity 融合语义分与信号分：0.75×semantic + 0.25×signal。
 func ComputeClarity(semantic float64, text string) float64 {
-	return 0.75*semantic + 0.25*SignalWeightedScore(DetectSignals(text))
+	return fuseClarity(semantic, SignalWeightedScore(DetectSignals(text)))
 }
 
 // clarityNode 在 merge_extractions 与 groundedness_filter 之间评估交底书清晰度；
@@ -84,7 +89,7 @@ func clarityNode() graph.PregelNode {
 			// 无外部语义注入时以信号分兜底为语义，避免正常样本被低估而误中断。
 			semantic = sig
 		}
-		score := 0.75*semantic + 0.25*sig
+		score := fuseClarity(semantic, sig)
 		state[StateKeyClarity] = score
 		if score < ClarityThreshold {
 			return state, agentcore.NewInterruptErrorWithData(
