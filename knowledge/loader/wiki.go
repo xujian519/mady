@@ -67,10 +67,13 @@ func (l *WikiLoader) ImportWiki() (*WikiImportStats, error) {
 		ByDomain: make(map[string]int),
 	}
 
-	// Walk the root directory first, skipping card subdirs so they can be
-	// handled separately (they may have card-index enrichment).
+	// Walk the root directory first, skipping card/Wiki subdirs so they can be
+	// handled separately (cards may have card-index enrichment; Wiki is the
+	// legacy Obsidian main-content dir walked below). Without this exclusion a
+	// root-level walk would re-import Wiki/ files that the dedicated walk also
+	// imports, doubling every docID in the store.
 	if info, err := os.Stat(l.WikiPath); err == nil && info.IsDir() {
-		if err := l.importDirectory(l.WikiPath, stats, []string{"cards", "patent-cards"}); err != nil {
+		if err := l.importDirectory(l.WikiPath, stats, []string{"Wiki", "cards", "patent-cards"}); err != nil {
 			return stats, fmt.Errorf("wiki: walk root: %w", err)
 		}
 	}

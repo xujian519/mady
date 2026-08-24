@@ -215,6 +215,37 @@ func TestClassifyWikiPath(t *testing.T) {
 	}
 }
 
+// TestWikiLoader_NoDoubleImportWikiSubdir 验证旧版 Obsidian 布局（内容位于
+// <root>/Wiki/ 子目录）只被导入一次：根目录遍历必须排除 Wiki/ 子目录（否则根
+// 遍历与独立的 Wiki/ 遍历会重复导入同一 docID，byDomain 计数翻倍）。
+func TestWikiLoader_NoDoubleImportWikiSubdir(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "Wiki", "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	content := strings.Repeat("这是一个用于验证 wiki 导入去重的测试内容。", 30)
+	if err := os.WriteFile(filepath.Join(sub, "foo.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	store := knowledge.NewStore()
+	loader := NewWikiLoader(store, root)
+	stats, err := loader.ImportWiki()
+	if err != nil {
+		t.Fatalf("ImportWiki: %v", err)
+	}
+
+	// 唯一可导入文件应恰好导入一次。
+	if stats.Imported != 1 {
+		t.Errorf("imported = %d, want 1 (Wiki/ subdir must not be double-imported)", stats.Imported)
+	}
+	// byDomain 无去重：若被导入两次会出现 2。
+	if got := store.Stats().ByDomain["patent"]; got != 1 {
+		t.Errorf("byDomain[patent] = %d, want 1", got)
+	}
+}
+
 func TestWikiLoader_ImportWiki(t *testing.T) {
 	// Ensure test data exists.
 	if _, err := os.Stat(testWikiPath); os.IsNotExist(err) {

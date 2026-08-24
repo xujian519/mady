@@ -94,15 +94,7 @@ func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 			} else if gs.NodeCount() > 0 {
 				enhancer := kgwgraph.NewGraphEnhancer(gs, kgwgraph.DefaultEnhanceConfig())
 				ext.WithGraph(enhancer)
-				patentTools := []*agentcore.Tool{
-					patenttools.NewPatentWikiSearchTool(store),
-					patenttools.NewPatentCaseSearchTool(store),
-					kgwgraph.NewPatentKGQueryTool(gs),
-				}
-				if writable != nil {
-					patentTools = append(patentTools, patenttools.NewKnowledgeNoteSaveTool(writable))
-				}
-				ext.RegisterTools(patentTools...)
+				ext.RegisterTools(kgwgraph.NewPatentKGQueryTool(gs))
 				typeCounts := gs.NodeTypeCounts()
 				lawCount := typeCounts[kgwgraph.NodeLawArticle]
 				caseCount := typeCounts[kgwgraph.NodeCase] + typeCounts[kgwgraph.NodeJudgment]
@@ -112,6 +104,18 @@ func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 					"nodes", gs.NodeCount(), "edges", gs.EdgeCount(),
 					"law", lawCount, "case", caseCount, "ipc", ipcCount, "evidence", evidenceCount)
 			}
+
+			// FTS/可写 store 工具：不依赖图谱（kg_nodes 表）。即便没有专利知识
+			// 图谱（非 XiaoNuo 布局，LoadGraph 返回空），只要 SQLite 后端存在，
+			// 法条/判例 FTS 检索与笔记保存工具仍然应暴露给 Agent。
+			patentTools := []*agentcore.Tool{
+				patenttools.NewPatentWikiSearchTool(store),
+				patenttools.NewPatentCaseSearchTool(store),
+			}
+			if writable != nil {
+				patentTools = append(patentTools, patenttools.NewKnowledgeNoteSaveTool(writable))
+			}
+			ext.RegisterTools(patentTools...)
 		}
 
 		hook := ext.LifecycleHook()
