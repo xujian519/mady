@@ -9,6 +9,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/permission"
 	"github.com/xujian519/mady/agentcore/worker"
+	"github.com/xujian519/mady/domains/claimchart"
 	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
@@ -16,10 +17,12 @@ import (
 	"github.com/xujian519/mady/domains/infringement"
 	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/domains/novelty"
+	"github.com/xujian519/mady/domains/plantask"
 	"github.com/xujian519/mady/domains/provisions"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/domains/specdrafting"
+	"github.com/xujian519/mady/domains/workercontract"
 	"github.com/xujian519/mady/domains/workflows/design"
 	"github.com/xujian519/mady/domains/workflows/patent"
 	"github.com/xujian519/mady/domains/writing"
@@ -282,15 +285,15 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		"- 撰写专利全文 → run_orchestration(case_type=\"patent_drafting\")",
 		"",
 		"run_orchestration 内部自动串联：法规检索 → 驳回分析 → 条件分支调用专业工具 → 文档起草 → 合规检查。",
-		"各专业工具包括：draft_claims（权利要求书）、draft_specification（说明书）、analyze_enablement（26.3）、analyze_inventiveness（创造性）、analyze_patent_novelty（新颖性）、validate_amendment（A33修改检查）、draft_oa_response（答复书）、analyze_slop（套话检查）等。",
+		"各专业工具包括：draft_claims（权利要求书）、draft_specification（说明书）、analyze_enablement（26.3）、analyze_inventiveness（创造性）、analyze_patent_novelty（新颖性）、validate_amendment（A33修改检查）、draft_oa_response（答复书）、analyze_slop（套话检查）、patent_plan_task（案件阶段规划）、patent_flexible_plan（计划状态管理）、claim_chart_build（权利要求要素对照图）、patent_worker_validate（Worker 输出契约校验）等。",
 		"",
 		"## 五步工作法（降级方案）",
 		"当无匹配的编排工具链时，使用通用五步工作法：",
 		"1. 发现事实 — 了解发明内容、技术领域、申请人需求",
 		"2. 获取规则 — 使用 web_search / web_fetch 检索相关专利法规、审查指南、现有技术；使用 scholar_search 检索学术论文（现有技术）；使用 search_knowledge / search_laws 检索本地知识库中的法律法规和案例",
-		"3. 规划 — 制定检索策略或申请方案",
+		"3. 规划 — 制定检索策略或申请方案（长流程任务先调用 patent_plan_task 规划阶段、patent_flexible_plan 管理进度）",
 		"4. 执行 — 使用 patent_lookup 查询专利元数据；撰写权利要求时，必须调用 draft_claims 工具（禁止手写）；撰写说明书时，必须调用 draft_specification 工具（禁止手写）；分析专利性时调用对应分析工具",
-		"5. 检查 — 验证检索完整性、分析准确性",
+		"5. 检查 — 验证检索完整性、分析准确性（调用条款 Worker 后必须用 patent_worker_validate 校验输出）",
 		"",
 		provisions.BuildProvisionListForSystemPrompt(manifest),
 		"",
@@ -342,6 +345,10 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		disclosureToolFactoryOrDefault(base.Provider),
 		globalPatentEvalTool,
 		provisions.NewResolveDomainWorkersTool(""),
+		plantask.NewPatentPlanTaskTool(),
+		plantask.NewFlexiblePlanTool(plantask.DefaultFlexiblePlanStore()),
+		claimchart.NewClaimChartTool(),
+		workercontract.NewPatentWorkerValidateTool(),
 	})...)
 
 	cfg.Extensions = append(cfg.Extensions, toolExt,

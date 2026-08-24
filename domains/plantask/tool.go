@@ -1,0 +1,240 @@
+// Package plantask provides Sati-aligned patent plan task tools.
+//
+// Mady already has a full PlanTask HCL extension in agentcore/plantask for
+// production HITL workflows. The tools here are lightweight, Sati-schema
+// compatible wrappers that give patent agents a unified plan-state interface
+// without requiring deep integration with the runtime extension.
+package plantask
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/xujian519/mady/agentcore"
+)
+
+// State is the whitelist-checked state for patent_plan_task.
+type State string
+
+// State values for the plan state machine.
+const (
+	StatePlanning         State = "planning"
+	StateAwaitingApproval State = "awaiting_approval"
+	StateExecuting        State = "executing"
+	StateAwaitingFeedback State = "awaiting_feedback"
+	StateReplanning       State = "replanning"
+	StateFinished         State = "finished"
+)
+
+// transitions defines the legal state machine edges.
+var transitions = map[State][]State{
+	StatePlanning:         {StateAwaitingApproval},
+	StateAwaitingApproval: {StateExecuting, StateReplanning},
+	StateExecuting:        {StateAwaitingFeedback, StateFinished},
+	StateAwaitingFeedback: {StateReplanning, StateFinished},
+	StateReplanning:       {StateAwaitingApproval, StateExecuting},
+}
+
+// PlanTask is a single task derived from a plan step.
+type PlanTask struct {
+	ID          string   `json:"id"`
+	Description string   `json:"description"`
+	Status      string   `json:"status"`
+	BlockedBy   []string `json:"blockedBy,omitempty"`
+	Hash        string   `json:"hash"`
+}
+
+// Input is the tool input shape.
+type Input struct {
+	Action        string     `json:"action"`
+	CurrentState  string     `json:"current_state,omitempty"`
+	To            string     `json:"to,omitempty"`
+	PlanSteps     []string   `json:"plan_steps,omitempty"`
+	PreviousTasks []PlanTask `json:"previous_tasks,omitempty"`
+	Tasks         []PlanTask `json:"tasks,omitempty"`
+	Feedback      string     `json:"feedback,omitempty"`
+}
+
+// NewPatentPlanTaskTool creates the patent_plan_task tool.
+func NewPatentPlanTaskTool() *agentcore.Tool {
+	return &agentcore.Tool{
+		Name:        "patent_plan_task",
+		Description: "人机协作计划状态机工具（HITL 闭环）：transition 白名单状态迁移、sync 计划步骤 → 任务、replan 哈希比对已完成步骤增量续跑。",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"action":         map[string]any{"type": "string", "enum": []string{"transition", "sync", "replan"}, "description": "操作类型"},
+				"current_state":  map[string]any{"type": "string", "description": "当前状态（transition 必需）"},
+				"to":             map[string]any{"type": "string", "description": "目标状态（transition 必需）"},
+				"plan_steps":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "计划步骤（sync/replan 必需）"},
+				"previous_tasks": map[string]any{"type": "array", "description": "之前已同步的任务（replan 可选）"},
+				"tasks":          map[string]any{"type": "array", "description": "当前任务列表（transition 到 executing 必需）"},
+				"feedback":       map[string]any{"type": "string", "description": "重规划反馈（transition 到 replanning 必需）"},
+			},
+			"required": []string{"action"},
+		},
+		ReadOnly: true,
+		Func:     handlePlanTask,
+	}
+}
+
+func handlePlanTask(_ context.Context, args json.RawMessage) (any, error) {
+	var p Input
+	if err := json.Unmarshal(args, &p); err != nil {
+		return agentcore.NewFailureResult("参数解析失败", "计划任务参数格式错误"), nil
+	}
+
+	switch p.Action {
+	case "transition":
+		return handleTransition(p)
+	case "sync":
+		return handleSync(p)
+	case "replan":
+		return handleReplan(p)
+	default:
+		return fmt.Sprintf("patent_plan_task: 未知操作 %q（可选: transition / sync / replan）", p.Action), nil
+	}
+}
+
+func handleTransition(p Input) (any, error) {
+	from := State(p.CurrentState)
+	to := State(p.To)
+	if from == "" {
+		from = StatePlanning
+	}
+
+	validFrom := false
+	for s := range transitions {
+		if s == from {
+			validFrom = true
+			break
+		}
+	}
+	validTo := false
+	for s := range transitions {
+		if s == to {
+			validTo = true
+			break
+		}
+	}
+	if !validFrom || !validTo {
+		states := []string{}
+		for s := range transitions {
+			states = append(states, string(s))
+		}
+		return agentcore.NewFailureResult("非法状态", fmt.Sprintf("状态 %q 或 %q 不合法（合法: %s）", from, to, strings.Join(states, ", "))), nil
+	}
+
+	allowed := transitions[from]
+	found := false
+	for _, s := range allowed {
+		if s == to {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return agentcore.NewFailureResult("非法迁移", fmt.Sprintf("不允许 %q → %q", from, to)), nil
+	}
+
+	// Semantic guards.
+	if to == StateExecuting && len(p.Tasks) == 0 {
+		return agentcore.NewFailureResult("语义错误", "进入 executing 必须先 sync 出非空任务列表"), nil
+	}
+	if to == StateReplanning && p.Feedback == "" {
+		return agentcore.NewFailureResult("语义错误", "进入 replanning 必须提供 feedback"), nil
+	}
+
+	return fmt.Sprintf("patent_plan_task: %s → %s ✅", from, to), nil
+}
+
+func handleSync(p Input) (any, error) {
+	if len(p.PlanSteps) == 0 {
+		return agentcore.NewFailureResult("空计划", "sync 需要 plan_steps 非空"), nil
+	}
+	tasks := make([]PlanTask, len(p.PlanSteps))
+	ids := make([]string, len(p.PlanSteps))
+	toRun := []string{}
+	for i, step := range p.PlanSteps {
+		id := fmt.Sprintf("t%d", i+1)
+		tasks[i] = PlanTask{
+			ID:          id,
+			Description: step,
+			Status:      "pending",
+			Hash:        stepHash(step),
+		}
+		ids[i] = id
+		if i == 0 {
+			toRun = append(toRun, id)
+		} else {
+			tasks[i].BlockedBy = []string{ids[i-1]}
+		}
+	}
+
+	data, err := json.Marshal(map[string]any{
+		"tasks":      tasks,
+		"to_run":     toRun,
+		"task_count": len(tasks),
+	})
+	if err != nil {
+		return agentcore.NewFailureResult("序列化失败", err.Error()), nil
+	}
+	return string(data), nil
+}
+
+func handleReplan(p Input) (any, error) {
+	if len(p.PlanSteps) == 0 {
+		return agentcore.NewFailureResult("空计划", "replan 需要 plan_steps 非空"), nil
+	}
+	preserved := []string{}
+	previousHashes := make(map[string]bool)
+	for _, t := range p.PreviousTasks {
+		if t.Status == "completed" {
+			previousHashes[t.Hash] = true
+			preserved = append(preserved, t.ID)
+		}
+	}
+
+	tasks := make([]PlanTask, len(p.PlanSteps))
+	toRun := []string{}
+	for i, step := range p.PlanSteps {
+		h := stepHash(step)
+		id := fmt.Sprintf("t%d", i+1)
+		status := "pending"
+		// Preserve completed steps that still appear in the new plan.
+		if previousHashes[h] {
+			status = "completed"
+		} else {
+			toRun = append(toRun, id)
+		}
+		tasks[i] = PlanTask{
+			ID:          id,
+			Description: step,
+			Status:      status,
+			Hash:        h,
+		}
+		if i > 0 {
+			tasks[i].BlockedBy = []string{fmt.Sprintf("t%d", i)}
+		}
+	}
+
+	data, err := json.Marshal(map[string]any{
+		"tasks":      tasks,
+		"preserved":  preserved,
+		"to_run":     toRun,
+		"task_count": len(tasks),
+	})
+	if err != nil {
+		return agentcore.NewFailureResult("序列化失败", err.Error()), nil
+	}
+	return string(data), nil
+}
+
+func stepHash(step string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(step)))
+	return hex.EncodeToString(sum[:])[:16]
+}
