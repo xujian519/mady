@@ -63,6 +63,14 @@ func generateConclusionNode(provider agentcore.Provider) graph.PregelNode {
 		prompt += "   - 现有技术是否确实长期缺乏有效解决方案？\n"
 		prompt += "   - 现有技术中是否已存在解决该问题的有效手段？（有则不构成「长期未满足」）\n\n"
 		prompt += confidenceCalibration() + "\n\n"
+
+		// HITL 反馈回流：同案卷若已有历史驳回/修正反馈，注入提示词让结论节点吸取修正。
+		if caseID, _ := state[StateKeyCaseID].(string); caseID != "" {
+			if fb := FeedbackPrompt(caseID); fb != "" {
+				prompt += "\n\n" + fb
+			}
+		}
+
 		prompt += "请输出 JSON 格式：\n"
 		prompt += "- conclusion: 整体结论\n"
 		prompt += "- is_inventive: true/false\n"

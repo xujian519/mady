@@ -18,7 +18,9 @@ const (
 	// StateKeyInput 是 PregelState 中存储 InventivenessInput 的 key。
 	StateKeyInput = "inventiveness_input"
 	// StateKeyResult 是 PregelState 中存储 InventivenessResult 的 key。
-	StateKeyResult     = "inventiveness_result"
+	StateKeyResult = "inventiveness_result"
+	// StateKeyCaseID 是可选案卷 ID；存在时结论节点加载同 case 历史反馈注入提示词。
+	StateKeyCaseID     = "inventiveness_case_id"
 	stateKeyExperiment = "evaluate_experimental_data"
 	stateKeyStep1      = "step1_closest_prior_art"
 	stateKeyStep2      = "step2_distinguishing_features"

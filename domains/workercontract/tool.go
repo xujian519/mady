@@ -16,7 +16,14 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/agentcore/worker"
+	"github.com/xujian519/mady/domains/provenance"
 )
+
+// provenanceLog 是包级溯源日志器；nil 时静默（Log 自身 nil-safe）。
+var provenanceLog *provenance.ProvenanceLogger
+
+// SetProvenance 注入溯源日志器（bootstrap 装配）；传 nil 时溯源静默关闭。
+func SetProvenance(l *provenance.ProvenanceLogger) { provenanceLog = l }
 
 // ValidationResult is the structured output of patent_worker_validate.
 type ValidationResult struct {
@@ -86,6 +93,13 @@ func handleValidate(_ context.Context, args json.RawMessage) (any, error) {
 	}
 
 	result := ValidateWorkerOutput(p.WorkerName, p.OutputText)
+
+	_ = provenanceLog.Log(provenance.ProvenanceEvent{
+		Kind:    provenance.KindContractValidate,
+		Tool:    "patent_worker_validate",
+		Details: fmt.Sprintf("worker=%s valid=%v degraded=%v", p.WorkerName, result.Valid, result.Degraded),
+	})
+
 	data, err := json.Marshal(result)
 	if err != nil {
 		return agentcore.NewFailureResult("序列化失败", err.Error()), nil

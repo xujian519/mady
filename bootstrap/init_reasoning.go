@@ -14,12 +14,17 @@ import (
 	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/disclosure"
 	"github.com/xujian519/mady/domains"
+	"github.com/xujian519/mady/domains/claimchart"
 	"github.com/xujian519/mady/domains/doctmpl"
 	domainEvidence "github.com/xujian519/mady/domains/evidence"
+	plantasksati "github.com/xujian519/mady/domains/plantask"
+	"github.com/xujian519/mady/domains/provenance"
 	"github.com/xujian519/mady/domains/reasoning"
 	reasoningwiring "github.com/xujian519/mady/domains/reasoning/wiring"
 	sqlitestore "github.com/xujian519/mady/domains/sqlite"
+	"github.com/xujian519/mady/domains/workercontract"
 	"github.com/xujian519/mady/domains/writing"
+	"github.com/xujian519/mady/guardrails"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/knowledge/knowledgeinit"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
@@ -32,6 +37,7 @@ import (
 // InitReasoningAndTemplates 初始化推理引擎 retriever/LLM 客户端、文档模板仓库、
 // 引用核验装配（CitationGate 留痕 store），以及专利新颖性分析的检索器。
 func InitReasoningAndTemplates(fc *Context) {
+	SetupProvenance(fc)
 	loadWorkflowManifests(fc.MadyHome)
 
 	retriever := BuildReasoningRetriever(fc)
@@ -154,6 +160,31 @@ func InitReasoningAndTemplates(fc *Context) {
 		Source: citationSource,
 		Store:  citationStore,
 	})
+}
+
+// SetupProvenance 初始化专利工作流溯源日志器（通道 B 模式）：在
+// $MADY_HOME/provenance/ 落盘全局运行轨迹，并把日志器注入各溯源工具
+// （plantask/claimchart/workercontract）与输出门钩子。MadyHome 为空时静默禁用。
+func SetupProvenance(fc *Context) {
+	dir := ""
+	if fc.MadyHome != "" {
+		dir = filepath.Join(fc.MadyHome, "provenance")
+	}
+	prov, err := provenance.NewProvenanceLogger(dir)
+	if err != nil {
+		slog.Warn("provenance 初始化失败，溯源关闭", "error", err)
+		return
+	}
+	if prov == nil {
+		slog.Debug("provenance disabled: MadyHome 为空")
+		return
+	}
+	fc.Provenance = prov
+	plantasksati.SetProvenance(prov)
+	claimchart.SetProvenance(prov)
+	workercontract.SetProvenance(prov)
+	guardrails.SetProvenance(prov)
+	slog.Info("provenance 溯源日志已启用")
 }
 
 // loadWorkflowManifests 从 $MADY_HOME/workflows/ 加载 YAML workflow manifest。

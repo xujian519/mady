@@ -15,7 +15,14 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/provenance"
 )
+
+// provenanceLog 是包级溯源日志器；nil 时静默（Log 自身 nil-safe）。
+var provenanceLog *provenance.ProvenanceLogger
+
+// SetProvenance 注入溯源日志器（bootstrap 装配）；传 nil 时溯源静默关闭。
+func SetProvenance(l *provenance.ProvenanceLogger) { provenanceLog = l }
 
 // State is the whitelist-checked state for patent_plan_task.
 type State string
@@ -149,6 +156,12 @@ func handleTransition(p Input) (any, error) {
 		return agentcore.NewFailureResult("语义错误", "进入 replanning 必须提供 feedback"), nil
 	}
 
+	_ = provenanceLog.Log(provenance.ProvenanceEvent{
+		Kind:    provenance.KindPlanLifecycle,
+		Tool:    "patent_plan_task",
+		Details: fmt.Sprintf("状态迁移 %s → %s", from, to),
+	})
+
 	return fmt.Sprintf("patent_plan_task: %s → %s ✅", from, to), nil
 }
 
@@ -231,6 +244,13 @@ func handleReplan(p Input) (any, error) {
 	if err != nil {
 		return agentcore.NewFailureResult("序列化失败", err.Error()), nil
 	}
+
+	_ = provenanceLog.Log(provenance.ProvenanceEvent{
+		Kind:    provenance.KindPlanLifecycle,
+		Tool:    "patent_plan_task",
+		Details: fmt.Sprintf("replan 续跑：%d 任务 / 保留 %d 已完成", len(tasks), len(preserved)),
+	})
+
 	return string(data), nil
 }
 

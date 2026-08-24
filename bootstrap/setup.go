@@ -21,6 +21,7 @@ import (
 	"github.com/xujian519/mady/bootstrap/agentconfig"
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/domains/doctmpl"
+	"github.com/xujian519/mady/domains/provenance"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/guardrails/guardian"
 	"github.com/xujian519/mady/knowledge"
@@ -88,6 +89,8 @@ type Context struct {
 	PlantaskExt       *plantask.Extension
 	PlantaskBridge    *PlantaskBridge
 	Deferred          *framework.DeferredInit
+	// Provenance 是专利工作流溯源日志器；nil 时溯源静默关闭。
+	Provenance *provenance.ProvenanceLogger
 }
 
 // CaseFileReader implements domains.FileContentReader by wrapping fileindex.FileReader

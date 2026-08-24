@@ -5,7 +5,14 @@ import (
 	"strings"
 
 	iface "github.com/xujian519/mady/agentcore/iface"
+	"github.com/xujian519/mady/domains/provenance"
 )
+
+// provenanceLog 是包级溯源日志器；nil 时静默（Log 自身 nil-safe）。
+var provenanceLog *provenance.ProvenanceLogger
+
+// SetProvenance 注入溯源日志器（bootstrap 装配）；传 nil 时溯源静默关闭。
+func SetProvenance(l *provenance.ProvenanceLogger) { provenanceLog = l }
 
 // PatentOutputReport 汇总一次专利域输出的质量核验结果。
 type PatentOutputReport struct {
@@ -135,5 +142,10 @@ func (g *patentOutputGate) AfterModelCall(_ context.Context, _ *iface.AgentRunCo
 	}
 	if rep.NeedsApproval {
 		mcc.SuppressPersist = true
+		_ = provenanceLog.Log(provenance.ProvenanceEvent{
+			Kind:    provenance.KindOutputgateSuspend,
+			Tool:    "outputgate",
+			Details: "命中审批词，挂起人工复核",
+		})
 	}
 }

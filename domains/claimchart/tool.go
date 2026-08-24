@@ -19,7 +19,14 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/provenance"
 )
+
+// provenanceLog 是包级溯源日志器；nil 时静默（Log 自身 nil-safe）。
+var provenanceLog *provenance.ProvenanceLogger
+
+// SetProvenance 注入溯源日志器（bootstrap 装配）；传 nil 时溯源静默关闭。
+func SetProvenance(l *provenance.ProvenanceLogger) { provenanceLog = l }
 
 // ElementKind identifies the type of a parsed claim element.
 type ElementKind = string
@@ -214,6 +221,13 @@ func handleClaimChart(_ context.Context, args json.RawMessage) (any, error) {
 	if input.CaseID != "" {
 		output["case_id"] = input.CaseID
 	}
+
+	_ = provenanceLog.Log(provenance.ProvenanceEvent{
+		Kind:    provenance.KindWorkflowStep,
+		Tool:    "claim_chart_build",
+		CaseID:  input.CaseID,
+		Details: fmt.Sprintf("建表：%d 要素 / %d 行 / %d 缺口", len(chart.Elements), len(chart.Rows), len(chart.Gaps)),
+	})
 
 	data, err := json.Marshal(output)
 	if err != nil {
