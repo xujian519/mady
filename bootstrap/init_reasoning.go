@@ -31,6 +31,7 @@ import (
 	"github.com/xujian519/mady/prompt"
 	"github.com/xujian519/mady/retrieval/domain"
 	rbrowser "github.com/xujian519/mady/retrieval/domain/browser"
+	"github.com/xujian519/mady/retrieval/domain/nuopatent"
 	rsqlite "github.com/xujian519/mady/retrieval/domain/sqlite"
 )
 
@@ -78,6 +79,18 @@ func InitReasoningAndTemplates(fc *Context) {
 			rbrowser.NewCNIPARetriever(*cfg),
 			rbrowser.NewEspacenetRetriever(*cfg),
 		})
+	}
+
+	// 权威外部检索（nuo-patent CLI，方案 A）：作为 patent retriever 权威源，
+	// 在 patent.go 合成 composite 时置于首位（权威源优先）。MADY_NUO_PATENT_RETRIEVERS=off
+	// 关闭；二进制缺失时静默跳过，不阻塞启动。
+	if os.Getenv("MADY_NUO_PATENT_RETRIEVERS") != "off" {
+		if nr, err := nuopatent.NewNuoPatentRetriever(nuopatent.Config{}); err == nil && nr != nil {
+			domains.SetupPatentRetriever(nr)
+			slog.Info("nuo-patent 检索器已启用（权威源优先）")
+		} else {
+			slog.Debug("nuo-patent 检索器不可用", "err", err)
+		}
 	}
 
 	domains.SetupKnowledgeExtension(fc.KnowledgeExt)
