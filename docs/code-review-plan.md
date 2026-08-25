@@ -65,7 +65,7 @@
 
 | 卡 | 模块 | 规模/热点 | 状态 |
 |---|---|---|---|
-| M01 | agentcore/ 核心（agent_run/reasoning_*/skill_extension/iface） | 130 文件/21.4K 行 | ⬜ |
+| M01 | agentcore/ 核心（agent_run/reasoning_*/skill_extension/iface） | 130 文件/21.4K 行 | ✅ 2026-08-25 |
 | M02 | agentcore/ 子包（concurrency/evidence/filecheckpoint/permission/planmode/tasklist/worker） | 同上 | ⬜ |
 | M03 | agentcore/ manifests + 其余 + graph/ | graph 9 文件/1.8K 行 | ⬜ |
 | M04 | doomloop/ + session/ + store/ | 3 + 9 + 3 文件 | ⬜ |
@@ -160,3 +160,24 @@
 
 - **触发**：用户每天发「执行今天的日卡」/「跑今天的卡」，由本地技能 `mady-daily-code-review` 按本进度表取未完成卡执行
 - **人工兜底**：无自动调度；每日卡由用户确认开始，P0 与敏感路径变更必须人工审阅
+
+## 九、日卡执行记录
+
+### M01（2026-08-25）agentcore/ 核心 ✅
+
+- **审阅范围**：agentcore 顶层 74 非测试 `.go` + `iface/` 2 文件（子包 `concurrency/evidence/filecheckpoint/permission/planmode/tasklist/worker/manifests` 留 M02）
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：2 项（`ToolDomains` 未接线占位，注释已说明待另立 spec，保留；`executeToolCalls` 136 行待拆，保守档不拆）
+  - P2 一致性：2 项（`reflection.go` config 无锁读取与 SetConfig 写不一致——涉并发语义，保守档记录不处理；`appendLifecycleHook` 直通包装器可收敛，但调用点含 `handoff.go` 敏感路径，跳过）
+  - P3 风格：13 项已收敛（见精炼）
+- **精炼**：3 个 refactor 提交，全部无行为变化
+  - `7de0d28` 收敛重复逻辑与死分支（messagesReadOnly 委托 / compressionProvider 死分支 / 温度冗余条件 / sortedSegments 提取）
+  - `1903a93` 库代码日志统一走 slog（event_logger/pubsub/lifecycle）
+  - `db24461` 补 fail-safe 降级与导出注释、修正 config 默认注释
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（`python3 scripts/scan_go_smells.py agentcore agentcore/iface`，文件 132）：
+  - 静默吞错无注释：35 → **29**
+  - 未注释导出符号：1 → **0**
+  - 被忽略 error：2 处（`_ = failLoop`）已全部补意图注释（扫描器按 `_ =` 模式机械计数不变）
+  - 裸 fmt / TODO：0；>120 行单函数：2（记录待拆，不拆）
