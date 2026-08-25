@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 )
 
 // EventLoggerStore is the persistence interface that EventLogger uses to
@@ -82,7 +82,7 @@ func (el *EventLogger) handle(e Event) {
 	case el.ch <- e:
 	default:
 		// Channel full — drop event to avoid blocking EventBus.
-		log.Printf("[WARN] event_logger: buffer full, dropping %s", e.EventKind())
+		slog.Warn("event_logger: buffer full, dropping event", "type", e.EventKind())
 	}
 }
 
@@ -94,12 +94,12 @@ func (el *EventLogger) loop() {
 	for e := range el.ch {
 		payload, err := json.Marshal(e)
 		if err != nil {
-			log.Printf("[WARN] event_logger: marshal %s: %v", e.EventKind(), err)
+			slog.Warn("event_logger: marshal failed", "type", e.EventKind(), "err", err)
 			continue
 		}
 		agentName := extractAgentName(e)
 		if _, err := el.store.Append(ctx, string(e.EventKind()), "", agentName, payload); err != nil {
-			log.Printf("[WARN] event_logger: append %s: %v", e.EventKind(), err)
+			slog.Warn("event_logger: append failed", "type", e.EventKind(), "err", err)
 		}
 	}
 }

@@ -19,7 +19,6 @@ package agentcore
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"runtime/debug"
 	"sync"
@@ -117,7 +116,7 @@ func (b *Broker[T]) Subscribe(ctx context.Context) <-chan T {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("[PANIC] pubsub: subscriber goroutine panicked: %v\n%s", r, debug.Stack())
+				slog.Error("agentcore: pubsub subscriber goroutine panicked", "panic", r, "stack", string(debug.Stack()))
 			}
 		}()
 		// Wait for either context cancellation or broker shutdown.

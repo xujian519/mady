@@ -2,7 +2,8 @@ package agentcore
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 )
 
 // Lifecycle hooks allow intercepting every stage of the agent execution loop
@@ -330,7 +331,7 @@ func ObserversToHook(observers ...any) LifecycleHook {
 		} else {
 			// Warn about types that don't implement any observer interface —
 			// this catches typos, interface changes, and mistaken usage early.
-			log.Printf("[WARN] ObserversToHook: ignoring unsupported type %T", o)
+			slog.Warn("agentcore: ObserversToHook ignoring unsupported type", "type", fmt.Sprintf("%T", o))
 		}
 	}
 	switch len(hooks) {
