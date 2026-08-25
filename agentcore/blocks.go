@@ -293,6 +293,7 @@ func (s StructuredCompactionSummary) ToReadableSummary() string {
 func (s StructuredCompactionSummary) MarshalJSONMetadata() map[string]any {
 	raw, err := json.Marshal(s)
 	if err != nil {
+		// 序列化失败 → 降级为错误标记 map，保留错误信息供诊断。
 		return map[string]any{
 			"structured_compaction_error": err.Error(),
 		}

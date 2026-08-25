@@ -20,6 +20,7 @@ type TodoPad struct {
 	Steps []TodoStep
 }
 
+// NewTodoPad 创建一个空的任务待办板。
 func NewTodoPad() *TodoPad {
 	return &TodoPad{}
 }

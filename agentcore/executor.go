@@ -217,6 +217,7 @@ func (e *Executor) coreExecute(ctx context.Context, tc ToolCall) (string, error)
 
 	data, err := json.Marshal(result)
 	if err != nil {
+		// Marshal 失败 → 降级为 fmt 格式化输出，保证工具结果对模型可见。
 		return fmt.Sprintf("%v", result), nil
 	}
 	return string(data), nil

@@ -202,11 +202,11 @@ func cloneSchema(s *jsonSchema) *jsonSchema {
 	}
 	data, err := json.Marshal(s)
 	if err != nil {
-		return &jsonSchema{}
+		return &jsonSchema{} // 序列化失败 → 返回空 schema，调用方容忍空结构
 	}
 	var cloned jsonSchema
 	if err := json.Unmarshal(data, &cloned); err != nil {
-		return &jsonSchema{}
+		return &jsonSchema{} // 反序列化失败 → 同样降级为空 schema
 	}
 	return &cloned
 }
@@ -217,11 +217,11 @@ func schemaToMap(s *jsonSchema) map[string]any {
 	}
 	data, err := json.Marshal(s)
 	if err != nil {
-		return map[string]any{"type": "object"}
+		return map[string]any{"type": "object"} // 序列化失败 → 降级为最简 schema map
 	}
 	var m map[string]any
 	if err := json.Unmarshal(data, &m); err != nil {
-		return map[string]any{"type": "object"}
+		return map[string]any{"type": "object"} // 反序列化失败 → 同样降级
 	}
 	return m
 }

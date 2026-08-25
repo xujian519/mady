@@ -69,7 +69,7 @@ type ExecutionConfig struct {
 type CompactionConfig struct {
 	ContextWindow          int64         // model context window size in tokens (e.g. 128000); 0 = no compaction
 	ReserveTokens          int64         // tokens reserved for response generation; default = ContextWindow/4
-	KeepRecentTokens       int64         // min recent tokens preserved during compaction; default = 2000
+	KeepRecentTokens       int64         // min recent tokens preserved during compaction; default = 16384
 	StructuredCompaction   bool          // emit JSON summaries instead of free-form paragraphs
 	ProtectFirstN          int           // number of non-system head messages to preserve verbatim; default = 3
 	CompressionThreshold   float64       // compress when usage exceeds this fraction of contextWindow; default = 0.75
