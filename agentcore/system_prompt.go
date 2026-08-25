@@ -79,12 +79,7 @@ func (b *SystemPromptBuilder) Build() string {
 
 	// 自定义段（按 Priority 排序后插入）
 	if len(b.cfg.Segments) > 0 {
-		sorted := make([]SystemPromptSegment, len(b.cfg.Segments))
-		copy(sorted, b.cfg.Segments)
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].Priority < sorted[j].Priority
-		})
-		for _, seg := range sorted {
+		for _, seg := range b.sortedSegments() {
 			if seg.Content != "" {
 				parts = append(parts, seg.Content)
 			}
@@ -131,12 +126,7 @@ func (b *SystemPromptBuilder) BuildSegments() []Message {
 
 	// 自定义段
 	if len(b.cfg.Segments) > 0 {
-		sorted := make([]SystemPromptSegment, len(b.cfg.Segments))
-		copy(sorted, b.cfg.Segments)
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].Priority < sorted[j].Priority
-		})
-		for _, seg := range sorted {
+		for _, seg := range b.sortedSegments() {
 			if seg.Content == "" {
 				continue
 			}
@@ -165,6 +155,16 @@ func (b *SystemPromptBuilder) BuildSegments() []Message {
 	}
 
 	return msgs
+}
+
+// sortedSegments 返回按 Priority 升序排列的段副本，不修改原配置。
+func (b *SystemPromptBuilder) sortedSegments() []SystemPromptSegment {
+	sorted := make([]SystemPromptSegment, len(b.cfg.Segments))
+	copy(sorted, b.cfg.Segments)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Priority < sorted[j].Priority
+	})
+	return sorted
 }
 
 // hasCacheableContent 判断内容是否可标记为缓存。

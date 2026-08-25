@@ -53,8 +53,8 @@ func ParseHandoffRole(xmlData []byte) (HandoffConfig, error) {
 	config.Model = role.Model
 	config.Temperature = role.Temperature
 
-	// Apply defaults if not set
-	if config.Temperature == 0 && role.Temperature == 0 {
+	// Apply default temperature if the role does not specify one.
+	if role.Temperature == 0 {
 		config.Temperature = 0.3
 	}
 

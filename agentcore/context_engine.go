@@ -286,12 +286,8 @@ func (e *CompressorEngine) Compress(ctx context.Context, msgs []Message, focusTo
 //  2. The dedicated compressionProvider (when set)
 //  3. The main provider
 func (e *CompressorEngine) compressionProvider() Provider {
-	if e.compressionBaseURL != "" && e.compressionAPIKey != "" {
-		// compressionBaseURL + compressionAPIKey not yet implemented.
-		// Falls through to compressionProv or main provider.
-		_ = e.compressionBaseURL
-		_ = e.compressionAPIKey
-	}
+	// compressionBaseURL + compressionAPIKey not yet implemented:
+	// falls through to compressionProv or main provider.
 	if e.compressionProv != nil {
 		return e.compressionProv
 	}

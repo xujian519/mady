@@ -81,18 +81,10 @@ func (s *AgentState) Messages() []Message {
 	return cp
 }
 
-// messagesReadOnly returns a deep-copied message slice. Every Message
-// value is individually cloned so callers cannot race on reference-type
-// fields (ToolCalls, Blocks, Metadata, CacheControl) after release of the
-// read lock.
+// messagesReadOnly 与 Messages 语义相同（深拷贝，调用方持有副本不受并发写入影响）。
+// 保留私有入口：buildRequestMessages 等内部路径按"只读"意图使用，与外部语义区分。
 func (s *AgentState) messagesReadOnly() []Message {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	cp := make([]Message, len(s.messages))
-	for i, m := range s.messages {
-		cp[i] = m.Clone()
-	}
-	return cp
+	return s.Messages()
 }
 
 // AddMessage appends a message to the conversation, or replaces an existing
