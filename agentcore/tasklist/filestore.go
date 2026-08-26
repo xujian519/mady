@@ -67,8 +67,7 @@ func (f *FileStore) loadNextID() {
 func (f *FileStore) nextIDPath() string        { return filepath.Join(f.baseDir, ".nextid") }
 func (f *FileStore) taskPath(id string) string { return filepath.Join(f.baseDir, id+".json") }
 
-// Create saves a new task to the file system. Returns an error if the task already exists.
-// Create stores a new task. The task ID must already be set.
+// Create stores a new task to the file system. The task ID must already be set.
 func (f *FileStore) Create(_ context.Context, t *agentcore.Task) error {
 	if t.ID == "" {
 		return fmt.Errorf("tasklist: task ID is empty")
@@ -82,7 +81,6 @@ func (f *FileStore) Create(_ context.Context, t *agentcore.Task) error {
 	return f.writeTask(path, t)
 }
 
-// Get retrieves a task by its ID. Returns an error if not found.
 // Get reads a single task by ID. Returns an error if not found.
 func (f *FileStore) Get(_ context.Context, id string) (*agentcore.Task, error) {
 	f.mu.Lock()
@@ -90,7 +88,6 @@ func (f *FileStore) Get(_ context.Context, id string) (*agentcore.Task, error) {
 	return f.readTask(f.taskPath(id))
 }
 
-// Update overwrites an existing task. Returns an error if the task is not found.
 // Update overwrites an existing task. Returns an error if not found.
 func (f *FileStore) Update(_ context.Context, t *agentcore.Task) error {
 	f.mu.Lock()
@@ -102,7 +99,6 @@ func (f *FileStore) Update(_ context.Context, t *agentcore.Task) error {
 	return f.writeTask(path, t)
 }
 
-// UpdateFunc atomically reads, mutates, and writes back a task within the store lock.
 // UpdateFunc atomically reads-modifies-writes a single task under the store lock.
 func (f *FileStore) UpdateFunc(_ context.Context, id string, mutate func(*agentcore.Task) error) (*agentcore.Task, error) {
 	f.mu.Lock()
@@ -121,8 +117,8 @@ func (f *FileStore) UpdateFunc(_ context.Context, id string, mutate func(*agentc
 	return t, nil
 }
 
-// List returns all tasks, optionally including archived ones.
 // List returns tasks sorted by priority descending and ID ascending.
+// Archived tasks are excluded unless includeArchived is true.
 func (f *FileStore) List(_ context.Context, includeArchived bool) ([]*agentcore.Task, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -149,7 +145,6 @@ func (f *FileStore) List(_ context.Context, includeArchived bool) ([]*agentcore.
 	return result, nil
 }
 
-// Delete removes a task by its ID. No error if the task does not exist.
 // Delete removes a task by ID (for internal cleanup; use archived status from tools).
 func (f *FileStore) Delete(_ context.Context, id string) error {
 	f.mu.Lock()
