@@ -67,7 +67,7 @@
 |---|---|---|---|
 | M01 | agentcore/ 核心（agent_run/reasoning_*/skill_extension/iface） | 130 文件/21.4K 行 | ✅ 2026-08-25 |
 | M02 | agentcore/ 子包（concurrency/evidence/filecheckpoint/permission/planmode/tasklist/worker） | 同上 | ✅ 2026-08-26 |
-| M03 | agentcore/ manifests + 其余 + graph/ | graph 9 文件/1.8K 行 | ⬜ |
+| M03 | agentcore/ manifests + 其余 + graph/ | graph 9 文件/1.8K 行 | ✅ 2026-08-26 |
 | M04 | doomloop/ + session/ + store/ | 3 + 9 + 3 文件 | ⬜ |
 | M05 | 内核层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ⬜ |
 
@@ -196,3 +196,18 @@
   - `c67822d` filecheckpoint/planmode/worker 冗余代码清理
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
 - **指标重扫**（全仓）：裸 fmt 66 / 忽略 err 24 / 吞错无注释 374 / TODO 6 / 未注释导出 92 / >120 行函数 30——与 M01 后基线持平（本卡改动均为注释与锁语义收敛，不触发扫描器计数变化）
+
+### M03（2026-08-26）agentcore/ manifests + graph/ ✅
+
+- **审阅范围**：graph/ 全部 9 个非测试 `.go`（3.7K 行：DAG 引擎/Pregel/checkpoint/degradation/node_policy/state/state_schema/knowledge_types）；agentcore/manifests 仅含 3 个 JSON 数据文件无 Go 代码，加载逻辑 `LoadManifests` 已由 M01 覆盖
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P2 一致性：panic 恢复日志用 `log.Printf` 未走 slog（对齐 M01 精炼方向收敛）；doc.go 包文档使用示例引用不存在的 API `graph.New(graph.WithPregel())`
+  - P3 风格：degradation 手写后缀比较、JoinOutputs 字符串 `+=` 拼接、MemoryCheckpointStore doc 注释被编译断言占用错位
+  - 登记不处理：`InterruptableGraph.SetInterrupt` 无锁写 map（约定在 Run 前调用，涉并发语义保守档记录）；pregel `resumeLoop` 直通包装器（保留 errPrefix 语义区分价值）
+- **精炼**：3 个提交，全部无行为变化
+  - `7ccbebb` panic 恢复日志统一走 slog
+  - `930db14` 冗余写法与注释错位清理（注：JoinOutputs 改动实际随 `7ccbebb` 入库，此提交信息描述略有出入）
+  - `494f8b9` docs(graph) 修正包文档示例中不存在的 API
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（graph 目录）：裸 fmt 0 / 忽略 err 0 / 吞错 0 / TODO 0 / >120 行函数 0；未注释导出符号 1 → **0**（MemoryCheckpointStore 补齐）
