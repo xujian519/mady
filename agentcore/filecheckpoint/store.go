@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -264,7 +265,7 @@ func isWithinRoot(path, root string) bool {
 	if err != nil {
 		return false
 	}
-	if rel == ".." || len(rel) >= 3 && rel[:3] == ".."+string(filepath.Separator) {
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return false
 	}
 	return true

@@ -71,10 +71,8 @@ func (p Policy) Decide(toolName string, readOnly bool, args json.RawMessage) Dec
 		return Decision{}
 	}
 
-	if name == "bash" {
-		if isReadOnlyBashCommand(args) {
-			return Decision{}
-		}
+	if name == "bash" && isReadOnlyBashCommand(args) {
+		return Decision{}
 	}
 
 	return Decision{

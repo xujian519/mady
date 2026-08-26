@@ -444,6 +444,3 @@ func recordExec(mon *Monitor, def *Definition, mode ExecMode, start time.Time, i
 		ErrorMsg:    errMsg,
 	})
 }
-
-// 确保 Definition 的方法依然可用（编译时验证）。
-var _ = (*Definition)(nil).IsPreRegistered

@@ -173,10 +173,8 @@ func stripQuoted(s string) string {
 		case inSingle:
 			if c == '\'' {
 				inSingle = false
-				b.WriteByte(' ')
-			} else {
-				b.WriteByte(' ')
 			}
+			b.WriteByte(' ')
 		case inDouble:
 			switch {
 			case c == '\\' && i+1 < len(s):

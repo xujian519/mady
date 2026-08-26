@@ -103,7 +103,6 @@ func (e *FileCheckpointExtension) beforeWriteHook(_ context.Context, hc *agentco
 				"path", p,
 				"error", err,
 			)
-			continue
 		}
 	}
 	return nil
