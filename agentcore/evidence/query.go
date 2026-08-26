@@ -23,8 +23,8 @@ func (l *Ledger) HasSuccessfulCommand(command string) bool {
 	if l == nil || command == "" {
 		return false
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	for _, r := range l.receipts {
 		if r.Success && r.ToolName == "bash" && commandMatches(command, r.Command) {
 			return true
@@ -39,8 +39,8 @@ func (l *Ledger) HasFailedCommand(command string) bool {
 	if l == nil || command == "" {
 		return false
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	for _, r := range l.receipts {
 		if !r.Success && r.ToolName == "bash" && commandMatches(command, r.Command) {
 			return true
@@ -55,8 +55,8 @@ func (l *Ledger) TouchedPaths(limit int, writtenOnly bool) []string {
 	if l == nil || limit <= 0 {
 		return nil
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	seen := map[string]bool{}
 	var out []string
 	for i := len(l.receipts) - 1; i >= 0 && len(out) < limit; i-- {
@@ -85,8 +85,8 @@ func (l *Ledger) HasAnySuccessfulReceipt() bool {
 	if l == nil {
 		return false
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	for _, r := range l.receipts {
 		if r.Success {
 			return true
@@ -104,8 +104,8 @@ func (l *Ledger) HasWriteOrCommandSince(index int) bool {
 	if index < 0 {
 		index = 0
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	for i := index; i < len(l.receipts); i++ {
 		r := l.receipts[i]
 		if r.Success && (r.Write || r.Command != "") {
@@ -121,8 +121,8 @@ func (l *Ledger) SuccessfulCommands(limit int) []string {
 	if l == nil || limit <= 0 {
 		return nil
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	var out []string
 	for i := len(l.receipts) - 1; i >= 0 && len(out) < limit; i-- {
 		r := l.receipts[i]
@@ -139,8 +139,8 @@ func (l *Ledger) hasSuccessfulPaths(paths []string, accept func(Receipt) bool) b
 		return false
 	}
 	found := map[string]bool{}
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	for _, r := range l.receipts {
 		if !r.Success || !accept(r) {
 			continue
@@ -155,15 +155,15 @@ func (l *Ledger) hasSuccessfulPaths(paths []string, accept func(Receipt) bool) b
 }
 
 // commandMatches checks whether the actual command contains the requested one.
-// A simple substring match after trimming, sufficient for the verification use
-// cases (exact command or prefix).
+// A simple trimmed-prefix match, sufficient for the verification use cases
+// (exact command or prefix).
 func commandMatches(wanted, actual string) bool {
 	wanted = strings.TrimSpace(wanted)
 	actual = strings.TrimSpace(actual)
 	if wanted == "" {
 		return false
 	}
-	return strings.HasPrefix(actual, wanted) || actual == wanted
+	return strings.HasPrefix(actual, wanted)
 }
 
 func pathSet(paths []string) map[string]bool {
