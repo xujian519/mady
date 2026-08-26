@@ -3,9 +3,10 @@ package graph
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"runtime/debug"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -319,7 +320,7 @@ func (cg *CompiledGraph) runLayerNodes(ctx context.Context, layerNodes []string,
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					log.Printf("[PANIC] graph: node %q panicked: %v\n%s", nodeName, r, debug.Stack())
+					slog.Error("graph: node panicked", "node", nodeName, "panic", r, "stack", string(debug.Stack()))
 				}
 			}()
 			step := cg.getNode(nodeName)
@@ -447,12 +448,12 @@ func FindTerminalOutput(nodes map[string]Step, edges map[string][]string, output
 
 // JoinOutputs merges multiple outputs with a separator.
 func JoinOutputs(parts []string) string {
-	result := ""
+	var b strings.Builder
 	for i, p := range parts {
 		if i > 0 {
-			result += "\n---\n"
+			b.WriteString("\n---\n")
 		}
-		result += p
+		b.WriteString(p)
 	}
-	return result
+	return b.String()
 }
