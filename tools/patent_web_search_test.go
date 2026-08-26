@@ -92,3 +92,154 @@ func TestNewPatentWebSearchToolClamp(t *testing.T) {
 		}
 	}
 }
+
+// TestNewPatentDocumentToolUnavailable 验证 ego-browser 不可用时工具不注册。
+func TestNewPatentDocumentToolUnavailable(t *testing.T) {
+	if tool := NewPatentDocumentTool(&PatentWebSearchConfig{EgoBrowserPath: "/nonexistent/ego-browser"}); tool != nil {
+		t.Error("expected nil tool when ego-browser is unavailable")
+	}
+}
+
+// TestNewPatentDocumentTool 验证 patent_document 工具注册与调用闭环（mock CLI），
+// 并断言统一响应结构 patentDocumentResult（found=true 且含全文）。
+func TestNewPatentDocumentTool(t *testing.T) {
+	out := `{"number": "US11452699B2", "title": "测试专利", "abstract": "摘要", "claims": "权利要求", "description": "说明书"}`
+	tool := NewPatentDocumentTool(&PatentWebSearchConfig{EgoBrowserPath: writeMockEgo(t, out)})
+	if tool == nil {
+		t.Fatal("tool is nil")
+	}
+	if tool.Name != "patent_document" {
+		t.Errorf("name = %q", tool.Name)
+	}
+
+	args, _ := json.Marshal(map[string]any{"patent_number": "US11452699B2"})
+	raw, err := tool.Func(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Func: %v", err)
+	}
+	res, ok := raw.(patentDocumentResult)
+	if !ok {
+		t.Fatalf("result type = %T, want patentDocumentResult", raw)
+	}
+	if !res.Found {
+		t.Error("found = false, want true")
+	}
+	if res.Title != "测试专利" {
+		t.Errorf("title = %q", res.Title)
+	}
+	if res.Abstract != "摘要" {
+		t.Errorf("abstract = %q", res.Abstract)
+	}
+	if !strings.Contains(res.Content, "权利要求") || !strings.Contains(res.Content, "说明书") {
+		t.Errorf("content 应含 claims/description: %.100s", res.Content)
+	}
+	if res.Truncated {
+		t.Error("truncated = true, want false")
+	}
+}
+
+// TestNewPatentDocumentToolNotHandled 验证全源未命中时返回结构化提示
+// （found=false + note），而非裸 nil 或错误——LLM 可据此建议改用
+// patent_lookup / patent_download，而非误判为工具故障。
+func TestNewPatentDocumentToolNotHandled(t *testing.T) {
+	tool := NewPatentDocumentTool(&PatentWebSearchConfig{EgoBrowserPath: writeMockEgo(t, "{}")})
+	if tool == nil {
+		t.Fatal("tool is nil")
+	}
+	args, _ := json.Marshal(map[string]any{"patent_number": "US0000000000A"})
+	raw, err := tool.Func(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Func: %v", err)
+	}
+	res, ok := raw.(patentDocumentResult)
+	if !ok {
+		t.Fatalf("result type = %T, want patentDocumentResult", raw)
+	}
+	if res.Found {
+		t.Error("found = true, want false")
+	}
+	if res.Note == "" {
+		t.Error("note 应提供替代方案提示")
+	}
+	if res.Content != "" {
+		t.Errorf("content = %q, want empty", res.Content)
+	}
+}
+
+// TestNewPatentDocumentToolMaxChars 验证 max_chars 截断并置 truncated 位。
+func TestNewPatentDocumentToolMaxChars(t *testing.T) {
+	out := `{"number": "US11452699B2", "title": "T", "abstract": "A", "claims": "C1 C2 C3", "description": "D D D D D D D D D D"}`
+	tool := NewPatentDocumentTool(&PatentWebSearchConfig{EgoBrowserPath: writeMockEgo(t, out)})
+	if tool == nil {
+		t.Fatal("tool is nil")
+	}
+	args, _ := json.Marshal(map[string]any{"patent_number": "US11452699B2", "max_chars": 5})
+	raw, err := tool.Func(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Func: %v", err)
+	}
+	res := raw.(patentDocumentResult)
+	if !res.Truncated {
+		t.Error("truncated = false, want true")
+	}
+	if len([]rune(res.Content)) > 6 { // 5 字符 + "…"
+		t.Errorf("content 长度 = %d, 应 ≤6", len([]rune(res.Content)))
+	}
+	if !strings.HasSuffix(res.Content, "…") {
+		t.Errorf("content 应以省略号结尾: %q", res.Content)
+	}
+}
+
+// TestNewPatentDocumentToolBiblioOnly 验证仅目录信息（Espacenet 样式，无
+// claims/description）时返回 found=true + note 提示，而非冒充全文返回空
+// content——契约保护：不把 biblio 当成功全文。
+func TestNewPatentDocumentToolBiblioOnly(t *testing.T) {
+	out := `{"number": "US11452699B2", "title": "Biblio 专利", "abstract": "仅摘要"}`
+	tool := NewPatentDocumentTool(&PatentWebSearchConfig{EgoBrowserPath: writeMockEgo(t, out)})
+	if tool == nil {
+		t.Fatal("tool is nil")
+	}
+	args, _ := json.Marshal(map[string]any{"patent_number": "US11452699B2"})
+	raw, err := tool.Func(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Func: %v", err)
+	}
+	res, ok := raw.(patentDocumentResult)
+	if !ok {
+		t.Fatalf("result type = %T, want patentDocumentResult", raw)
+	}
+	if !res.Found {
+		t.Error("found = false, want true (biblio 命中目录信息)")
+	}
+	if res.Content != "" {
+		t.Errorf("content = %q, want empty (biblio 无全文)", res.Content)
+	}
+	if res.Note == "" {
+		t.Error("note 应说明仅目录信息并给替代方案")
+	}
+}
+
+// TestNewPatentDocumentToolEmptyNumber 验证空专利号报错。
+func TestNewPatentDocumentToolEmptyNumber(t *testing.T) {
+	tool := NewPatentDocumentTool(&PatentWebSearchConfig{EgoBrowserPath: writeMockEgo(t, "{}")})
+	if tool == nil {
+		t.Fatal("tool is nil")
+	}
+	args, _ := json.Marshal(map[string]any{"patent_number": ""})
+	if _, err := tool.Func(context.Background(), args); err == nil {
+		t.Fatal("expected error for empty patent_number")
+	}
+}
+
+// TestPatentWebSearchDisabledByEnv 验证 MADY_BROWSER_RETRIEVERS=off 时
+// 检索/取文工具均不注册（门控集中生效，与 bootstrap/init_reasoning.go 一致）。
+func TestPatentWebSearchDisabledByEnv(t *testing.T) {
+	t.Setenv("MADY_BROWSER_RETRIEVERS", "off")
+	bin := writeMockEgo(t, "[]")
+	if tool := NewPatentWebSearchTool(&PatentWebSearchConfig{EgoBrowserPath: bin}); tool != nil {
+		t.Error("expected nil tool when MADY_BROWSER_RETRIEVERS=off")
+	}
+	if tool := NewPatentDocumentTool(&PatentWebSearchConfig{EgoBrowserPath: bin}); tool != nil {
+		t.Error("expected nil tool when MADY_BROWSER_RETRIEVERS=off")
+	}
+}

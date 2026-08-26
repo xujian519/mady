@@ -10,6 +10,10 @@ import (
 
 // MadyExtension holds Mady-specific SKILL.md frontmatter extensions
 // under the "mady:" key. All fields are optional and default to zero values.
+//
+// 注意：这些字段当前被解析并随 Skill 存储，但尚未有消费方——属有意保留的
+// preview 字段（与 AllowedTools 的现状一致），供未来意图路由 / Agent 层
+// 技能过滤 / 前端参数收集使用。不要在未立项的情况下依赖这些字段产生行为。
 type MadyExtension struct {
 	Mode             string      `yaml:"mode"`            // chat | assistant | patent | legal | disclosure
 	GuardrailLevel   string      `yaml:"guardrail_level"` // light | standard | strict

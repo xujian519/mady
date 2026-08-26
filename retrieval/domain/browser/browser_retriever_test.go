@@ -174,6 +174,9 @@ func TestGetDocument(t *testing.T) {
 	if !strings.Contains(doc.Content, "权利要求") || !strings.Contains(doc.Content, "说明书") {
 		t.Errorf("Content 应包含权利要求与说明书: %.100s", doc.Content)
 	}
+	if doc.Metadata["full_text"] != "true" {
+		t.Errorf("full_text = %q, want true (claims/description 非空)", doc.Metadata["full_text"])
+	}
 }
 
 // TestGetDocumentEmpty 验证空 docID 与空结果。
@@ -187,6 +190,30 @@ func TestGetDocumentEmpty(t *testing.T) {
 	}
 	if doc, err := r.GetDocument(context.Background(), "CN123"); err != nil || doc != nil {
 		t.Errorf("empty result: doc=%v err=%v, want nil/nil", doc, err)
+	}
+}
+
+// TestGetDocumentBiblioOnly 验证仅目录信息（无 claims/description，如
+// Espacenet biblio）时 full_text 元数据为 false，供上层区分"目录信息"与"全文"，
+// 避免把仅有摘要的 biblio 当作成功全文返回。
+func TestGetDocumentBiblioOnly(t *testing.T) {
+	docJSON := `{"title": "Biblio 专利", "number": "CN107891199A", "abstract": "仅摘要"}`
+	r := NewGooglePatentsRetriever(testConfig(t, docJSON))
+	if r == nil {
+		t.Fatal("retriever is nil")
+	}
+	doc, err := r.GetDocument(context.Background(), "CN107891199A")
+	if err != nil {
+		t.Fatalf("GetDocument: %v", err)
+	}
+	if doc == nil {
+		t.Fatal("doc is nil")
+	}
+	if doc.Metadata["full_text"] != "false" {
+		t.Errorf("full_text = %q, want false (biblio only)", doc.Metadata["full_text"])
+	}
+	if strings.Contains(doc.Content, "权利要求") || strings.Contains(doc.Content, "说明书") {
+		t.Errorf("biblio Content 不应含 claims/description: %.100s", doc.Content)
 	}
 }
 

@@ -43,6 +43,14 @@ func buildUnifiedToolExt(fc *frameworkContext) agentcore.Extension {
 	cfg.WebFetch = &tools.WebFetchToolConfig{}
 	cfg.ComputerUse = true
 	cfg.MaxLines = 5000
+	// 启用内部 browser 工具（tools/browser_*.go，14 action 多后端）。
+	// 后端由 BrowserToolConfig{} 触发 DetectBackend 自动选择（优先本地 Chrome），
+	// Vision 通过 tools.BuildTools 自动共享 cfg.Vision（见 tools/tools.go 的注册段）。
+	// 与 ego-browser 检索器共用 MADY_BROWSER_RETRIEVERS=off 保密隔离门控：
+	// off 场景保证「未公开发明不通过浏览器访问在线数据库」，通用浏览器工具一并禁用。
+	if rbrowser.RetrieversEnabled() {
+		cfg.Browser = &tools.BrowserToolConfig{}
+	}
 	return tools.NewExtension(cfg)
 }
 
@@ -77,14 +85,14 @@ func newSearchCommanderExtension() agentcore.Extension {
 }
 
 // buildEgoCompositeRetriever 构建 ego-browser 驱动的三源复合检索器
-// （Google Patents / CNIPA / Espacenet）。ego-browser 不可用时返回 nil。
+// （Google Patents / CNIPA / Espacenet）。ego-browser 不可用或
+// MADY_BROWSER_RETRIEVERS=off 时返回 nil（与 bootstrap 内联判断保持一致）。
 func buildEgoCompositeRetriever() domain.DomainRetriever {
-	bcfg := rbrowser.DefaultConfig()
-	composite := rbrowser.NewCompositeRetriever(
-		rbrowser.NewGooglePatentsRetriever(*bcfg),
-		rbrowser.NewCNIPARetriever(*bcfg),
-		rbrowser.NewEspacenetRetriever(*bcfg),
-	)
+	if !rbrowser.RetrieversEnabled() {
+		return nil
+	}
+	g, c, e := rbrowser.NewDefaultPatentRetrievers(*rbrowser.DefaultConfig())
+	composite := rbrowser.NewCompositeRetriever(g, c, e)
 	if composite == nil {
 		return nil
 	}

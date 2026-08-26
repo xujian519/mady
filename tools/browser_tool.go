@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"github.com/chromedp/chromedp"
 
@@ -65,35 +66,11 @@ func NewBrowserTool(cfg *BrowserToolConfig) *agentcore.Tool {
 		slog.Warn("browser: 配置校验失败，使用默认值继续", "err", err)
 	}
 	cfg.defaults()
-
-	// Close previous manager to avoid leaking browser sessions and goroutines.
-	if DefaultBrowserManager() != nil {
-		DefaultBrowserManager().CloseAll()
-	}
-	bm := NewBrowserManager(&BrowserConfig{
-		Headless:            cfg.Headless,
-		AllowPrivate:        cfg.AllowPrivate,
-		CommandTimeout:      cfg.CommandTimeout,
-		CDPURL:              cfg.CDPURL,
-		CamofoxURL:          cfg.CamofoxURL,
-		CloudProvider:       cfg.CloudProvider,
-		Engine:              cfg.Engine,
-		DialogPolicy:        cfg.DialogPolicy,
-		DialogTimeout:       cfg.DialogTimeout,
-		AutoLocalForPrivate: cfg.AutoLocalForPrivate,
-		RecordSessions:      cfg.RecordSessions,
-		RecordingDir:        cfg.RecordingDir,
-		InactivityTimeout:   cfg.InactivityTimeout,
-		UserAgent:           cfg.UserAgent,
-		AcceptLanguage:      cfg.AcceptLanguage,
-		ProxyURL:            cfg.ProxyURL,
-		ViewportWidth:       cfg.ViewportWidth,
-		ViewportHeight:      cfg.ViewportHeight,
-		AgentBrowserEnabled: cfg.AgentBrowserEnabled,
-		EgoLiteEnabled:      cfg.EgoLiteEnabled,
-		EgoLiteTaskName:     cfg.EgoLiteTaskName,
-	})
-	SetDefaultBrowserManager(bm)
+	// 全局浏览器 manager 懒初始化：首次构造工具时用本配置构建并设为默认，
+	// 之后幂等。不在此处 CloseAll 或替换既有 manager——统一 agent 每次装配
+	// 都会构造浏览器工具，若每造一次就关停旧 manager，会把正在使用的会话
+	// 杀光（多会话/重建场景）。
+	ensureToolBrowserManager(cfg)
 
 	return &agentcore.Tool{
 		Name:        "browser",
@@ -194,6 +171,52 @@ func NewBrowserTool(cfg *BrowserToolConfig) *agentcore.Tool {
 			return handler(ctx, input, cfg)
 		},
 	}
+}
+
+// browserToolMgrMu 保护 browserToolMgrReady：保证带工具配置的全局浏览器
+// manager 只构建一次。
+var (
+	browserToolMgrMu    sync.Mutex
+	browserToolMgrReady bool
+)
+
+// ensureToolBrowserManager 在首次构造 browser 工具时，用工具配置构建全局
+// 浏览器 manager 并设为默认；之后幂等（不替换、不关闭既有会话）。
+//
+// 历史：此前每次 NewBrowserTool 都 CloseAll 并 SetDefaultBrowserManager 替换
+// 全局 manager，agent 重建/多会话场景会杀掉正在使用的浏览器会话。统一 agent
+// 的 cfg 恒定（&BrowserToolConfig{}），懒初始化一次即可保证会话跨重建保留。
+func ensureToolBrowserManager(cfg *BrowserToolConfig) {
+	browserToolMgrMu.Lock()
+	defer browserToolMgrMu.Unlock()
+	if browserToolMgrReady {
+		return
+	}
+	bm := NewBrowserManager(&BrowserConfig{
+		Headless:            cfg.Headless,
+		AllowPrivate:        cfg.AllowPrivate,
+		CommandTimeout:      cfg.CommandTimeout,
+		CDPURL:              cfg.CDPURL,
+		CamofoxURL:          cfg.CamofoxURL,
+		CloudProvider:       cfg.CloudProvider,
+		Engine:              cfg.Engine,
+		DialogPolicy:        cfg.DialogPolicy,
+		DialogTimeout:       cfg.DialogTimeout,
+		AutoLocalForPrivate: cfg.AutoLocalForPrivate,
+		RecordSessions:      cfg.RecordSessions,
+		RecordingDir:        cfg.RecordingDir,
+		InactivityTimeout:   cfg.InactivityTimeout,
+		UserAgent:           cfg.UserAgent,
+		AcceptLanguage:      cfg.AcceptLanguage,
+		ProxyURL:            cfg.ProxyURL,
+		ViewportWidth:       cfg.ViewportWidth,
+		ViewportHeight:      cfg.ViewportHeight,
+		AgentBrowserEnabled: cfg.AgentBrowserEnabled,
+		EgoLiteEnabled:      cfg.EgoLiteEnabled,
+		EgoLiteTaskName:     cfg.EgoLiteTaskName,
+	})
+	SetDefaultBrowserManager(bm)
+	browserToolMgrReady = true
 }
 
 // normalizeRef adds a "@" prefix to a ref string if one is not present.

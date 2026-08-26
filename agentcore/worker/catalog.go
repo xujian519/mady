@@ -150,18 +150,18 @@ func DefaultWorkers() []Definition {
 		{
 			Name:         "patent-search-executor",
 			Tier:         TierDomain,
-			Description:  "执行专利检索（ego-browser 驱动 Google Patents/CNIPA/Espacenet 多源 + 学术/网络补充），收集对比文件。",
+			Description:  "执行专利检索（ego-browser 驱动 Google Patents/CNIPA/Espacenet 多源 + 学术/网络补充），收集对比文件。patent_document 用于按专利号提取对比文件全文（claims/description）。",
 			Inputs:       []Input{{Path: "data/cases/{caseId}/outputs/search-plan.md"}},
 			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/search-results.md", Format: "markdown", ContractLevel: ContractHard}},
-			AllowedTools: []string{"patent_search_commander", "patent_web_search", "patent_lookup", "scholar_search", "web_search", "web_fetch"},
+			AllowedTools: []string{"patent_search_commander", "patent_web_search", "patent_document", "patent_lookup", "scholar_search", "web_search", "web_fetch"},
 		},
 		{
 			Name:         "patent-search-commander",
 			Tier:         TierDomain,
-			Description:  "Search Commander 专利检索编排器：多轮渐进式检索（宽语义→IPC/申请人过滤→二次验证→穷举覆盖），统一调度 Google Patents/CNIPA/Espacenet（ego-browser），每轮反思收敛，输出对比文件总表与遗漏分析报告。",
+			Description:  "Search Commander 专利检索编排器：多轮渐进式检索（宽语义→IPC/申请人过滤→二次验证→穷举覆盖），统一调度 Google Patents/CNIPA/Espacenet（ego-browser），每轮反思收敛，输出对比文件总表与遗漏分析报告。patent_document 用于取关键对比文件全文做深入比对。",
 			Inputs:       []Input{{Path: "data/cases/{caseId}/search-request.md"}},
 			Outputs:      []Output{{Path: "data/cases/{caseId}/outputs/search-commander-report.md", Format: "markdown", ContractLevel: ContractHard}},
-			AllowedTools: []string{"patent_search_commander", "patent_web_search", "scholar_search", "web_search", "web_fetch"},
+			AllowedTools: []string{"patent_search_commander", "patent_web_search", "patent_document", "scholar_search", "web_search", "web_fetch"},
 		},
 		// ===== Checker Tier =====
 		{

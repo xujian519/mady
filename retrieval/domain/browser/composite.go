@@ -2,6 +2,8 @@ package browser
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"reflect"
 	"sort"
@@ -113,16 +115,24 @@ func (c *CompositeRetriever) Search(ctx context.Context, query domain.DomainQuer
 }
 
 // GetDocument 依次尝试子检索器，返回第一个命中。
+// 全源未命中返回 (nil, nil)（缺失文档是正常"未命中"）；所有源均报错时
+// 返回聚合错误，供调用方区分"找不到文档"与"取文档失败"，避免吞掉真实
+// 故障而误导上层给出"未收录"结论。
 func (c *CompositeRetriever) GetDocument(ctx context.Context, docID string) (*domain.DomainDocument, error) {
+	var errs []error
 	for _, r := range c.retrievers {
 		doc, err := r.GetDocument(ctx, docID)
 		if err != nil {
 			slog.Warn("composite retriever: 子检索器取文档失败，尝试下一源", "source", r.SourceName(), "error", err)
+			errs = append(errs, fmt.Errorf("%s: %w", r.SourceName(), err))
 			continue
 		}
 		if doc != nil {
 			return doc, nil
 		}
+	}
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("全源取文档失败: %w", errors.Join(errs...))
 	}
 	return nil, nil
 }

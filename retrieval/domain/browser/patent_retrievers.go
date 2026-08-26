@@ -11,6 +11,11 @@ import (
 //
 // 约束：代码内不得包含单引号或反引号（heredoc 模板以单引号字符串传给
 // js() 求值），选择器一律使用双引号。
+//
+// 注意：本文件的 JS 常量与 skills/ego-browser/learnings/*/tools/*.js 内的
+// 同名脚本互为镜像（逻辑重复但各自独立演进）。改动任一处的页面选择器或
+// 提取逻辑时，必须同步另一处，否则 Go 检索管道与 SKILL.md 提示词驱动的手工
+// 操作会得出不一致结果。
 
 // googleSearchJS 提取 Google Patents 搜索结果（search-result-item 按行解析）。
 // ${max} 在执行前替换为最大条数。
@@ -190,4 +195,12 @@ func NewEspacenetRetriever(cfg BrowserRetrieverConfig) *BrowserRetriever {
 		},
 		detailJS: espacenetDetailJS,
 	})
+}
+
+// NewDefaultPatentRetrievers 一次性构造 Google Patents / CNIPA / Espacenet
+// 三源在线专利数据库检索器（共用同一配置）。供装配层（tools/patent_web_search.go、
+// cmd/mady、bootstrap/init_reasoning.go）复用，避免各处在三源工厂与 taskSpace
+// 约定上重复定义导致漂移。ego-browser 不可用时各元素为 nil，由调用方过滤组合。
+func NewDefaultPatentRetrievers(cfg BrowserRetrieverConfig) (google, cnipa, espacenet *BrowserRetriever) {
+	return NewGooglePatentsRetriever(cfg), NewCNIPARetriever(cfg), NewEspacenetRetriever(cfg)
 }

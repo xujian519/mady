@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/retrieval/domain"
@@ -153,5 +154,34 @@ func TestCompositeGetDocument(t *testing.T) {
 	c2 := NewCompositeRetriever(&stubRetriever{name: "本地", notFound: true})
 	if d, err := c2.GetDocument(context.Background(), "CN1"); d != nil || err != nil {
 		t.Errorf("not-found = %v, %v", d, err)
+	}
+}
+
+// TestCompositeGetDocumentAllSourcesFail 验证全源取文档均失败时返回聚合错误，
+// 与"未命中"(nil,nil) 区分——上层可据此判断是收录缺失还是取文档故障，
+// 而非吞掉真实错误误报"未收录"。
+func TestCompositeGetDocumentAllSourcesFail(t *testing.T) {
+	c := NewCompositeRetriever(
+		&stubRetriever{name: "在线A", docErr: errors.New("浏览器超时")},
+		&stubRetriever{name: "在线B", docErr: errors.New("页面不存在")},
+	)
+	d, err := c.GetDocument(context.Background(), "CN1")
+	if d != nil {
+		t.Errorf("doc = %v, want nil", d)
+	}
+	if err == nil {
+		t.Fatal("expected aggregated error when all sources fail")
+	}
+	if !strings.Contains(err.Error(), "在线A") || !strings.Contains(err.Error(), "在线B") {
+		t.Errorf("error should mention both sources: %v", err)
+	}
+	// 部分失败 + 命中 → 返回命中（跳过失败源）。
+	c2 := NewCompositeRetriever(
+		&stubRetriever{name: "在线A", docErr: errors.New("浏览器超时")},
+		&stubRetriever{name: "在线B", docs: []domain.DomainDocument{doc("CN1", 0.9)}},
+	)
+	d, err = c2.GetDocument(context.Background(), "CN1")
+	if err != nil || d == nil || d.ID != "CN1" {
+		t.Errorf("partial-fail GetDocument = %v, %v", d, err)
 	}
 }

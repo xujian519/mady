@@ -335,6 +335,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(NewPatentDownloadTool(cfg.PatentTool))
 	addTool(NewPatentLegalStatusTool(cfg.PatentTool))
 	addTool(readOnly(NewPatentWebSearchTool(cfg.PatentWebSearch)))
+	addTool(readOnly(NewPatentDocumentTool(cfg.PatentWebSearch)))
 
 	if cfg.Pandoc != nil {
 		addTool(NewPandocTool(cfg.Pandoc))

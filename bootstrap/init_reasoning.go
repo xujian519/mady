@@ -72,13 +72,11 @@ func InitReasoningAndTemplates(fc *Context) {
 	// 注意：启用后 analyze_patent_novelty / analyze_invalidation 的检索节点
 	// 会把查询词发往在线专利数据库（通过本机真实浏览器会话）。需要保密性
 	// 隔离（如未公开发明）的环境可用 MADY_BROWSER_RETRIEVERS=off 关闭。
-	if os.Getenv("MADY_BROWSER_RETRIEVERS") != "off" {
-		cfg := rbrowser.DefaultConfig()
-		domains.SetupBrowserPatentRetrievers([]domain.DomainRetriever{
-			rbrowser.NewGooglePatentsRetriever(*cfg),
-			rbrowser.NewCNIPARetriever(*cfg),
-			rbrowser.NewEspacenetRetriever(*cfg),
-		})
+	if rbrowser.RetrieversEnabled() {
+		// 三源检索器经共享工厂构建（与 cmd/mady/tool_ext.go、tools/patent_web_search.go
+		// 复用同一构造与 taskSpace 约定），避免各装配处重复定义导致漂移。
+		g, c, e := rbrowser.NewDefaultPatentRetrievers(*rbrowser.DefaultConfig())
+		domains.SetupBrowserPatentRetrievers([]domain.DomainRetriever{g, c, e})
 	}
 
 	// 权威外部检索（nuo-patent CLI，方案 A）：作为 patent retriever 权威源。

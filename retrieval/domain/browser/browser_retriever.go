@@ -16,6 +16,13 @@ import (
 	"github.com/xujian519/mady/retrieval/domain"
 )
 
+// 全局 task space 序号：跨所有 BrowserRetriever 实例单调递增，保证并发多
+// bundle 调用（如 patent_web_search 与 patent_document 并行，或多 agent
+// 各自持有检索器）不会复用同一 task space 名导致互相清理。改为实例级
+// 计数器会在多 bundle 场景各自从 1 起算，命名冲突时 finally 清理会误杀
+// 对方正在使用的 task space。
+var globalTaskSeq atomic.Int64
+
 // BrowserRetriever 通过 ego-browser CLI 驱动真实浏览器访问在线专利数据库，
 // 实现 domain.DomainRetriever。每个实例绑定一个数据源（Google Patents /
 // CNIPA / Espacenet），Search 与 GetDocument 各自发起一次独立的
@@ -25,9 +32,6 @@ import (
 type BrowserRetriever struct {
 	cfg BrowserRetrieverConfig
 	src dataSource
-
-	// seq 用于生成唯一的 task space 名称，避免并发调用相互干扰。
-	seq atomic.Int64
 }
 
 // dataSource 描述一个在线专利数据库的访问参数与页面提取脚本。
@@ -154,13 +158,20 @@ func (r *BrowserRetriever) GetDocument(ctx context.Context, docID string) (*doma
 	}
 
 	content := strings.TrimSpace(strings.Join([]string{abstract, claims, description}, "\n"))
+	// full_text 标记是否含权利要求/说明书正文：仅 biblio 源（如 Espacenet
+	// 只返回 title+abstract）为 false，供上层（patent_document 工具）区分
+	// "目录信息"与"全文"，避免把仅有摘要的 biblio 当成功全文返回。
+	fullText := claims != "" || description != ""
 	doc := &domain.DomainDocument{
-		ID:       normalizePatentNumber(number, docID),
-		Title:    strings.TrimSpace(title),
-		Snippet:  truncate(abstract, 300),
-		Content:  content,
-		URL:      r.src.detailURL(docID),
-		Metadata: map[string]string{"source": r.SourceName()},
+		ID:      normalizePatentNumber(number, docID),
+		Title:   strings.TrimSpace(title),
+		Snippet: truncate(abstract, 300),
+		Content: content,
+		URL:     r.src.detailURL(docID),
+		Metadata: map[string]string{
+			"source":    r.SourceName(),
+			"full_text": strconv.FormatBool(fullText),
+		},
 	}
 	return doc, nil
 }
@@ -195,14 +206,14 @@ func (r *BrowserRetriever) callEgoBrowser(ctx context.Context, script string) ([
 // buildSearchScript 生成一次搜索调用的 heredoc 脚本。
 func (r *BrowserRetriever) buildSearchScript(query string, maxResults int) string {
 	js := strings.ReplaceAll(r.src.searchJS, "${max}", strconv.Itoa(maxResults))
-	space := fmt.Sprintf("%s-%d", r.src.taskSpace, r.seq.Add(1))
+	space := fmt.Sprintf("%s-%d", r.src.taskSpace, globalTaskSeq.Add(1))
 	url := r.src.searchURL(query, maxResults)
 	return fmt.Sprintf(heredocTemplate, space, url, r.src.searchPre, escapeJSTemplate(js))
 }
 
 // buildGetDocScript 生成一次详情页提取的 heredoc 脚本。
 func (r *BrowserRetriever) buildGetDocScript(docID string) string {
-	space := fmt.Sprintf("%s-%d", r.src.taskSpace, r.seq.Add(1))
+	space := fmt.Sprintf("%s-%d", r.src.taskSpace, globalTaskSeq.Add(1))
 	url := r.src.detailURL(docID)
 	return fmt.Sprintf(heredocTemplate, space, url, r.src.detailPre, escapeJSTemplate(r.src.detailJS))
 }

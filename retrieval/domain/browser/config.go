@@ -64,3 +64,17 @@ func FindEgoBrowser() string {
 func (c *BrowserRetrieverConfig) IsAvailable() bool {
 	return c != nil && c.EgoBrowserPath != ""
 }
+
+// RetrieversEnabled 报告在线专利数据库检索器（ego-browser 驱动）是否启用。
+// 环境变量 MADY_BROWSER_RETRIEVERS 控制：空（未设置）视为启用；明确禁用值
+// 为 off/false/0/disabled/no（大小写不敏感，容忍常见 falsy 写法），其余视为启用。
+// 语义为保密性隔离（未公开发明不联网），所有检索器工厂与工具注册应统一读取
+// 本函数，避免门控不一致。
+func RetrieversEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MADY_BROWSER_RETRIEVERS"))) {
+	case "off", "false", "0", "disabled", "no":
+		return false
+	default:
+		return true
+	}
+}
