@@ -14,10 +14,20 @@
 //   - State: 键值状态管理（可快照/恢复）
 //   - Checkpoint: 执行断点持久化
 //
-// 使用示例：
+// 使用示例（DAG）：
 //
-//	g := graph.New(graph.WithPregel())
-//	g.AddNode("parse", parseFn)
-//	g.AddEdge("parse", "analyze")
-//	result, _ := g.Run(ctx, input)
+//	g := graph.NewGraph()
+//	_ = g.AddNode("parse", parseStep)
+//	_ = g.AddNode("analyze", analyzeStep)
+//	_ = g.AddEdge("parse", "analyze")
+//	cg, _ := g.Compile(graph.CompileOptions{EntryNode: "parse"})
+//	result, _ := cg.Run(ctx, input)
+//
+// 使用示例（Pregel）：
+//
+//	pg := graph.NewPregelGraph()
+//	_ = pg.AddNode("parse", parseFn)
+//	_ = pg.AddEdge("parse", "analyze")
+//	cpg, _ := pg.Compile("parse")
+//	state, _ := cpg.Run(ctx, graph.PregelState{"input": "..."})
 package graph
