@@ -66,7 +66,7 @@
 | 卡 | 模块 | 规模/热点 | 状态 |
 |---|---|---|---|
 | M01 | agentcore/ 核心（agent_run/reasoning_*/skill_extension/iface） | 130 文件/21.4K 行 | ✅ 2026-08-25 |
-| M02 | agentcore/ 子包（concurrency/evidence/filecheckpoint/permission/planmode/tasklist/worker） | 同上 | ⬜ |
+| M02 | agentcore/ 子包（concurrency/evidence/filecheckpoint/permission/planmode/tasklist/worker） | 同上 | ✅ 2026-08-26 |
 | M03 | agentcore/ manifests + 其余 + graph/ | graph 9 文件/1.8K 行 | ⬜ |
 | M04 | doomloop/ + session/ + store/ | 3 + 9 + 3 文件 | ⬜ |
 | M05 | 内核层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ⬜ |
@@ -181,3 +181,18 @@
   - 未注释导出符号：1 → **0**
   - 被忽略 error：2 处（`_ = failLoop`）已全部补意图注释（扫描器按 `_ =` 模式机械计数不变）
   - 裸 fmt / TODO：0；>120 行单函数：2（记录待拆，不拆）
+
+### M02（2026-08-26）agentcore/ 子包 ✅
+
+- **审阅范围**：`concurrency`（1）/ `evidence`（7）/ `filecheckpoint`（3）/ `permission`（敏感路径前缀，按规范跳过只登记）/ `planmode`（3）/ `tasklist`（8）/ `worker`（7）非测试 `.go`
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P2 一致性：tasklist Store/FileStore 方法重复双行英文注释（生成残留）；evidence Ledger 只读查询用 `Lock()` 与 ledger.go 读写锁语义不一致
+  - P3 风格：filecheckpoint 循环尾冗余 `continue`、手写前缀比较；planmode Decide bash 嵌套 if、stripQuoted inSingle 冗余分支；evidence commandMatches 相等判断被 HasPrefix 覆盖；worker executor.go 末尾冗余 `var _` 编译时验证
+  - 登记不处理：worker 包 `RegisterDefaultWorkers`/`EnsureWorker`/`Catalog.Verify`/`Registry.RegisterOrUpdate`/`IsActivated`/`VerifyAll` 非测试零消费，属公共 API 按规范保留
+- **精炼**：3 个 refactor 提交，全部无行为变化
+  - `1df2804` tasklist 去除重复双行注释
+  - `d16af7d` evidence Ledger 只读查询 RLock + 冗余匹配条件
+  - `c67822d` filecheckpoint/planmode/worker 冗余代码清理
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（全仓）：裸 fmt 66 / 忽略 err 24 / 吞错无注释 374 / TODO 6 / 未注释导出 92 / >120 行函数 30——与 M01 后基线持平（本卡改动均为注释与锁语义收敛，不触发扫描器计数变化）
