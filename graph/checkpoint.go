@@ -248,12 +248,12 @@ func (ig *InterruptableGraph) saveCheckpoint(ctx context.Context, nodeName, phas
 }
 
 // MemoryCheckpointStore is an in-memory implementation of CheckpointStore.
-var _ CheckpointStore = (*MemoryCheckpointStore)(nil)
-
 type MemoryCheckpointStore struct {
 	mu          sync.RWMutex
 	checkpoints map[string]Checkpoint
 }
+
+var _ CheckpointStore = (*MemoryCheckpointStore)(nil)
 
 // NewMemoryCheckpointStore creates an empty in-memory checkpoint store.
 func NewMemoryCheckpointStore() *MemoryCheckpointStore {

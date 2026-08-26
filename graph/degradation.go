@@ -1,6 +1,9 @@
 package graph
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // DegradationReason 分类降级原因。
 type DegradationReason string
@@ -83,8 +86,7 @@ func (d DegradationMark) Error() string {
 // HasDegradation 检查 state 中是否存在任何降级标记。
 func HasDegradation(state PregelState) bool {
 	for k := range state {
-		if len(k) > len(degradationKeySuffix) &&
-			k[len(k)-len(degradationKeySuffix):] == degradationKeySuffix {
+		if strings.HasSuffix(k, degradationKeySuffix) {
 			return true
 		}
 	}
@@ -95,11 +97,11 @@ func HasDegradation(state PregelState) bool {
 func DegradationSummary(state PregelState) []DegradationMark {
 	var marks []DegradationMark
 	for k, v := range state {
-		if len(k) > len(degradationKeySuffix) &&
-			k[len(k)-len(degradationKeySuffix):] == degradationKeySuffix {
-			if mark, ok := v.(DegradationMark); ok && mark.Reason != "" {
-				marks = append(marks, mark)
-			}
+		if !strings.HasSuffix(k, degradationKeySuffix) {
+			continue
+		}
+		if mark, ok := v.(DegradationMark); ok && mark.Reason != "" {
+			marks = append(marks, mark)
 		}
 	}
 	return marks
