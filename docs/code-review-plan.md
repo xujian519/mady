@@ -75,7 +75,7 @@
 
 | 卡 | 模块 | 规模/热点 | 状态 |
 |---|---|---|---|
-| M06 | domains/claimdrafting + config | 撰写模块 | ⬜ |
+| M06 | domains/claimdrafting + config | 撰写模块 | ✅ 2026-08-27 |
 | M07 | domains/specdrafting | 说明书撰写 | ⬜ |
 | M08 | domains/enablement + inventiveness | 26.3 + 创造性图引擎 | ⬜ |
 | M09 | domains/novelty + infringement | 新颖性 + 侵权比对 | ⬜ |
@@ -237,3 +237,19 @@
 - **精炼**：无需精炼（M01-M04 已完成内核层清理）
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
 - **指标重扫**（内核层全模块）：裸 fmt 0 / 忽略 err 2（合理保留）/ 吞错 29（agentcore 25 + session 4）/ TODO 0 / 未注释导出 0 / >120 行函数 2
+
+### M06（2026-08-27）domains/claimdrafting + config ✅
+
+- **审阅范围**：claimdrafting 全部 19 个非测试 `.go`（4258 行：五步法构建器/规则引擎 26 条/LLM 撰写器/Pregel 图/单一性评分/覆盖核验）；config 全部 3 个非测试 `.go`（699 行：案件注册表/文档风格）
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：3 项登记——① scorer `calcDimensionScores` 维度映射缺 4 条已注册规则（clarity-antecedent-basis/support-range-endpoint/unity-invention/domain-method-to-product），其违规计入 Suggestions 但不扣维度分；补齐会改评分行为，保守档不修；② validateNode 的 `engine.Validate` 结果被丢弃，scoreNode 内部重新全量验证（纯重复计算）；specdrafting 同构，宜两处同改另立卡；③ 敏感路径权威源存在失效条目：`domains/project.go` 不存在，ValidateProjectPath 真实实现为 `domains/config/project.go` 且不在门禁数组内（两个前缀亦未命中）——建议单独 fix 卡修正 check-sensitive-paths.sh 数组，涉及门禁脚本本身须人工审阅
+  - P2 一致性：drafter 路径 warnings 双重追加——patent.go SetupClaimDraftingExtension 将同一 engine 同时注入 Extension 与 LLMDrafter，DraftFromScratch 与 handleDraftClaims 各验证追加一轮 Warning/Info；去重属行为变化，登记待 fix 卡
+  - P3 风格：formalityNumberingRule 循环尾冗余 continue、builder.go 内联时间戳与 timestamp() 助手重复、types.go 空置"帮助函数"节头、endpointMentioned 每次调用编译正则（低频路径仅记录）、config.style SystemPrompt disclaimers map 迭代顺序不确定（prompt 文本顺序非确定，记录）
+  - 登记不处理：config/project.go LoadMeta 错误转换分支吞错计数 1 处——该文件属事实上的敏感实现（见 P1③），按红线本卡不动；CoverageChecker/CheckUnity 等导出符号存在包外零消费但属公共 API，按规范保留
+- **精炼**：3 个 refactor 提交，全部无行为变化
+  - `33c2e1a` 清理形式规则死分支与冗余 continue
+  - `5bf3b35` 为静默降级与解析跳过补 fail-safe 意图注释
+  - `48b41a9` timestamp 助手统一与空节头清理
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；claimdrafting/config 包级 `-race` 测试全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py domains/claimdrafting domains/config`）：裸 fmt 0 / 忽略 err 0 / 吞错 4 → **1**（剩余 1 处为 config/project.go，红线保留）/ TODO 0 / 未注释导出 0 / >120 行函数 0
