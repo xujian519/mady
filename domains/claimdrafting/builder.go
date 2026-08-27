@@ -3,7 +3,6 @@ package claimdrafting
 import (
 	"fmt"
 	"strings"
-	"time"
 )
 
 // =============================================================================
@@ -83,7 +82,7 @@ func (b *ClaimBuilder) Build(input DraftInput) (*DraftOutput, error) {
 	output := &DraftOutput{
 		Claims:    &ClaimSet{IndependentClaims: indClaims, DependentClaims: depClaims},
 		Warnings:  warnings,
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Timestamp: timestamp(),
 	}
 	output.InputMeta.Domain = domain
 	output.InputMeta.FeatureCount = len(input.Features)
