@@ -65,12 +65,14 @@ func NewAgentStore(sessions *FileStore, cwd string) *AgentStore {
 func (s *AgentStore) Save(ctx context.Context, key string, snap agentcore.StateSnapshot) error {
 	mgr, err := s.openOrCreate(ctx, key)
 	if err != nil {
+		// 打开或创建会话失败，向上层传播错误
 		return err
 	}
 	threadCfg, threadCfgSet := latestThreadConfig(mgr)
 
 	mgr, err = s.syncMessages(ctx, mgr, snap.Messages)
 	if err != nil {
+		// 同步消息失败，向上层传播错误
 		return err
 	}
 	if threadCfgSet {
@@ -186,6 +188,7 @@ func (s *AgentStore) Has(ctx context.Context, key string) (bool, error) {
 func (s *AgentStore) List(ctx context.Context) ([]string, error) {
 	info, err := s.sessions.List(ctx)
 	if err != nil {
+		// 列出会话失败，向上层传播错误
 		return nil, err
 	}
 	keys := make([]string, 0, len(info))
@@ -228,9 +231,11 @@ func (s *AgentStore) GetThreadConfig(ctx context.Context, key string) (*agentcor
 func (s *AgentStore) SetThreadConfig(ctx context.Context, key string, cfg *agentcore.CallConfig) (*ThreadSnapshot, error) {
 	mgr, err := s.openOrCreate(ctx, key)
 	if err != nil {
+		// 打开或创建会话失败，向上层传播错误
 		return nil, err
 	}
 	if err := appendThreadConfig(ctx, mgr, cfg); err != nil {
+		// 追加线程配置失败，向上层传播错误
 		return nil, err
 	}
 	if err := mgr.flushAll(); err != nil {
@@ -244,6 +249,7 @@ func (s *AgentStore) SetThreadConfig(ctx context.Context, key string, cfg *agent
 func (s *AgentStore) GetThreadThinking(ctx context.Context, key string) (*agentcore.ThinkingConfig, bool, error) {
 	cfg, ok, err := s.GetThreadConfig(ctx, key)
 	if err != nil {
+		// 获取线程配置失败，向上层传播错误
 		return nil, false, err
 	}
 	if !ok || cfg == nil {
