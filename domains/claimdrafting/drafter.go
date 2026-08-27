@@ -64,6 +64,7 @@ func (d *LLMDrafter) DraftFromScratch(input DraftInput) (*DraftOutput, error) {
 	prompt := d.buildPrompt(input)
 	result, err := d.provider.Complete(prompt)
 	if err != nil {
+		// fail-safe：LLM 调用失败不阻断撰写，降级返回步骤 1 的 builder 输出。
 		return fallback, nil
 	}
 
@@ -190,6 +191,7 @@ func parseSingleClaim(text string) *Claim {
 	}
 	number, err := strconv.Atoi(m[1])
 	if err != nil {
+		// 正则 \d+ 已保证是数字串，Atoi 仅在极端长串溢出时失败：按解析失败跳过该条。
 		return nil
 	}
 

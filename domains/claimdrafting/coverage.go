@@ -107,6 +107,7 @@ func checkEntry(e ClaimCoverageEntry, maxByClaims int) CoverageItem {
 	}
 	num, err := strconv.Atoi(m[1])
 	if err != nil {
+		// 正则 ^claim_(\d+)$ 已限定数字串，仅溢出时失败；统一按非法编号拒绝。
 		return reject("claim id 编号非法")
 	}
 	if num <= 0 || num > MAXClaimNo {
