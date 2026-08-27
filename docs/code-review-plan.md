@@ -68,7 +68,7 @@
 | M01 | agentcore/ 核心（agent_run/reasoning_*/skill_extension/iface） | 130 文件/21.4K 行 | ✅ 2026-08-25 |
 | M02 | agentcore/ 子包（concurrency/evidence/filecheckpoint/permission/planmode/tasklist/worker） | 同上 | ✅ 2026-08-26 |
 | M03 | agentcore/ manifests + 其余 + graph/ | graph 9 文件/1.8K 行 | ✅ 2026-08-26 |
-| M04 | doomloop/ + session/ + store/ | 3 + 9 + 3 文件 | ⬜ |
+| M04 | doomloop/ + session/ + store/ | 3 + 9 + 3 文件 | ✅ 2026-08-27 |
 | M05 | 内核层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ⬜ |
 
 ### 阶段 2 — 领域层（W3–W6）
@@ -211,3 +211,17 @@
   - `494f8b9` docs(graph) 修正包文档示例中不存在的 API
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
 - **指标重扫**（graph 目录）：裸 fmt 0 / 忽略 err 0 / 吞错 0 / TODO 0 / >120 行函数 0；未注释导出符号 1 → **0**（MemoryCheckpointStore 补齐）
+
+### M04（2026-08-27）doomloop/ + session/ + store/ ✅
+
+- **审阅范围**：doomloop/ 全部 3 个非测试 `.go`（637 行：死循环检测器框架）；session/ 全部 9 个非测试 `.go`（1531 行：JSONL 会话存储/AgentStore/自动压缩/树结构）；store/ 全部 3 个非测试 `.go`（170 行：快照存储/CaseStore 接口）
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P2 一致性：session/agent_store.go 多处错误传播路径无意图注释；session/session_store_filestore.go readInfoFrom 打开文件失败时静默降级无注释
+  - P3 风格：doomloop 包代码质量高，无精炼项；store 包结构清晰，无精炼项
+  - 登记不处理：doomloop 包无需精炼；store 包无需精炼
+- **精炼**：2 个提交，全部无行为变化
+  - `455196a` session/agent_store.go 为 5 处错误传播路径添加 fail-safe 意图注释
+  - `52e3aff` session/session_store_filestore.go 为 readInfoFrom 静默降级添加意图注释
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（doomloop+session+store）：裸 fmt 0 / 忽略 err 0 / 吞错 5 → **4**（1 处降级行为补注释）/ TODO 0 / 未注释导出 0 / >120 行函数 0
