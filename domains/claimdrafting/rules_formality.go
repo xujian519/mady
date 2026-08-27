@@ -1,10 +1,11 @@
 package claimdrafting
 
 import (
-	"github.com/xujian519/mady/domains/rulekit"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/xujian519/mady/domains/rulekit"
 )
 
 // =============================================================================
@@ -27,7 +28,6 @@ func (r *formalityNumberingRule) Check(claims []Claim, _ DraftInput) []Violation
 				Message:     "权利要求未按阿拉伯数字顺序编号（应为" + strconv.Itoa(i+1) + "号）",
 				Suggestion:  "请按1, 2, 3, ...的顺序重新编号权利要求",
 			})
-			continue
 		}
 	}
 	return violations
@@ -369,20 +369,6 @@ func (r *formalityDependentOrderingRule) Check(claims []Claim, _ DraftInput) []V
 			Message:     "所有从属权利要求均直接引用独立权利要求，未形成'从宽到窄'的递进保护链",
 			Suggestion:  "建议将后几项从属权利要求改为引用前一项从属权利要求，形成逐步递进的保护层次（独立权利要求→从属1→从属2→从属3）",
 		})
-	}
-
-	// 检查早期从属是否引用了后期从属（乱序）
-	depOrder := make(map[int]int) // claimNumber → index
-	for i, d := range deps {
-		depOrder[d.Number] = i
-	}
-	for _, d := range deps {
-		for _, ref := range d.DependsOn {
-			if refIdx, ok := depOrder[ref]; !ok || depOrder[d.Number] >= refIdx {
-				// 从属引用正常或在前面出现的从属 → 合法
-				continue
-			}
-		}
 	}
 
 	return violations
