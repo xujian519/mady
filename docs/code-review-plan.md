@@ -69,7 +69,7 @@
 | M02 | agentcore/ 子包（concurrency/evidence/filecheckpoint/permission/planmode/tasklist/worker） | 同上 | ✅ 2026-08-26 |
 | M03 | agentcore/ manifests + 其余 + graph/ | graph 9 文件/1.8K 行 | ✅ 2026-08-26 |
 | M04 | doomloop/ + session/ + store/ | 3 + 9 + 3 文件 | ✅ 2026-08-27 |
-| M05 | 内核层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ⬜ |
+| M05 | 内核层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ✅ 2026-08-27 |
 
 ### 阶段 2 — 领域层（W3–W6）
 
@@ -225,3 +225,15 @@
   - `52e3aff` session/session_store_filestore.go 为 readInfoFrom 静默降级添加意图注释
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
 - **指标重扫**（doomloop+session+store）：裸 fmt 0 / 忽略 err 0 / 吞错 5 → **4**（1 处降级行为补注释）/ TODO 0 / 未注释导出 0 / >120 行函数 0
+
+### M05（2026-08-27）内核层横切 ✅
+
+- **审阅范围**：内核层全部模块（agentcore/graph/doomloop/session/store）横切清理
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P2 一致性：agentcore 2 处忽略 error（`_ = ext.Dispose()`）为清理操作合理保留
+  - P3 风格：无
+  - 登记不处理：agentcore 忽略 error 为 Close/清理方法中的合理行为
+- **精炼**：无需精炼（M01-M04 已完成内核层清理）
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（内核层全模块）：裸 fmt 0 / 忽略 err 2（合理保留）/ 吞错 29（agentcore 25 + session 4）/ TODO 0 / 未注释导出 0 / >120 行函数 2
