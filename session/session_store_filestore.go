@@ -444,6 +444,7 @@ func (s *FileStore) readInfoFrom(sessionID string, trashed bool) Info {
 		f, err = os.Open(s.trashPath(sessionID))
 	}
 	if err != nil {
+		// 文件不存在或无法读取时，返回仅含 ID 的基本元数据（降级行为）
 		return info
 	}
 	defer func() { _ = f.Close() }()
