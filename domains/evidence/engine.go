@@ -337,8 +337,6 @@ func (j *EvidenceJudgment) hasConflict() bool {
 	return false
 }
 
-// evaluatePublicIntent 判断互联网公开意图（是否对公众开放）。
-
 // ---------- 工具函数 ----------
 
 // DateDeterminationString 返回日期认定结果的摘要字符串。

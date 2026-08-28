@@ -8,6 +8,7 @@ import (
 	agentcore_evidence "github.com/xujian519/mady/agentcore/evidence"
 )
 
+// evaluatePublicIntent 判断互联网公开意图（是否对公众开放）。
 func evaluatePublicIntent(span agentcore_evidence.EvidenceSpan) PublicIntent {
 	// 默认推定对公众开放
 	if span.SourceURI == "" {
