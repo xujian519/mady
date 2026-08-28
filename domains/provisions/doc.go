@@ -6,7 +6,8 @@
 //
 //   - Tier A (Provision): 围绕单一法条簇完成分析/意见/结论，共 23 个条款簇
 //   - Tier B (Reasoning): 封装跨条款的认定步骤，供 Tier A 作为子步骤调用
-//   - Tier C (Domain): 按 IPC 技术领域注入领域审查标准（lazy 加载）
+//   - Tier C (Domain): 按 IPC 技术领域注入领域审查标准；pre_register 段
+//     在装配时由 RegisterDomainExpertHandoffs 预注册为 domain-* Handoff
 //
 // # 使用方式
 //
