@@ -35,10 +35,16 @@ func (d Decision) String() string {
 // separately by the Approver when the decision is Ask.
 type Policy struct {
 	// Mode is the fallback decision when no rule matches (default: Ask).
-	Mode  Decision
-	Allow []Rule
-	Ask   []Rule
-	Deny  []Rule
+	Mode Decision
+	// MonotonicDeny 是单调拒绝层（规则型）：凌驾于一切规则与回退逻辑之上，
+	// 命中即 Deny，无法被任何 allow 配置覆盖（见 monotonic.go）。
+	MonotonicDeny []Rule
+	// MonotonicDenyFns 是单调拒绝层（谓词型）：参数语义粒度的硬拒绝，
+	// 优先级与 MonotonicDeny 相同（见 monotonic.go）。
+	MonotonicDenyFns []DenyCheck
+	Allow            []Rule
+	Ask              []Rule
+	Deny             []Rule
 }
 
 // ProjectAgentPolicy returns a policy suitable for project-linked agents.
@@ -65,13 +71,18 @@ func ProjectAgentPolicy() Policy {
 
 // Decide evaluates the policy for the given tool call.
 //
-// Priority: Deny > Ask > Allow > fallback.
+// Priority: MonotonicDeny > Deny > Ask > Allow > fallback.
 // Fallback: read-only tools → Allow（除非 Mode==Deny，此时改为 Ask 以尊重
 // "默认拒绝"语义）；writer tools → Mode（默认 Ask）。
 //
 // 注意：readOnly 标记的优先级高于 Mode，但当 Mode==Deny 时，read-only 工具
 // 也不再自动放行，而是降级为 Ask，避免在显式拒绝策略下仍放行只读工具。
+// 单调拒绝层（MonotonicDeny/MonotonicDenyFns）先于一切规则与回退逻辑，
+// 命中即 Deny，任何 allow 配置不得覆盖（见 monotonic.go）。
 func (p Policy) Decide(toolName string, readOnly bool, args json.RawMessage) Decision {
+	if reason := p.monotonicDeny(toolName, args); reason != "" {
+		return DecisionDeny
+	}
 	for _, r := range p.Deny {
 		if r.Matches(toolName, args) {
 			return DecisionDeny

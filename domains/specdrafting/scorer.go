@@ -1,6 +1,10 @@
 package specdrafting
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/xujian519/mady/domains/rulekit"
+)
 
 // SpecScorer 基于规则引擎输出进行多维度质量评分。
 type SpecScorer struct {
@@ -33,6 +37,7 @@ func (s *SpecScorer) Score(spec *SpecOutput, input SpecInput) *ScoreReport {
 		Violations:      allViolations,
 		Suggestions:     suggestions,
 		Grade:           gradeFromScore(overall),
+		Verdict:         rulekit.AggregateWithDefault(allViolations),
 	}
 }
 

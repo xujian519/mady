@@ -417,8 +417,16 @@ func generateConclusionNode(provider agentcore.Provider) graph.PregelNode {
 		prompt += "3. 置信度：high/medium/low\n\n"
 		prompt += "请输出 JSON 格式。"
 
-		inputText := fmt.Sprintf("第 1 步（现有技术审查）:\n%s\n\n第 2 步（单独对比）:\n%s\n\n第 3 步（抵触申请审查）:\n%s\n\n第 4 步（宽限期与优先权）:\n%s\n\n特殊领域:\n%s",
-			priorArt, compare, conflict, gracePriority, specialDomain)
+		// 确定性数值范围核验（步骤 2.5）：有产出时并入结论输入；与语义轨
+		// 不一致时结论必须显式回应。
+		numericSegment := ""
+		if raw, ok := state[StateKeyNumericRange].(*NumericRangeAnalysis); ok && raw != nil &&
+			raw.Verdict != NumericInconclusive {
+			numericSegment = fmt.Sprintf("\n\n第 2.5 步（数值范围确定性核验）:\n%s", raw.Summary)
+		}
+
+		inputText := fmt.Sprintf("第 1 步（现有技术审查）:\n%s\n\n第 2 步（单独对比）:\n%s%s\n\n第 3 步（抵触申请审查）:\n%s\n\n第 4 步（宽限期与优先权）:\n%s\n\n特殊领域:\n%s",
+			priorArt, compare, numericSegment, conflict, gracePriority, specialDomain)
 
 		agent := newNoveltyAgent(provider, "novelty-conclusion", prompt, conclusionSchema())
 		defer agent.Close()

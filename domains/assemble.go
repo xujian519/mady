@@ -1,9 +1,12 @@
 package domains
 
 import (
+	"path/filepath"
+
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains/checker"
 	"github.com/xujian519/mady/guardrails"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // injectDomainSharedExtensions 追加领域 Agent 装配共用的扩展段落：
@@ -43,15 +46,37 @@ func appendDraftingExtensions(cfg *agentcore.Config) {
 	cfg.Extensions = append(cfg.Extensions, &OrchestrationExtension{})
 }
 
-// appendGatewayLifecycle 追加 DoomLoop 死循环检测 + Gateway 统一决策入口段落：
-// 注册默认 DoomLoop hook，构建 Gateway，将 gateway.Fallback 挂到
-// cfg.FallbackRouter 并注册到 Lifecycle。
+// appendResultOffload 追加工具结果落盘段落：超过阈值的大工具结果（文件读取、
+// 检索、浏览器抓取等）在持久化前替换为"头尾摘要 + 落盘句柄"，完整内容保存
+// 到 $MADY_HOME/offload/（内容寻址，幂等）。落盘失败时保留原结果——best-effort
+// 降级，绝不把成功的工具调用变成失败。
+//
+// 复用 agentcore.ToolResultBudget（PilotDeck ToolResultBudget 移植）；此前仅有
+// 库与测试、无运行时接线。挂在 appendGatewayLifecycle 内与 DoomLoop 同覆盖面
+// （Patent/Legal/Unified/Project 四处装配块）。
+func appendResultOffload(cfg *agentcore.Config) {
+	home, err := util.MadyHome()
+	if err != nil {
+		// MadyHome 不可解析时跳过接线：无落盘只是退回纯上下文内处理，
+		// 不阻断 Agent 启动。
+		return
+	}
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
+		agentcore.NewToolResultBudget(agentcore.ToolResultBudgetConfig{
+			RootDir: filepath.Join(home, "offload"),
+		}))
+}
+
+// appendGatewayLifecycle 追加 DoomLoop 死循环检测 + 工具结果落盘 + Gateway
+// 统一决策入口段落：注册默认 DoomLoop hook，注册工具结果落盘 hook，构建
+// Gateway，将 gateway.Fallback 挂到 cfg.FallbackRouter 并注册到 Lifecycle。
 //
 // Patent/Legal/Unified/Project 四处装配块重复；modify 供 UnifiedAgentConfig
 // 挂接 gatewayModifier（nil 时跳过）。接入契约：注册 Gateway 后不得再单独
 // 注册 ReasoningRouter / ReasoningStrategyRouter / FallbackRouter。
 func appendGatewayLifecycle(cfg *agentcore.Config, modify func(*agentcore.Gateway)) {
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, defaultDoomLoopHook())
+	appendResultOffload(cfg)
 	gateway := newDefaultGateway(*cfg)
 	if modify != nil {
 		modify(gateway)

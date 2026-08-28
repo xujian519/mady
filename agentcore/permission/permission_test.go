@@ -334,3 +334,57 @@ func TestTUIChannelApprover(t *testing.T) {
 		t.Errorf("Approve() after cancel returned %v; want Deny", d)
 	}
 }
+
+// =============================================================================
+// 单调拒绝层（monotonic deny）——不可覆盖性
+// =============================================================================
+
+func TestMonotonicDeny_RuleOverridesAllow(t *testing.T) {
+	// 即便 Allow 规则完全匹配，单调拒绝仍胜出。
+	p := Policy{
+		Mode:          DecisionAllow,
+		MonotonicDeny: []Rule{{Tool: "judge_type_specific"}},
+		Allow:         []Rule{{Tool: "judge_type_specific"}},
+	}
+	got := p.Decide("judge_type_specific", true, json.RawMessage(`{}`))
+	if got != DecisionDeny {
+		t.Errorf("monotonic deny must override allow, got %s", got)
+	}
+	// 其他工具不受影响。
+	if got := p.Decide("other_tool", true, json.RawMessage(`{}`)); got != DecisionAllow {
+		t.Errorf("non-matching tool should be allowed, got %s", got)
+	}
+}
+
+func TestMonotonicDeny_FnOverridesAskAndDeny(t *testing.T) {
+	called := 0
+	fn := func(toolName string, args json.RawMessage) (string, bool) {
+		called++
+		return "形式要件缺失", toolName == "evidence_tool"
+	}
+	p := Policy{
+		Mode:             DecisionAllow,
+		MonotonicDenyFns: []DenyCheck{fn},
+		Ask:              []Rule{{Tool: "evidence_tool"}},
+	}
+	if got := p.Decide("evidence_tool", false, json.RawMessage(`{"a":1}`)); got != DecisionDeny {
+		t.Errorf("fn deny must win over ask, got %s", got)
+	}
+	if called != 1 {
+		t.Errorf("deny fn should be called once, got %d", called)
+	}
+	if got := p.Decide("other_tool", true, json.RawMessage(`{}`)); got != DecisionAllow {
+		t.Errorf("non-matching tool should pass, got %s", got)
+	}
+}
+
+func TestMonotonicDeny_EmptyLayerNoBehaviorChange(t *testing.T) {
+	// 单调层为空时，Decide 行为与既有优先级完全一致。
+	p := ProjectAgentPolicy()
+	if got := p.Decide(ToolBash, false, json.RawMessage(`{"command":"ls"}`)); got != DecisionAsk {
+		t.Errorf("bash should still ask, got %s", got)
+	}
+	if got := p.Decide("read_file", true, json.RawMessage(`{"path":"x"}`)); got != DecisionAllow {
+		t.Errorf("read-only should still allow, got %s", got)
+	}
+}

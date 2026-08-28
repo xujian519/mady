@@ -14,18 +14,20 @@ import (
 // 图拓扑:
 //
 //	load_input → step_prior_art_check → step_single_compare →
-//	step_conflict_check → step_grace_priority
-//	     │ (TechDomain非空)                   │ (TechDomain为空)
-//	     └→ step_special_domain ─┐            └→ generate_conclusion
+//	step_numeric_range → step_conflict_check → step_grace_priority
+//	     │ (TechDomain非空)                              │ (TechDomain为空)
+//	     └→ step_special_domain ─┐                       └→ generate_conclusion
 //	                             └→ generate_conclusion → __end__
 //
-// 每步均为单 Agent LLM 节点，输出结构化 JSON。
+// LLM 步骤均为单 Agent 节点，输出结构化 JSON；step_numeric_range 是确定性
+// 数值范围核验节点（纯函数），与语义轨的单独对比并行交叉对照。
 // 结论逻辑：HasNovelty = (现有技术未全部公开) AND (抵触申请不成立)
 func BuildNoveltyGraph(provider agentcore.Provider) (*graph.CompiledPregelGraph, error) {
 	nodes := map[string]graph.PregelNode{
 		"load_input":           loadInputNode(),
 		"step_prior_art_check": stepPriorArtCheckNode(provider),
 		"step_single_compare":  stepSingleCompareNode(provider),
+		"step_numeric_range":   numericRangeNode(),
 		"step_conflict_check":  stepConflictCheckNode(provider),
 		"step_grace_priority":  stepGracePriorityNode(provider),
 		"step_special_domain":  stepSpecialDomainNode(provider),
@@ -36,7 +38,8 @@ func BuildNoveltyGraph(provider agentcore.Provider) (*graph.CompiledPregelGraph,
 	edges := [][2]string{
 		{"load_input", "step_prior_art_check"},
 		{"step_prior_art_check", "step_single_compare"},
-		{"step_single_compare", "step_conflict_check"},
+		{"step_single_compare", "step_numeric_range"},
+		{"step_numeric_range", "step_conflict_check"},
 		{"step_conflict_check", "step_grace_priority"},
 		{"step_special_domain", "generate_conclusion"},
 		{"generate_conclusion", graph.PregelEnd},

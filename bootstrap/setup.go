@@ -24,6 +24,7 @@ import (
 	"github.com/xujian519/mady/domains/provenance"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/guardrails/guardian"
+	"github.com/xujian519/mady/invariant"
 	"github.com/xujian519/mady/knowledge"
 	"github.com/xujian519/mady/knowledge/fileindex"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
@@ -204,6 +205,13 @@ func Setup(ctx context.Context, opts Options) (*Context, error) {
 
 	// Manifest 加载。
 	LoadManifests(fc)
+
+	// 运行时不变量自检（包 companion 注册的检查统一在此执行）：
+	// 违规以 Warn 记录但不阻断启动——自检是生产环境观测而非门禁；
+	// MADY_INVARIANTS_DISABLE 正则可显式豁免（配置错误本身会被上报）。
+	for _, v := range invariant.RunAll() {
+		slog.Warn("运行时不变量违规", "check", v.Check.Package+"/"+v.Check.Name, "error", v.Err)
+	}
 
 	// 用户自定义风格目录。
 	if fc.MadyHome != "" {

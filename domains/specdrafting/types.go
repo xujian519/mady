@@ -151,7 +151,13 @@ type ScoreReport struct {
 	Violations      []Violation        `json:"violations"`
 	Suggestions     []string           `json:"suggestions"`
 	Grade           string             `json:"grade"` // A/B/C/D
+	// Verdict 是按统一判级聚合协议（rulekit.Aggregate）得出的判级结论，
+	// 供工作流质量门禁消费：blocked 的产出不得进入下游交付。
+	Verdict Verdict `json:"verdict"`
 }
+
+// Verdict 是统一判级结论的类型别名（对齐 rulekit 协议）。
+type Verdict = rulekit.Verdict
 
 // 评分维度常量
 const (

@@ -75,6 +75,11 @@ type Config struct {
 	// CompactionMax is the max consecutive compaction summaries without progress. 0=disabled.
 	CompactionMax int
 
+	// ReminderThresholds 列出触发建议性提醒的连续同参调用次数（在下一轮模型
+	// 请求注入提醒，不阻塞不终止）。空表示禁用。默认 3/5/8 次，先于
+	// ToolCallLoopMax 的硬熔断给模型一次自纠机会。
+	ReminderThresholds []int
+
 	// OnSignal is an optional callback triggered when any detector fires.
 	OnSignal func(Signal)
 }
@@ -88,6 +93,7 @@ func DefaultConfig() Config {
 		EmptyResultMax:          5,
 		CircuitBreakerMax:       100,
 		CompactionMax:           5,
+		ReminderThresholds:      []int{3, 5, 8},
 	}
 }
 
@@ -112,6 +118,15 @@ func WithCircuitBreaker(n int) Option { return func(c *Config) { c.CircuitBreake
 // WithCompactionMax sets the maximum consecutive compaction summaries without progress.
 func WithCompactionMax(n int) Option { return func(c *Config) { c.CompactionMax = n } }
 
+// WithReminderThresholds sets the consecutive same-call counts at which an
+// advisory reminder is injected. Empty slice or nil disables the reminder.
+func WithReminderThresholds(counts ...int) Option {
+	return func(c *Config) { c.ReminderThresholds = counts }
+}
+
+// WithoutReminder disables the advisory repeat-call reminder.
+func WithoutReminder() Option { return func(c *Config) { c.ReminderThresholds = nil } }
+
 // WithOnSignal sets a callback function invoked when any detector fires.
 func WithOnSignal(fn func(Signal)) Option { return func(c *Config) { c.OnSignal = fn } }
 
@@ -120,7 +135,9 @@ func WithOnSignal(fn func(Signal)) Option { return func(c *Config) { c.OnSignal 
 // ============================================================================
 
 // DoomLoop coordinates all registered detectors and implements
-// agentcore.LifecycleHook to plug into the agent runtime.
+// agentcore.LifecycleHook to plug into the agent runtime. 除致命检测器外，
+// 它还携带建议性防循环提醒（reminderState）：连续同参工具调用达到阈值时，
+// 在下一轮模型请求注入一条提醒，先于硬熔断给模型自纠机会。
 type DoomLoop struct {
 	mu        sync.Mutex
 	config    Config
@@ -128,6 +145,10 @@ type DoomLoop struct {
 
 	// aggregated state
 	signals []Signal
+
+	// advisory reminder state（mu 保护；thresholds 在 New 时构建为只读集合）
+	reminder           reminderState
+	reminderThresholds map[int]bool
 }
 
 // New creates a DoomLoop with the given options.
@@ -138,6 +159,12 @@ func New(opts ...Option) *DoomLoop {
 	}
 
 	dl := &DoomLoop{config: cfg}
+	dl.reminderThresholds = make(map[int]bool, len(cfg.ReminderThresholds))
+	for _, n := range cfg.ReminderThresholds {
+		if n > 0 {
+			dl.reminderThresholds[n] = true
+		}
+	}
 
 	// Build detector list based on config.
 	if cfg.ToolCallLoopMax > 0 {
@@ -181,6 +208,7 @@ func (dl *DoomLoop) Reset() {
 	dl.mu.Lock()
 	defer dl.mu.Unlock()
 	dl.signals = nil
+	dl.reminder = reminderState{}
 	for _, d := range dl.detectors {
 		d.Reset()
 	}
@@ -219,7 +247,32 @@ func (h *doomLoopHook) BeforeAgentRun(_ context.Context, arc *agentcore.AgentRun
 func (h *doomLoopHook) AfterAgentRun(_ context.Context, _ *agentcore.AgentRunContext, _ string, _ error) {
 }
 
-func (h *doomLoopHook) BeforeModelCall(_ context.Context, _ *agentcore.AgentRunContext, _ *agentcore.ModelCallContext) error {
+func (h *doomLoopHook) BeforeModelCall(_ context.Context, _ *agentcore.AgentRunContext, mcc *agentcore.ModelCallContext) error {
+	if mcc == nil || mcc.Request == nil {
+		return nil
+	}
+	dl := h.parent
+	dl.mu.Lock()
+	// 真实用户消息变化开启新一轮：连击计数与待注入提醒清零。
+	// 提醒消息自带标记前缀，扫描时跳过，不会把上一次注入误判为新轮次；
+	// 首次观察只记录用户消息不清零（连击可能已在本轮模型调用前开始累计）。
+	if userContent := lastRealUserContent(mcc.Request.Messages); userContent != dl.reminder.lastRealUser {
+		if dl.reminder.lastRealUser == "" {
+			dl.reminder.lastRealUser = userContent
+		} else {
+			dl.reminder = reminderState{lastRealUser: userContent}
+		}
+	}
+	pending := dl.reminder.pending
+	dl.reminder.pending = ""
+	dl.mu.Unlock()
+	if pending == "" {
+		return nil
+	}
+	mcc.Request.Messages = append(mcc.Request.Messages, agentcore.Message{
+		Role:    agentcore.RoleUser,
+		Content: pending,
+	})
 	return nil
 }
 
@@ -262,6 +315,10 @@ func (h *doomLoopHook) AfterToolExecution(_ context.Context, _ *agentcore.AgentR
 		if sig := d.RecordToolResult(tec); sig != nil {
 			pending = append(pending, *sig)
 		}
+	}
+	// 建议性提醒与致命检测器共享锁窗口；计数独立于 detector 状态。
+	if len(dl.reminderThresholds) > 0 {
+		dl.reminder.record(tec.ToolCalls, dl.reminderThresholds)
 	}
 	dl.mu.Unlock()
 	for _, s := range pending {

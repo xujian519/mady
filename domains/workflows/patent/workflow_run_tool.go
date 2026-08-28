@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
@@ -56,17 +57,27 @@ func NewPatentWorkflowRunTool(prov *provenance.ProvenanceLogger) *agentcore.Tool
 			steps := make([]map[string]string, 0, len(m.Steps))
 			for _, s := range m.Steps {
 				label, _ := ResolveWorkflowEntryPoint(s.EntryPoint)
-				steps = append(steps, map[string]string{
+				step := map[string]string{
 					"id":          s.ID,
 					"step_type":   s.StepType,
 					"entry_point": s.EntryPoint,
 					"entry_label": label,
-				})
+				}
+				detail := s.ID + " → " + label
+				// 条件回退声明：随计划下发，执行侧据此在产出命中时回退重做。
+				if s.Retry != nil {
+					step["retry_when_output_matches"] = s.Retry.WhenOutputMatches
+					step["retry_rewind_to"] = s.Retry.RewindTo
+					step["retry_max_retries"] = strconv.Itoa(s.Retry.MaxRetries)
+					detail += fmt.Sprintf(" ↻ 命中 /%s/ 时回退 %s（最多 %d 次）",
+						s.Retry.WhenOutputMatches, s.Retry.RewindTo, s.Retry.MaxRetries)
+				}
+				steps = append(steps, step)
 				_ = prov.Log(provenance.ProvenanceEvent{
 					Kind:       provenance.KindWorkflowStep,
 					Tool:       "patent_workflow_run",
 					WorkflowID: m.ID,
-					Details:    s.ID + " → " + label,
+					Details:    detail,
 				})
 			}
 

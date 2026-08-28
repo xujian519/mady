@@ -1,6 +1,7 @@
 package ipc
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -388,5 +389,55 @@ func TestMatchKeywordsInText_NoMatch(t *testing.T) {
 	matched := matchKeywordsInText("今天天气很好", AllDomains[IPCA].Keywords)
 	if len(matched) != 0 {
 		t.Errorf("expected 0 matches, got %d: %v", len(matched), matched)
+	}
+}
+
+// =============================================================================
+// Section 11: 置信度饱和校准（绝对命中数，消除关键词表长度偏差）
+// =============================================================================
+
+// TestConfidenceCalibration_HitCountOnly 验证置信度只依赖绝对命中数：
+// 不同大类命中相同数量的关键词时，置信度必须相等。
+func TestConfidenceCalibration_HitCountOnly(t *testing.T) {
+	// "医药治疗" 只命中 A 部 2 个关键词，"电池天线" 只命中 H 部 2 个关键词。
+	a := ClassifyDetailed("医药治疗")
+	h := ClassifyDetailed("电池天线")
+
+	if a.Section != IPCA {
+		t.Fatalf("expected section A, got %s (matched %v)", a.Section, a.MatchedKeywords)
+	}
+	if h.Section != IPCH {
+		t.Fatalf("expected section H, got %s (matched %v)", h.Section, h.MatchedKeywords)
+	}
+	if math.Abs(a.Confidence-h.Confidence) > 1e-9 {
+		t.Errorf("same hit count must yield same confidence: A=%.4f H=%.4f", a.Confidence, h.Confidence)
+	}
+
+	// 2 次命中的期望值：0.5 + 0.5*(1-e^(-2/8)) ≈ 0.611，仍低于高置信阈值。
+	want := minConfidenceForKeyword + 0.5*(1.0-math.Exp(-2.0/confidenceSaturationK))
+	if math.Abs(a.Confidence-want) > 1e-9 {
+		t.Errorf("confidence = %.4f, want %.4f", a.Confidence, want)
+	}
+	if a.Confidence >= highConfidenceThreshold {
+		t.Errorf("2 hits must not reach high confidence, got %.4f", a.Confidence)
+	}
+}
+
+// TestConfidenceCalibration_Monotonic 验证置信度随命中数单调递增并趋于饱和。
+func TestConfidenceCalibration_Monotonic(t *testing.T) {
+	keywords := AllDomains[IPCA].Keywords
+	prev := 0.0
+	// 逐个累加关键词构造文本，命中数从 1 增到 8。
+	var text strings.Builder
+	for i, kw := range keywords {
+		if i >= 8 {
+			break
+		}
+		text.WriteString(kw)
+		_, conf := Classify(text.String())
+		if conf <= prev {
+			t.Errorf("confidence must increase with hits: %d hits conf=%.4f prev=%.4f", i+1, conf, prev)
+		}
+		prev = conf
 	}
 }

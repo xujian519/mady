@@ -33,8 +33,10 @@ func newTypeSpecificTool(engine *DefaultEngine) *agentcore.Tool {
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"source_uri":         map[string]any{"type": "string", "description": "证据来源 URI"},
-				"evidence_type_hint": map[string]any{"type": "string", "description": "手动指定证据类型（可选）"},
+				"source_uri":          map[string]any{"type": "string", "description": "证据来源 URI"},
+				"evidence_type_hint":  map[string]any{"type": "string", "description": "手动指定证据类型（可选）"},
+				"notarization_status": map[string]any{"type": "string", "description": "公证认证状态声明（域外证据必填，如 completed/已认证）"},
+				"translation_status":  map[string]any{"type": "string", "description": "译本状态声明（外文证据必填，如 completed/有译本）"},
 			},
 			"required":             []string{"source_uri"},
 			"additionalProperties": false,
@@ -47,6 +49,10 @@ func newTypeSpecificTool(engine *DefaultEngine) *agentcore.Tool {
 type typeSpecificArgs struct {
 	SourceURI        string `json:"source_uri"`
 	EvidenceTypeHint string `json:"evidence_type_hint"`
+	// NotarizationStatus / TranslationStatus 是形式要件声明，供单调拒绝层
+	// （FormRequirementDenyCheck）在执行前核验；工具本体不消费。
+	NotarizationStatus string `json:"notarization_status,omitempty"`
+	TranslationStatus  string `json:"translation_status,omitempty"`
 }
 
 func (t *typeSpecificTool) Run(_ context.Context, args json.RawMessage) (any, error) {

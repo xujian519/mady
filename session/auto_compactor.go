@@ -11,14 +11,17 @@ import (
 )
 
 // CompactionConfig configures automatic session compaction.
-// NOTE: Compaction is currently triggered by message count only, not by
-// token usage. Sessions with few but very long messages may overflow the
-// model context window without triggering compaction. A token-based
-// threshold (MaxTokens) should be added in a future iteration.
 type CompactionConfig struct {
 	// MaxMessages triggers compaction when the session exceeds this many messages.
 	// Default: 50.
 	MaxMessages int
+
+	// MaxTokens triggers compaction when the estimated token count of all
+	// message entries exceeds this value. Sessions with few but very long
+	// messages may otherwise overflow the model context window without ever
+	// hitting MaxMessages. 0 disables the token trigger (message-count
+	// trigger still applies). Default: 20000.
+	MaxTokens int64
 
 	// KeepRecent is the number of most recent messages to keep uncompacted.
 	// Default: 10.
@@ -32,14 +35,16 @@ type CompactionConfig struct {
 func DefaultCompactionConfig() CompactionConfig {
 	return CompactionConfig{
 		MaxMessages: 50,
+		MaxTokens:   20000,
 		KeepRecent:  10,
 		Enabled:     false,
 	}
 }
 
 // AutoCompactor monitors a session and triggers compaction when the message
-// count exceeds the configured threshold. Compaction replaces older messages
-// with a summary entry, keeping recent messages intact.
+// count exceeds MaxMessages or the estimated message tokens exceed MaxTokens.
+// Compaction replaces older messages with a summary entry, keeping recent
+// messages intact.
 type AutoCompactor struct {
 	config CompactionConfig
 	mgr    *Manager
@@ -53,6 +58,9 @@ func NewAutoCompactor(mgr *Manager, config CompactionConfig) *AutoCompactor {
 	if config.KeepRecent <= 0 {
 		config.KeepRecent = 10
 	}
+	if config.MaxTokens < 0 {
+		config.MaxTokens = 0
+	}
 	return &AutoCompactor{
 		config: config,
 		mgr:    mgr,
@@ -60,8 +68,8 @@ func NewAutoCompactor(mgr *Manager, config CompactionConfig) *AutoCompactor {
 }
 
 // CheckAndCompact examines the current session and triggers compaction
-// if the message count exceeds MaxMessages. Returns true if compaction
-// was performed.
+// if the message count exceeds MaxMessages or the estimated token count
+// exceeds MaxTokens. Returns true if compaction was performed.
 func (a *AutoCompactor) CheckAndCompact(ctx context.Context) (bool, error) {
 	if !a.config.Enabled {
 		return false, nil
@@ -70,13 +78,24 @@ func (a *AutoCompactor) CheckAndCompact(ctx context.Context) (bool, error) {
 	entries := a.mgr.Entries()
 	msgCount := countMessages(entries)
 
-	if msgCount <= a.config.MaxMessages {
+	// 没有可压缩的旧消息时不动手：避免 KeepRecent 之外为空时的无效压缩
+	// （token 触发下尤其重要，否则近几条长消息会反复触发空转压缩）。
+	if msgCount <= a.config.KeepRecent {
+		return false, nil
+	}
+
+	estTokens := estimateEntriesTokens(entries)
+	tokenExceeded := a.config.MaxTokens > 0 && estTokens >= a.config.MaxTokens
+	if msgCount <= a.config.MaxMessages && !tokenExceeded {
 		return false, nil
 	}
 
 	slog.Info("auto-compaction triggered",
 		"message_count", msgCount,
 		"threshold", a.config.MaxMessages,
+		"estimated_tokens", estTokens,
+		"token_threshold", a.config.MaxTokens,
+		"token_triggered", tokenExceeded,
 		"keep_recent", a.config.KeepRecent,
 	)
 
@@ -107,6 +126,24 @@ func countMessages(entries []Entry) int {
 		}
 	}
 	return count
+}
+
+// estimateEntriesTokens estimates the token count of all message entries via
+// agentcore.EstimateMessageTokens（与 agentcore 压缩同一估算口径）。解析失败的
+// 条目跳过——坏消息不应阻塞压缩判定。
+func estimateEntriesTokens(entries []Entry) int64 {
+	var total int64
+	for _, e := range entries {
+		if e.Type != EntryMessage {
+			continue
+		}
+		var msg agentcore.Message
+		if err := json.Unmarshal(e.Data, &msg); err != nil {
+			continue
+		}
+		total += agentcore.EstimateMessageTokens(msg)
+	}
+	return total
 }
 
 // buildSummary creates a simple summary from the messages that will be compacted.

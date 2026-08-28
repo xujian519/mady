@@ -139,6 +139,9 @@ type parsedConclusion struct {
 const (
 	StateKeyNoveltyInput  = "novelty_input"
 	StateKeyNoveltyResult = "novelty_result"
+	// StateKeyNumericRange 是确定性数值范围核验节点（step_numeric_range）
+	// 的产出键，值为 *NumericRangeAnalysis。
+	StateKeyNumericRange  = "novelty_numeric_range"
 	stateKeyPriorArt      = "novelty_prior_art"
 	stateKeyCompare       = "novelty_compare"
 	stateKeyConflict      = "novelty_conflict"

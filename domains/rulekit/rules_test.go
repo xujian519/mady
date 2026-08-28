@@ -178,3 +178,60 @@ func TestEngineConcurrent(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// =============================================================================
+// 判级聚合（verdict）
+// =============================================================================
+
+func TestAggregate_Empty(t *testing.T) {
+	if got := AggregateWithDefault(nil); got != VerdictPass {
+		t.Errorf("empty violations should pass, got %s", got)
+	}
+}
+
+func TestAggregate_AnyErrorBlocks(t *testing.T) {
+	vs := []Violation{
+		{Severity: SeverityInfo, Message: "a"},
+		{Severity: SeverityError, Message: "b"},
+	}
+	if got := AggregateWithDefault(vs); got != VerdictBlocked {
+		t.Errorf("any error must block, got %s", got)
+	}
+}
+
+func TestAggregate_WarningThresholds(t *testing.T) {
+	one := []Violation{{Severity: SeverityWarning}, {Severity: SeverityInfo}, {Severity: SeverityInfo}}
+	// DSH 默认：任一 Should 失败 → blocked。
+	if got := AggregateWithDefault(one); got != VerdictBlocked {
+		t.Errorf("single warning must block under default policy, got %s", got)
+	}
+	// 放宽 Should 阈值到 2：单 warning 不再阻断，info 不足 3 → pass。
+	two := []Violation{{Severity: SeverityWarning}}
+	if got := Aggregate(two, AggregatePolicy{ShouldBlockedAt: 2, InfoRevisionAt: 3}); got != VerdictPass {
+		t.Errorf("relaxed policy: single warning should pass, got %s", got)
+	}
+	// 放宽 Should 阈值到 2 且两条 warning → blocked。
+	tw := []Violation{{Severity: SeverityWarning}, {Severity: SeverityWarning}}
+	if got := Aggregate(tw, AggregatePolicy{ShouldBlockedAt: 2, InfoRevisionAt: 3}); got != VerdictBlocked {
+		t.Errorf("two warnings at threshold 2 must block, got %s", got)
+	}
+}
+
+func TestAggregate_InfoRevisionThreshold(t *testing.T) {
+	three := []Violation{{Severity: SeverityInfo}, {Severity: SeverityInfo}, {Severity: SeverityInfo}}
+	if got := AggregateWithDefault(three); got != VerdictNeedsRevision {
+		t.Errorf("3 infos must need revision, got %s", got)
+	}
+	two := three[:2]
+	if got := AggregateWithDefault(two); got != VerdictPass {
+		t.Errorf("2 infos should pass, got %s", got)
+	}
+}
+
+func TestAggregate_ZeroPolicyFallsBackToDefault(t *testing.T) {
+	// 阈值 ≤0 视为配置错误，回退默认，不得全放行。
+	vs := []Violation{{Severity: SeverityWarning}}
+	if got := Aggregate(vs, AggregatePolicy{}); got != VerdictBlocked {
+		t.Errorf("zero policy must fall back to default (block on warning), got %s", got)
+	}
+}

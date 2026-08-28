@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
@@ -198,5 +199,98 @@ func TestAutoCompactor_SummaryContent(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected compaction entry")
+	}
+}
+
+func TestAutoCompactor_TokenThreshold_Triggers(t *testing.T) {
+	mgr := newManager(Header{}, "", false)
+	ctx := context.Background()
+
+	cfg := DefaultCompactionConfig()
+	cfg.Enabled = true
+	cfg.MaxMessages = 1000 // 消息数不触发，只看 token
+	cfg.MaxTokens = 100
+	cfg.KeepRecent = 2
+
+	compactor := NewAutoCompactor(mgr, cfg)
+
+	// 4 条 100 字符 ASCII 消息 ≈ 每条 29 tokens，共 ≈ 116 ≥ 100。
+	longMsg := strings.Repeat("a", 100)
+	for i := 0; i < 4; i++ {
+		if err := mgr.AppendMessage(ctx, agentcore.Message{
+			Role: agentcore.RoleUser, Content: longMsg,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	compacted, err := compactor.CheckAndCompact(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !compacted {
+		t.Error("should compact when estimated tokens exceed MaxTokens")
+	}
+}
+
+func TestAutoCompactor_TokenThreshold_Below(t *testing.T) {
+	mgr := newManager(Header{}, "", false)
+	ctx := context.Background()
+
+	cfg := DefaultCompactionConfig()
+	cfg.Enabled = true
+	cfg.MaxMessages = 1000
+	cfg.MaxTokens = 100000 // 远超估算值
+	cfg.KeepRecent = 2
+
+	compactor := NewAutoCompactor(mgr, cfg)
+
+	longMsg := strings.Repeat("a", 100)
+	for i := 0; i < 4; i++ {
+		if err := mgr.AppendMessage(ctx, agentcore.Message{
+			Role: agentcore.RoleUser, Content: longMsg,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	compacted, err := compactor.CheckAndCompact(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if compacted {
+		t.Error("should not compact below token threshold")
+	}
+}
+
+func TestAutoCompactor_TokenThreshold_NothingToCompact(t *testing.T) {
+	mgr := newManager(Header{}, "", false)
+	ctx := context.Background()
+
+	cfg := DefaultCompactionConfig()
+	cfg.Enabled = true
+	cfg.MaxMessages = 1000
+	cfg.MaxTokens = 10 // 极低阈值，估算 tokens 必然超过
+	cfg.KeepRecent = 10
+
+	compactor := NewAutoCompactor(mgr, cfg)
+
+	// 只有 4 条消息（<= KeepRecent=10），没有可压缩的旧消息：
+	// 即使 token 超阈也不应空转压缩（防抖）。
+	longMsg := strings.Repeat("a", 100)
+	for i := 0; i < 4; i++ {
+		if err := mgr.AppendMessage(ctx, agentcore.Message{
+			Role: agentcore.RoleUser, Content: longMsg,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	compacted, err := compactor.CheckAndCompact(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if compacted {
+		t.Error("should not compact when nothing older than KeepRecent exists")
 	}
 }

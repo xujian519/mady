@@ -134,6 +134,8 @@ type ClaimChart struct {
 	Rows        []ChartRow     `json:"rows"`
 	Gaps        []GapEntry     `json:"gaps"`
 	DraftNotice string         `json:"draftNotice"`
+	// PinCiteIssues 汇总逐格 pin-cite 校验问题（仅对提供了源文的 target 校验）。
+	PinCiteIssues []PinCiteIssue `json:"pinCiteIssues,omitempty"`
 }
 
 // ChartTargetInput is the tool input shape for a target.
@@ -221,11 +223,12 @@ func handleClaimChart(_ context.Context, args json.RawMessage) (any, error) {
 	}
 
 	output := map[string]any{
-		"ok":        true,
-		"chart":     chart,
-		"gap_count": len(chart.Gaps),
-		"claim_nos": chart.ClaimNos,
-		"mode":      chart.Mode,
+		"ok":                   true,
+		"chart":                chart,
+		"gap_count":            len(chart.Gaps),
+		"pin_cite_issue_count": len(chart.PinCiteIssues),
+		"claim_nos":            chart.ClaimNos,
+		"mode":                 chart.Mode,
 	}
 	if input.CaseID != "" {
 		output["case_id"] = input.CaseID
@@ -299,17 +302,33 @@ func BuildClaimChart(input ChartInput) (*ClaimChart, error) {
 		}
 	}
 
+	// pin-cite 逐格校验：有源文的行核验引文与段号定位符，全部通过才标记
+	// Verified。校验问题随表输出，供人工复核时定位（确定性校验，不调 LLM）。
+	var pinCiteIssues []PinCiteIssue
+	for i := range rows {
+		source, ok := targetTexts[rows[i].TargetID]
+		if !ok || source == "" {
+			continue
+		}
+		rowIssues := validateRow(i, rows[i], source)
+		if len(rowIssues) == 0 && rows[i].Quote != "" {
+			rows[i].Verified = true
+		}
+		pinCiteIssues = append(pinCiteIssues, rowIssues...)
+	}
+
 	id := chartID(input)
 	return &ClaimChart{
-		ChartID:     id,
-		Mode:        input.Mode,
-		CaseID:      input.CaseID,
-		Elements:    elements,
-		ClaimNos:    claimNos,
-		Targets:     targets,
-		Rows:        rows,
-		Gaps:        gaps,
-		DraftNotice: DraftNotice,
+		ChartID:       id,
+		Mode:          input.Mode,
+		CaseID:        input.CaseID,
+		Elements:      elements,
+		ClaimNos:      claimNos,
+		Targets:       targets,
+		Rows:          rows,
+		Gaps:          gaps,
+		DraftNotice:   DraftNotice,
+		PinCiteIssues: pinCiteIssues,
 	}, nil
 }
 
@@ -432,9 +451,24 @@ func matchElementToTarget(e ClaimElement, t ChartTarget, targetText string) Char
 	// Find the best matching sentence/phrase in target text.
 	best, score := findBestMatch(e.Text, elementWords, targetText)
 	if best != "" {
+		// 引文只允许逐字前缀截断（不追加省略号），保证 quote 始终是源文的
+		// 逐字子串，可被 pin-cite 校验器验证。
 		row.Quote = best
-		row.PinCite = fmt.Sprintf("[%s 命中片段]", t.ID)
+		truncated := false
+		if n := len([]rune(best)); n > maxQuoteRunes {
+			row.Quote = string([]rune(best)[:maxQuoteRunes])
+			truncated = true
+		}
+		// 命中片段自带段号定位符（如 [0032]）时升级为真正的 pin-cite。
+		if locs := extractParagraphLocators(best); len(locs) > 0 {
+			row.PinCite = fmt.Sprintf("[%s %s]", t.ID, strings.Join(locs, " "))
+		} else {
+			row.PinCite = fmt.Sprintf("[%s 命中片段]", t.ID)
+		}
 		row.Note = fmt.Sprintf("关键词重叠度 %.0f%%", score*100)
+		if truncated {
+			row.Note += "；引文超长，仅截取前 300 字，人工复核时请对照 pin-cite 定位原文"
+		}
 		if score >= 0.7 {
 			if t.Kind == TargetPriorArt {
 				row.Mapping = MappingAnticipation
@@ -505,7 +539,7 @@ func findBestMatch(elementText string, keywords []string, targetText string) (st
 	if bestScore <= 0 {
 		return "", 0
 	}
-	return truncateSentence(best, 300), bestScore
+	return best, bestScore
 }
 
 func splitSentences(text string) []string {
@@ -543,14 +577,6 @@ func findBestWindow(keywords []string, text string, window int) (string, float64
 		}
 	}
 	return best, bestScore
-}
-
-func truncateSentence(s string, maxChars int) string {
-	r := []rune(s)
-	if len(r) <= maxChars {
-		return s
-	}
-	return string(r[:maxChars]) + "…"
 }
 
 func suggestAction(mode ChartMode, kind TargetKind) string {

@@ -14,3 +14,8 @@ steps:
   - id: s4-check
     step_type: check
     entry_point: checker-review
+    # 条件回退（DSH manifest retry 语义）：检查不过时回到起草步骤重做。
+    retry:
+      when_output_matches: "需修订|不合格|缺少|不一致"
+      rewind_to: s3-draft
+      max_retries: 1

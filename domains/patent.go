@@ -13,6 +13,7 @@ import (
 	"github.com/xujian519/mady/domains/claimdrafting"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
+	"github.com/xujian519/mady/domains/evidence"
 	"github.com/xujian519/mady/domains/iface"
 	"github.com/xujian519/mady/domains/infringement"
 	"github.com/xujian519/mady/domains/inventiveness"
@@ -22,6 +23,7 @@ import (
 	"github.com/xujian519/mady/domains/provisions"
 	"github.com/xujian519/mady/domains/reasoning"
 	"github.com/xujian519/mady/domains/rules"
+	"github.com/xujian519/mady/domains/slop"
 	"github.com/xujian519/mady/domains/specdrafting"
 	"github.com/xujian519/mady/domains/workercontract"
 	"github.com/xujian519/mady/domains/workflows/design"
@@ -383,7 +385,9 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		plantask.NewPatentPlanTaskTool(),
 		plantask.NewFlexiblePlanTool(plantask.DefaultFlexiblePlanStore()),
 		claimchart.NewClaimChartTool(),
+		slop.NewSlopGateTool(),
 		workercontract.NewPatentWorkerValidateTool(),
+		workercontract.NewPatentTeamResolveTool(),
 		patent.NewPatentWorkflowRunTool(workflowProv),
 	})...)
 
@@ -466,8 +470,13 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config, toolExt agentco
 	// 权限门控：写入工具需确认，只读工具自动放行。
 	// 如果 TUI 已注入带交互式 Approver 的 PermissionExtension，此处跳过。
 	if !hasExtensionNamed(cfg.Extensions, permission.ExtensionName) {
+		policy := permission.ProjectAgentPolicy()
+		// 证据形式要件单调拒绝（EVI-011，fail-closed）：域外证据未公证认证、
+		// 外文证据无译本时拒绝证据判断调用，凌驾于任何 allow 配置之上。
+		// ⚠ 敏感路径改动（agentcore/permission 单调层 + 本行接线），合入前需人工审阅。
+		policy.MonotonicDenyFns = append(policy.MonotonicDenyFns, evidence.FormRequirementDenyCheck())
 		cfg.Extensions = append(cfg.Extensions,
-			permission.NewExtension(permission.ProjectAgentPolicy(), nil))
+			permission.NewExtension(policy, nil))
 	}
 
 	// 被动注入：调用方已装配好的工具扩展（项目级沙箱配置）。
