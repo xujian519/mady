@@ -44,6 +44,7 @@ func TestPatentAgentProvisionHandoffsIntegrated(t *testing.T) {
 	hasNovelty := false
 	hasInventiveness := false
 	hasOrchestrator := false
+	hasDomainExpert := false
 	for _, h := range cfg.Handoffs {
 		switch h.Name {
 		case "provision-novelty":
@@ -52,6 +53,8 @@ func TestPatentAgentProvisionHandoffsIntegrated(t *testing.T) {
 			hasInventiveness = true
 		case "patent-orchestrator":
 			hasOrchestrator = true
+		case "domain-A61-novelty":
+			hasDomainExpert = true
 		}
 	}
 
@@ -63,6 +66,9 @@ func TestPatentAgentProvisionHandoffsIntegrated(t *testing.T) {
 	}
 	if !hasOrchestrator {
 		t.Error("PatentAgent Handoff 中缺少 patent-orchestrator")
+	}
+	if !hasDomainExpert {
+		t.Error("PatentAgent Handoff 中缺少 domain-A61-novelty（Tier C 预注册）")
 	}
 
 	// 验证被标记为 invisible 的 provision handoff

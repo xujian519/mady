@@ -325,3 +325,70 @@ func TestListDomainWorkerNamesUnknownIPC(t *testing.T) {
 		t.Errorf("未知 IPC 应返回空，实际得到 %d 个", len(names))
 	}
 }
+
+func TestRegisterDomainExpertHandoffs(t *testing.T) {
+	m, err := LoadIpcDomainMap("")
+	if err != nil {
+		t.Fatalf("LoadIpcDomainMap() 失败: %v", err)
+	}
+	want := 0
+	for _, sec := range m.IpcSections {
+		if sec.PreRegister {
+			want++
+		}
+	}
+	want *= len(m.ProvisionSuffixes)
+	if want == 0 {
+		t.Fatal("映射表无 pre_register 段，预注册无从验证")
+	}
+
+	cfg := &agentcore.Config{}
+	got := RegisterDomainExpertHandoffs(cfg, "")
+	if got != want {
+		t.Fatalf("RegisterDomainExpertHandoffs() = %d, want %d", got, want)
+	}
+	if len(cfg.Handoffs) != want {
+		t.Fatalf("Handoffs = %d, want %d", len(cfg.Handoffs), want)
+	}
+
+	seen := make(map[string]bool, want)
+	for _, h := range cfg.Handoffs {
+		if !strings.HasPrefix(h.Name, "domain-") {
+			t.Errorf("Handoff 名 %q 应以 domain- 开头", h.Name)
+		}
+		if seen[h.Name] {
+			t.Errorf("Handoff 名重复: %s", h.Name)
+		}
+		seen[h.Name] = true
+		if h.AgentConfig.SystemPrompt == "" {
+			t.Errorf("%s 的 SystemPrompt 不应为空", h.Name)
+		}
+		if h.AllowedSources == nil {
+			t.Errorf("%s 的 AllowedSources 不应为空", h.Name)
+		}
+	}
+	if !seen["domain-A61-novelty"] {
+		t.Error("缺少预注册 Handoff domain-A61-novelty")
+	}
+}
+
+func TestListDomainWorkerNamesSubsetOfRegistered(t *testing.T) {
+	cfg := &agentcore.Config{}
+	if n := RegisterDomainExpertHandoffs(cfg, ""); n == 0 {
+		t.Fatal("预注册返回 0，无法验证一致性")
+	}
+	registered := make(map[string]bool, len(cfg.Handoffs))
+	for _, h := range cfg.Handoffs {
+		registered[h.Name] = true
+	}
+
+	names := ListDomainWorkerNames([]string{"A61", "G06", "C12"}, "")
+	if len(names) == 0 {
+		t.Fatal("ListDomainWorkerNames() 不应返回空")
+	}
+	for _, n := range names {
+		if !registered[n] {
+			t.Errorf("发现工具广告 %s 但未注册，广告与注册不一致", n)
+		}
+	}
+}

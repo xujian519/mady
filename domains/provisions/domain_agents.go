@@ -102,34 +102,40 @@ func BuildDomainSystemPrompt(section *IpcSectionEntry, provisionName string) str
 }
 
 // DomainAgentHandoffConfig 返回基于 IPC 段和条款名称的领域专家 Handoff 配置。
+// 单次按需构建入口；装配期批量预注册走 RegisterDomainExpertHandoffs。
 func DomainAgentHandoffConfig(ipcSection string, suffix string, provisionName string, base agentcore.Config) agentcore.HandoffConfig {
-	// 查找 IPC 段信息
-	ipcMap := LoadIpcDomainMapOrDefault("")
-	var section *IpcSectionEntry
+	return buildDomainHandoff(findIpcSection(LoadIpcDomainMapOrDefault(""), ipcSection), suffix, provisionName, base)
+}
+
+// findIpcSection 在映射表中按 IPC 段查找领域定义；未命中时返回使用默认标准的占位段。
+func findIpcSection(ipcMap *IpcDomainMap, ipcSection string) *IpcSectionEntry {
 	if ipcMap != nil {
 		normalized := strings.ToUpper(strings.TrimSpace(ipcSection))
 		for i := range ipcMap.IpcSections {
 			if strings.ToUpper(ipcMap.IpcSections[i].Section) == normalized {
-				section = &ipcMap.IpcSections[i]
-				break
+				return &ipcMap.IpcSections[i]
 			}
 		}
 	}
-
-	if section == nil {
-		section = &IpcSectionEntry{
-			Section:     strings.ToUpper(strings.TrimSpace(ipcSection)),
-			Name:        fmt.Sprintf("IPC %s", strings.ToUpper(strings.TrimSpace(ipcSection))),
-			Description: "未在 IPC 映射表中注册的领域，使用默认标准。",
-		}
+	return &IpcSectionEntry{
+		Section:     strings.ToUpper(strings.TrimSpace(ipcSection)),
+		Name:        fmt.Sprintf("IPC %s", strings.ToUpper(strings.TrimSpace(ipcSection))),
+		Description: "未在 IPC 映射表中注册的领域，使用默认标准。",
 	}
+}
 
-	workerName := ResolveDomainWorkerName(ipcSection, suffix)
+// buildDomainHandoff 组装单个领域专家 Handoff 配置。ipcMap 由调用方加载后
+// 经 findIpcSection 选段传入，装配期预注册循环可复用一次加载。
+func buildDomainHandoff(section *IpcSectionEntry, suffix string, provisionName string, base agentcore.Config) agentcore.HandoffConfig {
+	workerName := ResolveDomainWorkerName(section.Section, suffix)
 	cfg := base
 	cfg.Name = workerName
 	cfg.SystemPrompt = BuildDomainSystemPrompt(section, provisionName)
+	// 领域专家保持轻量：不继承扩展与生命周期，工具限定默认检索集，
+	// 防止领域专家递归调用重型专利分析工具。
 	cfg.Extensions = nil
 	cfg.Lifecycle = nil
+	cfg.Tools = filterTools(DefaultPatentTools, cfg.Tools)
 
 	return agentcore.HandoffConfig{
 		Name:        workerName,
@@ -145,6 +151,49 @@ func DomainAgentHandoffConfig(ipcSection string, suffix string, provisionName st
 		FallbackMsg: fmt.Sprintf("%s 领域专家暂时不可用，使用通用标准分析。", section.Name),
 		Invisible:   true,
 	}
+}
+
+// suffixLabels 将条款后缀映射为中文分析领域名（与条款智能体命名口径一致）。
+var suffixLabels = map[string]string{
+	"novelty":        "新颖性",
+	"inventiveness":  "创造性",
+	"disclosure":     "充分公开",
+	"claims-clarity": "清楚支持",
+	"utility":        "实用性",
+	"eligibility":    "保护客体",
+	"amendment":      "修改超范围",
+}
+
+// suffixLabel 返回条款后缀的中文领域名；未知后缀原样返回。
+func suffixLabel(suffix string) string {
+	if label := suffixLabels[suffix]; label != "" {
+		return label
+	}
+	return suffix
+}
+
+// RegisterDomainExpertHandoffs 从 IPC 映射表预注册 Tier C 领域专家 Handoff：
+// 每个 pre_register 的 IPC 段 × provision_suffixes 生成一个
+// domain-{section}-{suffix} Handoff，追加到 cfg.Handoffs。
+// mapPath 为空使用默认路径。返回注册数量；映射表不可用时降级为 0
+// （fail-open，不阻断 PatentAgent 装配）。
+func RegisterDomainExpertHandoffs(cfg *agentcore.Config, mapPath string) int {
+	ipcMap := LoadIpcDomainMapOrDefault(mapPath)
+	if ipcMap == nil || len(ipcMap.IpcSections) == 0 || len(ipcMap.ProvisionSuffixes) == 0 {
+		return 0
+	}
+	count := 0
+	for i := range ipcMap.IpcSections {
+		sec := &ipcMap.IpcSections[i]
+		if !sec.PreRegister {
+			continue
+		}
+		for _, suffix := range ipcMap.ProvisionSuffixes {
+			cfg.Handoffs = append(cfg.Handoffs, buildDomainHandoff(sec, suffix, suffixLabel(suffix), *cfg))
+			count++
+		}
+	}
+	return count
 }
 
 // ListDomainWorkerNames 返回给定 IPC 提示列表对应的所有 domain worker 名称。

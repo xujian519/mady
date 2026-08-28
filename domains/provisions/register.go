@@ -25,7 +25,8 @@ func RegisterProvisionHandoffs(cfg *agentcore.Config, manifestPath string) {
 	RegisterProvisionHandoffsFromManifest(cfg, manifest)
 }
 
-// RegisterProvisionHandoffsFromManifest 从已加载的 Manifest 注册 Handoff。
+// RegisterProvisionHandoffsFromManifest 从已加载的 Manifest 注册条款智能体
+// 与推理模式 Handoff，并预注册 Tier C IPC 领域专家 Handoff（pre_register 段）。
 // 避免重复加载 manifest 文件（与 OrchestratorHandoffConfig 共享同一 manifest）。
 func RegisterProvisionHandoffsFromManifest(cfg *agentcore.Config, manifest *PatentManifest) {
 	if manifest == nil {
@@ -51,9 +52,14 @@ func RegisterProvisionHandoffsFromManifest(cfg *agentcore.Config, manifest *Pate
 		reasoningCount++
 	}
 
+	// Tier C：预注册 IPC 领域专家 Handoff（pre_register 段 × provision_suffixes），
+	// 供编排器经 transfer_to_domain-* 委派领域特定审查标准。
+	domainCount := RegisterDomainExpertHandoffs(cfg, "")
+
 	slog.Info("provisions: 已注册条款智能体",
 		"provision_count", provisionCount,
 		"reasoning_count", reasoningCount,
+		"domain_count", domainCount,
 	)
 
 	// 校验最小完备集，记录警告而非阻塞
