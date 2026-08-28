@@ -194,5 +194,3 @@ func abbreviateProvisionName(name string) string {
 	}
 	return "专业分析"
 }
-
-// =============================================================================
