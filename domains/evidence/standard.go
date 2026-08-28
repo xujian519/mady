@@ -64,11 +64,10 @@ func AssessProofStandard(standard StandardOfProof, validCount int, total int, ga
 		// 实质性证据：至少 1 份有效直接证据
 		result.Met = validCount >= 1
 		result.Confidence = float64(validCount) / float64(total)
-		s := "实质性证据标准："
 		if !result.Met {
-			result.Reasoning = s + "缺乏实质性证据支持"
+			result.Reasoning = "实质性证据标准：缺乏实质性证据支持"
 		} else {
-			result.Reasoning = s + "存在实质性证据"
+			result.Reasoning = "实质性证据标准：存在实质性证据"
 		}
 
 	case StandardPrimaFacie:

@@ -364,10 +364,7 @@ func extractDateFromText(text string) string {
 			}
 		}
 	}
-	if bestScore >= 2 {
-		return bestCandidate
-	}
-	if bestScore == 1 {
+	if bestScore >= 1 {
 		return bestCandidate
 	}
 
