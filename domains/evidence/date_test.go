@@ -65,29 +65,24 @@ func TestDetermineInternetPublicationDate(t *testing.T) {
 	}
 }
 
-func TestIsBeforeFilingDate(t *testing.T) {
+func TestIsBeforeFilingBool(t *testing.T) {
 	tests := []struct {
 		pubDate    string
 		filingDate string
 		want       bool
-		wantErr    bool
 	}{
-		{"2023-01-01", "2023-06-01", true, false},
-		{"2023-06-01", "2023-01-01", false, false},
-		{"2023-01-01", "2023-01-01", false, false},
-		{"", "2023-06-01", false, true},
-		{"2023-01-01", "", false, true},
-		{"invalid", "2023-06-01", false, true},
+		{"2023-01-01", "2023-06-01", true},
+		{"2023-06-01", "2023-01-01", false},
+		{"2023-01-01", "2023-01-01", false},
+		{"", "2023-06-01", false},
+		{"2023-01-01", "", false},
+		{"invalid", "2023-06-01", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.pubDate+"_"+tt.filingDate, func(t *testing.T) {
-			got, reason := isBeforeFilingDate(tt.pubDate, tt.filingDate)
-			if got != tt.want {
-				t.Errorf("isBeforeFilingDate = %v, 期望 %v (reason: %s)", got, tt.want, reason)
-			}
-			if tt.wantErr && reason == "" {
-				t.Error("期望错误原因，但返回空字符串")
+			if got := isBeforeFilingBool(tt.pubDate, tt.filingDate); got != tt.want {
+				t.Errorf("isBeforeFilingBool = %v, 期望 %v", got, tt.want)
 			}
 		})
 	}

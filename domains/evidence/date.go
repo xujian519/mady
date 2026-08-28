@@ -422,35 +422,6 @@ func isBeforeFilingBool(pubDate, filingDate string) bool {
 	return pubParsed.Before(filingParsed)
 }
 
-// isBeforeFilingDate 判断公开日期是否在申请日之前。
-//
-//nolint:unused // used in date_test.go
-func isBeforeFilingDate(pubDate, filingDate string) (bool, string) {
-	if pubDate == "" || filingDate == "" {
-		return false, "日期不能为空"
-	}
-
-	pubParsed, errPub := parseDateFlexible(pubDate)
-	filingParsed, errFiling := parseDateFlexible(filingDate)
-
-	if errPub != nil || errFiling != nil {
-		var errs []string
-		if errPub != nil {
-			errs = append(errs, fmt.Sprintf("公开日解析失败: %v", errPub))
-		}
-		if errFiling != nil {
-			errs = append(errs, fmt.Sprintf("申请日解析失败: %v", errFiling))
-		}
-		return false, strings.Join(errs, "; ")
-	}
-
-	if pubParsed.Before(filingParsed) {
-		return true, fmt.Sprintf("公开日 %s 早于申请日 %s", pubParsed.Format("2006-01-02"), filingParsed.Format("2006-01-02"))
-	}
-
-	return false, fmt.Sprintf("公开日 %s 不早于申请日 %s", pubParsed.Format("2006-01-02"), filingParsed.Format("2006-01-02"))
-}
-
 // parseDateFlexible 尝试多种格式解析日期字符串。
 // 包含斜杠格式回退（如 2006/01/02）。
 func parseDateFlexible(dateStr string) (time.Time, error) {
