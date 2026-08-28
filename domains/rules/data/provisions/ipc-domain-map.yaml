@@ -1,12 +1,13 @@
-# Mady IPC 领域专家映射表（Tier C — Lazy 加载）
+# Mady IPC 领域专家映射表（Tier C — pre_register 预注册）
 #
 # 根据不同 IPC 技术领域映射到对应的审查标准、Wiki 卡片路径和推理规则。
-# 运行时根据 technical-analyzer 输出的 ipcHints[] 动态实例化 domain-* 智能体。
+# 带 pre_register: true 的 IPC 段在 PatentAgent 装配时由
+# RegisterDomainExpertHandoffs 预注册为 domain-* Handoff（段 × provision_suffixes）。
 #
 # 使用方式：
 #   1. technical-analyzer 输出 ipcHints: ["A61", "G06"]
-#   2. 编排器/条款智能体查此映射表
-#   3. 动态调用 domain-A61-novelty / domain-G06-inventiveness 等
+#   2. 编排器经 resolve_domain_workers 发现可用的 domain-* 名字
+#   3. 调用 transfer_to_domain-A61-novelty / transfer_to_domain-G06-inventiveness 等
 
 # IPC 大类 → 领域定义
 ipc_sections:
@@ -16,63 +17,72 @@ ipc_sections:
       - "复审无效/创造性/A61-医学"
       - "审查指南/A61"
     description: "医疗器械、药物制剂、诊断方法等领域"
+    pre_register: true
   - section: "G06"
     name: "计算/数字处理"
     wiki_card_roots:
       - "复审无效/创造性/G06-计算"
       - "审查指南/G06"
     description: "软件、算法、AI、数据处理等领域"
+    pre_register: true
   - section: "H04"
     name: "电通信技术"
     wiki_card_roots:
       - "复审无效/创造性/H04-通信"
       - "审查指南/H04"
     description: "通信协议、信号处理、网络等领域"
+    pre_register: true
   - section: "C07"
     name: "有机化学"
     wiki_card_roots:
       - "复审无效/创造性/C07-化学"
       - "审查指南/C07"
     description: "化合物、药物化学、高分子等领域"
+    pre_register: true
   - section: "C12"
     name: "生物化学"
     wiki_card_roots:
       - "复审无效/创造性/C12-生物"
       - "审查指南/C12"
     description: "基因工程、微生物、酶等领域"
+    pre_register: true
   - section: "G01"
     name: "测量/测试"
     wiki_card_roots:
       - "复审无效/创造性/G01-测量"
       - "审查指南/G01"
     description: "物理测量、传感器、分析仪器等领域"
+    pre_register: true
   - section: "B60"
     name: "一般车辆"
     wiki_card_roots:
       - "复审无效/创造性/B60-车辆"
       - "审查指南/B60"
     description: "汽车、轨道车辆、自行车等领域"
+    pre_register: true
   - section: "F16"
     name: "工程元件"
     wiki_card_roots:
       - "复审无效/创造性/F16-机械"
       - "审查指南/F16"
     description: "机械结构、连接件、传动装置等领域"
+    pre_register: true
   - section: "H01"
     name: "基本电气元件"
     wiki_card_roots:
       - "复审无效/创造性/H01-电气"
       - "审查指南/H01"
     description: "半导体、电池、电容器等领域"
+    pre_register: true
   - section: "E04"
     name: "建筑物"
     wiki_card_roots:
       - "复审无效/创造性/E04-建筑"
       - "审查指南/E04"
     description: "建筑结构、施工方法等领域"
+    pre_register: true
 
-# 条款后缀 → IPC 领域专家命名模板
-# 每个 IPC 段 × 每个条款后缀 = 一个 domain-{section}-{suffix} worker
+  # 以下段暂缺 description，未预注册；补齐描述后加 pre_register: true 即扩。
   - section: A63
     name: 运动或游戏
     wiki_card_roots:
@@ -98,6 +108,8 @@ ipc_sections:
     wiki_card_roots:
       - 复审无效/创造性/审查标准-F01
 
+# 条款后缀 → IPC 领域专家命名模板
+# 每个 pre_register IPC 段 × 每个条款后缀 = 一个 domain-{section}-{suffix} worker
 provision_suffixes:
   novelty: "novelty"
   inventiveness: "inventiveness"

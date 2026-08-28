@@ -22,6 +22,10 @@ type IpcSectionEntry struct {
 	Name          string   `yaml:"name" json:"name"`
 	WikiCardRoots []string `yaml:"wiki_card_roots" json:"wiki_card_roots"`
 	Description   string   `yaml:"description" json:"description"`
+	// PreRegister 标记该段是否在装配时预注册为 domain-* Handoff；
+	// 仅预注册段会被 RegisterDomainExpertHandoffs 注册、被
+	// ListDomainWorkerNames 发现，保证"广告的名字必然已注册"。
+	PreRegister bool `yaml:"pre_register" json:"pre_register"`
 }
 
 // IpcDomainMap 是完整的 IPC 领域映射表。
@@ -163,10 +167,10 @@ func ListDomainWorkerNames(ipcHints []string, mapPath string) []string {
 	seen := make(map[string]bool)
 	for _, hint := range ipcHints {
 		normalized := strings.ToUpper(strings.TrimSpace(hint))
-		// 检查是否是已知 IPC 段
+		// 仅广告已预注册的段，保证返回的名字必有对应的 Handoff。
 		found := false
 		for _, sec := range ipcMap.IpcSections {
-			if strings.ToUpper(sec.Section) == normalized {
+			if sec.PreRegister && strings.ToUpper(sec.Section) == normalized {
 				found = true
 				break
 			}
