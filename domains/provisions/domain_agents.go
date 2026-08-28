@@ -40,19 +40,11 @@ func LoadIpcDomainMap(mapPath string) (*IpcDomainMap, error) {
 		path = DefaultIpcMapPath
 	}
 	if !filepath.IsAbs(path) {
+		// 与 resolveManifestPath 同一查找策略：从调用方源文件向上定位项目根。
 		_, file, _, ok := runtime.Caller(1)
 		if ok {
-			dir := filepath.Dir(file)
-			for i := 0; i < 12; i++ {
-				if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-					path = filepath.Join(dir, path)
-					break
-				}
-				parent := filepath.Dir(dir)
-				if parent == dir {
-					break
-				}
-				dir = parent
+			if root := projectRootUpward(file); root != "" {
+				path = filepath.Join(root, path)
 			}
 		}
 	}
@@ -73,7 +65,8 @@ func LoadIpcDomainMap(mapPath string) (*IpcDomainMap, error) {
 func LoadIpcDomainMapOrDefault(mapPath string) *IpcDomainMap {
 	m, err := LoadIpcDomainMap(mapPath)
 	if err != nil {
-		return &IpcDomainMap{IpcSections: nil, ProvisionSuffixes: nil}
+		// OrDefault 契约：加载失败降级为空映射，领域专家按"未注册领域"走默认标准。
+		return &IpcDomainMap{}
 	}
 	return m
 }
