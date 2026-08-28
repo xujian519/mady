@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/analysiskit"
 	"github.com/xujian519/mady/domains/provenance"
 )
 
@@ -30,11 +31,10 @@ func SetProvenance(l *provenance.ProvenanceLogger) { provenanceLog = l }
 
 // 解析与匹配用的编译缓存正则（避免在元素×目标循环里每次调用重新编译）。
 var (
-	claimStartRe    = regexp.MustCompile(`^(?:权利要求?\s*)?(\d+)[\.、,，:：]\s*(.+)$`)
-	transitionRe    = regexp.MustCompile(`(其特征在于|特征在于|其中| wherein)`)
-	featureSplitRe  = regexp.MustCompile(`[，,；;]`)
-	claimKeywordRe  = regexp.MustCompile(`[^\p{Han}a-zA-Z]+`)
-	claimSentenceRe = regexp.MustCompile(`[。！？\n;；]`)
+	claimStartRe   = regexp.MustCompile(`^(?:权利要求?\s*)?(\d+)[\.、,，:：]\s*(.+)$`)
+	transitionRe   = regexp.MustCompile(`(其特征在于|特征在于|其中| wherein)`)
+	featureSplitRe = regexp.MustCompile(`[，,；;]`)
+	claimKeywordRe = regexp.MustCompile(`[^\p{Han}a-zA-Z]+`)
 )
 
 // ElementKind identifies the type of a parsed claim element.
@@ -543,7 +543,8 @@ func findBestMatch(elementText string, keywords []string, targetText string) (st
 }
 
 func splitSentences(text string) []string {
-	return claimSentenceRe.Split(text, -1)
+	// 统一口径：切分实现收敛到 analysiskit（与 slop 套话扫描一致）。
+	return analysiskit.SplitSentences(text)
 }
 
 func overlapScore(keywords []string, text string) float64 {

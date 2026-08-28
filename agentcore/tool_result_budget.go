@@ -192,10 +192,11 @@ func (b *ToolResultBudget) writeOffload(dir, content string) (string, error) {
 // buildSummary constructs the in-context replacement by reusing the canonical
 // SnipMessageContent for rune-safe head+tail truncation (never splits
 // multi-byte UTF-8 — critical for CJK patent/legal content), then appending
-// the offload metadata so the model knows the full content is recoverable.
+// the offload metadata and read-back hint so the model knows the full content
+// is recoverable via the offload_read tool.
 func (b *ToolResultBudget) buildSummary(toolName, content, handle string) string {
 	snipped := SnipMessageContent(content, b.cfg.HeadChars, b.cfg.TailChars)
 	return snipped + fmt.Sprintf(
-		"\n[tool_result_budget: 完整结果已落盘 | handle: %s | tool: %s]",
+		"\n[tool_result_budget: 完整结果已落盘，需要中段完整内容时可用 offload_read 工具回读 | handle: %s | tool: %s]",
 		handle, toolName)
 }

@@ -1,3 +1,24 @@
 [
-  {"date":"2026-08-22","mode":"Architecture Audit","score":50,"findings":{"critical":2,"warning":4,"suggestion":0},"scope":"entire project (go.work multi-module)"}
+  {
+    "date": "2026-08-22",
+    "mode": "Architecture Audit",
+    "score": 50,
+    "findings": {
+      "critical": 2,
+      "warning": 4,
+      "suggestion": 0
+    },
+    "scope": "entire project (go.work multi-module)"
+  },
+  {
+    "date": "2026-08-28",
+    "mode": "PR Review",
+    "score": 81,
+    "findings": {
+      "critical": 0,
+      "warning": 3,
+      "suggestion": 4
+    },
+    "scope": "HEAD~1..HEAD commit 9244fbbc (48 files, +4533/-997)"
+  }
 ]

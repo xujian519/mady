@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"log/slog"
 	"path/filepath"
 
 	"github.com/xujian519/mady/agentcore"
@@ -58,13 +59,18 @@ func appendResultOffload(cfg *agentcore.Config) {
 	home, err := util.MadyHome()
 	if err != nil {
 		// MadyHome 不可解析时跳过接线：无落盘只是退回纯上下文内处理，
-		// 不阻断 Agent 启动。
+		// 不阻断 Agent 启动——但必须留痕，避免保护静默失效无从排查。
+		slog.Warn("工具结果落盘未启用：MadyHome 解析失败", "error", err)
 		return
 	}
+	offloadDir := filepath.Join(home, "offload")
 	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle,
 		agentcore.NewToolResultBudget(agentcore.ToolResultBudgetConfig{
-			RootDir: filepath.Join(home, "offload"),
+			RootDir: offloadDir,
 		}))
+	// 配套回读通道：模型判断摘要中段有需要时取回全文（根目录内校验，
+	// 不依赖 WorkingDir 沙箱配置）。
+	cfg.Tools = append(cfg.Tools, agentcore.NewOffloadReadTool(offloadDir))
 }
 
 // appendGatewayLifecycle 追加 DoomLoop 死循环检测 + 工具结果落盘 + Gateway

@@ -180,27 +180,25 @@ func extractFindings(text, claimID, docID string) []NumericRangeFinding {
 // plainNumberRe 匹配独立数值（弱发现兜底）。
 var plainNumberRe = regexp.MustCompile(`\d+(?:\.\d+)?`)
 
-// bound 把单边表述转为区间；方向词全按"包含端点"处理——保守方向，
-// 宁可多提示不漏报。
-func bound(direction string, v float64) (float64, float64) {
-	switch direction {
-	case "大于等于", "不低于", "不小于", "不少于", "至少", "≥":
-		return v, math.Inf(1)
-	case "小于等于", "不大于", "不超过", "不多于", "≤":
-		return math.Inf(-1), v
-	default: // 大于/超过/高于/多于/小于/低于
-		return boundInclusive(direction, v)
-	}
+// boundDirections 把方向词映射为区间构造器（表驱动，新增方向词只改本表）。
+var boundDirections = map[string]func(float64) (float64, float64){
+	"大于等于": lowerBound, "不低于": lowerBound, "不小于": lowerBound,
+	"不少于": lowerBound, "至少": lowerBound, "≥": lowerBound,
+	"大于": lowerBound, "超过": lowerBound, "高于": lowerBound, "多于": lowerBound,
+	"小于等于": upperBound, "不大于": upperBound, "不超过": upperBound,
+	"不多于": upperBound, "≤": upperBound, "小于": upperBound, "低于": upperBound,
 }
 
-// boundInclusive 处理开方向词，仍按闭区间近似（保守）。
-func boundInclusive(direction string, v float64) (float64, float64) {
-	switch direction {
-	case "小于", "低于":
-		return math.Inf(-1), v
-	default: // 大于/超过/高于/多于
-		return v, math.Inf(1)
+func lowerBound(v float64) (float64, float64) { return v, math.Inf(1) }
+func upperBound(v float64) (float64, float64) { return math.Inf(-1), v }
+
+// bound 把单边表述转为区间；方向词全按"包含端点"处理——保守方向，
+// 宁可多提示不漏报。未收录的方向词按保守下界兜底。
+func bound(direction string, v float64) (float64, float64) {
+	if fn, ok := boundDirections[direction]; ok {
+		return fn(v)
 	}
+	return lowerBound(v)
 }
 
 // extractUnit 提取 expr 之后紧跟的单位并归一化（去空白、转小写）。

@@ -12,6 +12,7 @@ package analysiskit
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/xujian519/mady/graph"
@@ -126,4 +127,14 @@ func AssemblePregel(nodes map[string]graph.PregelNode, edges [][2]string) (*grap
 		}
 	}
 	return pg, nil
+}
+
+// sentenceSplitRe 是领域统一的句子切分正则（与 claimchart/slop 的历史口径
+// 一致）；本函数是唯一权威定义，消费方不得再自带副本。
+var sentenceSplitRe = regexp.MustCompile(`[。！？\n;；]`)
+
+// SplitSentences 按统一口径把文本切分为句子片段（不去空白）。
+// claimchart 的特征匹配与 slop 的套话扫描共用此切分，保证判定口径一致。
+func SplitSentences(text string) []string {
+	return sentenceSplitRe.Split(text, -1)
 }

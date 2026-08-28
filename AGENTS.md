@@ -15,9 +15,9 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
 → 通用工具库（pkg/{util,csync,i18n,lawcite,agentconfig,vecbytes}）
 → 协议与接口层（A2A/A2UI/AGUI/ACP/Server/MCP/TUI）
 → 应用入口（cmd/mady, example/）。
-1654 个 Go 源文件（1093 非测试 + 561 测试），~281K 行代码。
+1681 个 Go 源文件（1108 非测试 + 573 测试），~281K 行代码。
 
-> 文件计数更新时间：2026-08-24。如需获取最新计数（与 check-doc-consistency.py 同口径），请执行：
+> 文件计数更新时间：2026-08-28。如需获取最新计数（与 check-doc-consistency.py 同口径），请执行：
 > ```bash
 > git ls-files '*.go' | wc -l && git ls-files '*_test.go' | wc -l
 > ```
@@ -69,6 +69,11 @@ Mady（中观智能体）：Go 1.26 编写的 Agent 运行时框架，服务于�
   pre-commit install --hook-type commit-msg  # commit-msg 阶段（敏感路径 + commitlint）
   ```
   漏装 commit-msg 钩子时，本地提交不会触发 sensitive-paths gate，违规组合只能靠 CI 拦截
+- **多特性变更按批次拆分支**：一批大型改动（尤其横跨多模块时）应按特性
+  批次拆到独立分支，每分支单独 `make verify` + 提交后顺序合入 main——
+  不要把多批特性合并进单个提交（评审与回滚粒度）。注意 pre-commit 会对
+  全树做编译检查，同一分支内"未完成的中间 commit"会因新文件依赖未暂存
+  修改而无法通过钩子，独立分支是绕开该约束的正路
 - `go-imports` hook 已改为跨机器兼容的动态查找（优先 `go env GOPATH/bin/goimports`，
   缺失则回退 `PATH` 中的 `goimports`），换机器只需确保 goimports 可被找到
 

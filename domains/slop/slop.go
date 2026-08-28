@@ -13,6 +13,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/xujian519/mady/domains/analysiskit"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // Verdict 判定结果。
@@ -49,9 +52,6 @@ var categorySuggestions = map[string]string{
 	CatBoilerplateFiller:   "删除空话模板句，替换为具体技术内容",
 	CatRepeatedBoilerplate: "同一表述重复出现，合并或改写",
 }
-
-// sentenceRe 用于把文本切句（与 claimchart 同一口径）。
-var sentenceRe = regexp.MustCompile(`[。！？\n;；]`)
 
 // patternSpec 是一条套话模式。
 type patternSpec struct {
@@ -121,7 +121,7 @@ func Check(text string) Report {
 		return Report{Verdict: VerdictPass, Findings: []Finding{}, Summary: "空文本，无需扫描"}
 	}
 
-	sentences := splitSentences(text)
+	sentences := analysiskit.SplitSentences(text)
 	var findings []Finding
 
 	for _, sent := range sentences {
@@ -204,10 +204,6 @@ func repeatedSentenceFindings(sentences []string) []Finding {
 	return findings
 }
 
-func splitSentences(text string) []string {
-	return sentenceRe.Split(text, -1)
-}
-
 func reasonFor(category string) string {
 	switch category {
 	case CatUnsupportedEffect:
@@ -220,10 +216,5 @@ func reasonFor(category string) string {
 }
 
 func truncate(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	r := []rune(s)
-	if len(r) <= maxLen {
-		return s
-	}
-	return string(r[:maxLen]) + "…"
+	return util.TruncateRunes(strings.TrimSpace(s), maxLen)
 }

@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // PinCiteIssueKind 区分校验问题的类别。
@@ -150,9 +152,5 @@ func normalizeLocator(loc string) string {
 
 // truncateForMessage 供问题消息展示，超长截断并允许省略号（仅用于展示，非引文）。
 func truncateForMessage(s string) string {
-	r := []rune(s)
-	if len(r) <= 40 {
-		return s
-	}
-	return string(r[:40]) + "…"
+	return util.TruncateRunes(s, 40)
 }

@@ -459,6 +459,18 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 // 不同于 PatentAgentConfig 的静态配置，此函数生成的 Agent 具备案件感知能力。
 //
 // toolExt 是调用方已装配好的工具扩展（项目级沙箱配置），通过被动注入传入。
+// projectAgentPolicy 返回项目 Agent 的权限策略：基础策略 + 证据形式要件
+// 单调拒绝（EVI-011，fail-closed）——域外证据未公证认证、外文证据无译本时
+// 拒绝证据判断调用，凌驾于任何 allow 配置之上。
+//
+// ⚠ 敏感路径改动（agentcore/permission 单调层 + 本接线），改动需人工审阅。
+// 独立成函数以便装配层测试锁定（见 patent_policy_test.go）。
+func projectAgentPolicy() permission.Policy {
+	policy := permission.ProjectAgentPolicy()
+	policy.MonotonicDenyFns = append(policy.MonotonicDenyFns, evidence.FormRequirementDenyCheck())
+	return policy
+}
+
 func BuildProjectAgent(rec ProjectRecord, base agentcore.Config, toolExt agentcore.Extension) agentcore.Config {
 	cfg := base
 	cfg.Name = fmt.Sprintf("patent-agent-%s", rec.ProjectID)
@@ -470,13 +482,8 @@ func BuildProjectAgent(rec ProjectRecord, base agentcore.Config, toolExt agentco
 	// 权限门控：写入工具需确认，只读工具自动放行。
 	// 如果 TUI 已注入带交互式 Approver 的 PermissionExtension，此处跳过。
 	if !hasExtensionNamed(cfg.Extensions, permission.ExtensionName) {
-		policy := permission.ProjectAgentPolicy()
-		// 证据形式要件单调拒绝（EVI-011，fail-closed）：域外证据未公证认证、
-		// 外文证据无译本时拒绝证据判断调用，凌驾于任何 allow 配置之上。
-		// ⚠ 敏感路径改动（agentcore/permission 单调层 + 本行接线），合入前需人工审阅。
-		policy.MonotonicDenyFns = append(policy.MonotonicDenyFns, evidence.FormRequirementDenyCheck())
 		cfg.Extensions = append(cfg.Extensions,
-			permission.NewExtension(policy, nil))
+			permission.NewExtension(projectAgentPolicy(), nil))
 	}
 
 	// 被动注入：调用方已装配好的工具扩展（项目级沙箱配置）。
