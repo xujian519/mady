@@ -80,7 +80,7 @@
 | M08 | domains/enablement + inventiveness | 26.3 + 创造性图引擎 | ✅ 2026-08-28 |
 | M09 | domains/novelty + infringement | 新颖性 + 侵权比对 | ✅ 2026-08-28 |
 | M10 | domains/evidence + ipc + checker | 证据规则 + 分类 + 撰写检查 | ✅ 2026-08-28 |
-| M11 | domains/claimchart + provisions + provenance | 对照图 + 法条 + 溯源 | ⬜ |
+| M11 | domains/claimchart + provisions + provenance | 对照图 + 法条 + 溯源 | ✅ 2026-08-28 |
 | M12 | domains/workflows + plantask + workercontract | 领域工作流 | ⬜ |
 | M13 | domains/rules + reasoning（含 sqlite/wiring） | 规则引擎 + 推理 | ⬜ |
 | M14 | domains/writing + doctmpl | 撰写质量 + 模板 | ⬜ |
@@ -310,3 +310,21 @@
   - `6d1c271` classifyInternetPlatform 降级分支补意图注释
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；evidence/ipc/checker 包级 `-race` 测试全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py domains/evidence domains/ipc domains/checker`）：裸 fmt 0 / 忽略 err 0 / 吞错 4 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 1（extractDateFromText，登记待拆）
+
+### M11（2026-08-28）domains/claimchart + provisions + provenance ✅
+
+- **审阅范围**：11 个非测试 `.go`（claimchart 1 + provisions 9 + provenance 1，约 1.7K 行）——claimchart: tool（对照表构建/要素拆解/关键词重叠匹配/缺口清单）；provisions: doc / types / register / provision_agents / reasoning_agents / orchestrator / domain_agents / ipc_tool / roles（三层条款智能体 Manifest 体系）；provenance: provenance（PROV-O-lite JSONL 溯源日志，fail-open）
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：1 项登记——Tier C 领域专家工厂 `DomainAgentHandoffConfig` 全仓生产代码零调用（仅测试消费），而编排器 prompt 与 `resolve_domain_workers` 工具都会引导 LLM 调用 `transfer_to_domain-*`；handoff 工具只从已注册 `config.Handoffs` 生成（agentcore registerHandoffs），该名字的工具从未注册，LLM 调用必然落空——接线属行为变化，另开 fix 卡
+  - P2 一致性：1 项登记——register.go 覆盖度告警日志字段 `defined` 实为 pre-register 注册计数，与 ValidateManifest 的"已定义"口径不一致，排障易误导；改日志输出属行为变化，登记待 fix 卡
+  - P3 风格：5 项已收敛（IPC 映射加载内联 12 层向上查找与 projectRootUpward 重复 / provision_agents.go 文件尾悬空节头 / chartID 局部变量遮蔽同名函数 / TierAProvisionIDs 注释 22 条实为 23 条 / doc.go 引用不存在的 LoadPatentProvisionHandoffs）
+  - 登记不处理：`RegisterProvisionHandoffs`/`ListRegisteredProvisions`/`ProvisionHandoffs`/`ReasoningHandoffs` 仅测试消费，属导出公共 API 按规范保留；provisions 包零消费导出（ValidateManifest/OrchestratorSystemPrompt 等）均有包内生产调用
+- **精炼**：5 个提交，全部无行为变化
+  - `d0db6a3` IPC 映射加载复用 projectRootUpward 去重，OrDefault 降级字面量收敛
+  - `6167e73` 5 处降级/忽略错误分支补 fail-safe 意图注释（claimchart 参数解析与源文读取、provisions 两个 OrDefault 与注册 fail-open、provenance 轮转关闭）
+  - `fa1590c` 删除 provision_agents.go 文件尾悬空节头注释
+  - `06ffe55` chartID 局部变量重命名避免遮蔽同名函数
+  - `7013273` 修正条款簇计数注释（22→23，与 manifest 一致）与 doc.go 过时入口函数引用
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；provisions/claimchart/provenance/domains 包级 `-race` 测试全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py domains/claimchart domains/provisions domains/provenance`）：裸 fmt 0 / 忽略 err 0 / 吞错 4 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0
