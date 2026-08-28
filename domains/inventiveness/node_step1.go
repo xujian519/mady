@@ -89,7 +89,7 @@ func parseStep1(output string) Step1Result {
 		SelectionReason string `json:"selection_reason"`
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
-		r.SelectionReason = output
+		r.SelectionReason = output // LLM 返回非 JSON：降级为原始文本作为判断依据
 		return r
 	}
 

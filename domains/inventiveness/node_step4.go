@@ -87,7 +87,7 @@ func parseStep4(output string) Step4Result {
 		Rationale              string `json:"rationale"`
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
-		r.Rationale = output
+		r.Rationale = output // LLM 返回非 JSON：降级为原始文本作为推理依据
 		return r
 	}
 

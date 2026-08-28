@@ -121,7 +121,7 @@ func parseConclusion(output string) parsedConclusion {
 	var parsed parsedConclusion
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
 		return parsedConclusion{
-			Reasoning:  output,
+			Reasoning:  output, // LLM 返回非 JSON：降级为原始文本作为推理依据
 			Confidence: "medium",
 		}
 	}

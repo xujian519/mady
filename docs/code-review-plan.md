@@ -76,8 +76,8 @@
 | 卡 | 模块 | 规模/热点 | 状态 |
 |---|---|---|---|
 | M06 | domains/claimdrafting + config | 撰写模块 | ✅ 2026-08-27 |
-| M07 | domains/specdrafting | 说明书撰写 | ⬜ |
-| M08 | domains/enablement + inventiveness | 26.3 + 创造性图引擎 | ⬜ |
+| M07 | domains/specdrafting | 说明书撰写 | ✅ 2026-08-28 |
+| M08 | domains/enablement + inventiveness | 26.3 + 创造性图引擎 | ✅ 2026-08-28 |
 | M09 | domains/novelty + infringement | 新颖性 + 侵权比对 | ⬜ |
 | M10 | domains/evidence + ipc + checker | 证据规则 + 分类 + 撰写检查 | ⬜ |
 | M11 | domains/claimchart + provisions + provenance | 对照图 + 法条 + 溯源 | ⬜ |
@@ -253,3 +253,29 @@
   - `48b41a9` timestamp 助手统一与空节头清理
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；claimdrafting/config 包级 `-race` 测试全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py domains/claimdrafting domains/config`）：裸 fmt 0 / 忽略 err 0 / 吞错 4 → **1**（剩余 1 处为 config/project.go，红线保留）/ TODO 0 / 未注释导出 0 / >120 行函数 0
+
+### M07（2026-08-28）domains/specdrafting ✅
+
+- **审阅范围**：14 个非测试 `.go`（2867 行）——doc.go / types.go / builder.go / graph.go / nodes.go / extension.go / drafter.go / scorer.go / rules.go / rules_clarity.go / rules_structure.go / rules_domain.go / rules_enablement.go / rules_utility.go
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：0 项
+  - P2 一致性：0 项
+  - P3 风格：0 项
+  - 登记不处理：0 项
+- **精炼**：无精炼项。模块质量高——20 条规则注册、12 节点 Pregel 图、LLM 增强降级路径设计清晰，扫描全绿
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（`python3 scripts/scan_go_smells.py domains/specdrafting`）：裸 fmt 0 / 忽略 err 0 / 吞错 0 / TODO 0 / 未注释导出 0 / >120 行函数 0
+
+### M08（2026-08-28）domains/enablement + inventiveness ✅
+
+- **审阅范围**：27 个非测试 `.go`（enablement 11 + inventiveness 16）——enablement: doc.go / types.go / framework.go / graph.go / nodes.go / node_clarity.go / node_completeness.go / node_conclusion.go / node_enablement.go / tool.go / domain_rules.go；inventiveness: doc.go / types.go / framework.go / graph.go / nodes.go / guidance.go / node_step1.go / node_step2.go / node_step3.go / node_step4.go / node_conclusion.go / node_experimental.go / feedback.go / feedback_tool.go / problem.go / tool.go
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：0 项
+  - P2 一致性：0 项
+  - P3 风格：0 项
+  - 登记不处理：0 项
+- **精炼**：14 处 scanner 吞错告警（enablement 5 + inventiveness 9），全部为 LLM JSON 解析降级模式（`json.Unmarshal` 失败时降级为原始文本）——意图明确，补充注释消除告警
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（`python3 scripts/scan_go_smells.py domains/enablement domains/inventiveness`）：裸 fmt 0 / 忽略 err 0 / 吞错 14 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0

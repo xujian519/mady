@@ -187,7 +187,7 @@ func parseInventivenessArgs(args json.RawMessage) *InventivenessInput {
 		} `json:"experimental_data,omitempty"`
 	}
 	if err := json.Unmarshal(args, &raw); err != nil {
-		return nil
+		return nil // 参数格式错误，由调用方检查 nil 后返回错误信息
 	}
 
 	if raw.ExperimentalData != nil {

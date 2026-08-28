@@ -30,7 +30,7 @@ func parseEnablementJudgment(output string) EnablementJudgment {
 		Notes              string   `json:"notes"`
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
-		r.Notes = output
+		r.Notes = output // LLM 返回非 JSON：降级为原始文本作为判断依据
 		return r
 	}
 

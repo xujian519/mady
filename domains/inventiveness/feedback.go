@@ -83,7 +83,7 @@ func LoadInventivenessFeedback(caseDir string) ([]FeedbackEntry, error) {
 	f, err := os.Open(FeedbackPath(caseDir))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, nil // 文件不存在：无历史反馈，返回空列表
 		}
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func FeedbackPrompt(caseID string) string {
 	}
 	entries, err := LoadInventivenessFeedback(dir)
 	if err != nil {
-		return ""
+		return "" // 反馈加载失败：静默降级，不注入历史反馈
 	}
 	return SummarizeInventivenessFeedback(entries)
 }

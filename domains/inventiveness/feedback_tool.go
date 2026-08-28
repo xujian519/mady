@@ -32,7 +32,7 @@ func NewInventivenessFeedbackTool() *agentcore.Tool {
 				Reason string `json:"reason"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
-				return agentcore.NewFailureResult("参数解析失败", "反馈参数格式错误"), nil
+				return agentcore.NewFailureResult("参数解析失败", "反馈参数格式错误"), nil // 参数格式错误，返回失败结果
 			}
 			if p.CaseID == "" {
 				return agentcore.NewFailureResult("缺少 case_id", "case_id 不能为空"), nil
