@@ -328,3 +328,14 @@
   - `7013273` 修正条款簇计数注释（22→23，与 manifest 一致）与 doc.go 过时入口函数引用
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；provisions/claimchart/provenance/domains 包级 `-race` 测试全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py domains/claimchart domains/provisions domains/provenance`）：裸 fmt 0 / 忽略 err 0 / 吞错 4 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0
+
+### FIX-1（2026-08-28）Tier C 领域专家预注册接线 ✅
+
+- **处置对象**：M11 登记的 P1——编排器 prompt 与 resolve_domain_workers 引导 LLM 调用的 transfer_to_domain-* 从未注册，调用必然落空
+- **方案**（用户选定）：静态预注册 + provisions 包内接线（避开敏感路径 patent.go，经 RegisterProvisionHandoffsFromManifest 尾部使两条装配路径同时生效）
+- **实施**（3 个提交，见 changelog 2026-08-28 同名条目）：
+  - `0e8b55a` yaml 10 段 pre_register 标记 + IpcSectionEntry.PreRegister + ListDomainWorkerNames 仅广告预注册段
+  - `4cd67f9` RegisterDomainExpertHandoffs 预注册（10 段 × 7 后缀 = 70 个 Handoff）+ register 接线 + buildDomainHandoff 重构 + 领域专家工具收敛 DefaultPatentTools + 测试
+  - `5c80934` doc.go Tier C 预注册口径同步
+- **门禁**：包级 -race 与 make verify 全绿；零敏感路径改动
+- **遗留**：工具面 +7K tokens/轮的实测与 BeforeModelCall 按需过滤；条款智能体直连领域专家（AllowedSources 扩 provision-*）；wiki_card_roots 限域检索承接（零消费数据）
