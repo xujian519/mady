@@ -97,6 +97,7 @@ func (l *ProvenanceLogger) rotateIfNeededAt(now time.Time) error {
 		return nil
 	}
 	if l.file != nil {
+		// 轮转时旧文件关闭失败可忽略：新文件已按追加模式打开，残留句柄由进程退出回收。
 		_ = l.file.Close()
 	}
 	path := filepath.Join(l.dir, "provenance-"+today+".jsonl")

@@ -202,6 +202,7 @@ func NewClaimChartTool() *agentcore.Tool {
 func handleClaimChart(_ context.Context, args json.RawMessage) (any, error) {
 	var input ChartInput
 	if err := json.Unmarshal(args, &input); err != nil {
+		// 参数损坏按工具失败结果返回给 LLM 重试，不向上传播中断会话。
 		return agentcore.NewFailureResult("参数解析失败", "权利要求对照表参数格式错误"), nil
 	}
 	if input.ClaimText == "" {
@@ -230,6 +231,7 @@ func handleClaimChart(_ context.Context, args json.RawMessage) (any, error) {
 		output["case_id"] = input.CaseID
 	}
 
+	// 溯源是 fail-open 旁路：写失败不影响建表结果（Log 对 nil 接收者静默）。
 	_ = provenanceLog.Log(provenance.ProvenanceEvent{
 		Kind:    provenance.KindWorkflowStep,
 		Tool:    "claim_chart_build",
@@ -262,6 +264,7 @@ func BuildClaimChart(input ChartInput) (*ClaimChart, error) {
 		}
 		if t.SourcePath != "" {
 			data, err := os.ReadFile(t.SourcePath) //nolint:gosec // path provided by caller
+			// 读取失败按"无源文"处理：该目标各行降级为 needs-evidence，不中断建表。
 			if err == nil {
 				targetTexts[t.ID] = string(data)
 			}

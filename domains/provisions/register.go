@@ -18,6 +18,7 @@ import (
 func RegisterProvisionHandoffs(cfg *agentcore.Config, manifestPath string) {
 	manifest, err := LoadManifest(manifestPath)
 	if err != nil {
+		// fail-open：manifest 缺失只跳过条款智能体注册，不阻断专利 Agent 启动。
 		slog.Warn("provisions: 加载 Manifest 失败，跳过条款智能体注册", "err", err)
 		return
 	}

@@ -112,6 +112,7 @@ func LoadManifest(manifestPath string) (*PatentManifest, error) {
 func LoadManifestOrDefault(manifestPath string) *PatentManifest {
 	m, err := LoadManifest(manifestPath)
 	if err != nil {
+		// OrDefault 契约：加载失败降级为空 Manifest，调用方走无条款智能体路径。
 		return &PatentManifest{}
 	}
 	return m
