@@ -26,7 +26,7 @@ func toInputText(v any) string {
 	b, err := json.Marshal(v)
 	if err != nil {
 		slog.Error("infringement: failed to marshal input for LLM agent", "err", err)
-		return "{}"
+		return "{}" // 序列化失败：降级为空 JSON 对象，LLM 将收到空输入
 	}
 	return string(b)
 }

@@ -178,7 +178,7 @@ func parseNoveltyArgs(args json.RawMessage) *NoveltyInput {
 		EvidenceCoverage string `json:"evidence_coverage"`
 	}
 	if err := json.Unmarshal(args, &raw); err != nil {
-		return nil
+		return nil // 参数格式错误，由调用方检查 nil 后返回错误信息
 	}
 
 	for _, c := range raw.Claims {

@@ -78,7 +78,7 @@
 | M06 | domains/claimdrafting + config | 撰写模块 | ✅ 2026-08-27 |
 | M07 | domains/specdrafting | 说明书撰写 | ✅ 2026-08-28 |
 | M08 | domains/enablement + inventiveness | 26.3 + 创造性图引擎 | ✅ 2026-08-28 |
-| M09 | domains/novelty + infringement | 新颖性 + 侵权比对 | ⬜ |
+| M09 | domains/novelty + infringement | 新颖性 + 侵权比对 | ✅ 2026-08-28 |
 | M10 | domains/evidence + ipc + checker | 证据规则 + 分类 + 撰写检查 | ⬜ |
 | M11 | domains/claimchart + provisions + provenance | 对照图 + 法条 + 溯源 | ⬜ |
 | M12 | domains/workflows + plantask + workercontract | 领域工作流 | ⬜ |
@@ -279,3 +279,16 @@
 - **精炼**：14 处 scanner 吞错告警（enablement 5 + inventiveness 9），全部为 LLM JSON 解析降级模式（`json.Unmarshal` 失败时降级为原始文本）——意图明确，补充注释消除告警
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
 - **指标重扫**（`python3 scripts/scan_go_smells.py domains/enablement domains/inventiveness`）：裸 fmt 0 / 忽略 err 0 / 吞错 14 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0
+
+### M09（2026-08-28）domains/novelty + infringement ✅
+
+- **审阅范围**：18 个非测试 `.go`（novelty 7 + infringement 11）——novelty: doc.go / types.go / framework.go / graph.go / nodes.go / prompts.go / tool.go；infringement: doc.go / types.go / framework.go / graph.go / nodes.go / nodes_schema.go / nodes_utils.go / knowledge.go / rules.go / scorer.go / tool.go
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：0 项
+  - P2 一致性：0 项
+  - P3 风格：0 项
+  - 登记不处理：0 项
+- **精炼**：7 处 scanner 吞错告警（novelty 6 + infringement 1），全部为 LLM JSON 解析降级模式——意图明确，补充注释消除告警
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（`python3 scripts/scan_go_smells.py domains/novelty domains/infringement`）：裸 fmt 0 / 忽略 err 0 / 吞错 7 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0

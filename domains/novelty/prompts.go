@@ -146,7 +146,7 @@ func parsePriorArt(output string) PriorArtResult {
 		DisclosureReason       string `json:"disclosure_reason"`
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
-		r.DisclosureReason = output
+		r.DisclosureReason = output // LLM 返回非 JSON：降级为原始文本作为判断依据
 		return r
 	}
 
@@ -180,7 +180,7 @@ func parseCompare(output string) CompareResult {
 		FullFeatureCoverage bool     `json:"full_feature_coverage"`
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
-		return r
+		return r // LLM 返回非 JSON：降级为空结果（对比特征无法解析）
 	}
 
 	r.ClaimFeatures = parsed.ClaimFeatures
@@ -211,7 +211,7 @@ func parseConflict(output string) ConflictResult {
 		ConflictDocID      string   `json:"conflict_doc_id"`
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
-		return r
+		return r // LLM 返回非 JSON：降级为空结果（抵触申请无法解析）
 	}
 
 	r.IsConflictApp = parsed.IsConflictApp
@@ -238,7 +238,7 @@ func parseGracePriority(output string) ExceptionResult {
 		SameSubject    string `json:"same_subject"`
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
-		return r
+		return r // LLM 返回非 JSON：降级为空结果（宽限期/优先权无法解析）
 	}
 
 	r.HasGracePeriod = parsed.HasGracePeriod
@@ -263,7 +263,7 @@ func parseConclusion(output string) parsedConclusion {
 	var parsed parsedConclusion
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
 		return parsedConclusion{
-			Conclusion: output,
+			Conclusion: output, // LLM 返回非 JSON：降级为原始文本作为结论
 			Confidence: "medium",
 		}
 	}
