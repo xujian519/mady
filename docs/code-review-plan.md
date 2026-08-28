@@ -79,7 +79,7 @@
 | M07 | domains/specdrafting | 说明书撰写 | ✅ 2026-08-28 |
 | M08 | domains/enablement + inventiveness | 26.3 + 创造性图引擎 | ✅ 2026-08-28 |
 | M09 | domains/novelty + infringement | 新颖性 + 侵权比对 | ✅ 2026-08-28 |
-| M10 | domains/evidence + ipc + checker | 证据规则 + 分类 + 撰写检查 | ⬜ |
+| M10 | domains/evidence + ipc + checker | 证据规则 + 分类 + 撰写检查 | ✅ 2026-08-28 |
 | M11 | domains/claimchart + provisions + provenance | 对照图 + 法条 + 溯源 | ⬜ |
 | M12 | domains/workflows + plantask + workercontract | 领域工作流 | ⬜ |
 | M13 | domains/rules + reasoning（含 sqlite/wiring） | 规则引擎 + 推理 | ⬜ |
@@ -292,3 +292,21 @@
 - **精炼**：7 处 scanner 吞错告警（novelty 6 + infringement 1），全部为 LLM JSON 解析降级模式——意图明确，补充注释消除告警
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
 - **指标重扫**（`python3 scripts/scan_go_smells.py domains/novelty domains/infringement`）：裸 fmt 0 / 忽略 err 0 / 吞错 7 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0
+
+### M10（2026-08-28）domains/evidence + ipc + checker ✅
+
+- **审阅范围**：28 个非测试 `.go`（evidence 20 + ipc 4 + checker 4，约 6.9K 行）——evidence: types / engine / date / public_use / credibility / triple_attrs / type_specific / burden / standard / rule_loader / extension / embed / doc + 7 个 tool_*；ipc: doc / ipc_classifier / ipc_hints / ipc_types；checker: catalog / dispatch / extension / verdict
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：3 项登记——① checker `Catalog.byID` 存指向 `entries` 切片元素的指针，append 扩容后旧指针指向旧数组（替换路径总是同步更新指针、注册后无原地变更，当前无可观察缺陷，属脆弱设计，宜改存索引，登记待 fix 卡）；② evidence `extractDateFromText` 127 行长函数（多策略日期提取，已有 nolint:gocognit），登记待拆建议；③ checker `Dispatch.handlers`/`Catalog` 无锁，依赖"装配期一次性注册、运行期只读"的调用方约定
+  - P2 一致性：3 项登记——① checker `RunChecker` 对未实现 checker 返回 `needs_revision`+0.5 占位 verdict（未运行≠需修订，注释已说明为占位）；② evidence 包级 `AssessProofStandard`（有效证据计数口径）与 `(*DefaultEngine).AssessProofStandard` 方法（judgments 评分口径）同名不同义，易混淆；③ tool_standard.go `js*` schema 常量与同包其余 6 个 tool 内联字符串两派写法，统一会触碰 inputSchema 构造（红线邻区），不统一
+  - P3 风格：4 项已收敛（悬空注释归位 / extractDateFromText 双 if 合并 / AssessProofStandard 中间变量内联 / 见精炼）
+  - 登记不处理：tool_credibility.go 两个 `nolint:gosec` 经实测压制真实 G101 误报（"credibility" 命中 "cred" 凭据模式），属有据豁免保留；checker/ipc 包级导出（`ParseVerdict`/`FormatReviewPrompt`/`RunAllMatching`/`GetCommonKnowledge` 等）包外零消费属公共 API，按规范保留
+- **精炼**：5 个 refactor 提交，全部无行为变化
+  - `c4b54a5` 悬空注释归位 evaluatePublicIntent
+  - `5d7fc17` 3 处降级分支补 fail-safe 意图注释（Wayback 日期提取 / 在先公开判定 / 公开意图推定）
+  - `979a8b6` 冗余分支与中间变量收敛
+  - `5148fe3` 删除仅测试使用的 isBeforeFilingDate（测试改写为 TestIsBeforeFilingBool 直接覆盖在用函数）
+  - `6d1c271` classifyInternetPlatform 降级分支补意图注释
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；evidence/ipc/checker 包级 `-race` 测试全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py domains/evidence domains/ipc domains/checker`）：裸 fmt 0 / 忽略 err 0 / 吞错 4 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 1（extractDateFromText，登记待拆）
