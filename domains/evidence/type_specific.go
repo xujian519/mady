@@ -52,6 +52,7 @@ func classifyInternetPlatform(uri string) string {
 	cleaned := cleanEvidenceURI(uri)
 	parsed, err := url.Parse(cleaned)
 	if err != nil {
+		// URL 非法时降级为未知平台，不做可信度分类
 		return "未知"
 	}
 
