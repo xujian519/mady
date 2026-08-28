@@ -233,6 +233,7 @@ func inferredMonthEnd(t time.Time) string {
 func extractWaybackMachineDate(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
+		// URL 非法时降级为无法提取存档日期，由上层按“日期未知”处理
 		return ""
 	}
 
@@ -417,6 +418,7 @@ func isBeforeFilingBool(pubDate, filingDate string) bool {
 	filingParsed, errFiling := parseDateFlexible(filingDate)
 
 	if errPub != nil || errFiling != nil {
+		// 任一日期无法解析时不认定在先公开（宁可不认定，不误判现有技术）
 		return false
 	}
 

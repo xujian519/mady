@@ -18,6 +18,7 @@ func evaluatePublicIntent(span agentcore_evidence.EvidenceSpan) PublicIntent {
 	cleaned := cleanEvidenceURI(span.SourceURI)
 	parsed, err := url.Parse(cleaned)
 	if err != nil {
+		// URL 非法时维持默认推定：对公众开放，不因解析失败改变公开意图结论
 		return IntentPublic
 	}
 
