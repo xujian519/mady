@@ -299,9 +299,9 @@ func BuildClaimChart(input ChartInput) (*ClaimChart, error) {
 		}
 	}
 
-	chartID := chartID(input)
+	id := chartID(input)
 	return &ClaimChart{
-		ChartID:     chartID,
+		ChartID:     id,
 		Mode:        input.Mode,
 		CaseID:      input.CaseID,
 		Elements:    elements,
