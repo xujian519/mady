@@ -50,7 +50,7 @@ type PatentManifest struct {
 // 常量
 // =============================================================================
 
-// TierAProvisionIDs 是 Tier A 条款簇最小完备集 ID（22 条）。
+// TierAProvisionIDs 是 Tier A 条款簇最小完备集 ID（23 条：A 类 9 + B 类 6 + C 类 5 + D 类 3）。
 // 首批高频 9 条预注册，其余按需扩展。
 var TierAProvisionIDs = []string{
 	"P-A01", "P-A02", "P-A03", "P-A04", "P-A05",

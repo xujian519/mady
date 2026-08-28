@@ -4,13 +4,14 @@
 // 参考 XiaoNuo Agent 的三层智能体模型设计，将专利法各核心条款封装为
 // 可独立调用的 Handoff 子 Agent：
 //
-//   - Tier A (Provision): 围绕单一法条簇完成分析/意见/结论，共 22 个条款簇
+//   - Tier A (Provision): 围绕单一法条簇完成分析/意见/结论，共 23 个条款簇
 //   - Tier B (Reasoning): 封装跨条款的认定步骤，供 Tier A 作为子步骤调用
 //   - Tier C (Domain): 按 IPC 技术领域注入领域审查标准（lazy 加载）
 //
 // # 使用方式
 //
-// 在 PatentAgentConfig 中调用 register.LoadPatentProvisionHandoffs(&cfg) 即可。
+// 在 PatentAgentConfig 中调用 provisions.RegisterProvisionHandoffs(&cfg) 即可
+// （生产接线走 RegisterProvisionHandoffsFromManifest 以复用已加载的 manifest）。
 // Manifest 定义在 domains/rules/data/provisions/manifest.yaml。
 //
 // # 文件结构
