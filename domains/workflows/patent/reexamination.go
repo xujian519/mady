@@ -313,8 +313,6 @@ func reexamOralHearingNode(ctx context.Context, state graph.PregelState) (graph.
 	if !ok2 {
 		slog.Warn("reexamination: hearing state missing or invalid ReexamStateDecisionInfo, using zero value")
 	}
-	draft := state.GetString(ReexamStateDraft)
-	_ = draft // available for future claim extraction expansion
 
 	var b strings.Builder
 	b.WriteString("# 口审准备材料\n\n")

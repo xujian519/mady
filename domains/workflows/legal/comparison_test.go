@@ -70,7 +70,7 @@ func TestCaseSearchNode(t *testing.T) {
 		StateStatutes:  []string{"民法典"},
 	}
 
-	out, err := caseSearchNode(context.Background(), state)
+	out, err := newCaseSearchNode(nil)(context.Background(), state)
 	if err != nil {
 		t.Fatalf("caseSearchNode: %v", err)
 	}

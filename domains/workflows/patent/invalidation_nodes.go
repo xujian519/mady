@@ -65,38 +65,9 @@ func identifyGroundsNode(ctx context.Context, state graph.PregelState) (graph.Pr
 	}, nil
 }
 
-// gatherEvidenceNode retrieves prior-art evidence for the invalidation grounds.
-// With a retriever injected, it performs real prior-art search.
-// Without a retriever, it marks degradation and returns empty evidence.
-//
-//nolint:unused,unparam // used by invalidation_test.go; Pregel node signature requires error return
-func gatherEvidenceNode(_ context.Context, state graph.PregelState) (graph.PregelState, error) {
-	claims := state.GetString(InvStateClaims)
-	grounds, _ := state[InvStateGrounds].([]InvGround)
-
-	// Build search query from claims text.
-	query := truncate(claims, 100)
-
-	out := graph.PregelState{
-		InvStateInput:   state.GetString(InvStateInput),
-		InvStateClaims:  claims,
-		InvStateGrounds: grounds,
-	}
-	// Also carry forward claim tree.
-	if ct, ok := state[InvStateClaimTree].([]InvClaimNode); ok {
-		out[InvStateClaimTree] = ct
-	}
-
-	// Mark degraded — evidence retrieval requires external data source.
-	graph.MarkDegraded(out, InvStateEvidence, []string{},
-		graph.DegradationNotImplemented,
-		fmt.Sprintf("证据检索尚未接入真实数据库（查询：%s）。检索结果将在功能就绪后自动补充。", query))
-
-	return out, nil
-}
-
 // newGatherEvidenceNodeWithRetriever creates an evidence-gathering node backed
-// by a real domain retriever.
+// by a domain retriever. retriever 为 nil 时标记 DegradationRetrieverNil；
+// 非 nil 时执行真实证据检索，检索失败标记 DegradationSearchFailed。
 func newGatherEvidenceNodeWithRetriever(retriever domain.DomainRetriever) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		claims := state.GetString(InvStateClaims)

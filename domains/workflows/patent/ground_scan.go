@@ -15,19 +15,15 @@ type groundPattern struct {
 }
 
 // scanGrounds scans text against a pattern table and returns matched patterns
-// (deduplicated, in table order). The caller maps TypeKey to its own domain type.
+// (in table order; each table entry matches at most once). The caller maps
+// TypeKey to its own domain type.
 func scanGrounds(text string, rules []groundPattern) []groundPattern {
 	lower := strings.ToLower(text)
-	seen := make(map[int]bool)
 	var matched []groundPattern
-	for i, r := range rules {
-		if seen[i] {
-			continue
-		}
+	for _, r := range rules {
 		for _, p := range r.Patterns {
 			if strings.Contains(lower, strings.ToLower(p)) {
 				matched = append(matched, r)
-				seen[i] = true
 				break
 			}
 		}

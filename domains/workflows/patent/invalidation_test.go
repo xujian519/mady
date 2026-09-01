@@ -138,7 +138,7 @@ func TestGatherEvidenceNode_Degraded(t *testing.T) {
 		},
 	}
 
-	out, err := gatherEvidenceNode(context.Background(), state)
+	out, err := newGatherEvidenceNodeWithRetriever(nil)(context.Background(), state)
 	if err != nil {
 		t.Fatalf("gatherEvidenceNode: %v", err)
 	}

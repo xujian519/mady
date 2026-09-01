@@ -48,14 +48,6 @@ type ReasoningChain struct {
 	Confidence float64
 }
 
-// SyllogismBuilder constructs formal syllogisms for legal reasoning.
-type SyllogismBuilder struct {
-	ArticleRef string
-	Major      string
-	Minor      string
-	Conclusion string
-}
-
 // FactBlackboard defines the interface for the reasoning fact store.
 // domains/reasoning.FactBlackboard satisfies this interface.
 type FactBlackboard interface {

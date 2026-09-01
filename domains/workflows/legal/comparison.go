@@ -148,14 +148,6 @@ func newCaseSearchNode(searcher CaseSearcher) graph.PregelNode {
 	}
 }
 
-// caseSearchNode is retained for backward compatibility — it delegates to
-// newCaseSearchNode(nil) which produces the degraded behavior.
-//
-//nolint:unused // used in comparison_test.go; production code uses rc.caseSearchNode (method)
-func caseSearchNode(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
-	return newCaseSearchNode(nil)(ctx, state)
-}
-
 // extractKeyTerms identifies key legal terms from case facts.
 func extractKeyTerms(facts string) []string {
 	seen := make(map[string]bool)
