@@ -130,6 +130,10 @@ func debugStack() string {
 // (e.g. per-request SSE writers on a long-lived agent) MUST invoke the
 // returned function when their scope ends — otherwise the handler stays
 // registered on a reused agent and leaks, writing to a dead/stale sink.
+//
+// The returned function synchronizes with the dispatch goroutine: it returns
+// only after any in-flight invocation of h has completed, so the caller's
+// sink (e.g. an HTTP ResponseWriter) is safe to reuse or close afterwards.
 func (eb *EventBus) On(t EventType, h EventHandler) func() {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
@@ -141,7 +145,10 @@ func (eb *EventBus) On(t EventType, h EventHandler) func() {
 		eb.handlers[t] = make(map[uint64]EventHandler)
 	}
 	eb.handlers[t][id] = h
-	return func() { eb.offID(t, id) }
+	return func() {
+		eb.offID(t, id)
+		eb.Drain()
+	}
 }
 
 // OnAll registers a handler that receives every event and returns a function
@@ -154,7 +161,10 @@ func (eb *EventBus) OnAll(h EventHandler) func() {
 	}
 	id := eb.nextID.Add(1)
 	eb.global[id] = h
-	return func() { eb.offAllID(id) }
+	return func() {
+		eb.offAllID(id)
+		eb.Drain()
+	}
 }
 
 // offID removes a typed handler by its registration ID. Idempotent.
