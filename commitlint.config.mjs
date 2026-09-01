@@ -6,6 +6,8 @@ export default {
 	rules: {
 		// 中文 subject 按字符计数容易偏长，放宽到 120（默认 100）。
 		'header-max-length': [2, 'always', 120],
+		// dependabot 提交 body 含超长 release-notes 链接行，无法控制其换行，禁用 body 行长限制。
+		'body-max-line-length': [0],
 		// 允许中文 scope 与 subject；主体可含中日韩文字及标点。
 		'subject-case': [0],
 		// dependabot gomod 生成的 commit 使用 deps(deps): 前缀，补充到允许的类型枚举。
