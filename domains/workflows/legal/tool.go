@@ -32,6 +32,7 @@ func NewLegalComparisonTool(opts ...LegalGraphOption) *agentcore.Tool {
 				CaseFacts string `json:"case_facts"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数错误转为结构化失败响应返回调用方。
 				return agentcore.NewFailureResult("参数解析失败", "案件事实文本格式错误"), nil
 			}
 			if p.CaseFacts == "" {
@@ -42,6 +43,7 @@ func NewLegalComparisonTool(opts ...LegalGraphOption) *agentcore.Tool {
 				"case-auto", CaseInvalidation, opts...,
 			)
 			if err != nil {
+				// 图构建失败显式降级响应，不向调用方暴露内部错误。
 				return agentcore.NewFailureResult("分析引擎初始化失败",
 					"法律案例分析功能暂时不可用，请稍后重试。"), nil
 			}
@@ -65,6 +67,7 @@ func NewLegalComparisonTool(opts ...LegalGraphOption) *agentcore.Tool {
 				StateCaseFacts: p.CaseFacts,
 			})
 			if err != nil {
+				// 图执行失败显式降级响应。
 				return agentcore.NewFailureResult("分析执行失败",
 					"法律案例分析出现错误。"), nil
 			}

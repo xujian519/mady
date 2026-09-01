@@ -89,11 +89,13 @@ func handleValidate(_ context.Context, args json.RawMessage) (any, error) {
 		OutputText string `json:"output_text"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
+		// 参数错误转为结构化失败响应返回调用方。
 		return agentcore.NewFailureResult("参数解析失败", "Worker 校验参数格式错误"), nil
 	}
 
 	result := ValidateWorkerOutput(p.WorkerName, p.OutputText)
 
+	// 溯源写入失败不阻断校验结果返回（Log nil-safe，fail-open）。
 	_ = provenanceLog.Log(provenance.ProvenanceEvent{
 		Kind:    provenance.KindContractValidate,
 		Tool:    "patent_worker_validate",

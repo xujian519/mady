@@ -146,6 +146,7 @@ func retrieveOARules(ctx context.Context, retriever OARuleRetriever, rejectionTy
 	for _, rt := range rejectionTypes {
 		articles, err := retriever.RetrieveRules(ctx, rejectionTypeToQuery(string(rt)))
 		if err != nil {
+			// 该驳回类型检索失败：置 anyFailed 由上层标记降级，继续其余类型。
 			anyFailed = true
 			continue
 		}
@@ -188,7 +189,7 @@ type OARuleRetriever interface {
 // OALawArticle is a single law/guideline provision relevant to a rejection type.
 type OALawArticle struct {
 	ArticleRef string // e.g. "专利法第22条第3款"
-	Title      string // e.g. termInventiveness
+	Title      string // e.g. "创造性"（法条/章节标题）
 	Content    string // provision text or guideline excerpt
 	Source     string // e.g. "专利法", "审查指南第二部分第四章"
 }

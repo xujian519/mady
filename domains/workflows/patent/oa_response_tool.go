@@ -54,6 +54,7 @@ func NewOAResponseTool(opts ...OAGraphOption) *agentcore.Tool {
 				ClaimText string `json:"claim_text"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数错误转为结构化失败响应返回调用方。
 				return agentcore.NewFailureResult("参数解析失败", "OA 通知书文本格式错误"), nil
 			}
 			if p.OAText == "" {
@@ -62,6 +63,7 @@ func NewOAResponseTool(opts ...OAGraphOption) *agentcore.Tool {
 
 			compiled, err := BuildOAResponseGraphWithOpts(opts...)
 			if err != nil {
+				// 图构建失败显式降级响应，不向调用方暴露内部错误。
 				return agentcore.NewFailureResult("答复引擎初始化失败",
 					"OA 答复功能暂时不可用，请稍后重试。"), nil
 			}
@@ -75,6 +77,7 @@ func NewOAResponseTool(opts ...OAGraphOption) *agentcore.Tool {
 
 			state, err := compiled.Run(ctx, initialState)
 			if err != nil {
+				// 图执行失败显式降级响应。
 				return agentcore.NewFailureResult("答复生成失败",
 					"OA 答复生成过程出现错误。"), nil
 			}

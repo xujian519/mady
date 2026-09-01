@@ -33,6 +33,7 @@ func NewPatentNoveltyTool(opts ...GraphOption) *agentcore.Tool {
 				Description string `json:"invention_description"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数错误转为结构化失败响应返回调用方。
 				return agentcore.NewFailureResult("参数解析失败", "发明描述文本格式错误"), nil
 			}
 			if p.Description == "" {
@@ -41,6 +42,7 @@ func NewPatentNoveltyTool(opts ...GraphOption) *agentcore.Tool {
 
 			compiled, err := BuildNoveltyGraphWithRulesWithOpts(opts...)
 			if err != nil {
+				// 图构建失败显式降级响应，不向调用方暴露内部错误。
 				return agentcore.NewFailureResult("分析引擎初始化失败",
 					"专利新颖性分析功能暂时不可用，请稍后重试。"), nil
 			}
@@ -49,6 +51,7 @@ func NewPatentNoveltyTool(opts ...GraphOption) *agentcore.Tool {
 				StateInput: p.Description,
 			})
 			if err != nil {
+				// 图执行失败显式降级响应。
 				return agentcore.NewFailureResult("分析执行失败",
 					"专利新颖性分析出现错误。"), nil
 			}
@@ -91,6 +94,7 @@ func NewDebateTool() *agentcore.Tool {
 				Disclosure string `json:"disclosure"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数错误转为结构化失败响应返回调用方。
 				return agentcore.NewFailureResult("参数解析失败", "权利要求文本格式错误"), nil
 			}
 			if p.Claims == "" {
@@ -99,6 +103,7 @@ func NewDebateTool() *agentcore.Tool {
 
 			compiled, err := BuildDebateGraph()
 			if err != nil {
+				// 图构建失败显式降级响应，不向调用方暴露内部错误。
 				return agentcore.NewFailureResult("辩论引擎初始化失败",
 					"审查员辩论模拟功能暂时不可用，请稍后重试。"), nil
 			}
@@ -108,6 +113,7 @@ func NewDebateTool() *agentcore.Tool {
 				StateDebateDisclosure: p.Disclosure,
 			})
 			if err != nil {
+				// 图执行失败显式降级响应。
 				return agentcore.NewFailureResult("辩论执行失败",
 					"模拟辩论出现错误。"), nil
 			}
@@ -147,6 +153,7 @@ func NewInvalidationTool(opts ...InvGraphOption) *agentcore.Tool {
 				Claims string `json:"patent_claims"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数错误转为结构化失败响应返回调用方。
 				return agentcore.NewFailureResult("参数解析失败", "权利要求文本格式错误"), nil
 			}
 			if p.Claims == "" {
@@ -155,6 +162,7 @@ func NewInvalidationTool(opts ...InvGraphOption) *agentcore.Tool {
 
 			compiled, err := BuildInvalidationGraphWithOpts(opts...)
 			if err != nil {
+				// 图构建失败显式降级响应，不向调用方暴露内部错误。
 				return agentcore.NewFailureResult("分析引擎初始化失败",
 					"专利无效宣告分析功能暂时不可用，请稍后重试。"), nil
 			}
@@ -163,6 +171,7 @@ func NewInvalidationTool(opts ...InvGraphOption) *agentcore.Tool {
 				InvStateInput: p.Claims,
 			})
 			if err != nil {
+				// 图执行失败显式降级响应。
 				return agentcore.NewFailureResult("分析执行失败",
 					"专利无效宣告分析出现错误。"), nil
 			}
@@ -202,6 +211,7 @@ func NewReexaminationTool(opts ...ReexamGraphOption) *agentcore.Tool {
 				Decision string `json:"rejection_decision"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数错误转为结构化失败响应返回调用方。
 				return agentcore.NewFailureResult("参数解析失败", "驳回决定书文本格式错误"), nil
 			}
 			if p.Decision == "" {
@@ -210,6 +220,7 @@ func NewReexaminationTool(opts ...ReexamGraphOption) *agentcore.Tool {
 
 			compiled, err := BuildReexaminationGraph(opts...)
 			if err != nil {
+				// 图构建失败显式降级响应，不向调用方暴露内部错误。
 				return agentcore.NewFailureResult("引擎初始化失败",
 					"复审请求书起草功能暂时不可用，请稍后重试。"), nil
 			}
@@ -218,6 +229,7 @@ func NewReexaminationTool(opts ...ReexamGraphOption) *agentcore.Tool {
 				ReexamStateInput: p.Decision,
 			})
 			if err != nil {
+				// 图执行失败显式降级响应。
 				return agentcore.NewFailureResult("起草失败",
 					"复审请求书起草出现错误。"), nil
 			}

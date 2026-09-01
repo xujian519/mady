@@ -37,6 +37,7 @@ func handleTeamResolve(_ context.Context, args json.RawMessage) (any, error) {
 		Scenario string `json:"scenario"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
+		// 参数错误转为结构化失败响应返回调用方。
 		return agentcore.NewFailureResult("参数解析失败", "patent_team_resolve 参数格式错误"), nil
 	}
 	if p.Scenario == "" {

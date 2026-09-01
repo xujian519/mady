@@ -346,6 +346,7 @@ func judgeEvidenceNode(ctx context.Context, state graph.PregelState) (graph.Preg
 	for _, span := range spans {
 		j, err := engine.Judge(span)
 		if err != nil {
+			// 单条证据判断失败即跳过，不中断整批评审（fail-safe）。
 			continue
 		}
 		judgments = append(judgments, *j)

@@ -129,6 +129,7 @@ func NewPatentPlanTaskTool() *agentcore.Tool {
 func handlePlanTask(_ context.Context, args json.RawMessage) (any, error) {
 	var p Input
 	if err := json.Unmarshal(args, &p); err != nil {
+		// 参数错误转为结构化失败响应返回调用方。
 		return agentcore.NewFailureResult("参数解析失败", "计划任务参数格式错误"), nil
 	}
 
@@ -174,6 +175,7 @@ func handleTransition(p Input) (any, error) {
 		return agentcore.NewFailureResult("语义错误", "进入 replanning 必须提供 feedback"), nil
 	}
 
+	// 溯源写入失败不阻断状态迁移（Log nil-safe，fail-open）。
 	_ = provenanceLog.Log(provenance.ProvenanceEvent{
 		Kind:    provenance.KindPlanLifecycle,
 		Tool:    "patent_plan_task",
@@ -261,6 +263,7 @@ func handleReplan(p Input) (any, error) {
 		return agentcore.NewFailureResult("序列化失败", err.Error()), nil
 	}
 
+	// 溯源写入失败不阻断 replan 返回（Log nil-safe，fail-open）。
 	_ = provenanceLog.Log(provenance.ProvenanceEvent{
 		Kind:    provenance.KindPlanLifecycle,
 		Tool:    "patent_plan_task",

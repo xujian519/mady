@@ -36,6 +36,7 @@ func NewPatentWorkflowRunTool(prov *provenance.ProvenanceLogger) *agentcore.Tool
 				WorkflowID string `json:"workflow_id"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数错误转为结构化失败响应返回调用方。
 				return agentcore.NewFailureResult("参数解析失败", "patent_workflow_run 参数格式错误"), nil
 			}
 			if p.WorkflowID == "" {
@@ -73,6 +74,7 @@ func NewPatentWorkflowRunTool(prov *provenance.ProvenanceLogger) *agentcore.Tool
 						s.Retry.WhenOutputMatches, s.Retry.RewindTo, s.Retry.MaxRetries)
 				}
 				steps = append(steps, step)
+				// 溯源写入失败不阻断计划输出（Log nil-safe，fail-open）。
 				_ = prov.Log(provenance.ProvenanceEvent{
 					Kind:       provenance.KindWorkflowStep,
 					Tool:       "patent_workflow_run",

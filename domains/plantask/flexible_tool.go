@@ -61,6 +61,7 @@ func NewFlexiblePlanStore(baseDir string) *FlexiblePlanStore {
 }
 
 // DefaultFlexiblePlanStore returns a store under ~/.mady/flexible-plans.
+// MadyHome 解析失败时退化为相对目录 flexible-plans（工具仍可用，fail-safe）。
 func DefaultFlexiblePlanStore() *FlexiblePlanStore {
 	home, err := util.MadyHome()
 	if err != nil {
@@ -109,6 +110,7 @@ func (s *FlexiblePlanStore) Load(caseID string) (*FlexiblePlan, error) {
 	}
 	data, err := os.ReadFile(p) //nolint:gosec // caseID 已净化为 base name，baseDir 为可信前缀
 	if err != nil {
+		// 不存在转为用户可读错误，其余错误原样传播。
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("计划 %q 不存在", caseID)
 		}
@@ -171,6 +173,7 @@ func NewFlexiblePlanTool(store *FlexiblePlanStore) *agentcore.Tool {
 func handleFlexiblePlan(store *FlexiblePlanStore, args json.RawMessage) (any, error) {
 	var p FlexiblePlanInput
 	if err := json.Unmarshal(args, &p); err != nil {
+		// 参数错误转为结构化失败响应返回调用方。
 		return agentcore.NewFailureResult("参数解析失败", "灵活计划参数格式错误"), nil
 	}
 	if p.CaseID == "" {
