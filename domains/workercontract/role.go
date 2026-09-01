@@ -205,17 +205,22 @@ var teamCompositions = map[string]TeamComposition{
 	},
 }
 
+// sortedScenarios 返回全部内置场景名（排序），供解析与枚举共用。
+func sortedScenarios() []string {
+	scenes := make([]string, 0, len(teamCompositions))
+	for k := range teamCompositions {
+		scenes = append(scenes, k)
+	}
+	sort.Strings(scenes)
+	return scenes
+}
+
 // ResolveTeamComposition 按场景解析角色编排；未知场景返回 false。
 // 返回前做立场配对校验——内置编排在编译期即应通过，此处防运行期改动。
 func ResolveTeamComposition(scenario string) (TeamComposition, error) {
 	t, ok := teamCompositions[scenario]
 	if !ok {
-		var scenes []string
-		for k := range teamCompositions {
-			scenes = append(scenes, k)
-		}
-		sort.Strings(scenes)
-		return TeamComposition{}, fmt.Errorf("未知场景 %q（可选: %s）", scenario, strings.Join(scenes, ", "))
+		return TeamComposition{}, fmt.Errorf("未知场景 %q（可选: %s）", scenario, strings.Join(sortedScenarios(), ", "))
 	}
 	if err := t.Validate(); err != nil {
 		return TeamComposition{}, err
@@ -225,10 +230,5 @@ func ResolveTeamComposition(scenario string) (TeamComposition, error) {
 
 // TeamScenarios 返回全部内置场景名（排序）。
 func TeamScenarios() []string {
-	var scenes []string
-	for k := range teamCompositions {
-		scenes = append(scenes, k)
-	}
-	sort.Strings(scenes)
-	return scenes
+	return sortedScenarios()
 }
