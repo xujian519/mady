@@ -236,17 +236,27 @@ func BuildInvalidationGraphFromYAML(yamlPath string) (*graph.CompiledPregelGraph
 		return out, nil
 	}
 	g := graph.NewPregelGraph()
-	_ = g.AddNode("parse_patent", parsePatentNode)
-	_ = g.AddNode("identify_grounds", identifyGroundsNode)
-	_ = g.AddNode("analyze_grounds", enhancedAnalyze)
-	_ = g.AddNode("conclude", invConcludeNode)
+	if err := g.AddNode("parse_patent", parsePatentNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("identify_grounds", identifyGroundsNode); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("analyze_grounds", enhancedAnalyze); err != nil {
+		return nil, err
+	}
+	if err := g.AddNode("conclude", invConcludeNode); err != nil {
+		return nil, err
+	}
 	for _, edge := range [][2]string{
 		{"parse_patent", "identify_grounds"},
 		{"identify_grounds", "analyze_grounds"},
 		{"analyze_grounds", "conclude"},
 		{"conclude", graph.PregelEnd},
 	} {
-		_ = g.AddEdge(edge[0], edge[1])
+		if err := g.AddEdge(edge[0], edge[1]); err != nil {
+			return nil, err
+		}
 	}
 	return g.Compile("parse_patent", 15)
 }
