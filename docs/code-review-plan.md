@@ -81,7 +81,7 @@
 | M09 | domains/novelty + infringement | 新颖性 + 侵权比对 | ✅ 2026-08-28 |
 | M10 | domains/evidence + ipc + checker | 证据规则 + 分类 + 撰写检查 | ✅ 2026-08-28 |
 | M11 | domains/claimchart + provisions + provenance | 对照图 + 法条 + 溯源 | ✅ 2026-08-28 |
-| M12 | domains/workflows + plantask + workercontract | 领域工作流 | ⬜ |
+| M12 | domains/workflows + plantask + workercontract | 领域工作流 | ✅ 2026-09-01 |
 | M13 | domains/rules + reasoning（含 sqlite/wiring） | 规则引擎 + 推理 | ⬜ |
 | M14 | domains/writing + doctmpl | 撰写质量 + 模板 | ⬜ |
 | M15 | domains 根包 + sqlite + case_* | 根包 289 文件剩余 | ⬜ |
@@ -339,3 +339,20 @@
   - `5c80934` doc.go Tier C 预注册口径同步
 - **门禁**：包级 -race 与 make verify 全绿；零敏感路径改动
 - **遗留**：工具面 +7K tokens/轮的实测与 BeforeModelCall 按需过滤；条款智能体直连领域专家（AllowedSources 扩 provision-*）；wiki_card_roots 限域检索承接（零消费数据）
+
+### M12（2026-09-01）domains/workflows + plantask + workercontract ✅
+
+- **审阅范围**：51 个非测试 `.go`（workflows 46 + plantask 2 + workercontract 3，约 10K 行）——workflows/patent 36（声明式 manifest + patent_workflow_run 路由、OA 答复/无效宣告/驳回复审/侵权比对/审查辩论/新颖性 Pregel 图 + 确定性规则引擎 + 18 推理模式数据 + CNIPA 统计策略建议）；workflows/legal 4（案例比较图 + 三段论推理黑板 + 依赖倒置适配器）；workflows/design 4（外观设计无效四步法图 + 设计规则引擎）；plantask 2（patent_plan_task 状态机 + patent_flexible_plan 阶段级 HITL）；workercontract 3（patent_worker_validate 契约校验 + patent_team_resolve 立场配对）
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：1 项登记——design 包 DesignGraphOption/`designGraphConfig` 为空 config 死抽象（未定义任何 With\* 构造器，opts 循环空转），删除涉导出签名 NewDesignInvalidationTool 变更与调用方（domains/patent.go）同步，登记待清理卡
+  - P2 一致性：5 项登记——① patent concludeNode（analysis_nodes.go）`input[:200]` 按字节截断中文可产生无效 UTF-8（legal 包同场景已按 rune 截断），改则输出变，登记待 fix 卡；② legal tool.go 与 statuteNode 对同一 ID "case_facts" 双写 FactBlackboard（append 语义产生影子事实，GetFact 恒取首条，审计冗余）；③ legal tool.go 硬编码 caseID "case-auto" + CaseInvalidation（所有法律比较案件均按无效类型建黑板）；④ design 包 matchKeyword 与 patent 包 matchKeyword 同名不同义（design 版无否定词检测，「不涉及惯常设计」也会命中必需要素），两包同名行为差异登记；⑤ patent matchKeyword 否定检测窗口 idx 取自 lower 而切片取自原文、60 按字符注释实为字节，Unicode 变长映射时窗口错位（极低概率边界）
+  - P3 风格：4 项已收敛（死代码删除 + seen 死分支 + draft 死语句 + 悬空节头，见精炼）
+  - 登记不处理（公共 API 零消费，按规范保留）：legal BuildComparisonGraph/BuildComparisonGraphWithOpts（仅测试消费，生产走 WithReasoning）；patent BuildInvalidationGraphFromYAML（仅测试消费）；patent ParseOA/FormatOaSummary/AllInvalidationStats/AllReasoningPatternStats/GetDesignStat（包外零消费）；patent debateRoundNode 三个 no-op 直通节点（注释已声明为未来 LLM 增强占位）；legal 本地 FactEntry/RuleConstraint/LegalBasis/ReasoningChain/CaseType 类型集（WrapBlackboard 适配链在用）
+- **精炼**：4 个 refactor 提交，全部无行为变化
+  - `beb835f1` 删除零消费与仅测试消费的死代码（SyllogismBuilder/caseSearchNode/gatherEvidenceNode/draft/seen + 测试同步）
+  - `e52f562c` BuildInvalidationGraphFromYAML 检查图构建错误（`_ =` ×8 → 检查返回）
+  - `7d4d756b` 工具失败响应与静默降级补意图注释（scanner 吞错 27 → 0）
+  - `b71076a4` workercontract 提取 sortedScenarios 去重场景列表构建
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（`python3 scripts/scan_go_smells.py domains/workflows domains/plantask domains/workercontract`）：裸 fmt 0 / 忽略 err 0 / 吞错 27 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0
