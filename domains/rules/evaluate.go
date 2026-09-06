@@ -230,6 +230,8 @@ func extractFirstNumber(text string) *float64 {
 	}
 	val, err := strconv.ParseFloat(match, 64)
 	if err != nil {
+		// 正则已保证 match 为数字，跑数解析失败仅当越界/极端格式；
+		// 按"文本中无数值"降级返回 nil，交由调用方按缺值处理。
 		return nil
 	}
 	return &val
