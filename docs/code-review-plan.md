@@ -82,7 +82,7 @@
 | M10 | domains/evidence + ipc + checker | 证据规则 + 分类 + 撰写检查 | ✅ 2026-08-28 |
 | M11 | domains/claimchart + provisions + provenance | 对照图 + 法条 + 溯源 | ✅ 2026-08-28 |
 | M12 | domains/workflows + plantask + workercontract | 领域工作流 | ✅ 2026-09-01 |
-| M13 | domains/rules + reasoning（含 sqlite/wiring） | 规则引擎 + 推理 | ⬜ |
+| M13 | domains/rules + reasoning（含 sqlite/wiring） | 规则引擎 + 推理 | ✅ 2026-09-06 |
 | M14 | domains/writing + doctmpl | 撰写质量 + 模板 | ⬜ |
 | M15 | domains 根包 + sqlite + case_* | 根包 289 文件剩余 | ⬜ |
 
@@ -356,3 +356,19 @@
   - `b71076a4` workercontract 提取 sortedScenarios 去重场景列表构建
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
 - **指标重扫**（`python3 scripts/scan_go_smells.py domains/workflows domains/plantask domains/workercontract`）：裸 fmt 0 / 忽略 err 0 / 吞错 27 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0
+
+### M13（2026-09-06）domains/rules + reasoning ✅
+
+- **审阅范围**：36 个非测试 `.go`（rules 9 + reasoning 27，约 8.5K 行）——rules: doc / engine / engine_formatters / engine_handlers / evaluate / loader / oa_parser / slop_engine / types；reasoning: types / doc / fact_blackboard / planner / plan_compiler / manifest / syllogism / graph / rule_retrieval / checkpoint / enhanced_checker / five_step_runner / walker / topology_extractor / multi_hypothesis / llm_node_builder / handoff_integration / provider_adapter / ipc_source / case_summary / manifest_prompt / sqlite / wiring（4 文件）
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：2 项登记待拆——① rules/engine.go `Tools()` 155 行（6 个工具注册声明，共享 JSON schema 模式已带 `//nolint:dupl`）；② plan_compiler.go `CompilePlanToGraph` 163 行（计划编译含依赖解析/拓扑排序，已带 `//nolint:gocognit`）
+  - P2 一致性：4 项登记——① plan_compiler.go 两处 `_ = g.AddEdge`（entryName→无依赖步骤 / terminal→PregelEnd）与邻近平行代码检查错误的模式不一致；改检查会影响图构建失败时的返回路径（行为敏感），登记不处理；② sqlite/doc.go 包注释示例签名与实际 `Save(ctx, *StageCheckpoint)` 不符、`CheckpointStore` 类型名误（已修正）；③ skill_rule_reader.go 包注释重复段落（“Despite the Skill name…”与“patent-cards and adapts them…”语义重复、衔接不通，登记待清理）；④ sqlite/checkpoint_store.go 文件尾重复 `var _ reasoning.CheckpointStore` 编译时检查（文件头 var block 已有同款断言，已删除）
+  - P3 风格：2 项已收敛（见精炼）
+  - 登记不处理：reasoning.NowISO 导出但包外零消费（内部经 nowISO 别名包装，属公共 API 按规范保留）；computeEvidenceScore 带 `//nolint:unused`（仅 phase4_test.go 消费）
+- **精炼**：3 个提交，全部无行为变化
+  - `9070c207` chore(git): 忽略 .video_agent/ 运行期产物
+  - `7a9962e0` refactor(domains/rules): extractFirstNumber 降级分支补意图注释
+  - `099dd26e` refactor(domains/reasoning): sqlite 重复编译检查清理与 doc.go 修正 + confirmed_rule_writer fail-open 注释
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；rules/reasoning/sqlite/wiring 包级 `-race` 测试全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py domains/rules domains/reasoning`）：裸 fmt 0 / 忽略 err 0 / 吞错 5 → **3**（2 处真实降级补注释；另 3 处为 planner 两条 LLM 降级与 sqlite 错误传播，均已有 slog/log/doc 表达意图，属扫描器仅认 `//` 注释的误报）/ TODO 0 / 未注释导出 0 / >120 行函数 2（Tools() 与 CompilePlanToGraph，登记待拆）
