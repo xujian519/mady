@@ -170,6 +170,3 @@ func (s *SQLiteCheckpointStore) Migrate(ctx context.Context) (int, error) {
 	}
 	return s.Version(), nil
 }
-
-// 编译时检查
-var _ reasoning.CheckpointStore = (*SQLiteCheckpointStore)(nil)

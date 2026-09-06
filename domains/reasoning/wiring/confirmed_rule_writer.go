@@ -89,6 +89,7 @@ func (w *ConfirmedRuleWriter) List() ([]string, error) {
 	entries, err := os.ReadDir(w.dir)
 	if err != nil {
 		if os.IsNotExist(err) {
+			// 目录尚不存在 = 尚无历史确认记录，按空列表 fail-open 处理。
 			return nil, nil
 		}
 		return nil, fmt.Errorf("confirmed rule writer: list: %w", err)
