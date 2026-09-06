@@ -11,6 +11,7 @@
 **目标**：对全部代码做一轮全覆盖的「审阅 + 精炼」。审阅先行、精炼后置，**只做无行为变化的清理**，保持全部功能不变。
 
 **成功标准（可量化验收）**：
+
 1. **审阅覆盖率 100%**：全部日卡完成，本进度表可逐卡追溯
 2. **每卡门禁全绿**：`make verify`（lint + check-arch + doc-check + verify-layers + build + test-race）；涉 `tui/`/`desktop/` 单独 `cd <模块> && go build ./... && go test -race ./...`；涉协议面卡过全量 `go test ./...`
 3. **行为不变**：全部提交为 `refactor`/`chore`/`docs` 类，无 `feat`/`fix` 混入；全量测试保持全绿
@@ -22,7 +23,7 @@
 ## 二、阶段划分
 
 | 阶段 | 周期 | 内容 | 卡数 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 阶段 1 | 第 1–2 周 | 内核层：agentcore / graph / doomloop / session / store | 5 |
 | 阶段 2 | 第 3–6 周 | 领域层：domains 各业务模块（最大，289 文件/52.6K 行） | 10 |
 | 阶段 3 | 第 5–7 周 | 基础设施层：knowledge / memory / retrieval / disclosure / guardrails / pkg 等 | 7 |
@@ -64,7 +65,7 @@
 ### 阶段 1 — 内核层（W1–W2）
 
 | 卡 | 模块 | 规模/热点 | 状态 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | M01 | agentcore/ 核心（agent_run/reasoning_*/skill_extension/iface） | 130 文件/21.4K 行 | ✅ 2026-08-25 |
 | M02 | agentcore/ 子包（concurrency/evidence/filecheckpoint/permission/planmode/tasklist/worker） | 同上 | ✅ 2026-08-26 |
 | M03 | agentcore/ manifests + 其余 + graph/ | graph 9 文件/1.8K 行 | ✅ 2026-08-26 |
@@ -74,7 +75,7 @@
 ### 阶段 2 — 领域层（W3–W6）
 
 | 卡 | 模块 | 规模/热点 | 状态 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | M06 | domains/claimdrafting + config | 撰写模块 | ✅ 2026-08-27 |
 | M07 | domains/specdrafting | 说明书撰写 | ✅ 2026-08-28 |
 | M08 | domains/enablement + inventiveness | 26.3 + 创造性图引擎 | ✅ 2026-08-28 |
@@ -89,7 +90,7 @@
 ### 阶段 3 — 基础设施层（W5–W7）
 
 | 卡 | 模块 | 规模/热点 | 状态 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | M16 | knowledge/（fileindex/graph/knowledgeinit/loader/risk/sqlite） | 53 文件/9.7K 行 | ⬜ |
 | M17 | memory/ + compiler | 25 文件/4.9K 行 | ⬜ |
 | M18 | retrieval/（domain/sqlite/nuopatent/browser） | 19 文件/3.7K 行 | ⬜ |
@@ -101,7 +102,7 @@
 ### 阶段 4 — 接口层（W7）
 
 | 卡 | 模块 | 规模/热点 | 状态 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | M23 | a2a/ | 26 文件/5.4K 行（协议面红线） | ⬜ |
 | M24 | a2ui/ + agui/ | 20 文件/3.2K 行（协议面红线） | ⬜ |
 | M25 | acp/ + server/ | 32 文件/6.7K 行（含红线） | ⬜ |
@@ -111,7 +112,7 @@
 ### 阶段 5 — 工具/入口（W8）
 
 | 卡 | 模块 | 规模/热点 | 状态 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | M28 | tools/ browser_* + browserproviders | 85 文件/18.8K 行拆 3 卡 | ⬜ |
 | M29 | tools/ desktop + computer_use* | 同上 | ⬜ |
 | M30 | tools/ 内置工具族 + tools.go 注册 | 同上 | ⬜ |
@@ -120,7 +121,7 @@
 ### 阶段 6 — 端/测试/脚本（W8–W9）
 
 | 卡 | 模块 | 规模/热点 | 状态 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | M32 | evaluate/ + example/ + integration/ + scripts/ | 32+11+脚本 | ⬜ |
 | M33 | tui/（独立子模块）A | 分层 Elm 架构 | ⬜ |
 | M34 | tui/（独立子模块）B | 同上 | ⬜ |
@@ -133,7 +134,7 @@
 基线为扫描工具 2026-08-25 修复后实测（fixme 统计注释行、静默吞错含 `if err := ...; err != nil` 形式）。
 
 | 指标 | 基线值 | 目标 | 备注 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 根模块非测试 `.go` 文件 | 929 | — | CLAUDE.md 的 1093 含 tui/desktop 与未跟踪文件 |
 | 裸 `fmt.Print*`（库代码调试残留） | 66 | <30 | main 包 CLI 输出豁免；cmd 65 处为 subcmd 正常输出 |
 | 被忽略的 error（`_ = <expr>` 等） | 24 | ≤10 | GO-STANDARDS §0.1#1 |
