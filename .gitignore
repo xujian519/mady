@@ -30,6 +30,7 @@ sessions/*.jsonl
 .session-memory
 .session-memory-shm
 .session-memory-wal
+.video_agent/
 
 # --- IDE & editors ---
 .idea/
