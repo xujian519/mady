@@ -1,6 +1,6 @@
 module github.com/xujian519/mady
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.10.2
@@ -22,7 +22,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0
 	golang.org/x/image v0.45.0
 	golang.org/x/net v0.58.0
-	golang.org/x/text v0.41.0
+	golang.org/x/text v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.57.0
 )
