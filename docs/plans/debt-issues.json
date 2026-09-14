@@ -1,0 +1,436 @@
+{
+  "version": 1,
+  "updated": "2026-09-14",
+  "repo": "xujian519/mady",
+  "sourceDoc": "docs/plans/debt-issue-map.md",
+  "note": "本文件是 DEBT 编号 ↔ GitHub issue 映射的唯一事实源（single source of truth）。文档回写由 scripts/debtlink 依据本文件生成，禁止手工改写报告中的索引区块。",
+  "entries": [
+    {
+      "id": "DEBT-01",
+      "priority": "P0",
+      "title": "desktop 全域 + TUI provider 切换点绕过 PII 脱敏",
+      "issue": 58,
+      "status": "open"
+    },
+    {
+      "id": "DEBT-02",
+      "priority": "P0",
+      "title": "`agentcore` God Package 与分层反向依赖（根因）",
+      "issue": 59,
+      "status": "open"
+    },
+    {
+      "id": "DEBT-03",
+      "priority": "P0",
+      "title": "`agentcore/iface` 契约降级，文档与代码不符",
+      "issue": 60,
+      "status": "open"
+    },
+    {
+      "id": "DEBT-04",
+      "priority": "P0",
+      "title": "`domains` ↔ `guardrails` 目录级双向依赖",
+      "issue": 61,
+      "status": "open"
+    },
+    {
+      "id": "DEBT-05",
+      "priority": "P0",
+      "title": "`pregel` 节点 panic 被降级为日志，图继续执行且不标记失败",
+      "issue": 62,
+      "status": "open"
+    },
+    {
+      "id": "DEBT-06",
+      "priority": "P1",
+      "title": "`domains` 根包 3 个别名垫片（142 行纯转发）",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-07",
+      "priority": "P1",
+      "title": "`acp` → `bootstrap` 反向依赖",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-08",
+      "priority": "P1",
+      "title": "`graph` 内部测试反向依赖 `agentcore`",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-09",
+      "priority": "P1",
+      "title": "`tools/` 与 `domains/` 两个巨型根包，职责混杂",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-10",
+      "priority": "P1",
+      "title": "三份 provider→默认模型映射，常量散落 8 处",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-11",
+      "priority": "P1",
+      "title": "`inventiveness` LLM 综合判断可绕过 AND 公式",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-12",
+      "priority": "P1",
+      "title": "`psychological` 仅实现 30–35% 声称能力",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-13",
+      "priority": "P1",
+      "title": "`specdrafting`/`claimdrafting` P1 ×14 未闭环",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-14",
+      "priority": "P1",
+      "title": "`evidence` YAML 15 条规则是否真进引擎待确认",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-15",
+      "priority": "P1",
+      "title": "`memory.SearchAllLayers` 调用侧传空 scope",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-16",
+      "priority": "P1",
+      "title": "MCP config trust TOCTOU 时序窗口",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-17",
+      "priority": "P1",
+      "title": "`executor-full-review` 14 项未闭环",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-18",
+      "priority": "P1",
+      "title": "`agentcore-deep-review` 遗留 7 项",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-19",
+      "priority": "P1",
+      "title": "`agent-runtime-review` P1 ×13",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-20",
+      "priority": "P1",
+      "title": "`//nolint` 抑制文化：432 处，复杂度门禁形同虚设",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-21",
+      "priority": "P1",
+      "title": "高复杂度函数热点（gocyclo > 40）",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-22",
+      "priority": "P1",
+      "title": "`memory` 与各 domain 规则引擎成对复制粘贴",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-23",
+      "priority": "P1",
+      "title": "孤儿包 `domains/chemistry` + `domains/figure`（697 行）",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-24",
+      "priority": "P1",
+      "title": "12 处 `//nolint:unused`：生产符号靠测试续命",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-25",
+      "priority": "P1",
+      "title": "安全红线相关路径测试缺口",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-26",
+      "priority": "P1",
+      "title": "模块级覆盖率薄弱",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-27",
+      "priority": "P1",
+      "title": "AI_CHANGELOG 格式合规",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-28",
+      "priority": "P1",
+      "title": "文档计数漂移、死引用、目录引用错误",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-29",
+      "priority": "P1",
+      "title": "15 个包未在 CLAUDE.md 出现",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-30",
+      "priority": "P1",
+      "title": "ADR 体系不一致",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-31",
+      "priority": "P1",
+      "title": "`docs/architecture/orchestrator-refactor-roadmap.md` 整体失效",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-32",
+      "priority": "P2",
+      "title": "`cmd/mady` 入口包膨胀",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-33",
+      "priority": "P2",
+      "title": "15+ 全局可变单例",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-34",
+      "priority": "P2",
+      "title": "前端构建产物被 git 跟踪",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-35",
+      "priority": "P2",
+      "title": "命名与类型一致性批量治理",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-36",
+      "priority": "P2",
+      "title": "并发原语三份实现",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-37",
+      "priority": "P2",
+      "title": "路径与魔法数硬编码收敛",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-38",
+      "priority": "P2",
+      "title": "TUI 规范符合度与实现缺口",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-39",
+      "priority": "P2",
+      "title": "TUI 全量审阅 P0-1 + P1 ×12",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-40",
+      "priority": "P2",
+      "title": "错误处理与文案规范批量治理",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-41",
+      "priority": "P2",
+      "title": "重复代码清理剩余项",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-42",
+      "priority": "P2",
+      "title": "`tools/` 4 种模式骨架代码返回 nil",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-43",
+      "priority": "P2",
+      "title": "编排/checkpoint 遗留 P1",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-44",
+      "priority": "P3",
+      "title": "全仓重构 CHECKLIST（77 项，0/77）",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-45",
+      "priority": "P3",
+      "title": "optimization-plan 全景",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-46",
+      "priority": "P3",
+      "title": "编排器重构 roadmap Phase 0–5",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-47",
+      "priority": "P3",
+      "title": "知识库增强计划",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-48",
+      "priority": "P3",
+      "title": "专利能力超越考试大纲 Phase 1–2",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-49",
+      "priority": "P3",
+      "title": "reasonix 引入计划",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-50",
+      "priority": "P3",
+      "title": "YunXi → Mady 升级任务清单",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-51",
+      "priority": "P3",
+      "title": "`log` → `slog` 迁移",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-52",
+      "priority": "P3",
+      "title": "桌面端 W2/W3/W4 波次",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-53",
+      "priority": "P3",
+      "title": "TUI 四周 Sprint + 差距修复方案",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-54",
+      "priority": "P3",
+      "title": "规范体系缺口",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-55",
+      "priority": "P3",
+      "title": "Phase 4 Backlog 未勾选项",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-56a",
+      "priority": "P3",
+      "title": "日卡阶段 2 收尾：domains 层剩余",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-56b",
+      "priority": "P3",
+      "title": "日卡阶段 3：基础设施层",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-56c",
+      "priority": "P3",
+      "title": "日卡阶段 4：接口层",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-56d",
+      "priority": "P3",
+      "title": "日卡阶段 5：工具与入口",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-56e",
+      "priority": "P3",
+      "title": "日卡阶段 6：端/测试/脚本 + 终审报告",
+      "issue": null,
+      "status": "pending"
+    },
+    {
+      "id": "DEBT-57",
+      "priority": "P2",
+      "title": "桌面端 A2UI Action 入站处理未实现",
+      "issue": 63,
+      "status": "open"
+    }
+  ]
+}
