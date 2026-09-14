@@ -117,6 +117,23 @@ jobs:
       - name: Run doc consistency check
         run: make doc-check
 
+  debt-check:
+    # 债务编号 ↔ GitHub issue 映射门禁：事实源 docs/plans/debt-issues.json 与
+    # docs/plans/debt-issue-map.md 的索引区块必须双向一致、编号不得重复、
+    # 状态不得自相矛盾。漂移时本地先跑 `go run scripts/debtlink/main.go -apply`。
+    # 此步不访问 GitHub——issue 存活核验须显式加 -gh（需要 token）。
+    runs-on: ubuntu-latest
+    name: debt-check
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run debt mapping check
+        run: make debt-check
+
   eval:
     runs-on: ubuntu-latest
     name: eval-benchmark

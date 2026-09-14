@@ -23,6 +23,7 @@ GOLANGCI_LINT_VERSION ?= $(shell cat .golangci-version)
         build-cli-chat build-wiki-import build-acp-server build-mady \
         run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client run-mady run-acp-server \
         eval eval-race \
+        doc-check check-arch verify-layers debt-check \
         help
 
 # Default target
@@ -46,7 +47,14 @@ doc-check:
 
 # "提交前真实标准"——比 all 更完整：包含 lint（golangci-lint）、verify-layers 与
 # test-race（竞态检测）。提交前请运行 make verify 而非 make all，以确保门禁完整闭合。
-verify: lint check-arch doc-check verify-layers build test-race
+verify: lint check-arch doc-check verify-layers debt-check build test-race
+
+# 债务编号 ↔ GitHub issue 映射一致性校验（事实源 docs/plans/debt-issues.json）。
+# 守卫 docs/plans/debt-issue-map.md 的索引区块时效性、编号唯一性与双向可追溯性，
+# 防止「文档里的债务条目」与「issue」再次失联（详见 scripts/debtlink/main.go）。
+# 离线校验，不访问 GitHub；需要核查 issue 存活时显式加 -gh。
+debt-check:
+	@go run scripts/debtlink/main.go -check
 
 # tone-style 禁用词门禁：扫描面向用户文案目录（guardrails/server/agui/a2ui/pkg/i18n）
 # 的 Go 源码，命中禁用词即失败。词表单源解析 docs/tone-style-guide.md §4（防漂移），
