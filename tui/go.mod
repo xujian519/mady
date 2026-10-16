@@ -1,10 +1,10 @@
 module github.com/xujian519/mady/tui
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/xujian519/mady v0.0.0-20260721162033-d76ce4144d96
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.41.0
 )
 
