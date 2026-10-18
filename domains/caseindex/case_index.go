@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xujian519/mady/domains/config"
-
 	_ "modernc.org/sqlite" // register sqlite driver
+
+	"github.com/xujian519/mady/domains/config"
 )
 
 // 案件标识阶段。随着权威文档的提交，案件身份逐步升级。

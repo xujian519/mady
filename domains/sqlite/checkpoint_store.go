@@ -1,8 +1,8 @@
-// Package sqlite provides SQLite-backed persistence for graph-level
-// checkpoints (graph.CheckpointStore). It is distinct from the reasoning
-// layer's checkpoint store (domains/reasoning/sqlite/) which persists
-// StageCheckpoint domain objects.
 package sqlite
+
+// checkpoint_store.go 提供图级检查点（graph.CheckpointStore）的 SQLite
+// 持久化实现。注意与 reasoning 层的检查点存储（domains/reasoning/sqlite/，
+// 持久化 StageCheckpoint 领域对象）不同。package 文档见 doc.go。
 
 import (
 	"context"
@@ -11,8 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/store"

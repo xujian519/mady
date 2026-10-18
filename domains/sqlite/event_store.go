@@ -1,7 +1,8 @@
-// Package sqlite provides SQLite-backed persistence for agent lifecycle
-// events (workflow_events table). This enables audit trails and startup
-// recovery without full Event History Replay.
 package sqlite
+
+// event_store.go 提供 Agent 生命周期事件（workflow_events 表）的 SQLite
+// 持久化实现，支撑审计轨迹与启动恢复，无需完整的 Event History Replay。
+// package 文档见 doc.go。
 
 import (
 	"context"
@@ -9,8 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
 	"github.com/xujian519/mady/store"
 )

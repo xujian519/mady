@@ -1,7 +1,7 @@
-// Package sqlite provides SQLite-backed persistence for approval records.
-// It implements domains.ApprovalStore without polluting the domain package
-// with infrastructure imports.
 package sqlite
+
+// approval_store.go 提供审批记录的 SQLite 持久化实现，实现
+// domains.ApprovalStore 而不让领域包引入基础设施依赖。package 文档见 doc.go。
 
 import (
 	"context"
@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
 	"github.com/xujian519/mady/domains"
 	"github.com/xujian519/mady/store"
@@ -175,18 +173,18 @@ func (s *SQLiteApprovalStore) Close() error {
 // PendingStore implementation
 // ---------------------------------------------------------------------------
 
-// pendingRow 映射 pending_approvals 表的行。
+// pendingRow 映射 pending_approvals 表的行（仅用于 Scan，不参与 JSON 编解码）。
 type pendingRow struct {
-	ID             string  `json:"id"`
-	SessionID      string  `json:"session_id"`
-	CaseID         string  `json:"case_id"`
-	TriggerKeyword string  `json:"trigger_keyword"`
-	OriginalOutput string  `json:"original_output"`
-	ToolCallsJSON  string  `json:"tool_calls_json"`
-	Status         string  `json:"status"`
-	CreatedAt      string  `json:"created_at"`
-	ExpiresAt      *string `json:"expires_at"`
-	RespondedAt    *string `json:"responded_at"`
+	ID             string
+	SessionID      string
+	CaseID         string
+	TriggerKeyword string
+	OriginalOutput string
+	ToolCallsJSON  string
+	Status         string
+	CreatedAt      string
+	ExpiresAt      *string
+	RespondedAt    *string
 }
 
 // SavePending persists a pending approval request to the database.
@@ -294,16 +292,13 @@ func (s *SQLiteApprovalStore) Respond(ctx context.Context, id string, record dom
 
 	// 1) Mark pending as responded.
 	now := time.Now().Format(time.RFC3339)
-	res, err := tx.ExecContext(ctx,
+	// 影响行数 0 不是错误：pending 可能已被响应（重复 /approve 调用），
+	// 下方的审批记录写入仍照常进行，故不检查 RowsAffected。
+	if _, err := tx.ExecContext(ctx,
 		`UPDATE pending_approvals SET status = 'responded', responded_at = ? WHERE id = ? AND status = 'pending'`,
-		now, id)
-	if err != nil {
+		now, id); err != nil {
 		return fmt.Errorf("pending/sqlite: respond update: %w", err)
 	}
-	n, _ := res.RowsAffected()
-	// n == 0 is not an error here: the pending may have been already responded
-	// (duplicate /approve call). The approval record write below still proceeds.
-	_ = n
 
 	// 2) Insert approval record.
 	data, err := marshalRecord(record)

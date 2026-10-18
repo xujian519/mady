@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// --- 文档管理 ---
+
 // GetDocuments 返回案件的所有已记录文档。
 func (ci *CaseIndex) GetDocuments(ctx context.Context, caseID string) ([]CaseDocument, error) {
 	rows, err := ci.db.QueryContext(ctx, `
@@ -29,8 +31,6 @@ func (ci *CaseIndex) GetDocuments(ctx context.Context, caseID string) ([]CaseDoc
 	}
 	return docs, rows.Err()
 }
-
-// --- 文档管理 ---
 
 // RecordDocument 记录或更新已解析的权威文档。
 func (ci *CaseIndex) RecordDocument(ctx context.Context, doc CaseDocument) error {
