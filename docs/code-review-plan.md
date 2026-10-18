@@ -403,3 +403,19 @@
   - `b7b9319` 存储层清理（`RowsAffected` 死变量、`pendingRow` 无用 json tag、4 段 package 注释归并、3 处重复驱动 blank import、失效 API 示例、import 分组与节头位置）
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；既存环境问题：本机 Go 1.27.1 与仓库锁定 lint v2.12.2（go1.26 构建）不兼容，pre-commit 的 golangci-lint 主钩子 panic，两提交以 `SKIP=golangci-lint` 显式绕过并在提交信息注明理由，等效门禁由 `make verify`（v2.13.2）覆盖
 - **指标重扫**（`domains` 全树）：吞错 27 → **26**、未注释导出 5 → **1**；`caseindex` 全 0；`sqlite` 吞错 2（均为误报：一处返回 error、一处为 `(nil, nil)` 未命中约定）；裸 fmt 0 / 忽略 err 1 / TODO 3（`psychological_config.go`，逐条核实仍成立）/ >120 行函数 5
+
+### FIX-P0（2026-10-18）M14/M15 登记项修复：时间列统一 + 审计越界 + 入参吞错
+
+- **范围**：处理 M15 登记的 7 项 P0 中影响最大的 4 项，全部为行为修复（非精炼），逐项带回归用例
+- **修复**：
+  1. **时间列双格式**（影响面最大）：`domains/sqlite` 与 `domains/caseindex` 建表默认值 `datetime('now')`（空格分隔、无时区）与 Go 侧写入的 RFC3339 混用。后果一：`expires_at < datetime('now')` 是字符串比较，`'T'(0x54) > ' '` 使同一天到期的审批请求要等到次日才被标记过期（`cmd/mady/tui_session_storage.go` 每 5 分钟调用）；后果二：`Prune` 反向误删同一天的历史事件；后果三：读取侧按 RFC3339 解析失败致 4 处时间字段恒零值，`checkpoint_store.LoadLatest` 更是把 TEXT 列直接 Scan 到 `time.Time`。现改为：写入侧显式提供 UTC RFC3339 + 建表默认值 `strftime('%Y-%m-%dT%H:%M:%SZ','now')`；读取侧 `parseTimeText` 兼容历史格式；比较与排序一律经 `datetime()` 归一化并追加主键/rowid 兜底
+  2. **`audit_extension.extractArgNames` 越界 panic**：未闭合引号输入使 `raw[j+1:]` 越界，`AfterToolExecution` 无 recover，一次畸形工具参数即可打断 Agent 运行。补 `j >= len(raw)` 提前退出
+  3. **`truncateAuditDetail` 产出非法 UTF-8**：按字节切 497 会把中文截半。改为回退到 UTF-8 字符边界
+  4. **`case_ext_list` / `case_ext_sync` 静默吞入参错误**：参数类型写错时分别静默返回全部案件、静默改扫 cwd。改为区分「空参数=不过滤」与「非法参数=返回错误结果」
+- **提交**：`3013ec0`（时间列）、`eb427ae`（审计与入参）
+- **测试**：新增 `domains/sqlite/timefmt_test.go`（5 组：过期判定/往返/Prune 历史行/LoadLatest/解析表）、`domains/caseindex/timefmt_test.go`（2 组）、`domains/audit_extension_test.go`（3 组，含 4 类畸形 JSON）
+- **门禁**：`make verify` 全绿；`golangci-lint-newcode` 0 issues
+- **仍登记未修（需决策）**：
+  - `domains/audit/audit_extension.go` 是同一实现的第二份副本（193 行），装配侧只用根包版（`bootstrap/setup_steps.go:295` 调 `domains.NewAuditExtension`），该副本零引用且本次未同步修复
+  - `domains/style.go` 与 `domains/config/style.go` 除包名外仍逐字节相同（250 行）。补充核查：`LoadStyle`/`FindStyleByName`/`StylesForDomain` 等 API 在**两份副本中均零生产引用**，仅被各自包内测试调用——删除任一侧都要先决定「保留哪份 + 测试迁移」，已超出精炼卡范围
+  - `knowledge/eval_store.go:67` 与 `domains/reasoning/sqlite/checkpoint_store.go:62` 属同一时间列模式问题（默认 `datetime('now')` + 范围查询/排序），分别留待 M16 与后续卡处理
