@@ -48,7 +48,7 @@ func (ci *CaseIndex) CreateCase(ctx context.Context, rec CaseRecord) error {
 	`,
 		rec.CaseID, rec.IdentityStage, rec.FilingNumber, rec.PublicationNumber,
 		rec.ClientName, rec.PatentTitle, rec.PatentType, rec.Year, rec.Domain,
-		rec.Status, rec.PrimaryPath, rec.CreatedAt.Format(time.RFC3339), rec.UpdatedAt.Format(time.RFC3339),
+		rec.Status, rec.PrimaryPath, rec.CreatedAt.UTC().Format(time.RFC3339), rec.UpdatedAt.UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return fmt.Errorf("case_index: create: %w", err)
@@ -60,14 +60,14 @@ func (ci *CaseIndex) CreateCase(ctx context.Context, rec CaseRecord) error {
 	// 写入 primary_path 到 case_paths
 	if rec.PrimaryPath != "" {
 		_, _ = ci.db.ExecContext(ctx, `
-			INSERT OR IGNORE INTO case_paths (case_id, path) VALUES (?, ?)
-		`, rec.CaseID, rec.PrimaryPath)
+			INSERT OR IGNORE INTO case_paths (case_id, path, created_at) VALUES (?, ?, ?)
+		`, rec.CaseID, rec.PrimaryPath, nowText())
 	}
 
 	// 记录事件
 	_, _ = ci.db.ExecContext(ctx, `
-		INSERT INTO case_events (case_id, event_type) VALUES (?, 'created')
-	`, rec.CaseID)
+		INSERT INTO case_events (case_id, event_type, event_date) VALUES (?, 'created', ?)
+	`, rec.CaseID, nowText())
 
 	return nil
 }
@@ -136,7 +136,7 @@ func (ci *CaseIndex) UpdateCase(ctx context.Context, rec CaseRecord) error {
 	`,
 		rec.IdentityStage, rec.FilingNumber, rec.PublicationNumber,
 		rec.ClientName, rec.PatentTitle, rec.PatentType, rec.Year,
-		rec.Domain, rec.Status, rec.PrimaryPath, rec.UpdatedAt.Format(time.RFC3339),
+		rec.Domain, rec.Status, rec.PrimaryPath, rec.UpdatedAt.UTC().Format(time.RFC3339),
 		rec.CaseID,
 	)
 	if err != nil {

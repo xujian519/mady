@@ -52,7 +52,7 @@ func (s *SQLiteApprovalStore) initSchema(ctx context.Context) error {
 			trigger_keyword TEXT NOT NULL DEFAULT '',
 			decision        TEXT NOT NULL DEFAULT '',
 			data            TEXT NOT NULL,
-			created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+			created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 		);
 		CREATE INDEX IF NOT EXISTS idx_approval_session ON approval_records(session_id);
 		CREATE INDEX IF NOT EXISTS idx_approval_case   ON approval_records(case_id);
@@ -65,7 +65,7 @@ func (s *SQLiteApprovalStore) initSchema(ctx context.Context) error {
 			original_output TEXT NOT NULL DEFAULT '',
 			tool_calls_json TEXT NOT NULL DEFAULT '[]',
 			status          TEXT NOT NULL DEFAULT 'pending',
-			created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+			created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
 			expires_at      TEXT,
 			responded_at    TEXT
 		);
@@ -100,11 +100,11 @@ func (s *SQLiteApprovalStore) Save(ctx context.Context, record domains.ApprovalR
 	}
 
 	_, err = s.db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO approval_records (id, session_id, case_id, trigger_keyword, decision, data)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT OR REPLACE INTO approval_records (id, session_id, case_id, trigger_keyword, decision, data, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`,
 		record.ID, record.SessionID, record.CaseID,
-		record.TriggerKeyword, string(record.Decision), string(data),
+		record.TriggerKeyword, string(record.Decision), string(data), nowText(),
 	)
 	if err != nil {
 		return fmt.Errorf("approval/sqlite: save: %w", err)
@@ -127,7 +127,9 @@ func (s *SQLiteApprovalStore) ListByCase(ctx context.Context, caseID string) ([]
 func (s *SQLiteApprovalStore) queryRecords(ctx context.Context, whereClause, arg, opName string) ([]domains.ApprovalRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		//nolint:gosec // G202: whereClause 是内部常量（"WHERE session_id = ?" / "WHERE case_id = ?"），非用户输入，无注入风险
-		`SELECT data FROM approval_records `+whereClause+` ORDER BY created_at ASC`,
+		// datetime() 归一化历史遗留的 "YYYY-MM-DD HH:MM:SS" 与新写入的 RFC3339，
+		// 否则 'T'（0x54）> ' '（0x20）会让两种格式在字符串比较下错序。
+		`SELECT data FROM approval_records `+whereClause+` ORDER BY datetime(created_at) ASC, rowid ASC`,
 		arg,
 	)
 	if err != nil {
@@ -191,15 +193,19 @@ type pendingRow struct {
 func (s *SQLiteApprovalStore) SavePending(ctx context.Context, p domains.PendingApproval) error {
 	var expiresAt *string
 	if p.ExpiresAt != nil {
-		v := p.ExpiresAt.Format(time.RFC3339)
+		v := p.ExpiresAt.UTC().Format(time.RFC3339)
 		expiresAt = &v
+	}
+	createdAt := p.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
 	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT OR REPLACE INTO pending_approvals
 			(id, session_id, case_id, trigger_keyword, original_output, tool_calls_json, status, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, p.ID, p.SessionID, p.CaseID, p.TriggerKeyword, p.OriginalOutput,
-		p.ToolCallsJSON, string(p.Status), p.CreatedAt.Format(time.RFC3339), expiresAt)
+		p.ToolCallsJSON, string(p.Status), createdAt.UTC().Format(time.RFC3339), expiresAt)
 	if err != nil {
 		return fmt.Errorf("pending/sqlite: save: %w", err)
 	}
@@ -229,7 +235,7 @@ func (s *SQLiteApprovalStore) ListPending(ctx context.Context) ([]domains.Pendin
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, session_id, case_id, trigger_keyword, original_output,
 		        tool_calls_json, status, created_at, expires_at, responded_at
-		 FROM pending_approvals WHERE status = 'pending' ORDER BY created_at ASC`)
+		 FROM pending_approvals WHERE status = 'pending' ORDER BY datetime(created_at) ASC, rowid ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("pending/sqlite: list pending: %w", err)
 	}
@@ -253,7 +259,7 @@ func (s *SQLiteApprovalStore) ListPendingBySession(ctx context.Context, sessionI
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, session_id, case_id, trigger_keyword, original_output,
 		        tool_calls_json, status, created_at, expires_at, responded_at
-		 FROM pending_approvals WHERE session_id = ? AND status = 'pending' ORDER BY created_at ASC`, sessionID)
+		 FROM pending_approvals WHERE session_id = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, rowid ASC`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("pending/sqlite: list by session: %w", err)
 	}
@@ -291,7 +297,7 @@ func (s *SQLiteApprovalStore) Respond(ctx context.Context, id string, record dom
 	defer func() { _ = tx.Rollback() }()
 
 	// 1) Mark pending as responded.
-	now := time.Now().Format(time.RFC3339)
+	now := nowText()
 	// 影响行数 0 不是错误：pending 可能已被响应（重复 /approve 调用），
 	// 下方的审批记录写入仍照常进行，故不检查 RowsAffected。
 	if _, err := tx.ExecContext(ctx,
@@ -318,12 +324,17 @@ func (s *SQLiteApprovalStore) Respond(ctx context.Context, id string, record dom
 }
 
 // ExpirePending marks all expired pending requests as expired based on their expiry time.
+//
+// 时间比较经 datetime() 归一化后按时间值而非字符串字面量比较：RFC3339 的
+// "2026-10-18T15:00:00Z" 与遗留的 "2026-10-18 16:00:00" 直接做字符串比较会把
+// 同一天的过期请求判为未过期（'T' > ' '），导致过期延迟到次日才生效。
 func (s *SQLiteApprovalStore) ExpirePending(ctx context.Context) (int64, error) {
+	now := nowText()
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE pending_approvals
-		SET status = 'expired', responded_at = datetime('now')
-		WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at < datetime('now')
-	`)
+		SET status = 'expired', responded_at = ?
+		WHERE status = 'pending' AND expires_at IS NOT NULL AND datetime(expires_at) < datetime(?)
+	`, now, now)
 	if err != nil {
 		return 0, fmt.Errorf("pending/sqlite: expire: %w", err)
 	}
@@ -332,18 +343,15 @@ func (s *SQLiteApprovalStore) ExpirePending(ctx context.Context) (int64, error) 
 
 // rowToPending converts a database row to a domain PendingApproval.
 func rowToPending(pr pendingRow) *domains.PendingApproval {
-	createdAt, _ := time.Parse(time.RFC3339, pr.CreatedAt)
 	var expiresAt *time.Time
 	if pr.ExpiresAt != nil {
-		t, err := time.Parse(time.RFC3339, *pr.ExpiresAt)
-		if err == nil {
+		if t := parseTimeText(*pr.ExpiresAt); !t.IsZero() {
 			expiresAt = &t
 		}
 	}
 	var respondedAt *time.Time
 	if pr.RespondedAt != nil {
-		t, err := time.Parse(time.RFC3339, *pr.RespondedAt)
-		if err == nil {
+		if t := parseTimeText(*pr.RespondedAt); !t.IsZero() {
 			respondedAt = &t
 		}
 	}
@@ -355,7 +363,7 @@ func rowToPending(pr pendingRow) *domains.PendingApproval {
 		OriginalOutput: pr.OriginalOutput,
 		ToolCallsJSON:  pr.ToolCallsJSON,
 		Status:         domains.PendingStatus(pr.Status),
-		CreatedAt:      createdAt,
+		CreatedAt:      parseTimeText(pr.CreatedAt),
 		ExpiresAt:      expiresAt,
 		RespondedAt:    respondedAt,
 	}

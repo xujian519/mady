@@ -3,7 +3,6 @@ package caseindex
 import (
 	"context"
 	"fmt"
-	"time"
 )
 
 // --- 事件管理 ---
@@ -14,8 +13,8 @@ func (ci *CaseIndex) AddEvent(ctx context.Context, caseID, eventType, eventData 
 	defer ci.mu.Unlock()
 
 	_, err := ci.db.ExecContext(ctx, `
-		INSERT INTO case_events (case_id, event_type, event_data) VALUES (?, ?, ?)
-	`, caseID, eventType, eventData)
+		INSERT INTO case_events (case_id, event_type, event_data, event_date) VALUES (?, ?, ?, ?)
+	`, caseID, eventType, eventData, nowText())
 	if err != nil {
 		return fmt.Errorf("case_index: add event: %w", err)
 	}
@@ -26,7 +25,7 @@ func (ci *CaseIndex) AddEvent(ctx context.Context, caseID, eventType, eventData 
 func (ci *CaseIndex) GetEvents(ctx context.Context, caseID string) ([]CaseEvent, error) {
 	rows, err := ci.db.QueryContext(ctx, `
 		SELECT case_id, event_type, event_data, event_date
-		FROM case_events WHERE case_id = ? ORDER BY event_date
+		FROM case_events WHERE case_id = ? ORDER BY datetime(event_date), id
 	`, caseID)
 	if err != nil {
 		return nil, fmt.Errorf("case_index: get events: %w", err)
@@ -40,7 +39,7 @@ func (ci *CaseIndex) GetEvents(ctx context.Context, caseID string) ([]CaseEvent,
 		if err := rows.Scan(&e.CaseID, &e.EventType, &e.EventData, &dateStr); err != nil {
 			return nil, err
 		}
-		e.EventDate, _ = time.Parse(time.RFC3339, dateStr)
+		e.EventDate = parseTimeText(dateStr)
 		events = append(events, e)
 	}
 	return events, rows.Err()

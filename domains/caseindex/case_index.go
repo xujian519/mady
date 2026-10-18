@@ -127,8 +127,8 @@ func (ci *CaseIndex) initSchema(ctx context.Context) error {
 			domain             TEXT NOT NULL DEFAULT 'patent',
 			status             TEXT NOT NULL DEFAULT 'active',
 			primary_path       TEXT NOT NULL DEFAULT '',
-			created_at         TEXT NOT NULL DEFAULT (datetime('now')),
-			updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+			created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+			updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 		);
 		CREATE INDEX IF NOT EXISTS idx_cases_filing  ON cases(filing_number);
 		CREATE INDEX IF NOT EXISTS idx_cases_client  ON cases(client_name);
@@ -139,7 +139,7 @@ func (ci *CaseIndex) initSchema(ctx context.Context) error {
 			case_id    TEXT NOT NULL,
 			path       TEXT NOT NULL,
 			label      TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
 			PRIMARY KEY (case_id, path)
 		);
 		CREATE INDEX IF NOT EXISTS idx_paths_case ON case_paths(case_id);
@@ -150,7 +150,7 @@ func (ci *CaseIndex) initSchema(ctx context.Context) error {
 			doc_type  TEXT NOT NULL,
 			doc_path  TEXT NOT NULL,
 			doc_hash  TEXT NOT NULL DEFAULT '',
-			parsed_at TEXT NOT NULL DEFAULT (datetime('now')),
+			parsed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
 			PRIMARY KEY (case_id, doc_type)
 		);
 		CREATE INDEX IF NOT EXISTS idx_docs_case ON case_documents(case_id);
@@ -160,7 +160,7 @@ func (ci *CaseIndex) initSchema(ctx context.Context) error {
 			case_id    TEXT NOT NULL,
 			event_type TEXT NOT NULL,
 			event_data TEXT NOT NULL DEFAULT '',
-			event_date TEXT NOT NULL DEFAULT (datetime('now'))
+			event_date TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 		);
 		CREATE INDEX IF NOT EXISTS idx_events_case ON case_events(case_id);
 
@@ -227,8 +227,8 @@ func scanCase(scan scanFn) (*CaseRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	rec.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
-	rec.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
+	rec.CreatedAt = parseTimeText(createdStr)
+	rec.UpdatedAt = parseTimeText(updatedStr)
 	return &rec, nil
 }
 

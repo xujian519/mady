@@ -79,7 +79,7 @@ func (ci *CaseIndex) SearchCases(ctx context.Context, q CaseSearchQuery) ([]Case
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ") //nolint:gosec // conditions are static strings, args are parameterized
 	}
-	query += " ORDER BY updated_at DESC"
+	query += " ORDER BY datetime(updated_at) DESC"
 
 	rows, err := ci.db.QueryContext(ctx, query, args...)
 	if err != nil {

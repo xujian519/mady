@@ -26,7 +26,7 @@ func (ci *CaseIndex) GetDocuments(ctx context.Context, caseID string) ([]CaseDoc
 		if err := rows.Scan(&d.CaseID, &d.DocType, &d.DocPath, &d.DocHash, &parsedStr); err != nil {
 			return nil, err
 		}
-		d.ParsedAt, _ = time.Parse(time.RFC3339, parsedStr)
+		d.ParsedAt = parseTimeText(parsedStr)
 		docs = append(docs, d)
 	}
 	return docs, rows.Err()
@@ -44,7 +44,7 @@ func (ci *CaseIndex) RecordDocument(ctx context.Context, doc CaseDocument) error
 	_, err := ci.db.ExecContext(ctx, `
 		INSERT OR REPLACE INTO case_documents (case_id, doc_type, doc_path, doc_hash, parsed_at)
 		VALUES (?, ?, ?, ?, ?)
-	`, doc.CaseID, doc.DocType, doc.DocPath, doc.DocHash, doc.ParsedAt.Format(time.RFC3339))
+	`, doc.CaseID, doc.DocType, doc.DocPath, doc.DocHash, doc.ParsedAt.UTC().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("case_index: record doc: %w", err)
 	}
@@ -62,6 +62,6 @@ func (ci *CaseIndex) GetDocument(ctx context.Context, caseID, docType string) (*
 	if err != nil {
 		return nil, err
 	}
-	d.ParsedAt, _ = time.Parse(time.RFC3339, parsedStr)
+	d.ParsedAt = parseTimeText(parsedStr)
 	return &d, nil
 }

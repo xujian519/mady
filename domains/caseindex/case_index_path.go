@@ -3,7 +3,6 @@ package caseindex
 import (
 	"context"
 	"fmt"
-	"time"
 )
 
 // --- 路径管理 ---
@@ -14,8 +13,8 @@ func (ci *CaseIndex) AddPath(ctx context.Context, caseID, path, label string) er
 	defer ci.mu.Unlock()
 
 	_, err := ci.db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO case_paths (case_id, path, label) VALUES (?, ?, ?)
-	`, caseID, path, label)
+		INSERT OR IGNORE INTO case_paths (case_id, path, label, created_at) VALUES (?, ?, ?, ?)
+	`, caseID, path, label, nowText())
 	if err != nil {
 		return fmt.Errorf("case_index: add path: %w", err)
 	}
@@ -39,7 +38,7 @@ func (ci *CaseIndex) GetPaths(ctx context.Context, caseID string) ([]CasePath, e
 		if err := rows.Scan(&p.CaseID, &p.Path, &p.Label, &createdStr); err != nil {
 			return nil, err
 		}
-		p.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+		p.CreatedAt = parseTimeText(createdStr)
 		paths = append(paths, p)
 	}
 	return paths, rows.Err()

@@ -54,7 +54,7 @@ func (s *SQLEventStore) initSchema(ctx context.Context) error {
 			session_id  TEXT NOT NULL DEFAULT '',
 			agent_name  TEXT NOT NULL DEFAULT '',
 			payload     TEXT NOT NULL,
-			created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 		);
 		CREATE INDEX IF NOT EXISTS idx_we_session ON workflow_events(session_id, created_at);
 		CREATE INDEX IF NOT EXISTS idx_we_type     ON workflow_events(event_type);
@@ -65,8 +65,8 @@ func (s *SQLEventStore) initSchema(ctx context.Context) error {
 // Append inserts a new event record. Returns the auto-increment ID.
 func (s *SQLEventStore) Append(ctx context.Context, eventType, sessionID, agentName string, payload json.RawMessage) (int64, error) {
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO workflow_events (event_type, session_id, agent_name, payload) VALUES (?, ?, ?, ?)`,
-		eventType, sessionID, agentName, string(payload),
+		`INSERT INTO workflow_events (event_type, session_id, agent_name, payload, created_at) VALUES (?, ?, ?, ?, ?)`,
+		eventType, sessionID, agentName, string(payload), nowText(),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("event/sqlite: append: %w", err)
@@ -81,7 +81,7 @@ func (s *SQLEventStore) ListBySession(ctx context.Context, sessionID string, lim
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, event_type, session_id, agent_name, payload, created_at
-		 FROM workflow_events WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
+		 FROM workflow_events WHERE session_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?`,
 		sessionID, limit,
 	)
 	if err != nil {
@@ -98,7 +98,7 @@ func (s *SQLEventStore) ListByType(ctx context.Context, eventType string, limit 
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, event_type, session_id, agent_name, payload, created_at
-		 FROM workflow_events WHERE event_type = ? ORDER BY created_at DESC LIMIT ?`,
+		 FROM workflow_events WHERE event_type = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?`,
 		eventType, limit,
 	)
 	if err != nil {
@@ -109,10 +109,13 @@ func (s *SQLEventStore) ListByType(ctx context.Context, eventType string, limit 
 }
 
 // Prune deletes events older than the given cutoff. Returns count deleted.
+//
+// 比较经 datetime() 归一化：历史行是 "YYYY-MM-DD HH:MM:SS"，而 cutoff 是
+// RFC3339，直接字符串比较会把同一天的历史行判为"更早"而误删。
 func (s *SQLEventStore) Prune(ctx context.Context, olderThan time.Time) (int64, error) {
 	res, err := s.db.ExecContext(ctx,
-		`DELETE FROM workflow_events WHERE created_at < ?`,
-		olderThan.Format(time.RFC3339),
+		`DELETE FROM workflow_events WHERE datetime(created_at) < datetime(?)`,
+		olderThan.UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("event/sqlite: prune: %w", err)
@@ -137,13 +140,7 @@ func scanEvents(rows *sql.Rows) ([]EventRecord, error) {
 			return nil, fmt.Errorf("event/sqlite: scan: %w", err)
 		}
 		r.Payload = json.RawMessage(payloadStr)
-		// SQLite datetime('now') 返回 "YYYY-MM-DD HH:MM:SS"（无时区），
-		// 与 RFC3339 不同；两种格式都尝试解析，避免 CreatedAt 恒为零。
-		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
-			r.CreatedAt = t
-		} else if t, err := time.Parse("2006-01-02 15:04:05", createdAtStr); err == nil {
-			r.CreatedAt = t
-		}
+		r.CreatedAt = parseTimeText(createdAtStr)
 		out = append(out, r)
 	}
 	return out, rows.Err()

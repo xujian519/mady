@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/xujian519/mady/graph"
 	"github.com/xujian519/mady/store"
@@ -49,7 +48,7 @@ func (s *SQLiteGraphCheckpointStore) initSchema(ctx context.Context) error {
 			step_index  INTEGER NOT NULL DEFAULT 0,
 			state_json  TEXT NOT NULL,
 			metadata    TEXT NOT NULL DEFAULT '{}',
-			created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 		);
 		CREATE INDEX IF NOT EXISTS idx_gc_graph ON graph_checkpoints(graph_id, created_at);
 	`)
@@ -74,9 +73,9 @@ func (s *SQLiteGraphCheckpointStore) Save(ctx context.Context, cp graph.Checkpoi
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO graph_checkpoints (id, graph_id, node_name, step_index, state_json, metadata)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, cp.ID, cp.GraphID, cp.NodeName, cp.StepIndex, stateStr, meta)
+		INSERT OR REPLACE INTO graph_checkpoints (id, graph_id, node_name, step_index, state_json, metadata, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, cp.ID, cp.GraphID, cp.NodeName, cp.StepIndex, stateStr, meta, nowText())
 	if err != nil {
 		return fmt.Errorf("graph-checkpoint/sqlite: save: %w", err)
 	}
@@ -101,7 +100,7 @@ func (s *SQLiteGraphCheckpointStore) Load(ctx context.Context, id string) (*grap
 		return nil, fmt.Errorf("graph-checkpoint/sqlite: load: %w", err)
 	}
 
-	createdAt, _ := time.Parse(time.RFC3339, createdAtStr)
+	createdAt := parseTimeText(createdAtStr)
 
 	var metadata map[string]any
 	if metaStr != "" && metaStr != "{}" {
@@ -123,7 +122,7 @@ func (s *SQLiteGraphCheckpointStore) Load(ctx context.Context, id string) (*grap
 func (s *SQLiteGraphCheckpointStore) List(ctx context.Context, graphID string) ([]graph.Checkpoint, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, graph_id, node_name, step_index, state_json, metadata, created_at
-		 FROM graph_checkpoints WHERE graph_id = ? ORDER BY created_at ASC`, graphID,
+		 FROM graph_checkpoints WHERE graph_id = ? ORDER BY datetime(created_at) ASC, rowid ASC`, graphID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("graph-checkpoint/sqlite: list: %w", err)
@@ -139,7 +138,7 @@ func (s *SQLiteGraphCheckpointStore) List(ctx context.Context, graphID string) (
 		if err := rows.Scan(&id, &gid, &nodeName, &stepIndex, &stateStr, &metaStr, &createdAtStr); err != nil {
 			return nil, fmt.Errorf("graph-checkpoint/sqlite: scan: %w", err)
 		}
-		createdAt, _ := time.Parse(time.RFC3339, createdAtStr)
+		createdAt := parseTimeText(createdAtStr)
 		var metadata map[string]any
 		if metaStr != "" && metaStr != "{}" {
 			_ = json.Unmarshal([]byte(metaStr), &metadata)
@@ -174,9 +173,11 @@ func (s *SQLiteGraphCheckpointStore) LoadLatest(ctx context.Context, graphID str
 		 ORDER BY step_index DESC LIMIT 1`, graphID)
 	var cp graph.Checkpoint
 	var stateBytes, metadataBytes []byte
-	var createdAt time.Time
+	// created_at 是 TEXT 列，直接 Scan 到 time.Time 会因驱动不支持该转换而报错，
+	// 故先取文本再经 parseTimeText 归一化解析。
+	var createdAtStr string
 	err := row.Scan(&cp.ID, &cp.GraphID, &cp.NodeName, &cp.StepIndex,
-		&stateBytes, &metadataBytes, &createdAt)
+		&stateBytes, &metadataBytes, &createdAtStr)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -184,7 +185,7 @@ func (s *SQLiteGraphCheckpointStore) LoadLatest(ctx context.Context, graphID str
 		return nil, fmt.Errorf("graph-checkpoint/sqlite: load latest: %w", err)
 	}
 	cp.State = stateBytes
-	cp.CreatedAt = createdAt
+	cp.CreatedAt = parseTimeText(createdAtStr)
 	if len(metadataBytes) > 0 {
 		_ = json.Unmarshal(metadataBytes, &cp.Metadata)
 	}

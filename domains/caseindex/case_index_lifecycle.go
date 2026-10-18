@@ -29,7 +29,7 @@ func (ci *CaseIndex) UpgradeToFiled(ctx context.Context, caseID, filingNumber st
 	_, err = ci.db.ExecContext(ctx, `
 		UPDATE cases SET identity_stage = ?, filing_number = ?, updated_at = ?
 		WHERE case_id = ?
-	`, StageFiled, filingNumber, time.Now().Format(time.RFC3339), caseID)
+	`, StageFiled, filingNumber, time.Now().UTC().Format(time.RFC3339), caseID)
 	if err != nil {
 		return fmt.Errorf("case_index: upgrade to filed: %w", err)
 	}
@@ -43,9 +43,9 @@ func (ci *CaseIndex) UpgradeToFiled(ctx context.Context, caseID, filingNumber st
 
 	// 记录事件
 	_, _ = ci.db.ExecContext(ctx, `
-		INSERT INTO case_events (case_id, event_type, event_data)
-		VALUES (?, 'filed', ?)
-	`, caseID, filingNumber)
+		INSERT INTO case_events (case_id, event_type, event_data, event_date)
+		VALUES (?, 'filed', ?, ?)
+	`, caseID, filingNumber, nowText())
 
 	return nil
 }
@@ -58,7 +58,7 @@ func (ci *CaseIndex) UpgradeToPublished(ctx context.Context, caseID, publication
 	_, err := ci.db.ExecContext(ctx, `
 		UPDATE cases SET identity_stage = ?, publication_number = ?, updated_at = ?
 		WHERE case_id = ?
-	`, StagePublished, publicationNumber, time.Now().Format(time.RFC3339), caseID)
+	`, StagePublished, publicationNumber, time.Now().UTC().Format(time.RFC3339), caseID)
 	if err != nil {
 		return fmt.Errorf("case_index: upgrade to published: %w", err)
 	}
@@ -71,9 +71,9 @@ func (ci *CaseIndex) UpgradeToPublished(ctx context.Context, caseID, publication
 	ci.syncFTS(ctx, caseID, clientName, patentTitle, filingNum)
 
 	_, _ = ci.db.ExecContext(ctx, `
-		INSERT INTO case_events (case_id, event_type, event_data)
-		VALUES (?, 'published', ?)
-	`, caseID, publicationNumber)
+		INSERT INTO case_events (case_id, event_type, event_data, event_date)
+		VALUES (?, 'published', ?, ?)
+	`, caseID, publicationNumber, nowText())
 
 	return nil
 }
