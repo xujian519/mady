@@ -84,8 +84,8 @@
 | M11 | domains/claimchart + provisions + provenance | 对照图 + 法条 + 溯源 | ✅ 2026-08-28 |
 | M12 | domains/workflows + plantask + workercontract | 领域工作流 | ✅ 2026-09-01 |
 | M13 | domains/rules + reasoning（含 sqlite/wiring） | 规则引擎 + 推理 | ✅ 2026-09-06 |
-| M14 | domains/writing + doctmpl | 撰写质量 + 模板 | ⬜ |
-| M15 | domains 根包 + sqlite + case_* | 根包 289 文件剩余 | ⬜ |
+| M14 | domains/writing + doctmpl | 撰写质量 + 模板 | ✅ 2026-10-18 |
+| M15 | domains 根包 + sqlite + case_* | 根包 289 文件剩余 | ✅ 2026-10-18 |
 
 ### 阶段 3 — 基础设施层（W5–W7）
 
@@ -373,3 +373,33 @@
   - `099dd26e` refactor(domains/reasoning): sqlite 重复编译检查清理与 doc.go 修正 + confirmed_rule_writer fail-open 注释
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；rules/reasoning/sqlite/wiring 包级 `-race` 测试全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py domains/rules domains/reasoning`）：裸 fmt 0 / 忽略 err 0 / 吞错 5 → **3**（2 处真实降级补注释；另 3 处为 planner 两条 LLM 降级与 sqlite 错误传播，均已有 slog/log/doc 表达意图，属扫描器仅认 `//` 注释的误报）/ TODO 0 / 未注释导出 0 / >120 行函数 2（Tools() 与 CompilePlanToGraph，登记待拆）
+
+### M14（2026-10-18）domains/writing + doctmpl ✅
+
+- **审阅范围**：writing 全部 5 个非测试 `.go`（1244 行：模式库/类型/4 维质量评估/技能编译器/工具扩展）；doctmpl 全部 12 个非测试 `.go`（3509 行：模板加载与变量解析/HTML·DOCX·PDF·Chrome-PDF 四渲染器/注册表/工具）
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：4 项登记——① `store.go` `ListConflicts` 用字符串字典序比较 semver（`"1.10.0" < "1.9.0"` 为真），`Severity` 会误判为 warn，改则行为变化；② `pattern_store.go` `AddPattern` 对重复 ID 重复追加 `categoryIndex`，按分类检索会返回重复候选；③ `SearchPatterns` 以 `candidates == nil` 判断回退，category 存在但索引为空时降级为全量而非空结果；④ `renderer_docx.go` `docxInlineRunsXML` 在未闭合 `**`/反引号时按字节切分（`next = i+1`），多字节中文被切断后 `docxXMLEscape` 会输出 U+FFFD
+  - P2 一致性：2 项登记——① `MergeVarContext.AllVars` 遍历 map 构建，输出顺序不确定；② `QualityEvaluator.Evaluate` 直接持 `feedbackStore` 的私有锁，跨对象锁耦合
+  - P3 风格：6 项已收敛（见精炼）
+  - 登记不处理：`AllowDefaults` 返回入参同一 map（文档已说明"returns a new map"，二者在 vars 为空时不同——属既有契约，保守档不改）
+- **精炼**：1 个 refactor 提交，无行为变化
+  - `4682701` 收敛冗余分支与断言位置 + 补降级意图注释（9 处改动）
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）
+- **指标重扫**（`writing`/`doctmpl` 分目录）：写作层全 0；doctmpl 未注释导出 4 → **0**、吞错 3 → **2**（剩余 2 处为 `tools.go` 参数解析失败返回结构化 FailureResult、`loader.go` 模板根目录不存在时跳过，均已有结构化表达，属扫描器仅认注释的近似计数）；裸 fmt 0 / 忽略 err 0 / TODO 0 / >120 行函数 0
+
+### M15（2026-10-18）domains 根包 + caseindex + sqlite ✅
+
+- **审阅范围**：domains 根包 37 个非测试 `.go`（9169 行）+ `caseindex/` 8 个（约 640 行）+ `sqlite/` 5 个（约 620 行）。敏感路径 `patent.go`/`router.go`/`approval.go` **只审阅登记、未修改**（`approval_state.go` 非敏感，纳入精炼）
+- **发现分级**：
+  - P0 行为缺陷：7 项登记（均不混入精炼）——① `audit_extension.go` `extractArgNames` 反向扫描 `j` 可越界（`json:{"path":"C:\` 类未闭合输入 → slice out of range panic，且 `AfterToolExecution` 无 recover）；② 审计 `detail[:497]` 按字节截断中文，`json.Marshal` 转 U+FFFD；③ `style_embed.go` 无 `go:embed`、加载失败静默 `return ""`，非仓库根启动时风格段落全空而注释声称内置已嵌入；④ `case_ext_list.go` 丢弃 `json.Unmarshal` 错误后用零值查询，`SearchCases` 无条件走全量 → 参数类型错误时静默返回全部案件；⑤ `case_ext_focus.go` 把查询错误一律当"未找到"，DB 故障被掩盖；⑥ `case_ext_upgrade.go` 丢弃 `GetCase` 错误，`rec == nil` 仍报"已升级"；⑦ `style.go` 遍历 `Disclaimers` map 生成 SystemPrompt，行序每次不同，影响 prompt 缓存与文本比对回归
+  - P1 复杂度/重复：结构级 5 项——① `domains/style.go` 与 `domains/config/style.go` **除包名外逐字节相同（250 行）**，后者零生产引用；② `domains/audit_extension.go` 与 `domains/audit/audit_extension.go` **逐字节相同（193 行）**，装配侧只用根包版；③ `domains/classifier.go` 与 `intent/llm.go` 是同一 LLM 分类器两版（schema enum 少 assistant 且与 prompt 自相矛盾、无超时、无领域白名单），生产走 `intent`；④ `legal_intent.go` 关键词表与 `intent/keyword.go` 已漂移（后者注释仍写"需手工同步"）；⑤ 三处装配序列同构（差异：引用 Gate 档位、输出质量门、withDQ、Engine 写入策略）
+  - P1 存储层：`caseindex` `CreateCase`/`UpgradeTo*` 四条语句无事务、`syncFTS` DELETE+INSERT 非原子；`UpdateCase` 不同步 `case_paths` 致 `FindByPath` 漂移；`sqlite`/`caseindex` 时间列混用 RFC3339（Go 写入）与 `datetime('now')`（表默认）两种文本格式 → `ExpirePending` 过期判定被延迟最多约 1 天（生产路径，`cmd/mady/tui_session_storage.go` 每 5 分钟调用）+ 4 处时间字段恒零值
+  - P2 一致性：11 项（错误处理风格在相邻 case 处理器间分裂、`cfg.Engine` 两种契约、`sync.Mutex`+`mu` 违反 §0.1#10、IO 缺 ctx、`unified.go` 扩展 nil 无过滤、`err == sql.ErrNoRows` 与 `errors.Is` 混用等）
+  - P3 风格：17 项（导出注释语言不统一、`//nolint:staticcheck` 残留、cobra 式 import 单元素括号、stutter 命名等）
+  - 登记不处理：20 余个"零生产引用但属公共 API"导出（`config/style*`、`classifier.go`、`legal_intent.go`、`regression.go`、`case_workspace.go` 路径助手等）按规范保留；整文件级重复**只登记不删除**（公共 API 收缩需单独立卡）
+- **精炼**：2 个 refactor 提交，无行为变化
+  - `9a8e95b` 修正失实注释 + 收敛可证死分支（`style`/`style_embed` 含 config 副本、`legal_intent` 的 `confidence > 1` 不可达分支、`case_classifier` 从未读取的尾部关键词、`citation_wiring` atomic.Value 双层断言、`legal` 两处过时注释、`orchestration_*` 文件说明移至 package 之后）
+  - `b7b9319` 存储层清理（`RowsAffected` 死变量、`pendingRow` 无用 json tag、4 段 package 注释归并、3 处重复驱动 blank import、失效 API 示例、import 分组与节头位置）
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，含 tui/desktop 三模块）；既存环境问题：本机 Go 1.27.1 与仓库锁定 lint v2.12.2（go1.26 构建）不兼容，pre-commit 的 golangci-lint 主钩子 panic，两提交以 `SKIP=golangci-lint` 显式绕过并在提交信息注明理由，等效门禁由 `make verify`（v2.13.2）覆盖
+- **指标重扫**（`domains` 全树）：吞错 27 → **26**、未注释导出 5 → **1**；`caseindex` 全 0；`sqlite` 吞错 2（均为误报：一处返回 error、一处为 `(nil, nil)` 未命中约定）；裸 fmt 0 / 忽略 err 1 / TODO 3（`psychological_config.go`，逐条核实仍成立）/ >120 行函数 5
