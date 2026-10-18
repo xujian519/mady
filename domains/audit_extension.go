@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/xujian519/mady/agentcore"
 )
@@ -150,12 +151,18 @@ func (e *AuditExtension) resolveProjectID(arc *agentcore.AgentRunContext) string
 	return e.projectID
 }
 
-// truncateAuditDetail 截断审计详情到 500 字符以内。
+// truncateAuditDetail 截断审计详情到 500 字节以内，且保证截断点落在
+// UTF-8 字符边界上——直接按字节切会把中文截成半个字符，产出非法 UTF-8。
 func truncateAuditDetail(detail string) string {
-	if len(detail) <= 500 {
+	const limit = 500
+	if len(detail) <= limit {
 		return detail
 	}
-	return detail[:497] + "..."
+	cut := limit - len("...")
+	for cut > 0 && !utf8.RuneStart(detail[cut]) {
+		cut--
+	}
+	return detail[:cut] + "..."
 }
 
 // extractArgNames 从 JSON 参数字符串中提取键名列表，不包含值。
@@ -179,6 +186,11 @@ func extractArgNames(rawJSON string) []string {
 					j++ // skip escaped char
 				}
 				j++
+			}
+			if j >= len(raw) {
+				// 引号未闭合（参数被截断或非 JSON 输入）：停止扫描。
+				// 否则下方 raw[j+1:] 会因切片越界 panic。
+				break
 			}
 			key := string(raw[start:j])
 			i = j

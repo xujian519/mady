@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,7 +13,12 @@ import (
 
 func (e *CaseExtension) handleSyncCase(ctx context.Context, args json.RawMessage) (any, error) {
 	var input syncCaseInput
-	_ = json.Unmarshal(args, &input)
+	// 空参数表示扫描当前工作目录；参数非法时必须报错，否则会静默改扫 cwd。
+	if raw := bytes.TrimSpace(args); len(raw) > 0 {
+		if err := json.Unmarshal(raw, &input); err != nil {
+			return errorResult("sync_case", fmt.Errorf("解析参数: %w", err)), nil
+		}
+	}
 
 	dir := input.Directory
 	if dir == "" {
