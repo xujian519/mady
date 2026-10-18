@@ -41,10 +41,9 @@ func SetupCitationWiring(w CitationWiring) {
 // currentCitationWiring 读取当前装配；未注入时返回零值
 // （S1 静态表 + 不留痕），保证 scripts/ 等不走装配侧的调用方行为不变。
 func currentCitationWiring() CitationWiring {
-	if v := citationWiring.Load(); v != nil {
-		if cw, ok := v.(CitationWiring); ok {
-			return cw
-		}
+	// Load 未 Store 时返回 nil any；对 nil 做带 ok 的类型断言不 panic，直接落到零值返回。
+	if cw, ok := citationWiring.Load().(CitationWiring); ok {
+		return cw
 	}
 	return CitationWiring{}
 }
@@ -68,7 +67,7 @@ func newCitationGate(sessionID, caseID string) agentcore.LifecycleHook { //nolin
 //
 // Decision 留空（StateNone）表达「已记录、待人工复核」——citation 留痕是
 // disclosure 性质，不走交互式审批状态机；待审列表可按
-// trigger_keyword='citation_verify' AND decision=” 过滤。
+// trigger_keyword='citation_verify' 且 decision 为空串来过滤。
 // store 为 nil 时返回 nil（Gate 仅标注）；写库失败不阻断 Agent，
 // 仅 stderr 记录（留痕是审计增强，不是主流程）。
 func citationRecorder(store ApprovalStore, sessionID, caseID string) func(guardrails.CitationReport, string) {

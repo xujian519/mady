@@ -12,7 +12,7 @@ import (
 // RunMode selects how a legal case should be processed.
 type RunMode string
 
-// Patent workflow run mode constants.
+// 法律意图的运行模式常量。
 const (
 	ModeDirect       RunMode = "direct"
 	ModeJudgment     RunMode = "judgment"
@@ -192,10 +192,8 @@ func DetectLegalIntent(userInput string) LegalIntentResult {
 		matchedKeywords = append([]string{"@legal"}, matchedKeywords...)
 	}
 
+	// 命中数上限即关键词总数（CountKeywordMatches 每轮至多 +1），置信度已天然 ≤ 1。
 	confidence := float64(best.count) / float64(len(best.pat.keywords))
-	if confidence > 1 {
-		confidence = 1
-	}
 	if explicit {
 		confidence = 1
 	}

@@ -16,9 +16,10 @@ import (
 // Design's DESIGN.md — a structured contract that agents read before
 // generating any user-facing content.
 //
-// Style files live under $MADY_HOME/styles/<name>.yaml. Built-in styles
-// for each domain (patent, legal, chat, assistant) are embedded
-// (see agentcore/manifests/styles/ directory).
+// Style files live under $MADY_HOME/styles/<name>.yaml and, in development,
+// under the repository-relative styles/ directory (see defaultStylePaths in
+// style_embed.go). There is no go:embed for styles — a missing directory simply
+// yields an empty style set.
 type DocumentStyle struct {
 	Name    string `yaml:"name"`
 	Domain  string `yaml:"domain"`

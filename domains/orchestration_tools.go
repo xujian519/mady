@@ -1,5 +1,7 @@
-// Package domains provides the run_orchestration tool — the executable
-// bridge between YAML orchestrations and the Agent runtime.
+package domains
+
+// orchestration_tools.go 提供 run_orchestration 工具——YAML 编排与 Agent
+// 运行时之间的可执行桥接。package 文档见 doc.go。
 //
 // The run_orchestration tool allows the LLM to execute a complete
 // orchestrated workflow with a single tool call, rather than manually
@@ -19,7 +21,6 @@
 //  2. Prepares state inputs from the user-provided context.
 //  3. Runs the OrchestrationExecutor, which calls domain tools in order.
 //  4. Returns a structured result with step outputs and a Markdown summary.
-package domains
 
 import (
 	"context"

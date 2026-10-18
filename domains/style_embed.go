@@ -14,10 +14,10 @@ var (
 	cachedStylesErr  error
 )
 
-// defaultStylePaths lists directories where built-in style YAML files are
-// located. These are loaded once and cached. The first directory that
-// yields at least one valid style file wins; remaining directories are
-// skipped.
+// defaultStylePaths lists directories where style YAML files are located.
+// All directories are loaded once and merged; when two directories define a
+// style with the same name, the later directory overwrites the earlier one.
+// The result is then cached.
 var defaultStylePaths = []string{
 	"styles", // project root (development)
 }

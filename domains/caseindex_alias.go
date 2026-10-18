@@ -24,7 +24,7 @@ type (
 // NewCaseIndex 打开（必要时创建）案件索引数据库。
 func NewCaseIndex(dbPath string) (*CaseIndex, error) { return caseindex.NewCaseIndex(dbPath) }
 
-// 案件标识阶段常量，随实现迁至 caseindex 包。
+// 案件索引相关常量（标识阶段 / 案件状态 / 文档类型），随实现迁至 caseindex 包。
 const (
 	StageDrafting  = caseindex.StageDrafting
 	StageFiled     = caseindex.StageFiled

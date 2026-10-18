@@ -1,5 +1,7 @@
-// Package domains provides the YAML-to-executable bridge for patent
-// workflow orchestrations.
+package domains
+
+// orchestration_bridge.go 提供 YAML → 可执行编排的桥接（patent workflow
+// orchestrations）。package 文档见 doc.go。
 //
 // This file maps YAML orchestration definitions (domains/rules/data/orchestrations/)
 // to executable agentcore.OrchestrationManifest instances. Each orchestration
@@ -14,7 +16,6 @@
 //  1. Define the YAML file in domains/rules/data/orchestrations/.
 //  2. Add a build<Name>Manifest() function below.
 //  3. Register it in GetOrchestrationManifest().
-package domains
 
 import (
 	"strings"

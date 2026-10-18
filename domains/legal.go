@@ -60,14 +60,14 @@ func LegalAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agentc
 	cfg.Engine = "chunked"
 
 	// Reasoning engine injection: same five-step workflow + legal case
-	// comparison tools as PatentAgent, via the shared injectDraftingTool.
+	// comparison tools as PatentAgent, via injectDomainSharedExtensions.
 	injectDomainSharedExtensions(&cfg)
 
 	// DoomLoop + Gateway 统一决策入口（见 assemble.go appendGatewayLifecycle）。
 	appendGatewayLifecycle(&cfg, nil)
 
-	// 法条引用核验 Gate（P1b）：R1 存在性 + R2 交叉匹配，命中疑点追加存疑提示。
-	// P1b 阶段统一按 Standard 处置；Strict 的 SuppressPersist + ApprovalGate 联动留待 P2。
+	// 法条引用核验 Gate（Standard 档）：R1 存在性 + R2 交叉匹配，命中疑点追加存疑提示。
+	// patent 侧为 P2b（Strict + citation_verify 留痕），见 patent.go newCitationGate。
 	appendStandardCitationGate(&cfg)
 
 	// Guardrail: LevelStrict with legal disclaimer + approval gate（共享段落）。

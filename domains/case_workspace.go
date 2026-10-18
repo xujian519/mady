@@ -10,7 +10,7 @@ import (
 
 // 案件工作区子目录名。在用户案卷文件夹下创建 .mady/ 隐藏目录，
 // 用于存放 AI 中间产物（草稿、分析报告、检查点、索引缓存）。
-// 目录名本身复用 util.AppDirName 保持全仓一致。
+// 此处是 .mady/ 下的子目录名；父目录名由 util.AppDirName 提供。
 const (
 	MadyCheckpoints = "checkpoints"
 	MadyDrafts      = "drafts"

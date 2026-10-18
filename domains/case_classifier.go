@@ -67,9 +67,9 @@ func ClassifyDocument(filename, content string) string {
 		"权利要求", "说明书", "申请文件", "定稿",
 	}
 	filingContentKeywords := []string{
-		"权利要求书", "说明书", "技术领域", "背景技术",
+		"权利要求书", "说明书",
 	}
-	if containsAny(name, filingNameKeywords) || containsAll(preview, filingContentKeywords[:2]) {
+	if containsAny(name, filingNameKeywords) || containsAll(preview, filingContentKeywords) {
 		return DocFiling
 	}
 
