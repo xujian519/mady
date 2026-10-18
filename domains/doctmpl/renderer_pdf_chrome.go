@@ -159,6 +159,8 @@ func (r *PDFAutoRenderer) Render(md string, meta RenderMeta) ([]byte, error) {
 }
 
 // probeChrome 尝试启动 Chrome 并导航到 about:blank，成功返回 true。
+// 探测失败即判定 Chrome 不可用并让 PDFAutoRenderer 降级到 gopdf，
+// 具体失败原因（未安装/启动超时/权限）对降级决策无影响，故不透出错误。
 func probeChrome(r *PDFChromeRenderer) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

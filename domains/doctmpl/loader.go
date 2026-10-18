@@ -188,7 +188,7 @@ func loadDocFile(path string) (*DocTemplate, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := util.ReadFile(abs) // path is from filepath.Walk over template dir
+	data, err := util.ReadFile(abs) // 路径来自 filepath.Walk 遍历模板目录，非用户输入
 	if err != nil {
 		return nil, err
 	}

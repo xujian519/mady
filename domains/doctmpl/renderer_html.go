@@ -14,9 +14,9 @@ import (
 
 // HTMLRenderer renders Markdown to a standalone HTML document.
 // Uses goldmark (CommonMark + GFM) for robust Markdown parsing.
-var _ Renderer = (*HTMLRenderer)(nil)
-
 type HTMLRenderer struct{}
+
+var _ Renderer = (*HTMLRenderer)(nil)
 
 // Format returns FormatHTML.
 func (r *HTMLRenderer) Format() OutputFormat { return FormatHTML }
@@ -117,7 +117,8 @@ func isPatentStyle(s *RenderStyle) bool {
 		return false
 	}
 	n := strings.ToLower(s.Name)
-	return strings.HasPrefix(n, "patent") || n == "sati" || strings.Contains(n, "patent")
+	// HasPrefix(n, "patent") 已被 Contains 覆盖，无需单独判断。
+	return n == "sati" || strings.Contains(n, "patent")
 }
 
 // patentHTMLStyleBlock is the A4 print-ready stylesheet for patent report

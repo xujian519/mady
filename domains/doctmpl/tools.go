@@ -37,7 +37,7 @@ func NewListDocTemplatesTool(store *TemplateStore) *agentcore.Tool {
 				},
 			},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		Func: func(_ context.Context, args json.RawMessage) (any, error) {
 			var p struct {
 				Category string `json:"category"`
 				Domain   string `json:"domain"`
@@ -109,7 +109,7 @@ func NewRenderDocTemplateTool(store *TemplateStore) *agentcore.Tool {
 			},
 			"required": []string{"template_name", "variables"},
 		},
-		Func: func(ctx context.Context, args json.RawMessage) (any, error) {
+		Func: func(_ context.Context, args json.RawMessage) (any, error) {
 			var p struct {
 				TemplateName string            `json:"template_name"`
 				Variables    map[string]string `json:"variables"`

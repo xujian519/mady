@@ -173,12 +173,6 @@ func ExtractPlaceholders(body string) []string {
 	return names
 }
 
-// findResidualPlaceholders returns all {{variable}} names still present
-// in the output after variable substitution.
-func findResidualPlaceholders(output string) []string {
-	return ExtractPlaceholders(output)
-}
-
 // ResolveResult contains the output of a validated variable resolution.
 type ResolveResult struct {
 	Output   string     // 渲染后的文本
@@ -201,7 +195,7 @@ func ValidatedResolve(tmpl DocTemplate, vars map[string]string) ResolveResult {
 	result.Output = ResolveDoc(tmpl, vars)
 
 	// 3. Detect residuals.
-	result.Residual = findResidualPlaceholders(result.Output)
+	result.Residual = ExtractPlaceholders(result.Output)
 
 	return result
 }

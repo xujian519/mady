@@ -12,12 +12,12 @@ import (
 // 中文支持依赖嵌入系统 TTF/TTC 中文字体；自动搜索常见路径，也可通过
 // FontPath 显式指定。找不到合适字体时返回错误并提示安装字体——此时
 // 可降级使用 DOCX/Markdown 渲染器。
-var _ Renderer = (*PDFRenderer)(nil)
-
 type PDFRenderer struct {
 	// FontPath 可选：指定 TTF/TTC 字体文件路径，覆盖自动搜索。
 	FontPath string
 }
+
+var _ Renderer = (*PDFRenderer)(nil)
 
 // Format 返回 FormatPDF。
 func (r *PDFRenderer) Format() OutputFormat { return FormatPDF }
@@ -194,6 +194,7 @@ func pdfRenderParagraph(pdf *gopdf.GoPdf, text string) error {
 	h := float64(pdfEstimateLines(text, pdfBodySize, pdfContentWidth)) * pdfLineHeight
 	pdfEnsureSpace(pdf, h)
 	if err := pdf.MultiCell(&gopdf.Rect{W: pdfContentWidth, H: pdfLineHeight}, text); err != nil {
+		// MultiCell 失败不致命（多为排版越界），回退单行 Text 保证正文不丢。
 		return pdf.Text(text)
 	}
 	pdf.Br(4)
@@ -210,6 +211,7 @@ func pdfRenderListItem(pdf *gopdf.GoPdf, text string) error {
 	x := pdf.GetX()
 	pdf.SetX(x + 15)
 	if err := pdf.MultiCell(&gopdf.Rect{W: pdfContentWidth - 15, H: pdfLineHeight}, text); err != nil {
+		// 同段落：MultiCell 失败不致命，回退单行 Text 保证列表项不丢。
 		return pdf.Text(text)
 	}
 	return nil
@@ -277,11 +279,8 @@ func pdfEstimateLines(text string, fontSize, width float64) int {
 	if unitsPerLine < 1 {
 		unitsPerLine = 1
 	}
-	n := int(units/unitsPerLine) + 1
-	if n < 1 {
-		n = 1
-	}
-	return n
+	// units ≥ 0 且 unitsPerLine ≥ 1，故行数恒 ≥ 1，无需下限保护。
+	return int(units/unitsPerLine) + 1
 }
 
 // pdfStripInline 移除行内 Markdown 标记（PDF 不做行内富文本）。

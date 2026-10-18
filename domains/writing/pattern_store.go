@@ -71,6 +71,12 @@ func (s *PatternStore) Count() int {
 	return len(s.patterns)
 }
 
+// scoredPattern 是带相关度分数的模式候选，供搜索/匹配结果排序。
+type scoredPattern struct {
+	p     *WritingPattern
+	score float64
+}
+
 // SearchPatterns searches patterns by query text and optional category filter.
 // Returns up to topK results, sorted by relevance.
 func (s *PatternStore) SearchPatterns(query string, category string, topK int) []*WritingPattern {
@@ -97,11 +103,7 @@ func (s *PatternStore) SearchPatterns(query string, category string, topK int) [
 		}
 	}
 
-	type scored struct {
-		p     *WritingPattern
-		score float64
-	}
-	var scoredList []scored
+	var scoredList []scoredPattern
 
 	// If no search terms, return all candidates without scoring.
 	if len(terms) == 0 {
@@ -116,7 +118,7 @@ func (s *PatternStore) SearchPatterns(query string, category string, topK int) [
 	for _, p := range candidates {
 		score := scorePattern(p, terms)
 		if score > 0 {
-			scoredList = append(scoredList, scored{p, score})
+			scoredList = append(scoredList, scoredPattern{p, score})
 		}
 	}
 
@@ -144,11 +146,7 @@ func (s *PatternStore) MatchPatterns(caseType string, features []string) []*Writ
 	queryTerms := append([]string{caseType}, features...)
 	query := strings.ToLower(strings.Join(queryTerms, " "))
 
-	type scored struct {
-		p     *WritingPattern
-		score float64
-	}
-	var results []scored
+	var results []scoredPattern
 
 	for _, p := range s.patterns {
 		score := 0.0
@@ -178,7 +176,7 @@ func (s *PatternStore) MatchPatterns(caseType string, features []string) []*Writ
 			}
 		}
 		if score > 0 {
-			results = append(results, scored{p, score})
+			results = append(results, scoredPattern{p, score})
 		}
 	}
 	sort.Slice(results, func(i, j int) bool {

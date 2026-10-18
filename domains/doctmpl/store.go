@@ -369,6 +369,8 @@ type renderResult struct {
 func toJSON(v any) string {
 	b, err := json.Marshal(v)
 	if err != nil {
+		// fail-safe：工具输出必须始终是合法 JSON，编组失败时返回固定错误对象，
+		// 避免把空字符串塞给 LLM 造成不可解析的响应。
 		return `{"error":"marshal failed"}`
 	}
 	return string(b)
