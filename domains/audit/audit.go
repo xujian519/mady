@@ -1,5 +1,6 @@
-// Package audit provides audit trail and logging capabilities for domain-level agent
-// operations, supporting encrypted audit entries and extension-based integration.
+// Package audit provides audit trail and logging capabilities for domain-level
+// agent operations, with encrypted audit entries. The agentcore.Extension
+// wrapper lives in the parent package (domains/audit_extension.go).
 package audit
 
 import (
