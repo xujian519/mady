@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -75,4 +76,28 @@ func loadStylesFromPaths(paths []string) ([]DocumentStyle, error) {
 		return nil, fmt.Errorf("style_embed: no valid style files found in %v", paths)
 	}
 	return styles, nil
+}
+
+// bestStyleForDomain picks the best-matching style for a domain.
+func bestStyleForDomain(styles []DocumentStyle, domain string) *DocumentStyle {
+	domainStyles := StylesForDomain(styles, domain)
+	if len(domainStyles) > 0 {
+		return &domainStyles[0]
+	}
+	return nil
+}
+
+// StyleInjection returns a system-prompt block that injects the style matching
+// the given domain. It returns "" when style files cannot be loaded or no style
+// matches — style injection is best-effort and must never block agent startup.
+func StyleInjection(domain string) string {
+	styles, err := LoadDefaultStyles()
+	if err != nil {
+		return ""
+	}
+	s := bestStyleForDomain(styles, domain)
+	if s == nil {
+		return ""
+	}
+	return "\n\n" + strings.TrimSpace(s.SystemPrompt())
 }
