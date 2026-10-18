@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-10-18T23:25:08+08:00",
-  "total": 432,
+  "updated": "2026-10-18T23:35:42+08:00",
+  "total": 433,
   "entries": [
     {
       "date": "2026-10-18",
@@ -18,6 +18,14 @@
       "title": "P0 修复：SQLite 时间列格式统一、审计参数扫描越界、工具入参静默吞错",
       "file": "2026-10-18.md",
       "line": 20
+    },
+    {
+      "date": "2026-10-18",
+      "type": "refactor",
+      "scope": "domains",
+      "title": "DUP-DEL：删除 audit 扩展副本、style 实现归并到 domains/config",
+      "file": "2026-10-18.md",
+      "line": 55
     },
     {
       "date": "2026-09-14",
@@ -42,14 +50,6 @@
       "title": "M13 日卡：domains/rules + reasoning 审阅精炼（保守档）",
       "file": "2026-09-06.md",
       "line": 3
-    },
-    {
-      "date": "2026-09-01",
-      "type": "chore",
-      "scope": "ci",
-      "title": "commitlint 禁用 body 行长限制（修 dependabot PR 必红问题）",
-      "file": "2026-09-01.md",
-      "line": 76
     },
     {
       "date": "2026-09-01",
@@ -92,12 +92,12 @@
       "line": 63
     },
     {
-      "date": "2026-08-28",
-      "type": "feat",
-      "scope": "novelty",
-      "title": "新颖性图新增确定性数值范围核验节点（step_numeric_range）",
-      "file": "2026-08-28.md",
-      "line": 110
+      "date": "2026-09-01",
+      "type": "chore",
+      "scope": "ci",
+      "title": "commitlint 禁用 body 行长限制（修 dependabot PR 必红问题）",
+      "file": "2026-09-01.md",
+      "line": 76
     },
     {
       "date": "2026-08-28",
@@ -244,12 +244,12 @@
       "line": 104
     },
     {
-      "date": "2026-08-27",
-      "type": "refactor",
-      "scope": "session",
-      "title": "为静默吞错添加意图注释",
-      "file": "2026-08-27.md",
-      "line": 3
+      "date": "2026-08-28",
+      "type": "feat",
+      "scope": "novelty",
+      "title": "新颖性图新增确定性数值范围核验节点（step_numeric_range）",
+      "file": "2026-08-28.md",
+      "line": 110
     },
     {
       "date": "2026-08-27",
@@ -260,11 +260,11 @@
       "line": 15
     },
     {
-      "date": "2026-08-26",
+      "date": "2026-08-27",
       "type": "refactor",
-      "scope": "agentcore",
-      "title": "日卡 M02：agentcore 子包审阅精炼（concurrency/evidence/filecheckpoint/planmode/tasklist/worker）",
-      "file": "2026-08-26.md",
+      "scope": "session",
+      "title": "为静默吞错添加意图注释",
+      "file": "2026-08-27.md",
       "line": 3
     },
     {
@@ -292,11 +292,11 @@
       "line": 55
     },
     {
-      "date": "2026-08-25",
-      "type": "chore",
-      "scope": "docs",
-      "title": "新增每日代码审阅日卡计划与 Go 气味扫描工具",
-      "file": "2026-08-25.md",
+      "date": "2026-08-26",
+      "type": "refactor",
+      "scope": "agentcore",
+      "title": "日卡 M02：agentcore 子包审阅精炼（concurrency/evidence/filecheckpoint/planmode/tasklist/worker）",
+      "file": "2026-08-26.md",
       "line": 3
     },
     {
@@ -324,11 +324,11 @@
       "line": 33
     },
     {
-      "date": "2026-08-24",
-      "type": "docs",
-      "scope": "knowledge",
-      "title": "阶段0：确立 XiaoNuo Agent 作为 Mady 专利知识底座的资产复用策略",
-      "file": "2026-08-24.md",
+      "date": "2026-08-25",
+      "type": "chore",
+      "scope": "docs",
+      "title": "新增每日代码审阅日卡计划与 Go 气味扫描工具",
+      "file": "2026-08-25.md",
       "line": 3
     },
     {
@@ -484,11 +484,11 @@
       "line": 295
     },
     {
-      "date": "2026-08-23",
-      "type": "refactor",
-      "scope": "devtools",
-      "title": "开发规范优化：三模块收敛、负控制自证与 fail-closed 硬化",
-      "file": "2026-08-23.md",
+      "date": "2026-08-24",
+      "type": "docs",
+      "scope": "knowledge",
+      "title": "阶段0：确立 XiaoNuo Agent 作为 Mady 专利知识底座的资产复用策略",
+      "file": "2026-08-24.md",
       "line": 3
     },
     {
@@ -500,12 +500,12 @@
       "line": 17
     },
     {
-      "date": "2026-08-22",
-      "type": "fix",
-      "scope": "ci,docs",
-      "title": "修复 main CI 门禁并清理失效 dependabot 条目（PR 合并前置）",
-      "file": "2026-08-22.md",
-      "line": 23
+      "date": "2026-08-23",
+      "type": "refactor",
+      "scope": "devtools",
+      "title": "开发规范优化：三模块收敛、负控制自证与 fail-closed 硬化",
+      "file": "2026-08-23.md",
+      "line": 3
     },
     {
       "date": "2026-08-22",
@@ -540,12 +540,12 @@
       "line": 7
     },
     {
-      "date": "2026-08-19",
-      "type": "refactor",
-      "scope": "tools",
-      "title": "阶段4：死代码与弃用 API 清理（tool_domains/命令处理器/测试引用函数/域过滤函数）",
-      "file": "2026-08-19.md",
-      "line": 25
+      "date": "2026-08-22",
+      "type": "fix",
+      "scope": "ci,docs",
+      "title": "修复 main CI 门禁并清理失效 dependabot 条目（PR 合并前置）",
+      "file": "2026-08-22.md",
+      "line": 23
     },
     {
       "date": "2026-08-19",
@@ -596,12 +596,12 @@
       "line": 19
     },
     {
-      "date": "2026-08-13",
-      "type": "docs",
-      "scope": "desktop",
-      "title": "桌面端社区规范与流程调研报告",
-      "file": "2026-08-13.md",
-      "line": 32
+      "date": "2026-08-19",
+      "type": "refactor",
+      "scope": "tools",
+      "title": "阶段4：死代码与弃用 API 清理（tool_domains/命令处理器/测试引用函数/域过滤函数）",
+      "file": "2026-08-19.md",
+      "line": 25
     },
     {
       "date": "2026-08-13",
@@ -692,12 +692,12 @@
       "line": 18
     },
     {
-      "date": "2026-08-12",
-      "type": "refactor",
-      "scope": "repo",
-      "title": "大文件合理拆分（第五轮）：8 个 \u003e500 行文件按职责拆分",
-      "file": "2026-08-12.md",
-      "line": 55
+      "date": "2026-08-13",
+      "type": "docs",
+      "scope": "desktop",
+      "title": "桌面端社区规范与流程调研报告",
+      "file": "2026-08-13.md",
+      "line": 32
     },
     {
       "date": "2026-08-12",
@@ -796,12 +796,12 @@
       "line": 49
     },
     {
-      "date": "2026-08-11",
-      "type": "feat",
-      "scope": "tui/chat",
-      "title": "Reasonix TUI 对标：输入框圆角 + Todo锚定面板 + StatusBar密度",
-      "file": "2026-08-11.md",
-      "line": 35
+      "date": "2026-08-12",
+      "type": "refactor",
+      "scope": "repo",
+      "title": "大文件合理拆分（第五轮）：8 个 \u003e500 行文件按职责拆分",
+      "file": "2026-08-12.md",
+      "line": 55
     },
     {
       "date": "2026-08-11",
@@ -988,12 +988,12 @@
       "line": 29
     },
     {
-      "date": "2026-08-09",
-      "type": "refactor",
-      "scope": "agentcore",
-      "title": "code-review 复核修复：LastFinishReason 跨调用残留 + RunFinishedWithSuccess 签名简化 + steering 常量抽取等 5 项",
-      "file": "2026-08-09.md",
-      "line": 39
+      "date": "2026-08-11",
+      "type": "feat",
+      "scope": "tui/chat",
+      "title": "Reasonix TUI 对标：输入框圆角 + Todo锚定面板 + StatusBar密度",
+      "file": "2026-08-11.md",
+      "line": 35
     },
     {
       "date": "2026-08-09",
@@ -1020,12 +1020,12 @@
       "line": 23
     },
     {
-      "date": "2026-08-08",
-      "type": "fix",
-      "scope": "chatcompat",
-      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
-      "file": "2026-08-08.md",
-      "line": 7
+      "date": "2026-08-09",
+      "type": "refactor",
+      "scope": "agentcore",
+      "title": "code-review 复核修复：LastFinishReason 跨调用残留 + RunFinishedWithSuccess 签名简化 + steering 常量抽取等 5 项",
+      "file": "2026-08-09.md",
+      "line": 39
     },
     {
       "date": "2026-08-08",
@@ -1044,11 +1044,11 @@
       "line": 3
     },
     {
-      "date": "2026-08-07",
-      "type": "refactor",
-      "scope": "techdebt",
-      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
-      "file": "2026-08-07.md",
+      "date": "2026-08-08",
+      "type": "fix",
+      "scope": "chatcompat",
+      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
+      "file": "2026-08-08.md",
       "line": 7
     },
     {
@@ -1068,12 +1068,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-06",
+      "date": "2026-08-07",
       "type": "refactor",
-      "scope": "domains/workflows/patent",
-      "title": "OA 答复工作流代码审查重构：节点增量返回 + 文件拆分 + 表格紧凑化",
-      "file": "2026-08-06.md",
-      "line": 16
+      "scope": "techdebt",
+      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
+      "file": "2026-08-07.md",
+      "line": 7
     },
     {
       "date": "2026-08-06",
@@ -1084,12 +1084,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-04",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "批次 D：Composer 粘贴图片 + CheckUpdate 中间态文案",
-      "file": "2026-08-04.md",
-      "line": 146
+      "date": "2026-08-06",
+      "type": "refactor",
+      "scope": "domains/workflows/patent",
+      "title": "OA 答复工作流代码审查重构：节点增量返回 + 文件拆分 + 表格紧凑化",
+      "file": "2026-08-06.md",
+      "line": 16
     },
     {
       "date": "2026-08-04",
@@ -1164,12 +1164,12 @@
       "line": 111
     },
     {
-      "date": "2026-08-03",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
-      "file": "2026-08-03.md",
-      "line": 9
+      "date": "2026-08-04",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "批次 D：Composer 粘贴图片 + CheckUpdate 中间态文案",
+      "file": "2026-08-04.md",
+      "line": 146
     },
     {
       "date": "2026-08-03",
@@ -1180,12 +1180,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-02",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "桌面端多标签（Go 侧状态机）第一步：Tab 模型/持久化/恢复/绑定",
-      "file": "2026-08-02.md",
-      "line": 47
+      "date": "2026-08-03",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
+      "file": "2026-08-03.md",
+      "line": 9
     },
     {
       "date": "2026-08-02",
@@ -1252,12 +1252,12 @@
       "line": 33
     },
     {
-      "date": "2026-08-01",
-      "type": "refactor",
-      "scope": "bootstrap",
-      "title": "统一 BaseConfig 构造并清理 desktop lint 遗留问题",
-      "file": "2026-08-01.md",
-      "line": 3
+      "date": "2026-08-02",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "桌面端多标签（Go 侧状态机）第一步：Tab 模型/持久化/恢复/绑定",
+      "file": "2026-08-02.md",
+      "line": 47
     },
     {
       "date": "2026-08-01",
@@ -1284,12 +1284,12 @@
       "line": 32
     },
     {
-      "date": "2026-07-31",
-      "type": "style",
-      "scope": "tui",
-      "title": "输入区移除整行背景色块，恢复上下边框分隔",
-      "file": "2026-07-31.md",
-      "line": 299
+      "date": "2026-08-01",
+      "type": "refactor",
+      "scope": "bootstrap",
+      "title": "统一 BaseConfig 构造并清理 desktop lint 遗留问题",
+      "file": "2026-08-01.md",
+      "line": 3
     },
     {
       "date": "2026-07-31",
@@ -1692,12 +1692,12 @@
       "line": 173
     },
     {
-      "date": "2026-07-30",
-      "type": "refactor",
-      "scope": "*",
-      "title": "阶段三完成：4个大文件拆分 + TODO清理 + 文档同步",
-      "file": "2026-07-30.md",
-      "line": 48
+      "date": "2026-07-31",
+      "type": "style",
+      "scope": "tui",
+      "title": "输入区移除整行背景色块，恢复上下边框分隔",
+      "file": "2026-07-31.md",
+      "line": 299
     },
     {
       "date": "2026-07-30",
@@ -1852,12 +1852,12 @@
       "line": 635
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
-      "scope": "a2ui",
-      "title": "桌面端第一波闭环实现（A2UIPromise + ListModels + 工程加固）",
-      "file": "2026-07-29.md",
-      "line": 95
+      "date": "2026-07-30",
+      "type": "refactor",
+      "scope": "*",
+      "title": "阶段三完成：4个大文件拆分 + TODO清理 + 文档同步",
+      "file": "2026-07-30.md",
+      "line": 48
     },
     {
       "date": "2026-07-29",
@@ -1932,12 +1932,12 @@
       "line": 48
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
-      "scope": "*",
-      "title": "桌面端缺口修复（cMaps + spec 对齐）",
-      "file": "2026-07-28.md",
-      "line": 538
+      "date": "2026-07-29",
+      "type": "chore",
+      "scope": "a2ui",
+      "title": "桌面端第一波闭环实现（A2UIPromise + ListModels + 工程加固）",
+      "file": "2026-07-29.md",
+      "line": 95
     },
     {
       "date": "2026-07-28",
@@ -2060,12 +2060,12 @@
       "line": 617
     },
     {
-      "date": "2026-07-27",
-      "type": "feat",
+      "date": "2026-07-28",
+      "type": "fix",
       "scope": "*",
-      "title": "Gateway — 统一编排三件套为单一决策入口（PilotDeck 架构引入 第三阶段）",
-      "file": "2026-07-27.md",
-      "line": 881
+      "title": "桌面端缺口修复（cMaps + spec 对齐）",
+      "file": "2026-07-28.md",
+      "line": 538
     },
     {
       "date": "2026-07-27",
@@ -2228,12 +2228,12 @@
       "line": 501
     },
     {
-      "date": "2026-07-26",
-      "type": "fix",
+      "date": "2026-07-27",
+      "type": "feat",
       "scope": "*",
-      "title": "Sprint 1 P0/P1 安全止血修复 + 全面审阅报告",
-      "file": "2026-07-26.md",
-      "line": 546
+      "title": "Gateway — 统一编排三件套为单一决策入口（PilotDeck 架构引入 第三阶段）",
+      "file": "2026-07-27.md",
+      "line": 881
     },
     {
       "date": "2026-07-26",
@@ -2300,12 +2300,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
-      "scope": "memory",
-      "title": "审阅决策 — memory 与 tasklist 按 workspace 隔离",
-      "file": "2026-07-25.md",
-      "line": 171
+      "date": "2026-07-26",
+      "type": "fix",
+      "scope": "*",
+      "title": "Sprint 1 P0/P1 安全止血修复 + 全面审阅报告",
+      "file": "2026-07-26.md",
+      "line": 546
     },
     {
       "date": "2026-07-25",
@@ -2412,12 +2412,12 @@
       "line": 139
     },
     {
-      "date": "2026-07-24",
-      "type": "fix",
-      "scope": "*",
-      "title": "斜杠命令系统交互改进（P0三阶段 + code-review修复）",
-      "file": "2026-07-24.md",
-      "line": 701
+      "date": "2026-07-25",
+      "type": "docs",
+      "scope": "memory",
+      "title": "审阅决策 — memory 与 tasklist 按 workspace 隔离",
+      "file": "2026-07-25.md",
+      "line": 171
     },
     {
       "date": "2026-07-24",
@@ -2572,12 +2572,12 @@
       "line": 308
     },
     {
-      "date": "2026-07-23",
-      "type": "chore",
-      "scope": "domains",
-      "title": "claimdrafting LLM 结果解析实现",
-      "file": "2026-07-23.md",
-      "line": 510
+      "date": "2026-07-24",
+      "type": "fix",
+      "scope": "*",
+      "title": "斜杠命令系统交互改进（P0三阶段 + code-review修复）",
+      "file": "2026-07-24.md",
+      "line": 701
     },
     {
       "date": "2026-07-23",
@@ -2724,12 +2724,12 @@
       "line": 678
     },
     {
-      "date": "2026-07-22",
-      "type": "perf",
+      "date": "2026-07-23",
+      "type": "chore",
       "scope": "domains",
-      "title": "工作流编排器优化第二批 — 无效宣告 + 侵权比对 Pregel 工作流",
-      "file": "2026-07-22.md",
-      "line": 59
+      "title": "claimdrafting LLM 结果解析实现",
+      "file": "2026-07-23.md",
+      "line": 510
     },
     {
       "date": "2026-07-22",
@@ -2788,12 +2788,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-21",
-      "type": "fix",
-      "scope": "tui",
-      "title": "修复 TUI 运行时 stderr 泄漏 + 编辑器占位符复位",
-      "file": "2026-07-21.md",
-      "line": 109
+      "date": "2026-07-22",
+      "type": "perf",
+      "scope": "domains",
+      "title": "工作流编排器优化第二批 — 无效宣告 + 侵权比对 Pregel 工作流",
+      "file": "2026-07-22.md",
+      "line": 59
     },
     {
       "date": "2026-07-21",
@@ -2972,12 +2972,12 @@
       "line": 585
     },
     {
-      "date": "2026-07-20",
+      "date": "2026-07-21",
       "type": "fix",
-      "scope": "*",
-      "title": "全仓技术债务修复（第二轮：快速修复 + 函数拆分 + 布局模板化）",
-      "file": "2026-07-20.md",
-      "line": 171
+      "scope": "tui",
+      "title": "修复 TUI 运行时 stderr 泄漏 + 编辑器占位符复位",
+      "file": "2026-07-21.md",
+      "line": 109
     },
     {
       "date": "2026-07-20",
@@ -3204,12 +3204,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-19",
-      "type": "chore",
+      "date": "2026-07-20",
+      "type": "fix",
       "scope": "*",
-      "title": "里程碑 2——代码现代化与重复消除",
-      "file": "2026-07-19.md",
-      "line": 232
+      "title": "全仓技术债务修复（第二轮：快速修复 + 函数拆分 + 布局模板化）",
+      "file": "2026-07-20.md",
+      "line": 171
     },
     {
       "date": "2026-07-19",
@@ -3252,12 +3252,12 @@
       "line": 315
     },
     {
-      "date": "2026-07-18",
+      "date": "2026-07-19",
       "type": "chore",
       "scope": "*",
-      "title": "M1 门禁加固（2/4）：codecov 配置合并并启用覆盖率门槛",
-      "file": "2026-07-18.md",
-      "line": 206
+      "title": "里程碑 2——代码现代化与重复消除",
+      "file": "2026-07-19.md",
+      "line": 232
     },
     {
       "date": "2026-07-18",
@@ -3458,6 +3458,14 @@
       "title": "M1 门禁加固（1/4）：integration e2e 测试接入 CI",
       "file": "2026-07-18.md",
       "line": 235
+    },
+    {
+      "date": "2026-07-18",
+      "type": "chore",
+      "scope": "*",
+      "title": "M1 门禁加固（2/4）：codecov 配置合并并启用覆盖率门槛",
+      "file": "2026-07-18.md",
+      "line": 206
     }
   ]
 }

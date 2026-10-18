@@ -415,7 +415,24 @@
 - **提交**：`3013ec0`（时间列）、`eb427ae`（审计与入参）
 - **测试**：新增 `domains/sqlite/timefmt_test.go`（5 组：过期判定/往返/Prune 历史行/LoadLatest/解析表）、`domains/caseindex/timefmt_test.go`（2 组）、`domains/audit_extension_test.go`（3 组，含 4 类畸形 JSON）
 - **门禁**：`make verify` 全绿；`golangci-lint-newcode` 0 issues
-- **仍登记未修（需决策）**：
-  - `domains/audit/audit_extension.go` 是同一实现的第二份副本（193 行），装配侧只用根包版（`bootstrap/setup_steps.go:295` 调 `domains.NewAuditExtension`），该副本零引用且本次未同步修复
-  - `domains/style.go` 与 `domains/config/style.go` 除包名外仍逐字节相同（250 行）。补充核查：`LoadStyle`/`FindStyleByName`/`StylesForDomain` 等 API 在**两份副本中均零生产引用**，仅被各自包内测试调用——删除任一侧都要先决定「保留哪份 + 测试迁移」，已超出精炼卡范围
+- **仍登记未修**：
+  - ~~`domains/audit/audit_extension.go` 是同一实现的第二份副本（193 行）~~ → 已于 DUP-DEL 卡删除
+  - ~~`domains/style.go` 与 `domains/config/style.go` 除包名外逐字节相同（250 行）~~ → 已于 DUP-DEL 卡收敛到 `domains/config`。**修正原判断**：前述「零生产引用」不准确，`styleInjection` 经 `patent.go:310` / `legal.go:22` 注入两个 Agent 的 system prompt，是活跃路径
   - `knowledge/eval_store.go:67` 与 `domains/reasoning/sqlite/checkpoint_store.go:62` 属同一时间列模式问题（默认 `datetime('now')` + 范围查询/排序），分别留待 M16 与后续卡处理
+
+### DUP-DEL（2026-10-18）重复实现收敛：删除 audit 副本 + style 归并到 config
+
+- **范围**：处理 M14/M15 与 FIX-P0 两次登记的「三组逐字节重复文件」中剩余的两组（第三组 `domains/reasoning/sqlite` 与 `knowledge/eval_store` 属同类时间列问题，非重复文件，留在原卡）
+- **处置一：删除 `domains/audit/audit_extension.go`（193 行）**
+  - 判定依据：全仓 `audit.NewAuditExtension` / `audit.AuditExtension` 零引用，装配链路只走根包版（`bootstrap/setup_steps.go:295` → `domains.NewAuditExtension`）；`domains/audit` 包被 `domains/audit_alias.go` 与 `domains/provenance/provenance.go` 引用的仅是 `AuditLogger`/`AuditAction` 等，与该文件无关
+  - 该副本还停留在 FIX-P0 之前的实现（`extractArgNames` 越界、`truncateAuditDetail` 按字节截断），删除同时消除了「同一缺陷存在两份、只修了一份」的状态
+  - 顺带修正 `domains/audit/audit.go` 的包注释（原称本包提供 "extension-based integration"，已不成立）
+- **处置二：style 收敛到 `domains/config`**
+  - 形态判定：`domains/style.go` ≡ `domains/config/style.go`（除包名外逐字节相同），两份测试文件同样逐字节相同；根包 `style_embed.go` 额外有 `bestStyleForDomain`/`styleInjection`（101 行 vs 78 行）
+  - 保留 `domains/config` 版为实现落点（与 `project.go`/`project_alias.go`、`caseindex`/`caseindex_alias.go` 同一模式：实现落子包、根包零成本转发）
+  - 把 `bestStyleForDomain` + 新增导出 `StyleInjection` 迁入 `domains/config/style_embed.go`；根包新增 `style_alias.go` 仅转发 `AddStylePath` 与 `styleInjection`，`bootstrap/setup.go:218`、`desktop/app.go:170`、`patent.go:310`、`legal.go:22` 四处调用点零改动（`patent.go` 属敏感路径，不动其调用形式）
+  - 删除根包 `style.go`/`style_embed.go` 与两份重复测试；`LoadStyle`/`StylesForDomain`/`FindStyleByName`/`ToRenderStyle`/`SystemPromptForTemplate` 等 API 只在 `domains/config` 保留一份
+- **重要修正**：M15 卡曾判定 style API「两份副本均零生产引用」，该结论 **不准确**——`styleInjection` 会被 `patent.go`/`legal.go` 拼进两个 Agent 的 system prompt，是活跃路径；零引用的只是 `DocumentStyle` 的加载/筛选/渲染方法簇。若按原判断直接删两份，会静默移除 patent/legal 的风格注入
+- **净变化**：删除 5 个文件（836 行）、新增 2 个文件；`domains` 包不再持有 style 实现，依赖方向为 `domains → domains/config`
+- **测试**：`domains/config` 新增 `style_injection_test.go` 4 组（命中域注入、域不匹配返回空、无风格文件返回空、同域多风格取首个）；原有 `TestLoadStyle`/`TestSystemPrompt`/`TestStylesForDomain`/`TestFindStyleByName`/`TestLoadStylesFromPaths_*` 在 config 侧原地保留
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/debt-check/build/test-race，含 tui/desktop）；`golangci-lint-newcode` 0 issues
