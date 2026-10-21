@@ -64,11 +64,11 @@ func (c *Compiler) StartTurn(goal string) (guidance string, strategyID string) {
 	decayCfg := c.decayCfg
 	c.mu.Unlock()
 
+	// rand.Rand 非并发安全；选择过程必须整体持锁，否则多个 Agent 并发
+	// 调用 StartTurn 会在随机源内部状态上产生数据竞争。
 	c.rngMu.Lock()
-	rng := c.rng
+	pick := SelectStrategyWithDecay(goal, strategies, expRate, decayCfg, c.rng)
 	c.rngMu.Unlock()
-
-	pick := SelectStrategyWithDecay(goal, strategies, expRate, decayCfg, rng)
 	if pick.Strategy == nil {
 		return "", ""
 	}

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -116,6 +117,25 @@ func TestCompiler_StartTurn_NoMatch(t *testing.T) {
 	if guidance != "" || strategyID != "" {
 		t.Error("expected empty guidance for non-matching goal")
 	}
+}
+
+func TestCompiler_StartTurn_Concurrent(t *testing.T) {
+	c := NewCompiler(Config{ExplorationRate: 100})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 200; j++ {
+				if _, sid := c.StartTurn("审查意见答复"); sid == "" {
+					t.Error("expected strategy selection for matching goal")
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func TestCompiler_FinishTurn_Success(t *testing.T) {
