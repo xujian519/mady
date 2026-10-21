@@ -1,21 +1,21 @@
-// Package fileindex 提供文件索引器，支持从 PDF、DOCX、图片、音频、
-// 电子表格和纯文本等多文件类型中提取文本内容用于知识库索引。
+// Package fileindex 提供项目文件索引与内容读取：基于 SQLite FTS5 的增量索引、
+// 文件变更监听，以及按扩展名分发的文本提取。
 //
 // 支持的格式：
-//   - PDF: 文本提取与 OCR 回退
-//   - DOCX: Office Open XML 解析
-//   - 图片: EXIF/Tesseract OCR
-//   - 音频: 语音转文本（Whisper）
-//   - 电子表格: CSV/XLSX 文本提取
-//   - 纯文本: TXT/MD/代码文件
+//   - PDF: 调用系统 pdftotext 提取文本
+//   - DOCX: 解析 OOXML 正文与页眉页脚
+//   - XLSX/CSV: 转换为 Markdown 表格
+//   - 纯文本/代码: 直接读取，超大文件按 UTF-8 边界截断
+//   - 图片/音频: 仅返回元数据与处理建议（不做 OCR/ASR）
 //
 // 主要类型：
-//   - Extension: 文件类型注册器，按扩展名分发到对应读取器
-//   - Reader: 文件读取器接口（ReaderPDF / ReaderDOCX / ReaderImage 等）
-//   - Result: 文本提取结果（内容 + 元数据）
+//   - FileIndex: SQLite 文件索引（增量刷新、四路 RRF 搜索）
+//   - FileWatcher: fsnotify 监听 + 轮询回退
+//   - FileReader: 项目根目录内的文件读取器（沙箱路径校验）
+//   - Extension: agentcore 扩展，注册 read_project_file / search_project_files 工具
 //
 // 使用示例：
 //
-//	ext := fileindex.NewExtension()
-//	content, _ := ext.ReadFile(ctx, "patent.pdf")
+//	fr := fileindex.NewFileReader(projectRoot)
+//	result, err := fr.ReadProjectFile(ctx, "docs/权利要求.md")
 package fileindex

@@ -1,14 +1,13 @@
-// Package loader 提供 Wiki（百科）知识加载器，支持从 Obsidian wiki 目录
-// 加载结构化知识到知识库中。
-//
-// 加载器：
-//   - WikiLoader: 百科知识加载，含卡片索引和过滤
+// Package loader 提供 Obsidian Wiki 知识加载：遍历 Wiki/、cards/、patent-cards/，
+// 提取标题、来源、法条、标签等元数据后写入 knowledge.Store。
 //
 // 主要类型：
-//   - WikiLoader: 百科加载器，支持元数据提取和重索引
+//   - WikiLoader: Wiki 导入器（过滤索引页/片段页，支持 card-index.json 增强）
+//   - WikiFilter: 导入过滤规则
+//   - LawArticleIndex: 从法条文本构建条款主题索引
 //
 // 使用示例：
 //
-//	loader := loader.NewWikiLoader(store, wikiPath)
-//	docs, _ := loader.Load(ctx, "专利权")
+//	l := loader.NewWikiLoader(store, wikiPath)
+//	stats, err := l.ImportWiki()
 package loader
