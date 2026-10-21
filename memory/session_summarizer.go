@@ -112,9 +112,7 @@ func parseSummaryResponse(content string) []ExtractedFact {
 func parseFactsFromLines(content string) []ExtractedFact {
 	var facts []ExtractedFact
 	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		line = strings.TrimLeft(line, "0123456789. -•·*_")
-		line = strings.TrimSpace(line)
+		line = trimFactPrefix(line)
 		if line != "" && line != "无" && len([]rune(line)) >= 4 {
 			facts = append(facts, ExtractedFact{
 				Content:    line,

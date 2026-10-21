@@ -104,6 +104,18 @@ func TestParseFactsFromText(t *testing.T) {
 	}
 }
 
+func TestParseFactsFromText_PreservesLeadingDigits(t *testing.T) {
+	facts := parseFactsFromText("2026年用户代理了10件专利")
+	if len(facts) != 1 || facts[0] != "2026年用户代理了10件专利" {
+		t.Fatalf("leading digits must be preserved, got %q", facts)
+	}
+
+	facts = parseFactsFromText("1. 用户偏好使用表格")
+	if len(facts) != 1 || facts[0] != "用户偏好使用表格" {
+		t.Fatalf("list prefix should be stripped, got %q", facts)
+	}
+}
+
 func TestStripMarkdownFences(t *testing.T) {
 	tests := []struct {
 		input string

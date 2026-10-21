@@ -192,18 +192,22 @@ func parseFactsFromResponse(content string) ([]string, error) {
 func parseFactsFromText(content string) []string {
 	var facts []string
 	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || line == "无" {
-			continue
-		}
-		// 去除可能的编号前缀（"1. "、"- "、"• "等）
-		line = strings.TrimLeft(line, "0123456789. -•·*_")
-		line = strings.TrimSpace(line)
-		if line != "" {
+		line = trimFactPrefix(line)
+		if line != "" && line != "无" {
 			facts = append(facts, line)
 		}
 	}
 	return facts
+}
+
+// factListPrefixPattern 只匹配列表标记，不匹配正文开头的数字。
+// 例如 "1. 用户偏好..." 需剥离前缀，而 "2026年用户代理..." 必须原样保留。
+var factListPrefixPattern = regexp.MustCompile(`^(?:\d+[.)、]\s*|\d+\s+|[-•·*_]\s*)`)
+
+// trimFactPrefix 去除行首的编号/项目符号并返回 trim 后的文本。
+func trimFactPrefix(line string) string {
+	line = strings.TrimSpace(line)
+	return strings.TrimSpace(factListPrefixPattern.ReplaceAllString(line, ""))
 }
 
 // stripMarkdownFences 去除 markdown 代码块标记（```json ... ```）。
