@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // testdataAbs returns the absolute path to the package's testdata directory.
@@ -98,6 +99,39 @@ func TestReader_ReadAudio(t *testing.T) {
 	}
 	if result.CostNotice == "" {
 		t.Fatal("expected cost notice for audio")
+	}
+}
+
+func TestReader_ReadText_TruncatesLargeMultibyte(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "large.md")
+	// 400k CJK runes ≈ 1.2 MB: exceeds the 1 MB byte budget while containing
+	// far fewer runes than bytes.
+	content := strings.Repeat("专利", 200_000)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write large file: %v", err)
+	}
+
+	fr := NewFileReader(".")
+	result, err := fr.readText(context.Background(), path)
+	if err != nil {
+		t.Fatalf("readText: %v", err)
+	}
+	if !strings.Contains(result.Content, "已截断") {
+		t.Fatal("expected truncation notice")
+	}
+	if !utf8.ValidString(result.Content) {
+		t.Fatal("truncated content is not valid UTF-8")
+	}
+	if strings.ContainsRune(result.Content, utf8.RuneError) {
+		t.Fatal("truncated content contains U+FFFD replacement character")
+	}
+}
+
+func TestReader_ReadSpreadsheet_XLSMissingFile(t *testing.T) {
+	fr := NewFileReader(".")
+	missing := filepath.Join(t.TempDir(), "gone.xls")
+	if _, err := fr.readSpreadsheet(context.Background(), missing); err == nil {
+		t.Fatal("expected error for missing .xls file")
 	}
 }
 

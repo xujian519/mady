@@ -26,7 +26,10 @@ func (fr *FileReader) readSpreadsheet(ctx context.Context, path string) (*FileRe
 	case ".xls":
 		// .xls（Excel 97-2003）是 OLE 复合二进制格式，纯 Go 解析库成熟度低，
 		// 故降级提示。如需处理，建议另存为 .xlsx 或 .csv。
-		info, _ := os.Stat(path)
+		info, err := os.Stat(path)
+		if err != nil {
+			return nil, fmt.Errorf("读取文件信息失败: %w", err)
+		}
 		return &FileReadResult{
 			Content:    "",
 			Confidence: 0.0,

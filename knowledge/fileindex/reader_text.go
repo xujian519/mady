@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode/utf8"
 )
 
 // readText reads a plain text file (txt, md, go, etc.). This is the cheapest
@@ -20,9 +21,13 @@ func (fr *FileReader) readText(_ context.Context, path string) (*FileReadResult,
 	// Truncate extremely large files (>1MB) to prevent context overflow.
 	const maxBytes = 1_000_000
 	if len(content) > maxBytes {
-		// Slice at rune boundary to avoid splitting multi-byte UTF-8 characters.
-		runes := []rune(content)
-		content = string(runes[:maxBytes]) + "\n\n[文件过长，已截断至前1MB]"
+		// Keep the byte budget, but back off to a UTF-8 boundary so the cut
+		// never lands inside a multi-byte rune.
+		cut := maxBytes
+		for cut > 0 && !utf8.RuneStart(content[cut]) {
+			cut--
+		}
+		content = content[:cut] + "\n\n[文件过长，已截断至前1MB]"
 	}
 
 	// Split into sections by double newlines.
