@@ -85,6 +85,30 @@ func TestEvalStore_QueryStats(t *testing.T) {
 	}
 }
 
+func TestEvalStore_QueryStats_NonUTCTimeWindow(t *testing.T) {
+	store := newTestEvalStore(t)
+	defer store.Close()
+	ctx := context.Background()
+
+	if err := store.Save(ctx, EvalResult{
+		Turn: 1, Question: "q", Answer: "a", Faithfulness: 0.9,
+	}); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// 边界是绝对时刻，不应随调用方时区平移。旧实现把 +08:00 的墙上时间直接
+	// 与 created_at（UTC）比较，导致窗口整体偏移 8 小时后查不到刚写入的行。
+	cst := time.FixedZone("UTC+8", 8*3600)
+	now := time.Now().In(cst)
+	stats, err := store.QueryStats(ctx, now.Add(-time.Minute), now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("QueryStats failed: %v", err)
+	}
+	if stats.TotalEvaluations != 1 {
+		t.Fatalf("expected 1 evaluation in +08:00 window, got %d", stats.TotalEvaluations)
+	}
+}
+
 func TestEvalStore_EmptyStats(t *testing.T) {
 	store := newTestEvalStore(t)
 	defer store.Close()

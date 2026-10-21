@@ -142,8 +142,10 @@ func (s *EvalStore) QueryStats(ctx context.Context, since, until time.Time) (*Ev
 			COALESCE(SUM(CASE WHEN faithfulness < 0.7 THEN 1 ELSE 0 END), 0) AS low_faith
 		FROM eval_results
 		WHERE created_at >= ? AND created_at <= ?`,
-		since.Format("2006-01-02 15:04:05"),
-		until.Format("2006-01-02 15:04:05"),
+		// created_at 由 datetime('now') 以 UTC 写入；边界必须先换算到 UTC，
+		// 否则非 UTC 调用方的窗口会整体偏移时区差。
+		since.UTC().Format("2006-01-02 15:04:05"),
+		until.UTC().Format("2006-01-02 15:04:05"),
 	)
 
 	stats := &EvalStats{}
@@ -171,6 +173,7 @@ func parseDurationMs(d string) int {
 	}
 	dur, err := time.ParseDuration(d)
 	if err != nil {
+		// 时长仅用于统计展示，解析失败记为 0，不影响评估结果落库。
 		return 0
 	}
 	return int(dur.Milliseconds())
