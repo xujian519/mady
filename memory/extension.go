@@ -153,8 +153,8 @@ func (e *MemoryExtension) OnSessionClose(_ context.Context) {
 		summaryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		// 1. 拉取本 Session 层所有记忆
-		sessionMemories, err := e.manager.store.List(summaryCtx, LayerSession, ListOptions{Limit: 200})
+		// 1. 拉取本 Session 层所有记忆（限制在当前作用域内）
+		sessionMemories, err := e.listSessionMemoriesForSummary(summaryCtx)
 		if err != nil || len(sessionMemories) == 0 {
 			return
 		}
@@ -181,6 +181,30 @@ func (e *MemoryExtension) OnSessionClose(_ context.Context) {
 			}
 		}
 	}()
+}
+
+// listSessionMemoriesForSummary 返回属于当前扩展作用域的 Session 层记忆。
+// Manager 可能由多个会话共享，未加作用域过滤时会把其他会话/用户的事实
+// 汇总进当前 Agent 的 LongTerm 层。
+func (e *MemoryExtension) listSessionMemoriesForSummary(ctx context.Context) ([]MemoryEntry, error) {
+	entries, err := e.manager.store.List(ctx, LayerSession, ListOptions{
+		Limit:  200,
+		UserID: e.scope.UserID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if e.scope.IsEmpty() {
+		return entries, nil
+	}
+	filter := e.scope.AsFilter(0).WithLayer(LayerSession)
+	scoped := make([]MemoryEntry, 0, len(entries))
+	for _, entry := range entries {
+		if matchFilter(&entry, filter) {
+			scoped = append(scoped, entry)
+		}
+	}
+	return scoped, nil
 }
 
 // ---------------------------------------------------------------------------
