@@ -82,7 +82,7 @@ func (r *Retriever) Search(ctx context.Context, store MemoryStore, query string,
 //  1. 稠密检索（向量相似度 / 关键词匹配）→ 获取 top-K*3 候选
 //  2. BM25 稀疏检索 → 获取 top-K*3 候选
 //  3. RRF 融合双方排名
-//  4. 对融合结果应用复合评分排序，截取 top-K
+//  4. 按 RRF 分数截取 top-K
 func (r *Retriever) HybridSearch(ctx context.Context, store MemoryStore, query string, filter MemoryFilter) ([]ScoredMemory, error) {
 	topK := filter.EffectiveTopK()
 	candidateK := topK * 3 // 每路取更多候选供 RRF 融合
@@ -138,8 +138,6 @@ func (r *Retriever) HybridSearch(ctx context.Context, store MemoryStore, query s
 
 	return fused, nil
 }
-
-// matchEntryFilter delegates to store.go's matchFilter to avoid duplication.
 
 // Score 计算单条记忆的复合评分。
 // 公式：w1 × semantic + w2 × recency_decay + w3 × importance

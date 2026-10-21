@@ -72,7 +72,7 @@ func rrfFusion(dense, sparse []ScoredMemory, cfg rrfConfig) []ScoredMemory {
 		return fusedList[i].score > fusedList[j].score
 	})
 
-	// 设置 Composite 为 RRF 分数（后续仍可叠加复合评分）
+	// Composite 仅承载 RRF 名次分，用于本轮排序。
 	result := make([]ScoredMemory, len(fusedList))
 	for i, f := range fusedList {
 		result[i] = *f.entry

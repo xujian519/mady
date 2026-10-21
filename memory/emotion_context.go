@@ -84,6 +84,7 @@ func parseFloatField(s, prefix string) float64 {
 	val := strings.TrimPrefix(s, prefix)
 	f, err := strconv.ParseFloat(val, 64)
 	if err != nil {
+		// 情绪上下文是附加信号，字段缺失或格式异常时按 0 降级，不阻断主流程。
 		return 0
 	}
 	return f

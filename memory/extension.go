@@ -115,9 +115,6 @@ func (e *MemoryExtension) Name() string { return ExtensionName }
 
 // Init performs no-op initialization for the memory extension.
 func (e *MemoryExtension) Init(_ context.Context, _ *agentcore.Agent) error {
-	if !e.cfg.Enabled {
-		return nil
-	}
 	return nil
 }
 
@@ -165,7 +162,8 @@ func (e *MemoryExtension) OnSessionClose(_ context.Context) {
 			return
 		}
 
-		// 3. 存入 LongTerm 层（经过去重）
+		// 3. 存入 LongTerm 层（经过去重）。
+		// 汇总属于尽力而为：单条事实的写入失败不应中断其余事实。
 		for _, fact := range facts {
 			if e.manager.cfg.EnableDedup {
 				_, _ = e.manager.Deduplicate(summaryCtx, fact.Content, e.scope, LayerLongTerm)
@@ -340,10 +338,7 @@ func (h *memoryLifecycleHook) AfterModelCall(_ context.Context, arc *agentcore.A
 
 	// 找最后一条用户消息和助手响应
 	userMsg := agentcore.LastUserMessage(arc.Messages)
-	respContent := ""
-	if mcc.Response != nil {
-		respContent = mcc.Response.Content
-	}
+	respContent := mcc.Response.Content
 	if userMsg == "" && respContent == "" {
 		return
 	}

@@ -19,8 +19,9 @@ import (
 // 数据存储在本地 SQLite 文件中，重启后不丢失。
 // Phase 2 实现：适合生产部署，替代 InMemoryStore 的非持久化场景。
 //
-// 检索策略与 InMemoryStore 保持一致：关键词匹配 + 复合评分（语义+新鲜度+重要性）。
-// Embedding 字段以 BLOB 形式存储，供未来向量检索升级使用。
+// 检索策略与 InMemoryStore 一致（关键词/向量 + 复合评分），但 SQL 侧先按
+// LIMIT 取候选集，候选集之外的记忆不参与本轮评分。
+// Embedding 以 BLOB 形式存储，并在配置 embedder 时参与语义检索。
 type SQLiteMemoryStore struct {
 	db       *sql.DB
 	scoring  ScoringConfig
@@ -121,6 +122,7 @@ func (s *SQLiteMemoryStore) Remember(ctx context.Context, content string, scope 
 		if b, err := json.Marshal(metadata); err == nil {
 			metaJSON = string(b)
 		}
+		// 序列化失败时元数据降级为空对象，不阻断记忆主体写入。
 	}
 
 	var embVal any
@@ -205,6 +207,7 @@ func (s *SQLiteMemoryStore) RememberBatch(ctx context.Context, entries []MemoryE
 			if b, err := json.Marshal(e.Metadata); err == nil {
 				metaJSON = string(b)
 			}
+			// 序列化失败时元数据降级为空对象，不阻断批量写入。
 		}
 
 		var embVal any
@@ -324,6 +327,7 @@ func (s *SQLiteMemoryStore) Get(ctx context.Context, id string) (*MemoryEntry, e
 	row := s.db.QueryRowContext(ctx, selectColumns+` FROM memories WHERE id = ?`, id)
 	entry, err := scanEntry(row)
 	if err != nil {
+		// 把 ErrNoRows 翻译为「未找到」语义，其余错误保留底层原因供调用方区分。
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("memory: entry %q not found", id)
 		}
@@ -469,6 +473,7 @@ func (s *SQLiteMemoryStore) Prune(ctx context.Context, layer MemoryLayer, thresh
 }
 
 // Stats 返回统计信息。
+// 统计属于诊断用途：查询失败时返回零值统计，不向上抛出错误（接口无 error 返回）。
 func (s *SQLiteMemoryStore) Stats(ctx context.Context) MemoryStats {
 	var stats MemoryStats
 

@@ -60,7 +60,8 @@ func DefaultManagerConfig() ManagerConfig {
 
 // NewManager 创建新的记忆管理器。
 //
-// store 参数不能为 nil；extractor 和 retriever 可为 nil（retriever 为 nil 时将自动创建）。
+// store 为 nil 时自动创建 InMemoryStore；extractor 可为 nil（不使用 LLM 提取），
+// retriever 为 nil 时将自动创建。
 func NewManager(store MemoryStore, extractor *Extractor, retriever *Retriever, cfg ManagerConfig) *Manager {
 	if store == nil {
 		store = NewInMemoryStore()
@@ -156,6 +157,7 @@ func (m *Manager) rememberFromTurnWithEmotion(ctx context.Context, userInput, as
 			if m.cfg.EnableDedup {
 				result, dedupErr := m.Deduplicate(ctx, fact.Content, scope, LayerLongTerm)
 				if dedupErr != nil {
+					// 单条事实去重失败不阻断其余事实的提取。
 					continue
 				}
 				if result.Action == DedupAdd {
@@ -232,6 +234,7 @@ func (m *Manager) SearchAllLayers(ctx context.Context, query string, scope Memor
 		filter.Layer = layer
 		results, err := m.retriever.Search(ctx, m.store, query, filter)
 		if err != nil {
+			// 单层检索失败时跳过该层，保证其余层仍可返回结果。
 			continue
 		}
 		all = append(all, results...)

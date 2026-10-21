@@ -39,6 +39,8 @@ func scanEntry(sc scanner) (MemoryEntry, error) {
 		return MemoryEntry{}, err
 	}
 	entry.Layer = MemoryLayer(layerStr)
+	// 历史数据可能含非 RFC3339 文本；时间解析失败时保留零值，
+	// 避免单条记录的时间格式问题导致整条记忆读取失败。
 	entry.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
 	entry.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updatedAt)
 	entry.LastAccess, _ = time.Parse(time.RFC3339Nano, lastAccess)
@@ -87,6 +89,7 @@ func (s *SQLiteMemoryStore) updateAccessStats(ctx context.Context, ids []string,
 		placeholders[i] = "?"
 		args = append(args, id)
 	}
+	// 访问统计属于热度提示：更新失败不影响本次检索结果返回。
 	_, _ = s.db.ExecContext(ctx,
 		`UPDATE memories SET last_access = ?, access_count = access_count + 1 WHERE id IN (`+ //nolint:gosec // safe: IN clause uses ? placeholders
 			strings.Join(placeholders, ",")+`)`,

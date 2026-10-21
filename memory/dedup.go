@@ -162,8 +162,7 @@ func (m *Manager) applyDedupAction(ctx context.Context, action DedupAction, reas
 //
 // 规则：
 //   - 相似度 > NoopThreshold → NOOP（几乎相同）
-//   - 相似度 > SimilarityThreshold → UPDATE（相似但可能有更新）
-//   - 否则 → ADD（fallthrough，理论上不会走到这里因为调用方已检查阈值）
+//   - 否则（调用方已保证相似度 > SimilarityThreshold）→ UPDATE
 func ruleBasedDedup(results []ScoredMemory, cfg DedupConfig) (DedupAction, string) {
 	top := results[0]
 

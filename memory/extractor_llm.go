@@ -67,6 +67,7 @@ func (p *providerExtractor) ExtractFacts(ctx context.Context, conversation strin
 
 	facts, err := parseFactsFromResponse(resp.Content)
 	if err != nil {
+		// 响应无法解析时同样降级到纯文本提取，避免整轮记忆丢失。
 		return p.extractFallback(ctx, conversation)
 	}
 

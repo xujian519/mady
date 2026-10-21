@@ -1,15 +1,3 @@
-// Package memory 提供 Mady Agent 的长期记忆系统。
-//
-// 架构借鉴 Mem0、CrewAI、Letta、LangChain、LlamaIndex 等开源记忆系统的核心设计：
-//   - 四维隔离作用域（Mem0 风格）：user / agent / session / project
-//   - 三层记忆模型（CrewAI + Mem0 风格）：User / Session / Long-term
-//   - 复合评分检索（CrewAI 风格）：语义 + 新鲜度 + 重要性
-//   - Token 预算感知（LlamaIndex 风格）：chat_history_token_ratio
-//   - Agent 自我编辑记忆（Letta 风格）：通过 Tool Calling 管理
-//
-// 集成方式：MemoryExtension 实现 agentcore.Extension 的 TransformContextProvider
-// （注入记忆）+ ToolProvider（工具）+ LifecycleProvider（生命周期钩子），
-// 复用 Mady 现有的 Extension 注册机制。
 package memory
 
 import (
