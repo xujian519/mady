@@ -36,6 +36,16 @@ func DefaultChunkOptions() ChunkOptions {
 	}
 }
 
+// chunkBuilder accumulates paragraphs into overlapping chunks.
+type chunkBuilder struct {
+	docID     string
+	opts      ChunkOptions
+	chunks    []Chunk
+	current   strings.Builder
+	startLine int
+	chunkIdx  int
+}
+
 // ChunkDocument splits a document into overlapping chunks.
 // When SplitBySection is true, it prefers splitting at markdown heading
 // boundaries (##, ###) and paragraph breaks before falling back to
@@ -45,91 +55,81 @@ func ChunkDocument(docID, text string, opts ChunkOptions) []Chunk {
 		opts = DefaultChunkOptions()
 	}
 
-	var chunks []Chunk
+	b := &chunkBuilder{docID: docID, opts: opts, startLine: 1}
 	paragraphs := splitParagraphs(text)
-	var current strings.Builder
-	startLine := 1
-	chunkIdx := 0
-
-	flush := func() {
-		if current.Len() == 0 {
-			return
-		}
-		endLine := startLine + strings.Count(current.String(), "\n")
-		chunks = append(chunks, Chunk{
-			ID:        chunkID(docID, chunkIdx),
-			DocID:     docID,
-			Content:   current.String(),
-			Position:  chunkIdx,
-			StartLine: startLine,
-			EndLine:   endLine,
-		})
-		// Advance startLine for the next chunk.
-		startLine = endLine + 1
-		// Overlap: keep last OverlapChars bytes, starting at a rune boundary
-		// so the carried tail never begins with a partial UTF-8 character.
-		if opts.OverlapChars > 0 && current.Len() > opts.OverlapChars {
-			tail := current.String()
-			start := len(tail) - opts.OverlapChars
-			for start < len(tail) && !utf8.RuneStart(tail[start]) {
-				start++
-			}
-			tail = tail[start:]
-			startLine -= strings.Count(tail, "\n")
-			current.Reset()
-			current.WriteString(tail)
-		} else {
-			current.Reset()
-		}
-		chunkIdx++
-	}
-
-	flushPara := func(para string) {
-		// A paragraph that alone exceeds the budget is split regardless of
-		// whether current is empty; otherwise a large leading paragraph would
-		// bypass MaxChars entirely.
-		if len(para) > opts.MaxChars {
-			if current.Len() > 0 {
-				flush()
-			}
-			for len(para) > 0 {
-				cut := runeCut(para, opts.MaxChars)
-				current.WriteString(para[:cut])
-				flush()
-				para = para[cut:]
-			}
-			return
-		}
-		if current.Len()+len(para) <= opts.MaxChars {
-			current.WriteString(para)
-			return
-		}
-		// Paragraph does not fit the current chunk: flush and start fresh.
-		if current.Len() > 0 {
-			flush()
-		}
-		current.WriteString(para)
-	}
-
 	for i, para := range paragraphs {
-		para = strings.TrimSpace(para)
-		if para == "" {
-			continue
-		}
-
 		// Section boundary: flush current chunk if SplitBySection is enabled.
-		if opts.SplitBySection && strings.HasPrefix(para, "#") && current.Len() > 0 {
-			flush()
+		if opts.SplitBySection && strings.HasPrefix(para, "#") && b.current.Len() > 0 {
+			b.flush()
 		}
-
-		flushPara(para)
+		b.addParagraph(para)
 		if i < len(paragraphs)-1 {
-			current.WriteString("\n\n")
+			b.current.WriteString("\n\n")
 		}
 	}
-	flush()
+	b.flush()
 
-	return chunks
+	return b.chunks
+}
+
+func (b *chunkBuilder) flush() {
+	if b.current.Len() == 0 {
+		return
+	}
+	endLine := b.startLine + strings.Count(b.current.String(), "\n")
+	b.chunks = append(b.chunks, Chunk{
+		ID:        chunkID(b.docID, b.chunkIdx),
+		DocID:     b.docID,
+		Content:   b.current.String(),
+		Position:  b.chunkIdx,
+		StartLine: b.startLine,
+		EndLine:   endLine,
+	})
+	// Advance startLine for the next chunk.
+	b.startLine = endLine + 1
+	// Overlap: keep last OverlapChars bytes, starting at a rune boundary
+	// so the carried tail never begins with a partial UTF-8 character.
+	if b.opts.OverlapChars > 0 && b.current.Len() > b.opts.OverlapChars {
+		tail := b.current.String()
+		start := len(tail) - b.opts.OverlapChars
+		for start < len(tail) && !utf8.RuneStart(tail[start]) {
+			start++
+		}
+		tail = tail[start:]
+		b.startLine -= strings.Count(tail, "\n")
+		b.current.Reset()
+		b.current.WriteString(tail)
+	} else {
+		b.current.Reset()
+	}
+	b.chunkIdx++
+}
+
+func (b *chunkBuilder) addParagraph(para string) {
+	// A paragraph that alone exceeds the budget is split regardless of
+	// whether current is empty; otherwise a large leading paragraph would
+	// bypass MaxChars entirely.
+	if len(para) > b.opts.MaxChars {
+		if b.current.Len() > 0 {
+			b.flush()
+		}
+		for len(para) > 0 {
+			cut := runeCut(para, b.opts.MaxChars)
+			b.current.WriteString(para[:cut])
+			b.flush()
+			para = para[cut:]
+		}
+		return
+	}
+	if b.current.Len()+len(para) <= b.opts.MaxChars {
+		b.current.WriteString(para)
+		return
+	}
+	// Paragraph does not fit the current chunk: flush and start fresh.
+	if b.current.Len() > 0 {
+		b.flush()
+	}
+	b.current.WriteString(para)
 }
 
 // splitParagraphs splits text at paragraph boundaries (double newlines).
