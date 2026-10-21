@@ -93,7 +93,7 @@
 | --- | --- | --- | --- |
 | M16 | knowledge/（fileindex/graph/knowledgeinit/loader/risk/sqlite） | 53 文件/9.7K 行 | ✅ 2026-10-21 |
 | M17 | memory/ + compiler | 25 文件/4.9K 行 | ✅ 2026-10-21 |
-| M18 | retrieval/（domain/sqlite/nuopatent/browser） | 19 文件/3.7K 行 | ⬜ |
+| M18 | retrieval/（domain/sqlite/nuopatent/browser） | 19 文件/3.7K 行 | ✅ 2026-10-21 |
 | M19 | disclosure/ | 20 文件/3.9K 行 | ⬜ |
 | M20 | guardrails/（红线条目单独） | 23 文件/3.1K 行 | ⬜ |
 | M21 | pkg/ + provider/ + prompt/ + skill/ + fuzzy/ + intent/ + tracing/ + psychological/ | 小模块合卡 | ⬜ |
@@ -506,3 +506,41 @@
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/debt-check/build/test-race，含 tui/desktop）；`go test -race ./memory/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py memory`，25 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 3 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0（3 处中 1 处为扫描器对 `fmt.Errorf` 包装的误报，仍补注释说明语义）
 - **提交**：`163e2cb`（编译策略随机源竞争）、`33f0fd4`（空 facts 伪事实）、`df20351`（行首数字前缀）、`929546f`（会话汇总作用域）、`475b87c`（文档/注释精炼）；本记录与 changelog 随后提交（INDEX total=441）
+
+### M18（2026-10-21）retrieval/ ✅
+
+- **审阅范围**：`retrieval/` 全部 19 个非测试 `.go`（3,712 行）——根包（切块、关键词与倒排索引、向量/混合检索、RRF、重排、嵌入、上下文格式化与注入、引文），`domain`（base/reranker）、`domain/browser`（ego-browser 三源 + Composite）、`domain/nuopatent`（外部 CLI）、`domain/sqlite`（本地 FTS5）
+- **发现分级**：
+  - P0 行为缺陷：4 项（本卡修复，3 个 fix 提交 + 回归用例）
+    1. `keyword.go:266` 索引路径 CJK 查询恒空：索引把中文切成 2-gram，查询侧却用完整词查 postings。探针：chunk 含“专利法”时索引路径 0 条、全量扫描 1 条；`knowledge/extension_search.go:161`（≥200 chunks 自动建索引）与 `retrieval/agent.go:123` 均会进入索引路径。修复：`lookupTerm` 复用 `indexTokens` 分词，要求命中全部子词，按最小子词词频与平均 IDF 计分
+    2. `chunk.go:87` 超大首段绕过 MaxChars：`current.Len()==0` 短路使 1,800 字节单段原样成块；超长段落与 overlap 尾部按字节切分产生非法 UTF-8。探针：两段中文 → `chunk0 len=1802 valid=true`，后续 `len=550 valid=false`。修复：`runeCut` + overlap 起点对齐 `utf8.RuneStart`，超大段落无条件进入切分循环
+    3. `context_util.go:59` 上下文截断按字节切：中文内容 + `MaxChars=10` 输出 `专利法\xe9...`（`valid=false`）。修复：截断改用 `runeCut`
+    4. `embedding.go:47/135/145` `APIEmbedder.dims` 并发读写竞争：`Embed` 在 `dimsOnce.Do` 内写、`Dimensions` 无同步读；`go test -race` 复现。修复：改为 `atomic.Int32`
+  - P1 复杂度/并发（登记不修）：
+    1. `agent.go:103` `TopK<=0` 时整体替换 `RetrievalConfig`，连带丢弃调用方已设置的 Embedder/Prefix/TriggerPolicy；`knowledge.NewExtension` 有同款前置兜底，但 `Store.RetrievalHook` 直接暴露该语义
+    2. `agent.go:106` `HybridWeight<=0` 被改写为 0.7，文档承诺的 `0.0=pure keyword` 无法表达（float 零值无法区分“未设置”）
+    3. `agent.go:155` `UpdateChunks` 不重建倒排索引，且索引路径忽略 `Search` 的 chunks 参数：≥200 chunks 时更新后仍检索旧快照（当前无生产调用方）
+    4. `agent.go:175` `turnCount++` 与 `h.chunks` 读取无同步，并发 `BeforeModelCall` 存在竞争（当前调用路径假定串行）
+    5. `keyword.go:121` 索引路径 TF 恒为 1：`indexTokens` 已对 token 去重，`tc[tok]++` 只执行一次，chunk 内重复词频不进入倒排表
+    6. `keyword.go:306` 索引路径与全量扫描的 MinScore 语义不一致：索引路径把 `MinScore<=0` 回退为 0.1，全量扫描直接用 0（=不过滤）
+    7. `domain/browser/browser_retriever.go:127`、`domain/sqlite/patent_retriever.go:126`（及 `composite.go:113`）的 `TotalCount` 在 topK 截断后取值，与 `DomainResults.TotalCount`（源侧总命中数）的文档语义不符
+    8. `domain/nuopatent/retriever.go:110` docID/query 以 `-` 开头会被 CLI 当作选项（argv 数组防 shell 注入，不防选项注入）；`execRunner` 与 `run` 对错误前缀双重包装
+  - P2 一致性（登记）：
+    - `chunk.go` / `context_util.go` 的 `MaxChars`/`OverlapChars` 实际按字节计（本卡已把文档改为 bytes）；overlap 会让块达到 `MaxChars+OverlapChars`
+    - `context_util.go:68` `FormatContextBlock` 每块固定加 80 字节头部开销；`MaxChars=0` 时只输出 prefix（按“未设置=无限”处理更合理，但会改变现有行为）
+    - `rerank.go:54` `DeduplicatingReranker` 只比对前 100 字节精确签名，`OverlapThreshold` 未参与检测，重复组保留首个而非最高分（本卡已按实际语义改文档）
+    - `citation.go:114` 引文链索引以 `Source+"\x00"+Title` 去重，重复标题全部指向最后一个索引
+    - `hybrid.go` RRF 与 `vector.go` 混合检索在分数相同时依赖 map 遍历/sort.Slice，排序不稳定
+    - `model_rerank.go:171` 成功路径用 `json.Decoder` 直接读响应体，未设大小上限（对比非 200 路径有 `LimitReader(512)`）
+    - `domain/browser/browser_retriever.go:390` `trimToJSON` 对多行 JSON 对象只保留首行（数组路径会拼接后续行）
+    - `domain/base.go:128` `DomainReranker` 只提分不重排（Legal/Patent reranker 会重排），调用方若要求降序需自行排序
+  - P3 风格：已收敛（见精炼）；无 >120 行函数
+- **精炼**（无行为变化，`3145a5a`）：
+  - `doc.go` 删除“Phase C 未来实现”与无对应实现的 Indexer；`PositionReranker`/`VectorSearcher` 的 `var _` 移到类型之后，恢复导出注释紧邻
+  - 修正失实文档：`DeduplicatingReranker`（100 字节签名/保留首个）、`ImportToStore`（去重由 store 决定）、`IsAvailable`（仅校验非空）、`MaxChars`（字节而非字符）
+  - 删除 `indexSearch` 未使用的 `nb` 与不可达 phrase bonus（`extractTerms` 已按空白切分）；`extractTerms` 正则上提为包级变量
+  - `DomainReranker` 改用局部 boost，避免共享实例写回 `dr.Boost`；nuopatent 超时 `<=0` 回落默认值
+  - 补 5 处降级/容错意图注释：model_rerank 四个失败分支、composite 单源失败跳过；nuopatent `LookPath` 缺失说明
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/debt-check/build/test-race，三模块）；`make doc-check` 通过（src=1111 test=581）；`go test -race ./retrieval/...` 全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py retrieval`，19 文件）：裸 fmt 0 / 忽略 err 1 → **0** / 吞错 5 → **0** / TODO 0 / 未注释导出 2 → **0** / >120 行函数 0
+- **提交**：`006be18`（CJK 索引查询）、`e446202`（分块与上下文 UTF-8）、`78b4102`（嵌入维度竞争）、`3145a5a`（文档/注释精炼）；本记录与 changelog 随后提交（INDEX total=445）
