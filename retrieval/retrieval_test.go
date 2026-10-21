@@ -2,7 +2,9 @@ package retrieval
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestChunkDocument(t *testing.T) {
@@ -155,6 +157,46 @@ func TestChunkDocument_SmallText(t *testing.T) {
 	}
 	if chunks[0].Content != text {
 		t.Errorf("chunk content mismatch: got %q, want %q", chunks[0].Content, text)
+	}
+}
+
+func TestChunkDocument_OversizedParagraph(t *testing.T) {
+	para := strings.Repeat("专利法第二十二条要求具备新颖性。", 80)
+	text := para + "\n\n第二段是普通长度的文本。"
+	opts := ChunkOptions{MaxChars: 500, OverlapChars: 50}
+
+	chunks := ChunkDocument("big", text, opts)
+	if len(chunks) < 2 {
+		t.Fatalf("oversized paragraph must be split, got %d chunk(s)", len(chunks))
+	}
+	for i, c := range chunks {
+		if !utf8.ValidString(c.Content) {
+			t.Errorf("chunk %d contains invalid UTF-8", i)
+		}
+		if len(c.Content) > opts.MaxChars+opts.OverlapChars {
+			t.Errorf("chunk %d length = %d, want <= %d", i, len(c.Content), opts.MaxChars+opts.OverlapChars)
+		}
+	}
+	if !strings.Contains(chunks[len(chunks)-1].Content, "第二段是普通长度的文本") {
+		t.Errorf("trailing paragraph lost: last chunk = %q", chunks[len(chunks)-1].Content)
+	}
+}
+
+func TestFormatContextBlock_UTF8Truncation(t *testing.T) {
+	results := []ScoredChunk{{
+		Chunk: Chunk{ID: "c0", Content: strings.Repeat("专利法", 20)},
+		Score: 0.9,
+	}}
+	out := FormatContextBlock(results, RetrievalConfig{MaxChars: 10, Prefix: "参考："})
+
+	if !utf8.ValidString(out) {
+		t.Fatalf("truncated context contains invalid UTF-8: %q", out)
+	}
+	if !strings.Contains(out, "专利法") {
+		t.Errorf("expected Chinese content in output, got %q", out)
+	}
+	if !strings.HasSuffix(out, "...\n") {
+		t.Errorf("expected truncation marker, got %q", out)
 	}
 }
 

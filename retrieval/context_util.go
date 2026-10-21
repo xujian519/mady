@@ -53,7 +53,9 @@ func FormatContextBlock(results []ScoredChunk, cfg RetrievalConfig) string {
 
 		chunkText := r.Content
 		if totalChars+len(chunkText) > cfg.MaxChars {
-			chunkText = chunkText[:cfg.MaxChars-totalChars] + "..."
+			// Cut at a rune boundary; a raw byte slice would emit invalid
+			// UTF-8 for CJK content and corrupt the injected context.
+			chunkText = chunkText[:runeCut(chunkText, cfg.MaxChars-totalChars)] + "..."
 		}
 
 		fmt.Fprintf(&b, "\n--- 参考片段 %d (相关度: %.2f) ---\n", i+1, r.Score)
