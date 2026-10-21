@@ -84,9 +84,9 @@ type DomainDocument struct {
 	Score    float64           // relevance score from source (0.0-1.0)
 }
 
-// ImportToStore converts domain results into knowledge store documents and chunks.
-// It creates one Document per result, chunks each, and registers them under the
-// given domain in the store. Already-existing docIDs are skipped.
+// ImportToStore converts domain results into knowledge store documents and
+// registers them under the given domain. Whether an already-existing docID is
+// skipped or overwritten is defined by the store's AddDocument implementation.
 //
 // Usage:
 //
@@ -126,14 +126,15 @@ type DomainReranker struct {
 
 // Rerank implements retrieval.Reranker by boosting chunks with preferred metadata.
 func (dr *DomainReranker) Rerank(results []retrieval.ScoredChunk) []retrieval.ScoredChunk {
-	if dr.Boost <= 0 {
-		dr.Boost = 1.5
+	boost := dr.Boost
+	if boost <= 0 {
+		boost = 1.5
 	}
 	for i := range results {
 		if val, ok := results[i].Metadata[dr.MetadataKey]; ok {
 			for _, pref := range dr.PreferredValues {
 				if val == pref {
-					results[i].Score *= dr.Boost
+					results[i].Score *= boost
 					break
 				}
 			}

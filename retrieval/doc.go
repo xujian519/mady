@@ -6,15 +6,14 @@
 //
 //	Document → Chunker → []Chunk → Searcher → []ScoredChunk → Reranker → []ScoredChunk
 //	                                                       ↑
-//	                                          (KeywordSearcher, future: VectorSearcher)
+//	                        (KeywordSearcher, VectorSearcher, HybridSearcher)
 //
-// Current MVP implementation (Phase C):
-//   - Chunker: paragraph/section-based splitting
-//   - KeywordSearcher: regex + keyword matching with TF-IDF-like scoring
-//   - Reranker: simple BM25-inspired scoring with position bias
-//
-// Future enhancements (Phase C+):
-//   - VectorSearcher: embedding-based semantic search
-//   - HybridSearcher: combining keyword + vector with configurable weights
-//   - Indexer: persistent index for large document collections
+// Implementations:
+//   - Chunker: paragraph/section-based splitting with UTF-8-safe truncation
+//   - KeywordSearcher: regex + keyword matching with TF-IDF-like scoring;
+//     an optional inverted index keeps large chunk sets fast
+//   - VectorSearcher: embedding-based cosine similarity over stored vectors
+//   - HybridSearcher: weighted merge of keyword and vector scores
+//   - Rerankers: position, dedup, legal/patent authority, and remote model
+//     reranking (ModelReranker)
 package retrieval

@@ -71,6 +71,7 @@ func discoverBin(cfg Config) string {
 	if env := os.Getenv("MADY_NUO_PATENT_BIN"); env != "" {
 		return env
 	}
+	// 缺失二进制是预期状态（New 返回 nil 禁用该源），LookPath 的错误无需上抛。
 	p, _ := exec.LookPath("nuo-patent")
 	return p
 }
@@ -83,7 +84,7 @@ func NewNuoPatentRetriever(cfg Config) (*NuoPatentRetriever, error) {
 		return nil, nil
 	}
 	timeout := cfg.Timeout
-	if timeout == 0 {
+	if timeout <= 0 {
 		timeout = 60 * time.Second
 	}
 	return &NuoPatentRetriever{bin: bin, runner: execRunner{}, timeout: timeout}, nil

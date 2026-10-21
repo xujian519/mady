@@ -16,13 +16,13 @@ type Reranker interface {
 // Earlier chunks (introduction, abstract) often contain more salient information
 // and receive a position bonus. This is particularly useful for patent and
 // legal documents where key claims or holdings appear early.
-var _ Reranker = (*PositionReranker)(nil)
-
 type PositionReranker struct {
 	// PositionWeight controls how much position affects the final score.
 	// 0 = no effect, 1.0 = strong position bias (default: 0.3).
 	PositionWeight float64
 }
+
+var _ Reranker = (*PositionReranker)(nil)
 
 // NewPositionReranker creates a PositionReranker with sensible defaults.
 func NewPositionReranker() *PositionReranker {
@@ -48,12 +48,12 @@ func (pr *PositionReranker) Rerank(results []ScoredChunk) []ScoredChunk {
 	return results
 }
 
-// DeduplicatingReranker removes near-duplicate chunks from results,
-// keeping the highest-scoring version of each duplicate group.
-// Duplicates are detected by simple content overlap ratio.
+// DeduplicatingReranker removes duplicate chunks from results, keeping the
+// first occurrence of each duplicate group. Two chunks are treated as
+// duplicates when their first 100 bytes are identical.
 type DeduplicatingReranker struct {
-	// OverlapThreshold is the Jaccard-like overlap above which two
-	// chunks are considered duplicates (default: 0.7).
+	// OverlapThreshold is retained for API compatibility. Detection currently
+	// uses the exact first-100-byte signature and does not consult this value.
 	OverlapThreshold float64
 }
 
@@ -62,7 +62,7 @@ func NewDeduplicatingReranker() *DeduplicatingReranker {
 	return &DeduplicatingReranker{OverlapThreshold: 0.7}
 }
 
-// Rerank implements Reranker.Rerank by removing near-duplicate chunks.
+// Rerank implements Reranker.Rerank by removing duplicate chunks.
 func (dr *DeduplicatingReranker) Rerank(results []ScoredChunk) []ScoredChunk {
 	if len(results) <= 1 {
 		return results
@@ -73,7 +73,7 @@ func (dr *DeduplicatingReranker) Rerank(results []ScoredChunk) []ScoredChunk {
 	for _, r := range results {
 		key := r.Content
 		if len(key) > 100 {
-			key = key[:100] // use first 100 chars as signature
+			key = key[:100] // first 100 bytes as signature
 		}
 		if seen[key] {
 			continue

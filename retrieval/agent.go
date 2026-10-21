@@ -33,7 +33,8 @@ type RetrievalHook struct {
 type RetrievalConfig struct {
 	// TopK is the maximum number of chunks to retrieve (default: 5).
 	TopK int
-	// MaxChars limits the total character count of injected context (default: 3000).
+	// MaxChars limits the total byte count of injected context (default: 3000).
+	// FormatContextBlock accounts for a fixed per-chunk header overhead.
 	MaxChars int
 	// DomainHint is a label prepended to the retrieval context block.
 	// e.g., "patent", "legal", "general".

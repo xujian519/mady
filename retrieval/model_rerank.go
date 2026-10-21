@@ -133,6 +133,7 @@ func (r *ModelReranker) RerankWithQuery(ctx context.Context, query string, resul
 
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
+		// 重排是增强项：失败时保留原排序，不阻断检索主流程。
 		slog.Warn("model_rerank: marshal request body", "error", err)
 		return results
 	}
@@ -140,6 +141,7 @@ func (r *ModelReranker) RerankWithQuery(ctx context.Context, query string, resul
 	url := r.BaseURL + "/rerank"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
 	if err != nil {
+		// 请求构造失败同样降级为原排序。
 		slog.Warn("model_rerank: create request", "error", err)
 		return results
 	}
@@ -155,20 +157,22 @@ func (r *ModelReranker) RerankWithQuery(ctx context.Context, query string, resul
 
 	resp, err := client.Do(req)
 	if err != nil {
+		// 网络失败降级为原排序，检索结果仍然可用。
 		slog.Warn("model_rerank: http request failed", "error", err)
 		return results
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		_ = body // consumed to allow connection reuse; error is non-fatal
+		// Drain the body so the connection can be reused; the payload is unused.
+		_, _ = io.ReadAll(io.LimitReader(resp.Body, 512))
 		slog.Warn("model_rerank: non-200 status", "status", resp.StatusCode)
 		return results
 	}
 
 	var rr rerankResponse
 	if err := json.NewDecoder(resp.Body).Decode(&rr); err != nil {
+		// 响应不可解析时保留原排序，避免丢失已检索到的结果。
 		slog.Warn("model_rerank: decode response body", "error", err)
 		return results
 	}

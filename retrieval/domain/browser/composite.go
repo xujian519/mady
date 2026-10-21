@@ -64,6 +64,7 @@ func (c *CompositeRetriever) Search(ctx context.Context, query domain.DomainQuer
 			defer wg.Done()
 			res, err := r.Search(ctx, query)
 			if err != nil {
+				// 单源失败按设计降级：其余源的结果仍然有效，不向上返回错误。
 				slog.Warn("composite retriever: 子检索器失败，跳过该源", "source", r.SourceName(), "error", err)
 				return
 			}

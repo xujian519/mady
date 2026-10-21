@@ -268,7 +268,6 @@ func (ks *KeywordSearcher) indexSearch(idx *InvertedIndex, terms []string, topK 
 	// Accumulate scores per chunk using postings lists.
 	type acc struct {
 		score float64
-		nb    int // number of terms matched (for averaging)
 	}
 	accum := make(map[int]*acc)
 	matchedTerms := make(map[int][]string)
@@ -287,7 +286,6 @@ func (ks *KeywordSearcher) indexSearch(idx *InvertedIndex, terms []string, topK 
 			// TF-IDF score: (1 + log2(tf)) * idf
 			tf := 1.0 + math.Log2(float64(pe.Count+1))
 			a.score += tf * idf
-			a.nb++
 			matchedTerms[pe.ChunkIdx] = append(matchedTerms[pe.ChunkIdx], term)
 		}
 	}
@@ -321,16 +319,7 @@ func (ks *KeywordSearcher) indexSearch(idx *InvertedIndex, terms []string, topK 
 			posBonus = 1.5
 		}
 
-		// Phrase bonus: multi-word terms score higher.
-		phraseBonus := 1.0
-		for _, t := range terms {
-			if strings.Contains(t, " ") && strings.Contains(content, strings.ToLower(t)) {
-				phraseBonus = 2.0
-				break
-			}
-		}
-
-		finalScore := a.score * posBonus * phraseBonus
+		finalScore := a.score * posBonus
 		results = append(results, ScoredChunk{
 			Chunk:   chunk,
 			Score:   finalScore,
@@ -373,11 +362,10 @@ func (ks *KeywordSearcher) fullScanSearch(terms []string, chunks []Chunk, topK i
 //   - Inverse chunk frequency penalty: terms that appear in too many chunks
 //     are down-weighted (like IDF)
 //   - Position bonus: matches in the first 20% of a chunk score higher
-//   - Phrase bonus: exact phrase matches score significantly higher
 //
 // Scoring formula (must match indexSearch for consistent ranking):
 //
-//	tf = 1 + log2(count + 1); score = Σ tf * idf * posBonus * phraseBonus
+//	tf = 1 + log2(count + 1); score = Σ tf * idf * posBonus
 func (ks *KeywordSearcher) scoreChunk(terms []string, chunk Chunk) (float64, []string) {
 	content := chunk.Content
 	if !ks.CaseSensitive {
@@ -408,13 +396,7 @@ func (ks *KeywordSearcher) scoreChunk(terms []string, chunk Chunk) (float64, []s
 			posBonus = 1.5
 		}
 
-		// Exact phrase bonus (multi-word terms).
-		phraseBonus := 1.0
-		if strings.Contains(term, " ") {
-			phraseBonus = 2.0
-		}
-
-		termScore := tf * posBonus * phraseBonus
+		termScore := tf * posBonus
 		totalScore += termScore
 
 		// Capture a match snippet.
@@ -428,14 +410,16 @@ func (ks *KeywordSearcher) scoreChunk(terms []string, chunk Chunk) (float64, []s
 	return totalScore, matches
 }
 
+// termSplitRe splits a query on whitespace and common Chinese punctuation
+// that is not part of search terms.
+var termSplitRe = regexp.MustCompile(`[，。！？、；："“”'（）《》\[\]【】\s]+`)
+
 // extractTerms parses a query into atomic search terms.
 // Chinese text is split by common delimiters and kept as-is since
 // Chinese doesn't use spaces between words.
 // English terms are lowercased and split by whitespace.
 func extractTerms(query string) []string {
-	// Remove common punctuation that isn't part of search terms.
-	re := regexp.MustCompile(`[，。！？、；："“”'（）《》\[\]【】\s]+`)
-	parts := re.Split(query, -1)
+	parts := termSplitRe.Split(query, -1)
 
 	seen := make(map[string]bool)
 	var terms []string

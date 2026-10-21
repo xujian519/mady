@@ -60,7 +60,8 @@ func FindEgoBrowser() string {
 	return ""
 }
 
-// IsAvailable 报告 ego-browser 是否可用（非空且可执行）。
+// IsAvailable 报告 ego-browser 路径是否已配置（非空）。路径的存在性与
+// 可执行性由 NewBrowserRetriever 在构造时另行校验。
 func (c *BrowserRetrieverConfig) IsAvailable() bool {
 	return c != nil && c.EgoBrowserPath != ""
 }

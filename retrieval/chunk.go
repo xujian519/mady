@@ -19,9 +19,11 @@ type Chunk struct {
 }
 
 // ChunkOptions configures document splitting behavior.
+// MaxChars and OverlapChars are measured in bytes (UTF-8 safe boundaries are
+// preserved when splitting or carrying overlap).
 type ChunkOptions struct {
-	MaxChars       int  // maximum characters per chunk (default: 2000)
-	OverlapChars   int  // character overlap between adjacent chunks (default: 200)
+	MaxChars       int  // maximum bytes per chunk (default: 2000)
+	OverlapChars   int  // byte overlap between adjacent chunks (default: 200)
 	SplitBySection bool // prefer splitting at section/heading boundaries
 }
 

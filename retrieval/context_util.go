@@ -35,7 +35,8 @@ func ShouldTriggerSmart(query string, messages []agentcore.Message, classifier C
 }
 
 // FormatContextBlock formats retrieved chunks into a single context string,
-// respecting the MaxChars budget in config.
+// respecting the MaxChars byte budget in config (truncation stops at a rune
+// boundary).
 func FormatContextBlock(results []ScoredChunk, cfg RetrievalConfig) string {
 	var b strings.Builder
 
