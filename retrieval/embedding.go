@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -41,8 +42,9 @@ type APIEmbedder struct {
 	// Model is the embedding model name, e.g. "text-embedding-3-small".
 	Model string
 
-	// Dimensions is cached after the first successful call.
-	dims     int
+	// dims is cached after the first successful call. Atomic because Embed
+	// writes it while other goroutines may call Dimensions concurrently.
+	dims     atomic.Int32
 	dimsOnce sync.Once
 
 	client *http.Client
@@ -132,7 +134,7 @@ func (e *APIEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, e
 	// Cache dimensions from first successful call.
 	e.dimsOnce.Do(func() {
 		if len(vectors) > 0 && len(vectors[0]) > 0 {
-			e.dims = len(vectors[0])
+			e.dims.Store(int32(len(vectors[0])))
 		}
 	})
 
@@ -141,8 +143,8 @@ func (e *APIEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, e
 
 // Dimensions returns the embedding dimensionality.
 func (e *APIEmbedder) Dimensions() int {
-	if e.dims > 0 {
-		return e.dims
+	if d := e.dims.Load(); d > 0 {
+		return int(d)
 	}
 	// Return sensible defaults for known models.
 	switch e.Model {

@@ -3,6 +3,9 @@ package retrieval
 import (
 	"context"
 	"math"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
@@ -235,5 +238,39 @@ func TestAPIEmbedder_Dimensions(t *testing.T) {
 				t.Errorf("Dimensions() = %d, want %d", dims, tt.want)
 			}
 		})
+	}
+}
+
+func TestAPIEmbedder_DimensionsConcurrent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"embedding":[0.1,0.2,0.3,0.4],"index":0}]}`))
+	}))
+	defer srv.Close()
+
+	e := NewAPIEmbedder(srv.URL, "test-key", "unknown-model")
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			if _, err := e.Embed(context.Background(), []string{"专利法"}); err != nil {
+				t.Errorf("Embed failed: %v", err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			_ = e.Dimensions()
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	if dims := e.Dimensions(); dims != 4 {
+		t.Errorf("Dimensions() = %d, want 4 after successful embed", dims)
 	}
 }
