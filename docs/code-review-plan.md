@@ -92,7 +92,7 @@
 | 卡 | 模块 | 规模/热点 | 状态 |
 | --- | --- | --- | --- |
 | M16 | knowledge/（fileindex/graph/knowledgeinit/loader/risk/sqlite） | 53 文件/9.7K 行 | ✅ 2026-10-21 |
-| M17 | memory/ + compiler | 25 文件/4.9K 行 | ⬜ |
+| M17 | memory/ + compiler | 25 文件/4.9K 行 | ✅ 2026-10-21 |
 | M18 | retrieval/（domain/sqlite/nuopatent/browser） | 19 文件/3.7K 行 | ⬜ |
 | M19 | disclosure/ | 20 文件/3.9K 行 | ⬜ |
 | M20 | guardrails/（红线条目单独） | 23 文件/3.1K 行 | ⬜ |
@@ -471,3 +471,38 @@
 - **门禁**：`make verify` exit 0（lint/check-arch/doc-check/verify-layers/debt-check/build/test-race，三模块）；`go test -race ./knowledge/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py knowledge`，53 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 23 → **19** / TODO 0 / 未注释导出 0 / >120 行函数 2（不变）
 - **提交**：`6e223a7`（fileindex 截断/空指针）、`a3efb63`（EvalStore 时区）、`a7f39f3`（查询缓存竞争）、`e2462d4`（包文档）、`c05670e`（死代码/失实注释）、`5940dbd`（降级意图注释）；本记录与 changelog 随后提交（INDEX total=436）
+
+### M17（2026-10-21）memory/ + memory/compiler ✅
+
+- **审阅范围**：`memory/` 全部 25 个非测试 `.go`（4,927 行）与 13 个测试文件——管理器/存储（InMemory/SQLite）、四维作用域与三层记忆、BM25+RRF 混合检索、评分/温度分级/去重/事实提取/会话汇总、记忆工具与情绪上下文；`memory/compiler` 的策略学习（ε-greedy）、执行轨迹与置信度衰减
+- **发现分级**：
+  - P0 行为缺陷：4 项（本卡修复，独立 fix 提交 + 回归用例）
+    1. `compiler/learning.go:69` 随机源并发竞争：`StartTurn` 只在取 `c.rng` 时持锁，`SelectStrategyWithDecay` 内部的 `rand.Rand` 状态被多 Agent 并发读写。探针：8 goroutine × 200 次 `StartTurn` + `-race` → `WARNING: DATA RACE`（`math/rand.(*rngSource)` 与 `strategy.go:85` 调用点）。改为选择过程整体持 `rngMu`
+    2. `session_summarizer.go:75` 空 facts 响应产出伪事实：LLM 合法返回 `{"facts": []}` 时 JSON 解析成功但 `len(Facts)==0`，旧逻辑继续走逐行 fallback，把 JSON 文本本身当成一条事实。探针：输入 `{"facts": []}` → 返回 1 条内容为 `{"facts": []}` 的事实。改为「解析成功且为空 → nil；仅解析失败才逐行 fallback」
+    3. `extractor_llm.go:209` 前缀剥离吞掉行首数字：旧实现用 `strings.TrimLeft(line, "0123456789.、-•·*_ ")` 按字符集裁剪，`2026年用户代理了10件专利` 被削成 `年用户代理了10件专利`。改为锚定正则只剥离列表标记（`1.`/`1)`/`1、`/`1 `/`-` 等）
+    4. `extension.go:187` 会话关闭汇总跨作用域：`OnSessionClose` 以 `List(LayerSession, Limit 200)` 拉取全部会话记忆，仅按 `UserID` 粗过滤，同用户其他会话的事实会混入本次汇总。探针：同用户 session_a/session_b 各写一条 → 汇总输入含两条。改为按完整 scope（User/Agent/Session/Project）过滤
+  - P1 复杂度/并发（登记不修）：
+    1. `extension.go:217` `Provide`（LayerProvider）与 `:268` `TransformContext` 双路径：生产只装配后者（`agentcore/extension.go:123`），仓库内 `ContextBuilderConfig.Providers` 无赋值，`Provide` 未接线；情绪增强检索只存在于 `Provide`，与 `AfterModelCall` 的情绪写入不对称
+    2. `sqlite_store.go:235` + `sqlite_store_query.go:61`：`Recall` 先按 `LIMIT max(topK*10,100)` 取候选且无 `ORDER BY`，再在内存中评分排序；记忆总量超过候选上限时，高语义分记忆可能根本没进入候选集
+    3. `tier.go` 温度分级未接线：SQLite 表无 `tier` 列、`MemoryFilter.Tier` 不被 `buildWhereClause` 消费；`MigrateEntries`/`PromoteOnAccess`/`MarkEternal` 零生产引用，仅测试覆盖
+    4. `bm25.go:62` 同 ID 重复 `Add`：覆盖 `docs[id]` 后仍二次累加 `docFreq`/`docCount`/`avgDL`，旧 token 的倒排项也不回收；重复索引同一文档会污染 BM25 统计（当前调用路径每次重建索引，暂不触发）
+    5. `tools.go:179` `forget` 无归属校验：工具持有 `scope`，但 `handleForget` 只按 `memory_id` 删除；共享 Manager 下可删除其他用户/会话的记忆（ID 为随机值，利用门槛高）
+    6. `compiler/extension.go:81` 逐轮状态挂在共享 Extension 上：`currentGoal/currentStrategy` 单槽存储，并发 Agent 会互相覆盖；trace ID 固定 `turn-%d` 跨 Agent 冲突；`NewTrace` 在 `AfterTurn` 才创建，`StartedAt≈CompletedAt`，`DurationMs` 恒接近 0
+  - P2 一致性（登记）：
+    - `RecallWithBudget` 与 `TokenBudget` 语义矛盾：文档称 `MaxTokens=0` 无限制，实现 `tokensUsed+t > maxTokens` 使 0 返回空；`InMemoryStore.tokenBudget` 只写不读；`SearchWithBudget` 直接走 `store.RecallWithBudget`，绕过混合检索（当前均零生产调用）
+    - `DedupConfig.UpdateThreshold`、`ExtractorConfig.EnableConflictResolution`、`MemoryFilter.Tier` 三个配置字段声明后从未读取
+    - `manager.go:313` `truncateError` 按字节截断，中文错误文本可能切出非法 UTF-8（仅用于提取失败包装）
+    - `extractor_llm.go:29` 文档称 provider 不能为空，构造器不校验；`ExtractFacts` 对 nil provider 调用 `Complete` 会 panic
+    - `store.go:353` `InMemoryStore.List` 负 `Offset` 未校验，`entries[offset:end]` 直接 panic（无生产调用方传负值）
+    - `tools.go:118` `remember` 的 `importance` 只写入 `Metadata`，未写入 `MemoryEntry.Importance`，评分链路不生效
+    - `scoring.go:11` 用向下取整、`retriever.go:155` 用向上取整估算 token，同一内容在预算判定与结果裁剪中可能差 1 token
+    - `desktop/memory_app.go:58` 桌面端以空 scope 列出/写入/召回记忆，本地单用户可接受，但与四维作用域模型不一致
+  - P3 风格：扫描器全部指标归零；无 >120 行函数
+- **精炼**（无行为变化，`475b87c`）：
+  - `doc.go` 重写：删除不存在的 Preference/Preheat 描述，示例改用真实 API（`NewManager` + `Search`）
+  - `types.go` 删除重复包文档；`extension.go` 的 `Init` 收敛为纯空实现、去掉 `Response` 冗余 nil 检查
+  - 修正失实注释：`NewManager` 的 nil store 行为、`HybridSearch` 第 4 步（RRF 截断而非复合评分）、`rrf.go` 的「后续复合评分」、`ruleBasedDedup` 的不可达 ADD、SQLite 候选集/向量说明
+  - 补 10 处降级/边界意图注释：元数据损坏、时间解析失败、访问统计失败、单条事实去重/写入失败、单层检索失败、提取降级、情绪字段解析失败、`ErrNoRows` 语义翻译
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/debt-check/build/test-race，含 tui/desktop）；`go test -race ./memory/...` 全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py memory`，25 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 3 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 0（3 处中 1 处为扫描器对 `fmt.Errorf` 包装的误报，仍补注释说明语义）
+- **提交**：`163e2cb`（编译策略随机源竞争）、`33f0fd4`（空 facts 伪事实）、`df20351`（行首数字前缀）、`929546f`（会话汇总作用域）、`475b87c`（文档/注释精炼）；本记录与 changelog 随后提交（INDEX total=441）
