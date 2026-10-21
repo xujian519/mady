@@ -206,7 +206,7 @@ type queryEmbedCache struct {
 }
 
 // newQueryEmbedCache creates a query embedding cache with the given capacity.
-// capacity=0 disables caching.
+// Non-positive capacity falls back to the default of 64 entries.
 func newQueryEmbedCache(capacity int) *queryEmbedCache {
 	if capacity <= 0 {
 		capacity = 64
@@ -221,7 +221,7 @@ func newQueryEmbedCache(capacity int) *queryEmbedCache {
 // Get returns the cached vector for a query on exact match (after normalization),
 // or nil on miss. Thread-safe.
 func (c *queryEmbedCache) Get(query string) []float32 {
-	if c == nil || c.capacity == 0 || len(c.cache) == 0 {
+	if c == nil || c.capacity == 0 {
 		return nil
 	}
 	c.mu.Lock()
@@ -253,6 +253,9 @@ func (c *queryEmbedCache) Set(query string, vec []float32) {
 	c.keys = append(c.keys, key)
 }
 
+// whitespaceRun matches consecutive whitespace for cache-key normalization.
+var whitespaceRun = regexp.MustCompile(`\s+`)
+
 // normalizeQuery produces a canonical cache key: trimmed, lowercased,
 // with consecutive whitespace collapsed to a single space.
 func normalizeQuery(query string) string {
@@ -261,6 +264,5 @@ func normalizeQuery(query string) string {
 		return ""
 	}
 	// Collapse whitespace runs so that "专利 侵权" and "专利  侵权" collide.
-	ws := regexp.MustCompile(`\s+`)
-	return ws.ReplaceAllString(lower, " ")
+	return whitespaceRun.ReplaceAllString(lower, " ")
 }
