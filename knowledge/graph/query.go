@@ -268,7 +268,7 @@ func QueryCitationChain(store *GraphStore, lawRef string) []*GraphNode {
 }
 
 // QuerySimilar returns documents connected to nodeID via SIMILAR_TO edges
-// (in either direction), sorted by edge weight.
+// (in either direction), sorted by authority weight.
 func QuerySimilar(store *GraphStore, nodeID string) []*GraphNode {
 	similar := QueryByRelation(store, nodeID, RelSimilarTo, "both")
 	sort.Slice(similar, func(i, j int) bool {

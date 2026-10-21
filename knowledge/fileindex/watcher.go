@@ -49,8 +49,8 @@ type FileWatcher struct {
 type FileWatcherConfig struct {
 	// Debounce is the window for coalescing consecutive events (default 500ms).
 	Debounce time.Duration
-	// PollInterval is the fallback poll interval when fsnotify cannot be used
-	// (default 60s). Set to 0 to disable polling fallback.
+	// PollInterval is the fallback poll interval when fsnotify cannot be used.
+	// Non-positive values use the default of 60s.
 	PollInterval time.Duration
 }
 

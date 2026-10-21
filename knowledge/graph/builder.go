@@ -36,11 +36,12 @@ func NewGraphBuilder(store *GraphStore) *GraphBuilder {
 	}
 }
 
-// Build constructs the full graph from the given documents, replacing any
-// existing content via the builder's store. It runs in two phases: first all
-// nodes are created (so cross-references resolve), then all edges. This
-// ordering ensures SIMILAR_TO edges between sibling documents are not dropped
-// because a target node has not been added yet.
+// Build adds the given documents to the builder's store. Nodes with an
+// existing ID are replaced; unrelated existing nodes and edges are retained.
+// It runs in two phases: first all nodes are created (so cross-references
+// resolve), then all edges. This ordering ensures SIMILAR_TO edges between
+// sibling documents are not dropped because a target node has not been added
+// yet.
 func (b *GraphBuilder) Build(docs []ParsedDoc) GraphBuildResult {
 	b.buildIndices(docs)
 	for _, doc := range docs {

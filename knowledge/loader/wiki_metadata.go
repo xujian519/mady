@@ -26,7 +26,6 @@ var (
 	reTags       = regexp.MustCompile(`>\s*\*\*标签[：:]\s*\*\*\s*(.+)`)
 	reH1         = regexp.MustCompile(`^#\s+(.+)`)
 	reSummary    = regexp.MustCompile(`##\s*(?:核心要点|核心审查标准|核心概述)\s*\n([\s\S]*?)(?:\n##|\z)`)
-	reTechField  = regexp.MustCompile(`>\s*\*\*技术领域[：:]\s*\*\*\s*(.+)`)
 	reGuideSect  = regexp.MustCompile(`>\s*\*\*来源[：:]\s*\*\*\s*《专利审查指南》(.+)`)
 	reReviewedAt = regexp.MustCompile(`>\s*\*\*(?:最后审查|reviewed_at)[：:]\s*\*\*\s*(.+)`)
 )
@@ -97,10 +96,6 @@ func ExtractMetadata(content, filePath string) *WikiMetadata {
 			m.Source = strings.TrimSpace(match[1])
 		}
 	}
-	if techMatch := reTechField.FindStringSubmatch(content); len(techMatch) >= 2 {
-		_ = techMatch // technical field for reexam docs
-	}
-
 	// Reviewed/last-reviewed date (version tracking for obsolescence detection).
 	if match := reReviewedAt.FindStringSubmatch(content); len(match) >= 2 {
 		m.ReviewedAt = strings.TrimSpace(match[1])

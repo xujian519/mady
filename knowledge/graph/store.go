@@ -334,8 +334,7 @@ func edgeExists(edges []GraphEdge, candidate GraphEdge) bool {
 }
 
 // filterEdges removes edges matching the source/target/relation criteria.
-// asSource=true filters the forward adjacency (match by TargetID); false
-// filters the reverse adjacency (match by SourceID).
+// An empty field acts as a wildcard.
 func filterEdges(edges []GraphEdge, sourceID, targetID, relation string) []GraphEdge {
 	filtered := edges[:0]
 	for _, e := range edges {
