@@ -91,7 +91,7 @@
 
 | 卡 | 模块 | 规模/热点 | 状态 |
 | --- | --- | --- | --- |
-| M16 | knowledge/（fileindex/graph/knowledgeinit/loader/risk/sqlite） | 53 文件/9.7K 行 | ⬜ |
+| M16 | knowledge/（fileindex/graph/knowledgeinit/loader/risk/sqlite） | 53 文件/9.7K 行 | ✅ 2026-10-21 |
 | M17 | memory/ + compiler | 25 文件/4.9K 行 | ⬜ |
 | M18 | retrieval/（domain/sqlite/nuopatent/browser） | 19 文件/3.7K 行 | ⬜ |
 | M19 | disclosure/ | 20 文件/3.9K 行 | ⬜ |
@@ -436,3 +436,38 @@
 - **净变化**：删除 5 个文件（836 行）、新增 2 个文件；`domains` 包不再持有 style 实现，依赖方向为 `domains → domains/config`
 - **测试**：`domains/config` 新增 `style_injection_test.go` 4 组（命中域注入、域不匹配返回空、无风格文件返回空、同域多风格取首个）；原有 `TestLoadStyle`/`TestSystemPrompt`/`TestStylesForDomain`/`TestFindStyleByName`/`TestLoadStylesFromPaths_*` 在 config 侧原地保留
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/debt-check/build/test-race，含 tui/desktop）；`golangci-lint-newcode` 0 issues
+
+### M16（2026-10-21）knowledge/ ✅
+
+- **审阅范围**：`knowledge/` 全部 53 个非测试 `.go`（9,705 行）——根包（extension/store/eval/truncate/backend_hook）、`fileindex`（索引/监听/多格式读取）、`graph`（图谱存储/查询/构建/缓存/增强）、`loader`（Obsidian Wiki/法条索引）、`sqlite`（只读 knowledge.db/可写 user.db/向量索引）、`risk`、`standards`、`patenttools`、`knowledgeinit`
+- **发现分级**：
+  - P0 行为缺陷：4 项（本卡修复，独立 fix 提交 + 回归用例）
+    1. `fileindex/reader_text.go:26` 大文件截断按 rune 数量切、预算却按字节计：>1MB 中文文件 `runes[:1000000]` 越界 panic。探针：400k 汉字（1.2MB）→ `slice bounds out of range [:0] capacity 401408`。改为按字节预算回退到 UTF-8 边界
+    2. `eval_store.go:147` FIX-P0 登记的同类时间列问题：`created_at` 由 `datetime('now')` 以 UTC 写入，`QueryStats` 用调用方时区墙上时间比较，非 UTC 调用方窗口整体偏移时区差。探针：刚写入 1 行，+08:00 窗口查得 0。改为 `since/until.UTC()`
+    3. `extension_search.go:223` 查询嵌入缓存 `Get` 在锁外读 `len(c.cache)`，与 `Set` 的写入并发构成数据竞争。探针：`go test -race` 报 `mapassign_faststr` vs 锁外读。改为锁内判空
+    4. `fileindex/reader_spreadsheet.go:29` `.xls` 分支忽略 `os.Stat` 错误后解引用 `info.Size()`，文件在索引后被删除即 panic。探针：缺失路径 → SIGSEGV。改为返回错误
+  - P1 复杂度/并发（登记不修）：
+    1. `extension_search.go:144` memorySearch 懒初始化无锁，并发 Search 可竞争；倒排索引只按首次 chunk 快照构建，新增文档在重启前搜不到
+    2. `extension.go:176` `Validate` 值接收者修改副本，TopK 默认值不生效；`NewExtension:196` TopK≤0 时整体替换 RetrievalConfig，可能丢弃其他已配置字段
+    3. `fileindex/reader.go:119` 沙箱仅做词法 `filepath.Rel` 校验，未 `EvalSymlinks`：项目内符号链接可指向根目录外（安全边界，需人工决策）
+    4. `fileindex/extension.go:247` fallback 搜索在遍历中先截断 maxResults 再排序，后出现的高分匹配会丢失
+    5. `sqlite/vector_index.go:106` 内存向量检索用原始点积（假定已归一化），SQL 路径用存储 norm 的真余弦；未归一化向量时两路排序不一致，`PreloadVectorIndex` 忽略 norm 列
+    6. `sqlite/writable.go:145` 替换文档时删除 embeddings/chunks/documents 但未删 `docs_fts`，孤儿 FTS 行累积；且所有 SQL 用 `context.Background()` 忽略调用方 ctx
+    7. `graph/store.go:279` `LoadFromFile` 对 `[null]` 节点无 nil 检查会 panic；`GetNode` 等返回浅拷贝，map/slice 与内部状态共享
+    8. `loader/wiki_metadata.go:27` `reH1` 缺 `(?m)`，H1 不在文件首行时标题提取失败
+    9. `sqlite/laws.go` `hasLawFTS` 读写无锁，重开无 FTS 的库时标志不复位
+  - P2 一致性（登记）：
+    - `store.go:330/365` `LoadPatentClaims`/`LoadLegalStatute` 未设 `Searchable: true`，经这两个 API 载入的文档会被 `SearchableChunksForDomain` 排除（当前无生产调用方）
+    - `extension_tools.go` 法条内容按 2000 字节截断、`fileindex/store_utils.go` 预览按 512 字节截断，可能切出非法 UTF-8
+    - `.doc` 走 zip 解析器（`reader.go:79`），旧版二进制 `.doc` 只会得到解压错误；`.xls` 则给出降级提示，两者体验不一致
+    - `loader/wiki_filter.go` `IncludeNonSearchable` 字段无消费；`graph/types.go` `mapPriority` 只取首位数字；`graph/tool.go` 描述中的 `Clause` 无对应常量
+    - `backend_hook.go` `turnCount`、`eval.go` `lowFaithCount` 非原子/无锁（当前调用路径假定串行）
+  - P3 风格：已收敛（见精炼）；`>120 行` 函数 2 个（`readXLSX`、`analyzeFeatureCombinations`）记录待拆，不拆
+- **精炼**（无行为变化）：
+  - 修正 4 个失实包文档：`fileindex`（原称支持 Tesseract OCR/Whisper，实际不做 OCR/ASR）、`graph`（示例 API 不存在）、`sqlite`（`NewStore`/`Store.Search` 不存在）、`loader`（`Load(ctx, "专利权")` 不存在）
+  - 删除 `wiki_metadata.go` 的 `reTechField` 与 `_ = techMatch` 死代码
+  - 修正失实注释：`filterEdges` 不存在的 `asSource` 参数、`QuerySimilar` 的 "edge weight"、`Build` 的 "replacing existing content"（实际是增量添加）、watcher `PollInterval=0` 可禁用轮询（实际回退 60s）
+  - 补 4 处 fail-safe 意图注释：FTS 降级、preview/checksum 退化为文件名或 size+mtime、eval 时长解析失败记 0
+- **门禁**：`make verify` exit 0（lint/check-arch/doc-check/verify-layers/debt-check/build/test-race，三模块）；`go test -race ./knowledge/...` 全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py knowledge`，53 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 23 → **19** / TODO 0 / 未注释导出 0 / >120 行函数 2（不变）
+- **提交**：`6e223a7`（fileindex 截断/空指针）、`a3efb63`（EvalStore 时区）、`a7f39f3`（查询缓存竞争）、`e2462d4`（包文档）、`c05670e`（死代码/失实注释）、`5940dbd`（降级意图注释）；本记录与 changelog 随后提交（INDEX total=436）
