@@ -122,8 +122,9 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 
-	writeSSE("skills_snapshot", skillSnapshotEventPayload(s.snapshotConfig()))
-
+	// Subscribe before the snapshot: clients treat the snapshot as the stream
+	// readiness signal and may trigger a reload immediately after receiving
+	// it. Registering afterwards can lose a reload event emitted in between.
 	ch := make(chan agentcore.Event, 8)
 	unregister := s.On(agentcore.EventSkillsReloaded, func(e agentcore.Event) {
 		select {
@@ -132,6 +133,8 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	})
 	defer unregister()
+
+	writeSSE("skills_snapshot", skillSnapshotEventPayload(s.snapshotConfig()))
 
 	_, _ = fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
