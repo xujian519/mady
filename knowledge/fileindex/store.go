@@ -474,6 +474,7 @@ func (fi *FileIndex) ftsSearchLocked(ctx context.Context, query string, allRecor
 		LIMIT 100
 	`, ftsQuery)
 	if err != nil {
+		// FTS 查询失败时降级：其余 RRF 路（向量/文件名）仍可返回结果。
 		return nil
 	}
 	defer func() { _ = rows.Close() }()

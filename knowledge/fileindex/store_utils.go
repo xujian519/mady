@@ -45,6 +45,7 @@ func extractPreview(path string, cat FileCategory) string {
 		// Read only first 512 bytes to avoid loading large files into memory.
 		f, err := os.Open(path) //nolint:gosec // path is from fileindex watcher, validated absolute path
 		if err != nil {
+			// 打不开文件时退回文件名，索引仍保留一条可读预览。
 			return filepath.Base(path)
 		}
 		defer func() { _ = f.Close() }()
@@ -71,6 +72,7 @@ func extractPreview(path string, cat FileCategory) string {
 func quickChecksum(path string, info os.FileInfo) string {
 	f, err := os.Open(path) //nolint:gosec // path is from file walk
 	if err != nil {
+		// 打不开文件时退化为 size+mtime 指纹，避免整树刷新被判为无变化。
 		return fmt.Sprintf("%d_%d", info.Size(), info.ModTime().UnixNano())
 	}
 	defer func() { _ = f.Close() }()
