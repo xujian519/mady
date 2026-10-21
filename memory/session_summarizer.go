@@ -83,9 +83,14 @@ func parseSummaryResponse(content string) []ExtractedFact {
 	var result struct {
 		Facts []string `json:"facts"`
 	}
-	if err := json.Unmarshal([]byte(content), &result); err != nil || len(result.Facts) == 0 {
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
 		// Fallback：逐行解析
 		return parseFactsFromLines(content)
+	}
+	if len(result.Facts) == 0 {
+		// 合法 JSON 且明确返回空列表：表示本次没有值得长期保存的事实，
+		// 不能再把 JSON 文本本身当作一条事实。
+		return nil
 	}
 
 	var facts []ExtractedFact

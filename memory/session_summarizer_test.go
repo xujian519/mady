@@ -44,3 +44,20 @@ func TestSessionSummarizer_RedactsSensitiveData(t *testing.T) {
 		t.Errorf("expected api_key to be masked in user message, got: %s", userMsg)
 	}
 }
+
+func TestParseSummaryResponse_EmptyFacts(t *testing.T) {
+	facts := parseSummaryResponse(`{"facts": []}`)
+	if len(facts) != 0 {
+		t.Fatalf("empty facts response should yield no facts, got %d: %q", len(facts), facts[0].Content)
+	}
+}
+
+func TestParseSummaryResponse_PlainTextFallback(t *testing.T) {
+	facts := parseSummaryResponse("1. 用户偏好表格展示\n- 用户主要处理机械领域案件")
+	if len(facts) != 2 {
+		t.Fatalf("expected 2 facts from plain text fallback, got %d", len(facts))
+	}
+	if facts[0].Content != "用户偏好表格展示" || facts[1].Content != "用户主要处理机械领域案件" {
+		t.Errorf("unexpected fallback facts: %q, %q", facts[0].Content, facts[1].Content)
+	}
+}
