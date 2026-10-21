@@ -134,14 +134,65 @@ func BuildInvertedIndex(chunks []Chunk) *InvertedIndex {
 	return idx
 }
 
+// lookupTerm resolves one query term to the postings of its index tokens.
+// A direct hit is returned as-is. Otherwise the term is re-tokenized (CJK text
+// is indexed as 2-grams), and a chunk qualifies only when it contains every
+// sub-token; its term frequency is the minimum sub-token count so repeated
+// partial matches cannot inflate the score. The returned idf is the mean of
+// the sub-token idfs, keeping scores comparable to directly indexed terms.
+func (idx *InvertedIndex) lookupTerm(term string) ([]postingEntry, float64, bool) {
+	if postings, ok := idx.postings[term]; ok {
+		return postings, idx.idf[term], true
+	}
+	subTokens := indexTokens(term)
+	if len(subTokens) == 0 {
+		return nil, 0, false
+	}
+	byChunk := make(map[int][]postingEntry, len(subTokens))
+	var idfSum float64
+	for _, sub := range subTokens {
+		postings, ok := idx.postings[sub]
+		if !ok {
+			// A missing sub-token means no chunk can contain the whole term.
+			return nil, 0, false
+		}
+		idfSum += idx.idf[sub]
+		for _, pe := range postings {
+			byChunk[pe.ChunkIdx] = append(byChunk[pe.ChunkIdx], pe)
+		}
+	}
+	merged := make([]postingEntry, 0, len(byChunk))
+	for ci, entries := range byChunk {
+		if len(entries) != len(subTokens) {
+			continue
+		}
+		count := entries[0].Count
+		for _, e := range entries[1:] {
+			count = min(count, e.Count)
+		}
+		merged = append(merged, postingEntry{ChunkIdx: ci, Count: count})
+	}
+	if len(merged) == 0 {
+		return nil, 0, false
+	}
+	return merged, idfSum / float64(len(subTokens)), true
+}
+
+// indexSplitRe splits indexed text away from punctuation and symbols. It is
+// shared by BuildInvertedIndex and query-term lookup so both sides tokenize
+// identically.
+var indexSplitRe = regexp.MustCompile(`[^a-zA-Z0-9\p{Han}]+`)
+
 // indexTokens tokenizes content for indexing. For CJK-dominant text, it
 // extracts 2-grams; for ASCII-dominant text, it splits on whitespace/punctuation.
 // 2-grams are sufficient for CJK partial matching — longer n-grams would index
 // O(L²) substrings per token and add index bloat without recall benefit.
+//
+// Query terms go through the same tokenizer in indexSearch, otherwise a
+// multi-character CJK term would never resolve to its 2-gram postings.
 func indexTokens(content string) []string {
 	content = strings.ToLower(content)
-	re := regexp.MustCompile(`[^a-zA-Z0-9\p{Han}]+`)
-	parts := re.Split(content, -1)
+	parts := indexSplitRe.Split(content, -1)
 
 	var tokens []string
 	seen := make(map[string]bool)
@@ -223,12 +274,10 @@ func (ks *KeywordSearcher) indexSearch(idx *InvertedIndex, terms []string, topK 
 	matchedTerms := make(map[int][]string)
 
 	for _, term := range terms {
-		lowerTerm := strings.ToLower(term)
-		postings, ok := idx.postings[lowerTerm]
+		postings, idf, ok := idx.lookupTerm(strings.ToLower(term))
 		if !ok {
 			continue
 		}
-		idf := idx.idf[lowerTerm]
 		for _, pe := range postings {
 			a, exists := accum[pe.ChunkIdx]
 			if !exists {

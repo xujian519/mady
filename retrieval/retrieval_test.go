@@ -78,6 +78,50 @@ func TestKeywordSearcher(t *testing.T) {
 	}
 }
 
+func TestKeywordSearcher_IndexCJKParity(t *testing.T) {
+	chunks := []Chunk{
+		{ID: "c0", DocID: "p1", Content: "本发明涉及专利法第二十二条的新颖性判断。", Position: 0},
+		{ID: "c1", DocID: "p2", Content: "商标法注册流程与近似性审查标准。", Position: 0},
+		{ID: "c2", DocID: "p3", Content: "专利代理人对权利要求逐项比对现有技术。", Position: 0},
+	}
+
+	full := NewKeywordSearcher()
+	indexed := NewKeywordSearcher()
+	indexed.SetIndex(BuildInvertedIndex(chunks))
+
+	tests := []struct {
+		query   string
+		wantTop string // empty: expect no results
+	}{
+		{"专利法", "c0"}, // multi-character CJK term spans two 2-grams
+		{"新颖性", "c0"},
+		{"商标法", "c1"},
+		{"专利 权利要求", "c2"},
+		{"不存在的检索词", ""},
+	}
+
+	for _, tt := range tests {
+		got := indexed.Search(context.Background(), tt.query, nil, 10)
+		want := full.Search(context.Background(), tt.query, chunks, 10)
+		if tt.wantTop == "" {
+			if len(got) != 0 {
+				t.Errorf("%q: indexed search returned %d results, want 0", tt.query, len(got))
+			}
+			continue
+		}
+		if len(got) == 0 {
+			t.Errorf("%q: indexed search returned no results (full scan found %d)", tt.query, len(want))
+			continue
+		}
+		if got[0].ID != tt.wantTop {
+			t.Errorf("%q: indexed top result = %s, want %s", tt.query, got[0].ID, tt.wantTop)
+		}
+		if len(want) > 0 && got[0].ID != want[0].ID {
+			t.Errorf("%q: index/full-scan top result disagree: %s vs %s", tt.query, got[0].ID, want[0].ID)
+		}
+	}
+}
+
 func TestPositionReranker(t *testing.T) {
 	results := []ScoredChunk{
 		{Chunk: Chunk{ID: "c0", Position: 0}, Score: 0.8},
