@@ -177,20 +177,18 @@ func aggregateNoveltyResult(assessments []FeatureAssessment, state graph.PregelS
 	}
 	b.WriteString("\n**结论**: " + conclusion + "\n")
 
-	// 整体置信度取最低
+	// 整体置信度取最低；未知/缺失的置信度按 low 处理，避免高估报告可信度。
 	overallConf := confHigh
 	for _, fa := range assessments {
 		switch fa.Confidence {
-		case confLow:
-			overallConf = confLow
+		case confHigh:
+			// 高于当前最低值，保持现状
 		case confMedium:
-			if overallConf != confLow {
-				overallConf = confMedium
-			}
-		default:
 			if overallConf == confHigh {
 				overallConf = confMedium
 			}
+		default:
+			overallConf = confLow
 		}
 	}
 	fmt.Fprintf(&b, "\n**整体置信度**: %s\n", overallConf)

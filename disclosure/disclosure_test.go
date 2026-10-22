@@ -3,6 +3,7 @@ package disclosure
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -989,6 +990,35 @@ func TestAggregateNoveltyResult_EvidenceCoverage(t *testing.T) {
 	result = aggregateNoveltyResult(assessments, state)
 	if !strings.Contains(result.Notes, "基于外部现有技术语料") {
 		t.Error("expected coverage confirmation in notes")
+	}
+}
+
+func TestAggregateNoveltyResult_OverallConfidenceTakesLowest(t *testing.T) {
+	cases := []struct {
+		name  string
+		confs []string
+		want  string
+	}{
+		{"all high", []string{confHigh, confHigh}, confHigh},
+		{"high and medium", []string{confHigh, confMedium}, confMedium},
+		{"high and low", []string{confHigh, confLow}, confLow},
+		{"unknown treated as low", []string{confHigh, ""}, confLow},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assessments := make([]FeatureAssessment, 0, len(tc.confs))
+			for i, conf := range tc.confs {
+				assessments = append(assessments, FeatureAssessment{
+					FeatureID:     fmt.Sprintf("f%d", i),
+					NoveltyStatus: noveltyStatusLikelyNovel,
+					Confidence:    conf,
+				})
+			}
+			result := aggregateNoveltyResult(assessments, graph.PregelState{})
+			if !strings.Contains(result.Notes, "**整体置信度**: "+tc.want) {
+				t.Errorf("expected overall confidence %q, notes:\n%s", tc.want, result.Notes)
+			}
+		})
 	}
 }
 
