@@ -94,7 +94,7 @@
 | M16 | knowledge/（fileindex/graph/knowledgeinit/loader/risk/sqlite） | 53 文件/9.7K 行 | ✅ 2026-10-21 |
 | M17 | memory/ + compiler | 25 文件/4.9K 行 | ✅ 2026-10-21 |
 | M18 | retrieval/（domain/sqlite/nuopatent/browser） | 19 文件/3.7K 行 | ✅ 2026-10-21 |
-| M19 | disclosure/ | 20 文件/3.9K 行 | ⬜ |
+| M19 | disclosure/ | 20 文件/3.9K 行 | ✅ 2026-10-22 |
 | M20 | guardrails/（红线条目单独） | 23 文件/3.1K 行 | ⬜ |
 | M21 | pkg/ + provider/ + prompt/ + skill/ + fuzzy/ + intent/ + tracing/ + psychological/ | 小模块合卡 | ⬜ |
 | M22 | 基础设施层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ⬜ |
@@ -544,3 +544,39 @@
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/debt-check/build/test-race，三模块）；`make doc-check` 通过（src=1111 test=581）；`go test -race ./retrieval/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py retrieval`，19 文件）：裸 fmt 0 / 忽略 err 1 → **0** / 吞错 5 → **0** / TODO 0 / 未注释导出 2 → **0** / >120 行函数 0
 - **提交**：`006be18`（CJK 索引查询）、`e446202`（分块与上下文 UTF-8）、`78b4102`（嵌入维度竞争）、`3145a5a`（文档/注释精炼）；本记录与 changelog 随后提交（INDEX total=445）
+
+### M19（2026-10-22）disclosure/ ✅
+
+- **审阅范围**：`disclosure/` 全部 20 个非测试 `.go`（3,862 行）——预处理/章节切分、三路并行抽取与合并、清晰度检查、依据过滤、一致性回退、关键词生成、现有技术检索、新颖性评估（batch/逐特征）、报告生成与复核关卡、权利要求草案、导出、证据包与工具入口
+- **发现分级**：
+  - P0 行为缺陷：3 项（本卡修复，3 个 fix 提交，均含回归用例）
+    1. `novelty_utils.go:180` 整体置信度聚合错误：原 switch 把所有非 low/medium 值（含空串/未知）当 high，且 all-high 会被错误降为 medium。探针：两条 high → `整体置信度: medium`。修复：显式 high/medium/其他分支，未知按 low；新增表驱动测试覆盖 4 种组合（`6aaa3ed`）
+    2. `novelty_utils.go:428` batch 路径未校验引用证据：默认 provider（无 JSON Schema）走 batch 模式，模型返回的 `cited_evidence_ids` 原样进入报告。探针：证据仅 `REAL-DOC`，输出引用 `REAL-DOC`+`FAKE-DOC`，修复前 `FAKE-DOC` 保留。修复：复用 `validateCitedEvidenceIDs`，剔除无效 ID、追加说明、high 降 medium；回归测试 `TestParseNoveltyOutput_ValidatesCitedEvidenceIDs`（`ff37237`）
+    3. `novelty_utils.go:300` 逐特征结果信任模型回填 ID：仅当 `feature_id` 为空才回填请求值。探针：请求 `F1`、模型返回 `WRONG-ID`，结果挂到 `WRONG-ID`。修复：无条件以请求 ID 覆盖；回归测试 `TestParsePerFeatureOutput_OverridesMismatchedFeatureID`（`d56bf94`）
+  - P1 复杂度/正确性（登记不修）：
+    1. `report.go:381` `review_gate` 恒返回中断，`draft_claims`（`claim_drafting.go:30`）在生产路径不可达；草案生成规则也产出畸形权利要求（探针：`1. 一种传感器响应速度慢的装置…`；从属权利要求缺“其特征在于”且出现“所述的所述方法…”），且无测试覆盖
+    2. `novelty_utils.go:72` `selectTopEvidence` 忽略特征参数，所有特征共享同一组全局 Top-3；`novelty.go:162` 的逐特征检索实际未做差异化匹配
+    3. `novelty.go:175` 逐特征引用校验用全部证据而非 prompt 中展示的 Top-K，模型可引用未展示证据
+    4. `novelty_utils.go` batch prompt 在 `coverage=none` 时仍要求填写 doc_id，诱导无依据引用
+    5. `report.go:collectKeywordsFromExtraction` 规则回退只取问题/特征，遗漏 `Effects`；`strings.Fields` 对中文长句产出整句式“关键词”
+    6. `preprocess.go:77` `splitBySections` 以“行含章节词”判定标题：正文行含“实施例”时会把“发明内容”内容整体并入实施例（探针已复现）
+    7. `graph.go:96` 单路抽取 JSON 损坏时静默丢弃该维度（本卡仅补意图注释）
+    8. `report.go:329` 报告 ID 用秒级时间戳 `rpt_20060102_150405`，同秒多次生成会碰撞
+    9. `export.go:93/137` Markdown 表格单元格未转义 `|` 与换行，内容含竖线会破坏表格
+    10. `novelty_utils.go` batch 结果未归一化空/未知 `novelty_status`/`confidence`（逐特征路径有默认值）
+    11. `groundedness.go:195/208/236` 解析失败时把所有特征 `Confidence` 覆写为 0.3；重复特征 ID 会让 `LowCount` 重复计数（探针：重复 F1 → `lowCount=1 scores=map[F1:0.9]`）
+    12. `export.go:44` `ExportReport` 用 `context.Background()` 无法取消；converter 错误被包装但未知格式静默按 Markdown 输出；`.DOCX` 大小写敏感
+    13. `evidence_builder.go:11` `sessionID` 未使用、无生产调用方、重复 span ID 可能
+    14. `keywords.go:152` `KeywordGenerator.Generate(nil)` 会 panic；`model`/`rulesOnly` 字段仅测试设置
+    15. 多处 typed-nil `*ExtractionResult`（groundedness/novelty/consistency/clarity）会导致 panic
+    16. `export.go:18` `defaultDOCXConverter` 无同步（仅启动期设置）
+  - P2 一致性（登记）：
+    - 报告管线实际 14 节点，原 doc.go 写 10 节点且示例调用不存在的 `disclosure.New`/`Analyze`（本卡已重写文档）
+    - `graph.go` 拓扑注释遗漏 `check_clarity` / `groundedness_filter`（本卡已补）
+    - `novelty.go` / `novelty_utils.go` 注释声称逐特征匹配 Top-3，与实现不符（本卡已按实际语义改写）
+    - `report.go` 属敏感路径（review_gate 中断语义），本卡未改动
+  - P3 风格：已收敛（见精炼）；>120 行函数 2 处（`export.go:58 buildMarkdownReport` ~127 行、`report.go:62 assessNoveltyFromState` ~147 行），仅登记待拆
+- **精炼**（无行为变化，`6f8e23e`）：doc.go 按 14 节点重写并替换为真实 API 示例；删除 types.go 重复包注释；graph.go 补拓扑节点与降级意图注释；tool.go 节点数 10→14 及 3 处 FailureResult 意图注释；修正 novelty 两处失实注释；`modelDefault`/`coverage*`/`noveltyStatus*` 常量替换字面量
+- **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，三模块）；`make doc-check` 通过（src=1111 test=581）；`go test -race ./disclosure/...` 全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py disclosure`，20 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 7 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 2
+- **提交**：`6aaa3ed`（整体置信度聚合）、`ff37237`（batch 引用证据校验）、`d56bf94`（逐特征 ID 回填）、`6f8e23e`（文档/注释/常量精炼）；本记录与 changelog 随后提交（INDEX total=452）
