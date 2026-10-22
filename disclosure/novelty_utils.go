@@ -421,6 +421,13 @@ func parseNoveltyOutput(output string, state graph.PregelState) *NoveltyResult {
 		}
 	}
 
+	// batch 路径与逐特征路径对齐：引用 ID 必须来自本次检索证据，防止默认
+	// provider（无 JSON Schema）路径把模型编造的 doc_id 带入报告。
+	evidence, _ := GetEvidence(state)
+	for i := range parsed.FeatureAssessments {
+		parsed.FeatureAssessments[i] = validateCitedEvidenceIDs(parsed.FeatureAssessments[i], evidence)
+	}
+
 	var b strings.Builder
 	b.WriteString("## 新颖性分析（LLM 评估）\n\n")
 

@@ -1088,6 +1088,26 @@ func TestParseNoveltyOutput_WithFeatureAssessments(t *testing.T) {
 	}
 }
 
+func TestParseNoveltyOutput_ValidatesCitedEvidenceIDs(t *testing.T) {
+	output := `{"conclusion":"novel","feature_assessments":[{"feature_id":"f1","novelty_status":"likely_novel","confidence":"high","reasoning":"new","cited_evidence_ids":["REAL-DOC","FAKE-DOC"]}],"overall_confidence":"high"}`
+	result := parseNoveltyOutput(output, graph.PregelState{
+		StateKeyEvidence: []EvidenceChunk{{DocID: "REAL-DOC", Score: 0.9}},
+	})
+	if len(result.FeatureAssessments) != 1 {
+		t.Fatalf("expected 1 assessment, got %d", len(result.FeatureAssessments))
+	}
+	fa := result.FeatureAssessments[0]
+	if len(fa.CitedEvidenceIDs) != 1 || fa.CitedEvidenceIDs[0] != "REAL-DOC" {
+		t.Errorf("expected only REAL-DOC to survive, got %v", fa.CitedEvidenceIDs)
+	}
+	if fa.Confidence != confMedium {
+		t.Errorf("expected confidence downgraded to medium, got %q", fa.Confidence)
+	}
+	if !strings.Contains(fa.Reasoning, "未在检索结果中找到") {
+		t.Errorf("expected stripping note in reasoning, got %q", fa.Reasoning)
+	}
+}
+
 func TestParseNoveltyOutput_InvalidJSON(t *testing.T) {
 	result := parseNoveltyOutput("not json", graph.PregelState{})
 	if !result.Assessed || !strings.Contains(result.Conclusion, "解析失败") {
