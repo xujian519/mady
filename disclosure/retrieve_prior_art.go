@@ -20,7 +20,7 @@ func retrievePriorArtNode(retriever domain.DomainRetriever) graph.PregelNode {
 	return func(ctx context.Context, state graph.PregelState) (graph.PregelState, error) {
 		// 无检索器 → 标记无证据覆盖，check_novelty 据此降级。
 		if retriever == nil {
-			state[StateKeyEvidenceCoverage] = "none"
+			state[StateKeyEvidenceCoverage] = coverageNone
 			state[StateKeyEvidence] = []EvidenceChunk{}
 			return state, nil
 		}
@@ -33,7 +33,7 @@ func retrievePriorArtNode(retriever domain.DomainRetriever) graph.PregelNode {
 			queryText = strings.TrimSpace(strings.Join(features, " "))
 		}
 		if queryText == "" {
-			state[StateKeyEvidenceCoverage] = "none"
+			state[StateKeyEvidenceCoverage] = coverageNone
 			state[StateKeyEvidence] = []EvidenceChunk{}
 			return state, nil
 		}
@@ -45,7 +45,7 @@ func retrievePriorArtNode(retriever domain.DomainRetriever) graph.PregelNode {
 		})
 		if err != nil {
 			// 检索失败不应阻断管线——标记无证据，让 novelty 降级而非崩溃。
-			state[StateKeyEvidenceCoverage] = "none"
+			state[StateKeyEvidenceCoverage] = coverageNone
 			state[StateKeyEvidence] = []EvidenceChunk{}
 			return state, nil
 		}
@@ -107,11 +107,11 @@ func extractFeatureTexts(state graph.PregelState) []string {
 func coverageLevel(n int) string {
 	switch {
 	case n >= 5:
-		return "full"
+		return coverageFull
 	case n > 0:
-		return "partial"
+		return coveragePartial
 	default:
-		return "none"
+		return coverageNone
 	}
 }
 

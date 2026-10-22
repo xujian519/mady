@@ -77,8 +77,8 @@ func getMaxParallelism() int {
 
 // noveltyNode 返回新颖性初判的 Pregel 节点。
 // 基于提取结果和关键词，使用 LLM 逐特征分析新颖性。
-// 改造后优先使用 per-feature 评估模式，每个特征独立匹配最相关证据后调用 LLM；
-// 不支持 JSON Schema ResponseFormat 时回退为 batch 模式。
+// 优先使用 per-feature 评估模式，每个特征并发调用 LLM；不支持 JSON Schema
+// ResponseFormat 时回退为 batch 模式。
 func noveltyNode(provider agentcore.Provider) graph.PregelNode {
 	batchCfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
@@ -135,7 +135,7 @@ func noveltyNode(provider agentcore.Provider) graph.PregelNode {
 }
 
 // runPerFeatureNovelty 逐特征进行新颖性评估。
-// 每个特征独立匹配 Top-3 最相关证据，并发调用 LLM。
+// 每个特征并发调用 LLM，输入为按相似度取出的全局 Top-3 证据。
 func runPerFeatureNovelty(ctx context.Context, state graph.PregelState,
 	cfg agentcore.Config, ext *ExtractionResult, evidence []EvidenceChunk,
 ) (graph.PregelState, error) {
@@ -224,6 +224,7 @@ func runBatchNovelty(ctx context.Context, state graph.PregelState,
 
 	output, err := agent.Run(ctx, input)
 	if err != nil {
+		// LLM 不可用时降级为启发式结论，并把失败原因写入 Notes 供人工核查。
 		fallback := assessNoveltyFromState(state)
 		fallback.Notes += "\n\n【注意】LLM 评估失败，使用启发式回退：" + err.Error()
 		state[StateKeyNovelty] = fallback

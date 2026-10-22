@@ -9,7 +9,7 @@ import (
 )
 
 // NewDisclosureTool 创建 analyze_disclosure 工具，Patent Agent 可用其触发交底书分析。
-// 工具接收交底书文本，运行完整的 10 节点 Pregel 分析流水线，返回结构化分析报告。
+// 工具接收交底书文本，运行完整的 14 节点 Pregel 分析流水线，返回结构化分析报告。
 func NewDisclosureTool(provider agentcore.Provider) *agentcore.Tool {
 	return &agentcore.Tool{
 		Name:        "analyze_disclosure",
@@ -30,6 +30,7 @@ func NewDisclosureTool(provider agentcore.Provider) *agentcore.Tool {
 				Text string `json:"text"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数错误以 FailureResult 返回，让模型自行修正而非中断 agent loop。
 				return agentcore.NewFailureResult("参数解析失败", "交底书文本格式错误"), nil
 			}
 			if p.Text == "" {
@@ -38,6 +39,7 @@ func NewDisclosureTool(provider agentcore.Provider) *agentcore.Tool {
 
 			compiled, err := BuildDisclosureAnalysisGraph(provider)
 			if err != nil {
+				// 图构建失败属于环境问题，返回可重试提示而非裸错误。
 				return agentcore.NewFailureResult("分析引擎初始化失败",
 					"技术交底书分析功能暂时不可用，请稍后重试。"), nil
 			}
@@ -65,6 +67,7 @@ func NewDisclosureTool(provider agentcore.Provider) *agentcore.Tool {
 
 			reportJSON, err := json.Marshal(report)
 			if err != nil {
+				// 序列化失败只影响本次返回值，以 FailureResult 告知模型重试。
 				return agentcore.NewFailureResult("结果序列化失败",
 					"分析完成但报告无法序列化。"), nil
 			}

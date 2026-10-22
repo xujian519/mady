@@ -67,8 +67,8 @@ func buildNoveltyInput(state graph.PregelState) string {
 // 辅助函数
 // =============================================================================
 
-// selectTopEvidence 为单个特征选取最相关的 Top-K 条证据。
-// 排序依据：EvidenceChunk.Score（检索相似度）。
+// selectTopEvidence 按相似度选取 Top-K 条证据。
+// 当前未使用特征做差异化匹配，所有特征共享同一组全局 Top-K。
 func selectTopEvidence(_ TechFeature, evidence []EvidenceChunk, topK int) []EvidenceChunk {
 	if len(evidence) == 0 || topK <= 0 {
 		return nil
@@ -288,6 +288,7 @@ func parsePerFeatureOutput(output string, featureID string) FeatureAssessment {
 		CitedEvidenceIDs []string `json:"cited_evidence_ids,omitempty"`
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+		// 单个特征解析失败降级为 unclear/low，不中断其余特征的评估。
 		return FeatureAssessment{
 			FeatureID:     featureID,
 			NoveltyStatus: noveltyStatusUnclear,
@@ -386,10 +387,10 @@ func noveltySchema() map[string]any {
 }
 
 var noveltyStatusLabels = map[string]string{
-	"likely_novel":   "可能具有新颖性",
-	"possibly_known": "可能属于现有技术",
-	"likely_known":   "很可能属于现有技术",
-	"unclear":        "不确定",
+	noveltyStatusLikelyNovel:   "可能具有新颖性",
+	noveltyStatusPossiblyKnown: "可能属于现有技术",
+	noveltyStatusLikelyKnown:   "很可能属于现有技术",
+	noveltyStatusUnclear:       "不确定",
 }
 
 type noveltyOutput struct {
@@ -412,6 +413,7 @@ func parseNoveltyOutput(output string, state graph.PregelState) *NoveltyResult {
 
 	var parsed noveltyOutput
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+		// 解析失败时保留原始输出供排查，返回可渲染的降级结果而非 error。
 		return &NoveltyResult{
 			Assessed:   true,
 			Conclusion: "LLM 输出解析失败",

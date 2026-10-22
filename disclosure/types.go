@@ -1,12 +1,3 @@
-// Package disclosure 实现技术交底书分析的 Pregel 管线。
-//
-// 管线接收原始交底书文本，依次执行：
-//   - 预处理（9 段章节切分）
-//   - 并行提取（技术问题 / 技术特征 / 技术效果，各写独立 state key）
-//   - 合并提取（merge_extractions 节点统合三个输出为 ExtractionResult）
-//   - 一致性校验（PFE 三元组闭包检查，最多 2 轮回退）
-//   - 检索关键词生成 + 新颖性初判
-//   - 报告生成 + 人工复核
 package disclosure
 
 import (

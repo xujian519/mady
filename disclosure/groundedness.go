@@ -25,7 +25,7 @@ func groundednessFilterNode(provider agentcore.Provider) graph.PregelNode {
 	cfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
 			Name:        "disclosure-groundedness",
-			Model:       "default",
+			Model:       modelDefault,
 			Provider:    provider,
 			Temperature: 0.1, // 低温度减少评分波动
 		},

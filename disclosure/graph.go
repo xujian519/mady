@@ -94,6 +94,7 @@ func mergeFromState[T any](state graph.PregelState, key string) *T {
 	}
 	var parsed T
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		// 单路抽取输出损坏时只丢弃该维度，其余维度仍可合并成报告。
 		return nil
 	}
 	return &parsed
@@ -262,7 +263,7 @@ func WithRetriever(r domain.DomainRetriever) GraphOption {
 //
 //	preprocess → extract_problem, extract_features, extract_effects (并行)
 //	extract_* → merge_extractions (单一合并节点)
-//	merge_extractions → check_consistency
+//	merge_extractions → check_clarity → groundedness_filter → check_consistency
 //	check_consistency → [retry: extract_*] or [continue: generate_keywords]
 //	generate_keywords → retrieve_prior_art → check_novelty → generate_report → review_gate → draft_claims → __end__
 func BuildDisclosureAnalysisGraph(provider agentcore.Provider) (*graph.CompiledPregelGraph, error) {
