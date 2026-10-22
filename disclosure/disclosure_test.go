@@ -931,11 +931,19 @@ func TestParsePerFeatureOutput_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestParsePerFeatureOutput_OverridesMismatchedFeatureID(t *testing.T) {
+	output := `{"feature_id":"WRONG-ID","novelty_status":"likely_novel","confidence":"high","reasoning":"r"}`
+	fa := parsePerFeatureOutput(output, "f1")
+	if fa.FeatureID != "f1" {
+		t.Errorf("expected requested feature ID f1, got %q", fa.FeatureID)
+	}
+}
+
 func TestParsePerFeatureOutput_MissingFields(t *testing.T) {
 	output := `{"feature_id":"","novelty_status":"","confidence":""}`
 	fa := parsePerFeatureOutput(output, "f1")
 	if fa.FeatureID != "f1" {
-		t.Errorf("expected feature_id fallback to f1, got %q", fa.FeatureID)
+		t.Errorf("expected requested feature ID f1, got %q", fa.FeatureID)
 	}
 	if fa.NoveltyStatus != "unclear" || fa.Confidence != "low" {
 		t.Error("expected defaults for empty status/confidence")

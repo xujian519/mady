@@ -296,10 +296,8 @@ func parsePerFeatureOutput(output string, featureID string) FeatureAssessment {
 		}
 	}
 
-	// 保证 feature_id 匹配
-	if parsed.FeatureID == "" {
-		parsed.FeatureID = featureID
-	}
+	// 结果按请求特征回填，模型回填的 ID 若错位会把结论挂到不存在的特征上。
+	parsed.FeatureID = featureID
 	if parsed.NoveltyStatus == "" {
 		parsed.NoveltyStatus = noveltyStatusUnclear
 	}
