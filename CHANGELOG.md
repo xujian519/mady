@@ -7,6 +7,30 @@
 本文件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，
 版本号遵循 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Fixed
+
+- **TUI overlay 关闭残留** — 关闭 /help、/settings、命令面板、任务面板后不再留下旧内容或空白区域；chat overlay 默认居中显示。
+- **Markdown 标识符** — `snake_case_name`、`my_file.go` 等词内下划线不再被误当作斜体标记吞掉。
+- **会话恢复** — 重启后只回放用户可见消息，不再把 system prompt 与原始 tool 结果写入聊天记录。
+- **错误展示** — 一次失败只展示一条错误，错误块按纯文本渲染，并对 `sk-*`、Bearer、api key 等凭证片段脱敏。
+- **窄终端提示** — 窗口 <80 列时的提示框按可用宽度收敛，40/60 列下不再折行错位。
+- **快捷键帮助** — footer 的 `F1 help` 与实际行为一致（原 `?` 只会输入字符）。
+- **会话选择器** — 帮助脚注不再超出面板宽度。
+
+### Changed
+
+- **启动** — 不再在聊天记录输出“已切换主题”提示；模型为空时标题回退到 provider 名称。
+
+### Performance
+
+- **VisibleWidth** — 纯 ASCII 行增加快速路径（实测 1118 → 39 ns/op）。
+
+### Tests
+
+- TUI 测试基线恢复：11 项失败清零；新增 overlay 关闭帧级回归、TUI↔agent 端到端、golden 重生成与 Agent 测试离线化。
+
 ## [0.4.0] - 2026-07-26 — Sprint 1
 
 ### Added
