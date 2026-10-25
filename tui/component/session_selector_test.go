@@ -1,6 +1,7 @@
 package component
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -305,7 +306,6 @@ func TestSessionSelectorRender(t *testing.T) {
 	s := NewSessionSelector()
 	s.SetItems(testSessionItems())
 	s.SetAvailableHeight(24)
-	// Width must fit the fixed footer line (rendered untruncated, source behavior).
 	lines := s.Render(120)
 	if len(lines) == 0 {
 		t.Fatal("expected render")
@@ -317,14 +317,27 @@ func TestSessionSelectorRender(t *testing.T) {
 		}
 	}
 	for _, ln := range lines {
-		// The fixed help footer renders wider than the panel (untruncated,
-		// source behavior) — skip it in the width assertion.
-		if strings.HasPrefix(ln, "  / search") {
-			continue
-		}
 		if w := core.VisibleWidth(ln); w > 120 {
 			t.Fatalf("line width %d > 120 (line=%q)", w, ln)
 		}
+	}
+}
+
+// TestSessionSelectorRenderWidths verifies the panel never emits a line wider
+// than the width it was given, across the real overlay widths (40% of the
+// terminal) and the breakpoints of the help footer.
+func TestSessionSelectorRenderWidths(t *testing.T) {
+	for _, width := range []int64{32, 40, 48, 60, 80, 120} {
+		t.Run(fmt.Sprintf("w%d", width), func(t *testing.T) {
+			s := NewSessionSelector()
+			s.SetItems(testSessionItems())
+			s.SetAvailableHeight(24)
+			for _, ln := range s.Render(width) {
+				if w := core.VisibleWidth(ln); w > width {
+					t.Fatalf("line width %d > %d (line=%q)", w, width, ln)
+				}
+			}
+		})
 	}
 }
 
