@@ -393,3 +393,34 @@ func TestRenderAllWithStateSpliceFastPath(t *testing.T) {
 		t.Fatal("setup: before render should not be empty")
 	}
 }
+
+// TestRoleErrorRendersPlainAndRedacts 锁定错误块的展示契约：
+// 1) 标识符不被 Markdown 吃掉；2) 密钥片段被脱敏；3) 超长错误被截断。
+func TestRoleErrorRendersPlainAndRedacts(t *testing.T) {
+	h := NewChatHistory()
+	h.Append(ChatMessage{
+		Role: RoleError,
+		Text: "provider_call failed: provider_stream; api key: ****7c08 is invalid; token sk-abcdef1234567890",
+	})
+	joined := core.StripAnsi(strings.Join(h.Render(120), "\n"))
+	for _, want := range []string{"provider_call", "provider_stream", "[REDACTED]"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("expected %q in rendered error, got %q", want, joined)
+		}
+	}
+	for _, leak := range []string{"7c08", "sk-abcdef1234567890"} {
+		if strings.Contains(joined, leak) {
+			t.Fatalf("secret fragment %q leaked into the transcript: %q", leak, joined)
+		}
+	}
+}
+
+func TestSanitizeErrorTextTruncatesLongInput(t *testing.T) {
+	got := sanitizeErrorText(strings.Repeat("错", 2000))
+	if n := len([]rune(got)); n > maxErrorDisplayRunes+40 {
+		t.Fatalf("truncated error still too long: %d runes", n)
+	}
+	if !strings.Contains(got, "完整内容见会话日志") {
+		t.Fatalf("missing truncation notice: %q", got)
+	}
+}

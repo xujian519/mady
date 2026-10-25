@@ -185,3 +185,27 @@ func TestReplayableMessages(t *testing.T) {
 		t.Fatalf("expected no messages for nil input, got %+v", empty)
 	}
 }
+
+// TestHistoryHasErrorSinceLastTurn verifies the cmd-layer dedupe: an error
+// already reported by the chat event stream in the current turn must not be
+// appended a second time.
+func TestHistoryHasErrorSinceLastTurn(t *testing.T) {
+	h := chat.NewChatHistory()
+	if historyHasErrorSinceLastTurn(h) {
+		t.Fatal("empty history must not report an error")
+	}
+	h.Append(chat.ChatMessage{Role: chat.RoleUser, Text: "问题"})
+	h.Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: "正常回复"})
+	if historyHasErrorSinceLastTurn(h) {
+		t.Fatal("a clean turn must not report an error")
+	}
+	h.Append(chat.ChatMessage{Role: chat.RoleUser, Text: "再问一次"})
+	h.Append(chat.ChatMessage{Role: chat.RoleError, Text: "provider boom"})
+	if !historyHasErrorSinceLastTurn(h) {
+		t.Fatal("an error after the current user turn should suppress the duplicate")
+	}
+	h.Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: "恢复后的回复"})
+	if historyHasErrorSinceLastTurn(h) {
+		t.Fatal("an error before the latest assistant turn is stale")
+	}
+}

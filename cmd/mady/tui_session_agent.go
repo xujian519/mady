@@ -54,6 +54,26 @@ func showUserError(s *tuiSession, se ErrorSeverity, format string, args ...any) 
 	s.app.PrintSystem(fmt.Sprintf("%s %s", label, msg))
 }
 
+// historyHasErrorSinceLastTurn 判断最近一轮之后是否已经展示过错误。
+// ChatApp 的 onAgentError 会把事件流中的错误写入 RoleError；运行失败返回后
+// cmd 层不应再重复同样的错误，但在事件流未覆盖的场景（初始化、包装层失败）
+// 仍需补充提示。
+func historyHasErrorSinceLastTurn(h *chat.ChatHistory) bool {
+	if h == nil {
+		return false
+	}
+	msgs := h.Messages()
+	for i := len(msgs) - 1; i >= 0; i-- {
+		switch msgs[i].Role {
+		case chat.RoleError:
+			return true
+		case chat.RoleUser, chat.RoleAssistant:
+			return false
+		}
+	}
+	return false
+}
+
 // replayableMessages 过滤持久化的 agent 消息，只保留用户可见的对话内容。
 //
 // system prompt 属于内部指令，回放会把整段提示词泄漏到界面；tool 结果可能
@@ -302,7 +322,11 @@ func (s *tuiSession) submitInput(input string) {
 		}()
 
 		if _, err := agent.Run(runCtx, input); err != nil {
-			showUserError(s, RunFailure, "Agent 执行失败: %v", err)
+			// 运行期错误通常已由 ChatApp.onAgentError 写入聊天记录；
+			// 只有事件流没有覆盖它时才补充提示，避免同一次失败展示两遍。
+			if !historyHasErrorSinceLastTurn(s.app.History()) {
+				showUserError(s, RunFailure, "Agent 执行失败: %v", err)
+			}
 			return
 		}
 		if store == nil {
