@@ -118,7 +118,7 @@ mady/
 ├── tui/              # 终端 UI（分层 Elm 架构，Layer 0-7）
 │   ├── core/         #   Layer 0: 基础类型与组件接口（含 Cell 级渲染模型）
 │   ├── layout/       #   Layer 0 扩展：布局原语（仅依赖 core）
-│   ├── terminal/     #   Layer 1: 终端 I/O（含 keymap.json 配置文件）
+│   ├── terminal/     #   Layer 1: 终端 I/O（用户键位覆盖：~/.mady/keymap.json）
 │   ├── theme/        #   Layer 2: 主题系统（品牌主题 + 颜色模式）
 │   ├── tui.go        #   Layer 3: 引擎层
 │   ├── component/    #   Layer 4: UI 组件（含 ToolCard / StatusBar / Markdown 块缓存）

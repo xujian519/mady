@@ -199,7 +199,7 @@ Mady 当前仅实现了 L0 层级。社区建议的 L1-L3 为可选增强。
 | `Ctrl+P` | 命令面板 | ✅ |
 | `Ctrl+D` | 中断输入 | ✅ |
 
-**规则 M-TUI-KB-001 (MUST)** — 所有按键绑定通过 `KeybindingsManager` 注册，不在组件内硬编码键值。提供 `keymap.json` 用户覆盖机制（已实现 `LoadUserBindingsJSON()`）。
+**规则 M-TUI-KB-001 (MUST)** — 所有按键绑定通过 `KeybindingsManager` 注册，不在组件内硬编码键值。提供 `~/.mady/keymap.json` 用户覆盖机制（已实现 `LoadUserBindingsJSON()`；该文件不属于 `tui/terminal/` 源码目录）。
 
 **规则 M-TUI-KB-002 (MUST)** — 不绑定终端保留键：`Ctrl+C`（中断，TUI 中先判断是否选中文本）、`Ctrl+Z`（挂起）、`Ctrl+\`（退出信号）。
 
@@ -465,7 +465,7 @@ Mady 视觉分配合理：80% 内容（`Text`）、10% 标题（`MdHeading` 强�
 
 | 社区层级 | Mady 实现 | 覆盖目标 |
 |---------|----------|---------|
-| 单元测试 | 各包 `*_test.go`，51 个测试文件 | 渲染逻辑、事件响应、状态转换 |
+| 单元测试 | 各包 `*_test.go`，124 个测试文件（2026-10-25） | 渲染逻辑、事件响应、状态转换 |
 | 集成测试 | `VirtualTerminal` + `newTestChatApp` | 事件流、布局组合、Overlay |
 | 周期测试 | `VirtualTerminal` 长运行 | 内存泄露、竞态、流式渲染 |
 
@@ -494,6 +494,14 @@ Mady 视觉分配合理：80% 内容（`Text`）、10% 标题（`MdHeading` 强�
 **规则 M-TUI-TST-004 (SHOULD)** — FSM 使用表驱动测试全覆盖所有合法转换且验证非法转换的 no-op 行为。示例见 `chat/state_test.go`（30 个案例全覆盖 8 状态 x 15 事件）。
 
 **规则 M-TUI-TST-005 (SHOULD)** — CI 中运行 `validateColorContrast()` 审计，确保所有 UI 中的颜色组合 ≥ WCAG AA。当前无此审计，建议纳入 CI pipeline。
+
+**规则 M-TUI-TST-006 (MUST)** — 文本断言必须先移除 SGR（`core.StripAnsi`）或使用 `core.VisibleWidth`。禁止直接对含样式的原始输出做 `strings.Contains` / `len` 断言——配色调整会成批击穿测试。示例见 `component/debug_overlay_test.go`、`chat/chat_history_render_extra_test.go`。
+
+**规则 M-TUI-TST-007 (MUST)** — 渲染 golden 变更必须走 `GOLDEN_UPDATE=1 go test ./component/ -run Golden`，并在提交前人工审阅 diff：允许颜色/属性变化，不允许文案、宽度、边框结构变化。禁止在 CI 中设置 `GOLDEN_UPDATE`。
+
+**规则 M-TUI-TST-008 (MUST)** — overlay 行为必须有帧级回归：打开 → 关闭 → 下一帧不得残留 overlay 内容，被覆盖的基础行必须重绘；关闭后的第二帧应稳定（无重复输出）。示例见 `tui/overlay_test.go` 的 `TestOverlayCloseRepaintsBaseFrame`。
+
+**规则 M-TUI-TST-009 (MUST)** — TUI 测试不得访问网络或读取真实 API Key：Agent/Provider 一律使用内存 fake（见 `tui/agent_integration_test.go` 的 `fakeStreamProvider`）；需要真实链路的用例必须以环境变量显式开启。
 
 ### 10.4 终端兼容性验证清单
 
