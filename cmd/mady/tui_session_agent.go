@@ -74,6 +74,24 @@ func historyHasErrorSinceLastTurn(h *chat.ChatHistory) bool {
 	return false
 }
 
+// replayRestoredHistory 把上一次会话中用户可见的消息回放到聊天记录。
+// system prompt 与原始 tool 结果属于内部状态，不进入回放；成功回放后
+// 追加一条来源提示，避免用户误以为是本轮输出。
+func (s *tuiSession) replayRestoredHistory(agent *agentcore.Agent) {
+	replayed := replayableMessages(agent.State().Messages())
+	for _, msg := range replayed {
+		switch msg.Role {
+		case agentcore.RoleUser:
+			s.app.History().Append(chat.ChatMessage{Role: chat.RoleUser, Text: msg.Content})
+		case agentcore.RoleAssistant:
+			s.app.History().Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: msg.Content})
+		}
+	}
+	if len(replayed) > 0 {
+		s.app.PrintSystem(fmt.Sprintf("已恢复上次会话（%d 条消息）", len(replayed)))
+	}
+}
+
 // replayableMessages 过滤持久化的 agent 消息，只保留用户可见的对话内容。
 //
 // system prompt 属于内部指令，回放会把整段提示词泄漏到界面；tool 结果可能
@@ -236,21 +254,7 @@ func (s *tuiSession) initializeAgentAsync() {
 					log.Printf("[mady] agent: 恢复上次会话失败（以空状态继续）: %v", err)
 				}
 			} else {
-				// 成功恢复上次会话后，将用户可见的历史消息回放到 ChatHistory，
-				// 使用户在重启后能看到之前的对话记录。system prompt 与原始
-				// tool 结果属于内部状态，不能进入聊天记录。
-				replayed := replayableMessages(newAgent.State().Messages())
-				for _, msg := range replayed {
-					switch msg.Role {
-					case agentcore.RoleUser:
-						s.app.History().Append(chat.ChatMessage{Role: chat.RoleUser, Text: msg.Content})
-					case agentcore.RoleAssistant:
-						s.app.History().Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: msg.Content})
-					}
-				}
-				if len(replayed) > 0 {
-					s.app.PrintSystem(fmt.Sprintf("已恢复上次会话（%d 条消息）", len(replayed)))
-				}
+				s.replayRestoredHistory(newAgent)
 			}
 			cancel()
 		}
