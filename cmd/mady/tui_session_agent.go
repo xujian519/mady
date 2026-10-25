@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
@@ -51,6 +52,25 @@ func showUserError(s *tuiSession, se ErrorSeverity, format string, args ...any) 
 	label := severityLabel(se)
 	msg := fmt.Sprintf(format, args...)
 	s.app.PrintSystem(fmt.Sprintf("%s %s", label, msg))
+}
+
+// replayableMessages 过滤持久化的 agent 消息，只保留用户可见的对话内容。
+//
+// system prompt 属于内部指令，回放会把整段提示词泄漏到界面；tool 结果可能
+// 是大段文件内容或中间推理，回放会淹没对话。空内容的 assistant 消息通常是
+// 纯工具调用轮次，也一并跳过。
+func replayableMessages(msgs []agentcore.Message) []agentcore.Message {
+	out := make([]agentcore.Message, 0, len(msgs))
+	for _, m := range msgs {
+		switch m.Role {
+		case agentcore.RoleUser, agentcore.RoleAssistant:
+			if strings.TrimSpace(m.Content) == "" {
+				continue
+			}
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // getCurrentAgent 返回当前 Agent 实例，线程安全。
@@ -196,19 +216,20 @@ func (s *tuiSession) initializeAgentAsync() {
 					log.Printf("[mady] agent: 恢复上次会话失败（以空状态继续）: %v", err)
 				}
 			} else {
-				// 成功恢复上次会话后，将历史消息回放到 ChatHistory，
-				// 使用户在重启后能看到之前的对话记录。
-				for _, msg := range newAgent.State().Messages() {
+				// 成功恢复上次会话后，将用户可见的历史消息回放到 ChatHistory，
+				// 使用户在重启后能看到之前的对话记录。system prompt 与原始
+				// tool 结果属于内部状态，不能进入聊天记录。
+				replayed := replayableMessages(newAgent.State().Messages())
+				for _, msg := range replayed {
 					switch msg.Role {
 					case agentcore.RoleUser:
 						s.app.History().Append(chat.ChatMessage{Role: chat.RoleUser, Text: msg.Content})
 					case agentcore.RoleAssistant:
 						s.app.History().Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: msg.Content})
-					case agentcore.RoleSystem:
-						s.app.History().Append(chat.ChatMessage{Role: chat.RoleSystem, Text: msg.Content})
-					case agentcore.RoleTool:
-						s.app.History().Append(chat.ChatMessage{Role: chat.RoleTool, Text: msg.Content})
 					}
+				}
+				if len(replayed) > 0 {
+					s.app.PrintSystem(fmt.Sprintf("已恢复上次会话（%d 条消息）", len(replayed)))
 				}
 			}
 			cancel()
