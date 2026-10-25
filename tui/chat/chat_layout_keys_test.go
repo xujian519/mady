@@ -262,14 +262,25 @@ func TestDispatchKeyGlobalKeys(t *testing.T) {
 		}
 	})
 
-	t.Run("question opens keyhelp", func(t *testing.T) {
+	t.Run("f1 opens keyhelp", func(t *testing.T) {
 		app, _ := newTestChatApp(t, ChatAppConfig{})
 		host := app.host.(*testAppHost)
-		if !app.layout.dispatchKey(terminal.Key{Name: "question"}) {
-			t.Fatal("? should be consumed")
+		if !app.layout.dispatchKey(terminal.Key{Name: "f1"}) {
+			t.Fatal("F1 should be consumed")
 		}
 		if len(host.overlays) != 1 {
-			t.Fatalf("? should open keyhelp overlay, got %d", len(host.overlays))
+			t.Fatalf("F1 should open keyhelp overlay, got %d", len(host.overlays))
+		}
+	})
+
+	t.Run("question mark stays printable", func(t *testing.T) {
+		app, _ := newTestChatApp(t, ChatAppConfig{})
+		host := app.host.(*testAppHost)
+		if app.layout.dispatchKey(terminal.Key{Name: "?"}) {
+			t.Fatal("? must not be hijacked: it is a normal input character")
+		}
+		if len(host.overlays) != 0 {
+			t.Fatalf("no overlay should open, got %d", len(host.overlays))
 		}
 	})
 

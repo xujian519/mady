@@ -5,7 +5,7 @@ package component
 // The Footer is a single-line, always-visible bar at the bottom of the
 // chat layout showing the most important keyboard shortcuts. It follows
 // the "progressive disclosure" pattern: the footer shows 3-5 core
-// bindings; the full key reference is available via `?` (KeyHelp overlay).
+// bindings; the full key reference is available via F1 (KeyHelp overlay).
 //
 // Layout strategy (responsive):
 //   - < 60 cols: [?] help
@@ -68,7 +68,7 @@ func defaultGroups() []FooterGroup {
 		{
 			Label: "help",
 			Items: []FooterItem{
-				{Key: "?", Desc: "help"},
+				{Key: "F1", Desc: "help"},
 			},
 		},
 		{

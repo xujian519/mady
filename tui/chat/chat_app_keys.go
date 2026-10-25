@@ -125,7 +125,10 @@ func (l *chatLayout) dispatchKey(k terminal.Key) bool { //nolint:gocognit // 渲
 			l.app.host.RequestRender()
 		}
 		return true
-	case "question":
+	case "f1":
+		// F1 打开快捷键帮助。可打印字符（如 ?）不能在全局层拦截：焦点在
+		// 编辑器上，编辑器会先收到并插入该字符，布局随后才收到广播，
+		// 此时已无法判断“按键前是否为空”。
 		if l.app != nil {
 			l.app.ToggleKeyHelp()
 			return true
