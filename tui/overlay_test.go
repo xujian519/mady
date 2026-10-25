@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 
 	core "github.com/xujian519/mady/tui/core"
+	"github.com/xujian519/mady/tui/terminal"
 )
 
 // lineComp helper — emits the same line N times.
@@ -67,6 +69,59 @@ func TestComposeOverlayBlankLineKeepsMargins(t *testing.T) {
 		if r.VisibleWidth() != 40 {
 			t.Fatalf("row %d width = %d, want 40", i, r.VisibleWidth())
 		}
+	}
+}
+
+// TestOverlayCloseRepaintsBaseFrame 是 overlay 关闭残留的回归测试。
+//
+// 病根：renderChildrenRows 的行级缓存以“合成前的基础行字符串”为 key，
+// 却复用“合成后”的行。overlay 打开后的下一帧会把 overlay 像素缓存成基础行；
+// overlay 关闭时这些被污染的行被当成基础帧，DiffFrame 认为没有变化，
+// 于是旧内容永久留在终端上（只有 resize 触发的全量重绘能清掉）。
+func TestOverlayCloseRepaintsBaseFrame(t *testing.T) {
+	const cols, rows = 80, 12
+	vt := terminal.NewVirtualTerminal(cols, rows)
+	app := NewTUI(vt)
+	defer app.Stop()
+
+	base := make([]string, rows)
+	for i := range base {
+		base[i] = fmt.Sprintf("BASE-ROW-%02d", i)
+	}
+	app.AddChild(&lineComp{lines: base})
+	app.renderFrame()
+	vt.ResetOutput()
+
+	ov := &Overlay{
+		UseAbsolute: true,
+		Row:         3,
+		Col:         5,
+		Width:       OverlaySize{Value: 14},
+		Height:      OverlaySize{Value: 3},
+		Content:     &lineComp{lines: []string{"OVERLAY-A", "OVERLAY-B", "OVERLAY-C"}},
+	}
+	app.PushOverlay(ov)
+	app.renderFrame()
+	if !strings.Contains(vt.OutputString(), "OVERLAY-A") {
+		t.Fatalf("overlay was not rendered: %q", vt.OutputString())
+	}
+
+	app.RemoveOverlay(ov)
+	vt.ResetOutput()
+	app.renderFrame()
+	out := vt.OutputString()
+	if strings.Contains(out, "OVERLAY-") {
+		t.Fatalf("overlay content leaked into the base frame after close: %q", out)
+	}
+	if !strings.Contains(out, "BASE-ROW-03") {
+		t.Fatalf("covered base row was not repainted after overlay close: %q", out)
+	}
+
+	// 第二帧应当稳定：没有内容变化就不应再次输出基础行文本。
+	vt.ResetOutput()
+	app.renderFrame()
+	if next := vt.OutputString(); strings.Contains(next, "BASE-ROW") || strings.Contains(next, "OVERLAY-") {
+		t.Fatalf("frame after recovery is not stable: %q", next)
 	}
 }
 

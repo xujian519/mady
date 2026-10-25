@@ -57,14 +57,18 @@ func (t *TUI) renderFrame() {
 		cols = 80
 	}
 
-	children, prev, prevRaw, prevW, first := t.snapshotFrame()
+	children, overlays, prev, prevRaw, prevW, first := t.snapshotFrame()
+
+	// 行级缓存只能在“基础帧”之间复用。composeOverlays 会把 overlay 像素
+	// 写进返回的行，合成后的行与基础行 raw 字符串不再处于同一坐标系；
+	// 若把合成行当成下一帧的基础行缓存，overlay 关闭后旧像素会永久残留。
+	hasOverlays := len(overlays) > 0
+	if hasOverlays {
+		prev, prevRaw = nil, nil
+	}
 
 	rows, rawLines := t.renderChildrenRows(children, cols, prev, prevRaw)
 
-	t.mu.Lock()
-	overlays := make([]*Overlay, len(t.overlays))
-	copy(overlays, t.overlays)
-	t.mu.Unlock()
 	_, termRows2 := t.term.Size()
 	if termRows2 <= 0 {
 		termRows2 = int64(len(rows))
@@ -114,7 +118,12 @@ func (t *TUI) renderFrame() {
 
 	t.mu.Lock()
 	t.prevFrame = rows
-	t.prevRaw = rawLines
+	if hasOverlays {
+		// 本帧被 overlay 合成污染，不能作为下一帧的行缓存来源。
+		t.prevRaw = nil
+	} else {
+		t.prevRaw = rawLines
+	}
 	t.prevWidth = cols
 	t.firstFrame = false
 
@@ -160,17 +169,31 @@ func (t *TUI) renderFrame() {
 	t.mu.Unlock()
 }
 
-// snapshotFrame 在锁内拷贝渲染所需的帧快照（children/prev/raw/width/first）。
-func (t *TUI) snapshotFrame() ([]core.Component, []core.Row, []string, int64, bool) {
+// snapshotFrame 在锁内拷贝渲染所需的帧快照（children/overlays/prev/raw/width/first）。
+func (t *TUI) snapshotFrame() ([]core.Component, []*Overlay, []core.Row, []string, int64, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	children := make([]core.Component, len(t.children))
 	copy(children, t.children)
+	overlays := make([]*Overlay, len(t.overlays))
+	copy(overlays, t.overlays)
 	prev := t.prevFrame
 	prevRaw := t.prevRaw
 	prevW := t.prevWidth
 	first := t.firstFrame
-	return children, prev, prevRaw, prevW, first
+	return children, overlays, prev, prevRaw, prevW, first
+}
+
+// invalidateFrameCache 丢弃行级渲染缓存并强制下一帧全量重绘。
+//
+// overlay 栈变化（打开/关闭/弹出）时必须调用：合成帧与基础帧的坐标系
+// 不同，继续复用会把 overlay 像素当作基础内容。全量重绘是兜底，确保
+// 终端上的残留立即被清掉。
+func (t *TUI) invalidateFrameCache() {
+	t.mu.Lock()
+	t.prevRaw = nil
+	t.firstFrame = true
+	t.mu.Unlock()
 }
 
 // renderChildrenRows 渲染所有子组件为行，并应用缓存优化：原始字符串与
