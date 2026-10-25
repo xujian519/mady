@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 const defaultBaseURL = "https://api.openai.com/v1"
@@ -537,14 +538,20 @@ func (p *Provider) doHTTP(ctx context.Context, client *http.Client, body any, ex
 	return client.Do(httpReq)
 }
 
-// formatError attempts to extract a structured error message from API error
-// responses. Handles multiple vendor formats:
+// formatError 提取供应商错误信息并做凭证脱敏。所有面向调用方的错误文本
+// 都经过这里，因此 TUI、server、ACP 等出口不会回显密钥片段。
+func formatError(body []byte) string {
+	return util.RedactSecrets(extractErrorMessage(body))
+}
+
+// extractErrorMessage attempts to extract a structured error message from API
+// error responses. Handles multiple vendor formats:
 //
 //	{"error": {"message": "..."}}           — OpenAI / DeepSeek / Moonshot / Groq
 //	{"code": "...", "message": "..."}       — Qwen (DashScope)
 //
 // Falls back to the raw body if no structured format is detected.
-func formatError(body []byte) string {
+func extractErrorMessage(body []byte) string {
 	if len(body) == 0 {
 		return "empty response body"
 	}

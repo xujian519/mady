@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/util"
 )
 
 // APIProtocol selects the OpenAI API protocol variant.
@@ -280,7 +281,7 @@ func (p *Provider) completeResponses(ctx context.Context, req *agentcore.Provide
 	}
 
 	if resp.Error != nil {
-		return nil, fmt.Errorf("responses api error: %s: %s", resp.Error.Code, resp.Error.Message)
+		return nil, fmt.Errorf("responses api error: %s: %s", resp.Error.Code, util.RedactSecrets(resp.Error.Message))
 	}
 
 	return p.convertResponsesOutput(&resp, req), nil
