@@ -274,3 +274,24 @@ func TestWrapAnsiWidthOneMixed(t *testing.T) {
 		}
 	}
 }
+
+// TestVisibleWidthFastPathBoundaries 覆盖 ASCII 快速路径的边界：可打印
+// ASCII 按字节计数；控制字符（tab/DEL）与 ESC 序列必须回退慢路径。
+func TestVisibleWidthFastPathBoundaries(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int64
+	}{
+		{"plain ascii", 11},
+		{" ", 1},
+		{"a\tb", 2},
+		{"a\x7fb", 2},
+		{"\x1b[31mred\x1b[0m", 3},
+		{"中文", 4},
+	}
+	for _, c := range cases {
+		if got := VisibleWidth(c.in); got != c.want {
+			t.Errorf("VisibleWidth(%q) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
