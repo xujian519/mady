@@ -7,9 +7,9 @@ package chat
 // Pipeline orchestration is in chat_history_render.go.
 
 import (
-	"regexp"
 	"strings"
 
+	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
@@ -20,18 +20,10 @@ import (
 // stay readable while the full text remains in the session log.
 const maxErrorDisplayRunes = 1200
 
-var (
-	reSecretToken = regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{8,}\b`)
-	reBearerToken = regexp.MustCompile(`(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]{8,}`)
-	reAPIKeyValue = regexp.MustCompile(`(?i)\b((?:api[ _-]?key|authorization)\s*[:=]\s*)\S+`)
-)
-
 // sanitizeErrorText 在展示前对错误文本脱敏并截断。上游 401 响应可能回显
 // 密钥片段（如 "Your api key: ****7c08"），错误块不应把它们带到界面。
 func sanitizeErrorText(s string) string {
-	s = reSecretToken.ReplaceAllString(s, "[REDACTED]")
-	s = reBearerToken.ReplaceAllString(s, "$1[REDACTED]")
-	s = reAPIKeyValue.ReplaceAllString(s, "$1[REDACTED]")
+	s = util.RedactSecrets(s)
 	runes := []rune(s)
 	if len(runes) > maxErrorDisplayRunes {
 		s = string(runes[:maxErrorDisplayRunes]) + "\n…（错误过长，完整内容见会话日志）"
