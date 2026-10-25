@@ -11,8 +11,11 @@ import (
 // ---------------------------------------------------------------------------
 
 var (
-	reInlineBold   = regexp.MustCompile(`\*\*([^*]+)\*\*|__([^_]+)__`)
-	reInlineItalic = regexp.MustCompile(`\*([^*\s][^*]*[^*\s]|[^*\s])\*|_([^_\s][^_]*[^_\s]|[^_\s])_`)
+	// 下划线强调必须带词边界：CommonMark 规定词内下划线（snake_case、
+	// provider_call）不产生强调。`_` 在 RE2 中属于 \w，因此 \b_ 只会在
+	// 非标识符字符（空白、标点、CJK、行首尾）之后成立。
+	reInlineBold   = regexp.MustCompile(`\*\*([^*]+)\*\*|\b__([^_]+)__\b`)
+	reInlineItalic = regexp.MustCompile(`\*([^*\s][^*]*[^*\s]|[^*\s])\*|\b_([^_\s][^_]*[^_\s]|[^_\s])_\b`)
 	reInlineCode   = regexp.MustCompile("`([^`]+)`")
 	reInlineStrike = regexp.MustCompile(`~~([^~]+)~~`)
 	reInlineLink   = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
