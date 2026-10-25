@@ -26,7 +26,9 @@ func TestRenderMarkdownEquivalenceGolden(t *testing.T) {
 		"| a | b |\n| --- | --- |\n| 1 | 2 |\n"
 
 	got := renderMarkdown(src, 60, defaultMarkdownTheme())
-	gotJoined := strings.Join(got, "\n")
+	// 内容断言必须在去掉 SGR 之后进行：语法高亮会按 token 切分文本，
+	// 直接对原始输出做子串匹配会因样式序列插入而误报丢失内容。
+	gotJoined := stripAnsiLocal(strings.Join(got, "\n"))
 
 	// Structural sanity: every block kind must contribute at least one line,
 	// and the document must round-trip its distinctive tokens.

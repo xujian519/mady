@@ -581,11 +581,35 @@ func (s *SessionSelector) Render(width int64) []string {
 	// Footer
 	if len(lines) > 0 {
 		lines = append(lines, s.theme.DimStyle.Render(strings.Repeat("─", int(width))))
-		footerText := core.PadToWidth("/ search  ↑↓ nav  Enter resume  Ctrl+X delete  Ctrl+R rename  Esc close", width)
-		lines = append(lines, s.theme.DimStyle.Render("  "+footerText))
+		lines = append(lines, s.theme.DimStyle.Render(sessionSelectorFooter(width)))
 	}
 
 	return lines
+}
+
+// sessionSelectorFooter 返回恰好 width 列的帮助脚注。
+//
+// 面板作为 40% 宽 overlay 挂载时，实际宽度可能只有 40~60 列；固定长文案
+// 会溢出面板并破坏边框。这里按断点降级提示项，并保证最终行宽恒等于
+// width（先截断再补齐），避免任何宽度下的溢出。
+func sessionSelectorFooter(width int64) string {
+	const (
+		full   = "/ search  ↑↓ nav  Enter open  Ctrl+X del  Ctrl+R rename  Esc close"
+		medium = "/ search · ↑↓ · Enter · Ctrl+X · Esc"
+		small  = "/ · ↑↓ · Esc"
+	)
+	text := full
+	switch {
+	case width < 40:
+		text = small
+	case width < 72:
+		text = medium
+	}
+	line := "  " + text
+	if core.VisibleWidth(line) > width {
+		line = core.TruncateToWidth(line, width, "")
+	}
+	return core.PadToWidth(line, width)
 }
 
 func (s *SessionSelector) calcHeight() int64 {

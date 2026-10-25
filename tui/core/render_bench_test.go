@@ -86,3 +86,12 @@ func BenchmarkVisibleWidth(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkVisibleWidthASCII(b *testing.B) {
+	// Typical chat line: printable ASCII only (the fast-path candidate).
+	s := strings.Repeat("plain ascii text ", 8)
+	b.ResetTimer()
+	for b.Loop() {
+		VisibleWidth(s)
+	}
+}

@@ -57,14 +57,18 @@ func (t *TUI) renderFrame() {
 		cols = 80
 	}
 
-	children, prev, prevRaw, prevW, first := t.snapshotFrame()
+	children, overlays, prev, prevRaw, prevW, first := t.snapshotFrame()
+
+	// 行级缓存只能在“基础帧”之间复用。composeOverlays 会把 overlay 像素
+	// 写进返回的行，合成后的行与基础行 raw 字符串不再处于同一坐标系；
+	// 若把合成行当成下一帧的基础行缓存，overlay 关闭后旧像素会永久残留。
+	hasOverlays := len(overlays) > 0
+	if hasOverlays {
+		prev, prevRaw = nil, nil
+	}
 
 	rows, rawLines := t.renderChildrenRows(children, cols, prev, prevRaw)
 
-	t.mu.Lock()
-	overlays := make([]*Overlay, len(t.overlays))
-	copy(overlays, t.overlays)
-	t.mu.Unlock()
 	_, termRows2 := t.term.Size()
 	if termRows2 <= 0 {
 		termRows2 = int64(len(rows))
@@ -114,7 +118,12 @@ func (t *TUI) renderFrame() {
 
 	t.mu.Lock()
 	t.prevFrame = rows
-	t.prevRaw = rawLines
+	if hasOverlays {
+		// 本帧被 overlay 合成污染，不能作为下一帧的行缓存来源。
+		t.prevRaw = nil
+	} else {
+		t.prevRaw = rawLines
+	}
 	t.prevWidth = cols
 	t.firstFrame = false
 
@@ -160,17 +169,31 @@ func (t *TUI) renderFrame() {
 	t.mu.Unlock()
 }
 
-// snapshotFrame 在锁内拷贝渲染所需的帧快照（children/prev/raw/width/first）。
-func (t *TUI) snapshotFrame() ([]core.Component, []core.Row, []string, int64, bool) {
+// snapshotFrame 在锁内拷贝渲染所需的帧快照（children/overlays/prev/raw/width/first）。
+func (t *TUI) snapshotFrame() ([]core.Component, []*Overlay, []core.Row, []string, int64, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	children := make([]core.Component, len(t.children))
 	copy(children, t.children)
+	overlays := make([]*Overlay, len(t.overlays))
+	copy(overlays, t.overlays)
 	prev := t.prevFrame
 	prevRaw := t.prevRaw
 	prevW := t.prevWidth
 	first := t.firstFrame
-	return children, prev, prevRaw, prevW, first
+	return children, overlays, prev, prevRaw, prevW, first
+}
+
+// invalidateFrameCache 丢弃行级渲染缓存并强制下一帧全量重绘。
+//
+// overlay 栈变化（打开/关闭/弹出）时必须调用：合成帧与基础帧的坐标系
+// 不同，继续复用会把 overlay 像素当作基础内容。全量重绘是兜底，确保
+// 终端上的残留立即被清掉。
+func (t *TUI) invalidateFrameCache() {
+	t.mu.Lock()
+	t.prevRaw = nil
+	t.firstFrame = true
+	t.mu.Unlock()
 }
 
 // renderChildrenRows 渲染所有子组件为行，并应用缓存优化：原始字符串与
@@ -327,63 +350,80 @@ func (t *TUI) applyCursorState(buf *bytes.Buffer, cursorRow, cursorCol int64) {
 // may have fewer than 24 rows.
 const minTermCols int64 = 80
 
+// resizeHintMinCols 是画完整提示框所需的最小宽度。更窄或行数不足时
+// 退化为单行提示，避免提示框自身折行、错位——那正是它要避免的情况。
+const resizeHintMinCols int64 = 50
+
+// resizeHintLines 返回“终端过窄”提示的各行，保证每行可见宽度 ≤ cols。
+// 宽度按显示单元格计算（CJK 为 2 列），而不是字节长度。
+func resizeHintLines(cols, rows int64) []string {
+	if cols <= 0 {
+		cols = minTermCols
+	}
+	hintCN := "终端窗口太小，请放大以继续使用"
+	hintEN := fmt.Sprintf("Terminal too narrow · min %d · current %d", minTermCols, cols)
+	if cols < resizeHintMinCols || rows < 4 {
+		return []string{core.TruncateToWidth(hintCN, cols, "…")}
+	}
+
+	inner := core.VisibleWidth(hintCN)
+	if w := core.VisibleWidth(hintEN); w > inner {
+		inner = w
+	}
+	boxWidth := inner + 6 // ║ + 2 空格 + inner + 2 空格 + ║
+	if boxWidth < resizeHintMinCols {
+		boxWidth = resizeHintMinCols
+	}
+	if boxWidth > cols {
+		boxWidth = cols
+	}
+	inner = boxWidth - 6
+
+	pad := func(s string) string {
+		if n := inner - core.VisibleWidth(s); n > 0 {
+			return s + strings.Repeat(" ", int(n))
+		}
+		return core.TruncateToWidth(s, inner, "…")
+	}
+	border := strings.Repeat("═", int(boxWidth-2))
+	return []string{
+		"╔" + border + "╗",
+		"║  " + pad(hintCN) + "  ║",
+		"║  " + pad(hintEN) + "  ║",
+		"╚" + border + "╝",
+	}
+}
+
 func (t *TUI) renderResizeHint(cols, rows int64) {
+	lines := resizeHintLines(cols, rows)
+
 	var buf bytes.Buffer
 	buf.WriteString("\x1b[?25l") // hide cursor
 	buf.WriteString("\x1b[H")    // cursor home
 	buf.WriteString("\x1b[J")    // clear below
+	// 关闭自动换行：提示框宽度可能正好等于终端宽度，最后一列若触发
+	// 自动换行会把右边框折到下一行（40/60 列下曾出现）。
+	buf.WriteString("\x1b[?7l")
 
-	// Build the hint message.
-	hint := fmt.Sprintf("Terminal too narrow  |  Min: %d cols  |  Current: %d cols",
-		minTermCols, cols)
-	hintCN := "终端窗口太小，请放大以继续使用"
-
-	// Use a simple box. Box width is derived from the visible (display-cell)
-	// width, not byte length — CJK text is multi-byte and would misalign the
-	// right border if padded with %-*s. The +6 accounts for the two box
-	// borders plus the 2-space padding on each side (║ + 2 + inner + 2 + ║),
-	// so padLine fills the content to exactly inner and all rows line up
-	// with the border rows.
-	boxWidth := core.VisibleWidth(hint) + 6
-	if boxWidth < 50 {
-		boxWidth = 50
-	}
-	inner := boxWidth - 6 // 扣除 "║" + 2 空格 + 2 空格 + "║" 共 6 列固定开销
-	padLine := func(s string) string {
-		if pad := inner - core.VisibleWidth(s); pad > 0 {
-			return s + strings.Repeat(" ", int(pad))
-		}
-		return s
-	}
-	topY := rows / 2
-	textY := topY + 1
-	hintCNY := textY + 1
-	botY := hintCNY + 1
-	leftX := (cols - boxWidth) / 2
+	lineW := core.VisibleWidth(lines[0])
+	leftX := (cols - lineW) / 2
 	if leftX < 0 {
 		leftX = 0
 	}
-
-	// Top border
-	fmt.Fprintf(&buf, "\x1b[%d;%dH╔", topY+1, leftX+1)
-	for i := int64(2); i < boxWidth; i++ {
-		buf.WriteString("═")
+	topY := rows/2 - int64(len(lines))/2
+	if topY+int64(len(lines)) > rows {
+		topY = rows - int64(len(lines))
 	}
-	buf.WriteString("╗")
-
-	// Chinese hint
-	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %s  ║", hintCNY+1, leftX+1, padLine(hintCN))
-	// English hint
-	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %s  ║", textY+1, leftX+1, padLine(hint))
-	// Bottom border
-	fmt.Fprintf(&buf, "\x1b[%d;%dH╚", botY+1, leftX+1)
-	for i := int64(2); i < boxWidth; i++ {
-		buf.WriteString("═")
+	if topY < 0 {
+		topY = 0
 	}
-	buf.WriteString("╝")
+	for i, ln := range lines {
+		fmt.Fprintf(&buf, "\x1b[%d;%dH%s", topY+int64(i)+1, leftX+1, ln)
+	}
 
+	buf.WriteString("\x1b[?7h") // 恢复自动换行
 	// Move cursor out of the way and show it.
-	fmt.Fprintf(&buf, "\x1b[%d;1H", botY+2)
+	fmt.Fprintf(&buf, "\x1b[%d;1H", topY+int64(len(lines))+1)
 	buf.WriteString("\x1b[?25h") // show cursor
 
 	if _, err := t.term.Write(buf.Bytes()); err != nil {

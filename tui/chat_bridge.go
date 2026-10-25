@@ -96,6 +96,12 @@ func (h *tuiAppHost) PushOverlay(ov chat.OverlayRef) {
 	wantsFocus := ov.OverlayWantsFocus()
 	dimBg := ov.OverlayDimBackground()
 	anchor := OverlayAnchor(ov.OverlayAnchor())
+	// chat 层的 overlayHandle 不暴露锚点配置（全部为 0 = AnchorTopLeft）。
+	// PercentX/Y 默认 50 的语义是“面板中心位于视口中点”，因此未显式
+	// 指定锚点时按居中处理；否则 50% 会被当成左上角位置并被 clamp 到右下角。
+	if anchor == AnchorTopLeft {
+		anchor = AnchorCenter
+	}
 	px := ov.OverlayPercentX()
 	py := ov.OverlayPercentY()
 	wp := ov.OverlayWidthPct()

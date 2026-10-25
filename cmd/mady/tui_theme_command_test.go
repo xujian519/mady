@@ -81,3 +81,38 @@ func TestHandleThemeCommandDefaultThemeStartup(t *testing.T) {
 		}
 	}
 }
+
+// TestApplyThemeSettingsSilent verifies the startup path applies a theme
+// without writing a visible "已切换主题" message into the transcript, while
+// the interactive path still announces it.
+func TestApplyThemeSettingsSilent(t *testing.T) {
+	s := &tuiSession{app: testAppForSession(t), store: mustNewTransientStore()}
+	if !s.applyThemeSettings("light", nil) {
+		t.Fatal("applyThemeSettings(light) failed")
+	}
+	if got := len(s.app.History().Messages()); got != 0 {
+		t.Fatalf("silent startup apply wrote %d messages: %+v", got, s.app.History().Messages())
+	}
+
+	if !s.applyThemeSettings("dark", s.app.PrintSystem) {
+		t.Fatal("applyThemeSettings(dark) failed")
+	}
+	if got := lastSystemMessage(s); !strings.Contains(got, "已切换主题") {
+		t.Fatalf("interactive apply should announce, got %q", got)
+	}
+}
+
+// TestChatHeaderTitle covers the empty-model fallback that produced the
+// dangling "mady · model=" header on generic providers.
+func TestChatHeaderTitle(t *testing.T) {
+	cases := []struct{ provider, model, want string }{
+		{"deepseek", "deepseek-v4-flash", "mady · model=deepseek-v4-flash"},
+		{"generic", "", "mady · generic"},
+		{"", "", "mady"},
+	}
+	for _, c := range cases {
+		if got := chatHeaderTitle(c.provider, c.model); got != c.want {
+			t.Errorf("chatHeaderTitle(%q,%q) = %q, want %q", c.provider, c.model, got, c.want)
+		}
+	}
+}

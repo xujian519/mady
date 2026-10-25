@@ -27,6 +27,9 @@ import (
 // 在并行测试开始前执行完毕，无竞态；现有测试仅断言文本子串，不受影响。
 func TestMain(m *testing.M) {
 	theme.SyncPaletteGlobals(theme.DefaultSemanticLight(), theme.ColorMode256)
+	// 颜色开关必须显式固定：CI 的 stdout 不是 TTY，ColorEnabled() 会自动
+	// 关闭颜色，导致同一份 golden 在本地与 CI 产生不同字节。
+	theme.ForceColor(true)
 	os.Exit(m.Run())
 }
 

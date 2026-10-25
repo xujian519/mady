@@ -471,10 +471,35 @@ func TestRenderResizeHintAlignment(t *testing.T) {
 	if wCN == 0 {
 		t.Errorf("CN hint content unexpectedly empty")
 	}
-	// EN 行恒为最宽行，不应被 pad：若 EN 也被填充，说明 inner 大于 EN 宽，
-	// 意味着 boxWidth 相对 hint 宽度的 +6 余量被破坏（两行右框将越过边框）。
-	if trimEN := core.VisibleWidth(strings.TrimSpace(matches[1][1])); trimEN != wEN {
-		t.Errorf("EN hint line must not be padded (got pad=%d): %q", wEN-trimEN, matches[1][1])
+	// 内容宽度 + 左右边框与内边距（6 列）不得超过终端宽度。
+	if wCN+6 > 60 {
+		t.Errorf("hint box width %d exceeds terminal width 60", wCN+6)
+	}
+}
+
+// TestResizeHintLinesFitWidth 覆盖提示框在极窄/低行数终端下的降级行为：
+// 每一行都不得超过终端宽度，完整提示框的各行必须等宽（边框对齐）。
+func TestResizeHintLinesFitWidth(t *testing.T) {
+	for _, cols := range []int64{10, 20, 40, 49, 50, 60, 79} {
+		for _, rows := range []int64{2, 4, 15, 40} {
+			lines := resizeHintLines(cols, rows)
+			if len(lines) == 0 {
+				t.Fatalf("cols=%d rows=%d: expected hint lines", cols, rows)
+			}
+			for _, ln := range lines {
+				if w := core.VisibleWidth(ln); w > cols {
+					t.Errorf("cols=%d rows=%d: line width %d > cols: %q", cols, rows, w, ln)
+				}
+			}
+			if cols >= resizeHintMinCols && rows >= 4 {
+				w0 := core.VisibleWidth(lines[0])
+				for _, ln := range lines {
+					if w := core.VisibleWidth(ln); w != w0 {
+						t.Errorf("cols=%d rows=%d: box misaligned (%d != %d): %q", cols, rows, w, w0, ln)
+					}
+				}
+			}
+		}
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
@@ -51,6 +52,63 @@ func showUserError(s *tuiSession, se ErrorSeverity, format string, args ...any) 
 	label := severityLabel(se)
 	msg := fmt.Sprintf(format, args...)
 	s.app.PrintSystem(fmt.Sprintf("%s %s", label, msg))
+}
+
+// historyHasErrorSinceLastTurn 判断最近一轮之后是否已经展示过错误。
+// ChatApp 的 onAgentError 会把事件流中的错误写入 RoleError；运行失败返回后
+// cmd 层不应再重复同样的错误，但在事件流未覆盖的场景（初始化、包装层失败）
+// 仍需补充提示。
+func historyHasErrorSinceLastTurn(h *chat.ChatHistory) bool {
+	if h == nil {
+		return false
+	}
+	msgs := h.Messages()
+	for i := len(msgs) - 1; i >= 0; i-- {
+		switch msgs[i].Role {
+		case chat.RoleError:
+			return true
+		case chat.RoleUser, chat.RoleAssistant:
+			return false
+		}
+	}
+	return false
+}
+
+// replayRestoredHistory 把上一次会话中用户可见的消息回放到聊天记录。
+// system prompt 与原始 tool 结果属于内部状态，不进入回放；成功回放后
+// 追加一条来源提示，避免用户误以为是本轮输出。
+func (s *tuiSession) replayRestoredHistory(agent *agentcore.Agent) {
+	replayed := replayableMessages(agent.State().Messages())
+	for _, msg := range replayed {
+		switch msg.Role {
+		case agentcore.RoleUser:
+			s.app.History().Append(chat.ChatMessage{Role: chat.RoleUser, Text: msg.Content})
+		case agentcore.RoleAssistant:
+			s.app.History().Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: msg.Content})
+		}
+	}
+	if len(replayed) > 0 {
+		s.app.PrintSystem(fmt.Sprintf("已恢复上次会话（%d 条消息）", len(replayed)))
+	}
+}
+
+// replayableMessages 过滤持久化的 agent 消息，只保留用户可见的对话内容。
+//
+// system prompt 属于内部指令，回放会把整段提示词泄漏到界面；tool 结果可能
+// 是大段文件内容或中间推理，回放会淹没对话。空内容的 assistant 消息通常是
+// 纯工具调用轮次，也一并跳过。
+func replayableMessages(msgs []agentcore.Message) []agentcore.Message {
+	out := make([]agentcore.Message, 0, len(msgs))
+	for _, m := range msgs {
+		switch m.Role {
+		case agentcore.RoleUser, agentcore.RoleAssistant:
+			if strings.TrimSpace(m.Content) == "" {
+				continue
+			}
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // getCurrentAgent 返回当前 Agent 实例，线程安全。
@@ -196,20 +254,7 @@ func (s *tuiSession) initializeAgentAsync() {
 					log.Printf("[mady] agent: 恢复上次会话失败（以空状态继续）: %v", err)
 				}
 			} else {
-				// 成功恢复上次会话后，将历史消息回放到 ChatHistory，
-				// 使用户在重启后能看到之前的对话记录。
-				for _, msg := range newAgent.State().Messages() {
-					switch msg.Role {
-					case agentcore.RoleUser:
-						s.app.History().Append(chat.ChatMessage{Role: chat.RoleUser, Text: msg.Content})
-					case agentcore.RoleAssistant:
-						s.app.History().Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: msg.Content})
-					case agentcore.RoleSystem:
-						s.app.History().Append(chat.ChatMessage{Role: chat.RoleSystem, Text: msg.Content})
-					case agentcore.RoleTool:
-						s.app.History().Append(chat.ChatMessage{Role: chat.RoleTool, Text: msg.Content})
-					}
-				}
+				s.replayRestoredHistory(newAgent)
 			}
 			cancel()
 		}
@@ -281,7 +326,11 @@ func (s *tuiSession) submitInput(input string) {
 		}()
 
 		if _, err := agent.Run(runCtx, input); err != nil {
-			showUserError(s, RunFailure, "Agent 执行失败: %v", err)
+			// 运行期错误通常已由 ChatApp.onAgentError 写入聊天记录；
+			// 只有事件流没有覆盖它时才补充提示，避免同一次失败展示两遍。
+			if !historyHasErrorSinceLastTurn(s.app.History()) {
+				showUserError(s, RunFailure, "Agent 执行失败: %v", err)
+			}
 			return
 		}
 		if store == nil {

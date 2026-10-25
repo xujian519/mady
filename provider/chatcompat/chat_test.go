@@ -5,10 +5,27 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/xujian519/mady/agentcore"
 )
+
+// TestFormatErrorRedactsSecrets verifies that provider error text never
+// carries credential fragments to any downstream surface (TUI, server, ACP).
+func TestFormatErrorRedactsSecrets(t *testing.T) {
+	body := []byte(`{"error":{"type":"invalid_request_error","message":"Authentication Fails, Your api key: ****7c08 is invalid"}}`)
+	got := formatError(body)
+	if strings.Contains(got, "7c08") {
+		t.Fatalf("credential fragment leaked: %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED]") {
+		t.Fatalf("expected redaction marker: %q", got)
+	}
+	if !strings.Contains(got, "invalid_request_error") {
+		t.Fatalf("error type should be preserved: %q", got)
+	}
+}
 
 func TestProviderComplete_SendsStructuredOutputRequest(t *testing.T) {
 	var gotBody map[string]any

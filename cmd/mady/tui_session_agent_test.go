@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/tui/chat"
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/terminal"
@@ -149,4 +150,62 @@ func mustNewTransientStore() *SettingsStore {
 		panic(err)
 	}
 	return s
+}
+
+// TestReplayableMessages verifies that restored transcripts contain only
+// user-visible conversation turns: the system prompt and raw tool results
+// must not leak into the chat history.
+func TestReplayableMessages(t *testing.T) {
+	msgs := []agentcore.Message{
+		{Role: agentcore.RoleSystem, Content: "你是 Mady……【心理感知能力】"},
+		{Role: agentcore.RoleUser, Content: "介绍一下新颖性"},
+		{Role: agentcore.RoleAssistant, Content: "新颖性要求……"},
+		{Role: agentcore.RoleAssistant, Content: "", ToolCalls: []agentcore.ToolCall{{ID: "call-1", Name: "read_file"}}},
+		{Role: agentcore.RoleTool, Content: "超长的文件内容……", ToolCallID: "call-1"},
+		{Role: agentcore.RoleSystem, Content: "运行时注入的上下文"},
+	}
+
+	got := replayableMessages(msgs)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 replayable messages, got %d: %+v", len(got), got)
+	}
+	if got[0].Role != agentcore.RoleUser || got[0].Content != "介绍一下新颖性" {
+		t.Fatalf("first replayed message = %+v, want the user turn", got[0])
+	}
+	if got[1].Role != agentcore.RoleAssistant || got[1].Content != "新颖性要求……" {
+		t.Fatalf("second replayed message = %+v, want the assistant turn", got[1])
+	}
+	for _, m := range got {
+		if m.Role == agentcore.RoleSystem || m.Role == agentcore.RoleTool {
+			t.Fatalf("internal message leaked into replay: %+v", m)
+		}
+	}
+
+	if empty := replayableMessages(nil); len(empty) != 0 {
+		t.Fatalf("expected no messages for nil input, got %+v", empty)
+	}
+}
+
+// TestHistoryHasErrorSinceLastTurn verifies the cmd-layer dedupe: an error
+// already reported by the chat event stream in the current turn must not be
+// appended a second time.
+func TestHistoryHasErrorSinceLastTurn(t *testing.T) {
+	h := chat.NewChatHistory()
+	if historyHasErrorSinceLastTurn(h) {
+		t.Fatal("empty history must not report an error")
+	}
+	h.Append(chat.ChatMessage{Role: chat.RoleUser, Text: "问题"})
+	h.Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: "正常回复"})
+	if historyHasErrorSinceLastTurn(h) {
+		t.Fatal("a clean turn must not report an error")
+	}
+	h.Append(chat.ChatMessage{Role: chat.RoleUser, Text: "再问一次"})
+	h.Append(chat.ChatMessage{Role: chat.RoleError, Text: "provider boom"})
+	if !historyHasErrorSinceLastTurn(h) {
+		t.Fatal("an error after the current user turn should suppress the duplicate")
+	}
+	h.Append(chat.ChatMessage{Role: chat.RoleAssistant, Text: "恢复后的回复"})
+	if historyHasErrorSinceLastTurn(h) {
+		t.Fatal("an error before the latest assistant turn is stale")
+	}
 }

@@ -235,8 +235,9 @@ func TestRenderMessageExtraRoles(t *testing.T) {
 		if !strings.Contains(joined, "展开") {
 			t.Fatalf("collapsed assistant should show expand hint, got %q", joined)
 		}
-		if len(joined) > 250 {
-			t.Fatalf("collapsed first line should be truncated, len=%d", len(joined))
+		// 用可见宽度而不是字节长度：ANSI 样式序列不计入显示宽度。
+		if w := core.VisibleWidth(joined); w > 250 {
+			t.Fatalf("collapsed output should be truncated, visible width=%d", w)
 		}
 		// S1 回归：折叠态严格占 2 行（预览 + expand 提示），
 		// 禁止 WrapAnsi 软换行导致预览膨胀为多行，用户视觉上
@@ -390,5 +391,36 @@ func TestRenderAllWithStateSpliceFastPath(t *testing.T) {
 	}
 	if len(before) == 0 {
 		t.Fatal("setup: before render should not be empty")
+	}
+}
+
+// TestRoleErrorRendersPlainAndRedacts 锁定错误块的展示契约：
+// 1) 标识符不被 Markdown 吃掉；2) 密钥片段被脱敏；3) 超长错误被截断。
+func TestRoleErrorRendersPlainAndRedacts(t *testing.T) {
+	h := NewChatHistory()
+	h.Append(ChatMessage{
+		Role: RoleError,
+		Text: "provider_call failed: provider_stream; api key: ****7c08 is invalid; token sk-abcdef1234567890",
+	})
+	joined := core.StripAnsi(strings.Join(h.Render(120), "\n"))
+	for _, want := range []string{"provider_call", "provider_stream", "[REDACTED]"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("expected %q in rendered error, got %q", want, joined)
+		}
+	}
+	for _, leak := range []string{"7c08", "sk-abcdef1234567890"} {
+		if strings.Contains(joined, leak) {
+			t.Fatalf("secret fragment %q leaked into the transcript: %q", leak, joined)
+		}
+	}
+}
+
+func TestSanitizeErrorTextTruncatesLongInput(t *testing.T) {
+	got := sanitizeErrorText(strings.Repeat("错", 2000))
+	if n := len([]rune(got)); n > maxErrorDisplayRunes+40 {
+		t.Fatalf("truncated error still too long: %d runes", n)
+	}
+	if !strings.Contains(got, "完整内容见会话日志") {
+		t.Fatalf("missing truncation notice: %q", got)
 	}
 }

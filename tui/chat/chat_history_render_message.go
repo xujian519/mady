@@ -9,10 +9,27 @@ package chat
 import (
 	"strings"
 
+	"github.com/xujian519/mady/pkg/util"
 	"github.com/xujian519/mady/tui/component"
 	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
 )
+
+// maxErrorDisplayRunes caps a single error block. Provider errors nest the
+// same failure several times and can run for kilobytes; the transcript should
+// stay readable while the full text remains in the session log.
+const maxErrorDisplayRunes = 1200
+
+// sanitizeErrorText 在展示前对错误文本脱敏并截断。上游 401 响应可能回显
+// 密钥片段（如 "Your api key: ****7c08"），错误块不应把它们带到界面。
+func sanitizeErrorText(s string) string {
+	s = util.RedactSecrets(s)
+	runes := []rune(s)
+	if len(runes) > maxErrorDisplayRunes {
+		s = string(runes[:maxErrorDisplayRunes]) + "\n…（错误过长，完整内容见会话日志）"
+	}
+	return s
+}
 
 // renderMessageCachedWithCache is the cache-parameterized variant used during
 // lock-free snapshot rendering. It reads from and writes to the provided cache
@@ -227,7 +244,9 @@ func (h *ChatHistory) renderMessage(m ChatMessage, chatTheme ChatHistoryTheme, w
 			Collapsed: m.Collapsed,
 		}, tcTheme, width), nil
 	case RoleError:
-		return h.renderMarkdownRole(m.Text, width, chatTheme), nil
+		// 错误是诊断信息：按纯文本换行，避免 Markdown 吃掉标识符
+		// （provider_call → providercall）；展示前脱敏并截断。
+		return core.WrapAnsi(sanitizeErrorText(m.Text), width), nil
 	case RoleDivider:
 		return []string{""}, nil
 	default:

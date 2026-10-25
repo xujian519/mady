@@ -64,33 +64,44 @@ func (s *tuiSession) handleThemeCommand(trimmed string) {
 			s.app.PrintSystem("当前主题: " + s.themeName())
 			return
 		}
-		display, ok := applyThemeByName(name)
-		if !ok {
+		if !s.applyThemeSettings(name, s.app.PrintSystem) {
 			s.app.PrintSystem("未知主题: " + name + "。可用主题: " + strings.Join(theme.ThemeNames(), ", "))
-			return
-		}
-		s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
-		if err := s.store.Set(SettingKeyTheme, name, SettingsScopeGlobal); err != nil {
-			log.Printf("settings: persist theme: %v", err)
-		}
-		s.app.PrintSystem("已切换主题: " + display)
-
-		// Manage system appearance watcher.
-		if name == "auto" {
-			if s.cancelAutoWatch == nil {
-				s.cancelAutoWatch = theme.StartAutoThemeWatcher()
-				s.app.PrintSystem("已启用系统外观跟随 — macOS 切换深色/浅色时自动切换")
-			}
-		} else {
-			if s.cancelAutoWatch != nil {
-				s.cancelAutoWatch()
-				s.cancelAutoWatch = nil
-			}
 		}
 
 	default:
 		s.app.PrintSystem("当前主题: " + s.themeName())
 	}
+}
+
+// applyThemeSettings 应用主题并同步 History 主题、持久化设置与系统外观
+// watcher。announce 为 nil 时静默执行（启动路径），避免每次启动都把
+// “已切换主题”写入聊天记录。返回 false 表示主题名未知。
+func (s *tuiSession) applyThemeSettings(name string, announce func(string)) bool {
+	display, ok := applyThemeByName(name)
+	if !ok {
+		return false
+	}
+	s.app.History().SetTheme(chat.DefaultChatHistoryTheme())
+	if err := s.store.Set(SettingKeyTheme, name, SettingsScopeGlobal); err != nil {
+		log.Printf("settings: persist theme: %v", err)
+	}
+	if announce != nil {
+		announce("已切换主题: " + display)
+	}
+
+	// Manage system appearance watcher.
+	if name == "auto" {
+		if s.cancelAutoWatch == nil {
+			s.cancelAutoWatch = theme.StartAutoThemeWatcher()
+			if announce != nil {
+				announce("已启用系统外观跟随 — macOS 切换深色/浅色时自动切换")
+			}
+		}
+	} else if s.cancelAutoWatch != nil {
+		s.cancelAutoWatch()
+		s.cancelAutoWatch = nil
+	}
+	return true
 }
 
 // applyThemeByName 按名应用主题：先查主题注册表（mady-dark、tokyo-night 等），

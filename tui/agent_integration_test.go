@@ -2,22 +2,49 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/bootstrap/agentconfig"
+	"github.com/xujian519/mady/tui/agentadapter"
+	"github.com/xujian519/mady/tui/chat"
+	"github.com/xujian519/mady/tui/terminal"
 )
 
+// fakeStreamProvider 是一个离线 Provider：按 rune 逐个产出固定回复，
+// 让本测试不再依赖真实网络与 API Key（历史上它会读取环境里的失效 key，
+// 在 CI/本地稳定地 401 失败）。
+type fakeStreamProvider struct {
+	reply string
+}
+
+func (p *fakeStreamProvider) Complete(_ context.Context, _ *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+	return &agentcore.ProviderResponse{Content: p.reply, FinishReason: "stop"}, nil
+}
+
+func (p *fakeStreamProvider) Stream(ctx context.Context, _ *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
+	ch := make(chan agentcore.StreamDelta, len(p.reply)+1)
+	go func() {
+		defer close(ch)
+		for _, r := range p.reply {
+			select {
+			case <-ctx.Done():
+				return
+			case ch <- agentcore.StreamDelta{Content: string(r)}:
+			}
+		}
+		select {
+		case <-ctx.Done():
+		case ch <- agentcore.StreamDelta{FinishReason: "stop"}:
+		}
+	}()
+	return ch, nil
+}
+
 func TestAgentRunInTUISession(t *testing.T) {
-	// 直接探测 BuildProvider：当前 PROVIDER（默认 deepseek）没有可用 key 时
-	// 跳过，避免环境里只配置了其他 provider 的 key（如 KIMI_API_KEY）导致
-	// 跳过条件误判、测试误跑后失败。
-	provider, err := agentconfig.BuildProvider()
-	if err != nil {
-		t.Skipf("skipping integration test: %v", err)
-	}
-	model := agentconfig.DefaultModel()
+	provider := &fakeStreamProvider{reply: "hello"}
+	model := "test-model"
 
 	cfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{
@@ -108,5 +135,49 @@ func TestAgentRunInTUISession(t *testing.T) {
 	}
 	if !hasEnd {
 		t.Error("no 'end' or 'run_done' event received")
+	}
+}
+
+// TestAgentEventsReachChatHistory 是 TUI 层的端到端接线测试：agentcore 事件
+// 经 agentadapter 转换后，必须真正落到 ChatApp 的聊天记录里。此前的
+// TestAgentRunInTUISession 只验证了 agent 事件流本身，没有构造任何 TUI
+// 组件，无法发现映射表或订阅接线的断裂。
+func TestAgentEventsReachChatHistory(t *testing.T) {
+	vt := terminal.NewVirtualTerminal(100, 30)
+	app := NewTUI(vt, TUIOptions{})
+	host := &tuiAppHost{TUI: app}
+	chatApp := chat.NewChatAppWithHost(chat.ChatAppConfig{Context: context.Background()}, host)
+	chatApp.SetHost(host)
+
+	agent := agentcore.New(agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:      "e2e-agent",
+			Model:     "test-model",
+			Provider:  &fakeStreamProvider{reply: "hello from agent"},
+			Streaming: true,
+		},
+		SystemPrompt: "test",
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns:      2,
+			ExecutionMode: agentcore.ModeSerial,
+		},
+	})
+	defer agent.Close()
+	agentadapter.BindAgent(chatApp, agent)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := agent.Run(ctx, "hi"); err != nil {
+		t.Fatalf("agent.Run: %v", err)
+	}
+
+	var got strings.Builder
+	for _, m := range chatApp.History().Messages() {
+		if m.Role == chat.RoleAssistant {
+			got.WriteString(m.Text)
+		}
+	}
+	if !strings.Contains(got.String(), "hello from agent") {
+		t.Fatalf("assistant reply did not reach ChatHistory; messages=%+v", chatApp.History().Messages())
 	}
 }

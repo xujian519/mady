@@ -85,6 +85,7 @@ func (t *TUI) PushOverlay(o *Overlay) {
 		o.openAt = time.Now()
 	}
 	t.mu.Unlock()
+	t.invalidateFrameCache()
 	if o.Focus {
 		t.Focus(o.Content)
 	}
@@ -123,6 +124,7 @@ func (t *TUI) PopOverlay() *Overlay {
 	top := t.overlays[len(t.overlays)-1]
 	t.overlays = t.overlays[:len(t.overlays)-1]
 	t.mu.Unlock()
+	t.invalidateFrameCache()
 	if top.Focus {
 		t.Unfocus(top.Content)
 	}
@@ -140,6 +142,7 @@ func (t *TUI) RemoveOverlay(o *Overlay) bool {
 		if cur == o {
 			t.overlays = append(t.overlays[:i], t.overlays[i+1:]...)
 			t.mu.Unlock()
+			t.invalidateFrameCache()
 			if o.Focus {
 				t.Unfocus(o.Content)
 			}

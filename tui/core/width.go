@@ -173,6 +173,20 @@ func isWide(r rune) bool {
 // VisibleWidth returns the number of terminal cells a string occupies,
 // ignoring ANSI escape sequences and counting East-Asian wide runes as 2.
 func VisibleWidth(s string) int64 {
+	// Fast path: printable ASCII is exactly one cell per byte. Control bytes
+	// (including ESC, tab, newline, DEL) are zero-width or start escape
+	// sequences, so they must take the slow path.
+	ascii := true
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c < 0x20 || c >= 0x7F {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return int64(len(s))
+	}
+
 	var w int64
 	i := 0
 	for i < len(s) {

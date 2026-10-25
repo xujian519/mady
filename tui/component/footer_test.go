@@ -44,7 +44,7 @@ func TestFooterWidthFallback(t *testing.T) {
 		t.Fatalf("expected 1 line, got %d", len(lines))
 	}
 	// Fallback should show minimal shortcut.
-	if !strings.Contains(lines[0], "?") && !strings.Contains(lines[0], "help") {
+	if !strings.Contains(lines[0], "F1") && !strings.Contains(lines[0], "help") {
 		t.Fatalf("expected fallback hint in narrow footer, got %q", lines[0])
 	}
 }

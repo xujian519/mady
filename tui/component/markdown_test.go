@@ -286,7 +286,41 @@ func TestRenderInlineMathGuardDoesNotBreakDigitEmphasis(t *testing.T) {
 		{"*em*", "em"},
 	}
 	for _, c := range cases {
-		if got := renderInline(c.in, tm); got != c.want {
+		// 本测试只关心“哪些字符被保留”，样式由主题负责；断言前去掉 SGR，
+		// 否则每次配色调整都会误报。
+		if got := stripAnsiLocal(renderInline(c.in, tm)); got != c.want {
+			t.Errorf("renderInline(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestRenderInlineKeepsIntrawordUnderscores 锁定下划线强调的词边界规则：
+// 标识符内部的单下划线（snake_case / my_file.go）不得配对成斜体，
+// 合法的 _强调_ 与 __粗体__ 仍然生效（__init__ 按 CommonMark 渲染为粗体）。
+func TestRenderInlineKeepsIntrawordUnderscores(t *testing.T) {
+	tm := DefaultMarkdownTheme()
+
+	literal := []string{
+		"snake_case_name",
+		"my_file.go",
+		"a_b_c",
+		"provider_call temporary failure: provider_stream",
+		"path/to/some_file.json",
+	}
+	for _, in := range literal {
+		if got := stripAnsiLocal(renderInline(in, tm)); got != in {
+			t.Errorf("renderInline(%q) = %q, want literal", in, got)
+		}
+	}
+
+	emphasis := []struct{ in, want string }{
+		{"_em_", "em"},
+		{"中文_强调_中文", "中文强调中文"},
+		{"__strong__", "strong"},
+		{"__init__", "init"}, // CommonMark：dunder 渲染为粗体
+	}
+	for _, c := range emphasis {
+		if got := stripAnsiLocal(renderInline(c.in, tm)); got != c.want {
 			t.Errorf("renderInline(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}

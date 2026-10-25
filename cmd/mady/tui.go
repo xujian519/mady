@@ -203,7 +203,7 @@ func runTui(ctx context.Context) error {
 
 	var app *chat.ChatApp
 	app = tui.NewChatApp(chat.ChatAppConfig{
-		Title:                      fmt.Sprintf("mady · model=%s", model),
+		Title:                      chatHeaderTitle(s.providerName, s.normalModel),
 		ShowTurns:                  true,
 		SuppressHandoffToolDisplay: true,
 		AltScreen:                  true,
@@ -245,8 +245,9 @@ func runTui(ctx context.Context) error {
 	s.app = app
 	// Agent 在 app.Start() 之后创建并绑定，避免阻塞首帧渲染。
 
-	// 现在 s.app 已就绪，通过 handler 应用持久化主题（同时更新 History 主题 + 状态栏）
-	s.handleThemeCommand("/theme " + s.store.Get(SettingKeyTheme))
+	// 现在 s.app 已就绪，静默应用持久化主题（更新 History 主题 + 外观 watcher）。
+	// 启动路径不输出“已切换主题”，避免每次启动都往聊天记录写一条提示。
+	s.applyThemeSettings(s.store.Get(SettingKeyTheme), nil)
 
 	// Enable visual scrollbar on the chat history for better content navigation.
 	app.History().SetScrollbarEnabled(true)
@@ -341,6 +342,20 @@ func applyStoredTheme(s *tuiSession) {
 		theme.ApplyThemeByName("auto")
 	} else {
 		theme.SetSemanticTheme(theme.DefaultMadyDark(), theme.DetectColorMode())
+	}
+}
+
+// chatHeaderTitle 构造聊天区标题。模型为空时（例如 generic provider 没有
+// 默认模型、或持久化模型与 provider 不匹配）回退到 provider 名称，避免
+// 出现 “mady · model=” 的悬空后缀。
+func chatHeaderTitle(providerName, model string) string {
+	switch {
+	case model != "":
+		return fmt.Sprintf("mady · model=%s", model)
+	case providerName != "":
+		return fmt.Sprintf("mady · %s", providerName)
+	default:
+		return "mady"
 	}
 }
 

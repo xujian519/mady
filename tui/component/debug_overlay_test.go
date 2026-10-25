@@ -138,7 +138,8 @@ func TestDebugOverlayRenderWithData(t *testing.T) {
 	if len(lines) == 0 {
 		t.Fatal("expected non-empty render")
 	}
-	joined := strings.Join(lines, "\n")
+	// 断言可见文本，不去匹配被样式拆分后的原始字节。
+	joined := core.StripAnsi(strings.Join(lines, "\n"))
 	for _, want := range []string{"Debug Overlay", "FPS:", "Queue:", "Msgs:", "State:", "chat", "Heap:", "Events: (4/4)"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("expected %q in render, got %q", want, joined)
@@ -153,7 +154,7 @@ func TestDebugOverlayRenderWithData(t *testing.T) {
 func TestDebugOverlayRenderNoEventsAndNILState(t *testing.T) {
 	d := NewDebugOverlay(&mockDebugTUI{}, nil) // nil app source -> State N/A
 	lines := d.Render(50)
-	joined := strings.Join(lines, "\n")
+	joined := core.StripAnsi(strings.Join(lines, "\n"))
 	if !strings.Contains(joined, "(none)") {
 		t.Fatalf("expected (none) events, got %q", joined)
 	}
@@ -187,7 +188,7 @@ func TestDebugOverlayRenderScrollClamp(t *testing.T) {
 	d.Update(debugTick{}) // refresh cached events
 	d.ScrollBy(99)        // offset beyond events -> clamped to last event in render
 	lines := d.Render(50)
-	joined := strings.Join(lines, "\n")
+	joined := core.StripAnsi(strings.Join(lines, "\n"))
 	if !strings.Contains(joined, "Events: (1/3)") || !strings.Contains(joined, "▸ c") {
 		t.Fatalf("expected clamped window showing last event, got %q", joined)
 	}
