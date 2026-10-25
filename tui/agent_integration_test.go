@@ -2,10 +2,14 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/tui/agentadapter"
+	"github.com/xujian519/mady/tui/chat"
+	"github.com/xujian519/mady/tui/terminal"
 )
 
 // fakeStreamProvider 是一个离线 Provider：按 rune 逐个产出固定回复，
@@ -131,5 +135,49 @@ func TestAgentRunInTUISession(t *testing.T) {
 	}
 	if !hasEnd {
 		t.Error("no 'end' or 'run_done' event received")
+	}
+}
+
+// TestAgentEventsReachChatHistory 是 TUI 层的端到端接线测试：agentcore 事件
+// 经 agentadapter 转换后，必须真正落到 ChatApp 的聊天记录里。此前的
+// TestAgentRunInTUISession 只验证了 agent 事件流本身，没有构造任何 TUI
+// 组件，无法发现映射表或订阅接线的断裂。
+func TestAgentEventsReachChatHistory(t *testing.T) {
+	vt := terminal.NewVirtualTerminal(100, 30)
+	app := NewTUI(vt, TUIOptions{})
+	host := &tuiAppHost{TUI: app}
+	chatApp := chat.NewChatAppWithHost(chat.ChatAppConfig{Context: context.Background()}, host)
+	chatApp.SetHost(host)
+
+	agent := agentcore.New(agentcore.Config{
+		ModelConfig: agentcore.ModelConfig{
+			Name:      "e2e-agent",
+			Model:     "test-model",
+			Provider:  &fakeStreamProvider{reply: "hello from agent"},
+			Streaming: true,
+		},
+		SystemPrompt: "test",
+		ExecutionConfig: agentcore.ExecutionConfig{
+			MaxTurns:      2,
+			ExecutionMode: agentcore.ModeSerial,
+		},
+	})
+	defer agent.Close()
+	agentadapter.BindAgent(chatApp, agent)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := agent.Run(ctx, "hi"); err != nil {
+		t.Fatalf("agent.Run: %v", err)
+	}
+
+	var got strings.Builder
+	for _, m := range chatApp.History().Messages() {
+		if m.Role == chat.RoleAssistant {
+			got.WriteString(m.Text)
+		}
+	}
+	if !strings.Contains(got.String(), "hello from agent") {
+		t.Fatalf("assistant reply did not reach ChatHistory; messages=%+v", chatApp.History().Messages())
 	}
 }
