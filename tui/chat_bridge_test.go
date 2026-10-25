@@ -32,6 +32,30 @@ func (o *bridgeTestOverlayRef) OverlayHeightPct() int          { return 0 }
 
 var _ chat.OverlayRef = (*bridgeTestOverlayRef)(nil)
 
+// TestTuiAppHostCentersOverlayByDefault 验证 chat 层 overlay 默认水平/垂直
+// 居中。历史实现把 PercentX/Y=50 当成“左上角位置”，再被 clamp 到视口右下，
+// 导致所有面板贴右下角。
+func TestTuiAppHostCentersOverlayByDefault(t *testing.T) {
+	app := NewTUI(terminal.NewVirtualTerminal(120, 40), TUIOptions{})
+	defer app.Stop()
+	host := &tuiAppHost{TUI: app}
+
+	host.PushOverlay(&bridgeTestOverlayRef{content: bridgeTestComponent{}})
+	ovs := app.Overlays()
+	if len(ovs) != 1 {
+		t.Fatalf("expected 1 overlay, got %d", len(ovs))
+	}
+	if ovs[0].Anchor != AnchorCenter {
+		t.Fatalf("default chat overlay anchor = %v, want AnchorCenter", ovs[0].Anchor)
+	}
+
+	app.renderFrame()
+	// 默认 70%x70%：120x40 → 84x28，居中后左上角为 (18, 6)。
+	if ovs[0].renderedCol != 18 || ovs[0].renderedRow != 6 {
+		t.Fatalf("overlay origin = (row=%d,col=%d), want (6,18)", ovs[0].renderedRow, ovs[0].renderedCol)
+	}
+}
+
 func TestTuiAppHostRemovesOverlayByRef(t *testing.T) {
 	tui := NewTUI(terminal.NewVirtualTerminal(80, 24), TUIOptions{})
 	host := &tuiAppHost{TUI: tui}
