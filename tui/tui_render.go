@@ -350,63 +350,80 @@ func (t *TUI) applyCursorState(buf *bytes.Buffer, cursorRow, cursorCol int64) {
 // may have fewer than 24 rows.
 const minTermCols int64 = 80
 
+// resizeHintMinCols 是画完整提示框所需的最小宽度。更窄或行数不足时
+// 退化为单行提示，避免提示框自身折行、错位——那正是它要避免的情况。
+const resizeHintMinCols int64 = 50
+
+// resizeHintLines 返回“终端过窄”提示的各行，保证每行可见宽度 ≤ cols。
+// 宽度按显示单元格计算（CJK 为 2 列），而不是字节长度。
+func resizeHintLines(cols, rows int64) []string {
+	if cols <= 0 {
+		cols = minTermCols
+	}
+	hintCN := "终端窗口太小，请放大以继续使用"
+	hintEN := fmt.Sprintf("Terminal too narrow · min %d · current %d", minTermCols, cols)
+	if cols < resizeHintMinCols || rows < 4 {
+		return []string{core.TruncateToWidth(hintCN, cols, "…")}
+	}
+
+	inner := core.VisibleWidth(hintCN)
+	if w := core.VisibleWidth(hintEN); w > inner {
+		inner = w
+	}
+	boxWidth := inner + 6 // ║ + 2 空格 + inner + 2 空格 + ║
+	if boxWidth < resizeHintMinCols {
+		boxWidth = resizeHintMinCols
+	}
+	if boxWidth > cols {
+		boxWidth = cols
+	}
+	inner = boxWidth - 6
+
+	pad := func(s string) string {
+		if n := inner - core.VisibleWidth(s); n > 0 {
+			return s + strings.Repeat(" ", int(n))
+		}
+		return core.TruncateToWidth(s, inner, "…")
+	}
+	border := strings.Repeat("═", int(boxWidth-2))
+	return []string{
+		"╔" + border + "╗",
+		"║  " + pad(hintCN) + "  ║",
+		"║  " + pad(hintEN) + "  ║",
+		"╚" + border + "╝",
+	}
+}
+
 func (t *TUI) renderResizeHint(cols, rows int64) {
+	lines := resizeHintLines(cols, rows)
+
 	var buf bytes.Buffer
 	buf.WriteString("\x1b[?25l") // hide cursor
 	buf.WriteString("\x1b[H")    // cursor home
 	buf.WriteString("\x1b[J")    // clear below
+	// 关闭自动换行：提示框宽度可能正好等于终端宽度，最后一列若触发
+	// 自动换行会把右边框折到下一行（40/60 列下曾出现）。
+	buf.WriteString("\x1b[?7l")
 
-	// Build the hint message.
-	hint := fmt.Sprintf("Terminal too narrow  |  Min: %d cols  |  Current: %d cols",
-		minTermCols, cols)
-	hintCN := "终端窗口太小，请放大以继续使用"
-
-	// Use a simple box. Box width is derived from the visible (display-cell)
-	// width, not byte length — CJK text is multi-byte and would misalign the
-	// right border if padded with %-*s. The +6 accounts for the two box
-	// borders plus the 2-space padding on each side (║ + 2 + inner + 2 + ║),
-	// so padLine fills the content to exactly inner and all rows line up
-	// with the border rows.
-	boxWidth := core.VisibleWidth(hint) + 6
-	if boxWidth < 50 {
-		boxWidth = 50
-	}
-	inner := boxWidth - 6 // 扣除 "║" + 2 空格 + 2 空格 + "║" 共 6 列固定开销
-	padLine := func(s string) string {
-		if pad := inner - core.VisibleWidth(s); pad > 0 {
-			return s + strings.Repeat(" ", int(pad))
-		}
-		return s
-	}
-	topY := rows / 2
-	textY := topY + 1
-	hintCNY := textY + 1
-	botY := hintCNY + 1
-	leftX := (cols - boxWidth) / 2
+	lineW := core.VisibleWidth(lines[0])
+	leftX := (cols - lineW) / 2
 	if leftX < 0 {
 		leftX = 0
 	}
-
-	// Top border
-	fmt.Fprintf(&buf, "\x1b[%d;%dH╔", topY+1, leftX+1)
-	for i := int64(2); i < boxWidth; i++ {
-		buf.WriteString("═")
+	topY := rows/2 - int64(len(lines))/2
+	if topY+int64(len(lines)) > rows {
+		topY = rows - int64(len(lines))
 	}
-	buf.WriteString("╗")
-
-	// Chinese hint
-	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %s  ║", hintCNY+1, leftX+1, padLine(hintCN))
-	// English hint
-	fmt.Fprintf(&buf, "\x1b[%d;%dH║  %s  ║", textY+1, leftX+1, padLine(hint))
-	// Bottom border
-	fmt.Fprintf(&buf, "\x1b[%d;%dH╚", botY+1, leftX+1)
-	for i := int64(2); i < boxWidth; i++ {
-		buf.WriteString("═")
+	if topY < 0 {
+		topY = 0
 	}
-	buf.WriteString("╝")
+	for i, ln := range lines {
+		fmt.Fprintf(&buf, "\x1b[%d;%dH%s", topY+int64(i)+1, leftX+1, ln)
+	}
 
+	buf.WriteString("\x1b[?7h") // 恢复自动换行
 	// Move cursor out of the way and show it.
-	fmt.Fprintf(&buf, "\x1b[%d;1H", botY+2)
+	fmt.Fprintf(&buf, "\x1b[%d;1H", topY+int64(len(lines))+1)
 	buf.WriteString("\x1b[?25h") // show cursor
 
 	if _, err := t.term.Write(buf.Bytes()); err != nil {
