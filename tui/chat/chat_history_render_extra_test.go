@@ -235,8 +235,9 @@ func TestRenderMessageExtraRoles(t *testing.T) {
 		if !strings.Contains(joined, "展开") {
 			t.Fatalf("collapsed assistant should show expand hint, got %q", joined)
 		}
-		if len(joined) > 250 {
-			t.Fatalf("collapsed first line should be truncated, len=%d", len(joined))
+		// 用可见宽度而不是字节长度：ANSI 样式序列不计入显示宽度。
+		if w := core.VisibleWidth(joined); w > 250 {
+			t.Fatalf("collapsed output should be truncated, visible width=%d", w)
 		}
 		// S1 回归：折叠态严格占 2 行（预览 + expand 提示），
 		// 禁止 WrapAnsi 软换行导致预览膨胀为多行，用户视觉上

@@ -6,18 +6,41 @@ import (
 	"time"
 
 	"github.com/xujian519/mady/agentcore"
-	"github.com/xujian519/mady/bootstrap/agentconfig"
 )
 
+// fakeStreamProvider 是一个离线 Provider：按 rune 逐个产出固定回复，
+// 让本测试不再依赖真实网络与 API Key（历史上它会读取环境里的失效 key，
+// 在 CI/本地稳定地 401 失败）。
+type fakeStreamProvider struct {
+	reply string
+}
+
+func (p *fakeStreamProvider) Complete(_ context.Context, _ *agentcore.ProviderRequest) (*agentcore.ProviderResponse, error) {
+	return &agentcore.ProviderResponse{Content: p.reply, FinishReason: "stop"}, nil
+}
+
+func (p *fakeStreamProvider) Stream(ctx context.Context, _ *agentcore.ProviderRequest) (<-chan agentcore.StreamDelta, error) {
+	ch := make(chan agentcore.StreamDelta, len(p.reply)+1)
+	go func() {
+		defer close(ch)
+		for _, r := range p.reply {
+			select {
+			case <-ctx.Done():
+				return
+			case ch <- agentcore.StreamDelta{Content: string(r)}:
+			}
+		}
+		select {
+		case <-ctx.Done():
+		case ch <- agentcore.StreamDelta{FinishReason: "stop"}:
+		}
+	}()
+	return ch, nil
+}
+
 func TestAgentRunInTUISession(t *testing.T) {
-	// 直接探测 BuildProvider：当前 PROVIDER（默认 deepseek）没有可用 key 时
-	// 跳过，避免环境里只配置了其他 provider 的 key（如 KIMI_API_KEY）导致
-	// 跳过条件误判、测试误跑后失败。
-	provider, err := agentconfig.BuildProvider()
-	if err != nil {
-		t.Skipf("skipping integration test: %v", err)
-	}
-	model := agentconfig.DefaultModel()
+	provider := &fakeStreamProvider{reply: "hello"}
+	model := "test-model"
 
 	cfg := agentcore.Config{
 		ModelConfig: agentcore.ModelConfig{

@@ -286,7 +286,9 @@ func TestRenderInlineMathGuardDoesNotBreakDigitEmphasis(t *testing.T) {
 		{"*em*", "em"},
 	}
 	for _, c := range cases {
-		if got := renderInline(c.in, tm); got != c.want {
+		// 本测试只关心“哪些字符被保留”，样式由主题负责；断言前去掉 SGR，
+		// 否则每次配色调整都会误报。
+		if got := stripAnsiLocal(renderInline(c.in, tm)); got != c.want {
 			t.Errorf("renderInline(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
