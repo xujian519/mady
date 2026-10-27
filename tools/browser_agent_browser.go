@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/remote"
 )
 
 type AgentBrowserManager struct {
@@ -341,7 +342,7 @@ func (m *AgentBrowserManager) CreateChromeDPContext(taskID string) (context.Cont
 		return nil, nil, fmt.Errorf("CDP URL not available for task %s", taskID)
 	}
 
-	allocCtx, allocCancel := chromedp.NewRemoteAllocator(context.Background(), cdpURL)
+	allocCtx, allocCancel := remote.NewAllocator(context.Background(), cdpURL)
 	browserCtx, cancel := chromedp.NewContext(allocCtx)
 	cancelFn := func() {
 		cancel()

@@ -236,9 +236,8 @@ func getXPathFromRef(ctx context.Context, session *BrowserSession, ref string) (
 		return xpath, nil
 	}
 	// Fallback: try window.__covoRefMap in the browser.
-	var jsXpath string
 	js := fmt.Sprintf(`window.__covoRefMap && window.__covoRefMap[%q] || null`, ref)
-	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &jsXpath)); err == nil && jsXpath != "" {
+	if jsXpath, err := chromedp.Run(ctx, chromedp.Evaluate[string](js)); err == nil && jsXpath != "" {
 		session.refMapper.Set(ref, jsXpath)
 		return jsXpath, nil
 	}

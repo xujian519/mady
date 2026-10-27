@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -10,8 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/page"
-	"github.com/chromedp/chromedp"
 )
 
 type CDPRecorder struct {
@@ -68,24 +67,26 @@ func (r *CDPRecorder) StartRecording(ctx context.Context, browserCtx context.Con
 }
 
 func (r *CDPRecorder) captureFrames(ctx context.Context) {
-	chromedp.ListenTarget(ctx, func(ev any) {
-		// NOTE: do not read r.isRecording here without the lock — StopRecording
-		// flips it under r.mu. The locked re-check below is the single source
-		// of truth, so this callback stays race-free.
-		if e, ok := ev.(*page.EventScreencastFrame); ok {
+	session := targetSession(ctx)
+	if session == nil {
+		return
+	}
+
+	go func() {
+		for e, err := range cdp.Events(ctx, session, page.ScreencastFrame) {
+			if err != nil {
+				return
+			}
+			// NOTE: do not read r.isRecording here without the lock — StopRecording
+			// flips it under r.mu. The locked re-check below is the single source
+			// of truth, so this loop stays race-free.
 			r.mu.Lock()
 			if !r.isRecording {
 				r.mu.Unlock()
 				return
 			}
 
-			data, err := base64.StdEncoding.DecodeString(e.Data)
-			if err != nil {
-				r.mu.Unlock()
-				return
-			}
-
-			if _, err := r.webmFile.Write(data); err != nil {
+			if _, err := r.webmFile.Write(e.Data); err != nil {
 				r.mu.Unlock()
 				return
 			}
@@ -93,23 +94,23 @@ func (r *CDPRecorder) captureFrames(ctx context.Context) {
 			r.frameCount++
 			r.mu.Unlock()
 
-			if err := page.ScreencastFrameAck(e.SessionID).Do(ctx); err != nil {
+			if _, err := cdp.Call(ctx, session, page.ScreencastFrameAck, page.ScreencastFrameAckParams{SessionID: e.SessionID}); err != nil {
 				return
 			}
 		}
-	})
+	}()
 
-	if err := page.StartScreencast().
-		WithFormat(page.ScreencastFormatJpeg).
-		WithQuality(60).
-		WithEveryNthFrame(1).
-		Do(ctx); err != nil {
+	if _, err := cdp.Call(ctx, session, page.StartScreencast, page.StartScreencastParams{
+		Format:        page.StartScreencastFormatJpeg,
+		Quality:       new(int64(60)),
+		EveryNthFrame: 1,
+	}); err != nil {
 		return
 	}
 
 	<-ctx.Done()
 
-	page.StopScreencast().Do(ctx) //nolint:gosec // G104: cleanup-only; best-effort stop
+	_, _ = cdp.Call(context.WithoutCancel(ctx), session, page.StopScreencast, cdp.Empty{}) //nolint:gosec // G104: cleanup-only; best-effort stop
 }
 
 func (r *CDPRecorder) StopRecording() (string, error) {

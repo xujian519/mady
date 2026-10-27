@@ -45,10 +45,10 @@ func handleScreenshot(ctx context.Context, input browserToolInput, cfg *BrowserT
 		}
 	case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-		var buf []byte
-		if err := chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot(&buf)); err != nil {
+		buf, ssErr := chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot())
+		if ssErr != nil {
 			cancel()
-			return nil, fmt.Errorf("screenshot failed: %w", err)
+			return nil, fmt.Errorf("screenshot failed: %w", ssErr)
 		}
 		cancel()
 		sizeBytes = len(buf)
@@ -88,7 +88,8 @@ func handleVision(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 		screenshotData, err = session.camofoxClient.Screenshot(ctx, session.sessionID)
 	case BackendLightpanda, BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-		if err := chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot(&screenshotData)); err != nil {
+		screenshotData, err = chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot())
+		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("screenshot failed: %w", err)
 		}
@@ -182,8 +183,8 @@ func handleGetImages(ctx context.Context, input browserToolInput, cfg *BrowserTo
 })();
 `
 
-	var resultJSON string
-	if err := chromedp.Run(timeoutCtx, chromedp.Evaluate(getImagesJS, &resultJSON)); err != nil {
+	resultJSON, err := chromedp.Run(timeoutCtx, chromedp.Evaluate[string](getImagesJS))
+	if err != nil {
 		return nil, fmt.Errorf("get_images failed: %w", err)
 	}
 

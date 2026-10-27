@@ -275,8 +275,8 @@ func GeneratePageSnapshot(ctx context.Context, full bool, refMapper *RefMapper, 
 	}
 
 	script := strings.Replace(jsSnapshotScript, "__SHOW_ALL__", fmt.Sprintf("%t", full), 1)
-	var resultJSON string
-	if err := chromedp.Run(ctx, chromedp.Evaluate(script, &resultJSON)); err != nil {
+	resultJSON, err := chromedp.Run(ctx, chromedp.Evaluate[string](script))
+	if err != nil {
 		return "", fmt.Errorf("failed to generate snapshot: %w", err)
 	}
 
@@ -300,8 +300,8 @@ func GeneratePageSnapshot(ctx context.Context, full bool, refMapper *RefMapper, 
 }
 
 func extractRefMapFromJS(ctx context.Context) (map[string]string, error) {
-	var resultJSON string
-	if err := chromedp.Run(ctx, chromedp.Evaluate(jsRefMapOnlyScript, &resultJSON)); err != nil {
+	resultJSON, err := chromedp.Run(ctx, chromedp.Evaluate[string](jsRefMapOnlyScript))
+	if err != nil {
 		return nil, err
 	}
 	var refMap map[string]string
@@ -374,10 +374,11 @@ func truncateString(s string, maxLen int) string {
 }
 
 func generateAriaSnapshot(ctx context.Context) (string, error) { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
-	nodes, err := accessibility.GetFullAXTree().Do(ctx)
+	axRes, err := chromedp.Call(ctx, accessibility.GetFullAXTree, accessibility.GetFullAXTreeParams{})
 	if err != nil {
 		return "", fmt.Errorf("aria snapshot failed: %w", err)
 	}
+	nodes := axRes.Nodes
 
 	childMap := make(map[accessibility.NodeID][]*accessibility.Node)
 	var roots []*accessibility.Node

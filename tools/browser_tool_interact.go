@@ -54,7 +54,7 @@ func handleClick(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 			return nil, xErr
 		}
 
-		if cErr := chromedp.Run(timeoutCtx, chromedp.Click(xpath, chromedp.BySearch)); cErr != nil {
+		if cErr := chromedp.Do(timeoutCtx, chromedp.Click(chromedp.Search(xpath))); cErr != nil {
 			return nil, fmt.Errorf("click failed for %s: %w", ref, cErr)
 		}
 
@@ -121,9 +121,9 @@ func handleType(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 			return nil, xErr
 		}
 
-		if cErr := chromedp.Run(timeoutCtx,
-			chromedp.Clear(xpath, chromedp.BySearch),
-			chromedp.SendKeys(xpath, input.Text, chromedp.BySearch),
+		if cErr := chromedp.Do(timeoutCtx,
+			chromedp.Clear(chromedp.Search(xpath)),
+			chromedp.SendKeys(chromedp.Search(xpath), input.Text),
 		); cErr != nil {
 			return nil, fmt.Errorf("type failed for %s: %w", ref, cErr)
 		}
@@ -184,8 +184,7 @@ func handleScroll(ctx context.Context, input browserToolInput, cfg *BrowserToolC
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 		defer cancel()
 
-		var res any
-		if cErr := chromedp.Run(timeoutCtx, chromedp.Evaluate(script, &res)); cErr != nil {
+		if cErr := chromedp.Do(timeoutCtx, chromedp.Evaluate[chromedp.Void](script)); cErr != nil {
 			return nil, fmt.Errorf("scroll failed: %w", cErr)
 		}
 
@@ -241,7 +240,7 @@ func handlePress(ctx context.Context, input browserToolInput, cfg *BrowserToolCo
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 		defer cancel()
 
-		if cErr := chromedp.Run(timeoutCtx, chromedp.KeyEvent(input.Key)); cErr != nil {
+		if cErr := chromedp.Do(timeoutCtx, chromedp.KeyEvent(input.Key)); cErr != nil {
 			return nil, fmt.Errorf("key press failed: %w", cErr)
 		}
 
