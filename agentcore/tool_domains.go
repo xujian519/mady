@@ -98,8 +98,10 @@ var ToolDomains = map[string]string{
 	"reexamination":       "council",
 	"design_invalidation": "council",
 
-	// ── 附图生成 (figure) ──
-	"figure_generate": "figure",
+	// ── 附图生成与交付 (figure) ──
+	"figure_generate":    "figure",
+	"figure_submission":  "figure",
+	"figure_consistency": "figure",
 
 	// ── 评估 (evaluation) ──
 	"patent_eval":          "evaluation",

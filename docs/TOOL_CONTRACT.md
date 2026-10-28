@@ -75,6 +75,8 @@
 | legal_knowledge_search | read | `query`, `scope`, `level`, `as_of` | 法规/司法解释/裁判案例/指导性案例四类检索 |
 | legal_knowledge_install | write | `source`, `output`, `no_fts` | 安装本地法律知识库（只读打开源库） |
 | figure_generate | write | `kind`, `output`, `steps`/`blocks`/`nodes`/`states`, `template` | 构建专利附图 DOT 并渲染 SVG/PNG/PDF |
+| figure_submission | write | `drawing`, `output`, `office`, `figure_number`, `sheet_index` | 按法域（cnipa/pct/uspto）落版到 A4 附图页，图号在图形正下方、页码在版心底部 |
+| figure_consistency | read | `figures`, `text`, `abstract_figure` | 跨图核验图号连续性、标记名称冲突与文本引用缺标 |
 
 ## 证据判断工具
 

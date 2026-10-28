@@ -34,9 +34,11 @@ func SetupLegalKnowledgeExtension(ext agentcore.Extension) {
 	globalLegalKnowledgeExt = ext
 }
 
-// injectFigureTool 追加附图生成工具（F1：结构化 DOT 构建 + Graphviz 渲染）。
+// injectFigureTool 追加附图工具组（生成 / 落版 / 跨图核验）。
 // 产物路径限定在项目目录（缺省为工作区）内；工作目录都未配置时不注入。
+// 跨图核验只读、不依赖工作目录，因此始终注入。
 func injectFigureTool(cfg *agentcore.Config) {
+	cfg.Tools = append(cfg.Tools, figuregenerate.NewConsistencyTool())
 	workDir := cfg.ProjectDir
 	if workDir == "" {
 		workDir = cfg.WorkspaceDir
@@ -44,7 +46,8 @@ func injectFigureTool(cfg *agentcore.Config) {
 	if workDir == "" {
 		return
 	}
-	cfg.Tools = append(cfg.Tools, figuregenerate.NewTool(figuregenerate.ToolConfig{WorkingDir: workDir}))
+	figureCfg := figuregenerate.ToolConfig{WorkingDir: workDir}
+	cfg.Tools = append(cfg.Tools, figuregenerate.NewTool(figureCfg), figuregenerate.NewSubmissionTool(figureCfg))
 }
 
 func injectDomainSharedExtensions(cfg *agentcore.Config) {
