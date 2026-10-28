@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-10-28T19:19:00+08:00",
-  "total": 474,
+  "updated": "2026-10-28T19:22:16+08:00",
+  "total": 475,
   "entries": [
     {
       "date": "2026-10-28",
@@ -44,12 +44,12 @@
       "line": 72
     },
     {
-      "date": "2026-10-25",
-      "type": "fix",
-      "scope": "tui",
-      "title": "Markdown 保留下划线标识符",
-      "file": "2026-10-25.md",
-      "line": 79
+      "date": "2026-10-28",
+      "type": "feat",
+      "scope": "domains",
+      "title": "期限增强：推定送达、节假日顺延与申请费择先适用",
+      "file": "2026-10-28.md",
+      "line": 89
     },
     {
       "date": "2026-10-25",
@@ -180,12 +180,12 @@
       "line": 63
     },
     {
-      "date": "2026-10-22",
+      "date": "2026-10-25",
       "type": "fix",
-      "scope": "disclosure",
-      "title": "逐特征评估强制回填请求特征 ID",
-      "file": "2026-10-22.md",
-      "line": 29
+      "scope": "tui",
+      "title": "Markdown 保留下划线标识符",
+      "file": "2026-10-25.md",
+      "line": 79
     },
     {
       "date": "2026-10-22",
@@ -212,12 +212,12 @@
       "line": 15
     },
     {
-      "date": "2026-10-21",
-      "type": "refactor",
-      "scope": "retrieval",
-      "title": "M18 精炼：修正失实文档与不可达代码",
-      "file": "2026-10-21.md",
-      "line": 163
+      "date": "2026-10-22",
+      "type": "fix",
+      "scope": "disclosure",
+      "title": "逐特征评估强制回填请求特征 ID",
+      "file": "2026-10-22.md",
+      "line": 29
     },
     {
       "date": "2026-10-21",
@@ -332,12 +332,12 @@
       "line": 149
     },
     {
-      "date": "2026-10-18",
+      "date": "2026-10-21",
       "type": "refactor",
-      "scope": "domains",
-      "title": "DUP-DEL：删除 audit 扩展副本、style 实现归并到 domains/config",
-      "file": "2026-10-18.md",
-      "line": 55
+      "scope": "retrieval",
+      "title": "M18 精炼：修正失实文档与不可达代码",
+      "file": "2026-10-21.md",
+      "line": 163
     },
     {
       "date": "2026-10-18",
@@ -354,6 +354,14 @@
       "title": "P0 修复：SQLite 时间列格式统一、审计参数扫描越界、工具入参静默吞错",
       "file": "2026-10-18.md",
       "line": 20
+    },
+    {
+      "date": "2026-10-18",
+      "type": "refactor",
+      "scope": "domains",
+      "title": "DUP-DEL：删除 audit 扩展副本、style 实现归并到 domains/config",
+      "file": "2026-10-18.md",
+      "line": 55
     },
     {
       "date": "2026-09-14",
@@ -378,14 +386,6 @@
       "title": "M13 日卡：domains/rules + reasoning 审阅精炼（保守档）",
       "file": "2026-09-06.md",
       "line": 3
-    },
-    {
-      "date": "2026-09-01",
-      "type": "chore",
-      "scope": "ci",
-      "title": "commitlint 禁用 body 行长限制（修 dependabot PR 必红问题）",
-      "file": "2026-09-01.md",
-      "line": 76
     },
     {
       "date": "2026-09-01",
@@ -428,12 +428,12 @@
       "line": 63
     },
     {
-      "date": "2026-08-28",
-      "type": "feat",
-      "scope": "permission",
-      "title": "单调拒绝层（monotonic deny）：凌驾于 allow 配置之上的安全底线",
-      "file": "2026-08-28.md",
-      "line": 134
+      "date": "2026-09-01",
+      "type": "chore",
+      "scope": "ci",
+      "title": "commitlint 禁用 body 行长限制（修 dependabot PR 必红问题）",
+      "file": "2026-09-01.md",
+      "line": 76
     },
     {
       "date": "2026-08-28",
@@ -580,12 +580,12 @@
       "line": 128
     },
     {
-      "date": "2026-08-27",
-      "type": "refactor",
-      "scope": "session",
-      "title": "为静默吞错添加意图注释",
-      "file": "2026-08-27.md",
-      "line": 3
+      "date": "2026-08-28",
+      "type": "feat",
+      "scope": "permission",
+      "title": "单调拒绝层（monotonic deny）：凌驾于 allow 配置之上的安全底线",
+      "file": "2026-08-28.md",
+      "line": 134
     },
     {
       "date": "2026-08-27",
@@ -596,12 +596,12 @@
       "line": 15
     },
     {
-      "date": "2026-08-26",
-      "type": "feat",
-      "scope": "tools",
-      "title": "启用内部 browser 工具并接通专利全文提取（patent_document）",
-      "file": "2026-08-26.md",
-      "line": 35
+      "date": "2026-08-27",
+      "type": "refactor",
+      "scope": "session",
+      "title": "为静默吞错添加意图注释",
+      "file": "2026-08-27.md",
+      "line": 3
     },
     {
       "date": "2026-08-26",
@@ -628,12 +628,12 @@
       "line": 18
     },
     {
-      "date": "2026-08-25",
-      "type": "refactor",
-      "scope": "agentcore",
-      "title": "库代码日志统一走 slog",
-      "file": "2026-08-25.md",
-      "line": 25
+      "date": "2026-08-26",
+      "type": "feat",
+      "scope": "tools",
+      "title": "启用内部 browser 工具并接通专利全文提取（patent_document）",
+      "file": "2026-08-26.md",
+      "line": 35
     },
     {
       "date": "2026-08-25",
@@ -660,12 +660,12 @@
       "line": 16
     },
     {
-      "date": "2026-08-24",
-      "type": "feat",
-      "scope": "knowledge",
-      "title": "阶段2：专利知识工具测试补齐 + QueryPaths 认知复杂度拆分",
-      "file": "2026-08-24.md",
-      "line": 207
+      "date": "2026-08-25",
+      "type": "refactor",
+      "scope": "agentcore",
+      "title": "库代码日志统一走 slog",
+      "file": "2026-08-25.md",
+      "line": 25
     },
     {
       "date": "2026-08-24",
@@ -820,12 +820,12 @@
       "line": 7
     },
     {
-      "date": "2026-08-23",
-      "type": "refactor",
-      "scope": "devtools",
-      "title": "开发规范优化：三模块收敛、负控制自证与 fail-closed 硬化",
-      "file": "2026-08-23.md",
-      "line": 3
+      "date": "2026-08-24",
+      "type": "feat",
+      "scope": "knowledge",
+      "title": "阶段2：专利知识工具测试补齐 + QueryPaths 认知复杂度拆分",
+      "file": "2026-08-24.md",
+      "line": 207
     },
     {
       "date": "2026-08-23",
@@ -836,12 +836,12 @@
       "line": 17
     },
     {
-      "date": "2026-08-22",
-      "type": "fix",
-      "scope": "server",
-      "title": "放宽 SSE 测试超时消除 CI race 环境 flaky",
-      "file": "2026-08-22.md",
-      "line": 42
+      "date": "2026-08-23",
+      "type": "refactor",
+      "scope": "devtools",
+      "title": "开发规范优化：三模块收敛、负控制自证与 fail-closed 硬化",
+      "file": "2026-08-23.md",
+      "line": 3
     },
     {
       "date": "2026-08-22",
@@ -876,12 +876,12 @@
       "line": 36
     },
     {
-      "date": "2026-08-19",
-      "type": "refactor",
-      "scope": "tools",
-      "title": "阶段4：死代码与弃用 API 清理（tool_domains/命令处理器/测试引用函数/域过滤函数）",
-      "file": "2026-08-19.md",
-      "line": 25
+      "date": "2026-08-22",
+      "type": "fix",
+      "scope": "server",
+      "title": "放宽 SSE 测试超时消除 CI race 环境 flaky",
+      "file": "2026-08-22.md",
+      "line": 42
     },
     {
       "date": "2026-08-19",
@@ -932,12 +932,12 @@
       "line": 19
     },
     {
-      "date": "2026-08-13",
-      "type": "fix",
-      "scope": "desktop",
-      "title": "代码评审修复：预发布过滤 / URL 解析容错 / 版本脚本替换校验 / 测试补齐",
-      "file": "2026-08-13.md",
-      "line": 68
+      "date": "2026-08-19",
+      "type": "refactor",
+      "scope": "tools",
+      "title": "阶段4：死代码与弃用 API 清理（tool_domains/命令处理器/测试引用函数/域过滤函数）",
+      "file": "2026-08-19.md",
+      "line": 25
     },
     {
       "date": "2026-08-13",
@@ -1028,12 +1028,12 @@
       "line": 62
     },
     {
-      "date": "2026-08-12",
-      "type": "refactor",
-      "scope": "repo",
-      "title": "第六轮大文件合理拆分（6 个文件 → 13 个）",
-      "file": "2026-08-12.md",
-      "line": 73
+      "date": "2026-08-13",
+      "type": "fix",
+      "scope": "desktop",
+      "title": "代码评审修复：预发布过滤 / URL 解析容错 / 版本脚本替换校验 / 测试补齐",
+      "file": "2026-08-13.md",
+      "line": 68
     },
     {
       "date": "2026-08-12",
@@ -1132,12 +1132,12 @@
       "line": 67
     },
     {
-      "date": "2026-08-11",
-      "type": "docs",
-      "scope": "agentcore",
-      "title": "hook 双轨 Deprecated 注释如实化：承认兼容适配桥而非承诺移除",
-      "file": "2026-08-11.md",
-      "line": 300
+      "date": "2026-08-12",
+      "type": "refactor",
+      "scope": "repo",
+      "title": "第六轮大文件合理拆分（6 个文件 → 13 个）",
+      "file": "2026-08-12.md",
+      "line": 73
     },
     {
       "date": "2026-08-11",
@@ -1324,12 +1324,12 @@
       "line": 279
     },
     {
-      "date": "2026-08-09",
-      "type": "fix",
-      "scope": "tui",
-      "title": "code-review 复核修复：Basic 模式调色板栈溢出回归 + 数字强调回归 + 锁外读竞争等 7 项",
-      "file": "2026-08-09.md",
-      "line": 17
+      "date": "2026-08-11",
+      "type": "docs",
+      "scope": "agentcore",
+      "title": "hook 双轨 Deprecated 注释如实化：承认兼容适配桥而非承诺移除",
+      "file": "2026-08-11.md",
+      "line": 300
     },
     {
       "date": "2026-08-09",
@@ -1356,12 +1356,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-08",
+      "date": "2026-08-09",
       "type": "fix",
-      "scope": "chatcompat",
-      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
-      "file": "2026-08-08.md",
-      "line": 7
+      "scope": "tui",
+      "title": "code-review 复核修复：Basic 模式调色板栈溢出回归 + 数字强调回归 + 锁外读竞争等 7 项",
+      "file": "2026-08-09.md",
+      "line": 17
     },
     {
       "date": "2026-08-08",
@@ -1380,11 +1380,11 @@
       "line": 3
     },
     {
-      "date": "2026-08-07",
-      "type": "refactor",
-      "scope": "techdebt",
-      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
-      "file": "2026-08-07.md",
+      "date": "2026-08-08",
+      "type": "fix",
+      "scope": "chatcompat",
+      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
+      "file": "2026-08-08.md",
       "line": 7
     },
     {
@@ -1404,12 +1404,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-06",
+      "date": "2026-08-07",
       "type": "refactor",
-      "scope": "domains/workflows/patent",
-      "title": "OA 答复工作流代码审查重构：节点增量返回 + 文件拆分 + 表格紧凑化",
-      "file": "2026-08-06.md",
-      "line": 16
+      "scope": "techdebt",
+      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
+      "file": "2026-08-07.md",
+      "line": 7
     },
     {
       "date": "2026-08-06",
@@ -1420,12 +1420,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-04",
-      "type": "fix",
-      "scope": "ci",
-      "title": "CI 门禁修复：文档计数与 LAYERS 清单同步 + commitlint 支持 deps 类型",
-      "file": "2026-08-04.md",
-      "line": 205
+      "date": "2026-08-06",
+      "type": "refactor",
+      "scope": "domains/workflows/patent",
+      "title": "OA 答复工作流代码审查重构：节点增量返回 + 文件拆分 + 表格紧凑化",
+      "file": "2026-08-06.md",
+      "line": 16
     },
     {
       "date": "2026-08-04",
@@ -1500,12 +1500,12 @@
       "line": 173
     },
     {
-      "date": "2026-08-03",
+      "date": "2026-08-04",
       "type": "fix",
-      "scope": "tui",
-      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
-      "file": "2026-08-03.md",
-      "line": 9
+      "scope": "ci",
+      "title": "CI 门禁修复：文档计数与 LAYERS 清单同步 + commitlint 支持 deps 类型",
+      "file": "2026-08-04.md",
+      "line": 205
     },
     {
       "date": "2026-08-03",
@@ -1516,12 +1516,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-02",
+      "date": "2026-08-03",
       "type": "fix",
       "scope": "tui",
-      "title": "TUI 渲染小瑕疵修复：工具组 summary 双空格/工具卡窄宽/数学表达式保护/表头 inline/resize 提示对齐",
-      "file": "2026-08-02.md",
-      "line": 3
+      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
+      "file": "2026-08-03.md",
+      "line": 9
     },
     {
       "date": "2026-08-02",
@@ -1588,12 +1588,12 @@
       "line": 109
     },
     {
-      "date": "2026-08-01",
-      "type": "chore",
-      "scope": "docs",
-      "title": "文档一致性检查防漂移加固（--update 自动同步 + git 口径 + CI 接入）",
-      "file": "2026-08-01.md",
-      "line": 13
+      "date": "2026-08-02",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 渲染小瑕疵修复：工具组 summary 双空格/工具卡窄宽/数学表达式保护/表头 inline/resize 提示对齐",
+      "file": "2026-08-02.md",
+      "line": 3
     },
     {
       "date": "2026-08-01",
@@ -1620,12 +1620,12 @@
       "line": 7
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "desktop",
-      "title": "修复桌面端启动崩溃：systray 与 wails 双重 AppKit 主循环冲突（SIGTRAP）",
-      "file": "2026-07-31.md",
-      "line": 892
+      "date": "2026-08-01",
+      "type": "chore",
+      "scope": "docs",
+      "title": "文档一致性检查防漂移加固（--update 自动同步 + git 口径 + CI 接入）",
+      "file": "2026-08-01.md",
+      "line": 13
     },
     {
       "date": "2026-07-31",
@@ -2028,12 +2028,12 @@
       "line": 886
     },
     {
-      "date": "2026-07-30",
-      "type": "feat",
-      "scope": "worker",
-      "title": "Worker 引擎从声明式目录变为可执行（4 Phase / 8 文件）",
-      "file": "2026-07-30.md",
-      "line": 305
+      "date": "2026-07-31",
+      "type": "fix",
+      "scope": "desktop",
+      "title": "修复桌面端启动崩溃：systray 与 wails 双重 AppKit 主循环冲突（SIGTRAP）",
+      "file": "2026-07-31.md",
+      "line": 892
     },
     {
       "date": "2026-07-30",
@@ -2188,12 +2188,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
-      "scope": "*",
-      "title": "桌面端第二波 W2-T2 — CommandPalette ⌘K 命令面板",
-      "file": "2026-07-29.md",
-      "line": 175
+      "date": "2026-07-30",
+      "type": "feat",
+      "scope": "worker",
+      "title": "Worker 引擎从声明式目录变为可执行（4 Phase / 8 文件）",
+      "file": "2026-07-30.md",
+      "line": 305
     },
     {
       "date": "2026-07-29",
@@ -2268,12 +2268,12 @@
       "line": 134
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
-      "scope": "agui",
-      "title": "桌面端 AGUI 事件订阅补全（缺口 G3 修复）+ e2e 体系修复",
-      "file": "2026-07-28.md",
-      "line": 274
+      "date": "2026-07-29",
+      "type": "chore",
+      "scope": "*",
+      "title": "桌面端第二波 W2-T2 — CommandPalette ⌘K 命令面板",
+      "file": "2026-07-29.md",
+      "line": 175
     },
     {
       "date": "2026-07-28",
@@ -2396,12 +2396,12 @@
       "line": 204
     },
     {
-      "date": "2026-07-27",
-      "type": "feat",
-      "scope": "*",
-      "title": "Gateway — 统一编排三件套为单一决策入口（PilotDeck 架构引入 第三阶段）",
-      "file": "2026-07-27.md",
-      "line": 881
+      "date": "2026-07-28",
+      "type": "fix",
+      "scope": "agui",
+      "title": "桌面端 AGUI 事件订阅补全（缺口 G3 修复）+ e2e 体系修复",
+      "file": "2026-07-28.md",
+      "line": 274
     },
     {
       "date": "2026-07-27",
@@ -2564,12 +2564,12 @@
       "line": 501
     },
     {
-      "date": "2026-07-26",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）",
-      "file": "2026-07-26.md",
-      "line": 306
+      "date": "2026-07-27",
+      "type": "feat",
+      "scope": "*",
+      "title": "Gateway — 统一编排三件套为单一决策入口（PilotDeck 架构引入 第三阶段）",
+      "file": "2026-07-27.md",
+      "line": 881
     },
     {
       "date": "2026-07-26",
@@ -2636,12 +2636,12 @@
       "line": 347
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
-      "scope": "memory",
-      "title": "审阅决策 — memory 与 tasklist 按 workspace 隔离",
-      "file": "2026-07-25.md",
-      "line": 171
+      "date": "2026-07-26",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）",
+      "file": "2026-07-26.md",
+      "line": 306
     },
     {
       "date": "2026-07-25",
@@ -2748,12 +2748,12 @@
       "line": 139
     },
     {
-      "date": "2026-07-24",
-      "type": "chore",
-      "scope": "*",
-      "title": "prompt-templates 接线 — Phase 2（框架注入）",
-      "file": "2026-07-24.md",
-      "line": 515
+      "date": "2026-07-25",
+      "type": "docs",
+      "scope": "memory",
+      "title": "审阅决策 — memory 与 tasklist 按 workspace 隔离",
+      "file": "2026-07-25.md",
+      "line": 171
     },
     {
       "date": "2026-07-24",
@@ -2908,12 +2908,12 @@
       "line": 275
     },
     {
-      "date": "2026-07-23",
-      "type": "fix",
+      "date": "2026-07-24",
+      "type": "chore",
       "scope": "*",
-      "title": "修复 TieredEngine 上下文压缩管线三个盲区",
-      "file": "2026-07-23.md",
-      "line": 364
+      "title": "prompt-templates 接线 — Phase 2（框架注入）",
+      "file": "2026-07-24.md",
+      "line": 515
     },
     {
       "date": "2026-07-23",
@@ -3060,12 +3060,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-22",
-      "type": "chore",
+      "date": "2026-07-23",
+      "type": "fix",
       "scope": "*",
-      "title": "专利法第26.3条判断模块全面增强 — 对标 Wiki 知识库补全 10 项差距",
-      "file": "2026-07-22.md",
-      "line": 142
+      "title": "修复 TieredEngine 上下文压缩管线三个盲区",
+      "file": "2026-07-23.md",
+      "line": 364
     },
     {
       "date": "2026-07-22",
@@ -3124,12 +3124,12 @@
       "line": 99
     },
     {
-      "date": "2026-07-21",
+      "date": "2026-07-22",
       "type": "chore",
       "scope": "*",
-      "title": "Sprint 1 文件规模治理 — R1/R2/R6",
-      "file": "2026-07-21.md",
-      "line": 556
+      "title": "专利法第26.3条判断模块全面增强 — 对标 Wiki 知识库补全 10 项差距",
+      "file": "2026-07-22.md",
+      "line": 142
     },
     {
       "date": "2026-07-21",
@@ -3308,12 +3308,12 @@
       "line": 480
     },
     {
-      "date": "2026-07-20",
-      "type": "feat",
-      "scope": "disclosure",
-      "title": "新增 disclosure happy-path smoke test（analyze -\u003e review -\u003e export）",
-      "file": "2026-07-20.md",
-      "line": 562
+      "date": "2026-07-21",
+      "type": "chore",
+      "scope": "*",
+      "title": "Sprint 1 文件规模治理 — R1/R2/R6",
+      "file": "2026-07-21.md",
+      "line": 556
     },
     {
       "date": "2026-07-20",
@@ -3540,12 +3540,12 @@
       "line": 210
     },
     {
-      "date": "2026-07-19",
-      "type": "chore",
-      "scope": "*",
-      "title": "里程碑 2——代码现代化与重复消除",
-      "file": "2026-07-19.md",
-      "line": 232
+      "date": "2026-07-20",
+      "type": "feat",
+      "scope": "disclosure",
+      "title": "新增 disclosure happy-path smoke test（analyze -\u003e review -\u003e export）",
+      "file": "2026-07-20.md",
+      "line": 562
     },
     {
       "date": "2026-07-19",
@@ -3588,12 +3588,12 @@
       "line": 315
     },
     {
-      "date": "2026-07-18",
-      "type": "feat",
+      "date": "2026-07-19",
+      "type": "chore",
       "scope": "*",
-      "title": "引入 Open Design 项目思路 —— 三阶段 Tier 1 实现",
-      "file": "2026-07-18.md",
-      "line": 690
+      "title": "里程碑 2——代码现代化与重复消除",
+      "file": "2026-07-19.md",
+      "line": 232
     },
     {
       "date": "2026-07-18",
@@ -3794,6 +3794,14 @@
       "title": "Code Review 全部 6 个问题修复",
       "file": "2026-07-18.md",
       "line": 720
+    },
+    {
+      "date": "2026-07-18",
+      "type": "feat",
+      "scope": "*",
+      "title": "引入 Open Design 项目思路 —— 三阶段 Tier 1 实现",
+      "file": "2026-07-18.md",
+      "line": 690
     }
   ]
 }
