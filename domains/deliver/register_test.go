@@ -41,6 +41,9 @@ func TestRegisterPasses(t *testing.T) {
 	if !checks["template-exists"] || !checks["deliverable-consistency"] {
 		t.Fatalf("核验项缺失：%+v", result.Checks)
 	}
+	if len(result.Manifest) == 0 || result.Manifest[0].Format != "docx" {
+		t.Fatalf("清单应记录文件格式：%+v", result.Manifest)
+	}
 }
 
 func TestRegisterCatchesStaleCopyAndMissingEvidence(t *testing.T) {

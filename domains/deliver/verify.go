@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -52,6 +54,8 @@ type ManifestEntry struct {
 	Path string `json:"path"`
 	// SHA256 是文件内容摘要。
 	SHA256 string `json:"sha256"`
+	// Format 是文件格式（取扩展名小写，如 docx/pdf/html）；无扩展名时为空。
+	Format string `json:"format"`
 	// Size 是字节数。
 	Size int64 `json:"size"`
 	// ModTime 是修改时间。
@@ -166,6 +170,7 @@ func statArtifact(role, path string) (ManifestEntry, error) {
 		Role:    role,
 		Path:    path,
 		SHA256:  hex.EncodeToString(sum[:]),
+		Format:  strings.ToLower(strings.TrimPrefix(filepath.Ext(path), ".")),
 		Size:    info.Size(),
 		ModTime: info.ModTime().UTC(),
 	}, nil

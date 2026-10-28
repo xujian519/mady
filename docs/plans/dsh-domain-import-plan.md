@@ -452,7 +452,7 @@ type StatutoryEvidence struct {
 | W-1 | ✅ 完成 | 1b1dd92 | ADR 0008 已批准；FreeCAD 结论为暂不立项 |
 | W0 | ✅ 完成 | 98e1828 | `pkg/indexasset` 覆盖率 95.5%；资产指纹脚本落地 |
 | W1 | ✅ 完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb · ec93acd · 174d5f8 | T-W1-01～05 完成；门禁接入 107 条 |
-| W2 | ◐ 进行中 | 27b0085 | T-W2-01（交付模板）、T-W2-02（CNIPA 出件）完成；T-W2-03/04/05 待做 |
+| W2 | ◐ 进行中 | 27b0085 · 21eaec1 | T-W2-01（交付模板）、T-W2-02（CNIPA 出件）、T-W2-03（交付件登记）完成；T-W2-04/05 待做 |
 
 ### 批 A / 批 B 规则接入状态
 
@@ -472,7 +472,7 @@ type StatutoryEvidence struct {
 ### 门禁语义差异（与 dsh 不同，需知悉）
 
 1. **block 的时机**：dsh 的 post-execute block 是硬拦截；Mady 的 `AfterToolExecution` 在工具已执行后运行，只能标注「不可作为交付依据」，真正的拦截在 `StructuralGate`（`BeforeToolExecution`）。
-2. **结构性规则的执行点**：`structural_analysis` 不在 OutputGate 生效——它对任意工具结果全文都会报「缺要素」，只对交付制品文本判定（`StructuralGate` 的 entries 待 W2 交付工具就绪后配置）。
+2. **结构性规则的执行点**：`structural_analysis` 不在 OutputGate 生效——它对任意工具结果全文都会报「缺要素」，只对交付制品文本判定。`StructuralGate` 已实现（`BeforeToolExecution`，按 `TextArgs` 取正文），但**尚未接线**：现有交付工具 `deliver_register` 的入参是文件路径、不含正文，配 entries 无从判起；需要一个把模板正文暴露为入参的渲染工具，或在出件链路上直接调用引擎（见 T-W2-03 状态节的遗留项）。
 3. **review 级**：Mady 的 OutputGate 同样按标注处理，审批仍由既有 ApprovalGate 在模型输出层负责。
 4. **骨架约束**：结构性规则不参与法条核验的状态判定，`ExistOnly` 仍不会被提升为 `Verified`（见 fail-closed 判定表 FC-1）。
 
@@ -481,7 +481,7 @@ type StatutoryEvidence struct {
 - **体例真相源**：`domains/filing/data/template/申请文件模板.docx`（2012 CNIPA 体例的去标识化副本，5 节、宋体/Times New Roman 12pt、1.5 倍行距、首行缩进 24pt）。桌面原件当前不存在，以随包副本为准；其 sha256 与 `TEMPLATE-IDENTITY.md` 登记值一致，由 `TestTemplateFingerprint` 守住。
 - **两步流程**：`build.py` 负责按模板反解体例并成文，`verify.py` 负责节数/编号/禁用词/禁用色/字号断言；验收不通过时删除成品，不留半成品。
 - **Go 编排**：`domains/filing.Compose` 解压随包资产、调用引擎、校验报告；Python 解释器按「能 import docx」探测（本机 3.15 未装 python-docx，实际落到 3.11）。
-- **未做**：出件工具接线与交付件登记（T-W2-03）、13 套交付模板（T-W2-01）、模板去重（T-W2-04）、Office→PDF（T-W2-05）。
+- **未做**：出件工具接线（`filing.Compose` 仍是库 API）、模板去重（T-W2-04）、Office→PDF（T-W2-05）。
 
 ### W2 交付模板状态（T-W2-01）
 
@@ -490,4 +490,14 @@ type StatutoryEvidence struct {
 - **合规**：`deliver.CheckCompliance` 四条规则——章节编号递增不重复、对外件内部章节、对外件内部正文、证据清单与正文双向核对。证据匹配带左侧 ASCII 边界（END2 不会被当作 D2），正文判定按节点切除证据表。内部记录模板（invalidation-analysis）走 `ScopeInternalRecord`，不查内部记录规则。
 - **交付件核对**：`deliver.VerifyDeliverable` 检查主路径与交付副本字节一致、渲染件不早于其输入、要求-证据齐备，并产出 hash/mtime 清单；只接受普通文件且单文件 ≤64MB。
 - **独立审查**：code-review 发现 4 项 blocking（figure 排除、可见文本、嵌套编号、证据前缀边界）与 4 项 suggestion，已全部修复或记录；幂等剥号一并补齐。
-- **未做**：交付件登记工具（T-W2-03）、模板去重（T-W2-04）、Office→PDF（T-W2-05）；模板渲染目前是库 API，工具接线随 T-W2-03。
+- **未做**：模板去重（T-W2-04）、Office→PDF（T-W2-05）；模板渲染仍是库 API——登记工具只接收渲染后的文件路径，不接收正文（见 T-W2-03 状态节遗留项）。
+
+### W2 交付登记状态（T-W2-03）
+
+- **入口**：`deliver_register` 工具（`deliver.NewExtension` 注入，与其它扩展一致）。一次登记给 `template_id`、`artifacts`（主路径 + 交付副本 + 角色）、`figures`、`rendered`、`requirements`、`self_check`；`artifacts` 与 `rendered` 至少给一项。`RenderAndRegister` 另提供「渲染 → 落盘 → 登记」一条调用。
+- **核验**：模板存在性、交付件一致性（复用 `VerifyDeliverable`）、HTML 渲染件四条合规规则。清单含路径、sha256、大小、修改时间（统一 UTC）。
+- **三值结论**：`pass` / `fail` / `inconclusive`。`inconclusive` 表示没有未通过项但有核验未执行；`Passed` 收紧为仅 `pass` 时为真。空交付（无 artifacts 且无 rendered）直接判 `fail`，不因「没有文件可查」而放行。
+- **事件**：登记完成后发 `deliver/registered`（`agentcore.DeliverRegisteredEvent`，只带通用字段），已加入 `event_logger` 持久化白名单，会话日志可回放。
+- **未执行项的边界**：PDF 渲染件无法做 HTML 合规检查，登记结论为 `inconclusive` 并在 `unverified` 中说明。T-W2-05 落地后应在 HTML→PDF 转换前检查源件，而不是回过头查 PDF。
+- **独立审查**：code-review 报出 1 项 blocking（`Unverified` 存在时 `Passed` 仍为 true，把「未核验」呈现成「通过」）与 5 项 suggestion；blocking 以三值结论修复，suggestion 采纳 4 项、拒绝 1 项（显式逐字段构造与 staticcheck S1016 冲突，且类型转换本就要求字段名/类型/顺序完全一致）。
+- **遗留**：`StructuralGate` 对交付正文的接线缺少正文入口——登记工具只收路径，需在渲染/出件链路上把正文送入 `Engine`；出件工具（`filing.Compose`）也仍是库 API。
