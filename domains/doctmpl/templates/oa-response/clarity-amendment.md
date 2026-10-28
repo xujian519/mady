@@ -5,6 +5,68 @@ category: oa-response
 description: 审查意见答复——不清楚/不支持条款修改
 domain: patent
 version: "1.0"
+language: zh-CN
+formats:
+  - markdown
+  - html
+  - docx
+vars:
+  - name: defect_1
+    type: string
+    required: false
+    description: "第一项缺陷的类型（如不清楚、不支持）"
+  - name: num_1
+    type: number
+    required: false
+    description: "第一项缺陷涉及的权利要求编号"
+  - name: issue_1
+    type: multiline
+    required: false
+    description: "审查员针对第一项缺陷指出的具体问题"
+  - name: defect_2
+    type: string
+    required: false
+    description: "第二项缺陷的类型"
+  - name: num_2
+    type: number
+    required: false
+    description: "第二项缺陷涉及的权利要求编号"
+  - name: issue_2
+    type: multiline
+    required: false
+    description: "审查员针对第二项缺陷指出的具体问题"
+  - name: orig_claim_1
+    type: multiline
+    required: false
+    description: "修改前权利要求原文"
+  - name: amended_claim_1
+    type: multiline
+    required: false
+    description: "修改后权利要求原文"
+  - name: para
+    type: number
+    required: false
+    description: "修改依据所在的说明书段落号"
+  - name: support
+    type: multiline
+    required: false
+    description: "修改依据：原始说明书中支持该修改的记载"
+  - name: orig_claim_2
+    type: multiline
+    required: false
+    description: "第二条修改前权利要求原文"
+  - name: amended_claim_2
+    type: multiline
+    required: false
+    description: "第二条修改后权利要求原文"
+  - name: agent_name
+    type: string
+    required: false
+    description: "代理人姓名"
+  - name: date
+    type: string
+    required: false
+    description: "意见陈述书日期"
 ---
 # 意见陈述书
 

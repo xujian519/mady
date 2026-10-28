@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>无效宣告程序意见陈述书 — 示例</title>
+<style>
+  :root {
+    --doc-firm: var(--sati-doc-firm, "XX 知识产权代理事务所");
+    --doc-confidential: var(--sati-doc-confidential, "机密 · 仅供委托方使用");
+    --doc-disclaimer: var(--sati-doc-disclaimer, "本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。本文件含商业秘密与保密信息，仅限指定接收人使用；未经书面许可不得转发或复制。");
+    --doc-accent: var(--sati-doc-accent, #1f3a5f);
+    --doc-accent-strong: var(--sati-doc-accent-strong, #16324f);
+    --doc-body: var(--sati-doc-body, #1a1a1a);
+    --doc-muted: var(--sati-doc-muted, #6b6b6b);
+    --doc-border: var(--sati-doc-border, #c9c9c9);
+    --doc-header-bg: var(--sati-doc-header-bg, #f6f6f2);
+    --doc-surface: var(--sati-doc-surface, #ffffff);
+    --doc-zebra: var(--sati-doc-zebra, #fbfbf9);
+    --doc-badge-high: var(--sati-doc-danger, #b42318);
+    --doc-badge-mid: var(--sati-doc-warning, #b54708);
+    --doc-badge-low: var(--sati-doc-success, #067647);
+    --doc-font-serif: var(--sati-doc-font-serif, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif);
+    --doc-font-sans: var(--sati-doc-font-sans, "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", "SimHei", "PingFang SC", sans-serif);
+    --doc-font-mono: var(--sati-doc-font-mono, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace);
+    --doc-page-margin: var(--sati-doc-page-margin, 16mm 18mm 18mm 18mm);
+    --doc-body-padding: var(--sati-doc-body-padding, 0 18mm);
+    --doc-body-max-width: var(--sati-doc-body-max-width, 174mm);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 12pt; }
+  body {
+    font-family: var(--doc-font-serif);
+    color: var(--doc-body);
+    background: var(--doc-surface);
+    line-height: 1.7;
+    padding: var(--doc-body-padding);
+    max-width: var(--doc-body-max-width);
+    margin: 0 auto;
+  }
+  .doc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7mm 0 3mm;
+    border-bottom: 2px solid var(--doc-accent);
+    font-family: var(--doc-font-sans);
+    font-size: 9.5pt;
+    color: var(--doc-muted);
+  }
+  .doc-header .firm { font-weight: 600; color: var(--doc-accent); }
+  .doc-header .firm::before { content: var(--doc-firm); }
+  .doc-header .confidential { letter-spacing: 0.08em; }
+  .doc-header .confidential::before { content: var(--doc-confidential); }
+  .doc-masthead { text-align: center; padding: 8mm 0 4mm; }
+  .doc-masthead .doc-type {
+    display: inline-block;
+    font-family: var(--doc-font-sans);
+    font-size: 9pt;
+    letter-spacing: 0.4em;
+    color: var(--doc-accent);
+    border: 1px solid var(--doc-accent);
+    padding: 1px 10px;
+    margin-bottom: 4mm;
+  }
+  .doc-masthead h1 {
+    font-family: var(--doc-font-sans);
+    font-size: 16pt;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--doc-accent-strong);
+  }
+  .doc-masthead .doc-number { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); margin-top: 2.5mm; }
+  .doc-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6mm 6mm;
+    width: 100%;
+    margin: 5mm 0 6mm;
+    border: 1px solid var(--doc-border);
+    font-size: 11pt;
+  }
+  .doc-meta dt {
+    font-family: var(--doc-font-sans);
+    font-weight: 600;
+    color: var(--doc-accent);
+    background: var(--doc-header-bg);
+    padding: 1.2mm 4mm;
+    white-space: nowrap;
+  }
+  .doc-meta dd { padding: 1.2mm 4mm; }
+  section { margin: 5mm 0; }
+  h2 {
+    font-family: var(--doc-font-sans);
+    font-size: 13pt;
+    font-weight: 700;
+    color: var(--doc-accent-strong);
+    padding-bottom: 1mm;
+    margin: 6mm 0 3mm;
+    border-bottom: 1px solid var(--doc-border);
+  }
+  h3 {
+    font-family: var(--doc-font-sans);
+    font-size: 11.5pt;
+    font-weight: 600;
+    color: var(--doc-accent);
+    margin: 4mm 0 2mm;
+  }
+  h4 {
+    font-family: var(--doc-font-sans);
+    font-size: 11pt;
+    font-weight: 600;
+    color: var(--doc-body);
+    margin: 3mm 0 1.5mm;
+  }
+  p { margin: 1.5mm 0; text-align: justify; }
+  ol, ul { margin: 1.5mm 0 1.5mm 7mm; }
+  li { margin: 0.8mm 0; }
+  .callout {
+    border: 1px solid var(--doc-border);
+    border-left: 3px solid var(--doc-accent);
+    padding: 3mm 4mm;
+    margin: 3mm 0;
+    font-size: 11pt;
+  }
+  .callout .callout-title {
+    font-family: var(--doc-font-sans);
+    font-weight: 700;
+    font-size: 10.5pt;
+    color: var(--doc-accent);
+    margin-bottom: 1mm;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10.5pt;
+    margin: 2.5mm 0;
+    font-variant-numeric: tabular-nums;
+  }
+  caption {
+    font-family: var(--doc-font-sans);
+    font-size: 9.5pt;
+    color: var(--doc-muted);
+    text-align: left;
+    margin-bottom: 1mm;
+  }
+  th, td {
+    border: 1px solid var(--doc-border);
+    padding: 1.5mm 2.5mm;
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--doc-font-sans);
+    font-weight: 600;
+    background: var(--doc-header-bg);
+    color: var(--doc-accent-strong);
+    white-space: nowrap;
+  }
+  thead { display: table-header-group; }
+  tbody tr:nth-child(even) { background: var(--doc-zebra); }
+  .num { text-align: right; }
+  .mono { font-family: var(--doc-font-mono); font-size: 9.5pt; }
+  .badge {
+    display: inline-block;
+    font-family: var(--doc-font-sans);
+    font-size: 9pt;
+    line-height: 1.4;
+    padding: 0 5px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .badge-evidence { border: 1px solid var(--doc-accent); color: var(--doc-accent); }
+  .badge-client { border: 1px solid var(--doc-muted); color: var(--doc-muted); }
+  .doc-closing { margin-top: 8mm; }
+  .disclaimer {
+    border: 1px solid var(--doc-border);
+    background: var(--doc-header-bg);
+    padding: 3mm 4mm;
+    font-size: 9.5pt;
+    color: var(--doc-muted);
+    margin: 3mm 0;
+  }
+  .disclaimer::before {
+    content: "免责声明：";
+    font-weight: 700;
+    color: var(--doc-body);
+  }
+  .disclaimer::after { content: var(--doc-disclaimer); }
+  .doc-footer {
+    margin: 6mm 0 4mm;
+    padding-top: 2mm;
+    border-top: 1px solid var(--doc-border);
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--doc-font-sans);
+    font-size: 8.5pt;
+    color: var(--doc-muted);
+  }
+  .signature { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .signature .sign-block { border-top: 1px solid var(--doc-body); padding-top: 1.5mm; font-family: var(--doc-font-sans); font-size: 10pt; }
+  @page { size: A4; margin: var(--doc-page-margin, 16mm 18mm 18mm 18mm); }
+  @media print {
+    body { padding: 0; max-width: none; }
+    a { color: inherit; text-decoration: none; }
+    section { page-break-inside: auto; }
+    h2 { page-break-after: avoid; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+  <header class="doc-header">
+    <span class="firm"></span>
+    <span class="confidential"></span>
+  </header>
+
+  <div class="doc-masthead">
+    <span class="doc-type">意见陈述书</span>
+    <h1>无效宣告程序意见陈述书</h1>
+    <div class="doc-number">案件编号：<span class="mono">CN2026-WG-0042</span> · 版本 V1.0</div>
+  </div>
+
+  <dl class="doc-meta">
+    <dt>涉案专利号</dt><dd class="mono">CN202320123456.7</dd>
+    <dt>专利名称</dt><dd>一种带自锁机构的货物拉紧器</dd>
+    <dt>授权公告日</dt><dd class="num">2023-08-15</dd>
+    <dt>专利权人 / 被请求人</dt><dd>某某物流装备有限公司</dd>
+    <dt>无效宣告请求人</dt><dd>某某贸易有限公司</dd>
+    <dt>无效宣告请求日</dt><dd class="num">2026-03-12</dd>
+    <dt>转送文件通知书</dt><dd>2026-03-28 转送（发文序号 2026xxxxxx）</dd>
+    <dt>指定答复期限届满日</dt><dd class="num">2026-04-28</dd>
+    <dt>陈述意见日期</dt><dd class="num">2026-04-24</dd>
+  </dl>
+
+  <section aria-label="答辩意见概述">
+    <h2>一、答辩意见概述</h2>
+    <p>请求人以权利要求 1 不具备创造性（专利法第 22 条第 3 款）与权利要求 1、2 得不到说明书支持（专利法第 26 条第 4 款）为由，请求宣告本专利权利要求 1 至 3 全部无效。专利权人认为上述理由均不成立，请求维持权利要求 1 至 3 有效。答辩要点如下：</p>
+    <ol>
+      <li>请求人提交的证据 1 与证据 2 的结合未给出将区别技术特征应用于最接近的现有技术的技术启示，权利要求 1 具备创造性。</li>
+      <li>权利要求 1 的倾角数值范围与权利要求 2 的弹性件在说明书中均有清楚记载，权利要求 1、2 得到说明书支持。</li>
+      <li>请求人对证据 2 未提交原件核对，该证据不足以证明其主张的使用公开。</li>
+      <li>本次答复未修改权利要求书，请求以授权公告文本为准维持专利权有效。</li>
+    </ol>
+  </section>
+
+  <section aria-label="程序性意见">
+    <h2>二、程序性意见</h2>
+    <p>经核对转送文件通知书与所附无效宣告请求书，请求人具备提出无效宣告请求的主体资格，请求书已列明无效宣告请求的理由并指明每项理由所依据的证据，专利权人对请求书的形式与请求人资格不提出异议。</p>
+    <p>请求人自提出无效宣告请求之日起一个月内未补充具体说明其主张的理由与证据。据此，本案的审查范围以 2026 年 3 月 12 日提交的请求书载明的理由与证据为限；请求书未具体说明的理由，以及此后增加的证据，均不属于合议组应当考虑的范围。</p>
+    <p>转送文件通知书指定的答复期限于 2026 年 4 月 28 日届满。依照专利法实施细则第 75 条，无效宣告请求审查程序中指定的期限不得延长；专利权人在期限届满前提交本意见陈述书。</p>
+  </section>
+
+  <section aria-label="关于请求人提交证据的意见">
+    <h2>三、关于请求人提交证据的意见</h2>
+    <p>对请求人提交的证据，专利权人分项陈述意见如下。</p>
+    <h4>证据 1</h4>
+    <p>证据 1 为专利文献，专利权人对其真实性、合法性、关联性均无异议。其公开内容以说明书第 [0008] 段至第 [0012] 段记载的棘轮式拉紧结构为准，该结构与本专利的斜面自锁结构在作用方式上不同。</p>
+    <h4>证据 2</h4>
+    <p>证据 2 为销售发票复印件，请求人以其主张使用公开。请求人未提交原件供核对，也未提交与该发票相对应的产品实物或交付凭证，专利权人对其真实性不予认可。</p>
+    <h4>证据 3</h4>
+    <p>证据 3 为网络证据。该页面未记载发布时间，请求人亦未提交能够确认公开时间的其他凭证，其公开时间不能确定，不能作为现有技术使用。</p>
+    <h4>证据 4</h4>
+    <p>请求人主张的「本领域常规技术手段」未提交任何证据。公知常识的认定应当有证据支撑；仅以「本领域技术人员的常规选择」的陈述，不足以证明区别技术特征已被现有技术公开或者属于惯用手段。</p>
+  </section>
+
+  <section aria-label="权利要求书的修改">
+    <h2>四、权利要求书的修改</h2>
+    <p>本次答复未修改权利要求书。专利权人认为授权公告的权利要求 1 至 3 均符合专利法和专利法实施细则的有关规定，请求以授权公告文本为准维持专利权有效。本节的修改对照表因此只登记「未修改」一项。</p>
+    <table>
+      <caption>表 1 · 权利要求书修改对照</caption>
+      <thead>
+        <tr>
+          <th style="width:10%">权利要求</th><th style="width:26%">修改前</th><th style="width:26%">修改后</th>
+          <th style="width:18%">修改方式</th><th>修改依据</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">权1–3</td>
+          <td>—</td>
+          <td>—</td>
+          <td>未修改</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-label="逐项答辩">
+    <h2>五、逐项答辩</h2>
+
+    <h3>5.1 权利要求 1、2、3 的创造性（专利法第22条第3款）</h3>
+    <h4>事实认定</h4>
+    <p>请求人主张证据 1 为最接近的现有技术，权利要求 1 与证据 1 的区别技术特征为「摆杆下端的自锁斜面与棘轮齿面的配合倾角」，该区别技术特征已被证据 2 公开，或者属于本领域常规技术手段；权利要求 2、3 的附加技术特征亦已被公开。权利要求 1 记载的该区别技术特征与说明书第 [0021] 段记载的倾角范围相应。</p>
+    <h4>证据分析</h4>
+    <p>第一，区别技术特征的认定有误。证据 1 的摆杆与销轴为一体结构，其下端没有与棘轮齿面配合的斜面，锁止依靠棘轮齿与销轴的直接抵靠，与本专利权利要求 1 的自锁斜面在作用方式上不同。</p>
+    <p>第二，证据 2 未给出技术启示。证据 2 公开的是手扳式拉紧器的锁止爪，其锁止与复位均依靠弹簧，与本专利依靠斜面倾角实现自锁的技术构思不同；本领域技术人员没有动机将证据 2 的锁止爪结构应用于证据 1 的销轴结构。</p>
+    <p>第三，区别技术特征带来了有益的技术效果。倾角在 12° 至 18° 范围内时，解锁所需的操作力不大于 40 N，且在不施加外力的条件下不自行解锁。该效果在证据 1 与证据 2 中均无记载。反证1（《机械设计手册》第 6 版）第 000 页记载的棘轮锁止结构表明，该领域的锁止机构通常依靠弹性件复位，通过斜面倾角实现无需弹性件的自锁并非本领域的惯用手段。</p>
+    <h4>法条适用与结论</h4>
+    <p>权利要求 1 相对证据 1 与证据 2 的结合以及本领域常规技术手段均具备创造性。权利要求 2、3 为权利要求 1 的从属权利要求，包含权利要求 1 的全部技术特征，在权利要求 1 具备创造性的基础上同样具备创造性。</p>
+
+    <h3>5.2 权利要求 1、2 的说明书支持与清楚（专利法第26条第4款）</h3>
+    <h4>事实认定</h4>
+    <p>请求人主张权利要求 1 的倾角数值范围在说明书中没有记载，权利要求 2 的「弹性件」为功能性限定，二者均得不到说明书支持。说明书第 [0021] 段记载了「摆杆下端的斜面与棘轮齿面之间的夹角优选为 12° 至 18°」，第 [0026] 段记载了弹性件的安装位置与作用方式。</p>
+    <h4>证据分析</h4>
+    <p>权利要求 1 的倾角范围在原说明书中清楚记载，本领域技术人员据此能够实现权利要求 1 的技术方案；权利要求 2 的弹性件在说明书中以压缩弹簧为例作了说明，该特征能够实现，且未超出说明书记载的范围。请求人的主张仅以说明书未逐字使用「倾角」一词为据，未指出该范围内的哪个取值无法实现。</p>
+    <h4>法条适用与结论</h4>
+    <p>权利要求 1 的保护范围清楚且得到说明书支持，权利要求 2 的附加技术特征亦有说明书依据，请求人主张的理由不成立。</p>
+  </section>
+
+  <section aria-label="证据清单">
+    <h2>六、证据清单</h2>
+    <table>
+      <caption>表 2 · 专利权人提交的证据清单</caption>
+      <thead>
+        <tr>
+          <th style="width:8%">编号</th><th style="width:18%">标识（公开号 / ISBN 等）</th><th style="width:22%">证据名称</th>
+          <th style="width:12%">公开 / 出版日</th><th style="width:12%">与涉案专利关系</th><th>可引用段落 / 用途</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">反证1</td>
+          <td class="mono">ISBN 978-7-111-XXXXX-X</td>
+          <td>《机械设计手册》第 6 版，第 2 卷，机械工业出版社</td>
+          <td class="num">2018-03</td>
+          <td>公知常识性证据</td>
+          <td class="mono">第 000 页「棘轮机构的锁止与复位」</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-label="逐权利要求结论">
+    <h2>七、逐权利要求结论</h2>
+    <table>
+      <caption>表 3 · 逐权利要求答辩结论</caption>
+      <thead>
+        <tr><th style="width:12%">权利要求</th><th style="width:20%">答辩结论</th><th style="width:14%">对应理由</th><th>依据与出处</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">权1</td>
+          <td>请求维持有效</td>
+          <td class="mono">A22.3、A26.4</td>
+          <td>见 5.1、5.2</td>
+        </tr>
+        <tr>
+          <td class="mono">权2</td>
+          <td>请求维持有效</td>
+          <td class="mono">A22.3、A26.4</td>
+          <td>见 5.1、5.2</td>
+        </tr>
+        <tr>
+          <td class="mono">权3</td>
+          <td>请求维持有效</td>
+          <td class="mono">A22.3</td>
+          <td>见 5.1</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-label="结论与请求">
+    <h2>八、结论与请求</h2>
+    <p>综上所述，请求人主张的权利要求 1 至 3 不具备创造性的理由不成立，权利要求 1、2 得不到说明书支持的理由亦不成立。请求维持本专利权全部有效。</p>
+  </section>
+
+  <div class="doc-closing">
+    <div class="signature">
+      <div class="sign-block">陈述人：某某某</div>
+      <div class="sign-block">审核人：某某某</div>
+    </div>
+    <div class="disclaimer"></div>
+    <footer class="doc-footer">
+      <span>CN2026-WG-0042</span>
+      <span>2026-04-24</span>
+    </footer>
+  </div>
+
+</body>
+</html>

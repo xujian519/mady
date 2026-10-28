@@ -30,6 +30,7 @@ type CoverageItem struct {
 	Valid          bool
 	InvalidReason  string
 	ActualCoverage string // full|partial|none
+	FeatureCount   int    // 参与判定的去重特征数
 	Uncovered      []string
 }
 
@@ -73,7 +74,7 @@ func (c *CoverageChecker) Check(claims []string, entries []ClaimCoverageEntry) C
 		case "none":
 			report.NoneCount++
 		}
-		report.Covered += len(item.Entry.Features) - len(item.Uncovered)
+		report.Covered += item.FeatureCount - len(item.Uncovered)
 		report.Uncovered += len(item.Uncovered)
 		nums = append(nums, item.ClaimNum)
 	}
@@ -116,10 +117,14 @@ func checkEntry(e ClaimCoverageEntry, maxByClaims int) CoverageItem {
 	if maxByClaims > 0 && num > maxByClaims {
 		return reject("claim 编号超出权利要求数量")
 	}
-	item := CoverageItem{Entry: e, ClaimNum: num, Valid: true, Uncovered: []string{}}
-
 	// 只信 Features + EmbodimentRefs：重复特征去重，按实施例支持判定覆盖。
 	features := dedupeFeatures(e.Features)
+	// 无特征时没有可核验的对象：两列都为空的情形下，「全部特征获支持」与
+	// 「全部特征未获支持」都是空真的结论，故按条目非法处理，不给出覆盖率读数。
+	if len(features) == 0 {
+		return reject("未提供技术特征（features 为空），无法核验覆盖度")
+	}
+	item := CoverageItem{Entry: e, ClaimNum: num, Valid: true, FeatureCount: len(features), Uncovered: []string{}}
 	if len(e.EmbodimentRefs) == 0 {
 		item.ActualCoverage = "none"
 		item.Uncovered = features

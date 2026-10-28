@@ -157,42 +157,6 @@ func summarizeStrategies(types []OaRejectionType, strategies []string) string {
 	return strings.Join(parts, "、")
 }
 
-// claimAmendmentType returns the amendment action for a specific claim.
-func claimAmendmentType(rejectionType OaRejectionType, claimNum int) string {
-	switch rejectionType {
-	case OaClarity:
-		if claimNum == 1 {
-			return "澄清限定"
-		}
-		return "从属引用调整"
-	case OaSupport:
-		return "限缩"
-	case OaScope:
-		if claimNum == 1 {
-			return "限缩/删除"
-		}
-		return "删除"
-	default:
-		return "调整"
-	}
-}
-
-// amendmentBasis returns the legal basis description for the amendment.
-func amendmentBasis(rejectionType OaRejectionType) string {
-	switch rejectionType {
-	case OaClarity:
-		return "专利法第26条第4款（清楚）"
-	case OaSupport:
-		return "专利法第26条第4款（支持）"
-	case OaScope:
-		return "专利法第33条（修改不超范围）"
-	case OaNovelty, OaInventiveness:
-		return "区别技术特征（非修改，争辩）"
-	default:
-		return "审查指南相关规定"
-	}
-}
-
 // relevancyLabel converts ST.36 relevancy codes to Chinese labels.
 func relevancyLabel(code string) string {
 	switch code {

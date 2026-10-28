@@ -69,9 +69,25 @@
 
 | 工具 | 分类 | 关键参数 | 说明 |
 |------|------|----------|------|
+| matter_log_append | write | `case_dir`, `action`, `artifacts`, `changes`, `supersedes` | 案卷只追加事件日志：取代链校验、原地覆盖/分叉拒绝 |
+| knowledge_status | read | — | 知识库状态与安装引导：文档/向量/法规库/FTS/快照路径与缺项指引 |
+| cnipr_search | read | `mode`, `query`, `numbers`, `limit` | CNIPR 通道：关键词检索 / 全文 PDF 直链 / 法律状态；失败给出多源检索替代 |
+| paper_search | read | `query`, `sources`, `limit`, `year_from` | 四源文献检索（openalex / semantic-scholar / arxiv / crossref）并发执行，单源失败不影响其余源，跨源按 DOI 去重 |
+| paper_list_sources | read | — | 可用文献源 id、说明与主页 |
+| paper_download | write | `source`, `id`, `pdf_url`, `title`, `output_dir` | 开放获取 PDF 下载（Content-Type/魔数/大小三检），只允许写入工作目录内 |
 | search_rules | read | `query`, `domain` | 规则库检索 |
 | get_article_framework | read | `statute` | 获取法条框架 |
 | get_orchestration | read | `case_type` | 获取审查意见编排 |
+| legal_knowledge_search | read | `query`, `scope`, `level`, `as_of` | 法规/司法解释/裁判案例/指导性案例四类检索 |
+| legal_knowledge_install | write | `source`, `output`, `no_fts` | 安装本地法律知识库（只读打开源库） |
+| figure_generate | write | `kind`, `output`, `steps`/`blocks`/`nodes`/`states`, `template` | 构建专利附图 DOT 并渲染 SVG/PNG/PDF |
+| figure_submission | write | `drawing`, `output`, `office`, `figure_number`, `sheet_index` | 按法域（cnipa/pct/uspto）落版到 A4 附图页，图号在图形正下方、页码在版心底部 |
+| figure_consistency | read | `figures`, `text`, `abstract_figure` | 跨图核验图号连续性、标记名称冲突与文本引用缺标 |
+| check_technical_problem | read | `problem`, `features`, `text` | 实际解决的技术问题合规检查（不绑方案/单一因果/可测效果/≠区别特征） |
+| triz_contradiction_analysis | read | `text`, `focus`, `extraction` | TRIZ 矛盾分析：39x39 矩阵落格、证据定位核验、参数缺口；未带 extraction 时返回抽取提示 |
+| patent_analysis_report | read | `claims`, `abstract`, `checker_failures`, `model_scores` | 汇总技术特征、质量评分、checker 判级与 IPC 摘要为统一分析报告 |
+| adversary_check | read | `office_action`, `claims_text`, `response_plan`, `model_output` | 对立审查员评估答复计划（覆盖率/权项对齐/分歧），未带 model_output 时返回提示 |
+| adversary_review | read | `final_draft`, `reference_documents`, `claims`, `office_action` | 换位审查最终意见陈述书的论证强度与遗漏 |
 
 ## 证据判断工具
 
@@ -82,6 +98,7 @@
 | assess_standard | read | issue_type, jurisdiction | 证明标准适用评估 |
 | detect_conflict | read | evidences | 多份证据间的矛盾判定 |
 | judge_type_specific | read | evidence_type, evidence | 按证据类型的专门评价 |
+| evaluate_legal_evidence | read | kind, acquisition_context, 各项声明字段 | 民诉法 66 条八类法定证据 × 取证场景的二维三性评估 |
 
 ## 编排与任务工具
 
@@ -100,6 +117,7 @@
 | ego_lite_handoff | command | action, task_name | EgoLite 浏览器控制权交接 |
 | ego_lite_task_spaces | command | action, space | EgoLite 任务空间管理 |
 | convert_document | command | input_path, output_format | Pandoc 文档格式互转 |
+| office_to_pdf | command | input, output, engine, font | Office → PDF：LibreOffice 原生优先，pandoc + typst 降级；引擎缺失返回结构化拒绝与安装指引 |
 | list_prompts | read | category, domain | 列出可用 prompt 模板 |
 
 ---

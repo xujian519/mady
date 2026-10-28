@@ -29,6 +29,10 @@ func (c *Check) Evaluate(text string) (*CheckResult, error) {
 		return c.evaluateNumeric(text)
 	case "composition", "compound":
 		return c.evaluateComposition(text)
+	case "keyword_blocklist":
+		return c.evaluateKeywordBlocklist(text)
+	case "structural_analysis":
+		return c.evaluateStructuralAnalysis(text)
 	default:
 		// For complex types like "patent_novelty", return a default passing
 		// result since these require LLM reasoning.

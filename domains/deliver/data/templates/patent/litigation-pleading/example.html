@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>民事起诉状 — 示例</title>
+<style>
+  :root {
+    --doc-firm: var(--sati-doc-firm, "XX 知识产权代理事务所");
+    --doc-confidential: var(--sati-doc-confidential, "机密 · 仅供委托方使用");
+    --doc-disclaimer: var(--sati-doc-disclaimer, "本文件由 AI 辅助生成，不构成正式法律意见。诉讼文书的提交应由具备资质的专利律师确认。");
+    --doc-accent: var(--sati-doc-accent, #1f3a5f);
+    --doc-accent-strong: var(--sati-doc-accent-strong, #16324f);
+    --doc-body: var(--sati-doc-body, #1a1a1a);
+    --doc-muted: var(--sati-doc-muted, #6b6b6b);
+    --doc-border: var(--sati-doc-border, #c9c9c9);
+    --doc-header-bg: var(--sati-doc-header-bg, #f6f6f2);
+    --doc-surface: var(--sati-doc-surface, #ffffff);
+    --doc-zebra: var(--sati-doc-zebra, #fbfbf9);
+    --doc-font-serif: var(--sati-doc-font-serif, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif);
+    --doc-font-sans: var(--sati-doc-font-sans, "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", "SimHei", "PingFang SC", sans-serif);
+    --doc-font-mono: var(--sati-doc-font-mono, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 12pt; }
+  body { font-family: var(--doc-font-serif); color: var(--doc-body); background: var(--doc-surface); line-height: 1.8; padding: 0 18mm; max-width: 174mm; margin: 0 auto; }
+  .doc-header { display: flex; justify-content: space-between; align-items: baseline; padding: 7mm 0 3mm; border-bottom: 2px solid var(--doc-accent); font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); }
+  .doc-header .firm::before { content: var(--doc-firm); font-weight: 600; color: var(--doc-accent); }
+  .doc-header .confidential::before { content: var(--doc-confidential); letter-spacing: 0.08em; }
+  .doc-masthead { text-align: center; padding: 8mm 0 4mm; }
+  .doc-masthead .doc-type { display: inline-block; font-family: var(--doc-font-sans); font-size: 9pt; letter-spacing: 0.4em; color: var(--doc-accent); border: 1px solid var(--doc-accent); padding: 1px 10px; margin-bottom: 4mm; }
+  .doc-masthead h1 { font-family: var(--doc-font-sans); font-size: 16pt; font-weight: 700; letter-spacing: 0.12em; color: var(--doc-accent-strong); }
+  .doc-masthead .doc-number { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); margin-top: 2.5mm; }
+  .doc-meta { display: grid; grid-template-columns: auto 1fr; gap: 0.6mm 6mm; width: 100%; margin: 5mm 0 6mm; border: 1px solid var(--doc-border); font-size: 11pt; }
+  .doc-meta dt { font-family: var(--doc-font-sans); font-weight: 600; color: var(--doc-accent); background: var(--doc-header-bg); padding: 1.2mm 4mm; white-space: nowrap; }
+  .doc-meta dd { padding: 1.2mm 4mm; }
+  .party-block { border: 1px solid var(--doc-border); padding: 3mm 4mm; margin: 3mm 0; }
+  .party-block h2 { margin-top: 0; border-bottom: none; }
+  section { margin: 5mm 0; }
+  h2 { font-family: var(--doc-font-sans); font-size: 13pt; font-weight: 700; color: var(--doc-accent-strong); padding-bottom: 1mm; margin: 6mm 0 3mm; border-bottom: 1px solid var(--doc-border); }
+  h3 { font-family: var(--doc-font-sans); font-size: 11.5pt; font-weight: 600; color: var(--doc-accent); margin: 4mm 0 2mm; }
+  p { margin: 1.5mm 0; text-align: justify; }
+  ol, ul { margin: 1.5mm 0 1.5mm 7mm; }
+  li { margin: 0.8mm 0; }
+  .callout { border: 1px solid var(--doc-border); border-left: 3px solid var(--doc-accent); padding: 3mm 4mm; margin: 3mm 0; font-size: 11pt; }
+  .callout .callout-title { font-family: var(--doc-font-sans); font-weight: 700; font-size: 10.5pt; color: var(--doc-accent); margin-bottom: 1mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5pt; margin: 2.5mm 0; font-variant-numeric: tabular-nums; }
+  caption { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); text-align: left; margin-bottom: 1mm; }
+  th, td { border: 1px solid var(--doc-border); padding: 1.5mm 2.5mm; vertical-align: top; }
+  th { font-family: var(--doc-font-sans); font-weight: 600; background: var(--doc-header-bg); color: var(--doc-accent-strong); white-space: nowrap; }
+  tbody tr:nth-child(even) { background: var(--doc-zebra); }
+  .mono { font-family: var(--doc-font-mono); font-size: 9.5pt; }
+  .num { text-align: right; }
+  .disclaimer { border: 1px solid var(--doc-border); background: var(--doc-header-bg); padding: 3mm 4mm; font-size: 9.5pt; color: var(--doc-muted); margin: 3mm 0; }
+  .disclaimer::before { content: "免责声明："; font-weight: 700; color: var(--doc-body); }
+  .disclaimer::after { content: var(--doc-disclaimer); }
+  .doc-footer { margin: 6mm 0 4mm; padding-top: 2mm; border-top: 1px solid var(--doc-border); display: flex; justify-content: space-between; font-family: var(--doc-font-sans); font-size: 8.5pt; color: var(--doc-muted); }
+  .signature { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .signature .sign-block { border-top: 1px solid var(--doc-body); padding-top: 1.5mm; font-family: var(--doc-font-sans); font-size: 10pt; }
+  @page { size: A4; margin: 16mm 18mm 18mm 18mm; }
+</style>
+</head>
+<body>
+
+  <header class="doc-header">
+    <span class="firm"></span>
+    <span class="confidential"></span>
+  </header>
+
+  <div class="doc-masthead">
+    <span class="doc-type">民 事 起 诉 状</span>
+    <h1>民事起诉状</h1>
+    <div class="doc-number">案卷号：CN2026-0003-L · 版本 V1.0</div>
+  </div>
+
+  <dl class="doc-meta">
+    <dt>案由</dt><dd>侵害发明专利权纠纷</dd>
+    <dt>受理法院</dt><dd>深圳市中级人民法院</dd>
+    <dt>案号</dt><dd class="mono">（2026）粤 03 民初 1234 号</dd>
+    <dt>涉案专利号</dt><dd class="mono">ZL201910234567.8</dd>
+    <dt>提交日期</dt><dd>2026-11-05</dd>
+  </dl>
+
+  <div class="party-block">
+    <h2>一、当事人信息</h2>
+    <table>
+      <caption>表 1 · 当事人</caption>
+      <thead>
+        <tr><th style="width:12%">身份</th><th style="width:26%">名称 / 姓名</th><th style="width:26%">住所 / 住址</th><th style="width:18%">法定代表人</th><th style="width:18%">联系方式</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>原告</td><td>上海××动力科技有限公司</td><td>上海市××区××路 100 号</td><td>王××</td><td>021-××××</td></tr>
+        <tr><td>被告</td><td>深圳××电子有限公司</td><td>深圳市××区××工业区 8 栋</td><td>李××</td><td>0755-××××</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <section>
+    <h2>二、诉讼请求（起诉状）</h2>
+    <ol>
+      <li>请求判令被告立即停止侵害原告涉案专利权（停止制造、销售、许诺销售 T200 电池模组）；</li>
+      <li>请求判令被告赔偿原告经济损失及合理开支合计人民币 <span class="num">1,250,000.00</span> 元（其中经济损失 1,100,000 元 = 侵权获利估算，合理开支 150,000 元 = 律师费 120,000 + 公证取证费 30,000）；</li>
+      <li>请求判令被告承担本案诉讼费用。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>三、事实与理由</h2>
+    <p>原告系专利号为 ZL201910234567.8、名称为「一种电池模组温度均衡装置」的发明专利专利权人。被告制造、销售的 T200 电池模组落入该专利权利要求 1 的保护范围（详见侵权比对意见书）。</p>
+    <h3>（一）涉案专利状况</h3>
+    <p>涉案专利于 2019-05-20 申请，2023-08-15 授权公告，至今合法有效。</p>
+    <h3>（二）被控侵权事实</h3>
+    <p>2026-09-20 经公证购买 T200 电池模组一件；被告官网与京东旗舰店持续展示并销售（证据 2、3）。</p>
+    <h3>（三）法律依据</h3>
+    <p>被告行为构成《中华人民共和国专利法》第十一条规定的制造、销售、许诺销售侵权产品行为；赔偿依据为该法第六十五条。</p>
+  </section>
+
+  <section>
+    <h2>四、证据清单</h2>
+    <table>
+      <caption>表 2 · 证据清单</caption>
+      <thead>
+        <tr><th style="width:7%">编号</th><th style="width:30%">证据名称</th><th style="width:33%">证明内容</th><th style="width:15%">来源</th><th style="width:15%">页数</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">证据 1</td><td>专利授权公告文本</td><td>专利权归属与保护范围</td><td>CNIPA</td><td class="mono">12</td></tr>
+        <tr><td class="mono">证据 2</td><td>公证购买 T200 实物</td><td>被告制造销售事实</td><td>深圳市××公证处</td><td class="mono">8</td></tr>
+        <tr><td class="mono">证据 3</td><td>官网及电商销售页面截图</td><td>许诺销售事实</td><td>网页公证</td><td class="mono">6</td></tr>
+        <tr><td class="mono">证据 4</td><td>律师费发票、公证费发票</td><td>合理开支</td><td>原告财务</td><td class="mono">2</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="signature">
+    <div class="sign-block">原告：上海××动力科技有限公司</div>
+    <div class="sign-block">提交日期：2026-11-05</div>
+  </div>
+  <div class="disclaimer"></div>
+  <footer class="doc-footer">
+    <span>CN2026-0003-L · 机密</span>
+    <span>2026-11-05</span>
+  </footer>
+
+</body>
+</html>

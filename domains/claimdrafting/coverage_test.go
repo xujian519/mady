@@ -142,3 +142,39 @@ func TestCoverageChecker_NumExceedsClaimsCount(t *testing.T) {
 		t.Errorf("expected invalid when claim num exceeds claims count")
 	}
 }
+
+func TestCoverageChecker_EmptyFeaturesInvalid(t *testing.T) {
+	// 无特征时没有可核验的对象，不能给出「全部特征获支持」的空真结论。
+	c := NewCoverageChecker()
+	entries := []ClaimCoverageEntry{{
+		ClaimID:        "claim_1",
+		Features:       []string{" ", ""},
+		EmbodimentRefs: []string{"实施例1公开了一种壳体"},
+	}}
+	rep := c.Check(nil, entries)
+	it := rep.Items[0]
+	if it.Valid {
+		t.Fatalf("空特征应判条目非法，got valid coverage=%s", it.ActualCoverage)
+	}
+	if it.InvalidReason == "" || rep.FullCount != 0 || rep.Covered != 0 {
+		t.Errorf("invalid=%q full=%d covered=%d", it.InvalidReason, rep.FullCount, rep.Covered)
+	}
+}
+
+func TestCoverageChecker_FeatureCountUsesDeduped(t *testing.T) {
+	// 覆盖率读数按去重后的特征数计算（重复与空白特征不参与）。
+	c := NewCoverageChecker()
+	entries := []ClaimCoverageEntry{{
+		ClaimID:        "claim_1",
+		Features:       []string{"导电涂层", "导电涂层", "散热结构"},
+		EmbodimentRefs: []string{"实施例1设有导电涂层"},
+	}}
+	rep := c.Check(nil, entries)
+	it := rep.Items[0]
+	if it.FeatureCount != 2 {
+		t.Errorf("feature count = %d, want 2", it.FeatureCount)
+	}
+	if rep.Covered != 1 || rep.Uncovered != 1 {
+		t.Errorf("covered=%d uncovered=%d, want 1/1", rep.Covered, rep.Uncovered)
+	}
+}

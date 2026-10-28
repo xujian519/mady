@@ -62,6 +62,29 @@ func (s Statute) String() string {
 	}
 }
 
+// ParseStatute 按简称、全称或常用别名识别法律文件。
+//
+// 与 String 的规范简称互逆，并额外接受「实施细则」「细则」「实施条例」「指南」
+// 等文档中常见的简称。无法识别时返回 StatuteUnknown 与 false。
+func ParseStatute(name string) (Statute, bool) {
+	switch strings.TrimSpace(name) {
+	case "专利法", "中华人民共和国专利法":
+		return StatutePatentLaw, true
+	case "专利法实施细则", "实施细则", "细则", "实施条例", "专利法实施条例", "中华人民共和国专利法实施细则":
+		return StatuteImplementingRules, true
+	case "专利审查指南", "审查指南", "指南":
+		return StatuteExamGuideline, true
+	case "商标法", "中华人民共和国商标法":
+		return StatuteTrademarkLaw, true
+	case "著作权法", "中华人民共和国著作权法":
+		return StatuteCopyrightLaw, true
+	case "反不正当竞争法", "中华人民共和国反不正当竞争法":
+		return StatuteAntiUnfairCompetition, true
+	default:
+		return StatuteUnknown, false
+	}
+}
+
 // Citation 表示一次法条引用，含所属法律、条/款/项定位与引用点语境。
 type Citation struct {
 	Statute   Statute // 所属法律（由承接语境归一）

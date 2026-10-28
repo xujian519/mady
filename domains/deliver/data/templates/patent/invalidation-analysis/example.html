@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>内部无效宣告分析意见 — 示例</title>
+<style>
+  :root {
+    --doc-firm: var(--sati-doc-firm, "XX 知识产权代理事务所");
+    --doc-confidential: var(--sati-doc-confidential, "机密 · 仅供委托方使用");
+    --doc-disclaimer: var(--sati-doc-disclaimer, "本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。本文件含商业秘密与保密信息，仅限指定接收人使用；未经书面许可不得转发或复制。");
+    --doc-accent: var(--sati-doc-accent, #1f3a5f);
+    --doc-accent-strong: var(--sati-doc-accent-strong, #16324f);
+    --doc-body: var(--sati-doc-body, #1a1a1a);
+    --doc-muted: var(--sati-doc-muted, #6b6b6b);
+    --doc-border: var(--sati-doc-border, #c9c9c9);
+    --doc-header-bg: var(--sati-doc-header-bg, #f6f6f2);
+    --doc-surface: var(--sati-doc-surface, #ffffff);
+    --doc-zebra: var(--sati-doc-zebra, #fbfbf9);
+    --doc-badge-high: var(--sati-doc-danger, #b42318);
+    --doc-badge-mid: var(--sati-doc-warning, #b54708);
+    --doc-badge-low: var(--sati-doc-success, #067647);
+    --doc-font-serif: var(--sati-doc-font-serif, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif);
+    --doc-font-sans: var(--sati-doc-font-sans, "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", "SimHei", "PingFang SC", sans-serif);
+    --doc-font-mono: var(--sati-doc-font-mono, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace);
+    --doc-page-margin: var(--sati-doc-page-margin, 16mm 18mm 18mm 18mm);
+    --doc-body-padding: var(--sati-doc-body-padding, 0 18mm);
+    --doc-body-max-width: var(--sati-doc-body-max-width, 174mm);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 12pt; }
+  body {
+    font-family: var(--doc-font-serif);
+    color: var(--doc-body);
+    background: var(--doc-surface);
+    line-height: 1.7;
+    padding: var(--doc-body-padding);
+    max-width: var(--doc-body-max-width);
+    margin: 0 auto;
+  }
+  .doc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7mm 0 3mm;
+    border-bottom: 2px solid var(--doc-accent);
+    font-family: var(--doc-font-sans);
+    font-size: 9.5pt;
+    color: var(--doc-muted);
+  }
+  .doc-header .firm { font-weight: 600; color: var(--doc-accent); }
+  .doc-header .firm::before { content: var(--doc-firm); }
+  .doc-header .confidential { letter-spacing: 0.08em; }
+  .doc-header .confidential::before { content: var(--doc-confidential); }
+  .doc-masthead { text-align: center; padding: 8mm 0 4mm; }
+  .doc-masthead .doc-type {
+    display: inline-block;
+    font-family: var(--doc-font-sans);
+    font-size: 9pt;
+    letter-spacing: 0.4em;
+    color: var(--doc-accent);
+    border: 1px solid var(--doc-accent);
+    padding: 1px 10px;
+    margin-bottom: 4mm;
+  }
+  .doc-masthead h1 {
+    font-family: var(--doc-font-sans);
+    font-size: 16pt;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--doc-accent-strong);
+  }
+  .doc-masthead .doc-number { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); margin-top: 2.5mm; }
+  .doc-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6mm 6mm;
+    width: 100%;
+    margin: 5mm 0 6mm;
+    border: 1px solid var(--doc-border);
+    font-size: 11pt;
+  }
+  .doc-meta dt {
+    font-family: var(--doc-font-sans);
+    font-weight: 600;
+    color: var(--doc-accent);
+    background: var(--doc-header-bg);
+    padding: 1.2mm 4mm;
+    white-space: nowrap;
+  }
+  .doc-meta dd { padding: 1.2mm 4mm; }
+  section { margin: 5mm 0; }
+  h2 {
+    font-family: var(--doc-font-sans);
+    font-size: 13pt;
+    font-weight: 700;
+    color: var(--doc-accent-strong);
+    padding-bottom: 1mm;
+    margin: 6mm 0 3mm;
+    border-bottom: 1px solid var(--doc-border);
+  }
+  h3 {
+    font-family: var(--doc-font-sans);
+    font-size: 11.5pt;
+    font-weight: 600;
+    color: var(--doc-accent);
+    margin: 4mm 0 2mm;
+  }
+  h4 {
+    font-family: var(--doc-font-sans);
+    font-size: 11pt;
+    font-weight: 600;
+    color: var(--doc-body);
+    margin: 3mm 0 1.5mm;
+  }
+  p { margin: 1.5mm 0; text-align: justify; }
+  ol, ul { margin: 1.5mm 0 1.5mm 7mm; }
+  li { margin: 0.8mm 0; }
+  .callout {
+    border: 1px solid var(--doc-border);
+    border-left: 3px solid var(--doc-accent);
+    padding: 3mm 4mm;
+    margin: 3mm 0;
+    font-size: 11pt;
+  }
+  .callout .callout-title {
+    font-family: var(--doc-font-sans);
+    font-weight: 700;
+    font-size: 10.5pt;
+    color: var(--doc-accent);
+    margin-bottom: 1mm;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10.5pt;
+    margin: 2.5mm 0;
+    font-variant-numeric: tabular-nums;
+  }
+  caption {
+    font-family: var(--doc-font-sans);
+    font-size: 9.5pt;
+    color: var(--doc-muted);
+    text-align: left;
+    margin-bottom: 1mm;
+  }
+  th, td {
+    border: 1px solid var(--doc-border);
+    padding: 1.5mm 2.5mm;
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--doc-font-sans);
+    font-weight: 600;
+    background: var(--doc-header-bg);
+    color: var(--doc-accent-strong);
+    white-space: nowrap;
+  }
+  thead { display: table-header-group; }
+  tbody tr:nth-child(even) { background: var(--doc-zebra); }
+  .num { text-align: right; }
+  .mono { font-family: var(--doc-font-mono); font-size: 9.5pt; }
+  .badge {
+    display: inline-block;
+    font-family: var(--doc-font-sans);
+    font-size: 9pt;
+    line-height: 1.4;
+    padding: 0 5px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .badge-evidence { border: 1px solid var(--doc-accent); color: var(--doc-accent); }
+  .badge-client { border: 1px solid var(--doc-muted); color: var(--doc-muted); }
+  .badge-model { border: 1px dashed var(--doc-muted); color: var(--doc-muted); }
+  .badge-assumption { border: 1px dashed var(--doc-muted); color: var(--doc-muted); font-style: italic; }
+  .badge-risk-high { background: var(--doc-badge-high); color: #fff; }
+  .badge-risk-mid { background: var(--doc-badge-mid); color: #fff; }
+  .badge-risk-low { background: var(--doc-badge-low); color: #fff; }
+  .assumption-note { font-style: italic; color: var(--doc-muted); }
+  .doc-closing { margin-top: 8mm; }
+  .disclaimer {
+    border: 1px solid var(--doc-border);
+    background: var(--doc-header-bg);
+    padding: 3mm 4mm;
+    font-size: 9.5pt;
+    color: var(--doc-muted);
+    margin: 3mm 0;
+  }
+  .disclaimer::before {
+    content: "免责声明：";
+    font-weight: 700;
+    color: var(--doc-body);
+  }
+  .disclaimer::after { content: var(--doc-disclaimer); }
+  .doc-footer {
+    margin: 6mm 0 4mm;
+    padding-top: 2mm;
+    border-top: 1px solid var(--doc-border);
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--doc-font-sans);
+    font-size: 8.5pt;
+    color: var(--doc-muted);
+  }
+  .signature { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .signature .sign-block { border-top: 1px solid var(--doc-body); padding-top: 1.5mm; font-family: var(--doc-font-sans); font-size: 10pt; }
+  @page { size: A4; margin: var(--doc-page-margin, 16mm 18mm 18mm 18mm); }
+  @media print {
+    body { padding: 0; max-width: none; }
+    a { color: inherit; text-decoration: none; }
+    section { page-break-inside: auto; }
+    h2 { page-break-after: avoid; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; }
+  }
+</style>
+</head>
+
+<body>
+
+  <header class="doc-header">
+    <span class="firm"></span>
+    <span class="confidential"></span>
+  </header>
+
+  <div class="doc-masthead">
+    <span class="doc-type">内部无效分析</span>
+    <h1>内部无效宣告分析意见</h1>
+    <div class="doc-number">分析编号：IA-2026-0007 · 版本 V1.0</div>
+  </div>
+
+  <dl class="doc-meta">
+    <dt>涉案专利号</dt><dd>CN202310876543.2</dd>
+    <dt>专利名称</dt><dd>一种带自锁机构的快速装夹夹具</dd>
+    <dt>授权公告日</dt><dd>2024-06-18</dd>
+    <dt>专利权人</dt><dd>恒锐精密工具有限公司</dd>
+    <dt>委托方 / 委托人</dt><dd>东启机械制造有限公司</dd>
+    <dt>分析日期</dt><dd>2026-09-18</dd>
+  </dl>
+
+  <section aria-label="分析范围与依据">
+    <h2>一、分析范围与依据</h2>
+    <p>本次分析应委托方要求，就涉案专利（CN202310876543.2）授权公告文本中的权利要求 1 至 4 是否存在可主张的无效理由作内部评估。分析基础限于涉案专利授权公告文本、委托方提供的原始申请文件（D4）、本所检索得到的对比文件 D1 至 D3 与 D6、以及公知常识证据 D5，不对未检索的技术分支与专利权人的实施情况作评价。</p>
+    <ol>
+      <li>分析对象：权利要求 1 至 4，含独立权利要求 1（夹具产品）与独立权利要求 3（装配方法），以及从属于权利要求 1 的权利要求 2、4。</li>
+      <li>现有技术时间界线：涉案专利未主张优先权，以申请日 2023-07-21 为界；如主张优先权则以优先权日为准。</li>
+      <li>检索范围：CNIPA 公布公告、WIPO、EPO 与日本特许厅英文文摘，检索截止 2026-09-10，检索记录另存案卷。</li>
+      <li>结论体例：逐权项给出结论档、法条路径与依据风险，关键断言在第六节记账；无证据支撑的断言降级为模型推断或假设。</li>
+    </ol>
+  </section>
+
+  <section aria-label="涉案专利权利要求分析">
+    <h2>二、涉案专利权利要求分析</h2>
+    <table>
+      <caption>表 1 · 涉案权利要求特征分解</caption>
+      <thead>
+        <tr><th style="width:10%">权利要求</th><th style="width:12%">特征编号</th><th style="width:40%">技术特征</th><th>技术效果 / 作用</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono" rowspan="4">权1</td>
+          <td class="mono">F1</td>
+          <td>基座与夹持臂通过销轴铰接，夹持臂前端形成夹持面</td>
+          <td>实现夹持臂的开合摆动</td>
+        </tr>
+        <tr><td class="mono">F2</td><td>夹持臂尾端与楔形块的斜面抵接</td><td>把楔形块的直线位移转换为夹持臂的夹紧摆动</td></tr>
+        <tr><td class="mono">F3</td><td>楔形块由复位弹簧沿解锁方向偏压，并由导向槽限定位移方向</td><td>撤去外力后保持夹紧，形成自锁</td></tr>
+        <tr><td class="mono">F4</td><td>楔形块斜面倾角小于楔形块与抵接面之间的摩擦角</td><td>靠摩擦自锁维持夹紧，无需持续外力</td></tr>
+        <tr>
+          <td class="mono">权2</td>
+          <td class="mono">F5</td>
+          <td>夹持面设有锯齿形防滑纹</td>
+          <td>增大接触摩擦，抑制工件在夹紧时滑移</td>
+        </tr>
+        <tr>
+          <td class="mono" rowspan="2">权3</td>
+          <td class="mono">F6</td>
+          <td>装配方法包括将楔形块沿导向槽装入基座</td>
+          <td>便于装配与现场维修</td>
+        </tr>
+        <tr><td class="mono">F7</td><td>楔形块装入后以定位销沿楔形块斜面方向限位</td><td>限定楔形块行程，保证自锁角度</td></tr>
+        <tr>
+          <td class="mono">权4</td>
+          <td class="mono">F8</td>
+          <td>楔形块与导向槽之间设置滚针排</td>
+          <td>降低解锁时的滑动摩擦阻力</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-label="证据清单">
+    <h2>三、证据清单</h2>
+    <table>
+      <caption>表 2 · 证据与对比文件清单</caption>
+      <thead>
+        <tr>
+          <th style="width:8%">编号</th><th style="width:18%">标识（公开号 / ISBN 等）</th><th style="width:22%">证据名称</th>
+          <th style="width:12%">公开 / 出版日</th><th style="width:12%">与涉案专利关系</th><th>可引用段落 / 用途</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">D1</td>
+          <td class="mono">CN202010123456.7</td>
+          <td>一种凸轮式快速夹具</td>
+          <td class="num">2020-06-05</td>
+          <td>现有技术（早于申请日）</td>
+          <td class="mono">¶0012、¶0018</td>
+        </tr>
+        <tr>
+          <td class="mono">D2</td>
+          <td class="mono">CN201910876543.2</td>
+          <td>楔形自锁机构及其解锁方法</td>
+          <td class="num">2019-12-20</td>
+          <td>现有技术</td>
+          <td class="mono">¶0007、¶0014</td>
+        </tr>
+        <tr>
+          <td class="mono">D3</td>
+          <td class="mono">JP2018-123456</td>
+          <td>ワーク固定用クランプ装置</td>
+          <td class="num">2018-08-09</td>
+          <td>现有技术（备选证据，原文待核）</td>
+          <td class="mono">¶0031</td>
+        </tr>
+        <tr>
+          <td class="mono">D4</td>
+          <td class="mono">—</td>
+          <td>涉案专利申请文本（案卷）</td>
+          <td class="num">2023-07-21</td>
+          <td>原始申请文件（修改超范围核对基线）</td>
+          <td class="mono">权利要求 1–4、说明书第 3–4 页</td>
+        </tr>
+        <tr>
+          <td class="mono">D5</td>
+          <td class="mono">ISBN 978-7-111-22345-6</td>
+          <td>《机械设计手册》第 5 版 第 2 卷</td>
+          <td class="num">2015-03-01</td>
+          <td>公知常识证据（页内容待取）</td>
+          <td class="mono">第 12-38 页</td>
+        </tr>
+        <tr>
+          <td class="mono">D6</td>
+          <td class="mono">CN202220987654.1</td>
+          <td>一种带防滑齿的夹具钳口</td>
+          <td class="num">2022-04-12</td>
+          <td>现有技术</td>
+          <td class="mono">¶0006</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-label="无效理由逐条分析">
+    <h2>四、无效理由逐条分析</h2>
+
+    <h3>4.1 权利要求 1 不具备创造性（专利法第22条第3款）</h3>
+    <h4>事实认定</h4>
+    <p>权利要求 1 请求保护一种带自锁机构的快速装夹夹具，包括特征 F1 至 F4：基座与夹持臂铰接（F1）、夹持臂尾端与楔形块斜面抵接（F2）、楔形块由复位弹簧沿解锁方向偏压并由导向槽限位（F3）、楔形块斜面倾角小于摩擦角（F4）。权利要求 2、4 从属于权利要求 1，其技术方案是 F1 至 F4 与附加技术特征 F5、F8 的组合。</p>
+    <h4>证据分析</h4>
+    <p>D1 公开了凸轮式快速夹具，其夹持臂与基座铰接、尾端与凸轮面抵接并由复位弹簧偏压，对应 F1、F2、F3 的结构关系（D1 ¶0012、¶0018）。D2 公开了楔形自锁机构：楔形块在导向槽内滑动，斜面倾角小于摩擦角时靠摩擦自锁，无需持续外力（F3、F4，D2 ¶0007、¶0014）。D1 与 D2 同属夹具夹紧技术领域，本领域技术人员在需要取消持续夹紧动力时有动机以 D2 的楔形自锁结构替换 D1 的凸轮结构，两者在夹紧功能上等效。</p>
+    <h4>法条适用与结论</h4>
+    <p>根据《专利法》第22条第3款及《专利审查指南》第二部分第四章，权利要求 1 相对于 D1 与 D2 的结合不具备突出的实质性特点和显著的进步，不具备创造性。权利要求 2、4 从属于权利要求 1，按同一法条路径承接：权利要求 2 的附加技术特征 F5 由 D6 公开（D6 ¶0006）；权利要求 4 的附加技术特征 F8 在本次证据下不作主张，理由见第五节与第七节。</p>
+
+    <h3>4.2 权利要求 3 修改超范围（专利法第33条）</h3>
+    <h4>事实认定</h4>
+    <p>权利要求 3 请求保护一种快速装夹夹具的装配方法，包括 F6「将楔形块沿导向槽装入基座」与 F7「楔形块装入后以定位销沿楔形块斜面方向限位」。</p>
+    <h4>证据分析</h4>
+    <p>以委托方提供的原始申请文件（D4）为核对基线：D4 的权利要求 1–4 与说明书第 3–4 页只记载楔形块沿导向槽装入基座，以及定位销对楔形块的横向固定，没有记载「沿楔形块斜面方向限位」这一方向性限定，也没有记载该限定所解决的技术问题（D4 第 3–4 页）。逐页比对未发现对应记载，核对记录见第六节。</p>
+    <h4>法条适用与结论</h4>
+    <p>根据《专利法》第33条，对申请文件的修改不得超出原说明书与权利要求书记载的范围。F7 的方向性限定在原申请文件中没有记载，也不能由原记载直接、毫无疑义地确定，故权利要求 3 超出原申请公开的范围，属于修改超范围。该项理由以 D4 文本完整为条件：如补充提交的申请文件（含附图说明、摘要或优先权文件）中存在对应记载，本项理由相应取消。</p>
+  </section>
+
+  <section aria-label="逐权利要求结论与成功率分档">
+    <h2>五、逐权利要求结论与成功率分档</h2>
+    <table>
+      <caption>表 3 · 逐权项结论与成功率分档</caption>
+      <thead>
+        <tr><th style="width:12%">权利要求</th><th style="width:16%">结论档</th><th style="width:14%">法条路径</th><th>依据与风险</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">权1</td>
+          <td><span class="badge badge-risk-low">可无效（证据充分）</span></td>
+          <td class="mono">A22.3</td>
+          <td>D1 公开 F1–F2 与弹簧偏压结构，D2 公开 F3–F4 的楔形自锁；风险在于合议组可能认为凸轮与楔形的替换缺少结合启示，需在理由节补强功能等效说明。</td>
+        </tr>
+        <tr>
+          <td class="mono">权2</td>
+          <td><span class="badge badge-risk-mid">可无效（存疑）</span></td>
+          <td class="mono">A22.3（承接权1）</td>
+          <td>附加技术特征 F5 由 D6 公开；若 D6 不被采信，则退回本领域常规技术选择的主张，成立与否取决于 D5 页内容能否取得。从属于权利要求 1，在权利要求 1 不具备创造性的基础上承接同一法条路径。</td>
+        </tr>
+        <tr>
+          <td class="mono">权3</td>
+          <td><span class="badge badge-risk-mid">可无效（存疑）</span></td>
+          <td class="mono">A33</td>
+          <td>F7 的方向性限定未见原申请记载；风险在于核对只覆盖 D4 的权利要求书与说明书部分页，附图说明与摘要尚未逐页核对。</td>
+        </tr>
+        <tr>
+          <td class="mono">权4</td>
+          <td><span class="badge badge-risk-high">难以无效</span></td>
+          <td class="mono">A22.3（承接权1）</td>
+          <td>附加技术特征 F8（滚针排）未检索到覆盖文件，也不能当然认定为本领域常规技术选择；本次不主张该权项，仅在权利要求 1 被认定不具备创造性的前提下保留承接可能。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-label="引用日志">
+    <h2>六、引用日志</h2>
+    <p>断言、来源类型、来源名称与引证定位的取法见 <span class="mono">references/citation-log.md</span>；无证据支撑的断言在本节降级为「模型推断」或「假设」。</p>
+    <table>
+      <caption>表 4 · 关键断言溯源</caption>
+      <thead>
+        <tr>
+          <th style="width:22%">断言 / 结论</th><th style="width:13%">来源类型</th><th style="width:24%">来源名称</th>
+          <th style="width:12%">日期</th><th style="width:13%">置信度</th><th>定位（pin-cite）</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>D1 公开 F1、F2 与弹簧偏压结构</td>
+          <td>现有技术文献</td>
+          <td class="mono">D1</td>
+          <td class="num">2020-06-05</td>
+          <td><span class="badge badge-evidence">证据支撑</span></td>
+          <td class="mono">¶0012、¶0018</td>
+        </tr>
+        <tr>
+          <td>D2 公开 F3、F4 的楔形自锁结构</td>
+          <td>现有技术文献</td>
+          <td class="mono">D2</td>
+          <td class="num">2019-12-20</td>
+          <td><span class="badge badge-evidence">证据支撑</span></td>
+          <td class="mono">¶0007、¶0014</td>
+        </tr>
+        <tr>
+          <td>D6 公开 F5 的锯齿形防滑纹</td>
+          <td>现有技术文献</td>
+          <td class="mono">D6</td>
+          <td class="num">2022-04-12</td>
+          <td><span class="badge badge-evidence">证据支撑</span></td>
+          <td class="mono">¶0006</td>
+        </tr>
+        <tr>
+          <td>权利要求 1 不具备创造性</td>
+          <td>模型推断</td>
+          <td>无效分析报告 IA-2026-0007</td>
+          <td class="num">2026-09-18</td>
+          <td><span class="badge badge-model">模型推断</span></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>F7 未记载于原申请文件</td>
+          <td>客户提供</td>
+          <td class="mono">D4</td>
+          <td class="num">2023-07-21</td>
+          <td><span class="badge badge-client">客户提供</span></td>
+          <td class="mono">第 3–4 页</td>
+        </tr>
+        <tr>
+          <td>附加技术特征 F5 属本领域常规技术选择（备选主张）</td>
+          <td>假设</td>
+          <td>《机械设计手册》第 5 版 第 2 卷</td>
+          <td class="num">2015-03-01</td>
+          <td><span class="badge badge-assumption">假设</span></td>
+          <td class="mono">第 12-38 页（页内容待取）</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-label="缺口与待补事项">
+    <h2>七、缺口与待补事项</h2>
+    <ol>
+      <li>D3 为日文文献，本所仅有机器翻译，¶0031 的弹簧偏压结构表述需人工核对原文；核对前 D3 只作备选证据，不写入任何理由节。</li>
+      <li>权利要求 4 的附加技术特征 F8 未完成检索：建议以「滚针排 + 楔形自锁」组合式补检 CNIPA 与 EPO，并调取 D1 的同族与审查历史。</li>
+      <li>D5 目前只有书目与页码登记，页内容尚未取得；权利要求 2 的常规技术选择主张在取得扫描件前只作备选。</li>
+      <li>权利要求 1 的结合启示依赖 D1 与 D2 的功能等效说明，尚未取得 D1 的审查历史，无法评估审查员对「以楔形替换凸轮」的既有态度。</li>
+      <li>委托方尚未确认涉案专利是否主张优先权，也未提供在先无效、异议或侵权程序史；这些材料可能改变现有技术的时间界线。</li>
+      <li>最坏情形：若结合启示不被采信，权利要求 1、2、4 的主张一并落空，只剩权利要求 3 的修改超范围理由可用；届时第五节的分档应整体下调，并重新评估是否具备启动程序的条件。</li>
+    </ol>
+  </section>
+
+  <section aria-label="分析结论">
+    <h2>分析结论</h2>
+    <p>本次分析核对对比文件 4 篇、公知常识证据 1 篇与原始申请文件 1 份，形成两项可主张的无效理由：权利要求 1（及其从属权利要求 2）不具备创造性，权利要求 3 修改超范围。逐权项分档结论为：权利要求 1「可无效（证据充分）」，权利要求 2、3「可无效（存疑）」，权利要求 4「难以无效」。其中权利要求 1 的证据覆盖最完整；权利要求 2、3 的成立取决于第七节的待补事项；权利要求 4 在本次证据下不作主张。本件是内部工作记录，仅供本所与委托人评估使用，不构成对外提交件；对外提交件另行出具。</p>
+  </section>
+
+  <div class="doc-closing">
+    <div class="signature">
+      <div class="sign-block">分析人：________</div>
+      <div class="sign-block">审核人：________</div>
+    </div>
+    <div class="disclaimer"></div>
+    <footer class="doc-footer">
+      <span>IA-2026-0007 · 机密</span>
+      <span>2026-09-18</span>
+    </footer>
+  </div>
+
+</body>
+</html>

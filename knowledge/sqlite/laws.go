@@ -68,12 +68,10 @@ func (s *SQLiteStore) SearchLaws(keyword string, topK int) ([]LawRecord, error) 
 func (s *SQLiteStore) OpenLawsDB(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	dsn := fmt.Sprintf("file:%s?mode=ro&_pragma=busy_timeout(5000)", path)
-	lawsDB, err := sql.Open("sqlite", dsn)
+	lawsDB, err := OpenReadOnly(path)
 	if err != nil {
 		return fmt.Errorf("open laws-full.db: %w", err)
 	}
-	lawsDB.SetMaxOpenConns(2)
 	// 关闭旧连接（防止重复调用 OpenLawsDB 泄漏句柄）。
 	if s.lawsDB != nil {
 		if cerr := s.lawsDB.Close(); cerr != nil {
@@ -91,9 +89,28 @@ func (s *SQLiteStore) OpenLawsDB(path string) error {
 	return nil
 }
 
+// 法规库状态与检索路径同为「启动期一次性 OpenLawsDB、运行期只读」，因此这些读取
+// 方法不再额外加锁——加锁只覆盖一个方法反而制造了「已受保护」的错觉；OpenLawsDB
+// 自身的锁用于安全替换旧句柄，不承诺运行期热切换。
+
 // HasLawFTS returns true when the open laws database includes a law_fts
 // FTS5 virtual table for fast BM25-ranked search.
 func (s *SQLiteStore) HasLawFTS() bool { return s.hasLawFTS }
+
+// LawsAvailable 报告法规库是否已打开。
+func (s *SQLiteStore) LawsAvailable() bool { return s.lawsDB != nil }
+
+// LawsCount 返回法规库 law 表的行数；库未打开或查询失败返回 0。
+func (s *SQLiteStore) LawsCount() int {
+	if s.lawsDB == nil {
+		return 0
+	}
+	var count int
+	if err := s.lawsDB.QueryRowContext(s.baseCtx, "SELECT COUNT(*) FROM law").Scan(&count); err != nil {
+		return 0
+	}
+	return count
+}
 
 // searchLawsFTS uses the law_fts FTS5 virtual table with BM25 ranking.
 func (s *SQLiteStore) searchLawsFTS(keyword string, topK int) ([]LawRecord, error) {
@@ -104,7 +121,7 @@ func (s *SQLiteStore) searchLawsFTS(keyword string, topK int) ([]LawRecord, erro
 		SELECT l.id, l.level, l.name, l.subtitle, l.content,
 		       c.name AS category_name
 		FROM law_fts
-		JOIN law l ON l.id = law_fts.rowid
+		JOIN law l ON l.rowid = law_fts.rowid
 		JOIN category c ON c.id = l.category_id
 		WHERE law_fts MATCH ?
 		ORDER BY bm25(law_fts)

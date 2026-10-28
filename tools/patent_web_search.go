@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/pkg/cache"
 	"github.com/xujian519/mady/retrieval/domain"
 	rbrowser "github.com/xujian519/mady/retrieval/domain/browser"
 )
@@ -24,6 +27,8 @@ type patentRetrieverBundle struct {
 	google    *rbrowser.BrowserRetriever
 	cnipa     *rbrowser.BrowserRetriever
 	espacenet *rbrowser.BrowserRetriever
+	// searchCache 是 bundle 级检索缓存：三源共用同一实例，键里带源名区分。
+	searchCache *cache.Async[*domain.DomainResults]
 }
 
 // buildPatentRetrievers 构建 ego-browser 驱动的三源检索器
@@ -44,12 +49,27 @@ func buildPatentRetrievers(cfg *PatentWebSearchConfig) *patentRetrieverBundle {
 	if g == nil && c == nil && e == nil {
 		return nil
 	}
-	return &patentRetrieverBundle{google: g, cnipa: c, espacenet: e}
+	return &patentRetrieverBundle{
+		google: g, cnipa: c, espacenet: e,
+		searchCache: cache.NewAsync[*domain.DomainResults](0, 0),
+	}
+}
+
+// patentWebConfig 归一 Web 检索配置：nil 时取默认值，EgoBrowserPath 为空时自动探测。
+func patentWebConfig(cfg *PatentWebSearchConfig) PatentWebSearchConfig {
+	resolved := PatentWebSearchConfig{}
+	if cfg != nil {
+		resolved = *cfg
+	}
+	if resolved.EgoBrowserPath == "" {
+		resolved.EgoBrowserPath = rbrowser.FindEgoBrowser()
+	}
+	return resolved
 }
 
 // composite 返回三源合并检索器（Search 并发查询全部源）。
 func (b *patentRetrieverBundle) composite() domain.DomainRetriever {
-	return rbrowser.NewCompositeRetriever(b.google, b.cnipa, b.espacenet)
+	return newCachedRetriever(rbrowser.NewCompositeRetriever(b.google, b.cnipa, b.espacenet), b.searchCache)
 }
 
 // documentSources 返回全文取文档用检索器。跳过 CNIPA：其 detailURL/detailJS
@@ -65,18 +85,75 @@ func (b *patentRetrieverBundle) bySource(name string) domain.DomainRetriever {
 	switch name {
 	case "google":
 		if b.google != nil {
-			return b.google
+			return newCachedRetriever(b.google, b.searchCache)
 		}
 	case "cnipa":
 		if b.cnipa != nil {
-			return b.cnipa
+			return newCachedRetriever(b.cnipa, b.searchCache)
 		}
 	case "espacenet":
 		if b.espacenet != nil {
-			return b.espacenet
+			return newCachedRetriever(b.espacenet, b.searchCache)
 		}
 	}
 	return b.composite()
+}
+
+// cachedRetriever 给检索器加「LRU + TTL + 并发合并」缓存。只有成功且非空的
+// 结果入缓存：空结果与失败原样透传，避免把一次站点抽风固化成一个 TTL 周期
+// 的零命中。
+type cachedRetriever struct {
+	inner domain.DomainRetriever
+	cache *cache.Async[*domain.DomainResults]
+}
+
+var _ domain.DomainRetriever = (*cachedRetriever)(nil)
+
+func newCachedRetriever(inner domain.DomainRetriever, shared *cache.Async[*domain.DomainResults]) domain.DomainRetriever {
+	if inner == nil {
+		return nil
+	}
+	if shared == nil {
+		shared = cache.NewAsync[*domain.DomainResults](0, 0)
+	}
+	return &cachedRetriever{inner: inner, cache: shared}
+}
+
+func (c *cachedRetriever) Search(ctx context.Context, query domain.DomainQuery) (*domain.DomainResults, error) {
+	key := c.inner.SourceName() + cacheKeySeparator + searchCacheKey(query)
+	return c.cache.GetOrLoad(key,
+		func() (*domain.DomainResults, error) { return c.inner.Search(ctx, query) },
+		func(results *domain.DomainResults) bool {
+			return results != nil && len(results.Documents) > 0
+		},
+	)
+}
+
+func (c *cachedRetriever) GetDocument(ctx context.Context, docID string) (*domain.DomainDocument, error) {
+	return c.inner.GetDocument(ctx, docID)
+}
+
+func (c *cachedRetriever) SourceName() string { return c.inner.SourceName() }
+
+const cacheKeySeparator = "\x00"
+
+// searchCacheKey 把查询归一成稳定键：关键词与过滤条件排序后参与，避免同一
+// 语义的查询因切片/映射顺序不同而各占一条缓存。每个元素单独用 NUL 分隔，
+// 不用逗号/与号等内容字符连接——自由文本里的分隔符会造成键冲突。
+func searchCacheKey(query domain.DomainQuery) string {
+	keywords := append([]string(nil), query.Keywords...)
+	sort.Strings(keywords)
+	filters := make([]string, 0, len(query.Filters))
+	for key, value := range query.Filters {
+		filters = append(filters, key+"="+value)
+	}
+	sort.Strings(filters)
+	parts := make([]string, 0, len(keywords)+len(filters)+2)
+	parts = append(parts, strings.TrimSpace(query.Text))
+	parts = append(parts, keywords...)
+	parts = append(parts, fmt.Sprintf("%d", query.MaxResults))
+	parts = append(parts, filters...)
+	return strings.Join(parts, cacheKeySeparator)
 }
 
 // NewPatentWebSearchTool 基于 ego-browser 实时检索在线专利数据库

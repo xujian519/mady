@@ -18,23 +18,25 @@ package agentcore
 // 每个工具只分配一个主域。如果一个工具跨多个域，选择最匹配的主域。
 var ToolDomains = map[string]string{
 	// ── 系统/内置工具 (system) ──
-	"bash":             "system",
-	"execute_code":     "system",
-	"process":          "system",
-	"read":             "system",
-	"edit":             "system",
-	"write_file":       "system",
-	"ls":               "system",
-	"grep":             "system",
-	"find":             "system",
-	"glob":             "system",
-	"delete":           "system",
-	"move":             "system",
-	"mkdir":            "system",
-	"patch":            "system",
-	"append":           "system",
-	"convert_document": "system",
-	"ocr":              "system",
+	"bash":              "system",
+	"execute_code":      "system",
+	"process":           "system",
+	"read":              "system",
+	"edit":              "system",
+	"write_file":        "system",
+	"ls":                "system",
+	"grep":              "system",
+	"find":              "system",
+	"glob":              "system",
+	"delete":            "system",
+	"move":              "system",
+	"mkdir":             "system",
+	"patch":             "system",
+	"append":            "system",
+	"convert_document":  "system",
+	"office_to_pdf":     "system",
+	"ocr":               "system",
+	"matter_log_append": "system",
 
 	// ── 版本控制 (git) ──
 	"git_status": "git",
@@ -47,8 +49,12 @@ var ToolDomains = map[string]string{
 	"search_project_files": "search",
 
 	// ── 网络搜索 (web_search) ──
-	"web_search": "web_search",
-	"web_fetch":  "web_search",
+	"web_search":         "web_search",
+	"web_fetch":          "web_search",
+	"scholar_search":     "web_search",
+	"paper_search":       "web_search",
+	"paper_list_sources": "web_search",
+	"paper_download":     "web_search",
 
 	// ── 浏览器自动化 (browser) ──
 	"browser": "browser",
@@ -64,14 +70,20 @@ var ToolDomains = map[string]string{
 	"google_patents":       "patent_search",
 	"iterative_search":     "patent_search",
 	"search_query_builder": "patent_search",
+	"cnipr_search":         "patent_search",
 
 	// ── 专利分析 (patent_analysis) ──
-	"patent_novelty":         "patent_analysis",
-	"patent_inventiveness":   "patent_analysis",
-	"novelty_analysis":       "patent_analysis",
-	"inventiveness_analysis": "patent_analysis",
-	"claim_compare":          "patent_analysis",
-	"feature_extractor":      "patent_analysis",
+	"patent_novelty":              "patent_analysis",
+	"patent_inventiveness":        "patent_analysis",
+	"novelty_analysis":            "patent_analysis",
+	"inventiveness_analysis":      "patent_analysis",
+	"claim_compare":               "patent_analysis",
+	"feature_extractor":           "patent_analysis",
+	"check_technical_problem":     "patent_analysis",
+	"triz_contradiction_analysis": "patent_analysis",
+	"patent_analysis_report":      "patent_analysis",
+	"adversary_check":             "patent_analysis",
+	"adversary_review":            "patent_analysis",
 
 	// ── 权利要求撰写 (drafting) ──
 	"claim_draft":         "drafting",
@@ -86,15 +98,21 @@ var ToolDomains = map[string]string{
 	"patent_responder": "oa",
 
 	// ── 法律分析 (legal) ──
-	"legal_knowledge_search": "legal",
-	"legal_comparison":       "legal",
-	"claim_parse":            "legal",
+	"legal_knowledge_search":  "legal",
+	"legal_knowledge_install": "legal",
+	"legal_comparison":        "legal",
+	"claim_parse":             "legal",
 
 	// ── 专利无效/复审 (council) ──
 	"infringement_check":  "council",
 	"invalidity_check":    "council",
 	"reexamination":       "council",
 	"design_invalidation": "council",
+
+	// ── 附图生成与交付 (figure) ──
+	"figure_generate":    "figure",
+	"figure_submission":  "figure",
+	"figure_consistency": "figure",
 
 	// ── 评估 (evaluation) ──
 	"patent_eval":          "evaluation",
@@ -106,13 +124,15 @@ var ToolDomains = map[string]string{
 	"disclosure_analyze": "disclosure",
 
 	// ── 证据分析 (evidence) ──
-	"evidence_check": "evidence",
+	"evidence_check":          "evidence",
+	"evaluate_legal_evidence": "evidence",
 
 	// ── 充分公开 (enablement) ──
 	"enablement_check": "enablement",
 
 	// ── 知识管理 (knowledge) ──
-	"add_document": "knowledge",
+	"add_document":     "knowledge",
+	"knowledge_status": "knowledge",
 
 	// ── 撰写质量 (writing) ──
 	"writing_eval": "writing",

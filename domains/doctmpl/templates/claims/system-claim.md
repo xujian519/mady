@@ -5,6 +5,52 @@ category: claims
 description: 系统级专利权利要求模板
 domain: patent
 version: "1.0"
+language: zh-CN
+formats:
+  - markdown
+  - html
+  - docx
+vars:
+  - name: system_name
+    type: string
+    required: false
+    description: "系统名称"
+  - name: sub_1
+    type: string
+    required: false
+    description: "第一子系统名称"
+  - name: func_1
+    type: string
+    required: false
+    description: "第一子系统的功能"
+  - name: sub_2
+    type: string
+    required: false
+    description: "第二子系统名称"
+  - name: func_2
+    type: string
+    required: false
+    description: "第二子系统的功能"
+  - name: sub_1_unit
+    type: string
+    required: false
+    description: "第一子系统包含的单元名称"
+  - name: topology
+    type: string
+    required: false
+    description: "单元之间的拓扑连接方式"
+  - name: protocol
+    type: string
+    required: false
+    description: "第二子系统与控制单元的通信协议"
+  - name: additional_sub
+    type: string
+    required: false
+    description: "附加子系统名称"
+  - name: additional_func
+    type: string
+    required: false
+    description: "附加子系统的功能"
 ---
 # 权利要求书
 

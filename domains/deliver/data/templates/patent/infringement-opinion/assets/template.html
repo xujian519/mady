@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>侵权比对意见书</title>
+<style>
+  :root {
+    --doc-firm: var(--sati-doc-firm, "XX 知识产权代理事务所");
+    --doc-confidential: var(--sati-doc-confidential, "机密 · 仅供委托方使用");
+    --doc-disclaimer: var(--sati-doc-disclaimer, "本文件由 AI 辅助生成，不构成正式法律意见。侵权诉讼的主张与抗辩应由具备资质的专利律师确认。");
+    --doc-accent: var(--sati-doc-accent, #1f3a5f);
+    --doc-accent-strong: var(--sati-doc-accent-strong, #16324f);
+    --doc-body: var(--sati-doc-body, #1a1a1a);
+    --doc-muted: var(--sati-doc-muted, #6b6b6b);
+    --doc-border: var(--sati-doc-border, #c9c9c9);
+    --doc-header-bg: var(--sati-doc-header-bg, #f6f6f2);
+    --doc-surface: var(--sati-doc-surface, #ffffff);
+    --doc-zebra: var(--sati-doc-zebra, #fbfbf9);
+    --doc-badge-high: var(--sati-doc-danger, #b42318);
+    --doc-badge-mid: var(--sati-doc-warning, #b54708);
+    --doc-badge-low: var(--sati-doc-success, #067647);
+    --doc-font-serif: var(--sati-doc-font-serif, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif);
+    --doc-font-sans: var(--sati-doc-font-sans, "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", "SimHei", "PingFang SC", sans-serif);
+    --doc-font-mono: var(--sati-doc-font-mono, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace);
+    --doc-page-margin: var(--sati-doc-page-margin, 16mm 18mm 18mm 18mm);
+    --doc-body-padding: var(--sati-doc-body-padding, 0 18mm);
+    --doc-body-max-width: var(--sati-doc-body-max-width, 174mm);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 12pt; }
+  body {
+    font-family: var(--doc-font-serif);
+    color: var(--doc-body);
+    background: var(--doc-surface);
+    line-height: 1.8;
+    padding: var(--doc-body-padding);
+    max-width: var(--doc-body-max-width);
+    margin: 0 auto;
+  }
+  .doc-header { display: flex; justify-content: space-between; align-items: baseline; padding: 7mm 0 3mm; border-bottom: 2px solid var(--doc-accent); font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); }
+  .doc-header .firm { font-weight: 600; color: var(--doc-accent); }
+  .doc-header .firm::before { content: var(--doc-firm); }
+  .doc-header .confidential { letter-spacing: 0.08em; }
+  .doc-header .confidential::before { content: var(--doc-confidential); }
+  .doc-masthead { text-align: center; padding: 8mm 0 4mm; }
+  .doc-masthead .doc-type { display: inline-block; font-family: var(--doc-font-sans); font-size: 9pt; letter-spacing: 0.4em; color: var(--doc-accent); border: 1px solid var(--doc-accent); padding: 1px 10px; margin-bottom: 4mm; }
+  .doc-masthead h1 { font-family: var(--doc-font-sans); font-size: 16pt; font-weight: 700; letter-spacing: 0.12em; color: var(--doc-accent-strong); }
+  .doc-masthead .doc-number { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); margin-top: 2.5mm; }
+  .doc-meta { display: grid; grid-template-columns: auto 1fr; gap: 0.6mm 6mm; width: 100%; margin: 5mm 0 6mm; border: 1px solid var(--doc-border); font-size: 11pt; }
+  .doc-meta dt { font-family: var(--doc-font-sans); font-weight: 600; color: var(--doc-accent); background: var(--doc-header-bg); padding: 1.2mm 4mm; white-space: nowrap; }
+  .doc-meta dd { padding: 1.2mm 4mm; }
+  section { margin: 5mm 0; }
+  h2 { font-family: var(--doc-font-sans); font-size: 13pt; font-weight: 700; color: var(--doc-accent-strong); padding-bottom: 1mm; margin: 6mm 0 3mm; border-bottom: 1px solid var(--doc-border); }
+  h3 { font-family: var(--doc-font-sans); font-size: 11.5pt; font-weight: 600; color: var(--doc-accent); margin: 4mm 0 2mm; }
+  p { margin: 1.5mm 0; text-align: justify; }
+  ol, ul { margin: 1.5mm 0 1.5mm 7mm; }
+  li { margin: 0.8mm 0; }
+  .callout { border: 1px solid var(--doc-border); border-left: 3px solid var(--doc-accent); padding: 3mm 4mm; margin: 3mm 0; font-size: 11pt; }
+  .callout .callout-title { font-family: var(--doc-font-sans); font-weight: 700; font-size: 10.5pt; color: var(--doc-accent); margin-bottom: 1mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5pt; margin: 2.5mm 0; font-variant-numeric: tabular-nums; }
+  caption { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); text-align: left; margin-bottom: 1mm; }
+  th, td { border: 1px solid var(--doc-border); padding: 1.5mm 2.5mm; vertical-align: top; }
+  th { font-family: var(--doc-font-sans); font-weight: 600; background: var(--doc-header-bg); color: var(--doc-accent-strong); white-space: nowrap; }
+  thead { display: table-header-group; }
+  tbody tr:nth-child(even) { background: var(--doc-zebra); }
+  .mono { font-family: var(--doc-font-mono); font-size: 9.5pt; }
+  .badge { display: inline-block; font-family: var(--doc-font-sans); font-size: 9pt; line-height: 1.4; padding: 0 5px; border-radius: 2px; white-space: nowrap; }
+  .badge-evidence { border: 1px solid var(--doc-accent); color: var(--doc-accent); }
+  .badge-client { border: 1px solid var(--doc-muted); color: var(--doc-muted); }
+  .badge-model { border: 1px dashed var(--doc-muted); color: var(--doc-muted); }
+  .badge-assumption { border: 1px dashed var(--doc-muted); color: var(--doc-muted); font-style: italic; }
+  .badge-high { background: var(--doc-badge-high); color: #fff; }
+  .badge-mid { background: var(--doc-badge-mid); color: #fff; }
+  .badge-low { background: var(--doc-badge-low); color: #fff; }
+  .doc-closing { margin-top: 8mm; }
+  .disclaimer { border: 1px solid var(--doc-border); background: var(--doc-header-bg); padding: 3mm 4mm; font-size: 9.5pt; color: var(--doc-muted); margin: 3mm 0; }
+  .disclaimer::before { content: "免责声明："; font-weight: 700; color: var(--doc-body); }
+  .disclaimer::after { content: var(--doc-disclaimer); }
+  .doc-footer { margin: 6mm 0 4mm; padding-top: 2mm; border-top: 1px solid var(--doc-border); display: flex; justify-content: space-between; font-family: var(--doc-font-sans); font-size: 8.5pt; color: var(--doc-muted); }
+  .signature { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .signature .sign-block { border-top: 1px solid var(--doc-body); padding-top: 1.5mm; font-family: var(--doc-font-sans); font-size: 10pt; }
+  @page { size: A4; margin: var(--doc-page-margin, 16mm 18mm 18mm 18mm); }
+  @media print {
+    body { padding: 0; max-width: none; }
+    a { color: inherit; text-decoration: none; }
+    section { page-break-inside: auto; }
+    h2 { page-break-after: avoid; }
+    tr { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+  <header class="doc-header">
+    <span class="firm"></span>
+    <span class="confidential"></span>
+  </header>
+
+  <div class="doc-masthead">
+    <span class="doc-type">侵 权 比 对 意 见 书</span>
+    <h1>侵权比对意见书</h1>
+    <div class="doc-number" id="doc-number">案卷号：<span class="mono">________</span> · 版本 V1.0</div>
+  </div>
+
+  <dl class="doc-meta">
+    <dt>涉案专利号</dt><dd id="meta-patent" class="mono">________</dd>
+    <dt>发明名称</dt><dd id="meta-title">________</dd>
+    <dt>专利权人</dt><dd id="meta-owner">________</dd>
+    <dt>被控产品/方法</dt><dd id="meta-accused">________</dd>
+    <dt>委托方立场</dt><dd id="meta-side">专利权人（主张方）/ 被告（抗辩方）</dd>
+    <dt>报告日期</dt><dd id="meta-date">________</dd>
+  </dl>
+
+  <!-- 一、权利要求解释 -->
+  <section id="claim-interpretation" aria-label="权利要求解释">
+    <h2>一、权利要求解释</h2>
+    <p>被比对的独立权利要求 1 全文：</p>
+    <div class="callout">
+      <div class="callout-title">权利要求 1 全文</div>
+      <p id="claim-text">________</p>
+    </div>
+    <p>解释结论（含明显区别特征、功能性特征、禁反言与捐献原则限制）：</p>
+    <ul id="interpretation-notes">
+      <li>________</li>
+    </ul>
+  </section>
+
+  <!-- 二、被控物特征分解 -->
+  <section id="accused-decomposition" aria-label="被控物特征分解">
+    <h2>二、被控产品/方法特征分解</h2>
+    <p id="accused-summary">________</p>
+    <table>
+      <caption>表 1 · 被控物特征清单</caption>
+      <thead>
+        <tr>
+          <th style="width:8%">特征号</th>
+          <th style="width:56%">被控特征描述</th>
+          <th style="width:22%">来源</th>
+          <th style="width:14%">来源类型</th>
+        </tr>
+      </thead>
+      <tbody id="accused-table-body">
+        <tr>
+          <td class="mono">a</td>
+          <td>________</td>
+          <td>________</td>
+          <td><span class="badge badge-evidence">证据</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 三、全面覆盖比对 -->
+  <section id="infringement-comparison" aria-label="全面覆盖比对">
+    <h2>三、全面覆盖逐特征比对</h2>
+    <table>
+      <caption>表 2 · 逐特征比对（全面覆盖）</caption>
+      <thead>
+        <tr>
+          <th style="width:7%">特征号</th>
+          <th style="width:25%">权利要求特征</th>
+          <th style="width:30%">被控特征</th>
+          <th style="width:12%">比对结论</th>
+          <th style="width:26%">理由 / 依据</th>
+        </tr>
+      </thead>
+      <tbody id="comparison-table-body">
+        <tr>
+          <td class="mono">1</td>
+          <td>________</td>
+          <td>________</td>
+          <td><span class="badge badge-low">相同</span></td>
+          <td>________</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>结论：被控产品是否全面覆盖权利要求 1 的全部技术特征：<span id="coverage-conclusion">________</span></p>
+  </section>
+
+  <!-- 四、等同分析 -->
+  <section id="equivalence" aria-label="等同分析">
+    <h2>四、等同分析（待定特征）</h2>
+    <table>
+      <caption>表 3 · 等同分析（手段-功能-效果 + 显而易见性）</caption>
+      <thead>
+        <tr>
+          <th style="width:7%">特征号</th>
+          <th style="width:18%">手段</th>
+          <th style="width:18%">功能</th>
+          <th style="width:18%">效果</th>
+          <th style="width:20%">显而易见性判断</th>
+          <th style="width:19%">等同与否</th>
+        </tr>
+      </thead>
+      <tbody id="equivalence-table-body">
+        <tr>
+          <td class="mono">2</td>
+          <td>________</td>
+          <td>________</td>
+          <td>________</td>
+          <td>________</td>
+          <td><span class="badge badge-mid">待论证</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>等同主张的限制因素（禁反言、捐献、自由公知技术抗辩）：</p>
+    <ul id="equivalence-limits">
+      <li>________</li>
+    </ul>
+  </section>
+
+  <!-- 五、结论与风险 -->
+  <section id="conclusion" aria-label="结论与风险">
+    <h2>五、结论与风险</h2>
+    <div class="callout">
+      <div class="callout-title">比对结论</div>
+      <p id="conclusion-text">________</p>
+    </div>
+    <p>主要风险点：</p>
+    <ol id="risk-items">
+      <li>________</li>
+    </ol>
+    <p>证据附录：</p>
+    <ol id="evidence-log">
+      <li>________</li>
+    </ol>
+  </section>
+
+  <div class="doc-closing">
+    <div class="signature">
+      <div class="sign-block">出具人：________</div>
+      <div class="sign-block">审核人：________</div>
+    </div>
+    <div class="disclaimer"></div>
+    <footer class="doc-footer">
+      <span id="footer-case">________</span>
+      <span id="footer-date">________</span>
+    </footer>
+  </div>
+
+</body>
+</html>

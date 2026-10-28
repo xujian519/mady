@@ -157,7 +157,9 @@ func FindDocByCategory(templates []DocTemplate, category string) []DocTemplate {
 }
 
 // DocIndex returns a human-readable index grouped by category, in a
-// deterministic order (claims → specification → oa-response → disclosure).
+// deterministic order (claims → specification → oa-response → disclosure →
+// legal → patent-report → document). Categories not in that list are appended
+// in alphabetical order so a new template directory never drops out of the index.
 func DocIndex(templates []DocTemplate) string {
 	if len(templates) == 0 {
 		return ""
@@ -168,14 +170,27 @@ func DocIndex(templates []DocTemplate) string {
 	}
 	var b strings.Builder
 	b.WriteString("Available document templates:\n\n")
-	categoryOrder := []string{"claims", "specification", "oa-response", "disclosure", "legal"}
+	categoryOrder := []string{"claims", "specification", "oa-response", "disclosure", "legal", "patent-report", "document"}
+	ordered := make([]string, 0, len(cats))
+	listed := make(map[string]bool, len(cats))
 	for _, cat := range categoryOrder {
-		items, ok := cats[cat]
-		if !ok {
-			continue
+		if _, ok := cats[cat]; ok {
+			ordered = append(ordered, cat)
+			listed[cat] = true
 		}
+	}
+	// 未登记的类别也列出来：新增目录不该因为忘了改 categoryOrder 而从索引消失。
+	var rest []string
+	for cat := range cats {
+		if !listed[cat] {
+			rest = append(rest, cat)
+		}
+	}
+	sort.Strings(rest)
+	ordered = append(ordered, rest...)
+	for _, cat := range ordered {
 		fmt.Fprintf(&b, "  [%s]\n", cat)
-		for _, t := range items {
+		for _, t := range cats[cat] {
 			fmt.Fprintf(&b, "    %-30s — %s\n", t.Name, t.Description)
 		}
 		b.WriteString("\n")

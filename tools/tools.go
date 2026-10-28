@@ -37,6 +37,7 @@ const (
 	ToolVision      = "vision_analyze"
 	ToolPandoc      = "convert_document"
 	ToolOCR         = "ocr"
+	ToolOfficePDF   = OfficeToPDFToolName
 )
 
 // ComputerUseToolConfig is a type alias for backward compatibility.
@@ -116,6 +117,11 @@ type ExtensionConfig struct {
 	// Uses Semantic Scholar API. Set SEMANTIC_SCHOLAR_API_KEY env var for higher rate limits.
 	ScholarSearch *ScholarSearchConfig
 
+	// PaperLiterature configures paper_search / paper_list_sources /
+	// paper_download（四源文献检索与开放获取 PDF 下载）。Nil 时使用默认配置，
+	// WorkingDir 由 BuildTools 注入。
+	PaperLiterature *PaperLiteratureConfig
+
 	PatentTool *PatentToolConfig
 
 	// PatentWebSearch configures the patent_web_search tool (ego-browser 驱动，
@@ -130,6 +136,11 @@ type ExtensionConfig struct {
 
 	// OCR configures the OCR tool. If nil, default local OCR is used.
 	OCR *OCRToolConfig
+
+	// OfficePDF configures the office_to_pdf tool. Nil uses defaults and still
+	// registers the tool: when no engine is installed it returns a structured
+	// rejection with install hints instead of silently disappearing.
+	OfficePDF *OfficePDFConfig
 
 	// ExecuteCode configures the execute_code tool. If nil, a default configuration is used.
 	ExecuteCode *ExecuteCodeToolConfig
@@ -320,6 +331,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(NewProcessTool(cfg.WorkingDir, cfg.Process))
 	addTool(readOnly(NewVisionTool(cfg.WorkingDir, cfg.Vision)))
 	addTool(readOnly(NewOCRTool(cfg.OCR)))
+	addTool(NewOfficeToPDFTool(cfg.OfficePDF))
 	addTool(readOnly(NewViewTool(cfg.WorkingDir, cfg.View)))
 	addTool(readOnly(NewGlobTool(cfg.WorkingDir, cfg.Glob)))
 	addTool(NewDeleteTool(cfg.WorkingDir, cfg.Delete))
@@ -331,11 +343,13 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(readOnly(NewWebSearchTool(cfg.WebSearch)))
 	addTool(readOnly(NewWebFetchTool(cfg.WebFetch)))
 	addTool(readOnly(NewScholarSearchTool(cfg.ScholarSearch)))
+	addPaperTools(addTool, cfg)
 	addTool(readOnly(NewPatentScrapeTool(cfg.PatentTool)))
 	addTool(NewPatentDownloadTool(cfg.PatentTool))
 	addTool(NewPatentLegalStatusTool(cfg.PatentTool))
 	addTool(readOnly(NewPatentWebSearchTool(cfg.PatentWebSearch)))
 	addTool(readOnly(NewPatentDocumentTool(cfg.PatentWebSearch)))
+	registerCNIPRTool(func(t *agentcore.Tool) { addTool(readOnly(t)) }, cfg.PatentWebSearch)
 
 	if cfg.Pandoc != nil {
 		addTool(NewPandocTool(cfg.Pandoc))
@@ -454,6 +468,15 @@ func propagateSandbox(cfg *ExtensionConfig) {
 	// Without this, WorkingDir stays empty and path checks are silently skipped.
 	if cfg.Pandoc != nil && cfg.Pandoc.WorkingDir == "" {
 		cfg.Pandoc.WorkingDir = cfg.WorkingDir
+	}
+
+	// Office→PDF: same boundary, plus the shared sandbox (symlink-safe resolution).
+	if cfg.OfficePDF == nil {
+		cfg.OfficePDF = OfficePDFConfigDefaults()
+	}
+	cfg.OfficePDF.Sandbox = sbx
+	if cfg.OfficePDF.WorkingDir == "" {
+		cfg.OfficePDF.WorkingDir = cfg.WorkingDir
 	}
 }
 

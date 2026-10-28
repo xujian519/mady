@@ -422,3 +422,39 @@ func NewPlanTaskInterruptedEvent(sessionID, stepID, reason string) *PlanTaskInte
 		Reason:    reason,
 	}
 }
+
+// ===========================================================================
+// 交付登记事件（deliver 扩展发射，会话日志持久化）
+// ===========================================================================
+
+// EventDeliverRegistered 在交付件登记完成时触发。
+const EventDeliverRegistered EventType = "deliver/registered"
+
+// DeliverRegisteredEvent 是一次交付登记完成的事件。
+//
+// 只携带通用可观测字段，不引用 domains/deliver 的类型：agentcore 不依赖领域包。
+type DeliverRegisteredEvent struct {
+	baseEvent
+	// TemplateID 是本次交付使用的模板；为空表示不来自模板。
+	TemplateID string `json:"template_id,omitempty"`
+	// Verdict 是交付结论（pass / fail / inconclusive）。
+	Verdict string `json:"verdict"`
+	// Files 是清单中的文件数（主路径与副本各计一条）。
+	Files int `json:"files"`
+	// Issues 是未通过项。
+	Issues []string `json:"issues,omitempty"`
+	// Unverified 是未能执行的核验项。
+	Unverified []string `json:"unverified,omitempty"`
+}
+
+// NewDeliverRegisteredEvent 构造交付登记事件。
+func NewDeliverRegisteredEvent(templateID, verdict string, files int, issues, unverified []string) *DeliverRegisteredEvent {
+	return &DeliverRegisteredEvent{
+		baseEvent:  newBase(EventDeliverRegistered),
+		TemplateID: templateID,
+		Verdict:    verdict,
+		Files:      files,
+		Issues:     issues,
+		Unverified: unverified,
+	}
+}

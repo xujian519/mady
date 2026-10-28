@@ -36,6 +36,9 @@ var solutionBindingThroughRe = regexp.MustCompile(`通过(设置|增设|加装|�
 // throughPosRe 定位"通过"出现位置，用于逐位置复现 Sati 负向前瞻的豁免语义。
 var throughPosRe = regexp.MustCompile(`通过`)
 
+// throughObjectRe 截取"通过"到句读之间的宾语短语（"通过液冷泵提高散热效率"→"液冷泵提高散热效率"）。
+var throughObjectRe = regexp.MustCompile(`通过([^，。；]{1,16})`)
+
 // solutionBindingActionRe "设置限位凸台/增设密封圈/引入闭环控制器"等：动作 + 具体结构名词。
 var solutionBindingActionRe = regexp.MustCompile(`(设置|增设|加装|引入|配置|利用|采用)[^，。；]{1,12}(机构|装置|组件|模块|系统|结构|单元|片|件|阀|泵|块|器|机|圈|垫|座|罩|盖|台|板|管|杆|轮|轴|簧|塞)`)
 
@@ -101,6 +104,12 @@ func checkNoSolutionBinding(text string) bool {
 		if solutionBindingThroughRe.MatchString(text[m[0]:]) {
 			return false
 		}
+		// "通过液冷泵…/通过增大散热面积…"：不带手段动词的直接宾语式手段表述，
+		// 在技术问题里同样属于绑定方案。截到句读，避免跨句误判。
+		if object := throughObjectRe.FindStringSubmatch(text[m[0]:]); object != nil &&
+			object[1] != "" && !startsWithGenericMeans(object[1]) {
+			return false
+		}
 	}
 	return true
 }
@@ -154,7 +163,8 @@ func CheckAtomicProblem(problem string) AtomicCheckResult {
 }
 
 // ExtractTechnicalProblem 从评估文本中提取"实际解决的技术问题"片段（兼容两种形态）：
-//   - Graph 形态：inventiveness_diff JSON 的 "actual_technical_problem" 字段；
+//   - Graph 形态：inventiveness_diff JSON 的 "actual_technical_problem" 字段
+//     （字符串，或数组形态时取首个元素）；
 //   - 文本形态："实际解决的技术问题：/为/是 ..."句。
 //
 // 提取不到返回空串。
@@ -165,6 +175,11 @@ func ExtractTechnicalProblem(text string) string {
 		s := strings.ReplaceAll(m[1], `\\`, `\`)
 		s = strings.ReplaceAll(s, `\"`, `"`)
 		return s
+	}
+	jsonArrayRe := regexp.MustCompile(`"actual_technical_problem"\s*:\s*\[\s*"((?:[^"\\]|\\.)*)"`)
+	if m := jsonArrayRe.FindStringSubmatch(text); m != nil {
+		s := strings.ReplaceAll(m[1], `\\`, `\`)
+		return strings.ReplaceAll(s, `\"`, `"`)
 	}
 	flatRe := regexp.MustCompile(`实际解决的技术问题[是为：:]+([^。\n]{4,120})`)
 	if m := flatRe.FindStringSubmatch(text); m != nil {

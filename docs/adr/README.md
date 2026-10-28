@@ -22,6 +22,7 @@
 | 0003 | 统一运行时（Unified Runtime）设计 | [0003-unified-runtime-design.md](0003-unified-runtime-design.md) |
 | 0006 | Memory 模块设计 | [006-memory-module.md](006-memory-module.md) |
 | 0007 | ContextBuilder — 统一上下文组装 | [007-context-builder.md](007-context-builder.md) |
+| 0008 | 专利多智能体团队采用「新增 domains/teams 会话协作层」 | [0008-patent-teams-model.md](0008-patent-teams-model.md) |
 
 ## 何时写 ADR
 

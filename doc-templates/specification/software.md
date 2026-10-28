@@ -5,6 +5,64 @@ category: specification
 description: 软件/算法领域专利申请说明书模板
 domain: patent
 version: "1.0"
+language: zh-CN
+formats:
+  - markdown
+  - html
+  - docx
+vars:
+  - name: tech_field
+    type: string
+    required: false
+    description: "本发明所属技术领域"
+  - name: invention_name
+    type: string
+    required: false
+    description: "发明名称"
+  - name: app_scenario
+    type: string
+    required: false
+    description: "本发明的应用场景"
+  - name: problem_1
+    type: multiline
+    required: false
+    description: "现有技术存在的问题1"
+  - name: problem_2
+    type: multiline
+    required: false
+    description: "现有技术存在的问题2"
+  - name: input_data
+    type: string
+    required: false
+    description: "方法步骤1获取的输入数据"
+  - name: algo_core
+    type: multiline
+    required: false
+    description: "处理输入数据的核心算法逻辑"
+  - name: intermediate
+    type: string
+    required: false
+    description: "处理后得到的中间结果"
+  - name: decision_logic
+    type: multiline
+    required: false
+    description: "由中间结果得到输出的判定逻辑"
+  - name: output
+    type: string
+    required: false
+    description: "方法最终输出的结果"
+  - name: algo_name
+    type: string
+    required: false
+    description: "装置中处理模块执行的算法名称"
+  - name: effect_desc
+    type: multiline
+    required: false
+    description: "有益效果"
+  - name: embodiment
+    type: multiline
+    required: false
+    description: "具体实施方式"
 ---
 # 说明书
 

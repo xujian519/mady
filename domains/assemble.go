@@ -5,7 +5,15 @@ import (
 	"path/filepath"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/adversary"
+	"github.com/xujian519/mady/domains/analysisreport"
 	"github.com/xujian519/mady/domains/checker"
+	figuregenerate "github.com/xujian519/mady/domains/figure/generate"
+	"github.com/xujian519/mady/domains/inventiveness"
+	"github.com/xujian519/mady/domains/lawverify"
+	"github.com/xujian519/mady/domains/matterlog"
+	"github.com/xujian519/mady/domains/rules"
+	"github.com/xujian519/mady/domains/triz"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/pkg/util"
 )
@@ -19,18 +27,103 @@ import (
 // 一致；Extensions 段中 legal 的 Rules/Writing 相对原序交换——两者无同名
 // 工具、无 LifecycleHook（仅 ToolProvider / SystemPromptProvider），
 // 注册顺序不影响行为。
+// globalLegalKnowledgeExt 是法律知识检索扩展的全局实例，由
+// SetupLegalKnowledgeExtension 在启动期注入。专利与法律域共享：专利分析同样
+// 需要司法解释与裁判案例检索。
+var globalLegalKnowledgeExt agentcore.Extension
+
+// SetupLegalKnowledgeExtension 在启动期注入法律知识检索扩展
+// （legal_knowledge_search / legal_knowledge_install）。
+// ext 为 nil 时静默跳过；必须在任何 Agent 创建前调用。
+func SetupLegalKnowledgeExtension(ext agentcore.Extension) {
+	globalLegalKnowledgeExt = ext
+}
+
+// injectFigureTool 追加附图工具组（生成 / 落版 / 跨图核验）。
+// 产物路径限定在项目目录（缺省为工作区）内；工作目录都未配置时不注入。
+// 跨图核验只读、不依赖工作目录，因此始终注入。
+func injectFigureTool(cfg *agentcore.Config) {
+	cfg.Tools = append(cfg.Tools, figuregenerate.NewConsistencyTool())
+	workDir := cfg.ProjectDir
+	if workDir == "" {
+		workDir = cfg.WorkspaceDir
+	}
+	if workDir == "" {
+		return
+	}
+	figureCfg := figuregenerate.ToolConfig{WorkingDir: workDir}
+	cfg.Tools = append(cfg.Tools, figuregenerate.NewTool(figureCfg), figuregenerate.NewSubmissionTool(figureCfg))
+}
+
+// injectPatentAnalysisTools 追加专利分析工具：技术问题合规检查、TRIZ 矛盾分析、
+// 分析报告聚合、对立审查（计划评估）与换位审查（最终产物评估）。
+// 全部为纯确定性工具（模型只负责识别/产出，程序核验），不依赖工作目录。
+func injectPatentAnalysisTools(cfg *agentcore.Config) {
+	cfg.Tools = append(cfg.Tools,
+		inventiveness.NewProblemCheckTool(),
+		triz.NewTool(),
+		analysisreport.NewTool(),
+		adversary.NewCheckTool(),
+		adversary.NewReviewTool(),
+	)
+}
+
+// injectCaseTools 追加案卷留档工具（只追加事件日志）。
+// 产物路径限定在项目目录（缺省为工作区）内；工作目录未配置时不注入。
+func injectCaseTools(cfg *agentcore.Config) {
+	workDir := cfg.ProjectDir
+	if workDir == "" {
+		workDir = cfg.WorkspaceDir
+	}
+	if workDir == "" {
+		return
+	}
+	cfg.Tools = append(cfg.Tools, matterlog.NewTool(matterlog.ToolConfig{WorkingDir: workDir}))
+}
+
 func injectDomainSharedExtensions(cfg *agentcore.Config) {
 	injectDraftingTool(cfg)
 	injectDocTemplateTools(cfg)
 	injectPromptTools(cfg)
 	injectWritingTools(cfg)
 	injectRulesTools(cfg)
+	injectFigureTool(cfg)
+	injectPatentAnalysisTools(cfg)
+	injectCaseTools(cfg)
 	if globalKnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
 	}
 	if globalEvidenceExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
 	}
+	if globalLegalKnowledgeExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalLegalKnowledgeExt)
+	}
+	injectLawVerifyTool(cfg)
+	injectRuleOutputGate(cfg)
+}
+
+// injectRuleOutputGate 追加规则输出门禁：工具结果命中确定性规则时，
+// warn 级追加合规提示，block/review 级标注不可作为交付依据。
+//
+// 规则来自随包资产而非 $MADY_HOME：门禁是安全能力，不因部署目录缺失而静默失效。
+// 结构门禁（StructuralGate）需要声明「哪个交付工具的哪个入参承载制品文本」，
+// 交付工具在 W2 才就绪，届时与本装配一起配置 entries。
+func injectRuleOutputGate(cfg *agentcore.Config) {
+	engine, err := rules.NewBundledEngine()
+	if err != nil {
+		slog.Error("规则输出门禁未启用：加载随包门禁规则失败", "error", err)
+		return
+	}
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, rules.NewOutputGate(engine))
+}
+
+// injectLawVerifyTool 追加法条核验工具。
+//
+// 专利与法律域都会引用法条，故放在共享段落；骨架路径由工具自行探测
+// （$MADY_HOME/law-skeleton/ 或仓库 data/law/skeleton/），缺失时降级为仅精校索引。
+func injectLawVerifyTool(cfg *agentcore.Config) {
+	cfg.Extensions = append(cfg.Extensions, lawverify.NewExtension(lawverify.Config{}))
 }
 
 // appendDraftingExtensions 追加撰写类扩展段落：权利要求撰写（claimdrafting）、

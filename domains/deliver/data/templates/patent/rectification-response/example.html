@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>补正书 — 示例</title>
+<style>
+  :root {
+    --doc-firm: var(--sati-doc-firm, "XX 知识产权代理事务所");
+    --doc-confidential: var(--sati-doc-confidential, "机密 · 仅供委托方使用");
+    --doc-disclaimer: var(--sati-doc-disclaimer, "本文件由 AI 辅助生成，不构成正式法律意见。补正书的提交应由具备资质的专利代理人或专利律师确认。");
+    --doc-accent: var(--sati-doc-accent, #1f3a5f);
+    --doc-accent-strong: var(--sati-doc-accent-strong, #16324f);
+    --doc-body: var(--sati-doc-body, #1a1a1a);
+    --doc-muted: var(--sati-doc-muted, #6b6b6b);
+    --doc-border: var(--sati-doc-border, #c9c9c9);
+    --doc-header-bg: var(--sati-doc-header-bg, #f6f6f2);
+    --doc-surface: var(--sati-doc-surface, #ffffff);
+    --doc-zebra: var(--sati-doc-zebra, #fbfbf9);
+    --doc-font-serif: var(--sati-doc-font-serif, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif);
+    --doc-font-sans: var(--sati-doc-font-sans, "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", "SimHei", "PingFang SC", sans-serif);
+    --doc-font-mono: var(--sati-doc-font-mono, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 12pt; }
+  body { font-family: var(--doc-font-serif); color: var(--doc-body); background: var(--doc-surface); line-height: 1.8; padding: 0 18mm; max-width: 174mm; margin: 0 auto; }
+  .doc-header { display: flex; justify-content: space-between; align-items: baseline; padding: 7mm 0 3mm; border-bottom: 2px solid var(--doc-accent); font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); }
+  .doc-header .firm::before { content: var(--doc-firm); font-weight: 600; color: var(--doc-accent); }
+  .doc-header .confidential::before { content: var(--doc-confidential); letter-spacing: 0.08em; }
+  .doc-masthead { text-align: center; padding: 8mm 0 4mm; }
+  .doc-masthead .doc-type { display: inline-block; font-family: var(--doc-font-sans); font-size: 9pt; letter-spacing: 0.4em; color: var(--doc-accent); border: 1px solid var(--doc-accent); padding: 1px 10px; margin-bottom: 4mm; }
+  .doc-masthead h1 { font-family: var(--doc-font-sans); font-size: 16pt; font-weight: 700; letter-spacing: 0.12em; color: var(--doc-accent-strong); }
+  .doc-masthead .doc-number { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); margin-top: 2.5mm; }
+  .doc-meta { display: grid; grid-template-columns: auto 1fr; gap: 0.6mm 6mm; width: 100%; margin: 5mm 0 6mm; border: 1px solid var(--doc-border); font-size: 11pt; }
+  .doc-meta dt { font-family: var(--doc-font-sans); font-weight: 600; color: var(--doc-accent); background: var(--doc-header-bg); padding: 1.2mm 4mm; white-space: nowrap; }
+  .doc-meta dd { padding: 1.2mm 4mm; }
+  section { margin: 5mm 0; }
+  h2 { font-family: var(--doc-font-sans); font-size: 13pt; font-weight: 700; color: var(--doc-accent-strong); padding-bottom: 1mm; margin: 6mm 0 3mm; border-bottom: 1px solid var(--doc-border); }
+  p { margin: 1.5mm 0; text-align: justify; }
+  ol, ul { margin: 1.5mm 0 1.5mm 7mm; }
+  li { margin: 0.8mm 0; }
+  .callout { border: 1px solid var(--doc-border); border-left: 3px solid var(--doc-accent); padding: 3mm 4mm; margin: 3mm 0; font-size: 11pt; }
+  .callout .callout-title { font-family: var(--doc-font-sans); font-weight: 700; font-size: 10.5pt; color: var(--doc-accent); margin-bottom: 1mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5pt; margin: 2.5mm 0; font-variant-numeric: tabular-nums; }
+  caption { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); text-align: left; margin-bottom: 1mm; }
+  th, td { border: 1px solid var(--doc-border); padding: 1.5mm 2.5mm; vertical-align: top; }
+  th { font-family: var(--doc-font-sans); font-weight: 600; background: var(--doc-header-bg); color: var(--doc-accent-strong); white-space: nowrap; }
+  tbody tr:nth-child(even) { background: var(--doc-zebra); }
+  .mono { font-family: var(--doc-font-mono); font-size: 9.5pt; }
+  .disclaimer { border: 1px solid var(--doc-border); background: var(--doc-header-bg); padding: 3mm 4mm; font-size: 9.5pt; color: var(--doc-muted); margin: 3mm 0; }
+  .disclaimer::before { content: "免责声明："; font-weight: 700; color: var(--doc-body); }
+  .disclaimer::after { content: var(--doc-disclaimer); }
+  .doc-footer { margin: 6mm 0 4mm; padding-top: 2mm; border-top: 1px solid var(--doc-border); display: flex; justify-content: space-between; font-family: var(--doc-font-sans); font-size: 8.5pt; color: var(--doc-muted); }
+  .signature { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .signature .sign-block { border-top: 1px solid var(--doc-body); padding-top: 1.5mm; font-family: var(--doc-font-sans); font-size: 10pt; }
+  @page { size: A4; margin: 16mm 18mm 18mm 18mm; }
+</style>
+</head>
+<body>
+
+  <header class="doc-header">
+    <span class="firm"></span>
+    <span class="confidential"></span>
+  </header>
+
+  <div class="doc-masthead">
+    <span class="doc-type">补 正 书</span>
+    <h1>补正书</h1>
+    <div class="doc-number">案卷号：CN2026-0001 · 版本 V1.0</div>
+  </div>
+
+  <dl class="doc-meta">
+    <dt>申请号</dt><dd class="mono">202610123456.7</dd>
+    <dt>发明名称</dt><dd>一种锂离子电池负极材料的制备方法</dd>
+    <dt>申请人</dt><dd>深圳××新能源科技有限公司</dd>
+    <dt>补正通知书文号</dt><dd class="mono">补正通知 2026-000456 号</dd>
+    <dt>补正期限</dt><dd>2026-03-20（通知书落款日 2026-02-20 + 1 个月）</dd>
+    <dt>答复日期</dt><dd>2026-03-18</dd>
+  </dl>
+
+  <section>
+    <h2>一、补正通知要点</h2>
+    <div class="callout">
+      <div class="callout-title">通知要点摘录</div>
+      <p>本申请在初步审查中发现如下缺陷：权利要求书存在明显排版错误；说明书附图标记与说明文字不一致；摘要超过 300 字。</p>
+    </div>
+    <ol>
+      <li>权利要求书第 1 页第 3-5 行：从属权利要求引用关系错误（权利要求 3 引用权利要求 5）；</li>
+      <li>说明书第 3 页第 8 行、第 10 行：附图标记 5 与附图说明中的 4 不一致；</li>
+      <li>摘要超过 300 字（现稿 342 字）。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>二、补正内容</h2>
+    <table>
+      <caption>表 1 · 补正内容对照</caption>
+      <thead>
+        <tr><th style="width:8%">序号</th><th style="width:24%">缺陷项</th><th style="width:30%">补正前</th><th style="width:30%">补正后</th><th style="width:8%">性质</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">1</td>
+          <td>权利要求书第 1 页第 3-5 行</td>
+          <td>权利要求 3 如权利要求 5 所述的……</td>
+          <td>权利要求 3 如权利要求 2 所述的……</td>
+          <td>通知书缺陷</td>
+        </tr>
+        <tr>
+          <td class="mono">2</td>
+          <td>说明书第 3 页第 8、10 行</td>
+          <td>标记「4」/ 标记「5」混用</td>
+          <td>统一为标记「4」（与附图说明一致）</td>
+          <td>通知书缺陷</td>
+        </tr>
+        <tr>
+          <td class="mono">3</td>
+          <td>摘要</td>
+          <td>342 字</td>
+          <td>删减至 298 字（保留方案要点与主要用途）</td>
+          <td>通知书缺陷</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>三、替换页清单</h2>
+    <table>
+      <caption>表 2 · 替换页清单</caption>
+      <thead>
+        <tr><th style="width:15%">文件</th><th style="width:15%">替换页号</th><th style="width:30%">替换内容摘要</th><th style="width:25%">对应缺陷项</th><th style="width:15%">版本</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>权利要求书</td><td class="mono">1</td><td>修正权利要求 3 引用关系</td><td class="mono">1</td><td class="mono">V1</td></tr>
+        <tr><td>说明书</td><td class="mono">3</td><td>统一附图标记</td><td class="mono">2</td><td class="mono">V1</td></tr>
+        <tr><td>摘要</td><td class="mono">1</td><td>删减至 300 字以内</td><td class="mono">3</td><td class="mono">V1</td></tr>
+      </tbody>
+    </table>
+    <p class="mono">（替换页随本补正书一并提交，共 3 页。）</p>
+  </section>
+
+  <section>
+    <h2>四、声明</h2>
+    <p>本补正书所述修改未超出原申请文件记载的范围，未增加新的技术特征，亦未违背《中华人民共和国专利法》第三十三条的规定。</p>
+    <p>本补正书针对补正通知书所列缺陷逐项作出答复；通知中未涉及的内容未作改动。</p>
+  </section>
+
+  <div class="signature">
+    <div class="sign-block">申请人 / 代理机构：××知识产权代理事务所</div>
+    <div class="sign-block">日期：2026-03-18</div>
+  </div>
+  <div class="disclaimer"></div>
+  <footer class="doc-footer">
+    <span>CN2026-0001 · 机密</span>
+    <span>2026-03-18</span>
+  </footer>
+
+</body>
+</html>

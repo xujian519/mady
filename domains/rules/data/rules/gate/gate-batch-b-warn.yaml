@@ -1,0 +1,176 @@
+# 批 B：warn/review 级非结构性确定性门禁规则（只提示，不阻断）
+#
+# 由 scripts/rulescan 从 deepseek-harness 规则资产机械转换生成，请勿手改；
+# 重新生成：go run ./scripts/rulescan --src <dsh 规则目录> --emit domains/rules/data/rules/gate
+#
+# 转换口径：保留 id/name/description/legalBasis/domain/severity/action 与 check 全字段；
+# 仅收录可确定性判定的规则，log 级规则不纳入。
+
+rules:
+    - action: warn
+      check:
+        keywords:
+            - 根据相关法律
+            - 根据法律规定
+            - 相关法规规定
+        type: keyword_blocklist
+      domain: patent_general
+      legalBasis: 撰写规范：法条引用应精确到条、款
+      name: 法律条款精确引用
+      ruleId: CON-COMP-0103
+      severity: major
+    - action: warn
+      check:
+        keywords:
+            - 世界领先
+            - 行业首创
+            - 独一无二
+            - 前所未有
+            - 最先进
+            - 革命性
+            - 颠覆性
+            - 突破性
+        negationContext: true
+        quoteImmune: true
+        type: keyword_blocklist
+      description: 说明书不得使用商业性宣传用语
+      domain: patent_general
+      legalBasis: 专利法实施细则第二十条第三款；审查指南第二部分第二章2.2.7
+      name: 禁止商业宣传用语
+      ruleId: CON-COMP-0105
+      severity: major
+    - action: warn
+      check:
+        keywords:
+            - 事后诸葛亮
+            - hindsight
+            - ex post facto
+        negationContext: true
+        type: keyword_blocklist
+      domain: patent_inventiveness
+      legalBasis: 审查指南第二部分第四章6.2
+      name: 创造性—避免事后诸葛亮
+      ruleId: EX-INV-007
+      severity: major
+    - action: warn
+      check:
+        keywords:
+            - 对比文件D0
+            - 文献X
+            - 某专利
+        type: keyword_blocklist
+      domain: patent_general
+      legalBasis: 审查指南第二部分第七章
+      name: 检索—对比文件来源标注
+      ruleId: EX-SRC-001
+      severity: major
+    - action: warn
+      check:
+        keywords:
+            - 电阻等
+            - 电容等
+            - 晶体管等
+            - 开关等
+            - 传感器等
+        type: keyword_blocklist
+      domain: patent-electrical
+      legalBasis: 专利法第26条第4款；审查指南第二部分第二章 3.2.2
+      name: 电学权利要求清楚性
+      ruleId: H-CLA-002
+      severity: minor
+    - action: review
+      check:
+        keywords:
+            - 容易想到
+            - 易于获得
+            - 显而易见
+        negationContext: true
+        type: keyword_blocklist
+      description: 主张区别特征"容易想到/显而易见/易于获得"须有公知常识性证据支持，命中挂人工核验
+      legalBasis: (2025)最高法知行终959号：无公知常识性证据支持认定"容易想到""易于获得"，实难令人信服
+      name: 显而易见性断言须有证据支持
+      ruleId: INV-EVIDENCE-001
+      severity: major
+    - action: warn
+      check:
+        keywords:
+            - 事后诸葛亮
+            - ' hindsight'
+            - ex post facto
+        type: keyword_blocklist
+      domain: patent_inventiveness
+      legalBasis: 专利法第22条第3款；审查指南第二部分第四章
+      name: 通用—三步法不能与事后诸葛亮混淆
+      ruleId: IPC-GEN-INV-002
+      severity: major
+    - action: warn
+      check:
+        keywords:
+            - 一定胜诉
+            - 必然胜诉
+            - 肯定胜诉
+            - 一定败诉
+            - 必然败诉
+            - 肯定会赢
+            - 百分之百胜诉
+            - 稳赢
+            - 必赢
+            - 绝对能赢
+        negationContext: true
+        quoteImmune: true
+        type: keyword_blocklist
+      domain: legal
+      legalBasis: 法律分析不得给出确定性结果承诺，应使用限定性表述
+      name: 回避绝对化法律结论
+      ruleId: LEGAL-ABS-001
+      severity: major
+    - action: warn
+      check:
+        keywords:
+            - 构成正式法律意见
+            - 具有法律效力
+            - 可直接作为法律意见
+            - 具备法律效力
+            - 可替代律师意见
+            - 正式法律意见
+        negationContext: true
+        quoteImmune: true
+        type: keyword_blocklist
+      domain: legal
+      legalBasis: 执业规范：AI 辅助法律分析不构成正式法律意见，应附免责声明
+      name: 法律意见免责声明
+      ruleId: LEGAL-DISC-001
+      severity: major
+    - action: warn
+      check:
+        keywords:
+            - 应由某法院管辖
+            - 管辖法院为
+            - 有管辖权
+            - 无管辖权
+            - 专属管辖
+        negationContext: true
+        quoteImmune: true
+        type: keyword_blocklist
+      domain: legal
+      legalBasis: 《民事诉讼法》关于管辖的规定：被告住所地、合同履行地、侵权行为地等
+      name: 管辖权检查
+      ruleId: LEGAL-JURIS-001
+      severity: minor
+    - action: warn
+      check:
+        keywords:
+            - 诉讼时效已过
+            - 超过诉讼时效
+            - 时效届满
+            - 诉讼时效届满
+            - 已过时效
+            - 时效已过
+        negationContext: true
+        quoteImmune: true
+        type: keyword_blocklist
+      domain: legal
+      legalBasis: 《民法典》第 188 条：向人民法院请求保护民事权利的诉讼时效期间为三年
+      name: 诉讼时效检查
+      ruleId: LEGAL-LIMIT-001
+      severity: major

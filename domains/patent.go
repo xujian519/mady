@@ -11,9 +11,11 @@ import (
 	"github.com/xujian519/mady/agentcore/worker"
 	"github.com/xujian519/mady/domains/claimchart"
 	"github.com/xujian519/mady/domains/claimdrafting"
+	"github.com/xujian519/mady/domains/deliver"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
 	"github.com/xujian519/mady/domains/evidence"
+	"github.com/xujian519/mady/domains/fees"
 	"github.com/xujian519/mady/domains/iface"
 	"github.com/xujian519/mady/domains/infringement"
 	"github.com/xujian519/mady/domains/inventiveness"
@@ -232,6 +234,9 @@ func SetupDocTemplateStore(store *doctmpl.TemplateStore) {
 
 // SetupRulesExtension 在启动期注入规则引擎扩展实例。
 // engine 为 nil 时静默跳过，不影响现有行为。
+//
+// 运行时门禁用随包门禁规则自建引擎（见 assemble.injectRuleOutputGate），
+// 不依赖这里的用户规则集。
 func SetupRulesExtension(engine *rules.Engine) {
 	if engine != nil {
 		globalRuleExt = rules.NewExtension(engine)
@@ -385,6 +390,7 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		plantask.NewPatentPlanTaskTool(),
 		plantask.NewFlexiblePlanTool(plantask.DefaultFlexiblePlanStore()),
 		claimchart.NewClaimChartTool(),
+		fees.NewTool(fees.Config{}),
 		slop.NewSlopGateTool(),
 		workercontract.NewPatentWorkerValidateTool(),
 		workercontract.NewPatentTeamResolveTool(),
@@ -394,6 +400,8 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 	cfg.Extensions = append(cfg.Extensions, toolExt,
 		// 心理引擎 — 专利领域：VAD/OCC 语气调整 + 认知扭曲诊断（专利分析需要完整心理评估）。
 		psychological.NewExtension(PatentPsychConfig()),
+		// 交付件登记：渲染/出件后的成品登记与质量门（与 Extension 模式保持一致）。
+		deliver.NewExtension(deliver.Config{}),
 	)
 
 	injectDomainSharedExtensions(&cfg)

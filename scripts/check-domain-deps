@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# 专利/法律/文档三域导入的外部依赖探测。
+#
+# 用法：
+#   scripts/check-domain-deps            # 人类可读矩阵，缺「必需」项时退出码 1
+#   scripts/check-domain-deps --json     # JSON 输出
+#   scripts/check-domain-deps --strict   # 「重要」项缺失也判失败
+#
+# 分级依据 docs/plans/dsh-domain-import-tasks.md：
+#   required   W0–W2 任务的硬前提
+#   important  有降级通道，但缺失会改变验收方式
+#   optional   W4 / 特定能力，缺失时该能力不立项或降级
+#
+# 每项一行：级别@名称@探测并输出版本/路径的命令@用途。命令退出码 0 视为可用。
+# 用 '@' 而非 '|' 分隔，因为探测命令本身常含 shell 管道。
+#
+# 解释器说明：本机 zsh 的 `python3` 是 3.11 别名（装有 python-docx），bash 下
+# 裸 `python3` 是 3.15（未装）。因此 python-docx 项遍历候选解释器，报告真正可用的那个。
+
+set -uo pipefail
+
+JSON=0
+STRICT=0
+for arg in "$@"; do
+  case "$arg" in
+    --json) JSON=1 ;;
+    --strict) STRICT=1 ;;
+    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
+    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+
+ITEMS=(
+  'required@python+docx@for p in /opt/homebrew/bin/python3.13 /opt/homebrew/bin/python3.12 /opt/homebrew/bin/python3.11 /opt/homebrew/bin/python3.10 python3.13 python3.12 python3.11 python3.10 python3; do if command -v "$p" >/dev/null 2>&1 && "$p" -c "import docx" >/dev/null 2>&1; then v=$("$p" -c "import importlib.metadata as m; print(m.version(\"python-docx\"))" 2>/dev/null || echo "?"); echo "$p (python-docx $v)"; exit 0; fi; done; exit 1@出件引擎：能 import docx 的解释器'
+  'required@dot@dot -V@Graphviz 附图渲染（png/pdf 回退）'
+  'required@chrome@if [ -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then echo "Google Chrome.app"; else command -v google-chrome || command -v chromium || command -v chromium-browser; fi@HTML→PDF（chromedp）'
+  'important@pandoc@pandoc --version@Office→PDF 兜底通道'
+  'important@typst@typst --version@pandoc PDF 引擎（无 LaTeX 时）'
+  'important@soffice@command -v soffice || command -v libreoffice@Office→PDF 原生通道'
+  'important@pdftoppm@pdftoppm -v@附图栅格化/页面核验'
+  'optional@inkscape@command -v inkscape@SVG 文字转路径与 png/pdf 导出'
+  'optional@freecadcmd@command -v freecadcmd || command -v FreeCADCmd@结构图（TechDraw/剖切/阴影），未立项'
+)
+
+probe() {
+  local cmd="$1" out
+  if out=$(bash -c "$cmd" 2>&1); then
+    printf '%s' "$(printf '%s' "$out" | head -1)"
+  else
+    printf '%s' 'MISSING'
+  fi
+}
+
+fail=0
+rows=()
+for item in "${ITEMS[@]}"; do
+  IFS='@' read -r level name cmd purpose <<<"$item"
+  status=$(probe "$cmd")
+  if [[ "$status" == "MISSING" ]]; then
+    case "$level" in
+      required) fail=1 ;;
+      important) [[ $STRICT -eq 1 ]] && fail=1 ;;
+    esac
+  fi
+  rows+=("$level@$name@$status@$purpose")
+done
+
+if [[ $JSON -eq 1 ]]; then
+  printf '{\n  "strict": %s,\n  "items": [\n' "$([[ $STRICT -eq 1 ]] && echo true || echo false)"
+  first=1
+  for row in "${rows[@]}"; do
+    IFS='@' read -r level name status purpose <<<"$row"
+    [[ $first -eq 0 ]] && printf ',\n'
+    first=0
+    printf '    {"level":"%s","name":"%s","status":"%s","purpose":"%s"}' \
+      "$level" "$name" "$(printf '%s' "$status" | sed 's/"/\\"/g')" "$purpose"
+  done
+  printf '\n  ]\n}\n'
+else
+  printf '%-10s %-12s %-58s %s\n' "LEVEL" "DEPENDENCY" "STATUS" "PURPOSE"
+  for row in "${rows[@]}"; do
+    IFS='@' read -r level name status purpose <<<"$row"
+    if [[ "$status" == "MISSING" ]]; then
+      printf '%-10s %-12s \033[31m%-58s\033[0m %s\n' "$level" "$name" "MISSING" "$purpose"
+    else
+      printf '%-10s %-12s \033[32m%-58s\033[0m %s\n' "$level" "$name" "$status" "$purpose"
+    fi
+  done
+fi
+
+if [[ $fail -eq 1 ]]; then
+  [[ $JSON -eq 0 ]] && echo >&2 "缺少必需依赖；修复后重跑（或安装 important 项以启用降级通道）"
+  exit 1
+fi
+exit 0
