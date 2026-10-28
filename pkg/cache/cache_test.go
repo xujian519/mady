@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"sync"
@@ -203,6 +204,37 @@ func TestAsyncLoaderPanicRecovered(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("panic 后同键请求被永久阻塞")
 	}
+}
+
+func TestAsyncWaiterContextCanceled(t *testing.T) {
+	cl := NewAsync[int](time.Minute, 4)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var startedOnce sync.Once
+	load := func() (int, error) {
+		startedOnce.Do(func() { close(started) })
+		<-release
+		return 9, nil
+	}
+	go func() { _, _ = cl.GetOrLoad("k", load, nil) }()
+	<-started
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := cl.GetOrLoadContext(ctx, "k", func() (int, error) { return 0, nil }, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("等待者应返回 ctx 错误，得到 %v", err)
+	}
+
+	close(release)
+	// 首个请求的结果仍应进入缓存，供后续读取。
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if value, err := cl.GetOrLoad("k", func() (int, error) { return 0, nil }, nil); err == nil && value == 9 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("首个请求的结果未写入缓存")
 }
 
 func TestAsyncLRUCapacity(t *testing.T) {

@@ -117,6 +117,11 @@ type ExtensionConfig struct {
 	// Uses Semantic Scholar API. Set SEMANTIC_SCHOLAR_API_KEY env var for higher rate limits.
 	ScholarSearch *ScholarSearchConfig
 
+	// PaperLiterature configures paper_search / paper_list_sources /
+	// paper_download（四源文献检索与开放获取 PDF 下载）。Nil 时使用默认配置，
+	// WorkingDir 由 BuildTools 注入。
+	PaperLiterature *PaperLiteratureConfig
+
 	PatentTool *PatentToolConfig
 
 	// PatentWebSearch configures the patent_web_search tool (ego-browser 驱动，
@@ -338,6 +343,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(readOnly(NewWebSearchTool(cfg.WebSearch)))
 	addTool(readOnly(NewWebFetchTool(cfg.WebFetch)))
 	addTool(readOnly(NewScholarSearchTool(cfg.ScholarSearch)))
+	addPaperTools(addTool, cfg)
 	addTool(readOnly(NewPatentScrapeTool(cfg.PatentTool)))
 	addTool(NewPatentDownloadTool(cfg.PatentTool))
 	addTool(NewPatentLegalStatusTool(cfg.PatentTool))

@@ -49,8 +49,12 @@ var ToolDomains = map[string]string{
 	"search_project_files": "search",
 
 	// ── 网络搜索 (web_search) ──
-	"web_search": "web_search",
-	"web_fetch":  "web_search",
+	"web_search":         "web_search",
+	"web_fetch":          "web_search",
+	"scholar_search":     "web_search",
+	"paper_search":       "web_search",
+	"paper_list_sources": "web_search",
+	"paper_download":     "web_search",
 
 	// ── 浏览器自动化 (browser) ──
 	"browser": "browser",

@@ -459,6 +459,7 @@ type StatutoryEvidence struct {
 | W5-02 | ✅ 完成 | e307ef3 | T-W5-02：TRIZ / 四检验增量 / 覆盖与单一性修正 / OA 答复计划 / 分析报告 / 对立审查 |
 | W5-04 | ✅ 完成 | b44e366 | T-W5-04：LRU/TTL/并发合并缓存 + CNIPR 通道 + 知识库状态与安装引导 |
 | W5-03 | ✅ 完成（化学结构识别除外） | 6c7fd42 | T-W5-03：说明书形式/量化检查 + 案卷事件日志；其余工具核验为已有或不适用 |
+| W5-05 | ✅ 完成 | 待回填 | T-W5-05：四源文献检索（OpenAlex/S2/arXiv/Crossref）+ paper_search/paper_list_sources/paper_download + 按主机限速 + LRU 缓存 |
 | W4-F3 | ✅ 完成 | 9d7fb05 | T-W4-03：法域档案 + 提交页落版 + 跨图标记一致性（figure_submission / figure_consistency） |
 
 ### 批 A / 批 B 规则接入状态
@@ -631,3 +632,15 @@ type StatutoryEvidence struct {
 - **验收**：缓存 8 例（淘汰与访问序、覆盖写、删除/清空、并发、命中不重载、错误不缓存、判定函数、TTL、并发合并、容量）；CNIPR 纯函数与通道 12 例（号码形态/小数点归一/直链归一/记录解析含零命中 total=nil/分页规划/收据标签/脚本占位符、检索成功、五类通道失败、PDF 与法律状态对齐、串行化）；工具 5 例（三种模式、失败给出替代通道、参数校验）；知识状态 4 例 + 法规计数 1 例。反向验证两次（LRU 淘汰、直链 http 归一）先变红后还原。
 - **已知限制**：CNIPR 页内脚本按 dsh 的 ego 页面 API 移植（`taskSpace/page.fill/click/waitForURL`），本机无法在未登录环境下做真实站点验证；脚本与解析分离正是为了让解析可单测、页面层失败可分类。安装引导只报状态、不自动下载或重建索引。
 - **独立审查**：报 2 项阻断，均在 `pkg/cache`——①加载器 panic 时 inflight 永不清理、同键后续请求永久阻塞，已改为 defer recover 转错误并清理条目（补 panic 后同键重试用例）；②缓存键用逗号/与号连接，自由文本含分隔符会造成键冲突，已改为逐元素 NUL 分隔（补「a,b」vs「a」「b」、过滤条件含 `&` 等区分用例）。采纳建议：法规库状态读取统一为「启动期一次性写入、运行期只读」，去掉只给单个方法加锁造成的错觉；检索总数缺失时在错误里带页面原文片段便于诊断。记录：in-flight 测试用 sync.Once 关闭启动信号、`SerialQueue` 为互斥锁近似 FIFO、超时与收据缺失的判定顺序。
+
+### W5-05 tool-literature 增强状态（T-W5-05）
+
+- **按主机限速（新增 `pkg/hostlimit`）**：每个主机独立维护「下次允许开始时间 + 并发信号量」，不同主机互不排队（3 主机各 80ms 限速下总耗时 <120ms 的用例作为验收）；等待可被 ctx 取消，零值 Limit 直通。检索源用各自礼貌限速（OpenAlex/Crossref 100ms·4，Semantic Scholar 1s·2，arXiv 3s·1）。
+- **文献检索（新增 `retrieval/literature`）**：四源连接器统一归一化为 `Paper`（标题/作者/年份/期刊/摘要/引用数/原文与开放获取 PDF）；OpenAlex 摘要按 inverted index 重建并带 polite pool 邮箱；arXiv 走 Atom XML；Crossref 剥离 JATS 标签；Semantic Scholar 支持 API key。`SearchAll` 并发查询，单源失败只记入 `errors`，跨源按 DOI（其次规范化标题，短于 8 字符不参与）去重。GET 响应经 `cache.Async` 缓存（键 `GET\0accept\0url`，空体与非 JSON 不入缓存）；等待在途加载可被 ctx 取消，取消只放弃等待、不中断首个请求。
+- **PDF 下载**：三检——Content-Type 不得为 HTML、响应必须 `%PDF-` 开头、大小在 [1 KB, 50 MB]；下载同样按主机礼貌限速（arXiv PDF 3s、其余 1s·2）。文件名保留中文，替换路径分隔符与控制字符，扩展名强制 `.pdf`。
+- **工具层（新增 `tools/paper_literature.go`）**：`paper_search`（query/sources/limit/year_from，未知源直接报错并列出可选源）、`paper_list_sources`、`paper_download`（`source+id` 解析记录或直链 `pdf_url`，默认落 `<工作目录>/论文原文/YYYY-MM-DD`）。两个检索工具标只读；下载为写工具。检索与下载客户端统一使用项目的 `newSSRFSafeHTTPClient`（拒绝回环/链路本地/私网），与 `web_fetch` 同一套 SSRF 防御。
+- **写盘边界**：目录先做工作目录内校验（含符号链接解析复核），真正写入经 `os.Root`（`OpenRoot` + `MkdirAll` + `OpenFile`）——即使校验后目录被替换为指向外部的链接也不会越界。
+- **验收**：hostlimit 7 例（同主机制动、不同主机不串行、并发上限、取消失败、零值直通、无效 URL 等）；文献包 12 个测试函数（OpenAlex 5 例含摘要重建/年份过滤/记录获取/HTTP 错误/缓存命中、S2、arXiv、Crossref、多源部分失败 + 并发不串行 + DOI 去重 + 未知源、下载三检 5 例、文件名清洗、符号链接越界）；工具层 9 例（检索渲染、未知源、空 query、源清单、直链下载、按 id 解析、越界目录、符号链接越界、缺参数）；缓存补「在途等待可取消且首个结果仍入缓存」1 例。反向验证三次（不同主机串行化、绕过 `os.Root` 直写、等待忽略 ctx）均先变红后还原。
+- **独立审查**：报 2 项阻断——①校验与写入分离存在 TOCTOU，符号链接可在校验后被替换；已改为 `os.Root` 约束写入（并保留前置复核给出可读错误）。②`cache.Async` 等待同键在途加载时不响应 ctx，慢源会阻塞被中断的调用；新增 `GetOrLoadContext`，`GetOrLoad` 委托给 `context.Background()` 保持兼容。采纳建议：PDF 下载接入 hostlimit（arXiv 3s）；工具客户端改用 SSRF 安全传输；抽出 `withinDir` 消除符号链接复核的重复判断。
+- **记录**：`snippet` 截断后追加省略号，实际长度为上限 +1 rune；Windows 保留设备名未专门处理（经 `Fields` 折叠与兜底名，不构成穿越）；`looksValid` 只校验「可解析为 JSON」，源在 200 下返回错误 JSON 会被缓存（现有源错误均走非 2xx）；文献缓存默认 500 条，与 `pkg/cache` 的 100 条默认不同（本包显式传入）；与既有 `scholar_search` 在 Semantic Scholar 上功能弱重叠，`paper_search` 为四源聚合，二者共存不冲突。
+- **未覆盖**：未做真实站点联调（沙箱无法绑定端口，测试全部用注入 Doer）；跨源去重只按 DOI/标题，未做作者+年份模糊合并；付费墙文献只给出原文链接，不尝试绕行。

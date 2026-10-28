@@ -72,6 +72,9 @@
 | matter_log_append | write | `case_dir`, `action`, `artifacts`, `changes`, `supersedes` | 案卷只追加事件日志：取代链校验、原地覆盖/分叉拒绝 |
 | knowledge_status | read | — | 知识库状态与安装引导：文档/向量/法规库/FTS/快照路径与缺项指引 |
 | cnipr_search | read | `mode`, `query`, `numbers`, `limit` | CNIPR 通道：关键词检索 / 全文 PDF 直链 / 法律状态；失败给出多源检索替代 |
+| paper_search | read | `query`, `sources`, `limit`, `year_from` | 四源文献检索（openalex / semantic-scholar / arxiv / crossref）并发执行，单源失败不影响其余源，跨源按 DOI 去重 |
+| paper_list_sources | read | — | 可用文献源 id、说明与主页 |
+| paper_download | write | `source`, `id`, `pdf_url`, `title`, `output_dir` | 开放获取 PDF 下载（Content-Type/魔数/大小三检），只允许写入工作目录内 |
 | search_rules | read | `query`, `domain` | 规则库检索 |
 | get_article_framework | read | `statute` | 获取法条框架 |
 | get_orchestration | read | `case_type` | 获取审查意见编排 |

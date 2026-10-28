@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -52,11 +53,22 @@ func NewAsync[V any](ttl time.Duration, maxEntries int) *Async[V] {
 // GetOrLoad 返回缓存值；未命中时执行 load 并缓存结果（cacheable 为 nil 时总是缓存
 // 成功结果）。加载失败不写缓存，错误原样返回。
 func (c *Async[V]) GetOrLoad(key string, load func() (V, error), cacheable func(V) bool) (V, error) {
+	return c.GetOrLoadContext(context.Background(), key, load, cacheable)
+}
+
+// GetOrLoadContext 与 GetOrLoad 相同，但等待同键在途加载时可被 ctx 取消。
+// 取消只放弃本次等待，不中断首个请求；其结果仍会写入缓存供后续读取。
+func (c *Async[V]) GetOrLoadContext(ctx context.Context, key string, load func() (V, error), cacheable func(V) bool) (V, error) {
 	c.mu.Lock()
 	if call, ok := c.inflight[key]; ok {
 		c.mu.Unlock()
-		<-call.done
-		return call.value, call.err
+		select {
+		case <-call.done:
+			return call.value, call.err
+		case <-ctx.Done():
+			var zero V
+			return zero, ctx.Err()
+		}
 	}
 	if cached, ok := c.entries.Get(key); ok {
 		if c.now().Before(cached.expiresAt) {
