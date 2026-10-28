@@ -13,6 +13,14 @@ import (
 	"testing"
 )
 
+// requireDocxPython 在缺少 python-docx 的环境跳过成文测试；CI 会预装该依赖。
+func requireDocxPython(t *testing.T) {
+	t.Helper()
+	if _, err := findPython(context.Background(), ""); err != nil {
+		t.Skipf("跳过：%v", err)
+	}
+}
+
 func writeFigure(t *testing.T, dir string) string {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, 240, 160))
@@ -55,6 +63,7 @@ func sampleContent(t *testing.T, dir string) Content {
 }
 
 func TestComposeProducesFiveSections(t *testing.T) {
+	requireDocxPython(t)
 	t.Setenv("MADY_HOME", t.TempDir())
 	dir := t.TempDir()
 	output := filepath.Join(dir, "申请文件.docx")
@@ -77,6 +86,7 @@ func TestComposeProducesFiveSections(t *testing.T) {
 }
 
 func TestComposeRejectsForbiddenText(t *testing.T) {
+	requireDocxPython(t)
 	t.Setenv("MADY_HOME", t.TempDir())
 	dir := t.TempDir()
 	content := sampleContent(t, dir)
