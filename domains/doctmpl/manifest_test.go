@@ -67,6 +67,22 @@ func TestTemplateManifestMatchesEmbedded(t *testing.T) {
 			}
 			seenVars[def.Name] = true
 		}
+
+		// frontmatter 与正文脱节会让变量校验失效：正文有的占位符没声明就无从校验，
+		// 声明了正文却没用的变量是冗余。
+		declared := make(map[string]bool, len(seenVars))
+		for name := range seenVars {
+			declared[name] = true
+		}
+		for _, placeholder := range ExtractPlaceholders(tmpl.Body) {
+			if !declared[placeholder] {
+				t.Errorf("%s：正文占位符 {{%s}} 未在 vars 中声明", tmpl.Name, placeholder)
+			}
+			delete(declared, placeholder)
+		}
+		for name := range declared {
+			t.Errorf("%s：vars 声明的 %s 未在正文中使用", tmpl.Name, name)
+		}
 	}
 
 	manifest := readManifest(t)
@@ -109,7 +125,9 @@ func TestDocIndexCoversAllCategories(t *testing.T) {
 func TestDocTemplatesMirrorMatchesEmbedded(t *testing.T) {
 	root := filepath.Join("..", "..", "doc-templates")
 	if _, err := os.Stat(root); err != nil {
-		t.Skipf("镜像目录不可用: %v", err)
+		// 不静默跳过：镜像测试没跑，需要让人知道这份一致性没有验证。
+		t.Logf("镜像测试未执行（%v）", err)
+		t.Skip("镜像目录不可用")
 	}
 
 	seen := make(map[string]bool)

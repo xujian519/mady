@@ -157,7 +157,9 @@ func FindDocByCategory(templates []DocTemplate, category string) []DocTemplate {
 }
 
 // DocIndex returns a human-readable index grouped by category, in a
-// deterministic order (claims → specification → oa-response → disclosure).
+// deterministic order (claims → specification → oa-response → disclosure →
+// legal → patent-report → document). Categories not in that list are appended
+// in alphabetical order so a new template directory never drops out of the index.
 func DocIndex(templates []DocTemplate) string {
 	if len(templates) == 0 {
 		return ""

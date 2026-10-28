@@ -75,6 +75,10 @@ func (a *App) ListDocTemplates() ([]DocTemplateEntry, error) {
 			if !strings.HasSuffix(f.Name(), ".md") && !strings.HasSuffix(f.Name(), ".markdown") {
 				continue
 			}
+			// *.example.md 是渲染示例，不是可填写的模板。
+			if strings.HasSuffix(f.Name(), ".example.md") {
+				continue
+			}
 
 			path := filepath.Join(catDir, f.Name())
 			data, err := os.ReadFile(filepath.Clean(path))
