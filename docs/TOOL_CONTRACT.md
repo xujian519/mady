@@ -74,6 +74,7 @@
 | get_orchestration | read | `case_type` | 获取审查意见编排 |
 | legal_knowledge_search | read | `query`, `scope`, `level`, `as_of` | 法规/司法解释/裁判案例/指导性案例四类检索 |
 | legal_knowledge_install | write | `source`, `output`, `no_fts` | 安装本地法律知识库（只读打开源库） |
+| figure_generate | write | `kind`, `output`, `steps`/`blocks`/`nodes`/`states`, `template` | 构建专利附图 DOT 并渲染 SVG/PNG/PDF |
 
 ## 证据判断工具
 

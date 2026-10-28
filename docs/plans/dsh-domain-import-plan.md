@@ -454,6 +454,7 @@ type StatutoryEvidence struct {
 | W1 | ✅ 完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb · ec93acd · 174d5f8 | T-W1-01～05 完成；门禁接入 107 条 |
 | W2 | ✅ 完成 | 27b0085 · 21eaec1 · 47cd499 · fa41576 · eb3517b · d5936e8 · c1fdc6d | T-W2-01～T-W2-05 全部完成 |
 | W3 | ✅ 完成 | b6bda17 · b399490 | T-W3-01 二维证据模型（八类 + 6 场景规则 + 13 项测试）；T-W3-02 四类司法检索（FTS/LIKE/内存三通道 + 安装工具） |
+| W4-F1 | ✅ 完成 | 待提交 | T-W4-01：DOT 构建 + Graphviz 渲染 + SVG 视口/标号后处理 |
 
 ### 批 A / 批 B 规则接入状态
 
@@ -556,3 +557,13 @@ type StatutoryEvidence struct {
 - **验收**：四类各 5 例（测试夹具库）；无库降级四类；指导案例编号（阿拉伯/中文）直达与不存在编号回退；安装覆盖保留/裁剪 FTS、同文件、非法律库、输出越界；真实库冒烟 `TestSearchRealDatabase`（默认跳过，设 `MADY_LEGAL_SMOKE_DB` 开启）实测法规 FTS 命中、司法解释命中、短查询走 LIKE、本机无指导案例数据被正确标注。
 - **独立审查**：code-review 报 1 项并发生命周期问题（`Reload` 关闭旧连接时，查询已持有 `*sql.DB` 副本，可能对已关闭连接发起查询）——已改为读锁贯穿查询全程，并补 `TestConcurrentSearchAndReload`（`-race`）。另报 1 项「编号直达用例可能假通过」，经反向验证证伪：禁用编号查找后两个编号用例均变红。
 - **未覆盖**：`guiding_cases` 的数据源需另行提供（本仓库不含该数据）；法院/案由过滤未做（当前 `law` 表无这些列）。
+
+### W4-F1 矢量图与 Graphviz 状态（T-W4-01）
+
+- **入口**：`figure_generate` 工具（`domains/figure/generate`），随专利/法律域共享装配注入；产物路径限制在工作目录（项目目录，缺省工作区）内。
+- **构建**：流程图（决策菱形强制边标签）、系统框图、组件层级图、状态转移图与四类内置模板；标号按「图号 × 100」系列分配（图1 = 100、102…，图2 = 200…），支持显式标号用于跨图同件同号；默认黑白线条，`semantic` 才输出填充色；可选 A4/Letter 页面属性（方向、DPI、页边距）。
+- **渲染**：调用本机 Graphviz dot。DOT 经 stdin 传入、argv 不含文件参数（Graphviz ≥15 拒绝尾随 `-`）；退出码为 0 不视为成功，SVG 另查 ENTITY/CDATA、根元素与 viewBox，PNG/PDF 校验文件头。
+- **SVG 后处理**：视口换算把 width/height、viewBox 与 preserveAspectRatio（meet/slice/none）译成毫米映射；参考标号标注在匹配文本末尾追加 ` (n)`，未命中项作为 warning 返回而非静默。
+- **实测**：本机 Graphviz 16.1.0，SVG/PNG/PDF 三种格式真实渲染通过；SVG 视口可解析出毫米尺寸（SVG 结构校验）。
+- **独立审查**：code-review 报出 1 项 TOCTOU（先 `MkdirAll` 再做符号链接复核，工作目录内的符号链接可能先在外界建出目录）与 1 项假阴性（根标签按第一个 `>` 截断，属性值含 `>` 时 viewBox 会误判缺失）。均已修：越界复核改为先解析「已存在的最近祖先」再建目录；根标签与 `<text>` 匹配改成引号感知正则。另记录两项：`Reserved` 与显式标号同号以显式为准（源实现语义，非缺陷）；依赖本机 Graphviz 的用例在无 dot 环境会跳过，另加不依赖 dot 的 `not_installed` 用例锁住 fail-closed 语义。
+- **未覆盖**：raw DOT 直通（F1 只做结构化构建，避免 `image`/`shapefile` 读取宿主文件的通路）；引线标号、字框与断线核验属 F2；提交页拼版属 F4。

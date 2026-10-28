@@ -6,6 +6,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains/checker"
+	figuregenerate "github.com/xujian519/mady/domains/figure/generate"
 	"github.com/xujian519/mady/domains/lawverify"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/guardrails"
@@ -33,12 +34,26 @@ func SetupLegalKnowledgeExtension(ext agentcore.Extension) {
 	globalLegalKnowledgeExt = ext
 }
 
+// injectFigureTool 追加附图生成工具（F1：结构化 DOT 构建 + Graphviz 渲染）。
+// 产物路径限定在项目目录（缺省为工作区）内；工作目录都未配置时不注入。
+func injectFigureTool(cfg *agentcore.Config) {
+	workDir := cfg.ProjectDir
+	if workDir == "" {
+		workDir = cfg.WorkspaceDir
+	}
+	if workDir == "" {
+		return
+	}
+	cfg.Tools = append(cfg.Tools, figuregenerate.NewTool(figuregenerate.ToolConfig{WorkingDir: workDir}))
+}
+
 func injectDomainSharedExtensions(cfg *agentcore.Config) {
 	injectDraftingTool(cfg)
 	injectDocTemplateTools(cfg)
 	injectPromptTools(cfg)
 	injectWritingTools(cfg)
 	injectRulesTools(cfg)
+	injectFigureTool(cfg)
 	if globalKnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
 	}
