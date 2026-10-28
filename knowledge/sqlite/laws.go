@@ -68,12 +68,10 @@ func (s *SQLiteStore) SearchLaws(keyword string, topK int) ([]LawRecord, error) 
 func (s *SQLiteStore) OpenLawsDB(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	dsn := fmt.Sprintf("file:%s?mode=ro&_pragma=busy_timeout(5000)", path)
-	lawsDB, err := sql.Open("sqlite", dsn)
+	lawsDB, err := OpenReadOnly(path)
 	if err != nil {
 		return fmt.Errorf("open laws-full.db: %w", err)
 	}
-	lawsDB.SetMaxOpenConns(2)
 	// 关闭旧连接（防止重复调用 OpenLawsDB 泄漏句柄）。
 	if s.lawsDB != nil {
 		if cerr := s.lawsDB.Close(); cerr != nil {
@@ -104,7 +102,7 @@ func (s *SQLiteStore) searchLawsFTS(keyword string, topK int) ([]LawRecord, erro
 		SELECT l.id, l.level, l.name, l.subtitle, l.content,
 		       c.name AS category_name
 		FROM law_fts
-		JOIN law l ON l.id = law_fts.rowid
+		JOIN law l ON l.rowid = law_fts.rowid
 		JOIN category c ON c.id = l.category_id
 		WHERE law_fts MATCH ?
 		ORDER BY bm25(law_fts)

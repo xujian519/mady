@@ -453,7 +453,7 @@ type StatutoryEvidence struct {
 | W0 | ✅ 完成 | 98e1828 | `pkg/indexasset` 覆盖率 95.5%；资产指纹脚本落地 |
 | W1 | ✅ 完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb · ec93acd · 174d5f8 | T-W1-01～05 完成；门禁接入 107 条 |
 | W2 | ✅ 完成 | 27b0085 · 21eaec1 · 47cd499 · fa41576 · eb3517b · d5936e8 · c1fdc6d | T-W2-01～T-W2-05 全部完成 |
-| W3 | 🚧 进行中 | b6bda17 | T-W3-01 二维证据模型完成（八类 + 6 场景规则 + 13 项测试）；T-W3-02 四类司法检索未开始 |
+| W3 | ✅ 完成 | b6bda17 · 待提交 | T-W3-01 二维证据模型（八类 + 6 场景规则 + 13 项测试）；T-W3-02 四类司法检索（FTS/LIKE/内存三通道 + 安装工具） |
 
 ### 批 A / 批 B 规则接入状态
 
@@ -543,3 +543,16 @@ type StatutoryEvidence struct {
 - **独立审查**：code-review 报出 2 项 blocking（`form_legal=false`、鉴定意见的 `collection_legal=false` 在种类轴接管合法性后被静默忽略，已声明却被丢弃）与 2 项 suggestion。blocking 已修：电子数据/证人证言补形式违法扣分，鉴定意见补收集/形式违法的扣分与 `LEGAL-EVI-GEN-002` finding；负控制测试新增 `FormIllegalPenalized`（对比"未声明"而非仅对比"合法"，否则去掉扣分仍会通过）与 `ExpertIllegalCollectionFlagged`。suggestion 采纳 1 项（`axisSnapshot` 纳入分值贡献，finding 增加 `delta` 字段）、记录 1 项（哈希"已记录"与"已核验"两段加分沿用 dsh 口径，未合并）。
 - **反向验证**：去掉电子数据形式违法扣分、关闭种类校验、让场景轴依赖种类，三处改动分别令对应用例变红后还原。
 - **未覆盖**：批量评估（一次多份证据）未做，逐个调用即可；与既有 `judge_triple` 的分数不做合并，两者并存、由模型按场景选用。
+
+### W3 四类司法检索状态（T-W3-02）
+
+- **入口**：`legal_knowledge_search`（`scope` = regulation / judicial_interpretation / case_law / guiding_case）与 `legal_knowledge_install`；扩展 `legal-knowledge`（`knowledge/legal`）注入专利与法律域共享装配。
+- **数据**：复用现有 `laws-full*.db`（`law` / `category` 表 + 可选的 `law_fts` trigram 索引）；安装产物默认 `$MADY_HOME/legal-knowledge/legal.db`，未安装时只读直读源库（与 dsh 的源库直读回退一致）。
+- **检索通道**：FTS5（BM25）优先；查询少于 3 字或库无 FTS 时降级 LIKE；无库时在内存记录上做子串匹配。`via` 字段标明命中通道。
+- **效力判定**：`expired=1` → expired；`valid_from > as_of` → not-yet-effective；有 `valid_from` → in-force；日期缺失 → unverified。已废止与尚未生效默认不返回；未核验默认返回并标注，可用 `include_unverified=false` 收紧。
+- **指导性案例**：有 `guiding_cases` 表时优先按编号精确查找（「指导案例第 12 号」「指导案例12号」「第十二号」），未命中回退关键词；无该表时回退到案例表中名称/正文含「指导案例」的记录。**本机现有 laws-full.db 无指导案例数据**，工具据此明确提示「本部署未安装指导性案例数据」，不把无数据说成无匹配。
+- **安装**：`VACUUM INTO` 生成一致性快照（源库带 WAL 边车，直接拷贝主文件会丢未落盘事务）→ 可选 `DROP law_fts` → 同目录临时文件原子替换；源库只读打开、同文件拒绝、缺 `law` 表拒绝；输出路径限制在数据目录内；安装成功后即时 `Reload` 生效。
+- **顺带修复**：`knowledge/sqlite` 的 FTS 查询此前 `JOIN law l ON l.id = law_fts.rowid`（TEXT 主键对隐式 rowid），实测 FTS 通道恒为 0 结果；改为 `l.rowid = law_fts.rowid`，并把只读打开抽成 `OpenReadOnly` 供两处共用。
+- **验收**：四类各 5 例（测试夹具库）；无库降级四类；指导案例编号（阿拉伯/中文）直达与不存在编号回退；安装覆盖保留/裁剪 FTS、同文件、非法律库、输出越界；真实库冒烟 `TestSearchRealDatabase`（默认跳过，设 `MADY_LEGAL_SMOKE_DB` 开启）实测法规 FTS 命中、司法解释命中、短查询走 LIKE、本机无指导案例数据被正确标注。
+- **独立审查**：code-review 报 1 项并发生命周期问题（`Reload` 关闭旧连接时，查询已持有 `*sql.DB` 副本，可能对已关闭连接发起查询）——已改为读锁贯穿查询全程，并补 `TestConcurrentSearchAndReload`（`-race`）。另报 1 项「编号直达用例可能假通过」，经反向验证证伪：禁用编号查找后两个编号用例均变红。
+- **未覆盖**：`guiding_cases` 的数据源需另行提供（本仓库不含该数据）；法院/案由过滤未做（当前 `law` 表无这些列）。

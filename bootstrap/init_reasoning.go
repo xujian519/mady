@@ -27,6 +27,7 @@ import (
 	"github.com/xujian519/mady/guardrails"
 	kgwgraph "github.com/xujian519/mady/knowledge/graph"
 	"github.com/xujian519/mady/knowledge/knowledgeinit"
+	knowledgelegal "github.com/xujian519/mady/knowledge/legal"
 	ksqlite "github.com/xujian519/mady/knowledge/sqlite"
 	"github.com/xujian519/mady/prompt"
 	"github.com/xujian519/mady/retrieval/domain"
@@ -123,6 +124,12 @@ func InitReasoningAndTemplates(fc *Context) {
 	// 证据判断扩展：将 EvidenceDomainExtension 注入 Agent 配置。
 	// ext 为 nil 时静默跳过，使 Agent 仍然可以正常启动。
 	domains.SetupEvidenceExtension(domainEvidence.NewDomainExtension(nil))
+
+	// 法律知识库检索扩展：法规条文 / 司法解释 / 裁判案例 / 指导性案例四类检索
+	// 与安装工具。未安装数据库时降级为内存检索，不阻止启动。
+	domains.SetupLegalKnowledgeExtension(knowledgelegal.NewExtension(knowledgelegal.ExtensionConfig{
+		HomeDir: fc.MadyHome,
+	}))
 
 	userTmplDir := filepath.Join(fc.MadyHome, "doc-templates")
 	store, err := doctmpl.NewTemplateStore(userTmplDir)

@@ -87,9 +87,10 @@ var ToolDomains = map[string]string{
 	"patent_responder": "oa",
 
 	// ── 法律分析 (legal) ──
-	"legal_knowledge_search": "legal",
-	"legal_comparison":       "legal",
-	"claim_parse":            "legal",
+	"legal_knowledge_search":  "legal",
+	"legal_knowledge_install": "legal",
+	"legal_comparison":        "legal",
+	"claim_parse":             "legal",
 
 	// ── 专利无效/复审 (council) ──
 	"infringement_check":  "council",

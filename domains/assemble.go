@@ -21,6 +21,18 @@ import (
 // 一致；Extensions 段中 legal 的 Rules/Writing 相对原序交换——两者无同名
 // 工具、无 LifecycleHook（仅 ToolProvider / SystemPromptProvider），
 // 注册顺序不影响行为。
+// globalLegalKnowledgeExt 是法律知识检索扩展的全局实例，由
+// SetupLegalKnowledgeExtension 在启动期注入。专利与法律域共享：专利分析同样
+// 需要司法解释与裁判案例检索。
+var globalLegalKnowledgeExt agentcore.Extension
+
+// SetupLegalKnowledgeExtension 在启动期注入法律知识检索扩展
+// （legal_knowledge_search / legal_knowledge_install）。
+// ext 为 nil 时静默跳过；必须在任何 Agent 创建前调用。
+func SetupLegalKnowledgeExtension(ext agentcore.Extension) {
+	globalLegalKnowledgeExt = ext
+}
+
 func injectDomainSharedExtensions(cfg *agentcore.Config) {
 	injectDraftingTool(cfg)
 	injectDocTemplateTools(cfg)
@@ -32,6 +44,9 @@ func injectDomainSharedExtensions(cfg *agentcore.Config) {
 	}
 	if globalEvidenceExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
+	}
+	if globalLegalKnowledgeExt != nil {
+		cfg.Extensions = append(cfg.Extensions, globalLegalKnowledgeExt)
 	}
 	injectLawVerifyTool(cfg)
 	injectRuleOutputGate(cfg)

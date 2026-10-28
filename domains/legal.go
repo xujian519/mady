@@ -32,6 +32,7 @@ func LegalAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agentc
 		"- web_search / web_fetch：检索法律法规、司法解释、裁判文书",
 		"- scholar_search：检索学术论文和法学文献",
 		"- search_knowledge / search_laws：检索本地知识库中的法律法规、司法解释全文（9121 部法律）",
+		"- legal_knowledge_search：按类别检索法规条文、司法解释、裁判案例与指导性案例；指导案例支持「指导案例第 N 号」直达",
 		"- read / grep / find / glob / ls：读取和分析案件文件、证据材料",
 		"- write_file / edit：生成法律文书、合同、分析报告",
 		"",
