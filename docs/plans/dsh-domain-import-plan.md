@@ -452,7 +452,7 @@ type StatutoryEvidence struct {
 | W-1 | ✅ 完成 | 1b1dd92 | ADR 0008 已批准；FreeCAD 结论为暂不立项 |
 | W0 | ✅ 完成 | 98e1828 | `pkg/indexasset` 覆盖率 95.5%；资产指纹脚本落地 |
 | W1 | ✅ 完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb · ec93acd · 174d5f8 | T-W1-01～05 完成；门禁接入 107 条 |
-| W2 | ✅ 完成 | 27b0085 · 21eaec1 · 47cd499 · fa41576 · eb3517b · d5936e8 | T-W2-01～T-W2-05 全部完成 |
+| W2 | ✅ 完成 | 27b0085 · 21eaec1 · 47cd499 · fa41576 · eb3517b · d5936e8 · c1fdc6d | T-W2-01～T-W2-05 全部完成 |
 
 ### 批 A / 批 B 规则接入状态
 
