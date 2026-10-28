@@ -110,6 +110,7 @@ func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 			patentTools := []*agentcore.Tool{
 				patenttools.NewPatentWikiSearchTool(store),
 				patenttools.NewPatentCaseSearchTool(store),
+				patenttools.NewKnowledgeStatusTool(store, patenttools.KnowledgeStatusConfig{MadyHome: madyHome}),
 			}
 			if writable != nil {
 				patentTools = append(patentTools, patenttools.NewKnowledgeNoteSaveTool(writable))

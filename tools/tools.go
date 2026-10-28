@@ -343,6 +343,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(NewPatentLegalStatusTool(cfg.PatentTool))
 	addTool(readOnly(NewPatentWebSearchTool(cfg.PatentWebSearch)))
 	addTool(readOnly(NewPatentDocumentTool(cfg.PatentWebSearch)))
+	registerCNIPRTool(func(t *agentcore.Tool) { addTool(readOnly(t)) }, cfg.PatentWebSearch)
 
 	if cfg.Pandoc != nil {
 		addTool(NewPandocTool(cfg.Pandoc))

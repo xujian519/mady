@@ -70,6 +70,8 @@
 | 工具 | 分类 | 关键参数 | 说明 |
 |------|------|----------|------|
 | matter_log_append | write | `case_dir`, `action`, `artifacts`, `changes`, `supersedes` | 案卷只追加事件日志：取代链校验、原地覆盖/分叉拒绝 |
+| knowledge_status | read | — | 知识库状态与安装引导：文档/向量/法规库/FTS/快照路径与缺项指引 |
+| cnipr_search | read | `mode`, `query`, `numbers`, `limit` | CNIPR 通道：关键词检索 / 全文 PDF 直链 / 法律状态；失败给出多源检索替代 |
 | search_rules | read | `query`, `domain` | 规则库检索 |
 | get_article_framework | read | `statute` | 获取法条框架 |
 | get_orchestration | read | `case_type` | 获取审查意见编排 |

@@ -66,6 +66,7 @@ var ToolDomains = map[string]string{
 	"google_patents":       "patent_search",
 	"iterative_search":     "patent_search",
 	"search_query_builder": "patent_search",
+	"cnipr_search":         "patent_search",
 
 	// ── 专利分析 (patent_analysis) ──
 	"patent_novelty":              "patent_analysis",
@@ -126,7 +127,8 @@ var ToolDomains = map[string]string{
 	"enablement_check": "enablement",
 
 	// ── 知识管理 (knowledge) ──
-	"add_document": "knowledge",
+	"add_document":     "knowledge",
+	"knowledge_status": "knowledge",
 
 	// ── 撰写质量 (writing) ──
 	"writing_eval": "writing",
