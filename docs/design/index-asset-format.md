@@ -31,7 +31,7 @@ domains/fees/data/
 domains/deadline/data/
   cn-holidays.yaml
 
-data/law/skeleton/              # 外置：7,910 份条号骨架（运行时加载，可覆盖）
+data/law/skeleton/index.json.gz # 外置：7,910 部法规条号骨架（gzip，运行时加载，可覆盖）
 data/ASSETS.sha256              # 随包资产指纹清单
 ```
 

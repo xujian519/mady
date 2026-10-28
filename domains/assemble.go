@@ -6,6 +6,7 @@ import (
 
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains/checker"
+	"github.com/xujian519/mady/domains/lawverify"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/pkg/util"
 )
@@ -31,6 +32,15 @@ func injectDomainSharedExtensions(cfg *agentcore.Config) {
 	if globalEvidenceExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
 	}
+	injectLawVerifyTool(cfg)
+}
+
+// injectLawVerifyTool 追加法条核验工具。
+//
+// 专利与法律域都会引用法条，故放在共享段落；骨架路径由工具自行探测
+// （$MADY_HOME/law-skeleton/ 或仓库 data/law/skeleton/），缺失时降级为仅精校索引。
+func injectLawVerifyTool(cfg *agentcore.Config) {
+	cfg.Extensions = append(cfg.Extensions, lawverify.NewExtension(lawverify.Config{}))
 }
 
 // appendDraftingExtensions 追加撰写类扩展段落：权利要求撰写（claimdrafting）、
