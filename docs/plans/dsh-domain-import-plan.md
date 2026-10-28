@@ -460,6 +460,7 @@ type StatutoryEvidence struct {
 | W5-04 | ✅ 完成 | b44e366 | T-W5-04：LRU/TTL/并发合并缓存 + CNIPR 通道 + 知识库状态与安装引导 |
 | W5-03 | ✅ 完成（化学结构识别除外） | 6c7fd42 | T-W5-03：说明书形式/量化检查 + 案卷事件日志；其余工具核验为已有或不适用 |
 | W5-05 | ✅ 完成 | e94e202 | T-W5-05：四源文献检索（OpenAlex/S2/arXiv/Crossref）+ paper_search/paper_list_sources/paper_download + 按主机限速 + LRU 缓存 |
+| W5-01 | ✅ 完成（前置 spike 通过） | 待回填 | T-W5-01：`domains/teams` 协作层（成员生命周期/邮箱租约/依赖调度/团队锁/状态视图/AgentRunner 续聊） |
 | W4-F3 | ✅ 完成 | 9d7fb05 | T-W4-03：法域档案 + 提交页落版 + 跨图标记一致性（figure_submission / figure_consistency） |
 
 ### 批 A / 批 B 规则接入状态
@@ -644,3 +645,18 @@ type StatutoryEvidence struct {
 - **独立审查**：报 2 项阻断——①校验与写入分离存在 TOCTOU，符号链接可在校验后被替换；已改为 `os.Root` 约束写入（并保留前置复核给出可读错误）。②`cache.Async` 等待同键在途加载时不响应 ctx，慢源会阻塞被中断的调用；新增 `GetOrLoadContext`，`GetOrLoad` 委托给 `context.Background()` 保持兼容。采纳建议：PDF 下载接入 hostlimit（arXiv 3s）；工具客户端改用 SSRF 安全传输；抽出 `withinDir` 消除符号链接复核的重复判断。
 - **记录**：`snippet` 截断后追加省略号，实际长度为上限 +1 rune；Windows 保留设备名未专门处理（经 `Fields` 折叠与兜底名，不构成穿越）；`looksValid` 只校验「可解析为 JSON」，源在 200 下返回错误 JSON 会被缓存（现有源错误均走非 2xx）；文献缓存默认 500 条，与 `pkg/cache` 的 100 条默认不同（本包显式传入）；与既有 `scholar_search` 在 Semantic Scholar 上功能弱重叠，`paper_search` 为四源聚合，二者共存不冲突。
 - **未覆盖**：未做真实站点联调（沙箱无法绑定端口，测试全部用注入 Doer）；跨源去重只按 DOI/标题，未做作者+年份模糊合并；付费墙文献只给出原文链接，不尝试绕行。
+
+### W5-01 patent-teams 状态（T-W5-01）
+
+- **前置 spike（ADR 0008）**：三条前提已回写 `docs/adr/0008-patent-teams-model.md`——①每个 `agentcore.New` 自建 `EventBus`，多实例并发互不串扰；②`AgentStore` 快照能恢复消息/状态/轮次/用量，唤醒后上下文完整；③快照**不含工具注册表**，唤醒必须用同一配置模板重建，扩展内部状态也不随快照恢复。结论为不降级，按方案 A 新增 `domains/teams`。
+- **团队目录**：`<工作区>/.teams/<teamId>/`，含 `members.json`（原子写）、`events.jsonl`、`tasks/`（复用 `tasklist.FileStore`）、`mail/`（每成员 JSONL + 确认日志 + 投递租约）、`locks/`。不新增 host 写 RPC。
+- **成员生命周期**：登记 / 状态切换（idle / running / interrupted / retired）/ 退役不可逆；退役成员不再接任务、收发邮件与投递。队长仅为角色标记，调度权与普通成员相同。
+- **邮箱**：投递与确认都走追加写；读取按「未确认」过滤。投递由成员租约串行化（`O_EXCL` + TTL），并发投递返回 `ErrLocked`，处理失败不确认、下次重试。邮件主题 200 字、正文 2 万字上限，避免单行超过扫描器上限导致整箱不可读。
+- **依赖调度**：`AddTask` 写入 `BlockedBy` 并在依赖上登记 `Blocks`；`ClaimNext` 先按「pending + 依赖全部 completed/archived + 尝试次数未达上限」筛选，再经 `UpdateFunc` 原子复核状态后才认领，避免同一任务被两名成员同时认领。失败任务退回 pending、清空 owner、累计尝试次数（默认 3 次后不再认领）。`RunUntilIdle` 为每名空闲成员起一个工作协程并行认领；`Run` 事件驱动（`AddTask`/完成/失败唤醒），并用挂起标记避免处理期间丢失唤醒；单轮错误只记日志不终止主循环。
+- **团队锁**：`Lock(name, owner, ttl)` 返回释放函数；未过期同名锁返回 `ErrLocked`，过期租约用 rename 原子接管（避免无主删除他人新锁）。
+- **AgentRunner**：每成员用同一 `Config` 模板重建 Agent，配合 `AgentStore` 在任务间续聊；任务失败的半轮消息不落盘（失败重试从上次成功上下文继续）。
+- **状态视图**：`View` 汇总成员、任务四态计数与概要、各成员未确认邮件数、当前锁；`Events` 读取 `teams/<teamId>/<event>` 事件流用于审计。
+- **验收**：spike 3 例（并发总线隔离、跨轮唤醒上下文、快照不含工具注册表）；成员/邮箱/锁 5 例（登记持久化与退役、消息与视图、租约竞争与失败重试、锁竞争与过期接管、超长正文拒绝）；调度 5 例（依赖先于高优先级任务、三成员协作 6 任务、失败重试至上限、`Run` 在任务失败后继续、并发认领仅一人成功）；真实 Agent 集成 1 例（三成员 5 任务，跨任务上下文续聊与状态持久化）。反向验证三次（忽略依赖、去掉 `O_EXCL`、去掉认领状态复核）均先变红后还原。
+- **独立审查**：报 2 项阻断——①过期租约「`Remove` 后重试」可能删掉他人刚建立的新租约，破坏互斥；已改为 rename 原子接管。②`Run` 把单轮调度错误直接返回导致团队停摆，且处理期间可能丢唤醒；已改为记录日志继续调度，并加挂起标记补唤醒。采纳建议：邮件大小上限、退役成员不再投递、`AgentRunner` 失败回合语义写明、过期锁测试改为直接写入过期租约（去掉 sleep）。
+- **记录**：同一团队约定单进程写入（无跨进程成员登记锁，`members.json` 的 `.tmp` 会被多进程互踩）；依赖把 `archived` 视为已终结（取消即放行下游）；`RunUntilIdle` 返回值为「尝试数（含失败）」；邮箱坏行 fail-closed 会导致整箱不可读（与任务存储静默跳过坏文件的策略不同）；队长角色不附带特权调度。
+- **未覆盖**：未提供团队工具（`team_*`）与 TUI/桌面呈现；邮箱与任务调度未接入会话事件总线；不支持优先级抢占与成员超时回收。

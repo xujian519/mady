@@ -46,9 +46,23 @@ dsh `patent-teams` 的四个关键差异：队长-成员的可续聊子代理、
 - 两套事件（团队事件 vs 会话事件）需要约定命名与顺序，否则回放困难。
 
 **必须验证的前提**（实施前置，1 人日 spike）：
-- [ ] 多个 `agentcore.Agent` 实例能否并发运行且互不干扰事件总线；
-- [ ] 用 `AgentStore.Load` 恢复的 Agent 是否等价于「续聊成员」（上下文完整、工具状态一致）；
-- [ ] 若上述不成立，降级为「串行 handoff + 邮箱队列」形态，并在 ADR 追加变更记录。
+- [x] 多个 `agentcore.Agent` 实例能否并发运行且互不干扰事件总线；
+- [x] 用 `AgentStore.Load` 恢复的 Agent 是否等价于「续聊成员」（上下文完整、工具状态一致）；
+- [x] 若上述不成立，降级为「串行 handoff + 邮箱队列」形态，并在 ADR 追加变更记录。
+
+**spike 结论（2026-10-28）**：
+- 前提 1 成立：每个 `agentcore.New` 自建 `EventBus`（`ownsEventBus=true`），并发运行互不串扰；
+  验证用例 `domains/teams/spike_test.go::TestSpikeAgentsRunConcurrentlyWithIsolatedBuses`。
+- 前提 2 基本成立，但有两条边界：①快照只含消息/状态/轮次/用量，**不含工具注册表**，
+  唤醒时必须用同一份配置重建 Agent（`TestSpikeAgentStateDoesNotCarryToolRegistry`）；
+  ②扩展的内部状态不随快照恢复，成员唤醒后依赖扩展的会话内状态需重新装载。
+  上下文完整性由 `TestSpikeMemberWakeFromAgentStore` 覆盖。
+- 结论：**不降级**，按本 ADR 方案 A 实施 `domains/teams`；成员唤醒封装为
+  「同一配置模板 + AgentStore 快照」两步，模板由调用方持有。
+
+### 变更记录
+
+- 2026-10-28：完成实施前置 spike，三条前提按上节结论回写；未改变决策与边界。
 
 ## 备选方案
 
