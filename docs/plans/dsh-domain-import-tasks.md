@@ -124,7 +124,7 @@ FreeCAD 结构图（原 W4-F3）不在本表，由 T-R-01 研究结论决定是�
 | 21 | law-search | 部分 | 复用 `knowledge/sqlite.SearchLaws`，补条文级返回 |
 | 22 | matter-log-append | 部分 | `domains/provenance` 补只追加语义 |
 | 23 | parse-office-action | 有 | `domains/rules/oa_parser` |
-| 24 | patent-analysis-report | 缺 | W5-03 |
+| 24 | patent-analysis-report | 有 | `domains/analysisreport`（W5-02） |
 | 25 | patent-case-search | 有 | `knowledge/sqlite` |
 | 26 | patent-eval | 有 | `tools/patent_eval.go` |
 | 27 | patent-flexible-plan | 有 | `domains/plantask` |
@@ -141,14 +141,14 @@ FreeCAD 结构图（原 W4-F3）不在本表，由 T-R-01 研究结论决定是�
 | 40 | recognize-chemical-structure | 部分 | `domains/chemistry` 补视觉结构识别（依赖 vision） |
 | 41 | rule-check | 有 | `domains/rules`；门禁化见 T-W1-05 |
 | 42 | search-patent-figure | W4 | F4 |
-| 43 | spec-claim-coverage | 部分 | `domains/claimdrafting/coverage.go` 补单一性 |
+| 43 | spec-claim-coverage | 有 | `domains/claimdrafting` coverage + unity（W5-02 修正口径） |
 | 44 | spec-figure-marks | W4 | F4 |
 | 45 | spec-numeric | 有 | `domains/novelty/numeric_range.go` |
 | 46 | spec-quantification | 缺 | W5-03 |
 | 47 | spec-style | 部分 | `domains/doctmpl` 样式投影 |
 | 48 | spec-types | 部分 | `domains/specdrafting` 类型规则 |
 | 49–51 | structure-model / -render / -types | 待研究 | 依赖 FreeCAD，随 T-R-01 结论 |
-| 52 | triz-contradiction-analysis | 缺 | W5-03 |
+| 52 | triz-contradiction-analysis | 有 | `domains/triz`（W5-02） |
 | 53 | validate-specification | 有 | `domains/specdrafting` |
 | 54 | verify-patent-figure | W4 | F4 |
 | 55 | workbench-link-patent-case | 部分 | `domains/caseindex` 补关联 |
