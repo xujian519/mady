@@ -247,7 +247,7 @@ AgentPool 管理案件 Agent 生命周期，空闲 30 分钟自动释放。
 | **法律案例比较** | `compare_legal_cases` 工具 | statute→case_search→compare→conclude，含 FactBlackboard + Syllogism 三段论推理 |
 | **五步工作法推理** | `run_five_step_workflow` 工具 | 发现事实→获取规则(四路召回)→规划→执行→检查，含确认阀中断→checkpoint→resume 闭环 |
 | **新颖性/侵权/OA 插件** | `plugins/patent/` 注册 | 可组合 pipeline stages 引用语义 atom（search/extract/compare/reasoning/approval-gate） |
-| **文档模板解析** | `doc-templates/` 模板库 | Markdown + `{{variable}}` 语法，按 category 分组（claims/specification/oa-response/disclosure） |
+| **文档模板解析** | `domains/doctmpl/templates/` 模板库 | Markdown + `{{variable}}` 语法，按 category 分组（claims/specification/oa-response/disclosure/legal/patent-report/document）；`doc-templates/` 为同内容镜像 |
 | **Agent 适配器** | `mady mcp-install <agent>` | 一键将 Mady 的 ACP 服务接入 Claude Code / Codex / Cursor / Gemini CLI / GitHub Copilot |
 | **证据三性判断** | `judge_triple` 工具或 `mady evidence judge` | 证据真实性/合法性/关联性三维度自动评判 |
 | **举证责任查询** | `check_burden` 工具或 `mady evidence burden` | 举证责任分配规则查询 |

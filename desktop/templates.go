@@ -31,6 +31,8 @@ var categoryLabels = map[string]string{
 	"disclosure":    "技术交底书",
 	"oa-response":   "OA答复函",
 	"legal":         "法律分析",
+	"patent":        "专利文书",
+	"document":      "通用文档",
 }
 
 // ListDocTemplates 扫描项目 doc-templates/ 目录，返回所有模板。

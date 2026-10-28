@@ -5,6 +5,84 @@ category: specification
 description: 化学/材料领域专利申请说明书模板
 domain: patent
 version: "1.0"
+language: zh-CN
+formats:
+  - markdown
+  - html
+  - docx
+vars:
+  - name: tech_field
+    type: string
+    required: false
+    description: "本发明所属技术领域"
+  - name: invention_name
+    type: string
+    required: false
+    description: "发明名称（化合物或材料名称）"
+  - name: background_desc
+    type: multiline
+    required: false
+    description: "背景技术现状"
+  - name: prior_art_1
+    type: multiline
+    required: false
+    description: "现有技术方案1"
+  - name: drawback_1
+    type: multiline
+    required: false
+    description: "现有技术方案1的缺陷"
+  - name: prior_art_2
+    type: multiline
+    required: false
+    description: "现有技术方案2"
+  - name: drawback_2
+    type: multiline
+    required: false
+    description: "现有技术方案2的缺陷"
+  - name: chemical_formula
+    type: multiline
+    required: false
+    description: "化学结构式（文本、ASCII 或 SMILES 描述）"
+  - name: raw_1
+    type: string
+    required: false
+    description: "制备原料1的名称"
+  - name: raw_2
+    type: string
+    required: false
+    description: "制备原料2的名称"
+  - name: cond_1
+    type: string
+    required: false
+    description: "第一步反应的反应条件（温度、压力、催化剂）"
+  - name: time_1
+    type: string
+    required: false
+    description: "第一步反应的反应时间"
+  - name: cond_2
+    type: string
+    required: false
+    description: "第二步反应的反应条件"
+  - name: reaction_type
+    type: string
+    required: false
+    description: "第二步反应的反应类型（如还原、取代）"
+  - name: effect_1
+    type: multiline
+    required: false
+    description: "有益效果1"
+  - name: effect_2
+    type: multiline
+    required: false
+    description: "有益效果2"
+  - name: embodiment_1
+    type: multiline
+    required: false
+    description: "实施例1的具体内容"
+  - name: embodiment_2
+    type: multiline
+    required: false
+    description: "实施例2的具体内容"
 ---
 # 说明书
 

@@ -5,6 +5,56 @@ category: specification
 description: 机械领域专利申请说明书模板
 domain: patent
 version: "1.0"
+language: zh-CN
+formats:
+  - markdown
+  - html
+  - docx
+vars:
+  - name: tech_field
+    type: string
+    required: false
+    description: "本发明所属技术领域"
+  - name: invention_name
+    type: string
+    required: false
+    description: "发明名称"
+  - name: background_desc
+    type: multiline
+    required: false
+    description: "背景技术现状"
+  - name: problem_1
+    type: multiline
+    required: false
+    description: "现有技术存在的问题1"
+  - name: problem_2
+    type: multiline
+    required: false
+    description: "现有技术存在的问题2"
+  - name: core_problem
+    type: multiline
+    required: false
+    description: "本发明要解决的核心技术问题"
+  - name: tech_solution
+    type: multiline
+    required: false
+    description: "完整技术方案，含结构组成与连接关系"
+  - name: effect_1
+    type: multiline
+    required: false
+    description: "有益效果1"
+  - name: effect_2
+    type: multiline
+    required: false
+    description: "有益效果2"
+  - name: fig_2_desc
+    type: string
+    required: false
+    description: "图2的内容说明"
+  - name: embodiment_detail
+    type: multiline
+    required: false
+    description: "实施例的结构、连接关系与工作原理"
 ---
 # 说明书
 

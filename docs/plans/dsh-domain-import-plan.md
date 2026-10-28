@@ -452,7 +452,7 @@ type StatutoryEvidence struct {
 | W-1 | ✅ 完成 | 1b1dd92 | ADR 0008 已批准；FreeCAD 结论为暂不立项 |
 | W0 | ✅ 完成 | 98e1828 | `pkg/indexasset` 覆盖率 95.5%；资产指纹脚本落地 |
 | W1 | ✅ 完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb · ec93acd · 174d5f8 | T-W1-01～05 完成；门禁接入 107 条 |
-| W2 | ◐ 进行中 | 27b0085 · 21eaec1 | T-W2-01（交付模板）、T-W2-02（CNIPA 出件）、T-W2-03（交付件登记）完成；T-W2-04/05 待做 |
+| W2 | ◐ 进行中 | 27b0085 · 21eaec1 · 47cd499 | T-W2-01（交付模板）、T-W2-02（CNIPA 出件）、T-W2-03（交付件登记）、T-W2-04（模板去重）完成；T-W2-05 待做 |
 
 ### 批 A / 批 B 规则接入状态
 
@@ -501,3 +501,14 @@ type StatutoryEvidence struct {
 - **未执行项的边界**：PDF 渲染件无法做 HTML 合规检查，登记结论为 `inconclusive` 并在 `unverified` 中说明。T-W2-05 落地后应在 HTML→PDF 转换前检查源件，而不是回过头查 PDF。
 - **独立审查**：code-review 报出 1 项 blocking（`Unverified` 存在时 `Passed` 仍为 true，把「未核验」呈现成「通过」）与 5 项 suggestion；blocking 以三值结论修复，suggestion 采纳 4 项、拒绝 1 项（显式逐字段构造与 staticcheck S1016 冲突，且类型转换本就要求字段名/类型/顺序完全一致）。
 - **遗留**：`StructuralGate` 对交付正文的接线缺少正文入口——登记工具只收路径，需在渲染/出件链路上把正文送入 `Engine`；出件工具（`filing.Compose`）也仍是库 API。
+
+### W2 模板去重状态（T-W2-04）
+
+- **真相源**：`domains/doctmpl/templates/`（`go:embed`）。仓库根 `doc-templates/` 是同内容镜像，供桌面端浏览与用户参考；运行时覆盖走 `$MADY_HOME/doc-templates/`。
+- **实测冲突**：dsh 17 份与 Mady 22 份中，12 份同名模板**正文逐字节相同**，差异只在 frontmatter——dsh 多 `language` / `formats` / `vars`。合并方式为「取 dsh 的 frontmatter + 保留 Mady 正文」，没有内容取舍；`vars` 全部 `required: false`，不改变现有渲染行为。
+- **新增 5 份**：dsh `document/` 的 PRD、发布说明、分析报告、FAQ、会议纪要（`domain: document`），Mady 此前没有通用文档模板。
+- **Mady 独有 10 份**：`legal/` 5 份与 `patent/` 5 份（Sati 对齐阶段落位）保留不动。
+- **合并清单**：`domains/doctmpl/TEMPLATE-MANIFEST.md` 逐条记录 27 份模板的 ID、类别、目录、域、来源与处置；`manifest_test.go` 校验清单与目录一一对应、ID 唯一、category/目录与实际一致、变量声明不重复。
+- **镜像**：`doc-templates/` 补齐此前缺失的 `patent/` 5 份，测试逐字节比对镜像与内置，任一侧单独改动即失败。
+- **索引修复**：`DocIndex` 的类别顺序此前硬编码 5 类，`patent-report` 的 5 份模板从未出现在模板索引里；现补上 `patent-report` / `document`，并把未登记类别按字母序追加，避免以后新增目录再次从索引消失。
+- **文档修正**：README 与 `docs/workflows.md` 此前称根目录 `doc-templates/` 被 `go:embed` 编进二进制，实际 embed 的是 `domains/doctmpl/templates/`，已更正。

@@ -5,6 +5,76 @@ category: specification
 description: 电学/电子领域专利申请说明书模板
 domain: patent
 version: "1.0"
+language: zh-CN
+formats:
+  - markdown
+  - html
+  - docx
+vars:
+  - name: tech_field
+    type: string
+    required: false
+    description: "本发明所属技术领域"
+  - name: invention_name
+    type: string
+    required: false
+    description: "发明名称"
+  - name: industry_trend
+    type: string
+    required: false
+    description: "相关行业的发展趋势"
+  - name: background_context
+    type: multiline
+    required: false
+    description: "该趋势下的技术背景与由此产生的问题"
+  - name: prior_art
+    type: multiline
+    required: false
+    description: "现有技术通常采用的方案"
+  - name: shortcoming_1
+    type: multiline
+    required: false
+    description: "现有技术的不足1"
+  - name: shortcoming_2
+    type: multiline
+    required: false
+    description: "现有技术的不足2"
+  - name: core_problem
+    type: multiline
+    required: false
+    description: "本发明要解决的核心技术问题"
+  - name: module_1
+    type: string
+    required: false
+    description: "第一电路模块名称"
+  - name: func_1
+    type: string
+    required: false
+    description: "第一电路模块的功能"
+  - name: module_2
+    type: string
+    required: false
+    description: "第二电路模块名称"
+  - name: func_2
+    type: string
+    required: false
+    description: "第二电路模块的功能"
+  - name: ctrl_func
+    type: multiline
+    required: false
+    description: "控制模块的功能"
+  - name: effect_1
+    type: multiline
+    required: false
+    description: "有益效果1"
+  - name: power_effect
+    type: multiline
+    required: false
+    description: "功耗方面的改进效果"
+  - name: embodiment_detail
+    type: multiline
+    required: false
+    description: "具体实施例的电路结构与工作过程"
 ---
 # 说明书
 

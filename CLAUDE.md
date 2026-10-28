@@ -136,7 +136,7 @@ mady/
 ├── plugins/          # 专利工作流插件（novelty-analysis / infringement-check / oa-response）
 ├── desktop/          # Wails 桌面应用（独立子模块：Go 后端 + React 前端）
 ├── styles/           # 文档风格指南 YAML（patent-standard / legal-standard / chat-friendly / assistant-neutral）
-├── doc-templates/    # 文档模板库（claims / specification / oa-response / disclosure / legal）
+├── doc-templates/    # 文档模板库镜像（真相源在 domains/doctmpl/templates/，清单见其 TEMPLATE-MANIFEST.md）
 ├── manifests/        # 外部 manifest 示例
 ├── pkg/
 │   ├── csync/        #   并发同步原语

@@ -165,12 +165,17 @@ ResumeFromCheckpoint + SetConfirmedRules 续跑 Stage③-⑤。
 
 | 类别 | 模板数 | 存放位置 |
 |------|:------:|----------|
-| Claims (权利要求) | 3 | `doc-templates/claims/` |
-| Specification (说明书) | 4 | `doc-templates/specification/` |
-| OA Response (答复) | 3 | `doc-templates/oa-response/` |
-| Disclosure (交底书) | 2 | `doc-templates/disclosure/` |
+| Claims (权利要求) | 3 | `domains/doctmpl/templates/claims/` |
+| Specification (说明书) | 4 | `domains/doctmpl/templates/specification/` |
+| OA Response (答复) | 3 | `domains/doctmpl/templates/oa-response/` |
+| Disclosure (交底书) | 2 | `domains/doctmpl/templates/disclosure/` |
+| Legal (法律分析) | 5 | `domains/doctmpl/templates/legal/` |
+| Patent Report (专利文书) | 5 | `domains/doctmpl/templates/patent/` |
+| Document (通用文档) | 5 | `domains/doctmpl/templates/document/` |
 
-通过 `go:embed` 编进二进制，用户可在 `$MADY_HOME/doc-templates/` 覆盖或新增。
+真相源是 `domains/doctmpl/templates/`，通过 `go:embed` 编进二进制；仓库根 `doc-templates/`
+是同内容镜像（由测试锁定一致），用户可在 `$MADY_HOME/doc-templates/` 覆盖或新增。逐条来源与
+合并处置见 `domains/doctmpl/TEMPLATE-MANIFEST.md`。
 
 ## 8. 专利工作流编排 (AgentToolchain)
 

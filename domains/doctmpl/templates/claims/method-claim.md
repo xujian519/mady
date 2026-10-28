@@ -5,6 +5,44 @@ category: claims
 description: 方法类发明专利权利要求模板
 domain: patent
 version: "1.0"
+language: zh-CN
+formats:
+  - markdown
+  - html
+  - docx
+vars:
+  - name: method_name
+    type: string
+    required: false
+    description: "方法名称"
+  - name: step_1
+    type: multiline
+    required: false
+    description: "步骤1的具体操作"
+  - name: step_2
+    type: multiline
+    required: false
+    description: "步骤2的具体操作"
+  - name: step_3
+    type: multiline
+    required: false
+    description: "步骤3的具体操作"
+  - name: step_1_detail
+    type: multiline
+    required: false
+    description: "对步骤1的进一步限定"
+  - name: step_4
+    type: multiline
+    required: false
+    description: "附加步骤4的具体操作"
+  - name: key_param
+    type: string
+    required: false
+    description: "关键技术参数名称"
+  - name: range_value
+    type: string
+    required: false
+    description: "关键技术参数的取值范围"
 ---
 # 权利要求书
 
