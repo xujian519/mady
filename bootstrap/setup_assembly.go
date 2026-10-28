@@ -16,7 +16,22 @@ import (
 	"github.com/xujian519/mady/tools"
 )
 
+// BuildCitationSource 装配引用核验的知识源，优先级：随包索引 > S1 静态表 > S2 wiki 索引。
+//
+// 随包索引带条文原文、来源与核验日期，因此排在最前；静态表覆盖专利法族之外的法律，
+// 但没有条文；S2 wiki 索引只在有 wiki 根目录时加载。
 func BuildCitationSource(wikiRoot string) guardrails.CitationSource {
+	base := buildWikiCitationSource(wikiRoot)
+	indexed, err := guardrails.NewIndexCitationSource(base)
+	if err != nil {
+		// 部分索引加载失败时仍保留已成功的部分，避免整条链路退化成只有主题词。
+		slog.Error("随包法条索引加载不完整", "error", err)
+	}
+	return indexed
+}
+
+// buildWikiCitationSource 返回 S1 静态表与可选 S2 wiki 索引的组合。
+func buildWikiCitationSource(wikiRoot string) guardrails.CitationSource {
 	s1 := guardrails.DefaultCitationSource()
 
 	if wikiRoot == "" {
