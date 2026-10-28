@@ -114,8 +114,15 @@ type record struct {
 	id   string
 }
 
+// manualGateRuleIDs 是 Mady 手工维护的门禁规则，生成时跳过以免重复。
+var manualGateRuleIDs = map[string]bool{
+	"PAT-RISK-001":     true,
+	"PAT-APPROVAL-001": true,
+	"PAT-ABS-001":      true,
+}
+
 func emitBatchA(src, outDir string) error {
-	var blocks, structural []record
+	var blocks, structural, batchB []record
 	seen := map[string]bool{}
 
 	err := filepath.WalkDir(src, func(path string, dir fs.DirEntry, err error) error {
@@ -133,14 +140,18 @@ func emitBatchA(src, outDir string) error {
 		}
 		for _, rule := range ruleMaps(document["rules"]) {
 			item := classify("", rule)
-			if !item.Convertible || seen[item.ID] || item.Action == "log" {
+			if !item.Convertible || seen[item.ID] || item.Action == "log" || manualGateRuleIDs[item.ID] {
 				continue
 			}
 			seen[item.ID] = true
-			if item.Action == "block" {
+			switch {
+			case item.Action == "block":
 				blocks = append(blocks, record{rule, item.ID})
-			} else if item.Type == "structural_analysis" {
+			case item.Type == "structural_analysis":
 				structural = append(structural, record{rule, item.ID})
+			case item.Action == "warn" || item.Action == "review":
+				// 批 B：warn/review 级非结构性规则，只进输出门禁做提示。
+				batchB = append(batchB, record{rule, item.ID})
 			}
 		}
 		return nil
@@ -152,7 +163,10 @@ func emitBatchA(src, outDir string) error {
 	if err := writeRuleFile(outDir, "gate-batch-a-block.yaml", "批 A-1：block 级确定性门禁规则", blocks); err != nil {
 		return err
 	}
-	return writeRuleFile(outDir, "gate-batch-a-structural.yaml", "批 A-2：结构性门禁规则（供 StructuralGate 判定交付制品）", structural)
+	if err := writeRuleFile(outDir, "gate-batch-a-structural.yaml", "批 A-2：结构性门禁规则（供 StructuralGate 判定交付制品）", structural); err != nil {
+		return err
+	}
+	return writeRuleFile(outDir, "gate-batch-b-warn.yaml", "批 B：warn/review 级非结构性确定性门禁规则（只提示，不阻断）", batchB)
 }
 
 // writeRuleFile 写出一份 Mady 格式规则文件。

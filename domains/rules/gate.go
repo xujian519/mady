@@ -22,6 +22,12 @@ import (
 
 const gateMarker = "【规则门禁】"
 
+// maxWarnRules 是一次门禁标注里最多列出的 warn 条数。
+//
+// 批 B 的 warn 规则多为关键词提示，同一段文本可能同时命中多条；不设上限会把
+// 工具结果刷成提示墙，反而掩盖真正要紧的 block 结论。超出的条数以计数说明。
+const maxWarnRules = 5
+
 // OutputGate 在工具执行后对结果文本追加合规提示或阻断标注。
 type OutputGate struct {
 	agentcore.BaseLifecycleHook
@@ -107,9 +113,17 @@ func (g *OutputGate) evaluate(text string) string {
 			builder.WriteString("\n")
 		}
 		fmt.Fprintf(&builder, "%s %s：\n", gateMarker, g.warnTitle)
+		omitted := 0
+		if len(warns) > maxWarnRules {
+			omitted = len(warns) - maxWarnRules
+			warns = warns[:maxWarnRules]
+		}
 		for _, line := range warns {
 			builder.WriteString(line)
 			builder.WriteString("\n")
+		}
+		if omitted > 0 {
+			fmt.Fprintf(&builder, "- 另有 %d 条提示未列出\n", omitted)
 		}
 	}
 	return strings.TrimRight(builder.String(), "\n")

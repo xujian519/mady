@@ -33,8 +33,8 @@ func TestBatchARulesLoaded(t *testing.T) {
 func TestBundledGateRulesAllConsumable(t *testing.T) {
 	engine := loadGateEngine(t)
 	rules := engine.AllRules()
-	if len(rules) < 90 {
-		t.Fatalf("随包门禁规则只有 %d 条，批 A 应覆盖 block 与结构性规则", len(rules))
+	if len(rules) < 100 {
+		t.Fatalf("随包门禁规则只有 %d 条，批 A + 批 B 应覆盖 block、结构性规则与 warn 提示", len(rules))
 	}
 	ids := make([]string, 0, len(rules))
 	blocks := 0
@@ -53,6 +53,114 @@ func TestBundledGateRulesAllConsumable(t *testing.T) {
 }
 
 // 结构要素的 pattern 按正则解释：CON-103 要求引用专利法第二十二条。
+// 批 B 规则已加载且都是只提示的级别：没有 block。
+func TestBatchBWarnRules(t *testing.T) {
+	engine := loadGateEngine(t)
+	for _, id := range []string{
+		"LEGAL-DISC-001", "LEGAL-LIMIT-001", "LEGAL-JURIS-001", "LEGAL-ABS-001",
+		"CON-COMP-0103", "CON-COMP-0105", "EX-SRC-001", "H-CLA-002", "IPC-GEN-INV-002", "EX-INV-007",
+	} {
+		rule := engine.RuleByID(id)
+		if rule == nil {
+			t.Fatalf("批 B 规则 %s 未加载", id)
+		}
+		if rule.Action == ActionBlock {
+			t.Fatalf("批 B 规则 %s 不应是 block 级", id)
+		}
+	}
+}
+
+// 批 B 的 warn 规则不阻断交付调用（渐进式门禁：先提示，后收紧）。
+func TestBatchBDoesNotBlock(t *testing.T) {
+	engine := loadGateEngine(t)
+	gate := NewStructuralGate(engine, []StructuralEntry{{
+		Tool:     "render_patent_document",
+		TextArgs: []string{"draft"},
+		RuleIDs:  []string{"LEGAL-DISC-001"},
+	}})
+	tec := &agentcore.ToolExecutionContext{
+		ToolCalls: []agentcore.ToolCall{{
+			Name:      "render_patent_document",
+			Arguments: `{"draft":"本意见具有法律效力。"}`,
+		}},
+	}
+	if err := gate.BeforeToolExecution(context.Background(), nil, tec); err != nil {
+		t.Fatalf("warn 级规则不应阻断：%v", err)
+	}
+}
+
+// 同一条文本命中过多 warn 规则时，标注只列前 5 条并说明剩余数量。
+func TestOutputGateCapsWarnLines(t *testing.T) {
+	var rules []Rule
+	for i, word := range []string{"甲词", "乙词", "丙词", "丁词", "戊词", "己词", "庚词"} {
+		rules = append(rules, Rule{
+			RuleID: "T-WARN-" + string(rune('A'+i)),
+			Action: ActionWarn,
+			Check: Check{
+				Type:  "keyword_blocklist",
+				Extra: map[string]any{"keywords": []any{word}},
+			},
+		})
+	}
+	set := &RuleSet{Rules: rules, ruleIndex: make(map[string]*Rule, len(rules))}
+	for i := range rules {
+		set.ruleIndex[rules[i].RuleID] = &rules[i]
+	}
+	gate := NewOutputGate(NewEngine(set))
+	tec := &agentcore.ToolExecutionContext{
+		Results: []agentcore.ToolResult{{ToolName: "t", Result: "甲词 乙词 丙词 丁词 戊词 己词 庚词"}},
+	}
+	gate.AfterToolExecution(context.Background(), nil, tec)
+	output := tec.Results[0].ForLLM
+	if !strings.Contains(output, "另有 2 条提示未列出") {
+		t.Fatalf("应截断并说明剩余数量：%q", output)
+	}
+	if strings.Count(output, "T-WARN-") != maxWarnRules {
+		t.Fatalf("应只列 %d 条，实际 %d 条：%q", maxWarnRules, strings.Count(output, "T-WARN-"), output)
+	}
+}
+
+// 批 B 的误报抽检：锁定「不该命中」的典型文本，并如实记录已知会命中的泛称。
+//
+// 2026-10-09 的教训是：warn 级禁词表可能被完成摘要这类旁路文本触发。这里把
+// 交付件正文与摘要两类文本都过一遍，命中情况作为可复核记录。
+func TestWarnRulesFalsePositiveSamples(t *testing.T) {
+	engine := loadGateEngine(t)
+
+	shouldPass := []struct{ id, text, why string }{
+		{"CON-COMP-0103", "根据《专利法》第22条第3款，本申请具备创造性。", "精确引用不应触发模糊引用提示"},
+		{"LEGAL-DISC-001", "本意见不构成正式法律意见，需经代理人确认。", "否定语境不应触发免责提示"},
+		{"LEGAL-JURIS-001", "「无管辖权」是被告的抗辩主张，法院尚未认定。", "引文豁免"},
+	}
+	for _, tc := range shouldPass {
+		rule := engine.RuleByID(tc.id)
+		if rule == nil {
+			t.Fatalf("规则 %s 未加载", tc.id)
+		}
+		result, err := rule.Check.Evaluate(tc.text)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.id, err)
+		}
+		if !result.Passed {
+			t.Errorf("%s 误报：%s（%q）", tc.id, tc.why, tc.text)
+		}
+	}
+
+	// 已知命中（warn 级可接受，但需要在部署后观察是否刷屏）。
+	knownHits := []struct{ id, text string }{
+		{"CON-COMP-0103", "根据法律规定，申请人应当提交请求书。"},
+		{"IPC-GEN-INV-002", "判断是否存在事后诸葛亮的问题，应回到申请日。"},
+	}
+	for _, tc := range knownHits {
+		rule := engine.RuleByID(tc.id)
+		if rule == nil {
+			t.Fatalf("规则 %s 未加载", tc.id)
+		}
+		result, _ := rule.Check.Evaluate(tc.text)
+		t.Logf("已知命中 %s：%q -> passed=%v", tc.id, tc.text, result.Passed)
+	}
+}
+
 func TestStructuralPatternRegex(t *testing.T) {
 	engine := loadGateEngine(t)
 	rule := engine.RuleByID("CON-103")

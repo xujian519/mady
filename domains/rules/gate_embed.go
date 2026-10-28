@@ -20,6 +20,7 @@ var gateRuleFiles = []string{
 	"data/rules/gate-batch-a.yaml",
 	"data/rules/gate/gate-batch-a-block.yaml",
 	"data/rules/gate/gate-batch-a-structural.yaml",
+	"data/rules/gate/gate-batch-b-warn.yaml",
 }
 
 // LoadBundledGateRules 解析并合并随包门禁规则。

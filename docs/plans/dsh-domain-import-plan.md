@@ -453,11 +453,18 @@ type StatutoryEvidence struct {
 | W0 | ✅ 完成 | 98e1828 | `pkg/indexasset` 覆盖率 95.5%；资产指纹脚本落地 |
 | W1 | ◐ 部分完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb | T-W1-01～04 完成；T-W1-05 机制完成、规则接入 96 条 |
 
-### 批 A 规则接入状态
+### 批 A / 批 B 规则接入状态
 
 - **来源实测**：dsh `patent-rule` 共 158 条规则（此前按单缩进统计为 44 条，偏少），其中可确定性判定 130 条。
-- **已接入 96 条**：block 级 32 条、结构性（structural_analysis）61 条、手工补充 3 条（PAT-RISK-001 / PAT-APPROVAL-001 / PAT-ABS-001）。
-- **未接入 34 条**：log 级规则（Mady 无 log 动作，降级为 warn 会改变语义）与需要 LLM 判断的规则；warn + keyword 的非结构性规则留批 B。
+- **已接入 107 条**：
+  - 批 A 96 条：block 级 32、结构性（structural_analysis）61、手工 3（PAT-RISK-001 / PAT-APPROVAL-001 / PAT-ABS-001）；
+  - 批 B 11 条：warn/review 级非结构性关键词规则（LEGAL-DISC-001、LEGAL-LIMIT-001、LEGAL-JURIS-001、LEGAL-ABS-001、CON-COMP-0103、CON-COMP-0105、EX-SRC-001、H-CLA-002、IPC-GEN-INV-002、EX-INV-007、INV-EVIDENCE-001），**只提示不阻断**。
+- **未接入 23 条**：log 级规则（Mady 无 log 动作，降级为 warn 会改变语义）与需要 LLM 判断的规则。
+- **批 B 误报观察点**（部署后需复核）：
+  - `CON-COMP-0103` 的「根据法律规定」会命中法律文书的常见泛称；
+  - `IPC-GEN-INV-002` 的「事后诸葛亮」没有否定语境豁免，判断句中提及即命中；
+  - 两条均为 warn 级，只追加提示；OutputGate 对 warn 设 5 条上限，避免刷屏。
+- **误报抽检**：`TestWarnRulesFalsePositiveSamples` 锁定「精确引用 / 否定语境 / 引文豁免」三类不误报，并记录上述两条已知命中。
 - **生成与校验**：`go run ./scripts/rulescan --src <dsh 规则目录> --emit domains/rules/data/rules/gate` 机械转换；全部规则通过 `ValidateGateRules`；`TestStructuralPatternRegex` 验证正则模式（如 `专利法[^。；\n]{0,12}第\s*(?:二十二|22)\s*条`）确实命中。
 - **反向验证**：移除生成文件后 `TestBundledGateRulesAllConsumable` 变红（只剩 3 条），还原后恢复；破坏 `keyword_blocklist` 判定后 OutputGate 与 StructuralGate 两个测试变红。
 
