@@ -37,6 +37,7 @@ const (
 	ToolVision      = "vision_analyze"
 	ToolPandoc      = "convert_document"
 	ToolOCR         = "ocr"
+	ToolOfficePDF   = OfficeToPDFToolName
 )
 
 // ComputerUseToolConfig is a type alias for backward compatibility.
@@ -130,6 +131,11 @@ type ExtensionConfig struct {
 
 	// OCR configures the OCR tool. If nil, default local OCR is used.
 	OCR *OCRToolConfig
+
+	// OfficePDF configures the office_to_pdf tool. Nil uses defaults and still
+	// registers the tool: when no engine is installed it returns a structured
+	// rejection with install hints instead of silently disappearing.
+	OfficePDF *OfficePDFConfig
 
 	// ExecuteCode configures the execute_code tool. If nil, a default configuration is used.
 	ExecuteCode *ExecuteCodeToolConfig
@@ -320,6 +326,7 @@ func BuildTools(cfg ExtensionConfig) []*agentcore.Tool {
 	addTool(NewProcessTool(cfg.WorkingDir, cfg.Process))
 	addTool(readOnly(NewVisionTool(cfg.WorkingDir, cfg.Vision)))
 	addTool(readOnly(NewOCRTool(cfg.OCR)))
+	addTool(NewOfficeToPDFTool(cfg.OfficePDF))
 	addTool(readOnly(NewViewTool(cfg.WorkingDir, cfg.View)))
 	addTool(readOnly(NewGlobTool(cfg.WorkingDir, cfg.Glob)))
 	addTool(NewDeleteTool(cfg.WorkingDir, cfg.Delete))
@@ -454,6 +461,15 @@ func propagateSandbox(cfg *ExtensionConfig) {
 	// Without this, WorkingDir stays empty and path checks are silently skipped.
 	if cfg.Pandoc != nil && cfg.Pandoc.WorkingDir == "" {
 		cfg.Pandoc.WorkingDir = cfg.WorkingDir
+	}
+
+	// Office→PDF: same boundary, plus the shared sandbox (symlink-safe resolution).
+	if cfg.OfficePDF == nil {
+		cfg.OfficePDF = OfficePDFConfigDefaults()
+	}
+	cfg.OfficePDF.Sandbox = sbx
+	if cfg.OfficePDF.WorkingDir == "" {
+		cfg.OfficePDF.WorkingDir = cfg.WorkingDir
 	}
 }
 

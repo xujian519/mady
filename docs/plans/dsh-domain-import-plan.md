@@ -452,7 +452,7 @@ type StatutoryEvidence struct {
 | W-1 | ✅ 完成 | 1b1dd92 | ADR 0008 已批准；FreeCAD 结论为暂不立项 |
 | W0 | ✅ 完成 | 98e1828 | `pkg/indexasset` 覆盖率 95.5%；资产指纹脚本落地 |
 | W1 | ✅ 完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb · ec93acd · 174d5f8 | T-W1-01～05 完成；门禁接入 107 条 |
-| W2 | ◐ 进行中 | 27b0085 · 21eaec1 · 47cd499 · fa41576 | T-W2-01（交付模板）、T-W2-02（CNIPA 出件）、T-W2-03（交付件登记）、T-W2-04（模板去重）完成；T-W2-05 待做 |
+| W2 | ✅ 完成 | 27b0085 · 21eaec1 · 47cd499 · fa41576 · eb3517b · d5936e8 | T-W2-01～T-W2-05 全部完成 |
 
 ### 批 A / 批 B 规则接入状态
 
@@ -512,3 +512,19 @@ type StatutoryEvidence struct {
 - **镜像**：`doc-templates/` 补齐此前缺失的 `patent/` 5 份，测试逐字节比对镜像与内置，任一侧单独改动即失败。
 - **索引修复**：`DocIndex` 的类别顺序此前硬编码 5 类，`patent-report` 的 5 份模板从未出现在模板索引里；现补上 `patent-report` / `document`，并把未登记类别按字母序追加，避免以后新增目录再次从索引消失。
 - **文档修正**：README 与 `docs/workflows.md` 此前称根目录 `doc-templates/` 被 `go:embed` 编进二进制，实际 embed 的是 `domains/doctmpl/templates/`，已更正。
+
+### W2 Office→PDF 状态（T-W2-05）
+
+- **工具**：`office_to_pdf`（`tools/office_pdf.go`，默认注册）。入参 `input` / `output` / `engine` / `font`；支持 doc、docx、xls、xlsx、ppt、pptx 六种格式。
+- **双通道**：LibreOffice headless 优先（覆盖全部六种）；缺失时降级 `pandoc + typst`（只覆盖 pandoc 能读的 docx/xlsx/pptx，结果标 `degraded` 并说明版式可能不同）。显式 `engine=libreoffice` 但未安装时拒绝，不偷偷降级；转换失败也不切引擎（避免掩盖问题）。
+- **结构化拒绝**：两个引擎都缺、或旧版格式（doc/xls/ppt）在没有 LibreOffice 时，返回 `status=rejected` 与分平台安装指引，不抛出裸错误，也不静默失败。
+- **探测**：先查 PATH 的 `soffice`/`libreoffice`，再查平台标准安装位置（macOS `/Applications/LibreOffice.app/Contents/MacOS/soffice`、Windows Program Files、Linux 常见路径）。**实测发现本机装有 LibreOffice 26.8（不在 PATH），方案原文「本机已确认 LibreOffice 缺失」需按此更正。**
+- **中文字体**：pandoc + typst 默认字体不含汉字，中文会整段丢失；必须显式传 `-V mainfont`。按平台取默认（macOS 苹方 / Windows 雅黑 / Linux Noto Sans CJK SC），可用 `font` 参数覆盖。实测苹方渲染中文正常、表格保留。
+- **安全与上限**：路径约束在工作目录内；输入 100 MB、输出 200 MB 上限；单次转换 180 秒超时；产物必须是带 `%PDF-` 头的普通文件；临时目录（含独立的 LibreOffice profile）用完即删。
+- **验证**：路由用例覆盖六种格式 × 引擎组合；fake 引擎覆盖成功、无产物、非 PDF、空产物、超时；真实 pandoc + typst 转换用测试内构造的最小 docx 跑通（含中文）。**LibreOffice 真实转换未能在沙箱内验证**（`soffice --version` 可执行，但 `--convert-to` 在本沙箱内 exit=1 且无输出），需在本机终端手工确认：
+
+  ```bash
+  /Applications/LibreOffice.app/Contents/MacOS/soffice --headless --convert-to pdf --outdir /tmp/lo-check 你的文件.docx
+  ```
+
+  或直接用工具：`office_to_pdf` 传 `engine: "libreoffice"`。

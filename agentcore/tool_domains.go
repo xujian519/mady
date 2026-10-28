@@ -34,6 +34,7 @@ var ToolDomains = map[string]string{
 	"patch":            "system",
 	"append":           "system",
 	"convert_document": "system",
+	"office_to_pdf":    "system",
 	"ocr":              "system",
 
 	// ── 版本控制 (git) ──

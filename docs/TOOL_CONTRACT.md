@@ -100,6 +100,7 @@
 | ego_lite_handoff | command | action, task_name | EgoLite 浏览器控制权交接 |
 | ego_lite_task_spaces | command | action, space | EgoLite 任务空间管理 |
 | convert_document | command | input_path, output_format | Pandoc 文档格式互转 |
+| office_to_pdf | command | input, output, engine, font | Office → PDF：LibreOffice 原生优先，pandoc + typst 降级；引擎缺失返回结构化拒绝与安装指引 |
 | list_prompts | read | category, domain | 列出可用 prompt 模板 |
 
 ---
