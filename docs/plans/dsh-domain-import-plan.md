@@ -442,3 +442,28 @@ type StatutoryEvidence struct {
   freecadcmd/soffice/pandoc/typst 可用性矩阵），缺失依赖不得静默降级。
 - **评审记录**：本方案已按 `docs/plans/dsh-domain-import-review.md` 的 5 项 P0 与 5 项 P1 修订；
   后续变更须在评审文档追加变更记录，不覆盖原评审结论。
+
+---
+
+## 九、门禁与状态（2026-10-28 更新）
+
+| 波次 | 状态 | 提交 | 说明 |
+|---|---|---|---|
+| W-1 | ✅ 完成 | 1b1dd92 | ADR 0008 已批准；FreeCAD 结论为暂不立项 |
+| W0 | ✅ 完成 | 98e1828 | `pkg/indexasset` 覆盖率 95.5%；资产指纹脚本落地 |
+| W1 | ◐ 部分完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb | T-W1-01～04 完成；T-W1-05 机制完成、规则接入 96 条 |
+
+### 批 A 规则接入状态
+
+- **来源实测**：dsh `patent-rule` 共 158 条规则（此前按单缩进统计为 44 条，偏少），其中可确定性判定 130 条。
+- **已接入 96 条**：block 级 32 条、结构性（structural_analysis）61 条、手工补充 3 条（PAT-RISK-001 / PAT-APPROVAL-001 / PAT-ABS-001）。
+- **未接入 34 条**：log 级规则（Mady 无 log 动作，降级为 warn 会改变语义）与需要 LLM 判断的规则；warn + keyword 的非结构性规则留批 B。
+- **生成与校验**：`go run ./scripts/rulescan --src <dsh 规则目录> --emit domains/rules/data/rules/gate` 机械转换；全部规则通过 `ValidateGateRules`；`TestStructuralPatternRegex` 验证正则模式（如 `专利法[^。；\n]{0,12}第\s*(?:二十二|22)\s*条`）确实命中。
+- **反向验证**：移除生成文件后 `TestBundledGateRulesAllConsumable` 变红（只剩 3 条），还原后恢复；破坏 `keyword_blocklist` 判定后 OutputGate 与 StructuralGate 两个测试变红。
+
+### 门禁语义差异（与 dsh 不同，需知悉）
+
+1. **block 的时机**：dsh 的 post-execute block 是硬拦截；Mady 的 `AfterToolExecution` 在工具已执行后运行，只能标注「不可作为交付依据」，真正的拦截在 `StructuralGate`（`BeforeToolExecution`）。
+2. **结构性规则的执行点**：`structural_analysis` 不在 OutputGate 生效——它对任意工具结果全文都会报「缺要素」，只对交付制品文本判定（`StructuralGate` 的 entries 待 W2 交付工具就绪后配置）。
+3. **review 级**：Mady 的 OutputGate 同样按标注处理，审批仍由既有 ApprovalGate 在模型输出层负责。
+4. **骨架约束**：结构性规则不参与法条核验的状态判定，`ExistOnly` 仍不会被提升为 `Verified`（见 fail-closed 判定表 FC-1）。

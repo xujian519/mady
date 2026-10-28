@@ -1,0 +1,1286 @@
+# 批 A-2：结构性门禁规则（供 StructuralGate 判定交付制品）
+#
+# 由 scripts/rulescan 从 deepseek-harness 规则资产机械转换生成，请勿手改；
+# 重新生成：go run ./scripts/rulescan --src <dsh 规则目录> --emit domains/rules/data/rules/gate
+#
+# 转换口径：保留 id/name/description/legalBasis/domain/severity/action 与 check 全字段；
+# 仅收录可确定性判定的规则，log 级规则不纳入。
+
+rules:
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 新颖性分析必须引用专利法第二十二条（或第22条）
+              element: legal_citation
+              patterns:
+                - 专利法[^。；\n]{0,12}第\s*(?:二十二|22)\s*条
+                - 第\s*(?:二十二|22)\s*条
+        type: structural_analysis
+      domain: patent_novelty
+      legalBasis: 专利法第二十二条
+      name: 新颖性分析必须引用法律依据
+      ruleId: CON-103
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: closest_prior_art
+              patterns:
+                - 最接近的现有技术
+                - 对比文件
+            - element: distinguishing_features
+              patterns:
+                - 区别技术特征
+                - 区别特征
+                - 不同之处
+            - element: technical_problem
+              patterns:
+                - 实际解决的技术问题
+            - element: technical_motivation
+              patterns:
+                - 技术启示
+                - 结合启示
+                - 显而易见
+                - 容易想到
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 专利法第二十二条第三款
+      name: 创造性三步法结构检查
+      ruleId: CON-104
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: essential_features
+              patterns:
+                - 必要技术特征
+                - 必要特征
+                - 必不可少
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 专利法实施细则第二十三条第二款
+      name: 独立权利要求记载必要技术特征
+      ruleId: CON-303
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 预料不到的技术效果
+              element: 期望模式
+              patterns:
+                - 预料不到
+                - 意想不到
+                - 出人意料
+                - 意外效果
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 专利法第二十二条第三款
+      name: 预料不到的技术效果
+      ruleId: CON-402
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 实用新型创造性标准
+              element: 期望模式
+              patterns:
+                - 实质性特点
+                - 进步
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 专利法第二十二条第三款
+      name: 实用新型创造性标准
+      ruleId: CON-601
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 答复期限
+              element: 期望模式
+              patterns:
+                - 答复
+                - 期限
+                - 四个月
+                - 两个月
+                - 指定期限
+        type: structural_analysis
+      domain: patent_oa_response
+      legalBasis: 专利法第三十七条
+      name: 答复期限
+      ruleId: CON-701
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: respond_to_rejections
+              patterns:
+                - 审查意见
+                - 驳回理由
+                - 审查员指出
+            - element: legal_arguments
+              patterns:
+                - 专利法
+                - 专利审查指南
+                - 根据
+        type: structural_analysis
+      domain: patent_oa_response
+      name: 意见陈述书逐条回应
+      ruleId: CON-702
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 分析是否给出结论性陈述
+              element: 结论陈述
+              patterns:
+                - 结论
+                - 综上
+                - 因此
+                - 判断
+                - 认定
+            - description: 结论是否有法律依据支撑
+              element: 法律依据
+              patterns:
+                - 根据
+                - 依据
+                - 按照
+                - 遵照
+                - 条规定
+                - 款规定
+            - description: 结论是否有事实依据支撑
+              element: 事实依据
+              patterns:
+                - 对比文件
+                - 说明书
+                - 实施例
+                - 证据
+                - 公开
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 撰写规范：分析结论应同时给出结论陈述与法律/事实依据
+      name: 分析结论必须引用法律依据
+      ruleId: CON-COMP-0106
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 权利要求—从属权利要求引用规范
+              element: 期望模式
+              patterns:
+                - 根据权利要求
+                - 如权利要求
+                - 按照权利要求
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 审查指南第二部分第二章3.3.2
+      name: 权利要求—从属权利要求引用规范
+      ruleId: EX-CLM-004
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 权利要求—功能性限定
+              element: 期望模式
+              patterns:
+                - 功能性限定
+                - 功能
+                - 配置为
+                - 用于
+                - 被配置
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 审查指南第二部分第二章3.2.1
+      name: 权利要求—功能性限定
+      ruleId: EX-CLM-005
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: algorithm_description
+              patterns:
+                - 算法
+                - 流程图
+                - 步骤
+            - element: code_or_pseudocode
+              patterns:
+                - 源代码
+                - 伪代码
+                - 程序代码
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 审查指南第二部分第九章5.1
+      name: 计算机程序—说明书撰写要求
+      ruleId: EX-CMP-002
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 计算机程序—权利要求撰写规范
+              element: 期望模式
+              patterns:
+                - 装置
+                - 模块
+                - 单元
+                - 步骤
+                - 流程
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 审查指南第二部分第九章5.2
+      name: 计算机程序—权利要求撰写规范
+      ruleId: EX-CMP-003
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 0.8
+        requiresAll:
+            - description: 技术领域部分
+              element: 技术领域
+              patterns:
+                - 技术领域
+            - description: 背景技术部分
+              element: 背景技术
+              patterns:
+                - 背景技术
+            - description: 发明内容部分
+              element: 发明内容
+              patterns:
+                - 发明内容
+            - description: 附图说明部分（无附图时可缺）
+              element: 附图说明
+              patterns:
+                - 附图说明
+            - description: 具体实施方式部分
+              element: 具体实施方式
+              patterns:
+                - 具体实施方式
+                - 实施例
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 专利法实施细则关于说明书撰写的规定；审查指南第二部分第二章
+      name: 说明书—五部分结构完整性
+      ruleId: EX-DIS-001
+      severity: critical
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 说明书—实施例充分性
+              element: 期望模式
+              patterns:
+                - 实施例
+                - 具体实施
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 专利法第26条第3款；审查指南第二部分第二章2.2.6
+      name: 说明书—实施例充分性
+      ruleId: EX-DIS-003
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 说明书—附图说明规范
+              element: 期望模式
+              patterns:
+                - 附图
+                - 图1
+                - 示意图
+                - 流程图
+                - 结构图
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 审查指南第二部分第二章2.2.5
+      name: 说明书—附图说明规范
+      ruleId: EX-DIS-004
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 0.34
+        requiresAll:
+            - description: 技术启示来自对比文件明确公开
+              element: 对比文件明确公开
+              patterns:
+                - 公开
+                - 记载
+                - 描述
+            - description: 技术启示来自对比文件的教导或暗示
+              element: 教导或暗示
+              patterns:
+                - 技术启示
+                - 教导
+                - 结合启示
+                - 改进动机
+            - description: 技术启示来自公知常识
+              element: 公知常识
+              patterns:
+                - 公知常识
+                - 惯用手段
+                - 常规技术
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 审查指南第二部分第四章3.2.1.1
+      name: 创造性—技术启示判断因素
+      ruleId: EX-INV-004
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 创造性—公知常识举证要求
+              element: 期望模式
+              patterns:
+                - 公知常识
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 审查指南第二部分第四章3.2.1.1
+      name: 创造性—公知常识举证要求
+      ruleId: EX-INV-005
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 0.34
+        requiresAll:
+            - description: 是否认定出版物公开
+              element: 出版物公开
+              patterns:
+                - 出版物公开
+                - 公开发表
+                - 公开出版
+            - description: 是否认定使用公开
+              element: 使用公开
+              patterns:
+                - 使用公开
+                - 公开使用
+                - 公开展出
+            - description: 是否涉及其他方式公开
+              element: 其他方式公开
+              patterns:
+                - 其他方式公开
+                - 口头公开
+        type: structural_analysis
+      domain: patent_novelty
+      legalBasis: 专利法第22条第5款；审查指南第二部分第三章2.1.2
+      name: 新颖性—现有技术公开方式
+      ruleId: EX-NOV-001
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 新颖性—上位概念与下位概念
+              element: 期望模式
+              patterns:
+                - 上位概念
+                - 下位概念
+                - 具体
+                - 概括
+        type: structural_analysis
+      domain: patent_novelty
+      legalBasis: 审查指南第二部分第三章3.2.2
+      name: 新颖性—上位概念与下位概念
+      ruleId: EX-NOV-003
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: oa_mapping
+              patterns:
+                - 审查意见
+                - 审查员认为
+                - 指出
+            - element: response_points
+              patterns:
+                - 答复
+                - 意见陈述
+                - 争辩
+                - 修改
+                - 申请人认为
+                - 申请人主张
+                - 辩称
+                - 反驳
+        type: structural_analysis
+      domain: patent_oa_response
+      legalBasis: 审查指南第二部分第八章5.1
+      name: 审查程序—答复审查意见期限与要求
+      ruleId: EX-PRC-003
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 不授权—动物和植物品种
+              element: 期望模式
+              patterns:
+                - 动物品种
+                - 植物品种
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 专利法第25条第1款第(四)项；审查指南第二部分第一章4.4
+      name: 不授权—动物和植物品种
+      ruleId: EX-SEL-005
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 0.5
+        requiresAll:
+            - description: 权利要求中出现纯功能限定
+              element: 功能性限定
+              patterns:
+                - 配置为
+                - 用于
+                - 模块
+                - 单元
+                - 装置
+            - description: 说明书中应给出具体电路/算法实现
+              element: 实施例支持
+              patterns:
+                - 实施例
+                - 具体电路
+                - 参考图
+                - 如图
+                - 示例
+        type: structural_analysis
+      domain: patent-electrical
+      legalBasis: 专利法第26条第4款；审查指南第二部分第二章 3.2.1
+      name: 电学功能性限定审查
+      ruleId: H-CLA-001
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 0.5
+        requiresAll:
+            - description: 文本涉及电路、模块或系统
+              element: 电路/系统描述
+              patterns:
+                - 电路
+                - 模块
+                - 单元
+                - 器件
+                - 芯片
+            - description: 应给出连接关系或信号流
+              element: 连接或信号流描述
+              patterns:
+                - 连接
+                - 耦合
+                - 电连接
+                - 信号流
+                - 时序
+                - 引脚
+                - 端口
+        type: structural_analysis
+      domain: patent-electrical
+      legalBasis: 专利法第26条第3款；审查指南第二部分第二章 2.1
+      name: 电学案件充分公开—连接关系与信号流
+      ruleId: H-ENA-001
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 0.5
+        requiresAll:
+            - description: 说明书或附图涉及电路结构
+              element: 电路图或框图
+              patterns:
+                - 电路
+                - 电路图
+                - 框图
+                - 原理图
+                - 电连接
+            - description: 应提示使用标准电气符号
+              element: 符号规范性提示
+              patterns:
+                - GB/T 4728
+                - IEC 60617
+                - 标准电气符号
+        type: structural_analysis
+      domain: patent-electrical
+      legalBasis: 审查指南第一部分第一章 4.3；GB/T 4728 / IEC 60617 电气简图用图形符号
+      name: 电学附图符号规范
+      ruleId: H-FIG-001
+      severity: minor
+    - action: warn
+      check:
+        minConfidence: 0.75
+        requiresAll:
+            - description: 文本处于创造性/非显而易见性论证上下文（语境锚点）
+              element: 创造性论证语境
+              patterns:
+                - 创造性
+                - 显而易见
+                - 突出的实质性特点
+                - 非显而易见
+            - description: 应指明最接近的现有技术
+              element: 最接近的现有技术
+              patterns:
+                - 最接近的现有技术
+                - 最接近现有技术
+                - 最接近的对比文件
+            - description: 应确定区别技术特征与实际解决的技术问题
+              element: 区别技术特征
+              patterns:
+                - 区别特征
+                - 区别技术特征
+                - 差异特征
+            - description: 应判断是否存在技术启示
+              element: 技术启示判断
+              patterns:
+                - 技术启示
+                - 结合启示
+                - 改进动机
+                - 公知常识
+        type: structural_analysis
+      description: 创造性论证须包含最接近现有技术、区别特征、技术启示三要素
+      legalBasis: 专利审查指南第二部分第四章 §3.2.1.1（三步法）
+      name: 创造性论证三步法结构完整性
+      ruleId: INV-METHOD-001
+      severity: minor
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 医药领域—网络证据真实性异议→创造性基础不成立
+              element: 期望模式
+              patterns:
+                - 证据真实
+                - 公开时间
+                - 网络证据
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 专利法第22条第3款；第581933号决定
+      name: 医药领域—网络证据真实性异议→创造性基础不成立
+      ruleId: IPC-A61-INV-003
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - description: 是否涉及生物材料
+              element: 生物材料
+              patterns:
+                - 生物材料
+            - description: 是否指出保藏机构
+              element: 保藏机构
+              patterns:
+                - 保藏机构
+            - description: 是否给出保藏信息
+              element: 保藏信息
+              patterns:
+                - 保藏信息
+                - 保藏日期
+                - 保藏编号
+            - description: 是否说明本领域技术人员能够实现
+              element: 能够实现
+              patterns:
+                - 能够实现
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 专利法第26条第3款；第20174号决定
+      name: 生物技术领域—生物材料保藏与充分公开的关系
+      ruleId: IPC-C12-DIS-001
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 通用—公知常识需举证
+              element: 期望模式
+              patterns:
+                - 公知常识
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 专利法第22条第3款；审查指南第二部分第四章3.2.1.1
+      name: 通用—公知常识需举证
+      ruleId: IPC-GEN-INV-003
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: purchase_evidence
+              patterns:
+                - 购销合同
+                - 送货单
+                - 物流信息
+                - 付款凭证
+                - 发票
+            - element: evidence_chain
+              patterns:
+                - 相互印证
+                - 完整证据链
+                - 对应关系
+        type: structural_analysis
+      domain: patent_infringement
+      legalBasis: 司法实践总结（2023）最高法知民终2520号
+      name: 抗辩实务—合法来源抗辩证据链完整性
+      ruleId: JD-DEF-005
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 抗辩实务—专门用于的认定标准
+              element: 期望模式
+              patterns:
+                - 唯一用途
+                - 实质性非侵权用途
+                - 行业通用
+        type: structural_analysis
+      domain: patent_infringement
+      legalBasis: 司法实践总结（2019）最高法知民终87号
+      name: 抗辩实务—专门用于的认定标准
+      ruleId: JD-DEF-008
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - description: 是否比对手段是否基本相同
+              element: 基本相同的手段
+              patterns:
+                - 基本相同的手段
+                - 手段基本相同
+                - 手段[^。；\n]{0,10}(?:基本相同|实质相同|实质不同|不同)
+                - 手段[、，且和与][^。；\n]{0,10}(?:功能|效果)
+            - description: 是否比对功能是否基本相同
+              element: 基本相同的功能
+              patterns:
+                - 基本相同的功能
+                - 功能基本相同
+                - 功能[^。；\n]{0,10}(?:基本相同|实质相同|实质不同|不同)
+            - description: 是否比对效果是否基本相同
+              element: 基本相同的效果
+              patterns:
+                - 基本相同的效果
+                - 效果基本相同
+                - 效果[^。；\n]{0,10}(?:基本相同|实质相同|实质不同|不同)
+            - description: 是否评价是否需创造性劳动
+              element: 无需创造性劳动
+              patterns:
+                - 创造性劳动
+                - 显而易见
+        type: structural_analysis
+      domain: patent_infringement
+      legalBasis: 法释〔2009〕20 号第 17 条（2016 修正）
+      name: 侵权判定—等同特征三要素同时满足原则
+      ruleId: JD-INF-001
+      severity: critical
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 侵权判定—禁止以多个特征组合与一个特征比对
+              element: 期望模式
+              patterns:
+                - 一一对应比对
+                - 单一特征比对
+        type: structural_analysis
+      domain: patent_infringement
+      legalBasis: 司法实践总结（2023）最高法知民终405号
+      name: 侵权判定—禁止以多个特征组合与一个特征比对
+      ruleId: JD-INF-005
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - description: 是否审查授权/确权程序中的修改与陈述
+              element: 审查历史
+              patterns:
+                - 审查历史
+                - 审查档案
+                - 审查过程
+            - description: 是否为限缩性修改
+              element: 限缩性修改
+              patterns:
+                - 限缩性修改
+                - 限缩
+            - description: 是否为限缩性意见陈述
+              element: 陈述意见
+              patterns:
+                - 陈述意见
+                - 意见陈述
+            - description: 是否评价修改/陈述与被主张特征的实质联系
+              element: 实质联系
+              patterns:
+                - 实质联系
+        type: structural_analysis
+      domain: patent_infringement
+      legalBasis: 最高人民法院关于审理侵犯专利权纠纷案件应用法律若干问题的解释（禁止反悔原则）
+      name: 侵权判定—禁止反悔原则的适用条件
+      ruleId: JD-INF-006
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 权属纠纷—离职后一年内相关性认定标准
+              element: 期望模式
+              patterns:
+                - 技术领域
+                - 技术主题
+                - 技术构思
+                - 延续性
+                - 传承性
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 专利法第六条；专利法实施细则第十三条
+      name: 权属纠纷—离职后一年内相关性认定标准
+      ruleId: JD-OWN-001
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 权属纠纷—主要利用本单位物质技术条件的认定
+              element: 期望模式
+              patterns:
+                - 全部或大部分利用
+                - 实质性影响
+                - 完成技术方案
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 专利法第六条
+      name: 权属纠纷—主要利用本单位物质技术条件的认定
+      ruleId: JD-OWN-002
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: qualification
+              patterns:
+                - 资格
+                - 资质
+                - 人民法院诉讼资产网备案
+            - element: method
+              patterns:
+                - 科学方法
+                - 行业规范
+            - element: evidence
+              patterns:
+                - 真实可靠
+                - 一致性
+            - element: logic
+              patterns:
+                - 逻辑性
+                - 科学性
+        type: structural_analysis
+      domain: patent_procedure
+      legalBasis: 司法实践总结（2022）最高法知民终2100号
+      name: 程序规则—单方委托鉴定意见的审查标准
+      ruleId: JD-PRC-004
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: website_authority
+              patterns:
+                - 权威性
+                - 知名网站
+                - 审核机制
+            - element: data_integrity
+              patterns:
+                - 数据运行维护规则
+                - 时间不可篡改
+            - element: acquisition_method
+              patterns:
+                - 正常浏览路径
+                - 非直接输入网址
+        type: structural_analysis
+      domain: patent_procedure
+      legalBasis: 司法实践总结（2020）最高法知民终248号
+      name: 程序规则—网络证据的真实性认定
+      ruleId: JD-PRC-005
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 0.75
+        requiresAll:
+            - description: 文本处于结构等效/等同公开的论证上下文（语境锚点）
+              element: 等效性论证语境
+              patterns:
+                - 等效
+                - 等同
+                - 实质相同
+                - 相同的作用
+            - description: 应指明对比文件中对应的具体结构/手段
+              element: 对应结构或手段
+              patterns:
+                - 结构
+                - 手段
+                - 构件
+                - 部件
+                - 设置
+            - description: 应分析该结构在对比文件与发明中所起的作用/效果是否相同
+              element: 作用或技术效果
+              patterns:
+                - 作用
+                - 功能
+                - 效果
+        type: structural_analysis
+      description: 主张结构等效/等同公开时，须给出对应结构手段与作用或技术效果的等效性分析
+      domain: mechanical
+      legalBasis: 无效复审决定585168：名称不同不等于技术实质不同，结构功能等效性须实质分析
+      name: 结构等效性论证完整性
+      ruleId: MECH-INV-001
+      severity: minor
+    - action: warn
+      check:
+        requiresAll:
+            - description: 是否拆解权利要求的技术特征
+              element: 技术特征拆解
+              patterns:
+                - 技术特征
+                - 特征拆解
+                - 逐一比对
+                - 逐项对比
+            - description: 是否对单份对比文件单独比对
+              element: 单独对比
+              patterns:
+                - 单独对比
+                - 单独比对
+            - description: 是否给出新颖性结论
+              element: 新颖性结论
+              patterns:
+                - 新颖性
+        type: structural_analysis
+      domain: patent_novelty
+      legalBasis: 专利法第22条第2款
+      name: 新颖性—单独对比原则
+      ruleId: P-NOV-001
+      severity: critical
+    - action: warn
+      check:
+        requiresAll:
+            - description: 是否认定为现有技术
+              element: 现有技术
+              patterns:
+                - 现有技术
+            - description: 是否载明公开日
+              element: 公开日
+              patterns:
+                - 公开日
+            - description: 是否以申请日为基准
+              element: 申请日
+              patterns:
+                - 申请日
+                - 优先权日
+        type: structural_analysis
+      domain: patent_novelty
+      legalBasis: 专利法第22条第5款
+      name: 新颖性—现有技术认定标准
+      ruleId: P-NOV-002
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - description: 是否检查抵触申请
+              element: 抵触申请
+              patterns:
+                - 抵触申请
+            - description: 是否识别在先申请
+              element: 在先申请
+              patterns:
+                - 在先申请
+            - description: 是否认定在后公布
+              element: 在后公布
+              patterns:
+                - 在后公布
+                - 申请日后公布
+        type: structural_analysis
+      domain: patent_novelty
+      legalBasis: 专利法第22条第2款
+      name: 新颖性—抵触申请识别
+      ruleId: P-NOV-003
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 优先权—相同主题认定
+              element: 期望模式
+              patterns:
+                - 优先权
+                - 相同主题
+                - 首次申请
+        type: structural_analysis
+      domain: patent_procedure
+      legalBasis: 专利法第29条
+      name: 优先权—相同主题认定
+      ruleId: P-PRC-003
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: respond_to_rejection
+              patterns:
+                - 驳回决定
+                - 驳回理由
+                - 审查意见
+            - element: provide_arguments
+              patterns:
+                - 答复
+                - 争辩
+                - 意见陈述
+        type: structural_analysis
+      domain: patent_procedure
+      legalBasis: 专利法第41条；专利法实施细则第65条；审查指南第四部分第二章4.1
+      name: 复审程序—驳回理由全面回应
+      ruleId: P-PRC-004
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - description: 是否说明能够制造
+              element: 能够制造
+              patterns:
+                - 能够制造
+                - 可以制造
+                - 可制造
+                - 适于制造
+                - 制造和使用
+                - 制造或使用
+                - 产业上制造
+                - 能够在产业上
+            - description: 是否说明能够使用
+              element: 能够使用
+              patterns:
+                - 能够使用
+                - 可以使用
+                - 可使用
+                - 适于使用
+                - 制造和使用
+                - 制造或使用
+                - 产业应用
+                - 工业应用
+            - description: 是否落在产业应用语境
+              element: 产业
+              patterns:
+                - 产业
+        type: structural_analysis
+      domain: patent_utility
+      legalBasis: 专利法第22条第4款
+      name: 实用性—能够制造或使用
+      ruleId: P-UTL-001
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: independent_claim
+              patterns:
+                - 独立权利要求
+                - 权1
+                - 权利要求1
+            - element: dependent_claims
+              patterns:
+                - 从属权利要求
+                - 权2
+                - 权3
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 专利代理实务
+      name: 权利要求撰写—多层次防御体系
+      ruleId: PR-CLM-002
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 权利要求撰写—方法权利要求步骤编号
+              element: 期望模式
+              patterns:
+                - 步骤
+                - S1
+                - S2
+                - 第一步
+                - 第二步
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 审查指南第二部分第二章3.2.2
+      name: 权利要求撰写—方法权利要求步骤编号
+      ruleId: PR-CLM-003
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 权利要求撰写—功能性限定使用规范
+              element: 期望模式
+              patterns:
+                - 用于
+                - 配置为
+                - 被配置
+                - 适合于
+                - 能够
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 审查指南第二部分第二章3.2.1
+      name: 权利要求撰写—功能性限定使用规范
+      ruleId: PR-CLM-004
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 申请文件—附图规范要求
+              element: 期望模式
+              patterns:
+                - 附图
+                - 图1
+                - 示意图
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 审查指南第二部分第二章2.3
+      name: 申请文件—附图规范要求
+      ruleId: PR-FMT-002
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 申请文件—权利要求编号连续性
+              element: 期望模式
+              patterns:
+                - 权利要求1
+                - 权利要求2
+                - "1."
+                - "2."
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 专利法实施细则第二十二条第二款；审查指南第二部分第二章3.1
+      name: 申请文件—权利要求编号连续性
+      ruleId: PR-FMT-003
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: evidence_list
+              patterns:
+                - 证据
+                - 对比文件
+                - 附件
+            - element: evidence_content
+              patterns:
+                - 公开内容
+                - 公开了
+                - 记载了
+        type: structural_analysis
+      domain: patent_procedure
+      legalBasis: 审查指南第四部分第三章3.3
+      name: 无效宣告—证据组织规范
+      ruleId: PR-INV-002
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: prior_art_analysis
+              patterns:
+                - 最接近
+                - 现有技术
+                - 对比文件
+            - element: distinguishing_analysis
+              patterns:
+                - 区别技术特征
+                - 区别特征
+            - element: motivation_refutation
+              patterns:
+                - 技术启示
+                - 显而易见
+                - 结合启示
+                - 公知常识
+        type: structural_analysis
+      domain: patent_oa_response
+      legalBasis: 审查指南第二部分第四章3.2
+      name: OA答复—争辩创造性时的三步法回应
+      ruleId: PR-OA-003
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: OA答复—争辩新颖性时的单独对比原则
+              element: 期望模式
+              patterns:
+                - 单独对比
+                - 未被公开
+                - 未记载
+                - 区别
+        type: structural_analysis
+      domain: patent_oa_response
+      legalBasis: 专利法第22条第2款
+      name: OA答复—争辩新颖性时的单独对比原则
+      ruleId: PR-OA-004
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: problem_solution_match
+              patterns:
+                - 技术问题
+                - 要解决
+                - 存在的技术问题
+            - element: solution_content
+              patterns:
+                - 技术方案
+                - 为实现
+                - 采用
+            - element: effect_match
+              patterns:
+                - 有益效果
+                - 技术效果
+                - 优点
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 审查指南第二部分第二章2.2.4
+      name: 说明书—技术问题与技术方案对应
+      ruleId: PR-SPEC-001
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 说明书—背景技术客观描述
+              element: 期望模式
+              patterns:
+                - 现有技术
+                - 已有
+                - 不足
+                - 缺陷
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 审查指南第二部分第二章2.2.3
+      name: 说明书—背景技术客观描述
+      ruleId: PR-SPEC-002
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 说明书—实施例数量充足性
+              element: 期望模式
+              patterns:
+                - 实施例
+                - 具体实施方式
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 专利法第26条第3款
+      name: 说明书—实施例数量充足性
+      ruleId: PR-SPEC-003
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 说明书—技术效果描述具体化
+              element: 期望模式
+              patterns:
+                - 技术效果
+                - 有益效果
+                - 提高
+                - 降低
+                - 改善
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 审查指南第二部分第二章2.2.4
+      name: 说明书—技术效果描述具体化
+      ruleId: PR-SPEC-004
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 说明书—术语定义统一
+              element: 期望模式
+              patterns:
+                - 本文中
+                - 本说明书中
+                - 定义为
+                - 是指
+                - 指的是
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 审查指南第二部分第二章2.2.7
+      name: 说明书—术语定义统一
+      ruleId: PR-SPEC-005
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 交叉—法律依据引用完整性
+              element: 期望模式
+              patterns:
+                - 专利法
+                - 第二十二条
+                - 第二十六条
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 专利法第22条、第26条、第33条
+      name: 交叉—法律依据引用完整性
+      ruleId: X-REF-001
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 交叉—对比文件引用规范
+              element: 期望模式
+              patterns:
+                - 对比文件
+                - 公开号
+                - CN
+                - US
+                - WO
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 审查指南第二部分第七章（检索）
+      name: 交叉—对比文件引用规范
+      ruleId: X-REF-002
+      severity: major
+    - action: warn
+      check:
+        requiresAll:
+            - element: issue_map
+              patterns:
+                - 审查意见
+                - 审查员认为
+                - 指出
+                - 通知
+            - element: response
+              patterns:
+                - 答复
+                - 意见陈述
+                - 争辩
+                - 申请人认为
+                - 申请人主张
+                - 辩称
+                - 反驳
+            - element: conclusion
+              patterns:
+                - 请求
+                - 恳请
+                - 建议
+        type: structural_analysis
+      domain: patent_oa_response
+      legalBasis: 审查指南第二部分第八章5.1
+      name: 交叉—IC布局完整性（审查意见答复）
+      ruleId: X-STR-003
+      severity: major
+    - action: warn
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 交叉—技术特征与权利要求锚定
+              element: 期望模式
+              patterns:
+                - 权利要求
+                - 技术特征
+                - 权项
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 专利法第26条第4款
+      name: 交叉—技术特征与权利要求锚定
+      ruleId: X-STR-004
+      severity: major

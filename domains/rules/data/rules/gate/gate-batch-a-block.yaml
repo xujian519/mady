@@ -1,0 +1,629 @@
+# 批 A-1：block 级确定性门禁规则
+#
+# 由 scripts/rulescan 从 deepseek-harness 规则资产机械转换生成，请勿手改；
+# 重新生成：go run ./scripts/rulescan --src <dsh 规则目录> --emit domains/rules/data/rules/gate
+#
+# 转换口径：保留 id/name/description/legalBasis/domain/severity/action 与 check 全字段；
+# 仅收录可确定性判定的规则，log 级规则不纳入。
+
+rules:
+    - action: block
+      check:
+        requiresAll:
+            - element: technical_means
+              patterns:
+                - 装置
+                - 设备
+                - 机构
+                - 系统
+                - 单元
+                - 模块
+                - 组件
+                - 步骤
+                - 方法
+            - element: technical_problem
+              patterns:
+                - 技术问题
+                - 解决
+                - 克服
+                - 改善
+            - element: technical_effect
+              patterns:
+                - 技术效果
+                - 有益效果
+                - 优点
+                - 提高
+                - 降低
+                - 增强
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 专利法第二条第二款
+      name: 发明定义-技术方案三要素
+      ruleId: CON-101
+      severity: critical
+    - action: block
+      check:
+        keywords:
+            - 编造
+            - 虚构
+            - 杜撰
+            - 捏造
+        negationContext: true
+        quoteImmune: true
+        type: keyword_blocklist
+      name: 禁止编造对比文件
+      ruleId: CON-102
+      severity: critical
+    - action: block
+      check:
+        requiresAll:
+            - element: clear_description
+              patterns:
+                - 技术方案
+                - 具体实施方式
+                - 实施例
+            - element: reproducible
+              patterns:
+                - 本领域技术人员
+                - 能够实现
+                - 按照
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 专利法第二十六条第三款
+      name: 充分公开-能够实现
+      ruleId: CON-201
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 权利要求清楚
+              element: 期望模式
+              patterns:
+                - 清楚
+                - 简要
+                - 限定
+                - 必要技术特征
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 专利法第二十六条第四款
+      name: 权利要求清楚
+      ruleId: CON-301
+      severity: critical
+    - action: block
+      check:
+        requiresAll:
+            - element: spec_support
+              patterns:
+                - 说明书
+                - 实施例
+                - 具体实施方式
+            - element: claim_scope
+              patterns:
+                - 保护范围
+                - 限定
+                - 技术特征
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 专利法第二十六条第四款
+      name: 权利要求以说明书为依据
+      ruleId: CON-302
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 创造性非显而易见性判断
+              element: 期望模式
+              patterns:
+                - 显而易见
+                - 容易想到
+                - 常规技术手段
+                - 惯用技术手段
+                - 具备创造性
+                - 非显而易见
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 专利法第二十二条第三款
+      name: 创造性非显而易见性判断
+      ruleId: CON-401
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 修改不超范围
+              element: 期望模式
+              patterns:
+                - 原说明书
+                - 原权利要求书
+                - 原申请
+                - 原始公开
+        type: structural_analysis
+      domain: patent_procedure
+      legalBasis: 专利法第三十三条
+      name: 修改不超范围
+      ruleId: CON-501
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 权利要求修改不得扩大保护范围
+              element: 期望模式
+              patterns:
+                - 扩大
+                - 保护范围
+                - 修改
+        type: structural_analysis
+      description: 与授权的权利要求相比，不得扩大原专利的保护范围
+      domain: patent_procedure
+      legalBasis: 专利法第三十三条；审查指南第四部分第三章4.6.1
+      name: 权利要求修改不得扩大保护范围
+      ruleId: CON-502
+      severity: critical
+    - action: block
+      check:
+        keywords:
+            - CNXXXXXX
+            - CNxxxxxx
+            - CNXXXXXXX
+            - CNxxxxxxx
+            - CN20XX
+            - CN20xx
+            - (20XX)
+            - (20xx)
+            - （20XX）
+            - （20xx）
+            - USXXXXXXX
+            - USXXXXXXXX
+            - US20XX
+            - WO20XX/
+            - ZL20XX
+        negationContext: true
+        quoteImmune: true
+        type: keyword_blocklist
+      domain: patent_general
+      name: 禁止编造占位专利号
+      ruleId: CON-COMP-0101
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 禁止编造审查指南内容
+              element: 期望模式
+              patterns:
+                - 审查指南
+        type: structural_analysis
+      domain: patent_general
+      name: 禁止编造审查指南内容
+      ruleId: CON-COMP-0104
+      severity: critical
+    - action: block
+      check:
+        keywords:
+            - 大约
+            - 优选地
+            - 最好是
+            - 大概是
+        negationContext: true
+        quoteImmune: true
+        type: keyword_blocklist
+      domain: patent_claims
+      legalBasis: 专利法第26条第4款；审查指南第二部分第二章3.2.2
+      name: 权利要求—清楚性要求
+      ruleId: EX-CLM-001
+      severity: critical
+    - action: block
+      check:
+        requiresAll:
+            - element: claim_support
+              patterns:
+                - 以说明书为依据
+                - 说明书记载
+                - 说明书公开
+                - 实施例
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 专利法第26条第4款；审查指南第二部分第二章3.2.1
+      name: 权利要求—以说明书为依据
+      ruleId: EX-CLM-002
+      severity: critical
+    - action: block
+      check:
+        requiresAll:
+            - element: technical_problem
+              patterns:
+                - 技术问题
+            - element: technical_means
+              patterns:
+                - 技术手段
+                - 技术特征
+                - 数据处理
+                - 控制
+            - element: technical_effect
+              patterns:
+                - 技术效果
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 审查指南第二部分第九章2
+      name: 计算机程序—技术方案判断
+      ruleId: EX-CMP-001
+      severity: critical
+    - action: block
+      check:
+        requiresAll:
+            - element: technical_problem
+              patterns:
+                - 技术问题
+                - 要解决
+                - 存在的技术问题
+                - 待解决
+            - element: technical_solution
+              patterns:
+                - 技术方案
+                - 为实现上述目的
+                - 解决上述技术问题
+            - element: beneficial_effect
+              patterns:
+                - 有益效果
+                - 技术效果
+                - 优点
+                - 有益的
+        type: structural_analysis
+      domain: patent_disclosure
+      legalBasis: 审查指南第二部分第二章2.2.4
+      name: 说明书—发明内容三要素
+      ruleId: EX-DIS-002
+      severity: critical
+    - action: block
+      check:
+        requiresAll:
+            - element: closest_prior_art
+              patterns:
+                - 最接近
+                - 现有技术
+                - 对比文件
+            - element: distinguishing_features
+              patterns:
+                - 区别技术特征
+                - 区别特征
+                - 不同
+            - element: technical_problem
+              patterns:
+                - 实际解决的技术问题
+                - 技术问题
+                - 改善
+            - element: technical_motivation
+              patterns:
+                - 技术启示
+                - 显而易见
+                - 结合
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 专利法第22条第3款；审查指南第二部分第四章3.2
+      name: 创造性—三步法框架完整性
+      ruleId: EX-INV-001
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 审查程序—修改不得超范围
+              element: 期望模式
+              patterns:
+                - 修改
+                - 原始记载
+                - 超范围
+        type: structural_analysis
+      domain: patent_procedure
+      legalBasis: 专利法第33条；审查指南第二部分第八章5.2.1
+      name: 审查程序—修改不得超范围
+      ruleId: EX-PRC-001
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 不授权—智力活动的规则和方法
+              element: 期望模式
+              patterns:
+                - 智力活动
+                - 规则和方法
+                - 组织
+                - 比赛
+                - 游戏规则
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 专利法第25条第1款第(二)项；审查指南第二部分第一章4.2
+      name: 不授权—智力活动的规则和方法
+      ruleId: EX-SEL-001
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 不授权—疾病诊断和治疗方法
+              element: 期望模式
+              patterns:
+                - 诊断
+                - 治疗
+                - 疾病
+                - 外科
+                - 给药
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 专利法第25条第1款第(三)项；审查指南第二部分第一章4.3
+      name: 不授权—疾病诊断和治疗方法
+      ruleId: EX-SEL-002
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 不授权—计算机程序与商业方法排除
+              element: 期望模式
+              patterns:
+                - 商业方法
+                - 经营
+                - 管理方法
+                - 算法
+        type: structural_analysis
+      domain: patent_general
+      legalBasis: 专利法第25条第1款第(二)项；审查指南第二部分第九章2
+      name: 不授权—计算机程序与商业方法排除
+      ruleId: EX-SEL-003
+      severity: critical
+    - action: block
+      check:
+        keywords:
+            - 克隆人
+            - 人体胚胎
+            - 赌博
+            - 造假
+            - 窃听
+            - 毒品
+        type: keyword_blocklist
+      domain: patent_general
+      legalBasis: 专利法第5条；审查指南第二部分第一章3.1.1
+      name: 不授权—违反法律与公序良俗
+      ruleId: EX-SEL-004
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 车辆领域—公知常识的举证责任分配
+              element: 期望模式
+              patterns:
+                - 公知常识
+                - 举证责任
+                - 证据
+                - 教科书
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 专利法第22条第3款；第567252号决定
+      name: 车辆领域—公知常识的举证责任分配
+      ruleId: IPC-B60-INV-003
+      severity: critical
+    - action: block
+      check:
+        requiresAll:
+            - element: closest_prior_art
+              patterns:
+                - 最接近
+                - 现有技术
+            - element: distinguishing_features
+              patterns:
+                - 区别技术特征
+                - 区别特征
+            - element: technical_problem
+              patterns:
+                - 实际解决的技术问题
+                - 技术问题
+            - element: technical_motivation
+              patterns:
+                - 技术启示
+                - 显而易见
+        type: structural_analysis
+      domain: patent_inventiveness
+      legalBasis: 专利法第22条第3款；审查指南第二部分第四章
+      name: 通用—三步法是创造性判断的唯一框架
+      ruleId: IPC-GEN-INV-001
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 抗辩实务—现有技术证据必须完整公开全部特征
+              element: 期望模式
+              patterns:
+                - 完整公开
+                - 全部技术特征
+                - 内部结构
+        type: structural_analysis
+      domain: patent_infringement
+      legalBasis: 司法实践总结（2024）最高法知民终370号、（2022）最高法知民终2302号
+      name: 抗辩实务—现有技术证据必须完整公开全部特征
+      ruleId: JD-DEF-003
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 损害赔偿—惩罚性赔偿的双重要件
+              element: 期望模式
+              patterns:
+                - 故意侵权
+                - 情节严重
+        type: structural_analysis
+      domain: patent_infringement
+      legalBasis: 专利法第七十一条第一款
+      name: 损害赔偿—惩罚性赔偿的双重要件
+      ruleId: JD-DMG-002
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 损害赔偿—惩罚性赔偿的重复侵权认定
+              element: 期望模式
+              patterns:
+                - 产品结构相同
+                - 技术方案相同
+        type: structural_analysis
+      domain: patent_infringement
+      legalBasis: 司法实践总结（2022）最高法知民终2920号
+      name: 损害赔偿—惩罚性赔偿的重复侵权认定
+      ruleId: JD-DMG-003
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 侵权判定—发明点特征等同从严把握
+              element: 期望模式
+              patterns:
+                - 发明点
+                - 申请过程陈述
+                - 技术特征限定
+        type: structural_analysis
+      domain: patent_infringement
+      legalBasis: 司法实践总结（2023）最高法知民终844号
+      name: 侵权判定—发明点特征等同从严把握
+      ruleId: JD-INF-003
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 程序规则—举证妨碍的认定与后果
+              element: 期望模式
+              patterns:
+                - 拒不提供
+                - 拒绝配合
+                - 举证妨碍
+        type: structural_analysis
+      domain: patent_procedure
+      legalBasis: 最高人民法院关于民事诉讼证据的若干规定第九十五条；最高人民法院关于知识产权民事诉讼证据的若干规定第十三条
+      name: 程序规则—举证妨碍的认定与后果
+      ruleId: JD-PRC-002
+      severity: critical
+    - action: block
+      check:
+        requiresAll:
+            - element: preamble
+              patterns:
+                - 一种
+                - 一种装置
+                - 一种方法
+                - 一种系统
+                - 一种设备
+            - element: characterizing
+              patterns:
+                - 其特征在于
+                - 特征在于
+        type: structural_analysis
+      domain: patent_claims
+      legalBasis: 专利法实施细则第24条
+      name: 权利要求撰写—独立权利要求布局
+      ruleId: PR-CLM-001
+      severity: critical
+    - action: block
+      check:
+        requiresAll:
+            - element: oa_mapping
+              patterns:
+                - 审查意见
+                - 审查员认为
+                - 指出
+                - 通知
+            - element: response_points
+              patterns:
+                - 答复
+                - 意见陈述
+                - 争辩
+                - 不同意
+                - 申请人认为
+                - 申请人主张
+                - 辩称
+                - 反驳
+            - element: conclusion_request
+              patterns:
+                - 请求
+                - 恳请
+                - 建议
+        type: structural_analysis
+      domain: patent_oa_response
+      legalBasis: 审查指南第二部分第八章5.1
+      name: OA答复—逐点回应所有审查意见
+      ruleId: PR-OA-001
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: OA答复—修改权利要求时的超范围检查
+              element: 期望模式
+              patterns:
+                - 修改
+                - 权利要求
+        type: structural_analysis
+      domain: patent_oa_response
+      legalBasis: 专利法第33条
+      name: OA答复—修改权利要求时的超范围检查
+      ruleId: PR-OA-002
+      severity: critical
+    - action: block
+      check:
+        minConfidence: 1
+        requiresAll:
+            - description: 以"能否实现"为判准的落位表述
+              element: enablement_standard
+              patterns:
+                - 能够实现
+                - 能够实施
+                - 不能实现
+                - 无法实现
+                - 无法实施
+                - 可以实现
+                - 可以实施
+            - description: 判准主体（所属技术领域的技术人员）
+              element: skilled_person
+              patterns:
+                - 所属技术领域的技术人员
+                - 本领域技术人员
+                - 本领域的技术人员
+            - description: 判准依据（以说明书记载的内容为据）
+              element: spec_basis
+              patterns:
+                - 说明书记载
+                - 说明书公开
+                - 说明书的内容
+                - 根据说明书
+                - 按照说明书
+                - 依据说明书
+                - 说明书(?:的)?第[^。；\n]{1,20}?(?:段|页|栏)[^。；\n未不没无]{0,8}?(?:记载|公开|内容)
+                - 说明书[^。；\n未不没无]{0,8}?(?:记载|公开)
+        type: structural_analysis
+      description: 26.3 答复须落到法定判准（本领域技术人员 / 能否实现 / 说明书记载的内容）；只陈述"说明书未记载某特征"而未回到判准，等于把技术方案要件审查混入充分公开审查
+      domain: patent_oa_response
+      legalBasis: 专利法第二十六条第三款；《专利审查指南》第二部分第二章第 2.1.3 节：以所属技术领域的技术人员能够实现为准，判断依据为说明书记载的内容
+      name: 答复—26.3 判准落位
+      ruleId: PR-OA-007
+      severity: major
+    - action: block
+      check:
+        keywords:
+            - (202X)最高法知民终
+            - (202X)京73民初
+            - (202X)最高法知行终
+        negationContext: true
+        quoteImmune: true
+        type: keyword_blocklist
+      domain: patent_general
+      legalBasis: 最高人民法院关于审理侵犯专利权纠纷案件应用法律若干问题的解释
+      name: 交叉—禁止编造案例案号
+      ruleId: X-REF-003
+      severity: critical

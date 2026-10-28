@@ -2,8 +2,28 @@ package rules
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
+	"sync"
 )
+
+// 规则资产里的关键词与要素模式都按**正则**解释（与 dsh 的 RuleEngine 一致）：
+// 关键词支持 "a|b|c" 交替组，结构要素的 pattern 常见「专利法[^。；]{0,12}第\s*(?:二十二|22)\s*条」
+// 这类写法。编译失败时回退为字面匹配，保证手写的普通词仍可用。
+var patternCache sync.Map // string -> *regexp.Regexp
+
+// compilePattern 编译并缓存模式（大小写不敏感）。
+func compilePattern(pattern string) *regexp.Regexp {
+	if cached, ok := patternCache.Load(pattern); ok {
+		return cached.(*regexp.Regexp)
+	}
+	compiled, err := regexp.Compile("(?i)" + pattern)
+	if err != nil {
+		compiled = regexp.MustCompile("(?i)" + regexp.QuoteMeta(pattern))
+	}
+	patternCache.Store(pattern, compiled)
+	return compiled
+}
 
 // 本文件实现门禁专用的确定性检查类型：keyword_blocklist 与 structural_analysis。
 //
@@ -44,21 +64,17 @@ func (c *Check) evaluateKeywordBlocklist(text string) (*CheckResult, error) {
 
 // findEffectiveHit 判断关键词是否有一处不受排除条件约束的命中。
 func findEffectiveHit(text, keyword string, negation, quoteImmune bool) (bool, int) {
-	offset := 0
-	for {
-		idx := strings.Index(text[offset:], keyword)
-		if idx < 0 {
-			return false, 0
+	pattern := compilePattern(keyword)
+	for _, location := range pattern.FindAllStringIndex(text, 100) {
+		position := location[0]
+		if location[0] == location[1] {
+			continue // 空匹配不构成命中
 		}
-		position := offset + idx
 		if (!negation || !hasNegationBefore(text, position)) && (!quoteImmune || !insideQuotes(text, position)) {
 			return true, position
 		}
-		offset = position + len(keyword)
-		if offset >= len(text) {
-			return false, 0
-		}
 	}
+	return false, 0
 }
 
 // hasNegationBefore 判断命中点前 12 个字符内是否出现否定词。
@@ -118,7 +134,10 @@ func (c *Check) evaluateStructuralAnalysis(text string) (*CheckResult, error) {
 		patterns := toStrings(element["patterns"])
 		matched := false
 		for _, pattern := range patterns {
-			if pattern != "" && strings.Contains(text, pattern) {
+			if pattern == "" {
+				continue
+			}
+			if compilePattern(pattern).MatchString(text) {
 				matched = true
 				break
 			}

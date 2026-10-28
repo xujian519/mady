@@ -29,6 +29,79 @@ func TestBatchARulesLoaded(t *testing.T) {
 	}
 }
 
+// 随包门禁规则全部可被门禁消费：数量下限 + 类型白名单校验。
+func TestBundledGateRulesAllConsumable(t *testing.T) {
+	engine := loadGateEngine(t)
+	rules := engine.AllRules()
+	if len(rules) < 90 {
+		t.Fatalf("随包门禁规则只有 %d 条，批 A 应覆盖 block 与结构性规则", len(rules))
+	}
+	ids := make([]string, 0, len(rules))
+	blocks := 0
+	for _, rule := range rules {
+		ids = append(ids, rule.RuleID)
+		if rule.Action == ActionBlock {
+			blocks++
+		}
+	}
+	if blocks < 30 {
+		t.Fatalf("block 级规则只有 %d 条", blocks)
+	}
+	if err := ValidateGateRules(engine, ids); err != nil {
+		t.Fatalf("存在不可被门禁消费的规则：%v", err)
+	}
+}
+
+// 结构要素的 pattern 按正则解释：CON-103 要求引用专利法第二十二条。
+func TestStructuralPatternRegex(t *testing.T) {
+	engine := loadGateEngine(t)
+	rule := engine.RuleByID("CON-103")
+	if rule == nil {
+		t.Fatal("缺少 CON-103")
+	}
+	cases := []struct {
+		text string
+		want bool
+	}{
+		{"本申请具备新颖性，依据专利法第二十二条。", true},
+		{"本申请具备新颖性，依据专利法第22条。", true},
+		{"本申请具备新颖性。", false},
+	}
+	for _, tc := range cases {
+		result, err := rule.Check.Evaluate(tc.text)
+		if err != nil {
+			t.Fatalf("Evaluate: %v", err)
+		}
+		if result.Passed != tc.want {
+			t.Fatalf("%q passed=%v, want %v（%v）", tc.text, result.Passed, tc.want, result.Details)
+		}
+	}
+}
+
+// 关键词支持 "a|b" 交替组（与 dsh 的规则资产一致）。
+func TestKeywordBlocklistAlternation(t *testing.T) {
+	rule := Rule{
+		RuleID: "T-ALT",
+		Action: ActionWarn,
+		Check: Check{
+			Type:  "keyword_blocklist",
+			Extra: map[string]any{"keywords": []any{"绝对可以|百分百"}},
+		},
+	}
+	for _, text := range []string{"本方案绝对可以实施。", "百分百成功。"} {
+		result, err := rule.Check.Evaluate(text)
+		if err != nil {
+			t.Fatalf("Evaluate: %v", err)
+		}
+		if result.Passed {
+			t.Fatalf("%q 应命中交替组", text)
+		}
+	}
+	if result, _ := rule.Check.Evaluate("本方案通常可行。"); !result.Passed {
+		t.Fatal("无命中时应通过")
+	}
+}
+
 func TestKeywordBlocklist(t *testing.T) {
 	engine := loadGateEngine(t)
 	risk := engine.RuleByID("PAT-RISK-001")
