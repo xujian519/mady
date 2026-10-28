@@ -459,7 +459,7 @@ type StatutoryEvidence struct {
 | W5-02 | ✅ 完成 | e307ef3 | T-W5-02：TRIZ / 四检验增量 / 覆盖与单一性修正 / OA 答复计划 / 分析报告 / 对立审查 |
 | W5-04 | ✅ 完成 | b44e366 | T-W5-04：LRU/TTL/并发合并缓存 + CNIPR 通道 + 知识库状态与安装引导 |
 | W5-03 | ✅ 完成（化学结构识别除外） | 6c7fd42 | T-W5-03：说明书形式/量化检查 + 案卷事件日志；其余工具核验为已有或不适用 |
-| W5-05 | ✅ 完成 | 待回填 | T-W5-05：四源文献检索（OpenAlex/S2/arXiv/Crossref）+ paper_search/paper_list_sources/paper_download + 按主机限速 + LRU 缓存 |
+| W5-05 | ✅ 完成 | e94e202 | T-W5-05：四源文献检索（OpenAlex/S2/arXiv/Crossref）+ paper_search/paper_list_sources/paper_download + 按主机限速 + LRU 缓存 |
 | W4-F3 | ✅ 完成 | 9d7fb05 | T-W4-03：法域档案 + 提交页落版 + 跨图标记一致性（figure_submission / figure_consistency） |
 
 ### 批 A / 批 B 规则接入状态
