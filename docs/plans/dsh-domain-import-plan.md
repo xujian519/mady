@@ -456,7 +456,7 @@ type StatutoryEvidence struct {
 | W3 | ✅ 完成 | b6bda17 · b399490 | T-W3-01 二维证据模型（八类 + 6 场景规则 + 13 项测试）；T-W3-02 四类司法检索（FTS/LIKE/内存三通道 + 安装工具） |
 | W4-F1 | ✅ 完成 | e32b069 | T-W4-01：DOT 构建 + Graphviz 渲染 + SVG 视口/标号后处理 |
 | W4-F2 | ✅ 完成 | 83e6dea | T-W4-02：字框 + 渲染核验（穿字/净距/字高/越界）+ 时序图 + 剖视图 |
-| W4-F3 | ✅ 完成 | 本提交 | T-W4-03：法域档案 + 提交页落版 + 跨图标记一致性（figure_submission / figure_consistency） |
+| W4-F3 | ✅ 完成 | 9d7fb05 | T-W4-03：法域档案 + 提交页落版 + 跨图标记一致性（figure_submission / figure_consistency） |
 
 ### 批 A / 批 B 规则接入状态
 
