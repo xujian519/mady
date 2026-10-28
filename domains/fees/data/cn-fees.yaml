@@ -1,0 +1,372 @@
+# 专利费用索引（专利申请、授权与程序事项的官费条目）
+#
+# 本文件登记"有哪些费种、在什么阶段缴、按什么基准计数、能减缴到什么程度"，
+# 以及每项的官费金额。金额来自国家知识产权局的缴费服务指南附件 2；
+# 每项的 sourceDoc / verifiedOn 记录抄录所用的文书与抄录日期。
+#
+# 仍未录入金额的两个条目，原因不是"待办"，而是本格式表达不了：
+# - specification-surcharge：官费按页分两档（第 31 页起每页 50 元、第 301 页起
+#   每页 100 元）。条目只有"免费基数 + 单价"两个字段，写成两档会把 301 页以上的
+#   页数按 50 元再算一遍。
+# - extension-fee：官方按"第一次延期"每月 300 元、"再次延期"每月 2000 元两档收费，
+#   而条目只承载一个单价，查询也不带"第几次"。
+# 这两项保持 null：null 是"未核验"，工具会因此拒绝给出合计，不会按错的单价算。
+#
+# 语义（转录时按此读，不要另作解释）：
+# - trigger      该费种在哪个环节产生，由查询的 triggers 选中。
+# - patentTypes  适用对象；null 表示未限定（价格与规则对三种专利类型相同）。
+# - basis        计数基准：per-case 每件；per-claim-beyond 超过 freeUnits 项的每项；
+#                per-page-beyond 超过 freeUnits 页的每页；per-priority 每项优先权要求；
+#                per-annuity-year 每个专利年度；per-month 每请求月数。
+# - freeUnits    计数的免费基数（仅 beyond 类基准使用）。
+# - amount       单价，元，字符串；null 表示未转录。
+# - reducible    是否属于费用减缴范围；null 表示未登记。"不予减缴"的官费按 false 记录。
+# - reductionMaxYears  年费类条目减缴覆盖的最高专利年度。
+# - tiers        年费分档（fromYear / toYear / amount）。
+# - latePayment  滞纳金规则：monthlyPercent 为每超过缴费时间 1 个月加收当年全额年费的百分比，
+#                maxMonths 为可补缴的月数上限。
+#
+# 费用相同但按专利类型分档的费种拆成两个条目（application-fee / reexamination-fee /
+# invalidation-fee 各有一条 -utility-design 兄弟条目），年费按三种类型各一条：
+# 条目只承载一个金额，拆条目而不是让金额随类型漂移。
+#
+# 已知的表达之外的情况（记录在此，不在条目里编造）：
+# - 减缴覆盖的是"自授予专利权当年起十年"的年费，而不是"第 10 年度以前"：减缴起点
+#   取决于授权年度，而查询不带授权年度，因此 annual-fee 的 reductionMaxYears 取 10
+#   作为专利年度上限的近似。授权较晚的案件实际可减缴的年度会超过第 10 年度。
+# - 开放许可实施期间的专利年费另减缴 15%。
+# - 印花税不再列为本索引的费种：现行《专利法实施细则》第一百一十条列举的费种里
+#   没有印花税，官方的缴费服务指南也不收该费。
+document: 专利和集成电路布图设计缴费服务指南（附件2 收费标准）
+revision: 2026 年 8 月版
+currency: CNY
+sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 收费标准（2026-08-31 发布）
+effectiveFrom: null
+verifiedOn: 2026-09-26
+
+# 费用减缴。reductionPercent 是减缴比例（应缴 = 全额 × (1 − reductionPercent / 100)），
+# 即 85 表示只缴 15%。requiresFiling 表示该减缴以事前办理费减备案为前提。
+# 可减缴的费种是：申请费（不含公布印刷费、申请附加费）、发明专利申请实质审查费、
+# 复审费、年费。
+reductions:
+  - kind: individual
+    label: 个人
+    reductionPercent: 85
+    requiresFiling: true
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 减缴比例列（85%/70%）
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+  - kind: enterprise
+    label: 企业
+    reductionPercent: 70
+    requiresFiling: true
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 减缴比例列（85%/70%）
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+items:
+  - id: application-fee
+    name: 申请费
+    trigger: filing
+    patentTypes: [invention]
+    basis: per-case
+    amount: '900'
+    reducible: true
+    legalBasis: 专利法实施细则第110条第1款第（一）项、第112条
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 发明专利费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: application-fee-utility-design
+    name: 申请费
+    trigger: filing
+    patentTypes: [utility-model, design]
+    basis: per-case
+    amount: '500'
+    reducible: true
+    legalBasis: 专利法实施细则第110条第1款第（一）项、第112条
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 实用新型及外观设计专利费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: publication-printing-fee
+    name: 公布印刷费
+    trigger: filing
+    patentTypes: [invention]
+    basis: per-case
+    amount: '50'
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（一）项、第112条
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 发明专利费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: claims-surcharge
+    name: 权利要求附加费
+    trigger: filing
+    patentTypes: [invention, utility-model]
+    basis: per-claim-beyond
+    freeUnits: 10
+    amount: '150'
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（一）项
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 申请附加费
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  # 金额留 null：官方对说明书按页分两档收费（第 31 页起每页 50 元、第 301 页起每页
+  # 100 元），条目模型只有一个免费基数与一个单价。见文件头。
+  - id: specification-surcharge
+    name: 说明书附加费
+    trigger: filing
+    patentTypes: [invention, utility-model]
+    basis: per-page-beyond
+    freeUnits: 30
+    amount: null
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（一）项
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 申请附加费
+    effectiveFrom: null
+    verifiedOn: null
+
+  - id: priority-claim-fee
+    name: 优先权要求费
+    trigger: filing
+    patentTypes: null
+    basis: per-priority
+    amount: '80'
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（一）项、第112条
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 优先权要求费（每项）
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: substantive-examination-fee
+    name: 实质审查费
+    trigger: substantive-examination
+    patentTypes: [invention]
+    basis: per-case
+    amount: '2500'
+    reducible: true
+    legalBasis: 专利法第35条、专利法实施细则第113条
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 发明专利费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: annual-fee
+    name: 年费
+    trigger: annual-fee
+    patentTypes: [invention]
+    basis: per-annuity-year
+    amount: null
+    reducible: true
+    reductionMaxYears: 10
+    tiers:
+      - fromYear: 1
+        toYear: 3
+        amount: '900'
+      - fromYear: 4
+        toYear: 6
+        amount: '1200'
+      - fromYear: 7
+        toYear: 9
+        amount: '2000'
+      - fromYear: 10
+        toYear: 12
+        amount: '4000'
+      - fromYear: 13
+        toYear: 15
+        amount: '6000'
+      - fromYear: 16
+        toYear: 20
+        amount: '8000'
+    latePayment:
+      monthlyPercent: 5
+      maxMonths: 6
+      legalBasis: 专利法实施细则第115条
+      sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 发明专利年费计算参考表
+      effectiveFrom: null
+      verifiedOn: 2026-09-26
+    legalBasis: 专利法实施细则第110条第1款第（三）项、第114条、第115条
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 发明专利年费计算参考表
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: annual-fee-utility-model
+    name: 年费
+    trigger: annual-fee
+    patentTypes: [utility-model]
+    basis: per-annuity-year
+    amount: null
+    reducible: true
+    reductionMaxYears: 10
+    tiers:
+      - fromYear: 1
+        toYear: 3
+        amount: '600'
+      - fromYear: 4
+        toYear: 5
+        amount: '900'
+      - fromYear: 6
+        toYear: 8
+        amount: '1200'
+      - fromYear: 9
+        toYear: 10
+        amount: '2000'
+    latePayment:
+      monthlyPercent: 5
+      maxMonths: 6
+      legalBasis: 专利法实施细则第115条
+      sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 实用新型专利年费计算参考表
+      effectiveFrom: null
+      verifiedOn: 2026-09-26
+    legalBasis: 专利法实施细则第110条第1款第（三）项、第114条、第115条
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 实用新型专利年费计算参考表
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: annual-fee-design
+    name: 年费
+    trigger: annual-fee
+    patentTypes: [design]
+    basis: per-annuity-year
+    amount: null
+    reducible: true
+    reductionMaxYears: 10
+    tiers:
+      - fromYear: 1
+        toYear: 3
+        amount: '600'
+      - fromYear: 4
+        toYear: 5
+        amount: '900'
+      - fromYear: 6
+        toYear: 8
+        amount: '1200'
+      - fromYear: 9
+        toYear: 10
+        amount: '2000'
+      - fromYear: 11
+        toYear: 15
+        amount: '3000'
+    latePayment:
+      monthlyPercent: 5
+      maxMonths: 6
+      legalBasis: 专利法实施细则第115条
+      sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 外观设计专利年费计算参考表
+      effectiveFrom: null
+      verifiedOn: 2026-09-26
+    legalBasis: 专利法实施细则第110条第1款第（三）项、第114条、第115条
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 外观设计专利年费计算参考表
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: reexamination-fee
+    name: 复审请求费
+    trigger: reexamination
+    patentTypes: [invention]
+    basis: per-case
+    amount: '1000'
+    reducible: true
+    legalBasis: 专利法第41条第1款、专利法实施细则第110条第1款第（二）项
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 发明专利费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: reexamination-fee-utility-design
+    name: 复审请求费
+    trigger: reexamination
+    patentTypes: [utility-model, design]
+    basis: per-case
+    amount: '300'
+    reducible: true
+    legalBasis: 专利法第41条第1款、专利法实施细则第110条第1款第（二）项
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 实用新型及外观设计专利费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: invalidation-fee
+    name: 无效宣告请求费
+    trigger: invalidation
+    patentTypes: [invention]
+    basis: per-case
+    amount: '3000'
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（五）项、第116条第3款
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 发明专利费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: invalidation-fee-utility-design
+    name: 无效宣告请求费
+    trigger: invalidation
+    patentTypes: [utility-model, design]
+    basis: per-case
+    amount: '1500'
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（五）项、第116条第3款
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 实用新型及外观设计专利费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: evaluation-report-fee
+    name: 专利权评价报告请求费
+    trigger: evaluation-report
+    patentTypes: [utility-model, design]
+    basis: per-case
+    amount: '2400'
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（五）项、第116条第3款
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 实用新型及外观设计专利费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: restoration-fee
+    name: 恢复权利请求费
+    trigger: restoration
+    patentTypes: null
+    basis: per-case
+    amount: '1000'
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（四）项、第116条第1款
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 费用标准
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  # 金额留 null：官方按"第一次延期"每月 300 元、"再次延期"每月 2000 元收费，
+  # 条目只承载一个单价，查询也不带"第几次"。见文件头。
+  - id: extension-fee
+    name: 延长期限请求费
+    trigger: extension
+    patentTypes: null
+    basis: per-month
+    amount: null
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（四）项、第116条第2款
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 延长期限请求费
+    effectiveFrom: null
+    verifiedOn: null
+
+  - id: record-change-fee
+    name: 著录项目变更费
+    trigger: record-change
+    patentTypes: null
+    basis: per-case
+    amount: '200'
+    reducible: false
+    legalBasis: 专利法实施细则第110条第1款第（五）项、第116条第3款
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 著录事项变更费
+    effectiveFrom: null
+    verifiedOn: 2026-09-26
+
+  - id: pct-grace-fee
+    name: 宽限费
+    trigger: pct-grace
+    patentTypes: null
+    basis: per-case
+    amount: '1000'
+    reducible: false
+    legalBasis: 专利法实施细则第120条
+    sourceDoc: 国家知识产权局《专利和集成电路布图设计缴费服务指南》附件2 PCT 国际申请费用标准（国家阶段）
+    effectiveFrom: null
+    verifiedOn: 2026-09-26

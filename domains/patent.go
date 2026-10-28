@@ -14,6 +14,7 @@ import (
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
 	"github.com/xujian519/mady/domains/evidence"
+	"github.com/xujian519/mady/domains/fees"
 	"github.com/xujian519/mady/domains/iface"
 	"github.com/xujian519/mady/domains/infringement"
 	"github.com/xujian519/mady/domains/inventiveness"
@@ -385,6 +386,7 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 		plantask.NewPatentPlanTaskTool(),
 		plantask.NewFlexiblePlanTool(plantask.DefaultFlexiblePlanStore()),
 		claimchart.NewClaimChartTool(),
+		fees.NewTool(fees.Config{}),
 		slop.NewSlopGateTool(),
 		workercontract.NewPatentWorkerValidateTool(),
 		workercontract.NewPatentTeamResolveTool(),
