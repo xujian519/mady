@@ -57,12 +57,8 @@ func handleCdp(ctx context.Context, input browserToolInput, cfg *BrowserToolConf
 
 	// Execute CDP command via raw CDP dispatch using the chromedp target.
 	var cdpResult json.RawMessage
-	if err := chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(cdpCtx context.Context) error {
-		target := chromedp.FromContext(cdpCtx).Target
-		if target == nil {
-			return fmt.Errorf("no chromedp target available")
-		}
-		return target.Execute(cdpCtx, input.CDPMethod, params, &cdpResult)
+	if err := chromedp.Do(timeoutCtx, chromedp.Func(func(cdpCtx context.Context, t *chromedp.Target) error {
+		return t.Call(cdpCtx, input.CDPMethod, params, &cdpResult)
 	})); err != nil {
 		return nil, fmt.Errorf("cdp command %s failed: %w", input.CDPMethod, err)
 	}

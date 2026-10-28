@@ -198,12 +198,14 @@ func RunChromeFallbackCommand(ctx context.Context, command string, args map[stri
 	switch command {
 	case "navigate":
 		url, _ := args["url"].(string)
-		var title string
-		if err := chromedp.Run(timeoutCtx,
+		if err := chromedp.Do(timeoutCtx,
 			chromedp.Navigate(url),
-			chromedp.WaitReady("body", chromedp.ByQuery),
-			chromedp.Title(&title),
+			chromedp.WaitReady(chromedp.CSS("body")),
 		); err != nil {
+			return nil, err
+		}
+		title, err := chromedp.Run(timeoutCtx, chromedp.Title())
+		if err != nil {
 			return nil, err
 		}
 
@@ -218,8 +220,8 @@ func RunChromeFallbackCommand(ctx context.Context, command string, args map[stri
 		}
 
 	case "screenshot":
-		var buf []byte
-		if err := chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot(&buf)); err != nil {
+		buf, err := chromedp.Run(timeoutCtx, chromedp.CaptureScreenshot())
+		if err != nil {
 			return nil, err
 		}
 		result = map[string]any{

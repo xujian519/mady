@@ -53,7 +53,7 @@ func (s *CDPSupervisor) InjectDialogBridge() error {
 })();
 `
 
-	return chromedp.Run(ctx, chromedp.Evaluate(bridgeScript, nil))
+	return chromedp.Do(ctx, chromedp.Evaluate[chromedp.Void](bridgeScript))
 }
 
 type DialogBridgeHandler struct {

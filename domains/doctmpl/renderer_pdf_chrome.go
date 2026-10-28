@@ -7,8 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/remote"
 )
 
 // PDFChromeRenderer 使用 headless Chrome（chromedp）将 Markdown 渲染为高质量 PDF。
@@ -62,31 +64,28 @@ func (r *PDFChromeRenderer) Render(md string, meta RenderMeta) ([]byte, error) {
 	defer taskCancel()
 
 	// 3. 导航到 about:blank → 注入 HTML → 打印 PDF
-	var pdfBuf []byte
-	err = chromedp.Run(taskCtx,
+	err = chromedp.Do(taskCtx,
 		chromedp.Navigate("about:blank"),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			tree, err := page.GetFrameTree().Do(ctx)
+		chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+			tree, err := cdp.Call(ctx, t, page.GetFrameTree, cdp.Empty{})
 			if err != nil {
 				return fmt.Errorf("get frame tree: %w", err)
 			}
-			return page.SetDocumentContent(tree.Frame.ID, htmlStr).Do(ctx)
-		}),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			buf, _, err := page.PrintToPDF().
-				WithPrintBackground(true).
-				WithMarginTop(0.4).
-				WithMarginBottom(0.4).
-				WithMarginLeft(0.4).
-				WithMarginRight(0.4).
-				Do(ctx)
-			if err != nil {
-				return fmt.Errorf("print to PDF: %w", err)
-			}
-			pdfBuf = buf
-			return nil
+			_, err = cdp.Call(ctx, t, page.SetDocumentContent, page.SetDocumentContentParams{
+				FrameID: tree.FrameTree.Frame.ID,
+				HTML:    htmlStr,
+			})
+			return err
 		}),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("doctmpl: Chrome PDF generation failed: %w", err)
+	}
+
+	pdfBuf, err := chromedp.Run(taskCtx, chromedp.PrintToPDF(
+		chromedp.PDFPrintBackground(),
+		chromedp.PDFMargins(0.4, 0.4, 0.4, 0.4),
+	))
 	if err != nil {
 		return nil, fmt.Errorf("doctmpl: Chrome PDF generation failed: %w", err)
 	}
@@ -105,7 +104,7 @@ func (r *PDFChromeRenderer) timeoutSec() int {
 // newAllocator 创建 chromedp allocator：远程 WS 或本地 exec。
 func (r *PDFChromeRenderer) newAllocator(ctx context.Context) (context.Context, context.CancelFunc) {
 	if r.ChromeWSURL != "" {
-		return chromedp.NewRemoteAllocator(ctx, r.ChromeWSURL)
+		return remote.NewAllocator(ctx, r.ChromeWSURL)
 	}
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", "new"),
@@ -171,5 +170,5 @@ func probeChrome(r *PDFChromeRenderer) bool {
 	taskCtx, taskCancel := chromedp.NewContext(allocCtx)
 	defer taskCancel()
 
-	return chromedp.Run(taskCtx, chromedp.Navigate("about:blank")) == nil
+	return chromedp.Do(taskCtx, chromedp.Navigate("about:blank")) == nil
 }

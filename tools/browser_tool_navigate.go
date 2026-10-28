@@ -96,10 +96,7 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	defer cancel()
 
 	// 1. Fire navigation via CDP Page.navigate (does not wait for load).
-	if err := chromedp.Run(timeoutCtx, chromedp.ActionFunc(func(ctx context.Context) error {
-		_, _, _, _, err := page.Navigate(parsedURL.String()).Do(ctx)
-		return err
-	})); err != nil {
+	if _, err := chromedp.Call(timeoutCtx, page.Navigate, page.NavigateParams{URL: parsedURL.String()}); err != nil {
 		if isDeadlineError(err) {
 			return nil, navigationTimeoutError(parsedURL.String(), navTimeout)
 		}
@@ -111,15 +108,15 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 	var ready bool
 	var lastReadyErr error
 	for i := 0; i < 30; i++ {
-		var state string
-		if err := chromedp.Run(readyCtx, chromedp.Evaluate(`
+		state, err := chromedp.Run(readyCtx, chromedp.Evaluate[string](`
 			(function() {
 				return JSON.stringify({
 					state: document.readyState,
 					url: window.location.href
 				});
 			})()
-		`, &state)); err != nil {
+		`))
+		if err != nil {
 			lastReadyErr = err
 			time.Sleep(1 * time.Second)
 			continue
@@ -158,16 +155,16 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 
 	// 4. Apply stealth JS to hide automation fingerprints.
 	stealthCtx, stealthCancel := context.WithTimeout(timeoutCtx, 3*time.Second)
-	if err := chromedp.Run(stealthCtx, chromedp.Evaluate(stealthJavaScript, nil)); err != nil {
+	if err := chromedp.Do(stealthCtx, chromedp.Evaluate[chromedp.Void](stealthJavaScript)); err != nil {
 		slog.Warn("browser: stealth js injection failed", "err", err)
 	}
 	stealthCancel()
 
 	// 5. Get title.
-	var title string
 	titleCtx, titleCancel := context.WithTimeout(timeoutCtx, 5*time.Second)
-	if err := chromedp.Run(titleCtx, chromedp.Title(&title)); err != nil {
-		slog.Warn("browser: get title failed", "err", err)
+	title, titleErr := chromedp.Run(titleCtx, chromedp.Title())
+	if titleErr != nil {
+		slog.Warn("browser: get title failed", "err", titleErr)
 	}
 	titleCancel()
 
@@ -195,7 +192,6 @@ func handleNavigate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 			if v, ok := fallbackResult["title"].(string); ok {
 				session.mu.Lock()
 				session.title = v
-				title = v
 				session.mu.Unlock()
 			}
 			AnnotateLightpandaFallback(nil)
@@ -248,34 +244,24 @@ func handleBack(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 		}
 	case BackendLightpanda:
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-		if err := chromedp.Run(timeoutCtx,
+		if err := chromedp.Do(timeoutCtx,
 			chromedp.NavigateBack(),
-			chromedp.WaitReady("body", chromedp.ByQuery),
+			chromedp.WaitReady(chromedp.CSS("body")),
 		); err != nil {
 			cancel()
 			return nil, fmt.Errorf("back navigation failed: %w", err)
 		}
-		if err := chromedp.Run(timeoutCtx,
-			chromedp.Location(&url),
-			chromedp.Title(&title),
-		); err != nil {
-			slog.Warn("browser: get location/title failed", "err", err)
-		}
+		url, title = locationAndTitle(timeoutCtx)
 		snapshot, err = generateSnapshot(session.ctx, false, session.refMapper)
 		cancel()
 	case BackendLocal, BackendCDP, BackendBrowserbase, BackendBrowserUse, BackendFirecrawl, BackendAgentBrowser:
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
 		defer cancel()
 
-		if err := chromedp.Run(timeoutCtx, chromedp.NavigateBack()); err != nil {
+		if err := chromedp.Do(timeoutCtx, chromedp.NavigateBack()); err != nil {
 			return nil, fmt.Errorf("back navigation failed: %w", err)
 		}
-		if err := chromedp.Run(timeoutCtx,
-			chromedp.Location(&url),
-			chromedp.Title(&title),
-		); err != nil {
-			slog.Warn("browser: get location/title failed", "err", err)
-		}
+		url, title = locationAndTitle(timeoutCtx)
 		snapshot, err = generateSnapshot(timeoutCtx, false, session.refMapper)
 	default:
 		err = fmt.Errorf("backend %s not supported for back", session.backendType)
@@ -292,4 +278,20 @@ func handleBack(ctx context.Context, input browserToolInput, cfg *BrowserToolCon
 	session.mu.Unlock()
 
 	return result(fmt.Sprintf("Navigated back\nURL: %s\nTitle: %s\n\n%s", url, title, snapshot), nil)
+}
+
+// locationAndTitle 读取当前页面的 URL 与标题；单项失败只记录警告。
+func locationAndTitle(ctx context.Context) (string, string) {
+	var url, title string
+	if u, err := chromedp.Run(ctx, chromedp.Location()); err != nil {
+		slog.Warn("browser: get location failed", "err", err)
+	} else {
+		url = u
+	}
+	if t, err := chromedp.Run(ctx, chromedp.Title()); err != nil {
+		slog.Warn("browser: get title failed", "err", err)
+	} else {
+		title = t
+	}
+	return url, title
 }

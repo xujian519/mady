@@ -6,9 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/remote"
 )
 
 type DialogPolicy string
@@ -156,7 +158,7 @@ func (s *CDPSupervisor) connectAndListen() error {
 	var allocCtx context.Context
 	var allocCancel context.CancelFunc
 	if cdpURL != "" {
-		allocCtx, allocCancel = chromedp.NewRemoteAllocator(parentCtx, cdpURL)
+		allocCtx, allocCancel = remote.NewAllocator(parentCtx, cdpURL)
 	} else {
 		opts := append(chromedp.DefaultExecAllocatorOptions[:],
 			chromedp.NoSandbox,
@@ -169,7 +171,7 @@ func (s *CDPSupervisor) connectAndListen() error {
 	browserCtx, browserCancel := chromedp.NewContext(allocCtx)
 	defer browserCancel()
 
-	if err := chromedp.Run(browserCtx); err != nil {
+	if err := chromedp.Do(browserCtx); err != nil {
 		return fmt.Errorf("browser start failed: %w", err)
 	}
 
@@ -189,10 +191,26 @@ func (s *CDPSupervisor) connectAndListen() error {
 	}
 }
 
+// targetSession 返回 context 对应的 CDP target 会话；未就绪时返回 nil。
+func targetSession(ctx context.Context) *chromedp.Target {
+	c := chromedp.FromContext(ctx)
+	if c == nil {
+		return nil
+	}
+	return c.Target
+}
+
 func (s *CDPSupervisor) listenForDialogs(ctx context.Context) {
-	chromedp.ListenTarget(ctx, func(ev any) {
-		switch e := ev.(type) {
-		case *page.EventJavascriptDialogOpening:
+	session := targetSession(ctx)
+	if session == nil {
+		return
+	}
+
+	go func() {
+		for e, err := range cdp.Events(ctx, session, page.JavascriptDialogOpening) {
+			if err != nil {
+				return
+			}
 			dialogID := fmt.Sprintf("dlg_%d", time.Now().UnixNano())
 			s.mu.Lock()
 			s.pendingDialogs[dialogID] = &DialogInfo{
@@ -202,7 +220,7 @@ func (s *CDPSupervisor) listenForDialogs(ctx context.Context) {
 			}
 			s.mu.Unlock()
 
-			s.notifyListeners(CDPEvent{Type: "dialog_open", Data: e})
+			s.notifyListeners(CDPEvent{Type: "dialog_open", Data: &e})
 
 			switch s.dialogPolicy {
 			case DialogAutoDismiss:
@@ -210,8 +228,14 @@ func (s *CDPSupervisor) listenForDialogs(ctx context.Context) {
 			case DialogAutoAccept:
 				s.HandleDialog(dialogID, true, "") //nolint:gosec // G104: fire-and-forget dialog auto-accept
 			}
+		}
+	}()
 
-		case *page.EventJavascriptDialogClosed:
+	go func() {
+		for e, err := range cdp.Events(ctx, session, page.JavascriptDialogClosed) {
+			if err != nil {
+				return
+			}
 			s.mu.Lock()
 			for id := range s.pendingDialogs {
 				delete(s.pendingDialogs, id)
@@ -219,35 +243,49 @@ func (s *CDPSupervisor) listenForDialogs(ctx context.Context) {
 			}
 			s.mu.Unlock()
 
-			s.notifyListeners(CDPEvent{Type: "dialog_closed", Data: e})
+			s.notifyListeners(CDPEvent{Type: "dialog_closed", Data: &e})
 		}
-	})
+	}()
 }
 
 func (s *CDPSupervisor) trackFrameTree(ctx context.Context) {
-	chromedp.ListenTarget(ctx, func(ev any) {
-		switch ev.(type) {
-		case *target.EventAttachedToTarget:
-			s.mu.Lock()
-			s.updateFrameTree(ctx)
-			s.mu.Unlock()
-		case *target.EventDetachedFromTarget:
+	session := targetSession(ctx)
+	if session == nil {
+		return
+	}
+
+	attached := cdp.Events(ctx, session, target.AttachedToTarget)
+	detached := cdp.Events(ctx, session, target.DetachedFromTarget)
+
+	go func() {
+		for _, err := range attached {
+			if err != nil {
+				return
+			}
 			s.mu.Lock()
 			s.updateFrameTree(ctx)
 			s.mu.Unlock()
 		}
-	})
+	}()
+
+	go func() {
+		for _, err := range detached {
+			if err != nil {
+				return
+			}
+			s.mu.Lock()
+			s.updateFrameTree(ctx)
+			s.mu.Unlock()
+		}
+	}()
 }
 
 func (s *CDPSupervisor) updateFrameTree(ctx context.Context) {
-	var tree *page.FrameTree
-	if err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
-		var err error
-		tree, err = page.GetFrameTree().Do(ctx)
-		return err
-	})); err != nil {
+	res, err := chromedp.Call(ctx, page.GetFrameTree, cdp.Empty{})
+	if err != nil {
 		return
 	}
+	tree := res.FrameTree
 
 	s.frameTree = convertFrameTree(tree, 0, s.maxDepth)
 	if len(s.frameTree) > s.maxFrames {
@@ -297,9 +335,11 @@ func (s *CDPSupervisor) HandleDialog(dialogID string, accept bool, promptText st
 		return fmt.Errorf("supervisor not connected")
 	}
 
-	return chromedp.Run(ctx,
-		page.HandleJavaScriptDialog(accept).WithPromptText(promptText),
-	)
+	_, err := chromedp.Call(ctx, page.HandleJavaScriptDialog, page.HandleJavaScriptDialogParams{
+		Accept:     accept,
+		PromptText: promptText,
+	})
+	return err
 }
 
 func (s *CDPSupervisor) EvaluateJS(expression string, targetFrameID string) (string, error) {
@@ -311,11 +351,7 @@ func (s *CDPSupervisor) EvaluateJS(expression string, targetFrameID string) (str
 		return "", fmt.Errorf("supervisor not connected")
 	}
 
-	var result string
-	err := chromedp.Run(ctx,
-		chromedp.EvaluateAsDevTools(expression, &result),
-	)
-
+	result, err := chromedp.Run(ctx, chromedp.EvaluateAsDevTools[string](expression))
 	if err != nil {
 		return "", fmt.Errorf("JS evaluation failed: %w", err)
 	}

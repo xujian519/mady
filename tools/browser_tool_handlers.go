@@ -115,8 +115,8 @@ func handleEvaluate(ctx context.Context, input browserToolInput, cfg *BrowserToo
 		evalResult, err = session.supervisor.EvaluateJS(input.Expression, input.FrameID)
 	} else {
 		timeoutCtx, cancel := context.WithTimeout(session.ctx, cfg.CommandTimeout)
-		var result string
-		if err := chromedp.Run(timeoutCtx, chromedp.EvaluateAsDevTools(input.Expression, &result)); err != nil {
+		result, err := chromedp.Run(timeoutCtx, chromedp.EvaluateAsDevTools[string](input.Expression))
+		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("evaluation failed: %w", err)
 		}

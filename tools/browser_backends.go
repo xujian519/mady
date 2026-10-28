@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/remote"
 
 	"github.com/xujian519/mady/tools/browserproviders"
 )
@@ -28,7 +29,7 @@ func (bm *BrowserManager) createCloudSession(ctx context.Context, session *Brows
 		return fmt.Errorf("cloud provider did not return a CDP URL")
 	}
 
-	allocCtx, allocCancel := chromedp.NewRemoteAllocator(ctx, session.cdpURL)
+	allocCtx, allocCancel := remote.NewAllocator(ctx, session.cdpURL)
 	browserCtx, cancel := chromedp.NewContext(allocCtx)
 	session.ctx = browserCtx
 	session.cancel = func() {
@@ -53,7 +54,7 @@ func (bm *BrowserManager) createCDPSession(ctx context.Context, session *Browser
 		return fmt.Errorf("cdp url is required")
 	}
 
-	allocCtx, allocCancel := chromedp.NewRemoteAllocator(ctx, session.cdpURL)
+	allocCtx, allocCancel := remote.NewAllocator(ctx, session.cdpURL)
 	browserCtx, cancel := chromedp.NewContext(allocCtx)
 	session.ctx = browserCtx
 	session.cancel = func() {
@@ -82,7 +83,7 @@ func (bm *BrowserManager) createLightpandaSession(ctx context.Context, session *
 		return fmt.Errorf("lightpanda start failed: %w", err)
 	}
 
-	allocCtx, allocCancel := chromedp.NewRemoteAllocator(ctx, proc.CDPURL)
+	allocCtx, allocCancel := remote.NewAllocator(ctx, proc.CDPURL)
 	browserCtx, cancel := chromedp.NewContext(allocCtx)
 
 	session.backendType = BackendLightpanda
@@ -103,7 +104,7 @@ func (bm *BrowserManager) createLightpandaSession(ctx context.Context, session *
 
 	if targetURL != "" {
 		timeoutCtx, cancel := context.WithTimeout(browserCtx, bm.config.CommandTimeout)
-		if err := chromedp.Run(timeoutCtx, chromedp.Navigate(targetURL)); err != nil {
+		if err := chromedp.Do(timeoutCtx, chromedp.Navigate(targetURL)); err != nil {
 			cancel()
 			return fmt.Errorf("lightpanda navigation failed: %w", err)
 		}
@@ -132,7 +133,7 @@ func (bm *BrowserManager) createCloudSessionWithProvider(ctx context.Context, se
 		return fmt.Errorf("cloud provider did not return a CDP URL")
 	}
 
-	allocCtx, allocCancel := chromedp.NewRemoteAllocator(ctx, session.cdpURL)
+	allocCtx, allocCancel := remote.NewAllocator(ctx, session.cdpURL)
 	browserCtx, cancel := chromedp.NewContext(allocCtx)
 	session.ctx = browserCtx
 	session.cancel = func() {
@@ -184,7 +185,7 @@ func (bm *BrowserManager) createAgentBrowserSession(ctx context.Context, session
 	session.cdpURL = abSession.CDPURL
 
 	if abSession.CDPURL != "" {
-		allocCtx, allocCancel := chromedp.NewRemoteAllocator(ctx, abSession.CDPURL)
+		allocCtx, allocCancel := remote.NewAllocator(ctx, abSession.CDPURL)
 		browserCtx, cancel := chromedp.NewContext(allocCtx)
 		session.ctx = browserCtx
 		session.cancel = func() {
@@ -258,7 +259,7 @@ func (bm *BrowserManager) createLocalSession(ctx context.Context, session *Brows
 	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
 	browserCtx, cancel := chromedp.NewContext(allocCtx)
 
-	if err := chromedp.Run(browserCtx); err != nil {
+	if err := chromedp.Do(browserCtx); err != nil {
 		cancel()
 		allocCancel()
 		return fmt.Errorf("failed to start local browser (path=%s): %w", chrome.Path, err)
