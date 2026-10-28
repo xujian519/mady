@@ -5,10 +5,14 @@ import (
 	"path/filepath"
 
 	"github.com/xujian519/mady/agentcore"
+	"github.com/xujian519/mady/domains/adversary"
+	"github.com/xujian519/mady/domains/analysisreport"
 	"github.com/xujian519/mady/domains/checker"
 	figuregenerate "github.com/xujian519/mady/domains/figure/generate"
+	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/domains/lawverify"
 	"github.com/xujian519/mady/domains/rules"
+	"github.com/xujian519/mady/domains/triz"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/pkg/util"
 )
@@ -50,6 +54,19 @@ func injectFigureTool(cfg *agentcore.Config) {
 	cfg.Tools = append(cfg.Tools, figuregenerate.NewTool(figureCfg), figuregenerate.NewSubmissionTool(figureCfg))
 }
 
+// injectPatentAnalysisTools 追加专利分析工具：技术问题合规检查、TRIZ 矛盾分析、
+// 分析报告聚合、对立审查（计划评估）与换位审查（最终产物评估）。
+// 全部为纯确定性工具（模型只负责识别/产出，程序核验），不依赖工作目录。
+func injectPatentAnalysisTools(cfg *agentcore.Config) {
+	cfg.Tools = append(cfg.Tools,
+		inventiveness.NewProblemCheckTool(),
+		triz.NewTool(),
+		analysisreport.NewTool(),
+		adversary.NewCheckTool(),
+		adversary.NewReviewTool(),
+	)
+}
+
 func injectDomainSharedExtensions(cfg *agentcore.Config) {
 	injectDraftingTool(cfg)
 	injectDocTemplateTools(cfg)
@@ -57,6 +74,7 @@ func injectDomainSharedExtensions(cfg *agentcore.Config) {
 	injectWritingTools(cfg)
 	injectRulesTools(cfg)
 	injectFigureTool(cfg)
+	injectPatentAnalysisTools(cfg)
 	if globalKnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
 	}

@@ -67,12 +67,17 @@ var ToolDomains = map[string]string{
 	"search_query_builder": "patent_search",
 
 	// ── 专利分析 (patent_analysis) ──
-	"patent_novelty":         "patent_analysis",
-	"patent_inventiveness":   "patent_analysis",
-	"novelty_analysis":       "patent_analysis",
-	"inventiveness_analysis": "patent_analysis",
-	"claim_compare":          "patent_analysis",
-	"feature_extractor":      "patent_analysis",
+	"patent_novelty":              "patent_analysis",
+	"patent_inventiveness":        "patent_analysis",
+	"novelty_analysis":            "patent_analysis",
+	"inventiveness_analysis":      "patent_analysis",
+	"claim_compare":               "patent_analysis",
+	"feature_extractor":           "patent_analysis",
+	"check_technical_problem":     "patent_analysis",
+	"triz_contradiction_analysis": "patent_analysis",
+	"patent_analysis_report":      "patent_analysis",
+	"adversary_check":             "patent_analysis",
+	"adversary_review":            "patent_analysis",
 
 	// ── 权利要求撰写 (drafting) ──
 	"claim_draft":         "drafting",

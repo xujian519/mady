@@ -77,6 +77,11 @@
 | figure_generate | write | `kind`, `output`, `steps`/`blocks`/`nodes`/`states`, `template` | 构建专利附图 DOT 并渲染 SVG/PNG/PDF |
 | figure_submission | write | `drawing`, `output`, `office`, `figure_number`, `sheet_index` | 按法域（cnipa/pct/uspto）落版到 A4 附图页，图号在图形正下方、页码在版心底部 |
 | figure_consistency | read | `figures`, `text`, `abstract_figure` | 跨图核验图号连续性、标记名称冲突与文本引用缺标 |
+| check_technical_problem | read | `problem`, `features`, `text` | 实际解决的技术问题合规检查（不绑方案/单一因果/可测效果/≠区别特征） |
+| triz_contradiction_analysis | read | `text`, `focus`, `extraction` | TRIZ 矛盾分析：39x39 矩阵落格、证据定位核验、参数缺口；未带 extraction 时返回抽取提示 |
+| patent_analysis_report | read | `claims`, `abstract`, `checker_failures`, `model_scores` | 汇总技术特征、质量评分、checker 判级与 IPC 摘要为统一分析报告 |
+| adversary_check | read | `office_action`, `claims_text`, `response_plan`, `model_output` | 对立审查员评估答复计划（覆盖率/权项对齐/分歧），未带 model_output 时返回提示 |
+| adversary_review | read | `final_draft`, `reference_documents`, `claims`, `office_action` | 换位审查最终意见陈述书的论证强度与遗漏 |
 
 ## 证据判断工具
 

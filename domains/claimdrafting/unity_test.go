@@ -34,8 +34,51 @@ func TestCheckUnity_RelatedClaims(t *testing.T) {
 	if !verdict.HasUnity {
 		t.Errorf("共享大量技术特征的独立权利要求应满足单一性，pair=%+v", verdict.PairScores)
 	}
-	if verdict.Score < unityScoreFair {
-		t.Errorf("评分应不低于一般线 60，got %.1f", verdict.Score)
+	if verdict.Score < unitySimThreshold*100 {
+		t.Errorf("评分应不低于阈值线 60，got %.1f", verdict.Score)
+	}
+	if verdict.Grade == UnityGradePoor {
+		t.Errorf("不应评为 poor，score=%.1f", verdict.Score)
+	}
+}
+
+func TestCheckUnity_ScoreIsWeakestPairPercent(t *testing.T) {
+	// 评分口径：最弱独立权利要求对的相似度百分数；评级与单一性判定随之一致。
+	claims := []Claim{
+		{Number: 1, Kind: "independent", Preamble: "一种智能门锁", Characterized: "包括锁体、指纹识别模块和控制模块"},
+		{Number: 2, Kind: "independent", Preamble: "一种智能门锁", Characterized: "包括锁体、指纹识别模块和电机"},
+		{Number: 3, Kind: "independent", Preamble: "一种中药煎煮设备", Characterized: "包括药罐和加热盘"},
+	}
+	verdict := CheckUnity(claims)
+	weakest := 1.0
+	for _, pair := range verdict.PairScores {
+		if pair.Similarity < weakest {
+			weakest = pair.Similarity
+		}
+	}
+	if diff := verdict.Score - weakest*100; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("score = %.4f, want weakest×100 = %.4f", verdict.Score, weakest*100)
+	}
+	switch {
+	case weakest < unitySimThreshold:
+		if verdict.HasUnity || verdict.Grade != UnityGradePoor {
+			t.Errorf("weakest=%.4f 应判 poor 且不满足单一性", weakest)
+		}
+	case weakest < unitySimGood:
+		if !verdict.HasUnity || verdict.Grade != UnityGradeFair {
+			t.Errorf("weakest=%.4f 应判 fair，got %s", weakest, verdict.Grade)
+		}
+	default:
+		if !verdict.HasUnity || verdict.Grade != UnityGradeGood {
+			t.Errorf("weakest=%.4f 应判 good，got %s", weakest, verdict.Grade)
+		}
+	}
+}
+
+func TestCheckUnity_NoPairsScore(t *testing.T) {
+	verdict := CheckUnity([]Claim{{Number: 1, Kind: "independent", Preamble: "一种加热装置"}})
+	if verdict.Score != unityNoPairsScore {
+		t.Errorf("无配对时评分 = %.1f, want %.1f", verdict.Score, unityNoPairsScore)
 	}
 }
 

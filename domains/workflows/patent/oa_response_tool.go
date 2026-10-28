@@ -72,7 +72,7 @@ func NewOAResponseTool(opts ...OAGraphOption) *agentcore.Tool {
 				OAStateInput: p.OAText,
 			}
 			if p.ClaimText != "" {
-				initialState["claim_text"] = p.ClaimText
+				initialState[OAStateClaimText] = p.ClaimText
 			}
 
 			state, err := compiled.Run(ctx, initialState)

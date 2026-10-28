@@ -2,6 +2,7 @@ package patent
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -675,12 +676,19 @@ func TestAnalyzeClaimsNode_MixedTypes(t *testing.T) {
 	if amendments == "" {
 		t.Fatal("expected non-empty claim amendments")
 	}
-	// 创造性（争辩）不生成修改行，不清楚（修改）生成一行。
+	// 创造性（争辩）不生成修改行；不清楚（修改）逐权项出行。
 	if !strings.Contains(amendments, "| 驳回类型 | 修改类型 |") {
 		t.Error("expected rejection type column in amendment table")
 	}
-	if !strings.Contains(amendments, "| 不清楚 | 澄清限定 | [原内容] | [建议修改] | 专利法第26条第4款（清楚） | 1, 2, 3 |") {
-		t.Errorf("expected clarity amendment row with claims 1, 2, 3, got:\n%s", amendments)
+	for _, claim := range []int{1, 2, 3} {
+		want := fmt.Sprintf("| 不清楚 | 从属引用调整 | [原内容] | [建议修改] | 专利法第26条第4款（清楚） | 权利要求%d（从属） |", claim)
+		if !strings.Contains(amendments, want) {
+			t.Errorf("expected per-claim clarity row %q, got:\n%s", want, amendments)
+		}
+	}
+	// 未给权利要求书时，全部权项按从属处理并报缺口（不得兜底当成权利要求 1）。
+	if !strings.Contains(amendments, "没有独立权利要求被点出") {
+		t.Errorf("expected independent-claim-absent gap:\n%s", amendments)
 	}
 	if strings.Contains(amendments, "| — | 无需修改 |") {
 		t.Errorf("argument+amendment mix should not show the no-amendment placeholder:\n%s", amendments)
@@ -791,8 +799,14 @@ func TestFullOAResponsePipeline_MixedTypes(t *testing.T) {
 			t.Errorf("expected %q in strategy summary", want)
 		}
 	}
-	// 清楚性驳回类型应有修改行（每类型一行，涉及权利要求列表展示）。
-	if !strings.Contains(output, "| 不清楚 | 澄清限定 | [原内容] | [建议修改] | 专利法第26条第4款（清楚） | 1, 2, 3, 4, 5 |") {
-		t.Errorf("expected clarity amendment row with all claims in output")
+	// 清楚性驳回逐权项出行（未给权利要求书时按从属处理，并报独立权项缺口）。
+	if !strings.Contains(output, "| 不清楚 | 从属引用调整 | [原内容] | [建议修改] | 专利法第26条第4款（清楚） | 权利要求5（从属） |") {
+		t.Errorf("expected per-claim clarity amendment row in output")
+	}
+	if !strings.Contains(output, "拟修改权项：1, 2, 3, 4, 5") {
+		t.Errorf("expected claims-to-amend summary in output")
+	}
+	if !strings.Contains(output, "没有独立权利要求被点出") {
+		t.Errorf("expected independent-claim-absent gap in output")
 	}
 }

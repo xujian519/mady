@@ -6,29 +6,32 @@ import (
 )
 
 // =============================================================================
-// 单一性评分引擎（移植自 Sati assets/patent-rules/unity.yaml 规范）
+// 单一性评分引擎
 //
-// 依据：专利法第31条第1款、实施细则第43条——一件专利申请应当限于一项发明；
+// 依据：专利法第31条第1款、实施细则第39条——一件专利申请应当限于一项发明；
 // 多个独立权利要求应包含"相同或相应的特定技术特征"（体现发明对现有技术贡献
 // 的技术特征）才满足单一性。
 //
-// 评分模型（对齐 unity.yaml）：
+// 评分模型：
 //   - 特征相似度 = 0.2×字符重叠 + 0.5×Jaccard + 0.3×Bigram 余弦
-//   - 相似度 ≥ 0.6 视为存在对应特征（阈值，实施细则第43条）
-//   - 综合得分 = 60（基础分） + 40×技术关联度（最弱权利要求对的相似度）
-//   - 评级：≥80 良好；≥60 一般；<60（或存在低于阈值的权利要求对）建议分案
+//   - 相似度 ≥ 0.6 视为存在相同或相应的特定技术特征（启发式阈值）
+//   - 评分 = 最弱独立权利要求对的相似度百分数；无配对可比较时为 100
+//   - 评级：≥0.8 良好；≥0.6 一般；<0.6（不满足单一性）建议分案
+//
+// 与 Sati unity.yaml 的差异：上游按 60 + 40×最弱对相似度 折算评分，使 fair
+// 分支不可达（相似度达 0.6 阈值时评分恒 ≥84），且"存在低于阈值对"的 poor
+// 可与 ≥80 分并存。改用相似度百分数后，评分、评级与单一性判定三者一致。
+// 阈值与权重是启发式口径而非法条数值：结论用于撰写自检，最终判断由代理师作出。
 // =============================================================================
 
-// 单一性阈值与权重常量（对齐 unity.yaml）。
+// 单一性阈值与权重常量。
 const (
-	unitySimThreshold = 0.6  // 特征对应判定阈值（实施细则第43条）
-	unityScoreBase    = 60.0 // 有单一性基础分
-	unityScoreBonus   = 40.0 // 技术关联度奖金系数
-	unityScoreGood    = 80.0 // 单一性良好阈值
-	unityScoreFair    = 60.0 // 单一性一般阈值
-	unityCharOverlapW = 0.2  // 字符重叠权重
-	unityJaccardW     = 0.5  // Jaccard 权重
-	unityBigramW      = 0.3  // Bigram 余弦权重
+	unitySimThreshold = 0.6   // 特征对应判定阈值
+	unitySimGood      = 0.8   // 评级良好线
+	unityNoPairsScore = 100.0 // 无配对可比较时的评分：不存在单一性风险
+	unityCharOverlapW = 0.2   // 字符重叠权重
+	unityJaccardW     = 0.5   // Jaccard 权重
+	unityBigramW      = 0.3   // Bigram 余弦权重
 )
 
 // UnityGrade 单一性评级。
@@ -36,8 +39,8 @@ type UnityGrade string
 
 // Unity grade constants.
 const (
-	UnityGradeGood UnityGrade = "good" // 单一性良好（≥80）
-	UnityGradeFair UnityGrade = "fair" // 单一性一般（≥60 且无低相似度对）
+	UnityGradeGood UnityGrade = "good" // 单一性良好（最弱对相似度 ≥0.8）
+	UnityGradeFair UnityGrade = "fair" // 单一性一般（≥0.6 且 <0.8）
 	UnityGradePoor UnityGrade = "poor" // 建议分案（存在低于阈值的权利要求对）
 )
 
@@ -67,7 +70,7 @@ func CheckUnity(claims []Claim) UnityVerdict {
 		}
 	}
 
-	verdict := UnityVerdict{HasUnity: true, Score: unityScoreGood, Grade: UnityGradeGood}
+	verdict := UnityVerdict{HasUnity: true, Score: unityNoPairsScore, Grade: UnityGradeGood}
 	if len(indClaims) < 2 {
 		return verdict
 	}
@@ -93,13 +96,13 @@ func CheckUnity(claims []Claim) UnityVerdict {
 		}
 	}
 
-	verdict.Score = unityScoreBase + unityScoreBonus*minSim
+	verdict.Score = minSim * 100
 	if minSim < unitySimThreshold {
 		verdict.HasUnity = false
 		verdict.Grade = UnityGradePoor
 		verdict.Diagnostics = append(verdict.Diagnostics,
 			"存在独立权利要求对的特征相似度低于 0.6，未发现相同或相应的特定技术特征，可能不满足单一性要求")
-	} else if verdict.Score >= unityScoreGood {
+	} else if minSim >= unitySimGood {
 		verdict.Grade = UnityGradeGood
 	} else {
 		verdict.Grade = UnityGradeFair
@@ -168,10 +171,7 @@ func countIntersection(setA, setB map[rune]bool) int {
 func charOverlap(a, b []rune) float64 {
 	setA, setB := runeSet(a), runeSet(b)
 	inter := countIntersection(setA, setB)
-	minLen := len(setA)
-	if len(setB) < minLen {
-		minLen = len(setB)
-	}
+	minLen := min(len(setA), len(setB))
 	if minLen == 0 {
 		return 0
 	}

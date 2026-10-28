@@ -46,6 +46,8 @@ const (
 	OAStateOutput           = "oa_output"            // string: final output text
 	OAStateLLMEnhanced      = "oa_llm_enhanced"      // bool: whether LLM enhancement was applied
 	OAStateApplicableRules  = "oa_applicable_rules"  // string: dynamically retrieved law articles (Markdown)
+	OAStateClaimText        = "claim_text"           // string: claims text (optional, for independent-claim detection)
+	OAStateResponsePlan     = "oa_response_plan"     // *OAResponsePlan: deterministic response plan
 )
 
 // =============================================================================
@@ -132,36 +134,33 @@ func analyzeClaimsNode(ctx context.Context, state graph.PregelState) (graph.Preg
 	}
 	strategies := determineResponseStrategies(rejectionTypes)
 
+	plan := buildOAResponsePlan(parsed, detectIndependentClaims(state.GetString(OAStateClaimText)))
+
 	var amendments strings.Builder
 	amendments.WriteString("## 权利要求修改对照表\n\n")
 	amendments.WriteString("| 驳回类型 | 修改类型 | 修改前 | 修改后 | 修改依据 | 涉及权利要求 |\n")
 	amendments.WriteString("|----------|----------|--------|--------|----------|---------------|\n")
 
-	// Amendment rows are generated per rejection type; argument-only grounds
-	// (novelty/inventiveness) contribute no rows unless combined with amendments.
-	hasAmendment := false
-	for i, rt := range rejectionTypes {
-		strategy := "argument"
-		if i < len(strategies) {
-			strategy = strategies[i]
-		}
-		if strategy != "amendment" && strategy != "combined" {
-			continue
-		}
-		hasAmendment = true
-		// 以受影响权利要求中最靠前的为准，判定独立/从属权利要求的修改动作。
-		claimNum := 1
-		if len(parsed.AffectedClaims) > 0 {
-			claimNum = parsed.AffectedClaims[0]
-		}
-		fmt.Fprintf(&amendments, "| %s | %s | [原内容] | [建议修改] | %s | %s |\n",
-			rejectionTypeLabel(rt), claimAmendmentType(rt, claimNum), amendmentBasis(rt),
-			formatClaimList(parsed.AffectedClaims))
+	// 修改对照逐权项出行：同一条驳回理由下的每项受影响权利要求各占一行，
+	// 修改动作按该权项的独立/从属类型取值（不再用「最靠前权项」代表全体）。
+	for _, row := range plan.AmendmentRows {
+		fmt.Fprintf(&amendments, "| %s | %s | [原内容] | [建议修改] | %s | 权利要求%d（%s） |\n",
+			rejectionTypeLabel(row.Ground), amendmentActionLabel(row.Action), row.Basis,
+			row.Claim, oaClaimKindLabel(row.Kind))
 	}
-	if !hasAmendment {
+	if len(plan.AmendmentRows) == 0 {
 		amendments.WriteString("| — | 无需修改 | — | — | 基于以下争辩理由，本权利要求无需修改 | — |\n")
 	}
-	amendments.WriteString("\n> 注：涉及权利要求按通知书整体提取，各驳回理由对应的具体权利要求请以通知书原文为准。\n\n")
+	if len(plan.ClaimsToAmend) > 0 {
+		fmt.Fprintf(&amendments, "\n拟修改权项：%s。\n", formatClaimList(plan.ClaimsToAmend))
+	}
+	if len(plan.Gaps) > 0 {
+		amendments.WriteString("\n### 答复计划缺口（须人工确认）\n\n")
+		for _, gap := range plan.Gaps {
+			fmt.Fprintf(&amendments, "- %s\n", gap.Detail)
+		}
+	}
+	amendments.WriteString("\n")
 
 	// Strategy-specific guidance, one block per rejection type.
 	amendments.WriteString("## 答复策略建议\n\n")
@@ -208,6 +207,7 @@ func analyzeClaimsNode(ctx context.Context, state graph.PregelState) (graph.Preg
 
 	return graph.PregelState{
 		OAStateClaimAmendments: amendments.String(),
+		OAStateResponsePlan:    &plan,
 	}, nil
 }
 
