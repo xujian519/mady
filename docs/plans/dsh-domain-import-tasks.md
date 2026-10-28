@@ -119,10 +119,10 @@ FreeCAD 结构图（原 W4-F3）不在本表，由 T-R-01 研究结论决定是�
 | 9–16 | figure-delivery / input / output / panels / render-plan / run / submission / tool-schemas | W4 | F1–F4 |
 | 17 | generate-patent-figure | W4 | F1 |
 | 18 | generate-structure-figure | 待研究 | 依赖 FreeCAD，T-R-01 结论前不立项 |
-| 19 | knowledge-note-file-writer | 部分 | `knowledge/patenttools` 补文件写入 |
-| 20 | knowledge-note-save | 部分 | 同上 |
-| 21 | law-search | 部分 | 复用 `knowledge/sqlite.SearchLaws`，补条文级返回 |
-| 22 | matter-log-append | 部分 | `domains/provenance` 补只追加语义 |
+| 19 | knowledge-note-file-writer | 有 | `knowledge/patenttools` 写入 user.db（可被 search_knowledge 召回），不落文件 |
+| 20 | knowledge-note-save | 有 | `knowledge_note_save`（id 幂等，写 user.db） |
+| 21 | law-search | 有 | `legal_knowledge_search`（四类检索 + 效力四态 + 来源路径）与 `search_laws` |
+| 22 | matter-log-append | 有 | `domains/matterlog`（W5-03）：只追加日志 + 取代链校验 + 五类拒绝 |
 | 23 | parse-office-action | 有 | `domains/rules/oa_parser` |
 | 24 | patent-analysis-report | 有 | `domains/analysisreport`（W5-02） |
 | 25 | patent-case-search | 有 | `knowledge/sqlite` |
@@ -138,20 +138,20 @@ FreeCAD 结构图（原 W4-F3）不在本表，由 T-R-01 研究结论决定是�
 | 37 | patent-worker-validate | 有 | `domains/workercontract` |
 | 38 | patent-workflow-run | 有 | `domains/workflows/patent` |
 | 39 | patent-workflow | 有 | 同上 |
-| 40 | recognize-chemical-structure | 部分 | `domains/chemistry` 补视觉结构识别（依赖 vision） |
+| 40 | recognize-chemical-structure | 部分 | 需视觉模型与结构识别引擎，W5-03 未做（见未覆盖） |
 | 41 | rule-check | 有 | `domains/rules`；门禁化见 T-W1-05 |
 | 42 | search-patent-figure | W4 | F4 |
 | 43 | spec-claim-coverage | 有 | `domains/claimdrafting` coverage + unity（W5-02 修正口径） |
 | 44 | spec-figure-marks | W4 | F4 |
 | 45 | spec-numeric | 有 | `domains/novelty/numeric_range.go` |
-| 46 | spec-quantification | 缺 | W5-03 |
-| 47 | spec-style | 部分 | `domains/doctmpl` 样式投影 |
-| 48 | spec-types | 部分 | `domains/specdrafting` 类型规则 |
+| 46 | spec-quantification | 有 | `domains/specdrafting/quantification.go`（W5-03） |
+| 47 | spec-style | 有 | `domains/specdrafting/style.go`（W5-03）：五部分标题/顺序、附图标记、图号、段号、摘要标题 |
+| 48 | spec-types | 有 | 类型词汇并入 `domains/specdrafting` 的 SpecInput/ScoreReport 契约 |
 | 49–51 | structure-model / -render / -types | 待研究 | 依赖 FreeCAD，随 T-R-01 结论 |
 | 52 | triz-contradiction-analysis | 有 | `domains/triz`（W5-02） |
 | 53 | validate-specification | 有 | `domains/specdrafting` |
 | 54 | verify-patent-figure | W4 | F4 |
-| 55 | workbench-link-patent-case | 部分 | `domains/caseindex` 补关联 |
+| 55 | workbench-link-patent-case | 不适用 | 依赖 dsh 个人工作台 loopback 服务；Mady 案件管理由 `domains/caseindex` 承担 |
 
 ---
 
@@ -266,6 +266,7 @@ FreeCAD 结构图（原 W4-F3）不在本表，由 T-R-01 研究结论决定是�
 | W4-F2 | ✅ 完成 | 2026-10-28 | 83e6dea | T-W4-02 完成：字框/渲染核验 + 时序图 + 剖视图 |
 | W4-F3 | ✅ 完成 | 2026-10-28 | 9d7fb05 | T-W4-03 完成：法域档案 / 提交页落版 / 跨图一致性 + 两个工具 |
 | W5-02 | ✅ 完成 | 2026-10-28 | e307ef3 | T-W5-02 完成：TRIZ、四检验增量、覆盖/单一性修正、OA 答复计划、分析报告、对立审查 |
+| W5-03 | ✅ 完成（化学结构识别除外） | 2026-10-28 | 本提交 | 说明书形式/量化检查 + 案卷事件日志；其余工具经核验已有等价实现或不适配 |
 | W5（其余） | ☐ 未开始 | | | T-W5-01 团队、T-W5-03 工具补齐、T-W5-04 数据/知识、T-W5-05 文献 |
 | W6（可选） | ☐ 未开始 | | | |
 

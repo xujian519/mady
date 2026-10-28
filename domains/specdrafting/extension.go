@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/xujian519/mady/agentcore"
@@ -105,14 +106,29 @@ func (e *Extension) Tools() []*agentcore.Tool {
 			Func: e.handleDraftSpecification,
 		},
 		{
-			Name:        "validate_specification",
-			Description: "验证专利说明书是否符合中国专利法的撰写要求，包括结构完整性、清楚性、领域适配性、形式规范等16条检查规则。",
+			Name: "validate_specification",
+			Description: "验证专利说明书是否符合中国专利法的撰写要求：结构/清楚性/领域适配等规则评分，" +
+				"并对全文做形式检查（五部分标题与顺序、附图标记括号、图号空格、段落编号）与量化检查（空泛效果、化学表征）。" +
+				"text 省略时按 sections 渲染全文再检查。",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"specification": map[string]any{
 						"type":        "object",
 						"description": "待验证的说明书，包含 title/abstract/sections 字段",
+					},
+					"text": map[string]any{
+						"type":        "string",
+						"description": "说明书全文（Markdown，可选）；省略时用 sections 渲染",
+					},
+					"abstract": map[string]any{
+						"type":        "string",
+						"description": "摘要文字（可选；省略时取 specification.abstract）",
+					},
+					"tech_domain": map[string]any{
+						"type":        "string",
+						"enum":        []string{"mechanical", "electrical", "chemical", "software", "general"},
+						"description": "技术领域（可选；chemical 启用表征手段检查）",
 					},
 				},
 				"required":             []string{"specification"},
@@ -176,6 +192,9 @@ func (e *Extension) handleDraftSpecification(ctx context.Context, args json.RawM
 func (e *Extension) handleValidateSpecification(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		Specification json.RawMessage `json:"specification"`
+		Text          string          `json:"text"`
+		Abstract      string          `json:"abstract"`
+		TechDomain    string          `json:"tech_domain"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("validate_specification: 参数解析失败: %w", err)
@@ -190,7 +209,53 @@ func (e *Extension) handleValidateSpecification(ctx context.Context, args json.R
 		return nil, fmt.Errorf("validate_specification: 说明书 JSON 解析失败: %w", err)
 	}
 
-	return e.scorer.Score(&spec, SpecInput{}), nil
+	// 形式与量化检查：全文优先取调用方给出的 text，否则按 sections 渲染。
+	text := strings.TrimSpace(params.Text)
+	if text == "" {
+		text = renderSpecificationText(&spec)
+	}
+	abstract := params.Abstract
+	if abstract == "" {
+		abstract = spec.Abstract
+	}
+	domain := spec.Metadata.TechDomain
+	if params.TechDomain != "" {
+		domain = parseTechDomain(params.TechDomain)
+	}
+	extra := CheckSpecStyle(text, abstract)
+	extra = append(extra, CheckQuantification(text, domain)...)
+
+	// 补充违规与规则引擎违规一起评分，分数、等级与判级同源。
+	return e.scorer.ScoreWith(&spec, SpecInput{}, extra), nil
+}
+
+// sectionDisplayTitles 把章节名映射为实施细则第二十条的标题写法。
+var sectionDisplayTitles = map[SpecSectionName]string{
+	SecTechField:  "技术领域",
+	SecBackground: "背景技术",
+	SecContent:    "发明内容",
+	SecDrawings:   "附图说明",
+	SecEmbodiment: "具体实施方式",
+	SecAbstract:   "摘要",
+}
+
+// renderSpecificationText 把结构化说明书渲染为 Markdown 全文（供形式检查）。
+func renderSpecificationText(spec *SpecOutput) string {
+	var builder strings.Builder
+	for _, section := range spec.Sections {
+		title := section.Title
+		if title == "" {
+			title = sectionDisplayTitles[section.Name]
+		}
+		if title != "" {
+			builder.WriteString("## ")
+			builder.WriteString(title)
+			builder.WriteString("\n")
+		}
+		builder.WriteString(section.Content)
+		builder.WriteString("\n\n")
+	}
+	return strings.TrimSpace(builder.String())
 }
 
 // buildInputFromParams 从工具参数构造 SpecInput。

@@ -1,6 +1,7 @@
 package specdrafting
 
 import (
+	"math"
 	"sort"
 
 	"github.com/xujian519/mady/domains/rulekit"
@@ -22,13 +23,28 @@ func NewSpecScorer(engine *RuleEngine) *SpecScorer {
 
 // Score 进行综合评分，返回评分报告。
 func (s *SpecScorer) Score(spec *SpecOutput, input SpecInput) *ScoreReport {
+	return s.ScoreWith(spec, input, nil)
+}
+
+// ScoreWith 在规则引擎违规之外并入调用方的补充违规（形式/量化检查）后统一评分：
+// 同一批违规同时决定分数、等级与判级，避免「分数满分但判级 blocked」的双信号。
+func (s *SpecScorer) ScoreWith(spec *SpecOutput, input SpecInput, extra []Violation) *ScoreReport {
 	if spec == nil || len(spec.Sections) == 0 {
 		return &ScoreReport{OverallScore: 0, Grade: "D", Suggestions: []string{"说明书为空"}}
 	}
 
-	allViolations := s.engine.Validate(spec, input)
+	allViolations := append(s.engine.Validate(spec, input), extra...)
 	dimensionScores := s.calcDimensionScores(allViolations)
 	overall := s.calcOverall(dimensionScores)
+	verdict := rulekit.AggregateWithDefault(allViolations)
+	// 判级与分数同源：blocked 的产出不得读成 A/B，needs_revision 不得读成 A。
+	// 加权平均会把低权重维度里的一处阻断问题稀释成高分，必须按判级设上限。
+	switch verdict {
+	case rulekit.VerdictBlocked:
+		overall = math.Min(overall, 59)
+	case rulekit.VerdictNeedsRevision:
+		overall = math.Min(overall, 74)
+	}
 	suggestions := s.generateSuggestions(allViolations)
 
 	return &ScoreReport{
@@ -37,7 +53,7 @@ func (s *SpecScorer) Score(spec *SpecOutput, input SpecInput) *ScoreReport {
 		Violations:      allViolations,
 		Suggestions:     suggestions,
 		Grade:           gradeFromScore(overall),
-		Verdict:         rulekit.AggregateWithDefault(allViolations),
+		Verdict:         verdict,
 	}
 }
 
@@ -60,10 +76,14 @@ func (s *SpecScorer) calcDimensionScores(violations []Violation) map[string]floa
 	}
 
 	dimensionRules := map[string][]string{
-		DimCompleteness:     {"structure-sections", "structure-content-triad"},
-		DimClarity:          {"clarity-terminology", "clarity-forbidden-words", "clarity-pfe-consistency", "clarity-term-consistency", "clarity-effects-specific", "clarity-citation"},
-		DimSupport:          {"structure-embodiment-detail", "enablement-means-exist", "enablement-experiment-evidence"},
-		DimFormality:        {"structure-title-length", "structure-abstract-length"},
+		DimCompleteness: {"structure-sections", "structure-content-triad"},
+		DimClarity: {"clarity-terminology", "clarity-forbidden-words", "clarity-pfe-consistency",
+			"clarity-term-consistency", "clarity-effects-specific", "clarity-citation", "effect_quantification"},
+		DimSupport: {"structure-embodiment-detail", "enablement-means-exist",
+			"enablement-experiment-evidence", "chemical_characterization"},
+		DimFormality: {"structure-title-length", "structure-abstract-length", "heading_set",
+			"section_order", "figure_mark_parentheses", "figure_number_spacing",
+			"paragraph_numbering", "abstract_heading"},
 		DimDomainAdaptation: {"domain-mechanical", "domain-electrical", "domain-chemical", "domain-chemical-embodiment", "domain-software", "utility-drawings-required", "utility-product-only"},
 	}
 

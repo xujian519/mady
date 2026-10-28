@@ -11,6 +11,7 @@ import (
 	figuregenerate "github.com/xujian519/mady/domains/figure/generate"
 	"github.com/xujian519/mady/domains/inventiveness"
 	"github.com/xujian519/mady/domains/lawverify"
+	"github.com/xujian519/mady/domains/matterlog"
 	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/domains/triz"
 	"github.com/xujian519/mady/guardrails"
@@ -67,6 +68,19 @@ func injectPatentAnalysisTools(cfg *agentcore.Config) {
 	)
 }
 
+// injectCaseTools 追加案卷留档工具（只追加事件日志）。
+// 产物路径限定在项目目录（缺省为工作区）内；工作目录未配置时不注入。
+func injectCaseTools(cfg *agentcore.Config) {
+	workDir := cfg.ProjectDir
+	if workDir == "" {
+		workDir = cfg.WorkspaceDir
+	}
+	if workDir == "" {
+		return
+	}
+	cfg.Tools = append(cfg.Tools, matterlog.NewTool(matterlog.ToolConfig{WorkingDir: workDir}))
+}
+
 func injectDomainSharedExtensions(cfg *agentcore.Config) {
 	injectDraftingTool(cfg)
 	injectDocTemplateTools(cfg)
@@ -75,6 +89,7 @@ func injectDomainSharedExtensions(cfg *agentcore.Config) {
 	injectRulesTools(cfg)
 	injectFigureTool(cfg)
 	injectPatentAnalysisTools(cfg)
+	injectCaseTools(cfg)
 	if globalKnowledgeExt != nil {
 		cfg.Extensions = append(cfg.Extensions, globalKnowledgeExt)
 	}

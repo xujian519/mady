@@ -69,6 +69,7 @@
 
 | 工具 | 分类 | 关键参数 | 说明 |
 |------|------|----------|------|
+| matter_log_append | write | `case_dir`, `action`, `artifacts`, `changes`, `supersedes` | 案卷只追加事件日志：取代链校验、原地覆盖/分叉拒绝 |
 | search_rules | read | `query`, `domain` | 规则库检索 |
 | get_article_framework | read | `statute` | 获取法条框架 |
 | get_orchestration | read | `case_type` | 获取审查意见编排 |
