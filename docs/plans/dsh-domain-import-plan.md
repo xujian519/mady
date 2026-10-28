@@ -451,7 +451,8 @@ type StatutoryEvidence struct {
 |---|---|---|---|
 | W-1 | ✅ 完成 | 1b1dd92 | ADR 0008 已批准；FreeCAD 结论为暂不立项 |
 | W0 | ✅ 完成 | 98e1828 | `pkg/indexasset` 覆盖率 95.5%；资产指纹脚本落地 |
-| W1 | ◐ 部分完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb | T-W1-01～04 完成；T-W1-05 机制完成、规则接入 96 条 |
+| W1 | ✅ 完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb · ec93acd · 174d5f8 | T-W1-01～05 完成；门禁接入 107 条 |
+| W2 | ◐ 进行中 | 待提交 | T-W2-02（CNIPA 出件）完成；T-W2-01/03/04/05 待做 |
 
 ### 批 A / 批 B 规则接入状态
 
@@ -474,3 +475,10 @@ type StatutoryEvidence struct {
 2. **结构性规则的执行点**：`structural_analysis` 不在 OutputGate 生效——它对任意工具结果全文都会报「缺要素」，只对交付制品文本判定（`StructuralGate` 的 entries 待 W2 交付工具就绪后配置）。
 3. **review 级**：Mady 的 OutputGate 同样按标注处理，审批仍由既有 ApprovalGate 在模型输出层负责。
 4. **骨架约束**：结构性规则不参与法条核验的状态判定，`ExistOnly` 仍不会被提升为 `Verified`（见 fail-closed 判定表 FC-1）。
+
+### W2 出件状态（T-W2-02）
+
+- **体例真相源**：`domains/filing/data/template/申请文件模板.docx`（2012 CNIPA 体例的去标识化副本，5 节、宋体/Times New Roman 12pt、1.5 倍行距、首行缩进 24pt）。桌面原件当前不存在，以随包副本为准；其 sha256 与 `TEMPLATE-IDENTITY.md` 登记值一致，由 `TestTemplateFingerprint` 守住。
+- **两步流程**：`build.py` 负责按模板反解体例并成文，`verify.py` 负责节数/编号/禁用词/禁用色/字号断言；验收不通过时删除成品，不留半成品。
+- **Go 编排**：`domains/filing.Compose` 解压随包资产、调用引擎、校验报告；Python 解释器按「能 import docx」探测（本机 3.15 未装 python-docx，实际落到 3.11）。
+- **未做**：出件工具接线与交付件登记（T-W2-03）、13 套交付模板（T-W2-01）、模板去重（T-W2-04）、Office→PDF（T-W2-05）。

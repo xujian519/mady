@@ -1,0 +1,53 @@
+{
+  "id": "申请文件",
+  "title": "CNIPA 专利申请文件（说明书摘要 + 摘要附图 + 权利要求书 + 说明书 + 说明书附图）",
+  "note": "本 spec 只描述【结构与断言】。外观的真相源是模板 .docx：style 块是模板体例的投影，成文前由 style.resolve_style 从模板反解并逐项核对，不是第二个真相源。要改体例就改模板（或换一份模板并同步本 spec）。assertions.numbering_pattern 是成文写入 [NNNN] 编号与验收核对编号共用的匹配式（一处定义，两处使用）。另：说明书节的 numbering 为 none、说明书名称由 specification_title 从权利要求第 1 项的主题名称派生（写在该节第一行、左右居中、其后空一行）——前者是《专利法实施细则》第二十条未要求段落编号下的体例选择，后者依《专利审查指南》第一部分第一章 4.2。",
+
+  "sections": [
+    { "key": "abstract",        "header": "说明书摘要", "from": "abstract",      "kind": "text",   "numbering": "none" },
+    { "key": "abstract_figure", "header": "摘要附图",   "from": "figures",       "kind": "figure", "figure_index": 0, "figure_index_from": "abstractFigureIndex" },
+    { "key": "claims",          "header": "权利要求书", "from": "claims",        "kind": "text",   "numbering": "none" },
+    { "key": "specification",   "header": "说明书",     "from": "specification", "kind": "mixed",  "numbering": "none" },
+    { "key": "figures",         "header": "说明书附图", "from": "figures",       "kind": "figure", "figure_all": true, "one_per_page": true }
+  ],
+
+  "style": {
+    "eastAsia": "宋体",
+    "ascii": "Times New Roman",
+    "cs": "Times New Roman",
+    "size_pt": 12,
+    "table_size_pt": 12,
+    "line_spacing": 1.5,
+    "first_line_indent": 24
+  },
+
+  "figure_width_cm": 14.5,
+  "specification_title": {
+    "from": "claims",
+    "pattern": "^\\s*1[.、]\\s*([^，。；]+)",
+    "max_chars": 25,
+    "section": "specification"
+  },
+  "heading_bold": true,
+
+  "assertions": {
+    "section_count": 5,
+    "headers": ["说明书摘要", "摘要附图", "权利要求书", "说明书", "说明书附图"],
+    "spec_headings": ["技术领域", "背景技术", "发明内容", "附图说明", "具体实施方式"],
+    "claim_pattern": "^\\s*[0-9]+\\.\\s*(?:一种|根据权利要求|如权利要求)",
+    "numbering_pattern": "^\\[(\\d{4})\\]",
+    "continuity": true,
+    "forbid_text": [
+      "内部复核稿",
+      "待补案卷号",
+      "待签",
+      "AI 辅助生成",
+      "不构成正式法律意见",
+      "（摘要正文实测",
+      "待代理师复核",
+      "HITL"
+    ],
+    "forbid_colors": true,
+    "max_sizes_pt": [12]
+  }
+}
