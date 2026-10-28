@@ -107,7 +107,8 @@ var ToolDomains = map[string]string{
 	"disclosure_analyze": "disclosure",
 
 	// ── 证据分析 (evidence) ──
-	"evidence_check": "evidence",
+	"evidence_check":          "evidence",
+	"evaluate_legal_evidence": "evidence",
 
 	// ── 充分公开 (enablement) ──
 	"enablement_check": "enablement",

@@ -82,6 +82,7 @@
 | assess_standard | read | issue_type, jurisdiction | 证明标准适用评估 |
 | detect_conflict | read | evidences | 多份证据间的矛盾判定 |
 | judge_type_specific | read | evidence_type, evidence | 按证据类型的专门评价 |
+| evaluate_legal_evidence | read | kind, acquisition_context, 各项声明字段 | 民诉法 66 条八类法定证据 × 取证场景的二维三性评估 |
 
 ## 编排与任务工具
 
