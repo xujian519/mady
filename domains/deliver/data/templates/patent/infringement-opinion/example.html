@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>侵权比对意见书 — 示例</title>
+<style>
+  :root {
+    --doc-firm: var(--sati-doc-firm, "XX 知识产权代理事务所");
+    --doc-confidential: var(--sati-doc-confidential, "机密 · 仅供委托方使用");
+    --doc-disclaimer: var(--sati-doc-disclaimer, "本文件由 AI 辅助生成，不构成正式法律意见。侵权诉讼的主张与抗辩应由具备资质的专利律师确认。");
+    --doc-accent: var(--sati-doc-accent, #1f3a5f);
+    --doc-accent-strong: var(--sati-doc-accent-strong, #16324f);
+    --doc-body: var(--sati-doc-body, #1a1a1a);
+    --doc-muted: var(--sati-doc-muted, #6b6b6b);
+    --doc-border: var(--sati-doc-border, #c9c9c9);
+    --doc-header-bg: var(--sati-doc-header-bg, #f6f6f2);
+    --doc-surface: var(--sati-doc-surface, #ffffff);
+    --doc-zebra: var(--sati-doc-zebra, #fbfbf9);
+    --doc-badge-high: var(--sati-doc-danger, #b42318);
+    --doc-badge-mid: var(--sati-doc-warning, #b54708);
+    --doc-badge-low: var(--sati-doc-success, #067647);
+    --doc-font-serif: var(--sati-doc-font-serif, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif);
+    --doc-font-sans: var(--sati-doc-font-sans, "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", "SimHei", "PingFang SC", sans-serif);
+    --doc-font-mono: var(--sati-doc-font-mono, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 12pt; }
+  body { font-family: var(--doc-font-serif); color: var(--doc-body); background: var(--doc-surface); line-height: 1.8; padding: 0 18mm; max-width: 174mm; margin: 0 auto; }
+  .doc-header { display: flex; justify-content: space-between; align-items: baseline; padding: 7mm 0 3mm; border-bottom: 2px solid var(--doc-accent); font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); }
+  .doc-header .firm::before { content: var(--doc-firm); font-weight: 600; color: var(--doc-accent); }
+  .doc-header .confidential::before { content: var(--doc-confidential); letter-spacing: 0.08em; }
+  .doc-masthead { text-align: center; padding: 8mm 0 4mm; }
+  .doc-masthead .doc-type { display: inline-block; font-family: var(--doc-font-sans); font-size: 9pt; letter-spacing: 0.4em; color: var(--doc-accent); border: 1px solid var(--doc-accent); padding: 1px 10px; margin-bottom: 4mm; }
+  .doc-masthead h1 { font-family: var(--doc-font-sans); font-size: 16pt; font-weight: 700; letter-spacing: 0.12em; color: var(--doc-accent-strong); }
+  .doc-masthead .doc-number { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); margin-top: 2.5mm; }
+  .doc-meta { display: grid; grid-template-columns: auto 1fr; gap: 0.6mm 6mm; width: 100%; margin: 5mm 0 6mm; border: 1px solid var(--doc-border); font-size: 11pt; }
+  .doc-meta dt { font-family: var(--doc-font-sans); font-weight: 600; color: var(--doc-accent); background: var(--doc-header-bg); padding: 1.2mm 4mm; white-space: nowrap; }
+  .doc-meta dd { padding: 1.2mm 4mm; }
+  section { margin: 5mm 0; }
+  h2 { font-family: var(--doc-font-sans); font-size: 13pt; font-weight: 700; color: var(--doc-accent-strong); padding-bottom: 1mm; margin: 6mm 0 3mm; border-bottom: 1px solid var(--doc-border); }
+  h3 { font-family: var(--doc-font-sans); font-size: 11.5pt; font-weight: 600; color: var(--doc-accent); margin: 4mm 0 2mm; }
+  p { margin: 1.5mm 0; text-align: justify; }
+  ol, ul { margin: 1.5mm 0 1.5mm 7mm; }
+  li { margin: 0.8mm 0; }
+  .callout { border: 1px solid var(--doc-border); border-left: 3px solid var(--doc-accent); padding: 3mm 4mm; margin: 3mm 0; font-size: 11pt; }
+  .callout .callout-title { font-family: var(--doc-font-sans); font-weight: 700; font-size: 10.5pt; color: var(--doc-accent); margin-bottom: 1mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5pt; margin: 2.5mm 0; font-variant-numeric: tabular-nums; }
+  caption { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); text-align: left; margin-bottom: 1mm; }
+  th, td { border: 1px solid var(--doc-border); padding: 1.5mm 2.5mm; vertical-align: top; }
+  th { font-family: var(--doc-font-sans); font-weight: 600; background: var(--doc-header-bg); color: var(--doc-accent-strong); white-space: nowrap; }
+  tbody tr:nth-child(even) { background: var(--doc-zebra); }
+  .mono { font-family: var(--doc-font-mono); font-size: 9.5pt; }
+  .badge { display: inline-block; font-family: var(--doc-font-sans); font-size: 9pt; line-height: 1.4; padding: 0 5px; border-radius: 2px; white-space: nowrap; }
+  .badge-evidence { border: 1px solid var(--doc-accent); color: var(--doc-accent); }
+  .badge-low { background: var(--doc-badge-low); color: #fff; }
+  .badge-mid { background: var(--doc-badge-mid); color: #fff; }
+  .disclaimer { border: 1px solid var(--doc-border); background: var(--doc-header-bg); padding: 3mm 4mm; font-size: 9.5pt; color: var(--doc-muted); margin: 3mm 0; }
+  .disclaimer::before { content: "免责声明："; font-weight: 700; color: var(--doc-body); }
+  .disclaimer::after { content: var(--doc-disclaimer); }
+  .doc-footer { margin: 6mm 0 4mm; padding-top: 2mm; border-top: 1px solid var(--doc-border); display: flex; justify-content: space-between; font-family: var(--doc-font-sans); font-size: 8.5pt; color: var(--doc-muted); }
+  .signature { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .signature .sign-block { border-top: 1px solid var(--doc-body); padding-top: 1.5mm; font-family: var(--doc-font-sans); font-size: 10pt; }
+  @page { size: A4; margin: 16mm 18mm 18mm 18mm; }
+</style>
+</head>
+<body>
+
+  <header class="doc-header">
+    <span class="firm"></span>
+    <span class="confidential"></span>
+  </header>
+
+  <div class="doc-masthead">
+    <span class="doc-type">侵 权 比 对 意 见 书</span>
+    <h1>侵权比对意见书</h1>
+    <div class="doc-number">案卷号：CN2026-0003 · 版本 V1.0</div>
+  </div>
+
+  <dl class="doc-meta">
+    <dt>涉案专利号</dt><dd class="mono">ZL201910234567.8</dd>
+    <dt>发明名称</dt><dd>一种电池模组温度均衡装置</dd>
+    <dt>专利权人</dt><dd>上海××动力科技有限公司</dd>
+    <dt>被控产品/方法</dt><dd>××牌 T200 电池模组（深圳××电子有限公司制造）</dd>
+    <dt>委托方立场</dt><dd>专利权人（主张方）</dd>
+    <dt>报告日期</dt><dd>2026-10-15</dd>
+  </dl>
+
+  <section>
+    <h2>一、权利要求解释</h2>
+    <div class="callout">
+      <div class="callout-title">权利要求 1 全文</div>
+      <p>一种电池模组温度均衡装置，其特征在于，包括：液冷板，所述液冷板内设有至少一个独立流道；热电偶，所述热电偶设置于所述液冷板与电池单体之间，用于检测接触面温度；所述液冷板与所述电池单体之间设有柔性导热界面层，所述柔性导热界面层的厚度为 0.5-1.0mm。</p>
+    </div>
+    <ul>
+      <li>「柔性导热界面层」为功能性/结构限定，说明书第 4 页实施例 1-2 给出硅胶基材质，解释为具有一定厚度且可变形导热层；</li>
+      <li>审查历史中未对此特征作出限缩承诺，无禁反言限制；</li>
+      <li>针对「0.5-1.0mm」的数值范围，说明书第 5 页表 1 有实施例数据支撑。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>二、被控产品/方法特征分解</h2>
+    <p>被控产品 T200 电池模组采用液冷板 + 热电偶 + 导热垫结构，导热垫实测厚度 0.6mm（技术白皮书第 12 页）。</p>
+    <table>
+      <caption>表 1 · 被控物特征清单</caption>
+      <thead>
+        <tr><th style="width:8%">特征号</th><th style="width:56%">被控特征描述</th><th style="width:22%">来源</th><th style="width:14%">来源类型</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">a</td><td>液冷板（铝制，内置独立流道）</td><td>白皮书 P8 图 3</td><td><span class="badge badge-evidence">证据</span></td></tr>
+        <tr><td class="mono">b</td><td>热电偶贴装于液冷板与电芯之间</td><td>白皮书 P11</td><td><span class="badge badge-evidence">证据</span></td></tr>
+        <tr><td class="mono">c</td><td>柔性硅胶导热垫，厚 0.6mm</td><td>白皮书 P12 + 送样实测</td><td><span class="badge badge-evidence">证据</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>三、全面覆盖逐特征比对</h2>
+    <table>
+      <caption>表 2 · 逐特征比对（全面覆盖）</caption>
+      <thead>
+        <tr><th style="width:7%">特征号</th><th style="width:25%">权利要求特征</th><th style="width:30%">被控特征</th><th style="width:12%">比对结论</th><th style="width:26%">理由 / 依据</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">1</td><td>液冷板 + 至少一个独立流道</td><td>铝制液冷板 + 独立流道（a）</td><td><span class="badge badge-low">相同</span></td><td>公开结构一致</td></tr>
+        <tr><td class="mono">2</td><td>热电偶设置于液冷板与电池单体之间</td><td>热电偶贴装于液冷板与电芯之间（b）</td><td><span class="badge badge-low">相同</span></td><td>位置与连接关系一致</td></tr>
+        <tr><td class="mono">3</td><td>柔性导热界面层，厚 0.5-1.0mm</td><td>柔性硅胶导热垫，厚 0.6mm（c）</td><td><span class="badge badge-low">相同</span></td><td>0.6mm 在 0.5-1.0mm 范围内</td></tr>
+      </tbody>
+    </table>
+    <p>结论：被控产品全面覆盖权利要求 1 的全部技术特征：<strong>成立（直接侵权初步判断）</strong></p>
+  </section>
+
+  <section>
+    <h2>四、等同分析（待定特征）</h2>
+    <table>
+      <caption>表 3 · 等同分析（手段-功能-效果 + 显而易见性）</caption>
+      <thead>
+        <tr><th style="width:7%">特征号</th><th style="width:18%">手段</th><th style="width:18%">功能</th><th style="width:18%">效果</th><th style="width:20%">显而易见性判断</th><th style="width:19%">等同与否</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">—</td><td>全部特征相同，无待定特征</td><td>—</td><td>—</td><td>—</td><td><span class="badge badge-low">不适用</span></td></tr>
+      </tbody>
+    </table>
+    <p>等同主张的限制因素（禁反言、捐献、自由公知技术抗辩）：</p>
+    <ul>
+      <li>审查历史无限缩承诺，禁反言不适用；</li>
+      <li>无捐献排除事项；</li>
+      <li>被告可能主张 0.6mm 属公知衬垫厚度（待其提交现有技术证据后评估）。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>五、结论与风险</h2>
+    <div class="callout">
+      <div class="callout-title">比对结论</div>
+      <p>被控产品 T200 电池模组全面覆盖权利要求 1 的全部技术特征，初步认定落入 ZL201910234567.8 的保护范围；被告的现有技术抗辩需以其提交的公开文本为准进一步评估。</p>
+    </div>
+    <ol>
+      <li>被告可能提交公开日早于申请日的现有技术证据，需对其公开日与公开内容逐项核验；</li>
+      <li>0.6mm 厚度为送样实测，诉讼中需以公证购买样品为准；</li>
+      <li>等同主张本次未使用，若被告以「替换壳体材质」抗辩，再作三要素分析。</li>
+    </ol>
+    <p>证据附录：</p>
+    <ol>
+      <li>ZL201910234567.8 授权公告文本（CNIPA）；</li>
+      <li>T200 技术白皮书（P8、P11、P12）；</li>
+      <li>送样实测记录（2026-10-08）。</li>
+    </ol>
+  </section>
+
+  <div class="signature">
+    <div class="sign-block">出具人：××知识产权代理事务所</div>
+    <div class="sign-block">审核人：________</div>
+  </div>
+  <div class="disclaimer"></div>
+  <footer class="doc-footer">
+    <span>CN2026-0003 · 机密</span>
+    <span>2026-10-15</span>
+  </footer>
+
+</body>
+</html>

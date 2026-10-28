@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>实用新型专利权评价报告</title>
+<style>
+  /* ============================================================
+   * 实用新型专利权评价报告 — 文书骨架（复刻表格 220701 版式）。
+   * 约定：单文件 HTML、全部样式内联、A4 打印适配。
+   * 版式：正文 10.5pt、行距 1.5、版心 177mm。
+   * 值位一律用 .fill（横线长度随内容伸缩）；表格行数与列宽随内容。
+   * 刻意复刻官方表格版式，使用黑白表格线，不套用 tokens.css 品牌色。
+   * ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 10.5pt; }
+  body {
+    font-family: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+    color: #000; background: #dcdcd8; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- 页面外壳 ---------- */
+  .page {
+    position: relative; display: flex; flex-direction: column;
+    width: 210mm; min-height: 297mm;
+    margin: 0 auto 5mm; padding: 17mm 15.5mm 0;
+    background: #fff; box-shadow: 0 1mm 3mm rgba(0, 0, 0, .16);
+  }
+  .page.first { padding-top: 12mm; }
+  .page-body { flex: 1; }
+
+  /* ---------- 抬头（抬头区留空，此处仅标题） ---------- */
+  .form-title { text-align: center; font-size: 15.5pt; font-weight: 700; letter-spacing: .30em; text-indent: .30em; margin: 20mm 0 2mm; }
+
+  /* ---------- 表格主体外框 ---------- */
+  .form-box { border: .4mm solid #000; border-top: 0; }
+  .box-standalone { border-top: .4mm solid #000; }
+  .title-rule { border-top: .5mm solid #000; }
+
+  /* 值位用 .fill 填；行数由内容条数决定，列宽随内容伸缩 */
+  .rec { width: 100%; border-collapse: collapse; table-layout: auto; }
+  .rec td { border-right: .25mm solid #000; border-bottom: .25mm solid #000; padding: 1.5mm 1.5mm; vertical-align: middle; }
+  .rec td:last-child { border-right: 0; }
+  .rec tr:last-child td { border-bottom: 0; }
+
+  /* ---------- 内嵌分区 ---------- */
+  .sec { border-top: .25mm solid #000; padding: 1.5mm 2mm 1.8mm; }
+  .sec-title { font-size: 10.5pt; }
+
+  /* ---------- 勾选项 ---------- */
+  .opt { display: flex; align-items: flex-start; gap: 1.5mm; }
+  .opt.sub { margin-left: 7mm; }
+  .opt .txt { flex: 1; }
+  .cb {
+    flex: 0 0 auto; position: relative; display: inline-block;
+    width: 3.2mm; height: 3.2mm; margin-top: 1.05mm;
+    border: .4mm solid #000; background: #fff;
+  }
+  .cb.on::after {
+    content: ""; position: absolute; left: .55mm; top: -0.15mm;
+    width: .95mm; height: 1.9mm;
+    border-right: .45mm solid #000; border-bottom: .45mm solid #000;
+    transform: rotate(38deg);
+  }
+
+  /* ---------- 填空位：横线长度随填写内容伸缩，空位保留最小长度 ---------- */
+  .fill {
+    display: inline-block; min-width: 12mm; padding: 0 .8mm;
+    border-bottom: .25mm solid #000; text-align: center; white-space: nowrap;
+  }
+  .fill.w-sm { min-width: 8mm; }
+  .fill.w-lg { min-width: 30mm; }
+  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; white-space: normal; }
+  .fill.as-end { flex: 1 1 24mm; }
+  .opt .txt.fill-row { display: flex; align-items: baseline; gap: 1mm; flex-wrap: wrap; }
+
+  /* ---------- A–E 分区 ---------- */
+  .part { border-top: .25mm solid #000; padding: 1.5mm 2mm 1.8mm; }
+  .part-first { border-top: 0; }
+  .part-label { font-size: 10.5pt; }
+  .part-value { margin-top: .4mm; }
+
+  /* ---------- 相关文件表 ---------- */
+  /* 行数由相关文件条数决定，列宽随内容伸缩 */
+  .doc-table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 9.5pt; margin-top: 1mm; }
+  .doc-table th, .doc-table td { border: .25mm solid #000; padding: 1.1mm 1.4mm; vertical-align: middle; text-align: center; }
+  .doc-table th { font-weight: 700; line-height: 1.3; }
+  .doc-table td.l { text-align: left; }
+
+  .legend { margin-top: 1mm; font-size: 9.5pt; }
+  .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4mm 7mm; margin-top: .4mm; }
+  .legend-grid .k { font-weight: 700; }
+
+  /* ---------- 初步结论 ---------- */
+  .concl { padding: 1.5mm 2mm 1.8mm; }
+  .concl-sub { margin: .6mm 0 .6mm 7mm; }
+  .inner-rule { border: 0; border-top: .25mm solid #000; margin: 2.4mm 0; }
+
+  /* ---------- 评价意见 ---------- */
+  .opinion { padding: 1.5mm 2mm 1.8mm; border-top: .25mm solid #000; }
+  .opinion p { text-align: justify; }
+  .opinion p.indent { text-indent: 2em; }
+  .opinion p.item-gap { margin-top: 5.5mm; }
+
+  /* ---------- 落款 ---------- */
+  .sign-table { width: 100%; border-collapse: collapse; table-layout: auto; margin-top: 2mm; }
+  .sign-table td { border: .25mm solid #000; padding: 2.5mm 2mm; text-align: center; vertical-align: middle; }
+  .sign-table td.stamp { height: 18mm; letter-spacing: .08em; }
+
+  /* ---------- 页脚 ---------- */
+  .doc-foot {
+    margin-top: auto; padding: 3mm 0 6mm; border-top: .3mm solid #000;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    font-size: 8pt; line-height: 1.45;
+  }
+  .doc-foot > * { white-space: nowrap; }
+
+  /* ---------- 续页标题 ---------- */
+  .cont-head { padding: 1.8mm 2mm; border-bottom: .25mm solid #000; font-size: 11.5pt; font-weight: 700; letter-spacing: .06em; }
+
+  /* ---------- 打印 ---------- */
+  @page { size: A4; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    .page { margin: 0; box-shadow: none; page-break-after: always; break-after: page; }
+    .page:last-child { page-break-after: auto; break-after: auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== 第 1 页 ==================== -->
+<div class="page first">
+  <div class="page-body">
+    <div class="form-title">实用新型专利权评价报告</div>
+    <div class="title-rule"></div>
+
+    <div class="form-box">
+      <table class="rec">
+        <colgroup>
+          <col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%">
+          <col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%">
+          <col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%">
+          <col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%">
+          <col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%">
+          <col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%">
+          <col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%">
+          <col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%"><col style="width:2.5%">
+        </colgroup>
+        <tbody>
+          <tr>
+            <td colspan="11">专利号：<span class="fill w-lg">ZL2022209876543</span></td>
+            <td colspan="13">申请日：<span class="fill w-sm">2022</span> 年 <span class="fill w-sm">03</span> 月 <span class="fill w-sm">15</span> 日</td>
+            <td colspan="16">优先权日：<span class="fill w-sm"></span> 年 <span class="fill w-sm"></span> 月 <span class="fill w-sm"></span> 日</td>
+          </tr>
+          <tr>
+            <td colspan="20">授权公告日：<span class="fill w-sm">2022</span> 年 <span class="fill w-sm">12</span> 月 <span class="fill w-sm">20</span> 日</td>
+            <td colspan="20">实用新型名称：<span class="fill w-lg">一种带式输送机的自动张紧机构</span></td>
+          </tr>
+          <tr>
+            <td colspan="23">专利权人：<span class="fill w-lg">宁波华驰输送设备有限公司</span></td>
+            <td colspan="17">请求人：<span class="fill w-lg">宁波华驰输送设备有限公司</span></td>
+          </tr>
+          <tr>
+            <td colspan="40">请求日：<span class="fill w-sm">2023</span> 年 <span class="fill w-sm">02</span> 月 <span class="fill w-sm">10</span> 日</td>
+          </tr>
+          <tr>
+            <td colspan="20">评价报告总计 <span class="fill w-sm">4</span> 页</td>
+            <td colspan="20"><span class="cb on"></span>附有报告中引用的各相关文件的副本 <span class="fill w-sm">8</span>份。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="sec">
+        <div class="sec-title">评价所针对的文本</div>
+        <div class="opt"><span class="cb on"></span><span class="txt">与授权公告一并公布的专利文件</span></div>
+        <div class="opt"><span class="cb"></span><span class="txt">由生效的无效宣告请求审查决定维持有效的专利文件，其中涉及第 <span class="fill w-sm"></span> 号无效宣告请求审查决定</span></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-title">检索针对的权利要求</div>
+        <div class="opt"><span class="cb on"></span><span class="txt">全部权利要求 <span class="fill w-sm">1-8</span>；</span></div>
+        <div class="opt sub"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 未被检索，因为其主题不符合专利法第 2 条第 3 款的规定；</span></div>
+        <div class="opt sub"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 未被检索，因为其主题属于专利法第 5 条或第 25 条规定的范围；</span></div>
+        <div class="opt sub"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 未被检索，因为其主题不具备实用性；</span></div>
+        <div class="opt sub"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 未被检索，因为说明书未对其主题作出清楚、完整的说明，以致于所属技术领域的技术人员不能实现。</span></div>
+        <div class="opt sub"><span class="cb"></span><span class="txt fill-row"><span>权利要求</span><span class="fill w-sm"></span><span>未被检索，因为</span><span class="fill as-end"></span><span>。</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-foot">
+    <div class="code">220701<br>2011.4</div>
+    <div class="pages">第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
+  </div>
+</div>
+
+<!-- ==================== 第 2 页 ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="form-box box-standalone">
+      <div class="part part-first">
+        <div class="part-label">A. 主题的分类（IPC）　<span class="fill w-lg">B65G 23/44</span></div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">B. 检索领域</div>
+        <div class="part-value"><span class="fill w-full">B65G23/44, B65G23/06, B65G23/00, B65G15/60, B65G21/14, B65G43/02</span></div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">C. 在检索时查阅的电子数据库（数据库的名称和/或使用的检索式）</div>
+        <div class="part-value"><span class="fill w-full">CNABS, DWPI, SIPOABS, 中国期刊网全文数据库：</span></div><div class="part-value"><span class="fill w-full">输送带, 张紧, 张紧辊, 张紧装置, 配重, 缓冲, 输送机, belt conveyor, tension, take-up, tensioning roller, belt tensioner</span></div>
+
+      </div>
+
+      <div class="part">
+        <div class="part-label">D. 相关文件</div>
+        <table class="doc-table">
+          <colgroup>
+            <col style="width:7%"><col style="width:23%"><col style="width:16%"><col style="width:13%"><col style="width:17%"><col style="width:24%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>类型*</th>
+              <th>文献号或书名<br>（包括期刊卷号/期号）</th>
+              <th>公开/出版/<br>发行日期</th>
+              <th>分类号</th>
+              <th>相关部分</th>
+              <th>相关的权利<br>要求编号</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 数据行：按相关文件条数复制本行；超出本页时勾选下面一行并转到续页 I -->
+            <tr><td><span class="fill w-full">Y</span></td><td><span class="fill w-full">CN213456789 U</span></td><td><span class="fill w-full">2021.06.22</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">说明书具体实施方式、附图 1-5</span></td><td><span class="fill w-full">1、5</span></td></tr><tr><td><span class="fill w-full">Y</span></td><td><span class="fill w-full">CN214567890 U</span></td><td><span class="fill w-full">2021.11.05</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">说明书具体实施方式、附图 1-4</span></td><td><span class="fill w-full">1、5</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN112345678 A</span></td><td><span class="fill w-full">2021.03.09</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN113456789 A</span></td><td><span class="fill w-full">2021.09.28</span></td><td><span class="fill w-full">B65G 15/60</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN211234567 U</span></td><td><span class="fill w-full">2020.08.11</span></td><td><span class="fill w-full">B65G 21/14</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN110987654 A</span></td><td><span class="fill w-full">2019.12.17</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">CN208765432 U</span></td><td><span class="fill w-full">2019.04.26</span></td><td><span class="fill w-full">B65G 23/06</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr><tr><td><span class="fill w-full">A</span></td><td><span class="fill w-full">KR1020150123456 A</span></td><td><span class="fill w-full">2015.11.04</span></td><td><span class="fill w-full">B65G 23/44</span></td><td><span class="fill w-full">全文</span></td><td><span class="fill w-full">1-8</span></td></tr>
+          </tbody>
+        </table>
+        <div class="opt" style="margin-top:1mm"><span class="cb"></span><span class="txt">相关文件，参见续页 I。</span></div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">* 引用文件的专用类型：</div>
+        <div class="legend">
+          <div class="legend-grid">
+            <div><span class="k">“X”</span>　单独影响权利要求的新颖性或创造性的文件；</div>
+            <div><span class="k">“A”</span>　背景技术文件，即反映权利要求的部分技术特征或者有关的现有技术文件；</div>
+            <div><span class="k">“Y”</span>　与报告中其它 Y 类文件组合影响权利要求创造性的文件；</div>
+            <div><span class="k">“E”</span>　单独影响权利要求新颖性的抵触申请文件。</div>
+            <div><span class="k">“R”</span>　任何单位或个人在申请日向专利局提交的、属于同样的发明创造的专利文件；</div>
+            <div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">E. 关于是否符合授予专利权条件的评价结论；专利权评价意见</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-foot">
+    <div class="code">220701<br>2011.4</div>
+    <div class="pages">第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
+  </div>
+</div>
+
+<!-- ==================== 第 3 页 ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="form-box box-standalone">
+      <div class="concl">
+        <div class="part-label">1. 初步结论：</div>
+        <div class="opt"><span class="cb"></span><span class="txt">全部权利要求 <span class="fill"></span> 未发现存在不符合授予专利权条件的缺陷。</span></div>
+        <div class="opt"><span class="cb"></span><span class="txt">全部权利要求 <span class="fill"></span> 不符合授予专利权条件。</span></div>
+        <div class="opt"><span class="cb on"></span><span class="txt">权利要求 <span class="fill w-sm">1、5</span> 不符合授予专利权条件，权利要求 <span class="fill">2-4、6-8</span> 未发现存在不符合授予专利权条件的缺陷。</span></div>
+
+        <div class="part-label" style="margin-top:1mm">具体结论如下：</div>
+        <div class="concl-sub">
+          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 属于专利法第 5 条规定的不授予专利权的范围。</span></div>
+          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 属于专利法第 25 条规定的不授予专利权的范围。</span></div>
+          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法第 2 条第 3 款的规定。</span></div>
+          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不具备专利法第 22 条第 4 款规定的实用性。</span></div>
+          <div class="opt"><span class="cb"></span><span class="txt">说明书不符合专利法第 26 条第 3 款的规定。</span></div>
+        </div>
+
+        <hr class="inner-rule">
+
+        <div class="concl-sub">
+          <div class="opt"><span class="cb on"></span><span class="txt">权利要求 <span class="fill">1-8</span> 具备专利法第 22 条第 2 款规定的新颖性。</span></div>
+          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不具备专利法第 22 条第 2 款规定的新颖性。</span></div>
+          <div class="opt"><span class="cb on"></span><span class="txt">权利要求 <span class="fill">2-4、6-8</span> 具备专利法第 22 条第 3 款规定的创造性。</span></div>
+          <div class="opt"><span class="cb on"></span><span class="txt">权利要求 <span class="fill">1、5</span> 不具备专利法第 22 条第 3 款规定的创造性。</span></div>
+        </div>
+
+        <hr class="inner-rule">
+
+        <div class="concl-sub">
+          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法第 26 条第 4 款的规定。</span></div>
+          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法实施细则第 20 条第 2 款的规定。</span></div>
+          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法第 33 条或实施细则第 43 条第 1 款的规定。</span></div>
+          <div class="opt"><span class="cb"></span><span class="txt">权利要求 <span class="fill"></span> 不符合专利法第 9 条的规定。</span></div>
+        </div>
+      </div>
+
+      <div class="opinion">
+        <div class="part-label">2. 专利权评价意见：</div>
+        <!-- 逐条填入评价意见；正文超出本页时勾选下一行，并转到续页 II 继续 -->
+        <p class="indent"><span class="fill w-full">1、权利要求 1-8 保护的技术方案具备中华人民共和国专利法第 22 条第 2 款规定的新颖性。</span></p><p class="indent"><span class="fill w-full">权利要求 1 要求保护一种带式输送机的自动张紧机构，对比文件 1（公告号：CN213456789 U）公开了一种带式输送机的张紧装置，其中（参见该对比文件的说明书具体实施方式以及说明书附图 1-5）具体公开了如下内容：包括机架 1（相当于本专利的固定架），所述机架 1 的两侧沿输送方向设有导轨 2（相当于本专利的导向槽），所述导轨 2 内可滑动地装有张紧滑块 3（相当于本专利的张紧座），所述张紧滑块 3 上转动支承有张紧辊 4（相当于本专利的改向辊），所述张紧辊 4 与绕经其表面的输送带 5（相当于本专利的环形带）配合；所述张紧滑块 3 远离输送带 5 的一侧连接有螺杆 6（相当于本专利的调节杆），所述螺杆 6 伸出机架 1 的一端装有调节螺母 7（相当于本专利的锁紧件），附图可见张紧滑块 3 与导轨 2 的配合面以及机架 1 的两侧板。但对比文件 1 没有公开随输送带张力变化自动移动张紧辊的随动结构。因此，对比文件 1 未公开权利要求 1 的全部技术特征。</span></p><p class="indent"><span class="fill w-full">基于上述理由，权利要求 1 具备新颖性，符合专利法第 22 条第 2 款有关新颖性的规定。在权利要求 1 具备新颖性的基础上，其从属权利要求 2-8，因而也具备新颖性，符合中华人民共和国专利法第 22 条第 2 款的规定。</span></p>
+
+
+        <p class="item-gap"><span class="cb" style="margin-right:1.5mm"></span>专利权评价意见，参见续页 II。</p>
+      </div>
+    </div>
+
+    <table class="sign-table">
+      <colgroup>
+        <col style="width:34%"><col style="width:18%"><col style="width:18%"><col style="width:30%">
+      </colgroup>
+      <tbody>
+        <tr>
+          <td class="stamp">专利权评价报告<br>专用章</td>
+          <td>审查员：<span class="fill w-sm">李文涛</span></td>
+          <td>审核员：<span class="fill w-sm">陈静</span></td>
+          <td>完成日期：<br><span class="fill w-sm">2023</span> 年 <span class="fill w-sm">03</span> 月 <span class="fill w-sm">06</span> 日</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="doc-foot">
+    <div class="code">220701<br>2011.4</div>
+    <div class="pages">第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
+  </div>
+</div>
+
+<!-- ==================== 续页 II 骨架：评价意见超过第 3 页时使用，不足一页删除本页 ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="form-box box-standalone">
+      <div class="cont-head">专利权评价意见，续页 II</div>
+      <div class="opinion" style="border-top:0">
+        <!-- 逐段填入评价意见正文；需多张续页时复制本页整块与页眉 -->
+        <p class="indent"><span class="fill w-full">2、权利要求 1、5 保护的技术方案不具备中华人民共和国专利法第 22 条第 3 款规定的创造性。</span></p><p class="indent"><span class="fill w-full">与对比文件 1（CN213456789 U）相比，权利要求 1 的区别技术特征为：随输送带张力变化自动移动张紧辊的随动结构。该技术特征在对比文件 2（CN214567890 U）中（参见该对比文件的说明书具体实施方式以及说明书附图 1-4）公开了，内容如下：包括固定在机架侧板上的支座 11，所述支座 11 上铰接有摆臂 12（相当于本专利的张紧臂），所述摆臂 12 的自由端转动支承有张紧辊 13，所述摆臂 12 的另一端连接有拉伸弹簧 14（相当于本专利的弹性件），所述拉伸弹簧 14 的另一端固定在机架底板上，输送带张力变化时摆臂 12 绕支座 11 摆动而带动张紧辊 13 移动，附图可见摆臂 12 与支座 11 的铰接轴以及弹簧 14 的固定座。由此可见，在对比文件 1 的基础上结合对比文件 2 得出该权利要求 1 的技术方案，对本技术领域的技术人员来说是显而易见的，因此该权利要求 1 所保护的技术方案不具有实质性特点和进步，不具备创造性，不符合专利法第 22 条第 3 款有关创造性的规定。</span></p><p class="indent"><span class="fill w-full">权利要求 5 是权利要求 1 的从属权利要求，其附加技术特征是：所述张紧臂的自由端设有沿轴向可调的限位块。该技术特征已在对比文件 2 中公开，因此，在对比文件 1 的基础上结合对比文件 2 得到本专利权利要求 5 的技术方案，对于本领域技术人员而言是显而易见的。权利要求 5 所要求保护的技术方案不具备实质性特点和进步，不具备中华人民共和国专利法第 22 条第 3 款所规定的创造性。</span></p>
+
+
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-foot">
+    <div class="code">220701<br>2011.4</div>
+    <div class="pages">第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
+  </div>
+</div>
+
+</body>
+</html>

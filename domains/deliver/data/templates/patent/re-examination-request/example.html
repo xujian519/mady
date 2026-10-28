@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>复审请求书 — 示例</title>
+<style>
+  :root {
+    --doc-firm: var(--sati-doc-firm, "XX 知识产权代理事务所");
+    --doc-confidential: var(--sati-doc-confidential, "机密 · 仅供委托方使用");
+    --doc-disclaimer: var(--sati-doc-disclaimer, "本文件由 AI 辅助生成，不构成正式法律意见。复审请求的提交应由具备资质的专利代理人或专利律师确认。");
+    --doc-accent: var(--sati-doc-accent, #1f3a5f);
+    --doc-accent-strong: var(--sati-doc-accent-strong, #16324f);
+    --doc-body: var(--sati-doc-body, #1a1a1a);
+    --doc-muted: var(--sati-doc-muted, #6b6b6b);
+    --doc-border: var(--sati-doc-border, #c9c9c9);
+    --doc-header-bg: var(--sati-doc-header-bg, #f6f6f2);
+    --doc-surface: var(--sati-doc-surface, #ffffff);
+    --doc-zebra: var(--sati-doc-zebra, #fbfbf9);
+    --doc-font-serif: var(--sati-doc-font-serif, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif);
+    --doc-font-sans: var(--sati-doc-font-sans, "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", "SimHei", "PingFang SC", sans-serif);
+    --doc-font-mono: var(--sati-doc-font-mono, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 12pt; }
+  body { font-family: var(--doc-font-serif); color: var(--doc-body); background: var(--doc-surface); line-height: 1.8; padding: 0 18mm; max-width: 174mm; margin: 0 auto; }
+  .doc-header { display: flex; justify-content: space-between; align-items: baseline; padding: 7mm 0 3mm; border-bottom: 2px solid var(--doc-accent); font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); }
+  .doc-header .firm::before { content: var(--doc-firm); font-weight: 600; color: var(--doc-accent); }
+  .doc-header .confidential::before { content: var(--doc-confidential); letter-spacing: 0.08em; }
+  .doc-masthead { text-align: center; padding: 8mm 0 4mm; }
+  .doc-masthead .doc-type { display: inline-block; font-family: var(--doc-font-sans); font-size: 9pt; letter-spacing: 0.4em; color: var(--doc-accent); border: 1px solid var(--doc-accent); padding: 1px 10px; margin-bottom: 4mm; }
+  .doc-masthead h1 { font-family: var(--doc-font-sans); font-size: 16pt; font-weight: 700; letter-spacing: 0.12em; color: var(--doc-accent-strong); }
+  .doc-masthead .doc-number { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); margin-top: 2.5mm; }
+  .doc-meta { display: grid; grid-template-columns: auto 1fr; gap: 0.6mm 6mm; width: 100%; margin: 5mm 0 6mm; border: 1px solid var(--doc-border); font-size: 11pt; }
+  .doc-meta dt { font-family: var(--doc-font-sans); font-weight: 600; color: var(--doc-accent); background: var(--doc-header-bg); padding: 1.2mm 4mm; white-space: nowrap; }
+  .doc-meta dd { padding: 1.2mm 4mm; }
+  section { margin: 5mm 0; }
+  h2 { font-family: var(--doc-font-sans); font-size: 13pt; font-weight: 700; color: var(--doc-accent-strong); padding-bottom: 1mm; margin: 6mm 0 3mm; border-bottom: 1px solid var(--doc-border); }
+  h3 { font-family: var(--doc-font-sans); font-size: 11.5pt; font-weight: 600; color: var(--doc-accent); margin: 4mm 0 2mm; }
+  p { margin: 1.5mm 0; text-align: justify; }
+  ol, ul { margin: 1.5mm 0 1.5mm 7mm; }
+  li { margin: 0.8mm 0; }
+  .callout { border: 1px solid var(--doc-border); border-left: 3px solid var(--doc-accent); padding: 3mm 4mm; margin: 3mm 0; font-size: 11pt; }
+  .callout .callout-title { font-family: var(--doc-font-sans); font-weight: 700; font-size: 10.5pt; color: var(--doc-accent); margin-bottom: 1mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5pt; margin: 2.5mm 0; font-variant-numeric: tabular-nums; }
+  caption { font-family: var(--doc-font-sans); font-size: 9.5pt; color: var(--doc-muted); text-align: left; margin-bottom: 1mm; }
+  th, td { border: 1px solid var(--doc-border); padding: 1.5mm 2.5mm; vertical-align: top; }
+  th { font-family: var(--doc-font-sans); font-weight: 600; background: var(--doc-header-bg); color: var(--doc-accent-strong); white-space: nowrap; }
+  tbody tr:nth-child(even) { background: var(--doc-zebra); }
+  .mono { font-family: var(--doc-font-mono); font-size: 9.5pt; }
+  .disclaimer { border: 1px solid var(--doc-border); background: var(--doc-header-bg); padding: 3mm 4mm; font-size: 9.5pt; color: var(--doc-muted); margin: 3mm 0; }
+  .disclaimer::before { content: "免责声明："; font-weight: 700; color: var(--doc-body); }
+  .disclaimer::after { content: var(--doc-disclaimer); }
+  .doc-footer { margin: 6mm 0 4mm; padding-top: 2mm; border-top: 1px solid var(--doc-border); display: flex; justify-content: space-between; font-family: var(--doc-font-sans); font-size: 8.5pt; color: var(--doc-muted); }
+  .signature { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .signature .sign-block { border-top: 1px solid var(--doc-body); padding-top: 1.5mm; font-family: var(--doc-font-sans); font-size: 10pt; }
+  @page { size: A4; margin: 16mm 18mm 18mm 18mm; }
+</style>
+</head>
+<body>
+
+  <header class="doc-header">
+    <span class="firm"></span>
+    <span class="confidential"></span>
+  </header>
+
+  <div class="doc-masthead">
+    <span class="doc-type">复 审 请 求 书</span>
+    <h1>复审请求书</h1>
+    <div class="doc-number">案卷号：CN2026-0002 · 版本 V1.0</div>
+  </div>
+
+  <dl class="doc-meta">
+    <dt>申请号</dt><dd class="mono">202610123457.4</dd>
+    <dt>发明名称</dt><dd>一种电池模组散热结构</dd>
+    <dt>请求人</dt><dd>上海××动力科技有限公司</dd>
+    <dt>驳回决定文号</dt><dd class="mono">驳回决定 2026-000789 号</dd>
+    <dt>驳回决定日期</dt><dd>2026-06-12</dd>
+    <dt>复审期限（送达日 + 3 个月）</dt><dd>2026-09-12（2026-06-12 送达 + 3 个月）</dd>
+    <dt>提出日期</dt><dd>2026-09-08</dd>
+  </dl>
+
+  <section>
+    <h2>一、请求复审的理由</h2>
+    <div class="callout">
+      <div class="callout-title">驳回决定要点摘录</div>
+      <p>审查员认为：权利要求 1 相对于对比文件 D1（CN104567890A）与公知常识的结合不具备创造性，且权利要求 1 的「导热垫压缩率」参数无实施例支持。</p>
+    </div>
+    <h3>（一）针对《驳回决定》所列理由 1（创造性）</h3>
+    <p>对比文件 D1 的散热结构为铝制壳体内衬，未公开权利要求 1 的「弹性导热垫独立受压」特征，且该特征带来的形变补偿效果在 D1 中无启示；审查员在驳回决定第 2 页提及的「公知常识」未给出任何佐证依据，属于对举证责任要求的不满足，请求人认为该认定不能成立。</p>
+    <h3>（二）针对《驳回决定》所列理由 2（支持）</h3>
+    <p>「导热垫压缩率」参数在说明书第 5 页实施例 1-3 中均有具体范围与实验数据（表 1），已满足专利法第二十六条第四款的支持要求。</p>
+    <ol>
+      <li>D1（CN104567890A）第 3 页第 12-18 行为铝壳内衬方案，未涉及弹性导热垫；</li>
+      <li>说明书第 5 页表 1：实施例 1-3 压缩率 8%-12%，对应衰减试验数据。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>二、修改方案</h2>
+    <table>
+      <caption>表 1 · 权利要求修改对照</caption>
+      <thead>
+        <tr><th style="width:8%">序号</th><th style="width:26%">修改前</th><th style="width:30%">修改后</th><th style="width:20%">修改依据</th><th style="width:16%">对应驳回理由</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">1</td>
+          <td>权利要求 1：其特征在于，所述散热结构包括导热垫，所述导热垫与电池模组壳体之间设有间隙。</td>
+          <td>权利要求 1：其特征在于，所述散热结构包括弹性导热垫，所述弹性导热垫在 8%-12% 压缩率范围内与电池模组壳体之间保持压力接触。</td>
+          <td>原说明书第 5 页表 1、第 6 页第 2-9 行</td>
+          <td>理由 1、2</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>修改后的权利要求书全文见附件「修改后权利要求书」。</p>
+  </section>
+
+  <section>
+    <h2>三、法律依据与程序说明</h2>
+    <ul>
+      <li>《中华人民共和国专利法》第 22 条第 3 款：创造性判断应基于所属技术领域技术人员的能力，区别特征带来的技术效果应被考虑；</li>
+      <li>《中华人民共和国专利法》第 26 条第 4 款：权利要求应当以说明书为依据；</li>
+      <li>《专利审查指南》第二部分第八章：审查员对公知常识的认定应符合举证规则。</li>
+    </ul>
+    <p>复审请求在法定期限内提出；本案复审请求书副本及相关附件已按规定份数提交。</p>
+  </section>
+
+  <section>
+    <h2>四、请求事项</h2>
+    <ol>
+      <li>请求撤销国家知识产权局于 2026-06-12 作出的驳回决定；</li>
+      <li>请求在修改后文本基础上授予专利权；</li>
+      <li>如认为修改文本仍不符合授权条件，请求按《专利法实施细则》进行进一步审查并给予听证机会。</li>
+    </ol>
+  </section>
+
+  <div class="signature">
+    <div class="sign-block">请求人：上海××动力科技有限公司</div>
+    <div class="sign-block">代理机构：××知识产权代理事务所</div>
+  </div>
+  <div class="disclaimer"></div>
+  <footer class="doc-footer">
+    <span>CN2026-0002 · 机密</span>
+    <span>2026-09-08</span>
+  </footer>
+
+</body>
+</html>

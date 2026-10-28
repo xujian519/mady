@@ -1,0 +1,81 @@
+{
+  "fields": {
+    "reportNo": "SR-2026-0001",
+    "searchDateYear": "2026",
+    "searchDateMonth": "10",
+    "searchDateDay": "08",
+    "cutoffDateYear": "2026",
+    "cutoffDateMonth": "10",
+    "cutoffDateDay": "08",
+    "applicationNo": "ZL2022209876543",
+    "applicationDateYear": "2022",
+    "applicationDateMonth": "03",
+    "applicationDateDay": "15",
+    "inventionTitle": "一种带式输送机的自动张紧机构",
+    "patentType": "实用新型",
+    "patentee": "宁波华驰输送设备有限公司",
+    "client": "宁波华驰输送设备有限公司",
+    "searcher": "王磊",
+    "reviewer": "陈静",
+    "ipcClass": "B65G 23/44（带式输送机的张紧装置；张紧辊的支承与调节）",
+    "footerFirm": "SR-2026-0001",
+    "distXCount": "0",
+    "distXRatio": "0%",
+    "distXImpact": "—",
+    "distYCount": "2",
+    "distYRatio": "25%",
+    "distYImpact": "组合影响权利要求 1、5 的创造性",
+    "distACount": "6",
+    "distARatio": "75%",
+    "distAImpact": "背景技术，不单独破坏新颖性 / 创造性",
+    "distTotalCount": "8",
+    "distTotalRatio": "100%",
+    "reportDateYear": "2026",
+    "reportDateMonth": "10",
+    "reportDateDay": "08"
+  },
+  "sections": [
+    {
+      "id": "searchField",
+      "blocks": [
+        { "kind": "paragraph", "text": "B65G23/44, B65G23/06, B65G23/00, B65G15/60, B65G21/14, B65G43/02" }
+      ]
+    },
+    {
+      "id": "databases",
+      "blocks": [
+        { "kind": "paragraph", "text": "CNABS, DWPI, SIPOABS, 中国期刊网全文数据库：" },
+        { "kind": "paragraph", "text": "输送带, 张紧, 张紧辊, 张紧装置, 配重, 缓冲, 输送机, belt conveyor, tension, take-up, tensioning roller, belt tensioner" }
+      ]
+    },
+    {
+      "id": "relatedDocuments",
+      "rows": [
+        ["Y", "CN213456789 U", "2021.06.22", "B65G 23/44", "说明书具体实施方式、附图 1-5", "1、5"],
+        ["Y", "CN214567890 U", "2021.11.05", "B65G 23/44", "说明书具体实施方式、附图 1-4", "1、5"],
+        ["A", "CN112345678 A", "2021.03.09", "B65G 23/44", "全文", "1-8"],
+        ["A", "CN113456789 A", "2021.09.28", "B65G 15/60", "全文", "1-8"],
+        ["A", "CN211234567 U", "2020.08.11", "B65G 21/14", "全文", "1-8"],
+        ["A", "CN110987654 A", "2019.12.17", "B65G 23/44", "全文", "1-8"],
+        ["A", "CN208765432 U", "2019.04.26", "B65G 23/06", "全文", "1-8"],
+        ["A", "KR1020150123456 A", "2015.11.04", "B65G 23/44", "全文", "1-8"]
+      ]
+    },
+    {
+      "id": "conclusion",
+      "blocks": [
+        { "kind": "paragraph", "text": "本次检索在 IPC B65G 23/44 及其相邻分类号下，以「输送带 / 张紧辊 / 张紧臂 / 配重 / 缓冲」为核心要素，覆盖 CNABS、DWPI、SIPOABS 及中国期刊网全文数据库，共命中并筛选出 8 篇相关文件：" },
+        { "kind": "paragraph", "text": "其中 2 篇 Y 类文件（CN213456789 U、CN214567890 U）分别公开了螺杆调节式张紧结构与弹簧随动式张紧结构，二者结合可影响权利要求 1、5 的创造性；其余 6 篇 A 类文件作为背景技术，未单独公开权利要求的全部技术特征。" }
+      ]
+    },
+    {
+      "id": "searchRounds",
+      "rows": [
+        ["R1", "CNABS", "(输送带 OR belt conveyor) AND (张紧 OR tension) AND (张紧辊 OR tensioning roller)", "312", "2026.10.08"],
+        ["R2", "DWPI", "B65G23/44 AND (take-up OR tensioner) AND (conveyor belt)", "184", "2026.10.08"],
+        ["R3", "SIPOABS", "B65G23/06 AND 滚筒 AND 张紧", "46", "2026.10.08"],
+        ["R4", "中国期刊网", "输送带 <AND> 自动张紧", "11", "2026.10.08"]
+      ]
+    }
+  ]
+}

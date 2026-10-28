@@ -452,7 +452,7 @@ type StatutoryEvidence struct {
 | W-1 | ✅ 完成 | 1b1dd92 | ADR 0008 已批准；FreeCAD 结论为暂不立项 |
 | W0 | ✅ 完成 | 98e1828 | `pkg/indexasset` 覆盖率 95.5%；资产指纹脚本落地 |
 | W1 | ✅ 完成 | 6a2e7ed · b0bd250 · 65da87c · b8bec75 · 8d244bb · ec93acd · 174d5f8 | T-W1-01～05 完成；门禁接入 107 条 |
-| W2 | ◐ 进行中 | 待提交 | T-W2-02（CNIPA 出件）完成；T-W2-01/03/04/05 待做 |
+| W2 | ◐ 进行中 | 27b0085 | T-W2-01（交付模板）、T-W2-02（CNIPA 出件）完成；T-W2-03/04/05 待做 |
 
 ### 批 A / 批 B 规则接入状态
 
@@ -482,3 +482,12 @@ type StatutoryEvidence struct {
 - **两步流程**：`build.py` 负责按模板反解体例并成文，`verify.py` 负责节数/编号/禁用词/禁用色/字号断言；验收不通过时删除成品，不留半成品。
 - **Go 编排**：`domains/filing.Compose` 解压随包资产、调用引擎、校验报告；Python 解释器按「能 import docx」探测（本机 3.15 未装 python-docx，实际落到 3.11）。
 - **未做**：出件工具接线与交付件登记（T-W2-03）、13 套交付模板（T-W2-01）、模板去重（T-W2-04）、Office→PDF（T-W2-05）。
+
+### W2 交付模板状态（T-W2-01）
+
+- **资产**：13 套交付模板随包落位 `domains/deliver/data/templates/patent/`（732KB，含 SKILL.md、template.html、example、checklist/citation-log/conventions、tokens.css、manifest.json）。
+- **渲染**：`deliver.Render` 用 x/net/html 解析模板，按 id 注入 HTML 片段、CSS 变量注入品牌、按 `data-paragraph-numbering` 写段落编号。编号语义与 dsh 对齐：标题/表格/figure/预格式不编号，段落不嵌套，图片与空白段不占号，已有编号先剥再写（幂等），编号后带一个空格。
+- **合规**：`deliver.CheckCompliance` 四条规则——章节编号递增不重复、对外件内部章节、对外件内部正文、证据清单与正文双向核对。证据匹配带左侧 ASCII 边界（END2 不会被当作 D2），正文判定按节点切除证据表。内部记录模板（invalidation-analysis）走 `ScopeInternalRecord`，不查内部记录规则。
+- **交付件核对**：`deliver.VerifyDeliverable` 检查主路径与交付副本字节一致、渲染件不早于其输入、要求-证据齐备，并产出 hash/mtime 清单；只接受普通文件且单文件 ≤64MB。
+- **独立审查**：code-review 发现 4 项 blocking（figure 排除、可见文本、嵌套编号、证据前缀边界）与 4 项 suggestion，已全部修复或记录；幂等剥号一并补齐。
+- **未做**：交付件登记工具（T-W2-03）、模板去重（T-W2-04）、Office→PDF（T-W2-05）；模板渲染目前是库 API，工具接线随 T-W2-03。

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>专利检索报告（表格式）</title>
+<style>
+  /* ============================================================
+   * 专利检索报告（表格式）— 文书骨架。
+   * 约定：单文件 HTML、全部样式内联、A4 打印适配。
+   * 版式：正文 10.5pt、行距 1.5、版心 177mm。
+   * 值位一律用 .fill（横线长度随内容伸缩）；表格行数与列宽随内容。
+   * A/B/C/D/E 分区对齐表格 220701 的检索记录部分。
+   * 刻意复刻官方检索记录版式，使用黑白表格线，不套用 tokens.css 品牌色。
+   * ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 10.5pt; }
+  body {
+    font-family: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+    color: #000; background: #dcdcd8; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- 页面外壳 ---------- */
+  .page {
+    position: relative; display: flex; flex-direction: column;
+    width: 210mm; min-height: 297mm;
+    margin: 0 auto 5mm; padding: 14mm 15.5mm 0;
+    background: #fff; box-shadow: 0 1mm 3mm rgba(0, 0, 0, .16);
+  }
+  .page.first { padding-top: 11mm; }
+  .page-body { flex: 1; }
+
+  /* ---------- 抬头 ---------- */
+  .firm-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-bottom: 1.5mm; border-bottom: .5mm solid #000;
+    font-family: "Heiti SC", "PingFang SC", sans-serif; font-size: 11pt; letter-spacing: .06em;
+  }
+  .firm-head .firm { font-weight: 700; }
+  .firm-head .conf { font-size: 9pt; letter-spacing: .12em; }
+  .form-title { text-align: center; font-size: 16pt; font-weight: 700; letter-spacing: .30em; text-indent: .30em; margin: 4mm 0 1.5mm; }
+  .form-sub { text-align: center; font: 9pt/1.4 "Heiti SC", sans-serif; letter-spacing: .1em; margin-bottom: 2.5mm; }
+  .title-rule { border-top: .5mm solid #000; }
+
+  .form-box { border: .4mm solid #000; border-top: 0; }
+
+  /* ---------- 著录项 ---------- */
+  /* 值位用 .fill 填；行数由内容条数决定，列宽随内容伸缩 */
+  .rec { width: 100%; border-collapse: collapse; table-layout: auto; }
+  .rec td { border-right: .25mm solid #000; border-bottom: .25mm solid #000; padding: 1.4mm 1.5mm; vertical-align: middle; }
+  .rec td:last-child { border-right: 0; }
+  .rec tr:last-child td { border-bottom: 0; }
+
+  /* ---------- 勾选项 / 填空位 ---------- */
+  .opt { display: flex; align-items: flex-start; gap: 1.5mm; }
+  .opt.sub { margin-left: 7mm; }
+  .opt .txt { flex: 1; }
+  .cb { flex: 0 0 auto; position: relative; display: inline-block; width: 3.2mm; height: 3.2mm; margin-top: 1.05mm; border: .4mm solid #000; background: #fff; }
+  .cb.on::after {
+    content: ""; position: absolute; left: .55mm; top: -0.15mm;
+    width: .95mm; height: 1.9mm;
+    border-right: .45mm solid #000; border-bottom: .45mm solid #000;
+    transform: rotate(38deg);
+  }
+  /* ---------- 填空位：横线长度随填写内容伸缩，空位保留最小长度 ---------- */
+  .fill {
+    display: inline-block; min-width: 12mm; padding: 0 .8mm;
+    border-bottom: .25mm solid #000; text-align: center; white-space: nowrap;
+  }
+  .fill.w-sm { min-width: 8mm; }
+  .fill.w-lg { min-width: 30mm; }
+  .fill.w-full { display: block; min-width: 0; min-height: 1.5em; white-space: normal; }
+  .fill.as-end { flex: 1 1 24mm; }
+  .opt .txt.fill-row { display: flex; align-items: baseline; gap: 1mm; flex-wrap: wrap; }
+
+  /* ---------- A–E 分区 ---------- */
+  .part { border-top: .25mm solid #000; padding: 1.4mm 2mm 1.6mm; }
+  .part-first { border-top: 0; }
+  .part-label { font-size: 10.5pt; }
+  .part-label .note { font-size: 9pt; }
+  .part-value { margin-top: .4mm; }
+  .part-value.tight { margin-top: .1mm; }
+
+  /* ---------- 表格 ---------- */
+  /* 行数由条目数（相关文件、检索轮次）决定，列宽随内容伸缩 */
+  .doc-table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 9.5pt; margin-top: 1mm; }
+  .doc-table th, .doc-table td { border: .25mm solid #000; padding: 1mm 1.4mm; vertical-align: middle; text-align: center; }
+  .doc-table th { font-weight: 700; line-height: 1.3; }
+  .doc-table td.l { text-align: left; }
+  .doc-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .legend { margin-top: 1mm; font-size: 9.5pt; }
+  .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4mm 7mm; margin-top: .4mm; }
+  .legend-grid .k { font-weight: 700; }
+
+  /* ---------- 落款 / 声明 ---------- */
+  .sign-table { width: 100%; border-collapse: collapse; table-layout: auto; margin-top: 2mm; }
+  .sign-table td { border: .25mm solid #000; padding: 2.5mm 2mm; text-align: center; vertical-align: middle; }
+
+  .statement {
+    border: .25mm solid #000; border-left: 1.2mm solid #000;
+    padding: 2mm 2.5mm; margin-top: 2.5mm; font-size: 9.5pt; text-align: justify;
+  }
+  .statement .t { font-weight: 700; font-family: "Heiti SC", sans-serif; }
+
+  /* ---------- 页脚 ---------- */
+  .doc-foot {
+    margin-top: auto; padding: 3mm 0 6mm; border-top: .3mm solid #000;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    font-size: 8pt; line-height: 1.45;
+  }
+  .doc-foot > * { white-space: nowrap; }
+
+  @page { size: A4; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    .page { margin: 0; box-shadow: none; page-break-after: always; break-after: page; }
+    .page:last-child { page-break-after: auto; break-after: auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== 第 1 页 ==================== -->
+<div class="page first">
+  <div class="page-body">
+    <div class="firm-head">
+      <span class="firm">XX 知识产权代理事务所</span>
+      <span class="conf">机密 · 仅供委托方使用</span>
+    </div>
+    <div class="form-title">专利检索报告</div>
+    <div class="form-sub">专利检索记录 · 检索式执行记录 · 对比文件清单</div>
+    <div class="title-rule"></div>
+
+    <div class="form-box">
+      <table class="rec">
+        <colgroup>
+          <col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%">
+          <col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%">
+          <col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%">
+          <col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%">
+        </colgroup>
+        <tbody>
+          <tr>
+            <td colspan="5">报告编号：<span class="fill" data-slot="reportNo"></span></td>
+            <td colspan="7">检索日期：<span class="fill w-sm" data-slot="searchDateYear"></span> 年 <span class="fill w-sm" data-slot="searchDateMonth"></span> 月 <span class="fill w-sm" data-slot="searchDateDay"></span> 日</td>
+            <td colspan="8">检索截止日：<span class="fill w-sm" data-slot="cutoffDateYear"></span> 年 <span class="fill w-sm" data-slot="cutoffDateMonth"></span> 月 <span class="fill w-sm" data-slot="cutoffDateDay"></span> 日</td>
+          </tr>
+          <tr>
+            <td colspan="10">申请号/专利号：<span class="fill" data-slot="applicationNo"></span></td>
+            <td colspan="10">申请日：<span class="fill w-sm" data-slot="applicationDateYear"></span> 年 <span class="fill w-sm" data-slot="applicationDateMonth"></span> 月 <span class="fill w-sm" data-slot="applicationDateDay"></span> 日</td>
+          </tr>
+          <tr>
+            <td colspan="12">发明名称：<span class="fill w-lg" data-slot="inventionTitle"></span></td>
+            <td colspan="8">专利类型：<span class="fill w-sm" data-slot="patentType"></span></td>
+          </tr>
+          <tr>
+            <td colspan="12">专利权人/申请人：<span class="fill w-lg" data-slot="patentee"></span></td>
+            <td colspan="8">委托方：<span class="fill w-lg" data-slot="client"></span></td>
+          </tr>
+          <tr>
+            <td colspan="10">检索人：<span class="fill" data-slot="searcher"></span></td>
+            <td colspan="10">审核人：<span class="fill" data-slot="reviewer"></span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="part">
+        <div class="part-label">A. 主题的分类（IPC / CPC）</div>
+        <div class="part-value"><span class="fill w-lg" data-slot="ipcClass"></span></div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">B. 检索领域</div>
+        <div class="part-value" data-slot="searchField"><span class="fill w-full"></span></div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">C. 在检索时查阅的电子数据库（数据库的名称和/或使用的检索式）</div>
+        <div class="part-value" data-slot="databases"><span class="fill w-full"></span></div>
+        <div class="part-value tight" data-slot="databases"><span class="fill w-full"></span></div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">D. 相关文件 <span class="note">（按相关度降序）</span></div>
+        <table class="doc-table">
+          <colgroup>
+            <col style="width:7%"><col style="width:23%"><col style="width:16%"><col style="width:13%"><col style="width:17%"><col style="width:24%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>类型*</th>
+              <th>文献号或书名<br>（包括期刊卷号/期号）</th>
+              <th>公开/出版/<br>发行日期</th>
+              <th>分类号</th>
+              <th>相关部分</th>
+              <th>相关的权利<br>要求编号</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 数据行：按相关文件条数复制本行；超出本页时勾选下面一行并转到附页 -->
+            <tr data-slot="relatedDocuments"><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td><td><span class="fill w-full"></span></td></tr>
+          </tbody>
+        </table>
+        <div class="opt" style="margin-top:1mm"><span class="cb" data-slot="moreDocuments:continued"></span><span class="txt">相关文件，参见附页。</span></div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">* 引用文件的专用类型：</div>
+        <div class="legend">
+          <div class="legend-grid">
+            <div><span class="k">“X”</span>　单独影响权利要求的新颖性或创造性的文件；</div>
+            <div><span class="k">“A”</span>　背景技术文件，即反映权利要求的部分技术特征或者有关的现有技术文件；</div>
+            <div><span class="k">“Y”</span>　与报告中其它 Y 类文件组合影响权利要求创造性的文件；</div>
+            <div><span class="k">“E”</span>　单独影响权利要求新颖性的抵触申请文件。</div>
+            <div><span class="k">“R”</span>　任何单位或个人在申请日向专利局提交的、属于同样的发明创造的专利文件；</div>
+            <div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-foot">
+    <div><span class="fill w-lg" data-slot="footerFirm"></span> · 机密</div>
+    <div>第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
+  </div>
+</div>
+
+<!-- ==================== 第 2 页 ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="firm-head">
+      <span class="firm">XX 知识产权代理事务所</span>
+      <span class="conf">机密 · 仅供委托方使用</span>
+    </div>
+    <div class="form-title" style="font-size:13pt; margin-top:3mm">专利检索报告（续）</div>
+    <div class="title-rule"></div>
+
+    <div class="form-box">
+      <div class="part part-first">
+        <div class="part-label">E. 检索结论</div>
+        <!-- 逐段填入检索结论 -->
+        <div class="part-value" data-slot="conclusion"><span class="fill w-full"></span></div>
+        <div class="part-value tight" data-slot="conclusion"><span class="fill w-full"></span></div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">E.1 相关度分布</div>
+        <table class="doc-table">
+          <colgroup><col style="width:14%"><col style="width:20%"><col style="width:16%"><col style="width:50%"></colgroup>
+          <thead>
+            <tr><th>类型</th><th>篇数</th><th>占比</th><th>对本专利的影响</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>X</td><td class="num"><span class="fill w-sm" data-slot="distXCount"></span></td><td class="num"><span class="fill w-sm" data-slot="distXRatio"></span></td><td class="l"><span class="fill w-full" data-slot="distXImpact"></span></td></tr>
+            <tr><td>Y</td><td class="num"><span class="fill w-sm" data-slot="distYCount"></span></td><td class="num"><span class="fill w-sm" data-slot="distYRatio"></span></td><td class="l"><span class="fill w-full" data-slot="distYImpact"></span></td></tr>
+            <tr><td>A</td><td class="num"><span class="fill w-sm" data-slot="distACount"></span></td><td class="num"><span class="fill w-sm" data-slot="distARatio"></span></td><td class="l"><span class="fill w-full" data-slot="distAImpact"></span></td></tr>
+            <tr><td>合计</td><td class="num"><span class="fill w-sm" data-slot="distTotalCount"></span></td><td class="num"><span class="fill w-sm" data-slot="distTotalRatio"></span></td><td class="l">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="part">
+        <div class="part-label">附. 检索式执行记录</div>
+        <table class="doc-table">
+          <colgroup><col style="width:8%"><col style="width:18%"><col style="width:44%"><col style="width:12%"><col style="width:18%"></colgroup>
+          <thead>
+            <tr><th>轮次</th><th>数据库</th><th>检索式</th><th>命中数</th><th>执行日期</th></tr>
+          </thead>
+          <tbody>
+            <!-- 数据行：按检索轮次复制本行 -->
+            <tr data-slot="searchRounds"><td><span class="fill w-sm"></span></td><td><span class="fill w-full"></span></td><td class="l"><span class="fill w-full"></span></td><td class="num"><span class="fill w-sm"></span></td><td><span class="fill w-full"></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="part">
+        <div class="part-label">F. 检索范围与局限</div>
+        <div class="opt"><span class="cb"></span><span class="txt">检索覆盖中文与英文文献；未穷尽日、韩、德语义及非专利文献。</span></div>
+        <div class="opt"><span class="cb"></span><span class="txt">关键词与分类号策略存在覆盖盲区，未检索未公开的在先申请。</span></div>
+        <div class="opt"><span class="cb"></span><span class="txt">本报告为检索分析文件，不是国家知识产权局作出的专利权评价报告。</span></div>
+      </div>
+    </div>
+
+    <table class="sign-table">
+      <colgroup><col style="width:33.4%"><col style="width:33.3%"><col style="width:33.3%"></colgroup>
+      <tbody>
+        <tr><td>检索人：<span class="fill" data-slot="searcher"></span></td><td>审核人：<span class="fill" data-slot="reviewer"></span></td><td>日期：<span class="fill w-sm" data-slot="reportDateYear"></span> 年 <span class="fill w-sm" data-slot="reportDateMonth"></span> 月 <span class="fill w-sm" data-slot="reportDateDay"></span> 日</td></tr>
+      </tbody>
+    </table>
+
+    <div class="statement">
+      <span class="t">声明：</span>本报告为检索分析交付物，不是国家知识产权局作出的专利权评价报告，不构成正式法律意见。检索结论受数据库覆盖范围、检索截止日与检索策略限制，实际专利性判断应以国家知识产权局的评价报告或审查结论为准。
+    </div>
+  </div>
+
+  <div class="doc-foot">
+    <div><span class="fill w-lg" data-slot="footerFirm"></span> · 机密</div>
+    <div>第 <span class="fill w-sm"></span> 页　共 <span class="fill w-sm"></span> 页</div>
+  </div>
+</div>
+
+</body>
+</html>
