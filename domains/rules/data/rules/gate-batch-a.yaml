@@ -1,0 +1,114 @@
+# 批 A：确定性门禁规则（来自 deepseek-harness patent-rule 规则资产，手写转换）
+#
+# 转换口径：
+#   - dsh 的 keyword_blocklist 原样保留（negationContext / quoteImmune / keywords）；
+#   - dsh 的 structural_analysis 保留 requiresAll 与 minConfidence；
+#   - 只收录不需要 LLM 判断、可由文本确定性判定的规则；
+#     其余规则（citation_analysis、法律证据类型检查等）留在 reasoning 引擎。
+#
+# 与 dsh 的差异：dsh 的 action=review 经 ctx.approval 挂起审批；Mady 的
+# OutputGate 在工具执行后无法挂起，因此 review 与 block 同样标注「不可作为交付依据」，
+# 审批仍由既有 ApprovalGate 在模型输出层处理。
+
+rules:
+  - ruleId: "PAT-RISK-001"
+    name: "专利风险结论免责声明"
+    description: >
+      输出包含风险结论（构成侵权、宣告无效、驳回风险等）时，必须附带
+      「不构成正式法律意见」提示。否定语境与引文中的条款词不触发。
+    legalBasis: "执业规范：AI 输出不构成正式法律意见，应由专利代理人/律师确认"
+    domain: "patent"
+    severity: major
+    action: warn
+    check:
+      type: keyword_blocklist
+      negationContext: true
+      quoteImmune: true
+      keywords:
+        - "构成侵权"
+        - "侵权成立"
+        - "侵权风险"
+        - "宣告无效"
+        - "无效风险"
+        - "驳回风险"
+        - "将被驳回"
+        - "应当驳回"
+        - "不授权"
+        - "具备专利性"
+        - "不具备专利性"
+        - "自由实施风险"
+        - "可以自由实施"
+        - "新颖性结论"
+        - "创造性结论"
+
+  - ruleId: "PAT-APPROVAL-001"
+    name: "专利结论人工审批"
+    description: >
+      输出包含结论性/侵权性/有效性判断时，标注须人工确认。否定语境与引文不触发。
+    legalBasis: "质量门禁：结论性/侵权性/有效性判断需人工确认"
+    domain: "patent"
+    severity: critical
+    action: review
+    check:
+      type: keyword_blocklist
+      negationContext: true
+      quoteImmune: true
+      keywords:
+        - "专利结论"
+        - "侵权判断"
+        - "有效性结论"
+        - "最终建议"
+
+  - ruleId: "PAT-ABS-001"
+    name: "回避绝对化表述"
+    description: >
+      输出使用绝对化断言（绝对可以、一定能够、必然导致等）时提示改用限定性表述。
+      裸「一定/绝对/必然」不触发：它们在「一定的弹性」「绝对新颖性」中是正常术语。
+    legalBasis: "审查规范：回避绝对化断言，改用限定性表述"
+    domain: "patent"
+    severity: minor
+    action: warn
+    check:
+      type: keyword_blocklist
+      negationContext: true
+      quoteImmune: true
+      keywords:
+        - "绝对可以"
+        - "绝对可行"
+        - "绝对能"
+        - "绝对是"
+        - "绝对优于"
+        - "绝对领先"
+        - "一定能够"
+        - "一定会"
+        - "一定是"
+        - "一定属于"
+        - "一定具有"
+        - "百分百"
+        - "毫无疑问"
+        - "必然导致"
+        - "必然会"
+        - "必然能够"
+
+  - ruleId: "CON-COMP-0106"
+    name: "分析结论必须引用法律依据"
+    description: >
+      分析文本必须同时给出结论陈述、法律依据与事实依据三项；缺任一项即提示补齐。
+      minConfidence 取 1：2/3 阈值会让「没有引用法条」的结论照样通过，与规则名称相反。
+    legalBasis: "撰写规范：分析结论应同时给出结论陈述与法律/事实依据"
+    domain: "patent"
+    severity: major
+    action: warn
+    check:
+      type: structural_analysis
+      minConfidence: 1
+      requiresAll:
+        - element: "结论陈述"
+          description: "分析是否给出结论性陈述"
+          patterns: ["结论", "综上", "因此", "判断", "认定"]
+        - element: "法律依据"
+          description: "结论是否有法律依据支撑"
+          patterns: ["根据", "依据", "按照", "遵照", "条规定", "款规定"]
+        - element: "事实依据"
+          description: "结论是否有事实依据支撑"
+          patterns: ["对比文件", "说明书", "实施例", "证据", "公开"]

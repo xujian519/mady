@@ -233,6 +233,9 @@ func SetupDocTemplateStore(store *doctmpl.TemplateStore) {
 
 // SetupRulesExtension 在启动期注入规则引擎扩展实例。
 // engine 为 nil 时静默跳过，不影响现有行为。
+//
+// 运行时门禁用随包门禁规则自建引擎（见 assemble.injectRuleOutputGate），
+// 不依赖这里的用户规则集。
 func SetupRulesExtension(engine *rules.Engine) {
 	if engine != nil {
 		globalRuleExt = rules.NewExtension(engine)

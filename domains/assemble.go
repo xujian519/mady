@@ -7,6 +7,7 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/domains/checker"
 	"github.com/xujian519/mady/domains/lawverify"
+	"github.com/xujian519/mady/domains/rules"
 	"github.com/xujian519/mady/guardrails"
 	"github.com/xujian519/mady/pkg/util"
 )
@@ -33,6 +34,22 @@ func injectDomainSharedExtensions(cfg *agentcore.Config) {
 		cfg.Extensions = append(cfg.Extensions, globalEvidenceExt)
 	}
 	injectLawVerifyTool(cfg)
+	injectRuleOutputGate(cfg)
+}
+
+// injectRuleOutputGate 追加规则输出门禁：工具结果命中确定性规则时，
+// warn 级追加合规提示，block/review 级标注不可作为交付依据。
+//
+// 规则来自随包资产而非 $MADY_HOME：门禁是安全能力，不因部署目录缺失而静默失效。
+// 结构门禁（StructuralGate）需要声明「哪个交付工具的哪个入参承载制品文本」，
+// 交付工具在 W2 才就绪，届时与本装配一起配置 entries。
+func injectRuleOutputGate(cfg *agentcore.Config) {
+	engine, err := rules.NewBundledEngine()
+	if err != nil {
+		slog.Error("规则输出门禁未启用：加载随包门禁规则失败", "error", err)
+		return
+	}
+	cfg.Lifecycle = appendLifecycle(cfg.Lifecycle, rules.NewOutputGate(engine))
 }
 
 // injectLawVerifyTool 追加法条核验工具。
