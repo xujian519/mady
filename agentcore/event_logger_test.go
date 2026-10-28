@@ -61,7 +61,7 @@ func TestEventLogger_RecordsSelectedEvents(t *testing.T) {
 	defer bus.Close()
 
 	store := &memoryEventStore{}
-	done := make(chan struct{}, 3)
+	done := make(chan struct{}, 4)
 	store.signal = func() { done <- struct{}{} }
 
 	logger := NewEventLogger(store)
@@ -74,10 +74,11 @@ func TestEventLogger_RecordsSelectedEvents(t *testing.T) {
 	bus.Emit(NewAgentStartEvent("test-agent", "hello"))
 	bus.Emit(NewApprovalPromptEvent("test-agent", "needs review", nil))
 	bus.Emit(NewToolCallStartEvent(ToolCall{Name: "test_tool"}))
+	bus.Emit(NewDeliverRegisteredEvent("claims-spec", "pass", 2, nil, nil))
 
-	waitForEvent(t, store, done, 3, time.Second)
-	if n := store.count(); n != 3 {
-		t.Fatalf("expected 3 recorded events, got %d", n)
+	waitForEvent(t, store, done, 4, time.Second)
+	if n := store.count(); n != 4 {
+		t.Fatalf("expected 4 recorded events, got %d", n)
 	}
 }
 

@@ -30,6 +30,8 @@ var recordedEvents = map[EventType]bool{
 	EventTurnEnd:        true,
 	EventHandoffStart:   true,
 	EventHandoffEnd:     true,
+	// 交付登记是终态结论，必须可回放：会话日志靠它证明交付过什么、结论如何。
+	EventDeliverRegistered: true,
 }
 
 // EventLogger subscribes to an EventBus and asynchronously persists

@@ -11,6 +11,7 @@ import (
 	"github.com/xujian519/mady/agentcore/worker"
 	"github.com/xujian519/mady/domains/claimchart"
 	"github.com/xujian519/mady/domains/claimdrafting"
+	"github.com/xujian519/mady/domains/deliver"
 	"github.com/xujian519/mady/domains/doctmpl"
 	"github.com/xujian519/mady/domains/enablement"
 	"github.com/xujian519/mady/domains/evidence"
@@ -399,6 +400,8 @@ func PatentAgentConfig(base agentcore.Config, toolExt agentcore.Extension) agent
 	cfg.Extensions = append(cfg.Extensions, toolExt,
 		// 心理引擎 — 专利领域：VAD/OCC 语气调整 + 认知扭曲诊断（专利分析需要完整心理评估）。
 		psychological.NewExtension(PatentPsychConfig()),
+		// 交付件登记：渲染/出件后的成品登记与质量门（与 Extension 模式保持一致）。
+		deliver.NewExtension(deliver.Config{}),
 	)
 
 	injectDomainSharedExtensions(&cfg)

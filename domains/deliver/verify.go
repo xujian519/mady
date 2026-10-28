@@ -47,15 +47,15 @@ type VerifyInput struct {
 // ManifestEntry 是交付清单中的一条。
 type ManifestEntry struct {
 	// Role 是文件角色。
-	Role string
+	Role string `json:"role"`
 	// Path 是文件路径。
-	Path string
+	Path string `json:"path"`
 	// SHA256 是文件内容摘要。
-	SHA256 string
+	SHA256 string `json:"sha256"`
 	// Size 是字节数。
-	Size int64
+	Size int64 `json:"size"`
 	// ModTime 是修改时间。
-	ModTime time.Time
+	ModTime time.Time `json:"mod_time"`
 }
 
 // VerifyResult 是核对结果。
@@ -167,6 +167,6 @@ func statArtifact(role, path string) (ManifestEntry, error) {
 		Path:    path,
 		SHA256:  hex.EncodeToString(sum[:]),
 		Size:    info.Size(),
-		ModTime: info.ModTime(),
+		ModTime: info.ModTime().UTC(),
 	}, nil
 }
