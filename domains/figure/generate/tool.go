@@ -23,7 +23,13 @@ kind 决定图的类型：
 - block：系统框图（blocks + connections）；
 - hierarchy：组件层级图（nodes，可任意嵌套 children）；
 - state：状态转移图（states + transitions，initial 为实心小圆且不占标号）；
-- template：内置模板（template = simple_flowchart / system_block / method_steps / component_hierarchy）。
+- template：内置模板（template = simple_flowchart / system_block / method_steps / component_hierarchy）；
+- sequence：时序图（participants + messages，直接绘制 SVG，不依赖 Graphviz）；
+- section：剖视图（section.parts 轮廓 + 45° 剖面线 + 引线标号，直接绘制 SVG）。
+
+SVG 产物会做渲染复核：文字被线条穿过、文字与图线净距不足（按图型分档）、
+字高低于 min_font_mm、墨迹越出画布；复核发现随结果返回，fail_on_findings 为 true
+时阻断级发现令工具失败（文件保留供修正）。
 
 附图默认黑白线条（专利附图一般使用黑色墨水）；参考标号按「图号 × 100」系列自动分配
 （图1 = 100、102…，图2 = 200…），也可用 numerals 显式指定以实现跨图同件同号。
@@ -59,7 +65,7 @@ func NewTool(cfg ToolConfig) *agentcore.Tool {
 			"properties": map[string]any{
 				"kind": map[string]any{
 					"type":        "string",
-					"enum":        []string{"flowchart", "block", "hierarchy", "state", "template"},
+					"enum":        []string{"flowchart", "block", "hierarchy", "state", "template", "sequence", "section"},
 					"description": "图的类型",
 				},
 				"template": map[string]any{
@@ -124,13 +130,26 @@ func NewTool(cfg ToolConfig) *agentcore.Tool {
 					},
 					"additionalProperties": false,
 				},
-				"steps":       stepsSchema(),
-				"blocks":      blocksSchema(),
-				"connections": connectionsSchema(),
-				"nodes":       nodesSchema(),
-				"states":      statesSchema(),
-				"transitions": transitionsSchema(),
-				"references":  referencesSchema(),
+				"steps":        stepsSchema(),
+				"blocks":       blocksSchema(),
+				"connections":  connectionsSchema(),
+				"nodes":        nodesSchema(),
+				"states":       statesSchema(),
+				"transitions":  transitionsSchema(),
+				"references":   referencesSchema(),
+				"participants": participantsSchema(),
+				"messages":     messagesSchema(),
+				"sequence":     sequenceOptionsSchema(),
+				"section":      sectionSchema(),
+				"fail_on_findings": map[string]any{
+					"type":        "boolean",
+					"description": "渲染复核命中阻断级发现时令工具失败（文件保留供修正），默认 false",
+				},
+				"min_font_mm": map[string]any{
+					"type":        "number",
+					"description": "字高内控下限（毫米）；0 关闭该判据",
+					"minimum":     0,
+				},
 			},
 			"required":             []string{"kind", "output"},
 			"additionalProperties": false,
@@ -260,6 +279,134 @@ func referencesSchema() map[string]any {
 	}
 }
 
+func pointSchema(description string) map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": description,
+		"items":       map[string]any{"type": "number"},
+		"minItems":    2,
+		"maxItems":    2,
+	}
+}
+
+func participantsSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "时序图参与者（kind=sequence）",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id":    map[string]any{"type": "string"},
+				"label": map[string]any{"type": "string"},
+			},
+			"required": []string{"id", "label"},
+		},
+	}
+}
+
+func messagesSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "时序图消息（kind=sequence）",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"from":     map[string]any{"type": "string"},
+				"to":       map[string]any{"type": "string"},
+				"label":    map[string]any{"type": "string"},
+				"kind":     map[string]any{"type": "string", "enum": []string{"sync", "return", "async"}},
+				"activate": map[string]any{"type": "boolean", "description": "是否在目标生命线上画激活条"},
+			},
+			"required": []string{"from", "to", "label"},
+		},
+	}
+}
+
+func sequenceOptionsSchema() map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": "时序图尺寸选项（毫米）",
+		"properties": map[string]any{
+			"box_width_mm":       map[string]any{"type": "number"},
+			"message_spacing_mm": map[string]any{"type": "number"},
+			"padding_mm":         map[string]any{"type": "number"},
+		},
+		"additionalProperties": false,
+	}
+}
+
+func sectionSchema() map[string]any {
+	part := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"label":   map[string]any{"type": "string", "description": "零件标号；落在轮廓右上方并画引线"},
+			"outline": map[string]any{"type": "array", "items": pointSchema("顶点 [x, y]"), "description": "闭合轮廓（至少 3 个顶点）"},
+			"holes":   map[string]any{"type": "array", "items": map[string]any{"type": "array", "items": pointSchema("顶点 [x, y]")}, "description": "孔环；须同时给 hatch_segments"},
+			"hatch_segments": map[string]any{
+				"type":        "array",
+				"description": "已算好的剖面线段",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"from": pointSchema("起点 [x, y]"),
+						"to":   pointSchema("终点 [x, y]"),
+					},
+					"required": []string{"from", "to"},
+				},
+			},
+			"hatch": map[string]any{
+				"description": `剖面线参数对象，或 "none" 表示只画轮廓`,
+			},
+			"stroke_width_mm": map[string]any{"type": "number"},
+		},
+		"required": []string{"outline"},
+	}
+	return map[string]any{
+		"type":        "object",
+		"description": "剖视图输入（kind=section）",
+		"properties": map[string]any{
+			"parts": map[string]any{"type": "array", "items": part, "description": "被剖切零件（至少一个）"},
+			"labels": map[string]any{
+				"type":        "array",
+				"description": "显式引线标号",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"text": map[string]any{"type": "string"},
+						"at":   pointSchema("数字视觉中心 [x, y]"),
+						"from": pointSchema("引线起点 [x, y]（可选）"),
+					},
+					"required": []string{"text", "at"},
+				},
+			},
+			"centerlines": map[string]any{
+				"type":        "array",
+				"description": "中心线（细点划线）",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"from": pointSchema("起点 [x, y]"),
+						"to":   pointSchema("终点 [x, y]"),
+					},
+					"required": []string{"from", "to"},
+				},
+			},
+			"options": map[string]any{
+				"type":        "object",
+				"description": "尺寸与线宽选项（毫米）",
+				"properties": map[string]any{
+					"font_size_mm":         map[string]any{"type": "number"},
+					"stroke_width_mm":      map[string]any{"type": "number"},
+					"thin_stroke_width_mm": map[string]any{"type": "number"},
+					"padding_mm":           map[string]any{"type": "number"},
+				},
+				"additionalProperties": false,
+			},
+		},
+		"required": []string{"parts"},
+	}
+}
+
 func templateNames() []string {
 	out := make([]string, 0, len(AllTemplates()))
 	for _, name := range AllTemplates() {
@@ -289,6 +436,14 @@ type toolArgs struct {
 	States        []State           `json:"states"`
 	Transitions   []Transition      `json:"transitions"`
 	References    []Reference       `json:"references"`
+	// 时序图 / 剖视图输入。
+	Participants []SequenceParticipant `json:"participants"`
+	Messages     []SequenceMessage     `json:"messages"`
+	Sequence     SequenceOptions       `json:"sequence"`
+	Section      SectionDiagramInput   `json:"section"`
+	// 渲染复核：fail_on_findings 为 true 时阻断级发现令工具失败（文件保留）。
+	FailOnFindings bool    `json:"fail_on_findings"`
+	MinFontMm      float64 `json:"min_font_mm"`
 }
 
 // ToolResult 是附图生成结果。
@@ -300,6 +455,8 @@ type ToolResult struct {
 	WidthMm  float64  `json:"width_mm,omitempty"`
 	HeightMm float64  `json:"height_mm,omitempty"`
 	Warnings []string `json:"warnings,omitempty"`
+	// CheckFindings 是 SVG 渲染复核的发现（png/pdf 不做复核）。
+	CheckFindings []CheckFinding `json:"check_findings,omitempty"`
 }
 
 func (t *figureTool) Run(ctx context.Context, args json.RawMessage) (any, error) {
@@ -307,15 +464,6 @@ func (t *figureTool) Run(ctx context.Context, args json.RawMessage) (any, error)
 	if err := json.Unmarshal(args, &p); err != nil {
 		return nil, fmt.Errorf("参数无效: %w", err)
 	}
-	opts, err := buildOptions(p)
-	if err != nil {
-		return nil, err
-	}
-	dot, err := buildDOT(p, opts)
-	if err != nil {
-		return nil, err
-	}
-
 	outputPath, format, err := resolveOutput(t.cfg.WorkingDir, p.Output, p.Format)
 	if err != nil {
 		return nil, err
@@ -323,15 +471,6 @@ func (t *figureTool) Run(ctx context.Context, args json.RawMessage) (any, error)
 	if len(p.References) > 0 && format != FormatSVG {
 		return nil, newError(ErrInvalidOutput, "references 仅支持 svg 格式，当前为 %s", format)
 	}
-
-	engine := Engine(p.Engine)
-	if engine == "" {
-		engine = EngineDot
-	}
-	if !engine.Valid() {
-		return nil, newError(ErrRenderFailed, "未知布局引擎 %q", p.Engine)
-	}
-
 	// 先做符号链接复核再建目录：先建目录会被工作目录内的符号链接带出边界。
 	if err := ensureWithin(t.cfg.WorkingDir, filepath.Dir(outputPath)); err != nil {
 		return nil, err
@@ -339,54 +478,148 @@ func (t *figureTool) Run(ctx context.Context, args json.RawMessage) (any, error)
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o750); err != nil {
 		return nil, fmt.Errorf("创建输出目录失败: %w", err)
 	}
-	dir := filepath.Dir(outputPath)
-	stem := strings.TrimSuffix(filepath.Base(outputPath), filepath.Ext(outputPath))
-	renderedPath, err := Render(ctx, RenderSpec{
-		DOT: dot, Filename: stem, Format: format, Engine: engine, OutputDir: dir,
-	}, RenderConfig{Executable: t.cfg.Executable, Timeout: t.cfg.Timeout})
+
+	result := ToolResult{Format: string(format)}
+	renderedPath := outputPath
+	var svg string
+	if isVectorKind(p.Kind) {
+		svg, err = renderVectorFigure(p, format)
+	} else {
+		svg, err = t.renderGraphviz(ctx, p, outputPath, format, &result)
+	}
 	if err != nil {
 		return nil, err
 	}
 
 	var warnings []string
-	result := ToolResult{
-		DOT: dot, Format: string(format), Engine: string(engine),
-	}
 	if format == FormatSVG {
-		svgData, readErr := os.ReadFile(renderedPath) //nolint:gosec // renderedPath 已限定在工作目录内
-		if readErr != nil {
-			return nil, newError(ErrInvalidOutput, "读取渲染产物失败：%v", readErr)
-		}
-		svg := string(svgData)
-		if len(p.References) > 0 {
-			annotated, annotateErr := AnnotateSVG(svg, p.References, DefaultSVGMaxBytes)
-			if annotateErr != nil {
-				return nil, annotateErr
-			}
-			svg = annotated.SVG
-			warnings = append(warnings, annotated.Warnings...)
-			// 附图是交付文档，按常规文档权限写回。
-			if err := os.WriteFile(renderedPath, []byte(svg), 0o644); err != nil { //nolint:gosec
-				return nil, newError(ErrInvalidOutput, "写回标注后的 SVG 失败：%v", err)
-			}
-		}
-		viewport := ResolveViewport(RootTag(svg))
-		if width, height, ok := viewport.DiagramSizeMm(); ok {
-			result.WidthMm = width
-			result.HeightMm = height
-		}
-		if viewport.Note != "" {
-			warnings = append(warnings, viewport.Note)
+		if _, warnings, err = t.finalizeSVG(svg, p, renderedPath, &result); err != nil {
+			return nil, err
 		}
 	}
 
-	rel, err := filepath.Rel(t.cfg.WorkingDir, renderedPath)
-	if err != nil {
+	rel, relErr := filepath.Rel(t.cfg.WorkingDir, renderedPath)
+	if relErr != nil {
 		rel = renderedPath
 	}
 	result.File = rel
 	result.Warnings = warnings
 	return result, nil
+}
+
+// renderVectorFigure 构造直接绘制 SVG 的图型（时序图 / 剖视图）。
+func renderVectorFigure(p toolArgs, format Format) (string, error) {
+	if format != FormatSVG {
+		return "", newError(ErrInvalidOutput, "时序图与剖视图仅支持 svg 格式")
+	}
+	figure, err := buildVectorFigure(p)
+	if err != nil {
+		return "", err
+	}
+	return figure.SVG, nil
+}
+
+// renderGraphviz 构建 DOT 并渲染；SVG 时读回产物供复核与标注。
+func (t *figureTool) renderGraphviz(ctx context.Context, p toolArgs, outputPath string,
+	format Format, result *ToolResult) (string, error) {
+	opts, err := buildOptions(p)
+	if err != nil {
+		return "", err
+	}
+	dot, err := buildDOT(p, opts)
+	if err != nil {
+		return "", err
+	}
+	engine := Engine(p.Engine)
+	if engine == "" {
+		engine = EngineDot
+	}
+	if !engine.Valid() {
+		return "", newError(ErrRenderFailed, "未知布局引擎 %q", p.Engine)
+	}
+	stem := strings.TrimSuffix(filepath.Base(outputPath), filepath.Ext(outputPath))
+	renderedPath, err := Render(ctx, RenderSpec{
+		DOT: dot, Filename: stem, Format: format, Engine: engine, OutputDir: filepath.Dir(outputPath),
+	}, RenderConfig{Executable: t.cfg.Executable, Timeout: t.cfg.Timeout})
+	if err != nil {
+		return "", err
+	}
+	result.DOT = dot
+	result.Engine = string(engine)
+	if format != FormatSVG {
+		return "", nil
+	}
+	data, err := os.ReadFile(renderedPath) //nolint:gosec // renderedPath 已限定在工作目录内
+	if err != nil {
+		return "", newError(ErrInvalidOutput, "读取渲染产物失败：%v", err)
+	}
+	return string(data), nil
+}
+
+// finalizeSVG 追加图外标号、写回文件、补充尺寸并执行渲染复核。
+func (t *figureTool) finalizeSVG(svg string, p toolArgs, renderedPath string,
+	result *ToolResult) (string, []string, error) {
+	var warnings []string
+	if len(p.References) > 0 {
+		annotated, err := AnnotateSVG(svg, p.References, DefaultSVGMaxBytes)
+		if err != nil {
+			return "", nil, err
+		}
+		svg = annotated.SVG
+		warnings = append(warnings, annotated.Warnings...)
+	}
+	// 附图是交付文档，按常规文档权限写回。
+	if err := os.WriteFile(renderedPath, []byte(svg), 0o644); err != nil { //nolint:gosec
+		return "", nil, newError(ErrInvalidOutput, "写入 SVG 失败：%v", err)
+	}
+	viewport := ResolveViewport(RootTag(svg))
+	if width, height, ok := viewport.DiagramSizeMm(); ok {
+		result.WidthMm = width
+		result.HeightMm = height
+	}
+	if viewport.Note != "" {
+		warnings = append(warnings, viewport.Note)
+	}
+
+	report, err := CheckFigure(svg, CheckOptions{FigureType: p.Kind, MinFontMm: p.MinFontMm})
+	if err != nil {
+		return "", nil, err
+	}
+	result.CheckFindings = report.Findings
+	for _, finding := range report.Findings {
+		warnings = append(warnings, "渲染复核："+finding.Message)
+	}
+	if !p.FailOnFindings {
+		return svg, warnings, nil
+	}
+	blocking := BlockingFindings(report)
+	if len(blocking) == 0 {
+		return svg, warnings, nil
+	}
+	messages := make([]string, len(blocking))
+	for i, finding := range blocking {
+		messages[i] = "- " + finding.Message
+	}
+	return "", nil, newError(ErrRenderFailed,
+		"渲染复核未通过（%d 项）：\n%s\n文件已写入 %s，但未作为交付件导出；修正后重跑。",
+		len(blocking), strings.Join(messages, "\n"), renderedPath)
+}
+
+// isVectorKind 报告该 kind 是否走直接绘制 SVG 的矢量通路。
+func isVectorKind(kind string) bool {
+	return kind == "sequence" || kind == "section"
+}
+
+// buildVectorFigure 构造时序图或剖视图。
+func buildVectorFigure(p toolArgs) (VectorFigure, error) {
+	switch p.Kind {
+	case "sequence":
+		return BuildSequenceDiagram(p.Participants, p.Messages, p.Sequence)
+	case "section":
+		return BuildSectionDiagram(p.Section)
+	default:
+		return VectorFigure{}, newError(ErrInvalidTemplate, "未知的矢量图型 %q", p.Kind)
+	}
 }
 
 func buildOptions(p toolArgs) (Options, error) {
