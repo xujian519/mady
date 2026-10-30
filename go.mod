@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
-	github.com/signintech/gopdf v0.38.2
+	github.com/signintech/gopdf v0.38.3
 	github.com/sky-valley/pi v0.85.21
 	github.com/xujian519/mady/tui v0.0.0-20260721162033-d76ce4144d96
 	github.com/xuri/excelize/v2 v2.11.0
