@@ -204,7 +204,7 @@ jobs:
       # 此处预装以保证 CI 覆盖该能力。
       - name: Set up Python (filing 出件测试)
         if: matrix.module.name == 'root'
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
