@@ -241,39 +241,41 @@ func (t *Team) dispatchRound(ctx context.Context, runner Runner) (int, error) {
 	return executed, firstErr
 }
 
-// work 让单个成员循环认领任务直到无任务可做。
+// work 让单个成员认领并执行至多一个任务。
+//
+// 每轮 dispatchRound 只为每个空闲成员分配一个任务，由 RunUntilIdle 的
+// 外层循环反复重调度，从而保证多成员间的公平性：避免某个成员在单线程
+// 调度或任务极快时独占全部任务，导致其余成员无法参与。
 func (t *Team) work(ctx context.Context, runner Runner, member Member) (int, error) {
-	executed := 0
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	if err := t.SetStatus(member.ID, MemberRunning); err != nil {
 		return 0, err
 	}
 	defer func() { _ = t.SetStatus(member.ID, MemberIdle) }()
-	for {
-		if err := ctx.Err(); err != nil {
-			return executed, err
+
+	task, err := t.ClaimNext(ctx, member.ID)
+	if err != nil {
+		if errors.Is(err, ErrMemberRetired) {
+			return 0, nil
 		}
-		task, err := t.ClaimNext(ctx, member.ID)
-		if err != nil {
-			if errors.Is(err, ErrMemberRetired) {
-				return executed, nil
-			}
-			return executed, err
-		}
-		if task == nil {
-			return executed, nil
-		}
-		executed++
-		result, runErr := runner.RunTask(ctx, member, task)
-		if runErr != nil {
-			if err := t.FailTask(ctx, member.ID, task.ID, runErr.Error()); err != nil {
-				return executed, err
-			}
-			continue
-		}
-		if err := t.CompleteTask(ctx, member.ID, task.ID, result); err != nil {
-			return executed, err
-		}
+		return 0, err
 	}
+	if task == nil {
+		return 0, nil
+	}
+	result, runErr := runner.RunTask(ctx, member, task)
+	if runErr != nil {
+		if err := t.FailTask(ctx, member.ID, task.ID, runErr.Error()); err != nil {
+			return 1, err
+		}
+		return 1, nil
+	}
+	if err := t.CompleteTask(ctx, member.ID, task.ID, result); err != nil {
+		return 1, err
+	}
+	return 1, nil
 }
 
 func (t *Team) idleMembers() []Member {
