@@ -169,6 +169,18 @@ func TestResolveAPIKey_MadyConvention(t *testing.T) { // 通用 API_KEY 优先�
 	}
 }
 
+// resolveAPIKey 按 Mady 既有约定解析 provider 的 API Key：
+// 通用 API_KEY 优先（主 Agent 同约定），其次 provider 特定环境变量
+// （DEEPSEEK_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY 等，pi 映射表）。
+// 生产代码不再显式传入 SessionOptions.APIKey（pi v1.4 已移除该字段），
+// 认证由 pi 运行时从环境变量解析；此函数保留用于测试 Mady 约定行为。
+func resolveAPIKey(provider string) string {
+	if k := os.Getenv("API_KEY"); k != "" {
+		return k
+	}
+	return ai.GetEnvApiKey(provider, nil)
+}
+
 // ---------------------------------------------------------------------------
 // 集成：faux provider 跑真实子会话循环
 // ---------------------------------------------------------------------------

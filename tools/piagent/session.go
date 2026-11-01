@@ -189,17 +189,6 @@ func resolveModel(injected *ai.Model, defaultModel, paramModel string) (*ai.Mode
 	return applyEnvBaseURL(r.Model), r.ThinkingLevel, nil
 }
 
-// resolveAPIKey 按 Mady 既有约定解析 provider 的 API Key：
-// 通用 API_KEY 优先（主 Agent 同约定），其次 provider 特定环境变量
-// （DEEPSEEK_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY 等，pi 映射表）。
-// 返回空串时 pi 运行时还会做一次自身 env 兜底，不阻塞派发。
-func resolveAPIKey(provider string) string {
-	if k := os.Getenv("API_KEY"); k != "" {
-		return k
-	}
-	return ai.GetEnvApiKey(provider, nil)
-}
-
 // providerModel 在指定 provider 目录内按模型 ID 精确查找（大小写不敏感）。
 func providerModel(provider, modelID string) *ai.Model {
 	canonical := ""
