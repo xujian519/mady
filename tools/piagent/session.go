@@ -111,18 +111,20 @@ func RunSpawn(ctx context.Context, cfg SpawnConfig, registered []*agentcore.Tool
 	}
 
 	systemPrompt := buildSubagentPrompt(preset, params.Directive, cfg.WorkingDir)
-	sess := coding.NewSession(coding.SessionOptions{
+	sess, err := coding.NewSession(coding.SessionOptions{
 		Model:         model,
 		ToolNames:     nil, // 自定义工具集，不启用 pi 内置工具（安全边界）
 		NoTools:       coding.NoToolsBuiltin,
 		CustomTools:   bridged,
 		ThinkingLevel: agent.ThinkingLevel(params.Thinking),
-		APIKey:        resolveAPIKey(model.Provider),
 		MaxTokens:     params.MaxTokens,
 		TimeoutMs:     int(timeout.Milliseconds()),
-		Compaction:    &coding.DefaultCompactionSettings,
+		Compaction:    coding.DefaultCompactionSettings(),
 		SystemPrompt:  systemPrompt,
 	})
+	if err != nil {
+		return outcomeErr("子会话创建失败: " + err.Error())
+	}
 
 	result, err := sess.Run(runCtx, params.Directive)
 	if err != nil {
@@ -174,7 +176,7 @@ func resolveModel(injected *ai.Model, defaultModel, paramModel string) (*ai.Mode
 
 	// 环境变量兜底：PROVIDER（默认 deepseek）/ MODEL / BASE_URL / API_KEY
 	provider := envOr("PROVIDER", "deepseek")
-	modelID := envOr("MODEL", "deepseek-v4-flash")
+	modelID := envOr("MODEL", "deepseek-flash")
 	// 优先在指定 provider 目录内匹配（避免 "deepseek/deepseek-chat" 被
 	// pi 的 OpenRouter 式全目录精确匹配劫持）；目录内不存在再走通用解析。
 	if m := providerModel(provider, modelID); m != nil {
@@ -185,17 +187,6 @@ func resolveModel(injected *ai.Model, defaultModel, paramModel string) (*ai.Mode
 		return nil, "", fmt.Errorf("环境模型解析 %s/%s: %v", provider, modelID, err)
 	}
 	return applyEnvBaseURL(r.Model), r.ThinkingLevel, nil
-}
-
-// resolveAPIKey 按 Mady 既有约定解析 provider 的 API Key：
-// 通用 API_KEY 优先（主 Agent 同约定），其次 provider 特定环境变量
-// （DEEPSEEK_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY 等，pi 映射表）。
-// 返回空串时 pi 运行时还会做一次自身 env 兜底，不阻塞派发。
-func resolveAPIKey(provider string) string {
-	if k := os.Getenv("API_KEY"); k != "" {
-		return k
-	}
-	return ai.GetEnvApiKey(provider, nil)
 }
 
 // providerModel 在指定 provider 目录内按模型 ID 精确查找（大小写不敏感）。

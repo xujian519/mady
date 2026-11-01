@@ -41,7 +41,7 @@ func newFauxFixture(t *testing.T) *fauxFixture {
 func (f *fauxFixture) scriptToolCallThenReport() {
 	f.reg.SetResponses([]providers.FauxResponseStep{
 		// 第一轮：请求调用 read 工具
-		func(_ ai.Context, _ *ai.SimpleStreamOptions, _ *providers.FauxState, m *ai.Model) *ai.AssistantMessage {
+		func(_ ai.TranscriptContext, _ *ai.SimpleStreamOptions, _ *providers.FauxState, m *ai.Model) *ai.AssistantMessage {
 			return &ai.AssistantMessage{
 				Content: ai.ContentList{providers.FauxToolCall("read", map[string]any{"path": "x"})},
 				Api:     m.Api, Provider: m.Provider, Model: m.ID,
@@ -50,7 +50,7 @@ func (f *fauxFixture) scriptToolCallThenReport() {
 			}
 		},
 		// 第二轮：最终报告
-		func(_ ai.Context, _ *ai.SimpleStreamOptions, _ *providers.FauxState, m *ai.Model) *ai.AssistantMessage {
+		func(_ ai.TranscriptContext, _ *ai.SimpleStreamOptions, _ *providers.FauxState, m *ai.Model) *ai.AssistantMessage {
 			return &ai.AssistantMessage{
 				Content: ai.ContentList{providers.FauxText(
 					"Scope: 探查完成\nResult: 找到关键文件\nKey files: /a/b.go, /c/d.go\nFiles changed: none\nIssues: none")},
@@ -109,13 +109,13 @@ func TestParseReport_FallbackToResult(t *testing.T) {
 
 func TestResolveModel_EnvFallback(t *testing.T) {
 	t.Setenv("PROVIDER", "deepseek")
-	t.Setenv("MODEL", "deepseek-v4-flash")
+	t.Setenv("MODEL", "deepseek-flash")
 	m, _, err := resolveModel(nil, "", "")
 	if err != nil {
 		t.Fatalf("resolveModel: %v", err)
 	}
-	if m == nil || m.ID != "deepseek-v4-flash" {
-		t.Errorf("model = %+v, want deepseek-v4-flash", m)
+	if m == nil || m.ID != "deepseek-flash" {
+		t.Errorf("model = %+v, want deepseek-flash", m)
 	}
 	if string(m.Provider) != "deepseek" {
 		t.Errorf("provider = %q, want deepseek", m.Provider)
@@ -134,17 +134,17 @@ func TestResolveModel_InjectedWins(t *testing.T) {
 }
 
 func TestResolveModel_ParamSpec(t *testing.T) {
-	m, _, err := resolveModel(nil, "", "deepseek/deepseek-v4-flash")
+	m, _, err := resolveModel(nil, "", "deepseek/deepseek-flash")
 	if err != nil {
 		t.Fatalf("resolveModel: %v", err)
 	}
-	if m == nil || m.ID != "deepseek-v4-flash" {
-		t.Errorf("model = %+v, want deepseek-v4-flash", m)
+	if m == nil || m.ID != "deepseek-flash" {
+		t.Errorf("model = %+v, want deepseek-flash", m)
 	}
 }
 
 func TestResolveModel_ThinkingSuffix(t *testing.T) { // model 参数 :high 后缀应返回档位
-	m, level, err := resolveModel(nil, "", "deepseek/deepseek-v4-flash:high")
+	m, level, err := resolveModel(nil, "", "deepseek/deepseek-flash:high")
 	if err != nil {
 		t.Fatalf("resolveModel: %v", err)
 	}
@@ -167,6 +167,18 @@ func TestResolveAPIKey_MadyConvention(t *testing.T) { // 通用 API_KEY 优先�
 	if k := resolveAPIKey("deepseek"); k != "sk-deepseek" {
 		t.Errorf("resolveAPIKey = %q, want DEEPSEEK_API_KEY", k)
 	}
+}
+
+// resolveAPIKey 按 Mady 既有约定解析 provider 的 API Key：
+// 通用 API_KEY 优先（主 Agent 同约定），其次 provider 特定环境变量
+// （DEEPSEEK_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY 等，pi 映射表）。
+// 生产代码不再显式传入 SessionOptions.APIKey（pi v1.4 已移除该字段），
+// 认证由 pi 运行时从环境变量解析；此函数保留用于测试 Mady 约定行为。
+func resolveAPIKey(provider string) string {
+	if k := os.Getenv("API_KEY"); k != "" {
+		return k
+	}
+	return ai.GetEnvApiKey(provider, nil)
 }
 
 // ---------------------------------------------------------------------------
