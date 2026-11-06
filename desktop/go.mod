@@ -14,7 +14,7 @@ require (
 	github.com/andybalholm/cascadia v1.3.4 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/chromedp/cdproto v0.158.4 // indirect
+	github.com/chromedp/cdproto v0.158.6 // indirect
 	github.com/chromedp/chromedp v0.21.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
@@ -55,7 +55,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/samber/lo v1.49.1 // indirect
 	github.com/signintech/gopdf v0.38.3 // indirect
-	github.com/sky-valley/pi v1.4.28 // indirect
+	github.com/sky-valley/pi v1.5.29 // indirect
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
 	github.com/up-zero/gotool v0.0.0-20260105010850-4a05e8fadd54 // indirect
