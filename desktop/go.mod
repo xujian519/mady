@@ -14,7 +14,7 @@ require (
 	github.com/andybalholm/cascadia v1.3.4 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/chromedp/cdproto v0.158.4 // indirect
+	github.com/chromedp/cdproto v0.158.6 // indirect
 	github.com/chromedp/chromedp v0.21.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
@@ -82,7 +82,7 @@ require (
 	modernc.org/libc v1.79.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
-	modernc.org/sqlite v1.61.0 // indirect
+	modernc.org/sqlite v1.61.1 // indirect
 )
 
 replace github.com/xujian519/mady => ../
