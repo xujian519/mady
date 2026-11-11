@@ -13,8 +13,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// WSClient is a WebSocket client for the A2A protocol, supporting task updates
-// and JSON-RPC communication with the agent server.
 // WSClient is an A2A WebSocket client for connecting to remote agents.
 type WSClient struct {
 	baseURL    string
@@ -25,7 +23,6 @@ type WSClient struct {
 	maxRetries int
 }
 
-// NewWSClient creates a new WebSocket client connected to the given base URL.
 // NewWSClient creates a new A2A WebSocket client with the given base URL.
 func NewWSClient(baseURL string) *WSClient {
 	return &WSClient{
@@ -37,27 +34,23 @@ func NewWSClient(baseURL string) *WSClient {
 }
 
 // WithAPIKey sets the API key for authentication and returns the client for chaining.
-// WithAPIKey sets the API key for authentication.
 func (c *WSClient) WithAPIKey(key string) *WSClient {
 	c.apiKey = key
 	return c
 }
 
 // WithBearer sets the bearer token for authentication and returns the client for chaining.
-// WithBearer sets the bearer token for authentication.
 func (c *WSClient) WithBearer(token string) *WSClient {
 	c.bearer = token
 	return c
 }
 
 // WithMaxRetries sets the maximum number of reconnection retries and returns the client for chaining.
-// WithMaxRetries sets the maximum number of reconnection retries.
 func (c *WSClient) WithMaxRetries(n int) *WSClient {
 	c.maxRetries = n
 	return c
 }
 
-// WSConnection is an active WebSocket connection that can send and receive A2A messages.
 // WSConnection represents an active WebSocket connection to an A2A agent.
 type WSConnection struct {
 	conn   *websocket.Conn
@@ -73,7 +66,6 @@ type WSConnection struct {
 	retryNum int
 }
 
-// Connect establishes a WebSocket connection to the A2A server and returns the connection.
 // Connect establishes a WebSocket connection to the A2A agent.
 func (c *WSClient) Connect(ctx context.Context) (*WSConnection, error) {
 	u := c.baseURL
@@ -291,7 +283,6 @@ func (c *WSConnection) Recv() (*TaskUpdateEvent, bool) {
 	return ev, ok
 }
 
-// Err returns any error that occurred on the WebSocket connection.
 // Err returns any error that occurred during the connection lifecycle.
 func (c *WSConnection) Err() error {
 	c.mu.Lock()
@@ -299,7 +290,6 @@ func (c *WSConnection) Err() error {
 	return c.err
 }
 
-// Close gracefully closes the WebSocket connection with a normal closure code.
 // Close closes the WebSocket connection gracefully.
 func (c *WSConnection) Close() error {
 	c.mu.Lock()

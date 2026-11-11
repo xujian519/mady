@@ -58,8 +58,6 @@ type TaskUpdatePublisher interface {
 	PublishTaskUpdate(taskID string, ev *TaskUpdateEvent)
 }
 
-// StreamingHandler is an optional interface for handlers that support streaming
-// task updates via the TaskUpdatePublisher.
 // StreamingHandler is an optional interface that agent handlers can implement
 // to receive the task update publisher for streaming support.
 type StreamingHandler interface {
@@ -260,7 +258,7 @@ type recordingResponseWriter struct {
 	Body *bytes.Buffer
 }
 
-func httptestNewRecorder() *recordingResponseWriter {
+func newRecordingResponseWriter() *recordingResponseWriter {
 	return &recordingResponseWriter{Body: new(bytes.Buffer)}
 }
 

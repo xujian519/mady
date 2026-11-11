@@ -296,6 +296,8 @@ func (a *AgentAdapter) SendTask(ctx context.Context, req SendTaskRequest) (*Task
 			output = extractTaskResult(task, nil)
 		}
 		customTask, cbErr := a.callbacks.AfterRun(ctx, req.ID, output, err)
+		// AfterRun 自定义结果优先；回调失败时降级为原始任务结果，
+		// 不覆盖已成功的任务（回调属旁路增强，不应让主流程失败）。
 		if cbErr == nil && customTask != nil {
 			return customTask, nil
 		}
@@ -334,13 +336,11 @@ func (a *AgentAdapter) GetPushNotification(ctx context.Context, taskID string) (
 }
 
 // SetUpdatePublisher delegates to the underlying handler's SetUpdatePublisher.
-// SetUpdatePublisher sets the task update publisher for the adapter's handler.
 func (a *AgentAdapter) SetUpdatePublisher(p TaskUpdatePublisher) {
 	a.handler.SetUpdatePublisher(p)
 }
 
 // SetInputRequiredPredicate delegates to the underlying handler's SetInputRequiredPredicate.
-// SetInputRequiredPredicate sets the function that determines if input is required.
 func (a *AgentAdapter) SetInputRequiredPredicate(fn func(output string) bool) {
 	a.handler.SetInputRequiredPredicate(fn)
 }

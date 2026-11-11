@@ -180,7 +180,8 @@ func (p *Pool) Alive() []*registry.Registration {
 }
 
 // DefaultCheckFunc 默认健康检查：向 Agent 的 /health 端点发送 GET 请求，
-// 检查是否返回 200 状态码。
+// 检查是否返回 200 状态码。请求构造或连通失败一律视为不存活（fail-safe），
+// 由调用方的连续失败计数决定是否摘除。
 func DefaultCheckFunc(ctx context.Context, url string) bool {
 	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()

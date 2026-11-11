@@ -46,8 +46,6 @@ type DefaultAgentHandler struct {
 // or canceled) are evicted first; in-flight tasks are never evicted.
 const defaultMaxTasks = 10000
 
-// NewDefaultAgentHandler creates a new DefaultAgentHandler with the given agent card,
-// agentcore.Agent instance, and agent configuration.
 // NewDefaultAgentHandler creates a DefaultAgentHandler wrapping the given A2A agent card and agentcore Agent.
 func NewDefaultAgentHandler(card AgentCard, agent *agentcore.Agent, cfg agentcore.Config) *DefaultAgentHandler {
 	return &DefaultAgentHandler{
@@ -116,7 +114,6 @@ func (h *DefaultAgentHandler) evictOldTasksLocked() {
 
 // SetMaxConcurrency sets the maximum number of concurrent task executions.
 // Values <= 0 reset to the default (10). Not safe for concurrent use with SendTask.
-// SetMaxConcurrency sets the maximum number of concurrent task executions.
 func (h *DefaultAgentHandler) SetMaxConcurrency(n int) {
 	// Not safe for concurrent use with runAgent — call before any SendTask.
 	if n <= 0 {
@@ -125,20 +122,17 @@ func (h *DefaultAgentHandler) SetMaxConcurrency(n int) {
 	h.execSem = make(chan struct{}, n)
 }
 
-// SetTaskTimeout sets the per-task execution timeout.
 // SetTaskTimeout sets the timeout for each task execution.
 func (h *DefaultAgentHandler) SetTaskTimeout(d time.Duration) {
 	h.taskTimeout = d
 }
 
 // SetUpdatePublisher sets the publisher for task update events sent over SSE.
-// SetUpdatePublisher sets the task update publisher for streaming events.
 func (h *DefaultAgentHandler) SetUpdatePublisher(p TaskUpdatePublisher) {
 	h.publisher = p
 }
 
 // SetInputRequiredPredicate sets the function that determines when human input is required.
-// SetInputRequiredPredicate sets the function that determines if a task requires user input.
 func (h *DefaultAgentHandler) SetInputRequiredPredicate(fn func(output string) bool) {
 	h.inputRequired = fn
 }
@@ -147,7 +141,6 @@ func (h *DefaultAgentHandler) SetInputRequiredPredicate(fn func(output string) b
 func (h *DefaultAgentHandler) Card() AgentCard { return h.card }
 
 // SendTask processes a task request by running the agent and streaming updates.
-// SendTask handles task creation and execution via the A2A protocol.
 func (h *DefaultAgentHandler) SendTask(ctx context.Context, req SendTaskRequest) (*Task, error) {
 	h.tasksMu.RLock()
 	existingTask, exists := h.tasks[req.ID]
@@ -169,11 +162,7 @@ func (h *DefaultAgentHandler) SendTask(ctx context.Context, req SendTaskRequest)
 func (h *DefaultAgentHandler) newTask(ctx context.Context, req SendTaskRequest) (*Task, error) {
 	input := req.inputOverride
 	if input == "" {
-		for _, p := range req.Message.Parts {
-			if p.Type == PartTypeText {
-				input += p.Text
-			}
-		}
+		input = extractMessageText(req.Message)
 	}
 
 	task := &Task{
@@ -197,11 +186,7 @@ func (h *DefaultAgentHandler) newTask(ctx context.Context, req SendTaskRequest) 
 func (h *DefaultAgentHandler) continueTask(ctx context.Context, task *Task, req SendTaskRequest) (*Task, error) {
 	input := req.inputOverride
 	if input == "" {
-		for _, p := range req.Message.Parts {
-			if p.Type == PartTypeText {
-				input += p.Text
-			}
-		}
+		input = extractMessageText(req.Message)
 	}
 
 	h.tasksMu.Lock()
@@ -268,7 +253,6 @@ func (h *DefaultAgentHandler) runAgent(ctx context.Context, task *Task, input st
 
 	h.tasksMu.Lock()
 
-	needNotify := true
 	switch {
 	case err != nil:
 		// Preserve TaskStateCanceled if CancelTask already acted.
@@ -308,9 +292,7 @@ func (h *DefaultAgentHandler) runAgent(ctx context.Context, task *Task, input st
 	h.evictOldTasksLocked()
 	h.tasksMu.Unlock()
 
-	if needNotify {
-		h.notify(task)
-	}
+	h.notify(task)
 	return task, nil
 }
 

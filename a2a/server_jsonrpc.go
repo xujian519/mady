@@ -83,7 +83,7 @@ func (s *Server) handleBatchJSONRPC(w http.ResponseWriter, r *http.Request, reqs
 			continue
 		}
 
-		rec := httptestNewRecorder()
+		rec := newRecordingResponseWriter()
 		s.dispatchJSONRPC(withLastEventID(r.Context(), r.Header.Get("Last-Event-ID")), rec, req)
 
 		var resp JSONRPCResponse

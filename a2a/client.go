@@ -144,47 +144,7 @@ func (c *Client) SendTask(ctx context.Context, req SendTaskRequest) (*Task, erro
 
 // SendTaskSubscribe sends a task and subscribes to streaming updates via SSE.
 func (c *Client) SendTaskSubscribe(ctx context.Context, req SendTaskRequest) (*TaskStream, error) {
-	rpcReq := JSONRPCRequest{JSONRPC: "2.0", ID: c.nextID(), Method: "tasks/sendSubscribe"}
-	params, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	rpcReq.Params = params
-
-	body, err := json.Marshal(rpcReq)
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "text/event-stream")
-	c.setAuthHeaders(httpReq)
-
-	httpResp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-
-	if httpResp.StatusCode != http.StatusOK {
-		_ = httpResp.Body.Close()
-		return nil, fmt.Errorf("sse: %d", httpResp.StatusCode)
-	}
-
-	stream := &TaskStream{
-		ch:       make(chan *TaskUpdateEvent, 8),
-		body:     httpResp.Body,
-		cancel:   ctx,
-		client:   c,
-		taskID:   req.ID,
-		maxRetry: c.maxRetries,
-	}
-
-	go stream.readLoop()
-	return stream, nil
+	return c.openTaskStream(ctx, "tasks/sendSubscribe", req, req.ID, "")
 }
 
 // GetTask retrieves the current state of a task.
@@ -255,12 +215,18 @@ func (c *Client) ResubscribeTask(ctx context.Context, taskID string) (*TaskStrea
 }
 
 func (c *Client) resubscribe(ctx context.Context, taskID, lastEventID string) (*TaskStream, error) {
-	rpcReq := JSONRPCRequest{JSONRPC: "2.0", ID: c.nextID(), Method: "tasks/resubscribe"}
-	params, err := json.Marshal(map[string]string{"id": taskID})
+	return c.openTaskStream(ctx, "tasks/resubscribe", map[string]string{"id": taskID}, taskID, lastEventID)
+}
+
+// openTaskStream 以 SSE 方式发起流式 JSON-RPC 请求并启动读取循环。
+// lastEventID 非空时附加 Last-Event-ID 头，供服务端从中断处重放事件。
+func (c *Client) openTaskStream(ctx context.Context, method string, params any, taskID, lastEventID string) (*TaskStream, error) {
+	rpcReq := JSONRPCRequest{JSONRPC: "2.0", ID: c.nextID(), Method: method}
+	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, err
 	}
-	rpcReq.Params = params
+	rpcReq.Params = data
 
 	body, err := json.Marshal(rpcReq)
 	if err != nil {

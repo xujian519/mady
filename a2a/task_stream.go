@@ -102,6 +102,8 @@ func (s *TaskStream) readLoop() {
 	}
 }
 
+// tryReconnect 重连一次流；返回 false 表示放弃重连（重试次数耗尽、
+// 取消、请求构造或响应非 200），此时由 readLoop 记录 s.err 结束流。
 func (s *TaskStream) tryReconnect() bool {
 	if s.client == nil || s.taskID == "" {
 		return false

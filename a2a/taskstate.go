@@ -122,19 +122,25 @@ func isTerminalState(state TaskState) bool {
 	}
 }
 
+// appendHistoryLocked 将事件追加到任务的订阅历史并按 maxHistoryLen 截断。
+// 调用方必须持有 ts.mu 写锁；返回事件序号与被裁掉的条目数。
+func (s *Server) appendHistoryLocked(ts *taskSubState, ev *TaskUpdateEvent) (seq, trimmed int) {
+	ts.nextSeq++
+	if len(ts.history) >= s.maxHistoryLen {
+		trimmed = len(ts.history) - s.maxHistoryLen + 1
+		ts.history = ts.history[trimmed:]
+	}
+	ts.history = append(ts.history, historyEntry{event: ev, seq: ts.nextSeq})
+	return ts.nextSeq, trimmed
+}
+
 // recordTask stores a task snapshot in event history for resubscription.
 // Lock ordering: ts.mu → (release) → taskStatesMu → t.mu(RLock).
 func (s *Server) recordTask(task *Task) {
 	ts := s.getTaskState(task.ID)
 	ts.mu.Lock()
 	ev := &TaskUpdateEvent{Result: task, Final: isTerminalState(task.State)}
-	ts.nextSeq++
-	trimmed := 0
-	if len(ts.history) >= s.maxHistoryLen {
-		trimmed = len(ts.history) - s.maxHistoryLen + 1
-		ts.history = ts.history[trimmed:]
-	}
-	ts.history = append(ts.history, historyEntry{event: ev, seq: ts.nextSeq})
+	_, trimmed := s.appendHistoryLocked(ts, ev)
 	ts.mu.Unlock()
 
 	newSize := s.totalHistSize.Add(1 - int64(trimmed))
@@ -189,18 +195,11 @@ func (s *Server) recordTask(task *Task) {
 	}
 }
 
-// PublishTaskUpdate pushes a task update event to all SSE subscribers for the given task.
 // PublishTaskUpdate sends a task update event to all subscribers of the given task.
 func (s *Server) PublishTaskUpdate(taskID string, ev *TaskUpdateEvent) {
 	ts := s.getTaskState(taskID)
 	ts.mu.Lock()
-	ts.nextSeq++
-	trimmed := 0
-	if len(ts.history) >= s.maxHistoryLen {
-		trimmed = len(ts.history) - s.maxHistoryLen + 1
-		ts.history = ts.history[trimmed:]
-	}
-	ts.history = append(ts.history, historyEntry{event: ev, seq: ts.nextSeq})
+	_, trimmed := s.appendHistoryLocked(ts, ev)
 	chans := make([]chan *TaskUpdateEvent, len(ts.subs))
 	copy(chans, ts.subs)
 	ts.mu.Unlock()

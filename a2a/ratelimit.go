@@ -141,7 +141,7 @@ func (rl *RateLimiter) Allow(ip string) bool {
 
 	now := time.Now()
 	elapsed := now.Sub(b.lastCheck).Seconds()
-	b.tokens = minFloat(float64(rl.capacity), b.tokens+elapsed*rl.rate)
+	b.tokens = min(float64(rl.capacity), b.tokens+elapsed*rl.rate)
 	b.lastCheck = now
 
 	if b.tokens >= 1 {
@@ -179,11 +179,4 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-func minFloat(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
 }
