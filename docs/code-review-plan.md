@@ -95,7 +95,7 @@
 | M17 | memory/ + compiler | 25 文件/4.9K 行 | ✅ 2026-10-21 |
 | M18 | retrieval/（domain/sqlite/nuopatent/browser） | 19 文件/3.7K 行 | ✅ 2026-10-21 |
 | M19 | disclosure/ | 20 文件/3.9K 行 | ✅ 2026-10-22 |
-| M20 | guardrails/（红线条目单独） | 23 文件/3.1K 行 | ⬜ |
+| M20 | guardrails/（红线条目单独） | 23 文件/3.1K 行 | ✅ 2026-11-11 |
 | M21 | pkg/ + provider/ + prompt/ + skill/ + fuzzy/ + intent/ + tracing/ + psychological/ | 小模块合卡 | ⬜ |
 | M22 | 基础设施层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ⬜ |
 
@@ -580,3 +580,18 @@
 - **门禁**：`make verify` 全绿（lint/check-arch/doc-check/verify-layers/build/test-race，三模块）；`make doc-check` 通过（src=1111 test=581）；`go test -race ./disclosure/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py disclosure`，20 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 7 → **0** / TODO 0 / 未注释导出 0 / >120 行函数 2
 - **提交**：`6aaa3ed`（整体置信度聚合）、`ff37237`（batch 引用证据校验）、`d56bf94`（逐特征 ID 回填）、`6f8e23e`（文档/注释/常量精炼）；本记录与 changelog 随后提交（INDEX total=452）
+
+### M20（2026-11-11）guardrails/ ✅
+
+- **审阅范围**：`guardrails/` 全部 18 个非测试 `.go` + `guardian/` 6 个非测试 `.go`（24 文件，约 3.4K 行）——Rule 管线族（fact/confidence/consistency/keyword/format + pipeline/hook）、constitutional 引擎与 YAML 规则、citation 四件（table/index/source/gate）、outputgate、levels、deferred persist、guardian（session/breaker/policy/extension）
+- **敏感路径处置**：`levels.go`、`citation_gate.go`、`citation_table.go`、`guardian/`（4 条权威源条目）零改动、只登记
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度/一致性（登记不修，均为休眠 API、仅测试消费）：① `constitutional.go:280` ConstitutionalHook 忽略 `Apply` 返回的 results——ActionBlock 规则只替换内容不置 `mcc.Blocked`（对比 PipelineHook），block 档在钩子路径降级为注入，生产接线前须补齐；② `keyword_rule.go:69` Step 2 命中风险词即 return——内容已含免责声明时返回 Passed=true 并跳过 Step 3 审批词检查，与 levels.go「注入后继续走审批」语义不一致
+  - P2 一致性（登记）：③ `outputgate.go` `SetProvenance` 写包级 `provenanceLog` 无同步——bootstrap 启动期单写、钩子并发读，按启动期约定安全；④ `guardian/guardian.go:111` provider 出错计为 `RecordDenial`——审查失败与审查拒绝混计、服务抖动 3 次即熔断全拒，属文档化 fail-closed 但可观察性差；⑤ `levels.go:138` `q.Store(0, ...)` 固定 msgIndex=0——多审批回合相互覆盖（deferred_persist.go 注释已补「单回合单条」约定）；⑥ `citation_source.go` `CompositeCitationSource` 注释「较大非零值」与实现（primary 非零优先）不符，本卡已按实际语义改写注释
+  - P3 风格（登记）：fact/confidence/consistency 三规则均只扫首个出现位置（启发式局限）；guardian transcript/content 按 byte 截断可能切裂多字节 rune；pipeline `Apply` 去重只对照原文，多规则同文案仍可重复注入；KeywordRule 审批词消息用半角逗号（文案属行为面不动）
+- **精炼**（无行为变化，`9962b4e`）：注释治理——deferred_persist.go「未接线」说明更新为实际接线状态（Store=levels.go；Commit/Discard=assemble.go appendStrictGuardrails）+ msgIndex=0 单回合约定；citation_source.go 补 `CitationSourceFuncs` 类型注释（未注释导出 1→0）+ CompositeCitationSource 语义对齐；fact_check.go articlePattern 注释改述「默认表 keys、自定义实例不扩 regex」局限 + nolint 去重；format_check.go 删除失效 rule_config.go 引用。逻辑去重——outputgate 词表成为单一事实源（disclaimer.go patent 档复用，调用方只读）；PatternAnalysis 消除双重正则编译（compileToPipelineRule 直收已编译模式，静默吞错分支随之消失）；ConstitutionalHook 签名收敛（`_ = ctx/_ = arc` → 匿名参数）；抽 `mergeTopicKeywords` 供 compositeSource 与 IndexCitationSource 复用
+- **门禁**：go build/vet、golangci-lint 三模块 0 issues、check-arch/doc-check/verify-layers/debt-check、`go test -race ./guardrails/...` 全绿；root test-race 141/142 包绿——`knowledge/sqlite TestSearchLaws` 为预存环境性失败（依赖本机缺失 `~/.mady/knowledge/laws-full.db`，stash 对照证实与本卡无关）；desktop test-race 绿（消费 guardrails）；tui 存在预存东亚宽度/locale 测量伪象失败（与 guardrails 零依赖，M32 处理）；doc-check src=1220 test=632
+- **指标重扫**（`python3 scripts/scan_go_smells.py guardrails`，24 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 0 / TODO 0 / 未注释导出 1 → **0** / >120 行函数 0；tone 词表门禁 0 命中
+- **过程记录**：首次提交遇三重工具问题并修复——① go.work.sum 缺 go-json-experiment 哈希致 arch 钩子每次 `go list` 自修改（`eb8d963` 独立 chore 提交消除）；② commitlint 钩子的 nodeenv 旧版解析不了 node 27 prerelease 版本串（升级 nodeenv 1.12.0 修复）；③ 超时转后台的 shell 命令为幻影进程（0 CPU、零推进），全量验证改前台分段执行
+- **提交**：`eb8d963`（go.work.sum 哈希 chore）、`9962b4e`（注释治理与逻辑去重）；本记录与 changelog 随后提交（INDEX total=500）
