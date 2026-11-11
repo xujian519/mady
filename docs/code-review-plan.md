@@ -103,7 +103,7 @@
 
 | 卡 | 模块 | 规模/热点 | 状态 |
 | --- | --- | --- | --- |
-| M23 | a2a/ | 26 文件/5.4K 行（协议面红线） | ⬜ |
+| M23 | a2a/ | 26 文件/5.4K 行（协议面红线） | ✅ 2026-11-11 |
 | M24 | a2ui/ + agui/ | 20 文件/3.2K 行（协议面红线） | ⬜ |
 | M25 | acp/ + server/ | 32 文件/6.7K 行（含红线） | ⬜ |
 | M26 | mcp/ | 25 文件/4.6K 行（含 config_trust 红线） | ⬜ |
@@ -624,3 +624,19 @@
 - **门禁**：`go build ./...`、`go vet` 全绿；golangci-lint 0 issues；check-arch/doc-check/verify-layers/debt-check 通过；定向 `go test -race` **12 包全绿**（session、knowledge/fileindex、knowledge/legal、evaluate、evaluate/benchmark、evaluate/cli、doomloop、retrieval/domain/cnipr、pkg/ocr、pkg/util、pkg/hostlimit、pkg/lawcite）；本卡不涉 tui/desktop、不涉协议面
 - **指标重扫**（`python3 scripts/scan_go_smells.py graph session store memory knowledge retrieval evaluate doomloop guardrails disclosure pkg`，257 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **46 → 28** / TODO 0 / 未注释导出 0 / >120 行函数 4（登记）
 - **提交**：`69542db`（refactor 注释）；本记录与 changelog 随后提交（INDEX total=502）
+
+### M23（2026-11-11）a2a/ 协议层 ✅
+
+- **审阅范围**：`a2a/` 全部 **26 个非测试 `.go` 文件**（约 5.4K 行）+ 子包 `pool/`、`registry/`——types/agent_handler/jsonrpc_handlers（协议帧编解码与 SSE/WS 分发）、server/server_jsonrpc/jsonrpc/options/middleware/ratelimit、client/client_http/task_stream/ws/ws_client/ws_handlers、taskstate/push/session/multimodal/handoff/card 及 3 个 doc.go。与敏感路径权威源（`scripts/check-sensitive-paths.sh`）**零重叠**
+- **协议面红线处置**：审阅清单 #11 要求的**零改动**全部遵守——`TaskUpdateEvent`/`Task`/`Message`/`AgentCard` 等协议结构、JSON-RPC 帧字段、`inputSchema`（`handoff.go` 中远程/流式工具的 `Parameters` 映射）均未触碰；SSE 事件格式（`id:`/`data:`）、WS 帧格式、错误码常量亦零改动
+- **基线**（`scan_go_smells.py a2a`，26 文件）：裸 fmt **0** / 忽略 err **0** / 静默吞错 **35** / TODO **0** / 未注释导出 **0** / >120 行函数 **1**——前四项指标已在前序卡收敛，本卡对象是吞错、长函数与重复代码
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：`jsonrpc_handlers.go` `handleResubscribe` 原 129 行（双分支重复同一段事件重放循环 + 内联历史追加），本卡合并重复分支后降至阈值内
+  - P2 一致性（登记不修，改则变更行为）：① **SSE resubscribe 历史重复**——`handleResubscribe` 把从订阅通道收到的事件再次 `appendHistoryLocked`，而 `PublishTaskUpdate` 已追加一次，存在活跃 resubscribe 监听者时同一事件在历史中重复（后续重放会重复下发）；修复会改变事件面行为，留待专用 fix 卡；② `ws_handlers.go:163` `handleWSSubscribe` 的 `SendTask` goroutine **无 `recover`**，而 SSE 侧 `jsonrpc_handlers.go:100` 有（handler panic 将击穿进程）；③ `RateLimiter.Stop()` 关闭通道非幂等，重复调用 panic；④ `DefaultAgentHandler.GetPushNotification` 返回内部配置指针，调用方可直接改写
+  - P3 风格（本卡精炼）：重复双行导出注释 29 处、`needNotify` 恒真死标志、`minFloat` 与内置 `min` 等价、`handleResubscribe` 复制 `chans` 后从未使用（死拷贝）、`httptestNewRecorder` 命名误标 httptest、`handleWSSubscribe` 未使用的 `_ context.CancelFunc` 形参、`generateTaskID` 两分支返回值完全相同
+  - **吞错 35 处核实**：绝大多数为协议错误响应路径（`writeJSONRPCError`/`writeSSEEvent` 失败即终止当前流，失败对客户端可见），不属静默降级；本卡仅对 2 处真·降级补意图注释（`tryReconnect` 放弃语义、`DefaultCheckFunc` fail-safe），其余按 M22 口径登记不迁就正则
+- **精炼**（无行为变化，`待提交`）：**12 文件 +70/−160 行**——① 清除 **29 处**生成残留的重复双行导出注释（options 9、ws_client 9、agent_handler 6、handoff 2、server 2、taskstate 1，保留信息量更大的一行）；② `agent_handler.go` 删除恒真 `needNotify` 中间标志，`newTask`/`continueTask` 复用 `extractMessageText` 消除重复入参提取；③ `ratelimit.go` 删除 `minFloat` 改用内置 `min`；④ 新增 `Server.appendHistoryLocked`，收敛 `recordTask`/`PublishTaskUpdate`/`handleResubscribe` 三处相同的历史追加+截断逻辑，并移除 resubscribe 中复制后从未使用的 `chans`；⑤ `handleResubscribe` 合并 `afterSeq>0`/`=0` 两个重复的事件重放分支（重放顺序、`Final` 短路语义保持完全一致）；⑥ `client.go` 提取 `openTaskStream`，合并 `SendTaskSubscribe` 与 `resubscribe` 重复的 SSE 建流代码（约 40 行）；⑦ `httptestNewRecorder` 更名 `newRecordingResponseWriter`；⑧ 2 处降级意图注释
+- **门禁**：`go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；定向 `go test -race` 覆盖 `a2a`、`a2a/pool`、`a2a/registry` 及下游消费方 `a2ui`、`example/provider-compat`、`example/wiki-import` **全绿**；不涉 tui/desktop 子模块
+- **指标重扫**（`python3 scripts/scan_go_smells.py a2a`，26 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **35**（无变化，均为协议错误响应路径，见上）/ TODO 0 / 未注释导出 0 / >120 行函数 **1 → 0**
+- **提交**：`待补充`（refactor + docs/changelog 两提交）
