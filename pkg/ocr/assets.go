@@ -35,8 +35,11 @@ type modelURLSet struct {
 	det, rec, cls, dict string
 }
 
+// ProgressFunc 是模型/ONNX Runtime 下载进度回调。
 type ProgressFunc func(name string, current, total int64)
 
+// EnsureAssets 下载并校验 ONNX Runtime 与 PP-OCRv5 det/rec/cls/dict 到 cacheDir；
+// 已就绪时直接返回 nil。mirror 候选顺序：MADY_GH_PROXY env → ghfast.top/gh-proxy.com/ghproxy.net → jsDelivr（仅 raw 路径）→ 原 URL。
 func EnsureAssets(cacheDir string, onProgress ProgressFunc) error {
 	if isReady(cacheDir) {
 		return nil

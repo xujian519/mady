@@ -13,6 +13,7 @@ import (
 	ort "github.com/getcharzp/onnxruntime_purego"
 )
 
+// OCR 封装一次完整的 PP-OCRv5 检测+识别管线；并发安全（内部 mutex）。
 type OCR struct {
 	mu       sync.Mutex
 	cacheDir string
@@ -32,6 +33,7 @@ var (
 	globalOnce sync.Once
 )
 
+// DefaultCacheDir 返回 ~/.mady/ocr（或临时目录降级）作为模型缓存位置。
 func DefaultCacheDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -40,6 +42,7 @@ func DefaultCacheDir() string {
 	return filepath.Join(home, ".mady", "ocr")
 }
 
+// Global 返回进程级单例 OCR（默认缓存路径）；首次调用触发懒加载。
 func Global() *OCR {
 	globalOnce.Do(func() {
 		global = New(DefaultCacheDir())
@@ -47,6 +50,7 @@ func Global() *OCR {
 	return global
 }
 
+// New 创建指定缓存路径的 OCR 实例（懒加载模型）。
 func New(cacheDir string) *OCR {
 	return &OCR{cacheDir: cacheDir}
 }
@@ -57,6 +61,7 @@ func (o *OCR) EnsureAssets(onProgress ProgressFunc) error {
 	return EnsureAssets(o.cacheDir, onProgress)
 }
 
+// Result 是单次文本框识别结果：Text 为识别文本、Box 为边界 [x1,y1,x2,y2]。
 type Result struct {
 	Text string
 	Box  [4]int
@@ -212,6 +217,7 @@ func (o *OCR) Close() {
 	o.loadErr = nil
 }
 
+// Quad 是文本框四边形的四角坐标（P[0..3] 按左上/右上/右下/左下排序）。
 type Quad struct {
 	P [4]image.Point
 }
