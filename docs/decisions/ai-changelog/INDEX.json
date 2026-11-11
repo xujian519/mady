@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-11-11T10:52:39+08:00",
-  "total": 501,
+  "updated": "2026-11-11T11:52:24+08:00",
+  "total": 502,
   "entries": [
     {
       "date": "2026-11-11",
@@ -20,12 +20,12 @@
       "line": 19
     },
     {
-      "date": "2026-11-01",
-      "type": "fix",
-      "scope": "domains/teams",
-      "title": "修复团队调度公平性：单成员不再独占全部任务",
-      "file": "2026-11-01.md",
-      "line": 3
+      "date": "2026-11-11",
+      "type": "refactor",
+      "scope": "infra",
+      "title": "M22 日卡精炼：基础设施层静默降级意图注释",
+      "file": "2026-11-11.md",
+      "line": 33
     },
     {
       "date": "2026-11-01",
@@ -36,12 +36,12 @@
       "line": 14
     },
     {
-      "date": "2026-10-28",
-      "type": "feat",
-      "scope": "domains",
-      "title": "新增 patent_fees 官费测算，金额未转录或缺输入即拒算",
-      "file": "2026-10-28.md",
-      "line": 72
+      "date": "2026-11-01",
+      "type": "fix",
+      "scope": "domains/teams",
+      "title": "修复团队调度公平性：单成员不再独占全部任务",
+      "file": "2026-11-01.md",
+      "line": 3
     },
     {
       "date": "2026-10-28",
@@ -260,12 +260,12 @@
       "line": 54
     },
     {
-      "date": "2026-10-25",
-      "type": "test",
-      "scope": "tui",
-      "title": "固定 golden 颜色模式，兼容 CI 与 NO_COLOR",
-      "file": "2026-10-25.md",
-      "line": 240
+      "date": "2026-10-28",
+      "type": "feat",
+      "scope": "domains",
+      "title": "新增 patent_fees 官费测算，金额未转录或缺输入即拒算",
+      "file": "2026-10-28.md",
+      "line": 72
     },
     {
       "date": "2026-10-25",
@@ -396,12 +396,12 @@
       "line": 226
     },
     {
-      "date": "2026-10-22",
-      "type": "fix",
-      "scope": "disclosure",
-      "title": "batch 模式新颖性评估校验引用证据 ID",
-      "file": "2026-10-22.md",
-      "line": 15
+      "date": "2026-10-25",
+      "type": "test",
+      "scope": "tui",
+      "title": "固定 golden 颜色模式，兼容 CI 与 NO_COLOR",
+      "file": "2026-10-25.md",
+      "line": 240
     },
     {
       "date": "2026-10-22",
@@ -428,12 +428,12 @@
       "line": 3
     },
     {
-      "date": "2026-10-21",
+      "date": "2026-10-22",
       "type": "fix",
-      "scope": "retrieval",
-      "title": "索引检索支持 CJK 多字查询",
-      "file": "2026-10-21.md",
-      "line": 120
+      "scope": "disclosure",
+      "title": "batch 模式新颖性评估校验引用证据 ID",
+      "file": "2026-10-22.md",
+      "line": 15
     },
     {
       "date": "2026-10-21",
@@ -548,12 +548,12 @@
       "line": 103
     },
     {
-      "date": "2026-10-18",
-      "type": "refactor",
-      "scope": "domains",
-      "title": "DUP-DEL：删除 audit 扩展副本、style 实现归并到 domains/config",
-      "file": "2026-10-18.md",
-      "line": 55
+      "date": "2026-10-21",
+      "type": "fix",
+      "scope": "retrieval",
+      "title": "索引检索支持 CJK 多字查询",
+      "file": "2026-10-21.md",
+      "line": 120
     },
     {
       "date": "2026-10-18",
@@ -570,6 +570,14 @@
       "title": "P0 修复：SQLite 时间列格式统一、审计参数扫描越界、工具入参静默吞错",
       "file": "2026-10-18.md",
       "line": 20
+    },
+    {
+      "date": "2026-10-18",
+      "type": "refactor",
+      "scope": "domains",
+      "title": "DUP-DEL：删除 audit 扩展副本、style 实现归并到 domains/config",
+      "file": "2026-10-18.md",
+      "line": 55
     },
     {
       "date": "2026-09-14",
@@ -594,14 +602,6 @@
       "title": "M13 日卡：domains/rules + reasoning 审阅精炼（保守档）",
       "file": "2026-09-06.md",
       "line": 3
-    },
-    {
-      "date": "2026-09-01",
-      "type": "refactor",
-      "scope": "domains",
-      "title": "M12 日卡：工具失败响应与静默降级补意图注释（27 处吞错告警清零）",
-      "file": "2026-09-01.md",
-      "line": 31
     },
     {
       "date": "2026-09-01",
@@ -644,12 +644,12 @@
       "line": 18
     },
     {
-      "date": "2026-08-28",
-      "type": "feat",
+      "date": "2026-09-01",
+      "type": "refactor",
       "scope": "domains",
-      "title": "Tier C 领域专家预注册接线（M11 P1 fix 卡）",
-      "file": "2026-08-28.md",
-      "line": 58
+      "title": "M12 日卡：工具失败响应与静默降级补意图注释（27 处吞错告警清零）",
+      "file": "2026-09-01.md",
+      "line": 31
     },
     {
       "date": "2026-08-28",
@@ -796,12 +796,12 @@
       "line": 41
     },
     {
-      "date": "2026-08-27",
-      "type": "refactor",
-      "scope": "claimdrafting",
-      "title": "日卡 M06：claimdrafting/config 审阅精炼",
-      "file": "2026-08-27.md",
-      "line": 15
+      "date": "2026-08-28",
+      "type": "feat",
+      "scope": "domains",
+      "title": "Tier C 领域专家预注册接线（M11 P1 fix 卡）",
+      "file": "2026-08-28.md",
+      "line": 58
     },
     {
       "date": "2026-08-27",
@@ -812,12 +812,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-26",
+      "date": "2026-08-27",
       "type": "refactor",
-      "scope": "graph",
-      "title": "日卡 M03：graph/ 包审阅精炼",
-      "file": "2026-08-26.md",
-      "line": 18
+      "scope": "claimdrafting",
+      "title": "日卡 M06：claimdrafting/config 审阅精炼",
+      "file": "2026-08-27.md",
+      "line": 15
     },
     {
       "date": "2026-08-26",
@@ -844,12 +844,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-25",
+      "date": "2026-08-26",
       "type": "refactor",
-      "scope": "agentcore",
-      "title": "收敛重复逻辑与死分支",
-      "file": "2026-08-25.md",
-      "line": 16
+      "scope": "graph",
+      "title": "日卡 M03：graph/ 包审阅精炼",
+      "file": "2026-08-26.md",
+      "line": 18
     },
     {
       "date": "2026-08-25",
@@ -876,12 +876,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-24",
-      "type": "feat",
-      "scope": "workflows",
-      "title": "阶段6：声明式专利工作流目录与 patent_workflow_run 路由",
-      "file": "2026-08-24.md",
-      "line": 153
+      "date": "2026-08-25",
+      "type": "refactor",
+      "scope": "agentcore",
+      "title": "收敛重复逻辑与死分支",
+      "file": "2026-08-25.md",
+      "line": 16
     },
     {
       "date": "2026-08-24",
@@ -1036,12 +1036,12 @@
       "line": 136
     },
     {
-      "date": "2026-08-23",
+      "date": "2026-08-24",
       "type": "feat",
-      "scope": "ci",
-      "title": "tone 词表门禁上线（精化词表 + 限定目录扫描 + 负控制自测）",
-      "file": "2026-08-23.md",
-      "line": 17
+      "scope": "workflows",
+      "title": "阶段6：声明式专利工作流目录与 patent_workflow_run 路由",
+      "file": "2026-08-24.md",
+      "line": 153
     },
     {
       "date": "2026-08-23",
@@ -1052,12 +1052,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-22",
-      "type": "refactor",
-      "scope": "domains",
-      "title": "修复架构债评审反馈：解耦 patent→evaluate 依赖、修正期限天数截断并补测试",
-      "file": "2026-08-22.md",
-      "line": 7
+      "date": "2026-08-23",
+      "type": "feat",
+      "scope": "ci",
+      "title": "tone 词表门禁上线（精化词表 + 限定目录扫描 + 负控制自测）",
+      "file": "2026-08-23.md",
+      "line": 17
     },
     {
       "date": "2026-08-22",
@@ -1092,12 +1092,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-19",
+      "date": "2026-08-22",
       "type": "refactor",
-      "scope": "agentcore",
-      "title": "阶段3：高复杂度函数拆分（runInnerLoop/vectorSearch/runCompaction/graph.Run/TUI 五热点）",
-      "file": "2026-08-19.md",
-      "line": 19
+      "scope": "domains",
+      "title": "修复架构债评审反馈：解耦 patent→evaluate 依赖、修正期限天数截断并补测试",
+      "file": "2026-08-22.md",
+      "line": 7
     },
     {
       "date": "2026-08-19",
@@ -1148,12 +1148,12 @@
       "line": 13
     },
     {
-      "date": "2026-08-13",
-      "type": "fix",
-      "scope": "ci",
-      "title": "修复 go.mod 未 tidy 与文档计数漂移（恢复 CI 门禁）",
-      "file": "2026-08-13.md",
-      "line": 105
+      "date": "2026-08-19",
+      "type": "refactor",
+      "scope": "agentcore",
+      "title": "阶段3：高复杂度函数拆分（runInnerLoop/vectorSearch/runCompaction/graph.Run/TUI 五热点）",
+      "file": "2026-08-19.md",
+      "line": 19
     },
     {
       "date": "2026-08-13",
@@ -1244,12 +1244,12 @@
       "line": 91
     },
     {
-      "date": "2026-08-12",
+      "date": "2026-08-13",
       "type": "fix",
-      "scope": "repo",
-      "title": "CI 门禁修复：doc-check 与 verify-tui-layers 文档同步",
-      "file": "2026-08-12.md",
-      "line": 79
+      "scope": "ci",
+      "title": "修复 go.mod 未 tidy 与文档计数漂移（恢复 CI 门禁）",
+      "file": "2026-08-13.md",
+      "line": 105
     },
     {
       "date": "2026-08-12",
@@ -1348,12 +1348,12 @@
       "line": 73
     },
     {
-      "date": "2026-08-11",
-      "type": "feat",
-      "scope": "tui",
-      "title": "TUI P0 优化实施：补间动画 + OSC8 链接 + Golden 快照 + 能力接口",
-      "file": "2026-08-11.md",
-      "line": 3
+      "date": "2026-08-12",
+      "type": "fix",
+      "scope": "repo",
+      "title": "CI 门禁修复：doc-check 与 verify-tui-layers 文档同步",
+      "file": "2026-08-12.md",
+      "line": 79
     },
     {
       "date": "2026-08-11",
@@ -1540,11 +1540,11 @@
       "line": 324
     },
     {
-      "date": "2026-08-09",
-      "type": "fix",
+      "date": "2026-08-11",
+      "type": "feat",
       "scope": "tui",
-      "title": "全量审阅修复：P0 resize 防抖自续循环 + 12 项 P1 + 31 项 P2（TUI 2026-08-09 审阅）",
-      "file": "2026-08-09.md",
+      "title": "TUI P0 优化实施：补间动画 + OSC8 链接 + Golden 快照 + 能力接口",
+      "file": "2026-08-11.md",
       "line": 3
     },
     {
@@ -1572,12 +1572,12 @@
       "line": 39
     },
     {
-      "date": "2026-08-08",
+      "date": "2026-08-09",
       "type": "fix",
-      "scope": "chatcompat",
-      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
-      "file": "2026-08-08.md",
-      "line": 7
+      "scope": "tui",
+      "title": "全量审阅修复：P0 resize 防抖自续循环 + 12 项 P1 + 31 项 P2（TUI 2026-08-09 审阅）",
+      "file": "2026-08-09.md",
+      "line": 3
     },
     {
       "date": "2026-08-08",
@@ -1596,11 +1596,11 @@
       "line": 3
     },
     {
-      "date": "2026-08-07",
-      "type": "refactor",
-      "scope": "techdebt",
-      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
-      "file": "2026-08-07.md",
+      "date": "2026-08-08",
+      "type": "fix",
+      "scope": "chatcompat",
+      "title": "SSE 流式静默截断修复：1MB scanner + Err 检查 + 流式独立超时 + error 终态 delta",
+      "file": "2026-08-08.md",
       "line": 7
     },
     {
@@ -1620,12 +1620,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-06",
-      "type": "feat",
-      "scope": "domains/workflows/patent",
-      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
-      "file": "2026-08-06.md",
-      "line": 3
+      "date": "2026-08-07",
+      "type": "refactor",
+      "scope": "techdebt",
+      "title": "P2 孤岛模块处置：接线 intent、删除 5 个死副本",
+      "file": "2026-08-07.md",
+      "line": 7
     },
     {
       "date": "2026-08-06",
@@ -1636,12 +1636,12 @@
       "line": 16
     },
     {
-      "date": "2026-08-04",
-      "type": "refactor",
-      "scope": "desktop",
-      "title": "批次 C：测试假阳性修复、版本单一来源、工程卫生清理",
-      "file": "2026-08-04.md",
-      "line": 111
+      "date": "2026-08-06",
+      "type": "feat",
+      "scope": "domains/workflows/patent",
+      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
+      "file": "2026-08-06.md",
+      "line": 3
     },
     {
       "date": "2026-08-04",
@@ -1716,12 +1716,12 @@
       "line": 64
     },
     {
-      "date": "2026-08-03",
-      "type": "fix",
-      "scope": "tui/chat",
-      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
-      "file": "2026-08-03.md",
-      "line": 3
+      "date": "2026-08-04",
+      "type": "refactor",
+      "scope": "desktop",
+      "title": "批次 C：测试假阳性修复、版本单一来源、工程卫生清理",
+      "file": "2026-08-04.md",
+      "line": 111
     },
     {
       "date": "2026-08-03",
@@ -1732,11 +1732,11 @@
       "line": 9
     },
     {
-      "date": "2026-08-02",
+      "date": "2026-08-03",
       "type": "fix",
-      "scope": "tui",
-      "title": "TUI 渲染小瑕疵修复：工具组 summary 双空格/工具卡窄宽/数学表达式保护/表头 inline/resize 提示对齐",
-      "file": "2026-08-02.md",
+      "scope": "tui/chat",
+      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
+      "file": "2026-08-03.md",
       "line": 3
     },
     {
@@ -1804,12 +1804,12 @@
       "line": 109
     },
     {
-      "date": "2026-08-01",
-      "type": "test",
-      "scope": "cmd/mady",
-      "title": "buildAgentConfig 集成测试：MaxTokens 保留不变量",
-      "file": "2026-08-01.md",
-      "line": 7
+      "date": "2026-08-02",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 渲染小瑕疵修复：工具组 summary 双空格/工具卡窄宽/数学表达式保护/表头 inline/resize 提示对齐",
+      "file": "2026-08-02.md",
+      "line": 3
     },
     {
       "date": "2026-08-01",
@@ -1836,12 +1836,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "retrieval",
-      "title": "code-review 修复批 — 并发化/开关/死分支/转义",
-      "file": "2026-07-31.md",
-      "line": 752
+      "date": "2026-08-01",
+      "type": "test",
+      "scope": "cmd/mady",
+      "title": "buildAgentConfig 集成测试：MaxTokens 保留不变量",
+      "file": "2026-08-01.md",
+      "line": 7
     },
     {
       "date": "2026-07-31",
@@ -2244,12 +2244,12 @@
       "line": 271
     },
     {
-      "date": "2026-07-30",
-      "type": "refactor",
-      "scope": "tools",
-      "title": "拆分三大高复杂度函数 + linter 增强 + panic 审计（4 文件）",
-      "file": "2026-07-30.md",
-      "line": 128
+      "date": "2026-07-31",
+      "type": "fix",
+      "scope": "retrieval",
+      "title": "code-review 修复批 — 并发化/开关/死分支/转义",
+      "file": "2026-07-31.md",
+      "line": 752
     },
     {
       "date": "2026-07-30",
@@ -2404,12 +2404,12 @@
       "line": 175
     },
     {
-      "date": "2026-07-29",
-      "type": "fix",
-      "scope": "tools/desktop",
-      "title": "深度排查修复 computer_use 模块 6 个 bug",
-      "file": "2026-07-29.md",
-      "line": 48
+      "date": "2026-07-30",
+      "type": "refactor",
+      "scope": "tools",
+      "title": "拆分三大高复杂度函数 + linter 增强 + panic 审计（4 文件）",
+      "file": "2026-07-30.md",
+      "line": 128
     },
     {
       "date": "2026-07-29",
@@ -2484,12 +2484,12 @@
       "line": 30
     },
     {
-      "date": "2026-07-28",
-      "type": "chore",
-      "scope": "tui",
-      "title": "TUI 鼠标/键盘输入子系统增强（差距分析方案 1/3/6）",
-      "file": "2026-07-28.md",
-      "line": 332
+      "date": "2026-07-29",
+      "type": "fix",
+      "scope": "tools/desktop",
+      "title": "深度排查修复 computer_use 模块 6 个 bug",
+      "file": "2026-07-29.md",
+      "line": 48
     },
     {
       "date": "2026-07-28",
@@ -2612,12 +2612,12 @@
       "line": 389
     },
     {
-      "date": "2026-07-27",
-      "type": "feat",
-      "scope": "*",
-      "title": "四子系统死代码接入 — 可信度管线/审计扩展/期限工具/指标端点",
-      "file": "2026-07-27.md",
-      "line": 276
+      "date": "2026-07-28",
+      "type": "chore",
+      "scope": "tui",
+      "title": "TUI 鼠标/键盘输入子系统增强（差距分析方案 1/3/6）",
+      "file": "2026-07-28.md",
+      "line": 332
     },
     {
       "date": "2026-07-27",
@@ -2780,12 +2780,12 @@
       "line": 65
     },
     {
-      "date": "2026-07-26",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）",
-      "file": "2026-07-26.md",
-      "line": 306
+      "date": "2026-07-27",
+      "type": "feat",
+      "scope": "*",
+      "title": "四子系统死代码接入 — 可信度管线/审计扩展/期限工具/指标端点",
+      "file": "2026-07-27.md",
+      "line": 276
     },
     {
       "date": "2026-07-26",
@@ -2852,12 +2852,12 @@
       "line": 347
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
-      "scope": "*",
-      "title": "审阅决策 — LLM outbound 数据统一 PII redaction 层",
-      "file": "2026-07-25.md",
-      "line": 139
+      "date": "2026-07-26",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 模块 Sprint 2 测试补全 + High/Medium 修复（T2.1-T2.13）",
+      "file": "2026-07-26.md",
+      "line": 306
     },
     {
       "date": "2026-07-25",
@@ -2964,12 +2964,12 @@
       "line": 110
     },
     {
-      "date": "2026-07-24",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI 聊天历史滚动增强 + PageUp/PageDown 修复 + 测试覆盖",
-      "file": "2026-07-24.md",
-      "line": 52
+      "date": "2026-07-25",
+      "type": "docs",
+      "scope": "*",
+      "title": "审阅决策 — LLM outbound 数据统一 PII redaction 层",
+      "file": "2026-07-25.md",
+      "line": 139
     },
     {
       "date": "2026-07-24",
@@ -3124,12 +3124,12 @@
       "line": 239
     },
     {
-      "date": "2026-07-23",
-      "type": "chore",
-      "scope": "domains",
-      "title": "enablement 模块知识库联动补强",
-      "file": "2026-07-23.md",
-      "line": 202
+      "date": "2026-07-24",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI 聊天历史滚动增强 + PageUp/PageDown 修复 + 测试覆盖",
+      "file": "2026-07-24.md",
+      "line": 52
     },
     {
       "date": "2026-07-23",
@@ -3276,12 +3276,12 @@
       "line": 114
     },
     {
-      "date": "2026-07-22",
-      "type": "docs",
-      "scope": "*",
-      "title": "知识管理系统审阅优化 — BuildProjectAgent 注入 + 测试补充",
-      "file": "2026-07-22.md",
-      "line": 243
+      "date": "2026-07-23",
+      "type": "chore",
+      "scope": "domains",
+      "title": "enablement 模块知识库联动补强",
+      "file": "2026-07-23.md",
+      "line": 202
     },
     {
       "date": "2026-07-22",
@@ -3340,12 +3340,12 @@
       "line": 285
     },
     {
-      "date": "2026-07-21",
-      "type": "fix",
-      "scope": "tui",
-      "title": "修复 TUI 运行时 stderr 泄漏 + 编辑器占位符复位",
-      "file": "2026-07-21.md",
-      "line": 109
+      "date": "2026-07-22",
+      "type": "docs",
+      "scope": "*",
+      "title": "知识管理系统审阅优化 — BuildProjectAgent 注入 + 测试补充",
+      "file": "2026-07-22.md",
+      "line": 243
     },
     {
       "date": "2026-07-21",
@@ -3524,12 +3524,12 @@
       "line": 585
     },
     {
-      "date": "2026-07-20",
+      "date": "2026-07-21",
       "type": "fix",
-      "scope": "*",
-      "title": "代码审查修复 — 6 项改进",
-      "file": "2026-07-20.md",
-      "line": 1090
+      "scope": "tui",
+      "title": "修复 TUI 运行时 stderr 泄漏 + 编辑器占位符复位",
+      "file": "2026-07-21.md",
+      "line": 109
     },
     {
       "date": "2026-07-20",
@@ -3756,12 +3756,12 @@
       "line": 79
     },
     {
-      "date": "2026-07-19",
+      "date": "2026-07-20",
       "type": "fix",
       "scope": "*",
-      "title": "四大证据源全面接线修复",
-      "file": "2026-07-19.md",
-      "line": 3
+      "title": "代码审查修复 — 6 项改进",
+      "file": "2026-07-20.md",
+      "line": 1090
     },
     {
       "date": "2026-07-19",
@@ -3804,12 +3804,12 @@
       "line": 85
     },
     {
-      "date": "2026-07-18",
-      "type": "feat",
+      "date": "2026-07-19",
+      "type": "fix",
       "scope": "*",
-      "title": "Open Design 思路引入 —— Tier 2 实现",
-      "file": "2026-07-18.md",
-      "line": 655
+      "title": "四大证据源全面接线修复",
+      "file": "2026-07-19.md",
+      "line": 3
     },
     {
       "date": "2026-07-18",
@@ -4010,6 +4010,14 @@
       "title": "引入 Open Design 项目思路 —— 三阶段 Tier 1 实现",
       "file": "2026-07-18.md",
       "line": 690
+    },
+    {
+      "date": "2026-07-18",
+      "type": "feat",
+      "scope": "*",
+      "title": "Open Design 思路引入 —— Tier 2 实现",
+      "file": "2026-07-18.md",
+      "line": 655
     }
   ]
 }

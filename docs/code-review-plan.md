@@ -97,7 +97,7 @@
 | M19 | disclosure/ | 20 文件/3.9K 行 | ✅ 2026-10-22 |
 | M20 | guardrails/（红线条目单独） | 23 文件/3.1K 行 | ✅ 2026-11-11 |
 | M21 | pkg/ + provider/ + prompt/ + skill/ + fuzzy/ + intent/ + tracing/ + psychological/ | 小模块合卡 | ✅ 2026-11-11 |
-| M22 | 基础设施层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ⬜ |
+| M22 | 基础设施层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ✅ 2026-11-11 |
 
 ### 阶段 4 — 接口层（W7）
 
@@ -609,3 +609,18 @@
 - **指标重扫**（`python3 scripts/scan_go_smells.py pkg provider prompt skill psychological intent fuzzy tracing`，66 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 **20** / TODO **3** / 未注释导出 **8 → 0** / >120 行函数 **1**；tone 词表门禁 0 命中
 - **过程记录**：首次 M21 合并 lint/test 命令用 shell 管道误导致 lint 0 issues 报告后 test-race 结果被 tail 截断；改成分段执行（lint 包列表不含 test 目录；test-race 仅包名匹配 M21 8 目录），全绿。扫描器报告 8 处未注释导出**全部**在 pkg/ocr（而非跨目录），一处集中修复效率高——这是本卡"小模块合卡"模式的收益
 - **提交**：`待补充`（refactor + docs/changelog 两提交）
+
+### M22（2026-11-11）基础设施层横切 ✅
+
+- **审阅范围**：`graph` 9 / `session` 9 / `store` 3 / `memory` 25 / `knowledge` 61 / `retrieval` 31 / `evaluate` 32 / `doomloop` 4 / `guardrails` 24 / `disclosure` 20 / `pkg` 39，共 **257 个非测试 `.go` 文件**。本卡为横切指标收敛（各模块已在 M04/M16–M21 通读），不重复逐文件审阅
+- **敏感路径处置**：`disclosure/report.go`（review_gate 主动中断）、`guardrails/levels.go`/`citation_gate.go`/`citation_table.go`/`guardian/` 零改动；`report.go` 内 147 行长函数仅登记待拆，不触碰
+- **基线**（`scan_go_smells.py` 对上述 11 目录）：裸 fmt **0** / 忽略 err **0** / 静默吞错 **46** / TODO **0** / 未注释导出 **0** / >120 行函数 **4**——前三项目标已在 M01–M21 收敛完毕，本卡唯一实际对象是吞错与长函数
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆，保守档）：① `knowledge/fileindex/store.go:151` `Refresh` 129 行；② `knowledge/loader/wiki.go:112` `importDirectory` 140 行；③ `disclosure/export.go:58` `buildMarkdownReport` 128 行；④ `disclosure/report.go:62` `assessNoveltyFromState` 147 行（敏感路径）。前两处已有 `//nolint:gocognit // 原因：…` 说明，均为单函数多分支编排，拆解收益低于回归风险
+  - P2 一致性（本卡精炼）：46 处扫描器口径吞错中，**18 处为真·静默降级**已补意图注释（详见精炼）；剩余 **28 处逐处核实为启发式误报**——均已 `slog`/`logger` 记录、`fmt.Errorf("%w")` 包装、返回用户可见失败结果（`FileReadResult.CostNotice`/`agentcore.NewFailureResult`），或函数文档已声明降级语义（`ListTrashed`/`LawsCount`/`mustAtoi`/`hostOf`/`mustJSON`/`normalizeToolArgs`/`BundledIndex`/`sandbox_config`）。改动代码只会为满足正则而增加噪音，故只登记
+  - P3 风格（本卡精炼）：`pkg/ocr/ocr.go` `opts.SetIntraOpNumThreads`/`SetCpuMemArena` 的 `_ =` 忽略返回错误补性能语义说明（扫描器因 RHS 无 err 字样未计入「忽略 err」）；另补 2 处扫描器未覆盖的 OCR 降级（单框识别失败、cls 可选模型加载失败）
+- **精炼**（无行为变化，`69542db`）：10 文件 +21 行纯注释——`session/agent_store.go`（会话不存在=未设线程配置）、`knowledge/fileindex/extension.go`（降级搜索跳过条目 ×2）、`reader_docx.go`（正文/页眉页脚打开-读取-解析失败降级为空 ×6）、`watcher.go`（fsnotify→轮询）、`knowledge/legal/tool.go`（withinDir fail-closed ×3）、`evaluate/llm_judge.go`（判官失败记 0 分）、`doomloop/reminder.go`（重序列化失败原样返回）、`retrieval/domain/cnipr/receipt.go`（负载非 JSON 视为无结构化数据）、`pkg/ocr/ocr.go`（主目录降级/cls 可选/单框失败/setter 忽略 ×4）、`pkg/util/sandbox_config.go`（取不到根目录返回空配置）
+- **门禁**：`go build ./...`、`go vet` 全绿；golangci-lint 0 issues；check-arch/doc-check/verify-layers/debt-check 通过；定向 `go test -race` **12 包全绿**（session、knowledge/fileindex、knowledge/legal、evaluate、evaluate/benchmark、evaluate/cli、doomloop、retrieval/domain/cnipr、pkg/ocr、pkg/util、pkg/hostlimit、pkg/lawcite）；本卡不涉 tui/desktop、不涉协议面
+- **指标重扫**（`python3 scripts/scan_go_smells.py graph session store memory knowledge retrieval evaluate doomloop guardrails disclosure pkg`，257 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **46 → 28** / TODO 0 / 未注释导出 0 / >120 行函数 4（登记）
+- **提交**：`69542db`（refactor 注释）；本记录与 changelog 随后提交（INDEX total=502）
