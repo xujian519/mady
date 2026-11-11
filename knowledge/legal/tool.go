@@ -241,10 +241,12 @@ func (t *installTool) Run(ctx context.Context, args json.RawMessage) (any, error
 func withinDir(path, dir string) bool {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
+		// 路径无法转绝对 → 视为不在目录内（fail-closed）。
 		return false
 	}
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
+		// 目录无法转绝对 → 视为不在目录内（fail-closed）。
 		return false
 	}
 	if resolved, err := filepath.EvalSymlinks(absDir); err == nil {
@@ -255,6 +257,7 @@ func withinDir(path, dir string) bool {
 	}
 	rel, err := filepath.Rel(absDir, absPath)
 	if err != nil {
+		// 无法求相对路径 → 视为不在目录内（fail-closed）。
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))

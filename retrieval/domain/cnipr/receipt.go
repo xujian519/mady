@@ -416,6 +416,7 @@ func ExtractTaggedJSON(output, tag string) (map[string]any, bool) {
 	decoder := json.NewDecoder(strings.NewReader(rest[start:]))
 	var payload map[string]any
 	if err := decoder.Decode(&payload); err != nil {
+		// 标记后的负载不是合法 JSON → 视为无结构化数据（ok=false）。
 		return nil, false
 	}
 	return payload, true

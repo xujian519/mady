@@ -37,6 +37,7 @@ var (
 func DefaultCacheDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
+		// 取不到用户主目录 → 降级到临时目录。
 		return filepath.Join(os.TempDir(), "mady", "ocr")
 	}
 	return filepath.Join(home, ".mady", "ocr")
@@ -93,6 +94,7 @@ func (o *OCR) Recognize(imagePath string) ([]Result, error) {
 		crop := extractQuad(img, q)
 		text, err := o.runRec(crop)
 		if err != nil {
+			// 单框识别失败 → 该框按空文本跳过，其余文本框继续。
 			text = ""
 		}
 		text = strings.TrimSpace(text)
@@ -161,6 +163,7 @@ func (o *OCR) load() {
 	if threads < 1 {
 		threads = 1
 	}
+	// 线程数/内存池设置失败只影响性能，不影响识别正确性，故忽略返回错误。
 	_ = opts.SetIntraOpNumThreads(threads)
 	_ = opts.SetCpuMemArena(true)
 
@@ -182,6 +185,7 @@ func (o *OCR) load() {
 	if fileExists(clsPath) {
 		clsSess, err := engine.NewSession(clsPath, opts)
 		if err == nil {
+			// cls 方向分类模型属可选资产，加载失败不阻断检测/识别主流程。
 			o.cls = clsSess
 		}
 	}

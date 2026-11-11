@@ -162,6 +162,7 @@ func (j LLMJudge) computeOnce(prediction, reference string) float64 {
 
 	resp, err := j.Judge.Complete(ctx, req)
 	if err != nil {
+		// 判官调用失败 → 该维度记 0 分（降级，不中断整体评估）。
 		return 0
 	}
 	// Defensive nil check: a misbehaving provider may return (nil, nil).

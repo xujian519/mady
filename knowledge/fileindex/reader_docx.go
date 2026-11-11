@@ -90,12 +90,14 @@ func extractDocxBodyText(files []*zip.File) string {
 		if f.Name == "word/document.xml" {
 			rc, err := f.Open()
 			if err != nil {
+				// 打开正文 XML 失败 → 返回空正文，由上层按空内容降级。
 				return ""
 			}
 
 			data, err := io.ReadAll(rc)
 			_ = rc.Close()
 			if err != nil {
+				// 读取正文 XML 失败 → 返回空正文，由上层按空内容降级。
 				return ""
 			}
 			return parseDocxBody(data)
@@ -108,6 +110,7 @@ func extractDocxBodyText(files []*zip.File) string {
 func parseDocxBody(data []byte) string {
 	var doc docxDocument
 	if err := xml.Unmarshal(data, &doc); err != nil {
+		// 正文 XML 解析失败 → 返回空正文（不阻断索引，由上层按空内容降级）。
 		return ""
 	}
 
@@ -143,17 +146,20 @@ func extractDocxHeaderFooterText(files []*zip.File, prefix string) string {
 func readDocxXMLFile(f *zip.File) string {
 	rc, err := f.Open()
 	if err != nil {
+		// 打开页眉/页脚 XML 失败 → 返回空文本，由上层按缺失降级。
 		return ""
 	}
 	defer func() { _ = rc.Close() }()
 
 	data, err := io.ReadAll(rc)
 	if err != nil {
+		// 读取页眉/页脚 XML 失败 → 返回空文本，由上层按缺失降级。
 		return ""
 	}
 
 	var doc docxDocument
 	if err := xml.Unmarshal(data, &doc); err != nil {
+		// 页眉/页脚 XML 解析失败 → 返回空文本（不阻断正文提取）。
 		return ""
 	}
 

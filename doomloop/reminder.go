@@ -59,6 +59,7 @@ func normalizeToolArgs(args string) string {
 	}
 	norm, err := json.Marshal(v)
 	if err != nil {
+		// 重序列化失败 → 原样返回（保持调用方原始书写形式）。
 		return args
 	}
 	return string(norm)

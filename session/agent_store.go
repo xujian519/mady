@@ -218,6 +218,7 @@ func (s *AgentStore) GetThreadConfig(ctx context.Context, key string) (*agentcor
 	mgr, err := s.sessions.Open(ctx, key)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			// 会话文件不存在表示尚未设置线程级配置，不是错误。
 			return nil, false, nil
 		}
 		return nil, false, fmt.Errorf("open agent session: %w", err)

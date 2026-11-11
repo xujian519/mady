@@ -24,6 +24,7 @@ type SandboxConfig struct {
 func LoadSandboxConfig() (*SandboxConfig, error) {
 	home, err := MadyHome()
 	if err != nil {
+		// 取不到数据根目录 → 返回空配置（不阻断启动）。
 		return &SandboxConfig{}, nil
 	}
 	return LoadSandboxConfigFromPath(filepath.Join(home, "config.yaml"))

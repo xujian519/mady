@@ -269,6 +269,7 @@ func searchFallback(ctx context.Context, rootDir, query string, maxResults int) 
 
 		relPath, err := filepath.Rel(rootDir, path)
 		if err != nil {
+			// 无法计算相对路径 → 跳过该条目（降级搜索）。
 			return nil
 		}
 
@@ -279,6 +280,7 @@ func searchFallback(ctx context.Context, rootDir, query string, maxResults int) 
 
 		info, err := d.Info()
 		if err != nil {
+			// 无法读取文件信息 → 跳过该条目（降级搜索）。
 			return nil
 		}
 

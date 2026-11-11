@@ -84,6 +84,7 @@ func (fw *FileWatcher) Start(ctx context.Context) error {
 
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
+		// fsnotify 不可用 → 降级为轮询；仅当轮询也被禁用时才报错。
 		fw.mu.Unlock()
 		if fw.pollInt <= 0 {
 			return fmt.Errorf("filewatcher: fsnotify unavailable and polling disabled")
