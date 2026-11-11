@@ -47,8 +47,9 @@ func NewFactCheckRule() *FactCheckRule {
 func (r *FactCheckRule) Name() string { return "fact-check" }
 
 // articlePattern matches law citations like "专利法第99条", "《专利法》第26条".
-// The statute names are derived from MaxArticles keys at construction time
-// to keep the regex and article limits in sync.
+// The statute names are derived from the *default* MaxArticles keys at package
+// init time; a custom rule instance that adds or removes statute names does
+// NOT extend this regex — unknown statutes fall through unchecked (limitation).
 var articlePattern *regexp.Regexp
 
 func init() {
@@ -121,7 +122,7 @@ func (r *FactCheckRule) findSuspectArticles(content string) []string {
 		}
 		statute := m[1]
 		articleNum := 0
-		fmt.Sscanf(m[2], "%d", &articleNum) //nolint:errcheck,gosec // G104: best-effort parse; zero on error parse; zero on error
+		fmt.Sscanf(m[2], "%d", &articleNum) //nolint:errcheck,gosec // G104: best-effort parse; capture is \d+ so it cannot fail
 
 		maxArt, known := r.MaxArticles[statute]
 		if !known {

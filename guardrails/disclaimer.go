@@ -37,13 +37,13 @@ func Disclaimer(level Level) string {
 
 // RiskKeywordsFor returns risk keywords appropriate for a domain.
 // These keywords trigger disclaimer injection when found in output.
+//
+// The patent list is the single source shared with VerifyPatentOutput
+// (outputgate.go patentRiskWords) — keep both in sync via the shared var.
 func RiskKeywordsFor(domain string) []string {
 	switch domain {
 	case "patent":
-		return []string{
-			"侵权", "无效", "驳回", "不授权", "专利性", "自由实施",
-			"新颖性结论", "创造性结论",
-		}
+		return patentRiskWords
 	case "legal":
 		return []string{
 			"应判决", "应裁定", "构成犯罪", "不构成犯罪",
@@ -60,10 +60,12 @@ func RiskKeywordsFor(domain string) []string {
 }
 
 // ApprovalKeywordsFor returns keywords that trigger human approval for a domain.
+// The patent list is the single source shared with VerifyPatentOutput
+// (outputgate.go patentApprovalWords) — keep both in sync via the shared var.
 func ApprovalKeywordsFor(domain string) []string {
 	switch domain {
 	case "patent":
-		return []string{"专利结论", "侵权判断", "有效性结论", "最终建议"}
+		return patentApprovalWords
 	case "legal":
 		return []string{"法律意见", "诉讼策略", "判决预测", "最终建议"}
 	case "assistant":

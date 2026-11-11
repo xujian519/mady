@@ -47,7 +47,8 @@ func DefaultCitationSource() CitationSource { return staticTableSource{} }
 func defaultCitationSource() CitationSource { return DefaultCitationSource() }
 
 // CompositeCitationSource 合并两个知识源：关键词取并集（去重，primary 在前），
-// 存在性上限取较大非零值。任一源未覆盖时另一源仍可作答——
+// 存在性上限 primary 非零优先，primary 未覆盖（0）时取 secondary。
+// 任一源未覆盖时另一源仍可作答——
 // S1 手工精校词与 S2 标题词互补，合并语义经回放校准（replay_citation_gate）。
 func CompositeCitationSource(primary, secondary CitationSource) CitationSource {
 	if primary == nil {
@@ -72,21 +73,23 @@ func (c compositeSource) Topics(s lawcite.Statute, article int) ([]string, bool)
 	if !sok {
 		return pk, true
 	}
-	seen := make(map[string]bool, len(pk)+len(sk))
-	merged := make([]string, 0, len(pk)+len(sk))
-	for _, kw := range pk {
-		if !seen[kw] {
-			seen[kw] = true
-			merged = append(merged, kw)
+	return mergeTopicKeywords(pk, sk), true
+}
+
+// mergeTopicKeywords 合并两组关键词：并集去重，primary 在前。
+// 供 compositeSource 与 IndexCitationSource 的 Topics 合并路径复用。
+func mergeTopicKeywords(primary, secondary []string) []string {
+	seen := make(map[string]bool, len(primary)+len(secondary))
+	merged := make([]string, 0, len(primary)+len(secondary))
+	for _, kws := range [][]string{primary, secondary} {
+		for _, kw := range kws {
+			if !seen[kw] {
+				seen[kw] = true
+				merged = append(merged, kw)
+			}
 		}
 	}
-	for _, kw := range sk {
-		if !seen[kw] {
-			seen[kw] = true
-			merged = append(merged, kw)
-		}
-	}
-	return merged, true
+	return merged
 }
 
 func (c compositeSource) MaxArticle(s lawcite.Statute) int {
@@ -98,12 +101,12 @@ func (c compositeSource) MaxArticle(s lawcite.Statute) int {
 
 // CitationSourceFuncs 函数适配器：把普通函数包装成 CitationSource。
 // 供 knowledge/loader 的 S2 索引在不 import guardrails 的情况下被装配侧接入。
-var _ CitationSource = (*CitationSourceFuncs)(nil)
-
 type CitationSourceFuncs struct {
 	TopicsFunc     func(s lawcite.Statute, article int) ([]string, bool)
 	MaxArticleFunc func(s lawcite.Statute) int
 }
+
+var _ CitationSource = (*CitationSourceFuncs)(nil)
 
 // Topics delegates to TopicsFunc if non-nil, otherwise returns nil, false.
 func (f CitationSourceFuncs) Topics(s lawcite.Statute, article int) ([]string, bool) {

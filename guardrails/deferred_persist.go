@@ -9,12 +9,15 @@ import (
 // 本文件实现 deferred persist 机制（P2 T8）：
 // Strict guardrail 标记 SuppressPersist=true 时，消息暂存而非丢弃。
 //
-// 接线状态（2026-07-18）：队列已实现但尚未接入 production 消费端。
-// 待接入点：
-//   - levels.go AfterModelCall: 当 SuppressPersist=true 时调用 queue.Store(msgIndex, msg)
-//   - approval.go RecordDecision: DecisionAdopted→queue.Commit / DecisionRejected→queue.Discard
-// 当前行为：SuppressPersist 消息直接丢弃（与 P1b 行为一致），不阻塞 Agent 运行。
-// ApprovalGate 审批通过后 Commit 写入持久化，拒绝后 Discard 丢弃。
+// 接线状态（M20 2026-11-11 复核，两端均已接入）：
+//   - Store 端：levels.go AfterModelCall 在 SuppressPersist=true 且配置了
+//     DeferredQueue（WithDeferredQueue 注入）时调用 queue.Store；
+//   - Commit/Discard 端：domains/assemble.go appendStrictGuardrails 在
+//     withDQ=true 时创建队列并同步注入护栏与 ApprovalGate
+//     （经 domains.DeferredPersistFuncs 适配）：RecordDecision 触发
+//     Commit/Discard 遍历 Pending() 清空暂存（采纳/拒绝各一档）。
+// 消息索引约定：levels.go 以固定 msgIndex=0 暂存（单回合单条消息），
+// 重复 Store 同一回合会覆盖。
 
 // DeferredPersistQueue 管理因 SuppressPersist 暂缓持久化的消息。
 // 仅在 Agent Level = Strict 且 ApprovalGate 启用联动时有数据。

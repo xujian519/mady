@@ -66,17 +66,7 @@ func (s *IndexCitationSource) Topics(statute lawcite.Statute, article int) ([]st
 	if !secondaryOK {
 		return primary, true
 	}
-	seen := make(map[string]bool, len(primary)+len(secondary))
-	merged := make([]string, 0, len(primary)+len(secondary))
-	for _, topics := range [][]string{primary, secondary} {
-		for _, topic := range topics {
-			if !seen[topic] {
-				seen[topic] = true
-				merged = append(merged, topic)
-			}
-		}
-	}
-	return merged, true
+	return mergeTopicKeywords(primary, secondary), true
 }
 
 // MaxArticle 返回条数上限：索引声明的上限优先，回退静态表。

@@ -9,8 +9,8 @@ import (
 // the target domain. This is especially useful for patent and legal
 // documents that have mandated structures.
 //
-// Configuration can be loaded from YAML (see rule_config.go) or
-// constructed programmatically.
+// Construct programmatically or via PatentFormatCheck; YAML-driven
+// constitutional rules live in constitutional.go (ConstitutionalEngine).
 type FormatCheckRule struct {
 	// RequiredSections lists section headings that must appear.
 	// Matching is case-insensitive substring check.

@@ -31,9 +31,11 @@ type PatentOutputReport struct {
 }
 
 // patent 风险词（否定语境豁免）；多用于报告结论措辞。
+// 单一事实源：RiskKeywordsFor("patent")（disclaimer.go）复用本表。
 var patentRiskWords = []string{"侵权", "无效", "驳回", "不授权", "专利性", "自由实施", "新颖性结论", "创造性结论"}
 
 // patent 审批词（无否定豁免）；出现即触发人工审批。
+// 单一事实源：ApprovalKeywordsFor("patent")（disclaimer.go）复用本表。
 var patentApprovalWords = []string{"专利结论", "侵权判断", "有效性结论", "最终建议"}
 
 // patent 绝对化词（仅提示，不拦截）。为规避 tone 词表误扫源码中的

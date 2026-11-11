@@ -161,8 +161,8 @@ func compileRule(rc YAMLConstitutionalRule) (CompiledRule, error) {
 		}
 	}
 
-	// 编译为适配的 Rule 实现。
-	rule, err := compileToPipelineRule(rc)
+	// 编译为适配的 Rule 实现（PatternAnalysis 复用上方已编译模式，避免二次编译）。
+	rule, err := compileToPipelineRule(rc, cr.Compiled)
 	if err != nil {
 		return cr, err
 	}
@@ -171,7 +171,9 @@ func compileRule(rc YAMLConstitutionalRule) (CompiledRule, error) {
 }
 
 // compileToPipelineRule 将 YAML 规则适配到 Rule 接口。
-func compileToPipelineRule(rc YAMLConstitutionalRule) (Rule, error) {
+// compiled 是 compileRule 阶段已编译通过的正则（仅 PatternAnalysis 非空，
+// 编译失败的规则在此之前已被拦截，不会到达本函数）。
+func compileToPipelineRule(rc YAMLConstitutionalRule, compiled []*regexp.Regexp) (Rule, error) {
 	name := rc.Name
 	severity := mapConstitutionalSeverity(rc.Severity)
 	action := mapConstitutionalAction(rc.Action)
@@ -181,12 +183,6 @@ func compileToPipelineRule(rc YAMLConstitutionalRule) (Rule, error) {
 		return &keywordBlocklistRule{name: name, severity: severity, action: action, keywords: rc.Blocklist}, nil
 
 	case RuleTypePatternAnalysis:
-		compiled := make([]*regexp.Regexp, 0, len(rc.Patterns))
-		for _, p := range rc.Patterns {
-			if re, err := regexp.Compile(p); err == nil {
-				compiled = append(compiled, re)
-			}
-		}
 		return &patternAnalysisRule{name: name, severity: severity, action: action, compiled: compiled}, nil
 
 	case RuleTypeCategoryDetection:
@@ -267,9 +263,7 @@ type ConstitutionalHook struct {
 
 // AfterModelCall 在模型输出后运行宪法规则检查。
 // 实现 iface.LifecycleHook 接口标准签名。
-func (h *ConstitutionalHook) AfterModelCall(ctx context.Context, arc *iface.AgentRunContext, mcc *iface.ModelCallContext) {
-	_ = ctx
-	_ = arc
+func (h *ConstitutionalHook) AfterModelCall(_ context.Context, _ *iface.AgentRunContext, mcc *iface.ModelCallContext) {
 	if h.Ruleset == nil || mcc == nil {
 		return
 	}
