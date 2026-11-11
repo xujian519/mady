@@ -96,7 +96,7 @@
 | M18 | retrieval/（domain/sqlite/nuopatent/browser） | 19 文件/3.7K 行 | ✅ 2026-10-21 |
 | M19 | disclosure/ | 20 文件/3.9K 行 | ✅ 2026-10-22 |
 | M20 | guardrails/（红线条目单独） | 23 文件/3.1K 行 | ✅ 2026-11-11 |
-| M21 | pkg/ + provider/ + prompt/ + skill/ + fuzzy/ + intent/ + tracing/ + psychological/ | 小模块合卡 | ⬜ |
+| M21 | pkg/ + provider/ + prompt/ + skill/ + fuzzy/ + intent/ + tracing/ + psychological/ | 小模块合卡 | ✅ 2026-11-11 |
 | M22 | 基础设施层横切 | 裸 fmt/忽略 err/未注释导出收敛 | ⬜ |
 
 ### 阶段 4 — 接口层（W7）
@@ -595,3 +595,17 @@
 - **指标重扫**（`python3 scripts/scan_go_smells.py guardrails`，24 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 0 / TODO 0 / 未注释导出 1 → **0** / >120 行函数 0；tone 词表门禁 0 命中
 - **过程记录**：首次提交遇三重工具问题并修复——① go.work.sum 缺 go-json-experiment 哈希致 arch 钩子每次 `go list` 自修改（`eb8d963` 独立 chore 提交消除）；② commitlint 钩子的 nodeenv 旧版解析不了 node 27 prerelease 版本串（升级 nodeenv 1.12.0 修复）；③ 超时转后台的 shell 命令为幻影进程（0 CPU、零推进），全量验证改前台分段执行
 - **提交**：`eb8d963`（go.work.sum 哈希 chore）、`9962b4e`（注释治理与逻辑去重）；本记录与 changelog 随后提交（INDEX total=500）
+
+### M21（2026-11-11）pkg/ + provider/ + prompt/ + skill/ + fuzzy/ + intent/ + tracing/ + psychological/ ✅
+
+- **审阅范围**：8 目录共 **66 个非测试 `.go` 文件**（约 15.9K 行）——pkg/（util 8、cache 3、csync 1、hostlimit 2、lawcite 3、indexasset 1、ocr 13、omlx 3、i18n 3、vecbytes 1、framework 1）、provider/chatcompat 5（adapter 层）+ sanitizer 2、prompt 5（模板 store/loader/embed/tool）、skill 3（loader/frontmatter 前端 MCP）、psychological 4（三值引擎+YAML 规则+扩展）、intent 3、fuzzy 2、tracing 2。所有目录与敏感路径权威源（`scripts/check-sensitive-paths.sh`）**零重叠**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度/一致性（登记不修）：① `provider/chatcompat/chat.go` `convertProviderResponse`/`buildProviderMessage` 等 4 个工具函数合计 ~150 行，扫描器报 1 处 >120 行函数（纯工具函数，复杂度可接受）；② `psychological/types.go` + `psychological/engine.go` `SkipDistortionDetection` 字段声明但引擎侧 `_ = config` 忽略——休眠占位符，生产接线前须补齐；③ pkg 各子目录「静默吞错 20」全部带 `nolint`/`// reason` 注释属合规降级（skill 6 为 markdown frontmatter parse 吞错、provider 1 为 sanitizer 正则编译降级、prompt 1 为模板渲染降级、pkg 12 多为 OCR/LLM 调用可接受降级）
+  - P2 一致性（登记）：ocr.go `OCR`/`Result` 内部字段未注释（struct 字段注释豁免）；provider/chatcompat sanitizer 正则从文件加载失败即返回空模式（fail-open 设计，文档化）；skill/frontmatter frontmatter 缺段即返回 nil skill（fail-closed，属语义）；intent `llm.go` LLM fallback 无超时（调用方 `WithTimeout` 注入、按约定安全）
+  - P3 风格（登记）：ocr `runDet` 检测模型阈值常量分散在 det.go/ocr.go（detThresh=0.3、detBoxThresh=0.7、detMinSide=3、detUnclipRatio=1.6），属可接受魔法数
+- **精炼**（无行为变化，`待提交`）：补 pkg/ocr 目录扫描器报告的全部 **8 处未注释导出符号**——ocr.go：`OCR`（并发安全封装）、`DefaultCacheDir()`（路径降级）、`Global()`（进程级单例）、`New()`（懒加载实例）、`Result`（边界 [x1,y1,x2,y2] 格式）、`Quad`（四角坐标顺序）；assets.go：`ProgressFunc`（下载回调）、`EnsureAssets()`（mirror 候选顺序）。重扫指标：未注释导出 **8→0**；吞错/长函数/TODO 保持 20/1/3 不变（均为带注释合规降级或休眠占位）
+- **门禁**：`go test -race` 覆盖 M21 8 目录 **19 包全绿**（pkg/cache、pkg/csync、pkg/framework、pkg/hostlimit、pkg/i18n、pkg/indexasset、pkg/lawcite、pkg/ocr、pkg/omlx、pkg/util、pkg/vecbytes、psychological、intent、fuzzy、skill、prompt、provider/chatcompat、provider/sanitizer、tracing）；go vet 0 issues；golangci-lint 全目录 0 issues；check-arch/doc-check 通过；tui/desktop 模块不属 M21 范围（下卡处理）；root test-race 预存 `knowledge/sqlite` 环境性失败不影响本卡
+- **指标重扫**（`python3 scripts/scan_go_smells.py pkg provider prompt skill psychological intent fuzzy tracing`，66 文件）：裸 fmt 0 / 忽略 err 0 / 吞错 **20** / TODO **3** / 未注释导出 **8 → 0** / >120 行函数 **1**；tone 词表门禁 0 命中
+- **过程记录**：首次 M21 合并 lint/test 命令用 shell 管道误导致 lint 0 issues 报告后 test-race 结果被 tail 截断；改成分段执行（lint 包列表不含 test 目录；test-race 仅包名匹配 M21 8 目录），全绿。扫描器报告 8 处未注释导出**全部**在 pkg/ocr（而非跨目录），一处集中修复效率高——这是本卡"小模块合卡"模式的收益
+- **提交**：`待补充`（refactor + docs/changelog 两提交）
