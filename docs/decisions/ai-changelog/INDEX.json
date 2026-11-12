@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-12T20:20:44+08:00",
-  "total": 512,
+  "updated": "2026-11-12T20:40:00+08:00",
+  "total": 513,
   "entries": [
+    {
+      "date": "2026-11-12",
+      "type": "refactor",
+      "scope": "tui",
+      "title": "M33 tui/ 基础层（Layer 0–3）审阅：补 10 处 godoc 与 4 处意图注释",
+      "file": "2026-11-12.md",
+      "line": 175
+    },
     {
       "date": "2026-11-12",
       "type": "refactor",

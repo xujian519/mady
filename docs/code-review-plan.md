@@ -123,7 +123,7 @@
 | 卡 | 模块 | 规模/热点 | 状态 |
 | --- | --- | --- | --- |
 | M32 | evaluate/ + example/ + integration/ + scripts/ | 32+11+脚本 | ✅ 2026-11-12 |
-| M33 | tui/（独立子模块）A | 分层 Elm 架构 | ⬜ |
+| M33 | tui/（独立子模块）A | 分层 Elm 架构 | ✅ 2026-11-12 |
 | M34 | tui/（独立子模块）B | 同上 | ⬜ |
 | M35 | desktop/（独立子模块 Go 后端） | Wails | ⬜ |
 | M36 | desktop/（React 前端）+ 终审报告 | docs/code-review-report.md | ⬜ |
@@ -776,3 +776,18 @@
 - **门禁**：`go build ./...`、`go vet ./evaluate/... ./example/... ./scripts/...` 全绿；`golangci-lint run ./evaluate/... ./example/... ./scripts/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./evaluate/... ./example/... ./scripts/...` 全绿；`go test -race -count=1 ./evaluate/... ./scripts/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py evaluate example scripts`，51 文件）：裸 fmt 0 / 忽略 err 1（全误报）/ 静默吞错 **18 → 14**（剩余 14 处全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 1（登记待拆）
 - **提交**：`5ce09193`（refactor）、`5b7f9cd2`（docs + changelog，INDEX total=512）
+
+### M33（2026-11-12）tui/ 独立子模块 A（基础层 Layer 0–3）✅
+
+- **审阅范围**：`tui/` 独立子模块的**基础层 58 个非测试 Go 文件**——`core/`（17，Layer 0 基础类型/Cell 渲染模型）、`layout/`（3，Layer 0 布局原语）、`terminal/`（14，Layer 1 终端 I/O）、`theme/`（13，Layer 2 主题）、`internal/csync/`（1）、根 `tui` 包（10，Layer 3 引擎/overlay/chat_bridge）。M34 将处理 application 层（component/chat/agentadapter）。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——tui 为终端 UI 层，仅做 godoc 与意图注释治理，零行为变更
+- **基线**（58 文件）：裸 fmt **0** / 忽略 err **0** / 静默吞错 **4** / TODO **1**（伪，"TODO panel" 面板名称）/ 未注释导出 **10** / >120 行函数 **5**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：5 个 >120 行函数——`layout/flex.go:348 renderHorizontal`（128 行）、`terminal/key_decode.go:126 decodeKittyU`（122 行）、`theme/palette.go:45 BuildPalette`（193 行）、`overlay_render.go:21 composeOverlays`（149 行）、`tui_render.go:37 renderFrame`（133 行），登记待拆
+  - P2 一致性（本卡精炼）：**10 处未注释导出符号 + 4 处静默吞错缺意图注释**——① core/message.go：`Batch`/`Sequence`/`Quit`/`CtxMessage`；② core/runeutil.go：`FindWordBoundaryLeft`/`FindWordBoundaryRight`；③ core/width_wrap.go：`StripAnsi`；④ terminal/ansi.go：`ShowCursor`；⑤ theme/semantic_theme.go：`DefaultSemanticLight`；⑥ chat_bridge.go：`NewChatApp`。静默吞错 4 处全为 graceful fallback：context 取消返回 nil、版本解析失败返回 false、颜色解析失败返回黑色、stdout stat 失败返回 false
+  - P3 风格（误报不改）：TODO 1 处为注释中提到的 "TODO panel" 面板名称（非 TODO 标记）
+- **精炼**（无行为变化）：**9 文件**——10 处导出符号补 godoc + 4 处 graceful fallback 补意图注释（core/message、core/runeutil、core/width_wrap、terminal/ansi、terminal/detect_caps、theme/color_resolve、theme/semantic_theme、theme/style、chat_bridge）
+- **门禁**：`cd tui && go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test -race -count=1 ./core/... ./layout/... ./terminal/... ./theme/... ./internal/...` 全绿；根 `tui` 包 lifecycle_test 与 `component/` 渲染测试存在**预存失败**（Unicode 框线字符宽度计算，stash 后复现，与本卡纯注释改动无关，component/ 属 M34 范围）
+- **指标重扫**（58 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **4 → 0** / TODO 0 / 未注释导出 **10 → 0** / >120 行函数 5（登记待拆）
+- **提交**：TBD（refactor）、TBD（docs + changelog）
