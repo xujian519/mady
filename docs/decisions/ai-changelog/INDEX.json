@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-12T21:10:00+08:00",
-  "total": 514,
+  "updated": "2026-11-12T21:40:00+08:00",
+  "total": 515,
   "entries": [
+    {
+      "date": "2026-11-12",
+      "type": "refactor",
+      "scope": "desktop",
+      "title": "M35 desktop/ Go 后端审阅：补 23 处静默吞错意图注释",
+      "file": "2026-11-12.md",
+      "line": 208
+    },
     {
       "date": "2026-11-12",
       "type": "refactor",

@@ -125,7 +125,7 @@
 | M32 | evaluate/ + example/ + integration/ + scripts/ | 32+11+脚本 | ✅ 2026-11-12 |
 | M33 | tui/（独立子模块）A | 分层 Elm 架构 | ✅ 2026-11-12 |
 | M34 | tui/（独立子模块）B | 同上 | ✅ 2026-11-12 |
-| M35 | desktop/（独立子模块 Go 后端） | Wails | ⬜ |
+| M35 | desktop/（独立子模块 Go 后端） | Wails | ✅ 2026-11-12 |
 | M36 | desktop/（React 前端）+ 终审报告 | docs/code-review-report.md | ⬜ |
 
 ## 六、基线（2026-08-25 实测）
@@ -806,3 +806,18 @@
 - **门禁**：`cd tui && go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test -race -count=1 ./component/... ./chat/... ./agentadapter/...` 中 agentadapter 全绿，component/ 与 chat/ 渲染测试存在**预存失败**（Unicode 框线字符 `─╭╮╰╯═║█░` 宽度计算为 2 而非 1，stash 后复现，与本卡纯注释改动无关）
 - **指标重扫**（73 文件）：裸 fmt 1（误报）/ 忽略 err 0 / 静默吞错 **6 → 0** / TODO 0 / 未注释导出 **22 → 0** / >120 行函数 5（登记待拆）
 - **提交**：8e6ac928（refactor）、09e1efe2（docs + changelog）
+
+### M35（2026-11-12）desktop/ 独立子模块 Go 后端 ✅
+
+- **审阅范围**：`desktop/` 独立子模块的 **22 个非测试 Go 文件**——Wails 桌面应用后端（app 主逻辑、tabs 状态机、settings、knowledge、skills、mcp、image、update、window_state、templates、tray、menu 等）。`desktop/third_party/systray/`（第三方 fork）与 `desktop/frontend/node_modules/` 排除。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——desktop 为桌面 UI 后端，仅做意图注释治理，零行为变更
+- **基线**（22 文件）：裸 fmt **0** / 忽略 err **0** / 静默吞错 **22** / TODO **0** / 未注释导出 **0** / >120 行函数 **0**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：0 项
+  - P2 一致性（本卡精炼）：**22 处静默吞错缺意图注释**（后重扫发现 1 处遗漏，共 23 处）——① tabs.go（5 处：JSON 解析/序列化/临时文件创建/写入/关闭失败的落盘跳过）；② app_settings.go（9 处：loadJSONFile 文件缺失与损坏回退零值、MadyHome 解析失败、上次项目路径不可达、isPathWithinSandbox 5 处安全优先返回 false）；③ app.go（1 处：Provider 初始化失败中止启动）；④ app_skills.go（2 处：技能目录加载失败跳过、相对路径计算失败回退绝对路径）；⑤ knowledge.go（1 处：目录不可读返回 0 计数）；⑥ window_state.go（4 处：缓存目录/状态文件/解析失败回退默认、序列化失败跳过持久化）；⑦ templates.go（1 处：模板目录不存在返回空列表）。全部为 graceful fallback
+  - P3 风格：0 项
+- **精炼**（无行为变化）：**7 文件**——23 处 graceful fallback 补意图注释（tabs、app_settings、app、app_skills、knowledge、window_state、templates）
+- **门禁**：`cd desktop && go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test -race -count=1 ./...` 全绿
+- **指标重扫**（22 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **22 → 0** / TODO 0 / 未注释导出 0 / >120 行函数 0
+- **提交**：TBD（refactor）、TBD（docs + changelog）
