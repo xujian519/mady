@@ -88,6 +88,8 @@ func IsWordRune(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
 
+// FindWordBoundaryLeft returns the index of the start of the word containing
+// or immediately preceding cursor, scanning leftwards through runes.
 func FindWordBoundaryLeft(runes []rune, cursor int64) int64 {
 	i := cursor
 	for i > 0 && !IsWordRune(runes[i-1]) {
@@ -99,6 +101,8 @@ func FindWordBoundaryLeft(runes []rune, cursor int64) int64 {
 	return i
 }
 
+// FindWordBoundaryRight returns the index of the end of the word containing
+// or immediately following cursor, scanning rightwards through runes.
 func FindWordBoundaryRight(runes []rune, cursor int64) int64 {
 	n := int64(len(runes))
 	i := cursor

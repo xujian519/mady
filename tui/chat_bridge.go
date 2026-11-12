@@ -9,6 +9,8 @@ import (
 	"github.com/xujian519/mady/tui/terminal"
 )
 
+// NewChatApp creates a ChatApp wired to a new TUI engine, applying the
+// kitty keyboard settings from cfg and returning the configured app.
 func NewChatApp(cfg chat.ChatAppConfig) *chat.ChatApp {
 	term := terminal.NewProcessTerminal()
 	if cfg.KittyKeyboardMode != "" {

@@ -65,6 +65,7 @@ type SemanticTheme struct {
 	ConfidenceHigh   string `json:"confidenceHigh"`
 }
 
+// DefaultSemanticLight returns the built-in light-mode semantic theme.
 func DefaultSemanticLight() *SemanticTheme { //nolint:dupl // 主题数据：结构相同但颜色值不同的数据定义，提取会损害可读性
 	return &SemanticTheme{
 		Name: "light",

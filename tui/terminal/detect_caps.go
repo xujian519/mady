@@ -168,6 +168,7 @@ func vteHasKKP(version string) bool {
 	// VTE_VERSION is a packed integer: major*10000 + minor*100 + patch.
 	v, err := strconv.Atoi(version)
 	if err != nil {
+		// 版本号非数字时按不支持 KKP 处理（graceful fallback）。
 		return false
 	}
 	// 8200 = 0.82.0 (first VTE release with KKP). Note: the packed encoding

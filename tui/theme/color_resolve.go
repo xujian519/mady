@@ -126,6 +126,7 @@ func hexToRGB(hex string) (r, g, b int64, ok bool) {
 	}
 	v, err := strconv.ParseUint(h, 16, 32)
 	if err != nil {
+		// 非法 hex 颜色时返回黑色+ok=false（graceful fallback）。
 		return 0, 0, 0, false
 	}
 	n := int64(v)

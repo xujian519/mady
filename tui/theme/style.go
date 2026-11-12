@@ -197,6 +197,7 @@ func ColorEnabled() bool {
 	}
 	fi, err := os.Stdout.Stat()
 	if err != nil {
+		// 无法 stat stdout 时按非终端处理（graceful fallback）。
 		return false
 	}
 	return fi.Mode()&os.ModeCharDevice != 0

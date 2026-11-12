@@ -173,6 +173,7 @@ func wrapOneLineCJK(line string, width int64) []string {
 // ansiReset is the SGR reset sequence, kept local to core (theme/style.go has its own).
 const ansiReset = "\x1b[0m"
 
+// StripAnsi removes all ANSI escape sequences from s, returning the plain text.
 func StripAnsi(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))

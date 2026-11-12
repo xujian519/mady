@@ -126,6 +126,9 @@ func (SequenceMessage) MsgMarker() {}
 // is handled by Batch/Sequence and the TUI engine.
 type Cmd func() Msg
 
+// Batch combines multiple commands into a single BatchMsg that runs them
+// concurrently. Nil commands are filtered out; a single non-nil command is
+// returned unwrapped to avoid unnecessary indirection.
 func Batch(cmds ...Cmd) Cmd {
 	nonNil := make([]Cmd, 0, len(cmds))
 	for _, c := range cmds {
@@ -144,6 +147,8 @@ func Batch(cmds ...Cmd) Cmd {
 	}
 }
 
+// Sequence combines multiple commands into a SequenceMessage that runs them
+// sequentially, feeding each command's Msg output to the next command as input.
 func Sequence(cmds ...Cmd) Cmd {
 	nonNil := make([]Cmd, 0, len(cmds))
 	for _, c := range cmds {
@@ -187,6 +192,7 @@ func WithContext(ctx context.Context, cmd Cmd) Cmd {
 	}
 	return func() Msg {
 		if err := ctx.Err(); err != nil {
+			// 上下文已取消/超时，跳过命令执行返回 nil（TUI 引擎将 nil 视为 no-op）。
 			return nil
 		}
 		done := make(chan Msg, 1)
@@ -210,10 +216,13 @@ func WithContext(ctx context.Context, cmd Cmd) Cmd {
 	}
 }
 
+// Quit returns a QuitMsg that signals the TUI event loop to shut down.
 func Quit() Msg {
 	return QuitMsg{}
 }
 
+// CtxMessage wraps a Msg with a context, allowing commands to carry
+// cancellation/deadline information through the message pipeline.
 type CtxMessage struct {
 	ctx   context.Context
 	inner Msg

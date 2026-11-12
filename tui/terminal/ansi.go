@@ -19,6 +19,8 @@ const (
 
 // HideCursor hides the cursor.
 func HideCursor() string { return Esc + "?25l" }
+
+// ShowCursor shows the cursor.
 func ShowCursor() string { return Esc + "?25h" }
 
 // ClearFromCursorDown clears from the cursor to the end of the screen.
