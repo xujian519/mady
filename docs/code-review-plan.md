@@ -124,7 +124,7 @@
 | --- | --- | --- | --- |
 | M32 | evaluate/ + example/ + integration/ + scripts/ | 32+11+脚本 | ✅ 2026-11-12 |
 | M33 | tui/（独立子模块）A | 分层 Elm 架构 | ✅ 2026-11-12 |
-| M34 | tui/（独立子模块）B | 同上 | ⬜ |
+| M34 | tui/（独立子模块）B | 同上 | ✅ 2026-11-12 |
 | M35 | desktop/（独立子模块 Go 后端） | Wails | ⬜ |
 | M36 | desktop/（React 前端）+ 终审报告 | docs/code-review-report.md | ⬜ |
 
@@ -791,3 +791,18 @@
 - **门禁**：`cd tui && go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test -race -count=1 ./core/... ./layout/... ./terminal/... ./theme/... ./internal/...` 全绿；根 `tui` 包 lifecycle_test 与 `component/` 渲染测试存在**预存失败**（Unicode 框线字符宽度计算，stash 后复现，与本卡纯注释改动无关，component/ 属 M34 范围）
 - **指标重扫**（58 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **4 → 0** / TODO 0 / 未注释导出 **10 → 0** / >120 行函数 5（登记待拆）
 - **提交**：4fd39e92（refactor）、1c6cd963（docs + changelog）
+
+### M34（2026-11-12）tui/ 独立子模块 B（application 层 component/chat/agentadapter）✅
+
+- **审阅范围**：`tui/` 独立子模块的 **application 层 76 个非测试 Go 文件**——`component/`（47，UI 组件库）、`chat/`（28，聊天应用与历史渲染）、`agentadapter/`（1，agentcore→chat 事件桥接）。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——tui 为终端 UI 层，仅做 godoc 与意图注释治理，零行为变更
+- **基线**（76 文件，扫描计 73）：裸 fmt **1**（误报，OSC 52 剪贴板输出）/ 忽略 err **0** / 静默吞错 **6** / TODO **7**（伪，"TODO panel" 面板名称）/ 未注释导出 **22** / >120 行函数 **5**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：5 个 >120 行函数——`component/review_gate.go:420 renderLocked`（140 行）、`component/keyhelp.go:140 Render`（121 行）、`component/session_selector.go:465 Render`（123 行）、`chat/chat_history_input.go:77 handleMouse`（128 行）、`chat/chat_app_keys.go:26 dispatchKey`（127 行），登记待拆
+  - P2 一致性（本卡精炼）：**22 处未注释导出符号 + 6 处静默吞错缺意图注释**——① component/statusbar.go：`StatusBarSection`/`StatusBar`/`NewStatusBar`；② chat/events.go：`EventSubscriber`/`Subscriber`/`ChatEvent` + 15 个 `*ChatEvent` 事件结构体与 `ToolCallInfo`/`TokenUsage`；③ agentadapter/adapter.go：`BindAgent`。静默吞错 6 处：component/image.go（renderKitty/renderITerm2 PNG 编码失败回退半块渲染）、component/autocomplete.go（ReadDir 失败返回空候选）、chat/chat_builder.go（复制/粘贴失败向用户报告后放弃）、chat/chat_app_tool.go（JSON 解析失败返回空值）
+  - P3 风格（误报不改）：裸 fmt 1 处为 `clipboard.go:85 fmt.Print(osc)` 向 stdout 写 OSC 52 剪贴板序列（非调试残留，错误已捕获返回）；TODO 7 处全为 "TODO panel" 面板名称（非 TODO 标记）
+- **精炼**（无行为变化）：**7 文件**——22 处导出符号补 godoc + 6 处 graceful fallback 补意图注释（component/statusbar、component/image、component/autocomplete、chat/events、chat/chat_builder、chat/chat_app_tool、agentadapter/adapter）
+- **门禁**：`cd tui && go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test -race -count=1 ./component/... ./chat/... ./agentadapter/...` 中 agentadapter 全绿，component/ 与 chat/ 渲染测试存在**预存失败**（Unicode 框线字符 `─╭╮╰╯═║█░` 宽度计算为 2 而非 1，stash 后复现，与本卡纯注释改动无关）
+- **指标重扫**（73 文件）：裸 fmt 1（误报）/ 忽略 err 0 / 静默吞错 **6 → 0** / TODO 0 / 未注释导出 **22 → 0** / >120 行函数 5（登记待拆）
+- **提交**：TBD（refactor）、TBD（docs + changelog）

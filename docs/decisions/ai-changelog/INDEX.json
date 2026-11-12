@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-12T20:40:00+08:00",
-  "total": 513,
+  "updated": "2026-11-12T21:10:00+08:00",
+  "total": 514,
   "entries": [
+    {
+      "date": "2026-11-12",
+      "type": "refactor",
+      "scope": "tui",
+      "title": "M34 tui/ application 层（component/chat/agentadapter）审阅：补 22 处 godoc 与 6 处意图注释",
+      "file": "2026-11-12.md",
+      "line": 191
+    },
     {
       "date": "2026-11-12",
       "type": "refactor",
