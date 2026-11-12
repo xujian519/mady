@@ -136,7 +136,11 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 
 	writeSSE("skills_snapshot", skillSnapshotEventPayload(s.snapshotConfig()))
 
-	_, _ = fmt.Fprint(w, ": connected\n\n")
+	if _, err := fmt.Fprintf(w, ": connected\n\n"); err != nil {
+		slog.Error("server: SSE keepalive write error", "err", err)
+		dead.Store(true)
+		return
+	}
 	flusher.Flush()
 	for {
 		select {
