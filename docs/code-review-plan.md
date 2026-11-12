@@ -105,7 +105,7 @@
 | --- | --- | --- | --- |
 | M23 | a2a/ | 26 文件/5.4K 行（协议面红线） | ✅ 2026-11-11 |
 | M24 | a2ui/ + agui/ | 20 文件/3.2K 行（协议面红线） | ✅ 2026-11-12 |
-| M25 | acp/ + server/ | 32 文件/6.7K 行（含红线） | ⬜ |
+| M25 | acp/ + server/ | 32 文件/6.7K 行（含红线） | ✅ 2026-11-12 |
 | M26 | mcp/ | 25 文件/4.6K 行（含 config_trust 红线） | ⬜ |
 | M27 | bootstrap/ | 16 文件/2.8K 行 | ⬜ |
 
@@ -656,3 +656,18 @@
 - **门禁**：`go build ./...`、`go vet ./a2ui/... ./agui/...` 全绿；`golangci-lint run ./a2ui/... ./agui/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；协议面 `go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `a2ui`、`agui`、`server` 及下游消费方 `desktop` 子模块 **全绿**
 - **指标重扫**（`python3 scripts/scan_go_smells.py a2ui agui`，20 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **2 → 1**（剩余 1 处为 datamodel.go fmt.Errorf 误报）/ TODO 0 / 未注释导出 0 / >120 行函数 **2**（登记待拆）
 - **提交**：`b9893544`（refactor）、`f07a7cd9`（docs + changelog，INDEX total=504）
+
+### M25（2026-11-12）acp/ + server/ 协议面+服务层 ✅
+
+- **审阅范围**：`acp/` 全部 **16 个非测试 `.go` 文件**（acp/protocol/server/server_response/server_handlers/server_session_handlers/server_prompt_handlers/server_auth/server_permissions/server_filesystem/server_app/session/session_events/session_util/auth/doc）+ `server/` 全部 **16 个非测试 `.go` 文件**（types/server/chat/skills/health/middleware/metrics/pool/thread/stream_events/disclosure/disclosure_events/enablement_events/evidence/desktop/doc），共 32 文件约 6.7K 行。与敏感路径权威源零重叠
+- **红线处置**：ACP 协议结构（`Request`/`Response`/`Notification`/`JSONRPCError` 等 JSON-RPC 帧、`AgentInfo`/`AuthenticateParams` 等握手字段）、server SSE 事件格式（`event:`/`data:`）与 JSON 响应结构一律零改动；仅做注释治理与错误处理一致性修正
+- **基线**（`scan_go_smells.py acp server`，32 文件）：裸 fmt **1** / 忽略 err **0** / 静默吞错 **32** / TODO **0** / 未注释导出 **0** / >120 行函数 **0**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度：0 项（无超长函数）
+  - P2 一致性：① `acp/acp.go` 6 处生成残留的重复双行导出注释（`AgentInfo`/`AuthProvider`/`AgentFactory`/`AgentInstance`/`SessionStore`/`SessionMeta` 各有两条以符号名开头的注释，同 M23 a2a 模式）；② `server/skills.go:139` SSE keepalive 用 `fmt.Fprint` 且 `_, _ =` 丢弃错误，与同函数 `writeSSE` 闭包的错误检查模式不一致
+  - P3 风格：32 处「静默吞错」全为扫描器误报——acp 22 处均为 JSON-RPC handler 的 `if err != nil { s.writeError(...); return }`（错误通过 JSON-RPC 响应返回客户端，同 M23 a2a 口径）+ `server.go:149` 嵌套 if 误报；server 10 处均为 `slog.Error` 记录或 `task.markFailed` 记录后 return，非静默降级。按 M22 口径不改代码
+- **精炼**（无行为变化）：**2 文件**——① `acp/acp.go` 删除 6 条冗余注释行，每个导出符号保留一条更具体的注释；② `server/skills.go` keepalive 改为 `fmt.Fprintf` 并补错误检查（失败时 `slog.Error` + `dead.Store(true)` + return），与 `writeSSE` 闭包一致；从 `fmt.Fprint` 改为 `fmt.Fprintf` 消除裸 fmt 指标
+- **门禁**：`go build ./...`、`go vet ./acp/... ./server/...` 全绿；`golangci-lint run ./acp/... ./server/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；协议面 `go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `acp`、`server`、`cmd/mady` 及下游消费方 `desktop` 子模块 **全绿**
+- **指标重扫**（`python3 scripts/scan_go_smells.py acp server`，32 文件）：裸 fmt **1 → 0** / 忽略 err 0 / 静默吞错 32（全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 0
+- **提交**：refactor 1 个 + docs/changelog 1 个
