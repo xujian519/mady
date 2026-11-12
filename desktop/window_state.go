@@ -22,6 +22,7 @@ type windowState struct {
 func windowStatePath() string {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
+		// 无法获取缓存目录：返回空串，不持久化窗口状态。
 		return ""
 	}
 	dir := filepath.Join(cacheDir, "mady")
@@ -38,10 +39,12 @@ func loadWindowState() *windowState {
 	}
 	data, err := os.ReadFile(filepath.Clean(p))
 	if err != nil {
+		// 窗口状态文件不存在/不可读：使用默认窗口位置。
 		return nil
 	}
 	var ws windowState
 	if err := json.Unmarshal(data, &ws); err != nil {
+		// 窗口状态文件损坏：忽略并使用默认窗口位置。
 		return nil
 	}
 	if ws.Width < 400 || ws.Height < 300 {
@@ -79,6 +82,7 @@ func saveWindowState(ws windowState) {
 	}
 	data, err := json.Marshal(ws)
 	if err != nil {
+		// 序列化窗口状态失败（理论上不会发生）：跳过本次持久化。
 		return
 	}
 	if err := os.WriteFile(filepath.Clean(p), data, 0600); err != nil {

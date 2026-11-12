@@ -142,6 +142,7 @@ func (a *App) startup(ctx context.Context) {
 
 	provider, err := agentconfig.BuildProvider()
 	if err != nil {
+		// Provider 初始化失败：向用户报告后中止启动，不继续初始化。
 		log.Printf("[mady-desktop] provider setup failed: %v", err)
 		a.emitInitProgress("引擎初始化失败: " + err.Error())
 		runtime.EventsEmit(ctx, "mady:init-error", err.Error())

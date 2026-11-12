@@ -67,6 +67,7 @@ func (ts *tabStore) load() {
 		Active string `json:"active"`
 	}
 	if err := json.Unmarshal(data, &persisted); err != nil {
+		// 持久化文件损坏：忽略并使用默认单标签，不让坏数据阻断启动。
 		log.Printf("[mady-desktop] tabs: ignore corrupt %s: %v", ts.path, err)
 		return
 	}
@@ -84,11 +85,13 @@ func (ts *tabStore) save() {
 	}
 	data, err := json.Marshal(map[string]any{"tabs": ts.tabs, "active": ts.active})
 	if err != nil {
+		// 序列化标签失败（理论上不会发生）：跳过本次落盘，内存状态仍有效。
 		return
 	}
 	dir := filepath.Dir(ts.path)
 	tmp, err := os.CreateTemp(dir, ".mady-tabs-*")
 	if err != nil {
+		// 临时文件创建失败：跳过落盘，下次变更时重试。
 		log.Printf("[mady-desktop] tabs: save failed: %v", err)
 		return
 	}
@@ -96,10 +99,12 @@ func (ts *tabStore) save() {
 	defer func() { _ = os.Remove(tmpName) }()
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
+		// 写入临时文件失败：跳过落盘，tmp 由 defer 清理。
 		log.Printf("[mady-desktop] tabs: save failed: %v", err)
 		return
 	}
 	if err := tmp.Close(); err != nil {
+		// 关闭临时文件失败：跳过 rename，tmp 由 defer 清理。
 		log.Printf("[mady-desktop] tabs: save failed: %v", err)
 		return
 	}

@@ -42,11 +42,13 @@ func aiSettingsPath(madyHome string) string {
 func loadJSONFile[T any](path string) T {
 	data, err := os.ReadFile(path) //nolint:gosec // path 由 MadyHome 派生
 	if err != nil {
+		// 文件不存在/不可读：视为无用户覆盖，返回零值（不视为错误）。
 		var zero T
 		return zero
 	}
 	var v T
 	if err := json.Unmarshal(data, &v); err != nil {
+		// 设置文件损坏：记录日志后回退零值，不让坏配置阻断启动。
 		log.Printf("[mady-desktop] invalid JSON settings file %s: %v", path, err)
 		var zero T
 		return zero
@@ -88,6 +90,7 @@ func (a *App) resolveMadyHome() string {
 	}
 	home, err := util.MadyHome()
 	if err != nil {
+		// 无法解析 MadyHome：返回空串，调用方据此跳过持久化。
 		return ""
 	}
 	return home
@@ -105,6 +108,7 @@ func (a *App) applyLastProject(saved AISettings) {
 		return
 	}
 	if err := domains.ValidateProjectPath(rec.RootPath); err != nil {
+		// 上次项目路径不可达（删除/权限）：跳过恢复，使用当前工作目录。
 		log.Printf("[mady-desktop] last project %q path %s unreachable: %v", rec.ProjectID, rec.RootPath, err)
 		return
 	}
@@ -218,25 +222,30 @@ func (a *App) resolveProjectDir() (string, error) {
 func isPathWithinSandbox(target, sandboxRoot string) bool {
 	cleanTarget, err := filepath.Abs(target)
 	if err != nil {
+		// 路径解析失败：安全优先，视为不在沙箱内。
 		return false
 	}
 	cleanRoot, err := filepath.Abs(sandboxRoot)
 	if err != nil {
+		// 沙箱根路径解析失败：安全优先，视为不在沙箱内。
 		return false
 	}
 
 	// 解析符号链接：对尚不存在的文件（写操作常见），回退到最近的已存在父目录校验。
 	realTarget, err := evalSymlinksExist(cleanTarget)
 	if err != nil {
+		// 符号链接解析失败：安全优先，视为不在沙箱内。
 		return false
 	}
 	realRoot, err := evalSymlinksExist(cleanRoot)
 	if err != nil {
+		// 符号链接解析失败：安全优先，视为不在沙箱内。
 		return false
 	}
 
 	rel, err := filepath.Rel(realRoot, realTarget)
 	if err != nil {
+		// 相对路径计算失败：安全优先，视为不在沙箱内。
 		return false
 	}
 	// rel 以 ".." 开头说明 target 在 sandboxRoot 之外

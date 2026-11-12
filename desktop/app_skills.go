@@ -105,6 +105,7 @@ func loadUniqueSkills(d skillDir, cwd string, seen map[string]bool) []SkillEntry
 	}
 	skills, _, err := skill.Load(d.dir)
 	if err != nil {
+		// 技能目录加载失败：跳过该目录，其他目录仍可正常加载。
 		return nil
 	}
 
@@ -130,6 +131,7 @@ func skillEntryPath(d skillDir, cwd, filePath string) string {
 	}
 	rel, err := filepath.Rel(cwd, filePath)
 	if err != nil {
+		// 相对路径计算失败：回退显示绝对路径，保证技能仍可被定位。
 		log.Printf("ListSkills: filepath.Rel(%q, %q) failed: %v", cwd, filePath, err)
 		return filepath.ToSlash(filePath)
 	}

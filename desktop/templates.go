@@ -45,6 +45,7 @@ func (a *App) ListDocTemplates() ([]DocTemplateEntry, error) {
 	templatesDir := filepath.Join(cwd, "doc-templates")
 	entries, err := os.ReadDir(templatesDir)
 	if err != nil {
+		// 模板目录不存在：返回空列表（项目未配置模板属正常情况）。
 		if os.IsNotExist(err) {
 			return []DocTemplateEntry{}, nil
 		}

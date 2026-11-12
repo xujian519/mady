@@ -76,6 +76,7 @@ func (a *App) GetKnowledgeStatus() KnowledgeStatus {
 func countDocFiles(dir string) int {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
+		// 目录不可读：返回 0 文档计数，不影响索引流程。
 		return 0
 	}
 	n := 0
