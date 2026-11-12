@@ -8,6 +8,7 @@ import (
 	"github.com/xujian519/mady/bootstrap/agentconfig"
 )
 
+// ExtSlice 将单个 Extension 包装为单元素切片；ext 为 nil 时返回 nil。
 func ExtSlice(ext agentcore.Extension) []agentcore.Extension {
 	if ext == nil {
 		return nil
