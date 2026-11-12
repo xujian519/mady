@@ -760,4 +760,4 @@
 - **精炼**（无行为变化）：**2 文件**——为 2 处 graceful fallback 补意图注释（framework.go、tui_session_commands.go）
 - **门禁**：`go build ./...`、`go vet ./cmd/mady/...` 全绿；`golangci-lint run ./cmd/mady/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./cmd/mady/...` 全绿；`go test -race -count=1 ./cmd/mady/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py cmd/mady`，42 文件）：裸 fmt 65（全误报，subcmd CLI 输出）/ 忽略 err 8（全误报）/ 静默吞错 **45 → 43**（剩余 43 处全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 4（登记待拆）
-- **提交**：TBD（refactor）、TBD（docs + changelog）
+- **提交**：`83078f00`（refactor）、`9a9040e8`（docs + changelog，INDEX total=511）
