@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-12T19:22:10+08:00",
-  "total": 509,
+  "updated": "2026-11-12T19:48:11+08:00",
+  "total": 510,
   "entries": [
+    {
+      "date": "2026-11-12",
+      "type": "refactor",
+      "scope": "tools",
+      "title": "M30 tools/ 内置工具族审阅：补 17 处 godoc 与 19 处静默吞错意图注释",
+      "file": "2026-11-12.md",
+      "line": 115
+    },
     {
       "date": "2026-11-12",
       "type": "refactor",
@@ -1311,7 +1319,7 @@
       "date": "2026-08-12",
       "type": "refactor",
       "scope": "repo",
-      "title": "大文件合理拆分（第四轮）：9 个 \u003e500 行文件按职责拆分",
+      "title": "大文件合理拆分（第四轮）：9 个 >500 行文件按职责拆分",
       "file": "2026-08-12.md",
       "line": 49
     },
@@ -1319,7 +1327,7 @@
       "date": "2026-08-12",
       "type": "refactor",
       "scope": "repo",
-      "title": "大文件合理拆分（第五轮）：8 个 \u003e500 行文件按职责拆分",
+      "title": "大文件合理拆分（第五轮）：8 个 >500 行文件按职责拆分",
       "file": "2026-08-12.md",
       "line": 55
     },
@@ -1391,7 +1399,7 @@
       "date": "2026-08-12",
       "type": "refactor",
       "scope": "repo",
-      "title": "大文件合理拆分：8 个 \u003e500 行文件按职责拆分",
+      "title": "大文件合理拆分：8 个 >500 行文件按职责拆分",
       "file": "2026-08-12.md",
       "line": 31
     },
@@ -1399,7 +1407,7 @@
       "date": "2026-08-12",
       "type": "refactor",
       "scope": "repo",
-      "title": "大文件合理拆分（第二轮）：8 个 \u003e500 行文件按职责拆分",
+      "title": "大文件合理拆分（第二轮）：8 个 >500 行文件按职责拆分",
       "file": "2026-08-12.md",
       "line": 37
     },
@@ -1407,7 +1415,7 @@
       "date": "2026-08-12",
       "type": "refactor",
       "scope": "repo",
-      "title": "大文件合理拆分（第三轮）：8 个 \u003e500 行文件按职责拆分",
+      "title": "大文件合理拆分（第三轮）：8 个 >500 行文件按职责拆分",
       "file": "2026-08-12.md",
       "line": 43
     },
@@ -3775,7 +3783,7 @@
       "date": "2026-07-20",
       "type": "feat",
       "scope": "disclosure",
-      "title": "新增 disclosure happy-path smoke test（analyze -\u003e review -\u003e export）",
+      "title": "新增 disclosure happy-path smoke test（analyze -> review -> export）",
       "file": "2026-07-20.md",
       "line": 562
     },
@@ -4047,7 +4055,7 @@
       "date": "2026-07-18",
       "type": "refactor",
       "scope": "*",
-      "title": "P2-5 大文件拆分（4 个 \u003e1000 行文件 → 20 个聚焦文件）",
+      "title": "P2-5 大文件拆分（4 个 >1000 行文件 → 20 个聚焦文件）",
       "file": "2026-07-18.md",
       "line": 488
     },

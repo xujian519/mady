@@ -115,7 +115,7 @@
 | --- | --- | --- | --- |
 | M28 | tools/ browser_* + browserproviders | 85 文件/18.8K 行拆 3 卡 | ✅ 2026-11-12 |
 | M29 | tools/ desktop + computer_use* | 同上 | ✅ 2026-11-12 |
-| M30 | tools/ 内置工具族 + tools.go 注册 | 同上 | ⬜ |
+| M30 | tools/ 内置工具族 + tools.go 注册 | 同上 | ✅ 2026-11-12 |
 | M31 | cmd/mady/ | 42 文件/7.7K 行 | ⬜ |
 
 ### 阶段 6 — 端/测试/脚本（W8–W9）
@@ -731,3 +731,18 @@
 - **门禁**：`go build ./...`、`go vet ./tools/desktop/...` 全绿；`golangci-lint run ./tools/desktop/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./tools/desktop/...` 全绿；`go test -race -count=1 ./tools/desktop/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py tools/desktop`，13 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **3 → 0** / TODO 0 / 未注释导出 0 / >120 行函数 1（登记待拆）
 - **提交**：`b11556a5`（refactor）、`fb995ce2`（docs + changelog，INDEX total=509）
+
+### M30（2026-11-12）tools/ 内置工具族 + tools.go 注册 ✅
+
+- **审阅范围**：`tools/` 根下非 browser/non-desktop 的 **41 个非测试 `.go` 文件**（bash/cnipr/delete/edit/execute_code/execute_code_ptc/find/git/glob/grep/ls/move/netutil/ocr/office_pdf/pandoc/paper_literature/patent_eval/patent_search/patent_web_search/path/process/rand/read/scholar_search/supervisor_dialogs/supervisor_registry/tools/truncate/view/vision/web_fetch/web_search/web_search_duckduckgo/web_search_gemini/web_search_provider/write_file 等，约 10K 行）+ tools.go 注册。属 tools/ 三卡拆分第 3 卡。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——内置工具为内部执行层，仅做 godoc 注释与意图注释治理，零行为变更
+- **基线**（`scan_go_smells.py tools`，90 文件全目录）：裸 fmt **0** / 忽略 err **8** / 静默吞错 **50** / TODO **0** / 未注释导出 **17** / >120 行函数 **7**（M30 范围内未注释导出 17 处、静默吞错 33 处）
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：tools/ 全目录 7 个 >120 行函数，分布在 grep.go RunGoGrep、view.go walk、web_search.go 等，登记待拆
+  - P2 一致性（本卡精炼）：**17 处未注释导出符号**——ocr.go（OCRToolConfig/OCRToolInput/NewOCRTool/SweepOCRCache）、execute_code.go（ExecuteCodeToolConfig/NewExecuteCodeTool）、git.go（GitStatusInput/NewGitStatusTool/GitDiffInput/NewGitDiffTool/GitLogInput/NewGitLogTool）、supervisor_registry.go（SupervisorRegistry/SetSupervisorRegistry/GetSupervisorRegistry/BrowserBackendType/BrowserConfig/DetectBackend）、supervisor_dialogs.go（DialogBridgeHandler/NewDialogBridgeHandler）均缺 godoc；**19 处静默吞错缺意图注释**——best-effort 遍历跳过（find/glob/grep/view 的 WalkDir/ReadFile）、安全 fail-closed（delete.isProtected/path.isWithin）、graceful fallback（ocr.SweepOCRCache/ptc.reply/web_fetch.extractText/web_search/patent_search 结构化结果）、错误翻译（edit/grep/path/read/view 的"路径不存在"统一返回）
+  - P3 风格（误报不改）：忽略 err 8 处均为 `cmd.Wait()` 收割僵尸进程，已有 `//nolint:gosec // G104` 或 reap zombie 注释；静默吞错 14 处为误报——①bash.go 实际 `return -1, err` 传播（花括号近似截断）；②cnipr.go 三处 `cniprFallbackError(err)` 包裹传播；③delete/move/office_pdf 的 `resultErrf("...%w", err)` 与 `fmt.Errorf("...: %v", err)` 实际传播；④find.go 两处已有父级 `//nolint:gosec` 或为 fallback 控制流；⑤grep.go 两处 fallback 到 runGoGrep；⑥patent_search.parseJSONOrRaw 与 rand.cryptoIntn 函数级注释已说明降级语义
+- **精炼**（无行为变化）：**17 文件**——5 文件补 17 处导出符号 godoc 注释（ocr/execute_code/git/supervisor_registry/supervisor_dialogs）；12 文件补 19 处静默吞错意图注释（delete/execute_code_ptc/find/glob/grep/ocr/path/read/view/edit/patent_search/web_fetch/web_search）
+- **门禁**：`go build ./...`、`go vet ./tools/...` 全绿；`golangci-lint run ./tools/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./tools/...` 全绿；`go test -race -count=1 ./tools/...` 全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py tools`，90 文件）：裸 fmt 0 / 忽略 err 8（全误报）/ 静默吞错 **50 → 31**（M30 范围 33→14，剩余 14 处全误报）/ TODO 0 / 未注释导出 **17 → 0** / >120 行函数 7（登记待拆）
+- **提交**：TBD（refactor）、TBD（docs + changelog）
