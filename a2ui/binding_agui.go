@@ -36,6 +36,8 @@ func FromCustomEvent(ev agui.CustomEvent) (env Envelope, ok bool, err error) {
 	}
 	parsed, err := ParseEnvelope(raw)
 	if err != nil {
+		// AG-UI 自定义事件为通用通道，名为 a2ui 但载荷非合法信封时按非匹配处理，
+		// 避免单个畸形载荷中断整个事件流解析。
 		return Envelope{}, false, nil
 	}
 	return parsed, true, nil

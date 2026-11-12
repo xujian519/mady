@@ -26,20 +26,7 @@ type Converter struct {
 // NewConverter 创建 AGUI 事件转换器。contextWindow 为模型上下文窗口大小（token），
 // 设为 0 时默认使用 128K（用于缓存未配置场景）。
 func NewConverter(threadID, runID string, contextWindow ...int64) *Converter {
-	cw := int64(128000)
-	if len(contextWindow) > 0 && contextWindow[0] > 0 {
-		cw = contextWindow[0]
-	}
-	c := &Converter{
-		threadID:      threadID,
-		runID:         runID,
-		contextWindow: cw,
-	}
-	c.activeMsgID.Store("")
-	c.activeMsgRole.Store("")
-	c.activeThinkingID.Store("")
-	c.activeThinkingMsgID.Store("")
-	return c
+	return NewConverterWithParent(threadID, runID, "", contextWindow...)
 }
 
 // NewConverterWithParent 创建带父 run ID 的转换器。
