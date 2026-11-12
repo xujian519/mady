@@ -144,6 +144,7 @@ func extractToolDiff(toolName, resultJSON string) (path, diff string, added, rem
 		Content  string `json:"content"`
 	}
 	if err := json.Unmarshal([]byte(resultJSON), &raw); err != nil {
+		// 工具结果 JSON 解析失败：返回空值，调用方按"无可用文件信息"处理。
 		return "", "", 0, 0, ""
 	}
 

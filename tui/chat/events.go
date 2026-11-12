@@ -6,10 +6,14 @@ import (
 	"github.com/xujian519/mady/tui/component"
 )
 
+// EventSubscriber 是聊天事件的订阅者接口：调用方通过 On 注册某类
+// ChatEventType 的处理函数，由事件源在事件发生时回调。
 type EventSubscriber interface {
 	On(eventType ChatEventType, handler func(ChatEvent))
 }
 
+// Subscriber 是事件源接口：暴露 Subscribe 让 EventSubscriber 注册自身，
+// 解耦事件生产方（chat host）与消费方（agentadapter 等）。
 type Subscriber interface {
 	Subscribe(sub EventSubscriber)
 }
@@ -81,10 +85,13 @@ func (t ChatEventType) String() string {
 // GoString implements fmt.GoStringer for test output compatibility.
 func (t ChatEventType) GoString() string { return t.String() }
 
+// ChatEvent 是所有聊天事件的标记接口：每个具体事件类型必须实现
+// ChatEventKind 返回自身的 ChatEventType，供分发器路由。
 type ChatEvent interface {
 	ChatEventKind() ChatEventType
 }
 
+// AgentStartChatEvent 在 agent 开始处理一轮输入时发射，携带 agent 名与原始输入。
 type AgentStartChatEvent struct {
 	AgentName string
 	Input     string
@@ -92,6 +99,8 @@ type AgentStartChatEvent struct {
 
 func (AgentStartChatEvent) ChatEventKind() ChatEventType { return ChatEventAgentStart }
 
+// AgentEndChatEvent 在 agent 完成一轮时发射，携带输出文本与结束原因。
+// FinishReason 为 "length"/"error" 等时需提示用户输出可能不完整。
 type AgentEndChatEvent struct {
 	AgentName string
 	Output    string
@@ -150,18 +159,21 @@ type ApprovalPromptChatEvent struct {
 
 func (ApprovalPromptChatEvent) ChatEventKind() ChatEventType { return ChatEventApprovalPrompt }
 
+// AgentErrorChatEvent 在 agent 执行出错时发射，Err 为具体错误。
 type AgentErrorChatEvent struct {
 	Err error
 }
 
 func (AgentErrorChatEvent) ChatEventKind() ChatEventType { return ChatEventAgentError }
 
+// TurnStartChatEvent 在单个推理轮次开始时发射，Turn 为轮次序号。
 type TurnStartChatEvent struct {
 	Turn int64
 }
 
 func (TurnStartChatEvent) ChatEventKind() ChatEventType { return ChatEventTurnStart }
 
+// TurnEndChatEvent 在单个推理轮次结束时发射，携带轮次序号与 token 用量。
 type TurnEndChatEvent struct {
 	Turn  int64
 	Usage TokenUsage
@@ -169,6 +181,8 @@ type TurnEndChatEvent struct {
 
 func (TurnEndChatEvent) ChatEventKind() ChatEventType { return ChatEventTurnEnd }
 
+// MessageDeltaChatEvent 在流式输出产生增量文本时发射，
+// Delta 为增量内容，Kind 为 "text" 或 "thinking"。
 type MessageDeltaChatEvent struct {
 	Delta string
 	Kind  string // "text" or "thinking"
@@ -176,18 +190,21 @@ type MessageDeltaChatEvent struct {
 
 func (MessageDeltaChatEvent) ChatEventKind() ChatEventType { return ChatEventMessageDelta }
 
+// ToolCallInfo 描述一次工具调用的标识信息，用于工具卡片渲染。
 type ToolCallInfo struct {
 	ID        string
 	Name      string
 	Arguments string
 }
 
+// ToolCallStartChatEvent 在工具调用开始时发射。
 type ToolCallStartChatEvent struct {
 	ToolCall ToolCallInfo
 }
 
 func (ToolCallStartChatEvent) ChatEventKind() ChatEventType { return ChatEventToolCallStart }
 
+// ToolCallEndChatEvent 在工具调用结束时发射，携带结果、错误与耗时。
 type ToolCallEndChatEvent struct {
 	ToolCallID string
 	ToolName   string
@@ -198,6 +215,8 @@ type ToolCallEndChatEvent struct {
 
 func (ToolCallEndChatEvent) ChatEventKind() ChatEventType { return ChatEventToolCallEnd }
 
+// HandoffStartChatEvent 在 agent 间移交开始时发射，携带源/目标 agent、
+// 移交模式与上下文；Invisible 为 true 时不向用户展示移交过程。
 type HandoffStartChatEvent struct {
 	SourceAgent string
 	TargetAgent string
@@ -208,6 +227,8 @@ type HandoffStartChatEvent struct {
 
 func (HandoffStartChatEvent) ChatEventKind() ChatEventType { return ChatEventHandoffStart }
 
+// HandoffEndChatEvent 在 agent 间移交结束时发射，携带目标 agent 输出、
+// 耗时与错误；Invisible 为 true 时不向用户展示。
 type HandoffEndChatEvent struct {
 	TargetAgent string
 	Output      string
@@ -218,6 +239,8 @@ type HandoffEndChatEvent struct {
 
 func (HandoffEndChatEvent) ChatEventKind() ChatEventType { return ChatEventHandoffEnd }
 
+// CompactionStartChatEvent 在上下文压缩开始时发射，携带压缩前 token 数
+// 与上下文窗口大小。
 type CompactionStartChatEvent struct {
 	TokensBefore  int64
 	ContextWindow int64
@@ -225,6 +248,8 @@ type CompactionStartChatEvent struct {
 
 func (CompactionStartChatEvent) ChatEventKind() ChatEventType { return ChatEventCompactionStart }
 
+// CompactionEndChatEvent 在上下文压缩结束时发射，携带压缩前后 token 数、
+// 裁剪消息数与耗时。
 type CompactionEndChatEvent struct {
 	TokensBefore int64
 	TokensAfter  int64
@@ -234,6 +259,8 @@ type CompactionEndChatEvent struct {
 
 func (CompactionEndChatEvent) ChatEventKind() ChatEventType { return ChatEventCompactionEnd }
 
+// AutoRetryChatEvent 在 agent 自动重试时发射，携带当前尝试次数、
+// 最大重试次数、重试延迟与触发错误。
 type AutoRetryChatEvent struct {
 	Attempt    int64
 	MaxRetries int64
@@ -243,6 +270,7 @@ type AutoRetryChatEvent struct {
 
 func (AutoRetryChatEvent) ChatEventKind() ChatEventType { return ChatEventAutoRetry }
 
+// TokenUsage 描述一次轮次或请求的 token 消耗明细（prompt/completion/total）。
 type TokenUsage struct {
 	PromptTokens     int64
 	CompletionTokens int64

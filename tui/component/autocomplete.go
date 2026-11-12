@@ -90,6 +90,7 @@ func (p *FilePathProvider) Complete(token string) []core.Suggestion {
 	search := filepath.Join(base, dir)
 	entries, err := os.ReadDir(search)
 	if err != nil {
+		// 目录不可读（权限/不存在），返回空候选而非报错——补全是渐进式增强。
 		return nil
 	}
 	var out []core.Suggestion

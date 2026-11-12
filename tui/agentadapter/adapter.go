@@ -8,6 +8,9 @@ import (
 	"github.com/xujian519/mady/tui/component"
 )
 
+// BindAgent 将 chat.Subscriber 绑定到 agentcore.Agent：内部创建
+// subscriberAdapter 并订阅，使 agentcore 事件流自动转换为 chat.ChatEvent
+// 供 TUI 消费。这是 agentcore → tui/chat 的唯一事件桥接入口。
 func BindAgent(sub chat.Subscriber, agent *agentcore.Agent) {
 	adapter := &subscriberAdapter{agent: agent}
 	sub.Subscribe(adapter)

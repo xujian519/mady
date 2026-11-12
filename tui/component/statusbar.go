@@ -10,11 +10,16 @@ import (
 	"github.com/xujian519/mady/tui/theme"
 )
 
+// StatusBarSection 描述状态栏右侧的一个自定义区段：Text 为静态内容，
+// Fn 为可选的渲染变换函数（非 nil 时对 Text 做后处理后再显示）。
 type StatusBarSection struct {
 	Text string
 	Fn   func(string) string
 }
 
+// StatusBar 渲染 TUI 底部状态栏，承载运行模式、耗时、token 用量、上下文占用、
+// 轮次/重试密度、案例名、待审数等诊断指标，以及调用方注入的自定义区段。
+// 所有字段通过 sync.RWMutex 保护，支持跨协程读写。
 type StatusBar struct {
 	mu       sync.RWMutex
 	sections []StatusBarSection
@@ -48,6 +53,7 @@ type StatusBar struct {
 	retryMax     int64
 }
 
+// NewStatusBar 创建一个空的状态栏，各指标默认为隐藏态（零值）。
 func NewStatusBar() *StatusBar {
 	return &StatusBar{}
 }

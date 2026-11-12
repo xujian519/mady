@@ -209,6 +209,7 @@ const kittyChunkSize = 4096
 func (im *Image) renderKitty(widthCells int64) []string {
 	png, err := im.getPNG()
 	if err != nil {
+		// PNG 编码失败（罕见），回退到半块字符渲染以保证图像仍可显示。
 		return im.renderHalfBlock(widthCells)
 	}
 	srcW := im.img.Bounds().Dx()
@@ -253,6 +254,7 @@ func (im *Image) renderKitty(widthCells int64) []string {
 func (im *Image) renderITerm2(widthCells int64) []string {
 	png, err := im.getPNG()
 	if err != nil {
+		// PNG 编码失败（罕见），回退到半块字符渲染以保证图像仍可显示。
 		return im.renderHalfBlock(widthCells)
 	}
 	srcW := im.img.Bounds().Dx()

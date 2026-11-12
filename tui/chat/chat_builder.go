@@ -133,6 +133,7 @@ func bindChatEditorEvents(a *ChatApp, editor *component.Editor, history *ChatHis
 	editor.OnCopy(func(text string) {
 		go func() {
 			if err := CopyToClipboard(text); err != nil {
+				// 复制失败：向用户报告错误后放弃本次复制，不阻塞编辑流程。
 				a.PrintError(fmt.Errorf("clipboard: %w", err))
 				return
 			}
@@ -144,6 +145,7 @@ func bindChatEditorEvents(a *ChatApp, editor *component.Editor, history *ChatHis
 		return func() core.Msg {
 			text, err := ReadFromClipboard()
 			if err != nil {
+				// 粘贴失败：向用户报告错误并返回 nil（无消息），不中断编辑器。
 				a.PrintError(fmt.Errorf("paste: %w", err))
 				a.host.RequestRender()
 				return nil
