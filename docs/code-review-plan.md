@@ -122,7 +122,7 @@
 
 | 卡 | 模块 | 规模/热点 | 状态 |
 | --- | --- | --- | --- |
-| M32 | evaluate/ + example/ + integration/ + scripts/ | 32+11+脚本 | ⬜ |
+| M32 | evaluate/ + example/ + integration/ + scripts/ | 32+11+脚本 | ✅ 2026-11-12 |
 | M33 | tui/（独立子模块）A | 分层 Elm 架构 | ⬜ |
 | M34 | tui/（独立子模块）B | 同上 | ⬜ |
 | M35 | desktop/（独立子模块 Go 后端） | Wails | ⬜ |
@@ -761,3 +761,18 @@
 - **门禁**：`go build ./...`、`go vet ./cmd/mady/...` 全绿；`golangci-lint run ./cmd/mady/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./cmd/mady/...` 全绿；`go test -race -count=1 ./cmd/mady/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py cmd/mady`，42 文件）：裸 fmt 65（全误报，subcmd CLI 输出）/ 忽略 err 8（全误报）/ 静默吞错 **45 → 43**（剩余 43 处全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 4（登记待拆）
 - **提交**：`83078f00`（refactor）、`9a9040e8`（docs + changelog，INDEX total=511）
+
+### M32（2026-11-12）evaluate/ + example/ + integration/ + scripts/ ✅
+
+- **审阅范围**：`evaluate/`（32 非测试文件）+ `example/`（11 非测试文件）+ `integration/`（0 非测试文件，仅测试）+ `scripts/`（8 非测试 Go 文件，6 Python 脚本），共 51 个非测试 Go 文件。评估框架、示例程序与 CLI 工具脚本。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——evaluate 为评估框架、example 为示例、scripts 为工具脚本，仅做意图注释治理，零行为变更
+- **基线**（`scan_go_smells.py evaluate example scripts`，51 文件）：裸 fmt **0** / 忽略 err **1** / 静默吞错 **18** / TODO **0** / 未注释导出 **0** / >120 行函数 **1**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：1 个 >120 行函数——`example/cli-chat/main.go:235 main`（390 行），示例程序主函数，登记待拆
+  - P2 一致性（本卡精炼）：**4 处静默吞错缺意图注释**——① `example/build-wiki-index/main.go:80` WalkDir 回调中 `os.ReadFile` 失败返回 nil（best-effort 跳过）；② `scripts/changelog/main.go:127` `io.ReadAll(os.Stdin)` 失败返回空串（best-effort）；③ `scripts/migrate-changelog/main.go:269` `os.Open` 失败直接返回（best-effort 批量）；④ `scripts/rulescan/main.go:138` `yaml.Unmarshal` 失败返回 nil（best-effort 跳过）
+  - P3 风格（误报不改）：忽略 err 1 处为 `example/build-wiki-index/main.go:73` `_ = filepath.Walk(...)`（example 代码 best-effort 遍历，已有 `//nolint:gosec`）；静默吞错 14 处全为误报——CLI `fmt.Fprintf(stderr,err)+return`（a2a-client 3 处、tui-demo 1 处、rulescan 1 处）、TUI `PrintError(err)+return`（cli-chat 6 处）、`logger.Warn(err)+return`（cli-chat 1 处）、`fmt.Errorf(...)+return`（cli-chat 2 处，扫描器不识别 fmt.Errorf 为错误传播）
+- **精炼**（无行为变化）：**4 文件**——为 4 处 best-effort 静默返回补意图注释（example/build-wiki-index、scripts/changelog、scripts/migrate-changelog、scripts/rulescan）
+- **门禁**：`go build ./...`、`go vet ./evaluate/... ./example/... ./scripts/...` 全绿；`golangci-lint run ./evaluate/... ./example/... ./scripts/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./evaluate/... ./example/... ./scripts/...` 全绿；`go test -race -count=1 ./evaluate/... ./scripts/...` 全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py evaluate example scripts`，51 文件）：裸 fmt 0 / 忽略 err 1（全误报）/ 静默吞错 **18 → 14**（剩余 14 处全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 1（登记待拆）
+- **提交**：TBD（refactor）、TBD（docs + changelog）

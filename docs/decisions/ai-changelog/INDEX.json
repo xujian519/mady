@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-12T20:00:17+08:00",
-  "total": 511,
+  "updated": "2026-11-12T20:20:44+08:00",
+  "total": 512,
   "entries": [
+    {
+      "date": "2026-11-12",
+      "type": "refactor",
+      "scope": "evaluate/example/scripts",
+      "title": "M32 审阅：补 4 处 best-effort 静默返回意图注释",
+      "file": "2026-11-12.md",
+      "line": 154
+    },
     {
       "date": "2026-11-12",
       "type": "refactor",
