@@ -11,6 +11,7 @@ import (
 	"github.com/xujian519/mady/pkg/ocr"
 )
 
+// OCRToolConfig 保存 OCR 工具的配置项（工作目录、沙箱、模型缓存目录）。
 type OCRToolConfig struct {
 	// WorkingDir is the base directory for relative paths.
 	WorkingDir string
@@ -29,10 +30,12 @@ func (c *OCRToolConfig) defaults() {
 	}
 }
 
+// OCRToolInput 是 OCR 工具的输入参数。
 type OCRToolInput struct {
 	Path string `json:"path"`
 }
 
+// NewOCRTool 用 cfg 构造并返回 OCR 工具（基于 PaddleOCR）。
 func NewOCRTool(cfg *OCRToolConfig) *agentcore.Tool {
 	if cfg == nil {
 		cfg = &OCRToolConfig{}
@@ -89,10 +92,12 @@ func NewOCRTool(cfg *OCRToolConfig) *agentcore.Tool {
 	}
 }
 
+// SweepOCRCache 删除 OCR 缓存目录中修改时间早于 maxAge（Unix 秒）的文件。
 func SweepOCRCache(maxAge int64) error {
 	cacheDir := filepath.Join(ocr.DefaultCacheDir(), "cache")
 	entries, err := os.ReadDir(cacheDir)
 	if err != nil {
+		// 缓存目录不存在或不可读时无需清理，静默返回（best-effort）。
 		return nil
 	}
 	for _, e := range entries {

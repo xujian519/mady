@@ -84,6 +84,7 @@ func NewPatentScrapeTool(cfg *PatentToolConfig) *agentcore.Tool {
 
 			cmd, stdout, stderr := runNuoPatent(ctx, cfg.NuoPatentPath, "scrape", input.PatentNumber, "--pretty")
 			if err := cmd.Run(); err != nil {
+				// 命令失败时以结构化结果返回（success=false），不抛 Go error。
 				return map[string]any{
 					"patent_number": input.PatentNumber,
 					"success":       false,

@@ -97,6 +97,7 @@ func (w *directoryWalker) walk(path, prefix string, depth int) error {
 
 	entriesList, err := w.ops.ReadDir(path)
 	if err != nil {
+		// 目录不可读则跳过该分支，继续遍历其余部分（best-effort）。
 		return nil
 	}
 
@@ -196,6 +197,7 @@ func NewViewTool(cwd string, cfg *ViewToolConfig) *agentcore.Tool {
 
 			info, err := cfg.Operations.Stat(dirPath)
 			if err != nil {
+				// 访问失败统一以"路径不存在"返回，避免泄露底层错误细节。
 				return resultErrf("path not found: %s", input.Path)
 			}
 

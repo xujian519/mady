@@ -107,6 +107,7 @@ func (s *ptcServer) Serve(ctx context.Context) {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
+			// listener 被 Close（ctx 取消）或出错时停止接受连接。
 			return
 		}
 		go s.handle(ctx, conn)
@@ -162,6 +163,7 @@ func (s *ptcServer) handle(ctx context.Context, conn net.Conn) {
 func (s *ptcServer) reply(conn net.Conn, resp ptcResponse) {
 	b, err := json.Marshal(resp)
 	if err != nil {
+		// 序列化失败无法回复，丢弃即可（best-effort）。
 		return
 	}
 	if _, err := conn.Write(b); err != nil {

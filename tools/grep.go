@@ -128,6 +128,7 @@ func NewGrepTool(cwd string, cfg *GrepToolConfig) *agentcore.Tool {
 
 			isDir, err := cfg.Operations.IsDirectory(ctx, searchPath)
 			if err != nil {
+				// 路径不可访问统一以"路径不存在"返回，避免泄露底层错误细节。
 				return resultErrf("path not found: %s", input.Path)
 			}
 
@@ -259,6 +260,7 @@ func runGoGrep(ctx context.Context, searchPath string, input GrepToolInput, limi
 			}
 			content, err := cfg.Operations.ReadFile(ctx, path)
 			if err != nil {
+				// 读文件失败则跳过该条目，继续遍历（best-effort）。
 				return nil
 			}
 			lines := strings.Split(content, "\n")
@@ -317,6 +319,7 @@ func formatGrepMatches(ctx context.Context, matches []struct { //nolint:gocognit
 		if !ok {
 			content, err := cfg.Operations.ReadFile(ctx, filePath)
 			if err != nil {
+				// 读文件失败则跳过该条目，继续遍历（best-effort）。
 				return nil
 			}
 			lines = strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")

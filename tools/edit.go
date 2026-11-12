@@ -116,6 +116,7 @@ func NewEditTool(cwd string, cfg *EditToolConfig) *agentcore.Tool {
 				}
 			}
 			if err := cfg.Operations.Access(resolved); err != nil {
+				// 访问失败统一以"文件不存在"返回，避免泄露底层错误细节。
 				return resultErrf("file not found: %s", input.Path)
 			}
 

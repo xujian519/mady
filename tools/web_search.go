@@ -420,6 +420,7 @@ func coerceCountToInt(raw json.RawMessage) json.RawMessage {
 	}
 	result, err := json.Marshal(m)
 	if err != nil {
+		// 序列化失败时回退返回原始响应（graceful fallback）。
 		return raw
 	}
 	return result

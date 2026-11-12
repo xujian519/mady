@@ -56,6 +56,8 @@ func (s *CDPSupervisor) InjectDialogBridge() error {
 	return chromedp.Do(ctx, chromedp.Evaluate[chromedp.Void](bridgeScript))
 }
 
+// DialogBridgeHandler 处理通过 JS 桥接拦截的页面对话框（alert/confirm/prompt），
+// 按 DialogPolicy 自动响应或挂起等待人工响应。
 type DialogBridgeHandler struct {
 	mu       sync.Mutex
 	dialogs  []map[string]string
@@ -64,6 +66,7 @@ type DialogBridgeHandler struct {
 	deadline time.Time
 }
 
+// NewDialogBridgeHandler 用给定策略与超时构造 DialogBridgeHandler。
 func NewDialogBridgeHandler(policy DialogPolicy, timeout time.Duration) *DialogBridgeHandler {
 	return &DialogBridgeHandler{
 		policy:   policy,

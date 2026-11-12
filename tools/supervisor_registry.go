@@ -8,6 +8,7 @@ import (
 	"github.com/xujian519/mady/pkg/csync"
 )
 
+// SupervisorRegistry 按 taskID 管理 CDPSupervisor 的生命周期，支持并发安全的获取/启动/停止。
 type SupervisorRegistry struct {
 	supervisors csync.Map[string, *CDPSupervisor]
 }
@@ -17,12 +18,14 @@ var (
 	defaultSupervisorRegistryMu sync.RWMutex
 )
 
+// SetSupervisorRegistry 设置全局默认的 SupervisorRegistry。
 func SetSupervisorRegistry(r *SupervisorRegistry) {
 	defaultSupervisorRegistryMu.Lock()
 	defer defaultSupervisorRegistryMu.Unlock()
 	defaultSupervisorRegistry = r
 }
 
+// GetSupervisorRegistry 返回全局默认的 SupervisorRegistry。
 func GetSupervisorRegistry() *SupervisorRegistry {
 	defaultSupervisorRegistryMu.RLock()
 	defer defaultSupervisorRegistryMu.RUnlock()
@@ -69,6 +72,7 @@ func (r *SupervisorRegistry) StopAll() {
 	}
 }
 
+// BrowserBackendType 标识浏览器后端类型（local/cdp/camofox/各云提供商等）。
 type BrowserBackendType string
 
 const (
@@ -83,6 +87,7 @@ const (
 	BackendEgoLite      BrowserBackendType = "egolite"
 )
 
+// BrowserConfig 保存浏览器工具的全部配置项（后端选择、CDP、云提供商、对话框策略等）。
 type BrowserConfig struct {
 	Headless            bool
 	AllowPrivate        bool
@@ -123,6 +128,7 @@ func (c *BrowserConfig) defaults() {
 	}
 }
 
+// DetectBackend 根据 cfg 中的配置优先级选择浏览器后端类型。
 func DetectBackend(cfg *BrowserConfig) BrowserBackendType {
 	if cfg.EgoLiteEnabled {
 		return BackendEgoLite

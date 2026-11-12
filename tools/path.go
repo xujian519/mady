@@ -143,6 +143,7 @@ func resolveAllowList(dirs []string) []string {
 func isWithin(base, path string) bool {
 	rel, err := filepath.Rel(base, path)
 	if err != nil {
+		// 无法计算相对路径时按不在目录内处理（安全 fail-closed）。
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
@@ -240,6 +241,7 @@ func OpenSandboxed(path string, sbx WorkingDirSandbox) (*os.File, error) {
 func pinPath(path string) error {
 	f, err := os.Open(path) //nolint:gosec // G304: path from sandbox-checked source
 	if err != nil {
+		// 打开失败统一以"路径不存在"返回，避免泄露底层错误细节。
 		return fmt.Errorf("path not found: %s", path)
 	}
 	defer f.Close()

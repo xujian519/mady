@@ -52,6 +52,7 @@ type DeleteToolInput struct {
 func isProtected(path string, protected []string) bool {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
+		// 无法解析绝对路径时按受保护处理（fail-closed），避免误删。
 		return true
 	}
 	for _, p := range protected {

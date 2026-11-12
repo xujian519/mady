@@ -35,6 +35,7 @@ func (d DefaultGlobOperations) Glob(pattern string, cwd string, limit int) ([]st
 
 	err := filepath.WalkDir(searchDir, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
+			// 遍历中单项出错则跳过，继续其余条目（best-effort）。
 			return nil
 		}
 		if info.IsDir() {

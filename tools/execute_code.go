@@ -53,6 +53,8 @@ outer:
 	return cleaned
 }
 
+// ExecuteCodeToolConfig 保存 execute_code 工具的配置，包括 Python 解释器路径、
+// 超时、输出上限，以及可选的 PTC（Programmatic Tool Calling）回调设置。
 type ExecuteCodeToolConfig struct {
 	// PythonCommand is the python interpreter path. Default: "python3".
 	PythonCommand string
@@ -97,6 +99,7 @@ func resolvePython(pythonCommand string) (string, error) {
 	return "", fmt.Errorf("no Python interpreter found (tried python3, python)")
 }
 
+// NewExecuteCodeTool 用 cfg 构造并返回 execute_code 工具（支持 Python 执行与可选 PTC）。
 func NewExecuteCodeTool(cfg *ExecuteCodeToolConfig) *agentcore.Tool { //nolint:gocognit // 工具构造/平台后端分支逻辑，拆分收益低，保持豁免
 	if cfg == nil {
 		cfg = &ExecuteCodeToolConfig{}

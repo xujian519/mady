@@ -341,6 +341,7 @@ func NewWebFetchTool(cfg *WebFetchToolConfig) *agentcore.Tool {
 func extractText(html string) string {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
+		// HTML 解析失败时回退返回原始内容（graceful fallback）。
 		return html
 	}
 

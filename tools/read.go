@@ -102,6 +102,7 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool { //nolint:goc
 			}
 			info, err := cfg.Operations.Stat(ctx, resolved)
 			if err != nil {
+				// 访问失败统一以"文件不存在"返回，避免泄露底层错误细节。
 				return resultErrf("file not found: %s", input.Path)
 			}
 			// Reject very large files to avoid OOM — the full content is read
@@ -117,6 +118,7 @@ func NewReadTool(cwd string, cfg *ReadToolConfig) *agentcore.Tool { //nolint:goc
 				// not get this path; it falls back to the error below instead.
 				entries, err := os.ReadDir(resolved)
 				if err != nil {
+					// 读取失败统一以"无法读取目录"返回，避免泄露底层错误细节。
 					return resultErrf("cannot read directory: %s", input.Path)
 				}
 				var sb strings.Builder

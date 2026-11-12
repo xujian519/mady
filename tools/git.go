@@ -46,8 +46,10 @@ func (c *GitToolConfig) defaults() {
 
 // --- git_status ---
 
+// GitStatusInput 是 git_status 工具的输入参数（无参数）。
 type GitStatusInput struct{}
 
+// NewGitStatusTool 用 cwd 与 cfg 构造 git_status 工具。
 func NewGitStatusTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 	if cfg == nil {
 		cfg = &GitToolConfig{}
@@ -81,12 +83,14 @@ func NewGitStatusTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 
 // --- git_diff ---
 
+// GitDiffInput 是 git_diff 工具的输入参数。
 type GitDiffInput struct {
 	Target   string `json:"target,omitempty"`
 	Staged   bool   `json:"staged,omitempty"`
 	FilePath string `json:"file_path,omitempty"`
 }
 
+// NewGitDiffTool 用 cwd 与 cfg 构造 git_diff 工具。
 func NewGitDiffTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 	if cfg == nil {
 		cfg = &GitToolConfig{}
@@ -145,12 +149,14 @@ func NewGitDiffTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 
 // --- git_log ---
 
+// GitLogInput 是 git_log 工具的输入参数。
 type GitLogInput struct {
 	MaxCount *int   `json:"max_count,omitempty"`
 	FilePath string `json:"file_path,omitempty"`
 	Oneline  *bool  `json:"oneline,omitempty"`
 }
 
+// NewGitLogTool 用 cwd 与 cfg 构造 git_log 工具。
 func NewGitLogTool(cwd string, cfg *GitToolConfig) *agentcore.Tool {
 	if cfg == nil {
 		cfg = &GitToolConfig{}
