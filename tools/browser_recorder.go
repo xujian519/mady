@@ -13,6 +13,7 @@ import (
 	"github.com/chromedp/cdproto/page"
 )
 
+// CDPRecorder 通过 CDP Page.startScreencast 将页面帧捕获为 webm 文件。
 type CDPRecorder struct {
 	mu          sync.Mutex
 	isRecording bool
@@ -25,12 +26,14 @@ type CDPRecorder struct {
 	webmFile    *os.File
 }
 
+// NewCDPRecorder 创建输出到 outputDir 的录制器。
 func NewCDPRecorder(outputDir string) *CDPRecorder {
 	return &CDPRecorder{
 		outputPath: outputDir,
 	}
 }
 
+// StartRecording 在 browserCtx 关联的 CDP target 上开始录制。
 func (r *CDPRecorder) StartRecording(ctx context.Context, browserCtx context.Context, sessionID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -113,6 +116,7 @@ func (r *CDPRecorder) captureFrames(ctx context.Context) {
 	_, _ = cdp.Call(context.WithoutCancel(ctx), session, page.StopScreencast, cdp.Empty{}) //nolint:gosec // G104: cleanup-only; best-effort stop
 }
 
+// StopRecording 停止录制并返回生成的 webm 文件路径。
 func (r *CDPRecorder) StopRecording() (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -137,18 +141,21 @@ func (r *CDPRecorder) StopRecording() (string, error) {
 	return outputPath, nil
 }
 
+// IsRecording 报告是否正在录制。
 func (r *CDPRecorder) IsRecording() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.isRecording
 }
 
+// FrameCount 返回已捕获的帧数。
 func (r *CDPRecorder) FrameCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.frameCount
 }
 
+// Duration 返回自开始录制以来的经过时间（录制中和停止后均为 time.Since(startedAt)）。
 func (r *CDPRecorder) Duration() time.Duration {
 	r.mu.Lock()
 	defer r.mu.Unlock()

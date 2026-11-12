@@ -13,26 +13,33 @@ import (
 	"github.com/xujian519/mady/pkg/csync"
 )
 
+// RefMapper 维护快照中 ref（可访问性节点引用）到 CSS selector 的映射，
+// 支持按 ref 定位元素执行交互。
 type RefMapper struct {
 	refs csync.Map[string, string]
 }
 
+// NewRefMapper 创建空的 RefMapper。
 func NewRefMapper() *RefMapper {
 	return &RefMapper{}
 }
 
+// Clear 清空 ref 映射。
 func (rm *RefMapper) Clear() {
 	rm.refs.Reset(make(map[string]string))
 }
 
+// Set 记录 ref 对应的 selector。
 func (rm *RefMapper) Set(ref string, selector string) {
 	rm.refs.Set(ref, selector)
 }
 
+// Get 按 ref 查找 selector。
 func (rm *RefMapper) Get(ref string) (string, bool) {
 	return rm.refs.Get(ref)
 }
 
+// Count 返回映射条目数。
 func (rm *RefMapper) Count() int {
 	return rm.refs.Len()
 }
@@ -253,6 +260,8 @@ func generateSnapshot(ctx context.Context, full bool, refMapper *RefMapper) (str
 	return GeneratePageSnapshot(ctx, full, refMapper, "default")
 }
 
+// GeneratePageSnapshot 通过 CDP 获取页面可访问性树并渲染为文本快照；
+// 同时将 ref→selector 写入 refMapper。full=true 输出属性详情。
 func GeneratePageSnapshot(ctx context.Context, full bool, refMapper *RefMapper, mode string) (string, error) {
 	if mode == "aria" {
 		ariaText, err := generateAriaSnapshot(ctx)
@@ -311,6 +320,7 @@ func extractRefMapFromJS(ctx context.Context) (map[string]string, error) {
 	return refMap, nil
 }
 
+// AccessibilityNode 表示可访问性树中的一个节点。
 type AccessibilityNode struct {
 	Role     string
 	Name     string
@@ -319,6 +329,7 @@ type AccessibilityNode struct {
 	Children []*AccessibilityNode
 }
 
+// ToTreeString 将可访问性节点渲染为带缩进的树形文本。
 func (n *AccessibilityNode) ToTreeString(indent int, maxDepth int, showAll bool) string {
 	if maxDepth <= 0 {
 		return ""

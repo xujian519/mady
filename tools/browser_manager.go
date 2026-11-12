@@ -52,6 +52,8 @@ func DefaultBrowserManager() *BrowserManager {
 	return defaultBrowserMgr.mgr
 }
 
+// SetDefaultBrowserManager 设置默认浏览器 manager；若已有旧 manager
+// 则在锁外 Stop 其后台 goroutine。
 func SetDefaultBrowserManager(bm *BrowserManager) {
 	defaultBrowserMgr.mu.Lock()
 	old := defaultBrowserMgr.mgr

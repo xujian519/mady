@@ -64,6 +64,8 @@ func containsSecretInURL(rawURL string) bool {
 	return false
 }
 
+// IsPrivateURL 报告 rawURL 是否指向私有/内网地址或云元数据端点。
+// 解析失败时返回 false（不视为私有）。
 func IsPrivateURL(rawURL string) bool {
 	parsed, err := validateURL(rawURL, true)
 	if err != nil {

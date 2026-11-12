@@ -13,6 +13,7 @@ import (
 	"github.com/chromedp/chromedp/remote"
 )
 
+// DialogPolicy 定义浏览器对话框（alert/confirm/prompt）的自动处理策略。
 type DialogPolicy string
 
 const (
@@ -21,12 +22,14 @@ const (
 	DialogAutoAccept  DialogPolicy = "auto_accept"
 )
 
+// DialogInfo 描述一个待处理的 JavaScript 对话框。
 type DialogInfo struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
 	Default string `json:"default"`
 }
 
+// FrameInfo 描述页面 frame 树中的一个节点。
 type FrameInfo struct {
 	ID       string       `json:"id"`
 	URL      string       `json:"url"`
@@ -35,6 +38,8 @@ type FrameInfo struct {
 	Children []*FrameInfo `json:"children,omitempty"`
 }
 
+// CDPSupervisor 通过独立 CDP 连接监听页面对话框与 frame 树，并提供
+// JS 求值与对话框处理能力，不占用会话主连接。
 type CDPSupervisor struct {
 	mu            sync.RWMutex
 	ctx           context.Context
@@ -56,13 +61,16 @@ type CDPSupervisor struct {
 	listeners []CDPEventListener
 }
 
+// CDPEvent 是 supervisor 向监听器广播的事件（如 dialog_open / dialog_closed）。
 type CDPEvent struct {
 	Type string
 	Data any
 }
 
+// CDPEventListener 是 CDP 事件的监听器回调。
 type CDPEventListener func(event CDPEvent)
 
+// NewCDPSupervisor 构造连接到 cdpURL 的 supervisor；dialogTimeout<=0 时默认 300s。
 func NewCDPSupervisor(cdpURL string, taskID string, dialogPolicy DialogPolicy, dialogTimeout time.Duration) *CDPSupervisor {
 	if dialogTimeout <= 0 {
 		dialogTimeout = 300 * time.Second
@@ -80,6 +88,7 @@ func NewCDPSupervisor(cdpURL string, taskID string, dialogPolicy DialogPolicy, d
 	}
 }
 
+// Start 启动 supervisor 的 CDP 监听循环；重复调用幂等。
 func (s *CDPSupervisor) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -95,6 +104,7 @@ func (s *CDPSupervisor) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop 停止 supervisor 的 CDP 连接与监听循环。
 func (s *CDPSupervisor) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -315,6 +325,7 @@ func convertFrameTree(tree *page.FrameTree, depth int, maxDepth int) []*FrameInf
 	return []*FrameInfo{frame}
 }
 
+// GetPendingDialogs 返回当前待处理对话框的副本。
 func (s *CDPSupervisor) GetPendingDialogs() map[string]*DialogInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -326,6 +337,7 @@ func (s *CDPSupervisor) GetPendingDialogs() map[string]*DialogInfo {
 	return result
 }
 
+// HandleDialog 通过 CDP 处理指定对话框（accept 决定接受/关闭，promptText 用于 prompt）。
 func (s *CDPSupervisor) HandleDialog(dialogID string, accept bool, promptText string) error {
 	s.mu.RLock()
 	ctx := s.ctx
@@ -342,6 +354,7 @@ func (s *CDPSupervisor) HandleDialog(dialogID string, accept bool, promptText st
 	return err
 }
 
+// EvaluateJS 在页面（或 targetFrameID 指定的 frame）中以 DevTools 权限执行 JS 并返回结果字符串。
 func (s *CDPSupervisor) EvaluateJS(expression string, targetFrameID string) (string, error) {
 	s.mu.RLock()
 	ctx := s.ctx
@@ -359,6 +372,7 @@ func (s *CDPSupervisor) EvaluateJS(expression string, targetFrameID string) (str
 	return result, nil
 }
 
+// GetFrameTree 返回当前页面 frame 树的副本（受 maxFrames/maxDepth 截断）。
 func (s *CDPSupervisor) GetFrameTree() []*FrameInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -368,12 +382,14 @@ func (s *CDPSupervisor) GetFrameTree() []*FrameInfo {
 	return result
 }
 
+// IsTruncated 报告 frame 树是否因超过 maxFrames 被截断。
 func (s *CDPSupervisor) IsTruncated() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.frameTree) >= s.maxFrames
 }
 
+// AddListener 注册一个 CDP 事件监听器。
 func (s *CDPSupervisor) AddListener(listener CDPEventListener) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

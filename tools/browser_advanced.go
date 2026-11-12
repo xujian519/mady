@@ -23,14 +23,17 @@ var (
 	reHostname                    = regexp.MustCompile(`https?://([^/]+)`)
 )
 
+// RegisterBrowserManager 将 mgr 注册到 id 标识的全局注册表，供 EmergencyCleanupAll 使用。
 func RegisterBrowserManager(id string, mgr *BrowserManager) {
 	defaultBrowserManagerRegistry.Set(id, mgr)
 }
 
+// UnregisterBrowserManager 从全局注册表移除指定 id 的 manager。
 func UnregisterBrowserManager(id string) {
 	defaultBrowserManagerRegistry.Del(id)
 }
 
+// EmergencyCleanupAll 关闭所有已注册 manager 的会话并停止所有 CDP supervisor。
 func EmergencyCleanupAll() {
 	for _, mgr := range defaultBrowserManagerRegistry.Copy() {
 		mgr.CloseAll()
@@ -39,6 +42,7 @@ func EmergencyCleanupAll() {
 	GetSupervisorRegistry().StopAll()
 }
 
+// SetupSignalHandler 注册 SIGINT/SIGTERM 处理，收到信号时调用 EmergencyCleanupAll。
 func SetupSignalHandler() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -49,12 +53,14 @@ func SetupSignalHandler() {
 	}()
 }
 
+// OrphanReaper 扫描临时目录中残留的 agent-browser socket 目录，清理归属进程已退出的孤儿。
 type OrphanReaper struct {
 	mu          sync.Mutex
 	socketDir   string
 	reapedCount int
 }
 
+// NewOrphanReaper 创建使用 os.TempDir() 作为扫描目录的孤儿清理器。
 func NewOrphanReaper() *OrphanReaper {
 	socketDir := os.TempDir()
 	return &OrphanReaper{
@@ -62,6 +68,7 @@ func NewOrphanReaper() *OrphanReaper {
 	}
 }
 
+// ReapOrphans 扫描并清理孤儿 agent-browser 进程，返回清理数量。
 func (r *OrphanReaper) ReapOrphans() (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -133,6 +140,7 @@ func killProcess(pid int) {
 	}
 }
 
+// NeedsLightpandaFallback 判断 lightpanda 后端是否需要回退到 Chrome（命令错误/空快照/截图过小）。
 func NeedsLightpandaFallback(engine string, snapshot string, screenshotSize int, commandError error) bool {
 	if engine != "lightpanda" && engine != "auto" {
 		return false
@@ -153,11 +161,13 @@ func NeedsLightpandaFallback(engine string, snapshot string, screenshotSize int,
 	return false
 }
 
+// AnnotateLightpandaFallback 在 result 中标记 lightpanda→chrome 回退（传 nil 则仅记录全局标记）。
 func AnnotateLightpandaFallback(result map[string]any) {
 	result["browser_engine_fallback"] = "chrome"
 	result["fallback_warning"] = "Lightpanda returned empty/broken result, automatically retried with Chrome"
 }
 
+// RunChromeFallbackCommand 用本地 Chrome 执行 lightpanda 回退命令（navigate / screenshot）。
 func RunChromeFallbackCommand(ctx context.Context, command string, args map[string]any, timeout time.Duration) (map[string]any, error) {
 	chrome, err := FindChrome()
 	if err != nil {
@@ -236,6 +246,7 @@ func RunChromeFallbackCommand(ctx context.Context, command string, args map[stri
 	return result, nil
 }
 
+// ValidatePostRedirectURL 校验导航后的最终 URL 是否被重定向到元数据端点或私有地址。
 func ValidatePostRedirectURL(finalURL string, originalURL string, allowPrivate bool, autoLocal bool) error {
 	if finalURL == "" {
 		return nil

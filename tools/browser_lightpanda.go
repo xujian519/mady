@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// LightpandaManager 管理 lightpanda 浏览器子进程的生命周期与会话录制。
 type LightpandaManager struct {
 	mu          sync.Mutex
 	binaryPath  string
@@ -20,6 +21,7 @@ type LightpandaManager struct {
 	nextPort    int
 }
 
+// LightpandaProcess 表示一个运行中的 lightpanda 子进程。
 type LightpandaProcess struct {
 	TaskID    string
 	CDPURL    string
@@ -28,6 +30,7 @@ type LightpandaProcess struct {
 	StartedAt time.Time
 }
 
+// NewLightpandaManager 创建 LightpandaManager。
 func NewLightpandaManager() *LightpandaManager {
 	return &LightpandaManager{
 		binaryPath:  findLightpandaBinary(),
@@ -51,6 +54,7 @@ func findLightpandaBinary() string {
 	return ""
 }
 
+// StartProcess 为 taskID 启动一个 lightpanda 子进程。
 func (lm *LightpandaManager) StartProcess(ctx context.Context, taskID string, headless bool) (*LightpandaProcess, error) {
 	lm.mu.Lock()
 	if existing, ok := lm.processes[taskID]; ok {
@@ -148,6 +152,7 @@ func extractPortFromCDPURL(url string) int {
 	return port
 }
 
+// StopProcess 停止 taskID 对应的 lightpanda 子进程（幂等）。
 func (lm *LightpandaManager) StopProcess(taskID string) {
 	// Collect + remove under the lock; kill+wait outside so a slow reap
 	// doesn't block other callers.
@@ -167,6 +172,7 @@ func (lm *LightpandaManager) StopProcess(taskID string) {
 	}
 }
 
+// StopAll 停止所有 lightpanda 子进程。
 func (lm *LightpandaManager) StopAll() {
 	lm.mu.Lock()
 	procs := lm.processes
@@ -181,6 +187,7 @@ func (lm *LightpandaManager) StopAll() {
 	}
 }
 
+// SessionRecorder 通过 lightpanda 帧回调录制 webm 文件。
 type SessionRecorder struct {
 	mu          sync.Mutex
 	isRecording bool
@@ -190,12 +197,14 @@ type SessionRecorder struct {
 	doneChan    chan struct{}
 }
 
+// Frame 表示一帧图像数据。
 type Frame struct {
 	Data      []byte
 	Timestamp time.Time
 	Format    string
 }
 
+// NewSessionRecorder 创建输出到 outputDir 的录制器。
 func NewSessionRecorder(outputDir string) *SessionRecorder {
 	return &SessionRecorder{
 		outputPath: outputDir,
@@ -204,6 +213,7 @@ func NewSessionRecorder(outputDir string) *SessionRecorder {
 	}
 }
 
+// StartRecording 开始录制并返回帧写入回调（供 lightpanda 进程注册）。
 func (sr *SessionRecorder) StartRecording(ctx context.Context, sessionID string) error {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
@@ -241,6 +251,7 @@ func (sr *SessionRecorder) processFrames(ctx context.Context) {
 	}
 }
 
+// AddFrame 向录制队列追加一帧图像数据。
 func (sr *SessionRecorder) AddFrame(data []byte, format string) {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
@@ -259,6 +270,7 @@ func (sr *SessionRecorder) AddFrame(data []byte, format string) {
 	}
 }
 
+// StopRecording 停止录制并将帧编码为 webm 文件返回路径。
 func (sr *SessionRecorder) StopRecording() (string, error) {
 	// Flip the flag under the lock, then RELEASE it before closing frameChan
 	// and waiting on doneChan. processFrames's defer needs sr.mu to clear the
@@ -331,12 +343,14 @@ func (sr *SessionRecorder) saveAsWebM(outputPath string) error {
 	return nil
 }
 
+// IsRecording 报告是否正在录制。
 func (sr *SessionRecorder) IsRecording() bool {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 	return sr.isRecording
 }
 
+// FrameCount 返回已捕获的帧数。
 func (sr *SessionRecorder) FrameCount() int {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()

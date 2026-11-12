@@ -24,6 +24,8 @@ var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(ghp_[a-zA-Z0-9]{36})`),
 }
 
+// BrowserSession 表示一个浏览器会话，持有后端类型、CDP 上下文、
+// supervisor、recorder、ref 映射等会话级资源。
 type BrowserSession struct {
 	mu             sync.RWMutex
 	sessionID      string
@@ -45,6 +47,8 @@ type BrowserSession struct {
 	egoLiteManager *EgoLiteManager
 }
 
+// BrowserManager 管理多个 BrowserSession 的生命周期，按配置选择后端
+// （local/CDP/lightpanda/camofox/agent-browser/ego-lite/云提供商）。
 type BrowserManager struct {
 	mu                     sync.RWMutex
 	sessions               map[string]*BrowserSession
@@ -61,6 +65,8 @@ type BrowserManager struct {
 	cancel context.CancelFunc
 }
 
+// NewBrowserManager 用 cfg 构造 BrowserManager，并按后端类型初始化对应
+// 的 provider/client；同时启动后台不活跃会话清理协程。
 func NewBrowserManager(cfg *BrowserConfig) *BrowserManager {
 	cfg.defaults()
 
@@ -139,6 +145,7 @@ func NewBrowserManager(cfg *BrowserConfig) *BrowserManager {
 	return mgr
 }
 
+// GetSession 按 sessionID 查找会话。
 func (bm *BrowserManager) GetSession(sessionID string) (*BrowserSession, bool) {
 	bm.mu.RLock()
 	defer bm.mu.RUnlock()
@@ -146,6 +153,7 @@ func (bm *BrowserManager) GetSession(sessionID string) (*BrowserSession, bool) {
 	return s, ok
 }
 
+// GetActiveSession 返回当前活动会话；若未设置活动会话则回退到 fallbackSessionID。
 func (bm *BrowserManager) GetActiveSession(fallbackSessionID string) (*BrowserSession, bool) {
 	bm.mu.RLock()
 	defer bm.mu.RUnlock()
@@ -175,6 +183,7 @@ func RequireActiveSession() (*BrowserSession, error) {
 	return session, nil
 }
 
+// SetActiveSession 将会话标记为活动（供后续无 sessionID 的操作使用）。
 func (bm *BrowserManager) SetActiveSession(sessionID string) {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
@@ -188,6 +197,8 @@ func (bm *BrowserManager) SetActiveSession(sessionID string) {
 	}
 }
 
+// CreateSession 创建或复用 sessionID 对应的浏览器会话；targetURL 仅对
+// camofox/lightpanda 后端有效。AutoLocalForPrivate 启用时私有 URL 自动走本地后端。
 func (bm *BrowserManager) CreateSession(ctx context.Context, sessionID string, targetURL string) (*BrowserSession, error) {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
@@ -314,6 +325,7 @@ func (bm *BrowserManager) closeSessionResources(session *BrowserSession, emergen
 	}
 }
 
+// CloseSession 关闭指定会话并释放其外部资源（锁外执行慢 I/O）。
 func (bm *BrowserManager) CloseSession(sessionID string) {
 	// Collect + remove under bm.mu; tear down outside the lock to avoid
 	// blocking other callers on slow external I/O.
@@ -332,6 +344,7 @@ func (bm *BrowserManager) CloseSession(sessionID string) {
 	}
 }
 
+// CleanupInactiveSessions 关闭超过 timeout 未活动的会话（紧急清理）。
 func (bm *BrowserManager) CleanupInactiveSessions(timeout time.Duration) {
 	now := time.Now()
 
@@ -368,6 +381,7 @@ func (bm *BrowserManager) Stop() {
 	bm.cancel()
 }
 
+// CloseAll 紧急关闭所有会话并停止后台清理协程。
 func (bm *BrowserManager) CloseAll() {
 	// Snapshot + clear under bm.mu; tear down outside the lock so slow
 	// EmergencyCleanup/Stop calls don't block the manager mutex.

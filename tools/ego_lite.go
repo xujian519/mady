@@ -11,7 +11,9 @@ import (
 )
 
 const (
-	EgoLiteHandoffToolName    = "ego_lite_handoff"
+	// EgoLiteHandoffToolName 是 ego-lite handoff 工具的名称。
+	EgoLiteHandoffToolName = "ego_lite_handoff"
+	// EgoLiteTaskSpacesToolName 是 ego-lite task_spaces 工具的名称。
 	EgoLiteTaskSpacesToolName = "ego_lite_task_spaces"
 )
 
@@ -42,16 +44,24 @@ func NewEgoLiteExtension(cfg EgoLiteConfig) (*EgoLiteExtension, error) {
 	return &EgoLiteExtension{mgr: mgr, cfg: cfg}, nil
 }
 
+// Name 返回扩展名称 "ego-lite"。
 func (e *EgoLiteExtension) Name() string { return "ego-lite" }
+
+// Init 初始化扩展，校验 manager 是否已就绪。
 func (e *EgoLiteExtension) Init(_ context.Context, _ *agentcore.Agent) error {
 	if e.mgr == nil {
 		return fmt.Errorf("egolite: manager not initialized")
 	}
 	return nil
 }
-func (e *EgoLiteExtension) Dispose() error           { return e.mgr.Close() }
+
+// Dispose 释放扩展持有的 ego-lite manager 资源。
+func (e *EgoLiteExtension) Dispose() error { return e.mgr.Close() }
+
+// Manager 返回扩展持有的 EgoLiteManager。
 func (e *EgoLiteExtension) Manager() *EgoLiteManager { return e.mgr }
 
+// Tools 返回扩展注册的 agent 工具列表。
 func (e *EgoLiteExtension) Tools() []*agentcore.Tool {
 	return []*agentcore.Tool{
 		newEgoLiteHandoffTool(e.mgr),

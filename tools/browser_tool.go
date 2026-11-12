@@ -56,6 +56,7 @@ var browserActionHandlers = map[string]browserActionHandler{
 	"get_images": handleGetImages,
 }
 
+// NewBrowserTool 用 cfg 构造并返回注册好所有浏览器子命令的 agentcore.Tool。
 func NewBrowserTool(cfg *BrowserToolConfig) *agentcore.Tool {
 	if cfg == nil {
 		cfg = &BrowserToolConfig{}

@@ -64,6 +64,7 @@ func egoLiteAvailable() bool {
 	return err == nil
 }
 
+// NewEgoLiteManager 创建 EgoLiteManager；找不到 ego-lite 可执行文件时返回错误。
 func NewEgoLiteManager(taskName string) (*EgoLiteManager, error) {
 	if !egoLiteAvailable() {
 		return nil, fmt.Errorf("egolite: ego-browser not found on PATH (install ego lite: https://lite.ego.app/)")
@@ -283,6 +284,7 @@ func (m *EgoLiteManager) restart(ctx context.Context) error {
 	return m.start(ctx)
 }
 
+// Close 停止当前 ego-lite 任务并清理临时任务空间。
 func (m *EgoLiteManager) Close() error {
 	// 尽力发送 completeTaskSpace（fire-and-forget）
 	m.mu.Lock()
@@ -307,4 +309,5 @@ func (m *EgoLiteManager) Close() error {
 	return nil
 }
 
+// TaskID 返回当前 ego-lite 任务 ID。
 func (m *EgoLiteManager) TaskID() string { return m.currentTask }

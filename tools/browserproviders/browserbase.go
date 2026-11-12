@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// BrowserbaseProvider 实现 Browserbase 云浏览器提供商。
 type BrowserbaseProvider struct {
 	apiKey     string
 	projectID  string
@@ -22,6 +23,7 @@ type BrowserbaseProvider struct {
 	httpClient *http.Client
 }
 
+// NewBrowserbaseProvider 从环境变量构造 BrowserbaseProvider。
 func NewBrowserbaseProvider() *BrowserbaseProvider {
 	return &BrowserbaseProvider{
 		apiKey:     os.Getenv("BROWSERBASE_API_KEY"),
@@ -34,14 +36,18 @@ func NewBrowserbaseProvider() *BrowserbaseProvider {
 	}
 }
 
+// ProviderName 返回提供商标识 "browserbase"。
 func (p *BrowserbaseProvider) ProviderName() string {
 	return "browserbase"
 }
 
+// IsConfigured 报告是否已配置 BROWSERBASE_API_KEY 与 PROJECT_ID。
 func (p *BrowserbaseProvider) IsConfigured() bool {
 	return p.apiKey != "" && p.projectID != ""
 }
 
+// CreateSession 在 Browserbase 上创建浏览器会话，返回 session_id 与 cdp_url。
+// 402（付费墙）时自动降级关闭 proxies / keepAlive 重试。
 func (p *BrowserbaseProvider) CreateSession(taskID string) (map[string]string, error) {
 	if customTimeout := os.Getenv("BROWSERBASE_SESSION_TIMEOUT"); customTimeout != "" {
 		if t, err := strconv.Atoi(customTimeout); err == nil {
@@ -121,6 +127,7 @@ func (p *BrowserbaseProvider) createSessionWithBody(reqBody map[string]any) (map
 	}, nil
 }
 
+// CloseSession 优雅释放指定会话（REQUEST_RELEASE）。
 func (p *BrowserbaseProvider) CloseSession(sessionID string) error {
 	return closeSessionRequest(p.httpClient,
 		"POST",
@@ -131,6 +138,7 @@ func (p *BrowserbaseProvider) CloseSession(sessionID string) error {
 	)
 }
 
+// EmergencyCleanup 尽力释放会话，失败时静默忽略（用于紧急清理路径）。
 func (p *BrowserbaseProvider) EmergencyCleanup(sessionID string) {
 	_ = p.CloseSession(sessionID)
 }

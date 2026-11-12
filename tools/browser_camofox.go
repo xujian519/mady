@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// CamofoxClient 是 Camofox（远程 Headless Firefox）HTTP API 客户端。
 type CamofoxClient struct {
 	mu         sync.RWMutex
 	baseURL    string
@@ -24,6 +25,7 @@ type CamofoxClient struct {
 	httpClient *http.Client
 }
 
+// CamofoxTab 描述 Camofox 会话中的一个标签页。
 type CamofoxTab struct {
 	TabID      string
 	URL        string
@@ -32,6 +34,7 @@ type CamofoxTab struct {
 	LastActive time.Time
 }
 
+// CamofoxConfig 保存 Camofox 服务器地址与 API Key。
 type CamofoxConfig struct {
 	BaseURL            string
 	UserID             string
@@ -40,6 +43,7 @@ type CamofoxConfig struct {
 	ManagedPersistence bool
 }
 
+// NewCamofoxClient 用给定配置构造 CamofoxClient。
 func NewCamofoxClient(cfg CamofoxConfig) *CamofoxClient {
 	return &CamofoxClient{
 		baseURL:    strings.TrimRight(cfg.BaseURL, "/"),
@@ -52,6 +56,7 @@ func NewCamofoxClient(cfg CamofoxConfig) *CamofoxClient {
 	}
 }
 
+// CamofoxFromEnv 从 CAMOFOX_URL / CAMOFOX_KEY 环境变量构造 CamofoxClient。
 func CamofoxFromEnv() *CamofoxClient {
 	url := os.Getenv("CAMOFOX_URL")
 	if url == "" {
@@ -66,10 +71,12 @@ func CamofoxFromEnv() *CamofoxClient {
 	})
 }
 
+// IsConfigured 报告是否已配置 CAMOFOX_URL。
 func (c *CamofoxClient) IsConfigured() bool {
 	return c.baseURL != ""
 }
 
+// CreateTab 创建一个新标签页并导航到 url，返回 tab 句柄。
 func (c *CamofoxClient) CreateTab(ctx context.Context, taskID string, url string) (*CamofoxTab, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -157,6 +164,7 @@ func (c *CamofoxClient) adoptExistingTab(ctx context.Context, taskID string) (*C
 	}, nil
 }
 
+// Navigate 让指定标签页导航到 url。
 func (c *CamofoxClient) Navigate(ctx context.Context, taskID string, url string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
@@ -181,6 +189,7 @@ func (c *CamofoxClient) Navigate(ctx context.Context, taskID string, url string)
 	return snapshot, nil
 }
 
+// GetSnapshot 获取指定标签页的可访问性树快照（full=true 含属性详情）。
 func (c *CamofoxClient) GetSnapshot(ctx context.Context, taskID string, full bool) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
@@ -211,6 +220,7 @@ func (c *CamofoxClient) GetSnapshot(ctx context.Context, taskID string, full boo
 	return tree, nil
 }
 
+// Click 在指定标签页中点击 ref 对应的元素。
 func (c *CamofoxClient) Click(ctx context.Context, taskID string, ref string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
@@ -229,6 +239,7 @@ func (c *CamofoxClient) Click(ctx context.Context, taskID string, ref string) (s
 	return c.GetSnapshot(ctx, taskID, false)
 }
 
+// Type 在指定标签页中向 ref 元素输入 text。
 func (c *CamofoxClient) Type(ctx context.Context, taskID string, ref string, text string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
@@ -248,6 +259,7 @@ func (c *CamofoxClient) Type(ctx context.Context, taskID string, ref string, tex
 	return fmt.Sprintf("Typed \"%s\" into %s", text, ref), nil
 }
 
+// Scroll 在指定标签页中按 direction（up/down）滚动。
 func (c *CamofoxClient) Scroll(ctx context.Context, taskID string, direction string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
@@ -268,6 +280,7 @@ func (c *CamofoxClient) Scroll(ctx context.Context, taskID string, direction str
 	return c.GetSnapshot(ctx, taskID, false)
 }
 
+// Back 让指定标签页回退到上一页。
 func (c *CamofoxClient) Back(ctx context.Context, taskID string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
@@ -284,6 +297,7 @@ func (c *CamofoxClient) Back(ctx context.Context, taskID string) (string, error)
 	return c.GetSnapshot(ctx, taskID, false)
 }
 
+// Press 在指定标签页中按下 key。
 func (c *CamofoxClient) Press(ctx context.Context, taskID string, key string) (string, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
@@ -302,6 +316,7 @@ func (c *CamofoxClient) Press(ctx context.Context, taskID string, key string) (s
 	return fmt.Sprintf("Pressed key: %s", key), nil
 }
 
+// Screenshot 获取指定标签页的 PNG 截图。
 func (c *CamofoxClient) Screenshot(ctx context.Context, taskID string) ([]byte, error) {
 	tab, ok := c.tabs[taskID]
 	if !ok {
@@ -332,6 +347,7 @@ func (c *CamofoxClient) Screenshot(ctx context.Context, taskID string) ([]byte, 
 	return data, nil
 }
 
+// CloseTab 关闭指定标签页（幂等）。
 func (c *CamofoxClient) CloseTab(ctx context.Context, taskID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -347,6 +363,7 @@ func (c *CamofoxClient) CloseTab(ctx context.Context, taskID string) error {
 	return nil
 }
 
+// CloseSession 关闭所有标签页并终止 Camofox 会话。
 func (c *CamofoxClient) CloseSession(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -369,6 +386,7 @@ func (c *CamofoxClient) CloseSession(ctx context.Context) error {
 	return nil
 }
 
+// GetVNCURL 返回当前会话的 VNC 连接 URL。
 func (c *CamofoxClient) GetVNCURL(ctx context.Context) string {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/health", nil)
 	if err != nil {

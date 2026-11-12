@@ -17,6 +17,7 @@ import (
 	"github.com/chromedp/chromedp/remote"
 )
 
+// AgentBrowserManager 管理 agent-browser 子进程会话，提供高层浏览器操作。
 type AgentBrowserManager struct {
 	mu            sync.Mutex
 	binaryPath    string
@@ -24,6 +25,7 @@ type AgentBrowserManager struct {
 	sessions      map[string]*AgentBrowserSession
 }
 
+// AgentBrowserSession 表示一个 agent-browser 子进程会话。
 type AgentBrowserSession struct {
 	TaskID    string
 	CDPURL    string
@@ -31,12 +33,14 @@ type AgentBrowserSession struct {
 	StartedAt time.Time
 }
 
+// AgentBrowserResult 封装 agent-browser 命令的返回结果（成功文本/截图/命令错误）。
 type AgentBrowserResult struct {
 	Success bool            `json:"success"`
 	Data    json.RawMessage `json:"data,omitempty"`
 	Error   string          `json:"error,omitempty"`
 }
 
+// NewAgentBrowserManager 创建 AgentBrowserManager；找不到 agent-browser 可执行文件时返回 nil。
 func NewAgentBrowserManager() *AgentBrowserManager {
 	binary, _ := findAgentBrowserBinary()
 	dir := _abSocketSafeTmpdir()
@@ -94,6 +98,7 @@ func (m *AgentBrowserManager) sessionSocketDir(taskID string) string {
 	return filepath.Join(m.socketBaseDir, fmt.Sprintf("agent-browser-%s", taskID))
 }
 
+// EnsureSession 确保 taskID 对应的 agent-browser 会话已启动。
 func (m *AgentBrowserManager) EnsureSession(ctx context.Context, taskID string) (*AgentBrowserSession, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -133,6 +138,7 @@ func (m *AgentBrowserManager) discoverCDPURL(socketDir string) string {
 	return strings.TrimSpace(string(data))
 }
 
+// StopSession 关闭指定 taskID 的会话（幂等）。
 func (m *AgentBrowserManager) StopSession(taskID string) {
 	m.mu.Lock()
 	session, ok := m.sessions[taskID]
@@ -150,6 +156,7 @@ func (m *AgentBrowserManager) StopSession(taskID string) {
 	_ = os.RemoveAll(session.SocketDir)
 }
 
+// RunCommand 向指定会话发送命令并等待结果。
 func (m *AgentBrowserManager) RunCommand(taskID string, command string, args []string, timeout time.Duration) (*AgentBrowserResult, error) {
 	if _, err := m.EnsureSession(context.Background(), taskID); err != nil {
 		return nil, err
@@ -251,42 +258,52 @@ func (m *AgentBrowserManager) runABCommand(taskID string, command string, args [
 
 // Convenience wrappers
 
+// Navigate 让指定会话导航到 url。
 func (m *AgentBrowserManager) Navigate(taskID string, url string, timeout time.Duration) (*AgentBrowserResult, error) {
 	return m.RunCommand(taskID, "open", []string{url}, timeout)
 }
 
+// Snapshot 获取指定会话的页面结构快照。
 func (m *AgentBrowserManager) Snapshot(taskID string, timeout time.Duration) (*AgentBrowserResult, error) {
 	return m.RunCommand(taskID, "snapshot", []string{"-c"}, timeout)
 }
 
+// Click 在指定会话中点击 ref 对应的元素。
 func (m *AgentBrowserManager) Click(taskID string, ref string, timeout time.Duration) (*AgentBrowserResult, error) {
 	return m.RunCommand(taskID, "click", []string{ref}, timeout)
 }
 
+// Fill 在指定会话中向 ref 元素填充 text。
 func (m *AgentBrowserManager) Fill(taskID string, ref string, text string, timeout time.Duration) (*AgentBrowserResult, error) {
 	return m.RunCommand(taskID, "fill", []string{ref, text}, timeout)
 }
 
+// Scroll 在指定会话中按 direction 滚动页面。
 func (m *AgentBrowserManager) Scroll(taskID string, direction string, timeout time.Duration) (*AgentBrowserResult, error) {
 	return m.RunCommand(taskID, "scroll", []string{direction, "500"}, timeout)
 }
 
+// Back 让指定会话回退到上一页。
 func (m *AgentBrowserManager) Back(taskID string, timeout time.Duration) (*AgentBrowserResult, error) {
 	return m.RunCommand(taskID, "back", nil, timeout)
 }
 
+// PressKey 在指定会话中按下 key。
 func (m *AgentBrowserManager) PressKey(taskID string, key string, timeout time.Duration) (*AgentBrowserResult, error) {
 	return m.RunCommand(taskID, "press", []string{key}, timeout)
 }
 
+// Screenshot 获取指定会话的页面截图。
 func (m *AgentBrowserManager) Screenshot(taskID string, timeout time.Duration) (*AgentBrowserResult, error) {
 	return m.RunCommand(taskID, "screenshot", nil, timeout)
 }
 
+// Evaluate 在指定会话中执行 JavaScript expression。
 func (m *AgentBrowserManager) Evaluate(taskID string, expression string, timeout time.Duration) (*AgentBrowserResult, error) {
 	return m.RunCommand(taskID, "eval", []string{expression}, timeout)
 }
 
+// Console 获取指定会话的控制台消息。
 func (m *AgentBrowserManager) Console(taskID string, timeout time.Duration) (*AgentBrowserResult, error) {
 	consoleRes, consoleErr := m.RunCommand(taskID, "console", []string{"-j"}, timeout)
 	if consoleErr != nil {
@@ -321,6 +338,7 @@ func (m *AgentBrowserManager) Console(taskID string, timeout time.Duration) (*Ag
 	return &AgentBrowserResult{Success: true, Data: dataBytes}, nil
 }
 
+// CreateChromeDPContext 基于会话的 CDP URL 创建 chromedp 上下文，用于直接调用 chromedp。
 func (m *AgentBrowserManager) CreateChromeDPContext(taskID string) (context.Context, context.CancelFunc, error) {
 	// All CDPURL reads/writes must happen under m.mu: runABCommand writes it
 	// under m.mu (snapshot response caching). Copy to a local before releasing
@@ -351,6 +369,7 @@ func (m *AgentBrowserManager) CreateChromeDPContext(taskID string) (context.Cont
 	return browserCtx, cancelFn, nil
 }
 
+// StopAll 关闭所有 agent-browser 会话。
 func (m *AgentBrowserManager) StopAll() {
 	m.mu.Lock()
 	ids := make([]string, 0, len(m.sessions))

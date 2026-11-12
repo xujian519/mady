@@ -11,11 +11,13 @@ import (
 	"time"
 )
 
+// BrowserUseProvider 实现 Browser Use（browser-use.com）云浏览器提供商。
 type BrowserUseProvider struct {
 	apiKey     string
 	httpClient *http.Client
 }
 
+// NewBrowserUseProvider 从 BROWSER_USE_API_KEY 环境变量构造 BrowserUseProvider。
 func NewBrowserUseProvider() *BrowserUseProvider {
 	return &BrowserUseProvider{
 		apiKey:     os.Getenv("BROWSER_USE_API_KEY"),
@@ -23,14 +25,17 @@ func NewBrowserUseProvider() *BrowserUseProvider {
 	}
 }
 
+// ProviderName 返回提供商标识 "browser_use"。
 func (p *BrowserUseProvider) ProviderName() string {
 	return "browser_use"
 }
 
+// IsConfigured 报告是否已配置 BROWSER_USE_API_KEY。
 func (p *BrowserUseProvider) IsConfigured() bool {
 	return p.apiKey != ""
 }
 
+// CreateSession 在 Browser Use 上创建浏览器会话，返回 session_id 与 cdp_url。
 func (p *BrowserUseProvider) CreateSession(taskID string) (map[string]string, error) {
 	reqBody := map[string]any{
 		"idempotency_key": "agent-" + taskID,
@@ -77,6 +82,7 @@ func (p *BrowserUseProvider) CreateSession(taskID string) (map[string]string, er
 	}, nil
 }
 
+// CloseSession 优雅关闭指定会话（PATCH stop）。
 func (p *BrowserUseProvider) CloseSession(sessionID string) error {
 	return closeSessionRequest(p.httpClient,
 		"PATCH",
@@ -87,6 +93,7 @@ func (p *BrowserUseProvider) CloseSession(sessionID string) error {
 	)
 }
 
+// EmergencyCleanup 尽力关闭会话，失败时静默忽略（用于紧急清理路径）。
 func (p *BrowserUseProvider) EmergencyCleanup(sessionID string) {
 	_ = p.CloseSession(sessionID)
 }

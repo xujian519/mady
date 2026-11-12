@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// ChromeInfo 描述已发现的 Chrome/Chromium 安装信息。
 type ChromeInfo struct {
 	Path       string
 	Version    string
@@ -17,6 +18,8 @@ type ChromeInfo struct {
 	IsHeadless bool
 }
 
+// FindChrome 按 CHROME_PATH → BROWSER_PATH → PATH → 知名安装路径的
+// 顺序查找 Chrome/Chromium，返回其路径、版本与类型信息。
 func FindChrome() (*ChromeInfo, error) {
 	if path := os.Getenv("CHROME_PATH"); path != "" {
 		if info, err := examineChrome(path); err == nil {

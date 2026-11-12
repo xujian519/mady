@@ -10,6 +10,8 @@ import (
 	"os"
 )
 
+// CloudBrowserProvider 定义云浏览器提供商（Browserbase / Browser Use /
+// Firecrawl 等）的统一接口，供 BrowserManager 按需创建与关闭远程会话。
 type CloudBrowserProvider interface {
 	ProviderName() string
 	IsConfigured() bool
@@ -18,6 +20,7 @@ type CloudBrowserProvider interface {
 	EmergencyCleanup(sessionID string)
 }
 
+// CloudSessionInfo 描述云浏览器会话的返回信息。
 type CloudSessionInfo struct {
 	SessionName string
 	SessionID   string
@@ -25,6 +28,7 @@ type CloudSessionInfo struct {
 	Features    map[string]bool
 }
 
+// GetEnv 读取环境变量，未设置或为空时返回 defaultValue。
 func GetEnv(key string, defaultValue string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
@@ -32,6 +36,7 @@ func GetEnv(key string, defaultValue string) string {
 	return defaultValue
 }
 
+// GetEnvBool 读取布尔型环境变量（true/1/yes 为真），未设置时返回 defaultValue。
 func GetEnvBool(key string, defaultValue bool) bool {
 	val := os.Getenv(key)
 	if val == "" {

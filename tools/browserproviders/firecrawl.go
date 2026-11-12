@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// FirecrawlProvider 实现 Firecrawl 云浏览器提供商。
 type FirecrawlProvider struct {
 	apiKey     string
 	apiURL     string
@@ -19,6 +20,7 @@ type FirecrawlProvider struct {
 	httpClient *http.Client
 }
 
+// NewFirecrawlProvider 从环境变量构造 FirecrawlProvider。
 func NewFirecrawlProvider() *FirecrawlProvider {
 	ttl := 300
 	if envTTL := os.Getenv("FIRECRAWL_BROWSER_TTL"); envTTL != "" {
@@ -40,14 +42,17 @@ func NewFirecrawlProvider() *FirecrawlProvider {
 	}
 }
 
+// ProviderName 返回提供商标识 "firecrawl"。
 func (p *FirecrawlProvider) ProviderName() string {
 	return "firecrawl"
 }
 
+// IsConfigured 报告是否已配置 FIRECRAWL_API_KEY。
 func (p *FirecrawlProvider) IsConfigured() bool {
 	return p.apiKey != ""
 }
 
+// CreateSession 在 Firecrawl 上创建浏览器会话，返回 session_id 与 cdp_url。
 func (p *FirecrawlProvider) CreateSession(taskID string) (map[string]string, error) {
 	reqBody := map[string]any{
 		"ttl": p.ttl,
@@ -91,6 +96,7 @@ func (p *FirecrawlProvider) CreateSession(taskID string) (map[string]string, err
 	}, nil
 }
 
+// CloseSession 删除指定 Firecrawl 浏览器会话。
 func (p *FirecrawlProvider) CloseSession(sessionID string) error {
 	req, err := http.NewRequestWithContext(context.Background(), "DELETE", fmt.Sprintf("%s/v2/browser/%s", p.apiURL, sessionID), nil)
 	if err != nil {
@@ -113,6 +119,7 @@ func (p *FirecrawlProvider) CloseSession(sessionID string) error {
 	return nil
 }
 
+// EmergencyCleanup 尽力删除会话，失败时静默忽略（用于紧急清理路径）。
 func (p *FirecrawlProvider) EmergencyCleanup(sessionID string) {
 	_ = p.CloseSession(sessionID)
 }
