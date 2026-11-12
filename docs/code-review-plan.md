@@ -715,4 +715,4 @@
 - **精炼**（无行为变化）：**16 文件**——为 M28 范围内约 57 处导出符号补 godoc 前导注释，覆盖 browserproviders 全包、browser_* 各后端类型与方法、ego_lite 扩展常量与方法
 - **门禁**：`go build ./...`、`go vet ./tools/...` 全绿；`golangci-lint run ./tools/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./tools/...` 全绿；`go test -race -count=1 ./tools/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py tools`，90 文件）：裸 fmt 0 / 忽略 err 8 / 静默吞错 53（全误报）/ TODO 0 / 未注释导出 **74 → 17**（剩余 17 处属 M29/M30 范围：desktop/computer_use/内置工具）/ >120 行函数 7（登记待拆）
-- **提交**：`TBD`（refactor）、`TBD`（docs + changelog）
+- **提交**：`8500da76`（refactor）、`bec7157c`（docs + changelog，INDEX total=508）
