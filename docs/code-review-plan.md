@@ -104,7 +104,7 @@
 | 卡 | 模块 | 规模/热点 | 状态 |
 | --- | --- | --- | --- |
 | M23 | a2a/ | 26 文件/5.4K 行（协议面红线） | ✅ 2026-11-11 |
-| M24 | a2ui/ + agui/ | 20 文件/3.2K 行（协议面红线） | ⬜ |
+| M24 | a2ui/ + agui/ | 20 文件/3.2K 行（协议面红线） | ✅ 2026-11-12 |
 | M25 | acp/ + server/ | 32 文件/6.7K 行（含红线） | ⬜ |
 | M26 | mcp/ | 25 文件/4.6K 行（含 config_trust 红线） | ⬜ |
 | M27 | bootstrap/ | 16 文件/2.8K 行 | ⬜ |
@@ -640,3 +640,19 @@
 - **门禁**：`go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；定向 `go test -race` 覆盖 `a2a`、`a2a/pool`、`a2a/registry` 及下游消费方 `a2ui`、`example/provider-compat`、`example/wiki-import` **全绿**；不涉 tui/desktop 子模块
 - **指标重扫**（`python3 scripts/scan_go_smells.py a2a`，26 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **35**（无变化，均为协议错误响应路径，见上）/ TODO 0 / 未注释导出 0 / >120 行函数 **1 → 0**
 - **提交**：`2448961f`（refactor）、`e380554f`（docs + changelog，INDEX total=503）
+
+### M24（2026-11-12）a2ui/ + agui/ 协议层 ✅
+
+- **审阅范围**：`a2ui/` 全部 **14 个非测试 `.go` 文件**（component/datamodel/dynamic/message/surface/catalog/client/stream/builder/validate/doc + 3 个 binding）+ `agui/` 全部 **6 个非测试 `.go` 文件**（types/converter/converter_convert/converter_helpers/handler/doc），共 20 文件约 3.2K 行。`agui/client/` 为 TypeScript 客户端（非 Go，不在本卡范围）。与敏感路径权威源零重叠
+- **协议面红线处置**：协议结构（`Envelope`/`Component`/`UpdateDataModel` 等 A2UI 信封、AGUI `BaseEvent`/各 Event 结构体）、JSON 字段标签、SSE 事件格式（`event:`/`data:`）、`inputSchema` 一律零改动；仅做内部去重与注释治理
+- **基线**（`scan_go_smells.py a2ui agui`，20 文件）：裸 fmt **0** / 忽略 err **0** / 静默吞错 **2** / TODO **0** / 未注释导出 **0** / >120 行函数 **2**——前四项已在前序卡收敛，本卡对象是吞错、长函数与重复逻辑
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：① `agui/converter.go` `Convert` 193 行——约 12 个事件类型各有 value/pointer 两个几乎相同的 case（Go type switch 无法合并），重复代码约 80 行；提取 per-event helper 可降至阈值内，但属协议事件分发核心，改则需逐事件验证，留待专用 fix 卡；② `agui/handler.go` `handleRun` 139 行（已有 `nolint:gocognit`），SSE 流管理+多事件写入，留待拆分
+  - P2 一致性（登记不修）：`a2ui/binding_agui.go` `FromCustomEvent` 在 `ParseEnvelope` 失败时返回 `ok=false, err=nil`（静默按非匹配处理），而 `binding_a2a.go` `DataPartToEnvelope` 在 MIME 显式为 A2UI 时返回 `ErrInvalidA2UIEnvelope`——AG-UI 自定义事件为通用通道，按非匹配处理可避免畸形载荷中断事件流，属有意设计，补注释不改行为
+  - P3 风格（本卡精炼）：`agui/converter.go` `NewConverter` 与 `NewConverterWithParent` 构造逻辑完全重复（仅差 `parentRunID` 字段）
+  - **吞错 2 处核实**：① `a2ui/datamodel.go:174` `arrayIndex` 中 `if err != nil { return 0, false, fmt.Errorf(...) }`——扫描器不识别 `fmt.Errorf` 包装为错误传播，属误报（同 M22 口径，不改代码）；② `a2ui/binding_agui.go:38` 真·静默降级，补 fail-safe 意图注释
+- **精炼**（无行为变化）：**2 文件**——① `a2ui/binding_agui.go` 为 `FromCustomEvent` 的 `ParseEnvelope` 失败分支补 2 行意图注释（AG-UI 通用通道畸形载荷按非匹配处理）；② `agui/converter.go` `NewConverter` 改为委托 `NewConverterWithParent(threadID, runID, "", contextWindow...)`，消除 14 行重复的 contextWindow 默认值与 4 个 atomic.Store 初始化
+- **门禁**：`go build ./...`、`go vet ./a2ui/... ./agui/...` 全绿；`golangci-lint run ./a2ui/... ./agui/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；协议面 `go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `a2ui`、`agui`、`server` 及下游消费方 `desktop` 子模块 **全绿**
+- **指标重扫**（`python3 scripts/scan_go_smells.py a2ui agui`，20 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **2 → 1**（剩余 1 处为 datamodel.go fmt.Errorf 误报）/ TODO 0 / 未注释导出 0 / >120 行函数 **2**（登记待拆）
+- **提交**：refactor 1 个 + docs/changelog 1 个
