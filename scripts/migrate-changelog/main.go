@@ -267,6 +267,7 @@ func recalcLines(path string, entries []*Entry) {
 	//nolint:gosec
 	f, err := os.Open(path)
 	if err != nil {
+		// 打开失败则跳过该文件（best-effort 批量处理）。
 		return
 	}
 	defer func() { _ = f.Close() }()

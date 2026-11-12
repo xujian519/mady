@@ -125,6 +125,7 @@ func printUsage() {
 func readStdin() string {
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
+		// 读取 stdin 失败时返回空串（best-effort，由调用方处理空输入）。
 		return ""
 	}
 	return strings.TrimSpace(string(data))

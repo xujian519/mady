@@ -136,6 +136,7 @@ func emitBatchA(src, outDir string) error {
 		}
 		var document map[string]any
 		if err := yaml.Unmarshal(data, &document); err != nil {
+			// 解析失败则跳过该文件（best-effort 批量扫描）。
 			return nil
 		}
 		for _, rule := range ruleMaps(document["rules"]) {

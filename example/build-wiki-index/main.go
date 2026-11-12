@@ -78,6 +78,7 @@ func main() {
 			relPath, _ := filepath.Rel(wikiPath, path)
 			data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk over wiki dir
 			if err != nil {
+				// 读取失败则跳过该文件，继续构建索引（best-effort）。
 				return nil
 			}
 
