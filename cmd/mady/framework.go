@@ -53,6 +53,7 @@ func (caseFileReader) ReadText(path string) string {
 	}
 	data, err := util.ReadFile(path) // path is from filepath.Walk or filepath.Join of CWD
 	if err != nil {
+		// 读取失败时返回空串（best-effort 回退，由调用方处理空内容）。
 		return ""
 	}
 	return string(data)

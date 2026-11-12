@@ -135,6 +135,7 @@ func applyThemeByName(name string) (display string, ok bool) {
 func (s *tuiSession) detectCaseFromCWD() string {
 	cwd, err := os.Getwd()
 	if err != nil {
+		// 获取工作目录失败时回退到用户主目录（graceful fallback）。
 		cwd, _ = os.UserHomeDir()
 		if cwd == "" {
 			return ""
