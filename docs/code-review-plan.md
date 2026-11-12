@@ -670,4 +670,4 @@
 - **精炼**（无行为变化）：**2 文件**——① `acp/acp.go` 删除 6 条冗余注释行，每个导出符号保留一条更具体的注释；② `server/skills.go` keepalive 改为 `fmt.Fprintf` 并补错误检查（失败时 `slog.Error` + `dead.Store(true)` + return），与 `writeSSE` 闭包一致；从 `fmt.Fprint` 改为 `fmt.Fprintf` 消除裸 fmt 指标
 - **门禁**：`go build ./...`、`go vet ./acp/... ./server/...` 全绿；`golangci-lint run ./acp/... ./server/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；协议面 `go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `acp`、`server`、`cmd/mady` 及下游消费方 `desktop` 子模块 **全绿**
 - **指标重扫**（`python3 scripts/scan_go_smells.py acp server`，32 文件）：裸 fmt **1 → 0** / 忽略 err 0 / 静默吞错 32（全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 0
-- **提交**：refactor 1 个 + docs/changelog 1 个
+- **提交**：`1c4746d2`（refactor）、`ad83ad3d`（docs + changelog，INDEX total=505）
