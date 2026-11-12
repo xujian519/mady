@@ -730,4 +730,4 @@
 - **精炼**（无行为变化）：**3 文件**——为 3 处 fallback 降级补意图注释，为 6 处 best-effort `_ =` 吞错补 `//nolint:gosec // G104: ...` 注释（`computer_use_lin.go` 窗口边界/光标/活动窗口查询、`computer_use_macos.go` 最前台应用名查询）
 - **门禁**：`go build ./...`、`go vet ./tools/desktop/...` 全绿；`golangci-lint run ./tools/desktop/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./tools/desktop/...` 全绿；`go test -race -count=1 ./tools/desktop/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py tools/desktop`，13 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **3 → 0** / TODO 0 / 未注释导出 0 / >120 行函数 1（登记待拆）
-- **提交**：`TBD`（refactor）、`TBD`（docs + changelog）
+- **提交**：`b11556a5`（refactor）、`fb995ce2`（docs + changelog，INDEX total=509）
