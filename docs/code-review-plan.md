@@ -107,7 +107,7 @@
 | M24 | a2ui/ + agui/ | 20 文件/3.2K 行（协议面红线） | ✅ 2026-11-12 |
 | M25 | acp/ + server/ | 32 文件/6.7K 行（含红线） | ✅ 2026-11-12 |
 | M26 | mcp/ | 25 文件/4.6K 行（含 config_trust 红线） | ✅ 2026-11-12 |
-| M27 | bootstrap/ | 16 文件/2.8K 行 | ⬜ |
+| M27 | bootstrap/ | 16 文件/2.8K 行 | ✅ 2026-11-12 |
 
 ### 阶段 5 — 工具/入口（W8）
 
@@ -686,3 +686,18 @@
 - **门禁**：`go build ./...`、`go vet ./mcp/...` 全绿；`golangci-lint run ./mcp/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `mcp`、`server`、`bootstrap`、`cmd/mady` 及下游消费方 `desktop` 子模块 **全绿**
 - **指标重扫**（`python3 scripts/scan_go_smells.py mcp`，25 文件）：裸 fmt 0 / 忽略 err 3（全误报）/ 静默吞错 **18 → 14**（剩余全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 2（登记待拆）
 - **提交**：`dd6c6c9a`（refactor）、`54f54346`（docs + changelog，INDEX total=506）
+
+### M27（2026-11-12）bootstrap/ 启动装配 ✅
+
+- **审阅范围**：`bootstrap/` 全部 **16 个非测试 `.go` 文件**（根目录 9 个：disclosure_adapter/infringement_adapter/init_knowledge/init_reasoning/plantask_bridge/setup/setup_assembly/setup_config/setup_steps；`agentconfig/` 子包 7 个：config/defaults/load/models/provider/resolve/role），共 16 文件约 2.8K 行。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——bootstrap 为内部启动装配层，仅做导出注释治理，零行为变更
+- **基线**（`scan_go_smells.py bootstrap`，16 文件）：裸 fmt **0** / 忽略 err **0** / 静默吞错 **9** / TODO **0** / 未注释导出 **1** / >120 行函数 **2**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：① `bootstrap/init_knowledge.go` `LoadWikiStore` 121 行（已有 `//nolint:gocognit`）；② `bootstrap/init_reasoning.go` `InitReasoningAndTemplates` 131 行
+  - P2 一致性（本卡精炼）：`bootstrap/setup_config.go:11` `ExtSlice` 导出函数无前导注释，违反 godoc 约定
+  - P3 风格（误报不改）：静默吞错 9 处全为误报——① `init_knowledge.go:134` `slog.Error` 记录 wiki import 失败后 return；② `init_knowledge.go:219` `slog.Error` 记录 SQLite store 打开失败后 return；③ `init_reasoning.go:205` `SetupProvenance` 中 `slog.Warn` 记录溯源初始化失败后 return；④ `init_reasoning.go:226` `loadWorkflowManifests` 中 `slog.Warn` 记录 manifest 目录创建失败后回退内置默认值；⑤ `setup.go:109` `CaseFileReader.ReadText` 中 `os.ReadFile` 失败返回空字符串（fallback 行为）；⑥ `setup_assembly.go:42` `buildWikiCitationSource` 中 `slog.Error` 记录 S2 索引构建失败后降级为仅 S1；⑦ `setup_assembly.go:89` `openWritableStore` 中 `slog.Error` 记录 user.db 打开失败后 return nil；⑧ `setup_assembly.go:122` `newEvidenceRuleIndex` 中 `slog.Warn` 记录证据规则 YAML 加载失败后返回空索引降级；⑨ `agentconfig/load.go:188` `LoadOrDefault` 中 `LoadConfig` 失败返回空配置（函数文档已声明"未设置或文件不存在则返回空配置"，属有意降级）
+- **精炼**（无行为变化）：**1 文件**——`bootstrap/setup_config.go` 为 `ExtSlice` 补导出注释 `// ExtSlice 将单个 Extension 包装为单元素切片；ext 为 nil 时返回 nil。`
+- **门禁**：`go build ./...`、`go vet ./bootstrap/...` 全绿；`golangci-lint run ./bootstrap/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `bootstrap`、`bootstrap/agentconfig`、`server`、`tools/desktop` **全绿**（`tui/component` 渲染宽度失败为预存环境问题，与本卡无关）
+- **指标重扫**（`python3 scripts/scan_go_smells.py bootstrap`，16 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 9（全误报）/ TODO 0 / 未注释导出 **1 → 0** / >120 行函数 2（登记待拆）
+- **提交**：`TBD`（refactor）、`TBD`（docs + changelog）
