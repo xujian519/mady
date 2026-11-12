@@ -116,7 +116,7 @@
 | M28 | tools/ browser_* + browserproviders | 85 文件/18.8K 行拆 3 卡 | ✅ 2026-11-12 |
 | M29 | tools/ desktop + computer_use* | 同上 | ✅ 2026-11-12 |
 | M30 | tools/ 内置工具族 + tools.go 注册 | 同上 | ✅ 2026-11-12 |
-| M31 | cmd/mady/ | 42 文件/7.7K 行 | ⬜ |
+| M31 | cmd/mady/ | 42 文件/7.7K 行 | ✅ 2026-11-12 |
 
 ### 阶段 6 — 端/测试/脚本（W8–W9）
 
@@ -746,3 +746,18 @@
 - **门禁**：`go build ./...`、`go vet ./tools/...` 全绿；`golangci-lint run ./tools/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./tools/...` 全绿；`go test -race -count=1 ./tools/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py tools`，90 文件）：裸 fmt 0 / 忽略 err 8（全误报）/ 静默吞错 **50 → 31**（M30 范围 33→14，剩余 14 处全误报）/ TODO 0 / 未注释导出 **17 → 0** / >120 行函数 7（登记待拆）
 - **提交**：`1d919a8a`（refactor）、`3268b07c`（docs + changelog，INDEX total=510）
+
+### M31（2026-11-12）cmd/mady/ ✅
+
+- **审阅范围**：`cmd/mady/` 包 **42 个非测试 `.go` 文件**（含 `cmd/mady/*.go` 34 个 + `cmd/mady/subcmd/*.go` 8 个，约 7.7K 行），TUI 入口与 CLI 子命令。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——cmd/mady 为用户交互入口层，仅做意图注释治理，零行为变更
+- **基线**（`scan_go_smells.py cmd/mady`，42 文件）：裸 fmt **65** / 忽略 err **8** / 静默吞错 **45** / TODO **0** / 未注释导出 **0** / >120 行函数 **4**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：4 个 >120 行函数——`server.go:83 runServer`（189 行）、`tui.go:60 runTui`（267 行）、`slash_commands.go:294 registerPlanTaskCommands`（232 行）、`session_panel.go:28 openSessionSelector`（125 行），登记待拆
+  - P2 一致性（本卡精炼）：**2 处静默吞错缺意图注释**——① `framework.go:55` `readFileContent` 的 `util.ReadFile` 失败返回空串（best-effort 回退）；② `tui_session_commands.go:137` `detectCaseFromCWD` 的 `os.Getwd` 失败回退 `os.UserHomeDir`（graceful fallback）
+  - P3 风格（误报不改）：裸 fmt 65 处全在 `subcmd/`（package subcmd 非 main），为 CLI 子命令的标准 stdout 输出，按 main 包同口径（CLI 合法输出）不改；忽略 err 8 处全为 `_, _ = fmt.Fprintf(stderr, ...)`（error 路径写 stderr，写入失败已无法处理）；静默吞错 43 处全为误报——TUI 命令的 `PrintSystem/PrintError(err)+return`（错误经 TUI 展示给用户，约 30 处）、subcmd 的 `fmt.Fprintf(stderr,err)+return 1`（8 处）、`log.Printf(err)+return`（5 处）、storage probe 的 `r.Unavailable+message+return r`（4 处）、`fmt.Errorf(...)+return`（tui_helpers 2 处，扫描器不识别 fmt.Errorf 为错误传播）
+- **精炼**（无行为变化）：**2 文件**——为 2 处 graceful fallback 补意图注释（framework.go、tui_session_commands.go）
+- **门禁**：`go build ./...`、`go vet ./cmd/mady/...` 全绿；`golangci-lint run ./cmd/mady/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./cmd/mady/...` 全绿；`go test -race -count=1 ./cmd/mady/...` 全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py cmd/mady`，42 文件）：裸 fmt 65（全误报，subcmd CLI 输出）/ 忽略 err 8（全误报）/ 静默吞错 **45 → 43**（剩余 43 处全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 4（登记待拆）
+- **提交**：TBD（refactor）、TBD（docs + changelog）

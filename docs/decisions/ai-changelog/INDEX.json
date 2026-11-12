@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-12T19:48:11+08:00",
-  "total": 510,
+  "updated": "2026-11-12T20:00:17+08:00",
+  "total": 511,
   "entries": [
+    {
+      "date": "2026-11-12",
+      "type": "refactor",
+      "scope": "cmd/mady",
+      "title": "M31 cmd/mady/ 审阅：补 2 处 graceful fallback 意图注释",
+      "file": "2026-11-12.md",
+      "line": 134
+    },
     {
       "date": "2026-11-12",
       "type": "refactor",
