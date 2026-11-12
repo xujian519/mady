@@ -113,7 +113,7 @@
 
 | 卡 | 模块 | 规模/热点 | 状态 |
 | --- | --- | --- | --- |
-| M28 | tools/ browser_* + browserproviders | 85 文件/18.8K 行拆 3 卡 | ⬜ |
+| M28 | tools/ browser_* + browserproviders | 85 文件/18.8K 行拆 3 卡 | ✅ 2026-11-12 |
 | M29 | tools/ desktop + computer_use* | 同上 | ⬜ |
 | M30 | tools/ 内置工具族 + tools.go 注册 | 同上 | ⬜ |
 | M31 | cmd/mady/ | 42 文件/7.7K 行 | ⬜ |
@@ -701,3 +701,18 @@
 - **门禁**：`go build ./...`、`go vet ./bootstrap/...` 全绿；`golangci-lint run ./bootstrap/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `bootstrap`、`bootstrap/agentconfig`、`server`、`tools/desktop` **全绿**（`tui/component` 渲染宽度失败为预存环境问题，与本卡无关）
 - **指标重扫**（`python3 scripts/scan_go_smells.py bootstrap`，16 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 9（全误报）/ TODO 0 / 未注释导出 **1 → 0** / >120 行函数 2（登记待拆）
 - **提交**：`4c49a71b`（refactor）、`773d748c`（docs + changelog，INDEX total=507）
+
+### M28（2026-11-12）tools/ browser_* + browserproviders ✅
+
+- **审阅范围**：`tools/` 下 browser 域 **28 个非测试 `.go` 文件**（`browser*.go` 21 个 + `ego_lite*.go` 2 个 + `browserproviders/` 5 个，约 5.5K 行）。属 tools/ 三卡拆分（M28/M29/M30）的第 1 卡。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——browser 工具为内部执行层，仅做 godoc 注释治理，零行为变更
+- **基线**（`scan_go_smells.py tools`，90 文件全目录）：裸 fmt **0** / 忽略 err **8** / 静默吞错 **53** / TODO **0** / 未注释导出 **74** / >120 行函数 **7**（M28 范围内未注释导出约 57 处）
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：tools/ 全目录 7 个 >120 行函数，主要分布在 browser 后端（session/snapshot/supervisor/camofox/lightpanda/agent_browser），登记待拆
+  - P2 一致性（本卡精炼）：**约 57 处未注释导出符号**——browserproviders 包几乎全部导出类型/函数/方法缺 godoc（CloudBrowserProvider 接口、三个 Provider 的 ProviderName/IsConfigured/CreateSession/CloseSession/EmergencyCleanup）；tools/ browser_* 文件中 BrowserSession/BrowserManager/CDPSupervisor/CDPRecorder/CamofoxClient/LightpandaManager/SessionRecorder/RefMapper/AgentBrowserManager 等类型及其导出方法、IsPrivateURL/FindChrome/GeneratePageSnapshot/NewBrowserTool 等函数均缺前导注释
+  - P3 风格（误报不改）：静默吞错 53 处多为 best-effort 清理路径（EmergencyCleanup、CloseSession 失败静默、进程 kill/wait 忽略错误），已有 `//nolint:gosec` 或属于"尽力而为"语义；忽略 err 8 处为 `exec.LookPath` 结果丢弃、HTTP body close 等非关键路径，按 M22 口径不改代码
+- **精炼**（无行为变化）：**16 文件**——为 M28 范围内约 57 处导出符号补 godoc 前导注释，覆盖 browserproviders 全包、browser_* 各后端类型与方法、ego_lite 扩展常量与方法
+- **门禁**：`go build ./...`、`go vet ./tools/...` 全绿；`golangci-lint run ./tools/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./tools/...` 全绿；`go test -race -count=1 ./tools/...` 全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py tools`，90 文件）：裸 fmt 0 / 忽略 err 8 / 静默吞错 53（全误报）/ TODO 0 / 未注释导出 **74 → 17**（剩余 17 处属 M29/M30 范围：desktop/computer_use/内置工具）/ >120 行函数 7（登记待拆）
+- **提交**：`TBD`（refactor）、`TBD`（docs + changelog）
