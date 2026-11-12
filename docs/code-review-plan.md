@@ -790,4 +790,4 @@
 - **精炼**（无行为变化）：**9 文件**——10 处导出符号补 godoc + 4 处 graceful fallback 补意图注释（core/message、core/runeutil、core/width_wrap、terminal/ansi、terminal/detect_caps、theme/color_resolve、theme/semantic_theme、theme/style、chat_bridge）
 - **门禁**：`cd tui && go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test -race -count=1 ./core/... ./layout/... ./terminal/... ./theme/... ./internal/...` 全绿；根 `tui` 包 lifecycle_test 与 `component/` 渲染测试存在**预存失败**（Unicode 框线字符宽度计算，stash 后复现，与本卡纯注释改动无关，component/ 属 M34 范围）
 - **指标重扫**（58 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **4 → 0** / TODO 0 / 未注释导出 **10 → 0** / >120 行函数 5（登记待拆）
-- **提交**：TBD（refactor）、TBD（docs + changelog）
+- **提交**：4fd39e92（refactor）、1c6cd963（docs + changelog）
