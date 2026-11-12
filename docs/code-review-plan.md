@@ -700,4 +700,4 @@
 - **精炼**（无行为变化）：**1 文件**——`bootstrap/setup_config.go` 为 `ExtSlice` 补导出注释 `// ExtSlice 将单个 Extension 包装为单元素切片；ext 为 nil 时返回 nil。`
 - **门禁**：`go build ./...`、`go vet ./bootstrap/...` 全绿；`golangci-lint run ./bootstrap/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `bootstrap`、`bootstrap/agentconfig`、`server`、`tools/desktop` **全绿**（`tui/component` 渲染宽度失败为预存环境问题，与本卡无关）
 - **指标重扫**（`python3 scripts/scan_go_smells.py bootstrap`，16 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 9（全误报）/ TODO 0 / 未注释导出 **1 → 0** / >120 行函数 2（登记待拆）
-- **提交**：`TBD`（refactor）、`TBD`（docs + changelog）
+- **提交**：`4c49a71b`（refactor）、`773d748c`（docs + changelog，INDEX total=507）
