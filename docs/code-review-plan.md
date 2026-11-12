@@ -655,4 +655,4 @@
 - **精炼**（无行为变化）：**2 文件**——① `a2ui/binding_agui.go` 为 `FromCustomEvent` 的 `ParseEnvelope` 失败分支补 2 行意图注释（AG-UI 通用通道畸形载荷按非匹配处理）；② `agui/converter.go` `NewConverter` 改为委托 `NewConverterWithParent(threadID, runID, "", contextWindow...)`，消除 14 行重复的 contextWindow 默认值与 4 个 atomic.Store 初始化
 - **门禁**：`go build ./...`、`go vet ./a2ui/... ./agui/...` 全绿；`golangci-lint run ./a2ui/... ./agui/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；协议面 `go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `a2ui`、`agui`、`server` 及下游消费方 `desktop` 子模块 **全绿**
 - **指标重扫**（`python3 scripts/scan_go_smells.py a2ui agui`，20 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **2 → 1**（剩余 1 处为 datamodel.go fmt.Errorf 误报）/ TODO 0 / 未注释导出 0 / >120 行函数 **2**（登记待拆）
-- **提交**：refactor 1 个 + docs/changelog 1 个
+- **提交**：`b9893544`（refactor）、`f07a7cd9`（docs + changelog，INDEX total=504）
