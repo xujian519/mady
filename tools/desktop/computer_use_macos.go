@@ -58,7 +58,7 @@ func fallbackCapture(backend cuBackend, appName, mode string) (any, error) {
 	}
 
 	if mode == "ax" {
-		info, _ := osaExec(`tell app "System Events" to get name of first process whose frontmost is true`)
+		info, _ := osaExec(`tell app "System Events" to get name of first process whose frontmost is true`) //nolint:gosec // G104: best-effort frontmost app name for screenshot result
 		return result(
 			fmt.Sprintf("Screenshot captured (%d bytes). AX tree not available without cua-driver.", len(data)),
 			map[string]any{

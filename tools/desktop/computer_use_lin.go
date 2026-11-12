@@ -37,9 +37,9 @@ func xdoCapture(appName string) (any, error) {
 	if appName != "" {
 		bounds := ""
 		if isWayland() {
-			bounds, _ = waylandGetWindowBounds(appName)
+			bounds, _ = waylandGetWindowBounds(appName) //nolint:gosec // G104: best-effort window bounds; empty bounds skips crop
 		} else {
-			bounds, _ = linuxGetWindowBounds(appName)
+			bounds, _ = linuxGetWindowBounds(appName) //nolint:gosec // G104: best-effort window bounds; empty bounds skips crop
 		}
 		if bounds != "" {
 			parts := strings.Split(bounds, ",")
@@ -105,10 +105,10 @@ func xdoInfo() (any, error) {
 	if len(parts) >= 2 {
 		screen = parts[0] + " x " + parts[1]
 	}
-	cursor, _ := xdoExec("getmouselocation", "--shell")
+	cursor, _ := xdoExec("getmouselocation", "--shell") //nolint:gosec // G104: best-effort cursor position for info display
 	cursor = strings.TrimSpace(cursor)
-	active, _ := xdoExec("getactivewindow")
-	activeName, _ := xdoExec("getwindowname", strings.TrimSpace(active))
+	active, _ := xdoExec("getactivewindow")                              //nolint:gosec // G104: best-effort active window for info display
+	activeName, _ := xdoExec("getwindowname", strings.TrimSpace(active)) //nolint:gosec // G104: best-effort active window name for info display
 	return result(fmt.Sprintf("Screen: %s | Backend: xdotool\nCursor: %s\nActive: %s", screen, cursor, strings.TrimSpace(activeName)), nil)
 }
 

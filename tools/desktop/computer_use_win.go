@@ -151,6 +151,7 @@ $result | ConvertTo-Json -Compress`
 
 	var uiaElements []somElement
 	if err := json.Unmarshal([]byte(uiaOut), &uiaElements); err != nil {
+		// UIA tree parse failed — fall back to regular screenshot without SOM overlay
 		return screenshotResult, nil
 	}
 	if len(uiaElements) == 0 {
@@ -160,6 +161,7 @@ $result | ConvertTo-Json -Compress`
 	// Step 3: render SOM overlay
 	annotated, err := renderSOMOverlayFromB64(b64, uiaElements)
 	if err != nil {
+		// SOM overlay render failed — fall back to regular screenshot
 		return screenshotResult, nil
 	}
 

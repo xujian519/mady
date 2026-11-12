@@ -207,6 +207,7 @@ func parseInt(s string) int {
 func cropImageToBounds(data []byte, x, y, w, h int) []byte {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
+		// decode failed — return original data uncropped
 		return data
 	}
 	bounds := img.Bounds()
