@@ -685,4 +685,4 @@
 - **精炼**（无行为变化）：**1 文件**——`mcp/config_trust.go` 为 4 处 fail-closed 分支补 `// fail-closed: ...` 内联注释（无法解析绝对路径/信任存储损坏/无法计算哈希 → 视为不可信）
 - **门禁**：`go build ./...`、`go vet ./mcp/...` 全绿；`golangci-lint run ./mcp/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `mcp`、`server`、`bootstrap`、`cmd/mady` 及下游消费方 `desktop` 子模块 **全绿**
 - **指标重扫**（`python3 scripts/scan_go_smells.py mcp`，25 文件）：裸 fmt 0 / 忽略 err 3（全误报）/ 静默吞错 **18 → 14**（剩余全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 2（登记待拆）
-- **提交**：refactor 1 个 + docs/changelog 1 个
+- **提交**：`dd6c6c9a`（refactor）、`54f54346`（docs + changelog，INDEX total=506）
