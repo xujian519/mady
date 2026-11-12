@@ -106,7 +106,7 @@
 | M23 | a2a/ | 26 文件/5.4K 行（协议面红线） | ✅ 2026-11-11 |
 | M24 | a2ui/ + agui/ | 20 文件/3.2K 行（协议面红线） | ✅ 2026-11-12 |
 | M25 | acp/ + server/ | 32 文件/6.7K 行（含红线） | ✅ 2026-11-12 |
-| M26 | mcp/ | 25 文件/4.6K 行（含 config_trust 红线） | ⬜ |
+| M26 | mcp/ | 25 文件/4.6K 行（含 config_trust 红线） | ✅ 2026-11-12 |
 | M27 | bootstrap/ | 16 文件/2.8K 行 | ⬜ |
 
 ### 阶段 5 — 工具/入口（W8）
@@ -671,3 +671,18 @@
 - **门禁**：`go build ./...`、`go vet ./acp/... ./server/...` 全绿；`golangci-lint run ./acp/... ./server/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；协议面 `go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `acp`、`server`、`cmd/mady` 及下游消费方 `desktop` 子模块 **全绿**
 - **指标重扫**（`python3 scripts/scan_go_smells.py acp server`，32 文件）：裸 fmt **1 → 0** / 忽略 err 0 / 静默吞错 32（全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 0
 - **提交**：`1c4746d2`（refactor）、`ad83ad3d`（docs + changelog，INDEX total=505）
+
+### M26（2026-11-12）mcp/ 协议客户端（含 config_trust 红线）✅
+
+- **审阅范围**：`mcp/` 全部 **25 个非测试 `.go` 文件**（doc/events/capabilities/client/client_jsonrpc/client_readloop/client_reconnect/config_discovery/config_discovery_owner_unix/config_discovery_owner_windows/config_trust/discovery/discovery_client/discovery_state/discovery_types/http/http_jsonrpc/http_session/http_sse/install/process_unix/process_windows/runtime_internal/stdio_extension/tools_refresh），共 25 文件约 4.6K 行。与敏感路径权威源零重叠
+- **红线处置**：`config_trust.go`（C7 信任验证红线）安全逻辑零行为变更——仅为 4 处 fail-closed 分支补内联意图注释；MCP 协议结构（JSON-RPC 帧、SSE 事件格式、`inputSchema`）零改动
+- **基线**（`scan_go_smells.py mcp`，25 文件）：裸 fmt **0** / 忽略 err **3** / 静默吞错 **18** / TODO **0** / 未注释导出 **0** / >120 行函数 **2**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：① `mcp/client_reconnect.go` `tryReconnect` 154 行（已有 `nolint:gocognit`）；② `mcp/config_discovery.go` `DiscoverMCPExtensions` 152 行（已有 `nolint:gocognit`，含 C7 信任验证循环）
+  - P2 一致性（本卡精炼）：`config_trust.go` 4 处 fail-closed 分支（`filepath.Abs`/`loadTrustStore`/`fileSHA256` 失败时 `return false`）缺少内联意图注释，函数级文档已说明 fail-closed，但安全关键代码逐点显式注释更清晰
+  - P3 风格（误报不改）：① 忽略 err 3 处全为 `_ = stderr.Close()`/`_ = oldStderr.Close()`——变量名含 "err" 触发扫描器正则，实为管道清理关闭，错误无意义可丢弃；② 静默吞错 18 处全为误报：`client_jsonrpc.go` 重试路径、`client_reconnect.go` `emitReconnectEvent` 上报后 return false、`config_trust.go:46` `os.IsNotExist` 嵌套 if、`http.go` `cancelServerStream` best-effort 清理、`http_session.go` `sleepContext` context 取消、`install.go` `os.UserHomeDir`/`os.IsNotExist` 正常处理
+- **精炼**（无行为变化）：**1 文件**——`mcp/config_trust.go` 为 4 处 fail-closed 分支补 `// fail-closed: ...` 内联注释（无法解析绝对路径/信任存储损坏/无法计算哈希 → 视为不可信）
+- **门禁**：`go build ./...`、`go vet ./mcp/...` 全绿；`golangci-lint run ./mcp/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./...` 仅 `knowledge/sqlite TestSearchLaws` 预存环境性失败（M20 已确认，与本卡无关）；定向 `go test -race` 覆盖 `mcp`、`server`、`bootstrap`、`cmd/mady` 及下游消费方 `desktop` 子模块 **全绿**
+- **指标重扫**（`python3 scripts/scan_go_smells.py mcp`，25 文件）：裸 fmt 0 / 忽略 err 3（全误报）/ 静默吞错 **18 → 14**（剩余全误报）/ TODO 0 / 未注释导出 0 / >120 行函数 2（登记待拆）
+- **提交**：refactor 1 个 + docs/changelog 1 个
