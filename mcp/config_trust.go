@@ -107,11 +107,11 @@ func isConfigTrusted(path, madyHome string) bool {
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return false
+		return false // fail-closed: 无法解析绝对路径则视为不可信
 	}
 	store, err := loadTrustStore(madyHome)
 	if err != nil {
-		return false
+		return false // fail-closed: 信任存储损坏则视为不可信
 	}
 	want, ok := store.Configs[abs]
 	if !ok {
@@ -119,7 +119,7 @@ func isConfigTrusted(path, madyHome string) bool {
 	}
 	got, err := fileSHA256(abs)
 	if err != nil {
-		return false
+		return false // fail-closed: 无法计算哈希则视为不可信
 	}
 	return got == want
 }
@@ -154,7 +154,7 @@ func verifyConfigHash(path string) bool {
 	}
 	current, err := fileSHA256(path)
 	if err != nil {
-		return false
+		return false // fail-closed: 无法计算哈希则视为不可信
 	}
 	return current == cached.(string)
 }
