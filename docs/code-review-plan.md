@@ -805,4 +805,4 @@
 - **精炼**（无行为变化）：**7 文件**——22 处导出符号补 godoc + 6 处 graceful fallback 补意图注释（component/statusbar、component/image、component/autocomplete、chat/events、chat/chat_builder、chat/chat_app_tool、agentadapter/adapter）
 - **门禁**：`cd tui && go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test -race -count=1 ./component/... ./chat/... ./agentadapter/...` 中 agentadapter 全绿，component/ 与 chat/ 渲染测试存在**预存失败**（Unicode 框线字符 `─╭╮╰╯═║█░` 宽度计算为 2 而非 1，stash 后复现，与本卡纯注释改动无关）
 - **指标重扫**（73 文件）：裸 fmt 1（误报）/ 忽略 err 0 / 静默吞错 **6 → 0** / TODO 0 / 未注释导出 **22 → 0** / >120 行函数 5（登记待拆）
-- **提交**：TBD（refactor）、TBD（docs + changelog）
+- **提交**：8e6ac928（refactor）、09e1efe2（docs + changelog）
