@@ -820,4 +820,4 @@
 - **精炼**（无行为变化）：**7 文件**——23 处 graceful fallback 补意图注释（tabs、app_settings、app、app_skills、knowledge、window_state、templates）
 - **门禁**：`cd desktop && go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test -race -count=1 ./...` 全绿
 - **指标重扫**（22 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **22 → 0** / TODO 0 / 未注释导出 0 / >120 行函数 0
-- **提交**：TBD（refactor）、TBD（docs + changelog）
+- **提交**：21615cd5（refactor）、6450a201（docs + changelog）
