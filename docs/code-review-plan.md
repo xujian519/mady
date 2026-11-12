@@ -745,4 +745,4 @@
 - **精炼**（无行为变化）：**17 文件**——5 文件补 17 处导出符号 godoc 注释（ocr/execute_code/git/supervisor_registry/supervisor_dialogs）；12 文件补 19 处静默吞错意图注释（delete/execute_code_ptc/find/glob/grep/ocr/path/read/view/edit/patent_search/web_fetch/web_search）
 - **门禁**：`go build ./...`、`go vet ./tools/...` 全绿；`golangci-lint run ./tools/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./tools/...` 全绿；`go test -race -count=1 ./tools/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py tools`，90 文件）：裸 fmt 0 / 忽略 err 8（全误报）/ 静默吞错 **50 → 31**（M30 范围 33→14，剩余 14 处全误报）/ TODO 0 / 未注释导出 **17 → 0** / >120 行函数 7（登记待拆）
-- **提交**：TBD（refactor）、TBD（docs + changelog）
+- **提交**：`1d919a8a`（refactor）、`3268b07c`（docs + changelog，INDEX total=510）
