@@ -114,7 +114,7 @@
 | 卡 | 模块 | 规模/热点 | 状态 |
 | --- | --- | --- | --- |
 | M28 | tools/ browser_* + browserproviders | 85 文件/18.8K 行拆 3 卡 | ✅ 2026-11-12 |
-| M29 | tools/ desktop + computer_use* | 同上 | ⬜ |
+| M29 | tools/ desktop + computer_use* | 同上 | ✅ 2026-11-12 |
 | M30 | tools/ 内置工具族 + tools.go 注册 | 同上 | ⬜ |
 | M31 | cmd/mady/ | 42 文件/7.7K 行 | ⬜ |
 
@@ -716,3 +716,18 @@
 - **门禁**：`go build ./...`、`go vet ./tools/...` 全绿；`golangci-lint run ./tools/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./tools/...` 全绿；`go test -race -count=1 ./tools/...` 全绿
 - **指标重扫**（`python3 scripts/scan_go_smells.py tools`，90 文件）：裸 fmt 0 / 忽略 err 8 / 静默吞错 53（全误报）/ TODO 0 / 未注释导出 **74 → 17**（剩余 17 处属 M29/M30 范围：desktop/computer_use/内置工具）/ >120 行函数 7（登记待拆）
 - **提交**：`8500da76`（refactor）、`bec7157c`（docs + changelog，INDEX total=508）
+
+### M29（2026-11-12）tools/ desktop + computer_use* ✅
+
+- **审阅范围**：`tools/desktop/` 包 **13 个非测试 `.go` 文件**（computer_use.go / computer_use_macos.go / computer_use_win.go / computer_use_lin.go / computer_use_cua.go / computer_use_cua_driver.go / computer_use_exec.go / computer_use_keys.go / computer_use_safety.go / computer_use_som.go / mcp_client.go / util.go / doc.go，约 3.1K 行）。属 tools/ 三卡拆分第 2 卡。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——computer_use 为内部桌面自动化执行层，仅做意图注释治理，零行为变更
+- **基线**（`scan_go_smells.py tools/desktop`，13 文件）：裸 fmt **0** / 忽略 err **0** / 静默吞错 **3** / TODO **0** / 未注释导出 **0** / >120 行函数 **1**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：1 个 >120 行函数（`cuaDriverCapture` 已有 `//nolint:gocognit`），登记待拆
+  - P2 一致性（本卡精炼）：**3 处静默吞错缺意图注释**——① `computer_use_win.go:153` UIA 树解析失败回退普通截图；② `computer_use_win.go:162` SOM 叠加渲染失败回退普通截图；③ `computer_use_som.go:209` 图片解码失败返回原始数据
+  - P3 风格（误报不改）：desktop 包内 `os.Remove`、`osaKeyImpl`、`xdoKey` 等 best-effort 清理/按键路径均已有 `//nolint:gosec` 注释，本卡前的 `_ =` 吞错（窗口边界查询、光标位置、活动窗口名）也已在本卡补齐注释
+- **精炼**（无行为变化）：**3 文件**——为 3 处 fallback 降级补意图注释，为 6 处 best-effort `_ =` 吞错补 `//nolint:gosec // G104: ...` 注释（`computer_use_lin.go` 窗口边界/光标/活动窗口查询、`computer_use_macos.go` 最前台应用名查询）
+- **门禁**：`go build ./...`、`go vet ./tools/desktop/...` 全绿；`golangci-lint run ./tools/desktop/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test ./tools/desktop/...` 全绿；`go test -race -count=1 ./tools/desktop/...` 全绿
+- **指标重扫**（`python3 scripts/scan_go_smells.py tools/desktop`，13 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **3 → 0** / TODO 0 / 未注释导出 0 / >120 行函数 1（登记待拆）
+- **提交**：`TBD`（refactor）、`TBD`（docs + changelog）
