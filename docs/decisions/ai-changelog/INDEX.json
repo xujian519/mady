@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-13T17:20:00+08:00",
-  "total": 520,
+  "updated": "2026-11-13T17:40:00+08:00",
+  "total": 521,
   "entries": [
+    {
+      "date": "2026-11-13",
+      "type": "refactor",
+      "scope": "cmd",
+      "title": "M37-5 cmd 入口层吞错专项：补 43 处意图注释",
+      "file": "2026-11-13.md",
+      "line": 114
+    },
     {
       "date": "2026-11-13",
       "type": "refactor",

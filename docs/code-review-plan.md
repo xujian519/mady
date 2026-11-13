@@ -136,7 +136,7 @@
 | M37-2 | a2a/ + a2ui/ + acp/ 吞错专项 | 58 处（协议面，只加注释） | ✅ 2026-11-13 |
 | M37-3 | agentcore/ + doomloop/ + provider/ + prompt/ | 34 处 | ✅ 2026-11-13 |
 | M37-4 | tools/ + mcp/ + server/ + skill/ | 61 处 | ✅ 2026-11-13 |
-| M37-5 | cmd/ 吞错专项 | 43 处 | ⬜ |
+| M37-5 | cmd/ 吞错专项 | 43 处 | ✅ 2026-11-13 |
 | M37-6 | example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ | 50 处 | ⬜ |
 | M38 | tui/ 宽字符渲染口径 fix（预存失败收口） | 独立 fix 卡 | ⬜ |
 
@@ -915,3 +915,19 @@
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./tools/... ./mcp/... ./server/... ./skill/...` **0 issues**；`go test -race -count=1` 四组包全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）；全仓 `go test -race -count=1 ./...` 唯一失败仍为 `knowledge/sqlite` 的 `TestSearchLaws`（预存环境依赖，与本卡无关）
 - **指标重扫**（tools/mcp/server/skill）：静默吞错 **61 → 0**
 - **提交**：e3944f79（refactor）、26d84981（docs + changelog）
+
+### M37-5（2026-11-13）cmd/ 吞错专项 ✅
+
+- **审阅范围**：`cmd/mady/` 与 `cmd/mady/subcmd/` 共 **43 处** 站点、13 个文件
+- **判定结果**：(a) 有意降级 **43 处**；(b) 疑似漏错 **0 处**
+  - **TUI 交互失败提示**（24 处）：`plantask_slash.go`（6）、`session_panel.go`（3）、`settings_panel.go`（1）、`tui_session_commands.go`（4）、`tui_session_provider.go`（3）、`tui_session_slash.go`（3）、`tui_session_inspect.go`（3）、`knowledge_command.go`（1）——错误已在界面展示，命令返回后 REPL 继续
+  - **CLI 子命令错误出口**（8 处）：`subcmd/evidence.go` 读输入 / JSON 解析 / 判定失败统一写 stderr 并返回退出码 1（CLI 契约）
+  - **启动期存储探测降级**（4 处）：`tui_storage.go` 会话目录、设置目录/文件、审批库目录不可用时置 `Unavailable` 并给出用户提示，降级为仅内存模式而非启动失败
+  - **可选后台能力降级**（3 处）：`tui_session_storage.go` 事件库不可用 / 事件日志订阅失败 / 待审批恢复失败，记日志后跳过
+  - **日志重定向降级**（2 处）：`tui.go` 日志目录或文件不可用时放弃 stderr 重定向
+  - **参数校验**（2 处）：`tui_helpers.go` 非法数值/布尔值返回带入参回显的参数错误
+- **发现分级**：P0 0 项；P2 0 项
+- **精炼**（无行为变化）：**13 文件 / 43 处注释**（`git diff --stat` 43 insertions、0 deletions，新增行全为 `//`）
+- **门禁**：`go build ./... && go vet ./cmd/...` 全绿；`golangci-lint run ./cmd/...` **0 issues**；`go test -race -count=1 ./cmd/...` 全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
+- **指标重扫**（cmd）：静默吞错 **43 → 0**
+- **提交**：PENDING（refactor）、PENDING（docs + changelog）
