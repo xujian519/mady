@@ -137,7 +137,7 @@
 | M37-3 | agentcore/ + doomloop/ + provider/ + prompt/ | 34 处 | ✅ 2026-11-13 |
 | M37-4 | tools/ + mcp/ + server/ + skill/ | 61 处 | ✅ 2026-11-13 |
 | M37-5 | cmd/ 吞错专项 | 43 处 | ✅ 2026-11-13 |
-| M37-6 | example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ | 50 处 | ⬜ |
+| M37-6 | example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ | 50 处 | ✅ 2026-11-13 |
 | M38 | tui/ 宽字符渲染口径 fix（预存失败收口） | 独立 fix 卡 | ⬜ |
 
 > M37 系列统一口径（保守档）：只允许在错误分支内插入**意图注释**，零行为变更。逐处先判定两类——
@@ -931,3 +931,20 @@
 - **门禁**：`go build ./... && go vet ./cmd/...` 全绿；`golangci-lint run ./cmd/...` **0 issues**；`go test -race -count=1 ./cmd/...` 全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **指标重扫**（cmd）：静默吞错 **43 → 0**
 - **提交**：87d6e23b（refactor）、5f918662（docs + changelog）
+
+### M37-6（2026-11-13）example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ 吞错专项 ✅
+
+- **审阅范围**：七组目录共 **50 处** 站点、26 个文件（example 13 / bootstrap 9 / knowledge 12 / pkg 10 / session 3 / retrieval 2 / scripts 1）
+- **判定结果**：(a) 有意降级 **50 处**；(b) 疑似漏错 **0 处**
+  - **示例程序错误出口**（13 处）：`a2a-client/main.go`（3）、`cli-chat/main.go`（9）、`tui-demo/main.go`（1）——打印到 stderr 或界面提示后退出/返回
+  - **启动组装降级**（9 处）：`agentconfig/load.go` 配置缺失返空配置、`init_knowledge.go` wiki/SQLite 失败返空组件、`init_reasoning.go` 溯源与 workflow 目录失败仅告警、`setup.go` 读文件失败返空串、`setup_assembly.go` S2 索引/user.db/YAML 失败降级
+  - **知识层缺失与格式降级**（12 处）：`reader_pdf.go` 三处返回带 warning/error 的空结果、`fileindex/extension.go` 以工具结果回传错误文本、`patenttools`/`graph` 参数解析失败返结构化失败结果、`eval_consumer.go` 持久化失败丢弃本次结果、`legal/extension.go` 记录 `openErr`、`laws.go` 计数失败返 0、`ipc-standards.go` 记包级错误
+  - **外部依赖探测与配置解析降级**（10 处）：`ocr.go` 五处记录 `loadErr`、`omlx/manager.go` 返回带安装指引的 `HealthError`、`lawcite` 两处索引/解析兜底、`hostlimit.go` URL 解析失败不限速、`sandbox_config.go` YAML 失败用空白名单
+  - **会话存储 not-exist 归一**（3 处）：`session_store_filestore.go` 两处 `os.ErrNotExist` 归一、回收站目录缺失返空列表
+  - **响应解析与脚本兜底**（2 处）：`literature/client.go` 非 JSON 响应返明确错误、`cnipr/script.go` 序列化失败回退 `"null"`
+  - **扫描器单文件跳过**（1 处）：`scripts/rulescan/main.go` 解析失败写 stderr 后继续
+- **发现分级**：P0 0 项；P2 0 项
+- **精炼**（无行为变化）：**26 文件 / 50 处注释**（`git diff --stat` 50 insertions、0 deletions，新增行全为 `//`）
+- **门禁**：`go build ./... && go vet <七组目录>` 全绿；`golangci-lint run <七组目录>` **0 issues**；`go test -race -count=1` 相关包全绿（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
+- **指标重扫**（七组目录）：静默吞错 **50 → 0**
+- **提交**：PENDING（refactor）、PENDING（docs + changelog）

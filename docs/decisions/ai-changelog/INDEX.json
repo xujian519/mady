@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-13T17:40:00+08:00",
-  "total": 521,
+  "updated": "2026-11-13T18:05:00+08:00",
+  "total": 522,
   "entries": [
+    {
+      "date": "2026-11-13",
+      "type": "refactor",
+      "scope": "knowledge",
+      "title": "M37-6 周边目录吞错专项：补 50 处意图注释",
+      "file": "2026-11-13.md",
+      "line": 136
+    },
     {
       "date": "2026-11-13",
       "type": "refactor",
