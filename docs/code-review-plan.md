@@ -882,4 +882,4 @@
 - **精炼**（无行为变化）：**13 文件 / 58 处注释**，`git diff --stat` 为 59 insertions、0 deletions（多出的 1 行为同一分支内新增的第二条注释），新增行全为 `//`
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./a2a/... ./a2ui/... ./acp/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）；协议面按计划跑全量 `go test -race -count=1 ./...`，唯一失败为 `knowledge/sqlite` 的 `TestSearchLaws`——依赖本机未安装的 `~/.mady/knowledge/laws-full.db`（`-short` 模式跳过并全绿），属预存环境依赖，与本卡无关
 - **指标重扫**（56 文件）：静默吞错 **58 → 0**；裸 fmt 0 / 忽略 err 0 / TODO 0 / 未注释导出 0 / >120 行函数 0
-- **提交**：（待回填）
+- **提交**：058cf837（refactor）、d3062231（docs + changelog）
