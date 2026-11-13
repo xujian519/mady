@@ -1,15 +1,15 @@
 {
   "version": 1,
-  "updated": "2026-11-13T21:10:00+08:00",
-  "total": 526,
+  "updated": "2026-11-13T18:16:18+08:00",
+  "total": 527,
   "entries": [
     {
       "date": "2026-11-13",
-      "type": "refactor",
+      "type": "fix",
       "scope": "review",
-      "title": "修正扫描器口径并补 BuildProjectAgent 注释",
+      "title": "可疑忽略 error 逐条判定（10 → 0）",
       "file": "2026-11-13.md",
-      "line": 225
+      "line": 246
     },
     {
       "date": "2026-11-13",

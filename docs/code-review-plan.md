@@ -141,6 +141,7 @@
 | M38 | tui/ 宽字符渲染口径 fix（预存失败收口） | 独立 fix 卡 | ✅ 2026-11-13 |
 | M39 | 全仓「被忽略 error」收敛 | 23 处 → 8 | ✅ 2026-11-13 |
 | M40 | P2 收尾：未注释导出补注 + 扫描器口径修正 | 导出 1 → 0；误报清零 | ✅ 2026-11-13 |
+| M41 | 可疑忽略 fix 卡（逐条判定是否传播） | 10 处 → 0 | ✅ 2026-11-13 |
 
 > M37 系列统一口径（保守档）：只允许在错误分支内插入**意图注释**，零行为变更。逐处先判定两类——
 > **(a) 有意降级**（缓存/遥测/可选能力/UI 兜底）→ 补 `// 失败→降级，调用方容忍：<原因>`；
@@ -991,3 +992,22 @@
 - **登记（P2-9）**：10 处真实可疑忽略按风险排序——`server/middleware.go` 的 `rand.Read`、`memory/extension.go` 的 `Remember`/`Deduplicate`、`domains` 三处 `EnsureCaseWorkspace`、`tools`/`domains`/`knowledge` 四处最佳努力解析
 - **门禁**：`gofmt` 干净；`golangci-lint run ./...` 0 issues；`make check-arch doc-check verify-layers debt-check` 通过；tui 仅改动注释，`cd tui && go build ./... && go vet ./...` 通过
 - **提交**：1918c605（refactor）、ef3ae25a（docs + changelog）
+
+### M41（2026-11-13）可疑忽略 fix 卡：10 处逐条判定 ✅
+
+- **范围**：M40 口径修正后暴露的 10 处真实被忽略 error（`python3 scripts/scan_go_smells.py` 可复现）
+- **逐条判定与处置**：
+  - **应传播但无传播通道 → 改为告警**（6 处）：
+    - `memory/extension.go` 两处（`Deduplicate` / `Remember`）：`OnSessionClose` 的汇总 goroutine 无调用方可接收错误，单条事实写入失败不应中断其余事实；改为逐条 `slog.Warn`，长期记忆丢失不再静默
+    - `domains/case_ext_register.go`、`domains/case_ext_sync.go`（2 处）共 3 处 `EnsureCaseWorkspace`：案件记录已落库/文档已记录，工作区目录创建失败不应回滚整次操作；改为 `slog.Warn` 并保留后续流程
+  - **不可传播（库语义保证）→ 补注豁免**（1 处）：`server/middleware.go` 的 `rand.Read`——Go 1.24+ 起 `crypto/rand.Read` 保证填满且不返回错误，失败时直接 panic，加 `// scan-ignore: ignored_err` 说明
+  - **最佳努力解析 → 消解忽略**（2 处）：
+    - `tools/browser_lightpanda.go`、`domains/claimchart/tool.go` 的 `fmt.Sscanf` 改 `strconv.Atoi` 并显式处理失败（正则已保证纯数字，失败按 0/未知处理）
+  - **最佳努力清理 → 补注豁免**（2 处）：
+    - `tools/browser_agent_browser.go` 的会话 close（daemon 可能已退出）
+    - `knowledge/fileindex/reader_spreadsheet.go` 的 BOM `Discard`（已 Peek 确认字节在缓冲区）
+- **发现分级**：P0 0 项；P2 1 项（`rand.Read` 在当前 Go 版本下无法失败，原「失败即拒绝请求」的建议不成立，按语义豁免）
+- **行为变化**：仅新增 `slog.Warn` 观测点（内存汇总失败、案件工作区创建失败），无错误返回、无控制流变化；`strconv.Atoi` 与 `Sscanf` 在纯数字输入下等价
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race -count=1 ./server/... ./memory/... ./domains/... ./tools/... ./knowledge/...` 全绿（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db` 符号链接目标）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
+- **指标重扫**（1050 文件）：被忽略 error **10 → 0**；吞错 1、未注释导出 0、TODO 3、裸 fmt 65、长函数 34 不变
+- **提交**：<代码哈希待回填>（fix）、<docs 待回填>（docs + changelog）
