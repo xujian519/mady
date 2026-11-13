@@ -481,6 +481,8 @@ func projectAgentPolicy() permission.Policy {
 	return policy
 }
 
+// BuildProjectAgent 基于案件记录与基础配置构造该案件的 agent 配置：
+// 注入案件上下文 System Prompt，并按案件根目录设置权限门控。
 func BuildProjectAgent(rec ProjectRecord, base agentcore.Config, toolExt agentcore.Extension) agentcore.Config {
 	cfg := base
 	cfg.Name = fmt.Sprintf("patent-agent-%s", rec.ProjectID)

@@ -82,7 +82,7 @@ func copyOSC52(text string) error {
 
 	// Write the OSC 52 sequence to stdout
 	osc := fmt.Sprintf("\x1b]52;c;%s\x07", encoded)
-	_, err := fmt.Print(osc)
+	_, err := fmt.Print(osc) // scan-ignore: bare_fmt — OSC 52 剪贴板协议要求裸写转义序列，非调试残留
 	return err
 }
 

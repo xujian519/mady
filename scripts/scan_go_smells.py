@@ -14,7 +14,8 @@
   - 静默吞错无意图注释（`if err != nil { return ... }` / `if err := f(); err != nil { ... }`
     且错误分支 return 前无注释——Go 无 catch，对应 TS 侧「无参 catch 缺注释」，
     见日卡审阅清单 #3；块扫描为花括号近似，嵌套块可能漏判）
-  - TODO/FIXME/HACK/XXX 标注（独立注释行 + 行尾注释都计；逐条核实业务语义，见清单 #9）
+  - TODO/FIXME/HACK/XXX 标注（仅识别标准标注形态 `TODO:` / `TODO(owner)` / `TODO!`，
+    行尾注释也计；`TODO panel` 这类名词短语不计，逐条核实业务语义，见清单 #9）
   - 未注释导出符号（导出函数/类型/变量缺 `// SymbolName 中文描述。`，GO-STANDARDS §0.1#8；
     仅报告计数，供后续人工按清单 #7 核查）
   - 超长单函数（启发式：>120 行的函数体，GO-STANDARDS §0.2 过度工程化、日卡清单 #5；
@@ -56,10 +57,40 @@ EXCLUDE_DIR_PARTS = ("vendor", "node_modules", ".git", "third_party")
 
 # 启发式正则（跨行用 re.MULTILINE 处理）。
 _BARE_FMT_RE = re.compile(r"\bfmt\.(Print|Println|Printf|Fprint|Fprintln)\(")
-# 被忽略的 error：只匹配显式丢弃错误值的赋值（_ = expr 或多值返回中的 err 被 _ 接收）
-_IGNORED_ERR_RE = re.compile(r"^\s*_ = [^\n]*(err|Err)|,\s*_\s*:?=.*\b(err|Err)\b")
+# 被忽略的 error：只匹配显式丢弃错误值的赋值（_ = expr 或多值返回中的 err 被 _ 接收）。
+# 判定依据是「RHS 出现 error 标识符」或「全部返回值都被丢弃的调用」，
+# 不用裸 `err` 子串——`stderr` 这类标识符与行尾注释里的 error 会假阳性。
+_IGNORED_ERR_RE = re.compile(
+    r"^\s*_\s*=\s*.*(?:\berr\b|\bErr\w*|[A-Za-z_]\w*Err\b)"  # _ = <expr 含 err 标识符>
+    r"|^\s*_,\s*_\s*=\s*\w[\w.]*\([^)]*\)\s*$"              # _, _ = f(...)：返回值全部丢弃
+    r"|,\s*_\s*:?=.*(?:\berr\b|\bErr\w*|[A-Za-z_]\w*Err\b)"  # v, _ := f() 且 RHS 含 err
+)
+# 标准标注形态：TODO: / TODO(owner) / TODO! / FIXME: 等；「TODO panel」这类名词短语不计。
+_FIXME_RE = re.compile(r"\b(TODO|FIXME|HACK|XXX)\s*[:(！!]")
+# 已知可接受的多值丢弃：输出到 CLI/终端、排空响应体、写终端控制序列。
+# 这些调用失败时调用方无从补救（进程即将退出 / 连接即将关闭），不计入可疑存量，
+# 但仍要求所在行有说明（M37/M39 已逐处补注）。
+_IGNORED_ERR_EXEMPT_RE = re.compile(
+    r"^\s*_,\s*_\s*=\s*(?:"
+    r"fmt\.Fprint(?:f|ln)?\("
+    r"|io\.Copy\([^)]*io\.Discard"
+    r"|[\w.]+\.WriteString\("
+    r")"
+)
+
+
+def _count_ignored_err(code: str) -> int:
+    """统计一行代码中可疑的被忽略 error（剔除已知可接受的输出/排空写法）。"""
+    if _IGNORED_ERR_EXEMPT_RE.match(code):
+        return 0
+    return len(_IGNORED_ERR_RE.findall(code))
+
+
+# 行内豁免：`// scan-ignore: bare_fmt, ignored_err` 声明该行某项指标为已核实例外，
+# 必须同行写明原因（如 OSC 52 转义写终端），供后续审阅复核。
+_SCAN_IGNORE_RE = re.compile(r"//[^\n]*scan-ignore:\s*([a-z_,\s]+)")
+_SCAN_IGNORE_METRICS = ("bare_fmt", "ignored_err", "fixme")
 _SILENT_RETURN_RE = re.compile(r"^\s*if (?:\w+\s*:=\s*[^;]+;\s*)?err != nil\s*\{\s*$")
-_FIXME_RE = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b")
 _LONG_FUNC_OPEN_RE = re.compile(r"^func(?:\s*\([^)]*\))?\s+\w+\s*\(")
 
 
@@ -103,6 +134,19 @@ def _is_exported_func(line: str) -> bool:
     return bool(re.match(r"[A-Z]\w*", rest))
 
 
+def _parse_scan_ignore(line: str) -> set[str]:
+    """解析行内 `// scan-ignore: metric[, metric]` 豁免声明。
+
+    只接受 _SCAN_IGNORE_METRICS 中列出的指标名，未知名称忽略（防止拼写错误
+    静默放行全部指标）。
+    """
+    m = _SCAN_IGNORE_RE.search(line)
+    if not m:
+        return set()
+    names = {n.strip() for n in m.group(1).split(",") if n.strip()}
+    return names & set(_SCAN_IGNORE_METRICS)
+
+
 def analyze_file(path: str) -> dict:
     """对单个 Go 源文件做启发式气味统计。"""
     stats = {
@@ -132,14 +176,18 @@ def analyze_file(path: str) -> dict:
         # --- 全局统计（逐行）---
         stripped = line.lstrip()
         if not (stripped.startswith("//") or stripped.startswith("*")):
-            if not is_main_pkg:
-                stats["bare_fmt"] += len(_BARE_FMT_RE.findall(line))
-            stats["ignored_err"] += len(_IGNORED_ERR_RE.findall(line))
+            # 代码部分：去掉行尾注释再判定，避免注释里的 err/error 影响计数。
+            code = re.sub(r"\s//.*$", "", line)
+            ignored = _parse_scan_ignore(line)
+            if not is_main_pkg and "bare_fmt" not in ignored:
+                stats["bare_fmt"] += len(_BARE_FMT_RE.findall(code))
+            if "ignored_err" not in ignored:
+                stats["ignored_err"] += _count_ignored_err(code)
 
         # TODO/FIXME/HACK/XXX 的核实对象是注释（清单 #9）：独立注释行与行尾注释都计，
         # 代码字符串中的 TODO 字样不算（如 tui 的 todo_panel 组件名、XXXX 年份）。
         comment = line.split("//", 1)
-        if len(comment) == 2:
+        if len(comment) == 2 and "fixme" not in _parse_scan_ignore(line):
             stats["fixme"] += len(_FIXME_RE.findall(comment[1]))
 
         # 静默吞错：if err != nil { ... return 值 } 且错误分支无注释。
