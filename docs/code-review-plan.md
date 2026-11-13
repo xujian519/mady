@@ -947,4 +947,4 @@
 - **精炼**（无行为变化）：**26 文件 / 50 处注释**（`git diff --stat` 50 insertions、0 deletions，新增行全为 `//`）
 - **门禁**：`go build ./... && go vet <七组目录>` 全绿；`golangci-lint run <七组目录>` **0 issues**；`go test -race -count=1` 相关包全绿（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **指标重扫**（七组目录）：静默吞错 **50 → 0**
-- **提交**：PENDING（refactor）、PENDING（docs + changelog）
+- **提交**：a893c409（refactor）、ad20d721（docs + changelog）
