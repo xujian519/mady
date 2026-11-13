@@ -18,6 +18,7 @@ func (s *Server) handlePrompt(ctx context.Context, req *JSONRPCRequest) {
 	}
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
+			// 参数解析失败→回写 Invalid params 错误帧，不进入 prompt 下发。
 			s.writeError(req.ID, -32602, "Invalid params", err.Error())
 			return
 		}
@@ -131,6 +132,7 @@ func (s *Server) handleCancel(req *JSONRPCRequest) {
 	var params CancelParams
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
+			// 参数解析失败→回写 Invalid params 错误帧，取消请求按无效处理。
 			s.writeError(req.ID, -32602, "Invalid params", err.Error())
 			return
 		}
@@ -154,6 +156,7 @@ func (s *Server) sessionUpdateStep(req *JSONRPCRequest, label string,
 ) {
 	sessionID, value, err := unmarshalFn(req.Params)
 	if err != nil {
+		// 参数解析失败→回写 Invalid params 错误帧，不进入属性更新三步流程。
 		s.writeError(req.ID, -32602, "Invalid params", err.Error())
 		return
 	}
@@ -164,6 +167,7 @@ func (s *Server) sessionUpdateStep(req *JSONRPCRequest, label string,
 	}
 
 	if err := updateFn(sessionID, value); err != nil {
+		// 属性写入失败→回写 -32003 错误帧并中止重建，历史状态保持不变。
 		s.writeError(req.ID, -32003, fmt.Sprintf("Update %s failed", label), err.Error())
 		return
 	}

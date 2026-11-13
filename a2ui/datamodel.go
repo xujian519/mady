@@ -172,6 +172,7 @@ func arrayIndex(tok string, length int) (idx int, isAppend bool, err error) {
 	}
 	i, err := strconv.Atoi(tok)
 	if err != nil {
+		// 非整数字符串→包装为「非法数组下标」错误上抛，由调用方决定是否降级。
 		return 0, false, fmt.Errorf("a2ui: invalid array index %q", tok)
 	}
 	return i, false, nil

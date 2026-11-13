@@ -161,6 +161,7 @@ func matchID(got any, want int64) bool {
 	case json.Number:
 		n, err := v.Int64()
 		if err != nil {
+			// 数值不可解析→返回 false（视为不匹配），由调用方按「响应与请求不对应」处理。
 			return false
 		}
 		return n == want

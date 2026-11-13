@@ -201,6 +201,7 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 			err := wc.conn.WriteMessage(websocket.TextMessage, []byte(": heartbeat\n\n"))
 			wc.mu.Unlock()
 			if err != nil {
+				// 心跳写失败→退出推送循环，连接状态由读循环收敛。
 				return
 			}
 		case ev, ok := <-ch:
@@ -208,6 +209,7 @@ func (s *Server) handleWSSubscribe(ctx context.Context, wc *wsConn, req JSONRPCR
 				return
 			}
 			if err := wc.writeJSON(ev); err != nil {
+				// 事件写失败（客户端断开）→主动关闭连接并结束推送。
 				_ = wc.close()
 				return
 			}

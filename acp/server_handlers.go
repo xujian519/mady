@@ -60,6 +60,7 @@ func (s *Server) handleInitialize(req *JSONRPCRequest) {
 	var params InitializeParams
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
+			// 参数解析失败→回写 Invalid params 错误帧，协议面不返回 Go error。
 			s.writeError(req.ID, -32602, "Invalid params", err.Error())
 			return
 		}
@@ -72,6 +73,7 @@ func (s *Server) handleInitialize(req *JSONRPCRequest) {
 	// Validate client capabilities against server-configured allowlist.
 	// Unrecognized or unapproved capabilities are rejected (fail-closed).
 	if err := s.validateClientCapabilities(params.ClientCapabilities); err != nil {
+		// 能力不在服务端白名单→fail-closed 回写 Invalid params 错误帧并终止 initialize。
 		s.writeError(req.ID, -32602, "Client capabilities rejected", err.Error())
 		return
 	}
@@ -101,6 +103,7 @@ func (s *Server) handleAuthenticate(ctx context.Context, req *JSONRPCRequest) {
 	var params AuthenticateParams
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
+			// 参数解析失败→回写 Invalid params 错误帧，协议面不返回 Go error。
 			s.writeError(req.ID, -32602, "Invalid params", err.Error())
 			return
 		}
@@ -114,6 +117,7 @@ func (s *Server) handleAuthenticate(ctx context.Context, req *JSONRPCRequest) {
 	}
 	result, err := s.authProv.Authenticate(ctx, params)
 	if err != nil {
+		// 认证失败→回写 Authentication failed 错误帧，认证门禁保持关闭。
 		s.writeError(req.ID, -32001, "Authentication failed", err.Error())
 		return
 	}

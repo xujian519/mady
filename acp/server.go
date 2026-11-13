@@ -147,6 +147,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 		line, err := s.reader.ReadBytes('\n')
 		if err != nil {
+			// 读到 EOF→视为客户端正常断开，返回 nil 结束服务循环；其它 IO 错误照常上抛。
 			if err == io.EOF {
 				return nil
 			}

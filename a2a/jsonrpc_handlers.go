@@ -13,6 +13,7 @@ import (
 func (s *Server) handleSendTask(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
+		// 参数解析失败→回写 Invalid params 错误帧，协议面不返回 Go error。
 		writeJSONRPCError(w, req.ID, JSONRPCInvalidParams, err.Error())
 		return
 	}
@@ -21,6 +22,7 @@ func (s *Server) handleSendTask(ctx context.Context, w http.ResponseWriter, req 
 	if len(card.DefaultInputModes) > 0 {
 		requestedModes := ExtractInputModes(params.Message)
 		if err := ValidateInputModes(requestedModes, card.DefaultInputModes); err != nil {
+			// 输入模式不受支持→回写 ContentTypeNotSupported 错误帧并终止本次请求。
 			writeJSONRPCError(w, req.ID, A2AErrorContentTypeNotSupported, err.Error())
 			return
 		}
@@ -28,6 +30,7 @@ func (s *Server) handleSendTask(ctx context.Context, w http.ResponseWriter, req 
 
 	task, err := s.handler.SendTask(ctx, params)
 	if err != nil {
+		// 业务失败→回写 Internal error 错误帧，不向调用栈上抛。
 		writeJSONRPCError(w, req.ID, JSONRPCInternalError, err.Error())
 		return
 	}
@@ -45,6 +48,7 @@ func (s *Server) handleSendTask(ctx context.Context, w http.ResponseWriter, req 
 func (s *Server) handleSendTaskSubscribe(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
 	var params SendTaskRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
+		// 参数解析失败→回写 Invalid params 错误帧，协议面不返回 Go error。
 		writeJSONRPCError(w, req.ID, JSONRPCInvalidParams, err.Error())
 		return
 	}
@@ -53,6 +57,7 @@ func (s *Server) handleSendTaskSubscribe(ctx context.Context, w http.ResponseWri
 	if len(card.DefaultInputModes) > 0 {
 		requestedModes := ExtractInputModes(params.Message)
 		if err := ValidateInputModes(requestedModes, card.DefaultInputModes); err != nil {
+			// 输入模式不受支持→回写 ContentTypeNotSupported 错误帧并终止本次请求。
 			writeJSONRPCError(w, req.ID, A2AErrorContentTypeNotSupported, err.Error())
 			return
 		}
@@ -161,11 +166,13 @@ func handleTaskAction[Req any](s *Server, ctx context.Context, w http.ResponseWr
 ) {
 	var params Req
 	if err := json.Unmarshal(req.Params, &params); err != nil {
+		// 参数解析失败→回写 Invalid params 错误帧，协议面不返回 Go error。
 		writeJSONRPCError(w, req.ID, JSONRPCInvalidParams, err.Error())
 		return
 	}
 	task, err := handler(ctx, params)
 	if err != nil {
+		// 业务失败→按方法自带错误码回写错误帧，不向调用栈上抛。
 		writeJSONRPCError(w, req.ID, errCode, err.Error())
 		return
 	}
@@ -176,12 +183,14 @@ func handleTaskAction[Req any](s *Server, ctx context.Context, w http.ResponseWr
 func (s *Server) handleQueryTasks(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
 	var params QueryTasksRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
+		// 参数解析失败→回写 Invalid params 错误帧，协议面不返回 Go error。
 		writeJSONRPCError(w, req.ID, JSONRPCInvalidParams, err.Error())
 		return
 	}
 
 	result, err := s.handler.QueryTasks(ctx, params)
 	if err != nil {
+		// 查询失败→回写 Internal error 错误帧，不向调用栈上抛。
 		writeJSONRPCError(w, req.ID, JSONRPCInternalError, err.Error())
 		return
 	}
@@ -192,11 +201,13 @@ func (s *Server) handleQueryTasks(ctx context.Context, w http.ResponseWriter, re
 func (s *Server) handleSetPushNotification(ctx context.Context, w http.ResponseWriter, req JSONRPCRequest) {
 	var params SetPushNotificationRequest
 	if err := json.Unmarshal(req.Params, &params); err != nil {
+		// 参数解析失败→回写 Invalid params 错误帧，协议面不返回 Go error。
 		writeJSONRPCError(w, req.ID, JSONRPCInvalidParams, err.Error())
 		return
 	}
 
 	if err := s.handler.SetPushNotification(ctx, params); err != nil {
+		// 推送配置写入失败→回写 Internal error 错误帧，不向调用栈上抛。
 		writeJSONRPCError(w, req.ID, JSONRPCInternalError, err.Error())
 		return
 	}
@@ -209,12 +220,14 @@ func (s *Server) handleGetPushNotification(ctx context.Context, w http.ResponseW
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(req.Params, &params); err != nil {
+		// 参数解析失败→回写 Invalid params 错误帧，协议面不返回 Go error。
 		writeJSONRPCError(w, req.ID, JSONRPCInvalidParams, err.Error())
 		return
 	}
 
 	cfg, err := s.handler.GetPushNotification(ctx, params.ID)
 	if err != nil {
+		// 配置读取失败→回写 Internal error 错误帧，不向调用栈上抛。
 		writeJSONRPCError(w, req.ID, JSONRPCInternalError, err.Error())
 		return
 	}
@@ -228,6 +241,7 @@ func (s *Server) handleResubscribe(ctx context.Context, w http.ResponseWriter, r
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(req.Params, &params); err != nil {
+		// 参数解析失败→回写 Invalid params 错误帧，协议面不返回 Go error。
 		writeJSONRPCError(w, req.ID, JSONRPCInvalidParams, err.Error())
 		return
 	}

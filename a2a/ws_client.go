@@ -224,6 +224,7 @@ func (c *WSConnection) tryReconnect() bool {
 		_ = httpResp.Body.Close()
 	}
 	if err != nil {
+		// 握手失败→返回 false，由调用方按「连接失败」重试或上报。
 		return false
 	}
 

@@ -84,6 +84,7 @@ func (s *TaskStream) readLoop() {
 
 			var update TaskUpdateEvent
 			if err := json.Unmarshal([]byte(ev.Data), &update); err != nil {
+				// 事件解码失败→记入流错误并结束读循环，由 Next() 的调用方上抛。
 				s.mu.Lock()
 				s.err = fmt.Errorf("decode sse event: %w", err)
 				s.mu.Unlock()
@@ -141,17 +142,20 @@ func (s *TaskStream) tryReconnect() bool {
 	rpcReq := JSONRPCRequest{JSONRPC: "2.0", ID: s.client.nextID(), Method: "tasks/resubscribe"}
 	params, marshalErr := json.Marshal(map[string]string{"id": s.taskID})
 	if marshalErr != nil {
+		// 参数序列化失败→返回 false 由调用方按「订阅失败」上报。
 		return false
 	}
 	rpcReq.Params = params
 
 	body, err := json.Marshal(rpcReq)
 	if err != nil {
+		// 请求序列化失败→返回 false，由调用方按「订阅失败」处理。
 		return false
 	}
 
 	httpReq, err := http.NewRequestWithContext(s.cancel, http.MethodPost, s.client.baseURL+"/", bytes.NewReader(body))
 	if err != nil {
+		// 请求构造失败→返回 false，由调用方按「订阅失败」处理。
 		return false
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -163,6 +167,7 @@ func (s *TaskStream) tryReconnect() bool {
 
 	httpResp, err := s.client.httpClient.Do(httpReq)
 	if err != nil {
+		// 传输失败→返回 false，由调用方按「订阅失败」处理（不在此处重试）。
 		return false
 	}
 
@@ -204,6 +209,7 @@ func (d *SSEDecoder) Next() (*SSEEvent, error) {
 	for {
 		line, err := d.r.ReadString('\n')
 		if err != nil {
+			// 已读到数据行却遇到 EOF→按「最后一个事件无结尾空行」补齐返回，不算错误。
 			if err == io.EOF && len(dataLines) > 0 {
 				ev.Data = strings.Join(dataLines, "\n")
 				return &ev, nil

@@ -188,11 +188,13 @@ func DefaultCheckFunc(ctx context.Context, url string) bool {
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url+"/health", nil)
 	if err != nil {
+		// 请求构造失败→视为不存活（fail-safe），由调用方连续失败计数摘除。
 		return false
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		// 连通失败→视为不存活（fail-safe），同上。
 		return false
 	}
 	defer func() { _ = resp.Body.Close() }()

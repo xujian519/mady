@@ -138,6 +138,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	up.CheckOrigin = s.checkWSOrigin
 	conn, err := up.Upgrade(w, r, nil)
 	if err != nil {
+		// 升级失败→记 Error 后结束：握手失败已由 upgrader 回写 HTTP 状态，无帧可发。
 		s.logger.Error("websocket upgrade failed", "error", err)
 		return
 	}
@@ -166,6 +167,7 @@ func (s *Server) wsPingLoop(wc *wsConn) {
 		err := wc.conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second))
 		wc.mu.Unlock()
 		if err != nil {
+			// 心跳写失败→退出保活协程：读超时将触发连接关闭，无需重复上报。
 			return
 		}
 	}
@@ -311,6 +313,7 @@ func (s *Server) wsForwardEvents(ctx context.Context, wc *wsConn, ch chan *TaskU
 			err := wc.conn.WriteMessage(websocket.TextMessage, []byte(": heartbeat\n\n"))
 			wc.mu.Unlock()
 			if err != nil {
+				// 心跳写失败→退出推送循环，连接状态由读循环收敛。
 				return
 			}
 		case ev, ok := <-ch:
@@ -318,6 +321,7 @@ func (s *Server) wsForwardEvents(ctx context.Context, wc *wsConn, ch chan *TaskU
 				return
 			}
 			if err := wc.writeJSON(ev); err != nil {
+				// 事件写失败（客户端断开）→主动关闭连接并结束推送。
 				_ = wc.close()
 				return
 			}

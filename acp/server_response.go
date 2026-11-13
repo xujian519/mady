@@ -19,6 +19,7 @@ func (s *Server) writeResponse(id any, result any) {
 
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
+		// 结果序列化失败→降级为 Internal error 错误帧，保证客户端总能收到响应。
 		s.writeError(id, -32603, "Internal error", err.Error())
 		return
 	}

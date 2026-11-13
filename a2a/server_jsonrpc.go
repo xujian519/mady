@@ -26,6 +26,7 @@ func (s *Server) handleJSONRPC(w http.ResponseWriter, r *http.Request) {
 	lr := io.LimitReader(r.Body, s.maxRequestBody)
 	body, err := io.ReadAll(lr)
 	if err != nil {
+		// 读请求体失败→回写 Parse error 错误帧（连接层错误不外抛给 HTTP 框架）。
 		writeJSONRPCError(w, nil, JSONRPCParseError, err.Error())
 		return
 	}
@@ -39,6 +40,7 @@ func (s *Server) handleJSONRPC(w http.ResponseWriter, r *http.Request) {
 	if trimmed[0] == '[' {
 		var reqs []JSONRPCRequest
 		if err := json.Unmarshal(body, &reqs); err != nil {
+			// 批量请求体不可解析→回写 Parse error 错误帧，不进入批量分发。
 			writeJSONRPCError(w, nil, JSONRPCParseError, err.Error())
 			return
 		}
@@ -48,6 +50,7 @@ func (s *Server) handleJSONRPC(w http.ResponseWriter, r *http.Request) {
 
 	var req JSONRPCRequest
 	if err := json.Unmarshal(body, &req); err != nil {
+		// 单请求体不可解析→回写 Parse error 错误帧，不进入方法分发。
 		writeJSONRPCError(w, nil, JSONRPCParseError, err.Error())
 		return
 	}
@@ -163,6 +166,7 @@ func (s *Server) dispatchJSONRPC(ctx context.Context, w http.ResponseWriter, req
 func (s *Server) writeSSEEvent(w http.ResponseWriter, flusher http.Flusher, ev *TaskUpdateEvent, eventID int) bool {
 	data, err := json.Marshal(ev)
 	if err != nil {
+		// 事件序列化失败→返回 false 让调用方结束流；此时响应头已发出，无法回写错误帧。
 		return false
 	}
 	if eventID > 0 {
@@ -171,6 +175,7 @@ func (s *Server) writeSSEEvent(w http.ResponseWriter, flusher http.Flusher, ev *
 		_, err = fmt.Fprintf(w, "data: %s\n\n", data)
 	}
 	if err != nil {
+		// 写响应失败（多为客户端断开）→返回 false 由调用方停止推送。
 		return false
 	}
 	flusher.Flush()
@@ -180,6 +185,7 @@ func (s *Server) writeSSEEvent(w http.ResponseWriter, flusher http.Flusher, ev *
 func (s *Server) writeSSEComment(w http.ResponseWriter, flusher http.Flusher, comment string) bool {
 	_, err := fmt.Fprintf(w, ": %s\n\n", comment)
 	if err != nil {
+		// 写响应失败（多为客户端断开）→返回 false 由调用方停止推送。
 		return false
 	}
 	flusher.Flush()
