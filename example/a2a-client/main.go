@@ -40,6 +40,7 @@ func main() {
 	fmt.Println("=== Discovering Agent ===")
 	card, err := client.GetAgentCard(ctx)
 	if err != nil {
+		// 拉取 agent card 失败→打印后退出（示例程序无降级路径）。
 		fmt.Fprintf(os.Stderr, "Failed to get agent card: %v\n", err)
 		return
 	}
@@ -52,11 +53,13 @@ func main() {
 
 	if *stream {
 		if err := sendStreaming(ctx, client, taskID, *message); err != nil {
+			// 流式发送失败→打印后退出（示例程序无重试）。
 			fmt.Fprintf(os.Stderr, "Streaming failed: %v\n", err)
 			return
 		}
 	} else {
 		if err := sendSync(ctx, client, taskID, *message); err != nil {
+			// 同步发送失败→打印后退出（示例程序无重试）。
 			fmt.Fprintf(os.Stderr, "Send failed: %v\n", err)
 			return
 		}

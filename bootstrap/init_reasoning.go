@@ -203,6 +203,7 @@ func SetupProvenance(fc *Context) {
 	}
 	prov, err := provenance.NewProvenanceLogger(dir)
 	if err != nil {
+		// provenance 初始化失败→记警告并关闭溯源，不影响推理主流程。
 		slog.Warn("provenance 初始化失败，溯源关闭", "error", err)
 		return
 	}
@@ -224,6 +225,7 @@ func loadWorkflowManifests(madyHome string) {
 	workflowDir := filepath.Join(madyHome, "workflows")
 
 	if err := os.MkdirAll(workflowDir, 0o750); err != nil {
+		// 目录创建失败→记警告并使用内置默认 manifest。
 		slog.Warn("无法创建 workflow manifest 目录，使用内置默认值", "dir", workflowDir, "error", err)
 		return
 	}

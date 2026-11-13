@@ -110,6 +110,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Locate the oMLX binary.
 	path, err := exec.LookPath("omlx")
 	if err != nil {
+		// 二进制缺失→返回带安装指引的 HealthError，由调用方按不可用提示。
 		return &HealthError{
 			msg: "oMLX 未安装（brew install omlx），嵌入式向量搜索不可用",
 		}

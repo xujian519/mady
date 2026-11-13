@@ -19,6 +19,7 @@ func (fr *FileReader) readPDF(ctx context.Context, path string) *FileReadResult 
 	// Check if pdftotext is available.
 	pdftotextPath, err := exec.LookPath("pdftotext")
 	if err != nil {
+		// pdftotext 缺失→返回带 warning 的空结果，由调用方提示安装。
 		return &FileReadResult{
 			Content:    "",
 			Confidence: 0.0,
@@ -34,6 +35,7 @@ func (fr *FileReader) readPDF(ctx context.Context, path string) *FileReadResult 
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		// 提取失败→返回带错误与 stderr 的空结果，由调用方展示。
 		return &FileReadResult{
 			Content:    "",
 			Confidence: 0.0,
@@ -47,6 +49,7 @@ func (fr *FileReader) readPDF(ctx context.Context, path string) *FileReadResult 
 		// Could also try extracting metadata only.
 		info, err := os.Stat(path)
 		if err != nil {
+			// 无法取文件元信息→返回带错误与提示的空结果。
 			return &FileReadResult{
 				Content:    "",
 				Confidence: 0.0,

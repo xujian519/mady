@@ -308,6 +308,7 @@ func BundledIndex(statute Statute) (*Index, error) {
 	entry.once.Do(func() {
 		data, err := lawAssets.ReadFile(asset)
 		if err != nil {
+			// 随包索引缺失/损坏→记录到 entry.err，由调用方按不可用处理。
 			entry.err = fmt.Errorf("lawcite: 读取随包索引 %s: %w", asset, err)
 			return
 		}

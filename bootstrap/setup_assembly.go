@@ -40,6 +40,7 @@ func buildWikiCitationSource(wikiRoot string) guardrails.CitationSource {
 	legalDir := filepath.Join(wikiRoot, "legal")
 	idx, err := loader.BuildLawArticleIndex(legalDir)
 	if err != nil {
+		// S2 法条索引构建失败→记错误并降级为仅 S1 静态表。
 		slog.Error("构建 S2 法条索引失败，降级为仅 S1 静态表", "error", err)
 		return s1
 	}
@@ -87,6 +88,7 @@ func openWritableStore(madyHome string, embedder retrieval.Embedder, knowledgeDB
 	}
 	ws, err := ksqlite.OpenWritable(userDBPath, embedder, knowledgeDBPath)
 	if err != nil {
+		// user.db 打开失败→记错误并返回 nil，用户知识库降级为不可用。
 		slog.Error("knowledge: user.db open failed", "error", err)
 		return nil
 	}
@@ -120,6 +122,7 @@ func newEvidenceRuleIndex() *domainEvidence.RuleIndex {
 		return idx
 	}
 	if err := idx.LoadBytes(data); err != nil {
+		// 证据规则 YAML 解析失败→记警告并返回已加载的部分索引。
 		slog.Warn("加载证据规则 YAML 失败", "error", err)
 		return idx
 	}

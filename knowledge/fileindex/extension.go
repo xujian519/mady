@@ -159,6 +159,7 @@ func (e *Extension) handleSearch(ctx context.Context, args json.RawMessage) (any
 	if fi != nil {
 		// ---- Indexed mode (FileIndex available) ----
 		if err := fi.Refresh(ctx); err != nil {
+			// 刷新失败→以工具结果回传错误文本（调用方需要看到原因），不中断会话。
 			return searchResult{
 				Message: fmt.Sprintf("扫描文件夹失败: %s", err.Error()),
 			}, nil

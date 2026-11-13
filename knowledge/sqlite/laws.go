@@ -107,6 +107,7 @@ func (s *SQLiteStore) LawsCount() int {
 	}
 	var count int
 	if err := s.lawsDB.QueryRowContext(s.baseCtx, "SELECT COUNT(*) FROM law").Scan(&count); err != nil {
+		// 计数失败→返回 0，调用方按空库处理（仅用于统计展示）。
 		return 0
 	}
 	return count

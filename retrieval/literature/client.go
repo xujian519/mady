@@ -86,6 +86,7 @@ func (c *Client) GetJSON(ctx context.Context, url string, limit hostlimit.Limit,
 		return err
 	}
 	if err := json.Unmarshal(body, target); err != nil {
+		// 非 JSON 响应→返回带响应前缀的明确错误，便于识别反爬/改版。
 		return fmt.Errorf("非 JSON 响应（%s）：%.300s", url, body)
 	}
 	return nil

@@ -311,6 +311,7 @@ func mustAtoi(s string) int {
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil {
+		// 非数字字符串→返回 0，调用方按「无引用」继续。
 		return 0
 	}
 	return n

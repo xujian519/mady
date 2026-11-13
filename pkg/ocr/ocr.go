@@ -148,6 +148,7 @@ func (o *OCR) load() {
 	libPath := filepath.Join(o.cacheDir, ortLibName)
 	engine, err := ort.NewEngine(libPath)
 	if err != nil {
+		// 加载 onnxruntime 失败→记录到 loadErr，OCR 能力整体标记为不可用。
 		o.loadErr = fmt.Errorf("init onnxruntime (%s): %w", libPath, err)
 		return
 	}
@@ -155,6 +156,7 @@ func (o *OCR) load() {
 
 	opts, err := engine.NewSessionOptions()
 	if err != nil {
+		// 构造会话选项失败→记录到 loadErr，OCR 能力整体标记为不可用。
 		o.loadErr = fmt.Errorf("session options: %w", err)
 		return
 	}
@@ -169,6 +171,7 @@ func (o *OCR) load() {
 
 	detSess, err := engine.NewSession(filepath.Join(o.cacheDir, detModelFile), opts)
 	if err != nil {
+		// 检测模型加载失败→记录到 loadErr，OCR 能力整体标记为不可用。
 		o.loadErr = fmt.Errorf("load det model: %w", err)
 		return
 	}
@@ -176,6 +179,7 @@ func (o *OCR) load() {
 
 	recSess, err := engine.NewSession(filepath.Join(o.cacheDir, recModelFile), opts)
 	if err != nil {
+		// 识别模型加载失败→记录到 loadErr，OCR 能力整体标记为不可用。
 		o.loadErr = fmt.Errorf("load rec model: %w", err)
 		return
 	}
@@ -192,6 +196,7 @@ func (o *OCR) load() {
 
 	charset, err := loadDict(filepath.Join(o.cacheDir, dictFile))
 	if err != nil {
+		// 字典加载失败→记录到 loadErr，OCR 能力整体标记为不可用。
 		o.loadErr = fmt.Errorf("load dict: %w", err)
 		return
 	}

@@ -51,6 +51,7 @@ func (c *EvalConsumer) OnEvent(ev agentcore.Event) {
 
 	// 1. 持久化到 SQLite。
 	if err := c.store.Save(context.Background(), result); err != nil {
+		// 持久化失败→记错误并丢弃本次结果，消费循环不中断。
 		c.logger.Error("eval: 持久化失败", "error", err)
 		return
 	}

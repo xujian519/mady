@@ -186,6 +186,7 @@ func LoadOrDefault() *Config {
 
 	cfg, err := LoadConfig(path)
 	if err != nil {
+		// 配置读取失败→返回空配置，由调用方按内置默认值继续。
 		return &Config{}
 	}
 

@@ -52,6 +52,7 @@ func LoadStandards() ([]IPCStandard, error) {
 	once.Do(func() {
 		var sf standardsFile
 		if err := yaml.Unmarshal(standardsYAML, &sf); err != nil {
+			// 内置 YAML 损坏→记录包级错误，标准表按空处理（资源随包固定，仅在构建期出错）。
 			loadErr = fmt.Errorf("unmarshal ipc-standards.yaml: %w", err)
 			return
 		}

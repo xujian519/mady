@@ -49,6 +49,7 @@ func LoadSandboxConfigFromPath(path string) (*SandboxConfig, error) {
 		Sandbox *SandboxConfig `yaml:"sandbox"`
 	}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
+		// 配置语法错误→记警告并返回空白名单（比拒绝启动更宽松，护栏仍生效）。
 		slog.Warn("sandbox: config YAML parse failed, using empty allowlist", "path", path, "err", err)
 		return cfg, nil
 	}

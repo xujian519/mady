@@ -40,6 +40,7 @@ func NewPatentKGQueryTool(store *GraphStore) *agentcore.Tool {
 				Limit          int    `json:"limit"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数解析失败→返回结构化失败结果，由模型纠正后重试。
 				return agentcore.NewFailureResult("参数解析失败", "知识图谱查询参数格式错误"), nil
 			}
 			limit := p.Limit

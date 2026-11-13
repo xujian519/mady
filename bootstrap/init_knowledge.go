@@ -132,6 +132,7 @@ func LoadWikiStore(madyHome string) (*knowledge.Store, agentcore.LifecycleHook, 
 	wikiLoader := loader.NewWikiLoader(store, wikiPath)
 	stats, err := wikiLoader.ImportWiki()
 	if err != nil {
+		// wiki 导入失败→记错误并返回空组件，知识检索降级为不可用。
 		slog.Error("wiki import failed", "error", err)
 		return nil, nil, nil, nil
 	}
@@ -217,6 +218,7 @@ func LoadKnowledgeBackend(madyHome string) (knowledge.KnowledgeBackend, string) 
 	}
 	store, err := ksqlite.NewSQLiteStore(dbPath)
 	if err != nil {
+		// SQLite 打开失败→记错误并返回 nil，调用方按无持久化知识库继续。
 		slog.Error("knowledge: failed to open SQLite store", "error", err)
 		return nil, ""
 	}

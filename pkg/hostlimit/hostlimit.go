@@ -88,6 +88,7 @@ func (l *Limiter) pace(ctx context.Context, host string, interval time.Duration)
 func hostOf(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
+		// URL 解析失败→返回空串，调用方按不限速处理。
 		return ""
 	}
 	return parsed.Host

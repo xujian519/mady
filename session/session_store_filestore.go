@@ -333,6 +333,7 @@ func (s *FileStore) MoveToTrash(_ context.Context, sessionID string) error {
 		return fmt.Errorf("trash session %s: already in trash", sessionID)
 	}
 	if err := os.Rename(s.path(sessionID), s.trashPath(sessionID)); err != nil {
+		// 不存在与真实 IO 失败分流：前者归一为 ErrNotExist，其余原样包装。
 		if os.IsNotExist(err) {
 			return fmt.Errorf("trash session %s: %w", sessionID, os.ErrNotExist)
 		}
@@ -359,6 +360,7 @@ func (s *FileStore) RestoreFromTrash(_ context.Context, sessionID string) error 
 		return fmt.Errorf("restore session %s: session already exists", sessionID)
 	}
 	if err := os.Rename(s.trashPath(sessionID), s.path(sessionID)); err != nil {
+		// 不存在与真实 IO 失败分流：前者归一为 ErrNotExist，其余原样包装。
 		if os.IsNotExist(err) {
 			return fmt.Errorf("restore session %s: %w", sessionID, os.ErrNotExist)
 		}
@@ -371,6 +373,7 @@ func (s *FileStore) RestoreFromTrash(_ context.Context, sessionID string) error 
 func (s *FileStore) ListTrashed(_ context.Context) ([]Info, error) {
 	dirEntries, err := os.ReadDir(s.trashDir())
 	if err != nil {
+		// 回收站目录尚不存在→返回空列表（不是错误）。
 		if os.IsNotExist(err) {
 			return nil, nil
 		}

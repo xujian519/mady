@@ -107,6 +107,7 @@ func (CaseFileReader) ReadText(path string) string {
 	}
 	data, err := os.ReadFile(path) //nolint:gosec // path is from filepath.Walk or filepath.Join of CWD
 	if err != nil {
+		// 读文件失败→返回空串，模板渲染按空内容降级。
 		return ""
 	}
 	return string(data)

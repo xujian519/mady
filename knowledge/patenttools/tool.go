@@ -45,6 +45,7 @@ func NewPatentWikiSearchTool(store *ksqlite.SQLiteStore) *agentcore.Tool {
 				IncludeBody bool   `json:"include_body"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数解析失败→返回结构化失败结果，由模型纠正后重试。
 				return agentcore.NewFailureResult("参数解析失败", "专利 wiki 搜索参数格式错误"), nil
 			}
 			limit := p.Limit
@@ -106,6 +107,7 @@ func NewPatentCaseSearchTool(store *ksqlite.SQLiteStore) *agentcore.Tool {
 				IncludeContent bool   `json:"include_content"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数解析失败→返回结构化失败结果，由模型纠正后重试。
 				return agentcore.NewFailureResult("参数解析失败", "专利判例搜索参数格式错误"), nil
 			}
 			if p.Query == "" {
@@ -177,6 +179,7 @@ func NewKnowledgeNoteSaveTool(writable knowledge.WritableBackend) *agentcore.Too
 				Project string `json:"project"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 参数解析失败→返回结构化失败结果，由模型纠正后重试。
 				return agentcore.NewFailureResult("参数解析失败", "笔记保存参数格式错误"), nil
 			}
 			p.Title = strings.TrimSpace(p.Title)

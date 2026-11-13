@@ -62,6 +62,7 @@ func (e *Extension) Init(_ context.Context, _ *agentcore.Agent) error {
 	}
 	searcher, err := Open(Config{DBPath: queryPath, Records: e.cfg.Records})
 	if err != nil {
+		// 打开失败→记录并用雾化错误标记，后续查询直接返回该错误。
 		e.openErr = err
 		slog.Error("legal-knowledge: 打开法律知识库失败", "error", err, "path", queryPath)
 		return nil

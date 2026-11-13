@@ -49,6 +49,7 @@ func loadWikiStore(logger *slog.Logger) (*knowledge.Store, agentcore.LifecycleHo
 	wikiLoader := loader.NewWikiLoader(store, wikiPath)
 	stats, err := wikiLoader.ImportWiki()
 	if err != nil {
+		// wiki 导入失败→记警告并跳过，聊天主流程不依赖 wiki。
 		logger.Warn("wiki: import failed", "err", err)
 		return nil, nil
 	}
@@ -410,6 +411,7 @@ func main() {
 			}
 			next, changed, err := parseThinkingCommand(trimmed, ac.coordinatorCfg.Thinking)
 			if err != nil {
+				// 参数非法→界面提示后返回，命令不生效。
 				appPtr.PrintError(err)
 				return
 			}
@@ -434,6 +436,7 @@ func main() {
 				return
 			}
 			if err := startNewConversation(context.Background()); err != nil {
+				// 新建失败→界面提示后返回，保持当前会话。
 				appPtr.PrintError(err)
 				return
 			}
@@ -454,15 +457,18 @@ func main() {
 				return
 			}
 			if err := saveCurrentConversation(context.Background()); err != nil {
+				// 保存失败→界面提示后返回，不产生半完成的分支。
 				appPtr.PrintError(fmt.Errorf("save current thread: %w", err))
 				return
 			}
 			thread, err := ts.BranchThread(context.Background(), currentThreadID, "")
 			if err != nil {
+				// 分支失败→界面提示后返回，保持当前线程。
 				appPtr.PrintError(err)
 				return
 			}
 			if err := switchConversation(context.Background(), thread.Info.ID, thread); err != nil {
+				// 切换失败→界面提示后返回，新分支已建但未激活。
 				appPtr.PrintError(err)
 				return
 			}
@@ -496,6 +502,7 @@ func main() {
 		agent := currentAgent.Load()
 		if agent == nil {
 			if err := startNewConversation(context.Background()); err != nil {
+				// 初始化失败→界面提示后返回，等待用户重试输入。
 				appPtr.PrintError(err)
 				return
 			}
@@ -943,6 +950,7 @@ func parseThinkingCommand(input string, current *agentcore.ThinkingConfig) (*age
 		}
 		v, err := strconv.ParseInt(fields[2], 10, 64)
 		if err != nil {
+			// 非法数值→返回参数错误（消息回显入参，命令不生效）。
 			return nil, false, fmt.Errorf("invalid thinking budget %q", fields[2])
 		}
 		next.Budget = v
@@ -953,6 +961,7 @@ func parseThinkingCommand(input string, current *agentcore.ThinkingConfig) (*age
 		}
 		v, err := strconv.ParseBool(fields[2])
 		if err != nil {
+			// 非法布尔值→返回参数错误（消息回显入参，命令不生效）。
 			return nil, false, fmt.Errorf("invalid thinking include value %q", fields[2])
 		}
 		next.IncludeThoughts = v

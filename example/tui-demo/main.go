@@ -206,6 +206,7 @@ func main() {
 	app.Focus(input)
 
 	if err := app.Start(); err != nil {
+		// 启动失败→打印后退出（示例程序无恢复路径）。
 		fmt.Println("start tui:", err)
 		return
 	}

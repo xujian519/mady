@@ -231,6 +231,7 @@ func scan(src string) ([]entry, error) {
 		}
 		var document map[string]any
 		if err := yaml.Unmarshal(data, &document); err != nil {
+			// 单文件解析失败→写 stderr 并跳过，继续扫描其余文件。
 			fmt.Fprintf(os.Stderr, "rulescan: %s 解析失败（已跳过）：%v\n", path, err)
 			return nil
 		}

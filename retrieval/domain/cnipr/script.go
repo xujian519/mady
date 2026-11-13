@@ -90,6 +90,7 @@ func emit(tag string, extra []string) string {
 func mustJSON(value any) string {
 	data, err := json.Marshal(value)
 	if err != nil {
+		// 序列化失败→回退 "null"，页面脚本按空结果处理（不中断整批检索）。
 		return "null"
 	}
 	return string(data)
