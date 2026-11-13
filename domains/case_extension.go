@@ -234,7 +234,9 @@ type scannedDoc struct {
 func (e *CaseExtension) scanDirectory(dir string) []scannedDoc {
 	var docs []scannedDoc
 
-	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	// 遍历失败（目录不可读等）按「未发现文档」处理：保留已收集结果，
+	// 由调用方按空/部分清单降级，不阻断案例扩展。
+	filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error { //nolint:gosec // G104: 遍历失败按空清单降级
 		if err != nil || d.IsDir() {
 			return nil
 		}

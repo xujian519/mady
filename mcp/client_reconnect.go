@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os/exec"
 	"time"
@@ -11,6 +12,17 @@ import (
 	"github.com/xujian519/mady/agentcore"
 	"github.com/xujian519/mady/pkg/util"
 )
+
+// closePipes 关闭已建立但不再使用的管道。关闭失败无需处理：这些调用都在
+// 失败清理路径上，管道会随子进程退出由内核回收，没有可用的恢复手段。
+func closePipes(pipes ...io.Closer) {
+	for _, p := range pipes {
+		if p == nil {
+			continue
+		}
+		_ = p.Close() //nolint:gosec // G104: cleanup-only
+	}
+}
 
 // emitReconnectEvent 发出 ReconnectEvent 用于可观测性，与 HTTP 客户端对齐。
 func (c *Client) emitReconnectEvent(phase, reason string, attempt int, err error) {
@@ -89,23 +101,20 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		// 建管道失败→关闭已建管道、发失败事件并返回 false。
-		_ = stdin.Close()
+		closePipes(stdin)
 		c.emitReconnectEvent(ReconnectPhaseFailed, "stdout_pipe", c.reconnectAttempts, err)
 		return false
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		// 建管道失败→关闭已建管道、发失败事件并返回 false。
-		_ = stdin.Close()
-		_ = stdout.Close()
+		closePipes(stdin, stdout)
 		c.emitReconnectEvent(ReconnectPhaseFailed, "stderr_pipe", c.reconnectAttempts, err)
 		return false
 	}
 	if err := cmd.Start(); err != nil {
 		// 进程启动失败→关闭全部管道、发失败事件并返回 false。
-		_ = stdin.Close()
-		_ = stdout.Close()
-		_ = stderr.Close()
+		closePipes(stdin, stdout, stderr)
 		c.emitReconnectEvent(ReconnectPhaseFailed, "cmd_start", c.reconnectAttempts, err)
 		return false
 	}
@@ -129,15 +138,7 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	c.mu.Unlock()
 
 	// Close old pipes
-	if oldStdin != nil {
-		_ = oldStdin.Close()
-	}
-	if oldStdout != nil {
-		_ = oldStdout.Close()
-	}
-	if oldStderr != nil {
-		_ = oldStderr.Close()
-	}
+	closePipes(oldStdin, oldStdout, oldStderr)
 
 	// Start new readers
 	go c.readLoop()
@@ -147,9 +148,7 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 	if err := c.initialize(ctx); err != nil {
 		// 仅清理本次重连产生的子进程和管道，不永久关闭客户端。
 		// 保留连接死亡状态，后续调用仍可再次触发重连。
-		_ = stdin.Close()
-		_ = stdout.Close()
-		_ = stderr.Close()
+		closePipes(stdin, stdout, stderr)
 		// 异步回收子进程，避免 reconnect 阻塞。
 		// stdin/stdout/stderr 已关闭，进程应退出，cmd.Wait 应快速返回。
 		// 加超时防止子进程挂死：超时后 kill 进程，确保 Wait 返回。

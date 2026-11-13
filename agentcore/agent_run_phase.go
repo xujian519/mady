@@ -106,7 +106,7 @@ func (a *Agent) runAfterModelCall(ctx context.Context, turn int64, resp *Provide
 			ToolCalls: resp.ToolCalls,
 		}); pErr != nil {
 			// 次生失败：failLoop 内部已记录，忽略返回值不覆盖主流程。
-			_ = a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", pErr)
+			a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist assistant failed", pErr) //nolint:errcheck,gosec // 次生失败：failLoop 已记录并上报，返回值无消费方
 			return true
 		}
 	}
@@ -115,7 +115,7 @@ func (a *Agent) runAfterModelCall(ctx context.Context, turn int64, resp *Provide
 		Content: fmt.Sprintf("错误: %s", mcc.Err.Error()),
 	}); err != nil {
 		// 次生失败：failLoop 内部已记录，忽略返回值（主错误已由 mcc.Err 处理）。
-		_ = a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist guardrail error failed", err)
+		a.failLoop(ctx, fmt.Sprintf("turn:%d", turn), "lifecycle persist guardrail error failed", err) //nolint:errcheck,gosec // 次生失败：主错误已由 mcc.Err 处理，返回值无消费方
 	}
 	return true
 }

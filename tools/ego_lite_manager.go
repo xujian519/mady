@@ -190,13 +190,13 @@ func (m *EgoLiteManager) start(ctx context.Context) error {
 	// 写入 bridge 脚本，失败时清理子进程（避免孤儿进程）
 	if _, err := stdin.Write(egoLiteBridgeScript); err != nil {
 		m.cmd.Process.Kill() //nolint:gosec // G104: cleanup-only on start failure
-		_ = m.cmd.Wait()     //nolint:gosec // G104: cleanup-only; reap zombie on error
+		m.cmd.Wait()         //nolint:gosec // G104: cleanup-only; reap zombie on error
 		m.cmd = nil
 		return fmt.Errorf("write bridge: %w", err)
 	}
 	if _, err := stdin.Write([]byte("\n")); err != nil {
 		m.cmd.Process.Kill() //nolint:gosec // G104: cleanup-only on start failure
-		_ = m.cmd.Wait()     //nolint:gosec // G104: cleanup-only; reap zombie on error
+		m.cmd.Wait()         //nolint:gosec // G104: cleanup-only; reap zombie on error
 		m.cmd = nil
 		return fmt.Errorf("write nl: %w", err)
 	}
@@ -212,7 +212,7 @@ func (m *EgoLiteManager) start(ctx context.Context) error {
 	m.pendingMu.Unlock()
 	if err := m.writeRequestLocked(initData); err != nil {
 		m.cmd.Process.Kill() //nolint:gosec // G104: cleanup-only on start failure
-		_ = m.cmd.Wait()     //nolint:gosec // G104: cleanup-only; reap zombie on error
+		m.cmd.Wait()         //nolint:gosec // G104: cleanup-only; reap zombie on error
 		m.cmd, m.stdin, m.stdout = nil, nil, nil
 		m.pendingMu.Lock()
 		delete(m.pending, id)
@@ -222,7 +222,7 @@ func (m *EgoLiteManager) start(ctx context.Context) error {
 	result, err := m.waitResponse(ctx, id, ch, "initTaskSpace")
 	if err != nil {
 		m.cmd.Process.Kill() //nolint:gosec // G104: cleanup-only on start failure
-		_ = m.cmd.Wait()     //nolint:gosec // G104: cleanup-only; reap zombie on error
+		m.cmd.Wait()         //nolint:gosec // G104: cleanup-only; reap zombie on error
 		m.cmd, m.stdin, m.stdout = nil, nil, nil
 		return fmt.Errorf("init: %w", err)
 	}
@@ -268,7 +268,7 @@ func (m *EgoLiteManager) restart(ctx context.Context) error {
 	m.mu.Lock()
 	if m.cmd != nil && m.cmd.Process != nil {
 		m.cmd.Process.Kill() //nolint:gosec // G104: cleanup-only on start failure
-		_ = m.cmd.Wait()     //nolint:gosec // G104: cleanup-only; reap zombie on error
+		m.cmd.Wait()         //nolint:gosec // G104: cleanup-only; reap zombie on error
 	}
 	m.cmd, m.stdin, m.stdout = nil, nil, nil
 	m.mu.Unlock()
@@ -303,7 +303,7 @@ func (m *EgoLiteManager) Close() error {
 	m.mu.Lock()
 	if m.cmd != nil && m.cmd.Process != nil {
 		m.cmd.Process.Kill() //nolint:gosec // G104: cleanup-only on start failure
-		_ = m.cmd.Wait()     //nolint:gosec // G104: cleanup-only; reap zombie on error
+		m.cmd.Wait()         //nolint:gosec // G104: cleanup-only; reap zombie on error
 	}
 	m.mu.Unlock()
 	return nil

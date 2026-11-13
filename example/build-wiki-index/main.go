@@ -70,7 +70,8 @@ func main() {
 			continue
 		}
 
-		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error { //nolint:gosec // path from filepath.Join, example code
+		// 示例程序：遍历中断按「无更多文件」处理，已建立的索引照常输出。
+		filepath.Walk(root, func(path string, info os.FileInfo, err error) error { //nolint:gosec,errcheck // path from filepath.Join, example code
 			if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".md") {
 				return nil
 			}

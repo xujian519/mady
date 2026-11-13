@@ -169,7 +169,7 @@ func (lm *LightpandaManager) StopProcess(taskID string) {
 	}
 	if proc.Cmd != nil && proc.Cmd.Process != nil {
 		_ = proc.Cmd.Process.Kill()
-		_ = proc.Cmd.Wait() // reap the zombie; ignore "already exited" errors
+		proc.Cmd.Wait() //nolint:gosec // G104: cleanup-only; reap the zombie, ignore "already exited" errors
 	}
 }
 
@@ -183,7 +183,7 @@ func (lm *LightpandaManager) StopAll() {
 	for _, proc := range procs {
 		if proc.Cmd != nil && proc.Cmd.Process != nil {
 			_ = proc.Cmd.Process.Kill()
-			_ = proc.Cmd.Wait() // reap the zombie; ignore "already exited" errors
+			proc.Cmd.Wait() //nolint:gosec // G104: cleanup-only; reap the zombie, ignore "already exited" errors
 		}
 	}
 }
