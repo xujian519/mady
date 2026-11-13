@@ -133,7 +133,7 @@
 | 卡 | 模块 | 规模/口径 | 状态 |
 | --- | --- | --- | --- |
 | M37-1 | domains/ 吞错专项 | 61 处 | ✅ 2026-11-13 |
-| M37-2 | a2a/ + a2ui/ + acp/ 吞错专项 | 58 处（协议面，只加注释） | ⬜ |
+| M37-2 | a2a/ + a2ui/ + acp/ 吞错专项 | 58 处（协议面，只加注释） | ✅ 2026-11-13 |
 | M37-3 | agentcore/ + doomloop/ + provider/ + prompt/ | 34 处 | ⬜ |
 | M37-4 | tools/ + mcp/ + server/ + skill/ | 61 处 | ⬜ |
 | M37-5 | cmd/ 吞错专项 | 43 处 | ⬜ |
@@ -870,3 +870,16 @@
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./domains/...` **0 issues**；`go test -race -count=1 ./domains/...` 全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）
 - **指标重扫**（370 文件）：静默吞错 **61 → 0**；裸 fmt 0 / TODO 3（历史标注）/ 未注释导出 1（`BuildProjectAgent`，已登记）/ >120 行函数 9（登记）
 - **提交**：94aa83c2（refactor）、78b88c18（docs + changelog）
+
+### M37-2（2026-11-13）a2a/ + a2ui/ + acp/ 吞错专项 ✅
+
+- **审阅范围**：`a2a/`（35）、`a2ui/`（1）、`acp/`（22）共 **58 处** 站点、13 个文件；协议面红线卡，仅允许插入注释，事件结构与错误码零改动
+- **判定结果**：(a) 有意降级 **58 处**；(b) 疑似漏错 **0 处**
+  - **协议错误帧**（`writeJSONRPCError` / `s.writeError`，占 41 处）：参数解析失败 → `Invalid params`/`Parse error`；业务失败 → `Internal error`/方法自带错误码；ACP 会话类失败 → `-32002 Session not found` / `-32003 Update failed`。错误已转化为协议响应帧，本就无需上抛
+  - **返回 bool 探测结果**（12 处）：SSE/WS 写失败、心跳写失败、事件序列化失败、健康检查失败、ID 不匹配，均为「调用方按失败处理」的常规契约；WS 写失败处随即 `_ = wc.close()` 主动收敛连接
+  - **状态收敛而非丢弃**（2 处）：`task_stream.go` 解码失败把错误存入 `s.err` 由 `Next()` 上抛；SSE 末尾无空行的 EOF 按「补齐最后一个事件」返回
+  - **正常传播被启发式命中**（3 处）：`a2ui` 数组下标包装错误、`acp/server.go` EOF 正常断开、`acp/server_response.go` 序列化失败转错误帧
+- **精炼**（无行为变化）：**13 文件 / 58 处注释**，`git diff --stat` 为 59 insertions、0 deletions（多出的 1 行为同一分支内新增的第二条注释），新增行全为 `//`
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./a2a/... ./a2ui/... ./acp/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）；协议面按计划跑全量 `go test -race -count=1 ./...`，唯一失败为 `knowledge/sqlite` 的 `TestSearchLaws`——依赖本机未安装的 `~/.mady/knowledge/laws-full.db`（`-short` 模式跳过并全绿），属预存环境依赖，与本卡无关
+- **指标重扫**（56 文件）：静默吞错 **58 → 0**；裸 fmt 0 / 忽略 err 0 / TODO 0 / 未注释导出 0 / >120 行函数 0
+- **提交**：（待回填）

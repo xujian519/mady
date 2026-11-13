@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-13T09:51:30+08:00",
-  "total": 517,
+  "updated": "2026-11-13T16:40:00+08:00",
+  "total": 518,
   "entries": [
+    {
+      "date": "2026-11-13",
+      "type": "refactor",
+      "scope": "a2a",
+      "title": "M37-2 协议面吞错专项：补 58 处降级意图注释",
+      "file": "2026-11-13.md",
+      "line": 47
+    },
     {
       "date": "2026-11-13",
       "type": "refactor",
