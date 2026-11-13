@@ -930,4 +930,4 @@
 - **精炼**（无行为变化）：**13 文件 / 43 处注释**（`git diff --stat` 43 insertions、0 deletions，新增行全为 `//`）
 - **门禁**：`go build ./... && go vet ./cmd/...` 全绿；`golangci-lint run ./cmd/...` **0 issues**；`go test -race -count=1 ./cmd/...` 全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **指标重扫**（cmd）：静默吞错 **43 → 0**
-- **提交**：PENDING（refactor）、PENDING（docs + changelog）
+- **提交**：87d6e23b（refactor）、5f918662（docs + changelog）
