@@ -976,4 +976,4 @@
 - **发现分级**：P0 0 项；P2 1 项（扫描器以「err 字样」为启发式，`_ = stderr.Close()` / 注释中的 `error` 会被误计，实际存量小于报数）
 - **门禁**：`go build ./... && go vet` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race -count=1 ./mcp/ ./domains/ ./tools/` 全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **指标重扫**（1050 文件）：被忽略 error **23 → 8**（达标 ≤10）；吞错 1 / 未注释导出 1 / TODO 6 / 长函数 34 不变
-- **提交**：608ef322（refactor）、<docs 待回填>（docs + changelog）
+- **提交**：608ef322（refactor）、db142648（docs + changelog）
