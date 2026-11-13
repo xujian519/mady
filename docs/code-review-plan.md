@@ -990,4 +990,4 @@
 - **结果**：忽略 err 8 → **10**（构成变化：cmd 的 11 处 stderr 写入不再计入，新识别 10 处真实可疑忽略）；tui 裸 fmt 1 → 0、TODO 8 → 0；未注释导出 1 → 0；吞错 1、长函数 34 不变
 - **登记（P2-9）**：10 处真实可疑忽略按风险排序——`server/middleware.go` 的 `rand.Read`、`memory/extension.go` 的 `Remember`/`Deduplicate`、`domains` 三处 `EnsureCaseWorkspace`、`tools`/`domains`/`knowledge` 四处最佳努力解析
 - **门禁**：`gofmt` 干净；`golangci-lint run ./...` 0 issues；`make check-arch doc-check verify-layers debt-check` 通过；tui 仅改动注释，`cd tui && go build ./... && go vet ./...` 通过
-- **提交**：1918c605（refactor）、<docs 待回填>（docs + changelog）
+- **提交**：1918c605（refactor）、ef3ae25a（docs + changelog）
