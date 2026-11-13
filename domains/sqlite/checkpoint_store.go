@@ -94,6 +94,7 @@ func (s *SQLiteGraphCheckpointStore) Load(ctx context.Context, id string) (*grap
 		 FROM graph_checkpoints WHERE id = ?`, id,
 	).Scan(&id, &graphID, &nodeName, &stepIndex, &stateStr, &metaStr, &createdAtStr)
 	if err != nil {
+		// 「无记录」转为 not found 错误上抛，与其它 IO 错误区分。
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("graph-checkpoint/sqlite: checkpoint %q not found", id)
 		}
@@ -179,6 +180,7 @@ func (s *SQLiteGraphCheckpointStore) LoadLatest(ctx context.Context, graphID str
 	err := row.Scan(&cp.ID, &cp.GraphID, &cp.NodeName, &cp.StepIndex,
 		&stateBytes, &metadataBytes, &createdAtStr)
 	if err != nil {
+		// 「无记录」→返回 nil 表示没有最新检查点，属正常状态而非错误。
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}

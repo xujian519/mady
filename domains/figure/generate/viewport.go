@@ -86,6 +86,7 @@ func ParseLengthMm(raw string) (float64, bool) {
 	}
 	value, err := strconv.ParseFloat(match[1], 64)
 	if err != nil {
+		// 数值不可解析→返回 ok=false，调用方按「无法解析长度」取默认尺寸。
 		return 0, false
 	}
 	switch strings.ToLower(match[2]) {

@@ -148,12 +148,14 @@ func (p *Planner) llmGenerate(ctx context.Context, bb *FactBlackboard, intent Pl
 	prompt := p.buildLLMPrompt(ctx, bb, intent)
 	resp, err := p.llm.Chat(ctx, []LlmMessage{{Role: "user", Content: prompt}})
 	if err != nil {
+		// LLM 调用失败→降级为规则兜底计划，已记 Warn。
 		slog.Warn("planner: LLM call failed, using fallback plan", "err", err)
 		return p.buildFallbackPlan(bb, intent), nil
 	}
 
 	plan, err := p.parsePlanResponse(resp, bb, intent)
 	if err != nil {
+		// 响应解析失败→同上降级为规则兜底计划，已记 Warn。
 		slog.Warn("planner: LLM response parse failed, using fallback plan", "err", err)
 		return p.buildFallbackPlan(bb, intent), nil
 	}

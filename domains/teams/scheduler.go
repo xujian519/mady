@@ -257,6 +257,7 @@ func (t *Team) work(ctx context.Context, runner Runner, member Member) (int, err
 
 	task, err := t.ClaimNext(ctx, member.ID)
 	if err != nil {
+		// 成员已退役→本轮结束且不算错误，工作循环正常退出。
 		if errors.Is(err, ErrMemberRetired) {
 			return 0, nil
 		}

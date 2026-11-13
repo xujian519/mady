@@ -66,10 +66,12 @@ func Templates() ([]string, error) {
 func IsInternalRecord(id string) bool {
 	data, err := templateFS.ReadFile(templateRoot + "/manifest.json")
 	if err != nil {
+		// 随包清单读取失败→降级为「非内部记录」：embed 资产缺失属构建缺陷。
 		return false
 	}
 	var parsed manifest
 	if err := json.Unmarshal(data, &parsed); err != nil {
+		// 清单解析失败→同上降级为「非内部记录」，避免合规检查整体失败。
 		return false
 	}
 	return slices.Contains(parsed.InternalRecords, id)

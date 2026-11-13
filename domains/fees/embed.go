@@ -21,6 +21,7 @@ func BundledTable() (*Table, error) {
 	bundledOnce.Do(func() {
 		data, err := bundledTableYAML.ReadFile("data/cn-fees.yaml")
 		if err != nil {
+			// 读取失败→记入一次性错误，由 BundledTable 对后续调用一并上抛。
 			bundledErr = err
 			return
 		}

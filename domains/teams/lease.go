@@ -72,10 +72,12 @@ func acquireLease(path, owner string, ttl time.Duration) (func(), error) {
 func leaseExpired(path string) bool {
 	data, err := os.ReadFile(path) //nolint:gosec // 路径由团队目录拼接
 	if err != nil {
+		// 读失败→仅「文件不存在」视为已释放，其它 IO 错误按占用中处理。
 		return errors.Is(err, os.ErrNotExist)
 	}
 	var record leaseRecord
 	if err := json.Unmarshal(data, &record); err != nil {
+		// 租约不可解析→按「占用中」处理，由 TTL 到期清理。
 		return false
 	}
 	return time.Now().After(record.ExpiresAt)
@@ -85,10 +87,12 @@ func leaseExpired(path string) bool {
 func releaseLease(path, owner string) {
 	data, err := os.ReadFile(path) //nolint:gosec // 路径由团队目录拼接
 	if err != nil {
+		// 读失败→放弃释放（锁已不存在或不属于本进程），由 TTL 兜底。
 		return
 	}
 	var record leaseRecord
 	if err := json.Unmarshal(data, &record); err != nil {
+		// 租约不可解析→不删除，避免误删他人锁，由 TTL 兜底。
 		return
 	}
 	if record.Owner == owner {

@@ -46,6 +46,7 @@ func NewListDocTemplatesTool(store *TemplateStore) *agentcore.Tool {
 			}
 			if len(args) > 0 {
 				if err := json.Unmarshal(args, &p); err != nil {
+					// 入参不合法→返回工具失败结果给 LLM 自纠，不作为 Go error 上抛。
 					return agentcore.NewFailureResult("参数错误", "无法解析 list_doc_templates 参数"), nil
 				}
 			}
@@ -117,6 +118,7 @@ func NewRenderDocTemplateTool(store *TemplateStore) *agentcore.Tool {
 				OutputFile   string            `json:"output_filename"`
 			}
 			if err := json.Unmarshal(args, &p); err != nil {
+				// 入参不合法→返回工具失败结果，由 LLM 修正后重新调用。
 				return agentcore.NewFailureResult("参数错误", "无法解析 render_doc_template 参数"), nil
 			}
 			if p.TemplateName == "" {

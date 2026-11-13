@@ -355,6 +355,7 @@ func ParseModelOutput(raw string) (ModelOutput, bool) {
 	}
 	var parsed modelOutputJSON
 	if err := json.Unmarshal([]byte(text), &parsed); err != nil {
+		// 解析失败→降级，调用方容忍：返回 false，由调用方走非 LLM 兜底路径。
 		return ModelOutput{}, false
 	}
 	disputes := make([]Dispute, 0, len(parsed.Disputes))
@@ -454,6 +455,7 @@ func formatPlan(plan []PlanEntry) string {
 	}
 	data, err := json.MarshalIndent(plan, "", "  ")
 	if err != nil {
+		// 序列化失败→降级，调用方容忍：以占位文本展示，不中断答复计划生成。
 		return "(答复计划序列化失败)"
 	}
 	return string(data)

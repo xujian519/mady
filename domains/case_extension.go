@@ -26,6 +26,7 @@ type defaultFileReader struct{}
 func (defaultFileReader) ReadText(path string) string {
 	data, err := util.ReadFile(path) // fallback reader for internal case files
 	if err != nil {
+		// 读取失败→降级为空内容，调用方按「文件无内容」继续。
 		return ""
 	}
 	return string(data)

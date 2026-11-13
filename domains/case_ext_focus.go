@@ -15,8 +15,10 @@ func (e *CaseExtension) handleFocusCase(ctx context.Context, args json.RawMessag
 	// 先按 CaseID 查，再按申请号查
 	rec, err := e.index.GetCase(ctx, input.CaseID)
 	if err != nil {
+		// 按 CaseID 未命中→回退按申请号查找，不是漏处理错误。
 		rec, err = e.index.FindByFilingNumber(ctx, input.CaseID)
 		if err != nil {
+			// 两种键都未命中→以「未找到」业务结果返回，不构造 Go error。
 			return focusResult{Found: false, Message: fmt.Sprintf("未找到案件: %s", input.CaseID)}, nil
 		}
 	}

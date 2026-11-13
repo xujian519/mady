@@ -147,6 +147,7 @@ func loadSkeleton(cfg Config) *lawcite.Skeleton {
 	}
 	skeleton, err := lawcite.LoadSkeletonFile(path)
 	if err != nil {
+		// 加载失败→降级为「无骨架」仅精校索引，见本函数文档说明。
 		return nil
 	}
 	return skeleton

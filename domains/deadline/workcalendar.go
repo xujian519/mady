@@ -48,6 +48,7 @@ func BundledWorkCalendar() (*WorkCalendar, error) {
 	bundledCalOnce.Do(func() {
 		data, err := bundledCalendar.ReadFile("data/cn-holidays.yaml")
 		if err != nil {
+			// 读取失败→记入一次性错误，由 BundledWorkCalendar 对后续调用一并上抛。
 			bundledCalErr = err
 			return
 		}
@@ -116,6 +117,7 @@ func (c *WorkCalendar) addDates(value any, target map[string]struct{}, year int,
 	for _, raw := range items {
 		date, err := toCalendarDate(raw)
 		if err != nil {
+			// 日期不可解析→按统一失败构造上抛，错误信息带字段名与原值。
 			return fail(fmt.Sprintf("字段 %s 含无法解析的日期：%v", field, raw))
 		}
 		if date.Year() != year {

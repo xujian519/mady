@@ -270,6 +270,7 @@ func (r *ProjectRegistry) LoadMeta(ctx context.Context, projectID string) (*Proj
 
 	f, err := os.Open(path) //nolint:gosec // filepath.Join(r.projectDir, metaFileName)
 	if err != nil {
+		// 「不存在」与其它 IO 错误分别构造成可区分的错误上抛，由调用方决定提示。
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("meta 不存在: %s", projectID)
 		}

@@ -343,6 +343,7 @@ func lineAmounts(amount *string, quantity int) (unitFen, subtotalFen *int64) {
 	}
 	fen, err := ParseYuan(*amount)
 	if err != nil {
+		// 金额不可解析→置空单价与小计，由上层按「未计价」处理。
 		return nil, nil
 	}
 	subtotal := fen * int64(quantity)

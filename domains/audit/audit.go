@@ -132,6 +132,7 @@ func (l *AuditLogger) Log(action AuditAction, projectID, userID, description str
 
 	data, err := json.Marshal(entry)
 	if err != nil {
+		// 序列化失败→丢弃本条审计：审计不可用不得阻断业务操作（fail-open）。
 		return
 	}
 	_, _ = l.file.Write(append(data, '\n'))
@@ -231,10 +232,12 @@ func (e *Encryptor) Protect(plaintext string) string {
 	}
 	block, err := aes.NewCipher(e.key)
 	if err != nil {
+		// 密钥无效→降级为明文（fail-open），避免丢数据；调用方须先查 Enabled()。
 		return plaintext
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
+		// 构造 GCM 失败→同上 fail-open 降级为明文。
 		return plaintext
 	}
 	nonce := make([]byte, gcm.NonceSize())
@@ -257,14 +260,17 @@ func (e *Encryptor) Reveal(ciphertext string) string {
 	}
 	raw, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
+		// 非 base64→按未加密明文原样返回，兼容迁移期历史数据。
 		return ciphertext
 	}
 	block, err := aes.NewCipher(e.key)
 	if err != nil {
+		// 密钥无效→原样返回，兼容未加密数据。
 		return ciphertext
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
+		// 构造 GCM 失败→原样返回（同上兼容降级）。
 		return ciphertext
 	}
 	ns := gcm.NonceSize()
@@ -274,6 +280,7 @@ func (e *Encryptor) Reveal(ciphertext string) string {
 	nonce, ct := raw[:ns], raw[ns:]
 	plain, err := gcm.Open(nil, nonce, ct, nil)
 	if err != nil {
+		// 解密失败→原样返回：密文损坏或本为明文，统一按明文处理。
 		return ciphertext
 	}
 	return string(plain)

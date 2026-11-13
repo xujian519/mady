@@ -36,6 +36,7 @@ func handleSlopGate(_ context.Context, args json.RawMessage) (any, error) {
 		Text string `json:"text"`
 	}
 	if err := json.Unmarshal(args, &input); err != nil {
+		// 入参不合法→返回工具失败结果给 LLM 自纠，不作为 Go error 上抛。
 		return agentcore.NewFailureResult("参数解析失败", "slop_gate 参数格式错误"), nil
 	}
 	if input.Text == "" {

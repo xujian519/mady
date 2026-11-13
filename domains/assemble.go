@@ -112,6 +112,7 @@ func injectDomainSharedExtensions(cfg *agentcore.Config) {
 func injectRuleOutputGate(cfg *agentcore.Config) {
 	engine, err := rules.NewBundledEngine()
 	if err != nil {
+		// 降级：门禁未启用已记 Error 日志；随包资产缺失属构建缺陷，不在启动期阻断装配。
 		slog.Error("规则输出门禁未启用：加载随包门禁规则失败", "error", err)
 		return
 	}

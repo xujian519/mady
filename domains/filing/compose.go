@@ -101,6 +101,7 @@ func Compose(ctx context.Context, content Content, outputPath string, cfg Config
 	command.Stderr = &stderr
 
 	if err := command.Run(); err != nil {
+		// 成文失败/超时→上抛带 stderr 尾部的原因，不返回空结果。
 		if runCtx.Err() == context.DeadlineExceeded {
 			return Result{}, fmt.Errorf("filing: 成文超时（%s）", timeout)
 		}
@@ -134,6 +135,7 @@ func Compose(ctx context.Context, content Content, outputPath string, cfg Config
 	verifyCmd.Stdout = &verifyOut
 	verifyCmd.Stderr = &stderr
 	if err := verifyCmd.Run(); err != nil {
+		// 验收未通过→先删半成品再上抛，避免半成品被当作交付件。
 		_ = os.Remove(outputPath)
 		if runCtx.Err() == context.DeadlineExceeded {
 			return Result{}, fmt.Errorf("filing: 成品验收超时（%s）", timeout)
@@ -154,6 +156,7 @@ func verificationIssues(output string) string {
 		Errors []string `json:"errors"`
 	}
 	if err := json.Unmarshal([]byte(output[start:]), &report); err != nil {
+		// 报告不可解析→降级为原始输出尾部，仅用于错误信息展示。
 		return tail(output, 400)
 	}
 	if len(report.Errors) > 0 {

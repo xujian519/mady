@@ -39,15 +39,18 @@ func loadAssets() error {
 	loadOnce.Do(func() {
 		var rawMatrix [][][]int
 		if err := readAsset("assets/triz-matrix.json", &rawMatrix); err != nil {
+			// 资产读取失败→记入 loadErr，由 loadAssets 的调用方统一上抛。
 			loadErr = err
 			return
 		}
 		if err := validateMatrix(rawMatrix); err != nil {
+			// 矩阵校验失败→记入 loadErr 一并上抛。
 			loadErr = err
 			return
 		}
 		var rawPrinciples []principleAsset
 		if err := readAsset("assets/triz-principles.json", &rawPrinciples); err != nil {
+			// 资产读取失败→记入 loadErr 一并上抛。
 			loadErr = err
 			return
 		}
@@ -58,6 +61,7 @@ func loadAssets() error {
 			})
 		}
 		if err := validatePrinciples(loaded); err != nil {
+			// 原理校验失败→记入 loadErr 一并上抛。
 			loadErr = err
 			return
 		}
@@ -125,6 +129,7 @@ func validatePrinciples(list []Principle) error {
 // Principles 返回 40 条发明原理（按编号升序）。
 func Principles() []Principle {
 	if err := loadAssets(); err != nil {
+		// 资产加载失败→降级为空列表，调用方按「无数据」处理。
 		return nil
 	}
 	out := make([]Principle, len(principles))
@@ -135,6 +140,7 @@ func Principles() []Principle {
 // PrincipleByNo 按编号取发明原理。
 func PrincipleByNo(no int) (Principle, bool) {
 	if err := loadAssets(); err != nil {
+		// 资产加载失败→返回零值 + false，调用方按「查无此项」处理。
 		return Principle{}, false
 	}
 	principle, ok := principleIndex[no]

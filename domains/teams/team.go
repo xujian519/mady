@@ -83,6 +83,7 @@ func (t *Team) membersPath() string { return filepath.Join(t.dir, "members.json"
 func (t *Team) loadMembers() error {
 	data, err := os.ReadFile(t.membersPath()) //nolint:gosec // 团队目录内固定文件名
 	if err != nil {
+		// 登记文件不存在→按空团队初始化并落盘，属首次启动的正常路径。
 		if os.IsNotExist(err) {
 			return t.persistMembers()
 		}
@@ -289,6 +290,7 @@ func (t *Team) Lock(name, owner string, ttl time.Duration) (func(), error) {
 func (t *Team) LockNames() []string {
 	entries, err := os.ReadDir(filepath.Join(t.dir, "locks"))
 	if err != nil {
+		// 锁目录不可读→降级为空列表（仅用于展示，不影响加解锁）。
 		return nil
 	}
 	names := make([]string, 0, len(entries))
@@ -385,6 +387,7 @@ func (t *Team) emit(event string, data map[string]any) {
 func (t *Team) Events() ([]EventRecord, error) {
 	file, err := os.Open(t.events.path) //nolint:gosec // 团队目录内固定文件名
 	if err != nil {
+		// 事件文件不存在→返回空集，尚未产生事件的正常状态。
 		if os.IsNotExist(err) {
 			return nil, nil
 		}

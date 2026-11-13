@@ -262,6 +262,7 @@ func SummarizeDeadlines(deadlines []CalculatedDeadline) Summary {
 func SerializeDeadlineSummary(summary Summary) string {
 	data, err := json.MarshalIndent(summary, "", "  ")
 	if err != nil {
+		// 序列化失败→降级为空 JSON 对象，展示层按「无摘要」处理。
 		return "{}"
 	}
 	return string(data)

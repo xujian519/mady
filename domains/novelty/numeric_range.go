@@ -112,6 +112,7 @@ func (a *NumericRangeAnalysis) CrossCheckLLM(compareJSON string) {
 	}
 	var cmp CompareResult
 	if err := json.Unmarshal([]byte(compareJSON), &cmp); err != nil {
+		// 语义轨结果不可解析→保持原判：无法对照不等于对照失败。
 		return
 	}
 	switch {

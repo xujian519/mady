@@ -175,6 +175,7 @@ func Render(ctx context.Context, spec RenderSpec, cfg RenderConfig) (string, err
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		// 渲染失败/超时→包装为 ErrRenderFailed 上抛，并附 stderr 尾部便于定位。
 		if renderCtx.Err() == context.DeadlineExceeded {
 			return "", newError(ErrRenderFailed, "Graphviz 渲染超时（%s），未生成可用产物", timeout)
 		}
@@ -190,6 +191,7 @@ func Render(ctx context.Context, spec RenderSpec, cfg RenderConfig) (string, err
 func validateOutput(path string, format Format) error {
 	info, err := os.Stat(path)
 	if err != nil {
+		// 产物缺失→包装为 ErrInvalidOutput 上抛，由调用方转成工具错误。
 		return newError(ErrInvalidOutput, "Graphviz 未生成输出文件：%s", path)
 	}
 	if info.Size() == 0 {

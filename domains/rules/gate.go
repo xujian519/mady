@@ -209,6 +209,7 @@ func parseArgsObject(raw string) (map[string]any, bool) {
 	}
 	var args map[string]any
 	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		// 入参不是合法 JSON 对象→按无参处理，门禁对该条不介入。
 		return nil, false
 	}
 	return args, true

@@ -93,6 +93,7 @@ func bestStyleForDomain(styles []DocumentStyle, domain string) *DocumentStyle {
 func StyleInjection(domain string) string {
 	styles, err := LoadDefaultStyles()
 	if err != nil {
+		// 样式加载失败→降级为不注入：风格是增强项，绝不阻断 Agent 启动。
 		return ""
 	}
 	s := bestStyleForDomain(styles, domain)

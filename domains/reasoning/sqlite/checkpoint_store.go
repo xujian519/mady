@@ -96,6 +96,7 @@ func (s *SQLiteCheckpointStore) Load(ctx context.Context, checkpointID string) (
 		checkpointID,
 	).Scan(&data)
 	if err != nil {
+		// 「无记录」转为 not found 错误上抛，与其它 IO 错误区分。
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("checkpoint %q not found", checkpointID)
 		}

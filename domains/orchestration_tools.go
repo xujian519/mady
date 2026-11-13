@@ -118,6 +118,7 @@ func handleRunOrchestration(ctx context.Context, args json.RawMessage, agent *ag
 		TechDomain     string `json:"tech_domain"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
+		// 入参不合法→返回工具失败结果给 LLM 自纠，不作为 Go error 上抛。
 		return agentcore.NewFailureResult("参数解析失败", "run_orchestration 参数格式错误"), nil
 	}
 
@@ -133,6 +134,7 @@ func handleRunOrchestration(ctx context.Context, args json.RawMessage, agent *ag
 	executor := agentcore.NewOrchestrationExecutor(agent)
 	result, err := executor.Run(ctx, manifest, state)
 	if err != nil {
+		// 编排中断→转为工具失败结果并回显原因，由 LLM 决定是否重试。
 		return agentcore.NewFailureResult("编排执行失败",
 			fmt.Sprintf("编排 %q 执行过程中断：%v", manifest.ID, err)), nil
 	}

@@ -209,6 +209,7 @@ func attrFloat(tag, name string) (float64, bool) {
 	}
 	parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
 	if err != nil {
+		// 属性值不可解析→按缺失处理（ok=false），几何核验走宽松口径。
 		return 0, false
 	}
 	return parsed, true
@@ -254,6 +255,7 @@ func parseTransform(value string) (matrix, bool) {
 		for i, arg := range args {
 			parsed, err := strconv.ParseFloat(arg, 64)
 			if err != nil {
+				// 参数不可解析→保持单位矩阵并标记失败，由调用方跳过该段变换。
 				return identity, false
 			}
 			numbers[i] = parsed
@@ -615,6 +617,7 @@ func parsePath(d string, emit func(from, to [2]float64), note func(reason string
 		}
 		value, err := strconv.ParseFloat(field, 64)
 		if err != nil {
+			// 非法数值→视为路径结束，忽略其后指令（仅影响几何核验精度）。
 			return
 		}
 		current.args = append(current.args, value)

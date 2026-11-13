@@ -133,6 +133,7 @@ func readAcks(path string) (map[string]bool, error) {
 func readJSONLines[T any](path string) ([]T, error) {
 	file, err := os.Open(path) //nolint:gosec // 路径由团队目录拼接
 	if err != nil {
+		// 文件不存在→返回空集；其它 IO 错误照常上抛。
 		if os.IsNotExist(err) {
 			return nil, nil
 		}

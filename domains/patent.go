@@ -61,6 +61,7 @@ func workflowListForSystemPrompt() string {
 func roleListForSystemPrompt() string {
 	roles, err := provisions.LoadRoles()
 	if err != nil {
+		// 角色清单加载失败→降级为空串，系统提示里省略该段。
 		return ""
 	}
 	return provisions.BuildRoleListForSystemPrompt(roles)
@@ -174,6 +175,7 @@ func SetupClaimDraftingExtension(provider agentcore.Provider, model string) {
 	claimdrafting.RegisterDefaultRules(engine)
 	ext, err := claimdrafting.NewExtension(engine)
 	if err != nil {
+		// 扩展创建失败→记 Error 并跳过注入，不阻断其余域装配。
 		slog.Error("claimdrafting: 创建扩展失败", "err", err)
 		return
 	}
