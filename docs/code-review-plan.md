@@ -897,4 +897,4 @@
 - **精炼**（无行为变化）：**18 文件 / 33 处注释**（`git diff --stat` 33 insertions、0 deletions，新增行全为 `//`）
 - **门禁**：build / vet 全绿；`golangci-lint run ./agentcore/... ./doomloop/... ./provider/... ./prompt/...` **0 issues**；`go test -race` 四包全绿；`make check-arch doc-check verify-layers debt-check` 通过
 - **指标重扫**（149 文件）：静默吞错 **34 → 1**（仅剩 permission 敏感路径）、被忽略 error 2（历史存量）、裸 fmt / TODO / 未注释导出 / >120 行函数 0
-- **提交**：（待回填）
+- **提交**：64075d90（refactor）、9a91af3b（docs + changelog）
