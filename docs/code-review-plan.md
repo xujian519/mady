@@ -138,7 +138,7 @@
 | M37-4 | tools/ + mcp/ + server/ + skill/ | 61 处 | ✅ 2026-11-13 |
 | M37-5 | cmd/ 吞错专项 | 43 处 | ✅ 2026-11-13 |
 | M37-6 | example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ | 50 处 | ✅ 2026-11-13 |
-| M38 | tui/ 宽字符渲染口径 fix（预存失败收口） | 独立 fix 卡 | ⬜ |
+| M38 | tui/ 宽字符渲染口径 fix（预存失败收口） | 独立 fix 卡 | ✅ 2026-11-13 |
 
 > M37 系列统一口径（保守档）：只允许在错误分支内插入**意图注释**，零行为变更。逐处先判定两类——
 > **(a) 有意降级**（缓存/遥测/可选能力/UI 兜底）→ 补 `// 失败→降级，调用方容忍：<原因>`；
@@ -948,3 +948,17 @@
 - **门禁**：`go build ./... && go vet <七组目录>` 全绿；`golangci-lint run <七组目录>` **0 issues**；`go test -race -count=1` 相关包全绿（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **指标重扫**（七组目录）：静默吞错 **50 → 0**
 - **提交**：a893c409（refactor）、ad20d721（docs + changelog）
+
+### M38（2026-11-13）tui/ 宽字符渲染口径 fix ✅
+
+- **问题**：tui 模块存在两组环境相关失败——
+  1. **边框字形口径错位**（12 个失败用例）：U+2500–U+259F 的 Box-drawing / 块元素在 UAX #11 中属 East Asian Ambiguous，CJK 模式下 `VisibleWidth` 按 2 列计，但所有布局代码（`Box`、`BrandSeparator`、resize 提示框）按 1 列计算 `width-2` / `strings.Repeat`，边框行宽度翻倍；`TestResizeHintLinesFitWidth` 在 50 列下量到 100 列。
+  2. **测试口径未固定**（4 个 golden + 1 个宽度用例）：golden 基线按非 CJK 口径生成，本机 `LANG=zh_CN` 时 `→`/`—`/`…` 按 2 列 padding，字节级不一致；`TestTodoPanelRenderWidths` 用 `strings.HasPrefix(ln, "TODO")` 排除标题行，但行首是 ANSI 转义，排除失效。
+- **修复**：
+  - [width.go](file:///Users/xujian/projects/Mady/tui/core/width.go)：在 `RuneWidth` 中把 U+2500–U+259F 固定为 1 列（终端始终以单列渲染边框字形，是 TUI 几何基础），其余 Ambiguous 字符仍随 CJK 模式
+  - [golden_test.go](file:///Users/xujian/projects/Mady/tui/component/golden_test.go)：`TestMain` 显式 `core.SetCJKMode(false)`，与既有「固定调色板/强制颜色」同一口径，保证 golden 跨 LANG 稳定
+  - [todo_panel_test.go](file:///Users/xujian/projects/Mady/tui/component/todo_panel_test.go)：先用 `core.StripAnsi` 再判断行首，使标题/摘要行的排除规则真正生效
+  - [width_test.go](file:///Users/xujian/projects/Mady/tui/core/width_test.go)：新增 `TestBoxDrawingAlwaysSingleWidth`，在 CJK 开/关两种模式下锁定边框与块元素为 1 列
+- **发现分级**：P0 0 项；P1 1 项（边框宽度口径，已修）；P2 1 项（测试排除规则失效，已修）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race -count=1 ./...` **tui 全量全绿**（此前 17 个失败全部收口）；根模块 `make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
+- **提交**：PENDING（fix）、PENDING（docs + changelog）
