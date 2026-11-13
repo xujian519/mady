@@ -4,8 +4,8 @@ go 1.26.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.13.0
-	github.com/chromedp/cdproto v0.158.6
-	github.com/chromedp/chromedp v0.21.0
+	github.com/chromedp/cdproto v0.159.0
+	github.com/chromedp/chromedp v0.23.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/getcharzp/onnxruntime_purego v1.26.0
 	github.com/google/uuid v1.6.0
