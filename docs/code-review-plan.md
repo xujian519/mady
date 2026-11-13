@@ -869,4 +869,4 @@
 - **精炼**（无行为变化）：**31 文件 / 61 处注释**，`git diff --stat` 为 61 insertions、0 deletions，新增行全部为注释
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./domains/...` **0 issues**；`go test -race -count=1 ./domains/...` 全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）
 - **指标重扫**（370 文件）：静默吞错 **61 → 0**；裸 fmt 0 / TODO 3（历史标注）/ 未注释导出 1（`BuildProjectAgent`，已登记）/ >120 行函数 9（登记）
-- **提交**：（待回填）
+- **提交**：94aa83c2（refactor）、78b88c18（docs + changelog）
