@@ -914,4 +914,4 @@
 - **精炼**（无行为变化）：**32 文件 / 61 处注释**（`git diff --stat` 61 insertions、0 deletions，新增行全为 `//`）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./tools/... ./mcp/... ./server/... ./skill/...` **0 issues**；`go test -race -count=1` 四组包全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）；全仓 `go test -race -count=1 ./...` 唯一失败仍为 `knowledge/sqlite` 的 `TestSearchLaws`（预存环境依赖，与本卡无关）
 - **指标重扫**（tools/mcp/server/skill）：静默吞错 **61 → 0**
-- **提交**：PENDING（refactor）、PENDING（docs + changelog）
+- **提交**：e3944f79（refactor）、26d84981（docs + changelog）
