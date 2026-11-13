@@ -50,6 +50,7 @@ func makeOffloadReadFunc(rootDir string) ToolFunc {
 			Handle string `json:"handle"`
 		}
 		if err := json.Unmarshal(args, &p); err != nil {
+			// 入参不合法→返回工具失败结果给 LLM 自纠，不作为 Go error 上抛。
 			return NewFailureResult("参数解析失败", "offload_read 参数格式错误"), nil
 		}
 		if p.Handle == "" {
@@ -62,6 +63,7 @@ func makeOffloadReadFunc(rootDir string) ToolFunc {
 		}
 		data, err := os.ReadFile(path) //nolint:gosec // 路径已经 resolveOffloadPath 校验在 rootDir 内
 		if err != nil {
+			// 回读失败→转为工具失败结果（落盘内容已被清理属正常情况），不上抛。
 			return NewFailureResult("回读失败", "落盘内容不存在或已清理: "+p.Handle), nil
 		}
 		if len(data) > offloadReadMaxBytes {

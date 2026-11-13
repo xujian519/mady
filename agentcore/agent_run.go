@@ -89,6 +89,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 	if lc := a.lifecycle(); lc != nil {
 		arc := a.newRunContext(input, a.state.Messages(), 0)
 		if err := lc.BeforeAgentRun(ctx, arc); err != nil {
+			// 生命周期钩子拒绝→记入 span 并包装为节点错误上抛，终止本次运行。
 			span.RecordError(err)
 			return "", WrapNodeError(err, "lifecycle:before_agent_run")
 		}
@@ -157,6 +158,7 @@ func (a *Agent) Resume(ctx context.Context) (string, error) {
 	defer a.eventBus.Drain()
 	output, err := a.runLoop(ctx)
 	if err != nil {
+		// 恢复执行失败→包装为节点错误上抛，不返回半成品输出。
 		return "", WrapNodeError(err, "resume")
 	}
 	return output, nil
@@ -344,6 +346,7 @@ func (a *Agent) runTruncationGuard(ctx context.Context, turn int64, resp *Provid
 func (a *Agent) runToolCallTurn(ctx context.Context, turn int64, resp *ProviderResponse, rep *repetitionState, loopStartTurn int64) (bool, string, error) {
 	earlyExit, err := a.executeToolCalls(ctx, resp.ToolCalls)
 	if err != nil {
+		// 用户中断→转成状态位并正常结束轮次，不算失败。
 		if IsInterrupt(err) {
 			a.state.SetStatus(StatusInterrupted)
 			a.state.SetInterruptReason(a.interrupted.Load())

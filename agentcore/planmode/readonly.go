@@ -88,6 +88,7 @@ func isReadOnlyBashCommand(args json.RawMessage) bool {
 
 	var m map[string]any
 	if err := json.Unmarshal(args, &m); err != nil {
+		// 参数不可解析→返回 false（按非只读处理，fail-safe 交人工确认）。
 		return false
 	}
 

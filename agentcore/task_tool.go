@@ -90,6 +90,7 @@ func TaskToolWithDepth(name string, options []TaskOption, maxDepth int) *Tool {
 				Task  string `json:"task"`
 			}
 			if err := json.Unmarshal(args, &params); err != nil {
+				// 参数不是合法 JSON→包装为节点错误上抛，由 LLM 修正后重试。
 				return nil, WrapNodeError(
 					fmt.Errorf("参数无效: %w", err),
 					"task_tool:"+name,
@@ -124,6 +125,7 @@ func TaskToolWithDepth(name string, options []TaskOption, maxDepth int) *Tool {
 			}
 			wrapped, err := json.Marshal(map[string]string{"input": params.Task})
 			if err != nil {
+				// 子调用参数序列化失败→包装为节点错误上抛（属编码缺陷，不应静默）。
 				return nil, WrapNodeError(
 					fmt.Errorf("marshal args: %w", err),
 					"task_tool:"+name,
@@ -131,6 +133,7 @@ func TaskToolWithDepth(name string, options []TaskOption, maxDepth int) *Tool {
 			}
 			result, err := subTool.Func(WithDepth(ctx, depth+1), wrapped)
 			if err != nil {
+				// 子代理执行失败→包装为节点错误上抛，由父代理决定是否重试。
 				return nil, WrapNodeError(err, "task_tool:"+name)
 			}
 			return result, nil

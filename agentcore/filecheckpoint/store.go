@@ -255,14 +255,17 @@ func isWithinRoot(path, root string) bool {
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
+		// 路径无法绝对化→按「不在根内」处理（fail-closed，拒绝记录检查点）。
 		return false
 	}
 	rootAbs, err := filepath.Abs(root)
 	if err != nil {
+		// 根目录无法绝对化→同上 fail-closed。
 		return false
 	}
 	rel, err := filepath.Rel(rootAbs, abs)
 	if err != nil {
+		// 无法求相对路径（跨卷/非法路径）→同上 fail-closed。
 		return false
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {

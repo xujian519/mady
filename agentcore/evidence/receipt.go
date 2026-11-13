@@ -94,6 +94,7 @@ func stringField(fields map[string]json.RawMessage, key string) string {
 	}
 	var s string
 	if err := json.Unmarshal(raw, &s); err != nil {
+		// 字段非字符串→降级为空串，由调用方按「字段缺失」处理。
 		return ""
 	}
 	return strings.TrimSpace(s)

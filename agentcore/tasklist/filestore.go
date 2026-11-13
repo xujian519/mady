@@ -49,6 +49,7 @@ func (f *FileStore) loadNextID() {
 	maxID := int64(0)
 	entries, err := os.ReadDir(f.baseDir)
 	if err != nil {
+		// 目录不可读→保持初始 nextID（0），后续分配从 1 开始，不阻断本次写入。
 		return
 	}
 	for _, entry := range entries {
@@ -194,6 +195,7 @@ func (f *FileStore) writeTask(path string, t *agentcore.Task) error {
 func (f *FileStore) readTask(path string) (*agentcore.Task, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path is internal: baseDir + sanitized filename
 	if err != nil {
+		// 「不存在」转为 not found 错误，其余 IO 错误带原因上抛，二者不混淆。
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("tasklist: task not found: %s", filepath.Base(path))
 		}

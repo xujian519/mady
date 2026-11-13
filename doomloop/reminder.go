@@ -55,6 +55,7 @@ func (r *reminderState) record(calls []agentcore.ToolCall, thresholds map[int]bo
 func normalizeToolArgs(args string) string {
 	var v any
 	if err := json.Unmarshal([]byte(args), &v); err != nil {
+		// 非 JSON 参数→原样返回，保持调用方原始书写形式（仅用于去重比对）。
 		return args
 	}
 	norm, err := json.Marshal(v)

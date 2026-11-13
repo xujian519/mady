@@ -47,6 +47,7 @@ func AgentAsTool(cfg Config) *Tool {
 			agent := New(cfg)
 			result, err := agent.Run(ctx, params.Input)
 			if err != nil {
+				// 子代理失败→包装为节点错误上抛，由父代理决定重试或放弃。
 				return nil, WrapNodeError(err, "agent_tool:"+name)
 			}
 			return result, nil

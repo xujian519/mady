@@ -67,6 +67,7 @@ func (e *Extension) AutoEnterPlanning(_ *agentcore.AgentRunContext, d agentcore.
 	// 创建 Planning 会话并激活门控（只读态）。
 	s := NewSession(e.sessionID("auto"), "auto", "auto")
 	if err := e.cfg.Store.Save(context.Background(), s); err != nil {
+		// 保存失败→放弃自动进入（不激活门控），保持既有会话状态不变。
 		return
 	}
 	e.cfg.Gate.Activate()
@@ -76,6 +77,7 @@ func (e *Extension) AutoEnterPlanning(_ *agentcore.AgentRunContext, d agentcore.
 func (e *Extension) hasActiveSession(ctx context.Context) bool {
 	pending, err := e.cfg.Store.ListPending(ctx)
 	if err != nil {
+		// 列表读取失败→按「无活动会话」处理：auto-enter 是便利能力，失败即不自动进入。
 		return false
 	}
 	for _, s := range pending {

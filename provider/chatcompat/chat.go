@@ -557,6 +557,7 @@ func extractErrorMessage(body []byte) string {
 	}
 	var raw map[string]any
 	if err := json.Unmarshal(body, &raw); err != nil {
+		// 非结构化响应体→降级为原文返回，仅用于错误信息展示。
 		return string(body)
 	}
 	if e, ok := raw["error"]; ok {

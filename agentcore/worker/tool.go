@@ -94,6 +94,7 @@ func buildToolFunc(exec *Executor) agentcore.ToolFunc {
 		// 解析参数
 		var raw map[string]any
 		if err := json.Unmarshal(args, &raw); err != nil {
+			// 入参不合法→返回工具失败结果给 LLM 自纠，不作为 Go error 上抛。
 			return agentcore.NewFailureResult("参数解析失败",
 				fmt.Sprintf("Worker %q 参数格式错误", def.Name)), nil
 		}
@@ -107,6 +108,7 @@ func buildToolFunc(exec *Executor) agentcore.ToolFunc {
 		// 执行
 		result, err := node(ctx, state)
 		if err != nil {
+			// 节点执行失败→转为工具失败结果回报，由上层图调度决定是否终止。
 			return agentcore.NewFailureResult("执行失败",
 				fmt.Sprintf("Worker %q 执行出错", def.Name)), nil
 		}

@@ -117,6 +117,7 @@ func (b *ToolResultBudget) MaybeOffload(toolName, content string) OffloadResult 
 
 	dir, err := b.resolveDir()
 	if err != nil {
+		// 目录不可用→降级为「保持内联」，已记 Warn：卸载是优化项，不能丢结果。
 		slog.Warn("tool_result_budget: cannot resolve offload dir, keeping content inline",
 			"err", err)
 		return OffloadResult{}
@@ -124,6 +125,7 @@ func (b *ToolResultBudget) MaybeOffload(toolName, content string) OffloadResult 
 
 	handle, err := b.writeOffload(dir, content)
 	if err != nil {
+		// 落盘失败→同上降级为「保持内联」，已记 Warn。
 		slog.Warn("tool_result_budget: offload write failed, keeping content inline",
 			"err", err)
 		return OffloadResult{}
@@ -165,6 +167,7 @@ func (b *ToolResultBudget) resolveDir() (string, error) {
 			return
 		}
 		if err := os.MkdirAll(b.cfg.RootDir, 0o750); err != nil {
+			// 建目录失败→记入 resolveErr，由 resolveDir 对后续调用一并上抛。
 			b.resolveErr = fmt.Errorf("tool_result_budget: mkdir %s: %w", b.cfg.RootDir, err)
 			return
 		}

@@ -141,6 +141,7 @@ func extractPathsFromArgs(args json.RawMessage) []string {
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(args, &fields); err != nil {
+		// 参数不是 JSON 对象→降级为空路径集，本次调用不记录检查点。
 		return nil
 	}
 	var paths []string
@@ -189,6 +190,7 @@ func extractBashWritePaths(args json.RawMessage) []string {
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(args, &fields); err != nil {
+		// 参数不是 JSON 对象→降级为空路径集（本函数本就是尽力而为的启发式）。
 		return nil
 	}
 	raw, ok := fields["command"]
@@ -197,6 +199,7 @@ func extractBashWritePaths(args json.RawMessage) []string {
 	}
 	var cmd string
 	if err := json.Unmarshal(raw, &cmd); err != nil {
+		// command 字段非字符串→同上降级为空路径集。
 		return nil
 	}
 	var paths []string

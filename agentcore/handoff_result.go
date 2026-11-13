@@ -70,6 +70,7 @@ func ParseHandoffResult(output string) (HandoffResult, bool) {
 
 	var hr HandoffResult
 	if err := json.Unmarshal([]byte(trimmed), &hr); err != nil {
+		// 解析失败→返回 false 表示「不是 handoff 结构」，由调用方按纯文本处理。
 		return HandoffResult{}, false
 	}
 
@@ -86,6 +87,7 @@ func ParseHandoffResult(output string) (HandoffResult, bool) {
 func (hr HandoffResult) ToHandoffResultJSON() string {
 	b, err := json.Marshal(hr)
 	if err != nil {
+		// 序列化失败→降级为 "{}"，避免下游收到空响应。
 		return "{}"
 	}
 	return string(b)
