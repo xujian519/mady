@@ -152,8 +152,9 @@ func (m *AgentBrowserManager) StopSession(taskID string) {
 		return
 	}
 
-	// Send close command to agent-browser daemon
-	_, _ = m.runABCommand(taskID, "close", nil, 5*time.Second)
+	// Send close command to agent-browser daemon.
+	// 会话已被移出管理表，daemon 可能已退出，close 失败无需上报；随后的目录清理照常进行。
+	_, _ = m.runABCommand(taskID, "close", nil, 5*time.Second) // scan-ignore: ignored_err — 会话移除为尽力清理
 	_ = os.RemoveAll(session.SocketDir)
 }
 

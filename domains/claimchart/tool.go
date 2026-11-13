@@ -16,6 +16,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/xujian519/mady/agentcore"
@@ -422,9 +423,12 @@ func elementLabel(idx int) string {
 	return fmt.Sprintf("x%d", idx)
 }
 
+// parseInt 解析权利要求编号；调用方正则已保证输入为纯数字。
 func parseInt(s string) int {
-	var n int
-	_, _ = fmt.Sscanf(s, "%d", &n)
+	n, err := strconv.Atoi(s)
+	if err != nil { // 无法解析时按 0 处理，调用方以 0 表示未知编号
+		return 0
+	}
 	return n
 }
 

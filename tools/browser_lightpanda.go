@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -148,8 +149,11 @@ func extractPortFromCDPURL(url string) int {
 	if len(matches) < 2 {
 		return 0
 	}
-	var port int
-	_, _ = fmt.Sscanf(matches[1], "%d", &port)
+	// 正则已保证 matches[1] 全为数字；转换失败（如整数溢出）时返回 0 表示端口未知。
+	port, err := strconv.Atoi(matches[1])
+	if err != nil { // 端口未知，交由调用方按 0 处理
+		return 0
+	}
 	return port
 }
 

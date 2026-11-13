@@ -56,7 +56,8 @@ func (fr *FileReader) readCSV(path string) (*FileReadResult, error) {
 	reader := bufio.NewReader(f)
 	bom, err := reader.Peek(3)
 	if err == nil && bom[0] == 0xEF && bom[1] == 0xBB && bom[2] == 0xBF {
-		_, _ = reader.Discard(3) // skip UTF-8 BOM
+		// Peek 已确认这 3 字节在缓冲区中，Discard 不会失败；丢弃 BOM 属解析细节。
+		_, _ = reader.Discard(3) // scan-ignore: ignored_err — 已 Peek 确认缓冲区含 3 字节，Discard 不会失败
 	}
 
 	csvReader := csv.NewReader(reader)

@@ -37,7 +37,9 @@ func (rw *responseWriter) Flush() {
 // generateRequestID 生成一个 16 字节的十六进制随机请求 ID。
 func generateRequestID() string {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
+	// Go 1.24+ 起 crypto/rand.Read 保证填满 b 且不返回错误，失败时会直接 panic，
+	// 因此这里不存在可传播的 error。
+	_, _ = rand.Read(b) // scan-ignore: ignored_err — crypto/rand.Read 自 Go 1.24 起不返回错误
 	return hex.EncodeToString(b)
 }
 

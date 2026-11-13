@@ -40,7 +40,10 @@ func (e *CaseExtension) handleRegisterCase(ctx context.Context, args json.RawMes
 	}
 
 	if primaryPath != "" {
-		_, _ = EnsureCaseWorkspace(primaryPath)
+		// 案件记录已落库，工作区目录创建失败不应让注册整体失败，仅告警。
+		if _, err := EnsureCaseWorkspace(primaryPath); err != nil {
+			slog.Warn("case_extension: ensure case workspace failed", "path", primaryPath, "err", err)
+		}
 	}
 
 	return map[string]any{

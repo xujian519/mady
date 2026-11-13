@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -114,7 +115,9 @@ func (e *CaseExtension) handleSyncCase(ctx context.Context, args json.RawMessage
 			DocPath: doc.Path,
 		})
 	}
-	_, _ = EnsureCaseWorkspace(absDir)
+	if _, err := EnsureCaseWorkspace(absDir); err != nil {
+		slog.Warn("case_extension: ensure case workspace failed", "path", absDir, "err", err)
+	}
 
 	return syncResult{
 		Directory: absDir,
@@ -192,7 +195,10 @@ func (e *CaseExtension) applyDocUpdates(ctx context.Context, rec *CaseRecord, do
 	// 标识升级
 	e.applyIdentityUpgrade(ctx, rec, merged)
 
-	_, _ = EnsureCaseWorkspace(dir)
+	// 关联场景下工作区创建失败不影响已关联的文档记录，仅告警。
+	if _, err := EnsureCaseWorkspace(dir); err != nil {
+		slog.Warn("case_extension: ensure case workspace failed", "path", dir, "err", err)
+	}
 
 	updated, _ := e.index.GetCase(ctx, rec.CaseID)
 	stage := rec.IdentityStage

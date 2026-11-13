@@ -166,9 +166,11 @@ func (e *MemoryExtension) OnSessionClose(_ context.Context) {
 		// 汇总属于尽力而为：单条事实的写入失败不应中断其余事实。
 		for _, fact := range facts {
 			if e.manager.cfg.EnableDedup {
-				_, _ = e.manager.Deduplicate(summaryCtx, fact.Content, e.scope, LayerLongTerm)
-			} else {
-				_, _ = e.manager.store.Remember(summaryCtx, fact.Content, e.scope, LayerLongTerm, fact.Metadata)
+				if _, err := e.manager.Deduplicate(summaryCtx, fact.Content, e.scope, LayerLongTerm); err != nil {
+					slog.Warn("memory: deduplicate long-term fact failed", "err", err)
+				}
+			} else if _, err := e.manager.store.Remember(summaryCtx, fact.Content, e.scope, LayerLongTerm, fact.Metadata); err != nil {
+				slog.Warn("memory: remember long-term fact failed", "err", err)
 			}
 		}
 
