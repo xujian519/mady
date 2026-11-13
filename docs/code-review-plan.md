@@ -961,4 +961,4 @@
   - [width_test.go](file:///Users/xujian/projects/Mady/tui/core/width_test.go)：新增 `TestBoxDrawingAlwaysSingleWidth`，在 CJK 开/关两种模式下锁定边框与块元素为 1 列
 - **发现分级**：P0 0 项；P1 1 项（边框宽度口径，已修）；P2 1 项（测试排除规则失效，已修）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race -count=1 ./...` **tui 全量全绿**（此前 17 个失败全部收口）；根模块 `make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
-- **提交**：PENDING（fix）、PENDING（docs + changelog）
+- **提交**：0ad5f401（fix）、10bae964（docs + changelog）
