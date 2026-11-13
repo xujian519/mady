@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-12T21:40:00+08:00",
-  "total": 515,
+  "updated": "2026-11-13T09:50:00+08:00",
+  "total": 516,
   "entries": [
+    {
+      "date": "2026-11-13",
+      "type": "refactor",
+      "scope": "desktop",
+      "title": "M36 desktop/ React 前端审阅：补 73 处导出 JSDoc 并产出终审报告",
+      "file": "2026-11-13.md",
+      "line": 3
+    },
     {
       "date": "2026-11-12",
       "type": "refactor",

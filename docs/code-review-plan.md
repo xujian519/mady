@@ -126,7 +126,7 @@
 | M33 | tui/（独立子模块）A | 分层 Elm 架构 | ✅ 2026-11-12 |
 | M34 | tui/（独立子模块）B | 同上 | ✅ 2026-11-12 |
 | M35 | desktop/（独立子模块 Go 后端） | Wails | ✅ 2026-11-12 |
-| M36 | desktop/（React 前端）+ 终审报告 | docs/code-review-report.md | ⬜ |
+| M36 | desktop/（React 前端）+ 终审报告 | docs/code-review-report.md | ✅ 2026-11-13 |
 
 ## 六、基线（2026-08-25 实测）
 
@@ -821,3 +821,19 @@
 - **门禁**：`cd desktop && go build ./...`、`go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`go test -race -count=1 ./...` 全绿
 - **指标重扫**（22 文件）：裸 fmt 0 / 忽略 err 0 / 静默吞错 **22 → 0** / TODO 0 / 未注释导出 0 / >120 行函数 0
 - **提交**：21615cd5（refactor）、6450a201（docs + changelog）
+
+### M36（2026-11-13）desktop/ React 前端 + 终审报告 ✅
+
+- **审阅范围**：`desktop/frontend/src` 的 **102 个非测试 TS/TSX 文件**（a2ui-renderer / agui-bridge / app / components / lib / queries / stores / theme）＋产出终审报告 `docs/code-review-report.md`。与敏感路径权威源零重叠
+- **红线处置**：无协议面/红线模块——本卡仅注释治理与文档产出，零行为变更
+- **基线**（102 文件）：裸 console 调试 **0** / 空 catch **0** / `@ts-ignore` **0** / TODO **0** / `any` **7**（全为 Wails window 桥接）/ `eslint-disable` **3**（均带意图说明）/ 未注释导出 **73**（已有注释 204，覆盖率 74%）/ >400 行文件 **5**
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P1 复杂度（登记不拆）：5 个 >400 行文件——`components/ProjectTree.tsx`（879）、`components/chat/ChatView.tsx`（822）、`lib/backend.ts`（569）、`components/chat/Composer.tsx`（473）、`components/SettingsPanel.tsx`（448）
+  - P2 一致性（本卡精炼）：**73 处导出缺 JSDoc**——a2ui-renderer 组件族 19 处、store/类型 8 处、components 40 处、fileviewer 5 处、stores 7 处、theme 2 处等，按既有 JSDoc 风格补中文说明，覆盖率 74% → 100%
+  - P3 风格：`any` 7 处与 `eslint-disable` 3 处均合理（window 桥接 / 有意固定依赖），不改
+- **精炼**（无行为变化）：**66 文件 / 73 处 JSDoc**，`git diff --stat` 为 73 insertions、0 deletions，新增行全部为注释
+- **终审报告**：`docs/code-review-report.md`——指标对比（380→306 吞错、93→1 未注释导出等）、未达成项原因分析、遗留清单、后续专项建议
+- **门禁**：`npx tsc --noEmit`、`npx eslint src/` 均 0 问题；`npm test` 105 用例全绿（91 + 14）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`cd desktop && go build ./... && go test ./...` 回归通过
+- **指标重扫**（102 文件）：未注释导出 **73 → 0**；裸 console 0 / 空 catch 0 / TODO 0 / >400 行文件 5（登记）
+- **提交**：TBD（refactor）、TBD（docs + changelog + 终审报告）
