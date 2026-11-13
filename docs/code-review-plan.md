@@ -139,6 +139,7 @@
 | M37-5 | cmd/ 吞错专项 | 43 处 | ✅ 2026-11-13 |
 | M37-6 | example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ | 50 处 | ✅ 2026-11-13 |
 | M38 | tui/ 宽字符渲染口径 fix（预存失败收口） | 独立 fix 卡 | ✅ 2026-11-13 |
+| M39 | 全仓「被忽略 error」收敛 | 23 处 → 8 | ✅ 2026-11-13 |
 
 > M37 系列统一口径（保守档）：只允许在错误分支内插入**意图注释**，零行为变更。逐处先判定两类——
 > **(a) 有意降级**（缓存/遥测/可选能力/UI 兜底）→ 补 `// 失败→降级，调用方容忍：<原因>`；
@@ -962,3 +963,17 @@
 - **发现分级**：P0 0 项；P1 1 项（边框宽度口径，已修）；P2 1 项（测试排除规则失效，已修）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race -count=1 ./...` **tui 全量全绿**（此前 17 个失败全部收口）；根模块 `make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **提交**：0ad5f401（fix）、10bae964（docs + changelog）
+
+### M39（2026-11-13）全仓「被忽略 error」收敛 ✅
+
+- **审阅范围**：`scripts/scan_go_smells.py` 口径 23 处（tools 8 / cmd 8 / mcp 3 / agentcore 2 / domains 1 / example 1）
+- **处置**（零行为变更，23 → 8）：
+  - **合并清理路径**（12 → 0）：`mcp/client_reconnect.go` 12 处 `_ = x.Close()` 收敛为 `closePipes(...)` helper（nil 跳过 + `//nolint:gosec // G104: cleanup-only`），调用点由 12 行减为 5 行
+  - **显式忽略**（2 → 0）：`tools/browser_lightpanda.go` 两处 `proc.Cmd.Wait()` 保留原注释并补 `//nolint:gosec // G104: cleanup-only`
+  - **已有 suppressions 保留**（6 → 0）：`tools/ego_lite_manager.go` 六处 `m.cmd.Wait()` 只去掉 `_ =`，沿用既有 `//nolint:gosec // G104: cleanup-only` 说明
+  - **显式判定 + 抑制**（1 + 1 + 2 → 0）：`domains/case_extension.go` 的 `filepath.WalkDir` 去掉 `_ =`，补「遍历失败按空清单降级」注释；`example/build-wiki-index/main.go` 的 `filepath.Walk` 合并 `//nolint:gosec,errcheck`；`agentcore/agent_run_phase.go` 两处 `failLoop` 改为 `//nolint:errcheck,gosec` 并保留「次生失败」意图注释
+  - **登记保留（8 处）**：`cmd/mady/subcmd/evidence.go` 的 `_, _ = fmt.Fprintf(stderr, ...)` 全部为 CLI 错误出口——stderr 写入失败时进程已注定非零退出，无可补救动作；改写会引入 11 处 `//nolint` 或额外 helper，收益低于噪音，故保留原样并在此登记
+- **发现分级**：P0 0 项；P2 1 项（扫描器以「err 字样」为启发式，`_ = stderr.Close()` / 注释中的 `error` 会被误计，实际存量小于报数）
+- **门禁**：`go build ./... && go vet` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race -count=1 ./mcp/ ./domains/ ./tools/` 全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
+- **指标重扫**（1050 文件）：被忽略 error **23 → 8**（达标 ≤10）；吞错 1 / 未注释导出 1 / TODO 6 / 长函数 34 不变
+- **提交**：608ef322（refactor）、<docs 待回填>（docs + changelog）

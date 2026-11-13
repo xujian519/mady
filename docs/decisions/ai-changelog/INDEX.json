@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-13T19:10:00+08:00",
-  "total": 524,
+  "updated": "2026-11-13T20:05:00+08:00",
+  "total": 525,
   "entries": [
+    {
+      "date": "2026-11-13",
+      "type": "refactor",
+      "scope": "review",
+      "title": "收敛全仓被忽略 error（23 → 8）",
+      "file": "2026-11-13.md",
+      "line": 203
+    },
     {
       "date": "2026-11-13",
       "type": "docs",
