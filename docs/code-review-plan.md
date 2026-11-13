@@ -1010,4 +1010,4 @@
 - **行为变化**：仅新增 `slog.Warn` 观测点（内存汇总失败、案件工作区创建失败），无错误返回、无控制流变化；`strconv.Atoi` 与 `Sscanf` 在纯数字输入下等价
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race -count=1 ./server/... ./memory/... ./domains/... ./tools/... ./knowledge/...` 全绿（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db` 符号链接目标）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **指标重扫**（1050 文件）：被忽略 error **10 → 0**；吞错 1、未注释导出 0、TODO 3、裸 fmt 65、长函数 34 不变
-- **提交**：<代码哈希待回填>（fix）、<docs 待回填>（docs + changelog）
+- **提交**：c4ae1ce5（fix）、ca756929（docs + changelog）
