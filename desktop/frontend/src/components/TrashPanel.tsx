@@ -56,6 +56,7 @@ const TrashItem: React.FC<{ thread: ThreadSummary }> = ({ thread }) => {
   )
 }
 
+/** 会话回收站面板：列出软删除会话，支持恢复与彻底删除。 */
 export const TrashPanel: React.FC = () => {
   const { data: trashed = [] } = useTrashedThreads()
 

@@ -26,6 +26,7 @@ function usageTextColor(percent: number): string {
   return 'text-mady-text-secondary'
 }
 
+/** 上下文用量指示器：进度条 + 百分比展示当前上下文占用。 */
 export const ContextIndicator: React.FC = () => {
   const usagePercent = useChatStore((s) => s.contextUsagePercent)
   const totalTokens = useChatStore((s) => s.contextTotalTokens)

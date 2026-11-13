@@ -18,6 +18,7 @@ interface ApprovalCardProps {
   prompt: ApprovalPrompt
 }
 
+/** 审批卡片：展示审批提示并提交批准/拒绝结果，回传后完成 A2UI 闭环。 */
 export const ApprovalCard: React.FC<ApprovalCardProps> = ({ prompt }) => {
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)

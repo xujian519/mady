@@ -29,6 +29,7 @@ interface FilesState {
   saveFile: () => Promise<boolean>
 }
 
+/** 文件查看器 store：管理当前文件、加载/保存状态与编辑草稿。 */
 export const useFilesStore = create<FilesState>((set, get) => ({
   current: null,
   loading: false,

@@ -40,6 +40,7 @@ interface A2UIState {
   getSurface: (id: string) => SurfaceState | undefined
 }
 
+/** A2UI 状态 store：封装 SurfaceStore 单例，向 React 暴露 surface 快照与信封应用动作。 */
 export const useA2UIStore = create<A2UIState>((set, get) => {
   const store = new SurfaceStore()
 

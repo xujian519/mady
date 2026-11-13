@@ -10,6 +10,7 @@ import { useMemo } from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 分割线：支持水平/垂直方向，水平时可带居中文案标签。 */
 export const DividerComponent: A2UIComponent = ({ component, context }) => {
   const orientation = (component.props.orientation as string) ?? 'horizontal'
   const label = useMemo(

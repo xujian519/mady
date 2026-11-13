@@ -9,6 +9,7 @@
 import { create } from 'zustand'
 import * as backend from '@/lib/backend'
 
+/** 桌面标签：绑定会话、标题与创建/激活时间。 */
 export interface DesktopTab {
   id: string
   threadId?: string
@@ -31,6 +32,7 @@ interface TabsState {
   activateTab: (id: string) => Promise<void>
 }
 
+/** 标签 store：缓存后端标签列表并分发新建/关闭/激活动作。 */
 export const useTabsStore = create<TabsState>()((set, get) => ({
   tabs: [],
   activeTabId: null,

@@ -13,6 +13,7 @@ import { useHealth } from '@/stores/threads'
 import { Circle, Brain, Server, Package, Loader2 } from 'lucide-react'
 import type { HealthInfo } from '@/lib/backend'
 
+/** 底部状态栏：展示连接状态、模型/用量信息、知识库状态与版本。 */
 export const StatusBar: React.FC = () => {
   const running = useChatStore((s) => s.running)
   const ready = useChatStore((s) => s.ready)

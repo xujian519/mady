@@ -45,6 +45,7 @@ export interface ThemeContextValue {
   setThemePack: (pack: ThemePackId) => void
 }
 
+/** 主题上下文：提供当前模式、解析结果与主题包切换（无 Provider 时取默认值）。 */
 export const ThemeContext = createContext<ThemeContextValue>({
   mode: 'system',
   setMode: () => {},

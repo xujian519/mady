@@ -29,6 +29,7 @@ interface ToolCardProps {
   toolCall: ToolCall
 }
 
+/** 工具调用卡片：展示工具名/状态并可展开查看参数与结果，handoff 工具不渲染。 */
 export const ToolCard: React.FC<ToolCardProps> = ({ toolCall }) => {
   const [expanded, setExpanded] = useState(true)
 

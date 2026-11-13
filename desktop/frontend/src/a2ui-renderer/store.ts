@@ -158,6 +158,7 @@ export interface Action {
   functionCall?: FunctionCall
 }
 
+/** 组件交互事件：name 为事件名，context 为随事件回传的上下文数据。 */
 export interface ActionEvent {
   name: string
   context?: Record<string, unknown>
@@ -189,6 +190,7 @@ export interface ClientAction {
   context: Record<string, unknown>
 }
 
+/** 客户端错误上报结构：错误码、所属 surface、路径与描述。 */
 export interface ClientError {
   code: string
   surfaceId?: string
@@ -196,6 +198,7 @@ export interface ClientError {
   message: string
 }
 
+/** 客户端 data model 上报负载：surface ID → data model 映射。 */
 export interface ClientDataModelPayload {
   surfaces: Record<string, unknown>
 }
@@ -224,6 +227,7 @@ export class SurfaceExistsError extends Error {
   }
 }
 
+/** surface 不存在时抛出的错误（查找/更新未知 surface）。 */
 export class SurfaceNotFoundError extends Error {
   constructor(surfaceId: string) {
     super(`a2ui: surface not found: ${surfaceId}`)

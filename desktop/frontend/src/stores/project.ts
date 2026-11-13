@@ -18,6 +18,7 @@ import {
   type ProjectInfo as ProjectInfoBackend,
 } from '@/lib/backend'
 
+/** 项目摘要类型（与后端 ProjectInfo 同构）。 */
 export type ProjectInfo = ProjectInfoBackend
 
 interface ProjectState {
@@ -39,6 +40,7 @@ interface ProjectState {
   switchProject: (projectID: string) => Promise<void>
 }
 
+/** 项目 store：加载项目列表、新建/打开/切换当前项目。 */
 export const useProjectStore = create<ProjectState>((set) => ({
   current: null,
   projects: [],

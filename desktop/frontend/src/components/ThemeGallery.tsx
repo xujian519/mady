@@ -19,6 +19,7 @@ interface ThemeExportFile {
   pack: string
 }
 
+/** 主题画廊：网格展示全部主题包，支持切换与导入/导出主题配置。 */
 export const ThemeGallery: React.FC = () => {
   const { themePack, setThemePack, isDark, mode, setMode } = useTheme()
   const fileInputRef = React.useRef<HTMLInputElement>(null)

@@ -15,6 +15,7 @@ import type React from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 滑块：在 min/max/step 范围内取值，变更时回传 inputChanged。 */
 export const SliderComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const label = resolveDynamic(component.props.label, context.surface.dataModel, context.functions) as string | undefined

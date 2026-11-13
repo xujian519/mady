@@ -26,6 +26,7 @@ interface ModalShellProps {
   children: React.ReactNode
 }
 
+/** 模态覆盖层基础封装：统一 dialog 语义、Esc/遮罩关闭与焦点陷阱。 */
 export const ModalShell: React.FC<ModalShellProps> = ({ onClose, ariaLabel, children }) => {
   const panelRef = useRef<HTMLDivElement>(null)
   // 惰性初始化：挂载序号越大越晚挂载（越顶层）。useState 初始化只执行一次。

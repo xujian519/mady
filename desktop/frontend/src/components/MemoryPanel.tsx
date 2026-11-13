@@ -51,6 +51,7 @@ const MemoryRow: React.FC<{ entry: MemoryEntry }> = ({ entry }) => {
   )
 }
 
+/** 记忆面板：列出三层记忆，支持语义检索、手动写入与删除。 */
 export const MemoryPanel: React.FC = () => {
   const { data: memories = [] } = useMemories()
   const [query, setQuery] = useState('')

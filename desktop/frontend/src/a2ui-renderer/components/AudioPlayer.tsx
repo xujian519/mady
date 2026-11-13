@@ -11,6 +11,7 @@ import { useMemo } from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 音频播放器：解析动态 src/title 后渲染原生 audio 控件。 */
 export const AudioPlayerComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const src = resolveDynamic(component.props.src, context.surface.dataModel, context.functions) as string | undefined

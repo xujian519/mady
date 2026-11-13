@@ -62,6 +62,7 @@ export interface ApprovalPrompt {
   surfaceId?: string
 }
 
+/** 审批可选项：展示文案与回传值。 */
 export interface ApprovalOption {
   label: string
   value: string

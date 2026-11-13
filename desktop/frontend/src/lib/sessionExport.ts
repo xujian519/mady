@@ -12,6 +12,7 @@ import type { Message, ToolCall } from '@/stores/chat'
 
 export type ExportFormat = 'markdown' | 'json'
 
+/** 导出选项：格式、标题以及是否包含时间戳与工具调用。 */
 export interface ExportOptions {
   format: ExportFormat
   title?: string

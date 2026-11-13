@@ -18,6 +18,7 @@ import type React from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 文本输入：支持单行与多行，输入后通过 onAction 回传 inputChanged。 */
 export const TextFieldComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const label = resolveDynamic(component.props.label, context.surface.dataModel, context.functions)

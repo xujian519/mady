@@ -13,6 +13,7 @@ import type React from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 下拉选择器：选项来自 props.options，选中后回传 inputChanged 事件。 */
 export const ChoicePickerComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const label = resolveDynamic(component.props.label, context.surface.dataModel, context.functions) as string | undefined

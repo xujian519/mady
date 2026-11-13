@@ -8,6 +8,7 @@
 
 export type CommandCategory = 'navigation' | 'template' | 'skill' | 'command' | 'action'
 
+/** 命令面板条目：id/title/分类/关键词与执行回调。 */
 export interface PaletteCommand {
   id: string
   title: string

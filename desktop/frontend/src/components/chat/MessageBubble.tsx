@@ -22,6 +22,7 @@ interface MessageBubbleProps {
   isStreaming?: boolean
 }
 
+/** 消息气泡：用户消息右对齐，agent 消息左对齐并支持流式边框。 */
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isStreaming = false,

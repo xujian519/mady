@@ -10,6 +10,7 @@ import { listenToWailsEvent } from '@/lib/wails'
 import { useChatStore } from '@/stores/chat'
 import { AlertCircle } from 'lucide-react'
 
+/** 启动加载层：订阅初始化进度事件，完成后淡出并标记应用就绪。 */
 export function SplashScreen() {
   const [visible, setVisible] = useState(true)
   const [progress, setProgress] = useState('正在初始化引擎...')

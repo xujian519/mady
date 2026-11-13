@@ -8,6 +8,7 @@
 
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 水平布局容器：按 gap/alignment 排列子组件。 */
 export const RowComponent: A2UIComponent = ({ component, children }) => {
   const gap = (component.props.gap as number) ?? 8
   const alignment = (component.props.alignment as string) ?? 'start'

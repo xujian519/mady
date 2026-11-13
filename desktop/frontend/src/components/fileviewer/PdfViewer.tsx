@@ -61,6 +61,7 @@ function makeLinkServiceStub() {
   }
 }
 
+/** PDF 只读查看器：pdf.js 逐页渲染，支持分页、缩放与批注展示。 */
 export const PdfViewer: React.FC<PdfViewerProps> = ({ data, name }) => {  const [doc, setDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [pageNum, setPageNum] = useState(1)
   const [numPages, setNumPages] = useState(0)

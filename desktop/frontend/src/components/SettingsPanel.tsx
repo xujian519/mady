@@ -33,6 +33,7 @@ interface Toast {
 /** 全屏设置页左侧导航分区 ID（规范 §3.3 SettingsNav）。 */
 type SettingsSectionId = 'appearance' | 'ai' | 'model' | 'mcp' | 'about'
 
+/** 设置面板覆盖层：外观、AI 服务、模型、MCP 与关于等分区。 */
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   // 关于区版本号：优先展示 health().version（后端 ldflags 注入），未取到则回退占位。
   const [appVersion, setAppVersion] = React.useState<string | null>(null)

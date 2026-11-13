@@ -12,6 +12,7 @@ interface MarkdownPreviewProps {
   content: string
 }
 
+/** Markdown 预览：带滚动容器包装 MarkdownRenderer。 */
 export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content }) => (
   <div className="h-full overflow-y-auto p-4">
     <MarkdownRenderer content={content} />

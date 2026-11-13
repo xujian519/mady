@@ -31,6 +31,7 @@ export interface ThemePackVars {
   background: string
 }
 
+/** 主题包定义：标识、展示信息与亮/暗两套 CSS 变量。 */
 export interface ThemePack {
   /** 唯一标识符。 */
   id: string

@@ -13,6 +13,7 @@ interface ImagePreviewProps {
   name: string
 }
 
+/** 图片预览：支持按钮缩放、Ctrl/⌘+滚轮缩放与双击切换 100%/200%。 */
 export const ImagePreview: React.FC<ImagePreviewProps> = ({ data, mime, name }) => {
   const [zoom, setZoom] = useState(1)
   const prevZoomRef = useRef(1)

@@ -42,6 +42,7 @@ export interface CommandPaletteProps {
   commands: PaletteCommand[]
 }
 
+/** ⌘K 命令面板：聚合导航、模板、技能与操作命令，支持模糊搜索与键盘选择。 */
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, commands }) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')

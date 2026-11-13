@@ -39,6 +39,7 @@ const SCOPE_OPTIONS = [
 const inputCls =
   'w-full rounded-lg px-3 py-2 bg-mady-bg-primary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent focus:ring-2 focus:ring-mady-accent/20 transition-all duration-150 font-mono text-mady-small'
 
+/** 知识库管理覆盖层：状态概览、索引范围选择与嵌入/Rerank 模型设置。 */
 export const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onClose }) => {
   const knowledgeQuery = useKnowledgeStatus()
   const data = knowledgeQuery.data ?? null

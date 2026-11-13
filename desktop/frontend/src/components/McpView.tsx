@@ -16,6 +16,7 @@ interface McpViewProps {
   onClose: () => void
 }
 
+/** MCP 服务器只读覆盖层：展示全局与项目 mcp.json 中的服务器配置。 */
 export const McpView: React.FC<McpViewProps> = ({ onClose }) => {
   const serversQuery = useMcpServers()
   const servers = serversQuery.data ?? []

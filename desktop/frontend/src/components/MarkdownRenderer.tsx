@@ -30,6 +30,7 @@ interface MarkdownRendererProps {
   className?: string
 }
 
+/** 轻量 Markdown 渲染器：按受支持的标记子集输出 React 元素（与 goldmark 对齐）。 */
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
   className = '',

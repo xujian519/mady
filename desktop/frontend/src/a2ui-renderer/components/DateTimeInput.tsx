@@ -13,6 +13,7 @@ import type React from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 日期/时间输入：按 type 渲染 date/time/datetime-local，变更后回传 inputChanged。 */
 export const DateTimeInputComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const label = resolveDynamic(component.props.label, context.surface.dataModel, context.functions) as string | undefined

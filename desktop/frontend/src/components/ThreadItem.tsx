@@ -22,6 +22,7 @@ interface ThreadItemProps {
   onRename?: (name: string) => void
 }
 
+/** 会话列表单项：标题/时间展示，支持两段式删除与行内重命名。 */
 export const ThreadItem: React.FC<ThreadItemProps> = ({
   thread,
   active = false,

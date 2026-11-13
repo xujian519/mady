@@ -12,6 +12,7 @@ import React from 'react'
 import { useChatStore } from '@/stores/chat'
 import { DollarSign } from 'lucide-react'
 
+/** 用量条：以胶囊样式展示上下文已用/总额，颜色随占用分级。 */
 export const UsageStrip: React.FC = () => {
   const contextUsagePercent = useChatStore((s) => s.contextUsagePercent)
   const contextTotalTokens = useChatStore((s) => s.contextTotalTokens)

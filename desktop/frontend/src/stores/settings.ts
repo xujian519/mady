@@ -51,6 +51,7 @@ interface SettingsActions {
 /** 布局模式。 */
 export type LayoutMode = 'standard' | 'focus'
 
+/** 设置 store 类型：持久化的设置状态与更新/重置动作。 */
 export type SettingsStore = SettingsState & SettingsActions
 
 const DEFAULTS: SettingsState = {
@@ -65,6 +66,7 @@ const DEFAULTS: SettingsState = {
   temperature: 0.7,
 }
 
+/** 设置 store（localStorage 持久化为 mady-settings）。 */
 export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set) => ({

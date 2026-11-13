@@ -75,6 +75,7 @@ export interface FileEntry {
   modTime: number
 }
 
+/** 后端健康信息：当前 provider/model、版本与运行时长。 */
 export interface HealthInfo {
   provider: string
   model: string

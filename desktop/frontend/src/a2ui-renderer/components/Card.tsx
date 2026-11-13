@@ -10,6 +10,7 @@ import { useMemo } from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 卡片容器：可选标题 + 内容插槽，支持 default/elevated/outlined 三种外观。 */
 export const CardComponent: A2UIComponent = ({ component, context, children }) => {
   const resolved = useMemo(() => {
     const title = resolveDynamic(component.props.title, context.surface.dataModel, context.functions)

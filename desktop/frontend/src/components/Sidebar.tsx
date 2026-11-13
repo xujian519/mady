@@ -27,6 +27,7 @@ interface SidebarProps {
   onSettings: () => void
 }
 
+/** 左侧导航栏：会话列表 / 项目树 / 记忆面板切换与设置入口。 */
 export const Sidebar: React.FC<SidebarProps> = ({ onNewChat: _onNewChat, onSettings }) => {
   // 会话列表真相源：TanStack Query（App.tsx 常驻挂载，F-B3）
   const { data: threadList = [] } = useThreads()

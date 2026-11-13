@@ -11,6 +11,7 @@
 
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 列表容器：纵向排列子组件（静态 children 已由渲染器展开）。 */
 export const ListComponent: A2UIComponent = ({ children }) => {
   return (
     <div className="flex flex-col gap-2">

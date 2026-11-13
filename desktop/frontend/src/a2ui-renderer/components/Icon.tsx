@@ -11,6 +11,7 @@ import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 import * as LucideIcons from 'lucide-react'
 
+/** A2UI 图标：按 lucide-react 名称动态取图标组件，未命中时回退为名称文本。 */
 export const IconComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const iconName = resolveDynamic(component.props.icon, context.surface.dataModel, context.functions) as string | undefined

@@ -12,6 +12,7 @@ import { useMemo } from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 文本：解析动态 content，按 body/heading/caption 变体渲染，空值时返回 null。 */
 export const TextComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const content = resolveDynamic(component.props.content, context.surface.dataModel, context.functions)

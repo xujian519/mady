@@ -13,6 +13,7 @@
 import React from 'react'
 import { FileText, ExternalLink, X } from 'lucide-react'
 
+/** 文档预览文件描述：类型（html/pdf/text/md）与内容或本地路径。 */
 export interface DocViewerFile {
   /** 文件名。 */
   name: string
@@ -37,6 +38,7 @@ interface DocumentViewerProps {
   onClose: () => void
 }
 
+/** 分屏文档预览面板：按类型内嵌 HTML、调用系统应用打开 PDF、渲染文本/Markdown。 */
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, onClose }) => {
   if (!file) {
     return (

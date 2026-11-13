@@ -82,6 +82,7 @@ interface SlashCommandMenuProps {
   onClose: () => void
 }
 
+/** 斜杠命令菜单：按当前查询过滤内置命令并支持键盘选择。 */
 export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
   query,
   onSelect,

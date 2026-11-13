@@ -8,6 +8,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as backend from '@/lib/backend'
 
+/** 记忆查询的 TanStack Query key 工厂（列表与语义检索）。 */
 export const memoryKeys = {
   all: ['memories'] as const,
   search: (q: string) => ['memories', 'search', q] as const,

@@ -16,6 +16,7 @@ interface TabDef {
   label?: string
 }
 
+/** A2UI 标签页：只渲染标签头，并显示当前激活下标对应的子组件。 */
 export const TabsComponent: A2UIComponent = ({ component, children }) => {
   const tabs = (component.props.tabs as TabDef[] | undefined) ?? []
   const [activeIdx, setActiveIdx] = useState(0)

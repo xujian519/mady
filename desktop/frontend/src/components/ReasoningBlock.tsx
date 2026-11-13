@@ -15,6 +15,7 @@ interface ReasoningBlockProps {
   content: string
 }
 
+/** 推理折叠块：默认折叠显示摘要，展开查看完整推理内容。 */
 export const ReasoningBlock: React.FC<ReasoningBlockProps> = ({
   content,
 }) => {

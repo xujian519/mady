@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 模态弹窗：触发器点击后显示遮罩与内容，支持受控 open 与内部展开。 */
 export const ModalComponent: A2UIComponent = ({ component, context, children }) => {
   const resolved = useMemo(() => {
     const title = resolveDynamic(component.props.title, context.surface.dataModel, context.functions) as string | undefined

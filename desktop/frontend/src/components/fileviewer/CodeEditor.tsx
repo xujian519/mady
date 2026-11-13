@@ -66,6 +66,7 @@ const baseTheme = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
 })
 
+/** CodeMirror 6 编辑器封装：Markdown/纯文本高亮、行号与 Cmd/Ctrl+S 保存。 */
 export const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, onSave, markdown: isMd }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)

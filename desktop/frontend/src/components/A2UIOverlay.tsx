@@ -39,6 +39,7 @@ function handleAction(
   })
 }
 
+/** A2UI 渲染容器：遍历 store 中所有活跃 surface 并接线交互到后端 sendAction。 */
 export const A2UIOverlay: React.FC = () => {
   const surfaces = useA2UIStore((s) => s.surfaces)
   const functions = useA2UIStore((s) => s.functions)

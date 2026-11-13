@@ -12,6 +12,7 @@ import { useMemo } from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 视频播放器：解析动态 src/poster，渲染带控制条的原生 video。 */
 export const VideoComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const src = resolveDynamic(component.props.src, context.surface.dataModel, context.functions) as string | undefined

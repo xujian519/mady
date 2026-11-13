@@ -29,6 +29,7 @@ const STATUS_LABEL: Record<string, { label: string; icon: React.ReactNode }> = {
   completed:   { label: '完成',   icon: <CheckCircle2 size={10} className="text-mady-success" /> },
 }
 
+/** 底部待办坞：折叠展示 agent 任务列表，按优先级与状态排序。 */
 export const TodoDock: React.FC = () => {
   const tasks = useChatStore((s) => s.tasks)
   const [expanded, setExpanded] = useState(false)

@@ -21,6 +21,7 @@ function levelColor(percent: number): string {
   return 'var(--color-mady-text-tertiary)'
 }
 
+/** 上下文用量环形指示器：SVG 圆环展示占用比例，悬停显示精确用量。 */
 export const ContextWindowRing: React.FC<Props> = ({ radius = 14 }) => {
   const percent = useChatStore((s) => s.contextUsagePercent)
   const totalTokens = useChatStore((s) => s.contextTotalTokens)

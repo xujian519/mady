@@ -11,6 +11,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 复选框：本地维护选中态，变更时通过 onAction 回传 inputChanged。 */
 export const CheckBoxComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const label = resolveDynamic(component.props.label, context.surface.dataModel, context.functions) as string | undefined

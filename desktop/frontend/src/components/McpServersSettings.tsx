@@ -9,6 +9,7 @@ import React, { useCallback } from 'react'
 import { useMcpServers } from '@/queries/mcp'
 import { Loader2, AlertCircle, Server, RefreshCw, Globe, Terminal, Plug, CheckCircle } from 'lucide-react'
 
+/** MCP 服务器设置区段：展示服务器名称、类型与来源，可手动刷新。 */
 export const McpServersSettings: React.FC = () => {
   const serversQuery = useMcpServers()
   const servers = serversQuery.data ?? []

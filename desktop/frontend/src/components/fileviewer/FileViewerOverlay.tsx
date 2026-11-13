@@ -27,6 +27,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+/** 文件查看/编辑浮层：按文件类型分派编辑器、Markdown/图片/PDF 预览。 */
 export const FileViewerOverlay: React.FC = () => {
   const { current, loading, saving, error, draft, closeFile, setDraft, saveFile } = useFilesStore()
   const dirty = draft !== null

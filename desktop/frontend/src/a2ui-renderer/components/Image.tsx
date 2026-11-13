@@ -13,6 +13,7 @@ import { useMemo } from 'react'
 import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 
+/** A2UI 图片：解析动态尺寸与 fit，懒加载渲染，无 src 时显示占位块。 */
 export const ImageComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const src = resolveDynamic(component.props.src, context.surface.dataModel, context.functions) as string | undefined

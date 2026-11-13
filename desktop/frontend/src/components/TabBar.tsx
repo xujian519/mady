@@ -9,6 +9,7 @@ import React from 'react'
 import { useTabsStore } from '@/stores/tabs'
 import { Plus, X } from 'lucide-react'
 
+/** 会话标签栏：展示标签列表并支持新建、切换与关闭。 */
 export const TabBar: React.FC = () => {
   const tabs = useTabsStore((s) => s.tabs)
   const activeTabId = useTabsStore((s) => s.activeTabId)

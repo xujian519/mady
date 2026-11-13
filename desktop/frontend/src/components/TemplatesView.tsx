@@ -10,6 +10,7 @@ import { FileText, Search, X, Loader } from 'lucide-react'
 import { useDocTemplates, type DocTemplateEntry } from '@/queries/templates'
 import { ModalShell } from './ModalShell'
 
+/** 模板库视图属性：关闭回调与选用模板回调。 */
 export interface TemplatesViewProps {
   /** 关闭回调。 */
   onClose: () => void

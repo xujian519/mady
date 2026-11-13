@@ -25,6 +25,7 @@ interface ConfirmDialogProps {
   onCancel?: () => void
 }
 
+/** 轻量确认/提示对话框：替代 WKWebView 不可用的 window.confirm/alert。 */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   open,
   title,

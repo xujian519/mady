@@ -16,6 +16,7 @@ import { resolveDynamic } from '../dynamic'
 import type { A2UIComponent } from '../registry'
 import type { Action } from '../store'
 
+/** A2UI 按钮：按 variant 渲染样式，点击时把 event 分派给 onAction 或本地执行 functionCall。 */
 export const ButtonComponent: A2UIComponent = ({ component, context }) => {
   const resolved = useMemo(() => {
     const label = resolveDynamic(component.props.label, context.surface.dataModel, context.functions)

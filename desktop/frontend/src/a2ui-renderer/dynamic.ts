@@ -15,6 +15,7 @@ import { getData } from './datamodel'
 
 export type DynamicKind = 'literal' | 'bind' | 'call'
 
+/** Dynamic 值识别结果：kind 为形态分类，data 为原始待解析值。 */
 export interface ClassifiedDynamic {
   kind: DynamicKind
   data: unknown

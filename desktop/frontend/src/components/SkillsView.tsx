@@ -20,6 +20,7 @@ interface SkillsViewProps {
   onClose: () => void
 }
 
+/** 技能管理面板：左侧技能列表，右侧 SKILL.md 预览/编辑与保存。 */
 export const SkillsView: React.FC<SkillsViewProps> = ({ onClose }) => {
   const skillsQuery = useSkills()
   const skills = skillsQuery.data ?? []
